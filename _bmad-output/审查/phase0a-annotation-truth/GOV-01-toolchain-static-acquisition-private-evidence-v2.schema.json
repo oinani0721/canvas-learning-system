@@ -1233,24 +1233,101 @@
         "absent_states": { "const": ["ABSENT", "ABSENT", "ABSENT", "ABSENT", "ABSENT", "ABSENT"] }
       }
     },
+    "gitControlMarker": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": { "kind": { "const": "directory" } }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "raw_sha256", "bytes"],
+          "properties": {
+            "kind": { "const": "gitfile" },
+            "raw_sha256": { "$ref": "#/$defs/sha256" },
+            "bytes": { "type": "integer", "minimum": 1, "maximum": 4096 }
+          }
+        }
+      ]
+    },
+    "gitCommonDirState": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["state"],
+          "properties": { "state": { "const": "ABSENT" } }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["state", "raw_sha256", "bytes"],
+          "properties": {
+            "state": { "const": "PRESENT" },
+            "raw_sha256": { "$ref": "#/$defs/sha256" },
+            "bytes": { "type": "integer", "minimum": 1, "maximum": 4096 }
+          }
+        }
+      ]
+    },
+    "gitControl": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["marker", "commondir", "git_dir_locator_commitment", "common_dir_locator_commitment"],
+      "properties": {
+        "marker": { "$ref": "#/$defs/gitControlMarker" },
+        "commondir": { "$ref": "#/$defs/gitCommonDirState" },
+        "git_dir_locator_commitment": { "$ref": "#/$defs/keyedCommitment" },
+        "common_dir_locator_commitment": { "$ref": "#/$defs/keyedCommitment" }
+      }
+    },
     "gitSnapshot": {
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "head", "tree", "object_format", "status_sha256", "status_bytes",
-        "refs_sha256", "refs_bytes", "index", "config", "hooks",
+        "git_control", "head", "tree", "object_format", "status_sha256", "status_bytes",
+        "dirty_manifest_commitment", "worktree_tree_exclusions", "worktree_exact_file_exclusions",
+        "refs_sha256", "refs_bytes", "index", "index_root_tree_oid", "index_version", "index_entry_count",
+        "index_extension_profile", "index_extension_count", "index_extension_receipt_sha256",
+        "index_recomputation_profile", "adapter_index_sanitization_profile", "adapter_index_sha256",
+        "adapter_index_bytes", "config", "hooks",
         "index_locator_commitment", "config_locator_commitment", "hooks_locator_commitment",
-        "hooks_config_state", "git_binary_sha256", "commitment"
+        "hooks_config_state", "git_binary_sha256", "git_metadata_source_commitment",
+        "git_metadata_adapter_profile", "git_metadata_adapter_cleanup_state",
+        "git_metadata_adapter_residue_count", "live_git_control_child_read_count", "commitment"
       ],
       "properties": {
+        "git_control": { "$ref": "#/$defs/gitControl" },
         "head": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" },
         "tree": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" },
         "object_format": { "enum": ["sha1", "sha256"] },
         "status_sha256": { "$ref": "#/$defs/sha256" },
         "status_bytes": { "type": "integer", "minimum": 0 },
+        "dirty_manifest_commitment": { "$ref": "#/$defs/keyedCommitment" },
+        "worktree_tree_exclusions": {
+          "type": "array", "minItems": 0, "maxItems": 8, "uniqueItems": true,
+          "items": { "$ref": "#/$defs/repoRelativePath" }
+        },
+        "worktree_exact_file_exclusions": {
+          "type": "array", "minItems": 0, "maxItems": 8, "uniqueItems": true,
+          "items": { "$ref": "#/$defs/repoRelativePath" }
+        },
         "refs_sha256": { "$ref": "#/$defs/sha256" },
         "refs_bytes": { "type": "integer", "minimum": 0 },
         "index": { "$ref": "#/$defs/privateFileFingerprint" },
+        "index_root_tree_oid": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" },
+        "index_version": { "enum": [2, 3] },
+        "index_entry_count": { "type": "integer", "minimum": 0, "maximum": 250000 },
+        "index_extension_profile": { "const": "optional-uppercase-extensions-framed-and-digested-then-stripped-from-child-index-v2" },
+        "index_extension_count": { "type": "integer", "minimum": 0, "maximum": 250000 },
+        "index_extension_receipt_sha256": { "$ref": "#/$defs/sha256" },
+        "index_recomputation_profile": { "const": "captured-index-v2-v3-stage0-strict-framing-bottom-up-root-tree-oid-v2" },
+        "adapter_index_sanitization_profile": { "const": "captured-entry-region-no-extensions-rechecksummed-v2" },
+        "adapter_index_sha256": { "$ref": "#/$defs/sha256" },
+        "adapter_index_bytes": { "type": "integer", "minimum": 1, "maximum": 134217728 },
         "config": { "$ref": "#/$defs/privateFileFingerprint" },
         "hooks": { "oneOf": [ { "$ref": "#/$defs/privateFileFingerprint" }, { "$ref": "#/$defs/privateTreeFingerprint" } ] },
         "index_locator_commitment": { "$ref": "#/$defs/keyedCommitment" },
@@ -1258,8 +1335,23 @@
         "hooks_locator_commitment": { "$ref": "#/$defs/keyedCommitment" },
         "hooks_config_state": { "enum": ["configured-dev-null", "configured-git-contained", "default-git-path"] },
         "git_binary_sha256": { "$ref": "#/$defs/sha256" },
+        "git_metadata_source_commitment": { "$ref": "#/$defs/keyedCommitment" },
+        "git_metadata_adapter_profile": { "const": "checkpoint-scoped-private-temp-sanitized-exact-oid-identity-bound-git-fd-metadata-adapter-v3" },
+        "git_metadata_adapter_cleanup_state": { "const": "removed" },
+        "git_metadata_adapter_residue_count": { "const": 0 },
+        "live_git_control_child_read_count": { "const": 0 },
         "commitment": { "$ref": "#/$defs/keyedCommitment" }
-      }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "object_format": { "const": "sha1" } }, "required": ["object_format"] },
+          "then": { "properties": { "head": { "pattern": "^[0-9a-f]{40}$" }, "tree": { "pattern": "^[0-9a-f]{40}$" }, "index_root_tree_oid": { "pattern": "^[0-9a-f]{40}$" } } }
+        },
+        {
+          "if": { "properties": { "object_format": { "const": "sha256" } }, "required": ["object_format"] },
+          "then": { "properties": { "head": { "pattern": "^[0-9a-f]{64}$" }, "tree": { "pattern": "^[0-9a-f]{64}$" }, "index_root_tree_oid": { "pattern": "^[0-9a-f]{64}$" } } }
+        }
+      ]
     },
     "privateFileFingerprint": {
       "type": "object", "additionalProperties": false,
@@ -1300,6 +1392,7 @@
             "python-verifier",
             "xcode-select-resolver",
             "xcrun-resolver",
+            "git-metadata-adapter-bootstrap",
             "git-read-only-evidence",
             "pgrep-read-only-evidence",
             "lsof-read-only-evidence"
@@ -1312,7 +1405,7 @@
         "environment_name_allowlist": {
           "type": "array",
           "uniqueItems": true,
-          "items": { "enum": ["HOME", "TMPDIR", "PATH", "LC_ALL", "LANG", "TZ", "PYTHONDONTWRITEBYTECODE", "PYTHONNOUSERSITE", "GIT_OPTIONAL_LOCKS", "GIT_CONFIG_GLOBAL", "GIT_CONFIG_NOSYSTEM", "GIT_TERMINAL_PROMPT"] }
+          "items": { "enum": ["HOME", "TMPDIR", "PATH", "LC_ALL", "LANG", "TZ", "PYTHONDONTWRITEBYTECODE", "PYTHONNOUSERSITE", "GIT_OPTIONAL_LOCKS", "GIT_CONFIG_GLOBAL", "GIT_CONFIG_NOSYSTEM", "GIT_CONFIG_SYSTEM", "GIT_TERMINAL_PROMPT", "GIT_NO_REPLACE_OBJECTS", "GIT_PROTOCOL_FROM_USER", "GIT_ALLOW_PROTOCOL", "GIT_ATTR_NOSYSTEM", "GIT_DISCOVERY_ACROSS_FILESYSTEM", "GIT_OBJECT_DIRECTORY"] }
         },
         "stdin": { "const": "/dev/null" },
         "stdout_raw_sha256": { "$ref": "#/$defs/sha256" },
@@ -1448,8 +1541,8 @@
         "checker_interface": { "const": "gov01-ledger-semantic-checker-v2" },
         "artifact_role": { "const": "static-executor" },
         "repo_relative_path": { "const": "_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-v2.py" },
-        "raw_file_sha256": { "const": "249ee80cfc9a23369acd5a43cb4f1c2d6b259aaef110ac4136287d2e2a48a807" },
-        "byte_length": { "const": 657679 },
+        "raw_file_sha256": { "const": "fe802f66cf7f793e67bd89dbc5f3e8bed93064fc40bee7901be6f954ba5fe248" },
+        "byte_length": { "const": 681991 },
         "hmac_domain": { "const": "CLS/GOV01/STATIC-ACQUISITION-LEDGER/v2" },
         "assurance": { "const": "content-addressed-runtime-self-attested-not-pre-exec" }
       }

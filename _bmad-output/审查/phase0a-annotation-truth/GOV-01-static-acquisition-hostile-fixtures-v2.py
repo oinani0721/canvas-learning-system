@@ -2497,6 +2497,15 @@ int main(int argc, char **argv) {
                     in bootstrap_write_profile
                 )
                 manifest = capture["adapter_object_manifest"]
+                adapter_index_raw = pathlib.Path(boundary.git_dir, "index").read_bytes()
+                adapter_index_observation = acquisition["parse_captured_git_index"](
+                    adapter_index_raw,
+                    len(capture["head_oid"]),
+                )
+                assert adapter_index_observation["index_extension_count"] == 0
+                assert adapter_index_observation["index_root_tree_oid"] == capture[
+                    "index_tree_observation"
+                ]["index_root_tree_oid"]
                 assert manifest["approved_artifact_blob_count"] == len(
                     acquisition["PENDING_STATIC_ARTIFACT_SPECS"]
                 )
@@ -2512,13 +2521,16 @@ int main(int argc, char **argv) {
                     (["rev-parse", "--show-object-format"], "ADAPTER_FORMAT"),
                 ):
                     acquisition["safe_git_scalar"](git_binary, str(repo), boundary, arguments, label)
-                acquisition["run_git"](
-                    git_binary, str(repo), boundary,
-                    ["status", "--porcelain=v2", "-z", "--untracked-files=all"],
-                    "ADAPTER_STATUS", enumerates_worktree=True,
-                    authorized_tree_excludes=(stage, "node_modules"),
-                    authorized_exact_file_excludes=(envelope_relative,),
-                )
+                for dirty_arguments, dirty_label in (
+                    (["diff-files", "--name-only", "-z"], "ADAPTER_DIFF_FILES"),
+                    (["ls-files", "--others", "--exclude-standard", "-z"], "ADAPTER_LS_FILES_OTHERS"),
+                ):
+                    acquisition["run_git"](
+                        git_binary, str(repo), boundary, dirty_arguments,
+                        dirty_label, enumerates_worktree=True,
+                        authorized_tree_excludes=(stage, "node_modules"),
+                        authorized_exact_file_excludes=(envelope_relative,),
+                    )
                 acquisition["run_git"](git_binary, str(repo), boundary, ["show-ref"], "ADAPTER_REFS")
                 artifact_path = acquisition["PENDING_STATIC_ARTIFACT_SPECS"][0][1]
                 acquisition["run_git"](
@@ -2541,8 +2553,8 @@ int main(int argc, char **argv) {
             prefix_length = len(acquisition["git_hardened_child_argv"](git_binary, str(repo), ".", ()))
             tails = [tuple(argv[prefix_length:]) for argv, _kwargs in invocations if argv[0] == git_binary]
             assert {tail[0] for tail in tails} >= {
-                "rev-parse", "cat-file", "ls-tree", "status", "show-ref", "show",
-                "pack-objects", "index-pack", "verify-pack",
+                "rev-parse", "cat-file", "ls-tree", "diff-files", "ls-files",
+                "show-ref", "show", "pack-objects", "index-pack", "verify-pack",
             }
             assert all(
                 kwargs.get("working_directory_fd") is not None
@@ -3147,10 +3159,12 @@ int main(int argc, char **argv) {
 
             expect_error(
                 "adapter tree gitlink",
-                lambda: acquisition["parse_git_tree_object_entries"](
-                    b"160000 submodule\x00" + (b"\x01" * 20), 40
+                lambda: acquisition["select_required_git_tree_entries"](
+                    b"160000 submodule\x00" + (b"\x01" * 20),
+                    40,
+                    {b"submodule": None},
                 ),
-                "GIT_TREE_OBJECT_TYPE",
+                "GIT_OBJECT_APPROVED_BLOB_MODE",
             )
             for private_path in (".obsidian/sentinel", "prefix-canvas-vault-secret/sentinel"):
                 expect_error(
@@ -3176,6 +3190,299 @@ int main(int argc, char **argv) {
     report["git_metadata_adapter_private_tmp_residue_set_unchanged"] = "PASS"
 
 
+def run_partial_git_boundary_fixtures(acquisition, report):
+    oid_bytes = 20
+    oid_length = oid_bytes * 2
+
+    def index_bytes(entries, *, version=2, extension=None):
+        body = bytearray(b"DIRC" + version.to_bytes(4, "big") + len(entries).to_bytes(4, "big"))
+        for path, mode, oid in sorted(entries, key=lambda entry: entry[0]):
+            fixed = bytearray(40 + oid_bytes + 2)
+            fixed[24:28] = mode.to_bytes(4, "big")
+            fixed[40:40 + oid_bytes] = oid
+            fixed[40 + oid_bytes:42 + oid_bytes] = len(path).to_bytes(2, "big")
+            entry = fixed + path + b"\x00"
+            entry.extend(b"\x00" * ((-len(entry)) % 8))
+            body.extend(entry)
+        if extension is not None:
+            signature, payload = extension
+            body.extend(signature + len(payload).to_bytes(4, "big") + payload)
+        return bytes(body) + hashlib.sha1(body).digest()
+
+    specs = acquisition["PENDING_STATIC_ARTIFACT_SPECS"]
+    entries = []
+    for index, (_role, path) in enumerate(specs, 1):
+        entries.append((path.encode("utf-8"), 0o100644, hashlib.sha1(str(index).encode("ascii")).digest()))
+    raw_index = index_bytes(entries, extension=(b"TEST", b"opaque-extension"))
+    observation = acquisition["parse_captured_git_index"](raw_index, oid_length)
+    assert observation["index_version"] == 2
+    assert observation["index_entry_count"] == 20
+    assert observation["index_extension_count"] == 1
+    assert len(observation["index_root_tree_oid"]) == oid_length
+    sanitized = observation["sanitized_index_bytes"]
+    sanitized_observation = acquisition["parse_captured_git_index"](sanitized, oid_length)
+    assert sanitized_observation["index_extension_count"] == 0
+    assert sanitized_observation["index_root_tree_oid"] == observation["index_root_tree_oid"]
+    assert sanitized_observation["adapter_index_bytes"] == len(sanitized)
+    eoie_observation = acquisition["parse_captured_git_index"](
+        index_bytes(entries, extension=(b"EOIE", b"opaque-offset-cache")),
+        oid_length,
+    )
+    assert eoie_observation["index_extension_count"] == 1
+    assert acquisition["parse_captured_git_index"](
+        eoie_observation["sanitized_index_bytes"], oid_length
+    )["index_extension_count"] == 0
+    one_blob = b"\x01" * oid_bytes
+    child_content = b"100644 b\x00" + one_blob
+    child_oid = hashlib.sha1(
+        b"tree " + str(len(child_content)).encode("ascii") + b"\x00" + child_content
+    ).digest()
+    root_content = b"40000 a\x00" + child_oid
+    expected_root = hashlib.sha1(
+        b"tree " + str(len(root_content)).encode("ascii") + b"\x00" + root_content
+    ).hexdigest()
+    one_observation = acquisition["parse_captured_git_index"](
+        index_bytes([(b"a/b", 0o100644, one_blob)]),
+        oid_length,
+    )
+    assert one_observation["index_root_tree_oid"] == expected_root
+    corrupted = bytearray(raw_index)
+    corrupted[-1] ^= 1
+    expect_error(
+        "captured index checksum",
+        lambda: acquisition["parse_captured_git_index"](bytes(corrupted), oid_length),
+        "GIT_INDEX_CHECKSUM",
+    )
+    expect_error(
+        "captured index v4",
+        lambda: acquisition["parse_captured_git_index"](index_bytes(entries, version=4), oid_length),
+        "GIT_INDEX_VERSION",
+    )
+    expect_error(
+        "captured index required extension",
+        lambda: acquisition["parse_captured_git_index"](
+            index_bytes(entries, extension=(b"link", b"shared-index")), oid_length
+        ),
+        "GIT_INDEX_EXTENSION",
+    )
+    expect_error(
+        "captured index gitlink",
+        lambda: acquisition["parse_captured_git_index"](
+            index_bytes([(b"submodule", 0o160000, b"g" * oid_bytes)]), oid_length
+        ),
+        "GIT_INDEX_MODE",
+    )
+    expect_error(
+        "captured index dot-git component",
+        lambda: acquisition["parse_captured_git_index"](
+            index_bytes([(b"safe/.GIT/config", 0o100644, b"d" * oid_bytes)]), oid_length
+        ),
+        "GIT_INDEX_PATH",
+    )
+    assumed_path = b"assumed.txt"
+    assumed_index = bytearray(
+        index_bytes([(assumed_path, 0o100644, b"a" * oid_bytes)])
+    )
+    flags_offset = 12 + 40 + oid_bytes
+    assumed_index[flags_offset:flags_offset + 2] = (
+        0x8000 | len(assumed_path)
+    ).to_bytes(2, "big")
+    assumed_index[-oid_bytes:] = hashlib.sha1(assumed_index[:-oid_bytes]).digest()
+    expect_error(
+        "captured index assume unchanged",
+        lambda: acquisition["parse_captured_git_index"](bytes(assumed_index), oid_length),
+        "GIT_INDEX_ASSUME_UNCHANGED",
+    )
+
+    wanted_oid = b"w" * oid_bytes
+    sibling_oid = b"s" * oid_bytes
+    records = [
+        (b"wanted\x00", b"100644 wanted\x00" + wanted_oid),
+        (b"\xff-private\x00", b"100644 \xff-private\x00" + sibling_oid),
+    ]
+    tree_raw = b"".join(record for _key, record in sorted(records, key=lambda item: item[0]))
+    selected = acquisition["select_required_git_tree_entries"](
+        tree_raw,
+        oid_length,
+        {b"wanted": None},
+    )
+    assert selected == {b"wanted": ("blob", wanted_oid.hex(), "100644")}
+    duplicate_name_raw = (
+        b"100644 foo\x00" + wanted_oid
+        + b"40000 foo\x00" + sibling_oid
+    )
+    expect_error(
+        "tree same-name file-directory duplicate",
+        lambda: acquisition["select_required_git_tree_entries"](
+            duplicate_name_raw,
+            oid_length,
+            {},
+        ),
+        "GIT_TREE_OBJECT_NAME_DUPLICATE",
+    )
+
+    challenge = "GOV01-SA-20260820-" + ("a" * 64)
+    generation_challenge = "GOV01-GEN-20260820-" + ("b" * 64)
+    stage = ".gov01-toolchain-stage-" + challenge
+    pending = (
+        acquisition["CONTROL_PREFIX"]
+        + acquisition["PENDING_ENVELOPE_BASENAME_PREFIX"]
+        + generation_challenge
+        + ".json"
+    )
+    dirty_suffix = [
+            "--", ".", ":(exclude).git", ":(exclude).git/**",
+            ":(exclude)canvas-vault", ":(exclude)canvas-vault/**",
+            ":(exclude)" + stage, ":(exclude)" + stage + "/**",
+            ":(exclude)node_modules", ":(exclude)node_modules/**",
+            ":(top,literal,exclude)" + pending,
+    ]
+    diff_arguments = ["diff-files", "--name-only", "-z"] + dirty_suffix
+    ls_arguments = ["ls-files", "--others", "--exclude-standard", "-z"] + dirty_suffix
+    for arguments in (diff_arguments, ls_arguments):
+        argv = acquisition["git_hardened_child_argv"](
+            "/fixture/git", "/fixture/repo", ".", arguments
+        )
+        role, normalized = acquisition["require_git_child_template_match"](
+            role="git-read-only-evidence",
+            argv=argv,
+            environment=acquisition["git_env"](),
+            git_binary="/fixture/git",
+            repo_root="/fixture/repo",
+            adapter_git_dir=".",
+            live_objects=None,
+            stdin_bytes=None,
+        )
+        assert role == "git-read-only-evidence" and normalized
+
+    for label, malformed_arguments in (
+        ("diff-files trailing argument", diff_arguments + ["--unexpected-extra"]),
+        ("ls-files truncated argument", ls_arguments[:-1]),
+    ):
+        malformed_argv = acquisition["git_hardened_child_argv"](
+            "/fixture/git", "/fixture/repo", ".", malformed_arguments
+        )
+        expect_error(
+            label,
+            lambda value=malformed_argv: acquisition["require_git_child_template_match"](
+                role="git-read-only-evidence",
+                argv=value,
+                environment=acquisition["git_env"](),
+                git_binary="/fixture/git",
+                repo_root="/fixture/repo",
+                adapter_git_dir=".",
+                live_objects=None,
+                stdin_bytes=None,
+            ),
+            "GIT_FINAL_ARGV",
+        )
+
+    boundary = acquisition["GitMetadataAdapter"](
+        "/fixture/developer", "/fixture/repo", "/fixture/live-git", "/fixture/live-common",
+        "/private/tmp/gov01-git-adapter-fixture", "/private/tmp/gov01-git-adapter-fixture/git",
+        91, 92, "1" * 64, ("a" * oid_length,), "2" * 64, "3" * 64,
+        (1, 2), (1, 3), [],
+    )
+    old_developer = acquisition["_GIT_DEVELOPER_ROOTS"].get("/fixture/git")
+    acquisition["_GIT_DEVELOPER_ROOTS"]["/fixture/git"] = "/fixture/developer"
+    try:
+        profile = acquisition["git_read_sandbox_profile"](
+            "/fixture/git",
+            "/fixture/repo",
+            boundary,
+            True,
+            (stage, "node_modules"),
+            (pending,),
+        ).decode("utf-8")
+    finally:
+        if old_developer is None:
+            acquisition["_GIT_DEVELOPER_ROOTS"].pop("/fixture/git", None)
+        else:
+            acquisition["_GIT_DEVELOPER_ROOTS"]["/fixture/git"] = old_developer
+    assert '(literal "/fixture/repo/' + pending + '")' in profile
+    assert '(subpath "/fixture/repo/' + stage + '")' in profile
+    assert '(subpath "/fixture/repo/node_modules")' in profile
+
+    original_dirty_builder = acquisition["dirty_path_manifest_commitment"]
+    parent_read_count = []
+    acquisition["dirty_path_manifest_commitment"] = lambda *_args, **_kwargs: (
+        parent_read_count.append("unexpected-open-or-hash") or "0" * 64
+    )
+    try:
+        for forged in (stage + "/sentinel", "node_modules/sentinel", pending):
+            expect_error(
+                "forged excluded dirty path",
+                lambda value=forged: acquisition["dirty_index_worktree_manifest_commitment"](
+                    "/fixture/repo",
+                    value.encode("utf-8") + b"\x00",
+                    b"",
+                    b"k" * 32,
+                    (stage, "node_modules"),
+                    (pending,),
+                ),
+                "GIT_DIRTY_EXCLUDED_PATH",
+            )
+    finally:
+        acquisition["dirty_path_manifest_commitment"] = original_dirty_builder
+    assert parent_read_count == []
+
+    with tempfile.TemporaryDirectory(prefix="gov01-dirty-sanitized-index-", dir="/private/tmp") as temporary:
+        repo = pathlib.Path(temporary)
+        sentinel = repo / "tracked.txt"
+        sentinel.write_bytes(b"one")
+        first = acquisition["dirty_index_worktree_manifest_commitment"](
+            str(repo), b"tracked.txt\x00", b"", b"k" * 32,
+            (stage, "node_modules"), (pending,),
+        )
+        sentinel.write_bytes(b"two")
+        second = acquisition["dirty_index_worktree_manifest_commitment"](
+            str(repo), b"tracked.txt\x00", b"", b"k" * 32,
+            (stage, "node_modules"), (pending,),
+        )
+        assert first != second
+
+    source_text = ACQ_PATH.read_text(encoding="utf-8")
+    for stale in (
+        '"ls-tree","-r","-t","-z","--full-tree"',
+        '"status","--porcelain=v2"',
+        "all current tree OIDs",
+        "every current-tree tree OID",
+        "nonexcluded porcelain-v2 path",
+    ):
+        assert stale not in source_text
+    tree = ast.parse(source_text)
+    forbidden_commands = {
+        ("ls-tree", "-r"),
+        ("diff-index",),
+        ("status", "--porcelain=v2"),
+    }
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.List, ast.Tuple)):
+            continue
+        values = [element.value for element in node.elts if isinstance(element, ast.Constant) and isinstance(element.value, str)]
+        for command in forbidden_commands:
+            assert not all(part in values for part in command)
+    assert "parse_git_ls_tree_object_closure" not in acquisition
+    assert not any(
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "parse_git_ls_tree_object_closure"
+        for node in ast.walk(tree)
+    )
+    create = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "create_git_metadata_adapter")
+    create_source = ast.get_source_segment(ACQ_PATH.read_text(encoding="utf-8"), create) or ""
+    for event in (
+        "SOURCE_CAPTURE_REVALIDATED",
+        "SOURCE_SEALED_PREVALIDATED",
+        "SOURCE_SEALED_POSTVALIDATED",
+    ):
+        assert event in create_source
+    finalize = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "finalize_git_metadata_adapter")
+    finalize_source = ast.get_source_segment(ACQ_PATH.read_text(encoding="utf-8"), finalize) or ""
+    assert "SOURCE_CLEANUP_PREVALIDATED" in finalize_source
+    report["git_required_path_trie_index_root_and_checkpoint_cas"] = "PASS"
+
+
 def main(argv=None):
     parser = fixture_argument_parser()
     fixture_args = parser.parse_args(argv)
@@ -3193,6 +3500,7 @@ def main(argv=None):
     acquisition_loaded = runpy.run_path(str(ACQ_PATH))
     acquisition = acquisition_loaded["main"].__globals__
     report = {}
+    run_partial_git_boundary_fixtures(acquisition, report)
 
     good = package_archive()
     parsed = verifier["parse_package_archive"](
@@ -3706,34 +4014,38 @@ def main(argv=None):
     acquisition["verify_git_metadata_adapter"] = lambda _boundary: None
     acquisition["git_read_sandbox_profile"] = lambda *_args, **_kwargs: b"(version 1)\n(deny default)\n"
     try:
-        acquisition["run_git"](
-            "/fixture/git",
-            "/fixture/repo",
-            fixture_boundary,
-            ["status", "--porcelain=v2", "-z", "--untracked-files=all"],
-            "FIXTURE_GIT_STATUS",
-            enumerates_worktree=True,
-            authorized_tree_excludes=(".gov01-toolchain-stage-" + locator_challenge, "node_modules"),
-            authorized_exact_file_excludes=(expected_relative,),
-        )
+        for dirty_arguments, dirty_label in (
+            (["diff-files", "--name-only", "-z"], "FIXTURE_GIT_DIFF_FILES"),
+            (["ls-files", "--others", "--exclude-standard", "-z"], "FIXTURE_GIT_LS_FILES_OTHERS"),
+        ):
+            acquisition["run_git"](
+                "/fixture/git",
+                "/fixture/repo",
+                fixture_boundary,
+                dirty_arguments,
+                dirty_label,
+                enumerates_worktree=True,
+                authorized_tree_excludes=(".gov01-toolchain-stage-" + locator_challenge, "node_modules"),
+                authorized_exact_file_excludes=(expected_relative,),
+            )
     finally:
         acquisition["run_process"] = original_run_process
         acquisition["verify_git_metadata_adapter"] = original_verify_adapter
         acquisition["git_read_sandbox_profile"] = original_sandbox_profile
         acquisition["_GIT_DEVELOPER_ROOTS"].pop("/fixture/git", None)
-    assert len(captured_git_invocations) == 1
-    git_argv, git_invocation_kwargs = captured_git_invocations[0]
+    assert len(captured_git_invocations) == 2
     exact_pathspec = ":(top,literal,exclude)" + expected_relative
-    assert git_argv.count(exact_pathspec) == 1
-    assert exact_pathspec + "/**" not in git_argv
-    assert "-C" not in git_argv and not any(value.startswith("core.worktree=") for value in git_argv)
-    assert git_argv.count("--git-dir=.") == 1
-    assert git_argv.count("--work-tree=/fixture/repo") == 1
-    assert git_invocation_kwargs.get("working_directory_fd") == 98
-    assert ":(exclude).git" in git_argv and ":(exclude).git/**" in git_argv
-    assert ":(exclude)node_modules" in git_argv and ":(exclude)node_modules/**" in git_argv
-    assert ":(exclude).gov01-toolchain-stage-" + locator_challenge in git_argv
-    assert ":(exclude).gov01-toolchain-stage-" + locator_challenge + "/**" in git_argv
+    for git_argv, git_invocation_kwargs in captured_git_invocations:
+        assert git_argv.count(exact_pathspec) == 1
+        assert exact_pathspec + "/**" not in git_argv
+        assert "-C" not in git_argv and not any(value.startswith("core.worktree=") for value in git_argv)
+        assert git_argv.count("--git-dir=.") == 1
+        assert git_argv.count("--work-tree=/fixture/repo") == 1
+        assert git_invocation_kwargs.get("working_directory_fd") == 98
+        assert ":(exclude).git" in git_argv and ":(exclude).git/**" in git_argv
+        assert ":(exclude)node_modules" in git_argv and ":(exclude)node_modules/**" in git_argv
+        assert ":(exclude).gov01-toolchain-stage-" + locator_challenge in git_argv
+        assert ":(exclude).gov01-toolchain-stage-" + locator_challenge + "/**" in git_argv
     expect_error(
         "tree exact exclusion ancestor overlap",
         lambda: acquisition["git_snapshot"](

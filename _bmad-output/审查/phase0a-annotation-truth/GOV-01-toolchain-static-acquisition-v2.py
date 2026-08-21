@@ -177,7 +177,13 @@ GIT_METADATA_ADAPTER_PROFILE_V3 = (
     "checkpoint-scoped-private-temp-sanitized-exact-oid-identity-bound-git-fd-metadata-adapter-v3"
 )
 GIT_METADATA_OBJECT_CLOSURE_PROFILE_V2 = (
-    "captured-head-all-current-tree-oids-exact-20-approved-artifact-blobs-pack-v2"
+    "captured-head-required-path-trie-tree-oids-exact-20-approved-artifact-blobs-pack-v2"
+)
+GIT_INDEX_RECOMPUTATION_PROFILE_V2 = (
+    "captured-index-v2-v3-stage0-strict-framing-bottom-up-root-tree-oid-v2"
+)
+GIT_INDEX_EXTENSION_PROFILE_V2 = (
+    "optional-uppercase-extensions-framed-and-digested-then-stripped-from-child-index-v2"
 )
 GIT_METADATA_PACK_IMPORT_PROFILE_V1 = (
     "sandboxed-exact-oid-pack-objects-stdout-independent-checksum-index-pack-stdin-v1"
@@ -288,7 +294,7 @@ GIT_METADATA_ADAPTER_BOOTSTRAP_SANDBOX_PROFILE_V3 = (
     "directory FD, fchdir's to that inode, closes the child-only FD, then calls /usr/lib/libsandbox.1.dylib "
     "sandbox_init exactly once before exec with a generated default-deny profile; argv always has literal "
     "--git-dir=. and an explicit absolute repo --work-tree with no -C or discovery; only cat-file --batch for "
-    "captured HEAD and recursively discovered tree "
+    "captured HEAD and required-path-trie tree "
     "OIDs plus exact-OID pack-objects --stdout receive GIT_OBJECT_DIRECTORY with only exact loose-object paths or "
     "per-request pack/index pairs selected by independently verified frozen v2 pack-index search receipts under "
     "the live common-dir/objects root; the parent verifies the streamed pack checksum, then index-pack --stdin "
@@ -308,26 +314,33 @@ GIT_SNAPSHOT_COMMITMENT_PROFILE_V2 = (
     "uint64be(canonical-body-byte-length) || UTF-8-NFC-LF sorted-key compact canonical JSON of the full private "
     "Git snapshot body excluding commitment; body includes git_control,head,tree,object_format,status_sha256,"
     "status_bytes,dirty_manifest_commitment,worktree_tree_exclusions,worktree_exact_file_exclusions,refs_sha256,"
-    "refs_bytes,index,config,hooks,index_locator_commitment,config_locator_commitment,hooks_locator_commitment,"
+    "refs_bytes,index,index_root_tree_oid,index_version,index_entry_count,index_extension_profile,"
+    "index_extension_count,index_extension_receipt_sha256,index_recomputation_profile,"
+    "adapter_index_sanitization_profile,adapter_index_sha256,adapter_index_bytes,config,hooks,"
+    "index_locator_commitment,config_locator_commitment,hooks_locator_commitment,"
     "hooks_config_state,git_binary_sha256,git_metadata_source_commitment,git_metadata_adapter_profile,"
     "git_metadata_adapter_cleanup_state,git_metadata_adapter_residue_count,live_git_control_child_read_count; "
     "git_metadata_source_commitment is a framed HMAC under ASCII(CLS/GOV01/GIT-METADATA-SOURCE/v1) over a "
     "path-free canonical body containing the live metadata capture fingerprint for HEAD,index,configs,refs,hooks,"
     "control absences, the object-root anchor and the captured exact pack/index search dependency receipt, plus "
-    "the exact private adapter object-manifest receipt for captured HEAD,"
-    "all current tree OIDs and exactly 20 approved artifact blob paths, including sealed batch-all exact-set and "
-    "parent-side per-object OID recomputation receipts; adapter profile is "
+    "the exact private adapter object-manifest receipt for captured HEAD, only the tree OIDs selected by the frozen "
+    "required-path trie and exactly 20 approved artifact blob paths, including sealed batch-all exact-set, "
+    "per-object OID recomputation and a sealed required-path-trie replay; the captured index is strictly framed "
+    "and its bottom-up recomputed root tree OID must equal HEAD without diff-index; every optional extension is "
+    "captured in a path-free receipt but stripped from the adapter index before an object-format checksum is "
+    "recomputed, so dirty-evidence children see only the strictly parsed entry region; adapter profile is "
     "checkpoint-scoped-private-temp-sanitized-exact-oid-identity-bound-git-fd-metadata-adapter-v3, "
     "cleanup_state is removed, residue "
     "count and live Git-control child reads are zero; worktree tree exclusions are exactly the challenge stage and "
     "node_modules while the exact-file exclusion contains exactly the challenge-suffixed pending envelope; dirty "
-    "manifest is keyed content-and-metadata evidence for every nonexcluded porcelain-v2 path"
+    "manifest is keyed content-and-metadata evidence for the union of nonexcluded diff-files and ls-files --others paths"
 )
 GIT_ADAPTER_EPHEMERAL_MUTATION_V3 = (
     "before each Git child sequence create one unpredictable exact 0700 /private/tmp/gov01-git-adapter-* scratch "
-    "root, freeze sanitized config plus captured HEAD,index,refs,info-exclude and shallow, then use a sandboxed "
-    "object-only live bridge to stream a pack containing exactly captured HEAD, every current-tree tree OID and "
-    "only approved artifact blob OIDs; independently verify the stream checksum, import it through bridge-free "
+    "root, freeze sanitized config plus captured HEAD,refs,info-exclude and shallow, strictly parse the captured "
+    "index and materialize only its extension-free rechecksummed entry region, then use a sandboxed "
+    "object-only live bridge to stream a pack containing exactly captured HEAD, only required-path-trie tree OIDs "
+    "and only approved artifact blob OIDs; independently verify the stream checksum, import it through bridge-free "
     "index-pack, verify the exact pack object set, seal the self-contained adapter 0500/0400, then remove that exact "
     "dev/inode-bound root before returning; "
     "this nonpersistent scratch neither consumes the challenge nor authorizes any repo/state/cache mutation"
@@ -406,7 +419,8 @@ PUBLIC_SCHEMA_ID = "urn:canvas-learning-system:gov-01:toolchain-static-acquisiti
 CONTROL_PREFIX = "_bmad-output/审查/phase0a-annotation-truth/"
 PENDING_ENVELOPE_BASENAME_PREFIX = "GOV-01-toolchain-static-acquisition-pending-"
 PENDING_ENVELOPE_GIT_EXCLUSION_PROFILE = (
-    "git-status-exact-top-literal-envelope-file-exclusion-v1; no parent, subtree, wildcard or glob exclusion"
+    "git-diff-files-plus-ls-files-others-exact-top-literal-envelope-file-exclusion-v2; captured index root must "
+    "equal HEAD; no parent, subtree, wildcard or glob exclusion"
 )
 PENDING_ENVELOPE_PUBLIC_STRING_ALLOWLIST = frozenset(
     {
@@ -708,7 +722,7 @@ PRIVATE_PREAPPROVAL_FIELDS = (
 )
 
 
-_PENDING_ENVELOPE_V2_STATIC_TEMPLATE_JSON = r'''{"approval_receipt_contract":{"authority_expansion_allowed":false,"authority_is_exact":true,"challenge_must_match":true,"first_authority_consuming_persistent_write":"mkdirat exact state-root/claims/<approval_challenge_id> with mode 0700 is the first authority-consuming persistent write; EEXIST is terminal replay; earlier writes are limited to the exact nonpersistent /private/tmp Git adapter scratch, which must be identity-bound and fully removed before any return","receipt_before_first_authority_consuming_persistent_write":true,"receipt_must_match_raw_envelope_bytes":true,"required_user_reference":"exact domain-separated envelope SHA-256 plus exact approval_challenge_id"},"artifact_path_uniqueness_policy":"content-addressed checker MUST reject duplicate path even when role, byte_length or raw_file_sha256 differs; JSON Schema uniqueItems is not sufficient","authorization_preimage":{"absent_control_paths":[".npmrc","npm-shrinkwrap.json","pnpm-lock.yaml","yarn.lock","bun.lock","bun.lockb"],"absent_control_state":"all exact repo-root direct children ABSENT before and required ABSENT after","acquisition_control_root_state":"existing-real-directory-no-symlink-ancestor","envelope_git_status_exclusion_profile":"git-status-exact-top-literal-envelope-file-exclusion-v1; no parent, subtree, wildcard or glob exclusion","envelope_repo_relative_path":null,"forbidden_process_match_count":null,"git_object_format":null,"git_snapshot_commitment":null,"git_snapshot_commitment_profile":"HMAC-SHA-256 with 32-byte private key over ASCII(CLS/GOV01/GIT-SNAPSHOT/v2) || NUL || uint64be(canonical-body-byte-length) || UTF-8-NFC-LF sorted-key compact canonical JSON of the full private Git snapshot body excluding commitment; body includes git_control,head,tree,object_format,status_sha256,status_bytes,dirty_manifest_commitment,worktree_tree_exclusions,worktree_exact_file_exclusions,refs_sha256,refs_bytes,index,config,hooks,index_locator_commitment,config_locator_commitment,hooks_locator_commitment,hooks_config_state,git_binary_sha256,git_metadata_source_commitment,git_metadata_adapter_profile,git_metadata_adapter_cleanup_state,git_metadata_adapter_residue_count,live_git_control_child_read_count; git_metadata_source_commitment is a framed HMAC under ASCII(CLS/GOV01/GIT-METADATA-SOURCE/v1) over a path-free canonical body containing the live metadata capture fingerprint for HEAD,index,configs,refs,hooks,control absences, the object-root anchor and the captured exact pack/index search dependency receipt, plus the exact private adapter object-manifest receipt for captured HEAD,all current tree OIDs and exactly 20 approved artifact blob paths, including sealed batch-all exact-set and parent-side per-object OID recomputation receipts; adapter profile is checkpoint-scoped-private-temp-sanitized-exact-oid-identity-bound-git-fd-metadata-adapter-v3, cleanup_state is removed, residue count and live Git-control child reads are zero; worktree tree exclusions are exactly the challenge stage and node_modules while the exact-file exclusion contains exactly the challenge-suffixed pending envelope; dirty manifest is keyed content-and-metadata evidence for every nonexcluded porcelain-v2 path","head_commit_oid":null,"head_tree_oid":null,"node_modules_parent_or_sibling_reuse_allowed":false,"node_modules_state":"ABSENT","preexisting_dirty_policy":"private exact pre/post inventory required; no public paths or raw dirty/index/local-settings digest; zero mutation outside the exact new target","private_preapproval_commitment":null,"private_preapproval_commitment_profile":"HMAC-SHA-256 with the authorized 32-byte private key over ASCII(CLS/GOV01/PRIVATE-PREAPPROVAL/v2) || NUL || uint64be(canonical-body-byte-length) || UTF-8-NFC-LF canonical JSON of exactly {schema_version,approval_challenge_id,census_at_utc,hmac_key_id,authorized_locator_commitments,private_control_identity_commitment,public_repo_artifact_set_receipt_sha256,git_snapshot_commitment,toolchain_set_receipt_sha256,package_lock_raw_sha256,host_platform,host_architecture,target_worktree_claude_sessions,forbidden_process_match_count,host_selected_package_count,host_selected_cache_bytes,host_bin_link_count,content_receipt_sha256,ustar_closure_sha256,resolution_receipt_sha256,expected_tree_sha256}; no envelope digest, receipt digest, generated timestamp, raw private locator, inode/device or command bytes are in this deterministic body","private_preimage_capture":"census and post-approval checks may materialize only an identity-bound nonpersistent Git metadata adapter under /private/tmp; every child fchdir's through a dedicated duplicate of the held adapter Git-directory FD, closes that child-only FD, and reads the sealed frozen adapter with literal --git-dir=., explicit --work-tree and zero live Git-control reads; source and adapter CAS run before/after children, exact cleanup and zero residue are required before returning; the persistent O_EXCL challenge claim remains the first authority-consuming persistent write","private_vault_census_allowed":false,"protected_existing_control_paths":["package.json","package-lock.json",".gitignore"],"protected_existing_control_state":"PRESENT regular files; raw SHA-256 bound in artifacts; byte-identical before and after","public_repo_artifact_set_receipt_sha256":null,"target_preimage":"ABSENT","target_worktree_claude_sessions":null,"worktree_state":null},"execution_plan":{"allowed_subprocess_executable_roles":["xcode-select-resolver","xcrun-resolver","git-metadata-adapter-bootstrap","git-read-only-evidence","pgrep-read-only-evidence","lsof-read-only-evidence"],"archive_or_payload_execution_allowed":false,"attempt_policy":"single-use; any failure consumes challenge; retry requires a new envelope and challenge","compression_policy":"exactly one RFC1952 gzip stream through frozen Python stdlib zlib; MAX_TAR_STREAM prebound; eof required; unused_data and unconsumed_tail empty; concatenated/trailing stream rejected","duplicate_collision_policy":"reject duplicate normalized path, file-directory conflict, Unicode NFC collision and case-fold collision before first target write","environment_mode":"executor requires Python -I -S -B and self-attests those runtime flags; every authorized evidence subprocess receives a newly constructed exact environment and never inherits caller environment; assurance ceiling is runtime-self-attested-not-pre-exec","environment_name_allowlist":["PATH","HOME","LC_ALL","LANG","GIT_OPTIONAL_LOCKS","GIT_CONFIG_GLOBAL","GIT_CONFIG_NOSYSTEM","GIT_CONFIG_SYSTEM","GIT_TERMINAL_PROMPT","GIT_NO_REPLACE_OBJECTS","GIT_PROTOCOL_FROM_USER","GIT_ALLOW_PROTOCOL","GIT_ATTR_NOSYSTEM","GIT_DISCOVERY_ACROSS_FILESYSTEM","GIT_OBJECT_DIRECTORY"],"evidence_command_templates":[{"argv_allowlist":[["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","cat-file","--batch"],["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","pack-objects","--stdout","--no-reuse-delta","--no-reuse-object"],["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","index-pack","--stdin","--index-version=2"],["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","verify-pack","-v","{GIT_METADATA_ADAPTER_PACK_INDEX_RELATIVE_PRIVATE}"]],"environment_name_allowlist":["PATH","HOME","LC_ALL","LANG","GIT_OPTIONAL_LOCKS","GIT_CONFIG_GLOBAL","GIT_CONFIG_NOSYSTEM","GIT_CONFIG_SYSTEM","GIT_TERMINAL_PROMPT","GIT_NO_REPLACE_OBJECTS","GIT_PROTOCOL_FROM_USER","GIT_ALLOW_PROTOCOL","GIT_ATTR_NOSYSTEM","GIT_DISCOVERY_ACROSS_FILESYSTEM","GIT_OBJECT_DIRECTORY"],"executable":"{RESOLVED_CLT_GIT_PRIVATE}","read_only":false,"role":"git-metadata-adapter-bootstrap","shell":false,"write_scope":"checkpoint-scoped-private-temp-adapter-only"},{"argv_allowlist":[["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","rev-parse","--verify","HEAD"],["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","rev-parse","--verify","HEAD^{tree}"],["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","rev-parse","--show-object-format"],["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","cat-file","--batch"],["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","cat-file","--batch-all-objects","--batch-check=%(objectname) %(objecttype) %(objectsize)"],["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","ls-tree","-r","-t","-z","--full-tree","HEAD^{tree}"],["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","status","--porcelain=v2","-z","--untracked-files=all","--",".",":(exclude).git",":(exclude).git/**",":(exclude)canvas-vault",":(exclude)canvas-vault/**",":(exclude){STAGE_REPO_RELATIVE}",":(exclude){STAGE_REPO_RELATIVE}/**",":(exclude)node_modules",":(exclude)node_modules/**",":(top,literal,exclude){ENVELOPE_REPO_RELATIVE}"],["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","show-ref"],["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","ls-tree","-z","--full-tree","{GENERATION_AUTHORIZATION_COMMIT_OID_PUBLIC}","--","{PUBLIC_ARTIFACT_REPO_RELATIVE}"],["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","show","{GENERATION_AUTHORIZATION_COMMIT_OID_PUBLIC}:{PUBLIC_ARTIFACT_REPO_RELATIVE}"]],"environment_name_allowlist":["PATH","HOME","LC_ALL","LANG","GIT_OPTIONAL_LOCKS","GIT_CONFIG_GLOBAL","GIT_CONFIG_NOSYSTEM","GIT_CONFIG_SYSTEM","GIT_TERMINAL_PROMPT","GIT_NO_REPLACE_OBJECTS","GIT_PROTOCOL_FROM_USER","GIT_ALLOW_PROTOCOL","GIT_ATTR_NOSYSTEM","GIT_DISCOVERY_ACROSS_FILESYSTEM"],"executable":"{RESOLVED_CLT_GIT_PRIVATE}","read_only":true,"role":"git-read-only-evidence","shell":false},{"argv_allowlist":[["/usr/bin/xcode-select","-p"]],"environment_name_allowlist":["PATH","HOME","LC_ALL","LANG","GIT_OPTIONAL_LOCKS","GIT_CONFIG_GLOBAL","GIT_CONFIG_NOSYSTEM","GIT_CONFIG_SYSTEM","GIT_TERMINAL_PROMPT","GIT_NO_REPLACE_OBJECTS","GIT_PROTOCOL_FROM_USER","GIT_ALLOW_PROTOCOL","GIT_ATTR_NOSYSTEM","GIT_DISCOVERY_ACROSS_FILESYSTEM"],"executable":"/usr/bin/xcode-select","read_only":true,"role":"xcode-select-resolver","shell":false},{"argv_allowlist":[["/usr/bin/xcrun","--find","git"]],"environment_name_allowlist":["PATH","HOME","LC_ALL","LANG","GIT_OPTIONAL_LOCKS","GIT_CONFIG_GLOBAL","GIT_CONFIG_NOSYSTEM","GIT_CONFIG_SYSTEM","GIT_TERMINAL_PROMPT","GIT_NO_REPLACE_OBJECTS","GIT_PROTOCOL_FROM_USER","GIT_ALLOW_PROTOCOL","GIT_ATTR_NOSYSTEM","GIT_DISCOVERY_ACROSS_FILESYSTEM"],"executable":"/usr/bin/xcrun","read_only":true,"role":"xcrun-resolver","shell":false},{"argv_allowlist":[["/usr/bin/pgrep","-if","(^|[/ ])claude([ ]|$)|@anthropic-ai/claude-code"]],"environment_name_allowlist":["PATH","LC_ALL","LANG"],"executable":"/usr/bin/pgrep","read_only":true,"role":"pgrep-read-only-evidence","shell":false},{"argv_allowlist":[["/usr/sbin/lsof","-nP","-a","-p","{CLAUDE_CANDIDATE_PID_DECIMAL}","-d","cwd","-Fpn"]],"environment_name_allowlist":["PATH","LC_ALL","LANG"],"executable":"/usr/sbin/lsof","read_only":true,"role":"lsof-read-only-evidence","shell":false}],"evidence_command_templates_sha256":null,"executor_argv_template":["{BOUND_PYTHON_PRIVATE}","-I","-S","-B","{REPO_ROOT_PRIVATE}/_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-v2.py","acquire","--repo-root","{REPO_ROOT_PRIVATE}","--cache-root","{CACHE_ROOT_PRIVATE}","--state-root","{STATE_ROOT_PRIVATE}","--key-file","{HMAC_KEY_FILE_PRIVATE}","--envelope","{ENVELOPE_PRIVATE}","--receipt-digest","{APPROVED_RECEIPT_DIGEST_PUBLIC}","--approval-challenge","{APPROVAL_CHALLENGE_ID_PUBLIC}"],"executor_argv_template_sha256":null,"executor_interface_state":"frozen-content-addressed-before-user-receipt","executor_interface_version":"gov01-static-acquisition-executor-draft-v2","expiry_checkpoints":["on-envelope-load","immediately-before-persistent-ledger-claim","immediately-before-renameatx_np-RENAME_EXCL"],"forbidden_executable_names":["npm","npx","node","nodejs","openspec","sandbox-exec","tar","bsdtar","gtar"],"git_metadata_adapter_bootstrap_sandbox_profile":"each git-metadata-adapter-bootstrap child receives a dedicated duplicate of the identity-bound adapter Git directory FD, fchdir's to that inode, closes the child-only FD, then calls /usr/lib/libsandbox.1.dylib sandbox_init exactly once before exec with a generated default-deny profile; argv always has literal --git-dir=. and an explicit absolute repo --work-tree with no -C or discovery; only cat-file --batch for captured HEAD and recursively discovered tree OIDs plus exact-OID pack-objects --stdout receive GIT_OBJECT_DIRECTORY with only exact loose-object paths or per-request pack/index pairs selected by independently verified frozen v2 pack-index search receipts under the live common-dir/objects root; the parent verifies the streamed pack checksum, then index-pack --stdin materializes only that bounded stream into the adapter with the live bridge unset, and verify-pack also runs with that bridge unset; live HEAD,index,configs,refs,hooks,logs,grafts,unselected loose objects and objects/info including alternates and http-alternates are denied; pack-objects has no child filesystem write authority and only index-pack may write, only beneath the exact identity-bound private adapter; worktree payload, Vault/.obsidian, other reads/writes, network and subprocess executables other than the content-bound Git binary are denied; direct full-source CAS brackets bootstrap and the bridge is absent from every sealed-adapter evidence child","launcher_executable_role":"python-interpreter","member_type_policy":"archive accepts regular files and directories only; rejects archive symlink, hardlink, fifo, socket, block/character device and unknown types","network_allowed":false,"phase_order":["read-only-verify-user-receipt-envelope-digest-challenge-and-expiry","read-only-hash-bound-schema-compare-schema-binding-and-run-manual-critical-envelope-checks-before-verifier-compilation","read-only-compare-repo-cache-state-key-envelope-locator-commitments","read-only-hash-every-public-artifact-and-load-only-the-bound-verifier-source","directly capture live Git metadata, freeze and seal an exact private-temp adapter, run explicit-adapter Git evidence children with zero live-control reads, revalidate the live source and remove the exact adapter with zero residue before comparing Git-snapshot and private-preapproval commitments","verify-no-active-Claude-session-whose-cwd-is-the-target-worktree; no broader ambient-process absence claim","read-only-direct-SRI-cache-census-build-expected-tree-and-freeze-all-compressed-and-payload-bytes-in-memory","recheck-approval-expiry-immediately-before-persistent-claim","create-persistent-0700-challenge-claim-directory-with-exclusive-mkdirat-and-record-first-authority-consuming-persistent-write","append-frozen-preflight-event-to-persistent-ledger","create-0700-same-parent-same-filesystem-exclusive-stage-with-incomplete-marker","stream-decompress-and-custom-parse-only-approved-USTAR-members","materialize-only-expected-resolution-destinations-without-running-payload","fsync-stage-and-verify-closure-resolution-and-stage-tree-receipts","run-full-pre-promotion-CAS-for-private-inputs-public-artifacts-toolchain-Git-dirty-content-process-census-lock-cache-control-files-stage-identity-and-target-absence","remove-only-the-incomplete-marker-seal-root-0755-and-run-two-stable-fingerprints; failure-after-this-point-retains-a-hidden-unmarked-stage","recheck-approval-expiry-and-target-absence-immediately-before-publication","publish-exact-stage-to-absent-target-with-renameatx_np-RENAME_EXCL","fsync-target-parent-and-recompute-final-tree-and-private-postimage","append-terminal-private-ledger-event-and-emit-locator-free-stdout-projection-only-if-every-success-condition-holds","stop-with-payload-unexecuted"],"runner":"caller invokes exact executor with a CPython 3.9-compatible interpreter and -I -S -B; executor self-attests isolation flags, interpreter, stdlib, executor, verifier, schema and five evidence binaries only after Python startup; no pre-exec launcher or pre-exec hash assurance exists; no shell","shell_allowed":false,"stop_after_static_attestation":true,"subprocess_from_executor_allowed":true,"ustar_parser":"custom Python stdlib fixed-512-byte POSIX.1-1988 USTAR parser; tarfile.extract/extractall forbidden","ustar_safety_policy":"strict magic/version/checksum/octal/padding/two-zero-block terminator; reject PAX, GNU, sparse, base-256 numeric, trailing payload, absolute/dot/dotdot/backslash/NUL/control path, symlink ancestor and path escape","verifier_census_argv_template":["{BOUND_PYTHON_PRIVATE}","-I","-S","-B","{BOUND_VERIFIER_PRIVATE}","census","--cache-root","{CACHE_ROOT_PRIVATE}"],"verifier_installed_argv_template":["{BOUND_PYTHON_PRIVATE}","-I","-S","-B","{BOUND_VERIFIER_PRIVATE}","verify-installed","--cache-root","{CACHE_ROOT_PRIVATE}","--expected-tree-sha256","{EXPECTED_TREE_SHA256_PUBLIC}"],"verifier_profile_version":"gov-01-toolchain-static-verifier-v2"},"failure_contract":{"challenge_state":"before the first authority-consuming persistent write no persistent consumption record exists but this envelope/challenge must be treated as rejected and replaced; after exclusive claim mkdir the persistent state is consumed-rejected","evidence_action":"pre-claim failures may create only the authorized Git adapter scratch and must remove its exact identity; adapter cleanup failure, root identity uncertainty or any residue is terminal fail-closed, forbids a success or automatic retry, and requires new explicit approval after private-state inspection; no claim, ledger, stage, target or other persistent write occurs before the challenge claim; after a persistent claim exists, append/fsync and semantically verify a terminal failure event only while the retained ledger writer is healthy and nonterminal; never repair or delete retained persistent state","existing_target_action":"never modify or delete; if a target was newly published before a later failure, retain as unauthorized and require user decision","failed_stage_action":"retain in place with no automatic cleanup, deletion, quarantine move or glob: before marker removal it remains a hidden 0700 stage carrying the 0600 incomplete marker; after marker removal/seal but before rename it remains a hidden 0755 stage without the marker; after successful rename followed by later failure the published target is retained as unauthorized pending user decision","failure_action":"STOP immediately at first failed gate","new_authority_required":"new complete envelope, new raw envelope digest and new challenge","public_success_attestation_allowed":false,"retry_allowed":false},"lock_closure":{"archive_member_types":["regular-file","directory"],"content_receipt_profile":"SHA-256(ASCII(CLS/GOV01-OFFLINE-CACHE/v1) || NUL || UTF-8 body); body is lexicographically sorted LF-terminated rows of exactly 6 TAB-separated columns: lock_key, version, resolved, integrity, compressed_bytes, actual_integrity","content_receipt_sha256":null,"direct_sri_policy":"no npm cache index read; sha512 SRI bytes map directly to _cacache/content-v2/sha512/<first-2>/<next-2>/<remainder>; missing or mismatched blob is terminal failure","expected_archive_member_count":null,"expected_resolved_tree_entry_count":null,"expected_tree_receipt_profile":"SHA-256(ASCII(CLS/GOV01/DETERMINISTIC-NODE-MODULES/v2) || NUL || UTF-8 body); body is LF-terminated rows sorted by UTF-8 path bytes with exactly 5 TAB-separated columns: kind,path,mode,size,file_sha256_or_link_text","expected_tree_sha256":null,"generated_symlink_policy":"only exact relative symlink text bound by the resolution receipt; resolved target remains beneath final tree","host_bin_link_count":null,"host_selected_cache_bytes":null,"host_selected_package_count":null,"network_fetch_allowed":false,"resolution_receipt_profile":"SHA-256(ASCII(CLS/GOV01/NODE-RESOLUTION-CLOSURE/v2) || NUL || UTF-8 body); body is lexicographically sorted LF-terminated rows of exactly 7 TAB-separated columns: source,edge_type,dependency_name,spec,target,target_version,state; this is deterministic package-lock path-closure evidence only and is not a general semver solver or semantic-version satisfiability proof","resolution_receipt_sha256":null,"resource_limits":{"compressed_closure_bytes_max":14000000,"final_path_utf8_bytes_max":128,"member_count_per_archive_max":5000,"payload_closure_bytes_max":64000000,"required_bin_link_count":12,"required_raw_regular_count":4099,"selected_archive_count":167,"single_file_bytes_max":15000000,"tar_stream_bytes_per_archive_max":24000000},"source_kind":"preapproved-local-content-addressed-ustar-set","source_locator_policy":"private absolute locators omitted; after challenge claim, derive each content-v2 locator directly from the package-lock sha512 SRI and require actual_integrity equality","ustar_closure_receipt_profile":"SHA-256(ASCII(CLS/GOV01/USTAR-CLOSURE/v2) || NUL || UTF-8 body); body is lexicographically sorted LF-terminated rows of exactly 13 TAB-separated columns: lock_key,version,integrity,compressed_bytes,tar_bytes,member_count,raw_regular_count,raw_directory_count,payload_bytes,strip_root,package_name,package_version,member_manifest_sha256; each member_manifest_sha256 uses CLS/GOV01/USTAR-PACKAGE-MEMBERS/v2 NUL plus sorted 8-column member rows","ustar_closure_sha256":null},"mutation_scope":{"allowed_ephemeral_mutations":["before each Git child sequence create one unpredictable exact 0700 /private/tmp/gov01-git-adapter-* scratch root, freeze sanitized config plus captured HEAD,index,refs,info-exclude and shallow, then use a sandboxed object-only live bridge to stream a pack containing exactly captured HEAD, every current-tree tree OID and only approved artifact blob OIDs; independently verify the stream checksum, import it through bridge-free index-pack, verify the exact pack object set, seal the self-contained adapter 0500/0400, then remove that exact dev/inode-bound root before returning; this nonpersistent scratch neither consumes the challenge nor authorizes any repo/state/cache mutation","before each Git child sequence create one unpredictable exact 0700 /private/tmp/gov01-git-adapter-* scratch root, freeze sanitized config plus captured HEAD,index,refs,info-exclude and shallow, then use a sandboxed object-only live bridge to pack exactly captured HEAD, every current-tree tree OID and only approved artifact blob OIDs; verify the pack object set, remove the bridge, seal the self-contained adapter 0500/0400, then remove that exact dev/inode-bound root before returning; this nonpersistent scratch neither consumes the challenge nor authorizes any repo/state/cache mutation","create one exact 0700 same-parent same-filesystem stage with an exact 0600 incomplete marker; this stage is publication-working-state but is retained rather than ephemeral on any failure","write only the frozen expected directories, regular-file payload bytes and generated relative bin symlinks beneath that stage","remove only the exact incomplete marker and chmod the stage root 0755 immediately before two stable fingerprints and exclusive publication; failure in this sealed pre-publication window retains a hidden 0755 stage without the marker"],"allowed_persistent_mutations":["create one exact persistent 0700 challenge claim directory with exclusive mkdirat semantics and create/append one 0600 hash-chained ledger beneath it; the claim and ledger are never automatically deleted","create exactly one previously-absent approved target by a single successful renameatx_np(RENAME_EXCL)"],"forbidden_mutations":["overwrite, merge, unlink, replace or repair any existing target","modify existing repo-root package.json, package-lock.json or .gitignore; create any absent alternate lock file or .npmrc","write outside the exact identity-bound /private/tmp Git adapter scratch, exact persistent challenge claim/ledger, exact stage and exact exclusive target publication","modify Git objects, refs, index, hooks, config or any existing worktree file","modify parent or sibling worktree, user home, private Vault, Graphiti or external service","commit, push, branch/ref creation, OpenSpec execution or governance apply"],"overwrite_allowed":false,"publish_attempt_ceiling":1,"publish_flag":"RENAME_EXCL","publish_syscall":"renameatx_np","target_preimage":"ABSENT"},"privacy":{"graphiti_call_count":0,"network_call_count":0,"private_locator_public_count":0,"private_raw_sha256_only_for":["cache-root and direct-SRI content blob private locator evidence","dirty/untracked inventory","Git index/private config/hooks locator receipts","local settings","command output/open-file/process traces","persistent ledger and challenge claim"],"private_vault_read_count":0,"public_raw_sha256_allowed_for":["public repo artifacts including executor/verifier/schemas","locator-free toolchain content identities","content, USTAR, closure Merkle, resolution, expected-tree and public receipt digests"]},"private_state_authorization":{"all_cli_locators_compared_before_any_write":true,"authorized_locator_commitments":null,"challenge_claim_preimage":"exact state-root/claims/<approval_challenge_id> direct child ABSENT","claims_container_preimage":"state-root/claims already exists as a receipt-bound-owner-and-group real 0700 directory and is not created by this attempt","destruction_authorized":false,"first_authority_consuming_persistent_write":"mkdirat exact state-root/claims/<approval_challenge_id> with mode 0700 is the first authority-consuming persistent write; EEXIST is terminal replay; earlier writes are limited to the exact nonpersistent /private/tmp Git adapter scratch, which must be identity-bound and fully removed before any return","hmac_key_id":null,"hmac_key_id_profile":"HMAC-SHA-256 with the same private key over ASCII(CLS/GOV01/HMAC-KEY-ID/v2) || NUL || eight zero bytes; locator and raw key bytes are never serialized","locator_commitment_profile":"HMAC-SHA-256 with the authorized 32-byte private key over ASCII(CLS/GOV01/PRIVATE-LOCATOR/v2) || NUL || uint64be(canonical-body-byte-length) || UTF-8-NFC-LF canonical JSON {label,locator}; labels and absolute normalized no-symlink locators are exact and comparison uses hmac.compare_digest","persistent_single_use_ledger_required":true,"private_control_identity_commitment":null,"private_control_identity_commitment_profile":"HMAC-SHA-256 with the authorized 32-byte private key over ASCII(CLS/GOV01/PRIVATE-CONTROL-IDENTITY/v2) || NUL || uint64be(canonical-body-byte-length) || UTF-8-NFC-LF canonical JSON binding the receipt-approved owner UID, inherited control GID, exact state-root/claims/key modes and expected claim/ledger modes without serializing private locators","private_evidence_schema_required":"gov-01-toolchain-static-acquisition-private-evidence-v2","private_file_modes":{"directory":"0700","file":"0600","umask":"0077"},"private_preimage_checks":["five exact HMAC-bound locators; repo, cache and state roots are pairwise separated; the HMAC key is the exact state-root/hmac.key direct child; the envelope is contained by the control prefix; no symlink ancestor and no Vault or .obsidian component","cache-root locator and direct-SRI content blob bytes/digests; npm cache index read is prohibited","directly capture Git control marker, commondir, local configs, HEAD, index, refs, hooks and object store with absent alternate controls before constructing a sealed private adapter; every Git child uses only the adapter through explicit --git-dir/--work-tree and live metadata is revalidated after capture and before cleanup","pgrep Claude candidates and per-candidate lsof cwd stdout commitments without public command output","state-root, claims-container and HMAC-key owner/group/mode are bound by the private control identity commitment; exact challenge child absence, HMAC-key bytes, raw envelope bytes and approved receipt digest are rechecked before the first authority-consuming persistent write; only exact identity-bound Git adapter scratch creation and mandatory cleanup may occur earlier"],"private_read_authority":["resolve and hash exact toolchain realpaths bound by public content digests","derive and read exact local content-v2 archive blobs directly from package-lock sha512 SRI without reading any npm cache index","directly capture live Git control, HEAD, index, refs, config, hooks and object-store evidence into a path-free keyed source receipt; Git children read only the sealed adapter and source CAS is repeated before cleanup","run pgrep only for Claude candidates and lsof only for each returned PID cwd; no machine-wide lsof or broader process absence claim","read the pre-existing state-root/claims directory identities and require the exact challenge child absent; no pre-existing ledger is read"],"private_vault_authorized":false,"private_write_authority":["create, seal and mandatorily remove only the exact dev/inode-bound /private/tmp Git metadata adapter scratch; cleanup uncertainty or residue is terminal and this scratch never consumes the challenge","create exact 0700 persistent challenge claim directory and create/append its exact 0600 ledger.jsonl","create exact same-filesystem stage and publish exact absent target with RENAME_EXCL"],"public_serialization_forbidden":["private absolute or home-relative locator","cache-root locator or direct-SRI content blob private locator","dirty/untracked inventory or its raw digest","environment values, command output or open-file locator list","ledger locator/raw bytes, raw HMAC key or user receipt body","private Vault locator, name, content or digest"],"retention":"persistent challenge claim and ledger are retained outside repo and never automatically deleted; failed stage and any published target are never automatically deleted; the private-temp Git adapter is never retained intentionally and success requires exact cleanup with residue_count zero"},"schema_binding":{"external_validator_profile":"JSON-Schema-draft-2020-12-strict-additionalProperties-false-format-annotation-plus-content-addressed-strict-UTC-calendar-and-duplicate-key-checker","preapproval_external_validation_required":true,"runtime_checkpoint":"after raw receipt/challenge/expiry verification and schema artifact hash verification, before any other envelope-controlled read, verifier-source compilation, subprocess or write","runtime_json_schema_execution_allowed":false,"runtime_manual_critical_field_checks_required":true,"runtime_schema_hash_binding_required":true,"schema_artifact_path":"_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-envelope-v2.schema.json","schema_artifact_role":"pending-envelope-schema","schema_digest_must_equal_artifact_entry":true,"schema_id":"urn:canvas-learning-system:gov-01:toolchain-static-acquisition-pending-envelope:v2:draft","schema_raw_file_sha256":null,"validation_failure_action":"fail closed before any authorized write or verifier-source compilation"},"static_acquisition_contract":{"absent_control_paths":[".npmrc","npm-shrinkwrap.json","pnpm-lock.yaml","yarn.lock","bun.lock","bun.lockb"],"absent_control_pre_post_lstat_check_required":true,"compressed_blobs_memory_resident_before_write":true,"executor_artifact_path":"_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-v2.py","executor_sha256":null,"expected":null,"hidden_package_lock_generation_allowed":false,"lifecycle_execution_allowed":false,"network_allowed":false,"node_execution_allowed":false,"npm_execution_allowed":false,"openspec_execution_allowed":false,"openspec_scaffold_allowed":false,"payload_bytes_memory_resident_before_write":true,"protected_control_paths":["package.json","package-lock.json",".gitignore"],"protected_control_pre_post_hash_check_required":true,"stage_repo_relative":null,"target_repo_relative":"node_modules","verifier_artifact_path":"_bmad-output/审查/phase0a-annotation-truth/GOV-01-toolchain-static-verifier-v2.py","verifier_profile_version":"gov-01-toolchain-static-verifier-v2","verifier_sha256":null},"success_contract":{"archive_member_execution_count":0,"commit_allowed":false,"content_mismatches":0,"forbidden_control_paths_present":0,"governance_apply_allowed":false,"host_package_count":167,"javascript_execution_count":0,"lifecycle_execution_count":0,"maximum_state":"static-attested-unexecuted","missing_expected_entries":0,"network_attempt_count":0,"next_required_authorization":"new runtime-use envelope binding the final-tree receipt and a fresh single-use challenge","npm_node_npx_execution_count":0,"outside_scope_mutation_count":0,"payload_execution_allowed_after_success":false,"protected_control_paths_changed":0,"push_allowed":false,"sandbox_exec_execution_count":0,"target_created_count":1,"target_tree_must_equal_expected_merkle":true,"unexpected_entries":0}}'''
+_PENDING_ENVELOPE_V2_STATIC_TEMPLATE_JSON = r'''{"approval_receipt_contract":{"authority_expansion_allowed":false,"authority_is_exact":true,"challenge_must_match":true,"first_authority_consuming_persistent_write":"mkdirat exact state-root/claims/<approval_challenge_id> with mode 0700 is the first authority-consuming persistent write; EEXIST is terminal replay; earlier writes are limited to the exact nonpersistent /private/tmp Git adapter scratch, which must be identity-bound and fully removed before any return","receipt_before_first_authority_consuming_persistent_write":true,"receipt_must_match_raw_envelope_bytes":true,"required_user_reference":"exact domain-separated envelope SHA-256 plus exact approval_challenge_id"},"artifact_path_uniqueness_policy":"content-addressed checker MUST reject duplicate path even when role, byte_length or raw_file_sha256 differs; JSON Schema uniqueItems is not sufficient","authorization_preimage":{"absent_control_paths":[".npmrc","npm-shrinkwrap.json","pnpm-lock.yaml","yarn.lock","bun.lock","bun.lockb"],"absent_control_state":"all exact repo-root direct children ABSENT before and required ABSENT after","acquisition_control_root_state":"existing-real-directory-no-symlink-ancestor","envelope_git_status_exclusion_profile":"git-diff-files-plus-ls-files-others-exact-top-literal-envelope-file-exclusion-v2; captured index root must equal HEAD; no parent, subtree, wildcard or glob exclusion","envelope_repo_relative_path":null,"forbidden_process_match_count":null,"git_object_format":null,"git_snapshot_commitment":null,"git_snapshot_commitment_profile":"HMAC-SHA-256 with 32-byte private key over ASCII(CLS/GOV01/GIT-SNAPSHOT/v2) || NUL || uint64be(canonical-body-byte-length) || UTF-8-NFC-LF sorted-key compact canonical JSON of the full private Git snapshot body excluding commitment; body includes git_control,head,tree,object_format,status_sha256,status_bytes,dirty_manifest_commitment,worktree_tree_exclusions,worktree_exact_file_exclusions,refs_sha256,refs_bytes,index,index_root_tree_oid,index_version,index_entry_count,index_extension_profile,index_extension_count,index_extension_receipt_sha256,index_recomputation_profile,adapter_index_sanitization_profile,adapter_index_sha256,adapter_index_bytes,config,hooks,index_locator_commitment,config_locator_commitment,hooks_locator_commitment,hooks_config_state,git_binary_sha256,git_metadata_source_commitment,git_metadata_adapter_profile,git_metadata_adapter_cleanup_state,git_metadata_adapter_residue_count,live_git_control_child_read_count; git_metadata_source_commitment is a framed HMAC under ASCII(CLS/GOV01/GIT-METADATA-SOURCE/v1) over a path-free canonical body containing the live metadata capture fingerprint for HEAD,index,configs,refs,hooks,control absences, the object-root anchor and the captured exact pack/index search dependency receipt, plus the exact private adapter object-manifest receipt for captured HEAD, only the tree OIDs selected by the frozen required-path trie and exactly 20 approved artifact blob paths, including sealed batch-all exact-set, per-object OID recomputation and a sealed required-path-trie replay; the captured index is strictly framed and its bottom-up recomputed root tree OID must equal HEAD without diff-index; every optional extension is captured in a path-free receipt but stripped from the adapter index before an object-format checksum is recomputed, so dirty-evidence children see only the strictly parsed entry region; adapter profile is checkpoint-scoped-private-temp-sanitized-exact-oid-identity-bound-git-fd-metadata-adapter-v3, cleanup_state is removed, residue count and live Git-control child reads are zero; worktree tree exclusions are exactly the challenge stage and node_modules while the exact-file exclusion contains exactly the challenge-suffixed pending envelope; dirty manifest is keyed content-and-metadata evidence for the union of nonexcluded diff-files and ls-files --others paths","head_commit_oid":null,"head_tree_oid":null,"node_modules_parent_or_sibling_reuse_allowed":false,"node_modules_state":"ABSENT","preexisting_dirty_policy":"private exact pre/post inventory required; no public paths or raw dirty/index/local-settings digest; zero mutation outside the exact new target","private_preapproval_commitment":null,"private_preapproval_commitment_profile":"HMAC-SHA-256 with the authorized 32-byte private key over ASCII(CLS/GOV01/PRIVATE-PREAPPROVAL/v2) || NUL || uint64be(canonical-body-byte-length) || UTF-8-NFC-LF canonical JSON of exactly {schema_version,approval_challenge_id,census_at_utc,hmac_key_id,authorized_locator_commitments,private_control_identity_commitment,public_repo_artifact_set_receipt_sha256,git_snapshot_commitment,toolchain_set_receipt_sha256,package_lock_raw_sha256,host_platform,host_architecture,target_worktree_claude_sessions,forbidden_process_match_count,host_selected_package_count,host_selected_cache_bytes,host_bin_link_count,content_receipt_sha256,ustar_closure_sha256,resolution_receipt_sha256,expected_tree_sha256}; no envelope digest, receipt digest, generated timestamp, raw private locator, inode/device or command bytes are in this deterministic body","private_preimage_capture":"census and post-approval checks may materialize only an identity-bound nonpersistent Git metadata adapter under /private/tmp; every child fchdir's through a dedicated duplicate of the held adapter Git-directory FD, closes that child-only FD, and reads the sealed frozen adapter with literal --git-dir=., explicit --work-tree and zero live Git-control reads; source CAS runs after capture, before and after sealed evidence, and immediately before cleanup; exact cleanup and zero residue are required before returning; the persistent O_EXCL challenge claim remains the first authority-consuming persistent write","private_vault_census_allowed":false,"protected_existing_control_paths":["package.json","package-lock.json",".gitignore"],"protected_existing_control_state":"PRESENT regular files; raw SHA-256 bound in artifacts; byte-identical before and after","public_repo_artifact_set_receipt_sha256":null,"target_preimage":"ABSENT","target_worktree_claude_sessions":null,"worktree_state":null},"execution_plan":{"allowed_subprocess_executable_roles":["xcode-select-resolver","xcrun-resolver","git-metadata-adapter-bootstrap","git-read-only-evidence","pgrep-read-only-evidence","lsof-read-only-evidence"],"archive_or_payload_execution_allowed":false,"attempt_policy":"single-use; any failure consumes challenge; retry requires a new envelope and challenge","compression_policy":"exactly one RFC1952 gzip stream through frozen Python stdlib zlib; MAX_TAR_STREAM prebound; eof required; unused_data and unconsumed_tail empty; concatenated/trailing stream rejected","duplicate_collision_policy":"reject duplicate normalized path, file-directory conflict, Unicode NFC collision and case-fold collision before first target write","environment_mode":"executor requires Python -I -S -B and self-attests those runtime flags; every authorized evidence subprocess receives a newly constructed exact environment and never inherits caller environment; assurance ceiling is runtime-self-attested-not-pre-exec","environment_name_allowlist":["PATH","HOME","LC_ALL","LANG","GIT_OPTIONAL_LOCKS","GIT_CONFIG_GLOBAL","GIT_CONFIG_NOSYSTEM","GIT_CONFIG_SYSTEM","GIT_TERMINAL_PROMPT","GIT_NO_REPLACE_OBJECTS","GIT_PROTOCOL_FROM_USER","GIT_ALLOW_PROTOCOL","GIT_ATTR_NOSYSTEM","GIT_DISCOVERY_ACROSS_FILESYSTEM","GIT_OBJECT_DIRECTORY"],"evidence_command_templates":[{"argv_allowlist":[["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","cat-file","--batch"],["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","pack-objects","--stdout","--no-reuse-delta","--no-reuse-object"],["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","index-pack","--stdin","--index-version=2"],["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","verify-pack","-v","{GIT_METADATA_ADAPTER_PACK_INDEX_RELATIVE_PRIVATE}"]],"environment_name_allowlist":["PATH","HOME","LC_ALL","LANG","GIT_OPTIONAL_LOCKS","GIT_CONFIG_GLOBAL","GIT_CONFIG_NOSYSTEM","GIT_CONFIG_SYSTEM","GIT_TERMINAL_PROMPT","GIT_NO_REPLACE_OBJECTS","GIT_PROTOCOL_FROM_USER","GIT_ALLOW_PROTOCOL","GIT_ATTR_NOSYSTEM","GIT_DISCOVERY_ACROSS_FILESYSTEM","GIT_OBJECT_DIRECTORY"],"executable":"{RESOLVED_CLT_GIT_PRIVATE}","read_only":false,"role":"git-metadata-adapter-bootstrap","shell":false,"write_scope":"checkpoint-scoped-private-temp-adapter-only"},{"argv_allowlist":[["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","rev-parse","--verify","HEAD"],["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","rev-parse","--verify","HEAD^{tree}"],["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","rev-parse","--show-object-format"],["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","cat-file","--batch"],["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","cat-file","--batch-all-objects","--batch-check=%(objectname) %(objecttype) %(objectsize)"],["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","diff-files","--name-only","-z","--",".",":(exclude).git",":(exclude).git/**",":(exclude)canvas-vault",":(exclude)canvas-vault/**",":(exclude){STAGE_REPO_RELATIVE}",":(exclude){STAGE_REPO_RELATIVE}/**",":(exclude)node_modules",":(exclude)node_modules/**",":(top,literal,exclude){ENVELOPE_REPO_RELATIVE}"],["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","ls-files","--others","--exclude-standard","-z","--",".",":(exclude).git",":(exclude).git/**",":(exclude)canvas-vault",":(exclude)canvas-vault/**",":(exclude){STAGE_REPO_RELATIVE}",":(exclude){STAGE_REPO_RELATIVE}/**",":(exclude)node_modules",":(exclude)node_modules/**",":(top,literal,exclude){ENVELOPE_REPO_RELATIVE}"],["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","show-ref"],["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","ls-tree","-z","--full-tree","{GENERATION_AUTHORIZATION_COMMIT_OID_PUBLIC}","--","{PUBLIC_ARTIFACT_REPO_RELATIVE}"],["{RESOLVED_CLT_GIT_PRIVATE}","--no-optional-locks","-c","core.fsmonitor=false","-c","core.untrackedCache=false","-c","core.hooksPath=/dev/null","-c","core.bare=false","-c","core.excludesFile=/dev/null","-c","core.attributesFile=/dev/null","-c","submodule.recurse=false","-c","protocol.allow=never","-c","core.commitGraph=false","-c","core.multiPackIndex=false","-c","pack.useBitmap=false","-c","pack.writeReverseIndex=false","--git-dir=.","--work-tree={REPO_ROOT_PRIVATE}","--no-pager","show","{GENERATION_AUTHORIZATION_COMMIT_OID_PUBLIC}:{PUBLIC_ARTIFACT_REPO_RELATIVE}"]],"environment_name_allowlist":["PATH","HOME","LC_ALL","LANG","GIT_OPTIONAL_LOCKS","GIT_CONFIG_GLOBAL","GIT_CONFIG_NOSYSTEM","GIT_CONFIG_SYSTEM","GIT_TERMINAL_PROMPT","GIT_NO_REPLACE_OBJECTS","GIT_PROTOCOL_FROM_USER","GIT_ALLOW_PROTOCOL","GIT_ATTR_NOSYSTEM","GIT_DISCOVERY_ACROSS_FILESYSTEM"],"executable":"{RESOLVED_CLT_GIT_PRIVATE}","read_only":true,"role":"git-read-only-evidence","shell":false},{"argv_allowlist":[["/usr/bin/xcode-select","-p"]],"environment_name_allowlist":["PATH","HOME","LC_ALL","LANG","GIT_OPTIONAL_LOCKS","GIT_CONFIG_GLOBAL","GIT_CONFIG_NOSYSTEM","GIT_CONFIG_SYSTEM","GIT_TERMINAL_PROMPT","GIT_NO_REPLACE_OBJECTS","GIT_PROTOCOL_FROM_USER","GIT_ALLOW_PROTOCOL","GIT_ATTR_NOSYSTEM","GIT_DISCOVERY_ACROSS_FILESYSTEM"],"executable":"/usr/bin/xcode-select","read_only":true,"role":"xcode-select-resolver","shell":false},{"argv_allowlist":[["/usr/bin/xcrun","--find","git"]],"environment_name_allowlist":["PATH","HOME","LC_ALL","LANG","GIT_OPTIONAL_LOCKS","GIT_CONFIG_GLOBAL","GIT_CONFIG_NOSYSTEM","GIT_CONFIG_SYSTEM","GIT_TERMINAL_PROMPT","GIT_NO_REPLACE_OBJECTS","GIT_PROTOCOL_FROM_USER","GIT_ALLOW_PROTOCOL","GIT_ATTR_NOSYSTEM","GIT_DISCOVERY_ACROSS_FILESYSTEM"],"executable":"/usr/bin/xcrun","read_only":true,"role":"xcrun-resolver","shell":false},{"argv_allowlist":[["/usr/bin/pgrep","-if","(^|[/ ])claude([ ]|$)|@anthropic-ai/claude-code"]],"environment_name_allowlist":["PATH","LC_ALL","LANG"],"executable":"/usr/bin/pgrep","read_only":true,"role":"pgrep-read-only-evidence","shell":false},{"argv_allowlist":[["/usr/sbin/lsof","-nP","-a","-p","{CLAUDE_CANDIDATE_PID_DECIMAL}","-d","cwd","-Fpn"]],"environment_name_allowlist":["PATH","LC_ALL","LANG"],"executable":"/usr/sbin/lsof","read_only":true,"role":"lsof-read-only-evidence","shell":false}],"evidence_command_templates_sha256":null,"executor_argv_template":["{BOUND_PYTHON_PRIVATE}","-I","-S","-B","{REPO_ROOT_PRIVATE}/_bmad-output/\u5ba1\u67e5/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-v2.py","acquire","--repo-root","{REPO_ROOT_PRIVATE}","--cache-root","{CACHE_ROOT_PRIVATE}","--state-root","{STATE_ROOT_PRIVATE}","--key-file","{HMAC_KEY_FILE_PRIVATE}","--envelope","{ENVELOPE_PRIVATE}","--receipt-digest","{APPROVED_RECEIPT_DIGEST_PUBLIC}","--approval-challenge","{APPROVAL_CHALLENGE_ID_PUBLIC}"],"executor_argv_template_sha256":null,"executor_interface_state":"frozen-content-addressed-before-user-receipt","executor_interface_version":"gov01-static-acquisition-executor-draft-v2","expiry_checkpoints":["on-envelope-load","immediately-before-persistent-ledger-claim","immediately-before-renameatx_np-RENAME_EXCL"],"forbidden_executable_names":["npm","npx","node","nodejs","openspec","sandbox-exec","tar","bsdtar","gtar"],"git_metadata_adapter_bootstrap_sandbox_profile":"each git-metadata-adapter-bootstrap child receives a dedicated duplicate of the identity-bound adapter Git directory FD, fchdir's to that inode, closes the child-only FD, then calls /usr/lib/libsandbox.1.dylib sandbox_init exactly once before exec with a generated default-deny profile; argv always has literal --git-dir=. and an explicit absolute repo --work-tree with no -C or discovery; only cat-file --batch for captured HEAD and required-path-trie tree OIDs plus exact-OID pack-objects --stdout receive GIT_OBJECT_DIRECTORY with only exact loose-object paths or per-request pack/index pairs selected by independently verified frozen v2 pack-index search receipts under the live common-dir/objects root; the parent verifies the streamed pack checksum, then index-pack --stdin materializes only that bounded stream into the adapter with the live bridge unset, and verify-pack also runs with that bridge unset; live HEAD,index,configs,refs,hooks,logs,grafts,unselected loose objects and objects/info including alternates and http-alternates are denied; pack-objects has no child filesystem write authority and only index-pack may write, only beneath the exact identity-bound private adapter objects/pack subtree; explicit write denies protect the /private/tmp parent, adapter root/Git/object directory entries, every sibling adapter and every path outside that exact objects/pack subtree; worktree payload, Vault/.obsidian, other reads/writes, network and subprocess executables other than the content-bound Git binary are denied; direct full-source CAS brackets bootstrap and the bridge is absent from every sealed-adapter evidence child","git_metadata_adapter_host_assurance":"every spawned Git child is sandboxed and has no authority to create, rename, unlink or write the private-temporary parent namespace or any sibling adapter root; the product owns only the fresh exact adapter entry, root and descendants for that invocation, while /private/tmp and sibling entries remain ambient host namespace; every product invocation creates one fresh unique adapter root; the process-wide non-reentrant scope and registry forbid interleaved adapter ownership within one process and do not claim cross-process exclusion","git_metadata_adapter_trust_boundary":"the kernel and each owning same-UID production process are trusted; POSIX 0600 and 0700 modes isolate other UIDs but do not isolate an unsandboxed process with the same effective UID, so each adapter root has exactly one owning process and compliant same-UID product processes never mutate another invocation's root; non-cooperating same-UID filesystem mutation, out-of-process ptrace or code injection, and out-of-process access to the 0600 private HMAC key are outside the supported threat model","launcher_executable_role":"python-interpreter","member_type_policy":"archive accepts regular files and directories only; rejects archive symlink, hardlink, fifo, socket, block/character device and unknown types","network_allowed":false,"phase_order":["read-only-verify-user-receipt-envelope-digest-challenge-and-expiry","read-only-hash-bound-schema-compare-schema-binding-and-run-manual-critical-envelope-checks-before-verifier-compilation","read-only-compare-repo-cache-state-key-envelope-locator-commitments","read-only-hash-every-public-artifact-and-load-only-the-bound-verifier-source","directly capture live Git metadata, freeze and seal an exact private-temp adapter, run explicit-adapter Git evidence children with zero live-control reads, revalidate the live source and remove the exact adapter with zero residue before comparing Git-snapshot and private-preapproval commitments","verify-no-active-Claude-session-whose-cwd-is-the-target-worktree; no broader ambient-process absence claim","read-only-direct-SRI-cache-census-build-expected-tree-and-freeze-all-compressed-and-payload-bytes-in-memory","recheck-approval-expiry-immediately-before-persistent-claim","create-persistent-0700-challenge-claim-directory-with-exclusive-mkdirat-and-record-first-authority-consuming-persistent-write","append-frozen-preflight-event-to-persistent-ledger","create-0700-same-parent-same-filesystem-exclusive-stage-with-incomplete-marker","stream-decompress-and-custom-parse-only-approved-USTAR-members","materialize-only-expected-resolution-destinations-without-running-payload","fsync-stage-and-verify-closure-resolution-and-stage-tree-receipts","run-full-pre-promotion-CAS-for-private-inputs-public-artifacts-toolchain-Git-dirty-content-process-census-lock-cache-control-files-stage-identity-and-target-absence","remove-only-the-incomplete-marker-seal-root-0755-and-run-two-stable-fingerprints; failure-after-this-point-retains-a-hidden-unmarked-stage","recheck-approval-expiry-and-target-absence-immediately-before-publication","publish-exact-stage-to-absent-target-with-renameatx_np-RENAME_EXCL","fsync-target-parent-and-recompute-final-tree-and-private-postimage","append-terminal-private-ledger-event-and-emit-locator-free-stdout-projection-only-if-every-success-condition-holds","stop-with-payload-unexecuted"],"runner":"caller invokes exact executor with a CPython 3.9-compatible interpreter and -I -S -B; executor self-attests isolation flags, interpreter, stdlib, executor, verifier, schema and five evidence binaries only after Python startup; no pre-exec launcher or pre-exec hash assurance exists; no shell","shell_allowed":false,"stop_after_static_attestation":true,"subprocess_from_executor_allowed":true,"ustar_parser":"custom Python stdlib fixed-512-byte POSIX.1-1988 USTAR parser; tarfile.extract/extractall forbidden","ustar_safety_policy":"strict magic/version/checksum/octal/padding/two-zero-block terminator; reject PAX, GNU, sparse, base-256 numeric, trailing payload, absolute/dot/dotdot/backslash/NUL/control path, symlink ancestor and path escape","verifier_census_argv_template":["{BOUND_PYTHON_PRIVATE}","-I","-S","-B","{BOUND_VERIFIER_PRIVATE}","census","--cache-root","{CACHE_ROOT_PRIVATE}"],"verifier_installed_argv_template":["{BOUND_PYTHON_PRIVATE}","-I","-S","-B","{BOUND_VERIFIER_PRIVATE}","verify-installed","--cache-root","{CACHE_ROOT_PRIVATE}","--expected-tree-sha256","{EXPECTED_TREE_SHA256_PUBLIC}"],"verifier_profile_version":"gov-01-toolchain-static-verifier-v2"},"failure_contract":{"challenge_state":"before the first authority-consuming persistent write no persistent consumption record exists but this envelope/challenge must be treated as rejected and replaced; after exclusive claim mkdir the persistent state is consumed-rejected","evidence_action":"pre-claim failures may create only the authorized Git adapter scratch; under the declared trust boundary and host assurance, return and conditional retry require pre-removal root/Git identity agreement, removal of only the authorized adapter paths, post-removal absence and zero pathname/registry residue; any observed identity drift, missing pathname, cleanup error or residue is terminal fail-closed, forbids success and automatic retry, and requires new explicit approval after private-state inspection; no claim, ledger, stage, target or other persistent write occurs before the challenge claim; after a persistent claim exists, append/fsync and semantically verify a terminal failure event only while the retained ledger writer is healthy and nonterminal; never repair or delete retained persistent state","existing_target_action":"never modify or delete; if a target was newly published before a later failure, retain as unauthorized and require user decision","failed_stage_action":"retain in place with no automatic cleanup, deletion, quarantine move or glob: before marker removal it remains a hidden 0700 stage carrying the 0600 incomplete marker; after marker removal/seal but before rename it remains a hidden 0755 stage without the marker; after successful rename followed by later failure the published target is retained as unauthorized pending user decision","failure_action":"STOP immediately at first failed gate","git_metadata_adapter_cleanup_guarantee":"under the declared Git metadata adapter trust boundary and host assurance, cleanup success or retryable pre-claim failure requires pre-removal root and Git identity agreement, authorized-path removal, post-removal absence, and zero pathname and registry residue; any observed root or Git identity drift, missing authorized pathname, cleanup error, or residue is terminal and quiescence must fail; preservation against a non-cooperating same-UID replacement at the final pathname-deletion linearization point is outside the supported guarantee","new_authority_required":"new complete envelope, new raw envelope digest and new challenge","postclaim_retry_allowed":false,"preclaim_retry_allowed":true,"public_success_attestation_allowed":false},"lock_closure":{"archive_member_types":["regular-file","directory"],"content_receipt_profile":"SHA-256(ASCII(CLS/GOV01-OFFLINE-CACHE/v1) || NUL || UTF-8 body); body is lexicographically sorted LF-terminated rows of exactly 6 TAB-separated columns: lock_key, version, resolved, integrity, compressed_bytes, actual_integrity","content_receipt_sha256":null,"direct_sri_policy":"no npm cache index read; sha512 SRI bytes map directly to _cacache/content-v2/sha512/<first-2>/<next-2>/<remainder>; missing or mismatched blob is terminal failure","expected_archive_member_count":null,"expected_resolved_tree_entry_count":null,"expected_tree_receipt_profile":"SHA-256(ASCII(CLS/GOV01/DETERMINISTIC-NODE-MODULES/v2) || NUL || UTF-8 body); body is LF-terminated rows sorted by UTF-8 path bytes with exactly 5 TAB-separated columns: kind,path,mode,size,file_sha256_or_link_text","expected_tree_sha256":null,"generated_symlink_policy":"only exact relative symlink text bound by the resolution receipt; resolved target remains beneath final tree","host_bin_link_count":null,"host_selected_cache_bytes":null,"host_selected_package_count":null,"network_fetch_allowed":false,"resolution_receipt_profile":"SHA-256(ASCII(CLS/GOV01/NODE-RESOLUTION-CLOSURE/v2) || NUL || UTF-8 body); body is lexicographically sorted LF-terminated rows of exactly 7 TAB-separated columns: source,edge_type,dependency_name,spec,target,target_version,state; this is deterministic package-lock path-closure evidence only and is not a general semver solver or semantic-version satisfiability proof","resolution_receipt_sha256":null,"resource_limits":{"compressed_closure_bytes_max":14000000,"final_path_utf8_bytes_max":128,"member_count_per_archive_max":5000,"payload_closure_bytes_max":64000000,"required_bin_link_count":12,"required_raw_regular_count":4099,"selected_archive_count":167,"single_file_bytes_max":15000000,"tar_stream_bytes_per_archive_max":24000000},"source_kind":"preapproved-local-content-addressed-ustar-set","source_locator_policy":"private absolute locators omitted; after challenge claim, derive each content-v2 locator directly from the package-lock sha512 SRI and require actual_integrity equality","ustar_closure_receipt_profile":"SHA-256(ASCII(CLS/GOV01/USTAR-CLOSURE/v2) || NUL || UTF-8 body); body is lexicographically sorted LF-terminated rows of exactly 13 TAB-separated columns: lock_key,version,integrity,compressed_bytes,tar_bytes,member_count,raw_regular_count,raw_directory_count,payload_bytes,strip_root,package_name,package_version,member_manifest_sha256; each member_manifest_sha256 uses CLS/GOV01/USTAR-PACKAGE-MEMBERS/v2 NUL plus sorted 8-column member rows","ustar_closure_sha256":null},"mutation_scope":{"allowed_ephemeral_mutations":["before each Git child sequence create one unpredictable exact 0700 /private/tmp/gov01-git-adapter-* scratch root, freeze sanitized config plus captured HEAD,refs,info-exclude and shallow, strictly parse the captured index and materialize only its extension-free rechecksummed entry region, then use a sandboxed object-only live bridge to stream a pack containing exactly captured HEAD, only required-path-trie tree OIDs and only approved artifact blob OIDs; independently verify the stream checksum, import it through bridge-free index-pack, verify the exact pack object set, seal the self-contained adapter 0500/0400, then remove that exact dev/inode-bound root before returning; this nonpersistent scratch neither consumes the challenge nor authorizes any repo/state/cache mutation","create one exact 0700 same-parent same-filesystem stage with an exact 0600 incomplete marker; this stage is publication-working-state but is retained rather than ephemeral on any failure","write only the frozen expected directories, regular-file payload bytes and generated relative bin symlinks beneath that stage","remove only the exact incomplete marker and chmod the stage root 0755 immediately before two stable fingerprints and exclusive publication; failure in this sealed pre-publication window retains a hidden 0755 stage without the marker"],"allowed_persistent_mutations":["create one exact persistent 0700 challenge claim directory with exclusive mkdirat semantics and create/append one 0600 hash-chained ledger beneath it; the claim and ledger are never automatically deleted","create exactly one previously-absent approved target by a single successful renameatx_np(RENAME_EXCL)"],"forbidden_mutations":["overwrite, merge, unlink, replace or repair any existing target","modify existing repo-root package.json, package-lock.json or .gitignore; create any absent alternate lock file or .npmrc","write outside the exact identity-bound /private/tmp Git adapter scratch, exact persistent challenge claim/ledger, exact stage and exact exclusive target publication","modify Git objects, refs, index, hooks, config or any existing worktree file","modify parent or sibling worktree, user home, private Vault, Graphiti or external service","commit, push, branch/ref creation, OpenSpec execution or governance apply"],"git_metadata_adapter_cleanup_guarantee":"under the declared Git metadata adapter trust boundary and host assurance, cleanup success or retryable pre-claim failure requires pre-removal root and Git identity agreement, authorized-path removal, post-removal absence, and zero pathname and registry residue; any observed root or Git identity drift, missing authorized pathname, cleanup error, or residue is terminal and quiescence must fail; preservation against a non-cooperating same-UID replacement at the final pathname-deletion linearization point is outside the supported guarantee","git_metadata_adapter_host_assurance":"every spawned Git child is sandboxed and has no authority to create, rename, unlink or write the private-temporary parent namespace or any sibling adapter root; the product owns only the fresh exact adapter entry, root and descendants for that invocation, while /private/tmp and sibling entries remain ambient host namespace; every product invocation creates one fresh unique adapter root; the process-wide non-reentrant scope and registry forbid interleaved adapter ownership within one process and do not claim cross-process exclusion","git_metadata_adapter_trust_boundary":"the kernel and each owning same-UID production process are trusted; POSIX 0600 and 0700 modes isolate other UIDs but do not isolate an unsandboxed process with the same effective UID, so each adapter root has exactly one owning process and compliant same-UID product processes never mutate another invocation's root; non-cooperating same-UID filesystem mutation, out-of-process ptrace or code injection, and out-of-process access to the 0600 private HMAC key are outside the supported threat model","overwrite_allowed":false,"publish_attempt_ceiling":1,"publish_flag":"RENAME_EXCL","publish_syscall":"renameatx_np","target_preimage":"ABSENT"},"privacy":{"git_metadata_adapter_trust_boundary":"the kernel and each owning same-UID production process are trusted; POSIX 0600 and 0700 modes isolate other UIDs but do not isolate an unsandboxed process with the same effective UID, so each adapter root has exactly one owning process and compliant same-UID product processes never mutate another invocation's root; non-cooperating same-UID filesystem mutation, out-of-process ptrace or code injection, and out-of-process access to the 0600 private HMAC key are outside the supported threat model","graphiti_call_count":0,"network_call_count":0,"private_locator_public_count":0,"private_raw_sha256_only_for":["cache-root and direct-SRI content blob private locator evidence","dirty/untracked inventory","Git index/private config/hooks locator receipts","local settings","command output/open-file/process traces","persistent ledger and challenge claim"],"private_vault_read_count":0,"public_raw_sha256_allowed_for":["public repo artifacts including executor/verifier/schemas","locator-free toolchain content identities","content, USTAR, closure Merkle, resolution, expected-tree and public receipt digests"]},"private_state_authorization":{"all_cli_locators_compared_before_any_write":true,"authorized_locator_commitments":null,"challenge_claim_preimage":"exact state-root/claims/<approval_challenge_id> direct child ABSENT","claims_container_preimage":"state-root/claims already exists as a receipt-bound-owner-and-group real 0700 directory and is not created by this attempt","destruction_authorized":false,"first_authority_consuming_persistent_write":"mkdirat exact state-root/claims/<approval_challenge_id> with mode 0700 is the first authority-consuming persistent write; EEXIST is terminal replay; earlier writes are limited to the exact nonpersistent /private/tmp Git adapter scratch, which must be identity-bound and fully removed before any return","hmac_key_id":null,"hmac_key_id_profile":"HMAC-SHA-256 with the same private key over ASCII(CLS/GOV01/HMAC-KEY-ID/v2) || NUL || eight zero bytes; locator and raw key bytes are never serialized","locator_commitment_profile":"HMAC-SHA-256 with the authorized 32-byte private key over ASCII(CLS/GOV01/PRIVATE-LOCATOR/v2) || NUL || uint64be(canonical-body-byte-length) || UTF-8-NFC-LF canonical JSON {label,locator}; labels and absolute normalized no-symlink locators are exact and comparison uses hmac.compare_digest","persistent_single_use_ledger_required":true,"private_control_identity_commitment":null,"private_control_identity_commitment_profile":"HMAC-SHA-256 with the authorized 32-byte private key over ASCII(CLS/GOV01/PRIVATE-CONTROL-IDENTITY/v2) || NUL || uint64be(canonical-body-byte-length) || UTF-8-NFC-LF canonical JSON binding the receipt-approved owner UID, inherited control GID, exact state-root/claims/key modes and expected claim/ledger modes without serializing private locators","private_evidence_schema_required":"gov-01-toolchain-static-acquisition-private-evidence-v2","private_file_modes":{"directory":"0700","file":"0600","umask":"0077"},"private_preimage_checks":["five exact HMAC-bound locators; repo, cache and state roots are pairwise separated; the HMAC key is the exact state-root/hmac.key direct child; the envelope is contained by the control prefix; no symlink ancestor and no Vault or .obsidian component","cache-root locator and direct-SRI content blob bytes/digests; npm cache index read is prohibited","directly capture Git control marker, commondir, local configs, HEAD, index, refs, hooks and object store with absent alternate controls before constructing a sealed private adapter; every Git child uses only the adapter through explicit --git-dir/--work-tree and live metadata is revalidated after capture and before cleanup","pgrep Claude candidates and per-candidate lsof cwd stdout commitments without public command output","state-root, claims-container and HMAC-key owner/group/mode are bound by the private control identity commitment; exact challenge child absence, HMAC-key bytes, raw envelope bytes and approved receipt digest are rechecked before the first authority-consuming persistent write; only exact identity-bound Git adapter scratch creation and mandatory cleanup may occur earlier"],"private_read_authority":["resolve and hash exact toolchain realpaths bound by public content digests","derive and read exact local content-v2 archive blobs directly from package-lock sha512 SRI without reading any npm cache index","directly capture live Git control, HEAD, index, refs, config, hooks and object-store evidence into a path-free keyed source receipt; Git children read only the sealed adapter and source CAS is repeated before cleanup","run pgrep only for Claude candidates and lsof only for each returned PID cwd; no machine-wide lsof or broader process absence claim","read the pre-existing state-root/claims directory identities and require the exact challenge child absent; no pre-existing ledger is read"],"private_vault_authorized":false,"private_write_authority":["create, seal and mandatorily remove only the exact dev/inode-bound /private/tmp Git metadata adapter scratch; cleanup uncertainty or residue is terminal and this scratch never consumes the challenge","create exact 0700 persistent challenge claim directory and create/append its exact 0600 ledger.jsonl","create exact same-filesystem stage and publish exact absent target with RENAME_EXCL"],"public_serialization_forbidden":["private absolute or home-relative locator","cache-root locator or direct-SRI content blob private locator","dirty/untracked inventory or its raw digest","environment values, command output or open-file locator list","ledger locator/raw bytes, raw HMAC key or user receipt body","private Vault locator, name, content or digest"],"retention":"persistent challenge claim and ledger are retained outside repo and never automatically deleted; failed stage and any published target are never automatically deleted; the private-temp Git adapter is never retained intentionally and success requires exact cleanup with residue_count zero"},"schema_binding":{"external_validator_profile":"JSON-Schema-draft-2020-12-strict-additionalProperties-false-format-annotation-plus-content-addressed-strict-UTC-calendar-and-duplicate-key-checker","preapproval_external_validation_required":true,"runtime_checkpoint":"after raw receipt/challenge/expiry verification and schema artifact hash verification, before any other envelope-controlled read, verifier-source compilation, subprocess or write","runtime_json_schema_execution_allowed":false,"runtime_manual_critical_field_checks_required":true,"runtime_schema_hash_binding_required":true,"schema_artifact_path":"_bmad-output/\u5ba1\u67e5/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-envelope-v2.schema.json","schema_artifact_role":"pending-envelope-schema","schema_digest_must_equal_artifact_entry":true,"schema_id":"urn:canvas-learning-system:gov-01:toolchain-static-acquisition-pending-envelope:v2:draft","schema_raw_file_sha256":null,"validation_failure_action":"fail closed before any authorized write or verifier-source compilation"},"static_acquisition_contract":{"absent_control_paths":[".npmrc","npm-shrinkwrap.json","pnpm-lock.yaml","yarn.lock","bun.lock","bun.lockb"],"absent_control_pre_post_lstat_check_required":true,"compressed_blobs_memory_resident_before_write":true,"executor_artifact_path":"_bmad-output/\u5ba1\u67e5/phase0a-annotation-truth/GOV-01-toolchain-static-acquisition-v2.py","executor_sha256":null,"expected":null,"hidden_package_lock_generation_allowed":false,"lifecycle_execution_allowed":false,"network_allowed":false,"node_execution_allowed":false,"npm_execution_allowed":false,"openspec_execution_allowed":false,"openspec_scaffold_allowed":false,"payload_bytes_memory_resident_before_write":true,"protected_control_paths":["package.json","package-lock.json",".gitignore"],"protected_control_pre_post_hash_check_required":true,"stage_repo_relative":null,"target_repo_relative":"node_modules","verifier_artifact_path":"_bmad-output/\u5ba1\u67e5/phase0a-annotation-truth/GOV-01-toolchain-static-verifier-v2.py","verifier_profile_version":"gov-01-toolchain-static-verifier-v2","verifier_sha256":null},"success_contract":{"archive_member_execution_count":0,"commit_allowed":false,"content_mismatches":0,"forbidden_control_paths_present":0,"governance_apply_allowed":false,"host_package_count":167,"javascript_execution_count":0,"lifecycle_execution_count":0,"maximum_state":"static-attested-unexecuted","missing_expected_entries":0,"network_attempt_count":0,"next_required_authorization":"new runtime-use envelope binding the final-tree receipt and a fresh single-use challenge","npm_node_npx_execution_count":0,"outside_scope_mutation_count":0,"payload_execution_allowed_after_success":false,"protected_control_paths_changed":0,"push_allowed":false,"sandbox_exec_execution_count":0,"target_created_count":1,"target_tree_must_equal_expected_merkle":true,"unexpected_entries":0}}'''
 
 
 # Preserve the original literal only as the seed for the fully synchronized
@@ -5094,7 +5108,11 @@ def verify_generation_artifacts_against_micro_and_head_v2(
     _capture, boundary = create_git_metadata_adapter(repo_root, key, git_binary)
     pending: Optional[BaseException] = None
     try:
-        for observation in artifacts:
+        # The generation approval envelope is receipt-checked separately and
+        # its one-file commit transition is proved by the generation tool.
+        # This adapter deliberately contains only the frozen 20 acquisition
+        # artifact blobs and therefore must not expand to that dynamic blob.
+        for observation in artifacts[:len(PENDING_STATIC_ARTIFACT_SPECS)]:
             path = observation.get("path")
             if not isinstance(path, str):
                 fail(Exit.CONTRACT, "GENERATION_ARTIFACT_PATH")
@@ -5438,10 +5456,18 @@ def git_read_only_argv_templates_v2() -> List[List[str]]:
             "--batch-all-objects",
             "--batch-check=%(objectname) %(objecttype) %(objectsize)",
         ],
-        prefix + ["ls-tree", "-r", "-t", "-z", "--full-tree", "HEAD^{tree}"],
         prefix
         + [
-            "status", "--porcelain=v2", "-z", "--untracked-files=all", "--", ".",
+            "diff-files", "--name-only", "-z", "--", ".",
+            ":(exclude).git", ":(exclude).git/**",
+            ":(exclude)canvas-vault", ":(exclude)canvas-vault/**",
+            ":(exclude){STAGE_REPO_RELATIVE}", ":(exclude){STAGE_REPO_RELATIVE}/**",
+            ":(exclude)node_modules", ":(exclude)node_modules/**",
+            ":(top,literal,exclude){ENVELOPE_REPO_RELATIVE}",
+        ],
+        prefix
+        + [
+            "ls-files", "--others", "--exclude-standard", "-z", "--", ".",
             ":(exclude).git", ":(exclude).git/**",
             ":(exclude)canvas-vault", ":(exclude)canvas-vault/**",
             ":(exclude){STAGE_REPO_RELATIVE}", ":(exclude){STAGE_REPO_RELATIVE}/**",
@@ -5508,7 +5534,12 @@ def sbpl_literal(path: str, label: str) -> str:
     if (
         not os.path.isabs(path)
         or os.path.normpath(path) != path
-        or any(ord(character) < 0x20 or ord(character) > 0x7E or character in ('"', "\\") for character in path)
+        or not is_nfc(path)
+        or any(
+            character in ('"', "\\")
+            or unicodedata.category(character) in ("Cc", "Cf", "Zl", "Zp")
+            for character in path
+        )
     ):
         fail(Exit.PREFLIGHT_DRIFT, label + "_SBPL_LITERAL")
     return '(literal "' + path + '")'
@@ -5524,6 +5555,8 @@ def git_read_sandbox_profile(
     repo_root: str,
     boundary: GitMetadataAdapter,
     enumerates_worktree: bool,
+    authorized_tree_excludes: Sequence[str] = (),
+    authorized_exact_file_excludes: Sequence[str] = (),
 ) -> bytes:
     if (
         repo_root != boundary.repo_root
@@ -5564,6 +5597,18 @@ def git_read_sandbox_profile(
         os.path.join(boundary.live_common_dir, "objects", "info", "http-alternates"),
     ]
     prohibited_subpaths = sorted({boundary.live_git_dir, boundary.live_common_dir})
+    if not enumerates_worktree and (authorized_tree_excludes or authorized_exact_file_excludes):
+        fail(Exit.INTERNAL, "GIT_SANDBOX_EXCLUSION_CONTEXT")
+    for excluded in authorized_tree_excludes:
+        validate_relative(excluded, "GIT_SANDBOX_TREE_EXCLUDE")
+        excluded_path = os.path.join(repo_root, excluded)
+        prohibited_literals.append(excluded_path)
+        prohibited_subpaths.append(excluded_path)
+    for excluded in authorized_exact_file_excludes:
+        validate_relative(excluded, "GIT_SANDBOX_EXACT_EXCLUDE")
+        prohibited_literals.append(os.path.join(repo_root, excluded))
+    prohibited_literals = sorted(set(prohibited_literals))
+    prohibited_subpaths = sorted(set(prohibited_subpaths))
     allow_rules = "\n ".join(sbpl_literal(path, "GIT_SANDBOX") for path in literals)
     allow_rules += "\n " + "\n ".join(sbpl_subpath(path, "GIT_SANDBOX") for path in subpaths)
     ancestors: List[str] = []
@@ -5592,7 +5637,7 @@ def git_read_sandbox_profile(
         '(deny file-read* file-test-existence ' + vault_filter + ')\n'
         '(deny file-write*)\n'
     )
-    return profile.encode("ascii", "strict")
+    return profile.encode("utf-8", "strict")
 
 
 def git_hardened_child_argv(
@@ -5690,7 +5735,6 @@ def require_git_child_template_match(
             ["rev-parse", "--verify", "HEAD^{tree}"],
             ["rev-parse", "--show-object-format"],
             ["show-ref"],
-            ["ls-tree", "-r", "-t", "-z", "--full-tree", "HEAD^{tree}"],
             [
                 "cat-file",
                 "--batch-all-objects",
@@ -5704,18 +5748,28 @@ def require_git_child_template_match(
             normalized_tail = tail
             if not isinstance(stdin_bytes, bytes) or not stdin_bytes:
                 fail(Exit.TRACE, "GIT_FINAL_STDIN")
-        elif len(tail) == 15 and tail[:10] == [
-            "status", "--porcelain=v2", "-z", "--untracked-files=all", "--", ".",
-            ":(exclude).git", ":(exclude).git/**",
-            ":(exclude)canvas-vault", ":(exclude)canvas-vault/**",
-        ]:
+        elif (
+            (
+                len(tail) == 14
+                and tail[:9] == ["diff-files", "--name-only", "-z", "--", ".",
+                    ":(exclude).git", ":(exclude).git/**",
+                    ":(exclude)canvas-vault", ":(exclude)canvas-vault/**"]
+            )
+            or (
+                len(tail) == 15
+                and tail[:10] == ["ls-files", "--others", "--exclude-standard", "-z", "--", ".",
+                    ":(exclude).git", ":(exclude).git/**",
+                    ":(exclude)canvas-vault", ":(exclude)canvas-vault/**"]
+            )
+        ):
+            fixed = 9 if tail[0] == "diff-files" else 10
             stage_prefix = ":(exclude).gov01-toolchain-stage-"
-            if not tail[10].startswith(stage_prefix):
-                fail(Exit.TRACE, "GIT_STATUS_STAGE")
-            challenge = tail[10][len(":(exclude).gov01-toolchain-stage-"):]
+            if not tail[fixed].startswith(stage_prefix):
+                fail(Exit.TRACE, "GIT_DIRTY_STAGE")
+            challenge = tail[fixed][len(stage_prefix):]
             stage = ".gov01-toolchain-stage-" + challenge
             envelope_prefix = ":(top,literal,exclude)" + CONTROL_PREFIX + PENDING_ENVELOPE_BASENAME_PREFIX
-            envelope_value = tail[14]
+            envelope_value = tail[fixed + 4]
             generation_challenge = (
                 envelope_value[len(envelope_prefix):-len(".json")]
                 if envelope_value.startswith(envelope_prefix) and envelope_value.endswith(".json")
@@ -5724,12 +5778,12 @@ def require_git_child_template_match(
             if (
                 CHALLENGE_RE.fullmatch(challenge) is None
                 or GENERATION_CHALLENGE_RE.fullmatch(generation_challenge) is None
-                or tail[11] != ":(exclude)" + stage + "/**"
-                or tail[12:14] != [":(exclude)node_modules", ":(exclude)node_modules/**"]
+                or tail[fixed + 1] != ":(exclude)" + stage + "/**"
+                or tail[fixed + 2:fixed + 4] != [":(exclude)node_modules", ":(exclude)node_modules/**"]
                 or stdin_bytes is not None
             ):
-                fail(Exit.TRACE, "GIT_STATUS_AUTHORITY")
-            normalized_tail = tail[:10] + [
+                fail(Exit.TRACE, "GIT_DIRTY_AUTHORITY")
+            normalized_tail = tail[:fixed] + [
                 ":(exclude){STAGE_REPO_RELATIVE}",
                 ":(exclude){STAGE_REPO_RELATIVE}/**",
                 ":(exclude)node_modules",
@@ -5913,7 +5967,7 @@ def git_object_bootstrap_sandbox_profile(
         '(deny file-read* file-test-existence\n ' + deny_read_rules + '\n)\n'
         '(deny file-read* file-test-existence ' + vault_filter + ')\n'
     )
-    return profile.encode("ascii", "strict")
+    return profile.encode("utf-8", "strict")
 
 
 def run_git(
@@ -5969,7 +6023,14 @@ def run_git(
             max_output,
             label,
             allowed_returncodes=allowed_returncodes,
-            sandbox_profile=git_read_sandbox_profile(git_binary, repo_root, boundary, enumerates_worktree),
+            sandbox_profile=git_read_sandbox_profile(
+                git_binary,
+                repo_root,
+                boundary,
+                enumerates_worktree,
+                authorized_tree_excludes,
+                authorized_exact_file_excludes,
+            ),
             stdin_bytes=stdin_bytes,
             working_directory_fd=boundary.git_fd,
         )
@@ -6461,7 +6522,11 @@ def dirty_path_manifest_commitment(repo_root: str, status: bytes, key: bytes) ->
             ):
                 fail(Exit.PREFLIGHT_DRIFT, "GIT_DIRTY_PATH")
             lowered_components = [part.lower() for part in path_bytes.split(b"/")]
-            if any(VAULT_PREFIX.encode("ascii") in part or part == b".obsidian" for part in lowered_components):
+            if any(
+                VAULT_PREFIX.encode("ascii") in part
+                or part in (b".obsidian", b".git")
+                for part in lowered_components
+            ):
                 fail(Exit.PRIVACY, "GIT_DIRTY_VAULT_PATH")
             path_id = hmac_frame(key, b"CLS/GOV01/GIT-DIRTY-PATH/v2", path_bytes)
             try:
@@ -6599,6 +6664,50 @@ def dirty_path_manifest_commitment(repo_root: str, status: bytes, key: bytes) ->
     finally:
         os.close(repo_fd)
     return hmac_frame(key, GIT_DIRTY_MANIFEST_DOMAIN, canonical_json(rows))
+
+
+def dirty_index_worktree_manifest_commitment(
+    repo_root: str,
+    tracked_raw: bytes,
+    untracked_raw: bytes,
+    key: bytes,
+    authorized_tree_excludes: Sequence[str],
+    authorized_exact_file_excludes: Sequence[str],
+) -> str:
+    """Commit index/worktree-only dirty paths without consulting HEAD trees."""
+
+    tree_excludes = tuple(
+        b"/".join(component.encode("utf-8", "strict") for component in validate_relative(path, "GIT_DIRTY_TREE_EXCLUDE"))
+        for path in authorized_tree_excludes
+    )
+    exact_excludes = {
+        b"/".join(component.encode("utf-8", "strict") for component in validate_relative(path, "GIT_DIRTY_EXACT_EXCLUDE"))
+        for path in authorized_exact_file_excludes
+    }
+    paths = set()
+    for label, raw in (("TRACKED", tracked_raw), ("UNTRACKED", untracked_raw)):
+        if raw and not raw.endswith(b"\x00"):
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_DIRTY_" + label + "_FORMAT")
+        for path in raw[:-1].split(b"\x00") if raw else ():
+            if not path:
+                fail(Exit.PREFLIGHT_DRIFT, "GIT_DIRTY_" + label + "_FORMAT")
+            lowered_components = tuple(component.lower() for component in path.split(b"/"))
+            if any(
+                component in (b".git", b".obsidian")
+                or VAULT_PREFIX.encode("ascii") in component
+                for component in lowered_components
+            ):
+                fail(Exit.PRIVACY, "GIT_DIRTY_PROHIBITED_PATH")
+            if path in exact_excludes or any(
+                path == excluded or path.startswith(excluded + b"/")
+                for excluded in tree_excludes
+            ):
+                # Fail before delegating to the manifest builder, which is the
+                # first code permitted to stat/open any reported worktree path.
+                fail(Exit.PRIVACY, "GIT_DIRTY_EXCLUDED_PATH")
+            paths.add(path)
+    synthetic_porcelain = b"".join(b"? " + path + b"\x00" for path in sorted(paths))
+    return dirty_path_manifest_commitment(repo_root, synthetic_porcelain, key)
 
 
 def linked_git_common_anchor(repo_root: str, git_dir: str) -> str:
@@ -6798,6 +6907,7 @@ def git_control_preflight(repo_root: str, key: bytes) -> Dict[str, Any]:
 GIT_ADAPTER_TRACE_PHASES = {
     "SOURCE_CAPTURE_BEGIN": "source-capture",
     "SOURCE_CAPTURE_COMPLETE": "source-capture",
+    "SOURCE_CAPTURE_REVALIDATED": "source-cas",
     "ADAPTER_ROOT_CREATED": "adapter-materialization",
     "ADAPTER_METADATA_FROZEN": "adapter-materialization",
     "SOURCE_BOOTSTRAP_PREVALIDATED": "source-cas",
@@ -6808,10 +6918,12 @@ GIT_ADAPTER_TRACE_PHASES = {
     "OBJECT_CONTENT_VERIFIED": "adapter-seal",
     "SOURCE_BOOTSTRAP_POSTVALIDATED": "source-cas",
     "ADAPTER_SEALED": "adapter-seal",
+    "SOURCE_SEALED_PREVALIDATED": "source-cas",
+    "SOURCE_SEALED_POSTVALIDATED": "source-cas",
     "CHILD_PRECHECK_COMPLETE": "git-child",
     "CHILD_EXEC_BEGIN": "git-child",
     "CHILD_POSTCHECK_COMPLETE": "git-child",
-    "SOURCE_FINAL_REVALIDATED": "source-cas",
+    "SOURCE_CLEANUP_PREVALIDATED": "source-cas",
     "CLEANUP_BEGIN": "adapter-cleanup",
     "CLEANUP_FAILED": "adapter-cleanup",
     "CLEANUP_COMPLETE": "adapter-cleanup",
@@ -7484,6 +7596,15 @@ def capture_git_metadata_source(repo_root: str, key: bytes) -> Dict[str, Any]:
         "fingerprint": sha256(canonical_json(identity)),
     }
     capture["head_oid"] = captured_head_oid(capture)
+    captured_index = raw_files.get("index")
+    if not isinstance(captured_index, bytes):
+        fail(Exit.INTERNAL, "GIT_SOURCE_INDEX_REQUIRED")
+    index_tree_observation = parse_captured_git_index(
+        captured_index,
+        len(str(capture["head_oid"])),
+    )
+    capture["sanitized_index_bytes"] = index_tree_observation.pop("sanitized_index_bytes")
+    capture["index_tree_observation"] = index_tree_observation
     return capture
 
 
@@ -7808,47 +7929,242 @@ def parse_git_cat_file_batch_exact(
     return result, sha256(canonical_json(receipt_rows))
 
 
-def parse_git_tree_object_entries(raw: bytes, oid_length: int) -> List[Tuple[str, str, str]]:
+def build_required_git_path_trie() -> Dict[bytes, Any]:
+    """Build the frozen public artifact trie without accepting ambient paths."""
+
+    paths = [path for _role, path in PENDING_STATIC_ARTIFACT_SPECS]
+    if len(paths) != 20 or len(set(paths)) != 20:
+        fail(Exit.INTERNAL, "GIT_OBJECT_APPROVED_PATH_PROFILE")
+    root: Dict[bytes, Any] = {}
+    for path in paths:
+        components = validate_relative(path, "GIT_OBJECT_APPROVED_PATH")
+        node = root
+        for index, component in enumerate(components):
+            raw_component = component.encode("utf-8", "strict")
+            terminal = index == len(components) - 1
+            existing = node.get(raw_component)
+            if terminal:
+                if existing is not None:
+                    fail(Exit.INTERNAL, "GIT_OBJECT_APPROVED_PATH_COLLISION")
+                node[raw_component] = None
+            else:
+                if existing is None and raw_component in node:
+                    fail(Exit.INTERNAL, "GIT_OBJECT_APPROVED_PATH_COLLISION")
+                if existing is None:
+                    existing = {}
+                    node[raw_component] = existing
+                if not isinstance(existing, dict):
+                    fail(Exit.INTERNAL, "GIT_OBJECT_APPROVED_PATH_COLLISION")
+                node = existing
+    return root
+
+
+def select_required_git_tree_entries(
+    raw: bytes,
+    oid_length: int,
+    required: Mapping[bytes, Any],
+) -> Dict[bytes, Tuple[str, str, str]]:
+    """Frame every sibling but retain only names present in the public trie.
+
+    Unrelated names remain opaque bytes: they are not decoded, serialized, or
+    followed.  Their mode/name/OID framing and canonical Git tree order are
+    still checked so a malformed object cannot move a selected entry boundary.
+    """
+
     raw_oid_length = oid_length // 2
     cursor = 0
-    entries: List[Tuple[str, str, str]] = []
-    names = set()
+    selected: Dict[bytes, Tuple[str, str, str]] = {}
+    previous_key: Optional[bytes] = None
+    seen_names = set()
     while cursor < len(raw):
         space = raw.find(b" ", cursor)
         nul = raw.find(b"\x00", space + 1 if space >= 0 else cursor)
         if space < 0 or nul < 0 or nul == space + 1:
             fail(Exit.PREFLIGHT_DRIFT, "GIT_TREE_OBJECT_FORMAT")
-        try:
-            mode = raw[cursor:space].decode("ascii", "strict")
-            name = raw[space + 1:nul].decode("utf-8", "strict")
-        except UnicodeDecodeError:
-            fail(Exit.PREFLIGHT_DRIFT, "GIT_TREE_OBJECT_ENCODING")
+        mode_raw = raw[cursor:space]
+        name_raw = raw[space + 1:nul]
         oid_end = nul + 1 + raw_oid_length
-        if oid_end > len(raw):
-            fail(Exit.PREFLIGHT_DRIFT, "GIT_TREE_OBJECT_OID")
-        oid = raw[nul + 1:oid_end].hex()
         if (
-            name in names
-            or not name
-            or "/" in name
-            or "\\" in name
-            or "\x00" in name
-            or not is_nfc(name)
-            or any(unicodedata.category(character) in ("Cc", "Cf", "Zl", "Zp") for character in name)
-            or re.fullmatch(r"[0-9a-f]{%d}" % oid_length, oid) is None
+            oid_end > len(raw)
+            or not name_raw
+            or b"/" in name_raw
+            or b"\x00" in name_raw
+            or mode_raw not in (b"40000", b"100644", b"100755", b"120000", b"160000")
         ):
             fail(Exit.PREFLIGHT_DRIFT, "GIT_TREE_OBJECT_ENTRY")
-        names.add(name)
-        if mode == "40000":
-            object_type = "tree"
-        elif mode in ("100644", "100755", "120000"):
-            object_type = "blob"
-        else:
-            # Includes mode 160000 gitlinks/submodules.
-            fail(Exit.PRIVACY, "GIT_TREE_OBJECT_TYPE")
-        entries.append((name, object_type, oid if object_type == "tree" else mode + ":" + oid))
+        if name_raw in seen_names:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_TREE_OBJECT_NAME_DUPLICATE")
+        seen_names.add(name_raw)
+        order_key = name_raw + (b"/" if mode_raw == b"40000" else b"\x00")
+        if previous_key is not None and order_key <= previous_key:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_TREE_OBJECT_ORDER")
+        previous_key = order_key
+        required_child = required.get(name_raw)
+        if name_raw in required:
+            oid = raw[nul + 1:oid_end].hex()
+            if re.fullmatch(r"[0-9a-f]{%d}" % oid_length, oid) is None:
+                fail(Exit.PREFLIGHT_DRIFT, "GIT_TREE_OBJECT_OID")
+            if isinstance(required_child, dict):
+                if mode_raw != b"40000":
+                    fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_APPROVED_TREE_MODE")
+                selected[name_raw] = ("tree", oid, "40000")
+            else:
+                if mode_raw != b"100644":
+                    fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_APPROVED_BLOB_MODE")
+                selected[name_raw] = ("blob", oid, "100644")
         cursor = oid_end
-    return entries
+    if set(selected) != set(required):
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_APPROVED_PATH_MISSING")
+    return selected
+
+
+def git_object_oid(object_type: str, content: bytes, oid_length: int) -> str:
+    digest = hashlib.sha1() if oid_length == 40 else hashlib.sha256()
+    digest.update((object_type + " " + str(len(content)) + "\x00").encode("ascii"))
+    digest.update(content)
+    return digest.hexdigest()
+
+
+def parse_captured_git_index(raw: bytes, oid_length: int) -> Dict[str, Any]:
+    """Strictly parse a captured v2/v3 index and recompute its root tree OID."""
+
+    oid_bytes = oid_length // 2
+    if (
+        oid_length not in (40, 64)
+        or len(raw) < 12 + oid_bytes
+        or raw[:4] != b"DIRC"
+    ):
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_INDEX_FORMAT")
+    version = int.from_bytes(raw[4:8], "big")
+    entry_count = int.from_bytes(raw[8:12], "big")
+    if version not in (2, 3) or entry_count > MAX_GIT_ADAPTER_ENTRIES:
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_INDEX_VERSION")
+    digest = hashlib.sha1() if oid_length == 40 else hashlib.sha256()
+    digest.update(raw[:-oid_bytes])
+    if not hmac.compare_digest(digest.digest(), raw[-oid_bytes:]):
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_INDEX_CHECKSUM")
+    content_end = len(raw) - oid_bytes
+    cursor = 12
+    previous_path: Optional[bytes] = None
+    root: Dict[bytes, Any] = {}
+    zero_oid = b"\x00" * oid_bytes
+    for _index in range(entry_count):
+        entry_start = cursor
+        fixed_end = cursor + 40 + oid_bytes + 2
+        if fixed_end > content_end:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_INDEX_ENTRY_LENGTH")
+        mode_value = int.from_bytes(raw[cursor + 24:cursor + 28], "big")
+        oid_raw = raw[cursor + 40:cursor + 40 + oid_bytes]
+        flags = int.from_bytes(raw[cursor + 40 + oid_bytes:fixed_end], "big")
+        cursor = fixed_end
+        if flags & 0x4000:
+            if version < 3 or cursor + 2 > content_end:
+                fail(Exit.PREFLIGHT_DRIFT, "GIT_INDEX_EXTENDED_FLAGS")
+            extended = int.from_bytes(raw[cursor:cursor + 2], "big")
+            cursor += 2
+            if extended != 0:
+                fail(Exit.PREFLIGHT_DRIFT, "GIT_INDEX_EXTENDED_FLAGS")
+        if flags & 0x8000:
+            # CE_VALID/assume-unchanged lets diff-files omit a changed
+            # worktree path, so it is incompatible with a complete snapshot.
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_INDEX_ASSUME_UNCHANGED")
+        if ((flags >> 12) & 0x3) != 0 or oid_raw == zero_oid:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_INDEX_STAGE")
+        nul = raw.find(b"\x00", cursor, content_end)
+        if nul < 0:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_INDEX_PATH_TERMINATOR")
+        path = raw[cursor:nul]
+        advertised_length = flags & 0x0FFF
+        if (
+            not path
+            or path.startswith(b"/")
+            or b"\\" in path
+            or any(component in (b"", b".", b"..") for component in path.split(b"/"))
+            or any(component.lower() == b".git" for component in path.split(b"/"))
+            or (advertised_length < 0x0FFF and advertised_length != len(path))
+            or (advertised_length == 0x0FFF and len(path) < 0x0FFF)
+            or (previous_path is not None and path <= previous_path)
+        ):
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_INDEX_PATH")
+        previous_path = path
+        raw_entry_length = nul + 1 - entry_start
+        cursor = entry_start + ((raw_entry_length + 7) // 8) * 8
+        if cursor > content_end or any(raw[nul + 1:cursor]):
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_INDEX_PADDING")
+        if mode_value not in (0o100644, 0o100755, 0o120000):
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_INDEX_MODE")
+        node = root
+        components = path.split(b"/")
+        for component in components[:-1]:
+            child = node.get(component)
+            if child is None:
+                child = {}
+                node[component] = child
+            if not isinstance(child, dict):
+                fail(Exit.PREFLIGHT_DRIFT, "GIT_INDEX_FILE_DIRECTORY_COLLISION")
+            node = child
+        leaf = components[-1]
+        if leaf in node:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_INDEX_PATH_DUPLICATE")
+        node[leaf] = (format(mode_value, "o").encode("ascii"), oid_raw)
+    entries_end = cursor
+    extensions: List[Dict[str, Any]] = []
+    seen_extensions = set()
+    while cursor < content_end:
+        if cursor + 8 > content_end:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_INDEX_EXTENSION_LENGTH")
+        signature = raw[cursor:cursor + 4]
+        size = int.from_bytes(raw[cursor + 4:cursor + 8], "big")
+        cursor += 8
+        end = cursor + size
+        if (
+            end > content_end
+            or len(signature) != 4
+            or not all(0x20 <= byte <= 0x7E for byte in signature)
+            or not (0x41 <= signature[0] <= 0x5A)
+            or signature in seen_extensions
+        ):
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_INDEX_EXTENSION")
+        seen_extensions.add(signature)
+        extensions.append(
+            {
+                "signature": signature.decode("ascii", "strict"),
+                "bytes": size,
+                "sha256": sha256(raw[cursor:end]),
+            }
+        )
+        cursor = end
+
+    def tree_oid(node: Mapping[bytes, Any]) -> str:
+        records: List[Tuple[bytes, bytes]] = []
+        for name, value in node.items():
+            if isinstance(value, dict):
+                mode = b"40000"
+                child_oid = bytes.fromhex(tree_oid(value))
+            else:
+                mode, child_oid = value
+            records.append((name + (b"/" if mode == b"40000" else b"\x00"), mode + b" " + name + b"\x00" + child_oid))
+        content = b"".join(record for _key, record in sorted(records, key=lambda item: item[0]))
+        return git_object_oid("tree", content, oid_length)
+
+    extension_body = canonical_json(extensions)
+    sanitized_body = raw[:entries_end]
+    sanitized_digest = hashlib.sha1() if oid_length == 40 else hashlib.sha256()
+    sanitized_digest.update(sanitized_body)
+    sanitized_index = sanitized_body + sanitized_digest.digest()
+    return {
+        "index_root_tree_oid": tree_oid(root),
+        "index_version": version,
+        "index_entry_count": entry_count,
+        "index_extension_profile": GIT_INDEX_EXTENSION_PROFILE_V2,
+        "index_extension_count": len(extensions),
+        "index_extension_receipt_sha256": sha256(extension_body),
+        "index_recomputation_profile": GIT_INDEX_RECOMPUTATION_PROFILE_V2,
+        "adapter_index_sanitization_profile": "captured-entry-region-no-extensions-rechecksummed-v2",
+        "adapter_index_sha256": sha256(sanitized_index),
+        "adapter_index_bytes": len(sanitized_index),
+        "sanitized_index_bytes": sanitized_index,
+    }
 
 
 def discover_git_object_closure(
@@ -7915,50 +8231,51 @@ def discover_git_object_closure(
         fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_ROOT_TREE_FORMAT")
     if re.fullmatch(r"[0-9a-f]{%d}" % oid_length, root_tree_oid) is None:
         fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_ROOT_TREE_FORMAT")
+    index_observation = capture.get("index_tree_observation")
+    if (
+        not isinstance(index_observation, dict)
+        or index_observation.get("index_root_tree_oid") != root_tree_oid
+    ):
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_INDEX_HEAD_TREE_DRIFT")
     tree_content: Dict[str, bytes] = {}
-    pending_contexts: List[Tuple[str, str]] = [(root_tree_oid, "")]
+    required_root = build_required_git_path_trie()
+    pending_contexts: List[Tuple[str, Mapping[bytes, Any], Tuple[bytes, ...]]] = [
+        (root_tree_oid, required_root, ())
+    ]
     processed_contexts = set()
     tree_oids = {root_tree_oid}
-    approved_paths = {path for _role, path in PENDING_STATIC_ARTIFACT_SPECS}
-    if len(PENDING_STATIC_ARTIFACT_SPECS) != 20 or len(approved_paths) != 20:
-        fail(Exit.INTERNAL, "GIT_OBJECT_APPROVED_PATH_PROFILE")
     approved_blobs: Dict[str, str] = {}
-    observed_paths = set()
-    observed_casefold: Dict[str, str] = {}
     while pending_contexts:
-        missing = sorted({oid for oid, _prefix in pending_contexts if oid not in tree_content})
+        missing = sorted({oid for oid, _required, _prefix in pending_contexts if oid not in tree_content})
         if missing:
             batch = read_exact({oid: "tree" for oid in missing}, "GIT_OBJECT_TREE_BATCH")
             tree_content.update({oid: value[1] for oid, value in batch.items()})
-        next_contexts: List[Tuple[str, str]] = []
-        for tree_oid, prefix in pending_contexts:
+        next_contexts: List[Tuple[str, Mapping[bytes, Any], Tuple[bytes, ...]]] = []
+        for tree_oid, required, prefix in pending_contexts:
             context = (tree_oid, prefix)
             if context in processed_contexts:
                 fail(Exit.PREFLIGHT_DRIFT, "GIT_TREE_CONTEXT_DUPLICATE")
             processed_contexts.add(context)
-            for name, object_type, encoded_target in parse_git_tree_object_entries(
+            selected = select_required_git_tree_entries(
                 tree_content[tree_oid],
                 oid_length,
-            ):
-                path = name if not prefix else prefix + "/" + name
-                validate_relative(path, "GIT_OBJECT_ENUMERATION_PATH")
-                folded = unicodedata.normalize("NFC", path).casefold()
-                if path in observed_paths or (folded in observed_casefold and observed_casefold[folded] != path):
-                    fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_ENUMERATION_PATH_COLLISION")
-                observed_paths.add(path)
-                observed_casefold[folded] = path
+                required,
+            )
+            for name_raw, required_child in required.items():
+                object_type, target_oid, _mode = selected[name_raw]
+                path_parts = prefix + (name_raw,)
                 if object_type == "tree":
-                    tree_oids.add(encoded_target)
-                    next_contexts.append((encoded_target, path))
+                    if not isinstance(required_child, dict):
+                        fail(Exit.INTERNAL, "GIT_OBJECT_REQUIRED_TRIE")
+                    tree_oids.add(target_oid)
+                    next_contexts.append((target_oid, required_child, path_parts))
                 else:
-                    mode, blob_oid = encoded_target.split(":", 1)
-                    if path in approved_paths:
-                        if mode != "100644":
-                            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_APPROVED_BLOB_MODE")
-                        approved_blobs[path] = blob_oid
-                if len(observed_paths) > MAX_GIT_ADAPTER_ENTRIES:
-                    fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_ENUMERATION_LIMIT")
+                    if required_child is not None:
+                        fail(Exit.INTERNAL, "GIT_OBJECT_REQUIRED_TRIE")
+                    path = b"/".join(path_parts).decode("utf-8", "strict")
+                    approved_blobs[path] = target_oid
         pending_contexts = next_contexts
+    approved_paths = {path for _role, path in PENDING_STATIC_ARTIFACT_SPECS}
     if set(approved_blobs) != approved_paths:
         fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_APPROVED_BLOB_MISSING")
     object_types: Dict[str, str] = {head_oid: "commit"}
@@ -7975,6 +8292,8 @@ def discover_git_object_closure(
         "object_count": len(object_oids),
         "tree_object_count": len(tree_oids),
         "approved_artifact_blob_count": len(approved_blobs),
+        "required_path_count": len(approved_paths),
+        "required_path_trie_receipt_sha256": sha256(canonical_json(sorted(approved_paths))),
         "oid_set_sha256": sha256(canonical_json(object_oids)),
     }
     return object_oids, object_types, root_tree_oid, manifest
@@ -8054,6 +8373,12 @@ def parse_git_ls_tree_object_closure(
         "oid_set_sha256": sha256(canonical_json(object_oids)),
     }
     return object_oids, object_types, manifest_core
+
+
+# Kept textually only to make historical review diffs legible.  The full-tree
+# parser is not a production surface: no call site remains and the name is
+# removed before any command can dispatch.
+del parse_git_ls_tree_object_closure
 
 
 def verify_pack_object_set(raw: bytes, expected_oids: Sequence[str], pack_path: str) -> None:
@@ -8428,19 +8753,45 @@ def verify_sealed_git_adapter_tree_selection(
     root_tree_oid: str,
     expected_types: Mapping[str, str],
 ) -> None:
+    ordered_oids = sorted(expected_types)
     raw = run_git(
         git_binary,
         repo_root,
         boundary,
-        ["ls-tree", "-r", "-t", "-z", "--full-tree", "HEAD^{tree}"],
-        "GIT_OBJECT_SEALED_TREE_ENUMERATION",
+        ["cat-file", "--batch"],
+        "GIT_OBJECT_SEALED_REQUIRED_PATHS",
+        stdin_bytes=b"".join(oid.encode("ascii") + b"\n" for oid in ordered_oids),
     )
-    observed_oids, observed_types, _manifest = parse_git_ls_tree_object_closure(
+    objects, _receipt = parse_git_cat_file_batch_exact(
         raw,
-        head_oid,
-        root_tree_oid,
+        expected_types,
+        MAX_GIT_INDEX_BYTES,
+        "GIT_OBJECT_SEALED_REQUIRED_PATHS",
     )
-    if observed_oids != sorted(expected_types) or observed_types != dict(expected_types):
+    commit_content = objects.get(head_oid)
+    if commit_content is None or commit_content[0] != "commit":
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_SEALED_HEAD")
+    first_line = commit_content[1].split(b"\n", 1)[0]
+    if first_line != b"tree " + root_tree_oid.encode("ascii"):
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_SEALED_ROOT_TREE")
+    required_root = build_required_git_path_trie()
+    pending: List[Tuple[str, Mapping[bytes, Any]]] = [(root_tree_oid, required_root)]
+    selected_types: Dict[str, str] = {head_oid: "commit"}
+    while pending:
+        tree_oid, required = pending.pop()
+        tree_object = objects.get(tree_oid)
+        if tree_object is None or tree_object[0] != "tree":
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_SEALED_TREE")
+        if selected_types.setdefault(tree_oid, "tree") != "tree":
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_SEALED_TYPE_COLLISION")
+        selected = select_required_git_tree_entries(tree_object[1], len(head_oid), required)
+        for name_raw, required_child in required.items():
+            object_type, target_oid, _mode = selected[name_raw]
+            if selected_types.setdefault(target_oid, object_type) != object_type:
+                fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_SEALED_TYPE_COLLISION")
+            if isinstance(required_child, dict):
+                pending.append((target_oid, required_child))
+    if selected_types != dict(expected_types):
         fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_SEALED_TREE_SET")
 
 
@@ -8870,6 +9221,8 @@ def create_git_metadata_adapter(
         release_git_metadata_adapter_process_scope(None, None)
         raise
     git_adapter_trace_event(trace, "SOURCE_CAPTURE_COMPLETE", "source-capture")
+    assert_git_source_capture_unchanged(capture, repo_root, key, "GIT_ADAPTER_SOURCE_DRIFT")
+    git_adapter_trace_event(trace, "SOURCE_CAPTURE_REVALIDATED", "source-cas")
     try:
         adapter_root = tempfile.mkdtemp(prefix=GIT_ADAPTER_TEMP_PREFIX, dir="/private/tmp")
     except OSError:
@@ -8955,7 +9308,10 @@ def create_git_metadata_adapter(
         write_git_adapter_file_at(git_fd, "config", safe_config, "GIT_ADAPTER_CONFIG")
         raw_files = capture["raw_files"]
         write_git_adapter_file_at(git_fd, "HEAD", raw_files["head"], "GIT_ADAPTER_HEAD")
-        write_git_adapter_file_at(git_fd, "index", raw_files["index"], "GIT_ADAPTER_INDEX")
+        sanitized_index = capture.get("sanitized_index_bytes")
+        if not isinstance(sanitized_index, bytes):
+            fail(Exit.INTERNAL, "GIT_ADAPTER_SANITIZED_INDEX")
+        write_git_adapter_file_at(git_fd, "index", sanitized_index, "GIT_ADAPTER_INDEX")
         for role, name in (("packed_refs", "packed-refs"), ("shallow", "shallow")):
             raw = raw_files.get(role)
             if raw is not None:
@@ -9016,6 +9372,11 @@ def create_git_metadata_adapter(
             trace,
         )
         verify_git_metadata_adapter(boundary)
+        revalidate_git_metadata_source(
+            boundary,
+            key,
+            "SOURCE_SEALED_PREVALIDATED",
+        )
         adapter_object_manifest["object_inventory_verification_profile"] = (
             "sealed-adapter-cat-file-batch-all-exact-set-v1"
         )
@@ -9045,6 +9406,11 @@ def create_git_metadata_adapter(
             str(capture["head_oid"]),
             str(capture["adapter_root_tree_oid"]),
             adapter_object_types,
+        )
+        revalidate_git_metadata_source(
+            boundary,
+            key,
+            "SOURCE_SEALED_POSTVALIDATED",
         )
         return capture, boundary
     except BaseException:
@@ -9101,7 +9467,11 @@ def verify_git_metadata_adapter(boundary: GitMetadataAdapter) -> None:
         fail(Exit.PREFLIGHT_DRIFT, "GIT_ADAPTER_DRIFT")
 
 
-def revalidate_git_metadata_source(boundary: GitMetadataAdapter, key: bytes) -> None:
+def revalidate_git_metadata_source(
+    boundary: GitMetadataAdapter,
+    key: bytes,
+    trace_event: str = "SOURCE_CLEANUP_PREVALIDATED",
+) -> None:
     require_git_metadata_adapter_process_scope(boundary)
     try:
         current = capture_git_metadata_source(boundary.repo_root, key)
@@ -9118,7 +9488,7 @@ def revalidate_git_metadata_source(boundary: GitMetadataAdapter, key: bytes) -> 
         or dependencies["fingerprint"] != boundary.object_dependency_fingerprint
     ):
         fail(Exit.GIT_CONTAINMENT, "GIT_ADAPTER_SOURCE_DRIFT")
-    git_adapter_trace_event(boundary, "SOURCE_FINAL_REVALIDATED", "source-cas")
+    git_adapter_trace_event(boundary, trace_event, "source-cas")
 
 
 def cleanup_git_metadata_adapter(boundary: GitMetadataAdapter) -> None:
@@ -9154,7 +9524,7 @@ def finalize_git_metadata_adapter(boundary: GitMetadataAdapter, key: bytes) -> T
     pending: Optional[BaseException] = None
     try:
         verify_git_metadata_adapter(boundary)
-        revalidate_git_metadata_source(boundary, key)
+        revalidate_git_metadata_source(boundary, key, "SOURCE_CLEANUP_PREVALIDATED")
     except BaseException as error:
         pending = error
     try:
@@ -9219,19 +9589,36 @@ def git_snapshot(
             fail(Exit.PREFLIGHT_DRIFT, "GIT_HEAD_FORMAT")
         if not re.fullmatch(r"[0-9a-f]{%d}" % expected_oid_length, tree):
             fail(Exit.PREFLIGHT_DRIFT, "GIT_TREE_FORMAT")
-        status = run_git(
+        tracked_dirty = run_git(
             git_binary,
             repo_root,
             boundary,
-            ["status", "--porcelain=v2", "-z", "--untracked-files=all"],
-            "GIT_STATUS",
+            ["diff-files", "--name-only", "-z"],
+            "GIT_DIFF_FILES",
             enumerates_worktree=True,
             authorized_tree_excludes=tree_exclusions,
             authorized_exact_file_excludes=exact_file_exclusions,
         )
-        if VAULT_PREFIX.encode("ascii") in status.lower():
-            fail(Exit.PRIVACY, "GIT_STATUS_VAULT_LEAK")
-        dirty_manifest = dirty_path_manifest_commitment(repo_root, status, key)
+        untracked_dirty = run_git(
+            git_binary,
+            repo_root,
+            boundary,
+            ["ls-files", "--others", "--exclude-standard", "-z"],
+            "GIT_LS_FILES_OTHERS",
+            enumerates_worktree=True,
+            authorized_tree_excludes=tree_exclusions,
+            authorized_exact_file_excludes=exact_file_exclusions,
+        )
+        if VAULT_PREFIX.encode("ascii") in (tracked_dirty + untracked_dirty).lower():
+            fail(Exit.PRIVACY, "GIT_DIRTY_VAULT_LEAK")
+        dirty_manifest = dirty_index_worktree_manifest_commitment(
+            repo_root,
+            tracked_dirty,
+            untracked_dirty,
+            key,
+            tree_exclusions,
+            exact_file_exclusions,
+        )
         refs = run_git(git_binary, repo_root, boundary, ["show-ref"], "GIT_REFS")
         file_observations = capture["identity"]["files"]
 
@@ -9254,14 +9641,30 @@ def git_snapshot(
             "head": head,
             "tree": tree,
             "object_format": object_format,
-            "status_sha256": sha256(status),
-            "status_bytes": len(status),
+            "status_sha256": sha256(
+                b"CLS/GOV01/GIT-INDEX-WORKTREE-DIRTY/v2\x00"
+                + len(tracked_dirty).to_bytes(8, "big")
+                + tracked_dirty
+                + len(untracked_dirty).to_bytes(8, "big")
+                + untracked_dirty
+            ),
+            "status_bytes": len(tracked_dirty) + len(untracked_dirty),
             "dirty_manifest_commitment": dirty_manifest,
             "worktree_tree_exclusions": list(tree_exclusions),
             "worktree_exact_file_exclusions": list(exact_file_exclusions),
             "refs_sha256": sha256(refs),
             "refs_bytes": len(refs),
             "index": evidence_file("index"),
+            "index_root_tree_oid": capture["index_tree_observation"]["index_root_tree_oid"],
+            "index_version": capture["index_tree_observation"]["index_version"],
+            "index_entry_count": capture["index_tree_observation"]["index_entry_count"],
+            "index_extension_profile": capture["index_tree_observation"]["index_extension_profile"],
+            "index_extension_count": capture["index_tree_observation"]["index_extension_count"],
+            "index_extension_receipt_sha256": capture["index_tree_observation"]["index_extension_receipt_sha256"],
+            "index_recomputation_profile": capture["index_tree_observation"]["index_recomputation_profile"],
+            "adapter_index_sanitization_profile": capture["index_tree_observation"]["adapter_index_sanitization_profile"],
+            "adapter_index_sha256": capture["index_tree_observation"]["adapter_index_sha256"],
+            "adapter_index_bytes": capture["index_tree_observation"]["adapter_index_bytes"],
             "config": evidence_file("common_config"),
             "hooks": capture["hooks_info"],
             "index_locator_commitment": locator_commitment(key, "git-index", index_path),
@@ -12113,13 +12516,15 @@ def synchronize_pending_template_git_adapter_v2(template: Dict[str, Any]) -> Dic
     approval["receipt_before_first_authority_consuming_persistent_write"] = True
     authorization = template["authorization_preimage"]
     authorization["git_snapshot_commitment_profile"] = GIT_SNAPSHOT_COMMITMENT_PROFILE_V2
+    authorization["envelope_git_status_exclusion_profile"] = PENDING_ENVELOPE_GIT_EXCLUSION_PROFILE
     authorization["private_preimage_capture"] = (
         "census and post-approval checks may materialize only an identity-bound nonpersistent Git metadata adapter "
         "under /private/tmp; every child fchdir's through a dedicated duplicate of the held adapter Git-directory "
         "FD, closes that child-only FD, and reads the sealed frozen adapter with literal --git-dir=., explicit "
         "--work-tree and zero "
-        "live Git-control reads; source and adapter CAS run before/after children, exact cleanup and zero residue are "
-        "required before returning; the persistent O_EXCL challenge claim remains the first authority-consuming "
+        "live Git-control reads; source CAS runs after capture, before and after sealed evidence, and immediately "
+        "before cleanup; exact cleanup and zero residue are required before returning; the persistent O_EXCL "
+        "challenge claim remains the first authority-consuming "
         "persistent write"
     )
     execution = template["execution_plan"]
@@ -12189,6 +12594,7 @@ def synchronize_pending_template_git_adapter_v2(template: Dict[str, Any]) -> Dic
         value
         for value in mutation["allowed_ephemeral_mutations"]
         if value != GIT_ADAPTER_EPHEMERAL_MUTATION_V3
+        and not value.startswith("before each Git child sequence create one unpredictable exact 0700 /private/tmp/")
     ]
     mutation["forbidden_mutations"] = [
         (
@@ -12228,8 +12634,9 @@ def synchronize_pending_template_git_adapter_v2(template: Dict[str, Any]) -> Dic
     private["private_read_authority"] = [
         (
             "directly capture live Git control, HEAD, index, refs, config, hooks and object-store evidence into a "
-            "path-free keyed source receipt; Git children read only the sealed adapter and source CAS is repeated "
-            "before cleanup"
+            "path-free keyed source receipt; the captured index is strictly parsed and its root tree OID is "
+            "recomputed without reading tree/blob descendants; Git children read only the sealed adapter and "
+            "source CAS runs after capture, before and after sealed evidence, and before cleanup"
             if value.startswith("read Git control marker/commondir/config/alternate-control state")
             else value
         )

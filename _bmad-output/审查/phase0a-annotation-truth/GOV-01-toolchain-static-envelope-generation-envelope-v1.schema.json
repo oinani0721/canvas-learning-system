@@ -187,6 +187,7 @@
         "micro_envelope_preimage",
         "generation_output_repo_relative",
         "generation_output_preimage",
+        "issue_publication_checkpoint_profile",
         "approved_commit_shape",
         "index_must_equal_head",
         "refs_except_head_must_be_unchanged"
@@ -256,8 +257,11 @@
           ]
         },
         "generation_output_preimage": { "const": "ABSENT" },
+        "issue_publication_checkpoint_profile": {
+          "const": "capture one initial exact Git-source index-root and public-artifact checkpoint; while holding a nonblocking advisory lock on the exact shared control-parent directory FD, recapture an equal checkpoint immediately before micro-envelope O_EXCL and require both micro and generation-output preimages absent; after fsync and same-FD byte-exact reopen, require generation-output absence, recapture the same equal checkpoint, and require generation-output absence again before success"
+        },
         "approved_commit_shape": {
-          "const": "current HEAD has exactly one parent equal to authorization_baseline_head; diff-tree against that parent contains exactly the micro envelope regular file with bytes equal to the approved raw envelope; no other path is added modified deleted renamed or type-changed"
+          "const": "current HEAD has exactly one parent equal to authorization_baseline_head; a path-local Merkle comparison of authenticated current and parent ancestor tree objects proves exactly the micro envelope regular file was added with bytes equal to the approved raw envelope and every non-target entry is byte-identical; no other path is added modified deleted renamed or type-changed"
         },
         "index_must_equal_head": {
           "const": true
@@ -425,7 +429,7 @@
           ]
         },
         "temporary_git_metadata_adapter_profile": {
-          "const": "checkpoint-scoped-private-temp-sanitized-exact-oid-identity-bound-git-fd-metadata-adapter-v3"
+          "const": "checkpoint-scoped-private-temp-sanitized-required-path-ancestor-exact-oid-index-root-proven-identity-bound-git-fd-metadata-adapter-v4"
         },
         "git_metadata_adapter_trust_boundary": {
           "const": "the kernel and each owning same-UID production process are trusted; POSIX 0600 and 0700 modes isolate other UIDs but do not isolate an unsandboxed process with the same effective UID, so each adapter root has exactly one owning process and compliant same-UID product processes never mutate another invocation's root; non-cooperating same-UID filesystem mutation, out-of-process ptrace or code injection, and out-of-process access to the 0600 private HMAC key are outside the supported threat model"

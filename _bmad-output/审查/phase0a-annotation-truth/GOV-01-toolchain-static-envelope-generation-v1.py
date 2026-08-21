@@ -50,6 +50,28 @@ class Exit(IntEnum):
     INTERNAL = 70
 
 
+class RawGitTreeEntry(NamedTuple):
+    mode: str
+    kind: str
+    oid: str
+    name: bytes
+    raw_record: bytes
+
+
+class RequiredPathTrieResolution(NamedTuple):
+    root_tree_oid: str
+    tree_contexts: Tuple[Tuple[str, str], ...]
+    path_entries: Tuple[Tuple[str, str, str], ...]
+    tree_raw: Tuple[Tuple[str, bytes], ...]
+
+
+class CapturedIndexTreeProof(NamedTuple):
+    root_tree_oid: str
+    entry_count: int
+    raw_sha256: str
+    version: int
+
+
 class GitReadBoundary:
     """One sealed, self-contained Git metadata adapter.
 
@@ -74,6 +96,17 @@ class GitReadBoundary:
         "source_fingerprint",
         "adapter_fingerprint",
         "expected_object_oids",
+        "expected_object_types",
+        "current_required_blob_paths",
+        "parent_required_absent_paths",
+        "current_path_resolution",
+        "parent_path_resolution",
+        "head_oid",
+        "head_tree",
+        "parent_oid",
+        "parent_tree",
+        "index_tree_proof",
+        "one_file_transition_receipt",
         "git_removed",
         "closed",
     )
@@ -94,7 +127,17 @@ class GitReadBoundary:
         adapter_git_fd: int,
         source_fingerprint: str,
         adapter_fingerprint: str,
-        expected_object_oids: Sequence[str],
+        expected_object_types: Mapping[str, str],
+        current_required_blob_paths: Sequence[str],
+        parent_required_absent_paths: Sequence[str],
+        current_path_resolution: RequiredPathTrieResolution,
+        parent_path_resolution: Optional[RequiredPathTrieResolution],
+        head_oid: str,
+        head_tree: str,
+        parent_oid: Optional[str],
+        parent_tree: Optional[str],
+        index_tree_proof: CapturedIndexTreeProof,
+        one_file_transition_receipt: Optional[str],
     ) -> None:
         self.developer_root = developer_root
         self.repo_root = repo_root
@@ -110,7 +153,18 @@ class GitReadBoundary:
         self.adapter_git_fd = adapter_git_fd
         self.source_fingerprint = source_fingerprint
         self.adapter_fingerprint = adapter_fingerprint
-        self.expected_object_oids = tuple(expected_object_oids)
+        self.expected_object_types = tuple(sorted(expected_object_types.items()))
+        self.expected_object_oids = tuple(oid for oid, _kind in self.expected_object_types)
+        self.current_required_blob_paths = tuple(current_required_blob_paths)
+        self.parent_required_absent_paths = tuple(parent_required_absent_paths)
+        self.current_path_resolution = current_path_resolution
+        self.parent_path_resolution = parent_path_resolution
+        self.head_oid = head_oid
+        self.head_tree = head_tree
+        self.parent_oid = parent_oid
+        self.parent_tree = parent_tree
+        self.index_tree_proof = index_tree_proof
+        self.one_file_transition_receipt = one_file_transition_receipt
         self.git_removed = False
         self.closed = False
 
@@ -286,8 +340,9 @@ GENERATION_GIT_CHILD_ENVIRONMENT_PROFILE_V2 = (
     "are disabled; final Git evidence unsets live object access and uses only the sealed adapter; fsmonitor, hooks, "
     "attributes, includes, alternates, grafts, network, and worktree reads are rejected or sandbox-denied"
 )
-GENERATION_GIT_ADAPTER_PROFILE_V2 = (
-    "checkpoint-scoped-private-temp-sanitized-exact-oid-identity-bound-git-fd-metadata-adapter-v3"
+GENERATION_GIT_ADAPTER_PROFILE_V4 = (
+    "checkpoint-scoped-private-temp-sanitized-required-path-ancestor-exact-oid-index-root-proven-"
+    "identity-bound-git-fd-metadata-adapter-v4"
 )
 GENERATION_GIT_ADAPTER_WRITE_PROFILE_V2 = (
     "write only its 0600 sanitized Git control metadata through pinned root and Git directory FDs; resolve bootstrap "
@@ -318,6 +373,13 @@ GIT_METADATA_ADAPTER_CLEANUP_GUARANTEE_V1 = (
     "pathname, cleanup error, or residue is terminal and quiescence must fail; preservation against a "
     "non-cooperating same-UID replacement at the final pathname-deletion linearization point is outside the "
     "supported guarantee"
+)
+ISSUE_PUBLICATION_CHECKPOINT_PROFILE_V1 = (
+    "capture one initial exact Git-source index-root and public-artifact checkpoint; while holding a nonblocking "
+    "advisory lock on the exact shared control-parent directory FD, recapture an equal checkpoint immediately before "
+    "micro-envelope O_EXCL and require both micro and generation-output preimages absent; after fsync and same-FD "
+    "byte-exact reopen, require generation-output absence, recapture the same equal checkpoint, and require "
+    "generation-output absence again before success"
 )
 MAX_FILE_BYTES = 4_000_000
 MAX_GIT_BYTES = 32 * 1024 * 1024
@@ -1643,67 +1705,191 @@ def parse_bootstrap_commit(raw: bytes, oid_bytes: int, require_single_parent: bo
     return tree, tuple(parents)
 
 
-def parse_bootstrap_tree_objects(raw: bytes, oid_bytes: int) -> Tuple[Tuple[str, str, str], ...]:
-    """Parse and privacy-check every ``ls-tree -r -t -z`` record."""
-
-    if raw and not raw.endswith(b"\x00"):
-        fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_TREE_FORMAT")
-    result: List[Tuple[str, str, str]] = []
-    seen_paths = set()
-    for row in raw.split(b"\x00"):
-        if not row:
-            continue
-        header, separator, path = row.partition(b"\t")
-        fields = header.split(b" ")
-        if not separator or not path or len(fields) != 3:
-            fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_TREE_FORMAT")
-        mode, kind, encoded_oid = fields
-        if mode not in (b"040000", b"100644", b"100755", b"120000", b"160000"):
-            fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_TREE_MODE")
-        if kind not in (b"tree", b"blob"):
-            fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_TREE_KIND")
-        if (mode == b"040000") != (kind == b"tree") or mode == b"160000":
-            fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_TREE_MODE_KIND")
-        try:
-            oid = encoded_oid.decode("ascii", "strict")
-        except UnicodeDecodeError:
-            fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_TREE_OID")
-        if len(oid) != oid_bytes or GIT_OID_RE.fullmatch(oid) is None:
-            fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_TREE_OID")
-        try:
-            path_text = path.decode("utf-8", "strict")
-        except UnicodeDecodeError:
-            fail(Exit.PRIVACY, "GIT_BOOTSTRAP_TREE_PATH_ENCODING")
-        validate_relative(path_text, "GIT_BOOTSTRAP_TREE_PATH")
-        if path_text in seen_paths:
-            fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_TREE_PATH_DUPLICATE")
-        seen_paths.add(path_text)
-        result.append((kind.decode("ascii"), oid, path_text))
-    return tuple(result)
+def git_object_digest(object_type: str, raw: bytes, oid_bytes: int) -> str:
+    if object_type not in ("commit", "tree", "blob") or oid_bytes not in (40, 64):
+        fail(Exit.INTERNAL, "GIT_OBJECT_DIGEST_ARGUMENT")
+    digest = hashlib.new("sha1" if oid_bytes == 40 else "sha256")
+    digest.update((object_type + " " + str(len(raw)) + "\x00").encode("ascii"))
+    digest.update(raw)
+    return digest.hexdigest()
 
 
-def select_bootstrap_tree_oids(
-    records: Sequence[Tuple[str, str, str]],
-    required_blob_paths: Sequence[str],
-) -> Tuple[str, ...]:
-    required = set(required_blob_paths)
-    if len(required) != len(required_blob_paths):
-        fail(Exit.INTERNAL, "GIT_BOOTSTRAP_REQUIRED_PATH_DUPLICATE")
-    for path in required:
-        validate_relative(path, "GIT_BOOTSTRAP_REQUIRED_PATH")
-    selected: List[str] = []
-    found = set()
-    for kind, oid, path in records:
-        if kind == "tree":
-            selected.append(oid)
-        elif kind == "blob" and path in required:
-            selected.append(oid)
-            found.add(path)
-        elif path in required:
-            fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_REQUIRED_PATH_MODE")
-    if found != required:
-        fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_REQUIRED_PATH_MISSING")
-    return tuple(selected)
+def validate_generated_pack_envelope(raw: bytes, expected_count: int, oid_bytes: int) -> None:
+    """Validate the fixed header/count and object-format trailer before import."""
+
+    raw_oid_bytes = oid_bytes // 2
+    if (
+        oid_bytes not in (40, 64)
+        or expected_count <= 0
+        or expected_count > MAX_GIT_REACHABLE_OBJECTS
+        or len(raw) <= 12 + raw_oid_bytes
+        or raw[:4] != b"PACK"
+        or int.from_bytes(raw[4:8], "big") not in (2, 3)
+        or int.from_bytes(raw[8:12], "big") != expected_count
+    ):
+        fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_PACK_FORMAT")
+    digest = hashlib.new("sha1" if oid_bytes == 40 else "sha256", raw[:-raw_oid_bytes])
+    if not hmac.compare_digest(digest.digest(), raw[-raw_oid_bytes:]):
+        fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_PACK_CHECKSUM")
+
+
+def prove_captured_index_root_tree(
+    raw: bytes,
+    oid_bytes: int,
+    expected_root_tree: str,
+) -> CapturedIndexTreeProof:
+    """Strictly parse a captured v2/v3 index and rebuild its exact root tree.
+
+    Path bytes remain opaque Git-control metadata.  No worktree path or object
+    body is opened.  Optional uppercase extensions are framed then ignored;
+    split/sparse and every unknown required lowercase extension fail closed.
+    """
+
+    raw_oid_bytes = oid_bytes // 2
+    if (
+        oid_bytes not in (40, 64)
+        or len(expected_root_tree) != oid_bytes
+        or GIT_OID_RE.fullmatch(expected_root_tree) is None
+        or len(raw) < 12 + raw_oid_bytes
+        or len(raw) > MAX_GIT_INDEX_BYTES
+        or raw[:4] != b"DIRC"
+    ):
+        fail(Exit.PREFLIGHT, "GIT_INDEX_FORMAT")
+    version = int.from_bytes(raw[4:8], "big")
+    if version == 4:
+        fail(Exit.PREFLIGHT, "GIT_INDEX_VERSION_UNSUPPORTED")
+    if version not in (2, 3):
+        fail(Exit.PREFLIGHT, "GIT_INDEX_VERSION")
+    trailer_start = len(raw) - raw_oid_bytes
+    if not hmac.compare_digest(
+        hashlib.new("sha1" if oid_bytes == 40 else "sha256", raw[:trailer_start]).digest(),
+        raw[trailer_start:],
+    ):
+        fail(Exit.PREFLIGHT, "GIT_INDEX_CHECKSUM")
+    entry_count = int.from_bytes(raw[8:12], "big")
+    if entry_count > MAX_GIT_REACHABLE_OBJECTS:
+        fail(Exit.PREFLIGHT, "GIT_INDEX_ENTRY_LIMIT")
+
+    entries: List[Tuple[bytes, str, str]] = []
+    cursor = 12
+    previous_path: Optional[bytes] = None
+    for _entry_index in range(entry_count):
+        entry_start = cursor
+        fixed_end = cursor + 40 + raw_oid_bytes + 2
+        if fixed_end > trailer_start:
+            fail(Exit.PREFLIGHT, "GIT_INDEX_ENTRY_TRUNCATED")
+        mode_value = int.from_bytes(raw[cursor + 24 : cursor + 28], "big")
+        oid_start = cursor + 40
+        oid = raw[oid_start : oid_start + raw_oid_bytes].hex()
+        flags = int.from_bytes(raw[oid_start + raw_oid_bytes : fixed_end], "big")
+        cursor = fixed_end
+        if flags & 0x4000:
+            if version != 3 or cursor + 2 > trailer_start:
+                fail(Exit.PREFLIGHT, "GIT_INDEX_EXTENDED_FLAGS")
+            extended_flags = int.from_bytes(raw[cursor : cursor + 2], "big")
+            cursor += 2
+            if extended_flags != 0:
+                # Includes skip-worktree and intent-to-add.  Both make a full
+                # index-to-tree equality proof ambiguous for this narrow path.
+                fail(Exit.PREFLIGHT, "GIT_INDEX_EXTENDED_FLAGS")
+        if flags & 0x3000:
+            fail(Exit.PREFLIGHT, "GIT_INDEX_UNMERGED")
+        if flags & 0x8000:
+            fail(Exit.PREFLIGHT, "GIT_INDEX_ASSUME_VALID")
+        if mode_value == 0o160000:
+            fail(Exit.PRIVACY, "GIT_INDEX_GITLINK")
+        if mode_value == 0o040000:
+            fail(Exit.PREFLIGHT, "GIT_INDEX_SPARSE_DIRECTORY")
+        if mode_value not in (0o100644, 0o100755, 0o120000):
+            fail(Exit.PREFLIGHT, "GIT_INDEX_MODE")
+        if oid == "0" * oid_bytes or GIT_OID_RE.fullmatch(oid) is None:
+            fail(Exit.PREFLIGHT, "GIT_INDEX_OID")
+        nul = raw.find(b"\x00", cursor, trailer_start)
+        if nul < 0:
+            fail(Exit.PREFLIGHT, "GIT_INDEX_PATH_TERMINATOR")
+        path = raw[cursor:nul]
+        stored_length = flags & 0x0FFF
+        if stored_length != min(len(path), 0x0FFF):
+            fail(Exit.PREFLIGHT, "GIT_INDEX_PATH_LENGTH")
+        if (
+            not path
+            or path.startswith(b"/")
+            or path.endswith(b"/")
+            or b"\\" in path
+            or any(component in (b"", b".", b"..") for component in path.split(b"/"))
+        ):
+            fail(Exit.PREFLIGHT, "GIT_INDEX_PATH")
+        if any(component.lower() == b".git" for component in path.split(b"/")):
+            fail(Exit.PRIVACY, "GIT_INDEX_DOT_GIT")
+        if previous_path is not None:
+            if path <= previous_path:
+                fail(Exit.PREFLIGHT, "GIT_INDEX_PATH_ORDER")
+            if path.startswith(previous_path + b"/"):
+                fail(Exit.PREFLIGHT, "GIT_INDEX_DIRECTORY_FILE_COLLISION")
+        previous_path = path
+        entry_body_end = nul + 1
+        padding = (-(entry_body_end - entry_start)) % 8
+        if entry_body_end + padding > trailer_start or raw[entry_body_end : entry_body_end + padding] != b"\x00" * padding:
+            fail(Exit.PREFLIGHT, "GIT_INDEX_PADDING")
+        cursor = entry_body_end + padding
+        entries.append((path, format(mode_value, "o"), oid))
+
+    seen_extensions = set()
+    while cursor < trailer_start:
+        if cursor + 8 > trailer_start:
+            fail(Exit.PREFLIGHT, "GIT_INDEX_EXTENSION_FORMAT")
+        signature = raw[cursor : cursor + 4]
+        extension_size = int.from_bytes(raw[cursor + 4 : cursor + 8], "big")
+        extension_end = cursor + 8 + extension_size
+        if extension_end > trailer_start or signature in seen_extensions:
+            fail(Exit.PREFLIGHT, "GIT_INDEX_EXTENSION_FORMAT")
+        seen_extensions.add(signature)
+        if signature in (b"link", b"sdir"):
+            fail(Exit.PREFLIGHT, "GIT_INDEX_REQUIRED_EXTENSION")
+        if not signature or not 65 <= signature[0] <= 90:
+            fail(Exit.PREFLIGHT, "GIT_INDEX_REQUIRED_EXTENSION")
+        cursor = extension_end
+    if cursor != trailer_start:
+        fail(Exit.PREFLIGHT, "GIT_INDEX_TRAILING")
+
+    tree: Dict[bytes, Any] = {}
+    for path, mode, oid in entries:
+        components = path.split(b"/")
+        node = tree
+        for component in components[:-1]:
+            existing = node.get(component)
+            if existing is None:
+                child: Dict[bytes, Any] = {}
+                node[component] = child
+                node = child
+            elif isinstance(existing, dict):
+                node = existing
+            else:
+                fail(Exit.PREFLIGHT, "GIT_INDEX_DIRECTORY_FILE_COLLISION")
+        leaf = components[-1]
+        if leaf in node:
+            fail(Exit.PREFLIGHT, "GIT_INDEX_DIRECTORY_FILE_COLLISION")
+        node[leaf] = (mode, oid)
+
+    def hash_index_tree(node: Mapping[bytes, Any]) -> str:
+        records: List[Tuple[bytes, bytes]] = []
+        for name, value in node.items():
+            if isinstance(value, dict):
+                mode = "40000"
+                oid = hash_index_tree(value)
+                ordering_key = name + b"/"
+            else:
+                mode, oid = value
+                ordering_key = name + b"\x00"
+            record = mode.encode("ascii") + b" " + name + b"\x00" + bytes.fromhex(oid)
+            records.append((ordering_key, record))
+        body = b"".join(record for _key, record in sorted(records, key=lambda item: item[0]))
+        return git_object_digest("tree", body, oid_bytes)
+
+    computed_root = hash_index_tree(tree)
+    if not hmac.compare_digest(computed_root, expected_root_tree):
+        fail(Exit.PREFLIGHT, "GIT_INDEX_HEAD_TREE_MISMATCH")
+    return CapturedIndexTreeProof(computed_root, entry_count, sha256(raw), version)
 
 
 def parse_bootstrap_object_batch(
@@ -1767,13 +1953,16 @@ def parse_bootstrap_object_batch(
 def parse_bootstrap_tree_object_entries(
     raw: bytes,
     oid_bytes: int,
-) -> Tuple[Tuple[str, str, str], ...]:
-    """Parse one raw tree, rejecting gitlinks and private/malformed names."""
+) -> Tuple[RawGitTreeEntry, ...]:
+    """Strictly parse one raw tree while keeping sibling names opaque bytes."""
 
     raw_oid_bytes = oid_bytes // 2
+    if oid_bytes not in (40, 64):
+        fail(Exit.INTERNAL, "GIT_BOOTSTRAP_RAW_TREE_OID_WIDTH")
     cursor = 0
-    entries: List[Tuple[str, str, str]] = []
+    entries: List[RawGitTreeEntry] = []
     seen_names = set()
+    previous_key: Optional[bytes] = None
     while cursor < len(raw):
         space = raw.find(b" ", cursor)
         nul = raw.find(b"\x00", space + 1 if space >= 0 else cursor)
@@ -1781,16 +1970,19 @@ def parse_bootstrap_tree_object_entries(
             fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_RAW_TREE_FORMAT")
         try:
             mode = raw[cursor:space].decode("ascii", "strict")
-            name = raw[space + 1 : nul].decode("utf-8", "strict")
         except UnicodeDecodeError:
-            fail(Exit.PRIVACY, "GIT_BOOTSTRAP_RAW_TREE_ENCODING")
+            fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_RAW_TREE_MODE")
+        name = raw[space + 1 : nul]
         oid_end = nul + 1 + raw_oid_bytes
         if oid_end > len(raw):
             fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_RAW_TREE_OID")
         oid = raw[nul + 1 : oid_end].hex()
+        if not name or b"/" in name or name in (b".", b".."):
+            fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_RAW_TREE_NAME")
+        if name.lower() == b".git":
+            fail(Exit.PRIVACY, "GIT_BOOTSTRAP_RAW_TREE_DOT_GIT")
         if name in seen_names:
             fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_RAW_TREE_DUPLICATE")
-        validate_relative(name, "GIT_BOOTSTRAP_RAW_TREE_NAME")
         if len(oid) != oid_bytes or GIT_OID_RE.fullmatch(oid) is None:
             fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_RAW_TREE_OID")
         if mode == "40000":
@@ -1802,10 +1994,240 @@ def parse_bootstrap_tree_object_entries(
         else:
             # Includes 160000 gitlinks/submodules and every special mode.
             fail(Exit.PRIVACY, "GIT_BOOTSTRAP_RAW_TREE_KIND")
+        ordering_key = name + (b"/" if kind == "tree" else b"\x00")
+        if previous_key is not None and ordering_key <= previous_key:
+            fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_RAW_TREE_ORDER")
+        previous_key = ordering_key
         seen_names.add(name)
-        entries.append((kind, oid, name))
+        entries.append(RawGitTreeEntry(mode, kind, oid, name, raw[cursor:oid_end]))
         cursor = oid_end
     return tuple(entries)
+
+
+def build_required_path_trie(
+    required_blob_paths: Sequence[str],
+    required_absent_paths: Sequence[str],
+) -> Dict[bytes, Any]:
+    expectations: Dict[str, str] = {}
+    folded_paths: Dict[str, str] = {}
+    for expectation, paths in (("blob", required_blob_paths), ("absent", required_absent_paths)):
+        for path in paths:
+            validate_relative(path, "GIT_BOOTSTRAP_REQUIRED_PATH")
+            if path in expectations:
+                fail(Exit.INTERNAL, "GIT_BOOTSTRAP_REQUIRED_PATH_DUPLICATE")
+            folded = unicodedata.normalize("NFC", path).casefold()
+            if folded in folded_paths and folded_paths[folded] != path:
+                fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_REQUIRED_PATH_COLLISION")
+            folded_paths[folded] = path
+            expectations[path] = expectation
+    trie: Dict[bytes, Any] = {}
+    for path, expectation in sorted(expectations.items()):
+        components = tuple(component.encode("utf-8", "strict") for component in path.split("/"))
+        node = trie
+        for component in components:
+            if None in node:
+                fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_REQUIRED_PATH_PREFIX")
+            child = node.get(component)
+            if child is None:
+                child = {}
+                node[component] = child
+            elif not isinstance(child, dict):
+                fail(Exit.INTERNAL, "GIT_BOOTSTRAP_REQUIRED_PATH_TRIE")
+            node = child
+        if node:
+            fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_REQUIRED_PATH_PREFIX")
+        node[None] = expectation
+    return trie
+
+
+def resolve_required_path_trie(
+    root_tree_oid: str,
+    oid_bytes: int,
+    required_blob_paths: Sequence[str],
+    required_absent_paths: Sequence[str],
+    object_loader: Callable[[Sequence[str]], Mapping[str, bytes]],
+) -> RequiredPathTrieResolution:
+    """Read only ancestor tree objects for explicit public paths.
+
+    Every ancestor tree object necessarily contains its direct sibling names
+    and OIDs because those bytes are hashed by Git.  Such sibling names remain
+    opaque and are never path-validated, decoded, logged, or dereferenced.
+    """
+
+    trie = build_required_path_trie(required_blob_paths, required_absent_paths)
+    path_expectations = {
+        path: "blob" for path in required_blob_paths
+    }
+    path_expectations.update({path: "absent" for path in required_absent_paths})
+    tree_cache: Dict[str, bytes] = {}
+    tree_contexts: Dict[str, str] = {}
+    path_entries: Dict[str, Tuple[str, str]] = {}
+    pending: List[Tuple[str, str, Dict[bytes, Any]]] = [("", root_tree_oid, trie)]
+
+    def mark_absent_subtree(prefix: str, node: Mapping[Any, Any]) -> None:
+        terminal = node.get(None)
+        if terminal is not None:
+            if terminal != "absent":
+                fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_REQUIRED_PATH_MISSING")
+            path_entries[prefix] = ("ABSENT", "")
+        for component, child in node.items():
+            if component is None:
+                continue
+            if not isinstance(component, bytes) or not isinstance(child, dict):
+                fail(Exit.INTERNAL, "GIT_BOOTSTRAP_REQUIRED_PATH_TRIE")
+            try:
+                component_text = component.decode("utf-8", "strict")
+            except UnicodeDecodeError:
+                fail(Exit.INTERNAL, "GIT_BOOTSTRAP_REQUIRED_PATH_ENCODING")
+            child_prefix = component_text if not prefix else prefix + "/" + component_text
+            mark_absent_subtree(child_prefix, child)
+
+    while pending:
+        missing = tuple(sorted({oid for _prefix, oid, _node in pending if oid not in tree_cache}))
+        if missing:
+            loaded = dict(object_loader(missing))
+            if set(loaded) != set(missing) or any(not isinstance(value, bytes) for value in loaded.values()):
+                fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_TREE_LOADER_SET")
+            tree_cache.update(loaded)
+        next_pending: List[Tuple[str, str, Dict[bytes, Any]]] = []
+        for prefix, tree_oid, node in pending:
+            prior = tree_contexts.get(prefix)
+            if prior is not None and prior != tree_oid:
+                fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_TREE_CONTEXT_COLLISION")
+            if prior is not None:
+                fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_TREE_CONTEXT_DUPLICATE")
+            tree_contexts[prefix] = tree_oid
+            entries = parse_bootstrap_tree_object_entries(tree_cache[tree_oid], oid_bytes)
+            by_name = {entry.name: entry for entry in entries}
+            for component, child in node.items():
+                if component is None:
+                    continue
+                if not isinstance(component, bytes) or not isinstance(child, dict):
+                    fail(Exit.INTERNAL, "GIT_BOOTSTRAP_REQUIRED_PATH_TRIE")
+                component_text = component.decode("utf-8", "strict")
+                path = component_text if not prefix else prefix + "/" + component_text
+                entry = by_name.get(component)
+                terminal = child.get(None)
+                descendants = tuple(key for key in child if key is not None)
+                if entry is None:
+                    mark_absent_subtree(path, child)
+                    continue
+                if terminal == "absent":
+                    fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_REQUIRED_PATH_PREIMAGE")
+                if terminal == "blob":
+                    if descendants or entry.kind != "blob" or entry.mode not in ("100644", "100755"):
+                        fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_REQUIRED_PATH_MODE")
+                    path_entries[path] = (entry.mode, entry.oid)
+                    continue
+                if terminal is not None:
+                    fail(Exit.INTERNAL, "GIT_BOOTSTRAP_REQUIRED_PATH_EXPECTATION")
+                if entry.kind != "tree" or entry.mode != "40000":
+                    fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_REQUIRED_PATH_ANCESTOR")
+                next_pending.append((path, entry.oid, child))
+                if len(tree_contexts) + len(next_pending) > MAX_GIT_REACHABLE_OBJECTS:
+                    fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_TREE_LIMIT")
+        pending = next_pending
+    if set(path_entries) != set(path_expectations):
+        fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_REQUIRED_PATH_SET")
+    for path, expectation in path_expectations.items():
+        mode, _oid = path_entries[path]
+        if (expectation == "blob") != (mode in ("100644", "100755")):
+            fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_REQUIRED_PATH_EXPECTATION")
+    return RequiredPathTrieResolution(
+        root_tree_oid,
+        tuple(sorted(tree_contexts.items())),
+        tuple((path, mode, oid) for path, (mode, oid) in sorted(path_entries.items())),
+        tuple((prefix, tree_cache[oid]) for prefix, oid in sorted(tree_contexts.items())),
+    )
+
+
+def verify_path_local_one_file_addition(
+    current: RequiredPathTrieResolution,
+    parent: RequiredPathTrieResolution,
+    relative: str,
+) -> str:
+    """Prove one exact regular-file addition by comparing only its Merkle path."""
+
+    validate_relative(relative, "GIT_MICRO_TRANSITION_PATH")
+    components = tuple(component.encode("utf-8", "strict") for component in relative.split("/"))
+    current_raw = dict(current.tree_raw)
+    parent_raw = dict(parent.tree_raw)
+    current_paths = {path: (mode, oid) for path, mode, oid in current.path_entries}
+    parent_paths = {path: (mode, oid) for path, mode, oid in parent.path_entries}
+    if relative not in current_paths or parent_paths.get(relative) != ("ABSENT", ""):
+        fail(Exit.PREFLIGHT, "GIT_MICRO_TRANSITION_ENDPOINT")
+    current_mode, current_blob_oid = current_paths[relative]
+    if current_mode != "100644" or GIT_OID_RE.fullmatch(current_blob_oid) is None:
+        fail(Exit.PREFLIGHT, "GIT_MICRO_CURRENT_KIND")
+    prefix = ""
+    depth = 0
+    while depth < len(components):
+        if prefix not in current_raw or prefix not in parent_raw:
+            fail(Exit.PREFLIGHT, "GIT_MICRO_TRANSITION_CONTEXT")
+        current_entries = {
+            entry.name: entry
+            for entry in parse_bootstrap_tree_object_entries(current_raw[prefix], len(current.root_tree_oid))
+        }
+        parent_entries = {
+            entry.name: entry
+            for entry in parse_bootstrap_tree_object_entries(parent_raw[prefix], len(parent.root_tree_oid))
+        }
+        target = components[depth]
+        if {
+            name: entry.raw_record for name, entry in current_entries.items() if name != target
+        } != {
+            name: entry.raw_record for name, entry in parent_entries.items() if name != target
+        }:
+            fail(Exit.PREFLIGHT, "GIT_MICRO_TRANSITION_SIBLING_DRIFT")
+        current_entry = current_entries.get(target)
+        parent_entry = parent_entries.get(target)
+        if current_entry is None:
+            fail(Exit.PREFLIGHT, "GIT_MICRO_TRANSITION_CURRENT_MISSING")
+        if depth == len(components) - 1:
+            if parent_entry is not None or current_entry.mode != "100644" or current_entry.kind != "blob":
+                fail(Exit.PREFLIGHT, "GIT_MICRO_TRANSITION_LEAF")
+            break
+        if current_entry.mode != "40000" or current_entry.kind != "tree":
+            fail(Exit.PREFLIGHT, "GIT_MICRO_TRANSITION_CURRENT_ANCESTOR")
+        if parent_entry is None:
+            # The rest of a newly created directory chain may contain only the
+            # next component of the authorized path at every level.
+            created_prefix = components[0].decode("utf-8")
+            for existing_component in components[1 : depth + 1]:
+                created_prefix += "/" + existing_component.decode("utf-8")
+            for remaining_depth in range(depth + 1, len(components)):
+                if created_prefix not in current_raw:
+                    fail(Exit.PREFLIGHT, "GIT_MICRO_TRANSITION_NEW_CHAIN_CONTEXT")
+                chain_entries = parse_bootstrap_tree_object_entries(
+                    current_raw[created_prefix], len(current.root_tree_oid)
+                )
+                expected_component = components[remaining_depth]
+                if len(chain_entries) != 1 or chain_entries[0].name != expected_component:
+                    fail(Exit.PREFLIGHT, "GIT_MICRO_TRANSITION_NEW_CHAIN_SCOPE")
+                chain_entry = chain_entries[0]
+                if remaining_depth == len(components) - 1:
+                    if chain_entry.mode != "100644" or chain_entry.kind != "blob":
+                        fail(Exit.PREFLIGHT, "GIT_MICRO_TRANSITION_LEAF")
+                else:
+                    if chain_entry.mode != "40000" or chain_entry.kind != "tree":
+                        fail(Exit.PREFLIGHT, "GIT_MICRO_TRANSITION_NEW_CHAIN_KIND")
+                    created_prefix += "/" + expected_component.decode("utf-8")
+            break
+        if parent_entry.mode != "40000" or parent_entry.kind != "tree":
+            fail(Exit.PREFLIGHT, "GIT_MICRO_TRANSITION_PARENT_ANCESTOR")
+        prefix = components[0].decode("utf-8") if not prefix else prefix + "/" + target.decode("utf-8")
+        depth += 1
+    return sha256(
+        canonical_json(
+            {
+                "profile": "path-local-one-file-merkle-addition-v1",
+                "relative": relative,
+                "current_root_tree": current.root_tree_oid,
+                "parent_root_tree": parent.root_tree_oid,
+                "current_blob_oid": current_blob_oid,
+            }
+        )
+    )
 
 
 def parse_object_oid_lines(raw: bytes, oid_bytes: int, label: str) -> Tuple[str, ...]:
@@ -2388,7 +2810,7 @@ def create_git_metadata_adapter(
     developer_root: str,
     parent_depth: int = 0,
     required_current_blob_paths: Sequence[str] = (),
-    required_parent_blob_paths: Sequence[str] = (),
+    required_parent_absent_paths: Sequence[str] = (),
 ) -> Tuple[Dict[str, Any], GitReadBoundary]:
     """Create one adapter under the process-wide non-overlap guard."""
 
@@ -2414,7 +2836,7 @@ def create_git_metadata_adapter(
             developer_root,
             parent_depth,
             required_current_blob_paths,
-            required_parent_blob_paths,
+            required_parent_absent_paths,
             active_scope,
         )
     finally:
@@ -2428,9 +2850,14 @@ def _create_git_metadata_adapter_guarded(
     developer_root: str,
     parent_depth: int,
     required_current_blob_paths: Sequence[str],
-    required_parent_blob_paths: Sequence[str],
+    required_parent_absent_paths: Sequence[str],
     registering_scope: Optional[GitAdapterScope],
 ) -> Tuple[Dict[str, Any], GitReadBoundary]:
+    # Explicit path authority must fail before any Git control or object-store
+    # stat/open.  Current and parent expectations are separate revisions, so
+    # the same transition path is valid in both calls.
+    build_required_path_trie(required_current_blob_paths, ())
+    build_required_path_trie((), required_parent_absent_paths)
     capture = capture_git_source(repo_root)
     head_oid, _head_ref = captured_head_oid(capture)
     object_format = "sha1" if len(head_oid) == 40 else "sha256"
@@ -2529,14 +2956,14 @@ def _create_git_metadata_adapter_guarded(
                     "GIT_ADAPTER_" + role.upper(),
                 )
         copy_captured_refs_at(capture, adapter_git_fd)
-        expected_object_oids, head_tree, parent_oid, parent_tree = materialize_reachable_git_objects(
+        materialized = materialize_reachable_git_objects(
             git_binary,
             developer_root,
             capture,
             ".",
             parent_depth,
             tuple(required_current_blob_paths),
-            tuple(required_parent_blob_paths),
+            tuple(required_parent_absent_paths),
             adapter_git_fd,
         )
         if git_source_metadata(no_symlink_path(git_binary, "GIT_BOOTSTRAP_BINARY")) != git_binary_before:
@@ -2579,7 +3006,17 @@ def _create_git_metadata_adapter_guarded(
             int(adapter_git_fd),
             str(capture["fingerprint"]),
             adapter_fingerprint,
-            expected_object_oids,
+            materialized["expected_object_types"],
+            tuple(required_current_blob_paths),
+            tuple(required_parent_absent_paths),
+            materialized["current_path_resolution"],
+            materialized["parent_path_resolution"],
+            head_oid,
+            materialized["head_tree"],
+            materialized["parent_oid"],
+            materialized["parent_tree"],
+            materialized["index_tree_proof"],
+            materialized["one_file_transition_receipt"],
         )
         promote_staged_git_adapter(staged, boundary)
         adapter_root_fd = None
@@ -2589,9 +3026,9 @@ def _create_git_metadata_adapter_guarded(
             repo_root,
             boundary,
             head_oid,
-            head_tree,
-            parent_oid,
-            parent_tree,
+            materialized["head_tree"],
+            materialized["parent_oid"],
+            materialized["parent_tree"],
         )
         revalidate_git_metadata_source(boundary)
         return dict(capture["git_control"]), boundary
@@ -3586,64 +4023,44 @@ def validate_adapter_object_layout_at(adapter_git_fd: int, oid_bytes: int) -> No
         os.close(objects_fd)
 
 
-def discover_bootstrap_tree_records(
+def discover_required_path_ancestors(
     git_binary: str,
     developer_root: str,
     capture: Mapping[str, Any],
     adapter_git_dir: str,
     adapter_git_fd: int,
     root_tree_oid: str,
-) -> Tuple[Tuple[str, str, str], ...]:
-    """Discover a tree closure while authorizing only each known tree OID."""
+    required_blob_paths: Sequence[str],
+    required_absent_paths: Sequence[str],
+) -> RequiredPathTrieResolution:
+    """Resolve only required paths and their authenticated ancestor trees."""
 
     oid_bytes = len(root_tree_oid)
-    tree_content: Dict[str, bytes] = {}
-    pending: List[Tuple[str, str]] = [(root_tree_oid, "")]
-    processed = set()
-    observed_paths = set()
-    observed_casefold: Dict[str, str] = {}
-    records: List[Tuple[str, str, str]] = []
-    while pending:
-        missing = tuple(sorted({oid for oid, _prefix in pending if oid not in tree_content}))
-        if missing:
-            response = bootstrap_git_object_read(
+
+    def loader(oids: Sequence[str]) -> Mapping[str, bytes]:
+        exact = tuple(sorted(set(oids)))
+        if len(exact) != len(oids):
+            fail(Exit.INTERNAL, "GIT_BOOTSTRAP_TREE_LOADER_DUPLICATE")
+        return parse_bootstrap_object_batch(
+            bootstrap_git_object_read(
                 git_binary,
                 developer_root,
                 capture,
                 adapter_git_dir,
                 "objects",
-                object_oids=missing,
+                object_oids=exact,
                 adapter_git_fd=adapter_git_fd,
-            )
-            tree_content.update(
-                parse_bootstrap_object_batch(response, {oid: "tree" for oid in missing})
-            )
-        next_pending: List[Tuple[str, str]] = []
-        for tree_oid, prefix in pending:
-            context = (tree_oid, prefix)
-            if context in processed:
-                fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_TREE_CONTEXT_DUPLICATE")
-            processed.add(context)
-            for kind, oid, name in parse_bootstrap_tree_object_entries(
-                tree_content[tree_oid],
-                oid_bytes,
-            ):
-                path = name if not prefix else prefix + "/" + name
-                validate_relative(path, "GIT_BOOTSTRAP_TREE_PATH")
-                folded = unicodedata.normalize("NFC", path).casefold()
-                if path in observed_paths or (
-                    folded in observed_casefold and observed_casefold[folded] != path
-                ):
-                    fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_TREE_PATH_COLLISION")
-                observed_paths.add(path)
-                observed_casefold[folded] = path
-                records.append((kind, oid, path))
-                if kind == "tree":
-                    next_pending.append((oid, path))
-                if len(records) > MAX_GIT_REACHABLE_OBJECTS:
-                    fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_TREE_LIMIT")
-        pending = next_pending
-    return tuple(records)
+            ),
+            {oid: "tree" for oid in exact},
+        )
+
+    return resolve_required_path_trie(
+        root_tree_oid,
+        oid_bytes,
+        required_blob_paths,
+        required_absent_paths,
+        loader,
+    )
 
 
 def materialize_reachable_git_objects(
@@ -3653,15 +4070,17 @@ def materialize_reachable_git_objects(
     adapter_git_dir: str,
     parent_depth: int,
     required_current_blob_paths: Sequence[str],
-    required_parent_blob_paths: Sequence[str],
+    required_parent_absent_paths: Sequence[str],
     adapter_git_fd: int,
-) -> Tuple[Tuple[str, ...], str, Optional[str], Optional[str]]:
-    """Materialize only exact commit/tree/blob OIDs needed by this phase."""
+) -> Dict[str, Any]:
+    """Materialize commits, required-path ancestors, and exact public blobs."""
 
     if parent_depth not in (0, 1):
         fail(Exit.INTERNAL, "GIT_ADAPTER_PARENT_DEPTH")
-    if parent_depth == 0 and required_parent_blob_paths:
+    if parent_depth == 0 and required_parent_absent_paths:
         fail(Exit.INTERNAL, "GIT_ADAPTER_PARENT_SCOPE")
+    if parent_depth == 1 and len(required_parent_absent_paths) != 1:
+        fail(Exit.INTERNAL, "GIT_ADAPTER_PARENT_TRANSITION_SCOPE")
     head_oid, _head_ref = captured_head_oid(capture)
     oid_bytes = len(head_oid)
     head_raw = parse_bootstrap_object_batch(
@@ -3677,18 +4096,39 @@ def materialize_reachable_git_objects(
         {head_oid: "commit"},
     )[head_oid]
     head_tree, parents = parse_bootstrap_commit(head_raw, oid_bytes, parent_depth == 1)
-    current_records = discover_bootstrap_tree_records(
+    raw_index = capture.get("raw_files", {}).get("index")
+    if not isinstance(raw_index, bytes):
+        fail(Exit.INTERNAL, "GIT_INDEX_CAPTURE")
+    index_tree_proof = prove_captured_index_root_tree(raw_index, oid_bytes, head_tree)
+    current_resolution = discover_required_path_ancestors(
         git_binary,
         developer_root,
         capture,
         adapter_git_dir,
         adapter_git_fd,
         head_tree,
+        required_current_blob_paths,
+        (),
     )
-    selected: List[str] = [head_oid, head_tree]
-    selected.extend(select_bootstrap_tree_oids(current_records, required_current_blob_paths))
+    expected_types: Dict[str, str] = {}
+
+    def authorize(oid: str, object_type: str) -> None:
+        existing = expected_types.get(oid)
+        if existing is not None and existing != object_type:
+            fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_OBJECT_TYPE_COLLISION")
+        expected_types[oid] = object_type
+
+    authorize(head_oid, "commit")
+    for _prefix, tree_oid in current_resolution.tree_contexts:
+        authorize(tree_oid, "tree")
+    for _path, mode, blob_oid in current_resolution.path_entries:
+        if mode not in ("100644", "100755"):
+            fail(Exit.INTERNAL, "GIT_BOOTSTRAP_CURRENT_PATH_EXPECTATION")
+        authorize(blob_oid, "blob")
     parent_oid: Optional[str] = None
     parent_tree: Optional[str] = None
+    parent_resolution: Optional[RequiredPathTrieResolution] = None
+    transition_receipt: Optional[str] = None
     if parent_depth == 1:
         parent_oid = parents[0]
         parent_raw = parse_bootstrap_object_batch(
@@ -3704,17 +4144,43 @@ def materialize_reachable_git_objects(
             {parent_oid: "commit"},
         )[parent_oid]
         parent_tree, _grandparents = parse_bootstrap_commit(parent_raw, oid_bytes, False)
-        selected.extend((parent_oid, parent_tree))
-        parent_records = discover_bootstrap_tree_records(
+        authorize(parent_oid, "commit")
+        parent_resolution = discover_required_path_ancestors(
             git_binary,
             developer_root,
             capture,
             adapter_git_dir,
             adapter_git_fd,
             parent_tree,
+            (),
+            required_parent_absent_paths,
         )
-        selected.extend(select_bootstrap_tree_oids(parent_records, required_parent_blob_paths))
-    exact_oids = tuple(sorted(set(selected)))
+        for _prefix, tree_oid in parent_resolution.tree_contexts:
+            authorize(tree_oid, "tree")
+        transition_receipt = verify_path_local_one_file_addition(
+            current_resolution,
+            parent_resolution,
+            required_parent_absent_paths[0],
+        )
+    required_blob_oids = tuple(
+        sorted(oid for oid, object_type in expected_types.items() if object_type == "blob")
+    )
+    if required_blob_oids:
+        # Verify the exact terminal objects are really blobs and independently
+        # recompute every content OID before their names can reach pack-objects.
+        parse_bootstrap_object_batch(
+            bootstrap_git_object_read(
+                git_binary,
+                developer_root,
+                capture,
+                adapter_git_dir,
+                "objects",
+                object_oids=required_blob_oids,
+                adapter_git_fd=adapter_git_fd,
+            ),
+            {oid: "blob" for oid in required_blob_oids},
+        )
+    exact_oids = tuple(sorted(expected_types))
     if not exact_oids or len(exact_oids) > MAX_GIT_REACHABLE_OBJECTS:
         fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_OBJECT_LIMIT")
     pack = bootstrap_git_object_read(
@@ -3726,8 +4192,7 @@ def materialize_reachable_git_objects(
         object_oids=exact_oids,
         adapter_git_fd=adapter_git_fd,
     )
-    if not pack.startswith(b"PACK") or len(pack) < 32:
-        fail(Exit.PREFLIGHT, "GIT_BOOTSTRAP_PACK_FORMAT")
+    validate_generated_pack_envelope(pack, len(exact_oids), oid_bytes)
     try:
         os.mkdir("objects", 0o700, dir_fd=adapter_git_fd)
     except OSError:
@@ -3764,7 +4229,16 @@ def materialize_reachable_git_objects(
     if imported.count(b"\n") != 1 or not imported.startswith(b"pack\t"):
         fail(Exit.PREFLIGHT, "GIT_ADAPTER_INDEX_PACK_FORMAT")
     validate_adapter_object_layout_at(adapter_git_fd, oid_bytes)
-    return exact_oids, head_tree, parent_oid, parent_tree
+    return {
+        "expected_object_types": expected_types,
+        "head_tree": head_tree,
+        "parent_oid": parent_oid,
+        "parent_tree": parent_tree,
+        "current_path_resolution": current_resolution,
+        "parent_path_resolution": parent_resolution,
+        "index_tree_proof": index_tree_proof,
+        "one_file_transition_receipt": transition_receipt,
+    }
 
 
 def run_git(
@@ -3813,49 +4287,6 @@ def run_git(
     return result
 
 
-def verify_batch_object_hashes(
-    raw: bytes,
-    expected_oids: Sequence[str],
-    oid_bytes: int,
-) -> None:
-    offset = 0
-    algorithm = "sha1" if oid_bytes == 40 else "sha256"
-    for expected_oid in expected_oids:
-        header_end = raw.find(b"\n", offset)
-        if header_end < 0:
-            fail(Exit.PREFLIGHT, "GIT_ADAPTER_BATCH_FORMAT")
-        header = raw[offset:header_end].split(b" ")
-        if len(header) != 3:
-            fail(Exit.PREFLIGHT, "GIT_ADAPTER_BATCH_HEADER")
-        try:
-            actual_oid = header[0].decode("ascii", "strict")
-            object_type = header[1].decode("ascii", "strict")
-            object_size_text = header[2].decode("ascii", "strict")
-            object_size = int(object_size_text, 10)
-        except (UnicodeDecodeError, ValueError):
-            fail(Exit.PREFLIGHT, "GIT_ADAPTER_BATCH_HEADER")
-        if (
-            actual_oid != expected_oid
-            or object_type not in ("commit", "tree", "blob")
-            or object_size < 0
-            or str(object_size) != object_size_text
-        ):
-            fail(Exit.PREFLIGHT, "GIT_ADAPTER_BATCH_IDENTITY")
-        object_start = header_end + 1
-        object_end = object_start + object_size
-        if object_end >= len(raw) or raw[object_end : object_end + 1] != b"\n":
-            fail(Exit.PREFLIGHT, "GIT_ADAPTER_BATCH_LENGTH")
-        content = raw[object_start:object_end]
-        digest = hashlib.new(algorithm)
-        digest.update(object_type.encode("ascii") + b" " + str(object_size).encode("ascii") + b"\x00")
-        digest.update(content)
-        if not hmac.compare_digest(digest.hexdigest(), expected_oid):
-            fail(Exit.PREFLIGHT, "GIT_ADAPTER_BATCH_HASH")
-        offset = object_end + 1
-    if offset != len(raw):
-        fail(Exit.PREFLIGHT, "GIT_ADAPTER_BATCH_TRAILING")
-
-
 def verify_materialized_git_objects(
     git_binary: str,
     repo_root: str,
@@ -3884,7 +4315,8 @@ def verify_materialized_git_objects(
         fail(Exit.PREFLIGHT, "GIT_ADAPTER_OBJECT_SCOPE")
     ordered_oids = tuple(boundary.expected_object_oids)
     batch_input = ("\n".join(ordered_oids) + "\n").encode("ascii", "strict")
-    verify_batch_object_hashes(
+    expected_types = dict(boundary.expected_object_types)
+    sealed_objects = parse_bootstrap_object_batch(
         run_git(
             git_binary,
             repo_root,
@@ -3894,9 +4326,18 @@ def verify_materialized_git_objects(
             max_bytes=MAX_GIT_REACHABLE_PACK_BYTES,
             stdin_bytes=batch_input,
         ),
-        ordered_oids,
-        oid_bytes,
+        expected_types,
     )
+    sealed_head_tree, sealed_parents = parse_bootstrap_commit(
+        sealed_objects[head_oid], oid_bytes, parent_oid is not None
+    )
+    if sealed_head_tree != head_tree:
+        fail(Exit.PREFLIGHT, "GIT_ADAPTER_HEAD_TREE_IDENTITY")
+    if parent_oid is None:
+        if boundary.parent_path_resolution is not None or boundary.parent_required_absent_paths:
+            fail(Exit.INTERNAL, "GIT_ADAPTER_PARENT_BINDING")
+    elif tuple(sealed_parents) != (parent_oid,):
+        fail(Exit.PREFLIGHT, "GIT_ADAPTER_PARENT_IDENTITY")
     if git_scalar(
         git_binary, repo_root, boundary, ["rev-parse", "--verify", "HEAD"], "GIT_ADAPTER_HEAD"
     ) != head_oid:
@@ -3909,50 +4350,52 @@ def verify_materialized_git_objects(
         "GIT_ADAPTER_HEAD_TREE",
     ) != head_tree:
         fail(Exit.PREFLIGHT, "GIT_ADAPTER_HEAD_TREE_IDENTITY")
-    current_records = parse_bootstrap_tree_objects(
-        run_git(
-            git_binary,
-            repo_root,
-            boundary,
-            ["ls-tree", "-r", "-t", "-z", "--full-tree", head_tree],
-            "GIT_ADAPTER_HEAD_TREE_WALK",
-        ),
+
+    def sealed_tree_loader(oids: Sequence[str]) -> Mapping[str, bytes]:
+        result: Dict[str, bytes] = {}
+        for oid in oids:
+            if expected_types.get(oid) != "tree" or oid not in sealed_objects:
+                fail(Exit.PREFLIGHT, "GIT_ADAPTER_REQUIRED_TREE_SCOPE")
+            result[oid] = sealed_objects[oid]
+        return result
+
+    sealed_current = resolve_required_path_trie(
+        head_tree,
         oid_bytes,
+        boundary.current_required_blob_paths,
+        (),
+        sealed_tree_loader,
     )
-    expected = set(boundary.expected_object_oids)
-    if any(kind == "tree" and oid not in expected for kind, oid, _path in current_records):
-        fail(Exit.PREFLIGHT, "GIT_ADAPTER_HEAD_TREE_SCOPE")
+    if sealed_current != boundary.current_path_resolution:
+        fail(Exit.PREFLIGHT, "GIT_ADAPTER_CURRENT_PATH_MANIFEST")
     if (parent_oid is None) != (parent_tree is None):
         fail(Exit.INTERNAL, "GIT_ADAPTER_PARENT_BINDING")
     if parent_oid is not None and parent_tree is not None:
-        if git_scalar(
-            git_binary,
-            repo_root,
-            boundary,
-            ["cat-file", "-t", parent_oid],
-            "GIT_ADAPTER_PARENT_TYPE",
-        ) != "commit":
-            fail(Exit.PREFLIGHT, "GIT_ADAPTER_PARENT_TYPE")
-        if git_scalar(
-            git_binary,
-            repo_root,
-            boundary,
-            ["rev-parse", "--verify", parent_oid + "^{tree}"],
-            "GIT_ADAPTER_PARENT_TREE",
-        ) != parent_tree:
-            fail(Exit.PREFLIGHT, "GIT_ADAPTER_PARENT_TREE_IDENTITY")
-        parent_records = parse_bootstrap_tree_objects(
-            run_git(
-                git_binary,
-                repo_root,
-                boundary,
-                ["ls-tree", "-r", "-t", "-z", "--full-tree", parent_tree],
-                "GIT_ADAPTER_PARENT_TREE_WALK",
-            ),
-            oid_bytes,
+        sealed_parent_tree, _grandparents = parse_bootstrap_commit(
+            sealed_objects[parent_oid], oid_bytes, False
         )
-        if any(kind == "tree" and oid not in expected for kind, oid, _path in parent_records):
-            fail(Exit.PREFLIGHT, "GIT_ADAPTER_PARENT_TREE_SCOPE")
+        if sealed_parent_tree != parent_tree:
+            fail(Exit.PREFLIGHT, "GIT_ADAPTER_PARENT_TREE_IDENTITY")
+        sealed_parent = resolve_required_path_trie(
+            parent_tree,
+            oid_bytes,
+            (),
+            boundary.parent_required_absent_paths,
+            sealed_tree_loader,
+        )
+        if sealed_parent != boundary.parent_path_resolution:
+            fail(Exit.PREFLIGHT, "GIT_ADAPTER_PARENT_PATH_MANIFEST")
+        if len(boundary.parent_required_absent_paths) != 1:
+            fail(Exit.INTERNAL, "GIT_ADAPTER_PARENT_TRANSITION_SCOPE")
+        receipt = verify_path_local_one_file_addition(
+            sealed_current,
+            sealed_parent,
+            boundary.parent_required_absent_paths[0],
+        )
+        if not isinstance(boundary.one_file_transition_receipt, str) or not hmac.compare_digest(
+            receipt, boundary.one_file_transition_receipt
+        ):
+            fail(Exit.PREFLIGHT, "GIT_ADAPTER_TRANSITION_RECEIPT")
 
 
 def git_scalar(
@@ -4015,7 +4458,9 @@ def repository_baseline(
         developer_root,
         parent_depth=parent_depth,
         required_current_blob_paths=current_blob_paths,
-        required_parent_blob_paths=artifact_paths if parent_depth == 1 else (),
+        required_parent_absent_paths=(
+            tuple(additional_current_blob_paths) if parent_depth == 1 else ()
+        ),
     )
     try:
         head = git_scalar(git_binary, repo_root, boundary, ["rev-parse", "--verify", "HEAD"], "GIT_HEAD")
@@ -4024,13 +4469,8 @@ def repository_baseline(
         if GIT_OID_RE.fullmatch(head) is None or GIT_OID_RE.fullmatch(tree) is None:
             fail(Exit.PREFLIGHT, "GIT_OID")
         validate_head_ref(head_ref)
-        run_git(
-            git_binary,
-            repo_root,
-            boundary,
-            ["diff-index", "--cached", "--quiet", "HEAD", "--"],
-            "GIT_INDEX_HEAD",
-        )
+        if boundary.index_tree_proof.root_tree_oid != tree:
+            fail(Exit.PREFLIGHT, "GIT_INDEX_HEAD")
         refs_sha256, refs_bytes = other_refs_observation(git_binary, repo_root, boundary, head_ref)
         revalidate_git_metadata_source(boundary)
     except BaseException:
@@ -4041,6 +4481,12 @@ def repository_baseline(
         "git_boundary": boundary,
         "head": head,
         "tree": tree,
+        "parent_head": boundary.parent_oid,
+        "parent_tree": boundary.parent_tree,
+        "one_file_transition_receipt": boundary.one_file_transition_receipt,
+        "index_tree_sha256": boundary.index_tree_proof.raw_sha256,
+        "index_tree_entry_count": boundary.index_tree_proof.entry_count,
+        "index_tree_version": boundary.index_tree_proof.version,
         "head_ref": head_ref,
         "head_ref_sha256": head_ref_digest(head_ref),
         "head_ref_bytes": len(head_ref.encode("ascii", "strict")),
@@ -4120,7 +4566,8 @@ def _build_issue_envelope_unchecked(
             "micro_envelope_preimage": "ABSENT",
             "generation_output_repo_relative": final_relative(challenge),
             "generation_output_preimage": "ABSENT",
-            "approved_commit_shape": "current HEAD has exactly one parent equal to authorization_baseline_head; diff-tree against that parent contains exactly the micro envelope regular file with bytes equal to the approved raw envelope; no other path is added modified deleted renamed or type-changed",
+            "issue_publication_checkpoint_profile": ISSUE_PUBLICATION_CHECKPOINT_PROFILE_V1,
+            "approved_commit_shape": "current HEAD has exactly one parent equal to authorization_baseline_head; a path-local Merkle comparison of authenticated current and parent ancestor tree objects proves exactly the micro envelope regular file was added with bytes equal to the approved raw envelope and every non-target entry is byte-identical; no other path is added modified deleted renamed or type-changed",
             "index_must_equal_head": True,
             "refs_except_head_must_be_unchanged": True,
         },
@@ -4177,7 +4624,7 @@ def _build_issue_envelope_unchecked(
                 GENERATION_GIT_ADAPTER_WRITE_PROFILE_V2,
                 "within the declared trust boundary and host assurance, remove the unique registered adapter at its authorized pathname only after captured root and Git identity checks, then require authorized-path absence and zero registry residue before success or retryable pre-claim failure",
             ],
-            "temporary_git_metadata_adapter_profile": GENERATION_GIT_ADAPTER_PROFILE_V2,
+            "temporary_git_metadata_adapter_profile": GENERATION_GIT_ADAPTER_PROFILE_V4,
             "git_metadata_adapter_trust_boundary": GIT_METADATA_ADAPTER_TRUST_BOUNDARY_V1,
             "git_metadata_adapter_host_assurance": GIT_METADATA_ADAPTER_HOST_ASSURANCE_V1,
             "git_metadata_adapter_cleanup_guarantee": GIT_METADATA_ADAPTER_CLEANUP_GUARANTEE_V1,
@@ -4386,6 +4833,7 @@ def validate_generation_envelope(
             "authorization_baseline_other_refs_sha256",
             "authorization_baseline_other_refs_bytes", "git_control_profile", "micro_envelope_repo_relative",
             "micro_envelope_preimage", "generation_output_repo_relative", "generation_output_preimage",
+            "issue_publication_checkpoint_profile",
             "approved_commit_shape", "index_must_equal_head",
             "refs_except_head_must_be_unchanged",
         ),
@@ -4397,6 +4845,8 @@ def validate_generation_envelope(
         fail(Exit.CONTRACT, "MICRO_ENVELOPE_PATH")
     if transition.get("generation_output_repo_relative") != final_relative(challenge):
         fail(Exit.CONTRACT, "GENERATION_OUTPUT_PATH")
+    if transition.get("issue_publication_checkpoint_profile") != ISSUE_PUBLICATION_CHECKPOINT_PROFILE_V1:
+        fail(Exit.CONTRACT, "ISSUE_PUBLICATION_CHECKPOINT_PROFILE")
     if transition.get("authorization_baseline_head_symbolic") is not True:
         fail(Exit.CONTRACT, "HEAD_SYMBOLIC")
     if not isinstance(transition.get("authorization_baseline_head_ref_sha256"), str) or SHA256_RE.fullmatch(str(transition.get("authorization_baseline_head_ref_sha256"))) is None:
@@ -4586,10 +5036,48 @@ def assert_absent(parent_fd: int, name: str, label: str) -> None:
     fail(Exit.PREFLIGHT, label + "_NOT_ABSENT")
 
 
-def write_exclusive_public_file(repo_root: str, relative: str, raw: bytes) -> None:
+def write_exclusive_public_file(
+    repo_root: str,
+    relative: str,
+    raw: bytes,
+    *,
+    before_create: Optional[Callable[[], None]] = None,
+    after_create: Optional[Callable[[], None]] = None,
+    companion_absent_relative: Optional[str] = None,
+) -> None:
+    """Create one public file with optional source and companion-path CAS."""
+
     parent_fd, name = open_output_parent(repo_root, relative)
+    companion_name: Optional[str] = None
+    if companion_absent_relative is not None:
+        try:
+            companion_fd, companion_name = open_output_parent(repo_root, companion_absent_relative)
+            try:
+                parent_meta = os.fstat(parent_fd)
+                companion_parent_meta = os.fstat(companion_fd)
+                if (parent_meta.st_dev, parent_meta.st_ino) != (
+                    companion_parent_meta.st_dev,
+                    companion_parent_meta.st_ino,
+                ):
+                    fail(Exit.PREFLIGHT, "OUTPUT_COMPANION_PARENT")
+            finally:
+                os.close(companion_fd)
+        except BaseException:
+            os.close(parent_fd)
+            raise
     fd: Optional[int] = None
+    reopened_fd: Optional[int] = None
+    locked = False
     try:
+        try:
+            fcntl.flock(parent_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            locked = True
+        except OSError:
+            fail(Exit.PREFLIGHT, "OUTPUT_PARENT_LOCK")
+        if before_create is not None:
+            before_create()
+        if companion_name is not None:
+            assert_absent(parent_fd, companion_name, "GENERATION_OUTPUT")
         assert_absent(parent_fd, name, "OUTPUT")
         flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
         try:
@@ -4640,29 +5128,96 @@ def write_exclusive_public_file(repo_root: str, relative: str, raw: bytes) -> No
         ) or final.st_size != len(raw):
             fail(Exit.WRITE, "OUTPUT_FINAL_IDENTITY")
         os.fsync(parent_fd)
+        try:
+            reopened_fd = os.open(name, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=parent_fd)
+        except OSError:
+            fail(Exit.WRITE, "OUTPUT_REOPEN")
+        reopened_meta = os.fstat(reopened_fd)
+        if (
+            (reopened_meta.st_dev, reopened_meta.st_ino) != (final.st_dev, final.st_ino)
+            or reopened_meta.st_size != len(raw)
+            or not stat.S_ISREG(reopened_meta.st_mode)
+            or reopened_meta.st_nlink != 1
+        ):
+            fail(Exit.WRITE, "OUTPUT_REOPEN_IDENTITY")
+        pieces: List[bytes] = []
+        remaining = len(raw)
+        while remaining:
+            try:
+                chunk = os.read(reopened_fd, min(1024 * 1024, remaining))
+            except OSError:
+                fail(Exit.WRITE, "OUTPUT_REOPEN_READ")
+            if not chunk:
+                fail(Exit.WRITE, "OUTPUT_REOPEN_SHORT")
+            pieces.append(chunk)
+            remaining -= len(chunk)
+        try:
+            growth = os.read(reopened_fd, 1)
+        except OSError:
+            fail(Exit.WRITE, "OUTPUT_REOPEN_READ")
+        if growth or b"".join(pieces) != raw:
+            fail(Exit.WRITE, "OUTPUT_REOPEN_MISMATCH")
+        if companion_name is not None:
+            assert_absent(parent_fd, companion_name, "GENERATION_OUTPUT_POST_CREATE")
+        if after_create is not None:
+            after_create()
+        if companion_name is not None:
+            assert_absent(parent_fd, companion_name, "GENERATION_OUTPUT_POST_CHECKPOINT")
     finally:
+        if reopened_fd is not None:
+            try:
+                os.close(reopened_fd)
+            except OSError:
+                pass
         if fd is not None:
             try:
                 os.close(fd)
             except OSError:
                 pass
+        if locked:
+            try:
+                fcntl.flock(parent_fd, fcntl.LOCK_UN)
+            except OSError:
+                pass
         os.close(parent_fd)
-    reopened, metadata = open_relative_regular(repo_root, relative, "OUTPUT_REOPEN")
-    if reopened != raw or metadata.st_size != len(raw):
-        fail(Exit.WRITE, "OUTPUT_REOPEN_MISMATCH")
+
+
+def capture_issue_public_checkpoint(repo_root: str) -> Tuple[Dict[str, Any], List[Dict[str, Any]], str]:
+    """Capture and close one exact public source/artifact checkpoint."""
+
+    baseline = repository_baseline(repo_root)
+    artifacts = artifact_observations(repo_root)
+    try:
+        assert_artifacts_match_head(
+            baseline["git_binary"], repo_root, baseline["git_boundary"], artifacts
+        )
+        finalize_git_metadata_adapter(baseline["git_boundary"])
+    except BaseException:
+        cleanup_git_metadata_adapter(baseline["git_boundary"])
+        raise
+    boundary = baseline["git_boundary"]
+    identity = {
+        "head": baseline["head"],
+        "tree": baseline["tree"],
+        "head_ref_sha256": baseline["head_ref_sha256"],
+        "head_ref_bytes": baseline["head_ref_bytes"],
+        "other_refs_sha256": baseline["other_refs_sha256"],
+        "other_refs_bytes": baseline["other_refs_bytes"],
+        "git_control_profile": baseline["git_control_profile"],
+        "git_source_fingerprint": boundary.source_fingerprint,
+        "index_tree_sha256": baseline["index_tree_sha256"],
+        "index_tree_entry_count": baseline["index_tree_entry_count"],
+        "index_tree_version": baseline["index_tree_version"],
+        "expected_object_types": [list(item) for item in boundary.expected_object_types],
+        "artifacts": artifacts,
+    }
+    return baseline, artifacts, sha256(canonical_json(identity))
 
 
 def issue() -> Dict[str, Any]:
     require_python_isolation()
     repo_root, _repo_meta = derive_repo_root()
-    baseline = repository_baseline(repo_root)
-    artifacts = artifact_observations(repo_root)
-    try:
-        assert_artifacts_match_head(baseline["git_binary"], repo_root, baseline["git_boundary"], artifacts)
-        finalize_git_metadata_adapter(baseline["git_boundary"])
-    except BaseException:
-        cleanup_git_metadata_adapter(baseline["git_boundary"])
-        raise
+    baseline, artifacts, initial_checkpoint = capture_issue_public_checkpoint(repo_root)
     issued_at = utc_now_second()
     entropy = os.urandom(32)
     if len(entropy) != 32:
@@ -4670,40 +5225,28 @@ def issue() -> Dict[str, Any]:
     challenge = "GOV01-GEN-" + issued_at.strftime("%Y%m%d") + "-" + entropy.hex()
     relative = micro_relative(challenge)
     final_output_relative = final_relative(challenge)
-    parent_fd, name = open_output_parent(repo_root, relative)
-    try:
-        assert_absent(parent_fd, name, "MICRO_ENVELOPE")
-    finally:
-        os.close(parent_fd)
-    final_parent_fd, final_name = open_output_parent(repo_root, final_output_relative)
-    try:
-        assert_absent(final_parent_fd, final_name, "GENERATION_OUTPUT")
-    finally:
-        os.close(final_parent_fd)
     envelope = build_issue_envelope(challenge, issued_at, baseline, artifacts)
     raw = canonical_json(envelope)
     parsed = parse_json(raw, "MICRO_ENVELOPE")
     if parsed != envelope:
         fail(Exit.INTERNAL, "MICRO_ENVELOPE_ROUNDTRIP")
     validate_generation_envelope(parsed, issued_at, require_pending=True)
-    # Artifact and repository inputs must remain stable through the first write.
-    current_artifacts = artifact_observations(repo_root)
-    current_baseline = repository_baseline(repo_root)
-    try:
-        assert_artifacts_match_head(
-            current_baseline["git_binary"],
-            repo_root,
-            current_baseline["git_boundary"],
-            current_artifacts,
+    def revalidate_issue_checkpoint(label: str) -> None:
+        _current_baseline, _current_artifacts, current_checkpoint = capture_issue_public_checkpoint(
+            repo_root
         )
-        finalize_git_metadata_adapter(current_baseline["git_boundary"])
-    except BaseException:
-        cleanup_git_metadata_adapter(current_baseline["git_boundary"])
-        raise
-    if current_artifacts != artifacts or current_baseline != baseline:
-        fail(Exit.PREFLIGHT, "ISSUE_INPUT_DRIFT")
-    validate_generation_envelope(parsed, utc_now_second(), require_pending=True)
-    write_exclusive_public_file(repo_root, relative, raw)
+        if not hmac.compare_digest(current_checkpoint, initial_checkpoint):
+            fail(Exit.PREFLIGHT, label + "_INPUT_DRIFT")
+        validate_generation_envelope(parsed, utc_now_second(), require_pending=True)
+
+    write_exclusive_public_file(
+        repo_root,
+        relative,
+        raw,
+        before_create=lambda: revalidate_issue_checkpoint("ISSUE_PRE_CREATE"),
+        after_create=lambda: revalidate_issue_checkpoint("ISSUE_POST_CREATE"),
+        companion_absent_relative=final_output_relative,
+    )
     validate_generation_envelope(parsed, utc_now_second(), require_pending=True)
     require_git_adapter_quiescent("ISSUE")
     return {
@@ -4755,69 +5298,21 @@ def _load_approved_generation_request_impl(
         additional_current_blob_paths=(relative,),
     )
     transition = envelope["repository_transition"]
-    parent_line = run_git(
-        current["git_binary"],
-        repo_root,
-        current["git_boundary"],
-        ["rev-list", "--parents", "-n", "1", "HEAD"],
-        "GIT_MICRO_PARENT",
-        max_bytes=4096,
-    )
-    if parent_line.count(b"\n") != 1 or not parent_line.endswith(b"\n"):
-        fail(Exit.PREFLIGHT, "GIT_MICRO_PARENT_FORMAT")
-    try:
-        parent_fields = parent_line[:-1].decode("ascii", "strict").split(" ")
-    except UnicodeDecodeError:
-        fail(Exit.PREFLIGHT, "GIT_MICRO_PARENT_ENCODING")
     if (
-        len(parent_fields) != 2
-        or parent_fields[0] != current["head"]
-        or parent_fields[1] != transition.get("authorization_baseline_head")
-        or GIT_OID_RE.fullmatch(parent_fields[1]) is None
+        current.get("parent_head") != transition.get("authorization_baseline_head")
+        or not isinstance(current.get("parent_head"), str)
+        or GIT_OID_RE.fullmatch(str(current.get("parent_head"))) is None
     ):
         fail(Exit.PREFLIGHT, "GIT_MICRO_PARENT_IDENTITY")
-    parent_tree = git_scalar(
-        current["git_binary"],
-        repo_root,
-        current["git_boundary"],
-        ["rev-parse", "--verify", parent_fields[1] + "^{tree}"],
-        "GIT_MICRO_PARENT_TREE",
-    )
-    if parent_tree != transition.get("authorization_baseline_tree"):
+    if current.get("parent_tree") != transition.get("authorization_baseline_tree"):
         fail(Exit.PREFLIGHT, "GIT_MICRO_PARENT_TREE")
-    changed = run_git(
-        current["git_binary"],
-        repo_root,
-        current["git_boundary"],
-        ["diff-tree", "--no-commit-id", "--name-only", "-r", "-z", parent_fields[1], current["head"], "--"],
-        "GIT_MICRO_DIFF",
-        max_bytes=4096,
-    )
-    if changed != relative.encode("utf-8") + b"\x00":
-        fail(Exit.PREFLIGHT, "GIT_MICRO_DIFF_SCOPE")
-    if run_git(
-        current["git_binary"],
-        repo_root,
-        current["git_boundary"],
-        ["ls-tree", "-z", "--full-tree", parent_fields[1], "--", relative],
-        "GIT_MICRO_PARENT_PREIMAGE",
-        max_bytes=4096,
-    ):
-        fail(Exit.PREFLIGHT, "GIT_MICRO_PARENT_PREIMAGE")
-    current_entry = run_git(
-        current["git_binary"],
-        repo_root,
-        current["git_boundary"],
-        ["ls-tree", "-z", "--full-tree", current["head"], "--", relative],
-        "GIT_MICRO_CURRENT_ENTRY",
-        max_bytes=4096,
-    )
-    if (
-        current_entry.count(b"\x00") != 1
-        or not current_entry.endswith(b"\x00")
-        or not current_entry.startswith(b"100644 blob ")
-        or b"\t" + relative.encode("utf-8") + b"\x00" not in current_entry
-    ):
+    if not isinstance(current.get("one_file_transition_receipt"), str):
+        fail(Exit.PREFLIGHT, "GIT_MICRO_TRANSITION_RECEIPT")
+    current_entries = {
+        path: (mode, oid)
+        for path, mode, oid in current["git_boundary"].current_path_resolution.path_entries
+    }
+    if relative not in current_entries or current_entries[relative][0] != "100644":
         fail(Exit.PREFLIGHT, "GIT_MICRO_CURRENT_KIND")
     committed_raw = run_git(
         current["git_binary"],

@@ -9,6 +9,7 @@ values, and writes only inside a temporary directory.  It never invokes
 import argparse
 import copy
 import datetime as dt
+import hashlib
 import importlib.util
 import json
 import os
@@ -1853,9 +1854,81 @@ def exclusive_write_matrix(generator: Any) -> bool:
         if (escaped_parent / "result.json").exists() or (root / relative).exists():
             return False
         escaped_parent.rename(parent)
-        generator.write_exclusive_public_file(str(root), relative, raw)
+        companion_relative = "evidence/final.json"
+        events: List[str] = []
+        original_open = generator.os.open
+
+        def record_exclusive_open(path_value: Any, flags: int, *args: Any, **kwargs: Any) -> int:
+            if path_value == "result.json" and flags & os.O_EXCL:
+                events.append("create")
+            return original_open(path_value, flags, *args, **kwargs)
+
+        def before_public_create() -> None:
+            events.append("before")
+            require(not (root / relative).exists(), "exclusive-before-create-absent")
+            require(not (root / companion_relative).exists(), "exclusive-before-companion-absent")
+
+        def after_public_create() -> None:
+            events.append("after")
+            require((root / relative).read_bytes() == raw, "exclusive-after-create-bytes")
+            require(not (root / companion_relative).exists(), "exclusive-after-companion-absent")
+
+        generator.os.open = record_exclusive_open
+        try:
+            generator.write_exclusive_public_file(
+                str(root),
+                relative,
+                raw,
+                before_create=before_public_create,
+                after_create=after_public_create,
+                companion_absent_relative=companion_relative,
+            )
+        finally:
+            generator.os.open = original_open
+        if events != ["before", "create", "after"]:
+            return False
         path = root / relative
         if path.read_bytes() != raw or (path.stat().st_mode & 0o777) != 0o644:
+            return False
+
+        companion = root / companion_relative
+        companion.write_bytes(b"preexisting final output\n")
+        blocked_target = "evidence/companion-blocked.json"
+        try:
+            generator.write_exclusive_public_file(
+                str(root),
+                blocked_target,
+                raw,
+                companion_absent_relative=companion_relative,
+            )
+        except generator.GenerationError as error:
+            if error.public_code != "GENERATION_OUTPUT_NOT_ABSENT":
+                return False
+        else:
+            return False
+        if (root / blocked_target).exists():
+            return False
+        companion.unlink()
+
+        retained_target = "evidence/post-checkpoint-retained.json"
+
+        def fail_after_create() -> None:
+            generator.fail(generator.Exit.PREFLIGHT, "FIXTURE_POST_SOURCE_DRIFT")
+
+        try:
+            generator.write_exclusive_public_file(
+                str(root),
+                retained_target,
+                raw,
+                after_create=fail_after_create,
+                companion_absent_relative=companion_relative,
+            )
+        except generator.GenerationError as error:
+            if error.public_code != "FIXTURE_POST_SOURCE_DRIFT":
+                return False
+        else:
+            return False
+        if (root / retained_target).read_bytes() != raw:
             return False
         try:
             generator.write_exclusive_public_file(str(root), relative, b"changed\n")
@@ -2929,20 +3002,61 @@ def reachable_object_adapter_matrix(generator: Any) -> bool:
     with tempfile.TemporaryDirectory(prefix="gov01-generation-reachable-", dir=temp_parent) as temporary:
         root = pathlib.Path(temporary) / "repo"
         root.mkdir(mode=0o700)
-        authorized = root / "authorized.txt"
-        unrelated = root / "ordinary-tracked.txt"
+        authorized_relative = "public/authorized.txt"
+        unrelated_relative = "ordinary/deep/tracked.txt"
+        private_relative = "Canvas-Vault/private/secret.txt"
+        authorized = root / authorized_relative
+        unrelated = root / unrelated_relative
+        private_tracked = root / private_relative
+        authorized.parent.mkdir(parents=True)
+        unrelated.parent.mkdir(parents=True)
+        private_tracked.parent.mkdir(parents=True)
         authorized_raw = b"authorized fixture payload\n"
         tracked_secret_raw = b"tracked but unauthorized fixture secret\n"
+        private_secret_raw = b"tracked private subtree secret that must never be dereferenced\n"
         dangling_secret_raw = b"dangling unreachable fixture secret\n"
         authorized.write_bytes(authorized_raw)
         unrelated.write_bytes(tracked_secret_raw)
+        private_tracked.write_bytes(private_secret_raw)
         run_synthetic_git(root, ["init", "-q"])
-        run_synthetic_git(root, ["add", "authorized.txt", "ordinary-tracked.txt"])
+        run_synthetic_git(root, ["add", authorized_relative, unrelated_relative, private_relative])
         run_synthetic_git(root, ["commit", "-q", "-m", "fixture-reachable-baseline"])
         head_oid = run_synthetic_git_output(root, ["rev-parse", "HEAD"]).decode("ascii").strip()
+        head_tree_oid = run_synthetic_git_output(root, ["rev-parse", "HEAD^{tree}"]).decode(
+            "ascii"
+        ).strip()
         unrelated_oid = run_synthetic_git_output(
-            root, ["rev-parse", "HEAD:ordinary-tracked.txt"]
+            root, ["rev-parse", "HEAD:" + unrelated_relative]
         ).decode("ascii").strip()
+        private_oid = run_synthetic_git_output(
+            root, ["rev-parse", "HEAD:" + private_relative]
+        ).decode("ascii").strip()
+        ordinary_tree_oid = run_synthetic_git_output(
+            root, ["rev-parse", "HEAD:ordinary"]
+        ).decode("ascii").strip()
+        private_tree_oid = run_synthetic_git_output(
+            root, ["rev-parse", "HEAD:Canvas-Vault"]
+        ).decode("ascii").strip()
+        one_object_pack = run_synthetic_git_output(
+            root,
+            ["pack-objects", "--stdout", "--no-reuse-delta", "--no-reuse-object"],
+            (head_oid + "\n").encode("ascii"),
+        )
+        generator.validate_generated_pack_envelope(one_object_pack, 1, len(head_oid))
+        wrong_pack_count = bytearray(one_object_pack)
+        wrong_pack_count[8:12] = (2).to_bytes(4, "big")
+        wrong_pack_checksum = bytearray(one_object_pack)
+        wrong_pack_checksum[-1] ^= 1
+        for hostile_pack, expected_code in (
+            (bytes(wrong_pack_count), "GIT_BOOTSTRAP_PACK_FORMAT"),
+            (bytes(wrong_pack_checksum), "GIT_BOOTSTRAP_PACK_CHECKSUM"),
+        ):
+            try:
+                generator.validate_generated_pack_envelope(hostile_pack, 1, len(head_oid))
+            except generator.GenerationError as error:
+                require(error.public_code == expected_code, "reachable-generated-pack-label")
+            else:
+                return False
         # Force the required commit/tree/blob closure into a normal pack.  The
         # same selected source container deliberately also holds an unrelated
         # tracked secret; the final partial adapter must still omit its OID.
@@ -2983,6 +3097,126 @@ def reachable_object_adapter_matrix(generator: Any) -> bool:
         os.chmod(multi_pack_trap, 0o600)
         os.chmod(commit_graph_trap, 0o600)
         capture = generator.capture_git_source(str(root))
+        raw_index = capture["raw_files"]["index"]
+        raw_oid_bytes = len(head_oid) // 2
+
+        def signed_index(body: bytes) -> bytes:
+            digest = hashlib.sha1() if len(head_oid) == 40 else hashlib.sha256()
+            digest.update(body)
+            return body + digest.digest()
+
+        index_body = raw_index[:-raw_oid_bytes]
+        index_proof = generator.prove_captured_index_root_tree(
+            raw_index, len(head_oid), head_tree_oid
+        )
+        require(
+            index_proof.entry_count == 3 and index_proof.version == 2,
+            "reachable-index-v2-positive",
+        )
+        version_three = bytearray(index_body)
+        version_three[4:8] = (3).to_bytes(4, "big")
+        require(
+            generator.prove_captured_index_root_tree(
+                signed_index(bytes(version_three)), len(head_oid), head_tree_oid
+            ).version
+            == 3,
+            "reachable-index-v3-positive",
+        )
+        tree_extension_at = index_body.rfind(b"TREE")
+        if tree_extension_at >= 12 and tree_extension_at + 8 < len(index_body):
+            tree_extension_size = int.from_bytes(
+                index_body[tree_extension_at + 4 : tree_extension_at + 8], "big"
+            )
+            optional_tree_body = bytearray(index_body)
+            require(tree_extension_size > 0, "reachable-index-tree-extension-body")
+            optional_tree_body[tree_extension_at + 8] ^= 1
+            optional_tree = signed_index(bytes(optional_tree_body))
+        else:
+            optional_tree = signed_index(index_body + b"ZZZZ" + (0).to_bytes(4, "big"))
+        require(
+            generator.prove_captured_index_root_tree(
+                optional_tree, len(head_oid), head_tree_oid
+            ).root_tree_oid
+            == head_tree_oid,
+            "reachable-index-optional-extension-ignored",
+        )
+
+        first_entry = 12
+        first_oid = first_entry + 40
+        first_flags = first_oid + raw_oid_bytes
+        first_nul = index_body.index(b"\x00", first_flags + 2)
+        first_end = first_nul + 1
+        first_padding = (-(first_end - first_entry)) % 8
+        hostile_captured_indexes: List[Tuple[bytes, str]] = []
+        version_four = bytearray(index_body)
+        version_four[4:8] = (4).to_bytes(4, "big")
+        hostile_captured_indexes.append(
+            (signed_index(bytes(version_four)), "GIT_INDEX_VERSION_UNSUPPORTED")
+        )
+        staged = bytearray(index_body)
+        staged[first_oid] ^= 1
+        hostile_captured_indexes.append(
+            (signed_index(bytes(staged)), "GIT_INDEX_HEAD_TREE_MISMATCH")
+        )
+        unmerged = bytearray(index_body)
+        flags_value = int.from_bytes(unmerged[first_flags : first_flags + 2], "big") | 0x1000
+        unmerged[first_flags : first_flags + 2] = flags_value.to_bytes(2, "big")
+        hostile_captured_indexes.append((signed_index(bytes(unmerged)), "GIT_INDEX_UNMERGED"))
+        assume_valid = bytearray(index_body)
+        assume_flags = int.from_bytes(
+            assume_valid[first_flags : first_flags + 2], "big"
+        ) | 0x8000
+        assume_valid[first_flags : first_flags + 2] = assume_flags.to_bytes(2, "big")
+        hostile_captured_indexes.append(
+            (signed_index(bytes(assume_valid)), "GIT_INDEX_ASSUME_VALID")
+        )
+        gitlink = bytearray(index_body)
+        gitlink[first_entry + 24 : first_entry + 28] = (0o160000).to_bytes(4, "big")
+        hostile_captured_indexes.append((signed_index(bytes(gitlink)), "GIT_INDEX_GITLINK"))
+        sparse = bytearray(index_body)
+        sparse[first_entry + 24 : first_entry + 28] = (0o040000).to_bytes(4, "big")
+        hostile_captured_indexes.append(
+            (signed_index(bytes(sparse)), "GIT_INDEX_SPARSE_DIRECTORY")
+        )
+        dot_git = bytearray(index_body)
+        first_path_start = first_flags + 2
+        first_path_length = first_nul - first_path_start
+        require(first_path_length >= 6, "reachable-index-dot-git-vector-length")
+        dot_git[first_path_start:first_nul] = b".git/" + b"x" * (first_path_length - 5)
+        hostile_captured_indexes.append((signed_index(bytes(dot_git)), "GIT_INDEX_DOT_GIT"))
+        hostile_captured_indexes.append(
+            (signed_index(index_body + b"link" + (0).to_bytes(4, "big")), "GIT_INDEX_REQUIRED_EXTENSION")
+        )
+        hostile_captured_indexes.append(
+            (signed_index(index_body + b"sdir" + (0).to_bytes(4, "big")), "GIT_INDEX_REQUIRED_EXTENSION")
+        )
+        hostile_captured_indexes.append(
+            (signed_index(index_body + b"zzzz" + (0).to_bytes(4, "big")), "GIT_INDEX_REQUIRED_EXTENSION")
+        )
+        hostile_captured_indexes.append(
+            (
+                signed_index(index_body + b"EOIE" + (32).to_bytes(4, "big") + b"x"),
+                "GIT_INDEX_EXTENSION_FORMAT",
+            )
+        )
+        bad_checksum = bytearray(raw_index)
+        bad_checksum[-1] ^= 1
+        hostile_captured_indexes.append((bytes(bad_checksum), "GIT_INDEX_CHECKSUM"))
+        if first_padding:
+            bad_padding = bytearray(index_body)
+            bad_padding[first_end] = 1
+            hostile_captured_indexes.append(
+                (signed_index(bytes(bad_padding)), "GIT_INDEX_PADDING")
+            )
+        for hostile_index, expected_code in hostile_captured_indexes:
+            try:
+                generator.prove_captured_index_root_tree(
+                    hostile_index, len(head_oid), head_tree_oid
+                )
+            except generator.GenerationError as error:
+                require(error.public_code == expected_code, "reachable-captured-index-label")
+            else:
+                return False
 
         def deny_unrelated_pack_open(path: Any, *args: Any, **kwargs: Any) -> int:
             if isinstance(path, (str, bytes, os.PathLike)) and os.path.realpath(os.fsdecode(path)) in forbidden_opens:
@@ -3039,7 +3273,6 @@ def reachable_object_adapter_matrix(generator: Any) -> bool:
         else:
             return False
 
-        raw_oid_bytes = len(head_oid) // 2
         object_count = int.from_bytes(selected_index_raw[8 + 255 * 4 : 12 + 255 * 4], "big")
         offsets_start = 8 + 256 * 4 + object_count * raw_oid_bytes + object_count * 4
         version_bad = bytearray(selected_index_raw)
@@ -3078,16 +3311,16 @@ def reachable_object_adapter_matrix(generator: Any) -> bool:
                 "GIT_BOOTSTRAP_RAW_TREE_KIND",
             ),
             (
-                b"100644 Canvas-Vault-secret\x00" + raw_oid,
-                "GIT_BOOTSTRAP_RAW_TREE_NAME_PRIVATE_COMPONENT",
+                b"40000 .GiT\x00" + raw_oid,
+                "GIT_BOOTSTRAP_RAW_TREE_DOT_GIT",
             ),
             (
-                (b"100644 duplicate\x00" + raw_oid) * 2,
+                b"100644 duplicate\x00" + raw_oid + b"40000 duplicate\x00" + raw_oid,
                 "GIT_BOOTSTRAP_RAW_TREE_DUPLICATE",
             ),
             (
-                b"100644 control-\x01\x00" + raw_oid,
-                "GIT_BOOTSTRAP_RAW_TREE_NAME_CONTROL_OR_FORMAT",
+                b"100644 z\x00" + raw_oid + b"100644 a\x00" + raw_oid,
+                "GIT_BOOTSTRAP_RAW_TREE_ORDER",
             ),
         )
         for hostile_raw, expected_code in hostile_tree_objects:
@@ -3097,6 +3330,52 @@ def reachable_object_adapter_matrix(generator: Any) -> bool:
                 require(error.public_code == expected_code, "reachable-hostile-tree-label")
             else:
                 return False
+
+        opaque_entries = generator.parse_bootstrap_tree_object_entries(
+            b"40000 Canvas-Vault\x00" + raw_oid + b"100644 control-\x01\x00" + raw_oid,
+            len(head_oid),
+        )
+        require(
+            [entry.name for entry in opaque_entries] == [b"Canvas-Vault", b"control-\x01"],
+            "reachable-unselected-sibling-names-opaque",
+        )
+        for private_required in ("Canvas-Vault/private/secret.txt", ".obsidian/secret"):
+            try:
+                generator.build_required_path_trie((private_required,), ())
+            except generator.GenerationError as error:
+                require(
+                    error.public_code == "GIT_BOOTSTRAP_REQUIRED_PATH_PRIVATE_COMPONENT",
+                    "reachable-required-private-path-label",
+                )
+            else:
+                return False
+        original_capture_source = generator.capture_git_source
+        capture_called = {"value": False}
+
+        def trap_capture_after_private_path(*args: Any, **kwargs: Any) -> Any:
+            capture_called["value"] = True
+            return original_capture_source(*args, **kwargs)
+
+        generator.capture_git_source = trap_capture_after_private_path
+        try:
+            try:
+                generator.create_git_metadata_adapter(
+                    str(root),
+                    git_binary,
+                    developer_root,
+                    required_current_blob_paths=("Canvas-Vault/private/secret.txt",),
+                )
+            except generator.GenerationError as error:
+                require(
+                    error.public_code == "GIT_BOOTSTRAP_REQUIRED_PATH_PRIVATE_COMPONENT",
+                    "reachable-private-path-pre-open-label",
+                )
+            else:
+                return False
+        finally:
+            generator.capture_git_source = original_capture_source
+        require(not capture_called["value"], "reachable-private-path-zero-source-open")
+        generator.require_git_adapter_quiescent("FIXTURE_PRIVATE_PATH_PRE_OPEN")
 
         selected_stem = pathlib.Path(selected_index).stem
         promisor = pathlib.Path(selected_index).with_name(selected_stem + ".promisor")
@@ -3121,15 +3400,26 @@ def reachable_object_adapter_matrix(generator: Any) -> bool:
                 str(root),
                 git_binary,
                 developer_root,
-                required_current_blob_paths=("authorized.txt",),
+                required_current_blob_paths=(authorized_relative,),
             )
         finally:
             generator.os.open = original_open
         try:
             expected = set(boundary.expected_object_oids)
             require(
-                head_oid in expected and unrelated_oid not in expected and dangling_oid not in expected,
+                head_oid in expected
+                and unrelated_oid not in expected
+                and private_oid not in expected
+                and ordinary_tree_oid not in expected
+                and private_tree_oid not in expected
+                and dangling_oid not in expected,
                 "reachable-exact-object-set",
+            )
+            require(
+                boundary.index_tree_proof.root_tree_oid == boundary.head_tree
+                and boundary.index_tree_proof.entry_count == 3
+                and dict(boundary.expected_object_types).get(head_oid) == "commit",
+                "reachable-index-root-proof",
             )
             require(generator.git_scalar(
                 git_binary,
@@ -3142,17 +3432,16 @@ def reachable_object_adapter_matrix(generator: Any) -> bool:
                 git_binary,
                 str(root),
                 boundary,
-                ["show", "HEAD:authorized.txt"],
+                ["show", "HEAD:" + authorized_relative],
                 "FIXTURE_REACHABLE_AUTHORIZED_BLOB",
             ) == authorized_raw, "reachable-authorized-blob")
-            generator.run_git(
-                git_binary,
-                str(root),
-                boundary,
-                ["diff-index", "--cached", "--quiet", "HEAD", "--"],
-                "FIXTURE_REACHABLE_INDEX",
-            )
-            for absent_oid in (unrelated_oid, dangling_oid):
+            for absent_oid in (
+                unrelated_oid,
+                private_oid,
+                ordinary_tree_oid,
+                private_tree_oid,
+                dangling_oid,
+            ):
                 require(not generator.run_git(
                     git_binary,
                     str(root),
@@ -3209,7 +3498,7 @@ def reachable_object_adapter_matrix(generator: Any) -> bool:
                         str(root),
                         git_binary,
                         developer_root,
-                        required_current_blob_paths=("authorized.txt",),
+                        required_current_blob_paths=(authorized_relative,),
                     )
                 except generator.GenerationError as error:
                     require(
@@ -3260,12 +3549,86 @@ def committed_transition_matrix(
             artifacts,
         )
         synthetic_generator.finalize_git_metadata_adapter(baseline["git_boundary"])
+        _checkpoint_baseline, _checkpoint_artifacts, checkpoint_receipt = (
+            synthetic_generator.capture_issue_public_checkpoint(str(synthetic_root))
+        )
+        gitignore_path = synthetic_root / ".gitignore"
+        gitignore_raw = gitignore_path.read_bytes()
+        gitignore_path.write_bytes(gitignore_raw + b"\nfixture-uncommitted-drift\n")
+        try:
+            try:
+                synthetic_generator.capture_issue_public_checkpoint(str(synthetic_root))
+            except synthetic_generator.GenerationError as error:
+                require(
+                    error.public_code == "ARTIFACT_NOT_HEAD_BYTES",
+                    "issue-checkpoint-uncommitted-artifact-drift-label",
+                )
+            else:
+                raise FixtureFailure("issue-checkpoint-uncommitted-artifact-drift-accepted")
+        finally:
+            gitignore_path.write_bytes(gitignore_raw)
+        gitignore_path.write_bytes(gitignore_raw + b"\nfixture-committed-drift\n")
+        run_synthetic_git(synthetic_root, ["add", "--", ".gitignore"])
+        run_synthetic_git(synthetic_root, ["commit", "-q", "-m", "fixture checkpoint drift"])
+        _drift_baseline, _drift_artifacts, drift_checkpoint_receipt = (
+            synthetic_generator.capture_issue_public_checkpoint(str(synthetic_root))
+        )
+        require(
+            drift_checkpoint_receipt != checkpoint_receipt,
+            "issue-checkpoint-committed-source-artifact-drift",
+        )
+        run_synthetic_git(synthetic_root, ["reset", "--hard", baseline["head"]])
+        synthetic_generator.require_git_adapter_quiescent("FIXTURE_ISSUE_CHECKPOINT")
         issued = synthetic_generator.utc_now_second()
         challenge = "GOV01-GEN-" + issued.strftime("%Y%m%d") + "-" + "c" * 64
         envelope = synthetic_generator.build_issue_envelope(challenge, issued, baseline, artifacts)
         require(schema_accepts(validator, envelope), "transition-envelope-schema")
         raw = synthetic_generator.canonical_json(envelope)
         micro_relative = synthetic_generator.micro_relative(challenge)
+
+        # A commit that adds the approved micro plus a private sibling subtree
+        # must fail from ancestor-tree Merkle drift without opening that private
+        # subtree tree or blob body.
+        synthetic_generator.write_exclusive_public_file(str(synthetic_root), micro_relative, raw)
+        private_path = "Canvas-Vault/private-transition-secret.txt"
+        private_file = synthetic_root / private_path
+        private_file.parent.mkdir(parents=True, exist_ok=True)
+        private_file.write_bytes(b"private transition body must not be opened\n")
+        run_synthetic_git(synthetic_root, ["add", "--", micro_relative, private_path])
+        run_synthetic_git(synthetic_root, ["commit", "-q", "-m", "fixture hostile extra subtree"])
+        private_tree_oid = run_synthetic_git_output(
+            synthetic_root, ["rev-parse", "HEAD:Canvas-Vault"]
+        ).decode("ascii").strip()
+        requested_oids: List[str] = []
+        original_bootstrap_read = synthetic_generator.bootstrap_git_object_read
+
+        def record_transition_object_reads(*args: Any, **kwargs: Any) -> bytes:
+            requested_oids.extend(str(oid) for oid in kwargs.get("object_oids", ()))
+            return original_bootstrap_read(*args, **kwargs)
+
+        synthetic_generator.bootstrap_git_object_read = record_transition_object_reads
+        try:
+            try:
+                synthetic_generator.load_approved_generation_request(
+                    synthetic_generator.receipt_digest(raw),
+                    challenge,
+                )
+            except synthetic_generator.GenerationError as error:
+                require(
+                    error.public_code == "GIT_MICRO_TRANSITION_SIBLING_DRIFT",
+                    "transition-extra-private-subtree-label",
+                )
+            else:
+                raise FixtureFailure("transition-extra-private-subtree-accepted")
+        finally:
+            synthetic_generator.bootstrap_git_object_read = original_bootstrap_read
+        require(
+            private_tree_oid not in requested_oids,
+            "transition-private-subtree-body-not-requested",
+        )
+        synthetic_generator.require_git_adapter_quiescent("FIXTURE_TRANSITION_HOSTILE")
+        run_synthetic_git(synthetic_root, ["reset", "--hard", baseline["head"]])
+
         synthetic_generator.write_exclusive_public_file(str(synthetic_root), micro_relative, raw)
         run_synthetic_git(synthetic_root, ["add", "--", micro_relative])
         run_synthetic_git(synthetic_root, ["commit", "-q", "-m", "chore(governance): fixture micro"])
