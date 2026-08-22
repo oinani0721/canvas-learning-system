@@ -8838,34 +8838,179 @@ def parse_git_ls_tree_object_closure(
 del parse_git_ls_tree_object_closure
 
 
-def verify_pack_object_set(raw: bytes, expected_oids: Sequence[str], pack_path: str) -> None:
-    oid_length = len(expected_oids[0]) if expected_oids else 0
+def verify_pack_object_set(
+    raw: bytes,
+    expected_types: Mapping[str, str],
+    pack_path: str,
+) -> None:
+    if not isinstance(expected_types, Mapping):
+        fail(Exit.INTERNAL, "GIT_OBJECT_PACK_VERIFY_EXPECTATION")
+    expected_oid_list = list(expected_types)
+    if (
+        not expected_oid_list
+        or len(expected_oid_list) > MAX_GIT_ADAPTER_ENTRIES
+        or any(not isinstance(oid, str) for oid in expected_oid_list)
+    ):
+        fail(Exit.INTERNAL, "GIT_OBJECT_PACK_VERIFY_EXPECTATION")
+    expected_oids = set(expected_oid_list)
+    oid_length = len(expected_oid_list[0])
     oid_pattern = re.compile(r"[0-9a-f]{%d}" % oid_length)
-    observed = set()
-    saw_ok = False
+    if (
+        oid_length not in (40, 64)
+        or any(
+            oid_pattern.fullmatch(oid) is None
+            or expected_types.get(oid) not in ("commit", "tree", "blob")
+            for oid in expected_oids
+        )
+        or not isinstance(pack_path, str)
+        or not pack_path
+        or len(os.fsencode(pack_path)) > 4096
+        or any(character in pack_path for character in ("\x00", "\r", "\n"))
+    ):
+        fail(Exit.INTERNAL, "GIT_OBJECT_PACK_VERIFY_EXPECTATION")
+    if (
+        not isinstance(raw, bytes)
+        or not raw
+        or len(raw) > MAX_GIT_OUTPUT
+        or not raw.endswith(b"\n")
+        or b"\x00" in raw
+        or b"\r" in raw
+    ):
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_VERIFY_ENCODING")
     try:
-        lines = raw.decode("utf-8", "strict").splitlines()
+        text = raw.decode("ascii", "strict")
     except UnicodeDecodeError:
         fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_VERIFY_ENCODING")
-    for line in lines:
-        fields = line.split(" ")
-        if fields and oid_pattern.fullmatch(fields[0]) is not None:
-            if fields[0] in observed or len(fields) not in (5, 7):
-                fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_VERIFY_RECORD")
-            if fields[1] not in ("commit", "tree", "blob"):
-                fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_VERIFY_TYPE")
-            observed.add(fields[0])
-            continue
-        if line == pack_path + ": ok":
-            saw_ok = True
-            continue
-        if re.fullmatch(r"non delta: [0-9]+ objects", line):
-            continue
-        if re.fullmatch(r"chain length = [0-9]+: [0-9]+ objects?", line):
-            continue
+    lines = text[:-1].split("\n")
+    if not lines or any(not line for line in lines):
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_VERIFY_ENCODING")
+
+    ok_line = pack_path + ": ok"
+    if lines[-1] != ok_line or lines.count(ok_line) != 1:
         fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_VERIFY_SUMMARY")
-    if not saw_ok or observed != set(expected_oids):
+    object_count = len(expected_oids)
+    if len(lines) < object_count + 2:
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_VERIFY_SUMMARY")
+    record_lines = lines[:object_count]
+    summary_lines = lines[object_count:-1]
+    record_pattern = re.compile(
+        r"(?P<oid>[^ ]+) (?P<object_type>[^ ]+)(?P<type_padding> +)"
+        r"(?P<object_size>[^ ]+) (?P<packed_size>[^ ]+) (?P<offset>[^ ]+)"
+        r"(?: (?P<depth>[^ ]+) (?P<base_oid>[^ ]+))?"
+    )
+    canonical_decimal_pattern = re.compile(r"0|[1-9][0-9]*")
+
+    def bounded_decimal(value: str, minimum: int, maximum: int) -> int:
+        maximum_text = str(maximum)
+        if (
+            canonical_decimal_pattern.fullmatch(value) is None
+            or len(value) > len(maximum_text)
+            or (len(value) == len(maximum_text) and value > maximum_text)
+        ):
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_VERIFY_NUMERIC")
+        number = int(value, 10)
+        if number < minimum:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_VERIFY_NUMERIC")
+        return number
+
+    records: Dict[str, Dict[str, Any]] = {}
+    for line in record_lines:
+        match = record_pattern.fullmatch(line)
+        if match is None:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_VERIFY_RECORD")
+        oid = match.group("oid")
+        object_type = match.group("object_type")
+        if oid_pattern.fullmatch(oid) is None:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_VERIFY_RECORD")
+        if oid in records:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_VERIFY_RECORD")
+        if oid not in expected_oids:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_VERIFY_SET")
+        if object_type not in ("commit", "tree", "blob") or expected_types.get(oid) != object_type:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_VERIFY_TYPE")
+        required_padding = " " if object_type == "commit" else "   "
+        if match.group("type_padding") != required_padding:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_VERIFY_RECORD")
+        object_size = bounded_decimal(match.group("object_size"), 0, MAX_GIT_ADAPTER_FILE_BYTES)
+        packed_size = bounded_decimal(match.group("packed_size"), 1, MAX_GIT_INDEX_BYTES)
+        offset = bounded_decimal(match.group("offset"), 12, MAX_GIT_INDEX_BYTES - 1)
+        depth_text = match.group("depth")
+        base_oid = match.group("base_oid")
+        if depth_text is None:
+            depth = 0
+        else:
+            depth = bounded_decimal(depth_text, 1, object_count - 1)
+            if oid_pattern.fullmatch(base_oid) is None:
+                fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_VERIFY_BASE")
+        records[oid] = {
+            "type": object_type,
+            "object_size": object_size,
+            "packed_size": packed_size,
+            "offset": offset,
+            "depth": depth,
+            "base_oid": base_oid,
+        }
+    if set(records) != expected_oids:
         fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_VERIFY_SET")
+
+    expected_offset = 12
+    for record in sorted(records.values(), key=lambda item: int(item["offset"])):
+        packed_size = int(record["packed_size"])
+        if record["offset"] != expected_offset or packed_size > MAX_GIT_INDEX_BYTES - expected_offset:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_VERIFY_RECORD")
+        expected_offset += packed_size
+
+    for oid, record in records.items():
+        base_oid = record["base_oid"]
+        if base_oid is None:
+            continue
+        if (
+            base_oid == oid
+            or base_oid not in expected_oids
+            or records[base_oid]["type"] != record["type"]
+        ):
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_VERIFY_BASE")
+
+    complete = set()
+    for origin in records:
+        current = origin
+        path = []
+        path_set = set()
+        while current not in complete:
+            if current in path_set:
+                fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_VERIFY_GRAPH")
+            path.append(current)
+            path_set.add(current)
+            base_oid = records[current]["base_oid"]
+            if base_oid is None:
+                break
+            current = base_oid
+        complete.update(path)
+    for record in records.values():
+        base_oid = record["base_oid"]
+        expected_depth = 0 if base_oid is None else records[base_oid]["depth"] + 1
+        if record["depth"] != expected_depth:
+            fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_VERIFY_GRAPH")
+
+    depth_histogram: Dict[int, int] = {}
+    for record in records.values():
+        depth = int(record["depth"])
+        depth_histogram[depth] = depth_histogram.get(depth, 0) + 1
+
+    def object_word(count: int) -> str:
+        return "object" if count == 1 else "objects"
+
+    non_delta_count = depth_histogram.get(0, 0)
+    expected_summary_lines = [
+        "non delta: %d %s" % (non_delta_count, object_word(non_delta_count))
+    ]
+    expected_summary_lines.extend(
+        "chain length = %d: %d %s" % (depth, count, object_word(count))
+        for depth, count in sorted(depth_histogram.items())
+        if depth > 0
+    )
+    if summary_lines != expected_summary_lines:
+        fail(Exit.PREFLIGHT_DRIFT, "GIT_OBJECT_PACK_VERIFY_SUMMARY")
 
 
 def verify_exact_oid_git_pack_stream(
@@ -9045,7 +9190,7 @@ def materialize_git_object_closure(
         allow_live_objects=False,
         allow_adapter_writes=False,
     )
-    verify_pack_object_set(verify_raw, object_oids, pack_path)
+    verify_pack_object_set(verify_raw, object_types, pack_path)
     pack_relative = "objects/pack/" + os.path.basename(pack_path)
     index_relative = "objects/pack/" + os.path.basename(index_path)
     pack_evidence = hash_git_adapter_file_at(

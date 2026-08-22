@@ -2486,6 +2486,457 @@ def run_captured_ref_observation_fixtures(acquisition, report):
     report["for_each_ref_exact_argv_insertion_deletion"] = "PASS"
 
 
+def run_verify_pack_parser_fixtures(acquisition, report):
+    """Exercise the strict verify-pack grammar without touching live Git state."""
+
+    def replace_once(raw, old, new):
+        if raw.count(old) != 1:
+            raise AssertionError("verify-pack fixture replacement is not unique")
+        return raw.replace(old, new, 1)
+
+    def object_ids(oid_length):
+        return {
+            "commit": "1" * oid_length,
+            "tree": "2" * oid_length,
+            "base": "3" * oid_length,
+            "delta_one": "4" * oid_length,
+            "delta_two": "5" * oid_length,
+        }
+
+    def record(oid, object_type, size, packed_size, offset, depth=None, base=None):
+        padding = " " if object_type == "commit" else "   "
+        line = "%s %s%s%s %s %s" % (
+            oid,
+            object_type,
+            padding,
+            size,
+            packed_size,
+            offset,
+        )
+        if depth is not None or base is not None:
+            if depth is None or base is None:
+                raise AssertionError("incomplete verify-pack delta fixture")
+            line += " %s %s" % (depth, base)
+        return line
+
+    def positive_fixture(oid_length):
+        oids = object_ids(oid_length)
+        pack_name = "a" * oid_length
+        pack_path = "objects/pack/pack-%s.pack" % pack_name
+        expected_types = {
+            oids["commit"]: "commit",
+            oids["tree"]: "tree",
+            oids["base"]: "blob",
+            oids["delta_one"]: "blob",
+            oids["delta_two"]: "blob",
+        }
+        records = [
+            record(oids["commit"], "commit", "241", "160", "12"),
+            record(oids["tree"], "tree", "107", "98", "172"),
+            record(oids["base"], "blob", "131072", "81200", "270"),
+            record(
+                oids["delta_one"],
+                "blob",
+                "131072",
+                "37",
+                "81470",
+                "1",
+                oids["base"],
+            ),
+            record(
+                oids["delta_two"],
+                "blob",
+                "131072",
+                "41",
+                "81507",
+                "2",
+                oids["delta_one"],
+            ),
+        ]
+        lines = records + [
+            "non delta: 3 objects",
+            "chain length = 1: 1 object",
+            "chain length = 2: 1 object",
+            pack_path + ": ok",
+        ]
+        return ("\n".join(lines) + "\n").encode("ascii"), expected_types, pack_path, oids, records
+
+    positives = {}
+    for oid_length, object_format in ((40, "sha1"), (64, "sha256")):
+        raw, expected_types, pack_path, oids, records = positive_fixture(oid_length)
+        acquisition["verify_pack_object_set"](raw, expected_types, pack_path)
+        positives[object_format] = (raw, expected_types, pack_path, oids, records)
+
+    raw, expected_types, pack_path, oids, records = positives["sha1"]
+    newline = b"\n"
+    commit_line = records[0].encode("ascii")
+    tree_line = records[1].encode("ascii")
+    base_line = records[2].encode("ascii")
+    delta_one_line = records[3].encode("ascii")
+    delta_two_line = records[4].encode("ascii")
+    non_delta = b"non delta: 3 objects"
+    chain_one = b"chain length = 1: 1 object"
+    chain_two = b"chain length = 2: 1 object"
+    ok_line = (pack_path + ": ok").encode("ascii")
+
+    hostile_raw = [
+        ("leading record space", b" " + raw),
+        ("trailing record space", replace_once(raw, commit_line + newline, commit_line + b" " + newline)),
+        ("commit padding widened", replace_once(raw, b" commit ", b" commit  ")),
+        ("tree padding narrowed", replace_once(raw, b" tree   ", b" tree  ")),
+        (
+            "record tab",
+            replace_once(
+                raw,
+                oids["base"].encode("ascii") + b" blob   131072",
+                oids["base"].encode("ascii") + b" blob\t  131072",
+            ),
+        ),
+        ("record CRLF", raw.replace(newline, b"\r\n")),
+        ("UTF-8 BOM", b"\xef\xbb\xbf" + raw),
+        ("embedded NUL", replace_once(raw, commit_line + newline, commit_line + b"\x00" + newline)),
+        ("missing final LF", raw[:-1]),
+        ("blank line", replace_once(raw, non_delta + newline, newline + non_delta + newline)),
+        ("invalid UTF-8", b"\xff" + raw),
+        ("numeric leading zero", replace_once(raw, b"commit 241", b"commit 0241")),
+        ("numeric plus sign", replace_once(raw, b"commit 241", b"commit +241")),
+        ("numeric negative", replace_once(raw, b"commit 241", b"commit -241")),
+        ("numeric nondigit", replace_once(raw, b"commit 241", b"commit 24x")),
+        ("numeric unbounded", replace_once(raw, b"commit 241", b"commit " + (b"9" * 80))),
+        ("packed size zero", replace_once(raw, b"241 160 12", b"241 0 12")),
+        ("physical offset gap", replace_once(raw, b"107 98 172", b"107 98 173")),
+        (
+            "delta depth zero",
+            replace_once(
+                raw,
+                b" 1 " + oids["base"].encode("ascii"),
+                b" 0 " + oids["base"].encode("ascii"),
+            ),
+        ),
+        ("OID uppercase", replace_once(raw, oids["commit"].encode("ascii"), ("A" * 40).encode("ascii"))),
+        ("OID short", replace_once(raw, oids["commit"].encode("ascii"), oids["commit"][:-1].encode("ascii"))),
+        ("unexpected OID", replace_once(raw, oids["commit"].encode("ascii"), ("6" * 40).encode("ascii"))),
+        ("unknown type", replace_once(raw, b"commit 241", b"tag    241")),
+        (
+            "incomplete delta fields",
+            replace_once(
+                raw,
+                b" 1 " + oids["base"].encode("ascii"),
+                b" 1",
+            ),
+        ),
+        (
+            "base OID lexical",
+            replace_once(
+                raw,
+                b" 1 " + oids["base"].encode("ascii"),
+                b" 1 " + (b"g" * 40),
+            ),
+        ),
+        (
+            "missing delta base",
+            replace_once(
+                raw,
+                oids["base"].encode("ascii") + newline,
+                ("6" * 40).encode("ascii") + newline,
+            ),
+        ),
+        (
+            "self delta base",
+            replace_once(
+                raw,
+                b" 1 " + oids["base"].encode("ascii"),
+                b" 1 " + oids["delta_one"].encode("ascii"),
+            ),
+        ),
+        (
+            "wrong-type delta base",
+            replace_once(
+                raw,
+                b" 1 " + oids["base"].encode("ascii"),
+                b" 1 " + oids["tree"].encode("ascii"),
+            ),
+        ),
+        (
+            "wrong delta depth",
+            replace_once(
+                raw,
+                b" 1 " + oids["base"].encode("ascii"),
+                b" 2 " + oids["base"].encode("ascii"),
+            ),
+        ),
+        (
+            "skipped delta ancestor",
+            replace_once(
+                raw,
+                b" 2 " + oids["delta_one"].encode("ascii"),
+                b" 2 " + oids["base"].encode("ascii"),
+            ),
+        ),
+        ("non-delta count", replace_once(raw, non_delta, b"non delta: 4 objects")),
+        ("non-delta plural", replace_once(raw, non_delta, b"non delta: 3 object")),
+        ("missing non-delta", replace_once(raw, non_delta + newline, b"")),
+        ("duplicate non-delta", replace_once(raw, non_delta + newline, non_delta + newline + non_delta + newline)),
+        ("non-delta after chain", replace_once(raw, non_delta + newline + chain_one, chain_one + newline + non_delta)),
+        ("chain count", replace_once(raw, chain_one, b"chain length = 1: 2 objects")),
+        ("chain singular", replace_once(raw, chain_one, b"chain length = 1: 1 objects")),
+        ("missing chain", replace_once(raw, chain_one + newline, b"")),
+        ("duplicate chain", replace_once(raw, chain_one + newline, chain_one + newline + chain_one + newline)),
+        ("chain order", replace_once(raw, chain_one + newline + chain_two, chain_two + newline + chain_one)),
+        ("unexpected chain depth", replace_once(raw, chain_two, b"chain length = 3: 1 object")),
+        ("wrong ok path", replace_once(raw, ok_line, b"objects/pack/pack-" + (b"b" * 40) + b".pack: ok")),
+        ("missing ok", replace_once(raw, ok_line + newline, b"")),
+        ("duplicate ok", replace_once(raw, ok_line + newline, ok_line + newline + ok_line + newline)),
+        ("ok before summaries", replace_once(raw, non_delta + newline, ok_line + newline + non_delta + newline)),
+        ("trailing summary text", raw + b"unexpected\n"),
+        ("duplicate record", replace_once(raw, tree_line + newline, tree_line + newline + tree_line + newline)),
+    ]
+    hostile_code_groups = {
+        "GIT_OBJECT_PACK_VERIFY_ENCODING": (
+            "record CRLF",
+            "UTF-8 BOM",
+            "embedded NUL",
+            "missing final LF",
+            "blank line",
+            "invalid UTF-8",
+        ),
+        "GIT_OBJECT_PACK_VERIFY_RECORD": (
+            "leading record space",
+            "trailing record space",
+            "commit padding widened",
+            "tree padding narrowed",
+            "OID uppercase",
+            "OID short",
+            "duplicate record",
+            "incomplete delta fields",
+            "physical offset gap",
+        ),
+        "GIT_OBJECT_PACK_VERIFY_TYPE": (
+            "record tab",
+            "unknown type",
+        ),
+        "GIT_OBJECT_PACK_VERIFY_NUMERIC": (
+            "numeric leading zero",
+            "numeric plus sign",
+            "numeric negative",
+            "numeric nondigit",
+            "numeric unbounded",
+            "packed size zero",
+            "delta depth zero",
+        ),
+        "GIT_OBJECT_PACK_VERIFY_SET": ("unexpected OID",),
+        "GIT_OBJECT_PACK_VERIFY_BASE": (
+            "missing delta base",
+            "base OID lexical",
+            "self delta base",
+            "wrong-type delta base",
+        ),
+        "GIT_OBJECT_PACK_VERIFY_GRAPH": (
+            "wrong delta depth",
+            "skipped delta ancestor",
+        ),
+        "GIT_OBJECT_PACK_VERIFY_SUMMARY": (
+            "non-delta count",
+            "non-delta plural",
+            "missing non-delta",
+            "duplicate non-delta",
+            "non-delta after chain",
+            "chain count",
+            "chain singular",
+            "missing chain",
+            "duplicate chain",
+            "chain order",
+            "unexpected chain depth",
+            "wrong ok path",
+            "missing ok",
+            "duplicate ok",
+            "ok before summaries",
+            "trailing summary text",
+        ),
+    }
+    hostile_codes = {
+        label: code
+        for code, labels in hostile_code_groups.items()
+        for label in labels
+    }
+    if set(hostile_codes) != {label for label, _raw in hostile_raw}:
+        raise AssertionError("verify-pack hostile error-code partition is not exact")
+    for label, hostile in hostile_raw:
+        expect_error(
+            "verify-pack " + label,
+            lambda value=hostile: acquisition["verify_pack_object_set"](
+                value,
+                expected_types,
+                pack_path,
+            ),
+            hostile_codes[label],
+        )
+
+    mismatched_types = dict(expected_types)
+    mismatched_types[oids["base"]] = "tree"
+    expect_error(
+        "verify-pack expected type equality",
+        lambda: acquisition["verify_pack_object_set"](raw, mismatched_types, pack_path),
+        "GIT_OBJECT_PACK_VERIFY_TYPE",
+    )
+    different_expected = dict(expected_types)
+    different_expected.pop(oids["delta_two"])
+    different_expected["6" * 40] = "blob"
+    expect_error(
+        "verify-pack expected set equality",
+        lambda: acquisition["verify_pack_object_set"](
+            raw,
+            different_expected,
+            pack_path,
+        ),
+        "GIT_OBJECT_PACK_VERIFY_SET",
+    )
+
+    cycle_records = [
+        records[0],
+        records[1],
+        records[2],
+        record(
+            oids["delta_one"],
+            "blob",
+            "131072",
+            "37",
+            "81470",
+            "1",
+            oids["delta_two"],
+        ),
+        record(
+            oids["delta_two"],
+            "blob",
+            "131072",
+            "41",
+            "81507",
+            "1",
+            oids["delta_one"],
+        ),
+    ]
+    cycle_raw = (
+        "\n".join(
+            cycle_records
+            + [
+                "non delta: 3 objects",
+                "chain length = 1: 2 objects",
+                pack_path + ": ok",
+            ]
+        )
+        + "\n"
+    ).encode("ascii")
+    expect_error(
+        "verify-pack delta cycle",
+        lambda: acquisition["verify_pack_object_set"](cycle_raw, expected_types, pack_path),
+        "GIT_OBJECT_PACK_VERIFY_GRAPH",
+    )
+
+    report["verify_pack_sha1_sha256_fixed_padding_delta_graph"] = "PASS"
+    report["verify_pack_hostile_record_numeric_oid_type_base_summary_matrix"] = {
+        "case_count": len(hostile_raw) + 3,
+        "result": "PASS",
+    }
+
+    # Exercise the real Apple Git formatter with deliberately similar blobs so
+    # at least one native OFS/REF delta record is fed to the production parser.
+    git_binary = "/Library/Developer/CommandLineTools/usr/bin/git"
+    if platform.system() != "Darwin" or not os.path.isfile(git_binary):
+        raise AssertionError("Apple Git verify-pack fixture unavailable")
+    with tempfile.TemporaryDirectory(
+        prefix="gov01-verify-pack-native-",
+        dir="/private/tmp",
+    ) as temporary:
+        repo = pathlib.Path(temporary) / "repo"
+        repo.mkdir(mode=0o700)
+
+        def git_capture(*arguments):
+            completed = subprocess.run(
+                [git_binary] + list(arguments),
+                cwd=str(repo),
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                check=False,
+                env={
+                    "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+                    "LC_ALL": "C",
+                    "LANG": "C",
+                },
+            )
+            if completed.returncode != 0:
+                raise AssertionError("native verify-pack fixture Git command failed")
+            return completed.stdout
+
+        run_checked([git_binary, "init", "-q"], repo)
+        run_checked([git_binary, "config", "user.name", "fixture"], repo)
+        run_checked([git_binary, "config", "user.email", "fixture@example.invalid"], repo)
+        common = b"".join(
+            hashlib.sha256(("block-%05d" % index).encode("ascii")).digest()
+            for index in range(4096)
+        )
+        for index in range(16):
+            body = bytearray(common)
+            for mutation in range(8):
+                offset = ((index + 1) * 7919 + mutation * 104729) % (len(body) - 32)
+                body[offset : offset + 32] = hashlib.sha256(
+                    ("variant-%02d-%02d" % (index, mutation)).encode("ascii")
+                ).digest()
+            write_bytes(repo / ("similar-%02d.bin" % index), bytes(body), 0o600)
+        run_checked([git_binary, "add", "--all"], repo)
+        run_checked([git_binary, "commit", "-q", "-m", "native verify-pack fixture"], repo)
+        run_checked(
+            [git_binary, "repack", "-a", "-d", "-f", "--window=250", "--depth=50"],
+            repo,
+        )
+        pack_root = repo / ".git/objects/pack"
+        index_paths = sorted(pack_root.glob("pack-*.idx"))
+        pack_paths = sorted(pack_root.glob("pack-*.pack"))
+        if len(index_paths) != 1 or len(pack_paths) != 1:
+            raise AssertionError("native verify-pack fixture pack set is not exact")
+        index_relative = os.path.relpath(index_paths[0], repo)
+        pack_relative = os.path.relpath(pack_paths[0], repo)
+        native_raw = git_capture("verify-pack", "-v", index_relative)
+        object_rows = git_capture(
+            "cat-file",
+            "--batch-all-objects",
+            "--batch-check=%(objectname) %(objecttype)",
+        )
+        native_types = {}
+        for row in object_rows.decode("ascii", "strict").splitlines():
+            fields = row.split(" ")
+            if (
+                len(fields) != 2
+                or len(fields[0]) != 40
+                or any(character not in "0123456789abcdef" for character in fields[0])
+                or fields[1] not in ("commit", "tree", "blob")
+                or fields[0] in native_types
+            ):
+                raise AssertionError("native verify-pack independent object inventory malformed")
+            native_types[fields[0]] = fields[1]
+        native_lines = native_raw.decode("ascii", "strict").splitlines()
+        native_delta_count = sum(
+            1
+            for line in native_lines
+            if len(line.split()) == 7
+            and len(line.split()[0]) == 40
+            and line.split()[1] in ("commit", "tree", "blob")
+        )
+        if native_delta_count < 1:
+            raise AssertionError("native Apple Git did not produce a delta record")
+        if not any(
+            (" tree   " in line or " blob   " in line)
+            for line in native_lines
+            if len(line.split()) in (5, 7)
+        ):
+            raise AssertionError("native Apple Git fixed-width padding was not observed")
+        acquisition["verify_pack_object_set"](native_raw, native_types, pack_relative)
+        report["verify_pack_native_apple_git_delta_and_padding"] = {
+            "delta_record_minimum": 1,
+            "result": "PASS",
+        }
+
+
 def run_git_metadata_adapter_hostile_fixtures(acquisition, report):
     """Run only synthetic Git-adapter tests; never call census/verify/acquire."""
 
@@ -4993,6 +5444,7 @@ def main(argv=None):
     report = {}
     run_process_stderr_boundary_fixtures(acquisition, report)
     run_captured_ref_observation_fixtures(acquisition, report)
+    run_verify_pack_parser_fixtures(acquisition, report)
     run_partial_git_boundary_fixtures(acquisition, report)
 
     good = package_archive()

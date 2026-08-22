@@ -3,9 +3,10 @@
 
 The fixture imports the issuer as source, uses deterministic synthetic contract
 values, and writes only inside a temporary directory.  It never invokes the
-``issue`` or ``generate`` CLI modes.  One production-boundary regression derives
-private locators from the frozen public contract, then stops before private
-access and never serializes those locators.
+``issue`` or ``generate`` CLI modes.  Production-boundary regressions derive
+private locators from the frozen public contract without serializing them and
+exercise a real content-addressed Apple Git delta-pack path before any durable
+claim, private-authority write, or public output.
 """
 
 import argparse
@@ -1098,6 +1099,313 @@ def content_addressed_control_prep_locator_matrix(
     return True
 
 
+def content_addressed_delta_pack_preclaim_matrix(
+    synthetic_root: pathlib.Path,
+    generator: Any,
+    receipt: str,
+    challenge: str,
+    expected_head: str,
+    expected_tree: str,
+) -> bool:
+    """Cross the real bound-executor delta verifier, then fail before claim.
+
+    The production state machine loads the committed content-addressed
+    executor and derives its frozen runtime locators.  Its initial durable-claim
+    probe is replaced by an absence-only test seam so no private state is read.
+    Observation collection then invokes the bound executor's real ``git_snapshot``
+    against this temporary committed repository with the real Apple Git.  The
+    checkpoint is raised only after the production pack verifier accepts at
+    least one delta record.  The generator must fold that private exception to
+    its coarse observation-collection code and leave no adapter, claim, output,
+    or other private-authority write behind.
+    """
+
+    output_path = synthetic_root / generator.final_relative(challenge)
+    internal_checkpoint_token = "A3_INTERNAL_DELTA_PACK_CHECKPOINT_DO_NOT_SERIALIZE"
+
+    def repository_snapshot() -> Tuple[str, str, str, bytes]:
+        status_raw = run_synthetic_git_output(
+            synthetic_root,
+            ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
+        )
+        head = run_synthetic_git_output(
+            synthetic_root,
+            ["rev-parse", "--verify", "HEAD"],
+        ).decode("ascii").strip()
+        tree = run_synthetic_git_output(
+            synthetic_root,
+            ["rev-parse", "--verify", "HEAD^{tree}"],
+        ).decode("ascii").strip()
+        index_raw = (synthetic_root / ".git" / "index").read_bytes()
+        return head, tree, generator.sha256(index_raw), status_raw
+
+    before_snapshot = repository_snapshot()
+    before_adapter_paths = {
+        str(path)
+        for path in pathlib.Path("/private/tmp").glob("gov01-git-adapter-*")
+    }
+    require(
+        before_snapshot[0] == expected_head
+        and before_snapshot[1] == expected_tree
+        and before_snapshot[3] == b""
+        and not os.path.lexists(output_path),
+        "a3-delta-preclaim-preimage",
+    )
+    counts: Dict[str, int] = {
+        "executor_load": 0,
+        "derive": 0,
+        "claim_probe": 0,
+        "clock": 0,
+        "entropy": 0,
+        "collect": 0,
+        "pack_verify_enter": 0,
+        "pack_verify_complete": 0,
+        "delta_record_count": 0,
+        "checkpoint": 0,
+        "outer_privacy_fold": 0,
+        "persistent_claim_write": 0,
+        "claim_recovery": 0,
+        "public_output": 0,
+        "private_authority_write": 0,
+    }
+
+    class DeltaPackCheckpoint(Exception):
+        pass
+
+    class DeltaPackBoundary(generator.ProductionGenerationBoundaryV1):
+        def __init__(self) -> None:
+            self.executor: Optional[Any] = None
+            self.git_binary: Optional[str] = None
+            self.fixed_now = generator.utc_now_second()
+
+        def load_content_addressed_executor(self, value_context: Mapping[str, Any]) -> Any:
+            counts["executor_load"] += 1
+            executor = super().load_content_addressed_executor(value_context)
+            self.executor = executor
+
+            for role in ("xcode-select-resolver", "xcrun-resolver"):
+                resolver = executor.FIXED_TOOL_PATHS[role]
+                executor._AUTHORIZED_EXECUTABLE_HASHES[resolver] = executor.hash_regular_absolute(
+                    resolver,
+                    "A3_" + role.upper().replace("-", "_"),
+                    executor.MAX_CACHE_OBJECT_BYTES,
+                )["sha256"]
+            git_binary, git_digest = executor.resolve_clt_git(None)
+            require(
+                git_binary == value_context.get("git_binary")
+                and git_digest
+                == executor.hash_regular_absolute(
+                    git_binary,
+                    "A3_GIT_BINARY",
+                    executor.MAX_CACHE_OBJECT_BYTES,
+                )["sha256"],
+                "a3-delta-content-addressed-apple-git",
+            )
+            self.git_binary = git_binary
+
+            original_verify_pack_object_set = executor.verify_pack_object_set
+
+            def verify_then_checkpoint(
+                raw: bytes,
+                expected_types: Mapping[str, str],
+                pack_path: str,
+            ) -> None:
+                counts["pack_verify_enter"] += 1
+                require(
+                    isinstance(raw, bytes)
+                    and isinstance(expected_types, Mapping)
+                    and bool(expected_types)
+                    and isinstance(pack_path, str),
+                    "a3-delta-pack-verifier-abi",
+                )
+                oid_widths = {len(str(oid)) for oid in expected_types}
+                require(oid_widths in ({40}, {64}), "a3-delta-pack-oid-width")
+                oid_width = next(iter(oid_widths))
+                delta_rows = 0
+                for raw_line in raw.splitlines():
+                    fields = raw_line.split()
+                    if (
+                        len(fields) == 7
+                        and len(fields[0]) == oid_width
+                        and all(character in b"0123456789abcdef" for character in fields[0])
+                        and fields[1] in (b"commit", b"tree", b"blob")
+                        and fields[5].isdigit()
+                        and len(fields[6]) == oid_width
+                        and all(character in b"0123456789abcdef" for character in fields[6])
+                    ):
+                        delta_rows += 1
+                require(delta_rows > 0, "a3-delta-pack-witness-absent")
+                original_verify_pack_object_set(raw, expected_types, pack_path)
+                counts["delta_record_count"] += delta_rows
+                counts["pack_verify_complete"] += 1
+                counts["checkpoint"] += 1
+                raise DeltaPackCheckpoint(internal_checkpoint_token)
+
+            executor.verify_pack_object_set = verify_then_checkpoint
+
+            def absent_claim_probe(*_args: Any, **_kwargs: Any) -> None:
+                counts["claim_probe"] += 1
+                return None
+
+            def deny_claim_write(*_args: Any, **_kwargs: Any) -> Any:
+                counts["persistent_claim_write"] += 1
+                counts["private_authority_write"] += 1
+                raise FixtureFailure("a3-delta-persistent-claim-write")
+
+            def deny_claim_recovery(*_args: Any, **_kwargs: Any) -> Any:
+                counts["claim_recovery"] += 1
+                raise FixtureFailure("a3-delta-claim-recovery")
+
+            executor.probe_generation_claim_v2 = absent_claim_probe
+            executor.create_generation_claim_v2 = deny_claim_write
+            executor.create_generation_claim_from_verified_fds_v2 = deny_claim_write
+            executor.verify_generation_claim_recovery_v2 = deny_claim_recovery
+            executor.verify_generation_claim_recovery_from_verified_fds_v2 = deny_claim_recovery
+
+            def collect_to_delta_checkpoint(**arguments: Any) -> Any:
+                counts["collect"] += 1
+                runtime_args = arguments.get("runtime_args")
+                acquisition_challenge = arguments.get("approval_challenge_id")
+                require(
+                    isinstance(runtime_args, executor.GenerationRuntimeArgsV2)
+                    and runtime_args.repo_root == str(synthetic_root)
+                    and isinstance(acquisition_challenge, str)
+                    and executor.CHALLENGE_RE.fullmatch(acquisition_challenge) is not None
+                    and self.git_binary is not None,
+                    "a3-delta-collection-boundary",
+                )
+                key = hashlib.sha256(
+                    b"CLS/GOV01/A3-DELTA-PACK-FIXTURE/v1\x00" + receipt.encode("ascii")
+                ).digest()
+                executor.git_snapshot(
+                    str(synthetic_root),
+                    key,
+                    self.git_binary,
+                    authorized_tree_excludes=(
+                        ".gov01-toolchain-stage-" + acquisition_challenge,
+                        executor.TARGET_NAME,
+                    ),
+                    authorized_exact_file_excludes=(generator.final_relative(challenge),),
+                )
+                raise FixtureFailure("a3-delta-checkpoint-not-reached")
+
+            executor.collect_generation_observations_v2 = collect_to_delta_checkpoint
+            return executor
+
+        def derive_generation_runtime_args(
+            self,
+            executor: Any,
+            value_context: Mapping[str, Any],
+            authorization: Mapping[str, Any],
+        ) -> Any:
+            counts["derive"] += 1
+            runtime_args = super().derive_generation_runtime_args(
+                executor,
+                value_context,
+                authorization,
+            )
+            require(
+                isinstance(runtime_args, executor.GenerationRuntimeArgsV2)
+                and runtime_args.repo_root == str(synthetic_root),
+                "a3-delta-runtime-binding",
+            )
+            return runtime_args
+
+        def now_second(self) -> dt.datetime:
+            counts["clock"] += 1
+            return self.fixed_now
+
+        def random_bytes(self, length: int) -> bytes:
+            counts["entropy"] += 1
+            require(length == 32, "a3-delta-entropy-length")
+            return b"\xa3" * length
+
+    trace: List[Dict[str, str]] = []
+    boundary = DeltaPackBoundary()
+    original_try_write = generator.try_write_exclusive_public_file
+
+    def deny_public_output(*_args: Any, **_kwargs: Any) -> Any:
+        counts["public_output"] += 1
+        raise FixtureFailure("a3-delta-public-output")
+
+    generator.try_write_exclusive_public_file = deny_public_output
+    try:
+        try:
+            generator.generate_with_boundary_v1(
+                receipt,
+                challenge,
+                boundary=boundary,
+                trace=trace,
+            )
+        except generator.GenerationError as error:
+            counts["outer_privacy_fold"] += 1
+            require(
+                error.public_code == "GENERATION_OBSERVATION_COLLECTION"
+                and internal_checkpoint_token not in error.public_code
+                and internal_checkpoint_token not in str(error)
+                and internal_checkpoint_token not in repr(error),
+                "a3-delta-outer-privacy-fold",
+            )
+        else:
+            raise FixtureFailure("a3-delta-outer-checkpoint-not-raised")
+    finally:
+        generator.try_write_exclusive_public_file = original_try_write
+
+    require(boundary.executor is not None, "a3-delta-bound-executor-absent")
+    bound_executor = boundary.executor
+    after_snapshot = repository_snapshot()
+    after_adapter_paths = {
+        str(path)
+        for path in pathlib.Path("/private/tmp").glob("gov01-git-adapter-*")
+    }
+    generator.require_git_adapter_quiescent("FIXTURE_A3_DELTA_PRECLAIM_GENERATOR")
+    require(
+        bound_executor.git_metadata_adapter_process_scope_residue_count() == 0
+        and after_adapter_paths == before_adapter_paths
+        and after_snapshot == before_snapshot
+        and not os.path.lexists(output_path),
+        "a3-delta-preclaim-zero-residue",
+    )
+    require(
+        trace
+        == [
+            {"event": "PUBLIC_APPROVAL_LOAD", "phase": "public-authorization"},
+            {"event": "PUBLIC_APPROVAL_VALIDATED", "phase": "public-authorization"},
+            {"event": "EXECUTOR_LOAD", "phase": "public-code-binding"},
+            {"event": "EXECUTOR_BOUND", "phase": "public-code-binding"},
+            {"event": "GENERATION_AUTHORITY_BOUND", "phase": "public-authorization"},
+            {"event": "PRIVATE_LOCATOR_DERIVE", "phase": "private-observation"},
+            {"event": "PRIVATE_LOCATOR_DERIVED", "phase": "private-observation"},
+            {"event": "GENERATION_CLAIM_PROBE_BEGIN", "phase": "durable-claim"},
+            {"event": "GENERATION_CLAIM_ABSENT", "phase": "durable-claim"},
+            {"event": "CLOCK_READ", "phase": "fresh-identity"},
+            {"event": "ENTROPY_REQUEST_32", "phase": "fresh-identity"},
+            {"event": "CANDIDATE_BUILD", "phase": "private-observation"},
+            {"event": "OBSERVATION_COLLECTION_BEGIN", "phase": "private-observation"},
+        ],
+        "a3-delta-production-preclaim-trace",
+    )
+    require(
+        counts["executor_load"] == 1
+        and counts["derive"] == 1
+        and counts["claim_probe"] == 1
+        and counts["clock"] == 1
+        and counts["entropy"] == 1
+        and counts["collect"] == 1
+        and counts["pack_verify_enter"] == 1
+        and counts["pack_verify_complete"] == 1
+        and counts["delta_record_count"] > 0
+        and counts["checkpoint"] == 1
+        and counts["outer_privacy_fold"] == 1
+        and counts["persistent_claim_write"] == 0
+        and counts["claim_recovery"] == 0
+        and counts["public_output"] == 0
+        and counts["private_authority_write"] == 0,
+        "a3-delta-production-preclaim-counts",
+    )
+    return True
+
+
 def schema_accepts(validator: Draft202012Validator, value: Any) -> bool:
     return not list(validator.iter_errors(value))
 
@@ -1378,8 +1686,11 @@ def final_name_matrix(generator: Any) -> bool:
 
 
 def synthetic_claim_projection(generator: Any) -> tuple[Dict[str, Any], Dict[str, Any]]:
-    generation_challenge = "GOV01-GEN-20260821-" + "b" * 64
-    acquisition_challenge = "GOV01-SA-20260821-" + "c" * 64
+    census_at = generator.utc_now_second() - dt.timedelta(minutes=1)
+    not_after = census_at + dt.timedelta(hours=24)
+    challenge_date = census_at.strftime("%Y%m%d")
+    generation_challenge = "GOV01-GEN-" + challenge_date + "-" + "b" * 64
+    acquisition_challenge = "GOV01-SA-" + challenge_date + "-" + "c" * 64
     authorization = {
         "profile": "gov01-static-envelope-generation-authority-v1",
         "approval_challenge_id": generation_challenge,
@@ -1409,8 +1720,8 @@ def synthetic_claim_projection(generator: Any) -> tuple[Dict[str, Any], Dict[str
         "generation_authorization_commit_oid": authorization["authorization_commit_oid"],
         "generation_authorization_tree_oid": authorization["authorization_tree_oid"],
         "acquisition_approval_challenge_id": acquisition_challenge,
-        "census_at_utc": "2026-08-21T01:02:03Z",
-        "not_after_utc": "2026-08-22T01:02:03Z",
+        "census_at_utc": generator.format_utc(census_at),
+        "not_after_utc": generator.format_utc(not_after),
         "final_envelope_repo_relative_path": authorization[
             "generated_acquisition_envelope_repo_relative_path"
         ],
@@ -1425,7 +1736,9 @@ def synthetic_claim_projection(generator: Any) -> tuple[Dict[str, Any], Dict[str
 
 def authenticated_claim_projection_matrix(generator: Any) -> bool:
     authorization, record = synthetic_claim_projection(generator)
-    now = dt.datetime(2026, 8, 21, 1, 2, 4, tzinfo=dt.timezone.utc)
+    census_at = generator.parse_utc(record["census_at_utc"], "FIXTURE_CLAIM_CENSUS")
+    not_after = generator.parse_utc(record["not_after_utc"], "FIXTURE_CLAIM_EXPIRY")
+    now = census_at + dt.timedelta(seconds=1)
     if generator.checked_generation_claim_record(record, authorization, now=now) != record:
         return False
     mutations: List[Dict[str, Any]] = []
@@ -1447,11 +1760,22 @@ def authenticated_claim_projection_matrix(generator: Any) -> bool:
         except generator.GenerationError:
             continue
         return False
+    for invalid_not_after in (
+        census_at,
+        census_at + dt.timedelta(hours=24, seconds=1),
+    ):
+        invalid_ttl = copy.deepcopy(record)
+        invalid_ttl["not_after_utc"] = generator.format_utc(invalid_not_after)
+        try:
+            generator.checked_generation_claim_record(invalid_ttl, authorization, now=now)
+        except generator.GenerationError:
+            continue
+        return False
     try:
         generator.checked_generation_claim_record(
             record,
             authorization,
-            now=dt.datetime(2026, 8, 22, 1, 2, 3, tzinfo=dt.timezone.utc),
+            now=not_after,
         )
     except generator.GenerationError:
         return True
@@ -5028,7 +5352,7 @@ def committed_transition_matrix(
     root: pathlib.Path,
     generator: Any,
     validator: Draft202012Validator,
-) -> Tuple[str, Dict[str, Any], bool]:
+) -> Tuple[str, Dict[str, Any], bool, bool]:
     temp_parent = os.path.realpath(tempfile.gettempdir())
     with tempfile.TemporaryDirectory(prefix="gov01-generation-transition-", dir=temp_parent) as temporary:
         synthetic_root = pathlib.Path(temporary)
@@ -5161,6 +5485,14 @@ def committed_transition_matrix(
             context["current_head"],
             context["current_tree"],
         )
+        delta_pack_preclaim_bound = content_addressed_delta_pack_preclaim_matrix(
+            synthetic_root,
+            synthetic_generator,
+            synthetic_generator.receipt_digest(raw),
+            challenge,
+            context["current_head"],
+            context["current_tree"],
+        )
         positive = (
             context["micro_raw"] == raw
             and context["micro_envelope"] == envelope
@@ -5207,6 +5539,7 @@ def committed_transition_matrix(
             and bound_pure["bool_int_scalar_type_parity"]["ok"] is True
             and bound_pure["bool_int_scalar_type_parity"]["mutation_count"] == 145
             and locator_preclaim_bound is True
+            and delta_pack_preclaim_bound is True
             and git_post_preflight_sandbox_matrix(
                 synthetic_generator,
                 synthetic_root,
@@ -5218,6 +5551,7 @@ def committed_transition_matrix(
             HOST_SANDBOX_POSITIVE if positive else "transition-check-failed",
             bound_pure,
             locator_preclaim_bound,
+            delta_pack_preclaim_bound,
         )
 
 
@@ -5370,7 +5704,12 @@ def _run_fixture_checks(root: pathlib.Path) -> Dict[str, Any]:
     git_argv_closure_bound = generation_git_argv_closure_matrix(root, generator)
     non_head_missing_tip_bound = non_head_missing_tip_adapter_matrix(root, generator)
     linked_worktree_refs_bound = linked_worktree_ref_namespace_matrix(root, generator)
-    transition_mode, bound_pure, locator_preclaim_bound = committed_transition_matrix(
+    (
+        transition_mode,
+        bound_pure,
+        locator_preclaim_bound,
+        delta_pack_preclaim_bound,
+    ) = committed_transition_matrix(
         root,
         generator,
         validator,
@@ -5412,6 +5751,7 @@ def _run_fixture_checks(root: pathlib.Path) -> Dict[str, Any]:
             and bound_pure["bool_int_scalar_type_parity"]["mutation_count"] == 145
         ),
         "content_addressed_control_prep_locator_preclaim": locator_preclaim_bound,
+        "content_addressed_delta_pack_production_preclaim": delta_pack_preclaim_bound,
         "content_addressed_durable_claim_fd_core": bound_pure["claim_core"]["ok"],
         "path_and_ref_privacy": path_grammar_matrix(schema, generator),
         "final_gen_single_publish_name_binding": final_name_matrix(generator),
