@@ -528,6 +528,42 @@ def bound_executor_pure_contract_matrix(
     artifacts = bound_executor.public_artifact_entries_v2(artifact_observations)
     by_role = {entry["role"]: entry for entry in artifacts}
     pending_schema = by_role["pending-envelope-schema"]
+    a4_option = "--exclude=/canvas-vault/"
+    git_templates = bound_executor.git_read_only_argv_templates_v2()
+    ls_templates = [template for template in git_templates if "ls-files" in template]
+    diff_templates = [template for template in git_templates if "diff-files" in template]
+    embedded_template = json.loads(bound_executor._PENDING_ENVELOPE_V2_STATIC_TEMPLATE_JSON)
+    embedded_read_role = next(
+        entry
+        for entry in embedded_template["execution_plan"]["evidence_command_templates"]
+        if entry["role"] == "git-read-only-evidence"
+    )
+    a4_template_privacy_profile = (
+        len(ls_templates) == 1
+        and len(diff_templates) == 1
+        and ls_templates[0].count(a4_option) == 1
+        and ls_templates[0].index(a4_option) == ls_templates[0].index("--exclude-standard") + 1
+        and a4_option not in diff_templates[0]
+        and ":(exclude)canvas-vault" in ls_templates[0]
+        and ":(exclude)canvas-vault/**" in ls_templates[0]
+        and embedded_read_role["argv_allowlist"] == git_templates
+        and bound_executor.PENDING_ENVELOPE_PUBLIC_STRING_ALLOWLIST
+        == frozenset(
+            {
+                "/usr/bin/xcode-select",
+                "/usr/bin/xcrun",
+                "/usr/bin/pgrep",
+                "/usr/sbin/lsof",
+                a4_option,
+                ":(exclude)canvas-vault",
+                ":(exclude)canvas-vault/**",
+            }
+        )
+        and "exclusion-v4" in bound_executor.PENDING_ENVELOPE_GIT_EXCLUSION_PROFILE
+        and embedded_template["authorization_preimage"]["envelope_git_status_exclusion_profile"]
+        == bound_executor.PENDING_ENVELOPE_GIT_EXCLUSION_PROFILE
+    )
+    require(a4_template_privacy_profile, "bound-executor-a4-template-privacy-profile")
 
     tool_entries: List[Dict[str, Any]] = []
     for role in bound_executor.TOOLCHAIN_ROLES:
@@ -657,6 +693,35 @@ def bound_executor_pure_contract_matrix(
     )
     pending_schema_value = load_json(synthetic_root / pending_schema["path"])
     Draft202012Validator.check_schema(pending_schema_value)
+
+    def schema_lists(value: Any) -> Any:
+        if isinstance(value, list):
+            yield value
+            for child in value:
+                yield from schema_lists(child)
+        elif isinstance(value, Mapping):
+            for child in value.values():
+                yield from schema_lists(child)
+
+    schema_ls_templates = [
+        value
+        for value in schema_lists(pending_schema_value)
+        if "ls-files" in value and "--exclude-standard" in value
+    ]
+    schema_diff_templates = [
+        value
+        for value in schema_lists(pending_schema_value)
+        if "diff-files" in value and "--ignore-submodules=all" in value
+    ]
+    a4_standalone_schema = (
+        len(schema_ls_templates) == 1
+        and len(schema_diff_templates) == 1
+        and schema_ls_templates[0].count(a4_option) == 1
+        and schema_ls_templates[0].index(a4_option)
+        == schema_ls_templates[0].index("--exclude-standard") + 1
+        and a4_option not in schema_diff_templates[0]
+    )
+    require(a4_standalone_schema, "bound-executor-a4-standalone-schema")
     pending_validator = Draft202012Validator(
         pending_schema_value,
         format_checker=strict_format_checker(generator),
@@ -691,6 +756,11 @@ def bound_executor_pure_contract_matrix(
         "canonical_bytes": len(raw),
         "schema_error_count": len(schema_errors),
         "schema_error_sections": error_sections,
+        "a4_runtime_template_schema_privacy": {
+            "ok": a4_template_privacy_profile and a4_standalone_schema,
+            "ls_template_count": len(ls_templates),
+            "schema_ls_template_count": len(schema_ls_templates),
+        },
         "bool_int_scalar_type_parity": bool_int_scalar_type_parity,
         "claim_core": claim_core,
     }
@@ -1096,6 +1166,129 @@ def content_addressed_control_prep_locator_matrix(
                 == {"public_read": 1, "parse": 0, "pwd": 0, "private": 0},
                 "control-prep-locator-mutation-order-" + str(index),
             )
+    return True
+
+
+def content_addressed_a4_native_git_snapshot_matrix(
+    synthetic_root: pathlib.Path,
+    generator: Any,
+    bound_executor: Any,
+    expected_git_binary: str,
+    generation_challenge: str,
+    expected_head: str,
+    expected_tree: str,
+) -> bool:
+    """Exercise the bound executor and Apple Git without replacing either entrypoint."""
+
+    def repository_snapshot() -> Tuple[str, str, str, bytes]:
+        status_raw = run_synthetic_git_output(
+            synthetic_root,
+            ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
+        )
+        head = run_synthetic_git_output(
+            synthetic_root,
+            ["rev-parse", "--verify", "HEAD"],
+        ).decode("ascii").strip()
+        tree = run_synthetic_git_output(
+            synthetic_root,
+            ["rev-parse", "--verify", "HEAD^{tree}"],
+        ).decode("ascii").strip()
+        index_raw = (synthetic_root / ".git" / "index").read_bytes()
+        return head, tree, generator.sha256(index_raw), status_raw
+
+    before_snapshot = repository_snapshot()
+    before_adapter_paths = {
+        str(path)
+        for path in pathlib.Path("/private/tmp").glob("gov01-git-adapter-*")
+    }
+    require(
+        before_snapshot[0] == expected_head
+        and before_snapshot[1] == expected_tree
+        and before_snapshot[3] == b"",
+        "a4-native-preimage",
+    )
+
+    for role in ("xcode-select-resolver", "xcrun-resolver"):
+        resolver = bound_executor.FIXED_TOOL_PATHS[role]
+        bound_executor._AUTHORIZED_EXECUTABLE_HASHES[resolver] = (
+            bound_executor.hash_regular_absolute(
+                resolver,
+                "A4_" + role.upper().replace("-", "_"),
+                bound_executor.MAX_CACHE_OBJECT_BYTES,
+            )["sha256"]
+        )
+    git_binary, git_digest = bound_executor.resolve_clt_git(None)
+    require(
+        git_binary == expected_git_binary
+        and git_digest
+        == bound_executor.hash_regular_absolute(
+            git_binary,
+            "A4_GIT_BINARY",
+            bound_executor.MAX_CACHE_OBJECT_BYTES,
+        )["sha256"],
+        "a4-native-content-addressed-apple-git",
+    )
+
+    acquisition_challenge = "GOV01-SA-20260821-" + "4" * 64
+    public_untracked = synthetic_root / "public-a4-untracked-sentinel.txt"
+    vault_untracked = synthetic_root / "canvas-vault/a4-untracked-sentinel.txt"
+    vault_directory_preexisting = os.path.lexists(vault_untracked.parent)
+    public_untracked.write_bytes(b"synthetic public A4 sentinel\n")
+    vault_untracked.parent.mkdir(parents=True, exist_ok=True)
+    vault_untracked.write_bytes(b"synthetic vault A4 sentinel\n")
+    key = hashlib.sha256(
+        b"CLS/GOV01/A4-NATIVE-GIT-SNAPSHOT-FIXTURE/v1\x00"
+        + generation_challenge.encode("ascii")
+    ).digest()
+    try:
+        snapshot = bound_executor.git_snapshot(
+            str(synthetic_root),
+            key,
+            git_binary,
+            authorized_tree_excludes=(
+                ".gov01-toolchain-stage-" + acquisition_challenge,
+                bound_executor.TARGET_NAME,
+            ),
+            authorized_exact_file_excludes=(
+                generator.final_relative(generation_challenge),
+            ),
+        )
+    finally:
+        if public_untracked.exists():
+            public_untracked.unlink()
+        if vault_untracked.exists():
+            vault_untracked.unlink()
+        if not vault_directory_preexisting:
+            vault_untracked.parent.rmdir()
+
+    expected_untracked = b"public-a4-untracked-sentinel.txt\x00"
+    expected_status = bound_executor.sha256(
+        b"CLS/GOV01/GIT-INDEX-WORKTREE-DIRTY/v2\x00"
+        + (0).to_bytes(8, "big")
+        + len(expected_untracked).to_bytes(8, "big")
+        + expected_untracked
+    )
+    after_snapshot = repository_snapshot()
+    after_adapter_paths = {
+        str(path)
+        for path in pathlib.Path("/private/tmp").glob("gov01-git-adapter-*")
+    }
+    require(
+        bound_executor.git_metadata_adapter_process_scope_residue_count() == 0,
+        "a4-native-adapter-process-scope-residue",
+    )
+    require(
+        snapshot["head"] == expected_head
+        and snapshot["tree"] == expected_tree
+        and snapshot["status_bytes"] == len(expected_untracked)
+        and snapshot["status_sha256"] == expected_status
+        and snapshot["git_metadata_adapter_cleanup_state"] == "removed"
+        and snapshot["git_metadata_adapter_residue_count"] == 0
+        and after_snapshot == before_snapshot
+        and after_adapter_paths == before_adapter_paths
+        and os.path.lexists(vault_untracked.parent) == vault_directory_preexisting,
+        "a4-native-git-snapshot-and-residue",
+    )
     return True
 
 
@@ -4521,10 +4714,16 @@ def non_head_missing_tip_adapter_matrix(root: pathlib.Path, generator: Any) -> b
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, target)
             os.chmod(target, source.stat().st_mode & 0o777)
+        vault_fixture_relative = "canvas-vault/tracked-public-fixture.txt"
+        vault_fixture = synthetic_root / vault_fixture_relative
+        vault_fixture.parent.mkdir(parents=True, exist_ok=True)
+        vault_fixture.write_bytes(b"synthetic tracked vault sentinel\n")
         run_synthetic_git(synthetic_root, ["init", "-q"])
         run_synthetic_git(
             synthetic_root,
-            ["add", "--"] + [relative for _role, relative in generator.ARTIFACT_SPECS],
+            ["add", "--"]
+            + [relative for _role, relative in generator.ARTIFACT_SPECS]
+            + [vault_fixture_relative],
         )
         add_synthetic_opaque_gitlink(synthetic_root)
         run_synthetic_git(
@@ -5352,7 +5551,7 @@ def committed_transition_matrix(
     root: pathlib.Path,
     generator: Any,
     validator: Draft202012Validator,
-) -> Tuple[str, Dict[str, Any], bool, bool]:
+) -> Tuple[str, Dict[str, Any], bool, bool, bool]:
     temp_parent = os.path.realpath(tempfile.gettempdir())
     with tempfile.TemporaryDirectory(prefix="gov01-generation-transition-", dir=temp_parent) as temporary:
         synthetic_root = pathlib.Path(temporary)
@@ -5477,6 +5676,15 @@ def committed_transition_matrix(
             context,
             authorization,
         )
+        a4_native_bound = content_addressed_a4_native_git_snapshot_matrix(
+            synthetic_root,
+            synthetic_generator,
+            bound_executor,
+            baseline["git_binary"],
+            challenge,
+            context["current_head"],
+            context["current_tree"],
+        )
         locator_preclaim_bound = content_addressed_control_prep_locator_matrix(
             synthetic_root,
             synthetic_generator,
@@ -5550,6 +5758,7 @@ def committed_transition_matrix(
         return (
             HOST_SANDBOX_POSITIVE if positive else "transition-check-failed",
             bound_pure,
+            a4_native_bound,
             locator_preclaim_bound,
             delta_pack_preclaim_bound,
         )
@@ -5707,6 +5916,7 @@ def _run_fixture_checks(root: pathlib.Path) -> Dict[str, Any]:
     (
         transition_mode,
         bound_pure,
+        a4_native_bound,
         locator_preclaim_bound,
         delta_pack_preclaim_bound,
     ) = committed_transition_matrix(
@@ -5750,6 +5960,10 @@ def _run_fixture_checks(root: pathlib.Path) -> Dict[str, Any]:
             and bound_pure["bool_int_scalar_type_parity"]["ok"]
             and bound_pure["bool_int_scalar_type_parity"]["mutation_count"] == 145
         ),
+        "content_addressed_a4_runtime_template_schema_privacy": (
+            bound_pure["a4_runtime_template_schema_privacy"]["ok"]
+        ),
+        "content_addressed_a4_native_apple_git_no_replacement": a4_native_bound,
         "content_addressed_control_prep_locator_preclaim": locator_preclaim_bound,
         "content_addressed_delta_pack_production_preclaim": delta_pack_preclaim_bound,
         "content_addressed_durable_claim_fd_core": bound_pure["claim_core"]["ok"],

@@ -3623,6 +3623,9 @@ int main(int argc, char **argv) {
         unrelated = repo / "unrelated/tracked-body.txt"
         unrelated.parent.mkdir(parents=True)
         write_bytes(unrelated, b"unrelated tracked body\n", 0o600)
+        vault_tracked = repo / "canvas-vault/tracked-public-fixture.txt"
+        vault_tracked.parent.mkdir(parents=True)
+        write_bytes(vault_tracked, b"synthetic tracked vault sentinel\n", 0o600)
         run_checked([git_binary, "add", "--all"], repo)
         run_checked(
             [
@@ -3635,6 +3638,10 @@ int main(int argc, char **argv) {
             repo,
         )
         run_checked([git_binary, "commit", "-q", "-m", "adapter fixture"], repo)
+        public_untracked = repo / "public-untracked-sentinel.txt"
+        write_bytes(public_untracked, b"synthetic public untracked sentinel\n", 0o600)
+        vault_untracked = repo / "canvas-vault/untracked-public-fixture.txt"
+        write_bytes(vault_untracked, b"synthetic untracked vault sentinel\n", 0o600)
         head_oid = git_output("rev-parse", "HEAD").strip().decode("ascii")
         head_ref = git_output("symbolic-ref", "HEAD").strip().decode("ascii")
         unrelated_oid = git_output("rev-parse", "HEAD:unrelated/tracked-body.txt").strip().decode("ascii")
@@ -3927,7 +3934,13 @@ int main(int argc, char **argv) {
                     acquisition["safe_git_scalar"](git_binary, str(repo), boundary, arguments, label)
                 for dirty_arguments, dirty_label in (
                     (["diff-files", "--ignore-submodules=all", "--name-only", "-z"], "ADAPTER_DIFF_FILES"),
-                    (["ls-files", "--others", "--exclude-standard", "-z"], "ADAPTER_LS_FILES_OTHERS"),
+                    (
+                        [
+                            "ls-files", "--others", "--exclude-standard",
+                            "--exclude=/canvas-vault/", "-z",
+                        ],
+                        "ADAPTER_LS_FILES_OTHERS",
+                    ),
                 ):
                     acquisition["run_git"](
                         git_binary, str(repo), boundary, dirty_arguments,
@@ -4008,6 +4021,15 @@ int main(int argc, char **argv) {
                 authorized_tree_excludes=(stage, "node_modules"),
                 authorized_exact_file_excludes=(envelope_relative,),
             )
+            expected_untracked = b"public-untracked-sentinel.txt\x00"
+            expected_status = hashlib.sha256(
+                b"CLS/GOV01/GIT-INDEX-WORKTREE-DIRTY/v2\x00"
+                + (0).to_bytes(8, "big")
+                + len(expected_untracked).to_bytes(8, "big")
+                + expected_untracked
+            ).hexdigest()
+            assert snapshot["status_bytes"] == len(expected_untracked)
+            assert snapshot["status_sha256"] == expected_status
             assert snapshot["git_metadata_adapter_profile"] == acquisition["GIT_METADATA_ADAPTER_PROFILE_V5"]
             assert snapshot["git_metadata_adapter_cleanup_state"] == "removed"
             assert snapshot["git_metadata_adapter_residue_count"] == 0
@@ -4028,6 +4050,9 @@ int main(int argc, char **argv) {
             assert snapshot["refs_bytes"] == len(expected_refs_bytes)
             report["git_metadata_adapter_exact_oid_runtime_and_snapshot"] = "PASS"
             report["git_metadata_adapter_unmaterialized_ref_tips_no_expansion"] = "PASS"
+            report["git_ls_files_root_vault_command_exclude_native_apple_git"] = (
+                "PASS" if sandbox_mode == "host-sandbox-enforced-positive" else sandbox_mode
+            )
 
             original_run_git_for_ref_mismatch = acquisition["run_git"]
 
@@ -5139,7 +5164,9 @@ def run_partial_git_boundary_fixtures(acquisition, report):
             ":(top,literal,exclude)" + pending,
     ]
     diff_arguments = ["diff-files", "--ignore-submodules=all", "--name-only", "-z"] + dirty_suffix
-    ls_arguments = ["ls-files", "--others", "--exclude-standard", "-z"] + dirty_suffix
+    ls_arguments = [
+        "ls-files", "--others", "--exclude-standard", "--exclude=/canvas-vault/", "-z",
+    ] + dirty_suffix
     for arguments in (diff_arguments, ls_arguments):
         argv = acquisition["git_hardened_child_argv"](
             "/fixture/git", "/fixture/repo", ".", arguments
@@ -5159,10 +5186,43 @@ def run_partial_git_boundary_fixtures(acquisition, report):
     for label, malformed_arguments in (
         ("diff-files trailing argument", diff_arguments + ["--unexpected-extra"]),
         ("ls-files truncated argument", ls_arguments[:-1]),
+        (
+            "ls-files missing exact root vault command exclude",
+            ["ls-files", "--others", "--exclude-standard", "-z"] + dirty_suffix,
+        ),
+        (
+            "ls-files duplicate exact root vault command exclude",
+            [
+                "ls-files", "--others", "--exclude-standard", "--exclude=/canvas-vault/",
+                "--exclude=/canvas-vault/", "-z",
+            ] + dirty_suffix,
+        ),
+        (
+            "ls-files non-root vault command exclude",
+            [
+                "ls-files", "--others", "--exclude-standard", "--exclude=canvas-vault/", "-z",
+            ] + dirty_suffix,
+        ),
+        (
+            "ls-files reordered exact root vault command exclude",
+            [
+                "ls-files", "--others", "--exclude-standard", "-z", "--exclude=/canvas-vault/",
+            ] + dirty_suffix,
+        ),
+        (
+            "diff-files unauthorized vault command exclude",
+            [
+                "diff-files", "--ignore-submodules=all", "--name-only",
+                "--exclude=/canvas-vault/", "-z",
+            ] + dirty_suffix,
+        ),
         ("diff-files missing ignore-submodules", ["diff-files", "--name-only", "-z"] + dirty_suffix),
         (
             "ls-files unsupported ignore-submodules insertion",
-            ["ls-files", "--ignore-submodules=all", "--others", "--exclude-standard", "-z"]
+            [
+                "ls-files", "--ignore-submodules=all", "--others", "--exclude-standard",
+                "--exclude=/canvas-vault/", "-z",
+            ]
             + dirty_suffix,
         ),
         (
@@ -5288,8 +5348,24 @@ def run_partial_git_boundary_fixtures(acquisition, report):
         "all current tree OIDs",
         "every current-tree tree OID",
         "nonexcluded porcelain-v2 path",
+        "exact-top-literal-envelope-file-exclusion-v3",
     ):
         assert stale not in source_text
+    assert acquisition["PENDING_ENVELOPE_PUBLIC_STRING_ALLOWLIST"] == frozenset(
+        {
+            "/usr/bin/xcode-select",
+            "/usr/bin/xcrun",
+            "/usr/bin/pgrep",
+            "/usr/sbin/lsof",
+            "--exclude=/canvas-vault/",
+            ":(exclude)canvas-vault",
+            ":(exclude)canvas-vault/**",
+        }
+    )
+    assert acquisition["PENDING_ENVELOPE_GIT_EXCLUSION_PROFILE"].endswith(
+        "the pending envelope exclusion has no parent, subtree, wildcard or glob authority"
+    )
+    assert "exclusion-v4" in acquisition["PENDING_ENVELOPE_GIT_EXCLUSION_PROFILE"]
     tree = ast.parse(source_text)
     embedded_assignments = [
         node for node in tree.body
@@ -5344,6 +5420,28 @@ def run_partial_git_boundary_fixtures(acquisition, report):
     assert {
         keyword.arg: keyword.value.value
         for keyword in diff_snapshot_call.keywords
+        if isinstance(keyword.value, ast.Constant)
+    }.get("enumerates_worktree") is True
+    ls_snapshot_calls = [
+        node for node in ast.walk(snapshot_function)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "run_git"
+        and any(
+            isinstance(argument, ast.Constant) and argument.value == "GIT_LS_FILES_OTHERS"
+            for argument in node.args
+        )
+    ]
+    assert len(ls_snapshot_calls) == 1
+    ls_snapshot_call = ls_snapshot_calls[0]
+    assert len(ls_snapshot_call.args) == 5
+    assert isinstance(ls_snapshot_call.args[3], ast.List)
+    assert [element.value for element in ls_snapshot_call.args[3].elts] == [
+        "ls-files", "--others", "--exclude-standard", "--exclude=/canvas-vault/", "-z",
+    ]
+    assert {
+        keyword.arg: keyword.value.value
+        for keyword in ls_snapshot_call.keywords
         if isinstance(keyword.value, ast.Constant)
     }.get("enumerates_worktree") is True
     ref_snapshot_calls = [
@@ -5961,7 +6059,13 @@ def main(argv=None):
     try:
         for dirty_arguments, dirty_label in (
             (["diff-files", "--ignore-submodules=all", "--name-only", "-z"], "FIXTURE_GIT_DIFF_FILES"),
-            (["ls-files", "--others", "--exclude-standard", "-z"], "FIXTURE_GIT_LS_FILES_OTHERS"),
+            (
+                [
+                    "ls-files", "--others", "--exclude-standard",
+                    "--exclude=/canvas-vault/", "-z",
+                ],
+                "FIXTURE_GIT_LS_FILES_OTHERS",
+            ),
         ):
             acquisition["run_git"](
                 "/fixture/git",
@@ -5991,6 +6095,13 @@ def main(argv=None):
         assert ":(exclude)node_modules" in git_argv and ":(exclude)node_modules/**" in git_argv
         assert ":(exclude).gov01-toolchain-stage-" + locator_challenge in git_argv
         assert ":(exclude).gov01-toolchain-stage-" + locator_challenge + "/**" in git_argv
+    captured_diff_argv = next(argv for argv, _kwargs in captured_git_invocations if "diff-files" in argv)
+    captured_ls_argv = next(argv for argv, _kwargs in captured_git_invocations if "ls-files" in argv)
+    assert "--exclude=/canvas-vault/" not in captured_diff_argv
+    assert captured_ls_argv.count("--exclude=/canvas-vault/") == 1
+    assert captured_ls_argv.index("--exclude=/canvas-vault/") == (
+        captured_ls_argv.index("--exclude-standard") + 1
+    )
     expect_error(
         "tree exact exclusion ancestor overlap",
         lambda: acquisition["git_snapshot"](
