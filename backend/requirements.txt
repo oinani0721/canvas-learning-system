@@ -154,7 +154,18 @@ pact-python>=2.0.0
 # ==========================================================
 # Story 35.6: Audio processing (mp3/wav/ogg/m4a/flac)
 pydub>=0.25.1
-# Story 35.7: Video processing (mp4/webm/mkv/avi/mov)
-moviepy>=1.0.3
+# Story 35.7 video processing (moviepy) REMOVED 2026-08-24 (CARD-B1):
+#   moviepy 2.2.1 pinned pillow<12.0; 5 UNEXEMPTED pillow CVEs (distinct from
+#   the 13 previously --ignore-vuln'd in CI) all fix in >=12.3.0.
+#   VideoProcessor has zero external callers and degrades gracefully via
+#   MOVIEPY_AVAILABLE=False (video_processor.py:25-31) — note this holds for
+#   fresh/rebuilt envs only: in-place `pip install -r` does NOT uninstall a
+#   previously installed moviepy (rebuild the venv, or remove moviepy manually).
+#   复活条件: 视频管道出现真实调用方且 moviepy 放宽 pillow 上限.
+#   详见 docs/known-gotchas.md G-DEP-001
+# Image processing for multimodal thumbnails (multimodal_service.py,
+# image_processor.py, pdf_processor.py). Previously an undeclared transitive
+# dep of moviepy; declared explicitly since the CVE fixes land in 12.3.0.
+pillow>=12.3.0
 # ✅ NFR Quick Win #1: Dependency vulnerability scanning
 pip-audit>=2.7.0
