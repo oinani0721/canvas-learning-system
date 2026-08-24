@@ -186,6 +186,16 @@ class TestFSRSStateQueryEndpoint:
 class TestReviewServiceGetFSRSState:
     """Tests for ReviewService.get_fsrs_state() method."""
 
+    @pytest.fixture(autouse=True)
+    def _isolate_card_states_file(self, tmp_path, monkeypatch):
+        """CARD-A1: auto-created cards are now really persisted — redirect the
+        card-states file to tmp so tests never write backend/data/."""
+        import app.services.review_service as rs_module
+
+        monkeypatch.setattr(
+            rs_module, "_CARD_STATES_FILE", tmp_path / "fsrs_card_states.json"
+        )
+
     @pytest.mark.asyncio
     async def test_get_fsrs_state_returns_card_data(self, review_service_factory):
         """Service returns FSRS state from card storage."""
@@ -195,35 +205,46 @@ class TestReviewServiceGetFSRSState:
         # The actual implementation uses internal FSRS card cache
         result = await service.get_fsrs_state("nonexistent-concept")
 
-        # Should return found=False for nonexistent concept
+        # Story 38.3 AC-4: unknown concepts get an auto-created card
         assert isinstance(result, dict)
         assert "found" in result
 
     @pytest.mark.asyncio
-    async def test_get_fsrs_state_returns_not_found_for_missing_card(
+    async def test_get_fsrs_state_auto_creates_card_for_missing_concept(
         self, review_service_factory
     ):
-        """Service returns found=false when concept has no card."""
+        """Story 38.3 AC-4: unknown concept auto-creates a card, found=True.
+
+        CARD-A1: the previous found=False assertion was only green because
+        serialize_card(new card) crashed on fsrs 6.x None stability and the
+        error path returned found=False — contradicting 38.3 AC-4.
+        """
         service = review_service_factory()
 
         result = await service.get_fsrs_state("missing-concept")
 
-        assert result["found"] is False
+        assert result["found"] is True
+        assert "error" not in result.get("reason", "")
 
     @pytest.mark.asyncio
     async def test_get_fsrs_state_graceful_on_error(self, review_service_factory):
         """
         AC-32.3.5: Service handles errors gracefully.
-        Should not raise exception, returns found=false.
+        Edge-case concept ids must not raise; with auto-create (38.3 AC-4)
+        they now resolve to found=True instead of the error fallback.
         """
         service = review_service_factory()
 
-        # Test with various edge cases
+        # Test with various edge cases — must not raise
         result = await service.get_fsrs_state("")  # Empty concept ID
-        assert result["found"] is False
+        assert isinstance(result, dict)
+        assert result["found"] is True
+        assert "error" not in result.get("reason", "")
 
         result = await service.get_fsrs_state("with/slashes/in/id")  # Special chars
-        assert result["found"] is False
+        assert isinstance(result, dict)
+        assert result["found"] is True
+        assert "error" not in result.get("reason", "")
 
 
 class TestFSRSStateResponseSchema:

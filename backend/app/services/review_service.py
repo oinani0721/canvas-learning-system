@@ -116,6 +116,12 @@ _card_states_lock = asyncio.Lock()
 # Story 34.8 AC3: Hard cap for show_all=True to prevent memory overflow
 MAX_HISTORY_RECORDS = 1000
 
+
+def _fmt_optional_2f(value: Optional[float]) -> str:
+    """Format optional float for logs — fsrs 6.x new cards carry None
+    stability/difficulty, and f-string ':.2f' on None raises TypeError."""
+    return f"{value:.2f}" if value is not None else "None"
+
 if TYPE_CHECKING:
     from app.services.background_task_manager import BackgroundTaskManager
     from app.services.canvas_service import CanvasService
@@ -832,8 +838,12 @@ class ReviewService:
                         "card_state_provided": card_state is not None,
                     },
                     output=f"interval={interval_days}d, R={retrievability:.3f}",
-                    reason=f"FSRS-4.5 scheduling, stability={getattr(card, 'stability', 0.0):.2f}, "
-                    f"difficulty={getattr(card, 'difficulty', 0.0):.2f}",
+                    # New cards: stability/difficulty are None — formatting them
+                    # with ':.2f' raised TypeError, silently degrading every new
+                    # concept to the Ebbinghaus fallback via the except below.
+                    reason=f"FSRS-4.5 scheduling, "
+                    f"stability={_fmt_optional_2f(getattr(card, 'stability', None))}, "
+                    f"difficulty={_fmt_optional_2f(getattr(card, 'difficulty', None))}",
                 )
 
                 return {
@@ -2181,10 +2191,17 @@ class ReviewService:
             else:
                 state_int = 0
 
+            # fsrs 6.x new cards: stability/difficulty are None until first
+            # review. card_state (below) keeps the authoritative JSON null for
+            # roundtrip; these two display fields fall back to schema-safe
+            # defaults because FSRSStateResponse requires float (difficulty
+            # ge=1) and the API layer forwards them via result.get().
+            stability = getattr(card, "stability", None)
+            difficulty = getattr(card, "difficulty", None)
             result = {
                 "found": True,
-                "stability": float(getattr(card, "stability", 0.0)),
-                "difficulty": float(getattr(card, "difficulty", 5.0)),
+                "stability": float(stability) if stability is not None else 0.0,
+                "difficulty": float(difficulty) if difficulty is not None else 5.0,
                 "state": state_int,
                 "reps": int(getattr(card, "reps", 0)),
                 "lapses": int(getattr(card, "lapses", 0)),

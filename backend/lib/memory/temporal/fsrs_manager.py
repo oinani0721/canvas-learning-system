@@ -48,8 +48,9 @@ class CardState:
 
     concept: str
     canvas_file: str
-    difficulty: float = 0.0
-    stability: float = 0.0
+    # fsrs 6.x: None = new card never reviewed (distinct from 0.0)
+    difficulty: Optional[float] = 0.0
+    stability: Optional[float] = 0.0
     due: Optional[datetime] = None
     state: int = 0  # State enum value
     last_review: Optional[datetime] = None
@@ -272,15 +273,16 @@ class FSRSManager:
             JSON string representation
         """
         if FSRS_AVAILABLE:
-            # Extract relevant attributes from Card object
+            # fsrs 6.x: new cards carry stability/difficulty = None until first
+            # review — serialize as JSON null (0.0 would make the scheduler
+            # treat a new card as an already-learned one). hasattr() cannot
+            # guard this: the attribute exists, its value is None.
+            stability = getattr(card, "stability", None)
+            difficulty = getattr(card, "difficulty", None)
             card_dict = {
                 "due": card.due.isoformat() if card.due else None,
-                "stability": float(card.stability)
-                if hasattr(card, "stability")
-                else 0.0,
-                "difficulty": float(card.difficulty)
-                if hasattr(card, "difficulty")
-                else 0.0,
+                "stability": float(stability) if stability is not None else None,
+                "difficulty": float(difficulty) if difficulty is not None else None,
                 "state": int(card.state.value) if hasattr(card, "state") else 0,
                 "reps": int(card.reps) if hasattr(card, "reps") else 0,
                 "lapses": int(card.lapses) if hasattr(card, "lapses") else 0,
@@ -311,10 +313,19 @@ class FSRSManager:
 
             if card_dict.get("due"):
                 card.due = datetime.fromisoformat(card_dict["due"])
+            # JSON null → None roundtrip (new-card semantics preserved)
             if "stability" in card_dict:
-                card.stability = card_dict["stability"]
+                card.stability = (
+                    float(card_dict["stability"])
+                    if card_dict["stability"] is not None
+                    else None
+                )
             if "difficulty" in card_dict:
-                card.difficulty = card_dict["difficulty"]
+                card.difficulty = (
+                    float(card_dict["difficulty"])
+                    if card_dict["difficulty"] is not None
+                    else None
+                )
             if "state" in card_dict:
                 card.state = State(card_dict["state"])
             if "reps" in card_dict:
@@ -344,13 +355,14 @@ class FSRSManager:
             CardState object
         """
         if FSRS_AVAILABLE:
+            # fsrs 6.x new-card semantics: keep None as None (see serialize_card)
+            difficulty = getattr(card, "difficulty", None)
+            stability = getattr(card, "stability", None)
             return CardState(
                 concept=concept,
                 canvas_file=canvas_file,
-                difficulty=float(card.difficulty)
-                if hasattr(card, "difficulty")
-                else 0.0,
-                stability=float(card.stability) if hasattr(card, "stability") else 0.0,
+                difficulty=float(difficulty) if difficulty is not None else None,
+                stability=float(stability) if stability is not None else None,
                 due=card.due if hasattr(card, "due") else None,
                 state=int(card.state.value) if hasattr(card, "state") else 0,
                 last_review=card.last_review if hasattr(card, "last_review") else None,
