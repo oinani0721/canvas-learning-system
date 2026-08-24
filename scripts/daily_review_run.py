@@ -21,6 +21,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from datetime import datetime, time as dtime, timezone
 from pathlib import Path
 
@@ -82,20 +83,55 @@ def log_line(msg: str):
         f.write(f"[{stamp}] {msg}\n")
 
 
+def _nodes_max_mtime(vault: Path) -> float:
+    """节点池最新改动时间 (CARD-A3 缓存失效判据)。
+
+    文件 mtime 抓原地更新 (quiz 写 fsrs_due 不动目录), 目录 mtime 抓
+    增删改名 (不留文件 mtime); 误报代价只是一次幂等重扫。保 mtime 的
+    还原类操作 (rsync -a / Time Machine) 不在本判据覆盖面内。
+    """
+    pool = vault / "节点"
+    latest = 0.0
+    for p in pool.glob("*.md"):
+        try:
+            latest = max(latest, p.stat().st_mtime)
+        except OSError:
+            continue  # 迭代间隙被删: 殿后的目录 stat 捕获该变动
+    try:
+        # 目录 stat 殿后取样 — 迭代期间发生的删除也已反映在目录 mtime 里
+        latest = max(latest, pool.stat().st_mtime)
+    except OSError:
+        return 0.0  # 节点池不存在: 不因 mtime 失效, 保持旧缓存语义
+    return latest
+
+
 def ensure_payload(st: dict, now: datetime, today: str) -> tuple[dict | None, str]:
-    """当日 payload: 没有才生成 (生成过则复用 — 补跑只补推送)。"""
+    """当日 payload: 没有才生成 (生成过则复用 — 补跑只补推送)。
+
+    CARD-A3 (BATCH-2026-08-24-复习闭环): 复用多两道门 — ①节点池比 payload
+    新 (quiz 写侧刚更新 fsrs_due / 新增重学卡) 则同日重扫; ②当前时间越过
+    生成时记录的最早未来到期点 (next_due_utc) 也重扫 (Codex-A3 BLOCKER:
+    09:59 落 fsrs_due=10:09 → 10:05 重扫时未到期 → 11:05 若只看 mtime 会
+    整天 cached, 当天到期卡丢失 — 卡片 :89 警告的缺陷位移)。push 去重
+    不在此处: last_push_accepted_date 天然保证同日只推一次。
+    """
     payload_path = VAULT / "outputs" / "今日复习.json"
-    if st.get("last_generate_date") == today and payload_path.exists():
+    first_gen_today = st.get("last_generate_date") != today
+    if not first_gen_today and payload_path.exists():
         try:
             raw = payload_path.read_text(encoding="utf-8")
             # sha 校验 (Code-Review L3): 外部改动/半写的 payload 不复用, 重新生成
             if hashlib.sha256(raw.encode("utf-8")).hexdigest() == st.get("payload_sha256"):
-                return json.loads(raw), "cached"
+                now_z = now.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                due_crossed = bool(st.get("next_due_utc")) and st["next_due_utc"] <= now_z
+                if not due_crossed and _nodes_max_mtime(VAULT) <= payload_path.stat().st_mtime:
+                    return json.loads(raw), "cached"
         except (json.JSONDecodeError, OSError):
             pass  # 落盘 payload 损坏 → 重新生成
 
     import daily_review_pick as picker
 
+    scan_started = time.time()
     payload, ranked = picker.build_payload(
         VAULT, now, st["board_last_recommended"], picker.load_decay(VAULT))
     out = VAULT / "outputs"
@@ -103,10 +139,22 @@ def ensure_payload(st: dict, now: datetime, today: str) -> tuple[dict | None, st
     picker.atomic_write(out / "今日复习.md", picker.render_md(payload, ranked))
     raw = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
     picker.atomic_write(payload_path, raw)
+    # mtime 门基准回拨到扫描起点: 扫描-落盘窗口内落地的写侧更新, 其 mtime
+    # 必然 > 基准, 下一轮触发重扫捞回 (否则该更新当天静默丢失, 无日志可查)
+    os.utime(payload_path, (scan_started, scan_started))
 
     st["last_generate_date"] = today
     st["payload_sha256"] = hashlib.sha256(raw.encode("utf-8")).hexdigest()
-    if ranked:
+    # 最早未来到期点: ranked 是全量榜 (payload.top_boards 才截断), 每行
+    # next_due 已是板内未来最小值; upcoming 按 next_due 升序, [0] 即全局
+    # 最小, [:3] 截断不丢它。未归板节点不参与推荐, 其到期转场不改变输出。
+    nexts = [r["next_due"] for r in ranked if r.get("next_due")]
+    if payload.get("upcoming"):
+        nexts.append(payload["upcoming"][0]["next_due"])
+    st["next_due_utc"] = min(nexts, default="")
+    if ranked and first_gen_today:
+        # CARD-A3: 重扫路径不写 — tie-break 的「上次被推荐日期」是天级轮转
+        # 语义, 重扫换榜也补写会把第二个板标成「今天推荐过」, 污染后续排序
         st["board_last_recommended"][ranked[0]["board"]] = today
     save_state(st)
     return payload, "new"
