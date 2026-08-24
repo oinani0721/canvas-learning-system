@@ -87,6 +87,37 @@ def test_fields_from_frontmatter_roundtrip():
     assert fb._aware(out2["fsrs_due"]) > fb._aware(out["fsrs_due"])
 
 
+def test_legacy_state_zero_frontmatter_defensive_mapping():
+    """CARD-C3: legacy pre-v6 frontmatter fsrs_state: 0 → 防御映射 Learning(1)。
+
+    py-fsrs 4+ 删除 New(0) 态, State(0) 抛 ValueError — 老记录必须在读侧
+    映射, 复习产出落回合法状态 (>=1)。深度用例（伴生哨兵字段/矛盾形状）
+    见 test_fsrs_legacy_state_zero.py。
+    """
+    fm = "fsrs_due: 2026-08-24T00:00:00Z\nfsrs_state: 0"
+    out = fb.review(fb.fields_from_frontmatter(fm), 2.0 / 3, False, NOW)
+    assert int(out["fsrs_state"]) >= 1
+    assert out["fsrs_due"].endswith("Z")
+
+
+def test_cli_legacy_state_zero_full_frontmatter_via_stdin():
+    """CARD-C3: stdin CLI 形态下 legacy state:0 + 哨兵伴生字段全链走通
+    (quiz-answer 实际调用路径, 含 re-exec)。"""
+    fm = (
+        "fsrs_due: 2026-08-24T00:00:00Z\n"
+        "fsrs_state: 0\n"
+        "fsrs_step: null\n"
+        "fsrs_stability: 0.0\n"
+        "fsrs_difficulty: null"
+    )
+    payload = json.dumps({"fm": fm, "grade_norm": 2.0 / 3, "abandoned": False, "ts": NOW})
+    r = subprocess.run(["python3", str(BRIDGE)], input=payload, capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stderr[-500:]
+    out = json.loads(r.stdout)
+    assert int(out["fsrs_state"]) >= 1
+    assert float(out["fsrs_stability"]) > 0
+
+
 def test_cli_via_system_python_reexec_success():
     """stdlib 入口: 系统 python3 (可能无 fsrs) 经 stdin JSON 调用 → 自动
     re-exec venv python 返回结果 — quiz-answer 的实际调用形态。"""
