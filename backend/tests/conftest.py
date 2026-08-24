@@ -34,22 +34,6 @@ hypothesis_settings.register_profile("hook", max_examples=5, deadline=2000)
 hypothesis_settings.load_profile("dev")
 
 # ============================================================================
-# Collection bypass — orphan import paralyzes full-suite collection
-# [Source: BATCH-2026-08-24-复习闭环 / CARD-E0]
-# ============================================================================
-# test_memory_service_contextvar_leak.py imports `_resolve_memory_group_id`,
-# which no longer exists in app.services.memory_service (renamed to
-# `_vault_scoped_group_id` during the Story 2.5.Y group_id migration). The
-# broken import raises at collection time and pytest aborts the ENTIRE run
-# with "Interrupted: 1 error during collection", blocking the nightly lane.
-#
-# 回收条件: 未来 memory 口径卡重写该测试对 `_vault_scoped_group_id` 的断言后,
-# 删除本 collect_ignore 条目。禁止在本条目存续期间删除该测试文件或改动
-# memory_service.py 的 group_id 口径 (那是 memory 卡的地盘)。
-collect_ignore = ["unit/test_memory_service_contextvar_leak.py"]
-
-
-# ============================================================================
 # Logging fixtures (autouse) — bridge structlog into stdlib so caplog works
 # [Source: openspec/changes/fix-structlog-caplog-compat — Task 3]
 # ============================================================================
