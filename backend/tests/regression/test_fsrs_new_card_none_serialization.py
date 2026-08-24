@@ -32,9 +32,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "lib"))
 
 from memory.temporal.fsrs_manager import FSRS_AVAILABLE, FSRSManager  # noqa: E402
 
-pytestmark = pytest.mark.skipif(
-    not FSRS_AVAILABLE, reason="需要真实 py-fsrs 库（本回归禁 mock/fallback）"
-)
+
+def test_real_fsrs_library_is_installed():
+    """门禁 fail-closed (Codex HIGH-3): fsrs 是正式依赖 (requirements.txt)。
+
+    禁止 skipif——缺真实库时整个套件 SKIP 会让 CARD-A1 验收假绿。
+    真实库缺失必须在这里红掉，其余用例也会对着 fallback 实现自然失败。
+    """
+    assert FSRS_AVAILABLE, "真实 py-fsrs 未安装 — 本回归套件不允许跳过"
 
 
 @pytest.fixture
@@ -148,6 +153,10 @@ async def test_schedule_review_new_card_uses_fsrs_not_ebbinghaus(review_service)
     payload = json.loads(result["card_data"])
     assert payload["stability"] is None
     assert payload["difficulty"] is None
+    # 嵌套 fsrs_state 是展示镜像: 走 Story 38.3 AC-4 默认卡契约, 保证
+    # FSRSStateResponse(float 必填) 消费不炸 (Codex MEDIUM-1)
+    assert result["fsrs_state"]["stability"] == 1.0
+    assert result["fsrs_state"]["difficulty"] == 5.0
 
 
 @pytest.mark.asyncio
@@ -174,10 +183,10 @@ async def test_get_fsrs_state_new_concept_found_true(review_service):
     assert card_payload["stability"] is None
     assert card_payload["difficulty"] is None
 
-    # API 展示层: schema 兼容 float (FSRSStateResponse 要求 difficulty>=1)
-    assert isinstance(result["stability"], float)
-    assert isinstance(result["difficulty"], float)
-    assert result["difficulty"] >= 1
+    # API 展示层: Story 38.3 AC-4 默认卡契约 (stability=1.0, difficulty=5.0),
+    # 同时满足 FSRSStateResponse schema (float 必填, difficulty>=1)
+    assert result["stability"] == 1.0
+    assert result["difficulty"] == 5.0
 
     # 自动建卡已入内存缓存: 二次查询命中同一张卡
     tasks_before = set(asyncio.all_tasks())

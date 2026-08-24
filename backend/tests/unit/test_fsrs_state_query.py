@@ -13,6 +13,7 @@ Tests cover:
 [Source: specs/data/fsrs-state-query.schema.json]
 """
 
+import asyncio
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -196,6 +197,23 @@ class TestReviewServiceGetFSRSState:
             rs_module, "_CARD_STATES_FILE", tmp_path / "fsrs_card_states.json"
         )
 
+    @staticmethod
+    async def _get_state_cancelling_bg(service, concept_id):
+        """Call get_fsrs_state and cancel its fire-and-forget Graphiti task.
+
+        CARD-A1 review (Codex HIGH-2): the background mirror write is a
+        broken pipe (client lacks add_learning_memory) and would touch
+        backend/data/learning_memories.json — unit tests must isolate it.
+        The task hasn't started when the call returns (no await after
+        create_task), so cancelling here is deterministic.
+        """
+        tasks_before = set(asyncio.all_tasks())
+        result = await service.get_fsrs_state(concept_id)
+        for task in asyncio.all_tasks() - tasks_before:
+            if not task.done():
+                task.cancel()
+        return result
+
     @pytest.mark.asyncio
     async def test_get_fsrs_state_returns_card_data(self, review_service_factory):
         """Service returns FSRS state from card storage."""
@@ -203,7 +221,7 @@ class TestReviewServiceGetFSRSState:
 
         # Test that the method exists and returns a dict
         # The actual implementation uses internal FSRS card cache
-        result = await service.get_fsrs_state("nonexistent-concept")
+        result = await self._get_state_cancelling_bg(service, "nonexistent-concept")
 
         # Story 38.3 AC-4: unknown concepts get an auto-created card
         assert isinstance(result, dict)
@@ -221,27 +239,32 @@ class TestReviewServiceGetFSRSState:
         """
         service = review_service_factory()
 
-        result = await service.get_fsrs_state("missing-concept")
+        result = await self._get_state_cancelling_bg(service, "missing-concept")
 
         assert result["found"] is True
         assert "error" not in result.get("reason", "")
 
     @pytest.mark.asyncio
-    async def test_get_fsrs_state_graceful_on_error(self, review_service_factory):
+    async def test_get_fsrs_state_edge_case_ids_resolve_gracefully(
+        self, review_service_factory
+    ):
         """
-        AC-32.3.5: Service handles errors gracefully.
-        Edge-case concept ids must not raise; with auto-create (38.3 AC-4)
-        they now resolve to found=True instead of the error fallback.
+        AC-32.3.5 spirit: edge-case concept ids must not raise.
+        With auto-create (38.3 AC-4) they resolve to found=True instead of
+        the error fallback. (Renamed from *_graceful_on_error — the old name
+        implied an exception path this flow no longer takes.)
         """
         service = review_service_factory()
 
         # Test with various edge cases — must not raise
-        result = await service.get_fsrs_state("")  # Empty concept ID
+        result = await self._get_state_cancelling_bg(service, "")  # Empty ID
         assert isinstance(result, dict)
         assert result["found"] is True
         assert "error" not in result.get("reason", "")
 
-        result = await service.get_fsrs_state("with/slashes/in/id")  # Special chars
+        result = await self._get_state_cancelling_bg(
+            service, "with/slashes/in/id"
+        )  # Special chars
         assert isinstance(result, dict)
         assert result["found"] is True
         assert "error" not in result.get("reason", "")
