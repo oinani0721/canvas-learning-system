@@ -1,7 +1,7 @@
 # Known Gotchas — Canvas Learning System
 
 > **Session 启动时自动注入。`/parallel-fix` 运行后自动更新。**
-> Last updated: 2026-08-24 (CARD-B1: 新增 G-DEP-001 moviepy 移除 / graceful degradation / 复活条件)
+> Last updated: 2026-08-25 (CARD-C4: 新增 G-FAKE-007 假 Graphiti 镜像安全下线处置)
 
 ---
 
@@ -15,6 +15,7 @@
 | G-FAKE-004 | ~~Agent API 端点大量使用硬编码假数据~~ | ~~原型阶段占位未清理~~ | ✅ S35审计确认：全部13个agent端点调用真实服务（GeminiClient/Neo4j/RAG），无硬编码假数据。原S18审查时的占位已在后续Story中替换 | DD-03 |
 | G-FAKE-005 | ~~Frontend /explain/four-level 等端点使用假实现~~ | ~~前后端分离时占位~~ | ✅ S35审计确认：后端6个explain端点全部接入真实LLM（agent_service.generate_explanation），前端为API wrapper。Story 21.1已完成集成 | DD-03 |
 | G-FAKE-006 | `canvas_service._sync_edge_to_neo4j` writes `CONNECTS_TO` relationships that have zero read-side consumers (dead write path) | Story 36.3 wrote the edge path before Story 1.5 standardised on `CANVAS_EDGE` via SyncService; both writes kept alive producing schema drift | ⏳ FR-KG-04 Phase 7 (2026-04-07): docstring marked DEPRECATED, removal scheduled for next minor version. See `docs/project-status/fr-exploration/CONNECTS_TO-deprecation-evidence.md` | Do not add new callers to `_sync_edge_to_neo4j`; route all edge writes through `SyncOperation` + `/api/v1/sync/batch` |
+| G-FAKE-007 | review_service FSRS 卡状态"Graphiti 镜像"双重假：写侧调用的 `add_learning_memory` 方法在**整个 git 历史中从未定义**（真实 API 是 `add_learning_episode(LearningMemory)`，canonical schema 无 card_data 字段，改名也存不下——历史普通 LearningMemory 记录存在，但 **FSRS 卡镜像从未被持久化过**，读侧按 card_data 过滤故永远 None）；底层 LearningMemoryClient 非 Graphiti 是本地 JSON；镜像调用每次抛 AttributeError 被吞后记 warning，但 **return True 不区分镜像失败**，源码另含永远不可达的"已存入 Graphiti"成功日志；失败计数器无任何暴露口 | AI 未验证 client 是否有对称写方法即调用（DD-03）；"Graphiti"名 + 本地 JSON 身（DD-13 名实不副） | ✅ CARD-C4 (2026-08-25) 安全下线：删幻影调用×2 + fire-and-forget 后台任务 + 读侧死块 + 失败计数器；修正全部虚假日志；save_card_state 返回值改为如实反映文件通道结果（Codex HIGH-1）；**保留 get_learning_history（6 处真实读路径在用）与 client 本体**；grep 双裁判清零 + 防复活测试锁（计数器/后台任务/load-save 零外部访问/文件失败诚实返回）。⛔ **真接 Graphiti = 独立新卡且必须等 epic-5a C-1/C-2 契约**（episode schema 归主干 Session B 独占，现在接通违反契约）；评分与 auto-create 路径对文件失败信号的消费归后续卡 | DD-03 调用前验证方法存在（LSP/grep）；DD-13；裁判 grep：`add_learning_memory` 与 `card state to/from Graphiti` 在 backend/app 双零 |
 
 ## G-PIPE: 管道断裂 (DD-11)
 
@@ -126,7 +127,7 @@
 
 | 分类 | 总计 | 已修复 | 有意保留/延后 | 待修复 |
 |------|------|--------|-------------|--------|
-| G-FAKE | 6 | 5 | 1 (006 FR-KG-04 Phase 7 弃用) | 0 |
+| G-FAKE | 7 | 6 | 1 (006 FR-KG-04 Phase 7 弃用) | 0 |
 | G-PIPE | 7 | 5 | 2 (002 future feature, 004 有意禁用) | 0 |
 | G-TYPE | 2 | 2 | 0 | 0 |
 | G-ASYNC | 2 | 2 | 0 | 0 |

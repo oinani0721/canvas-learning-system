@@ -12,7 +12,7 @@ Tests:
 1. Singleton passes all 4 constructor args (canvas_service, task_manager,
    graphiti_client, fsrs_manager)
 2. CanvasService receives memory_client (P0 EPIC-36 fix)
-3. fire-and-forget _auto_persist_failures counter is initialized
+3. phantom fire-and-forget failure counter stays removed (CARD-C4 G-FAKE-007)
 4. ReviewServiceDep in dependencies.py is not used by review.py endpoints
 5. Singleton returns same instance on repeated calls
 """
@@ -132,8 +132,13 @@ class TestReviewSingletonDICompleteness:
             "Without it, EPIC-36 edge sync to Neo4j will silently skip."
         )
 
-    def test_auto_persist_failures_counter_initialized(self):
-        """AC-5 + AC-3: ReviewService must have _auto_persist_failures counter."""
+    def test_auto_persist_failures_counter_removed(self):
+        """CARD-C4 (G-FAKE-007): 幻影镜像失败计数器已随假 Graphiti 写下线。
+
+        原 AC-5 + AC-3 断言计数器存在——该计数器只为一个从未成功过的
+        幻影后台写计数 (调用的方法全 git 历史不存在), CARD-C4 一并移除。
+        本锁防复活; 真接 Graphiti 须等 epic-5a C-1/C-2 契约。
+        """
         from app.services.review_service import ReviewService
 
         mock_canvas = MagicMock()
@@ -147,11 +152,9 @@ class TestReviewSingletonDICompleteness:
                 task_manager=mock_task_mgr,
             )
 
-        assert hasattr(svc, "_auto_persist_failures"), (
-            "ReviewService must have _auto_persist_failures counter "
-            "for fire-and-forget observability (Story 32.10 AC-3)"
+        assert not hasattr(svc, "_auto_persist_failures"), (
+            "幻影 Graphiti 镜像的失败计数器已随 CARD-C4 下线, 不应复活"
         )
-        assert svc._auto_persist_failures == 0
 
     def test_review_service_dep_not_used_in_review_endpoints(self):
         """AC-4: ReviewServiceDep should not appear in review.py endpoint signatures."""

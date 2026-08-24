@@ -83,6 +83,8 @@ class TestAutoCreationEdgeCases:
         result = await service.get_fsrs_state("no-persist")
         assert result["found"] is True
         mock_fsrs_manager.create_card.assert_called_once()
+        # CARD-C4 (Codex LOW-2): 锁内部确实走了持久化读入口
+        service.load_card_state.assert_awaited_once_with("no-persist")
 
     @pytest.mark.asyncio
     async def test_persistence_load_returns_empty_string(
@@ -94,6 +96,8 @@ class TestAutoCreationEdgeCases:
         result = await service.get_fsrs_state("empty-persist")
         assert result["found"] is True
         mock_fsrs_manager.create_card.assert_called_once()
+        # CARD-C4 (Codex LOW-2): 锁内部确实走了持久化读入口
+        service.load_card_state.assert_awaited_once_with("empty-persist")
 
     @pytest.mark.asyncio
     async def test_create_card_failure_returns_error(self, service, mock_fsrs_manager):

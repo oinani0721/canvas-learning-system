@@ -60,7 +60,6 @@ Story 32.2: Migrated from Ebbinghaus fixed intervals to FSRS-4.5 dynamic schedul
 """
 
 import asyncio
-import contextvars
 import json
 import logging
 import random
@@ -305,8 +304,6 @@ class ReviewService:
         self._task_canvas_map: Dict[str, str] = {}  # Maps task_id to canvas_name
         # Story 32.2 + P0-2: Card state storage with file persistence
         self._card_states: Dict[str, str] = self._load_card_states()
-        # Story 32.10 AC-3: Track fire-and-forget persistence failures
-        self._auto_persist_failures: int = 0
         logger.debug("ReviewService initialized")
 
     @staticmethod
@@ -325,11 +322,18 @@ class ReviewService:
             logger.warning(f"Failed to load FSRS card states: {e}")
         return {}
 
-    async def _save_card_states(self) -> None:
+    async def _save_card_states(self) -> bool:
         """P0-2: Persist card states to JSON file with concurrency protection.
 
         H2 fix: Uses asyncio.Lock to prevent concurrent writes and atomic
         write (temp file + rename) to prevent file corruption.
+
+        Returns:
+            True if the atomic write completed; False if it failed (logged).
+            CARD-C4 Codex HIGH-1: 文件是唯一真实持久化通道, 失败必须可被
+            调用方看见——save_card_state 消费此值, 不再把"仅内存暂存、
+            重启即丢"谎报成持久化成功。(评分/auto-create 两处调用点的
+            失败信号消费归后续卡, 本卡不改其控制流。)
         """
         async with _card_states_lock:
             try:
@@ -342,8 +346,10 @@ class ReviewService:
                 logger.debug(
                     f"Saved {len(self._card_states)} FSRS card states to {_CARD_STATES_FILE}"
                 )
+                return True
             except (OSError, TypeError) as e:
                 logger.warning(f"Failed to save FSRS card states: {e}")
+                return False
 
     def _extract_question_from_node(self, node: Dict[str, Any]) -> str:
         """
@@ -1961,57 +1967,26 @@ class ReviewService:
         self, concept_id: str, canvas_name: Optional[str] = None
     ) -> Optional[str]:
         """
-        Load FSRS card state from persistence layer.
+        Load FSRS card state from the in-memory cache (file-backed, P0-2).
 
         Story 32.2 AC-32.2.4: Backward compatible - returns None for new concepts.
+        CARD-C4 (G-FAKE-007): 原 "load from Graphiti" 读侧死块已下线——它查询
+        的 LearningMemoryClient 是本地 JSON 存储, 其 canonical schema
+        (add_learning_episode/LearningMemory) 从不承载 card_data 字段: 历史
+        普通学习记录存在, 但 FSRS 卡镜像从未被持久化过, 死块按 card_data
+        过滤故永远返回 None (详见 docs/known-gotchas.md G-FAKE-007)。真接
+        Graphiti 须等 epic-5a C-1/C-2 契约 (episode schema 归主干工程独占)。
 
         Args:
             concept_id: Concept identifier
-            canvas_name: Optional canvas name for filtering
+            canvas_name: Unused; kept for call-site compatibility
 
         Returns:
             Serialized card JSON string or None if not found
         """
-        # Check in-memory cache first
         if concept_id in self._card_states:
             logger.debug(f"Loaded card state from memory cache: {concept_id}")
             return self._card_states[concept_id]
-
-        # Try to load from Graphiti
-        if self.graphiti_client:
-            try:
-                from app.clients.graphiti_client import get_learning_memory_client
-
-                memory_client = get_learning_memory_client()
-                await memory_client.initialize()
-
-                # Query for concept's FSRS card state
-                history = await memory_client.get_learning_history(
-                    canvas_name or "", limit=1
-                )
-
-                # Look for card_data in most recent record
-                for record in history:
-                    if record.get("concept") == concept_id:
-                        card_data = record.get("card_data")
-                        if card_data:
-                            # Cache it + persist (P0-2)
-                            self._card_states[concept_id] = card_data
-                            await self._save_card_states()
-                            logger.debug(
-                                f"Loaded card state from Graphiti: {concept_id}"
-                            )
-                            return card_data
-
-            except (
-                ConnectionError,
-                TimeoutError,
-                ValueError,
-                KeyError,
-                TypeError,
-                AttributeError,
-            ) as e:
-                logger.warning(f"Failed to load card state from Graphiti: {e}")
 
         return None
 
@@ -2024,61 +1999,33 @@ class ReviewService:
         score: Optional[float] = None,
     ) -> bool:
         """
-        Save FSRS card state to persistence layer.
+        Save FSRS card state to the in-memory cache + JSON file (P0-2).
 
-        Story 32.2 AC-32.2.4: Stores card state in review records.
+        Story 32.2 AC-32.2.4: Stores card state for later scheduling.
+        CARD-C4 (G-FAKE-007): 原 "persist to Graphiti" 幻影调用已下线——
+        它调用的方法在整个 git 历史中从未定义, 每次抛 AttributeError 被吞
+        后记 warning, 但 return True 不区分镜像失败, 且源码含永远不可达的
+        "已存入 Graphiti" 成功日志 (详见 docs/known-gotchas.md G-FAKE-007);
+        底层 LearningMemoryClient 也非 Graphiti 而是本地 JSON。文件通道
+        (_save_card_states) 是唯一真实持久化。真接 Graphiti 须等 epic-5a
+        C-1/C-2 契约。
 
         Args:
             concept_id: Concept identifier
             card_data: Serialized FSRS card JSON
-            canvas_name: Canvas file name
-            rating: FSRS rating (1-4)
-            score: Optional legacy score (0-100)
+            canvas_name: Unused; kept for call-site compatibility
+            rating: Unused; kept for call-site compatibility
+            score: Unused; kept for call-site compatibility
 
         Returns:
-            True if saved successfully
+            True if persisted to file; False if the file write failed
+            (in-memory cache still updated, lost on restart). Codex HIGH-1:
+            返回值必须如实反映唯一真实通道的结果。
         """
-        # Always update in-memory cache + persist to file (P0-2)
         self._card_states[concept_id] = card_data
-        await self._save_card_states()
+        persisted = await self._save_card_states()
         logger.debug(f"Saved card state to memory cache: {concept_id}")
-
-        # Try to persist to Graphiti
-        if self.graphiti_client:
-            try:
-                from app.clients.graphiti_client import get_learning_memory_client
-
-                memory_client = get_learning_memory_client()
-                await memory_client.initialize()
-
-                # Create learning memory with FSRS data
-                memory_data = {
-                    "concept": concept_id,
-                    "canvas_name": canvas_name,
-                    "rating": rating,
-                    "score": score,
-                    "card_data": card_data,
-                    "algorithm": "fsrs-4.5",
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                }
-
-                await memory_client.add_learning_memory(memory_data)
-                logger.info(f"Saved card state to Graphiti: {concept_id}")
-                return True
-
-            except (
-                ConnectionError,
-                TimeoutError,
-                ValueError,
-                KeyError,
-                TypeError,
-                AttributeError,
-            ) as e:
-                logger.warning(f"Failed to save card state to Graphiti: {e}")
-                # In-memory cache still valid
-                return True
-
-        return True
+        return persisted
 
     def get_cached_card_states(self) -> Dict[str, str]:
         """
@@ -2136,52 +2083,14 @@ class ReviewService:
                 )
                 card = self._fsrs_manager.create_card()
                 card_data = self._fsrs_manager.serialize_card(card)
-                # Cache the newly created card + persist (P0-2)
+                # Cache the newly created card + persist to file (P0-2).
+                # CARD-C4 (G-FAKE-007): 原 fire-and-forget "_persist_auto_created_card"
+                # 后台任务已下线——它调用的方法从未存在 (详见 known-gotchas
+                # G-FAKE-007), 每次必失败只留 warning + 计数器, 从未写入过任何
+                # 存储。文件通道即唯一真实持久化; 真接 Graphiti 须等 epic-5a
+                # C-1/C-2 契约。
                 self._card_states[concept_id] = card_data
                 await self._save_card_states()
-                # Story 38.3 AC-4 + Code Review C1/M3 Fix:
-                # Persist auto-created card via fire-and-forget background task.
-                # Bypasses self.graphiti_client gate (not injected by dependencies.py)
-                # and uses get_learning_memory_client() directly.
-                # Story 32.10 AC-3: Capture self for failure counter
-                _self_ref = self
-
-                async def _persist_auto_created_card(cid: str, cdata: str) -> None:
-                    try:
-                        from app.clients.graphiti_client import (
-                            get_learning_memory_client,
-                        )
-
-                        memory_client = get_learning_memory_client()
-                        await memory_client.initialize()
-                        memory_data = {
-                            "concept": cid,
-                            "canvas_name": "auto-created",
-                            "rating": 0,
-                            "card_data": cdata,
-                            "algorithm": "fsrs-4.5",
-                            "auto_created": True,
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
-                        }
-                        await memory_client.add_learning_memory(memory_data)
-                        logger.info(f"Persisted auto-created card to Graphiti: {cid}")
-                    # INTENTIONAL: Fire-and-forget background task must not crash; any error type possible
-                    except Exception as e:
-                        # Story 32.10 AC-3: Track failure count for observability
-                        _self_ref._auto_persist_failures += 1
-                        logger.warning(
-                            f"Failed to persist auto-created card for {cid} "
-                            f"(total failures: {_self_ref._auto_persist_failures}): {e}"
-                        )
-
-                # wave-5 Stage B P0 (2026-05-11): snapshot ContextVar so the
-                # auto-create-card Graphiti background write inherits the
-                # originating request's vault — prevents cross-vault leak.
-                _persist_ctx = contextvars.copy_context()
-                asyncio.create_task(
-                    _persist_auto_created_card(concept_id, card_data),
-                    context=_persist_ctx,
-                )
             else:
                 # Deserialize existing card
                 card = self._fsrs_manager.deserialize_card(card_data)
