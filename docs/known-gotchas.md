@@ -1,7 +1,7 @@
 # Known Gotchas — Canvas Learning System
 
 > **Session 启动时自动注入。`/parallel-fix` 运行后自动更新。**
-> Last updated: 2026-03-29 (S35: 11待修→2待修，8项审计确认已修复/误报/归档)
+> Last updated: 2026-08-24 (CARD-B1: 新增 G-DEP-001 moviepy 移除 / graceful degradation / 复活条件)
 
 ---
 
@@ -114,6 +114,14 @@
 
 ---
 
+## G-DEP: 依赖移除 / Graceful Degradation (2026-08-24 新增, CARD-B1)
+
+| ID | 问题 | 根因 | 修复状态 | 防止规则 |
+|----|------|------|---------|---------|
+| G-DEP-001 | moviepy 已从 requirements.txt 移除（2026-08-24, BATCH-2026-08-24-复习闭环 / CARD-B1）。视频管道（`lib/agentic_rag/processors/video_processor.py`）从"装了没人用"变为"未装"：`MOVIEPY_AVAILABLE=False`，`VideoProcessor.process()` 走 graceful degradation 抛出信息性 RuntimeError（"moviepy is required for video processing"），不会崩溃 import 链（video_processor.py:25-31 try/except 守护，processors 包 import 不受影响）。⚠️ "未装"仅对**新建/重建**的环境成立：对旧 venv 原地 `pip install -r` **不会**卸载已装的 moviepy（会得到 moviepy 2.2.1 + pillow 12 的未验证组合且 `MOVIEPY_AVAILABLE=True`）——长期 venv 迁移必须重建，或手动卸载 moviepy/imageio/imageio-ffmpeg/proglog 后 `pip check`（本 worktree 已重建，旧环境留存 `backend/.venv-pre-b1-backup` 可回滚）。另注：video_processor.py:231 的 warning 仍提示 `pip install moviepy`，与右列复活条件冲突，属复活时一并处理项（本卡不改产品代码）。 | 触发因素是 pillow 又新增 5 个**不在 CI 旧 13 条豁免内**的 CVE（两组不重合，Fix 均为 12.3.0），把 pip-audit 门真实拦红；而 moviepy 2.2.1 钉死 `pillow<12.0`，依赖解析无解；经查 moviepy 是零调用方死管道（唯一 import 在 video_processor.py:26，`VideoProcessor` 全仓无外部调用方），保留它只为一条没人走的管道锁死安全升级。 | ✅ 已移除并显式声明 `pillow>=12.3.0`；CI pip-audit 门同步删光 13 条 `--ignore-vuln` 豁免变全裸门（.github/workflows/test.yml 内有历史决策记录）；Codex 交叉审查 0 BLOCKER/HIGH（`_bmad-output/审查/codex-review-CARD-B1.md`） | **复活条件**：视频处理出现真实调用方（某 Story 真要处理 mp4/webm）时，先确认彼时 moviepy 已放宽 pillow 上限（否则依赖解析仍无解），再把 `moviepy>=2.x` 加回 requirements.txt、修正 video_processor.py:231 的安装提示、并为 VideoProcessor 补真实调用方测试；禁止只为"装上"而回加。 |
+
+---
+
 ## 统计摘要
 
 | 分类 | 总计 | 已修复 | 有意保留/延后 | 待修复 |
@@ -132,4 +140,5 @@
 | G-MCP | 2 | 2 | 0 | 0 |
 | G-DECISION | 1 | 1 | 0 | 0 |
 | G-INJ | 4 | 4 | 0 | 0 |
-| **合计** | **37** | **32** | **4** | **1** |
+| G-DEP | 1 | 1 | 0 | 0 |
+| **合计** | **38** | **33** | **4** | **1** |

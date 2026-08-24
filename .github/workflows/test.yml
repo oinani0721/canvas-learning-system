@@ -157,49 +157,30 @@ jobs:
         with:
           python-version: '3.12'
       # ═══════════════════════════════════════════════════════════════════════
-      # P1-04 (Codex 对抗审查 2026-08-19): 去掉 continue-on-error
+      # 历史决策记录（本步现为零豁免全裸门 —— 新增任何 CVE 都会真实拦住 CI）
       # ═══════════════════════════════════════════════════════════════════════
-      # 此前本步带 `continue-on-error: true`，于是 pip-audit 实测报
-      # `Found 25 known vulnerabilities in 1 package` 却被包装成绿色 —— 安全审计
-      # 存在但不设防，比没有更危险（给人已在把关的错觉）。
+      # 2026-08-19 P1-04 (Codex 对抗审查): 去掉 continue-on-error。此前 pip-audit
+      #   实测报 `Found 25 known vulnerabilities in 1 package` 却被包装成绿色 ——
+      #   安全审计存在但不设防，比没有更危险（给人已在把关的错觉）。改后失败
+      #   真实传播，但 pillow 的 13 个 CVE（PYSEC-2026-165/2249~2257/2874/3451/
+      #   3453）被显式 --ignore-vuln 豁免：pillow 当时是 moviepy 2.2.1 的传递
+      #   依赖，被其约束 `pillow<12.0,>=9.2.0` 钉死，而 CVE 修复版本全部落在
+      #   12.1.1~12.3.0，依赖解析上无解；当时约定的复查条件是"能升 pillow 时
+      #   立即升级并删除豁免整段"。
+      # 2026-08-24 CARD-B1 (BATCH-2026-08-24-复习闭环): 执行上述复查条款。
+      #   触发因素：pillow 又新增 5 个**不在旧 13 条豁免内**的 CVE（Fix 均为
+      #   12.3.0），把本门真实拦红——证明"新增漏洞会拦住 CI"的设计生效。
+      #   moviepy 经查为零调用方死管道（唯一 import 在 video_processor.py:26，
+      #   try/except 守护，VideoProcessor 全仓无外部调用方），从 requirements.txt
+      #   移除；pillow 显式声明 >=12.3.0，13+5 个 CVE 全部修复，13 条豁免全部删除。
+      #   视频管道 graceful degradation 与复活条件见 docs/known-gotchas.md。
       #
-      # 现在失败真实传播。但 pillow 的 13 个 CVE 显式豁免，理由与复查条件如下：
-      #
-      #   【为什么不能修】pillow 是 moviepy 的传递依赖（requirements 未直接声明），
-      #   moviepy 2.2.1 约束 `pillow<12.0,>=9.2.0`。而 13 个 CVE 的修复版本落在
-      #   12.1.1 ~ 12.3.0 —— 全部高于该上限。moviepy 最新版就是 2.2.1
-      #   （pip index versions 实查，无更新版本），依赖解析上无解。
-      #   砍掉 moviepy 换 pillow 升级属于改变功能面的决策，不在本次修 CI 的范围内。
-      #
-      #   【风险评估】多为 decompression bomb / 字体解析 / FITS 格式类，触发条件是
-      #   处理**恶意构造**的图片或字体文件；本项目 pillow 的调用面是用户自己的
-      #   课程材料（multimodal_service / image_processor / pdf_processor）。
-      #   PYSEC-2026-2257 是 WindowsViewer 命令注入 —— 跑 macOS/Linux Docker，
-      #   该代码路径不可达。
-      #
-      #   ⏰【复查条件】moviepy 放宽 pillow 上限时立即升级并**删除本豁免整段**。
-      #   在那之前，任何**新增**漏洞（含 pillow 的新 CVE 或其它包）都会真实拦住 CI，
-      #   这正是相比 continue-on-error 的关键差别。
-      #
-      #   ⚠️ 豁免清单不得随手追加 —— 每加一条都要在此写明为什么修不了、风险为何
-      #   可接受、以及什么条件下解除。
+      # ⚠️ 本门从此零豁免。如未来某 CVE 确实修不了需要豁免，每加一条都必须在此
+      #   写明为什么修不了、风险为何可接受、以及什么条件下解除 —— 不得随手追加。
       - name: Run pip-audit
         run: |
           pip install pip-audit
-          pip-audit -r backend/requirements.txt --desc \
-            --ignore-vuln PYSEC-2026-165 \
-            --ignore-vuln PYSEC-2026-2249 \
-            --ignore-vuln PYSEC-2026-2250 \
-            --ignore-vuln PYSEC-2026-2251 \
-            --ignore-vuln PYSEC-2026-2252 \
-            --ignore-vuln PYSEC-2026-2253 \
-            --ignore-vuln PYSEC-2026-2254 \
-            --ignore-vuln PYSEC-2026-2255 \
-            --ignore-vuln PYSEC-2026-2256 \
-            --ignore-vuln PYSEC-2026-2257 \
-            --ignore-vuln PYSEC-2026-2874 \
-            --ignore-vuln PYSEC-2026-3451 \
-            --ignore-vuln PYSEC-2026-3453
+          pip-audit -r backend/requirements.txt --desc
 
   # ═══════════════════════════════════════════════════════════════════════════════
   # Summary
