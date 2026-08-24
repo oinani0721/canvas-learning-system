@@ -287,9 +287,20 @@ class MasteryEngine:
         # Review with grade (1-4 maps directly to FSRS Rating)
         card, _log = self.fsrs_manager.review_card(card, grade)
 
-        # Store updated FSRS state back to concept
-        concept.fsrs_stability = float(_card_attr(card, "stability", 0.0))
-        concept.fsrs_difficulty = float(_card_attr(card, "difficulty", 0.0))
+        # Store updated FSRS state back to concept.
+        # fsrs 6.x: stability/difficulty can be None (new-card semantics) and
+        # float(None) raises TypeError. ConceptState fields are non-Optional
+        # floats whose consumers already guard with `> 0`, and the scheduler
+        # roundtrips via fsrs_card_data (which preserves null) — so mapping
+        # None to the model's existing 0.0 default is safe here.
+        stability_raw = _card_attr(card, "stability", None)
+        difficulty_raw = _card_attr(card, "difficulty", None)
+        concept.fsrs_stability = (
+            float(stability_raw) if stability_raw is not None else 0.0
+        )
+        concept.fsrs_difficulty = (
+            float(difficulty_raw) if difficulty_raw is not None else 0.0
+        )
         state_raw = _card_attr(card, "state", 0)
         concept.fsrs_state = int(
             state_raw.value if hasattr(state_raw, "value") else state_raw
