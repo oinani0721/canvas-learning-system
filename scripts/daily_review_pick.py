@@ -5,6 +5,11 @@
 → outputs/今日复习.md (人读) + outputs/今日复习.json (推送 payload, 终审 A7:
 stdout 是瞬时数据, 推送失败补跑必须有持久化 payload)。
 
+schema v3 (CARD-A2, BATCH-2026-08-24-复习闭环): 本 JSON 是全系统到期口径
+唯一裁判 — Dashboard.md 直接 dv.io.load 消费 due_nodes 明细 + ineligible
+分桶 (占位符待剖析积压单独成桶), 不再独立重算。v2→v3 纯加性, 推送链
+(daily_review_run/send_bark 只读 notification) 被动兼容。
+
 三态兼容 (live 实测 18 节点: 新字段 1 / 仅旧 10 / 无字段 7):
   mastery_a/b (+last_examined) → effective() 闲置折扣后 pick
   仅 mastery_score             → from_legacy() 均值继承低置信
@@ -25,6 +30,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import re
 import sys
@@ -77,8 +83,13 @@ def _board_name(raw: str | None):
 
 
 def scan_nodes(vault: Path, now: datetime, decay):
-    """扫描 节点/ 池 → (nodes, stats)。逐节点容错: 单个脏节点不崩全轮。"""
+    """扫描 节点/ 池 → (nodes, stats, ineligible)。逐节点容错: 单个脏节点不崩全轮。
+
+    ineligible 分桶 (schema v3, CARD-A2): 被跳过的节点按原因点名, 不再只有
+    计数 — Dashboard 消费 placeholder 桶显示"待剖析积压"。
+    """
     stats = {"new": 0, "legacy": 0, "none": 0, "ineligible": 0, "test_excluded": 0, "corrupt": 0}
+    ineligible = {"placeholder": [], "test_excluded": [], "corrupt": []}
     now_z = now.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     nodes = []
     for path in sorted((vault / "节点").glob("*.md")):
@@ -87,15 +98,18 @@ def scan_nodes(vault: Path, now: datetime, decay):
             text = path.read_text(encoding="utf-8")
         except OSError as e:
             stats["corrupt"] += 1
+            ineligible["corrupt"].append(stem)
             print(f"[pick] 读取失败跳过 {stem}: {e}", file=sys.stderr)
             continue
         if any(mk in stem for mk in TEST_MARKERS):
             stats["test_excluded"] += 1
+            ineligible["test_excluded"].append(stem)
             continue
         m = re.match(r"^﻿?---\r?\n(.*?)\r?\n---\r?\n?(.*)$", text, re.S)
         fm, body = (m.group(1), m.group(2)) if m else ("", text)
         if PLACEHOLDER in body:
             stats["ineligible"] += 1
+            ineligible["placeholder"].append(stem)
             continue
 
         a_raw, b_raw = _fm_num(fm, "mastery_a"), _fm_num(fm, "mastery_b")
@@ -127,16 +141,36 @@ def scan_nodes(vault: Path, now: datetime, decay):
             pick = decay.pick_score(a_eff, b_eff)
         except (ValueError, ZeroDivisionError, OverflowError) as e:
             stats["corrupt"] += 1
+            ineligible["corrupt"].append(stem)
             print(f"[pick] Beta 参数损坏跳过 {stem}: {e}", file=sys.stderr)
+            continue
+        if not math.isfinite(pick):
+            # Codex-A2 H1: 巨值 mastery 让 pick 静默算成 NaN/inf 不抛异常 —
+            # v3 起每个到期节点的 pick 都进 JSON, 单个 NaN = 全文件非法。
+            # 与其余脏数据同语义: 进 corrupt 桶, 不崩全轮。
+            stats["corrupt"] += 1
+            ineligible["corrupt"].append(stem)
+            print(f"[pick] Beta 参数溢出跳过 {stem}: pick={pick}", file=sys.stderr)
             continue
 
         fsrs_due = _fm_str(fm, "fsrs_due") or ""
+        due_fail_open = False
         # Code-Review M2: Obsidian Properties 面板可能把 datetime 重新序列化成
         # 带偏移格式, 词法比较会反向误判「永不到期」。非规范格式 fail-open
         # 视同到期 (与 New 语义一致), 不静默消失。
-        if fsrs_due and not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", fsrs_due):
-            print(f"[pick] fsrs_due 非规范格式, 视同到期: {stem} ({fsrs_due})", file=sys.stderr)
-            fsrs_due = ""
+        # Codex-A2 M2: 形状正确但日历非法 (如月份 13) 词法比较会误判成未来,
+        # 同样 fail-open — 脏值策略统一为一条。
+        if fsrs_due:
+            due_ok = bool(re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", fsrs_due))
+            if due_ok:
+                try:
+                    datetime.strptime(fsrs_due, "%Y-%m-%dT%H:%M:%SZ")
+                except ValueError:
+                    due_ok = False
+            if not due_ok:
+                print(f"[pick] fsrs_due 非规范格式, 视同到期: {stem} ({fsrs_due})", file=sys.stderr)
+                fsrs_due = ""
+                due_fail_open = True
         nodes.append({
             "node": stem,
             "board": _board_name(_fm_str(fm, "source_board")),
@@ -146,9 +180,10 @@ def scan_nodes(vault: Path, now: datetime, decay):
             "last_examined": last_exam or "",
             "fsrs_due": fsrs_due,
             "due_now": (not fsrs_due) or fsrs_due <= now_z,  # 无字段 = New 即刻到期
+            "due_fail_open": due_fail_open,
             "difficulty": _fm_str(fm, "fsrs_difficulty") or "",
         })
-    return nodes, stats
+    return nodes, stats, ineligible
 
 
 def rank_boards(nodes, board_last_recommended: dict):
@@ -206,18 +241,38 @@ def _body(top: dict) -> str:
 
 
 def build_payload(vault: Path, now: datetime, board_last_recommended: dict, decay):
-    nodes, stats = scan_nodes(vault, now, decay)
+    nodes, stats, ineligible = scan_nodes(vault, now, decay)
     ranked, upcoming, unassigned = rank_boards(nodes, board_last_recommended)
     stats["unassigned"] = len(unassigned)
-    stats["due_nodes"] = sum(1 for n in nodes if n["board"] and n["due_now"])
+    # v3 (CARD-A2): due_nodes 明细与 stats 数字同源派生 — 自洽靠构造保证,
+    # 本投影是全系统到期口径唯一裁判 (Dashboard 只消费不重算)
+    due_rows = [
+        {
+            "node": n["node"],
+            "board": n["board"],
+            "state": n["state"],
+            "pick": round(n["pick"], 4),
+            "fsrs_due": n["fsrs_due"],           # 空串 = 新卡即刻到期
+            # Codex-A2 M1: 消费方须能区分真新卡与 fail-open 的脏日期卡
+            "due_reason": ("malformed" if n["due_fail_open"]
+                           else ("scheduled" if n["fsrs_due"] else "new")),
+            "last_examined": n["last_examined"],
+            "difficulty": n["difficulty"],
+        }
+        for n in nodes if n["board"] and n["due_now"]
+    ]
+    stats["due_nodes"] = len(due_rows)
     stats["future_nodes"] = sum(1 for n in nodes if n["board"] and not n["due_now"])
     payload = {
         "unassigned_nodes": unassigned,  # Code-Review M3: 点名而非只给数字
-        "schema_version": 2,             # v2: FSRS WHEN 化 (upcoming/due 语义)
+        "schema_version": 3,             # v3: +due_nodes 明细 +ineligible 分桶
+        #                                  (纯加性; v2: FSRS WHEN 化 upcoming/due 语义)
         "date": now.astimezone().date().isoformat(),
         "generated_at": now.astimezone().isoformat(timespec="seconds"),
         "top_boards": ranked[:3],
         "upcoming": upcoming[:3],
+        "due_nodes": due_rows,
+        "ineligible": ineligible,
         "stats": stats,
         "notification": None,
     }

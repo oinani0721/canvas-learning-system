@@ -11,7 +11,7 @@ story: "1.18"
 > [!info]+ 这是什么？
 > 一站式查看所有原白板状态 + 节点总数 + 平均掌握度 + 待复习节点。**Cmd+P 打开命令面板** → 搜索"启动考察"可以一键发起考察（复制 /start-exam-board 命令）。
 >
-> **数据源**：Plugin 实时从 `原白板/*.md` 和 `节点/*.md` 的 frontmatter 自动聚合。手动派生 / 追加 / 配置后**无需刷新**，DataviewJS 会自动重算。
+> **数据源**：Plugin 实时从 `原白板/*.md` 和 `节点/*.md` 的 frontmatter 自动聚合。手动派生 / 追加 / 配置后**无需刷新**，DataviewJS 会自动重算。**例外**：FSRS 到期数消费 `outputs/今日复习.json` 投影（daily_review_pick 是到期口径唯一裁判，每日 9:05 生成），不做独立重算。
 
 ---
 
@@ -48,18 +48,59 @@ const groupedStr = Object.entries(nodesByBoard)
   .map(([k, v]) => `${k}: ${v}`)
   .join(" / ");
 
-// 3. FSRS 到期数（FSRS-V2 2026-07-30 接活: WHEN=fsrs_due, 无字段=新卡视同到期
-//    — 与 Decision-FSRS-2 同口径, 新卡计入到期）
-const schedCnt = nodes.filter(n => n.fsrs_due && dv.date(String(n.fsrs_due)) <= dv.date("now")).length;
-const newCnt = nodes.filter(n => !n.fsrs_due).length;
-const fsrsPlaceholder = `${schedCnt + newCnt}（含 ${newCnt} 张新卡视同到期 · 完整口径见 outputs/今日复习.md）`;
+// 3. FSRS 到期数（CARD-A2 2026-08-24: daily_review_pick 是到期口径唯一裁判,
+//    这里只消费 outputs/今日复习.json 投影 (schema v3), 不再独立重算 —
+//    修复 live 实测 13 vs 6 的口径分裂）
+let fsrsLine = "⏳ 投影未生成 — `outputs/今日复习.json` 缺失（每日复习任务每天 9:05 自动生成，生成后此处自动出数）";
+let backlogNames = [];
+try {
+  const raw = await dv.io.load("outputs/今日复习.json");
+  if (raw) {
+    const proj = JSON.parse(raw);
+    // Codex-A2 H2: 结构校验 — 缺关键字段/版本异常时走明确降级,
+    // 绝不把结构损坏的投影伪装成可信的"0 到期"
+    const sv = proj?.schema_version;
+    const hasDetail = Array.isArray(proj?.due_nodes);
+    const statsDueOk = typeof proj?.stats?.due_nodes === "number";
+    if (!proj || typeof proj !== "object" || typeof sv !== "number" || sv < 2 || !(hasDetail || statsDueOk)) {
+      fsrsLine = "⚠️ 投影结构异常 — `outputs/今日复习.json` 缺关键字段或版本不受支持（不显示不可信数字），等下次生成自动覆盖修复";
+    } else {
+      const dueCnt = hasDetail ? proj.due_nodes.length : proj.stats.due_nodes;
+      // due_reason 缺失时按 fsrs_due 空串退化推断 (v3 早期投影兼容)
+      const reasonOf = d => d.due_reason ?? (d.fsrs_due ? "scheduled" : "new");
+      const newCardCnt = hasDetail ? proj.due_nodes.filter(d => reasonOf(d) === "new").length : null;
+      const malformedCnt = hasDetail ? proj.due_nodes.filter(d => reasonOf(d) === "malformed").length : 0;
+      backlogNames = Array.isArray(proj.ineligible?.placeholder) ? proj.ineligible.placeholder : [];
+      const backlogCnt = backlogNames.length || (proj.stats?.ineligible ?? 0);
+      const parts = [];
+      if (newCardCnt !== null) parts.push(`含 ${newCardCnt} 张新卡视同到期`);
+      if (malformedCnt > 0) parts.push(`脏日期按到期处理 ${malformedCnt} 张`);
+      parts.push(`待剖析积压 ${backlogCnt} 张另计`);
+      const unassignedCnt = proj.stats?.unassigned ?? 0;
+      if (unassignedCnt > 0) parts.push(`未归板 ${unassignedCnt} 张另计`);
+      if (sv > 3) parts.push(`投影 v${sv}，按 v3 口径解读`);
+      parts.push(`投影生成于 ${proj.generated_at ?? "?"}`);
+      fsrsLine = `\`${dueCnt}\`（${parts.join(" · ")}）`;
+    }
+  }
+} catch (e) {
+  fsrsLine = "⚠️ 投影损坏 — `outputs/今日复习.json` 解析失败，等下次生成自动覆盖修复";
+}
 
 dv.paragraph(
   `📊 **平均精通度**: \`${avgMastery.toFixed(2)}\` ${masteryColor} ${masteryLabel}\n\n` +
   `📚 **节点总数**: \`${nodes.length}\`（${groupedStr || "暂无"}）\n\n` +
-  `⏰ **FSRS 到期**: ${fsrsPlaceholder}\n\n` +
+  `⏰ **FSRS 到期**: ${fsrsLine}\n\n` +
   `🗂️ **原白板总数**: \`${boards.length}\``
 );
+
+if (backlogNames.length > 0) {
+  // 文件名含 wikilink 保留字符 (|[]#^) 时退化为纯文本, 防死链
+  dv.paragraph(
+    `> 🗂️ **待剖析积压**（${backlogNames.length} 张占位节点，定义未写完不参与复习，不计入到期数）: ` +
+    backlogNames.map(n => /[|\[\]#^]/.test(n) ? n : `[[节点/${n}|${n}]]`).join("、")
+  );
+}
 ```
 
 ---
