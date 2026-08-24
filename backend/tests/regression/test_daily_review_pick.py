@@ -6,7 +6,7 @@
 
 import shutil
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 WT = Path(__file__).resolve().parents[3]
@@ -20,7 +20,7 @@ NOW = datetime(2026, 7, 30, 1, 0, tzinfo=timezone.utc)
 _seq = iter(range(1000))
 
 
-def _build(tmp_path, nodes: dict, blr: dict | None = None):
+def _build(tmp_path, nodes: dict, blr: dict | None = None, now: datetime = NOW):
     vault = tmp_path / f"vault{next(_seq)}"  # 同一测试可多次调用, 各建独立 vault
     scripts = vault / ".claude" / "scripts"
     scripts.mkdir(parents=True)
@@ -28,7 +28,7 @@ def _build(tmp_path, nodes: dict, blr: dict | None = None):
     shutil.copy(WT / "canvas-vault" / ".claude" / "scripts" / "decay_beta.py", scripts)
     for name, content in nodes.items():
         (vault / "节点" / f"{name}.md").write_text(content, encoding="utf-8")
-    return picker.build_payload(vault, NOW, blr or {}, picker.load_decay(vault))
+    return picker.build_payload(vault, now, blr or {}, picker.load_decay(vault))
 
 
 def _node(board="普通板", extra=""):
@@ -141,3 +141,143 @@ def test_unassigned_nodes_named_in_md(tmp_path):
     )
     assert payload["unassigned_nodes"] == ["孤儿"]
     assert "孤儿" in picker.render_md(payload, ranked)
+
+
+# ── Review Projection v3 (CARD-A2, BATCH-2026-08-24-复习闭环) ──
+# daily_review_pick 为到期口径唯一裁判: Dashboard 消费 due_nodes 明细与
+# ineligible 分桶, 不再独立重算 (live 实测 13 vs 6 口径分裂的修复锁定)。
+
+
+def test_projection_v3_due_nodes_and_ineligible_buckets(tmp_path):
+    """5 类口径分歧节点全覆盖: 明细集合与 stats 数字必须同源自洽。
+
+    ① 占位符未剖析 → ineligible.placeholder 单独成桶 (不静默吞掉)
+    ② 无 type 字段 → picker 口径照收 (旧 Dashboard type==concept 反向漏掉的那类)
+    ③ 无 source_board → 不计入 due_nodes, 点名在 unassigned_nodes
+    ④ TEST_MARKERS 文件名 → ineligible.test_excluded 桶
+    ⑤ 脏 fsrs_due (带时区偏移) → fail-open 视同到期, 进 due_nodes
+
+    另锁 due 边界 (对抗性验证 M2): fsrs_due==now 判到期 (<= 语义),
+    now+1h 判未到期 — 词法比较改 < 或引入时区漂移都会红。
+    """
+    payload, _ = _build(
+        tmp_path,
+        {
+            "占位": _node().replace("真实内容。", "> 你的 1-2 句精准定义"),
+            "无type": '---\nsource_board: "[[原白板/B板]]"\n---\n真实内容。\n',
+            "孤儿": "---\ntype: concept\n---\n真实内容。\n",
+            "TestConcept-伪节点": _node(),
+            "脏due": _node(extra="fsrs_due: 2026-07-29T01:00:00+08:00\n"),
+            "非法日期": _node(extra="fsrs_due: 2026-13-01T00:00:00Z\n"),
+            "规范到期": _node(extra="fsrs_due: 2026-07-29T01:00:00Z\n"),
+            "边界到期": _node(extra="fsrs_due: 2026-07-30T01:00:00Z\n"),
+            "小时级未到期": _node(extra="fsrs_due: 2026-07-30T02:00:00Z\n"),
+            "未到期": _node(extra="fsrs_due: 2026-08-15T01:00:00Z\n"),
+            "损坏": _node(extra="mastery_a: -3\nmastery_b: 2\n"),
+        },
+    )
+    assert payload["schema_version"] == 3
+    assert {d["node"] for d in payload["due_nodes"]} == {"无type", "脏due", "非法日期", "规范到期", "边界到期"}
+    assert len(payload["due_nodes"]) == payload["stats"]["due_nodes"]
+    for row in payload["due_nodes"]:
+        assert set(row) >= {"node", "board", "state", "fsrs_due", "due_reason"}
+    rows = {d["node"]: d for d in payload["due_nodes"]}
+    assert rows["无type"]["board"] == "B板" and rows["规范到期"]["board"] == "普通板"
+    # fail-open 清空语义锁定: Dashboard 的"新卡视同到期"计数依赖 fsrs_due==""
+    assert rows["脏due"]["fsrs_due"] == ""
+    # Codex-A2 M1/M2: 消费方可区分真新卡 / 已调度 / fail-open 脏日期
+    # (含"形状对但月份 13"的日历非法值, 不得被词法比较误判成未来)
+    assert rows["脏due"]["due_reason"] == "malformed"
+    assert rows["非法日期"]["due_reason"] == "malformed"
+    assert rows["无type"]["due_reason"] == "new"
+    assert rows["规范到期"]["due_reason"] == "scheduled"
+
+    ineligible = payload["ineligible"]
+    assert set(ineligible) >= {"placeholder", "test_excluded", "corrupt"}
+    assert ineligible["placeholder"] == ["占位"]
+    assert ineligible["test_excluded"] == ["TestConcept-伪节点"]
+    assert ineligible["corrupt"] == ["损坏"]
+    assert len(ineligible["placeholder"]) == payload["stats"]["ineligible"]
+    assert len(ineligible["test_excluded"]) == payload["stats"]["test_excluded"]
+    assert len(ineligible["corrupt"]) == payload["stats"]["corrupt"]
+    assert payload["unassigned_nodes"] == ["孤儿"]
+
+
+def test_projection_v3_purely_additive_keeps_v2_contract(tmp_path):
+    """推送链被动性守卫: v2 既有字段一个不少、语义不变 (daily_review_run /
+    send_bark 只读 notification, 但全字段名保留是加性承诺的下界)。"""
+    payload, ranked = _build(tmp_path, {"存量": _node()})
+    for key in (
+        "unassigned_nodes",
+        "date",
+        "generated_at",
+        "top_boards",
+        "upcoming",
+        "due_nodes",
+        "ineligible",
+        "stats",
+        "notification",
+    ):
+        assert key in payload
+    for key in (
+        "new",
+        "legacy",
+        "none",
+        "ineligible",
+        "test_excluded",
+        "corrupt",
+        "unassigned",
+        "due_nodes",
+        "future_nodes",
+    ):
+        assert isinstance(payload["stats"][key], int)
+    # Bark 推送硬依赖 notification 四键 (send_bark.py 直接下标访问, 缺键即崩)
+    noti = payload["notification"]
+    assert noti["id"] == f"canvas-review-{payload['date']}"
+    for key in ("title", "body", "group"):
+        assert isinstance(noti[key], str) and noti[key]
+    assert ranked[0]["board"] == "普通板"
+
+
+def test_nonfinite_pick_goes_corrupt_not_nan_json(tmp_path):
+    """Codex-A2 H1: 巨值 mastery 产出 NaN pick 不抛异常 — v3 起全部到期节点
+    的 pick 进 JSON, 单个 NaN 会让整个投影文件非法。必须进 corrupt 桶。"""
+    import json as _json
+
+    payload, ranked = _build(
+        tmp_path,
+        {
+            "溢出": _node(extra=f"mastery_a: {'9' * 400}\nmastery_b: 2\n"),
+            "正常": _node(),
+        },
+    )
+    assert payload["ineligible"]["corrupt"] == ["溢出"]
+    assert payload["stats"]["corrupt"] == 1
+    assert {d["node"] for d in payload["due_nodes"]} == {"正常"}
+    # 全 payload 必须能严格 JSON 序列化 (裸 NaN = Dashboard JSON.parse 直接炸)
+    _json.dumps(payload, ensure_ascii=False, allow_nan=False)
+
+
+def test_due_boundary_survives_local_timezone_now(tmp_path):
+    """Codex-A2 M3: now 为 +08:00 本地时区表示时, UTC 词法边界不得漂移
+    (根因场景: 本地时区当前时间 vs UTC due 的比较)。"""
+    now_local = NOW.astimezone(timezone(timedelta(hours=8)))  # 同一时刻, 非 UTC 表示
+    payload, _ = _build(
+        tmp_path,
+        {
+            "边界": _node(extra="fsrs_due: 2026-07-30T01:00:00Z\n"),
+            "过一秒": _node(extra="fsrs_due: 2026-07-30T01:00:01Z\n"),
+        },
+        now=now_local,
+    )
+    assert {d["node"] for d in payload["due_nodes"]} == {"边界"}
+    assert payload["stats"]["future_nodes"] == 1
+
+
+def test_projection_v3_empty_vault_keeps_contract_keys(tmp_path):
+    """空 vault 契约完整性: 分桶与明细键必须恒在 (Dashboard 不做存在性分支)。"""
+    payload, ranked = _build(tmp_path, {})
+    assert ranked == [] and payload["due_nodes"] == []
+    assert set(payload["ineligible"]) == {"placeholder", "test_excluded", "corrupt"}
+    assert all(v == [] for v in payload["ineligible"].values())
+    assert payload["notification"] is None
