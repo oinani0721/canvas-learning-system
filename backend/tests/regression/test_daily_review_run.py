@@ -10,9 +10,10 @@ ensure_payload 缓存失效三场景锁定: 当天已生成后, 节点池比 pay
 """
 
 import os
+import plistlib
 import shutil
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, time as dtime, timezone
 from pathlib import Path
 
 WT = Path(__file__).resolve().parents[3]
@@ -209,6 +210,51 @@ def test_write_during_scan_window_not_lost(tmp_path, monkeypatch):
     payload2, gen2 = runner.ensure_payload(st, NOW, TODAY)
     assert gen2 == "new", "竞态窗口内落地的节点必须在下一轮触发重扫, 不得整天 cached"
     assert "竞态" in {d["node"] for d in payload2["due_nodes"]}
+
+
+# ── Codex BLOCKER: 时间推进跨过未来 fsrs_due 也必须失效缓存 ──
+# 复现链: 09:59 写侧落 fsrs_due=10:09 → 10:05 mtime 重扫 (未到期, 空清单)
+# → 11:05 已到期但节点池没再变 → 若只看 mtime 则整天 cached, 当天到期卡
+# 丢失 — 恰是卡片档案 :89 警告的「缺陷位移」。
+
+
+def test_time_crossing_future_due_invalidates_cache(tmp_path, monkeypatch):
+    vault = _vault(
+        tmp_path,
+        {"重学卡": _node(extra="fsrs_due: 2026-07-30T02:30:00Z\n")},
+    )
+    _patch_runner(monkeypatch, vault, tmp_path)
+    st = runner.load_state()
+
+    # 02:00 生成: 卡 02:30 才到期, 清单为空 (upcoming 记录了未来到期)
+    payload1, gen1 = runner.ensure_payload(st, NOW, TODAY)
+    assert gen1 == "new" and payload1["due_nodes"] == []
+
+    _pin_pool_older_than_payload(vault, BASE)
+
+    # 03:05 (跨过 02:30, 节点池零变动): 必须重扫, 到期卡进清单
+    later = datetime(2026, 7, 30, 3, 5, tzinfo=timezone.utc)
+    payload2, gen2 = runner.ensure_payload(st, later, TODAY)
+    assert gen2 == "new", "时间越过未来到期点必须失效缓存, 不得因节点未变而整天 cached"
+    assert {d["node"] for d in payload2["due_nodes"]} == {"重学卡"}
+
+    # 03:06 再跑: 已无未来到期点、池未变 → 回到正常缓存 (不得退化成每轮全扫)
+    _pin_pool_older_than_payload(vault, BASE)
+    _, gen3 = runner.ensure_payload(st, datetime(2026, 7, 30, 3, 6, tzinfo=timezone.utc), TODAY)
+    assert gen3 == "cached"
+
+
+# ── Codex MEDIUM: plist 12 档 (Hour,Minute) 契约整体锁定 (Hour 计数太弱) ──
+
+
+def test_plist_hourly_slots_inside_push_window():
+    with open(WT / "scripts" / "launchd" / "com.canvas.daily-review.plist", "rb") as f:
+        plist = plistlib.load(f)
+    slots = plist["StartCalendarInterval"]
+    assert slots == [{"Hour": h, "Minute": 5} for h in range(9, 21)]  # 9:05–20:05 共 12 档
+    lo, hi = runner.PUSH_WINDOW
+    for s in slots:
+        assert lo <= dtime(s["Hour"], s["Minute"]) < hi  # 全部落在推送窗内
 
 
 # ── tie-break 守卫: 重扫路径不写 board_last_recommended (卡片风险条目) ──

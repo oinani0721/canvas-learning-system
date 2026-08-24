@@ -108,10 +108,12 @@ def _nodes_max_mtime(vault: Path) -> float:
 def ensure_payload(st: dict, now: datetime, today: str) -> tuple[dict | None, str]:
     """当日 payload: 没有才生成 (生成过则复用 — 补跑只补推送)。
 
-    CARD-A3 (BATCH-2026-08-24-复习闭环): 复用多一道门 — 节点池比 payload
-    新 (quiz 写侧刚更新 fsrs_due / 新增重学卡) 则同日重扫, 否则当天到期的
-    重学卡永远进不了投影。push 去重不在此处: last_push_accepted_date 天然
-    保证同日只推一次。
+    CARD-A3 (BATCH-2026-08-24-复习闭环): 复用多两道门 — ①节点池比 payload
+    新 (quiz 写侧刚更新 fsrs_due / 新增重学卡) 则同日重扫; ②当前时间越过
+    生成时记录的最早未来到期点 (next_due_utc) 也重扫 (Codex-A3 BLOCKER:
+    09:59 落 fsrs_due=10:09 → 10:05 重扫时未到期 → 11:05 若只看 mtime 会
+    整天 cached, 当天到期卡丢失 — 卡片 :89 警告的缺陷位移)。push 去重
+    不在此处: last_push_accepted_date 天然保证同日只推一次。
     """
     payload_path = VAULT / "outputs" / "今日复习.json"
     first_gen_today = st.get("last_generate_date") != today
@@ -120,7 +122,9 @@ def ensure_payload(st: dict, now: datetime, today: str) -> tuple[dict | None, st
             raw = payload_path.read_text(encoding="utf-8")
             # sha 校验 (Code-Review L3): 外部改动/半写的 payload 不复用, 重新生成
             if hashlib.sha256(raw.encode("utf-8")).hexdigest() == st.get("payload_sha256"):
-                if _nodes_max_mtime(VAULT) <= payload_path.stat().st_mtime:
+                now_z = now.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                due_crossed = bool(st.get("next_due_utc")) and st["next_due_utc"] <= now_z
+                if not due_crossed and _nodes_max_mtime(VAULT) <= payload_path.stat().st_mtime:
                     return json.loads(raw), "cached"
         except (json.JSONDecodeError, OSError):
             pass  # 落盘 payload 损坏 → 重新生成
@@ -141,6 +145,13 @@ def ensure_payload(st: dict, now: datetime, today: str) -> tuple[dict | None, st
 
     st["last_generate_date"] = today
     st["payload_sha256"] = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+    # 最早未来到期点: ranked 是全量榜 (payload.top_boards 才截断), 每行
+    # next_due 已是板内未来最小值; upcoming 按 next_due 升序, [0] 即全局
+    # 最小, [:3] 截断不丢它。未归板节点不参与推荐, 其到期转场不改变输出。
+    nexts = [r["next_due"] for r in ranked if r.get("next_due")]
+    if payload.get("upcoming"):
+        nexts.append(payload["upcoming"][0]["next_due"])
+    st["next_due_utc"] = min(nexts, default="")
     if ranked and first_gen_today:
         # CARD-A3: 重扫路径不写 — tie-break 的「上次被推荐日期」是天级轮转
         # 语义, 重扫换榜也补写会把第二个板标成「今天推荐过」, 污染后续排序
