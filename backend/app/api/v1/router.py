@@ -41,6 +41,7 @@ from app.api.v1.endpoints.multimodal import multimodal_router
 from app.api.v1.endpoints.profile import profile_router
 from app.api.v1.endpoints.rag import rag_router
 from app.api.v1.endpoints.review import review_router
+from app.api.v1.endpoints.review_overview import review_overview_router  # CARD-C2
 from app.api.v1.endpoints.rollback import rollback_router
 from app.api.v1.endpoints.skills import skills_router  # Story 3.5
 from app.api.v1.endpoints.subjects import subjects_router  # Story 1.9
@@ -147,6 +148,7 @@ router.include_router(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 router.include_router(review_router, prefix="/review", tags=["Review"])
+router.include_router(review_overview_router, prefix="/review", tags=["Review"])  # CARD-C2 跨vault总览
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Monitoring Routes (Story 17.3)
