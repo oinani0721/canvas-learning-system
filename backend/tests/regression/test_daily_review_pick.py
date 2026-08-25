@@ -205,10 +205,14 @@ def test_projection_v3_due_nodes_and_ineligible_buckets(tmp_path):
 
 def test_projection_v3_purely_additive_keeps_v2_contract(tmp_path):
     """推送链被动性守卫: v2 既有字段一个不少、语义不变 (daily_review_run /
-    send_bark 只读 notification, 但全字段名保留是加性承诺的下界)。"""
+    send_bark 只读 notification, 但全字段名保留是加性承诺的下界)。
+    顶层键集合恒等锁定 (Codex-C1a M3): 再新增任何键必须显式改本断言 —
+    「加性」的上界也是契约, 不许静默漂移。"""
     payload, ranked = _build(tmp_path, {"存量": _node()})
-    for key in (
+    assert set(payload) == {
         "unassigned_nodes",
+        "schema_version",
+        "vault_id",  # CARD-C1a 唯一新增
         "date",
         "generated_at",
         "top_boards",
@@ -217,8 +221,7 @@ def test_projection_v3_purely_additive_keeps_v2_contract(tmp_path):
         "ineligible",
         "stats",
         "notification",
-    ):
-        assert key in payload
+    }
     for key in (
         "new",
         "legacy",
@@ -231,11 +234,17 @@ def test_projection_v3_purely_additive_keeps_v2_contract(tmp_path):
         "future_nodes",
     ):
         assert isinstance(payload["stats"][key], int)
+    # CARD-C1a: 顶层 vault_id 加性新增 (send 侧组合有效通知 id 的数据源)
+    assert isinstance(payload["vault_id"], str) and payload["vault_id"]
     # Bark 推送硬依赖 notification 四键 (send_bark.py 直接下标访问, 缺键即崩)
+    # ⚠ 键集合与 id/group/title/body 落盘值全部精确锁定 (A2 冻结契约 +
+    # Codex-C1a M3): 均不含 vault 维度, vault 维度只在 send 侧组合
     noti = payload["notification"]
+    assert set(noti) == {"title", "body", "group", "id"}
     assert noti["id"] == f"canvas-review-{payload['date']}"
-    for key in ("title", "body", "group"):
-        assert isinstance(noti[key], str) and noti[key]
+    assert noti["group"] == "canvas复习"
+    assert noti["title"] == "📚 今日复习 · 普通板"
+    assert noti["body"] == "存量 待巩固 · 从未考察"
     assert ranked[0]["board"] == "普通板"
 
 

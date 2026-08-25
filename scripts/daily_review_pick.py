@@ -267,6 +267,9 @@ def build_payload(vault: Path, now: datetime, board_last_recommended: dict, deca
         "unassigned_nodes": unassigned,  # Code-Review M3: 点名而非只给数字
         "schema_version": 3,             # v3: +due_nodes 明细 +ineligible 分桶
         #                                  (纯加性; v2: FSRS WHEN 化 upcoming/due 语义)
+        # CARD-C1a: 顶层加性新增 — send 侧据此组合 per-vault 有效通知 id,
+        # C2 总览页据此标卡片; notification.id 值与其余字段零改动 (A2 冻结)
+        "vault_id": Path(vault).resolve().name,
         "date": now.astimezone().date().isoformat(),
         "generated_at": now.astimezone().isoformat(timespec="seconds"),
         "top_boards": ranked[:3],
@@ -349,7 +352,8 @@ def load_decay(vault: Path):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="每日复习选板")
+    # allow_abbrev=False 与 runner/push.sh 同源 (Codex-C1a F1)
+    ap = argparse.ArgumentParser(description="每日复习选板", allow_abbrev=False)
     ap.add_argument("--vault", required=True)
     ap.add_argument("--state", help="daily-review.state.json (只读, 取 board_last_recommended)")
     ap.add_argument("--now", help="ISO 时间覆盖 (测试用)")

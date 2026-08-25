@@ -65,27 +65,87 @@ if [ -f "$EV" ]; then
 fi
 
 # DAILY-REVIEW-PUSH-2026-07-29 死人开关: 解析结构化 state — grep 日志只能
-# 证明「跑过」, 证明不了生成/推送成功 (终审 A7 假绿修正)
-review_push="无state"
-RSTATE="$REPO/backups/daily-review.state.json"
-if [ -f "$RSTATE" ]; then
-    review_push=$(/usr/bin/python3 - "$RSTATE" <<'PYEOF' 2>/dev/null || echo "state损坏"
-import datetime, json, sys
-st = json.load(open(sys.argv[1]))
+# 证明「跑过」, 证明不了生成/推送成功 (终审 A7 假绿修正)。
+# CARD-C1a: state 已 per-vault 命名空间化 (daily-review.<key>.state.json)。
+# Codex-C1a B4: 只枚举已存在文件会对「配置了却从没跑过的库」假绿 — 必须
+# 以 .env 期望集合 (DAILY_REVIEW_VAULTS, 缺省 ACTIVE_VAULT) 为基准逐库核对,
+# 缺 state 显式报 "无state"; 多余 state 标注已移出配置; 旧全局文件标注待迁移。
+REVIEW_ENV="$WT/.env"
+EXPECTED=$(grep -E '^DAILY_REVIEW_VAULTS=' "$REVIEW_ENV" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | tr -d '\r')
+[ -z "$EXPECTED" ] && EXPECTED=$(grep -E '^ACTIVE_VAULT=' "$REVIEW_ENV" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | tr -d '\r')
+[ -z "$EXPECTED" ] && EXPECTED="canvas-vault"
+MH_ROOT=$(grep -E '^VAULTS_ROOT=' "$REVIEW_ENV" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | tr -d '\r')
+review_push=$(/usr/bin/python3 - "$WT/scripts" "$REPO/backups" "$EXPECTED" "${MH_ROOT:-$REPO}" <<'PYEOF' 2>/dev/null || echo "state损坏"
+import datetime, glob, json, os, re, sys
+scripts_dir, backups, expected_csv, vaults_root = sys.argv[1:5]
+sys.dont_write_bytecode = True
+sys.path.insert(0, scripts_dir)
+try:
+    from send_bark import vault_key as key_of
+except Exception:
+    def key_of(name):
+        return name  # send_bark 不可读兜底: 退回原名 (仍逐库核对)
 today = datetime.date.today()
 # 用昨日界 (Code-Review M1): 本体检 9:00 跑, 推送 9:05 生成 — 用 ==today
 # 会天天误报 ❌ 狼来了。>= 昨天 = 管道最近 48h 内活着。
-yesterday = (today - datetime.timedelta(days=1)).isoformat()
-gen = "✅" if st.get("last_generate_date", "") >= yesterday else "❌"
-if st.get("last_push_accepted_date", "") >= yesterday:
-    push = "✅"
-elif st.get("last_local_notify_date", "") >= yesterday:
-    push = "兜底"
-else:
-    push = "-"
-print(f"生成:{gen} 推送:{push}")
+yesterday = today - datetime.timedelta(days=1)
+
+def _date(v):
+    # Codex-C1a F7 (round3 严格版): 词法比较对垃圾值恒 >= — 必须整串严格
+    # 解析 ("2026-08-25junk" 截前 10 位会漏过, 整数/非 str 直接拒),
+    # 失败按无记录 (❌/-), 不许假绿
+    if not isinstance(v, str):
+        return None
+    try:
+        return datetime.date.fromisoformat(v)
+    except (ValueError, TypeError):
+        return None
+
+def _fresh(v):
+    # 健康窗 = [昨天, 明天]: 未来日期 (时钟异常/数据损坏) 同样不算健康,
+    # 只留 1 天时区容差 — "9999-12-31" 不得永久假绿
+    d = _date(v)
+    return d is not None and yesterday <= d <= today + datetime.timedelta(days=1)
+
+def verdict(path):
+    try:
+        st = json.load(open(path))
+        if not isinstance(st, dict):
+            raise ValueError
+    except Exception:
+        return "state损坏"
+    gen = "✅" if _fresh(st.get("last_generate_date")) else "❌"
+    if _fresh(st.get("last_push_accepted_date")):
+        push = "✅"
+    elif _fresh(st.get("last_local_notify_date")):
+        push = "兜底"
+    else:
+        push = "-"
+    return f"生成:{gen} 推送:{push}"
+
+# 拆分与 wrapper 对齐: 逗号 + ASCII 空白 (\s 会连 NBSP 一起拆, wrapper 不会)
+expected = [n for n in re.split(r"[,\t\n\r\f\v ]+", expected_csv) if n]
+seen, parts = set(), []
+for name in expected:
+    # 与 runner 同一条名字规则: 存在的路径先 resolve (symlink 归一),
+    # 否则清单里写 alias 名会与 runner 的真名 key 漂移
+    p = os.path.join(vaults_root, name)
+    real = os.path.basename(os.path.realpath(p)) if os.path.exists(p) else name
+    base = f"daily-review.{key_of(real)}.state.json"
+    seen.add(base)
+    path = os.path.join(backups, base)
+    parts.append(f"{name} {verdict(path)}" if os.path.exists(path)
+                 else f"{name}=无state")
+legacy = os.path.join(backups, "daily-review.state.json")
+if os.path.exists(legacy):
+    parts.append(f"旧全局(待迁移) {verdict(legacy)}")
+for path in sorted(glob.glob(os.path.join(backups, "daily-review.*.state.json"))):
+    base = os.path.basename(path)
+    if base not in seen:
+        m = re.match(r"daily-review\.(.+)\.state\.json$", base)
+        parts.append(f"{m.group(1)}(已移出配置) {verdict(path)}")
+print(" | ".join(parts) if parts else "无state")
 PYEOF
 )
-fi
 
 echo "[$(date '+%F %T')] Neo4j:$neo4j 后端:$backend Qwen:$qwen Rerank:$rerank Embed:$ollama | 死信累计:${dead} 待补归档:${queued} | ${pollution} | 今日事件:${events_today} | 复习推送:${review_push} | 最新备份:${latest_backup}" >> "$OUT"
