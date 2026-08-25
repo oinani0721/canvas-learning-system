@@ -1,0 +1,17 @@
+[runner] cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-l3-recap-skill/canvas-vault
+「特征值与特征向量」这块板的广度回顾已经生成完毕。
+
+`★ Insight ─────────────────────────────────────`
+这次回顾用了 1 次 `get_board_manifest`（study 视图）实时读到 board 结构，lag 0 秒,数据全部标【实测】,没有降级到本地扫描。skill 的 HARD-NAV-1 强制"同板同轮只调一次"这个约束,本质是防止 LLM 为了图省事反复重复查询同一份结构数据浪费上下文——manifest 一次性把成员、掌握度、考察历史全带出来,后面所有推理只消费这份 JSON,不再回头问后端。
+`─────────────────────────────────────────────────`
+
+回顾里最值得你留意的三点:
+
+1. **这块板其实只有 3 个成员,其中 1 个还是占位。** 种子节点 `Fundamentals` 至今 0 条批注,2026-07-05 出过一道题之后就再没动过;派生节点 `Eigenvalues-are-special-vectors-that-sat` 还是空壳(`is_stub: true`),派生原因栏只写了「测试」两个字——从派生到现在没有任何进一步剖析。
+
+2. **发现一处材料本身的落差**:原白板的 Recent Activity 日志里记了一条「2026-05-01 派生了 `An-eigenvalue-of-a-linear-transformation` 节点」,但这个节点文件在 vault 里根本不存在,manifest 里也查不到——不确定是当年派生失败、后来被删了,还是日志记录写错了名字,值得你自己核实一下。
+
+3. **最该考的是 `Characteristic-Equation-for-Eigenvalues`**(特征方程),pick_rank 排第 1、从未被真正考过。回顾报告里给了对应的动作句,你可以直接照做。
+
+报告已写到 `outputs/回顾-特征值与特征向量-2026-08-25.md`,全程零写侧——没碰原白板、节点、检验白板的任何一个字。读完如果想随口说一句「记得什么、忘了什么」,告诉我一声,我会把原话追加进这份报告里存着,下次引用;不说也完全没关系。
+[runner] exit=0

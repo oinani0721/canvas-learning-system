@@ -1,0 +1,7 @@
+[runner] cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-l3-recap-skill/canvas-vault
+`★ Insight ─────────────────────────────────────`
+- 这次触发的是 Skill 里专门设计的"诚实降级"路径:manifest 工具不可用时,不是报错卡死,而是静默切到本地正则扫描 `节点/*.md` frontmatter,并在报告头部强制打上 `⚠ FALLBACK` 标记——这是"宁可数据保守也不装作实测"的防幻觉设计。
+- 报告里那句"派生子女数在 fallback 恒无据"背后有个具体原因:mtime 只能告诉你文件改过,改不出"谁派生自谁"的关系,这个关系只存在于原本要读的 manifest 结构化数据里,本地扫描拿不到。
+- Step 5.5 的机械 verifier(脚本跑正则查禁词/占位符/数字对账)是这个 Skill 体系里少见的"不信任 LLM 自我判断"环节——即使我自己觉得报告写得没问题,也必须让脚本再核一遍才能发回执。
+`─────────────────────────────────────────────────`
+[runner] exit=0

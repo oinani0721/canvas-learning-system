@@ -1,0 +1,12 @@
+[runner] cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-l3-recap-skill/canvas-vault
+✗ `原白板/这块板根本不存在XYZ.md` 不存在。
+
+可选的板有这几块：
+- CS 61B
+- 特征值与特征向量
+- 线性代数
+- 递归与分治 (Recursion & Divide-Conquer)
+- CS188 lecture 2
+
+按 Skill 的显式拒绝规则，不存在的板名不会生成任何回顾报告（也不会去猜近似匹配）。如果你想回顾其中一块，直接 `/board-recap <上面某个板名>` 即可。
+[runner] exit=0

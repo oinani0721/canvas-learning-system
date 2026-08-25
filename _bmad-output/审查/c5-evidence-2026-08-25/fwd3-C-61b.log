@@ -1,0 +1,9 @@
+[runner] cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-l3-recap-skill/canvas-vault
+✓ 回顾已生成：`outputs/回顾-CS 61B-2026-08-25.md`
+✓ 数据面：⚠ FALLBACK 本地扫描（manifest 实返 0 成员，脚本判定 nodes 为空转本地扫描）
+✓ 规模：1 成员 / 0 批注
+
+读完可随口说一句「记得什么、忘了什么」——我会把原话记进这份回顾，下次引用；不说也完全没关系。
+
+补充说明一下：`get_board_manifest` 实测返回这块板 `member_count_actual: 0`（后端认为没节点归属它），但脚本本地扫描找到了节点 `节点/cs-61b-csm.md`。这说明该节点的 frontmatter `source_board` 字段很可能没写成 "CS 61B"（或写法不一致），导致两边对不上号。这不影响本次回顾报告的生成（已如实降级并标注），但如果你希望这块板的数据以后能走实测 manifest 而不是每次都 fallback，需要检查一下 `节点/cs-61b-csm.md` 的 frontmatter，看 `source_board` 具体写了什么。
+[runner] exit=0

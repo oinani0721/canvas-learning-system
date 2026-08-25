@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""RAG-S2.6 T5 — 8 份 skill 的检索平面协议静态校验器。
+"""RAG-S2.6 T5 — 9 份 skill 的检索平面协议静态校验器 (CARD-C5 起含 board-recap)。
 
 skill 是 prompt 不是代码, 没法单测。本校验器守住**可静态断言**的那部分,
 让「导航协议」不至于在后续编辑里悄悄腐烂:
 
-  C1 ROUTING 块 8 份逐字节相等 (canonical = start-exam-board 那份)
+  C1 ROUTING 块全部 skill 逐字节相等 (canonical = start-exam-board 那份)
   C2 ROUTING 块内容完整 (HARD-NAV-1..4 四条硬约束都在)
   C3 PLANE-BINDING 5 字段齐 + 取值合法 + 自洽
      (uses_structure: no ⇒ structure_tool/manifest_view 必须都是 none)
@@ -45,10 +45,11 @@ GREEN, RED, YELLOW, RESET = "\033[92m", "\033[91m", "\033[93m", "\033[0m"
 MANIFEST_TOOL = "mcp__canvas-learning-mcp__get_board_manifest"
 CANONICAL_SKILL = "start-exam-board"
 
-#: 8 份 skill 全集 —— 少一份也算违规 (防「新加的 skill 忘了声明平面」)
+#: 9 份 skill 全集 —— 少一份也算违规 (防「新加的 skill 忘了声明平面」)
 EXPECTED_SKILLS = frozenset(
     {
         "ai-linked-doc",
+        "board-recap",
         "chat-with-context",
         "configure-whiteboard",
         "exam-quick",
@@ -186,7 +187,7 @@ def fallback_pairs(text: str) -> tuple[int, str | None]:
 
     ⛔ 先剥掉 ROUTING / PLANE-BINDING 两块再数: ROUTING 的 HARD-NAV-3 正文里
     引用了 `<!-- FALLBACK:BEGIN/END -->` 字样, 那是**约定的说明**不是真 sentinel,
-    不剥会让 8 份 skill 全部假阳性 (本校验器首跑实测踩到)。
+    不剥会让全部 skill 假阳性 (本校验器首跑实测踩到)。
     """
     body = _BINDING_RE.sub("", _ROUTING_RE.sub("", text))
     marks = [(m.start(), m.group(1)) for m in re.finditer(r"^\s*<!-- FALLBACK:(BEGIN|END)\b", body, re.M)]
@@ -332,7 +333,7 @@ def main() -> int:
         for cid, _, detail in c.failed:
             print(f"  {RED}{cid}{RESET}: {detail}")
         return 1
-    print(f"{GREEN}PASS — 8 份 skill 的检索平面协议全绿{RESET}")
+    print(f"{GREEN}PASS — {len(found)} 份 skill 的检索平面协议全绿{RESET}")
     return 0
 
 
