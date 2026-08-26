@@ -197,35 +197,36 @@ class TestReviewServiceGetFSRSState:
             rs_module, "_CARD_STATES_FILE", tmp_path / "fsrs_card_states.json"
         )
 
-    @staticmethod
-    async def _get_state_cancelling_bg(service, concept_id):
-        """Call get_fsrs_state and cancel its fire-and-forget Graphiti task.
-
-        CARD-A1 review (Codex HIGH-2): the background mirror write is a
-        broken pipe (client lacks add_learning_memory) and would touch
-        backend/data/learning_memories.json — unit tests must isolate it.
-        The task hasn't started when the call returns (no await after
-        create_task), so cancelling here is deterministic.
-        """
-        tasks_before = set(asyncio.all_tasks())
-        result = await service.get_fsrs_state(concept_id)
-        for task in asyncio.all_tasks() - tasks_before:
-            if not task.done():
-                task.cancel()
-        return result
-
     @pytest.mark.asyncio
     async def test_get_fsrs_state_returns_card_data(self, review_service_factory):
-        """Service returns FSRS state from card storage."""
+        """Service returns FSRS state from card storage.
+
+        CARD-C4: 原 _get_state_cancelling_bg 帮助函数已删——它防御的
+        fire-and-forget 幻影 Graphiti 后台任务 (G-FAKE-007) 已随 CARD-C4
+        下线, get_fsrs_state 不再派生任何后台任务, 直接 await 即可。
+        """
         service = review_service_factory()
 
         # Test that the method exists and returns a dict
         # The actual implementation uses internal FSRS card cache
-        result = await self._get_state_cancelling_bg(service, "nonexistent-concept")
+        result = await service.get_fsrs_state("nonexistent-concept")
 
         # Story 38.3 AC-4: unknown concepts get an auto-created card
         assert isinstance(result, dict)
         assert "found" in result
+
+    @pytest.mark.asyncio
+    async def test_get_fsrs_state_spawns_no_background_tasks(
+        self, review_service_factory
+    ):
+        """CARD-C4 回归锁定: auto-create 路径不再派生 fire-and-forget 任务
+        (原幻影 Graphiti 镜像写, 每次必失败, G-FAKE-007)。"""
+        service = review_service_factory()
+        tasks_before = set(asyncio.all_tasks())
+        result = await service.get_fsrs_state("c4-no-bg-task-concept")
+        assert result["found"] is True
+        leaked = {t for t in asyncio.all_tasks() - tasks_before if not t.done()}
+        assert not leaked, f"get_fsrs_state 派生了未预期的后台任务: {leaked}"
 
     @pytest.mark.asyncio
     async def test_get_fsrs_state_auto_creates_card_for_missing_concept(
@@ -239,7 +240,7 @@ class TestReviewServiceGetFSRSState:
         """
         service = review_service_factory()
 
-        result = await self._get_state_cancelling_bg(service, "missing-concept")
+        result = await service.get_fsrs_state("missing-concept")
 
         assert result["found"] is True
         assert "error" not in result.get("reason", "")
@@ -257,14 +258,12 @@ class TestReviewServiceGetFSRSState:
         service = review_service_factory()
 
         # Test with various edge cases — must not raise
-        result = await self._get_state_cancelling_bg(service, "")  # Empty ID
+        result = await service.get_fsrs_state("")  # Empty ID
         assert isinstance(result, dict)
         assert result["found"] is True
         assert "error" not in result.get("reason", "")
 
-        result = await self._get_state_cancelling_bg(
-            service, "with/slashes/in/id"
-        )  # Special chars
+        result = await service.get_fsrs_state("with/slashes/in/id")  # Special chars
         assert isinstance(result, dict)
         assert result["found"] is True
         assert "error" not in result.get("reason", "")

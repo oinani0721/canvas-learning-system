@@ -52,7 +52,7 @@ class CardState:
     difficulty: Optional[float] = 0.0
     stability: Optional[float] = 0.0
     due: Optional[datetime] = None
-    state: int = 0  # State enum value
+    state: int = 1  # State enum value (py-fsrs 4+ 三态: 1=Learning, 无 New(0))
     last_review: Optional[datetime] = None
     reps: int = 0
     lapses: int = 0
@@ -80,7 +80,7 @@ class CardState:
             difficulty=data.get("difficulty", 0.0),
             stability=data.get("stability", 0.0),
             due=datetime.fromisoformat(data["due"]) if data.get("due") else None,
-            state=data.get("state", 0),
+            state=data.get("state") or 1,  # legacy 0/缺失 → Learning (CARD-C3)
             last_review=datetime.fromisoformat(data["last_review"])
             if data.get("last_review")
             else None,
@@ -144,11 +144,13 @@ class FSRSManager:
             return Card()
         else:
             # Fallback: return a dict-based card
+            # state=Learning(1) 而非 New(0): 与 py-fsrs 4+ 三态语义对齐,
+            # fallback 写出的记录不得再制造 legacy state:0 (CARD-C3)
             return {
                 "due": datetime.now(timezone.utc),
                 "stability": 0.0,
                 "difficulty": 0.0,
-                "state": State.New,
+                "state": State.Learning,
                 "reps": 0,
                 "lapses": 0,
             }
@@ -283,7 +285,8 @@ class FSRSManager:
                 "due": card.due.isoformat() if card.due else None,
                 "stability": float(stability) if stability is not None else None,
                 "difficulty": float(difficulty) if difficulty is not None else None,
-                "state": int(card.state.value) if hasattr(card, "state") else 0,
+                # 兜底 1 而非 0: fsrs 6.x 无 New(0) 态, 写侧不得产出非法值
+                "state": int(card.state.value) if hasattr(card, "state") else 1,
                 "reps": int(card.reps) if hasattr(card, "reps") else 0,
                 "lapses": int(card.lapses) if hasattr(card, "lapses") else 0,
                 "last_review": card.last_review.isoformat()
@@ -291,13 +294,25 @@ class FSRSManager:
                 else None,
             }
         else:
-            card_dict = card if isinstance(card, dict) else {}
+            card_dict = dict(card) if isinstance(card, dict) else {}
+            if card_dict.get("state") == 0:
+                card_dict["state"] = 1  # legacy New → Learning, 写侧不产 0
 
         return json.dumps(card_dict)
 
     def deserialize_card(self, card_json: str) -> Any:
         """
         Deserialize card from JSON string.
+
+        legacy state:0 → Learning(1) 字段级迁移: legacy 实现（官方
+        py-fsrs v3 及本模块 FSRS_AVAILABLE=False fallback）会存出
+        New(0) + stability/difficulty 0.0 哨兵的旧形状; 当前 py-fsrs
+        4+/6.x 只有三态, State(0) 抛 ValueError。state:0 在此映射为
+        Learning (官方语义: Learning == "new card being studied for the
+        first time"), 且伴生哨兵 0.0 归一为 None——v6 调度器只认 None
+        为未初始化, 0.0 会进稳定度幂运算抛 ZeroDivisionError。这是对
+        CARD-A1 严格 roundtrip 原则的显式例外 (CARD-C3), 其余状态值
+        (1/2/3) 及其字段仍严格原样还原。
 
         Args:
             card_json: JSON string representation
@@ -327,7 +342,32 @@ class FSRSManager:
                     else None
                 )
             if "state" in card_dict:
-                card.state = State(card_dict["state"])
+                raw_state = card_dict["state"]
+                if raw_state == 0:
+                    # legacy New 形状字段级迁移: state 0 → Learning; 伴生
+                    # 参数哨兵 0.0 → None (v6 调度器只认 None 为未初始化,
+                    # stability=0.0 会进稳定度幂运算抛 ZeroDivisionError)。
+                    # 正参数属矛盾形状: 保留并告警, 不猜成 Review。
+                    card.state = State.Learning
+                    if not card.stability:
+                        card.stability = None
+                    if not card.difficulty:
+                        card.difficulty = None
+                    if (
+                        card_dict.get("stability")
+                        or card_dict.get("reps")
+                        or card_dict.get("last_review")
+                    ):
+                        logger.warning(
+                            "legacy state:0 record carries non-empty params "
+                            "(stability=%s, reps=%s, last_review=%s) — mapped "
+                            "to Learning with params preserved",
+                            card_dict.get("stability"),
+                            card_dict.get("reps"),
+                            card_dict.get("last_review"),
+                        )
+                else:
+                    card.state = State(raw_state)
             if "reps" in card_dict:
                 card.reps = card_dict["reps"]
             if "lapses" in card_dict:
@@ -340,6 +380,10 @@ class FSRSManager:
             # Return dict for fallback
             if card_dict.get("due"):
                 card_dict["due"] = datetime.fromisoformat(card_dict["due"])
+            if card_dict.get("state") == 0:
+                # legacy New → Learning (与真实分支同规则)。数值参数保留:
+                # fallback 调度算术依赖数值而非 None 哨兵 (_fallback_review)。
+                card_dict["state"] = 1
             return card_dict
 
     def card_to_state(self, card: Any, concept: str, canvas_file: str) -> CardState:
@@ -364,7 +408,8 @@ class FSRSManager:
                 difficulty=float(difficulty) if difficulty is not None else None,
                 stability=float(stability) if stability is not None else None,
                 due=card.due if hasattr(card, "due") else None,
-                state=int(card.state.value) if hasattr(card, "state") else 0,
+                # 兜底 1 而非 0: fsrs 6.x 无 New(0) 态, 写侧不得产出非法值
+                state=int(card.state.value) if hasattr(card, "state") else 1,
                 last_review=card.last_review if hasattr(card, "last_review") else None,
                 reps=int(card.reps) if hasattr(card, "reps") else 0,
                 lapses=int(card.lapses) if hasattr(card, "lapses") else 0,
@@ -377,7 +422,7 @@ class FSRSManager:
                 difficulty=card.get("difficulty", 0.0),
                 stability=card.get("stability", 0.0),
                 due=card.get("due"),
-                state=card.get("state", 0),
+                state=card.get("state") or 1,  # 0/缺失 → Learning, 写侧不产 0
                 last_review=card.get("last_review"),
                 reps=card.get("reps", 0),
                 lapses=card.get("lapses", 0),

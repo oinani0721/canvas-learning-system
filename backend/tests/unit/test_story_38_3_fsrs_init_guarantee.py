@@ -317,37 +317,43 @@ class TestFSRSStateQueryResponseReason:
 
 
 class TestCodeReviewC1FireAndForgetPersistence:
-    """C1 Fix: Auto-created cards persist via get_learning_memory_client(), not self.graphiti_client."""
+    """CARD-C4 (G-FAKE-007) 翻转: 原 C1 Fix 锁定的 fire-and-forget 持久化
+    后台任务已随假 Graphiti 镜像下线。
+
+    原两用例断言 auto-create 必须派生后台任务——该任务调用的方法在全 git
+    历史中从未存在, 每次必失败 (见 docs/known-gotchas.md G-FAKE-007)。
+    翻转为防复活锁: auto-create 只走文件通道, 不再派生任何后台任务。
+    """
 
     @pytest.mark.asyncio
-    async def test_auto_create_fires_persistence_task(
+    async def test_auto_create_spawns_no_persistence_task(
         self, review_service, mock_fsrs_manager
     ):
-        """When auto-creating a card, a background task is spawned for persistence."""
-        with patch("app.services.review_service.asyncio") as mock_asyncio:
-            mock_asyncio.create_task = MagicMock()
+        """Auto-create 不再派生幻影持久化后台任务 (CARD-C4)。
+
+        只 patch create_task 而非整个 asyncio (Codex LOW-1): to_thread 保持
+        真实, 唯一文件通道真正执行, 用例同时证明 '只走文件通道'。
+        """
+        with patch(
+            "app.services.review_service.asyncio.create_task"
+        ) as mock_create_task:
             result = await review_service.get_fsrs_state("persist-test")
             assert result["found"] is True
-            # asyncio.create_task should have been called for persistence
-            mock_asyncio.create_task.assert_called_once()
+            mock_create_task.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_persistence_create_task_failure_returns_error(
+    async def test_create_task_failure_can_no_longer_break_get_fsrs_state(
         self, review_service, mock_fsrs_manager
     ):
-        """When asyncio.create_task raises, get_fsrs_state returns error gracefully.
-
-        review_service.py L1815 catches all exceptions and returns
-        {"found": False, "reason": "error: ..."} instead of propagating.
-        """
-        with patch("app.services.review_service.asyncio") as mock_asyncio:
-            mock_asyncio.create_task = MagicMock(
-                side_effect=RuntimeError("no event loop")
-            )
+        """原用例锁 'create_task 抛错时优雅降级' —— 该调用路径已删,
+        create_task 抛错不再可能波及 get_fsrs_state (CARD-C4)。"""
+        with patch(
+            "app.services.review_service.asyncio.create_task",
+            side_effect=RuntimeError("no event loop"),
+        ):
             result = await review_service.get_fsrs_state("persist-fail")
-            assert result["found"] is False
-            assert "error" in result["reason"]
-            assert "no event loop" in result["reason"]
+            assert result["found"] is True
+            assert "error" not in result.get("reason", "")
 
 
 class TestCodeReviewC2ReviewServiceSingleton:

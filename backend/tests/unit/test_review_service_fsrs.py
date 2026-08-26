@@ -580,19 +580,63 @@ class TestAlgorithmSelectionPath:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Story 32.11 P1-E: Fire-and-Forget Failure Counter
+# CARD-C4: Fire-and-Forget Failure Counter 已随幻影 Graphiti 镜像下线
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-class TestAutoPersistFailureCounter:
-    """P1: _auto_persist_failures counter for observability."""
+class TestAutoPersistCounterRemoved:
+    """CARD-C4 (G-FAKE-007) 回归锁定: 幻影镜像写的失败计数器已删。
 
-    def test_counter_starts_at_zero(self, review_service_factory):
-        """Freshly created ReviewService has 0 failures."""
-        svc = review_service_factory()
-        assert svc._auto_persist_failures == 0
+    原 Story 32.10/32.11 的 _auto_persist_failures 只为一个从未成功过的
+    幻影后台写计数 (调用的方法全 git 历史不存在), 无任何暴露口。随
+    CARD-C4 安全下线一并移除——本锁防止它被无意识复活。
+    """
 
-    def test_counter_is_integer(self, review_service_factory):
-        """Counter is always an integer."""
+    def test_phantom_failure_counter_is_gone(self, review_service_factory):
         svc = review_service_factory()
-        assert isinstance(svc._auto_persist_failures, int)
+        assert not hasattr(svc, "_auto_persist_failures"), (
+            "幻影 Graphiti 镜像的失败计数器已随 CARD-C4 下线, 不应复活; "
+            "真接 Graphiti 须等 epic-5a C-1/C-2 契约"
+        )
+
+    @pytest.mark.asyncio
+    @pytest.mark.usefixtures("isolate_card_states_file")
+    async def test_save_and_load_card_state_touch_no_memory_client(
+        self, review_service_factory, monkeypatch
+    ):
+        """Codex MEDIUM-3 补强: save/load_card_state 真实入口零外部访问——
+        两处直接幻影路径若复活, 此锁必红。"""
+        import app.clients.graphiti_client as gc_module
+
+        def _forbidden(*args, **kwargs):
+            raise AssertionError(
+                "load/save_card_state 不得访问 LearningMemoryClient (G-FAKE-007)"
+            )
+
+        monkeypatch.setattr(gc_module, "get_learning_memory_client", _forbidden)
+        svc = review_service_factory()
+        assert (
+            await svc.save_card_state("c4-lock", '{"state": 1}', "board.canvas", 3)
+            is True
+        )
+        assert await svc.load_card_state("c4-lock") == '{"state": 1}'
+        assert await svc.load_card_state("missing-c4-lock") is None
+
+    @pytest.mark.asyncio
+    async def test_save_card_state_returns_false_when_file_write_fails(
+        self, review_service_factory, monkeypatch
+    ):
+        """Codex HIGH-1 锁定: 唯一真实持久化通道 (文件) 失败时不得谎报 True
+        ('仅内存暂存、重启即丢' != '持久化成功')。"""
+        from pathlib import Path
+
+        import app.services.review_service as rs_module
+
+        monkeypatch.setattr(
+            rs_module, "_CARD_STATES_FILE", Path("/dev/null/card-states.json")
+        )
+        svc = review_service_factory()
+        assert (
+            await svc.save_card_state("c4-fail", '{"state": 1}', "board.canvas", 3)
+            is False
+        )

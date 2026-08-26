@@ -80,6 +80,19 @@ def fields_from_frontmatter(fm: str) -> dict:
     return out
 
 
+def _legacy_param(v):
+    """legacy state:0 伴生参数哨兵归一: 空/null/~/0/0.0/不可解析 → None。"""
+    if v in (None, ""):
+        return None
+    s = str(v).strip().lower()
+    if s in ("null", "none", "~"):
+        return None
+    try:
+        return None if float(s) == 0.0 else v
+    except ValueError:
+        return None
+
+
 def review(fields: dict, grade_norm: float, abandoned: bool, ts: str) -> dict:
     """一次评分 → 新 fsrs_* 字段 (需要 fsrs 可导入)。"""
     from fsrs import Card, Rating, Scheduler, State
@@ -88,11 +101,23 @@ def review(fields: dict, grade_norm: float, abandoned: bool, ts: str) -> dict:
     sched = Scheduler(enable_fuzzing=False)
     if fields.get("fsrs_due"):
         step = fields.get("fsrs_step")
+        stability = fields.get("fsrs_stability")
+        difficulty = fields.get("fsrs_difficulty")
+        raw_state = int(fields.get("fsrs_state", 1))
+        if raw_state == 0:
+            # legacy New 形状字段级迁移 (CARD-C3, roundtrip 显式例外):
+            # state 0→Learning(1) — py-fsrs 4+ 无 New 态, State(0) 抛
+            # ValueError; 伴生哨兵 0/0.0/null → None (0.0 会进 v6 稳定度
+            # 幂运算抛 ZeroDivisionError); step 兜底 0 (Learning 首步)。
+            raw_state = 1
+            stability = _legacy_param(stability)
+            difficulty = _legacy_param(difficulty)
+            step = _legacy_param(step) or 0
         card = Card(
-            state=State(int(fields.get("fsrs_state", 1))),
+            state=State(raw_state),
             step=int(step) if step not in (None, "") else None,
-            stability=float(fields["fsrs_stability"]) if fields.get("fsrs_stability") else None,
-            difficulty=float(fields["fsrs_difficulty"]) if fields.get("fsrs_difficulty") else None,
+            stability=float(stability) if stability else None,
+            difficulty=float(difficulty) if difficulty else None,
             due=_aware(fields["fsrs_due"]),
             last_review=_aware(fields["fsrs_last_review"]) if fields.get("fsrs_last_review") else None,
         )
