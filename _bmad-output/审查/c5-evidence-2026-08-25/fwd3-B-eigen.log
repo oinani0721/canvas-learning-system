@@ -1,0 +1,17 @@
+[runner] cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-l3-recap-skill/canvas-vault
+自检全过(0 命中禁词/占位符/甩锅句)。数字与 scan JSON 逐项核对一致。
+
+回顾报告已生成完毕。
+
+✓ 回顾已生成：`outputs/回顾-特征值与特征向量-2026-08-25.md`
+✓ 数据面：manifest(1 次调用,lag 0s)
+✓ 规模:3 成员 / 0 批注
+
+这块板目前的情况是:种子节点 `Fundamentals` 至今没有一条批注,只是被派生出两个子节点;其中一个派生节点 `Eigenvalues-are-special-vectors-that-sat` 还停在占位状态,派生原因只写了「测试」二字。三个节点都没有结构层面的考察记录(虽然 7 月 5 日有过一次针对 `Fundamentals` 的检验白板,但状态还是进行中)。派生活动集中在 4 月 30 日到 5 月 1 日两天,之后就再没有新增内容。
+
+→ 读完可随口说一句「记得什么、忘了什么」——我会把原话记进这份回顾,下次引用;不说也完全没关系
+
+`★ Insight ─────────────────────────────────────`
+这次回顾里最值得注意的一个信号是「mastery 分数相同 ≠ 理解程度相同」:`Eigenvalues-are-special-vectors-that-sat`(占位) 和 `Characteristic-Equation-for-Eigenvalues`(已剖析)的 mastery 都是 0.3,但这大概率只是系统给未评估节点的统一初始值,不是真实的区分度评估——这是为什么本 Skill 要求 AI 在维度②「靠不靠谱」里主动质疑数字本身,而不是拿到数字就当真。另外,manifest 里 `exam_history` 记录了一次考察,但节点自身的 `last_examined` 字段却是空的——这是两个不同数据源(检验白板记录 vs 节点 frontmatter)之间的落差,报告如实呈现了这个矛盾而不是替它圆场。
+`─────────────────────────────────────────────────`
+[runner] exit=0

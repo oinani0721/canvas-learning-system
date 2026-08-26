@@ -1,0 +1,12 @@
+[runner] cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-l3-recap-skill/canvas-vault
+自检通过，`type: recap` 与 `data_mode: fallback_local` + FALLBACK 声明也已在文件中。数字与 scan JSON 逐项对照一致（全部 0，无矛盾）。
+
+✓ 回顾已生成：outputs/回顾-线性代数-2026-08-25.md
+✓ 数据面：⚠ FALLBACK 本地扫描（Canvas RAG 后端离线，get_board_manifest 工具不可用）
+✓ 规模：0 成员 / 0 批注
+→ 读完可随口说一句「记得什么、忘了什么」——我会把原话记进这份回顾，下次引用；不说也完全没关系
+
+`★ Insight ─────────────────────────────────────`
+这次回顾结果是「空板」，本身也是一条真实信号——`线性代数` 白板 2026-04-30 建的框架，但截至目前 `## Concepts` 里没有派生过任何节点。系统按薄版设计的「零写侧」纪律，即便发现空板也**不会**帮你自动补内容或造数据，只如实报告"这里缺东西"，把决定权交回给你（选中材料 `Cmd+Shift+D` 派生）——这正是 HARD-RECAP-0 红线要保护的边界：回顾只审材料现状，不代替你做学习动作。
+`─────────────────────────────────────────────────`
+[runner] exit=0

@@ -1,0 +1,12 @@
+[runner] cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-l3-recap-skill/canvas-vault
+四项自检全部通过（`data_mode: manifest`，非 fallback，不需要 FALLBACK 声明）。
+
+✓ 回顾已生成：`outputs/回顾-特征值与特征向量-2026-08-25.md`
+✓ 数据面：manifest（1 次调用，lag 0.0s）
+✓ 规模：3 成员 / 0 批注
+→ 读完可随口说一句「记得什么、忘了什么」——我会把原话记进这份回顾，下次引用；不说也完全没关系
+
+`★ Insight ─────────────────────────────────────`
+这次报告最能说明问题的信号不是「0 批注」本身，而是**三个节点 `last_examined` 全为空、唯一一次检验白板还卡在 `in_progress`**——这块板派生出了结构（种子→2 个派生），但从未真正走完「派生→考察→反馈」这个闭环。占位节点（`is_stub=true`）和「已剖析但 0 tips」的节点在系统里其实是两种不同的欠账：前者是骨架还没长肉，后者是长了肉但没人验证过咬得动不动。Skill 用 `pick_rank`/`mastery_source` 这类字段区分「实测」vs「absent」，就是为了不让"看起来有个分数"掩盖"这个分数从没被打过"的事实。
+`─────────────────────────────────────────────────`
+[runner] exit=0

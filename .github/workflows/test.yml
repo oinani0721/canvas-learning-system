@@ -41,7 +41,8 @@ jobs:
     # 2m39s(收集就崩) 涨到 5m17s 并被 timeout 强杀 (日志可见
     # `Terminate orphan process: pid (python)`, junitxml 未生成, run 状态是
     # cancelled 而非 failure)。
-    # 现测试面收敛到 5 个文件 (本地 0.77s 跑完, 理由见下方 Run tests 上方注释),
+    # 现测试面收敛到下方 Run tests 的显式文件清单 (快测子集, 本地秒级跑完;
+    # 具体文件数以清单为准, 勿在注释里钉死计数——已漂移过一次),
     # 10 分钟对「装依赖 + 跑子集」绰绰有余; 若将来扩回全量需同步上调。
     timeout-minutes: 10
     strategy:
@@ -92,11 +93,10 @@ jobs:
       # 扩面待办（独立立项，勿在此顺手做）：
       #   1. 查清全量 tests/ 跑不完的根因（哪个测试在等什么超时）
       #   2. 修 xdist 收集不确定性，或给慢测试加 pytest-timeout
-      #   3. 重写 tests/unit/test_memory_service_contextvar_leak.py —— 它在
-      #      collection 阶段 ImportError（`_resolve_memory_group_id` 已被
-      #      `_vault_scoped_group_id` 取代，且读的是另一个 ContextVar），
-      #      而 collection error 会让 pytest 整体 Interrupted。它守护的跨 vault
-      #      泄漏是 P0 契约，需按新机制重写而非删除。
+      #   3. ✅ 已完成 (BATCH-2026-08-25 / CARD-C6)：tests/unit/
+      #      test_memory_service_contextvar_leak.py 已按 `_vault_scoped_group_id`
+      #      新契约（进程级单 active vault，忽略 ContextVar）语义重写，
+      #      conftest 的 collect_ignore 已回收，文件已加入下方显式清单。
       - name: Run tests
         env:
           # R11-BATCH2 第三环 —— 修掉 hypothesis 与 collection error 后暴露出来的:
@@ -128,6 +128,7 @@ jobs:
             tests/regression/test_tombstone_read_side_contract.py \
             tests/regression/test_real_entrypoint_admission.py \
             tests/unit/test_vault_admission.py \
+            tests/unit/test_memory_service_contextvar_leak.py \
             -m "not integration" \
             -v --tb=short \
             --junitxml=reports/test-results.xml \
