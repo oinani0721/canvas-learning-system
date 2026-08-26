@@ -30,6 +30,7 @@
 | `/exam-quick` | 零留档口头抽查（不写文件不评分） |
 | `/start-exam-board` | 生成检验白板（`node <节点>` = 单节点定向考察，M4 吸收 QuickExam） |
 | `/quiz-answer` | 检验白板评分 |
+| `/board-recap` | 白板广度回顾（只读生成 outputs/回顾-*.md，不改白板/节点） |
 
 ## 核心学习闭环
 

@@ -478,6 +478,7 @@ if (boards.length === 0) {
 | 建新白板 + 种子 | `canvas:configure-whiteboard` | 打开种子 md → 上面命令 |
 | 笔记追加到已有白板 | `canvas:append-note-to-board` | 打开 md → Cmd+P 搜"把当前笔记追加" |
 | 节点内派生子节点 | `canvas:ai-linked-doc` | 选中文字 → **Cmd+Shift+D** |
+| 白板广度回顾（只读报告） | `/board-recap <板名>` | Claudian 侧栏输入 |
 | 文字加 callout 批注 | `canvas:annotate-callout` | 选中文字 → **Cmd+Shift+A** |
 | 启动考察 | `canvas:start-examination` | Cmd+P 搜"启动考察" |
 
@@ -557,6 +558,7 @@ if (nodes.length === 0) {
 - **Story 1.18 spec**：`_bmad-output/implementation-artifacts/epic-1/1-18-dashboard-md-mvp.md`
 - **Story 1.18 验收单**：`_bmad-output/验收单/Story-1.18-dashboard-mvp.md`
 - **CLAUDE.md 速查**：`_bmad-output/.claude/CLAUDE.md`
+- **白板回顾报告**：`outputs/回顾-*.md`（由 `/board-recap` 生成，只读不改白板）
 
 ---
 
