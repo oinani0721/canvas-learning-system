@@ -32,8 +32,10 @@ REPO = Path(os.environ.get("CANVAS_REPO", "/Users/Heishing/Desktop/canvas/canvas
 # VAULT-SYNC (2026-08-02): 默认值仅作兜底 — 生产链由 wrapper 从 .env
 # ACTIVE_VAULT 解析后经 --vault 传入, 与后端同源 (换 vault 只改 .env 一处)
 VAULT = REPO / "canvas-vault"
-STATE = REPO / "backups" / "daily-review.state.json"
-LOG = REPO / "backups" / "daily-review.log"
+# CARD-C1a: state 按 vault 命名空间化 (state_path), log 单文件加 vault= 标签
+# — 多 vault 并存时 last_push_accepted_date / first_gen / next_due_utc 缓存门
+# 互不踩踏。测试 fixture 只需 monkeypatch BACKUPS 一处即可全隔离。
+BACKUPS = REPO / "backups"
 
 PUSH_WINDOW = (dtime(9, 5), dtime(21, 0))
 
@@ -51,18 +53,31 @@ def _now(arg: str | None) -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _vault_key() -> str:
+    """当前 VAULT 的命名空间 key (规则唯一定义点在 send_bark.vault_key)。"""
+    return send_bark.vault_key(VAULT.resolve().name)
+
+
+def state_path() -> Path:
+    """per-vault state 文件 (CARD-C1a)。旧全局 daily-review.state.json 由
+    migrate_daily_review_state.py 一次性迁入, 此处不做隐式回退 — 隐式读旧
+    文件会让双 vault 各自以为「今天推过了」, 恰是本卡要消灭的踩踏。"""
+    return BACKUPS / f"daily-review.{_vault_key()}.state.json"
+
+
 def load_state() -> dict:
-    if not STATE.exists():
+    state = state_path()
+    if not state.exists():
         return {"schema_version": 1, "board_last_recommended": {}}
     try:
-        st = json.loads(STATE.read_text(encoding="utf-8"))
+        st = json.loads(state.read_text(encoding="utf-8"))
         st.setdefault("board_last_recommended", {})
         return st
     except (json.JSONDecodeError, OSError):
-        quarantine = STATE.with_name(
-            STATE.name + ".corrupt-" + datetime.now().strftime("%Y%m%dT%H%M%S"))
+        quarantine = state.with_name(
+            state.name + ".corrupt-" + datetime.now().strftime("%Y%m%dT%H%M%S"))
         try:
-            os.replace(STATE, quarantine)
+            os.replace(state, quarantine)
         except OSError:
             pass
         print(f"[runner] state 损坏, 已隔离到 {quarantine.name}, 重建", file=sys.stderr)
@@ -70,17 +85,19 @@ def load_state() -> dict:
 
 
 def save_state(st: dict):
-    STATE.parent.mkdir(parents=True, exist_ok=True)
-    tmp = STATE.with_suffix(".tmp")
+    state = state_path()
+    state.parent.mkdir(parents=True, exist_ok=True)
+    tmp = state.with_suffix(".tmp")
     tmp.write_text(json.dumps(st, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    os.replace(tmp, STATE)
+    os.replace(tmp, state)
 
 
 def log_line(msg: str):
-    LOG.parent.mkdir(parents=True, exist_ok=True)
+    log = BACKUPS / "daily-review.log"
+    log.parent.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().astimezone().strftime("%F %T")
-    with open(LOG, "a", encoding="utf-8") as f:
-        f.write(f"[{stamp}] {msg}\n")
+    with open(log, "a", encoding="utf-8") as f:
+        f.write(f"[{stamp}] vault={_vault_key()} {msg}\n")
 
 
 def _nodes_max_mtime(vault: Path) -> float:
@@ -173,7 +190,9 @@ def osascript_fallback(noti: dict) -> bool:
 
 def main() -> int:
     global VAULT
-    ap = argparse.ArgumentParser(description="每日复习推送编排")
+    # allow_abbrev=False: push.sh 锁解析只认全称 --vault, argparse 缩写
+    # (--v) 会让锁与 runner 指向不同 vault (Codex-C1a F1) — 两侧必须同源
+    ap = argparse.ArgumentParser(description="每日复习推送编排", allow_abbrev=False)
     ap.add_argument("--now", help="ISO 时间覆盖 (12 场景验收矩阵用)")
     ap.add_argument("--vault", help="活 vault 路径 (wrapper 从 .env ACTIVE_VAULT 解析传入; 缺省回退 canvas-vault)")
     args = ap.parse_args()
@@ -202,7 +221,9 @@ def main() -> int:
     elif not (PUSH_WINDOW[0] <= local.time() < PUSH_WINDOW[1]):
         push = "skip-window"  # RunAtLoad 早触发 / 21:00 后唤醒: 只落盘
     else:
-        rc = send_bark.send(noti)
+        # vault_id 取 payload 顶层 (C1a 加性字段); 当日缓存若是迁移前生成的
+        # 旧 payload (无该字段), 回退当前 vault 目录名 — 两者必然同库
+        rc = send_bark.send(noti, payload.get("vault_id") or VAULT.resolve().name)
         if rc == 0:
             st["last_push_accepted_date"] = today
             st["last_result"], st["last_error"] = "pushed", ""

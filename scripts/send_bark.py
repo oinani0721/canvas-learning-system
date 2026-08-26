@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -33,6 +34,36 @@ KEY_FILE = Path(
 DEFAULT_SERVER = "https://api.day.app"
 TIMEOUT_S = 10
 RETRIES = 2
+
+
+#: hash 域后缀形态 — 用于把「原样域」与「hash 域」分开, 保证两域不重叠
+_HASH_TAIL = re.compile(r"-[0-9a-f]{16}$")
+#: key 主体安全上限 (Codex-C1a HIGH: NAME_MAX=255, 232 字节合法目录名会让
+#: daily-review.<key>.state.json 超限; 100 + 1 + 16 + 前后缀 ≪ 255)
+_KEY_MAX_BYTES = 100
+
+
+def vault_key(vault_id: str) -> str:
+    """vault 目录名 → 文件名/通知 id 安全 key (CARD-C1a 命名空间规则唯一定义点)。
+
+    两域设计 (Codex-C1a B2/H1 处置):
+      原样域 — ASCII 短名 (canvas-vault) 原样返回; 但排除恰好长得像 hash 域
+               后缀 (-<16hex> 结尾) 的名字与超长名;
+      hash 域 — 其余 (中文库名 / 超长名 / 撞后缀形态) slug 化并追加 sha256
+               前 16 hex (64 bit — 8 hex 时 2^16 生日构造即可撞, 已实测)。
+    两域互不重叠 → 不同目录名撞 key 只剩 64bit hash 碰撞一条路。state 文件名
+    (daily_review_run.state_path) / push.sh 锁 / Bark 有效 id 共用本函数,
+    同一 vault 三处 key 恒等 (push.sh 经 python 调用本函数, 不再 basename)。
+    """
+    # 目录名按字面精确处理, 不裁剪空白 — str.strip() 会吞 Unicode 空白,
+    # 令 "foo" 与 "foo\xa0" 两个不同目录名撞 key (Codex-C1a round2 实测)
+    raw = str(vault_id or "").rstrip("/").rsplit("/", 1)[-1] or "vault"
+    safe = re.sub(r"[^0-9A-Za-z._-]", "-", raw).strip("-.")
+    if (safe == raw and not _HASH_TAIL.search(raw)
+            and len(raw.encode("utf-8")) <= _KEY_MAX_BYTES):
+        return safe
+    digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+    return f"{(safe or 'vault')[:_KEY_MAX_BYTES]}-{digest}"
 
 
 def load_key() -> tuple[str, str] | None:
@@ -55,18 +86,27 @@ def load_key() -> tuple[str, str] | None:
     return (server, key)
 
 
-def send(notification: dict) -> int:
+def send(notification: dict, vault_id: str | None = None) -> int:
     cfg = load_key()
     if cfg is None:
         return 2
     server, device_key = cfg
+    noti_id = notification["id"]
+    group = notification.get("group", "canvas复习")
+    if vault_id:
+        # CARD-C1a: vault 维度只在 send 侧组合 — payload.notification.id 的值
+        # 是 A2 冻结契约不可改; 有效去重 id / 分组在这里追加 vault, 防第二
+        # vault 同日同 id 覆盖第一 vault 的手机通知。vault_id 缺省 (旧 payload)
+        # 走原样 id, 加性兼容。
+        noti_id = f"{noti_id}-{vault_key(vault_id)}"
+        group = f"{group}·{vault_id}"
     body = json.dumps(
         {
             "device_key": device_key,
             "title": notification["title"],
             "body": notification["body"],
-            "group": notification.get("group", "canvas复习"),
-            "id": notification["id"],
+            "group": group,
+            "id": noti_id,
         },
         ensure_ascii=False,
     ).encode("utf-8")
@@ -108,7 +148,7 @@ def main():
     if not noti:
         print("bark skip(无可推内容)")
         return 2
-    return send(noti)
+    return send(noti, payload.get("vault_id"))
 
 
 if __name__ == "__main__":

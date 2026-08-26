@@ -9,8 +9,10 @@ ensure_payload 缓存失效三场景锁定: 当天已生成后, 节点池比 pay
 (与 A2 渲染层解耦)。mtime 全部 os.utime 显式钉死, 不依赖墙钟顺序。
 """
 
+import json
 import os
 import plistlib
+import re
 import shutil
 import sys
 from datetime import datetime, time as dtime, timezone
@@ -30,21 +32,23 @@ def _node(board="普通板", extra=""):
     return f'---\ntype: concept\nsource_board: "[[原白板/{board}]]"\n{extra}---\n真实内容。\n'
 
 
-def _vault(tmp_path, nodes: dict) -> Path:
-    vault = tmp_path / "vault"
+def _vault(tmp_path, nodes: dict, name: str = "vault") -> Path:
+    vault = tmp_path / name
     scripts = vault / ".claude" / "scripts"
     scripts.mkdir(parents=True)
     (vault / "节点").mkdir()
     shutil.copy(WT / "canvas-vault" / ".claude" / "scripts" / "decay_beta.py", scripts)
-    for name, content in nodes.items():
-        (vault / "节点" / f"{name}.md").write_text(content, encoding="utf-8")
+    for fname, content in nodes.items():
+        (vault / "节点" / f"{fname}.md").write_text(content, encoding="utf-8")
     return vault
 
 
 def _patch_runner(monkeypatch, vault, tmp_path):
+    """CARD-C1a: STATE/LOG 常量已函数化为 BACKUPS 派生 (state_path/log_line),
+    fixture 只注入 BACKUPS 一处 — 所有 state/log 写入随之进 tmp, 防写真实
+    backups/。逐用例检查: 本文件所有落盘路径均经 VAULT (tmp) 或 BACKUPS (tmp)。"""
     monkeypatch.setattr(runner, "VAULT", vault)
-    monkeypatch.setattr(runner, "STATE", tmp_path / "backups" / "daily-review.state.json")
-    monkeypatch.setattr(runner, "LOG", tmp_path / "backups" / "daily-review.log")
+    monkeypatch.setattr(runner, "BACKUPS", tmp_path / "backups")
 
 
 def _set_mtime(path: Path, ts: float):
@@ -279,3 +283,307 @@ def test_rescan_does_not_touch_board_last_recommended(tmp_path, monkeypatch):
     assert payload2["top_boards"][0]["board"] == "B板"
     # 核心: 重扫换榜也不得把 B板 标成「今天推荐过」— 天级轮转语义只属于首扫
     assert st["board_last_recommended"] == {"A板": TODAY}
+
+
+# ── CARD-C1a (BATCH-2026-08-25-跨vault与收束): 多 vault 命名空间隔离 ──
+
+
+def test_two_vaults_same_day_push_and_state_isolated(tmp_path, monkeypatch, capsys):
+    """全局单例根缺陷的修复锁定: vault A 当日推送后, vault B 同日必须仍能
+    推送 (旧 last_push_accepted_date 全局 → B 永远 skip-done); 两个 state
+    文件独立; 互跑后各自缓存门仍 cached (旧 payload_sha256 单值 → 乒乓失效)。
+
+    已知局限: 本测两库跑在同一 Python 进程, 证明的是 state 隔离, 不证明
+    生产「一库一进程」契约 — 后者由 wrapper shell 层循环保证 (进程内复用
+    会踩 pick.load_decay 的 decay_beta import 缓存, 见 wrapper 注释)。"""
+    vault_a = _vault(tmp_path, {"甲": _node()}, name="vaultA")
+    vault_b = _vault(tmp_path, {"乙": _node()}, name="vaultB")
+    monkeypatch.setattr(runner, "BACKUPS", tmp_path / "backups")
+    # runner.main 会改写模块全局 VAULT — 先经 monkeypatch 登记原值,
+    # teardown 恢复, 防测试顺序依赖 (Codex-C1a M1)
+    monkeypatch.setattr(runner, "VAULT", runner.VAULT)
+    # 窗口门放行 (机器时区无关): 本测锁 state 隔离, 不锁窗口语义
+    monkeypatch.setattr(runner, "PUSH_WINDOW", (dtime(0, 0), dtime(23, 59, 59)))
+    sent = []
+    monkeypatch.setattr(
+        runner.send_bark,
+        "send",
+        lambda noti, vault_id=None: sent.append((noti["id"], vault_id)) or 0,
+    )
+    now_arg = "2026-07-30T10:00:00+08:00"
+
+    def _run(vault) -> str:
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            ["daily_review_run.py", "--now", now_arg, "--vault", str(vault)],
+        )
+        assert runner.main() == 0
+        return capsys.readouterr().out
+
+    out_a = _run(vault_a)
+    assert "generate:new" in out_a and "push:accepted" in out_a
+    out_b = _run(vault_b)
+    assert "generate:new" in out_b and "push:accepted" in out_b, (
+        "vault A 推过后 vault B 同日必须仍可推送 (state 全局单例会误判 skip-done)"
+    )
+    # send 侧拿到的是各自 payload 的顶层 vault_id (通知 id 值本身不含 vault)
+    assert [v for _, v in sent] == ["vaultA", "vaultB"]
+    assert all(nid == "canvas-review-2026-07-30" for nid, _ in sent)
+
+    state_a = tmp_path / "backups" / "daily-review.vaultA.state.json"
+    state_b = tmp_path / "backups" / "daily-review.vaultB.state.json"
+    assert state_a.exists() and state_b.exists(), "两个 vault 必须各有独立 state 文件"
+    assert (
+        json.loads(state_a.read_text(encoding="utf-8"))["last_push_accepted_date"]
+        == json.loads(state_b.read_text(encoding="utf-8"))["last_push_accepted_date"]
+    )
+
+    # 互跑第二轮: 各自缓存门仍 cached + 同日去重 skip-done (乒乓失效修复)
+    _pin_pool_older_than_payload(vault_a, BASE)
+    _pin_pool_older_than_payload(vault_b, BASE)
+    out_a2 = _run(vault_a)
+    assert "generate:cached" in out_a2 and "push:skip-done" in out_a2
+    out_b2 = _run(vault_b)
+    assert "generate:cached" in out_b2 and "push:skip-done" in out_b2
+    assert len(sent) == 2, "第二轮不得再发推送"
+
+    log_text = (tmp_path / "backups" / "daily-review.log").read_text(encoding="utf-8")
+    assert "vault=vaultA" in log_text and "vault=vaultB" in log_text
+
+
+def test_payload_carries_top_level_vault_id(tmp_path, monkeypatch):
+    """C1a 加性契约: payload 顶层新增 vault_id, schema_version 仍 3,
+    notification.id 值不动 (A2 冻结 — send 侧才组合 vault 维度)。"""
+    vault = _vault(tmp_path, {"甲": _node()}, name="vaultA")
+    _patch_runner(monkeypatch, vault, tmp_path)
+    st = runner.load_state()
+    payload, gen = runner.ensure_payload(st, NOW, TODAY)
+    assert gen == "new"
+    assert payload["vault_id"] == "vaultA"
+    assert payload["schema_version"] == 3
+    assert payload["notification"]["id"] == f"canvas-review-{payload['date']}"
+    on_disk = json.loads((vault / "outputs" / "今日复习.json").read_text(encoding="utf-8"))
+    assert on_disk["vault_id"] == "vaultA"
+
+
+# ── CARD-C1a: send 侧组合有效通知 id (payload.notification.id 值冻结不动) ──
+
+
+def _capture_bark_request(monkeypatch, tmp_path) -> dict:
+    """网络出口打桩 (仅测试进程内): 截获 send_bark 实际提交给 Bark API 的
+    请求体做断言。真发 = 每次跑测试都向真机推真通知, 才是纪律违规;
+    仓库既有惯例同源 (本文件场景 3 的 send 哨兵)。"""
+    key_file = tmp_path / "bark.key"
+    key_file.write_text("testkey-12345678\n", encoding="utf-8")
+    monkeypatch.setattr(runner.send_bark, "KEY_FILE", key_file)
+    captured = {}
+
+    class _AcceptedResp:
+        status = 200
+
+        def read(self):
+            return b'{"code":200}'
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    def _capture_urlopen(req, timeout=None):
+        captured["body"] = json.loads(req.data.decode("utf-8"))
+        return _AcceptedResp()
+
+    monkeypatch.setattr(runner.send_bark.urllib.request, "urlopen", _capture_urlopen)
+    return captured
+
+
+def test_send_bark_composes_vault_scoped_id_and_group(tmp_path, monkeypatch):
+    captured = _capture_bark_request(monkeypatch, tmp_path)
+    noti = {"title": "t", "body": "b", "group": "canvas复习", "id": "canvas-review-2026-07-30"}
+    assert runner.send_bark.send(noti, "vaultA") == 0
+    assert captured["body"]["id"] == "canvas-review-2026-07-30-vaultA"
+    assert "vaultA" in captured["body"]["group"]
+    # 传入 dict 不被就地改写 (payload 落盘值 = A2 冻结契约)
+    assert noti["id"] == "canvas-review-2026-07-30"
+    assert noti["group"] == "canvas复习"
+
+
+def test_send_bark_without_vault_id_keeps_legacy_shape(tmp_path, monkeypatch):
+    """迁移前旧 payload (无顶层 vault_id) 走原样 id/group — 加性兼容下界。"""
+    captured = _capture_bark_request(monkeypatch, tmp_path)
+    noti = {"title": "t", "body": "b", "group": "canvas复习", "id": "canvas-review-2026-07-30"}
+    assert runner.send_bark.send(noti) == 0
+    assert captured["body"]["id"] == "canvas-review-2026-07-30"
+    assert captured["body"]["group"] == "canvas复习"
+
+
+def test_vault_key_slug_rules():
+    """两域设计 (Codex-C1a B2/H1): ASCII 短名原样; 非 ASCII slug+hash16;
+    hash 域后缀形态的 ASCII 名强制改道 hash 域 (两域不重叠 → 「数学 的 key
+    恰好被某 ASCII 目录名占用」这类直白碰撞不可构造); 超长名截断+hash,
+    state 文件名恒在 NAME_MAX 内; 输出恒为文件名/通知 id 安全字符集。"""
+    vault_key = runner.send_bark.vault_key
+    assert vault_key("canvas-vault") == "canvas-vault"
+    k1, k2 = vault_key("数学"), vault_key("物理")
+    assert k1 != k2
+    for k in (k1, k2):
+        assert re.fullmatch(r"[0-9A-Za-z._-]+-[0-9a-f]{16}", k)
+    # 域分离: 中文库的 key 本身作为目录名再进来, 必须映射到不同 key
+    assert vault_key(k1) != k1
+    # 超长合法目录名不得让 daily-review.<key>.state.json 超 NAME_MAX=255
+    long_key = vault_key("a" * 232)
+    assert len(f"daily-review.{long_key}.state.json".encode("utf-8")) <= 255
+    assert long_key != vault_key("a" * 233)
+    # 目录名字面精确: Unicode 空白尾巴是另一个库, 不得与裸名撞 key
+    assert vault_key("foo ") != vault_key("foo")
+    # 路径传入也归约到目录名 (调用方兜底)
+    assert vault_key("/tmp/x/canvas-vault/") == "canvas-vault"
+
+
+# ── CARD-C1a: 旧全局 state 迁移 (dry-run 零写入 / 实迁保留 .bak) ──
+
+
+def _old_state_fixture(tmp_path) -> Path:
+    backups = tmp_path / "backups"
+    backups.mkdir()
+    old = backups / "daily-review.state.json"
+    old.write_text(
+        json.dumps({"schema_version": 1, "last_generate_date": "2026-07-29"}, ensure_ascii=False), encoding="utf-8"
+    )
+    return backups
+
+
+def _run_migrate(monkeypatch, argv: list[str]) -> int:
+    import migrate_daily_review_state as migrate
+
+    monkeypatch.setattr(sys, "argv", ["migrate_daily_review_state.py", *argv])
+    return migrate.main()
+
+
+def test_migrate_dry_run_writes_nothing(tmp_path, monkeypatch, capsys):
+    backups = _old_state_fixture(tmp_path)
+    before = sorted(p.name for p in backups.iterdir())
+    rc = _run_migrate(monkeypatch, ["--vault", "canvas-vault", "--backups", str(backups), "--dry-run"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "daily-review.state.json" in out and "daily-review.canvas-vault.state.json" in out
+    assert sorted(p.name for p in backups.iterdir()) == before, "dry-run 必须零写入"
+    # Codex-C1a B3: 字面零写含 __pycache__ — 模块必须已挂 bytecode 禁写防线
+    assert sys.dont_write_bytecode, "migrate 模块应设 sys.dont_write_bytecode"
+
+
+def test_migrate_apply_keeps_bak_and_refuses_overwrite(tmp_path, monkeypatch, capsys):
+    backups = _old_state_fixture(tmp_path)
+    original = (backups / "daily-review.state.json").read_text(encoding="utf-8")
+    rc = _run_migrate(monkeypatch, ["--vault", "canvas-vault", "--backups", str(backups)])
+    assert rc == 0
+    new = backups / "daily-review.canvas-vault.state.json"
+    bak = backups / "daily-review.state.json.bak"
+    assert new.read_text(encoding="utf-8") == original
+    assert bak.read_text(encoding="utf-8") == original, "实迁必须保留 .bak 供回滚"
+    assert not (backups / "daily-review.state.json").exists()
+
+    # 二次实迁 (旧文件重新出现) 不得覆盖已存在的新文件
+    (backups / "daily-review.state.json").write_text("{}", encoding="utf-8")
+    rc2 = _run_migrate(monkeypatch, ["--vault", "canvas-vault", "--backups", str(backups)])
+    assert rc2 == 1
+    assert new.read_text(encoding="utf-8") == original
+
+
+def test_migrate_symlink_vault_arg_matches_runner_key(tmp_path, monkeypatch):
+    """经 symlink 传 --vault 时, 迁移目标文件名必须与 runner state_path 恒等
+    — migrate 取字面名而 runner resolve 的话, 迁移会落到永远不被读的文件。"""
+    backups = _old_state_fixture(tmp_path)
+    real = _vault(tmp_path, {"甲": _node()}, name="真库")
+    link = tmp_path / "alias"
+    link.symlink_to(real)
+
+    rc = _run_migrate(monkeypatch, ["--vault", str(link), "--backups", str(backups)])
+    assert rc == 0
+    monkeypatch.setattr(runner, "VAULT", link)
+    monkeypatch.setattr(runner, "BACKUPS", backups)
+    assert runner.state_path().exists(), "迁移产出的文件名必须能被 runner 读到"
+
+
+def test_migrate_crlf_state_byte_identical_and_idempotent(tmp_path, monkeypatch, capsys):
+    """Codex-C1a round4: CRLF 换行的合法 state 必须按字节原样迁移 (文本模式
+    read_text 会洗成 LF, 令 new≠bak 击穿完成态判据), 且重跑判 '已完成'。"""
+    backups = tmp_path / "backups"
+    backups.mkdir()
+    crlf = b'{\r\n  "schema_version": 1,\r\n  "last_generate_date": "2026-07-29"\r\n}\r\n'
+    (backups / "daily-review.state.json").write_bytes(crlf)
+    rc = _run_migrate(monkeypatch, ["--vault", "canvas-vault", "--backups", str(backups)])
+    assert rc == 0
+    new = backups / "daily-review.canvas-vault.state.json"
+    assert new.read_bytes() == crlf, "迁移必须逐字节保真 (含 CRLF)"
+    rc2 = _run_migrate(monkeypatch, ["--vault", "canvas-vault", "--backups", str(backups)])
+    assert rc2 == 0
+    assert "已完成" in capsys.readouterr().out
+
+
+def test_migrate_refuses_non_dict_state(tmp_path, monkeypatch, capsys):
+    """Codex-C1a B3: '[]' 是合法 JSON 但 runner load_state 会当场炸 —
+    结构必须校验到 dict 级, 拒迁且零写入。"""
+    backups = tmp_path / "backups"
+    backups.mkdir()
+    (backups / "daily-review.state.json").write_text("[]", encoding="utf-8")
+    rc = _run_migrate(monkeypatch, ["--vault", "canvas-vault", "--backups", str(backups)])
+    assert rc == 1
+    assert not (backups / "daily-review.canvas-vault.state.json").exists()
+    assert not (backups / "daily-review.state.json.bak").exists()
+    assert (backups / "daily-review.state.json").read_text(encoding="utf-8") == "[]"
+
+
+def test_migrate_refuses_overwriting_existing_bak(tmp_path, monkeypatch):
+    """Codex-C1a B3: 预置 .bak (上次回滚副本/手工备份) 不许被静默覆盖;
+    拒迁后原文件与 .bak 双双原样。"""
+    backups = _old_state_fixture(tmp_path)
+    (backups / "daily-review.state.json.bak").write_text("旧备份", encoding="utf-8")
+    rc = _run_migrate(monkeypatch, ["--vault", "canvas-vault", "--backups", str(backups)])
+    assert rc == 1
+    assert not (backups / "daily-review.canvas-vault.state.json").exists()
+    assert (backups / "daily-review.state.json.bak").read_text(encoding="utf-8") == "旧备份"
+    assert (backups / "daily-review.state.json").exists()
+
+
+def test_migrate_interrupted_states_have_explicit_exits(tmp_path, monkeypatch, capsys):
+    """Codex-C1a F3 状态机锁定: 仅剩 .bak (写 new 前中止) → rc1 且给出恢复
+    指引, 不得谎报 '无需迁移'; new+.bak 双在 (已完成) → rc0 幂等;
+    new 损坏 + .bak 在 (写入途中中止) → rc1 指引重迁。"""
+    backups = tmp_path / "backups"
+    backups.mkdir()
+    bak = backups / "daily-review.state.json.bak"
+    new = backups / "daily-review.canvas-vault.state.json"
+
+    bak.write_text('{"schema_version": 1}', encoding="utf-8")
+    rc = _run_migrate(monkeypatch, ["--vault", "canvas-vault", "--backups", str(backups)])
+    assert rc == 1
+    assert "恢复" in capsys.readouterr().err
+
+    new.write_text('{"schema_version": 1}', encoding="utf-8")
+    rc2 = _run_migrate(monkeypatch, ["--vault", "canvas-vault", "--backups", str(backups)])
+    assert rc2 == 0
+    assert "已完成" in capsys.readouterr().out
+
+    new.write_text('{"半截', encoding="utf-8")
+    rc3 = _run_migrate(monkeypatch, ["--vault", "canvas-vault", "--backups", str(backups)])
+    assert rc3 == 1
+    assert "重迁" in capsys.readouterr().err
+
+
+def test_migrate_preplanted_symlink_target_not_overwritten(tmp_path, monkeypatch):
+    """Codex-C1a F4/N1: 目标位置被预置成悬空 symlink (指向尚不存在的路径)
+    时, mkstemp+rename 发布只替换链接名本身 — 内容绝不被引到 symlink 指向
+    的位置落盘, 终点成为常规文件。"""
+    backups = _old_state_fixture(tmp_path)
+    hijack_target = tmp_path / "劫持目标.json"  # 不存在 → 悬空 symlink 过得了 exists 预检
+    new = backups / "daily-review.canvas-vault.state.json"
+    new.symlink_to(hijack_target)
+    rc = _run_migrate(monkeypatch, ["--vault", "canvas-vault", "--backups", str(backups)])
+    assert rc == 0
+    assert not hijack_target.exists(), "悬空 symlink 不得被跟随, 在其目标处落文件"
+    assert not new.is_symlink() and new.is_file(), "rename 应替换链接名为常规文件"
+    assert json.loads(new.read_text(encoding="utf-8"))["last_generate_date"] == "2026-07-29"
+    assert (backups / "daily-review.state.json.bak").exists()
