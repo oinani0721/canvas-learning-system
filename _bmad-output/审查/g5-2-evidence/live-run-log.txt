@@ -1,0 +1,32 @@
++ date -u +%Y-%m-%dT%H:%M:%SZ
+2026-08-27T09:12:23Z
++ shasum -a 256 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n5-split/canvas-vault/.claude/skills/board-split/scripts/split_preview.py
+bd815eb2af0cab0b97277b07897ff710d74f8789222116ac2f963ceac615f68b  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n5-split/canvas-vault/.claude/skills/board-split/scripts/split_preview.py
++ python3 $'/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n5-split/_bmad-output/å®¡æ\237¥/g5-2-evidence/collect_live_baseline.py' /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault
++ echo 'collect-before rc=0'
+collect-before rc=0
++ python3 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n5-split/canvas-vault/.claude/skills/board-split/scripts/split_preview.py --vault /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault --board 'CS188 lecture 2' --out-dir /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n5-split/canvas-vault/outputs
+âœ“ preview å·²ç”Ÿæˆï¼ˆåªè¯»å¼•æ“, æœªåŠ¨ vault æ—¢æœ‰æ–‡ä»¶ï¼‰: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n5-split/canvas-vault/outputs/split-preview-CS188 lecture 2.json / /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n5-split/canvas-vault/outputs/split-preview-CS188 lecture 2.md
+  å€™é€‰ 27/27
++ echo 'run1 rc=0'
+run1 rc=0
++ python3 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n5-split/canvas-vault/.claude/skills/board-split/scripts/split_preview.py --vault /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault --board $'ç\211¹å¾\201å\200¼ä¸\216ç\211¹å¾\201å\220\221é\207\217' --out-dir /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n5-split/canvas-vault/outputs
+âœ“ preview å·²ç”Ÿæˆï¼ˆåªè¯»å¼•æ“, æœªåŠ¨ vault æ—¢æœ‰æ–‡ä»¶ï¼‰: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n5-split/canvas-vault/outputs/split-preview-ç‰¹å¾å€¼ä¸ç‰¹å¾å‘é‡.json / /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n5-split/canvas-vault/outputs/split-preview-ç‰¹å¾å€¼ä¸ç‰¹å¾å‘é‡.md
+  å€™é€‰ 1/1
++ echo 'run2 rc=0'
+run2 rc=0
++ python3 $'/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n5-split/_bmad-output/å®¡æ\237¥/g5-2-evidence/collect_live_baseline.py' /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault
++ echo 'collect-after rc=0'
+collect-after rc=0
++ diff $'/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n5-split/_bmad-output/å®¡æ\237¥/g5-2-evidence/live-full-before.tsv' $'/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n5-split/_bmad-output/å®¡æ\237¥/g5-2-evidence/live-full-after.tsv'
++ echo 'baseline-diff rc=0 (0=é›¶å‡€å·®å¼‚)'
+baseline-diff rc=0 (0=é›¶å‡€å·®å¼‚)
++ shasum -a 256 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n5-split/canvas-vault/.claude/skills/board-split/scripts/split_preview.py '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n5-split/canvas-vault/outputs/split-preview-CS188 lecture 2.json' '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n5-split/canvas-vault/outputs/split-preview-CS188 lecture 2.md' $'/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n5-split/canvas-vault/outputs/split-preview-ç\211¹å¾\201å\200¼ä¸\216ç\211¹å¾\201å\220\221é\207\217.json' $'/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n5-split/canvas-vault/outputs/split-preview-ç\211¹å¾\201å\200¼ä¸\216ç\211¹å¾\201å\220\221é\207\217.md'
++ tee $'/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n5-split/_bmad-output/å®¡æ\237¥/g5-2-evidence/engine-and-products.sha256'
+bd815eb2af0cab0b97277b07897ff710d74f8789222116ac2f963ceac615f68b  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n5-split/canvas-vault/.claude/skills/board-split/scripts/split_preview.py
+c2951a9fa0f6cc908a5cedfcdf65caa536bad52cd24cf025b6d1e1b8b2bf47b9  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n5-split/canvas-vault/outputs/split-preview-CS188 lecture 2.json
+dd83952ad2a4bf60493d0c388de8dd5a0394eb282348b0b9e9bfa807e74b3700  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n5-split/canvas-vault/outputs/split-preview-CS188 lecture 2.md
+d8b4fbc40d8cbd5e7803e72a21eac03b0b2ec84752fb4145e4cd3db0bcedf1f1  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n5-split/canvas-vault/outputs/split-preview-ç‰¹å¾å€¼ä¸ç‰¹å¾å‘é‡.json
+6e1719622ab8bb9123c3d58d10e41c29ffce9e18ec0c79b8c56e0f1e7f0dcc3e  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n5-split/canvas-vault/outputs/split-preview-ç‰¹å¾å€¼ä¸ç‰¹å¾å‘é‡.md
++ date -u +%Y-%m-%dT%H:%M:%SZ
+2026-08-27T09:12:24Z
