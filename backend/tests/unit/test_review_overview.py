@@ -80,7 +80,9 @@ def _projection(
         "unassigned_nodes": [],
         "schema_version": 3,
         "vault_id": vault_id,
-        "date": str(generated_at)[:10],
+        # date 恒为合法日历日期 (生产器 date().isoformat() 产物): 敌对
+        # generated_at 用例不许顺带把 date 弄脏 — date 垃圾有专属用例
+        "date": _now_local().date().isoformat(),
         "generated_at": generated_at,
         "top_boards": top_boards,
         "upcoming": [],
@@ -270,6 +272,17 @@ def test_corrupt_projection_does_not_500(overview_env):
         "bad-placeholder-elems": json.dumps(
             _projection(
                 "x", generated_at=now_iso, ineligible={"placeholder": [123], "test_excluded": [], "corrupt": []}
+            )
+        ),
+        # ── round2 (Codex-D1 复核残留) ──
+        "bad-date-garbage": json.dumps(_projection("x", generated_at=now_iso, date="不是日期")),
+        "bad-date-month13": json.dumps(_projection("x", generated_at=now_iso, date="2026-13-01")),
+        "bad-top-empty-board": json.dumps(
+            _projection("x", generated_at=now_iso, top_boards=[{"board": "", "top_node": "n", "pending": 1}])
+        ),
+        "bad-upcoming-node-empty": json.dumps(
+            _projection(
+                "x", generated_at=now_iso, upcoming=[{"board": "U", "next_due": "2026-09-01T00:00:00Z", "node": ""}]
             )
         ),
     }
@@ -660,12 +673,60 @@ def test_boards_rollup_consumed_when_present(overview_env):
         ),
     )
 
+    # round2 (Codex-D1 复核残留): 构造律旁路四连 — 全零幽灵板 / future 与
+    # next_due 不自洽 / due 三分越界 / due_new 与明细漂移
+    _base_row = {
+        "due": 0,
+        "due_new": 0,
+        "due_scheduled": 0,
+        "future": 0,
+        "next_due": "",
+        "placeholder": 0,
+        "earliest_overdue": "",
+    }
+    _good_row = {**_base_row, "board": "甲板", "due": 1, "due_new": 1}
+    round2_bad = {
+        "bad-rollup-allzero": [_good_row, {**_base_row, "board": "幽灵板"}],
+        "bad-rollup-no-nextdue": [_good_row, {**_base_row, "board": "怪板", "future": 2}],
+        "bad-rollup-partition": [{**_good_row, "due_new": 1, "due_scheduled": 1}],
+        "bad-rollup-new-drift": [{**_good_row, "due_new": 0, "due_scheduled": 1}],
+    }
+    for name, rollup_rows in round2_bad.items():
+        _mk_vault(
+            root,
+            name,
+            _projection(
+                name,
+                generated_at=now.isoformat(timespec="seconds"),
+                due_nodes=[_due_row("n1", "甲板")],
+                boards=rollup_rows,
+            ),
+        )
+    # 纯无主占位符 (M1 残留): boards 为空数组但扁平列表有 2 条 —
+    # 汇总行必须标注差额, 不许因无板行而错误置零
+    _mk_vault(
+        root,
+        "vault-unattr",
+        _projection(
+            "vault-unattr",
+            generated_at=now.isoformat(timespec="seconds"),
+            due_nodes=[],
+            stats={"due_nodes": 0},
+            top_boards=[],
+            upcoming=[],
+            placeholder=["无主1", "无主2"],
+            boards=[],
+        ),
+    )
+
     resp = client.get("/api/v1/review/overview")
     assert resp.status_code == 200
     by_id = {v["vault_id"]: v for v in resp.json()["vaults"]}
     assert by_id["bad-rollup"]["status"] == "corrupt", "rollup 形状垃圾必须 corrupt"
-    for name in ("bad-rollup-due-drift", "bad-rollup-ghost-board", "bad-rollup-ph-overflow"):
+    for name in ("bad-rollup-due-drift", "bad-rollup-ghost-board", "bad-rollup-ph-overflow", *round2_bad):
         assert by_id[name]["status"] == "corrupt", f"{name} 跨源不一致必须 corrupt"
+    assert by_id["vault-unattr"]["status"] == "ok"
+    assert by_id["vault-unattr"]["projection"]["placeholder_attributed"] == 0
     entry = by_id["vault-a"]
     assert entry["status"] == "ok"
     p = entry["projection"]
@@ -682,8 +743,9 @@ def test_boards_rollup_consumed_when_present(overview_env):
     assert page.status_code == 200
     assert "丁板" in page.text and "乙板" in page.text
     # Codex-D1 M1: 无归属占位符差额必须在汇总行标注, 否则汇总 6 vs 板级
-    # 合计 5 无法对账
+    # 合计 5 无法对账; 纯无主占位符 (boards 空) 时差额同样不许被置零
     assert "含未归板 1" in page.text
+    assert "含未归板 2" in page.text, "纯无主占位符 vault 的差额注记不许因板行为空而消失"
 
 
 def test_humanize_due_shanghai_midnight_semantics():

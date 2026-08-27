@@ -136,10 +136,12 @@ def _gate_due_groups(due_nodes: list) -> dict[str, dict]:
         # 生产器构造律: scheduled ⟺ fsrs_due 非空 (new/malformed 均为空串)
         if (reason == "scheduled") != bool(ts):
             raise ValueError(f"due_nodes[{i}] due_reason={reason!r} 与 fsrs_due={ts!r} 不自洽")
-        g = groups.setdefault(board, {"due": 0, "new": 0, "earliest": ""})
+        g = groups.setdefault(board, {"due": 0, "new": 0, "scheduled": 0, "earliest": ""})
         g["due"] += 1
         if reason == "new":
             g["new"] += 1
+        elif reason == "scheduled":
+            g["scheduled"] += 1
         if ts and (not g["earliest"] or ts < g["earliest"]):
             g["earliest"] = ts
     return groups
@@ -158,11 +160,15 @@ def _gate_upcoming(upcoming: list) -> list[dict]:
         if board in seen:  # Codex-D1 H5: 重复板会成双行 — 生产器一板一条
             raise ValueError(f"upcoming[{i}].board 重复: {board!r}")
         seen.add(board)
+        node = u.get("node")
+        # round2: 生产器 node 恒为非空 stem — 空值不再放行
+        if not isinstance(node, str) or not node:
+            raise ValueError(f"upcoming[{i}].node 应为非空字符串, 实为 {node!r}")
         gated.append(
             {
                 "board": board,
                 "next_due": _due_ts(u.get("next_due"), f"upcoming[{i}].next_due", allow_empty=False),
-                "node": _opt_str(u.get("node"), f"upcoming[{i}].node"),
+                "node": node,
             }
         )
     return gated
@@ -186,6 +192,8 @@ def _gate_boards_rollup(
         raise ValueError(f"boards 应为数组, 实为 {type(rollup).__name__}")
     ph_map: dict[str, int] = {}
     rollup_due: dict[str, int] = {}
+    rollup_new: dict[str, int] = {}
+    rollup_sched: dict[str, int] = {}
     zero: list[dict] = []
     for i, r in enumerate(rollup):
         if not isinstance(r, dict):
@@ -203,14 +211,36 @@ def _gate_boards_rollup(
                 raise ValueError(f"boards[{i}].{f} {e}")
         next_due = _due_ts(r.get("next_due"), f"boards[{i}].next_due")
         _due_ts(r.get("earliest_overdue"), f"boards[{i}].earliest_overdue")
+        # 生产器构造律 (Codex-D1 round2 补齐):
+        # ① due 三分不越界 (malformed = due - new - scheduled >= 0)
+        if counts["due_new"] + counts["due_scheduled"] > counts["due"]:
+            raise ValueError(
+                f"boards[{i}] due 三分越界: due={counts['due']} new={counts['due_new']} sched={counts['due_scheduled']}"
+            )
+        # ② future ⟺ next_due 非空 (未来成员必有合法 fsrs_due)
+        if (counts["future"] > 0) != bool(next_due):
+            raise ValueError(f"boards[{i}] future={counts['future']} 与 next_due={next_due!r} 不自洽")
+        # ③ 全零幽灵板: 板只经成员或占位符进 rollup, 五计数全零非生产器产物
+        if counts["due"] == 0 and counts["future"] == 0 and counts["placeholder"] == 0:
+            raise ValueError(f"boards[{i}] 全零板 {board!r} 非生产器产物")
         ph_map[board] = counts["placeholder"]
         rollup_due[board] = counts["due"]
+        rollup_new[board] = counts["due_new"]
+        rollup_sched[board] = counts["due_scheduled"]
         if counts["due"] == 0:
             zero.append({"board": board, "next_due": next_due})
     derived_due = {b: g["due"] for b, g in due_groups.items()}
     claimed_due = {b: d for b, d in rollup_due.items() if d > 0}
     if claimed_due != derived_due:
         raise ValueError(f"boards rollup 到期计数与 due_nodes 明细不一致: rollup={claimed_due} 明细={derived_due}")
+    # ④ due 三分逐板与明细 due_reason 同源 (round2: due_new/due_scheduled
+    # 漂移会让"新卡"列造假)
+    for b, g in due_groups.items():
+        if rollup_new[b] != g["new"] or rollup_sched[b] != g["scheduled"]:
+            raise ValueError(
+                f"boards rollup {b!r} 三分与明细不一致: "
+                f"rollup new={rollup_new[b]}/sched={rollup_sched[b]} 明细 new={g['new']}/sched={g['scheduled']}"
+            )
     if sum(ph_map.values()) > flat_placeholder:
         raise ValueError(f"boards rollup placeholder 合计 {sum(ph_map.values())} 超过扁平列表总数 {flat_placeholder}")
     return ph_map, zero
@@ -327,12 +357,14 @@ def _summarize(payload: dict) -> dict:
     for i, tb in enumerate(top_boards):
         if not isinstance(tb, dict):
             raise ValueError(f"top_boards[{i}] 应为 object, 实为 {type(tb).__name__}")
-        b = _opt_str(tb.get("board"), f"top_boards[{i}].board")
-        if b:
-            # Codex-D1 H5: 重复板会让后续板与非 top 板共享排序优先级
-            if b in prio:
-                raise ValueError(f"top_boards[{i}].board 重复: {b!r}")
-            prio[b] = i
+        b = tb.get("board")
+        # round2: 空板名也是垃圾 (生产器 _board_name 恒非空) — 不再 _opt_str 放行
+        if not isinstance(b, str) or not b:
+            raise ValueError(f"top_boards[{i}].board 应为非空字符串, 实为 {b!r}")
+        # Codex-D1 H5: 重复板会让后续板与非 top 板共享排序优先级
+        if b in prio:
+            raise ValueError(f"top_boards[{i}].board 重复: {b!r}")
+        prio[b] = i
     top = top_boards[0] if top_boards else {}
     up_gated = _gate_upcoming(upcoming)
     # 不透传整对象 (round3: 内部字段未验的 dict 原样进响应仍是形状垃圾
@@ -381,13 +413,23 @@ def _summarize(payload: dict) -> dict:
     generated_at = payload.get("generated_at")
     if not isinstance(generated_at, str):
         raise ValueError(f"generated_at 应为字符串, 实为 {type(generated_at).__name__}")
+    # round2 (Codex-D1 H5 残留): date 是生产器 date().isoformat() 产物 —
+    # 词形 + 日历双验, 垃圾值不发 ok (缺省 None 容旧投影)
+    date_v = payload.get("date")
+    if date_v is not None:
+        if not isinstance(date_v, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_v):
+            raise ValueError(f"date 非日历日期形态: {date_v!r}")
+        try:
+            datetime.strptime(date_v, "%Y-%m-%d")
+        except ValueError:
+            raise ValueError(f"date 日历非法: {date_v!r}")
     pending = top.get("pending")
     if pending is not None:
         pending = _strict_int(pending)
     return {
         "schema_version": 3,
         "vault_id": _opt_str(payload.get("vault_id"), "vault_id"),  # C1a 加性; 旧投影缺 → null
-        "date": _opt_str(payload.get("date"), "date"),
+        "date": date_v,
         "generated_at": generated_at,
         # stats.due_nodes 是 v3 权威计数 (A2 构造保证与明细同源) — 不退
         # 明细重数, 类型不符即 corrupt
@@ -401,6 +443,10 @@ def _summarize(payload: dict) -> dict:
         # 合计==due_count, A2 同源构造保证; 手工投影不一致时两数并陈)
         "boards": board_rows,
         "due_new_count": sum(r["due_new"] for r in board_rows),
+        # round2 (Codex-D1 M1 残留): rollup 在场时的板级归属合计 — 渲染层
+        # 据此算"未归板"差额; 不能从 board_rows 重加 (纯无主占位符时
+        # boards 为空, 差额会被错误置零)。缺省 null = rollup 不在场
+        "placeholder_attributed": sum(ph_map.values()) if rollup_zero is not None else None,
     }
 
 
@@ -572,9 +618,10 @@ def _card_html(entry: dict, now_sh: datetime) -> str:
             else f'<span style="color:#d97706;font-size:12px">（明细 {derived}）</span>'
         )
         # Codex-D1 M1: 无 source_board 的占位符只在扁平总数里 — rollup 在场
-        # 且板级合计小于总数时标注差额, 汇总与表格才能对账
-        ph_known = [r["placeholder"] for r in proj["boards"] if r.get("placeholder") is not None]
-        unattributed = proj["placeholder_backlog"] - sum(ph_known) if ph_known else 0
+        # 且板级归属合计小于总数时标注差额 (取 placeholder_attributed 而非
+        # 从行重加: 纯无主占位符时 boards 为空, 重加会把差额错误置零)
+        attributed = proj.get("placeholder_attributed")
+        unattributed = proj["placeholder_backlog"] - attributed if attributed is not None else 0
         ph_note = f"（含未归板 {int(unattributed)}）" if unattributed > 0 else ""
         summary = (
             f'<div style="font-size:26px;margin:8px 0 0">到期 <b>{int(proj["due_count"])}</b>{mismatch}'
