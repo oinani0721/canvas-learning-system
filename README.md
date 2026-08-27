@@ -1,5 +1,15 @@
 # Canvas Learning System
 
+> [!WARNING]
+> **诚实止血横幅（2026-08-27 · CARD-G1-4）** — 本 README 为历史介绍文档，内容跨越两个架构时代，尚未按当前系统状态重新验证。已知漂移点：
+> 1. **Agent 数量前后矛盾** — 下文三处分别写 12-14（Overview）与 14（Our Solution 要点、Features 标题），正文实际列出 11 个；后端 `AgentType` 枚举 15 个值（含 2 个兼容别名）、另一处后端清单 14 项，各处口径互不一致。
+> 2. **旧插件目录名** — 安装步骤中的 `.obsidian/plugins/canvas-review-system/` 是旧目录名，与当前插件目录不一致。
+> 3. **旧 Quick Start 流程** — 「右键调用 Agent」的 `.canvas` 操作流程在当前插件代码（main.ts）中没有对应事件挂载，按此操作无法复现。
+> 4. **端口与监听地址漂移** — 本文写有 8000 与 8001 两种端口；仓库当前 `.env.example` 实际使用宿主端口 8011，与本文不一致；`--host 0.0.0.0` 与 2026-07-31 的 P0-0 安全决策相抵触，请勿照抄。
+> 5. **未验证描述** — 「Auto-generated review Canvas」等 Review System 描述未在当前架构下重新验证。
+>
+> 相对可信的入口：下方 **Docker Deployment** 一节经 2026-08-27 勘探实测相对可信，可作为部署起点；其余章节请以仓库内代码、测试与验收单为准。
+
 <p align="center">
   <strong>AI-Powered Learning Platform for Obsidian Canvas</strong><br/>
   Transform passive learning into active understanding using the Feynman Technique
@@ -23,6 +33,8 @@
 ## Overview
 
 Canvas Learning System transforms **passive learning** into an **active learning process**. With 12-14 specialized AI Agents collaborating, it guides you from confusion to mastery through the Feynman Learning Method.
+
+> ⚠️ 漂移标注（2026-08-27）：本段 Agent 数量与下文不一致——此处写 12-14，下文 Our Solution 要点与 Features 标题写 14，正文实际列出 11 个；后端多处枚举（15 值含 2 别名 / 14 项清单）口径也互不一致，数字待重新核定。
 
 ### Problems We Solve
 
@@ -78,6 +90,8 @@ Canvas Learning System transforms **passive learning** into an **active learning
 - Auto-generated review Canvas
 - Progress tracking dashboard
 
+> ⚠️ 漂移标注（2026-08-27）：本节「Auto-generated review Canvas」等描述未在当前架构下重新验证，实际行为以仓库内代码与测试为准。
+
 ---
 
 ## Installation
@@ -95,6 +109,7 @@ Canvas Learning System transforms **passive learning** into an **active learning
 1. Download the latest [Release](https://github.com/oinani0721/canvas-learning-system/releases)
 2. Extract `main.js` and `manifest.json`
 3. Create folder `.obsidian/plugins/canvas-review-system/` in your Vault
+   > ⚠️ 漂移标注（2026-08-27）：`canvas-review-system` 是旧插件目录名，与当前插件 manifest ID 及部署目录（`canvas-learning-system`）不一致，按本行操作可能导致插件无法正常加载。
 4. Copy the files to that folder
 5. Enable the plugin in Obsidian Settings > Community Plugins
 
@@ -128,6 +143,8 @@ cp .env.example .env
 # Start service
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
+
+> ⚠️ 漂移标注（2026-08-27）：上方 `--host 0.0.0.0 --port 8000` 与本文 Docker 段的 8001、仓库 `.env.example` 当前的 8011 端口配置互相矛盾；`0.0.0.0` 监听与 2026-07-31 的 P0-0 安全决策相抵触，请勿照抄。
 
 ### Docker Deployment (Neo4j + Memory System)
 
@@ -187,6 +204,8 @@ curl http://localhost:8001/api/v1/health
 ---
 
 ## Quick Start
+
+> ⚠️ 漂移标注（2026-08-27）：以下「右键调用 Agent」流程在当前插件代码（main.ts）中没有对应事件挂载，按此步骤操作无法复现；本节属旧架构时代文案。
 
 1. **Create a new Canvas** - Create a `.canvas` file in Obsidian
 2. **Add red nodes** - Write concepts you don't understand
