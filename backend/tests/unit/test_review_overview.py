@@ -11,12 +11,17 @@ import json
 import os
 from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
-from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi.testclient import TestClient
 
-_SH = ZoneInfo("Asia/Shanghai")
+# 与生产代码同款退化 (Codex-D1 L1): 无 tzdata 环境收集不崩, 仍可验固定 +8 回退
+try:
+    from zoneinfo import ZoneInfo
+
+    _SH = ZoneInfo("Asia/Shanghai")
+except Exception:  # noqa: BLE001
+    _SH = timezone(timedelta(hours=8))
 
 
 def _now_local() -> datetime:
@@ -232,6 +237,41 @@ def test_corrupt_projection_does_not_500(overview_env):
         "bad-pending-str": json.dumps(
             _projection("x", generated_at=now_iso, top_boards=[{"board": "B", "top_node": "n", "pending": "many"}])
         ),
+        # ── CARD-D1 round2 (Codex-D1 H2/H5) ──
+        # JSON "\ud800" 转义解出孤立 surrogate — 响应 UTF-8 序列化才炸,
+        # 必须在解析层折断 (默认 ensure_ascii=True 才能把它写成合法文件)
+        "bad-surrogate": json.dumps(_projection("x", generated_at=now_iso, board="孤\ud800板")),
+        # 显式 null 不是"旧投影缺省" — 生产器恒产出数组
+        "bad-boards-null": json.dumps(_projection("x", generated_at=now_iso, boards=None)),
+        # 重复 due 行会被静默重复计数
+        "bad-dup-due": json.dumps(_projection("x", generated_at=now_iso, due=["同名", "同名"])),
+        "bad-node-empty": json.dumps(_projection("x", generated_at=now_iso, due_nodes=[_due_row("", "板")])),
+        # 重复 top 板会让后续板与非 top 板共享排序优先级
+        "bad-dup-top": json.dumps(
+            _projection(
+                "x",
+                generated_at=now_iso,
+                top_boards=[
+                    {"board": "B", "top_node": "n", "pending": 1},
+                    {"board": "B", "top_node": "n", "pending": 1},
+                ],
+            )
+        ),
+        "bad-dup-upcoming": json.dumps(
+            _projection(
+                "x",
+                generated_at=now_iso,
+                upcoming=[
+                    {"board": "U", "next_due": "2026-09-01T00:00:00Z", "node": "a"},
+                    {"board": "U", "next_due": "2026-09-02T00:00:00Z", "node": "b"},
+                ],
+            )
+        ),
+        "bad-placeholder-elems": json.dumps(
+            _projection(
+                "x", generated_at=now_iso, ineligible={"placeholder": [123], "test_excluded": [], "corrupt": []}
+            )
+        ),
     }
     for name, raw in hostile.items():
         _mk_vault(root, name, raw=raw)
@@ -332,8 +372,9 @@ def test_page_is_self_contained_with_obsidian_links(overview_env):
     assert page.headers["content-type"].startswith("text/html")
     text = page.text
     assert "obsidian://open?vault=vault-a" in text
-    for marker in ("<script src=", "<link ", 'src="http', "src='http", 'href="http', "href='http"):
-        assert marker not in text, f"外部资源引用泄漏: {marker}"
+    # "<script" 含内联脚本 (Codex-D1 L2: 只拦 <script src= 挡不住内联 JS)
+    for marker in ("<script", "<link ", 'src="http', "src='http", 'href="http', "href='http"):
+        assert marker not in text.lower(), f"外部资源/JS 引用泄漏: {marker}"
 
 
 # ── CARD-D1: 总览页 Anki 化 (BATCH-2026-08-27-Anki化与诚实收尾) ──
@@ -547,6 +588,8 @@ def test_boards_rollup_consumed_when_present(overview_env):
             generated_at=now.isoformat(timespec="seconds"),
             due_nodes=[_due_row("n1", "甲板")],
             stats={"due_nodes": 1},
+            # 扁平 6 条 vs 板级归属 5 (2+3) — 差额 1 = 无 source_board 占位符
+            placeholder=[f"p{i}" for i in range(6)],
             top_boards=[{"board": "甲板", "top_node": "n1", "pending": 1}],
             # upcoming 只截到丙板 — 乙板/丁板必须由 rollup 补全
             upcoming=[{"board": "丙板", "next_due": rollup[2]["next_due"], "node": "x"}],
@@ -562,11 +605,67 @@ def test_boards_rollup_consumed_when_present(overview_env):
             boards=[{"board": "x", "due": -1}],
         ),
     )
+    # 跨源一致性 (Codex-D1 H4): rollup 声称的到期板集合/计数必须与 due_nodes
+    # 明细相等; 板级 placeholder 合计不得超过扁平总数
+    _mk_vault(
+        root,
+        "bad-rollup-due-drift",
+        _projection(
+            "bad-rollup-due-drift",
+            generated_at=now.isoformat(timespec="seconds"),
+            due_nodes=[_due_row("n1", "甲板")],
+            boards=[
+                {
+                    "board": "甲板",
+                    "due": 2,
+                    "due_new": 2,
+                    "due_scheduled": 0,
+                    "future": 0,
+                    "next_due": "",
+                    "placeholder": 0,
+                    "earliest_overdue": "",
+                },
+            ],
+        ),
+    )
+    _mk_vault(
+        root,
+        "bad-rollup-ghost-board",
+        _projection(
+            "bad-rollup-ghost-board",
+            generated_at=now.isoformat(timespec="seconds"),
+            due_nodes=[_due_row("n1", "甲板")],
+            boards=[],  # 声称无到期板但明细有 — 整板会静默消失
+        ),
+    )
+    _mk_vault(
+        root,
+        "bad-rollup-ph-overflow",
+        _projection(
+            "bad-rollup-ph-overflow",
+            generated_at=now.isoformat(timespec="seconds"),
+            due_nodes=[_due_row("n1", "甲板")],
+            boards=[
+                {
+                    "board": "甲板",
+                    "due": 1,
+                    "due_new": 1,
+                    "due_scheduled": 0,
+                    "future": 0,
+                    "next_due": "",
+                    "placeholder": 999,
+                    "earliest_overdue": "",
+                },
+            ],
+        ),
+    )
 
     resp = client.get("/api/v1/review/overview")
     assert resp.status_code == 200
     by_id = {v["vault_id"]: v for v in resp.json()["vaults"]}
     assert by_id["bad-rollup"]["status"] == "corrupt", "rollup 形状垃圾必须 corrupt"
+    for name in ("bad-rollup-due-drift", "bad-rollup-ghost-board", "bad-rollup-ph-overflow"):
+        assert by_id[name]["status"] == "corrupt", f"{name} 跨源不一致必须 corrupt"
     entry = by_id["vault-a"]
     assert entry["status"] == "ok"
     p = entry["projection"]
@@ -582,3 +681,24 @@ def test_boards_rollup_consumed_when_present(overview_env):
     page = client.get("/api/v1/review/overview/page")
     assert page.status_code == 200
     assert "丁板" in page.text and "乙板" in page.text
+    # Codex-D1 M1: 无归属占位符差额必须在汇总行标注, 否则汇总 6 vs 板级
+    # 合计 5 无法对账
+    assert "含未归板 1" in page.text
+
+
+def test_humanize_due_shanghai_midnight_semantics():
+    """跨午夜语义直测 (Codex-D1 M3): now = 上海 2026-08-28 00:30 (UTC 还在
+    08-27 16:30) — 上海本地日与 UTC 日错位的窗口, 按 UTC 日判定的实现在
+    这三条上必然翻车。纯函数直测, 不经 HTTP 不读时钟, 零闪断。"""
+    from app.api.v1.endpoints.review_overview import _humanize_due
+
+    now_sh = datetime(2026, 8, 27, 16, 30, tzinfo=timezone.utc)  # 上海 08-28 00:30
+    # due 上海 08-28 01:00: 同上海日 → 现在 (按 UTC 日会误判成逾期)
+    assert _humanize_due("2026-08-27T17:00:00Z", now_sh)[0] == "现在"
+    # due 上海 08-27 23:00: 上海昨日 → 逾期1天 (按 UTC 日会误判成"现在")
+    assert _humanize_due("2026-08-27T15:00:00Z", now_sh)[0] == "逾期1天"
+    # due 上海 08-29 00:30 → 明天
+    assert _humanize_due("2026-08-28T16:30:00Z", now_sh)[0] == "明天"
+    assert _humanize_due("", now_sh)[0] == "现在"
+    assert _humanize_due(None, now_sh)[0] == "—"
+    assert _humanize_due("9999-12-31T23:59:59Z", now_sh)[0] == "—", "极值溢出降级不炸"

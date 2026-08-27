@@ -83,10 +83,13 @@ def _board_name(raw: str | None):
 
 
 def scan_nodes(vault: Path, now: datetime, decay):
-    """扫描 节点/ 池 → (nodes, stats, ineligible)。逐节点容错: 单个脏节点不崩全轮。
+    """扫描 节点/ 池 → (nodes, stats, ineligible, placeholder_boards)。
+    逐节点容错: 单个脏节点不崩全轮。
 
     ineligible 分桶 (schema v3, CARD-A2): 被跳过的节点按原因点名, 不再只有
     计数 — Dashboard 消费 placeholder 桶显示"待剖析积压"。
+    placeholder_boards (CARD-D1 P1): {板名: 占位符数} 板级归属, 供 boards
+    rollup; 无 source_board 的占位符不入 (只在扁平列表)。
     """
     stats = {"new": 0, "legacy": 0, "none": 0, "ineligible": 0, "test_excluded": 0, "corrupt": 0}
     ineligible = {"placeholder": [], "test_excluded": [], "corrupt": []}

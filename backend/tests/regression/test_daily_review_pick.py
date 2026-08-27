@@ -375,3 +375,77 @@ def test_boards_rollup_additive_old_fields_untouched(tmp_path):
     by = {r["board"]: r for r in payload["boards"]}
     assert by["普通板"]["placeholder"] == 1 and by["普通板"]["due"] == 1
     assert by["别板"]["due"] == 0 and by["别板"]["next_due"] == "2026-08-15T01:00:00Z"
+
+
+def test_boards_rollup_golden_old_fields_frozen(tmp_path):
+    """P1 加性纯度金样 (Codex-D1 M2): 冻结 rollup 引入前的完整 payload
+    字面量, 删掉新增 boards 键后深度全等 + 顶层键序恒等 — 旧字段任何
+    值/键序/嵌套漂移都在此翻车 (逐字段断言无法发现的同步漂移)。
+    generated_at/date 按 NOW.astimezone() 计算 (跟随机器时区, 非被测逻辑);
+    vault 名固定 goldenvault 保 vault_id 确定性。"""
+    vault = tmp_path / "goldenvault"
+    scripts = vault / ".claude" / "scripts"
+    scripts.mkdir(parents=True)
+    (vault / "节点").mkdir()
+    shutil.copy(WT / "canvas-vault" / ".claude" / "scripts" / "decay_beta.py", scripts)
+    for name, content in {
+        "存量": _node(),
+        "已排期": _node(board="别板", extra="fsrs_due: 2026-08-15T01:00:00Z\n"),
+        "占位": _node().replace("真实内容。", "> 你的 1-2 句精准定义"),
+    }.items():
+        (vault / "节点" / f"{name}.md").write_text(content, encoding="utf-8")
+    payload, _ = picker.build_payload(vault, NOW, {}, picker.load_decay(vault))
+
+    boards = payload.pop("boards")  # CARD-D1 P1 唯一新增 — 摘掉后与金样全等
+    golden = {
+        "unassigned_nodes": [],
+        "schema_version": 3,
+        "vault_id": "goldenvault",
+        "date": NOW.astimezone().date().isoformat(),
+        "generated_at": NOW.astimezone().isoformat(timespec="seconds"),
+        "top_boards": [
+            {
+                "board": "普通板",
+                "top_node": "存量",
+                "priority": 0.0709,
+                "pending": 1,
+                "idle_days": None,
+                "difficulty": "",
+                "next_due": "",
+            }
+        ],
+        "upcoming": [{"board": "别板", "next_due": "2026-08-15T01:00:00Z", "node": "已排期"}],
+        "due_nodes": [
+            {
+                "node": "存量",
+                "board": "普通板",
+                "state": "none",
+                "pick": 0.0709,
+                "fsrs_due": "",
+                "due_reason": "new",
+                "last_examined": "",
+                "difficulty": "",
+            }
+        ],
+        "ineligible": {"placeholder": ["占位"], "test_excluded": [], "corrupt": []},
+        "stats": {
+            "new": 0,
+            "legacy": 0,
+            "none": 2,
+            "ineligible": 1,
+            "test_excluded": 0,
+            "corrupt": 0,
+            "unassigned": 0,
+            "due_nodes": 1,
+            "future_nodes": 1,
+        },
+        "notification": {
+            "title": "📚 今日复习 · 普通板",
+            "body": "存量 待巩固 · 从未考察",
+            "group": "canvas复习",
+            "id": "canvas-review-2026-07-30",
+        },
+    }
+    assert payload == golden, "旧字段深度全等被打破 — P1 不再是纯加性"
+    assert list(payload) == [k for k in golden if k != "boards"], "顶层键序漂移 (落盘 diff 稳定性)"
+    assert [r["board"] for r in boards] == ["别板", "普通板"]

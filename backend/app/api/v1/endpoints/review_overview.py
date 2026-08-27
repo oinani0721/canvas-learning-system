@@ -115,12 +115,20 @@ def _gate_due_groups(due_nodes: list) -> dict[str, dict]:
     盖掉, 低估紧迫度 (冒烟实测抓到)。全新卡板才落 "" → 渲染"现在"。
     """
     groups: dict[str, dict] = {}
+    seen_rows: set[tuple[str, str]] = set()
     for i, row in enumerate(due_nodes):
         if not isinstance(row, dict):
             raise ValueError(f"due_nodes[{i}] 应为 object, 实为 {type(row).__name__}")
         board = row.get("board")
         if not isinstance(board, str) or not board:
             raise ValueError(f"due_nodes[{i}].board 应为非空字符串, 实为 {board!r}")
+        node = row.get("node")
+        if not isinstance(node, str) or not node:
+            raise ValueError(f"due_nodes[{i}].node 应为非空字符串, 实为 {node!r}")
+        # Codex-D1 H5: 重复行会被静默重复计数 — 生产器 stem 唯一, 重复即垃圾
+        if (board, node) in seen_rows:
+            raise ValueError(f"due_nodes[{i}] 重复行: {board!r}/{node!r}")
+        seen_rows.add((board, node))
         reason = row.get("due_reason")
         if reason not in ("new", "scheduled", "malformed"):
             raise ValueError(f"due_nodes[{i}].due_reason 枚举外: {reason!r}")
@@ -140,12 +148,16 @@ def _gate_due_groups(due_nodes: list) -> dict[str, dict]:
 def _gate_upcoming(upcoming: list) -> list[dict]:
     """upcoming 全量元素门禁 (CARD-D1 前只看 [0]): 板表格零到期行的数据源。"""
     gated = []
+    seen: set[str] = set()
     for i, u in enumerate(upcoming):
         if not isinstance(u, dict):
             raise ValueError(f"upcoming[{i}] 应为 object, 实为 {type(u).__name__}")
         board = u.get("board")
         if not isinstance(board, str) or not board:
             raise ValueError(f"upcoming[{i}].board 应为非空字符串, 实为 {board!r}")
+        if board in seen:  # Codex-D1 H5: 重复板会成双行 — 生产器一板一条
+            raise ValueError(f"upcoming[{i}].board 重复: {board!r}")
+        seen.add(board)
         gated.append(
             {
                 "board": board,
@@ -156,15 +168,24 @@ def _gate_upcoming(upcoming: list) -> list[dict]:
     return gated
 
 
-def _gate_boards_rollup(rollup) -> tuple[dict[str, int], list[dict]]:
+def _gate_boards_rollup(
+    rollup, due_groups: dict[str, dict], flat_placeholder: int
+) -> tuple[dict[str, int], list[dict]]:
     """P1 加性 boards rollup 门禁 (可选顶层键: 旧投影缺省走纯派生路径)。
 
     消费两块: 板级 placeholder 归属 (待剖析列) + due==0 零到期板全量
     (upcoming 只截 [:3] 的结构性缺口)。其余字段只门禁不消费 — 板级到期数
-    仍由 due_nodes group-by 派生 (CARD-D1 P0 判据), 不从 rollup 抄。"""
+    仍由 due_nodes group-by 派生 (CARD-D1 P0 判据), 不从 rollup 抄。
+
+    跨源一致性 (Codex-D1 H4): 生产器构造保证 rollup 与 due_nodes/扁平
+    placeholder 同源 — rollup 的到期板集合+计数必须与 group-by 派生逐板
+    相等 (否则"声称 due=1 但明细无此板"的板会静默消失), 板级 placeholder
+    合计不得超过扁平列表总数 (无归属占位符只会让合计更小)。不一致即 corrupt。
+    """
     if not isinstance(rollup, list):
         raise ValueError(f"boards 应为数组, 实为 {type(rollup).__name__}")
     ph_map: dict[str, int] = {}
+    rollup_due: dict[str, int] = {}
     zero: list[dict] = []
     for i, r in enumerate(rollup):
         if not isinstance(r, dict):
@@ -183,8 +204,15 @@ def _gate_boards_rollup(rollup) -> tuple[dict[str, int], list[dict]]:
         next_due = _due_ts(r.get("next_due"), f"boards[{i}].next_due")
         _due_ts(r.get("earliest_overdue"), f"boards[{i}].earliest_overdue")
         ph_map[board] = counts["placeholder"]
+        rollup_due[board] = counts["due"]
         if counts["due"] == 0:
             zero.append({"board": board, "next_due": next_due})
+    derived_due = {b: g["due"] for b, g in due_groups.items()}
+    claimed_due = {b: d for b, d in rollup_due.items() if d > 0}
+    if claimed_due != derived_due:
+        raise ValueError(f"boards rollup 到期计数与 due_nodes 明细不一致: rollup={claimed_due} 明细={derived_due}")
+    if sum(ph_map.values()) > flat_placeholder:
+        raise ValueError(f"boards rollup placeholder 合计 {sum(ph_map.values())} 超过扁平列表总数 {flat_placeholder}")
     return ph_map, zero
 
 
@@ -290,6 +318,9 @@ def _summarize(payload: dict) -> dict:
     placeholder = ineligible.get("placeholder")
     if not isinstance(placeholder, list):
         raise ValueError(f"ineligible.placeholder 应为数组, 实为 {type(placeholder).__name__}")
+    for j, p in enumerate(placeholder):
+        if not isinstance(p, str):  # Codex-D1 H5: len() 消费也不给垃圾元素发 ok
+            raise ValueError(f"ineligible.placeholder[{j}] 应为字符串, 实为 {type(p).__name__}")
     # top_boards 全量元素门禁 (CARD-D1: 行序依赖每个元素的 board) —
     # [0] 额外保留 top_node/pending 门禁 (汇总行消费)
     prio: dict[str, int] = {}
@@ -297,7 +328,10 @@ def _summarize(payload: dict) -> dict:
         if not isinstance(tb, dict):
             raise ValueError(f"top_boards[{i}] 应为 object, 实为 {type(tb).__name__}")
         b = _opt_str(tb.get("board"), f"top_boards[{i}].board")
-        if b and b not in prio:
+        if b:
+            # Codex-D1 H5: 重复板会让后续板与非 top 板共享排序优先级
+            if b in prio:
+                raise ValueError(f"top_boards[{i}].board 重复: {b!r}")
             prio[b] = i
     top = top_boards[0] if top_boards else {}
     up_gated = _gate_upcoming(upcoming)
@@ -309,12 +343,13 @@ def _summarize(payload: dict) -> dict:
     # 排序) → 零到期板 (按 next_due 升序)。P1 rollup 在场时提供板级
     # placeholder 归属 (待剖析列) 与零到期板全量; 缺省 (旧投影) 时待剖析
     # 为 null → 渲染 "—", 零到期板回落 upcoming[:3]。
-    rollup = payload.get("boards")
+    groups = _gate_due_groups(due_nodes)
     ph_map: dict[str, int] = {}
     rollup_zero: list[dict] | None = None
-    if rollup is not None:
-        ph_map, rollup_zero = _gate_boards_rollup(rollup)
-    groups = _gate_due_groups(due_nodes)
+    # "boards" in payload 而非 .get(): 显式 null 不是"旧投影缺省", 是形状
+    # 垃圾 (Codex-D1 H5) — 生产器恒产出数组
+    if "boards" in payload:
+        ph_map, rollup_zero = _gate_boards_rollup(payload["boards"], groups, len(placeholder))
     board_rows = [
         {"board": b, "due": g["due"], "due_new": g["new"], "placeholder": ph_map.get(b), "earliest": g["earliest"]}
         for b, g in groups.items()
@@ -396,6 +431,10 @@ def _vault_entry(vault_dir: Path, today: date) -> dict:
         payload = json.loads(raw, parse_constant=_reject_nonstandard_json, parse_float=_finite_float)
         if not isinstance(payload, dict):
             raise ValueError("投影根节点不是 JSON object")
+        # Codex-D1 H2: JSON "\ud800" 转义会解出孤立 surrogate 字符串,
+        # isinstance(str) 门禁放行, 到响应 UTF-8 序列化 / quote() 才炸成
+        # 500 — 解析层就地折断 (UnicodeEncodeError ⊂ ValueError → corrupt)
+        json.dumps(payload, ensure_ascii=False).encode("utf-8")
         summary = _summarize(payload)
     except Exception as e:  # noqa: BLE001 — 外部文件任意形状, 统一 corrupt 降级
         entry["status"] = "corrupt"
@@ -532,10 +571,15 @@ def _card_html(entry: dict, now_sh: datetime) -> str:
             if derived == proj["due_count"]
             else f'<span style="color:#d97706;font-size:12px">（明细 {derived}）</span>'
         )
+        # Codex-D1 M1: 无 source_board 的占位符只在扁平总数里 — rollup 在场
+        # 且板级合计小于总数时标注差额, 汇总与表格才能对账
+        ph_known = [r["placeholder"] for r in proj["boards"] if r.get("placeholder") is not None]
+        unattributed = proj["placeholder_backlog"] - sum(ph_known) if ph_known else 0
+        ph_note = f"（含未归板 {int(unattributed)}）" if unattributed > 0 else ""
         summary = (
             f'<div style="font-size:26px;margin:8px 0 0">到期 <b>{int(proj["due_count"])}</b>{mismatch}'
             f'<span style="font-size:13px;color:#6b7280"> · 新卡 {int(proj["due_new_count"])}'
-            f" · 待剖析 {int(proj['placeholder_backlog'])}</span></div>"
+            f" · 待剖析 {int(proj['placeholder_backlog'])}{ph_note}</span></div>"
         )
         gen_disp = html.escape(_fmt_projection_time(str(proj.get("generated_at") or "—")))
         body = (
