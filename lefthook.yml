@@ -139,6 +139,17 @@ pre-commit:
         fi
         echo "[Cypher-Lint] OK (no new raw cypher without group_id)."
 
+    # --- README claims lint (CARD-G1-5, BATCH-2026-08-27-第四批) ---
+    # 仿 cypher-vault-filter-lint 的 staged-diff 模式: 只扫 staged **新增行**。
+    # 存量失实文案不阻断 commit (G1-4 诚实横幅先行, 防同波自打架);
+    # 新增禁夸大声明 (计划书 §12.7 L633 十一类) 即 exit 1 阻断。
+    # glob 限 scan_paths 白名单文件 (backend/scripts/readme_claims_rules.yaml)。
+    readme-claims-lint:
+      glob: "README.md"
+      run: |
+        if [ -f "backend/.venv/bin/python" ]; then PY="backend/.venv/bin/python"; else PY="python3"; fi
+        "$PY" backend/scripts/check_readme_claims.py --staged-diff
+
 # ============================================================
 # Commit-msg: Conventional commits with commitlint
 # ============================================================
