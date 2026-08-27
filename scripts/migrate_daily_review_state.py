@@ -131,9 +131,9 @@ def _migrate_locked(args, old: Path, new: Path, bak: Path, backups: Path) -> int
         # LF, 让 new 与 .bak 首迁即字节不等, 完成态判据被自己击穿)
         content = old.read_bytes()
         parsed = json.loads(content)
-        # Codex-C1a B3: 结构校验到 dict 级 — "[]" 也是合法 JSON, 但迁过去
-        # runner load_state 会当场 AttributeError; 关键嵌套字段同查
-        # (board_last_recommended 为非 dict 会炸 picker tie-break)
+        # Codex-C1a B3: 结构校验到 dict 级 — "[]" 也是合法 JSON; runner
+        # load_state 自 D2b-M1 起对错型隔离重建 (不再当场炸), 但重建即丢
+        # 账 — 迁移侧拒迁保数据仍是第一道防线; 关键嵌套字段同查
         if not isinstance(parsed, dict):
             raise ValueError(f"state 根节点应为 object, 实为 {type(parsed).__name__}")
         blr = parsed.get("board_last_recommended")
