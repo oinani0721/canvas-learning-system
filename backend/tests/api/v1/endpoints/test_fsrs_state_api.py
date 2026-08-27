@@ -322,3 +322,65 @@ class TestFrontendContractDefaultScore:
         assert data["fsrs_state"] is None, (
             "Frontend contract: on error, fsrs_state=null → score=50"
         )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CARD-D3: 持久化失败信号必须穿透到 HTTP 响应 (加性可选字段, 200 语义不变)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestPersistHonestyForwardingD3:
+    """CARD-D3: service 层的持久化诚实信号需由端点原样转发, 不得在
+    响应模型处再次丢弃。"""
+
+    def test_fsrs_state_forwards_persisted_and_reason(
+        self, client, mock_review_singleton
+    ):
+        """auto-create 写失败: found=True + persisted=False + reason 透传。"""
+        mock_review_singleton.get_fsrs_state = AsyncMock(
+            return_value={
+                "found": True,
+                "stability": 1.0,
+                "difficulty": 5.0,
+                "state": 0,
+                "reps": 0,
+                "lapses": 0,
+                "retrievability": None,
+                "due": None,
+                "last_review": None,
+                "card_state": "{}",
+                "persisted": False,
+                "reason": "auto_created_not_persisted",
+            }
+        )
+        resp = client.get("/api/v1/review/fsrs-state/d3-concept")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["found"] is True
+        assert body["persisted"] is False
+        assert body["reason"] == "auto_created_not_persisted"
+
+    def test_record_forwards_card_state_persisted(
+        self, client, mock_review_singleton
+    ):
+        """评分持久化失败: card_state_persisted=False + degraded_reason 透传,
+        status 仍 200 (语义不变, 仅加性字段)。"""
+        mock_review_singleton.record_review_result = AsyncMock(
+            return_value={
+                "next_review": "2026-09-01T00:00:00+00:00",
+                "interval_days": 3,
+                "status": "recorded",
+                "algorithm": "fsrs-4.5",
+                "card_data": "{}",
+                "card_state_persisted": False,
+                "degraded_reason": "card_state_write_failed",
+            }
+        )
+        resp = client.put(
+            "/api/v1/review/record",
+            json={"canvas_name": "d3.canvas", "node_id": "d3-node", "rating": 3},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["card_state_persisted"] is False
+        assert body["degraded_reason"] == "card_state_write_failed"

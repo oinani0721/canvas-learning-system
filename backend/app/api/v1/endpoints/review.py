@@ -1120,6 +1120,9 @@ async def record_review_result(request: RecordReviewRequest) -> RecordReviewResp
             fsrs_state=fsrs_state,
             card_data=result.get("card_data"),
             algorithm=result.get("algorithm", "fsrs-4.5"),
+            # CARD-D3: 转发 service 层持久化诚实信号 (加性可选字段)
+            card_state_persisted=result.get("card_state_persisted"),
+            degraded_reason=result.get("degraded_reason"),
         )
 
     except Exception as e:
@@ -1436,6 +1439,10 @@ async def get_fsrs_state(
             fsrs_state=fsrs_state,
             card_state=result.get("card_state"),
             found=True,
+            # CARD-D3: auto-create 写盘失败时 persisted=False +
+            # reason="auto_created_not_persisted" 透传, found 语义不变
+            persisted=result.get("persisted"),
+            reason=result.get("reason"),
         )
 
     except Exception as e:
