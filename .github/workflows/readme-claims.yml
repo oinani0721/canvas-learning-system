@@ -41,6 +41,9 @@ jobs:
         if: always()
         run: python backend/scripts/check_readme_claims.py --report
       - name: Checker unit tests (conftest-isolated)
+        # --noconftest: backend/tests/unit/conftest.py imports the app stack
+        # (dotenv chain) and sits AT the old --confcutdir level, so it still
+        # loaded in CI. The test file is fully self-contained by design.
         run: >
           python -m pytest backend/tests/unit/test_check_readme_claims.py
-          --confcutdir backend/tests/unit -q -p no:cacheprovider --override-ini addopts=
+          --noconftest -q -p no:cacheprovider --override-ini addopts=
