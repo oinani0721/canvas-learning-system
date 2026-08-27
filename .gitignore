@@ -43,6 +43,7 @@ logs/bmad-*.jsonl
 # Claude Code 配置 (个人配置，忽略内容但保留 skills）
 .claude/*
 !.claude/skills/
+!.claude/rules/
 
 # 开发过程文件 (内部使用)
 iteration-*-validation-report.md
