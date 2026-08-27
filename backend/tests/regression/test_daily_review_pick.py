@@ -212,12 +212,13 @@ def test_projection_v3_purely_additive_keeps_v2_contract(tmp_path):
     assert set(payload) == {
         "unassigned_nodes",
         "schema_version",
-        "vault_id",  # CARD-C1a 唯一新增
+        "vault_id",  # CARD-C1a 加性新增
         "date",
         "generated_at",
         "top_boards",
         "upcoming",
         "due_nodes",
+        "boards",  # CARD-D1 P1 加性新增 (板级全量 rollup, 本断言显式扩)
         "ineligible",
         "stats",
         "notification",
@@ -290,3 +291,87 @@ def test_projection_v3_empty_vault_keeps_contract_keys(tmp_path):
     assert set(payload["ineligible"]) == {"placeholder", "test_excluded", "corrupt"}
     assert all(v == [] for v in payload["ineligible"].values())
     assert payload["notification"] is None
+    assert payload["boards"] == []  # CARD-D1 P1: rollup 键恒在, 空 vault 为空数组
+
+
+# ── CARD-D1 P1: 顶层 boards 全量 rollup (BATCH-2026-08-27-Anki化与诚实收尾) ──
+# 结构性缺口修复: top_boards/upcoming 各截 [:3]、placeholder 板级无归属 —
+# rollup 提供全量板行。schema_version 保持 3, 既有字段零改动。
+
+
+def test_boards_rollup_full_coverage(tmp_path):
+    """boards rollup 全量语义: due 三分 (new/scheduled/malformed 隐含) /
+    future / next_due / earliest_overdue / placeholder 归板; 计数与 stats
+    合计自洽; 无 source_board 的占位符只留扁平列表, 不虚构归属。"""
+    payload, _ = _build(
+        tmp_path,
+        {
+            "新卡": _node(board="A板"),
+            "逾期": _node(board="A板", extra="fsrs_due: 2026-07-28T01:00:00Z\n"),
+            "更早逾期": _node(board="A板", extra="fsrs_due: 2026-07-20T01:00:00Z\n"),
+            "未来": _node(board="A板", extra="fsrs_due: 2026-08-15T01:00:00Z\n"),
+            "全未来": _node(board="B板", extra="fsrs_due: 2026-09-01T01:00:00Z\n"),
+            "脏日期": _node(board="C板", extra="fsrs_due: 2026-13-01T00:00:00Z\n"),
+            "欠定义": _node(board="D板").replace("真实内容。", "> 你的 1-2 句精准定义"),
+            "无主欠定义": "---\ntype: concept\n---\n> 你的 1-2 句精准定义\n",
+        },
+    )
+    rollup = payload["boards"]
+    assert [r["board"] for r in rollup] == ["A板", "B板", "C板", "D板"], "全量板行按板名稳定排序"
+    for r in rollup:
+        assert set(r) == {
+            "board",
+            "due",
+            "due_new",
+            "due_scheduled",
+            "future",
+            "next_due",
+            "placeholder",
+            "earliest_overdue",
+        }
+    by = {r["board"]: r for r in rollup}
+    a = by["A板"]
+    assert a["due"] == 3 and a["due_new"] == 1 and a["due_scheduled"] == 2
+    assert a["future"] == 1 and a["next_due"] == "2026-08-15T01:00:00Z"
+    assert a["earliest_overdue"] == "2026-07-20T01:00:00Z"
+    assert a["placeholder"] == 0
+    b = by["B板"]
+    assert b["due"] == 0 and b["future"] == 1 and b["next_due"] == "2026-09-01T01:00:00Z"
+    assert b["earliest_overdue"] == "" and b["next_due"][:4] == "2026"
+    c = by["C板"]  # fail-open 脏日期: 到期但既非真新卡也非已排期 (malformed)
+    assert c["due"] == 1 and c["due_new"] == 0 and c["due_scheduled"] == 0
+    assert c["earliest_overdue"] == ""
+    d = by["D板"]  # 占位符专属板: 无可复习成员, 仅欠定义归属
+    assert d["due"] == 0 and d["future"] == 0 and d["placeholder"] == 1
+    assert sum(r["due"] for r in rollup) == payload["stats"]["due_nodes"]
+    assert sum(r["future"] for r in rollup) == payload["stats"]["future_nodes"]
+    assert set(payload["ineligible"]["placeholder"]) == {"欠定义", "无主欠定义"}, "扁平列表零改动"
+    assert sum(r["placeholder"] for r in rollup) == 1, "无主占位符不得虚构归属"
+
+
+def test_boards_rollup_additive_old_fields_untouched(tmp_path):
+    """加性纯度 (A2 冻结投影守卫): 旧字段逐一在位、值与 rollup 引入前
+    逐字段等价 — ineligible.placeholder / notification / top_boards /
+    upcoming / due_nodes / stats 零改动。"""
+    payload, ranked = _build(
+        tmp_path,
+        {
+            "存量": _node(),
+            "已排期": _node(board="别板", extra="fsrs_due: 2026-08-15T01:00:00Z\n"),
+            "占位": _node().replace("真实内容。", "> 你的 1-2 句精准定义"),
+        },
+    )
+    assert payload["schema_version"] == 3, "rollup 是加性字段, 不许抬版本"
+    assert payload["ineligible"]["placeholder"] == ["占位"]
+    assert payload["top_boards"] == ranked[:3]
+    assert payload["upcoming"] == [{"board": "别板", "next_due": "2026-08-15T01:00:00Z", "node": "已排期"}]
+    assert {d["node"] for d in payload["due_nodes"]} == {"存量"}
+    noti = payload["notification"]
+    assert set(noti) == {"title", "body", "group", "id"}
+    assert noti["title"] == "📚 今日复习 · 普通板"
+    assert payload["stats"]["due_nodes"] == 1 and payload["stats"]["future_nodes"] == 1
+    assert payload["stats"]["ineligible"] == 1
+    # rollup 自身: 占位归属到普通板, 别板纯未来
+    by = {r["board"]: r for r in payload["boards"]}
+    assert by["普通板"]["placeholder"] == 1 and by["普通板"]["due"] == 1
+    assert by["别板"]["due"] == 0 and by["别板"]["next_due"] == "2026-08-15T01:00:00Z"

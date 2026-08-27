@@ -90,6 +90,7 @@ def scan_nodes(vault: Path, now: datetime, decay):
     """
     stats = {"new": 0, "legacy": 0, "none": 0, "ineligible": 0, "test_excluded": 0, "corrupt": 0}
     ineligible = {"placeholder": [], "test_excluded": [], "corrupt": []}
+    placeholder_boards: dict[str, int] = {}  # CARD-D1 P1: 占位符板级归属
     now_z = now.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     nodes = []
     for path in sorted((vault / "节点").glob("*.md")):
@@ -110,6 +111,11 @@ def scan_nodes(vault: Path, now: datetime, decay):
         if PLACEHOLDER in body:
             stats["ineligible"] += 1
             ineligible["placeholder"].append(stem)
+            # CARD-D1 P1: 占位符按 source_board 归板 (fm 已解析零额外 IO);
+            # 无 source_board 的占位符只留扁平列表, 不虚构归属
+            ph_board = _board_name(_fm_str(fm, "source_board"))
+            if ph_board:
+                placeholder_boards[ph_board] = placeholder_boards.get(ph_board, 0) + 1
             continue
 
         a_raw, b_raw = _fm_num(fm, "mastery_a"), _fm_num(fm, "mastery_b")
@@ -183,7 +189,7 @@ def scan_nodes(vault: Path, now: datetime, decay):
             "due_fail_open": due_fail_open,
             "difficulty": _fm_str(fm, "fsrs_difficulty") or "",
         })
-    return nodes, stats, ineligible
+    return nodes, stats, ineligible, placeholder_boards
 
 
 def rank_boards(nodes, board_last_recommended: dict):
@@ -241,7 +247,7 @@ def _body(top: dict) -> str:
 
 
 def build_payload(vault: Path, now: datetime, board_last_recommended: dict, decay):
-    nodes, stats, ineligible = scan_nodes(vault, now, decay)
+    nodes, stats, ineligible, placeholder_boards = scan_nodes(vault, now, decay)
     ranked, upcoming, unassigned = rank_boards(nodes, board_last_recommended)
     stats["unassigned"] = len(unassigned)
     # v3 (CARD-A2): due_nodes 明细与 stats 数字同源派生 — 自洽靠构造保证,
@@ -263,6 +269,32 @@ def build_payload(vault: Path, now: datetime, board_last_recommended: dict, deca
     ]
     stats["due_nodes"] = len(due_rows)
     stats["future_nodes"] = sum(1 for n in nodes if n["board"] and not n["due_now"])
+    # CARD-D1 P1 (BATCH-2026-08-27): 顶层加性 boards 全量 rollup — 补
+    # top_boards/upcoming 各截 [:3] 与 placeholder 板级无归属的结构性缺口。
+    # schema_version 保持 3; ineligible.placeholder 扁平列表 / notification /
+    # top_boards / upcoming 零改动 (A2 冻结)。due 计数与 due_rows 同源分组,
+    # 合计恒等 stats.due_nodes。
+    members_by_board: dict[str, list] = {}
+    for n in nodes:
+        if n["board"]:
+            members_by_board.setdefault(n["board"], []).append(n)
+    boards_rollup = []
+    for board in sorted(set(members_by_board) | set(placeholder_boards)):
+        members = members_by_board.get(board, [])
+        due = [n for n in members if n["due_now"]]
+        future = [n for n in members if not n["due_now"]]
+        boards_rollup.append({
+            "board": board,
+            "due": len(due),
+            # 三分语义与 due_rows.due_reason 同一判据: new=真新卡 /
+            # scheduled=已排期 / malformed=due-new-scheduled 隐含
+            "due_new": sum(1 for n in due if not n["fsrs_due"] and not n["due_fail_open"]),
+            "due_scheduled": sum(1 for n in due if n["fsrs_due"]),
+            "future": len(future),
+            "next_due": min((n["fsrs_due"] for n in future), default=""),
+            "placeholder": placeholder_boards.get(board, 0),
+            "earliest_overdue": min((n["fsrs_due"] for n in due if n["fsrs_due"]), default=""),
+        })
     payload = {
         "unassigned_nodes": unassigned,  # Code-Review M3: 点名而非只给数字
         "schema_version": 3,             # v3: +due_nodes 明细 +ineligible 分桶
@@ -275,6 +307,7 @@ def build_payload(vault: Path, now: datetime, board_last_recommended: dict, deca
         "top_boards": ranked[:3],
         "upcoming": upcoming[:3],
         "due_nodes": due_rows,
+        "boards": boards_rollup,  # CARD-D1 P1 加性: 板级全量 rollup
         "ineligible": ineligible,
         "stats": stats,
         "notification": None,

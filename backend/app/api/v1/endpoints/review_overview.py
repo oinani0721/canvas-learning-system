@@ -153,6 +153,38 @@ def _gate_upcoming(upcoming: list) -> list[dict]:
     return gated
 
 
+def _gate_boards_rollup(rollup) -> tuple[dict[str, int], list[dict]]:
+    """P1 加性 boards rollup 门禁 (可选顶层键: 旧投影缺省走纯派生路径)。
+
+    消费两块: 板级 placeholder 归属 (待剖析列) + due==0 零到期板全量
+    (upcoming 只截 [:3] 的结构性缺口)。其余字段只门禁不消费 — 板级到期数
+    仍由 due_nodes group-by 派生 (CARD-D1 P0 判据), 不从 rollup 抄。"""
+    if not isinstance(rollup, list):
+        raise ValueError(f"boards 应为数组, 实为 {type(rollup).__name__}")
+    ph_map: dict[str, int] = {}
+    zero: list[dict] = []
+    for i, r in enumerate(rollup):
+        if not isinstance(r, dict):
+            raise ValueError(f"boards[{i}] 应为 object, 实为 {type(r).__name__}")
+        board = r.get("board")
+        if not isinstance(board, str) or not board:
+            raise ValueError(f"boards[{i}].board 应为非空字符串, 实为 {board!r}")
+        if board in ph_map:
+            raise ValueError(f"boards[{i}].board 重复: {board!r}")
+        counts: dict[str, int] = {}
+        for f in ("due", "due_new", "due_scheduled", "future", "placeholder"):
+            try:
+                counts[f] = _strict_int(r.get(f))
+            except ValueError as e:
+                raise ValueError(f"boards[{i}].{f} {e}")
+        next_due = _due_ts(r.get("next_due"), f"boards[{i}].next_due")
+        _due_ts(r.get("earliest_overdue"), f"boards[{i}].earliest_overdue")
+        ph_map[board] = counts["placeholder"]
+        if counts["due"] == 0:
+            zero.append({"board": board, "next_due": next_due})
+    return ph_map, zero
+
+
 def _humanize_due(ts: str | None, now_sh: datetime) -> tuple[str, str]:
     """到期时刻 → (人话, 颜色)。跨午夜用上海本地日判定 (CARD-D1)。
 
@@ -269,20 +301,41 @@ def _summarize(payload: dict) -> dict:
     next_up = dict(up_gated[0]) if up_gated else None
 
     # ── CARD-D1 板表格派生: 到期板 (due_nodes group-by, top_boards 优先级
-    # 排序) → 零到期板 (upcoming, 按 next_due)。placeholder 板级归属 v3
-    # 投影没有 (扁平列表) → null, 渲染层显示 "—", 由 P1 rollup 补。
+    # 排序) → 零到期板 (按 next_due 升序)。P1 rollup 在场时提供板级
+    # placeholder 归属 (待剖析列) 与零到期板全量; 缺省 (旧投影) 时待剖析
+    # 为 null → 渲染 "—", 零到期板回落 upcoming[:3]。
+    rollup = payload.get("boards")
+    ph_map: dict[str, int] = {}
+    rollup_zero: list[dict] | None = None
+    if rollup is not None:
+        ph_map, rollup_zero = _gate_boards_rollup(rollup)
     groups = _gate_due_groups(due_nodes)
     board_rows = [
-        {"board": b, "due": g["due"], "due_new": g["new"], "placeholder": None, "earliest": g["earliest"]}
+        {"board": b, "due": g["due"], "due_new": g["new"], "placeholder": ph_map.get(b), "earliest": g["earliest"]}
         for b, g in groups.items()
     ]
     board_rows.sort(key=lambda r: (prio.get(r["board"], len(prio)), -r["due"], r["board"]))
-    zero_rows = [
-        {"board": u["board"], "due": 0, "due_new": 0, "placeholder": None, "earliest": u["next_due"]}
-        for u in up_gated
-        if u["board"] not in groups  # 防御: 生产器不会让同板双列, 双列时到期行为准
-    ]
-    zero_rows.sort(key=lambda r: (r["earliest"], r["board"]))
+    if rollup_zero is not None:
+        zero_rows = [
+            {
+                "board": z["board"],
+                "due": 0,
+                "due_new": 0,
+                "placeholder": ph_map.get(z["board"]),
+                # next_due 空串 = 无未来排期 (占位符专属板) → 无数据 "—"
+                "earliest": z["next_due"] or None,
+            }
+            for z in rollup_zero
+            if z["board"] not in groups  # 防御: 同板双列时到期行为准
+        ]
+        zero_rows.sort(key=lambda r: (r["earliest"] is None, r["earliest"] or "", r["board"]))
+    else:
+        zero_rows = [
+            {"board": u["board"], "due": 0, "due_new": 0, "placeholder": None, "earliest": u["next_due"]}
+            for u in up_gated
+            if u["board"] not in groups  # 防御: 生产器不会让同板双列, 双列时到期行为准
+        ]
+        zero_rows.sort(key=lambda r: (r["earliest"], r["board"]))
     board_rows += zero_rows
 
     generated_at = payload.get("generated_at")

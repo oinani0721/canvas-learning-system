@@ -480,3 +480,97 @@ def test_no_projection_degrades_without_fake_deeplink(overview_env):
     assert "obsidian://open?vault=vault-a" in text
     assert "obsidian://open?vault=vault-new" not in text, "无投影 vault 不得出假链接"
     assert "需在 Obsidian 打开过该库" in text
+
+
+def test_boards_rollup_consumed_when_present(overview_env):
+    """P1 rollup 在场: 待剖析列取板级归属; 零到期板走 rollup 全量 (不再受
+    upcoming[:3] 截断); 占位符专属板成行 (最早到期无数据 → null); rollup
+    形状垃圾按既有 corrupt 语义降级。rollup 缺省 (旧投影) 时上述回落 P0
+    派生路径 — 由其余测试覆盖。"""
+    root, client = overview_env
+    now = _now_local()
+    rollup = [
+        {
+            "board": "甲板",
+            "due": 1,
+            "due_new": 1,
+            "due_scheduled": 0,
+            "future": 0,
+            "next_due": "",
+            "placeholder": 2,
+            "earliest_overdue": "",
+        },
+        {
+            "board": "乙板",
+            "due": 0,
+            "due_new": 0,
+            "due_scheduled": 0,
+            "future": 1,
+            "next_due": _utc_z(now + timedelta(days=3)),
+            "placeholder": 0,
+            "earliest_overdue": "",
+        },
+        {
+            "board": "丙板",
+            "due": 0,
+            "due_new": 0,
+            "due_scheduled": 0,
+            "future": 1,
+            "next_due": _utc_z(now + timedelta(days=2)),
+            "placeholder": 0,
+            "earliest_overdue": "",
+        },
+        {
+            "board": "丁板",
+            "due": 0,
+            "due_new": 0,
+            "due_scheduled": 0,
+            "future": 0,
+            "next_due": "",
+            "placeholder": 3,
+            "earliest_overdue": "",
+        },
+    ]
+    _mk_vault(
+        root,
+        "vault-a",
+        _projection(
+            "vault-a",
+            generated_at=now.isoformat(timespec="seconds"),
+            due_nodes=[_due_row("n1", "甲板")],
+            stats={"due_nodes": 1},
+            top_boards=[{"board": "甲板", "top_node": "n1", "pending": 1}],
+            # upcoming 只截到丙板 — 乙板/丁板必须由 rollup 补全
+            upcoming=[{"board": "丙板", "next_due": rollup[2]["next_due"], "node": "x"}],
+            boards=rollup,
+        ),
+    )
+    _mk_vault(
+        root,
+        "bad-rollup",
+        _projection(
+            "bad-rollup",
+            generated_at=now.isoformat(timespec="seconds"),
+            boards=[{"board": "x", "due": -1}],
+        ),
+    )
+
+    resp = client.get("/api/v1/review/overview")
+    assert resp.status_code == 200
+    by_id = {v["vault_id"]: v for v in resp.json()["vaults"]}
+    assert by_id["bad-rollup"]["status"] == "corrupt", "rollup 形状垃圾必须 corrupt"
+    entry = by_id["vault-a"]
+    assert entry["status"] == "ok"
+    p = entry["projection"]
+    assert [r["board"] for r in p["boards"]] == ["甲板", "丙板", "乙板", "丁板"], (
+        "到期板先行, 零到期板按 next_due 升序, 无排期垫底"
+    )
+    by = {r["board"]: r for r in p["boards"]}
+    assert by["甲板"]["placeholder"] == 2 and by["甲板"]["due"] == 1
+    assert by["乙板"]["due"] == 0 and by["乙板"]["placeholder"] == 0
+    assert by["丁板"]["placeholder"] == 3 and by["丁板"]["earliest"] is None
+    assert sum(r["due"] for r in p["boards"]) == p["due_count"] == 1
+
+    page = client.get("/api/v1/review/overview/page")
+    assert page.status_code == 200
+    assert "丁板" in page.text and "乙板" in page.text
