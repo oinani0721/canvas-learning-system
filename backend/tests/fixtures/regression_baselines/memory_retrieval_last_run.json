@@ -4,12 +4,12 @@
   "group_id": "(server default: vault:canvas_vault)",
   "query_count": 25,
   "metrics": {
-    "recall_at_5": 0.6364,
+    "hit_at_5": 0.6364,
     "mrr": 0.6061,
     "duplicate_rate": 0.0,
     "false_positive_rate": 0.2,
     "leak_rate": 0.0,
-    "recall_at_5_judged": 0.6364
+    "hit_at_5_judged": 0.6364
   },
   "latency": {
     "median_s": 0.461,

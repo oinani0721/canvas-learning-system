@@ -123,6 +123,14 @@
 
 ---
 
+## G-METRIC: 评测指标名实与门禁静默失守 (2026-08-27 新增, CARD-G4-12)
+
+| ID | 问题 | 根因 | 修复状态 | 防止规则 |
+|----|------|------|---------|---------|
+| G-METRIC-001 | **指标名实不符 + compare_with_baseline 缺键 continue 静默跳过陷阱**。两个检索回归门禁脚本（`backend/scripts/run_memory_retrieval_regression.py` / `run_vault_retrieval_regression.py`，后者 fork 同病）把"top-k 含 ≥1 相关结果的 query 比例"（分母 = query 数，教科书口径 **hit rate**）误名为 `recall_at_5` / `recall_at_10`（recall 的分母应是相关文档总数）。更危险的连带陷阱：`compare_with_baseline()` 对 baseline 缺键的指标 `if cur is None or base is None: continue` **静默跳过** — 若只改脚本指标键名而不迁移 baseline JSON（或反之，含 producer 输出侧半迁移），**被改名的指标**在门禁比对中被静默剔除——该指标失守、其余未改名指标仍正常比对，门禁"绿灯"对失守指标是假象，且无任何告警。 | 初版命名随手借用 recall 术语未对齐教科书定义（DD-13 名实违规）；compare 循环把"baseline 键缺失"与"当前值缺失（cur is None，如某指标当轮计算异常）"混为同一 continue 分支，缺键无告警。 | ✅ G4-12 已修（BATCH-2026-08-27-第四批）：两脚本改名 `hit_at_5`/`hit_at_5_judged`/`hit_at_10`（含内部变量/打印/docstring）+ `LEGACY_METRIC_ALIASES` 兼容读取旧键 baseline + 4 个 baseline/last_run JSON 一次性键迁移（对账存档 `_bmad-output/审查/G4-12-migration-reconciliation-2026-08-27.txt`，零数值漂移）+ 守卫测试 `backend/tests/unit/test_retrieval_regression_metric_guard.py`（断言全部门禁指标键可从真实 baseline 解析 + 行为级反事实：legacy 键 baseline 上回退必须被检出）。history jsonl 与 _bmad-output 审查工件按白名单保留旧键（历史记录不改写）。 | ① 指标改名/新增/迁移必须与 baseline 键迁移、别名兼容、守卫测试**同一 commit**（分开提交 = 门禁静默失守窗口）；② 门禁指标键集变更必跑守卫测试；③ 改名禁全局 sed — `vault_gold_set.yaml` 的 `query_type: definition_recall/example_recall` 是领域词不是指标名，会被误杀；④ 新指标命名先对齐教科书定义（分母是什么就叫什么）。 |
+
+---
+
 ## 统计摘要
 
 | 分类 | 总计 | 已修复 | 有意保留/延后 | 待修复 |
@@ -142,4 +150,5 @@
 | G-DECISION | 1 | 1 | 0 | 0 |
 | G-INJ | 4 | 4 | 0 | 0 |
 | G-DEP | 1 | 1 | 0 | 0 |
-| **合计** | **38** | **33** | **4** | **1** |
+| G-METRIC | 1 | 1 | 0 | 0 |
+| **合计** | **39** | **34** | **4** | **1** |

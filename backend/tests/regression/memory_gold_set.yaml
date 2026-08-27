@@ -4,7 +4,8 @@
 #       按对抗角度重构等价 query; 基线以脚本首跑为准, 与人工打分 55.8% 口径不同属预期)
 #       + 13 条新增 (计划 v2 G0 要求: 25 条中英对半, 含不存在主题/同义改写/短词歧义三类难例)
 # 判分: 结果文本命中 expect_any 任一子串(casefold) = relevant (fuzzy substring, 同 tests/golden_test_set.yaml 方法)
-# 指标: recall@5 / MRR / 重复率 / 假阳性率 / 泄漏率 — 见 backend/scripts/run_memory_retrieval_regression.py
+# 指标: hit@5 / MRR / 重复率 / 假阳性率 / 泄漏率 — 见 backend/scripts/run_memory_retrieval_regression.py
+#       (hit@5 曾误名 recall@5 — 分母是 query 数, 教科书口径为 hit rate; G4-12 2026-08-27 正名, 判分逻辑与数值不变)
 
 config:
   # P1 冻结版本化 (2026-07-24, 终验对账裁决 2): regression_gold_v1 封版 —

@@ -1,0 +1,73 @@
+# G4-12 baseline 键迁移对账 (v2, 含可复算元数据 — Codex round-1 MEDIUM 整改)
+# 生成时间 (UTC): 2026-08-27 | worktree: card-n6-contract | base HEAD: b47ebfba351f3eedb496a97961083c5e3b1d5df7
+# 迁移前快照来源: git HEAD 版本文件的逐字节副本 (迁移执行前 cp 存档)
+# 对账算法: post_text == pre_text.replace(逐条键名替换) 的全文字节等价 +
+#          解析后 metrics 逐键数值等价 (json.dumps 字节级比较) + 零 recall_* 残留
+# 键名替换表 (带引号+冒号锚定, 防误伤子串): [('"recall_at_5_judged":', '"hit_at_5_judged":'), ('"recall_at_5":', '"hit_at_5":'), ('"recall_at_10":', '"hit_at_10":')]
+
+memory_retrieval_baseline.json:
+    pre  sha256=cb863f45f28aaf405a102c331c1026e9ad950d3ff05592e8c9a697f4eb41a448
+    post sha256=ce1fbdb9abd1d0215ca6b01b87f4f7f84658f2f0c86ee26879100df33beb900a
+    键名替换外逐字节一致=True 键齐=True 数值一致=True 无recall残留=True → PASS
+    recall_at_5 (0.6364) → hit_at_5 (0.6364)
+    mrr (0.6061) → mrr (0.6061)
+    duplicate_rate (0.0) → duplicate_rate (0.0)
+    false_positive_rate (0.2) → false_positive_rate (0.2)
+    leak_rate (0.0) → leak_rate (0.0)
+    recall_at_5_judged (0.6364) → hit_at_5_judged (0.6364)
+memory_retrieval_last_run.json:
+    pre  sha256=beab25805a594772530c73c9911c285c7946dc123134e7bbcb9a010c36c1e9f5
+    post sha256=2de569ed888e3e319fa02f247422fb971545e8ec7aaf8f85d99ca14378804fa0
+    键名替换外逐字节一致=True 键齐=True 数值一致=True 无recall残留=True → PASS
+    recall_at_5 (0.6364) → hit_at_5 (0.6364)
+    mrr (0.6061) → mrr (0.6061)
+    duplicate_rate (0.0) → duplicate_rate (0.0)
+    false_positive_rate (0.2) → false_positive_rate (0.2)
+    leak_rate (0.0) → leak_rate (0.0)
+    recall_at_5_judged (0.6364) → hit_at_5_judged (0.6364)
+vault_retrieval_baseline.json:
+    pre  sha256=2e16d37f868074ced2563cf5ace9a53bbb6e11b2097d5fdcd95b8304b3feee17
+    post sha256=8b683f9e0e25cd82f67595a27f631b92700f8e580d9021750724c9ea1dd3af58
+    键名替换外逐字节一致=True 键齐=True 数值一致=True 无recall残留=True → PASS
+    recall_at_10 (0.9623) → hit_at_10 (0.9623)
+    mrr (0.7889) → mrr (0.7889)
+    ndcg_at_10 (0.7121) → ndcg_at_10 (0.7121)
+    contamination_at_10 (0.3708) → contamination_at_10 (0.3708)
+    polluted_query_rate (0.1207) → polluted_query_rate (0.1207)
+    handwritten_share_at_10 (0.3375) → handwritten_share_at_10 (0.3375)
+    duplicate_rate (0.0056) → duplicate_rate (0.0056)
+    delivery_rate (0.8491) → delivery_rate (0.8491)
+    delivered_contamination_rate (0.386) → delivered_contamination_rate (0.386)
+    false_positive_rate (0.06) → false_positive_rate (0.06)
+vault_retrieval_last_run.json:
+    pre  sha256=2e16d37f868074ced2563cf5ace9a53bbb6e11b2097d5fdcd95b8304b3feee17
+    post sha256=8b683f9e0e25cd82f67595a27f631b92700f8e580d9021750724c9ea1dd3af58
+    键名替换外逐字节一致=True 键齐=True 数值一致=True 无recall残留=True → PASS
+    recall_at_10 (0.9623) → hit_at_10 (0.9623)
+    mrr (0.7889) → mrr (0.7889)
+    ndcg_at_10 (0.7121) → ndcg_at_10 (0.7121)
+    contamination_at_10 (0.3708) → contamination_at_10 (0.3708)
+    polluted_query_rate (0.1207) → polluted_query_rate (0.1207)
+    handwritten_share_at_10 (0.3375) → handwritten_share_at_10 (0.3375)
+    duplicate_rate (0.0056) → duplicate_rate (0.0056)
+    delivery_rate (0.8491) → delivery_rate (0.8491)
+    delivered_contamination_rate (0.386) → delivered_contamination_rate (0.386)
+    false_positive_rate (0.06) → false_positive_rate (0.06)
+
+独立旁证: git diff --full-index --unified=0 显示 4 文件仅 6 个键行替换 (Codex round-1 A 项 PASS 已交叉确认)
+总裁定: PASS — 4 文件键迁移零数值漂移
+exit status: 0
+
+# ── 附录 (round-2 LOW 整改) ──────────────────────────────────────
+# 文件全路径: backend/tests/fixtures/regression_baselines/<basename>（相对 worktree 根
+#   /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n6-contract）
+# 生成方式: python3 -c 内联脚本（对账算法如头部所述），stdout 重定向至本文件；
+#   头部主体的 `exit status: 0` 即该脚本的退出码（PASS 全真时 sys.exit(0)）。
+#
+# producer 半迁移反事实实证（Codex round-2 INFO 项补档）:
+# 命令: git show HEAD:backend/scripts/run_memory_retrieval_regression.py > $SCRATCH/old_memory_script.py
+#       && python(AST 解析 run_queries 的 metrics 字面量键)
+# 输出（逐字）:
+#   HEAD producer keys: ['duplicate_rate', 'false_positive_rate', 'leak_rate', 'mrr', 'recall_at_5']
+#   守卫会红: True
+# 结论: 对 git HEAD（改名前）producer，守卫的"缺 hit_at_5 + 残留 recall_at_5"双断言均触发。

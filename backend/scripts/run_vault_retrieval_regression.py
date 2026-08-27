@@ -8,7 +8,8 @@
 三层 (fork 自 run_memory_retrieval_regression.py, 结构与纪律同源):
   Tier R 排序层 — 进程内直调 search_supplementary, 截断参数全关
                   (min_relevance=0 / elbow 关 / hard_cap=top_k), 评未截断排序:
-                  recall@10 / MRR / nDCG@10 / contamination@10 /
+                  hit@10 (教科书 hit rate, 分母=query 数; 曾误名 recall@10,
+                  G4-12 正名) / MRR / nDCG@10 / contamination@10 /
                   polluted_query_rate / handwritten_share@10 / duplicate_rate
   Tier D 交付层 — 同函数生产参数 (0.50/0.25/10), 评用户实际看到什么:
                   delivery_rate / delivered_contamination / false_positive_rate
@@ -71,7 +72,7 @@ GREEN, RED, YELLOW, RESET = "\033[92m", "\033[91m", "\033[93m", "\033[0m"
 
 # 指标方向: True = 越高越好, False = 越低越好
 METRIC_DIRECTIONS = {
-    "recall_at_10": True,
+    "hit_at_10": True,
     "mrr": True,
     "ndcg_at_10": True,
     "handwritten_share_at_10": True,
@@ -82,6 +83,22 @@ METRIC_DIRECTIONS = {
     "delivered_contamination_rate": False,
     "false_positive_rate": False,
 }
+
+# G4-12 名实修正 (2026-08-27, 与 run_memory_retrieval_regression.py 同批):
+# recall_at_10 是误名 (分母为 query 数 = hit rate), 新键 hit_at_10。
+# 旧 baseline 用别名兼容读取, 防 compare_with_baseline 缺键 continue 静默跳过。
+LEGACY_METRIC_ALIASES = {
+    "hit_at_10": "recall_at_10",
+}
+
+
+def resolve_baseline_metric(base_metrics: dict, name: str):
+    """按新键取 baseline 指标, 未迁移的旧 baseline 回落 legacy 别名."""
+    if name in base_metrics:
+        return base_metrics[name]
+    legacy = LEGACY_METRIC_ALIASES.get(name)
+    return base_metrics.get(legacy) if legacy else None
+
 
 K = 10  # 排序层评测深度
 
@@ -177,7 +194,7 @@ async def run_tiers(gold: dict) -> dict:
     hard_violations = []
 
     # Tier R 累计
-    recall_hits = recall_total = 0
+    hit_at_10_hits = hit_at_10_total = 0
     rr_values, ndcg_values = [], []
     contam_hits = contam_slots = 0
     polluted_queries = 0
@@ -241,7 +258,7 @@ async def run_tiers(gold: dict) -> dict:
             # nDCG 修正 (T2 实测抓获 >1.0): 声明是文件级、结果是 chunk 级 —
             # 同文件多 chunk 重复计 gain 会使 DCG > IDCG。per-expect 去重:
             # 每条 expect 只有首个匹配的结果计 gain, 后续同源命中记 0
-            # (recall/MRR 用原始逐结果 flags, 不受影响)。
+            # (hit@10/MRR 用原始逐结果 flags, 不受影响)。
             grades = []
             used_expects: set = set()
             for m in mats:
@@ -261,9 +278,9 @@ async def run_tiers(gold: dict) -> dict:
                 grades.append(best_g)
             relevant = [g > 0 for g in grades]
             first = next((i + 1 for i, f in enumerate(relevant) if f), None)
-            recall_total += 1
+            hit_at_10_total += 1
             if any(relevant[:K]):
-                recall_hits += 1
+                hit_at_10_hits += 1
             rr_values.append(1.0 / first if first else 0.0)
             ndcg_values.append(ndcg_at_k(grades, expects, K))
             entry["first_relevant_rank"] = first
@@ -333,7 +350,7 @@ async def run_tiers(gold: dict) -> dict:
         per_query.append(entry)
 
     metrics = {
-        "recall_at_10": round(recall_hits / recall_total, 4) if recall_total else 0.0,
+        "hit_at_10": round(hit_at_10_hits / hit_at_10_total, 4) if hit_at_10_total else 0.0,
         "mrr": round(statistics.mean(rr_values), 4) if rr_values else 0.0,
         "ndcg_at_10": round(statistics.mean(ndcg_values), 4) if ndcg_values else 0.0,
         "contamination_at_10": round(contam_hits / contam_slots, 4) if contam_slots else 0.0,
@@ -403,7 +420,8 @@ def compare_with_baseline(report: dict, baseline: dict, tolerance: float) -> lis
     regressions = []
     base = baseline.get("metrics", {})
     for name, higher in METRIC_DIRECTIONS.items():
-        cur, b = report["metrics"].get(name), base.get(name)
+        # G4-12: 旧 baseline (recall_* 键) 走别名解析, 防缺键静默跳过
+        cur, b = report["metrics"].get(name), resolve_baseline_metric(base, name)
         if cur is None or b is None:
             continue
         delta = cur - b
@@ -418,7 +436,7 @@ def print_report(report: dict, hook: dict) -> None:
     m = report["metrics"]
     print("═" * 66)
     print(f"vault 检索回归 — {report['query_count']} query · {report['mode']}")
-    print(f"  [R] recall@10          = {m['recall_at_10']:.2%}")
+    print(f"  [R] hit@10             = {m['hit_at_10']:.2%}")
     print(f"  [R] MRR                = {m['mrr']:.4f}")
     print(f"  [R] nDCG@10            = {m['ndcg_at_10']:.4f}")
     print(f"  [R] 污染@10 (配额超额) = {m['contamination_at_10']:.2%}")
