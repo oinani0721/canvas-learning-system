@@ -169,10 +169,19 @@ def ensure_payload(st: dict, now: datetime, today: str) -> tuple[dict | None, st
     if payload.get("upcoming"):
         nexts.append(payload["upcoming"][0]["next_due"])
     st["next_due_utc"] = min(nexts, default="")
-    if ranked and first_gen_today:
-        # CARD-A3: 重扫路径不写 — tie-break 的「上次被推荐日期」是天级轮转
-        # 语义, 重扫换榜也补写会把第二个板标成「今天推荐过」, 污染后续排序
+    credited_today = (
+        st.get("last_recommend_credit_date") == today
+        # Codex-D2a H1: 升级当天旧 state 自然缺 marker, 但旧门若已落账其值
+        # 必是 today — 只认 marker 会给第二个板补账, 突破每日一次上界
+        or today in st["board_last_recommended"].values()
+    )
+    if ranked and not credited_today:
+        # CARD-A3/D2a: 每天只给第一个「非空」榜首落账一次 — 重扫换榜也补写
+        # 会把第二个板标成「今天推荐过」, 污染 tie-break 天级轮转; 但门不能
+        # 绑 first_gen_today: 空首扫日 (休息日/纯空) 会把当天唯一一次落账
+        # 机会白白烧掉, board_last_recommended 永远空置
         st["board_last_recommended"][ranked[0]["board"]] = today
+        st["last_recommend_credit_date"] = today
     save_state(st)
     return payload, "new"
 
