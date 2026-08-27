@@ -1,0 +1,499 @@
+D	.claude	mode=0o40755
+D	.claude/agents	mode=0o40755
+D	.claude/cache	mode=0o40755
+D	.claude/cache/board-manifest	mode=0o40755
+D	.claude/cache/rag-s2.6-concepts-backup	mode=0o40755
+D	.claude/commands	mode=0o40755
+D	.claude/hooks	mode=0o40755
+D	.claude/hooks/__pycache__	mode=0o40755
+D	.claude/scripts	mode=0o40755
+D	.claude/scripts/__pycache__	mode=0o40755
+D	.claude/skills	mode=0o40755
+D	.claude/skills/ai-linked-doc	mode=0o40755
+D	.claude/skills/board-recap	mode=0o40755
+D	.claude/skills/board-recap/scripts	mode=0o40755
+D	.claude/skills/chat-with-context	mode=0o40755
+D	.claude/skills/configure-whiteboard	mode=0o40755
+D	.claude/skills/configure-whiteboard/templates	mode=0o40755
+D	.claude/skills/exam-quick	mode=0o40755
+D	.claude/skills/node-chat	mode=0o40755
+D	.claude/skills/quiz-answer	mode=0o40755
+D	.claude/skills/start-exam-board	mode=0o40755
+D	.claude/skills/study-question	mode=0o40755
+D	.claudian	mode=0o40755
+D	.claudian/sessions	mode=0o40755
+D	.obsidian	mode=0o40755
+D	.obsidian/plugins	mode=0o40755
+D	.obsidian/plugins/breadcrumbs	mode=0o40755
+D	.obsidian/plugins/canvas-learning-system	mode=0o40755
+D	.obsidian/plugins/claudian	mode=0o40755
+D	.obsidian/plugins/dataview	mode=0o40755
+D	.obsidian/plugins/excalibrain	mode=0o40755
+D	.obsidian/plugins/obsidian-excalidraw-plugin	mode=0o40755
+D	.obsidian/plugins/templater-obsidian	mode=0o40755
+D	.obsidian/templates	mode=0o40755
+D	.obsidian/themes	mode=0o40755
+D	.obsidian/themes/Underwater	mode=0o40755
+D	.quarantine	mode=0o40755
+D	.trash	mode=0o40755
+D	.trash/ai-linked-doc-fill.deprecated-2026-05-01	mode=0o40755
+D	CS188	mode=0o40755
+D	CS188/lecture 4	mode=0o40755
+D	CS189	mode=0o40755
+D	CS189/notes	mode=0o40755
+D	CS189/notes/lectures	mode=0o40755
+D	CS189/notes/lectures/Lecture_02	mode=0o40755
+D	multimodal	mode=0o40755
+D	multimodal/audio	mode=0o40755
+D	multimodal/image	mode=0o40755
+D	multimodal/pdf	mode=0o40755
+D	multimodal/thumbnails	mode=0o40755
+D	multimodal/video	mode=0o40755
+D	outputs	mode=0o40755
+D	outputs/exam_boards	mode=0o40755
+D	raw	mode=0o40755
+D	raw/CS188	mode=0o40755
+D	raw/CS188/.obsidian	mode=0o40755
+D	raw/CS188/.obsidian/plugins	mode=0o40755
+D	raw/CS188/.obsidian/plugins/canvas-learning-system	mode=0o40755
+D	raw/CS188/.obsidian/plugins/canvas-learning-ui	mode=0o40755
+D	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules	mode=0o40755
+D	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/@codemirror	mode=0o40755
+D	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/@codemirror/state	mode=0o40755
+D	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/@codemirror/view	mode=0o40755
+D	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/@esbuild	mode=0o40755
+D	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/@esbuild/win32-x64	mode=0o40755
+D	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/@marijn	mode=0o40755
+D	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/@marijn/find-cluster-break	mode=0o40755
+D	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/@types	mode=0o40755
+D	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/@types/codemirror	mode=0o40755
+D	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/@types/estree	mode=0o40755
+D	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/@types/node	mode=0o40755
+D	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/@types/tern	mode=0o40755
+D	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/builtin-modules	mode=0o40755
+D	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/crelt	mode=0o40755
+D	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/esbuild	mode=0o40755
+D	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/moment	mode=0o40755
+D	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/obsidian	mode=0o40755
+D	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/style-mod	mode=0o40755
+D	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/style-mod/src	mode=0o40755
+D	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/typescript	mode=0o40755
+D	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/undici-types	mode=0o40755
+D	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/w3c-keyname	mode=0o40755
+D	raw/CS188/CS 188-explanations	mode=0o40755
+D	raw/CS188/Excalidraw	mode=0o40755
+D	raw/CS188/_misc	mode=0o40755
+D	raw/CS188/_misc/junk	mode=0o40755
+D	raw/CS188/exams	mode=0o40755
+D	raw/CS188/exams/node_modules	mode=0o40755
+D	raw/CS188/exams/node_modules/@napi-rs	mode=0o40755
+D	raw/CS188/exams/node_modules/@napi-rs/canvas	mode=0o40755
+D	raw/CS188/exams/node_modules/@napi-rs/canvas-win32-x64-msvc	mode=0o40755
+D	raw/CS188/exams/node_modules/node-readable-to-web-readable-stream	mode=0o40755
+D	raw/CS188/exams/node_modules/pdf-parse	mode=0o40755
+D	raw/CS188/exams/node_modules/pdf-parse/node_modules	mode=0o40755
+D	raw/CS188/exams/node_modules/pdf-parse/node_modules/pdfjs-dist	mode=0o40755
+D	raw/CS188/exams/node_modules/pdfjs-dist	mode=0o40755
+D	raw/CS188/exams/node_modules/pdfjs-dist/node_modules	mode=0o40755
+D	raw/CS188/exams/node_modules/pdfjs-dist/node_modules/@napi-rs	mode=0o40755
+D	raw/CS188/exams/node_modules/pdfjs-dist/node_modules/@napi-rs/canvas	mode=0o40755
+D	raw/CS188/exams/node_modules/pdfjs-dist/node_modules/@napi-rs/canvas-win32-x64-msvc	mode=0o40755
+D	raw/CS188/media-lib	mode=0o40755
+D	raw/CS188/videos	mode=0o40755
+D	raw/CS188/videos/discussions	mode=0o40755
+D	raw/CS188/videos/discussions/Disc01_Search_[CS188 Discussion] Search Algorithms in Action	mode=0o40755
+D	raw/CS188/videos/discussions/Disc01_Search_[CS188 Discussion] Search Algorithms in Action/chunks	mode=0o40755
+D	raw/CS188/videos/discussions/Disc01_Search_[CS188 Discussion] Search and Heuristics	mode=0o40755
+D	raw/CS188/videos/discussions/Disc01_Search_[CS188 Discussion] Search and Heuristics/chunks	mode=0o40755
+D	raw/CS188/videos/discussions/Disc01_Search_[CS188 Discussion] Search： Pacfriends Unite	mode=0o40755
+D	raw/CS188/videos/discussions/Disc01_Search_[CS188 Discussion] Search： Pacfriends Unite/chunks	mode=0o40755
+D	raw/CS188/videos/discussions/Disc02_CSPs_[CS188 Discussion] CSPs： Course Scheduling	mode=0o40755
+D	raw/CS188/videos/discussions/Disc02_CSPs_[CS188 Discussion] CSPs： Trapped Pacman	mode=0o40755
+D	raw/CS188/videos/discussions/Disc03_GameTrees_[CS188 Discussion] Games I	mode=0o40755
+D	raw/CS188/videos/discussions/Disc03_GameTrees_[CS188 Discussion] Nonzero-sum Games	mode=0o40755
+D	raw/CS188/videos/discussions/Disc04_MDPs_[CS188 Discussion] MDPs： Grid-World Water Park	mode=0o40755
+D	raw/CS188/videos/discussions/Disc04_MDPs_[CS188 Discussion] MDPs： Grid-World Water Park/chunks	mode=0o40755
+D	raw/CS188/videos/discussions/Disc04_MDPs_[CS188 Discussion] MDPs： Micro-Blackjack	mode=0o40755
+D	raw/CS188/videos/discussions/Disc04_MDPs_[CS188 Discussion] MDPs： Micro-Blackjack/chunks	mode=0o40755
+D	raw/CS188/videos/discussions/Disc05_RL_FA17 Midterm 1 Walkthrough Q6	mode=0o40755
+D	raw/CS188/videos/discussions/Disc05_RL_[CS188 Discussion] RL III	mode=0o40755
+D	raw/CS188/videos/exam_prep	mode=0o40755
+D	raw/CS188/videos/exam_prep/EP01_Search_[CS188 Discussion] Iterative Deepening Search	mode=0o40755
+D	raw/CS188/videos/exam_prep/EP01_Search_[CS188 Discussion] Searching with Heuristics	mode=0o40755
+D	raw/CS188/videos/exam_prep/EP01_Search_[CS188 Discussion] Searching with Heuristics/chunks	mode=0o40755
+D	raw/CS188/videos/exam_prep/EP02_CSPs_[CS188 Discussion] CSPs： Four-Digit Number	mode=0o40755
+D	raw/CS188/videos/exam_prep/EP02_CSPs_[CS188 Discussion] CSP： Air Traffic Control	mode=0o40755
+D	raw/CS188/videos/exam_prep/EP02_CSPs_[CS188 Discussion] CSP： Air Traffic Control/chunks	mode=0o40755
+D	raw/CS188/videos/exam_prep/EP03_GameTrees_[CS188 Discussion] Games II	mode=0o40755
+D	raw/CS188/videos/exam_prep/EP03_GameTrees_[CS188 Discussion] MedianMiniMax	mode=0o40755
+D	raw/CS188/videos/exam_prep/EP04_MDPs_[CS188 Discussion] MDPs： Dice Bonanza	mode=0o40755
+D	raw/CS188/videos/exam_prep/EP04_MDPs_[CS188 Discussion] MDPs： How Do You Value It(eration)？	mode=0o40755
+D	raw/CS188/videos/exam_prep/EP04_MDPs_[CS188 Discussion] MDPs： How Do You Value It(eration)？/chunks	mode=0o40755
+D	raw/CS188/videos/exam_prep/EP05_RL_SP19 Midterm 1 Walkthrough Q4	mode=0o40755
+D	raw/CS188/videos/exam_prep/EP05_RL_[CS188 Discussion] RL： Amusement Park	mode=0o40755
+D	raw/CS188/videos/exam_prep/EP05_RL_[CS188 Discussion] RL： Amusement Park/chunks	mode=0o40755
+D	raw/CS188/videos/lectures	mode=0o40755
+D	raw/CS188/videos/lectures/lecture 1	mode=0o40755
+D	raw/CS188/videos/lectures/lecture 10	mode=0o40755
+D	raw/CS188/videos/lectures/lecture 10/chunks	mode=0o40755
+D	raw/CS188/videos/lectures/lecture 11	mode=0o40755
+D	raw/CS188/videos/lectures/lecture 11/chunks	mode=0o40755
+D	raw/CS188/videos/lectures/lecture 12	mode=0o40755
+D	raw/CS188/videos/lectures/lecture 12/chunks	mode=0o40755
+D	raw/CS188/videos/lectures/lecture 2	mode=0o40755
+D	raw/CS188/videos/lectures/lecture 3	mode=0o40755
+D	raw/CS188/videos/lectures/lecture 3/lecture 3-explanations	mode=0o40755
+D	raw/CS188/videos/lectures/lecture 4	mode=0o40755
+D	raw/CS188/videos/lectures/lecture 4/chunks	mode=0o40755
+D	raw/CS188/videos/lectures/lecture 5	mode=0o40755
+D	raw/CS188/videos/lectures/lecture 5/chunks	mode=0o40755
+D	raw/CS188/videos/lectures/lecture 5/lecture 5-explanations	mode=0o40755
+D	raw/CS188/videos/lectures/lecture 6	mode=0o40755
+D	raw/CS188/videos/lectures/lecture 6/chunks	mode=0o40755
+D	raw/CS188/videos/lectures/lecture 7	mode=0o40755
+D	raw/CS188/videos/lectures/lecture 7/chunks	mode=0o40755
+D	raw/CS188/videos/lectures/lecture 7/lecture 7-explanations	mode=0o40755
+D	raw/CS188/videos/lectures/lecture 8	mode=0o40755
+D	raw/CS188/videos/lectures/lecture 8/chunks	mode=0o40755
+D	raw/CS188/videos/lectures/lecture 9	mode=0o40755
+D	raw/CS188/videos/lectures/lecture 9/chunks	mode=0o40755
+D	raw/CS188/videos/lectures/lecture 9/lecture 9-explanations	mode=0o40755
+D	raw/CS188/videos/review_sessions	mode=0o40755
+D	raw/CS188/videos/review_sessions/RS1_Search_CSPs_GameTrees	mode=0o40755
+D	raw/CS188/videos/review_sessions/RS1_Search_CSPs_GameTrees/chunks	mode=0o40755
+D	raw/CS188/videos/review_sessions/RS2_MDPs_RL	mode=0o40755
+D	raw/CS188/videos/review_sessions/RS2_MDPs_RL/chunks	mode=0o40755
+D	templates	mode=0o40755
+D	wiki	mode=0o40755
+D	wiki/canvases	mode=0o40755
+D	wiki/canvases/cs-61b	mode=0o40755
+D	wiki/canvases/math140	mode=0o40755
+D	wiki/concepts	mode=0o40755
+D	原白板	mode=0o40755
+D	检验白板	mode=0o40755
+D	节点	mode=0o40755
+D	验收单	mode=0o40755
+F	.canvas-config.yaml	sha256=d1f64c3fd70a5ac12dbe0595667b58b7a9908a5215acdc052ae8ae4cf9fb3acf	size=1250	mtime_ns=1783801959253704954	ctime_ns=1783801959253789205	mode=0o100644	nlink=1
+F	.claude/cache/board-manifest/manifest-v3.json	sha256=6586cc3fb39106ac1d60d550bb45a0ec1cb3183527f1409ea166d7e6ae27da0a	size=11121	mtime_ns=1787601365478127300	ctime_ns=1787601365478438297	mode=0o100600	nlink=1
+F	.claude/cache/rag-s2.6-concepts-backup/CS 61B.md.bak	sha256=1c17a37f57e0b1ca4d3e6d8b38cdeaa36ea3668af275b73945450d2fa92f204d	size=3946	mtime_ns=1786405515194539864	ctime_ns=1786405575160676862	mode=0o100644	nlink=1
+F	.claude/cache/rag-s2.6-concepts-backup/CS.md.bak	sha256=2a217560a2f589e86646e52a3a9594ba173a55da0b5379ada875d5678cba73b0	size=3700	mtime_ns=1786405515194136862	ctime_ns=1786405575160734779	mode=0o100644	nlink=1
+F	.claude/cache/rag-s2.6-concepts-backup/CS188 lecture 2.md.bak	sha256=165313c6406fd64703b4eb9b81be306fdf17a687575b9c0e39060b8064ead518	size=5400	mtime_ns=1786405515194861656	ctime_ns=1786405575160797154	mode=0o100644	nlink=1
+F	.claude/cache/rag-s2.6-concepts-backup/特征值与特征向量.md.bak	sha256=04175ac6a84848db1b0343133caa51d736d4aaf711b48f203bd07e90a94bfa24	size=7792	mtime_ns=1786405515195210908	ctime_ns=1786405575160554820	mode=0o100644	nlink=1
+F	.claude/cache/rag-s2.6-concepts-backup/线性代数.md.bak	sha256=a94916170eec0be25e35e7005812e8c36caff8b3b71f99976d407f39c0fa07e7	size=3625	mtime_ns=1786405515195467408	ctime_ns=1786405575160616612	mode=0o100644	nlink=1
+F	.claude/cache/rag-s2.6-concepts-backup/递归与分治 (Recursion & Divide-Conquer).md.bak	sha256=82df173ef404f53734565dd5cb5019108d105c545450e4deaf2230153601e327	size=3846	mtime_ns=1786405515195685034	ctime_ns=1786405575160486028	mode=0o100644	nlink=1
+F	.claude/hooks/__pycache__/session-end-archive.cpython-314.pyc	sha256=2960e1e7bc91c6aa76c45c7d3cc46f5596f48390fe0abe4121375c33932b5490	size=10928	mtime_ns=1784692561806886551	ctime_ns=1784692561806959510	mode=0o100644	nlink=1
+F	.claude/hooks/pending_archives.jsonl	sha256=f1afcb5cb87fa858450d3bea543ca3d52dcee61676617895bac3c22a0f00b5ad	size=18265	mtime_ns=1786456844111151349	ctime_ns=1786456844111151349	mode=0o100644	nlink=1
+F	.claude/hooks/session-end-archive.py	sha256=519d02d3d7cc70318b26b2efd999ce4e516f001d8e492d3d342d01a2a4e9b749	size=6458	mtime_ns=1784692535347740452	ctime_ns=1784692535348067329	mode=0o100755	nlink=1
+F	.claude/mcp.json	sha256=3abd9d4da9f7dcf93595e0c11a77512610e46ae5e5553c598ddc98b29742a8f3	size=1961	mtime_ns=1785503845209497261	ctime_ns=1785503845210416926	mode=0o100644	nlink=1
+F	.claude/scripts/__pycache__/decay_beta.cpython-311.pyc	sha256=b457916d2297b69eedcb3a6405581395fb374991c3870ae0630d237dc75c6bbc	size=5802	mtime_ns=1786377548292981958	ctime_ns=1786377548293367168	mode=0o100644	nlink=1
+F	.claude/scripts/__pycache__/decay_beta.cpython-314.pyc	sha256=c9a458388bb606a5a99061a472c9513e217a5da58b7540f40e96ebc3c5d232ac	size=6627	mtime_ns=1785345292007607879	ctime_ns=1785345292007737755	mode=0o100644	nlink=1
+F	.claude/scripts/__pycache__/sync_board_concepts.cpython-314.pyc	sha256=d24b7dea90184190d1ccd6aecbee99f6882dcc7eb43e9cbf40164db61f1b6b72	size=37589	mtime_ns=1786463949159345581	ctime_ns=1786463949159416540	mode=0o100644	nlink=1
+F	.claude/scripts/decay_beta.py	sha256=3bf4ed9402a4c8edfde16630a79094a5d4518fd181fa60810319fe46d37abb90	size=4985	mtime_ns=1785332937539627332	ctime_ns=1785332937539698124	mode=0o100644	nlink=1
+F	.claude/scripts/fsrs_bridge.py	sha256=66a755279ad7862603830ac5fa30b7c91837c7b42bc77b58b0d62a574bf3a4de	size=6009	mtime_ns=1787780269178267554	ctime_ns=1787780269178348096	mode=0o100644	nlink=1
+F	.claude/scripts/sync_board_concepts.py	sha256=282b7a968033f622cba03fae57e4330424c2465ad08d73f5abdc8f3162f6d123	size=35982	mtime_ns=1786579611576446576	ctime_ns=1786579611577286747	mode=0o100644	nlink=1
+F	.claude/settings.json	sha256=b9c61f273938895add598823ab8ff48f43e900fe55a65d14e436ef8641d9ddb6	size=915	mtime_ns=1783919256087700642	ctime_ns=1783919256087700642	mode=0o100644	nlink=1
+F	.claude/settings.local.json	sha256=188b9a48cd4ffc0a74e0ec7be5bd392fbab0b7749eeb0d854e527abb1938f22c	size=152	mtime_ns=1784164203597234309	ctime_ns=1784164203598159397	mode=0o100644	nlink=1
+F	.claude/skills/ai-linked-doc/SKILL.md	sha256=77807e2a8e3b6d3f291724e0f6b53c706a6cc4b6c841d13a1e63cdb30dda7767	size=22215	mtime_ns=1786409088198236195	ctime_ns=1786409088198236195	mode=0o100644	nlink=1
+F	.claude/skills/board-recap/SKILL.md	sha256=aa6eede2371a130915b7c9a55b6afc69c35894dbec8457a746b6b0dcab9c92c4	size=24331	mtime_ns=1787780292126343979	ctime_ns=1787780292126420437	mode=0o100644	nlink=1
+F	.claude/skills/board-recap/scripts/recap_scan.py	sha256=210ca7fd89dee38f2371a9b276bd385ae24d464a637f4f912b8ba00ef30e3908	size=42180	mtime_ns=1787780292126115854	ctime_ns=1787780292126182520	mode=0o100644	nlink=1
+F	.claude/skills/chat-with-context/SKILL.md	sha256=cdd0472591e75860e947aa726dcbd46aa150e3eaa1ceef50be6dee332af2738c	size=21168	mtime_ns=1786409088198486780	ctime_ns=1786409088198486780	mode=0o100644	nlink=1
+F	.claude/skills/configure-whiteboard/SKILL.md	sha256=9eb21ecc6ac044a914ce11009025f8a84e51c5135221ec3b50f8c021ccfa2177	size=19800	mtime_ns=1786409311708528082	ctime_ns=1786409311709874928	mode=0o100644	nlink=1
+F	.claude/skills/configure-whiteboard/templates/whiteboard.md.template	sha256=9c04c259407e049b76b55fb97e02172b8e638c857b268654debf43d5ead5bec7	size=4928	mtime_ns=1786579235079117266	ctime_ns=1786579235079117266	mode=0o100644	nlink=1
+F	.claude/skills/exam-quick/SKILL.md	sha256=eb30e407a14145477710cbf439e7e85705afeb157c98c5993ee0b3616c324853	size=12596	mtime_ns=1786409088198874284	ctime_ns=1786409088198874284	mode=0o100644	nlink=1
+F	.claude/skills/node-chat/SKILL.md	sha256=3b15bc91dabea7e7b3876b75c2c0973e7a9284d48081e5d1b864623258b40fb7	size=9148	mtime_ns=1786409088199113411	ctime_ns=1786409088199113411	mode=0o100644	nlink=1
+F	.claude/skills/quiz-answer/SKILL.md	sha256=9652e1e1c1d2ef2aee71cf0996abaadab30a7e1e5cccc302e00df06379431006	size=29680	mtime_ns=1786409088199365205	ctime_ns=1786409088199365205	mode=0o100644	nlink=1
+F	.claude/skills/start-exam-board/SKILL.md	sha256=c605c3821f966761c2597a8a1c99df85eb0bbd5f32e46f106817272bcd7c3318	size=38709	mtime_ns=1786409292513415949	ctime_ns=1786409292514678628	mode=0o100644	nlink=1
+F	.claude/skills/study-question/SKILL.md	sha256=0142b7833ff3ab54c9307227d59ebaa7d5ff3f9c18a76b07344d0ab295fa22e4	size=30287	mtime_ns=1786409088199804751	ctime_ns=1786409088199804751	mode=0o100644	nlink=1
+F	.claudian/claudian-settings.json	sha256=bf4680bbbe902e1bc1cec0d2118f9932a0b656062da8a330358ce04d14153992	size=1747	mtime_ns=1778540182972493011	ctime_ns=1778540182972493011	mode=0o100644	nlink=1
+F	.claudian/sessions/conv-1776676336319-sl0k3arzs.meta.json	sha256=b74f4cd9f6ef4d3d880c816491872f2769609e9600a9d6e32ef8732aa039468c	size=696	mtime_ns=1776729461290343349	ctime_ns=1776729461290343349	mode=0o100644	nlink=1
+F	.claudian/sessions/conv-1776729466815-gzzd936ir.meta.json	sha256=e5606cc8ee7b361cb42165fa8b5233b17f292f07e76b465b3a2aed70a5af68ba	size=635	mtime_ns=1777537529479038447	ctime_ns=1777537529479038447	mode=0o100644	nlink=1
+F	.claudian/sessions/conv-1777538503276-uhmk7u8ol.meta.json	sha256=ac8d8b6e291746f4308d2d04a3bd51ee7a551d57297ca4e1321ccdc3948b0e45	size=690	mtime_ns=1777612732372635802	ctime_ns=1777612732372635802	mode=0o100644	nlink=1
+F	.claudian/sessions/conv-1777539396556-9t8uipa1q.meta.json	sha256=b023e5f2d1c0c296e47fc4ae131de33cb87a08f785dc511a3260800efe6aea17	size=681	mtime_ns=1777612726019613344	ctime_ns=1777612726019613344	mode=0o100644	nlink=1
+F	.claudian/sessions/conv-1777544824333-47ssohh5w.meta.json	sha256=0ea2dc39b09db81be360e10e550a5778c7b5d2597c126c6d401aefa6c2bfb084	size=704	mtime_ns=1777612724030577331	ctime_ns=1777612724030577331	mode=0o100644	nlink=1
+F	.claudian/sessions/conv-1777612864902-v0pz027xr.meta.json	sha256=97ce1eacffc5c04e987ae57207e7711899118c95fa7e2ca4fd8f24dd1ffb644e	size=662	mtime_ns=1777615562148298140	ctime_ns=1777615562148298140	mode=0o100644	nlink=1
+F	.claudian/sessions/conv-1777615685409-37vsm7od4.meta.json	sha256=c91681b3e2b7aa460f755b8c8b1c6410e53abbb5bb890c457064da1f182779bd	size=638	mtime_ns=1777622024163313321	ctime_ns=1777622024163313321	mode=0o100644	nlink=1
+F	.claudian/sessions/conv-1777824182216-h12gkfrs9.meta.json	sha256=367d01328b23f03c5621dd964b205f7b628bbf48ce5042a0a3329954b56ab09e	size=694	mtime_ns=1777827086637872267	ctime_ns=1777827086637872267	mode=0o100644	nlink=1
+F	.claudian/sessions/conv-1777827095612-7zxl1zxe7.meta.json	sha256=102dc25dc2b3de882eea6130cf26a4915683a9573cd53060651454707d7c1c2b	size=698	mtime_ns=1777828758228073606	ctime_ns=1777828758228073606	mode=0o100644	nlink=1
+F	.claudian/sessions/conv-1777828765733-1bn94eqh2.meta.json	sha256=83af4ca141799cb439e7ec1ed681dd256dbf59ee85d31df8a161eb50f41599f0	size=697	mtime_ns=1777874884172392551	ctime_ns=1777874884172392551	mode=0o100644	nlink=1
+F	.claudian/sessions/conv-1777874916363-o84177s3v.meta.json	sha256=4421f0f6ce554bc462a34fecf768724e1be7e6658a74d3321456544c09dad84c	size=732	mtime_ns=1777877081276289564	ctime_ns=1777877081276289564	mode=0o100644	nlink=1
+F	.claudian/sessions/conv-1777877185042-hv5t4z34r.meta.json	sha256=cd3c26a6a17dd661afa86379fd71882f8aa24219136e65daad697b9676dcbbc4	size=738	mtime_ns=1778317875691842848	ctime_ns=1778317875691842848	mode=0o100644	nlink=1
+F	.claudian/sessions/conv-1778317918809-d5b21q59z.meta.json	sha256=68e20e252efbca079860f9b53c5ee88924f4fe589857d6a0905c3c2dda4c1a6c	size=715	mtime_ns=1778319592637834448	ctime_ns=1778319592637834448	mode=0o100644	nlink=1
+F	.claudian/sessions/conv-1778319623504-9flpnno3f.meta.json	sha256=626ecfc60c715c9c1919b3b06b16b8f7ed61d56bc147c474252e16837c56d1cc	size=710	mtime_ns=1778453447532487732	ctime_ns=1778453447532487732	mode=0o100644	nlink=1
+F	.claudian/sessions/conv-1778335598602-jmffvuwoj.meta.json	sha256=c4122246af629ebd12378f4db1684d0e350ef10e96a26768bba5eb022ec1383f	size=710	mtime_ns=1778453446553325510	ctime_ns=1778453446553325510	mode=0o100644	nlink=1
+F	.claudian/sessions/conv-1778338265869-gm6pl6vbc.meta.json	sha256=486ffd5b2985f547aa1eddfe0c4afe2aa6ce09f1e4698c64186cc4fd22369837	size=714	mtime_ns=1778453445634357053	ctime_ns=1778453445634357053	mode=0o100644	nlink=1
+F	.claudian/sessions/conv-1778344043066-2lni4fjdm.meta.json	sha256=f7afd3ad30c3958a4635f9683974a23b301429cc8c656566b03b2069df894544	size=703	mtime_ns=1778453444603440796	ctime_ns=1778453444603440796	mode=0o100644	nlink=1
+F	.claudian/sessions/conv-1778345453043-w69umprta.meta.json	sha256=cde0bf1b155db137f1341d96c106e2f9791b4b7217767f5b6b6e4700fd00d9a1	size=711	mtime_ns=1778453442507234778	ctime_ns=1778453442507234778	mode=0o100644	nlink=1
+F	.claudian/sessions/conv-1778350586042-us0l9yts9.meta.json	sha256=489509accbad5733e863f5cb0942660dd0d9a7a649eca3210c1996c77543ddcf	size=713	mtime_ns=1778453438495304322	ctime_ns=1778453438495304322	mode=0o100644	nlink=1
+F	.claudian/sessions/conv-1778528406555-sum0pp3gv.meta.json	sha256=07c4584f19223c6834eb8c48fc77652f8938d4b141e5f85d13406b4402605233	size=713	mtime_ns=1778528924166090839	ctime_ns=1778528924166090839	mode=0o100644	nlink=1
+F	.claudian/sessions/conv-1778532654090-xmi6fu3j0.meta.json	sha256=c399b678fe8c847b02805738f252bfe0c10d95943ed96ea12d5ca9ca6034f4e2	size=703	mtime_ns=1778532836168423710	ctime_ns=1778532836168423710	mode=0o100644	nlink=1
+F	.claudian/sessions/conv-1778533689096-id2np25wf.meta.json	sha256=5f06fe03292e23152cecaf57bf4245d848588dc055e5a4f5b9fd0642160ae9c8	size=473	mtime_ns=1778533867168007942	ctime_ns=1778533867168007942	mode=0o100644	nlink=1
+F	.claudian/sessions/conv-1778533709908-wzevfu1s3.meta.json	sha256=4e4f43cbebaa5ad968c279b0d0d5a45cd0c09755b31e22d2da7b77cb53a12bca	size=692	mtime_ns=1778534029051792609	ctime_ns=1778534029051792609	mode=0o100644	nlink=1
+F	.claudian/sessions/conv-1778535800070-axg786waa.meta.json	sha256=aacd55ce49e906021e98370fe80ba2d584a1a4e759b7f0cb0813b1642970f3c8	size=703	mtime_ns=1778535989895613459	ctime_ns=1778535989895613459	mode=0o100644	nlink=1
+F	.claudian/sessions/conv-1778536435668-mj9k0tikt.meta.json	sha256=8050b979453533e88423a121187bb4018d2152ab371a18f1925308567a57d817	size=704	mtime_ns=1778536617597300338	ctime_ns=1778536617597300338	mode=0o100644	nlink=1
+F	.claudian/sessions/conv-1778540184349-kv15u9832.meta.json	sha256=a4137b7db9d22f6dae077fbe3d7f36d837f03dbb495f18a1b5681e00c1310cd0	size=703	mtime_ns=1778630098147409858	ctime_ns=1778630098147409858	mode=0o100644	nlink=1
+F	.claudian/sessions/conv-1778542019697-8xm2e6mac.meta.json	sha256=0e750648b6076b83aa2d0f3802f082fa9a207579bda56088c00e2bbfde12fe19	size=704	mtime_ns=1778630093925462482	ctime_ns=1778630093925462482	mode=0o100644	nlink=1
+F	.claudian/sessions/conv-1778601874849-ema788mbd.meta.json	sha256=52742bc965d125c899807c922cc8f3b778804cdd2a18db422c60732540529c94	size=704	mtime_ns=1778630094106675300	ctime_ns=1778630094106675300	mode=0o100644	nlink=1
+F	.claudian/sessions/conv-1778625685716-kc43sbg3z.meta.json	sha256=354e74cf13b237e2bdcba464a84d5c35e5e9f680bce241cacfd63f5f8e02d08e	size=714	mtime_ns=1778630092628616487	ctime_ns=1778630092628616487	mode=0o100644	nlink=1
+F	.claudian/sessions/conv-1778630124546-1dfch0zjv.meta.json	sha256=20c881b708a1912767e3d85b43f5d9c8af0391a9b79aaa1a298399a51f1686c8	size=709	mtime_ns=1784877968086270847	ctime_ns=1784877968086270847	mode=0o100644	nlink=1
+F	.mcp.json	sha256=b6cf27d0b9ca3aeb27d64299f1adee18a6299cc0739a4f02a78c256b72851513	size=123	mtime_ns=1786277436693765701	ctime_ns=1786277436693765701	mode=0o100644	nlink=1
+F	.obsidian/app.json	sha256=f5835993678ca63bfee2a3b711621678090996fd996d52cf66a442faf5108349	size=91	mtime_ns=1787780601069556498	ctime_ns=1787780601069556498	mode=0o100644	nlink=1
+F	.obsidian/appearance.json	sha256=d3e0f8e441063cce11dc7a198dde16ec26379fcf3c7b710bbe16b2a1c288e407	size=30	mtime_ns=1787780601070170207	ctime_ns=1787780601070170207	mode=0o100644	nlink=1
+F	.obsidian/cls-internal-key.txt	sha256=65b54e56b97ea1098e84419bc73871ca7c6774dbdab1aed4ce2cc744b5e202e0	size=48	mtime_ns=1783801959270079933	ctime_ns=1783801959270152308	mode=0o100644	nlink=1
+F	.obsidian/community-plugins.json	sha256=57d53eee077279e4cb57623da4b1286dfabc03c8bdb8af8766ea0e13a1f69b9d	size=148	mtime_ns=1787780601383980501	ctime_ns=1787780601383980501	mode=0o100644	nlink=1
+F	.obsidian/core-plugins.json	sha256=763cf20a921fd9955735b278006820b90b207b2fc04d9e79ca648279c7c14276	size=696	mtime_ns=1787780600659028318	ctime_ns=1787780600659028318	mode=0o100644	nlink=1
+F	.obsidian/graph.json	sha256=988ae2efc76973d226351d16e90ab5c6cadafec33f689ed60917459708893985	size=529	mtime_ns=1786578401724999000	ctime_ns=1786578401726622051	mode=0o100644	nlink=1
+F	.obsidian/hotkeys.json	sha256=8370b1679fecd7f5abb5e0419a02144b63f94997fcfebbf9063601ae6718ff05	size=453	mtime_ns=1784388290890346897	ctime_ns=1784388290890346897	mode=0o100644	nlink=1
+F	.obsidian/plugins/breadcrumbs/data-backup__no-directions-migration.json	sha256=5df05a10e473643f776bd5038b35a5dab7cb958390e405890021fef9437044d1	size=5234	mtime_ns=1777557919917589866	ctime_ns=1777557919917589866	mode=0o100644	nlink=1
+F	.obsidian/plugins/breadcrumbs/data.json	sha256=5ee5ed891c1be0d2d9d2882ece76ce8d7c96cbd9b633092e3f17d73958c6ba19	size=6468	mtime_ns=1787780600279999000	ctime_ns=1787780600281104449	mode=0o100644	nlink=1
+F	.obsidian/plugins/breadcrumbs/main.js	sha256=453aee68064881193ab4a2f770daeeb896965338f98723fa1ab666b85039f339	size=1209905	mtime_ns=1777557918539380595	ctime_ns=1777557918539380595	mode=0o100644	nlink=1
+F	.obsidian/plugins/breadcrumbs/manifest.json	sha256=9568dd36e37046209ba2834c71a0e6bbd39c679736232254d28a77a5f7b28085	size=405	mtime_ns=1777557917933062412	ctime_ns=1777557917933062412	mode=0o100644	nlink=1
+F	.obsidian/plugins/breadcrumbs/styles.css	sha256=c5df1aa1d1bbcc08c679bcadb0811500df079b67b797226a181fbf125ff4e0e4	size=2919	mtime_ns=1777557918827449947	ctime_ns=1777557918827449947	mode=0o100644	nlink=1
+F	.obsidian/plugins/canvas-learning-system/data.json	sha256=6410742c2ed905175f07eae15396b5546a253073464030d9b2cf0e7dcdea40e8	size=183	mtime_ns=1783801959289245012	ctime_ns=1783801959289245012	mode=0o100644	nlink=1
+F	.obsidian/plugins/canvas-learning-system/main.js	sha256=9e2ea62e37f9a763d59ca0ab97b6f531b9607b0b6dc3b7a7108aaec62f23b16b	size=130139	mtime_ns=1786585364668417195	ctime_ns=1786585364668710322	mode=0o100644	nlink=1
+F	.obsidian/plugins/canvas-learning-system/manifest.json	sha256=ecada1c56638373b7169947e8c73585f7d46a9e5e14ecd7746c05bcf93fc44b1	size=292	mtime_ns=1777780576106030953	ctime_ns=1785507605831902826	mode=0o100644	nlink=1
+F	.obsidian/plugins/claudian/data.json	sha256=ef4edaf0e4a19a1c20efa2019aa7d6bb6a04579cff3ed2c9adc3e4cf51e0ab77	size=941	mtime_ns=1787780600802000000	ctime_ns=1787780600806031814	mode=0o100644	nlink=1
+F	.obsidian/plugins/claudian/main.js	sha256=ec4e2eee5895c69dae4207490f12091190f010e870420e16230f4b8e44c25e8d	size=3338883	mtime_ns=1776667266007490516	ctime_ns=1776667266007613101	mode=0o100644	nlink=1
+F	.obsidian/plugins/claudian/manifest.json	sha256=ecd9ed2f115ec9a7aae836d2c461671fa63331b5f00078f5dbefe06464bd9f18	size=417	mtime_ns=1776667266008612359	ctime_ns=1776667266008723526	mode=0o100644	nlink=1
+F	.obsidian/plugins/claudian/styles.css	sha256=97be8420eb593f56e409cfd0610e15f8d0d543a18a9767b9201cdb30731af0d3	size=115999	mtime_ns=1776667266003405442	ctime_ns=1776667266003563527	mode=0o100644	nlink=1
+F	.obsidian/plugins/dataview/data.json	sha256=f2f973d11a1dc59cdcb507f297f9743c4aeb3778fe116b6a8f7d61bb8bed1210	size=860	mtime_ns=1777559039497999000	ctime_ns=1777559039501239646	mode=0o100644	nlink=1
+F	.obsidian/plugins/dataview/main.js	sha256=bcdb7a7882051a30427a3fa370533c1052019591e7551bcc12611bb9a726bbb3	size=1302069	mtime_ns=1777552135394467692	ctime_ns=1777552135394467692	mode=0o100644	nlink=1
+F	.obsidian/plugins/dataview/manifest.json	sha256=9235db47112da81b85591c79ecb9ae2574e5e72207056e976472f90616286185	size=357	mtime_ns=1777552134651326925	ctime_ns=1777552134651326925	mode=0o100644	nlink=1
+F	.obsidian/plugins/dataview/styles.css	sha256=3306dd9032e00f989ba7233a37fd255bc4d3f4340cee661762e952f3f6aa1de9	size=2965	mtime_ns=1777552135678615166	ctime_ns=1777552135678615166	mode=0o100644	nlink=1
+F	.obsidian/plugins/excalibrain/data.json	sha256=72250e67c8bc6c007992e84f7a0de6230813d94265208b7878d5bc3b658fddb8	size=4740	mtime_ns=1786750886910000000	ctime_ns=1786750886915507990	mode=0o100644	nlink=1
+F	.obsidian/plugins/excalibrain/main.js	sha256=508a9afdbc9d5a6fcc71f706b4d6321ffb79d3096cc846cea64d1d7f41b66aad	size=417349	mtime_ns=1786609686675714712	ctime_ns=1786609686675714712	mode=0o100644	nlink=1
+F	.obsidian/plugins/excalibrain/manifest.json	sha256=be2eb1a9f2f6730c5a209e55ea6069e066eecd961f989e0332e80449a3bb6334	size=273	mtime_ns=1786609708310043764	ctime_ns=1786609708310043764	mode=0o100644	nlink=1
+F	.obsidian/plugins/excalibrain/styles.css	sha256=00b2e7cdcdd231987afbabf924bd293ac7bc0cade677b2c4dbe337e29ea2e815	size=7388	mtime_ns=1786609715131799170	ctime_ns=1786609715131799170	mode=0o100644	nlink=1
+F	.obsidian/plugins/obsidian-excalidraw-plugin/data.json	sha256=e93b6f57f583571beee2268a30edf7314ac9e39e6cd6682149e62d86bd177bd3	size=27511	mtime_ns=1786611190542000000	ctime_ns=1786611190573332295	mode=0o100644	nlink=1
+F	.obsidian/plugins/obsidian-excalidraw-plugin/main.js	sha256=b26f3fc8cfa39cfefe8c11c82e43f80afdc642d8ca4d4ece3bdd817f72d4cf5a	size=5106385	mtime_ns=1786609931047818214	ctime_ns=1786610022753394413	mode=0o100644	nlink=1
+F	.obsidian/plugins/obsidian-excalidraw-plugin/manifest.json	sha256=f6b817daea2fa2106671a62d7236cdc8d806f52465f1ff3ab5343231c020b703	size=463	mtime_ns=1786609535408769494	ctime_ns=1786609535408769494	mode=0o100644	nlink=1
+F	.obsidian/plugins/obsidian-excalidraw-plugin/styles.css	sha256=615b560c5193b2ca4ef3ff1844d2807913bc51c40333c79fdd08a840b0c42735	size=224752	mtime_ns=1786609562360693576	ctime_ns=1786609562360693576	mode=0o100644	nlink=1
+F	.obsidian/plugins/templater-obsidian/data.json	sha256=f209112e1e9c610c31491875d1a0bf7c7472489922e2beba816c4ef0dfd38c04	size=685	mtime_ns=1776478984253999000	ctime_ns=1776478984257823378	mode=0o100644	nlink=1
+F	.obsidian/plugins/templater-obsidian/main.js	sha256=fbffb3c5bd873c5e4e69f6f07a969312d61511d7b5bf4ae040d50a69a1a23878	size=340988	mtime_ns=1776478579477095210	ctime_ns=1776478579477095210	mode=0o100644	nlink=1
+F	.obsidian/plugins/templater-obsidian/manifest.json	sha256=187f6115cbf7965a3c639730655e90ddca7573fc7bcb5af00d38e11c3144edd3	size=331	mtime_ns=1776478579247229663	ctime_ns=1776478579247229663	mode=0o100644	nlink=1
+F	.obsidian/plugins/templater-obsidian/styles.css	sha256=f7d4ee5bd4ec1d032eda1f4e1da481e713c57af964ec1e55d31494f086068d1e	size=4932	mtime_ns=1776478579674927135	ctime_ns=1776478579674927135	mode=0o100644	nlink=1
+F	.obsidian/templates/concept.md	sha256=8c131fd7c7e255c5118358e5139985b0440c932a55416d4aa3aaa07eb486766c	size=623	mtime_ns=1776479535341899394	ctime_ns=1776479535343796393	mode=0o100644	nlink=1
+F	.obsidian/templates/exam-board.md	sha256=153107bf7316c11f2e97ec7cca900e35dd0ef9eed835f54dab001f67006cde46	size=359	mtime_ns=1776425082909842813	ctime_ns=1776425082910202648	mode=0o100644	nlink=1
+F	.obsidian/themes/Underwater/manifest.json	sha256=44049d106ceb3ad242af8b547d006e72b0415b82694c795754daa61f7673979e	size=231	mtime_ns=1776576834161497597	ctime_ns=1776576834161497597	mode=0o100644	nlink=1
+F	.obsidian/themes/Underwater/theme.css	sha256=110bd98e4ea232dfdbacc17d234ca83b3f79d617796fb3c7b571a41a9c96940c	size=123108	mtime_ns=1776576834162077265	ctime_ns=1776576834162077265	mode=0o100644	nlink=1
+F	.obsidian/types.json	sha256=e37b24fea22ac26121339b24712a6f4c6ae2e6c334c877e82a4542798a12a66e	size=861	mtime_ns=1777557919997999000	ctime_ns=1777557919998815180	mode=0o100644	nlink=1
+F	.obsidian/workspace.json	sha256=927caf6cf492aa1971ea136487f5bba08fdf490a4fe9a8fd8935d6cbf782bcf5	size=22992	mtime_ns=1787782623147573209	ctime_ns=1787782623147573209	mode=0o100644	nlink=1
+F	.quarantine/UAT-2.5.X-test.md	sha256=42e020fd186a1e1e6e9e3388c681d90d98b67c2071977346565eebe4939fc067	size=4504	mtime_ns=1783801959328245716	ctime_ns=1784782764500820742	mode=0o100644	nlink=1
+F	.trash/An-eigenvalue-of-a-linear-transformation.md.cleanup-2026-05-01-v41	sha256=82a94247fdf15e7eff6342979ee75141ae79c1f4534e823cbc726ae4791fa831	size=1143	mtime_ns=1777632581438838443	ctime_ns=1777633017266781126	mode=0o100644	nlink=1
+F	.trash/Eigenvalues-are-special-vectors.md.cleanup-2026-05-01	sha256=f024a20b2faf54e7e47049b4b9530d42b7a2bda970e6932937a182a426ea2154	size=1006	mtime_ns=1777627080956448343	ctime_ns=1777629060582983122	mode=0o100644	nlink=1
+F	.trash/Math 140 Fundamentals.md.deleted-2026-05-01	sha256=abdf1bf08cbba394ca5601dca2a0f6a3ed42509761182ebe8174d88eb9e6175b	size=3844	mtime_ns=1777615962378591112	ctime_ns=1777616139940838814	mode=0o100644	nlink=1
+F	.trash/ai-linked-doc-fill.deprecated-2026-05-01/SKILL.md	sha256=3c99ab6a510ffc7357f8edee81e8b691ef7695bd2cf480837c93cce73bc0f1d2	size=7143	mtime_ns=1777614771103461346	ctime_ns=1777614771104082556	mode=0o100644	nlink=1
+F	.trash/样稿-错误候选复盘UX-方案A预览.md	sha256=403bf15b4cfc22614c5698adb2cdbc94aac696ba206da0756ee2e2249699dd7d	size=2797	mtime_ns=1784517780078669277	ctime_ns=1787038861540740523	mode=0o100644	nlink=1
+F	2111.md	sha256=2fdd7f9290f017e5213d901f53302556804f5e095769022811cc1313d4eafd01	size=266	mtime_ns=1777619678039445153	ctime_ns=1777619678039445153	mode=0o100644	nlink=1
+F	CLAUDE.md	sha256=a97aadd20993e402c0ace446aeec685575978009368c069232db3f02b64a5baf	size=1746	mtime_ns=1787782765557036015	ctime_ns=1787782765557131056	mode=0o100644	nlink=1
+F	CS188/lecture 4/lecture 4.md	sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	size=0	mtime_ns=1778337020207465472	ctime_ns=1778337020207493055	mode=0o100644	nlink=1
+F	CS189/notes/lectures/Lecture_02/Lecture_02_Lecture 2 - Data Tools.md	sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	size=0	mtime_ns=1778337017046600390	ctime_ns=1778337017046631974	mode=0o100644	nlink=1
+F	Dashboard.md	sha256=f04ec855984a6cb936f3c0dd0a6374b69e2a1f03f146779e8f4e89091c334017	size=23338	mtime_ns=1787782765554938942	ctime_ns=1787782765555035109	mode=0o100644	nlink=1
+F	UAT-2.5.X-test.md	sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	size=0	mtime_ns=1778042676408203835	ctime_ns=1778042676408286460	mode=0o100644	nlink=1
+F	UAT-Study-Question-Skill-2026-05-10.md	sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	size=0	mtime_ns=1778525042200242147	ctime_ns=1778525042200336565	mode=0o100644	nlink=1
+F	Untitled.md	sha256=fdd87e782a1f2329044689a42b245723ba8d118be9b1d1e19775b1d5f636dec2	size=538	mtime_ns=1776479886061067724	ctime_ns=1776479886061067724	mode=0o100644	nlink=1
+F	chatgpt-adversarial-review-Q1Q2Q3-2026-05-12.md	sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	size=0	mtime_ns=1778607035955876613	ctime_ns=1778607035956005697	mode=0o100644	nlink=1
+F	excalibrain.md	sha256=1377a94fc3718ed9360211eeeec5b91dc75d91240d5d646c7385573942dc319d	size=2483	mtime_ns=1786611188305454606	ctime_ns=1786611188305454606	mode=0o100644	nlink=1
+F	learning_events.jsonl	sha256=2a18023e71a046db8a8c52e098cd48bd0b9898596e4ea3024e18695827796cb6	size=7232	mtime_ns=1786462773847878947	ctime_ns=1786462773847878947	mode=0o100644	nlink=1
+F	outputs/.recap-manifest-CS 61B.json	sha256=28eb864af441f63b059df72172b3a51d6b927a31699f9f2751d11b52e61f2c19	size=4003	mtime_ns=1787782443574476519	ctime_ns=1787782443575181223	mode=0o100644	nlink=1
+F	outputs/.recap-manifest-CS188 lecture 2.json	sha256=13c91ea9b5ee86a22a8ff7a33f1f331ff26a3ae9b8ad8c7d5c0a75d4716cf8d6	size=7216	mtime_ns=1787782426267645274	ctime_ns=1787782426267645274	mode=0o100644	nlink=1
+F	outputs/.recap-manifest-特征值与特征向量.json	sha256=dcf3067dd1d5ae7f520e1a2962c092910cde23ee40ee280fe15d05fbbf838601	size=10624	mtime_ns=1787782458196481646	ctime_ns=1787782458197138184	mode=0o100644	nlink=1
+F	outputs/.recap-manifest-递归与分治 (Recursion & Divide-Conquer).json	sha256=fac1a0d8062a91116dc14b44645f39aab7d10b7d5277d9daabffa15578971ce5	size=1971	mtime_ns=1787782447515743136	ctime_ns=1787782447516284884	mode=0o100644	nlink=1
+F	outputs/.recap-scan-CS 61B.json	sha256=026e5b641e6b8e2187296db367daf6d6967b2a16a27b674c50317b6a007f7545	size=5069	mtime_ns=1787782452113174906	ctime_ns=1787782452113174906	mode=0o100644	nlink=1
+F	outputs/.recap-scan-CS188 lecture 2.json	sha256=6f370fb9d4c947519b22b9bb5cfec2ff826153d7ad40a3e9752924ba776f1dd8	size=9276	mtime_ns=1787782426323811741	ctime_ns=1787782426323811741	mode=0o100644	nlink=1
+F	outputs/.recap-scan-特征值与特征向量.json	sha256=42120142b8500aac584d5201cf1ebd406cf398110fd358f0074465ac52c689c8	size=6985	mtime_ns=1787782465748448032	ctime_ns=1787782465748448032	mode=0o100644	nlink=1
+F	outputs/.recap-scan-递归与分治 (Recursion & Divide-Conquer).json	sha256=00c0763ba9de302551e565864066c1574e58b4fb269253525e0a5628225b1ad0	size=2486	mtime_ns=1787782455318638976	ctime_ns=1787782455318638976	mode=0o100644	nlink=1
+F	outputs/exam_boards/.gitkeep	sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	size=0	mtime_ns=1776467615568788029	ctime_ns=1776467615568788029	mode=0o100644	nlink=1
+F	outputs/今日复习.json	sha256=109f2adec6ccfd479014405efd5bcc2662bcd69365110de05aefd5b4f168fbd6	size=3138	mtime_ns=1787780269821298837	ctime_ns=1787780269825214176	mode=0o100644	nlink=1
+F	outputs/今日复习.md	sha256=8fdcd9cc41a349b7a7f69da393296baa0208b088b222008121fee741bcd856db	size=1226	mtime_ns=1787780269824725760	ctime_ns=1787780269824861885	mode=0o100644	nlink=1
+F	outputs/回顾-CS 61B-2026-08-27.md	sha256=2264c1ada4e29a1af5275f4cfb5dc4c7a1e7e978221517944da79d00cfb40d55	size=5407	mtime_ns=1787782622132920566	ctime_ns=1787782622133472356	mode=0o100644	nlink=1
+F	outputs/回顾-CS188 lecture 2-2026-08-27.md	sha256=c028a9d70c24fbe0249d37f26110f2c0a8f82ca1d23564a168cff6935d020207	size=6272	mtime_ns=1787782563048652635	ctime_ns=1787782563050084587	mode=0o100644	nlink=1
+F	outputs/回顾-特征值与特征向量-2026-08-27.md	sha256=753f850212f6f8009a77f467eae37d7ec554e608b41f087d28173387011c315e	size=6180	mtime_ns=1787782617674310772	ctime_ns=1787782617676666809	mode=0o100644	nlink=1
+F	outputs/回顾-递归与分治 (Recursion & Divide-Conquer)-2026-08-27.md	sha256=d40bf08159aeecf5f68cb525246b3ac26ae96fa6417ec855c57fd89da0613806	size=3803	mtime_ns=1787782547545164569	ctime_ns=1787782547546208355	mode=0o100644	nlink=1
+F	outputs/思维导图-CS 61B.excalidraw.md	sha256=d3c336a164c01e0074431bd5e8a6d2f6dee603e38a45bedc42d6bfa56c11e5d5	size=3555	mtime_ns=1786752682649279044	ctime_ns=1786752682649279044	mode=0o100644	nlink=1
+F	outputs/思维导图-CS188 lecture 2.excalidraw.md	sha256=9365d0344101557a384cfcacbd7d4071d241ff9fe04002c6e66daeb12aab3bca	size=23728	mtime_ns=1787780631915299706	ctime_ns=1787780631915299706	mode=0o100644	nlink=1
+F	outputs/思维导图-特征值与特征向量.excalidraw.md	sha256=a87fbf8f636e5f076d657762faf64acf3cea64705b6a4ed05316ed52b94106fe	size=17631	mtime_ns=1786752682625530831	ctime_ns=1786752682625530831	mode=0o100644	nlink=1
+F	raw/.gitkeep	sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	size=0	mtime_ns=1776467615566972464	ctime_ns=1776467615566972464	mode=0o100644	nlink=1
+F	raw/CS188/.obsidian/plugins/canvas-learning-system/DESIGN_SPEC.md	sha256=bdd2079402c37f7d53214cc6fc4cfc4b3566fcba46481add4c899e014d14cbe0	size=14507	mtime_ns=1774944817000000000	ctime_ns=1778311502102872096	mode=0o100755	nlink=1
+F	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/@codemirror/state/CHANGELOG.md	sha256=baa01996183320f23a05e2a3b92c8ceb0b001e251d5c321b2cbd2e0535a83942	size=7704	mtime_ns=1774944817000000000	ctime_ns=1778311502103245719	mode=0o100755	nlink=1
+F	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/@codemirror/state/README.md	sha256=825e19abbf9d9484379c07f5c8133c3c1685134a1b7b7f849bcaf2789ccad9c1	size=1020	mtime_ns=1774944817000000000	ctime_ns=1778311502103528926	mode=0o100755	nlink=1
+F	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/@codemirror/view/CHANGELOG.md	sha256=88cbdb7efa76687c3c214b4653806a85e2919299f8201b892af8671ffab27544	size=71971	mtime_ns=1774944817000000000	ctime_ns=1778311502104464380	mode=0o100755	nlink=1
+F	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/@codemirror/view/README.md	sha256=5569b585e64b0f5a54a08ea8362c5a93a7d97ca4364e4295dea77d3210fcdb86	size=1484	mtime_ns=1774944817000000000	ctime_ns=1778311502104676004	mode=0o100755	nlink=1
+F	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/@esbuild/win32-x64/README.md	sha256=29cf512fa580b72392176bf694933ae0decaf18116fdeee917511b445411ce16	size=143	mtime_ns=1774944818000000000	ctime_ns=1778311502104983253	mode=0o100755	nlink=1
+F	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/@marijn/find-cluster-break/README.md	sha256=58b02b912ce7c0bb7694d55127d72d6f69a904317460be3d2a2d831523767213	size=952	mtime_ns=1774944818000000000	ctime_ns=1778311502105261002	mode=0o100755	nlink=1
+F	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/@types/codemirror/README.md	sha256=9b15f9e884691be821aa1fd7af408f214e8774a8cc59f0f009ba202b3d7fd48c	size=988	mtime_ns=1774944818000000000	ctime_ns=1778311502105565208	mode=0o100755	nlink=1
+F	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/@types/estree/README.md	sha256=ff55bfd94caf4e1ac37c3ccb33740a74718a9b3c519bf626f9b3d766cc8e66a7	size=458	mtime_ns=1774944818000000000	ctime_ns=1778311502106244747	mode=0o100755	nlink=1
+F	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/@types/node/README.md	sha256=2bdb487625dbf4299e5eb58b2954c184dcaa8c52c2162456f4efa4941787543d	size=1500	mtime_ns=1774944818000000000	ctime_ns=1778311502106670037	mode=0o100755	nlink=1
+F	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/@types/tern/README.md	sha256=67d0a6144e4839923a8fef35c87effab63fded7e46c562ae7dd80df802d94708	size=507	mtime_ns=1774944818000000000	ctime_ns=1778311502107112368	mode=0o100755	nlink=1
+F	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/builtin-modules/readme.md	sha256=be7dc4a6db391726d5459c06730bfc6e7548e8fac69677cd696f9e74d2186c83	size=1195	mtime_ns=1774944818000000000	ctime_ns=1778311502107544116	mode=0o100755	nlink=1
+F	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/crelt/README.md	sha256=68312e4f1cfe684a2976828ca5c8942e1ab983c276e189858480901c9aecf439	size=764	mtime_ns=1774944818000000000	ctime_ns=1778311502108052697	mode=0o100755	nlink=1
+F	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/esbuild/LICENSE.md	sha256=b40ec5baec7bb34fa5b1c09521fa3cd52d5fad7adafed74932a2010d3612a681	size=1069	mtime_ns=1774944818000000000	ctime_ns=1778311502108481445	mode=0o100755	nlink=1
+F	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/esbuild/README.md	sha256=6d481cd60ec3c679e5e395f547ab4221147f35642894f6b95a8df38fd25c87bd	size=175	mtime_ns=1774944818000000000	ctime_ns=1778311502108879568	mode=0o100755	nlink=1
+F	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/moment/CHANGELOG.md	sha256=27f968daa0ea51746c9635d6fda152d7d70d444be0f47851f77ca04ed22cd062	size=45726	mtime_ns=1774944818000000000	ctime_ns=1778311502109574690	mode=0o100755	nlink=1
+F	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/moment/README.md	sha256=436d7bffc56485e7a295675f541ddee1e433e43ee65ef10588a1cd5a38900356	size=2468	mtime_ns=1774944818000000000	ctime_ns=1778311502109720939	mode=0o100755	nlink=1
+F	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/obsidian/CHANGELOG.md	sha256=d6644226aacd709d8dfbdb975199aec8cf02e17c8e60d8af6e0662f5a21ec2b2	size=11645	mtime_ns=1774944818000000000	ctime_ns=1778311502110018188	mode=0o100755	nlink=1
+F	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/obsidian/LICENSE.md	sha256=c7e9eeb6640ebb1c22d8888f6d2c771b1f058a54e6216d69c7e2224b3cbad394	size=1058	mtime_ns=1774944818000000000	ctime_ns=1778311502110190229	mode=0o100755	nlink=1
+F	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/obsidian/README.md	sha256=89b06377b8bb16019f959237ef64db04f257c11898450853858fbb711d5b3b90	size=3053	mtime_ns=1774944818000000000	ctime_ns=1778311502110365103	mode=0o100755	nlink=1
+F	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/style-mod/README.md	sha256=0f8488fefaed53d44c8a3aa1f68273b3e543635c1dbd95798b173cbfe9e9d7e2	size=3680	mtime_ns=1774944818000000000	ctime_ns=1778311502110555852	mode=0o100755	nlink=1
+F	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/style-mod/src/README.md	sha256=460db2d900e64c4ebf4a564179ddf2b90a7095a9dc343a7b4d929b64fcf0a7fd	size=713	mtime_ns=1774944818000000000	ctime_ns=1778311502110725851	mode=0o100755	nlink=1
+F	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/typescript/README.md	sha256=73147458477d90cd6236627cdd9b0871df12e6e8a21d2d0fda6d1ad2826bdc0e	size=2842	mtime_ns=1774944818000000000	ctime_ns=1778311502110890142	mode=0o100755	nlink=1
+F	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/typescript/SECURITY.md	sha256=7b6976eec43edfa68b79a459dd089c56b7a395916dbf1a01bd11e6d86e12128f	size=2656	mtime_ns=1774944818000000000	ctime_ns=1778311502111091433	mode=0o100755	nlink=1
+F	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/undici-types/README.md	sha256=c8cced6ec588c55b07e35733258cb7d6b63e3426ee7490aa9267aab4bda0fb20	size=455	mtime_ns=1774944818000000000	ctime_ns=1778311502111303515	mode=0o100755	nlink=1
+F	raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/w3c-keyname/README.md	sha256=59c6a9d986798d0b7e96a6fe8fc5381aa48f0512950d7edcb59c8a96baf338c3	size=735	mtime_ns=1774944818000000000	ctime_ns=1778311502111479973	mode=0o100755	nlink=1
+F	raw/CS188/CLAUDE.md	sha256=642ce4be8f813989270ca5ee23501387c1054de35fc626dcabda23e519882198	size=14302	mtime_ns=1774944818000000000	ctime_ns=1778311502101772101	mode=0o100755	nlink=1
+F	raw/CS188/CS 188-explanations/clarification-解释-13530e10-20260309-155404.md	sha256=a0eae6c2fde103b00ac000b390879e8c9c4acb06486f16c2a19aa0efdd3de7ee	size=6296	mtime_ns=1774944818000000000	ctime_ns=1778311502111739346	mode=0o100755	nlink=1
+F	raw/CS188/CS 188-explanations/clarification-解释-3dfc6383-20260309-095511.md	sha256=30a843a9a5a0201becdbe06daecfe9812dad41df292360da71ed814feb0d06eb	size=17687	mtime_ns=1774944818000000000	ctime_ns=1778311502112130886	mode=0o100755	nlink=1
+F	raw/CS188/CS 188-explanations/clarification-解释-73609568-20260309-165314.md	sha256=3ca4b7f14ed5077825eea3cb2256820ab706e9316ec8a5240e6deddef2a2f756	size=19835	mtime_ns=1774944818000000000	ctime_ns=1778311502112429885	mode=0o100755	nlink=1
+F	raw/CS188/CS 188-explanations/clarification-解释-bccdf951-20260308-161852.md	sha256=abd803809684c42d5d7292000fde060a1e675264586db033da3596f31d3c276d	size=23151	mtime_ns=1774944818000000000	ctime_ns=1778311502112982799	mode=0o100755	nlink=1
+F	raw/CS188/CS 188-explanations/clarification-解释-bccdf951-20260308-181238.md	sha256=ac7d707b78d938dc90c1744040f4a2303004bf42686c94da3147e6ad35f66a47	size=18719	mtime_ns=1774944818000000000	ctime_ns=1778311502113315881	mode=0o100755	nlink=1
+F	raw/CS188/CS 188-explanations/clarification-解释-bccdf951-20260308-201640.md	sha256=8db38977efc02ee9bbeb842b8574e8c8028196156457346a35c5c96cbdd87d50	size=19233	mtime_ns=1774944818000000000	ctime_ns=1778311502113572713	mode=0o100755	nlink=1
+F	raw/CS188/CS 188-explanations/clarification-解释-bccdf951-20260308-204504.md	sha256=22ba2d26904772b8da4315cd3a488026c914b78ca06e2bf2d673f1af803ab41a	size=20051	mtime_ns=1774944818000000000	ctime_ns=1778311502114003461	mode=0o100755	nlink=1
+F	raw/CS188/CS 188-explanations/clarification-解释-d23ec7df-20260309-114316.md	sha256=a380b15fa68792ac77bab9030d2b4dcac7d0cf202c66c17e127376947465bb4c	size=19560	mtime_ns=1774944818000000000	ctime_ns=1778311502114372709	mode=0o100755	nlink=1
+F	raw/CS188/CS 188-explanations/clarification-解释-d23ec7df-20260309-115552.md	sha256=8e64a90dcec7cd6d8a64bb6c262d880e6721a7603c1f061a05da69c3817c9815	size=20166	mtime_ns=1774944818000000000	ctime_ns=1778311502114764124	mode=0o100755	nlink=1
+F	raw/CS188/CS 188-explanations/clarification-解释-d23ec7df-20260309-123053.md	sha256=0f92f921988e2d6b659c74d204d17e34f14cdf6273a9a4a947f9555d81ba8c83	size=6058	mtime_ns=1774944818000000000	ctime_ns=1778311502114991873	mode=0o100755	nlink=1
+F	raw/CS188/CS 188-explanations/clarification-解释-d23ec7df-20260309-130801.md	sha256=3c9cfbe7a8fc4c3187ba8f7f25ce91121110d6d8a63096bd77446f8071db9e5a	size=4960	mtime_ns=1774944818000000000	ctime_ns=1778311502115178289	mode=0o100755	nlink=1
+F	raw/CS188/CS 188-explanations/clarification-解释-d23ec7df-20260309-134231.md	sha256=4a310296ed3d466fa612ed0a3f8ededb358e6ab5b4f970b253b8db0891e9baf4	size=6073	mtime_ns=1774944818000000000	ctime_ns=1778311502115333872	mode=0o100755	nlink=1
+F	raw/CS188/CS 188-explanations/clarification-解释-d23ec7df-20260309-150131.md	sha256=af322de8898ea4c4af6f22ce79c9cb42d4db3da3f78b3dee2dd3604bdb930c80	size=6510	mtime_ns=1774944818000000000	ctime_ns=1778311502115517329	mode=0o100755	nlink=1
+F	raw/CS188/CS 188-explanations/clarification-解释-d23ec7df-20260309-153610.md	sha256=4da6b49ce3daa7942b664971200372b0caae2a9dec2cdd83ea608446fb9f7fe4	size=6889	mtime_ns=1774944818000000000	ctime_ns=1778311502115725620	mode=0o100755	nlink=1
+F	raw/CS188/CS 188-explanations/clarification-解释-f9340c3f-20260309-170109.md	sha256=7f57ad8a0a64868730c4df10015bc99969193c0c1bf2e04cc11551882b80ee08	size=6869	mtime_ns=1774944818000000000	ctime_ns=1778311502116031327	mode=0o100755	nlink=1
+F	raw/CS188/CS 188-explanations/clarification-解释-understa-20260309-155838.md	sha256=8a08a59e943f0c312c2d933e952abf82c47402f00b7b0aa54a0ac7e36421cfa1	size=33274	mtime_ns=1774944818000000000	ctime_ns=1778311502116462700	mode=0o100755	nlink=1
+F	raw/CS188/CS 188-explanations/clarification-解释-understa-20260309-163415.md	sha256=c9fee001ba206ab9be51eef2fbd8c913b14d4e813de9e4753979ac9e7e5ef39a	size=24165	mtime_ns=1774944818000000000	ctime_ns=1778311502116796698	mode=0o100755	nlink=1
+F	raw/CS188/CS 188-explanations/clarification-解释-understa-20260309-170534.md	sha256=9a1a97ffff11e776d6d61c3fce2bf7e0db6a1eb614d177e51000a83712c37441	size=19797	mtime_ns=1774944818000000000	ctime_ns=1778311502117049447	mode=0o100755	nlink=1
+F	raw/CS188/CS188_Midterm_Study_Guide.md	sha256=174eab6fc3f67bb33159742aaa2d23b9e1b1388fb31ba3651d98474178724422	size=13625	mtime_ns=1774944818000000000	ctime_ns=1778311502102034517	mode=0o100755	nlink=1
+F	raw/CS188/CS188_Practice_Problems_Checklist.md	sha256=f28b9fe94f6359f66920e2cd3dc73a96db4baa5f44b664ed5e33d5e34342ecd8	size=14680	mtime_ns=1774944818000000000	ctime_ns=1778311502102271849	mode=0o100755	nlink=1
+F	raw/CS188/Excalidraw/Drawing 2026-04-04 12.25.51.excalidraw.md	sha256=fb5acf947122906585051a6716973a944a16a6d848c0d4b49b7247ee2fb759c0	size=2481	mtime_ns=1775330768000000000	ctime_ns=1778311502117222696	mode=0o100644	nlink=1
+F	raw/CS188/_misc/junk/().md	sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	size=0	mtime_ns=1774944817000000000	ctime_ns=1778311502117342154	mode=0o100755	nlink=1
+F	raw/CS188/_misc/junk/2026-03-06.md	sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	size=0	mtime_ns=1774944818000000000	ctime_ns=1778311502117449570	mode=0o100755	nlink=1
+F	raw/CS188/_misc/junk/2026-03-07.md	sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	size=0	mtime_ns=1774944818000000000	ctime_ns=1778311502117575070	mode=0o100755	nlink=1
+F	raw/CS188/_misc/junk/2026-03-08.md	sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	size=0	mtime_ns=1774944818000000000	ctime_ns=1778311502117694777	mode=0o100755	nlink=1
+F	raw/CS188/_misc/junk/未命名 1.md	sha256=7257e481c5369de8125ee5d4d5fc3e5f90a3b83f0e63e9840d8275f896edc045	size=7793	mtime_ns=1774944828000000000	ctime_ns=1778311502117883110	mode=0o100755	nlink=1
+F	raw/CS188/_misc/junk/未命名.md	sha256=9bf5fac3b713163193cb3ec6d468634a361eec3810e7dd361e3e48280fc7f980	size=23	mtime_ns=1774944828000000000	ctime_ns=1778311502118022942	mode=0o100755	nlink=1
+F	raw/CS188/exams/node_modules/@napi-rs/canvas-win32-x64-msvc/README.md	sha256=852850d7f55f076f7b710882592132c6f75943875c81832eae136523a7801b59	size=104	mtime_ns=1774944818000000000	ctime_ns=1778311502118192025	mode=0o100755	nlink=1
+F	raw/CS188/exams/node_modules/@napi-rs/canvas/README.md	sha256=96cfdff36688a0d9cceb73868e29716a52d8edcfcc810c32c29eb33a25733666	size=18496	mtime_ns=1774944818000000000	ctime_ns=1778311502118429649	mode=0o100755	nlink=1
+F	raw/CS188/exams/node_modules/node-readable-to-web-readable-stream/README.md	sha256=7bdc468be67fda2400e1ba4c52a44d7aca50509231f5497c2c414a740ba8c46a	size=3706	mtime_ns=1774944818000000000	ctime_ns=1778311502118614190	mode=0o100755	nlink=1
+F	raw/CS188/exams/node_modules/pdf-parse/README.md	sha256=af38d6dc471884c22acf2b515e0235968489cf27220f4dfb9666d20e7b6b6879	size=15149	mtime_ns=1774944819000000000	ctime_ns=1778311502118881605	mode=0o100755	nlink=1
+F	raw/CS188/exams/node_modules/pdf-parse/node_modules/pdfjs-dist/CODE_OF_CONDUCT.md	sha256=902d5357af363426631d907e641e220b3ec89039164743f8442b3f120479b7cf	size=691	mtime_ns=1774944819000000000	ctime_ns=1778311502119111646	mode=0o100755	nlink=1
+F	raw/CS188/exams/node_modules/pdf-parse/node_modules/pdfjs-dist/README.md	sha256=c53acbcd27bb9851954ac2bc244df531bad1d0769c8be3bfaeccd95eb650d31c	size=666	mtime_ns=1774944819000000000	ctime_ns=1778311502119317395	mode=0o100755	nlink=1
+F	raw/CS188/exams/node_modules/pdfjs-dist/CODE_OF_CONDUCT.md	sha256=902d5357af363426631d907e641e220b3ec89039164743f8442b3f120479b7cf	size=691	mtime_ns=1774944819000000000	ctime_ns=1778311502119551102	mode=0o100755	nlink=1
+F	raw/CS188/exams/node_modules/pdfjs-dist/README.md	sha256=c53acbcd27bb9851954ac2bc244df531bad1d0769c8be3bfaeccd95eb650d31c	size=666	mtime_ns=1774944819000000000	ctime_ns=1778311502119699226	mode=0o100755	nlink=1
+F	raw/CS188/exams/node_modules/pdfjs-dist/node_modules/@napi-rs/canvas-win32-x64-msvc/README.md	sha256=852850d7f55f076f7b710882592132c6f75943875c81832eae136523a7801b59	size=104	mtime_ns=1774944819000000000	ctime_ns=1778311502119875017	mode=0o100755	nlink=1
+F	raw/CS188/exams/node_modules/pdfjs-dist/node_modules/@napi-rs/canvas/README.md	sha256=4d390f42d97e13e316944f4ecf7ea2ed42fc3c8a42c9e214d50e04416132df32	size=20941	mtime_ns=1774944819000000000	ctime_ns=1778311502120217266	mode=0o100755	nlink=1
+F	raw/CS188/media-lib/file-e2pt9l7f.md	sha256=e314e566926d51cfba97c63d63f1df28f02f1017819d897572ff53318ee02e26	size=390	mtime_ns=1774944820000000000	ctime_ns=1778311502120381681	mode=0o100755	nlink=1
+F	raw/CS188/media-lib/file-k3oo00lk.md	sha256=ebad41f7f3e7cb57f0b7fd29fa326e51aa70a2387a3aca297ad7c6d85636b29f	size=201	mtime_ns=1774944820000000000	ctime_ns=1778311502120540931	mode=0o100755	nlink=1
+F	raw/CS188/videos/discussions/Disc01_Search_[CS188 Discussion] Search Algorithms in Action/Disc01_Search_[CS188 Discussion] Search Algorithms in Action.md	sha256=0eb1f04451345cee64889242092b3dad16986afdac8138f26d1a2b067538205c	size=25464	mtime_ns=1778533699997344237	ctime_ns=1778533699997344237	mode=0o100755	nlink=1
+F	raw/CS188/videos/discussions/Disc01_Search_[CS188 Discussion] Search Algorithms in Action/chunks/merged.md	sha256=19792fec8fc9fa782b057d24f97c96f427ee05ca51f1e6650b8bd0d07f34d0af	size=24003	mtime_ns=1774944820000000000	ctime_ns=1778311502121050470	mode=0o100755	nlink=1
+F	raw/CS188/videos/discussions/Disc01_Search_[CS188 Discussion] Search and Heuristics/Disc01_Search_[CS188 Discussion] Search and Heuristics.md	sha256=269a9d6013ca0732622b12103c48385f26e73547e76ebb7d243e070afe5bfdc2	size=21508	mtime_ns=1774944820000000000	ctime_ns=1778311502121308177	mode=0o100755	nlink=1
+F	raw/CS188/videos/discussions/Disc01_Search_[CS188 Discussion] Search and Heuristics/chunks/merged.md	sha256=fb0b84ef3a3d20252dfc14125db3f8acf43ba961cfe6f2f45f9aa4781f0f5d6c	size=20799	mtime_ns=1774944820000000000	ctime_ns=1778311502121649592	mode=0o100755	nlink=1
+F	raw/CS188/videos/discussions/Disc01_Search_[CS188 Discussion] Search： Pacfriends Unite/Disc01_Search_[CS188 Discussion] Search： Pacfriends Unite.md	sha256=745a3b375b85b82f9b22309a8cf41b79aadca46578de1d8d813ba594a7c310e6	size=22805	mtime_ns=1774944821000000000	ctime_ns=1778311502121862091	mode=0o100755	nlink=1
+F	raw/CS188/videos/discussions/Disc01_Search_[CS188 Discussion] Search： Pacfriends Unite/chunks/merged.md	sha256=3dc31a72382567be1cd715be8f9d779038466291fea8c725d178497ee62f8013	size=17639	mtime_ns=1774944821000000000	ctime_ns=1778311502122299214	mode=0o100755	nlink=1
+F	raw/CS188/videos/discussions/Disc02_CSPs_[CS188 Discussion] CSPs： Course Scheduling/Disc02_CSPs_[CS188 Discussion] CSPs： Course Scheduling.md	sha256=2dceab45c77ec7df23473abc800cda6b149b7d4295caf7bdc2b06d2bdfdf49ce	size=6071	mtime_ns=1778345350797375558	ctime_ns=1778345350797375558	mode=0o100755	nlink=1
+F	raw/CS188/videos/discussions/Disc02_CSPs_[CS188 Discussion] CSPs： Trapped Pacman/Disc02_CSPs_[CS188 Discussion] CSPs： Trapped Pacman.md	sha256=81d7b961d01606f9c4a2b389f09a2f4bc260697881c9caa051a8ea7b46bc436f	size=11759	mtime_ns=1774944821000000000	ctime_ns=1778311502122788212	mode=0o100755	nlink=1
+F	raw/CS188/videos/discussions/Disc03_GameTrees_[CS188 Discussion] Games I/Disc03_GameTrees_[CS188 Discussion] Games I.md	sha256=3fea1c0fc933fc433319bf32b65235c69aa7eebb6cb07f58c35e5d39e3509a24	size=14885	mtime_ns=1774944821000000000	ctime_ns=1778311502122999836	mode=0o100755	nlink=1
+F	raw/CS188/videos/discussions/Disc03_GameTrees_[CS188 Discussion] Nonzero-sum Games/Disc03_GameTrees_[CS188 Discussion] Nonzero-sum Games.md	sha256=176ef3dece9d731340846be5815fc7af2006440f25f4286ae96df4ed3fb4c6db	size=6996	mtime_ns=1774944821000000000	ctime_ns=1778311502123297626	mode=0o100755	nlink=1
+F	raw/CS188/videos/discussions/Disc04_MDPs_[CS188 Discussion] MDPs： Grid-World Water Park/Disc04_MDPs_[CS188 Discussion] MDPs： Grid-World Water Park.md	sha256=3e0f25c2da6158da7eb83abe423384f21683369d2b6c9c69afdd2a617b6af1c9	size=31879	mtime_ns=1774944821000000000	ctime_ns=1778311502123592292	mode=0o100755	nlink=1
+F	raw/CS188/videos/discussions/Disc04_MDPs_[CS188 Discussion] MDPs： Grid-World Water Park/chunks/merged.md	sha256=b11e483159fe1b080added99318f23b3781b0794050270a40916b046ef29ebb7	size=30358	mtime_ns=1774944821000000000	ctime_ns=1778311502123892582	mode=0o100755	nlink=1
+F	raw/CS188/videos/discussions/Disc04_MDPs_[CS188 Discussion] MDPs： Micro-Blackjack/Disc04_MDPs_[CS188 Discussion] MDPs： Micro-Blackjack.md	sha256=a6620025c849f50d39e70c8b962ed840fd531c96064ce255cde4f23b21ea720e	size=30015	mtime_ns=1774944821000000000	ctime_ns=1778311502124208997	mode=0o100755	nlink=1
+F	raw/CS188/videos/discussions/Disc04_MDPs_[CS188 Discussion] MDPs： Micro-Blackjack/chunks/merged.md	sha256=2c7d9510c48cce6d13032d080b0efb974cc9f3069eebe6a4e2c368b90b9d06d1	size=28763	mtime_ns=1774944821000000000	ctime_ns=1778311502124392038	mode=0o100755	nlink=1
+F	raw/CS188/videos/discussions/Disc05_RL_FA17 Midterm 1 Walkthrough Q6/Disc05_RL_FA17 Midterm 1 Walkthrough Q6.md	sha256=1ab7442bf907cc685caf603e7b6a428eb9c48e58681f03412501cdefa390f0b0	size=10307	mtime_ns=1774944821000000000	ctime_ns=1778311502124614412	mode=0o100755	nlink=1
+F	raw/CS188/videos/discussions/Disc05_RL_[CS188 Discussion] RL III/Disc05_RL_[CS188 Discussion] RL III.md	sha256=c27ec9bcd668d2ef2754d4969cf91b49af6fc1b9d92c2501b71b0005901aeddf	size=12533	mtime_ns=1774944821000000000	ctime_ns=1778311502124793536	mode=0o100755	nlink=1
+F	raw/CS188/videos/exam_prep/EP01_Search_[CS188 Discussion] Iterative Deepening Search/EP01_Search_[CS188 Discussion] Iterative Deepening Search.md	sha256=e146c54bdd427bc19369b103aba0767a0e951457c8d276ed8d8318b933a5ad04	size=12274	mtime_ns=1774944821000000000	ctime_ns=1778311502125058952	mode=0o100755	nlink=1
+F	raw/CS188/videos/exam_prep/EP01_Search_[CS188 Discussion] Searching with Heuristics/EP01_Search_[CS188 Discussion] Searching with Heuristics.md	sha256=98e32facdb601097ee7d8d780d8557e6b4491880ae8de655ca479c145636c4df	size=26026	mtime_ns=1774944821000000000	ctime_ns=1778311502125274534	mode=0o100755	nlink=1
+F	raw/CS188/videos/exam_prep/EP01_Search_[CS188 Discussion] Searching with Heuristics/chunks/merged.md	sha256=e6b41abb10bb1390196da64c45e6e7cb138c1ab32f70f281ce8a6a1cf81d580c	size=24167	mtime_ns=1774944821000000000	ctime_ns=1778311502125464908	mode=0o100755	nlink=1
+F	raw/CS188/videos/exam_prep/EP02_CSPs_[CS188 Discussion] CSPs： Four-Digit Number/EP02_CSPs_[CS188 Discussion] CSPs： Four-Digit Number.md	sha256=8bb5c10cb8dabcbbb10aa54126ef95e409125c45b182cf5899397b5d9c1ad1fa	size=13088	mtime_ns=1774944822000000000	ctime_ns=1778311502125699282	mode=0o100755	nlink=1
+F	raw/CS188/videos/exam_prep/EP02_CSPs_[CS188 Discussion] CSP： Air Traffic Control/EP02_CSPs_[CS188 Discussion] CSP： Air Traffic Control.md	sha256=b05f88776b329948c5987479cbda65c8eecc39f9de89a31dc48c58a0a50768a8	size=22437	mtime_ns=1774944822000000000	ctime_ns=1778311502125985614	mode=0o100755	nlink=1
+F	raw/CS188/videos/exam_prep/EP02_CSPs_[CS188 Discussion] CSP： Air Traffic Control/chunks/merged.md	sha256=c3ccbf1b17f2b3f2e357741a87e7e55539001056c637ae3e5eb6bc19cd63cd11	size=20072	mtime_ns=1774944822000000000	ctime_ns=1778311502126230404	mode=0o100755	nlink=1
+F	raw/CS188/videos/exam_prep/EP03_GameTrees_[CS188 Discussion] Games II/EP03_GameTrees_[CS188 Discussion] Games II.md	sha256=7c9461bbeb02b1401f47b9f4a0e3840aab7ccd8d441f3f3861dc212a17eeb684	size=14001	mtime_ns=1774944822000000000	ctime_ns=1778311502126551945	mode=0o100755	nlink=1
+F	raw/CS188/videos/exam_prep/EP03_GameTrees_[CS188 Discussion] MedianMiniMax/EP03_GameTrees_[CS188 Discussion] MedianMiniMax.md	sha256=b1b89d29541871bc238e08a21f2667a4e76e6929bfafa406d2821de6f7bf8350	size=11780	mtime_ns=1774944822000000000	ctime_ns=1778311502126801152	mode=0o100755	nlink=1
+F	raw/CS188/videos/exam_prep/EP04_MDPs_[CS188 Discussion] MDPs： Dice Bonanza/EP04_MDPs_[CS188 Discussion] MDPs： Dice Bonanza.md	sha256=a43827e6e9338fc419b11f5d1423600b31c679da450e2afa04511fa144fb8f8f	size=11265	mtime_ns=1774944822000000000	ctime_ns=1778311502127063609	mode=0o100755	nlink=1
+F	raw/CS188/videos/exam_prep/EP04_MDPs_[CS188 Discussion] MDPs： How Do You Value It(eration)？/EP04_MDPs_[CS188 Discussion] MDPs： How Do You Value It(eration)？.md	sha256=aacb23dc607cd9d27bfa4878032dbf6999270898eea09f0b4f5c58fc7a38ae04	size=21526	mtime_ns=1774944822000000000	ctime_ns=1778311502127303108	mode=0o100755	nlink=1
+F	raw/CS188/videos/exam_prep/EP04_MDPs_[CS188 Discussion] MDPs： How Do You Value It(eration)？/chunks/merged.md	sha256=ae4bc3f899ef875b960eb6ca5eadc183332b1d911678bbcafbab6b493b7f84e6	size=19623	mtime_ns=1774944822000000000	ctime_ns=1778311502127519815	mode=0o100755	nlink=1
+F	raw/CS188/videos/exam_prep/EP05_RL_SP19 Midterm 1 Walkthrough Q4/EP05_RL_SP19 Midterm 1 Walkthrough Q4.md	sha256=7cc07d2d4d789b95eeaf31eb358172084981ee7ee7ee2013e66af93069d26a1a	size=11973	mtime_ns=1774944822000000000	ctime_ns=1778311502127783106	mode=0o100755	nlink=1
+F	raw/CS188/videos/exam_prep/EP05_RL_[CS188 Discussion] RL： Amusement Park/EP05_RL_[CS188 Discussion] RL： Amusement Park.md	sha256=2adecec5a9bce76bccf8a728a929e22e89c7194e23f806a9e0fa18b83e21decf	size=20357	mtime_ns=1774944822000000000	ctime_ns=1778311502128221604	mode=0o100755	nlink=1
+F	raw/CS188/videos/exam_prep/EP05_RL_[CS188 Discussion] RL： Amusement Park/chunks/merged.md	sha256=4ffdd3b846021657e9839240c022c11ed0254ff0b36471ce4ef5a135a494231e	size=18735	mtime_ns=1774944822000000000	ctime_ns=1778311502128472686	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 1/lecture 1.md	sha256=136ca8e2227b8a835bf778287d1d6b1e2b9a73bd56d220fff2bef630704f641c	size=33639	mtime_ns=1774944822000000000	ctime_ns=1778311502128750226	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 10/chunks/merged.md	sha256=94715a7a3373da354c7e93c97a10bc733397a480d6bad1a6d8a6e38a184fadfe	size=85050	mtime_ns=1774944823000000000	ctime_ns=1778311502129947470	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 10/lecture 10.md	sha256=84c62379be4d153391a309a7c8a7657ebe8a2163bcbda9c3b3c41191b71d84d9	size=85982	mtime_ns=1774944823000000000	ctime_ns=1778311502129307640	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 11/chunks/merged.md	sha256=0390d502986a52f01970e4638de32ccdad19c3f86d63d50f2252ac3ca55e3ef0	size=93299	mtime_ns=1778338188617621019	ctime_ns=1778338188617621019	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 11/lecture 11.md	sha256=ef57ceb0451ef1334d31a1ef138343df52ba3ccb0e63871c9d902a69f87ff8e2	size=94699	mtime_ns=1774944823000000000	ctime_ns=1778311502130523426	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 12/chunks/merged.md	sha256=cb2107eade50492dc313b7b32f56e7f79160a4898a8a84d7d5ce4a7b51af7830	size=81528	mtime_ns=1774944824000000000	ctime_ns=1778311502132800957	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 12/lecture 12.md	sha256=39da9fc042059ca2a791643a6a03e37d8dbb61761db71ceb0d26e8b8038609a1	size=82936	mtime_ns=1774944824000000000	ctime_ns=1778311502132230668	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 2/lecture 2.md	sha256=975de4967e67243b1639f14aeb2f594d79c2d59aeb96164d23187c56575955c5	size=81419	mtime_ns=1774944824000000000	ctime_ns=1778311502133441079	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 3/lecture 3-explanations/clarification-解释-text-dfs-20260308-154226.md	sha256=5a319b7afd459939590fd82392c2b57642228276ea2486108e276b26ae18f264	size=18777	mtime_ns=1774944825000000000	ctime_ns=1778311502134480741	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 3/lecture 3-explanations/clarification-解释-text-dfs-20260308-163012.md	sha256=e80a249794880b8b3a0d5a0709a89a911232c4ff4811e4757cf4b089948afdd1	size=18435	mtime_ns=1774944825000000000	ctime_ns=1778311502134733782	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 3/lecture 3-explanations/clarification-解释-text-one-20260308-153748.md	sha256=188cf7cc9f632908f7e9053ef87ffd27b234f80199f3023d0195d98490e1e668	size=6994	mtime_ns=1774944825000000000	ctime_ns=1778311502135132197	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 3/lecture 3-explanations/clarification-解释-text-one-20260308-163204.md	sha256=3fc150a65efff28750e17f986bae0800fe220c66926da812bd29dc10bcdd9dfa	size=21199	mtime_ns=1774944825000000000	ctime_ns=1778311502135488528	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 3/lecture 3-explanations/clarification-解释-text-sea-20260308-153315.md	sha256=f2bb12df904d6bba93bd074be50e53a0d225f406676693bb5f51d1c3193d0c7b	size=6717	mtime_ns=1774944825000000000	ctime_ns=1778311502135844818	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 3/lecture 3-explanations/oral-解释-text-dfs-20260308-153415.md	sha256=9e9c38fea41ca725f9c5ad898d7d5c89842cf241a4fb39c798486ccf6515226d	size=3832	mtime_ns=1774944825000000000	ctime_ns=1778311502136045901	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 3/lecture 3-explanations/oral-解释-text-dfs-20260308-154003.md	sha256=0e495caea188db6120df0e0d8f64e9302be561fb0c1d6b4bf344ad86eae408a7	size=4842	mtime_ns=1774944825000000000	ctime_ns=1778311502136254733	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 3/lecture 3-explanations/oral-解释-text-dfs-20260308-155337.md	sha256=e4f8cc85bb480cc0485de43916718aa69e93b07f6cba874f13b0784069e927c0	size=6596	mtime_ns=1774944825000000000	ctime_ns=1778311502136453982	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 3/lecture 3-explanations/oral-解释-text-one-20260308-153537.md	sha256=0b6222a3fbc13e88e52fdd43e4200c78e85e00a23d3404773e13edaf23474058	size=4264	mtime_ns=1774944825000000000	ctime_ns=1778311502136859605	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 3/lecture 3-explanations/oral-解释-text-one-20260308-154315.md	sha256=62291691d32df574fe66024750aaf0c58fae9f969dcc254cbee62620ec3f1afe	size=6305	mtime_ns=1774944825000000000	ctime_ns=1778311502137421769	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 3/lecture 3-explanations/oral-解释-text-one-20260308-163050.md	sha256=c1e64648bae9a86a448c0d4a39afbc96011f60d6546ecb17056206f453c45930	size=6842	mtime_ns=1774944825000000000	ctime_ns=1778311502138421723	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 3/lecture 3-explanations/oral-解释-text-one-20260308-163812.md	sha256=8e6e512ff574668d6976ae7b9d5ac728a7be3c41f00e863123d8ecc7f663dd1b	size=6429	mtime_ns=1774944825000000000	ctime_ns=1778311502138915429	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 3/lecture 3-explanations/oral-解释-text-sea-20260308-153336.md	sha256=9eb71a189364baf657d796b7baf6c830dc0f275f2072ae5d43a26851e133d18a	size=3918	mtime_ns=1774944825000000000	ctime_ns=1778311502139156553	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 3/lecture 3-explanations/oral-解释-text-sea-20260308-164047.md	sha256=97c48475bda6d58d10588a2565f43c7b327d3497b03c89d13e0017d52c183c67	size=6297	mtime_ns=1774944825000000000	ctime_ns=1778311502139626051	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 3/lecture 3.md	sha256=e5e889b4a1ba3694808a29c93cb36c038f101b86b25c7f7e43ffe3768db0c16c	size=80607	mtime_ns=1774944825000000000	ctime_ns=1778311502134150284	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 4/chunks/merged.md	sha256=2c82532ad64fe163f95c8ea47e8f3feb05b42ba3750c720c3872607dac0cd4f0	size=106366	mtime_ns=1774944819000000000	ctime_ns=1778311502141540667	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 4/lecture 4.md	sha256=0a2b8281510050e30ba2a2e12fca2f062b6eff4b55a01e2c4e56b9bdd59c7a54	size=111334	mtime_ns=1774944819000000000	ctime_ns=1778311502140818254	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 5/chunks/merged.md	sha256=66506b29196345c711fdbfbdf55b907b50f6327c246cc50b1af8bca2defa393c	size=95086	mtime_ns=1774944825000000000	ctime_ns=1778311502142551954	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 5/lecture 5-explanations/oral-解释-text-pla-20260308-164121.md	sha256=5e0c1306ed083fd85038b99c3c18e030faf230fdee87fe8ca578659b4a86c6bd	size=6783	mtime_ns=1774944825000000000	ctime_ns=1778311502142798994	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 5/lecture 5-explanations/oral-解释-text-pla-20260308-164434.md	sha256=4f13f93de5888f5070f51dac0ae64afff2bcd267710c145b61b2e725db569f4d	size=6337	mtime_ns=1774944825000000000	ctime_ns=1778311502142981868	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 5/lecture 5-explanations/oral-解释-text-pla-20260308-164758.md	sha256=425d88168de851798c13e785eeaff5eabaa0a21e77d30e45cefdff217d1885e1	size=7224	mtime_ns=1774944825000000000	ctime_ns=1778311502143144409	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 5/lecture 5-explanations/oral-解释-text-sta-20260308-164325.md	sha256=476bc6a82f3834a4fdd6c523e47f7441dc5e0174b880f70c33845b430565979d	size=6445	mtime_ns=1774944825000000000	ctime_ns=1778311502143301700	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 5/lecture 5-explanations/oral-解释-text-sta-20260308-164630.md	sha256=8ece0e59c590f9452ab8e66c70d1fb0991cb3d5c504ca7bc1cd5e952afb60eb9	size=6765	mtime_ns=1774944825000000000	ctime_ns=1778311502143483200	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 5/lecture 5.md	sha256=8b8375ec6e987553b8c71787141b826146ce49618c223574512ecd7ec1ec5c2c	size=95416	mtime_ns=1774944826000000000	ctime_ns=1778311502142126581	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 6/chunks/merged.md	sha256=6bf959487d301de11911931809db35ebdf7e925c3a1f0dd5229f999140b1836d	size=93143	mtime_ns=1774944820000000000	ctime_ns=1778311502144412904	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 6/lecture 6.md	sha256=aeaba8a861049ec6e359e4b597b432d58f3200f292bac4daaa861543553708f3	size=94217	mtime_ns=1774944820000000000	ctime_ns=1778311502143938864	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 7/chunks/merged.md	sha256=2ba4b7a8f0840a72dba9c88b3620fb964647f5cc04935eb6e0a260d750cd58be	size=100608	mtime_ns=1774944820000000000	ctime_ns=1778311502145408024	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 7/lecture 7-explanations/clarification-解释-txt-mini-20260309-142815.md	sha256=fb8618dc0137720486af1b699360a8663d44316dfdd7da9384ccd381361c5fdb	size=21774	mtime_ns=1774944820000000000	ctime_ns=1778311502145638356	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 7/lecture 7-explanations/clarification-解释-txt-prun-20260309-143005.md	sha256=deedd01079f08bf1e2b53415bc24f4420b3d270beefa4932b5fd536bb45d5f36	size=18219	mtime_ns=1774944820000000000	ctime_ns=1778311502145966563	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 7/lecture 7.md	sha256=15af4efc0aba45e185ef2db87e1e0bd478921bbab94b7df489dacd5779a03c3d	size=100288	mtime_ns=1774944820000000000	ctime_ns=1778311502144855151	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 8/chunks/merged.md	sha256=f28dd926b48fbf92be35a92c2c74eb02276490fe708a6f9bdfb87e9bede74c6f	size=102403	mtime_ns=1774944827000000000	ctime_ns=1778311502146988517	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 8/lecture 8.md	sha256=a276a69dc043ee8db1ad7eebdfd787646ac138c7f190590d712f5f9437e6121f	size=102175	mtime_ns=1774944827000000000	ctime_ns=1778311502146469394	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 9/chunks/merged.md	sha256=48fc705ea9356274c35ce9265e06044a6292a5367f09562898b492fe0e4ca765	size=82182	mtime_ns=1774944827000000000	ctime_ns=1778311502148120511	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 9/lecture 9-explanations/clarification-解释-text-exp-20260309-152926.md	sha256=67350b46102686557b6aca1d0f56817020f41c787dc0e9568cc22fbbc47b069e	size=19665	mtime_ns=1774944827000000000	ctime_ns=1778311502148505010	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 9/lecture 9-explanations/clarification-解释-text-key-20260309-153025.md	sha256=533f41d192939301245c3e32d5d6c9f6dda18623a3692fa19dbcbcb2c4f66e4e	size=22521	mtime_ns=1774944827000000000	ctime_ns=1778311502148797383	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 9/lecture 9-explanations/oral-解释-text-exp-20260308-164709.md	sha256=8941dd62070eeeec06584e989940ede7eec0d6c1864826ea8f27c2935ccdef12	size=6098	mtime_ns=1774944827000000000	ctime_ns=1778311502149136548	mode=0o100755	nlink=1
+F	raw/CS188/videos/lectures/lecture 9/lecture 9.md	sha256=866269ad18b5fef37ac623baa58483b549151aa3739a75fabc46307e49660fca	size=83180	mtime_ns=1774944827000000000	ctime_ns=1778311502147444098	mode=0o100755	nlink=1
+F	raw/CS188/videos/review_sessions/RS1_Search_CSPs_GameTrees.md	sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	size=0	mtime_ns=1774944828000000000	ctime_ns=1778311502149328964	mode=0o100755	nlink=1
+F	raw/CS188/videos/review_sessions/RS1_Search_CSPs_GameTrees/RS1_Search_CSPs_GameTrees.md	sha256=c92b7fd7545eb4e547358de20f8005b7662287e346cf725b0d5d9d4c6bf70066	size=81246	mtime_ns=1774944828000000000	ctime_ns=1778311502150019502	mode=0o100755	nlink=1
+F	raw/CS188/videos/review_sessions/RS1_Search_CSPs_GameTrees/chunks/merged.md	sha256=fcfe2c6db9edd8feb9ded36940d4a20002c2037bf6b62f8d93528d45f47f90f4	size=81801	mtime_ns=1774944828000000000	ctime_ns=1778311502150490959	mode=0o100755	nlink=1
+F	raw/CS188/videos/review_sessions/RS2_MDPs_RL/RS2_MDPs_RL.md	sha256=d184c75c7ecc025f649cbdb8bd091bc1014ee2276c56d913cdce12e68df948de	size=71102	mtime_ns=1774944828000000000	ctime_ns=1778311502150862499	mode=0o100755	nlink=1
+F	raw/CS188/videos/review_sessions/RS2_MDPs_RL/chunks/merged.md	sha256=f96fb6629cb0aa1cbbb2e20efdf9c735123457072aaebd47cb9efb95edb03f0d	size=76150	mtime_ns=1774944828000000000	ctime_ns=1778311502151445288	mode=0o100755	nlink=1
+F	raw/CS188/管道设计.md	sha256=11e5312921434c79841338081a41a796e02d31bd7160136e38fd0daf7c82a1f7	size=9167	mtime_ns=1774944828000000000	ctime_ns=1778311502102599847	mode=0o100755	nlink=1
+F	raw/my-recursion-notes.md	sha256=9531b4edba9b13afc38464da193b7a672957d15cd6be226bea33390566400daf	size=185	mtime_ns=1777539349873151836	ctime_ns=1777539363160564055	mode=0o100644	nlink=1
+F	templates/concept.md	sha256=8c131fd7c7e255c5118358e5139985b0440c932a55416d4aa3aaa07eb486766c	size=623	mtime_ns=1776479534398994894	ctime_ns=1776479534399143103	mode=0o100644	nlink=1
+F	templates/exam-board.md	sha256=153107bf7316c11f2e97ec7cca900e35dd0ef9eed835f54dab001f67006cde46	size=359	mtime_ns=1776478795882070946	ctime_ns=1776478795882127987	mode=0o100644	nlink=1
+F	wiki/canvases/.gitkeep	sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	size=0	mtime_ns=1776467615568228397	ctime_ns=1776467615568228397	mode=0o100644	nlink=1
+F	wiki/concepts/.gitkeep	sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	size=0	mtime_ns=1776467615567775641	ctime_ns=1776467615567775641	mode=0o100644	nlink=1
+F	原白板/CS 61B.md	sha256=c544f19530e35bc6788e6a4ea1eb17f5974237f2ac25929f35b3f57cbf590878	size=5310	mtime_ns=1786752021627143747	ctime_ns=1786752021627143747	mode=0o100644	nlink=1
+F	原白板/CS.md	sha256=68eb14ab1607bfad82399480c3fbab27342161d780841892faa9ba3511a485cf	size=4895	mtime_ns=1786579235078037302	ctime_ns=1786579235078037302	mode=0o100644	nlink=1
+F	原白板/CS188 lecture 2.md	sha256=9bc0e6be316ac454f5a0a0f6fd1220246f1eb5ef9df89b2b8ae57558e8fe8dd9	size=6751	mtime_ns=1786752021626541588	ctime_ns=1786752021626541588	mode=0o100644	nlink=1
+F	原白板/特征值与特征向量.md	sha256=075989de871daff055cdd27e5263c47cec3030efa3a32d05d2df19879c18d751	size=10150	mtime_ns=1786752021626868125	ctime_ns=1786752021626868125	mode=0o100644	nlink=1
+F	原白板/线性代数.md	sha256=fd9bfb803857a2e8d0f306bb5d2d3369f3b18972f8c24bbda5dc79588949e78f	size=4867	mtime_ns=1786579235078696806	ctime_ns=1786579235078696806	mode=0o100644	nlink=1
+F	原白板/递归与分治 (Recursion & Divide-Conquer).md	sha256=47b1451f0862fd7e802132ae5a1e9557e9b205dd9018763d58302f23e2832ab0	size=5012	mtime_ns=1786579235078898848	ctime_ns=1786579235078898848	mode=0o100644	nlink=1
+F	未命名 1.md	sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	size=0	mtime_ns=1778041394353399551	ctime_ns=1778041394353399551	mode=0o100644	nlink=1
+F	未命名.md	sha256=b2080b7ece43baeaf509b8f0a33cf7b72e715c893f3a930e1f3931f304be6eec	size=29313	mtime_ns=1776732654546557977	ctime_ns=1776732654546557977	mode=0o100644	nlink=1
+F	检验白板/CS 61B-2026-08-11-1349.md	sha256=514e6d5221ecce6e448f821fa45fd2f4fabbb79727ded300d23b2033a5372784	size=1485	mtime_ns=1786456720491743922	ctime_ns=1786456720492356551	mode=0o100644	nlink=1
+F	检验白板/CS 61B-2026-08-11-1538.md	sha256=4e8a1d187ab2e5550aaf84bd1bb0cc181a4e36b6c39c31a3d4d788a6bef36f34	size=1868	mtime_ns=1786462751831400745	ctime_ns=1786462751831991293	mode=0o100644	nlink=1
+F	检验白板/特征值与特征向量-2026-07-05-1815.md	sha256=adcbfa182fd7357638459e5e46517342eaa65339e15616a23dd80a5df470d272	size=1297	mtime_ns=1783801959263410141	ctime_ns=1783801959263495475	mode=0o100644	nlink=1
+F	检验白板/特征值与特征向量-2026-07-16-0112.md	sha256=2796485615010b10482abe09998241648a495132ef79e23138cbdd9952507c0b	size=1956	mtime_ns=1784388355951111823	ctime_ns=1784388355951111823	mode=0o100644	nlink=1
+F	检验白板/特征值与特征向量-2026-07-18-1741.md	sha256=367d2599211ab24122c96cfdb9dd74df2bff17545ad661d39ba2e6c4bb19b621	size=2212	mtime_ns=1784431174518889074	ctime_ns=1784431174520044287	mode=0o100644	nlink=1
+F	检验白板/特征值与特征向量-2026-07-23-1939.md	sha256=2d6228280f73a09b20e206d42249e3da659cf072dc7ee39cec75f92bc61ca08a	size=2336	mtime_ns=1784967547627566487	ctime_ns=1784967547627566487	mode=0o100644	nlink=1
+F	检验白板/特征值与特征向量-2026-07-24-0405.md	sha256=e7134a7c39bd89827721dde5ac7226f67ffbbf8d4c343ba13880a3df4dbffdf4	size=2200	mtime_ns=1784865949907788989	ctime_ns=1784865949913297448	mode=0o100644	nlink=1
+F	检验白板/特征值与特征向量-2026-07-25-0233.md	sha256=150b75f945eb289370d6cd5f6b992190d353e74292c26f088bb2e28636b55d31	size=2612	mtime_ns=1784948084045658307	ctime_ns=1784948084046218478	mode=0o100644	nlink=1
+F	检验白板/考察-Fundamentals-2026-07-16.md	sha256=4029ac555a1303f865d0b42da8f7241dc2b1a1ea2b0370cb76546da53da2bbbc	size=625	mtime_ns=1784174791771373939	ctime_ns=1786374058275488956	mode=0o100644	nlink=1
+F	检验白板/递归与分治 (Recursion & Divide-Conquer)-2026-07-24-0714.md	sha256=e12ee283301c8a02a4948b23ceaec25bdb282b966f9ffe199ecf624cc543df71	size=1385	mtime_ns=1784877277076437252	ctime_ns=1784877277076980149	mode=0o100644	nlink=1
+F	节点/Characteristic-Equation-for-Eigenvalues.md	sha256=dd6632dad6d29387853b1b3174749ca5fe39769731031bbae7654d0176595ba7	size=976	mtime_ns=1786377732867384836	ctime_ns=1786377732867384836	mode=0o100644	nlink=1
+F	节点/Eigenvalues-are-special-vectors-that-sat.md	sha256=fa2aa093a80576c7b2269b547dac03e7cd5c6dc2db9ebe3138d75acb45a4db8e	size=1170	mtime_ns=1777633607772096177	ctime_ns=1777633607772096177	mode=0o100644	nlink=1
+F	节点/Fundamentals.md	sha256=e06ba3b7ead4d8f15a4be14196096cd2b37de6b6123bde17b65eaea428ff7261	size=7454	mtime_ns=1786280142476980798	ctime_ns=1786280142476980798	mode=0o100644	nlink=1
+F	节点/cs-61b-csm.md	sha256=3e28ffbf48f6eb456b8a3fb4000f87798e8611dc94b77ea808c3660828fcd5bc	size=1933	mtime_ns=1786373407565016977	ctime_ns=1786373407565016977	mode=0o100644	nlink=1
+F	节点/csm-tutoring-unit-credit.md	sha256=ddb2aa6545d851bedc543a121b8117d824e499a90029c202c72bba02ede79761	size=2916	mtime_ns=1786456609968871738	ctime_ns=1786456609968871738	mode=0o100644	nlink=1
+F	节点/lecture 2.md	sha256=d25d8852ed034ad21070288d7239c4980acd261eb7c0d60dced16cbe661dd3b8	size=85172	mtime_ns=1784817674760813469	ctime_ns=1784817674760813469	mode=0o100644	nlink=1
+F	节点/my-recursion-notes.md	sha256=68db41872f9d5c2e072435b74bd098ba8f4d60cbc278ffe09586d366cf22d2a5	size=284	mtime_ns=1786373405795105454	ctime_ns=1786373405795350368	mode=0o100644	nlink=1
+F	节点/代理决策分析-0303().md	sha256=9092933e83b08ae781c588c8238d37cac15b7ed7c24d5e0c14247bce7f36790e	size=1064	mtime_ns=1778316949808790342	ctime_ns=1778316949808790342	mode=0o100644	nlink=1
+F	节点/代理函数-(Agent-Function).md	sha256=6a9ddbf22c10ed4be75069d0f79763354c8681ea29f3d103f99507d7ee6a75cf	size=1047	mtime_ns=1781213284382576337	ctime_ns=1781213284382576337	mode=0o100644	nlink=1
+F	节点/代理类型：反射与规划.md	sha256=9d6a3391dcd8ec584f26adbb8abf68e6f23ce8fc8ec81fe8f010c78947b51acf	size=1049	mtime_ns=1781109601489902659	ctime_ns=1781109601489902659	mode=0o100644	nlink=1
+F	节点/反射代理的局限性引出了规划代理-(Planning-Agents)-的需求.md	sha256=fcea1f5bc9bdd0ffa2079967f9796ccde9e6b7335b4091ce03a7e3a611f4b29f	size=1214	mtime_ns=1784817512485206237	ctime_ns=1784817512485546737	mode=0o100644	nlink=1
+F	节点/理性代理-(Rational-Agent).md	sha256=fd237b0c15a532f821a69a6e97b98b0b1b1299eb65a41387619fa2ac7f3eb628	size=1108	mtime_ns=1781050763644669914	ctime_ns=1781050763644669914	mode=0o100644	nlink=1
+F	节点/规划代理的特点.md	sha256=d2df98e5c1f7ba218d366d5fcb771bc15acbd41ea17ebe79ad68030e42559003	size=1112	mtime_ns=1784817672820175586	ctime_ns=1784817672820175586	mode=0o100644	nlink=1
+F	节点/规划的分类-1549().md	sha256=d4cac75491a3f311aa4c101f84978f2c644ecec183f562645d0524328f69e07b	size=1912	mtime_ns=1778809976973446110	ctime_ns=1778809976973446110	mode=0o100644	nlink=1

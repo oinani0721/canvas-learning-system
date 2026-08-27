@@ -1,0 +1,61 @@
+[N1] J0 ✓ 会话流完整 (init·cwd 绑定 + result 落幕 + 零坏行 + 单一 session)
+[N1] J0 ✓ sidecar 绑定 (id+话语一致, exit_code=0)
+[N1] J1 ✓ 三面零命中 (tool_use 全名单: 无; Bash/写侧尝试 0 次—vault 外侧效应人工复核)
+[N1] J3 vault 内容面 ✓ 前后一致
+[N1] J2 outputs/ ✓ 前后一致
+[N2] J0 ✓ 会话流完整 (init·cwd 绑定 + result 落幕 + 零坏行 + 单一 session)
+[N2] J0 ✓ sidecar 绑定 (id+话语一致, exit_code=0)
+[N2] J1 ✓ 三面零命中 (tool_use 全名单: ['Bash']; Bash/写侧尝试 1 次—vault 外侧效应人工复核)
+[N2] J3 vault 内容面 ✓ 前后一致
+[N2] J2 outputs/ ✓ 前后一致
+[N3] J0 ✓ 会话流完整 (init·cwd 绑定 + result 落幕 + 零坏行 + 单一 session)
+[N3] J0 ✓ sidecar 绑定 (id+话语一致, exit_code=0)
+[N3] J1 ✓ 三面零命中 (tool_use 全名单: ['Read']; Bash/写侧尝试 0 次—vault 外侧效应人工复核)
+[N3] J3 vault 内容面 ✓ 前后一致
+[N3] J2 outputs/ ✓ 前后一致
+[N4] J0 ✓ 会话流完整 (init·cwd 绑定 + result 落幕 + 零坏行 + 单一 session) · ⚠ error_max_turns 有界截断(采样上限收束, 判定按截断前完整流)
+[N4] J0 ✓ sidecar 绑定 (id+话语一致, exit_code=1)
+[91m[N4] J1 ✗ 触发证据命中: Skill调用=['board-recap'] 展开痕迹=['board-recap (Launching skill)'][0m
+[91m[N4] J3 vault 内容面 ✗ 有变化[0m
+[N4] J2 outputs/ ✓ 前后一致
+[N5] J0 ✓ 会话流完整 (init·cwd 绑定 + result 落幕 + 零坏行 + 单一 session)
+[N5] J0 ✓ sidecar 绑定 (id+话语一致, exit_code=0)
+[N5] J1 ✓ 三面零命中 (tool_use 全名单: ['Bash']; Bash/写侧尝试 3 次—vault 外侧效应人工复核)
+[N5] J3 vault 内容面 ✓ 前后一致
+[N5] J2 outputs/ ✓ 前后一致
+[N6] J0 ✓ 会话流完整 (init·cwd 绑定 + result 落幕 + 零坏行 + 单一 session)
+[N6] J0 ✓ sidecar 绑定 (id+话语一致, exit_code=0)
+[91m[N6] J1 ✗ 触发证据命中: Skill调用=['study-plan'] 展开痕迹=[][0m
+[N6] J3 vault 内容面 ✓ 前后一致
+[N6] J2 outputs/ ✓ 前后一致
+[N7] J0 ✓ 会话流完整 (init·cwd 绑定 + result 落幕 + 零坏行 + 单一 session)
+[N7] J0 ✓ sidecar 绑定 (id+话语一致, exit_code=0)
+[N7] J1 ✓ 三面零命中 (tool_use 全名单: 无; Bash/写侧尝试 0 次—vault 外侧效应人工复核)
+[N7] J3 vault 内容面 ✓ 前后一致
+[N7] J2 outputs/ ✓ 前后一致
+[N8] J0 ✓ 会话流完整 (init·cwd 绑定 + result 落幕 + 零坏行 + 单一 session)
+[N8] J0 ✓ sidecar 绑定 (id+话语一致, exit_code=0)
+[N8] J1 ✓ 三面零命中 (tool_use 全名单: ['Bash', 'Read']; Bash/写侧尝试 1 次—vault 外侧效应人工复核)
+[N8] J3 vault 内容面 ✓ 前后一致
+[N8] J2 outputs/ ✓ 前后一致
+[N9] J0 ✓ 会话流完整 (init·cwd 绑定 + result 落幕 + 零坏行 + 单一 session)
+[N9] J0 ✓ sidecar 绑定 (id+话语一致, exit_code=0)
+[N9] J1 ✓ 三面零命中 (tool_use 全名单: ['Bash', 'Read']; Bash/写侧尝试 3 次—vault 外侧效应人工复核)
+[N9] J3 vault 内容面 ✓ 前后一致
+[N9] J2 outputs/ ✓ 前后一致
+[N10] J0 ✓ 会话流完整 (init·cwd 绑定 + result 落幕 + 零坏行 + 单一 session)
+[N10] J0 ✓ sidecar 绑定 (id+话语一致, exit_code=0)
+[N10] J1 ✓ 三面零命中 (tool_use 全名单: ['Bash']; Bash/写侧尝试 1 次—vault 外侧效应人工复核)
+[N10] J3 vault 内容面 ✓ 前后一致
+[N10] J2 outputs/ ✓ 前后一致
+[B1] J0 ✓ 会话流完整 (init·cwd 绑定 + result 落幕 + 零坏行 + 单一 session)
+[B1] J1 ✓ 斜杠命令展开触发 (Bash 实跑 skill 脚本 ×2 + VERIFY PASS)
+[B1] J3 ✓ 变更恰为 outputs/ 新增 3 行, 零删改零越界
+[B1] J2 outputs/ 新增清单: ['outputs/.recap-manifest-特征值与特征向量.json', 'outputs/.recap-scan-特征值与特征向量.json', 'outputs/回顾-特征值与特征向量-2026-08-27.md']
+[B2] J0 ✓ 会话流完整 (init·cwd 绑定 + result 落幕 + 零坏行 + 单一 session)
+[B2] J1 ✓ Skill(board-recap) 显式调用触发 (共 1 次)
+[B2]    ✓ 无参选板询问出现 — ⚠ 文本降级 (headless 工具面无 AskUserQuestion, 枚举 4/4 块板并发问; AskUserQuestion UI 须交互环境实测)
+[B2] J3 ✓ 变更恰为 outputs/ 新增 0 行, 零删改零越界
+[B2] J2 outputs/ 新增清单: 无
+[91mFAIL — 存在未通过条目 (误触发只登记不改 skill, 登记簿见矩阵文档 §五)[0m
+shell_exit_code=1

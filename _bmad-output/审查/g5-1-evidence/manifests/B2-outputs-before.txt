@@ -1,0 +1,8 @@
+outputs/回顾-特征值与特征向量-2026-08-27.md
+outputs/.recap-manifest-特征值与特征向量.json
+outputs/.recap-scan-特征值与特征向量.json
+outputs/exam_boards/.gitkeep
+outputs/split-preview-特征值与特征向量.json
+outputs/split-preview-特征值与特征向量.md
+outputs/split-preview-CS188 lecture 2.json
+outputs/split-preview-CS188 lecture 2.md

@@ -1,0 +1,19 @@
+[fake_verbatim] rc=1 红项=['T7', 'T8'] → ✓ 被抓
+[flip_trigger] rc=1 红项=['T5', 'T8'] → ✓ 被抓
+[neg_live_prefix] rc=1 红项=['T6', 'T8'] → ✓ 被抓
+[planned_as_live] rc=1 红项=['T3', 'T5'] → ✓ 被抓
+[seven_negatives] rc=1 红项=['T2', 'T8'] → ✓ 被抓
+[no_attribution] rc=1 红项=['T7'] → ✓ 被抓
+[fake_attribution] rc=1 红项=['T7'] → ✓ 被抓
+[snapshot_tamper] rc=1 红项=['T7'] → ✓ 被抓
+[line_out_of_range] rc=1 红项=['T7'] → ✓ 被抓
+[doc_trigger_flip] rc=1 红项=['T5', 'T8'] → ✓ 被抓
+[yaml_delete_keep_doc] rc=1 红项=['T8'] → ✓ 被抓
+[constructed_fills_real] rc=1 红项=['T1', 'T8'] → ✓ 被抓
+[whitespace_padding] rc=1 红项=['T7'] → ✓ 被抓
+[paraphrase_wrong_line] rc=1 红项=['T7'] → ✓ 被抓
+[duplicate_utterance] rc=1 红项=['T0'] → ✓ 被抓
+[floor_self_lower] rc=1 红项=['T0'] → ✓ 被抓
+[docdemo_as_verbatim] rc=1 红项=['T7', 'T8'] → ✓ 被抓
+[control_nine_negs] rc=1 红项=['T8'] → ✓ 被抓
+PASS — 18 类变异全被抓, 对照组行为正确
