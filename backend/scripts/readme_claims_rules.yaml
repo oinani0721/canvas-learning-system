@@ -1,0 +1,166 @@
+# CARD-G1-5 (BATCH-2026-08-27-第四批) — README 禁夸大声明规则
+#
+# 真相源: 计划书 §12.7 L633 的 11 类禁夸大声明, 逐条映射 (id C1..C11 与原文语序一致):
+#   _bmad-output/审查/2026-08-20-Canvas-Learning-System-生产力化长期Goal计划书.md:633
+# 消费方: backend/scripts/check_readme_claims.py (report / enforce / staged-diff 三档)
+#
+# ⛔ 契约钉死 (Codex 一轮 B2 + 二轮 B2' 处置):
+#   1. (id, severity, l633) 序列与 scan_paths 必须与脚本 EXPECTED_RULES/EXPECTED_SCAN_PATHS
+#      常量完全一致;
+#   2. 本文件**全文 SHA-256** 钉死在脚本 RULES_SHA256 常量 — 改任何一个正则/legacy 条目
+#      都必须同 commit 更新脚本常量 (双文件改动, 审查可见), 否则退出 2。
+#   刷新指纹: python3 backend/scripts/check_readme_claims.py --print-rules-sha
+#   扩面/改规则同步点: 脚本常量 + 本文件 + lefthook glob + workflow paths + 契约测试。
+#
+# 语义:
+#   - patterns: Python re, 逐行匹配, 统一 IGNORECASE; 复合语义按 L633 字面合取
+#     (缺任一 conjunct 不判, 防私自扩大 — Codex 一轮 H3/二轮 H1' 处置)
+#   - severity: evidence-escapable = 同行 [Cx:E3](docs/evidence/ 下已入 git index 的
+#               非空证据文件) 才放行 (五条件详见脚本 docstring)
+#               hard-forbidden    = 名实类, 证据标注与 legacy 均不放行, 只能改写
+#   - 分句语义: conjunct 必须落在同一分句内 (跨分句拼接不判); 匹配面为剥离 HTML 注释后
+#     的可见文本 (藏在注释里的否定词/标记不影响裁判)
+#   - 逃逸标记与否定守卫的正则均钉死在脚本 (ESCAPE_RE / NEGATOR_RE), 不在本文件配置;
+#     整行 negative_patterns 机制已废除 (Codex 二轮 B1': 整行阴性可被拼接解除 hard 红线);
+#     C11 否定守卫 = 谓词捕获组 (?P<v>) 前窗检测
+#   - C6 政策裁定: README 范围内一切 recall@k 型指标声明一律拦截 (本仓检索指标实为
+#     hit rate, G4-12 正名中; "真 recall" 表述也不例外 — 未来确有经审计的 recall 指标时
+#     修改本规则, 走双文件契约+审查, 不存在行内豁免)
+#   - legacy_allowlist: G1-4 勘探实锤的存量失实行登记 (非洗白! report 照常计数打 [legacy]
+#     标)。绑定: 精确整行文本 + 文件 + registered_line 精确行号 (容差 0) + context_sha256
+#     五行上下文指纹 (防搬移) + max_occurrences 配额 (防复制); staged-diff 档完全不吃 legacy;
+#     G1-6 证据化重写时必须删空
+
+schema_version: 2
+
+scan_paths:
+  - README.md
+
+legacy_allowlist:
+  - file: README.md
+    line: "Canvas Learning System transforms **passive learning** into an **active learning process**. With 12-14 specialized AI Agents collaborating, it guides you from confusion to mastery through the Feynman Learning Method."
+    registered_line: 35
+    context_sha256: "96535056bf55fb26be6c4a0c9ed0c3276cb2d551f70efd6cdd1b2f290b3e1d36"
+    max_occurrences: 1
+    reason: "G1-4 勘探实锤 (原 L25, 现 L35): Agent 数字自相矛盾, 待 G1-6 证据化重写"
+  - file: README.md
+    line: "- **Personalized Guidance** - 14 specialized AI Agents"
+    registered_line: 50
+    context_sha256: "a6da3c87e0fb5891441299d175f89b5fc145683a824cfbe3e1237f4c71516dcc"
+    max_occurrences: 1
+    reason: "G1-4 勘探实锤 (原 L38, 现 L50): 同上"
+  - file: README.md
+    line: "### 14 Specialized AI Agents"
+    registered_line: 68
+    context_sha256: "af96d60c0f4b363faa77b39ed4206dc5c3f5eab2de512dabd934fa7fe52f18a8"
+    max_occurrences: 1
+    reason: "G1-4 勘探实锤 (原 L56, 现 L68): 同上"
+
+rules:
+  - id: C1-production-ready
+    l633: "production-ready"
+    severity: evidence-escapable
+    patterns:
+      - 'production[-\s_]?ready'
+      - 'ready\s+for\s+production'
+      - '生产(环境)?(就绪|可用)'
+      - '可(直接)?用于生产'
+
+  - id: C2-any-vault-one-click
+    l633: "任意 vault 一键可用"
+    severity: evidence-escapable
+    patterns:
+      # ASCII 定向边界防 "Many" 里的 any 误伤且兼容 CJK 紧邻混排; every/all/each 是 any 的语义等价变体
+      - '(?=.*(?<![a-z0-9_])(any|every|all|each)(?![a-z0-9_])[^.。]{0,40}vaults?(?![a-z0-9_]))(?=.*(一键|one[-\s]?click|开箱即用|out[-\s]?of[-\s]?the[-\s]?box))'
+      - '(?=.*(任意|任何|所有)[^.。]{0,20}vault)(?=.*(一键|开箱即用))'
+      - '一键(部署|安装|可用|接入)[^.。]{0,20}(任意|任何|所有)\s*(vault|库)'
+
+  - id: C3-multi-vault-safe
+    l633: "完整 multi-vault safe"
+    severity: evidence-escapable
+    patterns:
+      # L633 原文含「完整」conjunct — 裸 multi-vault safe 不判
+      - '(?=.*(完整|完全|fully|complete))(?=.*multi[-\s]?vault[-\s]?safe)'
+      - '(?=.*(multi[-\s]?vault|多\s*vault))(?=.*(完全|完整|fully|彻底))(?=.*(安全|隔离|safe|isolat))'
+
+  - id: C4-graphiti-full-rebuild
+    l633: "Graphiti 永久且全量可重建"
+    severity: evidence-escapable
+    patterns:
+      # L633 是「永久**且**全量」合取 — permanent partial / fully-but-not-permanent 均不判
+      - '(?=.*graphiti)(?=.*(永久|permanent))(?=.*(全量|完整|full|complete))(?=.*(重建|恢复|rebuild|replay|restore))'
+
+  - id: C5-multisource-rag-default
+    l633: "full multi-source RAG 是默认主链"
+    severity: evidence-escapable
+    patterns:
+      # full + multi-source + RAG + 默认 + 主链 全合取 — Limited/default fallback 不判
+      - '(?=.*((?<![a-z0-9_])full(?![a-z0-9_])|完整|全量))(?=.*multi[-\s]?source)(?=.*rag)(?=.*(默认|default))(?=.*(主链|main\s+(chain|path|pipeline)|primary\s+(chain|path|pipeline)))'
+      - '(?=.*(完整|全量))(?=.*多源)(?=.*(rag|检索))(?=.*默认)(?=.*主链)'
+
+  - id: C6-hit-at-k-as-recall
+    l633: "把 hit@k 写成 recall"
+    severity: hard-forbidden   # 名实类: 证据/legacy 均不放行; 政策裁定见文件头注释
+    patterns:
+      - 'recall\s*[_@]\s*(at[_\s]*)?(k|\d+)'
+      - 'recall[-\s]?at[-\s]?(k|\d+)'
+      - '召回率?\s*@\s*(k|\d+)'
+      # Top-k recall 定义式 (hit-rate 分母定义写成 recall)
+      - 'top[-\s]?(k|\d+)\s*(recall|召回率?)'
+      # 显式命名关系: 「hit… 被写成/称为 recall」与主动语态「call hit@k recall」
+      - 'hit[\s_@-]*(rate|@?k|\d+)?[^.。]{0,30}(labell?ed|named|called|written|reported|renamed|写成|称为|叫做|记作)[^.。]{0,16}recall'
+      - '(call(s|ed)?|label(s|led)?|name(s|d)?|report(s|ed)?|把|将)[^.。]{0,16}hit[\s_@-]*(rate|@?k|\d+)?[^.。]{0,16}(as\s+)?recall'
+      # 字面等价: Hit@k = recall / Hit@k is recall / equals recall
+      - 'hit[\s_@-]*(rate|@?k|\d+)?[^.。]{0,12}?(={1,3}|≈|is|are|was|were|equals?|((is|are|was|were)\s+)?(equal|equivalent)\s+to|即|就是|等于)\s*(the\s+)?recall'
+
+  - id: C7-fsrs-ui-consistent
+    l633: "FSRS/UI 已完全一致"
+    severity: evidence-escapable
+    patterns:
+      - '(?=.*fsrs)(?=.*(ui|界面|前端))(?=.*(完全一致|完全同步|fully\s+(consistent|in\s+sync)|exactly\s+match))'
+
+  - id: C8-canvas-excalidraw-lossless
+    l633: "Canvas↔Excalidraw 无损双向"
+    severity: evidence-escapable
+    patterns:
+      # L633 是「Canvas↔Excalidraw 无损双向」全合取 — 缺 Canvas / 单向 lossless / lossy 双向均不判
+      - '(?=.*canvas)(?=.*excalidraw)(?=.*(无损|lossless))(?=.*(双向|bidirectional|round[-\s]?trip|↔|both\s+directions))'
+
+  - id: C9-agent-collab
+    l633: "14 个 Agent 协同"
+    severity: evidence-escapable
+    patterns:
+      # 政策声明 (Codex 三轮 H3 项下已声明的裁定范围): 目标是「双位数 Agent 阵容」类
+      # 宣称 (10-99 全双位数) — 不限定恰为 14、不要求「协同」字样 (README 三行基线 = 12-14/14/14, 其中
+      # 两行无协同字样, 只拦 14+协同 会漏 2/3 基线); 个位数如实描述不判
+      - '(?<![0-9a-z_])[1-9][0-9](\s*[-–~]\s*[1-9]?[0-9])?\s+specialized\s+ai\s+agents?(?![a-z0-9_])'
+      - '(?<![0-9])[1-9][0-9]\s*个[^.。]{0,12}(agent|智能体)[^.。]{0,10}协同'
+      - '(?<![0-9a-z_])[1-9][0-9]\s*个?\s*(ai\s+)?(agents?|智能体)[^.。]{0,10}(协同|collaborat)'
+      # 普通双位数阵容句 (政策: 不要求协同字样): 42 AI Agents / 25 个智能体
+      - '(?<![0-9a-z_])[1-9][0-9]\s+(specialized\s+)?(ai\s+)?agents?(?![a-z0-9_])'
+      - '(?<![0-9])[1-9][0-9]\s*个?\s*(ai\s*)?智能体'
+      - '(?<![0-9])[1-9][0-9]\s*个\s*(ai\s*)?agents?(?![a-z0-9_])'
+
+  - id: C10-mobile-ready
+    l633: "移动端可用"
+    severity: evidence-escapable
+    patterns:
+      - '移动端(可用|已?支持|就绪)'
+      - '支持移动端'
+      - '(?<![a-z0-9_])(works?|available|supported)\s+(on\s+)?mobile(?![a-z0-9_])'
+      - '(?<![a-z0-9_])mobile\s+(is\s+)?(supported|available|ready)(?![a-z0-9_])'
+      - 'mobile\s*(可用|已?支持|就绪)'
+
+  - id: C11-skipped-as-success
+    l633: "skipped/degraded 等同成功"
+    severity: hard-forbidden   # 名实类: 证据/legacy 均不放行; 否定守卫=谓词捕获组(?P<v>)前窗 (脚本 NEGATOR_RE)
+    patterns:
+      - '(skipped|degraded)[^.。;；]{0,30}?(?P<v>={1,3}|≈)\s*(成功|success|ok|pass(ed)?)'
+      # 惰性量词: 取最早谓词, 防贪婪跨度吞掉未否定的前置谓词 (Codex 四轮 B1)
+      - '(skipped|degraded)[^.。;；]{0,80}?(?P<v>mean(s|t)?(?![a-z0-9_])|indicate(s|d)?(?![a-z0-9_])|equal(s)?(?![a-z0-9_])|(?<![a-z0-9_])(is|are|was|were)\s+(equal|equivalent)\s+to|equivalent\s+to|等同|等价|等于|视为|算作|当作|count(s|ed)?\s+as|treat(s|ed)?\s+as|(?<![a-z0-9_])(is|are|was|were|被)\s+(considered|regarded|reported|marked|treated)|considered|regarded\s+as|reported\s+as|marked\s+as)[^.。;；]{0,40}?(成功|success\w*|通过|pass(ing|ed)?|green|ok)'
+      # 动词前置语序: treats skipped checks as success
+      - '(?P<v>treat(s|ed)?|count(s|ed)?|mark(s|ed)?|regard(s|ed)?|consider(s|ed)?|把|将|视|算)[^.。;；]{0,24}?(skipped|degraded)[^.。;；]{0,30}?(成功|success\w*|通过|pass(ing|ed)?|green|ok)'
+      # 系动词紧邻成功词 (含过去时): Skipped checks are/were successful
+      - '(skipped|degraded)[^.。;；]{0,80}?(?<![a-z0-9_])(?P<v>is|are|was|were|被视为|即)\s+(成功|success\w*|passing|green|ok)(?![a-z0-9_])'
+      # 直接谓词: Skipped checks pass / succeed
+      - '(skipped|degraded)[^.。;；]{0,60}?(?<![a-z0-9_])(?P<v>pass(es)?|passed|succeed(s|ed)?|(?<!等同)(?<!等价)(?<!视为)(?<!算作)(?<!当作)(?<!等于)(通过|成功))(?![a-z0-9_])'

@@ -1,0 +1,46 @@
+# CARD-G1-5 (BATCH-2026-08-27-第四批) — README 禁夸大声明机械门
+# 独立 workflow (仿 traceability.yml 先例), 不动 test.yml。
+# paths 触发限: README + 规则 + 脚本 + 裁判测试 + 本 workflow 自身。
+# enforce 档: legacy_allowlist 登记的存量失实行不 fail (report 仍计数曝光),
+# 任何**新增**禁夸大声明 (计划书 §12.7 L633 十一类) 即红。
+# 裁判测试用 --confcutdir 隔离 backend/tests/conftest.py 的重依赖 (无需装全量 backend)。
+name: README Claims Check
+on:
+  pull_request:
+    paths:
+      - 'README.md'
+      - 'backend/scripts/check_readme_claims.py'
+      - 'backend/scripts/readme_claims_rules.yaml'
+      - 'backend/tests/unit/test_check_readme_claims.py'
+      - '.github/workflows/readme-claims.yml'
+      - 'lefthook.yml'
+      - 'docs/evidence/**'
+  push:
+    paths:
+      - 'README.md'
+      - 'backend/scripts/check_readme_claims.py'
+      - 'backend/scripts/readme_claims_rules.yaml'
+      - 'backend/tests/unit/test_check_readme_claims.py'
+      - '.github/workflows/readme-claims.yml'
+      - 'lefthook.yml'
+      - 'docs/evidence/**'
+
+jobs:
+  claims:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install deps
+        run: pip install pyyaml pytest
+      - name: Enforce forbidden claims (README, L633 list)
+        run: python backend/scripts/check_readme_claims.py --enforce
+      - name: Full report (informational, incl. legacy baseline)
+        if: always()
+        run: python backend/scripts/check_readme_claims.py --report
+      - name: Checker unit tests (conftest-isolated)
+        run: >
+          python -m pytest backend/tests/unit/test_check_readme_claims.py
+          --confcutdir backend/tests/unit -q -p no:cacheprovider --override-ini addopts=

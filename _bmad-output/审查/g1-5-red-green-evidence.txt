@@ -1,0 +1,19 @@
+=== RED: 脚本不存在时 (mv 暂移复现, 2026-08-27) ===
+=========================== short test summary info ============================
+ERROR tests/unit/test_check_readme_claims.py
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+======================== 10 warnings, 1 error in 0.12s =========================
+
+=== GREEN: 脚本就位后 ===
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================= 10 passed, 10 warnings in 0.80s ========================
+
+=== REPORT 基线 (对含 G1-4 横幅的 README) ===
+README.md:35 [C9-agent-collab/evidence-escapable] [legacy] 禁夸大(L633): 14 个 Agent 协同
+    Canvas Learning System transforms **passive learning** into an **active learning process**. With 12-14 specialized AI Agents collaborating, it guides you from c
+README.md:50 [C9-agent-collab/evidence-escapable] [legacy] 禁夸大(L633): 14 个 Agent 协同
+    - **Personalized Guidance** - 14 specialized AI Agents
+README.md:68 [C9-agent-collab/evidence-escapable] [legacy] 禁夸大(L633): 14 个 Agent 协同
+    ### 14 Specialized AI Agents
+[readme-claims] mode=report TOTAL=3 effective=0 escaped=0 legacy=3
+report-exit=0
