@@ -197,8 +197,6 @@ assert not FSRS_AVAILABLE
 m = FSRSManager()
 created = m.create_card()
 assert created["state"] != 0, f"fallback create_card 产出 state={created['state']}"
-# 既有缺陷(超 C3 范围): fallback serialize 不支持 datetime due — 置 None 绕过
-created["due"] = None
 serialized = json.loads(m.serialize_card(created))
 assert serialized["state"] != 0
 legacy = m.deserialize_card('{"state": 0, "stability": 0.0, "reps": 2}')
