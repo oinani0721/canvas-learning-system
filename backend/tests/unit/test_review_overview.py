@@ -374,6 +374,10 @@ def test_board_table_groupby_matches_stats(overview_env):
     assert [r["board"] for r in p["boards"]] == ["乙板", "甲板", "丙板"], "top_boards 优先级先行, 零到期垫底"
     by = {r["board"]: r for r in p["boards"]}
     assert by["甲板"]["due"] == 2 and by["甲板"]["due_new"] == 1
+    # 新卡+逾期混板: 最早到期取逾期时间戳 (3 天前比"现在"更紧迫), 不许
+    # 被新卡空串 (=现在) 盖掉 — 空串只在全新卡板上成立
+    assert by["甲板"]["earliest"] == _utc_z(now - timedelta(days=3))
+    assert by["乙板"]["earliest"] == _utc_z(now - timedelta(days=1))
     assert by["乙板"]["due"] == 1 and by["乙板"]["due_new"] == 0
     assert by["丙板"]["due"] == 0 and by["丙板"]["due_new"] == 0
     assert sum(r["due"] for r in p["boards"]) == p["due_count"] == 3, "板级合计必须==stats.due_nodes"

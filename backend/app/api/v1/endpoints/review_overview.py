@@ -110,7 +110,9 @@ def _gate_due_groups(due_nodes: list) -> dict[str, dict]:
 
     只门禁消费字段 (board/due_reason/fsrs_due); 任一脏行 raise → 整库按
     既有 corrupt 语义降级, 绝不静默丢行 (丢行会让板级合计悄悄 != stats)。
-    earliest 取 min: 空串 ("" = 即刻到期) 字典序恒小于任何时间戳, 语义正好。
+    earliest 只在非空时间戳里取 min: 已到期 scheduled 的时刻恒在过去, 比
+    新卡的 "" (=现在) 更紧迫 — 字典序把 "" 当最小会让"逾期3天"被"现在"
+    盖掉, 低估紧迫度 (冒烟实测抓到)。全新卡板才落 "" → 渲染"现在"。
     """
     groups: dict[str, dict] = {}
     for i, row in enumerate(due_nodes):
@@ -126,11 +128,12 @@ def _gate_due_groups(due_nodes: list) -> dict[str, dict]:
         # 生产器构造律: scheduled ⟺ fsrs_due 非空 (new/malformed 均为空串)
         if (reason == "scheduled") != bool(ts):
             raise ValueError(f"due_nodes[{i}] due_reason={reason!r} 与 fsrs_due={ts!r} 不自洽")
-        g = groups.setdefault(board, {"due": 0, "new": 0, "earliest": None})
+        g = groups.setdefault(board, {"due": 0, "new": 0, "earliest": ""})
         g["due"] += 1
         if reason == "new":
             g["new"] += 1
-        g["earliest"] = ts if g["earliest"] is None else min(g["earliest"], ts)
+        if ts and (not g["earliest"] or ts < g["earliest"]):
+            g["earliest"] = ts
     return groups
 
 
