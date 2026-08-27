@@ -12,7 +12,9 @@ episode_worker, 它只在 FastAPI lifespan 里启动 — 独立进程直调服�
 worker.is_ready=False, Tier 1 恒空手, 评出来的是假基线。
 
 5 指标:
-  recall@5   — 非 expect_empty query 中 top5 含 ≥1 相关结果的比例 (↑ 越高越好)
+  hit@5      — 非 expect_empty query 中 top5 含 ≥1 相关结果的比例 (↑ 越高越好)
+               (教科书 hit rate: 分母为 query 数。曾误名 recall@5, G4-12 正名 —
+               recall 的分母应是相关文档总数, 本指标从来不是)
   MRR        — 首个相关结果排名倒数的平均 (↑)
   重复率     — top10 内近重复条目占比, normalized difflib ratio ≥ 阈值 (↓ 越低越好)
   假阳性率   — expect_empty query 的返回条目占满编比例 (↓)
@@ -57,12 +59,28 @@ GREEN, RED, YELLOW, RESET = "\033[92m", "\033[91m", "\033[93m", "\033[0m"
 
 # 指标方向: True = 越高越好 (回退=下降), False = 越低越好 (回退=上升)
 METRIC_DIRECTIONS = {
-    "recall_at_5": True,
+    "hit_at_5": True,
     "mrr": True,
     "duplicate_rate": False,
     "false_positive_rate": False,
     "leak_rate": False,
 }
+
+# G4-12 名实修正 (2026-08-27): recall_* 是误名 (分母为 query 数 = hit rate),
+# 新键 hit_*。旧 baseline (未迁移副本 / history 恢复件) 用别名兼容读取,
+# 防 compare_with_baseline 缺键 continue 静默跳过 (见 docs/known-gotchas.md)。
+LEGACY_METRIC_ALIASES = {
+    "hit_at_5": "recall_at_5",
+    "hit_at_5_judged": "recall_at_5_judged",
+}
+
+
+def resolve_baseline_metric(base_metrics: dict, name: str):
+    """按新键取 baseline 指标, 未迁移的旧 baseline 回落 legacy 别名."""
+    if name in base_metrics:
+        return base_metrics[name]
+    legacy = LEGACY_METRIC_ALIASES.get(name)
+    return base_metrics.get(legacy) if legacy else None
 
 
 def norm_text(text: str) -> str:
@@ -118,7 +136,7 @@ def run_queries(gold: dict) -> dict:
     latencies = []
     total_items = leaked_items = dup_items = 0
     fp_returned = fp_capacity = 0
-    recall_hits = recall_total = 0
+    hit_at_5_hits = hit_at_5_total = 0
     rr_values = []
 
     with httpx.Client(timeout=60, trust_env=False) as client:
@@ -175,9 +193,9 @@ def run_queries(gold: dict) -> dict:
             else:
                 relevant_flags = [is_relevant(tn, q["expect_any"]) for tn in texts_norm]
                 first_rank = next((i + 1 for i, f in enumerate(relevant_flags) if f), None)
-                recall_total += 1
+                hit_at_5_total += 1
                 if any(relevant_flags[:5]):
-                    recall_hits += 1
+                    hit_at_5_hits += 1
                 else:
                     # P1 LLM-judge 备料: 词面 miss 的 top5 原文带出, 供二段判分
                     entry["top5_texts"] = [result_text(r)[:300] for r in results[:5]]
@@ -188,7 +206,7 @@ def run_queries(gold: dict) -> dict:
             per_query.append(entry)
 
     metrics = {
-        "recall_at_5": round(recall_hits / recall_total, 4) if recall_total else 0.0,
+        "hit_at_5": round(hit_at_5_hits / hit_at_5_total, 4) if hit_at_5_total else 0.0,
         "mrr": round(statistics.mean(rr_values), 4) if rr_values else 0.0,
         "duplicate_rate": round(dup_items / total_items, 4) if total_items else 0.0,
         "false_positive_rate": round(fp_returned / fp_capacity, 4) if fp_capacity else 0.0,
@@ -233,11 +251,11 @@ def _llm_judge_relevant(query: str, texts: list) -> bool:
 
 
 def judge_misses(report: dict) -> None:
-    """对词面 miss 的 query 跑 LLM-judge, 产出 recall_at_5_judged 参考指标。
+    """对词面 miss 的 query 跑 LLM-judge, 产出 hit_at_5_judged 参考指标。
 
     参考指标不进门禁 (METRIC_DIRECTIONS 不含) — judge 提供「词面口径低估了
     多少」的透明度; 翻案明细追加 judge_review.jsonl 供人工抽检校准。
-    12341 不可达 → 整段跳过, recall_at_5_judged = None。
+    12341 不可达 → 整段跳过, hit_at_5_judged = None。
     """
     misses = [e for e in report["per_query"] if e.get("first_relevant_rank") is None and e.get("top5_texts")]
     lexical_hits = sum(
@@ -250,10 +268,10 @@ def judge_misses(report: dict) -> None:
             if _llm_judge_relevant(e["query"], e["top5_texts"]):
                 flips.append({"id": e["id"], "query": e["query"], "top5": e["top5_texts"]})
     except httpx.HTTPError:
-        report["metrics"]["recall_at_5_judged"] = None
+        report["metrics"]["hit_at_5_judged"] = None
         print(f"{YELLOW}⚠ LLM-judge 跳过 (12341 不可达){RESET}")
         return
-    report["metrics"]["recall_at_5_judged"] = round((lexical_hits + len(flips)) / total, 4) if total else 0.0
+    report["metrics"]["hit_at_5_judged"] = round((lexical_hits + len(flips)) / total, 4) if total else 0.0
     report["judge_flips"] = [f["id"] for f in flips]
     if flips:
         with open(JUDGE_REVIEW, "a", encoding="utf-8") as f:
@@ -276,7 +294,8 @@ def compare_with_baseline(report: dict, baseline: dict, tolerance: float) -> lis
     base_metrics = baseline.get("metrics", {})
     for name, higher_is_better in METRIC_DIRECTIONS.items():
         cur = report["metrics"].get(name)
-        base = base_metrics.get(name)
+        # G4-12: 旧 baseline (recall_* 键) 走别名解析, 防缺键静默跳过
+        base = resolve_baseline_metric(base_metrics, name)
         if cur is None or base is None:
             continue
         delta = cur - base
@@ -291,13 +310,13 @@ def print_report(report: dict) -> None:
     m = report["metrics"]
     print("═" * 64)
     print(f"记忆检索回归 — {report['query_count']} query @ {report['group_id']}")
-    print(f"  recall@5      = {m['recall_at_5']:.2%}")
+    print(f"  hit@5         = {m['hit_at_5']:.2%}")
     print(f"  MRR           = {m['mrr']:.4f}")
     print(f"  重复率        = {m['duplicate_rate']:.2%}")
     print(f"  假阳性率      = {m['false_positive_rate']:.2%}")
     print(f"  泄漏率        = {m['leak_rate']:.2%}")
-    if m.get("recall_at_5_judged") is not None:
-        print(f"  recall@5(judge参考) = {m['recall_at_5_judged']:.2%}  ← 词面+judge翻案, 不进门禁")
+    if m.get("hit_at_5_judged") is not None:
+        print(f"  hit@5(judge参考) = {m['hit_at_5_judged']:.2%}  ← 词面+judge翻案, 不进门禁")
     print(f"  延迟          = 中位 {report['latency']['median_s']}s / 最大 {report['latency']['max_s']}s")
     misses = [e for e in report["per_query"] if "first_relevant_rank" in e and e["first_relevant_rank"] is None]
     if misses:

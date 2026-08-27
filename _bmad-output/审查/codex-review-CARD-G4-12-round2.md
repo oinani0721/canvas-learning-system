@@ -1,0 +1,17 @@
+总体结论：**可接收（静态复审口径）**。Round‑1 的 HIGH 和两个 MEDIUM 均已关闭；无残留 BLOCKER/HIGH/MEDIUM。但不能表述为“4/4 完全清零”：措辞项仍有 LOW 残留。
+
+| 项目 | 判定 | 证据 |
+|---|---|---|
+| 1. Producer 输出侧守卫 | **PASS** | AST helper 定位 `run_queries`/`run_tiers` 的 `metrics = {...}`：[test:189](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n6-contract/backend/tests/unit/test_retrieval_regression_metric_guard.py:189)。memory 守卫校验键集覆盖、零 `recall_*`、judged 写入及打印契约：[test:202](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n6-contract/backend/tests/unit/test_retrieval_regression_metric_guard.py:202)；vault 同样覆盖：[test:215](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n6-contract/backend/tests/unit/test_retrieval_regression_metric_guard.py:215)。若仅 producer 恢复旧键，会同时出现缺少 `hit_*` 和残留 `recall_*`，确定性变红。 |
+| 2. `--no-judge` 误红 | **PASS** | 守卫只强制 `hit_at_5`，允许 `hit_at_5_judged` 缺失，仍全面禁止 `recall_*`：[test:98](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n6-contract/backend/tests/unit/test_retrieval_regression_metric_guard.py:98)。`--no-judge` 跳过 judged 写入，而打印使用安全的 `.get()`：[script:318](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n6-contract/backend/scripts/run_memory_retrieval_regression.py:318)、[script:365](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n6-contract/backend/scripts/run_memory_retrieval_regression.py:365)。 |
+| 3. 对账件可复算性 | **PASS** | 已给出完整 base HEAD、pre 来源、算法及精确替换表：[reconciliation:2](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n6-contract/_bmad-output/审查/G4-12-migration-reconciliation-2026-08-27.txt:2)、[reconciliation:4](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n6-contract/_bmad-output/审查/G4-12-migration-reconciliation-2026-08-27.txt:4)。四组 pre/post SHA‑256 从 [line 9](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n6-contract/_bmad-output/审查/G4-12-migration-reconciliation-2026-08-27.txt:9) 起齐备，退出状态在 [line 59](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n6-contract/_bmad-output/审查/G4-12-migration-reconciliation-2026-08-27.txt:59)。四组 base blob、替换结果和当前 post 文件哈希复核一致。 |
+| 4. 措辞 | **FAIL（仅 LOW）** | 指定的 docstring 主句已准确改为“被改名指标失守、其余照常比对”：[test:3](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n6-contract/backend/tests/unit/test_retrieval_regression_metric_guard.py:3)；G‑METRIC 主描述也已修正：[known-gotchas:130](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n6-contract/docs/known-gotchas.md:130)。但仍有两处不准确文案，见下。 |
+
+残留问题：
+
+- **LOW**：守卫失败信息仍称整个“门禁空转”，实际只是缺失指标失守：[test:126](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n6-contract/backend/tests/unit/test_retrieval_regression_metric_guard.py:126)。
+- **LOW**：G‑METRIC‑001 以“judge 跳过”举例说明比较器缺键 `continue`，但 judged 指标明确不在 `METRIC_DIRECTIONS`，比较循环不会处理它：[script:61](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n6-contract/backend/scripts/run_memory_retrieval_regression.py:61)、[script:295](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-n6-contract/backend/scripts/run_memory_retrieval_regression.py:295)。
+- **LOW**：对账件仅列 basename，且 `exit status: 0` 未绑定具体生成命令；不阻断复算，但证据尚非完全自包含。
+- **INFO/验证边界**：作者“用 HEAD 旧脚本跑红”的实际执行只有声明、没有命令输出存档；因此执行事实未验证。不过失败结果已由守卫逻辑静态证明。未运行测试、迁移脚本或业务代码。本结论仅代表当前工作树静态可接收，不等同于同一 commit 原子交付或 CI 已通过。
+
+
