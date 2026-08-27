@@ -1,0 +1,4 @@
+33a34,36
+> 392bb6b9d80890cbf196f56199517c3d0688a6c151887ac30c20cc139407a895  outputs/回顾-特征值与特征向量-2026-08-27.md
+> 6265169e6bbf61768fc91a6ea5756075084290ec07d272c559d367f05bfac893  outputs/.recap-manifest-特征值与特征向量.json
+> 59bc33d56f09404c9d8ca2317235f1ad5a146f015a7ecebd30c15a8edad92ae4  outputs/.recap-scan-特征值与特征向量.json

@@ -1,0 +1,260 @@
+# G5-1 · 信息收集四类触发矩阵 — utterance → expected_skill 断言表
+# (BATCH-2026-08-27-第四批 / CARD-G5-1 · Codex 一轮审查后 v2)
+#
+# 与 _bmad-output/研究/2026-08-27-G5-1-信息收集四类触发矩阵.md 逐条同步,
+# 由 backend/scripts/check_skill_trigger_matrix.py 静态校验 (话语漂移/来源档造假/
+# 上线状态过期/文档-断言表单边漂移 任一即红)。⛔ 改任何条目必须两处同改。
+#
+# 字段语义:
+#   polarity: positive(应触发某 skill) | negative(不应触发任何 skill)
+#   skill_status: live(SKILL.md 已在 vault) | planned(未上线) | planned-extension(已上线 skill 的规划扩展)
+#   trigger_today: 今天原样发这句话会不会触发 expected_skill (按现行斜杠约定诚实判定)
+#   source.type 铁律 (Codex 一轮 B2 修订):
+#     verbatim   = 用户本人原话逐字, 必须带 corpus+line+attribution(引语归属锚, 须与话语同窗口出现)
+#     paraphrase = 改写自「用户本人语言或已发生事件」(报告【已发生】记录), 须与声明行号 ±5 行有 ≥4 字重叠;
+#                  ⛔ 设计稿/流程稿内容不得标 paraphrase (那是作者构造 → constructed 或 doc-demo)
+#     doc-demo   = 文档作者笔下的话语/演示对话 (非用户之口), 须带 corpus+line+attribution
+#     constructed= 构造 (可选挂语境 ref)
+#   real_floor: 各类「真实源(verbatim+paraphrase)」条数下限 — 语料覆盖诚实自陈的机器锚,
+#     阶段回顾/待处理清理 的真实触发语在语料中不存在 (功能未上线, 用户从未说过触发语;
+#     伪造真实即冒充原话), 差距明示于矩阵文档 §语料覆盖自陈, 由用户验收裁决。
+
+meta:
+  matrix_doc: "_bmad-output/研究/2026-08-27-G5-1-信息收集四类触发矩阵.md"
+  corpus:
+    report:
+      path: "_bmad-output/研究/语料快照-G5-1/2026-08-16-学生使用场景报告-深度学习与搜集调研的完整旅程.md"
+      sha256: "b62c6ba1946ddd296c9680bc460bad63c3cb281af17eab9256bd9bc5f97f4734"
+    r8:
+      path: "_bmad-output/研究/语料快照-G5-1/2026-08-16-批注回复-R8-清待处理skill详细使用流程.md"
+      sha256: "9bad2e2a8ee8136b6d0e8a29689e28f53f1d301512cbec6714731fa62b667823"
+    r1:
+      path: "_bmad-output/研究/语料快照-G5-1/2026-08-15-批注回复-R1-新skill定位与数据基础核实.md"
+      sha256: "10912d28dc2b01d104067c41a8d0efeac207ac71d3c5357a10064df98d1aeeb3"
+    mian2:
+      path: "_bmad-output/研究/语料快照-G5-1/2026-08-15-面2-需求澄清结果-用户逐字定案.md"
+      sha256: "019cb53996de769b0997014a604edcb1299f83e13f572067ae6609bf776a1625"
+  categories: ["拆分收集", "单板当日回顾", "阶段回顾", "待处理清理"]
+  real_floor:
+    拆分收集: 3
+    单板当日回顾: 2
+    阶段回顾: 2
+    待处理清理: 0
+  planned_skills: ["board-split", "clear-inbox"]
+  planned_extensions:
+    board-recap: "阶段回顾第二刀 (G5-9)"
+
+entries:
+  # ── 类 A · 拆分收集 ──
+  - id: A1
+    category: "拆分收集"
+    polarity: positive
+    utterance: "我对于这个规划代理不太理解，我想要单独的讨论"
+    expected_skill: ai-linked-doc
+    skill_status: live
+    trigger_today: false
+    trigger_path: "插件 Cmd+Shift+D 注入 (裸输入无斜杠不触发)"
+    source: {type: verbatim, corpus: report, line: 37, attribution: "你的真实原话"}
+  - id: A2
+    category: "拆分收集"
+    polarity: positive
+    utterance: "我则是把很多我觉得值得讨论的材料，归类于不同原白板，然后我进一步的拆分讨论"
+    expected_skill: board-split
+    skill_status: planned
+    trigger_today: false
+    source: {type: verbatim, corpus: report, line: 99, attribution: "User："}
+  - id: A5
+    category: "拆分收集"
+    polarity: positive
+    utterance: "我自己把 相关材料收编到原白板作为节点来进行讨论和批注"
+    expected_skill: board-split
+    skill_status: planned
+    trigger_today: false
+    source: {type: verbatim, corpus: mian2, line: 143, attribution: "User："}
+  - id: A3
+    category: "拆分收集"
+    polarity: positive
+    utterance: "帮我看看 节点/lecture 2 这份转录还能拆出哪些值得单独讨论的候选节点"
+    expected_skill: board-split
+    skill_status: planned
+    trigger_today: false
+    source: {type: constructed}
+  - id: A4
+    category: "拆分收集"
+    polarity: positive
+    utterance: "/configure-whiteboard from raw/CS188/videos/lectures/lecture 2/lecture 2.md"
+    expected_skill: configure-whiteboard
+    skill_status: live
+    trigger_today: true
+    source: {type: constructed, corpus: report, line: 29}
+
+  # ── 类 B · 单板当日回顾 ──
+  - id: B1
+    category: "单板当日回顾"
+    polarity: positive
+    utterance: "/board-recap 特征值与特征向量"
+    expected_skill: board-recap
+    skill_status: live
+    trigger_today: true
+    source: {type: constructed}
+  - id: B2
+    category: "单板当日回顾"
+    polarity: positive
+    utterance: "/board-recap"
+    expected_skill: board-recap
+    skill_status: live
+    trigger_today: true
+    trigger_path: "无参 → 选板询问路径 (交互环境 AskUserQuestion; headless 实测工具缺席文本降级)"
+    source: {type: constructed}
+  - id: B4
+    category: "单板当日回顾"
+    polarity: positive
+    utterance: "这个新 skill 应该是根据我的原白板的批注和拆分从而让我回顾"
+    expected_skill: board-recap
+    skill_status: live
+    trigger_today: false
+    trigger_path: "用户对单板回顾的原话定义 (需求语料); 无斜杠不触发"
+    source: {type: verbatim, corpus: r1, line: 13, attribution: "User："}
+  - id: B3
+    category: "单板当日回顾"
+    polarity: positive
+    utterance: "特征值与特征向量这块板今天告一段落了，帮我回顾一下批注和拆分的情况"
+    expected_skill: board-recap
+    skill_status: live
+    trigger_today: false
+    trigger_path: "无斜杠前缀 — §三 待拍板张力样本"
+    source: {type: paraphrase, corpus: report, line: 71}
+
+  # ── 类 C · 阶段回顾 ──
+  - id: C1
+    category: "阶段回顾"
+    polarity: positive
+    utterance: "这一章告一段落了，给我做个阶段回顾"
+    expected_skill: board-recap
+    skill_status: planned-extension
+    trigger_today: false
+    source: {type: paraphrase, corpus: report, line: 71}
+  - id: C2
+    category: "阶段回顾"
+    polarity: positive
+    utterance: "这轮调研跑了几周了，对照我最初的研究问题看看方向有没有跑偏"
+    expected_skill: board-recap
+    skill_status: planned-extension
+    trigger_today: false
+    source: {type: paraphrase, corpus: report, line: 106}
+  - id: C3
+    category: "阶段回顾"
+    polarity: positive
+    utterance: "把 CS188 lecture 2 和 特征值与特征向量 两块板一起做个阶段回顾，出一张检验白板"
+    expected_skill: board-recap
+    skill_status: planned-extension
+    trigger_today: false
+    source: {type: constructed}
+
+  # ── 类 D · 待处理清理 ──
+  - id: D1
+    category: "待处理清理"
+    polarity: positive
+    utterance: "清待处理"
+    expected_skill: clear-inbox
+    skill_status: planned
+    trigger_today: false
+    source: {type: doc-demo, corpus: r8, line: 95, attribution: "你："}
+  - id: D2
+    category: "待处理清理"
+    polarity: positive
+    utterance: "/clear-inbox"
+    expected_skill: clear-inbox
+    skill_status: planned
+    trigger_today: false
+    source: {type: constructed, corpus: r8, line: 7}
+  - id: D3
+    category: "待处理清理"
+    polarity: positive
+    utterance: "_待处理 里堆了二十多件了，先把最旧的十件清一清"
+    expected_skill: clear-inbox
+    skill_status: planned
+    trigger_today: false
+    source: {type: constructed, corpus: r8, line: 39}
+
+  # ── 负例 (全局, 不应触发任何 skill) ──
+  - id: N1
+    polarity: negative
+    utterance: "反射代理和规划代理的区别是什么？"
+    expected_skill: none
+    reject_reason: "内容学习提问，无回顾/拆分/清理意图"
+    correct_destination: "直接回答 (插件路径 Cmd+Shift+E 注入 /chat-with-context; 裸输入=普通对话)"
+    headless: true
+    source: {type: paraphrase, corpus: report, line: 57}
+  - id: N2
+    polarity: negative
+    utterance: "导出思维导图"
+    expected_skill: none
+    reject_reason: "插件导出动作 (报告第 8 步思维导图链路)，非四类"
+    correct_destination: "Obsidian 插件思维导图导出命令"
+    headless: true
+    source: {type: doc-demo, corpus: report, line: 73, attribution: "说一句"}
+  - id: N3
+    polarity: negative
+    utterance: "回顾一下我们刚才聊了什么"
+    expected_skill: none
+    reject_reason: "「回顾」对象是本轮对话，不是任何板"
+    correct_destination: "直接对话回答"
+    headless: true
+    source: {type: constructed}
+  - id: N4
+    polarity: negative
+    utterance: "回顾一下特征值与特征向量"
+    expected_skill: none
+    reject_reason: "近失误样本: 含「回顾」+真实板名但无 /board-recap 前缀 — 现行斜杠约定下不触发 (§三 拍板通过中文口令需重判)"
+    correct_destination: "提示用户可跑 /board-recap 特征值与特征向量"
+    headless: true
+    source: {type: constructed}
+  - id: N5
+    polarity: negative
+    utterance: "清理一下这块白板，把没用的节点删掉"
+    expected_skill: none
+    reject_reason: "近失误+写侧危险: 「清理白板节点」≠「清 _待处理」，且为破坏性删除请求，现有与规划 skill 均不得接管"
+    correct_destination: "不执行; 节点删除属人工决策 (未来 clear-inbox 也只管 _待处理/, G5-7 默认不物理 delete)"
+    headless: true
+    source: {type: constructed}
+  - id: N6
+    polarity: negative
+    utterance: "今天该复习什么"
+    expected_skill: none
+    reject_reason: "复习调度查询，属每日复习链路非四类"
+    correct_destination: "打开 outputs/今日复习.md (9:05 Bark 推送链路，报告:65-67)"
+    headless: true
+    source: {type: constructed, corpus: report, line: 65}
+  - id: N7
+    polarity: negative
+    utterance: "这份材料先存着"
+    expected_skill: none
+    reject_reason: "材料进 _待处理/ 的入口动作，不是清仓触发"
+    correct_destination: "落 _待处理/ (R8:24 设计态; 今日=手动拖入)"
+    headless: true
+    source: {type: constructed, corpus: r8, line: 24}
+  - id: N8
+    polarity: negative
+    utterance: "我对这里的特征向量还是有点不太理解"
+    expected_skill: none
+    reject_reason: "理解疑问语料 (批注层 Cmd+Shift+A / 节点对话素材)，非四类触发"
+    correct_destination: "批注 callout 或节点对话 (插件 Cmd+Shift+C 注入 /node-chat)"
+    headless: true
+    source: {type: verbatim, corpus: report, line: 63, attribution: "留过一句疑问"}
+  - id: N9
+    polarity: negative
+    utterance: "把 lecture 2 的要点总结成一页笔记给我看看"
+    expected_skill: none
+    reject_reason: "内容加工展示请求，既非拆分建议 (不产出候选节点清单) 也非回顾报告"
+    correct_destination: "直接对话回答 (不落盘)"
+    headless: true
+    source: {type: constructed}
+  - id: N10
+    polarity: negative
+    utterance: "把任何调研报告丢到 raw 还是待处理文件夹？"
+    expected_skill: none
+    reject_reason: "材料去向咨询 (R5 问题)，是提问不是清仓指令"
+    correct_destination: "直接回答 (R5 口诀: DR 报告永不进 raw，报告:137)"
+    headless: true
+    source: {type: paraphrase, corpus: report, line: 134}
