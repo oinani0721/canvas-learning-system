@@ -200,9 +200,12 @@ def _humanize_due(ts: str | None, now_sh: datetime) -> tuple[str, str]:
         return "现在", "#d97706"
     try:
         due = datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
-    except ValueError:
+        # astimezone 也在 try 内: 日历合法极值 (9999-12-31T23:59:59Z) +8h
+        # 会年份溢出 OverflowError — 门禁挡不住的极值不许 500
+        due_sh = due.astimezone(_TZ_SHANGHAI)
+        delta = (due_sh.date() - now_sh.astimezone(_TZ_SHANGHAI).date()).days
+    except (ValueError, OverflowError, OSError):
         return "—", "#6b7280"
-    delta = (due.astimezone(_TZ_SHANGHAI).date() - now_sh.astimezone(_TZ_SHANGHAI).date()).days
     if delta < 0:
         return f"逾期{-delta}天", "#dc2626"
     if delta == 0:
@@ -211,7 +214,6 @@ def _humanize_due(ts: str | None, now_sh: datetime) -> tuple[str, str]:
         return "明天", "#374151"
     if delta <= 7:
         return f"{delta}天后", "#374151"
-    due_sh = due.astimezone(_TZ_SHANGHAI)
     if due_sh.year == now_sh.astimezone(_TZ_SHANGHAI).year:
         return f"{due_sh.month}月{due_sh.day}日", "#6b7280"
     return f"{due_sh.year}年{due_sh.month}月{due_sh.day}日", "#6b7280"

@@ -438,8 +438,11 @@ def test_time_humanization_asia_shanghai(overview_env):
             due_nodes=[
                 _due_row("逾", "逾期板", due_reason="scheduled", fsrs_due=_utc_z(now - timedelta(days=3))),
                 _due_row("新", "新卡板"),
+                # 日历合法极值: strptime 过门禁但 astimezone(+8) 年份溢出
+                # OverflowError — 渲染须降级 "—" 不许 500
+                _due_row("极", "极值板", due_reason="scheduled", fsrs_due="9999-12-31T23:59:59Z"),
             ],
-            stats={"due_nodes": 2},
+            stats={"due_nodes": 3},
             top_boards=[
                 {"board": "逾期板", "top_node": "逾", "pending": 1},
                 {"board": "新卡板", "top_node": "新", "pending": 1},
@@ -453,8 +456,9 @@ def test_time_humanization_asia_shanghai(overview_env):
     )
 
     page = client.get("/api/v1/review/overview/page")
-    assert page.status_code == 200
+    assert page.status_code == 200, "日历合法极值不得把页面打成 500"
     text = page.text
+    assert "极值板" in text  # 溢出值降级 "—" 成行, 不消失也不 500
     assert "逾期3天" in text
     assert "现在" in text  # 新卡板 (fsrs_due 空串 = 即刻到期)
     assert "明天" in text
