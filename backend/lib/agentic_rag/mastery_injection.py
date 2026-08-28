@@ -82,14 +82,21 @@ def build_mastery_prefix(
 MEMORY_DEGRADED_NO_CLIENT = "no_client"
 MEMORY_DEGRADED_TIMEOUT = "timeout"
 MEMORY_DEGRADED_ERROR = "error"
+# CARD-G4-2 Codex round-1 BLOCKER-3: MemoryService 自身报告的故障
+# (unavailable/degraded) 必须透传, 不能被剥成「空 = 没有记忆」。
+MEMORY_DEGRADED_SERVICE = "service_"
 
 
 async def _search_via_memory_service(
     node_hint: str,
     group_id: Optional[str],
     limit: int = 10,
-) -> Optional[List[dict]]:
+) -> Optional[tuple[List[dict], Optional[str]]]:
     """经 MemoryService 三层融合检索取学习记忆 (P1-03 首选路径)。
+
+    CARD-G4-2 (2026-08-28): 返回 ``(条目列表, 降级原因)`` —— 原先只返回
+    列表, 让 MemoryService 的 degraded/unavailable 状态在这一层丢失。
+    ``None`` 表示服务完全不可用 (含 UNAVAILABLE), 由调用方走降级路径。
 
     为什么不再直接用 GraphitiClient.search_memories:
       GraphitiClient.search_memories 转调 search_nodes 且**不传 canvas_file**,
@@ -107,7 +114,9 @@ async def _search_via_memory_service(
     (跨 vault), 与 GraphitiClient 只查单组的行为正相反。
 
     Returns:
-        条目列表 (每项含 content 键); None 表示 MemoryService 不可用, 由调用方降级。
+        ``(条目列表, 降级原因)`` —— 条目每项含 content 键, 降级原因为
+        MemoryService 报的 degraded reason (无降级时 None)。
+        返回 ``None`` 表示服务不可用 (含四态 UNAVAILABLE), 由调用方降级。
     """
     try:
         # lib→app 惰性 import 是本仓既定惯例 (本模块 :223 亦然), 无循环依赖:
@@ -138,12 +147,18 @@ async def _search_via_memory_service(
     # 带 active-only 过滤。它需要**真实 node_id**, 而 CanvasRAGState 只有
     # canvas_file (state.py 全文无 node_id 字段)。接通它需要改调用链把节点身份
     # 传进 state —— 已列为待办, 不在本轮范围。
-    hits = await service.search_memories(
+    # CARD-G4-2 (2026-08-28) BLOCKER-3: 改调状态方法 —— 旧 list 方法会把
+    # UNAVAILABLE/DEGRADED 剥成 .items, 让「Neo4j 挂了」在下游长得跟
+    # 「这个节点没有记忆」一模一样, 正是本卡要根治的伪装空结果。
+    result = await service.search_memories_with_status(
         query=f"{node_hint} 提示 tip 要点 错误 误解 mistake misconception 学习笔记",
         group_id=group_id,
         max_results=max(limit * 4, 20),
     )
-    return hits or []
+    if not result.is_trustworthy:
+        # 载荷不可信 —— 交由调用方标降级, 不得当成空结果
+        return None
+    return list(result.items), result.reason
 
 
 async def retrieve_learning_memories(
@@ -184,11 +199,18 @@ async def retrieve_learning_memories(
     """
     memories: Optional[List[dict]] = None
 
+    # CARD-G4-2 BLOCKER-3: service 侧的部分降级原因 (degraded 但有结果)
+    # 要一路带到 state, 否则「不完整」在下游看起来跟「完整」一样。
+    service_degraded_reason: Optional[str] = None
     try:
-        memories = await asyncio.wait_for(
+        fetched = await asyncio.wait_for(
             _search_via_memory_service(node_id, group_id),
             timeout=5.0,
         )
+        if fetched is None:
+            memories = None
+        else:
+            memories, service_degraded_reason = fetched
     except asyncio.TimeoutError:
         logger.warning("[MEMORY] MemoryService 检索超时 (5s), 尝试降级路径")
         memories = None
@@ -220,6 +242,14 @@ async def retrieve_learning_memories(
 
     try:
         if not memories:
+            if service_degraded_reason:
+                # CARD-G4-2 BLOCKER-3: 空 + service 报了降级 = 检索面不完整,
+                # **不是**「真的没有记忆」。
+                logger.error(
+                    "[MEMORY] 检索降级且无命中 (%s) — 空注入不代表该节点没有记忆",
+                    service_degraded_reason,
+                )
+                return "", f"{MEMORY_DEGRADED_SERVICE}{service_degraded_reason}"
             # 检索本身成功, 只是没有命中 —— 这是「真的没有记忆」, reason=None
             return "", None
 

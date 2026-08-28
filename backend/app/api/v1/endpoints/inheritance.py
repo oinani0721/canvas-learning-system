@@ -35,7 +35,14 @@ class DistillRequest(BaseModel):
     messages: list[DistillMessage] = Field(
         ..., min_length=1, description="Conversation messages to distill"
     )
-    group_id: Optional[str] = Field(None, description="Subject isolation namespace")
+    # CARD-G2-2 (2026-08-28): 加 vault_id (推荐); raw group_id 降级为
+    # deprecated legacy 输入, 不再直通持久化链 (Codex round-1 HIGH-8)。
+    vault_id: Optional[str] = Field(
+        None, description="Vault 身份 (推荐必填; 与 active vault 不一致时 409)"
+    )
+    group_id: Optional[str] = Field(
+        None, deprecated=True, description="Deprecated — 改用 vault_id"
+    )
 
 
 class DistillResponse(BaseModel):
@@ -67,11 +74,17 @@ async def distill_conversation(
     Non-blocking design: returns quickly even if distillation takes time.
     Failure returns success=false with empty results (graceful degradation).
     """
-    try:
-        from app.config import DEFAULT_GROUP_ID
-        from app.services.conversation_distiller import ConversationDistiller
+    # CARD-G2-2 Codex round-1 HIGH-8 整改: raw group_id 不再直通持久化链 —
+    # 显式 vault_id 走 409 门, 旧 group 作 legacy 输入归一化, 双缺失推导
+    # active vault。解析在 try 之外 (409 不得被宽 except 吞成 success=false)。
+    from app.core.vault_scope import resolve_vault_group_id
 
-        group_id = request.group_id or DEFAULT_GROUP_ID
+    group_id = resolve_vault_group_id(
+        request.vault_id, legacy_group_id=request.group_id
+    )
+
+    try:
+        from app.services.conversation_distiller import ConversationDistiller
         messages = [{"role": m.role, "content": m.content} for m in request.messages]
 
         distiller = ConversationDistiller()

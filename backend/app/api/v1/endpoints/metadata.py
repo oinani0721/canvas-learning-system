@@ -19,7 +19,6 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
 
-from app.config import DEFAULT_GROUP_ID
 from app.dependencies import SettingsDep
 from app.models import ErrorResponse
 from app.models.metadata_models import (
@@ -36,51 +35,10 @@ from app.services.subject_resolver import SubjectResolver, get_subject_resolver
 logger = logging.getLogger(__name__)
 
 
-# Wave-5 Stage B (2026-05-12) — Multi-vault ContextVar 注入辅助.
-# Metadata / Index endpoints 此前无 vault_id 隔离 → LanceDB index 跨 vault 串库.
-def _resolve_vault_group_id(
-    vault_id: Optional[str],
-    subject_id: Optional[str] = None,
-    canvas_path: Optional[str] = None,
-    legacy_group_id: Optional[str] = None,
-) -> str:
-    """Wave-5 Stage B — vault_id → ContextVar 注入 + 派生 group_id."""
-    from app.config import sanitize_vault_id
-    from app.core.subject_config import (
-        build_vault_group_id,
-        canonical_group_id,
-        set_current_subject_id,
-    )
-
-    if vault_id and vault_id.strip():
-        sanitized = sanitize_vault_id(vault_id)
-        derived = build_vault_group_id(
-            sanitized,
-            subject_id=subject_id,
-            canvas_path=canvas_path,
-        )
-    elif legacy_group_id and legacy_group_id.strip():
-        logger.warning(
-            "Wave-5 Stage B: metadata endpoint vault_id missing, falling back to deprecated group_id=%s",
-            legacy_group_id,
-        )
-        derived = canonical_group_id(legacy_group_id)
-    else:
-        # G-DEFAULT 根治 (2026-07-10): 缺省不再落 DEFAULT_GROUP_ID(cs188)——那会让
-        # 索引写入裸表/错桶,与 ContextVar 前缀表读取分裂(Sprint-0 实测 3534 行旧数据
-        # 被错读)。回退到当前激活 vault,保证写读恒同 vault 命名空间。
-        from app.config import get_current_vault_id
-
-        fallback_vid = sanitize_vault_id(get_current_vault_id())
-        logger.warning(
-            "Wave-5 Stage B: metadata endpoint both vault_id and group_id missing, "
-            "falling back to ACTIVE vault '%s' (G-DEFAULT fix 2026-07-10)",
-            fallback_vid,
-        )
-        derived = build_vault_group_id(fallback_vid, subject_id=subject_id, canvas_path=canvas_path)
-
-    set_current_subject_id(derived)
-    return derived
+# CARD-G2-2 (2026-08-28): 本地克隆删除, 统一走 app.core.vault_scope 唯一
+# 解析点。本文件此前的双缺失姿势 (G-DEFAULT 根治 2026-07-10: 回退 active
+# vault + 二级透传) 已并入 vault_scope 统一契约。
+from app.core.vault_scope import resolve_vault_group_id as _resolve_vault_group_id
 
 
 # =============================================================================
@@ -352,14 +310,25 @@ async def index_canvas(
 
     [Source: Design doc - Phase 1.3 Manual Index Trigger API]
     """
-    start_time = time.perf_counter()
-
     # Wave-5 Stage B — vault_id ContextVar 注入
+    # CARD-G2-2 Codex round-1 HIGH-11 整改: HTTP handler 解析恰一次, 索引
+    # 本体下沉 _index_canvas_impl —— batch 端点改调 impl, 总解析次数从
+    # 1+N 降回每请求 1 次 (硬边界3「每请求只解析一次 VaultScope」)。
     _resolve_vault_group_id(
         request.vault_id,
         subject_id=request.subject_id,
         canvas_path=request.canvas_path,
     )
+    return await _index_canvas_impl(request, settings, resolver)
+
+
+async def _index_canvas_impl(
+    request: CanvasIndexRequest,
+    settings: SettingsDep,
+    resolver: SubjectResolver,
+) -> CanvasIndexResponse:
+    """索引本体 (不解析 vault scope — 调用方必须已解析恰一次)。"""
+    start_time = time.perf_counter()
 
     try:
         # Resolve metadata
@@ -499,8 +468,8 @@ async def batch_index_canvas(
                 subject_id=request.subject_id,
             )
 
-            # Index
-            result = await index_canvas(request=individual_request, settings=settings, resolver=resolver)
+            # Index — 调 impl 而非 HTTP handler (scope 已在循环外解析一次)
+            result = await _index_canvas_impl(individual_request, settings, resolver)
 
             results.append(result)
 

@@ -15,7 +15,6 @@ import structlog
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from app.config import DEFAULT_GROUP_ID
 from app.mcp.tools.error_tools import _resolve_node_file_path
 from app.services.candidate_service import (
     AcceptCandidateResult,
@@ -42,43 +41,9 @@ errors_router = APIRouter()
 
 # Wave-5 Stage B (2026-05-12) — Multi-vault ContextVar 注入辅助.
 # 4 errors 端点此前无 vault_id 隔离 → 跨 vault 错误记录泄漏 (P0).
-def _resolve_vault_group_id(
-    vault_id: Optional[str],
-    subject_id: Optional[str] = None,
-    canvas_path: Optional[str] = None,
-    legacy_group_id: Optional[str] = None,
-) -> str:
-    """Wave-5 Stage B — vault_id → ContextVar 注入 + 派生 group_id."""
-    from app.config import sanitize_vault_id
-    from app.core.subject_config import (
-        build_vault_group_id,
-        canonical_group_id,
-        set_current_subject_id,
-    )
-
-    if vault_id and vault_id.strip():
-        sanitized = sanitize_vault_id(vault_id)
-        derived = build_vault_group_id(
-            sanitized,
-            subject_id=subject_id,
-            canvas_path=canvas_path,
-        )
-    elif legacy_group_id and legacy_group_id.strip():
-        logger.warning(
-            "Wave-5 Stage B: errors endpoint vault_id missing, "
-            "falling back to deprecated group_id=%s",
-            legacy_group_id,
-        )
-        derived = canonical_group_id(legacy_group_id)
-    else:
-        logger.warning(
-            "Wave-5 Stage B: errors endpoint both vault_id and group_id missing, "
-            "falling back to DEFAULT_GROUP_ID"
-        )
-        derived = DEFAULT_GROUP_ID
-
-    set_current_subject_id(derived)
-    return derived
+# CARD-G2-2 (2026-08-28): 本地克隆删除, 统一走 app.core.vault_scope 唯一
+# 解析点 (409 fail-closed + 双缺失推导 active vault, 语义见其 docstring)。
+from app.core.vault_scope import resolve_vault_group_id as _resolve_vault_group_id
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -267,7 +232,8 @@ async def dispute_candidate_endpoint(
 
 @errors_router.post("/rebuild-graphiti", response_model=RebuildStats)
 async def rebuild_graphiti_endpoint(
-    group_id: str,
+    group_id: Optional[str] = None,
+    vault_id: Optional[str] = None,
     dry_run: bool = False,
 ) -> RebuildStats:
     """Story 2.5.X AC #6 — 从 frontmatter errors[] 重建 Graphiti 知识图谱.
@@ -291,6 +257,15 @@ async def rebuild_graphiti_endpoint(
     """
     from app.config import settings
 
+    # CARD-G2-2 Codex round-1 HIGH-8 整改: 原实现接受**任意** raw group_id
+    # 直写 —— 本端点读的是当前 active vault 的 frontmatter 文件, 却能把
+    # 重建结果写进调用者指定的任何 group (跨 vault 污染)。
+    # 「legacy 不做 409」只豁免一致性检查, 不豁免 canonicalize + inject:
+    # 显式 vault_id 走 409 门, 旧 group_id 作 legacy 输入归一化。
+    resolved_group_id = _resolve_vault_group_id(
+        vault_id, legacy_group_id=group_id
+    )
+
     vault_root_str = getattr(settings, "canvas_base_path", None)
     if not vault_root_str:
         raise HTTPException(
@@ -300,7 +275,7 @@ async def rebuild_graphiti_endpoint(
 
     return await rebuild_graphiti_from_frontmatter(
         vault_root=vault_root_str,
-        group_id=group_id,
+        group_id=resolved_group_id,
         dry_run=dry_run,
     )
 

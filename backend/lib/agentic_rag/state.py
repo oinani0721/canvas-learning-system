@@ -180,6 +180,27 @@ class CanvasRAGState(MessagesState):
         bool, "是否已触发一次性 CRAG deep research 兜底 (one-shot guard)"
     ]
 
+    # CARD-G4-2 (2026-08-28): 统一四态检索状态 — Literal 值域镜像
+    # app.models.service_status.SERVICE_STATUS_VALUES (值域一致性由
+    # tests/unit/test_service_status_contract.py 锁死, 两侧改动必须同步)。
+    # 故障不再静默降为空列表: 通道级失败落 channel_errors, 汇聚层
+    # (fuse_results 入口) 折算整体 retrieval_status + reason。
+    retrieval_status: Annotated[
+        Optional[Literal["ok", "empty", "degraded", "unavailable"]],
+        "G4-2 四态检索状态 (None=检索尚未执行)",
+    ]
+    retrieval_status_reason: Annotated[
+        Optional[str], "degraded/unavailable 的诊断原因 (ok/empty 恒 None)"
+    ]
+    channel_errors: Annotated[
+        Optional[Dict[str, str]],
+        add_dicts,  # 并行检索节点各自写入自己的通道键, reducer 合并防冲突
+    ]
+    # compress_context 学习记忆注入的降级信号 (nodes.py memory_degraded 收编)
+    memory_degraded: Annotated[
+        Optional[str], "学习记忆注入降级原因 (None=正常或未启用)"
+    ]
+
     # 性能监控字段 (Optional) - Separate keys to avoid concurrent update conflicts
     graphiti_latency_ms: Annotated[Optional[float], "Graphiti检索延迟 (ms)"]
     lancedb_latency_ms: Annotated[Optional[float], "LanceDB检索延迟 (ms)"]
@@ -249,6 +270,11 @@ def create_initial_state(**overrides: Any) -> Dict[str, Any]:
         "fusion_report": None,
         "sharpness_report": None,
         "deep_research_used": False,
+        # CARD-G4-2: 四态检索状态 (None=尚未检索)
+        "retrieval_status": None,
+        "retrieval_status_reason": None,
+        "channel_errors": None,
+        "memory_degraded": None,
         # Latency
         "graphiti_latency_ms": None,
         "lancedb_latency_ms": None,
