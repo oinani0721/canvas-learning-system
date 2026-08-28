@@ -2,7 +2,24 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**本车道状态**（2026-08-27 · 分支 `card/n5-split` · BATCH-2026-08-27-第四批 车道 5 · **G5-1 + G5-2 双卡 v3（Codex 三/四轮对抗后）待验收**）:
+**本车道状态**（2026-08-28 · 分支 `card/s2-neo4j` · BATCH-2026-08-28-第五批 车道 S2 · **CARD-G2-3 加固轮完成待验收**）:
+- ✅ 10 站点写身份复合键化（neo4j_client 8 方法 + fallback_sync 2 条 replay）+ `_resolve_physical_group_id()`
+  先解析后进键 + fail-closed 拒写（logger.error 首日观察，不静默降级 DEFAULT）+ JSON 镜像双键
+- ✅ 迁移器 `backend/scripts/migrate_write_identity_g23.py`：现网 7691 只读 dry-run **pending=0**
+  （"迁移=证明零动作"）+ 单次运行内计数全等（证据 `_bmad-output/审查/evidence-g23/`）
+- ✅ 裁判：`pytest tests/integration/test_cypher_contract_gate.py tests/unit/test_neo4j_client.py -q` **64 passed**
+  （2 条 xfail 去标翻绿 + 门 4 六条 + 门 5 解析链正向两条 + 退化输入/段级校验门）；迁移器行为门 **25 passed**；
+  grep 清零；零回归（77 条基线失败逐字节一致，四轮复验）
+- ✅ **两路审查全修**：内部 5 维对抗工作流 10 条确认 + **Codex 三轮**（round-1 六条含 BLOCKER「端口≠数据库身份」→
+  加 store identity 闸；round-2 六条；round-3 五条：空串与空白口径统一 / 探针按错误码区分不把抖动当拒写 /
+  零写入失败改变退出码 / 逻辑重复身份跳过并登记 / 去重 pass 先行 / 脏空白组留人清洗 / 实时比对不可达需显式表态）
+- ✅ **变异负控 23/23 能红**（`backend/scripts/g23_mutation_negative_controls.py`，可复跑，相对路径可移植）
+- ⛔ 移交 G2-2：失败重放条目无 vault 维度，跨 vault 切换期间重放仍归新 active vault（需 VaultScope + 条目补字段）
+- 验收单 `验收单/UAT-CARD-G2-3-*.md`；审查存档 `审查/codex-review-CARD-G2-3.md`；**不 push**
+
+---
+
+**上一批次归档**（2026-08-27 · 分支 `card/n5-split` · BATCH-2026-08-27-第四批 车道 5 · G5-1 + G5-2 双卡 v3 待验收）:
 - ✅ CARD-G5-1 触发矩阵 v3：矩阵文档（15 正例含 5 用户逐字 + 10 负例 + 语料覆盖自陈 + §三 待拍板 + **§五 登记簿 4 条**）
   + checker v3 9/9（real_floor 代码锚+归属锚语义分类；18 类变异负控全抓）+ headless 三轮全量重放（judge v3：
   sidecar 绑定/终局唯一/manifest 含 .claude/skills）：**⛔ N4「回顾一下+板名」无斜杠存档 2 采样 1 次真触发 board-recap**

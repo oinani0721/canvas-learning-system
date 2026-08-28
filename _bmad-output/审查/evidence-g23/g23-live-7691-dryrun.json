@@ -1,0 +1,49 @@
+{
+  "script": "migrate_write_identity_g23",
+  "card": "BATCH-2026-08-28-第五批 / CARD-G2-3",
+  "generated_at": "2026-08-28T13:38:03.594526+00:00",
+  "target_uri": "bolt://localhost:7691",
+  "mode": "dry-run",
+  "census": {
+    "concept_total": 1,
+    "concept_no_group": 0,
+    "learned_total": 1,
+    "learned_no_group": 0,
+    "learned_group_mismatch": 0,
+    "user_total": 2,
+    "concept_by_group": {
+      "vault__canvas_vault__xn--jhqx6ce6ettpca6420ada2925d": 1
+    }
+  },
+  "pending": {
+    "split_needed_concepts": [],
+    "null_edge_group_backfill": [],
+    "duplicate_identity_edges": [],
+    "manual_null_group_concepts": [],
+    "manual_duplicate_concept_nodes": [],
+    "auto_total": 0,
+    "manual_total": 0,
+    "total": 0
+  },
+  "legacy_informational": {
+    "duplicate_concept_nodes": 0,
+    "canvas_nodes_ungrouped": 0,
+    "node_nodes_ungrouped": 0,
+    "connects_to_ungrouped": 0,
+    "contains_node_ungrouped": 0,
+    "associated_with_ungrouped": 0,
+    "episode_ungrouped": 0
+  },
+  "reconciliation": {
+    "nodes_before": 170,
+    "rels_before": 372,
+    "nodes_after": 170,
+    "rels_after": 372,
+    "scope_fingerprint_before": "350439083a7b2e74f63153c2efad35d568a8f2098362714da4ee2de72d50831d",
+    "scope_fingerprint_after": "350439083a7b2e74f63153c2efad35d568a8f2098362714da4ee2de72d50831d",
+    "counts_equal": true,
+    "fingerprint_equal": true,
+    "read_access_mode_enforced": true,
+    "zero_writes": true
+  }
+}

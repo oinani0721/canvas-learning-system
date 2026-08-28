@@ -132,7 +132,10 @@ class TestNeo4jClientJsonFallback:
         await client.initialize()
 
         result = await client.create_learning_relationship(
-            user_id="test-user", concept="Test Concept", score=85
+            user_id="test-user",
+            concept="Test Concept",
+            score=85,
+            group_id="vault:testvault",
         )
 
         assert result is True
@@ -144,6 +147,164 @@ class TestNeo4jClientJsonFallback:
         assert rel["user_id"] == "test-user"
         assert rel["concept_name"] == "Test Concept"
         assert rel["last_score"] == 85
+        # G2-3 (W1 镜像): 记录携带物理化 group_id
+        assert rel["group_id"] == "vault__testvault"
+
+    @pytest.mark.asyncio
+    async def test_create_learning_relationship_dual_group_no_merge(self, temp_storage_path):
+        """G2-3 (W1 镜像): JSON 层同名概念双组独立, 不跨组合并/覆盖."""
+        client = Neo4jClient(use_json_fallback=True, storage_path=temp_storage_path)
+        await client.initialize()
+
+        ok_a = await client.create_learning_relationship(user_id="u1", concept="Shared", score=80, group_id="vault:va")
+        ok_b = await client.create_learning_relationship(user_id="u1", concept="Shared", score=60, group_id="vault:vb")
+        assert ok_a and ok_b
+
+        # 双键: 同名概念两条记录, 各归其组
+        concepts = [c for c in client._data["concepts"] if c["name"] == "Shared"]
+        assert sorted(c["group_id"] for c in concepts) == ["vault__va", "vault__vb"]
+
+        rels = [r for r in client._data["relationships"] if r["concept_name"] == "Shared"]
+        assert sorted((r["group_id"], r["last_score"]) for r in rels) == [
+            ("vault__va", 80),
+            ("vault__vb", 60),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_create_learning_relationship_fail_closed_no_group(self, temp_storage_path, caplog):
+        """G2-3 fail-closed 门: group 不可解析 → 拒写返 False, 不抛异常 (防 500)."""
+        import logging as _logging
+
+        from app.core.subject_config import _current_subject_id
+
+        client = Neo4jClient(use_json_fallback=True, storage_path=temp_storage_path)
+        await client.initialize()
+
+        token = _current_subject_id.set("general")  # 无 vault 上下文
+        try:
+            with caplog.at_level(_logging.ERROR):
+                result = await client.create_learning_relationship(
+                    user_id="test-user", concept="No Group Concept", score=85
+                )
+        finally:
+            _current_subject_id.reset(token)
+
+        assert result is False
+        assert len(client._data["concepts"]) == 0
+        assert len(client._data["relationships"]) == 0
+        assert any("fail-closed" in r.message for r in caplog.records)
+
+    @pytest.mark.parametrize(
+        "raw",
+        [
+            None,
+            "",
+            "   ",  # 空白串: 曾被 canonical_group_id 静默映射成 vault__default
+            "\t",
+            "vault:",  # 裸前缀: 曾产出空后缀的 vault__ 垃圾组
+            "vault:  ",  # 空白 vault 段: 曾产出 punycode 垃圾
+        ],
+    )
+    def test_group_resolution_rejects_degenerate_inputs(self, raw):
+        """G2-3 W3 边界门: 退化输入不得静默降级 DEFAULT 或产垃圾组.
+
+        2026-08-28 边界实测发现: 空白串走 canonical_group_id 会静默变成
+        ``vault__default`` (正是本卡禁止的静默降级); ``"vault:"`` 会产出
+        空后缀的 ``vault__``。两者都必须收敛为 None 交调用方 fail-closed。
+        """
+        from app.clients.neo4j_client import _resolve_physical_group_id
+        from app.core.subject_config import _current_subject_id
+
+        token = _current_subject_id.set("general")  # 排除 ContextVar 兜底
+        try:
+            assert _resolve_physical_group_id(raw) is None
+        finally:
+            _current_subject_id.reset(token)
+
+    @pytest.mark.parametrize("raw", ["vault::x", "vault:::y"])
+    def test_group_resolution_rejects_empty_segment(self, raw):
+        """C1b (Codex round-2): 空段物理值 (vault____x) 必须拒绝.
+
+        畸形输入 ``vault::x`` 物理化成 ``vault____x`` —— 段级校验按 ``__``
+        切分, 任一段为空即判非法。
+        """
+        from app.clients.neo4j_client import _resolve_physical_group_id
+
+        assert _resolve_physical_group_id(raw) is None
+
+    def test_group_resolution_blank_explicit_does_not_fall_back(self):
+        """C1a (Codex round-2): 显式空白 group_id 不得回退推导链落到别的 vault.
+
+        空白是调用方 bug —— 若静默推导, 写入会落到 ContextVar 指向的另一个
+        vault (错误归属), 且日志里看不出发生过降级。
+        """
+        from app.clients.neo4j_client import _resolve_physical_group_id
+        from app.core.subject_config import _current_subject_id
+
+        token = _current_subject_id.set("vault:othervault")
+        try:
+            # None 走推导 (合法)
+            assert _resolve_physical_group_id(None) == "vault__othervault"
+            # 显式空白 → fail-closed, 不得变成 othervault
+            assert _resolve_physical_group_id("   ") is None
+            # C1 round-3: 空串与空白串口径必须一致 (原实现空串因假值漏进推导链)
+            assert _resolve_physical_group_id("") is None
+        finally:
+            _current_subject_id.reset(token)
+
+    @pytest.mark.parametrize(
+        ("raw", "expected"),
+        [
+            ("vault:cs_61b", "vault__cs_61b"),
+            (" vault:cs_61b ", "vault__cs_61b"),  # 两侧空白被 strip
+            ("vault__cs_61b", "vault__cs_61b"),  # 幂等
+            ("vault:a:b", "vault__a__b"),  # 二级 group 合法 (段均非空)
+        ],
+    )
+    def test_group_resolution_accepts_valid_inputs(self, raw, expected):
+        """合法输入必须原样物理化 —— 校验不能宽到把正常写路径也拒掉."""
+        from app.clients.neo4j_client import _resolve_physical_group_id
+
+        assert _resolve_physical_group_id(raw) == expected
+
+    @pytest.mark.asyncio
+    async def test_scoped_write_methods_fail_closed_no_group(self, temp_storage_path, caplog):
+        """G2-3 W2/W5 fail-closed: delete/update 无 group scope → 拒执行且目标无损.
+
+        鉴别力设计 (对抗审查 2026-08-28 整改): 对不存在的 ID 断言 False 是
+        空转 —— JSON fallback 对任何未知 ID 本来就返 False, 把 guard 整体
+        删掉测试照样绿。故先用显式组建好**真实**关联, 再断言无 scope 调用
+        既返 False、目标记录又原样存活 (拒绝 ≠ not-found)。
+        """
+        import logging as _logging
+
+        from app.core.subject_config import _current_subject_id
+
+        client = Neo4jClient(use_json_fallback=True, storage_path=temp_storage_path)
+        await client.initialize()
+
+        assert await client.create_canvas_association(
+            association_id="assoc-live",
+            source_canvas="src.canvas",
+            target_canvas="dst.canvas",
+            association_type="related",
+            confidence=1.0,
+            group_id="vault:testvault",
+        )
+        before = json.loads(json.dumps(client._data["canvas_associations"]))
+
+        token = _current_subject_id.set("general")  # 无 vault 上下文
+        try:
+            with caplog.at_level(_logging.ERROR):
+                assert await client.delete_edge_relationship("edge-1") is False
+                # 真实存在的目标: 拒绝必须表现为"返 False 且记录毫发无损"
+                assert await client.update_canvas_association("assoc-live", confidence=0.5) is False
+                assert await client.delete_canvas_association("assoc-live") is False
+        finally:
+            _current_subject_id.reset(token)
+
+        assert client._data["canvas_associations"] == before, "fail-closed path mutated the store"
+        assert sum("fail-closed" in r.message for r in caplog.records) >= 3
 
     @pytest.mark.asyncio
     async def test_get_review_suggestions_json_fallback(self, temp_storage_path):
@@ -217,9 +378,7 @@ class TestNeo4jClientDriver:
     @pytest.mark.asyncio
     async def test_driver_initialization_success(self):
         """Test successful driver initialization with mocked Neo4j."""
-        client = Neo4jClient(
-            uri="bolt://localhost:7687", user="neo4j", password="test_password"
-        )
+        client = Neo4jClient(uri="bolt://localhost:7687", user="neo4j", password="test_password")
 
         # Mock the AsyncGraphDatabase.driver
         with patch("app.clients.neo4j_client.AsyncGraphDatabase") as mock_agd:
@@ -293,9 +452,7 @@ class TestNeo4jClientDriver:
             await client.initialize()
 
             # Now make health check fail
-            mock_driver.verify_connectivity = AsyncMock(
-                side_effect=Exception("Connection lost")
-            )
+            mock_driver.verify_connectivity = AsyncMock(side_effect=Exception("Connection lost"))
 
             result = await client.health_check()
 
@@ -374,9 +531,7 @@ class TestNeo4jClientRetry:
     async def test_fallback_after_max_retries(self, tmp_path):
         """Test fallback to JSON after max retries exhausted."""
         storage_path = tmp_path / "retry_fallback.json"
-        client = Neo4jClient(
-            retry_attempts=2, retry_delay_base=0.1, storage_path=storage_path
-        )
+        client = Neo4jClient(retry_attempts=2, retry_delay_base=0.1, storage_path=storage_path)
 
         with patch("app.clients.neo4j_client.AsyncGraphDatabase") as mock_agd:
             mock_driver = AsyncMock()
@@ -423,8 +578,8 @@ class TestNeo4jClientMetrics:
         await client.initialize()
 
         # Execute a few queries
-        await client.create_learning_relationship("user-1", "concept-1", 80)
-        await client.create_learning_relationship("user-1", "concept-2", 90)
+        await client.create_learning_relationship("user-1", "concept-1", 80, group_id="vault:testvault")
+        await client.create_learning_relationship("user-1", "concept-2", 90, group_id="vault:testvault")
 
         metrics = client._metrics
 
@@ -454,7 +609,7 @@ class TestNeo4jClientMetrics:
 
         with patch("app.clients.neo4j_client.time.perf_counter", mock_perf_counter):
             with caplog.at_level(logging.WARNING):
-                await client.create_learning_relationship("user-1", "concept-1", 80)
+                await client.create_learning_relationship("user-1", "concept-1", 80, group_id="vault:testvault")
 
         # Check warning was logged
         assert any("exceeded 200ms" in record.message for record in caplog.records)

@@ -12,11 +12,22 @@
    helper 的 MERGE-lead 注入产生非法 Cypher 的局限在此固化为行为证据。
 2. 双 vault 读隔离行为门 — W1 复合键写入 + R1 过滤读回, 两 vault 互不
    可见 (手写 WHERE 与 helper 注入两条路径都验)。
-3. Concept/LEARNED 写身份现状门 — **xfail(strict=True)**: 复现
-   neo4j_client.create_learning_relationship 的 W1 违规 (MERGE Concept
-   仅按 name, 跨 vault 同名冲撞 + group_id last-write-wins)。
-   ⛔ 交接 G2-3: 写路径修复为复合键后, 这两条会 XPASS(strict) 报错,
-   届时移除 xfail 标记翻绿 — 这是有意设计的交接信号, 不是测试损坏。
+3. Concept/LEARNED 写身份行为门 — G2-1 时期为 xfail(strict) 现状复现;
+   G2-3 (BATCH-2026-08-28-第五批) 修复写路径为复合身份键后已去标翻绿:
+   走真实业务写路径断言两 vault 同名概念/LEARNED 边互不覆盖。
+4. G2-3 写身份扩展行为门 — 每类违规至少一条: Canvas/Node/Episode 写
+   身份 (W1 #5/#6/#9/#10)、scoped delete (W2 #7/#15)、scoped update
+   (W5 #16)、fallback replay 不合并 (fallback_sync_service:352/458)、
+   group 缺失 fail-closed 防 500 (拒写返 False, 不抛异常不静默降级)。
+5. G2-3 组解析链正向分支门 (对抗审查 2026-08-28 整改) — 门 4 全部传显式
+   group_id (解析链分支 1), fail-closed 门只覆盖解析失败分支; 但生产主
+   管道靠的是分支 2 (ContextVar) 与分支 3 (canvas_path 推导)。两条正向
+   行为门锁死这两支, 打断任一分支即红。
+
+⚠️ 假绿防线: 每道门的"能红"由 `backend/scripts/g23_mutation_negative_controls.py`
+9 类变异机械验证 (写身份退回单键+SET / 删边降级 DEFAULT / 迁移器去 LWW 与
+去去重 / 关联降级 DEFAULT / 解析链两分支各打断 / replay 退回单键 / 现网拒绝
+退回子串)。改动本文件的门后请复跑它, 保证仍 9/9 能红。
 
 启动测试容器: docker compose --profile test up -d neo4j-test
 连接: NEO4J_TEST_URI (默认 bolt://127.0.0.1:7692), 探针不可达整文件 skip。
@@ -86,6 +97,16 @@ _CLEANUP_QUERIES = (
     "MATCH (n) WHERE n.group_id STARTS WITH 'vault__g21gate' DETACH DELETE n",
     f"MATCH (c:Concept) WHERE c.name STARTS WITH '{GATE_PREFIX}' DETACH DELETE c",
     f"MATCH (u:User) WHERE u.id STARTS WITH '{GATE_PREFIX}' DETACH DELETE u",
+    # G2-3 门 4 清理补全 (对抗审查 2026-08-28 整改): 上面三条只匹配"带 gate
+    # 前缀 group"或"前缀 name/id"。门 4 要抓的回归 (W1 退回无 group 写法)
+    # 恰恰产出**无 group_id**、只有前缀 path/id 的 Canvas/Node/Episode ——
+    # 不清理会永久滞留共享 7692 容器, 让回归修好后重跑仍假红。
+    f"MATCH (c:Canvas) WHERE c.path STARTS WITH '{GATE_PREFIX}' DETACH DELETE c",
+    f"MATCH (n:Node) WHERE n.id STARTS WITH '{GATE_PREFIX}' DETACH DELETE n",
+    # Episode 无前缀字段 (id 为 randomUUID) — 按其挂靠的前缀 Node 反向删,
+    # 顺带清无 group 的孤儿 scoring Episode。
+    f"MATCH (e:Episode)-[:SCORED]->(n:Node) WHERE n.id STARTS WITH '{GATE_PREFIX}' DETACH DELETE e",
+    "MATCH (e:Episode) WHERE e.type = 'scoring' AND e.group_id IS NULL AND NOT (e)--() DETACH DELETE e",
 )
 
 
@@ -285,37 +306,29 @@ def test_dual_vault_w1_composite_key_no_collision(sync_driver, dual_vault_seed):
 
 
 # ---------------------------------------------------------------------------
-# 门 3 — Concept/LEARNED 写身份现状 (xfail strict, 交接 G2-3 翻绿)
+# 门 3 — Concept/LEARNED 写身份行为门 (G2-3 修复后去 xfail 翻绿)
 # ---------------------------------------------------------------------------
-
-_W1_XFAIL_REASON = (
-    "现状违规 W1 (审计 §5 #1): create_learning_relationship 的 MERGE "
-    "(c:Concept {name}) 缺 group_id 复合键, 跨 vault 同名概念冲撞 + "
-    "group_id last-write-wins。G2-3 修复写路径后本测试 XPASS(strict) "
-    "报错, 届时移除 xfail 标记翻绿。raises=AssertionError 收窄 (Codex "
-    "round-1 MEDIUM 整改): 连接异常/写入失败等错误原因不计 XFAIL, "
-    "只有身份断言本身失败才算预期失败。"
-)
+# G2-1 时期这两条为 xfail(strict) 现状复现 (审计 §5 #1: MERGE 仅按 name,
+# 跨 vault 同名冲撞 + group_id last-write-wins)。G2-3 把写身份改为
+# {name, group_id} 复合键后按交接设计移除 xfail 标记 — 现为正向行为门。
 
 
 def _require_write_ok(**results: bool) -> None:
     """前置条件守卫: 写路径调用失败走 pytest.fail (Failed, 非 AssertionError).
 
-    配合 xfail(raises=AssertionError): 环境/写入故障会让测试真失败,
-    而不是被误收进 XFAIL — 保证 xfail 只因 W1 身份断言而挂。
+    环境/写入故障与身份断言失败分离 — 保证失败原因可读。
     """
     failed = [name for name, ok in results.items() if not ok]
     if failed:
         pytest.fail(f"precondition: create_learning_relationship 返回 False: {failed}")
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=_W1_XFAIL_REASON)
 async def test_concept_write_identity_dual_vault_current_state(gate_client):
-    """期望行为: 两 vault 各自持有同名 Concept 节点 (W1 复合键语义).
+    """W1 行为门: 两 vault 各自持有同名 Concept 节点 (复合键语义).
 
     走真实业务写路径 create_learning_relationship (不 mock、不改业务
-    代码), 断言**正确**行为 — 当前实现 MERGE 仅按 name, 第二个 vault
-    的写入会劫持第一个 vault 的节点, 断言失败 → xfailed。
+    代码) — G2-3 修复后 MERGE 按 {name, group_id} 复合身份, 第二个
+    vault 的写入生成独立节点, 不再劫持第一个 vault 的归属。
     """
     ok_a = await gate_client.create_learning_relationship(
         user_id=f"{GATE_PREFIX}_user",
@@ -336,17 +349,15 @@ async def test_concept_write_identity_dual_vault_current_state(gate_client):
         name=SHARED_CONCEPT,
     )
     gids = [r["gid"] for r in rows]
-    # 正确的 W1 语义: 两个物理节点, 各归其 vault。
-    # 现状: 单节点, group_id 被 B 的写入 clobber → 此断言失败 (xfail)。
+    # W1 语义: 两个物理节点, 各归其 vault。
     assert gids == [GID_A, GID_B], f"W1 write identity clobbered: {gids}"
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=_W1_XFAIL_REASON)
 async def test_learned_edge_write_identity_dual_vault_current_state(gate_client):
-    """期望行为: 同一 user 在两 vault 各有一条 LEARNED 边, r.group_id 各归其组.
+    """W1 行为门: 同一 user 在两 vault 各有一条 LEARNED 边, 分数互不覆盖.
 
-    现状: 因 Concept 节点被合并成一个, MERGE (u)-[r:LEARNED]->(c) 也
-    合并成单条边, r.group_id/r.score 被后写 vault 覆盖 → xfailed。
+    G2-3 修复后 Concept 节点按组分立, LEARNED 边身份含 {group_id} —
+    每 vault 一条边, r.group_id/r.score 各归其组。
     """
     ok_a = await gate_client.create_learning_relationship(
         user_id=f"{GATE_PREFIX}_user",
@@ -372,3 +383,364 @@ async def test_learned_edge_write_identity_dual_vault_current_state(gate_client)
     assert [(r["gid"], r["score"]) for r in rows] == [(GID_A, 80), (GID_B, 60)], (
         f"LEARNED edge identity clobbered: {rows}"
     )
+
+
+# ---------------------------------------------------------------------------
+# 门 4 — G2-3 写身份扩展行为门 (BATCH-2026-08-28-第五批 / CARD-G2-3)
+# 每类违规至少一条: W1 #5/#6/#9/#10、W2 #7/#15、W5 #16、fallback replay、
+# group 缺失 fail-closed。全部走真实业务写路径, 不 mock。
+# ---------------------------------------------------------------------------
+
+
+async def test_canvas_node_write_identity_dual_vault(gate_client):
+    """W1 #5 行为门: Canvas/Node 写身份 {path/id, group_id} 复合键 — 双组独立."""
+    shared_canvas = f"{GATE_PREFIX}_shared.canvas"
+    shared_node = f"{GATE_PREFIX}_shared_node"
+    ok_a = await gate_client.create_canvas_node_relationship(
+        canvas_path=shared_canvas,
+        node_id=shared_node,
+        node_text="from A",
+        group_id=GID_A_LOGICAL,
+    )
+    ok_b = await gate_client.create_canvas_node_relationship(
+        canvas_path=shared_canvas,
+        node_id=shared_node,
+        node_text="from B",
+        group_id=GID_B_LOGICAL,
+    )
+    assert ok_a and ok_b
+
+    rows = await gate_client.run_query(
+        "MATCH (c:Canvas {path: $path}) RETURN c.group_id AS gid ORDER BY gid",
+        path=shared_canvas,
+    )
+    assert [r["gid"] for r in rows] == [GID_A, GID_B], f"Canvas identity merged: {rows}"
+
+    rows = await gate_client.run_query(
+        "MATCH (n:Node {id: $id}) RETURN n.group_id AS gid, n.text AS text ORDER BY gid",
+        id=shared_node,
+    )
+    # B 的写入不得覆盖 A 的 node_text (旧实现单身份节点 last-write-wins)
+    assert [(r["gid"], r["text"]) for r in rows] == [
+        (GID_A, "from A"),
+        (GID_B, "from B"),
+    ], f"Node identity clobbered: {rows}"
+
+
+async def test_score_history_write_identity_dual_vault(gate_client):
+    """W1 #9 行为门: record_score_history 双组独立 (Node/Canvas/Episode 全带组)."""
+    node_id = f"{GATE_PREFIX}_score_node"
+    canvas = f"{GATE_PREFIX}_score.canvas"
+    ok_a = await gate_client.record_score_history(node_id, canvas, 80, group_id=GID_A_LOGICAL)
+    ok_b = await gate_client.record_score_history(node_id, canvas, 60, group_id=GID_B_LOGICAL)
+    assert ok_a and ok_b
+
+    for gid, expected_score in ((GID_A, 80), (GID_B, 60)):
+        rows = await gate_client.run_query(
+            "MATCH (e:Episode {group_id: $gid})-[s:SCORED]->(n:Node {id: $id, group_id: $gid}) RETURN s.score AS score",
+            gid=gid,
+            id=node_id,
+        )
+        assert [r["score"] for r in rows] == [expected_score], f"score history crossed groups (gid={gid}): {rows}"
+
+
+async def test_edge_delete_scoped_dual_vault(gate_client):
+    """W2 #7 行为门: 删 A 组 CONNECTS_TO 边不影响 B 组同 edge_id 边."""
+    canvas = f"{GATE_PREFIX}_edges.canvas"
+    edge_id = f"{GATE_PREFIX}_edge_1"
+    for gid in (GID_A_LOGICAL, GID_B_LOGICAL):
+        ok = await gate_client.create_edge_relationship(
+            canvas_path=canvas,
+            edge_id=edge_id,
+            from_node_id=f"{GATE_PREFIX}_from",
+            to_node_id=f"{GATE_PREFIX}_to",
+            edge_label="rel",
+            group_id=gid,
+        )
+        assert ok
+
+    deleted = await gate_client.delete_edge_relationship(edge_id, group_id=GID_A_LOGICAL)
+    assert deleted is True
+
+    rows = await gate_client.run_query(
+        "MATCH ()-[r:CONNECTS_TO {edge_id: $eid}]->() RETURN r.group_id AS gid",
+        eid=edge_id,
+    )
+    assert [r["gid"] for r in rows] == [GID_B], f"delete crossed groups: {rows}"
+
+
+async def test_canvas_association_scoped_update_and_delete(gate_client):
+    """W1 #10 + W5 #16 + W2 #15 行为门: update/delete A 组关联不动 B 组."""
+    assoc_id = f"{GATE_PREFIX}_assoc_1"
+    for gid in (GID_A_LOGICAL, GID_B_LOGICAL):
+        ok = await gate_client.create_canvas_association(
+            association_id=assoc_id,
+            source_canvas=f"{GATE_PREFIX}_src.canvas",
+            target_canvas=f"{GATE_PREFIX}_dst.canvas",
+            association_type="related",
+            confidence=1.0,
+            group_id=gid,
+        )
+        assert ok
+
+    # W5: update A 不动 B
+    updated = await gate_client.update_canvas_association(assoc_id, confidence=0.25, group_id=GID_A_LOGICAL)
+    assert updated is True
+    rows = await gate_client.run_query(
+        "MATCH ()-[r:ASSOCIATED_WITH {association_id: $aid}]->() "
+        "RETURN r.group_id AS gid, r.confidence AS conf ORDER BY gid",
+        aid=assoc_id,
+    )
+    assert [(r["gid"], r["conf"]) for r in rows] == [
+        (GID_A, 0.25),
+        (GID_B, 1.0),
+    ], f"update crossed groups: {rows}"
+
+    # W2: delete A 不影响 B
+    deleted = await gate_client.delete_canvas_association(assoc_id, group_id=GID_A_LOGICAL)
+    assert deleted is True
+    rows = await gate_client.run_query(
+        "MATCH ()-[r:ASSOCIATED_WITH {association_id: $aid}]->() RETURN r.group_id AS gid, r.confidence AS conf",
+        aid=assoc_id,
+    )
+    assert [(r["gid"], r["conf"]) for r in rows] == [(GID_B, 1.0)], f"delete crossed groups: {rows}"
+
+
+async def test_fallback_replay_write_identity_dual_vault(gate_client):
+    """fallback_sync 行为门: 双 vault replay 不合并, 分数互不覆盖.
+
+    对应 fallback_sync_service._replay_scoring_entry_to_neo4j (原 :352 违规)
+    与 _replay_learning_memory_to_neo4j (原 :458 违规) 的复合键修复。
+    ContextVar 切换 vault (业务真实机制), 不 mock 组解析。
+    """
+    from app.core.subject_config import _current_subject_id
+    from app.services.fallback_sync_service import FallbackSyncService
+
+    svc = FallbackSyncService(neo4j_client=gate_client)
+    concept = f"{GATE_PREFIX}_replay_concept"
+    base_entry = {
+        "concept": concept,
+        "canvas_name": f"{GATE_PREFIX}_replay.canvas",
+        "timestamp": "2026-08-28T00:00:00",
+    }
+
+    # 写序纪律 (对抗审查 2026-08-28 整改): 单键 MERGE 的 clobber 只在"库里
+    # 已有他组同名节点"时显形 —— 若某个 replay 函数只承担**第一笔**写入,
+    # 把它退回单键+SET 也测不出来 (无可劫持对象)。故两个函数各承担一次
+    # "第二笔": scoring A → learning B → scoring B(二笔) → learning A(二笔)。
+    async def _replay(fn, gid_logical, entry):
+        token = _current_subject_id.set(gid_logical)
+        try:
+            return await fn(entry)
+        finally:
+            _current_subject_id.reset(token)
+
+    ok = [
+        await _replay(svc._replay_scoring_entry_to_neo4j, GID_A_LOGICAL, {**base_entry, "score": 80}),
+        await _replay(svc._replay_learning_memory_to_neo4j, GID_B_LOGICAL, {**base_entry, "score": 60}),
+        # 第二笔: 此时库里已有他组同名节点, 单键回退必然 clobber
+        await _replay(
+            svc._replay_scoring_entry_to_neo4j,
+            GID_B_LOGICAL,
+            {**base_entry, "score": 61, "timestamp": "2026-08-28T01:00:00"},
+        ),
+        await _replay(
+            svc._replay_learning_memory_to_neo4j,
+            GID_A_LOGICAL,
+            {**base_entry, "score": 81, "timestamp": "2026-08-28T01:00:00"},
+        ),
+    ]
+    assert all(ok), f"replay returned False: {ok}"
+
+    rows = await gate_client.run_query(
+        "MATCH (:User {id: 'default_user'})-[r:LEARNED]->(c:Concept {name: $name}) "
+        "RETURN c.group_id AS cgid, r.group_id AS rgid, r.score AS score "
+        "ORDER BY cgid",
+        name=concept,
+    )
+    # 每组恰一个节点一条边; 组内 LWW 生效 (后写的 81/61 覆盖同组先写),
+    # 组间零串写。
+    assert [(r["cgid"], r["rgid"], r["score"]) for r in rows] == [
+        (GID_A, GID_A, 81),
+        (GID_B, GID_B, 61),
+    ], f"fallback replay merged across vaults: {rows}"
+
+
+async def test_group_unresolvable_fail_closed_no_500(gate_client, caplog):
+    """缺失路径门: group 解析失败 → 拒写返 False, 不抛异常 (防 500), 零写入.
+
+    G2-3 (b): fail-closed 策略 — 不静默降级 DEFAULT_GROUP_ID (降级须
+    [Decision] 记录), logger.error 首日观察。null 若进 MERGE 键会被
+    Neo4j 服务端 500, 本门证明 null 永远到不了服务端。
+
+    鉴别力设计 (对抗审查 2026-08-28 两轮整改):
+    1. delete/update 断言落在**真实存在的目标**上 —— 只对凭空 ID 断言
+       False 无法区分"fail-closed 拒绝"与"降级后没找到目标"。
+    2. 目标同时在 **A 组** 与 **DEFAULT 组** 各布一条同 ID 的 canary ——
+       静默降级 DEFAULT (契约明令禁止、破坏面最大的回归) 会精确命中
+       DEFAULT canary 并删掉它; 只验 A 组存活抓不到这种降级。
+    3. 断言 logger.error 真的发出 (fail-closed 的可观测契约, goal (b)
+       首日观察要求) —— 降级路径不会记录拒绝日志。
+    """
+    import logging as _logging
+
+    from app.core.subject_config import _current_subject_id
+
+    default_gid_logical = "vault:default"
+    default_gid = to_physical_group_id(default_gid_logical)
+
+    concept = f"{GATE_PREFIX}_failclosed_concept"
+    live_edge = f"{GATE_PREFIX}_fc_edge"
+    live_assoc = f"{GATE_PREFIX}_fc_assoc"
+    # 同 ID 双组布点: A 组 = 正常目标; DEFAULT 组 = 降级回归的 canary
+    for gid in (GID_A_LOGICAL, default_gid_logical):
+        assert await gate_client.create_edge_relationship(
+            canvas_path=f"{GATE_PREFIX}_fc.canvas",
+            edge_id=live_edge,
+            from_node_id=f"{GATE_PREFIX}_fc_from",
+            to_node_id=f"{GATE_PREFIX}_fc_to",
+            group_id=gid,
+        )
+        assert await gate_client.create_canvas_association(
+            association_id=live_assoc,
+            source_canvas=f"{GATE_PREFIX}_fc_src.canvas",
+            target_canvas=f"{GATE_PREFIX}_fc_dst.canvas",
+            association_type="related",
+            confidence=1.0,
+            group_id=gid,
+        )
+
+    caplog.clear()
+    token = _current_subject_id.set("general")  # 无 vault 上下文
+    try:
+        with caplog.at_level(_logging.ERROR):
+            ok = await gate_client.create_learning_relationship(
+                user_id=f"{GATE_PREFIX}_user_fc",
+                concept=concept,
+                score=50,
+                group_id=None,
+            )
+            assert ok is False
+            # W2 delete / W5 update 同口径 fail-closed
+            assert await gate_client.delete_edge_relationship(live_edge) is False
+            assert await gate_client.update_canvas_association(live_assoc, confidence=0.5) is False
+            assert await gate_client.delete_canvas_association(live_assoc) is False
+    finally:
+        _current_subject_id.reset(token)
+
+    rows = await gate_client.run_query("MATCH (c:Concept {name: $name}) RETURN count(c) AS n", name=concept)
+    assert rows[0]["n"] == 0, "fail-closed path must write nothing"
+
+    # 鉴别力核心 1: 两组目标都必须毫发无损 (DEFAULT canary 尤其 ——
+    # 静默降级会精确删掉它)
+    rows = await gate_client.run_query(
+        "MATCH ()-[r:CONNECTS_TO {edge_id: $eid}]->() RETURN r.group_id AS gid ORDER BY gid",
+        eid=live_edge,
+    )
+    assert sorted(r["gid"] for r in rows) == sorted([GID_A, default_gid]), (
+        f"fail-closed delete removed an edge (silent DEFAULT downgrade?): {rows}"
+    )
+    rows = await gate_client.run_query(
+        "MATCH ()-[r:ASSOCIATED_WITH {association_id: $aid}]->() "
+        "RETURN r.group_id AS gid, r.confidence AS conf ORDER BY gid",
+        aid=live_assoc,
+    )
+    assert sorted((r["gid"], r["conf"]) for r in rows) == sorted([(GID_A, 1.0), (default_gid, 1.0)]), (
+        f"fail-closed update/delete touched an association: {rows}"
+    )
+
+    # 鉴别力核心 2: 四次拒绝都必须留下 fail-closed 错误日志 (goal (b))
+    refusals = [r for r in caplog.records if "fail-closed" in r.message]
+    assert len(refusals) >= 4, f"missing fail-closed observability: {[r.message for r in caplog.records]}"
+
+    # DEFAULT 组 canary 不带 gate 前缀 group, 显式清理
+    await gate_client.run_query(
+        "MATCH ()-[r:CONNECTS_TO {edge_id: $eid, group_id: $gid}]->() DELETE r",
+        eid=live_edge,
+        gid=default_gid,
+    )
+    await gate_client.run_query(
+        "MATCH ()-[r:ASSOCIATED_WITH {association_id: $aid, group_id: $gid}]->() DELETE r",
+        aid=live_assoc,
+        gid=default_gid,
+    )
+    await gate_client.run_query(
+        "MATCH (c:Canvas) WHERE c.path STARTS WITH $p AND c.group_id = $gid DETACH DELETE c",
+        p=GATE_PREFIX,
+        gid=default_gid,
+    )
+    await gate_client.run_query(
+        "MATCH (n:Node) WHERE n.id STARTS WITH $p AND n.group_id = $gid DETACH DELETE n",
+        p=GATE_PREFIX,
+        gid=default_gid,
+    )
+
+
+# ---------------------------------------------------------------------------
+# 门 5 — 组解析链正向分支行为门 (对抗审查 2026-08-28 整改)
+# 门 4 全部传显式 group_id (解析链分支 1), fail-closed 门只覆盖"解析失败"。
+# 但生产主管道恰恰靠分支 2/3: memory_service 的 canvas 节点/边写入不传 group、
+# canvas_service create/delete edge 只传 canvas_path。以下两条锁死这两个分支。
+# ---------------------------------------------------------------------------
+
+
+async def test_group_resolved_from_contextvar_branch(gate_client):
+    """解析链分支 2: 不传 group_id, 由 ContextVar (请求边界 vault) 解析."""
+    from app.core.subject_config import _current_subject_id
+
+    concept = f"{GATE_PREFIX}_ctxvar_concept"
+    token = _current_subject_id.set(GID_B_LOGICAL)
+    try:
+        ok = await gate_client.create_learning_relationship(
+            user_id=f"{GATE_PREFIX}_user_ctx", concept=concept, score=70
+        )
+    finally:
+        _current_subject_id.reset(token)
+    assert ok is True
+
+    rows = await gate_client.run_query(
+        "MATCH (:User {id: $uid})-[r:LEARNED]->(c:Concept {name: $name}) RETURN c.group_id AS cgid, r.group_id AS rgid",
+        uid=f"{GATE_PREFIX}_user_ctx",
+        name=concept,
+    )
+    assert [(r["cgid"], r["rgid"]) for r in rows] == [(GID_B, GID_B)], (
+        f"ContextVar branch did not attribute to the request vault: {rows}"
+    )
+
+
+async def test_group_resolved_from_canvas_path_branch(gate_client):
+    """解析链分支 3: 无 group_id 无 ContextVar, 由 canvas_path 推导 vault:default.
+
+    这是 memory_service.record_temporal_event 的 canvas 节点/边写入实际
+    走的分支 (本卡铁律不碰 memory_service, 由 client 端兜底)。
+    """
+    from app.clients.neo4j_client import _resolve_physical_group_id
+    from app.core.subject_config import _current_subject_id
+
+    canvas_path = f"{GATE_PREFIX}_pathderive/{GATE_PREFIX}_board.canvas"
+    node_id = f"{GATE_PREFIX}_pathderive_node"
+    expected_gid = _resolve_physical_group_id(None, canvas_path)
+
+    token = _current_subject_id.set("general")  # 无 vault 上下文 → 落 canvas 推导
+    try:
+        ok = await gate_client.create_canvas_node_relationship(
+            canvas_path=canvas_path, node_id=node_id, node_text="derived"
+        )
+    finally:
+        _current_subject_id.reset(token)
+    assert ok is True
+    assert expected_gid and expected_gid.startswith("vault__"), f"derived gid not physical: {expected_gid}"
+
+    rows = await gate_client.run_query(
+        "MATCH (c:Canvas {path: $path})-[r:CONTAINS_NODE]->(n:Node {id: $nid}) "
+        "RETURN c.group_id AS cgid, n.group_id AS ngid, r.group_id AS rgid",
+        path=canvas_path,
+        nid=node_id,
+    )
+    assert [(r["cgid"], r["ngid"], r["rgid"]) for r in rows] == [(expected_gid, expected_gid, expected_gid)], (
+        f"canvas_path derivation branch broken: {rows}"
+    )
+
+    # 清理: 该分支产出的 group 不带 gate 前缀, 模块级 cleanup 靠 path/id 兜底
+    await gate_client.run_query("MATCH (c:Canvas {path: $path}) DETACH DELETE c", path=canvas_path)
+    await gate_client.run_query("MATCH (n:Node {id: $nid}) DETACH DELETE n", nid=node_id)
