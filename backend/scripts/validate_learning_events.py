@@ -481,7 +481,8 @@ def scan_ledger_bytes(raw: bytes, node_id: object) -> tuple[dict, list[str]]:
       - `applicable`：[(行号, review_time, event_id)] —— node 相同、
         `event_version == 1`、`schema_ext == "review/1"`、未标 `out_of_order`
         (或标了但语义不成立) 的事件;
-      - `node_event_lines`：该节点的**全部**事件行号 (不限 review/1) ——
+      - `node_event_lines`：该节点**全部 v1 事件**的行号 (不限 review/1; 未知
+        版本的行不在其中, 单列于 `unknown_version_lines`) ——
         §6.2 genesis 锚要求的是"最早一条事件", 不是"最早适用事件";
       - `unextended_lines`：该节点**无 review/1 扩展**的事件行号 —— 存在即
         禁止走 new_card 分支 (§6.2: 账本历史不完整时须人工裁定);
@@ -490,7 +491,8 @@ def scan_ledger_bytes(raw: bytes, node_id: object) -> tuple[dict, list[str]]:
         集合 (含标了 out_of_order 的行 —— round-18 HIGH: 若只收适用集, 一条合法
         乱序行就能把另一个 vault 的事件藏起来);
       - `review_ext_lines`：该节点全部 review/1 行的行号 (vault 覆盖率的分母);
-      - `unknown_version_lines`：event_version != 1 的行号 (proof 无法解释);
+      - `unknown_version_lines`：该节点 event_version != 1 的行号 (proof 无法解释);
+      - `unroutable_lines`：缺少可用 node_id 的行号 (归属不可判定, §一 路由信封);
       - `bad_lines`：无法解码/解析的行号。
 
     ⚠️ 只接受**字节**而非路径: proof 校验必须在单一快照上完成, 否则抽取与
@@ -509,6 +511,7 @@ def scan_ledger_bytes(raw: bytes, node_id: object) -> tuple[dict, list[str]]:
         "bad_lines": [],
         "blank_lines": [],
         "unknown_version_lines": [],
+        "unroutable_lines": [],
     }
     for idx, chunk in enumerate(_split_ledger_lines(raw), start=1):
         if not chunk.strip():
@@ -523,7 +526,18 @@ def scan_ledger_bytes(raw: bytes, node_id: object) -> tuple[dict, list[str]]:
             # 是否本应参与该节点的 proof, 静默跳过即静默削弱尾部门 ⇒ fail-closed
             scan["bad_lines"].append(idx)
             continue
-        if not isinstance(record, dict) or record.get("node_id") != node_id:
+        if not isinstance(record, dict):
+            continue
+        # round-20 Codex MEDIUM: 原实现**先按 v1 的 node_id 过滤、再判版本** ——
+        # 一条改名/删除了 node_id 的合法 v2 行会被当成"不属于本节点"整个跳过,
+        # scanner 完全看不见它 ⇒ proof 静默放过无法解释的记录。§一 已冻结
+        # 路由信封 (event_id/event_version/node_id 任何版本都必须保留), 故缺
+        # node_id 的记录一律**不可路由**并 fail-closed —— 恰恰因为无法判定归属。
+        raw_node = record.get("node_id")
+        if not isinstance(raw_node, str):
+            scan["unroutable_lines"].append(idx)
+            continue
+        if raw_node != node_id:
             continue
         # round-19 Codex MEDIUM: 主体按 §一 前向兼容规则跳过未知 event_version,
         # 而 scanner 原本解析后直接按 v1 取字段 —— 一条**合法的** v2 行会被当 v1
@@ -707,6 +721,11 @@ def _verify_proof_level(
                 problems.append("E 所在行无终止 LF, 必须写 prefix_ends_without_lf: true")
             if not ends_without_lf and "prefix_ends_without_lf" in proof:
                 problems.append("E 所在行有终止 LF, 必须省略 prefix_ends_without_lf")
+        if scan["unroutable_lines"]:
+            problems.append(
+                f"账本第 {scan['unroutable_lines']} 行缺少可用的 node_id — 按 §一 路由信封条款"
+                f"无法判定其归属 (不能因'看起来不属于本节点'就跳过), fail-closed"
+            )
         if scan["unknown_version_lines"]:
             problems.append(
                 f"该节点第 {scan['unknown_version_lines']} 行的 event_version != {EVENT_VERSION} — "
@@ -740,7 +759,7 @@ def _verify_proof_level(
             # 真实 vault 均有 .canvas-config.yaml, 故此处 fail-closed 是安全的。
             if not vault_ids and ledger_vault_id is None:
                 problems.append(
-                    f"vault 身份无任何证据可绑 (适用事件均无 vault_id, 且账本目录无可解析的 "
+                    f"vault 身份无任何证据可绑 (该节点 review/1 事件均无 vault_id, 且账本目录无可解析的 "
                     f".canvas-config.yaml) — proof 声称的 {claimed!r} 纯属自报, fail-closed"
                 )
             # 部分行带 vault_id、部分行不带 ⇒ 集合不足以判定全体

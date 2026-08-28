@@ -2270,3 +2270,50 @@ def test_scope_normalizer_detects_internal_whitespace_change():
     # 而**折行**造成的差异必须被正规化吸收
     wrapped = _normalized_scope_items(["# ① review_time /", "#    event_id;"], lambda ln: True, lambda ln: False)
     assert wrapped == a, (wrapped, a)
+
+
+def test_v2_without_node_id_is_unroutable_not_silently_skipped(tmp_path):
+    """改名/删除 `node_id` 的合法 v2 行必须判**不可路由**并 fail-closed。
+
+    二十轮 Codex MEDIUM: 原实现先按 v1 的 node_id 过滤、再判版本 —— 一条改名了
+    node_id 的 v2 行被当成"不属于本节点"整个跳过, scanner 完全看不见它, proof
+    静默返回 []。§一 已冻结路由信封: 缺 node_id 一律不可路由, 因为**恰恰无法
+    判定归属**。
+    """
+    future = json.dumps(
+        {"event_id": "future:1", "event_version": 2, "brand_new_field": True, "payload_v2": {"concept_ref": "n"}}
+    )
+    ledger = _ledger_with(tmp_path, [_event("e1", _T1, vault_id="v"), future])
+    scan, _ = validator.scan_ledger_bytes(ledger.read_bytes(), "n")
+    assert scan["unroutable_lines"] == [2], scan
+
+    prefix, _, _ = validator.ledger_prefix(ledger, 1)
+    proof = _leaf(1, _T1, first_event_line=1, ledger_prefix_sha256=prefix)
+    problems = validator.verify_degraded_proof(proof, [], ledger_path=ledger)
+    assert any("不可路由" in p or "无法判定其归属" in p for p in problems), problems
+
+
+def test_v2_of_another_node_does_not_false_reject(tmp_path):
+    """保留了路由信封、但属于**别的节点**的 v2 行不得误伤本节点的 proof。
+
+    二十轮 Codex 指出的**误拒方向** survivor: 把版本判断前移到 node 过滤之前时,
+    `event_version=2, node_id=other` 会误拒节点 n 的 proof, 而契约测试仍全绿。
+    """
+    other = json.loads(_event("v2other", _T2, vault_id="v"))
+    other["event_version"] = 2
+    other["node_id"] = "other-node"
+    ledger = _ledger_with(tmp_path, [_event("e1", _T1, vault_id="v"), json.dumps(other)])
+    scan, _ = validator.scan_ledger_bytes(ledger.read_bytes(), "n")
+    assert scan["unknown_version_lines"] == [] and scan["unroutable_lines"] == [], scan
+
+    prefix, _, _ = validator.ledger_prefix(ledger, 1)
+    proof = _leaf(1, _T1, first_event_line=1, ledger_prefix_sha256=prefix)
+    assert validator.verify_degraded_proof(proof, [], ledger_path=ledger) == []
+
+
+def test_routing_envelope_is_frozen_in_schema():
+    """§一 必须成文冻结路由信封 —— 否则跨版本 routing 只能靠猜。"""
+    schema = (WT / "docs" / "learning-events-schema-v1.md").read_text(encoding="utf-8")
+    assert "路由信封" in schema
+    for key in ("event_id", "event_version", "node_id"):
+        assert key in schema.split("路由信封")[1][:400], key

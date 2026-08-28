@@ -79,7 +79,10 @@ mutate() {
 run_pytest() {
   OUT="$(cd "$WT/backend" && "$PY" -m pytest "$TESTS" -q -k "$1" 2>&1)"
   RC=$?
-  COLLECTED="$(grep -oE "[0-9]+ (passed|failed|deselected)" <<<"$OUT" | awk '{s+=$1} END {print s+0}')"
+  # round-20 Codex MEDIUM: 原实现对整份输出做全局 grep, 汇总行与 short summary
+  # 会被重复累加 (实际 171 项算成 334)。只取**最后一行汇总**再累加。
+  COLLECTED="$(grep -E "(passed|failed|deselected|no tests ran)" <<<"$OUT" | tail -1 \
+    | grep -oE "[0-9]+ (passed|failed|deselected)" | awk '{s+=$1} END {print s+0}')"
 }
 
 # expect_red <预期失败的测试名 | 竖线分隔的多个> <-k 表达式>
@@ -186,7 +189,7 @@ restore || exit 1
 echo
 echo "=== 变体G: 算法身份不绑 manifest (round-15 Codex HIGH) ==="
 if mutate 's/        elif manifest is not None and version != manifest\["library_version"\]:/        elif False:/'; then
-  expect_red "test_algorithm_identity_binds_to_golden_manifest\[fsrs_library_version-garbage" "algorithm_identity"
+  expect_red "test_algorithm_identity_binds_to_golden_manifest\[fsrs_library_version-garbage-[^]]*\]" "algorithm_identity"
 fi
 restore || exit 1
 
@@ -221,7 +224,7 @@ restore || exit 1
 echo
 echo "=== 变体L: scheduler_config 退回 Python == 比较 (round-16 HIGH) ==="
 if mutate 's/            if _canon\(config\) != _canon\(manifest\["scheduler_config"\]\):/            if config != manifest["scheduler_config"]:/'; then
-  expect_red "test_scheduler_config_compared_by_canonical_json" "canonical_json"
+  expect_red "test_scheduler_config_compared_by_canonical_json\[config0-enable_fuzzing\]|test_scheduler_config_compared_by_canonical_json\[config1-learning_steps_minutes\]" "canonical_json"
 fi
 restore || exit 1
 
@@ -255,7 +258,10 @@ restore || exit 1
 
 echo
 echo "=== 变体Q: vault 收集退回 out_of_order 的 continue 之后 (round-18 HIGH) ==="
-if mutate 's/        vault_id = payload.get\("vault_id"\)\n        if isinstance\(vault_id, str\) and vault_id:\n            scan\["vault_ids"\].add\(vault_id\)\n            scan\["vault_id_lines"\].add\(idx\)\n        scan\["review_ext_lines"\].append\(idx\)/        scan["review_ext_lines"].append(idx)/'; then
+echo "    round-20 Codex: 原变体是**删除**收集 (靠「无 vault 证据」的替代 fail-closed 变红),"
+echo "    不能证明「次序」本身承重。现忠实地把收集移到 continue 之后。"
+if mutate 's/        vault_id = payload.get\("vault_id"\)\n        if isinstance\(vault_id, str\) and vault_id:\n            scan\["vault_ids"\].add\(vault_id\)\n            scan\["vault_id_lines"\].add\(idx\)\n        scan\["review_ext_lines"\].append\(idx\)\n/        scan["review_ext_lines"].append(idx)\n/' \
+   && mutate 's/        review_time = payload.get\("review_time"\)\n/        vault_id = payload.get("vault_id")\n        if isinstance(vault_id, str) and vault_id:\n            scan["vault_ids"].add(vault_id)\n            scan["vault_id_lines"].add(idx)\n        review_time = payload.get("review_time")\n/'; then
   expect_red test_genuine_out_of_order_cannot_hide_another_vault "hide_another_vault"
 fi
 restore || exit 1
@@ -278,6 +284,20 @@ echo
 echo "=== 变体T: 拆掉「部分行带 vault_id」分支 (round-19: 与变体O 是两个不同的门) ==="
 if mutate 's/            elif vault_ids and len\(vault_ids\) == 1:/            elif False:/'; then
   expect_red "test_vault_identity_without_evidence_fails_closed\[partial\]" "without_evidence"
+fi
+restore || exit 1
+
+echo
+echo "=== 变体U: 缺 node_id 的记录退回静默跳过 (round-20 MEDIUM) ==="
+if mutate 's/        if not isinstance\(raw_node, str\):\n            scan\["unroutable_lines"\].append\(idx\)\n            continue/        if not isinstance(raw_node, str):\n            continue/'; then
+  expect_red test_v2_without_node_id_is_unroutable_not_silently_skipped "unroutable"
+fi
+restore || exit 1
+
+echo
+echo "=== 变体V: 版本判断前移到 node 过滤之前 (round-20 误拒方向 survivor) ==="
+if mutate 's/        if raw_node != node_id:\n            continue\n/        if record.get("event_version") != EVENT_VERSION:\n            scan["unknown_version_lines"].append(idx)\n            continue\n        if raw_node != node_id:\n            continue\n/'; then
+  expect_red test_v2_of_another_node_does_not_false_reject "another_node"
 fi
 restore || exit 1
 

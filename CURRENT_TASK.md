@@ -2,29 +2,29 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**本车道状态**（2026-08-29 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **十九轮 Codex 已出；⭐ CARD-G3-4 连续五轮「可验收」；G3-1 的 5 MEDIUM + 2 LOW 全清，HIGH 是环境事件待用户裁决**）:
-- ⛔⛔ **用户裁决点（十九轮 HIGH，环境事件非代码缺陷）**：**现网账本从 23 行回退到 22 行**，
-  当前 SHA `2a18023e` 与 **Codex 第一轮存证的批次开始状态逐字节相同** ⇒ 更像有意回滚而非损坏。
-  本卡全程只读该文件（二十笔 commit 无一触及 `canvas-vault/`）；文件 git untracked 无历史，
-  本卡存证只记行数+SHA **未留第 23 条内容** ⇒ 若那是真实学习事件则不可从本卡产物还原。
-  **请确认是否你/另一车道有意为之；本卡不碰 live vault、不代做恢复**
-- ⭐ **CARD-G3-4 = 可验收**（十五轮判定，十六~十九轮复核均保持）
-- ✅ G3-1 十九轮 5 MEDIUM + 2 LOW 全清：①**未知 `event_version=2` 被当 v1 解释致合法 proof 误拒**
-  ⇒ scanner 加版本分流 + fail-closed（门里显式断言不再是"vault 不符"假阳性）；②manifest 六键参数
-  改字面量（原取自被测常量 ⇒ 删键时参数集同步缩小，survivor 恒绿）；③`review_ext_lines` 与
-  applicable 的差异点补门；④**三处同文门的正规化被我写宽了**（`\s+`→`""` 会把 `a / b` 与 `a/b`
-  判同）⇒ 改按空格重拼 + 折叠，**严格化后三处仍逐字同文**；⑤docstring 口径更新
-- 裁判实测：契约 **170 passed + 1 skipped**、三文件合跑 **195 passed + 1 skipped**、
+**本车道状态**（2026-08-29 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **二十轮 Codex：HIGH 清零；⭐ CARD-G3-4 连续六轮「可验收」；G3-1 的 3 MEDIUM + 2 LOW 全清**）:
+- ⚠️⚠️ **更正一条我上轮给用户的错误事实**：曾报"账本无备份、第 23 条不可恢复、需用户裁决"——**错的**。
+  错因是 **zsh 未匹配的 glob 会中止整条命令**（`ls -d canvas-vault-backup* backups*` 里前者无匹配 ⇒
+  `backups*` 从未求值 ⇒ 回退分支误报"无备份"）。实况：`backups/learning_events.jsonl.
+  pre-s1-cleanup-20260829-061014` 一直在（23 行 `f78b99f3`），当前文件恰是它的前 7232 字节，
+  缺失行是**测试探针** `callout:c-409-guard`，另一车道**经授权**清理 S1 污染，**可完整恢复、非阻塞点**。
+  已写入记忆 `reference_zsh_unmatched_glob_aborts`，附纪律："没找到"≠"不存在"，断言不存在前须换独立手段复查
+- ⭐ **CARD-G3-4 = 可验收**（十五轮判定，十六~二十轮复核均保持）
+- ✅ G3-1 二十轮 3 MEDIUM + 2 LOW 全清：①**跨版本 routing 冻结**——schema §一 新增**路由信封**
+  （`event_id`/`event_version`/`node_id` 任何版本必须保留，优先于"v2 可改名任一顶层字段"），实现改为
+  缺 node_id ⇒ 不可路由 ⇒ fail-closed；**逃逸与误拒双向都有门**；②负验证 G/L/Q 归因修正
+  （**Q 原是删除收集、证不了次序承重**，改为忠实两步搬移）+ `COLLECTED` 不再重复累加（171→334 修为 174）；
+  ③scanner 键说明与诊断措辞
+- 裁判实测：契约 **173 passed + 1 skipped**、三文件合跑 **198 passed + 1 skipped**、
   golden 19 + `test_fsrs_manager.py` 37 = 56、现网账本（22 行）exit 0 且 SHA 恒 `2a18023e`、
-  锁定 blob 恒定（`28cdaa18` / `980b3758`）
-- 负验证**二十变体全承重**、脚本 exit 0。⚠️ 已登记边界：预期测试体内的运行时异常也会被记作 FAILED，
-  脚本无法与"门真的变红"区分（缓解 = 基线段先确认全绿）
+  锁定 blob 恒定（`28cdaa18` / `980b3758`）；提交数 **21**（`git rev-list --count 37387a86..HEAD`）
+- 负验证**二十二变体全承重**、基线收集 174 项、脚本 exit 0
 - ⛔ 移交（schema §九 逐条登记）：①test.yml 白名单 +2 测试 + root requirements paths（S8 独占；
   **CI DEFERRED/NOT-EXECUTED**）；②**G3-2 五项**；③**G3-3 七项**；④tips.py 两条 → 独立 micro-patch
-- ⚠️ **负验证脚本必须串行**（记忆已录）；**运行期间不得编辑任何被测文件**（十七轮曾因此丢失整批修改）
+- ⚠️ **负验证脚本必须串行**；**运行期间不得编辑任何被测文件**（十七轮曾因此丢失整批修改）
 - ⚠️ 环境：本 worktree 的 pytest 须用 `backend/.venv/bin/python`（仓根 `.venv` 无 fastapi）
 - 纪律守住：learning_event_log.py / fsrs_manager.py 零改动；不 push；不碰 live vault 与 Neo4j 7691
-- 待办：用户裁决账本回退 → Codex 二十轮复核（只需审 G3-1）→ 用户验收两单
+- 待办：Codex 二十一轮复核（只需审 G3-1）→ 用户验收两单
 
 ---
 
