@@ -1,6 +1,6 @@
-== CARD-G4-9 只读自证（round-8 整改版）==
-脚本 sha256: 478332860a15f9294681c33702a5df4af7bff9a8fefb05e91abefe865d0e68e1
-生成时点: round-8 整改后（随每轮整改重生成）
+== CARD-G4-9 只读自证（round-9 整改版）==
+脚本 sha256: e7f6d27e1d981e124c183b2586d4a4a2623a8f31d1b87894a15af266afcb11d0
+回归测试: backend/tests/regression/test_census_dead_letter_readonly_contract.py（19 passed，固化 8 轮审查反例）
 
 --- (1) 全部 import 行（应只有 stdlib）:
 52:from __future__ import annotations
@@ -21,40 +21,33 @@
 --- (3) --apply 定义（应 0）:
 0
 0 ✓
---- (4) 无任何截断调用（os.ftruncate / .truncate( 命中应 0）:
+--- (4) 无任何截断调用（应 0）:
 0
 0 ✓
---- (5) 唯一写出口 = O_EXCL 新建 tmp → fsync → os.replace → fsync 父目录:
-795:        # round-7 架构整改: 不再截断既有文件 —— 同目录 O_EXCL 新建临时文件 →
-796:        # 写 → fsync → os.replace 原子替换。O_EXCL 保证目标是本进程新建的对象，
-801:        tmp_path = out_path.with_name(f".{out_path.name}.census-tmp-{os.getpid()}")
-803:            tmp_fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
-805:            print(f"临时台账文件无法新建（O_EXCL）: {tmp_path} ({e})", file=sys.stderr)
-811:                os.fsync(tmp_fd)
-814:            os.unlink(tmp_path)
-821:            os.replace(tmp_path, out_path)
-824:                os.fsync(dir_fd)
-829:                os.unlink(tmp_path)
---- (6) SQLite 不经路径打开（已验证 fd 读字节 → 内存库 deserialize）:
-311:    ``deserialize``：全程不经路径、不落任何文件，两个问题一并消失。
-335:        result["bytes_read_from_verified_fd"] = len(db_bytes)
-341:        conn = sqlite3.connect(":memory:")
-342:        conn.deserialize(db_bytes)
-344:        result["verdict"] = f"deserialize_failed: {str(e)[:80]}"
-352:        result["read_mode"] = "in_memory_deserialize_from_verified_fd"
---- (7) 恢复源禁写区（inode 逐级 + 父目录语义）:
-77:def _path_is_within(target: str, root: str) -> bool:
-104:def _same_file(a: str, b: str) -> bool:
-255:                if not _path_is_within(candidate, root_str):
-466:    # 路径层防御：--out 的 realpath 不得落在 transcripts 根内、不得等于任一
-469:        # round-7 BLOCKER 整改: 用 **inode 身份逐级比较**（_path_is_within），
-476:        out_parent = os.path.dirname(os.path.abspath(args.out)) or "."
-477:        if _path_is_within(out_parent, args.transcripts_dir) or _path_is_within(args.out, args.transcripts_dir):
-479:                f"--out 落在 transcripts 根内（恢复源区域），无条件拒绝写出: {args.out}",
---- (8) 扫描完整性前提（含 stdout 模式）:
-262:    # token_conflict 组的 walk 错误不会进入 scan_blocked 判定。
-755:    scan_blocked = [
-762:    if scan_blocked:
-764:            f"transcripts 扫描受阻（{len(scan_blocked)} 组），保护集不完整，拒绝写出台账；首例: {scan_blocked[0][1]}",
-775:                # round-5 整改: 候选 stat 失败不再静默吞 —— 保护集不完整即拒绝写出
-776:                print(f"候选源无法 stat，保护集不完整，拒绝写出: {tpath} ({e})", file=sys.stderr)
+--- (5) 唯一写出口链: 类型门 → O_EXCL tmp → fsync → replace → 父目录 fsync → 异常清理:
+812:        # round-7 架构整改: 不再截断既有文件 —— 同目录 O_EXCL 新建临时文件 →
+813:        # 写 → fsync → os.replace 原子替换。O_EXCL 保证目标是本进程新建的对象，
+819:        # replace 发布后不再打开 --out，S_ISREG 门随之丢失 —— os.replace 会
+821:        # --out 若已存在且不是常规文件，或是 symlink（replace 替换链接本身
+831:            if stat.S_ISLNK(out_lst.st_mode):
+835:                print(f"--out 已存在且不是常规文件（FIFO/设备/目录/socket），拒绝写出: {out_path}", file=sys.stderr)
+839:            tmp_fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+841:            print(f"临时台账文件无法新建（O_EXCL）: {tmp_path} ({e})", file=sys.stderr)
+847:                os.fsync(tmp_fd)
+850:            os.unlink(tmp_path)
+857:            os.replace(tmp_path, out_path)
+860:                os.fsync(dir_fd)
+865:                os.unlink(tmp_path)
+--- (6) SQLite 只读语义（源 fd 只读 + 内存副本解耦 + query_only）:
+310:    ``PRAGMA query_only=ON`` 作纵深防御），**不再声称 URI ``mode=ro``**。
+311:    字段名为 ``source_fd_opened_readonly`` 而非 ``opened_readonly``。
+323:    ``deserialize``：全程不经路径、不落任何文件，两个问题一并消失。
+325:    result: dict = {"db_path": str(db_path), "source_fd_opened_readonly": False}
+354:        conn.deserialize(db_bytes)
+356:        result["verdict"] = f"deserialize_failed: {str(e)[:80]}"
+362:        result["source_fd_opened_readonly"] = True
+364:        result["read_mode"] = "in_memory_deserialize_from_verified_fd"
+365:        result["source_sha256"] = hashlib.sha256(db_bytes).hexdigest()
+366:        # R9 建议项: 内存连接本身可写（deserialize 语义），显式设 query_only
+368:        # 副本与源文件完全解耦**，query_only 只是纵深防御。
+369:        conn.execute("PRAGMA query_only=ON")

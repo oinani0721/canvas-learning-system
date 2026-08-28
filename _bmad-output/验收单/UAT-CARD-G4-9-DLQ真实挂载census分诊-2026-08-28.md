@@ -10,7 +10,7 @@ worktree: "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktre
 # UAT · CARD-G4-9 DLQ 真实挂载 census 分诊
 
 > [!info]+ 你不需要碰命令行 — 全部技术验证我已代跑（结果见下）
-> 这张卡**没有修任何东西，也没有恢复任何数据**——它是一次"清点尸体"的只读普查：
+> 这张卡**没有修任何东西，也没有恢复任何数据**——它是一次"清点尸体"的只读普查（脚本对输入零写入已逐次取证；安全边界见文末"诚实边界"段）：
 > 线上 Graphiti 写入失败后落进死信文件的 92 条记录，逐条查清"是什么死的、还能不能救、去哪里救"，
 > 给后续的 G4-10（真正做恢复的卡）留一份带稳定编号的台账。卡面如实标注：离日常使用价值远，属恢复能力地基。
 
@@ -25,7 +25,8 @@ worktree: "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktre
 | 项 | 结果 | 证据 |
 |---|---|---|
 | 全程零写入（裁判判据 e） | 运行前后 四份 DLQ 文件 + qa_metrics.db 的 sha256 **逐字节不变**（diff 为空 → PASS） | `_bmad-output/审查/G4-9-evidence/shasums-before.txt` / `shasums-after.txt` |
-| 脚本只读自证（判据 a） | import 行全 stdlib；neo4j/graphiti/bolt/app. import **0 命中**；`--apply` 定义 **0 命中**；写模式 open 仅台账 `--out` 1 处 | `G4-9-evidence/grep-selfattest.txt` |
+| 脚本只读自证（判据 a） | import 行全 stdlib；neo4j/graphiti/bolt/app. import **0 命中**；`--apply` 定义 **0 命中**；**全文无任何截断调用**（写出走 O_EXCL 临时文件 + 原子替换） | `G4-9-evidence/grep-selfattest.txt` |
+| 只读契约回归测试（round-9 必需项④） | **19 passed** —— 把 8 轮审查中实测封死的反例全部固化（DLQ/hardlink/恢复源区/根内 symlink/FIFO/不可读候选/扫描受阻/anomaly/bool 长度/坏 JSON/非法 UTF-8 等）。该测试当场抓出一个真实回归（架构改动丢了文件类型门），已修 | `backend/tests/regression/test_census_dead_letter_readonly_contract.py` |
 | live 挂载真相（判据 c） | 容器内 `sha256sum /app/data/dead_letter_episodes.jsonl` = 宿主 live 地址同值（92 行，`3b37460f…`）；compose :206-212 遮蔽史入报告 §1 | `G4-9-evidence/container-sha-check.txt` + 报告 §1 |
 | 分类零偏差（判据 b） | budget_400×**89** / schema×**2**（P0-4 已修，`entity_types.py:343`）/ group_id×**1**（sanitize 已兜，`group_id_compat.py:64`）——与勘探预期逐条一致，脚本 `class_deviation` 字段为空 | 台账 JSON `class_distribution` |
 | inline 完整性 + SHA 对账（判据 b） | 92/92 重算 sha256 对账：4 条 full_verified、88 条 truncated_prefix（`to_dict()` 的 `[:200]` 截断，`episode_worker.py:107`）、**0 条 anomaly** | 台账 JSON 逐条 `inline_state`/`sha_check` |
@@ -153,6 +154,16 @@ round-8 整改后第八次全量重跑：**92 条、4/88/0/0、89/2/1、6/29、s
 - `_bmad-output/审查/G4-9-dlq-ledger-2026-08-28.json` — 92 条逐条台账（G4-10 消费）
 - `_bmad-output/审查/G4-9-evidence/` — 证据包（shasums ×2、grep 自证、容器 sha 实测、运行日志）
 - `_bmad-output/审查/codex-review-CARD-G4-9.md` — Codex 独立审查存档
+
+## 📐 诚实边界（round-9 收敛，替代原先过强的措辞）
+
+九轮对抗审查后，Codex 始终维持一个分层裁定：**「92 条冻结台账可以采信；但生成器的一般安全性、以及验收单里"纯只读、唯一写出口、整类 TOCTOU 已消失"这类绝对化声明不可验收」**。
+
+我接受这个区分，处置是**把声明改准确，而不是假装达标**：
+
+- **可以确证的**：本次运行对全部输入文件（4 份 DLQ + qa_metrics.db）**shasum 前后逐字节不变**，九次重跑均已取证；脚本对 20+ 类误用与攻击路径 fail-closed，19 条回归测试固化。
+- **不再声称的**：在共享可写目录、有并发写者、SQLite DB 正被写入等**敌意环境**下具备生产级安全。这类保证需要一致性快照、dirfd 相对发布、单写者锁——是把一次性 census 脚本升级为常驻工具的工作量，不在本卡范围。
+- **已登记的**：FU-A~FU-D 四项（报告 §7j），**G4-10 若复用本脚本于活跃 DB 或共享目录，须先补齐**。
 
 ## ⏭️ 移交（不在本卡范围）
 

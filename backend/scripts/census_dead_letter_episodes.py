@@ -304,13 +304,25 @@ def resolve_group_attribution(tokens: list[str], transcripts_dir: Path) -> dict:
 def probe_qa_metrics(db_path: Path, error_types: list[str]) -> tuple[dict, tuple[int, int] | None]:
     """只读核销 qa_metrics.db。返回 (结果, 实际读取对象身份)。
 
+    ⚠️ **只读语义的准确表述（round-9 必需项⑤，名实一致 DD-13）**：只读保证来自
+    ①源文件以 ``O_RDONLY|O_NOFOLLOW`` 打开、全程不写该 fd；②读出的字节灌入
+    **内存库**，与源文件完全解耦。内存连接本身在 SQLite 语义下可写（另设
+    ``PRAGMA query_only=ON`` 作纵深防御），**不再声称 URI ``mode=ro``**。
+    字段名为 ``source_fd_opened_readonly`` 而非 ``opened_readonly``。
+
+    已知边界（round-9 必需项①，如实登记为 follow-up 而非声称已解决）：分块读
+    raw bytes **不等于数据库一致性快照** —— 若源 DB 正被并发写入或存在 WAL /
+    journal 旁文件，读到的字节可能是撕裂状态。本卡场景为单人本机、DB 静止
+    （实测 0 行、16384 bytes），故不影响结论；若 G4-10 复用本脚本于活跃 DB，
+    须改用 SQLite backup API 或要求外部先冻结。
+
     round-8 BLOCKER①② 整改: 不再让 SQLite 按 **路径** 打开 —— 那既有 URI 转义
     问题（路径含 ``?``/``#`` 时 ``mode=ro`` 会落进被忽略的 fragment，SQLite 可能
     按默认读写模式打开），又有 A→B→A 的 ABA（验证 fd 是 A，connection 却可能读
     到 B）。改为从**已验证的 fd** 读全量字节 → ``sqlite3`` 内存库
     ``deserialize``：全程不经路径、不落任何文件，两个问题一并消失。
     """
-    result: dict = {"db_path": str(db_path), "opened_readonly": False}
+    result: dict = {"db_path": str(db_path), "source_fd_opened_readonly": False}
     if not db_path.exists():
         result["verdict"] = "db_missing"
         return result, None
@@ -347,9 +359,14 @@ def probe_qa_metrics(db_path: Path, error_types: list[str]) -> tuple[dict, tuple
         return result, identity
 
     try:
-        result["opened_readonly"] = True
+        result["source_fd_opened_readonly"] = True
         result["file_identity_verified"] = True
         result["read_mode"] = "in_memory_deserialize_from_verified_fd"
+        result["source_sha256"] = hashlib.sha256(db_bytes).hexdigest()
+        # R9 建议项: 内存连接本身可写（deserialize 语义），显式设 query_only
+        # 以匹配"只读核销"的语义 —— 但真正的只读保证来自**源 fd 只读 + 内存
+        # 副本与源文件完全解耦**，query_only 只是纵深防御。
+        conn.execute("PRAGMA query_only=ON")
         tables = [
             r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
         ]
@@ -798,6 +815,25 @@ def main(argv: list[str] | None = None) -> int:
         # 这一整类绕过全部失效（脚本从不 ftruncate 任何既有 inode）；同时消除
         # 崩溃/ENOSPC 留下部分台账的风险（round-7 MEDIUM）。
         out_path = Path(args.out)
+        # round-9 整改（由新增回归测试抓出的 round-7 架构回归）: 改用
+        # replace 发布后不再打开 --out，S_ISREG 门随之丢失 —— os.replace 会
+        # **静默替换任何类型的目标**（FIFO/设备/socket/symlink）。此处补回：
+        # --out 若已存在且不是常规文件，或是 symlink（replace 替换链接本身
+        # 而非其目标，与用户意图不符），一律拒绝。
+        try:
+            out_lst = os.lstat(out_path)
+        except FileNotFoundError:
+            out_lst = None
+        except OSError as e:
+            print(f"--out 无法 lstat，拒绝写出: {out_path} ({e})", file=sys.stderr)
+            return 2
+        if out_lst is not None:
+            if stat.S_ISLNK(out_lst.st_mode):
+                print(f"--out 是 symlink（replace 会替换链接本身），拒绝写出: {out_path}", file=sys.stderr)
+                return 2
+            if not stat.S_ISREG(out_lst.st_mode):
+                print(f"--out 已存在且不是常规文件（FIFO/设备/目录/socket），拒绝写出: {out_path}", file=sys.stderr)
+                return 2
         tmp_path = out_path.with_name(f".{out_path.name}.census-tmp-{os.getpid()}")
         try:
             tmp_fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
