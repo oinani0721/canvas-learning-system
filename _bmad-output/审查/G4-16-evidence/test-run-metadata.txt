@@ -1,7 +1,13 @@
-== G4-16 落点测试运行元数据（Codex round-1 MEDIUM-5 证据绑定） ==
+== G4-16 落点测试运行元数据（round-1 MEDIUM-5 + round-2 补强） ==
 命令: cd backend && .venv/bin/pytest tests/unit/test_supplementary_reranker.py tests/unit/test_supplementary_search_service.py -q --no-header
+过滤管道（解释存档为何是 10 行摘要而非完整 stdout）: | grep -E '^FAILED|^ERROR|passed|failed'
+pytest.ini: backend/pytest.ini 的 addopts 会附加选项，故实际 stdout 比裸命令更长；存档保留的是 FAILED 节点集合与计数摘要
 Python: Python 3.14.4
-HEAD: 37387a8662e9dd646fad5628841679d777cb7eae
-基线捕获时点: 注释修正前（工作区 == HEAD 时）；after 捕获时点: 两处注释终版落盘后
-对照口径: FAILED 节点集合逐条 diff（baseline-before-edits.txt vs after-edits.txt）为空 = 零新增失败；两文件仅 pytest 耗时行不同
+HEAD(基线锚点): 37387a86
+被改文件 blob（HEAD 版 → 工作区版）:
+  supplementary_reranker.py:        3d8275269213 → 73579b22f7a5
+  supplementary_search_service.py:  17440e21c01b → 5ff331040905
+exit code: pytest 两次均为 1（有既有失败），管道后 grep 退出 0
+对照口径: FAILED 节点集合逐条 diff（baseline-before-edits.txt vs after-edits.txt）为空 = 零新增失败
+诚实边界: 两次历史运行的完整 stdout/traceback 未留存，事后不可补造 provenance；可复验的是当前 HEAD 复跑仍为同一 9 failed / 102 passed（Codex round-2 已独立复跑确认）
 9 条既有失败翻转源 commit: fcd34953（Codex 独立溯源）

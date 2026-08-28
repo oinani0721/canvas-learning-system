@@ -33,6 +33,8 @@ worktree: "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktre
 | 隔离面零改动（硬边界） | exclude_doc_types 7 处消费点、目录黑名单、config.py 防御注释：0 触碰（git diff 自证） | git diff 本卡 commit |
 | Codex 独立审查 round-1 | **FAIL**（0 BLOCKER / 4 HIGH / 5 MEDIUM / 1 LOW）。同时确认三项硬判据 PASS：两文件与 HEAD **无属性 AST 完全相等**（注释-only 铁律成立）、隔离面零改动、9 条既有失败根因归因正确（独立溯源翻转 commit `fcd34953`）；pinned git grep 18/146 独立复算一致 | `_bmad-output/审查/codex-review-CARD-G4-16.md` |
 | Codex findings 逐条整改 | **10/10 完成**（见下）；整改含 1 项本轮补做的实测（exam_board live=0 两因坐实）；整改后复跑落点测试失败节点与基线逐条相同 | 报告 §9 + 证据包 |
+| Codex 复审 round-2 | **仍阻断**（7/10 CLOSED；HIGH-3/MEDIUM-3/MEDIUM-5 未闭合 + 3 新 MEDIUM + 1 新 LOW）。同时独立复跑坐实三条铁律：AST 全等注释-only、隔离面零改动、9 failed/102 passed 与基线同集合同顺序；HIGH-2 的 live vault 两因经其独立 find 复测确认 | `_bmad-output/审查/codex-review-CARD-G4-16-round2.md` |
+| round-2 findings 逐条整改 | **7/7 完成**：自由值权重加路径条件 / §8 摘要与 §1 口径统一 / 测试 provenance 补强+诚实边界 / source_type 赋值链表述修正 / reranker 陈旧算例注记 / 字面量 grep 降级为辅助视图 / 根脚本行号按 pinned SHA 修正。整改后 AST 仍全等、9 failed/102 passed 不变 | 报告 §10 + 证据包 |
 | 独立 Workflow 4-agent 复核 | 枚举 agent：18/146、写入方双路径、exclude 7+1 处、TYPE_WEIGHTS 死键论证全 CONFIRMED（0 blocker）；注释-only agent：tokenize 剥离注释后 **代码 token 逐一相同**（707/3940 个），运行期 TYPE_WEIGHTS/阈值三值断言全过 | Workflow wf_737b1a95-20b journal |
 
 ## 🔧 Codex round-1 整改记录（10/10 关闭，FAIL → 整改完毕）
@@ -47,6 +49,14 @@ worktree: "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktre
 - **MEDIUM-4 Tier-2 旁路**：`ENABLE_LANCEDB_TIER2_FALLBACK`（默认关）开启后绕过 doc_type 排除——隔离结论限定 Tier-1 + 新增 FU-5（本卡铁律禁改隔离面，仅登记）。
 - **MEDIUM-5 可复验性**：枚举命令改 pinned `git grep`（裸 grep 扫 .venv 得 30/198 陷阱写明）；证据包补 `test-run-metadata.txt`（命令/Python 版本/HEAD/对照口径）。
 - **LOW-1 whiteboard 来源行号**：:2740 frontmatter 直通为写侧来源、:2767 仅消费——§1/§4 修正。
+
+## 🔧 Codex round-2 复审整改记录（7/10 CLOSED → 剩 3 项 + 4 新发现全关闭）
+
+- **HIGH-3 未闭合**：§4 仍无条件写"自由值→note 1.0"，但放在 `/videos/` 下会变 0.75。→ 加路径条件二分表述。
+- **MEDIUM-3 未闭合**：§8 移交摘要退回"写入方唯一"，与 §1 的"两生产者 + 通用 sink"自相矛盾。→ 口径统一。
+- **MEDIUM-5 未闭合**：测试证据缺过滤管道说明与 blob 摘要，10 行摘要不是所列命令的直接产物。→ metadata 补齐命令管道/pytest.ini 影响/blob 摘要/exit code，并**如实声明历史 stdout 无法事后补造**（可复验的是当前 HEAD 复跑同结果，Codex 已独立复跑确认）。
+- **新 MEDIUM ×3**：source_type 非"纯路径启发"（image_ocr 显式、neighbor_expansion 运行期）→ §8 修正；reranker floor 注释仍写翻转前算例 → 加注历史情形与 FU-2 归属（仍注释-only）；字面量 grep 含假阳性 → 降级为启发式辅助视图并补生成命令。
+- **新 LOW**：根脚本行号按 pinned SHA 修正为 migrate:62 / sync:63、:85。
 
 ## 📄 交付物清单
 

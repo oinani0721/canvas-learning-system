@@ -1,6 +1,6 @@
 {
  "card": "CARD-G4-9",
- "generated_at": "2026-08-28T09:26:28.851136+00:00",
+ "generated_at": "2026-08-28T11:11:58.320970+00:00",
  "privacy": "private-only: transcript_paths 含本机用户名与 session UUID，禁止外发/公网发布",
  "stable_key_semantics": "冻结快照（dlq_file.sha256）内的 occurrence key；line_no 在快照内唯一，sha256_prefix/request_id 为冗余对账维度——非跨文件重排或语义幂等键",
  "dlq_file": {
@@ -41,9 +41,10 @@
  "total_records": 92,
  "unparseable_lines": [],
  "class_distribution": {
+  "budget_400": 89,
   "schema_entity_type": 2,
   "group_id_format": 1,
-  "budget_400": 89
+  "unexpected": 0
  },
  "expected_class_distribution": {
   "budget_400": 89,
@@ -53,7 +54,13 @@
  "class_deviation": {},
  "recoverability_distribution": {
   "byte_exact": 4,
-  "approximate": 88
+  "approximate": 88,
+  "unrecoverable": 0
+ },
+ "inline_state_distribution": {
+  "full_verified": 4,
+  "truncated_prefix": 88,
+  "anomaly": 0
  },
  "unrecoverable_list": [],
  "attribution_conflicts": [],

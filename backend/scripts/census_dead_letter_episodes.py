@@ -7,9 +7,10 @@ BATCH-2026-08-28-第五批 / CARD-G4-9（G4-10 replay 的交接台账生成器�
   - 无 --apply / 无任何写回、重放、删除路径；
   - 不 import neo4j / graphiti / app.*（纯 stdlib），不建立任何数据库/网络连接，
     唯一的 sqlite 访问经 URI ``mode=ro`` 只读打开 qa_metrics.db；
-  - 唯一写出口是 --out 台账 JSON，且写前做路径碰撞守卫（resolve 后与
-    --dlq/--compare/--qa-metrics-db 任一输入重合即拒绝 exit 2，防 "w" 截断
-    输入文件；Codex round-1 BLOCKER-1 整改）。
+  - 唯一写出口是 --out 台账 JSON，写前双重碰撞守卫：resolve() 路径比较 +
+    **文件身份 (st_dev, st_ino) 比较**，与 --dlq/--compare/--qa-metrics-db
+    任一输入重合即 exit 2，防 "w" 截断输入（round-1 BLOCKER-1 + round-2
+    hardlink / 大小写别名绕过整改）。
 
 快照原子性（Codex round-1 BLOCKER-2 整改）:
   - DLQ 文件只读一次（bytes），头部 sha256/line_count 与逐条 records 全部
@@ -28,12 +29,14 @@ BATCH-2026-08-28-第五批 / CARD-G4-9（G4-10 replay 的交接台账生成器�
   - session 归因: 组内多 token 必须满足前缀一致（短 token 是最长 token 的
     前缀），否则记 attribution_conflict、拒绝采信任何 transcript；
     transcript glob 命中必须**恰好 1 个常规文件**才算归因成功，多命中记
-    ambiguous 同样拒绝采信；transcripts 根目录不存在时整体 exit 2
-    （拒绝在源不可见时产出 unrecoverable 假象）。
+    ambiguous 同样拒绝采信；transcripts 根**不存在或不可读/不可遍历**
+    （chmod 000）时整体 exit 2（拒绝在源不可见时产出 unrecoverable 假象）；
+    glob 结果拒绝 symlink 条目与逃逸到根外的目标（round-2 HIGH-3 整改）。
   - DLQ 坏 JSON 行不再炸掉全量: 逐行捕获，class=unparseable 保留 line_no
     进台账（分诊工具不能被单行毒药拒诊）。
   - episode_body_full 若在盘（DEAD_LETTER_STORE_FULL_BODY 开启时生产可写):
-    重算 sha 对账通过则按 byte_exact 采信（Codex round-1 MEDIUM-1 整改）。
+    重算 sha **且长度**双门对账通过才按 byte_exact 采信，且 anomaly 记录
+    不得经此分支翻案（round-1 MEDIUM-1 + round-2 HIGH-1 整改）。
 
 逐条产出（G4-10 消费契约）:
   - stable_key: {line_no, sha256_prefix(16 hex), request_id}。语义 =
@@ -97,10 +100,17 @@ def inline_state(rec: dict) -> tuple[str, str]:
 
 
 def full_body_verified(rec: dict) -> bool:
-    """episode_body_full 在盘且 sha 对账通过（生产 opt-in 字段，当前 live 0 条）。"""
+    """episode_body_full 在盘且 sha **与长度**双门对账通过（生产 opt-in 字段，当前 live 0 条）。
+
+    round-2 HIGH-1 整改: 原实现只核 sha，声明长度矛盾的记录（如 body="abc"
+    但 episode_body_length=999）仍被判 byte_exact —— 与 inline 侧同门收紧。
+    """
     full = rec.get("episode_body_full")
     declared_sha = rec.get("episode_body_sha256", "")
+    declared_len = rec.get("episode_body_length")
     if not isinstance(full, str) or not _SHA256_HEX_PAT.match(str(declared_sha)):
+        return False
+    if not isinstance(declared_len, int) or len(full) != declared_len:
         return False
     return hashlib.sha256(full.encode("utf-8", errors="replace")).hexdigest() == declared_sha
 
@@ -132,7 +142,18 @@ def resolve_group_attribution(tokens: list[str], transcripts_dir: Path) -> dict:
         return result
     result["session_token"] = longest
     pattern = str(transcripts_dir / "**" / f"{longest}*.jsonl")
-    matches = sorted(p for p in glob.glob(pattern, recursive=True) if os.path.isfile(p))
+    # round-2 HIGH-3 整改: 拒绝 symlink 条目与逃逸到根外的目标 —— 原实现
+    # 经 glob+isfile 跟随 symlink，根内 .jsonl→根外 .txt 会被当唯一来源采信。
+    root_real = os.path.realpath(transcripts_dir)
+    matches = []
+    for candidate in glob.glob(pattern, recursive=True):
+        if os.path.islink(candidate) or not os.path.isfile(candidate):
+            continue
+        real = os.path.realpath(candidate)
+        if not real.startswith(root_real + os.sep):
+            continue  # 目录 symlink 逃逸
+        matches.append(candidate)
+    matches = sorted(matches)
     result["transcript_paths"] = matches
     result["transcript_match_count"] = len(matches)
     if len(matches) == 1:
@@ -177,7 +198,9 @@ def snapshot_file(path: Path) -> tuple[bytes, dict]:
     info = {
         "path": str(path),
         "exists": True,
-        "line_count": raw.decode("utf-8", errors="replace").count("\n") + (0 if raw.endswith(b"\n") or not raw else 1),
+        # round-2 LOW 整改: 与 records 的 splitlines() 同口径（bare CR / U+2028
+        # 等行分隔符下 count("\n") 会与 records 数不一致）。
+        "line_count": len(raw.decode("utf-8", errors="replace").splitlines()),
         "sha256": hashlib.sha256(raw).hexdigest(),
         "mtime_utc": datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).isoformat(),
         "mtime_note": "mtime 为 stat 快照，仅供参考；绑定 exact bytes 的是 sha256",
@@ -230,16 +253,47 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
+    # round-2 HIGH-3 整改: 存在但不可读/不可遍历的根（chmod 000）此前 exit 0
+    # 并把全部记录假判 unrecoverable —— 同样 fail-closed 拒诊。
+    if not os.access(transcripts_dir, os.R_OK | os.X_OK):
+        print(
+            f"transcripts 根目录不可读/不可遍历: {transcripts_dir} —— 拒绝在源不可见时裁定可恢复性（fail-closed）",
+            file=sys.stderr,
+        )
+        return 2
 
-    # --out 路径碰撞守卫（写前；resolve 覆盖 symlink 变体）
+    # --out 碰撞守卫（写前）。round-2 BLOCKER-1 整改: 比较**文件身份**
+    # (st_dev, st_ino) 而非 resolve() 字符串 —— 后者对 hardlink 与
+    # 大小写不敏感文件系统上的 case-only 别名均失效（Codex 实测截断输入）。
     if args.out:
-        out_resolved = Path(args.out).resolve()
-        protected = {dlq_path.resolve()} | {Path(p).resolve() for p in args.compare}
+        out_path = Path(args.out)
+        protected_paths = [dlq_path, *(Path(p) for p in args.compare)]
         if args.qa_metrics_db:
-            protected.add(Path(args.qa_metrics_db).resolve())
-        if out_resolved in protected:
+            protected_paths.append(Path(args.qa_metrics_db))
+        protected_ids = set()
+        for candidate in protected_paths:
+            try:
+                st = candidate.stat()  # 跟随 symlink: 保护的是最终目标身份
+                protected_ids.add((st.st_dev, st.st_ino))
+            except OSError:
+                continue
+        # 路径字符串比较作为第二道（输出文件尚不存在时 stat 无身份可比）
+        out_resolved = out_path.resolve()
+        if out_resolved in {p.resolve() for p in protected_paths}:
             print(f"--out 与输入文件路径重合，拒绝写出（防截断）: {out_resolved}", file=sys.stderr)
             return 2
+        if out_path.exists():
+            try:
+                out_st = out_path.stat()
+            except OSError as e:
+                print(f"--out 无法 stat，拒绝写出: {out_path} ({e})", file=sys.stderr)
+                return 2
+            if (out_st.st_dev, out_st.st_ino) in protected_ids:
+                print(
+                    f"--out 与输入文件为同一 inode（hardlink/大小写别名），拒绝写出（防截断）: {out_path}",
+                    file=sys.stderr,
+                )
+                return 2
 
     # BLOCKER-2 整改: 单次读取，records 与头部描述共享同一份 exact bytes
     raw_bytes, dlq_info = snapshot_file(dlq_path)
@@ -274,6 +328,7 @@ def main(argv: list[str] | None = None) -> int:
     ledger_records = []
     class_dist: Counter = Counter()
     recover_dist: Counter = Counter()
+    inline_dist: Counter = Counter()
     unrecoverable_keys = []
     attribution_conflicts = []
     for line_no, rec in records:
@@ -285,9 +340,10 @@ def main(argv: list[str] | None = None) -> int:
         if state == "full_verified":
             recover = "byte_exact"
             basis = "inline 正文全量：sha256 重算与声明一致且长度精确匹配"
-        elif full_body_verified(rec):
+        elif state != "anomaly" and full_body_verified(rec):
+            # round-2 HIGH-1 整改: anomaly 记录不得经 full_body 分支翻案
             recover = "byte_exact"
-            basis = "episode_body_full 在盘且 sha256 对账通过（DEAD_LETTER_STORE_FULL_BODY 生产 opt-in 字段）"
+            basis = "episode_body_full 在盘且 sha256+长度双门对账通过（DEAD_LETTER_STORE_FULL_BODY 生产 opt-in 字段）"
         elif state == "anomaly":
             recover = "unrecoverable"
             basis = "inline 对不上账（anomaly：sha/长度与声明不符），fail-closed 不采信截断前缀假设，也不采信 transcript 归因"
@@ -306,6 +362,7 @@ def main(argv: list[str] | None = None) -> int:
             basis = "inline 截断且无在盘上游源"
         class_dist[cls] += 1
         recover_dist[recover] += 1
+        inline_dist[state] += 1
         stable_key = {
             "line_no": line_no,
             "sha256_prefix": str(rec.get("episode_body_sha256", ""))[:16],
@@ -377,10 +434,18 @@ def main(argv: list[str] | None = None) -> int:
         "total_lines": len(raw_lines),
         "total_records": len(records),
         "unparseable_lines": unparseable,
-        "class_distribution": dict(class_dist),
+        # round-2 LOW 整改: 固定 schema 补零，消费者无需自行补齐缺席键
+        "class_distribution": {
+            k: class_dist.get(k, 0) for k in ["budget_400", "schema_entity_type", "group_id_format", "unexpected"]
+        },
         "expected_class_distribution": EXPECTED_CLASS_DIST,
         "class_deviation": deviation,
-        "recoverability_distribution": dict(recover_dist),
+        "recoverability_distribution": {
+            k: recover_dist.get(k, 0) for k in ["byte_exact", "approximate", "unrecoverable"]
+        },
+        "inline_state_distribution": {
+            k: inline_dist.get(k, 0) for k in ["full_verified", "truncated_prefix", "anomaly"]
+        },
         "unrecoverable_list": unrecoverable_keys,
         "attribution_conflicts": attribution_conflicts,
         "duplicate_clusters": duplicate_clusters,

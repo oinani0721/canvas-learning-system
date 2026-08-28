@@ -193,8 +193,10 @@ def rerank(
     )
 
     # P0-B (2026-05-12 hotfix): 过滤 floor 兜底.
-    # 当 indexer 未升级到 PRD 6 档时, real-world 数据 source_type="note" 命中过渡
-    # 表 0.7, 典型 relevance ~0.5 → final ~0.35 < filter_threshold 0.42 → 全删.
+    # 当时 source_type="note" 命中过渡表 0.7, 典型 relevance ~0.5 → final ~0.35
+    # < filter_threshold 0.42 → 全删。(G4-16 census 2026-08-28 注记: RAG-S2 T2
+    # fcd34953 已把 note 翻转为 1.0, 该算例是历史情形; floor 机制本身仍在生效,
+    # 相关既有失败测试的重写归 FU-2。)
     # 用户原话: "不硬编码 5 条, 把有用的都提供给我"
     # → filter 后剩 < min_keep 或删 > 80% 候选, 视为 threshold 误杀, 自动降级为
     #   不过滤但仍 top_k 截断, 第 1 条注入 filter_floor_triggered=True 供 logger

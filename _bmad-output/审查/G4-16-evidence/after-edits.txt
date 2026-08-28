@@ -7,4 +7,4 @@ FAILED tests/unit/test_supplementary_reranker.py::TestFilterFloor::test_floor_st
 FAILED tests/unit/test_supplementary_reranker.py::TestFilterFloorTaintExclusion::test_min_keep_floor_excludes_review_taint
 FAILED tests/unit/test_supplementary_reranker.py::TestFilterFloorTaintExclusion::test_floor_no_taint_field_treated_as_clean
 FAILED tests/unit/test_supplementary_reranker.py::TestFilterFloorTaintExclusion::test_floor_all_review_returns_empty_list
-================== 9 failed, 102 passed, 10 warnings in 0.50s ==================
+================== 9 failed, 102 passed, 10 warnings in 0.53s ==================

@@ -12,7 +12,7 @@
 
 `git grep -n "doc_type" 37387a86 -- "backend/*.py"` → **18 文件 146 行**（逐行清单：证据包 `doc_type-146-occurrences@37387a86.txt`；**必须用 pinned git grep 复核**——工作树裸 `grep -rn backend` 会扫入 `backend/.venv` 得 30 文件 198 行，Codex round-1 MEDIUM-5）。与勘探预告完全一致。
 
-**范围声明（Codex round-1 HIGH-4）**：本 census 的对象是 **backend/*.py 中 LanceDB `vault_notes` 行级 `doc_type` 字段**。仓库根 `scripts/migrate_story_frontmatter.py:60` 写 `doc_type: story`、`scripts/sync_links.py:58` 消费 story/epic——那是 **BMAD 文档 frontmatter 的同名异物命名空间**，不入 LanceDB、不与本字段互通，不在本卡值域表内（如实登记防混淆）。
+**范围声明（Codex round-1 HIGH-4）**：本 census 的对象是 **backend/*.py 中 LanceDB `vault_notes` 行级 `doc_type` 字段**。仓库根 `scripts/migrate_story_frontmatter.py:62` 写 `doc_type: story`、`scripts/sync_links.py:63/:85` 消费 story/epic（行号已按 pinned 37387a86 复核，round-2 LOW 修正）——那是 **BMAD 文档 frontmatter 的同名异物命名空间**，不入 LanceDB、不与本字段互通，不在本卡值域表内（如实登记防混淆）。
 
 **18 文件角色分布**（行数 = doc_type 出现行数）：
 
@@ -54,7 +54,7 @@ video_transcript 2001 (90.8%) | concept 117 | note 69 | whiteboard 16 | exam_boa
 | 3 | `whiteboard` | frontmatter `type: whiteboard` 直通（:2740；:2767 仅消费做样板剥离，LOW-1 修订） | 16 | exclude 集 7+1 处消费（隔离第二层）；默认 Tier-1 下在库但检索不可见 = 设计行为（Tier-2 flag 例外见 §3/FU-5） | **接线** |
 | 4 | `exam_board` | 检验白板推断（:2756） | 0 | exclude 集同上。live 0 行原因（Codex round-1 HIGH-2 指出原归因不完整，本轮实测坐实）：exam-quick 考察文件写向**可索引**的 `节点/考察-*.md`（exam-quick.ts:39/:75，目录黑名单不拦）——live vault 实测该形态文件 **0 个**；`检验白板/` 目录唯一 1 个 md 则被目录黑名单拦截。0 行 = "无考察文件存在 + 黑名单拦检验白板目录"两因叠加，非纯黑名单 | **接线**（0 行原因已实测坐实，非死值） |
 | 5 | `concept` | frontmatter `type: concept` 直通 | 117 | 入库真实 + MCP metadata 透传在位；但**无按 "concept" 特化分支的读侧**——自称消费方 `TYPE_WEIGHTS["concept"]` 实为 **source_type 键**，indexer 永不写 source_type="concept" → **直接 lookup 不可达**；concept 材料命中的权重键由**路径启发的 source_type 独立决定**（普通路径→note 1.0，/videos/ 下→video_transcript 0.75），与 doc_type 无关；聚合面 `get_filter_threshold()` 消费全表 values()（chat.py:428 生产调用），concept=1.0 非最小值、当前不影响阈值（Codex round-1 HIGH-3/MEDIUM-1 修订） | **值接线；权重键=直接 lookup 不可达、聚合可达但非决定项**（注释已修正保键；删键列 FU-1） |
-| 6 | 空串/自由值 | image_ocr 路径缺字段 + frontmatter 任意小写串直通（:2740 无白名单；note_search_tools:276 注释自认无枚举校验） | 0 | 读侧 "" 回退（:975）后仅影响透传与 doc_type 过滤；**权重不受影响**——source_type 恒独立有值（自由值笔记 source_type=note→1.0；image_ocr 行 source_type=image_ocr→0.6，非 DEFAULT 0.5；Codex round-1 HIGH-3 修订） | **值域未闭合**（live 暂 0 行；白名单校验列 FU-3，口径依 G8-1） |
+| 6 | 空串/自由值 | image_ocr 路径缺字段 + frontmatter 任意小写串直通（:2740 无白名单；note_search_tools:276 注释自认无枚举校验） | 0 | 读侧 "" 回退（:975）后仅影响透传与 doc_type 过滤；**权重不受影响也不由 doc_type 决定**——source_type 恒独立有值且**按路径二分**：自由值笔记在普通路径→note 1.0、在 `/videos/` 下→video_transcript 0.75；image_ocr 行→0.6（非 DEFAULT 0.5）。（round-1 HIGH-3 + round-2 HIGH-3 修订：原"自由值→note 1.0"的无条件表述已加路径条件） | **值域未闭合**（live 暂 0 行；白名单校验列 FU-3，口径依 G8-1） |
 
 **grep 复核 0 未裁定残留**：146 行中除上表六值与字段名本身的出现外，无其他 doc_type 取值字面量（TYPE_WEIGHTS 的 lecture_notes/discussion 等 6 个 PRD 档位是 **source_type** 前向兼容键、注释已自述 forward-compat，不属 doc_type 值域；test fixture 的 "lecture"/"discussion" 仅锁 `_build_where_filters` SQL 拼接契约）。
 
@@ -70,7 +70,8 @@ video_transcript 2001 (90.8%) | concept 117 | note 69 | whiteboard 16 | exam_boa
 - **基线（动手前存档）**：**9 failed / 102 passed**（`G4-16-evidence/baseline-before-edits.txt`）——全部 9 条在 reranker 文件：TypeWeightsIndexerTransition×2 + TestFilterFloor×4 + TestFilterFloorTaintExclusion×3；search_service 文件 0 失败。勘探预告"约 10 个既有失败"，实测 9，偏差 1 条按实测为准。
 - **处置后**：**9 failed / 102 passed**，FAILED 清单逐条 diff 为空 → **零新增失败 PASS**（`after-edits.txt`）。
 - ruff check + format 两文件全过。
-- **证据绑定补强（Codex round-1 MEDIUM-5）**：证据包新增 `test-run-metadata.txt`（精确 pytest 命令 / venv Python 版本 / HEAD sha / 失败节点集合 diff 说明——before/after 失败节点逐条相同，仅耗时行不同）。
+- **证据绑定（round-1 MEDIUM-5 → round-2 补强）**：证据包 `test-run-metadata.txt` 记录精确命令、venv Python 版本、HEAD sha、**过滤管道**（`| grep -E "^FAILED|^ERROR|passed|failed"`——这解释了为何存档只有 10 行摘要而非完整 stdout）、pytest.ini addopts 影响、before/after 源文件 blob 摘要与 exit code。**诚实边界**：两次历史运行的完整 stdout/traceback 未留存，事后无法补造 provenance；可复验的是"当前 HEAD 复跑仍为同一 9 failed / 102 passed"（Codex round-2 已独立复跑确认）。
+- **取值字面量证据（round-2 新 MEDIUM）**：`live-distribution-and-value-grep.txt` 的字面量 grep 是**启发式辅助视图**（含 `"doc_type"`/`"file_path"` 等假阳性，非精确全集）；六值全集的权威依据是 §1/§4 的逐点人工裁定 + pinned 146 行清单。该文件已补记生成命令与 HEAD sha。
 
 **9 条既有失败根因方向**（登记入 FU-2，本卡不修）：测试仍按 2026-05-12 设计断言 `note→0.7 中档`（test :579 docstring 自述），而 RAG-S2 T2（2026-08-09）已把 note/concept 翻转为 1.0（权重方向"手写最高"）且 rerank_score 计算随之变化 → FilterFloor 族的 0.42 过滤阈值场景不再触发。属"生产权重翻转未同步测试"的陈债（Codex 独立溯源到翻转 commit `fcd34953`，并确认 floor 用例修法应调输入使 floor 继续触发、不应放宽预期），与本卡注释修正无关（before/after 失败节点全等自证）。
 
@@ -86,7 +87,7 @@ video_transcript 2001 (90.8%) | concept 117 | note 69 | whiteboard 16 | exam_boa
 
 ## §8 G8-1 台账对齐条目（软依赖注记）
 
-供 G8-1 收录：`doc_type` = LanceDB 行级**文档角色** schema 字段；权威值域现状 = {note, video_transcript, whiteboard, exam_board, concept} + 未闭合 frontmatter 直通面；写入方唯一（lancedb_client 双路径）；消费主链 = 检验白板隔离排除集 + 回归污染裁判；与 source_type（内容来源形态：note/video_transcript/image_ocr/neighbor_expansion）**字段职责与赋值链分离**（doc_type 主要来自 frontmatter 直通+推断、source_type 纯路径启发；二者共享 `_is_video_transcript` 路径启发但互不复制取值），G4-16 前的注释曾将二者混同（已修正）。命名与取值最终口径以 G8-1 台账为准。
+供 G8-1 收录：`doc_type` = LanceDB 行级**文档角色** schema 字段；权威值域现状 = {note, video_transcript, whiteboard, exam_board, concept} + 未闭合 frontmatter 直通面；写入方 = lancedb_client **两显式生产者**（批量/单文件）+ `add_documents()` 无校验通用 sink（round-2 MEDIUM-3：摘要与 §1 口径统一，不得退回"唯一"）；消费主链 = 检验白板隔离排除集 + 回归污染裁判；与 source_type（内容来源形态：note/video_transcript/image_ocr/neighbor_expansion）**字段职责与赋值链分离**（doc_type 主要来自 frontmatter 直通+推断；source_type 在 vault 笔记索引路径为路径启发二分 note/video_transcript，另有 image_ocr 的**显式赋值**与 neighbor_expansion 的**运行期赋值**——round-2 修正"纯路径启发"的不实表述；二者共享 `_is_video_transcript` 但互不复制取值），G4-16 前的注释曾将二者混同（已修正）。命名与取值最终口径以 G8-1 台账为准。
 
 ## §9 Codex round-1 整改记录（FAIL → 全项整改）
 
@@ -104,3 +105,15 @@ Codex round-1 终裁 FAIL（0 BLOCKER / 4 HIGH / 5 MEDIUM / 1 LOW），同时确
 - **LOW-1（whiteboard 来源行号）**：:2740 直通为写侧来源，:2767 为消费点（§1/§4 修正）。
 
 整改后复跑落点测试：9 failed / 102 passed，失败节点与基线逐条相同——注释修订不改任何行为。
+
+## §10 Codex round-2 复审整改记录（7/10 CLOSED → 剩余 3 项 + 4 新发现全部整改）
+
+round-2 确认 HIGH-1/2/4、MEDIUM-1/2/4、LOW-1 共 7 项 CLOSED，并独立复跑坐实三条铁律（AST 全等注释-only、隔离面零改动、9 failed/102 passed 与基线同集合同顺序）。未闭合 3 项 + 新发现 4 条，逐条整改：
+
+- **HIGH-3 NOT-CLOSED（自由值权重表述仍无条件）**：§4 行 6 曾写"自由值→note 1.0"，但 `/videos/` 下 `type: foo` 的 source_type 按路径变为 video_transcript（0.75）。**整改**：加路径条件二分表述。
+- **MEDIUM-3 NOT-CLOSED（§8 摘要自相矛盾）**：§1 已写"两生产者 + 通用 sink"，§8 移交摘要却退回"写入方唯一（双路径）"。**整改**：§8 口径与 §1 统一。
+- **MEDIUM-5 NOT-CLOSED（测试 provenance 不足）**：metadata 缺过滤管道说明与 blob 摘要，且 10 行摘要不是所列命令的直接产物。**整改**：metadata 补过滤管道、pytest.ini 影响、源 blob 摘要、exit code；同时**如实声明**两次历史运行的完整 stdout 无法事后补造，可复验的是当前 HEAD 复跑同结果。
+- **新 MEDIUM（source_type "纯路径启发"不实）**：image_ocr 为显式赋值、neighbor_expansion 为运行期赋值。§8 已修正。
+- **新 MEDIUM（reranker:196 陈旧注释）**：floor 兜底注释仍写 `note=0.7 / 0.5×0.7=0.35` 的历史算例。**整改**：加注 fcd34953 翻转后 note=1.0、该算例为历史情形、floor 机制仍生效、测试重写归 FU-2（仍为注释-only）。
+- **新 MEDIUM（字面量 grep 证据假阳性）**：§6 已降级其为启发式辅助视图并补生成命令。
+- **新 LOW（根脚本行号）**：按 pinned SHA 修正为 migrate:62 / sync:63/:85。
