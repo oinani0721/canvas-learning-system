@@ -10,7 +10,7 @@ worktree: "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktre
 # UAT · CARD-G4-9 DLQ 真实挂载 census 分诊
 
 > [!info]+ 你不需要碰命令行 — 全部技术验证我已代跑（结果见下）
-> 这张卡**没有修任何东西，也没有恢复任何数据**——它是一次"清点尸体"的只读普查（脚本对输入零写入已逐次取证；安全边界见文末"诚实边界"段）：
+> 这张卡**没有修任何东西，也没有恢复任何数据**——它是一次"清点尸体"的只读普查（本次留存的 before/after 样本 SHA 相同——只说明前后终态一致，不证明读取期间零写入；安全边界见文末"诚实边界"段）：
 > 线上 Graphiti 写入失败后落进死信文件的 92 条记录，逐条查清"是什么死的、还能不能救、去哪里救"，
 > 给后续的 G4-10（真正做恢复的卡）留一份带稳定编号的台账。卡面如实标注：离日常使用价值远，属恢复能力地基。
 
@@ -24,7 +24,7 @@ worktree: "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktre
 
 | 项 | 结果 | 证据 |
 |---|---|---|
-| 输入零改动（裁判判据 e） | 运行前后**本次列出的输入**（四份 DLQ + qa_metrics.db）sha256 **逐字节不变**（diff 为空 → PASS）。注：证据包留存本次一对 before/after，非每轮各存一份 | `_bmad-output/审查/G4-9-evidence/shasums-before.txt` / `shasums-after.txt` |
+| 输入前后终态一致（裁判判据 e） | 运行前后**本次列出的输入**（四份 DLQ + qa_metrics.db）sha256 相同（diff 为空）。⚠️ 边界：这证明**前后终态字节一致**，**不证明**读取期间零写入；证据包只留存本次一对 before/after，**非每轮各存一份** | `_bmad-output/审查/G4-9-evidence/shasums-before.txt` / `shasums-after.txt` |
 | 脚本只读自证（判据 a） | import 行全 stdlib；neo4j/graphiti/bolt/app. import **0 命中**；`--apply` 定义 **0 命中**；**全文无任何截断调用**（写出走 O_EXCL 临时文件 + 原子替换） | `G4-9-evidence/grep-selfattest.txt` |
 | 只读契约回归测试（round-9 必需项④ + round-10 补强） | **20 passed**：**17 条行为测试**（subprocess 跑真实 CLI + 断言文件系统事实）+ **3 条源码静态检查**（弱证据，如实标注，不替代行为测试）。测试两次抓出真实问题：① 架构改动丢了文件类型门（FIFO 会被静默替换）；② `deserialize` 延迟验证使 malformed DB 炸掉整次 census。round-10 另修掉 4 处虚假通过窗口 | `backend/tests/regression/test_census_dead_letter_readonly_contract.py` |
 | live 挂载真相（判据 c） | 容器内 `sha256sum /app/data/dead_letter_episodes.jsonl` = 宿主 live 地址同值（92 行，`3b37460f…`）；compose :206-212 遮蔽史入报告 §1 | `G4-9-evidence/container-sha-check.txt` + 报告 §1 |
@@ -46,13 +46,15 @@ worktree: "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktre
 | Codex 复审 round-6 | **6/9 CLOSED**（visibility 优先/fchmod 顺序/no_token 语义/3 条 LOW 已闭合）；剩 2 BLOCKER + 1 MEDIUM 揭示保护集**依赖枚举完整性**的架构缺陷 + 3 新发现 | `_bmad-output/审查/codex-review-CARD-G4-9-round6.md` |
 | round-6 findings 整改 | **架构级修复 + 6 项**：新增不依赖枚举的**路径层防御**（--out 禁落 transcripts 根内 / 禁等于任一输入 realpath）、QA DB 验证 fd 保持打开至复核完毕、no_token 亦扫描、证据包重生成、ledger 冲突原因自描述、lone surrogate 回退。反例实测：0333 隐藏目录内 transcript 作 --out → exit 2 完好 | 报告 §7g |
 | Codex 复审 round-7 | **关键裁定分离**："92 条冻结 ledger **可以采信**；生成器与 UAT 的纯只读安全声明不可验收"——卡面 census 判据已满足，阻断全在工具安全承诺侧。1 BLOCKER（大小写别名根，无需竞态）+ 4 项路径 TOCTOU + 1 MEDIUM（非原子写）+ 2 LOW | `_bmad-output/审查/codex-review-CARD-G4-9-round7.md` |
-| round-7 findings 整改 | **架构级第二次修复**：写出改 O_EXCL 临时文件+fsync+os.replace（**全文再无 ftruncate 调用**），五项绕过整类失效；containment 改 inode 逐级比较（normcase 在 POSIX 是恒等函数，我的假设错了）；扫描受阻直接拒绝写出。实测：根外 hardlink 指向根内 transcript 作 --out → 源内容完好 | 报告 §7h |
+| round-7 findings 整改 | **架构级第二次修复**：写出改 O_EXCL 临时文件+fsync+os.replace（**全文再无 ftruncate 调用**）——「截断某个既有对象」这一**具体路径**不再存在，**不代表所有别名类绕过均已失效**（lstat→replace 竞态见 FU-B/FU-C）；containment 改 inode 逐级比较（normcase 在 POSIX 是恒等函数，我的假设错了）；扫描受阻直接拒绝写出。实测：根外 hardlink 指向根内 transcript 作 --out → 源内容完好 | 报告 §7h |
 | Codex 复审 round-8 | 重申裁定分离：**「可验收：92 条冻结 ledger snapshot；不可验收：生成器一般安全性与 UAT 的纯只读声明」**。3 新 BLOCKER（SQLite URI 未转义 #/? / QA DB 仍按 pathname 开可 ABA / 根内末级 symlink 因 rename 不解析而被替换）+ 1 HIGH + 1 MEDIUM | `_bmad-output/审查/codex-review-CARD-G4-9-round8.md` |
 | round-8 findings 整改 | **6/6 完成**：QA DB 改「已验证 fd 读字节 → 内存库 deserialize」（URI 转义与 ABA 一并消失，含 #? 路径实测通过）；containment 加父目录语义（POSIX rename 不解析末级 symlink）；扫描受阻去掉 and args.out（stdout 模式亦拒）；replace 纳入 try + fsync 父目录 | 报告 §7i |
 | Codex 复审 round-9/10 | round-9 给出「最小剩余项」5 条；round-10 首次明确**「阻断不再要求补必需①②③」**，收敛为 4 条可执行要求：清除矛盾声明 / 修字段语义 / 如实标注测试覆盖 / 补可绑定证据。且十轮均确认 **92 条冻结 ledger 可验收** | `codex-review-CARD-G4-9-round9.md` / `-round10.md` |
 | round-10 解阻整改 | **6/6 完成**：脚本+报告+UAT 的 `mode=ro` 与「唯一写出口/全程零写入」矛盾表述全清（残留均为「已废弃」引述）；`source_fd_opened_readonly` 移到 fd 打开处（**顺带修出真 bug**：deserialize 延迟验证使 malformed DB 炸掉整次 census）；测试覆盖如实标注 17 行为+3 静态并修掉 4 处虚假通过窗口；证据补 HEAD/blob/sha256/逐项明细；「九次取证」与「DB 静止」改为准确表述与操作者前提 | 报告 §7k/§7l |
 | Codex 复审 round-11 | 重申**无需补必需①②③**；剩余阻断收敛为 3 条：清残留声明 / 坏 JSON 与输入不变测试补强 / 用新 blob 更新证据 | `codex-review-CARD-G4-9-round11.md` |
 | round-11 解阻整改 | **3/3 完成**：DB 静止改为操作者前提（0 行·固定字节·同 SHA 均不能证明无并发写者）、"20 类路径 fail-closed"改为逐例证据声明、"整类绕过失效"改为具体路径消失+残余竞态登记；坏 JSON 直接断言原始列表恰 3 项、输入不变测试加非 JSONL sentinel 并覆盖根内全部常规文件；证据绑定新 blob（脚本 87266e09/测试 541ec8b3）。20 passed | 报告 §7m |
+| Codex 复审 round-12（三层裁定） | **(a) 92 条冻结 ledger：PASS 可验收**（独立复算逐项一致）；**(b) 生成器在已声明有界前提下：PASS 可验收**（未发现虚假通过空间）；**可绑定证据：PASS**（blob/SHA/20 项名称逐项对应）；**(c) 报告与 UAT 声明：FAIL** —— 仅剩两条过强措辞 | `codex-review-CARD-G4-9-round12.md` |
+| round-12 措辞整改 | **2/2 完成**（Codex 明示无需再改测试/脚本/证据）："0 写入·逐次取证·输入零改动"统一改为"本次留存 before/after 样本 SHA 相同；不证明读取期间零写入、不证明每轮各存证据"；"五项绕过整类失效"改为"『截断既有对象』这一具体路径不再存在，不代表所有别名类绕过均已失效" | 报告 §7n |
 | 独立 Workflow 4-agent 复核 | G4-9 数字 agent：92 条重算 **0 mismatch**（class/inline/三态/25 request_id/7 transcript 在盘/台账 sha 全 CONFIRMED，仅 2 处描述区间 REFUTED 已修正）；只读契约 agent：与 Codex 同源的 3 条 blocker（已随上整改） | Workflow wf_737b1a95-20b journal |
 
 ## 🔧 Codex round-1 整改记录（13/13 关闭，BLOCKED → 整改完毕）
@@ -131,7 +133,7 @@ round-7 把结论分成了两半，这个区分很重要：
 
 > **「现有 92 条冻结 ledger 可以采信；生成器与 UAT 的纯只读安全声明不可验收。」**
 
-也就是说：这张卡要交付的 census 结论（92 条的分类、对账、三态、挂载真相、稳定键、运行零写入）**已经过关**；卡住的是"这个脚本作为工具，其只读承诺是否经得起敌意输入"。
+也就是说：这张卡要交付的 census 结论（92 条的分类、对账、三态、挂载真相、稳定键，以及输入前后终态字节一致）**已经过关**；卡住的是"这个脚本作为工具，其只读承诺是否经得起敌意输入"。
 
 - **一个无需竞态的真实绕过**：大小写不敏感卷上 `/Users/...` 与 `/users/...` 是同一个目录但 realpath 字符串不同，我 round-6 用来防御的 `os.path.normcase` **在 macOS/Linux 上根本是恒等函数**——这是我的知识性错误。改成逐级比较 **inode 身份**，不再依赖任何字符串。
 - **五项绕过共用一个根源**：它们都依附于"截断一个已存在的文件"这个动作。改成「新建临时文件 → 写 → fsync → 原子替换」后，脚本**全文再没有任何截断调用**——"截断某个既有对象"这条**具体路径**不复存在，"崩溃留下半个台账"的风险也一并消除。实测：拿一个指向恢复源的 hardlink 当 `--out`，台账正常写出，而**源文件内容一个字节没变**。⚠️ 这**不等于**"所有别名类绕过都已失效"：`lstat`→`replace` 之间仍有竞态窗口，已登记 FU-B/FU-C。
