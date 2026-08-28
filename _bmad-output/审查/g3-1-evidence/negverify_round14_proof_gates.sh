@@ -23,8 +23,8 @@ WT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 VALIDATOR="$WT/backend/scripts/validate_learning_events.py"
 TESTS="$WT/backend/tests/regression/test_learning_events_schema_contract.py"
 PY="/Users/Heishing/Desktop/canvas/canvas-learning-system/backend/.venv/bin/python"
-BAK="$(mktemp)"
-cp "$VALIDATOR" "$BAK"
+BAK="$(mktemp)" || { echo "❌ mktemp 失败"; exit 1; }
+cp "$VALIDATOR" "$BAK" || { echo "❌ 初始备份失败, 拒绝继续 (否则无法还原)"; exit 1; }
 FAILURES=0
 trap 'cp "$BAK" "$VALIDATOR"; rm -f "$BAK"' EXIT
 
@@ -33,13 +33,19 @@ pass() { echo "  ✅ $*"; }
 
 # mutate <perl表达式> — 断言恰好命中 1 处
 mutate() {
-  local expr="$1"
+  local expr="$1" hits
   local before after
   before="$(shasum -a 256 "$VALIDATOR" | cut -d' ' -f1)"
+  # round-16 Codex MEDIUM: 只比前后 SHA 不能排除"命中两处"。先用 /g 变体数命中数。
+  hits="$(perl -0ne "\$n = () = (\$_ =~ s${expr#s}g); print \$n" "$VALIDATOR" 2>/dev/null || echo "?")"
   perl -0pi -e "$expr" "$VALIDATOR"
   after="$(shasum -a 256 "$VALIDATOR" | cut -d' ' -f1)"
   if [ "$before" = "$after" ]; then
     fail "mutation 未命中 (文件未变) — 模式已与实现漂移, 本变体结论无效"
+    return 1
+  fi
+  if [ "$hits" != "1" ] && [ "$hits" != "?" ]; then
+    fail "mutation 命中 $hits 处 (要求恰 1 处) — 变体语义不唯一"
     return 1
   fi
   return 0
@@ -54,7 +60,9 @@ run_pytest() {
   COLLECTED="$(grep -oE "[0-9]+ (passed|failed|deselected)" <<<"$OUT" | awk '{s+=$1} END {print s+0}')"
 }
 
-# expect_red <预期失败的测试名> <-k 表达式>
+# expect_red <预期失败的测试名 | 竖线分隔的多个> <-k 表达式>
+# 一道门可以被多条测试覆盖 (如尾部门同时被 tail 与 out_of_order 两条依赖),
+# 故判据是"失败集合 **子集于** 预期集合", 而不是"只有一条失败"。
 expect_red() {
   local expected="$1"
   run_pytest "$2"
@@ -68,12 +76,26 @@ expect_red() {
     fail "0 个测试被收集 — 过滤表达式与实现漂移"
     return 1
   fi
-  if ! grep -q "^FAILED .*::${expected}\b" <<<"$OUT"; then
-    fail "预期 ${expected} 变红, 实际失败的是别的测试"
+  local first="${expected%%|*}"
+  if ! grep -qE "^FAILED .*::(${expected})" <<<"$OUT"; then
+    fail "预期 ${first} 变红, 实际失败的是别的测试"
     grep "^FAILED" <<<"$OUT" | head -3 | sed 's/^/     /'
     return 1
   fi
-  pass "${expected} 如期变红"
+  # round-16 Codex MEDIUM: 只查"预期那条在失败列表里"不够 —— 无关的连带失败会让
+  # "该门承重"的结论不成立。判据 = 失败集合 ⊆ 预期集合。
+  local others
+  others="$(grep "^FAILED" <<<"$OUT" | grep -cvE "::(${expected})" || true)"
+  if [ "${others:-0}" -ne 0 ]; then
+    fail "除预期的 ${expected} 外还有 ${others} 条失败 — 无法归因于该门"
+    grep "^FAILED" <<<"$OUT" | grep -vE "::(${expected})" | head -3 | sed 's/^/     /'
+    return 1
+  fi
+  if grep -qE "^ERROR|errors? during collection" <<<"$OUT"; then
+    fail "输出含 ERROR/collection error"
+    return 1
+  fi
+  pass "${first} 如期变红"
   grep -E "passed|failed" <<<"$OUT" | tail -1 | sed 's/^/     /'
   return 0
 }
@@ -107,7 +129,7 @@ cp "$BAK" "$VALIDATOR"
 echo
 echo "=== 变体C: 拆掉最外层尾部门 (round-11 尾部逃逸的封堵) ==="
 if mutate 's/    if is_top_level:\n        tail = sorted/    if False:\n        tail = sorted/'; then
-  expect_red test_top_level_must_cover_ledger_tail "tail"
+  expect_red "test_top_level_must_cover_ledger_tail|test_out_of_order_false_cannot_hide_tail_event" "tail"
 fi
 cp "$BAK" "$VALIDATOR"
 
@@ -140,14 +162,49 @@ fi
 cp "$BAK" "$VALIDATOR"
 
 echo
+echo "=== 变体H: earliest 退回最早**适用**行 (round-16 survivor) ==="
+if mutate 's/    earliest = min\(scan\["node_event_lines"\]\) if \(scan and scan\["node_event_lines"\]\) else \(min\(lines\) if lines else None\)/    earliest = min(lines) if lines else None/'; then
+  expect_red test_survivor_earliest_uses_all_node_events "survivor_earliest"
+fi
+cp "$BAK" "$VALIDATOR"
+
+echo
+echo "=== 变体I: stability 上界删除 (round-16 survivor) ==="
+if mutate 's/    if isinstance\(stability, float\) and not \(0 < stability <= STABILITY_MAX\):/    if isinstance(stability, float) and not (0 < stability):/'; then
+  expect_red test_survivor_stability_upper_bound_is_enforced "survivor_stability"
+fi
+cp "$BAK" "$VALIDATOR"
+
+echo
+echo "=== 变体J: 区间只查 library_version 哨兵 (round-16 survivor) ==="
+if mutate 's/            for key in \("fsrs_library_version", "fsrs_params_hash"\)/            for key in ("fsrs_library_version",)/'; then
+  expect_red test_survivor_params_hash_sentinel_in_interval "survivor_params_hash"
+fi
+cp "$BAK" "$VALIDATOR"
+
+echo
+echo "=== 变体K: out_of_order 退回"键存在即排除" (round-16 HIGH) ==="
+if mutate 's/            if payload\["out_of_order"\] is True:/            if True:/'; then
+  expect_red test_out_of_order_false_cannot_hide_tail_event "out_of_order_false"
+fi
+cp "$BAK" "$VALIDATOR"
+
+echo
+echo "=== 变体L: scheduler_config 退回 Python == 比较 (round-16 HIGH) ==="
+if mutate 's/            if _canon\(config\) != _canon\(manifest\["scheduler_config"\]\):/            if config != manifest["scheduler_config"]:/'; then
+  expect_red "test_scheduler_config_compared_by_canonical_json" "canonical_json"
+fi
+cp "$BAK" "$VALIDATOR"
+
+echo
 echo "=== 还原后全量 ==="
 FINAL="$(cd "$WT/backend" && "$PY" -m pytest "$TESTS" -q 2>&1)"
 FINAL_RC=$?
 if [ "$FINAL_RC" -ne 0 ]; then
   fail "还原后 exit code $FINAL_RC — 脚本未正确恢复文件, 或存在真实失败"
   grep "^FAILED" <<<"$FINAL" | head -3 | sed 's/^/     /'
-elif ! shasum -a 256 "$VALIDATOR" | grep -q "$(shasum -a 256 "$BAK" | cut -d' ' -f1)"; then
-  fail "还原后校验器字节与备份不一致 — 恢复不完整"
+elif ! cmp -s "$VALIDATOR" "$BAK"; then
+  fail "还原后校验器与备份不逐字节相同 (cmp) — 恢复不完整"
 else
   pass "还原后全绿且字节与备份逐字相同"
 fi

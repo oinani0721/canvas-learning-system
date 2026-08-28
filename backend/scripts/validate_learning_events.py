@@ -489,9 +489,13 @@ def scan_ledger_bytes(raw: bytes, node_id: object) -> tuple[dict, list[str]]:
         "degraded_lines": [],
         "vault_ids": set(),
         "bad_lines": [],
+        "blank_lines": [],
     }
     for idx, chunk in enumerate(_split_ledger_lines(raw), start=1):
         if not chunk.strip():
+            # round-16 Codex MEDIUM: 主体校验判空行违规 (append-only JSONL 不
+            # 应出现), scanner 原本静默跳过 —— 两处口径必须一致
+            scan["blank_lines"].append(idx)
             continue
         try:
             record = _strict_loads(chunk.decode("utf-8"))
@@ -505,19 +509,32 @@ def scan_ledger_bytes(raw: bytes, node_id: object) -> tuple[dict, list[str]]:
         scan["node_event_lines"].append(idx)
         payload = record.get("payload")
         if not isinstance(payload, dict) or payload.get("schema_ext") != REVIEW_EXT_MARKER:
-            scan["unextended_lines"].append(idx)
+            # round-16 Codex MEDIUM: §6.2 要求的是"其全部**复习事件**都带
+            # review/1", 不是全部节点事件 —— 原实现把同节点的 callout_ingested
+            # 等合法非复习事件也算作"历史不完整", 误拒 new_card
+            if record.get("event_type") in REVIEW_EVENT_TYPES:
+                scan["unextended_lines"].append(idx)
             continue
         if "out_of_order" in payload:
-            continue
+            # round-16 Codex HIGH: 原实现按"键是否存在"排除 —— 写
+            # `out_of_order: false` 即可把尾部事件从适用集里藏掉, 绕过尾部门。
+            # §6.2 冻结: 该键唯一合法值是布尔 true, 未标则不写该键。
+            if payload["out_of_order"] is True:
+                continue
+            problems.append(
+                f"第 {idx} 行: out_of_order 形态非法 ({payload['out_of_order']!r}) — "
+                f"§6.2 冻结其唯一合法值为布尔 true, 未标则不写该键; 该行仍计入适用集"
+            )
         review_time = payload.get("review_time")
         event_id = record.get("event_id")
         if not isinstance(review_time, str) or not isinstance(event_id, str):
             problems.append(f"第 {idx} 行: review_time/event_id 非字符串, 无法参与 proof")
             continue
-        for key in ("fsrs_library_version", "fsrs_params_hash"):
-            value = payload.get(key)
-            if isinstance(value, str) and value.startswith(DEGRADED_PREFIX):
-                scan["degraded_lines"].append(idx)
+        if any(
+            isinstance(payload.get(key), str) and payload[key].startswith(DEGRADED_PREFIX)
+            for key in ("fsrs_library_version", "fsrs_params_hash")
+        ):
+            scan["degraded_lines"].append(idx)  # 双哨兵不重复记同一行 (round-16 LOW)
         vault_id = payload.get("vault_id")
         if isinstance(vault_id, str) and vault_id:
             scan["vault_ids"].add(vault_id)
@@ -587,6 +604,9 @@ def _frontmatter_fsrs_keys(text: str) -> tuple[list[str], bool]:
         if not isinstance(data, dict):
             return ["<frontmatter 顶层非映射>"], True
         return sorted(k for k in data if isinstance(k, str) and k.startswith("fsrs_")), True
+    # round-16 Codex HIGH: 无 PyYAML 时的正则 fallback 会漏掉 YAML 转义键
+    # (如 `"fsrs_state": 2` 语义即 fsrs_state), 而 schema 并未授权"依赖
+    # 不可达就削弱 genesis 门" ⇒ 该路径必须 fail-closed。正则命中的仍一并报出。
     found = {m.group(1) for m in re.finditer(r"(?m)^[\"']?(fsrs_[A-Za-z0-9_]*)[\"']?\s*:", text)}
     return sorted(found), False
 
@@ -597,6 +617,7 @@ def _verify_proof_level(
     *,
     scan: Optional[dict] = None,
     ledger_raw: Optional[bytes] = None,
+    ledger_vault_id: Optional[str] = None,
     is_top_level: bool = True,
     _depth: int = 0,
 ) -> list[str]:
@@ -638,10 +659,23 @@ def _verify_proof_level(
                 problems.append("E 所在行无终止 LF, 必须写 prefix_ends_without_lf: true")
             if not ends_without_lf and "prefix_ends_without_lf" in proof:
                 problems.append("E 所在行有终止 LF, 必须省略 prefix_ends_without_lf")
+        if scan["blank_lines"]:
+            problems.append(f"账本第 {scan['blank_lines']} 行是空行 — append-only JSONL 不应出现 (与主体校验同口径)")
+        # round-16 Codex HIGH: 原实现只做**集合成员**判断 —— L1 vault=A、
+        # L2 vault=B 而 cursor 指向 L2 时, proof 写 vault=A 仍通过; 适用行全部
+        # 不带 vault_id 时更可任填。改为**严格等值**, 并优先用账本所在 vault 的
+        # 真实配置 (与主体校验同源) 作锚。
+        claimed = proof.get("vault_id")
         vault_ids = scan["vault_ids"]
-        if vault_ids and proof.get("vault_id") not in vault_ids:
+        if vault_ids and vault_ids != {claimed}:
             problems.append(
-                f"vault_id 与账本事件不符: proof 声称 {proof.get('vault_id')!r}, 账本为 {sorted(vault_ids)}"
+                f"vault_id 与账本事件不符: proof 声称 {claimed!r}, 账本适用事件为 {sorted(vault_ids)} "
+                f"(须严格等于单一值)"
+            )
+        if ledger_vault_id is not None and claimed != ledger_vault_id:
+            problems.append(
+                f"vault_id 与账本所在 vault 配置不符: proof 声称 {claimed!r}, "
+                f".canvas-config.yaml 为 {ledger_vault_id!r}"
             )
 
     problems.extend(_check_proof_identity(proof))
@@ -701,7 +735,7 @@ def _verify_proof_level(
         ancestor_end: Optional[datetime] = None
     elif kind == "snapshot":
         left, ancestor_end, snapshot_problems = _check_snapshot(
-            proof, origin, applicable, cursor, scan, ledger_raw, _depth
+            proof, origin, applicable, cursor, scan, ledger_raw, ledger_vault_id, _depth
         )
         problems.extend(snapshot_problems)
         if left is _ABORT:
@@ -773,8 +807,13 @@ def _check_proof_identity(proof: dict) -> list[str]:
                 f"fsrs_library_version 与 golden manifest 不同源: proof {version!r} vs manifest "
                 f"{manifest['library_version']!r}"
             )
-        elif manifest is None and not _VERSION_RE.match(version):
-            problems.append(f"fsrs_library_version 形状非法 (manifest 不可达, 降级形状校验): {version!r}")
+        elif manifest is None:
+            # round-16 Codex HIGH: 原实现在 manifest 不可达时只查形状 —— 合法
+            # 形状的版本 + 任意 64-hex + 六个配置键全取 0 即可返回 []。§6.2 明写
+            # 算法身份"须与 G3-4 manifest 同源", 无 manifest 就**无法证明同源**,
+            # proof 侧必须 fail-closed (账本主体校验侧仍保持降级 WARN, 因其须能
+            # 对任意 vault 独立运行, 二者语境不同)
+            problems.append("golden manifest 不可达 — 无法证明算法身份与 G3-4 同源, proof 侧 fail-closed (§6.2)")
 
     params_hash = proof.get("fsrs_params_hash")
     if "fsrs_params_hash" in proof:
@@ -788,23 +827,36 @@ def _check_proof_identity(proof: dict) -> list[str]:
                 f"{manifest['params_hash']!r}"
             )
         elif manifest is None and not _HASH_RE.match(params_hash):
-            problems.append(f"fsrs_params_hash 形状非法 (manifest 不可达, 降级形状校验): {params_hash!r}")
+            problems.append(f"fsrs_params_hash 形状非法: {params_hash!r}")
 
     config = proof.get("scheduler_config")
     if "scheduler_config" in proof:
         if not isinstance(config, dict) or not config:
             problems.append("scheduler_config 必须是非空 JSON object (须完整可复算)")
         elif manifest is not None and isinstance(manifest.get("scheduler_config"), dict):
-            if config != manifest["scheduler_config"]:
+            # round-16 Codex HIGH: 原用 Python `==` —— `enable_fuzzing: 0` 与
+            # manifest 的 JSON `false` 判等 (Python 里 0 == False), 同理
+            # `[true, 10]` 等于 `[1, 10]`。改按 **canonical JSON 文本**比较:
+            # json.dumps(False)="false" != json.dumps(0)="0", 类型不再碰撞。
+            def _canon(value):
+                return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+
+            if _canon(config) != _canon(manifest["scheduler_config"]):
                 missing = sorted(set(manifest["scheduler_config"]) - set(config))
-                problems.append(
-                    f"scheduler_config 与 golden manifest 不同源"
-                    + (f" (缺键 {missing})" if missing else " (同键集但取值不同)")
-                )
-        else:
-            missing = sorted(_SCHEDULER_CONFIG_KEYS - set(config))
-            if missing:
-                problems.append(f"scheduler_config 缺字段 {missing} (manifest 不可达, 降级形状校验)")
+                extra = sorted(set(config) - set(manifest["scheduler_config"]))
+                detail = []
+                if missing:
+                    detail.append(f"缺键 {missing}")
+                if extra:
+                    detail.append(f"多键 {extra}")
+                if not detail:
+                    differing = sorted(
+                        k
+                        for k in manifest["scheduler_config"]
+                        if _canon(config.get(k)) != _canon(manifest["scheduler_config"][k])
+                    )
+                    detail.append(f"同键集但取值/类型不同: {differing}")
+                problems.append("scheduler_config 与 golden manifest 不同源 (" + "; ".join(detail) + ")")
 
     reducer = proof.get("reducer")
     if "reducer" in proof:
@@ -842,8 +894,13 @@ def _check_genesis(origin: dict, lines: dict, scan: Optional[dict]) -> tuple[Opt
     else:
         offenders, parsed = _frontmatter_fsrs_keys(fm_text)
         if offenders:
-            how = "YAML 顶层键" if parsed else "行首键 (无 PyYAML, 降级正则)"
+            how = "YAML 顶层键" if parsed else "行首键 (正则)"
             problems.append(f"genesis_evidence 原文含 FSRS {how} {offenders} — 与 new_card(三态判别为 new) 矛盾")
+        if not parsed:
+            # round-16 Codex HIGH: 正则 fallback 漏掉 YAML 转义键 (如
+            # `"fsrs_\u0073tate": 2` 语义即 fsrs_state)。schema 未授权"依赖不可达
+            # 就削弱 genesis 门" ⇒ 该路径 fail-closed, 而非静默降级。
+            problems.append("PyYAML 不可达 — 无法按 YAML 语义证明 genesis 原文顶层无 FSRS 键, fail-closed (§6.2)")
         if isinstance(fm_hash, str) and _SHA256_HEX_RE.match(fm_hash):
             if hashlib.sha256(fm_text.encode("utf-8")).hexdigest() != fm_hash:
                 problems.append("genesis_evidence.node_frontmatter_hash 与所附原文不符 (自洽性)")
@@ -878,6 +935,7 @@ def _check_snapshot(
     cursor: int,
     scan: Optional[dict],
     ledger_raw: Optional[bytes],
+    ledger_vault_id: Optional[str],
     depth: int,
 ):
     """`origin.kind == "snapshot"` 的三等式、链约束与递归。→ (左端点, ancestor 时刻, 违规)。"""
@@ -905,6 +963,7 @@ def _check_snapshot(
             applicable,
             scan=scan,
             ledger_raw=ledger_raw,
+            ledger_vault_id=ledger_vault_id,
             is_top_level=False,
             _depth=depth + 1,
         )
@@ -993,16 +1052,24 @@ def verify_degraded_proof(
     """
     scan: Optional[dict] = None
     ledger_raw: Optional[bytes] = None
+    ledger_vault_id: Optional[str] = None
     prelude: list[str] = []
     if ledger_path is not None:
         ledger_raw, read_problems = _ledger_bytes(ledger_path)
         prelude.extend(read_problems)
+        # round-16 Codex HIGH: 现网事件 payload **不带** vault_id (带的是
+        # group_id), 故 vault 身份的真实来源是账本所在 vault 的
+        # .canvas-config.yaml —— 与主体校验同源的那套解析
+        if not isinstance(ledger_path, (bytes, bytearray)):
+            ledger_vault_id = _vault_id_of(Path(ledger_path))
         if ledger_raw is not None:
             node_id = proof.get("node_id") if isinstance(proof, dict) else None
             scan, scan_problems = scan_ledger_bytes(ledger_raw, node_id)
             prelude.extend(scan_problems)
     try:
-        return prelude + _verify_proof_level(proof, applicable, scan=scan, ledger_raw=ledger_raw)
+        return prelude + _verify_proof_level(
+            proof, applicable, scan=scan, ledger_raw=ledger_raw, ledger_vault_id=ledger_vault_id
+        )
     except RecursionError:
         return prelude + [f"ancestor_proof 链过深, 递归耗尽栈 (上限 {PROOF_MAX_DEPTH} 层) — 疑似自引用或异常构造"]
 

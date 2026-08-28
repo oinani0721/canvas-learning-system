@@ -29,7 +29,7 @@
 
 | 裁判 | 结果 |
 |---|---|
-| 契约测试 `backend/tests/regression/test_learning_events_schema_contract.py` | **130 passed + 1 skipped**（本文件单跑口径，十六轮整改后；skip = 仓内 vault 根无账本的 worktree 环境，主仓自动生效。与 golden 门 + 既有账本测试合跑 = **155 passed + 1 skipped**） |
+| 契约测试 `backend/tests/regression/test_learning_events_schema_contract.py` | **143 passed + 1 skipped**（本文件单跑口径，十七轮整改后；skip = 仓内 vault 根无账本的 worktree 环境，主仓自动生效。与 golden 门 + 既有账本测试合跑 = **168 passed + 1 skipped**） |
 | **真实 producer 执行**（Codex 一轮 HIGH 整改） | vault 三 skill 写点的 python 代码**从 SKILL.md 逐字提取执行**（ai-linked-doc 单行模板 / start-exam-board PYEOF 块 / quiz-answer 评分链账本段；仅路径常量重定向 tmp fixture），产物过校验器 + 幂等重放断言；backend 侧按 5 调用点实参形状经真实 `append_event` 写入后全过 |
 | 既有账本回归 `test_learning_event_log.py` | 6 passed（零改动） |
 | 校验脚本 vs 三 fixture | 合法 → exit 0 / 缺字段 → exit 1（点名 `effective_at`）/ 重复 event_id → exit 1（点名首见行号）（存证 `审查/g3-1-evidence/g3-1-fixture-validation.txt`） |
@@ -323,3 +323,25 @@
 ⚠️ **操作教训（如实登记）**：本轮一度并发跑了两个负验证脚本，二者都会原地 mutate 同一个校验器，B 的备份取自 A 已 mutate 之后 ⇒ 还原时把 A 的 mutation 写回文件，留下一个 `state_hash` 恒返回常量的校验器，而契约测试**照样全绿**。发现它的正是本轮新加的"还原后字节须与备份逐字相同"那道门。**该脚本必须串行运行。**
 
 裁判实测：契约测试 **130 passed + 1 skipped**、golden **19 passed**、三文件合跑 **155 passed + 1 skipped**、现网账本 exit 0 且 SHA 恒定。
+
+### 十六轮复核处置（G3-4 保持可验收；G3-1 残留 4 HIGH + 4 MEDIUM + 4 LOW，本轮全清）
+
+⚠️ 十六轮确认：十五轮点名的**具体反例全部闭合**（含单快照 HIGH 完全闭合），但相应安全门仍有**其他**缺口。四条新 HIGH 我逐一实测复现后修掉。
+
+| # | 级别 | 十六轮发现 | 处置 |
+|---|---|---|---|
+| 一 | **HIGH** | **算法身份非严格 JSON 同源**：实现用 Python dict 相等，而 `enable_fuzzing: 0` 与 manifest 的 JSON `false` 在 Python 里判等（`0 == False`），`learning_steps_minutes=[true,10]` 同样等于 `[1,10]` ⇒ 完整 proof 返回 `[]`。**manifest 不可达时更糟**：合法形状版本 + 任意 64-hex + 六个配置键全取 `0` 即可返回 `[]`（只查键存在） | **已修**：①`scheduler_config` 改按 **canonical JSON 文本**比较（`json.dumps(False)="false" != json.dumps(0)="0"`，类型不再碰撞），并在报错里指出**具体哪些键取值/类型不同**；②manifest 不可达 ⇒ **proof 侧 fail-closed**（"无法证明算法身份与 G3-4 同源"）。⚠️ 账本主体校验侧仍保持降级 WARN——它必须能对任意 vault 独立运行，二者语境不同 |
+| 二 | **HIGH** | **`out_of_order: false` 可隐藏尾部事件**：scanner 按"键是否存在"排除，于是给 L2 写 `out_of_order: false` 就能把它从适用集里藏掉、绕过尾部门（主体校验器**会**拒 `false`，但 proof 入口没有先跑完整记录语义校验） | **已修**：只认严格布尔 `true` 才排除；其他形态**既报"形态非法"违规，又仍计入适用集**——实测该行仍触发"未覆盖到账本末尾" |
+| 三 | **HIGH** | **无 PyYAML 时 fallback 漏检**：frontmatter 写 `"fsrs_state": 2`（YAML 转义，语义键即 `fsrs_state`），PyYAML 路径能识别而第 0 列正则返回空 ⇒ 完整 proof 返回 `[]`。schema 并未授权"依赖不可达就削弱 genesis 门" | **已修**：该路径 **fail-closed**——正则命中的仍报出，同时另发一条"PyYAML 不可达，无法按 YAML 语义证明顶层无 FSRS 键" |
+| 四 | **HIGH** | **vault 绑定只做集合成员关系**：L1 `vault=A`、L2 `vault=B` 而 cursor 指向 L2 时，proof 仍写 `vault=A` 可过；适用行全部缺 `vault_id` 时更可任填 | **部分修 + 残余面如实声明**：①集合改**严格等值**（`vault_ids != {claimed}` 即违规）；②新增绑定账本所在 vault 的 `.canvas-config.yaml`（与主体校验同源的解析）。⚠️ **残余面**：实查现网事件 payload **根本不带 `vault_id`**（带的是 `group_id`），账本目录也未必有 vault 配置——这种形态下 vault 身份**无法绑定**，proof 的 `vault_id` 就是自报值。已列为范围声明第 ⑥ 条，**不假装闭合** |
+| 五 | MEDIUM | `unextended_lines` **误拒合法非复习事件**：同节点的 `callout_ingested` 被算作"历史不完整"而拒 new_card；§6.2 要求的是"其全部**复习事件**都带 review/1" | **已修**：只对 `REVIEW_EVENT_TYPES`（`answer_scored`/`answer_abandoned`）判定 |
+| 六 | MEDIUM | `bad_lines` 口径不完整：空行在 scanner 直接跳过而主体校验判违规；可解析但语义非法的记录不进 `bad_lines` | **已修 + 前置条件成文**：①空行与主体同口径（`blank_lines` 报违规）；②范围声明第 ⑤ 条写明"scanner 只校验 proof 依赖的字段，**不做完整记录级 schema 校验**，proof 校验以『该账本已通过主体校验』为前置条件" |
+| 七 | MEDIUM | **五个关键实现破坏可在现有测试下存活**（earliest 退回最早适用行 / 改两次 `.open().read()` / 递归丢弃共享 scan / 删 stability 上界 / 区间不查 params-hash 哨兵） | **已修**：补五条专门门。其中**单快照改为真实行为计数**——`monkeypatch` `Path.read_bytes` 计账本读取次数（此前只查源码字符串 `count("read_bytes()")==1`，改成两次 `.open().read()` 仍绿）；另加两层 proof 的递归复用门 |
+| 八 | MEDIUM | 负验证 `mutate()` 不查命中次数、`expect_red` 不拒连带失败、备份/恢复无返回码保护、"逐字相同"实为 SHA 比较 | **已修**：①`mutate()` 用 `/g` 变体数命中数，非 1 即判"变体语义不唯一"；②`expect_red` 判据 = **失败集合 ⊆ 预期集合**（支持一道门被多条测试覆盖，竖线分隔）+ 拒 ERROR/collection error；③`mktemp` 与初始备份检查返回码，失败即拒绝继续；④还原比较改 **`cmp -s` 逐字节** |
+| 九-十二 | LOW | schema 仍记录已移除的公开 `is_top_level` 签名；模块注释仍是三条且"消除信任边界"过强；G3-4 UAT/CURRENT_TASK 的 179 应为 191；双哨兵重复记同一行号 | **全部已修**：签名更正并说明为何移出公开；模块注释与函数 docstring 的"不做的事"**三条扩到六条**；179→191；`degraded_lines` 去重 |
+
+**十七轮负验证**：变体扩至 **十二个**（新增 H earliest / I stability 上界 / J params 哨兵 / K out_of_order / L canonical JSON），全部如期变红，还原后 `cmp` 逐字节一致。
+
+⚠️ **新判据当场发现的合理情况**：变体 C（拆尾部门）会让**两条**测试同时变红——`test_top_level_must_cover_ledger_tail` 与 `test_out_of_order_false_cannot_hide_tail_event` 都依赖该门。这说明"只许一条失败"过严，判据已改为**失败集合 ⊆ 预期集合**。
+
+裁判实测：契约测试 **143 passed + 1 skipped**。

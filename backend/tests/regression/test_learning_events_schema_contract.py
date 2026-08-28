@@ -1704,3 +1704,217 @@ def test_first_event_line_must_equal_earliest_node_event(tmp_path):
     proof = _leaf(2, _T2, first_event_line=2, ledger_prefix_sha256=prefix)
     problems = validator.verify_degraded_proof(proof, [], ledger_path=ledger)
     assert any("不是该节点最早的事件行" in p for p in problems), problems
+
+
+# ── round-17: Codex 十六轮的 4 HIGH + 4 MEDIUM 逐条行为门 ──
+#
+# 其中五条专补十六轮实证的 **survivor**：把对应实现分支破坏后, 原 130 条契约
+# 测试仍全绿 —— 说明那些分支当时没有承重门。
+
+
+def _cfg(**over):
+    cfg = dict(_GOLDEN_MANIFEST["scheduler_config"])
+    cfg.update(over)
+    return cfg
+
+
+@pytest.mark.parametrize(
+    "config, differing",
+    [
+        # Python 里 0 == False、True == 1 ⇒ dict 相等比较看不出类型漂移
+        (_cfg(enable_fuzzing=0), "enable_fuzzing"),
+        (_cfg(learning_steps_minutes=[True, 10]), "learning_steps_minutes"),
+    ],
+)
+def test_scheduler_config_compared_by_canonical_json(config, differing):
+    """algorithm 同源必须按 canonical JSON 文本比 — Python 的类型碰撞会放行漂移。"""
+    problems = validator.verify_degraded_proof(
+        _leaf(2, _T2, first_event_line=1, scheduler_config=config), _APPLICABLE_2
+    )
+    assert any("不同源" in p and differing in p for p in problems), problems
+
+
+def test_manifest_unreachable_fails_closed(monkeypatch):
+    """manifest 不可达 ⇒ 无法证明同源 ⇒ proof 侧 fail-closed。
+
+    十六轮 HIGH: 原实现降级为形状校验, 于是"合法形状版本 + 任意 64-hex +
+    六个配置键全取 0"即可返回 []。
+    """
+    monkeypatch.setattr(validator, "_golden_manifest", lambda: None)
+    problems = validator.verify_degraded_proof(_leaf(2, _T2, first_event_line=1), _APPLICABLE_2)
+    assert any("无法证明算法身份" in p for p in problems), problems
+
+
+def test_out_of_order_false_cannot_hide_tail_event(tmp_path):
+    """`out_of_order: false` 不得把尾部事件从适用集里藏掉。
+
+    十六轮 HIGH: scanner 原按"键是否存在"排除。§6.2 冻结其唯一合法值是布尔
+    true, 未标则不写该键 —— 其他形态是非法记录, 既要报错, 又**仍计入适用集**。
+    """
+    rows = [_event("e1", _T1), _event("e2", _T2)]
+    tampered = json.loads(rows[1])
+    tampered["payload"]["out_of_order"] = False
+    ledger = _ledger_with(tmp_path, [rows[0], json.dumps(tampered)])
+    prefix, _, _ = validator.ledger_prefix(ledger, 1)
+    proof = _leaf(1, _T1, first_event_line=1, ledger_prefix_sha256=prefix)
+    problems = validator.verify_degraded_proof(proof, [], ledger_path=ledger)
+    assert any("out_of_order 形态非法" in p for p in problems), problems
+    assert any("未覆盖到账本末尾" in p for p in problems), problems
+
+
+def test_missing_pyyaml_fails_closed(monkeypatch):
+    """无 PyYAML 时正则 fallback 漏掉 YAML 转义键 ⇒ genesis 门必须 fail-closed。"""
+    real_import = builtins.__import__
+
+    def blocked(name, *args, **kwargs):
+        if name == "yaml":
+            raise ImportError("blocked for test")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", blocked)
+    problems = validator.verify_degraded_proof(_leaf(2, _T2, first_event_line=1), _APPLICABLE_2)
+    assert any("PyYAML 不可达" in p and "fail-closed" in p for p in problems), problems
+
+
+def test_mixed_vault_ids_are_rejected(tmp_path):
+    """vault 绑定必须**严格等值**, 不是集合成员关系。
+
+    十六轮 HIGH: L1 vault=A、L2 vault=B, cursor 指向 L2 而 proof 写 A 曾通过。
+    """
+    ledger = _ledger_with(tmp_path, [_event("e1", _T1, vault_id="A"), _event("e2", _T2, vault_id="B")])
+    prefix, _, _ = validator.ledger_prefix(ledger, 2)
+    proof = _leaf(2, _T2, first_event_line=1, vault_id="A", ledger_prefix_sha256=prefix)
+    problems = validator.verify_degraded_proof(proof, [], ledger_path=ledger)
+    assert any("须严格等于单一值" in p for p in problems), problems
+
+
+def test_non_review_events_do_not_block_new_card(tmp_path):
+    """§6.2 要求的是"全部**复习事件**都带 review/1" — 非复习事件不得误拒。
+
+    十六轮 MEDIUM: 同节点的合法 callout_ingested 曾被算作"历史不完整"。
+    """
+    callout = json.dumps(
+        {
+            "event_id": "c1",
+            "event_version": 1,
+            "event_type": "callout_ingested",
+            "node_id": "n",
+            "recorded_at": _T1,
+            "effective_at": _T1,
+            "payload": {"callout_type": "tip", "text": "x"},
+        }
+    )
+    ledger = _ledger_with(tmp_path, [callout, _event("e2", _T2)])
+    prefix, _, _ = validator.ledger_prefix(ledger, 2)
+    proof = _leaf(2, _T2, first_event_line=1, ledger_prefix_sha256=prefix)
+    problems = validator.verify_degraded_proof(proof, [], ledger_path=ledger)
+    assert not any("历史不完整" in p for p in problems), problems
+
+
+def test_blank_line_matches_main_validator_verdict(tmp_path):
+    """空行在 scanner 与主体校验必须同口径 (主体判违规)。"""
+    ledger = tmp_path / "learning_events.jsonl"
+    ledger.write_text(_event("e1", _T1) + "\n\n" + _event("e3", _T2) + "\n", encoding="utf-8")
+    prefix, _, _ = validator.ledger_prefix(ledger, 3)
+    proof = _leaf(3, _T2, first_event_line=1, ledger_prefix_sha256=prefix)
+    problems = validator.verify_degraded_proof(proof, [], ledger_path=ledger)
+    assert any("空行" in p for p in problems), problems
+
+
+# ── 五个 survivor 的专门门 (十六轮实证: 破坏这些分支后原测试仍全绿) ──
+
+
+def test_survivor_earliest_uses_all_node_events(tmp_path):
+    """earliest 必须取 node_event_lines, 不是最早**适用**行。
+
+    构造上二者必须不同: L1 是非复习事件 (不进 applicable, 也不算历史不完整),
+    L2/L3 才是适用事件。把实现退回 min(applicable) 时本门变红。
+    """
+    callout = json.dumps(
+        {
+            "event_id": "c1",
+            "event_version": 1,
+            "event_type": "callout_ingested",
+            "node_id": "n",
+            "recorded_at": _T1,
+            "effective_at": _T1,
+            "payload": {"callout_type": "tip", "text": "x"},
+        }
+    )
+    ledger = _ledger_with(tmp_path, [callout, _event("e2", _T2)])
+    prefix, _, _ = validator.ledger_prefix(ledger, 2)
+    # first_event_line=2 = 最早**适用**行; 正确判据 (最早**事件**行) 是 1 ⇒ 须拒
+    proof = _leaf(2, _T2, first_event_line=2, ledger_prefix_sha256=prefix)
+    problems = validator.verify_degraded_proof(proof, [], ledger_path=ledger)
+    assert any("不是该节点最早的事件行" in p for p in problems), problems
+
+
+def test_survivor_single_read_is_behavioral(tmp_path, monkeypatch):
+    """单快照必须是**行为**保证, 不是源码字符串计数。
+
+    十六轮: 原门只查 `source.count("read_bytes()") == 1`, 改成两次
+    `.open().read()` 仍绿。本门直接计账本读取次数。
+    """
+    ledger = _ledger_with(tmp_path, [_event("e1", _T1), _event("e2", _T2)])
+    reads = []
+    real_read = pathlib.Path.read_bytes
+
+    def counting(self, *args, **kwargs):
+        if self == ledger:
+            reads.append(1)
+        return real_read(self, *args, **kwargs)
+
+    monkeypatch.setattr(pathlib.Path, "read_bytes", counting)
+    prefix, _, _ = validator.ledger_prefix(ledger, 2)
+    reads.clear()
+    validator.verify_degraded_proof(
+        _leaf(2, _T2, first_event_line=1, ledger_prefix_sha256=prefix), [], ledger_path=ledger
+    )
+    assert len(reads) == 1, f"账本被读取 {len(reads)} 次, 单快照要求恰 1 次"
+
+
+def test_survivor_recursion_reuses_single_snapshot(tmp_path, monkeypatch):
+    """两层 proof 的递归必须复用同一快照, 不得各层重读账本。"""
+    ledger = _ledger_with(tmp_path, [_event("e1", _T1), _event("e2", _T2)])
+    reads = []
+    real_read = pathlib.Path.read_bytes
+
+    def counting(self, *args, **kwargs):
+        if self == ledger:
+            reads.append(1)
+        return real_read(self, *args, **kwargs)
+
+    prefix2, _, _ = validator.ledger_prefix(ledger, 2)
+    prefix1, _, _ = validator.ledger_prefix(ledger, 1)
+    ancestor = _leaf(1, _T1, first_event_line=1, ledger_prefix_sha256=prefix1)
+    proof = _layered(2, _T2, ancestor)
+    proof["ledger_prefix_sha256"] = prefix2
+    monkeypatch.setattr(pathlib.Path, "read_bytes", counting)
+    validator.verify_degraded_proof(proof, [], ledger_path=ledger)
+    assert len(reads) == 1, f"两层 proof 读取账本 {len(reads)} 次, 应复用单快照"
+
+
+def test_survivor_stability_upper_bound_is_enforced():
+    """stability 上界必须成门 — 删掉上界后本门变红。"""
+    state = {**_state(_T1), "fsrs_stability": validator.STABILITY_MAX * 10}
+    snap_hash, _ = validator.state_hash(state)
+    proof = _identity(2, _T2)
+    proof["origin"] = {
+        "kind": "snapshot",
+        "state": state,
+        "snapshot_hash": snap_hash,
+        "ancestor_proof": dict(_leaf(1, _T1), result_hash=snap_hash),
+    }
+    problems = validator.verify_degraded_proof(proof, _APPLICABLE_2)
+    assert any("fsrs_stability" in p and "可调度域" in p for p in problems), problems
+
+
+def test_survivor_params_hash_sentinel_in_interval(tmp_path):
+    """区间事件的 params_hash 哨兵同样须拦 — 原实现只看 library_version。"""
+    row = json.loads(_event("e1", _T1))
+    row["payload"]["fsrs_params_hash"] = "degraded:no-params"
+    ledger = _ledger_with(tmp_path, [json.dumps(row)])
+    prefix, _, _ = validator.ledger_prefix(ledger, 1)
+    proof = _leaf(1, _T1, first_event_line=1, ledger_prefix_sha256=prefix)
+    problems = validator.verify_degraded_proof(proof, [], ledger_path=ledger)
+    assert any("degraded 哨兵" in p and "人工裁定" in p for p in problems), problems

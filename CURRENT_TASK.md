@@ -2,32 +2,31 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**本车道状态**（2026-08-29 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **十五轮 Codex 已出；⭐ CARD-G3-4 判「可验收」（首卡收官）；G3-1 的 3 组 HIGH + 5 MEDIUM + 3 LOW 本轮全清，第十七笔待提交**）:
-- ⭐ **CARD-G3-4 = 可验收**（十五轮独立复核）：重复键 HIGH 与枚举 MEDIUM 真实闭合；generator/manifest/vectors/
-  钉版 requirements 零改动且 `generate()` 内存输出与仓库 JSON **逐字节相同**。余 2 条 LOW 本轮已清
-  （bool 负例改为**真跑主门**、补 NaN/Infinity 回归、UAT 计数 13→**19**）
-- ⚠️ **G3-1 十五轮逐门对照：十三个门只有六个真闭合**。三组 HIGH 全部实测复现并已修：
-  ①**算法身份是空门**（`library_version="garbage"` / `params_hash="degraded:x"` / `scheduler_config={}` /
-  `reducer={}` 全返回 `[]`）⇒ 绑定 golden manifest 真值 + 区间事件哨兵门；
-  ②**genesis 三处**（引号键漏检 / block scalar 误拒 / `first_event_line` 语义错且未查无扩展历史行）
-  ⇒ 改 **YAML 顶层键语义** + `scan_ledger_bytes` 产出全部事件行与无扩展行；
-  ③**直读不是单一快照**（两次 `read_bytes` 之间的并发追加让尾部门失效）⇒ 合并为单快照（全文件 1 处）
-- ✅ MEDIUM/LOW 全修：review_time 落 §三+A7+A5、naive/aware 混排不再 `TypeError`、state 数值域按
-  `classify_card_state()` 同判据、vault_id 绑账本、坏行 fail-closed、旧二元接口报违规、`is_top_level`
-  移出公开签名、空 frontmatter 不误拒、范围声明"不做的事"三条扩四条、负验证加 exit-code/collection 判据
-- ⚠️ **操作教训**：负验证脚本会原地 mutate 校验器，**必须串行**。本轮并发跑两个实例导致 B 的还原把 A 的
-  mutation 写回（留下 `state_hash` 恒返回常量的校验器，而契约测试照样全绿）；发现它的正是新加的
-  "还原后字节须与备份逐字相同"那道门
-- 裁判实测：契约 **130 passed + 1 skipped**、golden **19 passed**、三文件合跑 **155 passed + 1 skipped**、
-  `test_fsrs_manager.py` 37 passed、fsrs 全族 179 passed、现网账本 exit 0 且 SHA 恒 `f78b99f3`；
-  负验证**七变体全承重**、还原字节逐字一致、脚本 exit 0
+**本车道状态**（2026-08-29 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **十六轮 Codex 已出；⭐ CARD-G3-4 保持「可验收」；G3-1 的 4 HIGH + 4 MEDIUM + 4 LOW 全清，第十八笔待提交**）:
+- ⭐ **CARD-G3-4 = 可验收**（十五轮判定，十六轮复核保持）：`425f8564..HEAD` 对 generator/manifest/
+  vectors 零改动，`generate()` 内存输出与仓库 JSON 逐字节相同
+- ⚠️ **G3-1 十六轮四条新 HIGH（十五轮点名的具体反例均已闭合，但门仍有其他缺口）**，全部实测复现并修：
+  ①**算法身份非严格 JSON 同源**——`enable_fuzzing: 0` 冒充 manifest 的 `false`（Python `0 == False`），
+  manifest 不可达时"合法形状版本 + 任意 hex + 六键全取 0"即过 ⇒ 改 **canonical JSON 文本比较** +
+  **proof 侧 fail-closed**；
+  ②**`out_of_order: false` 藏尾部事件**（scanner 按"键存在"排除，主体校验却拒 false）⇒ 只认严格
+  `true`，其他形态既报违规又**仍计入适用集**；
+  ③**无 PyYAML 时正则漏 YAML 转义键** `"fsrs_\u0073tate": 2` ⇒ 该路径 fail-closed；
+  ④**vault 绑定只做集合成员**（混合 vault 可绕）⇒ 改严格等值 + 绑 `.canvas-config.yaml`
+- ⚠️ **诚实残余面（已列入范围声明第 ⑥ 条，不假装闭合）**：实查现网事件 payload **不带 vault_id**
+  （带的是 `group_id`），账本目录也未必有 vault 配置 ⇒ 该形态下 vault 身份**无法绑定**，proof 的
+  vault_id 是自报值
+- ✅ MEDIUM/LOW 全修：非复习事件不再误拒 new_card、空行与主体同口径、**五个 survivor 补门**
+  （单快照改为**真实计数 `read_bytes`** 而非源码字符串计数）、负验证判据加固、范围声明三条扩**六条**、
+  179→191、degraded 行号去重、schema 移除已废弃的公开 `is_top_level` 签名
+- 裁判实测：契约 **143 passed + 1 skipped**；负验证扩至**十二变体**全承重、还原 `cmp` 逐字节一致
 - ⛔ 移交（schema §九 逐条登记）：①test.yml 白名单 +2 测试 + root requirements paths（S8 独占；
-  **CI DEFERRED/NOT-EXECUTED**）；②**G3-2 五项**（含 canonical reducer 精度常量）；③**G3-3 七项**；
-  ④tips.py 两条 → 独立 micro-patch
-- ⚠️ 环境：本 worktree 的 pytest 须用 `backend/.venv/bin/python`（仓根 `.venv` 无 fastapi，conftest 即炸）
-- 纪律守住：learning_event_log.py（blob `28cdaa18`）/ fsrs_manager.py（blob `980b3758`）零改动（十五轮
-  逐笔复核在案）；不 push
-- 待办：第十七笔提交 → Codex 十六轮复核（**只需审 G3-1**）→ 用户验收两单
+  **CI DEFERRED/NOT-EXECUTED**）；②**G3-2 五项**；③**G3-3 七项**；④tips.py 两条 → 独立 micro-patch
+- ⚠️ **负验证脚本必须串行**（已写入记忆）：它原地 mutate 校验器，并发跑会让 B 的还原把 A 的 mutation
+  写回，而契约测试照样全绿
+- ⚠️ 环境：本 worktree 的 pytest 须用 `backend/.venv/bin/python`（仓根 `.venv` 无 fastapi）
+- 纪律守住：learning_event_log.py（blob `28cdaa18`）/ fsrs_manager.py（blob `980b3758`）零改动；不 push
+- 待办：第十八笔提交 → Codex 十七轮复核（只需审 G3-1）→ 用户验收两单
 
 ---
 

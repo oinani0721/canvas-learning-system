@@ -154,4 +154,4 @@ Codex 十五轮独立复核确认：重复键 HIGH 与枚举类型 MEDIUM **均�
 | 二 | LOW | `_load_golden` 的 NaN/Infinity 拒绝正确但**缺专门回归** | **已修**：新增 `test_non_standard_json_constants_are_rejected`，参数化 `NaN` / `Infinity` / `-Infinity` 三形态，断言 `_load_golden` 抛 `_NonStandardGoldenJSON` |
 | 三 | LOW | UAT 与测试 docstring 仍写 `13 passed / 十门`，与实测不一致 | **已修**：顶部裁判表与交付清单改为 **19 passed**，并注明"十门语义 + 解析歧义两门 + bool/NaN 强化"的构成 |
 
-裁判：golden **19 passed**；`tests/unit/test_fsrs_manager.py` **37 passed**、fsrs 全族 **179 passed** 不回归；`fsrs_manager.py` blob 恒为 `980b3758…`（本卡零接触 D4 锁定文件）；manifest/vectors/generator 三文件零改动。
+裁判：golden **19 passed**；`tests/unit/test_fsrs_manager.py` **37 passed**、fsrs 全族 **191 passed** 不回归（与本单顶部口径一致）；`fsrs_manager.py` blob 恒为 `980b3758…`（本卡零接触 D4 锁定文件）；manifest/vectors/generator 三文件零改动。

@@ -198,7 +198,7 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
       - **最外层（top-level）proof**：`E` 必须是该节点在账本中**行号最大的适用事件**（`schema_ext=review/1`、未标 `out_of_order`），且 **`cursor_line` 之后不得再存在该节点的任何适用事件**——保证重建覆盖到账本末尾。
       - **`ancestor_proof`（中间层）：不受"其后无适用事件"约束**。⚠️ round-13 指出的歧义：若把该尾部约束**递归**施于 ancestor，则正常链 `L1=t1、L2=t2` 中的 ancestor（`cursor_line=1`）会因 L2 存在而失效，任何多层链都无法成立；只施于最外层则是原意。现明确冻结为**仅最外层**——ancestor 的职责是提供一个**中间快照**，本就不必覆盖到末尾，它只需满足：区间定义、层内单调、跨层单调、三条等式、链终止与防循环。
       - 两个 verifier 因此不会给出相反结果。
-      - 📌 **可执行的单一事实（round-14，round-15 补真实绑定）**：以上分层语义已落成参考实现 `backend/scripts/validate_learning_events.py::verify_degraded_proof(proof, applicable, *, ledger_path=None, is_top_level=True)`——`is_top_level` 参数就是本条作用域的代码化身，递归调用固定传 `False`。行为门见 `test_learning_events_schema_contract.py::test_normal_two_layer_chain_is_provable`（正常两层链必须 PASS）与 `::test_layered_split_cannot_bypass_monotonicity`（分层绕过必须 FAIL）。
+      - 📌 **可执行的单一事实（round-14，round-15 补真实绑定）**：以上分层语义已落成参考实现 `backend/scripts/validate_learning_events.py::verify_degraded_proof(proof, applicable, *, ledger_path=None)`——作用域由**内部**递归参数 `is_top_level` 承载（递归固定传 `False`），round-15 起**已移出公开签名**（公开可写等于给调用方一个关掉尾部门的开关）。行为门见 `test_learning_events_schema_contract.py::test_normal_two_layer_chain_is_provable`（正常两层链必须 PASS）与 `::test_layered_split_cannot_bypass_monotonicity`（分层绕过必须 FAIL）。
         **传 `ledger_path` = 账本直读模式**：verifier 用 `scan_ledger_bytes()` 在**单一字节快照**上抽取适用事件、该节点全部事件行、无扩展历史行、degraded 哨兵行与 vault_id 集合，并用 `ledger_prefix()` 复算 `ledger_prefix_sha256` 与 `prefix_ends_without_lf`，忽略调用方传入的 `applicable`。**生产接入必须传 `ledger_path`**——否则 `applicable` 是信任边界，调用方抽取不全会让最外层尾部门真空通过（round-14 Codex HIGH 实证）。
         ⚠️ **verifier 不做的四件事**（round-15 Codex 指出前三条声明"强于实际实现"，此处逐条收紧）：
         ① 不复算 FSRS 折叠（canonical reducer 属 G3-2）；
