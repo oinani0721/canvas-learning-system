@@ -57,50 +57,10 @@ logger = logging.getLogger(__name__)
 memory_router = APIRouter()
 
 
-# Wave-5 Stage B (2026-05-12) — Multi-vault ContextVar 注入辅助.
-# 3 memory endpoints 此前无 vault_id 隔离 → 跨 vault 学习历史串库 (P0).
-def _resolve_vault_group_id(
-    vault_id: Optional[str],
-    subject_id: Optional[str] = None,
-    canvas_path: Optional[str] = None,
-    legacy_group_id: Optional[str] = None,
-) -> str:
-    """Wave-5 Stage B — vault_id → ContextVar 注入 + 派生 group_id."""
-    from app.config import sanitize_vault_id
-    from app.core.subject_config import (
-        build_vault_group_id,
-        canonical_group_id,
-        set_current_subject_id,
-    )
-
-    if vault_id and vault_id.strip():
-        sanitized = sanitize_vault_id(vault_id)
-        derived = build_vault_group_id(
-            sanitized,
-            subject_id=subject_id,
-            canvas_path=canvas_path,
-        )
-    elif legacy_group_id and legacy_group_id.strip():
-        logger.warning(
-            "Wave-5 Stage B: memory endpoint vault_id missing, "
-            "falling back to deprecated group_id=%s",
-            legacy_group_id,
-        )
-        derived = canonical_group_id(legacy_group_id)
-    else:
-        # 批次1'① (MEM-FLYWHEEL): 双缺失不再落 DEFAULT_GROUP_ID (vault:default
-        # 污染桶) — 推导当前 vault 组, 与 P15 MCP 工具模式一致。缺失回落
-        # default 桶只准存在于离线迁移工具, 不在线上主路径。
-        from app.core.subject_config import default_vault_group_id
-
-        logger.warning(
-            "Wave-5 Stage B: memory endpoint both vault_id and group_id missing, "
-            "deriving current vault group (fail-closed, no DEFAULT_GROUP_ID)"
-        )
-        derived = default_vault_group_id()
-
-    set_current_subject_id(derived)
-    return derived
+# CARD-G2-2 (2026-08-28): 本地克隆删除, 统一走 app.core.vault_scope 唯一
+# 解析点。本文件此前的双缺失姿势 (批次1'① MEM-FLYWHEEL: 推导 active vault
+# 组而非 DEFAULT_GROUP_ID) 即 vault_scope 的统一契约来源。
+from app.core.vault_scope import resolve_vault_group_id as _resolve_vault_group_id
 
 
 # =============================================================================
@@ -475,6 +435,12 @@ async def create_batch_episodes(
 
     [Source: docs/stories/30.3.memory-api-health-endpoints.story.md#AC-30.3.10]
     """
+    # CARD-G2-2 Codex round-1 BLOCKER-4 整改: 批量写入此前**零解析** —
+    # ContextVar 未注入时 service 侧的写组推导与缓存 episode 的 group
+    # 可能分裂。入口解析恰一次 (409 在 try 外生效), 下游写路径经
+    # ContextVar 拿到同一 scope。
+    _resolve_vault_group_id(request.vault_id)
+
     try:
         # Convert Pydantic models to dicts for service
         events_data = [
@@ -588,9 +554,18 @@ class ExtractConversationRequest(BaseModel):
     )
     # audit-2026-04-07/p0-2: callers may now scope the extraction to a real
     # canvas/subject instead of falling back to the global DEFAULT_GROUP_ID.
+    # CARD-G2-2 (2026-08-28): 新增 vault_id (推荐)。sidecar 目前只传
+    # canvas_path, 旧路径用 legacy build_group_id(subject, canvas) 构组 —
+    # 该格式无 vault 段, 不同 vault 的同名学科/白板塌进同一桶 (Codex
+    # round-1 BLOCKER-4)。新调用方应传 vault_id 走唯一解析点。
+    vault_id: Optional[str] = Field(
+        default=None,
+        description="Vault 身份 (推荐必填, 与 active vault 不一致时 409)",
+    )
     group_id: Optional[str] = Field(
         default=None,
-        description="Explicit Graphiti group_id. Overrides canvas_path inference.",
+        deprecated=True,
+        description="Deprecated — 改用 vault_id。仅作 legacy 兼容归一化输入。",
     )
     canvas_path: Optional[str] = Field(
         default=None,
@@ -626,29 +601,22 @@ async def extract_conversation_learning(
     request: ExtractConversationRequest,
     memory_service: MemoryServiceDep,
 ) -> ExtractConversationResponse:
+    # CARD-G2-2 Codex round-1 BLOCKER-4 整改: 本端点原是第 10 份克隆,
+    # 且 canvas_path 分支用 **legacy** build_group_id(subject, canvas) —
+    # 该格式不含 vault 段, 多 vault 的同名学科塌进同一桶 (蒸馏产物是写侧,
+    # 落错桶=永久污染)。改走唯一解析点: vault_id 优先(409 生效) →
+    # legacy group 归一化 → 双缺失推导 active vault + canvas 二级。
+    # 解析在 try 之外: 409 不得被下方宽 except 吞成 200 status=error。
+    from app.core.vault_scope import resolve_vault_group_id
+
+    resolved_group_id = resolve_vault_group_id(
+        request.vault_id,
+        canvas_path=request.canvas_path,
+        legacy_group_id=request.group_id,
+    )
+
     try:
         from app.services.conversation_distiller import ConversationDistiller
-        from app.core.subject_config import (
-            build_group_id,
-            default_vault_group_id,
-            extract_canvas_name,
-            extract_subject_from_canvas_path,
-        )
-
-        # audit-2026-04-07/p0-2 → 批次1'① (MEM-FLYWHEEL): resolve target group_id.
-        # Priority:
-        #   1. explicit request.group_id (caller knows best)
-        #   2. derived from canvas_path (subject + canvas filename)
-        #   3. 当前 vault 组推导 (不再落 DEFAULT_GROUP_ID 污染桶 — 蒸馏产物
-        #      是写侧, 落错桶即永久污染)
-        if request.group_id:
-            resolved_group_id = request.group_id
-        elif request.canvas_path:
-            subject = extract_subject_from_canvas_path(request.canvas_path)
-            canvas_name = extract_canvas_name(request.canvas_path)
-            resolved_group_id = build_group_id(subject, canvas_name)
-        else:
-            resolved_group_id = default_vault_group_id()
 
         distiller = ConversationDistiller()
         result = await distiller.distill(
@@ -756,6 +724,20 @@ async def archive_session(
     request: SessionArchiveRequest,
     memory_service: MemoryServiceDep,
 ) -> SessionArchiveResponse:
+    # CARD-G2-2 Codex round-1 BLOCKER-3 整改 (三处):
+    # (1) 解析先于「消息过少」早返 —— 否则跨 vault 请求可零解析直接返回;
+    # (2) 原 `request.group_id or resolver(...)` 让 deprecated group 覆盖
+    #     **必填**的 vault_id 并整个绕过 409, 现改为把它作为 legacy 输入
+    #     交给 resolver (显式 vault 优先, 与全局优先级一致);
+    # (3) 解析在 try 之外 —— 生产 SessionEnd hook 把任意 2xx 当成功, 409
+    #     若被吞成 200 status=error 会**删除重试机会并丢失整段会话存档**。
+    resolved_group_id = _resolve_vault_group_id(
+        request.vault_id,
+        subject_id=request.subject_id,
+        canvas_path=request.canvas_path,
+        legacy_group_id=request.group_id,
+    )
+
     # hook 侧已做 <4 条过滤, 服务端复核 (直连调用方不一定守约)
     if len(request.messages) < 4:
         return SessionArchiveResponse(
@@ -765,12 +747,6 @@ async def archive_session(
         )
 
     try:
-        resolved_group_id = request.group_id or _resolve_vault_group_id(
-            request.vault_id,
-            subject_id=request.subject_id,
-            canvas_path=request.canvas_path,
-        )
-
         from app.services.conversation_distiller import get_conversation_distiller
 
         distiller = get_conversation_distiller()

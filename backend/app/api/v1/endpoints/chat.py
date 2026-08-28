@@ -279,23 +279,21 @@ async def enrich_context(req: EnrichContextRequest) -> EnrichContextResponse:
         )
 
     # Multi-vault P0-1 (2026-05-10) — 注入 ContextVar 防 5 vault 串库。
-    # Plugin 传 raw vault name (inferVaultId(app.vault.getName()))；
-    # backend 用 sanitize_vault_id 标准化（NFKC + casefold + Unicode \w）→
-    # build_vault_group_id 构造 group_id (vault:<sanitized>:<subject>) →
-    # set_current_subject_id 写 ContextVar，让 downstream 各 service
-    # (wikilink_graph_service / lancedb_client / supplementary_search) 都
-    # 通过 get_current_subject_id() 拿到同一 vault_id，5 vault 并发不互相串库。
-    # 参考 PostTurnExtractRequest (Story 2.5.Y AC #2) 已建立的契约。
-    from app.config import sanitize_vault_id
-    from app.core.subject_config import build_vault_group_id, set_current_subject_id
+    # Plugin 传 raw vault name (inferVaultId(app.vault.getName()))。
+    # CARD-G2-2 (2026-08-28) Codex round-1 BLOCKER-1 整改: 本端点原为
+    # sanitize/build/set 的第 9 份克隆, 完全绕过 409 —— 请求可携异 vault
+    # 名读取该 vault 的记忆。它**不是** hook-cwd 例外 (vault_id 是显式
+    # 请求字段), 改走唯一解析点, 不一致即 409。
+    from app.core.vault_scope import resolve_vault_scope
 
-    sanitized_vault_id = sanitize_vault_id(req.vault_id)
-    derived_group_id = build_vault_group_id(
-        sanitized_vault_id,
+    _scope = resolve_vault_scope(
+        req.vault_id,
         subject_id=req.subject_id,
         canvas_path=req.node_path,
     )
-    set_current_subject_id(derived_group_id)
+    derived_group_id = _scope.group_id
+    # 归一后的 vault 段 (原 sanitized_vault_id): 409 门保证它等于 active vault
+    sanitized_vault_id = _scope.vault_id
 
     enrichment = await enrich_from_wikilink_graph(
         node_path=req.node_path,
@@ -658,10 +656,14 @@ async def post_turn_extract(
     import time
 
     # Story 2.5.Y Task 2 — 注入 ContextVar (vault_id 是必填, Pydantic 已校验)
-    from app.core.subject_config import build_vault_group_id, set_current_subject_id
+    # CARD-G2-2 Codex round-1 BLOCKER-1 整改: 原 build+set 克隆绕过 409,
+    # 可向请求指定的异 vault 写错误记录。改走唯一解析点 (显式 vault 字段
+    # → 一致性检查生效; 注意原实现连 sanitize 都没做, 一并修正)。
+    from app.core.vault_scope import resolve_vault_scope
 
-    derived_group_id = build_vault_group_id(req.vault_id, subject_id=req.subject_id, canvas_path=req.canvas_path)
-    set_current_subject_id(derived_group_id)
+    derived_group_id = resolve_vault_scope(
+        req.vault_id, subject_id=req.subject_id, canvas_path=req.canvas_path
+    ).group_id
 
     from app.mcp.tools.error_tools import _resolve_node_file_path
     from app.services.error_extractor import (
@@ -919,18 +921,11 @@ async def rag_enrich_hook(req: HookEnrichRequest) -> HookEnrichOutput:
     # P0-3 (2026-07-31): hook payload 自带 cwd (Claude Code 的 vault 工作目录),
     # 优先从 cwd 推导 vault, 全局 settings 只作 fallback —— 全局切换端点已隔离
     # 退役后, 这是 hook 路径唯一的 per-request vault 信号。
-    from app.config import get_current_vault_id
-    from app.core.subject_config import build_vault_group_id, set_current_subject_id
+    # CARD-G2-2 (2026-08-28): cwd 推导 = vault_scope 显式合法构造路径 (hook
+    # 会话可开在非 active vault 目录, 与 active vault 不一致不 409 — 契约 5)。
+    from app.core.vault_scope import resolve_hook_cwd_scope
 
-    derived_vault_id = _vault_id_from_hook_cwd(req.cwd)
-    global_vault_id = get_current_vault_id()
-    if derived_vault_id and derived_vault_id != global_vault_id:
-        logger.info(
-            "[enrich-hook] cwd-derived vault differs from global — using cwd vault",
-            cwd_vault=derived_vault_id,
-            global_vault=global_vault_id,
-        )
-    set_current_subject_id(build_vault_group_id(derived_vault_id or global_vault_id))
+    resolve_hook_cwd_scope(_vault_id_from_hook_cwd(req.cwd))
 
     # Wave-2 P0-2 漏修-1 (2026-05-12): 改用 lazy init 替代裸读 singleton.
     # 原因: 直读 _supp_lancedb_singleton 在 cold-start 期间立即 None 跳过,

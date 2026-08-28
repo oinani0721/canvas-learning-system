@@ -68,9 +68,18 @@ async def handle_score_submitted(event: LearningEvent) -> None:
     )
 
     # Publish downstream events
+    from app.core.vault_scope import current_group_id
     from app.services.event_bus import get_event_bus
 
     bus = get_event_bus()
+
+    # CARD-G2-2 Codex round-1 HIGH-9 整改: 派生事件必须**物化**发起请求的
+    # group —— 下游 handler 若靠 ContextVar 推导, 失败事件进 outbox 后
+    # startup replay 不恢复原 scope, vault A 的失败事件会在重启挂载
+    # vault B 后写进 B。物化后 payload 自带权威 scope。
+    # ⚠️ 移交 G4-6 (持久 outbox 卡): 历史遗留的**无 scope** outbox 条目
+    # 应隔离/报错而非猜当前 active vault — 本卡不改 outbox 重放路径。
+    origin_group_id = current_group_id()
 
     bkt_event = LearningEvent(
         event_type=LearningEventType.BKT_UPDATED,
@@ -79,6 +88,7 @@ async def handle_score_submitted(event: LearningEvent) -> None:
             "session_id": session_id,
             "p_mastery": updated.p_mastery,
             "grade": grade,
+            "group_id": origin_group_id,
         },
         source="mastery_engine",
     )
@@ -93,6 +103,7 @@ async def handle_score_submitted(event: LearningEvent) -> None:
             "fsrs_difficulty": updated.fsrs_difficulty,
             "fsrs_state": updated.fsrs_state,
             "grade": grade,
+            "group_id": origin_group_id,
         },
         source="mastery_engine",
     )
@@ -298,10 +309,12 @@ async def handle_fsrs_updated(event: LearningEvent) -> None:
         logger.warning("handle_fsrs_updated: missing node_id in payload")
         return
 
-    from app.config import DEFAULT_GROUP_ID
+    # CARD-G2-2 (2026-08-28): payload 未带 group_id 时经 current_group_id()
+    # 统一读取 (推导 active vault, 不再回落 DEFAULT_GROUP_ID 污染桶)。
+    from app.core.vault_scope import current_group_id
     from app.services.memory_service import get_memory_service
 
-    group_id = payload.get("group_id", DEFAULT_GROUP_ID)
+    group_id = payload.get("group_id") or current_group_id()
 
     memory_svc = await get_memory_service()
     await memory_svc.record_knowledge_entity(

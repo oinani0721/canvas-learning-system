@@ -28,6 +28,7 @@ ContextVar 注入测试: 每 endpoint 在调 service 前调 _vault_id_resolver.r
 from __future__ import annotations
 
 import pytest
+from unittest.mock import patch
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test 1: 共享 _vault_id_resolver helper
@@ -35,22 +36,23 @@ import pytest
 
 
 class TestVaultIdResolverShared:
-    """_vault_id_resolver.resolve_vault_group_id 三态语义.
+    """_vault_id_resolver.resolve_vault_group_id 三态语义 (CARD-G2-2 收敛后).
 
-    - vault_id 优先 → build_vault_group_id 派生 + ContextVar 写入
-    - vault_id 空, legacy_group_id 提供 → canonical_group_id 归一化 + warning
-    - 两者都空 → DEFAULT_GROUP_ID fallback
+    - vault_id 优先 → 409 一致性门 + build_vault_group_id 派生 + ContextVar 写入
+    - vault_id 空, legacy_group_id 提供 → canonical_group_id 归一化 + warning (不 409)
+    - 两者都空 → 推导 active vault 组 (DEFAULT_GROUP_ID fallback 退役)
     """
 
     def test_vault_id_priority_over_legacy(self):
         from app.api.v1.endpoints._vault_id_resolver import resolve_vault_group_id
         from app.core.subject_config import get_current_subject_id
 
-        result = resolve_vault_group_id(
-            vault_id="cs_61b",
-            subject_id=None,
-            legacy_group_id="cs188",
-        )
+        with patch("app.config.get_current_vault_id", return_value="cs_61b"):
+            result = resolve_vault_group_id(
+                vault_id="cs_61b",
+                subject_id=None,
+                legacy_group_id="cs188",
+            )
 
         # vault_id 走 build_vault_group_id 派生新前缀
         assert result.startswith("vault:")
@@ -72,13 +74,17 @@ class TestVaultIdResolverShared:
         assert isinstance(result, str)
         assert len(result) > 0
 
-    def test_both_empty_falls_back_to_default(self):
+    def test_both_empty_derives_active_vault(self):
+        """CARD-G2-2 断言翻新: 双缺失不再落 DEFAULT_GROUP_ID (vault:default
+        污染桶) — 推导进程 active vault 组."""
         from app.api.v1.endpoints._vault_id_resolver import resolve_vault_group_id
-        from app.config import DEFAULT_GROUP_ID
 
-        result = resolve_vault_group_id(vault_id=None, subject_id=None, legacy_group_id=None)
+        with patch("app.config.get_current_vault_id", return_value="active_vault"):
+            result = resolve_vault_group_id(
+                vault_id=None, subject_id=None, legacy_group_id=None
+            )
 
-        assert result == DEFAULT_GROUP_ID
+        assert result == "vault:active_vault"
 
     def test_whitespace_vault_id_treated_as_empty(self):
         from app.api.v1.endpoints._vault_id_resolver import resolve_vault_group_id
@@ -378,8 +384,11 @@ class TestContextVarInjectionFromResolver:
         set_current_subject_id("vault:reset_baseline")
         assert get_current_subject_id() == "vault:reset_baseline"
 
-        # 调 resolver 注入新 vault
-        new_group = resolve_vault_group_id(vault_id="数学", subject_id=None, legacy_group_id=None)
+        # 调 resolver 注入新 vault (CARD-G2-2: 显式 vault 须与 active 一致)
+        with patch("app.config.get_current_vault_id", return_value="数学"):
+            new_group = resolve_vault_group_id(
+                vault_id="数学", subject_id=None, legacy_group_id=None
+            )
 
         # ContextVar 应已更新
         assert get_current_subject_id() == new_group
@@ -461,8 +470,9 @@ class TestIndexDeleteVaultEndpointVaultIdInjection:
 
         monkeypatch.setattr(index_module, "_get_lancedb_client", lambda: mock_client)
 
-        # 调 endpoint
-        result = await delete_vault_index(vault_id="cs_61b")
+        # 调 endpoint (CARD-G2-2: 显式 vault 须与 active 一致, 否则 409)
+        with patch("app.config.get_current_vault_id", return_value="cs_61b"):
+            result = await delete_vault_index(vault_id="cs_61b")
 
         # ContextVar 应该被 resolver 重写 (不再是 baseline)
         new_subject = get_current_subject_id()
@@ -488,8 +498,9 @@ class TestIndexDeleteVaultEndpointVaultIdInjection:
         mock_client.drop_vault_tables.return_value = 0
         monkeypatch.setattr(index_module, "_get_lancedb_client", lambda: mock_client)
 
-        with pytest.raises(HTTPException) as exc_info:
-            await delete_vault_index(vault_id="empty_vault")
+        with patch("app.config.get_current_vault_id", return_value="empty_vault"):
+            with pytest.raises(HTTPException) as exc_info:
+                await delete_vault_index(vault_id="empty_vault")
 
         assert exc_info.value.status_code == 404
         assert "empty_vault" in exc_info.value.detail
@@ -504,7 +515,8 @@ class TestIndexDeleteVaultEndpointVaultIdInjection:
 
         monkeypatch.setattr(index_module, "_get_lancedb_client", lambda: None)
 
-        with pytest.raises(HTTPException) as exc_info:
-            await delete_vault_index(vault_id="any_vault")
+        with patch("app.config.get_current_vault_id", return_value="any_vault"):
+            with pytest.raises(HTTPException) as exc_info:
+                await delete_vault_index(vault_id="any_vault")
 
         assert exc_info.value.status_code == 503

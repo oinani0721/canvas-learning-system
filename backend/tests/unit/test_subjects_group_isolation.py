@@ -58,6 +58,19 @@ def _patch_client(monkeypatch: pytest.MonkeyPatch, stub: _StubNeo4jClient) -> No
     monkeypatch.setattr(subjects_module, "get_neo4j_client", lambda: stub)
 
 
+def _activate_vault(monkeypatch: pytest.MonkeyPatch, vault_id: str) -> None:
+    """CARD-G2-2 (2026-08-28): 让被请求的 vault 成为进程 active vault。
+
+    409 fail-closed 生效后, 请求显式携带的 vault 必须与进程 active vault
+    一致, 否则拒绝 (防跨 vault 串库)。本文件的用例本意是验证「不同 vault
+    绑定不同 group 参数」, 不是验证跨 vault 访问 —— 因此每次请求前把目标
+    vault 声明为激活态, 保持原测试意图不变。
+    """
+    import app.config as config_module
+
+    monkeypatch.setattr(config_module, "get_current_vault_id", lambda: vault_id)
+
+
 # ---------------------------------------------------------------------------
 # 1: GET /subjects/ — count join 必须带 vault 过滤
 # ---------------------------------------------------------------------------
@@ -67,6 +80,7 @@ class TestListSubjectsGroupFilter:
     async def test_count_join_query_carries_group_filter(self, monkeypatch) -> None:
         stub = _StubNeo4jClient()
         _patch_client(monkeypatch, stub)
+        _activate_vault(monkeypatch, "vault_a")
 
         await list_subjects(vault_id="vault_a")
 
@@ -97,6 +111,7 @@ class TestListSubjectsGroupFilter:
             ]
         )
         _patch_client(monkeypatch, stub)
+        _activate_vault(monkeypatch, "vault_a")
 
         out = await list_subjects(vault_id="vault_a")
 
@@ -128,6 +143,7 @@ class TestUpdateSubjectGroupFilter:
             ]
         )
         _patch_client(monkeypatch, stub)
+        _activate_vault(monkeypatch, "vault_a")
 
         out = await update_subject("subj_1", SubjectUpdate(color="#ffffff"), vault_id="vault_a")
 
@@ -158,6 +174,7 @@ class TestUpdateSubjectGroupFilter:
             ]
         )
         _patch_client(monkeypatch, stub)
+        _activate_vault(monkeypatch, "vault_a")
 
         await update_subject("subj_1", SubjectUpdate(color="#ffffff"), vault_id="vault_a")
 
@@ -213,12 +230,16 @@ class TestGroupSourceFallbacks:
 
 class TestDualVaultIsolation:
     async def test_same_query_binds_distinct_groups_per_vault(self, monkeypatch) -> None:
+        # 两次请求分别在各自 vault 激活的进程里发出 (409 门下这才是合法
+        # 形态: 单进程只服务单 active vault, 隔离由「不同进程不同 group」保证)
         stub_a = _StubNeo4jClient()
         _patch_client(monkeypatch, stub_a)
+        _activate_vault(monkeypatch, "vault_a")
         await list_subjects(vault_id="vault_a")
 
         stub_b = _StubNeo4jClient()
         _patch_client(monkeypatch, stub_b)
+        _activate_vault(monkeypatch, "vault_b")
         await list_subjects(vault_id="vault_b")
 
         kw_a = stub_a.run_calls[0]["kwargs"]

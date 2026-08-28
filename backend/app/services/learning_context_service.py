@@ -271,15 +271,17 @@ async def get_node_context(
 
     Args:
         node_id: Canvas node identifier.
-        group_id: Subject isolation namespace.  Falls back to DEFAULT_GROUP_ID.
+        group_id: Subject isolation namespace.  Falls back to the current
+            vault scope (vault_scope.current_group_id, CARD-G2-2).
 
     Returns:
         Dict matching ContextResponse schema.
     """
     if group_id is None:
-        from app.config import DEFAULT_GROUP_ID
+        # CARD-G2-2 (2026-08-28): scope 统一经 current_group_id() 读取。
+        from app.core.vault_scope import current_group_id
 
-        group_id = DEFAULT_GROUP_ID
+        group_id = current_group_id()
 
     # Fetch mastery, tips/errors, and neighbors in parallel using asyncio.gather.
     # V7 validation found sequential queries added 4x unnecessary latency.

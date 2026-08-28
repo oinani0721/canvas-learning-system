@@ -147,9 +147,17 @@ class TestActiveVaultIdFallbackWhenNoContextVar:
     set_current_subject_id 的场景), 保 backward-compat 老 caller 不破裂."""
 
     def test_active_vault_id_fallback_when_no_contextvar(self):
-        """ContextVar at DEFAULT → falls back to app.config global active vault."""
+        """ContextVar at DEFAULT → falls back to app.config global active vault.
+
+        CARD-G2-2 翻新 (基线即红的环境依赖): 原实现经 reload_settings 改
+        ACTIVE_VAULT, 但 Settings.vault_id 优先读 .canvas-config.yaml 显式
+        vault_id — 仓内 yaml 在位时 override 永远不生效 (环境耦合假红)。
+        改为直接 patch step-3 的 ``app.config.get_current_vault_id``,
+        测试意图不变 (无请求作用域 → 全局 active vault, 而非 "default")。
+        """
+        from unittest.mock import patch
+
         from agentic_rag.clients.lancedb_client import LanceDBClient
-        from app.config import get_settings, reload_settings
         from app.core.subject_config import (
             DEFAULT_SUBJECT_ID,
             _current_subject_id,
@@ -157,14 +165,14 @@ class TestActiveVaultIdFallbackWhenNoContextVar:
 
         # Force ContextVar to DEFAULT to simulate no-request-scope.
         token = _current_subject_id.set(DEFAULT_SUBJECT_ID)
-        original = get_settings().ACTIVE_VAULT
         try:
-            reload_settings(overrides={"ACTIVE_VAULT": "fallback_vault"})
-            client = LanceDBClient()
-            # Should derive from legacy global config, NOT "default" baked in.
-            assert client.active_vault_id == "fallback_vault"
+            with patch(
+                "app.config.get_current_vault_id", return_value="fallback_vault"
+            ):
+                client = LanceDBClient()
+                # Should derive from legacy global config, NOT "default" baked in.
+                assert client.active_vault_id == "fallback_vault"
         finally:
-            reload_settings(overrides={"ACTIVE_VAULT": original})
             _current_subject_id.reset(token)
 
 

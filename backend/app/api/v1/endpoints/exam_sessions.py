@@ -16,7 +16,6 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 
-from app.config import DEFAULT_GROUP_ID
 from app.graphiti.group_id_compat import to_physical_group_id
 from app.security import require_internal_api_key
 
@@ -111,32 +110,13 @@ async def list_exam_sessions(
     Queries Neo4j for EpisodicNode entities with source_description='exam_session'.
     Returns empty list when no exam sessions exist (valid state before Story 6.1/6.2).
     """
-    # Wave-5 Stage B — vault_id ContextVar 注入 + 派生 group_id
-    from app.config import sanitize_vault_id
-    from app.core.subject_config import (
-        build_vault_group_id,
-        canonical_group_id,
-        set_current_subject_id,
+    # CARD-G2-2 (2026-08-28): inline 克隆删除, 统一走 vault_scope 唯一解析点
+    # (409 fail-closed + 双缺失推导 active vault, 语义见其 docstring)。
+    from app.core.vault_scope import resolve_vault_group_id
+
+    resolved_group_id = resolve_vault_group_id(
+        vault_id, subject_id=subject_id, legacy_group_id=group_id
     )
-
-    if vault_id and vault_id.strip():
-        sanitized = sanitize_vault_id(vault_id)
-        resolved_group_id = build_vault_group_id(sanitized, subject_id=subject_id)
-    elif group_id and group_id.strip():
-        logger.warning(
-            "Wave-5 Stage B: exam_sessions endpoint vault_id missing, "
-            "falling back to deprecated group_id=%s",
-            group_id,
-        )
-        resolved_group_id = canonical_group_id(group_id)
-    else:
-        logger.warning(
-            "Wave-5 Stage B: exam_sessions endpoint both vault_id and group_id missing, "
-            "falling back to DEFAULT_GROUP_ID"
-        )
-        resolved_group_id = DEFAULT_GROUP_ID
-
-    set_current_subject_id(resolved_group_id)
     # 透传到 Cypher params
     # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式（ContextVar 保持逻辑冒号格式不变）
     group_id = to_physical_group_id(resolved_group_id)
@@ -213,14 +193,11 @@ async def get_targeting_material(
     信息隔离 (d=1.50): 素材只含邻居的错误描述 + 增殖原因,
     绝不含节点定义正文。
     """
-    from app.config import sanitize_vault_id
-    from app.core.subject_config import build_vault_group_id, set_current_subject_id
+    # CARD-G2-2 (2026-08-28): inline 解析收敛到 vault_scope (409 fail-closed)。
+    from app.core.vault_scope import resolve_vault_group_id
     from app.services.targeting_material_service import collect_targeting_material
 
-    resolved_group_id = build_vault_group_id(
-        sanitize_vault_id(req.vault_id), subject_id=req.subject_id
-    )
-    set_current_subject_id(resolved_group_id)
+    resolved_group_id = resolve_vault_group_id(req.vault_id, subject_id=req.subject_id)
 
     result = await collect_targeting_material(
         node_id=req.node_id,

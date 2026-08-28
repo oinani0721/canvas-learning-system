@@ -50,14 +50,17 @@ import neo4j.exceptions  # noqa: E402
 import structlog
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from cachetools import TTLCache
 
 from app.clients.neo4j_client import Neo4jClient, get_neo4j_client
-from app.config import DEFAULT_GROUP_ID, settings
+from app.config import settings
 from app.core.decision_tracker import log_decision
 from app.core.failed_writes_constants import FAILED_WRITES_FILE, failed_writes_lock
+
+if TYPE_CHECKING:  # CARD-G4-2: 仅类型注解需要, 运行时走函数体内延迟 import
+    from app.models.service_status import StatusedResult
 from app.core.subject_config import (
     build_vault_group_id,
     extract_canvas_name,
@@ -69,6 +72,41 @@ from app.graphiti.entity_types import CANVAS_ENTITY_TYPES, CANVAS_EDGE_TYPES
 logger = structlog.get_logger(__name__)
 
 
+def _neo4j_backend_failure(client) -> Optional[str]:
+    """CARD-G4-2 / Codex round-1 BLOCKER-1: 探测「不抛异常的后端故障」。
+
+    生产 ``Neo4jClient`` 在初始化失败或运行中降级后进入 **JSON_FALLBACK**
+    模式: ``initialized`` 仍为 True、Cypher 正常返回 ``[]``、不抛任何异常。
+    只靠 try/except 与 ``stats["initialized"]`` 检测, 这类故障会被四态
+    误报成 ok/empty —— 正是本卡要根治的「故障假装空结果」。
+
+    Returns:
+        故障原因 (str) 或 None (后端健康)。
+    """
+    # ⚠️ 探针只对**能确证的故障**报警 —— 判据一律要求真实的 bool/str 类型。
+    # 理由: 测试里的 MagicMock 属性是 truthy 的 Mock 对象而非 True, 用
+    # truthy 判断会把每个未显式声明健康的 mock 都判成降级 (实测让 11 条
+    # 既有测试变红)。「看不懂这个客户端」≠「这个客户端坏了」——
+    # 后者才该 fail-closed, 前者只能放行, 否则探针自己变成假警报源。
+    try:
+        if getattr(client, "is_fallback_mode", False) is True:
+            return "neo4j: JSON_FALLBACK mode (主库不可用, 返回值为本地兜底而非真实数据)"
+        stats = getattr(client, "stats", None)
+        if isinstance(stats, dict):
+            if stats.get("initialized") is False:
+                return "neo4j: client not initialized"
+            health = stats.get("health_status")
+            if isinstance(health, str) and health.lower() not in (
+                "healthy",
+                "ok",
+                "up",
+            ):
+                return f"neo4j: health_status={health}"
+    except Exception as e:  # noqa: BLE001 — 探测失败不得炸主链
+        return f"neo4j: health probe failed ({type(e).__name__}: {e})"
+    return None
+
+
 def _vault_scoped_group_id(subject=None, canvas_name=None) -> str:
     """G-DEFAULT 根治 (2026-07-10, D16/C-3): 写侧统一 vault:<vault_id>[:<二级>] 前缀.
 
@@ -76,10 +114,16 @@ def _vault_scoped_group_id(subject=None, canvas_name=None) -> str:
     legacy 格式让所有 vault 的记忆塌进同一 subject 桶(2026-07-10 cypher 实测:
     图中 88 节点 group_id 全为 default/cs188/test fallback, 零真实 vault 身份)。
     二级优先 canvas_name(D16 vault:<id>:<canvas> 规约), 无 canvas 时用 subject。
-    """
-    from app.config import get_current_vault_id
 
-    vault_id = get_current_vault_id()
+    CARD-G2-2 契约反转 (2026-08-28, C6 docstring :36-41 预告的 deliberate
+    red test): vault 来源改经 vault_scope.current_vault_id() —— per-request
+    作用域 (ContextVar) 优先, 未注入时回落进程 active vault。根治 C6 记录的
+    "进程级单 active vault"双真相源: endpoint 409 门保证请求路径下二者一致,
+    唯 hook-cwd 合法例外允许 per-request vault 与 active vault 不同。
+    """
+    from app.core.vault_scope import current_vault_id
+
+    vault_id = current_vault_id()
     if canvas_name:
         return build_vault_group_id(vault_id, canvas_path=canvas_name)
     if subject:
@@ -145,6 +189,10 @@ class ScoreHistoryResponse:
     timestamps: List[str]
     average: float
     sample_size: int
+    # CARD-G4-2 (2026-08-28): 加性可选字段 (带默认值, 存量构造零改动)。
+    # 空 scores 此前无法区分「这个概念还没考过」与「Neo4j 挂了」。
+    status: str = "ok"
+    status_reason: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
@@ -155,6 +203,8 @@ class ScoreHistoryResponse:
             "timestamps": self.timestamps,
             "average": self.average,
             "sample_size": self.sample_size,
+            "status": self.status,
+            "status_reason": self.status_reason,
         }
 
 
@@ -595,6 +645,8 @@ class MemoryService:
 
         # ✅ Story 31.A.2 AC-31.A.2.1: Query from Neo4j first (replaces memory-only read)
         episodes = []
+        # CARD-G4-2 四态信号 — BLOCKER-1: 探针先行, 覆盖不抛异常的降级
+        retrieval_failure: Optional[str] = _neo4j_backend_failure(self.neo4j)
         try:
             neo4j_results = await self.neo4j.get_learning_history(
                 user_id=user_id,
@@ -606,9 +658,13 @@ class MemoryService:
             )
             episodes = neo4j_results or []
             logger.debug(f"Retrieved {len(episodes)} episodes from Neo4j for user {user_id}")
-        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:  # noqa: BLE001 — HIGH-6: 依赖异常族全覆盖
             # ✅ Story 31.A.2: Fallback to memory if Neo4j fails
+            # CARD-G4-2 (2026-08-28): 降级不再静默 — 记录原因, 出口带四态键。
             logger.warning(f"Neo4j query failed, falling back to memory: {e}")
+            retrieval_failure = f"neo4j learning history: {type(e).__name__}: {e}"
 
         # [Code Review C2 fix]: Always supplement Neo4j results with in-memory episodes.
         # Neo4j MERGE only keeps 1 LEARNED relationship per user+concept, so it returns
@@ -706,12 +762,26 @@ class MemoryService:
         end_idx = start_idx + page_size
         paginated = episodes[start_idx:end_idx]
 
+        # CARD-G4-2 (2026-08-28): 加性四态键 — 原契约键 byte 级不动。
+        # Neo4j 失败但内存兜底接管 = degraded (结果不完整, 不是"没有");
+        # 正常路径按有无命中给 ok / empty。
+        from app.models.service_status import ServiceStatus
+
+        if retrieval_failure:
+            retrieval_status = ServiceStatus.DEGRADED.value
+        elif total:
+            retrieval_status = ServiceStatus.OK.value
+        else:
+            retrieval_status = ServiceStatus.EMPTY.value
+
         return {
             "items": paginated,
             "total": total,
             "page": page,
             "page_size": page_size,
             "pages": (total + page_size - 1) // page_size if total > 0 else 0,
+            "retrieval_status": retrieval_status,
+            "retrieval_status_reason": retrieval_failure,
         }
 
     async def get_concept_history(
@@ -735,8 +805,19 @@ class MemoryService:
         if not self._initialized:
             await self.initialize()
 
+        # CARD-G4-2 Codex round-1 BLOCKER-4: 本读路径此前完全无状态 —
+        # 后端降级时空 timeline 与「这个概念没学过」无法分辨。
+        retrieval_failure: Optional[str] = _neo4j_backend_failure(self.neo4j)
+
         # Get history from Neo4j
-        history = await self.neo4j.get_concept_history(concept_id=concept_id, user_id=user_id, limit=limit)
+        try:
+            history = await self.neo4j.get_concept_history(
+                concept_id=concept_id, user_id=user_id, limit=limit
+            )
+        except Exception as e:  # noqa: BLE001 — 故障如实上报, 不伪装空历史
+            logger.error(f"Concept history query failed for {concept_id}: {e}")
+            history = []
+            retrieval_failure = f"{type(e).__name__}: {e}"
 
         # Format as timeline
         timeline = []
@@ -760,11 +841,26 @@ class MemoryService:
             "improvement": (scores[0] - scores[-1]) if len(scores) >= 2 else None,
         }
 
+        # CARD-G4-2: 加性四态键 (原有键 byte 级不动)
+        from app.models.service_status import ServiceStatus
+
+        if retrieval_failure:
+            # 后端不可信 → 空 timeline 不是「没学过」
+            status = (
+                ServiceStatus.DEGRADED.value if timeline else ServiceStatus.UNAVAILABLE.value
+            )
+        elif timeline:
+            status = ServiceStatus.OK.value
+        else:
+            status = ServiceStatus.EMPTY.value
+
         return {
             "concept_id": concept_id,
             "timeline": timeline,
             "score_trend": score_trend,
             "total_reviews": len(timeline),
+            "retrieval_status": status,
+            "retrieval_status_reason": retrieval_failure,
         }
 
     async def get_concept_score_history(
@@ -795,7 +891,12 @@ class MemoryService:
             await self.initialize()
 
         # Build cache key
-        cache_key = f"{concept_id}:{canvas_name}:{limit}"
+        # CARD-G4-2 / Codex round-1 BLOCKER-5 (缓存面): 键必须含 vault —
+        # 否则两个 vault 的同名 concept+canvas 共用一条 30s 缓存, A vault
+        # 的分数会被 B vault 读到。
+        from app.core.vault_scope import current_vault_id
+
+        cache_key = f"{current_vault_id()}:{concept_id}:{canvas_name}:{limit}"
 
         # NFR-P0: Check cache (TTLCache auto-evicts expired entries)
         cached_result = self._score_history_cache.get(cache_key)
@@ -810,6 +911,24 @@ class MemoryService:
             if cached_result is not None:
                 logger.debug(f"Score history cache hit (after lock) for {concept_id}")
                 return cached_result
+
+        # BLOCKER-1: 后端处于 JSON_FALLBACK / 未初始化时, 查询会静默返回
+        # 空列表而不抛异常 —— 必须先探测, 否则 unavailable 被误报成 empty。
+        backend_failure = _neo4j_backend_failure(self.neo4j)
+        if backend_failure:
+            logger.error(
+                f"Score history backend unusable for {concept_id}: {backend_failure}"
+            )
+            return ScoreHistoryResponse(
+                concept_id=concept_id,
+                canvas_name=canvas_name,
+                scores=[],
+                timestamps=[],
+                average=0.0,
+                sample_size=0,
+                status="unavailable",
+                status_reason=backend_failure,
+            )
 
         # Query Neo4j for score history
         try:
@@ -838,6 +957,8 @@ class MemoryService:
                 timestamps=timestamps,
                 average=round(average, 2),
                 sample_size=len(scores),
+                # CARD-G4-2: 真空是数据事实 (empty, 无 reason), 不是故障
+                status="ok" if scores else "empty",
             )
 
             # Store in cache (TTLCache handles expiration automatically)
@@ -847,9 +968,12 @@ class MemoryService:
 
             return result
 
-        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:  # noqa: BLE001 — HIGH-6: 依赖异常族全覆盖
             logger.error(f"Failed to get score history for {concept_id}: {e}")
-            # Return empty result on error (graceful degradation per ADR-009)
+            # CARD-G4-2 (2026-08-28): 故障不再假装空历史 — 返回 unavailable
+            # 带 reason。**不入缓存** (否则恢复后 30s 内仍报不可用)。
             return ScoreHistoryResponse(
                 concept_id=concept_id,
                 canvas_name=canvas_name,
@@ -857,17 +981,19 @@ class MemoryService:
                 timestamps=[],
                 average=0.0,
                 sample_size=0,
+                status="unavailable",
+                status_reason=f"{type(e).__name__}: {e}",
             )
 
-    async def get_review_suggestions(
+    async def get_review_suggestions_with_status(
         self,
         user_id: str,
         limit: int = 10,
         subject: Optional[str] = None,
         canvas_path: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> "StatusedResult":
         """
-        获取复习建议 (基于艾宾浩斯遗忘曲线)
+        获取复习建议 (基于艾宾浩斯遗忘曲线) — CARD-G4-2 四态版本
 
         查询Neo4j中next_review时间已过的概念
 
@@ -904,10 +1030,42 @@ class MemoryService:
         else:
             group_id = None
 
-        suggestions = await self.neo4j.get_review_suggestions(user_id=user_id, limit=limit, group_id=group_id)
+        # CARD-G4-2 Codex round-1 BLOCKER-4: 卡文点名的 suggestions 读路径 —
+        # 后端降级/异常时此前静默返回空, 与「没有待复习概念」不可分辨。
+        from app.models.service_status import StatusedResult
 
-        logger.debug(f"Retrieved {len(suggestions)} review suggestions for user {user_id} (subject={subject})")
-        return suggestions
+        backend_failure = _neo4j_backend_failure(self.neo4j)
+        if backend_failure:
+            return StatusedResult.unavailable(
+                f"review suggestions unusable — {backend_failure}"
+            )
+        try:
+            suggestions = await self.neo4j.get_review_suggestions(
+                user_id=user_id, limit=limit, group_id=group_id
+            )
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"Review suggestions query failed for {user_id}: {e}")
+            return StatusedResult.unavailable(f"{type(e).__name__}: {e}")
+
+        logger.debug(f"Retrieved {len(suggestions or [])} review suggestions for user {user_id} (subject={subject})")
+        return StatusedResult.from_items(list(suggestions or []))
+
+    async def get_review_suggestions(
+        self,
+        user_id: str,
+        limit: int = 10,
+        subject: Optional[str] = None,
+        canvas_path: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """兼容委托 — 保 list 契约 (CARD-G4-2 兼容铁律)。
+
+        新代码应改用 ``get_review_suggestions_with_status()``: 本方法的
+        空 list 无法区分「没有待复习概念」与「Neo4j 挂了」。
+        """
+        result = await self.get_review_suggestions_with_status(
+            user_id, limit=limit, subject=subject, canvas_path=canvas_path
+        )
+        return result.items
 
     async def _create_neo4j_learning_relationship(
         self,
@@ -1229,7 +1387,11 @@ class MemoryService:
             await self.initialize()
 
         entity_id = f"{event_type}-{uuid.uuid4().hex[:16]}"
-        resolved_group_id = group_id or DEFAULT_GROUP_ID
+        # CARD-G2-2 (2026-08-28): 调用方未传 group_id 时经统一读取口取当前
+        # 作用域 (闭合 C6 docstring 记录的 record_knowledge_entity 兜底缺口)。
+        from app.core.vault_scope import current_group_id
+
+        resolved_group_id = group_id or current_group_id()
         meta = metadata or {}
 
         episode = {
@@ -1434,7 +1596,10 @@ class MemoryService:
 
             client = get_neo4j_client()
             # T1 统一 (2026-07-10): 物理层单一 `__` 格式, 双格式 OR 查询退役
-            physical_group_id = to_physical_group_id(group_id or DEFAULT_GROUP_ID)
+            # CARD-G2-2 (2026-08-28): 兜底改统一读取口 (与 tips 写侧同 scope 成对)
+            from app.core.vault_scope import current_group_id
+
+            physical_group_id = to_physical_group_id(group_id or current_group_id())
 
             # P0-7 (2026-05-14): Graphiti 不持久化 metadata 到 EpisodicNode。
             # tips.py batch_sync 把 content_hash 内嵌为 [hash:abc123] 后缀写到
@@ -1509,6 +1674,8 @@ class MemoryService:
         limit: int = 20,
         search_config: str = "combined_rrf",
         search_filter: Optional[Any] = None,
+        fail_sink: Optional[List[str]] = None,
+        coverage_sink: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
         """Tier 1: Search via graphiti-core search_() with advanced recipes.
 
@@ -1519,13 +1686,24 @@ class MemoryService:
             search_config: Recipe name — one of 'combined_rrf', 'combined_cross_encoder',
                           'edge_cross_encoder', 'edge_rrf', 'node_rrf'
             search_filter: Optional SearchFilters instance for date/label/type filtering
+            fail_sink: CARD-G4-2 (2026-08-28) 加性失败收集器 — 本 Tier 无法
+                服务时把原因 append 进去, 让 search_memories 汇聚层区分
+                「真空结果」与「这一层挂了」。**返回类型保持 list 不变**
+                (存量测试直接断言 list, 契约冻结)。
 
         Returns:
             List of result dicts with 'relevance_score' from reranker scores.
+            空 list 不代表无数据 — 须同时看 fail_sink。
         """
+
+        def _fail(reason: str) -> List[Dict[str, Any]]:
+            if fail_sink is not None:
+                fail_sink.append(reason)
+            return list()
+
         worker = get_episode_worker()
         if not worker.is_ready or worker._graphiti is None:
-            return list()  # worker not initialized yet
+            return _fail("graphiti: episode worker not ready")  # not initialized yet
 
         # Resolve search config recipe
         recipes = self._get_search_recipes()
@@ -1536,7 +1714,9 @@ class MemoryService:
 
         # If recipes are unavailable (import failed), fall back to old search()
         if config_obj is None:
-            return await self._search_graphiti_legacy(query, group_id, limit)
+            return await self._search_graphiti_legacy(
+                query, group_id, limit, fail_sink=fail_sink
+            )
 
         try:
             # Override the limit in config
@@ -1561,7 +1741,9 @@ class MemoryService:
             _search_groups = None
             if _gid_phys:
                 _search_groups = [_gid_phys, semantic_group_id(_gid_phys)]
-                _search_groups += await self._expand_vault_subgroups(_gid_phys)
+                _search_groups += await self._expand_vault_subgroups(
+                    _gid_phys, fail_sink=coverage_sink
+                )
             search_kwargs: Dict[str, Any] = {
                 "query": query,
                 "config": config_with_limit,
@@ -1624,17 +1806,34 @@ class MemoryService:
                 )
 
             return episodes
-        except (RuntimeError, asyncio.TimeoutError, AttributeError, TypeError) as e:
+        except asyncio.CancelledError:
+            raise  # HIGH-6: 取消语义必须保留, 不得吞成「检索失败」
+        except Exception as e:  # noqa: BLE001 — HIGH-6: 依赖边界统一归一异常
+            # 白名单式捕获会漏掉 neo4j.ServiceUnavailable / SessionExpired /
+            # openai.APIConnectionError 等真实依赖异常, 让它们穿透四态方法。
             logger.warning(f"Graphiti search_() failed or timed out: {e}")
-            return list()
+            return _fail(f"graphiti: {type(e).__name__}: {e}")
 
     async def _search_graphiti_legacy(
-        self, query: str, group_id: Optional[str] = None, limit: int = 20
+        self,
+        query: str,
+        group_id: Optional[str] = None,
+        limit: int = 20,
+        fail_sink: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
-        """Legacy fallback: search via graphiti.search() when recipes unavailable."""
+        """Legacy fallback: search via graphiti.search() when recipes unavailable.
+
+        CARD-G4-2: fail_sink 与 _search_graphiti 同契约 (加性, list 返回不变)。
+        """
+
+        def _fail(reason: str) -> List[Dict[str, Any]]:
+            if fail_sink is not None:
+                fail_sink.append(reason)
+            return list()
+
         worker = get_episode_worker()
         if not worker.is_ready or worker._graphiti is None:
-            return list()
+            return _fail("graphiti(legacy): episode worker not ready")
         try:
             # P0-5 (2026-05-14): sanitize group_id at Graphiti boundary
             # M2 双图检索 (2026-07-13): legacy 路径与 Tier1 保持同构 — 主图+影子图
@@ -1671,14 +1870,18 @@ class MemoryService:
                     }
                 )
             return episodes
-        except (RuntimeError, asyncio.TimeoutError, AttributeError) as e:
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:  # noqa: BLE001 — HIGH-6: 同上, 依赖边界归一
             logger.warning(f"Graphiti legacy search failed or timed out: {e}")
-            return list()
+            return _fail(f"graphiti(legacy): {type(e).__name__}: {e}")
 
     #: 批次1'④: 白板级子组枚举缓存 {前缀: (过期时间戳, 组列表)}
     _subgroup_cache: Dict[str, Any] = {}
 
-    async def _expand_vault_subgroups(self, gid_phys: str) -> List[str]:
+    async def _expand_vault_subgroups(
+        self, gid_phys: str, fail_sink: Optional[List[str]] = None
+    ) -> List[str]:
         """枚举 vault 物理组前缀下的白板级子组 (批次1'④, MEM-FLYWHEEL)。
 
         中文白板名经 punycode 转码后落在 vault__x__xn--* 子组; 此前搜索只查
@@ -1689,6 +1892,12 @@ class MemoryService:
         import time as _time
 
         prefix = gid_phys + "__"
+        backend_failure = _neo4j_backend_failure(self.neo4j)
+        if backend_failure:
+            # BLOCKER-1: 降级模式下枚举恒空 — 不缓存, 且如实记入 fail_sink
+            if fail_sink is not None:
+                fail_sink.append(f"subgroup enumeration unusable — {backend_failure}")
+            return []
         cached = self._subgroup_cache.get(prefix)
         if cached and cached[0] > _time.time():
             return cached[1]
@@ -1705,6 +1914,12 @@ class MemoryService:
                     groups.append(gid)
         except Exception as e:  # noqa: BLE001 — 读侧扩展, 降级不炸
             logger.debug("[批次1'④] 子组枚举失败 (跳过扩展): %s", e)
+            # CARD-G4-2 (2026-08-28): 枚举失败 = 检索面收窄 (punycode 白板级
+            # 子组查不到), 属 degraded 信号。**不缓存**失败结果, 否则 5 分钟
+            # 内持续按收窄面检索。
+            if fail_sink is not None:
+                fail_sink.append(f"subgroup enumeration: {type(e).__name__}: {e}")
+            return groups
         self._subgroup_cache[prefix] = (_time.time() + 300, groups)
         return groups
 
@@ -1805,11 +2020,26 @@ class MemoryService:
                 continue
 
     async def _search_neo4j_fulltext(
-        self, query: str, group_id: Optional[str] = None, limit: int = 20
+        self,
+        query: str,
+        group_id: Optional[str] = None,
+        limit: int = 20,
+        fail_sink: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
-        """Tier 2: Search via Neo4j fulltext index for keyword matches."""
-        if not self.neo4j.stats.get("initialized", False):
-            return list()  # Neo4j not connected
+        """Tier 2: Search via Neo4j fulltext index for keyword matches.
+
+        CARD-G4-2: fail_sink 加性收集失败原因 (list 返回契约不变)。
+        """
+
+        def _fail(reason: str) -> List[Dict[str, Any]]:
+            if fail_sink is not None:
+                fail_sink.append(reason)
+            return list()
+
+        # BLOCKER-1: 先探测「不抛异常的后端故障」(JSON_FALLBACK 等)
+        backend_failure = _neo4j_backend_failure(self.neo4j)
+        if backend_failure:
+            return _fail(f"neo4j fulltext unusable — {backend_failure}")
 
         try:
             # 批次5' e2e 修正 (2026-07-24): group 过滤扩 semantic 影子组 —
@@ -1869,17 +2099,15 @@ class MemoryService:
                     }
                 )
             return episodes
-        except (
-            RuntimeError,
-            ConnectionError,
-            asyncio.TimeoutError,
-            neo4j.exceptions.ClientError,  # MVP-α fix: Lucene ParseException
-            neo4j.exceptions.Neo4jError,
-        ) as e:
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:  # noqa: BLE001 — HIGH-6: 含 ServiceUnavailable /
+            # SessionExpired 等不在原白名单的 neo4j 异常族
             logger.debug(f"Neo4j fulltext search failed (non-fatal): {e}")
-            return list()  # fulltext index may not exist yet
+            # fulltext index may not exist yet — 仍如实记入 fail_sink
+            return _fail(f"neo4j fulltext: {type(e).__name__}: {e}")
 
-    async def search_memories(
+    async def search_memories_with_status(
         self,
         query: str,
         group_id: Optional[str] = None,
@@ -1891,9 +2119,18 @@ class MemoryService:
         # (0.2 实测误杀 mem-05/15/24, recall@5 -9pt); 假阳性防护主要靠
         # cross_encoder 区分度, 地板只砍趋零噪音
         min_relevance: float = 0.05,
-    ) -> List[Dict[str, Any]]:
+    ) -> "StatusedResult":
         """
         Search learning memories using 3-tier layered search with unified scoring.
+
+        CARD-G4-2 (2026-08-28): 四态版本 — 返回 StatusedResult 而非裸 list。
+        Neo4j/Graphiti 故障不再静默降为空列表:
+          - 全部远端 Tier 失败且内存兜底也空 → unavailable (带 reason)
+          - 部分 Tier 失败 (仍有结果或有内存兜底) → degraded (带 reason)
+          - 全部 Tier 正常但无命中 → empty (无 reason)
+          - 有命中 → ok
+        旧 ``search_memories()`` 委托本方法并返回 ``.items``, 保 list 契约
+        (~12 处调用方直接迭代, 兼容铁律)。
 
         Phase 2: Upgraded with search_() recipes, unified relevance scoring,
         and FSRS R-value injection for reranking.
@@ -1929,12 +2166,19 @@ class MemoryService:
         merged: List[Dict[str, Any]] = []
 
         # Tier 1: Graphiti semantic search via search_()
+        # CARD-G4-2 Codex round-1 HIGH-5: 区分「整 Tier 不可用」与「覆盖面
+        # 收窄」——subgroup 枚举失败只影响检索广度, 不该让两个主 Tier 都
+        # 成功的查询被报成 unavailable。
+        tier_failures: List[str] = []      # 主检索 Tier 硬失败
+        coverage_failures: List[str] = []  # 覆盖面收窄 (子组枚举等)
         graphiti_hits = await self._search_graphiti(
             query,
             group_id,
             effective_limit,
             search_config=search_config,
             search_filter=search_filter,
+            fail_sink=tier_failures,
+            coverage_sink=coverage_failures,
         )
         for ep in graphiti_hits:
             ep_id = ep.get("episode_id", "")
@@ -1945,7 +2189,9 @@ class MemoryService:
                 merged.append(ep)
 
         # Tier 2: Neo4j fulltext search
-        neo4j_hits = await self._search_neo4j_fulltext(query, group_id, effective_limit)
+        neo4j_hits = await self._search_neo4j_fulltext(
+            query, group_id, effective_limit, fail_sink=tier_failures
+        )
         for ep in neo4j_hits:
             ep_id = ep.get("episode_id", "")
             if ep_id and ep_id not in seen_ids:
@@ -1986,6 +2232,10 @@ class MemoryService:
 
         # 批次1'④ (MEM-FLYWHEEL): 相关度地板 — 低于阈值宁可空 (假阳性满编
         # 止血一阶手段)。Tier1/2 全空的降级场景跳过地板, 保留 Tier3 内存兜底。
+        # HIGH-5: 记住**过滤前**的候选数 —— 状态折算只看「源是否可用/有没有
+        # 检索到东西」, 质量地板是展示层裁剪, 不能反过来把 degraded 说成
+        # unavailable (T1 挂了 + T2 命中低分被滤光 = 仍是 degraded)。
+        pre_filter_count = len(merged)
         if min_relevance > 0 and (graphiti_hits or neo4j_hits):
             merged = [r for r in merged if r.get("relevance_score", 0.0) >= min_relevance]
 
@@ -1998,15 +2248,63 @@ class MemoryService:
             f"floor={min_relevance}, returned {len(merged[:effective_limit])})"
         )
 
-        return merged[:effective_limit]
+        # CARD-G4-2 四态折算 (HIGH-5 修订): 判定基于**源可用性 + 过滤前候选**,
+        # 不用过滤后条目数 —— 否则质量地板滤光结果会把 degraded 误升为
+        # unavailable。
+        #   - 主 Tier 硬失败 且 检索到 0 候选 → unavailable (空不可信)
+        #   - 主 Tier 硬失败 但 有候选 (含被地板滤掉的/Tier3 兜底) → degraded
+        #   - 无硬失败但覆盖面收窄 (子组枚举失败) → degraded (结果可能不全)
+        #   - 全健康 → 按最终有无条目给 ok / empty
+        from app.models.service_status import StatusedResult
 
-    async def search_error_memories(
+        final_items = merged[:effective_limit]
+        if tier_failures:
+            reason = "; ".join(tier_failures)
+            if final_items or pre_filter_count:
+                return StatusedResult.degraded(final_items, reason)
+            return StatusedResult.unavailable(reason)
+        if coverage_failures:
+            return StatusedResult.degraded(
+                final_items, "; ".join(coverage_failures)
+            )
+        return StatusedResult.from_items(final_items)
+
+    async def search_memories(
+        self,
+        query: str,
+        group_id: Optional[str] = None,
+        max_results: int = 50,
+        limit: Optional[int] = None,
+        search_config: str = "combined_rrf",
+        search_filter: Optional[Any] = None,
+        min_relevance: float = 0.05,
+    ) -> List[Dict[str, Any]]:
+        """兼容委托 — 保 list 契约 (CARD-G4-2 兼容铁律)。
+
+        存量 ~12 处调用方直接迭代返回值, 契约不可硬换。新代码应改用
+        ``search_memories_with_status()``: 本方法的空 list 无法区分
+        「真的没有记忆」与「Neo4j/Graphiti 挂了」。
+        """
+        result = await self.search_memories_with_status(
+            query,
+            group_id=group_id,
+            max_results=max_results,
+            limit=limit,
+            search_config=search_config,
+            search_filter=search_filter,
+            min_relevance=min_relevance,
+        )
+        return result.items
+
+    async def search_error_memories_with_status(
         self,
         node_id: str,
         group_id: Optional[str] = None,
         limit: int = 5,
-    ) -> List[Dict[str, Any]]:
-        """检索节点的历史误解/错误记录 (Story 2.3 消费方契约, 批次2' 线3 补齐)。
+    ) -> "StatusedResult":
+        """检索节点的历史误解/错误记录 — CARD-G4-2 四态版本。
+
+        (Story 2.3 消费方契约, 批次2' 线3 补齐)
 
         chat.py /enrich-context 与 chat_context_assembler 自 2026-05-13 起调用
         此方法, 但方法本体从未实现 — 现网 500 (BUG-32DB6194, G-PIPE 实例)。
@@ -2014,11 +2312,15 @@ class MemoryService:
         assembler._format_historical_errors 消费的 error_record schema
         (error_type / description / corrected_at / tags / source_session)。
         """
-        hits = await self.search_memories(
+        # CARD-G4-2 Codex round-1 BLOCKER-4: 内部改调状态方法, 底层故障
+        # 不再被剥成空 list (chat /enrich-context 消费本方法, 空历史错误
+        # 与「Neo4j 挂了」必须可分辨)。
+        search_result = await self.search_memories_with_status(
             query=f"{node_id} 错误 误解 mistake misconception",
             group_id=group_id,
             max_results=max(limit * 4, 20),
         )
+        hits = search_result.items
         markers = (
             "error",
             "mistake",
@@ -2046,7 +2348,29 @@ class MemoryService:
             )
             if len(records) >= limit:
                 break
-        return records
+
+        from app.models.service_status import ServiceStatus, StatusedResult
+
+        if search_result.status is ServiceStatus.UNAVAILABLE:
+            return StatusedResult.unavailable(search_result.reason or "search unavailable")
+        if search_result.status is ServiceStatus.DEGRADED:
+            return StatusedResult.degraded(records, search_result.reason or "degraded")
+        return StatusedResult.from_items(records)
+
+    async def search_error_memories(
+        self,
+        node_id: str,
+        group_id: Optional[str] = None,
+        limit: int = 5,
+    ) -> List[Dict[str, Any]]:
+        """兼容委托 — 保 list 契约 (CARD-G4-2 兼容铁律)。
+
+        新代码应改用 ``search_error_memories_with_status()``。
+        """
+        result = await self.search_error_memories_with_status(
+            node_id, group_id=group_id, limit=limit
+        )
+        return result.items
 
     async def record_temporal_event(
         self,
