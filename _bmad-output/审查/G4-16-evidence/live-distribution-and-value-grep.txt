@@ -1,18 +1,31 @@
-== 生成命令（round-2 补记）==
-HEAD: 37387a86 | 生成于 2026-08-28
-① docker exec canvas-learning-system-backend python3 -c '<lancedb 只读扫描 canvas_vault_vault_notes 的 doc_type 列>'
-② grep -rhn doc_type backend/app backend/lib --include=*.py | grep -oE '(=|==|\[)\s*["'][a-z_]+["']' | grep -oE '["'][a-z_]+["']' | sort | uniq -c
-⚠️ 口径声明（round-2 新 MEDIUM 整改）: ② 是**启发式辅助视图**，含 "doc_type"/"file_path" 等假阳性，**不是取值字面量全集的权威证据**；六值全集依据 = 报告 §1/§4 逐点人工裁定 + pinned 146 行清单。
+== doc_type 取值分布与字面量证据（round-3 整改：命令可执行、无占位符、绑定 pinned SHA）==
+锚定 SHA: 37387a86 | 生成于 2026-08-28
 
-== live LanceDB doc_type 分布实测 (2026-08-28, docker exec canvas-learning-system-backend, 只读) ==
+--- ① live LanceDB 分布（容器内只读，命令完整可复跑）:
+docker exec canvas-learning-system-backend python3 -c "import lancedb, collections; db = lancedb.connect('/lancedb'); tbl = db.open_table('canvas_vault_vault_notes'); df = tbl.to_pandas(); print('rows:', len(df)); print(dict(sorted(collections.Counter(df['doc_type'].fillna('<null>').tolist()).items(), key=lambda x: -x[1])))"
+
+结果（2026-08-28 实测）:
 rows: 2203
 doc_type distribution: {'video_transcript': 2001, 'concept': 117, 'note': 69, 'whiteboard': 16}
 
-== grep 复核: doc_type 取值字面量全集 (backend/app + backend/lib 生产面) ==
-   1 'whiteboard'
-   2 "doc_type"
-   1 "exam_board"
-   1 "file_path"
-   3 "note"
-   2 "video_transcript"
+--- ② 字面量启发式扫描（pinned 到 37387a86，不受工作区/.venv 影响）:
+git grep -h "doc_type" 37387a86 -- "backend/app/*.py" "backend/lib/*.py" | grep -oE "[\"'][a-z_]+[\"']" | sort | uniq -c | sort -rn
+
+⚠️ 口径声明（round-2/round-3 整改）: ② 是**启发式辅助视图**，输出含 "doc_type"/"file_path"
+等字段名假阳性，**不是取值字面量全集的权威证据**。六值全集的权威依据 =
+报告 §1/§4 的逐点人工裁定 + pinned 146 行清单（doc_type-146-occurrences@37387a86.txt）。
+
+结果（本文件生成时实跑，见下）:
+  16 "doc_type"
   10 "whiteboard"
+  10 "exam_board"
+   8 "note"
+   5 'doc_type'
+   2 "video_transcript"
+   1 "type"
+   1 "tags_str"
+   1 "file_path"
+   1 "course"
+   1 "concept"
+   1 'whiteboard'
+   1 'note'

@@ -1,13 +1,32 @@
-== G4-16 落点测试运行元数据（round-1 MEDIUM-5 + round-2 补强） ==
-命令: cd backend && .venv/bin/pytest tests/unit/test_supplementary_reranker.py tests/unit/test_supplementary_search_service.py -q --no-header
-过滤管道（解释存档为何是 10 行摘要而非完整 stdout）: | grep -E '^FAILED|^ERROR|passed|failed'
-pytest.ini: backend/pytest.ini 的 addopts 会附加选项，故实际 stdout 比裸命令更长；存档保留的是 FAILED 节点集合与计数摘要
-Python: Python 3.14.4
-HEAD(基线锚点): 37387a86
-被改文件 blob（HEAD 版 → 工作区版）:
-  supplementary_reranker.py:        3d8275269213 → 73579b22f7a5
-  supplementary_search_service.py:  17440e21c01b → 5ff331040905
-exit code: pytest 两次均为 1（有既有失败），管道后 grep 退出 0
-对照口径: FAILED 节点集合逐条 diff（baseline-before-edits.txt vs after-edits.txt）为空 = 零新增失败
-诚实边界: 两次历史运行的完整 stdout/traceback 未留存，事后不可补造 provenance；可复验的是当前 HEAD 复跑仍为同一 9 failed / 102 passed（Codex round-2 已独立复跑确认）
-9 条既有失败翻转源 commit: fcd34953（Codex 独立溯源）
+== G4-16 落点测试完整 provenance（round-3 MEDIUM-5 整改：可复验的 before/after 完整捕获）==
+
+背景：round-1/round-2 的 before/after 只存了 FAILED 节点摘要（10 行），Codex round-3 判定
+历史 stdout 不可事后补造 —— 属实。故本轮**重新做了一次可复验的完整捕获**取代历史摘要：
+before 不是回忆，而是把两个 py 文件用 git 对象切回 37387a86 版后真实重跑的结果。
+
+--- 命令（两次完全一致，仅两文件版本不同）:
+cd backend && .venv/bin/pytest tests/unit/test_supplementary_reranker.py tests/unit/test_supplementary_search_service.py -q --no-header > <out> 2>&1; echo exit_code=$? >> <out>
+
+--- before 捕获（两文件切至 37387a86 版）:
+  git checkout 37387a86 -- backend/app/services/supplementary_reranker.py backend/app/services/supplementary_search_service.py
+  产物: pytest-before-full-stdout.txt（完整 stdout+stderr，含 traceback 与 exit_code=1）
+  sha256: 42d94922339a0fdb2799017bbf0b1ad02293d3dd1cfa1d91c6fd0a19313109c5
+
+--- after 捕获（两文件恢复至本卡 HEAD 版）:
+  git checkout HEAD -- <同两文件>
+  产物: pytest-after-full-stdout.txt（同格式）
+  sha256: 4303b0df29b66ef7ef4219626882f3e7c7bde8fd448d6ba350553dab532236cd
+
+--- 文件 blob（可 git cat-file 复核）:
+  reranker:       37387a86=3d8275269213  HEAD=73579b22f7a5
+  search_service: 37387a86=17440e21c01b  HEAD=5ff331040905
+  Python: Python 3.14.4
+  两次 exit_code 均为 1（9 条既有失败），grep 摘要版另存 baseline-before-edits.txt / after-edits.txt
+
+--- 对照结论:
+  完整 stdout 归一化（内存地址 0x… → 0xADDR、耗时 → T.TTs）后 **逐字节相同**，diff 为空。
+  未归一化时的全部差异 = CPython 对象内存地址与 pytest 耗时，与代码语义无关。
+  即：注释-only 修改对测试输出零影响，9 failed / 102 passed 逐条同节点同顺序。
+
+--- 既有失败根因（不在本卡范围，归 FU-2）:
+  翻转源 commit fcd34953（RAG-S2 T2 权重方向翻转），测试断言未同步。

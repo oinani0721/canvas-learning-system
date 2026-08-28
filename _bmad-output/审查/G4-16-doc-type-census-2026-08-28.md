@@ -70,8 +70,8 @@ video_transcript 2001 (90.8%) | concept 117 | note 69 | whiteboard 16 | exam_boa
 - **基线（动手前存档）**：**9 failed / 102 passed**（`G4-16-evidence/baseline-before-edits.txt`）——全部 9 条在 reranker 文件：TypeWeightsIndexerTransition×2 + TestFilterFloor×4 + TestFilterFloorTaintExclusion×3；search_service 文件 0 失败。勘探预告"约 10 个既有失败"，实测 9，偏差 1 条按实测为准。
 - **处置后**：**9 failed / 102 passed**，FAILED 清单逐条 diff 为空 → **零新增失败 PASS**（`after-edits.txt`）。
 - ruff check + format 两文件全过。
-- **证据绑定（round-1 MEDIUM-5 → round-2 补强）**：证据包 `test-run-metadata.txt` 记录精确命令、venv Python 版本、HEAD sha、**过滤管道**（`| grep -E "^FAILED|^ERROR|passed|failed"`——这解释了为何存档只有 10 行摘要而非完整 stdout）、pytest.ini addopts 影响、before/after 源文件 blob 摘要与 exit code。**诚实边界**：两次历史运行的完整 stdout/traceback 未留存，事后无法补造 provenance；可复验的是"当前 HEAD 复跑仍为同一 9 failed / 102 passed"（Codex round-2 已独立复跑确认）。
-- **取值字面量证据（round-2 新 MEDIUM）**：`live-distribution-and-value-grep.txt` 的字面量 grep 是**启发式辅助视图**（含 `"doc_type"`/`"file_path"` 等假阳性，非精确全集）；六值全集的权威依据是 §1/§4 的逐点人工裁定 + pinned 146 行清单。该文件已补记生成命令与 HEAD sha。
+- **证据绑定（round-1 MEDIUM-5 → round-3 实质闭合）**：round-1/2 只存 FAILED 节点摘要，Codex round-3 判定"历史 stdout 不可事后补造"属实——故本轮**重做了一次可复验的完整捕获**取代历史摘要：用 `git checkout 37387a86 -- <两文件>` 把文件切回基线版**真实重跑**（`pytest-before-full-stdout.txt`，完整 stdout+traceback+exit_code=1），再 `git checkout HEAD -- <两文件>` 重跑（`pytest-after-full-stdout.txt`）。两份完整输出经**内存地址与耗时归一化后逐字节相同**（未归一化时的全部差异 = CPython 对象地址与 pytest 耗时）。metadata 记录两次命令、两文件 blob、Python 版本、两份产物 sha256。
+- **取值字面量证据（round-2 新 MEDIUM → round-3 补完）**：`live-distribution-and-value-grep.txt` 的字面量 grep 是**启发式辅助视图**（含 `"doc_type"`/`"file_path"` 等假阳性，非精确全集）；六值全集的权威依据是 §1/§4 的逐点人工裁定 + pinned 146 行清单。round-3 整改：两条生成命令改为**无占位符、可直接复跑**（docker 一行式 + `git grep` pinned 37387a86，`zsh -n` 语法校验通过），扫描结果随文件重新实跑落盘。
 
 **9 条既有失败根因方向**（登记入 FU-2，本卡不修）：测试仍按 2026-05-12 设计断言 `note→0.7 中档`（test :579 docstring 自述），而 RAG-S2 T2（2026-08-09）已把 note/concept 翻转为 1.0（权重方向"手写最高"）且 rerank_score 计算随之变化 → FilterFloor 族的 0.42 过滤阈值场景不再触发。属"生产权重翻转未同步测试"的陈债（Codex 独立溯源到翻转 commit `fcd34953`，并确认 floor 用例修法应调输入使 floor 继续触发、不应放宽预期），与本卡注释修正无关（before/after 失败节点全等自证）。
 
@@ -117,3 +117,10 @@ round-2 确认 HIGH-1/2/4、MEDIUM-1/2/4、LOW-1 共 7 项 CLOSED，并独立复
 - **新 MEDIUM（reranker:196 陈旧注释）**：floor 兜底注释仍写 `note=0.7 / 0.5×0.7=0.35` 的历史算例。**整改**：加注 fcd34953 翻转后 note=1.0、该算例为历史情形、floor 机制仍生效、测试重写归 FU-2（仍为注释-only）。
 - **新 MEDIUM（字面量 grep 证据假阳性）**：§6 已降级其为启发式辅助视图并补生成命令。
 - **新 LOW（根脚本行号）**：按 pinned SHA 修正为 migrate:62 / sync:63/:85。
+
+## §11 Codex round-3 复审整改记录（5/7 CLOSED → 剩 2 项实质闭合）
+
+round-3 裁定 5 CLOSED（自由值路径条件 / §8 摘要口径 / source_type 赋值链 / reranker 陈旧算例 / 根脚本行号），三条行为铁律复验通过（AST 全等注释-only、隔离面零改动、失败节点集合相同），阻断点收敛为**证据可复验性**两项：
+
+- **MEDIUM-5 测试 provenance**：round-3 指出"当前复跑不能补造历史证据"——完全正确。**整改思路改变**：不再试图为历史运行补 provenance，而是**重做一次可复验的完整对照**——把两文件用 git 对象切回 37387a86 真实重跑得 before，切回 HEAD 重跑得 after，两份完整 stdout（含 traceback、exit_code）归一化内存地址与耗时后**逐字节相同**。证据从"声明"变为"可复跑复算"。
+- **live/value-grep 命令可执行性**：`<lancedb…>` 占位符 + `zsh -n` 报 unmatched quote + 裸 grep 未绑定 SHA。**整改**：两条命令改写为无占位符完整形式（docker 一行式；`git grep` pinned 37387a86），`zsh -n` 校验通过，结果随文件重新实跑。

@@ -35,6 +35,8 @@ worktree: "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktre
 | Codex findings 逐条整改 | **10/10 完成**（见下）；整改含 1 项本轮补做的实测（exam_board live=0 两因坐实）；整改后复跑落点测试失败节点与基线逐条相同 | 报告 §9 + 证据包 |
 | Codex 复审 round-2 | **仍阻断**（7/10 CLOSED；HIGH-3/MEDIUM-3/MEDIUM-5 未闭合 + 3 新 MEDIUM + 1 新 LOW）。同时独立复跑坐实三条铁律：AST 全等注释-only、隔离面零改动、9 failed/102 passed 与基线同集合同顺序；HIGH-2 的 live vault 两因经其独立 find 复测确认 | `_bmad-output/审查/codex-review-CARD-G4-16-round2.md` |
 | round-2 findings 逐条整改 | **7/7 完成**：自由值权重加路径条件 / §8 摘要与 §1 口径统一 / 测试 provenance 补强+诚实边界 / source_type 赋值链表述修正 / reranker 陈旧算例注记 / 字面量 grep 降级为辅助视图 / 根脚本行号按 pinned SHA 修正。整改后 AST 仍全等、9 failed/102 passed 不变 | 报告 §10 + 证据包 |
+| Codex 复审 round-3 | **5/7 CLOSED**，三条行为铁律全部复验通过（AST 全等注释-only、隔离面零改动、失败节点集合相同）；阻断点收敛为证据可复验性两项，非代码行为回归 | `_bmad-output/审查/codex-review-CARD-G4-16-round3.md` |
+| round-3 findings 整改 | **2/2 完成**：① 测试 provenance 从"声明"改为**可复验完整捕获**（git 切基线版真实重跑 before + 切 HEAD 重跑 after，两份完整 stdout 归一化后逐字节相同）；② grep 证据命令去占位符、绑定 pinned SHA、`zsh -n` 校验通过 | 报告 §11 + `pytest-before/after-full-stdout.txt` |
 | 独立 Workflow 4-agent 复核 | 枚举 agent：18/146、写入方双路径、exclude 7+1 处、TYPE_WEIGHTS 死键论证全 CONFIRMED（0 blocker）；注释-only agent：tokenize 剥离注释后 **代码 token 逐一相同**（707/3940 个），运行期 TYPE_WEIGHTS/阈值三值断言全过 | Workflow wf_737b1a95-20b journal |
 
 ## 🔧 Codex round-1 整改记录（10/10 关闭，FAIL → 整改完毕）
@@ -57,6 +59,13 @@ worktree: "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktre
 - **MEDIUM-5 未闭合**：测试证据缺过滤管道说明与 blob 摘要，10 行摘要不是所列命令的直接产物。→ metadata 补齐命令管道/pytest.ini 影响/blob 摘要/exit code，并**如实声明历史 stdout 无法事后补造**（可复验的是当前 HEAD 复跑同结果，Codex 已独立复跑确认）。
 - **新 MEDIUM ×3**：source_type 非"纯路径启发"（image_ocr 显式、neighbor_expansion 运行期）→ §8 修正；reranker floor 注释仍写翻转前算例 → 加注历史情形与 FU-2 归属（仍注释-only）；字面量 grep 含假阳性 → 降级为启发式辅助视图并补生成命令。
 - **新 LOW**：根脚本行号按 pinned SHA 修正为 migrate:62 / sync:63、:85。
+
+## 🔧 Codex round-3 复审整改记录（5/7 CLOSED → 剩 2 项实质闭合）
+
+round-3 复验三条行为铁律全部通过，阻断点只剩证据可复验性：
+
+- **测试 provenance**：round-3 说"当前复跑不能补造历史证据"——对。所以不再为历史运行辩护，而是**重做一次可复验的完整对照**：把两个文件用 git 对象切回基线版**真实重跑**得 before，切回本卡版重跑得 after，两份完整 stdout（含 traceback 与 exit code）归一化内存地址与耗时后**逐字节相同**。证据从"我说没变"变成"你可以自己跑一遍"。
+- **grep 证据可执行性**：旧文件有 `<lancedb…>` 占位符、`zsh -n` 报引号不匹配、裸 grep 未绑定 SHA。→ 两条命令改写为完整可复跑形式（docker 一行式 + pinned `git grep`），`zsh -n` 校验通过，结果随文件重新实跑落盘。
 
 ## 📄 交付物清单
 

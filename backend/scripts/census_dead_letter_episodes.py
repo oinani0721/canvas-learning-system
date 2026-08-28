@@ -52,7 +52,6 @@ BATCH-2026-08-28-第五批 / CARD-G4-9（G4-10 replay 的交接台账生成器�
 from __future__ import annotations
 
 import argparse
-import glob
 import hashlib
 import json
 import os
@@ -72,6 +71,14 @@ _SESSION_INLINE_PAT = re.compile(r"(?<![0-9a-zA-Z_-])session:([0-9a-f-]{5,})")
 _SHA256_HEX_PAT = re.compile(r"^[0-9a-f]{64}$")
 
 EXPECTED_CLASS_DIST = {"budget_400": 89, "schema_entity_type": 2, "group_id_format": 1}
+
+
+def _split_jsonl_lines(raw: bytes) -> list[str]:
+    """按 JSONL 规范只以 \n 分行（不用 splitlines：U+2028/U+2029/裸 CR 会误分行）。"""
+    text = raw.decode("utf-8", errors="replace")
+    if text.endswith("\n"):
+        text = text[:-1]
+    return text.split("\n") if text else []
 
 
 def classify(rec: dict) -> str:
@@ -141,19 +148,49 @@ def resolve_group_attribution(tokens: list[str], transcripts_dir: Path) -> dict:
         result["attribution_conflict"] = True
         return result
     result["session_token"] = longest
-    pattern = str(transcripts_dir / "**" / f"{longest}*.jsonl")
-    # round-2 HIGH-3 整改: 拒绝 symlink 条目与逃逸到根外的目标 —— 原实现
-    # 经 glob+isfile 跟随 symlink，根内 .jsonl→根外 .txt 会被当唯一来源采信。
+    # round-2 HIGH-3: 拒绝 symlink 条目与逃逸到根外的目标（glob 会跟随 symlink，
+    # 根内 .jsonl→根外 .txt 曾被当唯一来源采信）。
+    # round-3 整改: 改 os.walk(onerror=) —— glob 对不可读的中间目录**静默跳过**，
+    # 会把"没搜到"与"搜不了"混为一谈，产出假 unrecoverable。遍历出错即 fail-closed。
     root_real = os.path.realpath(transcripts_dir)
+    walk_errors: list[str] = []
+
+    def _on_walk_error(err: OSError) -> None:
+        walk_errors.append(f"{getattr(err, 'filename', '?')}: {err}")
+
     matches = []
-    for candidate in glob.glob(pattern, recursive=True):
-        if os.path.islink(candidate) or not os.path.isfile(candidate):
-            continue
-        real = os.path.realpath(candidate)
-        if not real.startswith(root_real + os.sep):
-            continue  # 目录 symlink 逃逸
-        matches.append(candidate)
+    unreadable: list[str] = []
+    for dirpath, dirnames, filenames in os.walk(transcripts_dir, onerror=_on_walk_error, followlinks=False):
+        for fname in filenames:
+            if not (fname.startswith(longest) and fname.endswith(".jsonl")):
+                continue
+            candidate = os.path.join(dirpath, fname)
+            if os.path.islink(candidate) or not os.path.isfile(candidate):
+                continue
+            # round-3 整改: isfile() 对 mode 000 仍为 True —— 不可读的文件
+            # 不是可用恢复源，计入 unreadable 而非命中（fail-closed）。
+            if not os.access(candidate, os.R_OK):
+                unreadable.append(candidate)
+                continue
+            real = os.path.realpath(candidate)
+            if not real.startswith(root_real + os.sep):
+                continue  # 目录 symlink 逃逸
+            matches.append(candidate)
     matches = sorted(matches)
+    if unreadable:
+        # 存在同名但不可读的候选 —— 源不完全可见，拒绝据此裁定
+        result["unreadable_candidates"] = unreadable[:5]
+        result["attribution_conflict"] = True
+        result["transcript_paths"] = []
+        result["transcript_match_count"] = 0
+        return result
+    if walk_errors:
+        # 源不完全可见 —— 拒绝据此裁定（既不宣称找到，也不宣称不可恢复）
+        result["scan_errors"] = walk_errors[:5]
+        result["attribution_conflict"] = True
+        result["transcript_paths"] = []
+        result["transcript_match_count"] = 0
+        return result
     result["transcript_paths"] = matches
     result["transcript_match_count"] = len(matches)
     if len(matches) == 1:
@@ -198,9 +235,10 @@ def snapshot_file(path: Path) -> tuple[bytes, dict]:
     info = {
         "path": str(path),
         "exists": True,
-        # round-2 LOW 整改: 与 records 的 splitlines() 同口径（bare CR / U+2028
-        # 等行分隔符下 count("\n") 会与 records 数不一致）。
-        "line_count": len(raw.decode("utf-8", errors="replace").splitlines()),
+        # round-3 整改: JSONL 的行分隔符**只有** \n —— splitlines() 会把
+        # U+2028/U+2029/裸 CR 也当分隔符，可能把一条 JSON 记录劈成两半。
+        # 与 records 同口径按 \n 切分（末尾换行不算空行）。
+        "line_count": len(_split_jsonl_lines(raw)),
         "sha256": hashlib.sha256(raw).hexdigest(),
         "mtime_utc": datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).isoformat(),
         "mtime_note": "mtime 为 stat 快照，仅供参考；绑定 exact bytes 的是 sha256",
@@ -262,6 +300,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
+    protected_ids: set[tuple[int, int]] = set()
     # --out 碰撞守卫（写前）。round-2 BLOCKER-1 整改: 比较**文件身份**
     # (st_dev, st_ino) 而非 resolve() 字符串 —— 后者对 hardlink 与
     # 大小写不敏感文件系统上的 case-only 别名均失效（Codex 实测截断输入）。
@@ -270,7 +309,6 @@ def main(argv: list[str] | None = None) -> int:
         protected_paths = [dlq_path, *(Path(p) for p in args.compare)]
         if args.qa_metrics_db:
             protected_paths.append(Path(args.qa_metrics_db))
-        protected_ids = set()
         for candidate in protected_paths:
             try:
                 st = candidate.stat()  # 跟随 symlink: 保护的是最终目标身份
@@ -297,7 +335,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # BLOCKER-2 整改: 单次读取，records 与头部描述共享同一份 exact bytes
     raw_bytes, dlq_info = snapshot_file(dlq_path)
-    raw_lines = raw_bytes.decode("utf-8", errors="replace").splitlines()
+    raw_lines = _split_jsonl_lines(raw_bytes)
 
     records: list[tuple[int, dict]] = []
     unparseable: list[dict] = []
@@ -309,6 +347,13 @@ def main(argv: list[str] | None = None) -> int:
             rec = json.loads(line)
         except json.JSONDecodeError as e:
             unparseable.append({"line_no": line_no, "reason": f"json_error: {e}", "excerpt": line[:80]})
+            continue
+        # round-3 LOW 整改: 合法 JSON 但非对象（null / 数组 / 标量）此前解析成功
+        # 却在 rec.get() 处抛 AttributeError 炸掉全量 —— 归入 unparseable。
+        if not isinstance(rec, dict):
+            unparseable.append(
+                {"line_no": line_no, "reason": f"not_a_json_object: {type(rec).__name__}", "excerpt": line[:80]}
+            )
             continue
         records.append((line_no, rec))
 
@@ -453,10 +498,41 @@ def main(argv: list[str] | None = None) -> int:
         "records": ledger_records,
     }
 
+    # round-3 BLOCKER-1 绕过① 整改: 归因到的 transcript 是恢复源，
+    # --out 指向它同样会截断。写出前并入保护集（此时归因已完成）。
+    for rec_out in ledger_records:
+        for tpath in rec_out.get("transcript_paths", []):
+            try:
+                tst = os.stat(tpath)
+                protected_ids.add((tst.st_dev, tst.st_ino))
+            except OSError:
+                continue
+
     out_json = json.dumps(ledger, ensure_ascii=False, indent=1)
     if args.out:
-        with open(args.out, "w", encoding="utf-8") as f:
-            f.write(out_json + "\n")
+        # round-3 整改: 消除 check-then-open TOCTOU。先以 O_NOFOLLOW 打开且
+        # **不带 O_TRUNC**，对**实际 fd** fstat 校验 inode；只有校验通过才
+        # ftruncate。检查与写入作用于同一 fd，检查后被换 symlink/hardlink 无效。
+        try:
+            fd = os.open(args.out, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+        except OSError as e:
+            print(f"--out 无法安全打开（symlink 或权限）: {args.out} ({e})", file=sys.stderr)
+            return 2
+        try:
+            st = os.fstat(fd)
+            if (st.st_dev, st.st_ino) in protected_ids:
+                print(
+                    f"--out 打开后经 fstat 判定与输入文件同一 inode，拒绝写出（防截断）: {args.out}",
+                    file=sys.stderr,
+                )
+                return 2
+            os.ftruncate(fd, 0)
+            with os.fdopen(fd, "w", encoding="utf-8", closefd=True) as f:
+                fd = -1  # 所有权移交 fdopen
+                f.write(out_json + "\n")
+        finally:
+            if fd >= 0:
+                os.close(fd)
         print(f"台账已写入: {args.out}")
     else:
         print(out_json)
