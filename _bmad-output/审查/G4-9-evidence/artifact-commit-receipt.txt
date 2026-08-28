@@ -16,6 +16,7 @@ f389980c  CARD-G4-9 round-7 架构级修复（消除截断动作）
 af251e4a  CARD-G4-9 round-8 整改（QA DB 内存 deserialize / 父目录 containment / stdout 门 / 原子替换清理）
 2cdf77a4  receipt 补 round-8
 6b8debee  CARD-G4-9 round-9 整改（名实一致 / 只读契约回归测试 / 声明有界化）
-dfbe70c7  CARD-G4-9 round-10 解阻整改（矛盾声明全清 / 字段语义 / 测试如实标注 20 passed / 可绑定证据）
+dfbe70c7  CARD-G4-9 round-10 解阻整改（矛盾声明全清 / 字段语义 / 测试如实标注 / 可绑定证据）
+f4112c2c  CARD-G4-9 round-11 解阻整改（残留声明清除 / 坏 JSON 与输入不变测试补强 / 证据绑新 blob）
 
 各阶段交付物 blob 可用 git cat-file 复核；台账头部 dlq_file.sha256 为 DLQ 快照指纹。
