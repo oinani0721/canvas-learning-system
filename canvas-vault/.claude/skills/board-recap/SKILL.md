@@ -1,6 +1,6 @@
 ---
 name: board-recap
-description: "当用户消息以 /board-recap 开头（用户在 Claudian 侧栏直输，或在 claude code CLI 直输），必须调用此 Skill 对指定原白板做一次只读的广度回顾：AI 对这块板的「批注 + 拆分」做三维对抗审查（漏了什么 / 靠不靠谱 / 方向偏没偏），生成一份零自填、每条导向动作的回顾报告到 outputs/回顾-<板名>-<日期>.md。深度层考「人」是 /start-exam-board 的事；本 Skill 是广度层审「材料」。⛔ 薄版零写侧：绝不写 原白板/、节点/、检验白板/ 下任何文件，绝不改任何 frontmatter；唯一写入 = outputs/ 的报告。数据面走 1 次只读 get_board_manifest（study 视图），后端不可用时静默退回本地只读扫描并在报告头声明 FALLBACK。"
+description: "当用户消息以 /board-recap 开头（用户在 Claudian 侧栏直输，或在 claude code CLI 直输），必须调用此 Skill 对指定原白板做一次只读的广度回顾：AI 对这块板的「批注 + 拆分」做三维对抗审查（漏了什么 / 靠不靠谱 / 方向偏没偏），生成一份零自填、每条导向动作的回顾报告到 outputs/回顾-<板名>-<日期>.md。深度层考「人」是 /start-exam-board 的事；本 Skill 是广度层审「材料」。⛔ 第一刀零写侧：绝不写 原白板/、节点/、检验白板/ 下任何文件，绝不改任何 frontmatter；唯一写入 = outputs/ 的报告。数据面走 1 次只读 get_board_manifest（study 视图），后端不可用时静默退回本地只读扫描并在报告头声明 FALLBACK。"
 argument-hint: "<原白板名>（文件名 stem，如 CS188 lecture 2）；无参则 AskUserQuestion 选板"
 allowed-tools:
   - Read
@@ -62,7 +62,8 @@ fallback_path: recap_scan.py 不带 --manifest 的本地只读扫描（白板 ##
 - **分工铁律**：报告中的**每个数字与清单**必须逐项对应 `scripts/recap_scan.py` JSON 输出的字段——
   全局计数取 `counts.*`；每节点的 tips/未闭环数取 ledger 行的 `tips_count`/`tips_open`；每种子的派生子女取
   `derived_children_count`；创建/派生时间取 ledger 行的 `created_at`/`derived_at`；规模门详审名单与尾部聚合取
-  `scale_gate.detail_node_ids`/`tail_counts`。⛔ LLM 不得自己数、不得改写脚本给的数字、
+  `scale_gate.detail_node_ids`/`tail_counts`；一梯队信号四组数字（值/分母/分位参考/可用性档）取
+  `signals.*` 逐项照抄（⛔ 不重算、不换算、不省略分母）。⛔ LLM 不得自己数、不得改写脚本给的数字、
   ⛔ **不得回读 manifest 或任何 vault 文件补数据**——scan JSON 里没有的数字就不写进报告。
 
 ## ⛔ HARD CONSTRAINTS
@@ -148,6 +149,7 @@ cat "<vault 绝对路径>/outputs/.recap-scan-<board_stem>.json"
 脚本对 manifest 做 fail-closed 校验（`board.board_id` 必须与 `--board` 精确一致——串料/错板拒收 / `source_status` 只接受 ok|snapshot / nodes 逐条必须是含 node_id 的对象）——任一不满足自动转 `fallback_local` 并给出原因，⛔ 不得吞掉不匹配的 manifest。
 
 输出 JSON 即本轮**唯一数据源**（含 `data_mode` / `source_revision` / `ledger` / `counts`（含 `relation_types` 聚合）/
+`signals`（一梯队信号：未答问题年龄/来源覆盖率/无来源结论/重复堆积，各含 value/denominator/percentile_ref/availability/asof）/
 `tips_oldest3` / `scale_gate` / `previous_recap` / `unsafe_write_targets`）。⛔ 后续步骤一切数字与清单（**含 Step 6 回执里的数字**）只从这份 JSON 取。
 ⛔ `unsafe_write_targets` 非空 → 与写前预检同语义，**显式拒绝写入并结束**（双层防御，脚本 lstat 复核）。
 脚本可能自行判定 manifest 不可用（`source_status: "error"` / nodes 空）并自动转 `fallback_local`——照常继续，Step 5 按 `data_mode` 声明。
@@ -170,7 +172,7 @@ cat "<vault 绝对路径>/outputs/.recap-scan-<board_stem>.json"
 orphans / exam_history / freshness / boards 列表 / member_count / 任何字段，
 **报告与 Step 6 回执**都不得引用其中任何数据
 （scan JSON 的 fallback 输出里没有的字段就写「无据（fallback）」，不许从记忆里补；
-派生子女数在 fallback 恒无据——⛔ 不得写「已派生 N 点」「未派生」「从未派生」「派生出」「没有派生」及任何同义断言，
+派生子女数在 fallback 恒无据——⛔ 不得写「已派生 N 点」「未派生」「从未派生」「派生出」「没有派生」「无派生」「零派生」及任何同义断言，
 想说"板上还没内容"就用「无成员/无批注」这类 scan JSON 直接支持的措辞）。
 <!-- FALLBACK:END -->
 
@@ -185,12 +187,18 @@ scan JSON 的 `previous_recap.same_day == true` → `AskUserQuestion`：
 ## Step 4 · 三维审查（LLM 叙述 · 只消费 scan JSON）
 
 - **维度① 有没有漏掉的（永不砍）**——按种子/派生分流提问：
-  种子（`ledger.seeds`）问「这份材料**消化**了没有」（信号：无派生、无批注）；
+  种子（`ledger.seeds`）问「这份材料**消化**了没有」（信号：`derived_children_count`、`tips_count`——
+  ⛔ fallback 模式 `derived_children_count` 恒为 null，此时**不得**对派生子女下任何断言，
+  只可用「无批注」这类 scan JSON 直接支持的措辞）；
   派生（`ledger.derived`）问「这个点**搞懂**了没有」（信号：`is_stub` / tips `understanding` 未闭环 / `last_examined` 为空即从未考察）。
   其余信号：`counts.error_candidates_pending` 积压、manifest 的 `orphans` / `dual_source_gap`。
 - **维度② 靠不靠谱**——只做三档标注起步：【实测】（manifest 实返数据）/【文件】（本地文件抄录）/【推定】（fallback 推断 / 无声明关联）。
   ⛔ `tips.added_at` 是最后变更时间而非首次批注时间（插件重写会刷新）——一切时序类结论最高只能标【文件】。
 - **维度③ 方向**——受 HARD-R4 全约束；派生时序只取数据里已有的字段，不做原文时序考古。
+  **一梯队信号（`signals.*`）**：③段开头先给四条信号标准行（格式见 Step 5 模板，逐字段照抄 `signals.*`）——
+  **零阈值纪律**：脚本只出信号值与板内分位参考，⛔ 本 Skill 不判定「偏没偏」、不打分、不设合格线——判读留给读者；
+  叙述以**材料**为主语（「N 个派生成员缺来源锚点」，⛔ 不得写成对用户行为的评判）。
+  `availability` 为「无据」的信号如实写「无据」，⛔ 不得用其他信号的数字顶替、不得省略该行。
 - **闭环 diff**：`previous_recap.actions_section` 非空 → 本次「你现在可以做的」逐条与上次比对，
   与上次相同且数据无变化的建议 ⛔ 不得原样重复——标「⚠️ 上次已建议、未见变化」并升级说法或降位。
 - **AI 侧对账**：tips 计数只可标**【未确认-无法判定已答】**（学习 vault 无「已答」标记，回答发生在对话里不留痕）——⛔ 不宣称「没人答」。
@@ -207,7 +215,7 @@ board_name: "<board_name>"
 recap_date: <recap_date>
 data_mode: <manifest | fallback_local>
 board_sha256: "<source_revision.board_sha256>"
-generated_by: board-recap v1.0-thin
+generated_by: board-recap v1.1-signals
 ---
 
 # 回顾 · <board_name> · <recap_date>
@@ -231,7 +239,11 @@ generated_by: board-recap v1.0-thin
 
 ## 台账（种子/派生）
 ### 种子
-- <node_id> — <消化信号：批注 n 条 / 无批注；已派生 x 点 / 未派生>
+- <node_id> — 批注 <tips_count> 条        ← fallback 模式**只许这一种整行格式**
+- <node_id> — 无批注                      ← 或这一种（tips_count == 0 时）
+  <manifest 模式可在同行后补「· 已派生 x 点」（抄 `derived_children_count`）；
+   ⛔ fallback 模式该字段为 null，本小节 **每一行都必须整行匹配上面两个模板之一**——
+   任何自由叙述（哪怕不含"派生"二字）都会被 verifier 判违规>
 ### 派生
 - <node_id> — <搞懂信号：占位|已剖析 · mastery <值|未记录> · <考过 n 次|从未考察> · tips 未闭环 m 条>
 
@@ -246,7 +258,25 @@ generated_by: board-recap v1.0-thin
 ### ① 有没有漏掉的
 ### ② 靠不靠谱
 ### ③ 方向<基准全为推定时：（与推定基准的距离，仅供参考）>
+> [!info]+ 一梯队信号（脚本数字 · 零阈值 · 判读留人）
+> - 未答问题年龄：最老 <signals.….value> 天（参与统计 <denominator> 条，p25/p50/p75 = <a>/<b>/<c> 天）【文件】
+> - 来源覆盖率：<value>/<denominator> 成员含来源锚点【<availability>】
+> - 无来源结论：<value>/<denominator> 派生角色成员缺来源锚点【<availability>】
+> - 重复堆积：<value>/<denominator> 条批注为重复条目【<availability>】
+
+<信号行之后才是方向叙述：以材料为主语，只引用上列信号数字与 counts.relation_types，判读留给读者>
 ```
+
+- ③段信号行铁律：
+  - `availability` 为「无据」的信号该行必须**整行**写成 `- <信号名>：无据（<原因>）`，
+    **原因只能逐字取自下列五条固定文案**（verifier 按白名单整行匹配，任何自由发挥都 FAIL——
+    这样也就不存在"数字混进无据行"的可能）：
+    `无带时间戳批注` / `分母为零` / `本板无派生角色成员` / `本板无批注` / `数据源不可用`
+  - ⛔ 无据行不得出现 X/N 计数、不带档位标注；有数的信号行 ⛔ 不得写「无据」。
+  - 有数信号行：`X/N` 之后的说明文字同样**禁一切数字**（防在正确数字后追加第二组）。
+  - 四行**一行都不能少**（verifier 逐行绑定 `signals.*`，缺行/改数/档位不符即 FAIL）。
+  - ⛔ 信号行**不得**写进代码块（``` 围栏或四空格缩进）——verifier 校验前会剔除代码块，
+    藏在里面等同于缺行。信号行就写在 ③ 段的 `> [!info]+` 引用块里（模板已给）。
 
 - ⛔ frontmatter 必含 `type: recap`（防旧回顾以实测口吻回流 RAG/对话）。
 - ⛔ 报告里**零自填格子**——没有任何要用户填的空。
@@ -275,15 +305,29 @@ python3 "<vault 绝对路径>/.claude/skills/board-recap/scripts/recap_scan.py" 
    规模自陈五元组 == `counts.*`、AI 侧对账 tips 两数 == `tips_total`/`tips_understanding_open`；scan JSON 缺失 = fail-closed FAIL。
    其余计数（台账/③段关系分布）仍须逐字段抄 scan JSON（关系分布只能抄 `counts.relation_types`）；
    fallback 报告不得出现 orphans/exam_history/freshness 等 manifest 专属数字。
-7. **fallback 派生断言**：`data_mode: fallback_local` 时，`已派生`、`未派生`、`从未派生`、`派生出`、`没有派生`、`子节点` —— 必须 **0 命中**
+7. **fallback 派生断言（全局行白名单）**：`data_mode: fallback_local` 时，报告里**任何含「派生」二字的行**
+   都必须整行匹配下列合法用法之一，否则 FAIL（子女数在 fallback 恒无据，同义改写不再有意义）：
+   ① 规模自陈行（`N 成员（X 种子 + Y 派生，Z 占位）…`，抄 `counts.derived`）；② 段落标题（`## 台账（种子/派生）`、`### 派生`）；
+   ③ 无来源结论信号行（抄 `signals.unsourced_conclusions`）；④ 关系类型分布行（抄 `counts.relation_types`）；
+   ⑤ 以「派生角色成员」为主语的③段叙述。另原有词表（`已派生`/`未派生`/`从未派生`/`派生出`/`没有派生`/`无派生`/`零派生`/`子节点`）继续 0 命中
    （派生子女在 fallback 无据；⛔ 同义改写也不行——想表达"这块板还没内容"就说「无成员/无批注」这类 scan JSON 直接支持的事实）。
 8. **动作句白名单动词**：「你现在可以做的」每条编号项必须命中白名单动词之一：
    `/node-chat`、`/start-exam-board`、`/board-recap`、`Cmd+Shift+D`、`Cmd+Shift+A`、`Dashboard` —— 一条不命中即改写。
 9. **动作段结构**：该段**只许编号动作项**——任何编号项之外的正文行（无论措辞）都 FAIL；
    「AI 侧对账」必须含两行标准计数行：`tips 批注共 N 条` 与 `其中理解度未闭环 N 条`（缺行 = 数字终核 fail-closed）。
 10. **影子字段防御**：verifier 校验前先剥全部 HTML 注释（注释里藏正确模板行不算数——可见文本必须独立合规）；
+    剥完后正文仍残留未闭合 `<!--` = FAIL（未闭合注释会让渲染视图隐藏其后全部内容，可见文本与校验文本分叉）；
     frontmatter 键只认首个 `---` 块内的（搬进正文冒充无效）；必需段落各只许出现一次（重复段 FAIL）。
-    ⛔ 因此报告里不要写任何 HTML 注释。
+    ⛔ 因此报告里不要写任何 HTML 注释——**闭合注释**会被剥掉（藏在里面的内容对 verifier 不存在，
+    也不会替可见文本背书），**未闭合注释**直接 FAIL（它会让渲染视图吞掉后续内容）。
+11. **一梯队信号绑定（G5-4）**：scan JSON 含 `signals` 键 → ③段（止于下一个 `##`/`###`）必须含四条信号标准行
+    （未答问题年龄/来源覆盖率/无来源结论/重复堆积），**每条信号独占一行**（一行写多个信号 = FAIL），
+    行内数字（年龄行含 p25/p50/p75）与可用性档标注【实测/文件/推定】与 `signals.*` **全等**；
+    `availability=无据` 的信号行必须写「无据」且该行**零数字**（含全角与中文数字——无据信号没有任何数可报），
+    有数的行不得写「无据」；同 label 出现多行则逐行全查。
+    verifier 另校验 `signals.*` 子对象本身：五个必备字段齐全、`availability` 属四档枚举、
+    无据 ⇒ `value=null` 且 `denominator=0`、有数 ⇒ value/denominator 是整数——任一不符 = FAIL。
+    任一数字/档位不符、缺行、无据错标 = FAIL。旧 scan JSON（无 `signals` 键）不检查本条（兼容）。
 
 ## Step 6 · 回执
 

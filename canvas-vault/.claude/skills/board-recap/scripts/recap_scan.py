@@ -44,6 +44,23 @@
     标【文件】档。无法解析的时间戳不参与"最老"排序 (tips_undated 计数)。
   - 学习 vault 无「已答」标记 → 未答数 = 全部 tips 计数, 报告只可标
     【未确认-无法判定已答】, 不得宣称「没人答」。
+
+一梯队信号 (CARD-G5-4, BATCH-2026-08-28-第五批):
+  - scan JSON 加性新增 ``signals`` 块 — 四信号 (未答问题年龄/来源覆盖率/
+    无来源结论/重复堆积), 各含 value/denominator/percentile_ref (板内分位
+    参考)/availability (实测|文件|推定|无据)/asof。
+  - **0 阈值**: 只出信号值与板内分位参考, 无任何合格线/判定字段 —
+    判偏航留人 (报告③段叙述以材料为主语)。
+  - **零编造**: denominator == 0 或数据缺失 → availability="无据",
+    value=null; 不用其他信号的数字顶替。
+  - availability 档位 = min(数据源档, 语义档): manifest 实返="实测",
+    本地 frontmatter 抄录="文件", 依赖 fallback 角色推断="推定";
+    时序信号恒 ≤"文件" (added_at=最后变更时间, C5 已知边界)。
+  - ledger 行加性补 ``source_note`` 字段 (manifest 透传 / fallback 从
+    frontmatter 抄录并按 stem 归一)。
+  - --verify 同步扩展: scan JSON 含 signals 键 → ③段信号标准行数字与
+    档位全等绑定, 篡改任一数字 exit 1; 旧 scan JSON (无 signals 键) 不
+    检查本条 (兼容)。
 """
 
 from __future__ import annotations
@@ -54,6 +71,7 @@ import json
 import math
 import re
 import sys
+import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -61,6 +79,14 @@ MEMBER_THRESHOLD = 30  # 规模门: 成员数 (设计稿 v2 §七)
 ANNOTATION_THRESHOLD = 100  # 规模门: 批注数 (frontmatter tips 口径)
 DETAIL_K = 10  # 超线时详审的 pick_rank 前 K
 STUB_PLACEHOLDER = "你的 1-2 句精准定义"
+
+# 一梯队信号 availability 档位 (G5-4): 与 SKILL 维度② 三档标注同語义 + 无据
+AVAIL_MEASURED = "实测"  # manifest 实返数据
+AVAIL_FILE = "文件"  # 本地文件抄录 / 时序封顶档
+AVAIL_INFERRED = "推定"  # 依赖 fallback 角色推断
+AVAIL_NODATA = "无据"  # denominator == 0 或数据缺失, value 必为 null
+SIGNAL_GROUPS_CAP = 5  # 重复堆积组明细上限 (防超大板撑爆 JSON)
+SIGNAL_NODE_IDS_CAP = 10  # 无来源结论点名清单上限
 
 _FM_RE = re.compile(r"^﻿?---\r?\n(.*?)\r?\n---[ \t]*\r?\n?(.*)$", re.S)
 _CONCEPT_LINK_RE = re.compile(r"\[\[节点/([^\]|#]+?)(?:\|[^\]]*)?\]\]")
@@ -122,10 +148,35 @@ def _frontmatter_and_body(text: str) -> tuple[str, str]:
 
 
 def _fm_scalar(fm: str, key: str) -> str | None:
-    m = re.search(rf"^{re.escape(key)}\s*:\s*(.+?)\s*$", fm, re.M)
+    """frontmatter 顶层标量抄录 — 值必须与键**同行**, 键必须**顶格**。
+
+    W2 (workflow round-1): 原正则 ``:\\s*(.+?)\\s*$`` 的 ``\\s`` 在 re.M 下
+    可跨换行, 空键 (``derived-from:`` 后直接换行) 会把**下一行整行**
+    (``mastery_score: 0.5``) 当成本键的值 — 凭空捏造出来源锚点/掌握度。
+    改用 ``[^\\S\\n]*`` (同行空白) 两侧夹逼: 空键返回 None。
+
+    Codex round-3 收口 (与后端 yaml 解析对齐, 减少分叉面):
+      - 键必须顶格 (``^key:``) — 嵌套块里的同名子键 (如 relationships[].type
+        下的 description) 不再被当顶层标量;
+      - 剥 YAML 行尾注释 (`` #`` 前需空白, 与 YAML 规范同) —
+        ``created_from: ai_linked_doc # 备注`` 抄成 ``ai_linked_doc``;
+      - 块标量/流式集合起始符 (``|``/``>``/``[``/``{``) 不是标量值 → None
+        (交由专门的块解析器, 避免把 ``|-`` 当成值)。
+    ⛔ 本函数仍是正则近似, 不是完整 YAML: 重复键取首个、锚点/别名不解析 —
+    fallback 模式的诚实边界 (报告标【推定】)。
+    """
+    m = re.search(rf"^{re.escape(key)}[^\S\n]*:[^\S\n]*(.*?)[^\S\n]*$", fm, re.M)
     if not m:
         return None
-    return m.group(1).strip().strip("\"'") or None
+    raw = m.group(1)
+    # YAML 行尾注释: " #" 起 (引号内的 # 不受影响 — 先剥注释再剥引号会误伤,
+    # 故只在值未被引号包裹时剥)
+    if not (raw.startswith(('"', "'")) and len(raw) >= 2):
+        raw = re.split(r"(?:^|\s)#", raw, maxsplit=1)[0]
+    raw = raw.strip()
+    if raw[:1] in ("|", ">", "[", "{", "&", "*"):
+        return None
+    return raw.strip("\"'").strip() or None
 
 
 _TIPS_BLOCK_RE = re.compile(r"^tips:\s*$(.*?)(?=^\S|\Z)", re.M | re.S)
@@ -196,6 +247,57 @@ def _parse_tips_from_frontmatter(fm: str) -> list[dict]:
 
 def _iso_utc(ts: float) -> str:
     return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _passthrough_note_ref(value) -> str | None:
+    """manifest 侧来源引用净化 — 后端已 resolve_node_id 归一, 这里只净化。
+
+    round-3 M1: 对 manifest 值再调 _strip_note_ref **不幂等** —
+    ``[[节点/null]]`` 在 fallback 归一成 stem ``"null"``, 再过一次却因裸
+    值判空而变 None, 两模式/两次归一结果分叉。故 manifest 侧只在值**仍带
+    wikilink 标记**时才归一 (手工/旧版 manifest 的兼容路径), 否则原样净化
+    透传 — 后端 resolve 过的裸 stem 不再二次判 null。
+    """
+    s = _oneline(value or "", 200).strip("\"'")
+    if not s:
+        return None
+    return _strip_note_ref(s) if "[[" in s else s
+
+
+def _strip_note_ref(value) -> str | None:
+    """fallback 侧来源引用抄录归一 → 节点 stem。
+
+    对齐 board_manifest_service.resolve_node_id 的语义 (wikilink 内文 →
+    剥 |别名 → 剥 #锚点 → basename → 剥 .md), 使两模式 ledger 的
+    source_note 可比。非 wikilink 的裸值同样过 basename 归一。
+    YAML null 字面量 (null / Null / NULL / ~, 正则 frontmatter 抄录拿到的是
+    字面字符串) 按空处理 — ``source_note: null`` 不得被算成来源锚点 (F4)。
+    ⛔ null 判定**只对裸值生效**: ``[[节点/null]]`` 是一个合法节点名的
+    wikilink, 必须归一为 stem ``null`` 而不是被清成 None (Codex round-2
+    M1 幂等性: 后端 resolve_node_id 已把它变成裸 "null", 本函数再过一次
+    时不得改变结果) — 因此先剥 wikilink, 再只在**无 wikilink 包裹**时判
+    null 字面量。YAML 的 null 拼写不含 ``none``, 不误杀名为 none 的节点。
+    """
+    s = _oneline(value or "", 200).strip("\"'")
+    if not s:
+        return None
+    m = re.search(r"\[\[([^\]]+)\]\]", s)
+    # round-4 H1: 与后端 yaml.safe_load 的 **falsy** 集合对齐, 不只 null/~ —
+    # false/0/""/{}/[] 在后端同样是 falsy → 不算派生痕迹/来源锚点。
+    if m is None and s.lower() in ("null", "~", "false", "0", "{}", "[]", "''", '""'):
+        return None
+    inner = m.group(1) if m else s
+    inner = inner.split("|", 1)[0].split("#", 1)[0]
+    out = inner.split("/")[-1].strip().removesuffix(".md")
+    return out or None
+
+
+def _pctl(sorted_vals: list[int], q: float) -> int | None:
+    """nearest-rank 分位 (确定性, 无插值): 取第 ceil(q*n) 位次的值。"""
+    if not sorted_vals:
+        return None
+    k = max(1, math.ceil(q * len(sorted_vals)))
+    return sorted_vals[min(k, len(sorted_vals)) - 1]
 
 
 def _load_manifest(source: str, board_stem: str) -> tuple[dict | None, str | None]:
@@ -330,10 +432,15 @@ def _ledger_from_manifest(manifest: dict) -> list[dict]:
                 "last_examined": _oneline(n.get("last_examined") or "", 64) or None,
                 "created_at": _oneline(n.get("created_at") or "", 64) or None,
                 "created_from": _oneline(n.get("created_from") or "", 80) or None,
+                # G5-4 加性: 后端已 resolve_node_id 归一为 stem;
+                # _passthrough_note_ref 只对残留 wikilink 形态补归一 (幂等, M1)
+                "source_note": _passthrough_note_ref(n.get("source_note")),
                 "pick_rank": _int_or_none(pick.get("pick_rank")),
                 "relation_type": _oneline(rel.get("type") or "", 40) or None,
-                "relation_target": _oneline(rel.get("target_node_id") or "", 120)
-                or None,
+                # Codex round-2 M1: relation_target 与 source_note 同归一,
+                # 否则同一来源在两字段/两模式间形态不一 (一个 stem 一个原串);
+                # round-3 M1: 用幂等的 passthrough 版 (后端已 resolve 过)
+                "relation_target": _passthrough_note_ref(rel.get("target_node_id")),
                 "derived_at": _oneline(rel.get("derived_at") or "", 64) or None,
                 "derived_reason": _oneline(rel.get("derived_reason") or "", 200)
                 or None,
@@ -405,11 +512,62 @@ def _ledger_from_local(vault: Path, members: list[str]) -> list[dict]:
                 mastery = _finite(v)
                 break
         tips = _row_tips(_parse_tips_from_frontmatter(fm))
+        # F1 (Codex G5-4 round-1): derived-from 是来源锚点 — fallback 不解析它
+        # 会让同一 vault 的来源覆盖/无来源信号与 manifest 模式分叉 (manifest 侧
+        # _node_relation 的退路分支就是 derived-from)。对齐: 有可解析的
+        # derived-from → relation_target/relation_type 同型落 ledger;
+        # 派生子女计数仍恒无据 (C5 铁律不破, 由 derived_children=None 承载)。
+        derived_target = _strip_note_ref(
+            _fm_scalar(fm, "derived-from") or _fm_scalar(fm, "derived_from")
+        )
+        # H1/W1/W3 (Codex round-2/3 + workflow): role 判定对齐后端
+        # board_manifest_service._node_role 的 **truthiness** 语义 —
+        #   · 裸子串 "derived-from" in fm 会被 tips 正文里提到该词的节点触发
+        #     (假 derived → 假"无来源结论"点名);
+        #   · 只认连字符会让 derived_from: 写法的节点 role=seed 却带
+        #     relation_target, 自相矛盾;
+        #   · **键存在**也不对: 后端对 `derived-from: null` / 空值取 falsy 判
+        #     seed, 键存在检测会判 derived → round-3 H1 实测分叉。
+        # 故: 有可解析的 derived 目标 (derived_target 非空) 或 relationships
+        # 块 或 created_from==ai_linked_doc → derived, 与后端三支同构。
+        # round-4: relationships 也要 truthiness — 后端 fm.get("relationships")
+        # 对 `relationships:` (空值/null) 取 None → falsy → 不算派生。故要求
+        # 键后**确有列表内容**: 同行流式 `[...]` 非空, 或次行起有缩进 `- ` 项。
+        mrel = re.search(r"^relationships[^\S\n]*:[^\S\n]*(.*)$", fm, re.M)
+        has_relationships = False
+        if mrel:
+            inline = re.split(r"(?:^|\s)#", mrel.group(1), maxsplit=1)[0].strip()
+            # round-4 H1: 与后端 truthiness 对齐的 falsy 全集
+            if inline and inline.lower() not in (
+                "null",
+                "~",
+                "false",
+                "0",
+                "[]",
+                "{}",
+                "[ ]",
+                "{ }",
+                "''",
+                '""',
+            ):
+                has_relationships = True
+            elif not inline:
+                # 空值 → 看次行是否真有列表项 (缩进 `- `) 或缩进 mapping 键
+                tail = fm[mrel.end() :]
+                has_relationships = bool(
+                    re.match(r"\s*\n[^\S\n]+(?:-[^\S\n]|\S+[^\S\n]*:)", tail)
+                )
+        is_derived = bool(
+            derived_target
+            or has_relationships
+            or _fm_scalar(fm, "created_from") == "ai_linked_doc"
+        )
         rows.append(
             {
                 "node_id": name,
-                # 种子 = 无 derived-from (设计稿 §四); 本地推定, 报告标【推定】
-                "role": "derived" if "derived-from" in fm else "seed",
+                # 种子 = 无派生痕迹 (设计稿 §四); 本地推定, 报告标【推定】
+                # 口径对齐 board_manifest_service._node_role 的 truthiness 三支
+                "role": "derived" if is_derived else "seed",
                 "role_source": "local_inferred",
                 "is_stub": STUB_PLACEHOLDER in body,
                 "mastery_score": mastery,
@@ -420,9 +578,11 @@ def _ledger_from_local(vault: Path, members: list[str]) -> list[dict]:
                 "last_examined": _fm_scalar(fm, "last_examined"),
                 "created_at": None,
                 "created_from": _fm_scalar(fm, "created_from"),
+                # G5-4 加性: frontmatter 抄录, 剥 wikilink 归一 stem (可比性)
+                "source_note": _strip_note_ref(_fm_scalar(fm, "source_note")),
                 "pick_rank": None,
-                "relation_type": None,
-                "relation_target": None,
+                "relation_type": "derived_from" if derived_target else None,
+                "relation_target": derived_target,
                 "derived_at": None,
                 "derived_reason": None,
                 "tips": tips,
@@ -436,6 +596,149 @@ def _ledger_from_local(vault: Path, members: list[str]) -> list[dict]:
             }
         )
     return rows
+
+
+def _has_provenance(row: dict) -> bool:
+    """来源锚点在位判定: source_note 或 relation.target 任一非空。
+
+    fallback 模式 relation_target 恒 None (C5 既有语义, 派生子女无据不破) →
+    F1 后 fallback 也从 derived-from 抄录 relation_target (同 manifest 侧
+    _node_relation 退路分支), 两模式来源口径对齐; 差异仅剩 relationships[]
+    列表 (fallback 无 yaml 库不解析) — 由 availability 档位如实反映。
+    """
+    return bool(row.get("source_note") or row.get("relation_target"))
+
+
+def _build_signals(
+    ledger: list[dict],
+    all_tips: list[dict],
+    dated: list[dict],
+    data_mode: str,
+    scan_at: str,
+    now: datetime,
+) -> dict:
+    """一梯队偏航信号 (CARD-G5-4) — 全部确定性可复算, 0 阈值。
+
+    结构契约 (测试锁定): 四信号各含 value / denominator / percentile_ref
+    (板内分位参考) / availability / asof 五键; 判定字段一律不存在 —
+    判偏航留人。denominator == 0 → value=null + availability="无据"。
+    """
+    measured = AVAIL_MEASURED if data_mode == "manifest" else AVAIL_FILE
+    members = len(ledger)
+    derived_rows = [r for r in ledger if r.get("role") == "derived"]
+
+    # 信号1 · 未答问题年龄 — dated tips 的年龄天数分布 (整数天, floor);
+    # added_at 在未来 (时钟漂移/投毒) → 按 0 天计, 不产出负年龄。
+    ages = sorted(
+        max(0, int((now - _parse_dt(t["added_at"])).total_seconds() // 86400))
+        for t in dated
+    )
+    sig_age = {
+        "value": ages[-1] if ages else None,
+        "denominator": len(ages),
+        "percentile_ref": (
+            {
+                "p25_days": _pctl(ages, 0.25),
+                "p50_days": _pctl(ages, 0.50),
+                "p75_days": _pctl(ages, 0.75),
+                "max_days": ages[-1],
+            }
+            if ages
+            else None
+        ),
+        # 时序封顶【文件】: added_at=最后变更时间 (C5 已知边界), manifest 也不升档
+        "availability": AVAIL_FILE if ages else AVAIL_NODATA,
+        "asof": scan_at,
+        "undated": len(all_tips) - len(dated),
+        "note": (
+            "value=最老年龄(天); added_at=最后变更时间(C5 边界), 时序封顶文件档; "
+            "未答=全部 tips 上界(无已答标记); 无时间戳条目不参与"
+        ),
+    }
+
+    # 信号2 · 来源覆盖率 — 成员含来源锚点占比; 二值分布无分位,
+    # 板内参考改用 by_role 拆分 (percentile_ref 如实置 null)
+    prov_count = sum(1 for r in ledger if _has_provenance(r))
+    by_role: dict[str, dict[str, int]] = {}
+    for r in ledger:
+        role = r.get("role") if r.get("role") in ("seed", "derived") else "unknown"
+        bucket = by_role.setdefault(role, {"with_provenance": 0, "total": 0})
+        bucket["total"] += 1
+        if _has_provenance(r):
+            bucket["with_provenance"] += 1
+    sig_cov = {
+        "value": prov_count if members else None,
+        "denominator": members,
+        "percentile_ref": None,
+        "by_role": by_role,
+        "availability": measured if members else AVAIL_NODATA,
+        "asof": scan_at,
+        "note": "来源锚点=source_note 或 relation.target; 二值信号无分位, 板内参考=by_role",
+    }
+
+    # 信号3 · 无来源结论 — 派生角色成员缺来源锚点计数;
+    # fallback 的 role 是本地推定 → 整信号降"推定"档
+    unsourced_ids = [r["node_id"] for r in derived_rows if not _has_provenance(r)]
+    sig_unsourced = {
+        "value": len(unsourced_ids) if derived_rows else None,
+        "denominator": len(derived_rows),
+        "percentile_ref": None,
+        "node_ids": unsourced_ids[:SIGNAL_NODE_IDS_CAP],
+        "availability": (
+            AVAIL_NODATA
+            if not derived_rows
+            else (AVAIL_MEASURED if data_mode == "manifest" else AVAIL_INFERRED)
+        ),
+        "asof": scan_at,
+        "note": "分母=派生角色成员; fallback 的角色为本地推定 → 推定档; 分母 0 = 无据",
+    }
+
+    # 信号4 · 重复堆积 — tips 文本归一化 (空白折叠+casefold) 全等分组,
+    # value = Σ(组内条数-1) 即冗余条数; 不做语义相似判定 (零编造)
+    norm_map: dict[str, list[str]] = {}
+    for t in all_tips:
+        key = " ".join(str(t.get("text") or "").split()).casefold()
+        if key:
+            norm_map.setdefault(key, []).append(t["node_id"])
+    dup_groups = sorted(
+        ((k, v) for k, v in norm_map.items() if len(v) >= 2),
+        key=lambda kv: (-len(kv[1]), kv[0]),
+    )
+    sizes = sorted(len(v) for _, v in dup_groups)
+    sig_dup = {
+        "value": sum(s - 1 for s in sizes) if all_tips else None,
+        "denominator": len(all_tips),
+        "percentile_ref": (
+            {
+                "p50_group_size": _pctl(sizes, 0.50),
+                "max_group_size": sizes[-1],
+                "group_count": len(sizes),
+            }
+            if sizes
+            else None
+        ),
+        "groups": [
+            {"text_preview": k[:60], "count": len(v), "node_ids": v[:5]}
+            for k, v in dup_groups[:SIGNAL_GROUPS_CAP]
+        ],
+        "availability": measured if all_tips else AVAIL_NODATA,
+        "asof": scan_at,
+        "note": (
+            "重复口径=空白折叠+casefold+200字截断后全等 (超长 tips 仅比对前 200 字, "
+            "M9 截断口径); value=冗余条数 Σ(组-1); 空文本不参与"
+        ),
+    }
+
+    return {
+        "signals_version": 1,
+        # 0 阈值声明: 本块只提供数值与板内分位参考, 不含任何判定 — 判偏航留人
+        "policy": "zero_threshold",
+        "asof": scan_at,
+        "unanswered_question_age": sig_age,
+        "source_coverage": sig_cov,
+        "unsourced_conclusions": sig_unsourced,
+        "duplicate_accumulation": sig_dup,
+    }
 
 
 def _previous_recap(outputs: Path, board_stem: str, today: str) -> dict | None:
@@ -497,13 +800,19 @@ _VERIFY_GLOBAL_FORBIDDEN = ("偏离", "你以为", "其实你", "你理解错", 
 _VERIFY_S3_FORBIDDEN = ("你当时", "你当初", "你选择", "你决定")
 _VERIFY_PLACEHOLDERS = ("<X>", "<板名>", "<节点名>", "<node", "PENDING")
 _VERIFY_BLAME = ("docker", "启动服务", "请先启动", "终端", "命令行")
+# ⛔ round-6 终裁复核: 本词表是**子串**匹配, 三处曾造成误伤/自相矛盾 —
+#   · 「子节点」是「种**子节点**」的真子串 → 合法中文「这块板只有 1 个种子节点」被判违规;
+#   · 「无派生」是白名单无据文案「本板**无派生**角色成员」的真子串 → 自家两条规则打架;
+#   · SKILL 白名单动作句「…`Cmd+Shift+D` **派生**新节点」本就含该词。
+# 词表只保留**明确断言子女数**且不与合法文本重叠的形态; 结构性防线由
+# 下方的「含『派生』的行必须整行匹配白名单」承担。
 _VERIFY_FALLBACK_DERIVE = (
     "已派生",
     "未派生",
     "从未派生",
     "派生出",
     "没有派生",
-    "子节点",
+    "零派生",
 )
 _VERIFY_ACTION_VERBS = (
     "/node-chat",
@@ -513,6 +822,295 @@ _VERIFY_ACTION_VERBS = (
     "Cmd+Shift+A",
     "Dashboard",
 )
+
+
+_SIGNAL_SPECS = (
+    ("unanswered_question_age", "未答问题年龄"),
+    ("source_coverage", "来源覆盖率"),
+    ("unsourced_conclusions", "无来源结论"),
+    ("duplicate_accumulation", "重复堆积"),
+)
+# 年龄信号标准行: 最老 N 天（参与统计 D 条，p25/p50/p75 = a/b/c 天）
+_SIG_AGE_RE = re.compile(
+    r"最老\s*(\d+)\s*天\s*[（(]\s*参与统计\s*(\d+)\s*条[，,]\s*"
+    r"p25/p50/p75\s*=\s*(\d+)/(\d+)/(\d+)\s*天\s*[）)]"
+)
+
+
+_AVAIL_ENUM = (AVAIL_MEASURED, AVAIL_FILE, AVAIL_INFERRED, AVAIL_NODATA)
+_SIGNAL_REQUIRED_FIELDS = (
+    "value",
+    "denominator",
+    "percentile_ref",
+    "availability",
+    "asof",
+)
+# 汉字数字在 Unicode 里多数是 Lo (Letter,other) 而非 No —— unicodedata
+# 的数值属性**不认** 一/七/壹 等, 必须显式补全 (小写 + 大写 + 表量字)。
+# ⛔ 不含「零/〇」— 无据说明里「分母为零」是自然表述, 且零不构成虚报数值
+# (无据行的风险是**虚报有值**, 不是说"没有")。
+_EXTRA_QUANTITY_CHARS = (
+    "一二三四五六七八九十百千万亿"  # 小写
+    "壹贰叁肆伍陆柒捌玖拾佰仟萬億"  # 大写
+    "两俩双廿卅半"  # 表量
+)
+
+
+# 无据行允许的**全部**原因文案 (round-5: 白名单取代数字黑名单)。
+# 与 SKILL.md Step 5 模板逐字一致 — 新增文案必须两处同改。
+_NODATA_REASONS = (
+    "无带时间戳批注",
+    "分母为零",
+    "本板无派生角色成员",
+    "本板无批注",
+    "数据源不可用",
+)
+
+
+def _has_numeric(text: str) -> bool:
+    """任意 Unicode **数值**字符检测 (round-4 H2/H3 结构性终结)。
+
+    字符黑名单是打不完的地鼠: 已被绕过的有全角 `３`、中文 `七十七`、
+    大写 `壹`、Arabic-Indic `٩`、上标 `⁹`…… 改用 unicodedata 的数值属性
+    (Nd/Nl/No 全覆盖, 含各语系数字与上下标), 再补几个无数值属性的表量汉字。
+    """
+    for ch in text:
+        if ch in "零〇":
+            continue
+        if ch in _EXTRA_QUANTITY_CHARS:
+            return True
+        if unicodedata.category(ch) in ("Nd", "Nl", "No"):
+            return True
+    return False
+
+
+def _verify_signal_schema(key: str, sig, problems: list[str]) -> bool:
+    """signals.<key> 子对象 schema fail-closed (Codex round-2 M2)。
+
+    只校验顶层 signals 是 dict 不够 — 把子对象削成 {"availability":"无据"}
+    就能让报告写四条"无据"蒙混过关。必需五键齐全 / availability 属枚举 /
+    无据 ⇒ value is None 且 denominator == 0 / 有数 ⇒ value 是整数。
+    """
+    if not isinstance(sig, dict):
+        problems.append(f"数字终核: scan JSON signals.{key} 形状损坏")
+        return False
+    missing = [f for f in _SIGNAL_REQUIRED_FIELDS if f not in sig]
+    if missing:
+        problems.append(f"数字终核: signals.{key} 缺必备字段 {missing}")
+        return False
+    avail = sig.get("availability")
+    if avail not in _AVAIL_ENUM:
+        problems.append(f"数字终核: signals.{key}.availability 非法值 {avail!r}")
+        return False
+    if avail == AVAIL_NODATA:
+        if sig.get("value") is not None or sig.get("denominator") != 0:
+            problems.append(f"数字终核: signals.{key} 标无据却带数值 (契约违反)")
+            return False
+    else:
+        # round-3 M2: Python 里 bool 是 int 子类 — `value: true` 配报告 "1/N"
+        # 曾整条通过。显式排除 bool。
+        for f in ("value", "denominator"):
+            v = sig.get(f)
+            if isinstance(v, bool) or not isinstance(v, int):
+                problems.append(
+                    f"数字终核: signals.{key}.{f} 非整数 ({type(v).__name__})"
+                )
+                return False
+        # round-4 新增 FAIL: 年龄信号有数档时 percentile_ref 必须是含三个整数
+        # 分位的对象 — 置 null 时报告渲染成 "None/None/None" 曾照样通过。
+        if key == "unanswered_question_age":
+            pr = sig.get("percentile_ref")
+            if not isinstance(pr, dict):
+                problems.append(
+                    f"数字终核: signals.{key} 有数档但 percentile_ref 非对象"
+                )
+                return False
+            for pk in ("p25_days", "p50_days", "p75_days"):
+                pv = pr.get(pk)
+                if isinstance(pv, bool) or not isinstance(pv, int):
+                    problems.append(
+                        f"数字终核: signals.{key}.percentile_ref.{pk} 非整数"
+                    )
+                    return False
+    return True
+
+
+def _strip_code_blocks(text: str) -> str:
+    """剔除**围栏**代码块 (```/~~~), 含引用块内的围栏 (round-4 M3 → round-5)。
+
+    代码块里的内容渲染为字面文本, 不是报告的陈述 —— 把信号行藏进去曾让
+    verifier 认为"信号行在场"。行数保持不变 (整行替空), 以免影响其他基于
+    行的校验。
+
+    round-5 两项修正:
+      · 引用前缀 (``> ``) 内的围栏此前不被识别 (``> ``` `` 逃逸) → 先剥
+        引用前缀再判围栏;
+      · **不再剥四空格缩进块** —— 合法的三级嵌套列表 (四空格缩进) 会被误删,
+        实测导致"③段缺信号行"误报。缩进块里的信号行改由信号行自身的
+        严格模板拒绝 (模板行首只允许 ``> ``/``- ``/空白, 不允许四空格缩进)。
+    """
+    out: list[str] = []
+    fence: str | None = None
+    for ln in text.splitlines():
+        # 剥任意层引用前缀后再判围栏
+        bare = re.sub(r"^[>\s]*", "", ln)
+        if fence is None and (bare.startswith("```") or bare.startswith("~~~")):
+            fence = bare[:3]
+            out.append("")
+            continue
+        if fence is not None:
+            if bare.startswith(fence):
+                fence = None
+            out.append("")
+            continue
+        out.append(ln)
+    return "\n".join(out)
+
+
+def _verify_signal_lines(text: str, signals: dict, problems: list[str]) -> None:
+    """G5-4 信号绑定 (fail-closed): scan JSON 含 signals 键才进本函数。
+
+    ③段必须逐信号给**独占一行**的标准行, 行内数字与 availability 档与
+    signals.* 全等 — 篡改任一数字 / 档位 / 缺行 / 无据错标 / 合并行 → FAIL。
+    旧 scan JSON (无 signals 键) 由调用方跳过 (兼容)。同 label 行若出现
+    多条, 逐条全查 — 防"一条合规一条私货"的双行逃逸。
+    """
+    # M3 (round-2 → round-4): ③ 段止于下一个 ## / ###。历轮收紧:
+    #   round-2 只认 ###（"## 附录"可越界）→ round-3 认 tab 分隔（"##\t附录"）
+    #   → round-4 认**空标题** `##`（行尾即止，无标题文字也是合法标题）。
+    # 另: 信号行**不得藏在代码块里** — fenced (```/~~~) 与四空格缩进块在渲染
+    # 时是字面文本, 与"报告在说什么"分叉, 故校验前整体剔除。
+    scan_text = _strip_code_blocks(text)
+    # ⛔ round-6 终裁复核: 剔除代码块是**双向**的 — 它挡住"把必需行藏进围栏",
+    # 却放行"在合规行之外再往围栏里追加一组造假信号行"(围栏内容在 Obsidian
+    # 里照常渲染为可见文本, 读者会看到与 scan JSON 冲突的第二组数字)。
+    # 故: 被剔除的那部分文本里**不得出现任何信号 label**。
+    stripped_only = "\n".join(
+        a for a, b in zip(text.splitlines(), scan_text.splitlines()) if a != b
+    )
+    for _, lb in _SIGNAL_SPECS:
+        if lb in stripped_only:
+            problems.append(
+                f"代码块内出现信号名 {lb} (围栏内容仍会渲染给读者, "
+                "不得放置第二组信号数字)"
+            )
+    s3 = "\n".join(
+        re.findall(r"^### ③.*?(?=^#{2,3}(?:[^\S\n]|$)|\Z)", scan_text, re.M | re.S)
+    )
+    if not s3:
+        problems.append("数字终核: scan JSON 含 signals 但报告缺 ③ 段可绑定信号行")
+        return
+    all_labels = [lb for _, lb in _SIGNAL_SPECS]
+    for key, label in _SIGNAL_SPECS:
+        sig = signals.get(key)
+        if not _verify_signal_schema(key, sig, problems):
+            continue
+        lines = re.findall(rf"^.*{label}.*$", s3, re.M)
+        if not lines:
+            problems.append(f"数字终核: ③段缺信号行 {label}")
+            continue
+        avail = sig.get("availability")
+        for line in lines:
+            # H3 (Codex round-2): 每行只许承载一个信号 — 四信号合并成一行时,
+            # "首个数字匹配 + 整行任意位置找档位" 会让档位互相借用而放行。
+            if sum(1 for lb in all_labels if lb in line) > 1:
+                problems.append(
+                    f"数字终核: 信号行合并了多个信号 (每信号必须独占一行): {label}"
+                )
+                continue
+            if avail == AVAIL_NODATA:
+                # H2 (round-2 → round-5 结构性终结): "禁数字字符" 是打不完的
+                # 长尾 (全角/汉字大小写/仨/皕/Arabic-Indic/上标/罗马/分数…),
+                # 且「零/零」这类还与自然表述冲突。改为**整行固定模板白名单**:
+                # 无据行必须整行等于 `- <信号名>：无据（<白名单原因>）`,
+                # 原因只能从 _NODATA_REASONS 里挑 —— 无从夹带任何数字。
+                strict_nodata = (
+                    rf"^[>\s\-*·]*{re.escape(label)}[：:]\s*无据\s*[（(]\s*"
+                    rf"(?:{'|'.join(re.escape(x) for x in _NODATA_REASONS)})"
+                    rf"\s*[）)]\s*$"
+                )
+                if not re.match(strict_nodata, line):
+                    problems.append(
+                        f"数字终核: 信号 {label} 无据行未整行匹配标准式 "
+                        f"(须为『无据（<固定原因>）』, 原因取自: {'/'.join(_NODATA_REASONS)})"
+                    )
+                continue
+            if "无据" in line:
+                problems.append(f"数字终核: 信号 {label} 有数, 报告行却标了无据")
+                continue
+            # H3 (round-3 收紧): **整行**必须严格等于本信号的标准式 —
+            # 原先"首个数字匹配 + 档位出现过"允许在正确串之后追加
+            # "99/99【实测】"这类第二组数字而照样 PASS。这里改为整行
+            # fullmatch: 行 = 前缀装饰 + 标准式 + 档位标注, 其后不许有任何
+            # 非空白残留 (词表竞赛就此打住, 结构说了算)。
+            pr = sig.get("percentile_ref") or {}
+            if key == "unanswered_question_age":
+                # round-4 新增 FAIL: percentile_ref 为 null 时原先会渲染成
+                # "p25/p50/p75 = None/None/None" 且照样匹配 → schema 侧已要求
+                # 有数档必须有 dict 分位, 这里再兜一层
+                if not isinstance(sig.get("percentile_ref"), dict):
+                    problems.append(
+                        f"数字终核: signals.{key} 有数档但 percentile_ref 不是对象"
+                    )
+                    continue
+                body = (
+                    rf"{re.escape(label)}[：:]\s*最老\s*{sig['value']}\s*天\s*"
+                    rf"[（(]\s*参与统计\s*{sig['denominator']}\s*条[，,]\s*"
+                    rf"p25/p50/p75\s*=\s*{pr.get('p25_days')}/{pr.get('p50_days')}"
+                    rf"/{pr.get('p75_days')}\s*天\s*[）)]"
+                )
+            else:
+                body = (
+                    rf"{re.escape(label)}[：:]\s*{sig['value']}\s*/\s*"
+                    rf"{sig['denominator']}\s*(?P<tail>[^【】]*)"
+                )
+            # 行首前缀白名单: 引用符/列表符/单空格间隔 — ⛔ 不允许四空格以上
+            # 缩进 (缩进代码块形态, round-5: 不再靠 _strip_code_blocks 剥它)
+            strict = rf"^(?! {{4}}|\t)[>\-*·\s]{{0,6}}{body}\s*【{re.escape(str(avail))}】\s*$"
+            m = re.match(strict, line)
+            if not m:
+                problems.append(
+                    f"数字终核: 信号行 {label} 未整行匹配标准式 "
+                    f"(数字/档位/尾随内容任一不符即 FAIL)"
+                )
+            # round-4 H3 → round-5: 尾部说明段禁**任何 Unicode 数值字符**
+            # (`九九/九九`、`٩٩/٩٩`、`⁹⁹/⁹⁹` 曾绕过字符类), 并额外禁**任何
+            # 斜线分数形态** — `仨/仨`、`零/零` 用的是黑名单外的字符, 但
+            # "X/N" 这个**结构**本身就是第二组计数的载体。
+            elif m.groupdict().get("tail") and (
+                _has_numeric(m.group("tail")) or "/" in m.group("tail")
+            ):
+                problems.append(
+                    f"数字终核: 信号行 {label} 尾部说明夹带第二组计数 (标准式之后禁数值与 X/N 形态)"
+                )
+
+
+def _SECTION_RE(section: str) -> str:
+    """段落标题的**唯一**匹配口径 (round-6 BLOCKER 同源修复)。
+
+    段名之后只允许两种形态: 直接行尾, 或全角括号补充 (模板自带的
+    `## 台账（种子/排生）`、`## 本段新增（上次回顾 → 现在）`)。
+    ⛔ 存在性检查与下游定位**必须共用本函数** —— 两处口径一旦不同,
+    就会出现"算在场却定位不到"的缝隙, 让整块数字绑定被静默跳过。
+    """
+    return rf"^{re.escape(section)}(?:[^\S\n]*$|（[^\n]*$)"
+
+
+def _verify_signals_if_present(text: str, scan: dict, problems: list[str]) -> None:
+    """signals 绑定入口 (round-6 BLOCKER: 从 _verify_numbers 尾部提出来)。
+
+    旧 scan JSON (无 signals 键) 兼容跳过; 键存在但形状非 dict = 被动过
+    手脚, fail-closed。⛔ 本函数必须在 _verify_numbers 的**每条**返回路径上
+    被调用 —— 原实现把它放在函数尾部, 前面任何 early return 都会连带跳过
+    整块信号绑定 (「AI 侧对账」标题加后缀即可触发)。
+    """
+    if "signals" not in scan:
+        return
+    signals = scan.get("signals")
+    if isinstance(signals, dict):
+        _verify_signal_lines(text, signals, problems)
+    else:
+        problems.append("数字终核: scan JSON signals 键存在但形状损坏 (非对象)")
 
 
 def _verify_numbers(fm: str, text: str, report_path: Path, problems: list[str]) -> None:
@@ -528,7 +1126,19 @@ def _verify_numbers(fm: str, text: str, report_path: Path, problems: list[str]) 
     if not mb:
         problems.append("frontmatter 缺 board 字段 (数字终核无法定位 scan JSON)")
         return
-    scan_path = report_path.parent / f".recap-scan-{mb.group(1).strip()}.json"
+    board_id = mb.group(1).strip()
+    # ⛔ round-6 终裁复核: 绑定对象此前完全由报告自己的 frontmatter 指定 —
+    # 报告可以指向**另一块板**的 scan JSON 来匹配自己的数字。报告文件名
+    # 形如 `回顾-<board>-<date>.md`, 与 frontmatter board 必须一致。
+    mname = re.match(r"^回顾-(.+)-(\d{4}-\d{2}-\d{2})\.md$", report_path.name)
+    if not mname:
+        problems.append(f"报告文件名不符 `回顾-<板>-<日期>.md`: {report_path.name}")
+    elif mname.group(1) != board_id:
+        problems.append(
+            f"数字终核: frontmatter board={board_id!r} 与文件名的板 "
+            f"{mname.group(1)!r} 不一致 (不得绑定另一块板的 scan JSON)"
+        )
+    scan_path = report_path.parent / f".recap-scan-{board_id}.json"
     try:
         scan = json.loads(scan_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
@@ -550,41 +1160,73 @@ def _verify_numbers(fm: str, text: str, report_path: Path, problems: list[str]) 
         if not mm or str(mm.group(1)) != str(want):
             problems.append(f"数字终核: frontmatter {key} 与 scan JSON 不一致")
     counts = scan.get("counts") or {}
-    mscale = re.search(
-        r"(\d+)\s*成员（(\d+)\s*种子\s*\+\s*(\d+)\s*派生，(\d+)\s*占位）/\s*(\d+)\s*批注",
-        text,
+    # ⛔ round-6 HIGH (终裁复核实测): 原用 re.search 全文取**首个**五元组匹配,
+    # 且无唯一性约束 —— 在报告更早处放一行携带真数字的诱饵 (散文行, 甚至
+    # 代码围栏里), 可见的「规模自陈」callout 就能写任意假数字并 PASS
+    # (实测 120 成员/350 批注 通过)。改为: 全文所有五元组形态的行**逐条**
+    # 校验且必须恰好一条 —— 诱饵行自己也会被校验, 无处可藏。
+    scale_pat = re.compile(
+        r"(\d+)\s*成员（(\d+)\s*种子\s*\+\s*(\d+)\s*派生，(\d+)\s*占位）/\s*(\d+)\s*批注"
     )
-    if not mscale:
+    scale_hits = scale_pat.findall(text)
+    want = tuple(
+        counts.get(k, -1)
+        for k in ("members", "seeds", "derived", "stubs", "annotations")
+    )
+    if not scale_hits:
         problems.append("规模自陈行未按模板格式给出五元组 (成员/种子/派生/占位/批注)")
-    else:
-        got = tuple(int(x) for x in mscale.groups())
-        want = tuple(
-            counts.get(k, -1)
-            for k in ("members", "seeds", "derived", "stubs", "annotations")
+    elif len(scale_hits) > 1:
+        problems.append(
+            f"数字终核: 报告出现 {len(scale_hits)} 处规模自陈五元组 (只许一处, "
+            "多处 = 诱饵/自相矛盾)"
         )
+    for hit in scale_hits:
+        got = tuple(int(x) for x in hit)
         if got != want:
             problems.append(f"数字终核: 规模自陈 {got} ≠ scan JSON {want}")
     # tips 两数只在「AI 侧对账」段绑定 — 台账里逐节点的 "tips 未闭环 n 条"
     # 是行级数字, 与全局计数不同, 不参与本绑定 (全文搜索会误命中)。
-    recon = re.search(r"^## AI 侧对账\s*$(.*?)(?=^## |\Z)", text, re.M | re.S)
+    #
+    # ⛔ round-6 BLOCKER (终裁复核实测): 此处原为 `if not recon: return` —
+    # 而段落存在性检查 (_verify_report 的 _VERIFY_SECTIONS 循环) 是**前缀
+    # 匹配**, `## AI 侧对账（本轮）` 照样算"段落在场"。两者叠加 = 给标题加
+    # 任意后缀就能让本函数提前 return, **tips 绑定与整块 signals 绑定全部
+    # 跳过** (信号行可整体删除/随意改数/谎标无据仍 PASS)。这是五轮信号防线
+    # 的总开关。现在: 缺段落 → 记 problem 并**继续**跑 signals 绑定, 绝不
+    # 静默 return; 段落标题的整行锚定另在 _verify_report 收口。
+    recon = re.search(
+        _SECTION_RE("## AI 侧对账") + r"(.*?)(?=^#{2}(?:[^\S\n]|$)|\Z)",
+        text,
+        re.M | re.S,
+    )
     if not recon:
-        return  # 段落缺失由段落检查报, 不重复报
+        problems.append(
+            "数字终核: 未找到『## AI 侧对账』段 (标题须为段名本身或段名+（补充）) "
+            "— tips 两数无法绑定"
+        )
+        _verify_signals_if_present(text, scan, problems)
+        return
     # 两行均为必需 (五轮 H5 残余: 缺行不许静默豁免 — 改写成非模板措辞
     # 即逃逸绑定, 必须 fail-closed)。
-    mtips = re.search(r"tips 批注共\s*(\d+)\s*条", recon.group(1))
-    if not mtips:
-        problems.append("数字终核: AI 侧对账缺『tips 批注共 N 条』标准计数行")
-    elif int(mtips.group(1)) != counts.get("tips_total", -1):
-        problems.append(
-            f"数字终核: tips 总数 {mtips.group(1)} ≠ scan JSON {counts.get('tips_total')}"
-        )
-    mopen = re.search(r"其中理解度未闭环\s*(\d+)\s*条", recon.group(1))
-    if not mopen:
-        problems.append("数字终核: AI 侧对账缺『其中理解度未闭环 N 条』标准计数行")
-    elif int(mopen.group(1)) != counts.get("tips_understanding_open", -1):
-        problems.append(
-            f"数字终核: tips 未闭环 {mopen.group(1)} ≠ scan JSON {counts.get('tips_understanding_open')}"
-        )
+    # ⛔ round-6 终裁复核: 原用 re.search 只绑**首个**匹配, 段内第二条同形句
+    # 与段外同一句都不受检 → 改为**全文逐条**校验且段内必须各恰好一条。
+    for pat, ckey, name in (
+        (r"tips 批注共\s*(\d+)\s*条", "tips_total", "tips 总数"),
+        (r"其中理解度未闭环\s*(\d+)\s*条", "tips_understanding_open", "tips 未闭环"),
+    ):
+        in_sec = re.findall(pat, recon.group(1))
+        all_hits = re.findall(pat, text)
+        want_v = counts.get(ckey, -1)
+        if not in_sec:
+            problems.append(f"数字终核: AI 侧对账缺『{name}』标准计数行")
+        elif len(in_sec) > 1:
+            problems.append(
+                f"数字终核: AI 侧对账段内出现 {len(in_sec)} 条『{name}』(只许一条)"
+            )
+        for got in all_hits:  # 段外同形句同样绑定, 不留"第二处说法"
+            if int(got) != want_v:
+                problems.append(f"数字终核: {name} {got} ≠ scan JSON {want_v}")
+    _verify_signals_if_present(text, scan, problems)
 
 
 def _verify_report(path: str) -> int:
@@ -614,16 +1256,32 @@ def _verify_report(path: str) -> int:
     # 可见文本撒谎"的形态失效, 可见文本必须独立过全部校验。
     text = re.sub(r"<!--.*?-->", "", text_raw, flags=re.S)
     problems: list[str] = []
+    # F2 (Codex G5-4 round-1): 剥完闭合注释后仍残留 "<!--" = 未闭合注释 —
+    # 渲染视图会把其后全部内容隐藏 (含信号行), 而正则校验照常看见并放行,
+    # 可见文本与校验文本分叉 → fail-closed。报告本就禁写任何 HTML 注释。
+    if "<!--" in text:
+        problems.append("正文含未闭合 HTML 注释标记 (渲染隐藏面, 报告禁写注释)")
+    # round-4: 零宽/双向控制字符 — 渲染不可见但能改变正则匹配与阅读顺序,
+    # 是"看起来合规、实际另一回事"的通用载体。合法报告没有理由出现它们。
+    if re.search(r"[​-‏‪-‮⁠-⁤﻿]", text):
+        problems.append("正文含零宽/双向控制字符 (不可见字符, 报告禁用)")
     _verify_numbers(fm, text, Path(path), problems)
     if not re.search(r"^type:\s*recap\s*$", fm, re.M):
         problems.append("frontmatter 缺 type: recap")
     if "规模自陈" not in text:
         problems.append("缺 规模自陈 callout")
-    # 六轮防御③: 必需段落唯一 — 重复段(第一段合规第二段夹私货)不放行
+    # 六轮防御③: 必需段落唯一 — 重复段(第一段合规第二段夹私货)不放行。
+    # ⛔ round-6 BLOCKER 同源修复: 根因是**存在性检查与下游定位口径不一致**
+    # —— 存在性用前缀匹配 (`^## AI 侧对账`), 下游 tips 绑定/动作段白名单却用
+    # 整行正则定位, 于是 `## AI 侧对账（本轮）` 两头讨好: 算"段落在场"、
+    # 却让下游整块校验静默跳过。模板里 `## 台账（种子/派生）` 这类**设计内的
+    # 括号补充**又必须放行, 所以不能一刀切整行精确。
+    # 统一口径 = `_SECTION_RE`: 段名之后只允许「行尾」或「全角括号补充」,
+    # 存在性检查与下游定位共用它, 缝隙消失。
     for s in _VERIFY_SECTIONS:
-        n = len(re.findall(rf"^{re.escape(s)}", text, re.M))
+        n = len(re.findall(_SECTION_RE(s), text, re.M))
         if n == 0:
-            problems.append(f"缺段落 {s}")
+            problems.append(f"缺段落 {s} (标题须为段名本身或段名+（补充）)")
         elif n > 1:
             problems.append(f"段落重复 {n} 次(只许一个): {s}")
     msha = re.search(r'^board_sha256:\s*"?([0-9a-f]+)"?', fm, re.M)
@@ -652,9 +1310,69 @@ def _verify_report(path: str) -> int:
         for w in _VERIFY_FALLBACK_DERIVE:
             if w in text:
                 problems.append(f"fallback 派生断言(无据不得断言): {w}")
+        # H4 (round-4 真结构级): 词表与"整段禁某词"都能被同义改写绕过
+        # (「派生数量为零」→「后代节点数量为零」实测曾 PASS)。fallback 下
+        # 派生**子女数**恒无据, 这类断言只可能出现在台账「种子」小节 —— 故
+        # 改为**整行白名单**: 该小节每一行要么空, 要么必须整行匹配
+        #   `- <node_id> — 批注 N 条`  /  `- <node_id> — 无批注`
+        # 模板 (数字由 ledger 的 tips_count 支持)。任何自由叙述一律 FAIL,
+        # 不再判断它"是不是在说派生"。
+        mseed = re.search(r"^### 种子\s*$(.*?)(?=^#{2,3}[^\S\n]|\Z)", text, re.M | re.S)
+        if mseed:
+            seed_line = re.compile(
+                r"^[>\s]*-\s+\S.*?\s+—\s+(?:批注\s*\d+\s*条|无批注)\s*$"
+            )
+            for ln in mseed.group(1).splitlines():
+                if ln.strip() and not seed_line.match(ln):
+                    problems.append(
+                        "fallback 台账『种子』小节存在模板外的行 "
+                        "(该段每行只许 `- <节点> — 批注 N 条` 或 `— 无批注`; "
+                        f"子女数在 fallback 恒无据): {ln.strip()[:40]}"
+                    )
+        # round-5: 断言可以写在种子段**之外** (派生段/①②段/散文行) —— 段内
+        # 白名单管不到。故对**全文**做一层: fallback 下任何含「派生」的行都
+        # 必须整行匹配下列两个有据模板之一 (规模自陈 = counts.derived;
+        # ③段关系分布 = counts.relation_types)。其余一律违规, 不再问它
+        # "是不是在断言子女数"。
+        # 合法用法白名单 (逐条对应 scan JSON 里**有据**的字段):
+        derive_ok = (
+            # ① 规模自陈行 — counts.derived
+            re.compile(
+                r"^[>\s]*\d+\s*成员（\d+\s*种子\s*\+\s*\d+\s*派生，\d+\s*占位）"
+            ),
+            # ② 任意层级的段落标题 (## 台账（种子/派生） / ### 派生)
+            re.compile(r"^#{1,6}[^\S\n].*$"),
+            # ③ 无来源结论信号行 — signals.unsourced_conclusions (分母=派生角色数)
+            re.compile(r"^[>\-*·\s]{0,6}无来源结论[：:].*【.+】\s*$"),
+            # ④ 无来源结论**无据**行 — 白名单文案「本板无派生角色成员」含该词
+            re.compile(r"^[>\-*·\s]{0,6}无来源结论[：:]\s*无据\s*[（(][^\n]*[）)]\s*$"),
+            # ⑤ 关系类型分布行 — counts.relation_types
+            re.compile(r"^[>\-*·\s]{0,6}关系类型分布[：:].*$"),
+            # ⑥ SKILL HARD-CONSTRAINTS #3 的白名单动作句 (含「Cmd+Shift+D 派生」)
+            #    ⛔ round-6 终裁复核: 漏掉它曾让**按 SKILL 逐字写的合法报告**FAIL
+            re.compile(r"^\s*\d+\.\s.*Cmd\+Shift\+D.*派生.*$"),
+            # ⑦ ③段定量叙述 — 固定句式, 不再无条件放行任何含该短语的行
+            #    (原 `^.*派生角色成员.*$` 可夹带任意子女数断言)
+            re.compile(r"^[>\s]*(?:\d+\s*个)?派生角色成员[^。\n]*。?\s*$"),
+            re.compile(r"^[^。\n]*集中在派生角色成员[^。\n]*。?\s*$"),
+        )
+        for ln in text.splitlines():
+            if "派生" in ln and not any(p.match(ln) for p in derive_ok):
+                problems.append(
+                    "fallback 报告出现模板外的『派生』表述 "
+                    "(子女数在 fallback 恒无据; 允许的只有规模自陈行/段落标题/"
+                    "无来源结论信号行(含无据行)/关系类型分布行/白名单动作句/"
+                    f"『派生角色成员』定量叙述): {ln.strip()[:40]}"
+                )
     elif not re.search(r"^data_mode:\s*manifest", fm, re.M):
         problems.append("frontmatter 缺 data_mode: manifest|fallback_local")
-    acts = re.search(r"^## 你现在可以做的\s*$(.*?)(?=^## |\Z)", text, re.M | re.S)
+    # round-6: 与存在性检查共用 _SECTION_RE 口径 — 原整行正则让
+    # `## 你现在可以做的（本轮）` 定位失败, 动作段白名单被整块跳过
+    acts = re.search(
+        _SECTION_RE("## 你现在可以做的") + r"(.*?)(?=^#{2}(?:[^\S\n]|$)|\Z)",
+        text,
+        re.M | re.S,
+    )
     if acts:
         # 续行止于空行 (五轮 M7 逃逸: 贪婪续行会把空行后的散文吸进编号项,
         # 让越界正文搭编号项的白名单便车)
@@ -902,6 +1620,10 @@ def main() -> int:
     tail_rows = [r for r in ledger if r["node_id"] not in set(detail_ids)]
 
     stat = board_path.stat()
+    # G5-4: scan 时刻单次计算 — signals.asof 与 source_revision.scan_at_utc
+    # 必须同源同值 (年龄天数也以此为基准)
+    scan_now = datetime.now(timezone.utc)
+    scan_at = scan_now.strftime("%Y-%m-%dT%H:%M:%SZ")
     out = {
         "board_exists": True,
         "board_stem": args.board,
@@ -913,11 +1635,15 @@ def main() -> int:
         "source_revision": {
             "board_sha256": hashlib.sha256(board_text.encode("utf-8")).hexdigest(),
             "board_mtime_utc": _iso_utc(stat.st_mtime),
-            "scan_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "scan_at_utc": scan_at,
             "manifest_generated_at": manifest_meta.get("generated_at"),
             "manifest_lag_seconds": manifest_meta.get("lag_seconds"),
             "manifest_stale": manifest_meta.get("stale"),
         },
+        # G5-4 加性: 一梯队信号 (0 阈值, 判偏航留人)
+        "signals": _build_signals(
+            ledger, all_tips, dated, data_mode, scan_at, scan_now
+        ),
         "ledger": {
             "seeds": seeds,
             "derived": derived,

@@ -1,0 +1,358 @@
+{
+ "board_exists": true,
+ "board_stem": "CS188 lecture 2",
+ "board_name": "CS188 lecture 2",
+ "recap_date": "2026-08-28",
+ "report_path": "outputs/回顾-CS188 lecture 2-2026-08-28.md",
+ "data_mode": "fallback_local",
+ "manifest": {
+  "unusable_reason": "未提供 --manifest"
+ },
+ "source_revision": {
+  "board_sha256": "9bc0e6be316ac454f5a0a0f6fd1220246f1eb5ef9df89b2b8ae57558e8fe8dd9",
+  "board_mtime_utc": "2026-08-15T00:00:21Z",
+  "scan_at_utc": "2026-08-28T14:09:48Z",
+  "manifest_generated_at": null,
+  "manifest_lag_seconds": null,
+  "manifest_stale": null
+ },
+ "signals": {
+  "signals_version": 1,
+  "policy": "zero_threshold",
+  "asof": "2026-08-28T14:09:48Z",
+  "unanswered_question_age": {
+   "value": 78,
+   "denominator": 4,
+   "percentile_ref": {
+    "p25_days": 77,
+    "p50_days": 77,
+    "p75_days": 77,
+    "max_days": 78
+   },
+   "availability": "文件",
+   "asof": "2026-08-28T14:09:48Z",
+   "undated": 0,
+   "note": "value=最老年龄(天); added_at=最后变更时间(C5 边界), 时序封顶文件档; 未答=全部 tips 上界(无已答标记); 无时间戳条目不参与"
+  },
+  "source_coverage": {
+   "value": 7,
+   "denominator": 8,
+   "percentile_ref": null,
+   "by_role": {
+    "seed": {
+     "with_provenance": 0,
+     "total": 1
+    },
+    "derived": {
+     "with_provenance": 7,
+     "total": 7
+    }
+   },
+   "availability": "文件",
+   "asof": "2026-08-28T14:09:48Z",
+   "note": "来源锚点=source_note 或 relation.target; 二值信号无分位, 板内参考=by_role"
+  },
+  "unsourced_conclusions": {
+   "value": 0,
+   "denominator": 7,
+   "percentile_ref": null,
+   "node_ids": [],
+   "availability": "推定",
+   "asof": "2026-08-28T14:09:48Z",
+   "note": "分母=派生角色成员; fallback 的角色为本地推定 → 推定档; 分母 0 = 无据"
+  },
+  "duplicate_accumulation": {
+   "value": 0,
+   "denominator": 4,
+   "percentile_ref": null,
+   "groups": [],
+   "availability": "文件",
+   "asof": "2026-08-28T14:09:48Z",
+   "note": "重复口径=空白折叠+casefold+200字截断后全等 (超长 tips 仅比对前 200 字, M9 截断口径); value=冗余条数 Σ(组-1); 空文本不参与"
+  }
+ },
+ "ledger": {
+  "seeds": [
+   {
+    "node_id": "lecture 2",
+    "role": "seed",
+    "role_source": "local_inferred",
+    "is_stub": false,
+    "mastery_score": null,
+    "mastery_source": "absent",
+    "attempt_count": null,
+    "last_examined": null,
+    "created_at": null,
+    "created_from": "configure_whiteboard_seed",
+    "source_note": null,
+    "pick_rank": null,
+    "relation_type": null,
+    "relation_target": null,
+    "derived_at": null,
+    "derived_reason": null,
+    "tips": [
+     {
+      "text": "一个**代理 (Agent)** 是一个能够感知环境并采取行动的实体 > ✍️ 我的理解：我对代理的定义还是不太理解",
+      "tag": "tips",
+      "understanding": "fuzzy",
+      "added_at": "2026-06-11T18:09:57.956Z"
+     },
+     {
+      "text": "**最大化 (Maximize)**：意味着代理面临选择，并做出决策 ✍️ 我的理解：我对于最大化还是有点不理解。",
+      "tag": "tips",
+      "understanding": "fuzzy",
+      "added_at": "2026-06-11T18:09:17.605Z"
+     },
+     {
+      "text": "**预期 (Expected)** ✍️ 我的理解：我这里对于预期还是不能充分理解 ：考虑到行动后果的不确定性，代理需要评估所有可能结果的概率加权效用。这引入了概率和不确定性。",
+      "tag": "tips",
+      "understanding": "fuzzy",
+      "added_at": "2026-06-11T18:09:17.605Z"
+     },
+     {
+      "text": "吃豆人游戏将作为本课程中说明 AI 概念和算法的典型例子。 ✍️ 我的理解：",
+      "tag": "tips",
+      "understanding": "fuzzy",
+      "added_at": "2026-06-11T12:06:59.911Z"
+     }
+    ],
+    "tips_count": 4,
+    "tips_open": 4,
+    "error_candidates_pending": 0,
+    "body_callout_count": 4,
+    "derived_children": null,
+    "derived_children_count": null
+   }
+  ],
+  "derived": [
+   {
+    "node_id": "代理决策分析-0303()",
+    "role": "derived",
+    "role_source": "local_inferred",
+    "is_stub": true,
+    "mastery_score": 0.3,
+    "mastery_source": "local_frontmatter",
+    "attempt_count": null,
+    "last_examined": null,
+    "created_at": null,
+    "created_from": "ai_linked_doc",
+    "source_note": "lecture 2",
+    "pick_rank": null,
+    "relation_type": "derived_from",
+    "relation_target": "lecture 2",
+    "derived_at": null,
+    "derived_reason": null,
+    "tips": [],
+    "tips_count": 0,
+    "tips_open": 0,
+    "error_candidates_pending": 0,
+    "body_callout_count": 1
+   },
+   {
+    "node_id": "代理函数-(Agent-Function)",
+    "role": "derived",
+    "role_source": "local_inferred",
+    "is_stub": true,
+    "mastery_score": 0.3,
+    "mastery_source": "local_frontmatter",
+    "attempt_count": null,
+    "last_examined": null,
+    "created_at": null,
+    "created_from": "ai_linked_doc",
+    "source_note": "lecture 2",
+    "pick_rank": null,
+    "relation_type": "derived_from",
+    "relation_target": "lecture 2",
+    "derived_at": null,
+    "derived_reason": null,
+    "tips": [],
+    "tips_count": 0,
+    "tips_open": 0,
+    "error_candidates_pending": 0,
+    "body_callout_count": 1
+   },
+   {
+    "node_id": "代理类型：反射与规划",
+    "role": "derived",
+    "role_source": "local_inferred",
+    "is_stub": true,
+    "mastery_score": 0.3,
+    "mastery_source": "local_frontmatter",
+    "attempt_count": null,
+    "last_examined": null,
+    "created_at": null,
+    "created_from": "ai_linked_doc",
+    "source_note": "lecture 2",
+    "pick_rank": null,
+    "relation_type": "derived_from",
+    "relation_target": "lecture 2",
+    "derived_at": null,
+    "derived_reason": null,
+    "tips": [],
+    "tips_count": 0,
+    "tips_open": 0,
+    "error_candidates_pending": 0,
+    "body_callout_count": 1
+   },
+   {
+    "node_id": "反射代理的局限性引出了规划代理-(Planning-Agents)-的需求",
+    "role": "derived",
+    "role_source": "local_inferred",
+    "is_stub": true,
+    "mastery_score": 0.3,
+    "mastery_source": "local_frontmatter",
+    "attempt_count": null,
+    "last_examined": null,
+    "created_at": null,
+    "created_from": "ai_linked_doc",
+    "source_note": "lecture 2",
+    "pick_rank": null,
+    "relation_type": "derived_from",
+    "relation_target": "lecture 2",
+    "derived_at": null,
+    "derived_reason": null,
+    "tips": [],
+    "tips_count": 0,
+    "tips_open": 0,
+    "error_candidates_pending": 0,
+    "body_callout_count": 1
+   },
+   {
+    "node_id": "理性代理-(Rational-Agent)",
+    "role": "derived",
+    "role_source": "local_inferred",
+    "is_stub": true,
+    "mastery_score": 0.3,
+    "mastery_source": "local_frontmatter",
+    "attempt_count": null,
+    "last_examined": null,
+    "created_at": null,
+    "created_from": "ai_linked_doc",
+    "source_note": "lecture 2",
+    "pick_rank": null,
+    "relation_type": "derived_from",
+    "relation_target": "lecture 2",
+    "derived_at": null,
+    "derived_reason": null,
+    "tips": [],
+    "tips_count": 0,
+    "tips_open": 0,
+    "error_candidates_pending": 0,
+    "body_callout_count": 1
+   },
+   {
+    "node_id": "规划代理的特点",
+    "role": "derived",
+    "role_source": "local_inferred",
+    "is_stub": true,
+    "mastery_score": 0.3,
+    "mastery_source": "local_frontmatter",
+    "attempt_count": null,
+    "last_examined": null,
+    "created_at": null,
+    "created_from": "ai_linked_doc",
+    "source_note": "lecture 2",
+    "pick_rank": null,
+    "relation_type": "derived_from",
+    "relation_target": "lecture 2",
+    "derived_at": null,
+    "derived_reason": null,
+    "tips": [],
+    "tips_count": 0,
+    "tips_open": 0,
+    "error_candidates_pending": 0,
+    "body_callout_count": 1
+   },
+   {
+    "node_id": "规划的分类-1549()",
+    "role": "derived",
+    "role_source": "local_inferred",
+    "is_stub": true,
+    "mastery_score": 0.3,
+    "mastery_source": "local_frontmatter",
+    "attempt_count": null,
+    "last_examined": null,
+    "created_at": null,
+    "created_from": "ai_linked_doc",
+    "source_note": "lecture 2",
+    "pick_rank": null,
+    "relation_type": "derived_from",
+    "relation_target": "lecture 2",
+    "derived_at": null,
+    "derived_reason": null,
+    "tips": [],
+    "tips_count": 0,
+    "tips_open": 0,
+    "error_candidates_pending": 0,
+    "body_callout_count": 1
+   }
+  ],
+  "unknown": []
+ },
+ "counts": {
+  "members": 8,
+  "seeds": 1,
+  "derived": 7,
+  "stubs": 7,
+  "never_examined": 8,
+  "tips_total": 4,
+  "tips_unanswered_upper_bound": 4,
+  "tips_understanding_open": 4,
+  "tips_undated": 0,
+  "body_callouts": 11,
+  "annotations": 4,
+  "relation_types": {
+   "derived_from": 7
+  },
+  "error_candidates_pending": 0
+ },
+ "tips_oldest3": [
+  {
+   "text": "吃豆人游戏将作为本课程中说明 AI 概念和算法的典型例子。 ✍️ 我的理解：",
+   "tag": "tips",
+   "understanding": "fuzzy",
+   "added_at": "2026-06-11T12:06:59.911Z",
+   "node_id": "lecture 2"
+  },
+  {
+   "text": "**最大化 (Maximize)**：意味着代理面临选择，并做出决策 ✍️ 我的理解：我对于最大化还是有点不理解。",
+   "tag": "tips",
+   "understanding": "fuzzy",
+   "added_at": "2026-06-11T18:09:17.605Z",
+   "node_id": "lecture 2"
+  },
+  {
+   "text": "**预期 (Expected)** ✍️ 我的理解：我这里对于预期还是不能充分理解 ：考虑到行动后果的不确定性，代理需要评估所有可能结果的概率加权效用。这引入了概率和不确定性。",
+   "tag": "tips",
+   "understanding": "fuzzy",
+   "added_at": "2026-06-11T18:09:17.605Z",
+   "node_id": "lecture 2"
+  }
+ ],
+ "scale_gate": {
+  "member_threshold": 30,
+  "annotation_threshold": 100,
+  "over_threshold": false,
+  "detail_k": 10,
+  "detail_node_ids": null,
+  "tail_counts": null
+ },
+ "concepts_members": [
+  "lecture 2",
+  "代理决策分析-0303()",
+  "代理函数-(Agent-Function)",
+  "代理类型：反射与规划",
+  "反射代理的局限性引出了规划代理-(Planning-Agents)-的需求",
+  "理性代理-(Rational-Agent)",
+  "规划代理的特点",
+  "规划的分类-1549()"
+ ],
+ "previous_recap": {
+  "path": "/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/outputs/回顾-CS188 lecture 2-2026-08-27.md",
+  "date": "2026-08-27",
+  "same_day": false,
+  "actions_section": "1. 种子「lecture 2」上 4 条批注理解度全部未闭环（均为 fuzzy）【实测】——在 `节点/lecture 2` 里 `Cmd+Shift+A` 补批注 / 更新理解度 checkbox，把已经想通的项闭环掉。\n2. 派生节点「反射代理的局限性引出了规划代理-(Planning-Agents)-的需求」是占位、0 批注、从未考察，派生原因写明「因为我对这个节点不太理解我想要单独的讨论」【实测】——`/node-chat 节点/反射代理的局限性引出了规划代理-(Planning-Agents)-的需求` 继续剖析该节点。\n3. 全板 8 成员从未考察、检验历史 0 板【实测】——`/start-exam-board from CS188 lecture 2`（整板首考），给这块板拿到第一份考察侧校准信号。\n4. 上面动作做完、数据更新后【实测：本轮 manifest lag 0.0s】——再跑一次 `/board-recap CS188 lecture 2`（数据更新后复盘）。",
+  "selfevals": []
+ },
+ "unsafe_write_targets": []
+}
