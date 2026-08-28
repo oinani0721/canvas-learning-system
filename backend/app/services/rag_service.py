@@ -16,11 +16,14 @@ Story 23.1 Implementation:
 import logging
 import sys
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 import structlog
 
 from app.core.decision_tracker import log_decision
+
+if TYPE_CHECKING:  # CARD-G4-2: 仅类型注解需要, 运行时走函数体内延迟 import
+    from app.models.service_status import StatusedResult
 
 logger = structlog.get_logger(__name__)
 
@@ -106,10 +109,14 @@ class RAGUnavailableError(RAGServiceError):
 
     This occurs when LangGraph is not installed or import fails.
 
+    CARD-G4-2 (2026-08-28): 该异常语义收编进统一四态 —
+    ``service_status`` 属性恒为 ``ServiceStatus.UNAVAILABLE.value``,
+    API/调用方可直接映射, 不再各自解释裸字符串。
+
     [Source: backend/app/api/v1/endpoints/rag.py - 503 response]
     """
 
-    pass
+    service_status = "unavailable"  # ServiceStatus.UNAVAILABLE.value 镜像
 
 
 # ============================================================
@@ -213,6 +220,11 @@ class RAGService:
             "metadata": {},
             "fallback_used": True,
             "fallback_reason": fallback_reason,
+            # CARD-G4-2 (2026-08-28): 第三个「空结果」出口同样带四态 —
+            # 走到这里意味着图执行没能产出状态 (如 ainvoke 返回 None),
+            # 空载荷不可信 = unavailable, 不是 empty。
+            "retrieval_status": "unavailable",
+            "retrieval_status_reason": f"rag fallback: {fallback_reason}",
         }
 
     async def query(
@@ -260,10 +272,13 @@ class RAGService:
         [Source: Story 1.9 Task 6 — retrieval scope isolation]
         """
         if not LANGGRAPH_AVAILABLE:
+            # CARD-G4-2: 既有诚实单点收编统一四态 (枚举值替代裸字符串)
+            from app.models.service_status import ServiceStatus
+
             log_decision(
                 function="RAGService.query",
                 input_summary={"query": query[:80]},
-                output="unavailable",
+                output=ServiceStatus.UNAVAILABLE.value,
                 reason=f"LangGraph not available: {_IMPORT_ERROR}",
             )
             raise RAGUnavailableError(
@@ -326,40 +341,47 @@ class RAGService:
             logger.error(f"RAGService query failed: {e}")
             raise RAGServiceError(f"RAG query execution failed: {e}") from e
 
-    async def get_weak_concepts(
+    async def get_weak_concepts_with_status(
         self, canvas_file: str, limit: int = 10
-    ) -> list[Dict[str, Any]]:
-        """
-        Get weak concepts from Temporal Memory for a canvas file.
+    ) -> "StatusedResult":
+        """CARD-G4-2 (2026-08-28): get_weak_concepts 的四态版本。
 
-        Used by review canvas generation to identify concepts needing review.
-
-        Args:
-            canvas_file: Canvas file path
-            limit: Maximum number of concepts to return
+        故障不再假装空结果: LangGraph 缺失/记忆客户端失败 → unavailable
+        带 reason; 真无学习历史 → empty; 有弱概念 → ok。
+        旧 ``get_weak_concepts`` 委托本方法保 list 契约。
 
         Returns:
-            List of weak concept dicts with stability, last_review, review_count
-
-        [Source: backend/app/api/v1/endpoints/rag.py#get_weak_concepts]
+            StatusedResult — items 为弱概念 dict 列表。
         """
+        from app.models.service_status import StatusedResult
+
         if not LANGGRAPH_AVAILABLE:
             logger.warning(
-                "get_weak_concepts: LangGraph not available, returning empty list"
+                "get_weak_concepts: LangGraph not available (unavailable, not empty)"
             )
-            return []
+            return StatusedResult.unavailable(
+                f"LangGraph not available: {_IMPORT_ERROR}"
+            )
 
         # Story 36 fix: Query LearningMemoryClient for low-score concepts
         try:
             from app.clients.graphiti_client import get_learning_memory_client
 
             memory_client = get_learning_memory_client()
-            await memory_client.initialize()
+            # CARD-G4-2 Codex round-1 HIGH-9: initialize() 遇到坏 JSON /
+            # 权限错误会**返回 False 而不抛异常**, 随后默认 _data 仍产出
+            # []， 被报成 empty。检查布尔值即可, 无需动客户端对外契约。
+            initialized = await memory_client.initialize()
+            if initialized is False:
+                return StatusedResult.unavailable(
+                    "learning memory client initialize() returned False "
+                    "(数据不可读 — 空结果不可信)"
+                )
 
             history = await memory_client.get_learning_history(canvas_file, limit=100)
             if not history:
                 logger.info(f"get_weak_concepts: no learning history for {canvas_file}")
-                return []
+                return StatusedResult.from_items([])
 
             # Aggregate by concept: keep lowest score per concept
             concept_map: Dict[str, Dict[str, Any]] = {}
@@ -383,11 +405,35 @@ class RAGService:
 
             # Sort by score ascending (weakest first), return top N
             weak = sorted(concept_map.values(), key=lambda x: x.get("score", 1.0))
-            return weak[:limit]
+            return StatusedResult.from_items(weak[:limit])
 
         except (RuntimeError, ConnectionError, OSError, KeyError, ValueError) as e:
             logger.warning(f"get_weak_concepts: failed to query learning memory: {e}")
-            return []
+            return StatusedResult.unavailable(f"{type(e).__name__}: {e}")
+
+    async def get_weak_concepts(
+        self, canvas_file: str, limit: int = 10
+    ) -> list[Dict[str, Any]]:
+        """
+        Get weak concepts from Temporal Memory for a canvas file.
+
+        Used by review canvas generation to identify concepts needing review.
+
+        CARD-G4-2 (2026-08-28): 兼容委托 — 保 list 契约 (存量调用方直接
+        迭代), 状态语义在 ``get_weak_concepts_with_status``。新代码应改用
+        状态方法, 本方法的空 list 无法区分「无数据」与「服务故障」。
+
+        Args:
+            canvas_file: Canvas file path
+            limit: Maximum number of concepts to return
+
+        Returns:
+            List of weak concept dicts with stability, last_review, review_count
+
+        [Source: backend/app/api/v1/endpoints/rag.py#get_weak_concepts]
+        """
+        result = await self.get_weak_concepts_with_status(canvas_file, limit=limit)
+        return result.items
 
     def get_status(self) -> Dict[str, Any]:
         """
@@ -421,6 +467,8 @@ class RAGService:
         Returns:
             Query result or empty fallback dict
         """
+        # CARD-G4-2 (2026-08-28): fallback dict 加性带四态键 — 调用方可
+        # 区分「空结果」和「RAG 挂了」(原 error 键保留, 状态键统一语义)。
         if not LANGGRAPH_AVAILABLE:
             logger.warning(
                 f"RAG query fallback: LangGraph not available. Query: {query[:50]}..."
@@ -436,6 +484,8 @@ class RAGService:
                 "latency_ms": {},
                 "metadata": {},
                 "error": _IMPORT_ERROR,
+                "retrieval_status": "unavailable",
+                "retrieval_status_reason": f"LangGraph not available: {_IMPORT_ERROR}",
             }
 
         try:
@@ -453,6 +503,8 @@ class RAGService:
                 "latency_ms": {},
                 "metadata": {},
                 "error": str(e),
+                "retrieval_status": "unavailable",
+                "retrieval_status_reason": str(e),
             }
 
 

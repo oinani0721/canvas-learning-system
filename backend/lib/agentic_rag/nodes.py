@@ -104,7 +104,15 @@ async def _get_graphiti_client() -> GraphitiClient:
             batch_size=10,
             enable_fallback=True,
         )
-        await _graphiti_client.initialize()
+        # CARD-G4-2 Codex round-1 BLOCKER-2: initialize() 返回 bool, 原实现
+        # 丢弃返回值 —— 初始化失败的实例仍被发布为 singleton, 之后每次检索
+        # 都因 enable_fallback 静默返回 []; 节点的 except 永不触发,
+        # channel_errors 恒空, 四态误报 empty/ok, 且**恢复后也不会重连**。
+        # 现在: 失败不发布 singleton (下次调用重试) 并抛出, 由节点记录通道故障。
+        ok = await _graphiti_client.initialize()
+        if ok is False:
+            _graphiti_client = None
+            raise RuntimeError("GraphitiClient.initialize() returned False")
     return _graphiti_client
 
 
@@ -125,7 +133,12 @@ async def _get_lancedb_client() -> LanceDBClient:
             batch_size=10,
             enable_fallback=True,
         )
-        await _lancedb_client.initialize()
+        # BLOCKER-2 同款: 初始化失败不得发布 singleton (否则永久假空 +
+        # 恢复后不重连), 抛出让 retrieve_lancedb 记进 channel_errors。
+        ok = await _lancedb_client.initialize()
+        if ok is False:
+            _lancedb_client = None
+            raise RuntimeError("LanceDBClient.initialize() returned False")
     return _lancedb_client
 
 
@@ -203,20 +216,28 @@ async def retrieve_graphiti(state: CanvasRAGState, runtime: Runtime[CanvasRAGCon
             scoped_canvas = f"{subject}:{canvas_file}" if canvas_file else subject
 
     # ✅ Story 12.1: 使用真实Graphiti客户端
+    # CARD-G4-2 (2026-08-28): 通道失败不再只吞成 [] — 失败原因落
+    # channel_errors (add_dicts reducer 合并并行通道), 汇聚层折算四态。
+    channel_errors: Dict[str, str] = {}
     try:
         client = await _get_graphiti_client()
         graphiti_results = await client.search_nodes(query=query, canvas_file=scoped_canvas, num_results=batch_size)
     except Exception as e:
-        # Fallback: 返回空结果
+        # Fallback: 返回空结果 + 通道级失败信号
         logger.warning(f"[retrieve_graphiti] Fallback triggered: {e}")
         graphiti_results = []
+        channel_errors["graphiti"] = f"{type(e).__name__}: {e}"
 
     latency_ms = (time.perf_counter() - start_time) * 1000
 
     # ✅ Story 23.3: 节点出口日志
     logger.debug(f"[retrieve_graphiti] END - results={len(graphiti_results)}, latency={latency_ms:.2f}ms")
 
-    return {"graphiti_results": graphiti_results, "graphiti_latency_ms": latency_ms}
+    return {
+        "graphiti_results": graphiti_results,
+        "graphiti_latency_ms": latency_ms,
+        "channel_errors": channel_errors,
+    }
 
 
 # ========================================
@@ -277,6 +298,11 @@ async def retrieve_lancedb(state: CanvasRAGState, runtime: Runtime[CanvasRAGConf
     # Story 2.4: Use hybrid search as default (jieba FTS + Dense vector)
     search_type = _safe_get_config(runtime, "search_type", "hybrid")
 
+    # CARD-G4-2 (2026-08-28): 通道失败落 channel_errors, 不再只吞成 []。
+    # Codex round-1 HIGH-7: 本字典必须在**跨学科扩展之前**创建 —— 原先建
+    # 在其后, 扩展失败无处可记, 检索面收窄对上层完全不可见。
+    channel_errors: Dict[str, str] = {}
+
     # Story 1.9: Cross-subject expansion via Tag Jaccard bridge
     cross_subject = state.get("cross_subject", False)
     subjects_to_search: List[str] = [subject] if subject else [None]
@@ -294,20 +320,29 @@ async def retrieve_lancedb(state: CanvasRAGState, runtime: Runtime[CanvasRAGConf
                     threshold=0.3,
                 )
                 logger.info(f"[retrieve_lancedb] Cross-subject expansion: {subject} -> {subjects_to_search}")
-        except ImportError:
+            else:
+                # HIGH-7: 请求要了跨学科但 Neo4j 不可用 = 覆盖面收窄, 不是
+                # 「本来就只有这个学科」——如实记为通道降级。
+                channel_errors["lancedb_cross_subject"] = (
+                    "neo4j unavailable — cross-subject expansion skipped"
+                )
+        except ImportError as e:
             logger.debug("[retrieve_lancedb] cross_subject_bridge not available, searching current subject only")
+            channel_errors["lancedb_cross_subject"] = f"ImportError: {e}"
         except Exception as e:
             logger.warning(f"[retrieve_lancedb] Cross-subject expansion failed, using current subject: {e}")
+            channel_errors["lancedb_cross_subject"] = f"{type(e).__name__}: {e}"
 
     # ✅ Story 12.2 + Story 2.4: 使用真实LanceDB客户端 with hybrid search
     # Story 2-8 H1+H2: When course_id is present, use progressive_scope_search
     # (4-stage cascading) + expand_neighbors (1-hop wiki-link expansion) to
     # activate previously dead-code functions.
+    # HIGH-7: 在 try 之外初始化, 让异常路径能保留已累积的部分结果。
+    lancedb_results: List = []
     try:
         client = await _get_lancedb_client()
 
         # Story 1.9: Search across all expanded subjects and merge results
-        lancedb_results: List = []
         per_subject_limit = max(1, batch_size // len(subjects_to_search))
         for search_subject in subjects_to_search:
             if course_id:
@@ -358,16 +393,25 @@ async def retrieve_lancedb(state: CanvasRAGState, runtime: Runtime[CanvasRAGConf
         lancedb_results = lancedb_results[:batch_size]
 
     except Exception as e:
-        # Fallback: 返回空结果
-        logger.warning(f"[retrieve_lancedb] Fallback triggered: {e}")
-        lancedb_results = []
+        # Fallback: 通道级失败信号 (CARD-G4-2)
+        # HIGH-7: **保留已获得的部分结果** —— 原实现无条件清空, 前一个
+        # subject 已检索到的结果会被后一个 subject 的异常连坐抹掉,
+        # 上层因此看到「空」而非「部分」。
+        logger.warning(
+            f"[retrieve_lancedb] Fallback triggered (保留 {len(lancedb_results)} 条已获结果): {e}"
+        )
+        channel_errors["lancedb"] = f"{type(e).__name__}: {e}"
 
     latency_ms = (time.perf_counter() - start_time) * 1000
 
     # ✅ Story 23.3: 节点出口日志
     logger.debug(f"[retrieve_lancedb] END - results={len(lancedb_results)}, latency={latency_ms:.2f}ms")
 
-    return {"lancedb_results": lancedb_results, "lancedb_latency_ms": latency_ms}
+    return {
+        "lancedb_results": lancedb_results,
+        "lancedb_latency_ms": latency_ms,
+        "channel_errors": channel_errors,
+    }
 
 
 # ========================================
@@ -505,10 +549,45 @@ async def fuse_results(state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig])
         f"[fuse_results] END - strategy={fusion_strategy}, results={len(fused_results)}, latency={latency_ms:.2f}ms"
     )
 
+    # CARD-G4-2 (2026-08-28): 汇聚层折算四态 retrieval_status。
+    # channel_errors 由并行 retrieve 节点写入 (add_dicts reducer):
+    # - 有通道失败且 0 结果 → unavailable (空不可信)
+    # - 有通道失败但有结果 → degraded (部分面)
+    # - 无失败 0 结果 → empty; 无失败有结果 → ok
+    # Codex round-1 HIGH-8: unavailable 只在「所有**已尝试**的可信源都失败」
+    # 时成立。此前任一通道报错 + 总数为 0 就判 unavailable, 会把「另一个
+    # 通道健康地查到 0 条」误说成整个检索系统不可用。
+    ch_errors = state.get("channel_errors") or {}
+    # 主检索通道 = 本轮真正 fan-out 的两路 (graphiti / lancedb);
+    # 其余键 (如 lancedb_cross_subject) 是覆盖面收窄, 只降 degraded。
+    _PRIMARY_CHANNELS = ("graphiti", "lancedb")
+    primary_failed = {k for k in ch_errors if k in _PRIMARY_CHANNELS}
+    primary_healthy = [
+        c for c in _PRIMARY_CHANNELS if c not in primary_failed
+    ]
+    reason_text = "; ".join(f"{k}: {v}" for k, v in sorted(ch_errors.items()))
+
+    if ch_errors and total_results == 0 and not primary_healthy:
+        # 全部主通道均失败且颗粒无收 —— 这个空确实不可信
+        retrieval_status = "unavailable"
+        status_reason = reason_text
+    elif ch_errors:
+        # 有失败但仍有健康主通道 (或已拿到结果) = 部分面
+        retrieval_status = "degraded"
+        status_reason = reason_text
+    elif total_results == 0:
+        retrieval_status = "empty"
+        status_reason = None
+    else:
+        retrieval_status = "ok"
+        status_reason = None
+
     return {
         "fused_results": fused_results,
         "fusion_latency_ms": latency_ms,
         "fusion_report": fusion_report,
+        "retrieval_status": retrieval_status,
+        "retrieval_status_reason": status_reason,
     }
 
 
@@ -1675,6 +1754,9 @@ async def compress_context_node(state: CanvasRAGState, runtime: Runtime[CanvasRA
 
     # Step 4: Graphiti learning memories
     learning_memories = ""
+    # CARD-G4-2 (2026-08-28): memory_degraded 收编进 state 字段 —
+    # 下游/外层可区分「注入空 = 没记忆」vs「注入空 = 检索降级」。
+    memory_degraded_signal: Optional[str] = None
     try:
         from agentic_rag.mastery_injection import retrieve_learning_memories
 
@@ -1718,11 +1800,13 @@ async def compress_context_node(state: CanvasRAGState, runtime: Runtime[CanvasRA
                 # P1-03: 降级不再静默 —— 空串 + degraded 才是「检索没成功」,
                 # 空串 + None 才是「真的没有记忆」。
                 if memory_degraded:
+                    memory_degraded_signal = str(memory_degraded)
                     logger.error(
                         "[compress_context] 学习记忆检索降级 (reason=%s) — 本次注入为空**不代表**该节点没有记忆",
                         memory_degraded,
                     )
         except Exception as e:
+            memory_degraded_signal = f"memory fetch failed: {e}"
             logger.warning(f"[compress_context] Learning memory fetch failed: {e}")
     except Exception as e:
         logger.debug(f"[compress_context] Learning memory retrieval skipped: {e}")
@@ -1740,6 +1824,7 @@ async def compress_context_node(state: CanvasRAGState, runtime: Runtime[CanvasRA
         "mastery_prefix": mastery_prefix,
         "learning_memories": learning_memories,
         "stale_count": stale_count,
+        "memory_degraded": memory_degraded_signal,
     }
 
 
