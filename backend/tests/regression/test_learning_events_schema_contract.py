@@ -162,7 +162,10 @@ def test_naive_timestamp_rejected():
         "payload": {},
     }
     problems = validator.validate_record(record)
-    assert any("timezone" in p for p in problems)
+    # naive 串不匹配受理语法 (缺时区段) → 词法门先拦; 语义门 (tzinfo is None)
+    # 作为纵深防御保留 (validate_record 之外的直接 _parse_ts 调用方)
+    assert any("受理语法" in p or "timezone" in p for p in problems)
+    assert validator._parse_ts("2026-08-01T10:00:00")[0] is False
 
 
 def test_nan_constant_rejected(tmp_path):
@@ -252,7 +255,7 @@ def test_q_separator_rejected(tmp_path):
     )
     result = _run(ledger)
     assert result.returncode == 1
-    assert "分隔符" in result.stdout
+    assert "受理语法" in result.stdout
 
 
 def _review_ext_line(**overrides):
@@ -312,6 +315,66 @@ def test_review_ext_bad_rating_fails(tmp_path):
     result = _run(ledger)
     assert result.returncode == 1
     assert "review_time" in result.stdout
+
+
+def test_control_char_wrapped_line_rejected(tmp_path):
+    """Codex round-2 HIGH: str.strip() 会洗掉 RFC 8259 禁止的控制字符
+    (U+001C-1F), 让敌对行伪装成合法 JSON — 只许剥行尾 CR/LF。"""
+    ledger = tmp_path / "learning_events.jsonl"
+    good = (
+        '{"event_id": "archive:ok", "event_version": 1, "event_type": "session_archived",'
+        ' "node_id": "", "recorded_at": "2026-08-01T10:00:00+00:00",'
+        ' "effective_at": "2026-08-01T10:00:00+00:00", "payload": {}}'
+    )
+    ledger.write_text("" + good + "\n", encoding="utf-8")
+    result = _run(ledger)
+    assert result.returncode == 1, result.stdout
+
+
+def test_timestamp_lexicon_variants_rejected(tmp_path):
+    """Codex round-2 MEDIUM: fromisoformat 另收 week-date / 省略分钟 /
+    '+00' offset / 逗号小数 / offset 秒 — §三受理语法须机械收窄。"""
+    for bad in (
+        "2026-W31-5T10:00:00+00:00",
+        "2026-08-01T10+00:00",
+        "2026-08-01T10:00:00+00",
+        "2026-08-01T10:00:00,500+00:00",
+        "2026-08-01T10:00:00+00:00:30",
+    ):
+        problems = validator._parse_ts(bad)
+        assert not problems[0], f"{bad!r} 不应被受理"
+
+
+def test_oversized_int_literal_not_crash(tmp_path):
+    """Codex round-2 MEDIUM: 超长整数字面量触发 stdlib 限额 ValueError —
+    该行判违规, 不炸整个校验。"""
+    ledger = tmp_path / "learning_events.jsonl"
+    ledger.write_text(
+        '{"event_id": "x", "event_version": ' + "9" * 5000 + "}\n",
+        encoding="utf-8",
+    )
+    result = _run(ledger)
+    assert result.returncode == 1
+    assert "Traceback" not in result.stderr
+
+
+def test_review_ext_cross_field_bindings(tmp_path):
+    """Codex round-2 HIGH: concept_id/node_id、review_time/effective_at、
+    version+hash 形状、degraded 成对 — 跨字段绑定必须机械验证。"""
+    ledger = tmp_path / "learning_events.jsonl"
+    cases = [
+        ({"concept_id": "另一个节点"}, "concept_id"),
+        ({"review_time": "2026-08-02T10:00:00+00:00"}, "effective_at"),
+        ({"fsrs_library_version": "not-a-version"}, "fsrs_library_version"),
+        ({"fsrs_params_hash": "deadbeef"}, "fsrs_params_hash"),
+        ({"fsrs_library_version": "degraded:x"}, "成对"),  # hash 仍真实值 → 不成对
+        ({"fsrs_library_version": "degraded:", "fsrs_params_hash": "degraded: "}, "非空原因"),
+    ]
+    for overrides, expected_marker in cases:
+        ledger.write_text(_review_ext_line(**overrides), encoding="utf-8")
+        result = _run(ledger)
+        assert result.returncode == 1, f"{overrides} 应判违规\n{result.stdout}"
+        assert expected_marker in result.stdout, f"{overrides} 的报告缺 {expected_marker}\n{result.stdout}"
 
 
 def test_review_ext_marker_absent_means_legacy_untouched(tmp_path):

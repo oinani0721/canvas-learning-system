@@ -1,0 +1,36 @@
+== Codex round-2 点名反例的对抗复验 ==
+date: 2026-08-28T11:13:00Z
+validator sha256: 13c03c7cc8f2a8aba8c637f9653a73f1444caf5fcf97658879f08f64c93fcef5
+golden test sha256: a779c025a4c6b2b4675b212b9b53263473dffe968233152753c11044ed68603b
+
+--- [R2-1] 控制字符 U+001C 包裹行 (原 strip() 洗成合法 → exit 0) ---
+FAIL  LINE 1: JSON 解析失败 (Expecting value) — 疑似截断/损坏行
+RESULT: FAIL — 1 项违规 (schema v1, /tmp/r2-ctrl.jsonl)
+exit= 1
+
+--- [R2-2] 时间词法五变体 (week-date/省略分钟/+00/逗号小数/offset秒) ---
+  2026-W31-5T10:00:00+00:00           accepted=False
+  2026-08-01T10+00:00                 accepted=False
+  2026-08-01T10:00:00+00              accepted=False
+  2026-08-01T10:00:00,500+00:00       accepted=False
+  2026-08-01T10:00:00+00:00:30        accepted=False
+
+--- [R2-3] review/1 跨字段坏例综合行 (concept_id≠node_id + review_time≠effective_at + hash 形状 + degraded 不成对) ---
+FAIL  LINE 1: 扩展键 review_time '2026-08-09T10:00:00+00:00' != 顶层 effective_at '2026-08-01T10:00:00+00:00' (§6.1 同一业务时刻必须一致)
+FAIL  LINE 1: 扩展键 concept_id '另一个节点' != 顶层 node_id 'Eigenvalues' (§6.1 映射关系: node_id 承载 concept_id)
+FAIL  LINE 1: 扩展键 fsrs_params_hash 形状非法 (须为64 位小写 hex (sha256)或 degraded 哨兵): 'deadbeef'
+FAIL  LINE 1: fsrs_library_version 与 fsrs_params_hash 的 degraded 状态必须成对 (§6.1: 降级时两键同为哨兵, 正常时两键同为真实值)
+RESULT: FAIL — 4 项违规 (schema v1, /tmp/r2-ext.jsonl)
+exit= 1
+
+--- [R2-4] G3-4 矩阵伪装反例 a: good 行 steps 改成 hard + 复制 hard expected → 期望结构门红 ---
+FAILED tests/regression/test_fsrs_golden_vectors.py::test_matrix_structure_frozen
+================== 1 failed, 10 passed, 10 warnings in 0.42s ===================
+
+--- [R2-4] 反例 b: new_card steps 伪装成 learning_step2 前缀 (同前态) → 期望结构门红 ---
+FAILED tests/regression/test_fsrs_golden_vectors.py::test_matrix_structure_frozen
+================== 1 failed, 10 passed, 10 warnings in 0.42s ===================
+
+--- 终态: 恢复后全绿 + 基线 sha ---
+vectors sha256: df60dbc6192c499ad21da6533f35ed2e0e316f5d4bc52fb45b711d4cae6f49a3
+======================= 11 passed, 10 warnings in 0.41s ========================

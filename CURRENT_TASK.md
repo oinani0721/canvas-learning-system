@@ -2,18 +2,20 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**本车道状态**（2026-08-28 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **双卡 Codex 一轮整改后待验收**）:
-- ✅ CARD-G3-1 事件账收敛（一轮 1B+6H 全处置）：D0 修订 + schema v1 冻结（§6.2 applied-watermark
-  恢复状态机补齐 BLOCKER）+ 严格校验器（NaN/重复键/UTF-8/分隔符/前向兼容真跳过/schema_ext 扩展键强校验）
-  + 契约测试 **25 passed + 1 skipped**（含 SKILL.md 逐字提取的真实 producer 执行 ×3 + append_event ×1）
-  + 现网账本（主仓 22 行）exit 0 SHA-bound 存证；写点普查 8 处现行号；tips 两条 producer 偏离登记 §九移交
-- ✅ CARD-G3-4 golden vectors（一轮 1B+2H 处置：B=CI 接入受 S8 独占**移交**）：fsrs 6.3.1 真库
-  20 向量+3 曲线点、七门 **11 passed**（矩阵结构锁/元数据字面锁/容差上限锁/严格 requirements 解析）、
-  负验证 v2 八变体全红留档（N3 恰 3 门红）、核心 fsrs 六文件 91 passed 复跑 + 扩面 100 passed 零回归
-- ⛔ 移交：test.yml 白名单 +2 测试文件 + root requirements paths（S8 独占 .github/workflows/）；
-  tips.py False 折叠误报 duplicate + naive added_at 两条生产缺陷（→G3-7/micro-patch）
-- 纪律守住：learning_event_log.py/fsrs_manager.py 及全部 in-flight 锁定文件零改动（diff 证据在案）；不 push
-- 待办：两卡分开 commit（G3-1 先、G3-4 后，diff 单卡可切）→ Codex 二轮复核 → 用户验收两单
+**本车道状态**（2026-08-28 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **双卡 Codex 二轮整改后待验收**）:
+- ✅ CARD-G3-1（commit `63e034ec` + 二轮整改待提交）：D0 修订 + schema v1 冻结 + 严格校验器 + 契约测试
+  **29 passed + 1 skipped**（含 SKILL.md 逐字提取真实 producer 执行 ×3）。一轮 1B+6H、二轮 1B+2H+1M 全处置：
+  **§6.2 重写为 A1 write-ahead + A2 恢复先于新写 + A3 严格递增**（A2 消灭交错窗口 BLOCKER；字段名按
+  fsrs_bridge.py:44 更正为 `fsrs_last_review`、缺键=−∞、三态语义消歧）；校验器补控制字符不洗/
+  时间词法白名单正则/review1 跨字段绑定/超长整数不炸。现网账本 exit 0 SHA-bound 存证
+- ✅ CARD-G3-4（commit `a8bab73c` + 二轮整改待提交）：fsrs 6.3.1 真库 20 向量+3 曲线点、七门 **11 passed**。
+  二轮 HIGH（id 后缀推导 rating 可伪装）已修：组合按**真实 steps rating** 取 + prefix/时刻 skeleton 字面锁；
+  负验证 **v3 N0+N1–N9**（内联 mutation/restore 命令，含 algorithm 与 .post1 变体）全红留档
+- ⛔ 移交：①test.yml 白名单 +2 测试文件 + root requirements paths（S8 独占 `.github/workflows/`；
+  **CI 接入 DEFERRED / NOT-EXECUTED**，当前执行面 = 本地 pytest）；②tips.py 两条生产缺陷 →
+  **独立 micro-patch**（G3-7 卡面不含 tips）；③G3-3 须补等时拒绝/复合排序（A3 并发强制）
+- 纪律守住：learning_event_log.py/fsrs_manager.py 及全部 in-flight 锁定文件零改动（二轮 blob 复核在案）；不 push
+- 待办：二轮整改提交（第三笔）→ Codex 三轮复核 → 用户验收两单
 
 ---
 

@@ -83,7 +83,22 @@
 | e-4 | MEDIUM | fsrs hash 与 G3-4 同源但无显式依赖声明 | **已修（文档）**：§6.1 显式绑定 G3-4 manifest 的 `library_version`/`params_hash`（同分支交付，依赖闭合） |
 | a-3 | LOW | "紧凑分隔符"归因失实；D0 引用的 v2 总账不在本 HEAD | **已修（文档）**：§二措辞改为"风格不冻结、现网两种并存"；D0 头注显式注明 v2 总账所在 worktree |
 
-整改后复跑：契约测试 25+1 全绿、现网账本 exit 0（SHA-bound 存证）、ruff 全过。二轮复核送审记录见同目录 round-2 存档（若有）。
+整改后复跑：契约测试 25+1 全绿、现网账本 exit 0（SHA-bound 存证）、ruff 全过。
+
+### 二轮复核处置（存档 `审查/codex-review-CARD-G3-1-G3-4-round2-2026-08-28.md`，G3-1 残留 1 BLOCKER + 2 HIGH + 1 MEDIUM）
+
+| # | 级别 | 二轮发现 | 处置 |
+|---|---|---|---|
+| e-1 | **BLOCKER** | 水位线只覆盖"恢复先于新写"的简单三窗，**交错窗口漏事件**：FM=t0，E1@t1 落账后崩溃，恢复前 E2@t2 从旧状态推进到 t2，E1 随后因 `t1 ≤ W` 被误判已应用 → E1 对 current state 的贡献永久丢失 | **已修（契约）**：§6.2 重写为三条硬约束 **A1 write-ahead + A2 恢复先于新写 + A3 严格递增**。A2 使任意时刻至多一条事件 pending，交错窗口在构造上不可能出现（反例逐字写入文档作为"为什么必要"） |
+| e-1 | **BLOCKER 附项** | 契约字段名 `frontmatter.last_review` 与真实键 `fsrs_last_review` 不符；新卡无该键；`≤ ⇔ 已应用` 不能区分"已应用"与"迟到乱序"；秒级时间戳可自然等时，而 G3-3 卡面未定义等时拒绝 | **已修（契约）**：字段名按 `fsrs_bridge.py:44-46` FIELD_ORDER 真相源改为 **`fsrs_last_review`**（秒级、缺键 ⇒ `W = -∞`）；新增**三态语义**论证——`≤ W` 的事件无论已应用还是迟到乱序，对 current state 的动作**完全相同**，歧义对 exactly-once 无影响，乱序标注改由**事件到达序**判定（G3-3 地盘）；A3 等时消解 + **显式移交条款**要求 G3-3 补等时拒绝/复合排序 |
+| b-2 | **HIGH** | `decoded.strip()` 剥除 RFC 8259 禁止的控制字符（U+001C 等），敌对行伪装成合法 JSON 后 exit 0 | **已修（代码）**：改 `rstrip("\r\n")` 只剥行尾；U+001C 包裹行现判 FAIL（对抗复验留档） |
+| e-3 | **HIGH** | review/1 扩展只查基础类型，不查 `concept_id==node_id`、`review_time==effective_at`、version/hash 形状、degraded 成对与非空原因；`DEGRADED_PREFIX` 定义后未使用 | **已修（代码）**：跨字段绑定全部机械校验（含 hash 须 64 位小写 hex、version 须数字点版、degraded 两键必须成对且原因非空），综合坏例现报 4 项违规 |
+| b-3 | MEDIUM | 时间词法仍收 week-date / 省略分钟 / `+00` / 逗号小数 / offset 秒；5000 位整数触发未捕获 ValueError | **已修（代码）**：§三受理语法改为**白名单正则**先判词法再验语义；超限 ValueError 单行判违规不炸整体 |
+| d-2 | MEDIUM | 存证 HEAD 仍写预提交 `37387a…`；fixture 存证缺完整命令 | **已修**：两份存证按 round-3 重生成，HEAD 写实际 commit、每 fixture 附完整命令 |
+| c-1 | — | "4 条真实 producer"中第四条只走共享 `append_event` + 手写实参，未经五个 backend callsite，标题略宽 | **已如实收窄**：本单 §二该行已写明"backend 侧按 5 调用点实参形状经真实 `append_event`"，不宣称走 endpoint |
+| a-1/a-2 | — | tips 两偏离 owner 不够确定（G3-7 卡面不含 tips） | **已收紧**：schema §九移交栏改为"**独立 micro-patch**（G3-7 卡面不含 tips）" |
+
+三轮复核状态：本轮整改后契约测试 **29 passed + 1 skipped**（本文件）、现网账本 exit 0、round-2 全部点名反例对抗复验翻红（`审查/g3-1-evidence/g3-round2-counterexamples.txt`）。
 
 ## 六、移交登记
 

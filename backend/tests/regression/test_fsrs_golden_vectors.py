@@ -50,15 +50,26 @@ FLOAT_REL = MANIFEST["comparison_tolerance"]["float_rel"]
 FLOAT_ABS = MANIFEST["comparison_tolerance"]["float_abs"]
 RATING_BY_NAME = {"again": Rating.Again, "hard": Rating.Hard, "good": Rating.Good, "easy": Rating.Easy}
 
-#: 矩阵结构字面锁 (门 6): 场景 → 最终评分前的期望 State
-EXPECTED_SCENARIO_STATE = {
-    "new_card": 1,
-    "learning_step2": 1,
-    "review_ontime": 2,
-    "review_overdue_30d": 2,
-    "relearning": 3,
+#: 矩阵结构字面锁 (门 6): 场景 → (最终评分前期望 State, prefix rating 序列)
+#: prefix skeleton 锁死每个场景的真实前缀 — Codex round-2 反例: 只锁前态时
+#: new_card 可伪装成 learning_step2 (同为 state 1) 而全绿
+EXPECTED_SCENARIO = {
+    "new_card": (1, ()),
+    "learning_step2": (1, ("good",)),
+    "review_ontime": (2, ("good", "good")),
+    "review_overdue_30d": (2, ("good", "good")),
+    "relearning": (3, ("good", "good", "again")),
 }
+EXPECTED_SCENARIO_STATE = {k: v[0] for k, v in EXPECTED_SCENARIO.items()}
 RATING_NAMES = ("again", "hard", "good", "easy")
+#: 场景 → 最终评分时刻相对前缀末态 due 的偏移 (天); review_overdue_30d 是唯一逾期场景
+EXPECTED_FINAL_OFFSET_DAYS = {
+    "new_card": 0,
+    "learning_step2": 0,
+    "review_ontime": 0,
+    "review_overdue_30d": 30,
+    "relearning": 0,
+}
 
 
 def _build_scheduler() -> Scheduler:
@@ -191,13 +202,38 @@ def test_matrix_structure_frozen():
     ids = [v["id"] for v in vectors]
     assert len(set(ids)) == 20, "向量 id 必须全唯一 (重复 = 有格子被顶掉)"
 
-    expected_combos = {(s, r) for s in EXPECTED_SCENARIO_STATE for r in RATING_NAMES}
-    actual_combos = {(v["scenario"], v["id"].split("__", 1)[1]) for v in vectors}
-    assert actual_combos == expected_combos, f"场景×评分组合缺格/多格: 差集 {expected_combos ^ actual_combos}"
+    # 组合全集按**真实 steps 的最终 rating**取, 不从 id 后缀推导
+    # (Codex round-2 HIGH: 把 good 行的 steps 改成 hard 曾全绿)
+    expected_combos = {(s, r) for s in EXPECTED_SCENARIO for r in RATING_NAMES}
+    actual_combos = {(v["scenario"], v["steps"][-1]["rating"]) for v in vectors}
+    assert actual_combos == expected_combos, f"场景×真实评分组合缺格/多格: 差集 {expected_combos ^ actual_combos}"
 
     for v in vectors:
-        assert v["state_before_final_review"] == EXPECTED_SCENARIO_STATE[v["scenario"]], (
-            f"{v['id']}: 声明前态 {v['state_before_final_review']} != 字面锁 {EXPECTED_SCENARIO_STATE[v['scenario']]}"
+        scenario = v["scenario"]
+        expected_state, expected_prefix = EXPECTED_SCENARIO[scenario]
+        final_rating = v["steps"][-1]["rating"]
+        assert v["id"] == f"{scenario}__{final_rating}", (
+            f"{v['id']}: id 必须 == scenario__真实最终rating (实为 {scenario}__{final_rating})"
+        )
+        assert v["state_before_final_review"] == expected_state, (
+            f"{v['id']}: 声明前态 {v['state_before_final_review']} != 字面锁 {expected_state}"
+        )
+        actual_prefix = tuple(s["rating"] for s in v["steps"][:-1])
+        assert actual_prefix == expected_prefix, (
+            f"{v['id']}: 前缀 rating 序列 {actual_prefix} != 场景 skeleton {expected_prefix}"
+        )
+        # 时刻 skeleton: 前缀首步恒为 base_datetime; 逾期场景的最终时刻必须
+        # 比前缀末态 due 晚整 30 天, 其余场景恰等于 due (= 准时)
+        times = [datetime.fromisoformat(s["review_at"]) for s in v["steps"]]
+        assert times == sorted(times), f"{v['id']}: 复习时刻必须非降序"
+        assert times[0] == datetime.fromisoformat(MANIFEST["base_datetime"]), (
+            f"{v['id']}: 首步时刻必须为 manifest.base_datetime"
+        )
+        prefix_card = _replay(v["steps"][:-1])
+        expected_final_at = prefix_card.due + timedelta(days=EXPECTED_FINAL_OFFSET_DAYS[scenario])
+        assert times[-1] == expected_final_at, (
+            f"{v['id']}: 最终复习时刻 {times[-1].isoformat()} != 前缀末态 due"
+            f"+{EXPECTED_FINAL_OFFSET_DAYS[scenario]}d ({expected_final_at.isoformat()})"
         )
 
     points = GOLDEN["retrievability"]["at"]

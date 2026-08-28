@@ -94,14 +94,22 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
   - `fsrs_library_version` + `fsrs_params_hash`：产生本次调度结果的库版本与参数指纹。**口径 = G3-4 `backend/tests/regression/fsrs_golden_manifest.json` 的 `library_version` / `params_hash`（sha256 canonical scheduler_config）**——同分支交付，形式依赖已闭合。
   - **降级口径（诚实声明，Codex round-1 HIGH）**：fsrs 库不可用而评分链仍降级运行时，两键填 `"degraded:<原因>"` 哨兵（如 `degraded:fsrs-import-failed`）——禁止编造 hash、禁止留空、禁止省键。校验器接受该哨兵形态。
 
-### 6.2 写序与崩溃恢复状态机（G3-2 落实；Codex round-1 BLOCKER 补齐）
+### 6.2 写序与崩溃恢复状态机（G3-2 落实；Codex round-1 BLOCKER + round-2 交错窗口整改）
 
-- **写序**：先追加事件再更新 frontmatter（write-ahead）。当前现实为 frontmatter 先写、事件后补，差异已在 D0 修订 §四登记。
-- **applied 水位线**：事件是否已应用到 current state，以 **frontmatter 的 `last_review`**（D0 裁定的唯一 current state 内的既有字段）为水位线机械判定：
-  - `payload.review_time <= frontmatter.last_review` ⇔ **已应用**（重放跳过，不二次推进）；
-  - `payload.review_time > frontmatter.last_review` ⇔ **未应用（pending）**——崩溃恢复 = 按 `review_time` 升序重放全部 pending 事件。
-- **该状态机覆盖全部三种崩溃窗口**：①事件已落账、frontmatter 未推进 → 事件 pending，重放恢复；②两者都完成 → 事件 ≤ 水位线，重放幂等跳过；③事件未落账（追加即崩）→ 账本与 frontmatter 一致，无损失（本次评分丢失属用户可感知重试面，非账本不一致）。
-- **并列约束**：同一节点两事件 `review_time` 相等属非法（水位线无法判定次序）——G3-3 的 per-node CAS 负责在写侧禁止产生；校验器不判（跨行语义归重放工具）。
+**水位线定义（字段名以真实实现为准）**：`W(node)` = 该节点 frontmatter 的 **`fsrs_last_review`**（`canvas-vault/.claude/scripts/fsrs_bridge.py:44-46` FIELD_ORDER 真相源；写出格式 `%Y-%m-%dT%H:%M:%SZ`，**秒级精度**）。**键缺失（新卡从未复习）⇒ `W = -∞`**（该节点全部事件均为 pending）。
+
+**pending 集合**：账本中该节点全部 `payload.review_time > W` 的 `schema_ext=review/1` 事件，按 `(review_time, 账本行序)` 升序。
+
+三条硬约束，G3-2 必须同时实现（缺一则 exactly-once 不成立）：
+
+- **A1 write-ahead**：先追加事件再更新 frontmatter。当前现实为 frontmatter 先写、事件后补，差异已在 D0 修订 §四登记。
+- **A2 恢复先于新写（消灭交错窗口）**：任何复习写点在**追加新事件之前**，必须先把该节点的 pending 集合按序重放至空。
+  - **为什么必要**（round-2 反例）：若允许"E1@t1 落账未应用时 E2@t2 直接从旧状态推进到 t2"，则水位线抬到 t2 后 E1 满足 `t1 ≤ W` 被误判已应用，**E1 对 current state 的贡献永久丢失**。A2 使任意时刻**至多只有最后一次追加的事件**可能处于 pending，该交错窗口在构造上不可能出现。
+  - 崩溃窗口全覆盖：①事件已落账、frontmatter 未推进 → 下次写入前 A2 重放恢复；②两者都完成 → `review_time ≤ W`，不推进（幂等）；③追加即崩（事件未落账）→ 账本与 frontmatter 一致，本次评分丢失属用户可感知重试面，非账本不一致。
+- **A3 严格递增 + 等时消解**：写侧必须保证同节点新事件 `review_time` **严格大于** `W`（秒级精度下若计算值等于 `W`，推进到 `W + 1s` 后再写）。这使 `>` 比较在秒级时间戳下无歧义。并发下的强制（两进程同时通过 A3 检查）归 **G3-3 per-node CAS**——⚠️ **移交条款**：G3-3 卡面当前未定义"等时拒绝/复合排序"，实施时须补此项，否则 A3 在并发面失去强制。
+
+**三态语义（消解"已应用 vs 迟到乱序"歧义）**：`review_time ≤ W` 的事件**一律不推进 current state**——无论它是"已应用"还是"迟到的乱序事件"，对 current state 的动作**完全相同**，因此该歧义对 exactly-once 无影响。二者的区分只用于**账本标注**（G3-3 的 `out_of_order` 标记），其判据是**事件到达序**（追加时该事件 `review_time` 是否小于当时账本内该节点的最大 `review_time`），不是水位线。
+
 - **duplicate 与 IO 失败必须可区分**（§二折叠语义）：G3-2 写点先显式查重再追加，禁止依赖 `append_event` 的折叠布尔。
 - **截断尾行 LF 守卫**：见 §二"截断自愈"行。
 
@@ -129,5 +137,5 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
 |---|---|---|
 | docstring/注释写"8 类"，实际白名单 9 类 | `learning_event_log.py:11`（"限 8 类核心动作"）、:73（"8 类白名单"） | `callout_ingested` 2026-07-23 入集后注释未同步。本卡边界不动该文件；移交 G3-2 顺手修注释（一行，无行为变化） |
 | v2 卡"backend 4 写点"计数 | 总账 v2 G3-1 档案节 | 实为 5 调用点，见 §五勘误 |
-| **tips 写点把 IO 失败误报为 duplicate 并中止管道**（Codex round-1 HIGH） | `tips.py:572-578` | `append_event` 返回 `False` 折叠两义（§二），tips 消费者按 duplicate 分支返回 `accepted=False`——IO 失败时 callout 被错误拒收且"不阻断主链"不成立。生产路径修复不在本卡；**移交**：G3-7 收敛遗留写路径时一并裁定（或独立 micro-patch 卡） |
-| **tips 入口可产出 naive `effective_at`**（Codex round-1 HIGH） | `tips.py:510`（`CalloutDirectRequest.added_at` 接受 naive datetime）→ `:570` `isoformat()` 落账 | 违反 §三 tz-aware 契约的**潜在 producer 缺陷**（现网 22 行未命中——实际调用方都传了 tz-aware）。校验器会如实抓出此类行。生产路径修复不在本卡；**移交**同上，修法 = schema 层 `AwareDatetime` 或入口归一化 UTC |
+| **tips 写点把 IO 失败误报为 duplicate 并中止管道**（Codex round-1 HIGH） | `tips.py:572-578` | `append_event` 返回 `False` 折叠两义（§二），tips 消费者按 duplicate 分支返回 `accepted=False`——IO 失败时 callout 被错误拒收且"不阻断主链"不成立。生产路径修复不在本卡；**移交独立 micro-patch**（⚠️ G3-7 卡面只含 `/review/record`、`/fsrs-state`、mastery grade 三条路径，**不含 tips**——不可默认由其顺带收，Codex round-2 指出） |
+| **tips 入口可产出 naive `effective_at`**（Codex round-1 HIGH） | `tips.py:510`（`CalloutDirectRequest.added_at` 接受 naive datetime）→ `:570` `isoformat()` 落账 | 违反 §三 tz-aware 契约的**潜在 producer 缺陷**（现网 22 行未命中——实际调用方都传了 tz-aware）。校验器会如实抓出此类行。生产路径修复不在本卡；**移交独立 micro-patch**（与上条同 owner），修法 = schema 层 `AwareDatetime` 或入口归一化 UTC |

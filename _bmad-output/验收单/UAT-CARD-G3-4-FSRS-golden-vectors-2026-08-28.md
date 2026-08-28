@@ -28,9 +28,10 @@
 | 确定性 | 固定 card_id + 固定 UTC 时刻链 + `enable_fuzzing=False`；生成器**连跑两次 byte 级一致** |
 | manifest 锁定面 | library_version=6.3.1 / algorithm=FSRS-6（21 参数）/ timezone=UTC / params_hash（sha256 canonical）/ Rating&State 枚举值域 |
 | requirements 钉版 | 根与 backend 两处 `fsrs==6.3.1`（原 `>=6.0.0,<7.0.0` 范围约束收紧），且有测试防松绑回潮 |
-| **负验证 v2（留档，SHA-bound）** | 8 变体全部按预期翻红并恢复：params_hash 篡改→1 门红 / 向量篡改→1 门红 / **仅改 manifest 版本→恰 3 门红**（与 Codex 复算一致）/ 重复向量→结构门红 / retrievability 清空→结构门红 / 容差放宽→上限门红 / 前态=999→双门红 / 恢复后文件 sha256 与基线全等 + 11 passed（存证含完整命令、失败测试名、pytest exit code、前后 SHA：`审查/g3-4-evidence/g3-4-negative-verification.txt`） |
+| **负验证 v3（留档，SHA-bound）** | **N0 基线绿 + N1–N9 九个负例精确翻红**：params_hash 篡改→1 门红 / 向量 stability→replay 红 / **仅改 manifest 版本→恰 3 门红** / 重复+缺格向量→结构门红 / retrievability 清空→结构门红 / 容差放宽→上限门红 / 前态=999→双门红 / **algorithm 任意值→元数据门红** / **requirements `.post1`→钉版门红**；恢复后 manifest+vectors sha256 与基线全等 + 11 passed。存证含每变体**内联 mutation/restore 命令**、失败测试名、pytest exit code、前后 SHA（`审查/g3-4-evidence/g3-4-negative-verification.txt` + 可重跑脚本 `negverify_v3.sh`） |
+| **二轮反例对抗复验** | Codex 二轮点名的两个矩阵伪装反例（good 行 steps 换成 hard 并复制 expected；new_card steps 伪装成 learning_step2 前缀）**现均翻红**（`审查/g3-4-evidence/g3-round2-counterexamples.txt`） |
 | 真实库验收 | `FSRS_AVAILABLE` 断言在位——库缺失是 FAIL 不是 skip，零 mock 零 FakeCard |
-| 铁律遵守 | `fsrs_manager.py` **零改动**（in-flight D4 锁定；测试只经其公开 re-export 出口消费）；不改任何调度逻辑 |
+| 铁律遵守 | `fsrs_manager.py` **零改动**（in-flight D4 锁定，git blob 恒为 `980b3758…`）；测试直接 `from fsrs import` 消费真实库对象、仅额外读该模块的 `FSRS_AVAILABLE` 布尔断言生产面真实库在位——**不宣称"只消费其公开接口"**（该模块无 `__all__` re-export 契约，二轮口径整改）；不改任何调度逻辑 |
 | ruff | All checks passed |
 
 ## 三、算法合理性抽查（冻结值一眼可信）
@@ -66,6 +67,15 @@
 | a | LOW | 跨 CPU/libm 末位浮点 bytes 未物理验证 | **如实登记不修**：基线在本机（darwin/arm64, Python 3.14.4）生成；跨平台复现属容差设计承担面（rel=1e-9），无异构环境可实测，不作宣称 |
 
 整改后复跑：golden 门 11 passed、核心 fsrs 六文件 91 passed 复跑零回归、ruff 全过。
+
+### 二轮复核处置（存档 `审查/codex-review-CARD-G3-1-G3-4-round2-2026-08-28.md`，G3-4 残留 1 HIGH + 2 MEDIUM）
+
+| # | 级别 | 二轮发现 | 处置 |
+|---|---|---|---|
+| f | **HIGH** | 结构门从 `id` 后缀推导 rating，重放却执行 `steps[-1].rating`——把 good 行 steps 改成 hard（复制 expected）仍全绿；new_card steps 伪装成 learning_step2（同前态）也全绿 | **已修**：组合全集改按**真实 steps 最终 rating** 取；新增 `id == scenario__真实rating` 断言、**每场景 prefix rating skeleton 字面锁**、时刻 skeleton 锁（首步 == base_datetime、最终时刻 == 前缀末态 due + 场景偏移，逾期场景恰 30 天）。两个反例现均翻红并留档 |
+| — | MEDIUM | 负验证存档只有通用 pytest 命令、无各变体 mutation/restore 命令；实为 7 个负例却称 8；algorithm 与 `.post` 未入档 | **已修**：负验证 v3 重做（N0+N1–N9），每变体内联 mutation 与 restore 命令、脚本本体一并入档可重跑 |
+| — | MEDIUM | UAT 技术判据仍称"只经公开 re-export"，与测试实际直接 `from fsrs import` 矛盾 | **已修**：本单铁律行改为诚实口径（见 §二） |
+| e | — | CI 接入移交须标 DEFERRED / NOT-EXECUTED，不得称 CI 已生效 | **已如实**：处置表 #c 与 §六移交 1 均写明"在 CI 接入前防漂移门执行面 = 本地 pytest + 复核"，未宣称 CI 生效 |
 
 ## 六、移交登记
 
