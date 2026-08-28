@@ -29,14 +29,14 @@
 
 | 裁判 | 结果 |
 |---|---|
-| 契约测试 `backend/tests/regression/test_learning_events_schema_contract.py` | **44 passed + 1 skipped**（本文件单跑口径，六轮整改后；skip = 仓内 vault 根无账本的 worktree 环境，主仓自动生效。与 golden 门 + 既有账本测试合跑 = **63 passed + 1 skipped**） |
+| 契约测试 `backend/tests/regression/test_learning_events_schema_contract.py` | **47 passed + 1 skipped**（本文件单跑口径，七轮整改后；skip = 仓内 vault 根无账本的 worktree 环境，主仓自动生效。与 golden 门 + 既有账本测试合跑 = **66 passed + 1 skipped**） |
 | **真实 producer 执行**（Codex 一轮 HIGH 整改） | vault 三 skill 写点的 python 代码**从 SKILL.md 逐字提取执行**（ai-linked-doc 单行模板 / start-exam-board PYEOF 块 / quiz-answer 评分链账本段；仅路径常量重定向 tmp fixture），产物过校验器 + 幂等重放断言；backend 侧按 5 调用点实参形状经真实 `append_event` 写入后全过 |
 | 既有账本回归 `test_learning_event_log.py` | 6 passed（零改动） |
 | 校验脚本 vs 三 fixture | 合法 → exit 0 / 缺字段 → exit 1（点名 `effective_at`）/ 重复 event_id → exit 1（点名首见行号）（存证 `审查/g3-1-evidence/g3-1-fixture-validation.txt`） |
 | 校验脚本 vs **现网账本**（当前 23 行，用户仍在产生新事件） | **exit 0** 零 WARN 零 FAIL，且 sha256 运行前后一致（只读证明；存证按每轮整改重生成，含 HEAD/validator SHA/完整命令） |
 | 现网写点 0 误报 | 按 8 个写点 1:1 建模的 `real_shapes.jsonl`（含 Z 后缀时间戳/紧凑分隔符/中文 event_id）全过 |
 | 边界判定 | 截断行如实报 FAIL / 未知顶层字段拒绝 / naive 时间戳拒绝 / **NaN·Infinity 非标准常量拒绝（RFC 8259 严格）** / **行内重复键拒绝（json.loads 静默取后者的歧义面）** / 未知 event_version 走 WARN 前向兼容通道不误杀 |
-| 漂移锁 | EVENT_VERSION=1、9 类白名单、7 键形状、校验器复制份 == 真相源（四路契约测试）+ **`rating_from_grade` 与 `fsrs_bridge` 逐档等价**（千点网格 + 三档分界两侧）+ **W 与 review_time 的瞬间等价关系**（bridge `_iso` 写出格式改变即红）+ **`.canvas-config.yaml` 解析 18 形态矩阵**（含 round-5 全部错绑/漏绑反例） |
+| 漂移锁 | EVENT_VERSION=1、9 类白名单、7 键形状、校验器复制份 == 真相源（四路契约测试）+ **`rating_from_grade` 与 `fsrs_bridge` 逐档等价**（千点网格 + 三档分界两侧）+ **W 与 review_time 的瞬间等价关系**（bridge `_iso` 写出格式改变即红）+ **`.canvas-config.yaml` 解析 19 形态矩阵**（极简可证策略；含 round-5/6/7 全部错绑反例） |
 | 铁律遵守 | `learning_event_log.py` **零改动**；git diff 只含新增文件 + CLAUDE.md/architecture.md 引用行 + CURRENT_TASK；未新建任何第二套账本 |
 | ruff | 本卡交付文件 All checks passed（`backend/scripts/` + 契约测试；**范围声明**：仓库其余既有告警不在本卡范围） |
 
@@ -156,7 +156,21 @@
 | 二 | — | bridge 三项（offset 不转 UTC / naive 静默当 UTC / 截小数秒）判 **STILL-OPEN 但已移交 G3-2，不计本卡残留** | 维持移交登记（§九 + 本单 §六） |
 | 一 | — | G3-3 接收卡面仍只写"锁/CAS"，未吸收五项完整条款 | **如实登记**：卡面属编排 worktree 的总账文件，本卡无权改他人卡面；移交条款在 schema §6.2 与 CURRENT_TASK 双处写全（现为**七项**：sidecar 锁+崩溃回收、fencing epoch+死亡证明、per-vault 账本锁内 parsed 查重与校验落盘字节、锁内重读 W 按 A3 推进后重算、完整 fsync 序列、只做增量重放、duplicate 三态门） |
 
-六轮整改后复跑：契约测试 **44 passed + 1 skipped**、三文件合跑 **63 passed + 1 skipped**、现网账本（23 行）exit 0 零 WARN、round-6 全部点名反例对抗复验通过（`审查/g3-1-evidence/g3-round6-counterexamples.txt`）。
+六轮整改后复跑：契约测试 **44 passed + 1 skipped**、三文件合跑 **63 passed + 1 skipped**、现网账本（23 行）exit 0 零 WARN、round-6 点名反例中**可机械复验的部分**（vault_id 四形态、三态四反例、A7 上界、G3-4 LOW）对抗复验通过（`审查/g3-1-evidence/g3-round6-counterexamples.txt`）；A4/degraded 属**契约条款**（无生产实现可执行），其闭合以文档条款审阅为准，未纳入该存档。
+
+### 七轮复核处置（存档 `审查/codex-review-CARD-G3-1-G3-4-round7-2026-08-28.md`；**G3-4 保持 CONFIRMED-CLOSED**，G3-1 残留 1 BLOCKER + 3 HIGH + 若干 MEDIUM）
+
+| # | 级别 | 七轮发现 | 处置 |
+|---|---|---|---|
+| 一.2 | **BLOCKER** | **fencing 接管未与观察值原子绑定**：B 与 C 同时读到 `{7, A(已死)}` 并各自证明 A 已死，B 接管为 `{8,B}` 后 C 仍凭**陈旧证明**覆盖新 owner ⇒ 双持 | **已修（契约）**：A4.1 冻结 **conditional takeover（CAS）**——接管写入必须是"当且仅当锁内容仍等于观察到的 `{epoch, owner}` 时原子替换为 `{epoch+1, self}`"，否则重新观察；死亡证明须与该 CAS **原子绑定**（反例逐字写入文档） |
+| 一.4 | **BLOCKER** | **duplicate 等价面只含 payload**：实测两条同 `event_id`、同 canonical payload、`event_type` 分别为 `answer_scored`/`answer_abandoned` 的记录均零违规 ⇒ 会被误判 no-op，而两者是**相反的事实** | **已修（契约）**：等价面扩为**语义 envelope** `{event_version, event_type, node_id, effective_at, payload}` 的 canonical 形式，**显式排除 `recorded_at`**（重试自然变化）；反例逐字写入 |
+| 二 | HIGH | 三态可执行域三处不正确：①把 `maximum_interval=36500` 错当 stability 上界——**本方引入的误报**（真实 Easy 链 7 次后 S=68949 > 36500，合法卡被判 degraded）；②用 `float()` 判整数使 `fsrs_state: "1.0"` 通过，而 bridge `int("1.0")` 抛 `ValueError`；③文档要求重复 `fsrs_*` 键 fail-closed 但 dict 接口已丢失该信息 | **已修**：①stability 改为**有限正数无上界**（FSRS 封顶的是 interval 不是 stability），difficulty 保留 `[1,10]`；②整数字段改**纯整数词法** `^[+-]?\d+$`；③如实收窄——文档声明重复键由 **frontmatter 解析层**负责，`classify_card_state` 的契约是接收已解析无重复键的 dict，不再宣称由三态覆盖 |
+| 四 | HIGH | vault_id 逐行状态机**仍对合法 YAML 静默错绑**：`vault_id: first` + 缩进续行（PyYAML 真值 `"first second"`，返回 `"first"`）；`description: it's fine` 的撇号被当跨行引号起点导致后续 `vault_id: new` 被跳过；`vault_id : second` 等 | **已修（终局决策）**：**放弃解析 YAML 子集**——手写子集打不赢。改为**极简可证策略**：全文件恰一处行首 `vault_id:` ＋ 双引号无转义值或安全裸词 ＋ 下一行非缩进，其余**一律不绑定 + WARN**。代价是 `team#1` 等形态退化为不绑定（保守：失一层防护 ≠ 错绑）。**19 形态矩阵**锚定，现网仍正确绑定 `canvas_vault` |
+| 五 | MEDIUM | A7 上界被通用到所有时间字段：合法 `review_time=9000-01-01Z` 经调度产出的 `due=9000-01-09Z` **反被判 degraded** | **已修**：上界**分两档**——review 输入 `≤9000-01-01Z`（调度还要叠加 interval + A3 的 +1s）；一般时间戳（`recorded_at`/`effective_at`/`fsrs_due`）`≤9500-01-01Z`（只拦 UTC 归一化本身溢出） |
+| 一.1 | MEDIUM | 幂等语义三处文档冲突（§一称"原样生效"、§二把子串行为留在幂等契约行、§6.2 称偏离已登记 §九但 §九无此项） | **已修**：§一区分"幂等**键**语义不变"与"**判定方式**冻结为 parsed-field equality"并声明修正不触发 v2；§二把子串查重明确标为**错误实现**（非"更保守"）并指向 §九；§九补该偏离登记 |
+| 三 | HIGH（部分） | degraded 的 canonical reducer 只动态引用"bridge 实际精度"，未冻结舍入语义/序列化/blob；proof 的"同源快照"未定义边界与终止条件 | **部分处置 + 如实登记**：本轮补齐了 reducer 的**方向性冻结**（逐事件持久化舍入，禁末尾舍入，实测差异在案）与 proof 的**内容清单**；但"精度常量与序列化 bytes 级冻结"依赖 G3-2 落地时的真实写出实现——**登记为 G3-2 交接项**（契约先写方向，实现落地时把常量与 blob hash 一并锁进测试） |
+
+七轮整改后复跑：契约测试 **47 passed + 1 skipped**、三文件合跑 **66 passed + 1 skipped**、现网账本（23 行）exit 0 零 WARN 且 vault_id 正确绑定、round-7 全部点名反例对抗复验通过（`审查/g3-1-evidence/g3-round7-counterexamples.txt`）。
 
 ## 六、移交登记
 

@@ -8,7 +8,7 @@
 
 ## 一、冻结声明与版本策略
 
-- 本契约冻结 **EVENT_VERSION = 1**（`learning_event_log.py:31`）的记录结构。这是对既有实现的**加性扩展式冻结，不是 supersede**：既有 9 类事件、既有 7 字段、既有幂等语义原样生效。
+- 本契约冻结 **EVENT_VERSION = 1**（`learning_event_log.py:31`）的记录结构。这是对既有实现的**加性扩展式冻结，不是 supersede**：既有 9 类事件、既有 7 字段、既有**幂等键语义**（`event_id` 全文件唯一）原样生效。⚠️ 幂等**键语义**不变，但其**判定方式**由本契约冻结为 parsed-field equality（§二 + §6.2 A4.5）——既有子串查重是实现缺陷而非另一种语义，修正它**不触发**下方的 v2 升版条款。
 - **加性扩展（无需 bump version）**：payload 内新增键；EVENT_TYPES 白名单经对账评审后新增类型。
 - **必须 bump EVENT_VERSION（v2）的变更**：删除/改名任一顶层字段；改变任一顶层字段类型或语义；改变 event_id 幂等语义；payload 从 object 改为其他类型。v2 出现前，读方必须容忍未知 event_version 行（前向兼容：跳过并告警，不炸）。
 - 禁止第二套账本与未登记直写（D0 修订 T3 条款）。
@@ -20,7 +20,7 @@
 | 位置 | `<vault 根>/learning_events.jsonl`（backend 侧由 `settings.CANVAS_BASE_PATH` 解析，`learning_event_log.py:52-56`；容器内默认 `/vaults/canvas-vault`） |
 | 格式 | JSON Lines：每行一个独立 JSON object，UTF-8，`ensure_ascii=False` |
 | 追加语义 | append-only；只追加不改写不删除；重放/重建工具只读 |
-| 幂等 | 同一 `event_id` 全文件唯一；重放时已存在即跳过（`append_event`,:82-89；skill 写点同约定）。**实现语义如实登记**：写侧查重为 `json.dumps(event_id) in line` 的**子串匹配**（非解析后字段等值）——若某 event_id 的 JSON 串形恰好出现在任意行的 payload 文本中，后续同名追加会被误判已存在而跳过（保守方向：宁可漏记不重记，与"写失败不炸主链"同向）。校验器按字段等值判唯一，语义更严 |
+| 幂等 | **契约语义**：同一 `event_id` 全文件唯一；重放时已存在即跳过。**判定方式（§6.2 A4.5 冻结）= parsed-field equality**（逐行 `json.loads` 后比 `event_id` 字段）。<br>⚠️ **既有实现偏离（登记 §九，随 G3-2 修正）**：`append_event` 现用 `json.dumps(event_id) in line` 的**子串匹配**（`learning_event_log.py:86-88`）——若某 event_id 的 JSON 串形恰好出现在任意行的 payload 文本里，后续同名追加会被误判已存在而**零次落账**（丢一次真实事实）。这不是"更保守"，是**错误的查重实现**；契约以 parsed-field equality 为准 |
 | 并发 | backend 进程内 `threading.Lock`（:49）；跨进程无锁（G3-3 地盘，v1 如实登记） |
 | 失败语义 | `append_event()` **永不抛异常**（:66-69, :103-105）。**折叠语义如实登记（Codex round-1 HIGH）**：返回值 `False` 把"幂等跳过"与"IO 失败"折叠为同一信号（区别只在日志），调用方无法机械区分。已知消费者偏离：`tips.py:572-578` 把任意 `False` 当 duplicate 处理并中止 callout 管道（`accepted=False`）——IO 失败会被误报为重复，**该写点上"不阻断主链"不成立**（登记 §九，修复属生产路径不在本卡）。G3-2 新写点**禁止**依赖此折叠布尔：必须沿用 skill 写点模式，先显式查重（duplicate 可区分）再追加（IO 失败单独可见） |
 | 行格式变体（合法） | JSON 分隔符风格不冻结：现网存量同时存在紧凑（无空格）与 `json.dumps` 默认（`", "`/`": "` 带空格）两种行；当前 backend 与 skill 写点均产默认风格。逐行独立解析，不要求全文件风格一致 |
@@ -89,7 +89,8 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
   - **降级绕过封堵（Codex round-3 HIGH）**：`schema_ext` 出现但值不是 `"review/1"`（如 `"review/01"`、非字符串）= **违规**，不得静默降级为历史行；复习事件 payload **带扩展键却无 marker** 同样违规（历史行 payload 只有 `grade_norm`/`exam_board`/`attempt_count`，不含扩展键，故对存量零误报）。
 - **挂载点限定**：`review/1` 只许挂在 `answer_scored` / `answer_abandoned` 上（挂到 `session_archived` 等 = 违规）。
 - **扩展必填键**（`schema_ext == "review/1"` 时 REQUIRED，类型与语义由校验器强制）：
-  - `vault_id`：非空 string——显式冗余 vault 归属，**必须等于账本同目录 `.canvas-config.yaml` 声明的 `vault_id`**（与文件位置隐含归属互证；防事件写错 vault 或账本被搬运后仍自称原 vault）。校验器找不到该配置文件时降级为 WARN（保持对任意 vault 独立可跑）。
+  - `vault_id`：非空 string——显式冗余 vault 归属，**必须等于账本同目录 `.canvas-config.yaml` 声明的 `vault_id`**（与文件位置隐含归属互证；防事件写错 vault 或账本被搬运后仍自称原 vault）。
+    ⚠️ **绑定的可用范围（round-7 终局决策）**：校验器**不解析完整 YAML**——手写 YAML 子集打不赢（plain scalar 折行 `vault_id: first` + 缩进续行、值内撇号、键后空格 `vault_id :` 等合法形态都曾导致错绑）。改为**只在形态确定无歧义时绑定**：全文件恰一处行首 `vault_id:` ＋ 值为双引号无转义串或安全裸词（`[A-Za-z0-9_.-]`）＋ 下一行非缩进。其余形态（含配置缺失）**一律不绑定并输出 WARN**——保守方向是"失一层防护"而非"错绑身份"。现网与部署模板均落在白名单形态内。
   - `concept_id`：非空 string，且**必须等于顶层 `node_id`**——映射关系 = `node_id` 承载 concept_id
   - `rating`：int 且 ∈ {1,2,3,4}（FSRS Rating；bool 伪装 int 判违规）
   - `grade_norm`：数值且 ∈ [0,1]（既有 quiz-answer 写点已产此键）
@@ -115,9 +116,11 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
     | 2 Review | **必须缺失或 null** | **必须**同时存在且在可调度域内 | `state=2, step=0` 曾判正常 → 成功但持续写回**非 canonical** Review tuple |
     | 3 Relearning | **必须**存在且非负整数 | **必须**同时存在且在可调度域内 | `state=3` + 正常 S/D 但缺 step 曾判正常 → 真实 `review()` 抛 `AssertionError` |
   - **可调度数值域**（round-6 反例：正有限 `S=D=1e308` 曾判正常 → 调度产生 NaN 路径并失败）：
-    - `fsrs_stability` ∈ `(0, 36500]`（上界 = `maximum_interval` 天，超出即不可调度）；
-    - `fsrs_difficulty` ∈ `[1, 10]`（FSRS 难度定义域）；
+    - `fsrs_stability`：**有限正实数，无上界**。⚠️ round-7 更正：早前把 `maximum_interval = 36500` 当 stability 上界是**错的**——FSRS 封顶的是 **interval** 不是 stability；实测连续 7 次 Easy 后 `S = 68949 > 36500`，原规则会把**合法卡误判 degraded**；
+    - `fsrs_difficulty` ∈ `[1, 10]`（FSRS 难度定义域，这条正确）；
     - 任一数值不得为 `NaN`/`±Inf`/空串/不可解析。
+  - **整数字段用纯整数词法**（round-7）：`fsrs_state`/`fsrs_step` 必须是 int 或匹配 `^[+-]?\d+$` 的字符串。`1.0` 这类写法不受理——真实 bridge 执行 `int("1.0")` 实测抛 `ValueError`（`fsrs_bridge.py:106`）。
+  - **重复 frontmatter 键的边界（round-7 如实收窄）**：`classify_card_state(fields: dict)` 接收的是**已解析且无重复键**的 dict——重复键信息在解析层即丢失，本函数无法机械判定。该条由 **frontmatter 解析层**负责（G3-2/G3-3 实现时须用保留重复键信息的解析器或在解析处 fail-closed）；本契约在此显式声明该责任边界，不再宣称由三态判别覆盖。
   - **可执行形式**：以上规则由 `backend/scripts/validate_learning_events.py::classify_card_state()` 机械实现（返回 `("new"|"normal"|"degraded", reason)`），G3-2/G3-3 直接复用同一函数，避免"文档一套、实现一套"。
 - **残缺卡 = 上述以外的一切组合**，一律 **fail-closed**（禁止自动重放，报 degraded 待修复）。显式列举（round-4/5 点名的灰区）：
   - 缺 `fsrs_last_review` 但有其他 `fsrs_*`；
@@ -131,7 +134,10 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
 
 **整秒性判定同样按 UTC 归一化后计**：A5 要求的"整秒"在 UTC 归一化后保持（offset 只到分钟级；含秒的 offset 已被 §三 受理语法拒绝）。
 
-**A7 可调度时间上界（round-6 MEDIUM）**：`review_time` 必须 ≤ **9000-01-01T00:00:00Z**。理由：真实调度器会在该时刻上叠加最长 `maximum_interval = 36500` 天（≈100 年）算出新 `due`，而 A3 的等时消解还要 `+1s`——`9999-12-31T23:59:59Z` 这类值会让二者都抛 `OverflowError`。留出的余量（≈999 年）远超任何真实用法，对现网零影响。校验器机械强制。
+**A7 时间上界，分两档（round-6 MEDIUM 提出，round-7 分档）**：
+- **review 输入上界**：`payload.review_time` 必须 ≤ **9000-01-01T00:00:00Z**。理由：真实调度器会在该时刻上叠加最长 `maximum_interval = 36500` 天（≈100 年）算出新 `due`，而 A3 的等时消解还要 `+1s`——`9999-12-31T23:59:59Z` 会让二者都抛 `OverflowError`。
+- **一般时间戳上界**：`recorded_at`/`effective_at`/`fsrs_due` 等 ≤ **9500-01-01T00:00:00Z**（只拦 UTC 归一化本身会溢出的极端值）。⚠️ round-7 反例：若把 review 输入的保守上界通用到所有字段，合法的 `review_time = 9000-01-01Z` 经调度产出的 `due = 9000-01-09Z` 会**反被判 degraded**。
+- 两档留出的余量（≈7000 年）远超任何真实用法，对现网零影响。校验器按字段分别强制。
 
 **A6 调度器入参必须是 UTC（round-5 HIGH#1，端到端条款）**：传给 fsrs `Scheduler.review_card()` 的 `review_datetime` **必须 tz-aware 且 tzinfo 恰为 UTC**——库对此硬校验（`scheduler.py:256-260` 抛 `ValueError: datetime must be timezone-aware and set to UTC`）。因此 G3-2 写路径必须满足：**事件 `payload.review_time`、传入调度器的时刻、写出的 `W` 三者是同一瞬间，且入库/入调度器前统一 `astimezone(UTC)`**。
 > ⚠️ **移交（bridge 实现缺陷，本卡不改生产代码）**：`fsrs_bridge.py:50 _aware()` 只补 tzinfo 不做 `astimezone(UTC)`——把校验器判定合法的 `12:00:00+08:00` 传给真实库会**抛 ValueError**（round-5 只读复算实测）；该函数同时把 naive 串静默当 UTC、并在 `_iso()` 截掉小数秒。三项均属 bridge 侧修复，随 **G3-2** 接入时一并处置（登记于 §九）。
@@ -152,7 +158,9 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
     - **锁对象必须是不会被 `os.replace` 顶替的实体**（round-5 反例）：若对节点文件本身加锁，`A 锁旧 inode → replace → C 锁新 inode → B 获得旧 inode 锁` 会让 B/C 同时自认排他。冻结为：**per-node sidecar 锁文件或锁目录**（如 `<vault>/.locks/<key>.lock`），`key = 规范化({vault_id, node_id})`（NFC 归一 + 路径安全转义，保证同一节点恒得同一 key）。
     - **接管必须带 fencing，不得只靠超时（round-6 BLOCKER 分项）**：`pid + 时间戳 + 超时接管` **不充分**——反例：A 因 STW/换页暂停超过超时，B 接管并发布，A 恢复后仍会发布基于旧状态的结果（双持 + 状态回退）。冻结为两条同时成立：
       ① **fencing epoch**：锁文件内记单调递增的 `epoch`（每次成功获取 +1）与持有者身份；持有者在**发布前（写 temp 之后、`os.replace` 之前）必须重读锁文件确认 `epoch` 与身份仍是自己**，否则**放弃本次发布**（已 durable 的事件留在账本里，由下一次带锁的 A2 重放消化——这正是 write-ahead 的价值）。
-      ② **接管前须证明前持有者已死**：仅超时不足；须校验 `pid` 不存在，或 `pid` 存在但**进程启动时间与锁记录不符**（pid 复用检测）。二者都无法证明时**不得接管**，如实报 degraded 待人工处置。
+      ② **接管必须是 conditional takeover（CAS），死亡证明须与观察值原子绑定（round-7 BLOCKER 分项）**：
+        - 死亡证明本身：`pid` 不存在，或 `pid` 存在但**进程启动时间与锁记录不符**（pid 复用检测）；二者都无法证明时**不得接管**，如实报 degraded 待人工处置；
+        - **绑定方式**：接管写入必须是"**当且仅当锁内容仍等于观察到的 `{epoch, owner}` 时，原子替换为 `{epoch+1, self}`**"。⚠️ round-7 反例：B 与 C 同时读到 `{7, A(已死)}` 并各自证明 A 已死，B 接管为 `{8, B}` 后，C 仍凭**陈旧证明**覆盖新 owner ⇒ 双持。CAS 让 C 的写入因观察值已变而失败，须重新观察。
   - **A4.2 唯一折叠基线（round-5：原措辞自相矛盾，此处收敛）**：在线写路径的基线**恒为当前 frontmatter 的 current state**，游标 = 本次锁内读到的 `W`，只做 **pending 增量重放**。"从账本起点全量折叠"**仅作离线对账/审计手段**，禁止出现在在线写路径——两者在"事件账不完整（历史行无 review/1 扩展）"的现实下**并不等价**，把全量折叠当在线基线会重复应用已在 state 里的事件。
   - **A4.3 耐久序列（round-5 补全，参照仓内已有正确模式 `canvas-vault/.claude/scripts/sync_board_concepts.py:583`）**：
     - 账本追加：`write` → `flush` → `fsync(账本 fd)`；**账本文件首次创建时还须 `fsync(父目录 fd)`**（否则崩溃后目录项可能不存在）；
@@ -162,9 +170,10 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
     - **查重与追加同锁**：`event_id` 的查重与追加必须在同一把锁内（查重通过后到写入之间不得释放锁），否则两写者可各自查重通过再双写同一 `event_id`。账本是 **per-vault 共享文件**（非 per-node），故该锁粒度为 **per-vault 账本锁**，与 A4.1 的 per-node 锁是两把不同的锁（获取顺序全局固定：**先 node 锁后账本锁**，防死锁）。
     - **查重必须是 parsed-field equality（round-6 BLOCKER 分项）**：逐行 `json.loads` 后比较 `record["event_id"]` 字段是否相等；**禁止子串匹配**。既有 `append_event` 用的是子串查重（`learning_event_log.py:86-88`，§二已如实登记）——当任一历史行的 payload 文本里恰好含有新 `event_id` 的 JSON 串形时，新事件会被**误判 duplicate 而零次落账**（丢一次真实评分）。⚠️ 澄清：这**不是改变幂等语义**（幂等键仍是 `event_id` 唯一，不触发 §一的 v2 升版条款），而是**修正查重实现的正确性**——子串匹配从来就不是"字段相等"的正确实现。既有实现的偏离登记在 §九，随 G3-2 修正。
     - **写入必须验证完整落盘（round-6 BLOCKER 分项）**：`O_APPEND` 对**普通文件**不提供 `PIPE_BUF` 级原子性保证（该保证只对管道成立），普通文件 `write` 仍可能**短写**。因此：单行须一次 `write` 提交，并**检查返回字节数等于期望长度**；短写时按 §二"截断自愈"处理（下次追加前 LF 守卫），并在重启恢复流程中把不可解析的尾行如实报为损坏行（校验器已实现该判定）。
-    - **duplicate 命中后的状态推进门（round-6 BLOCKER 分项）**：查重命中同一 `event_id` 时，按 payload 的 **canonical 形式**（`json.dumps(payload, sort_keys=True, separators=(",",":"))`）分流——
-      ① **同 ID 同 canonical payload** ⇒ 视为重放/恢复，**no-op**（不再落账、**绝不再次 apply**；若 frontmatter 尚未推进则按 A2 走 pending 重放路径恢复）；
-      ② **同 ID 不同 canonical payload** ⇒ **冲突，fail-closed**（拒绝写入并如实报错——同一幂等键承载了两份不同事实，属上游 bug，不得由工具静默选边）；
+    - **duplicate 命中后的状态推进门（round-6 BLOCKER 分项，round-7 扩等价面）**：查重命中同一 `event_id` 时，按**语义 envelope 的 canonical 形式**分流。envelope = `{event_version, event_type, node_id, effective_at, payload}` 的 `json.dumps(..., sort_keys=True, separators=(",",":"))`——**显式排除 `recorded_at`**（重试时自然变化，不构成事实差异）。
+      ⚠️ round-7 反例：只比 `payload` 时，两条同 `event_id`、同 payload、`event_type` 分别为 `answer_scored`/`answer_abandoned` 的记录会被误判 no-op（两者是**相反的事实**：答对 vs 弃答）。
+      ① **同 ID 同 canonical envelope** ⇒ 视为重放/恢复，**no-op**（不再落账、**绝不再次 apply**；若 frontmatter 尚未推进则按 A2 走 pending 重放路径恢复）；
+      ② **同 ID 不同 canonical envelope** ⇒ **冲突，fail-closed**（拒绝写入并如实报错——同一幂等键承载了两份不同事实，属上游 bug，不得由工具静默选边）；
       ③ 任何情况下 duplicate 都**不得触发第二次 apply**。
   - ⚠️ **移交条款（G3-3，五项必补）**：①per-node **排他 sidecar 锁**（非 CAS、非节点文件本身）覆盖 A4 全序列 + 崩溃回收；②**per-vault 账本锁**内完成 event_id 查重与 `O_APPEND` 单次写；③冲突写者在锁内**重读 W 并按 A3 推进时刻**后重算（不得在陈旧状态上重试）；④账本与 frontmatter 的**完整 fsync 序列**（含父目录）；⑤只做 pending 增量重放，不把全量折叠当在线基线。
     G3-3 卡面（编排 worktree 的总账文件）当前仍只写"比较 last_review/revision 后写"，**五项均不在其中**——卡面更新属编排者动作，本卡无权改他人卡面，故在此与 CURRENT_TASK 双处登记。本卡只冻结契约，不实现。
@@ -209,7 +218,10 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
 
 | 差异 | 位置 | 说明 |
 |---|---|---|
+| **查重用子串匹配而非字段等值**（Codex round-6/7 BLOCKER 分项） | `learning_event_log.py:86-88`（`json.dumps(event_id) in line`） | 若某 `event_id` 的 JSON 串形恰好出现在任意历史行的 payload 文本里，新事件会被误判 duplicate 而**零次落账**（丢一次真实事实）。契约（§二 + §6.2 A4.5）已冻结为 **parsed-field equality**；这是**修正错误实现**而非改幂等语义，不触发 §一的 v2 升版条款。**移交 G3-2**（其新写点必须用 parsed 查重；既有 `append_event` 本体的修正随之进行） |
+| **bridge 时间口径三项**（Codex round-5 HIGH#1） | `fsrs_bridge.py:50 _aware()` / `:55 _iso()` | ①`_aware()` 只补 tzinfo 不做 `astimezone(UTC)`——把校验器判定合法的 `12:00:00+08:00` 传给真实库会抛 `ValueError: datetime must be timezone-aware and set to UTC`（round-5 只读复算实测）；②naive 串被静默当 UTC；③`_iso()` 截掉小数秒。契约 A6 已冻结"三者同一瞬间且统一 UTC"；**移交 G3-2**（接入复习写路径时一并修） |
 | docstring/注释写"8 类"，实际白名单 9 类 | `learning_event_log.py:11`（"限 8 类核心动作"）、:73（"8 类白名单"） | `callout_ingested` 2026-07-23 入集后注释未同步。本卡边界不动该文件；移交 G3-2 顺手修注释（一行，无行为变化） |
+| **canonical reducer 的精度常量与序列化 bytes 未冻结**（Codex round-7 HIGH 部分） | §6.2 degraded 解冻条款 | 本卡已冻结**方向**（逐事件持久化舍入，禁末尾舍入；实测差异 10.9711 vs 10.9710 在案），但"精度常量、`round` tie 语义、序列化规则、bridge blob hash"依赖 G3-2 落地时的真实写出实现——**移交 G3-2**：实现落地时把这些常量与 blob hash 一并锁进测试，届时本条方可闭合 |
 | v2 卡"backend 4 写点"计数 | 总账 v2 G3-1 档案节 | 实为 5 调用点，见 §五勘误 |
 | **tips 写点把 IO 失败误报为 duplicate 并中止管道**（Codex round-1 HIGH） | `tips.py:572-578` | `append_event` 返回 `False` 折叠两义（§二），tips 消费者按 duplicate 分支返回 `accepted=False`——IO 失败时 callout 被错误拒收且"不阻断主链"不成立。生产路径修复不在本卡；**移交独立 micro-patch**（⚠️ G3-7 卡面只含 `/review/record`、`/fsrs-state`、mastery grade 三条路径，**不含 tips**——不可默认由其顺带收，Codex round-2 指出） |
 | **tips 入口可产出 naive `effective_at`**（Codex round-1 HIGH） | `tips.py:510`（`CalloutDirectRequest.added_at` 接受 naive datetime）→ `:570` `isoformat()` 落账 | 违反 §三 tz-aware 契约的**潜在 producer 缺陷**（现网 22 行未命中——实际调用方都传了 tz-aware）。校验器会如实抓出此类行。生产路径修复不在本卡；**移交独立 micro-patch**（与上条同 owner），修法 = schema 层 `AwareDatetime` 或入口归一化 UTC |

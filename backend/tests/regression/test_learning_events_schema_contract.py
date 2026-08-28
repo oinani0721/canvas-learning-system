@@ -613,47 +613,81 @@ def test_classify_card_state_matrix():
         assert got == expected, f"{fields} → {got} ({reason}), 期望 {expected}"
 
 
-def test_schedulable_time_upper_bound():
-    """A7 (Codex round-6 MEDIUM): 调度会叠加最长 36500 天 + A3 等时 +1s,
-    9999 年这类值会让二者都 OverflowError — 契约上界机械强制。"""
+def test_stability_has_no_maximum_interval_ceiling():
+    """Codex round-7 HIGH: 早前把 maximum_interval=36500 当 stability 上界是
+    **本方引入的误报** — FSRS 封顶的是 interval 不是 stability。真实连续
+    Easy 链 7 次后 S=68949 > 36500, 合法卡曾被误判 degraded。"""
+    got, reason = validator.classify_card_state(_fsrs_fields(fsrs_stability=68949.18))
+    assert got == "normal", f"高 stability 合法卡不得判 degraded: {reason}"
+    # 但 0 与负数仍非法 (调度器 ZeroDivisionError)
+    assert validator.classify_card_state(_fsrs_fields(fsrs_stability=0))[0] == "degraded"
+    assert validator.classify_card_state(_fsrs_fields(fsrs_stability=-1.0))[0] == "degraded"
+    # difficulty 的 [1,10] 定义域仍生效
+    assert validator.classify_card_state(_fsrs_fields(fsrs_difficulty=10.5))[0] == "degraded"
+
+
+def test_integer_fields_use_int_lexeme():
+    """Codex round-7 HIGH: float() 判整数会让 `fsrs_state: "1.0"` 通过, 而
+    真实 bridge 的 int("1.0") 抛 ValueError (fsrs_bridge.py:106)。"""
+    assert validator.classify_card_state(_fsrs_fields(fsrs_state="1.0"))[0] == "degraded"
+    assert validator.classify_card_state(_fsrs_fields(fsrs_state=2.0))[0] == "degraded"
+    assert validator.classify_card_state(_fsrs_fields(fsrs_state="2"))[0] == "normal"
+    assert validator.classify_card_state(_fsrs_fields(fsrs_state=3, fsrs_step="0.0"))[0] == "degraded"
+    assert validator.classify_card_state(_fsrs_fields(fsrs_state=3, fsrs_step="0"))[0] == "normal"
+
+
+def test_a7_bounds_are_tiered():
+    """Codex round-7 MEDIUM: 把 review 输入上界通用到所有字段, 会让合法
+    review_time=9000 产出的 due=9000-01-09 反被判 degraded。"""
+    # review 输入上界 9000
+    assert validator._parse_ts("9000-01-01T00:00:01Z", upper_bound=validator.REVIEW_INPUT_MAX)[0] is False
+    assert validator._parse_ts("8999-12-31T23:59:59Z", upper_bound=validator.REVIEW_INPUT_MAX)[0] is True
+    # 一般时间戳上界更宽 — due=9000-01-09 必须受理
+    assert validator._parse_ts("9000-01-09T00:00:00Z")[0] is True
+    assert validator._parse_ts("9499-12-31T23:59:59Z")[0] is True
     assert validator._parse_ts("9999-12-31T23:59:59Z")[0] is False
-    assert validator._parse_ts("9000-01-01T00:00:01Z")[0] is False
-    assert validator._parse_ts("8999-12-31T23:59:59Z")[0] is True
+    # 三态判别对该 due 不得误判
+    got, reason = validator.classify_card_state(_fsrs_fields(fsrs_due="9000-01-09T00:00:00Z"))
+    assert got == "normal", reason
+
+
+def test_schedulable_time_upper_bound():
+    """A7 (round-6 MEDIUM, round-7 分档): 一般时间戳只拦 UTC 归一化本身会
+    溢出的极端值; review 输入的更保守上界见 test_a7_bounds_are_tiered。"""
+    assert validator._parse_ts("9999-12-31T23:59:59Z")[0] is False
     assert validator._parse_ts("2026-08-01T10:00:00Z")[0] is True
+    assert validator._parse_ts("9000-01-01T00:00:01Z", upper_bound=validator.REVIEW_INPUT_MAX)[0] is False
 
 
 def test_vault_config_parser_form_matrix(tmp_path):
-    """`.canvas-config.yaml` 的 vault_id 最小行解析形态矩阵 (stdlib, 不引
-    PyYAML)。锁死 11 种形态的判定, 防正则改动时静默放宽/收窄。
+    """`.canvas-config.yaml` 的 vault_id **极简可证**解析形态矩阵。
 
-    关键: 缩进/嵌套/注释行不得匹配 (它们不是顶层 vault_id), 重复键取首个
-    (与 YAML 'duplicate key' 的常见实现相反, 故显式锁定为已知口径)。
+    round-7 终局决策: 手写 YAML 子集打不赢 (逐行状态机仍会对 plain scalar
+    折行、撇号、键后空格等合法 YAML 错绑) —— 改为只在形态确定无歧义时绑定:
+    ①全文件恰一处行首 vault_id: ②双引号无转义值或安全裸词 ③下一行非缩进。
+    其余一律不绑定 + WARN (**宁可不绑也不错绑**)。
     """
     cases = [
+        # 白名单形态: 绑定
         ('vault_id: "canvas_vault"\n', "canvas_vault"),
-        ("vault_id: 'x1'\n", "x1"),
-        ("vault_id: bare_value\n", "bare_value"),
-        ('vault_id: "x"  # 尾注释\n', "x"),
-        ("vault_id: bare  # 尾注释\n", "bare"),
-        # round-5 HIGH#4 反例组
-        ('vault_id: "team#1"\n', "team#1"),  # 引号内 # 曾被截成 'team'
-        ("vault_id: 'sq#2'\n", "sq#2"),
-        ("vault_id:\nsubject: cs61b\n", None),  # 跨行曾读成 'subject: cs61b'
-        ("vault_id: |\n  block\n", None),  # block scalar 曾读成 '|'
-        ("vault_id: >-\n  folded\n", None),
-        ('vault_id: "unclosed\n', None),  # 未闭引号
-        ('vault_id: "first"\nvault_id: "second"\n', "second"),  # 重复取末项(PyYAML 语义)
-        # round-6 HIGH#3 反例组: 正则白名单仍会对合法 YAML 静默错绑
-        ("vault_id: team#1\n", "team#1"),  # 裸词 # 前无空白 ⇒ 非注释(PyYAML 语义)
-        ('vault_id: "a\\u0023b"\n', None),  # 双引号含转义 ⇒ 无法可靠解码, 放弃绑定
-        ('vault_id: "early"\nvault_id: |\n  block\n', None),  # 末项 block scalar 覆盖早项
-        ('other: "x\nvault_id: fake\nmore"\n', None),  # 多行引号体内的列首 vault_id
-        # 现网形态(多键共存)必须正确绑定
         ('vault_id: "canvas_vault"\nsubject: cs-61b\nvault_display_name: "CS 61B"\n', "canvas_vault"),
+        ("vault_id: canvas_vault\n", "canvas_vault"),
+        ('vault_id: "中文库"\n', "中文库"),
+        ("vault_id: vault-2.0_x\n", "vault-2.0_x"),
+        # round-7 反例: 合法 YAML 但形态有歧义 ⇒ 保守不绑
+        ("vault_id: first\n  second\n", None),  # plain scalar 折行 (PyYAML="first second")
+        ("vault_id: old\ndescription: it's fine\nvault_id: new\n", None),  # 撇号 + 重复键
+        ("vault_id : second\n", None),  # 键后空格 (PyYAML 合法键)
+        # 早前各轮反例: 一律不绑
+        ('vault_id: "a"\nvault_id: "b"\n', None),  # 重复键
+        ("vault_id: team#1\n", None),  # 含 # (裸词字符集外, 保守收窄)
+        ('vault_id: "a\\u0023b"\n', None),  # 含转义
+        ("vault_id: |\n  block\n", None),
+        ("vault_id: >-\n  folded\n", None),
+        ('vault_id: "unclosed\n', None),
         ('  vault_id: "indented"\n', None),
         ('other:\n  vault_id: "nested"\n', None),
         ('VAULT_ID: "upper"\n', None),
-        ('vault_id: "中文库"\n', "中文库"),
         ("vault_id:\n", None),
         ('# vault_id: "commented"\n', None),
     ]

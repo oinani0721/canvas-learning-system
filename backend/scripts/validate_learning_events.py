@@ -130,7 +130,7 @@ _SUBSECOND_RE = re.compile(r"^\d{4}-\d{2}-\d{2}[Tt ]\d{2}:\d{2}:\d{2}\.\d+")
 _WHOLE_SECOND_RE = re.compile(r"^\d{4}-\d{2}-\d{2}[Tt ]\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:[0-5]\d)$")
 
 
-def _parse_ts(value: object) -> tuple[bool, str]:
+def _parse_ts(value: object, upper_bound: Optional[datetime] = None) -> tuple[bool, str]:
     """扩展格式 ISO-8601 datetime 且 timezone-aware → (True, ''); 否则 (False, 原因)。
 
     受理语法 (§三, 白名单正则): YYYY-MM-DD[Tt ]HH:MM[:SS[.f+]](Z|±HH:[0-5]M)。
@@ -153,19 +153,30 @@ def _parse_ts(value: object) -> tuple[bool, str]:
         normalized = parsed.astimezone(timezone.utc)
     except (OverflowError, OSError, ValueError):
         return False, f"UTC 归一化越界 (下游 astimezone 会溢出): {value!r}"
-    if normalized > SCHEDULABLE_MAX:
-        # A7 (round-6 MEDIUM): 调度会叠加最长 36500 天 + A3 等时 +1s,
-        # 9999 年这类值会让二者都 OverflowError
-        return False, f"超出 A7 可调度时间上界 {SCHEDULABLE_MAX.date()} : {value!r}"
+    if normalized > (upper_bound or TIMESTAMP_MAX):
+        # A7 (round-6 MEDIUM, round-7 分档): review 输入用更保守的
+        # REVIEW_INPUT_MAX (调度还要叠加 interval + A3 的 +1s);
+        # 一般时间戳只拦 UTC 归一化本身会溢出的极端值
+        bound = upper_bound or TIMESTAMP_MAX
+        return False, f"超出 A7 时间上界 {bound.date()} : {value!r}"
     return True, ""
 
 
-#: A7 可调度时间上界 (round-6 MEDIUM): 真实调度会在此之上叠加最长
-#: maximum_interval=36500 天, A3 等时消解还要 +1s — 9999 年会 OverflowError
-SCHEDULABLE_MAX = datetime(9000, 1, 1, tzinfo=timezone.utc)
-#: 可调度数值域 (§6.2 三态): stability 上界 = maximum_interval 天; difficulty 定义域
-STABILITY_RANGE = (0.0, 36500.0)
+#: A7 上界分两档 (round-7 MEDIUM: 原实现把一个上界通用到所有时间字段,
+#: 导致合法 review_time=9000 产出的 due=9000-01-09 反被判 degraded)
+#: ① review 输入上界 — 调度会在其上叠加 interval, A3 还要 +1s
+REVIEW_INPUT_MAX = datetime(9000, 1, 1, tzinfo=timezone.utc)
+#: ② 一般时间戳上界 (recorded_at/effective_at/fsrs_due 等) — 只拦 UTC
+#: 归一化本身会溢出的极端值, 不施加 review 输入的保守上界
+TIMESTAMP_MAX = datetime(9500, 1, 1, tzinfo=timezone.utc)
+#: 可调度数值域 (§6.2 三态)。
+#: ⚠️ round-7: stability **无 36500 上界** — FSRS 封顶的是 interval 不是
+#: stability (实测连续 7 次 Easy 后 S=68949 > 36500, 原规则会误报合法卡)。
+#: 只要求有限正数; difficulty 才有 FSRS 定义域 [1,10]。
 DIFFICULTY_RANGE = (1.0, 10.0)
+#: 纯整数词法 (round-7: float() 判整数会让 "1.0" 通过, 而 bridge 的
+#: int("1.0") 实测抛 ValueError)
+_INT_LEXEME_RE = re.compile(r"^[+-]?\d+$")
 
 
 def _finite_number(value: object) -> Optional[float]:
@@ -182,6 +193,21 @@ def _finite_number(value: object) -> Optional[float]:
     else:
         return None
     return number if math.isfinite(number) else None
+
+
+def _int_lexeme(value: object) -> Optional[int]:
+    """纯整数 (int 本身, 或 ^[+-]?\\d+$ 的字符串) → int; 否则 None。
+
+    round-7: 用 float() 判整数会让 `fsrs_state: 1.0` 通过, 而真实 bridge
+    的 `int(fields.get("fsrs_state", 1))` 对 "1.0" 抛 ValueError。
+    """
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and _INT_LEXEME_RE.match(value.strip()):
+        return int(value.strip())
+    return None
 
 
 def classify_card_state(fields: dict) -> tuple[str, str]:
@@ -206,25 +232,27 @@ def classify_card_state(fields: dict) -> tuple[str, str]:
             return "degraded", f"{key} 不可解析: {why}"
 
     raw_state = present.get("fsrs_state")
-    state = _finite_number(raw_state)
-    if state is None or state != int(state) or int(state) not in (1, 2, 3):
-        return "degraded", f"fsrs_state 须为 1/2/3, 实为 {raw_state!r} (0 属 legacy 迁移分支)"
-    state = int(state)
+    state = _int_lexeme(raw_state)
+    if state is None or state not in (1, 2, 3):
+        return "degraded", (
+            f"fsrs_state 须为整数 1/2/3 (纯整数词法), 实为 {raw_state!r} "
+            "— '1.0' 这类写法 bridge 的 int() 会抛 ValueError; 0 属 legacy 迁移分支"
+        )
 
     step = present.get("fsrs_step")
     stability = _finite_number(present.get("fsrs_stability"))
     difficulty = _finite_number(present.get("fsrs_difficulty"))
-    step_number = _finite_number(step)
+    step_number = _int_lexeme(step)
     has_step = step is not None and str(step).strip() != ""
-    step_ok = step_number is not None and step_number == int(step_number) and step_number >= 0
+    step_ok = step_number is not None and step_number >= 0
 
     def _domain_ok() -> Optional[str]:
         if stability is None or difficulty is None:
             return "stability/difficulty 缺失或非有限数"
-        if not STABILITY_RANGE[0] < stability <= STABILITY_RANGE[1]:
-            return f"stability {stability} 越出可调度域 {STABILITY_RANGE}"
+        if stability <= 0:
+            return f"stability {stability} 须为正数 (0 会让调度器 ZeroDivisionError)"
         if not DIFFICULTY_RANGE[0] <= difficulty <= DIFFICULTY_RANGE[1]:
-            return f"difficulty {difficulty} 越出定义域 {DIFFICULTY_RANGE}"
+            return f"difficulty {difficulty} 越出 FSRS 定义域 {DIFFICULTY_RANGE}"
         return None
 
     if state == 1:  # Learning: step 必需; S/D 要么同缺要么同在域内
@@ -313,88 +341,25 @@ def _golden_manifest() -> Optional[dict]:
     return data
 
 
-class _AmbiguousConfig(Exception):
-    """配置形态超出保守解析能力 — 必须放弃绑定而非猜测。"""
-
-
-def _scan_vault_id(text: str) -> Optional[str]:
-    """逐行扫描顶层 `vault_id:`，返回**最后一个**可确定值 (PyYAML duplicate 语义)。
-
-    round-6 HIGH#3 整改: 纯正则会对合法 YAML 静默错绑 —
-      - 裸词 `team#1`: `#` 前无空白时 PyYAML 不视为注释, 原实现截成 `team`;
-      - 双引号内 `\\u0023` 等转义: 无法可靠解码 ⇒ 放弃绑定;
-      - 早先单行值后跟同名 block scalar: PyYAML 取末项, 原实现退回早项;
-      - 多行引号内容里的列首 `vault_id:` 会被误认成顶层键。
-    策略: 跟踪"是否处于多行标量/跨行引号内"; 任何**无法确定**的形态一律
-    抛 _AmbiguousConfig → 调用方返回 None + WARN (宁可不绑也不错绑)。
-    """
-    found: Optional[str] = None
-    lines = text.splitlines()
-    index = 0
-    open_quote: Optional[str] = None  # 跨行引号跟踪 (round-6: 多行引号体内的
-    # 列首 `vault_id:` 曾被误认成顶层键)
-    while index < len(lines):
-        line = lines[index]
-        index += 1
-
-        if open_quote is not None:
-            # 处于跨行引号体内: 只找闭合引号, 该行的任何 `vault_id:` 都不是顶层键
-            close = line.find(open_quote)
-            if close >= 0:
-                open_quote = None
-            continue
-
-        if not line.startswith("vault_id:"):
-            # 非顶层 vault_id 行: 若出现奇数个某种引号, 说明值跨行延续 —
-            # 后续行进入"引号体"模式 (保守: 宁可漏绑也不把引号体内的
-            # 列首 vault_id 误认成顶层键)
-            for quote in ('"', "'"):
-                if line.count(quote) % 2 == 1:
-                    open_quote = quote
-                    break
-            continue
-        rest = line[len("vault_id:") :]
-        stripped = rest.strip()
-
-        if not stripped or stripped.startswith("#"):
-            # 空值或纯注释: 下一行若是缩进内容 ⇒ 是多行结构, 无法确定
-            if index < len(lines) and lines[index][:1] in (" ", "\t"):
-                raise _AmbiguousConfig("vault_id 后跟缩进内容 (多行结构)")
-            found = None
-            continue
-
-        if stripped[0] in "|>":  # block / folded scalar
-            raise _AmbiguousConfig("vault_id 使用 block/folded scalar")
-
-        if stripped[0] in "\"'":
-            quote = stripped[0]
-            body = stripped[1:]
-            end = body.find(quote)
-            if end < 0:
-                raise _AmbiguousConfig("未闭合引号 (值可能跨行)")
-            value = body[:end]
-            trailer = body[end + 1 :].strip()
-            if trailer and not trailer.startswith("#"):
-                raise _AmbiguousConfig(f"引号值后有非注释内容: {trailer!r}")
-            if quote == '"' and "\\" in value:
-                raise _AmbiguousConfig("双引号值含转义序列, 无法可靠解码")
-            found = value
-            continue
-
-        # 裸词: `#` 只有在**前面有空白**时才是注释起点 (YAML 规则)
-        comment = re.search(r"\s#", stripped)
-        value = (stripped[: comment.start()] if comment else stripped).rstrip()
-        if any(ch in value for ch in "\"'{}[],&*!%@`"):
-            raise _AmbiguousConfig(f"裸词值含 YAML 指示符: {value!r}")
-        found = value or None
-    return found
+#: 极简可证形态 (round-7 终局决策): 逐行状态机仍会对合法 YAML 错绑
+#: (plain scalar 折行 `vault_id: first` + 缩进续行, PyYAML 真值是
+#: "first second"; `description: it's fine` 的撇号被当跨行引号起点)。
+#: 手写 YAML 子集打不赢, 改为**只在形态确定无歧义时绑定**, 其余不绑定 + WARN:
+#:   (1) 全文件恰有一处行首 `vault_id:`;
+#:   (2) 该行是 `vault_id: "<无转义无换行>"` 或 `vault_id: <安全裸词>`;
+#:   (3) 下一行不是缩进行 (排除 plain scalar 折行续接)。
+#: 代价: `vault_id: team#1` 等形态退化为不绑定 (保守: 失一层防护 != 错绑),
+#: 且 vault_id 本就是文件名安全 slug, 现网与部署模板均落在白名单形态内。
+_VAULT_ID_LINE_RE = re.compile(r"^vault_id:", re.MULTILINE)
+_VAULT_ID_SIMPLE_DQ = re.compile(r'^vault_id:[ \t]+"([^"\\\n]+)"[ \t]*$')
+_VAULT_ID_SIMPLE_BARE = re.compile(r"^vault_id:[ \t]+([A-Za-z0-9_.\-]+)[ \t]*$")
 
 
 def _vault_id_of(ledger_path: Path) -> Optional[str]:
     """账本所在 vault 的声明 vault_id (同目录 .canvas-config.yaml)。
 
-    保守解析 (见 _scan_vault_id): 任何无法确定的形态、非法 UTF-8、读失败
-    → None, 调用方降级为不绑定 + WARN。
+    极简可证解析 (见上方常量注释): 形态不完全确定时返回 None, 调用方降级
+    为不绑定 + WARN —— **宁可不绑也不错绑**。
     """
     config = ledger_path.parent / ".canvas-config.yaml"
     if not config.is_file():
@@ -403,11 +368,23 @@ def _vault_id_of(ledger_path: Path) -> Optional[str]:
         text = config.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return None
-    try:
-        value = _scan_vault_id(text)
-    except _AmbiguousConfig:
-        return None
-    return value.strip() if isinstance(value, str) and value.strip() else None
+
+    if len(_VAULT_ID_LINE_RE.findall(text)) != 1:
+        return None  # 0 处 = 未声明; 2+ 处 = 无法可靠判定末项语义
+
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        if not line.startswith("vault_id:"):
+            continue
+        # 下一行缩进 => plain scalar 折行续接, 值不止本行
+        if index + 1 < len(lines) and lines[index + 1][:1] in (" ", "\t"):
+            return None
+        for pattern in (_VAULT_ID_SIMPLE_DQ, _VAULT_ID_SIMPLE_BARE):
+            match = pattern.match(line)
+            if match:
+                return match.group(1) or None
+        return None  # 形态不在白名单内
+    return None
 
 
 def _rating_from_grade_norm(grade_norm: float) -> int:
@@ -460,7 +437,7 @@ def _validate_review_ext(
         )
 
     review_time = payload.get("review_time")
-    ok, why = _parse_ts(review_time)
+    ok, why = _parse_ts(review_time, upper_bound=REVIEW_INPUT_MAX)
     if not ok:
         problems.append(f"扩展键 review_time {why}")
     else:

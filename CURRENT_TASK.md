@@ -2,22 +2,22 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**本车道状态**（2026-08-28 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **双卡 Codex 六轮整改后待验收；G3-4 已判 CONFIRMED-CLOSED**）:
-- ✅ CARD-G3-4（`a8bab73c` + 各轮整改）：**六轮终裁 CONFIRMED-CLOSED**——"在声明范围内未发现可保持
-  13/13 全绿的语义级漂移"。十门 13 passed；六轮 LOW（at point 子键集）已补
-- ✅ CARD-G3-1（`63e034ec` + 整改 `4de42f69`/`e3337504`/`60568d9c`/`026d0735` + 六轮整改待提交）：
-  契约测试 **44 passed + 1 skipped**。六轮共 2B+19H+21M 全处置。§6.2 现为
-  **A1-A7 七条**（write-ahead / 恢复先于新写 / 严格递增 / **并发五条**（稳定 sidecar 锁+fencing epoch+
-  死亡证明 · 唯一折叠基线 · 完整 fsync · 原子发布 · 账本锁内 **parsed-field 查重**+校验落盘字节+
-  **duplicate 三态门**）/ 整秒 / 调度器入参 UTC / **可调度时间上界 9000 年**）；三态按 state 精确冻结
-  且落成**可执行函数** `classify_card_state()`；degraded 解冻绑定 **canonical reducer（逐事件舍入）**
-  与逐项 proof；vault_id 解析改**逐行状态机**（23 形态矩阵，含跨行引号体）
-- ⛔ 移交：①test.yml 白名单 +2 测试 + root requirements paths（S8 独占；**CI DEFERRED/NOT-EXECUTED**）；
-  ②tips.py 两条 + bridge 三条生产缺陷 → G3-2/独立 micro-patch；③**G3-3 七项**（sidecar 锁+崩溃回收、
-  fencing epoch+死亡证明、per-vault 账本锁内 parsed 查重与落盘字节校验、锁内重读 W 按 A3 推进后重算、
-  完整 fsync 序列、只做增量重放、duplicate 三态门）——其卡面属编排 worktree，本卡无权改
-- 纪律守住：learning_event_log.py/fsrs_manager.py 及全部 in-flight 锁定文件零改动（六轮 blob 复核在案）；不 push
-- 待办：六轮整改提交（第七笔）→ Codex 七轮复核 → 用户验收两单
+**本车道状态**（2026-08-28 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **双卡 Codex 七轮整改后待验收；G3-4 已 CONFIRMED-CLOSED**）:
+- ✅ CARD-G3-4：**六/七轮均判 CONFIRMED-CLOSED**——十门 13 passed，声明范围内无语义级漂移可全绿
+- ✅ CARD-G3-1（`63e034ec` + 六笔整改 + 七轮整改待提交）：契约测试 **47 passed + 1 skipped**，
+  三文件合跑 **66 passed + 1 skipped**。七轮共 2B+26H+30M 全处置。本轮要点：
+  **duplicate 等价面扩为语义 envelope**（同 ID 同 payload 但 scored/abandoned 相反事实曾误判 no-op）、
+  **conditional takeover CAS**（陈旧死亡证明可覆盖新 owner）、**stability 去 36500 上界**
+  （本方引入的误报：真实 Easy 链 S=68949 被误判 degraded）、**整数纯词法**（`"1.0"` 使 bridge `int()` 抛错）、
+  **A7 上界分两档**（review 输入 9000 / 一般时间戳 9500，否则合法 due 反被判 degraded）、
+  **vault_id 改极简可证策略**（放弃解析 YAML 子集——手写子集打不赢；19 形态矩阵，宁可不绑不错绑）
+- ⛔ 移交（schema §九 逐条登记）：①test.yml 白名单 +2 测试 + root requirements paths（S8 独占；
+  **CI DEFERRED/NOT-EXECUTED**）；②**G3-2 四项**：parsed 查重修正、bridge 时间口径三项、
+  docstring 9 类、canonical reducer 精度常量与 blob hash 冻结；③**G3-3 七项**（sidecar 锁+CAS 接管、
+  per-vault 账本锁内查重与落盘校验、锁内重读 W、完整 fsync、增量重放、duplicate envelope 门）；
+  ④tips.py 两条 → 独立 micro-patch
+- 纪律守住：learning_event_log.py/fsrs_manager.py 及全部 in-flight 锁定文件零改动（七轮 blob 复核在案）；不 push
+- 待办：七轮整改提交（第八笔）→ Codex 八轮复核 → 用户验收两单
 
 ---
 

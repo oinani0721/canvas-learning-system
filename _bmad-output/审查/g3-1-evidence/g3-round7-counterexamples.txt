@@ -1,0 +1,51 @@
+== Codex round-7 点名反例的对抗复验 ==
+date: 2026-08-28T15:20:50Z
+validator sha256:     08ce19e49854604f08223536ca51fc0f4bcf237e6230123c7b0b32a96c390cf1
+contract test sha256: d75c46996df9906b174ab0e3fb06ba6e68a624dd8111a8716df30f1d5390c537
+
+--- [R7-1 BLOCKER] duplicate 等价面: 同 event_id + 同 payload + 不同 event_type ---
+  (round-7 实测两条均零违规 → 旧规则会误判 no-op, 而两者是相反的事实)
+  处置: 契约 §6.2 A4.5 等价面扩为 envelope {event_version,event_type,node_id,effective_at,payload}
+  验证契约文本已含该条:
+    envelope 条款出现次数: 1
+
+--- [R7-2 BLOCKER] fencing 接管未与 epoch/owner 原子绑定 ---
+  处置: 契约冻结 conditional takeover (CAS): 当且仅当锁内容仍等于观察到的 {epoch,owner} 时原子写入 {epoch+1,self}
+    CAS 条款出现次数: 1
+
+--- [R7-3 HIGH] stability 上界误报 (本方引入的缺陷) ---
+  OK S=68949.18     → normal    (期望 normal)
+  OK S=36547.34     → normal    (期望 normal)
+  OK S=0            → degraded  (期望 degraded)
+  OK S=-1.0         → degraded  (期望 degraded)
+
+--- [R7-4 HIGH] 整数词法: fsrs_state='1.0' (bridge int('1.0') 抛 ValueError) ---
+  OK fsrs_state='1.0'    → degraded  (期望 degraded) 字符串 '1.0'
+  OK fsrs_state=2.0      → degraded  (期望 degraded) float 2.0
+  OK fsrs_state='2'      → normal    (期望 normal) 字符串 '2'
+  OK fsrs_state=2        → normal    (期望 normal) int 2
+  OK  真实 int('1.0') 抛 ValueError: invalid literal for int() with base 10: '1.0'
+
+--- [R7-5 MEDIUM] A7 分档: review 输入 9000 上界 vs 一般时间戳更宽 ---
+  review_time 9000-01-01T00:00:01Z: False (期望 False)
+  due        9000-01-09T00:00:00Z: True (期望 True — 旧实现会误判)
+  三态对该 due: normal (期望 normal)
+
+--- [R7-6 HIGH] vault_id 解析三反例 ---
+  !! plain scalar 折行 (PyYAML='first second')      got='first' expect=None
+  !! 撇号误当引号起点 → 曾返回 old                           got='old' expect=None
+  OK 键后空格 (PyYAML 合法键)                            got=None expect=None
+  OK 现网形态                                         got='canvas_vault' expect='canvas_vault'
+
+--- [R7-6 重做] vault_id 极简可证解析 (round-7 三反例 + 现网) ---
+  OK plain scalar 折行 (PyYAML='first second')      got=None expect=None
+  OK 撇号 + 重复键 (曾返回 old)                           got=None expect=None
+  OK 键后空格 (PyYAML 合法键)                            got=None expect=None
+  OK 现网形态                                         got='canvas_vault' expect='canvas_vault'
+  OK 安全裸词                                         got='canvas_vault' expect='canvas_vault'
+  真实现网: 'canvas_vault'
+
+--- 终态: 三文件合跑 + 现网账本 ---
+================== 66 passed, 1 skipped, 10 warnings in 2.91s ==================
+RESULT: PASS — schema v1 合规 (/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/learning_events.jsonl)
+  live-exit=0
