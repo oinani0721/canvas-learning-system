@@ -2,18 +2,18 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**本车道状态**（2026-08-27 · 分支 `card/n5-split` · BATCH-2026-08-27-第四批 车道 5 · **G5-1 + G5-2 双卡 v3（Codex 三/四轮对抗后）待验收**）:
-- ✅ CARD-G5-1 触发矩阵 v3：矩阵文档（15 正例含 5 用户逐字 + 10 负例 + 语料覆盖自陈 + §三 待拍板 + **§五 登记簿 4 条**）
-  + checker v3 9/9（real_floor 代码锚+归属锚语义分类；18 类变异负控全抓）+ headless 三轮全量重放（judge v3：
-  sidecar 绑定/终局唯一/manifest 含 .claude/skills）：**⛔ N4「回顾一下+板名」无斜杠存档 2 采样 1 次真触发 board-recap**
-  （最重要发现，直接喂 §三 拍板）+ N6 误触发全局 study-plan（2/2 复现）+ N2 代行写侧 + B2 形式化漂移（存档 5 份 2/3）
-- ✅ CARD-G5-2 拆分 preview 引擎 v3：split_preview.py（写侧物理 fail-closed 次序修正+单FD / 目录级 symlink containment /
-  slug JS空白集+UTF-16 边界+偏差5声明）+ 裁判 34 条四轮先红后绿（含剥离反事实常驻测试）+ live 全 324 文件全字段
-  基线零净差异（set -x 回放+引擎字节绑定, `审查/g5-2-evidence/`）
-- Codex：G5-1 三轮（1 轮 3B+4H → 2 轮复核 → 3 轮终核）；G5-2 四轮（cyber误拦→6H→复核→终核）全存档
-- 验收单：`验收单/UAT-CARD-G5-{1,2}-*.md`；**不 push**
-- ⛔ 待用户：①验收两单 ②拍板 R8 口令取舍（G5-8 前必裁, N4 实证必读）③语料覆盖自陈口径认可（C/D 类无真实触发语,
-  总账「各≥3 真实正例」硬门 vs 语料实况的裁决权在用户）④outputs/ 测试产物未入 commit
+**本车道状态**（2026-08-28 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **双卡 Codex 一轮整改后待验收**）:
+- ✅ CARD-G3-1 事件账收敛（一轮 1B+6H 全处置）：D0 修订 + schema v1 冻结（§6.2 applied-watermark
+  恢复状态机补齐 BLOCKER）+ 严格校验器（NaN/重复键/UTF-8/分隔符/前向兼容真跳过/schema_ext 扩展键强校验）
+  + 契约测试 **25 passed + 1 skipped**（含 SKILL.md 逐字提取的真实 producer 执行 ×3 + append_event ×1）
+  + 现网账本（主仓 22 行）exit 0 SHA-bound 存证；写点普查 8 处现行号；tips 两条 producer 偏离登记 §九移交
+- ✅ CARD-G3-4 golden vectors（一轮 1B+2H 处置：B=CI 接入受 S8 独占**移交**）：fsrs 6.3.1 真库
+  20 向量+3 曲线点、七门 **11 passed**（矩阵结构锁/元数据字面锁/容差上限锁/严格 requirements 解析）、
+  负验证 v2 八变体全红留档（N3 恰 3 门红）、核心 fsrs 六文件 91 passed 复跑 + 扩面 100 passed 零回归
+- ⛔ 移交：test.yml 白名单 +2 测试文件 + root requirements paths（S8 独占 .github/workflows/）；
+  tips.py False 折叠误报 duplicate + naive added_at 两条生产缺陷（→G3-7/micro-patch）
+- 纪律守住：learning_event_log.py/fsrs_manager.py 及全部 in-flight 锁定文件零改动（diff 证据在案）；不 push
+- 待办：两卡分开 commit（G3-1 先、G3-4 后，diff 单卡可切）→ Codex 二轮复核 → 用户验收两单
 
 ---
 

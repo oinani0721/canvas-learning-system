@@ -65,7 +65,9 @@ graphdatascience>=1.9.0    # Neo4j Graph Data Science Python客户端 (Trust Sco
 # ===========================
 # Story 12.4: Temporal Memory依赖 (Epic 12)
 # ===========================
-fsrs>=6.0.0,<7.0.0          # FSRS-6算法 — Scheduler类(6.0重命名自FSRS类)
+fsrs==6.3.1                 # FSRS-6算法 — Scheduler类(6.0重命名自FSRS类)
+                            # ⛔ 精确钉版 (CARD-G3-4): golden vectors 防漂移门绑定此版本;
+                            # 升级须重跑 backend/scripts/generate_fsrs_golden_vectors.py 评审重冻结
                             # ✅ Verified from PyPI: fsrs (Free Spaced Repetition Scheduler)
                             # 用于TemporalMemory类的学习行为追踪和FSRS遗忘曲线
 

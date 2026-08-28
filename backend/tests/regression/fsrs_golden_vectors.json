@@ -1,0 +1,568 @@
+{
+  "library_version": "6.3.1",
+  "params_hash": "7b28ae29ac876981a7fca1424772214c7a4d9884439efd678ecb60e615b00342",
+  "retrievability": {
+    "at": [
+      {
+        "current_datetime": "2026-01-03T00:10:00+00:00",
+        "expected": 0.9094932559773545
+      },
+      {
+        "current_datetime": "2026-01-10T00:10:00+00:00",
+        "expected": 0.7845130365557722
+      },
+      {
+        "current_datetime": "2026-02-02T00:10:00+00:00",
+        "expected": 0.6613805891567082
+      }
+    ],
+    "card": {
+      "difficulty": 2.111214235785395,
+      "due": "2026-01-03T00:10:00+00:00",
+      "last_review": "2026-01-01T00:10:00+00:00",
+      "stability": 2.3065,
+      "state": 2,
+      "step": null
+    },
+    "steps": [
+      {
+        "rating": "good",
+        "review_at": "2026-01-01T00:00:00+00:00"
+      },
+      {
+        "rating": "good",
+        "review_at": "2026-01-01T00:10:00+00:00"
+      }
+    ]
+  },
+  "vectors": [
+    {
+      "description": "新卡首评 (state=Learning step=0, stability/difficulty=None)",
+      "expected": {
+        "difficulty": 6.4133,
+        "due": "2026-01-01T00:01:00+00:00",
+        "last_review": "2026-01-01T00:00:00+00:00",
+        "stability": 0.212,
+        "state": 1,
+        "step": 0
+      },
+      "id": "new_card__again",
+      "scenario": "new_card",
+      "state_before_final_review": 1,
+      "steps": [
+        {
+          "rating": "again",
+          "review_at": "2026-01-01T00:00:00+00:00"
+        }
+      ]
+    },
+    {
+      "description": "新卡首评 (state=Learning step=0, stability/difficulty=None)",
+      "expected": {
+        "difficulty": 5.112170705601056,
+        "due": "2026-01-01T00:05:30+00:00",
+        "last_review": "2026-01-01T00:00:00+00:00",
+        "stability": 1.2931,
+        "state": 1,
+        "step": 0
+      },
+      "id": "new_card__hard",
+      "scenario": "new_card",
+      "state_before_final_review": 1,
+      "steps": [
+        {
+          "rating": "hard",
+          "review_at": "2026-01-01T00:00:00+00:00"
+        }
+      ]
+    },
+    {
+      "description": "新卡首评 (state=Learning step=0, stability/difficulty=None)",
+      "expected": {
+        "difficulty": 2.118103970459016,
+        "due": "2026-01-01T00:10:00+00:00",
+        "last_review": "2026-01-01T00:00:00+00:00",
+        "stability": 2.3065,
+        "state": 1,
+        "step": 1
+      },
+      "id": "new_card__good",
+      "scenario": "new_card",
+      "state_before_final_review": 1,
+      "steps": [
+        {
+          "rating": "good",
+          "review_at": "2026-01-01T00:00:00+00:00"
+        }
+      ]
+    },
+    {
+      "description": "新卡首评 (state=Learning step=0, stability/difficulty=None)",
+      "expected": {
+        "difficulty": 1.0,
+        "due": "2026-01-09T00:00:00+00:00",
+        "last_review": "2026-01-01T00:00:00+00:00",
+        "stability": 8.2956,
+        "state": 2,
+        "step": null
+      },
+      "id": "new_card__easy",
+      "scenario": "new_card",
+      "state_before_final_review": 1,
+      "steps": [
+        {
+          "rating": "easy",
+          "review_at": "2026-01-01T00:00:00+00:00"
+        }
+      ]
+    },
+    {
+      "description": "Learning 第二步 (Good@T0 后 10 分钟到期复评)",
+      "expected": {
+        "difficulty": 7.394502741279718,
+        "due": "2026-01-01T00:11:00+00:00",
+        "last_review": "2026-01-01T00:10:00+00:00",
+        "stability": 0.7750839828558984,
+        "state": 1,
+        "step": 0
+      },
+      "id": "learning_step2__again",
+      "scenario": "learning_step2",
+      "state_before_final_review": 1,
+      "steps": [
+        {
+          "rating": "good",
+          "review_at": "2026-01-01T00:00:00+00:00"
+        },
+        {
+          "rating": "again",
+          "review_at": "2026-01-01T00:10:00+00:00"
+        }
+      ]
+    },
+    {
+      "description": "Learning 第二步 (Good@T0 后 10 分钟到期复评)",
+      "expected": {
+        "difficulty": 4.752858488532557,
+        "due": "2026-01-01T00:20:00+00:00",
+        "last_review": "2026-01-01T00:10:00+00:00",
+        "stability": 1.3333787168039835,
+        "state": 1,
+        "step": 1
+      },
+      "id": "learning_step2__hard",
+      "scenario": "learning_step2",
+      "state_before_final_review": 1,
+      "steps": [
+        {
+          "rating": "good",
+          "review_at": "2026-01-01T00:00:00+00:00"
+        },
+        {
+          "rating": "hard",
+          "review_at": "2026-01-01T00:10:00+00:00"
+        }
+      ]
+    },
+    {
+      "description": "Learning 第二步 (Good@T0 后 10 分钟到期复评)",
+      "expected": {
+        "difficulty": 2.111214235785395,
+        "due": "2026-01-03T00:10:00+00:00",
+        "last_review": "2026-01-01T00:10:00+00:00",
+        "stability": 2.3065,
+        "state": 2,
+        "step": null
+      },
+      "id": "learning_step2__good",
+      "scenario": "learning_step2",
+      "state_before_final_review": 1,
+      "steps": [
+        {
+          "rating": "good",
+          "review_at": "2026-01-01T00:00:00+00:00"
+        },
+        {
+          "rating": "good",
+          "review_at": "2026-01-01T00:10:00+00:00"
+        }
+      ]
+    },
+    {
+      "description": "Learning 第二步 (Good@T0 后 10 分钟到期复评)",
+      "expected": {
+        "difficulty": 1.0,
+        "due": "2026-01-05T00:10:00+00:00",
+        "last_review": "2026-01-01T00:10:00+00:00",
+        "stability": 3.946054067969477,
+        "state": 2,
+        "step": null
+      },
+      "id": "learning_step2__easy",
+      "scenario": "learning_step2",
+      "state_before_final_review": 1,
+      "steps": [
+        {
+          "rating": "good",
+          "review_at": "2026-01-01T00:00:00+00:00"
+        },
+        {
+          "rating": "easy",
+          "review_at": "2026-01-01T00:10:00+00:00"
+        }
+      ]
+    },
+    {
+      "description": "Review 态准时复评 (两次 Good 毕业后恰于到期日复评)",
+      "expected": {
+        "difficulty": 7.392238132342694,
+        "due": "2026-01-03T00:20:00+00:00",
+        "last_review": "2026-01-03T00:10:00+00:00",
+        "stability": 0.6077016626638644,
+        "state": 3,
+        "step": 0
+      },
+      "id": "review_ontime__again",
+      "scenario": "review_ontime",
+      "state_before_final_review": 2,
+      "steps": [
+        {
+          "rating": "good",
+          "review_at": "2026-01-01T00:00:00+00:00"
+        },
+        {
+          "rating": "good",
+          "review_at": "2026-01-01T00:10:00+00:00"
+        },
+        {
+          "rating": "again",
+          "review_at": "2026-01-03T00:10:00+00:00"
+        }
+      ]
+    },
+    {
+      "description": "Review 态准时复评 (两次 Good 毕业后恰于到期日复评)",
+      "expected": {
+        "difficulty": 4.748284761594571,
+        "due": "2026-01-11T00:10:00+00:00",
+        "last_review": "2026-01-03T00:10:00+00:00",
+        "stability": 7.517359325415191,
+        "state": 2,
+        "step": null
+      },
+      "id": "review_ontime__hard",
+      "scenario": "review_ontime",
+      "state_before_final_review": 2,
+      "steps": [
+        {
+          "rating": "good",
+          "review_at": "2026-01-01T00:00:00+00:00"
+        },
+        {
+          "rating": "good",
+          "review_at": "2026-01-01T00:10:00+00:00"
+        },
+        {
+          "rating": "hard",
+          "review_at": "2026-01-03T00:10:00+00:00"
+        }
+      ]
+    },
+    {
+      "description": "Review 态准时复评 (两次 Good 毕业后恰于到期日复评)",
+      "expected": {
+        "difficulty": 2.1043313908464483,
+        "due": "2026-01-14T00:10:00+00:00",
+        "last_review": "2026-01-03T00:10:00+00:00",
+        "stability": 10.971048263078135,
+        "state": 2,
+        "step": null
+      },
+      "id": "review_ontime__good",
+      "scenario": "review_ontime",
+      "state_before_final_review": 2,
+      "steps": [
+        {
+          "rating": "good",
+          "review_at": "2026-01-01T00:00:00+00:00"
+        },
+        {
+          "rating": "good",
+          "review_at": "2026-01-01T00:10:00+00:00"
+        },
+        {
+          "rating": "good",
+          "review_at": "2026-01-03T00:10:00+00:00"
+        }
+      ]
+    },
+    {
+      "description": "Review 态准时复评 (两次 Good 毕业后恰于到期日复评)",
+      "expected": {
+        "difficulty": 1.0,
+        "due": "2026-01-22T00:10:00+00:00",
+        "last_review": "2026-01-03T00:10:00+00:00",
+        "stability": 18.534332441919037,
+        "state": 2,
+        "step": null
+      },
+      "id": "review_ontime__easy",
+      "scenario": "review_ontime",
+      "state_before_final_review": 2,
+      "steps": [
+        {
+          "rating": "good",
+          "review_at": "2026-01-01T00:00:00+00:00"
+        },
+        {
+          "rating": "good",
+          "review_at": "2026-01-01T00:10:00+00:00"
+        },
+        {
+          "rating": "easy",
+          "review_at": "2026-01-03T00:10:00+00:00"
+        }
+      ]
+    },
+    {
+      "description": "Review 态逾期 30 天复评",
+      "expected": {
+        "difficulty": 7.392238132342694,
+        "due": "2026-02-02T00:20:00+00:00",
+        "last_review": "2026-02-02T00:10:00+00:00",
+        "stability": 0.9147476033153596,
+        "state": 3,
+        "step": 0
+      },
+      "id": "review_overdue_30d__again",
+      "scenario": "review_overdue_30d",
+      "state_before_final_review": 2,
+      "steps": [
+        {
+          "rating": "good",
+          "review_at": "2026-01-01T00:00:00+00:00"
+        },
+        {
+          "rating": "good",
+          "review_at": "2026-01-01T00:10:00+00:00"
+        },
+        {
+          "rating": "again",
+          "review_at": "2026-02-02T00:10:00+00:00"
+        }
+      ]
+    },
+    {
+      "description": "Review 态逾期 30 天复评",
+      "expected": {
+        "difficulty": 4.748284761594571,
+        "due": "2026-02-26T00:10:00+00:00",
+        "last_review": "2026-02-02T00:10:00+00:00",
+        "stability": 23.886245132399246,
+        "state": 2,
+        "step": null
+      },
+      "id": "review_overdue_30d__hard",
+      "scenario": "review_overdue_30d",
+      "state_before_final_review": 2,
+      "steps": [
+        {
+          "rating": "good",
+          "review_at": "2026-01-01T00:00:00+00:00"
+        },
+        {
+          "rating": "good",
+          "review_at": "2026-01-01T00:10:00+00:00"
+        },
+        {
+          "rating": "hard",
+          "review_at": "2026-02-02T00:10:00+00:00"
+        }
+      ]
+    },
+    {
+      "description": "Review 态逾期 30 天复评",
+      "expected": {
+        "difficulty": 2.1043313908464483,
+        "due": "2026-03-12T00:10:00+00:00",
+        "last_review": "2026-02-02T00:10:00+00:00",
+        "stability": 38.18901601662661,
+        "state": 2,
+        "step": null
+      },
+      "id": "review_overdue_30d__good",
+      "scenario": "review_overdue_30d",
+      "state_before_final_review": 2,
+      "steps": [
+        {
+          "rating": "good",
+          "review_at": "2026-01-01T00:00:00+00:00"
+        },
+        {
+          "rating": "good",
+          "review_at": "2026-01-01T00:10:00+00:00"
+        },
+        {
+          "rating": "good",
+          "review_at": "2026-02-02T00:10:00+00:00"
+        }
+      ]
+    },
+    {
+      "description": "Review 态逾期 30 天复评",
+      "expected": {
+        "difficulty": 1.0,
+        "due": "2026-04-13T00:10:00+00:00",
+        "last_review": "2026-02-02T00:10:00+00:00",
+        "stability": 69.51086424753997,
+        "state": 2,
+        "step": null
+      },
+      "id": "review_overdue_30d__easy",
+      "scenario": "review_overdue_30d",
+      "state_before_final_review": 2,
+      "steps": [
+        {
+          "rating": "good",
+          "review_at": "2026-01-01T00:00:00+00:00"
+        },
+        {
+          "rating": "good",
+          "review_at": "2026-01-01T00:10:00+00:00"
+        },
+        {
+          "rating": "easy",
+          "review_at": "2026-02-02T00:10:00+00:00"
+        }
+      ]
+    },
+    {
+      "description": "Relearning 态 (Review 后 Again 进重学, 10 分钟到期复评)",
+      "expected": {
+        "difficulty": 9.128074776178583,
+        "due": "2026-01-03T00:30:00+00:00",
+        "last_review": "2026-01-03T00:20:00+00:00",
+        "stability": 0.22294679606919743,
+        "state": 3,
+        "step": 0
+      },
+      "id": "relearning__again",
+      "scenario": "relearning",
+      "state_before_final_review": 3,
+      "steps": [
+        {
+          "rating": "good",
+          "review_at": "2026-01-01T00:00:00+00:00"
+        },
+        {
+          "rating": "good",
+          "review_at": "2026-01-01T00:10:00+00:00"
+        },
+        {
+          "rating": "again",
+          "review_at": "2026-01-03T00:10:00+00:00"
+        },
+        {
+          "rating": "again",
+          "review_at": "2026-01-03T00:20:00+00:00"
+        }
+      ]
+    },
+    {
+      "description": "Relearning 态 (Review 后 Again 进重学, 10 分钟到期复评)",
+      "expected": {
+        "difficulty": 8.254074519842886,
+        "due": "2026-01-03T00:35:00+00:00",
+        "last_review": "2026-01-03T00:20:00+00:00",
+        "stability": 0.3835358740906584,
+        "state": 3,
+        "step": 0
+      },
+      "id": "relearning__hard",
+      "scenario": "relearning",
+      "state_before_final_review": 3,
+      "steps": [
+        {
+          "rating": "good",
+          "review_at": "2026-01-01T00:00:00+00:00"
+        },
+        {
+          "rating": "good",
+          "review_at": "2026-01-01T00:10:00+00:00"
+        },
+        {
+          "rating": "again",
+          "review_at": "2026-01-03T00:10:00+00:00"
+        },
+        {
+          "rating": "hard",
+          "review_at": "2026-01-03T00:20:00+00:00"
+        }
+      ]
+    },
+    {
+      "description": "Relearning 态 (Review 后 Again 进重学, 10 分钟到期复评)",
+      "expected": {
+        "difficulty": 7.38007426350719,
+        "due": "2026-01-04T00:20:00+00:00",
+        "last_review": "2026-01-03T00:20:00+00:00",
+        "stability": 0.6597976257475758,
+        "state": 2,
+        "step": null
+      },
+      "id": "relearning__good",
+      "scenario": "relearning",
+      "state_before_final_review": 3,
+      "steps": [
+        {
+          "rating": "good",
+          "review_at": "2026-01-01T00:00:00+00:00"
+        },
+        {
+          "rating": "good",
+          "review_at": "2026-01-01T00:10:00+00:00"
+        },
+        {
+          "rating": "again",
+          "review_at": "2026-01-03T00:10:00+00:00"
+        },
+        {
+          "rating": "good",
+          "review_at": "2026-01-03T00:20:00+00:00"
+        }
+      ]
+    },
+    {
+      "description": "Relearning 态 (Review 后 Again 进重学, 10 分钟到期复评)",
+      "expected": {
+        "difficulty": 6.5060740071714935,
+        "due": "2026-01-04T00:20:00+00:00",
+        "last_review": "2026-01-03T00:20:00+00:00",
+        "stability": 1.1350513376989504,
+        "state": 2,
+        "step": null
+      },
+      "id": "relearning__easy",
+      "scenario": "relearning",
+      "state_before_final_review": 3,
+      "steps": [
+        {
+          "rating": "good",
+          "review_at": "2026-01-01T00:00:00+00:00"
+        },
+        {
+          "rating": "good",
+          "review_at": "2026-01-01T00:10:00+00:00"
+        },
+        {
+          "rating": "again",
+          "review_at": "2026-01-03T00:10:00+00:00"
+        },
+        {
+          "rating": "easy",
+          "review_at": "2026-01-03T00:20:00+00:00"
+        }
+      ]
+    }
+  ]
+}
