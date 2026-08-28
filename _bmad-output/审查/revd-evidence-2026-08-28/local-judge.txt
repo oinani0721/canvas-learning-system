@@ -1,0 +1,33 @@
+=== CARD-R-EVD 本地裁判存档 2026-08-28 20:15:52 +0800 ===
+base HEAD: 13d44ac10f32d3c82deeedd55dbe9fe859fb7659  branch: card/s8-ci
+版本: Codex round-1 (2B+4H+3M) + 5 轴红队 (24 条确认) + 变异测试补漏, 全部整改后终态
+
+### 1. 示例 manifest — 预期 exit 0 (backend/.venv, python 3.14.4)
+✅ PASS docs/release-evidence/example-backfill-d5/journeys/J08/manifest.json
+
+合计 1 份 manifest, 失败 0 份。
+exit=0
+
+### 2. 同上, CI 等价环境 (干净 venv, 仅 jsonschema+pytest, python 3.9.6)
+exit=0
+
+### 3. RC 发布门: 示例 rc 必须红 (回填件不计入完整性)
+    [RC] J08 的 evidence_level='E2' — §12.6 要求 J01-J10 全部达到 E3。
+    [RC] J08 的 result='partial' — 未通过的旅程不构成发布证据。
+    [RC] 缺 example-backfill-d5/journeys/J09/manifest.json
+    [RC] 缺 example-backfill-d5/journeys/J10/manifest.json
+
+### 4. schema 指纹契约: schema 单边放水 = exit 2
+❌ 配置错误: schema 指纹与脚本 SCHEMA_SHA256 不一致 — schema 单边改动被拒绝。
+  实际: df2cbaab958373e36d956da699e3ebfa69318f34a516728fca9a5723c1d371b5
+
+### 5. 裁判测试 (conftest 隔离, backend/.venv)
+........................                                                 [100%]
+168 passed in 0.83s
+
+### 6. 裁判测试 (CI 等价环境 python 3.9.6)
+168 passed, 1 warning in 0.89s
+
+### 7. 变异测试: 逐条删除 77 条规则, 每次重跑全套件
+77/77 被杀死 (存活 0) —— 不存在'删掉规则测试仍全绿'的假绿。
+    harness: 原地变异 + try/finally 还原 + SHA-256 还原校验 OK

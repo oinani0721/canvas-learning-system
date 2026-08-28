@@ -1,0 +1,30 @@
+=== DEBT-5 本地裁判存档(终态, round-2 整改后) 2026-08-28 17:21:21 +0800 ===
+base HEAD: 37387a8662e9dd646fad5628841679d777cb7eae branch: card/s8-ci
+node v24.16.0 / npm 11.13.0
+--- npm ci ---
+
+added 16 packages in 665ms
+--- npm run build ---
+> canvas-learning-system-obsidian-plugin@1.0.0 build
+> node esbuild.config.mjs production
+
+--- npm test summary ---
+ℹ tests 301
+ℹ suites 39
+ℹ pass 295
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 6
+npm-test real exit=0
+
+--- 6 条 todo 债务哨兵 (CI 输出可见, 不 fail 套件) ---
+  ⚠ main.ts import buildVaultPrefix from vault-indicator  # vault-indicator wiring 债务哨兵 (Wave-5 Stage A 待补, 见文件头 DEBT-5 注记)
+  ⚠ 4 handler 关键 Notice 都用 buildVaultPrefix 拼接  # vault-indicator wiring 债务哨兵 (Wave-5 Stage A 待补, 见文件头 DEBT-5 注记)
+  ⚠ main.ts onload() 调 addStatusBarItem + updateStatusBar  # vault-indicator wiring 债务哨兵 (Wave-5 Stage A 待补, 见文件头 DEBT-5 注记)
+  ⚠ status bar element 接 click handler → setting.open + openTabById  # vault-indicator wiring 债务哨兵 (Wave-5 Stage A 待补, 见文件头 DEBT-5 注记)
+  ⚠ main.ts updateStatusBar 用 registerInterval/setInterval 周期刷新  # vault-indicator wiring 债务哨兵 (Wave-5 Stage A 待补, 见文件头 DEBT-5 注记)
+  ⚠ main.ts 注册 layout-change 事件触发 updateStatusBar (切 vault 即时刷新)  # vault-indicator wiring 债务哨兵 (Wave-5 Stage A 待补, 见文件头 DEBT-5 注记)
+
+--- 装门前基线对照 (改动前同命令实测) ---
+301 tests / 294 pass / 7 fail / exit 1

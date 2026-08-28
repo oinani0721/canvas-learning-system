@@ -299,9 +299,12 @@ describe("main_ts_wires_quick_exam", () => {
   });
 
   test("import inferVaultId from ./error-candidate-helpers (Story 2.5.Y vault_id 推断)", () => {
+    // DEBT-5 (2026-08-28): 原正则要求 inferVaultId 单独成 import 块, 但该
+    // import 块后续增长为多符号 (buildAcceptPayload 等), 断言随之误红。
+    // 放宽为"块内含 inferVaultId"——锁的契约是来源模块, 不是块的形状。
     assert.match(
       mainTs,
-      /import\s*\{\s*inferVaultId\s*\}\s*from\s*["']\.\/error-candidate-helpers["']/,
+      /import\s*\{[^}]*\binferVaultId\b[^}]*\}\s*from\s*["']\.\/error-candidate-helpers["']/,
     );
   });
 
@@ -321,11 +324,15 @@ describe("main_ts_wires_quick_exam", () => {
     );
   });
 
-  test("命令 callback 调 quickExam.startExam(Notice)", () => {
+  test("命令 callback 调 handleQuickExamAbsorbed (m1+m4 吸收进检验白板)", () => {
+    // DEBT-5 (2026-08-28): 原断言锁 quickExam.startExam(Notice) 直连——
+    // 31c1f8f6 (07-13 m1+m4) 起命令改走 handleQuickExamAbsorbed()
+    // (复制 /start-exam-board node 命令, 吸收进检验白板流), 原断言自此
+    // 持续 FAIL。按现役行为重锁: 命令 callback 必须接 absorbed handler。
     assert.match(
       mainTs,
-      /quickExam\.startExam\s*\(\s*Notice\s*\)/,
-      "命令必须把 Notice constructor 注入 controller (避免顶部 import 渗透到 pure module)",
+      /id:\s*["']canvas:start-quick-exam["'][\s\S]{0,200}?callback:[\s\S]{0,100}?handleQuickExamAbsorbed\s*\(/,
+      "canvas:start-quick-exam 的 callback 必须调 handleQuickExamAbsorbed (检验白板吸收流)",
     );
   });
 
