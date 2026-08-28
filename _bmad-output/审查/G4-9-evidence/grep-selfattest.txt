@@ -1,0 +1,27 @@
+== CARD-G4-9 只读自证（整改版脚本, 71c7120bb2f87d50…） ==
+--- (1) 全部 import 行（应只有 stdlib）:
+49:from __future__ import annotations
+51:import argparse
+52:import glob
+53:import hashlib
+54:import json
+55:import os
+56:import re
+57:import sqlite3
+58:import sys
+59:from collections import Counter, defaultdict
+60:from datetime import datetime, timezone
+61:from pathlib import Path
+--- (2) neo4j/graphiti/bolt/app. 在 import 行中的命中（应为 0）:
+0
+0 命中 ✓
+--- (3) --apply 参数定义命中（应为 0）:
+0
+0 命中 ✓
+--- (4) 写模式文件打开（open 带 w/a，应仅 --out 台账 1 处，且该写受路径碰撞守卫保护）:
+393:        with open(args.out, "w", encoding="utf-8") as f:
+--- (5) 碰撞守卫在位:
+237:        protected = {dlq_path.resolve()} | {Path(p).resolve() for p in args.compare}
+239:            protected.add(Path(args.qa_metrics_db).resolve())
+240:        if out_resolved in protected:
+241:            print(f"--out 与输入文件路径重合，拒绝写出（防截断）: {out_resolved}", file=sys.stderr)

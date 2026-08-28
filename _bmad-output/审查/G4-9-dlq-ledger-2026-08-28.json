@@ -1,0 +1,2633 @@
+{
+ "card": "CARD-G4-9",
+ "generated_at": "2026-08-28T09:26:28.851136+00:00",
+ "privacy": "private-only: transcript_paths 含本机用户名与 session UUID，禁止外发/公网发布",
+ "stable_key_semantics": "冻结快照（dlq_file.sha256）内的 occurrence key；line_no 在快照内唯一，sha256_prefix/request_id 为冗余对账维度——非跨文件重排或语义幂等键",
+ "dlq_file": {
+  "path": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/backend/data/dead_letter_episodes.jsonl",
+  "exists": true,
+  "line_count": 92,
+  "sha256": "3b37460f4215f6ac0ecf9265c3b2ae6da8bcf677257da3f3225f7c29ef3ba590",
+  "mtime_utc": "2026-08-11T14:01:25.808462+00:00",
+  "mtime_note": "mtime 为 stat 快照，仅供参考；绑定 exact bytes 的是 sha256"
+ },
+ "compare_copies": [
+  {
+   "path": "/Users/Heishing/Desktop/canvas/canvas-learning-system/backend/data/dead_letter_episodes.jsonl",
+   "exists": true,
+   "line_count": 685,
+   "sha256": "490c903b2f3636e1d2c4ecb68465cef41ace06f0bd171eb2fb95c03a7b40cb43",
+   "mtime_utc": "2026-04-07T11:47:19.585617+00:00",
+   "mtime_note": "mtime 为 stat 快照，仅供参考；绑定 exact bytes 的是 sha256"
+  },
+  {
+   "path": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/data/dead_letter_episodes.jsonl",
+   "exists": true,
+   "line_count": 1,
+   "sha256": "bfb3f6c413aab7dd4c04a25f7575aaaffcfc92fd4e8e8966362609652ac7e310",
+   "mtime_utc": "2026-07-13T04:51:14.925282+00:00",
+   "mtime_note": "mtime 为 stat 快照，仅供参考；绑定 exact bytes 的是 sha256"
+  },
+  {
+   "path": "/Users/Heishing/Desktop/canvas/canvas-learning-system/data/dead_letter_episodes.jsonl",
+   "exists": true,
+   "line_count": 4,
+   "sha256": "75c5f7593b9b2e99672d0551487b4476552ebd8d33ad25c5f9479683cc61e9c9",
+   "mtime_utc": "2026-04-05T23:30:49.019652+00:00",
+   "mtime_note": "mtime 为 stat 快照，仅供参考；绑定 exact bytes 的是 sha256"
+  }
+ ],
+ "total_lines": 92,
+ "total_records": 92,
+ "unparseable_lines": [],
+ "class_distribution": {
+  "schema_entity_type": 2,
+  "group_id_format": 1,
+  "budget_400": 89
+ },
+ "expected_class_distribution": {
+  "budget_400": 89,
+  "schema_entity_type": 2,
+  "group_id_format": 1
+ },
+ "class_deviation": {},
+ "recoverability_distribution": {
+  "byte_exact": 4,
+  "approximate": 88
+ },
+ "unrecoverable_list": [],
+ "attribution_conflicts": [],
+ "duplicate_clusters": [
+  {
+   "name": "session-archive:426ffbde-15f6-4b",
+   "episode_body_sha256": "c93058c9850c6999310e98df9e6ebc26063b96fa6f0649fb1ec6d9d04c88a7fe",
+   "group_id": "vault:canvas_vault",
+   "line_nos": [
+    11,
+    15,
+    22,
+    26,
+    32,
+    39,
+    43,
+    47,
+    55,
+    63,
+    67,
+    71,
+    80,
+    84,
+    88,
+    92
+   ],
+   "occurrences": 16
+  },
+  {
+   "name": "qa_highlight:Q: What is the relationship between a co",
+   "episode_body_sha256": "f22956e79a5a23be64d05cd806fd78773916c5bc40b10f9cfd7d5fda0814e10e",
+   "group_id": "vault:canvas_vault",
+   "line_nos": [
+    24,
+    41,
+    78,
+    82
+   ],
+   "occurrences": 4
+  },
+  {
+   "name": "conversation_distillation:Distilled summary for node session:426ff",
+   "episode_body_sha256": "f9682670197b1339166db46bc7a6b49cca01d745e100568dfdd88b6aa15c6f51",
+   "group_id": "vault:canvas_vault",
+   "line_nos": [
+    8,
+    12,
+    68
+   ],
+   "occurrences": 3
+  },
+  {
+   "name": "qa_highlight:Q: What is the relationship between a co",
+   "episode_body_sha256": "7a830d4e3c5d52fe3699e0065c5ab61ae013eca3dcf6dd79cf246e37fc4d8629",
+   "group_id": "vault:canvas_vault",
+   "line_nos": [
+    13,
+    45
+   ],
+   "occurrences": 2
+  },
+  {
+   "name": "conversation_distillation:Distilled summary for node session:426ff",
+   "episode_body_sha256": "288e4b506e72402e22c8b08fa9608c8dc9e1870ccdd43ed4ab93c95655435064",
+   "group_id": "vault:canvas_vault",
+   "line_nos": [
+    16,
+    64
+   ],
+   "occurrences": 2
+  },
+  {
+   "name": "qa_highlight:Q: What is the relationship between a co",
+   "episode_body_sha256": "04e26b3060192bc9de508b2e75c508fba86553a82bea1e910bc24771c75834b5",
+   "group_id": "vault:canvas_vault",
+   "line_nos": [
+    37,
+    86
+   ],
+   "occurrences": 2
+  }
+ ],
+ "qa_metrics_probe": {
+  "db_path": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/backend/data/qa_metrics.db",
+  "opened_readonly": true,
+  "tables": [
+   "qa_error_logs"
+  ],
+  "qa_error_logs_rows": 0,
+  "error_type_hits": {
+   "BadRequestError": 0,
+   "EntityTypeValidationError": 0,
+   "GroupIdValidationError": 0
+  },
+  "verdict": "no_source_rows"
+ },
+ "records": [
+  {
+   "stable_key": {
+    "line_no": 1,
+    "sha256_prefix": "7e33da5e96e6239f",
+    "request_id": "281466113679440"
+   },
+   "name": "callout_annotation:P0 final 验证",
+   "group_id": "vault:default",
+   "source_description": "callout-annotation-record",
+   "error_type": "EntityTypeValidationError",
+   "error_excerpt": "name cannot be used as an attribute for LearningConcept as it is a protected attribute name.",
+   "failed_at": "2026-05-14T08:20:15.793508+00:00",
+   "reference_time": "2026-05-14T08:20:10.506386+00:00",
+   "class": "schema_entity_type",
+   "episode_body_length": 180,
+   "episode_body_sha256": "7e33da5e96e6239f5584beb0011760bae646b59b09417fb72bd4c5c4b328fea4",
+   "inline_state": "full_verified",
+   "sha_check": "pass",
+   "session_token": null,
+   "transcript_paths": [],
+   "transcript_match_count": 0,
+   "attribution_conflict": false,
+   "recoverability": "byte_exact",
+   "recoverability_basis": "inline 正文全量：sha256 重算与声明一致且长度精确匹配"
+  },
+  {
+   "stable_key": {
+    "line_no": 2,
+    "sha256_prefix": "b91bf262cadab596",
+    "request_id": "281466014769488"
+   },
+   "name": "callout_annotation:递归 base case 概念",
+   "group_id": "vault:default",
+   "source_description": "callout-annotation-record",
+   "error_type": "EntityTypeValidationError",
+   "error_excerpt": "created_at cannot be used as an attribute for LearningTip as it is a protected attribute name.",
+   "failed_at": "2026-05-14T08:25:15.775179+00:00",
+   "reference_time": "2026-05-14T08:25:06.180046+00:00",
+   "class": "schema_entity_type",
+   "episode_body_length": 150,
+   "episode_body_sha256": "b91bf262cadab596d55224b87c96af09b28025996b0040883b58a025cf2ebd4a",
+   "inline_state": "full_verified",
+   "sha_check": "pass",
+   "session_token": null,
+   "transcript_paths": [],
+   "transcript_match_count": 0,
+   "attribution_conflict": false,
+   "recoverability": "byte_exact",
+   "recoverability_basis": "inline 正文全量：sha256 重算与声明一致且长度精确匹配"
+  },
+  {
+   "stable_key": {
+    "line_no": 3,
+    "sha256_prefix": "55b1b793b99778eb",
+    "request_id": "281466427090256"
+   },
+   "name": "callout_annotation:递归 base case",
+   "group_id": "vault:default",
+   "source_description": "callout-annotation-record",
+   "error_type": "GroupIdValidationError",
+   "error_excerpt": "group_id \"vault:default\" must contain only alphanumeric characters, dashes, or underscores",
+   "failed_at": "2026-05-14T08:31:54.970785+00:00",
+   "reference_time": "2026-05-14T08:31:50.054921+00:00",
+   "class": "group_id_format",
+   "episode_body_length": 131,
+   "episode_body_sha256": "55b1b793b99778eb0c117b65ad14e4a77dd045d4f50163c0274054b6adaf4da2",
+   "inline_state": "full_verified",
+   "sha_check": "pass",
+   "session_token": null,
+   "transcript_paths": [],
+   "transcript_match_count": 0,
+   "attribution_conflict": false,
+   "recoverability": "byte_exact",
+   "recoverability_basis": "inline 正文全量：sha256 重算与声明一致且长度精确匹配"
+  },
+  {
+   "stable_key": {
+    "line_no": 4,
+    "sha256_prefix": "89199bd0eeb62ce2",
+    "request_id": "281466685033808"
+   },
+   "name": "conversation_distillation:Distilled summary for node session:e8eff",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:conversation_distillation",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16998 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-08T20:51:14.997406+00:00",
+   "reference_time": "2026-08-08T20:49:23.667531+00:00",
+   "class": "budget_400",
+   "episode_body_length": 443,
+   "episode_body_sha256": "89199bd0eeb62ce297ffd2e2df6df339fa6a1cd6e111b2c37cf0574cf7cdacd8",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "e8eff22c-cce7-4c",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/e8eff22c-cce7-4ce7-9c40-700015714f3b.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript e8eff22c-cce7-4c（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 5,
+    "sha256_prefix": "360ff1e1a5280c77",
+    "request_id": "281466685033808"
+   },
+   "name": "qa_highlight:Q: What metaphor did I use to describe t",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16954 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-08T20:51:15.142505+00:00",
+   "reference_time": "2026-08-08T20:49:26.029687+00:00",
+   "class": "budget_400",
+   "episode_body_length": 208,
+   "episode_body_sha256": "360ff1e1a5280c77c111c354d1a71b0d7495356df63addb1386914f98232dbd0",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "e8eff22c-cce7-4c",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/e8eff22c-cce7-4ce7-9c40-700015714f3b.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript e8eff22c-cce7-4c（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 6,
+    "sha256_prefix": "15d41c8050decd5e",
+    "request_id": "281466685033808"
+   },
+   "name": "qa_highlight:Q: How do I distinguish between eigenvec",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16968 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-08T20:51:15.288890+00:00",
+   "reference_time": "2026-08-08T20:49:26.029912+00:00",
+   "class": "budget_400",
+   "episode_body_length": 341,
+   "episode_body_sha256": "15d41c8050decd5e2cc6f0da70ed08f3be3fd248678390e93ed2af3a6c6d4412",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "e8eff22c-cce7-4c",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/e8eff22c-cce7-4ce7-9c40-700015714f3b.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript e8eff22c-cce7-4c（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 7,
+    "sha256_prefix": "2ec313cd3c90dd07",
+    "request_id": "281466685033808"
+   },
+   "name": "session-archive:e8eff22c-cce7-4c",
+   "group_id": "vault:canvas_vault",
+   "source_description": "conversation-archive",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (20813 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-08T20:51:15.428936+00:00",
+   "reference_time": "2026-08-08T20:49:26.030197+00:00",
+   "class": "budget_400",
+   "episode_body_length": 8036,
+   "episode_body_sha256": "2ec313cd3c90dd07766d45465417322c963af7062b86ddca7eeaaa37b5f04f94",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "e8eff22c-cce7-4c",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/e8eff22c-cce7-4ce7-9c40-700015714f3b.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript e8eff22c-cce7-4c（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 8,
+    "sha256_prefix": "f9682670197b1339",
+    "request_id": "281466535182160"
+   },
+   "name": "conversation_distillation:Distilled summary for node session:426ff",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:conversation_distillation",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16992 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-08T20:54:15.608650+00:00",
+   "reference_time": "2026-08-08T20:54:03.489453+00:00",
+   "class": "budget_400",
+   "episode_body_length": 408,
+   "episode_body_sha256": "f9682670197b1339166db46bc7a6b49cca01d745e100568dfdd88b6aa15c6f51",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 9,
+    "sha256_prefix": "4f7de62882141f6f",
+    "request_id": "281466535182160"
+   },
+   "name": "qa_highlight:Q: What is the relationship between a co",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16955 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-08T20:54:33.444870+00:00",
+   "reference_time": "2026-08-08T20:54:07.387469+00:00",
+   "class": "budget_400",
+   "episode_body_length": 269,
+   "episode_body_sha256": "4f7de62882141f6fd4511eed627ace31b929fbf5a7d0803ecf3f364b1f1cdb48",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 10,
+    "sha256_prefix": "3c0ba74eb9a45f2a",
+    "request_id": "281466535182160"
+   },
+   "name": "qa_highlight:Q: Why do eigenvectors matter in the con",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16955 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-08T20:54:33.583870+00:00",
+   "reference_time": "2026-08-08T20:54:07.387618+00:00",
+   "class": "budget_400",
+   "episode_body_length": 257,
+   "episode_body_sha256": "3c0ba74eb9a45f2a1faea871b2403943113e35754c08d00c6d471b234077c764",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 11,
+    "sha256_prefix": "c93058c9850c6999",
+    "request_id": "281466535182160"
+   },
+   "name": "session-archive:426ffbde-15f6-4b",
+   "group_id": "vault:canvas_vault",
+   "source_description": "conversation-archive",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (20831 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-08T20:54:33.737917+00:00",
+   "reference_time": "2026-08-08T20:54:07.387862+00:00",
+   "class": "budget_400",
+   "episode_body_length": 8036,
+   "episode_body_sha256": "c93058c9850c6999310e98df9e6ebc26063b96fa6f0649fb1ec6d9d04c88a7fe",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 12,
+    "sha256_prefix": "f9682670197b1339",
+    "request_id": "281466610751440"
+   },
+   "name": "conversation_distillation:Distilled summary for node session:426ff",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:conversation_distillation",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16992 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T05:56:05.115572+00:00",
+   "reference_time": "2026-08-09T05:55:45.523029+00:00",
+   "class": "budget_400",
+   "episode_body_length": 408,
+   "episode_body_sha256": "f9682670197b1339166db46bc7a6b49cca01d745e100568dfdd88b6aa15c6f51",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 13,
+    "sha256_prefix": "7a830d4e3c5d52fe",
+    "request_id": "281466610751440"
+   },
+   "name": "qa_highlight:Q: What is the relationship between a co",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16955 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T05:56:16.866038+00:00",
+   "reference_time": "2026-08-09T05:55:49.477195+00:00",
+   "class": "budget_400",
+   "episode_body_length": 278,
+   "episode_body_sha256": "7a830d4e3c5d52fe3699e0065c5ab61ae013eca3dcf6dd79cf246e37fc4d8629",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 14,
+    "sha256_prefix": "af364101d5935f10",
+    "request_id": "281466610751440"
+   },
+   "name": "qa_highlight:Q: Why did the system retrieve irrelevan",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16966 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T05:56:17.015427+00:00",
+   "reference_time": "2026-08-09T05:55:49.478131+00:00",
+   "class": "budget_400",
+   "episode_body_length": 279,
+   "episode_body_sha256": "af364101d5935f10aaf19612b0ec2da268714889e3bc9cd22c8f50a292332b60",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 15,
+    "sha256_prefix": "c93058c9850c6999",
+    "request_id": "281466610751440"
+   },
+   "name": "session-archive:426ffbde-15f6-4b",
+   "group_id": "vault:canvas_vault",
+   "source_description": "conversation-archive",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (20831 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T05:56:17.181208+00:00",
+   "reference_time": "2026-08-09T05:55:49.478507+00:00",
+   "class": "budget_400",
+   "episode_body_length": 8036,
+   "episode_body_sha256": "c93058c9850c6999310e98df9e6ebc26063b96fa6f0649fb1ec6d9d04c88a7fe",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 16,
+    "sha256_prefix": "288e4b506e72402e",
+    "request_id": "281466608952592"
+   },
+   "name": "conversation_distillation:Distilled summary for node session:426ff",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:conversation_distillation",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16996 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T05:58:28.715877+00:00",
+   "reference_time": "2026-08-09T05:57:46.723638+00:00",
+   "class": "budget_400",
+   "episode_body_length": 469,
+   "episode_body_sha256": "288e4b506e72402e22c8b08fa9608c8dc9e1870ccdd43ed4ab93c95655435064",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 17,
+    "sha256_prefix": "37c021c8970e1821",
+    "request_id": "281457446620624"
+   },
+   "name": "conversation_distillation:Distilled summary for node session:5ec3f",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:conversation_distillation",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16980 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T05:58:28.869324+00:00",
+   "reference_time": "2026-08-09T05:57:55.646682+00:00",
+   "class": "budget_400",
+   "episode_body_length": 367,
+   "episode_body_sha256": "37c021c8970e182166f28cde96948da20d106ffaa3e324f096cce5f23a259e3e",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "5ec3fa7c-8433-42",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/5ec3fa7c-8433-4209-aa30-1398a489354d.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 5ec3fa7c-8433-42（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 18,
+    "sha256_prefix": "5569e4262ef538d5",
+    "request_id": "281457446620624"
+   },
+   "name": "qa_highlight:Q: How do deep-sea animals like insects ",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16962 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T05:58:29.030801+00:00",
+   "reference_time": "2026-08-09T05:57:56.222443+00:00",
+   "class": "budget_400",
+   "episode_body_length": 286,
+   "episode_body_sha256": "5569e4262ef538d5256798f580c1be15040af416a37306739de770a0863530ab",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "5ec3fa7c-8433-42",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/5ec3fa7c-8433-4209-aa30-1398a489354d.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 5ec3fa7c-8433-42（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 19,
+    "sha256_prefix": "05e395c929a4c2dd",
+    "request_id": "281457446620624"
+   },
+   "name": "session-archive:5ec3fa7c-8433-42",
+   "group_id": "vault:canvas_vault",
+   "source_description": "conversation-archive",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (17003 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T05:58:29.190071+00:00",
+   "reference_time": "2026-08-09T05:57:56.222799+00:00",
+   "class": "budget_400",
+   "episode_body_length": 939,
+   "episode_body_sha256": "05e395c929a4c2dd3b89677096cf356568d0ee47ab2235a5b31283fd182c7bf8",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "5ec3fa7c-8433-42",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/5ec3fa7c-8433-4209-aa30-1398a489354d.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 5ec3fa7c-8433-42（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 20,
+    "sha256_prefix": "517df461c384f6ee",
+    "request_id": "281466608952592"
+   },
+   "name": "qa_highlight:Q: What is the relationship between cova",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16956 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T06:00:23.521962+00:00",
+   "reference_time": "2026-08-09T05:59:59.699027+00:00",
+   "class": "budget_400",
+   "episode_body_length": 268,
+   "episode_body_sha256": "517df461c384f6eeef99421c4872d9e123b525aa811980be2c825d043fb85845",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 21,
+    "sha256_prefix": "e6bc041f78a790d8",
+    "request_id": "281466608952592"
+   },
+   "name": "qa_highlight:Q: What is the core misunderstanding reg",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16956 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T06:00:23.679534+00:00",
+   "reference_time": "2026-08-09T05:59:59.699329+00:00",
+   "class": "budget_400",
+   "episode_body_length": 279,
+   "episode_body_sha256": "e6bc041f78a790d84a0b35ea2edda51d7de8143b41d0e0f7f09f3cd3a3f4cfe4",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 22,
+    "sha256_prefix": "c93058c9850c6999",
+    "request_id": "281466608952592"
+   },
+   "name": "session-archive:426ffbde-15f6-4b",
+   "group_id": "vault:canvas_vault",
+   "source_description": "conversation-archive",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (20831 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T06:00:23.833470+00:00",
+   "reference_time": "2026-08-09T05:59:59.699739+00:00",
+   "class": "budget_400",
+   "episode_body_length": 8036,
+   "episode_body_sha256": "c93058c9850c6999310e98df9e6ebc26063b96fa6f0649fb1ec6d9d04c88a7fe",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 23,
+    "sha256_prefix": "375f79410d148e62",
+    "request_id": "281466610935760"
+   },
+   "name": "conversation_distillation:Distilled summary for node session:426ff",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:conversation_distillation",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16999 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T11:41:29.148927+00:00",
+   "reference_time": "2026-08-09T11:41:26.016299+00:00",
+   "class": "budget_400",
+   "episode_body_length": 497,
+   "episode_body_sha256": "375f79410d148e62de2c90b5e04732dc8683d019e4eebd62e7db375eaf1224db",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 24,
+    "sha256_prefix": "f22956e79a5a23be",
+    "request_id": "281466610935760"
+   },
+   "name": "qa_highlight:Q: What is the relationship between a co",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16957 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T11:42:02.729134+00:00",
+   "reference_time": "2026-08-09T11:41:29.769132+00:00",
+   "class": "budget_400",
+   "episode_body_length": 268,
+   "episode_body_sha256": "f22956e79a5a23be64d05cd806fd78773916c5bc40b10f9cfd7d5fda0814e10e",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 25,
+    "sha256_prefix": "bd23cef3a88c03da",
+    "request_id": "281466610935760"
+   },
+   "name": "qa_highlight:Q: Why do eigenvectors matter in the con",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16962 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T11:42:02.867992+00:00",
+   "reference_time": "2026-08-09T11:41:29.769408+00:00",
+   "class": "budget_400",
+   "episode_body_length": 279,
+   "episode_body_sha256": "bd23cef3a88c03dac66c10695f54ae56df9743d60cb78533b8ff264722885a5e",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 26,
+    "sha256_prefix": "c93058c9850c6999",
+    "request_id": "281466610935760"
+   },
+   "name": "session-archive:426ffbde-15f6-4b",
+   "group_id": "vault:canvas_vault",
+   "source_description": "conversation-archive",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (20831 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T11:42:02.989875+00:00",
+   "reference_time": "2026-08-09T11:41:29.769862+00:00",
+   "class": "budget_400",
+   "episode_body_length": 8036,
+   "episode_body_sha256": "c93058c9850c6999310e98df9e6ebc26063b96fa6f0649fb1ec6d9d04c88a7fe",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 27,
+    "sha256_prefix": "430e4131fa39393c",
+    "request_id": "281467167692176"
+   },
+   "name": "conversation_distillation:Distilled summary for node session:426ff",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:conversation_distillation",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16992 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T12:01:40.427488+00:00",
+   "reference_time": "2026-08-09T12:00:28.685451+00:00",
+   "class": "budget_400",
+   "episode_body_length": 407,
+   "episode_body_sha256": "430e4131fa39393ca958c658c2fc8e15df29c21cdc3b7e3e0ca9eaed9e721315",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 28,
+    "sha256_prefix": "386cea3787ce766d",
+    "request_id": "281467030579536"
+   },
+   "name": "conversation_distillation:Distilled summary for node session:2fe93",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:conversation_distillation",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (17002 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T12:01:40.570069+00:00",
+   "reference_time": "2026-08-09T12:00:33.757605+00:00",
+   "class": "budget_400",
+   "episode_body_length": 415,
+   "episode_body_sha256": "386cea3787ce766d998a828f01455d87b93d385376c8995e7ad1cc7ab7608ae6",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "2fe93fcc-984a-4a",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/2fe93fcc-984a-4ae9-90f9-7fd247e2400f.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 2fe93fcc-984a-4a（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 29,
+    "sha256_prefix": "ff662e8f2d878438",
+    "request_id": "281467167692176"
+   },
+   "name": "qa_highlight:Q: What is the relationship between a co",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16959 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T12:01:40.709040+00:00",
+   "reference_time": "2026-08-09T12:00:34.133726+00:00",
+   "class": "budget_400",
+   "episode_body_length": 280,
+   "episode_body_sha256": "ff662e8f2d87843863aee75668512a3ca06343f0c272872354f288605c0e5caa",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 30,
+    "sha256_prefix": "7d80c2973dfd5385",
+    "request_id": "281467167692176"
+   },
+   "name": "qa_highlight:Q: Are 'feature vectors' in reinforcemen",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16974 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T12:01:40.837906+00:00",
+   "reference_time": "2026-08-09T12:00:34.133894+00:00",
+   "class": "budget_400",
+   "episode_body_length": 291,
+   "episode_body_sha256": "7d80c2973dfd5385ddfa71192b137285ee7c354f6335772ef1240a4ddf2e84dd",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 31,
+    "sha256_prefix": "e87cbc4ceaf99f62",
+    "request_id": "281467167692176"
+   },
+   "name": "qa_highlight:Q: Why did the student fail to answer th",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16957 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T12:01:40.972777+00:00",
+   "reference_time": "2026-08-09T12:00:34.134061+00:00",
+   "class": "budget_400",
+   "episode_body_length": 273,
+   "episode_body_sha256": "e87cbc4ceaf99f620c625824c05deb768ee36c02ee2d9642b0890cb48cdfad28",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 32,
+    "sha256_prefix": "c93058c9850c6999",
+    "request_id": "281467167692176"
+   },
+   "name": "session-archive:426ffbde-15f6-4b",
+   "group_id": "vault:canvas_vault",
+   "source_description": "conversation-archive",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (20831 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T12:01:41.120496+00:00",
+   "reference_time": "2026-08-09T12:00:34.134925+00:00",
+   "class": "budget_400",
+   "episode_body_length": 8036,
+   "episode_body_sha256": "c93058c9850c6999310e98df9e6ebc26063b96fa6f0649fb1ec6d9d04c88a7fe",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 33,
+    "sha256_prefix": "47ac2b0e88c2915a",
+    "request_id": "281467030579536"
+   },
+   "name": "qa_highlight:Q: Did I write about how deep-sea creatu",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16961 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T12:01:41.253728+00:00",
+   "reference_time": "2026-08-09T12:00:34.206696+00:00",
+   "class": "budget_400",
+   "episode_body_length": 230,
+   "episode_body_sha256": "47ac2b0e88c2915a95ee10a35201af15383069aa41bbb36c492a938944fbd60c",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "2fe93fcc-984a-4a",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/2fe93fcc-984a-4ae9-90f9-7fd247e2400f.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 2fe93fcc-984a-4a（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 34,
+    "sha256_prefix": "b69898dcb57f3c95",
+    "request_id": "281467030579536"
+   },
+   "name": "qa_highlight:Q: Did the system automatically inject s",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16950 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T12:01:41.385149+00:00",
+   "reference_time": "2026-08-09T12:00:34.206918+00:00",
+   "class": "budget_400",
+   "episode_body_length": 205,
+   "episode_body_sha256": "b69898dcb57f3c95a09f2992e466ad2d9b1b10a4a619adef1bcb0badbfc0307c",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "2fe93fcc-984a-4a",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/2fe93fcc-984a-4ae9-90f9-7fd247e2400f.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 2fe93fcc-984a-4a（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 35,
+    "sha256_prefix": "2bdcdf2890d63464",
+    "request_id": "281467030579536"
+   },
+   "name": "session-archive:2fe93fcc-984a-4a",
+   "group_id": "vault:canvas_vault",
+   "source_description": "conversation-archive",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (17958 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T12:01:41.514740+00:00",
+   "reference_time": "2026-08-09T12:00:34.207153+00:00",
+   "class": "budget_400",
+   "episode_body_length": 2848,
+   "episode_body_sha256": "2bdcdf2890d63464c4094d21210b5d47227a56eaef2b1c2afa5313401754101c",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "2fe93fcc-984a-4a",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/2fe93fcc-984a-4ae9-90f9-7fd247e2400f.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 2fe93fcc-984a-4a（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 36,
+    "sha256_prefix": "f032c114eedd1b92",
+    "request_id": "281466547498960"
+   },
+   "name": "conversation_distillation:Distilled summary for node session:426ff",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:conversation_distillation",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (17020 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T12:46:15.024642+00:00",
+   "reference_time": "2026-08-09T12:46:08.429777+00:00",
+   "class": "budget_400",
+   "episode_body_length": 594,
+   "episode_body_sha256": "f032c114eedd1b9215304af4e03db3553c0f25d4fe6e6f31a9040e7588ee49ca",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 37,
+    "sha256_prefix": "04e26b3060192bc9",
+    "request_id": "281466547498960"
+   },
+   "name": "qa_highlight:Q: What is the relationship between a co",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16958 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T12:48:18.225989+00:00",
+   "reference_time": "2026-08-09T12:47:50.733044+00:00",
+   "class": "budget_400",
+   "episode_body_length": 282,
+   "episode_body_sha256": "04e26b3060192bc9de508b2e75c508fba86553a82bea1e910bc24771c75834b5",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 38,
+    "sha256_prefix": "a9c347bb516aaf37",
+    "request_id": "281466547498960"
+   },
+   "name": "qa_highlight:Q: Why do eigenvectors matter in the con",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16963 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T12:48:18.366054+00:00",
+   "reference_time": "2026-08-09T12:47:50.733592+00:00",
+   "class": "budget_400",
+   "episode_body_length": 284,
+   "episode_body_sha256": "a9c347bb516aaf371409c8abc29cd98cc812a3bf68e560fc21dd7c4a2590fe6a",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 39,
+    "sha256_prefix": "c93058c9850c6999",
+    "request_id": "281466547498960"
+   },
+   "name": "session-archive:426ffbde-15f6-4b",
+   "group_id": "vault:canvas_vault",
+   "source_description": "conversation-archive",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (20831 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T12:48:18.515010+00:00",
+   "reference_time": "2026-08-09T12:47:50.733920+00:00",
+   "class": "budget_400",
+   "episode_body_length": 8036,
+   "episode_body_sha256": "c93058c9850c6999310e98df9e6ebc26063b96fa6f0649fb1ec6d9d04c88a7fe",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 40,
+    "sha256_prefix": "24f816914eb0c3e1",
+    "request_id": "281466547882640"
+   },
+   "name": "conversation_distillation:Distilled summary for node session:426ff",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:conversation_distillation",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16999 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T12:49:25.442515+00:00",
+   "reference_time": "2026-08-09T12:49:24.334841+00:00",
+   "class": "budget_400",
+   "episode_body_length": 496,
+   "episode_body_sha256": "24f816914eb0c3e1a478bd15252d26539343b3b7571c8beefc0b22c8896217c2",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 41,
+    "sha256_prefix": "f22956e79a5a23be",
+    "request_id": "281466547882640"
+   },
+   "name": "qa_highlight:Q: What is the relationship between a co",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16957 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T12:49:49.742358+00:00",
+   "reference_time": "2026-08-09T12:49:27.259660+00:00",
+   "class": "budget_400",
+   "episode_body_length": 268,
+   "episode_body_sha256": "f22956e79a5a23be64d05cd806fd78773916c5bc40b10f9cfd7d5fda0814e10e",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 42,
+    "sha256_prefix": "a6c7b5a83d4f710c",
+    "request_id": "281466547882640"
+   },
+   "name": "qa_highlight:Q: Why do we use eigenvectors in PCA? | ",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16956 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T12:49:49.882628+00:00",
+   "reference_time": "2026-08-09T12:49:27.259917+00:00",
+   "class": "budget_400",
+   "episode_body_length": 249,
+   "episode_body_sha256": "a6c7b5a83d4f710c94bf3fab47e9365897b981cff99d9d0cf97a803ab22c4890",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 43,
+    "sha256_prefix": "c93058c9850c6999",
+    "request_id": "281466547882640"
+   },
+   "name": "session-archive:426ffbde-15f6-4b",
+   "group_id": "vault:canvas_vault",
+   "source_description": "conversation-archive",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (20831 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T12:49:50.034347+00:00",
+   "reference_time": "2026-08-09T12:49:27.260277+00:00",
+   "class": "budget_400",
+   "episode_body_length": 8036,
+   "episode_body_sha256": "c93058c9850c6999310e98df9e6ebc26063b96fa6f0649fb1ec6d9d04c88a7fe",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 44,
+    "sha256_prefix": "70b4b2388bab0722",
+    "request_id": "281466671769040"
+   },
+   "name": "conversation_distillation:Distilled summary for node session:426ff",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:conversation_distillation",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16994 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T13:01:35.139886+00:00",
+   "reference_time": "2026-08-09T13:00:47.374704+00:00",
+   "class": "budget_400",
+   "episode_body_length": 410,
+   "episode_body_sha256": "70b4b2388bab0722306e1065196fbf9d5fab367c2a3ed0564232e9129ca673fb",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 45,
+    "sha256_prefix": "7a830d4e3c5d52fe",
+    "request_id": "281466671769040"
+   },
+   "name": "qa_highlight:Q: What is the relationship between a co",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16955 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T13:01:46.199857+00:00",
+   "reference_time": "2026-08-09T13:00:52.930250+00:00",
+   "class": "budget_400",
+   "episode_body_length": 278,
+   "episode_body_sha256": "7a830d4e3c5d52fe3699e0065c5ab61ae013eca3dcf6dd79cf246e37fc4d8629",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 46,
+    "sha256_prefix": "99df1a7cd884deb2",
+    "request_id": "281466671769040"
+   },
+   "name": "qa_highlight:Q: How do eigenvectors relate to the con",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16987 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T13:01:46.359412+00:00",
+   "reference_time": "2026-08-09T13:00:52.930655+00:00",
+   "class": "budget_400",
+   "episode_body_length": 331,
+   "episode_body_sha256": "99df1a7cd884deb2ae19e3c2a07e1751da1e6da315cf718ef713c02e6fb13f44",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 47,
+    "sha256_prefix": "c93058c9850c6999",
+    "request_id": "281466671769040"
+   },
+   "name": "session-archive:426ffbde-15f6-4b",
+   "group_id": "vault:canvas_vault",
+   "source_description": "conversation-archive",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (20831 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T13:01:46.536266+00:00",
+   "reference_time": "2026-08-09T13:00:52.931104+00:00",
+   "class": "budget_400",
+   "episode_body_length": 8036,
+   "episode_body_sha256": "c93058c9850c6999310e98df9e6ebc26063b96fa6f0649fb1ec6d9d04c88a7fe",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 48,
+    "sha256_prefix": "311fb08375bef84f",
+    "request_id": "281466584125264"
+   },
+   "name": "conversation_distillation:Distilled summary for node session:35e1f",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:conversation_distillation",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16988 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T13:01:46.694183+00:00",
+   "reference_time": "2026-08-09T13:00:59.248233+00:00",
+   "class": "budget_400",
+   "episode_body_length": 444,
+   "episode_body_sha256": "311fb08375bef84fe796c08686491a46c44767e6dd75e704ad8f7480898ad381",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "35e1fdd2-fcc1-49",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/35e1fdd2-fcc1-49fc-b26f-c1cb90f07fc0.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 35e1fdd2-fcc1-49（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 49,
+    "sha256_prefix": "bd50d100ccdd7fff",
+    "request_id": "281466584125264"
+   },
+   "name": "qa_highlight:Q: Did I record how to solve the sour do",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16962 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T13:01:46.858698+00:00",
+   "reference_time": "2026-08-09T13:01:00.592934+00:00",
+   "class": "budget_400",
+   "episode_body_length": 212,
+   "episode_body_sha256": "bd50d100ccdd7fff7515b51e648640fc3b8e8ed5b40a248ada33f6c072d30837",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "35e1fdd2-fcc1-49",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/35e1fdd2-fcc1-49fc-b26f-c1cb90f07fc0.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 35e1fdd2-fcc1-49（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 50,
+    "sha256_prefix": "6e2fcf16a286eccc",
+    "request_id": "281466584125264"
+   },
+   "name": "qa_highlight:Q: Was there an automatic injection of a",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16948 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T13:01:47.028089+00:00",
+   "reference_time": "2026-08-09T13:01:00.593311+00:00",
+   "class": "budget_400",
+   "episode_body_length": 241,
+   "episode_body_sha256": "6e2fcf16a286ecccb64d576922dc5e785c076ce570f4698cefe5f67418ef5272",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "35e1fdd2-fcc1-49",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/35e1fdd2-fcc1-49fc-b26f-c1cb90f07fc0.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 35e1fdd2-fcc1-49（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 51,
+    "sha256_prefix": "c59e579580669750",
+    "request_id": "281466584125264"
+   },
+   "name": "session-archive:35e1fdd2-fcc1-49",
+   "group_id": "vault:canvas_vault",
+   "source_description": "conversation-archive",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (17101 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T13:01:47.186107+00:00",
+   "reference_time": "2026-08-09T13:01:00.593586+00:00",
+   "class": "budget_400",
+   "episode_body_length": 1171,
+   "episode_body_sha256": "c59e5795806697507eb7a5cfb51ca27a6a3f4def1f2df118de8d86504173d313",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "35e1fdd2-fcc1-49",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/35e1fdd2-fcc1-49fc-b26f-c1cb90f07fc0.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 35e1fdd2-fcc1-49（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 52,
+    "sha256_prefix": "35b7a2fb31b3c3aa",
+    "request_id": "281466129796368"
+   },
+   "name": "conversation_distillation:Distilled summary for node session:426ff",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:conversation_distillation",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (17005 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T14:07:49.369127+00:00",
+   "reference_time": "2026-08-09T14:06:34.423226+00:00",
+   "class": "budget_400",
+   "episode_body_length": 529,
+   "episode_body_sha256": "35b7a2fb31b3c3aa6013b4f848f13680ad799253b24a2d06121a8e51b12fd21f",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 53,
+    "sha256_prefix": "5eb93085e6d1bb8c",
+    "request_id": "281466129796368"
+   },
+   "name": "qa_highlight:Q: What is the relationship between a co",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16956 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T14:07:49.522522+00:00",
+   "reference_time": "2026-08-09T14:06:38.279005+00:00",
+   "class": "budget_400",
+   "episode_body_length": 275,
+   "episode_body_sha256": "5eb93085e6d1bb8c85ec52ed77303ca7a1b383ac00a75f60b8b0d98d7486791f",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 54,
+    "sha256_prefix": "345d56d205896e8a",
+    "request_id": "281466129796368"
+   },
+   "name": "qa_highlight:Q: How do we distinguish between 'eigenv",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16969 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T14:07:49.666388+00:00",
+   "reference_time": "2026-08-09T14:06:38.279289+00:00",
+   "class": "budget_400",
+   "episode_body_length": 255,
+   "episode_body_sha256": "345d56d205896e8a3ec88ed708ef26b2c8902139a8e23c3d4cfd062b0bbd9afc",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 55,
+    "sha256_prefix": "c93058c9850c6999",
+    "request_id": "281466129796368"
+   },
+   "name": "session-archive:426ffbde-15f6-4b",
+   "group_id": "vault:canvas_vault",
+   "source_description": "conversation-archive",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (20831 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T14:07:49.829835+00:00",
+   "reference_time": "2026-08-09T14:06:38.279645+00:00",
+   "class": "budget_400",
+   "episode_body_length": 8036,
+   "episode_body_sha256": "c93058c9850c6999310e98df9e6ebc26063b96fa6f0649fb1ec6d9d04c88a7fe",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 56,
+    "sha256_prefix": "373d9046af935dc4",
+    "request_id": "281466125465360"
+   },
+   "name": "conversation_distillation:Distilled summary for node session:b0e07",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:conversation_distillation",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16992 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T14:07:49.971921+00:00",
+   "reference_time": "2026-08-09T14:06:42.742184+00:00",
+   "class": "budget_400",
+   "episode_body_length": 427,
+   "episode_body_sha256": "373d9046af935dc4174321808b7377b4813e919d6ee85a4141b8d42657803a6f",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "b0e07a30-902b-45",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/b0e07a30-902b-455b-817e-560525224587.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript b0e07a30-902b-45（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 57,
+    "sha256_prefix": "889972c2a5b9c588",
+    "request_id": "281466125465360"
+   },
+   "name": "qa_highlight:Q: Where is the note about the relations",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16957 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T14:07:50.123399+00:00",
+   "reference_time": "2026-08-09T14:06:43.018889+00:00",
+   "class": "budget_400",
+   "episode_body_length": 234,
+   "episode_body_sha256": "889972c2a5b9c5880b130abe501506da492b9bc3d66a1ead48f9fa370bddc8c6",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "b0e07a30-902b-45",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/b0e07a30-902b-455b-817e-560525224587.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript b0e07a30-902b-45（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 58,
+    "sha256_prefix": "86876f4cc47d1968",
+    "request_id": "281466125465360"
+   },
+   "name": "qa_highlight:Q: Was there an automatic injection of s",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16952 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T14:07:50.287388+00:00",
+   "reference_time": "2026-08-09T14:06:43.019095+00:00",
+   "class": "budget_400",
+   "episode_body_length": 248,
+   "episode_body_sha256": "86876f4cc47d1968e494654d99b2f63cbd44408a88cbe1738106cca4558fa7bf",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "b0e07a30-902b-45",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/b0e07a30-902b-455b-817e-560525224587.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript b0e07a30-902b-45（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 59,
+    "sha256_prefix": "c89723d4599b84f9",
+    "request_id": "281466125465360"
+   },
+   "name": "session-archive:b0e07a30-902b-45",
+   "group_id": "vault:canvas_vault",
+   "source_description": "conversation-archive",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (17331 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-09T14:07:50.450307+00:00",
+   "reference_time": "2026-08-09T14:06:43.019397+00:00",
+   "class": "budget_400",
+   "episode_body_length": 1673,
+   "episode_body_sha256": "c89723d4599b84f942ddafd21a8d908adec224b1d943a971cf84fbb4e51e8b58",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "b0e07a30-902b-45",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/b0e07a30-902b-455b-817e-560525224587.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript b0e07a30-902b-45（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 60,
+    "sha256_prefix": "2d1bb0f26109a0d1",
+    "request_id": "281466295436816"
+   },
+   "name": "conversation_distillation:Distilled summary for node session:426ff",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:conversation_distillation",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (17003 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-10T10:27:50.808852+00:00",
+   "reference_time": "2026-08-10T10:27:41.886437+00:00",
+   "class": "budget_400",
+   "episode_body_length": 471,
+   "episode_body_sha256": "2d1bb0f26109a0d12cdd3364551f8ca72a551e5df129c1086af5a63f4f3fe58c",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 61,
+    "sha256_prefix": "a7d0a573e4fbef9d",
+    "request_id": "281466295436816"
+   },
+   "name": "qa_highlight:Q: What is the relationship between a co",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16958 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-10T10:28:06.994977+00:00",
+   "reference_time": "2026-08-10T10:27:45.914891+00:00",
+   "class": "budget_400",
+   "episode_body_length": 292,
+   "episode_body_sha256": "a7d0a573e4fbef9db9261c1b32e74c41b127fb928a73040f1aac73e21eff2116",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 62,
+    "sha256_prefix": "1f6366c7bb53c414",
+    "request_id": "281466295436816"
+   },
+   "name": "qa_highlight:Q: Why do eigenvectors matter in the con",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16964 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-10T10:28:07.128837+00:00",
+   "reference_time": "2026-08-10T10:27:45.915284+00:00",
+   "class": "budget_400",
+   "episode_body_length": 284,
+   "episode_body_sha256": "1f6366c7bb53c414cab47bb5786dad489a9df480c73a53714c2c2a76cdc7f95e",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 63,
+    "sha256_prefix": "c93058c9850c6999",
+    "request_id": "281466295436816"
+   },
+   "name": "session-archive:426ffbde-15f6-4b",
+   "group_id": "vault:canvas_vault",
+   "source_description": "conversation-archive",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (20831 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-10T10:28:07.258791+00:00",
+   "reference_time": "2026-08-10T10:27:45.915568+00:00",
+   "class": "budget_400",
+   "episode_body_length": 8036,
+   "episode_body_sha256": "c93058c9850c6999310e98df9e6ebc26063b96fa6f0649fb1ec6d9d04c88a7fe",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 64,
+    "sha256_prefix": "288e4b506e72402e",
+    "request_id": "281466290550480"
+   },
+   "name": "conversation_distillation:Distilled summary for node session:426ff",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:conversation_distillation",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16996 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-10T11:10:27.408075+00:00",
+   "reference_time": "2026-08-10T11:10:14.297607+00:00",
+   "class": "budget_400",
+   "episode_body_length": 469,
+   "episode_body_sha256": "288e4b506e72402e22c8b08fa9608c8dc9e1870ccdd43ed4ab93c95655435064",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 65,
+    "sha256_prefix": "f45110236d644ca4",
+    "request_id": "281466290550480"
+   },
+   "name": "qa_highlight:Q: What is the relationship between cova",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16954 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-10T11:10:43.773188+00:00",
+   "reference_time": "2026-08-10T11:10:20.958354+00:00",
+   "class": "budget_400",
+   "episode_body_length": 275,
+   "episode_body_sha256": "f45110236d644ca436066f23266f3205b3fcce5af490011bf2dd36ad9bf75584",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 66,
+    "sha256_prefix": "bb964c85c48185a3",
+    "request_id": "281466290550480"
+   },
+   "name": "qa_highlight:Q: How do eigenvectors differ from featu",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16972 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-10T11:10:43.909176+00:00",
+   "reference_time": "2026-08-10T11:10:20.958604+00:00",
+   "class": "budget_400",
+   "episode_body_length": 306,
+   "episode_body_sha256": "bb964c85c48185a36ea3d6e03d1e828dc4ab99a6da5644ecdcd1ff1c775257ad",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 67,
+    "sha256_prefix": "c93058c9850c6999",
+    "request_id": "281466290550480"
+   },
+   "name": "session-archive:426ffbde-15f6-4b",
+   "group_id": "vault:canvas_vault",
+   "source_description": "conversation-archive",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (20831 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-10T11:10:44.051081+00:00",
+   "reference_time": "2026-08-10T11:10:20.958934+00:00",
+   "class": "budget_400",
+   "episode_body_length": 8036,
+   "episode_body_sha256": "c93058c9850c6999310e98df9e6ebc26063b96fa6f0649fb1ec6d9d04c88a7fe",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 68,
+    "sha256_prefix": "f9682670197b1339",
+    "request_id": "281466089430544"
+   },
+   "name": "conversation_distillation:Distilled summary for node session:426ff",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:conversation_distillation",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16992 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-10T19:40:10.858082+00:00",
+   "reference_time": "2026-08-10T19:39:25.735350+00:00",
+   "class": "budget_400",
+   "episode_body_length": 408,
+   "episode_body_sha256": "f9682670197b1339166db46bc7a6b49cca01d745e100568dfdd88b6aa15c6f51",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 69,
+    "sha256_prefix": "8bb893d837849db6",
+    "request_id": "281466089430544"
+   },
+   "name": "qa_highlight:Q: What is the relationship between a co",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16959 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-10T19:40:31.704471+00:00",
+   "reference_time": "2026-08-10T19:39:29.250183+00:00",
+   "class": "budget_400",
+   "episode_body_length": 287,
+   "episode_body_sha256": "8bb893d837849db667f522e5dfba23a6ab636194a4765b518ded4f6a80c378c6",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 70,
+    "sha256_prefix": "128315481c7a0461",
+    "request_id": "281466089430544"
+   },
+   "name": "qa_highlight:Q: How do 'feature vectors' in CS188 dif",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16971 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-10T19:40:31.818220+00:00",
+   "reference_time": "2026-08-10T19:39:29.250423+00:00",
+   "class": "budget_400",
+   "episode_body_length": 311,
+   "episode_body_sha256": "128315481c7a0461aed600c9d420bc94bdfb95f31e5a0b352281b45cacd45a97",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 71,
+    "sha256_prefix": "c93058c9850c6999",
+    "request_id": "281466089430544"
+   },
+   "name": "session-archive:426ffbde-15f6-4b",
+   "group_id": "vault:canvas_vault",
+   "source_description": "conversation-archive",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (20831 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-10T19:40:31.940901+00:00",
+   "reference_time": "2026-08-10T19:39:29.250734+00:00",
+   "class": "budget_400",
+   "episode_body_length": 8036,
+   "episode_body_sha256": "c93058c9850c6999310e98df9e6ebc26063b96fa6f0649fb1ec6d9d04c88a7fe",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 72,
+    "sha256_prefix": "2bb6c21667c7ff8e",
+    "request_id": "281466066912848"
+   },
+   "name": "conversation_distillation:Distilled summary for node session:dfdde",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:conversation_distillation",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16976 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-10T19:40:32.048816+00:00",
+   "reference_time": "2026-08-10T19:39:35.637133+00:00",
+   "class": "budget_400",
+   "episode_body_length": 340,
+   "episode_body_sha256": "2bb6c21667c7ff8e62ea4c0871cfe1c4793b4d343ca612205e2d226202842d9a",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "dfddedb9-1927-4f",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/dfddedb9-1927-4f11-afa4-da5432c20eac.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript dfddedb9-1927-4f（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 73,
+    "sha256_prefix": "e98bcd94c419027b",
+    "request_id": "281466066912848"
+   },
+   "name": "qa_highlight:Q: How is the characteristic equation de",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16975 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-10T19:40:32.159203+00:00",
+   "reference_time": "2026-08-10T19:39:38.719405+00:00",
+   "class": "budget_400",
+   "episode_body_length": 244,
+   "episode_body_sha256": "e98bcd94c419027b0ab8ff5f813aec99d225c583ac977254f07017791451dc65",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "dfddedb9-1927-4f",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/dfddedb9-1927-4f11-afa4-da5432c20eac.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript dfddedb9-1927-4f（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 74,
+    "sha256_prefix": "3bd41d2577f40a84",
+    "request_id": "281466066912848"
+   },
+   "name": "qa_highlight:Q: Can the eigenvalue λ be 0? | A: Yes, ",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16958 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-10T19:40:32.269328+00:00",
+   "reference_time": "2026-08-10T19:39:38.719923+00:00",
+   "class": "budget_400",
+   "episode_body_length": 142,
+   "episode_body_sha256": "3bd41d2577f40a84cd0857eb082d95bd7093b61a1b76440634e95aaff95b2fa7",
+   "inline_state": "full_verified",
+   "sha_check": "pass",
+   "session_token": "dfddedb9-1927-4f",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/dfddedb9-1927-4f11-afa4-da5432c20eac.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "byte_exact",
+   "recoverability_basis": "inline 正文全量：sha256 重算与声明一致且长度精确匹配"
+  },
+  {
+   "stable_key": {
+    "line_no": 75,
+    "sha256_prefix": "28b46a7186ca1631",
+    "request_id": "281466066912848"
+   },
+   "name": "qa_highlight:Q: Why is the identity matrix I necessar",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16954 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-10T19:40:32.382064+00:00",
+   "reference_time": "2026-08-10T19:39:38.720781+00:00",
+   "class": "budget_400",
+   "episode_body_length": 235,
+   "episode_body_sha256": "28b46a7186ca1631ebf30e2d2e32108052c0d7cc60a50755fba46876c7d6fdd8",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "dfddedb9-1927-4f",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/dfddedb9-1927-4f11-afa4-da5432c20eac.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript dfddedb9-1927-4f（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 76,
+    "sha256_prefix": "675342eb83a37dd4",
+    "request_id": "281466066912848"
+   },
+   "name": "session-archive:dfddedb9-1927-4f",
+   "group_id": "vault:canvas_vault",
+   "source_description": "conversation-archive",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (20784 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-10T19:40:32.512015+00:00",
+   "reference_time": "2026-08-10T19:39:38.721203+00:00",
+   "class": "budget_400",
+   "episode_body_length": 8036,
+   "episode_body_sha256": "675342eb83a37dd44d4a250fd5296a687928259c1dc18493f9616eb2e2ee3a3b",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "dfddedb9-1927-4f",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/dfddedb9-1927-4f11-afa4-da5432c20eac.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript dfddedb9-1927-4f（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 77,
+    "sha256_prefix": "970fd93739d944d6",
+    "request_id": "281466805739856"
+   },
+   "name": "conversation_distillation:Distilled summary for node session:426ff",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:conversation_distillation",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (17005 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-10T20:00:55.916133+00:00",
+   "reference_time": "2026-08-10T20:00:40.693646+00:00",
+   "class": "budget_400",
+   "episode_body_length": 523,
+   "episode_body_sha256": "970fd93739d944d66ec6b10c3dfdccb9fc3df526f93f2fe5ee45c3c723bde685",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 78,
+    "sha256_prefix": "f22956e79a5a23be",
+    "request_id": "281466805739856"
+   },
+   "name": "qa_highlight:Q: What is the relationship between a co",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16957 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-10T20:01:11.527542+00:00",
+   "reference_time": "2026-08-10T20:00:44.900877+00:00",
+   "class": "budget_400",
+   "episode_body_length": 268,
+   "episode_body_sha256": "f22956e79a5a23be64d05cd806fd78773916c5bc40b10f9cfd7d5fda0814e10e",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 79,
+    "sha256_prefix": "b662432ff55a7aad",
+    "request_id": "281466805739856"
+   },
+   "name": "qa_highlight:Q: How do eigenvectors in linear algebra",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16976 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-10T20:01:11.655237+00:00",
+   "reference_time": "2026-08-10T20:00:44.901162+00:00",
+   "class": "budget_400",
+   "episode_body_length": 378,
+   "episode_body_sha256": "b662432ff55a7aad2458242da0686baea68811bf292446557f9661e889f8bd2f",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 80,
+    "sha256_prefix": "c93058c9850c6999",
+    "request_id": "281466805739856"
+   },
+   "name": "session-archive:426ffbde-15f6-4b",
+   "group_id": "vault:canvas_vault",
+   "source_description": "conversation-archive",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (20831 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-10T20:01:11.782328+00:00",
+   "reference_time": "2026-08-10T20:00:44.901449+00:00",
+   "class": "budget_400",
+   "episode_body_length": 8036,
+   "episode_body_sha256": "c93058c9850c6999310e98df9e6ebc26063b96fa6f0649fb1ec6d9d04c88a7fe",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 81,
+    "sha256_prefix": "ba4b37c0e29b7474",
+    "request_id": "281466168967440"
+   },
+   "name": "conversation_distillation:Distilled summary for node session:426ff",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:conversation_distillation",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (17002 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-10T20:12:59.440727+00:00",
+   "reference_time": "2026-08-10T20:12:51.538309+00:00",
+   "class": "budget_400",
+   "episode_body_length": 505,
+   "episode_body_sha256": "ba4b37c0e29b747465b1b473d6d9574e4ef4009926d0315e6633625862b1897e",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 82,
+    "sha256_prefix": "f22956e79a5a23be",
+    "request_id": "281466168967440"
+   },
+   "name": "qa_highlight:Q: What is the relationship between a co",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16957 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-10T20:13:19.066420+00:00",
+   "reference_time": "2026-08-10T20:12:55.253041+00:00",
+   "class": "budget_400",
+   "episode_body_length": 268,
+   "episode_body_sha256": "f22956e79a5a23be64d05cd806fd78773916c5bc40b10f9cfd7d5fda0814e10e",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 83,
+    "sha256_prefix": "1efea6e45c5a98fb",
+    "request_id": "281466168967440"
+   },
+   "name": "qa_highlight:Q: How do we distinguish between 'eigenv",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16969 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-10T20:13:19.179422+00:00",
+   "reference_time": "2026-08-10T20:12:55.253733+00:00",
+   "class": "budget_400",
+   "episode_body_length": 294,
+   "episode_body_sha256": "1efea6e45c5a98fbba319f868dccdcb62a0830b28a046d7183b174aeed5f23e8",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 84,
+    "sha256_prefix": "c93058c9850c6999",
+    "request_id": "281466168967440"
+   },
+   "name": "session-archive:426ffbde-15f6-4b",
+   "group_id": "vault:canvas_vault",
+   "source_description": "conversation-archive",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (20831 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-10T20:13:19.299591+00:00",
+   "reference_time": "2026-08-10T20:12:55.253998+00:00",
+   "class": "budget_400",
+   "episode_body_length": 8036,
+   "episode_body_sha256": "c93058c9850c6999310e98df9e6ebc26063b96fa6f0649fb1ec6d9d04c88a7fe",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 85,
+    "sha256_prefix": "f2a31243a1672337",
+    "request_id": "281466798339216"
+   },
+   "name": "conversation_distillation:Distilled summary for node session:426ff",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:conversation_distillation",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16999 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-11T13:47:37.814802+00:00",
+   "reference_time": "2026-08-11T13:47:21.944929+00:00",
+   "class": "budget_400",
+   "episode_body_length": 439,
+   "episode_body_sha256": "f2a31243a1672337080b41715888beffef503623492e7125feb0ebb7a3734724",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 86,
+    "sha256_prefix": "04e26b3060192bc9",
+    "request_id": "281466798339216"
+   },
+   "name": "qa_highlight:Q: What is the relationship between a co",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16958 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-11T13:47:52.735492+00:00",
+   "reference_time": "2026-08-11T13:47:25.736260+00:00",
+   "class": "budget_400",
+   "episode_body_length": 282,
+   "episode_body_sha256": "04e26b3060192bc9de508b2e75c508fba86553a82bea1e910bc24771c75834b5",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 87,
+    "sha256_prefix": "24b61bef11b33001",
+    "request_id": "281466798339216"
+   },
+   "name": "qa_highlight:Q: How do eigenvectors relate to the con",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16979 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-11T13:47:52.849474+00:00",
+   "reference_time": "2026-08-11T13:47:25.736581+00:00",
+   "class": "budget_400",
+   "episode_body_length": 339,
+   "episode_body_sha256": "24b61bef11b330011757cc1edbd2239937b6f0306b987acbd7103f33c80dc827",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 88,
+    "sha256_prefix": "c93058c9850c6999",
+    "request_id": "281466798339216"
+   },
+   "name": "session-archive:426ffbde-15f6-4b",
+   "group_id": "vault:canvas_vault",
+   "source_description": "conversation-archive",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (20831 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-11T13:47:52.977072+00:00",
+   "reference_time": "2026-08-11T13:47:25.736965+00:00",
+   "class": "budget_400",
+   "episode_body_length": 8036,
+   "episode_body_sha256": "c93058c9850c6999310e98df9e6ebc26063b96fa6f0649fb1ec6d9d04c88a7fe",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 89,
+    "sha256_prefix": "89eb74e947e419c0",
+    "request_id": "281466698020176"
+   },
+   "name": "conversation_distillation:Distilled summary for node session:426ff",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:conversation_distillation",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16999 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-11T14:01:13.955646+00:00",
+   "reference_time": "2026-08-11T14:00:54.063175+00:00",
+   "class": "budget_400",
+   "episode_body_length": 441,
+   "episode_body_sha256": "89eb74e947e419c0c5e2250e2980bedb5ef9aa44c6fbc6549992523aff3f244b",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 90,
+    "sha256_prefix": "eec2667603e88173",
+    "request_id": "281466698020176"
+   },
+   "name": "qa_highlight:Q: What is the relationship between a co",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16959 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-11T14:01:25.482641+00:00",
+   "reference_time": "2026-08-11T14:00:59.051443+00:00",
+   "class": "budget_400",
+   "episode_body_length": 293,
+   "episode_body_sha256": "eec2667603e881732a0c3e8049e250c113921bd411d825f1b3775fd7e9ee3373",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 91,
+    "sha256_prefix": "398002c07dd2257f",
+    "request_id": "281466698020176"
+   },
+   "name": "qa_highlight:Q: How do 'feature vectors' in Reinforce",
+   "group_id": "vault:canvas_vault",
+   "source_description": "canvas_learning:qa_highlight",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (16984 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-11T14:01:25.635367+00:00",
+   "reference_time": "2026-08-11T14:00:59.051704+00:00",
+   "class": "budget_400",
+   "episode_body_length": 349,
+   "episode_body_sha256": "398002c07dd2257f346655f5b3c5a6fc5d5af86af3acf2d7eecd3e4b15803c3a",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  },
+  {
+   "stable_key": {
+    "line_no": 92,
+    "sha256_prefix": "c93058c9850c6999",
+    "request_id": "281466698020176"
+   },
+   "name": "session-archive:426ffbde-15f6-4b",
+   "group_id": "vault:canvas_vault",
+   "source_description": "conversation-archive",
+   "error_type": "BadRequestError",
+   "error_excerpt": "Error code: 400 - {'error': {'code': 400, 'message': 'request (20831 tokens) exceeds the available context size (16384 t",
+   "failed_at": "2026-08-11T14:01:25.807153+00:00",
+   "reference_time": "2026-08-11T14:00:59.052064+00:00",
+   "class": "budget_400",
+   "episode_body_length": 8036,
+   "episode_body_sha256": "c93058c9850c6999310e98df9e6ebc26063b96fa6f0649fb1ec6d9d04c88a7fe",
+   "inline_state": "truncated_prefix",
+   "sha_check": "prefix_only",
+   "session_token": "426ffbde-15f6-4b",
+   "transcript_paths": [
+    "/Users/Heishing/.claude/projects/-Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault/426ffbde-15f6-4be8-80af-51b6be612bfa.jsonl"
+   ],
+   "transcript_match_count": 1,
+   "attribution_conflict": false,
+   "recoverability": "approximate",
+   "recoverability_basis": "inline 为 200 字符前缀（前缀性质依赖 to_dict()[:200] 生产不变量，sha 无法直接证明）；经 request_id 组归因到唯一在盘 transcript 426ffbde-15f6-4b（归因 ≠ 内容已验证——本工具未读 transcript 内容；G4-10 可重蒸馏/重格式化近似重建，非逐字节保证）"
+  }
+ ]
+}
