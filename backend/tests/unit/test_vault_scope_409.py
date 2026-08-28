@@ -188,6 +188,31 @@ def isolated_event_log(tmp_path, monkeypatch):
     return log_file
 
 
+@pytest.fixture
+def isolated_episode_worker(monkeypatch):
+    """拦住 episode worker 的入队, 阻断到 **live Neo4j 7691** 的写路径。
+
+    ``isolated_event_log`` 只重定向了 JSONL 账本; callout-direct 的成功分支
+    还会 ``get_episode_worker().enqueue(task)``, worker 线程随后把 episode
+    写进真实图谱 (实测: 每跑一次测试就在 7691 多留一个 Episodic 节点)。
+    公共纪律「不碰 live vault 与 Neo4j 7691」要求两条写路径都隔离。
+
+    入队被替换为记录到列表并返回 True (端点只读该布尔值判断背压),
+    用例可按需断言入队意图而不产生任何图谱副作用。
+    """
+    from app.services import episode_worker as episode_worker_mod
+
+    captured: list = []
+
+    class _NullWorker:
+        def enqueue(self, task):  # noqa: D401 - 与真实 worker 同签名
+            captured.append(task)
+            return True
+
+    monkeypatch.setattr(episode_worker_mod, "get_episode_worker", lambda: _NullWorker())
+    return captured
+
+
 SYNC_PAYLOAD = {
     "canvas_id": "test_canvas",
     "vault_id": OTHER,
@@ -322,7 +347,7 @@ class TestCodexRound1RectifiedEndpoints:
         assert resp.status_code == 409, resp.text
 
     def test_tips_callout_direct_409_before_idempotency_write(
-        self, client, isolated_event_log
+        self, client, isolated_event_log, isolated_episode_worker
     ):
         """BLOCKER-2: callout-direct 曾先落幂等事件再 409 —— 客户端纠正
         vault 后重试会被判 duplicate, 批注永久丢失。现在解析先行。
