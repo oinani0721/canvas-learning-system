@@ -1,0 +1,747 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://canvas-learning-system.local/schemas/release-journey-manifest/1.0.0",
+  "title": "Release Journey Evidence Manifest",
+  "description": "CARD-R-EVD (A06 轻量形态) — docs/release-evidence/<rc>/journeys/<Jxx>/manifest.json 的结构契约。真相源: 计划书 §12.6 L596 必含字段 + §12.5 E0-E5 等级与降级规则; 裁剪记录见同目录 README.md。仅描述结构; 跨字段语义规则 (S1-S16 / A0-A3) 由 backend/scripts/validate_release_manifest.py 实施 —— 二者共同构成契约, 单看 schema 会高估宽松度。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "journey_id",
+    "journey_title",
+    "rc",
+    "provenance",
+    "candidate",
+    "environment",
+    "execution",
+    "assertions",
+    "rollback",
+    "artifacts",
+    "slo",
+    "signoff",
+    "evidence_level",
+    "result"
+  ],
+  "properties": {
+    "schema_version": {
+      "description": "本 manifest 遵循的 schema 版本 (semver)。schema 破坏性改动必须升 major 并在 README 记录迁移。",
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "journey_id": {
+      "description": "旅程编号, 与所在目录名一致 (计划书 §12.6 J01-J10)。",
+      "type": "string",
+      "pattern": "^J(0[1-9]|10)$"
+    },
+    "journey_title": {
+      "description": "旅程名称 (人读)。",
+      "type": "string",
+      "minLength": 1
+    },
+    "rc": {
+      "description": "所属 release candidate 标识, 与 <rc> 目录名一致。",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]{1,64}$"
+    },
+    "provenance": {
+      "description": "本 manifest 自身怎么来的。live = 执行期实录; reconstructed = 事后按既有归档回填 (语义层 S10 强制其 evidence_level ≤ E2 且不得签字, 防回填件冒充发布证据)。 live 不得带 reconstructed_from —— 一边宣称实录一边承认是回填是自相矛盾 (红队 R12)。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "unproven_fields"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "live",
+            "reconstructed"
+          ]
+        },
+        "reconstructed_from": {
+          "description": "回填所依据的归档 (路径 / commit / 报告)。mode=reconstructed 时必填。",
+          "type": "string",
+          "minLength": 1
+        },
+        "unproven_fields": {
+          "description": "本 manifest 中**无原始证据支撑**的字段路径 (如 candidate.dirty)。mode=live 时必须为空数组 —— 实录不该有推定字段。",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "note": {
+          "type": "string"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "reconstructed"
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          },
+          "then": {
+            "required": [
+              "mode",
+              "unproven_fields",
+              "reconstructed_from"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "live"
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          },
+          "then": {
+            "not": {
+              "required": [
+                "reconstructed_from"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "candidate": {
+      "description": "被验证的代码候选身份 (L596: candidate SHA + dirty=false)。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sha",
+        "branch",
+        "dirty"
+      ],
+      "properties": {
+        "sha": {
+          "description": "执行期 checkout 的 commit 完整 40 位 SHA-1。禁止缩写 SHA (无法唯一定位)。注意: 事后把'归档证据的那个 commit'填进来是常见错误 —— 它在执行时还不存在。",
+          "type": "string",
+          "pattern": "^(?!0{40}$)[0-9a-f]{40}$"
+        },
+        "branch": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dirty": {
+          "description": "跑证据时工作树是否有未提交改动。L596 要求发布证据 dirty=false —— 语义层 S17 对 live 实录与 E3+ 强制 false; 但**回填件 (provenance.mode=reconstructed) 且 ≤E2 时允许 true**: schema 原先写死 const false, 逼得一份如实回填的 manifest 只能在这里写假话 (红队 example-fidelity 审计 O4 实锤: D5 执行期 canvas-vault/CLAUDE.md 与 Dashboard.md 在 06:19:25 被改且当时未提交, dirty 的真值是 true)。宁可让它说真话并因此拿不到 E3+, 也不要让 schema 制造假话。",
+          "type": "boolean"
+        },
+        "worktree": {
+          "description": "执行所在的 worktree 路径 (可选, 双树拓扑下用于消歧)。",
+          "type": "string"
+        }
+      }
+    },
+    "environment": {
+      "description": "参考环境 (L596: 环境/模型/index SHA)。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "host_os",
+        "runtimes",
+        "models",
+        "index_sha"
+      ],
+      "properties": {
+        "host_os": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runtimes": {
+          "description": "关键运行时版本, 如 {\"python\": \"3.14.4\", \"node\": \"v24.16.0\"}。",
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "models": {
+          "description": "本次旅程真实调用的模型。无模型参与时给空数组 (不是省略)。",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "role",
+              "name"
+            ],
+            "properties": {
+              "role": {
+                "type": "string",
+                "minLength": 1
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "version": {
+                "type": "string"
+              },
+              "endpoint": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "index_sha": {
+          "description": "检索索引快照标识; 本旅程不涉索引时必须显式 null 并在 index_sha_null_reason 说明 (禁止省略字段冒充'无关')。",
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "index_sha_null_reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "services": {
+          "description": "参与的外部服务及其版本/端口 (可选)。",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "execution": {
+      "description": "真实执行记录 (L596: 真实命令 + 起止时间 + skip/mock 声明)。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "started_at",
+        "finished_at",
+        "operator",
+        "commands",
+        "skips_or_mocks"
+      ],
+      "properties": {
+        "started_at": {
+          "description": "ISO 8601, 必须带时区偏移 (语义层 S2 强制; 本仓 UTC/沪时双时区教训见 docs/known-gotchas.md)。",
+          "type": "string",
+          "format": "date-time",
+          "minLength": 1
+        },
+        "finished_at": {
+          "type": "string",
+          "format": "date-time",
+          "minLength": 1
+        },
+        "operator": {
+          "description": "执行者 (人 / agent / CI run id)。",
+          "type": "string",
+          "minLength": 1
+        },
+        "commands": {
+          "description": "逐条真实命令。至少一条; 非零退出必须显式标 expected_failure。",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "cmd",
+              "cwd",
+              "exit_code"
+            ],
+            "properties": {
+              "cmd": {
+                "type": "string",
+                "minLength": 1
+              },
+              "cwd": {
+                "type": "string",
+                "minLength": 1
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "expected_failure": {
+                "type": "boolean",
+                "description": "该命令的非零退出是预期内的。标 true 必须同时给 note 说明为什么 —— 无理由的万能牌等于把 S7 废掉 (红队 R9); 且 exit_code=0 时标 true 属自相矛盾 (语义层 S7)。"
+              },
+              "note": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "expected_failure": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "expected_failure"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "cmd",
+                    "cwd",
+                    "exit_code",
+                    "note"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        "skips_or_mocks": {
+          "description": "skip/mock 显式声明。declared=false 表示本次旅程零 skip 零 mock; declared=true 时 items 必须逐条列出 (E3+ 不允许)。",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "declared",
+            "items"
+          ],
+          "properties": {
+            "declared": {
+              "type": "boolean"
+            },
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "what",
+                  "why"
+                ],
+                "properties": {
+                  "what": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "why": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "assertions": {
+      "description": "硬断言逐条结果 (L596: 断言)。至少一条。",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "statement",
+          "method",
+          "result"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.-]{1,32}$"
+          },
+          "statement": {
+            "type": "string",
+            "minLength": 1
+          },
+          "method": {
+            "description": "怎么验的 (命令/脚本/人工步骤), 必须可复跑或可复核。",
+            "type": "string",
+            "minLength": 1
+          },
+          "result": {
+            "enum": [
+              "pass",
+              "fail",
+              "not_run"
+            ]
+          },
+          "evidence": {
+            "description": "支撑该断言的产物, 必须**逐字等于**某个 artifacts[].path (语义层 S12 强制解析, 防悬空引用)。",
+            "type": "string",
+            "minLength": 1
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "rollback": {
+      "description": "回滚结果 (L596: 回滚)。不适用时 performed=false 且 result=not_applicable, 并给 reason。 performed=false 时不得给 method —— performed/method/reason 三字段互相打架是红队 R14。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "performed",
+        "result"
+      ],
+      "properties": {
+        "performed": {
+          "type": "boolean"
+        },
+        "method": {
+          "type": "string",
+          "minLength": 1
+        },
+        "result": {
+          "enum": [
+            "pass",
+            "fail",
+            "not_applicable"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "if": {
+        "properties": {
+          "performed": {
+            "const": false
+          }
+        },
+        "required": [
+          "performed"
+        ]
+      },
+      "then": {
+        "not": {
+          "required": [
+            "method"
+          ]
+        }
+      }
+    },
+    "artifacts": {
+      "description": "脱敏产物清单及 checksum (L596: 脱敏 artifact checksum)。至少一件 —— 零产物的'证据'不是证据。",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "sha256",
+          "bytes",
+          "redacted"
+        ],
+        "properties": {
+          "path": {
+            "description": "相对本 manifest 所在目录的路径, 或 repo:// 前缀表示相对仓库根。禁止绝对路径、.. 上跳、反斜杠 —— 语义层 A0 再做一次解析后的越界与 symlink 检查 (防御深度)。",
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(repo://)?(?!/)(?!~)(?!.*(^|/)\\.\\.(/|$))[^\\\\]+$"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "redacted": {
+            "description": "是否已脱敏。false 表示原样收录 (须确认不含 secret/绝对路径/私人正文)。",
+            "type": "boolean"
+          },
+          "redaction_note": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "slo": {
+      "description": "SLO 阈值与实测 (§12.5 L592: E3 前必须锁定用户批准的 SLO, 且 J manifest 必须记录阈值与实测, 不得事后降门槛)。阈值本体的定义 owner = CARD-R-SLO, 本 schema 只引用 revision 并记录本旅程实测值。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "manifest_revision",
+        "measurements"
+      ],
+      "properties": {
+        "manifest_revision": {
+          "description": "所引用的 versioned benchmark/SLO manifest revision。E3 及以上必须非 null (语义层 S9)。",
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "measurements": {
+          "description": "本旅程逐项阈值与实测。E3 及以上必须至少一条 (语义层 S9)。",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "metric",
+              "threshold",
+              "measured",
+              "method",
+              "meets"
+            ],
+            "properties": {
+              "metric": {
+                "type": "string",
+                "minLength": 1
+              },
+              "threshold": {
+                "description": "锁版阈值 (人读, 如 \"p95 ≤ 2.5s\")。",
+                "type": "string",
+                "minLength": 1
+              },
+              "measured": {
+                "type": "string",
+                "minLength": 1
+              },
+              "unit": {
+                "type": "string"
+              },
+              "method": {
+                "description": "采集命令或方法, 必须可复跑。",
+                "type": "string",
+                "minLength": 1
+              },
+              "meets": {
+                "type": "boolean"
+              },
+              "waiver": {
+                "description": "未达标而仍放行时的用户事前/书面接受记录 (§12.5: 未达标只能判失败, 或经用户书面接受后降级为限制)。语义层 S9 强制 meets=false + result=pass 时必须有它。",
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "reason",
+                  "accepted_by",
+                  "at"
+                ],
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "accepted_by": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "minLength": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "release_gates": {
+      "description": "E5 (Personal production candidate) 专属硬门 (§12.5 + §12.6 dogfood 协议)。evidence_level=E5 时由语义层 S11 强制存在且达标; 其余等级可省略。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dogfood",
+        "recovery_drill"
+      ],
+      "properties": {
+        "dogfood": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "protocol_revision",
+            "rc_sha",
+            "start_date",
+            "end_date",
+            "days_required",
+            "days_completed",
+            "activity_counts",
+            "activity_minimums"
+          ],
+          "properties": {
+            "protocol_revision": {
+              "type": "string",
+              "minLength": 1
+            },
+            "rc_sha": {
+              "description": "dogfood 窗口所跑的 RC SHA, 语义层 S11 要求与 candidate.sha 一致 (换 SHA 须重开窗口)。",
+              "type": "string",
+              "pattern": "^(?!0{40}$)[0-9a-f]{40}$"
+            },
+            "start_date": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+              "description": "YYYY-MM-DD。语义层 S11 解析并与 days_completed 交叉核对 —— 不解析日期时 2 天窗口能认证 14 天 (红队 R3)。"
+            },
+            "end_date": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+              "description": "YYYY-MM-DD。语义层 S11 解析并与 days_completed 交叉核对 —— 不解析日期时 2 天窗口能认证 14 天 (红队 R3)。"
+            },
+            "days_required": {
+              "description": "协议要求的天数。§12.6 的协议名即 14-day dogfood protocol, 故下限硬钉 14 —— 作者自填 days_required=1 即满足'14 天门'是红队 R1 打出的 BLOCKER。",
+              "type": "integer",
+              "minimum": 14
+            },
+            "days_completed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "activity_counts": {
+              "description": "最低活动量实绩, 如 {\"learning_sessions\": 12, \"ingest_to_board\": 6}。",
+              "type": "object",
+              "minProperties": 1,
+              "additionalProperties": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "missed_days": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "activity_minimums": {
+              "description": "运行前锁定的最低活动量 (§12.6「数值由用户运行前锁定, 开始后不得下调」)。key 集必须与 activity_counts 完全相同, 每项 ≥1; 语义层 S11 逐项比对 counts ≥ minimums —— 否则 activity_counts 全零也能过 (红队 R2)。",
+              "type": "object",
+              "minProperties": 1,
+              "additionalProperties": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        },
+        "recovery_drill": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "performed",
+            "result",
+            "at",
+            "method"
+          ],
+          "properties": {
+            "performed": {
+              "type": "boolean"
+            },
+            "method": {
+              "type": "string",
+              "minLength": 1
+            },
+            "result": {
+              "enum": [
+                "pass",
+                "fail"
+              ]
+            },
+            "at": {
+              "type": "string",
+              "format": "date-time",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    },
+    "signoff": {
+      "description": "用户签字位 (L596: 用户签字)。status=approved 时必须同时有签字人与时间 —— 光一个 approved 字符串不算签字。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "pending",
+            "approved",
+            "rejected"
+          ]
+        },
+        "user": {
+          "type": "string",
+          "minLength": 1
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time",
+          "minLength": 1
+        },
+        "note": {
+          "type": "string"
+        }
+      },
+      "if": {
+        "properties": {
+          "status": {
+            "const": "approved"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "required": [
+          "status",
+          "user",
+          "at"
+        ]
+      }
+    },
+    "evidence_level": {
+      "description": "证据等级 (计划书 §12.5 E0-E5)。文件名含 e2e / CI 绿 / fixture 均不自动升级。",
+      "enum": [
+        "E0",
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ]
+    },
+    "result": {
+      "description": "本旅程整体判定。任一断言 fail/not_run、或回滚 fail 时不得为 pass (语义层 S3)。",
+      "enum": [
+        "pass",
+        "fail",
+        "partial"
+      ]
+    },
+    "known_limitations": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "notes": {
+      "type": "string"
+    },
+    "supersedes": {
+      "description": "本 manifest 取代的旧 manifest 路径 (重跑时的可追溯链)。",
+      "type": "string"
+    }
+  }
+}
