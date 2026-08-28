@@ -1,4 +1,7 @@
-== CARD-G4-9 只读自证（round-4 整改版, f27531b8a50f035d…） ==
+== CARD-G4-9 只读自证（round-6 整改版）==
+脚本 sha256: 533d0d4ce6da9ace21e19e2ccd55844b1b5ffa6f8f292b8ed0695956ff9e3585
+生成时点: round-6 整改后（本文件随每轮整改重生成——round-6 MEDIUM 指出过漂移）
+
 --- (1) 全部 import 行（应只有 stdlib）:
 52:from __future__ import annotations
 54:import argparse
@@ -18,31 +21,49 @@
 --- (3) --apply 定义（应 0）:
 0
 0 ✓
---- (4) 唯一写出口 + 其安全门（O_NOFOLLOW/O_NONBLOCK → fstat → S_ISREG → inode 校验 → fchmod → ftruncate）:
-272:        if not stat.S_ISREG(st.st_mode):
-620:            fd = os.open(args.out, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
-627:            if not stat.S_ISREG(st.st_mode):
-632:                os.fchmod(fd, 0o600)
-639:            os.ftruncate(fd, 0)
-640:            with os.fdopen(fd, "w", encoding="utf-8", closefd=True) as f:
---- (5) 读侧同门（实际读取对象身份入保护集）:
-269:    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
-274:        identity = (st.st_dev, st.st_ino)
-365:                protected_ids.add((cst.st_dev, cst.st_ino))
-394:    protected_ids.add(dlq_identity)  # 保护的是**实际读取对象**，非路径快照
-547:            protected_ids.add(cid)
-603:                protected_ids.add((tst.st_dev, tst.st_ino))
-610:                protected_ids.add((tst.st_dev, tst.st_ino))
---- (6) fail-closed 判定门:
-94:            out.append(("", f"utf8_decode_error: {e}"))
-181:    walk_errors: list[str] = []
-184:        walk_errors.append(f"{getattr(err, 'filename', '?')}: {err}")
-187:    unreadable: list[str] = []
-194:            if os.path.islink(candidate) or not os.path.isfile(candidate):
-197:            # 不是可用恢复源，计入 unreadable 而非命中（fail-closed）。
-199:            if not os.access(candidate, os.R_OK):
-200:                unreadable.append(candidate)
-210:    if unreadable:
-212:        result["unreadable_candidates"] = unreadable[:5]
-217:    if walk_errors:
-219:        result["scan_errors"] = walk_errors[:5]
+--- (4) 唯一写出口（os.fdopen；其余 open 全为读）:
+760:            with os.fdopen(fd, "w", encoding="utf-8", closefd=True) as f:
+--- (5) --out 双层防御 · 路径层（不依赖枚举完整性，round-6 架构整改）:
+424:    # 路径层防御：--out 的 realpath 不得落在 transcripts 根内、不得等于任一
+427:        out_real = os.path.realpath(args.out)
+430:        if out_real == tr_real or out_real.startswith(tr_prefix):
+432:                f"--out 落在 transcripts 根内（恢复源区域），无条件拒绝写出: {args.out}",
+439:        if out_real in input_reals:
+440:            print(f"--out 与输入文件路径相同（realpath 比较），拒绝写出: {args.out}", file=sys.stderr)
+--- (6) --out 双层防御 · inode 层（O_NOFOLLOW+O_NONBLOCK → fstat → S_ISREG → 碰撞检查 → fchmod → ftruncate）:
+269:    会阻塞）。现: fd 打开取 fstat 身份 + S_ISREG 门 → SQLite 打开 → 复核路径
+286:        if not stat.S_ISREG(st.st_mode):
+340:        if not stat.S_ISREG(st.st_mode):
+470:            if (out_st.st_dev, out_st.st_ino) in protected_ids:
+738:            fd = os.open(args.out, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+745:            if not stat.S_ISREG(st.st_mode):
+750:            if (st.st_dev, st.st_ino) in protected_ids:
+758:                os.fchmod(fd, 0o600)
+759:            os.ftruncate(fd, 0)
+--- (7) 读侧身份绑定（实际读取对象入保护集；QA DB 验证 fd 保持打开至复核完毕）:
+277:        fd = os.open(db_path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+289:        identity = (st.st_dev, st.st_ino)
+305:            result["verdict"] = "verified_fd_invalidated_refused"
+337:    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+342:        identity = (st.st_dev, st.st_ino)
+454:                protected_ids.add((cst.st_dev, cst.st_ino))
+483:    protected_ids.add(dlq_identity)  # 保护的是**实际读取对象**，非路径快照
+655:            protected_ids.add(cid)
+663:            protected_ids.add(qa_identity)  # 保护实际验证过的对象身份
+712:                protected_ids.add((tst.st_dev, tst.st_ino))
+721:                protected_ids.add((tst.st_dev, tst.st_ino))
+--- (8) fail-closed 判定门:
+96:            out.append(("", f"utf8_decode_error: {e}"))
+126:    except UnicodeEncodeError:
+129:    len_ok = isinstance(declared_len, int) and not isinstance(declared_len, bool)
+149:    if not isinstance(declared_len, int) or isinstance(declared_len, bool) or len(full) != declared_len:
+153:    except UnicodeEncodeError:
+213:                    if os.path.islink(candidate) or not os.path.isfile(candidate):
+218:                if not os.access(candidate, os.R_OK):
+230:        result["attribution_conflict"] = True
+236:        result["attribution_conflict"] = True
+243:        result["attribution_conflict"] = True
+247:        result["attribution_conflict"] = True
+251:        result["attribution_conflict"] = True
+260:        result["attribution_conflict"] = True  # ambiguous 多命中，拒绝采信
+414:    if not os.access(transcripts_dir, os.R_OK | os.X_OK):

@@ -198,17 +198,17 @@ def resolve_group_attribution(tokens: list[str], transcripts_dir: Path) -> dict:
     all_candidates: list[str] = []
     unreadable: list[str] = []
     stat_failures: list[str] = []
-    if uniq:
-        for dirpath, _dirnames, filenames in os.walk(transcripts_dir, onerror=_on_walk_error, followlinks=False):
-            for fname in filenames:
-                if not fname.endswith(".jsonl"):
-                    continue
+    # round-6 整改: **无论有无 token 都遍历** —— no_token 时原实现完全不扫描，
+    # all_candidate_paths 为空，该组见不到的候选就进不了保护集。
+    for dirpath, _dirnames, filenames in os.walk(transcripts_dir, onerror=_on_walk_error, followlinks=False):
+        for fname in filenames:
+            if fname.endswith(".jsonl"):
                 matched = [t for t in uniq if fname.startswith(t)]
-                if not matched:
-                    continue
                 candidate = os.path.join(dirpath, fname)
                 # 候选一律入 all_candidate_paths（保护集口径），再谈可用性
                 all_candidates.append(candidate)
+                if not matched:
+                    continue
                 try:
                     if os.path.islink(candidate) or not os.path.isfile(candidate):
                         continue
@@ -278,19 +278,19 @@ def probe_qa_metrics(db_path: Path, error_types: list[str]) -> tuple[dict, tuple
     except OSError as e:
         result["verdict"] = f"open_refused: {e}"
         return result, None
+    # round-6 BLOCKER② 整改: 验证 fd **保持打开**直到 SQLite 连接建立并复核完毕
+    # —— 原实现验证后即关闭，SQLite 按路径重开可被 A→B→A 的 ABA 骗过。
+    conn = None
     try:
         st = os.fstat(fd)
         if not stat.S_ISREG(st.st_mode):
             result["verdict"] = "not_regular_file_refused"
             return result, None
         identity = (st.st_dev, st.st_ino)
-    finally:
-        os.close(fd)
 
-    uri = f"file:{db_path}?mode=ro"
-    conn = sqlite3.connect(uri, uri=True)
-    try:
-        # 复核 SQLite 实际打开的路径身份仍是我们验证过的对象
+        uri = f"file:{db_path}?mode=ro"
+        conn = sqlite3.connect(uri, uri=True)
+        # 连接建立后在**持有验证 fd 的同时**复核路径身份
         try:
             recheck = os.stat(db_path)
         except OSError as e:
@@ -298,6 +298,11 @@ def probe_qa_metrics(db_path: Path, error_types: list[str]) -> tuple[dict, tuple
             return result, identity
         if (recheck.st_dev, recheck.st_ino) != identity:
             result["verdict"] = "identity_changed_between_verify_and_open_refused"
+            return result, identity
+        # 再次 fstat 验证 fd：确认它仍指向同一对象且未被 unlink 替换
+        st2 = os.fstat(fd)
+        if (st2.st_dev, st2.st_ino) != identity or st2.st_nlink == 0:
+            result["verdict"] = "verified_fd_invalidated_refused"
             return result, identity
         result["opened_readonly"] = True
         result["file_identity_verified"] = True
@@ -316,7 +321,9 @@ def probe_qa_metrics(db_path: Path, error_types: list[str]) -> tuple[dict, tuple
         else:
             result["verdict"] = "qa_error_logs_table_missing"
     finally:
-        conn.close()
+        if conn is not None:
+            conn.close()
+        os.close(fd)
     return result, identity
 
 
@@ -412,6 +419,27 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     protected_ids: set[tuple[int, int]] = set()
+    # round-6 BLOCKER①② 架构整改: inode 保护集依赖**枚举完整性**（不可列举的
+    # 子目录、ABA 换 inode 都能让某个真实源不进集合）。故增加**不依赖枚举**的
+    # 路径层防御：--out 的 realpath 不得落在 transcripts 根内、不得等于任一
+    # 输入路径。路径层 + inode 层双保险，任一命中即拒绝。
+    if args.out:
+        out_real = os.path.realpath(args.out)
+        tr_real = os.path.realpath(args.transcripts_dir)
+        tr_prefix = tr_real if tr_real.endswith(os.sep) else tr_real + os.sep
+        if out_real == tr_real or out_real.startswith(tr_prefix):
+            print(
+                f"--out 落在 transcripts 根内（恢复源区域），无条件拒绝写出: {args.out}",
+                file=sys.stderr,
+            )
+            return 2
+        input_reals = {os.path.realpath(args.dlq)} | {os.path.realpath(c) for c in args.compare}
+        if args.qa_metrics_db:
+            input_reals.add(os.path.realpath(args.qa_metrics_db))
+        if out_real in input_reals:
+            print(f"--out 与输入文件路径相同（realpath 比较），拒绝写出: {args.out}", file=sys.stderr)
+            return 2
+
     # --out 碰撞守卫（写前）。round-2 BLOCKER-1 整改: 比较**文件身份**
     # (st_dev, st_ino) 而非 resolve() 字符串 —— 后者对 hardlink 与
     # 大小写不敏感文件系统上的 case-only 别名均失效（Codex 实测截断输入）。
@@ -585,6 +613,23 @@ def main(argv: list[str] | None = None) -> int:
                 "transcript_paths": sess["transcript_paths"],
                 "transcript_match_count": sess["transcript_match_count"],
                 "attribution_conflict": sess["attribution_conflict"],
+                # round-6 LOW 整改: ledger 自描述冲突原因，G4-10 可区分
+                # 缺 token / token 冲突 / 扫描受阻 / 不可读 / 多命中
+                "attribution_conflict_reason": (
+                    "no_token"
+                    if sess.get("no_token")
+                    else "token_conflict"
+                    if sess.get("token_conflict")
+                    else "scan_errors"
+                    if sess.get("scan_errors")
+                    else "stat_failures"
+                    if sess.get("stat_failures")
+                    else "unreadable_candidates"
+                    if sess.get("unreadable_candidates")
+                    else "ambiguous_multi_match"
+                    if sess["attribution_conflict"]
+                    else None
+                ),
                 "recoverability": recover,
                 "recoverability_basis": basis,
             }
@@ -677,7 +722,14 @@ def main(argv: list[str] | None = None) -> int:
             except OSError:
                 continue
 
-    out_json = json.dumps(ledger, ensure_ascii=False, indent=1)
+    try:
+        out_json = json.dumps(ledger, ensure_ascii=False, indent=1)
+    except (UnicodeEncodeError, ValueError):
+        # round-6 LOW 整改: name/error/group_id 等字段若含 escaped lone surrogate，
+        # ensure_ascii=False 写出会抛错并拒绝整次 census。回退 ensure_ascii=True
+        # （\uXXXX 转义，ASCII 安全）并在台账中显式标注该降级。
+        ledger["json_encoding_note"] = "ensure_ascii=True fallback: 某字段含无法 UTF-8 编码的字符（lone surrogate）"
+        out_json = json.dumps(ledger, ensure_ascii=True, indent=1)
     if args.out:
         # round-3 整改: 消除 check-then-open TOCTOU。先以 O_NOFOLLOW 打开且
         # **不带 O_TRUNC**，对**实际 fd** fstat 校验 inode；只有校验通过才
