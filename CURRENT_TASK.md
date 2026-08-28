@@ -2,26 +2,35 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**本车道状态**（2026-08-29 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **十三轮 Codex；BLOCKER 连续六轮清零，HIGH 收敛至 1 且已修；G3-4 已 CONFIRMED-CLOSED**）:
-- ✅ CARD-G3-4：**六~十三轮连续 CONFIRMED-CLOSED**，十二/十三轮均判「可独立验收」——十门 13 passed
-- ✅ CARD-G3-1（`63e034ec` + 十二笔整改 + 十四轮整改待提交）：契约测试 **69 passed + 1 skipped**，
-  三文件合跑 **88 passed + 1 skipped**。**十三轮 HIGH 仅剩 1 条（proof 层级作用域歧义）并已修**，
-  累计处置 2B+41H+53M。十三轮 Codex 确认闭合：proof 键集主契约、跨层单调门本身、vault_id 降级
-  （ValueError/ParserError/RecursionError/ConstructorError/ScannerError/ComposerError/非法 UTF-8
-  全 exit 0 + WARN 零 traceback）、交付清单依赖口径、重名测试清理。
-  本轮修：**proof 尾部约束的层级作用域冻结为「仅最外层」**（递归解释会让任何多层链都不成立），
-  且不止改文档——**落成参考 verifier** `verify_degraded_proof()`（215 行 stdlib-only，`is_top_level`
-  参数即该作用域的代码化身）+ **14 条行为门**，正面回应 Codex「没有 proof 行为实现，存证仅做文本计数」
+**本车道状态**（2026-08-29 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **十四轮 Codex 已出（HEAD `e013102f` 已复核）；BLOCKER 连续七轮清零；十五轮整改已落地待提交**）:
+- ⚠️ **G3-4 的 CONFIRMED-CLOSED 被十四轮推翻**：Codex 判「本提交未触碰且当前 baseline 正确」成立，
+  但「防漂移门已闭合」不成立——十三门锁的是解析**之后**的对象，两种漂移在解析阶段就绕过去：
+  ①**重复 JSON 键**（manifest 开头插 `"library_version":"999.0.0",` 保留后面真值 ⇒ last-wins 解析对象
+  与原文完全相同、13 门全过，first-wins 读到 999.0.0）；②**枚举 bool 漂移**（`again: true`，Python
+  `True == 1` ⇒ 字典比较看不出来）。已修：金标改严格解析（重复键/NaN fail-closed）+ 逐值类型锁，
+  golden **15 passed**
+- ⚠️ **G3-1 的 verifier 被查出远弱于 schema**（我上一轮自己引入）：Codex 构造的 proof 缺四个必填字段、
+  genesis 原文含 `fsrs_state: 2`、`first_event_line` 错位、hash 全是 `"x"`，verifier 竟返回 `[]`。
+  已修六项：必填十二项逐项门 + genesis 三重真锚 + event_id 绑定 + **账本直读模式**（`ledger_path=`
+  自行抽取事件并复算 prefix/LF，从根上消除 `applicable` 信任边界）+ 哨兵拒入链 + 重复行号 fail-closed。
+  该反例现报 **9 条违规**
+- ✅ 十四轮确认闭合：proof 层级作用域歧义（十三轮 HIGH）、验收单计数、历史「恰六键」文案
+- ✅ 十四轮其余 MEDIUM/LOW 全修：等式3 改绝对瞬间比较（`+08:00` 曾假阳性）、canonical 时间由
+  `^..$` 改 `\A..\Z` 并真解析（`2026-99-99` 与末尾 `\n` 曾放行）、**hash 门破同源循环**（钉死
+  shell 独立算出的 `4f26831a…`；此前把 state_hash 换成常量仍 14/14 全绿）、负验证脚本机械化
+  （断言 mutation 命中 + 断言预期门名变红 + 非零退出）、深度上限 64→1024 并写进 schema、
+  docstring 补全三条不做的事、CURRENT_TASK 时态
+- 裁判实测：契约 **95 passed + 1 skipped**、golden **15 passed**、三文件合跑 **116 passed + 1 skipped**、
+  `test_fsrs_manager.py` **37 passed**；负验证五变体全如期变红且机械化自检 exit 1
 - ⛔ 移交（schema §九 逐条登记）：①test.yml 白名单 +2 测试 + root requirements paths（S8 独占；
-  **CI DEFERRED/NOT-EXECUTED**）；②**G3-2 五项**（含 canonical reducer 精度常量——verifier 不复算折叠）；
-  ③**G3-3 七项**；④tips.py 两条 → 独立 micro-patch
-- ⚠️ 依赖口径：**账本校验主体 stdlib-only**（含新增 verifier）；**vault_id 绑定层**需 PyYAML + 可 import
-  的 backend `app.config`，不可达或配置解析异常时降级不绑定 + WARN。schema/validator/验收单口径已统一
-- ⚠️ verifier 诚实范围：只判**结构与分层**门，**不复算 FSRS 折叠**——返回空违规 ≠ proof 成立
-- ⚠️ 环境：本 worktree 的 pytest 须用 `backend/.venv/bin/python`（仓根 `.venv` 无 fastapi，conftest 导入即炸）
+  **CI DEFERRED/NOT-EXECUTED**）；②**G3-2 五项**（含 canonical reducer 精度常量——verifier 不复算折叠
+  也不复算 result_hash）；③**G3-3 七项**；④tips.py 两条 → 独立 micro-patch
+- ⚠️ 依赖口径：账本校验主体 stdlib-only（含 verifier）；vault_id 绑定层需 PyYAML + 可 import 的
+  backend `app.config`，不可达或解析异常时降级不绑定 + WARN
+- ⚠️ 环境：本 worktree 的 pytest 须用 `backend/.venv/bin/python`（仓根 `.venv` 无 fastapi，conftest 即炸）
 - 纪律守住：learning_event_log.py（blob `28cdaa18`）/ fsrs_manager.py（blob `980b3758`）及全部 in-flight
-  锁定文件零改动（十三轮 blob 逐笔复核在案）；不 push
-- 待办：十四轮整改提交（第十四笔）→ Codex 十四轮复核 → 用户验收两单
+  锁定文件零改动（十四轮 blob 逐笔复核在案）；不 push
+- 待办：十五轮整改提交（第十五笔）→ Codex 十五轮复核 → 用户验收两单
 
 ---
 

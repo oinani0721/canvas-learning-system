@@ -128,3 +128,16 @@
 1. **CI 接入（Codex 一轮 BLOCKER）**：test.yml 白名单 +2 行与 root requirements paths trigger——S8 车道独占 `.github/workflows/`，移交主 session 合并后 micro-patch（见处置表 #c）。
 2. `FSRSManager.review_card()` 不透传 `review_datetime`（`fsrs_manager.py` D4 锁定禁改）——golden 测试直接驱动 fsrs `Scheduler`；若未来希望 manager 层也可确定性重放，需在 D4 解锁后加可选参数（登记，不阻塞本卡）。
 3. `FSRSManager` 生产默认 `enable_fuzzing=True`（库默认）——golden 基线冻结的是**算法核**（fuzz 关闭下的确定性行为）；fuzz 开启路径的调度带随机模糊属库设计语义，不在防漂移门范围，如实声明。
+
+### 十四轮复核处置（**原 CONFIRMED-CLOSED 被推翻**——Codex 十四轮在本卡发现 1 HIGH + 1 MEDIUM）
+
+⚠️ **诚实记录**：本卡自六轮起连续八轮 CONFIRMED-CLOSED，十四轮被推翻。Codex 的判词准确：**"本提交未触碰且当前 baseline 正确"成立，但"防漂移门已闭合"不成立**——十三门锁的是解析**之后**的对象，而两种漂移能在解析阶段就绕过去。
+
+| # | 级别 | 十四轮发现 | 处置 |
+|---|---|---|---|
+| 一 | **HIGH** | **重复 JSON 键可保持 13/13 全绿并产生解析器分歧**：在 manifest 开头插入 `"library_version": "999.0.0",` 同时保留后面的真实 `6.3.1`——默认 `json.loads` last-wins，解析对象与原对象**完全相同**，13 门全过；而 first-wins 解析器读到 `999.0.0`。同一字节序列在两个合理解析器下结论相反 | **已修**：金标文件改用 `_load_golden()` 严格解析——`object_pairs_hook` 对重复键 fail-closed，`parse_constant` 拒 NaN/Infinity。新增 `test_duplicate_keys_in_golden_json_are_rejected`，先**复现前提**（宽松解析下 `json.loads(tampered) == json.loads(raw)`）再断言严格加载抛错 |
+| 二 | MEDIUM | **枚举 JSON 类型未锁**：`rating_values.again` 由 `1` 改成 `true` 后，因 Python `True == 1`，字典比较与全部 13 门仍通过，与 UAT 宣称的"Rating&State 枚举值域锁"不符 | **已修**：`test_rating_and_state_value_surface_frozen` 增加逐值 `type(value) is int` 类型锁；新增 `test_enum_bool_drift_is_rejected` 先复现"字典比较看不出来"再证明类型锁看得出来 |
+
+**正向锚点（十四轮独立确认，本轮未改动这些文件）**：`e013102f` 未触碰 generator / manifest / vectors / 钉版 requirements；`generate()` 内存输出与仓库 JSON **逐字节相同**；manifest SHA `82eaaffa…`、vectors SHA `df60dbc6…`、`params_hash=7b28ae29…`；20 vectors / 20 唯一 ID / 3 retrievability 点；两份 requirements 仍为 `fsrs==6.3.1`。
+
+裁判：golden **15 passed**（原 13 + 2 条新解析歧义门），`tests/unit/test_fsrs_manager.py` **37 passed** 不回归，`fsrs_manager.py` blob 恒为 `980b3758…`（本卡零接触 D4 锁定文件）。

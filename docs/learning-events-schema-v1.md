@@ -198,7 +198,9 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
       - **最外层（top-level）proof**：`E` 必须是该节点在账本中**行号最大的适用事件**（`schema_ext=review/1`、未标 `out_of_order`），且 **`cursor_line` 之后不得再存在该节点的任何适用事件**——保证重建覆盖到账本末尾。
       - **`ancestor_proof`（中间层）：不受"其后无适用事件"约束**。⚠️ round-13 指出的歧义：若把该尾部约束**递归**施于 ancestor，则正常链 `L1=t1、L2=t2` 中的 ancestor（`cursor_line=1`）会因 L2 存在而失效，任何多层链都无法成立；只施于最外层则是原意。现明确冻结为**仅最外层**——ancestor 的职责是提供一个**中间快照**，本就不必覆盖到末尾，它只需满足：区间定义、层内单调、跨层单调、三条等式、链终止与防循环。
       - 两个 verifier 因此不会给出相反结果。
-      - 📌 **可执行的单一事实（round-14）**：以上分层语义已落成参考实现 `backend/scripts/validate_learning_events.py::verify_degraded_proof(proof, applicable, is_top_level=True)`——`is_top_level` 参数就是本条作用域的代码化身，递归调用固定传 `False`。行为门见 `test_learning_events_schema_contract.py::test_normal_two_layer_chain_is_provable`（正常两层链必须 PASS）与 `::test_layered_split_cannot_bypass_monotonicity`（分层绕过必须 FAIL）。⚠️ **该 verifier 只判结构与分层门，不复算 FSRS 折叠**（canonical reducer 属 G3-2）——返回空违规 = "结构上无歧义，可交付 reducer 复算"，**不等于** proof 成立。
+      - 📌 **可执行的单一事实（round-14，round-15 补真实绑定）**：以上分层语义已落成参考实现 `backend/scripts/validate_learning_events.py::verify_degraded_proof(proof, applicable, *, ledger_path=None, is_top_level=True)`——`is_top_level` 参数就是本条作用域的代码化身，递归调用固定传 `False`。行为门见 `test_learning_events_schema_contract.py::test_normal_two_layer_chain_is_provable`（正常两层链必须 PASS）与 `::test_layered_split_cannot_bypass_monotonicity`（分层绕过必须 FAIL）。
+        **传 `ledger_path` = 账本直读模式**：verifier 用 `extract_applicable()` 自行从真实账本抽取适用事件、用 `ledger_prefix()` 复算 `ledger_prefix_sha256` 与 `prefix_ends_without_lf`，忽略调用方传入的 `applicable`。**生产接入必须传 `ledger_path`**——否则 `applicable` 是信任边界，调用方抽取不全会让最外层尾部门真空通过（round-14 Codex HIGH 实证）。
+        ⚠️ **verifier 不做的三件事**：①不复算 FSRS 折叠（canonical reducer 属 G3-2）；②不复算 `result_hash`（同样依赖 reducer）；③不传 `ledger_path` 时不复算 prefix、不自行抽取事件。返回空违规 = "已判门内无歧义，可交付 reducer 复算"，**不等于** proof 成立。
       ⚠️ round-11 反例：若按 `(review_time, 行号)` 复合序取最大，当 `L1=t2`、`L2=t1`（两行都未标乱序）时 E=L1，区间只含 L1，单调门真空通过，**L2 完全逃逸未被覆盖**。改用行号口径后，E=L2，L1 与 L2 同在区间内，单调门会因 `t2 > t1` 而判该区间不自洽 ⇒ 正确地报"不可证明"。
     - **canonical reducer（round-6 实测的舍入歧义）**：折叠必须**逐事件按生产持久化精度舍入后再进下一步**（与 bridge 的写-读循环一致），**不得**在内存中连续折叠、只在末尾舍入。实测差异：三次 Good 后 `stability` = **10.9711**（逐步舍入）vs **10.9710**（末尾舍入）——两者都满足"折叠到 E"的粗描述，故边界必须唯一化。舍入精度以 bridge 写出 frontmatter 时的实际精度为准（G3-2 落地时把该常量与本条一并锁进测试）。
     - **proof schema（round-8 HIGH#4 机械化——此前只是清单，两个不同起点可满足同一清单却折出不同结果）**。proof 是一个 JSON object，字段与语义如下，缺任一项或任一项不满足约束即**不可证明**：
@@ -245,7 +247,8 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
       - `first_event_line`：该节点在账本中最早一条事件的行号，且 `first_event_line > 0`；折叠区间左端点即取 `first_event_line - 1`（而非笼统的 0），使区间起点也可核验；
       - 三者缺一 ⇒ 不可证明，必须改走 `snapshot` 分支或人工裁定。
       - ⚠️ **证明强度的诚实上限（round-11）**：`genesis_evidence` 证明的是"**重建时刻**该节点无任何 FSRS 状态"，**不能**证明"历史上从未存在过未入账的 Review 状态"（例如状态曾被手工删除）。因此 `new_card` 分支只在该节点**账本历史完整**（其全部复习事件都带 `review/1`）时可用；若存在无扩展的旧行，则该节点属 §"不可证明时必须继续冻结"，须人工裁定——工具不得自行采信 `new_card`。
-    - **链的终止与防循环（round-8）**：`ancestor_proof` 链必须**终止于 `origin.kind == "new_card"`**；链上每一层的 `(vault_id, node_id)` 必须相同，且 `cursor_line` 必须**严格递减**（保证有限步终止、不可自引用）。任一条不满足 ⇒ 不可证明。
+    - **链的终止与防循环（round-8，round-15 补深度上限）**：`ancestor_proof` 链必须**终止于 `origin.kind == "new_card"`**；链上每一层的 `(vault_id, node_id)` 必须相同，且 `cursor_line` 必须**严格递减**（保证有限步终止、不可自引用）。任一条不满足 ⇒ 不可证明。
+      **深度上限 = 1024 层**（`validate_learning_events.py::PROOF_MAX_DEPTH`）。⚠️ round-14 Codex LOW：此前实现私设 64 层却未成文，会**误拒合法的长链**。现明确：该上限是针对畸形/自引用输入的防御性保险，不是语义约束——严格递减本已保证有限步；取 1024 是因为单节点的解冻链层数等于历史上的重建次数，远小于该量级。超限时报错而非静默截断。
     - **跨层单调门（round-12 HIGH：分层可绕过层内单调性）**：`ancestor_proof.review_time`（即 ancestor 折叠到的时刻，也是 snapshot 的 `W`）必须 **严格小于本层折叠区间中首个事件的 `review_time`**。
       ⚠️ round-12 反例：`L1=t2、L2=t1`（`t2 > t1`，两行均未标 `out_of_order`）时，可拆成 ancestor 区间 `(0,1]` 与本层区间 `(1,2]`——两个**单事件区间**的层内单调门都**真空通过**，全链非单调却蒙混过关。加上本条后：ancestor 的 `W = t2` 不小于本层首事件的 `t1` ⇒ 正确判**不可证明**。
       该条不会误伤正常链：真实追加序下时刻本就随行号递增，跨层边界自然满足严格小于。

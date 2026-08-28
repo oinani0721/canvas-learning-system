@@ -42,6 +42,7 @@ from datetime import datetime, timedelta
 from importlib.metadata import version as pkg_version
 from pathlib import Path
 
+import pytest
 from fsrs import Card, Rating, Scheduler, State
 
 # 生产模块真实库在位断言专用 (D4 锁定文件, 只读其模块级布尔)
@@ -50,8 +51,41 @@ from memory.temporal.fsrs_manager import FSRS_AVAILABLE  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 WT = Path(__file__).resolve().parents[3]
-MANIFEST = json.loads((HERE / "fsrs_golden_manifest.json").read_text(encoding="utf-8"))
-GOLDEN = json.loads((HERE / "fsrs_golden_vectors.json").read_text(encoding="utf-8"))
+
+
+class _NonStandardGoldenJSON(ValueError):
+    """金标文件出现重复键或 NaN/Infinity — 不同解析器会得到不同结果。"""
+
+
+def _reject_dup(pairs):
+    seen = set()
+    for key, _ in pairs:
+        if key in seen:
+            raise _NonStandardGoldenJSON(
+                f"金标 JSON 内重复键 {key!r}: last-wins 解析器读到后者、first-wins 读到前者 — "
+                f"同一字节序列在不同解析器下产生相反结论, 防漂移门形同虚设"
+            )
+        seen.add(key)
+    return dict(pairs)
+
+
+def _load_golden(path: Path):
+    """严格解析金标文件 (round-15, Codex 十四轮 HIGH)。
+
+    默认 `json.loads` 对重复键 last-wins: 在 manifest 开头插入
+    `"library_version": "999.0.0",` 并保留后面的真值, 原 13 门**全部照过**,
+    而 first-wins 解析器读到 999.0.0。金标文件的全部意义是"同一字节序列人人
+    读到同一事实", 故重复键与 NaN/Infinity 一律 fail-closed。
+    """
+    return json.loads(
+        path.read_text(encoding="utf-8"),
+        object_pairs_hook=_reject_dup,
+        parse_constant=lambda name: (_ for _ in ()).throw(_NonStandardGoldenJSON(f"金标 JSON 出现非标准常量 {name}")),
+    )
+
+
+MANIFEST = _load_golden(HERE / "fsrs_golden_manifest.json")
+GOLDEN = _load_golden(HERE / "fsrs_golden_vectors.json")
 
 FLOAT_REL = MANIFEST["comparison_tolerance"]["float_rel"]
 FLOAT_ABS = MANIFEST["comparison_tolerance"]["float_abs"]
@@ -175,6 +209,11 @@ def test_library_default_parameters_unchanged():
 def test_rating_and_state_value_surface_frozen():
     assert {name: int(RATING_BY_NAME[name]) for name in RATING_BY_NAME} == MANIFEST["rating_values"]
     assert {s.name: int(s.value) for s in State} == MANIFEST["state_values"]
+    # round-15 (Codex 十四轮 MEDIUM): Python 里 True == 1, 故把 again 改成 true
+    # 后上面的字典比较仍成立、13 门全绿 —— 值域锁必须连 JSON 类型一起锁
+    for label, mapping in (("rating_values", MANIFEST["rating_values"]), ("state_values", MANIFEST["state_values"])):
+        for name, value in mapping.items():
+            assert type(value) is int, f"{label}.{name} 必须是 JSON 整数, 得到 {value!r} ({type(value).__name__})"
 
 
 # ── 4. manifest 完整性 (params_hash 自洽) ──
@@ -434,3 +473,32 @@ def test_retrievability_curve_matches_golden():
         )
         actual = scheduler.get_card_retrievability(card, expected_at)
         assert _close(actual, point["expected"]), f"retrievability@+{offset}d: {actual} != {point['expected']}"
+
+
+# ── 11. 解析歧义门 (round-15, Codex 十四轮 HIGH/MEDIUM) ──
+
+
+def test_duplicate_keys_in_golden_json_are_rejected(tmp_path):
+    """Codex 十四轮反例: manifest 开头插入重复 library_version 并保留后面的真值。
+
+    默认 json.loads last-wins ⇒ 解析对象与原对象**完全相同**, 原 13 门全部照过;
+    而 first-wins 解析器读到 999.0.0 —— 同一字节序列在两个合理解析器下结论相反。
+    """
+    raw = (HERE / "fsrs_golden_manifest.json").read_text(encoding="utf-8")
+    tampered = raw.replace("{", '{"library_version": "999.0.0",', 1)
+    path = tmp_path / "m.json"
+    path.write_text(tampered, encoding="utf-8")
+
+    # 前提复现: 宽松解析确实看不出任何差异
+    assert json.loads(tampered) == json.loads(raw)
+    assert json.loads(tampered)["library_version"] == MANIFEST["library_version"]
+    # 严格加载必须拒
+    with pytest.raises(_NonStandardGoldenJSON, match="library_version"):
+        _load_golden(path)
+
+
+def test_enum_bool_drift_is_rejected():
+    """Rating/State 枚举值必须是 JSON 整数 — True == 1 会让 bool 漂移全绿。"""
+    drifted = {**MANIFEST["rating_values"], "again": True}
+    assert drifted == MANIFEST["rating_values"]  # 前提: 字典比较看不出来
+    assert type(drifted["again"]) is not int  # 类型锁才看得出来

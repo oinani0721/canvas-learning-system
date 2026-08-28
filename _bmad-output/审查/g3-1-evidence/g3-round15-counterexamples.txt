@@ -1,0 +1,53 @@
+# round-15 负验证存证 (可重跑: bash negverify_round14_proof_gates.sh)
+
+=== 基线 (未改动): 三门应全绿 ===
+  ✅ 基线全绿
+     ================ 3 passed, 93 deselected, 10 warnings in 0.40s =================
+
+=== 变体A: 尾部约束**递归**施于 ancestor (round-13 指出的另一种解释) ===
+    正常链 L1=t1、L2=t2 的 ancestor(cursor=1) 会因 L2 存在而失效
+  ✅ test_normal_two_layer_chain_is_provable 如期变红
+     =========== 1 failed, 1 passed, 94 deselected, 10 warnings in 0.40s ============
+
+=== 变体B: 拆掉跨层单调门 (round-12 反例的封堵) ===
+  ✅ test_layered_split_cannot_bypass_monotonicity 如期变红
+     =========== 1 failed, 1 passed, 94 deselected, 10 warnings in 0.41s ============
+
+=== 变体C: 拆掉最外层尾部门 (round-11 尾部逃逸的封堵) ===
+  ✅ test_top_level_must_cover_ledger_tail 如期变红
+     ================ 1 failed, 95 deselected, 10 warnings in 0.42s =================
+
+=== 变体D: state_hash 恒返回常量 (round-14 Codex: 同源循环下 14/14 仍全绿) ===
+  ✅ test_canonical_state_hash_matches_independent_oracle 如期变红
+     ================ 1 failed, 95 deselected, 10 warnings in 0.42s =================
+
+=== 变体E: genesis 原文 FSRS 字段检查失效 (round-14 Codex HIGH) ===
+  ✅ test_genesis_anchor_is_really_anchored 如期变红
+     =========== 1 failed, 2 passed, 93 deselected, 10 warnings in 0.41s ============
+
+=== 还原后全量 ===
+  ✅ 还原后全绿
+     ================== 95 passed, 1 skipped, 10 warnings in 3.51s ==================
+
+RESULT: PASS — 全部门均为承重门
+脚本 exit = 0
+
+===================================================================
+机械化自检: 只把变体B的 perl 模式改成永不命中 (其余不动, 同目录运行)
+期望: 不再'全绿通过', 而是报该变体未命中并非零退出
+===================================================================
+=== 基线 (未改动): 三门应全绿 ===
+  ✅ 基线全绿
+=== 变体A: 尾部约束**递归**施于 ancestor (round-13 指出的另一种解释) ===
+  ✅ test_normal_two_layer_chain_is_provable 如期变红
+=== 变体B: 拆掉跨层单调门 (round-12 反例的封堵) ===
+  ❌ mutation 未命中 (文件未变) — 模式已与实现漂移, 本变体结论无效
+=== 变体C: 拆掉最外层尾部门 (round-11 尾部逃逸的封堵) ===
+  ✅ test_top_level_must_cover_ledger_tail 如期变红
+=== 变体D: state_hash 恒返回常量 (round-14 Codex: 同源循环下 14/14 仍全绿) ===
+  ✅ test_canonical_state_hash_matches_independent_oracle 如期变红
+=== 变体E: genesis 原文 FSRS 字段检查失效 (round-14 Codex HIGH) ===
+  ✅ test_genesis_anchor_is_really_anchored 如期变红
+  ✅ 还原后全绿
+RESULT: FAIL — 1 项不符预期
+脚本 exit = 1

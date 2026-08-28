@@ -267,3 +267,22 @@
 **⚠️ verifier 的诚实范围声明**（写进 docstring 与 schema 双处）：只判**结构与分层**门，**不复算 FSRS 折叠**（canonical reducer 的精度常量属 G3-2，需真实 fsrs）。返回空违规 = "结构上无歧义，可交付 reducer 复算"，**不等于** proof 成立。
 
 十四轮整改后复跑：契约测试 **69 passed + 1 skipped**、三文件合跑 **88 passed + 1 skipped**、golden 单跑 **13 passed**、现有 `test_fsrs_manager.py` **37 passed**（不回归）、现网账本（23 行）exit 0 且前后 SHA 恒为 `f78b99f3…`。
+
+### 十四轮复核处置（存档 `审查/codex-review-CARD-G3-1-G3-4-round14-2026-08-29.md`；**BLOCKER 连续第七轮清零；十三轮点名三项均 CONFIRMED-CLOSED，但新发现 verifier 本身过弱**）
+
+⚠️ **诚实记录**：十四轮 Codex 确认层级作用域歧义已闭合，但同时指出我上一轮落成的 verifier **实现远弱于 schema 文本**——它构造了一个缺四个必填字段、genesis 原文含 `fsrs_state: 2`、`first_event_line` 错位、hash 全是 `"x"` 的 proof，verifier 返回 `[]`。这是我自己引入的缺陷，本轮全部收敛。
+
+| # | 级别 | 十四轮发现 | 处置 |
+|---|---|---|---|
+| 一 | **HIGH** | verifier 对多项 schema 必填/真实绑定违规返回空：不要求 `fsrs_library_version`/`fsrs_params_hash`/`scheduler_config`/`reducer` 存在；genesis 只查非空（放行含 FSRS 状态的原文、非 sha256 的 hash、错位的 `first_event_line`）；不绑定 `event_id`；不复算 prefix；`applicable` 截断即可让尾部门真空通过 | **已修**：①加 `_PROOF_REQUIRED_KEYS` 十二项逐项门 + 逐字段删除的参数化测试；②genesis 三重真锚（hash 须 64 hex 且与所附原文自洽、原文**不得含任何 `fsrs_` 键**、`first_event_line` 必须等于最早适用行）；③`event_id` 必须绑定到 `cursor_line` 那行的幂等键；④**新增账本直读模式** `ledger_path=`——`extract_applicable()` 自行抽取事件、`ledger_prefix()` 复算 prefix 与 LF 规则，**从根上消除信任边界**；⑤`degraded:*` 哨兵拒入证明链；⑥`applicable` 重复行号 fail-closed。Codex 的最小反例现报 **9 条违规** |
+| 二 | MEDIUM | 等式3 用**字符串**比较，把 `+08:00` 与等瞬间的 `Z` 判为不等（合法 proof 假阳性） | **已修**：改按 `_instant()` 绝对瞬间比较；新增 `test_equality3_compares_instants_not_strings` |
+| 三 | MEDIUM | canonical 时间只过正则：`2026-99-99T99:99:99Z` 与末尾带真实换行的 `...Z\n` 都能得到 hash 且零违规 | **已修**：①正则由 `^..$` 改 `\A..\Z`（Python 的 `$` 也匹配末尾换行前的位置——这正是 `\n` 漏网的原因）；②过正则后**再真解析**并复用 A7 域上界。两形态各加一条参数化门 |
+| 四 | MEDIUM | hash 门同源循环：`_layered()` 用被测 `state_hash()` 生成期望值，稳定性测试只比较该函数两次——把它换成恒返回 `"0"*64` 后 14/14 仍全绿 | **已修**：钉死**独立算出**的 digest 字面量 `4f26831a…`（由 shell `printf ... \| shasum -a 256` 得出，不经被测代码；与 Codex 独立给出的值一致）。负验证变体 D 证明该门承重 |
+| 五 | MEDIUM | 负验证脚本不机械：只有 `set -uo pipefail` 无 `-e`；perl 替换不检查命中；`run()` 只 grep 不断言必须失败及门名——三个模式全失配时 A/B/C 会"全绿"且脚本仍 exit 0 | **已修**：①每个 mutation 用前后 SHA 断言**确实命中**，未命中即计入失败；②`expect_red` 断言 `^FAILED .*::<预期测试名>` 精确匹配；③任一环节不符则脚本 **exit 1**。自检实证：只把变体B的模式改成永不命中 ⇒ 报"mutation 未命中"、`RESULT: FAIL`、exit 1 |
+| 六 | LOW | 未成文的 64 层深度上限会误拒合法长链 | **已修**：上限提到 **1024** 并写进 schema §6.2（`PROOF_MAX_DEPTH`），明确它是针对畸形/自引用输入的防御保险而非语义约束 |
+| 七 | LOW | 验收单称限制"写入 docstring"不准确——真正的函数 docstring 没有该限制，反写"空 = 结构上可证明" | **已修**：函数 docstring 补全三条不做的事 + 信任边界；措辞由"结构上可证明"改为"已判门内无歧义，可交付 reducer 复算" |
+| 八 | LOW | `CURRENT_TASK` 仍写"十四轮整改待提交"，与已提交的 `e013102f` 不符 | **已修**：更新为已提交状态 |
+
+**round-15 负验证（`审查/g3-1-evidence/g3-round15-counterexamples.txt`）**——五个变体逐一拆门，全部如期变红，还原后全绿，脚本 exit 0；机械化自检（只破坏变体B的模式）exit 1。
+
+裁判实测：契约测试 **95 passed + 1 skipped**、golden **15 passed**、三文件合跑见下、现网账本 exit 0 且 SHA 恒定。

@@ -58,6 +58,7 @@ exit code: 0 = 全部通过; 1 = 存在违规; 2 = 用法/IO 错误。
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import re
@@ -326,11 +327,21 @@ def classify_card_state(fields: dict) -> tuple[str, str]:
 # degraded proof 的**结构参考 verifier** (round-14 HIGH: 此前 proof 只有散文,
 # Codex round-13 指出"没有 proof 行为实现, 存证仅做文本计数, 无法消除歧义")
 #
-# ⚠️ **诚实的范围声明**: 本 verifier 只判 §6.2 proof schema 的**结构与分层**
-# 门 —— 状态形状/类型/hash、区间(左开右闭按行号)、层内单调、跨层单调、链终止
-# 与防循环、snapshot 三等式、genesis 锚、尾部作用域。它**不复算 FSRS 折叠**
-# (canonical reducer 的精度常量属 G3-2, 需真实 fsrs) —— 因此 verifier 返回空
-# 违规**不等于** proof 成立, 只等于"结构上无歧义, 可交付 reducer 复算"。
+# ⚠️ **诚实的范围声明** (round-15 逐项收紧): 本 verifier 判 §6.2 proof schema 的
+# **结构、分层与真实绑定**门 —— 必填字段齐备与形状、状态形状/类型/hash、区间
+# (左开右闭按行号)、层内单调、跨层单调、链终止与防循环、snapshot 三等式、
+# genesis 真锚、尾部作用域。
+#
+# **不做的事** (round-14 Codex HIGH: 此前只说"不复算 FSRS", 未点名以下三项):
+#   ① **不复算 FSRS 折叠** —— canonical reducer 的精度常量属 G3-2, 需真实 fsrs;
+#   ② **不复算 `result_hash`** —— 它是折叠产物的 hash, 同样依赖 reducer;
+#   ③ 不传 `ledger_path` 时**不复算 `ledger_prefix_sha256`、不自行抽取事件** ——
+#      此时 `applicable` 是**信任边界**, 其完整性由调用方保证 (抽取不全会让尾部
+#      门真空通过)。**传 `ledger_path` 即消除该边界**: verifier 自行抽取事件、
+#      复算 prefix、判定 `prefix_ends_without_lf`, 并忽略调用方传入的 applicable。
+#
+# 因此 verifier 返回空违规**不等于** proof 成立, 只等于"在上述已判门内无歧义,
+# 可交付 reducer 复算"。
 # --------------------------------------------------------------------------
 
 _STATE_KEYS_BY_FSRS_STATE = {
@@ -338,7 +349,29 @@ _STATE_KEYS_BY_FSRS_STATE = {
     2: ("fsrs_due", "fsrs_state", "fsrs_stability", "fsrs_difficulty", "fsrs_last_review"),
     3: ("fsrs_due", "fsrs_state", "fsrs_step", "fsrs_stability", "fsrs_difficulty", "fsrs_last_review"),
 }
-_CANONICAL_TS_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+#: ⚠️ 必须用 \A..\Z 而非 ^..$ —— Python 的 `$` 也匹配末尾换行前的位置,
+#: 故 "2026-01-01T10:00:00Z\n" 会被 ^..$ 放行 (round-14 Codex MEDIUM 实证)
+_CANONICAL_TS_RE = re.compile(r"\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\Z")
+#: 64 位小写十六进制 (sha256 摘要的唯一合法形状)
+_SHA256_HEX_RE = re.compile(r"\A[0-9a-f]{64}\Z")
+#: proof 顶层必填字段 —— schema §6.2 表"缺任一项即不可证明"
+_PROOF_REQUIRED_KEYS = (
+    "vault_id",
+    "node_id",
+    "event_id",
+    "review_time",
+    "cursor_line",
+    "ledger_prefix_sha256",
+    "fsrs_library_version",
+    "fsrs_params_hash",
+    "scheduler_config",
+    "reducer",
+    "origin",
+    "result_hash",
+)
+#: ancestor_proof 链的深度保险 (schema §6.2 已成文): cursor_line 严格递减本已
+#: 界定有限步, 本上限只防御畸形/自引用输入, 取值须与 schema 一致
+PROOF_MAX_DEPTH = 1024
 
 
 def canonical_state_bytes(state: object) -> tuple[Optional[bytes], list[str]]:
@@ -363,10 +396,16 @@ def canonical_state_bytes(state: object) -> tuple[Optional[bytes], list[str]]:
             f"多出 {sorted(actual - expected)} / 缺失 {sorted(expected - actual)}"
         )
 
-    for key in ("fsrs_due", "fsrs_last_review"):
+    for key, bound in (("fsrs_last_review", REVIEW_INPUT_MAX), ("fsrs_due", TIMESTAMP_MAX)):
         value = state.get(key)
         if not isinstance(value, str) or not _CANONICAL_TS_RE.match(value):
             problems.append(f"{key} 必须是 UTC 整秒 'Z' 串 (%Y-%m-%dT%H:%M:%SZ), 得到 {value!r}")
+            continue
+        # round-14 Codex MEDIUM: 只过正则会放行 '2026-99-99T99:99:99Z' —— 词法
+        # 合规不等于取值合法, 必须真解析 (并复用 A7 的域上界)
+        ok, why = _parse_ts(value, upper_bound=bound)
+        if not ok:
+            problems.append(f"{key} 取值非法: {why}")
 
     if "fsrs_step" in expected:
         step = state.get("fsrs_step")
@@ -389,44 +428,138 @@ def canonical_state_bytes(state: object) -> tuple[Optional[bytes], list[str]]:
 
 def state_hash(state: object) -> tuple[Optional[str], list[str]]:
     """canonical 状态对象 → sha256 十六进制串。"""
-    import hashlib
-
     blob, problems = canonical_state_bytes(state)
     if blob is None:
         return None, problems
     return hashlib.sha256(blob).hexdigest(), []
 
 
+def extract_applicable(ledger_path: Path, node_id: str) -> tuple[list[tuple[int, str, str]], list[str]]:
+    """从**真实账本文件**抽取某节点的全部适用事件 → [(行号, review_time, event_id)]。
+
+    适用 = `payload.schema_ext == "review/1"` 且未标 `payload.out_of_order`
+    (§6.2 pending 集合定义)。行号 1-based, 与 `cursor_line` / prefix 截断点同域。
+    这是消除 `applicable` 信任边界的唯一正确来源。
+    """
+    problems: list[str] = []
+    out: list[tuple[int, str, str]] = []
+    try:
+        raw = ledger_path.read_bytes()
+    except OSError as exc:
+        return [], [f"账本不可读: {exc}"]
+    for idx, chunk in enumerate(raw.splitlines(), start=1):
+        try:
+            record = _strict_loads(chunk.decode("utf-8"))
+        except (UnicodeDecodeError, ValueError):
+            continue  # 非法行由主体校验报告, 此处只做抽取
+        if not isinstance(record, dict) or record.get("node_id") != node_id:
+            continue
+        payload = record.get("payload")
+        if not isinstance(payload, dict) or payload.get("schema_ext") != REVIEW_EXT_MARKER:
+            continue
+        if "out_of_order" in payload:
+            continue
+        review_time = payload.get("review_time")
+        event_id = record.get("event_id")
+        if not isinstance(review_time, str) or not isinstance(event_id, str):
+            problems.append(f"第 {idx} 行: review_time/event_id 非字符串, 无法参与 proof")
+            continue
+        out.append((idx, review_time, event_id))
+    return out, problems
+
+
+def ledger_prefix(ledger_path: Path, cursor_line: int) -> tuple[Optional[str], bool, list[str]]:
+    """账本从第 0 字节到第 `cursor_line` 行终止 LF (含) 的 sha256。
+
+    返回 (sha256 十六进制, 该行是否无终止 LF, 违规)。§6.2 `ledger_prefix_sha256`
+    与 `prefix_ends_without_lf` 的**可执行定义** —— 此前只有散文, 无法复算。
+    """
+    try:
+        raw = ledger_path.read_bytes()
+    except OSError as exc:
+        return None, False, [f"账本不可读: {exc}"]
+    offset = 0
+    for seen in range(1, cursor_line + 1):
+        nl = raw.find(b"\n", offset)
+        if nl == -1:
+            if seen == cursor_line:
+                return hashlib.sha256(raw).hexdigest(), True, []
+            return None, False, [f"账本不足 {cursor_line} 行"]
+        offset = nl + 1
+    return hashlib.sha256(raw[:offset]).hexdigest(), False, []
+
+
 def verify_degraded_proof(
     proof: object,
-    applicable: list[tuple[int, str]],
+    applicable: list[tuple[int, str, str]],
     *,
+    ledger_path: Optional[Path] = None,
     is_top_level: bool = True,
     _depth: int = 0,
 ) -> list[str]:
-    """degraded 解冻 proof 的结构门。返回违规列表 (空 = 结构上可证明)。
+    """degraded 解冻 proof 的结构 / 分层 / 真实绑定门。返回违规列表 (空 = 已判门内无歧义)。
 
-    `applicable` = 该节点在账本中全部**适用事件**的 [(行号, review_time 串)],
-    行号 1-based, 由调用方从账本抽取 (schema_ext=review/1 且未标 out_of_order)。
+    `applicable` = 该节点全部**适用事件**的 [(行号, review_time, event_id)],
+    行号 1-based。传 `ledger_path` 时**忽略本参数**, 改由 `extract_applicable()`
+    从真实账本抽取, 并复算 `ledger_prefix_sha256` 与 `prefix_ends_without_lf`。
 
-    `is_top_level` 是 **round-14 冻结的层级作用域**: "cursor_line 之后不得再有
+    ⚠️ **信任边界 (round-14 Codex HIGH)**: 不传 `ledger_path` 时本函数**不读账本**,
+    `applicable` 的完整性完全由调用方保证 —— 抽取不全会让最外层尾部门**真空通过**,
+    prefix 也只校验形状不复算。生产接入必须传 `ledger_path`。
+
+    ⚠️ **本函数不复算 FSRS 折叠, 也不复算 `result_hash`** (依赖 canonical reducer,
+    属 G3-2)。返回空 ≠ proof 成立, 只 = 已判门内无歧义, 可交付 reducer 复算。
+
+    `is_top_level` 是 round-13 冻结的**层级作用域**: "cursor_line 之后不得再有
     适用事件"**只施于最外层**。若递归施于 ancestor, 则正常链 L1=t1、L2=t2 的
     ancestor(cursor_line=1) 会因 L2 存在而失效 —— 任何多层链都无法成立, 与原意
     相反。本参数把该歧义变成代码里的单一事实。
     """
     problems: list[str] = []
-    if _depth > 64:
-        return ["ancestor_proof 链过深 (>64) — 疑似自引用或异常构造"]
+    if _depth > PROOF_MAX_DEPTH:
+        return [f"ancestor_proof 链深度超过 {PROOF_MAX_DEPTH} — 疑似自引用或异常构造"]
     if not isinstance(proof, dict):
         return ["proof 必须是 JSON object"]
 
+    for key in _PROOF_REQUIRED_KEYS:
+        if key not in proof:
+            problems.append(f"缺必填字段 {key} (§6.2 表: 缺任一项即不可证明)")
+
     cursor = proof.get("cursor_line")
     if not isinstance(cursor, int) or isinstance(cursor, bool) or cursor < 1:
-        return [f"cursor_line 必须是 >=1 的整数, 得到 {cursor!r}"]
+        return problems + [f"cursor_line 必须是 >=1 的整数, 得到 {cursor!r}"]
 
-    for key in ("vault_id", "node_id", "event_id", "ledger_prefix_sha256"):
-        if not isinstance(proof.get(key), str) or not proof[key].strip():
+    # 账本直读模式: 自行抽取 + 复算 prefix, 消除信任边界
+    if ledger_path is not None:
+        applicable, extract_problems = extract_applicable(ledger_path, proof.get("node_id"))
+        problems.extend(extract_problems)
+        computed_prefix, ends_without_lf, prefix_problems = ledger_prefix(ledger_path, cursor)
+        problems.extend(prefix_problems)
+        if computed_prefix is not None:
+            if proof.get("ledger_prefix_sha256") != computed_prefix:
+                problems.append(
+                    f"ledger_prefix_sha256 与账本实算不符: 声称 {proof.get('ledger_prefix_sha256')!r}, "
+                    f"实算 {computed_prefix}"
+                )
+            declared_no_lf = proof.get("prefix_ends_without_lf", False)
+            if ends_without_lf and declared_no_lf is not True:
+                problems.append("E 所在行无终止 LF, 必须写 prefix_ends_without_lf: true")
+            if not ends_without_lf and "prefix_ends_without_lf" in proof:
+                problems.append("E 所在行有终止 LF, 必须省略 prefix_ends_without_lf")
+
+    for key in ("vault_id", "node_id", "event_id", "fsrs_library_version", "fsrs_params_hash"):
+        value = proof.get(key)
+        if key in proof and (not isinstance(value, str) or not value.strip()):
             problems.append(f"{key} 必须是非空字符串")
+    for key in ("scheduler_config", "reducer"):
+        if key in proof and not isinstance(proof[key], dict):
+            problems.append(f"{key} 必须是 JSON object (算法身份与 reducer 标识须可复算)")
+    if isinstance(proof.get("fsrs_library_version"), str) and proof["fsrs_library_version"].startswith(DEGRADED_PREFIX):
+        problems.append("fsrs_library_version 为 degraded 哨兵 — 哨兵行不参与自动证明链 (§6.2)")
+    for key in ("ledger_prefix_sha256", "result_hash"):
+        value = proof.get(key)
+        if key in proof and (not isinstance(value, str) or not _SHA256_HEX_RE.match(value)):
+            problems.append(f"{key} 必须是 64 位小写十六进制 sha256, 得到 {value!r}")
 
     review_time = proof.get("review_time")
     if not isinstance(review_time, str):
@@ -435,13 +568,28 @@ def verify_degraded_proof(
     if e_instant is None:
         return problems + [f"review_time 不可解析: {review_time!r}"]
 
-    lines = {ln: ts for ln, ts in applicable}
+    seen_lines: set[int] = set()
+    lines: dict[int, tuple[str, str]] = {}
+    for entry in applicable:
+        line_no, ts, event_id = entry
+        if line_no in seen_lines:
+            # 与 _reject_dup_keys 同口径: 畸形输入 fail-closed, 不静默选边
+            problems.append(f"applicable 内行号 {line_no} 重复 — 输入不自洽")
+        seen_lines.add(line_no)
+        lines[line_no] = (ts, event_id)
+
     if cursor not in lines:
         problems.append(f"cursor_line={cursor} 不是该节点的适用事件行")
-    elif _instant(lines[cursor]) != e_instant:
-        problems.append(f"review_time 与第 {cursor} 行的事件时刻不一致")
+    else:
+        cursor_ts, cursor_event_id = lines[cursor]
+        if _instant(cursor_ts) != e_instant:
+            problems.append(f"review_time 与第 {cursor} 行的事件时刻不一致")
+        if proof.get("event_id") != cursor_event_id:
+            problems.append(
+                f"event_id 未绑定到 E: proof 声称 {proof.get('event_id')!r}, 第 {cursor} 行为 {cursor_event_id!r}"
+            )
 
-    # 尾部作用域 —— round-14 冻结: 仅最外层
+    # 尾部作用域 —— round-13 冻结: 仅最外层
     if is_top_level:
         tail = sorted(ln for ln in lines if ln > cursor)
         if tail:
@@ -456,14 +604,32 @@ def verify_degraded_proof(
         evidence = origin.get("genesis_evidence")
         if not isinstance(evidence, dict):
             return problems + ["origin.kind=new_card 必须附 genesis_evidence object"]
-        for key in ("node_frontmatter_hash", "node_frontmatter_text"):
-            if not isinstance(evidence.get(key), str) or not evidence[key]:
-                problems.append(f"genesis_evidence.{key} 必须是非空字符串")
+        fm_hash = evidence.get("node_frontmatter_hash")
+        if not isinstance(fm_hash, str) or not _SHA256_HEX_RE.match(fm_hash):
+            problems.append(f"genesis_evidence.node_frontmatter_hash 必须是 64 位十六进制, 得到 {fm_hash!r}")
+        fm_text = evidence.get("node_frontmatter_text")
+        if not isinstance(fm_text, str) or not fm_text:
+            problems.append("genesis_evidence.node_frontmatter_text 必须是非空字符串")
+        else:
+            # round-14 Codex HIGH: 原实现只查非空, 放行了含 fsrs_state 的原文 ——
+            # 而 new_card 的全部证明力就在于"此刻无任何 fsrs_* 字段"
+            offenders = sorted({m.group(0) for m in re.finditer(r"(?m)^\s*(fsrs_[A-Za-z0-9_]*)", fm_text)})
+            if offenders:
+                problems.append(f"genesis_evidence 原文含 FSRS 字段 {offenders} — 与 new_card(三态判别为 new) 矛盾")
+            if isinstance(fm_hash, str) and _SHA256_HEX_RE.match(fm_hash):
+                actual = hashlib.sha256(fm_text.encode("utf-8")).hexdigest()
+                if actual != fm_hash:
+                    problems.append("genesis_evidence.node_frontmatter_hash 与所附原文不符 (自洽性)")
         first_line = evidence.get("first_event_line")
         if not isinstance(first_line, int) or isinstance(first_line, bool) or first_line < 1:
             problems.append(f"genesis_evidence.first_event_line 必须 >=1, 得到 {first_line!r}")
             left = None
         else:
+            if lines and first_line != min(lines):
+                problems.append(
+                    f"genesis_evidence.first_event_line={first_line} 不是该节点最早的适用事件行 "
+                    f"(实为 {min(lines)}) — 区间左端点不可核验"
+                )
             left = first_line - 1
         ancestor_end: Optional[datetime] = None
     elif kind == "snapshot":
@@ -472,23 +638,30 @@ def verify_degraded_proof(
         state = origin.get("state")
         computed, state_problems = state_hash(state)
         problems.extend(f"origin.state: {p}" for p in state_problems)
-        if not isinstance(snap_hash, str) or not snap_hash:
-            problems.append("origin.snapshot_hash 必须是非空字符串")
+        if not isinstance(snap_hash, str) or not _SHA256_HEX_RE.match(snap_hash):
+            problems.append(f"origin.snapshot_hash 必须是 64 位十六进制, 得到 {snap_hash!r}")
         elif computed is not None and snap_hash != computed:
             problems.append("等式1 失败: snapshot_hash != sha256(canonical(state))")
         if not isinstance(ancestor, dict):
             return problems + ["origin.kind=snapshot 必须附 ancestor_proof object"]
 
-        # 递归: ancestor 是中间层, 不受尾部约束 (round-14)
+        # 递归: ancestor 是中间层, 不受尾部约束 (round-13 冻结)
         problems.extend(
             f"ancestor_proof: {p}"
-            for p in verify_degraded_proof(ancestor, applicable, is_top_level=False, _depth=_depth + 1)
+            for p in verify_degraded_proof(
+                ancestor, applicable, ledger_path=ledger_path, is_top_level=False, _depth=_depth + 1
+            )
         )
         if isinstance(snap_hash, str) and ancestor.get("result_hash") != snap_hash:
             problems.append("等式2 失败: snapshot_hash != ancestor_proof.result_hash")
         anc_rt = ancestor.get("review_time")
-        if isinstance(state, dict) and state.get("fsrs_last_review") != anc_rt:
-            problems.append("等式3 失败: state.fsrs_last_review != ancestor_proof.review_time")
+        # round-14 Codex MEDIUM: 原用字符串相等, 会把 '+08:00' 与等瞬间的 'Z'
+        # 判为不等 (合法 proof 假阳性)。§6.2 要求按绝对瞬间比较。
+        anc_instant = _instant(anc_rt) if isinstance(anc_rt, str) else None
+        state_w = state.get("fsrs_last_review") if isinstance(state, dict) else None
+        state_w_instant = _instant(state_w) if isinstance(state_w, str) else None
+        if state_w_instant is None or anc_instant is None or state_w_instant != anc_instant:
+            problems.append("等式3 失败: state.fsrs_last_review != ancestor_proof.review_time (按绝对瞬间)")
 
         anc_cursor = ancestor.get("cursor_line")
         if not isinstance(anc_cursor, int) or isinstance(anc_cursor, bool):
@@ -499,7 +672,7 @@ def verify_degraded_proof(
             if ancestor.get(key) != proof.get(key):
                 problems.append(f"链上 {key} 必须相同")
         left = anc_cursor
-        ancestor_end = _instant(anc_rt) if isinstance(anc_rt, str) else None
+        ancestor_end = anc_instant
         if ancestor_end is None:
             problems.append("ancestor_proof.review_time 不可解析")
     else:
@@ -511,7 +684,7 @@ def verify_degraded_proof(
         if not interval:
             problems.append(f"折叠区间 ({left}, {cursor}] 内无适用事件")
         else:
-            instants = [_instant(lines[ln]) for ln in interval]
+            instants = [_instant(lines[ln][0]) for ln in interval]
             if any(i is None for i in instants):
                 problems.append("折叠区间内存在不可解析的 review_time")
             else:
@@ -526,10 +699,6 @@ def verify_degraded_proof(
                     problems.append(
                         f"跨层单调门失败: ancestor.review_time 未严格小于本层首个事件 (第 {interval[0]} 行) 的时刻"
                     )
-
-    result_hash = proof.get("result_hash")
-    if not isinstance(result_hash, str) or not result_hash:
-        problems.append("result_hash 必须是非空字符串")
 
     if "prefix_ends_without_lf" in proof and proof["prefix_ends_without_lf"] is not True:
         problems.append("prefix_ends_without_lf 出现时必须恰为 true (有 LF 时须省略, 不得写 false)")

@@ -19,6 +19,7 @@
 """
 
 import builtins
+import hashlib
 import importlib.util
 import json
 import re
@@ -1047,15 +1048,26 @@ def test_repo_vault_ledger_schema_v1():
 
 
 # ---------------------------------------------------------------------------
-# degraded proof 参考 verifier 的行为门 (round-14 HIGH)
+# degraded proof 参考 verifier 的行为门 (round-14 新增, round-15 按 Codex
+# 十四轮 HIGH/MEDIUM 收紧)
 #
 # Codex round-13: "现有校验器和测试也没有 proof 行为实现, 十二轮存证仅做文本
-# 计数, 无法消除该歧义"。以下把 §6.2 的分层语义变成**可执行的单一事实**:
-# 尾部约束只施于最外层 ⇒ 正常两层链必须 PASS; 跨层单调门 ⇒ 分层绕过必须 FAIL。
+# 计数, 无法消除该歧义" ⇒ round-14 落成 verifier。
+# Codex round-14: verifier 对多项 schema 必填/真实绑定违规返回空; hash 门同源
+# 循环 (state_hash 被替换为恒定值后 14/14 仍过) ⇒ 本轮补真实绑定门 + 独立 oracle。
 # ---------------------------------------------------------------------------
 
 _T1 = "2026-01-01T10:00:00Z"
 _T2 = "2026-01-02T10:00:00Z"
+_HEX = "a" * 64
+
+#: **独立 oracle** (round-15): 该 digest 由 shell `printf ... | shasum -a 256`
+#: 算出, 不经被测的 canonical_state_bytes/state_hash —— 破除"用被测函数生成
+#: 期望值"的同源循环 (Codex 十四轮 MEDIUM: 把 state_hash 换成恒返回 "0"*64 后
+#: 原 14 门仍全绿)。对应 canonical 串:
+#: {"fsrs_difficulty":5.0,"fsrs_due":"2026-02-01T10:00:00Z",
+#:  "fsrs_last_review":"2026-01-01T10:00:00Z","fsrs_stability":10.0,"fsrs_state":2}
+_KNOWN_STATE_DIGEST = "4f26831a0f4e60998f463ca6ed5091831e5ad7cba9e242789ad23acccc1e3b57"
 
 
 def _state(last_review, *, fsrs_state=2, due="2026-02-01T10:00:00Z"):
@@ -1072,25 +1084,39 @@ def _state(last_review, *, fsrs_state=2, due="2026-02-01T10:00:00Z"):
     return out
 
 
-def _leaf(cursor_line, review_time, *, first_event_line=1, result_hash="r-leaf"):
-    """origin.kind=new_card 的叶层 proof。"""
+def _genesis(first_event_line=1):
+    text = "title: n\n"
     return {
+        "node_frontmatter_hash": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+        "node_frontmatter_text": text,
+        "first_event_line": first_event_line,
+    }
+
+
+def _identity(cursor_line, review_time, **over):
+    """proof 的 schema 必填字段骨架 (round-15: 原 helper 缺四个必填字段)。"""
+    base = {
         "vault_id": "v",
         "node_id": "n",
         "event_id": f"e{cursor_line}",
         "review_time": review_time,
         "cursor_line": cursor_line,
-        "ledger_prefix_sha256": "0" * 64,
-        "result_hash": result_hash,
-        "origin": {
-            "kind": "new_card",
-            "genesis_evidence": {
-                "node_frontmatter_hash": "f" * 64,
-                "node_frontmatter_text": "title: n\n",
-                "first_event_line": first_event_line,
-            },
-        },
+        "ledger_prefix_sha256": _HEX,
+        "fsrs_library_version": "6.3.1",
+        "fsrs_params_hash": "b" * 64,
+        "scheduler_config": {"desired_retention": 0.9},
+        "reducer": {"id": "per-event-round", "precision": 4},
+        "result_hash": "c" * 64,
     }
+    base.update(over)
+    return base
+
+
+def _leaf(cursor_line, review_time, *, first_event_line=1, **over):
+    """origin.kind=new_card 的叶层 proof。"""
+    proof = _identity(cursor_line, review_time, **over)
+    proof["origin"] = {"kind": "new_card", "genesis_evidence": _genesis(first_event_line)}
+    return proof
 
 
 def _layered(child_cursor, child_rt, ancestor):
@@ -1099,21 +1125,17 @@ def _layered(child_cursor, child_rt, ancestor):
     snap_hash, problems = validator.state_hash(snap_state)
     assert not problems, problems
     ancestor = dict(ancestor, result_hash=snap_hash)
-    return {
-        "vault_id": "v",
-        "node_id": "n",
-        "event_id": f"e{child_cursor}",
-        "review_time": child_rt,
-        "cursor_line": child_cursor,
-        "ledger_prefix_sha256": "1" * 64,
-        "result_hash": "r-child",
-        "origin": {
-            "kind": "snapshot",
-            "state": snap_state,
-            "snapshot_hash": snap_hash,
-            "ancestor_proof": ancestor,
-        },
+    proof = _identity(child_cursor, child_rt)
+    proof["origin"] = {
+        "kind": "snapshot",
+        "state": snap_state,
+        "snapshot_hash": snap_hash,
+        "ancestor_proof": ancestor,
     }
+    return proof
+
+
+_APPLICABLE_2 = [(1, _T1, "e1"), (2, _T2, "e2")]
 
 
 def test_normal_two_layer_chain_is_provable():
@@ -1122,14 +1144,13 @@ def test_normal_two_layer_chain_is_provable():
     这是 round-13 HIGH 的判据: 若把"其后无适用事件"递归施于 ancestor,
     ancestor(cursor_line=1) 会因 L2 存在而失效 ⇒ 本测试红。冻结为仅最外层后绿。
     """
-    applicable = [(1, _T1), (2, _T2)]
     proof = _layered(2, _T2, _leaf(1, _T1))
-    assert validator.verify_degraded_proof(proof, applicable) == []
+    assert validator.verify_degraded_proof(proof, _APPLICABLE_2) == []
 
 
 def test_layered_split_cannot_bypass_monotonicity():
     """round-12 绕过: L1=t2、L2=t1 拆成两个单事件区间 ⇒ 跨层单调门必须拒。"""
-    applicable = [(1, _T2), (2, _T1)]
+    applicable = [(1, _T2, "e1"), (2, _T1, "e2")]
     proof = _layered(2, _T1, _leaf(1, _T2))
     problems = validator.verify_degraded_proof(proof, applicable)
     assert any("跨层单调门失败" in p for p in problems), problems
@@ -1137,14 +1158,13 @@ def test_layered_split_cannot_bypass_monotonicity():
 
 def test_top_level_must_cover_ledger_tail():
     """最外层 proof 后仍有适用事件 ⇒ 拒 (尾部逃逸门, round-11)。"""
-    applicable = [(1, _T1), (2, _T2)]
-    problems = validator.verify_degraded_proof(_leaf(1, _T1), applicable)
+    problems = validator.verify_degraded_proof(_leaf(1, _T1), _APPLICABLE_2)
     assert any("未覆盖到账本末尾" in p for p in problems), problems
 
 
 def test_intra_layer_monotonicity_gate():
     """同一层内行号递增而时刻不增 ⇒ 账本不自洽, 拒 (round-10)。"""
-    applicable = [(1, _T2), (2, _T1)]
+    applicable = [(1, _T2, "e1"), (2, _T1, "e2")]
     proof = _leaf(2, _T1, first_event_line=1)
     problems = validator.verify_degraded_proof(proof, applicable)
     assert any("层内单调门失败" in p for p in problems), problems
@@ -1160,18 +1180,37 @@ def test_intra_layer_monotonicity_gate():
 )
 def test_snapshot_three_equalities_each_enforced(mutate, marker):
     """三条等式各自独立成门 — 任一被破坏都必须报出对应违规。"""
-    applicable = [(1, _T1), (2, _T2)]
     proof = _layered(2, _T2, _leaf(1, _T1))
     mutate(proof)
-    problems = validator.verify_degraded_proof(proof, applicable)
+    problems = validator.verify_degraded_proof(proof, _APPLICABLE_2)
     assert any(marker in p for p in problems), (marker, problems)
+
+
+def test_equality3_compares_instants_not_strings():
+    """等式3 必须按**绝对瞬间**比较 — '+08:00' 与等瞬间的 'Z' 不得判不等。
+
+    Codex 十四轮 MEDIUM: 原实现直接比字符串, 合法 proof 假阳性。
+    """
+    offset_form = "2026-01-01T18:00:00+08:00"  # 与 _T1 (Z 形) 是同一绝对瞬间
+    snap_state = _state(_T1)  # canonical state 恒为 Z 形, 这是 schema 要求
+    snap_hash, errs = validator.state_hash(snap_state)
+    assert not errs, errs
+    ancestor = _leaf(1, offset_form, result_hash=snap_hash)
+    proof = _identity(2, _T2)
+    proof["origin"] = {
+        "kind": "snapshot",
+        "state": snap_state,
+        "snapshot_hash": snap_hash,
+        "ancestor_proof": ancestor,
+    }
+    problems = validator.verify_degraded_proof(proof, [(1, offset_form, "e1"), (2, _T2, "e2")])
+    assert problems == [], problems
 
 
 def test_chain_cursor_line_must_strictly_decrease():
     """ancestor.cursor_line >= 本层 ⇒ 链不终止/可自引用, 拒。"""
-    applicable = [(1, _T1), (2, _T2)]
     proof = _layered(2, _T2, _leaf(2, _T2))
-    problems = validator.verify_degraded_proof(proof, applicable)
+    problems = validator.verify_degraded_proof(proof, _APPLICABLE_2)
     assert any("链未严格递减" in p for p in problems), problems
 
 
@@ -1183,6 +1222,10 @@ def test_chain_cursor_line_must_strictly_decrease():
         ({**_state(_T1), "fsrs_stability": 10}, "必须是 JSON float"),  # int 而非 float
         ({**_state(_T1), "fsrs_state": "2"}, "必须是 number 1/2/3"),  # 字符串 state
         ({**_state(_T1), "fsrs_last_review": "2026-01-01T10:00:00+00:00"}, "UTC 整秒"),
+        # round-15 (Codex 十四轮 MEDIUM): 词法合规不等于取值合法
+        ({**_state(_T1), "fsrs_due": "2026-99-99T99:99:99Z"}, "取值非法"),
+        # Python 的 `$` 也匹配末尾换行前 ⇒ 必须用 \Z
+        ({**_state(_T1), "fsrs_due": "2026-02-01T10:00:00Z\n"}, "UTC 整秒"),
     ],
 )
 def test_canonical_state_shape_is_unique(state, marker):
@@ -1192,9 +1235,175 @@ def test_canonical_state_shape_is_unique(state, marker):
     assert any(marker in p for p in problems), (marker, problems)
 
 
-def test_canonical_state_hash_is_stable_and_order_independent():
+def test_canonical_state_hash_matches_independent_oracle():
+    """canonical hash 必须等于**独立算出**的已知真值。
+
+    round-15: 原稳定性测试只比较 state_hash 自身两次调用, 把该函数换成恒返回
+    常量后仍全绿 (Codex 十四轮 MEDIUM 实证)。本门钉死外部 digest 字面量。
+    """
+    digest, problems = validator.state_hash(_state(_T1))
+    assert not problems, problems
+    assert digest == _KNOWN_STATE_DIGEST
+
+
+def test_canonical_state_hash_is_order_independent():
     """键序不同的同一状态必须得到同一 hash (sort_keys 冻结)。"""
     a = _state(_T1)
     b = {k: a[k] for k in reversed(list(a))}
-    assert validator.state_hash(a) == validator.state_hash(b)
-    assert validator.state_hash(a)[0] is not None
+    assert validator.state_hash(b)[0] == _KNOWN_STATE_DIGEST
+
+
+@pytest.mark.parametrize("missing", sorted(validator._PROOF_REQUIRED_KEYS))
+def test_every_schema_required_field_is_gated(missing):
+    """§6.2 表"缺任一项即不可证明" — 逐字段删除都必须报出对应缺失。
+
+    Codex 十四轮 HIGH: 原实现连 fsrs_library_version/params_hash/
+    scheduler_config/reducer 是否存在都不要求。
+    """
+    proof = _leaf(2, _T2, first_event_line=1)
+    proof.pop(missing)
+    problems = validator.verify_degraded_proof(proof, _APPLICABLE_2)
+    assert problems, f"删除必填字段 {missing} 后竟无违规"
+    assert any(missing in p for p in problems), (missing, problems)
+
+
+@pytest.mark.parametrize(
+    "mutate, marker",
+    [
+        (lambda g: g.__setitem__("node_frontmatter_hash", "not-a-sha256"), "64 位十六进制"),
+        (lambda g: g.__setitem__("node_frontmatter_text", "fsrs_state: 2\n"), "原文含 FSRS 字段"),
+        (lambda g: g.__setitem__("first_event_line", 2), "不是该节点最早的适用事件行"),
+    ],
+)
+def test_genesis_anchor_is_really_anchored(mutate, marker):
+    """new_card 的全部证明力在 genesis 锚 — 原实现只查非空 (Codex 十四轮 HIGH)。"""
+    proof = _leaf(2, _T2, first_event_line=1)
+    mutate(proof["origin"]["genesis_evidence"])
+    problems = validator.verify_degraded_proof(proof, _APPLICABLE_2)
+    assert any(marker in p for p in problems), (marker, problems)
+
+
+def test_event_id_must_bind_to_cursor_event():
+    """proof 的 event_id 必须就是 cursor_line 那行的幂等键。"""
+    proof = _leaf(2, _T2, first_event_line=1, event_id="wrong")
+    problems = validator.verify_degraded_proof(proof, _APPLICABLE_2)
+    assert any("event_id 未绑定到 E" in p for p in problems), problems
+
+
+def test_degraded_sentinel_cannot_enter_proof_chain():
+    """degraded:* 哨兵无法确定性复算 ⇒ 不得参与自动证明链 (§6.2)。"""
+    proof = _leaf(2, _T2, first_event_line=1, fsrs_library_version="degraded:fsrs-missing")
+    problems = validator.verify_degraded_proof(proof, _APPLICABLE_2)
+    assert any("哨兵" in p for p in problems), problems
+
+
+def test_duplicate_line_numbers_fail_closed():
+    """applicable 内重复行号 = 输入不自洽, 必须报错而非静默取后者。"""
+    proof = _leaf(2, _T2, first_event_line=1)
+    problems = validator.verify_degraded_proof(proof, [(1, _T1, "e1"), (1, _T1, "e1"), (2, _T2, "e2")])
+    assert any("行号 1 重复" in p for p in problems), problems
+
+
+# ── 账本直读模式: 消除 applicable 信任边界 (Codex 十四轮 HIGH) ──
+
+
+def _write_ledger(tmp_path, *, trailing_lf=True):
+    """两条真实 review/1 事件的账本。"""
+    rows = []
+    for idx, (ts, eid) in enumerate(((_T1, "e1"), (_T2, "e2")), start=1):
+        rows.append(
+            json.dumps(
+                {
+                    "event_id": eid,
+                    "event_version": 1,
+                    "event_type": "answer_scored",
+                    "node_id": "n",
+                    "recorded_at": ts,
+                    "effective_at": ts,
+                    "payload": {"schema_ext": "review/1", "review_time": ts},
+                },
+                ensure_ascii=False,
+            )
+        )
+    text = "\n".join(rows) + ("\n" if trailing_lf else "")
+    path = tmp_path / "learning_events.jsonl"
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
+def test_ledger_mode_extracts_events_itself(tmp_path):
+    """传 ledger_path 时忽略调用方 applicable — 截断列表不再能让尾部门真空通过。
+
+    Codex 十四轮 HIGH: 把 applicable 截成 [(1,t1)] 后原实现返回 []。
+    """
+    ledger = _write_ledger(tmp_path)
+    prefix, ends_no_lf, errs = validator.ledger_prefix(ledger, 1)
+    assert not errs and not ends_no_lf
+    proof = _leaf(1, _T1, first_event_line=1, ledger_prefix_sha256=prefix)
+    # 调用方蓄意只给第一行 —— verifier 仍应自行发现第二行
+    problems = validator.verify_degraded_proof(proof, [(1, _T1, "e1")], ledger_path=ledger)
+    assert any("未覆盖到账本末尾" in p for p in problems), problems
+
+
+def test_ledger_mode_recomputes_prefix_hash(tmp_path):
+    """ledger_prefix_sha256 必须与账本实算一致 — 此前只校验形状。"""
+    ledger = _write_ledger(tmp_path)
+    prefix, _, _ = validator.ledger_prefix(ledger, 2)
+    good = _leaf(2, _T2, first_event_line=1, ledger_prefix_sha256=prefix)
+    assert validator.verify_degraded_proof(good, [], ledger_path=ledger) == []
+    bad = _leaf(2, _T2, first_event_line=1, ledger_prefix_sha256="f" * 64)
+    problems = validator.verify_degraded_proof(bad, [], ledger_path=ledger)
+    assert any("与账本实算不符" in p for p in problems), problems
+
+
+def test_ledger_mode_enforces_prefix_ends_without_lf(tmp_path):
+    """末行无终止 LF 时必须写 prefix_ends_without_lf: true; 有 LF 时必须省略。"""
+    (tmp_path / "a").mkdir()
+    no_lf = _write_ledger(tmp_path / "a", trailing_lf=False)
+    prefix, ends, _ = validator.ledger_prefix(no_lf, 2)
+    assert ends is True
+    missing_flag = _leaf(2, _T2, first_event_line=1, ledger_prefix_sha256=prefix)
+    problems = validator.verify_degraded_proof(missing_flag, [], ledger_path=no_lf)
+    assert any("必须写 prefix_ends_without_lf" in p for p in problems), problems
+
+    (tmp_path / "b").mkdir()
+    with_lf = _write_ledger(tmp_path / "b")
+    prefix2, ends2, _ = validator.ledger_prefix(with_lf, 2)
+    assert ends2 is False
+    spurious = _leaf(2, _T2, first_event_line=1, ledger_prefix_sha256=prefix2)
+    spurious["prefix_ends_without_lf"] = True
+    problems = validator.verify_degraded_proof(spurious, [], ledger_path=with_lf)
+    assert any("必须省略 prefix_ends_without_lf" in p for p in problems), problems
+
+
+def test_ledger_mode_skips_out_of_order_events(tmp_path):
+    """标了 out_of_order 的行不进 pending 集合 (§6.2), 抽取必须排除。"""
+    ledger = tmp_path / "learning_events.jsonl"
+    rows = [
+        json.dumps(
+            {
+                "event_id": "e1",
+                "event_version": 1,
+                "event_type": "answer_scored",
+                "node_id": "n",
+                "recorded_at": _T1,
+                "effective_at": _T1,
+                "payload": {"schema_ext": "review/1", "review_time": _T1},
+            }
+        ),
+        json.dumps(
+            {
+                "event_id": "late",
+                "event_version": 1,
+                "event_type": "answer_scored",
+                "node_id": "n",
+                "recorded_at": _T2,
+                "effective_at": _T2,
+                "payload": {"schema_ext": "review/1", "review_time": _T2, "out_of_order": True},
+            }
+        ),
+    ]
+    ledger.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    found, errs = validator.extract_applicable(ledger, "n")
+    assert not errs
+    assert [line for line, _, _ in found] == [1], found
