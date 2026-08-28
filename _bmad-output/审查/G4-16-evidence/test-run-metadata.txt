@@ -1,32 +1,40 @@
-== G4-16 落点测试完整 provenance（round-3 MEDIUM-5 整改：可复验的 before/after 完整捕获）==
+== G4-16 落点测试完整 provenance（round-4 整改：命令字面可粘贴复跑 + 运行树绑定固定 commit）==
 
-背景：round-1/round-2 的 before/after 只存了 FAILED 节点摘要（10 行），Codex round-3 判定
-历史 stdout 不可事后补造 —— 属实。故本轮**重新做了一次可复验的完整捕获**取代历史摘要：
-before 不是回忆，而是把两个 py 文件用 git 对象切回 37387a86 版后真实重跑的结果。
+背景：round-1/2 只存 FAILED 节点摘要；round-3 判定"历史 stdout 不可事后补造"属实，故
+重做了一次可复验完整捕获；round-4 指出重放 recipe 仍含占位符且 after 绑定漂移的 HEAD。
+本版命令**全部字面、无占位符、绑定固定 commit**，可原样粘贴复跑（zsh -n 已校验）。
 
---- 命令（两次完全一致，仅两文件版本不同）:
-cd backend && .venv/bin/pytest tests/unit/test_supplementary_reranker.py tests/unit/test_supplementary_search_service.py -q --no-header > <out> 2>&1; echo exit_code=$? >> <out>
+--- 运行树绑定（关键：两个 py 文件在 73102875 与 fce0d8a2 之间字节未变，blob 同为 73579b22）
+before 文件版本 commit: 37387a86（第五批开工基线）
+after  文件版本 commit: 73102875（捕获当时的 HEAD；其后 fce0d8a2 未触碰这两个文件，git diff 为空）
+Python: Python 3.14.4
+pytest 配置: backend/pytest.ini（含 addopts，故实际输出为 --tb=short 形式的完整失败节
+  报告，非 --tb=long；"完整"指未经 grep 过滤地保存了该配置下的全部 stdout+stderr）
 
---- before 捕获（两文件切至 37387a86 版）:
-  git checkout 37387a86 -- backend/app/services/supplementary_reranker.py backend/app/services/supplementary_search_service.py
-  产物: pytest-before-full-stdout.txt（完整 stdout+stderr，含 traceback 与 exit_code=1）
-  sha256: 42d94922339a0fdb2799017bbf0b1ad02293d3dd1cfa1d91c6fd0a19313109c5
+--- ① before 捕获（可原样粘贴复跑）
+cd "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s5-census" && git checkout 37387a86 -- backend/app/services/supplementary_reranker.py backend/app/services/supplementary_search_service.py && cd backend && .venv/bin/pytest tests/unit/test_supplementary_reranker.py tests/unit/test_supplementary_search_service.py -q --no-header > "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s5-census/_bmad-output/审查/G4-16-evidence/pytest-before-full-stdout.txt" 2>&1; echo "exit_code=$?" >> "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s5-census/_bmad-output/审查/G4-16-evidence/pytest-before-full-stdout.txt"
 
---- after 捕获（两文件恢复至本卡 HEAD 版）:
-  git checkout HEAD -- <同两文件>
-  产物: pytest-after-full-stdout.txt（同格式）
-  sha256: 4303b0df29b66ef7ef4219626882f3e7c7bde8fd448d6ba350553dab532236cd
+--- ② after 捕获（可原样粘贴复跑）
+cd "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s5-census" && git checkout 73102875 -- backend/app/services/supplementary_reranker.py backend/app/services/supplementary_search_service.py && cd backend && .venv/bin/pytest tests/unit/test_supplementary_reranker.py tests/unit/test_supplementary_search_service.py -q --no-header > "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s5-census/_bmad-output/审查/G4-16-evidence/pytest-after-full-stdout.txt" 2>&1; echo "exit_code=$?" >> "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s5-census/_bmad-output/审查/G4-16-evidence/pytest-after-full-stdout.txt"
 
---- 文件 blob（可 git cat-file 复核）:
-  reranker:       37387a86=3d8275269213  HEAD=73579b22f7a5
-  search_service: 37387a86=17440e21c01b  HEAD=5ff331040905
-  Python: Python 3.14.4
-  两次 exit_code 均为 1（9 条既有失败），grep 摘要版另存 baseline-before-edits.txt / after-edits.txt
+--- ③ 归一化对照（可原样粘贴复跑；两条规则=内存地址与耗时）
+diff <(sed -E 's/0x[0-9a-f]+/0xADDR/g; s/in [0-9]+\.[0-9]+s/in T.TTs/g' "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s5-census/_bmad-output/审查/G4-16-evidence/pytest-before-full-stdout.txt") <(sed -E 's/0x[0-9a-f]+/0xADDR/g; s/in [0-9]+\.[0-9]+s/in T.TTs/g' "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s5-census/_bmad-output/审查/G4-16-evidence/pytest-after-full-stdout.txt")
 
---- 对照结论:
-  完整 stdout 归一化（内存地址 0x… → 0xADDR、耗时 → T.TTs）后 **逐字节相同**，diff 为空。
-  未归一化时的全部差异 = CPython 对象内存地址与 pytest 耗时，与代码语义无关。
-  即：注释-only 修改对测试输出零影响，9 failed / 102 passed 逐条同节点同顺序。
+--- ④ 复跑后请恢复工作区（避免留下 checkout 残留）
+cd "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s5-census" && git checkout HEAD -- backend/app/services/supplementary_reranker.py backend/app/services/supplementary_search_service.py
 
---- 既有失败根因（不在本卡范围，归 FU-2）:
-  翻转源 commit fcd34953（RAG-S2 T2 权重方向翻转），测试断言未同步。
+--- 产物指纹
+pytest-before-full-stdout.txt sha256: 42d94922339a0fdb2799017bbf0b1ad02293d3dd1cfa1d91c6fd0a19313109c5
+pytest-after-full-stdout.txt  sha256: 4303b0df29b66ef7ef4219626882f3e7c7bde8fd448d6ba350553dab532236cd
+两文件 blob: reranker 37387a86=3d8275269213 → 73102875=73579b22f7a5
+             search   37387a86=17440e21c01b → 73102875=5ff331040905
+两次 exit_code 均为 1（9 条既有失败）；grep 摘要版另存 baseline-before-edits.txt / after-edits.txt
+
+--- 对照结论
+③ 的 diff 为空：两份完整输出经归一化后**逐字节相同**（Codex round-4 独立复算：归一化后双方
+均 9912 bytes、sha256 03e576078dbc5c854b1db7695c1a654195afa69f52f5212d79577e491fde84e8）。
+未归一化时的全部差异 = 9 处 CPython 对象地址 + 耗时 0.47s→0.45s，与代码语义无关。
+即：注释-only 修改对测试输出零影响，9 failed / 102 passed 逐条同节点同顺序。
+
+--- 既有失败根因（不在本卡范围，归 FU-2）
+翻转源 commit fcd34953（RAG-S2 T2 权重方向翻转），测试断言未同步。

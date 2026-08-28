@@ -37,6 +37,8 @@ worktree: "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktre
 | round-2 findings 逐条整改 | **7/7 完成**：自由值权重加路径条件 / §8 摘要与 §1 口径统一 / 测试 provenance 补强+诚实边界 / source_type 赋值链表述修正 / reranker 陈旧算例注记 / 字面量 grep 降级为辅助视图 / 根脚本行号按 pinned SHA 修正。整改后 AST 仍全等、9 failed/102 passed 不变 | 报告 §10 + 证据包 |
 | Codex 复审 round-3 | **5/7 CLOSED**，三条行为铁律全部复验通过（AST 全等注释-only、隔离面零改动、失败节点集合相同）；阻断点收敛为证据可复验性两项，非代码行为回归 | `_bmad-output/审查/codex-review-CARD-G4-16-round3.md` |
 | round-3 findings 整改 | **2/2 完成**：① 测试 provenance 从"声明"改为**可复验完整捕获**（git 切基线版真实重跑 before + 切 HEAD 重跑 after，两份完整 stdout 归一化后逐字节相同）；② grep 证据命令去占位符、绑定 pinned SHA、`zsh -n` 校验通过 | 报告 §11 + `pytest-before/after-full-stdout.txt` |
+| Codex 复审 round-4 | **6/7 CLOSED**；独立复算确认归一化未掩盖实质差异（原始 diff 仅 9 处内存地址+耗时，归一化后双方 sha256 相同 byte-equal）、两份 stdout 与声明自洽；剩 1 项=重放命令仍含占位符且绑定漂移 HEAD | `_bmad-output/审查/codex-review-CARD-G4-16-round4.md` |
+| round-4 整改 | **3/3 完成**：四条命令改字面可粘贴（逐条 zsh -n 通过、③ 已实证复跑 diff 为空）+ after 绑定固定 commit 73102875（附两 py 文件 73102875↔fce0d8a2 零 diff 佐证）+ 两条措辞 LOW | 报告 §12 + `test-run-metadata.txt` |
 | 独立 Workflow 4-agent 复核 | 枚举 agent：18/146、写入方双路径、exclude 7+1 处、TYPE_WEIGHTS 死键论证全 CONFIRMED（0 blocker）；注释-only agent：tokenize 剥离注释后 **代码 token 逐一相同**（707/3940 个），运行期 TYPE_WEIGHTS/阈值三值断言全过 | Workflow wf_737b1a95-20b journal |
 
 ## 🔧 Codex round-1 整改记录（10/10 关闭，FAIL → 整改完毕）

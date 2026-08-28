@@ -124,3 +124,13 @@ round-3 裁定 5 CLOSED（自由值路径条件 / §8 摘要口径 / source_type
 
 - **MEDIUM-5 测试 provenance**：round-3 指出"当前复跑不能补造历史证据"——完全正确。**整改思路改变**：不再试图为历史运行补 provenance，而是**重做一次可复验的完整对照**——把两文件用 git 对象切回 37387a86 真实重跑得 before，切回 HEAD 重跑得 after，两份完整 stdout（含 traceback、exit_code）归一化内存地址与耗时后**逐字节相同**。证据从"声明"变为"可复跑复算"。
 - **live/value-grep 命令可执行性**：`<lancedb…>` 占位符 + `zsh -n` 报 unmatched quote + 裸 grep 未绑定 SHA。**整改**：两条命令改写为无占位符完整形式（docker 一行式；`git grep` pinned 37387a86），`zsh -n` 校验通过，结果随文件重新实跑。
+
+## §12 Codex round-4 复审整改记录（6/7 CLOSED → 剩 1 项闭合）
+
+round-4 裁定 6/7 CLOSED（含 live/value-grep 命令一项经其**真实复跑成功**转 CLOSED），并独立复算确认：两份 stdout 与 metadata 声明自洽（各 109 行/9957 bytes/111 collected/9 failed/102 passed/exit_code=1）；**归一化未掩盖实质差异**——原始 diff 只有 9 处 CPython 对象地址与 `0.47s→0.45s`，仅应用声明的两条规则后双方均 9912 bytes、sha256 `03e57607…84e8` byte-equal。
+
+剩余一项及整改：
+
+- **MEDIUM-5 重放 recipe 不确定 → CLOSED**：metadata 仍保留 `<out>` / `<同两文件>` 占位符（原样 `zsh -n` exit 1），且 after 绑定会漂移的 `HEAD`。**整改**：四条命令全部改为**字面可粘贴形式**（绝对路径、无占位符，逐条 `zsh -n` 通过，③ 归一化 diff 已实证复跑为空），after 的运行树绑定**固定 commit `73102875`**（并附证：两个 py 文件在 `73102875` 与 `fce0d8a2` 之间 `git diff` 为空、blob 同为 `73579b22`，故绑定固定 SHA 与捕获时状态一致）；另补 `git checkout HEAD` 恢复步骤避免复跑残留。
+- **新 LOW（"完整 traceback"措辞）**：实为 `pytest.ini` 配置下的 `--tb=short` 输出。→ metadata 已改为"未经 grep 过滤地保存了该配置下的全部 stdout+stderr"并注明 tb 形式。
+- **新 LOW（live 证据为格式化展示）**：不阻断，已在该文件顶部声明为"启发式辅助视图 + 结果随文件实跑落盘"，数值/字面量同集经 round-4 复跑确认。
