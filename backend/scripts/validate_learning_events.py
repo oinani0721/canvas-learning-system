@@ -370,8 +370,12 @@ _PROOF_REQUIRED_KEYS = (
     "result_hash",
 )
 #: ancestor_proof 链的深度保险 (schema §6.2 已成文): cursor_line 严格递减本已
-#: 界定有限步, 本上限只防御畸形/自引用输入, 取值须与 schema 一致
-PROOF_MAX_DEPTH = 1024
+#: 界定有限步, 本上限只防御畸形/自引用输入, 取值须与 schema 一致。
+#: ⚠️ round-15 自查: 取值**必须远低于 sys.getrecursionlimit()** (默认 1000)。
+#: 此前取 1024 > 1000, 深度 ~985 起的链在递归中抛**未捕获的 RecursionError**
+#: (工具崩溃而非报违规) —— 为修 round-14 的"64 层误拒"反而引入了更坏的失败模式。
+#: 128 层对单节点的解冻链 (层数 = 历史重建次数) 已极为宽裕。
+PROOF_MAX_DEPTH = 128
 
 
 def canonical_state_bytes(state: object) -> tuple[Optional[bytes], list[str]]:
@@ -447,7 +451,14 @@ def extract_applicable(ledger_path: Path, node_id: str) -> tuple[list[tuple[int,
         raw = ledger_path.read_bytes()
     except OSError as exc:
         return [], [f"账本不可读: {exc}"]
-    for idx, chunk in enumerate(raw.splitlines(), start=1):
+    # ⚠️ 必须按 \n 切分, **不能**用 splitlines(): 后者还会在 \r / \v / \f /
+    # \x1c-\x1e / \x85 处断行, 与主体校验 (二进制文件迭代, 只认 \n) 和
+    # ledger_prefix (find(b"\n")) 的行号定义不一致 —— 一条含裸 CR 的记录会让
+    # 两套编号错位, cursor_line 与 prefix 指向不同的行 (round-15 自查实证)
+    chunks = raw.split(b"\n")
+    if chunks and chunks[-1] == b"":
+        chunks.pop()  # 末尾 LF 不产生额外空行
+    for idx, chunk in enumerate(chunks, start=1):
         try:
             record = _strict_loads(chunk.decode("utf-8"))
         except (UnicodeDecodeError, ValueError):
@@ -489,7 +500,7 @@ def ledger_prefix(ledger_path: Path, cursor_line: int) -> tuple[Optional[str], b
     return hashlib.sha256(raw[:offset]).hexdigest(), False, []
 
 
-def verify_degraded_proof(
+def _verify_proof_level(
     proof: object,
     applicable: list[tuple[int, str, str]],
     *,
@@ -648,7 +659,7 @@ def verify_degraded_proof(
         # 递归: ancestor 是中间层, 不受尾部约束 (round-13 冻结)
         problems.extend(
             f"ancestor_proof: {p}"
-            for p in verify_degraded_proof(
+            for p in _verify_proof_level(
                 ancestor, applicable, ledger_path=ledger_path, is_top_level=False, _depth=_depth + 1
             )
         )
@@ -704,6 +715,26 @@ def verify_degraded_proof(
         problems.append("prefix_ends_without_lf 出现时必须恰为 true (有 LF 时须省略, 不得写 false)")
 
     return problems
+
+
+def verify_degraded_proof(
+    proof: object,
+    applicable: list[tuple[int, str, str]],
+    *,
+    ledger_path: Optional[Path] = None,
+    is_top_level: bool = True,
+) -> list[str]:
+    """`_verify_proof_level()` 的公开入口 —— 见其 docstring 了解全部门与范围声明。
+
+    本层只多做一件事: **捕获 RecursionError 并转成违规**。`PROOF_MAX_DEPTH` 已
+    远低于 `sys.getrecursionlimit()`, 但调用方的栈深度不可知 (如深层 pytest /
+    嵌套框架), 故仍需纵深防御 —— 校验器面对畸形输入必须**报违规**, 而不是抛
+    traceback 崩溃 (round-15 自查: 上限曾取 1024 > 递归上限 1000, 深链直接崩)。
+    """
+    try:
+        return _verify_proof_level(proof, applicable, ledger_path=ledger_path, is_top_level=is_top_level)
+    except RecursionError:
+        return [f"ancestor_proof 链过深, 递归耗尽栈 (上限 {PROOF_MAX_DEPTH} 层) — 疑似自引用或异常构造"]
 
 
 def _instant(value: object) -> Optional[datetime]:

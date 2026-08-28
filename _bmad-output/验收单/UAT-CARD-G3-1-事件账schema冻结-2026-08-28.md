@@ -286,3 +286,16 @@
 **round-15 负验证（`审查/g3-1-evidence/g3-round15-counterexamples.txt`）**——五个变体逐一拆门，全部如期变红，还原后全绿，脚本 exit 0；机械化自检（只破坏变体B的模式）exit 1。
 
 裁判实测：契约测试 **95 passed + 1 skipped**、golden **15 passed**、三文件合跑见下、现网账本 exit 0 且 SHA 恒定。
+
+### 十五轮自查追加（两条**本轮自己引入**的缺陷，在 Codex 十五轮出结论前先行修复）
+
+十五轮 Codex 的输出被其内容过滤拦截（已知坑：措辞含"构造绕过"类表述会触发），但其 stderr 的推理标题泄露了两条正在追的线索——`Tracing recursive verification causing RecursionError` 与 `Testing bare CR record separation`。我据此自查，**两条都属实，且都是上一笔为修 Codex 十四轮 LOW 而新引入的**：
+
+| # | 级别 | 自查发现 | 处置 |
+|---|---|---|---|
+| 甲 | **HIGH（自查）** | 为修十四轮"64 层上限误拒合法长链"，我把 `PROOF_MAX_DEPTH` 提到 **1024——大于 Python 默认的 `sys.getrecursionlimit()` = 1000**。实测深度 990/1010/1023 的链全部抛**未捕获的 RecursionError**：工具直接崩溃而非报违规。**为修一个误拒，引入了更坏的失败模式** | **已修**：①上限改 **128**（单节点解冻链层数 = 历史重建次数，128 极宽裕）并写明"取值必须远低于实现语言递归上限"这一硬约束；②递归核心改私有 `_verify_proof_level()`，公开入口 `verify_degraded_proof()` 另捕 `RecursionError` 转违规作**纵深防御**（调用方栈深不可知）。实测 130/900/5000 层与自引用 proof 全部报违规、零崩溃 |
+| 乙 | **MEDIUM（自查）** | `extract_applicable()` 用 `splitlines()`，它还在 `\r` / `\v` / `\f` / `\x1c-\x1e` / `\x85` 处断行；而主体校验（二进制文件迭代）与 `ledger_prefix()`（`find(b"\n")`）只认 `\n`。**一条含裸 CR 的坏记录会让其后所有事件的行号多算 1**，`cursor_line` 与 prefix 指向不同的行 | **已修**：改按 `\n` 切分并剥掉末尾 LF 产生的空元素，三处口径统一。新增 `test_line_numbering_agrees_with_prefix_on_bare_cr`：账本第 2 行含裸 CR 时，抽取结果必须是 `[1, 3]` 而非 `[1, 4]`，且第 3 行的 prefix 恰覆盖全文件 |
+
+**顺带的意外验证**：把递归核心改名后，负验证脚本的变体 A 模式立即失配，机械化当场报 `❌ mutation 未命中 — 模式已与实现漂移`、`RESULT: FAIL`、exit 1。这正是上一笔机械化改造要达到的效果——**旧版脚本在同样情况下会静默"全绿通过"**。修好模式后五变体全部如期变红。
+
+裁判实测：契约测试 **100 passed + 1 skipped**、三文件合跑 **121 passed + 1 skipped**、现网账本 exit 0 且 SHA 恒定。

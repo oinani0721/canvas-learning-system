@@ -70,7 +70,7 @@ grep -E "passed|failed" <<<"$BASE" | tail -1 | sed 's/^/     /'
 echo
 echo "=== 变体A: 尾部约束**递归**施于 ancestor (round-13 指出的另一种解释) ==="
 echo "    正常链 L1=t1、L2=t2 的 ancestor(cursor=1) 会因 L2 存在而失效"
-if mutate 's/verify_degraded_proof\(\s*ancestor, applicable, ledger_path=ledger_path, is_top_level=False, _depth=_depth \+ 1\s*\)/verify_degraded_proof(ancestor, applicable, ledger_path=ledger_path, is_top_level=True, _depth=_depth + 1)/s'; then
+if mutate 's/_verify_proof_level\(\s*ancestor, applicable, ledger_path=ledger_path, is_top_level=False, _depth=_depth \+ 1\s*\)/_verify_proof_level(ancestor, applicable, ledger_path=ledger_path, is_top_level=True, _depth=_depth + 1)/s'; then
   expect_red test_normal_two_layer_chain_is_provable "two_layer or bypass"
 fi
 cp "$BAK" "$VALIDATOR"

@@ -1407,3 +1407,79 @@ def test_ledger_mode_skips_out_of_order_events(tmp_path):
     found, errs = validator.extract_applicable(ledger, "n")
     assert not errs
     assert [line for line, _, _ in found] == [1], found
+
+
+# ── round-15 自查发现的两条 (均为本轮自己引入的缺陷) ──
+
+
+def _nested_chain(depth):
+    proof = _leaf(1, _T1, first_event_line=1)
+    for idx in range(2, depth + 2):
+        proof = {
+            **_identity(idx, _T1),
+            "origin": {
+                "kind": "snapshot",
+                "state": {},
+                "snapshot_hash": "d" * 64,
+                "ancestor_proof": proof,
+            },
+        }
+    return proof
+
+
+@pytest.mark.parametrize("depth", [validator.PROOF_MAX_DEPTH + 2, 900, 5000])
+def test_deep_chain_reports_violation_not_crash(depth):
+    """超深链必须**报违规**, 不得抛未捕获的 RecursionError。
+
+    round-15 自查: 为修 round-14 的"64 层误拒"把上限提到 1024, 但 Python 默认
+    递归上限是 1000 —— 深度 ~985 起的链直接崩溃, 比原问题更坏。现上限 128 且
+    公开入口另捕 RecursionError 作纵深防御。
+    """
+    assert validator.PROOF_MAX_DEPTH < sys.getrecursionlimit(), "深度上限必须远低于 Python 递归上限"
+    problems = validator.verify_degraded_proof(_nested_chain(depth), [])
+    assert any("深度超过" in p or "递归耗尽栈" in p for p in problems), problems[:3]
+
+
+def test_self_referencing_proof_does_not_crash():
+    """自引用 proof 必须被深度门抓住而非无限递归。"""
+    proof = _identity(5, _T1)
+    proof["origin"] = {"kind": "snapshot", "state": {}, "snapshot_hash": "d" * 64}
+    proof["origin"]["ancestor_proof"] = proof
+    problems = validator.verify_degraded_proof(proof, [])
+    assert any("深度超过" in p or "递归耗尽栈" in p for p in problems), problems[:3]
+
+
+def test_line_numbering_agrees_with_prefix_on_bare_cr(tmp_path):
+    """含裸 CR 的记录不得让抽取与 prefix 的行号错位。
+
+    round-15 自查: extract_applicable 曾用 splitlines() —— 它还在 \\r / \\v /
+    \\f / \\x1c-\\x1e / \\x85 处断行, 而主体校验 (二进制文件迭代) 与
+    ledger_prefix 只认 \\n。一条含裸 CR 的坏记录会让其**后续**所有事件的行号
+    多算 1, cursor_line 与 prefix 指向不同的行。
+    """
+
+    def event(eid, ts):
+        return json.dumps(
+            {
+                "event_id": eid,
+                "event_version": 1,
+                "event_type": "answer_scored",
+                "node_id": "n",
+                "recorded_at": ts,
+                "effective_at": ts,
+                "payload": {"schema_ext": "review/1", "review_time": ts},
+            }
+        )
+
+    ledger = tmp_path / "learning_events.jsonl"
+    # 第 2 行是含裸 CR 的坏记录 (RFC 8259 禁止未转义控制字符, 主体会判违规)
+    ledger.write_bytes(
+        (event("e1", _T1) + "\n").encode("utf-8") + b'{"broken":"x\ry"}\n' + (event("e2", _T2) + "\n").encode("utf-8")
+    )
+    found, _ = validator.extract_applicable(ledger, "n")
+    assert [line for line, _, _ in found] == [1, 3], f"行号错位: {found}"
+
+    # 第 3 行的 prefix 必须覆盖到 e2 所在行的终止 LF —— 与上面的行号同域
+    prefix, ends_without_lf, errs = validator.ledger_prefix(ledger, 3)
+    assert not errs and ends_without_lf is False
+    assert prefix == hashlib.sha256(ledger.read_bytes()).hexdigest()
