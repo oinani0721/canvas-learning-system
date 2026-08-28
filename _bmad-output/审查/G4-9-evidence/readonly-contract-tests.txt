@@ -1,1 +1,32 @@
-======================= 19 passed, 10 warnings in 2.38s ========================
+== CARD-G4-9 只读契约回归测试运行证据（round-10 必需：可绑定的运行证据）==
+命令: cd backend && .venv/bin/pytest tests/regression/test_census_dead_letter_readonly_contract.py -v --no-header
+Python: Python 3.14.4
+工作树 HEAD: a775f80dbfc309064688a5b862a921c5ad487d59
+被测脚本 blob: 2f3fd0a02c3eef8f818e65a698db70f90aa3a610
+被测脚本 sha256: 68474df978bafe944e29ee3b2a5bcea5d963c67cc85b5d51a263cb484178270f
+测试文件 blob: 8131f1f3683f1741096a7913abf4c8eec786e034
+
+覆盖构成（如实）: 行为测试（subprocess 跑真实 CLI + 断言文件系统事实） + 3 条源码静态检查（弱证据，不替代行为测试）。无 mock、无 skip。
+
+--- 逐项结果:
+tests/regression/test_census_dead_letter_readonly_contract.py::test_no_truncation_calls_in_source PASSED [  5%]
+tests/regression/test_census_dead_letter_readonly_contract.py::test_imports_are_stdlib_only PASSED [ 10%]
+tests/regression/test_census_dead_letter_readonly_contract.py::test_no_apply_flag PASSED [ 15%]
+tests/regression/test_census_dead_letter_readonly_contract.py::test_out_equal_to_dlq_refused PASSED [ 20%]
+tests/regression/test_census_dead_letter_readonly_contract.py::test_out_hardlink_to_dlq_refused PASSED [ 25%]
+tests/regression/test_census_dead_letter_readonly_contract.py::test_out_inside_transcripts_root_refused PASSED [ 30%]
+tests/regression/test_census_dead_letter_readonly_contract.py::test_out_symlink_inside_root_refused PASSED [ 35%]
+tests/regression/test_census_dead_letter_readonly_contract.py::test_out_fifo_refused PASSED [ 40%]
+tests/regression/test_census_dead_letter_readonly_contract.py::test_out_hardlink_to_transcript_does_not_damage_source PASSED [ 45%]
+tests/regression/test_census_dead_letter_readonly_contract.py::test_missing_transcripts_root_refused PASSED [ 50%]
+tests/regression/test_census_dead_letter_readonly_contract.py::test_scan_blocked_refuses_even_without_out PASSED [ 55%]
+tests/regression/test_census_dead_letter_readonly_contract.py::test_unreadable_candidate_not_treated_as_source PASSED [ 60%]
+tests/regression/test_census_dead_letter_readonly_contract.py::test_anomaly_not_promoted_by_full_body PASSED [ 65%]
+tests/regression/test_census_dead_letter_readonly_contract.py::test_bool_length_rejected PASSED [ 70%]
+tests/regression/test_census_dead_letter_readonly_contract.py::test_bad_json_line_does_not_kill_census PASSED [ 75%]
+tests/regression/test_census_dead_letter_readonly_contract.py::test_invalid_utf8_line_is_unparseable PASSED [ 80%]
+tests/regression/test_census_dead_letter_readonly_contract.py::test_lone_lf_counts_as_one_line PASSED [ 85%]
+tests/regression/test_census_dead_letter_readonly_contract.py::test_output_is_private_and_no_tmp_left PASSED [ 90%]
+tests/regression/test_census_dead_letter_readonly_contract.py::test_inputs_unchanged_after_run PASSED [ 95%]
+tests/regression/test_census_dead_letter_readonly_contract.py::test_malformed_qa_db_does_not_abort_census PASSED [100%]
+======================= 20 passed, 10 warnings in 2.95s ========================

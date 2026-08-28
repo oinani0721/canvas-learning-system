@@ -8,6 +8,14 @@ BATCH-2026-08-28-第五批 / CARD-G4-9（Codex round-9 必需项④）。
 改动（尤其 G4-10 复用时）悄悄回退。
 
 每个用例的注释标注它对应哪一轮的哪条 finding，便于追溯。
+
+**覆盖构成（round-10 要求如实标注，不得笼统说"N 条反例全部固化"）**：
+- **运行真实 CLI 的行为测试**：多数用例，实际 subprocess 调用脚本并断言
+  退出码 + 文件系统事实（字节/类型/权限/残留）。
+- **源码静态检查**：3 条（`test_no_truncation_calls_in_source`、
+  `test_imports_are_stdlib_only`、`test_no_apply_flag`）—— 它们检查的是
+  源码文本，不是运行时行为，属**弱证据**，不能替代行为测试。
+- 无 mock、无 skip。所有断言均针对真实文件系统效果。
 """
 
 from __future__ import annotations
@@ -146,10 +154,16 @@ def test_out_symlink_inside_root_refused(env):
 
 def test_out_fifo_refused(env):
     """round-4 MEDIUM：非常规文件（FIFO）作 --out 须拒绝且不阻塞。"""
+    import stat as stat_mod
+
     fifo = env["tmp"] / "fifo_out"
     os.mkfifo(fifo)
     r = run_census("--dlq", str(env["dlq"]), "--transcripts-dir", str(env["root"]), "--out", str(fifo))
     assert r.returncode == 2
+    # round-10 整改: 仅断言 rc=2 存在虚假通过窗口 —— 必须验证 FIFO 未被
+    # os.replace 静默替换成普通文件（这正是新增类型门要防的）。
+    assert stat_mod.S_ISFIFO(os.lstat(fifo).st_mode), "FIFO 不得被替换为普通文件"
+    assert not list(fifo.parent.glob(".*census-tmp-*")), "不得留下 tmp 残留"
 
 
 def test_out_hardlink_to_transcript_does_not_damage_source(env):
@@ -181,6 +195,10 @@ def test_scan_blocked_refuses_even_without_out(env):
     try:
         r = run_census("--dlq", str(env["dlq"]), "--transcripts-dir", str(env["root"]))
         assert r.returncode == 2
+        # round-10 整改: 必须验证 stdout **确实没有输出台账**，否则"拒绝"
+        # 只是退出码好看（stdout 模式的实际风险是台账仍被打印出去）。
+        assert "records" not in r.stdout
+        assert r.stdout.strip() == "" or "台账" not in r.stdout
     finally:
         locked.chmod(0o755)
 
@@ -250,9 +268,12 @@ def test_bad_json_line_does_not_kill_census(env, tmp_path):
     assert r.returncode == 0
     ledger = json.loads(out.read_text(encoding="utf-8"))
     assert ledger["total_records"] == 1
-    reasons = {u["reason"].split(":")[0] for u in ledger["unparseable_lines"]}
-    assert "json_error" in reasons or "blank_line" in reasons
-    assert any("not_a_json_object" in u["reason"] for u in ledger["unparseable_lines"])
+    # round-10 整改: 原 `A or B` 是弱断言 —— 逐类精确断言（三种坏行各一条）
+    by_line = {u["line_no"]: u["reason"] for u in ledger["unparseable_lines"]}
+    assert len(by_line) == 3, f"应恰有 3 条坏行，实得 {by_line}"
+    assert by_line[2].startswith("json_error"), by_line
+    assert by_line[3] == "blank_line", by_line
+    assert by_line[4].startswith("not_a_json_object"), by_line
 
 
 def test_invalid_utf8_line_is_unparseable(env, tmp_path):
@@ -288,14 +309,63 @@ def test_output_is_private_and_no_tmp_left(env):
     assert not list(env["out"].parent.glob(".*census-tmp-*"))
 
 
-def test_inputs_unchanged_after_run(env):
-    """卡面判据 (e)：运行前后输入文件字节不变（零写入）。"""
+def test_inputs_unchanged_after_run(env, tmp_path):
+    """卡面判据 (e)：运行前后**全部输入**字节不变。
+
+    round-10 整改: 原用例只覆盖 DLQ 与单个 transcript —— 现扩展到
+    --compare 副本、--qa-metrics-db，以及 transcripts 根内的全部文件。
+    """
     import hashlib
+    import sqlite3 as sq
+
+    compare = tmp_path / "compare.jsonl"
+    compare.write_text(env["dlq"].read_text(encoding="utf-8"), encoding="utf-8")
+    qadb = tmp_path / "qa.db"
+    con = sq.connect(qadb)
+    con.execute("CREATE TABLE qa_error_logs (id INTEGER PRIMARY KEY, error_type TEXT)")
+    con.commit()
+    con.close()
 
     def digest(p: Path) -> str:
         return hashlib.sha256(p.read_bytes()).hexdigest()
 
-    before = {p: digest(p) for p in (env["dlq"], env["transcript"])}
-    r = run_census("--dlq", str(env["dlq"]), "--transcripts-dir", str(env["root"]), "--out", str(env["out"]))
-    assert r.returncode == 0
-    assert {p: digest(p) for p in before} == before
+    watched = [env["dlq"], compare, qadb, *sorted(env["root"].rglob("*.jsonl"))]
+    before = {p: digest(p) for p in watched}
+    r = run_census(
+        "--dlq",
+        str(env["dlq"]),
+        "--transcripts-dir",
+        str(env["root"]),
+        "--compare",
+        str(compare),
+        "--qa-metrics-db",
+        str(qadb),
+        "--out",
+        str(env["out"]),
+    )
+    assert r.returncode == 0, r.stderr
+    after = {p: digest(p) for p in watched}
+    assert after == before, "任一输入文件字节变化即违反只读契约"
+
+
+def test_malformed_qa_db_does_not_abort_census(env, tmp_path):
+    """round-10 实测发现的真 bug：deserialize 是延迟验证，malformed DB 的
+    DatabaseError 在首次 execute 抛出，原代码会炸掉整次 census。"""
+    bad = tmp_path / "bad.db"
+    bad.write_bytes(b"NOT-A-SQLITE" * 20)
+    out = tmp_path / "l.json"
+    r = run_census(
+        "--dlq",
+        str(env["dlq"]),
+        "--transcripts-dir",
+        str(env["root"]),
+        "--qa-metrics-db",
+        str(bad),
+        "--out",
+        str(out),
+    )
+    assert r.returncode == 0, r.stderr
+    probe = json.loads(out.read_text(encoding="utf-8"))["qa_metrics_probe"]
+    # 字段语义：源 fd 确实已只读打开 → 必须为 True（即便后续查询失败）
+    assert probe["source_fd_opened_readonly"] is True
+    assert probe["verdict"].startswith("query_failed") or probe["verdict"].startswith("deserialize_failed")

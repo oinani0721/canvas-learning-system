@@ -24,13 +24,13 @@ worktree: "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktre
 
 | 项 | 结果 | 证据 |
 |---|---|---|
-| 全程零写入（裁判判据 e） | 运行前后 四份 DLQ 文件 + qa_metrics.db 的 sha256 **逐字节不变**（diff 为空 → PASS） | `_bmad-output/审查/G4-9-evidence/shasums-before.txt` / `shasums-after.txt` |
+| 输入零改动（裁判判据 e） | 运行前后**本次列出的输入**（四份 DLQ + qa_metrics.db）sha256 **逐字节不变**（diff 为空 → PASS）。注：证据包留存本次一对 before/after，非每轮各存一份 | `_bmad-output/审查/G4-9-evidence/shasums-before.txt` / `shasums-after.txt` |
 | 脚本只读自证（判据 a） | import 行全 stdlib；neo4j/graphiti/bolt/app. import **0 命中**；`--apply` 定义 **0 命中**；**全文无任何截断调用**（写出走 O_EXCL 临时文件 + 原子替换） | `G4-9-evidence/grep-selfattest.txt` |
-| 只读契约回归测试（round-9 必需项④） | **19 passed** —— 把 8 轮审查中实测封死的反例全部固化（DLQ/hardlink/恢复源区/根内 symlink/FIFO/不可读候选/扫描受阻/anomaly/bool 长度/坏 JSON/非法 UTF-8 等）。该测试当场抓出一个真实回归（架构改动丢了文件类型门），已修 | `backend/tests/regression/test_census_dead_letter_readonly_contract.py` |
+| 只读契约回归测试（round-9 必需项④ + round-10 补强） | **20 passed**：**17 条行为测试**（subprocess 跑真实 CLI + 断言文件系统事实）+ **3 条源码静态检查**（弱证据，如实标注，不替代行为测试）。测试两次抓出真实问题：① 架构改动丢了文件类型门（FIFO 会被静默替换）；② `deserialize` 延迟验证使 malformed DB 炸掉整次 census。round-10 另修掉 4 处虚假通过窗口 | `backend/tests/regression/test_census_dead_letter_readonly_contract.py` |
 | live 挂载真相（判据 c） | 容器内 `sha256sum /app/data/dead_letter_episodes.jsonl` = 宿主 live 地址同值（92 行，`3b37460f…`）；compose :206-212 遮蔽史入报告 §1 | `G4-9-evidence/container-sha-check.txt` + 报告 §1 |
 | 分类零偏差（判据 b） | budget_400×**89** / schema×**2**（P0-4 已修，`entity_types.py:343`）/ group_id×**1**（sanitize 已兜，`group_id_compat.py:64`）——与勘探预期逐条一致，脚本 `class_deviation` 字段为空 | 台账 JSON `class_distribution` |
 | inline 完整性 + SHA 对账（判据 b） | 92/92 重算 sha256 对账：4 条 full_verified、88 条 truncated_prefix（`to_dict()` 的 `[:200]` 截断，`episode_worker.py:107`）、**0 条 anomaly** | 台账 JSON 逐条 `inline_state`/`sha_check` |
-| 源指针核销（判据 b，qa_metrics.db 只读 mode=ro） | `qa_error_logs` **0 行** → 0/92 可经 qa_metrics.db 溯源（诚实记录）；附加核销：llm_call_logs.db 无正文、outbox 空、episode_body_full 0 条；**有效源指针 = request_id 组内 session 归因 → 7 个 transcript 全部在盘实测存在** | 报告 §4 + 台账 `qa_metrics_probe` |
+| 源指针核销（判据 b，qa_metrics.db 源 fd 只读 + 内存副本） | `qa_error_logs` **0 行** → 0/92 可经 qa_metrics.db 溯源（诚实记录）；附加核销：llm_call_logs.db 无正文、outbox 空、episode_body_full 0 条；**有效源指针 = request_id 组内 session 归因 → 7 个 transcript 全部在盘实测存在** | 报告 §4 + 台账 `qa_metrics_probe` |
 | 可恢复性三态（判据 b） | 可字节级 **4** / 近似 **88** / 不可恢复 **0**；不可恢复清单显式成段 0 条、"待定" 0 条 | 报告 §5 + 台账 `recoverability_distribution` |
 | G4-10 稳定键（判据 d） | 逐条复合键 `{line_no, sha256_prefix, request_id}` + 台账头部冻结文件 sha；request_id 92 条仅 25 唯一值的实测证明单列不可作键 | 报告 §6 + 台账 `records[].stable_key` |
 | Codex 独立审查 round-1 | **BLOCKED**（3 BLOCKER：--out 可截断输入 / 快照不原子 / 交付物未冻结；3 HIGH：inline 判定 fail-open / request_id 归因传染 / transcript 归因折叠；3 MEDIUM + 4 LOW。同时确认：**当前 92 条数字逐项 0 mismatch**、class/三态/家族计数全对） | `_bmad-output/审查/codex-review-CARD-G4-9.md` |
@@ -49,6 +49,8 @@ worktree: "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktre
 | round-7 findings 整改 | **架构级第二次修复**：写出改 O_EXCL 临时文件+fsync+os.replace（**全文再无 ftruncate 调用**），五项绕过整类失效；containment 改 inode 逐级比较（normcase 在 POSIX 是恒等函数，我的假设错了）；扫描受阻直接拒绝写出。实测：根外 hardlink 指向根内 transcript 作 --out → 源内容完好 | 报告 §7h |
 | Codex 复审 round-8 | 重申裁定分离：**「可验收：92 条冻结 ledger snapshot；不可验收：生成器一般安全性与 UAT 的纯只读声明」**。3 新 BLOCKER（SQLite URI 未转义 #/? / QA DB 仍按 pathname 开可 ABA / 根内末级 symlink 因 rename 不解析而被替换）+ 1 HIGH + 1 MEDIUM | `_bmad-output/审查/codex-review-CARD-G4-9-round8.md` |
 | round-8 findings 整改 | **6/6 完成**：QA DB 改「已验证 fd 读字节 → 内存库 deserialize」（URI 转义与 ABA 一并消失，含 #? 路径实测通过）；containment 加父目录语义（POSIX rename 不解析末级 symlink）；扫描受阻去掉 and args.out（stdout 模式亦拒）；replace 纳入 try + fsync 父目录 | 报告 §7i |
+| Codex 复审 round-9/10 | round-9 给出「最小剩余项」5 条；round-10 首次明确**「阻断不再要求补必需①②③」**，收敛为 4 条可执行要求：清除矛盾声明 / 修字段语义 / 如实标注测试覆盖 / 补可绑定证据。且十轮均确认 **92 条冻结 ledger 可验收** | `codex-review-CARD-G4-9-round9.md` / `-round10.md` |
+| round-10 解阻整改 | **6/6 完成**：脚本+报告+UAT 的 `mode=ro` 与「唯一写出口/全程零写入」矛盾表述全清（残留均为「已废弃」引述）；`source_fd_opened_readonly` 移到 fd 打开处（**顺带修出真 bug**：deserialize 延迟验证使 malformed DB 炸掉整次 census）；测试覆盖如实标注 17 行为+3 静态并修掉 4 处虚假通过窗口；证据补 HEAD/blob/sha256/逐项明细；「九次取证」与「DB 静止」改为准确表述与操作者前提 | 报告 §7k/§7l |
 | 独立 Workflow 4-agent 复核 | G4-9 数字 agent：92 条重算 **0 mismatch**（class/inline/三态/25 request_id/7 transcript 在盘/台账 sha 全 CONFIRMED，仅 2 处描述区间 REFUTED 已修正）；只读契约 agent：与 Codex 同源的 3 条 blocker（已随上整改） | Workflow wf_737b1a95-20b journal |
 
 ## 🔧 Codex round-1 整改记录（13/13 关闭，BLOCKED → 整改完毕）
@@ -161,7 +163,8 @@ round-8 整改后第八次全量重跑：**92 条、4/88/0/0、89/2/1、6/29、s
 
 我接受这个区分，处置是**把声明改准确，而不是假装达标**：
 
-- **可以确证的**：本次运行对全部输入文件（4 份 DLQ + qa_metrics.db）**shasum 前后逐字节不变**，九次重跑均已取证；脚本对 20+ 类误用与攻击路径 fail-closed，19 条回归测试固化。
+- **可以确证的**：本次运行对**本次列出的输入文件**（4 份 DLQ + qa_metrics.db）**shasum 前后逐字节不变**（证据包留存本次一对 before/after）；脚本对 **20 条回归测试覆盖的**误用与攻击路径 fail-closed（17 行为 + 3 静态）。
+- **前提（非结论）**："DB 静止"由操作者保证——0 行、固定 sha、前后同 SHA 本身**不能证明**读取期间没有并发写者。
 - **不再声称的**：在共享可写目录、有并发写者、SQLite DB 正被写入等**敌意环境**下具备生产级安全。这类保证需要一致性快照、dirfd 相对发布、单写者锁——是把一次性 census 脚本升级为常驻工具的工作量，不在本卡范围。
 - **已登记的**：FU-A~FU-D 四项（报告 §7j），**G4-10 若复用本脚本于活跃 DB 或共享目录，须先补齐**。
 

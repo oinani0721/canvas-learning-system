@@ -5,9 +5,13 @@ BATCH-2026-08-28-第五批 / CARD-G4-9（G4-10 replay 的交接台账生成器�
 
 只读契约（grep 可自证 + 运行时守卫）:
   - 无 --apply / 无任何写回、重放、删除路径；
-  - 不 import neo4j / graphiti / app.*（纯 stdlib），不建立任何数据库/网络连接，
-    唯一的 sqlite 访问经 URI ``mode=ro`` 只读打开 qa_metrics.db；
-  - 唯一写出口是 --out 台账 JSON，写前双重碰撞守卫：resolve() 路径比较 +
+  - 不 import neo4j / graphiti / app.*（纯 stdlib），不建立任何网络连接；
+    qa_metrics.db 的访问方式见 ``probe_qa_metrics`` docstring —— 源文件以
+    ``O_RDONLY|O_NOFOLLOW`` 读取后灌入**内存库**，不经路径打开、不写源文件
+    （**不使用** URI ``mode=ro``；该表述已于 round-9 废弃）；
+  - 本进程**唯一有意的写动作**是产出 --out 台账 JSON（经 O_EXCL 临时文件 +
+    原子替换发布；全文无任何截断调用）。⚠️ 这不等于"在任意环境下不可能有
+    其它写入"——已知边界见下方"安全边界"段。写前双重碰撞守卫：resolve() 路径比较 +
     **文件身份 (st_dev, st_ino) 比较**，与 --dlq/--compare/--qa-metrics-db
     任一输入重合即 exit 2，防 "w" 截断输入（round-1 BLOCKER-1 + round-2
     hardlink / 大小写别名绕过整改）。
@@ -37,6 +41,16 @@ BATCH-2026-08-28-第五批 / CARD-G4-9（G4-10 replay 的交接台账生成器�
   - episode_body_full 若在盘（DEAD_LETTER_STORE_FULL_BODY 开启时生产可写):
     重算 sha **且长度**双门对账通过才按 byte_exact 采信，且 anomaly 记录
     不得经此分支翻案（round-1 MEDIUM-1 + round-2 HIGH-1 整改）。
+
+安全边界（round-9/10 收敛，如实声明而非绝对化断言）:
+  - **可确证**: 对本次运行列出的输入文件（--dlq / --compare / --qa-metrics-db），
+    运行前后 shasum 逐字节不变（证据包留档）；脚本对 20+ 类误用/攻击路径
+    fail-closed（回归测试 test_census_dead_letter_readonly_contract.py 固化）。
+  - **不声称**: 在共享可写目录、存在并发写者、SQLite DB 正被写入等敌意环境下
+    的生产级安全。已知残余：lstat→replace 竞态、非一致性 DB 快照、tmp 名可
+    预测、无单写者锁（分别移交 FU-A~FU-D，G4-10 复用前须补齐）。
+  - **前提**: "DB 静止"由操作者保证 —— 0 行 / 固定 sha / 前后同 SHA 本身
+    **不能证明**读取期间没有并发写者。
 
 逐条产出（G4-10 消费契约）:
   - stable_key: {line_no, sha256_prefix(16 hex), request_id}。语义 =
@@ -337,6 +351,10 @@ def probe_qa_metrics(db_path: Path, error_types: list[str]) -> tuple[dict, tuple
             result["verdict"] = "not_regular_file_refused"
             return result, None
         identity = (st.st_dev, st.st_ino)
+        # round-10 整改: 字段语义即"源 fd 是否以只读方式成功打开"——
+        # 此刻已成立，不得等到 deserialize 成功才置真（DB malformed 时
+        # fd 确实已只读打开，返回 false 属名实不符）。
+        result["source_fd_opened_readonly"] = True
         chunks = []
         while True:
             block = os.read(fd, 1 << 20)
@@ -359,7 +377,6 @@ def probe_qa_metrics(db_path: Path, error_types: list[str]) -> tuple[dict, tuple
         return result, identity
 
     try:
-        result["source_fd_opened_readonly"] = True
         result["file_identity_verified"] = True
         result["read_mode"] = "in_memory_deserialize_from_verified_fd"
         result["source_sha256"] = hashlib.sha256(db_bytes).hexdigest()
@@ -381,6 +398,11 @@ def probe_qa_metrics(db_path: Path, error_types: list[str]) -> tuple[dict, tuple
             result["verdict"] = "no_source_rows" if total == 0 else "rows_present_see_hits"
         else:
             result["verdict"] = "qa_error_logs_table_missing"
+    except sqlite3.Error as e:
+        # round-10 整改（实测）: deserialize 是**延迟验证** —— malformed DB 的
+        # DatabaseError 在首次 execute 时才抛出，原 try 只有 finally 没有
+        # except，会炸掉整次 census。查询段一律 fail-closed 记录不中断。
+        result["verdict"] = f"query_failed: {str(e)[:80]}"
     finally:
         conn.close()
     return result, identity
