@@ -10,6 +10,8 @@ fce0d8a2  round-3 findings 整改（两卡）
 d2827a6d  CARD-G4-9 round-4 整改
 d8d887f2  本 receipt 首次落盘
 4c125f19  CARD-G4-9 round-5 整改
-5b371253  CARD-G4-9 round-6 架构级修复（本 receipt 当前版所描述的 commit）
+5b371253  CARD-G4-9 round-6 架构级修复
+4ba4f847  receipt 补 round-5/6 链
+f389980c  CARD-G4-9 round-7 架构级修复（消除截断动作；本 receipt 当前版所描述的 commit）
 
 各阶段交付物 blob 可用 git cat-file 复核；台账头部 dlq_file.sha256 为 DLQ 快照指纹。
