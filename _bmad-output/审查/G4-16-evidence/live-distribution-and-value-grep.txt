@@ -1,0 +1,12 @@
+== live LanceDB doc_type 分布实测 (2026-08-28, docker exec canvas-learning-system-backend, 只读) ==
+rows: 2203
+doc_type distribution: {'video_transcript': 2001, 'concept': 117, 'note': 69, 'whiteboard': 16}
+
+== grep 复核: doc_type 取值字面量全集 (backend/app + backend/lib 生产面) ==
+   1 'whiteboard'
+   2 "doc_type"
+   1 "exam_board"
+   1 "file_path"
+   3 "note"
+   2 "video_transcript"
+  10 "whiteboard"

@@ -1,0 +1,7 @@
+== G4-16 落点测试运行元数据（Codex round-1 MEDIUM-5 证据绑定） ==
+命令: cd backend && .venv/bin/pytest tests/unit/test_supplementary_reranker.py tests/unit/test_supplementary_search_service.py -q --no-header
+Python: Python 3.14.4
+HEAD: 37387a8662e9dd646fad5628841679d777cb7eae
+基线捕获时点: 注释修正前（工作区 == HEAD 时）；after 捕获时点: 两处注释终版落盘后
+对照口径: FAILED 节点集合逐条 diff（baseline-before-edits.txt vs after-edits.txt）为空 = 零新增失败；两文件仅 pytest 耗时行不同
+9 条既有失败翻转源 commit: fcd34953（Codex 独立溯源）
