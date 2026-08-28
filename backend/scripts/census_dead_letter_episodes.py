@@ -44,8 +44,10 @@ BATCH-2026-08-28-第五批 / CARD-G4-9（G4-10 replay 的交接台账生成器�
 
 安全边界（round-9/10 收敛，如实声明而非绝对化断言）:
   - **可确证**: 对本次运行列出的输入文件（--dlq / --compare / --qa-metrics-db），
-    运行前后 shasum 逐字节不变（证据包留档）；脚本对 20+ 类误用/攻击路径
-    fail-closed（回归测试 test_census_dead_letter_readonly_contract.py 固化）。
+    运行前后 shasum 逐字节不变（证据包留存本次一对 before/after）；
+    ``test_census_dead_letter_readonly_contract.py`` 中**每条行为测试各自断言的
+    那一个具体场景** fail-closed —— 这是逐例证据，**不构成**"所有误用路径均
+    fail-closed"的整体证明。
   - **不声称**: 在共享可写目录、存在并发写者、SQLite DB 正被写入等敌意环境下
     的生产级安全。已知残余：lstat→replace 竞态、非一致性 DB 快照、tmp 名可
     预测、无单写者锁（分别移交 FU-A~FU-D，G4-10 复用前须补齐）。
@@ -326,9 +328,10 @@ def probe_qa_metrics(db_path: Path, error_types: list[str]) -> tuple[dict, tuple
 
     已知边界（round-9 必需项①，如实登记为 follow-up 而非声称已解决）：分块读
     raw bytes **不等于数据库一致性快照** —— 若源 DB 正被并发写入或存在 WAL /
-    journal 旁文件，读到的字节可能是撕裂状态。本卡场景为单人本机、DB 静止
-    （实测 0 行、16384 bytes），故不影响结论；若 G4-10 复用本脚本于活跃 DB，
-    须改用 SQLite backup API 或要求外部先冻结。
+    journal 旁文件，读到的字节可能是撕裂状态。本卡运行时假定 DB 静止，该假定
+    **由操作者保证**（行数为 0、字节数固定、前后 SHA 相同都**不能证明**读取
+    期间没有并发写者）。若 G4-10 复用本脚本于活跃 DB，须改用 SQLite backup
+    API 或要求外部先冻结。
 
     round-8 BLOCKER①② 整改: 不再让 SQLite 按 **路径** 打开 —— 那既有 URI 转义
     问题（路径含 ``?``/``#`` 时 ``mode=ro`` 会落进被忽略的 fragment，SQLite 可能
@@ -832,10 +835,11 @@ def main(argv: list[str] | None = None) -> int:
         out_json = json.dumps(ledger, ensure_ascii=True, indent=1)
     if args.out:
         # round-7 架构整改: 不再截断既有文件 —— 同目录 O_EXCL 新建临时文件 →
-        # 写 → fsync → os.replace 原子替换。O_EXCL 保证目标是本进程新建的对象，
-        # 因此"把 --out 换成指向恢复源的 hardlink / 父目录 symlink / 大小写别名"
-        # 这一整类绕过全部失效（脚本从不 ftruncate 任何既有 inode）；同时消除
-        # 崩溃/ENOSPC 留下部分台账的风险（round-7 MEDIUM）。
+        # 写 → fsync → os.replace 原子替换。脚本从不 ftruncate 任何既有 inode，
+        # 因此"截断某个既有对象"这条**具体路径**不再存在（已由回归测试就
+        # hardlink / 根内 symlink / FIFO 三个场景各自取证）。⚠️ 这不等于
+        # 声称"所有别名类绕过都已失效"—— lstat→replace 竞态等残余见模块
+        # docstring 的安全边界段与 FU-B/FU-C。同时消除崩溃/ENOSPC 留部分台账。
         out_path = Path(args.out)
         # round-9 整改（由新增回归测试抓出的 round-7 架构回归）: 改用
         # replace 发布后不再打开 --out，S_ISREG 门随之丢失 —— os.replace 会

@@ -15,7 +15,10 @@ BATCH-2026-08-28-第五批 / CARD-G4-9（Codex round-9 必需项④）。
 - **源码静态检查**：3 条（`test_no_truncation_calls_in_source`、
   `test_imports_are_stdlib_only`、`test_no_apply_flag`）—— 它们检查的是
   源码文本，不是运行时行为，属**弱证据**，不能替代行为测试。
-- 无 mock、无 skip。所有断言均针对真实文件系统效果。
+- 无 mock、无 skip。**所有行为测试**的断言均针对真实文件系统效果（3 条源码
+  静态检查除外，它们只读源码文本）。
+- ⚠️ 每条测试只证明**它自己断言的那个场景**；本文件**不构成**"所有误用
+  路径均 fail-closed"的整体证明。
 """
 
 from __future__ import annotations
@@ -268,9 +271,12 @@ def test_bad_json_line_does_not_kill_census(env, tmp_path):
     assert r.returncode == 0
     ledger = json.loads(out.read_text(encoding="utf-8"))
     assert ledger["total_records"] == 1
-    # round-10 整改: 原 `A or B` 是弱断言 —— 逐类精确断言（三种坏行各一条）
-    by_line = {u["line_no"]: u["reason"] for u in ledger["unparseable_lines"]}
-    assert len(by_line) == 3, f"应恰有 3 条坏行，实得 {by_line}"
+    # round-11 整改: 直接断言原始 unparseable_lines **恰为三项**（不经 dict
+    # 压缩，避免同 line_no 覆盖掩盖重复条目），再逐条精确断言。
+    raw_unparseable = ledger["unparseable_lines"]
+    assert len(raw_unparseable) == 3, f"unparseable_lines 应恰 3 项，实得 {raw_unparseable}"
+    by_line = {u["line_no"]: u["reason"] for u in raw_unparseable}
+    assert sorted(by_line) == [2, 3, 4], by_line
     assert by_line[2].startswith("json_error"), by_line
     assert by_line[3] == "blank_line", by_line
     assert by_line[4].startswith("not_a_json_object"), by_line
@@ -329,7 +335,16 @@ def test_inputs_unchanged_after_run(env, tmp_path):
     def digest(p: Path) -> str:
         return hashlib.sha256(p.read_bytes()).hexdigest()
 
-    watched = [env["dlq"], compare, qadb, *sorted(env["root"].rglob("*.jsonl"))]
+    # round-11 整改: 原只哈希 *.jsonl，与"覆盖根内全部文件"的说法不符。
+    # 现覆盖 transcripts 根内**全部常规文件**，并加入一个非 JSONL sentinel。
+    sentinel = env["root"] / "p" / "sentinel.txt"
+    sentinel.write_text("SENTINEL-MUST-NOT-CHANGE\n", encoding="utf-8")
+    watched = [
+        env["dlq"],
+        compare,
+        qadb,
+        *sorted(p for p in env["root"].rglob("*") if p.is_file() and not p.is_symlink()),
+    ]
     before = {p: digest(p) for p in watched}
     r = run_census(
         "--dlq",
