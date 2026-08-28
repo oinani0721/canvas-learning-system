@@ -1,4 +1,4 @@
-== CARD-G4-9 只读自证（round-3 整改版, 4f776f23efe2fdb4…） ==
+== CARD-G4-9 只读自证（round-4 整改版, f27531b8a50f035d…） ==
 --- (1) 全部 import 行（应只有 stdlib）:
 52:from __future__ import annotations
 54:import argparse
@@ -7,37 +7,42 @@
 57:import os
 58:import re
 59:import sqlite3
-60:import sys
-61:from collections import Counter, defaultdict
-62:from datetime import datetime, timezone
-63:from pathlib import Path
---- (2) neo4j/graphiti/bolt/app. 在 import 行中的命中（应为 0）:
+60:import stat
+61:import sys
+62:from collections import Counter, defaultdict
+63:from datetime import datetime, timezone
+64:from pathlib import Path
+--- (2) neo4j/graphiti/bolt/app. 在 import 行的命中（应 0）:
 0
-0 命中 ✓
---- (3) --apply 参数定义命中（应为 0）:
+0 ✓
+--- (3) --apply 定义（应 0）:
 0
-0 命中 ✓
---- (4) 写出口（唯一，且经 O_NOFOLLOW+fstat inode 校验后才 ftruncate）:
-517:            fd = os.open(args.out, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW, 0o600)
-529:            os.ftruncate(fd, 0)
-530:            with os.fdopen(fd, "w", encoding="utf-8", closefd=True) as f:
---- (5) 保护集构成（输入三类 + 归因 transcript）:
-309:        protected_paths = [dlq_path, *(Path(p) for p in args.compare)]
-315:                protected_ids.add((st.st_dev, st.st_ino))
-504:        for tpath in rec_out.get("transcript_paths", []):
-507:                protected_ids.add((tst.st_dev, tst.st_ino))
---- (6) fail-closed 门:
-76:def _split_jsonl_lines(raw: bytes) -> list[str]:
-156:    walk_errors: list[str] = []
-159:        walk_errors.append(f"{getattr(err, 'filename', '?')}: {err}")
-162:    unreadable: list[str] = []
-168:            if os.path.islink(candidate) or not os.path.isfile(candidate):
-171:            # 不是可用恢复源，计入 unreadable 而非命中（fail-closed）。
-172:            if not os.access(candidate, os.R_OK):
-173:                unreadable.append(candidate)
-180:    if unreadable:
-182:        result["unreadable_candidates"] = unreadable[:5]
-187:    if walk_errors:
-189:        result["scan_errors"] = walk_errors[:5]
-241:        "line_count": len(_split_jsonl_lines(raw)),
-296:    if not os.access(transcripts_dir, os.R_OK | os.X_OK):
+0 ✓
+--- (4) 唯一写出口 + 其安全门（O_NOFOLLOW/O_NONBLOCK → fstat → S_ISREG → inode 校验 → fchmod → ftruncate）:
+272:        if not stat.S_ISREG(st.st_mode):
+620:            fd = os.open(args.out, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+627:            if not stat.S_ISREG(st.st_mode):
+632:                os.fchmod(fd, 0o600)
+639:            os.ftruncate(fd, 0)
+640:            with os.fdopen(fd, "w", encoding="utf-8", closefd=True) as f:
+--- (5) 读侧同门（实际读取对象身份入保护集）:
+269:    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+274:        identity = (st.st_dev, st.st_ino)
+365:                protected_ids.add((cst.st_dev, cst.st_ino))
+394:    protected_ids.add(dlq_identity)  # 保护的是**实际读取对象**，非路径快照
+547:            protected_ids.add(cid)
+603:                protected_ids.add((tst.st_dev, tst.st_ino))
+610:                protected_ids.add((tst.st_dev, tst.st_ino))
+--- (6) fail-closed 判定门:
+94:            out.append(("", f"utf8_decode_error: {e}"))
+181:    walk_errors: list[str] = []
+184:        walk_errors.append(f"{getattr(err, 'filename', '?')}: {err}")
+187:    unreadable: list[str] = []
+194:            if os.path.islink(candidate) or not os.path.isfile(candidate):
+197:            # 不是可用恢复源，计入 unreadable 而非命中（fail-closed）。
+199:            if not os.access(candidate, os.R_OK):
+200:                unreadable.append(candidate)
+210:    if unreadable:
+212:        result["unreadable_candidates"] = unreadable[:5]
+217:    if walk_errors:
+219:        result["scan_errors"] = walk_errors[:5]

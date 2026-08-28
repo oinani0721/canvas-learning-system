@@ -57,6 +57,7 @@ import json
 import os
 import re
 import sqlite3
+import stat
 import sys
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
@@ -73,21 +74,36 @@ _SHA256_HEX_PAT = re.compile(r"^[0-9a-f]{64}$")
 EXPECTED_CLASS_DIST = {"budget_400": 89, "schema_entity_type": 2, "group_id_format": 1}
 
 
-def _split_jsonl_lines(raw: bytes) -> list[str]:
-    """按 JSONL 规范只以 \n 分行（不用 splitlines：U+2028/U+2029/裸 CR 会误分行）。"""
-    text = raw.decode("utf-8", errors="replace")
-    if text.endswith("\n"):
-        text = text[:-1]
-    return text.split("\n") if text else []
+def _split_jsonl_lines(raw: bytes) -> list[tuple[str, str | None]]:
+    """按 JSONL 规范只以 LF 分帧，返回 [(line_text, decode_error_or_None)]。
+
+    - 不用 splitlines(): U+2028/U+2029/裸 CR 会误分行（round-3）。
+    - 逐行 **strict** decode（round-4 MEDIUM 整改）: errors="replace" 会把非法
+      UTF-8 静默改写成合法对象，让坏字节冒充有效记录。解码失败的行带错误信息
+      返回，由调用方归入 unparseable。
+    """
+    if raw.endswith(b"\n"):
+        raw = raw[:-1]
+    if not raw:
+        return []
+    out: list[tuple[str, str | None]] = []
+    for chunk in raw.split(b"\n"):
+        try:
+            out.append((chunk.decode("utf-8"), None))
+        except UnicodeDecodeError as e:
+            out.append(("", f"utf8_decode_error: {e}"))
+    return out
 
 
 def classify(rec: dict) -> str:
     et = rec.get("error_type", "")
+    if not isinstance(et, str):
+        return "unexpected"
     if et == "EntityTypeValidationError":
         return "schema_entity_type"
     if et == "GroupIdValidationError":
         return "group_id_format"
-    if et == "BadRequestError" and _BUDGET_PAT.search(rec.get("error", "")):
+    if et == "BadRequestError" and _BUDGET_PAT.search(str(rec.get("error", ""))):
         return "budget_400"
     return "unexpected"
 
@@ -95,6 +111,8 @@ def classify(rec: dict) -> str:
 def inline_state(rec: dict) -> tuple[str, str]:
     """返回 (inline_state, sha_check)，fail-closed（见模块 docstring）。"""
     body = rec.get("episode_body", "")
+    if not isinstance(body, str):  # round-4 LOW: episode_body 错型
+        return "anomaly", "FAIL"
     declared_len = rec.get("episode_body_length")
     declared_sha = rec.get("episode_body_sha256", "")
     sha_wellformed = isinstance(declared_sha, str) and bool(_SHA256_HEX_PAT.match(declared_sha))
@@ -122,7 +140,10 @@ def full_body_verified(rec: dict) -> bool:
     return hashlib.sha256(full.encode("utf-8", errors="replace")).hexdigest() == declared_sha
 
 
-def session_tokens(name: str) -> list[str]:
+def session_tokens(name: object) -> list[str]:
+    """round-4 LOW 整改: name 非 str（None/数字/列表）不再抛异常。"""
+    if not isinstance(name, str):
+        return []
     tokens = []
     m = _SESSION_ARCHIVE_PAT.match(name)
     if m:
@@ -139,6 +160,10 @@ def resolve_group_attribution(tokens: list[str], transcripts_dir: Path) -> dict:
         "transcript_exists": False,
         "transcript_match_count": 0,
         "attribution_conflict": False,
+        # round-4 BLOCKER① 整改: 保护集必须覆盖**所有见到的候选**（含不可读、
+        # 含被冲突分支清空的）—— 否则 mode 0200（不可读但可写）的 transcript
+        # 不进保护集，--out 指向它仍会被截断。
+        "all_candidate_paths": [],
     }
     uniq = sorted(set(tokens), key=len)
     if not uniq:
@@ -160,6 +185,7 @@ def resolve_group_attribution(tokens: list[str], transcripts_dir: Path) -> dict:
 
     matches = []
     unreadable: list[str] = []
+    all_candidates: list[str] = []
     for dirpath, dirnames, filenames in os.walk(transcripts_dir, onerror=_on_walk_error, followlinks=False):
         for fname in filenames:
             if not (fname.startswith(longest) and fname.endswith(".jsonl")):
@@ -169,14 +195,18 @@ def resolve_group_attribution(tokens: list[str], transcripts_dir: Path) -> dict:
                 continue
             # round-3 整改: isfile() 对 mode 000 仍为 True —— 不可读的文件
             # 不是可用恢复源，计入 unreadable 而非命中（fail-closed）。
+            all_candidates.append(candidate)
             if not os.access(candidate, os.R_OK):
                 unreadable.append(candidate)
                 continue
             real = os.path.realpath(candidate)
-            if not real.startswith(root_real + os.sep):
+            # round-4 LOW 整改: root="/" 时 root_real+sep=="//" 会让合法子项全假
+            root_prefix = root_real if root_real.endswith(os.sep) else root_real + os.sep
+            if not real.startswith(root_prefix):
                 continue  # 目录 symlink 逃逸
             matches.append(candidate)
     matches = sorted(matches)
+    result["all_candidate_paths"] = sorted(all_candidates)
     if unreadable:
         # 存在同名但不可读的候选 —— 源不完全可见，拒绝据此裁定
         result["unreadable_candidates"] = unreadable[:5]
@@ -229,9 +259,28 @@ def probe_qa_metrics(db_path: Path, error_types: list[str]) -> dict:
     return result
 
 
-def snapshot_file(path: Path) -> tuple[bytes, dict]:
-    """一次性读全量 bytes；描述信息（sha/行数/mtime）全部派生自这份 exact bytes。"""
-    raw = path.read_bytes()
+def snapshot_file(path: Path) -> tuple[bytes, dict, tuple[int, int]]:
+    """一次性读全量 bytes；sha/行数/身份全部派生自**同一个 fd**。
+
+    round-4 BLOCKER② 整改: 原实现按路径 stat 采集保护身份、稍后才按路径读取，
+    两步之间对象可被换掉（源侧 TOCTOU）。现改为打开一次 fd → fstat 取身份 →
+    从该 fd 读全量，返回的 (st_dev, st_ino) 即**实际被读取对象**的身份。
+    """
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode):
+            raise OSError(f"不是常规文件（拒绝 FIFO/设备/目录）: {path}")
+        identity = (st.st_dev, st.st_ino)
+        chunks = []
+        while True:
+            block = os.read(fd, 1 << 20)
+            if not block:
+                break
+            chunks.append(block)
+        raw = b"".join(chunks)
+    finally:
+        os.close(fd)
     info = {
         "path": str(path),
         "exists": True,
@@ -240,17 +289,18 @@ def snapshot_file(path: Path) -> tuple[bytes, dict]:
         # 与 records 同口径按 \n 切分（末尾换行不算空行）。
         "line_count": len(_split_jsonl_lines(raw)),
         "sha256": hashlib.sha256(raw).hexdigest(),
-        "mtime_utc": datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).isoformat(),
-        "mtime_note": "mtime 为 stat 快照，仅供参考；绑定 exact bytes 的是 sha256",
+        "mtime_utc": datetime.fromtimestamp(st.st_mtime, tz=timezone.utc).isoformat(),
+        "mtime_note": "mtime 取自读取用 fd 的 fstat；绑定 exact bytes 的是 sha256",
     }
-    return raw, info
+    return raw, info, identity
 
 
-def describe_copy(path: Path) -> dict:
+def describe_copy(path: Path) -> tuple[dict, tuple[int, int] | None]:
+    """返回 (描述, 实际读取对象身份)；身份用于并入 --out 保护集。"""
     if not path.exists():
-        return {"path": str(path), "exists": False}
-    _, info = snapshot_file(path)
-    return info
+        return {"path": str(path), "exists": False}, None
+    _, info, identity = snapshot_file(path)
+    return info, identity
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -311,10 +361,12 @@ def main(argv: list[str] | None = None) -> int:
             protected_paths.append(Path(args.qa_metrics_db))
         for candidate in protected_paths:
             try:
-                st = candidate.stat()  # 跟随 symlink: 保护的是最终目标身份
-                protected_ids.add((st.st_dev, st.st_ino))
+                cst = candidate.stat()  # 跟随 symlink: 保护的是最终目标身份
+                protected_ids.add((cst.st_dev, cst.st_ino))
             except OSError:
-                continue
+                # round-4 整改: stat 失败不再静默吞 —— 无法确认身份即 fail-closed
+                print(f"输入文件无法 stat，拒绝继续（无法建立完整保护集）: {candidate}", file=sys.stderr)
+                return 2
         # 路径字符串比较作为第二道（输出文件尚不存在时 stat 无身份可比）
         out_resolved = out_path.resolve()
         if out_resolved in {p.resolve() for p in protected_paths}:
@@ -334,12 +386,20 @@ def main(argv: list[str] | None = None) -> int:
                 return 2
 
     # BLOCKER-2 整改: 单次读取，records 与头部描述共享同一份 exact bytes
-    raw_bytes, dlq_info = snapshot_file(dlq_path)
+    try:
+        raw_bytes, dlq_info, dlq_identity = snapshot_file(dlq_path)
+    except OSError as e:
+        print(f"DLQ 无法安全读取: {dlq_path} ({e})", file=sys.stderr)
+        return 2
+    protected_ids.add(dlq_identity)  # 保护的是**实际读取对象**，非路径快照
     raw_lines = _split_jsonl_lines(raw_bytes)
 
     records: list[tuple[int, dict]] = []
     unparseable: list[dict] = []
-    for line_no, line in enumerate(raw_lines, start=1):
+    for line_no, (line, decode_err) in enumerate(raw_lines, start=1):
+        if decode_err is not None:
+            unparseable.append({"line_no": line_no, "reason": decode_err})
+            continue
         if not line.strip():
             unparseable.append({"line_no": line_no, "reason": "blank_line"})
             continue
@@ -361,7 +421,13 @@ def main(argv: list[str] | None = None) -> int:
     groups: dict[tuple, list[tuple[int, dict]]] = defaultdict(list)
     for line_no, rec in records:
         rid = rec.get("request_id")
-        key = ("__missing__", line_no) if rid is None else (type(rid).__name__, rid)
+        # round-4 LOW 整改: 不可哈希的 request_id（list/dict）按 line_no 单条成组
+        try:
+            hash(rid)
+            hashable = True
+        except TypeError:
+            hashable = False
+        key = ("__missing__", line_no) if (rid is None or not hashable) else (type(rid).__name__, rid)
         groups[key].append((line_no, rec))
     group_attribution: dict[tuple, dict] = {}
     for key, members in groups.items():
@@ -375,12 +441,18 @@ def main(argv: list[str] | None = None) -> int:
     recover_dist: Counter = Counter()
     inline_dist: Counter = Counter()
     unrecoverable_keys = []
+    unverifiable_keys = []
     attribution_conflicts = []
     for line_no, rec in records:
         cls = classify(rec)
         state, sha_check = inline_state(rec)
         rid = rec.get("request_id")
-        key = ("__missing__", line_no) if rid is None else (type(rid).__name__, rid)
+        try:
+            hash(rid)
+            hashable = True
+        except TypeError:
+            hashable = False
+        key = ("__missing__", line_no) if (rid is None or not hashable) else (type(rid).__name__, rid)
         sess = group_attribution[key]
         if state == "full_verified":
             recover = "byte_exact"
@@ -393,8 +465,20 @@ def main(argv: list[str] | None = None) -> int:
             recover = "unrecoverable"
             basis = "inline 对不上账（anomaly：sha/长度与声明不符），fail-closed 不采信截断前缀假设，也不采信 transcript 归因"
         elif sess["attribution_conflict"]:
-            recover = "unrecoverable"
-            basis = "session 归因冲突/多命中（fail-closed 拒绝采信任何 transcript），且 inline 仅截断前缀"
+            # round-4 HIGH 整改: 归因冲突/多命中/扫描受阻 ≠ "源不存在"。
+            # 终态化为 unrecoverable 是不诚实的断言 —— 单列 unverifiable。
+            recover = "unverifiable"
+            basis = (
+                "源可见性不足，拒绝裁定："
+                + (
+                    "扫描遍历受阻（不可读子树）"
+                    if sess.get("scan_errors")
+                    else "存在不可读候选"
+                    if sess.get("unreadable_candidates")
+                    else "多 token 前缀冲突或 transcript 多命中 ambiguous"
+                )
+                + "。既不宣称可恢复，也不宣称不可恢复（fail-closed）"
+            )
         elif sess["transcript_exists"]:
             recover = "approximate"
             basis = (
@@ -415,16 +499,18 @@ def main(argv: list[str] | None = None) -> int:
         }
         if recover == "unrecoverable":
             unrecoverable_keys.append(stable_key)
+        elif recover == "unverifiable":
+            unverifiable_keys.append(stable_key)
         if sess["attribution_conflict"]:
             attribution_conflicts.append(stable_key)
         ledger_records.append(
             {
                 "stable_key": stable_key,
-                "name": rec.get("name", "")[:80],
+                "name": str(rec.get("name", ""))[:80],
                 "group_id": rec.get("group_id"),
                 "source_description": rec.get("source_description"),
                 "error_type": rec.get("error_type"),
-                "error_excerpt": rec.get("error", "")[:120],
+                "error_excerpt": str(rec.get("error", ""))[:120],
                 "failed_at": rec.get("failed_at"),
                 "reference_time": rec.get("reference_time"),
                 "class": cls,
@@ -444,12 +530,21 @@ def main(argv: list[str] | None = None) -> int:
     # 语义重复簇（同 name + 全文 sha + group_id）——G4-10 重放去重策略依据
     cluster_map: dict[tuple, list[int]] = defaultdict(list)
     for line_no, rec in records:
-        cluster_map[(rec.get("name", ""), rec.get("episode_body_sha256", ""), rec.get("group_id"))].append(line_no)
+        cluster_map[
+            (str(rec.get("name", "")), str(rec.get("episode_body_sha256", "")), str(rec.get("group_id")))
+        ].append(line_no)
     duplicate_clusters = [
         {"name": k[0][:80], "episode_body_sha256": k[1], "group_id": k[2], "line_nos": v, "occurrences": len(v)}
         for k, v in sorted(cluster_map.items(), key=lambda kv: -len(kv[1]))
         if len(v) > 1
     ]
+
+    compare_infos = []
+    for cp in args.compare:
+        cinfo, cid = describe_copy(Path(cp))
+        compare_infos.append(cinfo)
+        if cid is not None:
+            protected_ids.add(cid)
 
     qa_probe = (
         probe_qa_metrics(
@@ -475,7 +570,7 @@ def main(argv: list[str] | None = None) -> int:
             "sha256_prefix/request_id 为冗余对账维度——非跨文件重排或语义幂等键"
         ),
         "dlq_file": dlq_info,
-        "compare_copies": [describe_copy(Path(p)) for p in args.compare],
+        "compare_copies": compare_infos,
         "total_lines": len(raw_lines),
         "total_records": len(records),
         "unparseable_lines": unparseable,
@@ -486,12 +581,13 @@ def main(argv: list[str] | None = None) -> int:
         "expected_class_distribution": EXPECTED_CLASS_DIST,
         "class_deviation": deviation,
         "recoverability_distribution": {
-            k: recover_dist.get(k, 0) for k in ["byte_exact", "approximate", "unrecoverable"]
+            k: recover_dist.get(k, 0) for k in ["byte_exact", "approximate", "unverifiable", "unrecoverable"]
         },
         "inline_state_distribution": {
             k: inline_dist.get(k, 0) for k in ["full_verified", "truncated_prefix", "anomaly"]
         },
         "unrecoverable_list": unrecoverable_keys,
+        "unverifiable_list": unverifiable_keys,
         "attribution_conflicts": attribution_conflicts,
         "duplicate_clusters": duplicate_clusters,
         "qa_metrics_probe": qa_probe,
@@ -500,6 +596,13 @@ def main(argv: list[str] | None = None) -> int:
 
     # round-3 BLOCKER-1 绕过① 整改: 归因到的 transcript 是恢复源，
     # --out 指向它同样会截断。写出前并入保护集（此时归因已完成）。
+    for sess_info in group_attribution.values():
+        for tpath in sess_info.get("all_candidate_paths", []):
+            try:
+                tst = os.stat(tpath)
+                protected_ids.add((tst.st_dev, tst.st_ino))
+            except OSError:
+                continue
     for rec_out in ledger_records:
         for tpath in rec_out.get("transcript_paths", []):
             try:
@@ -514,12 +617,19 @@ def main(argv: list[str] | None = None) -> int:
         # **不带 O_TRUNC**，对**实际 fd** fstat 校验 inode；只有校验通过才
         # ftruncate。检查与写入作用于同一 fd，检查后被换 symlink/hardlink 无效。
         try:
-            fd = os.open(args.out, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+            fd = os.open(args.out, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
         except OSError as e:
             print(f"--out 无法安全打开（symlink 或权限）: {args.out} ({e})", file=sys.stderr)
             return 2
         try:
             st = os.fstat(fd)
+            # round-4 MEDIUM 整改: 非常规文件（FIFO/设备/socket）拒绝
+            if not stat.S_ISREG(st.st_mode):
+                print(f"--out 不是常规文件（FIFO/设备/socket），拒绝写出: {args.out}", file=sys.stderr)
+                return 2
+            # round-4 LOW 整改: 0o600 只作用于新建 —— 既有文件显式收紧
+            if st.st_mode & 0o077:
+                os.fchmod(fd, 0o600)
             if (st.st_dev, st.st_ino) in protected_ids:
                 print(
                     f"--out 打开后经 fstat 判定与输入文件同一 inode，拒绝写出（防截断）: {args.out}",

@@ -1,6 +1,6 @@
 {
  "card": "CARD-G4-9",
- "generated_at": "2026-08-28T11:31:22.640460+00:00",
+ "generated_at": "2026-08-28T11:53:47.688306+00:00",
  "privacy": "private-only: transcript_paths 含本机用户名与 session UUID，禁止外发/公网发布",
  "stable_key_semantics": "冻结快照（dlq_file.sha256）内的 occurrence key；line_no 在快照内唯一，sha256_prefix/request_id 为冗余对账维度——非跨文件重排或语义幂等键",
  "dlq_file": {
@@ -9,7 +9,7 @@
   "line_count": 92,
   "sha256": "3b37460f4215f6ac0ecf9265c3b2ae6da8bcf677257da3f3225f7c29ef3ba590",
   "mtime_utc": "2026-08-11T14:01:25.808462+00:00",
-  "mtime_note": "mtime 为 stat 快照，仅供参考；绑定 exact bytes 的是 sha256"
+  "mtime_note": "mtime 取自读取用 fd 的 fstat；绑定 exact bytes 的是 sha256"
  },
  "compare_copies": [
   {
@@ -18,7 +18,7 @@
    "line_count": 685,
    "sha256": "490c903b2f3636e1d2c4ecb68465cef41ace06f0bd171eb2fb95c03a7b40cb43",
    "mtime_utc": "2026-04-07T11:47:19.585617+00:00",
-   "mtime_note": "mtime 为 stat 快照，仅供参考；绑定 exact bytes 的是 sha256"
+   "mtime_note": "mtime 取自读取用 fd 的 fstat；绑定 exact bytes 的是 sha256"
   },
   {
    "path": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/data/dead_letter_episodes.jsonl",
@@ -26,7 +26,7 @@
    "line_count": 1,
    "sha256": "bfb3f6c413aab7dd4c04a25f7575aaaffcfc92fd4e8e8966362609652ac7e310",
    "mtime_utc": "2026-07-13T04:51:14.925282+00:00",
-   "mtime_note": "mtime 为 stat 快照，仅供参考；绑定 exact bytes 的是 sha256"
+   "mtime_note": "mtime 取自读取用 fd 的 fstat；绑定 exact bytes 的是 sha256"
   },
   {
    "path": "/Users/Heishing/Desktop/canvas/canvas-learning-system/data/dead_letter_episodes.jsonl",
@@ -34,7 +34,7 @@
    "line_count": 4,
    "sha256": "75c5f7593b9b2e99672d0551487b4476552ebd8d33ad25c5f9479683cc61e9c9",
    "mtime_utc": "2026-04-05T23:30:49.019652+00:00",
-   "mtime_note": "mtime 为 stat 快照，仅供参考；绑定 exact bytes 的是 sha256"
+   "mtime_note": "mtime 取自读取用 fd 的 fstat；绑定 exact bytes 的是 sha256"
   }
  ],
  "total_lines": 92,
@@ -55,6 +55,7 @@
  "recoverability_distribution": {
   "byte_exact": 4,
   "approximate": 88,
+  "unverifiable": 0,
   "unrecoverable": 0
  },
  "inline_state_distribution": {
@@ -63,6 +64,7 @@
   "anomaly": 0
  },
  "unrecoverable_list": [],
+ "unverifiable_list": [],
  "attribution_conflicts": [],
  "duplicate_clusters": [
   {
