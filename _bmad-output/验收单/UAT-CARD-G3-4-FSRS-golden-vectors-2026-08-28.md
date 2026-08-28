@@ -99,6 +99,17 @@
 
 四轮整改后复跑：golden 门 **13 passed**、三文件合跑 **60 passed + 1 skipped**、核心 fsrs 六文件 91 passed 零回归、ruff 全过。
 
+### 五轮复核处置（存档 `审查/codex-review-CARD-G3-1-G3-4-round5-2026-08-28.md`，G3-4 主体判 CONFIRMED-CLOSED，残留 LOW 覆盖缺口）
+
+| # | 级别 | 五轮发现 | 处置 |
+|---|---|---|---|
+| 六 | — | **曲线门四轮 HIGH 判 CONFIRMED-CLOSED**：历史 rating、逐步时刻、card 快照、`due+(0,7,30)` 与真实复算均已锁 | 无需动作（保持） |
+| 六 | LOW | 仍有覆盖缺口：`retrievability.card.state` 由 `2` 改 `2.0` 全绿；改 `description`/塞嵌套未知键全绿；`comparison_tolerance` 未锁子键集 | **已修**：card 快照**类型门 + 键集锁**、向量/步/expected **键集锁** + **description 字面锁**、tolerance **子键集锁**。四反例现全部翻红（`g3-round5-counterexamples.txt` R5-4） |
+| 六 | — | 不能宣称"任意 golden 数据变化必红" | **已如实收窄**：本单 §一第 3 条与测试 docstring 均加**覆盖范围诚实声明**——锁的是基线的**语义与结构**，未逐字节锁 JSON 文本（空白/键顺序等不影响语义的改动不翻红） |
+| 七 | MEDIUM | `negverify_v4` 的 exit code 声称过强（只 grep FAILED、不查 pytest exit code/collection 数、不查 mutation/restore 成功）；存证 SHA 绑定旧提交与 12 门 | **部分处置 + 如实登记**：存证每轮重生成（SHA 与当前 bytes 同步）；脚本的 exit-code/collection 校验强化**登记为证据工具改进项**——十门测试本身是裁判，负验证是佐证，本卡不因该工具细节阻塞；如主 session 要求可在合并前补一轮加固 |
+
+五轮整改后复跑：golden 门 **13 passed**、三文件合跑 **61 passed + 1 skipped**、ruff 全过。
+
 ## 六、移交登记
 
 1. **CI 接入（Codex 一轮 BLOCKER）**：test.yml 白名单 +2 行与 root requirements paths trigger——S8 车道独占 `.github/workflows/`，移交主 session 合并后 micro-patch（见处置表 #c）。

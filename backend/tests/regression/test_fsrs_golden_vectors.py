@@ -1,16 +1,23 @@
 """FSRS golden vectors 防依赖升级漂移门 (CARD-G3-4, BATCH-2026-08-28-第五批)。
 
-锁七件事 (Codex round-1 整改后):
+十门 (逐轮 Codex 对抗后收敛):
   1. 库版本钉死 — 安装版 != manifest.library_version 即红 (升级必先重冻结);
   2. requirements 精确钉版 — 逐行严格解析, 松绑/加 marker/.post 后缀均红;
   3. 默认参数/枚举面 — DEFAULT_PARAMETERS 或 Rating/State 值域漂移即红;
-  4. manifest 完整性 — params_hash 与 scheduler_config 不自洽 (篡改任一) 即红;
-  5. manifest 元数据字面锁 — algorithm/timezone/base_datetime/card_id/容差上限
-     以测试内字面值二次锁定, manifest 单方篡改即红 (Codex round-1 反例整改);
-  6. 矩阵结构 — 恰好 5 场景 × 4 评分、20 唯一 id、每场景前态字面锁、
-     retrievability 恰 3 点 (Codex round-1 反例: 结构可篡改后全绿);
-  7. 调度行为 — 20 条冻结向量重放 (含最终评分前 state 断言) + 3 条
-     retrievability 曲线点, 偏离即红。
+  4. manifest 完整性 — params_hash 与 scheduler_config 不自洽即红;
+  5. manifest 元数据字面锁 — algorithm/timezone/base_datetime/card_id (r1);
+  6. manifest 键集 + 出处锁 — card/frozen_on/generator 与键集 (r4);
+  7. scheduler_config 全字段字面锁 — 只锁 21 个 parameters 时 retention
+     0.9→0.8 可自洽重算而全绿 (r3);
+  8. 容差上限 + 子键集锁 — manifest 单方放宽即红 (r1/r5);
+  9. 矩阵结构 — 5 场景 x 4 评分全组合 (按真实 steps rating 取)、20 唯一 id、
+     id==scenario__rating、前缀 rating skeleton、**逐步时刻 skeleton**、
+     向量/步/expected 键集与 description 字面锁、类型门 (r1-r5 反例累积);
+ 10. 行为重放 — 20 条向量逐步重放 (含前态实测) + retrievability 历史
+     skeleton/逐步时刻/card 快照逐字段/采样点 due+(0,7,30) 真实复算 (r4/r5)。
+
+⚠️ 覆盖范围诚实声明: 上述锁住的是**基线的语义与结构**; 未逐字节锁 JSON
+文本本身 (格式化空白、键顺序等不影响语义的改动不会翻红)。
 
 真实库验收铁律 (计划书 G3): 直接消费真实 fsrs 库 (Card/Rating/Scheduler/
 State), 不 mock 不 FakeCard; 另断言生产模块 fsrs_manager.FSRS_AVAILABLE=True
@@ -62,6 +69,14 @@ EXPECTED_SCENARIO = {
 }
 EXPECTED_SCENARIO_STATE = {k: v[0] for k, v in EXPECTED_SCENARIO.items()}
 RATING_NAMES = ("again", "hard", "good", "easy")
+#: 场景描述字面锁 (round-5 LOW: 改 description 曾全绿 — 描述是人读基线的一部分)
+EXPECTED_SCENARIO_DESCRIPTION = {
+    "new_card": "新卡首评 (state=Learning step=0, stability/difficulty=None)",
+    "learning_step2": "Learning 第二步 (Good@T0 后 10 分钟到期复评)",
+    "review_ontime": "Review 态准时复评 (两次 Good 毕业后恰于到期日复评)",
+    "review_overdue_30d": "Review 态逾期 30 天复评",
+    "relearning": "Relearning 态 (Review 后 Again 进重学, 10 分钟到期复评)",
+}
 #: 场景 → 最终评分时刻相对前缀末态 due 的偏移 (天); review_overdue_30d 是唯一逾期场景
 EXPECTED_FINAL_OFFSET_DAYS = {
     "new_card": 0,
@@ -234,9 +249,12 @@ def test_scheduler_config_non_parameter_fields_frozen():
 
 
 def test_tolerance_ceiling_locked():
-    """容差只许更严不许放宽 — manifest 单方把 rel 调成 1e-3 即红。"""
-    assert 0 < MANIFEST["comparison_tolerance"]["float_rel"] <= 1e-9
-    assert 0 < MANIFEST["comparison_tolerance"]["float_abs"] <= 1e-12
+    """容差只许更严不许放宽 — manifest 单方把 rel 调成 1e-3 即红。
+    子键集同锁 (round-5 LOW: 增删容差键会改变比较语义却曾静默通过)。"""
+    tolerance = MANIFEST["comparison_tolerance"]
+    assert set(tolerance.keys()) == {"float_rel", "float_abs"}
+    assert 0 < tolerance["float_rel"] <= 1e-9
+    assert 0 < tolerance["float_abs"] <= 1e-12
 
 
 # ── 6. 矩阵结构 (Codex round-1: 重复/缺格/空 retrievability 曾全绿) ──
@@ -256,6 +274,27 @@ def test_matrix_structure_frozen():
     assert actual_combos == expected_combos, f"场景×真实评分组合缺格/多格: 差集 {expected_combos ^ actual_combos}"
 
     for v in vectors:
+        # 键集锁 (round-5 LOW: 改 description / 塞嵌套未知键曾全绿)
+        assert set(v.keys()) == {
+            "id",
+            "scenario",
+            "description",
+            "state_before_final_review",
+            "steps",
+            "expected",
+        }, f"{v.get('id')}: 向量键集变化 — 须评审重冻结"
+        assert set(v["expected"].keys()) == {
+            "stability",
+            "difficulty",
+            "due",
+            "last_review",
+            "state",
+            "step",
+        }
+        for step in v["steps"]:
+            assert set(step.keys()) == {"rating", "review_at"}
+        assert v["description"] == EXPECTED_SCENARIO_DESCRIPTION[v["scenario"]]
+
         scenario = v["scenario"]
         expected_state, expected_prefix = EXPECTED_SCENARIO[scenario]
         final_rating = v["steps"][-1]["rating"]
@@ -373,8 +412,15 @@ def test_retrievability_curve_matches_golden():
     assert _close(card.difficulty, snapshot["difficulty"])
     assert card.due.isoformat() == snapshot["due"]
     assert (card.last_review.isoformat() if card.last_review else None) == snapshot["last_review"]
-    assert int(card.state) == snapshot["state"] and not isinstance(snapshot["state"], bool)
+    # 类型门 (round-5: state 从 2 改成 2.0 曾仍全绿 — int 与 float 数值相等)
+    assert isinstance(snapshot["state"], int) and not isinstance(snapshot["state"], bool), (
+        "retrievability.card.state 须为 int (2.0 等浮点写法不接受)"
+    )
+    assert int(card.state) == snapshot["state"]
+    assert snapshot["step"] is None or (isinstance(snapshot["step"], int) and not isinstance(snapshot["step"], bool))
     assert card.step == snapshot["step"]
+    assert set(snapshot.keys()) == {"stability", "difficulty", "due", "last_review", "state", "step"}
+    assert set(golden.keys()) == {"steps", "card", "at"}, "retrievability 键集变化 — 须评审重冻结"
 
     # 采样点必须恰为末态 due + 字面锁偏移, 且期望值由真实库复算
     assert len(golden["at"]) == len(RETRIEVABILITY_OFFSET_DAYS)

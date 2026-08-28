@@ -29,14 +29,14 @@
 
 | 裁判 | 结果 |
 |---|---|
-| 契约测试 `backend/tests/regression/test_learning_events_schema_contract.py` | **41 passed + 1 skipped**（本文件单跑口径，四轮整改后；skip = 仓内 vault 根无账本的 worktree 环境，主仓自动生效。与 golden 门 + 既有账本测试合跑 = **60 passed + 1 skipped**） |
+| 契约测试 `backend/tests/regression/test_learning_events_schema_contract.py` | **42 passed + 1 skipped**（本文件单跑口径，五轮整改后；skip = 仓内 vault 根无账本的 worktree 环境，主仓自动生效。与 golden 门 + 既有账本测试合跑 = **61 passed + 1 skipped**） |
 | **真实 producer 执行**（Codex 一轮 HIGH 整改） | vault 三 skill 写点的 python 代码**从 SKILL.md 逐字提取执行**（ai-linked-doc 单行模板 / start-exam-board PYEOF 块 / quiz-answer 评分链账本段；仅路径常量重定向 tmp fixture），产物过校验器 + 幂等重放断言；backend 侧按 5 调用点实参形状经真实 `append_event` 写入后全过 |
 | 既有账本回归 `test_learning_event_log.py` | 6 passed（零改动） |
 | 校验脚本 vs 三 fixture | 合法 → exit 0 / 缺字段 → exit 1（点名 `effective_at`）/ 重复 event_id → exit 1（点名首见行号）（存证 `审查/g3-1-evidence/g3-1-fixture-validation.txt`） |
 | 校验脚本 vs **现网账本**（当前 23 行，用户仍在产生新事件） | **exit 0** 零 WARN 零 FAIL，且 sha256 运行前后一致（只读证明；存证按每轮整改重生成，含 HEAD/validator SHA/完整命令） |
 | 现网写点 0 误报 | 按 8 个写点 1:1 建模的 `real_shapes.jsonl`（含 Z 后缀时间戳/紧凑分隔符/中文 event_id）全过 |
 | 边界判定 | 截断行如实报 FAIL / 未知顶层字段拒绝 / naive 时间戳拒绝 / **NaN·Infinity 非标准常量拒绝（RFC 8259 严格）** / **行内重复键拒绝（json.loads 静默取后者的歧义面）** / 未知 event_version 走 WARN 前向兼容通道不误杀 |
-| 漂移锁 | EVENT_VERSION=1、9 类白名单、7 键形状、校验器复制份 == 真相源（四路契约测试）+ **`rating_from_grade` 与 `fsrs_bridge` 逐档等价**（千点网格 + 三档分界两侧）+ **W 与 review_time 的瞬间等价关系**（bridge `_iso` 写出格式改变即红） |
+| 漂移锁 | EVENT_VERSION=1、9 类白名单、7 键形状、校验器复制份 == 真相源（四路契约测试）+ **`rating_from_grade` 与 `fsrs_bridge` 逐档等价**（千点网格 + 三档分界两侧）+ **W 与 review_time 的瞬间等价关系**（bridge `_iso` 写出格式改变即红）+ **`.canvas-config.yaml` 解析 18 形态矩阵**（含 round-5 全部错绑/漏绑反例） |
 | 铁律遵守 | `learning_event_log.py` **零改动**；git diff 只含新增文件 + CLAUDE.md/architecture.md 引用行 + CURRENT_TASK；未新建任何第二套账本 |
 | ruff | 本卡交付文件 All checks passed（`backend/scripts/` + 契约测试；**范围声明**：仓库其余既有告警不在本卡范围） |
 
@@ -129,6 +129,20 @@
 | 二 | — | rating 与 bridge **逐档等价**（百万点网格 0 mismatch），但 HEAD 无交叉锁 | **已补测试**：`test_rating_from_grade_parity_with_bridge` 千点网格 + 三档分界两侧 + 弃答前提，直接对 `fsrs_bridge.rating_from_grade` 交叉断言 |
 
 四轮整改后复跑：契约测试 **41 passed + 1 skipped**（本文件）、三文件合跑 **60 passed + 1 skipped**、现网账本（23 行）exit 0 零 WARN、round-4 全部点名反例对抗复验翻红（`审查/g3-1-evidence/g3-round4-counterexamples.txt`）。
+
+### 五轮复核处置（存档 `审查/codex-review-CARD-G3-1-G3-4-round5-2026-08-28.md`，G3-1 残留 1 BLOCKER + 4 HIGH + 2 MEDIUM）
+
+| # | 级别 | 五轮发现 | 处置 |
+|---|---|---|---|
+| 一 | **BLOCKER** | A4 四条仍非充分集：①**锁对象不稳定**——允许"文件锁"而 A4.4 会 `os.replace` 节点文件，`A 锁旧 inode → replace → C 锁新 inode → B 得旧 inode 锁` 可让两者同时自认排他；②A4.2 **自相矛盾**（"基线恒为当前 state"与"允许从头折叠"并存）；③`event_id` claim/check+append 未进临界区，per-node 锁也不串行化**共享 JSONL** 的并发追加；④耐久性不完整（账本首次创建缺父目录 fsync、frontmatter 缺 temp fsync 与 replace 后目录 fsync） | **已修（契约）**：A4 扩为五条——**A4.1 稳定锁身份**（per-node **sidecar 锁文件/锁目录**，`key = 规范化({vault_id,node_id})`，含崩溃遗留锁回收；明确禁止锁节点文件本身并写入 inode 反例）、**A4.2 唯一折叠基线**（在线路径只做 pending 增量重放；全量折叠**仅作离线对账**，因历史行无扩展、两者并不等价）、**A4.3 完整耐久序列**（账本 write→flush→fsync，首次创建加**父目录 fsync**；参照仓内已有正确模式 `sync_board_concepts.py:583`）、**A4.4 原子发布补 fsync**（temp fsync → `os.replace` → **父目录 fsync**）、**A4.5 账本追加原子性**（`event_id` 查重与 `O_APPEND` 单次写在**同一把 per-vault 账本锁**内；与 per-node 锁的获取顺序全局固定防死锁）。移交 G3-3 由三项扩为**五项** |
+| 二 | HIGH#1 | 端到端时间口径仍断：bridge `_aware()` 只补 tzinfo 不转 UTC——校验器判定合法的 `12:00:00+08:00` 传给真实库会抛 `ValueError`（只读复算实测）；pending **排序**未明确按 UTC instant（字符串序会把 `10:00:02Z` 排在真实更早的 `18:00:01+08:00` 前） | **已修（契约+代码）**：§6.2 新增 **A6 调度器入参必须 UTC**（引 `scheduler.py:256-260` 的硬校验），要求事件 `review_time`、调度器入参、写出的 `W` **三者同一瞬间且统一 `astimezone(UTC)`**；**比较与排序**条款显式覆盖 pending 排序；校验器补 **UTC 归一化越界检查**（极端日期在 bridge `astimezone` 处会 `OverflowError`）。**bridge 侧三缺陷（不转 UTC / naive 静默当 UTC / 截小数秒）登记移交 G3-2**——本卡边界禁改生产代码 |
+| 三 | HIGH#2 | "完整 tuple"只查 due/state/last_review，而 bridge `review()` **消费六字段**：合法三键 + `state=2/3` 缺 stability/difficulty 真实 `review()` 抛 AssertionError；`state=1` 缺 step 会默认 0 走出不同 Learning 路径 | **已修（契约）**：正常卡定义改为**按 state 的相容性校验**——`state=1` ⇒ `fsrs_step` 必须存在且非负整数；`state ∈ {2,3}` ⇒ `fsrs_stability`/`fsrs_difficulty` 必须存在且为**有限正实数**；所有数值字段不得 `NaN`/`Inf`/空串/不可解析；frontmatter 键重复亦判残缺（解析歧义不可证） |
+| 四 | HIGH#3 | degraded 解冻只说"修复水位线后重放"，未要求 state+W 原子重建到**可证明的账本边界**：state 含 E2 而 W 修成 t1 ⇒ E2 二次应用；state 仅含 E1 而 W 修成 t2 ⇒ E2 永久遗漏 | **已修（契约）**：解冻唯一合法条件 = **从可证明起点折叠到某事件 E，把六字段与 `W = E.review_time` 在同一次原子替换中写入**；两个反例逐字写入文档；**不可证明时必须继续冻结**并由人工裁定（禁止工具自动做有损决策） |
+| 五 | HIGH#4 | vault_id 最小解析不是可靠 YAML 子集：`"team#1"` 被截成 `team`（**错绑**）、`vault_id:\nsubject: x` 跨行读成 `subject: x`、block scalar 读成 `\|`、重复键取首项（PyYAML 取末项）、未闭引号可能被接受、非法 UTF-8 未捕获 | **已修（代码+测试）**：改**保守白名单**——只认双引号/单引号/裸词三种明确顶层单行形态，引号内允许 `#`，**重复键取末项**（对齐 PyYAML），未闭引号/跨行/block scalar/folded scalar/非法 UTF-8 一律 `None`（宁可不绑也不错绑）。18 形态矩阵测试锚定 |
+| 五 | MEDIUM | manifest 只查"两个值是字符串"，不验非空/版本/hash 形状 | **已修（代码）**：`library_version` 须过数字点版正则、`params_hash` 须 64 hex，否则降级不绑定 |
+| 六 | LOW | `retrievability.card.state` 从 `2` 改 `2.0` 仍全绿；改 description / 塞嵌套未知键仍全绿；`comparison_tolerance` 未锁子键集 | **已修（G3-4 测试）**：card 快照类型门 + 键集锁、向量/步/expected 键集锁 + description 字面锁、tolerance 子键集锁。四反例现全部翻红 |
+
+五轮整改后复跑：契约测试 **42 passed + 1 skipped**、三文件合跑 **61 passed + 1 skipped**、现网账本（23 行）exit 0 零 WARN、round-5 全部点名反例对抗复验通过（`审查/g3-1-evidence/g3-round5-counterexamples.txt`）。
 
 ## 六、移交登记
 

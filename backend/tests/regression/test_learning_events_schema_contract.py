@@ -567,6 +567,51 @@ def test_vault_id_bound_to_vault_config(tmp_path):
     assert "账本所在 vault" in result.stdout
 
 
+def test_vault_config_parser_form_matrix(tmp_path):
+    """`.canvas-config.yaml` 的 vault_id 最小行解析形态矩阵 (stdlib, 不引
+    PyYAML)。锁死 11 种形态的判定, 防正则改动时静默放宽/收窄。
+
+    关键: 缩进/嵌套/注释行不得匹配 (它们不是顶层 vault_id), 重复键取首个
+    (与 YAML 'duplicate key' 的常见实现相反, 故显式锁定为已知口径)。
+    """
+    cases = [
+        ('vault_id: "canvas_vault"\n', "canvas_vault"),
+        ("vault_id: 'x1'\n", "x1"),
+        ("vault_id: bare_value\n", "bare_value"),
+        ('vault_id: "x"  # 尾注释\n', "x"),
+        ("vault_id: bare  # 尾注释\n", "bare"),
+        # round-5 HIGH#4 反例组: 原宽松正则会错绑/漏绑
+        ('vault_id: "team#1"\n', "team#1"),  # 引号内 # 曾被截成 'team'
+        ("vault_id: 'sq#2'\n", "sq#2"),
+        ("vault_id:\nsubject: cs61b\n", None),  # 跨行曾读成 'subject: cs61b'
+        ("vault_id: |\n  block\n", None),  # block scalar 曾读成 '|'
+        ("vault_id: >-\n  folded\n", None),
+        ('vault_id: "unclosed\n', None),  # 未闭引号
+        ('vault_id: "first"\nvault_id: "second"\n', "second"),  # 重复取末项(PyYAML 语义)
+        ('  vault_id: "indented"\n', None),
+        ('other:\n  vault_id: "nested"\n', None),
+        ('VAULT_ID: "upper"\n', None),
+        ('vault_id: "中文库"\n', "中文库"),
+        ("vault_id:\n", None),
+        ('# vault_id: "commented"\n', None),
+    ]
+    for index, (content, expected) in enumerate(cases):
+        config_dir = tmp_path / f"case{index}"
+        config_dir.mkdir()
+        (config_dir / ".canvas-config.yaml").write_text(content, encoding="utf-8")
+        got = validator._vault_id_of(config_dir / "learning_events.jsonl")
+        assert got == expected, f"{content!r} → {got!r}, 期望 {expected!r}"
+
+    # 非法 UTF-8 配置 → None (不炸)
+    bad_utf8 = tmp_path / "badutf8"
+    bad_utf8.mkdir()
+    (bad_utf8 / ".canvas-config.yaml").write_bytes(b'vault_id: "\xff\xfe"\n')
+    assert validator._vault_id_of(bad_utf8 / "learning_events.jsonl") is None
+
+    # 无配置文件 → None (独立可跑前提)
+    assert validator._vault_id_of(tmp_path / "nowhere" / "learning_events.jsonl") is None
+
+
 def test_rating_from_grade_parity_with_bridge():
     """校验器的 rating 自洽判据必须与真相源 fsrs_bridge.rating_from_grade
     逐档一致 — 否则 bridge 改档位时校验器会静默漂移 (误报或漏报)。

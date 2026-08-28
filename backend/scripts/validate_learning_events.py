@@ -36,6 +36,16 @@ Codex round-3 整改 (2026-08-28):
   - vault_id 绑定账本同目录 .canvas-config.yaml 声明值 (round-3 点名的
     未覆盖面, 本轮主动补强; 配置不可达 → WARN 降级保持独立可跑)。
 
+Codex round-5 整改 (2026-08-28):
+  - vault_id 解析改**保守白名单** (HIGH): 原宽松正则把 `"team#1"` 截成
+    `team`(错绑)、`vault_id:\nsubject: x` 跨行读成 `subject: x`、block
+    scalar 读成 `|`; 现只认双引号/单引号/裸词三种明确顶层单行形态,
+    重复键取**末项**(PyYAML 语义), 非法 UTF-8 与未闭引号一律 None;
+  - manifest 真值需过形状校验 (MEDIUM): 只查"是字符串"会让空串/畸形值
+    的真值绑定形同虚设; 现要求 version 为数字点版、hash 为 64 hex;
+  - 时间戳补 UTC 归一化越界检查 (MEDIUM): 极端日期在 bridge 的
+    astimezone(UTC) 处会 OverflowError, 提前拦。
+
 exit code: 0 = 全部通过; 1 = 存在违规; 2 = 用法/IO 错误。
 输出按行号确定性排序, 可入 CI / 存证。
 """
@@ -46,7 +56,7 @@ import json
 import math
 import re
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -137,6 +147,12 @@ def _parse_ts(value: object) -> tuple[bool, str]:
         return False, f"非法日期时间取值: {value!r}"
     if parsed.tzinfo is None:
         return False, f"缺 timezone (必须 aware): {value!r}"
+    try:
+        # round-5 MEDIUM: UTC 归一化会越界的极端日期 (如 0001-01-01+08:00)
+        # 在 bridge 的 astimezone(UTC) 处会抛 OverflowError — 提前拦
+        parsed.astimezone(timezone.utc)
+    except (OverflowError, OSError, ValueError):
+        return False, f"UTC 归一化越界 (下游 astimezone 会溢出): {value!r}"
     return True, ""
 
 
@@ -189,29 +205,52 @@ def _golden_manifest() -> Optional[dict]:
         return None
     if not isinstance(data, dict):
         return None
-    if not isinstance(data.get("library_version"), str) or not isinstance(data.get("params_hash"), str):
+    version, params_hash = data.get("library_version"), data.get("params_hash")
+    # round-5 MEDIUM: 只查"是字符串"不够 — 空串或畸形值会让真值绑定形同虚设
+    if not isinstance(version, str) or not _VERSION_RE.match(version):
+        return None
+    if not isinstance(params_hash, str) or not _HASH_RE.match(params_hash):
         return None
     return data
 
 
-#: .canvas-config.yaml 的顶层 vault_id 行 (stdlib 最小解析, 不引 PyYAML)
-_VAULT_ID_RE = re.compile(r"""^vault_id:\s*["']?([^"'#\s][^"'#]*?)["']?\s*(?:#.*)?$""", re.MULTILINE)
+#: .canvas-config.yaml 顶层 vault_id 的**保守**识别 (stdlib, 不引 PyYAML)。
+#: round-5 HIGH#4: 原宽松正则会把 `"team#1"` 截成 `team`(错绑)、把
+#: `vault_id:\nsubject: x` 跨行读成 `subject: x`、把 block scalar 读成 `|`。
+#: 现改为三种**明确形态**的白名单, 其余一律 None (宁可不绑定也不错绑):
+#:   1. 双引号值 — 引号内允许 # 与空格, 不允许转义与换行;
+#:   2. 单引号值 — 同上;
+#:   3. 裸词值 — 只允许 [不含 #、引号、空白、YAML 指示符] 的连续串。
+_VAULT_ID_DQ = re.compile(r'^vault_id:[ \t]*"([^"\n]*)"[ \t]*(?:#[^\n]*)?$', re.MULTILINE)
+_VAULT_ID_SQ = re.compile(r"^vault_id:[ \t]*'([^'\n]*)'[ \t]*(?:#[^\n]*)?$", re.MULTILINE)
+_VAULT_ID_BARE = re.compile(r"^vault_id:[ \t]+([^\s\"'#&*!|>%@`{}\[\],]+)[ \t]*(?:#[^\n]*)?$", re.MULTILINE)
 
 
 def _vault_id_of(ledger_path: Path) -> Optional[str]:
     """账本所在 vault 的声明 vault_id (同目录 .canvas-config.yaml)。
 
-    只识别顶层 `vault_id: "x"` 单行形态 (该文件的实际格式); 文件缺失或
-    该键不存在 → None, 调用方降级为不绑定 (校验器对任意 vault 独立可跑)。
+    保守解析: 只认三种明确的顶层单行形态; **同一文件出现多次 vault_id 时
+    取最后一个**(与 PyYAML 的 duplicate-key 语义一致, round-5 指出原实现
+    取首个与之相反)。任何无法确定的形态 (block scalar / 跨行 / 未闭引号 /
+    非法 UTF-8 / 读失败) → None, 调用方降级为不绑定 + WARN。
     """
     config = ledger_path.parent / ".canvas-config.yaml"
     if not config.is_file():
         return None
     try:
-        match = _VAULT_ID_RE.search(config.read_text(encoding="utf-8"))
-    except OSError:
+        text = config.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
         return None
-    return match.group(1).strip() if match else None
+    # 取"最后一个"匹配: 三种形态各自的末次匹配中, 行位置最靠后者胜
+    best: Optional[tuple[int, str]] = None
+    for pattern in (_VAULT_ID_DQ, _VAULT_ID_SQ, _VAULT_ID_BARE):
+        for match in pattern.finditer(text):
+            if best is None or match.start() > best[0]:
+                best = (match.start(), match.group(1))
+    if best is None:
+        return None
+    value = best[1].strip()
+    return value or None
 
 
 def _rating_from_grade_norm(grade_norm: float) -> int:
