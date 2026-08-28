@@ -2,7 +2,7 @@
 type: uat
 title: "UAT · CARD-G4-9 DLQ 真实挂载 census 分诊（2026-08-28）"
 date: 2026-08-28
-status: awaiting_user
+status: awaiting_user  # Codex round-13 终裁三层全 PASS，待用户验收
 scope: "BATCH-2026-08-28-第五批 / CARD-G4-9 — live DLQ 92 条只读 census：分类/SHA 对账/可恢复性三态/挂载真相，产出 G4-10 交接台账"
 worktree: "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s5-census"
 ---
@@ -55,6 +55,7 @@ worktree: "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktre
 | round-11 解阻整改 | **3/3 完成**：DB 静止改为操作者前提（0 行·固定字节·同 SHA 均不能证明无并发写者）、"20 类路径 fail-closed"改为逐例证据声明、"整类绕过失效"改为具体路径消失+残余竞态登记；坏 JSON 直接断言原始列表恰 3 项、输入不变测试加非 JSONL sentinel 并覆盖根内全部常规文件；证据绑定新 blob（脚本 87266e09/测试 541ec8b3）。20 passed | 报告 §7m |
 | Codex 复审 round-12（三层裁定） | **(a) 92 条冻结 ledger：PASS 可验收**（独立复算逐项一致）；**(b) 生成器在已声明有界前提下：PASS 可验收**（未发现虚假通过空间）；**可绑定证据：PASS**（blob/SHA/20 项名称逐项对应）；**(c) 报告与 UAT 声明：FAIL** —— 仅剩两条过强措辞 | `codex-review-CARD-G4-9-round12.md` |
 | round-12 措辞整改 | **2/2 完成**（Codex 明示无需再改测试/脚本/证据）："0 写入·逐次取证·输入零改动"统一改为"本次留存 before/after 样本 SHA 相同；不证明读取期间零写入、不证明每轮各存证据"；"五项绕过整类失效"改为"『截断既有对象』这一具体路径不再存在，不代表所有别名类绕过均已失效" | 报告 §7n |
+| **Codex round-13 终裁** | **三层均 PASS —— 「CARD-G4-9 可验收」**：(a) 92 条 ledger 逐记录复算 0 mismatch；(b) 有界前提下的生成器 PASS；(c) 报告与 UAT 声明 PASS（未发现新残留）。绑定 blob：脚本 87266e09 / 测试 541ec8b3 / ledger 9ac1beb1 / 证据 a04c0c8f | `codex-review-CARD-G4-9-round13.md` |
 | 独立 Workflow 4-agent 复核 | G4-9 数字 agent：92 条重算 **0 mismatch**（class/inline/三态/25 request_id/7 transcript 在盘/台账 sha 全 CONFIRMED，仅 2 处描述区间 REFUTED 已修正）；只读契约 agent：与 Codex 同源的 3 条 blocker（已随上整改） | Workflow wf_737b1a95-20b journal |
 
 ## 🔧 Codex round-1 整改记录（13/13 关闭，BLOCKED → 整改完毕）
