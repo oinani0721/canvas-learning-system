@@ -2,22 +2,22 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**本车道状态**（2026-08-28 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **双卡 Codex 七轮整改后待验收；G3-4 已 CONFIRMED-CLOSED**）:
-- ✅ CARD-G3-4：**六/七轮均判 CONFIRMED-CLOSED**——十门 13 passed，声明范围内无语义级漂移可全绿
-- ✅ CARD-G3-1（`63e034ec` + 六笔整改 + 七轮整改待提交）：契约测试 **47 passed + 1 skipped**，
-  三文件合跑 **66 passed + 1 skipped**。七轮共 2B+26H+30M 全处置。本轮要点：
-  **duplicate 等价面扩为语义 envelope**（同 ID 同 payload 但 scored/abandoned 相反事实曾误判 no-op）、
-  **conditional takeover CAS**（陈旧死亡证明可覆盖新 owner）、**stability 去 36500 上界**
-  （本方引入的误报：真实 Easy 链 S=68949 被误判 degraded）、**整数纯词法**（`"1.0"` 使 bridge `int()` 抛错）、
-  **A7 上界分两档**（review 输入 9000 / 一般时间戳 9500，否则合法 due 反被判 degraded）、
-  **vault_id 改极简可证策略**（放弃解析 YAML 子集——手写子集打不赢；19 形态矩阵，宁可不绑不错绑）
+**本车道状态**（2026-08-28 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **八轮 Codex 后 BLOCKER 清零；G3-4 已 CONFIRMED-CLOSED**）:
+- ✅ CARD-G3-4：**六/七/八轮连续 CONFIRMED-CLOSED**——十门 13 passed，声明范围内无语义级漂移可全绿
+- ✅ CARD-G3-1（`63e034ec` + 七笔整改 + 八轮整改待提交）：契约测试 **50 passed + 1 skipped**，
+  三文件合跑 **69 passed + 1 skipped**。**八轮 BLOCKER 清零**（duplicate envelope 与 fencing CAS
+  均判 CONFIRMED-CLOSED），累计处置 2B+30H+35M。本轮要点：**stability 加语义合理性上界 1e9**
+  （1.797e308 曾判 normal 而真实 bridge OverflowError；1e9~1e100 属有意 fail-closed 已标注）、
+  **W 必须严格小于 review 域上界**（W=9400 曾判 normal 但无任何合法后继）、
+  **vault_id 计数改宽正则**（`vault_id : real` 形态曾让窄计数误判"恰一处"并错绑 fake）、
+  **degraded proof 升级为逐字段 schema**（prefix hash 精确 bytes 范围 + 递归祖先 proof + 防循环）
 - ⛔ 移交（schema §九 逐条登记）：①test.yml 白名单 +2 测试 + root requirements paths（S8 独占；
-  **CI DEFERRED/NOT-EXECUTED**）；②**G3-2 四项**：parsed 查重修正、bridge 时间口径三项、
-  docstring 9 类、canonical reducer 精度常量与 blob hash 冻结；③**G3-3 七项**（sidecar 锁+CAS 接管、
+  **CI DEFERRED/NOT-EXECUTED**）；②**G3-2 五项**：parsed 查重修正、bridge 时间口径三项、9 类注释、
+  reducer 精度常量与 blob hash、`fsrs_step: null` 文本解析偏差；③**G3-3 七项**（sidecar 锁+CAS 接管、
   per-vault 账本锁内查重与落盘校验、锁内重读 W、完整 fsync、增量重放、duplicate envelope 门）；
   ④tips.py 两条 → 独立 micro-patch
-- 纪律守住：learning_event_log.py/fsrs_manager.py 及全部 in-flight 锁定文件零改动（七轮 blob 复核在案）；不 push
-- 待办：七轮整改提交（第八笔）→ Codex 八轮复核 → 用户验收两单
+- 纪律守住：learning_event_log.py/fsrs_manager.py 及全部 in-flight 锁定文件零改动（八轮 blob 复核在案）；不 push
+- 待办：八轮整改提交（第九笔）→ Codex 九轮复核 → 用户验收两单
 
 ---
 

@@ -105,7 +105,7 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
 
 **水位线三态（Codex round-3 HIGH + round-4 HIGH#2 收紧）**：判别按**完整 FSRS tuple 的可解析性**，不只看单键存在性。
 - **真新卡** = 节点 frontmatter **不含任何 `fsrs_*` 字段** ⇒ `W = -∞`，全部事件 pending（合法首事件路径）。
-- **正常卡** = 持久化 tuple **完整、canonical、且落在可调度域内**（round-5 HIGH#2 + round-6 HIGH#1 逐条收紧：bridge `review()` 消费**六字段**构造 `Card`，规则不精确会放过真实调用时抛 `AssertionError`/`ZeroDivisionError`/产生 NaN 的形状）。逐条：
+- **正常卡** = 持久化 tuple **完整、canonical、落在可调度域内，且 `W` 落在 review 域内**（round-8 HIGH#2：`fsrs_last_review` 是"上一次 review 的时刻"，与 `review_time` 同域，必须**严格小于** A7 的 review 输入上界——否则不存在任何合法后继事件（后继须 `> W` 且 `≤` 该上界），`W` 恰为上界时 A3 的 `W+1s` 也立即越界；`fsrs_due` 是调度产物，适用更宽的一般时间戳上界）（round-5 HIGH#2 + round-6 HIGH#1 逐条收紧：bridge `review()` 消费**六字段**构造 `Card`，规则不精确会放过真实调用时抛 `AssertionError`/`ZeroDivisionError`/产生 NaN 的形状）。逐条：
   - `fsrs_last_review`：存在且可解析为 tz-aware 时刻（⇒ `W` = 该值）；
   - `fsrs_due`：存在且可解析为 tz-aware 时刻（**缺它 bridge 走 New 卡分支**，`fsrs_bridge.py:102`）；
   - `fsrs_state`：整数 ∈ {1,2,3}（`0` 属 legacy，走 bridge 的字段级迁移分支，不算"正常卡"）；
@@ -116,7 +116,7 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
     | 2 Review | **必须缺失或 null** | **必须**同时存在且在可调度域内 | `state=2, step=0` 曾判正常 → 成功但持续写回**非 canonical** Review tuple |
     | 3 Relearning | **必须**存在且非负整数 | **必须**同时存在且在可调度域内 | `state=3` + 正常 S/D 但缺 step 曾判正常 → 真实 `review()` 抛 `AssertionError` |
   - **可调度数值域**（round-6 反例：正有限 `S=D=1e308` 曾判正常 → 调度产生 NaN 路径并失败）：
-    - `fsrs_stability`：**有限正实数，无上界**。⚠️ round-7 更正：早前把 `maximum_interval = 36500` 当 stability 上界是**错的**——FSRS 封顶的是 **interval** 不是 stability；实测连续 7 次 Easy 后 `S = 68949 > 36500`，原规则会把**合法卡误判 degraded**；
+    - `fsrs_stability`：**有限正实数，上界 1e9 天**（≈274 万年）。⚠️ round-7 更正：早前把 `maximum_interval = 36500` 当上界是**错的**——FSRS 封顶的是 **interval** 不是 stability（实测连续 7 次 Easy 后 `S = 68949 > 36500`，会把合法卡误判 degraded）。⚠️ round-8 再收紧：但"任意有限正数"又过宽——`S = 1.797e308` 曾判 normal 而真实 bridge 抛 `OverflowError`。1e9 取的是**语义合理性上界**（方向 fail-closed）：技术可执行边界更高（实测 1e100 仍可执行，1.797e308 才溢出），但真实语义远低于此（Easy 链实测 7 万量级、`maximum_interval` 封顶 36500 天），超过 1e9 天必是数据损坏——故 1e9~1e100 区间**虽技术可执行仍判 degraded**，属有意的保守偏差（停下来要人工确认）而非误判；
     - `fsrs_difficulty` ∈ `[1, 10]`（FSRS 难度定义域，这条正确）；
     - 任一数值不得为 `NaN`/`±Inf`/空串/不可解析。
   - **整数字段用纯整数词法**（round-7）：`fsrs_state`/`fsrs_step` 必须是 int 或匹配 `^[+-]?\d+$` 的字符串。`1.0` 这类写法不受理——真实 bridge 执行 `int("1.0")` 实测抛 `ValueError`（`fsrs_bridge.py:106`）。
@@ -172,6 +172,8 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
     - **写入必须验证完整落盘（round-6 BLOCKER 分项）**：`O_APPEND` 对**普通文件**不提供 `PIPE_BUF` 级原子性保证（该保证只对管道成立），普通文件 `write` 仍可能**短写**。因此：单行须一次 `write` 提交，并**检查返回字节数等于期望长度**；短写时按 §二"截断自愈"处理（下次追加前 LF 守卫），并在重启恢复流程中把不可解析的尾行如实报为损坏行（校验器已实现该判定）。
     - **duplicate 命中后的状态推进门（round-6 BLOCKER 分项，round-7 扩等价面）**：查重命中同一 `event_id` 时，按**语义 envelope 的 canonical 形式**分流。envelope = `{event_version, event_type, node_id, effective_at, payload}` 的 `json.dumps(..., sort_keys=True, separators=(",",":"))`——**显式排除 `recorded_at`**（重试时自然变化，不构成事实差异）。
       ⚠️ round-7 反例：只比 `payload` 时，两条同 `event_id`、同 payload、`event_type` 分别为 `answer_scored`/`answer_abandoned` 的记录会被误判 no-op（两者是**相反的事实**：答对 vs 弃答）。
+      ⚠️ **适用范围（round-8 MEDIUM）**：envelope 冲突门**只约束 `schema_ext=review/1` 的复习写路径**（G3-2 地盘）。通用 `append_event()` 在调用方省略 `effective_at` 时每次以新 `now` 填充（5 个 backend 调用点中 4 个省略），若全局套用 envelope 门，**合法重试会因 `effective_at` 天然不同而被误判冲突**——非扩展行沿用既有语义：同 `event_id` 即幂等跳过，不做 envelope 比较。
+      ⚠️ **已知保守误拒**：canonical 比较基于 JSON 文本，同一瞬间的 `Z` 与 `+00:00` 两种写法会被判为不同 ⇒ 误报冲突。因写点内部时刻表示统一（同一实现产出同一格式），现实中不触发；若未来出现跨写点重试，须在比较前对时间字段做瞬间归一化。
       ① **同 ID 同 canonical envelope** ⇒ 视为重放/恢复，**no-op**（不再落账、**绝不再次 apply**；若 frontmatter 尚未推进则按 A2 走 pending 重放路径恢复）；
       ② **同 ID 不同 canonical envelope** ⇒ **冲突，fail-closed**（拒绝写入并如实报错——同一幂等键承载了两份不同事实，属上游 bug，不得由工具静默选边）；
       ③ 任何情况下 duplicate 都**不得触发第二次 apply**。
@@ -187,7 +189,21 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
   - **解冻的唯一合法条件（round-5 提出，round-6 机械化）**：修复必须**把六字段与 `W` 原子重建到同一个可证明的账本边界**上——选定账本中某个事件 `E`，从**可证明起点**折叠到 `E` 为止，把结果的六字段与 `W = E.review_time` 在**同一次原子替换**中写入。三项必须机械确定：
     - **`E` 的选取**：必须是该节点在账本中**最后一个适用事件**（`schema_ext=review/1`、未标 `out_of_order`、按 `(review_time, 行号)` 复合序最大者）。**同瞬间用行号消歧**——`W` 只有时间戳、无法表达损坏账本里的同瞬间次序，故 proof 必须显式带行号。
     - **canonical reducer（round-6 实测的舍入歧义）**：折叠必须**逐事件按生产持久化精度舍入后再进下一步**（与 bridge 的写-读循环一致），**不得**在内存中连续折叠、只在末尾舍入。实测差异：三次 Good 后 `stability` = **10.9711**（逐步舍入）vs **10.9710**（末尾舍入）——两者都满足"折叠到 E"的粗描述，故边界必须唯一化。舍入精度以 bridge 写出 frontmatter 时的实际精度为准（G3-2 落地时把该常量与本条一并锁进测试）。
-    - **proof 记录内容**（写入修复工具的输出与 known-gotchas，供事后复算）：`{vault_id, node_id, 账本文件 sha256（或截至 E 的 prefix hash）, E 的行号, E.event_id, E.review_time, fsrs_library_version, fsrs_params_hash, scheduler 完整配置, 起点类型（真新卡 / 同源快照 + 其证明）}`。缺任一项即视为不可证明。
+    - **proof schema（round-8 HIGH#4 机械化——此前只是清单，两个不同起点可满足同一清单却折出不同结果）**。proof 是一个 JSON object，字段与语义如下，缺任一项或任一项不满足约束即**不可证明**：
+
+      | 字段 | 内容与约束 |
+      |---|---|
+      | `vault_id` / `node_id` | 本次重建的目标节点身份 |
+      | `ledger_prefix_sha256` | 账本文件**从第 0 字节起、到 E 所在行的终止 LF（含该 LF）为止**的字节序列的 sha256。若 E 是文件最后一行且无终止 LF，则到文件末字节为止，并置 `prefix_ends_without_lf: true` |
+      | `cursor_line` | E 的 1-based 行号（与 `ledger_prefix_sha256` 的截断点必须一致） |
+      | `event_id` / `review_time` | E 的幂等键与业务时刻（`review_time` 即重建后写入的 `W`） |
+      | `fsrs_library_version` / `fsrs_params_hash` / `scheduler_config` | 复算所用的算法身份与完整配置（须与 G3-4 golden manifest 同源；`degraded:*` 哨兵不合格） |
+      | `reducer` | canonical reducer 标识与其精度常量（见上一条；G3-2 落地时冻结具体值） |
+      | `origin` | 起点，二选一：`{"kind": "new_card"}`（真新卡，链终止于此）或 `{"kind": "snapshot", ...}`（见下） |
+      | `result_hash` | 重建出的六字段 + `W` 的 canonical JSON（`sort_keys=True, separators=(",",":")`）的 sha256——供他人独立复算比对 |
+
+    - **`origin.kind == "snapshot"` 的绑定（round-8）**：必须含 `{six_fields, W, snapshot_hash, ancestor_proof}`——`snapshot_hash` = 该快照六字段 + W 的 canonical sha256（与上表 `result_hash` 同算法）；`ancestor_proof` = **递归的同 schema proof**，证明该快照本身可证明。
+    - **链的终止与防循环（round-8）**：`ancestor_proof` 链必须**终止于 `origin.kind == "new_card"`**；链上每一层的 `(vault_id, node_id)` 必须相同，且 `cursor_line` 必须**严格递减**（保证有限步终止、不可自引用）。任一条不满足 ⇒ 不可证明。
     - **`degraded:*` 哨兵行不参与自动证明链**：其 `fsrs_library_version`/`params_hash` 是哨兵而非算法身份，无法确定性复算——含此类事件的区间必须由人工裁定。
   - **为什么必须如此**（round-5 两反例）：若 state 已含 `E2` 而水位线被随手修成 `W = t1` ⇒ `E2` 会被二次应用；若 state 仅含 `E1` 而 `W` 被修成 `t2` ⇒ `E2` 永久遗漏。两种错误都源于"state 与 W 不同源"。
   - **不可证明时必须继续冻结**：当账本缺少覆盖该节点的完整 review/1 事件序列（例如该节点的历史全是无扩展的旧行），**无法**重建可证明同源的 state+W ⇒ 该节点保持冻结并向用户如实报告，由人工裁定（例如接受"以当前 frontmatter 为准、把 `W` 设为账本中该节点最大 `review_time`"这一有损但显式的决策）。**禁止工具自动做该有损决策**。
@@ -221,6 +237,7 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
 | **查重用子串匹配而非字段等值**（Codex round-6/7 BLOCKER 分项） | `learning_event_log.py:86-88`（`json.dumps(event_id) in line`） | 若某 `event_id` 的 JSON 串形恰好出现在任意历史行的 payload 文本里，新事件会被误判 duplicate 而**零次落账**（丢一次真实事实）。契约（§二 + §6.2 A4.5）已冻结为 **parsed-field equality**；这是**修正错误实现**而非改幂等语义，不触发 §一的 v2 升版条款。**移交 G3-2**（其新写点必须用 parsed 查重；既有 `append_event` 本体的修正随之进行） |
 | **bridge 时间口径三项**（Codex round-5 HIGH#1） | `fsrs_bridge.py:50 _aware()` / `:55 _iso()` | ①`_aware()` 只补 tzinfo 不做 `astimezone(UTC)`——把校验器判定合法的 `12:00:00+08:00` 传给真实库会抛 `ValueError: datetime must be timezone-aware and set to UTC`（round-5 只读复算实测）；②naive 串被静默当 UTC；③`_iso()` 截掉小数秒。契约 A6 已冻结"三者同一瞬间且统一 UTC"；**移交 G3-2**（接入复习写路径时一并修） |
 | docstring/注释写"8 类"，实际白名单 9 类 | `learning_event_log.py:11`（"限 8 类核心动作"）、:73（"8 类白名单"） | `callout_ingested` 2026-07-23 入集后注释未同步。本卡边界不动该文件；移交 G3-2 顺手修注释（一行，无行为变化） |
+| **Review 态 `fsrs_step: null` 的文本解析偏差**（Codex round-8） | `fsrs_bridge.py:117`（`int(step) if step not in (None, "") else None`） | 契约允许 Review 卡不带 `fsrs_step`（或写 null）。但 bridge 从 frontmatter **文本**解析时，YAML 的 `null` 会成为字符串 `"null"`，不落在 `(None, "")` 判空集合里 ⇒ `int("null")` 抛错。**移交 G3-2/G3-3**：写侧应**省略该键**而非写 null，或读侧把 `"null"`/`"~"` 一并归空 |
 | **canonical reducer 的精度常量与序列化 bytes 未冻结**（Codex round-7 HIGH 部分） | §6.2 degraded 解冻条款 | 本卡已冻结**方向**（逐事件持久化舍入，禁末尾舍入；实测差异 10.9711 vs 10.9710 在案），但"精度常量、`round` tie 语义、序列化规则、bridge blob hash"依赖 G3-2 落地时的真实写出实现——**移交 G3-2**：实现落地时把这些常量与 blob hash 一并锁进测试，届时本条方可闭合 |
 | v2 卡"backend 4 写点"计数 | 总账 v2 G3-1 档案节 | 实为 5 调用点，见 §五勘误 |
 | **tips 写点把 IO 失败误报为 duplicate 并中止管道**（Codex round-1 HIGH） | `tips.py:572-578` | `append_event` 返回 `False` 折叠两义（§二），tips 消费者按 duplicate 分支返回 `accepted=False`——IO 失败时 callout 被错误拒收且"不阻断主链"不成立。生产路径修复不在本卡；**移交独立 micro-patch**（⚠️ G3-7 卡面只含 `/review/record`、`/fsrs-state`、mastery grade 三条路径，**不含 tips**——不可默认由其顺带收，Codex round-2 指出） |

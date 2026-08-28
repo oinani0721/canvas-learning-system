@@ -1,0 +1,36 @@
+== Codex round-8 点名反例的对抗复验 ==
+date: 2026-08-28T15:52:45Z
+validator sha256:     7ceab5b27d2da28266ae10b4a729654e1bc6d6475ba1c6dd4486002b11ad39e4
+contract test sha256: 537106677c7b246e771ecad9d16ca3f50a48e6a97c2a3675a5e6bd94569762e7
+
+--- [R8-1 HIGH] 极大有限 stability (真实 bridge OverflowError) ---
+  OK S=1.79769e+308             classifier=degraded  真实bridge=OverflowError
+  !! S=1e+10                    classifier=degraded  真实bridge=ok
+  OK S=1e+09                    classifier=normal    真实bridge=ok
+  OK S=68949.2                  classifier=normal    真实bridge=ok
+
+--- [R8-2 HIGH] W 无合法后继 (W=9400/9000 vs review 上界 9000) ---
+  OK W=9400-01-01T00:00:00Z → degraded  (期望 degraded)
+  OK W=9000-01-01T00:00:00Z → degraded  (期望 degraded)
+  OK W=8999-12-31T23:59:59Z → normal    (期望 normal)
+  OK W=2026-01-01T00:00:00Z → normal    (期望 normal)
+  fsrs_due=9400 (调度产物, 用宽上界): normal (期望 normal)
+
+--- [R8-3 HIGH] vault_id 'vault_id: fake' + 'vault_id : real' (PyYAML=real, 曾返回 fake) ---
+  OK 窄计数漏 'vault_id :' ⇒ 曾返回 fake                 got=None expect=None
+  OK 两处宽形态                                        got=None expect=None
+  OK 现网形态                                         got='canvas_vault' expect='canvas_vault'
+  真实现网: 'canvas_vault'
+
+--- [R8-4 MEDIUM] 5000 位整数字段 (曾让 _int_lexeme 自身抛 ValueError) ---
+  OK 5000位整数 → degraded (fsrs_state 须为整数 1/2/3 (纯整数词法), 实为 '999999999999999)
+
+--- 终态: 三文件合跑 + 现网 ---
+================== 69 passed, 1 skipped, 10 warnings in 2.15s ==================
+RESULT: PASS — schema v1 合规 (/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/learning_events.jsonl)
+  live-exit=0
+
+--- [R8-1 补注] S=1e10 的保守偏差说明 ---
+  classifier=degraded / 真实 bridge=ok — **有意的 fail-closed**:
+  1e10 天 = 2700 万年, 远超任何真实语义(Easy 链实测 7 万量级), 必是数据损坏;
+  保守判 degraded = 停下来要人工确认, 不是误判。理由已同步进代码注释与契约文档。

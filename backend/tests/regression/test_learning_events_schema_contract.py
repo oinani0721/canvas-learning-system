@@ -626,6 +626,34 @@ def test_stability_has_no_maximum_interval_ceiling():
     assert validator.classify_card_state(_fsrs_fields(fsrs_difficulty=10.5))[0] == "degraded"
 
 
+def test_stability_executable_ceiling():
+    """Codex round-8 HIGH#1: 'any finite positive' 过宽 — S=1.797e308 曾判
+    normal 而真实 bridge 抛 OverflowError(float infinity to integer)。
+    1e9 天(约 274 万年)是可执行上界: 远超真实语义, 远低于实测溢出点。"""
+    assert validator.classify_card_state(_fsrs_fields(fsrs_stability=1.7976931348623157e308))[0] == "degraded"
+    assert validator.classify_card_state(_fsrs_fields(fsrs_stability=1e10))[0] == "degraded"
+    assert validator.classify_card_state(_fsrs_fields(fsrs_stability=1e9))[0] == "normal"
+    assert validator.classify_card_state(_fsrs_fields(fsrs_stability=68949.18))[0] == "normal"
+
+
+def test_watermark_must_leave_room_for_successor():
+    """Codex round-8 HIGH#2: W=9400 曾判 normal, 但任何合法后继须
+    review_time > W 且 <= 9000(review 域上界) ⇒ 空集; W 恰为上界时
+    A3 的 W+1s 也立即越界。W 必须严格小于 review 上界。"""
+    assert validator.classify_card_state(_fsrs_fields(fsrs_last_review="9400-01-01T00:00:00Z"))[0] == "degraded"
+    assert validator.classify_card_state(_fsrs_fields(fsrs_last_review="9000-01-01T00:00:00Z"))[0] == "degraded"
+    assert validator.classify_card_state(_fsrs_fields(fsrs_last_review="8999-12-31T23:59:59Z"))[0] == "normal"
+    # fsrs_due 是调度产物, 用更宽的一般上界
+    assert validator.classify_card_state(_fsrs_fields(fsrs_due="9400-01-01T00:00:00Z"))[0] == "normal"
+
+
+def test_oversized_int_field_degrades_not_crash():
+    """Codex round-8 MEDIUM: 5000 位纯整数曾让 _int_lexeme 自身抛
+    ValueError(stdlib int_max_str_digits 限额), 未返回 degraded。"""
+    got, reason = validator.classify_card_state(_fsrs_fields(fsrs_state="9" * 5000))
+    assert got == "degraded", reason
+
+
 def test_integer_fields_use_int_lexeme():
     """Codex round-7 HIGH: float() 判整数会让 `fsrs_state: "1.0"` 通过, 而
     真实 bridge 的 int("1.0") 抛 ValueError (fsrs_bridge.py:106)。"""
@@ -678,6 +706,9 @@ def test_vault_config_parser_form_matrix(tmp_path):
         ("vault_id: first\n  second\n", None),  # plain scalar 折行 (PyYAML="first second")
         ("vault_id: old\ndescription: it's fine\nvault_id: new\n", None),  # 撇号 + 重复键
         ("vault_id : second\n", None),  # 键后空格 (PyYAML 合法键)
+        # round-8 HIGH#3: 窄计数正则漏掉 `vault_id :` 形态 ⇒ 误判"恰一处"并返回 fake
+        ("vault_id: fake\nvault_id : real\n", None),
+        ("vault_id : a\nvault_id : b\n", None),
         # 早前各轮反例: 一律不绑
         ('vault_id: "a"\nvault_id: "b"\n', None),  # 重复键
         ("vault_id: team#1\n", None),  # 含 # (裸词字符集外, 保守收窄)

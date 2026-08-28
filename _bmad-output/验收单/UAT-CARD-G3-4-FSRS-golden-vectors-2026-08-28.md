@@ -118,7 +118,7 @@
 |---|---|---|---|
 | 六 | **CONFIRMED-CLOSED** | 曲线门、结构门、重放门、manifest 锁均有效，未发现语义级漂移可全绿 | 无需动作 |
 | 六 | LOW | 每个 `retrievability.at` point 的**子键集未锁**，加入未知键仍可全绿（结构覆盖缺口，非语义漂移） | **已修**：point 子键集锁 + `expected` 类型门。反例现翻红（`g3-round6-counterexamples.txt` R6-4） |
-| 七 | MEDIUM | 负验证存证仍绑 `4de42f69`/旧 test SHA/`12 passed`，与当前 bytes 不符；UAT 称「已绑定当前 bytes」不实 | **已修**：负验证 v4 **在当前 HEAD 重跑**，存证 SHA 与当前 bytes 同步 |
+| 七 | MEDIUM | 负验证存证仍绑 `4de42f69`/旧 test SHA/`12 passed`，与当前 bytes 不符；UAT 称「已绑定当前 bytes」不实 | **已修**：负验证 v4 已重跑且存证 SHA 与当前 bytes 一致；⚠️ 存证头部记录的是**重跑当时的 HEAD**（后续整改提交后未再重跑——因 golden 三文件 bytes 未变，13/13 结论仍成立且经八轮独立复现） |
 | 七 | MEDIUM | `negverify_v4.sh` 只 grep `FAILED`，不校验 pytest ERROR/collection 数、mutation/restore 退出码，终态 SHA 只打印不比较 | **如实收窄声明**：本单不再宣称「exit code 能反映证据有效性」，改为「脚本按预期红门名逐变体校验；**pytest ERROR/collection 数与 mutation 退出码未纳入校验**，属证据工具的已知限度」。十门测试本身是裁判，负验证是佐证 |
 
 六轮整改后复跑：golden 门 **13 passed**、三文件合跑 **63 passed + 1 skipped**、ruff 全过。

@@ -172,7 +172,15 @@ TIMESTAMP_MAX = datetime(9500, 1, 1, tzinfo=timezone.utc)
 #: 可调度数值域 (§6.2 三态)。
 #: ⚠️ round-7: stability **无 36500 上界** — FSRS 封顶的是 interval 不是
 #: stability (实测连续 7 次 Easy 后 S=68949 > 36500, 原规则会误报合法卡)。
-#: 只要求有限正数; difficulty 才有 FSRS 定义域 [1,10]。
+#: ⚠️ round-8: 但"任意有限正数"又过宽 — S=1.797e308 判 normal 而真实
+#: bridge 抛 OverflowError(float infinity to integer)。
+#: 取 1e9 天(约 274 万年)作**语义合理性上界**, 方向 fail-closed:
+#:   - 技术可执行边界更高(实测 1e100 仍可执行, 1.797e308 才溢出);
+#:   - 但真实语义远低于此(Easy 链实测 7 万量级, maximum_interval 封顶
+#:     36500 天), 超过 1e9 天必是数据损坏;
+#:   - 因此 1e9~1e100 区间**虽技术可执行仍判 degraded** — 有意的保守偏差
+#:     (停下来要人工确认), 不是误判。
+STABILITY_MAX = 1e9
 DIFFICULTY_RANGE = (1.0, 10.0)
 #: 纯整数词法 (round-7: float() 判整数会让 "1.0" 通过, 而 bridge 的
 #: int("1.0") 实测抛 ValueError)
@@ -206,7 +214,11 @@ def _int_lexeme(value: object) -> Optional[int]:
     if isinstance(value, int):
         return value
     if isinstance(value, str) and _INT_LEXEME_RE.match(value.strip()):
-        return int(value.strip())
+        try:
+            return int(value.strip())
+        except ValueError:
+            # round-8 MEDIUM: 5000 位纯整数触发 stdlib int_max_str_digits 限额
+            return None
     return None
 
 
@@ -223,13 +235,24 @@ def classify_card_state(fields: dict) -> tuple[str, str]:
     if not present:
         return "new", "无任何 fsrs_* 字段 = 真新卡 (W = -inf, 全部事件 pending)"
 
-    for key in ("fsrs_last_review", "fsrs_due"):
+    # W(fsrs_last_review) 是"上一次 review 的时刻", 与 review_time 同域:
+    # 必须**严格小于** review 输入上界, 否则无任何合法后继事件可写
+    # (round-8 HIGH#2: W=9400 曾判 normal, 但后继须 > W 且 <= 9000 ⇒ 空集;
+    #  W 恰为上界时 A3 的 W+1s 也立即越界)。fsrs_due 是调度产物, 用更宽的一般上界。
+    for key, bound in (("fsrs_last_review", REVIEW_INPUT_MAX), ("fsrs_due", TIMESTAMP_MAX)):
         value = present.get(key)
         if not isinstance(value, str) or not value.strip():
             return "degraded", f"缺 {key} 或非字符串 — 无法证明 state 与水位线同源"
-        ok, why = _parse_ts(value.strip())
+        ok, why = _parse_ts(value.strip(), upper_bound=bound)
         if not ok:
             return "degraded", f"{key} 不可解析: {why}"
+        if key == "fsrs_last_review":
+            moment = _instant(value.strip())
+            if moment is not None and moment.astimezone(timezone.utc) >= REVIEW_INPUT_MAX:
+                return "degraded", (
+                    f"fsrs_last_review {value!r} 已达 review 域上界 {REVIEW_INPUT_MAX.date()} — "
+                    "不存在合法后继事件 (后继须 > W 且 <= 该上界)"
+                )
 
     raw_state = present.get("fsrs_state")
     state = _int_lexeme(raw_state)
@@ -251,6 +274,8 @@ def classify_card_state(fields: dict) -> tuple[str, str]:
             return "stability/difficulty 缺失或非有限数"
         if stability <= 0:
             return f"stability {stability} 须为正数 (0 会让调度器 ZeroDivisionError)"
+        if stability > STABILITY_MAX:
+            return f"stability {stability} 超出可执行上界 {STABILITY_MAX:g} 天 (极大值会让真实调度抛 OverflowError)"
         if not DIFFICULTY_RANGE[0] <= difficulty <= DIFFICULTY_RANGE[1]:
             return f"difficulty {difficulty} 越出 FSRS 定义域 {DIFFICULTY_RANGE}"
         return None
@@ -350,7 +375,10 @@ def _golden_manifest() -> Optional[dict]:
 #:   (3) 下一行不是缩进行 (排除 plain scalar 折行续接)。
 #: 代价: `vault_id: team#1` 等形态退化为不绑定 (保守: 失一层防护 != 错绑),
 #: 且 vault_id 本就是文件名安全 slug, 现网与部署模板均落在白名单形态内。
-_VAULT_ID_LINE_RE = re.compile(r"^vault_id:", re.MULTILINE)
+#: 计数用**宽**正则 (round-8 HIGH#3: `vault_id : real` 这种键后空格形态
+#: PyYAML 视为合法同名键, 原窄正则不计数 ⇒ `vault_id: fake` + `vault_id : real`
+#: 被当成"恰一处"并返回 fake, 而 PyYAML 真值是 real ⇒ 静默错绑)
+_VAULT_ID_ANY_RE = re.compile(r"^vault_id[ \t]*:", re.MULTILINE)
 _VAULT_ID_SIMPLE_DQ = re.compile(r'^vault_id:[ \t]+"([^"\\\n]+)"[ \t]*$')
 _VAULT_ID_SIMPLE_BARE = re.compile(r"^vault_id:[ \t]+([A-Za-z0-9_.\-]+)[ \t]*$")
 
@@ -369,7 +397,7 @@ def _vault_id_of(ledger_path: Path) -> Optional[str]:
     except (OSError, UnicodeDecodeError):
         return None
 
-    if len(_VAULT_ID_LINE_RE.findall(text)) != 1:
+    if len(_VAULT_ID_ANY_RE.findall(text)) != 1:
         return None  # 0 处 = 未声明; 2+ 处 = 无法可靠判定末项语义
 
     lines = text.splitlines()
