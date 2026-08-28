@@ -18,6 +18,7 @@
 契约文档: docs/learning-events-schema-v1.md
 """
 
+import builtins
 import importlib.util
 import json
 import re
@@ -647,7 +648,7 @@ def test_watermark_must_be_whole_second():
     assert got == "degraded" and "小数秒" in reason, reason
 
 
-def test_stability_executable_ceiling():
+def test_stability_semantic_ceiling():
     """Codex round-8 HIGH#1: 'any finite positive' 过宽 — S=1.797e308 曾判
     normal 而真实 bridge 抛 OverflowError(float infinity to integer)。
     ⚠️ round-9 措辞更正: 1e9 天是**语义合理性上界**(fail-closed), 不是技术
@@ -719,56 +720,73 @@ def test_schedulable_time_upper_bound():
     assert validator._parse_ts("9000-01-01T00:00:01Z", upper_bound=validator.REVIEW_INPUT_MAX)[0] is False
 
 
-def test_vault_config_parser_form_matrix(tmp_path):
-    """`.canvas-config.yaml` 的 vault_id **极简可证**解析形态矩阵。
+def _backend_vault_truth(text: str):
+    """复刻 backend/app/config.py:782-788 的 vault_id 判据 (真值面基准)。"""
+    import yaml  # noqa: PLC0415
 
-    round-7 终局决策: 手写 YAML 子集打不赢 (逐行状态机仍会对 plain scalar
-    折行、撇号、键后空格等合法 YAML 错绑) —— 改为只在形态确定无歧义时绑定:
-    ①全文件恰一处行首 vault_id: ②双引号无转义值或安全裸词 ③下一行非缩进。
-    其余一律不绑定 + WARN (**宁可不绑也不错绑**)。
+    try:
+        data = yaml.safe_load(text) or {}
+    except yaml.YAMLError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    value = data.get("vault_id")
+    return value.strip() if isinstance(value, str) and value.strip() else None
+
+
+def test_vault_id_parity_with_backend(tmp_path):
+    """vault_id 解析必须与 backend 的 `yaml.safe_load` 真值面**逐例等价**。
+
+    ⚠️ round-10 终局决策：此前五轮 (r5~r9) 反复出现同一类缺陷——手写 YAML
+    子集与 PyYAML 分叉导致**静默错绑**，每补一个形态就冒出下一个（引号键、
+    十六进制、下划线数字、-.inf、Unicode 转义键名、多行引号体…）。手写子集
+    追不上完整实现，方向不可能收敛。现改为走同一条解析路径，本测试逐例断言
+    两者相等——**任何一例分叉即红**。
+
+    形态集合覆盖 r5~r10 各轮点名的全部错绑反例 + 现网形态。
     """
     cases = [
-        # 白名单形态: 绑定
-        ('vault_id: "canvas_vault"\n', "canvas_vault"),
-        ('vault_id: "canvas_vault"\nsubject: cs-61b\nvault_display_name: "CS 61B"\n', "canvas_vault"),
-        ("vault_id: canvas_vault\n", "canvas_vault"),
-        ('vault_id: "中文库"\n', "中文库"),
-        ("vault_id: vault-2.0_x\n", "vault-2.0_x"),
-        # round-7 反例: 合法 YAML 但形态有歧义 ⇒ 保守不绑
-        ("vault_id: first\n  second\n", None),  # plain scalar 折行 (PyYAML="first second")
-        ("vault_id: old\ndescription: it's fine\nvault_id: new\n", None),  # 撇号 + 重复键
-        ("vault_id : second\n", None),  # 键后空格 (PyYAML 合法键)
-        # round-8 HIGH#3: 窄计数正则漏掉 `vault_id :` 形态 ⇒ 误判"恰一处"并返回 fake
-        ("vault_id: fake\nvault_id : real\n", None),
-        ("vault_id : a\nvault_id : b\n", None),
-        # round-9 HIGH#2: 引号键与 YAML 隐式类型
-        ('vault_id: fake\n"vault_id": real\n', None),  # PyYAML=real, 曾返回 fake
-        ("vault_id: fake\n'vault_id': real\n", None),
-        ("vault_id: true\n", None),  # PyYAML 得 bool, 不绑定避免真值面分叉
-        ("vault_id: 123\n", None),
-        ("vault_id: null\n", None),
-        ('# 注释里提到 vault_id 字样\nvault_id: "ok"\n', "ok"),  # 注释提及不计数
-        # 早前各轮反例: 一律不绑
-        ('vault_id: "a"\nvault_id: "b"\n', None),  # 重复键
-        ("vault_id: team#1\n", None),  # 含 # (裸词字符集外, 保守收窄)
-        ('vault_id: "a\\u0023b"\n', None),  # 含转义
-        ("vault_id: |\n  block\n", None),
-        ("vault_id: >-\n  folded\n", None),
-        ('vault_id: "unclosed\n', None),
-        ('  vault_id: "indented"\n', None),
-        ('other:\n  vault_id: "nested"\n', None),
-        ('VAULT_ID: "upper"\n', None),
-        ("vault_id:\n", None),
-        ('# vault_id: "commented"\n', None),
+        # round-10 点名
+        ("vault_id: 0x10\n", "十六进制 (PyYAML 得 int 16)"),
+        ("vault_id: 1_000\n", "下划线数字"),
+        ("vault_id: -.inf\n", "负无穷"),
+        ('vault_id: fake\n"vault_\\u0069d": real\n', "Unicode 转义键名"),
+        ('other: "x\nvault_id: fake\nmore"\n', "多行引号体内的列首 vault_id"),
+        # round-9 点名
+        ('vault_id: fake\n"vault_id": real\n', "双引号键"),
+        ("vault_id: fake\n'vault_id': real\n", "单引号键"),
+        ("vault_id: true\n", "YAML 隐式 bool"),
+        ("vault_id: 123\n", "隐式数字"),
+        ("vault_id: null\n", "隐式 null"),
+        # round-8 / 7 / 5 点名
+        ("vault_id: fake\nvault_id : real\n", "键后空格"),
+        ("vault_id: first\n  second\n", "plain scalar 折行"),
+        ("vault_id: old\ndescription: it's fine\nvault_id: new\n", "值内撇号 + 重复键"),
+        ('vault_id: "team#1"\n', "引号内 #"),
+        ("vault_id: team#1\n", "裸词含 #"),
+        ('vault_id: "a\\u0023b"\n', "双引号内转义"),
+        ("vault_id: |\n  block\n", "block scalar"),
+        ("vault_id: >-\n  folded\n", "folded scalar"),
+        ('vault_id: "unclosed\n', "未闭引号 (YAMLError)"),
+        # 常规与现网
+        ('vault_id: "canvas_vault"\nsubject: cs-61b\nvault_display_name: "CS 61B"\n', "现网形态"),
+        ("vault_id: canvas_vault\n", "安全裸词"),
+        ('vault_id: "中文库"\n', "中文值"),
+        ('  vault_id: "indented"\n', "缩进"),
+        ('other:\n  vault_id: "nested"\n', "嵌套"),
+        ('VAULT_ID: "upper"\n', "大小写"),
+        ("vault_id:\n", "空值"),
+        ('# 注释提到 vault_id\nvault_id: "ok"\n', "注释提及 + 真键"),
     ]
-    for index, (content, expected) in enumerate(cases):
+    for index, (content, desc) in enumerate(cases):
         config_dir = tmp_path / f"case{index}"
         config_dir.mkdir()
         (config_dir / ".canvas-config.yaml").write_text(content, encoding="utf-8")
         got = validator._vault_id_of(config_dir / "learning_events.jsonl")
-        assert got == expected, f"{content!r} → {got!r}, 期望 {expected!r}"
+        truth = _backend_vault_truth(content)
+        assert got == truth, f"[{desc}] validator={got!r} != backend 真值 {truth!r}\n{content!r}"
 
-    # 非法 UTF-8 配置 → None (不炸)
+    # 非法 UTF-8 → None (不炸)
     bad_utf8 = tmp_path / "badutf8"
     bad_utf8.mkdir()
     (bad_utf8 / ".canvas-config.yaml").write_bytes(b'vault_id: "\xff\xfe"\n')
@@ -776,6 +794,24 @@ def test_vault_config_parser_form_matrix(tmp_path):
 
     # 无配置文件 → None (独立可跑前提)
     assert validator._vault_id_of(tmp_path / "nowhere" / "learning_events.jsonl") is None
+
+
+def test_vault_id_degrades_without_pyyaml(tmp_path, monkeypatch):
+    """PyYAML 不可用时 (校验器被拷到纯 stdlib 环境) 降级为不绑定 + WARN,
+    校验器其余功能不受影响。"""
+    config_dir = tmp_path / "novyaml"
+    config_dir.mkdir()
+    (config_dir / ".canvas-config.yaml").write_text('vault_id: "x"\n', encoding="utf-8")
+
+    real_import = builtins.__import__
+
+    def _blocked(name, *args, **kwargs):
+        if name == "yaml":
+            raise ImportError("simulated: PyYAML absent")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", _blocked)
+    assert validator._vault_id_of(config_dir / "learning_events.jsonl") is None
 
 
 def test_rating_from_grade_parity_with_bridge():

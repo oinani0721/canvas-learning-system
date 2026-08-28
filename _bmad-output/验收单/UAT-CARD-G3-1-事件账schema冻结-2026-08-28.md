@@ -29,14 +29,14 @@
 
 | 裁判 | 结果 |
 |---|---|
-| 契约测试 `backend/tests/regression/test_learning_events_schema_contract.py` | **53 passed + 1 skipped**（本文件单跑口径，九轮整改后；skip = 仓内 vault 根无账本的 worktree 环境，主仓自动生效。与 golden 门 + 既有账本测试合跑 = **72 passed + 1 skipped**） |
+| 契约测试 `backend/tests/regression/test_learning_events_schema_contract.py` | **54 passed + 1 skipped**（本文件单跑口径，十轮整改后；skip = 仓内 vault 根无账本的 worktree 环境，主仓自动生效。与 golden 门 + 既有账本测试合跑 = **73 passed + 1 skipped**） |
 | **真实 producer 执行**（Codex 一轮 HIGH 整改） | vault 三 skill 写点的 python 代码**从 SKILL.md 逐字提取执行**（ai-linked-doc 单行模板 / start-exam-board PYEOF 块 / quiz-answer 评分链账本段；仅路径常量重定向 tmp fixture），产物过校验器 + 幂等重放断言；backend 侧按 5 调用点实参形状经真实 `append_event` 写入后全过 |
 | 既有账本回归 `test_learning_event_log.py` | 6 passed（零改动） |
 | 校验脚本 vs 三 fixture | 合法 → exit 0 / 缺字段 → exit 1（点名 `effective_at`）/ 重复 event_id → exit 1（点名首见行号）（存证 `审查/g3-1-evidence/g3-1-fixture-validation.txt`） |
 | 校验脚本 vs **现网账本**（当前 23 行，用户仍在产生新事件） | **exit 0** 零 WARN 零 FAIL，且 sha256 运行前后一致（只读证明；存证按每轮整改重生成，含 HEAD/validator SHA/完整命令） |
 | 现网写点 0 误报 | 按 8 个写点 1:1 建模的 `real_shapes.jsonl`（含 Z 后缀时间戳/紧凑分隔符/中文 event_id）全过 |
 | 边界判定 | 截断行如实报 FAIL / 未知顶层字段拒绝 / naive 时间戳拒绝 / **NaN·Infinity 非标准常量拒绝（RFC 8259 严格）** / **行内重复键拒绝（json.loads 静默取后者的歧义面）** / 未知 event_version 走 WARN 前向兼容通道不误杀 |
-| 漂移锁 | EVENT_VERSION=1、9 类白名单、7 键形状、校验器复制份 == 真相源（四路契约测试）+ **`rating_from_grade` 与 `fsrs_bridge` 逐档等价**（千点网格 + 三档分界两侧）+ **W 与 review_time 的瞬间等价关系**（bridge `_iso` 写出格式改变即红）+ **`.canvas-config.yaml` 解析 27 形态矩阵**（极简可证策略；含 round-5~9 各轮**点名的**错绑反例，逐条在矩阵中可查——不宣称覆盖 YAML 全部表示法） |
+| 漂移锁 | EVENT_VERSION=1、9 类白名单、7 键形状、校验器复制份 == 真相源（四路契约测试）+ **`rating_from_grade` 与 `fsrs_bridge` 逐档等价**（千点网格 + 三档分界两侧）+ **W 与 review_time 的瞬间等价关系**（bridge `_iso` 写出格式改变即红）+ **`.canvas-config.yaml` vault_id 与 backend 真值面逐例等价**（改用 PyYAML 同源解析；27 形态含 round-5~10 各轮点名反例，逐例断言 `validator == backend`，任一分叉即红） |
 | 铁律遵守 | `learning_event_log.py` **零改动**；git diff 只含新增文件 + CLAUDE.md/architecture.md 引用行 + CURRENT_TASK；未新建任何第二套账本 |
 | ruff | 本卡交付文件 All checks passed（`backend/scripts/` + 契约测试；**范围声明**：仓库其余既有告警不在本卡范围） |
 
@@ -201,6 +201,17 @@
 | 三 | — | 本单称"21 形态含 round-5/6/7/8 **全部**错绑反例"不成立 | **已收窄**：改为"含各轮**点名的**错绑反例，逐条可查——不宣称覆盖 YAML 全部表示法" |
 
 九轮整改后复跑：契约测试 **53 passed + 1 skipped**、三文件合跑 **72 passed + 1 skipped**、现网账本（23 行）exit 0 零 WARN 且 `vault_id='canvas_vault'`、round-9 全部可机械复验反例通过（`审查/g3-1-evidence/g3-round9-counterexamples.txt`）。
+
+### 十轮复核处置（存档 `审查/codex-review-CARD-G3-1-G3-4-round10-2026-08-29.md`；**BLOCKER 保持清零**，3 HIGH + 1 MEDIUM，均属本卡）
+
+| # | 级别 | 十轮发现 | 处置 |
+|---|---|---|---|
+| 一 | HIGH | 代码已闭合（排他上界实测正确），但**冻结 schema 的 A7 仍写 `review_time ≤ 9000` 并称该端点合法**，与实现和 UAT 的"严格小于"宣称矛盾 | **已修（文档对齐）**：A7 改写为"**review 域上界（两者共用，且须严格小于）**：必须 `< 9000-01-01Z`（该端点本身不合法）"，并写明闭包理由与实测（最后合法秒经 bridge 产出 `due=9000-01-01T00:09:59Z`，分类 normal） |
+| 二 | **HIGH** | vault_id **仍可静默错绑**：`0x10`（PyYAML 得 int 16）、`1_000`、`-.inf`、`"vault_\u0069d": real`（Unicode 转义键名）、多行双引号体内的列首 `vault_id:`——两例构造完整账本后真实 CLI **exit 0 零 WARN** | **已修（终局决策：改用 PyYAML）**。这是第 5 轮在同一问题上被抓，根因是**手写 YAML 子集对抗完整 PyYAML，每补一形态就冒出下一个，方向不可能收敛**。现改为走**与 backend 完全同一条解析路径**（`yaml.safe_load` + `isinstance(str)`，见 `config.py:782-788`），真值面按定义一致；PyYAML 不可用时降级为不绑定 + WARN（校验器其余功能不受影响）。**17 形态实测与 backend 真值面分叉数 = 0**，测试改为逐例断言 `validator == backend`（任一分叉即红） |
+| 三 | **HIGH** | proof 仍不能唯一验真：①六键**值类型未冻结**（`fsrs_state=2` vs `"2"`、`S=10` vs `10.0` 都判 normal 但 hash 不同）；②`new_card` **只是自报无 genesis 锚**（同一账本在"此前真新卡"与"此前有未入账 Review 态"两世界折出不同结果）；③区间条款混用复合序与行号端点，未定折叠顺序 | **已修（契约）**：①**值类型逐键冻结**（时刻为 UTC 整秒 `Z` 串、state/step 为 JSON number 整数、S/D 为 float 即使整数值也写 `10.0`）；②`new_card` 必须附 **`genesis_evidence`**（`node_frontmatter_hash` 证明当前不含任何 `fsrs_*` 字段 + `first_event_line` 使区间左端点可核验），缺一即不可证明；③**折叠按行号升序** + **单调性硬门**（区间内 `review_time` 须随行号严格递增，否则说明有未标 `out_of_order` 的乱序行 ⇒ proof 不可证明）——两种折叠解释在通过该门的区间上必然一致 |
+| 四 | MEDIUM | 测试仍名为 `test_stability_executable_ceiling`，与已改为"语义合理性上界"的判据冲突（DD-13 名实一致） | **已修**：改名 `test_stability_semantic_ceiling` |
+
+十轮整改后复跑：契约测试 **54 passed + 1 skipped**、三文件合跑 **73 passed + 1 skipped**、现网账本（23 行）exit 0 零 WARN 且 `vault_id='canvas_vault'`（经 PyYAML 与 backend 同源）、round-10 全部点名反例对抗复验通过（`审查/g3-1-evidence/g3-round10-counterexamples.txt`）。
 
 ## 六、移交登记
 

@@ -1,13 +1,11 @@
-== live ledger validation evidence (validator round-10, SHA-bound) ==
-date: 2026-08-28T16:22:07Z
-git HEAD: 2edd440505c9108c6a37baea01b831e4a4e2ed46  # round-9 整改待提交, 以下列 sha256 为准
-python: Python 3.14.4
-validator sha256:     dfaa13dd75808a48e7a41065bd078e172fcc14129f307ff188c974e0e901607b
-contract test sha256: be996ea87848a1abbfb56980c87375c5c064e3295dd3736ef9ac78dc0ec4e32e
-完整命令 (可逐字复制重跑):
-  cd /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s3-events
-  backend/.venv/bin/python backend/scripts/validate_learning_events.py /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/learning_events.jsonl
-解析出的 vault_id: 'canvas_vault'
+== live ledger validation evidence (validator round-11, SHA-bound) ==
+date: 2026-08-28T16:49:35Z
+git HEAD: b85a168ad750343221892be4cb5d04e0cebd496f  # round-10 整改待提交, 以下列 sha256 为准
+python: Python 3.14.4; PyYAML: 6.0.3
+validator sha256:     3fb478adeb24820d2b6c8d92529d241f98c5133cf8a92d024982e793ab11f51c
+contract test sha256: 124c0ccc52a88113ce9347e0da493d2d356cde764e8e2576af4592c0e3ace2d8
+完整命令: cd <worktree> && backend/.venv/bin/python backend/scripts/validate_learning_events.py /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/learning_events.jsonl
+vault_id (经 PyYAML, 与 backend 同源): 'canvas_vault'
 -- ledger 行数 --
       23
 -- shasum before --

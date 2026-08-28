@@ -140,7 +140,9 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
 **整秒性判定同样按 UTC 归一化后计**：A5 要求的"整秒"在 UTC 归一化后保持（offset 只到分钟级；含秒的 offset 已被 §三 受理语法拒绝）。
 
 **A7 时间上界，分两档（round-6 MEDIUM 提出，round-7 分档）**：
-- **review 输入上界**：`payload.review_time` 必须 ≤ **9000-01-01T00:00:00Z**。理由：真实调度器会在该时刻上叠加最长 `maximum_interval = 36500` 天（≈100 年）算出新 `due`，而 A3 的等时消解还要 `+1s`——`9999-12-31T23:59:59Z` 会让二者都抛 `OverflowError`。
+- **review 域上界（`review_time` 与 `fsrs_last_review` 共用，且须严格小于）**：两者必须 **< 9000-01-01T00:00:00Z**（该端点本身**不合法**）。
+  - 基础理由：真实调度器会在复习时刻上叠加最长 `maximum_interval = 36500` 天（≈100 年）算出新 `due`，A3 的等时消解还要 `+1s`——`9999-12-31T23:59:59Z` 会让二者都抛 `OverflowError`。
+  - **为什么是"严格小于"而非 `≤`（round-9 闭包 + round-10 文档对齐）**：`review_time` 会成为下一个 `W`，而 `W` 必须留出后继空间（后继须 `> W` 且仍在域内）。若端点取 `≤`，则 `review_time = 9000-01-01Z` 是合法输入却会写出一个**没有任何合法后继**的 `W` ⇒ 合法事件确定性制造残缺卡。两侧同界且同为排他，闭包才成立：**合法输入产出的状态必然合法**（实测最后合法秒 `8999-12-31T23:59:59Z` 经真实 bridge 产出 `due=9000-01-01T00:09:59Z`，分类 normal）。
 - **一般时间戳上界**：`recorded_at`/`effective_at`/`fsrs_due` 等 ≤ **9500-01-01T00:00:00Z**（只拦 UTC 归一化本身会溢出的极端值）。⚠️ round-7 反例：若把 review 输入的保守上界通用到所有字段，合法的 `review_time = 9000-01-01Z` 经调度产出的 `due = 9000-01-09Z` 会**反被判 degraded**。
 - 两档留出的余量（≈7000 年）远超任何真实用法，对现网零影响。校验器按字段分别强制。
 
@@ -207,14 +209,29 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
       | `origin` | 起点，二选一：`{"kind": "new_card"}`（真新卡，链终止于此，折叠区间左端点取行号 0）或 `{"kind": "snapshot", "state": {...}, "snapshot_hash": "...", "ancestor_proof": {...}}`（三条等式约束见下） |
       | `result_hash` | 重建出的**状态对象**（恰六键，见下方"状态对象的唯一形状"）的 canonical JSON 的 UTF-8 字节 sha256——供他人独立复算比对 |
 
-    - **状态对象的唯一形状（round-9 HIGH#3）**：proof 里出现的每个"状态"（`origin.snapshot.state`、`result` 等）都是**恰含 `fsrs_bridge.py:44-46` FIELD_ORDER 六个键的 JSON object**：`fsrs_due` / `fsrs_state` / `fsrs_step` / `fsrs_stability` / `fsrs_difficulty` / `fsrs_last_review`。
+    - **状态对象的唯一形状（round-9 HIGH#3，round-10 补值类型）**：proof 里出现的每个"状态"（`origin.snapshot.state`、`result` 等）都是**恰含 `fsrs_bridge.py:44-46` FIELD_ORDER 六个键的 JSON object**：`fsrs_due` / `fsrs_state` / `fsrs_step` / `fsrs_stability` / `fsrs_difficulty` / `fsrs_last_review`。
+      **值类型必须归一化后再序列化（round-10 HIGH）**——否则 `{"fsrs_state": 2, "fsrs_stability": 10}` 与 `{"fsrs_state": "2", "fsrs_stability": 10.0}` 都能通过三态判别却产生**不同 hash**，proof 失去唯一性：
+
+      | 键 | canonical 类型 |
+      |---|---|
+      | `fsrs_due` / `fsrs_last_review` | JSON string，**UTC 整秒 `Z` 形式**（`%Y-%m-%dT%H:%M:%SZ`，与 `fsrs_bridge._iso()` 写出格式一致） |
+      | `fsrs_state` | JSON number（整数），取值 1/2/3——不得为字符串 |
+      | `fsrs_step` | JSON number（非负整数）**或该键省略**（Review 态省略，见三态表）——不得为 `null`、不得为字符串 |
+      | `fsrs_stability` / `fsrs_difficulty` | JSON number（**float**，即使整数值也序列化为 `10.0` 而非 `10`）——不得为字符串 |
       ⚠️ **不再单列 `W`**——`W` 就是该对象里的 `fsrs_last_review`（round-9 指出："six_fields + W"的写法会让同一信息有两处表示，可不一致）。凡文中说"六字段与 `W`"，均指该单一对象。
       `result_hash` / `snapshot_hash` = 该对象的 `json.dumps(..., sort_keys=True, ensure_ascii=False, separators=(",",":"))` 的 **UTF-8 字节** 的 sha256（编码与分隔符一并冻结）。
     - **`origin.kind == "snapshot"` 的绑定（round-8 提出，round-9 加等式约束）**：必须含 `{state, snapshot_hash, ancestor_proof}`，且**以下三条等式全部成立**，否则不可证明：
       1. `snapshot_hash == sha256(canonical(state))`（自洽）；
       2. `snapshot_hash == ancestor_proof.result_hash`（该快照必须**正是**祖先 proof 的产出，而非另一份同形对象）；
       3. `state.fsrs_last_review == ancestor_proof.review_time`（祖先折叠到的事件时刻，即为该快照的水位线）。
-    - **折叠区间的闭开（round-9 HIGH#3）**：本层 proof 折叠的事件集合 = 账本中该节点、`schema_ext=review/1`、未标 `out_of_order`、且按 `(review_time, 行号)` 复合序落在 **`(ancestor_proof.cursor_line, cursor_line]`** 内的全部事件——**左开右闭，按行号界定**（不用时刻界定，因同瞬间不同行会有两种解释）。`origin.kind == "new_card"` 时左端点取 `0`（即从账本首行起）。
+    - **折叠区间与折叠顺序（round-9 HIGH#3，round-10 补顺序与单调性）**：
+      - **区间**：账本中该节点、`schema_ext=review/1`、未标 `out_of_order`、且**行号**落在 `(ancestor_proof.cursor_line, cursor_line]` 内的全部事件——**左开右闭、按行号界定**（不用时刻界定，因同瞬间不同行会有两种解释）。`origin.kind == "new_card"` 时左端点取 `0`。
+      - **顺序**：按**行号升序**折叠（账本的物理追加序即因果序——A2 保证写入时状态已是最新）。
+      - **单调性硬门（round-10）**：区间内的 `review_time` 必须**随行号严格递增**。若出现"行号递增而 `review_time` 不增"的行，说明该行是迟到/乱序事件却**未标 `out_of_order`** ⇒ 账本自身不自洽，**proof 不可证明**（须先由人工裁定该行的归属，而非由工具选一种顺序）。这消除了"按行号折"与"按时刻折"两种解释的分歧——两者在通过该门的区间上必然一致。
+    - **`origin.kind == "new_card"` 的 genesis 锚（round-10 HIGH）**：`new_card` 不能只是自报——同一份账本在"此前是真新卡"与"此前已有未入账的 Review 状态"两个世界里会折出不同结果（Learning vs Review），proof 必须能区分。因此该分支**必须附** `genesis_evidence`：
+      - `node_frontmatter_hash`：重建时刻该节点 frontmatter 的**全文 sha256**，且此刻它**不含任何 `fsrs_*` 字段**（即三态判别为 `new`）——证明"当前确实是未被推进过的起点"；
+      - `first_event_line`：该节点在账本中最早一条事件的行号，且 `first_event_line > 0`；折叠区间左端点即取 `first_event_line - 1`（而非笼统的 0），使区间起点也可核验；
+      - 二者缺一 ⇒ 不可证明，必须改走 `snapshot` 分支或人工裁定（§"不可证明时必须继续冻结"）。
     - **链的终止与防循环（round-8）**：`ancestor_proof` 链必须**终止于 `origin.kind == "new_card"`**；链上每一层的 `(vault_id, node_id)` 必须相同，且 `cursor_line` 必须**严格递减**（保证有限步终止、不可自引用）。任一条不满足 ⇒ 不可证明。
     - **`prefix_ends_without_lf` 的取值规则（round-9）**：类型为 boolean。E 所在行**有**终止 LF 时该键**必须省略**（不得写 `false`）；**无**终止 LF（E 是文件末行且文件不以 LF 结尾）时**必须**写 `true`。这样"省略"与"false"不并存，比较无歧义。
     - **`degraded:*` 哨兵行不参与自动证明链**：其 `fsrs_library_version`/`params_hash` 是哨兵而非算法身份，无法确定性复算——含此类事件的区间必须由人工裁定。

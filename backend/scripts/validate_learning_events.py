@@ -382,64 +382,40 @@ def _golden_manifest() -> Optional[dict]:
 #:   (3) 下一行不是缩进行 (排除 plain scalar 折行续接)。
 #: 代价: `vault_id: team#1` 等形态退化为不绑定 (保守: 失一层防护 != 错绑),
 #: 且 vault_id 本就是文件名安全 slug, 现网与部署模板均落在白名单形态内。
-#: 疑似 vault_id 键的计数 (round-9 HIGH#2): 宽正则只覆盖裸键后空白, 漏掉
-#: **引号键** — `vault_id: fake` + `"vault_id": real` 曾被判"恰一处"并返回
-#: fake, 而 PyYAML/backend 真值是 real ⇒ 静默错绑。现改为: 逐行去首空白后,
-#: 只要以 vault_id / "vault_id" / 'vault_id' 开头且后随可选空白 + 冒号,
-#: 即计一次 (注释行以 # 开头, 行内提及不计 —— 现网配置注释里的 vault_id
-#: 字样因此不会误计)。出现 != 1 次一律不绑定。
-_VAULT_ID_KEYISH_RE = re.compile(r"""^(?:vault_id|"vault_id"|'vault_id')[ \t]*:""")
-#: YAML 隐式类型字面量 (round-9): `vault_id: true` PyYAML 得 bool 而非字符串
-#: "true" —— 裸词值命中这些形态时不绑定, 避免与 backend 的真值面分叉
-_YAML_IMPLICIT_RE = re.compile(
-    r"^(?:true|false|null|yes|no|on|off|~|[+-]?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?|\.(?:inf|nan))$",
-    re.IGNORECASE,
-)
-#: 取值仍用严格白名单 (只在形态确定无歧义时绑定)
-_VAULT_ID_SIMPLE_DQ = re.compile(r'^vault_id:[ \t]+"([^"\\\n]+)"[ \t]*$')
-_VAULT_ID_SIMPLE_BARE = re.compile(r"^vault_id:[ \t]+([A-Za-z0-9_.\-]+)[ \t]*$")
-
-
 def _vault_id_of(ledger_path: Path) -> Optional[str]:
     """账本所在 vault 的声明 vault_id (同目录 .canvas-config.yaml)。
 
-    极简可证解析: 形态不完全确定时返回 None, 调用方降级为不绑定 + WARN
-    —— **宁可不绑也不错绑**。三重条件全满足才绑定:
-      (1) 全文件恰有一处"疑似 vault_id 键"(含引号键形态);
-      (2) 该行匹配严格白名单 (双引号无转义值 / 安全裸词);
-      (3) 下一行非缩进 (排除 plain scalar 折行), 且裸词值不是 YAML 隐式类型。
+    ⚠️ **round-10 终局决策：改用 PyYAML，与 backend 完全同源。**
+    此前五轮（r5~r9）反复出现同一类缺陷：手写 YAML 子集与 backend 的
+    `yaml.safe_load` 真值面分叉，导致**静默错绑**（`"vault_id": real` 引号键、
+    `vault_id: 0x10` 十六进制、`1_000` 下划线数字、`-.inf`、Unicode 转义键名
+    `"vault_\u0069d"`、多行引号体内的列首 `vault_id:` …）。每补一个形态就
+    出现下一个——手写子集追不上完整实现，方向不可能收敛。
+
+    现改为：**走与 backend 同一条解析路径**（`yaml.safe_load` + `isinstance(str)`，
+    见 `backend/app/config.py:782-788`），真值面按定义一致。
+    PyYAML 不可用时（校验器被拷到纯 stdlib 环境独立运行）**不绑定 + WARN**——
+    校验器其余全部功能不受影响，只是少一层 vault 身份防护。
     """
     config = ledger_path.parent / ".canvas-config.yaml"
     if not config.is_file():
         return None
     try:
-        text = config.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
+        import yaml  # noqa: PLC0415 — 可选依赖, 不可用时降级
+    except ImportError:
         return None
-
-    lines = text.splitlines()
-    keyish = [i for i, line in enumerate(lines) if _VAULT_ID_KEYISH_RE.match(line.lstrip())]
-    if len(keyish) != 1:
-        return None  # 0 处 = 未声明; 2+ 处 = 无法可靠判定 PyYAML 的末项语义
-
-    index = keyish[0]
-    line = lines[index]
-    if line != line.lstrip():
-        return None  # 唯一那处是缩进键 ⇒ 非顶层
-    # 下一行缩进 => plain scalar 折行续接, 值不止本行
-    if index + 1 < len(lines) and lines[index + 1][:1] in (" ", "\t"):
+    try:
+        with open(config, encoding="utf-8") as handle:
+            data = yaml.safe_load(handle) or {}
+    except (OSError, UnicodeDecodeError, yaml.YAMLError):
         return None
-
-    match = _VAULT_ID_SIMPLE_DQ.match(line)
-    if match:
-        return match.group(1) or None
-    match = _VAULT_ID_SIMPLE_BARE.match(line)
-    if match:
-        value = match.group(1)
-        if _YAML_IMPLICIT_RE.match(value):
-            return None  # PyYAML 会解析成 bool/null/数字, 与字符串绑定分叉
-        return value or None
-    return None  # 形态不在白名单内
+    if not isinstance(data, dict):
+        return None
+    value = data.get("vault_id")
+    # 与 backend 同判据: 非空 str 才采信 (数字/bool/null 等一律不绑定)
+    if not isinstance(value, str) or not value.strip():
+        return None
+    return value.strip()
 
 
 def _rating_from_grade_norm(grade_norm: float) -> int:

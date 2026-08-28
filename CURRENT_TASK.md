@@ -2,21 +2,23 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**本车道状态**（2026-08-29 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **九轮 Codex 后 BLOCKER 清零；G3-4 已 CONFIRMED-CLOSED**）:
-- ✅ CARD-G3-4：**六~九轮连续 CONFIRMED-CLOSED**——十门 13 passed，声明范围内无语义级漂移可全绿
-- ✅ CARD-G3-1（`63e034ec` + 八笔整改 + 九轮整改待提交）：契约测试 **53 passed + 1 skipped**，
-  三文件合跑 **72 passed + 1 skipped**。**BLOCKER 连续两轮清零**，累计处置 2B+33H+41M。本轮要点：
-  **域闭包**（合法 review_time 曾产出立即被判 degraded 的 W——两者现同域同界且均须严格小于）、
-  **vault_id 键计数覆盖引号键 + 排除 YAML 隐式类型**（`"vault_id": real` 曾让计数误判并错绑 fake）、
-  **proof schema 唯一化**（状态对象恰六键不再单列 W / snapshot 三条等式 / 折叠区间按行号左开右闭 /
-  `prefix_ends_without_lf` 省略与 false 不并存）、`_finite_number` 超大整数 fail-closed
+**本车道状态**（2026-08-29 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **十轮 Codex；BLOCKER 连续三轮清零；G3-4 已 CONFIRMED-CLOSED**）:
+- ✅ CARD-G3-4：**六~十轮连续 CONFIRMED-CLOSED**——十门 13 passed，声明范围内无语义级漂移可全绿
+- ✅ CARD-G3-1（`63e034ec` + 九笔整改 + 十轮整改待提交）：契约测试 **54 passed + 1 skipped**，
+  三文件合跑 **73 passed + 1 skipped**。累计处置 2B+36H+45M。本轮关键：
+  **vault_id 改用 PyYAML 与 backend 同源**——此前五轮（r5~r9）反复被抓同一类静默错绑，根因是
+  手写 YAML 子集追不上完整 PyYAML；现走 `yaml.safe_load` + `isinstance(str)` 同一路径，
+  **17 形态实测分叉数 = 0**，测试改为逐例断言 `validator == backend`；
+  另修 A7 文档与排他实现对齐、proof 值类型逐键冻结 + `genesis_evidence` 锚 + 折叠单调性硬门
 - ⛔ 移交（schema §九 逐条登记）：①test.yml 白名单 +2 测试 + root requirements paths（S8 独占；
-  **CI DEFERRED/NOT-EXECUTED**）；②**G3-2 五项**：parsed 查重、bridge 时间口径三项、9 类注释、
-  reducer 精度常量与 blob hash、`fsrs_step: null` 文本解析；③**G3-3 七项**（sidecar 锁+CAS 接管、
+  **CI DEFERRED/NOT-EXECUTED**）；②**G3-2 五项**（parsed 查重、bridge 时间口径三项、9 类注释、
+  reducer 精度常量与 blob hash、`fsrs_step: null` 文本解析）；③**G3-3 七项**（sidecar 锁+CAS 接管、
   账本锁内查重与落盘校验、锁内重读 W、完整 fsync、增量重放、duplicate envelope 门）；
   ④tips.py 两条 → 独立 micro-patch
-- 纪律守住：learning_event_log.py/fsrs_manager.py 及全部 in-flight 锁定文件零改动（九轮 blob 复核在案）；不 push
-- 待办：九轮整改提交（第十笔）→ Codex 十轮复核 → 用户验收两单
+- ⚠️ 新增依赖声明：校验器的 vault_id 绑定层需 PyYAML（backend venv 已有 6.0.3）；
+  纯 stdlib 环境降级为不绑定 + WARN，其余功能不受影响
+- 纪律守住：learning_event_log.py/fsrs_manager.py 及全部 in-flight 锁定文件零改动（十轮 blob 复核在案）；不 push
+- 待办：十轮整改提交（第十一笔）→ Codex 十一轮复核 → 用户验收两单
 
 ---
 
