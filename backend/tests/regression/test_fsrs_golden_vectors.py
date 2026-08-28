@@ -186,6 +186,33 @@ def test_manifest_metadata_frozen():
     assert MANIFEST["parameter_count"] == 21
 
 
+def test_manifest_key_set_and_provenance_frozen():
+    """round-4 LOW: manifest 的 card/frozen_on/generator 与完整键集未锁 —
+    出处字段被改写会让基线来源不可追溯。"""
+    assert MANIFEST["card"] == "CARD-G3-4 (BATCH-2026-08-28-第五批)"
+    assert MANIFEST["frozen_on"] == "2026-08-28"
+    assert MANIFEST["generator"] == "backend/scripts/generate_fsrs_golden_vectors.py"
+    assert set(MANIFEST.keys()) == {
+        "algorithm",
+        "base_datetime",
+        "card",
+        "card_id",
+        "comparison_tolerance",
+        "frozen_on",
+        "generator",
+        "library",
+        "library_version",
+        "manifest_version",
+        "parameter_count",
+        "params_hash",
+        "rating_values",
+        "scheduler_config",
+        "state_values",
+        "timezone",
+    }, "manifest 键集变化 — 须评审重冻结"
+    assert set(GOLDEN.keys()) == {"library_version", "params_hash", "retrievability", "vectors"}
+
+
 def test_scheduler_config_non_parameter_fields_frozen():
     """Codex round-3 HIGH: 只锁 21 个 parameters 时, 把 desired_retention
     0.9→0.8 并重算 manifest/vectors/hash 可自洽伪装 (11 passed 全绿) —
@@ -235,9 +262,11 @@ def test_matrix_structure_frozen():
         assert v["id"] == f"{scenario}__{final_rating}", (
             f"{v['id']}: id 必须 == scenario__真实最终rating (实为 {scenario}__{final_rating})"
         )
-        assert v["state_before_final_review"] == expected_state, (
-            f"{v['id']}: 声明前态 {v['state_before_final_review']} != 字面锁 {expected_state}"
+        state_before = v["state_before_final_review"]
+        assert isinstance(state_before, int) and not isinstance(state_before, bool), (
+            f"{v['id']}: state_before_final_review 须为 int (bool 与 1 相等会静默通过)"
         )
+        assert state_before == expected_state, f"{v['id']}: 声明前态 {state_before} != 字面锁 {expected_state}"
         actual_prefix = tuple(s["rating"] for s in v["steps"][:-1])
         assert actual_prefix == expected_prefix, (
             f"{v['id']}: 前缀 rating 序列 {actual_prefix} != 场景 skeleton {expected_prefix}"
@@ -314,12 +343,45 @@ def test_all_golden_vectors_replay_exact():
     assert not failures, "golden 向量重放偏离 (依赖漂移?):\n" + "\n".join(failures)
 
 
+#: retrievability 曲线 skeleton 字面锁 (round-4 HIGH#5): 历史 rating 序列 +
+#: 采样点相对末态 due 的天偏移。原实现只查三点升序唯一并信任 JSON 自带
+#: steps/at, 把历史改成 Easy@T0、采样改 due+1/+2/+3 并同步 expected 仍全绿。
+RETRIEVABILITY_PREFIX = ("good", "good")
+RETRIEVABILITY_OFFSET_DAYS = (0, 7, 30)
+
+
 def test_retrievability_curve_matches_golden():
     golden = GOLDEN["retrievability"]
-    card = _replay(golden["steps"])
+
+    # skeleton: 历史 rating 序列与时刻链 (首步 base_datetime, 次步前一步 due)
+    actual_prefix = tuple(s["rating"] for s in golden["steps"])
+    assert actual_prefix == RETRIEVABILITY_PREFIX, (
+        f"retrievability 历史 rating 序列 {actual_prefix} != 字面锁 {RETRIEVABILITY_PREFIX}"
+    )
     scheduler = _build_scheduler()
-    for point in golden["at"]:
-        actual = scheduler.get_card_retrievability(card, datetime.fromisoformat(point["current_datetime"]))
-        assert _close(actual, point["expected"]), (
-            f"retrievability@{point['current_datetime']}: {actual} != {point['expected']}"
+    card = Card(card_id=MANIFEST["card_id"], due=datetime.fromisoformat(MANIFEST["base_datetime"]))
+    for i, step in enumerate(golden["steps"]):
+        expected_at = datetime.fromisoformat(MANIFEST["base_datetime"]) if i == 0 else card.due
+        assert datetime.fromisoformat(step["review_at"]) == expected_at, (
+            f"retrievability 第 {i} 步时刻 {step['review_at']} != skeleton 期望 {expected_at.isoformat()}"
         )
+        card, _ = scheduler.review_card(card, RATING_BY_NAME[step["rating"]], expected_at)
+
+    # card 快照必须与真实重放一致 (原实现完全不读该字段, 可换成任意对象)
+    snapshot = golden["card"]
+    assert _close(card.stability, snapshot["stability"])
+    assert _close(card.difficulty, snapshot["difficulty"])
+    assert card.due.isoformat() == snapshot["due"]
+    assert (card.last_review.isoformat() if card.last_review else None) == snapshot["last_review"]
+    assert int(card.state) == snapshot["state"] and not isinstance(snapshot["state"], bool)
+    assert card.step == snapshot["step"]
+
+    # 采样点必须恰为末态 due + 字面锁偏移, 且期望值由真实库复算
+    assert len(golden["at"]) == len(RETRIEVABILITY_OFFSET_DAYS)
+    for point, offset in zip(golden["at"], RETRIEVABILITY_OFFSET_DAYS):
+        expected_at = card.due + timedelta(days=offset)
+        assert datetime.fromisoformat(point["current_datetime"]) == expected_at, (
+            f"retrievability 采样点 {point['current_datetime']} != 末态 due+{offset}d ({expected_at.isoformat()})"
+        )
+        actual = scheduler.get_card_retrievability(card, expected_at)
+        assert _close(actual, point["expected"]), f"retrievability@+{offset}d: {actual} != {point['expected']}"

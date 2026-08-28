@@ -477,6 +477,120 @@ def test_review_ext_valid_variants_pass(tmp_path):
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+def test_out_of_order_marker_shape_frozen(tmp_path):
+    """Codex round-4 HIGH#3: `out_of_order` 的位置/类型/真假语义未冻结时,
+    字符串或对象值均零违规 — 而 pending 排除条件依赖该标记, 歧义即漏事件。
+    唯一合法形态: payload.out_of_order === true; 未标则不写该键。"""
+    ledger = tmp_path / "learning_events.jsonl"
+    for bad in ("true", {"x": 1}, False, 1, None):
+        rec = _review_ext_record()
+        rec["payload"]["out_of_order"] = bad
+        ledger.write_text(json.dumps(rec, ensure_ascii=False) + "\n", encoding="utf-8")
+        result = _run(ledger)
+        assert result.returncode == 1, f"out_of_order={bad!r} 应判违规\n{result.stdout}"
+        assert "out_of_order" in result.stdout
+
+    rec = _review_ext_record()
+    rec["payload"]["out_of_order"] = True
+    ledger.write_text(json.dumps(rec, ensure_ascii=False) + "\n", encoding="utf-8")
+    assert _run(ledger).returncode == 0, "out_of_order=true 是唯一合法形态"
+
+
+def test_review_time_must_carry_seconds(tmp_path):
+    """Codex round-4 HIGH#1: 省略秒段的 '10:00+00:00' 与 W 的整秒口径对不齐,
+    且不是任何写点会产出的形态 — review/1 要求完整整秒形态。"""
+    ledger = tmp_path / "learning_events.jsonl"
+    rec = _review_ext_record(review_time="2026-08-01T10:00+00:00")
+    rec["effective_at"] = "2026-08-01T10:00+00:00"
+    ledger.write_text(json.dumps(rec, ensure_ascii=False) + "\n", encoding="utf-8")
+    result = _run(ledger)
+    assert result.returncode == 1
+    assert "完整整秒形态" in result.stdout
+
+
+def test_manifest_corrupt_forms_degrade_not_crash():
+    """Codex round-4 MEDIUM: manifest 为 None / 空 dict / list / 标量 时,
+    扩展校验必须降级为形状校验 + WARN, 不得 AttributeError/traceback。"""
+    record = _review_ext_record()
+    for bad_manifest in (None, {}, [1, 2], 42, "text"):
+        problems, warnings = validator._validate_review_ext(
+            record["payload"], record, bad_manifest, vault_id=record["payload"]["vault_id"]
+        )
+        assert problems == [], f"manifest={bad_manifest!r} 不应产生违规: {problems}"
+        assert any("只做形状校验" in w for w in warnings), f"manifest={bad_manifest!r} 应降级 WARN"
+
+
+def test_watermark_comparison_must_be_instant_based():
+    """§6.2 比较语义: bridge 的 _iso() 把 W 归一化为 UTC 'Z' 形式, 而事件
+    review_time 允许任意合法 offset — 同一瞬间可有不同字符串。按字符串比较
+    会把"已应用"误判为 pending 并二次推进, 故契约要求按绝对瞬间比较。
+
+    本测试钉死该等价关系 (bridge 改写出格式时会红) 与整秒性在 UTC 归一化
+    后的保持 (A5 前提)。
+    """
+    sys.path.insert(0, str(WT / "canvas-vault" / ".claude" / "scripts"))
+    import fsrs_bridge as fb  # noqa: PLC0415
+
+    event_time = "2026-08-01T18:00:00+08:00"
+    watermark = fb._iso(fb._aware(event_time))
+    assert watermark == "2026-08-01T10:00:00Z", "bridge 写出格式漂移 — 比较语义前提须复核"
+    assert watermark != event_time, "本测试的前提是两者字符串不同"
+    assert validator._instant(event_time) == validator._instant(watermark), (
+        "同一瞬间必须比较相等 — 否则水位线判据会二次推进"
+    )
+    assert validator._parse_ts(event_time)[0] and not validator._SUBSECOND_RE.match(event_time)
+
+
+def test_vault_id_bound_to_vault_config(tmp_path):
+    """Codex round-3 未覆盖面（本轮主动补强）: payload.vault_id 与账本所在
+    vault 的 .canvas-config.yaml 声明必须一致 — 防事件写错 vault / 账本被
+    搬运后仍自称原 vault; 无配置文件时降级 WARN 保持独立可跑。"""
+    ledger = tmp_path / "learning_events.jsonl"
+
+    # 无 .canvas-config.yaml → 只 WARN 不判错
+    ledger.write_text(json.dumps(_review_ext_record(), ensure_ascii=False) + "\n", encoding="utf-8")
+    result = _run(ledger)
+    assert result.returncode == 0, result.stdout
+    assert "vault_id 未绑定" in result.stdout
+
+    # 有配置且一致 → PASS 且无该 WARN
+    (tmp_path / ".canvas-config.yaml").write_text(
+        '# 注释行\nvault_id: "canvas-vault"\nsubject: cs-61b\n', encoding="utf-8"
+    )
+    assert _run(ledger).returncode == 0
+
+    # 有配置但不一致 → 违规
+    mismatched = _review_ext_record(vault_id="别的vault")
+    ledger.write_text(json.dumps(mismatched, ensure_ascii=False) + "\n", encoding="utf-8")
+    result = _run(ledger)
+    assert result.returncode == 1
+    assert "账本所在 vault" in result.stdout
+
+
+def test_rating_from_grade_parity_with_bridge():
+    """校验器的 rating 自洽判据必须与真相源 fsrs_bridge.rating_from_grade
+    逐档一致 — 否则 bridge 改档位时校验器会静默漂移 (误报或漏报)。
+
+    全网格 0.000-1.000 步长 0.001 + 三个档位分界两侧精确核对。
+    """
+    bridge_path = WT / "canvas-vault" / ".claude" / "scripts"
+    sys.path.insert(0, str(bridge_path))
+    import fsrs_bridge as fb  # noqa: PLC0415
+
+    mismatches = [
+        (i / 1000.0, fb.rating_from_grade(i / 1000.0, False), validator._rating_from_grade_norm(i / 1000.0))
+        for i in range(1001)
+        if fb.rating_from_grade(i / 1000.0, False) != validator._rating_from_grade_norm(i / 1000.0)
+    ]
+    assert not mismatches, f"档位口径漂移 (前 5): {mismatches[:5]}"
+
+    for boundary in (1 / 6, 1 / 2, 5 / 6):
+        for gn in (boundary - 1e-9, boundary, boundary + 1e-9):
+            assert fb.rating_from_grade(gn, False) == validator._rating_from_grade_norm(gn), gn
+
+    assert fb.rating_from_grade(1.0, abandoned=True) == 1, "弃答一票否决 Again 的真相源前提失效"
+
+
 def test_offset_minute_range_enforced():
     """Codex round-3 MEDIUM: offset 分钟 \\d{2} 曾收 '+00:60'/'+00:99'。"""
     for bad in ("2026-08-01T10:00:00+00:60", "2026-08-01T10:00:00+00:99"):

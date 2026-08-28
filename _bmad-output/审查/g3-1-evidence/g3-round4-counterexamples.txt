@@ -1,0 +1,46 @@
+== Codex round-4 点名反例的对抗复验 ==
+date: 2026-08-28T12:47:48Z
+validator sha256:   a646686d3f69056efc893b68209f2740c83e33dd0855c7b0f4ad05ca14be84c0
+golden test sha256: 7817d9fecfa00c31a3498c9decedf5e6d465af7f142c3f68473f852fddcf3c40
+contract test sha256: 923ef7d49f29be6554170ac0326b4ec8653b81866036a6728fc0f9d85a614a59
+
+--- [R4-1 HIGH#4] vault_id='evil-other-vault' (round-4 实测曾返回 ([], []) 等价 exit 0) ---
+FAIL  LINE 1: 扩展键 vault_id 'evil-other-vault' != 账本所在 vault 声明的 'canvas_vault' (.canvas-config.yaml) — 事件写错 vault 或账本被搬运
+RESULT: FAIL — 1 项违规 (schema v1, /tmp/r4-vault/learning_events.jsonl)
+exit= 1
+
+--- [R4-2 HIGH#3] out_of_order 形态: 字符串/对象/false 三变体 ---
+  [out_of_order=string] exit=1: WARN  LINE 1: vault_id 未绑定 — 账本同目录无 .canvas-config.yaml 或其中无 vault_id 键
+  [out_of_order=object] exit=1: WARN  LINE 1: vault_id 未绑定 — 账本同目录无 .canvas-config.yaml 或其中无 vault_id 键
+  [out_of_order=false] exit=1: WARN  LINE 1: vault_id 未绑定 — 账本同目录无 .canvas-config.yaml 或其中无 vault_id 键
+  [out_of_order=true 合法] exit=0 (期望 0)
+
+--- [R4-3 HIGH#1] review_time 省略秒 '10:00+00:00' (round-4 指出与 W 整秒口径对不齐) ---
+WARN  LINE 1: vault_id 未绑定 — 账本同目录无 .canvas-config.yaml 或其中无 vault_id 键
+FAIL  LINE 1: 扩展键 review_time 必须为完整整秒形态 YYYY-MM-DDTHH:MM:SS(Z|±HH:MM), 实为 '2026-08-01T10:00+00:00' — 省略秒段与 W 的整秒口径对不齐 (§6.2 A5)
+RESULT: FAIL — 1 项违规 (schema v1, /tmp/r4-nosec.jsonl)
+exit= 1
+
+--- [R4-4 HIGH#5] retrievability 协调漂移: 历史改 Easy@T0 + 采样改 due+1/+2/+3, expected 由真实库同步 ---
+  协调漂移已写入 (expected 全部由真实库同步)
+FAILED tests/regression/test_fsrs_golden_vectors.py::test_retrievability_curve_matches_golden
+================== 1 failed, 12 passed, 10 warnings in 0.77s ===================
+
+--- [R4-5 HIGH#5b] retrievability.card 换成 bogus object ---
+FAILED tests/regression/test_fsrs_golden_vectors.py::test_retrievability_curve_matches_golden
+================== 1 failed, 12 passed, 10 warnings in 0.61s ===================
+
+--- [R4-6 MEDIUM] state_before_final_review=true (bool 与 1 相等) ---
+FAILED tests/regression/test_fsrs_golden_vectors.py::test_matrix_structure_frozen
+================== 1 failed, 12 passed, 10 warnings in 0.63s ===================
+
+--- [R4-7 MEDIUM] manifest 损坏形态 (空对象/list/标量) → 校验器应 WARN 不 traceback ---
+  [manifest=空对象] exit=0 traceback=False 形状降级WARN=True
+  [manifest=list] exit=0 traceback=False 形状降级WARN=True
+  [manifest=标量] exit=0 traceback=False 形状降级WARN=True
+  [manifest=坏JSON] exit=0 traceback=False 形状降级WARN=True
+
+--- 终态: 恢复后 sha + 双套件全绿 ---
+manifest sha256: 82eaaffa2a064064140916a272e8b4d4256fe4bd58cdb4914c4793646af3cb09
+vectors sha256:  df60dbc6192c499ad21da6533f35ed2e0e316f5d4bc52fb45b711d4cae6f49a3
+================== 51 passed, 1 skipped, 10 warnings in 3.96s ==================

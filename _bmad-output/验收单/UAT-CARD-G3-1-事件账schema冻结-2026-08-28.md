@@ -5,7 +5,7 @@
 > **日期**: 2026-08-28
 > **一句话**: 你的复习系统现在有了一份"宪法"——白纸黑字写死：**笔记 frontmatter 是唯一的
 > 复习状态真相**，`learning_events.jsonl` 事件账只负责"记录发生过什么"（审计/防重/可重放）。
-> 这张卡**零生产代码改动**（新增的是一个独立校验器脚本与测试，不动任何既有生产路径）——既有账本实现（已在生产跑了一个月、22 条真实事件）原样不动，
+> 这张卡**零生产代码改动**（新增的是一个独立校验器脚本与测试，不动任何既有生产路径）——既有账本实现（已在生产跑了一个月、当前 23 条真实事件）原样不动，
 > 只是把它的现实升格为冻结契约 + 配了一把可以随时检查账本健康的尺子。
 
 ---
@@ -23,22 +23,22 @@
      .claude/worktrees/card-s3-events/backend/scripts/validate_learning_events.py \
      canvas-vault/learning_events.jsonl
    ```
-   预期看到 `RESULT: PASS — schema v1 合规`——你现网的 22 条学习事件全部健康。
+   预期看到 `RESULT: PASS — schema v1 合规`——你现网的学习事件全部健康。
 
 ## 二、技术判据（Claude 已代跑）
 
 | 裁判 | 结果 |
 |---|---|
-| 契约测试 `backend/tests/regression/test_learning_events_schema_contract.py` | **35 passed + 1 skipped**（本文件单跑口径，三轮整改后；skip = 仓内 vault 根无账本的 worktree 环境，主仓自动生效。与 golden 门 + 既有账本测试合跑 = **53 passed + 1 skipped**） |
+| 契约测试 `backend/tests/regression/test_learning_events_schema_contract.py` | **41 passed + 1 skipped**（本文件单跑口径，四轮整改后；skip = 仓内 vault 根无账本的 worktree 环境，主仓自动生效。与 golden 门 + 既有账本测试合跑 = **60 passed + 1 skipped**） |
 | **真实 producer 执行**（Codex 一轮 HIGH 整改） | vault 三 skill 写点的 python 代码**从 SKILL.md 逐字提取执行**（ai-linked-doc 单行模板 / start-exam-board PYEOF 块 / quiz-answer 评分链账本段；仅路径常量重定向 tmp fixture），产物过校验器 + 幂等重放断言；backend 侧按 5 调用点实参形状经真实 `append_event` 写入后全过 |
 | 既有账本回归 `test_learning_event_log.py` | 6 passed（零改动） |
 | 校验脚本 vs 三 fixture | 合法 → exit 0 / 缺字段 → exit 1（点名 `effective_at`）/ 重复 event_id → exit 1（点名首见行号）（存证 `审查/g3-1-evidence/g3-1-fixture-validation.txt`） |
-| 校验脚本 vs **现网账本**（22 行） | **exit 0**，且 sha256 运行前后一致（只读证明；存证 `审查/g3-1-evidence/g3-1-live-ledger-validation.txt`） |
+| 校验脚本 vs **现网账本**（当前 23 行，用户仍在产生新事件） | **exit 0** 零 WARN 零 FAIL，且 sha256 运行前后一致（只读证明；存证按每轮整改重生成，含 HEAD/validator SHA/完整命令） |
 | 现网写点 0 误报 | 按 8 个写点 1:1 建模的 `real_shapes.jsonl`（含 Z 后缀时间戳/紧凑分隔符/中文 event_id）全过 |
 | 边界判定 | 截断行如实报 FAIL / 未知顶层字段拒绝 / naive 时间戳拒绝 / **NaN·Infinity 非标准常量拒绝（RFC 8259 严格）** / **行内重复键拒绝（json.loads 静默取后者的歧义面）** / 未知 event_version 走 WARN 前向兼容通道不误杀 |
-| 漂移锁 | EVENT_VERSION=1、9 类白名单、7 键形状、校验器复制份 == 真相源，四路契约测试锁死 |
+| 漂移锁 | EVENT_VERSION=1、9 类白名单、7 键形状、校验器复制份 == 真相源（四路契约测试）+ **`rating_from_grade` 与 `fsrs_bridge` 逐档等价**（千点网格 + 三档分界两侧）+ **W 与 review_time 的瞬间等价关系**（bridge `_iso` 写出格式改变即红） |
 | 铁律遵守 | `learning_event_log.py` **零改动**；git diff 只含新增文件 + CLAUDE.md/architecture.md 引用行 + CURRENT_TASK；未新建任何第二套账本 |
-| ruff | All checks passed |
+| ruff | 本卡交付文件 All checks passed（`backend/scripts/` + 契约测试；**范围声明**：仓库其余既有告警不在本卡范围） |
 
 ## 三、写点普查结论（逐点核对现行号，2026-08-28）
 
@@ -113,7 +113,22 @@
 | — | MEDIUM | 存证 SHA 过期（记 `13c03c7…`，实际 validator 已变） | **已修**：round-4 存证重生成，SHA 与当前 bytes 一致 |
 | — | MEDIUM | 本单同时写 `25+1` 与 `29+1`；"零代码改动"与新增 validator/test 矛盾 | **已修**：全单计数统一为 **35 passed + 1 skipped**（本轮实测）；"零代码改动"改为"**零生产代码改动**（新增独立校验器与测试，不动任何既有生产路径）" |
 
-三轮整改后复跑：契约测试 **35 passed + 1 skipped**（本文件）、三文件合跑 **53 passed + 1 skipped**、现网账本 exit 0（SHA-bound）、round-2/round-3 全部点名反例对抗复验翻红（`审查/g3-1-evidence/g3-round{2,3}-counterexamples.txt`）。
+三轮整改后复跑：契约测试 35 passed + 1 skipped、现网账本 exit 0（SHA-bound）、round-2/round-3 全部点名反例对抗复验翻红。
+
+### 四轮复核处置（存档 `审查/codex-review-CARD-G3-1-G3-4-round4-2026-08-28.md`，G3-1 残留 1 BLOCKER + 4 HIGH + 2 MEDIUM）
+
+| # | 级别 | 四轮发现 | 处置 |
+|---|---|---|---|
+| 一b | **BLOCKER** | **并发协议未闭合**："锁/CAS"不能当等价互斥——两写者可在同秒都 durable append，胜者发布 `W=t1` 后败者事件因 `review_time == W` **永久不进 pending**；A3 的"等时改 W+1s"与移交的"等时拒绝"自相矛盾；CAS 冲突后的"全事件重折叠"无冻结基线、应用游标与掉电耐久语义 | **已修（契约）**：§6.2 A4 重写为**并发正确性最小充分集四条**——**A4.1 真互斥**（per-node 排他锁，持有期覆盖到发布之后；明确乐观 CAS 不满足并写入该反例）、**A4.2 应用游标与折叠基线**（基线恒为当前 frontmatter current state，游标 = 锁内读到的 W，全量折叠须与增量重放等价）、**A4.3 账本耐久先于发布**（write+flush+fsync 后再 apply）、**A4.4 原子发布**（六字段与 W 同一次 `os.replace`；半态被三态判别识别为残缺卡 fail-closed）。A3 **等时唯一口径统一为"推进 W+1s"**，"等时拒绝"作废（拒绝会丢真实评分）；移交 G3-3 三项同步改写 |
+| 一a | HIGH#1 | 端到端时间口径未冻结：bridge 把 naive 当 UTC 并截微秒；校验器允许省略秒与任意 offset；`18:00+08:00` 与 `10:00Z` 同瞬间但字符串比较会误判 pending | **已修（契约+代码+测试）**：§6.2 新增**比较语义条款**——W 与 review_time 的所有比较**必须按绝对瞬间**（写入实测反例：两者是同一瞬间的不同字符串）；整秒性按 UTC 归一化后计；校验器对 `review/1` 强制**完整整秒形态**（省略秒段判违规）；新增测试钉死 bridge `_iso` 写出格式与瞬间等价关系 |
+| 一c | HIGH#2 | 三态按字段存在性判别有灰区：只有 `fsrs_last_review` 会被判"正常卡"，bridge 却因无 `fsrs_due` 当 New 卡处理 | **已修（契约）**：正常卡定义收紧为**完整可解析 FSRS tuple**（`fsrs_last_review` + `fsrs_due` 可解析 + `fsrs_state ∈ {1,2,3}`）；其余组合（含"只有 last_review"、缺 state、空串/不可解析/越界）**一律 fail-closed**，四类灰区逐条列举 |
+| 一d | HIGH#3 | `out_of_order` 的位置/类型/真假语义未冻结（字符串或对象值均零违规）；degraded pending 的阻塞/恢复未定义 | **已修（契约+代码+测试）**：冻结 `payload.out_of_order` **唯一合法值为布尔 `true`**，未标则不写该键（`false`/字符串/对象/数字/null 全判违规，测试锚定）；degraded pending 处置成文——残缺卡节点 pending **整体冻结**（不重放不追加，新评分如实报错），修复后正常重放且事件不失效 |
+| 二 | HIGH#4 | `vault_id` 只查非空，账本路径/vault 身份从未送入规则（`vault_id="evil-other-vault"` 等价 exit 0） | **已修（代码+测试）**：校验器从账本**同目录 `.canvas-config.yaml`** 解析声明 `vault_id`（stdlib 最小行解析，不引 PyYAML）并强制相等；配置不可达时降级 WARN 保持独立可跑。反例现 FAIL（R4-1） |
+| 二 | MEDIUM | manifest 缺失/损坏/空对象仍 WARN+exit 0；非空 list/scalar 可 traceback | **已修（代码+测试）**：`_golden_manifest` 只接受**含两个真值键的 dict**，其余（空对象/list/标量/坏 JSON）一律 None + 形状降级 WARN；`_validate_review_ext` 再加一层 `isinstance` 防御。四种损坏形态实测零 traceback（R4-7） |
+| 五 | MEDIUM | UAT 计数与宣称不实：`36+1` 不能复现（HEAD 为 35+1）、"vault_id 不符已全部 FAIL"错误、22 行已非当前 live、ruff 未注明范围 | **已修**：本单计数改为**实测 41 passed + 1 skipped**（本轮）、账本行数改为**当前 23 行且声明用户仍在产生新事件**、ruff 加范围声明；vault_id 绑定改为**本轮真实实现后**再宣称（不再是空头声明） |
+| 二 | — | rating 与 bridge **逐档等价**（百万点网格 0 mismatch），但 HEAD 无交叉锁 | **已补测试**：`test_rating_from_grade_parity_with_bridge` 千点网格 + 三档分界两侧 + 弃答前提，直接对 `fsrs_bridge.rating_from_grade` 交叉断言 |
+
+四轮整改后复跑：契约测试 **41 passed + 1 skipped**（本文件）、三文件合跑 **60 passed + 1 skipped**、现网账本（23 行）exit 0 零 WARN、round-4 全部点名反例对抗复验翻红（`审查/g3-1-evidence/g3-round4-counterexamples.txt`）。
 
 ## 六、移交登记
 

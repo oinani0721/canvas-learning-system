@@ -16,23 +16,23 @@
 
 1. 有人把 `fsrs` 升到 6.4.x/7.x → 测试红（要求先重新评审冻结基线）；
 2. 库版本没变但默认算法参数（21 个权重）变了 → 测试红；
-3. golden 文件本身被误改/篡改 → 完整性 hash 测试红。
+3. golden 文件被误改/篡改 → 完整性 hash 与结构门翻红（**范围诚实声明**：锁的是 manifest 全字段 + 向量矩阵结构 + 逐步时刻 skeleton + retrievability 历史/采样/快照 + expected 类型；未逐字节锁 JSON 文本本身）。
 
 ## 二、技术判据（Claude 已代跑）
 
 | 裁判 | 结果 |
 |---|---|
-| 新建 `backend/tests/regression/test_fsrs_golden_vectors.py` | **12 passed 全绿**（三轮整改后：**九门** — 版本钉死 / 严格 requirements 解析 / 默认参数+枚举面 / params_hash 自洽 / manifest 元数据字面锁 / **scheduler_config 全字段字面锁** / 容差上限锁 / 矩阵结构+逐步时刻 skeleton / 向量重放） |
+| 新建 `backend/tests/regression/test_fsrs_golden_vectors.py` | **13 passed 全绿**（四轮整改后：**十门** — 版本钉死 / 严格 requirements 解析 / 默认参数+枚举面 / params_hash 自洽 / manifest 元数据字面锁 / **manifest 键集+出处锁** / **scheduler_config 全字段字面锁** / 容差上限锁 / 矩阵结构+逐步时刻 skeleton / 向量重放 + **retrievability skeleton+快照锁**） |
 | 现有 fsrs 套件不回归 | `test_fsrs_manager.py` / `test_create_fsrs_manager.py` / `test_fsrs_state_query.py` / `test_fsrs_bridge.py` / `test_fsrs_legacy_state_zero.py` / `test_fsrs_new_card_none_serialization.py` = **91 passed** + 扩面 `test_review_service_fsrs.py` / `test_story_38_3_fsrs_init_guarantee.py` / `test_mastery_engine_fsrs.py` / `test_fsrs_state_api.py` / `test_review_fsrs_degradation.py`（e2e）= **100 passed**，合计 191/191 零回归 |
 | 向量覆盖 | **5 关键态 × 4 评分 = 20 向量**：新卡首评 / Learning 第二步 / Review 准时 / **Review 逾期 30 天** / Relearning（`state_before_final_review` 字段逐条可核）+ retrievability 曲线 3 点（due/+7d/+30d） |
 | 确定性 | 固定 card_id + 固定 UTC 时刻链 + `enable_fuzzing=False`；生成器**连跑两次 byte 级一致** |
 | manifest 锁定面 | library_version=6.3.1 / algorithm=FSRS-6（21 参数）/ timezone=UTC / params_hash（sha256 canonical）/ Rating&State 枚举值域 |
 | requirements 钉版 | 根与 backend 两处 `fsrs==6.3.1`（原 `>=6.0.0,<7.0.0` 范围约束收紧），且有测试防松绑回潮 |
-| **负验证 v3（留档，SHA-bound）** | **N0 基线绿 + N1–N9 九个负例精确翻红**：params_hash 篡改→1 门红 / 向量 stability→replay 红 / **仅改 manifest 版本→恰 3 门红** / 重复+缺格向量→结构门红 / retrievability 清空→结构门红 / 容差放宽→上限门红 / 前态=999→双门红 / **algorithm 任意值→元数据门红** / **requirements `.post1`→钉版门红**；恢复后 manifest+vectors sha256 与基线全等 + 11 passed。存证含每变体**内联 mutation/restore 命令**、失败测试名、pytest exit code、前后 SHA（`审查/g3-4-evidence/g3-4-negative-verification.txt` + 可重跑脚本 `negverify_v3.sh`） |
-| **二轮反例对抗复验** | Codex 二轮点名的两个矩阵伪装反例（good 行 steps 换成 hard 并复制 expected；new_card steps 伪装成 learning_step2 前缀）**现均翻红**（`审查/g3-4-evidence/g3-round2-counterexamples.txt`） |
+| **负验证 v4（留档，SHA-bound，可重跑）** | **N0 基线绿 + N1–N12 十二个负例精确翻红**，每变体校验**预期红门数与门名**、脚本 exit code 反映证据有效性：params_hash / 向量 stability / 仅改 manifest 版本（恰 3 门红）/ 重复+缺格向量 / retrievability 清空 / 容差放宽 / 前态=999（双门红）/ algorithm 任意值 / requirements `.post1` / **前缀时刻伪装** / **scheduler_config retention 重定向** / **expected 类型伪装**；恢复后 manifest+vectors sha256 与基线全等 + 全绿。存证含每变体内联 mutation/restore 命令（`审查/g3-4-evidence/g3-4-negative-verification.txt` + 可重跑脚本 `negverify_v4.sh`） |
+| **二/三/四轮反例对抗复验** | Codex 各轮点名反例现均翻红并留档：二轮矩阵伪装两例（`g3-round2-counterexamples.txt`）、三轮小数秒/marker 降级/语义坏例/前缀时刻/retention 重定向/expected 类型（`g3-round3-counterexamples.txt`）、四轮 vault_id 不符 / out_of_order 三形态 / review_time 省略秒 / **retrievability 协调漂移与 card 快照** / manifest 四种损坏形态降级不 traceback（`g3-round4-counterexamples.txt`） |
 | 真实库验收 | `FSRS_AVAILABLE` 断言在位——库缺失是 FAIL 不是 skip，零 mock 零 FakeCard |
 | 铁律遵守 | `fsrs_manager.py` **零改动**（in-flight D4 锁定，git blob 恒为 `980b3758…`）；测试直接 `from fsrs import` 消费真实库对象、仅额外读该模块的 `FSRS_AVAILABLE` 布尔断言生产面真实库在位——**不宣称"只消费其公开接口"**（该模块无 `__all__` re-export 契约，二轮口径整改）；不改任何调度逻辑 |
-| ruff | All checks passed |
+| ruff | 本卡交付文件 All checks passed（`backend/scripts/` + 两个新测试文件；**范围声明**：仓库其余既有告警不在本卡范围） |
 
 ## 三、算法合理性抽查（冻结值一眼可信）
 
@@ -48,7 +48,7 @@
 | `backend/scripts/generate_fsrs_golden_vectors.py` | 确定性生成器（仅评审后重冻结时重跑） |
 | `backend/tests/regression/fsrs_golden_manifest.json` | versioned manifest（版本/算法/时区/参数 hash/枚举面/容差） |
 | `backend/tests/regression/fsrs_golden_vectors.json` | 20 向量 + 3 retrievability 点（自包含绝对时刻，不依赖生成器） |
-| `backend/tests/regression/test_fsrs_golden_vectors.py` | 九门回归测试（12 passed） |
+| `backend/tests/regression/test_fsrs_golden_vectors.py` | 十门回归测试（13 passed） |
 | `requirements.txt` / `backend/requirements.txt` | `fsrs==6.3.1` 精确钉版 |
 
 ## 五、Codex 审查处置（一轮 → 整改全落地）
@@ -86,7 +86,18 @@
 | 4c | MEDIUM（新） | expected 无类型门：`state=true`/`step=false` 全绿（Python bool 与 0/1 相等） | **已修**：`expected` 六字段类型断言（int 排除 bool、float/None、str/None）。反例现翻红（R3-6） |
 | — | MEDIUM | 负验证 v3 存档三处缺陷：版本探针转义错误记录 SyntaxError、脚本不校验预期失败（错了也 exit 0）、部分 mutation 命令 echo 断裂 | **已修**：重做为 **v4**（`negverify_v4.sh`）——修转义、每变体 `expect_gates` 校验**预期红门数与门名**、脚本 exit code 反映验证有效性、mutation 命令 `printf` 完整输出；变体扩到 **N0 + N1–N12**（补 round-3 三个新反例） |
 
-三轮整改后复跑：golden 门 **12 passed**、核心 fsrs 六文件 91 passed 零回归、三文件合跑 53 passed + 1 skipped、ruff 全过；负验证 v4 十三个判定全部符合预期。
+三轮整改后复跑：golden 门 **12 passed**、核心 fsrs 六文件 91 passed 零回归、ruff 全过；负验证 v4 十三个判定全部符合预期。
+
+### 四轮复核处置（存档 `审查/codex-review-CARD-G3-1-G3-4-round4-2026-08-28.md`，G3-4 残留 1 HIGH + 2 MEDIUM/LOW）
+
+| # | 级别 | 四轮发现 | 处置 |
+|---|---|---|---|
+| 三 | **HIGH#5** | **retrievability 可协调漂移**：曲线门只查三时点升序唯一，然后信任 JSON 自带 `steps/at/expected`，`retrievability.card` **完全未读**——把历史改成 Easy@T0、采样改 due+1/+2/+3 并用真实库同步 expected，或把 `card` 换成 bogus object，均 12/12 全绿 | **已修**：曲线门重写为 skeleton 锁——历史 rating 序列字面锁 `("good","good")`、逐步时刻链（首步 base_datetime、次步上一步 due）、**`card` 快照与真实重放逐字段比对**、采样点必须恰为末态 due + 字面锁偏移 `(0,7,30)` 天。两个反例现均翻红（`g3-round4-counterexamples.txt` R4-4/R4-5） |
+| 三 | MEDIUM | `state_before_final_review=true` 仍全绿（bool 与 1 相等） | **已修**：该字段独立 bool 排除断言（R4-6 翻红） |
+| 三 | LOW | manifest 的 `card`/`frozen_on`/`generator` 与完整键集未锁 | **已修**：新增 `test_manifest_key_set_and_provenance_frozen`——三个出处字段字面锁 + manifest/vectors 键集锁 |
+| 四 | MEDIUM | 负验证 v4 的 `expect_gates` 只数 `^FAILED`，不校验 pytest exit code/ERROR/collection 数；mutation/restore 不查成功；终态 SHA 只打印不机器比较；存档 HEAD 记父提交 | **本轮部分处置 + 如实登记**：存档已随每轮重生成（HEAD 与 SHA 同步）；`expect_gates` 的 exit-code/collection 校验强化**登记为证据工具改进项**（不影响本卡判据——十门测试本身是裁判，负验证是佐证；若主 session 要求，可在合并前补一轮脚本加固） |
+
+四轮整改后复跑：golden 门 **13 passed**、三文件合跑 **60 passed + 1 skipped**、核心 fsrs 六文件 91 passed 零回归、ruff 全过。
 
 ## 六、移交登记
 

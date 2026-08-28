@@ -32,7 +32,9 @@ Codex round-3 整改 (2026-08-28):
     口径自洽; 弃答 rating 恒为 1; library_version/params_hash 与同仓
     G3-4 golden manifest **真值**相等 (manifest 不可达 → 形状校验 + WARN);
   - offset 分钟限 00-59 (原 \\d{2} 收了 '+00:60'); 'Z' 与 '+00:00' 改按
-    绝对瞬间比较; 深层嵌套 RecursionError 单行判违规 (MEDIUM)。
+    绝对瞬间比较; 深层嵌套 RecursionError 单行判违规 (MEDIUM);
+  - vault_id 绑定账本同目录 .canvas-config.yaml 声明值 (round-3 点名的
+    未覆盖面, 本轮主动补强; 配置不可达 → WARN 降级保持独立可跑)。
 
 exit code: 0 = 全部通过; 1 = 存在违规; 2 = 用法/IO 错误。
 输出按行号确定性排序, 可入 CI / 存证。
@@ -113,6 +115,9 @@ def _strict_loads(line: str) -> object:
 _TS_RE = re.compile(r"^\d{4}-\d{2}-\d{2}[Tt ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:[0-5]\d)$")
 #: 小数秒段 — review/1 事件禁用 (round-3 BLOCKER: W 只有整秒精度, 见 §6.2 A5)
 _SUBSECOND_RE = re.compile(r"^\d{4}-\d{2}-\d{2}[Tt ]\d{2}:\d{2}:\d{2}\.\d+")
+#: review/1 的 review_time 完整形态: 必须含秒段且无小数秒 (round-4 HIGH#1 —
+#: 省略秒的 '10:00+00:00' 不是任何写点会产出的形态, 与 W 的整秒口径对不齐)
+_WHOLE_SECOND_RE = re.compile(r"^\d{4}-\d{2}-\d{2}[Tt ]\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:[0-5]\d)$")
 
 
 def _parse_ts(value: object) -> tuple[bool, str]:
@@ -172,15 +177,41 @@ def _looks_like_review_ext(payload: dict) -> bool:
 def _golden_manifest() -> Optional[dict]:
     """定位同仓 G3-4 golden manifest (库版本/参数 hash 真值源)。
 
-    找不到 (校验器被拷到别处独立跑) → None, 调用方降级为只验形状 + WARN。
+    只接受**含两个真值键的 dict**; 缺失/损坏/空对象/非 dict 一律 → None,
+    调用方降级为形状校验 + WARN (round-4 MEDIUM: 非 dict 曾可 traceback)。
     """
     candidate = Path(__file__).resolve().parents[1] / "tests" / "regression" / "fsrs_golden_manifest.json"
     if not candidate.is_file():
         return None
     try:
-        return json.loads(candidate.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+        data = json.loads(candidate.read_text(encoding="utf-8"))
+    except (OSError, ValueError, RecursionError):
         return None
+    if not isinstance(data, dict):
+        return None
+    if not isinstance(data.get("library_version"), str) or not isinstance(data.get("params_hash"), str):
+        return None
+    return data
+
+
+#: .canvas-config.yaml 的顶层 vault_id 行 (stdlib 最小解析, 不引 PyYAML)
+_VAULT_ID_RE = re.compile(r"""^vault_id:\s*["']?([^"'#\s][^"'#]*?)["']?\s*(?:#.*)?$""", re.MULTILINE)
+
+
+def _vault_id_of(ledger_path: Path) -> Optional[str]:
+    """账本所在 vault 的声明 vault_id (同目录 .canvas-config.yaml)。
+
+    只识别顶层 `vault_id: "x"` 单行形态 (该文件的实际格式); 文件缺失或
+    该键不存在 → None, 调用方降级为不绑定 (校验器对任意 vault 独立可跑)。
+    """
+    config = ledger_path.parent / ".canvas-config.yaml"
+    if not config.is_file():
+        return None
+    try:
+        match = _VAULT_ID_RE.search(config.read_text(encoding="utf-8"))
+    except OSError:
+        return None
+    return match.group(1).strip() if match else None
 
 
 def _rating_from_grade_norm(grade_norm: float) -> int:
@@ -191,7 +222,9 @@ def _rating_from_grade_norm(grade_norm: float) -> int:
     return max(1, min(4, rating))
 
 
-def _validate_review_ext(payload: dict, record: dict, manifest: Optional[dict]) -> tuple[list[str], list[str]]:
+def _validate_review_ext(
+    payload: dict, record: dict, manifest: Optional[dict], vault_id: Optional[str] = None
+) -> tuple[list[str], list[str]]:
     """§六 复习域扩展行 (payload.schema_ext == 'review/1') 的完整语义校验。
 
     → (violations, warnings)
@@ -223,6 +256,13 @@ def _validate_review_ext(payload: dict, record: dict, manifest: Optional[dict]) 
     if not rating_ok:
         problems.append("扩展键 rating 必须为 int 1-4 (FSRS Rating)")
 
+    marker_value = payload.get("out_of_order", None)
+    if "out_of_order" in payload and marker_value is not True:
+        problems.append(
+            f"payload.out_of_order 唯一合法值为布尔 true, 实为 {marker_value!r} — "
+            "未标乱序时不得写该键 (§6.2 字段冻结: false/字符串/对象均会让 pending 排除条件产生歧义)"
+        )
+
     review_time = payload.get("review_time")
     ok, why = _parse_ts(review_time)
     if not ok:
@@ -232,6 +272,11 @@ def _validate_review_ext(payload: dict, record: dict, manifest: Optional[dict]) 
             problems.append(
                 f"扩展键 review_time 必须为整秒 {review_time!r} — frontmatter 水位线 "
                 "fsrs_last_review 只有整秒精度 (§6.2 A5), 小数秒会导致同一事件二次推进"
+            )
+        elif not _WHOLE_SECOND_RE.match(review_time):
+            problems.append(
+                f"扩展键 review_time 必须为完整整秒形态 YYYY-MM-DDTHH:MM:SS(Z|±HH:MM), "
+                f"实为 {review_time!r} — 省略秒段与 W 的整秒口径对不齐 (§6.2 A5)"
             )
         left, right = _instant(review_time), _instant(record.get("effective_at"))
         if left is None or right is None or left != right:
@@ -244,6 +289,15 @@ def _validate_review_ext(payload: dict, record: dict, manifest: Optional[dict]) 
         value = payload.get(key)
         if not isinstance(value, str) or not value:
             problems.append(f"扩展键 {key} 必须为非空字符串")
+    declared_vault = payload.get("vault_id")
+    if isinstance(declared_vault, str) and declared_vault:
+        if vault_id is None:
+            warnings.append("vault_id 未绑定 — 账本同目录无 .canvas-config.yaml 或其中无 vault_id 键")
+        elif declared_vault != vault_id:
+            problems.append(
+                f"扩展键 vault_id {declared_vault!r} != 账本所在 vault 声明的 {vault_id!r} "
+                "(.canvas-config.yaml) — 事件写错 vault 或账本被搬运"
+            )
     concept_id = payload.get("concept_id")
     node_id = record.get("node_id")
     if isinstance(concept_id, str) and concept_id and concept_id != node_id:
@@ -269,6 +323,9 @@ def _validate_review_ext(payload: dict, record: dict, manifest: Optional[dict]) 
                 f"rating {rating} 与 grade_norm {grade_norm} 不自洽 (rating_from_grade 口径应为 {expected})"
             )
 
+    # 防御: _golden_manifest 已保证 dict|None, 此处对任意坏值也不炸
+    # (round-4 MEDIUM: 非 dict manifest 曾可触发 AttributeError)
+    manifest = manifest if isinstance(manifest, dict) else None
     truth_version = manifest.get("library_version") if manifest else None
     truth_hash = manifest.get("params_hash") if manifest else None
     degraded_flags = []
@@ -303,12 +360,14 @@ def _validate_review_ext(payload: dict, record: dict, manifest: Optional[dict]) 
     return problems, warnings
 
 
-def validate_record(record: object, manifest: Optional[dict] = None) -> list[str]:
+def validate_record(record: object, manifest: Optional[dict] = None, vault_id: Optional[str] = None) -> list[str]:
     """单条 v1 记录的违规清单 (空 = 合规); 便捷入口, 丢弃 warnings。"""
-    return validate_record_full(record, manifest)[0]
+    return validate_record_full(record, manifest, vault_id)[0]
 
 
-def validate_record_full(record: object, manifest: Optional[dict] = None) -> tuple[list[str], list[str]]:
+def validate_record_full(
+    record: object, manifest: Optional[dict] = None, vault_id: Optional[str] = None
+) -> tuple[list[str], list[str]]:
     """单条 v1 记录 → (violations, warnings)。
 
     调用方须先按 §一 前向兼容规则分流: event_version 为 int 且 != 1 的行
@@ -357,7 +416,7 @@ def validate_record_full(record: object, manifest: Optional[dict] = None) -> tup
     elif isinstance(payload, dict):
         marker = payload.get("schema_ext")
         if marker == REVIEW_EXT_MARKER:
-            ext_problems, ext_warnings = _validate_review_ext(payload, record, manifest)
+            ext_problems, ext_warnings = _validate_review_ext(payload, record, manifest, vault_id)
             problems.extend(ext_problems)
             warnings.extend(ext_warnings)
         elif "schema_ext" in payload:
@@ -387,6 +446,7 @@ def validate_file(path: Path) -> tuple[list[str], list[str]]:
     warnings: list[str] = []
     seen_ids: dict[str, int] = {}
     manifest = _golden_manifest()
+    vault_id = _vault_id_of(path)
 
     with open(path, "rb") as f:
         for lineno, raw in enumerate(f, 1):
@@ -435,7 +495,7 @@ def validate_file(path: Path) -> tuple[list[str], list[str]]:
                     "前向兼容跳过形状校验 (读方须容忍未知版本)"
                 )
             else:
-                line_problems, line_warnings = validate_record_full(record, manifest)
+                line_problems, line_warnings = validate_record_full(record, manifest, vault_id)
                 for problem in line_problems:
                     violations.append(f"LINE {lineno}: {problem}")
                 for warning in line_warnings:

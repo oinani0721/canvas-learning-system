@@ -89,7 +89,7 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
   - **降级绕过封堵（Codex round-3 HIGH）**：`schema_ext` 出现但值不是 `"review/1"`（如 `"review/01"`、非字符串）= **违规**，不得静默降级为历史行；复习事件 payload **带扩展键却无 marker** 同样违规（历史行 payload 只有 `grade_norm`/`exam_board`/`attempt_count`，不含扩展键，故对存量零误报）。
 - **挂载点限定**：`review/1` 只许挂在 `answer_scored` / `answer_abandoned` 上（挂到 `session_archived` 等 = 违规）。
 - **扩展必填键**（`schema_ext == "review/1"` 时 REQUIRED，类型与语义由校验器强制）：
-  - `vault_id`：非空 string——显式冗余 vault 归属（与文件位置隐含归属互证）
+  - `vault_id`：非空 string——显式冗余 vault 归属，**必须等于账本同目录 `.canvas-config.yaml` 声明的 `vault_id`**（与文件位置隐含归属互证；防事件写错 vault 或账本被搬运后仍自称原 vault）。校验器找不到该配置文件时降级为 WARN（保持对任意 vault 独立可跑）。
   - `concept_id`：非空 string，且**必须等于顶层 `node_id`**——映射关系 = `node_id` 承载 concept_id
   - `rating`：int 且 ∈ {1,2,3,4}（FSRS Rating；bool 伪装 int 判违规）
   - `grade_norm`：数值且 ∈ [0,1]（既有 quiz-answer 写点已产此键）
@@ -102,12 +102,21 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
 
 **水位线定义（字段名以真实实现为准）**：`W(node)` = 该节点 frontmatter 的 **`fsrs_last_review`**（`canvas-vault/.claude/scripts/fsrs_bridge.py:44-46` FIELD_ORDER 真相源；写出格式 `%Y-%m-%dT%H:%M:%SZ`，**秒级精度**）。
 
-**水位线三态（Codex round-3 HIGH：残缺卡不得当新卡）**：
-- **真新卡** = 节点 frontmatter **不含任何 `fsrs_*` 字段** ⇒ `W = -∞`，全部事件 pending（合法首事件路径）；
-- **正常卡** = 含 `fsrs_last_review` ⇒ `W` = 该值；
-- **残缺卡** = 含 `fsrs_due`/`fsrs_state` 等但**缺 `fsrs_last_review`** ⇒ **fail-closed**：禁止按 `-∞` 重放（会在已推进的旧状态上重放全账 → 二次推进），必须停止自动恢复并如实报 degraded，由工具/人工修复水位线后再继续。
+**水位线三态（Codex round-3 HIGH + round-4 HIGH#2 收紧）**：判别按**完整 FSRS tuple 的可解析性**，不只看单键存在性。
+- **真新卡** = 节点 frontmatter **不含任何 `fsrs_*` 字段** ⇒ `W = -∞`，全部事件 pending（合法首事件路径）。
+- **正常卡** = **同时**满足：含 `fsrs_last_review` 且值可解析为 tz-aware 时刻；含 `fsrs_due` 且可解析；含 `fsrs_state` 且 ∈ {1,2,3}（`fsrs_bridge.py:44-46` FIELD_ORDER 的必备三项）⇒ `W` = `fsrs_last_review`。
+- **残缺卡 = 上述两者以外的一切组合**，一律 **fail-closed**（禁止自动重放，报 degraded 待修复）。显式列举（round-4 点名的灰区）：
+  - 缺 `fsrs_last_review` 但有其他 `fsrs_*`（原残缺卡）；
+  - **只有 `fsrs_last_review` 而缺 `fsrs_due`/`fsrs_state`**——bridge 在无 `fsrs_due` 时按 New 卡处理（`fsrs_bridge.py:102`），与"正常卡"语义冲突；
+  - `fsrs_due` + `fsrs_last_review` 但缺 `fsrs_state`；
+  - 任一必备键值为空串 / 不可解析 / `fsrs_state` 越界。
+- **理由**：`W` 的可信前提是"当前 current state 与该水位线属同一次应用"。任何字段缺失或不可解析都意味着这个前提不可证——此时按 `-∞` 重放会二次推进，按该 `W` 前进又可能建立在错误状态上，唯一诚实处置是停下来。
 
-**pending 集合**：账本中该节点全部满足以下全部条件的事件：`schema_ext == "review/1"`、**未标 `out_of_order`**、且 `payload.review_time > W`；按 `(review_time, 账本行序)` 升序。
+**比较语义（必须按绝对瞬间，不得按字符串）**：`W` 与 `review_time` 的所有比较（`>`、`≤`、相等）**必须先解析为 tz-aware datetime 再比**。理由：bridge 的 `_iso()` 把时刻 `astimezone(UTC)` 后写成 `...Z`（`fsrs_bridge.py:55-56`），而事件的 `review_time` 允许任意合法 offset——实测 `2026-08-01T18:00:00+08:00`（事件）与 `2026-08-01T10:00:00Z`（W）**是同一瞬间但字符串不同**。按字符串比较会把"已应用"判成 pending 并二次推进。
+
+**整秒性判定同样按 UTC 归一化后计**：A5 要求的"整秒"在 UTC 归一化后保持（offset 只到分钟级；含秒的 offset 已被 §三 受理语法拒绝）。
+
+**pending 集合**：账本中该节点全部满足以下全部条件的事件：`schema_ext == "review/1"`、**未标 `out_of_order`**、且 `payload.review_time > W`（按绝对瞬间比较）；按 `(review_time, 账本行序)` 升序。
 
 五条硬约束，G3-2 必须同时实现（缺一则 exactly-once 不成立）：
 
@@ -115,15 +124,21 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
 - **A2 恢复先于新写（消灭交错窗口）**：任何复习写点在**追加新事件之前**，必须先把该节点的 pending 集合按序重放至空。
   - **为什么必要**（round-2 反例）：若允许"E1@t1 落账未应用时 E2@t2 直接从旧状态推进到 t2"，则水位线抬到 t2 后 E1 满足 `t1 ≤ W` 被误判已应用，**E1 对 current state 的贡献永久丢失**。A2 使**单写者下**任意时刻至多只有最后一次追加的事件处于 pending，该交错窗口不会出现。**并发下 A2 本身不够**——见 A4。
   - 崩溃窗口全覆盖：①事件已落账、frontmatter 未推进 → 下次写入前 A2 重放恢复；②两者都完成 → `review_time ≤ W`，不推进（幂等）；③追加即崩（事件未落账）→ 账本与 frontmatter 一致，本次评分丢失属用户可感知重试面，非账本不一致。
-- **A3 严格递增 + 等时消解**：写侧必须保证同节点新事件 `review_time` **严格大于** `W`（秒级精度下若计算值等于 `W`，推进到 `W + 1s` 后再写）。这使 `>` 比较在秒级时间戳下无歧义。
-- **A4 临界区（Codex round-3 BLOCKER：并发下 A2 可被绕过）**：**"读 W → 扫描 pending → 重放 → durable append 新事件 → apply → 原子发布 frontmatter"整段必须在 per-node 互斥（锁/CAS）内完成**。否则两进程可同时观察到 `pending = []` 并各自从同一旧状态计算，A2 的"至多一条 pending"不变式失效。
-  - 原子发布：frontmatter 六字段（FIELD_ORDER）与 `fsrs_last_review` 必须在**同一次原子替换**中落盘（`os.replace` 已是现有 bridge 的写法，可直接作为实现基础），杜绝"部分字段已更新、W 未更新"的半态。
-  - ⚠️ **移交条款（G3-3）**：per-node 锁/CAS、**等时拒绝/复合排序**、**CAS 冲突后按全事件重折叠**（而非在陈旧状态上重试）三项均须由 G3-3 落实——其卡面当前只写"比较 last_review/revision 后写"，不含后两项，实施时须补。本卡只冻结契约，不实现。
+- **A3 严格递增（等时唯一口径：写侧推进，禁止拒绝）**：写侧必须保证同节点新事件 `review_time` **严格大于** `W`（按绝对瞬间比较）——若计算值 ≤ `W`（秒级精度下等时是常见情形），**推进到 `W + 1s` 后再写**，不得以原值写入。
+  - ⚠️ **口径统一（round-4 指出的自相矛盾）**：早前移交条款里的"等时**拒绝**"作废。唯一口径是**推进**（`W + 1s`）——拒绝会丢掉一次真实评分，与"事件账是完整审计"冲突。G3-3 的职责是在**并发面强制**该规则（见 A4），而非另立拒绝策略。
+- **A4 临界区与并发协议（round-3 BLOCKER + round-4 BLOCKER 收紧）**：**"读 W → 判三态 → 扫描 pending → 重放 → 计算新状态 → durable append 新事件 → apply → 原子发布 frontmatter → 释放"整段必须在 per-node 真互斥内完成**。以下四条是并发正确性的最小充分集，缺一不可：
+  - **A4.1 真互斥而非乐观 CAS**：必须是**独占的 per-node 排他锁**（文件锁 / 目录锁），持有期覆盖到**发布之后**。乐观 CAS 不满足——round-4 反例：两写者可在同一秒各自 durable append，胜者发布 `W = t1` 后，败者事件因 `review_time == W`（等时）**永久不进 pending**，该次评分静默丢失。A3 的"推进到 W+1s"只有在锁内读到最新 `W` 才有意义。
+  - **A4.2 应用游标与折叠基线**：重放的基线**恒为当前 frontmatter 的 current state**（不是账本起点、不是缓存副本）；游标 = 本次锁内读到的 `W`。若实现选择"从头折叠全账本"，其结果必须与"从 `W` 起增量重放"一致——两者不一致即视为实现缺陷。
+  - **A4.3 账本耐久先于发布**：新事件必须**先 durable 落盘（write + flush + fsync 到账本文件）**，再 apply 并发布 frontmatter。顺序颠倒会让"frontmatter 已推进但账本无该事件"——这是审计断链，且下次恢复无法察觉。
+  - **A4.4 原子发布**：frontmatter 六字段（`fsrs_bridge.py:44-46` FIELD_ORDER）与 `fsrs_last_review` 必须在**同一次原子替换**中落盘（`os.replace`，现有 bridge 已是该写法），杜绝"部分字段已更新、W 未更新"的半态——半态会被三态判别识别为**残缺卡**并 fail-closed（正确的降级方向）。
+  - ⚠️ **移交条款（G3-3，三项必补）**：①per-node **排他锁**（不是 CAS 比较）覆盖 A4 全序列；②冲突写者在锁内**重读 W 并按 A3 推进时刻**后重算（不得在陈旧状态上重试）；③账本 append 的 fsync 耐久。G3-3 卡面当前只写"比较 last_review/revision 后写"，三项均不在其中，实施时须补。本卡只冻结契约，不实现。
 - **A5 整秒精度（Codex round-3 BLOCKER：小数秒二次推进）**：`review_time` **必须为整秒**（无小数秒段）。因为 `W` 只有秒级精度，`10:00:00.5 > 10:00:00` 恒成立——同一事件重放会被判 pending 并**二次推进**（实测：首次应用后 Learning/due 10:10，重放同一事件推进为 Review/due +2d）。校验器对 `schema_ext=review/1` 行机械强制整秒。
 
 **三态语义（消解"已应用 vs 迟到乱序"歧义）**：`review_time ≤ W` 的事件**一律不推进 current state**——无论它是"已应用"还是"迟到的乱序事件"，对 current state 的动作**完全相同**，因此该歧义对 exactly-once 无影响。二者的区分只用于**账本标注**：
-- **乱序判据统一为 G3-3 卡面口径**（`review_time 早于已应用的最新事件`，即 `review_time ≤ W`），标 `out_of_order`；本文档 pending 集合定义已显式**排除已标 out_of_order 的行**，两处口径自洽。
-- **迟到事件的入账通道**：A3 的"严格大于 W"只约束**在线评分**（正常复习写入）。补录/迟到事件走**账本补录通道**：以原始 `review_time` 入账 + 标 `out_of_order`，**不进 pending、不推进 current state**——因此与 A3 无冲突。
+- **乱序判据统一为 G3-3 卡面口径**（`review_time 早于已应用的最新事件`，即 `review_time ≤ W`，按绝对瞬间比较），标 `out_of_order`；本文档 pending 集合定义已显式**排除已标 out_of_order 的行**，两处口径自洽。
+- **`out_of_order` 字段冻结（round-4 HIGH#3）**：位置 = `payload.out_of_order`；类型 = **布尔 `true`**（唯一合法值）；**未标 = 不写该键**（禁止写 `false`、字符串 `"true"`、对象或任何其他形态——它们既非"已标"也非"未标"，会让 pending 排除条件产生歧义）。校验器机械强制该形态。
+- **迟到事件的入账通道**：A3 的"严格大于 W"只约束**在线评分**（正常复习写入）。补录/迟到事件走**账本补录通道**：以原始 `review_time` 入账 + 标 `payload.out_of_order = true`，**不进 pending、不推进 current state**——因此与 A3 无冲突。
+- **degraded pending 处置（round-4 HIGH#3）**：当节点落入**残缺卡**（三态 fail-closed）时，该节点的 pending 集合**整体冻结**——不重放、不追加新在线事件（新评分应向用户如实报错而非静默丢弃），直到水位线被修复。修复后按 A2 正常重放，pending 中的事件**不因这段冻结期而失效**（它们仍在账本里，`review_time > W` 依旧成立）。禁止"跳过残缺节点继续写新事件"——那会在错误基线上叠加，且让后续恢复无法判别。
 
 - **duplicate 与 IO 失败必须可区分**（§二折叠语义）：G3-2 写点先显式查重再追加，禁止依赖 `append_event` 的折叠布尔。
 - **截断尾行 LF 守卫**：见 §二"截断自愈"行。

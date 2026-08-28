@@ -2,23 +2,21 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**本车道状态**（2026-08-28 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **双卡 Codex 三轮整改后待验收**）:
-- ✅ CARD-G3-1（`63e034ec` + 整改 `4de42f69` + 三轮整改待提交）：D0 修订 + schema v1 冻结 + 严格校验器
-  + 契约测试 **35 passed + 1 skipped**（含 SKILL.md 逐字提取真实 producer 执行 ×3）。一/二/三轮
-  2B+7H+7M 全处置：§6.2 = **A1 write-ahead + A2 恢复先于新写 + A3 严格递增 + A4 临界区 + A5 整秒**
-  （A5 修小数秒二次推进 BLOCKER；A4 修并发绕过；水位线三态含**残缺卡 fail-closed**；乱序口径统一 G3-3
-  卡面 + 补录通道）；校验器补 marker 降级封堵 / 挂载点限定 / rating-grade 自洽 / 弃答恒 1 /
-  **库指纹绑定 golden manifest 真值** / offset 分钟 / RecursionError / Z 与 +00:00 语义比较
-- ✅ CARD-G3-4（`a8bab73c` + 整改 `4de42f69` + 三轮整改待提交）：fsrs 6.3.1 真库 20 向量+3 曲线点、
-  **九门 12 passed**。三轮 2H 已修：时刻 skeleton 改**逐步验证**（前缀时刻伪装）+ **scheduler_config
-  全字段字面锁**（retention 重定向）+ expected 类型门；负验证 **v4 N0+N1–N12**（每变体校验预期红门数
-  与门名、脚本 exit code 反映有效性）13/13 判定全对
-- ⛔ 移交：①test.yml 白名单 +2 测试文件 + root requirements paths（S8 独占 `.github/workflows/`；
-  **CI 接入 DEFERRED / NOT-EXECUTED**，当前执行面 = 本地 pytest）；②tips.py 两条生产缺陷 →
-  **独立 micro-patch**（G3-7 卡面不含 tips）；③**G3-3 须补三项**：per-node 锁/CAS、等时拒绝/复合排序、
-  CAS 冲突后全事件重折叠（A4 的并发强制，其卡面当前只写"比较 last_review 后写"）
-- 纪律守住：learning_event_log.py/fsrs_manager.py 及全部 in-flight 锁定文件零改动（三轮 blob 复核在案）；不 push
-- 待办：三轮整改提交（第四笔）→ Codex 四轮复核 → 用户验收两单
+**本车道状态**（2026-08-28 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **双卡 Codex 四轮整改后待验收**）:
+- ✅ CARD-G3-1（`63e034ec` + 整改 `4de42f69`/`e3337504` + 四轮整改待提交）：D0 修订 + schema v1 冻结
+  + 严格校验器 + 契约测试 **41 passed + 1 skipped**。四轮共 2B+11H+13M 全处置，§6.2 现为
+  **A1 write-ahead / A2 恢复先于新写 / A3 严格递增(等时统一为推进 W+1s) / A4 并发四条
+  (真互斥·应用游标·fsync 先于发布·原子发布) / A5 整秒**；水位线三态按**完整可解析 FSRS tuple**
+  判别(灰区全 fail-closed)；`out_of_order` 形态冻结 + degraded pending 处置；比较**必须按绝对瞬间**
+  (bridge `_iso` 归一化 UTC，字符串比会误判)；校验器绑定 `.canvas-config.yaml` 的 vault_id
+- ✅ CARD-G3-4（`a8bab73c` + 整改 + 四轮整改待提交）：fsrs 6.3.1 真库 20 向量+3 曲线点、
+  **十门 13 passed**。四轮 HIGH 已修：**retrievability skeleton+card 快照锁**（历史/采样协调漂移
+  与 bogus card 曾全绿）+ manifest 键集与出处锁 + state_before bool 门；负验证 v4 N0+N1–N12 全对
+- ⛔ 移交：①test.yml 白名单 +2 测试 + root requirements paths（S8 独占；**CI DEFERRED/NOT-EXECUTED**）；
+  ②tips.py 两条生产缺陷 → **独立 micro-patch**；③**G3-3 三项**：per-node 排他锁覆盖 A4 全序列、
+  冲突方锁内重读 W 并按 A3 推进后重算、账本 append 的 fsync 耐久
+- 纪律守住：learning_event_log.py/fsrs_manager.py 及全部 in-flight 锁定文件零改动（四轮 blob 复核在案）；不 push
+- 待办：四轮整改提交（第五笔）→ Codex 五轮复核 → 用户验收两单
 
 ---
 
