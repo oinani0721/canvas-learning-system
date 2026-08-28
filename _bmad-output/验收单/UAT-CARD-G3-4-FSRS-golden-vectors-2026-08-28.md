@@ -22,7 +22,7 @@
 
 | 裁判 | 结果 |
 |---|---|
-| 新建 `backend/tests/regression/test_fsrs_golden_vectors.py` | **13 passed 全绿**（四轮整改后：**十门**（六轮定稿）— 版本钉死 / 严格 requirements 解析 / 默认参数+枚举面 / params_hash 自洽 / manifest 元数据字面锁 / **manifest 键集+出处锁** / **scheduler_config 全字段字面锁** / 容差上限锁 / 矩阵结构+逐步时刻 skeleton / 向量重放 + **retrievability skeleton+快照锁**） |
+| 新建 `backend/tests/regression/test_fsrs_golden_vectors.py` | **19 passed 全绿**（十六轮整改后：**十门 + 解析歧义两门 + bool/NaN 强化**；下列十门为六轮定稿口径— 版本钉死 / 严格 requirements 解析 / 默认参数+枚举面 / params_hash 自洽 / manifest 元数据字面锁 / **manifest 键集+出处锁** / **scheduler_config 全字段字面锁** / 容差上限锁 / 矩阵结构+逐步时刻 skeleton / 向量重放 + **retrievability skeleton+快照锁**） |
 | 现有 fsrs 套件不回归 | `test_fsrs_manager.py` / `test_create_fsrs_manager.py` / `test_fsrs_state_query.py` / `test_fsrs_bridge.py` / `test_fsrs_legacy_state_zero.py` / `test_fsrs_new_card_none_serialization.py` = **91 passed** + 扩面 `test_review_service_fsrs.py` / `test_story_38_3_fsrs_init_guarantee.py` / `test_mastery_engine_fsrs.py` / `test_fsrs_state_api.py` / `test_review_fsrs_degradation.py`（e2e）= **100 passed**，合计 191/191 零回归 |
 | 向量覆盖 | **5 关键态 × 4 评分 = 20 向量**：新卡首评 / Learning 第二步 / Review 准时 / **Review 逾期 30 天** / Relearning（`state_before_final_review` 字段逐条可核）+ retrievability 曲线 3 点（due/+7d/+30d） |
 | 确定性 | 固定 card_id + 固定 UTC 时刻链 + `enable_fuzzing=False`；生成器**连跑两次 byte 级一致** |
@@ -48,7 +48,7 @@
 | `backend/scripts/generate_fsrs_golden_vectors.py` | 确定性生成器（仅评审后重冻结时重跑） |
 | `backend/tests/regression/fsrs_golden_manifest.json` | versioned manifest（版本/算法/时区/参数 hash/枚举面/容差） |
 | `backend/tests/regression/fsrs_golden_vectors.json` | 20 向量 + 3 retrievability 点（自包含绝对时刻，不依赖生成器） |
-| `backend/tests/regression/test_fsrs_golden_vectors.py` | 十门回归测试（13 passed） |
+| `backend/tests/regression/test_fsrs_golden_vectors.py` | 十门语义回归 + 解析歧义门（**19 passed**，十六轮口径） |
 | `requirements.txt` / `backend/requirements.txt` | `fsrs==6.3.1` 精确钉版 |
 
 ## 五、Codex 审查处置（一轮 → 整改全落地）
@@ -141,3 +141,17 @@
 **正向锚点（十四轮独立确认，本轮未改动这些文件）**：`e013102f` 未触碰 generator / manifest / vectors / 钉版 requirements；`generate()` 内存输出与仓库 JSON **逐字节相同**；manifest SHA `82eaaffa…`、vectors SHA `df60dbc6…`、`params_hash=7b28ae29…`；20 vectors / 20 唯一 ID / 3 retrievability 点；两份 requirements 仍为 `fsrs==6.3.1`。
 
 裁判：golden **15 passed**（原 13 + 2 条新解析歧义门），`tests/unit/test_fsrs_manager.py` **37 passed** 不回归，`fsrs_manager.py` blob 恒为 `980b3758…`（本卡零接触 D4 锁定文件）。
+
+### 十五轮复核：**CARD-G3-4 判可验收**（残留 2 条 LOW，本轮一并清）
+
+Codex 十五轮独立复核确认：重复键 HIGH 与枚举类型 MEDIUM **均真实闭合**；`e013102f..HEAD` 未触碰 generator / manifest / vectors / 钉版 requirements；`generate()` 内存输出与仓库 JSON **逐字节相同**（manifest `82eaaffa…`、vectors `df60dbc6…`、`params_hash=7b28ae29…`）；20 vectors / 20 唯一 ID / 3 retrievability 点；两份 requirements 仍为 `fsrs==6.3.1`。**结论：可验收。**
+
+余下两条 LOW 已在本轮清掉：
+
+| # | 级别 | 十五轮 LOW | 处置 |
+|---|---|---|---|
+| 一 | LOW | `test_enum_bool_drift_is_rejected` **不承重**——它只自证 `True == 1` 与 `type(True) is not int`，**不调用实际主门**，把主门里的类型循环删掉它照样绿 | **已修**：改为把漂移值 `monkeypatch` 进 MANIFEST 后**真跑主门** `test_rating_and_state_value_surface_frozen()`，断言其抛 `AssertionError`；并参数化覆盖 `rating_values` 与 `state_values` 两侧。**承重实测**：把主门的 `assert type(value) is int` 换成 `assert True` 后，两条参数化用例**双双变红** |
+| 二 | LOW | `_load_golden` 的 NaN/Infinity 拒绝正确但**缺专门回归** | **已修**：新增 `test_non_standard_json_constants_are_rejected`，参数化 `NaN` / `Infinity` / `-Infinity` 三形态，断言 `_load_golden` 抛 `_NonStandardGoldenJSON` |
+| 三 | LOW | UAT 与测试 docstring 仍写 `13 passed / 十门`，与实测不一致 | **已修**：顶部裁判表与交付清单改为 **19 passed**，并注明"十门语义 + 解析歧义两门 + bool/NaN 强化"的构成 |
+
+裁判：golden **19 passed**；`tests/unit/test_fsrs_manager.py` **37 passed**、fsrs 全族 **179 passed** 不回归；`fsrs_manager.py` blob 恒为 `980b3758…`（本卡零接触 D4 锁定文件）；manifest/vectors/generator 三文件零改动。

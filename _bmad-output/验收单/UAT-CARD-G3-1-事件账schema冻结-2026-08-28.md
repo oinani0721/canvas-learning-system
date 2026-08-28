@@ -29,7 +29,7 @@
 
 | 裁判 | 结果 |
 |---|---|
-| 契约测试 `backend/tests/regression/test_learning_events_schema_contract.py` | **69 passed + 1 skipped**（本文件单跑口径，十四轮整改后；skip = 仓内 vault 根无账本的 worktree 环境，主仓自动生效。与 golden 门 + 既有账本测试合跑 = **88 passed + 1 skipped**） |
+| 契约测试 `backend/tests/regression/test_learning_events_schema_contract.py` | **130 passed + 1 skipped**（本文件单跑口径，十六轮整改后；skip = 仓内 vault 根无账本的 worktree 环境，主仓自动生效。与 golden 门 + 既有账本测试合跑 = **155 passed + 1 skipped**） |
 | **真实 producer 执行**（Codex 一轮 HIGH 整改） | vault 三 skill 写点的 python 代码**从 SKILL.md 逐字提取执行**（ai-linked-doc 单行模板 / start-exam-board PYEOF 块 / quiz-answer 评分链账本段；仅路径常量重定向 tmp fixture），产物过校验器 + 幂等重放断言；backend 侧按 5 调用点实参形状经真实 `append_event` 写入后全过 |
 | 既有账本回归 `test_learning_event_log.py` | 6 passed（零改动） |
 | 校验脚本 vs 三 fixture | 合法 → exit 0 / 缺字段 → exit 1（点名 `effective_at`）/ 重复 event_id → exit 1（点名首见行号）（存证 `审查/g3-1-evidence/g3-1-fixture-validation.txt`） |
@@ -299,3 +299,27 @@
 **顺带的意外验证**：把递归核心改名后，负验证脚本的变体 A 模式立即失配，机械化当场报 `❌ mutation 未命中 — 模式已与实现漂移`、`RESULT: FAIL`、exit 1。这正是上一笔机械化改造要达到的效果——**旧版脚本在同样情况下会静默"全绿通过"**。修好模式后五变体全部如期变红。
 
 裁判实测：契约测试 **100 passed + 1 skipped**、三文件合跑 **121 passed + 1 skipped**、现网账本 exit 0 且 SHA 恒定。
+
+### 十五轮复核处置（**CARD-G3-4 已判可验收**；G3-1 残留 3 组 HIGH + 5 MEDIUM + 3 LOW，本轮全清）
+
+⚠️ **诚实记录**：十五轮 Codex 做了逐门对照表，判定我上一轮的 verifier 在**十三个门里只有六个真正闭合**。它构造的每个反例我都独立复现了。
+
+| # | 级别 | 十五轮发现 | 处置 |
+|---|---|---|---|
+| 一 | **HIGH** | **算法身份是空门**：§6.2 明写须与 G3-4 manifest 同源，实现只验非空。实测 `library_version="garbage"`、`params_hash="degraded:x"`、`scheduler_config={}`、`reducer={}` **全部返回 `[]`**；`degraded:*` 哨兵也只拒 `library_version` 一处，且完全不看区间事件的算法字段 | **已修**：①`fsrs_library_version` / `fsrs_params_hash` 与 `_golden_manifest()` 真值比对（manifest 不可达时降级形状校验 + 说明），两者各自拒 `degraded:` 哨兵；②`scheduler_config` 与 manifest 逐字段比对（不可达时查六个必要键）；③`reducer` 须含非空 `id` 与非负整数 `precision`；④**折叠区间内的事件**若算法身份是哨兵 ⇒ 报"须人工裁定"。八条参数化门 |
+| 二 | **HIGH** | **genesis 三处不成立**：①加引号的 `"fsrs_state": 2` 是合法 YAML 顶层键，原正则识别不出（**漏检**）；②block scalar 正文里的 `fsrs_state:` 是字符串内容不是键，原正则误判（**误拒**）；③`first_event_line` 取"最早**适用**行"，而 §6.2 定义是"该节点最早**一条事件**"，且规范明定存在无扩展历史行时**不得走 new_card**——三行账本"历史行 + 适用行"曾返回 `[]` | **已修**：①`_frontmatter_fsrs_keys()` 用 **PyYAML 取顶层键**（无 PyYAML 时退化为**第 0 列**正则，故缩进的 block scalar 不再误命中）；②`scan_ledger_bytes()` 同时产出 `node_event_lines`（全部事件）与 `unextended_lines`（无 review/1 扩展的行），`first_event_line` 与前者比对，后者非空即**拒 new_card**；③空 frontmatter 不再误拒（规范未要求非空）。六条参数化门 + 三条账本门 |
+| 三 | **HIGH** | **直读不是单一快照**：`extract_applicable()` 与 `ledger_prefix()` 各调一次 `read_bytes()`。两次读之间追加的 L2 对适用集不可见，而 cursor=1 的 prefix 仍只覆盖 L1 ⇒ 最外层尾部门在真实追加竞态下失效 | **已修**：重构为 `scan_ledger_bytes(raw, node_id)` + `ledger_prefix(raw \| path, n)`，公开入口**只读一次字节**并把同一份快照传给两侧（测试断言全文件 `read_bytes()` 仅 1 处）。范围声明补第 ④ 条："读取的是调用瞬间的快照，调用方须在**持有账本锁时**校验" |
+| 四 | MEDIUM | proof `review_time` 只用宽松 `fromisoformat`：naive 时间与 `9999-12-31T23:59:59Z` 均返回 `[]`；naive/aware 混排抛**未捕获 `TypeError`** | **已修**：改用 `_parse_ts(..., REVIEW_INPUT_MAX)` + `_WHOLE_SECOND_RE`（§三语法 + A7 域 + A5 整秒）；新增 `_aware_instant()` 对 naive 一律返回 None，混排改报违规不崩溃 |
+| 五 | MEDIUM | snapshot state **数值域未查**：`stability=-1.0, difficulty=99.0` 能算出无违规的 hash，而同文件 `classify_card_state()` 对同一组值判 degraded | **已修**：`_state_domain_problems()` 复用 `STABILITY_MAX` / `DIFFICULTY_RANGE` 同判据。四条参数化门 |
+| 六 | MEDIUM | **vault 未绑定**：账本事件 `payload.vault_id="real_vault"` 而 proof 写 `"different_vault"` 时仍返回 `[]` | **已修**：scan 收集账本 vault_id 集合，与 proof 不符即报违规 |
+| 七 | MEDIUM | **非法账本行静默跳过**：三行账本"合法 L1 / 截断 L2 / 合法 L3"可令 cursor 3 的 proof 返回 `[]`——无法判断坏行是否本应适用，静默跳过即静默削弱尾部门 | **已修**：坏行计入 `bad_lines` 并 **fail-closed** 报违规（须先由主体校验修复账本） |
+| 八 | MEDIUM | 负验证 `expect_red` **不查 pytest exit code / collection error / 0 collected**，也不核对失败的是不是预期那条 | **已修**：`run_pytest()` 回填 exit code 与收集数；`expect_red` 三重判据（exit==1、collected>0、`^FAILED .*::<预期名>`）；末尾另加"还原后字节须与备份**逐字相同**"。变体扩至 **七个**（新增 F genesis first_event_line、G 算法身份绑定） |
+| 九 | LOW | 旧二元 `applicable` 抛 `ValueError` 而非报违规；公开 `is_top_level=False` 是"关掉尾部门"的脚枪 | **已修**：元组元数不符 ⇒ 报违规；`is_top_level` 移出公开签名（仅递归内部状态） |
+| 十 | LOW | 负验证在 SIGKILL/掉电时不能保证还原 | **已修（如实声明）**：脚本头写明该边界与补救命令（`git checkout <validator>`）；正常退出路径新增字节级还原校验 |
+| 十一 | LOW | 范围声明"强于实际实现"——未披露 genesis 原文未与真实节点文件绑定、未披露快照语义 | **已修**：schema §6.2 与函数 docstring 的"不做的事"由**三条扩到四条**，逐条点名 |
+
+**十六轮负验证（`审查/g3-1-evidence/g3-round16-counterexamples.txt`）**：七变体逐一拆门，全部如期变红；基线与还原后均 exit 0 且**校验器字节与备份逐字相同**。
+
+⚠️ **操作教训（如实登记）**：本轮一度并发跑了两个负验证脚本，二者都会原地 mutate 同一个校验器，B 的备份取自 A 已 mutate 之后 ⇒ 还原时把 A 的 mutation 写回文件，留下一个 `state_hash` 恒返回常量的校验器，而契约测试**照样全绿**。发现它的正是本轮新加的"还原后字节须与备份逐字相同"那道门。**该脚本必须串行运行。**
+
+裁判实测：契约测试 **130 passed + 1 skipped**、golden **19 passed**、三文件合跑 **155 passed + 1 skipped**、现网账本 exit 0 且 SHA 恒定。

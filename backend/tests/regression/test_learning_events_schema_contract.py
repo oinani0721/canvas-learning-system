@@ -22,6 +22,7 @@ import builtins
 import hashlib
 import importlib.util
 import json
+import pathlib
 import re
 import subprocess
 import sys
@@ -1093,8 +1094,15 @@ def _genesis(first_event_line=1):
     }
 
 
+#: 算法身份取自**真实 golden manifest** (round-16: §6.2 要求 proof 的算法身份
+#: 与 G3-4 manifest 同源, 故测试桩值也必须是真值 —— 用假值会让门失去意义)
+_GOLDEN_MANIFEST = json.loads(
+    (WT / "backend" / "tests" / "regression" / "fsrs_golden_manifest.json").read_text(encoding="utf-8")
+)
+
+
 def _identity(cursor_line, review_time, **over):
-    """proof 的 schema 必填字段骨架 (round-15: 原 helper 缺四个必填字段)。"""
+    """proof 的 schema 必填字段骨架 (round-15 补齐四项, round-16 绑真 manifest)。"""
     base = {
         "vault_id": "v",
         "node_id": "n",
@@ -1102,9 +1110,9 @@ def _identity(cursor_line, review_time, **over):
         "review_time": review_time,
         "cursor_line": cursor_line,
         "ledger_prefix_sha256": _HEX,
-        "fsrs_library_version": "6.3.1",
-        "fsrs_params_hash": "b" * 64,
-        "scheduler_config": {"desired_retention": 0.9},
+        "fsrs_library_version": _GOLDEN_MANIFEST["library_version"],
+        "fsrs_params_hash": _GOLDEN_MANIFEST["params_hash"],
+        "scheduler_config": _GOLDEN_MANIFEST["scheduler_config"],
         "reducer": {"id": "per-event-round", "precision": 4},
         "result_hash": "c" * 64,
     }
@@ -1271,8 +1279,8 @@ def test_every_schema_required_field_is_gated(missing):
     "mutate, marker",
     [
         (lambda g: g.__setitem__("node_frontmatter_hash", "not-a-sha256"), "64 位十六进制"),
-        (lambda g: g.__setitem__("node_frontmatter_text", "fsrs_state: 2\n"), "原文含 FSRS 字段"),
-        (lambda g: g.__setitem__("first_event_line", 2), "不是该节点最早的适用事件行"),
+        (lambda g: g.__setitem__("node_frontmatter_text", "fsrs_state: 2\n"), "原文含 FSRS"),
+        (lambda g: g.__setitem__("first_event_line", 2), "不是该节点最早的事件行"),
     ],
 )
 def test_genesis_anchor_is_really_anchored(mutate, marker):
@@ -1483,3 +1491,216 @@ def test_line_numbering_agrees_with_prefix_on_bare_cr(tmp_path):
     prefix, ends_without_lf, errs = validator.ledger_prefix(ledger, 3)
     assert not errs and ends_without_lf is False
     assert prefix == hashlib.sha256(ledger.read_bytes()).hexdigest()
+
+
+# ── round-16: Codex 十五轮的三组 HIGH + MEDIUM/LOW 逐条行为门 ──
+
+
+@pytest.mark.parametrize(
+    "field, value, marker",
+    [
+        ("fsrs_library_version", "garbage", "不同源"),
+        ("fsrs_library_version", "degraded:fsrs-missing", "哨兵"),
+        ("fsrs_params_hash", "degraded:x", "哨兵"),
+        ("fsrs_params_hash", "e" * 64, "不同源"),
+        ("scheduler_config", {}, "非空"),
+        ("scheduler_config", {"desired_retention": 0.9}, "不同源"),
+        ("reducer", {}, "reducer.id"),
+        ("reducer", {"id": "r"}, "reducer.precision"),
+    ],
+)
+def test_algorithm_identity_binds_to_golden_manifest(field, value, marker):
+    """§6.2 要求算法身份与 G3-4 manifest 同源 — 原实现只验非空 (十五轮 HIGH)。"""
+    proof = _leaf(2, _T2, first_event_line=1, **{field: value})
+    problems = validator.verify_degraded_proof(proof, _APPLICABLE_2)
+    assert any(marker in p for p in problems), (field, value, problems)
+
+
+@pytest.mark.parametrize(
+    "text, should_reject",
+    [
+        ('"fsrs_state": 2\n', True),  # 加引号的顶层键: 合法 YAML, 原正则漏检
+        ("'fsrs_stability': 1.0\n", True),
+        ("fsrs_state: 2\n", True),
+        ("description: |\n  fsrs_state: documentation only\n", False),  # block scalar 正文: 原正则误拒
+        ("", False),  # 空 frontmatter 合法, 规范未要求非空
+        ("title: n\nnote: mentions fsrs_state inline\n", False),
+    ],
+)
+def test_genesis_fsrs_detection_is_yaml_semantic(text, should_reject):
+    """genesis 原文的 FSRS 判据必须按 YAML 顶层键, 不是行内文本匹配。"""
+    proof = _leaf(2, _T2, first_event_line=1)
+    proof["origin"]["genesis_evidence"]["node_frontmatter_text"] = text
+    proof["origin"]["genesis_evidence"]["node_frontmatter_hash"] = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    problems = validator.verify_degraded_proof(proof, _APPLICABLE_2)
+    hit = [p for p in problems if "原文含 FSRS" in p]
+    assert bool(hit) is should_reject, (text, problems)
+
+
+def _ledger_with(tmp_path, rows, name="learning_events.jsonl"):
+    path = tmp_path / name
+    path.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    return path
+
+
+def _event(eid, ts, *, ext=True, vault_id=None, node_id="n"):
+    payload = {"review_time": ts}
+    if ext:
+        payload["schema_ext"] = "review/1"
+    if vault_id:
+        payload["vault_id"] = vault_id
+    return json.dumps(
+        {
+            "event_id": eid,
+            "event_version": 1,
+            "event_type": "answer_scored",
+            "node_id": node_id,
+            "recorded_at": ts,
+            "effective_at": ts,
+            "payload": payload,
+        }
+    )
+
+
+def test_new_card_rejected_when_node_has_unextended_history(tmp_path):
+    """§6.2: 该节点存在无 review/1 扩展的旧行时, 不得采信 new_card。
+
+    十五轮 HIGH: 实现原取"最早**适用**行", 与规范的"最早一条事件"不同 ——
+    历史无扩展行时二者分叉, 该 proof 曾返回 []。
+    """
+    ledger = _ledger_with(tmp_path, [_event("old", _T1, ext=False), _event("e2", _T2)])
+    prefix, _, _ = validator.ledger_prefix(ledger, 2)
+    proof = _leaf(2, _T2, first_event_line=2, ledger_prefix_sha256=prefix)
+    problems = validator.verify_degraded_proof(proof, [], ledger_path=ledger)
+    assert any("账本历史不完整" in p for p in problems), problems
+
+
+def test_first_event_line_counts_all_node_events(tmp_path):
+    """first_event_line 的定义是"该节点最早**一条事件**", 不是最早适用事件。"""
+    ledger = _ledger_with(tmp_path, [_event("old", _T1, ext=False), _event("e2", _T2)])
+    scan, _ = validator.scan_ledger_bytes(ledger.read_bytes(), "n")
+    assert scan["node_event_lines"] == [1, 2]
+    assert [line for line, _, _ in scan["applicable"]] == [2]
+    assert scan["unextended_lines"] == [1]
+
+
+def test_ledger_mode_uses_single_byte_snapshot(tmp_path):
+    """直读模式必须在**同一份字节快照**上完成 — 否则并发追加可让尾部门失效。
+
+    十五轮 HIGH: extract_applicable 与 ledger_prefix 各自 read_bytes(), 两次
+    读之间追加的 L2 对适用集不可见, 而 cursor=1 的 prefix 仍只覆盖 L1 ⇒ []。
+    """
+    import inspect
+
+    assert "is_top_level" not in inspect.signature(validator.verify_degraded_proof).parameters
+    source = pathlib.Path(validator.__file__).read_text(encoding="utf-8")
+    assert source.count("read_bytes()") == 1, "账本字节必须只读一次 (单快照)"
+
+    ledger = _ledger_with(tmp_path, [_event("e1", _T1), _event("e2", _T2)])
+    prefix, _, _ = validator.ledger_prefix(ledger, 1)
+    proof = _leaf(1, _T1, first_event_line=1, ledger_prefix_sha256=prefix)
+    problems = validator.verify_degraded_proof(proof, [], ledger_path=ledger)
+    assert any("未覆盖到账本末尾" in p for p in problems), problems
+
+
+def test_vault_id_must_match_ledger_events(tmp_path):
+    """proof 的 vault_id 必须与账本事件一致 — 原实现只验非空。"""
+    ledger = _ledger_with(tmp_path, [_event("e1", _T1, vault_id="real_vault")])
+    prefix, _, _ = validator.ledger_prefix(ledger, 1)
+    proof = _leaf(1, _T1, first_event_line=1, vault_id="different_vault", ledger_prefix_sha256=prefix)
+    problems = validator.verify_degraded_proof(proof, [], ledger_path=ledger)
+    assert any("vault_id 与账本事件不符" in p for p in problems), problems
+
+
+def test_unparseable_ledger_line_fails_closed(tmp_path):
+    """坏行不得静默跳过 — 无法判断它是否本应参与本节点的 proof。"""
+    ledger = tmp_path / "learning_events.jsonl"
+    ledger.write_text(_event("e1", _T1) + "\n" + '{"broken\n' + _event("e3", _T2) + "\n", encoding="utf-8")
+    prefix, _, _ = validator.ledger_prefix(ledger, 3)
+    proof = _leaf(3, _T2, first_event_line=1, ledger_prefix_sha256=prefix)
+    problems = validator.verify_degraded_proof(proof, [], ledger_path=ledger)
+    assert any("无法解析" in p and "fail-closed" in p for p in problems), problems
+
+
+@pytest.mark.parametrize(
+    "review_time, marker",
+    [
+        ("2026-01-02T10:00:00", "不合法"),  # naive
+        ("9999-12-31T23:59:59Z", "A7"),  # 越 A7 上界
+        ("2026-01-02T10:00Z", "整秒"),  # 缺秒段 (过 §三 语法但违 A5)
+    ],
+)
+def test_proof_review_time_is_strictly_validated(review_time, marker):
+    """proof 的 review_time 必须过 §三 语法 + A7 域 + A5 整秒。"""
+    problems = validator.verify_degraded_proof(_leaf(2, review_time, first_event_line=1), _APPLICABLE_2)
+    assert any(marker in p for p in problems), (review_time, problems)
+
+
+def test_mixed_naive_aware_does_not_raise():
+    """naive 与 aware 混排必须报违规, 不得抛 TypeError。"""
+    problems = validator.verify_degraded_proof(
+        _leaf(2, _T2, first_event_line=1), [(1, "2026-01-01T10:00:00", "e1"), (2, _T2, "e2")]
+    )
+    assert problems  # 具体条目不重要, 关键是没崩溃
+
+
+@pytest.mark.parametrize(
+    "field, value",
+    [("fsrs_stability", -1.0), ("fsrs_stability", 0.0), ("fsrs_difficulty", 99.0), ("fsrs_difficulty", 0.5)],
+)
+def test_snapshot_state_numeric_domain_is_checked(field, value):
+    """snapshot state 的数值域必须与 classify_card_state() 同判据。"""
+    state = {**_state(_T1), field: value}
+    snap_hash, _ = validator.state_hash(state)
+    proof = _identity(2, _T2)
+    proof["origin"] = {
+        "kind": "snapshot",
+        "state": state,
+        "snapshot_hash": snap_hash,
+        "ancestor_proof": dict(_leaf(1, _T1), result_hash=snap_hash),
+    }
+    problems = validator.verify_degraded_proof(proof, _APPLICABLE_2)
+    assert any("可调度域" in p for p in problems), (field, value, problems)
+
+
+def test_degraded_sentinel_event_in_interval_is_rejected(tmp_path):
+    """折叠区间内出现算法身份为 degraded 哨兵的事件 ⇒ 该区间须人工裁定。"""
+    row = json.dumps(
+        {
+            "event_id": "e1",
+            "event_version": 1,
+            "event_type": "answer_scored",
+            "node_id": "n",
+            "recorded_at": _T1,
+            "effective_at": _T1,
+            "payload": {
+                "schema_ext": "review/1",
+                "review_time": _T1,
+                "fsrs_library_version": "degraded:fsrs-missing",
+            },
+        }
+    )
+    ledger = _ledger_with(tmp_path, [row])
+    prefix, _, _ = validator.ledger_prefix(ledger, 1)
+    proof = _leaf(1, _T1, first_event_line=1, ledger_prefix_sha256=prefix)
+    problems = validator.verify_degraded_proof(proof, [], ledger_path=ledger)
+    assert any("degraded 哨兵" in p and "人工裁定" in p for p in problems), problems
+
+
+def test_legacy_two_tuple_applicable_fails_closed():
+    """旧二元 applicable 必须报违规, 不得抛 ValueError (API fail-closed)。"""
+    problems = validator.verify_degraded_proof(_leaf(2, _T2, first_event_line=1), [(1, _T1), (2, _T2)])
+    assert any("三元组" in p for p in problems), problems
+
+
+def test_first_event_line_must_equal_earliest_node_event(tmp_path):
+    """verifier 必须拒绝错位的 first_event_line — 区间左端点否则不可核验。
+
+    与 `test_first_event_line_counts_all_node_events`(只验 scan 的抽取口径)
+    互补: 本条直击 `_check_genesis` 里的比对门。
+    """
+    ledger = _ledger_with(tmp_path, [_event("e1", _T1), _event("e2", _T2)])
+    prefix, _, _ = validator.ledger_prefix(ledger, 2)
+    proof = _leaf(2, _T2, first_event_line=2, ledger_prefix_sha256=prefix)
+    problems = validator.verify_degraded_proof(proof, [], ledger_path=ledger)
+    assert any("不是该节点最早的事件行" in p for p in problems), problems

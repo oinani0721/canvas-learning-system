@@ -497,8 +497,25 @@ def test_duplicate_keys_in_golden_json_are_rejected(tmp_path):
         _load_golden(path)
 
 
-def test_enum_bool_drift_is_rejected():
-    """Rating/State 枚举值必须是 JSON 整数 — True == 1 会让 bool 漂移全绿。"""
-    drifted = {**MANIFEST["rating_values"], "again": True}
-    assert drifted == MANIFEST["rating_values"]  # 前提: 字典比较看不出来
-    assert type(drifted["again"]) is not int  # 类型锁才看得出来
+@pytest.mark.parametrize("mapping_key, name", [("rating_values", "again"), ("state_values", "Learning")])
+def test_enum_bool_drift_is_rejected(monkeypatch, mapping_key, name):
+    """Rating/State 枚举值必须是 JSON 整数 — True == 1 会让 bool 漂移全绿。
+
+    round-16 (Codex 十五轮 LOW): 原版只自证 `True == 1` 与 `type(True) is not
+    int`, **不调用实际主门** —— 把主门里的类型循环删掉它照样绿。现改为把漂移
+    值注入 MANIFEST 后**真跑主门**, 断言它抛 AssertionError。
+    """
+    drifted = {**MANIFEST[mapping_key], name: True}
+    assert drifted == MANIFEST[mapping_key]  # 前提: 字典比较看不出差异
+    monkeypatch.setitem(MANIFEST, mapping_key, drifted)
+    with pytest.raises(AssertionError, match="必须是 JSON 整数"):
+        test_rating_and_state_value_surface_frozen()
+
+
+@pytest.mark.parametrize("literal", ["NaN", "Infinity", "-Infinity"])
+def test_non_standard_json_constants_are_rejected(tmp_path, literal):
+    """金标出现 NaN/Infinity 必须拒 — 它们不是 RFC 8259 合法 JSON。"""
+    path = tmp_path / "m.json"
+    path.write_text('{"comparison_tolerance": {"float_rel": %s}}' % literal, encoding="utf-8")
+    with pytest.raises(_NonStandardGoldenJSON, match="非标准常量"):
+        _load_golden(path)

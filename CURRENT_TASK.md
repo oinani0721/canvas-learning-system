@@ -2,42 +2,32 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**本车道状态**（2026-08-29 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **十四轮 Codex 已出（HEAD `e013102f` 已复核）；BLOCKER 连续七轮清零；十五轮整改已落地待提交**）:
-- ⚠️ **G3-4 的 CONFIRMED-CLOSED 被十四轮推翻**：Codex 判「本提交未触碰且当前 baseline 正确」成立，
-  但「防漂移门已闭合」不成立——十三门锁的是解析**之后**的对象，两种漂移在解析阶段就绕过去：
-  ①**重复 JSON 键**（manifest 开头插 `"library_version":"999.0.0",` 保留后面真值 ⇒ last-wins 解析对象
-  与原文完全相同、13 门全过，first-wins 读到 999.0.0）；②**枚举 bool 漂移**（`again: true`，Python
-  `True == 1` ⇒ 字典比较看不出来）。已修：金标改严格解析（重复键/NaN fail-closed）+ 逐值类型锁，
-  golden **15 passed**
-- ⚠️ **G3-1 的 verifier 被查出远弱于 schema**（我上一轮自己引入）：Codex 构造的 proof 缺四个必填字段、
-  genesis 原文含 `fsrs_state: 2`、`first_event_line` 错位、hash 全是 `"x"`，verifier 竟返回 `[]`。
-  已修六项：必填十二项逐项门 + genesis 三重真锚 + event_id 绑定 + **账本直读模式**（`ledger_path=`
-  自行抽取事件并复算 prefix/LF，从根上消除 `applicable` 信任边界）+ 哨兵拒入链 + 重复行号 fail-closed。
-  该反例现报 **9 条违规**
-- ✅ 十四轮确认闭合：proof 层级作用域歧义（十三轮 HIGH）、验收单计数、历史「恰六键」文案
-- ✅ 十四轮其余 MEDIUM/LOW 全修：等式3 改绝对瞬间比较（`+08:00` 曾假阳性）、canonical 时间由
-  `^..$` 改 `\A..\Z` 并真解析（`2026-99-99` 与末尾 `\n` 曾放行）、**hash 门破同源循环**（钉死
-  shell 独立算出的 `4f26831a…`；此前把 state_hash 换成常量仍 14/14 全绿）、负验证脚本机械化
-  （断言 mutation 命中 + 断言预期门名变红 + 非零退出）、深度上限 64→1024 并写进 schema、
-  docstring 补全三条不做的事、CURRENT_TASK 时态
-- 裁判实测：契约 **95 passed + 1 skipped**、golden **15 passed**、三文件合跑 **116 passed + 1 skipped**、
-  `test_fsrs_manager.py` **37 passed**；负验证五变体全如期变红且机械化自检 exit 1
+**本车道状态**（2026-08-29 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **十五轮 Codex 已出；⭐ CARD-G3-4 判「可验收」（首卡收官）；G3-1 的 3 组 HIGH + 5 MEDIUM + 3 LOW 本轮全清，第十七笔待提交**）:
+- ⭐ **CARD-G3-4 = 可验收**（十五轮独立复核）：重复键 HIGH 与枚举 MEDIUM 真实闭合；generator/manifest/vectors/
+  钉版 requirements 零改动且 `generate()` 内存输出与仓库 JSON **逐字节相同**。余 2 条 LOW 本轮已清
+  （bool 负例改为**真跑主门**、补 NaN/Infinity 回归、UAT 计数 13→**19**）
+- ⚠️ **G3-1 十五轮逐门对照：十三个门只有六个真闭合**。三组 HIGH 全部实测复现并已修：
+  ①**算法身份是空门**（`library_version="garbage"` / `params_hash="degraded:x"` / `scheduler_config={}` /
+  `reducer={}` 全返回 `[]`）⇒ 绑定 golden manifest 真值 + 区间事件哨兵门；
+  ②**genesis 三处**（引号键漏检 / block scalar 误拒 / `first_event_line` 语义错且未查无扩展历史行）
+  ⇒ 改 **YAML 顶层键语义** + `scan_ledger_bytes` 产出全部事件行与无扩展行；
+  ③**直读不是单一快照**（两次 `read_bytes` 之间的并发追加让尾部门失效）⇒ 合并为单快照（全文件 1 处）
+- ✅ MEDIUM/LOW 全修：review_time 落 §三+A7+A5、naive/aware 混排不再 `TypeError`、state 数值域按
+  `classify_card_state()` 同判据、vault_id 绑账本、坏行 fail-closed、旧二元接口报违规、`is_top_level`
+  移出公开签名、空 frontmatter 不误拒、范围声明"不做的事"三条扩四条、负验证加 exit-code/collection 判据
+- ⚠️ **操作教训**：负验证脚本会原地 mutate 校验器，**必须串行**。本轮并发跑两个实例导致 B 的还原把 A 的
+  mutation 写回（留下 `state_hash` 恒返回常量的校验器，而契约测试照样全绿）；发现它的正是新加的
+  "还原后字节须与备份逐字相同"那道门
+- 裁判实测：契约 **130 passed + 1 skipped**、golden **19 passed**、三文件合跑 **155 passed + 1 skipped**、
+  `test_fsrs_manager.py` 37 passed、fsrs 全族 179 passed、现网账本 exit 0 且 SHA 恒 `f78b99f3`；
+  负验证**七变体全承重**、还原字节逐字一致、脚本 exit 0
 - ⛔ 移交（schema §九 逐条登记）：①test.yml 白名单 +2 测试 + root requirements paths（S8 独占；
-  **CI DEFERRED/NOT-EXECUTED**）；②**G3-2 五项**（含 canonical reducer 精度常量——verifier 不复算折叠
-  也不复算 result_hash）；③**G3-3 七项**；④tips.py 两条 → 独立 micro-patch
-- ⚠️ 依赖口径：账本校验主体 stdlib-only（含 verifier）；vault_id 绑定层需 PyYAML + 可 import 的
-  backend `app.config`，不可达或解析异常时降级不绑定 + WARN
+  **CI DEFERRED/NOT-EXECUTED**）；②**G3-2 五项**（含 canonical reducer 精度常量）；③**G3-3 七项**；
+  ④tips.py 两条 → 独立 micro-patch
 - ⚠️ 环境：本 worktree 的 pytest 须用 `backend/.venv/bin/python`（仓根 `.venv` 无 fastapi，conftest 即炸）
-- 纪律守住：learning_event_log.py（blob `28cdaa18`）/ fsrs_manager.py（blob `980b3758`）及全部 in-flight
-  锁定文件零改动（十四轮 blob 逐笔复核在案）；不 push
-- ⚠️ **十五轮自查再修两条（均为第十五笔自己引入）**：①`PROOF_MAX_DEPTH` 取 1024 > Python 递归上限
-  1000 ⇒ 深链抛**未捕获 RecursionError**（工具崩溃而非报违规）——改 128 + 公开入口捕 RecursionError；
-  ②`extract_applicable` 用 `splitlines()`（还在 `\r`/`\v`/`\f`/`\x1c-\x1e` 断行）与主体、
-  `ledger_prefix` 的 `\n` 口径不一致 ⇒ 含裸 CR 的坏记录让后续行号多算 1——三处统一按 `\n`
-- ⚠️ **Codex 十五轮被 cyber 过滤拦截**（措辞含"构造绕过"触发；已知坑见 `reference_codex_exec_gotchas.md`）。
-  但其 stderr 的推理标题泄露了上述两条线索，我据此自查坐实并已修；十五轮已改静态审阅措辞重发
-- 契约 **100 passed + 1 skipped**、三文件合跑 **121 passed + 1 skipped**、golden 15、fsrs 全族 **179 passed**
-- 待办：十六笔提交 → Codex 十五轮（重发版）复核 → 用户验收两单
+- 纪律守住：learning_event_log.py（blob `28cdaa18`）/ fsrs_manager.py（blob `980b3758`）零改动（十五轮
+  逐笔复核在案）；不 push
+- 待办：第十七笔提交 → Codex 十六轮复核（**只需审 G3-1**）→ 用户验收两单
 
 ---
 

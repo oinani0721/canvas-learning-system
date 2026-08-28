@@ -11,6 +11,10 @@
 #   - 每个变体断言 pytest **确实失败**, 且失败的正是**预期那条测试名**;
 #   - 任一环节不符 ⇒ 脚本非零退出。
 #
+# ⚠️ 恢复保证的边界 (Codex 十五轮 LOW, 如实声明): 正常退出与常规信号由 EXIT trap
+# 用备份恢复, 并在末尾逐字节比对; 但 SIGKILL/掉电/宿主崩溃时无法恢复 ——
+# 该情况下用 `git checkout backend/scripts/validate_learning_events.py` 还原。
+#
 # 用法: bash negverify_round14_proof_gates.sh ; echo $?
 # 期望: 全部 PASS, exit 0。
 
@@ -41,36 +45,54 @@ mutate() {
   return 0
 }
 
+# run_pytest <-k 表达式> — 跑一次并回填 OUT / RC / COLLECTED
+# round-16 (Codex 十五轮 MEDIUM): 原实现只 grep `^FAILED` —— collection error、
+# internal error、0 collected 都会被当成"全绿"。现改为同时看 exit code 与收集数。
+run_pytest() {
+  OUT="$(cd "$WT/backend" && "$PY" -m pytest "$TESTS" -q -k "$1" 2>&1)"
+  RC=$?
+  COLLECTED="$(grep -oE "[0-9]+ (passed|failed|deselected)" <<<"$OUT" | awk '{s+=$1} END {print s+0}')"
+}
+
 # expect_red <预期失败的测试名> <-k 表达式>
 expect_red() {
-  local expected="$1" filter="$2" out
-  out="$(cd "$WT/backend" && "$PY" -m pytest "$TESTS" -q -k "$filter" 2>&1)"
-  if ! grep -q "^FAILED .*::${expected}\b" <<<"$out"; then
-    fail "预期 ${expected} 变红, 实际未失败"
-    grep -E "passed|failed" <<<"$out" | tail -1
+  local expected="$1"
+  run_pytest "$2"
+  # pytest exit code: 0=全通过 1=有测试失败 2=中断 3=内部错 4=用法错 5=无测试
+  if [ "$RC" -ne 1 ]; then
+    fail "预期 exit code 1 (有测试失败), 实际 $RC — 可能是 collection/internal error 而非真的门变红"
+    grep -E "ERROR|error" <<<"$OUT" | head -2 | sed 's/^/     /'
     return 1
   fi
-  if ! grep -qE "^[0-9]+ failed|[0-9]+ failed," <<<"$(grep -E "failed" <<<"$out" | tail -1)"; then
-    : # 汇总行形态因 pytest 版本而异, 上面的 FAILED 行已是充分判据
+  if [ "$COLLECTED" -eq 0 ]; then
+    fail "0 个测试被收集 — 过滤表达式与实现漂移"
+    return 1
+  fi
+  if ! grep -q "^FAILED .*::${expected}\b" <<<"$OUT"; then
+    fail "预期 ${expected} 变红, 实际失败的是别的测试"
+    grep "^FAILED" <<<"$OUT" | head -3 | sed 's/^/     /'
+    return 1
   fi
   pass "${expected} 如期变红"
-  grep -E "passed|failed" <<<"$out" | tail -1 | sed 's/^/     /'
+  grep -E "passed|failed" <<<"$OUT" | tail -1 | sed 's/^/     /'
   return 0
 }
 
-echo "=== 基线 (未改动): 三门应全绿 ==="
-BASE="$(cd "$WT/backend" && "$PY" -m pytest "$TESTS" -q -k "two_layer or bypass or tail" 2>&1)"
-if grep -q "^FAILED" <<<"$BASE"; then
-  fail "基线就有失败 — 后续变体结论不可信"
+echo "=== 基线 (未改动): 五门应全绿 ==="
+run_pytest "two_layer or bypass or tail or independent_oracle or genesis_anchor"
+if [ "$RC" -ne 0 ]; then
+  fail "基线 exit code $RC (期望 0) — 后续变体结论不可信"
+elif [ "$COLLECTED" -eq 0 ]; then
+  fail "基线 0 个测试被收集 — 后续变体结论不可信"
 else
-  pass "基线全绿"
+  pass "基线全绿 (exit 0, 收集 $COLLECTED 项)"
 fi
-grep -E "passed|failed" <<<"$BASE" | tail -1 | sed 's/^/     /'
+grep -E "passed|failed" <<<"$OUT" | tail -1 | sed 's/^/     /'
 
 echo
 echo "=== 变体A: 尾部约束**递归**施于 ancestor (round-13 指出的另一种解释) ==="
 echo "    正常链 L1=t1、L2=t2 的 ancestor(cursor=1) 会因 L2 存在而失效"
-if mutate 's/_verify_proof_level\(\s*ancestor, applicable, ledger_path=ledger_path, is_top_level=False, _depth=_depth \+ 1\s*\)/_verify_proof_level(ancestor, applicable, ledger_path=ledger_path, is_top_level=True, _depth=_depth + 1)/s'; then
+if mutate 's/            is_top_level=False,\n            _depth=depth \+ 1,/            is_top_level=True,\n            _depth=depth + 1,/'; then
   expect_red test_normal_two_layer_chain_is_provable "two_layer or bypass"
 fi
 cp "$BAK" "$VALIDATOR"
@@ -98,18 +120,36 @@ cp "$BAK" "$VALIDATOR"
 
 echo
 echo "=== 变体E: genesis 原文 FSRS 字段检查失效 (round-14 Codex HIGH) ==="
-if mutate 's/            if offenders:/            if False:/'; then
+if mutate 's/        if offenders:/        if False:/'; then
   expect_red test_genesis_anchor_is_really_anchored "genesis_anchor"
+fi
+cp "$BAK" "$VALIDATOR"
+
+echo
+echo "=== 变体F: genesis first_event_line 不校验 (round-15 Codex HIGH) ==="
+if mutate 's/    if earliest is not None and first_line != earliest:/    if False:/'; then
+  expect_red test_first_event_line_must_equal_earliest_node_event "first_event_line"
+fi
+cp "$BAK" "$VALIDATOR"
+
+echo
+echo "=== 变体G: 算法身份不绑 manifest (round-15 Codex HIGH) ==="
+if mutate 's/        elif manifest is not None and version != manifest\["library_version"\]:/        elif False:/'; then
+  expect_red "test_algorithm_identity_binds_to_golden_manifest\[fsrs_library_version-garbage" "algorithm_identity"
 fi
 cp "$BAK" "$VALIDATOR"
 
 echo
 echo "=== 还原后全量 ==="
 FINAL="$(cd "$WT/backend" && "$PY" -m pytest "$TESTS" -q 2>&1)"
-if grep -q "^FAILED" <<<"$FINAL"; then
-  fail "还原后仍有失败 — 脚本未正确恢复文件"
+FINAL_RC=$?
+if [ "$FINAL_RC" -ne 0 ]; then
+  fail "还原后 exit code $FINAL_RC — 脚本未正确恢复文件, 或存在真实失败"
+  grep "^FAILED" <<<"$FINAL" | head -3 | sed 's/^/     /'
+elif ! shasum -a 256 "$VALIDATOR" | grep -q "$(shasum -a 256 "$BAK" | cut -d' ' -f1)"; then
+  fail "还原后校验器字节与备份不一致 — 恢复不完整"
 else
-  pass "还原后全绿"
+  pass "还原后全绿且字节与备份逐字相同"
 fi
 grep -E "passed|failed" <<<"$FINAL" | tail -1 | sed 's/^/     /'
 

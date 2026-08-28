@@ -376,6 +376,17 @@ _PROOF_REQUIRED_KEYS = (
 #: (工具崩溃而非报违规) —— 为修 round-14 的"64 层误拒"反而引入了更坏的失败模式。
 #: 128 层对单节点的解冻链 (层数 = 历史重建次数) 已极为宽裕。
 PROOF_MAX_DEPTH = 128
+#: scheduler_config 的必要字段 (manifest 不可达时的降级形状校验口径)
+_SCHEDULER_CONFIG_KEYS = frozenset(
+    {
+        "parameters",
+        "desired_retention",
+        "learning_steps_minutes",
+        "relearning_steps_minutes",
+        "maximum_interval",
+        "enable_fuzzing",
+    }
+)
 
 
 def canonical_state_bytes(state: object) -> tuple[Optional[bytes], list[str]]:
@@ -438,35 +449,63 @@ def state_hash(state: object) -> tuple[Optional[str], list[str]]:
     return hashlib.sha256(blob).hexdigest(), []
 
 
-def extract_applicable(ledger_path: Path, node_id: str) -> tuple[list[tuple[int, str, str]], list[str]]:
-    """从**真实账本文件**抽取某节点的全部适用事件 → [(行号, review_time, event_id)]。
+def _split_ledger_lines(raw: bytes) -> list[bytes]:
+    """账本字节 → 物理行列表 (1-based 行号 = 索引 + 1)。
 
-    适用 = `payload.schema_ext == "review/1"` 且未标 `payload.out_of_order`
-    (§6.2 pending 集合定义)。行号 1-based, 与 `cursor_line` / prefix 截断点同域。
-    这是消除 `applicable` 信任边界的唯一正确来源。
+    ⚠️ 必须按 \\n 切分, **不能**用 splitlines(): 后者还会在 \\r / \\v / \\f /
+    \\x1c-\\x1e / \\x85 处断行, 与主体校验 (二进制文件迭代, 只认 \\n) 和
+    prefix 计算的行号定义不一致 —— 一条含裸 CR 的记录会让两套编号错位,
+    cursor_line 与 prefix 指向不同的行 (round-15 自查实证)。
     """
-    problems: list[str] = []
-    out: list[tuple[int, str, str]] = []
-    try:
-        raw = ledger_path.read_bytes()
-    except OSError as exc:
-        return [], [f"账本不可读: {exc}"]
-    # ⚠️ 必须按 \n 切分, **不能**用 splitlines(): 后者还会在 \r / \v / \f /
-    # \x1c-\x1e / \x85 处断行, 与主体校验 (二进制文件迭代, 只认 \n) 和
-    # ledger_prefix (find(b"\n")) 的行号定义不一致 —— 一条含裸 CR 的记录会让
-    # 两套编号错位, cursor_line 与 prefix 指向不同的行 (round-15 自查实证)
     chunks = raw.split(b"\n")
     if chunks and chunks[-1] == b"":
         chunks.pop()  # 末尾 LF 不产生额外空行
-    for idx, chunk in enumerate(chunks, start=1):
+    return chunks
+
+
+def scan_ledger_bytes(raw: bytes, node_id: object) -> tuple[dict, list[str]]:
+    """在**同一份字节快照**上扫出 proof 所需的全部账本事实。
+
+    返回 (scan, problems)。scan 各键:
+      - `applicable`：[(行号, review_time, event_id)] —— node 相同、
+        `schema_ext == "review/1"`、未标 `out_of_order` 的事件;
+      - `node_event_lines`：该节点的**全部**事件行号 (不限 review/1) ——
+        §6.2 genesis 锚要求的是"最早一条事件", 不是"最早适用事件";
+      - `unextended_lines`：该节点**无 review/1 扩展**的事件行号 —— 存在即
+        禁止走 new_card 分支 (§6.2: 账本历史不完整时须人工裁定);
+      - `degraded_lines`：算法身份为 `degraded:*` 哨兵的适用事件行号;
+      - `vault_ids`：适用事件 payload 里出现过的 vault_id 集合;
+      - `bad_lines`：无法解码/解析的行号。
+
+    ⚠️ 只接受**字节**而非路径: proof 校验必须在单一快照上完成, 否则抽取与
+    prefix 可能读到不同版本 (round-15 Codex HIGH: 两次 read_bytes 之间的
+    并发追加会让最外层尾部门失效)。
+    """
+    problems: list[str] = []
+    scan = {
+        "applicable": [],
+        "node_event_lines": [],
+        "unextended_lines": [],
+        "degraded_lines": [],
+        "vault_ids": set(),
+        "bad_lines": [],
+    }
+    for idx, chunk in enumerate(_split_ledger_lines(raw), start=1):
+        if not chunk.strip():
+            continue
         try:
             record = _strict_loads(chunk.decode("utf-8"))
-        except (UnicodeDecodeError, ValueError):
-            continue  # 非法行由主体校验报告, 此处只做抽取
+        except (UnicodeDecodeError, ValueError, RecursionError):
+            # round-15 Codex MEDIUM: 原实现静默 continue —— 但无法判断坏行
+            # 是否本应参与该节点的 proof, 静默跳过即静默削弱尾部门 ⇒ fail-closed
+            scan["bad_lines"].append(idx)
+            continue
         if not isinstance(record, dict) or record.get("node_id") != node_id:
             continue
+        scan["node_event_lines"].append(idx)
         payload = record.get("payload")
         if not isinstance(payload, dict) or payload.get("schema_ext") != REVIEW_EXT_MARKER:
+            scan["unextended_lines"].append(idx)
             continue
         if "out_of_order" in payload:
             continue
@@ -475,56 +514,95 @@ def extract_applicable(ledger_path: Path, node_id: str) -> tuple[list[tuple[int,
         if not isinstance(review_time, str) or not isinstance(event_id, str):
             problems.append(f"第 {idx} 行: review_time/event_id 非字符串, 无法参与 proof")
             continue
-        out.append((idx, review_time, event_id))
-    return out, problems
+        for key in ("fsrs_library_version", "fsrs_params_hash"):
+            value = payload.get(key)
+            if isinstance(value, str) and value.startswith(DEGRADED_PREFIX):
+                scan["degraded_lines"].append(idx)
+        vault_id = payload.get("vault_id")
+        if isinstance(vault_id, str) and vault_id:
+            scan["vault_ids"].add(vault_id)
+        scan["applicable"].append((idx, review_time, event_id))
+    return scan, problems
 
 
-def ledger_prefix(ledger_path: Path, cursor_line: int) -> tuple[Optional[str], bool, list[str]]:
-    """账本从第 0 字节到第 `cursor_line` 行终止 LF (含) 的 sha256。
+def extract_applicable(source, node_id: object) -> tuple[list[tuple[int, str, str]], list[str]]:
+    """`scan_ledger_bytes()` 的便捷入口 → (适用事件, 违规)。接受 Path 或 bytes。"""
+    raw, read_problems = _ledger_bytes(source)
+    if raw is None:
+        return [], read_problems
+    scan, problems = scan_ledger_bytes(raw, node_id)
+    return scan["applicable"], read_problems + problems
+
+
+def _ledger_bytes(source) -> tuple[Optional[bytes], list[str]]:
+    if isinstance(source, (bytes, bytearray)):
+        return bytes(source), []
+    try:
+        return Path(source).read_bytes(), []
+    except OSError as exc:
+        return None, [f"账本不可读: {exc}"]
+
+
+def ledger_prefix(source, cursor_line: int) -> tuple[Optional[str], bool, list[str]]:
+    """账本从第 0 字节到第 `cursor_line` 行终止 LF (含) 的 sha256。接受 Path 或 bytes。
 
     返回 (sha256 十六进制, 该行是否无终止 LF, 违规)。§6.2 `ledger_prefix_sha256`
     与 `prefix_ends_without_lf` 的**可执行定义** —— 此前只有散文, 无法复算。
     """
-    try:
-        raw = ledger_path.read_bytes()
-    except OSError as exc:
-        return None, False, [f"账本不可读: {exc}"]
+    raw, problems = _ledger_bytes(source)
+    if raw is None:
+        return None, False, problems
     offset = 0
     for seen in range(1, cursor_line + 1):
         nl = raw.find(b"\n", offset)
         if nl == -1:
-            if seen == cursor_line:
+            if seen == cursor_line and offset < len(raw):
                 return hashlib.sha256(raw).hexdigest(), True, []
             return None, False, [f"账本不足 {cursor_line} 行"]
         offset = nl + 1
     return hashlib.sha256(raw[:offset]).hexdigest(), False, []
 
 
+def _frontmatter_fsrs_keys(text: str) -> tuple[list[str], bool]:
+    """frontmatter 原文 → (顶层 `fsrs_*` 键列表, 是否用真 YAML 解析)。
+
+    round-15 Codex HIGH/NEW-FINDING 双向修正:
+      - 加引号的顶层键 `"fsrs_state": 2` 是合法 YAML, 原正则识别不出 (漏检);
+      - block scalar 正文里的 `fsrs_state: ...` 是字符串内容不是键, 原正则
+        误判 (误拒)。
+    有 PyYAML 时按真语义取顶层键; 无则退化为**行首** (第 0 列) 正则 ——
+    顶层键必在第 0 列, 故缩进的 block scalar 正文不再误命中。
+    """
+    try:
+        import yaml
+    except ImportError:
+        yaml = None
+    if yaml is not None:
+        try:
+            data = yaml.safe_load(text)
+        except Exception:
+            return ["<frontmatter 无法解析>"], True
+        if data is None:
+            return [], True
+        if not isinstance(data, dict):
+            return ["<frontmatter 顶层非映射>"], True
+        return sorted(k for k in data if isinstance(k, str) and k.startswith("fsrs_")), True
+    found = {m.group(1) for m in re.finditer(r"(?m)^[\"']?(fsrs_[A-Za-z0-9_]*)[\"']?\s*:", text)}
+    return sorted(found), False
+
+
 def _verify_proof_level(
     proof: object,
     applicable: list[tuple[int, str, str]],
     *,
-    ledger_path: Optional[Path] = None,
+    scan: Optional[dict] = None,
+    ledger_raw: Optional[bytes] = None,
     is_top_level: bool = True,
     _depth: int = 0,
 ) -> list[str]:
-    """degraded 解冻 proof 的结构 / 分层 / 真实绑定门。返回违规列表 (空 = 已判门内无歧义)。
+    """degraded 解冻 proof 的结构 / 分层 / 真实绑定门。返回违规列表。
 
-    `applicable` = 该节点全部**适用事件**的 [(行号, review_time, event_id)],
-    行号 1-based。传 `ledger_path` 时**忽略本参数**, 改由 `extract_applicable()`
-    从真实账本抽取, 并复算 `ledger_prefix_sha256` 与 `prefix_ends_without_lf`。
-
-    ⚠️ **信任边界 (round-14 Codex HIGH)**: 不传 `ledger_path` 时本函数**不读账本**,
-    `applicable` 的完整性完全由调用方保证 —— 抽取不全会让最外层尾部门**真空通过**,
-    prefix 也只校验形状不复算。生产接入必须传 `ledger_path`。
-
-    ⚠️ **本函数不复算 FSRS 折叠, 也不复算 `result_hash`** (依赖 canonical reducer,
-    属 G3-2)。返回空 ≠ proof 成立, 只 = 已判门内无歧义, 可交付 reducer 复算。
-
-    `is_top_level` 是 round-13 冻结的**层级作用域**: "cursor_line 之后不得再有
-    适用事件"**只施于最外层**。若递归施于 ancestor, 则正常链 L1=t1、L2=t2 的
-    ancestor(cursor_line=1) 会因 L2 存在而失效 —— 任何多层链都无法成立, 与原意
-    相反。本参数把该歧义变成代码里的单一事实。
+    见 `verify_degraded_proof()` 的 docstring 了解调用契约与范围声明。
     """
     problems: list[str] = []
     if _depth > PROOF_MAX_DEPTH:
@@ -540,11 +618,15 @@ def _verify_proof_level(
     if not isinstance(cursor, int) or isinstance(cursor, bool) or cursor < 1:
         return problems + [f"cursor_line 必须是 >=1 的整数, 得到 {cursor!r}"]
 
-    # 账本直读模式: 自行抽取 + 复算 prefix, 消除信任边界
-    if ledger_path is not None:
-        applicable, extract_problems = extract_applicable(ledger_path, proof.get("node_id"))
-        problems.extend(extract_problems)
-        computed_prefix, ends_without_lf, prefix_problems = ledger_prefix(ledger_path, cursor)
+    # 账本直读模式: 全部事实取自**同一份字节快照** (round-15 Codex HIGH)
+    if scan is not None:
+        applicable = scan["applicable"]
+        if scan["bad_lines"]:
+            problems.append(
+                f"账本第 {scan['bad_lines']} 行无法解析 — 无法判断其是否本应参与本节点的 proof, "
+                f"fail-closed (须先由主体校验修复账本)"
+            )
+        computed_prefix, ends_without_lf, prefix_problems = ledger_prefix(ledger_raw, cursor)
         problems.extend(prefix_problems)
         if computed_prefix is not None:
             if proof.get("ledger_prefix_sha256") != computed_prefix:
@@ -552,39 +634,41 @@ def _verify_proof_level(
                     f"ledger_prefix_sha256 与账本实算不符: 声称 {proof.get('ledger_prefix_sha256')!r}, "
                     f"实算 {computed_prefix}"
                 )
-            declared_no_lf = proof.get("prefix_ends_without_lf", False)
-            if ends_without_lf and declared_no_lf is not True:
+            if ends_without_lf and proof.get("prefix_ends_without_lf") is not True:
                 problems.append("E 所在行无终止 LF, 必须写 prefix_ends_without_lf: true")
             if not ends_without_lf and "prefix_ends_without_lf" in proof:
                 problems.append("E 所在行有终止 LF, 必须省略 prefix_ends_without_lf")
+        vault_ids = scan["vault_ids"]
+        if vault_ids and proof.get("vault_id") not in vault_ids:
+            problems.append(
+                f"vault_id 与账本事件不符: proof 声称 {proof.get('vault_id')!r}, 账本为 {sorted(vault_ids)}"
+            )
 
-    for key in ("vault_id", "node_id", "event_id", "fsrs_library_version", "fsrs_params_hash"):
-        value = proof.get(key)
-        if key in proof and (not isinstance(value, str) or not value.strip()):
-            problems.append(f"{key} 必须是非空字符串")
-    for key in ("scheduler_config", "reducer"):
-        if key in proof and not isinstance(proof[key], dict):
-            problems.append(f"{key} 必须是 JSON object (算法身份与 reducer 标识须可复算)")
-    if isinstance(proof.get("fsrs_library_version"), str) and proof["fsrs_library_version"].startswith(DEGRADED_PREFIX):
-        problems.append("fsrs_library_version 为 degraded 哨兵 — 哨兵行不参与自动证明链 (§6.2)")
-    for key in ("ledger_prefix_sha256", "result_hash"):
-        value = proof.get(key)
-        if key in proof and (not isinstance(value, str) or not _SHA256_HEX_RE.match(value)):
-            problems.append(f"{key} 必须是 64 位小写十六进制 sha256, 得到 {value!r}")
+    problems.extend(_check_proof_identity(proof))
 
     review_time = proof.get("review_time")
     if not isinstance(review_time, str):
         return problems + ["review_time 必须是字符串"]
-    e_instant = _instant(review_time)
+    # round-15 Codex MEDIUM: 原只用宽松 fromisoformat, naive 时间与
+    # 9999-12-31 均放行, 且 naive/aware 混排会在比较处抛 TypeError
+    ok, why = _parse_ts(review_time, upper_bound=REVIEW_INPUT_MAX)
+    if not ok:
+        return problems + [f"review_time 不合法: {why}"]
+    if not _WHOLE_SECOND_RE.match(review_time):
+        problems.append(f"review_time 必须是整秒且带秒段 (§6.2 A5): {review_time!r}")
+    e_instant = _aware_instant(review_time)
     if e_instant is None:
-        return problems + [f"review_time 不可解析: {review_time!r}"]
+        return problems + [f"review_time 不可解析为绝对瞬间: {review_time!r}"]
 
-    seen_lines: set[int] = set()
     lines: dict[int, tuple[str, str]] = {}
+    seen_lines: set[int] = set()
     for entry in applicable:
+        if not isinstance(entry, (tuple, list)) or len(entry) != 3:
+            # round-15 Codex LOW: 旧二元接口会在解包处抛 ValueError 而非报违规
+            problems.append(f"applicable 元素必须是 (行号, review_time, event_id) 三元组, 得到 {entry!r}")
+            continue
         line_no, ts, event_id = entry
         if line_no in seen_lines:
-            # 与 _reject_dup_keys 同口径: 畸形输入 fail-closed, 不静默选边
             problems.append(f"applicable 内行号 {line_no} 重复 — 输入不自洽")
         seen_lines.add(line_no)
         lines[line_no] = (ts, event_id)
@@ -593,7 +677,7 @@ def _verify_proof_level(
         problems.append(f"cursor_line={cursor} 不是该节点的适用事件行")
     else:
         cursor_ts, cursor_event_id = lines[cursor]
-        if _instant(cursor_ts) != e_instant:
+        if _aware_instant(cursor_ts) != e_instant:
             problems.append(f"review_time 与第 {cursor} 行的事件时刻不一致")
         if proof.get("event_id") != cursor_event_id:
             problems.append(
@@ -612,80 +696,16 @@ def _verify_proof_level(
     kind = origin.get("kind")
 
     if kind == "new_card":
-        evidence = origin.get("genesis_evidence")
-        if not isinstance(evidence, dict):
-            return problems + ["origin.kind=new_card 必须附 genesis_evidence object"]
-        fm_hash = evidence.get("node_frontmatter_hash")
-        if not isinstance(fm_hash, str) or not _SHA256_HEX_RE.match(fm_hash):
-            problems.append(f"genesis_evidence.node_frontmatter_hash 必须是 64 位十六进制, 得到 {fm_hash!r}")
-        fm_text = evidence.get("node_frontmatter_text")
-        if not isinstance(fm_text, str) or not fm_text:
-            problems.append("genesis_evidence.node_frontmatter_text 必须是非空字符串")
-        else:
-            # round-14 Codex HIGH: 原实现只查非空, 放行了含 fsrs_state 的原文 ——
-            # 而 new_card 的全部证明力就在于"此刻无任何 fsrs_* 字段"
-            offenders = sorted({m.group(0) for m in re.finditer(r"(?m)^\s*(fsrs_[A-Za-z0-9_]*)", fm_text)})
-            if offenders:
-                problems.append(f"genesis_evidence 原文含 FSRS 字段 {offenders} — 与 new_card(三态判别为 new) 矛盾")
-            if isinstance(fm_hash, str) and _SHA256_HEX_RE.match(fm_hash):
-                actual = hashlib.sha256(fm_text.encode("utf-8")).hexdigest()
-                if actual != fm_hash:
-                    problems.append("genesis_evidence.node_frontmatter_hash 与所附原文不符 (自洽性)")
-        first_line = evidence.get("first_event_line")
-        if not isinstance(first_line, int) or isinstance(first_line, bool) or first_line < 1:
-            problems.append(f"genesis_evidence.first_event_line 必须 >=1, 得到 {first_line!r}")
-            left = None
-        else:
-            if lines and first_line != min(lines):
-                problems.append(
-                    f"genesis_evidence.first_event_line={first_line} 不是该节点最早的适用事件行 "
-                    f"(实为 {min(lines)}) — 区间左端点不可核验"
-                )
-            left = first_line - 1
+        left, genesis_problems = _check_genesis(origin, lines, scan)
+        problems.extend(genesis_problems)
         ancestor_end: Optional[datetime] = None
     elif kind == "snapshot":
-        ancestor = origin.get("ancestor_proof")
-        snap_hash = origin.get("snapshot_hash")
-        state = origin.get("state")
-        computed, state_problems = state_hash(state)
-        problems.extend(f"origin.state: {p}" for p in state_problems)
-        if not isinstance(snap_hash, str) or not _SHA256_HEX_RE.match(snap_hash):
-            problems.append(f"origin.snapshot_hash 必须是 64 位十六进制, 得到 {snap_hash!r}")
-        elif computed is not None and snap_hash != computed:
-            problems.append("等式1 失败: snapshot_hash != sha256(canonical(state))")
-        if not isinstance(ancestor, dict):
-            return problems + ["origin.kind=snapshot 必须附 ancestor_proof object"]
-
-        # 递归: ancestor 是中间层, 不受尾部约束 (round-13 冻结)
-        problems.extend(
-            f"ancestor_proof: {p}"
-            for p in _verify_proof_level(
-                ancestor, applicable, ledger_path=ledger_path, is_top_level=False, _depth=_depth + 1
-            )
+        left, ancestor_end, snapshot_problems = _check_snapshot(
+            proof, origin, applicable, cursor, scan, ledger_raw, _depth
         )
-        if isinstance(snap_hash, str) and ancestor.get("result_hash") != snap_hash:
-            problems.append("等式2 失败: snapshot_hash != ancestor_proof.result_hash")
-        anc_rt = ancestor.get("review_time")
-        # round-14 Codex MEDIUM: 原用字符串相等, 会把 '+08:00' 与等瞬间的 'Z'
-        # 判为不等 (合法 proof 假阳性)。§6.2 要求按绝对瞬间比较。
-        anc_instant = _instant(anc_rt) if isinstance(anc_rt, str) else None
-        state_w = state.get("fsrs_last_review") if isinstance(state, dict) else None
-        state_w_instant = _instant(state_w) if isinstance(state_w, str) else None
-        if state_w_instant is None or anc_instant is None or state_w_instant != anc_instant:
-            problems.append("等式3 失败: state.fsrs_last_review != ancestor_proof.review_time (按绝对瞬间)")
-
-        anc_cursor = ancestor.get("cursor_line")
-        if not isinstance(anc_cursor, int) or isinstance(anc_cursor, bool):
-            return problems + ["ancestor_proof.cursor_line 必须是整数"]
-        if anc_cursor >= cursor:
-            problems.append(f"链未严格递减: ancestor.cursor_line={anc_cursor} >= 本层 {cursor}")
-        for key in ("vault_id", "node_id"):
-            if ancestor.get(key) != proof.get(key):
-                problems.append(f"链上 {key} 必须相同")
-        left = anc_cursor
-        ancestor_end = anc_instant
-        if ancestor_end is None:
-            problems.append("ancestor_proof.review_time 不可解析")
+        problems.extend(snapshot_problems)
+        if left is _ABORT:
+            return problems
     else:
         return problems + [f"origin.kind 必须是 new_card 或 snapshot, 得到 {kind!r}"]
 
@@ -695,9 +715,15 @@ def _verify_proof_level(
         if not interval:
             problems.append(f"折叠区间 ({left}, {cursor}] 内无适用事件")
         else:
-            instants = [_instant(lines[ln][0]) for ln in interval]
+            if scan is not None:
+                tainted = sorted(ln for ln in scan["degraded_lines"] if left < ln <= cursor)
+                if tainted:
+                    problems.append(
+                        f"折叠区间内第 {tainted} 行的算法身份是 degraded 哨兵 — 无法确定性复算, 该区间须人工裁定 (§6.2)"
+                    )
+            instants = [_aware_instant(lines[ln][0]) for ln in interval]
             if any(i is None for i in instants):
-                problems.append("折叠区间内存在不可解析的 review_time")
+                problems.append("折叠区间内存在不可解析或非 aware 的 review_time")
             else:
                 for idx in range(1, len(instants)):
                     if instants[idx] <= instants[idx - 1]:
@@ -717,24 +743,268 @@ def _verify_proof_level(
     return problems
 
 
+#: `_check_snapshot` 用于示意"本层已无法继续判定"的哨兵
+_ABORT = object()
+
+
+def _check_proof_identity(proof: dict) -> list[str]:
+    """身份、算法身份与 hash 形状 (§6.2 表)。
+
+    round-15 Codex HIGH: 原实现只验非空 —— `library_version="garbage"`、
+    `params_hash="degraded:x"`、`scheduler_config={}`、`reducer={}` 全部放行。
+    §6.2 明写算法身份"须与 G3-4 golden manifest 同源", 故与 manifest 真值绑定;
+    manifest 不可达时降级为形状校验 (与 review/1 行同口径)。
+    """
+    problems: list[str] = []
+    for key in ("vault_id", "node_id", "event_id"):
+        value = proof.get(key)
+        if key in proof and (not isinstance(value, str) or not value.strip()):
+            problems.append(f"{key} 必须是非空字符串")
+
+    manifest = _golden_manifest()
+    version = proof.get("fsrs_library_version")
+    if "fsrs_library_version" in proof:
+        if not isinstance(version, str) or not version:
+            problems.append("fsrs_library_version 必须是非空字符串")
+        elif version.startswith(DEGRADED_PREFIX):
+            problems.append("fsrs_library_version 为 degraded 哨兵 — 哨兵不参与自动证明链 (§6.2)")
+        elif manifest is not None and version != manifest["library_version"]:
+            problems.append(
+                f"fsrs_library_version 与 golden manifest 不同源: proof {version!r} vs manifest "
+                f"{manifest['library_version']!r}"
+            )
+        elif manifest is None and not _VERSION_RE.match(version):
+            problems.append(f"fsrs_library_version 形状非法 (manifest 不可达, 降级形状校验): {version!r}")
+
+    params_hash = proof.get("fsrs_params_hash")
+    if "fsrs_params_hash" in proof:
+        if not isinstance(params_hash, str) or not params_hash:
+            problems.append("fsrs_params_hash 必须是非空字符串")
+        elif params_hash.startswith(DEGRADED_PREFIX):
+            problems.append("fsrs_params_hash 为 degraded 哨兵 — 哨兵不参与自动证明链 (§6.2)")
+        elif manifest is not None and params_hash != manifest["params_hash"]:
+            problems.append(
+                f"fsrs_params_hash 与 golden manifest 不同源: proof {params_hash!r} vs manifest "
+                f"{manifest['params_hash']!r}"
+            )
+        elif manifest is None and not _HASH_RE.match(params_hash):
+            problems.append(f"fsrs_params_hash 形状非法 (manifest 不可达, 降级形状校验): {params_hash!r}")
+
+    config = proof.get("scheduler_config")
+    if "scheduler_config" in proof:
+        if not isinstance(config, dict) or not config:
+            problems.append("scheduler_config 必须是非空 JSON object (须完整可复算)")
+        elif manifest is not None and isinstance(manifest.get("scheduler_config"), dict):
+            if config != manifest["scheduler_config"]:
+                missing = sorted(set(manifest["scheduler_config"]) - set(config))
+                problems.append(
+                    f"scheduler_config 与 golden manifest 不同源"
+                    + (f" (缺键 {missing})" if missing else " (同键集但取值不同)")
+                )
+        else:
+            missing = sorted(_SCHEDULER_CONFIG_KEYS - set(config))
+            if missing:
+                problems.append(f"scheduler_config 缺字段 {missing} (manifest 不可达, 降级形状校验)")
+
+    reducer = proof.get("reducer")
+    if "reducer" in proof:
+        if not isinstance(reducer, dict):
+            problems.append("reducer 必须是 JSON object")
+        else:
+            if not isinstance(reducer.get("id"), str) or not reducer["id"]:
+                problems.append("reducer.id 必须是非空字符串 (canonical reducer 标识)")
+            precision = reducer.get("precision")
+            if not isinstance(precision, int) or isinstance(precision, bool) or precision < 0:
+                problems.append(f"reducer.precision 必须是非负整数 (精度常量), 得到 {precision!r}")
+
+    for key in ("ledger_prefix_sha256", "result_hash"):
+        value = proof.get(key)
+        if key in proof and (not isinstance(value, str) or not _SHA256_HEX_RE.match(value)):
+            problems.append(f"{key} 必须是 64 位小写十六进制 sha256, 得到 {value!r}")
+    return problems
+
+
+def _check_genesis(origin: dict, lines: dict, scan: Optional[dict]) -> tuple[Optional[int], list[str]]:
+    """`origin.kind == "new_card"` 的 genesis 真锚 (§6.2)。→ (折叠区间左端点, 违规)。"""
+    problems: list[str] = []
+    evidence = origin.get("genesis_evidence")
+    if not isinstance(evidence, dict):
+        return None, ["origin.kind=new_card 必须附 genesis_evidence object"]
+
+    fm_hash = evidence.get("node_frontmatter_hash")
+    if not isinstance(fm_hash, str) or not _SHA256_HEX_RE.match(fm_hash):
+        problems.append(f"genesis_evidence.node_frontmatter_hash 必须是 64 位十六进制, 得到 {fm_hash!r}")
+    # round-15 Codex NEW-FINDING: 空 frontmatter 是合法的 (规范未要求非空),
+    # 原实现私加"非空"门属误拒 —— 只要求是字符串
+    fm_text = evidence.get("node_frontmatter_text")
+    if not isinstance(fm_text, str):
+        problems.append("genesis_evidence.node_frontmatter_text 必须是字符串")
+    else:
+        offenders, parsed = _frontmatter_fsrs_keys(fm_text)
+        if offenders:
+            how = "YAML 顶层键" if parsed else "行首键 (无 PyYAML, 降级正则)"
+            problems.append(f"genesis_evidence 原文含 FSRS {how} {offenders} — 与 new_card(三态判别为 new) 矛盾")
+        if isinstance(fm_hash, str) and _SHA256_HEX_RE.match(fm_hash):
+            if hashlib.sha256(fm_text.encode("utf-8")).hexdigest() != fm_hash:
+                problems.append("genesis_evidence.node_frontmatter_hash 与所附原文不符 (自洽性)")
+
+    # §6.2: new_card 只在该节点**账本历史完整**时可用 —— 存在无 review/1
+    # 扩展的旧行时必须人工裁定 (round-15 Codex HIGH: 原实现未查此条)
+    if scan is not None and scan["unextended_lines"]:
+        problems.append(
+            f"该节点第 {scan['unextended_lines']} 行是无 review/1 扩展的历史事件 — "
+            f"§6.2 禁止在账本历史不完整时采信 new_card, 须改走 snapshot 或人工裁定"
+        )
+
+    first_line = evidence.get("first_event_line")
+    if not isinstance(first_line, int) or isinstance(first_line, bool) or first_line < 1:
+        problems.append(f"genesis_evidence.first_event_line 必须 >=1, 得到 {first_line!r}")
+        return None, problems
+    # §6.2 的定义是"该节点在账本中**最早一条事件**的行号" —— 不是最早的
+    # *适用* 事件 (round-15 Codex HIGH: 二者在有历史无扩展行时不同)
+    earliest = min(scan["node_event_lines"]) if (scan and scan["node_event_lines"]) else (min(lines) if lines else None)
+    if earliest is not None and first_line != earliest:
+        problems.append(
+            f"genesis_evidence.first_event_line={first_line} 不是该节点最早的事件行 (实为 {earliest}) "
+            f"— 区间左端点不可核验"
+        )
+    return first_line - 1, problems
+
+
+def _check_snapshot(
+    proof: dict,
+    origin: dict,
+    applicable: list,
+    cursor: int,
+    scan: Optional[dict],
+    ledger_raw: Optional[bytes],
+    depth: int,
+):
+    """`origin.kind == "snapshot"` 的三等式、链约束与递归。→ (左端点, ancestor 时刻, 违规)。"""
+    problems: list[str] = []
+    ancestor = origin.get("ancestor_proof")
+    snap_hash = origin.get("snapshot_hash")
+    state = origin.get("state")
+
+    computed, state_problems = state_hash(state)
+    problems.extend(f"origin.state: {p}" for p in state_problems)
+    if isinstance(state, dict):
+        problems.extend(f"origin.state: {p}" for p in _state_domain_problems(state))
+    if not isinstance(snap_hash, str) or not _SHA256_HEX_RE.match(snap_hash):
+        problems.append(f"origin.snapshot_hash 必须是 64 位十六进制, 得到 {snap_hash!r}")
+    elif computed is not None and snap_hash != computed:
+        problems.append("等式1 失败: snapshot_hash != sha256(canonical(state))")
+    if not isinstance(ancestor, dict):
+        return _ABORT, None, problems + ["origin.kind=snapshot 必须附 ancestor_proof object"]
+
+    # 递归: ancestor 是中间层, 不受尾部约束 (round-13 冻结)
+    problems.extend(
+        f"ancestor_proof: {p}"
+        for p in _verify_proof_level(
+            ancestor,
+            applicable,
+            scan=scan,
+            ledger_raw=ledger_raw,
+            is_top_level=False,
+            _depth=depth + 1,
+        )
+    )
+    if isinstance(snap_hash, str) and ancestor.get("result_hash") != snap_hash:
+        problems.append("等式2 失败: snapshot_hash != ancestor_proof.result_hash")
+
+    anc_rt = ancestor.get("review_time")
+    anc_instant = _aware_instant(anc_rt)
+    state_w = state.get("fsrs_last_review") if isinstance(state, dict) else None
+    state_w_instant = _aware_instant(state_w)
+    if state_w_instant is None or anc_instant is None or state_w_instant != anc_instant:
+        problems.append("等式3 失败: state.fsrs_last_review != ancestor_proof.review_time (按绝对瞬间)")
+
+    anc_cursor = ancestor.get("cursor_line")
+    if not isinstance(anc_cursor, int) or isinstance(anc_cursor, bool):
+        return _ABORT, None, problems + ["ancestor_proof.cursor_line 必须是整数"]
+    if anc_cursor >= cursor:
+        problems.append(f"链未严格递减: ancestor.cursor_line={anc_cursor} >= 本层 {cursor}")
+    for key in ("vault_id", "node_id"):
+        if ancestor.get(key) != proof.get(key):
+            problems.append(f"链上 {key} 必须相同")
+    if anc_instant is None:
+        problems.append("ancestor_proof.review_time 不可解析")
+    return anc_cursor, anc_instant, problems
+
+
+def _state_domain_problems(state: dict) -> list[str]:
+    """snapshot state 的数值域 —— 与 `classify_card_state()` 同判据。
+
+    round-15 Codex: 原实现只查类型不查域, `stability=-1.0, difficulty=99.0`
+    能算出无违规的 hash, 而同文件的三态判别对同一组值判 degraded。
+    """
+    problems: list[str] = []
+    stability = state.get("fsrs_stability")
+    if isinstance(stability, float) and not (0 < stability <= STABILITY_MAX):
+        problems.append(f"fsrs_stability {stability!r} 不在可调度域 (0, {STABILITY_MAX}]")
+    difficulty = state.get("fsrs_difficulty")
+    low, high = DIFFICULTY_RANGE
+    if isinstance(difficulty, float) and not (low <= difficulty <= high):
+        problems.append(f"fsrs_difficulty {difficulty!r} 不在可调度域 [{low}, {high}]")
+    return problems
+
+
+def _aware_instant(value: object) -> Optional[datetime]:
+    """`_instant()` 的 **timezone-aware 限定**版 —— naive 一律 None。
+
+    round-15 Codex MEDIUM: naive 与 aware 的 datetime 相比会抛 TypeError,
+    proof 校验必须报违规而不是崩溃。
+    """
+    parsed = _instant(value)
+    if parsed is None or parsed.tzinfo is None:
+        return None
+    return parsed
+
+
 def verify_degraded_proof(
     proof: object,
     applicable: list[tuple[int, str, str]],
     *,
     ledger_path: Optional[Path] = None,
-    is_top_level: bool = True,
 ) -> list[str]:
-    """`_verify_proof_level()` 的公开入口 —— 见其 docstring 了解全部门与范围声明。
+    """degraded 解冻 proof 的结构 / 分层 / 真实绑定门。返回违规列表。
 
-    本层只多做一件事: **捕获 RecursionError 并转成违规**。`PROOF_MAX_DEPTH` 已
-    远低于 `sys.getrecursionlimit()`, 但调用方的栈深度不可知 (如深层 pytest /
-    嵌套框架), 故仍需纵深防御 —— 校验器面对畸形输入必须**报违规**, 而不是抛
-    traceback 崩溃 (round-15 自查: 上限曾取 1024 > 递归上限 1000, 深链直接崩)。
+    `applicable` = 该节点全部**适用事件**的 [(行号, review_time, event_id)],
+    行号 1-based。传 `ledger_path` 时**忽略本参数**, 改由 `scan_ledger_bytes()`
+    在**单一字节快照**上抽取, 并复算 `ledger_prefix_sha256` 与
+    `prefix_ends_without_lf`。
+
+    ⚠️ **信任边界**: 不传 `ledger_path` 时本函数**不读账本**, `applicable` 的
+    完整性完全由调用方保证 —— 抽取不全会让最外层尾部门**真空通过**, prefix
+    也只校验形状不复算。**生产接入必须传 `ledger_path`**。
+
+    ⚠️ **本函数不做的事** (round-15 逐项收紧后仍成立):
+      ① 不复算 FSRS 折叠 (canonical reducer 属 G3-2);
+      ② 不复算 `result_hash` (同样依赖 reducer);
+      ③ 不把 `genesis_evidence.node_frontmatter_text` 与**真实节点文件**的字节
+         比对 —— 只验其与自报 hash 自洽、且不含 FSRS 顶层键。节点文件路径不在
+         proof 内, 该绑定须由调用方在重建时另行完成;
+      ④ 传 `ledger_path` 时读取的是**调用瞬间的快照**: 快照之后的并发追加不在
+         本次判定内 (调用方须在持有账本锁时校验)。
+    返回空 ≠ proof 成立, 只 = 已判门内无歧义, 可交付 reducer 复算。
+
+    注: 尾部作用域参数 `is_top_level` 不在公开签名内 —— 它是递归内部状态,
+    公开可写会变成"关掉尾部门"的脚枪 (round-15 Codex LOW)。
     """
+    scan: Optional[dict] = None
+    ledger_raw: Optional[bytes] = None
+    prelude: list[str] = []
+    if ledger_path is not None:
+        ledger_raw, read_problems = _ledger_bytes(ledger_path)
+        prelude.extend(read_problems)
+        if ledger_raw is not None:
+            node_id = proof.get("node_id") if isinstance(proof, dict) else None
+            scan, scan_problems = scan_ledger_bytes(ledger_raw, node_id)
+            prelude.extend(scan_problems)
     try:
-        return _verify_proof_level(proof, applicable, ledger_path=ledger_path, is_top_level=is_top_level)
+        return prelude + _verify_proof_level(proof, applicable, scan=scan, ledger_raw=ledger_raw)
     except RecursionError:
-        return [f"ancestor_proof 链过深, 递归耗尽栈 (上限 {PROOF_MAX_DEPTH} 层) — 疑似自引用或异常构造"]
+        return prelude + [f"ancestor_proof 链过深, 递归耗尽栈 (上限 {PROOF_MAX_DEPTH} 层) — 疑似自引用或异常构造"]
 
 
 def _instant(value: object) -> Optional[datetime]:

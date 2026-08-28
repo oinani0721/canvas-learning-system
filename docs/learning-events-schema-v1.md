@@ -199,8 +199,13 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
       - **`ancestor_proof`（中间层）：不受"其后无适用事件"约束**。⚠️ round-13 指出的歧义：若把该尾部约束**递归**施于 ancestor，则正常链 `L1=t1、L2=t2` 中的 ancestor（`cursor_line=1`）会因 L2 存在而失效，任何多层链都无法成立；只施于最外层则是原意。现明确冻结为**仅最外层**——ancestor 的职责是提供一个**中间快照**，本就不必覆盖到末尾，它只需满足：区间定义、层内单调、跨层单调、三条等式、链终止与防循环。
       - 两个 verifier 因此不会给出相反结果。
       - 📌 **可执行的单一事实（round-14，round-15 补真实绑定）**：以上分层语义已落成参考实现 `backend/scripts/validate_learning_events.py::verify_degraded_proof(proof, applicable, *, ledger_path=None, is_top_level=True)`——`is_top_level` 参数就是本条作用域的代码化身，递归调用固定传 `False`。行为门见 `test_learning_events_schema_contract.py::test_normal_two_layer_chain_is_provable`（正常两层链必须 PASS）与 `::test_layered_split_cannot_bypass_monotonicity`（分层绕过必须 FAIL）。
-        **传 `ledger_path` = 账本直读模式**：verifier 用 `extract_applicable()` 自行从真实账本抽取适用事件、用 `ledger_prefix()` 复算 `ledger_prefix_sha256` 与 `prefix_ends_without_lf`，忽略调用方传入的 `applicable`。**生产接入必须传 `ledger_path`**——否则 `applicable` 是信任边界，调用方抽取不全会让最外层尾部门真空通过（round-14 Codex HIGH 实证）。
-        ⚠️ **verifier 不做的三件事**：①不复算 FSRS 折叠（canonical reducer 属 G3-2）；②不复算 `result_hash`（同样依赖 reducer）；③不传 `ledger_path` 时不复算 prefix、不自行抽取事件。返回空违规 = "已判门内无歧义，可交付 reducer 复算"，**不等于** proof 成立。
+        **传 `ledger_path` = 账本直读模式**：verifier 用 `scan_ledger_bytes()` 在**单一字节快照**上抽取适用事件、该节点全部事件行、无扩展历史行、degraded 哨兵行与 vault_id 集合，并用 `ledger_prefix()` 复算 `ledger_prefix_sha256` 与 `prefix_ends_without_lf`，忽略调用方传入的 `applicable`。**生产接入必须传 `ledger_path`**——否则 `applicable` 是信任边界，调用方抽取不全会让最外层尾部门真空通过（round-14 Codex HIGH 实证）。
+        ⚠️ **verifier 不做的四件事**（round-15 Codex 指出前三条声明"强于实际实现"，此处逐条收紧）：
+        ① 不复算 FSRS 折叠（canonical reducer 属 G3-2）；
+        ② 不复算 `result_hash`（同样依赖 reducer）；
+        ③ **不把 `genesis_evidence.node_frontmatter_text` 与真实节点文件的字节比对**——只验其与自报 hash 自洽、且顶层无 `fsrs_*` 键。节点文件路径不在 proof 内，该绑定须由调用方在重建时另行完成；
+        ④ 传 `ledger_path` 时读取的是**调用瞬间的快照**——快照之后的并发追加不在本次判定内，调用方须在**持有账本锁时**校验。
+        返回空违规 = "已判门内无歧义，可交付 reducer 复算"，**不等于** proof 成立。
       ⚠️ round-11 反例：若按 `(review_time, 行号)` 复合序取最大，当 `L1=t2`、`L2=t1`（两行都未标乱序）时 E=L1，区间只含 L1，单调门真空通过，**L2 完全逃逸未被覆盖**。改用行号口径后，E=L2，L1 与 L2 同在区间内，单调门会因 `t2 > t1` 而判该区间不自洽 ⇒ 正确地报"不可证明"。
     - **canonical reducer（round-6 实测的舍入歧义）**：折叠必须**逐事件按生产持久化精度舍入后再进下一步**（与 bridge 的写-读循环一致），**不得**在内存中连续折叠、只在末尾舍入。实测差异：三次 Good 后 `stability` = **10.9711**（逐步舍入）vs **10.9710**（末尾舍入）——两者都满足"折叠到 E"的粗描述，故边界必须唯一化。舍入精度以 bridge 写出 frontmatter 时的实际精度为准（G3-2 落地时把该常量与本条一并锁进测试）。
     - **proof schema（round-8 HIGH#4 机械化——此前只是清单，两个不同起点可满足同一清单却折出不同结果）**。proof 是一个 JSON object，字段与语义如下，缺任一项或任一项不满足约束即**不可证明**：
