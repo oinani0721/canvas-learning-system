@@ -1,0 +1,146 @@
+37387a86:backend/app/api/v1/endpoints/metadata.py:569:            Use after RAG-P0 schema changes (e.g. adding doc_type column) to
+37387a86:backend/app/config.py:48:#:   - 检验白板: 双层 —— 目录黑名单 + 读侧 exclude_doc_types=["whiteboard","exam_board"]
+37387a86:backend/app/config.py:50:#:   - 验收单 / _待处理 / _archive: **单层** —— frontmatter 无 doc_type,
+37387a86:backend/app/mcp/tools/note_search_tools.py:276:    # doc_type/source_type 来自 frontmatter 自由文本 (仅 lower/strip 无枚举
+37387a86:backend/app/mcp/tools/note_search_tools.py:291:            "doc_type",
+37387a86:backend/app/services/react_agent.py:115:            exclude_doc_types=["whiteboard", "exam_board"],
+37387a86:backend/app/services/react_agent.py:124:                exclude_doc_types=["whiteboard", "exam_board"],
+37387a86:backend/app/services/supplementary_reranker.py:56:    "concept": 1.0,  # 派生概念节点 (doc_type=concept) → 用户手写, 最高
+37387a86:backend/app/services/supplementary_search_service.py:834:            exclude_doc_types=["whiteboard", "exam_board"],
+37387a86:backend/app/services/supplementary_search_service.py:849:                exclude_doc_types=["whiteboard", "exam_board"],
+37387a86:backend/app/services/supplementary_search_service.py:975:    doc_type = metadata.get("doc_type", "") or raw.get("doc_type", "") or ""
+37387a86:backend/app/services/supplementary_search_service.py:1045:        # doc_type=按类型加权与断言用 / fts_confirmed=双通道确认)
+37387a86:backend/app/services/supplementary_search_service.py:1047:        "doc_type": doc_type,
+37387a86:backend/app/services/tool_executor.py:97:        RAG-P0 A3 (2026-05-10): default exclude doc_type='whiteboard' so that
+37387a86:backend/app/services/tool_executor.py:112:                exclude_doc_types=["whiteboard", "exam_board"],
+37387a86:backend/app/services/tool_executor.py:122:                    exclude_doc_types=["whiteboard", "exam_board"],
+37387a86:backend/lib/agentic_rag/agent_graph.py:208:                    exclude_doc_types=["whiteboard", "exam_board"],
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:429:    "验收单",  # 同为信息隔离面, 且实测只有单层防御 (读侧 doc_type 不挡)
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:1771:                # RAG-P0 A1: doc_type — frontmatter.type wins; video_transcript
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:1773:                fm_doc_type = chunk.get("doc_type", "note") or "note"
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:1774:                if fm_doc_type == "note" and LanceDBClient._is_video_transcript(chunk["file_path"]):
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:1775:                    final_doc_type = "video_transcript"
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:1777:                    final_doc_type = fm_doc_type
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:1794:                    # RAG-P0 A1: doc_type for source-aware filter/rerank
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:1795:                    "doc_type": final_doc_type,
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:1817:                    # RAG-P0 A1: doc_type column for SQL where-clause filtering
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:1818:                    "doc_type": final_doc_type,
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:2057:            # RAG-P0 A1: doc_type — frontmatter.type wins over path heuristic
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:2058:            fm_doc_type_2 = chunk.get("doc_type", "note") or "note"
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:2059:            if fm_doc_type_2 == "note" and LanceDBClient._is_video_transcript(file_path):
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:2060:                final_doc_type_2 = "video_transcript"
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:2062:                final_doc_type_2 = fm_doc_type_2
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:2077:                # RAG-P0 A1: doc_type for source-aware filter/rerank
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:2078:                "doc_type": final_doc_type_2,
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:2100:                # RAG-P0 A1: doc_type column for SQL where-clause filtering
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:2101:                "doc_type": final_doc_type_2,
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:2583:        RAG-S2 T3 Step3: Obsidian callout 三级分级器 — 对所有 doc_type 生效。
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:2686:        # 携带 doc_type=whiteboard 仍被检索默认排除) — 此处不再无差别剥离。
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:2711:        section 不产 chunk + 考察文件 doc_type 推断 exam_board + 行号补 frontmatter 偏移。
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:2738:        # RAG-P0 A1 (2026-05-10): doc_type from frontmatter.type, default 'note'.
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:2740:        fm_doc_type = str(frontmatter.get("type", "") or "").lower().strip()
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:2741:        if not fm_doc_type:
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:2754:                # MCP 链现有的 doc_type NOT IN (...) 排除自动生效; 文件仍在索引,
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:2756:                fm_doc_type = "exam_board"
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:2758:                fm_doc_type = "note"
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:2767:        if fm_doc_type == "whiteboard":
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:2835:                        # RAG-P0 A1: doc_type for source-aware filtering
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:2836:                        "doc_type": fm_doc_type,
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:2980:        doc_type: Optional[List[str]] = None,
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:2981:        exclude_doc_types: Optional[List[str]] = None,
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:3037:                    doc_type=doc_type,
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:3038:                    exclude_doc_types=exclude_doc_types,
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:3103:        doc_type: Optional[List[str]] = None,
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:3104:        exclude_doc_types: Optional[List[str]] = None,
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:3111:        doc_type include/exclude filtering (RAG-P0 A2, 2026-05-10).
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:3116:        - doc_type param → 'doc_type' column IN (include mode)
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:3117:        - exclude_doc_types param → 'doc_type' column NOT IN (exclude mode)
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:3130:        # RAG-P0 A2: doc_type include/exclude. Pre-A1 rows lack the column;
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:3133:        if doc_type:
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:3134:            quoted = ", ".join(f"'{self._escape_sql(t)}'" for t in doc_type)
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:3135:            if "note" in doc_type:
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:3136:                clauses.append(f"(doc_type IN ({quoted}) OR doc_type IS NULL)")
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:3138:                clauses.append(f"doc_type IN ({quoted})")
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:3139:        if exclude_doc_types:
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:3140:            quoted = ", ".join(f"'{self._escape_sql(t)}'" for t in exclude_doc_types)
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:3141:            clauses.append(f"(doc_type NOT IN ({quoted}) OR doc_type IS NULL)")
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:3162:        doc_type: Optional[List[str]] = None,
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:3163:        exclude_doc_types: Optional[List[str]] = None,
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:3165:        """内部搜索实现 (Story 2.4 + RAG-P0 A2: hybrid + course/tags + doc_type filter)"""
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:3190:            doc_type=doc_type,
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:3191:            exclude_doc_types=exclude_doc_types,
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:3198:        # canvas_vault_vault_notes pre-RAG-P0) lack the 'doc_type' column;
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:3204:            for col in ("doc_type", "course", "tags_str"):
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:3471:                # RAG-P0 A1: doc_type for source-aware filter/rerank
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:3472:                "doc_type",
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:3516:          - missing 'doc_type' column (RAG-P0 A1 added this column;
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:3544:            # RAG-P0 A5: detect missing doc_type column on pre-A1 tables.
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:3546:            # tables with empty doc_type values still register as compliant.
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:3547:            doc_type_missing = False
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:3550:                doc_type_missing = "doc_type" not in col_names
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:3554:                doc_type_missing = "doc_type" not in rows
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:3556:            if not dim_mismatch and not doc_type_missing:
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:3564:                if doc_type_missing:
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:3565:                    reasons.append("missing 'doc_type' column (pre-RAG-P0)")
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:3630:                    # RAG-P0 A1: doc_type column
+37387a86:backend/lib/agentic_rag/clients/lancedb_client.py:3631:                    "doc_type",
+37387a86:backend/lib/agentic_rag/retrievers/vault_notes_retriever.py:66:        default_exclude_doc_types: RAG-P0 A3 (2026-05-10) — default exclude
+37387a86:backend/lib/agentic_rag/retrievers/vault_notes_retriever.py:69:            queries. Pass exclude_doc_types=[] at call site to opt in.
+37387a86:backend/lib/agentic_rag/retrievers/vault_notes_retriever.py:81:    # 查询侧排除表对齐; 未来出题链定向取材传显式 doc_type 即可 opt-in。
+37387a86:backend/lib/agentic_rag/retrievers/vault_notes_retriever.py:82:    default_exclude_doc_types: List[str] = field(default_factory=lambda: ["whiteboard", "exam_board"])
+37387a86:backend/lib/agentic_rag/retrievers/vault_notes_retriever.py:100:        doc_type: Optional[List[str]] = None,
+37387a86:backend/lib/agentic_rag/retrievers/vault_notes_retriever.py:101:        exclude_doc_types: Optional[List[str]] = None,
+37387a86:backend/lib/agentic_rag/retrievers/vault_notes_retriever.py:143:        doc_type: Optional[List[str]] = None,
+37387a86:backend/lib/agentic_rag/retrievers/vault_notes_retriever.py:144:        exclude_doc_types: Optional[List[str]] = None,
+37387a86:backend/lib/agentic_rag/retrievers/vault_notes_retriever.py:179:            # RAG-P0 A3: caller's exclude_doc_types wins; fall back to
+37387a86:backend/lib/agentic_rag/retrievers/vault_notes_retriever.py:181:            # Pass exclude_doc_types=[] explicitly to opt OUT of filtering.
+37387a86:backend/lib/agentic_rag/retrievers/vault_notes_retriever.py:183:                exclude_doc_types if exclude_doc_types is not None else list(self.config.default_exclude_doc_types)
+37387a86:backend/lib/agentic_rag/retrievers/vault_notes_retriever.py:191:                    doc_type=doc_type,
+37387a86:backend/lib/agentic_rag/retrievers/vault_notes_retriever.py:192:                    exclude_doc_types=effective_exclude,
+37387a86:backend/scripts/run_vault_retrieval_regression.py:134:    return str(m.get("doc_type", "")) in set(cfg_contam.get("doc_types", []))
+37387a86:backend/scripts/run_vault_retrieval_regression.py:143:    if str(m.get("doc_type", "")) in set(forb.get("doc_types", [])):
+37387a86:backend/scripts/run_vault_retrieval_regression.py:144:        out.append(f"doc_type {m.get('doc_type')!r} 属硬禁类型 (path={path!r})")
+37387a86:backend/tests/regression/test_immutable_skip_dirs_contract.py:14:  - 检验白板：双层 —— 目录黑名单 + 读侧 exclude_doc_types（靠 frontmatter
+37387a86:backend/tests/regression/test_immutable_skip_dirs_contract.py:16:  - 验收单 / _待处理 / _archive：**单层** —— frontmatter 无 doc_type，读侧不挡，
+37387a86:backend/tests/regression/test_rag_stage0_contracts.py:41:                "doc_type": "concept",
+37387a86:backend/tests/regression/test_rag_stage2_chain_unify_contracts.py:43:def _raw_row(path, raw_score, content="真实学习内容。" * 10, fts=False, doc_type="concept"):
+37387a86:backend/tests/regression/test_rag_stage2_chain_unify_contracts.py:44:    metadata = {"canvas_file": path, "doc_type": doc_type, "_rrf_score": 0.032}
+37387a86:backend/tests/regression/test_rag_stage2_chain_unify_contracts.py:163:    (旧 MCP 直查靠 where 子句, 现走 client.search exclude_doc_types)。"""
+37387a86:backend/tests/regression/test_rag_stage2_chain_unify_contracts.py:180:    assert "exam_board" in captured.get("exclude_doc_types", []), "HARD-ISO: MCP 链必须排除考题白板"
+37387a86:backend/tests/regression/test_rag_stage2_chain_unify_contracts.py:249:    且 metadata 只留数值/布尔信号 (doc_type 等自由文本被丢弃)。"""
+37387a86:backend/tests/regression/test_rag_stage2_chain_unify_contracts.py:265:    assert "doc_type" not in item["metadata"]
+37387a86:backend/tests/regression/test_rag_stage2_chain_unify_contracts.py:488:    """hybrid 异常回退 vector-only 时 exclude_doc_types 必须含 exam_board —
+37387a86:backend/tests/regression/test_rag_stage2_chain_unify_contracts.py:505:    assert "exam_board" in calls[1].get("exclude_doc_types", []), "回退分支漏排 exam_board = 隔离旁路回归"
+37387a86:backend/tests/regression/test_rag_stage2_chain_unify_contracts.py:506:    assert "whiteboard" in calls[1].get("exclude_doc_types", [])
+37387a86:backend/tests/regression/test_rag_stage2_chunk_contracts.py:3:# 组 A doc_type 推断: 考察文件 (exam_question_id, 无 type:) → exam_board;
+37387a86:backend/tests/regression/test_rag_stage2_chunk_contracts.py:39:# 组 A — doc_type 推断（T3 Step1 堵题面泄漏）
+37387a86:backend/tests/regression/test_rag_stage2_chunk_contracts.py:47:    doc_type NOT IN ('whiteboard','exam_board') 排除拦不住 = 信息隔离旁路。
+37387a86:backend/tests/regression/test_rag_stage2_chunk_contracts.py:59:    assert {c["doc_type"] for c in chunks} == {"exam_board"}
+37387a86:backend/tests/regression/test_rag_stage2_chunk_contracts.py:65:    assert {c["doc_type"] for c in chunks} == {"concept"}
+37387a86:backend/tests/regression/test_rag_stage2_chunk_contracts.py:71:    assert {c["doc_type"] for c in chunks} == {"note"}
+37387a86:backend/tests/regression/test_rag_stage2_chunk_contracts.py:290:    assert {c["doc_type"] for c in chunks} == {"exam_board"}, "YAML 失败路径不得回落 note"
+37387a86:backend/tests/regression/test_rag_stage2_rerank_contracts.py:297:        "metadata": {"canvas_file": path, "doc_type": "concept"},
+37387a86:backend/tests/regression/test_rag_stage2_t6_verification_contracts.py:39:    metadata = {"canvas_file": path, "doc_type": "concept", "_rrf_score": 0.032}
+37387a86:backend/tests/regression/test_rag_stage2_t6_verification_contracts.py:295:    excludes = VaultNotesRetrieverConfig().default_exclude_doc_types
+37387a86:backend/tests/regression/test_rag_stage2_t6_verification_contracts.py:318:        assert "exam_board" in kw.get("exclude_doc_types", []), "react agent 链不得成为题面泄漏通道"
+37387a86:backend/tests/regression/test_rag_stage2_t6_verification_contracts.py:339:        assert "exam_board" in kw.get("exclude_doc_types", [])
+37387a86:backend/tests/unit/test_rag_p0_doc_type_filter.py:2:RAG-P0 (2026-05-10) — A1+A2+A4 doc_type filtering & whiteboard boilerplate stripping.
+37387a86:backend/tests/unit/test_rag_p0_doc_type_filter.py:5:- A1: frontmatter.type → metadata.doc_type / doc.doc_type column (source-aware filter input)
+37387a86:backend/tests/unit/test_rag_p0_doc_type_filter.py:6:- A2: _build_where_filters supports doc_type IN / NOT IN with NULL fallback for legacy rows
+37387a86:backend/tests/unit/test_rag_p0_doc_type_filter.py:21:# A1 — doc_type extracted from frontmatter, defaults to 'note'
+37387a86:backend/tests/unit/test_rag_p0_doc_type_filter.py:25:def test_split_md_by_heading_extracts_doc_type_whiteboard():
+37387a86:backend/tests/unit/test_rag_p0_doc_type_filter.py:43:        assert c["doc_type"] == "whiteboard"
+37387a86:backend/tests/unit/test_rag_p0_doc_type_filter.py:46:def test_split_md_by_heading_extracts_doc_type_default_note():
+37387a86:backend/tests/unit/test_rag_p0_doc_type_filter.py:57:    assert all(c["doc_type"] == "note" for c in chunks)
+37387a86:backend/tests/unit/test_rag_p0_doc_type_filter.py:64:    assert all(c["doc_type"] == "note" for c in chunks)
+37387a86:backend/tests/unit/test_rag_p0_doc_type_filter.py:68:# A2 — _build_where_filters source-aware doc_type SQL generation
+37387a86:backend/tests/unit/test_rag_p0_doc_type_filter.py:78:    clauses = _client()._build_where_filters(exclude_doc_types=["whiteboard"])
+37387a86:backend/tests/unit/test_rag_p0_doc_type_filter.py:80:        "doc_type NOT IN ('whiteboard')" in c and "doc_type IS NULL" in c
+37387a86:backend/tests/unit/test_rag_p0_doc_type_filter.py:86:    clauses = _client()._build_where_filters(doc_type=["note"])
+37387a86:backend/tests/unit/test_rag_p0_doc_type_filter.py:88:        "doc_type IN ('note')" in c and "doc_type IS NULL" in c for c in clauses
+37387a86:backend/tests/unit/test_rag_p0_doc_type_filter.py:93:    clauses = _client()._build_where_filters(doc_type=["lecture", "discussion"])
+37387a86:backend/tests/unit/test_rag_p0_doc_type_filter.py:95:    assert "doc_type IN ('lecture', 'discussion')" in sql
+37387a86:backend/tests/unit/test_rag_p0_doc_type_filter.py:105:        exclude_doc_types=["whiteboard"],
+37387a86:backend/tests/unit/test_rag_p0_doc_type_filter.py:110:    assert "doc_type NOT IN" in sql
+37387a86:backend/tests/unit/test_rag_p0_doc_type_filter.py:113:def test_where_filters_no_doc_type_param_unchanged():
+37387a86:backend/tests/unit/test_rag_p0_doc_type_filter.py:116:    assert "doc_type" not in sql, "absent doc_type/exclude_doc_types → no clause"

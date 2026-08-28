@@ -53,7 +53,15 @@ TYPE_WEIGHTS: dict[str, float] = {
     # RAG-S2 T2 (2026-08-09) 权重方向翻转: 旧值 video_transcript 0.9 > note 0.7
     # 把转录排在手写笔记之上, 与用户初衷相反 (开工基线 handwritten_share
     # @10 = 0.17%)。翻转: 手写/概念笔记最高, 转录居中。
-    "concept": 1.0,  # 派生概念节点 (doc_type=concept) → 用户手写, 最高
+    # G4-16 census (2026-08-28, Codex round-1 修订): 直接 lookup 不可达键 —
+    # 加权按材料 source_type 匹配 (生产路径 = rerank() 内 weights.get;
+    # get_type_weight 仅测试调用), 而 indexer 写入的 source_type 只有
+    # note/video_transcript/image_ocr (运行期另有 neighbor_expansion), 永不产
+    # "concept"; doc_type=concept 笔记的 source_type 由路径启发独立决定
+    # (note 或 video_transcript), 与 doc_type 无关。聚合面 get_filter_threshold()
+    # 消费全表 values() (chat.py 生产调用), concept=1.0 非最小值故当前不影响
+    # 阈值。保守保键防误删, 删键裁定列 follow-up。
+    "concept": 1.0,
     "note": 1.0,  # 普通 vault 笔记 → 用户手写, 最高
     "video_transcript": 0.75,  # 视频 transcript → 素材层, 低于手写
     "image_ocr": 0.6,  # OCR 出来的图片文字 → 同 raw_notes 低档 (准确度有限)
@@ -185,8 +193,10 @@ def rerank(
     )
 
     # P0-B (2026-05-12 hotfix): 过滤 floor 兜底.
-    # 当 indexer 未升级到 PRD 6 档时, real-world 数据 source_type="note" 命中过渡
-    # 表 0.7, 典型 relevance ~0.5 → final ~0.35 < filter_threshold 0.42 → 全删.
+    # 当时 source_type="note" 命中过渡表 0.7, 典型 relevance ~0.5 → final ~0.35
+    # < filter_threshold 0.42 → 全删。(G4-16 census 2026-08-28 注记: RAG-S2 T2
+    # fcd34953 已把 note 翻转为 1.0, 该算例是历史情形; floor 机制本身仍在生效,
+    # 相关既有失败测试的重写归 FU-2。)
     # 用户原话: "不硬编码 5 条, 把有用的都提供给我"
     # → filter 后剩 < min_keep 或删 > 80% 候选, 视为 threshold 误杀, 自动降级为
     #   不过滤但仍 top_k 截断, 第 1 条注入 filter_floor_triggered=True 供 logger

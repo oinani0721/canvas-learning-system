@@ -1,0 +1,23 @@
+== CARD-G4-9 / CARD-G4-16 artifact commit receipt ==
+（commit 无法自含己身 SHA，故用本后置 receipt 精确绑定 —— Codex round-4 LOW 整改）
+
+37387a86  第五批开工基线（分析对象锚定 SHA，非本卡产物）
+67ccebe1  CARD-G4-9 初版交付（脚本/报告/台账/证据包/round-1 审查/UAT）
+e7a480eb  CARD-G4-16 初版交付（报告/证据包/两处注释修正/审查/UAT）
+73102875  round-2 findings 整改（两卡）
+fce0d8a2  round-3 findings 整改（两卡）
+94b420ff  CARD-G4-16 round-4 整改（重放 recipe 确定化）
+d2827a6d  CARD-G4-9 round-4 整改
+d8d887f2  本 receipt 首次落盘
+4c125f19  CARD-G4-9 round-5 整改
+5b371253  CARD-G4-9 round-6 架构级修复
+4ba4f847  receipt 补 round-5/6 链
+f389980c  CARD-G4-9 round-7 架构级修复（消除截断动作）
+af251e4a  CARD-G4-9 round-8 整改（QA DB 内存 deserialize / 父目录 containment / stdout 门 / 原子替换清理）
+2cdf77a4  receipt 补 round-8
+6b8debee  CARD-G4-9 round-9 整改（名实一致 / 只读契约回归测试 / 声明有界化）
+dfbe70c7  CARD-G4-9 round-10 解阻整改（矛盾声明全清 / 字段语义 / 测试如实标注 / 可绑定证据）
+f4112c2c  CARD-G4-9 round-11 解阻整改（残留声明清除 / 测试补强 / 证据绑新 blob）
+543e8a34  CARD-G4-9 round-12 措辞整改（前后终态一致 / 具体路径而非整类失效）
+
+各阶段交付物 blob 可用 git cat-file 复核；台账头部 dlq_file.sha256 为 DLQ 快照指纹。

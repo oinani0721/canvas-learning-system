@@ -1042,7 +1042,11 @@ def _normalize_material(raw: dict[str, Any]) -> dict[str, Any]:
         "source_path": canvas_file,
         "source_type": source_type,
         # RAG-S2 T2: confidence 地基 (raw_score=未加权语义分 /
-        # doc_type=按类型加权与断言用 / fts_confirmed=双通道确认)
+        # fts_confirmed=双通道确认)。G4-16 census (2026-08-28, Codex round-1
+        # 修订): doc_type 不参与加权 — 加权按材料 source_type 走
+        # supplementary_reranker 权重表 (rerank() 内 weights.get)。本字段的
+        # 生产消费 = MCP note_search_tools 将 clean 材料的 doc_type 透传进
+        # 输出 metadata (纯透传无分支/加权); 另有测试契约锁定 + 定向取材预留。
         "raw_score": raw_score,
         "doc_type": doc_type,
         "fts_confirmed": fts_confirmed,
