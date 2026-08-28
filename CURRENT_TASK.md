@@ -2,34 +2,29 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**本车道状态**（2026-08-29 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **十七轮 Codex 已出；⭐ CARD-G3-4 保持「可验收」；G3-1 的 3 HIGH + 5 MEDIUM + 3 LOW 全清，第十九笔已提交**）:
-- ⭐ **CARD-G3-4 = 可验收**（十五轮判定，十六/十七轮复核均保持）：`b6f11fb9..HEAD` 对 generator/
-  manifest/vectors 零改动，`generate()` 内存输出与仓库 JSON 逐字节相同
-- ⚠️⚠️ **本轮首先登记我自己的流程错误**：十七轮点名"六条范围声明并未落文"，属实——我在负验证脚本
-  运行期间改了校验器，脚本退出时用旧备份覆盖了我的修改，而我**没复查就把「已修」写进验收单**。
-  这正是上一轮刚写进记忆的"变异脚本必须串行"，同 session 内又犯一次。现行做法：动手前 `ps aux`
-  确认无脚本在跑，改完 `grep -c` 复核落文，才写文档
-- ⚠️ **G3-1 十七轮三条 HIGH（门看着在、实际有洞）**，全部实测复现并修：
-  ①**manifest 可达但残缺**（`scheduler_config` 缺失/键不全 ⇒ 比较分支整个跳过，六键全 0 也过）
-  ⇒ 新增 `_manifest_config_usable()`，残缺即 fail-closed；
-  ②**`out_of_order: true` 伪装真实后继**（形态合法 ≠ 语义为真；标了乱序而时刻更晚 = 被伪装的后继）
-  ⇒ 按 §6.2 的 `review_time <= W` 加语义门，**真正的乱序事件（更早）不误拒**已实测；
-  ③**vault 身份仍可自报**（两锚全缺/部分缺时可任填）⇒ fail-closed（真实 vault 均带
-  `.canvas-config.yaml`，故对现网安全）
-- ✅ MEDIUM/LOW 全修：`vault_id=[]` 不再抛 TypeError、**递归共享改行为门**（ancestor prefix 改错必须
-  报 `ancestor_proof: …实算不符`）、负验证判据再加固（命中数不可证即失败 / 预期集合**每一条**都须变红 /
-  恢复查返回码）、**六条范围三处同文并已复核落文** + 新增"主体校验前置条件"与"proof 侧强依赖
-  PyYAML + golden manifest"、`scheduler_config` canonical 类型冻结进 schema
-- 裁判实测：契约 **155 passed + 1 skipped**、golden 19、三文件合跑 **180 passed + 1 skipped**、
-  `test_fsrs_manager.py` 37、fsrs 全族 191、现网账本 exit 0 且 SHA 恒 `f78b99f3`、锁定 blob 恒定
-- 负验证扩至**十六变体全承重**、还原 `cmp` 逐字节一致、脚本 exit 0（本轮又一次准确报警：改了
-  `out_of_order` 分支形态后变体 K 模式失配即报 FAIL）
+**本车道状态**（2026-08-29 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **十八轮 Codex 已出；⭐ CARD-G3-4 连续四轮「可验收」；G3-1 的 1 HIGH + 3 MEDIUM + 3 LOW 全清，第二十笔已提交**）:
+- ⭐ **CARD-G3-4 = 可验收**（十五轮判定，十六/十七/十八轮复核均保持）：generator/manifest/vectors 零改动，
+  `generate()` 内存输出与仓库 JSON 逐字节相同
+- ⚠️ **G3-1 十八轮 HIGH（真乱序行藏另一 vault）**：确认真乱序后的 `continue` 早于 vault 收集 ⇒ 一条
+  **合法**乱序行能把另一 vault 的合规事件整个藏起来（主体校验对该账本是 PASS，只有 WARN，**不是**违反
+  前置条件的输入）。已修：vault 收集上移到 `continue` 之前 + 新增 `review_ext_lines`；实测
+  `scan.vault_ids` 由 `{a}` 变 `{a,b}` 并报违规
+- ✅ 四个 survivor 全部补门，其中一条是**误拒方向**：乱序比较 `>` 改 `>=` 会误拒合法的
+  `review_time == W`（此前的门只查"该拒的拒了"，不查"该过的过了"）
+- ✅ **"三处同文"这次是机械验证的**：写正规化比对确认六条逐字一致，再把比对做成回归门
+  `test_scope_declaration_is_identical_in_three_places` —— 声明值得写就值得有门守着
+- ⚠️ **负验证判据边界如实登记**：预期测试体内的运行时异常也会被记作 FAILED，脚本无法与"门真的变红"
+  区分（缓解 = 基线段先确认全绿）。不假装闭合
+- 裁判实测：契约 **166 passed + 1 skipped**、三文件合跑 **191 passed + 1 skipped**、golden 19 +
+  `test_fsrs_manager.py` 37、现网账本 exit 0 且 SHA 恒 `f78b99f3`、锁定 blob 恒定
+- 负验证扩至**二十变体全承重**、还原 `cmp` 逐字节一致、脚本 exit 0。⚠️ 十九变体那次的 1 项失败正是
+  加严判据的价值：变体 O 只拆"双锚全缺"分支而 `[partial]` 由另一分支守护，旧判据会误判承重通过
 - ⛔ 移交（schema §九 逐条登记）：①test.yml 白名单 +2 测试 + root requirements paths（S8 独占；
   **CI DEFERRED/NOT-EXECUTED**）；②**G3-2 五项**；③**G3-3 七项**；④tips.py 两条 → 独立 micro-patch
-- ⚠️ **负验证脚本必须串行**（记忆已录）：它原地 mutate 校验器；**运行期间不得编辑任何被测文件**
+- ⚠️ **负验证脚本必须串行**（记忆已录）；**运行期间不得编辑任何被测文件**（十七轮曾因此丢失整批修改）
 - ⚠️ 环境：本 worktree 的 pytest 须用 `backend/.venv/bin/python`（仓根 `.venv` 无 fastapi）
 - 纪律守住：learning_event_log.py（blob `28cdaa18`）/ fsrs_manager.py（blob `980b3758`）零改动；不 push
-- 待办：Codex 十八轮复核（只需审 G3-1）→ 用户验收两单
+- 待办：Codex 十九轮复核（只需审 G3-1）→ 用户验收两单
 
 ---
 

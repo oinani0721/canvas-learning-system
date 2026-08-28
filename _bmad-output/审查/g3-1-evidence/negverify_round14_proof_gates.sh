@@ -11,6 +11,11 @@
 #   - 每个变体断言 pytest **确实失败**, 且失败的正是**预期那条测试名**;
 #   - 任一环节不符 ⇒ 脚本非零退出。
 #
+# ⚠️ 判据的诚实边界 (round-18 Codex MEDIUM, 如实登记而非假装闭合):
+#   预期测试**体内**的运行时异常 (如误写 1/0) 也会被 pytest 记作 FAILED、RC=1,
+#   本脚本无法与「门真的变红」区分。缓解 = 基线段先确认这些测试未改动时全绿;
+#   若某变体的红源自异常而非断言失败, 需人工看输出判别。
+#
 # ⚠️ 恢复保证的边界 (Codex 十五轮 LOW, 如实声明): 正常退出与常规信号由 EXIT trap
 # 用备份恢复, 并在末尾逐字节比对; 但 SIGKILL/掉电/宿主崩溃时无法恢复 ——
 # 该情况下用 `git checkout backend/scripts/validate_learning_events.py` 还原。
@@ -26,7 +31,12 @@ PY="/Users/Heishing/Desktop/canvas/canvas-learning-system/backend/.venv/bin/pyth
 BAK="$(mktemp)" || { echo "❌ mktemp 失败"; exit 1; }
 cp "$VALIDATOR" "$BAK" || { echo "❌ 初始备份失败, 拒绝继续 (否则无法还原)"; exit 1; }
 FAILURES=0
-trap 'cp "$BAK" "$VALIDATOR"; rm -f "$BAK"' EXIT
+# round-18 Codex LOW: EXIT trap 的 cp 原本不查返回码 —— 异常退出时恢复失败会静默
+cleanup() {
+  cp "$BAK" "$VALIDATOR" || echo "  ❌ EXIT trap 恢复失败! 请手动从 git 还原 $VALIDATOR"
+  rm -f "$BAK"
+}
+trap cleanup EXIT
 
 fail() { echo "  ❌ $*"; FAILURES=$((FAILURES + 1)); }
 # round-17 Codex MEDIUM: 中间恢复的 cp 原本不查返回码 —— 恢复失败会让后续变体
@@ -232,7 +242,7 @@ restore || exit 1
 echo
 echo "=== 变体O: vault 无证据不再 fail-closed (round-17 HIGH) ==="
 if mutate 's/            if not vault_ids and ledger_vault_id is None:/            if False:/'; then
-  expect_red "test_vault_identity_without_evidence_fails_closed" "without_evidence"
+  expect_red "test_vault_identity_without_evidence_fails_closed\\[none\\]" "without_evidence"
 fi
 restore || exit 1
 
@@ -240,6 +250,34 @@ echo
 echo "=== 变体P: 递归不再共享账本事实 (round-17 survivor) ==="
 if mutate 's/            scan=scan,\n            ledger_raw=ledger_raw,\n            ledger_vault_id=ledger_vault_id,/            scan=None,\n            ledger_raw=None,\n            ledger_vault_id=None,/'; then
   expect_red test_survivor_recursion_shares_ledger_facts "recursion_shares"
+fi
+restore || exit 1
+
+echo
+echo "=== 变体Q: vault 收集退回 out_of_order 的 continue 之后 (round-18 HIGH) ==="
+if mutate 's/        vault_id = payload.get\("vault_id"\)\n        if isinstance\(vault_id, str\) and vault_id:\n            scan\["vault_ids"\].add\(vault_id\)\n            scan\["vault_id_lines"\].add\(idx\)\n        scan\["review_ext_lines"\].append\(idx\)/        scan["review_ext_lines"].append(idx)/'; then
+  expect_red test_genuine_out_of_order_cannot_hide_another_vault "hide_another_vault"
+fi
+restore || exit 1
+
+echo
+echo "=== 变体R: 乱序比较改 >= (round-18 survivor: 误拒 review_time == W) ==="
+if mutate 's/and \(not prior or marked_at > max\(prior\)\):/and (not prior or marked_at >= max(prior)):/'; then
+  expect_red test_out_of_order_at_exactly_watermark_is_not_misrejected "exactly_watermark"
+fi
+restore || exit 1
+
+echo
+echo "=== 变体S: 范围声明三处同文门 (round-18 MEDIUM) ==="
+if mutate 's/#   ① 不复算 FSRS 折叠/#   ① 不复算 FSRS 折叠 (漂移测试)/'; then
+  expect_red test_scope_declaration_is_identical_in_three_places "identical_in_three_places"
+fi
+restore || exit 1
+
+echo
+echo "=== 变体T: 拆掉「部分行带 vault_id」分支 (round-19: 与变体O 是两个不同的门) ==="
+if mutate 's/            elif vault_ids and len\(vault_ids\) == 1:/            elif False:/'; then
+  expect_red "test_vault_identity_without_evidence_fails_closed\[partial\]" "without_evidence"
 fi
 restore || exit 1
 

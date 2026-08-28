@@ -201,13 +201,13 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
       - 两个 verifier 因此不会给出相反结果。
       - 📌 **可执行的单一事实（round-14，round-15 补真实绑定）**：以上分层语义已落成参考实现 `backend/scripts/validate_learning_events.py::verify_degraded_proof(proof, applicable, *, ledger_path=None)`——作用域由**内部**递归参数 `is_top_level` 承载（递归固定传 `False`），round-15 起**已移出公开签名**（公开可写等于给调用方一个关掉尾部门的开关）。行为门见 `test_learning_events_schema_contract.py::test_normal_two_layer_chain_is_provable`（正常两层链必须 PASS）与 `::test_layered_split_cannot_bypass_monotonicity`（分层绕过必须 FAIL）。
         **传 `ledger_path` = 账本直读模式**：verifier 用 `scan_ledger_bytes()` 在**单一字节快照**上抽取适用事件、该节点全部事件行、无扩展历史行、degraded 哨兵行与 vault_id 集合，并用 `ledger_prefix()` 复算 `ledger_prefix_sha256` 与 `prefix_ends_without_lf`，忽略调用方传入的 `applicable`。**生产接入必须传 `ledger_path`**——否则 `applicable` 是信任边界，调用方抽取不全会让最外层尾部门真空通过（round-14 Codex HIGH 实证）。
-        ⚠️ **verifier 不做的六件事**（round-15 起逐轮收紧，round-17 落定；与 `validate_learning_events.py` 的模块头注释、`verify_degraded_proof` docstring **三处同文**）：
-        ① 不复算 FSRS 折叠（canonical reducer 属 G3-2）；
-        ② 不复算 `result_hash`（同样依赖 reducer）；
-        ③ 不传 `ledger_path` 时不复算 prefix、不自行抽取事件（`applicable` 即信任边界）；
-        ④ **不把 `genesis_evidence.node_frontmatter_text` 与真实节点文件的字节比对**——只验其与自报 hash 自洽、且顶层无 `fsrs_*` 键。节点文件路径不在 proof 内，该绑定须由调用方在重建时另行完成；
-        ⑤ **不做完整记录级 schema 校验**——scanner 只校验 proof 依赖的字段（`node_id` / `schema_ext` / `out_of_order` / `review_time` / `event_id` / 算法身份 / `vault_id`）。**proof 校验以「该账本已通过主体校验」为前置条件**；
-        ⑥ 传 `ledger_path` 时读取的是**调用瞬间的快照**——快照之后的并发追加不在本次判定内，调用方须在**持有账本锁时**校验。
+        ⚠️ **verifier 不做的六件事**（round-17 落定；与 `validate_learning_events.py` 的模块头注释、`verify_degraded_proof` docstring **逐字同文**）：
+        ① 不复算 FSRS 折叠 —— canonical reducer 的精度常量属 G3-2, 需真实 fsrs;
+        ② 不复算 `result_hash` —— 它是折叠产物的 hash, 同样依赖 reducer;
+        ③ 不传 `ledger_path` 时不复算 `ledger_prefix_sha256`、不自行抽取事件 —— 此时 `applicable` 是信任边界, 其完整性由调用方保证 (抽取不全会让尾部门真空通过); 传 `ledger_path` 后 verifier 自行抽取并复算, 但这不等于消除全部信任 (见 ⑤);
+        ④ 不把 genesis 原文与真实节点文件的字节比对 —— 只验其与自报 hash 自洽、且顶层无 `fsrs_*` 键; 节点文件路径不在 proof 内, 该绑定须由调用方另行完成;
+        ⑤ 不做完整记录级 schema 校验 —— scanner 只校验 proof 依赖的字段 (node_id / schema_ext / out_of_order / review_time / event_id / 算法身份 / vault_id); proof 校验以「该账本已通过主体校验」为前置条件;
+        ⑥ 传 `ledger_path` 时读的是调用瞬间的快照 —— 之后的并发追加不在判定内 (调用方须在持有账本锁时校验)。
         📌 **proof 侧的强依赖（与账本主体校验不同口径）**：账本校验主体是 stdlib-only，但 **proof 侧强制要求 PyYAML**（genesis 顶层键判定）**与同仓 G3-4 golden manifest**（算法身份同源，且其 `scheduler_config` 须完整含六键）。任一不可达或残缺 ⇒ **fail-closed 报违规**，不降级放行——降级会让"合法形状版本 + 任意 hash + 残缺配置"直接通过（round-16/17 实证）。
         📌 **`scheduler_config` 的类型冻结**：proof 的该字段必须与 manifest 的 **canonical JSON 文本逐字相同**（`json.dumps(sort_keys=True, separators=(",",":"))`）。这一并冻结了各键的 JSON 类型——`enable_fuzzing` 是 `false` 不是 `0`、`learning_steps_minutes` 是整数数组不是布尔数组、`maximum_interval` 是 `36500` 不是 `36500.0`。Python 的 `==` 对前两组判等（`0 == False`、`True == 1`），故**不得用 `==` 比较**。
         返回空违规 = "已判门内无歧义，可交付 reducer 复算"，**不等于** proof 成立。

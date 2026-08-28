@@ -332,20 +332,19 @@ def classify_card_state(fields: dict) -> tuple[str, str]:
 # (左开右闭按行号)、层内单调、跨层单调、链终止与防循环、snapshot 三等式、
 # genesis 真锚、尾部作用域。
 #
-# **不做的事** (round-14 起逐轮点名, round-17 落定为六条):
-#   ① **不复算 FSRS 折叠** —— canonical reducer 的精度常量属 G3-2, 需真实 fsrs;
-#   ② **不复算 `result_hash`** —— 它是折叠产物的 hash, 同样依赖 reducer;
-#   ③ 不传 `ledger_path` 时**不复算 `ledger_prefix_sha256`、不自行抽取事件** ——
-#      此时 `applicable` 是**信任边界**, 其完整性由调用方保证 (抽取不全会让尾部
-#      门真空通过)。传 `ledger_path` 后 verifier 自行抽取事件、复算 prefix、判定
-#      `prefix_ends_without_lf`, 并忽略调用方传入的 applicable —— 但这**不等于**
-#      消除全部信任 (见 ⑤);
-#   ④ **不把 genesis 原文与真实节点文件的字节比对** (节点文件路径不在 proof 内);
-#   ⑤ **不做完整记录级 schema 校验** —— scanner 只校验 proof 依赖的字段
-#      (node_id / schema_ext / out_of_order / review_time / event_id / 算法身份 /
-#      vault_id)。**proof 校验以「该账本已通过本脚本的主体校验」为前置条件**;
-#   ⑥ 传 `ledger_path` 时读的是**调用瞬间的快照** —— 之后的并发追加不在判定内
-#      (调用方须在持有账本锁时校验)。
+# **不做的事** (round-14 起逐轮点名, round-17 落定六条; round-18 与函数 docstring、
+# schema §6.2 **逐字同文**):
+#   ① 不复算 FSRS 折叠 —— canonical reducer 的精度常量属 G3-2, 需真实 fsrs;
+#   ② 不复算 `result_hash` —— 它是折叠产物的 hash, 同样依赖 reducer;
+#   ③ 不传 `ledger_path` 时不复算 `ledger_prefix_sha256`、不自行抽取事件 —— 此时
+#      `applicable` 是信任边界, 其完整性由调用方保证 (抽取不全会让尾部门真空通过); 传 `ledger_path` 后
+#      verifier 自行抽取并复算, 但这不等于消除全部信任 (见 ⑤);
+#   ④ 不把 genesis 原文与真实节点文件的字节比对 —— 只验其与自报 hash 自洽、且顶层无 `fsrs_*` 键; 节点文件路径不在
+#      proof 内, 该绑定须由调用方另行完成;
+#   ⑤ 不做完整记录级 schema 校验 —— scanner 只校验 proof 依赖的字段 (node_id / schema_ext /
+#      out_of_order / review_time / event_id / 算法身份 / vault_id); proof
+#      校验以「该账本已通过主体校验」为前置条件;
+#   ⑥ 传 `ledger_path` 时读的是调用瞬间的快照 —— 之后的并发追加不在判定内 (调用方须在持有账本锁时校验)。
 #
 # **proof 侧的额外依赖 (与账本主体校验不同)**: 主体 stdlib-only, 但 proof 侧
 # **强制要求 PyYAML** (genesis 顶层键判定) 与**同仓 G3-4 golden manifest**
@@ -387,7 +386,8 @@ _PROOF_REQUIRED_KEYS = (
 #: (工具崩溃而非报违规) —— 为修 round-14 的"64 层误拒"反而引入了更坏的失败模式。
 #: 128 层对单节点的解冻链 (层数 = 历史重建次数) 已极为宽裕。
 PROOF_MAX_DEPTH = 128
-#: scheduler_config 的必要字段 (manifest 不可达时的降级形状校验口径)
+#: scheduler_config 的必要字段 —— manifest 的该字段必须**含全部六键**才可用作
+#: 同源判据 (round-17 起: 残缺即 fail-closed, 不再降级形状校验)
 _SCHEDULER_CONFIG_KEYS = frozenset(
     {
         "parameters",
@@ -500,6 +500,7 @@ def scan_ledger_bytes(raw: bytes, node_id: object) -> tuple[dict, list[str]]:
         "degraded_lines": [],
         "vault_ids": set(),
         "vault_id_lines": set(),
+        "review_ext_lines": [],
         "bad_lines": [],
         "blank_lines": [],
     }
@@ -527,6 +528,17 @@ def scan_ledger_bytes(raw: bytes, node_id: object) -> tuple[dict, list[str]]:
             if record.get("event_type") in REVIEW_EVENT_TYPES:
                 scan["unextended_lines"].append(idx)
             continue
+        # round-18 Codex HIGH: vault 归属必须在 out_of_order 的 continue **之前**
+        # 收集 —— 否则一条"真正的乱序"行可以把**另一个 vault** 的合规事件整个藏起来
+        # (实测: L1 vault=A 正常、L2 vault=B 标真乱序 ⇒ scan.vault_ids 只剩 {A},
+        # proof 声称 vault=A 返回 [])。§6.2 声称 scanner 抽取的是该节点事件的
+        # vault 集合, 不是"适用集的 vault 集合"。
+        vault_id = payload.get("vault_id")
+        if isinstance(vault_id, str) and vault_id:
+            scan["vault_ids"].add(vault_id)
+            scan["vault_id_lines"].add(idx)
+        scan["review_ext_lines"].append(idx)
+
         if "out_of_order" in payload:
             # round-16 Codex HIGH: 原实现按"键是否存在"排除 —— 写
             # `out_of_order: false` 即可把尾部事件从适用集里藏掉, 绕过尾部门。
@@ -561,10 +573,6 @@ def scan_ledger_bytes(raw: bytes, node_id: object) -> tuple[dict, list[str]]:
             for key in ("fsrs_library_version", "fsrs_params_hash")
         ):
             scan["degraded_lines"].append(idx)  # 双哨兵不重复记同一行 (round-16 LOW)
-        vault_id = payload.get("vault_id")
-        if isinstance(vault_id, str) and vault_id:
-            scan["vault_ids"].add(vault_id)
-            scan["vault_id_lines"].add(idx)
         scan["applicable"].append((idx, review_time, event_id))
     return scan, problems
 
@@ -701,7 +709,7 @@ def _verify_proof_level(
         else:
             if vault_ids and vault_ids != {claimed}:
                 problems.append(
-                    f"vault_id 与账本事件不符: proof 声称 {claimed!r}, 账本适用事件为 {sorted(vault_ids)} "
+                    f"vault_id 与账本事件不符: proof 声称 {claimed!r}, 账本 review/1 事件为 {sorted(vault_ids)} "
                     f"(须严格等于单一值)"
                 )
             if ledger_vault_id is not None and claimed != ledger_vault_id:
@@ -719,11 +727,11 @@ def _verify_proof_level(
                 )
             # 部分行带 vault_id、部分行不带 ⇒ 集合不足以判定全体
             elif vault_ids and len(vault_ids) == 1:
-                carried = sum(1 for line, _, _ in scan["applicable"] if line in scan["vault_id_lines"])
-                if carried != len(scan["applicable"]):
+                total = len(scan["review_ext_lines"])
+                carried = len(scan["vault_id_lines"])
+                if carried != total:
                     problems.append(
-                        f"仅 {carried}/{len(scan['applicable'])} 条适用事件带 vault_id — "
-                        f"其余行的 vault 归属不可证, fail-closed"
+                        f"仅 {carried}/{total} 条 review/1 事件带 vault_id — 其余行的 vault 归属不可证, fail-closed"
                     )
 
     problems.extend(_check_proof_identity(proof))
@@ -834,8 +842,10 @@ def _check_proof_identity(proof: dict) -> list[str]:
 
     round-15 Codex HIGH: 原实现只验非空 —— `library_version="garbage"`、
     `params_hash="degraded:x"`、`scheduler_config={}`、`reducer={}` 全部放行。
-    §6.2 明写算法身份"须与 G3-4 golden manifest 同源", 故与 manifest 真值绑定;
-    manifest 不可达时降级为形状校验 (与 review/1 行同口径)。
+    §6.2 明写算法身份"须与 G3-4 golden manifest 同源", 故与 manifest 真值绑定。
+    ⚠️ manifest **不可达或其 scheduler_config 残缺 ⇒ fail-closed** (round-16/17):
+    降级会让"合法形状版本 + 任意 64-hex + 残缺配置"直接通过。账本主体校验侧仍
+    保持降级 WARN —— 它须能对任意 vault 独立运行, 与 proof 侧是两套口径。
     """
     problems: list[str] = []
     for key in ("vault_id", "node_id", "event_id"):
@@ -1099,18 +1109,18 @@ def verify_degraded_proof(
     完整性完全由调用方保证 —— 抽取不全会让最外层尾部门**真空通过**, prefix
     也只校验形状不复算。**生产接入必须传 `ledger_path`**。
 
-    ⚠️ **本函数不做的六件事** (round-17 落定; 与模块头注释、schema §6.2 三处同文):
-      ① 不复算 FSRS 折叠 (canonical reducer 属 G3-2);
-      ② 不复算 `result_hash` (同样依赖 reducer);
-      ③ 不传 `ledger_path` 时不复算 prefix、不自行抽取事件 (`applicable` 即信任边界);
-      ④ 不把 `genesis_evidence.node_frontmatter_text` 与**真实节点文件**的字节
-         比对 —— 只验其与自报 hash 自洽、且顶层无 FSRS 键。节点文件路径不在
-         proof 内, 该绑定须由调用方在重建时另行完成;
-      ⑤ **不做完整记录级 schema 校验** —— scanner 只校验 proof 依赖的字段。
-         **本函数以「该账本已通过 validate_file() 主体校验」为前置条件**;
-      ⑥ 传 `ledger_path` 时读取的是**调用瞬间的快照**: 快照之后的并发追加不在
-         本次判定内 (调用方须在持有账本锁时校验)。
-
+    ⚠️ **本函数不做的六件事** (round-17 落定; 与模块头注释、schema §6.2 **逐字同文**):
+      ① 不复算 FSRS 折叠 —— canonical reducer 的精度常量属 G3-2, 需真实 fsrs;
+      ② 不复算 `result_hash` —— 它是折叠产物的 hash, 同样依赖 reducer;
+      ③ 不传 `ledger_path` 时不复算 `ledger_prefix_sha256`、不自行抽取事件 —— 此时
+         `applicable` 是信任边界, 其完整性由调用方保证 (抽取不全会让尾部门真空通过); 传 `ledger_path` 后
+         verifier 自行抽取并复算, 但这不等于消除全部信任 (见 ⑤);
+      ④ 不把 genesis 原文与真实节点文件的字节比对 —— 只验其与自报 hash 自洽、且顶层无 `fsrs_*` 键;
+         节点文件路径不在 proof 内, 该绑定须由调用方另行完成;
+      ⑤ 不做完整记录级 schema 校验 —— scanner 只校验 proof 依赖的字段 (node_id / schema_ext
+         / out_of_order / review_time / event_id / 算法身份 / vault_id); proof
+         校验以「该账本已通过主体校验」为前置条件;
+      ⑥ 传 `ledger_path` 时读的是调用瞬间的快照 —— 之后的并发追加不在判定内 (调用方须在持有账本锁时校验)。
     ⚠️ **proof 侧的强依赖**: PyYAML (genesis 顶层键判定) + 同仓 G3-4 golden
     manifest (算法身份同源)。任一不可达 ⇒ fail-closed 报违规, 不降级放行 ——
     与「账本主体校验 stdlib-only」是两套口径, 语境不同。

@@ -29,7 +29,7 @@
 
 | 裁判 | 结果 |
 |---|---|
-| 契约测试 `backend/tests/regression/test_learning_events_schema_contract.py` | **155 passed + 1 skipped**（本文件单跑口径，十八轮整改后；skip = 仓内 vault 根无账本的 worktree 环境，主仓自动生效。与 golden 门 + 既有账本测试合跑 = **180 passed + 1 skipped**） |
+| 契约测试 `backend/tests/regression/test_learning_events_schema_contract.py` | **166 passed + 1 skipped**（本文件单跑口径，十九轮整改后；skip = 仓内 vault 根无账本的 worktree 环境，主仓自动生效。与 golden 门 + 既有账本测试合跑 = **191 passed + 1 skipped**） |
 | **真实 producer 执行**（Codex 一轮 HIGH 整改） | vault 三 skill 写点的 python 代码**从 SKILL.md 逐字提取执行**（ai-linked-doc 单行模板 / start-exam-board PYEOF 块 / quiz-answer 评分链账本段；仅路径常量重定向 tmp fixture），产物过校验器 + 幂等重放断言；backend 侧按 5 调用点实参形状经真实 `append_event` 写入后全过 |
 | 既有账本回归 `test_learning_event_log.py` | 6 passed（零改动） |
 | 校验脚本 vs 三 fixture | 合法 → exit 0 / 缺字段 → exit 1（点名 `effective_at`）/ 重复 event_id → exit 1（点名首见行号）（存证 `审查/g3-1-evidence/g3-1-fixture-validation.txt`） |
@@ -368,3 +368,22 @@
 ⚠️ **机械化又一次准确报警**：本轮改了 `out_of_order` 分支形态后，变体 K 的 perl 模式立即失配 ⇒ 报"mutation 未命中"、`RESULT: FAIL`、exit 1。修好模式后十六变体全绿。
 
 裁判实测：契约测试 **155 passed + 1 skipped**、golden **19 passed**、三文件合跑 **180 passed + 1 skipped**、`test_fsrs_manager.py` **37 passed**、现网账本 exit 0 且前后 SHA 恒 `f78b99f3`、锁定 blob 恒定。
+
+
+### 十八轮复核处置（G3-4 保持可验收；G3-1 残留 1 HIGH + 3 MEDIUM + 3 LOW，本轮全清）
+
+十八轮确认十七轮三条 HIGH **全部 CONFIRMED-CLOSED**（含"真正的乱序事件不误拒"），残留收敛到 1 HIGH。
+
+| # | 级别 | 十八轮发现 | 处置 |
+|---|---|---|---|
+| 一 | **HIGH** | **真正的乱序行可隐藏另一 vault**：确认是真乱序后的 `continue` 发生在 **vault 收集之前** ⇒ 一条合法的乱序行能把另一个 vault 的合规事件整个藏起来（实测 L1 `vault=a` 正常、L2 `vault=b` 标真乱序 ⇒ `scan.vault_ids` 只剩 `{a}`，proof 声称 `vault=a` 返回 `[]`）。⚠️ 这**不是**违反前置条件的输入——主体校验对该账本是 PASS，仅有 WARN。schema 声称 scanner 抽取的是该节点 review/1 事件的 vault 集合，实现却悄悄缩成了"适用集的 vault 集合" | **已修**：vault 收集**上移到 `continue` 之前**，并新增 `review_ext_lines`（该节点全部 review/1 行）。实测 `scan.vault_ids` 现为 `{a, b}` 并报"vault_id 与账本事件不符"。"部分行带 vault_id"的基数同步从适用集改为全部 review/1 行，与 schema 声称一致；报错措辞由"适用事件"改为"review/1 事件" |
+| 二 | MEDIUM | **四个 full-suite survivor**：①从 `_SCHEDULER_CONFIG_KEYS` 删 `parameters` 后只缺该键的 manifest 从 fail-closed 变 `[]`；②乱序比较 `>` 改 `>=` 后**合法的 `review_time == W` 被误拒**；③禁用 config mismatch 门后无独立行为门；④递归只丢 `ledger_vault_id` 时合法两层 proof 的 ancestor 出现假阳性 | **已修**：四条专门门。其中②是**误拒方向**的 survivor（此前的门只查"该拒的拒了"，不查"该过的过了"）——新增 `test_out_of_order_at_exactly_watermark_is_not_misrejected` 实测返回 `[]` |
+| 三 | MEDIUM | **"六条"CONFIRMED 但"三处同文"STILL-OPEN**：模块第③④信息量不同、docstring 第⑤省略了 scanner 字段清单 | **已修 + 做成门**：三处正文统一为同一份文本（只在缩进/标记语法上适配载体）。⚠️ 这次不是"改完就声称"——先写正规化比对（去缩进/注释前缀/换行/空白）**机械验证**六条逐字一致，再把该比对做成回归门 `test_scope_declaration_is_identical_in_three_places`，以后漂移会直接变红 |
+| 四 | MEDIUM | 负验证仍可把运行时异常 / 单个参数实例误认作承重 | **已修 + 如实登记边界**：①参数化变体的预期名写全参数 id；②脚本头**明确登记**"预期测试体内的运行时异常也会被记作 FAILED，本脚本无法与『门真的变红』区分"——缓解手段是基线段先确认这些测试未改动时全绿，**不假装闭合** |
+| 五-七 | LOW | EXIT trap 恢复未查返回码；`_check_proof_identity` docstring 与六键常量注释仍写"manifest 不可达时降级形状校验"（实际已 fail-closed） | **全部已修**：trap 改 `cleanup()` 并在恢复失败时明确告警；两处过期注释更正为现行 fail-closed 口径 |
+
+**二十轮负验证**：变体扩至 **二十个**（新增 Q vault 收集次序 / R 乱序比较 `>=` / S 三处同文门 / T 部分行分支），**全部承重**，还原 `cmp` 逐字节一致，脚本 exit 0。
+
+⚠️ **加严判据的直接价值（本轮实证）**：十九变体那次跑出 1 项失败——变体 O 拆的是"双锚全缺"分支，而 `[partial]` 用例由"仅 N/M 条带 vault_id"这个**另一个分支**守护，故不会红。**旧判据（"至少一条预期项变红"）会把它判成承重通过**，从而掩盖"我把两个不同的门当成了一个"这一事实。加严为"每条预期项都必须变红"后当场暴露，于是拆成变体 O（只期待 `[none]`）与新变体 T（拆 partial 分支）。
+
+裁判实测：契约测试 **166 passed + 1 skipped**、golden + `test_fsrs_manager.py` 合跑 **56 passed**、三文件合跑 **191 passed + 1 skipped**、现网账本 exit 0 且前后 SHA 恒 `f78b99f3`、锁定 blob 恒定。

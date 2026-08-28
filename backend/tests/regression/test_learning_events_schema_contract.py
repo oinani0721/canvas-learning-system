@@ -2049,3 +2049,137 @@ def test_degraded_lines_are_deduplicated(tmp_path):
     ledger = _ledger_with(tmp_path, [json.dumps(row)])
     scan, _ = validator.scan_ledger_bytes(ledger.read_bytes(), "n")
     assert scan["degraded_lines"] == [1], scan["degraded_lines"]
+
+
+# ── round-19: Codex 十八轮的 1 HIGH + 3 MEDIUM + 3 LOW ──
+
+
+def test_genuine_out_of_order_cannot_hide_another_vault(tmp_path):
+    """真正的乱序行不得把**另一个 vault** 的事件整个藏起来 (十八轮 HIGH)。
+
+    根因: 确认真乱序后的 `continue` 早于 vault 收集 ⇒ L2 的 vault=B 不可见,
+    proof 声称 vault=A 返回 []。§6.2 声称 scanner 抽取的是该节点 review/1
+    事件的 vault 集合, 不是"适用集的 vault 集合"。
+    """
+    late = json.loads(_event("e1", _T2, vault_id="a"))
+    early = json.loads(_event("e2", _T1, vault_id="b"))
+    early["payload"]["out_of_order"] = True
+    ledger = _ledger_with(tmp_path, [json.dumps(late), json.dumps(early)], vault_id=None)
+    prefix, _, _ = validator.ledger_prefix(ledger, 1)
+    proof = _leaf(1, _T2, first_event_line=1, vault_id="a", ledger_prefix_sha256=prefix)
+    problems = validator.verify_degraded_proof(proof, [], ledger_path=ledger)
+    assert any("vault_id 与账本事件不符" in p for p in problems), problems
+
+    scan, _ = validator.scan_ledger_bytes(ledger.read_bytes(), "n")
+    assert scan["vault_ids"] == {"a", "b"}, scan["vault_ids"]
+    assert [line for line, _, _ in scan["applicable"]] == [1]
+
+
+def test_out_of_order_at_exactly_watermark_is_not_misrejected(tmp_path):
+    """`review_time == W` 的乱序事件合法 —— 比较必须是 `>` 不是 `>=`。
+
+    十八轮 survivor: 把该比较改成 `>=` 后原测试仍全绿。
+    """
+    same = json.loads(_event("same", _T1, vault_id="v"))
+    same["payload"]["out_of_order"] = True
+    ledger = _ledger_with(tmp_path, [_event("e1", _T1, vault_id="v"), json.dumps(same)])
+    prefix, _, _ = validator.ledger_prefix(ledger, 1)
+    proof = _leaf(1, _T1, first_event_line=1, ledger_prefix_sha256=prefix)
+    assert validator.verify_degraded_proof(proof, [], ledger_path=ledger) == []
+
+
+@pytest.mark.parametrize("missing", sorted(validator._SCHEDULER_CONFIG_KEYS))
+def test_manifest_missing_any_required_config_key_fails_closed(monkeypatch, missing):
+    """manifest 的 scheduler_config **缺任一必要键**都必须 fail-closed。
+
+    十八轮 survivor: 从 `_SCHEDULER_CONFIG_KEYS` 删掉 `parameters` 后, 只缺该键
+    的 manifest/proof 从 fail-closed 变成 [] —— 说明当时没有逐键的承重门。
+    """
+    partial = {k: v for k, v in _GOLDEN_MANIFEST["scheduler_config"].items() if k != missing}
+    monkeypatch.setattr(
+        validator,
+        "_golden_manifest",
+        lambda: {
+            "library_version": _GOLDEN_MANIFEST["library_version"],
+            "params_hash": _GOLDEN_MANIFEST["params_hash"],
+            "scheduler_config": partial,
+        },
+    )
+    proof = _leaf(2, _T2, first_event_line=1, scheduler_config=partial)
+    problems = validator.verify_degraded_proof(proof, _APPLICABLE_2)
+    assert any("残缺" in p and "fail-closed" in p for p in problems), (missing, problems)
+
+
+def test_scheduler_config_mismatch_has_its_own_gate():
+    """`scheduler_config` 与 manifest 不同源时必须报出 —— 独立于类型碰撞门。
+
+    十八轮 survivor: 禁用该 mismatch 分支后无独立行为门。
+    """
+    drifted = {**_GOLDEN_MANIFEST["scheduler_config"], "desired_retention": 0.8}
+    problems = validator.verify_degraded_proof(
+        _leaf(2, _T2, first_event_line=1, scheduler_config=drifted), _APPLICABLE_2
+    )
+    assert any("不同源" in p and "desired_retention" in p for p in problems), problems
+
+
+def test_recursion_shares_ledger_vault_id(tmp_path):
+    """递归必须把 `ledger_vault_id` 一并传下去 —— 否则 ancestor 出现假阳性。
+
+    十八轮 survivor: 只丢 ledger_vault_id 时, 合法两层 proof 的 ancestor 会报
+    "vault 身份无证据可绑", 而原测试仍全绿。
+    """
+    ledger = _ledger_with(tmp_path, [_event("e1", _T1), _event("e2", _T2)])
+    prefix1, _, _ = validator.ledger_prefix(ledger, 1)
+    prefix2, _, _ = validator.ledger_prefix(ledger, 2)
+    ancestor = _leaf(1, _T1, first_event_line=1, ledger_prefix_sha256=prefix1)
+    proof = _layered(2, _T2, ancestor)
+    proof["ledger_prefix_sha256"] = prefix2
+    problems = validator.verify_degraded_proof(proof, [], ledger_path=ledger)
+    assert not any("ancestor_proof:" in p and "vault" in p for p in problems), problems
+
+
+def _normalized_scope_items(lines, start_pred, end_pred):
+    """从三种载体里抽出「不做的事」六条并正规化 (去缩进/注释前缀/换行/空白)。"""
+    start = next(i for i, ln in enumerate(lines) if start_pred(ln))
+    end = next(i for i, ln in enumerate(lines[start:], start) if end_pred(ln))
+    items, cur = [], None
+    for ln in lines[start:end]:
+        stripped = re.sub(r"^[#\s]*", "", ln.rstrip())
+        if re.match(r"^[①②③④⑤⑥]", stripped):
+            if cur:
+                items.append(re.sub(r"\s+", "", cur))
+            cur = stripped
+        elif cur is not None and stripped:
+            cur += stripped
+    if cur:
+        items.append(re.sub(r"\s+", "", cur))
+    return items
+
+
+def test_scope_declaration_is_identical_in_three_places():
+    """「verifier 不做的六件事」在 schema / 模块注释 / docstring 三处必须**逐字同文**。
+
+    十八轮 Codex: "六条"CONFIRMED 但"三处同文"STILL-OPEN —— 模块第③④信息量不同、
+    docstring 第⑤省略了字段清单。声称同文却不同文, 就是又一处未经验证的声明,
+    故把核对本身做成机械门。
+    """
+    source = pathlib.Path(validator.__file__).read_text(encoding="utf-8").splitlines()
+    schema = (WT / "docs" / "learning-events-schema-v1.md").read_text(encoding="utf-8").splitlines()
+
+    module_items = _normalized_scope_items(
+        source, lambda ln: ln.startswith("# **不做的事**"), lambda ln: ln.startswith("# **proof 侧的额外依赖")
+    )
+    doc_items = _normalized_scope_items(
+        source, lambda ln: "本函数不做的六件事" in ln, lambda ln: "proof 侧的强依赖" in ln
+    )
+    schema_items = _normalized_scope_items(
+        schema, lambda ln: "verifier 不做的六件事" in ln, lambda ln: "proof 侧的强依赖" in ln
+    )
+
+    assert len(module_items) == len(doc_items) == len(schema_items) == 6, (
+        len(module_items),
+        len(doc_items),
+        len(schema_items),
+    )
+    for idx, (a, b, c) in enumerate(zip(module_items, doc_items, schema_items), 1):
+        assert a == b == c, f"第 {idx} 条三处不同文:\n模块: {a}\ndocstring: {b}\nschema: {c}"
