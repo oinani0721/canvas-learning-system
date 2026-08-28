@@ -13,6 +13,6 @@ d8d887f2  本 receipt 首次落盘
 5b371253  CARD-G4-9 round-6 架构级修复
 4ba4f847  receipt 补 round-5/6 链
 f389980c  CARD-G4-9 round-7 架构级修复（消除截断动作）
-<next>    CARD-G4-9 round-8 整改（QA DB 内存 deserialize / 父目录 containment / stdout 门 / 原子替换清理）
+af251e4a  CARD-G4-9 round-8 整改（QA DB 内存 deserialize / 父目录 containment / stdout 门 / 原子替换清理）
 
 各阶段交付物 blob 可用 git cat-file 复核；台账头部 dlq_file.sha256 为 DLQ 快照指纹。
