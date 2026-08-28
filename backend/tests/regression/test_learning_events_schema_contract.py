@@ -626,14 +626,46 @@ def test_stability_has_no_maximum_interval_ceiling():
     assert validator.classify_card_state(_fsrs_fields(fsrs_difficulty=10.5))[0] == "degraded"
 
 
+def test_review_domain_closure():
+    """Codex round-9 HIGH#1: schema 允许 review_time <= 9000 而分类器拒绝
+    W >= 9000 ⇒ 合法事件写出 W 后立即判 degraded(确定性制造残缺卡)。
+    闭包要求: review_time 与 W **同域同界且均须严格小于** REVIEW_INPUT_MAX。"""
+    # 输入侧
+    assert validator._parse_ts("9000-01-01T00:00:00Z", upper_bound=validator.REVIEW_INPUT_MAX)[0] is False
+    assert validator._parse_ts("8999-12-31T23:59:59Z", upper_bound=validator.REVIEW_INPUT_MAX)[0] is True
+    # 输出侧 (W) 同界
+    assert validator.classify_card_state(_fsrs_fields(fsrs_last_review="9000-01-01T00:00:00Z"))[0] == "degraded"
+    assert validator.classify_card_state(_fsrs_fields(fsrs_last_review="8999-12-31T23:59:59Z"))[0] == "normal"
+    # 一般时间戳 (fsrs_due) 仍用宽上界
+    assert validator.classify_card_state(_fsrs_fields(fsrs_due="9400-01-01T00:00:00Z"))[0] == "normal"
+
+
+def test_watermark_must_be_whole_second():
+    """Codex round-9 MEDIUM: 分类器曾接受非整秒 W, 与 §6.2 A5 的 canonical
+    秒精度不一致。"""
+    got, reason = validator.classify_card_state(_fsrs_fields(fsrs_last_review="2026-01-01T00:00:00.5Z"))
+    assert got == "degraded" and "小数秒" in reason, reason
+
+
 def test_stability_executable_ceiling():
     """Codex round-8 HIGH#1: 'any finite positive' 过宽 — S=1.797e308 曾判
     normal 而真实 bridge 抛 OverflowError(float infinity to integer)。
-    1e9 天(约 274 万年)是可执行上界: 远超真实语义, 远低于实测溢出点。"""
+    ⚠️ round-9 措辞更正: 1e9 天是**语义合理性上界**(fail-closed), 不是技术
+    可执行上界 — 实测 1e10/1e100 真实 bridge 都能跑, 但该量级必是数据损坏,
+    保守拦下要人工确认。这是有意的偏差, 不是"会溢出"。"""
     assert validator.classify_card_state(_fsrs_fields(fsrs_stability=1.7976931348623157e308))[0] == "degraded"
     assert validator.classify_card_state(_fsrs_fields(fsrs_stability=1e10))[0] == "degraded"
     assert validator.classify_card_state(_fsrs_fields(fsrs_stability=1e9))[0] == "normal"
     assert validator.classify_card_state(_fsrs_fields(fsrs_stability=68949.18))[0] == "normal"
+
+
+def test_oversized_numeric_field_fails_closed():
+    """Codex round-9 MEDIUM: float(10**309) 抛 OverflowError —
+    _finite_number 须 fail-closed 返回 None ⇒ degraded, 不得炸出去。"""
+    for value in (10**309, "1" + "0" * 400, 10**400):
+        got, reason = validator.classify_card_state(_fsrs_fields(fsrs_stability=value))
+        assert got == "degraded", f"{value!r} → {got} ({reason})"
+    assert validator._finite_number(10**309) is None
 
 
 def test_watermark_must_leave_room_for_successor():
@@ -709,6 +741,13 @@ def test_vault_config_parser_form_matrix(tmp_path):
         # round-8 HIGH#3: 窄计数正则漏掉 `vault_id :` 形态 ⇒ 误判"恰一处"并返回 fake
         ("vault_id: fake\nvault_id : real\n", None),
         ("vault_id : a\nvault_id : b\n", None),
+        # round-9 HIGH#2: 引号键与 YAML 隐式类型
+        ('vault_id: fake\n"vault_id": real\n', None),  # PyYAML=real, 曾返回 fake
+        ("vault_id: fake\n'vault_id': real\n", None),
+        ("vault_id: true\n", None),  # PyYAML 得 bool, 不绑定避免真值面分叉
+        ("vault_id: 123\n", None),
+        ("vault_id: null\n", None),
+        ('# 注释里提到 vault_id 字样\nvault_id: "ok"\n', "ok"),  # 注释提及不计数
         # 早前各轮反例: 一律不绑
         ('vault_id: "a"\nvault_id: "b"\n', None),  # 重复键
         ("vault_id: team#1\n", None),  # 含 # (裸词字符集外, 保守收窄)

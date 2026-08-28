@@ -90,7 +90,12 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
 - **挂载点限定**：`review/1` 只许挂在 `answer_scored` / `answer_abandoned` 上（挂到 `session_archived` 等 = 违规）。
 - **扩展必填键**（`schema_ext == "review/1"` 时 REQUIRED，类型与语义由校验器强制）：
   - `vault_id`：非空 string——显式冗余 vault 归属，**必须等于账本同目录 `.canvas-config.yaml` 声明的 `vault_id`**（与文件位置隐含归属互证；防事件写错 vault 或账本被搬运后仍自称原 vault）。
-    ⚠️ **绑定的可用范围（round-7 终局决策）**：校验器**不解析完整 YAML**——手写 YAML 子集打不赢（plain scalar 折行 `vault_id: first` + 缩进续行、值内撇号、键后空格 `vault_id :` 等合法形态都曾导致错绑）。改为**只在形态确定无歧义时绑定**：全文件恰一处行首 `vault_id:` ＋ 值为双引号无转义串或安全裸词（`[A-Za-z0-9_.-]`）＋ 下一行非缩进。其余形态（含配置缺失）**一律不绑定并输出 WARN**——保守方向是"失一层防护"而非"错绑身份"。现网与部署模板均落在白名单形态内。
+    ⚠️ **绑定的可用范围（round-7 终局决策，round-9 收严）**：校验器**不解析完整 YAML**——手写 YAML 子集打不赢（plain scalar 折行、值内撇号、键后空格 `vault_id :`、**引号键 `"vault_id":`**、**YAML 隐式类型 `vault_id: true`** 等合法形态都曾导致错绑）。改为**三重条件全满足才绑定**：
+    1. **疑似键计数恰为 1**——逐行去首空白后以 `vault_id` / `"vault_id"` / `'vault_id'` 开头且后随可选空白+冒号即计一次（注释行以 `#` 起始、行内提及均不计，故现网注释中的 vault_id 字样不会误计）；
+    2. 该行匹配严格白名单：`vault_id: "<无转义无换行>"` 或 `vault_id: <安全裸词 [A-Za-z0-9_.-]>`，且该行非缩进、下一行非缩进（排除折行续接）；
+    3. 裸词值**不得**是 YAML 隐式类型字面量（`true`/`false`/`null`/`~`/`yes`/`no`/`on`/`off`/数字/`.inf`/`.nan`）——PyYAML 会把它们解析成非字符串，与本绑定的字符串比较分叉。
+
+    其余形态（含配置缺失）**一律不绑定并输出 WARN**——保守方向是"失一层防护"而非"错绑身份"。现网与部署模板均落在白名单形态内（实测绑定 `canvas_vault`）。
   - `concept_id`：非空 string，且**必须等于顶层 `node_id`**——映射关系 = `node_id` 承载 concept_id
   - `rating`：int 且 ∈ {1,2,3,4}（FSRS Rating；bool 伪装 int 判违规）
   - `grade_norm`：数值且 ∈ [0,1]（既有 quiz-answer 写点已产此键）
@@ -199,11 +204,19 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
       | `event_id` / `review_time` | E 的幂等键与业务时刻（`review_time` 即重建后写入的 `W`） |
       | `fsrs_library_version` / `fsrs_params_hash` / `scheduler_config` | 复算所用的算法身份与完整配置（须与 G3-4 golden manifest 同源；`degraded:*` 哨兵不合格） |
       | `reducer` | canonical reducer 标识与其精度常量（见上一条；G3-2 落地时冻结具体值） |
-      | `origin` | 起点，二选一：`{"kind": "new_card"}`（真新卡，链终止于此）或 `{"kind": "snapshot", ...}`（见下） |
-      | `result_hash` | 重建出的六字段 + `W` 的 canonical JSON（`sort_keys=True, separators=(",",":")`）的 sha256——供他人独立复算比对 |
+      | `origin` | 起点，二选一：`{"kind": "new_card"}`（真新卡，链终止于此，折叠区间左端点取行号 0）或 `{"kind": "snapshot", "state": {...}, "snapshot_hash": "...", "ancestor_proof": {...}}`（三条等式约束见下） |
+      | `result_hash` | 重建出的**状态对象**（恰六键，见下方"状态对象的唯一形状"）的 canonical JSON 的 UTF-8 字节 sha256——供他人独立复算比对 |
 
-    - **`origin.kind == "snapshot"` 的绑定（round-8）**：必须含 `{six_fields, W, snapshot_hash, ancestor_proof}`——`snapshot_hash` = 该快照六字段 + W 的 canonical sha256（与上表 `result_hash` 同算法）；`ancestor_proof` = **递归的同 schema proof**，证明该快照本身可证明。
+    - **状态对象的唯一形状（round-9 HIGH#3）**：proof 里出现的每个"状态"（`origin.snapshot.state`、`result` 等）都是**恰含 `fsrs_bridge.py:44-46` FIELD_ORDER 六个键的 JSON object**：`fsrs_due` / `fsrs_state` / `fsrs_step` / `fsrs_stability` / `fsrs_difficulty` / `fsrs_last_review`。
+      ⚠️ **不再单列 `W`**——`W` 就是该对象里的 `fsrs_last_review`（round-9 指出："six_fields + W"的写法会让同一信息有两处表示，可不一致）。凡文中说"六字段与 `W`"，均指该单一对象。
+      `result_hash` / `snapshot_hash` = 该对象的 `json.dumps(..., sort_keys=True, ensure_ascii=False, separators=(",",":"))` 的 **UTF-8 字节** 的 sha256（编码与分隔符一并冻结）。
+    - **`origin.kind == "snapshot"` 的绑定（round-8 提出，round-9 加等式约束）**：必须含 `{state, snapshot_hash, ancestor_proof}`，且**以下三条等式全部成立**，否则不可证明：
+      1. `snapshot_hash == sha256(canonical(state))`（自洽）；
+      2. `snapshot_hash == ancestor_proof.result_hash`（该快照必须**正是**祖先 proof 的产出，而非另一份同形对象）；
+      3. `state.fsrs_last_review == ancestor_proof.review_time`（祖先折叠到的事件时刻，即为该快照的水位线）。
+    - **折叠区间的闭开（round-9 HIGH#3）**：本层 proof 折叠的事件集合 = 账本中该节点、`schema_ext=review/1`、未标 `out_of_order`、且按 `(review_time, 行号)` 复合序落在 **`(ancestor_proof.cursor_line, cursor_line]`** 内的全部事件——**左开右闭，按行号界定**（不用时刻界定，因同瞬间不同行会有两种解释）。`origin.kind == "new_card"` 时左端点取 `0`（即从账本首行起）。
     - **链的终止与防循环（round-8）**：`ancestor_proof` 链必须**终止于 `origin.kind == "new_card"`**；链上每一层的 `(vault_id, node_id)` 必须相同，且 `cursor_line` 必须**严格递减**（保证有限步终止、不可自引用）。任一条不满足 ⇒ 不可证明。
+    - **`prefix_ends_without_lf` 的取值规则（round-9）**：类型为 boolean。E 所在行**有**终止 LF 时该键**必须省略**（不得写 `false`）；**无**终止 LF（E 是文件末行且文件不以 LF 结尾）时**必须**写 `true`。这样"省略"与"false"不并存，比较无歧义。
     - **`degraded:*` 哨兵行不参与自动证明链**：其 `fsrs_library_version`/`params_hash` 是哨兵而非算法身份，无法确定性复算——含此类事件的区间必须由人工裁定。
   - **为什么必须如此**（round-5 两反例）：若 state 已含 `E2` 而水位线被随手修成 `W = t1` ⇒ `E2` 会被二次应用；若 state 仅含 `E1` 而 `W` 被修成 `t2` ⇒ `E2` 永久遗漏。两种错误都源于"state 与 W 不同源"。
   - **不可证明时必须继续冻结**：当账本缺少覆盖该节点的完整 review/1 事件序列（例如该节点的历史全是无扩展的旧行），**无法**重建可证明同源的 state+W ⇒ 该节点保持冻结并向用户如实报告，由人工裁定（例如接受"以当前 frontmatter 为准、把 `W` 设为账本中该节点最大 `review_time`"这一有损但显式的决策）。**禁止工具自动做该有损决策**。

@@ -29,14 +29,14 @@
 
 | 裁判 | 结果 |
 |---|---|
-| 契约测试 `backend/tests/regression/test_learning_events_schema_contract.py` | **50 passed + 1 skipped**（本文件单跑口径，八轮整改后；skip = 仓内 vault 根无账本的 worktree 环境，主仓自动生效。与 golden 门 + 既有账本测试合跑 = **69 passed + 1 skipped**） |
+| 契约测试 `backend/tests/regression/test_learning_events_schema_contract.py` | **53 passed + 1 skipped**（本文件单跑口径，九轮整改后；skip = 仓内 vault 根无账本的 worktree 环境，主仓自动生效。与 golden 门 + 既有账本测试合跑 = **72 passed + 1 skipped**） |
 | **真实 producer 执行**（Codex 一轮 HIGH 整改） | vault 三 skill 写点的 python 代码**从 SKILL.md 逐字提取执行**（ai-linked-doc 单行模板 / start-exam-board PYEOF 块 / quiz-answer 评分链账本段；仅路径常量重定向 tmp fixture），产物过校验器 + 幂等重放断言；backend 侧按 5 调用点实参形状经真实 `append_event` 写入后全过 |
 | 既有账本回归 `test_learning_event_log.py` | 6 passed（零改动） |
 | 校验脚本 vs 三 fixture | 合法 → exit 0 / 缺字段 → exit 1（点名 `effective_at`）/ 重复 event_id → exit 1（点名首见行号）（存证 `审查/g3-1-evidence/g3-1-fixture-validation.txt`） |
 | 校验脚本 vs **现网账本**（当前 23 行，用户仍在产生新事件） | **exit 0** 零 WARN 零 FAIL，且 sha256 运行前后一致（只读证明；存证按每轮整改重生成，含 HEAD/validator SHA/完整命令） |
 | 现网写点 0 误报 | 按 8 个写点 1:1 建模的 `real_shapes.jsonl`（含 Z 后缀时间戳/紧凑分隔符/中文 event_id）全过 |
 | 边界判定 | 截断行如实报 FAIL / 未知顶层字段拒绝 / naive 时间戳拒绝 / **NaN·Infinity 非标准常量拒绝（RFC 8259 严格）** / **行内重复键拒绝（json.loads 静默取后者的歧义面）** / 未知 event_version 走 WARN 前向兼容通道不误杀 |
-| 漂移锁 | EVENT_VERSION=1、9 类白名单、7 键形状、校验器复制份 == 真相源（四路契约测试）+ **`rating_from_grade` 与 `fsrs_bridge` 逐档等价**（千点网格 + 三档分界两侧）+ **W 与 review_time 的瞬间等价关系**（bridge `_iso` 写出格式改变即红）+ **`.canvas-config.yaml` 解析 21 形态矩阵**（极简可证策略；含 round-5/6/7/8 全部错绑反例） |
+| 漂移锁 | EVENT_VERSION=1、9 类白名单、7 键形状、校验器复制份 == 真相源（四路契约测试）+ **`rating_from_grade` 与 `fsrs_bridge` 逐档等价**（千点网格 + 三档分界两侧）+ **W 与 review_time 的瞬间等价关系**（bridge `_iso` 写出格式改变即红）+ **`.canvas-config.yaml` 解析 27 形态矩阵**（极简可证策略；含 round-5~9 各轮**点名的**错绑反例，逐条在矩阵中可查——不宣称覆盖 YAML 全部表示法） |
 | 铁律遵守 | `learning_event_log.py` **零改动**；git diff 只含新增文件 + CLAUDE.md/architecture.md 引用行 + CURRENT_TASK；未新建任何第二套账本 |
 | ruff | 本卡交付文件 All checks passed（`backend/scripts/` + 契约测试；**范围声明**：仓库其余既有告警不在本卡范围） |
 
@@ -187,6 +187,20 @@
 | 八 | MEDIUM/LOW | 证据文案三处：本单称"round-7 全部点名反例通过"（未覆盖 degraded proof）、live 存证称含"完整命令"实际未记命令文本、`a917` 称"§九新增四条"实为三条 | **已修**：本单该句收窄为"可机械复验的部分"并说明契约条款的闭合方式；live 存证补**可逐字复制的完整命令**；下方计数改为三条 |
 
 八轮整改后复跑：契约测试 **50 passed + 1 skipped**、三文件合跑 **69 passed + 1 skipped**、现网账本（23 行）exit 0 零 WARN 且 `vault_id='canvas_vault'`、round-8 全部**可机械复验**反例通过（`审查/g3-1-evidence/g3-round8-counterexamples.txt`，含 `S=1e10` 保守偏差的显式标注）。
+
+### 九轮复核处置（存档 `审查/codex-review-CARD-G3-1-G3-4-round9-2026-08-28.md`；**BLOCKER 保持清零**，残留 3 HIGH + 3 MEDIUM，均属本卡契约层）
+
+| # | 级别 | 九轮发现 | 处置 |
+|---|---|---|---|
+| 二 | **HIGH#1** | **域端点不闭合**：schema 允许 `review_time ≤ 9000` 而分类器拒绝 `W ≥ 9000` ⇒ 合法事件（前态 W=8999-12-31，review_time=9000-01-01）经真实 bridge 写出 `W=9000` 后**立即被判 degraded**——合法事件确定性制造残缺卡 | **已修**：`review_time` 与 `fsrs_last_review` **同域同界且均须严格小于** `REVIEW_INPUT_MAX`（`_parse_ts` 对该上界改用排他比较）。闭包实测：拒绝会产出非法 W 的输入，合法输入产出的 W 仍判 normal |
+| 三 | **HIGH#2** | vault_id 宽正则只覆盖裸键后空白，**漏掉引号键**：`vault_id: fake` + `"vault_id": real` 被判"恰一处"并返回 `fake`（PyYAML/backend 真值 `real`）⇒ 静默错绑、exit 0 零 WARN；另 `vault_id: true` 绑定字符串 `"true"` 而 PyYAML 得 bool | **已修**：键计数改为**逐行去首空白后匹配 `vault_id` / `"vault_id"` / `'vault_id'` + 可选空白 + 冒号**（注释行与行内提及不计——现网注释里的 vault_id 字样不误计）；裸词值**排除 YAML 隐式类型**（true/false/null/~/yes/no/on/off/数字/.inf/.nan）。**16 形态复验全对**，现网仍绑定 `canvas_vault` |
+| 四 | **HIGH#3** | degraded proof 仍不能机械唯一验真：`six_fields + W` 两处表示同一信息可不一致；未要求 `snapshot_hash == ancestor_proof.result_hash`、snapshot W == ancestor `review_time`；折叠区间闭开未定义（同瞬间不同行有两种解释）；`prefix_ends_without_lf` 的 false/省略规则与编码未冻结 | **已修（契约）**：①**状态对象唯一形状**——恰含 FIELD_ORDER 六键的 object，**不再单列 W**（W 即其中的 `fsrs_last_review`），hash 算法连编码与分隔符一并冻结；②`origin.snapshot` 加**三条等式约束**（自洽 / `== ancestor.result_hash` / `state.fsrs_last_review == ancestor.review_time`）；③**折叠区间按行号左开右闭** `(ancestor.cursor_line, cursor_line]`（`new_card` 时左端点 0）——不用时刻界定以消除同瞬间歧义；④`prefix_ends_without_lf` 冻结为"有 LF 必须省略、无 LF 必须写 true"（省略与 false 不并存） |
+| 一 | MEDIUM | 运行时原因与测试 docstring 仍称"可执行上界/会溢出"，与 `S=1e10/1e100` 实测可执行矛盾 | **已修**：两处措辞统一为**语义合理性上界（fail-closed）**，并注明技术可执行边界更高但不作判据 |
+| 一 | MEDIUM | `_finite_number(10**309)` 在 `float(int)` 处抛未捕获 `OverflowError` | **已修**：捕获 `OverflowError` ⇒ 返回 None ⇒ degraded。三形态（`10**309` / 400 位数字串 / `10**400`）实测零 traceback |
+| 二 | MEDIUM | 分类器仍接受非整秒 `W`，与 §6.2 A5 的 canonical 秒精度不一致 | **已修**：`fsrs_last_review` 含小数秒判 degraded |
+| 三 | — | 本单称"21 形态含 round-5/6/7/8 **全部**错绑反例"不成立 | **已收窄**：改为"含各轮**点名的**错绑反例，逐条可查——不宣称覆盖 YAML 全部表示法" |
+
+九轮整改后复跑：契约测试 **53 passed + 1 skipped**、三文件合跑 **72 passed + 1 skipped**、现网账本（23 行）exit 0 零 WARN 且 `vault_id='canvas_vault'`、round-9 全部可机械复验反例通过（`审查/g3-1-evidence/g3-round9-counterexamples.txt`）。
 
 ## 六、移交登记
 

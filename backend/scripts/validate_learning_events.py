@@ -153,18 +153,23 @@ def _parse_ts(value: object, upper_bound: Optional[datetime] = None) -> tuple[bo
         normalized = parsed.astimezone(timezone.utc)
     except (OverflowError, OSError, ValueError):
         return False, f"UTC 归一化越界 (下游 astimezone 会溢出): {value!r}"
-    if normalized > (upper_bound or TIMESTAMP_MAX):
+    bound_exclusive = upper_bound is not None and upper_bound is REVIEW_INPUT_MAX
+    if (normalized >= REVIEW_INPUT_MAX) if bound_exclusive else (normalized > (upper_bound or TIMESTAMP_MAX)):
         # A7 (round-6 MEDIUM, round-7 分档): review 输入用更保守的
         # REVIEW_INPUT_MAX (调度还要叠加 interval + A3 的 +1s);
         # 一般时间戳只拦 UTC 归一化本身会溢出的极端值
         bound = upper_bound or TIMESTAMP_MAX
-        return False, f"超出 A7 时间上界 {bound.date()} : {value!r}"
+        relation = "须严格小于" if bound_exclusive else "不得超过"
+        return False, f"A7 时间域: {relation} {bound.date()} : {value!r}"
     return True, ""
 
 
 #: A7 上界分两档 (round-7 MEDIUM: 原实现把一个上界通用到所有时间字段,
 #: 导致合法 review_time=9000 产出的 due=9000-01-09 反被判 degraded)
-#: ① review 输入上界 — 调度会在其上叠加 interval, A3 还要 +1s
+#: ① review 域上界 — 调度会在其上叠加 interval, A3 还要 +1s。
+#: ⚠️ round-9 闭包修正: `review_time` 与 `fsrs_last_review`(W) **同域同界且
+#: 均须严格小于**该值 —— 否则合法的 review_time=9000 写出 W=9000 后,
+#: 分类器立刻判 degraded (合法事件确定性制造残缺卡)。
 REVIEW_INPUT_MAX = datetime(9000, 1, 1, tzinfo=timezone.utc)
 #: ② 一般时间戳上界 (recorded_at/effective_at/fsrs_due 等) — 只拦 UTC
 #: 归一化本身会溢出的极端值, 不施加 review 输入的保守上界
@@ -191,14 +196,15 @@ def _finite_number(value: object) -> Optional[float]:
     """有限实数 (排除 bool / NaN / ±Inf / 不可解析) → float; 否则 None。"""
     if isinstance(value, bool) or value is None:
         return None
-    if isinstance(value, (int, float)):
-        number = float(value)
-    elif isinstance(value, str) and value.strip():
-        try:
+    try:
+        if isinstance(value, (int, float)):
+            # round-9 MEDIUM: float(10**309) 抛 OverflowError — 须 fail-closed
             number = float(value)
-        except ValueError:
+        elif isinstance(value, str) and value.strip():
+            number = float(value)
+        else:
             return None
-    else:
+    except (ValueError, OverflowError):
         return None
     return number if math.isfinite(number) else None
 
@@ -247,12 +253,9 @@ def classify_card_state(fields: dict) -> tuple[str, str]:
         if not ok:
             return "degraded", f"{key} 不可解析: {why}"
         if key == "fsrs_last_review":
-            moment = _instant(value.strip())
-            if moment is not None and moment.astimezone(timezone.utc) >= REVIEW_INPUT_MAX:
-                return "degraded", (
-                    f"fsrs_last_review {value!r} 已达 review 域上界 {REVIEW_INPUT_MAX.date()} — "
-                    "不存在合法后继事件 (后继须 > W 且 <= 该上界)"
-                )
+            # round-9 MEDIUM: W 与 review_time 同为 canonical 秒精度
+            if _SUBSECOND_RE.match(value.strip()):
+                return "degraded", (f"fsrs_last_review {value!r} 含小数秒 — 与 §6.2 A5 的整秒口径不一致")
 
     raw_state = present.get("fsrs_state")
     state = _int_lexeme(raw_state)
@@ -275,7 +278,11 @@ def classify_card_state(fields: dict) -> tuple[str, str]:
         if stability <= 0:
             return f"stability {stability} 须为正数 (0 会让调度器 ZeroDivisionError)"
         if stability > STABILITY_MAX:
-            return f"stability {stability} 超出可执行上界 {STABILITY_MAX:g} 天 (极大值会让真实调度抛 OverflowError)"
+            return (
+                f"stability {stability} 超出语义合理性上界 {STABILITY_MAX:g} 天 "
+                "(fail-closed: 该量级必是数据损坏, 停下来要人工确认; "
+                "技术可执行边界更高但不作判据)"
+            )
         if not DIFFICULTY_RANGE[0] <= difficulty <= DIFFICULTY_RANGE[1]:
             return f"difficulty {difficulty} 越出 FSRS 定义域 {DIFFICULTY_RANGE}"
         return None
@@ -375,10 +382,20 @@ def _golden_manifest() -> Optional[dict]:
 #:   (3) 下一行不是缩进行 (排除 plain scalar 折行续接)。
 #: 代价: `vault_id: team#1` 等形态退化为不绑定 (保守: 失一层防护 != 错绑),
 #: 且 vault_id 本就是文件名安全 slug, 现网与部署模板均落在白名单形态内。
-#: 计数用**宽**正则 (round-8 HIGH#3: `vault_id : real` 这种键后空格形态
-#: PyYAML 视为合法同名键, 原窄正则不计数 ⇒ `vault_id: fake` + `vault_id : real`
-#: 被当成"恰一处"并返回 fake, 而 PyYAML 真值是 real ⇒ 静默错绑)
-_VAULT_ID_ANY_RE = re.compile(r"^vault_id[ \t]*:", re.MULTILINE)
+#: 疑似 vault_id 键的计数 (round-9 HIGH#2): 宽正则只覆盖裸键后空白, 漏掉
+#: **引号键** — `vault_id: fake` + `"vault_id": real` 曾被判"恰一处"并返回
+#: fake, 而 PyYAML/backend 真值是 real ⇒ 静默错绑。现改为: 逐行去首空白后,
+#: 只要以 vault_id / "vault_id" / 'vault_id' 开头且后随可选空白 + 冒号,
+#: 即计一次 (注释行以 # 开头, 行内提及不计 —— 现网配置注释里的 vault_id
+#: 字样因此不会误计)。出现 != 1 次一律不绑定。
+_VAULT_ID_KEYISH_RE = re.compile(r"""^(?:vault_id|"vault_id"|'vault_id')[ \t]*:""")
+#: YAML 隐式类型字面量 (round-9): `vault_id: true` PyYAML 得 bool 而非字符串
+#: "true" —— 裸词值命中这些形态时不绑定, 避免与 backend 的真值面分叉
+_YAML_IMPLICIT_RE = re.compile(
+    r"^(?:true|false|null|yes|no|on|off|~|[+-]?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?|\.(?:inf|nan))$",
+    re.IGNORECASE,
+)
+#: 取值仍用严格白名单 (只在形态确定无歧义时绑定)
 _VAULT_ID_SIMPLE_DQ = re.compile(r'^vault_id:[ \t]+"([^"\\\n]+)"[ \t]*$')
 _VAULT_ID_SIMPLE_BARE = re.compile(r"^vault_id:[ \t]+([A-Za-z0-9_.\-]+)[ \t]*$")
 
@@ -386,8 +403,11 @@ _VAULT_ID_SIMPLE_BARE = re.compile(r"^vault_id:[ \t]+([A-Za-z0-9_.\-]+)[ \t]*$")
 def _vault_id_of(ledger_path: Path) -> Optional[str]:
     """账本所在 vault 的声明 vault_id (同目录 .canvas-config.yaml)。
 
-    极简可证解析 (见上方常量注释): 形态不完全确定时返回 None, 调用方降级
-    为不绑定 + WARN —— **宁可不绑也不错绑**。
+    极简可证解析: 形态不完全确定时返回 None, 调用方降级为不绑定 + WARN
+    —— **宁可不绑也不错绑**。三重条件全满足才绑定:
+      (1) 全文件恰有一处"疑似 vault_id 键"(含引号键形态);
+      (2) 该行匹配严格白名单 (双引号无转义值 / 安全裸词);
+      (3) 下一行非缩进 (排除 plain scalar 折行), 且裸词值不是 YAML 隐式类型。
     """
     config = ledger_path.parent / ".canvas-config.yaml"
     if not config.is_file():
@@ -397,22 +417,29 @@ def _vault_id_of(ledger_path: Path) -> Optional[str]:
     except (OSError, UnicodeDecodeError):
         return None
 
-    if len(_VAULT_ID_ANY_RE.findall(text)) != 1:
-        return None  # 0 处 = 未声明; 2+ 处 = 无法可靠判定末项语义
-
     lines = text.splitlines()
-    for index, line in enumerate(lines):
-        if not line.startswith("vault_id:"):
-            continue
-        # 下一行缩进 => plain scalar 折行续接, 值不止本行
-        if index + 1 < len(lines) and lines[index + 1][:1] in (" ", "\t"):
-            return None
-        for pattern in (_VAULT_ID_SIMPLE_DQ, _VAULT_ID_SIMPLE_BARE):
-            match = pattern.match(line)
-            if match:
-                return match.group(1) or None
-        return None  # 形态不在白名单内
-    return None
+    keyish = [i for i, line in enumerate(lines) if _VAULT_ID_KEYISH_RE.match(line.lstrip())]
+    if len(keyish) != 1:
+        return None  # 0 处 = 未声明; 2+ 处 = 无法可靠判定 PyYAML 的末项语义
+
+    index = keyish[0]
+    line = lines[index]
+    if line != line.lstrip():
+        return None  # 唯一那处是缩进键 ⇒ 非顶层
+    # 下一行缩进 => plain scalar 折行续接, 值不止本行
+    if index + 1 < len(lines) and lines[index + 1][:1] in (" ", "\t"):
+        return None
+
+    match = _VAULT_ID_SIMPLE_DQ.match(line)
+    if match:
+        return match.group(1) or None
+    match = _VAULT_ID_SIMPLE_BARE.match(line)
+    if match:
+        value = match.group(1)
+        if _YAML_IMPLICIT_RE.match(value):
+            return None  # PyYAML 会解析成 bool/null/数字, 与字符串绑定分叉
+        return value or None
+    return None  # 形态不在白名单内
 
 
 def _rating_from_grade_norm(grade_norm: float) -> int:

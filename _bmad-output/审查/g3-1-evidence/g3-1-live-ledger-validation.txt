@@ -1,9 +1,9 @@
-== live ledger validation evidence (validator round-9, SHA-bound) ==
-date: 2026-08-28T15:54:11Z
-git HEAD: a917964bea6876c0623cf362f30bd1f01562d451  # round-8 整改待提交, 以下列 sha256 为准
+== live ledger validation evidence (validator round-10, SHA-bound) ==
+date: 2026-08-28T16:22:07Z
+git HEAD: 2edd440505c9108c6a37baea01b831e4a4e2ed46  # round-9 整改待提交, 以下列 sha256 为准
 python: Python 3.14.4
-validator sha256:     4c11556a09e0e1e7cd86b1ad4943848a3ae838bbc5a5bb6a804d229a916f5bb0
-contract test sha256: 537106677c7b246e771ecad9d16ca3f50a48e6a97c2a3675a5e6bd94569762e7
+validator sha256:     dfaa13dd75808a48e7a41065bd078e172fcc14129f307ff188c974e0e901607b
+contract test sha256: be996ea87848a1abbfb56980c87375c5c064e3295dd3736ef9ac78dc0ec4e32e
 完整命令 (可逐字复制重跑):
   cd /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s3-events
   backend/.venv/bin/python backend/scripts/validate_learning_events.py /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/learning_events.jsonl
@@ -12,7 +12,7 @@ contract test sha256: 537106677c7b246e771ecad9d16ca3f50a48e6a97c2a3675a5e6bd9456
       23
 -- shasum before --
 f78b99f30791570dde64b7ee33c32298d592037c21c9b948ec3007f7ef9c11de
--- validator run (stdout 全量) --
+-- validator run --
 RESULT: PASS — schema v1 合规 (/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/learning_events.jsonl)
 exit=0
 -- shasum after --
