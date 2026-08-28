@@ -1,16 +1,17 @@
 == G3-4 负验证存档 v4 (Codex round-3 整改) ==
-date: 2026-08-28T11:48:29Z
-git HEAD: 4de42f69f79e275d5b6460797ca40a763858b38a (branch card/s3-events)
+date: 2026-08-28T14:35:28Z
+git HEAD: 026d07351ae6bd5d7a230ff1e086bf0400002cf4 (branch card/s3-events)
 python: Python 3.14.4
 fsrs installed: 6.3.1
-test sha256:     d083271fc2a59e6c21cb4fcbd274cf5b5646b81c78b3daea2b266b5516869b1b
+test sha256:     14118eb4f02c4d4239a9792b00a73ad5cc56c58e11a905653e5ec932a43e94bc
 manifest sha256: 82eaaffa2a064064140916a272e8b4d4256fe4bd58cdb4914c4793646af3cb09
 vectors sha256:  df60dbc6192c499ad21da6533f35ed2e0e316f5d4bc52fb45b711d4cae6f49a3
 gate command: .venv/bin/python -m pytest tests/regression/test_fsrs_golden_vectors.py -q
 变体总数: 1 基线 (N0) + 12 负例 (N1-N12); 每例校验预期红门数与门名
+注: N5/N11 自 round-6 起各触发 2 门 (曲线门加强后一并覆盖), 预期值已同步
 
 --- [N0] 基线 → 期望 0 门红 ---
-  gate summary : ======================= 12 passed, 10 warnings in 0.36s ========================
+  gate summary : ======================= 13 passed, 10 warnings in 0.53s ========================
   failed gates : <none>
   ✅ 判定符合预期
 
@@ -20,7 +21,7 @@ gate command: .venv/bin/python -m pytest tests/regression/test_fsrs_golden_vecto
     | p=pathlib.Path("tests/regression/fsrs_golden_manifest.json");m=json.loads(p.read_text());h=m["params_hash"]
     | m["params_hash"]=("0" if h[0]!="0" else "1")+h[1:]
     | p.write_text(json.dumps(m,ensure_ascii=False,indent=2,sort_keys=True)+"\n")
-  gate summary : ================== 1 failed, 11 passed, 10 warnings in 0.39s ===================
+  gate summary : ================== 1 failed, 12 passed, 10 warnings in 0.57s ===================
   failed gates : test_params_hash_integrity
   ✅ 判定符合预期
   restore : .venv/bin/python scripts/generate_fsrs_golden_vectors.py
@@ -31,7 +32,7 @@ gate command: .venv/bin/python -m pytest tests/regression/test_fsrs_golden_vecto
     | p=pathlib.Path("tests/regression/fsrs_golden_vectors.json");d=json.loads(p.read_text())
     | d["vectors"][0]["expected"]["stability"]+=0.5
     | p.write_text(json.dumps(d,ensure_ascii=False,indent=2,sort_keys=True)+"\n")
-  gate summary : ================== 1 failed, 11 passed, 10 warnings in 0.38s ===================
+  gate summary : ================== 1 failed, 12 passed, 10 warnings in 0.51s ===================
   failed gates : test_all_golden_vectors_replay_exact
   ✅ 判定符合预期
   restore : .venv/bin/python scripts/generate_fsrs_golden_vectors.py
@@ -42,7 +43,7 @@ gate command: .venv/bin/python -m pytest tests/regression/test_fsrs_golden_vecto
     | p=pathlib.Path("tests/regression/fsrs_golden_manifest.json");m=json.loads(p.read_text())
     | m["library_version"]="6.4.0"
     | p.write_text(json.dumps(m,ensure_ascii=False,indent=2,sort_keys=True)+"\n")
-  gate summary : =================== 3 failed, 9 passed, 10 warnings in 0.40s ===================
+  gate summary : ================== 3 failed, 10 passed, 10 warnings in 0.57s ===================
   failed gates : test_installed_version_matches_frozen_manifest test_params_hash_integrity test_requirements_pin_exact_version
   ✅ 判定符合预期
   restore : .venv/bin/python scripts/generate_fsrs_golden_vectors.py
@@ -53,19 +54,19 @@ gate command: .venv/bin/python -m pytest tests/regression/test_fsrs_golden_vecto
     | p=pathlib.Path("tests/regression/fsrs_golden_vectors.json");d=json.loads(p.read_text())
     | d["vectors"][-1]=d["vectors"][0]
     | p.write_text(json.dumps(d,ensure_ascii=False,indent=2,sort_keys=True)+"\n")
-  gate summary : ================== 1 failed, 11 passed, 10 warnings in 0.37s ===================
+  gate summary : ================== 1 failed, 12 passed, 10 warnings in 0.53s ===================
   failed gates : test_matrix_structure_frozen
   ✅ 判定符合预期
   restore : .venv/bin/python scripts/generate_fsrs_golden_vectors.py
 
---- [N5] retrievability.at 清空 ---
+--- [N5] retrievability.at 清空 (round-6 起曲线门也覆盖 → 2 门红) ---
   mutation:
     | import json,pathlib
     | p=pathlib.Path("tests/regression/fsrs_golden_vectors.json");d=json.loads(p.read_text())
     | d["retrievability"]["at"]=[]
     | p.write_text(json.dumps(d,ensure_ascii=False,indent=2,sort_keys=True)+"\n")
-  gate summary : ================== 1 failed, 11 passed, 10 warnings in 0.37s ===================
-  failed gates : test_matrix_structure_frozen
+  gate summary : ================== 2 failed, 11 passed, 10 warnings in 0.49s ===================
+  failed gates : test_matrix_structure_frozen test_retrievability_curve_matches_golden
   ✅ 判定符合预期
   restore : .venv/bin/python scripts/generate_fsrs_golden_vectors.py
 
@@ -75,7 +76,7 @@ gate command: .venv/bin/python -m pytest tests/regression/test_fsrs_golden_vecto
     | p=pathlib.Path("tests/regression/fsrs_golden_manifest.json");m=json.loads(p.read_text())
     | m["comparison_tolerance"]["float_rel"]=1e-3
     | p.write_text(json.dumps(m,ensure_ascii=False,indent=2,sort_keys=True)+"\n")
-  gate summary : ================== 1 failed, 11 passed, 10 warnings in 0.38s ===================
+  gate summary : ================== 1 failed, 12 passed, 10 warnings in 0.48s ===================
   failed gates : test_tolerance_ceiling_locked
   ✅ 判定符合预期
   restore : .venv/bin/python scripts/generate_fsrs_golden_vectors.py
@@ -86,7 +87,7 @@ gate command: .venv/bin/python -m pytest tests/regression/test_fsrs_golden_vecto
     | p=pathlib.Path("tests/regression/fsrs_golden_vectors.json");d=json.loads(p.read_text())
     | d["vectors"][0]["state_before_final_review"]=999
     | p.write_text(json.dumps(d,ensure_ascii=False,indent=2,sort_keys=True)+"\n")
-  gate summary : ================== 2 failed, 10 passed, 10 warnings in 0.38s ===================
+  gate summary : ================== 2 failed, 11 passed, 10 warnings in 0.70s ===================
   failed gates : test_all_golden_vectors_replay_exact test_matrix_structure_frozen
   ✅ 判定符合预期
   restore : .venv/bin/python scripts/generate_fsrs_golden_vectors.py
@@ -97,14 +98,14 @@ gate command: .venv/bin/python -m pytest tests/regression/test_fsrs_golden_vecto
     | p=pathlib.Path("tests/regression/fsrs_golden_manifest.json");m=json.loads(p.read_text())
     | m["algorithm"]="arbitrary"
     | p.write_text(json.dumps(m,ensure_ascii=False,indent=2,sort_keys=True)+"\n")
-  gate summary : ================== 1 failed, 11 passed, 10 warnings in 0.40s ===================
+  gate summary : ================== 1 failed, 12 passed, 10 warnings in 0.85s ===================
   failed gates : test_manifest_metadata_frozen
   ✅ 判定符合预期
   restore : .venv/bin/python scripts/generate_fsrs_golden_vectors.py
 
 --- [N9] requirements 改 fsrs==6.3.1.post1 ---
   mutation: sed -i '' 's/^fsrs==6.3.1$/fsrs==6.3.1.post1/' requirements.txt
-  gate summary : ================== 1 failed, 11 passed, 10 warnings in 0.39s ===================
+  gate summary : ================== 1 failed, 12 passed, 10 warnings in 0.63s ===================
   failed gates : test_requirements_pin_exact_version
   ✅ 判定符合预期
   restore : sed -i '' 's/^fsrs==6.3.1.post1$/fsrs==6.3.1/' requirements.txt
@@ -130,12 +131,12 @@ gate command: .venv/bin/python -m pytest tests/regression/test_fsrs_golden_vecto
     | v["expected"]={"stability":c.stability,"difficulty":c.difficulty,"due":c.due.isoformat(),
     |  "last_review":c.last_review.isoformat(),"state":int(c.state),"step":c.step}
     | p.write_text(json.dumps(d,ensure_ascii=False,indent=2,sort_keys=True)+"\n")
-  gate summary : ================== 1 failed, 11 passed, 10 warnings in 0.41s ===================
+  gate summary : ================== 1 failed, 12 passed, 10 warnings in 0.59s ===================
   failed gates : test_matrix_structure_frozen
   ✅ 判定符合预期
   restore : .venv/bin/python scripts/generate_fsrs_golden_vectors.py
 
---- [N11·round-3] scheduler_config 重定向 desired_retention 0.9→0.8, manifest+vectors+hash 全自洽重算 ---
+--- [N11·round-3] scheduler_config 重定向 0.9→0.8 自洽重算 (round-6 起曲线门也覆盖 → 2 门红) ---
   mutation:
     | import hashlib,json,pathlib
     | from datetime import datetime,timedelta
@@ -169,8 +170,8 @@ gate command: .venv/bin/python -m pytest tests/regression/test_fsrs_golden_vecto
     |  "expected":s.get_card_retrievability(c,c.due+timedelta(days=k))} for k in (0,7,30)]
     | MP.write_text(json.dumps(m,ensure_ascii=False,indent=2,sort_keys=True)+"\n")
     | VP.write_text(json.dumps(d,ensure_ascii=False,indent=2,sort_keys=True)+"\n")
-  gate summary : ================== 1 failed, 11 passed, 10 warnings in 0.40s ===================
-  failed gates : test_scheduler_config_non_parameter_fields_frozen
+  gate summary : ================== 2 failed, 11 passed, 10 warnings in 0.52s ===================
+  failed gates : test_retrievability_curve_matches_golden test_scheduler_config_non_parameter_fields_frozen
   ✅ 判定符合预期
   restore : .venv/bin/python scripts/generate_fsrs_golden_vectors.py
 
@@ -180,7 +181,7 @@ gate command: .venv/bin/python -m pytest tests/regression/test_fsrs_golden_vecto
     | p=pathlib.Path("tests/regression/fsrs_golden_vectors.json");d=json.loads(p.read_text())
     | d["vectors"][0]["expected"]["state"]=True
     | p.write_text(json.dumps(d,ensure_ascii=False,indent=2,sort_keys=True)+"\n")
-  gate summary : ================== 1 failed, 11 passed, 10 warnings in 0.40s ===================
+  gate summary : ================== 1 failed, 12 passed, 10 warnings in 0.46s ===================
   failed gates : test_matrix_structure_frozen
   ✅ 判定符合预期
   restore : .venv/bin/python scripts/generate_fsrs_golden_vectors.py
@@ -189,7 +190,7 @@ gate command: .venv/bin/python -m pytest tests/regression/test_fsrs_golden_vecto
 manifest sha256: 82eaaffa2a064064140916a272e8b4d4256fe4bd58cdb4914c4793646af3cb09
 vectors sha256:  df60dbc6192c499ad21da6533f35ed2e0e316f5d4bc52fb45b711d4cae6f49a3
 requirements fsrs 行: 131:fsrs==6.3.1
-  gate summary : ======================= 12 passed, 10 warnings in 0.40s ========================
+  gate summary : ======================= 13 passed, 10 warnings in 0.44s ========================
   failed gates : <none>
   ✅ 判定符合预期
 

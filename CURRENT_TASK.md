@@ -2,22 +2,22 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**本车道状态**（2026-08-28 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **双卡 Codex 五轮整改后待验收**）:
-- ✅ CARD-G3-1（`63e034ec` + 整改 `4de42f69`/`e3337504`/`60568d9c` + 五轮整改待提交）：D0 修订 +
-  schema v1 冻结 + 严格校验器 + 契约测试 **42 passed + 1 skipped**。五轮共 2B+15H+18M 全处置：
-  §6.2 = **A1 write-ahead / A2 恢复先于新写 / A3 严格递增 / A4 并发五条（稳定 sidecar 锁身份·唯一折叠
-  基线·完整 fsync 含父目录·原子发布·per-vault 账本锁内查重+O_APPEND）/ A5 整秒 / A6 调度器入参必须 UTC**；
-  正常卡按 **state 相容性**校验六字段；degraded 解冻须**可证明 state+W 同源边界**；vault_id 解析改
-  **保守白名单**（18 形态矩阵，重复键取末项对齐 PyYAML）
-- ✅ CARD-G3-4（`a8bab73c` + 整改 + 五轮整改待提交）：**十门 13 passed**。五轮曲线门判
-  CONFIRMED-CLOSED；补 card 快照类型/键集锁 + description 字面锁 + tolerance 子键集锁；
-  加**覆盖范围诚实声明**（锁语义与结构，未逐字节锁 JSON 文本）
+**本车道状态**（2026-08-28 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **双卡 Codex 六轮整改后待验收；G3-4 已判 CONFIRMED-CLOSED**）:
+- ✅ CARD-G3-4（`a8bab73c` + 各轮整改）：**六轮终裁 CONFIRMED-CLOSED**——"在声明范围内未发现可保持
+  13/13 全绿的语义级漂移"。十门 13 passed；六轮 LOW（at point 子键集）已补
+- ✅ CARD-G3-1（`63e034ec` + 整改 `4de42f69`/`e3337504`/`60568d9c`/`026d0735` + 六轮整改待提交）：
+  契约测试 **44 passed + 1 skipped**。六轮共 2B+19H+21M 全处置。§6.2 现为
+  **A1-A7 七条**（write-ahead / 恢复先于新写 / 严格递增 / **并发五条**（稳定 sidecar 锁+fencing epoch+
+  死亡证明 · 唯一折叠基线 · 完整 fsync · 原子发布 · 账本锁内 **parsed-field 查重**+校验落盘字节+
+  **duplicate 三态门**）/ 整秒 / 调度器入参 UTC / **可调度时间上界 9000 年**）；三态按 state 精确冻结
+  且落成**可执行函数** `classify_card_state()`；degraded 解冻绑定 **canonical reducer（逐事件舍入）**
+  与逐项 proof；vault_id 解析改**逐行状态机**（23 形态矩阵，含跨行引号体）
 - ⛔ 移交：①test.yml 白名单 +2 测试 + root requirements paths（S8 独占；**CI DEFERRED/NOT-EXECUTED**）；
-  ②tips.py 两条 + **bridge 三条**（`_aware` 不转 UTC 会让真实库抛 ValueError / naive 静默当 UTC /
-  `_iso` 截小数秒）生产缺陷 → G3-2 或独立 micro-patch；③**G3-3 五项**：sidecar 排他锁+崩溃回收、
-  per-vault 账本锁内查重与 O_APPEND、锁内重读 W 按 A3 推进后重算、完整 fsync 序列、只做增量重放
-- 纪律守住：learning_event_log.py/fsrs_manager.py 及全部 in-flight 锁定文件零改动（五轮 blob 复核在案）；不 push
-- 待办：五轮整改提交（第六笔）→ Codex 六轮复核 → 用户验收两单
+  ②tips.py 两条 + bridge 三条生产缺陷 → G3-2/独立 micro-patch；③**G3-3 七项**（sidecar 锁+崩溃回收、
+  fencing epoch+死亡证明、per-vault 账本锁内 parsed 查重与落盘字节校验、锁内重读 W 按 A3 推进后重算、
+  完整 fsync 序列、只做增量重放、duplicate 三态门）——其卡面属编排 worktree，本卡无权改
+- 纪律守住：learning_event_log.py/fsrs_manager.py 及全部 in-flight 锁定文件零改动（六轮 blob 复核在案）；不 push
+- 待办：六轮整改提交（第七笔）→ Codex 七轮复核 → 用户验收两单
 
 ---
 

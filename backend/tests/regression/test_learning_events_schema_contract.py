@@ -567,6 +567,61 @@ def test_vault_id_bound_to_vault_config(tmp_path):
     assert "账本所在 vault" in result.stdout
 
 
+def _fsrs_fields(**overrides):
+    base = {
+        "fsrs_last_review": "2026-01-01T00:00:00Z",
+        "fsrs_due": "2026-01-02T00:00:00Z",
+        "fsrs_state": 2,
+        "fsrs_stability": 10.0,
+        "fsrs_difficulty": 5.0,
+    }
+    base.update(overrides)
+    return {k: v for k, v in base.items() if v is not None}
+
+
+def test_classify_card_state_matrix():
+    """§6.2 三态判别的可执行实现 (Codex round-6 HIGH#1)。
+
+    四个 round-6 反例在真实 bridge `review()` 上分别抛 AssertionError、
+    写回非 canonical tuple、ZeroDivisionError、产生 NaN 路径 —— 规则必须
+    把它们判 degraded 而非 normal。
+    """
+    cases = [
+        ({}, "new"),
+        # round-6 四反例
+        (_fsrs_fields(fsrs_state=3, fsrs_step=None), "degraded"),  # 缺 step → AssertionError
+        (_fsrs_fields(fsrs_state=2, fsrs_step=0), "degraded"),  # Review 带 step → 非 canonical
+        (
+            _fsrs_fields(fsrs_state=1, fsrs_step=0, fsrs_stability=0, fsrs_difficulty=0),
+            "degraded",
+        ),  # S=D=0 → ZeroDivisionError
+        (_fsrs_fields(fsrs_stability=1e308, fsrs_difficulty=1e308), "degraded"),  # → NaN 路径
+        # canonical 形态
+        (_fsrs_fields(), "normal"),  # Review
+        (_fsrs_fields(fsrs_state=1, fsrs_step=0, fsrs_stability=None, fsrs_difficulty=None), "normal"),
+        (_fsrs_fields(fsrs_state=3, fsrs_step=0, fsrs_stability=2.0, fsrs_difficulty=6.0), "normal"),
+        # 残缺组合
+        (_fsrs_fields(fsrs_last_review=None), "degraded"),
+        (_fsrs_fields(fsrs_due=None, fsrs_state=None, fsrs_stability=None, fsrs_difficulty=None), "degraded"),
+        (_fsrs_fields(fsrs_state=0), "degraded"),  # legacy
+        (_fsrs_fields(fsrs_state=2, fsrs_difficulty=0.5), "degraded"),  # difficulty 越界
+        (_fsrs_fields(fsrs_stability=float("nan")), "degraded"),
+        (_fsrs_fields(fsrs_last_review="not-a-time"), "degraded"),
+    ]
+    for fields, expected in cases:
+        got, reason = validator.classify_card_state(fields)
+        assert got == expected, f"{fields} → {got} ({reason}), 期望 {expected}"
+
+
+def test_schedulable_time_upper_bound():
+    """A7 (Codex round-6 MEDIUM): 调度会叠加最长 36500 天 + A3 等时 +1s,
+    9999 年这类值会让二者都 OverflowError — 契约上界机械强制。"""
+    assert validator._parse_ts("9999-12-31T23:59:59Z")[0] is False
+    assert validator._parse_ts("9000-01-01T00:00:01Z")[0] is False
+    assert validator._parse_ts("8999-12-31T23:59:59Z")[0] is True
+    assert validator._parse_ts("2026-08-01T10:00:00Z")[0] is True
+
+
 def test_vault_config_parser_form_matrix(tmp_path):
     """`.canvas-config.yaml` 的 vault_id 最小行解析形态矩阵 (stdlib, 不引
     PyYAML)。锁死 11 种形态的判定, 防正则改动时静默放宽/收窄。
@@ -580,7 +635,7 @@ def test_vault_config_parser_form_matrix(tmp_path):
         ("vault_id: bare_value\n", "bare_value"),
         ('vault_id: "x"  # 尾注释\n', "x"),
         ("vault_id: bare  # 尾注释\n", "bare"),
-        # round-5 HIGH#4 反例组: 原宽松正则会错绑/漏绑
+        # round-5 HIGH#4 反例组
         ('vault_id: "team#1"\n', "team#1"),  # 引号内 # 曾被截成 'team'
         ("vault_id: 'sq#2'\n", "sq#2"),
         ("vault_id:\nsubject: cs61b\n", None),  # 跨行曾读成 'subject: cs61b'
@@ -588,6 +643,13 @@ def test_vault_config_parser_form_matrix(tmp_path):
         ("vault_id: >-\n  folded\n", None),
         ('vault_id: "unclosed\n', None),  # 未闭引号
         ('vault_id: "first"\nvault_id: "second"\n', "second"),  # 重复取末项(PyYAML 语义)
+        # round-6 HIGH#3 反例组: 正则白名单仍会对合法 YAML 静默错绑
+        ("vault_id: team#1\n", "team#1"),  # 裸词 # 前无空白 ⇒ 非注释(PyYAML 语义)
+        ('vault_id: "a\\u0023b"\n', None),  # 双引号含转义 ⇒ 无法可靠解码, 放弃绑定
+        ('vault_id: "early"\nvault_id: |\n  block\n', None),  # 末项 block scalar 覆盖早项
+        ('other: "x\nvault_id: fake\nmore"\n', None),  # 多行引号体内的列首 vault_id
+        # 现网形态(多键共存)必须正确绑定
+        ('vault_id: "canvas_vault"\nsubject: cs-61b\nvault_display_name: "CS 61B"\n', "canvas_vault"),
         ('  vault_id: "indented"\n', None),
         ('other:\n  vault_id: "nested"\n', None),
         ('VAULT_ID: "upper"\n', None),

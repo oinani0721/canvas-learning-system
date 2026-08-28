@@ -150,10 +150,109 @@ def _parse_ts(value: object) -> tuple[bool, str]:
     try:
         # round-5 MEDIUM: UTC 归一化会越界的极端日期 (如 0001-01-01+08:00)
         # 在 bridge 的 astimezone(UTC) 处会抛 OverflowError — 提前拦
-        parsed.astimezone(timezone.utc)
+        normalized = parsed.astimezone(timezone.utc)
     except (OverflowError, OSError, ValueError):
         return False, f"UTC 归一化越界 (下游 astimezone 会溢出): {value!r}"
+    if normalized > SCHEDULABLE_MAX:
+        # A7 (round-6 MEDIUM): 调度会叠加最长 36500 天 + A3 等时 +1s,
+        # 9999 年这类值会让二者都 OverflowError
+        return False, f"超出 A7 可调度时间上界 {SCHEDULABLE_MAX.date()} : {value!r}"
     return True, ""
+
+
+#: A7 可调度时间上界 (round-6 MEDIUM): 真实调度会在此之上叠加最长
+#: maximum_interval=36500 天, A3 等时消解还要 +1s — 9999 年会 OverflowError
+SCHEDULABLE_MAX = datetime(9000, 1, 1, tzinfo=timezone.utc)
+#: 可调度数值域 (§6.2 三态): stability 上界 = maximum_interval 天; difficulty 定义域
+STABILITY_RANGE = (0.0, 36500.0)
+DIFFICULTY_RANGE = (1.0, 10.0)
+
+
+def _finite_number(value: object) -> Optional[float]:
+    """有限实数 (排除 bool / NaN / ±Inf / 不可解析) → float; 否则 None。"""
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, (int, float)):
+        number = float(value)
+    elif isinstance(value, str) and value.strip():
+        try:
+            number = float(value)
+        except ValueError:
+            return None
+    else:
+        return None
+    return number if math.isfinite(number) else None
+
+
+def classify_card_state(fields: dict) -> tuple[str, str]:
+    """节点 frontmatter 的 fsrs_* 字段 → ("new"|"normal"|"degraded", reason)。
+
+    §6.2 水位线三态的**可执行实现** (round-6 HIGH#1): G3-2/G3-3 直接复用本
+    函数, 避免"文档一套实现一套"。按 state 校验 canonical 形状与可调度域 —
+    round-6 四反例 (state=3 缺 step / state=2 带 step / state=1 且 S=D=0 /
+    S=D=1e308) 在真实 review() 上分别抛 AssertionError、写回非 canonical
+    tuple、ZeroDivisionError、产生 NaN 路径。
+    """
+    present = {k: v for k, v in fields.items() if k.startswith("fsrs_")}
+    if not present:
+        return "new", "无任何 fsrs_* 字段 = 真新卡 (W = -inf, 全部事件 pending)"
+
+    for key in ("fsrs_last_review", "fsrs_due"):
+        value = present.get(key)
+        if not isinstance(value, str) or not value.strip():
+            return "degraded", f"缺 {key} 或非字符串 — 无法证明 state 与水位线同源"
+        ok, why = _parse_ts(value.strip())
+        if not ok:
+            return "degraded", f"{key} 不可解析: {why}"
+
+    raw_state = present.get("fsrs_state")
+    state = _finite_number(raw_state)
+    if state is None or state != int(state) or int(state) not in (1, 2, 3):
+        return "degraded", f"fsrs_state 须为 1/2/3, 实为 {raw_state!r} (0 属 legacy 迁移分支)"
+    state = int(state)
+
+    step = present.get("fsrs_step")
+    stability = _finite_number(present.get("fsrs_stability"))
+    difficulty = _finite_number(present.get("fsrs_difficulty"))
+    step_number = _finite_number(step)
+    has_step = step is not None and str(step).strip() != ""
+    step_ok = step_number is not None and step_number == int(step_number) and step_number >= 0
+
+    def _domain_ok() -> Optional[str]:
+        if stability is None or difficulty is None:
+            return "stability/difficulty 缺失或非有限数"
+        if not STABILITY_RANGE[0] < stability <= STABILITY_RANGE[1]:
+            return f"stability {stability} 越出可调度域 {STABILITY_RANGE}"
+        if not DIFFICULTY_RANGE[0] <= difficulty <= DIFFICULTY_RANGE[1]:
+            return f"difficulty {difficulty} 越出定义域 {DIFFICULTY_RANGE}"
+        return None
+
+    if state == 1:  # Learning: step 必需; S/D 要么同缺要么同在域内
+        if not has_step or not step_ok:
+            return "degraded", "state=1(Learning) 须带非负整数 fsrs_step"
+        both_absent = present.get("fsrs_stability") in (None, "") and present.get("fsrs_difficulty") in (None, "")
+        if both_absent:
+            return "normal", "Learning 首步 (stability/difficulty 未初始化)"
+        problem = _domain_ok()
+        if problem:
+            return "degraded", f"state=1 的 {problem} (S=D=0 会让调度器 ZeroDivisionError)"
+        return "normal", "Learning 且 S/D 在可调度域内"
+
+    if state == 2:  # Review: 禁 step (非 canonical); S/D 必需且在域内
+        if has_step:
+            return "degraded", f"state=2(Review) 不得带 fsrs_step, 实为 {step!r} (非 canonical tuple)"
+        problem = _domain_ok()
+        if problem:
+            return "degraded", f"state=2 的 {problem}"
+        return "normal", "Review 且 S/D 在可调度域内"
+
+    # state == 3 Relearning: step 与 S/D 都必需
+    if not has_step or not step_ok:
+        return "degraded", "state=3(Relearning) 须带非负整数 fsrs_step (缺失时真实 review() 抛 AssertionError)"
+    problem = _domain_ok()
+    if problem:
+        return "degraded", f"state=3 的 {problem}"
+    return "normal", "Relearning 且 step 与 S/D 齐备"
 
 
 def _instant(value: object) -> Optional[datetime]:
@@ -214,25 +313,88 @@ def _golden_manifest() -> Optional[dict]:
     return data
 
 
-#: .canvas-config.yaml 顶层 vault_id 的**保守**识别 (stdlib, 不引 PyYAML)。
-#: round-5 HIGH#4: 原宽松正则会把 `"team#1"` 截成 `team`(错绑)、把
-#: `vault_id:\nsubject: x` 跨行读成 `subject: x`、把 block scalar 读成 `|`。
-#: 现改为三种**明确形态**的白名单, 其余一律 None (宁可不绑定也不错绑):
-#:   1. 双引号值 — 引号内允许 # 与空格, 不允许转义与换行;
-#:   2. 单引号值 — 同上;
-#:   3. 裸词值 — 只允许 [不含 #、引号、空白、YAML 指示符] 的连续串。
-_VAULT_ID_DQ = re.compile(r'^vault_id:[ \t]*"([^"\n]*)"[ \t]*(?:#[^\n]*)?$', re.MULTILINE)
-_VAULT_ID_SQ = re.compile(r"^vault_id:[ \t]*'([^'\n]*)'[ \t]*(?:#[^\n]*)?$", re.MULTILINE)
-_VAULT_ID_BARE = re.compile(r"^vault_id:[ \t]+([^\s\"'#&*!|>%@`{}\[\],]+)[ \t]*(?:#[^\n]*)?$", re.MULTILINE)
+class _AmbiguousConfig(Exception):
+    """配置形态超出保守解析能力 — 必须放弃绑定而非猜测。"""
+
+
+def _scan_vault_id(text: str) -> Optional[str]:
+    """逐行扫描顶层 `vault_id:`，返回**最后一个**可确定值 (PyYAML duplicate 语义)。
+
+    round-6 HIGH#3 整改: 纯正则会对合法 YAML 静默错绑 —
+      - 裸词 `team#1`: `#` 前无空白时 PyYAML 不视为注释, 原实现截成 `team`;
+      - 双引号内 `\\u0023` 等转义: 无法可靠解码 ⇒ 放弃绑定;
+      - 早先单行值后跟同名 block scalar: PyYAML 取末项, 原实现退回早项;
+      - 多行引号内容里的列首 `vault_id:` 会被误认成顶层键。
+    策略: 跟踪"是否处于多行标量/跨行引号内"; 任何**无法确定**的形态一律
+    抛 _AmbiguousConfig → 调用方返回 None + WARN (宁可不绑也不错绑)。
+    """
+    found: Optional[str] = None
+    lines = text.splitlines()
+    index = 0
+    open_quote: Optional[str] = None  # 跨行引号跟踪 (round-6: 多行引号体内的
+    # 列首 `vault_id:` 曾被误认成顶层键)
+    while index < len(lines):
+        line = lines[index]
+        index += 1
+
+        if open_quote is not None:
+            # 处于跨行引号体内: 只找闭合引号, 该行的任何 `vault_id:` 都不是顶层键
+            close = line.find(open_quote)
+            if close >= 0:
+                open_quote = None
+            continue
+
+        if not line.startswith("vault_id:"):
+            # 非顶层 vault_id 行: 若出现奇数个某种引号, 说明值跨行延续 —
+            # 后续行进入"引号体"模式 (保守: 宁可漏绑也不把引号体内的
+            # 列首 vault_id 误认成顶层键)
+            for quote in ('"', "'"):
+                if line.count(quote) % 2 == 1:
+                    open_quote = quote
+                    break
+            continue
+        rest = line[len("vault_id:") :]
+        stripped = rest.strip()
+
+        if not stripped or stripped.startswith("#"):
+            # 空值或纯注释: 下一行若是缩进内容 ⇒ 是多行结构, 无法确定
+            if index < len(lines) and lines[index][:1] in (" ", "\t"):
+                raise _AmbiguousConfig("vault_id 后跟缩进内容 (多行结构)")
+            found = None
+            continue
+
+        if stripped[0] in "|>":  # block / folded scalar
+            raise _AmbiguousConfig("vault_id 使用 block/folded scalar")
+
+        if stripped[0] in "\"'":
+            quote = stripped[0]
+            body = stripped[1:]
+            end = body.find(quote)
+            if end < 0:
+                raise _AmbiguousConfig("未闭合引号 (值可能跨行)")
+            value = body[:end]
+            trailer = body[end + 1 :].strip()
+            if trailer and not trailer.startswith("#"):
+                raise _AmbiguousConfig(f"引号值后有非注释内容: {trailer!r}")
+            if quote == '"' and "\\" in value:
+                raise _AmbiguousConfig("双引号值含转义序列, 无法可靠解码")
+            found = value
+            continue
+
+        # 裸词: `#` 只有在**前面有空白**时才是注释起点 (YAML 规则)
+        comment = re.search(r"\s#", stripped)
+        value = (stripped[: comment.start()] if comment else stripped).rstrip()
+        if any(ch in value for ch in "\"'{}[],&*!%@`"):
+            raise _AmbiguousConfig(f"裸词值含 YAML 指示符: {value!r}")
+        found = value or None
+    return found
 
 
 def _vault_id_of(ledger_path: Path) -> Optional[str]:
     """账本所在 vault 的声明 vault_id (同目录 .canvas-config.yaml)。
 
-    保守解析: 只认三种明确的顶层单行形态; **同一文件出现多次 vault_id 时
-    取最后一个**(与 PyYAML 的 duplicate-key 语义一致, round-5 指出原实现
-    取首个与之相反)。任何无法确定的形态 (block scalar / 跨行 / 未闭引号 /
-    非法 UTF-8 / 读失败) → None, 调用方降级为不绑定 + WARN。
+    保守解析 (见 _scan_vault_id): 任何无法确定的形态、非法 UTF-8、读失败
+    → None, 调用方降级为不绑定 + WARN。
     """
     config = ledger_path.parent / ".canvas-config.yaml"
     if not config.is_file():
@@ -241,16 +403,11 @@ def _vault_id_of(ledger_path: Path) -> Optional[str]:
         text = config.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return None
-    # 取"最后一个"匹配: 三种形态各自的末次匹配中, 行位置最靠后者胜
-    best: Optional[tuple[int, str]] = None
-    for pattern in (_VAULT_ID_DQ, _VAULT_ID_SQ, _VAULT_ID_BARE):
-        for match in pattern.finditer(text):
-            if best is None or match.start() > best[0]:
-                best = (match.start(), match.group(1))
-    if best is None:
+    try:
+        value = _scan_vault_id(text)
+    except _AmbiguousConfig:
         return None
-    value = best[1].strip()
-    return value or None
+    return value.strip() if isinstance(value, str) and value.strip() else None
 
 
 def _rating_from_grade_norm(grade_norm: float) -> int:

@@ -425,6 +425,9 @@ def test_retrievability_curve_matches_golden():
     # 采样点必须恰为末态 due + 字面锁偏移, 且期望值由真实库复算
     assert len(golden["at"]) == len(RETRIEVABILITY_OFFSET_DAYS)
     for point, offset in zip(golden["at"], RETRIEVABILITY_OFFSET_DAYS):
+        # 子键集锁 (round-6 LOW: point 加未知键曾全绿)
+        assert set(point.keys()) == {"current_datetime", "expected"}
+        assert isinstance(point["expected"], float) and not isinstance(point["expected"], bool)
         expected_at = card.due + timedelta(days=offset)
         assert datetime.fromisoformat(point["current_datetime"]) == expected_at, (
             f"retrievability 采样点 {point['current_datetime']} != 末态 due+{offset}d ({expected_at.isoformat()})"

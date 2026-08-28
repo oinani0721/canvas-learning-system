@@ -46,6 +46,7 @@ echo "manifest sha256: $(shasum -a 256 tests/regression/fsrs_golden_manifest.jso
 echo "vectors sha256:  $(shasum -a 256 tests/regression/fsrs_golden_vectors.json | cut -d' ' -f1)"
 echo "gate command: $GATE"
 echo "变体总数: 1 基线 (N0) + 12 负例 (N1-N12); 每例校验预期红门数与门名"
+echo "注: N5/N11 自 round-6 起各触发 2 门 (曲线门加强后一并覆盖), 预期值已同步"
 echo
 
 echo "--- [N0] 基线 → 期望 0 门红 ---"; expect_gates 0 -; echo
@@ -79,12 +80,12 @@ d["vectors"][-1]=d["vectors"][0]
 p.write_text(json.dumps(d,ensure_ascii=False,indent=2,sort_keys=True)+"\n")'
 expect_gates 1 test_matrix_structure_frozen; restore; echo
 
-echo "--- [N5] retrievability.at 清空 ---"
+echo "--- [N5] retrievability.at 清空 (round-6 起曲线门也覆盖 → 2 门红) ---"
 mutate 'import json,pathlib
 p=pathlib.Path("tests/regression/fsrs_golden_vectors.json");d=json.loads(p.read_text())
 d["retrievability"]["at"]=[]
 p.write_text(json.dumps(d,ensure_ascii=False,indent=2,sort_keys=True)+"\n")'
-expect_gates 1 test_matrix_structure_frozen; restore; echo
+expect_gates 2 test_matrix_structure_frozen test_retrievability_curve_matches_golden; restore; echo
 
 echo "--- [N6] 容差放宽 float_rel=1e-3 ---"
 mutate 'import json,pathlib
@@ -137,7 +138,7 @@ v["expected"]={"stability":c.stability,"difficulty":c.difficulty,"due":c.due.iso
 p.write_text(json.dumps(d,ensure_ascii=False,indent=2,sort_keys=True)+"\n")'
 expect_gates 1 test_matrix_structure_frozen; restore; echo
 
-echo "--- [N11·round-3] scheduler_config 重定向 desired_retention 0.9→0.8, manifest+vectors+hash 全自洽重算 ---"
+echo "--- [N11·round-3] scheduler_config 重定向 0.9→0.8 自洽重算 (round-6 起曲线门也覆盖 → 2 门红) ---"
 mutate 'import hashlib,json,pathlib
 from datetime import datetime,timedelta
 from fsrs import Card,Rating,Scheduler
@@ -170,7 +171,7 @@ d["retrievability"]["at"]=[{"current_datetime":(c.due+timedelta(days=k)).isoform
  "expected":s.get_card_retrievability(c,c.due+timedelta(days=k))} for k in (0,7,30)]
 MP.write_text(json.dumps(m,ensure_ascii=False,indent=2,sort_keys=True)+"\n")
 VP.write_text(json.dumps(d,ensure_ascii=False,indent=2,sort_keys=True)+"\n")'
-expect_gates 1 test_scheduler_config_non_parameter_fields_frozen; restore; echo
+expect_gates 2 test_retrievability_curve_matches_golden test_scheduler_config_non_parameter_fields_frozen; restore; echo
 
 echo "--- [N12·round-3] expected 类型伪装 state=true (Python bool 与 1 相等) ---"
 mutate 'import json,pathlib

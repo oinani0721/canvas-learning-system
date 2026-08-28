@@ -1,0 +1,31 @@
+== Codex round-6 点名反例的对抗复验 ==
+date: 2026-08-28T14:21:27Z
+validator sha256:     b6eb2d31b192c9a36e0eac9cc66542da2432996749d51a9ebdfdf20825a66ac6
+contract test sha256: c3a772862946dd52e0c6b152e8dfe9d61bcdc487b42612d2ef94326b9eaa46f4
+golden test sha256:   14118eb4f02c4d4239a9792b00a73ad5cc56c58e11a905653e5ec932a43e94bc
+
+--- [R6-1 HIGH#3] vault_id 四反例 (合法 YAML 静默错绑) ---
+  OK 裸词 team#1 (PyYAML=team#1, 曾=team)            got='team#1' expect='team#1'
+  OK 双引号转义 (无法可靠解码)                               got=None expect=None
+  OK 末项 block scalar 覆盖早项                         got=None expect=None
+  OK 多行引号体内的列首 vault_id                           got=None expect=None
+
+--- [R6-2 HIGH#1] classify_card_state 四反例 (真实调用会失败的 tuple) ---
+  OK state=3 缺 step → AssertionError          → degraded (state=3(Relearning) 须带非负整数 fsrs_step (缺失时真实 re)
+  OK state=2 带 step → 非 canonical             → degraded (state=2(Review) 不得带 fsrs_step, 实为 0 (非 canonic)
+  OK state=1 S=D=0 → ZeroDivisionError        → degraded (state=1 的 stability 0.0 越出可调度域 (0.0, 36500.0) )
+  OK S=D=1e308 → NaN 路径                       → degraded (state=2 的 stability 1e+308 越出可调度域 (0.0, 36500.)
+
+--- [R6-3 MEDIUM] A7 时间上界 ---
+  9999-12-31T23:59:59Z: accepted=False
+  9000-01-01T00:00:01Z: accepted=False
+  8999-12-31T23:59:59Z: accepted=True
+  2026-08-01T10:00:00Z: accepted=True
+
+--- [R6-4 LOW] retrievability.at point 加未知键 ---
+FAILED tests/regression/test_fsrs_golden_vectors.py::test_retrievability_curve_matches_golden
+================== 1 failed, 12 passed, 10 warnings in 0.61s ===================
+
+--- 终态 ---
+vectors sha256: df60dbc6192c499ad21da6533f35ed2e0e316f5d4bc52fb45b711d4cae6f49a3
+================== 57 passed, 1 skipped, 10 warnings in 3.97s ==================

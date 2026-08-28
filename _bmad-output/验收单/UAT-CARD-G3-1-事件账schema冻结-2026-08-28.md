@@ -29,7 +29,7 @@
 
 | 裁判 | 结果 |
 |---|---|
-| 契约测试 `backend/tests/regression/test_learning_events_schema_contract.py` | **42 passed + 1 skipped**（本文件单跑口径，五轮整改后；skip = 仓内 vault 根无账本的 worktree 环境，主仓自动生效。与 golden 门 + 既有账本测试合跑 = **61 passed + 1 skipped**） |
+| 契约测试 `backend/tests/regression/test_learning_events_schema_contract.py` | **44 passed + 1 skipped**（本文件单跑口径，六轮整改后；skip = 仓内 vault 根无账本的 worktree 环境，主仓自动生效。与 golden 门 + 既有账本测试合跑 = **63 passed + 1 skipped**） |
 | **真实 producer 执行**（Codex 一轮 HIGH 整改） | vault 三 skill 写点的 python 代码**从 SKILL.md 逐字提取执行**（ai-linked-doc 单行模板 / start-exam-board PYEOF 块 / quiz-answer 评分链账本段；仅路径常量重定向 tmp fixture），产物过校验器 + 幂等重放断言；backend 侧按 5 调用点实参形状经真实 `append_event` 写入后全过 |
 | 既有账本回归 `test_learning_event_log.py` | 6 passed（零改动） |
 | 校验脚本 vs 三 fixture | 合法 → exit 0 / 缺字段 → exit 1（点名 `effective_at`）/ 重复 event_id → exit 1（点名首见行号）（存证 `审查/g3-1-evidence/g3-1-fixture-validation.txt`） |
@@ -143,6 +143,20 @@
 | 六 | LOW | `retrievability.card.state` 从 `2` 改 `2.0` 仍全绿；改 description / 塞嵌套未知键仍全绿；`comparison_tolerance` 未锁子键集 | **已修（G3-4 测试）**：card 快照类型门 + 键集锁、向量/步/expected 键集锁 + description 字面锁、tolerance 子键集锁。四反例现全部翻红 |
 
 五轮整改后复跑：契约测试 **42 passed + 1 skipped**、三文件合跑 **61 passed + 1 skipped**、现网账本（23 行）exit 0 零 WARN、round-5 全部点名反例对抗复验通过（`审查/g3-1-evidence/g3-round5-counterexamples.txt`）。
+
+### 六轮复核处置（存档 `审查/codex-review-CARD-G3-1-G3-4-round6-2026-08-28.md`；**G3-4 已判 CONFIRMED-CLOSED**，G3-1 残留 1 BLOCKER + 3 HIGH + 1 MEDIUM，均属契约层）
+
+| # | 级别 | 六轮发现 | 处置 |
+|---|---|---|---|
+| 一 | **BLOCKER**（复合四项） | ①§二冻结的 **event_id 子串查重**：已有事件 payload 文本含 `"quiz:E"` 时，真实 `event_id="quiz:E"` 被误判 duplicate ⇒ **零次落账**（丢一次真实评分）；②A4.1 的 `pid+超时接管` **无 fencing**——A 暂停超时、B 接管发布、A 恢复后仍可发布旧状态（双持+回退）；③A4.5 把 `PIPE_BUF` 用于**普通文件**不成立（仍可短写）；④duplicate 命中后**缺状态推进门** | **已修（契约）**：A4.5 扩为四条——**parsed-field equality**（逐行解析比 `event_id` 字段，禁子串；并澄清这是修正查重实现而非改幂等语义，不触发 v2 升版）、**写入须校验返回字节数**（短写按 LF 守卫自愈 + 重启对账）、**duplicate 三态门**（同 ID 同 canonical payload ⇒ no-op 且绝不再 apply；同 ID 不同 payload ⇒ fail-closed）；A4.1 补 **fencing epoch**（发布前重读锁确认 epoch 与身份仍属自己，否则放弃发布——已 durable 的事件留待下次 A2 重放）+ **接管须证明前持有者已死**（pid 不存在，或 pid 存在但启动时间不符；都无法证明则不接管） |
+| 三 | HIGH#1 | 三态仍接受**不可执行/非 canonical** tuple：`state=3` 缺 step（真实 `review()` 抛 AssertionError）、`state=2, step=0`（写回非 canonical）、`state=1, S=D=0`（ZeroDivisionError）、`S=D=1e308`（NaN 路径） | **已修（契约+可执行实现）**：按 state 精确冻结（Learning 需 step、S/D 同缺或同在域内；Review **禁 step**、S/D 必需；Relearning **step 与 S/D 都必需**）+ **可调度数值域**（stability ∈ (0, 36500]、difficulty ∈ [1,10]）。并落成**可执行函数** `validate_learning_events.py::classify_card_state()`（G3-2/G3-3 直接复用，避免文档与实现两套），14 例矩阵测试锚定，四反例全判 degraded |
+| 四 | HIGH#2 | degraded 的"可证明起点"与事件 E 不可机械执行：proof 未绑定 vault/node/cursor/prefix hash/库版本；未规定 E 必须是最后一个适用事件；W 无法表示同瞬间行序；`degraded:*` 无算法身份；**canonical reducer 舍入边界未定**——实测三次 Good 逐步舍入得 stability `10.9711`、末尾舍入得 `10.9710`，两者都满足旧描述 | **已修（契约）**：①**E = 最后一个适用事件**（`(review_time, 行号)` 复合序最大者，行号消歧同瞬间）；②**canonical reducer 冻结为逐事件持久化舍入**（与 bridge 写-读循环一致，禁内存连续折叠末尾舍入，实测差异写入文档）；③**proof 记录内容逐项列举**（vault/node/账本 sha256 或 prefix hash/E 行号/E.event_id/E.review_time/library_version/params_hash/scheduler 配置/起点类型与其证明），缺任一项即不可证明；④`degraded:*` 哨兵行**不参与自动证明链**，须人工裁定 |
+| 五 | HIGH#3 | vault_id 保守白名单仍会**对合法 YAML 静默错绑**：裸词 `team#1` 被截成 `team`（PyYAML 取 `team#1`——`#` 前无空白时非注释）；双引号内 `\u0023` 转义未解码；早项 + 末项 block scalar 时退回早项；**多行引号体内的列首 `vault_id:` 被误认成顶层键** | **已修（代码+测试）**：正则整体换成**逐行状态机** `_scan_vault_id()`——跟踪跨行引号体（体内行一律跳过）、裸词按 YAML 规则只把 ` #` 视为注释起点、双引号含 `\` 转义 ⇒ 放弃绑定、block/folded scalar ⇒ 放弃、任何不可确定形态抛 `_AmbiguousConfig` ⇒ 返回 None + WARN。**23 形态矩阵测试**锚定（含四个 round-6 反例与现网多键形态） |
+| 二 | MEDIUM | `9999-12-31T23:59:59Z` 仍被接受，但真实调度叠加 interval 与 A3 的 `W+1s` 均抛 `OverflowError` | **已修（契约+代码）**：新增 **A7 可调度时间上界 9000-01-01Z**（留 ≈999 年余量，远超 `maximum_interval=36500` 天 + 1s；对现网零影响），校验器机械强制 |
+| 二 | — | bridge 三项（offset 不转 UTC / naive 静默当 UTC / 截小数秒）判 **STILL-OPEN 但已移交 G3-2，不计本卡残留** | 维持移交登记（§九 + 本单 §六） |
+| 一 | — | G3-3 接收卡面仍只写"锁/CAS"，未吸收五项完整条款 | **如实登记**：卡面属编排 worktree 的总账文件，本卡无权改他人卡面；移交条款在 schema §6.2 与 CURRENT_TASK 双处写全（现为**七项**：sidecar 锁+崩溃回收、fencing epoch+死亡证明、per-vault 账本锁内 parsed 查重与校验落盘字节、锁内重读 W 按 A3 推进后重算、完整 fsync 序列、只做增量重放、duplicate 三态门） |
+
+六轮整改后复跑：契约测试 **44 passed + 1 skipped**、三文件合跑 **63 passed + 1 skipped**、现网账本（23 行）exit 0 零 WARN、round-6 全部点名反例对抗复验通过（`审查/g3-1-evidence/g3-round6-counterexamples.txt`）。
 
 ## 六、移交登记
 

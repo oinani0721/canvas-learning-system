@@ -22,13 +22,13 @@
 
 | 裁判 | 结果 |
 |---|---|
-| 新建 `backend/tests/regression/test_fsrs_golden_vectors.py` | **13 passed 全绿**（四轮整改后：**十门** — 版本钉死 / 严格 requirements 解析 / 默认参数+枚举面 / params_hash 自洽 / manifest 元数据字面锁 / **manifest 键集+出处锁** / **scheduler_config 全字段字面锁** / 容差上限锁 / 矩阵结构+逐步时刻 skeleton / 向量重放 + **retrievability skeleton+快照锁**） |
+| 新建 `backend/tests/regression/test_fsrs_golden_vectors.py` | **13 passed 全绿**（四轮整改后：**十门**（六轮定稿）— 版本钉死 / 严格 requirements 解析 / 默认参数+枚举面 / params_hash 自洽 / manifest 元数据字面锁 / **manifest 键集+出处锁** / **scheduler_config 全字段字面锁** / 容差上限锁 / 矩阵结构+逐步时刻 skeleton / 向量重放 + **retrievability skeleton+快照锁**） |
 | 现有 fsrs 套件不回归 | `test_fsrs_manager.py` / `test_create_fsrs_manager.py` / `test_fsrs_state_query.py` / `test_fsrs_bridge.py` / `test_fsrs_legacy_state_zero.py` / `test_fsrs_new_card_none_serialization.py` = **91 passed** + 扩面 `test_review_service_fsrs.py` / `test_story_38_3_fsrs_init_guarantee.py` / `test_mastery_engine_fsrs.py` / `test_fsrs_state_api.py` / `test_review_fsrs_degradation.py`（e2e）= **100 passed**，合计 191/191 零回归 |
 | 向量覆盖 | **5 关键态 × 4 评分 = 20 向量**：新卡首评 / Learning 第二步 / Review 准时 / **Review 逾期 30 天** / Relearning（`state_before_final_review` 字段逐条可核）+ retrievability 曲线 3 点（due/+7d/+30d） |
 | 确定性 | 固定 card_id + 固定 UTC 时刻链 + `enable_fuzzing=False`；生成器**连跑两次 byte 级一致** |
 | manifest 锁定面 | library_version=6.3.1 / algorithm=FSRS-6（21 参数）/ timezone=UTC / params_hash（sha256 canonical）/ Rating&State 枚举值域 |
 | requirements 钉版 | 根与 backend 两处 `fsrs==6.3.1`（原 `>=6.0.0,<7.0.0` 范围约束收紧），且有测试防松绑回潮 |
-| **负验证 v4（留档，SHA-bound，可重跑）** | **N0 基线绿 + N1–N12 十二个负例精确翻红**，每变体校验**预期红门数与门名**、脚本 exit code 反映证据有效性：params_hash / 向量 stability / 仅改 manifest 版本（恰 3 门红）/ 重复+缺格向量 / retrievability 清空 / 容差放宽 / 前态=999（双门红）/ algorithm 任意值 / requirements `.post1` / **前缀时刻伪装** / **scheduler_config retention 重定向** / **expected 类型伪装**；恢复后 manifest+vectors sha256 与基线全等 + 全绿。存证含每变体内联 mutation/restore 命令（`审查/g3-4-evidence/g3-4-negative-verification.txt` + 可重跑脚本 `negverify_v4.sh`） |
+| **负验证 v4（留档，SHA-bound，可重跑）** | **N0 基线绿 + N1–N12 十二个负例精确翻红**，每变体校验**预期红门数与门名**（⚠️ 已知限度：pytest ERROR/collection 数与 mutation/restore 退出码未纳入校验，终态 SHA 打印但不机器比对——round-6 MEDIUM 如实登记）：params_hash / 向量 stability / 仅改 manifest 版本（恰 3 门红）/ 重复+缺格向量 / retrievability 清空 / 容差放宽 / 前态=999（双门红）/ algorithm 任意值 / requirements `.post1` / **前缀时刻伪装** / **scheduler_config retention 重定向** / **expected 类型伪装**；恢复后 manifest+vectors sha256 与基线全等 + 全绿。存证含每变体内联 mutation/restore 命令（`审查/g3-4-evidence/g3-4-negative-verification.txt` + 可重跑脚本 `negverify_v4.sh`） |
 | **二/三/四轮反例对抗复验** | Codex 各轮点名反例现均翻红并留档：二轮矩阵伪装两例（`g3-round2-counterexamples.txt`）、三轮小数秒/marker 降级/语义坏例/前缀时刻/retention 重定向/expected 类型（`g3-round3-counterexamples.txt`）、四轮 vault_id 不符 / out_of_order 三形态 / review_time 省略秒 / **retrievability 协调漂移与 card 快照** / manifest 四种损坏形态降级不 traceback（`g3-round4-counterexamples.txt`） |
 | 真实库验收 | `FSRS_AVAILABLE` 断言在位——库缺失是 FAIL 不是 skip，零 mock 零 FakeCard |
 | 铁律遵守 | `fsrs_manager.py` **零改动**（in-flight D4 锁定，git blob 恒为 `980b3758…`）；测试直接 `from fsrs import` 消费真实库对象、仅额外读该模块的 `FSRS_AVAILABLE` 布尔断言生产面真实库在位——**不宣称"只消费其公开接口"**（该模块无 `__all__` re-export 契约，二轮口径整改）；不改任何调度逻辑 |
@@ -109,6 +109,19 @@
 | 七 | MEDIUM | `negverify_v4` 的 exit code 声称过强（只 grep FAILED、不查 pytest exit code/collection 数、不查 mutation/restore 成功）；存证 SHA 绑定旧提交与 12 门 | **部分处置 + 如实登记**：存证每轮重生成（SHA 与当前 bytes 同步）；脚本的 exit-code/collection 校验强化**登记为证据工具改进项**——十门测试本身是裁判，负验证是佐证，本卡不因该工具细节阻塞；如主 session 要求可在合并前补一轮加固 |
 
 五轮整改后复跑：golden 门 **13 passed**、三文件合跑 **61 passed + 1 skipped**、ruff 全过。
+
+### 六轮复核处置（存档 `审查/codex-review-CARD-G3-1-G3-4-round6-2026-08-28.md`）
+
+> **⭐ 六轮终裁：G3-4 主体判 `CONFIRMED-CLOSED`** — 原文：「在声明范围——fsrs 6.3.1、fuzz off、固定 5×4 向量和三点 retrievability——未发现可保持 13/13 全绿的语义级漂移。结构门及重放门均有效；第五轮四类反例均会翻红。」
+
+| # | 级别 | 六轮发现 | 处置 |
+|---|---|---|---|
+| 六 | **CONFIRMED-CLOSED** | 曲线门、结构门、重放门、manifest 锁均有效，未发现语义级漂移可全绿 | 无需动作 |
+| 六 | LOW | 每个 `retrievability.at` point 的**子键集未锁**，加入未知键仍可全绿（结构覆盖缺口，非语义漂移） | **已修**：point 子键集锁 + `expected` 类型门。反例现翻红（`g3-round6-counterexamples.txt` R6-4） |
+| 七 | MEDIUM | 负验证存证仍绑 `4de42f69`/旧 test SHA/`12 passed`，与当前 bytes 不符；UAT 称「已绑定当前 bytes」不实 | **已修**：负验证 v4 **在当前 HEAD 重跑**，存证 SHA 与当前 bytes 同步 |
+| 七 | MEDIUM | `negverify_v4.sh` 只 grep `FAILED`，不校验 pytest ERROR/collection 数、mutation/restore 退出码，终态 SHA 只打印不比较 | **如实收窄声明**：本单不再宣称「exit code 能反映证据有效性」，改为「脚本按预期红门名逐变体校验；**pytest ERROR/collection 数与 mutation 退出码未纳入校验**，属证据工具的已知限度」。十门测试本身是裁判，负验证是佐证 |
+
+六轮整改后复跑：golden 门 **13 passed**、三文件合跑 **63 passed + 1 skipped**、ruff 全过。
 
 ## 六、移交登记
 

@@ -104,12 +104,21 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
 
 **水位线三态（Codex round-3 HIGH + round-4 HIGH#2 收紧）**：判别按**完整 FSRS tuple 的可解析性**，不只看单键存在性。
 - **真新卡** = 节点 frontmatter **不含任何 `fsrs_*` 字段** ⇒ `W = -∞`，全部事件 pending（合法首事件路径）。
-- **正常卡** = 持久化 tuple **完整、有限、且与 state 相容**（round-5 HIGH#2 收紧：只查三键不够——bridge `review()` 消费**六字段**构造 `Card`，缺项会让真实库在内部断言处失败）。逐条：
+- **正常卡** = 持久化 tuple **完整、canonical、且落在可调度域内**（round-5 HIGH#2 + round-6 HIGH#1 逐条收紧：bridge `review()` 消费**六字段**构造 `Card`，规则不精确会放过真实调用时抛 `AssertionError`/`ZeroDivisionError`/产生 NaN 的形状）。逐条：
   - `fsrs_last_review`：存在且可解析为 tz-aware 时刻（⇒ `W` = 该值）；
   - `fsrs_due`：存在且可解析为 tz-aware 时刻（**缺它 bridge 走 New 卡分支**，`fsrs_bridge.py:102`）；
   - `fsrs_state`：整数 ∈ {1,2,3}（`0` 属 legacy，走 bridge 的字段级迁移分支，不算"正常卡"）；
-  - **state 相容性**：`state == 1`（Learning）⇒ `fsrs_step` 必须存在且为非负整数（缺失时 bridge 兜底 step=0，会走出与原状态不同的 Learning 路径）；`state ∈ {2,3}`（Review/Relearning）⇒ `fsrs_stability` 与 `fsrs_difficulty` 必须存在且为**有限正实数**（缺失或 0 会让 v6 调度器在稳定度幂运算处失败）；
-  - **数值有限性**：上述所有数值字段不得为 `NaN`/`Inf`/空串/不可解析。
+  - **按 state 的 canonical 形状**（round-6 四反例逐个封堵）：
+    | state | `fsrs_step` | `fsrs_stability` / `fsrs_difficulty` | round-6 反例 |
+    |---|---|---|---|
+    | 1 Learning | **必须**存在且非负整数 | 要么**同时缺失**（首步未初始化），要么**同时为可调度域内正实数** | `state=1, step=0, S=D=0` 曾判正常 → 真实调用 `ZeroDivisionError` |
+    | 2 Review | **必须缺失或 null** | **必须**同时存在且在可调度域内 | `state=2, step=0` 曾判正常 → 成功但持续写回**非 canonical** Review tuple |
+    | 3 Relearning | **必须**存在且非负整数 | **必须**同时存在且在可调度域内 | `state=3` + 正常 S/D 但缺 step 曾判正常 → 真实 `review()` 抛 `AssertionError` |
+  - **可调度数值域**（round-6 反例：正有限 `S=D=1e308` 曾判正常 → 调度产生 NaN 路径并失败）：
+    - `fsrs_stability` ∈ `(0, 36500]`（上界 = `maximum_interval` 天，超出即不可调度）；
+    - `fsrs_difficulty` ∈ `[1, 10]`（FSRS 难度定义域）；
+    - 任一数值不得为 `NaN`/`±Inf`/空串/不可解析。
+  - **可执行形式**：以上规则由 `backend/scripts/validate_learning_events.py::classify_card_state()` 机械实现（返回 `("new"|"normal"|"degraded", reason)`），G3-2/G3-3 直接复用同一函数，避免"文档一套、实现一套"。
 - **残缺卡 = 上述以外的一切组合**，一律 **fail-closed**（禁止自动重放，报 degraded 待修复）。显式列举（round-4/5 点名的灰区）：
   - 缺 `fsrs_last_review` 但有其他 `fsrs_*`；
   - **只有 `fsrs_last_review` 而缺 `fsrs_due`/`fsrs_state`**；
@@ -121,6 +130,8 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
 **比较与排序语义（必须按绝对瞬间，不得按字符串）**：`W` 与 `review_time` 的所有比较（`>`、`≤`、相等）**以及 pending 集合的排序**，**必须先解析为 tz-aware datetime 再比**。理由：bridge 的 `_iso()` 把时刻 `astimezone(UTC)` 后写成 `...Z`（`fsrs_bridge.py:55-56`），而事件的 `review_time` 允许任意合法 offset——实测 `2026-08-01T18:00:00+08:00`（事件）与 `2026-08-01T10:00:00Z`（W）**是同一瞬间但字符串不同**。按字符串比较会把"已应用"判成 pending 并二次推进；**按字符串排序**会把 `10:00:02Z` 排在真实更早的 `18:00:01+08:00` 之前（round-5 反例），导致重放顺序错乱。
 
 **整秒性判定同样按 UTC 归一化后计**：A5 要求的"整秒"在 UTC 归一化后保持（offset 只到分钟级；含秒的 offset 已被 §三 受理语法拒绝）。
+
+**A7 可调度时间上界（round-6 MEDIUM）**：`review_time` 必须 ≤ **9000-01-01T00:00:00Z**。理由：真实调度器会在该时刻上叠加最长 `maximum_interval = 36500` 天（≈100 年）算出新 `due`，而 A3 的等时消解还要 `+1s`——`9999-12-31T23:59:59Z` 这类值会让二者都抛 `OverflowError`。留出的余量（≈999 年）远超任何真实用法，对现网零影响。校验器机械强制。
 
 **A6 调度器入参必须是 UTC（round-5 HIGH#1，端到端条款）**：传给 fsrs `Scheduler.review_card()` 的 `review_datetime` **必须 tz-aware 且 tzinfo 恰为 UTC**——库对此硬校验（`scheduler.py:256-260` 抛 `ValueError: datetime must be timezone-aware and set to UTC`）。因此 G3-2 写路径必须满足：**事件 `payload.review_time`、传入调度器的时刻、写出的 `W` 三者是同一瞬间，且入库/入调度器前统一 `astimezone(UTC)`**。
 > ⚠️ **移交（bridge 实现缺陷，本卡不改生产代码）**：`fsrs_bridge.py:50 _aware()` 只补 tzinfo 不做 `astimezone(UTC)`——把校验器判定合法的 `12:00:00+08:00` 传给真实库会**抛 ValueError**（round-5 只读复算实测）；该函数同时把 naive 串静默当 UTC、并在 `_iso()` 截掉小数秒。三项均属 bridge 侧修复，随 **G3-2** 接入时一并处置（登记于 §九）。
@@ -138,13 +149,23 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
 - **A4 临界区与并发协议（round-3 BLOCKER + round-4 BLOCKER 收紧）**：**"读 W → 判三态 → 扫描 pending → 重放 → 计算新状态 → durable append 新事件 → apply → 原子发布 frontmatter → 释放"整段必须在 per-node 真互斥内完成**。以下四条是并发正确性的最小充分集，缺一不可：
   - **A4.1 真互斥 + 稳定锁身份**：必须是**独占的 per-node 排他锁**，持有期覆盖到**发布之后**。两点缺一不可：
     - **不是乐观 CAS**——round-4 反例：两写者可在同一秒各自 durable append，胜者发布 `W = t1` 后，败者事件因 `review_time == W`（等时）**永久不进 pending**，该次评分静默丢失。CAS 只能检测"值被改过"，无法阻止已发生的 append 副作用。
-    - **锁对象必须是不会被 `os.replace` 顶替的实体**（round-5 反例）：若对节点文件本身加锁，`A 锁旧 inode → replace → C 锁新 inode → B 获得旧 inode 锁` 会让 B/C 同时自认排他。冻结为：**per-node sidecar 锁文件或锁目录**（如 `<vault>/.locks/<key>.lock`），`key = 规范化({vault_id, node_id})`（NFC 归一 + 路径安全转义，保证同一节点恒得同一 key）；实现须含**崩溃遗留锁回收**（持有者 pid/时间戳 + 超时接管）。
+    - **锁对象必须是不会被 `os.replace` 顶替的实体**（round-5 反例）：若对节点文件本身加锁，`A 锁旧 inode → replace → C 锁新 inode → B 获得旧 inode 锁` 会让 B/C 同时自认排他。冻结为：**per-node sidecar 锁文件或锁目录**（如 `<vault>/.locks/<key>.lock`），`key = 规范化({vault_id, node_id})`（NFC 归一 + 路径安全转义，保证同一节点恒得同一 key）。
+    - **接管必须带 fencing，不得只靠超时（round-6 BLOCKER 分项）**：`pid + 时间戳 + 超时接管` **不充分**——反例：A 因 STW/换页暂停超过超时，B 接管并发布，A 恢复后仍会发布基于旧状态的结果（双持 + 状态回退）。冻结为两条同时成立：
+      ① **fencing epoch**：锁文件内记单调递增的 `epoch`（每次成功获取 +1）与持有者身份；持有者在**发布前（写 temp 之后、`os.replace` 之前）必须重读锁文件确认 `epoch` 与身份仍是自己**，否则**放弃本次发布**（已 durable 的事件留在账本里，由下一次带锁的 A2 重放消化——这正是 write-ahead 的价值）。
+      ② **接管前须证明前持有者已死**：仅超时不足；须校验 `pid` 不存在，或 `pid` 存在但**进程启动时间与锁记录不符**（pid 复用检测）。二者都无法证明时**不得接管**，如实报 degraded 待人工处置。
   - **A4.2 唯一折叠基线（round-5：原措辞自相矛盾，此处收敛）**：在线写路径的基线**恒为当前 frontmatter 的 current state**，游标 = 本次锁内读到的 `W`，只做 **pending 增量重放**。"从账本起点全量折叠"**仅作离线对账/审计手段**，禁止出现在在线写路径——两者在"事件账不完整（历史行无 review/1 扩展）"的现实下**并不等价**，把全量折叠当在线基线会重复应用已在 state 里的事件。
   - **A4.3 耐久序列（round-5 补全，参照仓内已有正确模式 `canvas-vault/.claude/scripts/sync_board_concepts.py:583`）**：
     - 账本追加：`write` → `flush` → `fsync(账本 fd)`；**账本文件首次创建时还须 `fsync(父目录 fd)`**（否则崩溃后目录项可能不存在）；
     - 顺序：账本 durable **先于** apply 与 frontmatter 发布。顺序颠倒会造成"frontmatter 已推进但账本无该事件"的审计断链，且下次恢复无法察觉。
   - **A4.4 原子发布（round-5 补全 fsync）**：frontmatter 六字段（`fsrs_bridge.py:44-46` FIELD_ORDER）与 `fsrs_last_review` 必须在**同一次原子替换**中落盘：`写 temp` → `flush` → `fsync(temp fd)` → `os.replace` → **`fsync(父目录 fd)`**。杜绝"部分字段已更新、W 未更新"的半态——半态会被三态判别识别为**残缺卡**并 fail-closed（正确的降级方向）。
-  - **A4.5 账本追加的原子性与查重同域（round-5 新增）**：`event_id` 的**查重与追加必须在同一把锁内**（查重通过后到写入之间不得释放锁），否则两写者可各自查重通过再双写同一 `event_id`。账本是 **per-vault 共享文件**（非 per-node），因此该锁的粒度是 **per-vault 账本锁**，与 A4.1 的 per-node 锁是两把不同的锁（获取顺序须全局固定：先 node 锁后账本锁，防死锁）。单行追加须用 `O_APPEND` 单次 `write`（单行远小于 `PIPE_BUF`，POSIX 保证该情形下的原子性），不得分多次写。
+  - **A4.5 账本追加的原子性与查重同域（round-5 新增，round-6 三项收紧）**：
+    - **查重与追加同锁**：`event_id` 的查重与追加必须在同一把锁内（查重通过后到写入之间不得释放锁），否则两写者可各自查重通过再双写同一 `event_id`。账本是 **per-vault 共享文件**（非 per-node），故该锁粒度为 **per-vault 账本锁**，与 A4.1 的 per-node 锁是两把不同的锁（获取顺序全局固定：**先 node 锁后账本锁**，防死锁）。
+    - **查重必须是 parsed-field equality（round-6 BLOCKER 分项）**：逐行 `json.loads` 后比较 `record["event_id"]` 字段是否相等；**禁止子串匹配**。既有 `append_event` 用的是子串查重（`learning_event_log.py:86-88`，§二已如实登记）——当任一历史行的 payload 文本里恰好含有新 `event_id` 的 JSON 串形时，新事件会被**误判 duplicate 而零次落账**（丢一次真实评分）。⚠️ 澄清：这**不是改变幂等语义**（幂等键仍是 `event_id` 唯一，不触发 §一的 v2 升版条款），而是**修正查重实现的正确性**——子串匹配从来就不是"字段相等"的正确实现。既有实现的偏离登记在 §九，随 G3-2 修正。
+    - **写入必须验证完整落盘（round-6 BLOCKER 分项）**：`O_APPEND` 对**普通文件**不提供 `PIPE_BUF` 级原子性保证（该保证只对管道成立），普通文件 `write` 仍可能**短写**。因此：单行须一次 `write` 提交，并**检查返回字节数等于期望长度**；短写时按 §二"截断自愈"处理（下次追加前 LF 守卫），并在重启恢复流程中把不可解析的尾行如实报为损坏行（校验器已实现该判定）。
+    - **duplicate 命中后的状态推进门（round-6 BLOCKER 分项）**：查重命中同一 `event_id` 时，按 payload 的 **canonical 形式**（`json.dumps(payload, sort_keys=True, separators=(",",":"))`）分流——
+      ① **同 ID 同 canonical payload** ⇒ 视为重放/恢复，**no-op**（不再落账、**绝不再次 apply**；若 frontmatter 尚未推进则按 A2 走 pending 重放路径恢复）；
+      ② **同 ID 不同 canonical payload** ⇒ **冲突，fail-closed**（拒绝写入并如实报错——同一幂等键承载了两份不同事实，属上游 bug，不得由工具静默选边）；
+      ③ 任何情况下 duplicate 都**不得触发第二次 apply**。
   - ⚠️ **移交条款（G3-3，五项必补）**：①per-node **排他 sidecar 锁**（非 CAS、非节点文件本身）覆盖 A4 全序列 + 崩溃回收；②**per-vault 账本锁**内完成 event_id 查重与 `O_APPEND` 单次写；③冲突写者在锁内**重读 W 并按 A3 推进时刻**后重算（不得在陈旧状态上重试）；④账本与 frontmatter 的**完整 fsync 序列**（含父目录）；⑤只做 pending 增量重放，不把全量折叠当在线基线。
     G3-3 卡面（编排 worktree 的总账文件）当前仍只写"比较 last_review/revision 后写"，**五项均不在其中**——卡面更新属编排者动作，本卡无权改他人卡面，故在此与 CURRENT_TASK 双处登记。本卡只冻结契约，不实现。
 - **A5 整秒精度（Codex round-3 BLOCKER：小数秒二次推进）**：`review_time` **必须为整秒**（无小数秒段）。因为 `W` 只有秒级精度，`10:00:00.5 > 10:00:00` 恒成立——同一事件重放会被判 pending 并**二次推进**（实测：首次应用后 Learning/due 10:10，重放同一事件推进为 Review/due +2d）。校验器对 `schema_ext=review/1` 行机械强制整秒。
@@ -154,7 +175,11 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
 - **`out_of_order` 字段冻结（round-4 HIGH#3）**：位置 = `payload.out_of_order`；类型 = **布尔 `true`**（唯一合法值）；**未标 = 不写该键**（禁止写 `false`、字符串 `"true"`、对象或任何其他形态——它们既非"已标"也非"未标"，会让 pending 排除条件产生歧义）。校验器机械强制该形态。
 - **迟到事件的入账通道**：A3 的"严格大于 W"只约束**在线评分**（正常复习写入）。补录/迟到事件走**账本补录通道**：以原始 `review_time` 入账 + 标 `payload.out_of_order = true`，**不进 pending、不推进 current state**——因此与 A3 无冲突。
 - **degraded pending 处置（round-4 HIGH#3 + round-5 HIGH#3 解冻边界）**：当节点落入**残缺卡**（三态 fail-closed）时，该节点的 pending 集合**整体冻结**——不重放、不追加新在线事件（新评分应向用户如实报错而非静默丢弃）。禁止"跳过残缺节点继续写新事件"——那会在错误基线上叠加。
-  - **解冻的唯一合法条件（round-5：仅"语法上补齐三态"不足以解冻）**：修复必须**把六字段与 `W` 原子重建到同一个可证明的账本边界**上——即选定账本中某个事件 `E`，用 §6.2 的重放规则从一个**可证明起点**（真新卡起点，或另一份可证明同源的 state 快照）折叠到 `E` 为止，把结果的六字段与 `W = E.review_time` 在**同一次原子替换**中写入。
+  - **解冻的唯一合法条件（round-5 提出，round-6 机械化）**：修复必须**把六字段与 `W` 原子重建到同一个可证明的账本边界**上——选定账本中某个事件 `E`，从**可证明起点**折叠到 `E` 为止，把结果的六字段与 `W = E.review_time` 在**同一次原子替换**中写入。三项必须机械确定：
+    - **`E` 的选取**：必须是该节点在账本中**最后一个适用事件**（`schema_ext=review/1`、未标 `out_of_order`、按 `(review_time, 行号)` 复合序最大者）。**同瞬间用行号消歧**——`W` 只有时间戳、无法表达损坏账本里的同瞬间次序，故 proof 必须显式带行号。
+    - **canonical reducer（round-6 实测的舍入歧义）**：折叠必须**逐事件按生产持久化精度舍入后再进下一步**（与 bridge 的写-读循环一致），**不得**在内存中连续折叠、只在末尾舍入。实测差异：三次 Good 后 `stability` = **10.9711**（逐步舍入）vs **10.9710**（末尾舍入）——两者都满足"折叠到 E"的粗描述，故边界必须唯一化。舍入精度以 bridge 写出 frontmatter 时的实际精度为准（G3-2 落地时把该常量与本条一并锁进测试）。
+    - **proof 记录内容**（写入修复工具的输出与 known-gotchas，供事后复算）：`{vault_id, node_id, 账本文件 sha256（或截至 E 的 prefix hash）, E 的行号, E.event_id, E.review_time, fsrs_library_version, fsrs_params_hash, scheduler 完整配置, 起点类型（真新卡 / 同源快照 + 其证明）}`。缺任一项即视为不可证明。
+    - **`degraded:*` 哨兵行不参与自动证明链**：其 `fsrs_library_version`/`params_hash` 是哨兵而非算法身份，无法确定性复算——含此类事件的区间必须由人工裁定。
   - **为什么必须如此**（round-5 两反例）：若 state 已含 `E2` 而水位线被随手修成 `W = t1` ⇒ `E2` 会被二次应用；若 state 仅含 `E1` 而 `W` 被修成 `t2` ⇒ `E2` 永久遗漏。两种错误都源于"state 与 W 不同源"。
   - **不可证明时必须继续冻结**：当账本缺少覆盖该节点的完整 review/1 事件序列（例如该节点的历史全是无扩展的旧行），**无法**重建可证明同源的 state+W ⇒ 该节点保持冻结并向用户如实报告，由人工裁定（例如接受"以当前 frontmatter 为准、把 `W` 设为账本中该节点最大 `review_time`"这一有损但显式的决策）。**禁止工具自动做该有损决策**。
   - 冻结期间账本中的 pending 事件**不因冻结而失效**（它们仍在账本里，解冻后按上述边界一并计入）。
