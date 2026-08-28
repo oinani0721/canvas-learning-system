@@ -1,6 +1,6 @@
 ---
 name: board-recap
-description: "当用户消息以 /board-recap 开头（用户在 Claudian 侧栏直输，或在 claude code CLI 直输），必须调用此 Skill 对指定原白板做一次只读的广度回顾：AI 对这块板的「批注 + 拆分」做三维对抗审查（漏了什么 / 靠不靠谱 / 方向偏没偏），生成一份零自填、每条导向动作的回顾报告到 outputs/回顾-<板名>-<日期>.md。深度层考「人」是 /start-exam-board 的事；本 Skill 是广度层审「材料」。⛔ 第一刀零写侧：绝不写 原白板/、节点/、检验白板/ 下任何文件，绝不改任何 frontmatter；唯一写入 = outputs/ 的报告。数据面走 1 次只读 get_board_manifest（study 视图），后端不可用时静默退回本地只读扫描并在报告头声明 FALLBACK。"
+description: "当用户消息以 /board-recap 开头（用户在 Claudian 侧栏直输，或在 claude code CLI 直输），必须调用此 Skill 对指定原白板做一次只读的广度回顾：AI 对这块板的「批注 + 拆分」做三维对抗审查（漏了什么 / 靠不靠谱 / 方向偏没偏），生成一份零自填、每条导向动作的回顾报告到 outputs/回顾-<板名>-<日期>.md。深度层考「人」是 /start-exam-board 的事；本 Skill 是广度层审「材料」。⛔ 第一刀零写侧：绝不写 原白板/、节点/、检验白板/ 下任何文件，绝不改任何 frontmatter；唯一写入 = outputs/ 的报告。数据面走 1 次只读 get_board_manifest（study 视图），后端不可用时静默退回本地只读扫描并在报告头声明 FALLBACK。第二刀（G5-9 阶段回顾）：用户要求对多板/一章/一个阶段做回顾并出一张检验白板（G5-1 矩阵类 C）→ 走「第二刀」段 preview→确认→创建→undo，未确认零写侧。"
 argument-hint: "<原白板名>（文件名 stem，如 CS188 lecture 2）；无参则 AskUserQuestion 选板"
 allowed-tools:
   - Read
@@ -51,11 +51,14 @@ fallback_path: recap_scan.py 不带 --manifest 的本地只读扫描（白板 ##
 
 ## ⛔⛔⛔ 薄版边界声明（G5 红线 · CARD-C5 拍板项 4 · 违反 = Skill 失败）
 
-- **HARD-RECAP-0（零写侧）**：本 Skill 全程**只读** vault。唯一允许的写入面 = `outputs/`：
+- **HARD-RECAP-0（零写侧）**：本 Skill 第一刀（单板回顾）全程**只读** vault。唯一允许的写入面 = `outputs/`：
   ① 回顾报告 `outputs/回顾-<板名>-<日期>.md`；② manifest 数据快照 `outputs/.recap-manifest-<板名>.json`；
   ③ scan JSON 快照 `outputs/.recap-scan-<板名>.json`
   （②③ 均 Step 2 落盘，兼作报告数字的可追溯审计原料且是 verifier 数字终核的绑定基准，⛔ 不删除）。
   ⛔ 不写 `原白板/`、`节点/`、`检验白板/` 下任何文件；不改任何 frontmatter；不追加任何活动行；⛔ 不落 `/tmp` 等 vault 外临时文件。
+  **唯一例外 = 第二刀（阶段回顾检验白板，CARD-G5-9）**：用户**显式确认后**由 `scripts/recap_exam_build.py create`
+  在 `检验白板/` 下原子创建**恰 1 个**新文件（含 undo 回执）——preview 阶段与未确认路径仍是零写侧；
+  原白板/节点在第二刀任何阶段都零修改。
 - **设计稿 v2 的两项写侧机制在薄版中明确裁掉**（不是遗漏，是裁决）：
   1. ⛔ `research_questions` 状态机（§五整节）——需要写节点 YAML，越 G5 红线，不做。
   2. ⛔ 原白板 `Recent Activity` 追加（Step 5 的 recap 行）——写原板，越 G5 红线，不做。
@@ -348,6 +351,54 @@ python3 "<vault 绝对路径>/.claude/skills/board-recap/scripts/recap_scan.py" 
 
 ---
 
+## 第二刀 · 阶段回顾检验白板（CARD-G5-9 · preview → 确认 → 创建 → undo）
+
+> 触发面引用 G5-1 触发矩阵**类 C「阶段回顾」条目 C1/C2/C3**（`backend/tests/regression/skill_trigger_matrix.yaml`
+> + `_bmad-output/研究/2026-08-27-G5-1-信息收集四类触发矩阵.md` §类C）：
+> 用户要求对**多块板 / 一章 / 一个阶段**做回顾并「出一张检验白板」（如 C3「把 CS188 lecture 2 和
+> 特征值与特征向量 两块板一起做个阶段回顾，出一张检验白板」）→ 走本段；
+> 单板当日回顾（类 B）仍走第一刀 Step 1-6，⛔ 两刀不混跑。
+
+**流程（四步，⛔ 顺序不可变）**：
+
+1. **Preview（零写侧）**：`Bash` 运行（板名逐个单引号传参，含 Step 1 同款非法字符拒绝；
+   ⛔ `--ts` 必须用 **UTC** 时刻——`date -u +"%Y-%m-%d-%H%M"`，与 start-exam-board 同一时钟，
+   缺省不传时脚本自己取 UTC）：
+   ```bash
+   python3 "<vault 绝对路径>/.claude/skills/board-recap/scripts/recap_exam_build.py" preview \
+     --vault "<vault 绝对路径>" --boards '<板1>' '<板2>' … --ts <UTC YYYY-MM-DD-HHMM>
+   ```
+   输出 JSON 含各板数字（成员/种子/派生/批注/未答上界/`ghost_count`）、`target_path`、**拟写入全文 `content` 与
+   `content_sha256`**。把覆盖范围数字与目标路径**原样**呈给用户；`ghost_count` 非零时一并说明
+   「板上有 N 条链接指向不存在的节点，产物会单列成『待修链接』段而不是当成成员」。
+   `refusal_reason` 非空（板不存在／板名含 `#`/`|`/`^`／目标已存在）→ 如实转告并停，⛔ 不得替用户改板名。
+2. **确认（AskUserQuestion）**：明确问「创建这张阶段回顾检验白板？」。⛔ 用户未确认 = 到此为止，零写侧——
+   不 create、不留任何新文件。
+3. **创建**：确认后跑 `create` 子命令，**必须同时传两个绑定参数**：
+   - `--ts` 与 preview 完全相同
+   - `--expect-content-sha <preview 的 content_sha256>` ——⛔ **必传**。它把用户确认过的那份字节钉死：
+     preview 之后 vault 若有任何变化（新增成员/改批注），create 会**零写侧拒绝**并要求重跑 preview 再确认。
+     没有它，「所见即所写」只是巧合而非保证。
+   回执含 `created_path` / `content_sha256` / `undo_hint`（已 shell-quote，可直接复制执行），三者**原样**给用户；
+   回执带 `warning` 字段时一并转告。目标已存在 → 脚本拒绝不覆盖，如实转告。
+4. **Undo（用户要求撤销时）**：跑 `undo` 子命令（参数照抄 create 回执的 `undo_hint`；`--undo-dir` 用
+   vault **外**目录，如 `~/.canvas-recap-undo/`）。脚本校验 sha256 全等 + `generated_by` 指纹——
+   用户改过的文件会被拒绝回退（防静默丢手写内容），此时如实转告「文件已有改动，需要你手动处理」。
+
+**硬约束**：
+
+- ⛔ 产物内容全部为**链接回原板/原节点 + 脚本数字**，不复制任何正文——脚本已保证，Skill 不得事后向产物追加正文。
+- **幽灵链接如实成段**：Concepts 里列了但节点文件不存在/名非法/不可读的条目**不计入成员数**
+  （`members == seeds + derived` 恒等），也**不写成 wikilink**（写了就是死链），而是单列
+  「## 待修链接（Concepts 里列了但打不开）」段用反引号列出路径与原因。⛔ Skill 不得把它们说成成员。
+- ⛔ `exam_service` / `verification_service` / 后端写侧 API 零接触；文件格式契约直接复用 start-exam-board 的
+  `检验白板/<stem>-<ts>.md` 文件面（`type: exam_board`；`status: done`；无 `questions` 键 → 消费面
+  question_count=0、题面摘句零新增；start-exam-board 防嵌套会拒绝以它为出题源；`/quiz-answer` 对它安全停）。
+- ⛔ 原白板/节点在全流程零修改（create 只新增 1 文件，undo 只移走该文件）。
+- 裁判：`backend/tests/skills/test_g5_9_recap_exam.py`。
+- **诚实登记（D5 前置）**：本刀开发时 D5 前置 1（用户 UAT 反馈）未发生——live 侧价值验证顺延 G5-11，
+  本版只交 worktree 面 + fixture 证据，⛔ 不宣称已经真实用户验证。
+
 ## 错误场景速查
 
 | 症状 | Skill 响应 |
@@ -358,6 +409,10 @@ python3 "<vault 绝对路径>/.claude/skills/board-recap/scripts/recap_scan.py" 
 | manifest snapshot/stale | 照常生成，「数据来源与新鲜度」如实标 lag/stale |
 | 同板同日已有回顾 | Step 3 问「续读 / 覆盖重跑」 |
 | 成员 >30 或批注 >100 | 规模门截断 + 规模自陈声明 |
+| 第二刀目标检验白板已存在 | preview 即给 `refusal_reason`；create 拒绝不覆盖（换 `--ts` 或先 undo） |
+| 第二刀 preview 后 vault 有变化 | create 带 `--expect-content-sha` 时零写侧拒绝 → 重跑 preview 让用户重新确认 |
+| 第二刀 undo 时文件已被用户改动 | 脚本 sha/inode 校验拒绝回退，转告用户手动处理 |
+| 第二刀板名含 `#`/`|`/`^` | 脚本 exit 2 拒绝（wikilink 语义字符会让消费方归属错乱） |
 
 ## 约束与参考
 

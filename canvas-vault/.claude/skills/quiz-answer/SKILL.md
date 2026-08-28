@@ -84,6 +84,10 @@ allowed-tools **不含** `get_board_manifest`，理由：
 
 - 用户消息以 `/quiz-answer` 开头 → **立即调用本 Skill**。
 - 定位检验白板：有 `<文件名>` 参数 → `Glob 检验白板/<文件名>*`；无参 → Claudian `<current_note>`（须 `type: exam_board`）；都没有 → `Glob 检验白板/*.md` 取最近修改的一张（回执标注），或 AskUserQuestion。
+  ⛔ **排除阶段回顾板**（frontmatter `recap_kind: stage_recap`，board-recap 第二刀产物）：它落在 `检验白板/` 且
+  `type: exam_board`，但**不是考卷**（无 `questions`、`status` 恒 `done`）。刚做完阶段回顾时它恒为该目录最新文件，
+  不排除就会劫持无参默认目标。命中它 → 跳过并取下一张；若只剩它 → 停止并说明「最近的是一张阶段回顾板，不是考卷；
+  要评分请指明检验白板文件名，或用 `/start-exam-board` 新建一场」。
 
 ## Step 0 · 幂等 / 续跑守卫（必须最先做）
 

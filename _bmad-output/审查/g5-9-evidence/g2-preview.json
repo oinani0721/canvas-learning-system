@@ -1,0 +1,67 @@
+{
+ "mode": "preview",
+ "write_side": "none",
+ "anchor": "递归与分治 (Recursion & Divide-Conquer)",
+ "ts": "2026-08-28-2010",
+ "boards": [
+  {
+   "board_stem": "递归与分治 (Recursion & Divide-Conquer)",
+   "exists": true,
+   "board_sha256": "90ec8b40307d6e528b04072f1d479a83aa6650357153c14cfd5111149115a78e",
+   "members": 1,
+   "seeds": 1,
+   "derived": 0,
+   "listed_in_concepts": 1,
+   "ghost_links": [],
+   "ghost_count": 0,
+   "tips_total": 0,
+   "tips_unanswered_upper_bound": 0,
+   "member_ids": [
+    "my-recursion-notes"
+   ]
+  },
+  {
+   "board_stem": "线性代数",
+   "exists": true,
+   "board_sha256": "288dc4a47a0154f13ef37d84b7437ae884dff26935154f5334a6a544ec11b9a6",
+   "members": 0,
+   "seeds": 0,
+   "derived": 0,
+   "listed_in_concepts": 0,
+   "ghost_links": [],
+   "ghost_count": 0,
+   "tips_total": 0,
+   "tips_unanswered_upper_bound": 0,
+   "member_ids": []
+  },
+  {
+   "board_stem": "CS 61B",
+   "exists": true,
+   "board_sha256": "a46068ff75a6dc867a63e2cdbe524e0b054c23b634158a1daeb5912426d055a2",
+   "members": 1,
+   "seeds": 1,
+   "derived": 0,
+   "listed_in_concepts": 1,
+   "ghost_links": [],
+   "ghost_count": 0,
+   "tips_total": 0,
+   "tips_unanswered_upper_bound": 0,
+   "member_ids": [
+    "cs-61b-csm"
+   ]
+  }
+ ],
+ "target_path": "检验白板/递归与分治 (Recursion & Divide-Conquer)-2026-08-28-2010.md",
+ "target_exists": false,
+ "totals": {
+  "boards": 3,
+  "members": 2,
+  "members_listed": 2,
+  "duplicate_members": 0,
+  "tips_total": 0,
+  "ghosts": 0
+ },
+ "content": "---\ntype: exam_board\nrecap_kind: stage_recap\nsource_board: \"[[原白板/递归与分治 (Recursion & Divide-Conquer)]]\"\nrecap_boards:\n  - \"[[原白板/递归与分治 (Recursion & Divide-Conquer)]]\"\n  - \"[[原白板/线性代数]]\"\n  - \"[[原白板/CS 61B]]\"\ncreated_at: \"2026-08-28T20:10:00Z\"\nstatus: done\ngenerated_by: board-recap-exam v1 (CARD-G5-9)\n---\n\n# 阶段回顾 · 递归与分治 (Recursion & Divide-Conquer) 等 3 板 · 2026-08-28\n\n> [!info]+ 阶段回顾检验白板（链接回原板 · 不含正文 · 无题面）\n> 本板是阶段回顾产物：只列链接与脚本数字，不复制任何正文，也不含题目。\n> 要出题请对某块原白板运行 /start-exam-board（本板不可作为出题源）。\n\n## 覆盖范围\n\n- [[原白板/递归与分治 (Recursion & Divide-Conquer)]] — 成员 1（1 种子 + 0 派生）/ 批注 0 条（未答上界 0，无已答标记）\n- [[原白板/线性代数]] — 成员 0（0 种子 + 0 派生）/ 批注 0 条（未答上界 0，无已答标记）\n- [[原白板/CS 61B]] — 成员 1（1 种子 + 0 派生）/ 批注 0 条（未答上界 0，无已答标记）\n\n## 成员链接（回原节点）\n\n### [[原白板/递归与分治 (Recursion & Divide-Conquer)]]\n\n- [[节点/my-recursion-notes]]\n\n### [[原白板/线性代数]]\n\n- （本板 Concepts 小节无可解析成员）\n\n### [[原白板/CS 61B]]\n\n- [[节点/cs-61b-csm]]\n\n## 阶段数字（脚本产出 · 判读留人）\n\n- 覆盖 3 板 / 总成员 2（按节点去重）/ 总批注 0 条（未答上界 0）\n- 数据面：本地只读扫描（fallback 口径，与 /board-recap 第一刀一致）· 取数时刻 2026-08-28T20:10:00Z\n",
+ "content_sha256": "ba6c5a8657cb2bc502e1564e59df48dcf846d32bb92e9c04cdcdeba068e0257e",
+ "next_step": "用户确认后跑 create，并把本 content_sha256 传给 --expect-content-sha（绑定所见即所写）"
+}
