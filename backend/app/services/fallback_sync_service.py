@@ -101,16 +101,9 @@ class FallbackSyncService:
                 "error": str(e),
             }
 
-        total_recovered = sum(
-            v.get("recovered", 0) for v in result.values() if isinstance(v, dict)
-        )
-        total_pending = sum(
-            v.get("pending", 0) for v in result.values() if isinstance(v, dict)
-        )
-        logger.info(
-            f"[Story 38.8] Fallback sync complete: "
-            f"{total_recovered} replayed, {total_pending} still pending"
-        )
+        total_recovered = sum(v.get("recovered", 0) for v in result.values() if isinstance(v, dict))
+        total_pending = sum(v.get("pending", 0) for v in result.values() if isinstance(v, dict))
+        logger.info(f"[Story 38.8] Fallback sync complete: {total_recovered} replayed, {total_pending} still pending")
 
         return result
 
@@ -190,9 +183,7 @@ class FallbackSyncService:
                 self._rotate_file(FAILED_WRITES_FILE)
 
         self._clear_checkpoint("failed_writes")
-        self._cleanup_old_synced_files(
-            FAILED_WRITES_FILE.parent, FAILED_WRITES_FILE.stem
-        )
+        self._cleanup_old_synced_files(FAILED_WRITES_FILE.parent, FAILED_WRITES_FILE.stem)
 
         return {"recovered": recovered, "pending": len(still_pending)}
 
@@ -332,19 +323,29 @@ class FallbackSyncService:
 
         # Build group_id from canvas_name
         group_id = self._build_group_id_from_canvas(canvas_name)
+        if not group_id:
+            # G2-3 fail-closed (首日观察): _build_group_id_from_canvas 返 None
+            # 时拒绝重放 — null 不得进 MERGE 键, 也不静默降级 DEFAULT。
+            # 条目计 failed 保持 pending, 下轮 sync 重试。
+            logger.error(
+                "[G2-3 W1 fail-closed] scoring replay refused: unresolved group_id (concept=%r, canvas_name=%r)",
+                concept,
+                canvas_name,
+            )
+            return False
 
-        # Timestamp-preserving MERGE with last-write-wins
+        # G2-3 (W1): Concept/LEARNED 写身份 = {name/端点, group_id} 复合键,
+        # 禁事后 SET 归属 — 跨 vault 同名概念在重放时不再合并。
+        # Timestamp-preserving MERGE with last-write-wins (仅业务字段)
         query = """
         MERGE (u:User {id: $userId})
-        MERGE (c:Concept {name: $concept})
-        SET c.group_id = $groupId
-        MERGE (u)-[r:LEARNED]->(c)
+        MERGE (c:Concept {name: $concept, group_id: $groupId})
+        MERGE (u)-[r:LEARNED {group_id: $groupId}]->(c)
         WITH r,
              CASE WHEN r.timestamp IS NULL OR r.timestamp <= datetime($ts)
                   THEN true ELSE false END AS should_update
         SET r.score = CASE WHEN should_update THEN $score ELSE r.score END,
-            r.timestamp = CASE WHEN should_update THEN datetime($ts) ELSE r.timestamp END,
-            r.group_id = CASE WHEN should_update THEN $groupId ELSE r.group_id END
+            r.timestamp = CASE WHEN should_update THEN datetime($ts) ELSE r.timestamp END
         RETURN should_update
         """
 
@@ -356,13 +357,10 @@ class FallbackSyncService:
                 score=score,
                 ts=ts,
                 # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
-                groupId=to_physical_group_id(group_id) if group_id else group_id,
+                groupId=to_physical_group_id(group_id),
             )
             if results and not results[0].get("should_update", True):
-                logger.info(
-                    f"[Story 38.8] Conflict: Neo4j has newer data for '{concept}', "
-                    f"fallback timestamp={ts}"
-                )
+                logger.info(f"[Story 38.8] Conflict: Neo4j has newer data for '{concept}', fallback timestamp={ts}")
         except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.warning(f"[Story 38.8] Neo4j scoring replay failed: {e}")
             return False
@@ -376,11 +374,10 @@ class FallbackSyncService:
                     canvas_name=canvas_name,
                     score=int(score),
                     timestamp=ts,
+                    group_id=group_id,
                 )
             except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
-                logger.warning(
-                    f"[Story 38.8] Score history record failed (non-fatal): {e}"
-                )
+                logger.warning(f"[Story 38.8] Score history record failed (non-fatal): {e}")
 
         return True
 
@@ -391,6 +388,10 @@ class FallbackSyncService:
         node_id = event.get("node_id")
         edge_id = event.get("edge_id")
 
+        # G2-3 (W1): 重放显式携带 group — None 时由 client 端解析链兜底,
+        # 仍不可解析则 client fail-closed 拒写 (条目保持 pending)。
+        group_id = self._build_group_id_from_canvas(canvas_name)
+
         try:
             if event_type in ("node_created", "node_updated"):
                 if not node_id:
@@ -399,6 +400,7 @@ class FallbackSyncService:
                     canvas_path=canvas_name,
                     node_id=node_id,
                     node_text=None,
+                    group_id=group_id,
                 )
 
             elif event_type == "edge_sync":
@@ -413,6 +415,7 @@ class FallbackSyncService:
                     edge_id=edge_id,
                     from_node_id=from_node,
                     to_node_id=to_node,
+                    group_id=group_id,
                 )
 
             else:
@@ -437,19 +440,28 @@ class FallbackSyncService:
             return False
 
         group_id = self._build_group_id_from_canvas(canvas_name)
+        if not group_id:
+            # G2-3 fail-closed (首日观察): 同 _replay_scoring_entry_to_neo4j —
+            # null 不得进 MERGE 键, 不静默降级 DEFAULT, 条目保持 pending。
+            logger.error(
+                "[G2-3 W1 fail-closed] learning memory replay refused: "
+                "unresolved group_id (concept=%r, canvas_name=%r)",
+                concept,
+                canvas_name,
+            )
+            return False
 
+        # G2-3 (W1): 复合写身份, 禁事后 SET 归属 — replay 不跨 vault 合并。
         # Last-write-wins MERGE: only update if fallback timestamp is newer
         query = """
         MERGE (u:User {id: $userId})
-        MERGE (c:Concept {name: $concept})
-        SET c.group_id = $groupId
-        MERGE (u)-[r:LEARNED]->(c)
+        MERGE (c:Concept {name: $concept, group_id: $groupId})
+        MERGE (u)-[r:LEARNED {group_id: $groupId}]->(c)
         WITH r,
              CASE WHEN r.timestamp IS NULL OR r.timestamp <= datetime($ts)
                   THEN true ELSE false END AS should_update
         SET r.score = CASE WHEN should_update THEN $score ELSE r.score END,
             r.timestamp = CASE WHEN should_update THEN datetime($ts) ELSE r.timestamp END,
-            r.group_id = CASE WHEN should_update THEN $groupId ELSE r.group_id END,
             r.next_review = CASE WHEN should_update THEN datetime($ts) + duration('P1D') ELSE r.next_review END
         RETURN should_update
         """
@@ -462,13 +474,10 @@ class FallbackSyncService:
                 score=int(score) if score is not None else None,
                 ts=ts,
                 # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
-                groupId=to_physical_group_id(group_id) if group_id else group_id,
+                groupId=to_physical_group_id(group_id),
             )
             if results and not results[0].get("should_update", True):
-                logger.info(
-                    f"[Story 38.8] Conflict: Neo4j has newer data for '{concept}', "
-                    f"fallback timestamp={ts}"
-                )
+                logger.info(f"[Story 38.8] Conflict: Neo4j has newer data for '{concept}', fallback timestamp={ts}")
         except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.warning(f"[Story 38.8] Learning memory replay failed: {e}")
             return False
@@ -549,9 +558,7 @@ class FallbackSyncService:
                 if attempt < 2:
                     time.sleep(0.1)
                 else:
-                    logger.warning(
-                        f"[Story 38.8] Cannot rotate {path.name} (PermissionError)"
-                    )
+                    logger.warning(f"[Story 38.8] Cannot rotate {path.name} (PermissionError)")
 
     @staticmethod
     def _cleanup_old_synced_files(directory: Path, base_stem: str) -> None:
@@ -606,29 +613,36 @@ class FallbackSyncService:
         wave-5 Stage B P0 (2026-05-11): prefer ContextVar (vault: prefix) over
         the legacy Story 1.9 build_group_id which collapses cross-vault
         subject:canvas pairs to the same id (collision risk).
+
+        G2-3 (2026-08-28): 无 ContextVar 的后台重放上下文原本落
+        ``build_vault_group_id("default", ...)`` 字面量 — 与主写路径
+        (``memory_service._vault_scoped_group_id`` → ``get_current_vault_id()``)
+        不同构。复合写身份下这不再 clobber 主概念 (那是 G2-3 前的破坏形态),
+        但会把恢复的分数写进主 vault 读不到的平行组 = 恢复静默无效。
+        现改为镜像主路径: vault_id 取进程 active vault (D1-A 单 active
+        约束), 二级取 canvas (D16 ``vault:<id>:<canvas>`` 规约)。
+        ⛔ 移交 G2-2 (VaultScope 统一): 跨 vault 切换后重放旧 vault 的
+        待恢复条目仍会归到新 active vault — 条目本身不带 vault 维度,
+        根治需 VaultScope + 落盘条目补 vault 字段, 不在本卡范围。
         """
         if not canvas_name:
             return None
         try:
+            from app.config import get_current_vault_id
             from app.core.subject_config import (
                 build_vault_group_id,
                 canonical_group_id,
-                extract_subject_from_canvas_path,
                 get_current_subject_id,
                 is_vault_group_id,
             )
 
             ctx_value = get_current_subject_id()
             if ctx_value and ctx_value != "general":
-                return (
-                    ctx_value
-                    if is_vault_group_id(ctx_value)
-                    else canonical_group_id(ctx_value)
-                )
-            subject = extract_subject_from_canvas_path(canvas_name)
-            return build_vault_group_id(
-                "default", subject_id=subject, canvas_path=canvas_name
-            )
+                return ctx_value if is_vault_group_id(ctx_value) else canonical_group_id(ctx_value)
+            vault_id = get_current_vault_id()
+            if not vault_id:
+                return None
+            return build_vault_group_id(vault_id, canvas_path=canvas_name)
         except (ImportError, AttributeError, ValueError):
             return None
 

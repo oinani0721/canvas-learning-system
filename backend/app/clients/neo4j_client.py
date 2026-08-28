@@ -52,12 +52,96 @@ from app.graphiti.group_id_compat import to_physical_group_id
 logger = logging.getLogger(__name__)
 
 # Default storage path for JSON fallback mode
-DEFAULT_STORAGE_PATH = (
-    Path(__file__).parent.parent.parent / "data" / "neo4j_memory.json"
-)
+DEFAULT_STORAGE_PATH = Path(__file__).parent.parent.parent / "data" / "neo4j_memory.json"
 
 # Retryable exceptions for Neo4j operations
 RETRYABLE_EXCEPTIONS = (ServiceUnavailable, SessionExpired, TransientError)
+
+
+def _resolve_physical_group_id(group_id: Optional[str], canvas_path: Optional[str] = None) -> Optional[str]:
+    """G2-3 写身份组解析: 先解析、后进 MERGE/MATCH 锚定键 (W1/W2/W5).
+
+    解析顺序 (与 record_episode 的 wave-5 Stage B 推导链同源):
+    1. 显式 group_id
+    2. ContextVar 当前 vault (请求边界设置的 vault: 前缀值)
+    3. canvas_path 提取 subject → vault:default 命名空间
+
+    返回物理化 (vault__x) 的 group_id, 解析失败返回 None。
+    调用方必须 fail-closed: logger.error + 拒写。null 进 MERGE 键会被
+    Neo4j 服务端直接拒绝 (Cannot merge with null property), 静默降级
+    DEFAULT_GROUP_ID 则是跨 vault 污染 — 两者都禁止。
+
+    输入/输出双向校验 (2026-08-28 边界实测整改): 空白串等"看似有值实为
+    空"的输入会被 canonical_group_id 静默映射成 ``vault__default``
+    (正是本卡禁止的静默降级); ``"vault:"`` 这类裸前缀会产出空后缀的
+    ``vault__`` 垃圾组。故先 strip 输入 (空白 → 视为未提供), 再校验
+    输出形态 (必须 ``vault__`` + 非空且无空白后缀), 不合格一律返 None
+    交调用方 fail-closed。
+    ⚠️ 边界如实声明: 显式传入 legacy 值 (``cs188``/``canvas-dev``) 仍走
+    group_id_compat 既有的 deprecated → ``vault__default`` 归一 (带
+    WARNING, Story 2.5.Y AC #3 契约), 本卡不改该 compat 语义; 生产写路径
+    无此类调用方 (ContextVar 的 ``general`` 默认值已在分支 2 排除)。
+    """
+    # C1 (Codex round-2/3): 显式传了字符串但内容为空 = 调用方 bug, **不得**
+    # 静默回退推导链落到另一个 vault —— 直接 fail-closed 交调用方处理。
+    # round-3 修正: 空串 "" 与空白串 "   " 口径必须一致 (原实现因 "" 为
+    # 假值而漏进推导链, 两种"空"行为分裂)。想走推导链请显式传 None。
+    if isinstance(group_id, str) and not group_id.strip():
+        logger.error(
+            "[G2-3 W3] explicit group_id is blank (%r) — refusing to infer a "
+            "different vault; caller must pass a real group_id or None",
+            group_id,
+        )
+        return None
+    resolved = group_id.strip() if isinstance(group_id, str) else group_id
+    if not resolved:
+        from app.core.subject_config import (
+            build_vault_group_id,
+            canonical_group_id,
+            extract_subject_from_canvas_path,
+            get_current_subject_id,
+            is_vault_group_id,
+        )
+
+        ctx_value = get_current_subject_id()
+        ctx_value = ctx_value.strip() if isinstance(ctx_value, str) else ctx_value
+        if ctx_value and ctx_value != "general":
+            resolved = ctx_value if is_vault_group_id(ctx_value) else canonical_group_id(ctx_value)
+        elif canvas_path:
+            subject = extract_subject_from_canvas_path(canvas_path)
+            resolved = build_vault_group_id("default", subject_id=subject)
+    if not resolved:
+        return None
+    # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
+    physical = to_physical_group_id(resolved)
+    if not _is_valid_physical_group_id(physical):
+        logger.error(
+            "[G2-3 W3] group_id resolution produced an invalid physical value "
+            "(input=%r → %r) — refusing to use it as a write identity key",
+            group_id,
+            physical,
+        )
+        return None
+    return physical
+
+
+_PHYSICAL_GROUP_PREFIX = "vault__"
+
+
+def _is_valid_physical_group_id(value: Optional[str]) -> bool:
+    """物理 group_id 形态校验: ``vault__`` + 每段非空、无空白.
+
+    分隔符是 ``__``, 故 ``vault____x`` (来自畸形输入 ``vault::x``) 是
+    "空段" —— 段级校验把它一并拒掉 (Codex round-2 C1b)。
+    """
+    if not isinstance(value, str):
+        return False
+    if not value.startswith(_PHYSICAL_GROUP_PREFIX):
+        return False
+    suffix = value[len(_PHYSICAL_GROUP_PREFIX) :]
+    if not suffix or any(ch.isspace() for ch in suffix):
+        return False
+    return all(seg for seg in suffix.split("__"))
 
 
 class Neo4jClient:
@@ -169,20 +253,12 @@ class Neo4jClient:
             "database": self._database,
             "pool_size": self._max_connection_pool_size,
             "health_status": self._health_status,
-            "last_health_check": self._last_health_check.isoformat()
-            if self._last_health_check
-            else None,
+            "last_health_check": self._last_health_check.isoformat() if self._last_health_check else None,
             "metrics": self._metrics,
             # JSON fallback stats
-            "total_users": len(self._data.get("users", []))
-            if self._use_json_fallback
-            else None,
-            "total_concepts": len(self._data.get("concepts", []))
-            if self._use_json_fallback
-            else None,
-            "total_relationships": len(self._data.get("relationships", []))
-            if self._use_json_fallback
-            else None,
+            "total_users": len(self._data.get("users", [])) if self._use_json_fallback else None,
+            "total_concepts": len(self._data.get("concepts", [])) if self._use_json_fallback else None,
+            "total_relationships": len(self._data.get("relationships", [])) if self._use_json_fallback else None,
         }
 
     async def initialize(self) -> bool:
@@ -238,10 +314,7 @@ class Neo4jClient:
             health_ok = await self.health_check()
             if health_ok:
                 self._initialized = True
-                logger.info(
-                    f"Neo4j driver initialized: {self._uri}, "
-                    f"pool_size={self._max_connection_pool_size}"
-                )
+                logger.info(f"Neo4j driver initialized: {self._uri}, pool_size={self._max_connection_pool_size}")
                 return True
             else:
                 logger.warning("Neo4j health check failed during initialization")
@@ -288,8 +361,7 @@ class Neo4jClient:
                 with open(self._storage_path, "r", encoding="utf-8") as f:
                     self._data = json.load(f)
                 logger.info(
-                    f"Loaded {len(self._data.get('relationships', []))} relationships "
-                    f"from {self._storage_path}"
+                    f"Loaded {len(self._data.get('relationships', []))} relationships from {self._storage_path}"
                 )
             else:
                 self._data = {
@@ -366,7 +438,9 @@ class Neo4jClient:
             logger.debug("Neo4j health check passed")
             return True
 
-        except (RuntimeError, ConnectionError, asyncio.TimeoutError, Neo4jError) as e:
+        except Exception as e:  # noqa: BLE001 — 健康检查必须 fail-closed:
+            # driver 故障形态不可枚举 (ServiceUnavailable 属 DriverError 非
+            # Neo4jError, 原窄捕获会让异常逃逸成 500), 一律返 False。
             logger.warning(f"Neo4j health check failed: {e}")
             self._health_status = False
             self._last_health_check = datetime.now()
@@ -416,9 +490,7 @@ class Neo4jClient:
             logger.error(f"Query execution failed: {e}")
             raise
 
-    async def _run_query_neo4j(
-        self, query: str, params: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
+    async def _run_query_neo4j(self, query: str, params: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
         Execute Cypher query on real Neo4j with retry mechanism.
 
@@ -438,9 +510,7 @@ class Neo4jClient:
 
         @retry(
             stop=stop_after_attempt(self._retry_attempts),
-            wait=wait_exponential(
-                multiplier=self._retry_delay_base, max=self._retry_max_delay
-            ),
+            wait=wait_exponential(multiplier=self._retry_delay_base, max=self._retry_max_delay),
             retry=retry_if_exception_type(RETRYABLE_EXCEPTIONS),
             before_sleep=before_sleep_log(logger, logging.WARNING),
         )
@@ -474,9 +544,7 @@ class Neo4jClient:
             logger.error(f"Neo4j query error: {e}")
             raise
 
-    async def _run_query_json_fallback(
-        self, query: str, params: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
+    async def _run_query_json_fallback(self, query: str, params: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
         Simulate Cypher query with JSON storage (fallback mode).
 
@@ -504,9 +572,7 @@ class Neo4jClient:
             logger.warning(f"Unhandled query pattern: {query[:100]}")
             return []
 
-    async def _handle_merge_learning(
-        self, params: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
+    async def _handle_merge_learning(self, params: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
         Handle MERGE query for creating learning relationships.
 
@@ -535,9 +601,11 @@ class Neo4jClient:
             user = {"id": user_id, "created_at": datetime.now().isoformat()}
             self._data["users"].append(user)
 
-        # Ensure concept exists
+        # Ensure concept exists — G2-3 (W1 镜像): {name, group_id} 双键匹配,
+        # 与 Cypher 复合身份同型; 禁止跨组按 name 命中后改写归属 (clobber)。
         concept_node = next(
-            (c for c in self._data["concepts"] if c["name"] == concept), None
+            (c for c in self._data["concepts"] if c["name"] == concept and c.get("group_id") == group_id),
+            None,
         )
         if not concept_node:
             concept_id = f"concept-{len(self._data['concepts']) + 1}"
@@ -548,10 +616,8 @@ class Neo4jClient:
                 "group_id": group_id,
             }
             self._data["concepts"].append(concept_node)
-        elif group_id:
-            concept_node["group_id"] = group_id
 
-        # Create or update relationship
+        # Create or update relationship — 同型双键 (user, concept, group)
         now = datetime.now()
         next_review = now + timedelta(days=1)
 
@@ -559,19 +625,18 @@ class Neo4jClient:
             (
                 r
                 for r in self._data["relationships"]
-                if r["user_id"] == user_id and r["concept_name"] == concept
+                if r["user_id"] == user_id and r["concept_name"] == concept and r.get("group_id") == group_id
             ),
             None,
         )
 
         if rel:
-            # Update existing relationship
+            # Update existing relationship (group_id 已在双键匹配中锚定,
+            # 不做事后改写归属)
             rel["timestamp"] = now.isoformat()
             rel["last_score"] = score
             rel["next_review"] = next_review.isoformat()
             rel["review_count"] = rel.get("review_count", 0) + 1
-            if group_id:
-                rel["group_id"] = group_id
         else:
             # Create new relationship
             rel = {
@@ -589,15 +654,11 @@ class Neo4jClient:
 
         await self._save_json_data()
 
-        logger.info(
-            f"Created learning relationship: {user_id} -> {concept} (score={score})"
-        )
+        logger.info(f"Created learning relationship: {user_id} -> {concept} (score={score})")
 
         return [{"r": rel}]
 
-    async def _handle_query_reviews(
-        self, params: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
+    async def _handle_query_reviews(self, params: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
         Handle query for review suggestions.
 
@@ -632,11 +693,7 @@ class Neo4jClient:
                     next_review = datetime.fromisoformat(next_review_str)
                     if next_review < now:
                         concept = next(
-                            (
-                                c
-                                for c in self._data["concepts"]
-                                if c["name"] == rel["concept_name"]
-                            ),
+                            (c for c in self._data["concepts"] if c["name"] == rel["concept_name"]),
                             {
                                 "id": rel.get("concept_id", ""),
                                 "name": rel["concept_name"],
@@ -659,9 +716,7 @@ class Neo4jClient:
 
         return results[:limit]
 
-    async def _handle_query_history(
-        self, params: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
+    async def _handle_query_history(self, params: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
         Handle query for concept learning history.
 
@@ -704,38 +759,53 @@ class Neo4jClient:
         concept: str,
         score: Optional[int] = None,
         group_id: Optional[str] = None,
+        canvas_path: Optional[str] = None,
     ) -> bool:
         """
         Create a learning relationship between user and concept.
 
         ✅ Verified from docs/stories/22.4.story.md#_create_neo4j_learning_relationship
 
+        G2-3 (W1): Concept 与 LEARNED 的写身份为 {name/端点, group_id} 复合键 —
+        同名概念在不同 vault 是不同物理节点/边, 禁止事后 SET 归属。
+        group_id 解析失败时 fail-closed 拒写 (不静默降级 DEFAULT)。
+
         Args:
             user_id: User ID
             concept: Concept name
             score: Optional score
-            group_id: Optional group_id for subject isolation (Story 30.8)
+            group_id: group_id for vault isolation (Story 30.8 / G2-3 W1)
+            canvas_path: Optional canvas path used to resolve group_id when
+                group_id is not provided (wave-5 Stage B inference chain)
 
         Returns:
-            True if successful
+            True if successful, False on failure or unresolved group_id
         """
+        physical_group_id = _resolve_physical_group_id(group_id, canvas_path)
+        if not physical_group_id:
+            # G2-3 fail-closed (首日观察): 不静默降级 DEFAULT_GROUP_ID,
+            # 如需降级须补 [Decision] 记录。
+            logger.error(
+                "[G2-3 W1 fail-closed] create_learning_relationship refused: "
+                "unresolved group_id (user_id=%s, concept=%r, canvas_path=%r)",
+                user_id,
+                concept,
+                canvas_path,
+            )
+            return False
         # FR-KG-04 Phase 15 Task 15.2: Increment review_count on every scoring
         # event so get_review_suggestions can prioritize concepts by review history.
         # coalesce() handles the first-time case where review_count is null → 1.
         query = """
         MERGE (u:User {id: $userId})
-        MERGE (c:Concept {name: $concept})
-        SET c.group_id = $groupId
-        MERGE (u)-[r:LEARNED]->(c)
+        MERGE (c:Concept {name: $concept, group_id: $groupId})
+        MERGE (u)-[r:LEARNED {group_id: $groupId}]->(c)
         SET r.timestamp = datetime(),
             r.score = $score,
-            r.group_id = $groupId,
             r.next_review = datetime() + duration('P1D'),
             r.review_count = coalesce(r.review_count, 0) + 1
         RETURN r
         """
-        # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
-        physical_group_id = to_physical_group_id(group_id) if group_id else group_id
         results = await self.run_query(
             query,
             userId=user_id,
@@ -764,35 +834,15 @@ class Neo4jClient:
         score = data.get("score")
         group_id = data.get("group_id")
 
-        # Infer group_id from canvas_path if not provided
-        # wave-5 Stage B P0 (2026-05-11): prefer ContextVar (vault: prefix);
-        # fall back to vault:default with subject so cross-vault writes don't
-        # collide under the legacy Story 1.9 build_group_id namespace.
-        if not group_id and data.get("canvas_path"):
-            from app.core.subject_config import (
-                build_vault_group_id,
-                canonical_group_id,
-                extract_subject_from_canvas_path,
-                get_current_subject_id,
-                is_vault_group_id,
-            )
-
-            ctx_value = get_current_subject_id()
-            if ctx_value and ctx_value != "general":
-                group_id = (
-                    ctx_value
-                    if is_vault_group_id(ctx_value)
-                    else canonical_group_id(ctx_value)
-                )
-            else:
-                subject = extract_subject_from_canvas_path(data["canvas_path"])
-                group_id = build_vault_group_id("default", subject_id=subject)
-
+        # G2-3: group_id inference (ContextVar → canvas_path subject →
+        # vault:default) 收敛到 _resolve_physical_group_id, 由
+        # create_learning_relationship 统一执行 (wave-5 Stage B 链不变)。
         return await self.create_learning_relationship(
             user_id=user_id,
             concept=concept,
             score=score,
             group_id=group_id,
+            canvas_path=data.get("canvas_path"),
         )
 
     async def get_review_suggestions(
@@ -961,9 +1011,7 @@ class Neo4jClient:
 
         for record in results or []:
             if isinstance(record, dict) and record.get("group_id"):
-                record["group_id"] = desanitize_group_id_from_graphiti(
-                    record["group_id"]
-                )
+                record["group_id"] = desanitize_group_id_from_graphiti(record["group_id"])
         return results
 
     async def _get_learning_history_json(
@@ -993,9 +1041,7 @@ class Neo4jClient:
             rel_timestamp = rel.get("timestamp")
             if rel_timestamp:
                 try:
-                    rel_dt = datetime.fromisoformat(
-                        rel_timestamp.replace("Z", "+00:00")
-                    )
+                    rel_dt = datetime.fromisoformat(rel_timestamp.replace("Z", "+00:00"))
                     if start_date and rel_dt < start_date:
                         continue
                     if end_date and rel_dt > end_date:
@@ -1032,9 +1078,7 @@ class Neo4jClient:
                     "timestamp": rel.get("timestamp"),
                     # T1: 输出 D16 冒号, 与 Neo4j 路径 get_learning_history
                     # 的 desanitize 输出契约一致
-                    "group_id": desanitize_group_id_from_graphiti(
-                        rel.get("group_id") or ""
-                    ),
+                    "group_id": desanitize_group_id_from_graphiti(rel.get("group_id") or ""),
                     "agent_type": rel.get("agent_type"),
                     "review_count": rel.get("review_count", 0),
                 }
@@ -1046,12 +1090,20 @@ class Neo4jClient:
         return results[:limit]
 
     async def create_canvas_node_relationship(
-        self, canvas_path: str, node_id: str, node_text: Optional[str] = None
+        self,
+        canvas_path: str,
+        node_id: str,
+        node_text: Optional[str] = None,
+        group_id: Optional[str] = None,
     ) -> bool:
         """
         Create Canvas-Node relationship in Neo4j graph.
 
         Story 30.5 AC-30.5.4: Canvas-Concept-LearningEpisode relationship graph
+
+        G2-3 (W1): Canvas/Node 写身份为 {path/id, group_id} 复合键 —
+        跨 vault 同名 canvas path / node id 是不同物理节点。group_id
+        未提供时经 canvas_path 推导 (wave-5 链), 解析失败 fail-closed。
 
         Creates:
         - Canvas node if not exists
@@ -1062,23 +1114,37 @@ class Neo4jClient:
             canvas_path: Canvas file path
             node_id: Node ID
             node_text: Node text content (potential concept)
+            group_id: group_id for vault isolation (G2-3 W1)
 
         Returns:
-            True if successful
+            True if successful, False on failure or unresolved group_id
 
         [Source: docs/stories/30.5.story.md#Task-5.1]
         """
+        physical_group_id = _resolve_physical_group_id(group_id, canvas_path)
+        if not physical_group_id:
+            logger.error(
+                "[G2-3 W1 fail-closed] create_canvas_node_relationship refused: "
+                "unresolved group_id (canvas_path=%r, node_id=%s)",
+                canvas_path,
+                node_id,
+            )
+            return False
         query = """
-        MERGE (c:Canvas {path: $canvasPath})
-        MERGE (n:Node {id: $nodeId})
+        MERGE (c:Canvas {path: $canvasPath, group_id: $groupId})
+        MERGE (n:Node {id: $nodeId, group_id: $groupId})
         SET n.text = $nodeText,
             n.updated_at = datetime()
-        MERGE (c)-[r:CONTAINS_NODE]->(n)
+        MERGE (c)-[r:CONTAINS_NODE {group_id: $groupId}]->(n)
         SET r.created_at = coalesce(r.created_at, datetime())
         RETURN c, n, r
         """
         results = await self.run_query(
-            query, canvasPath=canvas_path, nodeId=node_id, nodeText=node_text or ""
+            query,
+            canvasPath=canvas_path,
+            nodeId=node_id,
+            nodeText=node_text or "",
+            groupId=physical_group_id,
         )
         return len(results) > 0
 
@@ -1089,6 +1155,7 @@ class Neo4jClient:
         from_node_id: str,
         to_node_id: str,
         edge_label: Optional[str] = None,
+        group_id: Optional[str] = None,
     ) -> bool:
         """
         Create edge relationship between nodes in Neo4j graph.
@@ -1099,23 +1166,36 @@ class Neo4jClient:
         - CONNECTS_TO relationship between Node entities
         - HAS_EDGE relationship from Canvas to Edge
 
+        G2-3 (W1): Canvas/Node/CONNECTS_TO 写身份含 group_id 复合键
+        (正例同形: sync_service.py CANVAS_EDGE {id, group_id})。
+
         Args:
             canvas_path: Canvas file path
             edge_id: Edge ID
             from_node_id: Source node ID
             to_node_id: Target node ID
             edge_label: Optional edge label
+            group_id: group_id for vault isolation (G2-3 W1)
 
         Returns:
-            True if successful
+            True if successful, False on failure or unresolved group_id
 
         [Source: docs/stories/30.5.story.md#Task-5.2]
         """
+        physical_group_id = _resolve_physical_group_id(group_id, canvas_path)
+        if not physical_group_id:
+            logger.error(
+                "[G2-3 W1 fail-closed] create_edge_relationship refused: "
+                "unresolved group_id (canvas_path=%r, edge_id=%s)",
+                canvas_path,
+                edge_id,
+            )
+            return False
         query = """
-        MERGE (c:Canvas {path: $canvasPath})
-        MERGE (from:Node {id: $fromNodeId})
-        MERGE (to:Node {id: $toNodeId})
-        MERGE (from)-[r:CONNECTS_TO {edge_id: $edgeId}]->(to)
+        MERGE (c:Canvas {path: $canvasPath, group_id: $groupId})
+        MERGE (from:Node {id: $fromNodeId, group_id: $groupId})
+        MERGE (to:Node {id: $toNodeId, group_id: $groupId})
+        MERGE (from)-[r:CONNECTS_TO {edge_id: $edgeId, group_id: $groupId}]->(to)
         SET r.label = $edgeLabel,
             r.created_at = coalesce(r.created_at, datetime())
         RETURN c, from, to, r
@@ -1127,28 +1207,46 @@ class Neo4jClient:
             fromNodeId=from_node_id,
             toNodeId=to_node_id,
             edgeLabel=edge_label or "",
+            groupId=physical_group_id,
         )
         return len(results) > 0
 
-    async def delete_edge_relationship(self, edge_id: str) -> bool:
+    async def delete_edge_relationship(
+        self,
+        edge_id: str,
+        group_id: Optional[str] = None,
+        canvas_path: Optional[str] = None,
+    ) -> bool:
         """
-        Delete edge relationship from Neo4j graph by edge_id.
+        Delete edge relationship from Neo4j graph by edge_id within a group.
 
         Story 36.3 P0 Fix: Symmetric with create_edge_relationship.
-        Removes the CONNECTS_TO relationship identified by edge_id property.
+        G2-3 (W2): edge_id 可退化为端点拼接值 (neo4j_edge_client), 全局唯一
+        性不可证, 不享受 W2 uuid 点删窄例外 — MATCH 必须带 group scope。
+        group_id 解析失败 fail-closed 拒删 (禁全库删)。
 
         Args:
             edge_id: Edge ID to delete
+            group_id: group_id scope for the deletion (G2-3 W2)
+            canvas_path: Optional canvas path used to resolve group_id
 
         Returns:
-            True if a relationship was deleted, False if not found
+            True if a relationship was deleted, False if not found or refused
         """
+        physical_group_id = _resolve_physical_group_id(group_id, canvas_path)
+        if not physical_group_id:
+            logger.error(
+                "[G2-3 W2 fail-closed] delete_edge_relationship refused: "
+                "unresolved group_id (edge_id=%s) — unscoped delete forbidden",
+                edge_id,
+            )
+            return False
         query = """
-        MATCH ()-[r:CONNECTS_TO {edge_id: $edgeId}]->()
+        MATCH ()-[r:CONNECTS_TO {edge_id: $edgeId, group_id: $groupId}]->()
         DELETE r
         RETURN count(r) AS deleted
         """
-        results = await self.run_query(query, edgeId=edge_id)
+        results = await self.run_query(query, edgeId=edge_id, groupId=physical_group_id)
         deleted = results[0].get("deleted", 0) if results else 0
         if deleted > 0:
             logger.info(f"Deleted CONNECTS_TO relationship: edge_id={edge_id}")
@@ -1173,9 +1271,7 @@ class Neo4jClient:
         [Source: docs/stories/31.5.story.md#Task-2.2]
         """
         if self._use_json_fallback:
-            return await self._get_score_history_json_fallback(
-                concept_id, canvas_name, limit
-            )
+            return await self._get_score_history_json_fallback(concept_id, canvas_name, limit)
 
         query = """
         MATCH (n:Node {id: $conceptId})<-[:CONTAINS_NODE]-(c:Canvas {path: $canvasPath})
@@ -1184,9 +1280,7 @@ class Neo4jClient:
         ORDER BY r.timestamp DESC
         LIMIT $limit
         """
-        results = await self.run_query(
-            query, conceptId=concept_id, canvasPath=canvas_name, limit=limit
-        )
+        results = await self.run_query(query, conceptId=concept_id, canvasPath=canvas_name, limit=limit)
 
         # Reverse to get oldest-to-newest order
         return list(reversed(results))
@@ -1228,13 +1322,8 @@ class Neo4jClient:
         # Also check score_history array if exists (extended storage)
         score_history = self._data.get("score_history", [])
         for record in score_history:
-            if (
-                record.get("concept_id") == concept_id
-                or record.get("node_id") == concept_id
-            ):
-                results.append(
-                    {"score": record.get("score"), "timestamp": record.get("timestamp")}
-                )
+            if record.get("concept_id") == concept_id or record.get("node_id") == concept_id:
+                results.append({"score": record.get("score"), "timestamp": record.get("timestamp")})
 
         # Sort by timestamp (oldest first) and limit
         results.sort(key=lambda x: x.get("timestamp", ""))
@@ -1246,24 +1335,39 @@ class Neo4jClient:
         canvas_name: str,
         score: int,
         timestamp: Optional[str] = None,
+        group_id: Optional[str] = None,
     ) -> bool:
         """
         Record a score to history for difficulty adaptation.
 
         Story 31.5: Store scores for historical analysis.
 
+        G2-3 (W1): Node/Canvas MERGE 身份含 group_id 复合键; Episode/SCORED
+        创建时携带 group_id 属性。解析失败 fail-closed 拒写。
+
         Args:
             concept_id: Concept/Node ID
             canvas_name: Canvas file name
             score: Score value (0-100)
             timestamp: Optional timestamp (defaults to now)
+            group_id: group_id for vault isolation (G2-3 W1)
 
         Returns:
-            True if successful
+            True if successful, False on failure or unresolved group_id
 
         [Source: docs/stories/31.5.story.md#Task-2.2]
         """
         ts = timestamp or datetime.now().isoformat()
+
+        physical_group_id = _resolve_physical_group_id(group_id, canvas_name)
+        if not physical_group_id:
+            logger.error(
+                "[G2-3 W1 fail-closed] record_score_history refused: "
+                "unresolved group_id (concept_id=%s, canvas_name=%r)",
+                concept_id,
+                canvas_name,
+            )
+            return False
 
         if self._use_json_fallback:
             # Store in score_history array
@@ -1276,6 +1380,7 @@ class Neo4jClient:
                     "canvas_name": canvas_name,
                     "score": score,
                     "timestamp": ts,
+                    "group_id": physical_group_id,
                 }
             )
 
@@ -1284,16 +1389,18 @@ class Neo4jClient:
             return True
 
         query = """
-        MERGE (n:Node {id: $conceptId})
-        MERGE (c:Canvas {path: $canvasPath})
-        MERGE (c)-[:CONTAINS_NODE]->(n)
+        MERGE (n:Node {id: $conceptId, group_id: $groupId})
+        MERGE (c:Canvas {path: $canvasPath, group_id: $groupId})
+        MERGE (c)-[:CONTAINS_NODE {group_id: $groupId}]->(n)
         CREATE (e:Episode {
             id: randomUUID(),
             type: 'scoring',
+            group_id: $groupId,
             timestamp: datetime($timestamp)
         })
         CREATE (e)-[:SCORED {
             score: $score,
+            group_id: $groupId,
             timestamp: datetime($timestamp)
         }]->(n)
         RETURN e
@@ -1304,6 +1411,7 @@ class Neo4jClient:
             canvasPath=canvas_name,
             score=score,
             timestamp=ts,
+            groupId=physical_group_id,
         )
         return len(results) > 0
 
@@ -1324,11 +1432,15 @@ class Neo4jClient:
         bidirectional: bool = False,
         auto_generated: bool = False,
         metadata: Optional[Dict[str, Any]] = None,
+        group_id: Optional[str] = None,
     ) -> bool:
         """
         Create Canvas association relationship in Neo4j graph.
 
         Story 36.5 AC-1, AC-2, AC-3: Canvas关联持久化到Neo4j
+
+        G2-3 (W1): Canvas 端点与 ASSOCIATED_WITH 边身份含 group_id 复合键。
+        group_id 未提供时经 source_canvas 推导, 解析失败 fail-closed。
 
         Creates ASSOCIATED_WITH relationship between two Canvas nodes with
         association_type property using Schema-defined enum values.
@@ -1354,9 +1466,16 @@ class Neo4jClient:
         # Validate association_type against schema enum
         valid_types = ["prerequisite", "related", "extends", "references"]
         if association_type not in valid_types:
+            logger.error(f"Invalid association_type '{association_type}'. Must be one of: {valid_types}")
+            return False
+
+        physical_group_id = _resolve_physical_group_id(group_id, source_canvas)
+        if not physical_group_id:
             logger.error(
-                f"Invalid association_type '{association_type}'. "
-                f"Must be one of: {valid_types}"
+                "[G2-3 W1 fail-closed] create_canvas_association refused: "
+                "unresolved group_id (association_id=%s, source=%r)",
+                association_id,
+                source_canvas,
             )
             return False
 
@@ -1371,12 +1490,13 @@ class Neo4jClient:
                 bidirectional,
                 auto_generated,
                 metadata,
+                physical_group_id,
             )
 
         query = """
-        MERGE (source:Canvas {path: $sourceCanvas})
-        MERGE (target:Canvas {path: $targetCanvas})
-        MERGE (source)-[r:ASSOCIATED_WITH {association_id: $associationId}]->(target)
+        MERGE (source:Canvas {path: $sourceCanvas, group_id: $groupId})
+        MERGE (target:Canvas {path: $targetCanvas, group_id: $groupId})
+        MERGE (source)-[r:ASSOCIATED_WITH {association_id: $associationId, group_id: $groupId}]->(target)
         SET r.association_type = $associationType,
             r.confidence = $confidence,
             r.shared_concepts = $sharedConcepts,
@@ -1396,6 +1516,7 @@ class Neo4jClient:
             sharedConcepts=shared_concepts or [],
             bidirectional=bidirectional,
             autoGenerated=auto_generated,
+            groupId=physical_group_id,
         )
 
         if results:
@@ -1417,11 +1538,14 @@ class Neo4jClient:
         bidirectional: bool,
         auto_generated: bool,
         metadata: Optional[Dict[str, Any]],
+        group_id: str,
     ) -> bool:
         """
         Create canvas association in JSON fallback storage.
 
         Story 36.5 AC-3: JSON fallback mode preserved.
+        G2-3 (W1 镜像): 记录携带 group_id, 匹配用 {association_id, group_id}
+        双键 — 与 Cypher 复合身份同型。
 
         [Source: docs/stories/36.5.story.md#Task-1.1]
         """
@@ -1429,12 +1553,12 @@ class Neo4jClient:
         if "canvas_associations" not in self._data:
             self._data["canvas_associations"] = []
 
-        # Check for existing association with same ID
+        # Check for existing association with same (ID, group) composite key
         existing = next(
             (
                 a
                 for a in self._data["canvas_associations"]
-                if a.get("association_id") == association_id
+                if a.get("association_id") == association_id and a.get("group_id") == group_id
             ),
             None,
         )
@@ -1464,6 +1588,7 @@ class Neo4jClient:
                 "auto_generated": auto_generated,
                 "created_at": now,
                 "updated_at": now,
+                "group_id": group_id,
             }
             if metadata:
                 association["metadata"] = metadata
@@ -1499,9 +1624,7 @@ class Neo4jClient:
         [Source: docs/stories/36.5.story.md#Task-1.2]
         """
         if self._use_json_fallback:
-            return await self._get_associations_json_fallback(
-                canvas_path, association_type, limit
-            )
+            return await self._get_associations_json_fallback(canvas_path, association_type, limit)
 
         # Build dynamic query based on filters
         if canvas_path and association_type:
@@ -1563,9 +1686,7 @@ class Neo4jClient:
             ORDER BY r.created_at DESC
             LIMIT $limit
             """
-            results = await self.run_query(
-                query, associationType=association_type, limit=limit
-            )
+            results = await self.run_query(query, associationType=association_type, limit=limit)
         else:
             query = """
             MATCH (source:Canvas)-[r:ASSOCIATED_WITH]->(target:Canvas)
@@ -1602,10 +1723,7 @@ class Neo4jClient:
         for assoc in associations:
             # Apply filters
             if canvas_path:
-                if (
-                    assoc.get("source_canvas") != canvas_path
-                    and assoc.get("target_canvas") != canvas_path
-                ):
+                if assoc.get("source_canvas") != canvas_path and assoc.get("target_canvas") != canvas_path:
                     continue
 
             if association_type:
@@ -1618,29 +1736,42 @@ class Neo4jClient:
         results.sort(key=lambda x: x.get("created_at", ""), reverse=True)
         return results[:limit]
 
-    async def delete_canvas_association(self, association_id: str) -> bool:
+    async def delete_canvas_association(self, association_id: str, group_id: Optional[str] = None) -> bool:
         """
-        Delete Canvas association from Neo4j graph.
+        Delete Canvas association from Neo4j graph within a group scope.
 
         Story 36.5 AC-3: Delete canvas association by ID.
 
+        G2-3 (W2): association_id 由调用方外部传入、uuid4 来源不可证,
+        不满足 W2 点删窄例外 — MATCH 必须带 group scope。
+        group_id 解析失败 fail-closed 拒删。
+
         Args:
             association_id: Association ID to delete
+            group_id: group_id scope for the deletion (G2-3 W2)
 
         Returns:
-            True if deleted, False if not found
+            True if deleted, False if not found or refused
 
         [Source: docs/stories/36.5.story.md#Task-1.3]
         """
+        physical_group_id = _resolve_physical_group_id(group_id)
+        if not physical_group_id:
+            logger.error(
+                "[G2-3 W2 fail-closed] delete_canvas_association refused: unresolved group_id (association_id=%s)",
+                association_id,
+            )
+            return False
+
         if self._use_json_fallback:
-            return await self._delete_association_json_fallback(association_id)
+            return await self._delete_association_json_fallback(association_id, physical_group_id)
 
         query = """
-        MATCH (source:Canvas)-[r:ASSOCIATED_WITH {association_id: $associationId}]->(target:Canvas)
+        MATCH (source:Canvas)-[r:ASSOCIATED_WITH {association_id: $associationId, group_id: $groupId}]->(target:Canvas)
         DELETE r
         RETURN count(r) as deleted_count
         """
-        results = await self.run_query(query, associationId=association_id)
+        results = await self.run_query(query, associationId=association_id, groupId=physical_group_id)
 
         deleted = results[0].get("deleted_count", 0) if results else 0
         if deleted > 0:
@@ -1650,11 +1781,12 @@ class Neo4jClient:
             logger.warning(f"Canvas association not found: {association_id}")
             return False
 
-    async def _delete_association_json_fallback(self, association_id: str) -> bool:
+    async def _delete_association_json_fallback(self, association_id: str, group_id: str) -> bool:
         """
         Delete canvas association from JSON fallback storage.
 
         Story 36.5 AC-3: JSON fallback mode preserved.
+        G2-3 (W2 镜像): {association_id, group_id} 双键匹配删除。
 
         [Source: docs/stories/36.5.story.md#Task-1.3]
         """
@@ -1662,7 +1794,7 @@ class Neo4jClient:
         original_count = len(associations)
 
         self._data["canvas_associations"] = [
-            a for a in associations if a.get("association_id") != association_id
+            a for a in associations if not (a.get("association_id") == association_id and a.get("group_id") == group_id)
         ]
 
         if len(self._data["canvas_associations"]) < original_count:
@@ -1681,11 +1813,15 @@ class Neo4jClient:
         shared_concepts: Optional[List[str]] = None,
         bidirectional: Optional[bool] = None,
         metadata: Optional[Dict[str, Any]] = None,
+        group_id: Optional[str] = None,
     ) -> bool:
         """
-        Update Canvas association in Neo4j graph.
+        Update Canvas association in Neo4j graph within a group scope.
 
         Story 36.5 AC-3: Update canvas association properties.
+
+        G2-3 (W5): MATCH...SET 的匹配 scope 与 W2 同口径 — association_id
+        来源不可证, 必须叠加 group scope。解析失败 fail-closed 拒更。
 
         Args:
             association_id: Association ID to update
@@ -1694,9 +1830,10 @@ class Neo4jClient:
             shared_concepts: New shared concepts list (optional)
             bidirectional: New bidirectional flag (optional)
             metadata: Additional metadata (optional)
+            group_id: group_id scope for the update (G2-3 W5)
 
         Returns:
-            True if updated, False if not found
+            True if updated, False if not found or refused
 
         [Source: docs/stories/36.5.story.md#Task-1.4]
         """
@@ -1704,11 +1841,16 @@ class Neo4jClient:
         if association_type:
             valid_types = ["prerequisite", "related", "extends", "references"]
             if association_type not in valid_types:
-                logger.error(
-                    f"Invalid association_type '{association_type}'. "
-                    f"Must be one of: {valid_types}"
-                )
+                logger.error(f"Invalid association_type '{association_type}'. Must be one of: {valid_types}")
                 return False
+
+        physical_group_id = _resolve_physical_group_id(group_id)
+        if not physical_group_id:
+            logger.error(
+                "[G2-3 W5 fail-closed] update_canvas_association refused: unresolved group_id (association_id=%s)",
+                association_id,
+            )
+            return False
 
         if self._use_json_fallback:
             return await self._update_association_json_fallback(
@@ -1718,11 +1860,15 @@ class Neo4jClient:
                 shared_concepts,
                 bidirectional,
                 metadata,
+                physical_group_id,
             )
 
         # Build SET clause dynamically for provided fields
         set_clauses = ["r.updated_at = datetime()"]
-        params: Dict[str, Any] = {"associationId": association_id}
+        params: Dict[str, Any] = {
+            "associationId": association_id,
+            "groupId": physical_group_id,
+        }
 
         if association_type is not None:
             set_clauses.append("r.association_type = $associationType")
@@ -1741,7 +1887,7 @@ class Neo4jClient:
             params["bidirectional"] = bidirectional
 
         query = f"""
-        MATCH (source:Canvas)-[r:ASSOCIATED_WITH {{association_id: $associationId}}]->(target:Canvas)
+        MATCH (source:Canvas)-[r:ASSOCIATED_WITH {{association_id: $associationId, group_id: $groupId}}]->(target:Canvas)
         SET {", ".join(set_clauses)}
         RETURN r.association_id as association_id
         """
@@ -1763,18 +1909,20 @@ class Neo4jClient:
         shared_concepts: Optional[List[str]],
         bidirectional: Optional[bool],
         metadata: Optional[Dict[str, Any]],
+        group_id: str,
     ) -> bool:
         """
         Update canvas association in JSON fallback storage.
 
         Story 36.5 AC-3: JSON fallback mode preserved.
+        G2-3 (W5 镜像): {association_id, group_id} 双键匹配更新。
 
         [Source: docs/stories/36.5.story.md#Task-1.4]
         """
         associations = self._data.get("canvas_associations", [])
 
         for assoc in associations:
-            if assoc.get("association_id") == association_id:
+            if assoc.get("association_id") == association_id and assoc.get("group_id") == group_id:
                 # Update provided fields
                 if association_type is not None:
                     assoc["association_type"] = association_type
@@ -1869,9 +2017,7 @@ class Neo4jClient:
         # Check relationships for concepts linked to this canvas
         for rel in self._data.get("relationships", []):
             # Check if relationship mentions this canvas path
-            if canvas_path in str(rel.get("canvas_path", "")) or canvas_path in str(
-                rel.get("source", "")
-            ):
+            if canvas_path in str(rel.get("canvas_path", "")) or canvas_path in str(rel.get("source", "")):
                 concept_name = rel.get("concept_name") or rel.get("concept")
                 if concept_name:
                     concepts.add(concept_name)
@@ -1923,9 +2069,7 @@ class Neo4jClient:
             return results[0]["common_concepts"]
         return []
 
-    async def _find_common_concepts_json_fallback(
-        self, canvas1: str, canvas2: str
-    ) -> List[str]:
+    async def _find_common_concepts_json_fallback(self, canvas1: str, canvas2: str) -> List[str]:
         """
         Find common concepts between two canvases from JSON fallback storage.
 
@@ -1978,9 +2122,7 @@ class Neo4jClient:
         """
         return await self.run_query(query, limit=limit)
 
-    async def _get_all_recent_episodes_json(
-        self, limit: int = 1000
-    ) -> List[Dict[str, Any]]:
+    async def _get_all_recent_episodes_json(self, limit: int = 1000) -> List[Dict[str, Any]]:
         """
         JSON fallback: get all recent episodes from relationships.
 
@@ -2057,11 +2199,7 @@ def get_neo4j_client(
         _user = user or settings.neo4j_user
         _password = password or settings.neo4j_password
         _database = database or settings.neo4j_database
-        _use_json_fallback = (
-            use_json_fallback
-            if use_json_fallback is not None
-            else not settings.neo4j_enabled
-        )
+        _use_json_fallback = use_json_fallback if use_json_fallback is not None else not settings.neo4j_enabled
 
         _client_instance = Neo4jClient(
             uri=_uri,
