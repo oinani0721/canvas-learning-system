@@ -134,3 +134,17 @@ round-4 裁定 6/7 CLOSED（含 live/value-grep 命令一项经其**真实复跑
 - **MEDIUM-5 重放 recipe 不确定 → CLOSED**：metadata 仍保留 `<out>` / `<同两文件>` 占位符（原样 `zsh -n` exit 1），且 after 绑定会漂移的 `HEAD`。**整改**：四条命令全部改为**字面可粘贴形式**（绝对路径、无占位符，逐条 `zsh -n` 通过，③ 归一化 diff 已实证复跑为空），after 的运行树绑定**固定 commit `73102875`**（并附证：两个 py 文件在 `73102875` 与 `fce0d8a2` 之间 `git diff` 为空、blob 同为 `73579b22`，故绑定固定 SHA 与捕获时状态一致）；另补 `git checkout HEAD` 恢复步骤避免复跑残留。
 - **新 LOW（"完整 traceback"措辞）**：实为 `pytest.ini` 配置下的 `--tb=short` 输出。→ metadata 已改为"未经 grep 过滤地保存了该配置下的全部 stdout+stderr"并注明 tb 形式。
 - **新 LOW（live 证据为格式化展示）**：不阻断，已在该文件顶部声明为"启发式辅助视图 + 结果随文件实跑落盘"，数值/字面量同集经 round-4 复跑确认。
+
+## §13 Codex round-5 终裁：CARD-G4-16 可验收
+
+经 **5 轮**独立对抗审查（Codex gpt-5.6-sol / ultra，全程 read-only 沙箱），最终裁定 **CARD-G4-16 可验收**，唯一阻断项 MEDIUM-5 已 CLOSED，**无必须再做项**。
+
+| 项 | 裁定 | 复核依据（Codex 独立复算/复跑） |
+|---|---|---|
+| (a) 重放命令可执行 | **PASS** | 四条命令 `zsh -n` 均为 0、无占位符；③ 归一化 diff 按字面**只读实跑** exit 0 |
+| (b) 运行树绑定确定 | **PASS** | `73102875..fce0d8a2`、`73102875..HEAD` 对两目标文件**零差异**；稳定 blob reranker `73579b22…` / search `5ff33104…` |
+| (c) stdout 与声明自洽 | **PASS** | 两份各 109 行 9957 bytes、111 collected、9 failed/102 passed、exit 1，失败节点集合完全相同；原始差异仅 9 处对象地址与 `0.47s→0.45s`；归一化后均 9912 bytes、SHA-256 `03e57607…84e8`。`--tb=short` 声明与 `pytest.ini:19` 一致 |
+| (d) 三条行为铁律 | **PASS** | `37387a86..HEAD` **仅改注释**；两文件无属性 AST SHA 保持 `18aae6e0…` / `03e79eea…`；`whiteboard/exam_board` 排除链、Tier-2 边界、SQL `NOT IN` **均无行为变化** |
+| (e) 枚举与六值裁定 | **PASS** | pinned `git grep` 独立得 **18 文件 / 146 行**，与证据逐字节相同（SHA-256 `94b01dc3…`）；六类裁定与 `37387a86` 代码一致。当前 HEAD 因新增注释为 18/148，报告已明确绑定基线，**不构成漂移** |
+
+**两条非阻断 LOW 已顺手清理**：metadata 的单数 blob 措辞改为分别列出两个文件的稳定 blob；`live-distribution-and-value-grep.txt` 顶部补声明"所载结果为经过排版格式化的展示（非原始 stdout 逐字节转存）"。

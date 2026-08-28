@@ -4,7 +4,8 @@
 重做了一次可复验完整捕获；round-4 指出重放 recipe 仍含占位符且 after 绑定漂移的 HEAD。
 本版命令**全部字面、无占位符、绑定固定 commit**，可原样粘贴复跑（zsh -n 已校验）。
 
---- 运行树绑定（关键：两个 py 文件在 73102875 与 fce0d8a2 之间字节未变，blob 同为 73579b22）
+--- 运行树绑定（关键：两个 py 文件在 73102875 与其后各 commit 之间字节未变；
+    稳定 blob 分别为 supplementary_reranker.py=73579b22…、supplementary_search_service.py=5ff33104…）
 before 文件版本 commit: 37387a86（第五批开工基线）
 after  文件版本 commit: 73102875（捕获当时的 HEAD；其后 fce0d8a2 未触碰这两个文件，git diff 为空）
 Python: Python 3.14.4

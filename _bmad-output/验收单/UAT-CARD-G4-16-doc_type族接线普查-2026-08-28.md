@@ -2,7 +2,7 @@
 type: uat
 title: "UAT · CARD-G4-16 doc_type 族接线普查与裁定（2026-08-28）"
 date: 2026-08-28
-status: awaiting_user
+status: awaiting_user  # Codex round-5 终裁：CARD-G4-16 可验收，待用户验收
 scope: "BATCH-2026-08-28-第五批 / CARD-G4-16 — doc_type 18 文件 146 行普查、6 取值接线/死值裁定、两处名实不符注释修正"
 worktree: "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s5-census"
 ---
@@ -39,6 +39,7 @@ worktree: "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktre
 | round-3 findings 整改 | **2/2 完成**：① 测试 provenance 从"声明"改为**可复验完整捕获**（git 切基线版真实重跑 before + 切 HEAD 重跑 after，两份完整 stdout 归一化后逐字节相同）；② grep 证据命令去占位符、绑定 pinned SHA、`zsh -n` 校验通过 | 报告 §11 + `pytest-before/after-full-stdout.txt` |
 | Codex 复审 round-4 | **6/7 CLOSED**；独立复算确认归一化未掩盖实质差异（原始 diff 仅 9 处内存地址+耗时，归一化后双方 sha256 相同 byte-equal）、两份 stdout 与声明自洽；剩 1 项=重放命令仍含占位符且绑定漂移 HEAD | `_bmad-output/审查/codex-review-CARD-G4-16-round4.md` |
 | round-4 整改 | **3/3 完成**：四条命令改字面可粘贴（逐条 zsh -n 通过、③ 已实证复跑 diff 为空）+ after 绑定固定 commit 73102875（附两 py 文件 73102875↔fce0d8a2 零 diff 佐证）+ 两条措辞 LOW | 报告 §12 + `test-run-metadata.txt` |
+| **Codex round-5 终裁** | **「CARD-G4-16 可验收」** —— 唯一阻断项 MEDIUM-5 已 CLOSED，**无必须再做项**。五项独立复核全 PASS：命令可复跑（zsh -n + 实跑 diff exit 0）/ 运行树零差异（稳定 blob 73579b22·5ff33104）/ stdout 与声明自洽（归一化后 SHA 相同）/ **三条行为铁律**（仅改注释、AST SHA 不变、隔离链无行为变化）/ 18 文件 146 行枚举逐字节一致 | `codex-review-CARD-G4-16-round5.md` |
 | 独立 Workflow 4-agent 复核 | 枚举 agent：18/146、写入方双路径、exclude 7+1 处、TYPE_WEIGHTS 死键论证全 CONFIRMED（0 blocker）；注释-only agent：tokenize 剥离注释后 **代码 token 逐一相同**（707/3940 个），运行期 TYPE_WEIGHTS/阈值三值断言全过 | Workflow wf_737b1a95-20b journal |
 
 ## 🔧 Codex round-1 整改记录（10/10 关闭，FAIL → 整改完毕）

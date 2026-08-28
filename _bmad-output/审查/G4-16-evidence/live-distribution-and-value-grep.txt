@@ -11,7 +11,7 @@ doc_type distribution: {'video_transcript': 2001, 'concept': 117, 'note': 69, 'w
 --- ② 字面量启发式扫描（pinned 到 37387a86，不受工作区/.venv 影响）:
 git grep -h "doc_type" 37387a86 -- "backend/app/*.py" "backend/lib/*.py" | grep -oE "[\"'][a-z_]+[\"']" | sort | uniq -c | sort -rn
 
-⚠️ 口径声明（round-2/round-3 整改）: ② 是**启发式辅助视图**，输出含 "doc_type"/"file_path"
+⚠️ 口径声明（round-2/3/5 整改）: 本文件所载结果为**经过排版格式化的展示**（非原始 stdout 逐字节转存）；② 是**启发式辅助视图**，输出含 "doc_type"/"file_path"
 等字段名假阳性，**不是取值字面量全集的权威证据**。六值全集的权威依据 =
 报告 §1/§4 的逐点人工裁定 + pinned 146 行清单（doc_type-146-occurrences@37387a86.txt）。
 
