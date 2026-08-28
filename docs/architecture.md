@@ -76,6 +76,7 @@ Canvas Learning System 是一个 AI 辅助学习的桌面应用，核心功能�
 - **Agentic RAG Pipeline**：6 路并行检索 -> fusion -> rerank -> quality check -> compress -> faithfulness
 - **多数据库**：Neo4j (知识图谱) + LanceDB (向量检索) + SQLite (会话历史)
 - **Event-driven**：EventBus 事件总线连接 FSRS、Graphiti、RAG 子系统
+- **FSRS 真相源（D0 修订 2026-08-28）**：frontmatter = 唯一 current state；`<vault>/learning_events.jsonl` 事件账（`learning_event_log.py`）= 唯一审计/幂等/重放来源，禁止第二套调度状态。见 `docs/fsrs-truth-source-d0-revision.md` 与 `docs/learning-events-schema-v1.md`（schema v1 冻结契约）
 
 ### 通信架构
 

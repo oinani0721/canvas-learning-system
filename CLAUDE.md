@@ -132,4 +132,5 @@ CLI 负责**结构 + 校验 + 归档**，Claude 负责**内容写作**。Boris �
 - **批注追踪**: `docs/project-status/annotation-tracker.md`（108 条分类追踪）
 - **进度报告**: `docs/project-status/s40-progress-report.md`
 - **OpenSpec**: `openspec/config.yaml`
+- **FSRS 真相源 D0 修订**: `docs/fsrs-truth-source-d0-revision.md`（frontmatter=current state；事件账=审计/幂等）+ `docs/learning-events-schema-v1.md`（learning_events.jsonl schema v1 冻结）
 - **BMAD 实施**: `_bmad-output/implementation-artifacts/` — Story spec（AC + Tasks）+ 审计报告

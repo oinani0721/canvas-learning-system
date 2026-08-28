@@ -1,0 +1,2 @@
+{"event_id": "exam:重复检验白板", "event_version": 1, "event_type": "exam_created", "node_id": "target-node", "recorded_at": "2026-08-01T10:00:00+00:00", "effective_at": "2026-08-01T10:00:00+00:00", "payload": {"exam_board": "检验白板/重复检验白板.md"}}
+{"event_id": "exam:重复检验白板", "event_version": 1, "event_type": "exam_created", "node_id": "target-node", "recorded_at": "2026-08-01T10:05:00+00:00", "effective_at": "2026-08-01T10:05:00+00:00", "payload": {"exam_board": "检验白板/重复检验白板.md"}}

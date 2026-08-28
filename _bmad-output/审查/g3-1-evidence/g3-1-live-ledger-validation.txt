@@ -1,0 +1,14 @@
+== live ledger validation evidence (validator round-2, SHA-bound) ==
+date: 2026-08-28T09:27:46Z
+git HEAD: 37387a8662e9dd646fad5628841679d777cb7eae (branch card/s3-events; note: G3-1 交付物在未提交工作树, commit 后以 commit SHA 为准)
+python: Python 3.14.4
+validator sha256: 8dd07167f174198048590b1f565fe94c26dc391ba107f14a8223c2eb0fdd02e7  backend/scripts/validate_learning_events.py
+contract test sha256: 7a40f06e625510187df7c32c6373babcea0e7e0e9c3b0783941f5519572e2832  backend/tests/regression/test_learning_events_schema_contract.py
+command: backend/.venv/bin/python backend/scripts/validate_learning_events.py /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/learning_events.jsonl
+-- ledger shasum before --
+2a18023e71a046db8a8c52e098cd48bd0b9898596e4ea3024e18695827796cb6  /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/learning_events.jsonl
+-- validator run --
+RESULT: PASS — schema v1 合规 (/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/learning_events.jsonl)
+exit=0
+-- ledger shasum after --
+2a18023e71a046db8a8c52e098cd48bd0b9898596e4ea3024e18695827796cb6  /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/learning_events.jsonl
