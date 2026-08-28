@@ -194,7 +194,11 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
 - **迟到事件的入账通道**：A3 的"严格大于 W"只约束**在线评分**（正常复习写入）。补录/迟到事件走**账本补录通道**：以原始 `review_time` 入账 + 标 `payload.out_of_order = true`，**不进 pending、不推进 current state**——因此与 A3 无冲突。
 - **degraded pending 处置（round-4 HIGH#3 + round-5 HIGH#3 解冻边界）**：当节点落入**残缺卡**（三态 fail-closed）时，该节点的 pending 集合**整体冻结**——不重放、不追加新在线事件（新评分应向用户如实报错而非静默丢弃）。禁止"跳过残缺节点继续写新事件"——那会在错误基线上叠加。
   - **解冻的唯一合法条件（round-5 提出，round-6 机械化）**：修复必须**把六字段与 `W` 原子重建到同一个可证明的账本边界**上——选定账本中某个事件 `E`，从**可证明起点**折叠到 `E` 为止，把结果的六字段与 `W = E.review_time` 在**同一次原子替换**中写入。三项必须机械确定：
-    - **`E` 的选取（round-11 修正：原按复合序取最大会让尾部逃逸）**：`E` 必须是该节点在账本中**行号最大的适用事件**（`schema_ext=review/1`、未标 `out_of_order`），且 **`cursor_line` 之后不得再存在该节点的任何适用事件**（proof 须覆盖到账本末尾）。
+    - **`E` 的选取与层级作用域（round-11 修正尾部逃逸，round-13 冻结作用域）**：
+      - **最外层（top-level）proof**：`E` 必须是该节点在账本中**行号最大的适用事件**（`schema_ext=review/1`、未标 `out_of_order`），且 **`cursor_line` 之后不得再存在该节点的任何适用事件**——保证重建覆盖到账本末尾。
+      - **`ancestor_proof`（中间层）：不受"其后无适用事件"约束**。⚠️ round-13 指出的歧义：若把该尾部约束**递归**施于 ancestor，则正常链 `L1=t1、L2=t2` 中的 ancestor（`cursor_line=1`）会因 L2 存在而失效，任何多层链都无法成立；只施于最外层则是原意。现明确冻结为**仅最外层**——ancestor 的职责是提供一个**中间快照**，本就不必覆盖到末尾，它只需满足：区间定义、层内单调、跨层单调、三条等式、链终止与防循环。
+      - 两个 verifier 因此不会给出相反结果。
+      - 📌 **可执行的单一事实（round-14）**：以上分层语义已落成参考实现 `backend/scripts/validate_learning_events.py::verify_degraded_proof(proof, applicable, is_top_level=True)`——`is_top_level` 参数就是本条作用域的代码化身，递归调用固定传 `False`。行为门见 `test_learning_events_schema_contract.py::test_normal_two_layer_chain_is_provable`（正常两层链必须 PASS）与 `::test_layered_split_cannot_bypass_monotonicity`（分层绕过必须 FAIL）。⚠️ **该 verifier 只判结构与分层门，不复算 FSRS 折叠**（canonical reducer 属 G3-2）——返回空违规 = "结构上无歧义，可交付 reducer 复算"，**不等于** proof 成立。
       ⚠️ round-11 反例：若按 `(review_time, 行号)` 复合序取最大，当 `L1=t2`、`L2=t1`（两行都未标乱序）时 E=L1，区间只含 L1，单调门真空通过，**L2 完全逃逸未被覆盖**。改用行号口径后，E=L2，L1 与 L2 同在区间内，单调门会因 `t2 > t1` 而判该区间不自洽 ⇒ 正确地报"不可证明"。
     - **canonical reducer（round-6 实测的舍入歧义）**：折叠必须**逐事件按生产持久化精度舍入后再进下一步**（与 bridge 的写-读循环一致），**不得**在内存中连续折叠、只在末尾舍入。实测差异：三次 Good 后 `stability` = **10.9711**（逐步舍入）vs **10.9710**（末尾舍入）——两者都满足"折叠到 E"的粗描述，故边界必须唯一化。舍入精度以 bridge 写出 frontmatter 时的实际精度为准（G3-2 落地时把该常量与本条一并锁进测试）。
     - **proof schema（round-8 HIGH#4 机械化——此前只是清单，两个不同起点可满足同一清单却折出不同结果）**。proof 是一个 JSON object，字段与语义如下，缺任一项或任一项不满足约束即**不可证明**：

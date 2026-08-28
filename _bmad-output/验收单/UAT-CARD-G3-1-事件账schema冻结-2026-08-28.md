@@ -29,7 +29,7 @@
 
 | 裁判 | 结果 |
 |---|---|
-| 契约测试 `backend/tests/regression/test_learning_events_schema_contract.py` | **54 passed + 1 skipped**（本文件单跑口径，十轮整改后；skip = 仓内 vault 根无账本的 worktree 环境，主仓自动生效。与 golden 门 + 既有账本测试合跑 = **74 passed + 1 skipped**） |
+| 契约测试 `backend/tests/regression/test_learning_events_schema_contract.py` | **69 passed + 1 skipped**（本文件单跑口径，十四轮整改后；skip = 仓内 vault 根无账本的 worktree 环境，主仓自动生效。与 golden 门 + 既有账本测试合跑 = **88 passed + 1 skipped**） |
 | **真实 producer 执行**（Codex 一轮 HIGH 整改） | vault 三 skill 写点的 python 代码**从 SKILL.md 逐字提取执行**（ai-linked-doc 单行模板 / start-exam-board PYEOF 块 / quiz-answer 评分链账本段；仅路径常量重定向 tmp fixture），产物过校验器 + 幂等重放断言；backend 侧按 5 调用点实参形状经真实 `append_event` 写入后全过 |
 | 既有账本回归 `test_learning_event_log.py` | 6 passed（零改动） |
 | 校验脚本 vs 三 fixture | 合法 → exit 0 / 缺字段 → exit 1（点名 `effective_at`）/ 重复 event_id → exit 1（点名首见行号）（存证 `审查/g3-1-evidence/g3-1-fixture-validation.txt`） |
@@ -195,7 +195,7 @@
 |---|---|---|---|
 | 二 | **HIGH#1** | **域端点不闭合**：schema 允许 `review_time ≤ 9000` 而分类器拒绝 `W ≥ 9000` ⇒ 合法事件（前态 W=8999-12-31，review_time=9000-01-01）经真实 bridge 写出 `W=9000` 后**立即被判 degraded**——合法事件确定性制造残缺卡 | **已修**：`review_time` 与 `fsrs_last_review` **同域同界且均须严格小于** `REVIEW_INPUT_MAX`（`_parse_ts` 对该上界改用排他比较）。闭包实测：拒绝会产出非法 W 的输入，合法输入产出的 W 仍判 normal |
 | 三 | **HIGH#2** | vault_id 宽正则只覆盖裸键后空白，**漏掉引号键**：`vault_id: fake` + `"vault_id": real` 被判"恰一处"并返回 `fake`（PyYAML/backend 真值 `real`）⇒ 静默错绑、exit 0 零 WARN；另 `vault_id: true` 绑定字符串 `"true"` 而 PyYAML 得 bool | **已修**：键计数改为**逐行去首空白后匹配 `vault_id` / `"vault_id"` / `'vault_id'` + 可选空白 + 冒号**（注释行与行内提及不计——现网注释里的 vault_id 字样不误计）；裸词值**排除 YAML 隐式类型**（true/false/null/~/yes/no/on/off/数字/.inf/.nan）。**16 形态复验全对**，现网仍绑定 `canvas_vault` |
-| 四 | **HIGH#3** | degraded proof 仍不能机械唯一验真：`six_fields + W` 两处表示同一信息可不一致；未要求 `snapshot_hash == ancestor_proof.result_hash`、snapshot W == ancestor `review_time`；折叠区间闭开未定义（同瞬间不同行有两种解释）；`prefix_ends_without_lf` 的 false/省略规则与编码未冻结 | **已修（契约）**：①**状态对象唯一形状**——恰含 FIELD_ORDER 六键的 object，**不再单列 W**（W 即其中的 `fsrs_last_review`），hash 算法连编码与分隔符一并冻结；②`origin.snapshot` 加**三条等式约束**（自洽 / `== ancestor.result_hash` / `state.fsrs_last_review == ancestor.review_time`）；③**折叠区间按行号左开右闭** `(ancestor.cursor_line, cursor_line]`（`new_card` 时左端点 0）——不用时刻界定以消除同瞬间歧义；④`prefix_ends_without_lf` 冻结为"有 LF 必须省略、无 LF 必须写 true"（省略与 false 不并存） |
+| 四 | **HIGH#3** | degraded proof 仍不能机械唯一验真：`six_fields + W` 两处表示同一信息可不一致；未要求 `snapshot_hash == ancestor_proof.result_hash`、snapshot W == ancestor `review_time`；折叠区间闭开未定义（同瞬间不同行有两种解释）；`prefix_ends_without_lf` 的 false/省略规则与编码未冻结 | **已修（契约）**：①**状态对象唯一形状**——object，**不再单列 W**（W 即其中的 `fsrs_last_review`），hash 算法连编码与分隔符一并冻结（⚠️ 本行为**九轮当时的历史记录**：当时写作"恰含 FIELD_ORDER 六键"，十三轮已改为**逐 `fsrs_state` 的键集表**——Learning/Relearning 六键、Review 五键省略 `fsrs_step`。**现行以 schema 文档的键集表为准**，本行不再表述键数）；②`origin.snapshot` 加**三条等式约束**（自洽 / `== ancestor.result_hash` / `state.fsrs_last_review == ancestor.review_time`）；③**折叠区间按行号左开右闭** `(ancestor.cursor_line, cursor_line]`（`new_card` 时左端点 0）——不用时刻界定以消除同瞬间歧义；④`prefix_ends_without_lf` 冻结为"有 LF 必须省略、无 LF 必须写 true"（省略与 false 不并存） |
 | 一 | MEDIUM | 运行时原因与测试 docstring 仍称"可执行上界/会溢出"，与 `S=1e10/1e100` 实测可执行矛盾 | **已修**：两处措辞统一为**语义合理性上界（fail-closed）**，并注明技术可执行边界更高但不作判据 |
 | 一 | MEDIUM | `_finite_number(10**309)` 在 `float(int)` 处抛未捕获 `OverflowError` | **已修**：捕获 `OverflowError` ⇒ 返回 None ⇒ degraded。三形态（`10**309` / 400 位数字串 / `10**400`）实测零 traceback |
 | 二 | MEDIUM | 分类器仍接受非整秒 `W`，与 §6.2 A5 的 canonical 秒精度不一致 | **已修**：`fsrs_last_review` 含小数秒判 degraded |
@@ -246,3 +246,24 @@
 1. `learning_event_log.py:11/:73` docstring "8 类"实为 9 类——注释滞后，本卡边界禁改该文件，**移交 G3-2 顺手修**（一行注释，零行为变化）。
 2. 复习域 payload 扩展键（rating/review_time/fsrs_library_version/fsrs_params_hash/vault_id/concept_id）的实际写入 = **G3-2 范围**，本卡只冻结规则。
 3. 跨进程写锁缺失（当前仅 backend 进程内 threading.Lock）已在 schema 文档 §二如实登记，归 **G3-3**。
+
+### 十三轮复核处置（存档 `审查/codex-review-CARD-G3-1-G3-4-round13-2026-08-29.md`；**BLOCKER 连续第六轮清零，HIGH 仅剩 1 条且为作用域歧义**）
+
+| # | 级别 | 十三轮发现 | 处置 |
+|---|---|---|---|
+| 一 | **HIGH** | proof 的"E 后不得再有适用事件"与"`ancestor_proof` 递归为 proof"两条并存，**层级作用域未冻结**：正常链 `L1=t1、L2=t2` 若把尾部约束递归施于 ancestor，则 ancestor（`cursor_line=1`）因 L2 存在而失效，任何多层链都不成立；只施最外层则是原意。两个合理 verifier 给出相反结果 ⇒ 仍不能机械唯一验真。且"现有校验器和测试**没有 proof 行为实现**，十二轮存证仅做文本计数，无法消除该歧义" | **已修（文档 + 可执行实现，双管）**：①schema §6.2 明确冻结**尾部约束仅施于最外层**，`ancestor_proof` 作为中间层只需满足区间/层内单调/跨层单调/三等式/链终止与防循环，并写明为何递归解释与原意相反；②**落成参考 verifier** `validate_learning_events.py::verify_degraded_proof(proof, applicable, is_top_level=True)`（215 行，stdlib-only）——`is_top_level` 参数就是该作用域的代码化身，递归调用固定传 `False`，把散文歧义变成代码里的单一事实；③新增 **14 条行为门**覆盖正常两层链、分层绕过、尾部逃逸、层内单调、三等式各自独立、链严格递减、canonical 状态形状五反例、hash 键序无关 |
+| 二 | MEDIUM | 验收单顶部写契约测试 `54 passed + 1 skipped`，同行又称合跑 `74 passed`；实测与本单底部均为 `55 passed + 1 skipped` | **已修**：顶部裁判表统一为本轮实测口径 **69 passed + 1 skipped**（单跑）/ **88 passed + 1 skipped**（合跑） |
+| 三 | LOW | 九轮历史处置段仍写"恰含 FIELD_ORDER 六键"，与现行 Review 五键的键集表冲突 | **已修**：该行加注为**九轮当时的历史记录**并声明"现行以 schema 文档的键集表为准"，本行不再表述键数 |
+
+**十四轮整改的对抗复验**（`审查/g3-1-evidence/g3-round14-counterexamples.txt`，可重跑脚本 `negverify_round14_proof_gates.sh`）——三道门逐一拆掉，证明它们**承重**而非装饰：
+
+| 变体 | 拆掉的门 | 期望变红 | 实测 |
+|---|---|---|---|
+| A | 尾部约束**递归**施于 ancestor（round-13 指出的另一种解释） | `test_normal_two_layer_chain_is_provable` | ✅ FAILED（正常两层链在递归解释下确实不成立——歧义的两支被机械区分） |
+| B | 跨层单调门 | `test_layered_split_cannot_bypass_monotonicity` | ✅ FAILED |
+| C | 最外层尾部门 | `test_top_level_must_cover_ledger_tail` | ✅ FAILED |
+| — | 还原 | 全绿 | ✅ 69 passed + 1 skipped |
+
+**⚠️ verifier 的诚实范围声明**（写进 docstring 与 schema 双处）：只判**结构与分层**门，**不复算 FSRS 折叠**（canonical reducer 的精度常量属 G3-2，需真实 fsrs）。返回空违规 = "结构上无歧义，可交付 reducer 复算"，**不等于** proof 成立。
+
+十四轮整改后复跑：契约测试 **69 passed + 1 skipped**、三文件合跑 **88 passed + 1 skipped**、golden 单跑 **13 passed**、现有 `test_fsrs_manager.py` **37 passed**（不回归）、现网账本（23 行）exit 0 且前后 SHA 恒为 `f78b99f3…`。

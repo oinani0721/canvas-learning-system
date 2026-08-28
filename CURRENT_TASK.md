@@ -2,21 +2,26 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**本车道状态**（2026-08-29 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **十二轮 Codex；BLOCKER 连续五轮清零，HIGH 收敛至 1；G3-4 已 CONFIRMED-CLOSED**）:
-- ✅ CARD-G3-4：**六~十二轮连续 CONFIRMED-CLOSED**，十二轮明确「可独立验收」——十门 13 passed
-- ✅ CARD-G3-1（`63e034ec` + 十一笔整改 + 十二轮整改待提交）：契约测试 **55 passed + 1 skipped**，
-  三文件合跑 **74 passed + 1 skipped**。**十二轮 HIGH 从 3 降到 1 并已修**，累计处置 2B+40H+51M。
-  十二轮 Codex 确认闭合：A7 全部、**vault_id 假 oracle 与错绑**（其独立差分 **1229 种 YAML**：
-  267 同值绑定 / 962 保守 None / **非 None 错绑 0**）、PyYAML 缺失 WARN、YAML RecursionError。
-  本轮修：proof 键集表格化（消除「恰六键」与 Review 五键的矛盾）+ **跨层单调门**
-  （snapshot 分层曾可绕过层内单调性）+ YAML 异常捕获与生产同口径（`2023-13-40` 曾 traceback）
-  + 测试重名清理 + 交付清单依赖口径
+**本车道状态**（2026-08-29 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **十三轮 Codex；BLOCKER 连续六轮清零，HIGH 收敛至 1 且已修；G3-4 已 CONFIRMED-CLOSED**）:
+- ✅ CARD-G3-4：**六~十三轮连续 CONFIRMED-CLOSED**，十二/十三轮均判「可独立验收」——十门 13 passed
+- ✅ CARD-G3-1（`63e034ec` + 十二笔整改 + 十四轮整改待提交）：契约测试 **69 passed + 1 skipped**，
+  三文件合跑 **88 passed + 1 skipped**。**十三轮 HIGH 仅剩 1 条（proof 层级作用域歧义）并已修**，
+  累计处置 2B+41H+53M。十三轮 Codex 确认闭合：proof 键集主契约、跨层单调门本身、vault_id 降级
+  （ValueError/ParserError/RecursionError/ConstructorError/ScannerError/ComposerError/非法 UTF-8
+  全 exit 0 + WARN 零 traceback）、交付清单依赖口径、重名测试清理。
+  本轮修：**proof 尾部约束的层级作用域冻结为「仅最外层」**（递归解释会让任何多层链都不成立），
+  且不止改文档——**落成参考 verifier** `verify_degraded_proof()`（215 行 stdlib-only，`is_top_level`
+  参数即该作用域的代码化身）+ **14 条行为门**，正面回应 Codex「没有 proof 行为实现，存证仅做文本计数」
 - ⛔ 移交（schema §九 逐条登记）：①test.yml 白名单 +2 测试 + root requirements paths（S8 独占；
-  **CI DEFERRED/NOT-EXECUTED**）；②**G3-2 五项**；③**G3-3 七项**；④tips.py 两条 → 独立 micro-patch
-- ⚠️ 依赖口径：**账本校验主体 stdlib-only**；**vault_id 绑定层**需 PyYAML + 可 import 的 backend
-  `app.config`，不可达或配置解析异常时降级不绑定 + WARN。schema/validator/验收单四处口径已统一
-- 纪律守住：learning_event_log.py/fsrs_manager.py 及全部 in-flight 锁定文件零改动（十二轮 blob 复核在案）；不 push
-- 待办：十二轮整改提交（第十三笔）→ Codex 十三轮复核 → 用户验收两单
+  **CI DEFERRED/NOT-EXECUTED**）；②**G3-2 五项**（含 canonical reducer 精度常量——verifier 不复算折叠）；
+  ③**G3-3 七项**；④tips.py 两条 → 独立 micro-patch
+- ⚠️ 依赖口径：**账本校验主体 stdlib-only**（含新增 verifier）；**vault_id 绑定层**需 PyYAML + 可 import
+  的 backend `app.config`，不可达或配置解析异常时降级不绑定 + WARN。schema/validator/验收单口径已统一
+- ⚠️ verifier 诚实范围：只判**结构与分层**门，**不复算 FSRS 折叠**——返回空违规 ≠ proof 成立
+- ⚠️ 环境：本 worktree 的 pytest 须用 `backend/.venv/bin/python`（仓根 `.venv` 无 fastapi，conftest 导入即炸）
+- 纪律守住：learning_event_log.py（blob `28cdaa18`）/ fsrs_manager.py（blob `980b3758`）及全部 in-flight
+  锁定文件零改动（十三轮 blob 逐笔复核在案）；不 push
+- 待办：十四轮整改提交（第十四笔）→ Codex 十四轮复核 → 用户验收两单
 
 ---
 

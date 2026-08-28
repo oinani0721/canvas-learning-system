@@ -322,6 +322,221 @@ def classify_card_state(fields: dict) -> tuple[str, str]:
     return "normal", "Relearning 且 step 与 S/D 齐备"
 
 
+# --------------------------------------------------------------------------
+# degraded proof 的**结构参考 verifier** (round-14 HIGH: 此前 proof 只有散文,
+# Codex round-13 指出"没有 proof 行为实现, 存证仅做文本计数, 无法消除歧义")
+#
+# ⚠️ **诚实的范围声明**: 本 verifier 只判 §6.2 proof schema 的**结构与分层**
+# 门 —— 状态形状/类型/hash、区间(左开右闭按行号)、层内单调、跨层单调、链终止
+# 与防循环、snapshot 三等式、genesis 锚、尾部作用域。它**不复算 FSRS 折叠**
+# (canonical reducer 的精度常量属 G3-2, 需真实 fsrs) —— 因此 verifier 返回空
+# 违规**不等于** proof 成立, 只等于"结构上无歧义, 可交付 reducer 复算"。
+# --------------------------------------------------------------------------
+
+_STATE_KEYS_BY_FSRS_STATE = {
+    1: ("fsrs_due", "fsrs_state", "fsrs_step", "fsrs_stability", "fsrs_difficulty", "fsrs_last_review"),
+    2: ("fsrs_due", "fsrs_state", "fsrs_stability", "fsrs_difficulty", "fsrs_last_review"),
+    3: ("fsrs_due", "fsrs_state", "fsrs_step", "fsrs_stability", "fsrs_difficulty", "fsrs_last_review"),
+}
+_CANONICAL_TS_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+
+
+def canonical_state_bytes(state: object) -> tuple[Optional[bytes], list[str]]:
+    """proof 里的"状态对象" → canonical JSON 字节 (§6.2 状态对象的唯一形状)。
+
+    键集按 fsrs_state 分档 (Review 五键省略 fsrs_step); 值类型归一化 (时刻为
+    UTC 整秒 Z 串、state/step 为整数 number、S/D 为 float)。返回 (字节, 违规)。
+    """
+    problems: list[str] = []
+    if not isinstance(state, dict):
+        return None, ["state 必须是 JSON object"]
+
+    raw_state = state.get("fsrs_state")
+    if not isinstance(raw_state, int) or isinstance(raw_state, bool) or raw_state not in _STATE_KEYS_BY_FSRS_STATE:
+        return None, [f"fsrs_state 必须是 number 1/2/3, 得到 {raw_state!r}"]
+
+    expected = set(_STATE_KEYS_BY_FSRS_STATE[raw_state])
+    actual = set(state)
+    if actual != expected:
+        problems.append(
+            f"fsrs_state={raw_state} 的键集必须恰为 {sorted(expected)}, "
+            f"多出 {sorted(actual - expected)} / 缺失 {sorted(expected - actual)}"
+        )
+
+    for key in ("fsrs_due", "fsrs_last_review"):
+        value = state.get(key)
+        if not isinstance(value, str) or not _CANONICAL_TS_RE.match(value):
+            problems.append(f"{key} 必须是 UTC 整秒 'Z' 串 (%Y-%m-%dT%H:%M:%SZ), 得到 {value!r}")
+
+    if "fsrs_step" in expected:
+        step = state.get("fsrs_step")
+        if not isinstance(step, int) or isinstance(step, bool) or step < 0:
+            problems.append(f"fsrs_step 必须是非负整数 number, 得到 {step!r}")
+
+    for key in ("fsrs_stability", "fsrs_difficulty"):
+        value = state.get(key)
+        # canonical 要求 float: 整数值也须为 10.0 而非 10 (bool 是 int 子类, 排除)
+        if isinstance(value, bool) or not isinstance(value, float):
+            problems.append(f"{key} 必须是 JSON float (整数值也写 10.0), 得到 {value!r}")
+        elif not math.isfinite(value):
+            problems.append(f"{key} 必须有限, 得到 {value!r}")
+
+    if problems:
+        return None, problems
+    blob = json.dumps(state, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    return blob.encode("utf-8"), []
+
+
+def state_hash(state: object) -> tuple[Optional[str], list[str]]:
+    """canonical 状态对象 → sha256 十六进制串。"""
+    import hashlib
+
+    blob, problems = canonical_state_bytes(state)
+    if blob is None:
+        return None, problems
+    return hashlib.sha256(blob).hexdigest(), []
+
+
+def verify_degraded_proof(
+    proof: object,
+    applicable: list[tuple[int, str]],
+    *,
+    is_top_level: bool = True,
+    _depth: int = 0,
+) -> list[str]:
+    """degraded 解冻 proof 的结构门。返回违规列表 (空 = 结构上可证明)。
+
+    `applicable` = 该节点在账本中全部**适用事件**的 [(行号, review_time 串)],
+    行号 1-based, 由调用方从账本抽取 (schema_ext=review/1 且未标 out_of_order)。
+
+    `is_top_level` 是 **round-14 冻结的层级作用域**: "cursor_line 之后不得再有
+    适用事件"**只施于最外层**。若递归施于 ancestor, 则正常链 L1=t1、L2=t2 的
+    ancestor(cursor_line=1) 会因 L2 存在而失效 —— 任何多层链都无法成立, 与原意
+    相反。本参数把该歧义变成代码里的单一事实。
+    """
+    problems: list[str] = []
+    if _depth > 64:
+        return ["ancestor_proof 链过深 (>64) — 疑似自引用或异常构造"]
+    if not isinstance(proof, dict):
+        return ["proof 必须是 JSON object"]
+
+    cursor = proof.get("cursor_line")
+    if not isinstance(cursor, int) or isinstance(cursor, bool) or cursor < 1:
+        return [f"cursor_line 必须是 >=1 的整数, 得到 {cursor!r}"]
+
+    for key in ("vault_id", "node_id", "event_id", "ledger_prefix_sha256"):
+        if not isinstance(proof.get(key), str) or not proof[key].strip():
+            problems.append(f"{key} 必须是非空字符串")
+
+    review_time = proof.get("review_time")
+    if not isinstance(review_time, str):
+        return problems + ["review_time 必须是字符串"]
+    e_instant = _instant(review_time)
+    if e_instant is None:
+        return problems + [f"review_time 不可解析: {review_time!r}"]
+
+    lines = {ln: ts for ln, ts in applicable}
+    if cursor not in lines:
+        problems.append(f"cursor_line={cursor} 不是该节点的适用事件行")
+    elif _instant(lines[cursor]) != e_instant:
+        problems.append(f"review_time 与第 {cursor} 行的事件时刻不一致")
+
+    # 尾部作用域 —— round-14 冻结: 仅最外层
+    if is_top_level:
+        tail = sorted(ln for ln in lines if ln > cursor)
+        if tail:
+            problems.append(f"最外层 proof 的 cursor_line={cursor} 之后仍有适用事件 {tail} — 未覆盖到账本末尾")
+
+    origin = proof.get("origin")
+    if not isinstance(origin, dict):
+        return problems + ["origin 必须是 JSON object"]
+    kind = origin.get("kind")
+
+    if kind == "new_card":
+        evidence = origin.get("genesis_evidence")
+        if not isinstance(evidence, dict):
+            return problems + ["origin.kind=new_card 必须附 genesis_evidence object"]
+        for key in ("node_frontmatter_hash", "node_frontmatter_text"):
+            if not isinstance(evidence.get(key), str) or not evidence[key]:
+                problems.append(f"genesis_evidence.{key} 必须是非空字符串")
+        first_line = evidence.get("first_event_line")
+        if not isinstance(first_line, int) or isinstance(first_line, bool) or first_line < 1:
+            problems.append(f"genesis_evidence.first_event_line 必须 >=1, 得到 {first_line!r}")
+            left = None
+        else:
+            left = first_line - 1
+        ancestor_end: Optional[datetime] = None
+    elif kind == "snapshot":
+        ancestor = origin.get("ancestor_proof")
+        snap_hash = origin.get("snapshot_hash")
+        state = origin.get("state")
+        computed, state_problems = state_hash(state)
+        problems.extend(f"origin.state: {p}" for p in state_problems)
+        if not isinstance(snap_hash, str) or not snap_hash:
+            problems.append("origin.snapshot_hash 必须是非空字符串")
+        elif computed is not None and snap_hash != computed:
+            problems.append("等式1 失败: snapshot_hash != sha256(canonical(state))")
+        if not isinstance(ancestor, dict):
+            return problems + ["origin.kind=snapshot 必须附 ancestor_proof object"]
+
+        # 递归: ancestor 是中间层, 不受尾部约束 (round-14)
+        problems.extend(
+            f"ancestor_proof: {p}"
+            for p in verify_degraded_proof(ancestor, applicable, is_top_level=False, _depth=_depth + 1)
+        )
+        if isinstance(snap_hash, str) and ancestor.get("result_hash") != snap_hash:
+            problems.append("等式2 失败: snapshot_hash != ancestor_proof.result_hash")
+        anc_rt = ancestor.get("review_time")
+        if isinstance(state, dict) and state.get("fsrs_last_review") != anc_rt:
+            problems.append("等式3 失败: state.fsrs_last_review != ancestor_proof.review_time")
+
+        anc_cursor = ancestor.get("cursor_line")
+        if not isinstance(anc_cursor, int) or isinstance(anc_cursor, bool):
+            return problems + ["ancestor_proof.cursor_line 必须是整数"]
+        if anc_cursor >= cursor:
+            problems.append(f"链未严格递减: ancestor.cursor_line={anc_cursor} >= 本层 {cursor}")
+        for key in ("vault_id", "node_id"):
+            if ancestor.get(key) != proof.get(key):
+                problems.append(f"链上 {key} 必须相同")
+        left = anc_cursor
+        ancestor_end = _instant(anc_rt) if isinstance(anc_rt, str) else None
+        if ancestor_end is None:
+            problems.append("ancestor_proof.review_time 不可解析")
+    else:
+        return problems + [f"origin.kind 必须是 new_card 或 snapshot, 得到 {kind!r}"]
+
+    # 折叠区间 (left, cursor] 按行号左开右闭 + 层内单调 + 跨层单调
+    if left is not None:
+        interval = sorted(ln for ln in lines if left < ln <= cursor)
+        if not interval:
+            problems.append(f"折叠区间 ({left}, {cursor}] 内无适用事件")
+        else:
+            instants = [_instant(lines[ln]) for ln in interval]
+            if any(i is None for i in instants):
+                problems.append("折叠区间内存在不可解析的 review_time")
+            else:
+                for idx in range(1, len(instants)):
+                    if instants[idx] <= instants[idx - 1]:
+                        problems.append(
+                            f"层内单调门失败: 第 {interval[idx]} 行时刻未严格大于第 {interval[idx - 1]} 行 "
+                            f"— 迟到事件未标 out_of_order, 账本不自洽"
+                        )
+                        break
+                if ancestor_end is not None and ancestor_end >= instants[0]:
+                    problems.append(
+                        f"跨层单调门失败: ancestor.review_time 未严格小于本层首个事件 (第 {interval[0]} 行) 的时刻"
+                    )
+
+    result_hash = proof.get("result_hash")
+    if not isinstance(result_hash, str) or not result_hash:
+        problems.append("result_hash 必须是非空字符串")
+
+    if "prefix_ends_without_lf" in proof and proof["prefix_ends_without_lf"] is not True:
+        problems.append("prefix_ends_without_lf 出现时必须恰为 true (有 LF 时须省略, 不得写 false)")
+
+    return problems
+
+
 def _instant(value: object) -> Optional[datetime]:
     """已过 _parse_ts 的串 → 绝对瞬间 (用于跨字段语义比较: 'Z' 与 '+00:00'
     是同一瞬间的两种写法, 不得因原字符串不等而误判 — round-3 MEDIUM)。"""

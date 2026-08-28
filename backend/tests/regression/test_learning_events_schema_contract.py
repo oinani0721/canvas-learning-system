@@ -1044,3 +1044,157 @@ def test_repo_vault_ledger_schema_v1():
     """现网账本 (仓内 vault 根) 必须 v1 全合规 — 只读校验。"""
     result = _run(REPO_VAULT_LEDGER)
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+# ---------------------------------------------------------------------------
+# degraded proof 参考 verifier 的行为门 (round-14 HIGH)
+#
+# Codex round-13: "现有校验器和测试也没有 proof 行为实现, 十二轮存证仅做文本
+# 计数, 无法消除该歧义"。以下把 §6.2 的分层语义变成**可执行的单一事实**:
+# 尾部约束只施于最外层 ⇒ 正常两层链必须 PASS; 跨层单调门 ⇒ 分层绕过必须 FAIL。
+# ---------------------------------------------------------------------------
+
+_T1 = "2026-01-01T10:00:00Z"
+_T2 = "2026-01-02T10:00:00Z"
+
+
+def _state(last_review, *, fsrs_state=2, due="2026-02-01T10:00:00Z"):
+    """canonical 状态对象 (Review 五键, 省略 fsrs_step)。"""
+    out = {
+        "fsrs_due": due,
+        "fsrs_state": fsrs_state,
+        "fsrs_stability": 10.0,
+        "fsrs_difficulty": 5.0,
+        "fsrs_last_review": last_review,
+    }
+    if fsrs_state in (1, 3):
+        out["fsrs_step"] = 0
+    return out
+
+
+def _leaf(cursor_line, review_time, *, first_event_line=1, result_hash="r-leaf"):
+    """origin.kind=new_card 的叶层 proof。"""
+    return {
+        "vault_id": "v",
+        "node_id": "n",
+        "event_id": f"e{cursor_line}",
+        "review_time": review_time,
+        "cursor_line": cursor_line,
+        "ledger_prefix_sha256": "0" * 64,
+        "result_hash": result_hash,
+        "origin": {
+            "kind": "new_card",
+            "genesis_evidence": {
+                "node_frontmatter_hash": "f" * 64,
+                "node_frontmatter_text": "title: n\n",
+                "first_event_line": first_event_line,
+            },
+        },
+    }
+
+
+def _layered(child_cursor, child_rt, ancestor):
+    """origin.kind=snapshot 的上层 proof, 三条等式自洽构造。"""
+    snap_state = _state(ancestor["review_time"])
+    snap_hash, problems = validator.state_hash(snap_state)
+    assert not problems, problems
+    ancestor = dict(ancestor, result_hash=snap_hash)
+    return {
+        "vault_id": "v",
+        "node_id": "n",
+        "event_id": f"e{child_cursor}",
+        "review_time": child_rt,
+        "cursor_line": child_cursor,
+        "ledger_prefix_sha256": "1" * 64,
+        "result_hash": "r-child",
+        "origin": {
+            "kind": "snapshot",
+            "state": snap_state,
+            "snapshot_hash": snap_hash,
+            "ancestor_proof": ancestor,
+        },
+    }
+
+
+def test_normal_two_layer_chain_is_provable():
+    """正常链 L1=t1、L2=t2 的两层 proof **必须通过**。
+
+    这是 round-13 HIGH 的判据: 若把"其后无适用事件"递归施于 ancestor,
+    ancestor(cursor_line=1) 会因 L2 存在而失效 ⇒ 本测试红。冻结为仅最外层后绿。
+    """
+    applicable = [(1, _T1), (2, _T2)]
+    proof = _layered(2, _T2, _leaf(1, _T1))
+    assert validator.verify_degraded_proof(proof, applicable) == []
+
+
+def test_layered_split_cannot_bypass_monotonicity():
+    """round-12 绕过: L1=t2、L2=t1 拆成两个单事件区间 ⇒ 跨层单调门必须拒。"""
+    applicable = [(1, _T2), (2, _T1)]
+    proof = _layered(2, _T1, _leaf(1, _T2))
+    problems = validator.verify_degraded_proof(proof, applicable)
+    assert any("跨层单调门失败" in p for p in problems), problems
+
+
+def test_top_level_must_cover_ledger_tail():
+    """最外层 proof 后仍有适用事件 ⇒ 拒 (尾部逃逸门, round-11)。"""
+    applicable = [(1, _T1), (2, _T2)]
+    problems = validator.verify_degraded_proof(_leaf(1, _T1), applicable)
+    assert any("未覆盖到账本末尾" in p for p in problems), problems
+
+
+def test_intra_layer_monotonicity_gate():
+    """同一层内行号递增而时刻不增 ⇒ 账本不自洽, 拒 (round-10)。"""
+    applicable = [(1, _T2), (2, _T1)]
+    proof = _leaf(2, _T1, first_event_line=1)
+    problems = validator.verify_degraded_proof(proof, applicable)
+    assert any("层内单调门失败" in p for p in problems), problems
+
+
+@pytest.mark.parametrize(
+    "mutate, marker",
+    [
+        (lambda o: o["origin"].__setitem__("snapshot_hash", "d" * 64), "等式1 失败"),
+        (lambda o: o["origin"]["ancestor_proof"].__setitem__("result_hash", "d" * 64), "等式2 失败"),
+        (lambda o: o["origin"]["state"].__setitem__("fsrs_last_review", _T2), "等式3 失败"),
+    ],
+)
+def test_snapshot_three_equalities_each_enforced(mutate, marker):
+    """三条等式各自独立成门 — 任一被破坏都必须报出对应违规。"""
+    applicable = [(1, _T1), (2, _T2)]
+    proof = _layered(2, _T2, _leaf(1, _T1))
+    mutate(proof)
+    problems = validator.verify_degraded_proof(proof, applicable)
+    assert any(marker in p for p in problems), (marker, problems)
+
+
+def test_chain_cursor_line_must_strictly_decrease():
+    """ancestor.cursor_line >= 本层 ⇒ 链不终止/可自引用, 拒。"""
+    applicable = [(1, _T1), (2, _T2)]
+    proof = _layered(2, _T2, _leaf(2, _T2))
+    problems = validator.verify_degraded_proof(proof, applicable)
+    assert any("链未严格递减" in p for p in problems), problems
+
+
+@pytest.mark.parametrize(
+    "state, marker",
+    [
+        ({**_state(_T1), "fsrs_step": 0}, "键集必须恰为"),  # Review 带 step
+        ({k: v for k, v in _state(_T1, fsrs_state=1).items() if k != "fsrs_step"}, "键集必须恰为"),
+        ({**_state(_T1), "fsrs_stability": 10}, "必须是 JSON float"),  # int 而非 float
+        ({**_state(_T1), "fsrs_state": "2"}, "必须是 number 1/2/3"),  # 字符串 state
+        ({**_state(_T1), "fsrs_last_review": "2026-01-01T10:00:00+00:00"}, "UTC 整秒"),
+    ],
+)
+def test_canonical_state_shape_is_unique(state, marker):
+    """同一信息的不同写法必须被拒 — 否则 hash 失去唯一性 (round-10 HIGH)。"""
+    blob, problems = validator.canonical_state_bytes(state)
+    assert blob is None
+    assert any(marker in p for p in problems), (marker, problems)
+
+
+def test_canonical_state_hash_is_stable_and_order_independent():
+    """键序不同的同一状态必须得到同一 hash (sort_keys 冻结)。"""
+    a = _state(_T1)
+    b = {k: a[k] for k in reversed(list(a))}
+    assert validator.state_hash(a) == validator.state_hash(b)
+    assert validator.state_hash(a)[0] is not None
