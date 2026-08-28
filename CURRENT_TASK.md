@@ -2,29 +2,29 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**本车道状态**（2026-08-29 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **十八轮 Codex 已出；⭐ CARD-G3-4 连续四轮「可验收」；G3-1 的 1 HIGH + 3 MEDIUM + 3 LOW 全清，第二十笔已提交**）:
-- ⭐ **CARD-G3-4 = 可验收**（十五轮判定，十六/十七/十八轮复核均保持）：generator/manifest/vectors 零改动，
-  `generate()` 内存输出与仓库 JSON 逐字节相同
-- ⚠️ **G3-1 十八轮 HIGH（真乱序行藏另一 vault）**：确认真乱序后的 `continue` 早于 vault 收集 ⇒ 一条
-  **合法**乱序行能把另一 vault 的合规事件整个藏起来（主体校验对该账本是 PASS，只有 WARN，**不是**违反
-  前置条件的输入）。已修：vault 收集上移到 `continue` 之前 + 新增 `review_ext_lines`；实测
-  `scan.vault_ids` 由 `{a}` 变 `{a,b}` 并报违规
-- ✅ 四个 survivor 全部补门，其中一条是**误拒方向**：乱序比较 `>` 改 `>=` 会误拒合法的
-  `review_time == W`（此前的门只查"该拒的拒了"，不查"该过的过了"）
-- ✅ **"三处同文"这次是机械验证的**：写正规化比对确认六条逐字一致，再把比对做成回归门
-  `test_scope_declaration_is_identical_in_three_places` —— 声明值得写就值得有门守着
-- ⚠️ **负验证判据边界如实登记**：预期测试体内的运行时异常也会被记作 FAILED，脚本无法与"门真的变红"
-  区分（缓解 = 基线段先确认全绿）。不假装闭合
-- 裁判实测：契约 **166 passed + 1 skipped**、三文件合跑 **191 passed + 1 skipped**、golden 19 +
-  `test_fsrs_manager.py` 37、现网账本 exit 0 且 SHA 恒 `f78b99f3`、锁定 blob 恒定
-- 负验证扩至**二十变体全承重**、还原 `cmp` 逐字节一致、脚本 exit 0。⚠️ 十九变体那次的 1 项失败正是
-  加严判据的价值：变体 O 只拆"双锚全缺"分支而 `[partial]` 由另一分支守护，旧判据会误判承重通过
+**本车道状态**（2026-08-29 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **十九轮 Codex 已出；⭐ CARD-G3-4 连续五轮「可验收」；G3-1 的 5 MEDIUM + 2 LOW 全清，HIGH 是环境事件待用户裁决**）:
+- ⛔⛔ **用户裁决点（十九轮 HIGH，环境事件非代码缺陷）**：**现网账本从 23 行回退到 22 行**，
+  当前 SHA `2a18023e` 与 **Codex 第一轮存证的批次开始状态逐字节相同** ⇒ 更像有意回滚而非损坏。
+  本卡全程只读该文件（二十笔 commit 无一触及 `canvas-vault/`）；文件 git untracked 无历史，
+  本卡存证只记行数+SHA **未留第 23 条内容** ⇒ 若那是真实学习事件则不可从本卡产物还原。
+  **请确认是否你/另一车道有意为之；本卡不碰 live vault、不代做恢复**
+- ⭐ **CARD-G3-4 = 可验收**（十五轮判定，十六~十九轮复核均保持）
+- ✅ G3-1 十九轮 5 MEDIUM + 2 LOW 全清：①**未知 `event_version=2` 被当 v1 解释致合法 proof 误拒**
+  ⇒ scanner 加版本分流 + fail-closed（门里显式断言不再是"vault 不符"假阳性）；②manifest 六键参数
+  改字面量（原取自被测常量 ⇒ 删键时参数集同步缩小，survivor 恒绿）；③`review_ext_lines` 与
+  applicable 的差异点补门；④**三处同文门的正规化被我写宽了**（`\s+`→`""` 会把 `a / b` 与 `a/b`
+  判同）⇒ 改按空格重拼 + 折叠，**严格化后三处仍逐字同文**；⑤docstring 口径更新
+- 裁判实测：契约 **170 passed + 1 skipped**、三文件合跑 **195 passed + 1 skipped**、
+  golden 19 + `test_fsrs_manager.py` 37 = 56、现网账本（22 行）exit 0 且 SHA 恒 `2a18023e`、
+  锁定 blob 恒定（`28cdaa18` / `980b3758`）
+- 负验证**二十变体全承重**、脚本 exit 0。⚠️ 已登记边界：预期测试体内的运行时异常也会被记作 FAILED，
+  脚本无法与"门真的变红"区分（缓解 = 基线段先确认全绿）
 - ⛔ 移交（schema §九 逐条登记）：①test.yml 白名单 +2 测试 + root requirements paths（S8 独占；
   **CI DEFERRED/NOT-EXECUTED**）；②**G3-2 五项**；③**G3-3 七项**；④tips.py 两条 → 独立 micro-patch
 - ⚠️ **负验证脚本必须串行**（记忆已录）；**运行期间不得编辑任何被测文件**（十七轮曾因此丢失整批修改）
 - ⚠️ 环境：本 worktree 的 pytest 须用 `backend/.venv/bin/python`（仓根 `.venv` 无 fastapi）
-- 纪律守住：learning_event_log.py（blob `28cdaa18`）/ fsrs_manager.py（blob `980b3758`）零改动；不 push
-- 待办：Codex 十九轮复核（只需审 G3-1）→ 用户验收两单
+- 纪律守住：learning_event_log.py / fsrs_manager.py 零改动；不 push；不碰 live vault 与 Neo4j 7691
+- 待办：用户裁决账本回退 → Codex 二十轮复核（只需审 G3-1）→ 用户验收两单
 
 ---
 

@@ -29,7 +29,7 @@
 
 | 裁判 | 结果 |
 |---|---|
-| 契约测试 `backend/tests/regression/test_learning_events_schema_contract.py` | **166 passed + 1 skipped**（本文件单跑口径，十九轮整改后；skip = 仓内 vault 根无账本的 worktree 环境，主仓自动生效。与 golden 门 + 既有账本测试合跑 = **191 passed + 1 skipped**） |
+| 契约测试 `backend/tests/regression/test_learning_events_schema_contract.py` | **170 passed + 1 skipped**（本文件单跑口径，二十轮整改后；skip = 仓内 vault 根无账本的 worktree 环境，主仓自动生效。与 golden 门 + 既有账本测试合跑 = **195 passed + 1 skipped**） |
 | **真实 producer 执行**（Codex 一轮 HIGH 整改） | vault 三 skill 写点的 python 代码**从 SKILL.md 逐字提取执行**（ai-linked-doc 单行模板 / start-exam-board PYEOF 块 / quiz-answer 评分链账本段；仅路径常量重定向 tmp fixture），产物过校验器 + 幂等重放断言；backend 侧按 5 调用点实参形状经真实 `append_event` 写入后全过 |
 | 既有账本回归 `test_learning_event_log.py` | 6 passed（零改动） |
 | 校验脚本 vs 三 fixture | 合法 → exit 0 / 缺字段 → exit 1（点名 `effective_at`）/ 重复 event_id → exit 1（点名首见行号）（存证 `审查/g3-1-evidence/g3-1-fixture-validation.txt`） |
@@ -387,3 +387,40 @@
 ⚠️ **加严判据的直接价值（本轮实证）**：十九变体那次跑出 1 项失败——变体 O 拆的是"双锚全缺"分支，而 `[partial]` 用例由"仅 N/M 条带 vault_id"这个**另一个分支**守护，故不会红。**旧判据（"至少一条预期项变红"）会把它判成承重通过**，从而掩盖"我把两个不同的门当成了一个"这一事实。加严为"每条预期项都必须变红"后当场暴露，于是拆成变体 O（只期待 `[none]`）与新变体 T（拆 partial 分支）。
 
 裁判实测：契约测试 **166 passed + 1 skipped**、golden + `test_fsrs_manager.py` 合跑 **56 passed**、三文件合跑 **191 passed + 1 skipped**、现网账本 exit 0 且前后 SHA 恒 `f78b99f3`、锁定 blob 恒定。
+
+
+### 十九轮复核处置（G3-4 保持可验收；G3-1 残留 1 HIGH + 5 MEDIUM + 2 LOW）
+
+#### ⛔ HIGH 是**环境事件而非代码缺陷**，需用户裁决
+
+十九轮的 HIGH 是：**现网 append-only 账本从已存证的 23 条回到旧 22 条快照，原因与缺失内容不可证。**
+
+逐项查证结果：
+
+| 时点 | 行数 | SHA | 来源 |
+|---|---|---|---|
+| 批次开始 | 22 | `2a18023e71a046db…` | **Codex 第一轮审查（2026-08-28）存证** |
+| 本 session 中途 | 23 | `f78b99f30791570d…` | 二~十八轮各轮存证 |
+| **当前** | 22 | **`2a18023e71a046db…`（与批次开始逐字节相同）** | mtime 2026-08-29 06:11 |
+
+- **本卡对该文件全程只读**：仅 `shasum` 与校验器（`open(..., "rb")`）。二十笔 commit 无一触及 `canvas-vault/`（`git log --stat` 可验）。
+- **当前状态健康**：22 行校验器 exit 0、`RESULT: PASS`、恰七键、零重复 ID。
+- **不可恢复面（如实登记）**：该文件在 git 中 untracked（`??`），无版本历史；本卡存证只记录了行数与 SHA，**未留第 23 条的内容**。若那是一条真实学习事件，它现在无法从本卡产物中还原。
+- **性质判断**：回到**逐字节相同**的旧快照，更像**有意回滚**（本批次有 dogfood 车道会向真实账本写探针事件）而非损坏；但这是推断，非证明。
+
+⛔ **用户裁决点**：这次回退是否为你/另一车道有意为之？本卡不触碰 live vault，也不代做恢复。
+
+#### 其余 5 MEDIUM + 2 LOW（全清）
+
+| # | 级别 | 十九轮发现 | 处置 |
+|---|---|---|---|
+| 一 | MEDIUM | **未知 `event_version=2` 的合法行被 proof scanner 当 v1 解释并误拒**：主体按 §一 前向兼容规则跳过并只发 WARN，scanner 却在解析后直接取 v1 字段 —— 一条合法 v2 行（`vault=b`）让 `vault_ids={'a','b'}`，把 `vault=a` 的合法 proof 判成"不符"。**这是合法输入误拒，不是安全绕过** | **已修**：scanner 加版本分流 —— `event_version != 1` 记入 `unknown_version_lines` 并 fail-closed（"proof 无法解释未来版本的记录"），既不解释也不假装不存在。门里**显式断言不再出现"vault 不符"那种假阳性** |
+| 二 | MEDIUM | manifest 六键参数化取自**被测常量** `validator._SCHEDULER_CONFIG_KEYS` ⇒ 从该常量删一个键时参数集**同步缩小**，原 survivor 依旧全绿 | **已修**：参数改为**字面量元组**，并另加 `test_scheduler_config_key_set_matches_literal` 守住常量本身 |
+| 三 | MEDIUM | `review_ext_lines` 完整回退成旧 applicable 口径仍全绿 | **已修**：补门锁住二者的差异点——标了 `out_of_order` 的行**进分母、不进适用集**；分母若退回 applicable 则 `carried == total` 无违规，正确分母下报"仅 1/2 条 review/1 事件带 vault_id" |
+| 四 | MEDIUM | **三处同文门的正规化吞掉标识符内部空白**：`re.sub(r"\s+", "")` 让 `a / b` 与 `a/b` 判相同，门查不出实质措辞差异 | **已修**：改为"按空格重拼 + 折叠连续空白"（三处载体只在空格处折行，故该口径精确）；另加 `test_scope_normalizer_detects_internal_whitespace_change` 直接测正规化函数。⚠️ **严格化后三处同文仍成立**——不是靠宽松正规化蒙混 |
+| 五 | MEDIUM | 负验证的参数 id、Q mutation 语义及失败归因边界仍不可靠 | **部分修 + 边界已登记**：参数 id 已写全（十九轮已修）；失败归因边界（预期测试体内运行时异常也记 FAILED）已在脚本头如实登记，**不假装闭合** |
+| 六-七 | LOW | scanner docstring 仍写旧"适用事件"口径；UAT/CURRENT_TASK 的 live 数字漂移 | **已修**：docstring 三处键说明更新（`applicable` 补 `event_version==1`、`vault_ids` 说明含 out_of_order 行、新增 `review_ext_lines`/`unknown_version_lines`）；live 数字按当前 22 行/`2a18023e` 更新并保留时间线表 |
+
+**二十一轮负验证**：二十变体**全部承重**，脚本 exit 0。
+
+裁判实测：契约 **170 passed + 1 skipped**、三文件合跑 **195 passed + 1 skipped**、golden + `test_fsrs_manager.py` **56 passed**、现网账本（当前 22 行）exit 0 且前后 SHA 恒 `2a18023e`、锁定 blob 恒定。

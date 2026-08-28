@@ -479,13 +479,18 @@ def scan_ledger_bytes(raw: bytes, node_id: object) -> tuple[dict, list[str]]:
 
     返回 (scan, problems)。scan 各键:
       - `applicable`：[(行号, review_time, event_id)] —— node 相同、
-        `schema_ext == "review/1"`、未标 `out_of_order` 的事件;
+        `event_version == 1`、`schema_ext == "review/1"`、未标 `out_of_order`
+        (或标了但语义不成立) 的事件;
       - `node_event_lines`：该节点的**全部**事件行号 (不限 review/1) ——
         §6.2 genesis 锚要求的是"最早一条事件", 不是"最早适用事件";
       - `unextended_lines`：该节点**无 review/1 扩展**的事件行号 —— 存在即
         禁止走 new_card 分支 (§6.2: 账本历史不完整时须人工裁定);
       - `degraded_lines`：算法身份为 `degraded:*` 哨兵的适用事件行号;
-      - `vault_ids`：适用事件 payload 里出现过的 vault_id 集合;
+      - `vault_ids`：该节点**全部 review/1 事件** payload 里出现过的 vault_id
+        集合 (含标了 out_of_order 的行 —— round-18 HIGH: 若只收适用集, 一条合法
+        乱序行就能把另一个 vault 的事件藏起来);
+      - `review_ext_lines`：该节点全部 review/1 行的行号 (vault 覆盖率的分母);
+      - `unknown_version_lines`：event_version != 1 的行号 (proof 无法解释);
       - `bad_lines`：无法解码/解析的行号。
 
     ⚠️ 只接受**字节**而非路径: proof 校验必须在单一快照上完成, 否则抽取与
@@ -503,6 +508,7 @@ def scan_ledger_bytes(raw: bytes, node_id: object) -> tuple[dict, list[str]]:
         "review_ext_lines": [],
         "bad_lines": [],
         "blank_lines": [],
+        "unknown_version_lines": [],
     }
     for idx, chunk in enumerate(_split_ledger_lines(raw), start=1):
         if not chunk.strip():
@@ -518,6 +524,13 @@ def scan_ledger_bytes(raw: bytes, node_id: object) -> tuple[dict, list[str]]:
             scan["bad_lines"].append(idx)
             continue
         if not isinstance(record, dict) or record.get("node_id") != node_id:
+            continue
+        # round-19 Codex MEDIUM: 主体按 §一 前向兼容规则跳过未知 event_version,
+        # 而 scanner 原本解析后直接按 v1 取字段 —— 一条**合法的** v2 行会被当 v1
+        # 解释 (其 vault_id 进集合、其 review/1 标记被采信), 造成合法 proof 假阳性。
+        # proof 侧既不能解释它, 也不能假装它不存在 ⇒ 记录并 fail-closed。
+        if record.get("event_version") != EVENT_VERSION:
+            scan["unknown_version_lines"].append(idx)
             continue
         scan["node_event_lines"].append(idx)
         payload = record.get("payload")
@@ -694,6 +707,11 @@ def _verify_proof_level(
                 problems.append("E 所在行无终止 LF, 必须写 prefix_ends_without_lf: true")
             if not ends_without_lf and "prefix_ends_without_lf" in proof:
                 problems.append("E 所在行有终止 LF, 必须省略 prefix_ends_without_lf")
+        if scan["unknown_version_lines"]:
+            problems.append(
+                f"该节点第 {scan['unknown_version_lines']} 行的 event_version != {EVENT_VERSION} — "
+                f"proof 无法解释未来版本的记录 (§一 前向兼容: 读方须跳过而非按 v1 解释), fail-closed"
+            )
         if scan["blank_lines"]:
             problems.append(f"账本第 {scan['blank_lines']} 行是空行 — append-only JSONL 不应出现 (与主体校验同口径)")
         # round-16 Codex HIGH: 原实现只做**集合成员**判断 —— L1 vault=A、

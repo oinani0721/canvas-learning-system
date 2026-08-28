@@ -2088,7 +2088,24 @@ def test_out_of_order_at_exactly_watermark_is_not_misrejected(tmp_path):
     assert validator.verify_degraded_proof(proof, [], ledger_path=ledger) == []
 
 
-@pytest.mark.parametrize("missing", sorted(validator._SCHEDULER_CONFIG_KEYS))
+#: ⚠️ 字面量而非 `validator._SCHEDULER_CONFIG_KEYS` —— round-19 Codex MEDIUM:
+#: 参数来自被测常量时, 从该常量删掉一个键会让参数集**同步缩小**, survivor 依旧全绿。
+_REQUIRED_SCHEDULER_KEYS = (
+    "parameters",
+    "desired_retention",
+    "learning_steps_minutes",
+    "relearning_steps_minutes",
+    "maximum_interval",
+    "enable_fuzzing",
+)
+
+
+def test_scheduler_config_key_set_matches_literal():
+    """被测常量必须恰等于上面的字面量集合 (常量本身也要有门守着)。"""
+    assert validator._SCHEDULER_CONFIG_KEYS == frozenset(_REQUIRED_SCHEDULER_KEYS)
+
+
+@pytest.mark.parametrize("missing", _REQUIRED_SCHEDULER_KEYS)
 def test_manifest_missing_any_required_config_key_fails_closed(monkeypatch, missing):
     """manifest 的 scheduler_config **缺任一必要键**都必须 fail-closed。
 
@@ -2141,18 +2158,26 @@ def test_recursion_shares_ledger_vault_id(tmp_path):
 def _normalized_scope_items(lines, start_pred, end_pred):
     """从三种载体里抽出「不做的事」六条并正规化 (去缩进/注释前缀/换行/空白)。"""
     start = next(i for i, ln in enumerate(lines) if start_pred(ln))
-    end = next(i for i, ln in enumerate(lines[start:], start) if end_pred(ln))
+    end = next((i for i, ln in enumerate(lines[start:], start) if end_pred(ln)), len(lines))
     items, cur = [], None
+
+    def _finish(text):
+        # round-19 Codex MEDIUM: 原实现 re.sub(r"\s+", "") 把**标识符内部**的空白
+        # 也吞掉 —— "review_time / event_id" 与 "review_time/event_id" 会判相同,
+        # 门就查不出实质措辞差异。三处载体只在**空格处**折行, 故正确做法是
+        # 「按空格重新拼接 + 折叠连续空白」, 而不是全删空白。
+        return re.sub(r"\s+", " ", text).strip()
+
     for ln in lines[start:end]:
         stripped = re.sub(r"^[#\s]*", "", ln.rstrip())
         if re.match(r"^[①②③④⑤⑥]", stripped):
             if cur:
-                items.append(re.sub(r"\s+", "", cur))
+                items.append(_finish(cur))
             cur = stripped
         elif cur is not None and stripped:
-            cur += stripped
+            cur += " " + stripped
     if cur:
-        items.append(re.sub(r"\s+", "", cur))
+        items.append(_finish(cur))
     return items
 
 
@@ -2183,3 +2208,65 @@ def test_scope_declaration_is_identical_in_three_places():
     )
     for idx, (a, b, c) in enumerate(zip(module_items, doc_items, schema_items), 1):
         assert a == b == c, f"第 {idx} 条三处不同文:\n模块: {a}\ndocstring: {b}\nschema: {c}"
+
+
+# ── round-20: Codex 十九轮 ──
+
+
+def test_unknown_event_version_is_not_interpreted_as_v1(tmp_path):
+    """未知 `event_version` 的行不得被 proof scanner 当 v1 解释 (十九轮 MEDIUM)。
+
+    主体按 §一 前向兼容规则跳过并 WARN, 而 scanner 原本解析后直接取 v1 字段 ——
+    一条**合法的** v2 行 (vault=b) 会让 `vault_ids={'a','b'}`, 使 vault=a 的
+    合法 proof 被假阳性拒绝。proof 侧既无法解释它也不能假装它不存在 ⇒ fail-closed。
+    """
+    future = json.loads(_event("v2row", _T1, vault_id="b"))
+    future["event_version"] = 2
+    ledger = _ledger_with(tmp_path, [_event("e1", _T2, vault_id="a"), json.dumps(future)], vault_id=None)
+
+    scan, _ = validator.scan_ledger_bytes(ledger.read_bytes(), "n")
+    assert scan["unknown_version_lines"] == [2], scan
+    assert scan["vault_ids"] == {"a"}, "v2 行的 vault 不得进入 v1 集合"
+    assert scan["node_event_lines"] == [1], "v2 行不得计入 v1 事件行"
+
+    prefix, _, _ = validator.ledger_prefix(ledger, 1)
+    proof = _leaf(1, _T2, first_event_line=1, vault_id="a", ledger_prefix_sha256=prefix)
+    problems = validator.verify_degraded_proof(proof, [], ledger_path=ledger)
+    assert any("event_version" in p and "fail-closed" in p for p in problems), problems
+    # 关键: 不得是"vault 不符"那种假阳性
+    assert not any("vault_id 与账本事件不符" in p for p in problems), problems
+
+
+def test_vault_coverage_denominator_counts_out_of_order_rows(tmp_path):
+    """vault 覆盖率的分母是**全部 review/1 行**, 不是适用集。
+
+    十九轮 MEDIUM: `review_ext_lines` 完整回退成旧 applicable 口径时原测试仍全绿 ——
+    差异点正是"标了 out_of_order 的行进分母、不进适用集"。
+    """
+    ooo = json.loads(_event("ooo", "2025-12-01T10:00:00Z"))  # 更早 ⇒ 真乱序; 且不带 vault_id
+    ooo["payload"]["out_of_order"] = True
+    ledger = _ledger_with(tmp_path, [_event("e1", _T1, vault_id="v"), json.dumps(ooo)], vault_id=None)
+
+    scan, _ = validator.scan_ledger_bytes(ledger.read_bytes(), "n")
+    assert scan["review_ext_lines"] == [1, 2], scan["review_ext_lines"]
+    assert [line for line, _, _ in scan["applicable"]] == [1]
+
+    prefix, _, _ = validator.ledger_prefix(ledger, 1)
+    proof = _leaf(1, _T1, first_event_line=1, vault_id="v", ledger_prefix_sha256=prefix)
+    problems = validator.verify_degraded_proof(proof, [], ledger_path=ledger)
+    # 分母若退回 applicable(=1), carried==total ⇒ 无违规; 正确分母是 2 ⇒ 报 1/2
+    assert any("仅 1/2 条 review/1 事件带 vault_id" in p for p in problems), problems
+
+
+def test_scope_normalizer_detects_internal_whitespace_change():
+    """三处同文门的正规化不得吞掉标识符内部空白 (十九轮 MEDIUM)。
+
+    原实现 `re.sub(r"\\s+", "")` 会把 "a / b" 与 "a/b" 判成相同 —— 门就查不出
+    实质措辞差异。本条直接测正规化函数本身。
+    """
+    a = _normalized_scope_items(["# ① review_time / event_id;"], lambda ln: True, lambda ln: False)
+    b = _normalized_scope_items(["# ① review_time/event_id;"], lambda ln: True, lambda ln: False)
+    assert a != b, "内部空白差异必须可被区分"
+    # 而**折行**造成的差异必须被正规化吸收
+    wrapped = _normalized_scope_items(["# ① review_time /", "#    event_id;"], lambda ln: True, lambda ln: False)
+    assert wrapped == a, (wrapped, a)
