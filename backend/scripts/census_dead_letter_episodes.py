@@ -82,10 +82,12 @@ def _split_jsonl_lines(raw: bytes) -> list[tuple[str, str | None]]:
       UTF-8 静默改写成合法对象，让坏字节冒充有效记录。解码失败的行带错误信息
       返回，由调用方归入 unparseable。
     """
-    if raw.endswith(b"\n"):
+    had_trailing_lf = raw.endswith(b"\n")
+    if had_trailing_lf:
         raw = raw[:-1]
     if not raw:
-        return []
+        # round-5 LOW 整改: 单独 b"\n" 是一个空行，不是 0 行
+        return [("", None)] if had_trailing_lf else []
     out: list[tuple[str, str | None]] = []
     for chunk in raw.split(b"\n"):
         try:
@@ -116,10 +118,18 @@ def inline_state(rec: dict) -> tuple[str, str]:
     declared_len = rec.get("episode_body_length")
     declared_sha = rec.get("episode_body_sha256", "")
     sha_wellformed = isinstance(declared_sha, str) and bool(_SHA256_HEX_PAT.match(declared_sha))
-    recomputed = hashlib.sha256(body.encode("utf-8", errors="replace")).hexdigest()
-    if sha_wellformed and recomputed == declared_sha and len(body) == declared_len:
+    # round-5 LOW 整改: errors="replace" 会把 JSON escaped lone surrogate
+    # (\udXXX) 改写成 replacement char，可被构造出"对得上账"的假 full_verified。
+    # 改 strict：无法编码即判 anomaly。
+    try:
+        body_bytes = body.encode("utf-8")
+    except UnicodeEncodeError:
+        return "anomaly", "FAIL"
+    recomputed = hashlib.sha256(body_bytes).hexdigest()
+    len_ok = isinstance(declared_len, int) and not isinstance(declared_len, bool)
+    if sha_wellformed and recomputed == declared_sha and len_ok and len(body) == declared_len:
         return "full_verified", "pass"
-    if sha_wellformed and len(body) == 200 and isinstance(declared_len, int) and declared_len > 200:
+    if sha_wellformed and len(body) == 200 and len_ok and declared_len > 200:
         return "truncated_prefix", "prefix_only"
     return "anomaly", "FAIL"
 
@@ -135,9 +145,14 @@ def full_body_verified(rec: dict) -> bool:
     declared_len = rec.get("episode_body_length")
     if not isinstance(full, str) or not _SHA256_HEX_PAT.match(str(declared_sha)):
         return False
-    if not isinstance(declared_len, int) or len(full) != declared_len:
+    # round-5 LOW 整改: bool 是 int 子类 —— episode_body_length=True 会通过长度门
+    if not isinstance(declared_len, int) or isinstance(declared_len, bool) or len(full) != declared_len:
         return False
-    return hashlib.sha256(full.encode("utf-8", errors="replace")).hexdigest() == declared_sha
+    try:
+        full_bytes = full.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return hashlib.sha256(full_bytes).hexdigest() == declared_sha
 
 
 def session_tokens(name: object) -> list[str]:
@@ -153,74 +168,90 @@ def session_tokens(name: object) -> list[str]:
 
 
 def resolve_group_attribution(tokens: list[str], transcripts_dir: Path) -> dict:
-    """组级归因，fail-closed: 前缀一致门 + 恰 1 个常规文件命中门。"""
+    """组级归因，fail-closed。
+
+    round-5 BLOCKER① 整改: **先扫描后判定**。原实现在 token 冲突/无 token 时
+    扫描前早退，导致这些候选从未进入 all_candidate_paths → 不进 --out 保护集
+    → 可被无竞态截断。现无条件对每个 token 扫描收集候选（保护集所需），
+    再做冲突/唯一性判定。
+    """
     result = {
         "session_token": None,
         "transcript_paths": [],
         "transcript_exists": False,
         "transcript_match_count": 0,
         "attribution_conflict": False,
-        # round-4 BLOCKER① 整改: 保护集必须覆盖**所有见到的候选**（含不可读、
-        # 含被冲突分支清空的）—— 否则 mode 0200（不可读但可写）的 transcript
-        # 不进保护集，--out 指向它仍会被截断。
+        # 保护集必须覆盖**所有见到的候选**（含不可读、含被冲突分支排除的）
         "all_candidate_paths": [],
     }
     uniq = sorted(set(tokens), key=len)
-    if not uniq:
-        return result
-    longest = uniq[-1]
-    if any(not longest.startswith(t) for t in uniq[:-1]):
-        result["attribution_conflict"] = True
-        return result
-    result["session_token"] = longest
-    # round-2 HIGH-3: 拒绝 symlink 条目与逃逸到根外的目标（glob 会跟随 symlink，
-    # 根内 .jsonl→根外 .txt 曾被当唯一来源采信）。
-    # round-3 整改: 改 os.walk(onerror=) —— glob 对不可读的中间目录**静默跳过**，
-    # 会把"没搜到"与"搜不了"混为一谈，产出假 unrecoverable。遍历出错即 fail-closed。
+
     root_real = os.path.realpath(transcripts_dir)
+    root_prefix = root_real if root_real.endswith(os.sep) else root_real + os.sep
     walk_errors: list[str] = []
 
     def _on_walk_error(err: OSError) -> None:
         walk_errors.append(f"{getattr(err, 'filename', '?')}: {err}")
 
-    matches = []
-    unreadable: list[str] = []
+    # 单次遍历收集**每个 token** 的候选（无条件，供保护集与判定共用）
+    per_token: dict[str, list[str]] = {t: [] for t in uniq}
     all_candidates: list[str] = []
-    for dirpath, dirnames, filenames in os.walk(transcripts_dir, onerror=_on_walk_error, followlinks=False):
-        for fname in filenames:
-            if not (fname.startswith(longest) and fname.endswith(".jsonl")):
-                continue
-            candidate = os.path.join(dirpath, fname)
-            if os.path.islink(candidate) or not os.path.isfile(candidate):
-                continue
-            # round-3 整改: isfile() 对 mode 000 仍为 True —— 不可读的文件
-            # 不是可用恢复源，计入 unreadable 而非命中（fail-closed）。
-            all_candidates.append(candidate)
-            if not os.access(candidate, os.R_OK):
-                unreadable.append(candidate)
-                continue
-            real = os.path.realpath(candidate)
-            # round-4 LOW 整改: root="/" 时 root_real+sep=="//" 会让合法子项全假
-            root_prefix = root_real if root_real.endswith(os.sep) else root_real + os.sep
-            if not real.startswith(root_prefix):
-                continue  # 目录 symlink 逃逸
-            matches.append(candidate)
-    matches = sorted(matches)
-    result["all_candidate_paths"] = sorted(all_candidates)
-    if unreadable:
-        # 存在同名但不可读的候选 —— 源不完全可见，拒绝据此裁定
-        result["unreadable_candidates"] = unreadable[:5]
+    unreadable: list[str] = []
+    stat_failures: list[str] = []
+    if uniq:
+        for dirpath, _dirnames, filenames in os.walk(transcripts_dir, onerror=_on_walk_error, followlinks=False):
+            for fname in filenames:
+                if not fname.endswith(".jsonl"):
+                    continue
+                matched = [t for t in uniq if fname.startswith(t)]
+                if not matched:
+                    continue
+                candidate = os.path.join(dirpath, fname)
+                # 候选一律入 all_candidate_paths（保护集口径），再谈可用性
+                all_candidates.append(candidate)
+                try:
+                    if os.path.islink(candidate) or not os.path.isfile(candidate):
+                        continue
+                except OSError as e:
+                    stat_failures.append(f"{candidate}: {e}")
+                    continue
+                if not os.access(candidate, os.R_OK):
+                    unreadable.append(candidate)
+                    continue
+                real = os.path.realpath(candidate)
+                if not real.startswith(root_prefix):
+                    continue  # 目录 symlink 逃逸
+                for t in matched:
+                    per_token[t].append(candidate)
+    result["all_candidate_paths"] = sorted(set(all_candidates))
+
+    if not uniq:
+        # 无 token: 未做任何归因扫描 —— 不是"确认无源"（round-5 MEDIUM 整改）
         result["attribution_conflict"] = True
-        result["transcript_paths"] = []
-        result["transcript_match_count"] = 0
+        result["no_token"] = True
         return result
+
+    longest = uniq[-1]
+    if any(not longest.startswith(t) for t in uniq[:-1]):
+        result["attribution_conflict"] = True
+        result["token_conflict"] = True
+        return result
+    result["session_token"] = longest
+
     if walk_errors:
-        # 源不完全可见 —— 拒绝据此裁定（既不宣称找到，也不宣称不可恢复）
         result["scan_errors"] = walk_errors[:5]
         result["attribution_conflict"] = True
-        result["transcript_paths"] = []
-        result["transcript_match_count"] = 0
         return result
+    if stat_failures:
+        result["stat_failures"] = stat_failures[:5]
+        result["attribution_conflict"] = True
+        return result
+    if unreadable:
+        result["unreadable_candidates"] = unreadable[:5]
+        result["attribution_conflict"] = True
+        return result
+
+    matches = sorted(set(per_token[longest]))
     result["transcript_paths"] = matches
     result["transcript_match_count"] = len(matches)
     if len(matches) == 1:
@@ -230,16 +261,46 @@ def resolve_group_attribution(tokens: list[str], transcripts_dir: Path) -> dict:
     return result
 
 
-def probe_qa_metrics(db_path: Path, error_types: list[str]) -> dict:
-    """只读核销 qa_metrics.db 能否作为源指针（URI mode=ro，无写路径）。"""
+def probe_qa_metrics(db_path: Path, error_types: list[str]) -> tuple[dict, tuple[int, int] | None]:
+    """只读核销 qa_metrics.db（URI mode=ro，无写路径）。返回 (结果, 实际身份)。
+
+    round-5 BLOCKER②/MEDIUM 整改: 原实现按路径 stat 取身份、SQLite 稍后按路径
+    重新打开 —— 两者可能不是同一对象，且无 regular-file/nonblocking 门（FIFO
+    会阻塞）。现: fd 打开取 fstat 身份 + S_ISREG 门 → SQLite 打开 → 复核路径
+    身份仍等于该身份，不等即拒绝（不采信被换入的对象）。
+    """
     result: dict = {"db_path": str(db_path), "opened_readonly": False}
     if not db_path.exists():
         result["verdict"] = "db_missing"
-        return result
+        return result, None
+    try:
+        fd = os.open(db_path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except OSError as e:
+        result["verdict"] = f"open_refused: {e}"
+        return result, None
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode):
+            result["verdict"] = "not_regular_file_refused"
+            return result, None
+        identity = (st.st_dev, st.st_ino)
+    finally:
+        os.close(fd)
+
     uri = f"file:{db_path}?mode=ro"
     conn = sqlite3.connect(uri, uri=True)
     try:
+        # 复核 SQLite 实际打开的路径身份仍是我们验证过的对象
+        try:
+            recheck = os.stat(db_path)
+        except OSError as e:
+            result["verdict"] = f"recheck_stat_failed: {e}"
+            return result, identity
+        if (recheck.st_dev, recheck.st_ino) != identity:
+            result["verdict"] = "identity_changed_between_verify_and_open_refused"
+            return result, identity
         result["opened_readonly"] = True
+        result["file_identity_verified"] = True
         tables = [
             r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
         ]
@@ -256,7 +317,7 @@ def probe_qa_metrics(db_path: Path, error_types: list[str]) -> dict:
             result["verdict"] = "qa_error_logs_table_missing"
     finally:
         conn.close()
-    return result
+    return result, identity
 
 
 def snapshot_file(path: Path) -> tuple[bytes, dict, tuple[int, int]]:
@@ -458,27 +519,29 @@ def main(argv: list[str] | None = None) -> int:
             recover = "byte_exact"
             basis = "inline 正文全量：sha256 重算与声明一致且长度精确匹配"
         elif state != "anomaly" and full_body_verified(rec):
-            # round-2 HIGH-1 整改: anomaly 记录不得经 full_body 分支翻案
             recover = "byte_exact"
             basis = "episode_body_full 在盘且 sha256+长度双门对账通过（DEAD_LETTER_STORE_FULL_BODY 生产 opt-in 字段）"
+        elif sess["attribution_conflict"]:
+            # round-5 HIGH 整改: 可见性判定**优先于** anomaly —— 源看不见时
+            # 无论 inline 是什么状态，都不能断言"不可恢复"。
+            recover = "unverifiable"
+            if sess.get("no_token"):
+                why = "记录名未携带 session token，未做任何归因扫描"
+            elif sess.get("token_conflict"):
+                why = "同组多 token 前缀冲突"
+            elif sess.get("scan_errors"):
+                why = "扫描遍历受阻（不可读子树）"
+            elif sess.get("stat_failures"):
+                why = "候选 stat 失败"
+            elif sess.get("unreadable_candidates"):
+                why = "存在不可读候选"
+            else:
+                why = "transcript 多命中 ambiguous"
+            extra = "；inline 亦对不上账（anomaly）" if state == "anomaly" else ""
+            basis = f"源可见性不足，拒绝裁定：{why}{extra}。既不宣称可恢复，也不宣称不可恢复（fail-closed）"
         elif state == "anomaly":
             recover = "unrecoverable"
-            basis = "inline 对不上账（anomaly：sha/长度与声明不符），fail-closed 不采信截断前缀假设，也不采信 transcript 归因"
-        elif sess["attribution_conflict"]:
-            # round-4 HIGH 整改: 归因冲突/多命中/扫描受阻 ≠ "源不存在"。
-            # 终态化为 unrecoverable 是不诚实的断言 —— 单列 unverifiable。
-            recover = "unverifiable"
-            basis = (
-                "源可见性不足，拒绝裁定："
-                + (
-                    "扫描遍历受阻（不可读子树）"
-                    if sess.get("scan_errors")
-                    else "存在不可读候选"
-                    if sess.get("unreadable_candidates")
-                    else "多 token 前缀冲突或 transcript 多命中 ambiguous"
-                )
-                + "。既不宣称可恢复，也不宣称不可恢复（fail-closed）"
-            )
+            basis = "inline 对不上账（anomaly：sha/长度与声明不符），且归因扫描完整可见但无可用源"
         elif sess["transcript_exists"]:
             recover = "approximate"
             basis = (
@@ -488,7 +551,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         else:
             recover = "unrecoverable"
-            basis = "inline 截断且无在盘上游源"
+            basis = "inline 截断；归因扫描完整可见（无遍历错误/无不可读候选）但未找到任何在盘上游源"
         class_dist[cls] += 1
         recover_dist[recover] += 1
         inline_dist[state] += 1
@@ -546,14 +609,15 @@ def main(argv: list[str] | None = None) -> int:
         if cid is not None:
             protected_ids.add(cid)
 
-    qa_probe = (
-        probe_qa_metrics(
+    if args.qa_metrics_db:
+        qa_probe, qa_identity = probe_qa_metrics(
             Path(args.qa_metrics_db),
-            [r.get("error_type", "") for _, r in records],
+            [str(r.get("error_type", "")) for _, r in records],
         )
-        if args.qa_metrics_db
-        else {"verdict": "skipped_no_db_arg"}
-    )
+        if qa_identity is not None:
+            protected_ids.add(qa_identity)  # 保护实际验证过的对象身份
+    else:
+        qa_probe = {"verdict": "skipped_no_db_arg"}
 
     deviation = {
         k: {"expected": EXPECTED_CLASS_DIST.get(k, 0), "actual": class_dist.get(k, 0)}
@@ -601,8 +665,10 @@ def main(argv: list[str] | None = None) -> int:
             try:
                 tst = os.stat(tpath)
                 protected_ids.add((tst.st_dev, tst.st_ino))
-            except OSError:
-                continue
+            except OSError as e:
+                # round-5 整改: 候选 stat 失败不再静默吞 —— 保护集不完整即拒绝写出
+                print(f"候选源无法 stat，保护集不完整，拒绝写出: {tpath} ({e})", file=sys.stderr)
+                return 2
     for rec_out in ledger_records:
         for tpath in rec_out.get("transcript_paths", []):
             try:
@@ -627,15 +693,17 @@ def main(argv: list[str] | None = None) -> int:
             if not stat.S_ISREG(st.st_mode):
                 print(f"--out 不是常规文件（FIFO/设备/socket），拒绝写出: {args.out}", file=sys.stderr)
                 return 2
-            # round-4 LOW 整改: 0o600 只作用于新建 —— 既有文件显式收紧
-            if st.st_mode & 0o077:
-                os.fchmod(fd, 0o600)
+            # round-5 HIGH 整改: 碰撞检查必须**先于** fchmod —— 否则 --out 指向
+            # 受保护的 0644 输入时，会先把只读输入的权限改成 0600 再拒绝。
             if (st.st_dev, st.st_ino) in protected_ids:
                 print(
                     f"--out 打开后经 fstat 判定与输入文件同一 inode，拒绝写出（防截断）: {args.out}",
                     file=sys.stderr,
                 )
                 return 2
+            # 碰撞检查通过后才收紧权限（round-4 LOW: 0o600 只作用于新建）
+            if st.st_mode & 0o077:
+                os.fchmod(fd, 0o600)
             os.ftruncate(fd, 0)
             with os.fdopen(fd, "w", encoding="utf-8", closefd=True) as f:
                 fd = -1  # 所有权移交 fdopen

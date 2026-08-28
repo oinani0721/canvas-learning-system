@@ -1,6 +1,6 @@
 {
  "card": "CARD-G4-9",
- "generated_at": "2026-08-28T11:53:47.688306+00:00",
+ "generated_at": "2026-08-28T12:23:16.503247+00:00",
  "privacy": "private-only: transcript_paths 含本机用户名与 session UUID，禁止外发/公网发布",
  "stable_key_semantics": "冻结快照（dlq_file.sha256）内的 occurrence key；line_no 在快照内唯一，sha256_prefix/request_id 为冗余对账维度——非跨文件重排或语义幂等键",
  "dlq_file": {
@@ -65,7 +65,23 @@
  },
  "unrecoverable_list": [],
  "unverifiable_list": [],
- "attribution_conflicts": [],
+ "attribution_conflicts": [
+  {
+   "line_no": 1,
+   "sha256_prefix": "7e33da5e96e6239f",
+   "request_id": "281466113679440"
+  },
+  {
+   "line_no": 2,
+   "sha256_prefix": "b91bf262cadab596",
+   "request_id": "281466014769488"
+  },
+  {
+   "line_no": 3,
+   "sha256_prefix": "55b1b793b99778eb",
+   "request_id": "281466427090256"
+  }
+ ],
  "duplicate_clusters": [
   {
    "name": "session-archive:426ffbde-15f6-4b",
@@ -148,6 +164,7 @@
  "qa_metrics_probe": {
   "db_path": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/backend/data/qa_metrics.db",
   "opened_readonly": true,
+  "file_identity_verified": true,
   "tables": [
    "qa_error_logs"
   ],
@@ -181,7 +198,7 @@
    "session_token": null,
    "transcript_paths": [],
    "transcript_match_count": 0,
-   "attribution_conflict": false,
+   "attribution_conflict": true,
    "recoverability": "byte_exact",
    "recoverability_basis": "inline 正文全量：sha256 重算与声明一致且长度精确匹配"
   },
@@ -206,7 +223,7 @@
    "session_token": null,
    "transcript_paths": [],
    "transcript_match_count": 0,
-   "attribution_conflict": false,
+   "attribution_conflict": true,
    "recoverability": "byte_exact",
    "recoverability_basis": "inline 正文全量：sha256 重算与声明一致且长度精确匹配"
   },
@@ -231,7 +248,7 @@
    "session_token": null,
    "transcript_paths": [],
    "transcript_match_count": 0,
-   "attribution_conflict": false,
+   "attribution_conflict": true,
    "recoverability": "byte_exact",
    "recoverability_basis": "inline 正文全量：sha256 重算与声明一致且长度精确匹配"
   },
