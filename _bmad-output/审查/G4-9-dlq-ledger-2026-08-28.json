@@ -1,6 +1,6 @@
 {
  "card": "CARD-G4-9",
- "generated_at": "2026-08-28T13:12:17.818410+00:00",
+ "generated_at": "2026-08-28T13:35:50.981742+00:00",
  "privacy": "private-only: transcript_paths 含本机用户名与 session UUID，禁止外发/公网发布",
  "stable_key_semantics": "冻结快照（dlq_file.sha256）内的 occurrence key；line_no 在快照内唯一，sha256_prefix/request_id 为冗余对账维度——非跨文件重排或语义幂等键",
  "dlq_file": {
@@ -164,7 +164,9 @@
  "qa_metrics_probe": {
   "db_path": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/backend/data/qa_metrics.db",
   "opened_readonly": true,
+  "bytes_read_from_verified_fd": 16384,
   "file_identity_verified": true,
+  "read_mode": "in_memory_deserialize_from_verified_fd",
   "tables": [
    "qa_error_logs"
   ],

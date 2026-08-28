@@ -46,6 +46,8 @@ worktree: "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktre
 | round-6 findings 整改 | **架构级修复 + 6 项**：新增不依赖枚举的**路径层防御**（--out 禁落 transcripts 根内 / 禁等于任一输入 realpath）、QA DB 验证 fd 保持打开至复核完毕、no_token 亦扫描、证据包重生成、ledger 冲突原因自描述、lone surrogate 回退。反例实测：0333 隐藏目录内 transcript 作 --out → exit 2 完好 | 报告 §7g |
 | Codex 复审 round-7 | **关键裁定分离**："92 条冻结 ledger **可以采信**；生成器与 UAT 的纯只读安全声明不可验收"——卡面 census 判据已满足，阻断全在工具安全承诺侧。1 BLOCKER（大小写别名根，无需竞态）+ 4 项路径 TOCTOU + 1 MEDIUM（非原子写）+ 2 LOW | `_bmad-output/审查/codex-review-CARD-G4-9-round7.md` |
 | round-7 findings 整改 | **架构级第二次修复**：写出改 O_EXCL 临时文件+fsync+os.replace（**全文再无 ftruncate 调用**），五项绕过整类失效；containment 改 inode 逐级比较（normcase 在 POSIX 是恒等函数，我的假设错了）；扫描受阻直接拒绝写出。实测：根外 hardlink 指向根内 transcript 作 --out → 源内容完好 | 报告 §7h |
+| Codex 复审 round-8 | 重申裁定分离：**「可验收：92 条冻结 ledger snapshot；不可验收：生成器一般安全性与 UAT 的纯只读声明」**。3 新 BLOCKER（SQLite URI 未转义 #/? / QA DB 仍按 pathname 开可 ABA / 根内末级 symlink 因 rename 不解析而被替换）+ 1 HIGH + 1 MEDIUM | `_bmad-output/审查/codex-review-CARD-G4-9-round8.md` |
+| round-8 findings 整改 | **6/6 完成**：QA DB 改「已验证 fd 读字节 → 内存库 deserialize」（URI 转义与 ABA 一并消失，含 #? 路径实测通过）；containment 加父目录语义（POSIX rename 不解析末级 symlink）；扫描受阻去掉 and args.out（stdout 模式亦拒）；replace 纳入 try + fsync 父目录 | 报告 §7i |
 | 独立 Workflow 4-agent 复核 | G4-9 数字 agent：92 条重算 **0 mismatch**（class/inline/三态/25 request_id/7 transcript 在盘/台账 sha 全 CONFIRMED，仅 2 处描述区间 REFUTED 已修正）；只读契约 agent：与 Codex 同源的 3 条 blocker（已随上整改） | Workflow wf_737b1a95-20b journal |
 
 ## 🔧 Codex round-1 整改记录（13/13 关闭，BLOCKED → 整改完毕）
@@ -131,6 +133,18 @@ round-7 把结论分成了两半，这个区分很重要：
 - **扫描受阻不再只是标记**：看不全就意味着保护集不完整，现在直接拒绝写出台账。
 
 round-7 整改后第七次全量重跑：**92 条、4/88/0/0、89/2/1、6/29、shasum 不变、台账 0600、无临时文件残留——七轮整改数字全程未变**。
+
+## 🔧 Codex round-8 复审整改记录（裁定分离重申 + 3 BLOCKER 全闭）
+
+round-8 把结论说得更清楚了：**「可验收：92 条冻结 ledger snapshot。不可验收：生成器的一般安全性，以及验收单里那句"纯只读、唯一写出口、整类 TOCTOU 已消失"」**。
+
+三条新 BLOCKER 都成立，其中两条有同一个彻底解法：
+
+- **SQLite 打开方式**：`file:路径?mode=ro` 这种写法，路径里只要有个 `#`，`mode=ro` 就掉进 URI 的 fragment 被忽略，SQLite 可能按默认的**读写模式**打开——这直接推翻"唯一写出口"。而且就算持有验证过的文件描述符，SQLite 还是按路径自己去开，中间被换掉也发现不了。→ 改成从**已验证的文件描述符读出全部字节，灌进内存数据库**。SQLite 从此不碰路径，两个问题一起消失。
+- **根内的软链接**：POSIX 规定重命名操作**不跟随末级软链接**。所以 `--out` 如果是恢复源目录里的一个软链接（指向外面），我按"它指向哪"判断会放行，但实际被替换的是**目录里那个链接本身**。→ 判定改看**父目录在不在恢复源里**。
+- **stdout 模式漏网**：扫描受阻的拒绝条件我写成了"且指定了 --out"，于是省略 `--out` 就能绕过。→ 去掉该条件。
+
+round-8 整改后第八次全量重跑：**92 条、4/88/0/0、89/2/1、6/29、shasum 不变、无 tmp 残留——八轮整改数字全程未变**。
 
 ## 📄 交付物清单（全部新增，零业务代码改动）
 

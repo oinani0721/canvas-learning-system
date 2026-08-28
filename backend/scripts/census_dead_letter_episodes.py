@@ -258,6 +258,13 @@ def resolve_group_attribution(tokens: list[str], transcripts_dir: Path) -> dict:
                     per_token[t].append(candidate)
     result["all_candidate_paths"] = sorted(set(all_candidates))
 
+    # round-8 HIGH 整改: 早退分支也必须携带扫描错误 —— 否则 no_token /
+    # token_conflict 组的 walk 错误不会进入 scan_blocked 判定。
+    if walk_errors:
+        result["scan_errors"] = walk_errors[:5]
+    if stat_failures:
+        result["stat_failures"] = stat_failures[:5]
+
     if not uniq:
         # 无 token: 未做任何归因扫描 —— 不是"确认无源"（round-5 MEDIUM 整改）
         result["attribution_conflict"] = True
@@ -295,12 +302,13 @@ def resolve_group_attribution(tokens: list[str], transcripts_dir: Path) -> dict:
 
 
 def probe_qa_metrics(db_path: Path, error_types: list[str]) -> tuple[dict, tuple[int, int] | None]:
-    """只读核销 qa_metrics.db（URI mode=ro，无写路径）。返回 (结果, 实际身份)。
+    """只读核销 qa_metrics.db。返回 (结果, 实际读取对象身份)。
 
-    round-5 BLOCKER②/MEDIUM 整改: 原实现按路径 stat 取身份、SQLite 稍后按路径
-    重新打开 —— 两者可能不是同一对象，且无 regular-file/nonblocking 门（FIFO
-    会阻塞）。现: fd 打开取 fstat 身份 + S_ISREG 门 → SQLite 打开 → 复核路径
-    身份仍等于该身份，不等即拒绝（不采信被换入的对象）。
+    round-8 BLOCKER①② 整改: 不再让 SQLite 按 **路径** 打开 —— 那既有 URI 转义
+    问题（路径含 ``?``/``#`` 时 ``mode=ro`` 会落进被忽略的 fragment，SQLite 可能
+    按默认读写模式打开），又有 A→B→A 的 ABA（验证 fd 是 A，connection 却可能读
+    到 B）。改为从**已验证的 fd** 读全量字节 → ``sqlite3`` 内存库
+    ``deserialize``：全程不经路径、不落任何文件，两个问题一并消失。
     """
     result: dict = {"db_path": str(db_path), "opened_readonly": False}
     if not db_path.exists():
@@ -311,34 +319,37 @@ def probe_qa_metrics(db_path: Path, error_types: list[str]) -> tuple[dict, tuple
     except OSError as e:
         result["verdict"] = f"open_refused: {e}"
         return result, None
-    # round-6 BLOCKER② 整改: 验证 fd **保持打开**直到 SQLite 连接建立并复核完毕
-    # —— 原实现验证后即关闭，SQLite 按路径重开可被 A→B→A 的 ABA 骗过。
-    conn = None
     try:
         st = os.fstat(fd)
         if not stat.S_ISREG(st.st_mode):
             result["verdict"] = "not_regular_file_refused"
             return result, None
         identity = (st.st_dev, st.st_ino)
+        chunks = []
+        while True:
+            block = os.read(fd, 1 << 20)
+            if not block:
+                break
+            chunks.append(block)
+        db_bytes = b"".join(chunks)
+        result["bytes_read_from_verified_fd"] = len(db_bytes)
+    finally:
+        os.close(fd)
 
-        uri = f"file:{db_path}?mode=ro"
-        conn = sqlite3.connect(uri, uri=True)
-        # 连接建立后在**持有验证 fd 的同时**复核路径身份
-        try:
-            recheck = os.stat(db_path)
-        except OSError as e:
-            result["verdict"] = f"recheck_stat_failed: {e}"
-            return result, identity
-        if (recheck.st_dev, recheck.st_ino) != identity:
-            result["verdict"] = "identity_changed_between_verify_and_open_refused"
-            return result, identity
-        # 再次 fstat 验证 fd：确认它仍指向同一对象且未被 unlink 替换
-        st2 = os.fstat(fd)
-        if (st2.st_dev, st2.st_ino) != identity or st2.st_nlink == 0:
-            result["verdict"] = "verified_fd_invalidated_refused"
-            return result, identity
+    conn = None
+    try:
+        conn = sqlite3.connect(":memory:")
+        conn.deserialize(db_bytes)
+    except Exception as e:  # noqa: BLE001 — 非法/加密 DB 如实记录，不中断 census
+        result["verdict"] = f"deserialize_failed: {str(e)[:80]}"
+        if conn is not None:
+            conn.close()
+        return result, identity
+
+    try:
         result["opened_readonly"] = True
         result["file_identity_verified"] = True
+        result["read_mode"] = "in_memory_deserialize_from_verified_fd"
         tables = [
             r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
         ]
@@ -354,9 +365,7 @@ def probe_qa_metrics(db_path: Path, error_types: list[str]) -> tuple[dict, tuple
         else:
             result["verdict"] = "qa_error_logs_table_missing"
     finally:
-        if conn is not None:
-            conn.close()
-        os.close(fd)
+        conn.close()
     return result, identity
 
 
@@ -460,7 +469,12 @@ def main(argv: list[str] | None = None) -> int:
         # round-7 BLOCKER 整改: 用 **inode 身份逐级比较**（_path_is_within），
         # 不用路径字符串前缀 —— normcase 在 POSIX 上是恒等函数，大小写不敏感
         # 卷上的别名根（/Users vs /users）realpath 字符串不同但 samefile=True。
-        if _path_is_within(args.out, args.transcripts_dir):
+        # round-8 BLOCKER③ 整改: rename/replace **不解析末级 symlink**（POSIX），
+        # 故 --out 若是根内的 symlink（指向根外），realpath 会判"根外"而放行，
+        # 但 replace 实际替换的是根内那个目录项。判定改用**父目录**语义 +
+        # lstat 末级：父目录在根内 → 拒绝；末级本身是 symlink 也按其所在目录判。
+        out_parent = os.path.dirname(os.path.abspath(args.out)) or "."
+        if _path_is_within(out_parent, args.transcripts_dir) or _path_is_within(args.out, args.transcripts_dir):
             print(
                 f"--out 落在 transcripts 根内（恢复源区域），无条件拒绝写出: {args.out}",
                 file=sys.stderr,
@@ -743,7 +757,9 @@ def main(argv: list[str] | None = None) -> int:
         for k, v in group_attribution.items()
         if v.get("scan_errors") or v.get("stat_failures")
     ]
-    if scan_blocked and args.out:
+    # round-8 HIGH 整改: 去掉 `and args.out` —— stdout 模式同样不得在保护集
+    # 残缺时输出台账（否则 --out 省略即绕过该门）。
+    if scan_blocked:
         print(
             f"transcripts 扫描受阻（{len(scan_blocked)} 组），保护集不完整，拒绝写出台账；首例: {scan_blocked[0][1]}",
             file=sys.stderr,
@@ -799,9 +815,22 @@ def main(argv: list[str] | None = None) -> int:
             print(f"台账写入失败，已清理临时文件: {e}", file=sys.stderr)
             return 2
         os.close(tmp_fd)
-        # 原子替换。目标若是恢复源，路径层与 inode 层已在前面拒绝；此处 replace
-        # 只作用于本进程新建的 tmp，不存在"截断别人的文件"这一步。
-        os.replace(tmp_path, out_path)
+        # 原子替换 + 父目录 fsync（round-8 MEDIUM 整改：replace 纳入 try，
+        # EXDEV/EBUSY/EACCES/ENOSPC 等异常一律清理 tmp 不留残留）。
+        try:
+            os.replace(tmp_path, out_path)
+            dir_fd = os.open(out_path.parent, os.O_RDONLY)
+            try:
+                os.fsync(dir_fd)
+            finally:
+                os.close(dir_fd)
+        except OSError as e:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            print(f"台账原子替换失败，已清理临时文件: {e}", file=sys.stderr)
+            return 2
         print(f"台账已写入: {args.out}")
     else:
         print(out_json)
