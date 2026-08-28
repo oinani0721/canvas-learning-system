@@ -2,23 +2,22 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**本车道状态**（2026-08-29 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **十轮 Codex；BLOCKER 连续三轮清零；G3-4 已 CONFIRMED-CLOSED**）:
-- ✅ CARD-G3-4：**六~十轮连续 CONFIRMED-CLOSED**——十门 13 passed，声明范围内无语义级漂移可全绿
-- ✅ CARD-G3-1（`63e034ec` + 九笔整改 + 十轮整改待提交）：契约测试 **54 passed + 1 skipped**，
-  三文件合跑 **73 passed + 1 skipped**。累计处置 2B+36H+45M。本轮关键：
-  **vault_id 改用 PyYAML 与 backend 同源**——此前五轮（r5~r9）反复被抓同一类静默错绑，根因是
-  手写 YAML 子集追不上完整 PyYAML；现走 `yaml.safe_load` + `isinstance(str)` 同一路径，
-  **17 形态实测分叉数 = 0**，测试改为逐例断言 `validator == backend`；
-  另修 A7 文档与排他实现对齐、proof 值类型逐键冻结 + `genesis_evidence` 锚 + 折叠单调性硬门
+**本车道状态**（2026-08-29 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **十一轮 Codex；BLOCKER 连续四轮清零；G3-4 已 CONFIRMED-CLOSED**）:
+- ✅ CARD-G3-4：**六~十一轮连续 CONFIRMED-CLOSED**——十门 13 passed，声明范围内无语义级漂移可全绿
+- ✅ CARD-G3-1（`63e034ec` + 十笔整改 + 十一轮整改待提交）：契约测试 **54 passed + 1 skipped**，
+  三文件合跑 **73 passed + 1 skipped**。累计处置 2B+39H+48M。本轮关键：
+  **vault_id 与生产逐环节同源**——r11 发现我的测试 oracle 是**假的**（只复刻 `safe_load+strip`，
+  漏掉生产链里的 `sanitize_vault_id()`，`team#1` 实际应得 `team_1`，27 例中 15 例分叉）；
+  现校验器 import backend 的 `sanitize_vault_id` 本体、测试 oracle 改用**真实 `Settings.vault_id`**、
+  断言改为安全性质「**绝不产生与生产不同的非 None 值**」，实测**错绑数 0**；
+  另修 A7 文档三处矛盾、`_parse_ts` 的 `is` 改值比较、proof 的 E 选取（尾部逃逸）/键集矛盾/
+  genesis 左端点冲突 + 字节域 + **证明强度诚实上限**
 - ⛔ 移交（schema §九 逐条登记）：①test.yml 白名单 +2 测试 + root requirements paths（S8 独占；
-  **CI DEFERRED/NOT-EXECUTED**）；②**G3-2 五项**（parsed 查重、bridge 时间口径三项、9 类注释、
-  reducer 精度常量与 blob hash、`fsrs_step: null` 文本解析）；③**G3-3 七项**（sidecar 锁+CAS 接管、
-  账本锁内查重与落盘校验、锁内重读 W、完整 fsync、增量重放、duplicate envelope 门）；
-  ④tips.py 两条 → 独立 micro-patch
-- ⚠️ 新增依赖声明：校验器的 vault_id 绑定层需 PyYAML（backend venv 已有 6.0.3）；
-  纯 stdlib 环境降级为不绑定 + WARN，其余功能不受影响
-- 纪律守住：learning_event_log.py/fsrs_manager.py 及全部 in-flight 锁定文件零改动（十轮 blob 复核在案）；不 push
-- 待办：十轮整改提交（第十一笔）→ Codex 十一轮复核 → 用户验收两单
+  **CI DEFERRED/NOT-EXECUTED**）；②**G3-2 五项**；③**G3-3 七项**；④tips.py 两条 → 独立 micro-patch
+- ⚠️ 依赖口径：**账本校验主体 stdlib-only**；**vault_id 绑定层**需 PyYAML + 可 import 的 backend
+  `app.config`（须与生产逐环节同源），不可达时降级不绑定 + WARN。三处文档口径已统一
+- 纪律守住：learning_event_log.py/fsrs_manager.py 及全部 in-flight 锁定文件零改动（十一轮 blob 复核在案）；不 push
+- 待办：十一轮整改提交（第十二笔）→ Codex 十二轮复核 → 用户验收两单
 
 ---
 

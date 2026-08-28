@@ -90,12 +90,12 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
 - **挂载点限定**：`review/1` 只许挂在 `answer_scored` / `answer_abandoned` 上（挂到 `session_archived` 等 = 违规）。
 - **扩展必填键**（`schema_ext == "review/1"` 时 REQUIRED，类型与语义由校验器强制）：
   - `vault_id`：非空 string——显式冗余 vault 归属，**必须等于账本同目录 `.canvas-config.yaml` 声明的 `vault_id`**（与文件位置隐含归属互证；防事件写错 vault 或账本被搬运后仍自称原 vault）。
-    ⚠️ **绑定的可用范围（round-7 终局决策，round-9 收严）**：校验器**不解析完整 YAML**——手写 YAML 子集打不赢（plain scalar 折行、值内撇号、键后空格 `vault_id :`、**引号键 `"vault_id":`**、**YAML 隐式类型 `vault_id: true`** 等合法形态都曾导致错绑）。改为**三重条件全满足才绑定**：
-    1. **疑似键计数恰为 1**——逐行去首空白后以 `vault_id` / `"vault_id"` / `'vault_id'` 开头且后随可选空白+冒号即计一次（注释行以 `#` 起始、行内提及均不计，故现网注释中的 vault_id 字样不会误计）；
-    2. 该行匹配严格白名单：`vault_id: "<无转义无换行>"` 或 `vault_id: <安全裸词 [A-Za-z0-9_.-]>`，且该行非缩进、下一行非缩进（排除折行续接）；
-    3. 裸词值**不得**是 YAML 隐式类型字面量（`true`/`false`/`null`/`~`/`yes`/`no`/`on`/`off`/数字/`.inf`/`.nan`）——PyYAML 会把它们解析成非字符串，与本绑定的字符串比较分叉。
-
-    其余形态（含配置缺失）**一律不绑定并输出 WARN**——保守方向是"失一层防护"而非"错绑身份"。现网与部署模板均落在白名单形态内（实测绑定 `canvas_vault`）。
+    ⚠️ **绑定链路与可用范围（round-10/11 终局：与生产逐环节同源）**：
+    - `payload.vault_id` 必须等于账本所在 vault 的**规范化 vault_id**——即生产 `Settings.vault_id` 的取值（`config.py:782-795`），完整链路是 **`yaml.safe_load` → `isinstance(str)` → `sanitize_vault_id()` → `!= "default"` 才采信**。
+    - ⚠️ **事件里写的必须是规范化后的形式**：配置写 `"canvas-vault"` 时生产取值是 `canvas_vault`（连字符被 `sanitize_vault_id` 转下划线），事件若写原始连字符形式即判不一致。
+    - **校验器复用同一实现**（PyYAML 解析 + import backend 的 `sanitize_vault_id` 本体），不自写副本——r5~r11 实证：手写 YAML 子集与手写 sanitize 副本都会与生产静默分叉（引号键、`0x10`、Unicode 转义键名、`team#1` → `team_1` …）。
+    - **降级**：PyYAML 缺失或 backend 不可 import ⇒ **不绑定 + WARN**（少一层防护，安全方向），账本校验主体不受影响。
+    - **安全性质（测试锁定）**：校验器绑定值要么等于真实生产入口取值，要么为 `None`——**绝不产生与生产不同的非 None 值**。生产在显式字段无效时会回退到目录名/环境推断，校验器不知运行时环境，对这类输入一律不绑定。
   - `concept_id`：非空 string，且**必须等于顶层 `node_id`**——映射关系 = `node_id` 承载 concept_id
   - `rating`：int 且 ∈ {1,2,3,4}（FSRS Rating；bool 伪装 int 判违规）
   - `grade_norm`：数值且 ∈ [0,1]（既有 quiz-answer 写点已产此键）
@@ -110,7 +110,7 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
 
 **水位线三态（Codex round-3 HIGH + round-4 HIGH#2 收紧）**：判别按**完整 FSRS tuple 的可解析性**，不只看单键存在性。
 - **真新卡** = 节点 frontmatter **不含任何 `fsrs_*` 字段** ⇒ `W = -∞`，全部事件 pending（合法首事件路径）。
-- **正常卡** = 持久化 tuple **完整、canonical、落在可调度域内，且 `W` 落在 review 域内**（round-8 HIGH#2：`fsrs_last_review` 是"上一次 review 的时刻"，与 `review_time` 同域，必须**严格小于** A7 的 review 输入上界——否则不存在任何合法后继事件（后继须 `> W` 且 `≤` 该上界），`W` 恰为上界时 A3 的 `W+1s` 也立即越界；`fsrs_due` 是调度产物，适用更宽的一般时间戳上界）（round-5 HIGH#2 + round-6 HIGH#1 逐条收紧：bridge `review()` 消费**六字段**构造 `Card`，规则不精确会放过真实调用时抛 `AssertionError`/`ZeroDivisionError`/产生 NaN 的形状）。逐条：
+- **正常卡** = 持久化 tuple **完整、canonical、落在可调度域内，且 `W` 落在 review 域内**（round-8 HIGH#2：`fsrs_last_review` 是"上一次 review 的时刻"，与 `review_time` 同域，必须**严格小于** A7 的 review 域上界——否则不存在任何合法后继事件（后继须 `> W` 且同样严格小于该上界），`W` 恰为上界时 A3 的 `W+1s` 也立即越界；`fsrs_due` 是调度产物，适用更宽的一般时间戳上界）（round-5 HIGH#2 + round-6 HIGH#1 逐条收紧：bridge `review()` 消费**六字段**构造 `Card`，规则不精确会放过真实调用时抛 `AssertionError`/`ZeroDivisionError`/产生 NaN 的形状）。逐条：
   - `fsrs_last_review`：存在且可解析为 tz-aware 时刻（⇒ `W` = 该值）；
   - `fsrs_due`：存在且可解析为 tz-aware 时刻（**缺它 bridge 走 New 卡分支**，`fsrs_bridge.py:102`）；
   - `fsrs_state`：整数 ∈ {1,2,3}（`0` 属 legacy，走 bridge 的字段级迁移分支，不算"正常卡"）；
@@ -143,7 +143,7 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
 - **review 域上界（`review_time` 与 `fsrs_last_review` 共用，且须严格小于）**：两者必须 **< 9000-01-01T00:00:00Z**（该端点本身**不合法**）。
   - 基础理由：真实调度器会在复习时刻上叠加最长 `maximum_interval = 36500` 天（≈100 年）算出新 `due`，A3 的等时消解还要 `+1s`——`9999-12-31T23:59:59Z` 会让二者都抛 `OverflowError`。
   - **为什么是"严格小于"而非 `≤`（round-9 闭包 + round-10 文档对齐）**：`review_time` 会成为下一个 `W`，而 `W` 必须留出后继空间（后继须 `> W` 且仍在域内）。若端点取 `≤`，则 `review_time = 9000-01-01Z` 是合法输入却会写出一个**没有任何合法后继**的 `W` ⇒ 合法事件确定性制造残缺卡。两侧同界且同为排他，闭包才成立：**合法输入产出的状态必然合法**（实测最后合法秒 `8999-12-31T23:59:59Z` 经真实 bridge 产出 `due=9000-01-01T00:09:59Z`，分类 normal）。
-- **一般时间戳上界**：`recorded_at`/`effective_at`/`fsrs_due` 等 ≤ **9500-01-01T00:00:00Z**（只拦 UTC 归一化本身会溢出的极端值）。⚠️ round-7 反例：若把 review 输入的保守上界通用到所有字段，合法的 `review_time = 9000-01-01Z` 经调度产出的 `due = 9000-01-09Z` 会**反被判 degraded**。
+- **一般时间戳上界**：`recorded_at`/`effective_at`/`fsrs_due` 等 ≤ **9500-01-01T00:00:00Z**（只拦 UTC 归一化本身会溢出的极端值）。⚠️ round-7 反例：若把 review 域的保守上界通用到所有字段，合法 review（如最后合法秒 `8999-12-31T23:59:59Z`）经调度产出的 `due`（实测 `9000-01-01T00:09:59Z`）会**反被判 degraded**。注：`review_time = 9000-01-01Z` 这个端点本身按 A7 就**不合法**（见上条排他上界），此处只是说明 due 需要更宽的域。
 - 两档留出的余量（≈7000 年）远超任何真实用法，对现网零影响。校验器按字段分别强制。
 
 **A6 调度器入参必须是 UTC（round-5 HIGH#1，端到端条款）**：传给 fsrs `Scheduler.review_card()` 的 `review_datetime` **必须 tz-aware 且 tzinfo 恰为 UTC**——库对此硬校验（`scheduler.py:256-260` 抛 `ValueError: datetime must be timezone-aware and set to UTC`）。因此 G3-2 写路径必须满足：**事件 `payload.review_time`、传入调度器的时刻、写出的 `W` 三者是同一瞬间，且入库/入调度器前统一 `astimezone(UTC)`**。
@@ -194,7 +194,8 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
 - **迟到事件的入账通道**：A3 的"严格大于 W"只约束**在线评分**（正常复习写入）。补录/迟到事件走**账本补录通道**：以原始 `review_time` 入账 + 标 `payload.out_of_order = true`，**不进 pending、不推进 current state**——因此与 A3 无冲突。
 - **degraded pending 处置（round-4 HIGH#3 + round-5 HIGH#3 解冻边界）**：当节点落入**残缺卡**（三态 fail-closed）时，该节点的 pending 集合**整体冻结**——不重放、不追加新在线事件（新评分应向用户如实报错而非静默丢弃）。禁止"跳过残缺节点继续写新事件"——那会在错误基线上叠加。
   - **解冻的唯一合法条件（round-5 提出，round-6 机械化）**：修复必须**把六字段与 `W` 原子重建到同一个可证明的账本边界**上——选定账本中某个事件 `E`，从**可证明起点**折叠到 `E` 为止，把结果的六字段与 `W = E.review_time` 在**同一次原子替换**中写入。三项必须机械确定：
-    - **`E` 的选取**：必须是该节点在账本中**最后一个适用事件**（`schema_ext=review/1`、未标 `out_of_order`、按 `(review_time, 行号)` 复合序最大者）。**同瞬间用行号消歧**——`W` 只有时间戳、无法表达损坏账本里的同瞬间次序，故 proof 必须显式带行号。
+    - **`E` 的选取（round-11 修正：原按复合序取最大会让尾部逃逸）**：`E` 必须是该节点在账本中**行号最大的适用事件**（`schema_ext=review/1`、未标 `out_of_order`），且 **`cursor_line` 之后不得再存在该节点的任何适用事件**（proof 须覆盖到账本末尾）。
+      ⚠️ round-11 反例：若按 `(review_time, 行号)` 复合序取最大，当 `L1=t2`、`L2=t1`（两行都未标乱序）时 E=L1，区间只含 L1，单调门真空通过，**L2 完全逃逸未被覆盖**。改用行号口径后，E=L2，L1 与 L2 同在区间内，单调门会因 `t2 > t1` 而判该区间不自洽 ⇒ 正确地报"不可证明"。
     - **canonical reducer（round-6 实测的舍入歧义）**：折叠必须**逐事件按生产持久化精度舍入后再进下一步**（与 bridge 的写-读循环一致），**不得**在内存中连续折叠、只在末尾舍入。实测差异：三次 Good 后 `stability` = **10.9711**（逐步舍入）vs **10.9710**（末尾舍入）——两者都满足"折叠到 E"的粗描述，故边界必须唯一化。舍入精度以 bridge 写出 frontmatter 时的实际精度为准（G3-2 落地时把该常量与本条一并锁进测试）。
     - **proof schema（round-8 HIGH#4 机械化——此前只是清单，两个不同起点可满足同一清单却折出不同结果）**。proof 是一个 JSON object，字段与语义如下，缺任一项或任一项不满足约束即**不可证明**：
 
@@ -206,10 +207,10 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
       | `event_id` / `review_time` | E 的幂等键与业务时刻（`review_time` 即重建后写入的 `W`） |
       | `fsrs_library_version` / `fsrs_params_hash` / `scheduler_config` | 复算所用的算法身份与完整配置（须与 G3-4 golden manifest 同源；`degraded:*` 哨兵不合格） |
       | `reducer` | canonical reducer 标识与其精度常量（见上一条；G3-2 落地时冻结具体值） |
-      | `origin` | 起点，二选一：`{"kind": "new_card"}`（真新卡，链终止于此，折叠区间左端点取行号 0）或 `{"kind": "snapshot", "state": {...}, "snapshot_hash": "...", "ancestor_proof": {...}}`（三条等式约束见下） |
+      | `origin` | 起点，二选一：`{"kind": "new_card", "genesis_evidence": {...}}`（真新卡，链终止于此；折叠区间左端点 = `genesis_evidence.first_event_line - 1`，见下方 genesis 锚——round-11 修正原「取 0」与后文冲突）或 `{"kind": "snapshot", "state": {...}, "snapshot_hash": "...", "ancestor_proof": {...}}`（三条等式约束见下） |
       | `result_hash` | 重建出的**状态对象**（恰六键，见下方"状态对象的唯一形状"）的 canonical JSON 的 UTF-8 字节 sha256——供他人独立复算比对 |
 
-    - **状态对象的唯一形状（round-9 HIGH#3，round-10 补值类型）**：proof 里出现的每个"状态"（`origin.snapshot.state`、`result` 等）都是**恰含 `fsrs_bridge.py:44-46` FIELD_ORDER 六个键的 JSON object**：`fsrs_due` / `fsrs_state` / `fsrs_step` / `fsrs_stability` / `fsrs_difficulty` / `fsrs_last_review`。
+    - **状态对象的唯一形状（round-9 HIGH#3，round-10 补值类型）**：proof 里出现的每个"状态"（`origin.snapshot.state`、`result` 等）都是**恰含 `fsrs_bridge.py:44-46` FIELD_ORDER 中「适用于该 `fsrs_state` 的键」的 JSON object**（Learning/Relearning = 六键；**Review = 五键，省略 `fsrs_step`**——与三态表的 canonical 形状一致，round-11 修正原「恰六键」与「Review 省略 step」的自相矛盾）：`fsrs_due` / `fsrs_state` / `fsrs_step` / `fsrs_stability` / `fsrs_difficulty` / `fsrs_last_review`。
       **值类型必须归一化后再序列化（round-10 HIGH）**——否则 `{"fsrs_state": 2, "fsrs_stability": 10}` 与 `{"fsrs_state": "2", "fsrs_stability": 10.0}` 都能通过三态判别却产生**不同 hash**，proof 失去唯一性：
 
       | 键 | canonical 类型 |
@@ -225,13 +226,14 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
       2. `snapshot_hash == ancestor_proof.result_hash`（该快照必须**正是**祖先 proof 的产出，而非另一份同形对象）；
       3. `state.fsrs_last_review == ancestor_proof.review_time`（祖先折叠到的事件时刻，即为该快照的水位线）。
     - **折叠区间与折叠顺序（round-9 HIGH#3，round-10 补顺序与单调性）**：
-      - **区间**：账本中该节点、`schema_ext=review/1`、未标 `out_of_order`、且**行号**落在 `(ancestor_proof.cursor_line, cursor_line]` 内的全部事件——**左开右闭、按行号界定**（不用时刻界定，因同瞬间不同行会有两种解释）。`origin.kind == "new_card"` 时左端点取 `0`。
+      - **区间**：账本中该节点、`schema_ext=review/1`、未标 `out_of_order`、且**行号**落在 `(ancestor_proof.cursor_line, cursor_line]` 内的全部事件——**左开右闭、按行号界定**（不用时刻界定，因同瞬间不同行会有两种解释）。`origin.kind == "new_card"` 时左端点 = `genesis_evidence.first_event_line - 1`。
       - **顺序**：按**行号升序**折叠（账本的物理追加序即因果序——A2 保证写入时状态已是最新）。
       - **单调性硬门（round-10）**：区间内的 `review_time` 必须**随行号严格递增**。若出现"行号递增而 `review_time` 不增"的行，说明该行是迟到/乱序事件却**未标 `out_of_order`** ⇒ 账本自身不自洽，**proof 不可证明**（须先由人工裁定该行的归属，而非由工具选一种顺序）。这消除了"按行号折"与"按时刻折"两种解释的分歧——两者在通过该门的区间上必然一致。
     - **`origin.kind == "new_card"` 的 genesis 锚（round-10 HIGH）**：`new_card` 不能只是自报——同一份账本在"此前是真新卡"与"此前已有未入账的 Review 状态"两个世界里会折出不同结果（Learning vs Review），proof 必须能区分。因此该分支**必须附** `genesis_evidence`：
-      - `node_frontmatter_hash`：重建时刻该节点 frontmatter 的**全文 sha256**，且此刻它**不含任何 `fsrs_*` 字段**（即三态判别为 `new`）——证明"当前确实是未被推进过的起点"；
+      - `node_frontmatter_hash`：重建时刻该节点 frontmatter 的 sha256。**字节域冻结**：从文件首个 `---` 行的**下一字节**起，到闭合 `---` 行的**前一字节**为止（不含两条 `---` 行本身及其换行），按 UTF-8 原始字节计算；此刻该 frontmatter **不含任何 `fsrs_` 前缀字段**（三态判别为 `new`）。为便于复验，proof 须同时携带该 frontmatter 的**原文**（`node_frontmatter_text`）；
       - `first_event_line`：该节点在账本中最早一条事件的行号，且 `first_event_line > 0`；折叠区间左端点即取 `first_event_line - 1`（而非笼统的 0），使区间起点也可核验；
-      - 二者缺一 ⇒ 不可证明，必须改走 `snapshot` 分支或人工裁定（§"不可证明时必须继续冻结"）。
+      - 三者缺一 ⇒ 不可证明，必须改走 `snapshot` 分支或人工裁定。
+      - ⚠️ **证明强度的诚实上限（round-11）**：`genesis_evidence` 证明的是"**重建时刻**该节点无任何 FSRS 状态"，**不能**证明"历史上从未存在过未入账的 Review 状态"（例如状态曾被手工删除）。因此 `new_card` 分支只在该节点**账本历史完整**（其全部复习事件都带 `review/1`）时可用；若存在无扩展的旧行，则该节点属 §"不可证明时必须继续冻结"，须人工裁定——工具不得自行采信 `new_card`。
     - **链的终止与防循环（round-8）**：`ancestor_proof` 链必须**终止于 `origin.kind == "new_card"`**；链上每一层的 `(vault_id, node_id)` 必须相同，且 `cursor_line` 必须**严格递减**（保证有限步终止、不可自引用）。任一条不满足 ⇒ 不可证明。
     - **`prefix_ends_without_lf` 的取值规则（round-9）**：类型为 boolean。E 所在行**有**终止 LF 时该键**必须省略**（不得写 `false`）；**无**终止 LF（E 是文件末行且文件不以 LF 结尾）时**必须**写 `true`。这样"省略"与"false"不并存，比较无歧义。
     - **`degraded:*` 哨兵行不参与自动证明链**：其 `fsrs_library_version`/`params_hash` 是哨兵而非算法身份，无法确定性复算——含此类事件的区间必须由人工裁定。
@@ -255,7 +257,7 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
 
 ## 八、校验脚本契约（`backend/scripts/validate_learning_events.py`）
 
-- **定位**: 确定性、stdlib-only、可独立对任意 vault 的账本文件执行（不依赖 backend 运行环境）。白名单在脚本内复制一份，由契约测试与 `learning_event_log.EVENT_TYPES` 锁死同步（漂移即红）。
+- **定位**: 确定性校验器。**账本校验主体 stdlib-only**，可独立对任意 vault 的 jsonl 执行；**vault_id 绑定层**需 PyYAML + 可 import 的 backend `app.config`（必须与生产 `Settings.vault_id` 逐环节同源，见 §6.1），不可达时降级为不绑定 + WARN，主体不受影响。白名单在脚本内复制一份，由契约测试与 `learning_event_log.EVENT_TYPES` 锁死同步（漂移即红）。
 - **用法**: `python3 backend/scripts/validate_learning_events.py <learning_events.jsonl 路径>`
 - **判定规则**（每行）: **严格 JSON** 可解析（RFC 8259——拒 `NaN`/`Infinity` 非标准常量、拒对象内重复键；写侧 `json.dumps(dict)` 不可能产出两者，合法数据零误报）；非法 UTF-8 字节序列 = 该行违规（逐行独立解码，不中断其余行）；**前向兼容分流**：`event_version` 为 int 且 ≠1 的行**只 WARN 并完全跳过 v1 形状校验**（Codex round-1：原"WARN+形状 FAIL 双发"违反前向兼容，已修）；v1 行：顶层键**恰好** 7 键、各字段类型/约束按 §三、`event_type` ∈ 白名单、时间戳按 §三受理语法且 tz-aware；payload 含 `schema_ext: "review/1"` 时强制 §6.1 全部扩展键类型与**语义绑定**（挂载点 / concept_id==node_id / review_time 整秒且与 effective_at 同瞬间 / rating-grade_norm 自洽 / 弃答 rating=1 / 库指纹与 golden manifest 真值相等）；`schema_ext` 值非法或复习事件带扩展键却无 marker = 违规（防降级绕过）。深层嵌套（RecursionError）与超长整数（解析限额）均单行判违规、不中断其余行。**文件级**: `event_id` 全文件唯一（跨版本行也登记——幂等键语义跨版本恒定）。无标记历史行的 payload 键集不做 FAIL 判定（§6.3）。
 - **exit code**: `0` = 全部通过；`1` = 存在违规（逐行报告）；`2` = 用法/IO 错误。输出确定性排序，可入 CI。

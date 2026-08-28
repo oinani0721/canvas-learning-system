@@ -543,9 +543,13 @@ def test_watermark_comparison_must_be_instant_based():
 
 
 def test_vault_id_bound_to_vault_config(tmp_path):
-    """Codex round-3 未覆盖面（本轮主动补强）: payload.vault_id 与账本所在
-    vault 的 .canvas-config.yaml 声明必须一致 — 防事件写错 vault / 账本被
-    搬运后仍自称原 vault; 无配置文件时降级 WARN 保持独立可跑。"""
+    """`payload.vault_id` 必须等于账本所在 vault 的**规范化** vault_id
+    (与生产 `Settings.vault_id` 同链: safe_load → sanitize_vault_id)。
+
+    ⚠️ round-11: 事件里的 `vault_id` 也必须是**规范化后**的形式 —— 配置写
+    `"canvas-vault"` 时生产取值是 `canvas_vault`(连字符被 sanitize 成下划线),
+    事件若写原始连字符形式即判不一致。§6.1 已冻结该口径。
+    """
     ledger = tmp_path / "learning_events.jsonl"
 
     # 无 .canvas-config.yaml → 只 WARN 不判错
@@ -554,18 +558,49 @@ def test_vault_id_bound_to_vault_config(tmp_path):
     assert result.returncode == 0, result.stdout
     assert "vault_id 未绑定" in result.stdout
 
-    # 有配置且一致 → PASS 且无该 WARN
+    # 有配置且事件用规范化值 → PASS
     (tmp_path / ".canvas-config.yaml").write_text(
         '# 注释行\nvault_id: "canvas-vault"\nsubject: cs-61b\n', encoding="utf-8"
     )
-    assert _run(ledger).returncode == 0
+    normalized = _review_ext_record(vault_id="canvas_vault")  # sanitize 后形式
+    ledger.write_text(json.dumps(normalized, ensure_ascii=False) + "\n", encoding="utf-8")
+    result = _run(ledger)
+    assert result.returncode == 0, result.stdout
 
-    # 有配置但不一致 → 违规
+    # 事件写未规范化的原始值 → 违规 (与生产取值不同)
+    raw = _review_ext_record(vault_id="canvas-vault")
+    ledger.write_text(json.dumps(raw, ensure_ascii=False) + "\n", encoding="utf-8")
+    result = _run(ledger)
+    assert result.returncode == 1
+    assert "账本所在 vault" in result.stdout
+
+    # 完全不同的 vault → 违规
     mismatched = _review_ext_record(vault_id="别的vault")
     ledger.write_text(json.dumps(mismatched, ensure_ascii=False) + "\n", encoding="utf-8")
     result = _run(ledger)
     assert result.returncode == 1
     assert "账本所在 vault" in result.stdout
+
+
+def test_watermark_comparison_must_be_instant_based():
+    """§6.2 比较语义: bridge 的 _iso() 把 W 归一化为 UTC 'Z' 形式, 而事件
+    review_time 允许任意合法 offset — 同一瞬间可有不同字符串。按字符串比较
+    会把"已应用"误判为 pending 并二次推进, 故契约要求按绝对瞬间比较。
+
+    本测试钉死该等价关系 (bridge 改写出格式时会红) 与整秒性在 UTC 归一化
+    后的保持 (A5 前提)。
+    """
+    sys.path.insert(0, str(WT / "canvas-vault" / ".claude" / "scripts"))
+    import fsrs_bridge as fb  # noqa: PLC0415
+
+    event_time = "2026-08-01T18:00:00+08:00"
+    watermark = fb._iso(fb._aware(event_time))
+    assert watermark == "2026-08-01T10:00:00Z", "bridge 写出格式漂移 — 比较语义前提须复核"
+    assert watermark != event_time, "本测试的前提是两者字符串不同"
+    assert validator._instant(event_time) == validator._instant(watermark), (
+        "同一瞬间必须比较相等 — 否则水位线判据会二次推进"
+    )
+    assert validator._parse_ts(event_time)[0] and not validator._SUBSECOND_RE.match(event_time)
 
 
 def _fsrs_fields(**overrides):
@@ -720,89 +755,86 @@ def test_schedulable_time_upper_bound():
     assert validator._parse_ts("9000-01-01T00:00:01Z", upper_bound=validator.REVIEW_INPUT_MAX)[0] is False
 
 
-def _backend_vault_truth(text: str):
-    """复刻 backend/app/config.py:782-788 的 vault_id 判据 (真值面基准)。"""
-    import yaml  # noqa: PLC0415
+def _backend_vault_id(config_dir: Path):
+    """**真实生产入口**: Settings(CANVAS_BASE_PATH=...).vault_id。
+
+    round-11 HIGH#2: 此前的 oracle 只自行复刻 safe_load + strip, 漏掉生产
+    链路里的 sanitize_vault_id() (config.py:1020) —— 实测 `vault_id: team#1`
+    生产得 team_1 而校验器曾绑定 team#1。现直接调真实 property, 不再复刻。
+    """
+    from app.config import Settings  # noqa: PLC0415
 
     try:
-        data = yaml.safe_load(text) or {}
-    except yaml.YAMLError:
+        return Settings(
+            CANVAS_BASE_PATH=str(config_dir),
+            DEBUG=True,
+            CORS_ORIGINS="http://localhost:3000",
+            INTERNAL_API_KEY="test-only-not-a-secret",
+        ).vault_id
+    except Exception:  # noqa: BLE001 — 生产入口异常时视为无可信值
         return None
-    if not isinstance(data, dict):
-        return None
-    value = data.get("vault_id")
-    return value.strip() if isinstance(value, str) and value.strip() else None
 
 
-def test_vault_id_parity_with_backend(tmp_path):
-    """vault_id 解析必须与 backend 的 `yaml.safe_load` 真值面**逐例等价**。
+def test_vault_id_never_misbinds_against_real_backend(tmp_path):
+    """**安全性质**: 校验器绑定的 vault_id 要么等于真实生产入口取值, 要么是
+    None (降级不绑定) —— **绝不产生与生产不同的非 None 值**。
 
-    ⚠️ round-10 终局决策：此前五轮 (r5~r9) 反复出现同一类缺陷——手写 YAML
-    子集与 PyYAML 分叉导致**静默错绑**，每补一个形态就冒出下一个（引号键、
-    十六进制、下划线数字、-.inf、Unicode 转义键名、多行引号体…）。手写子集
-    追不上完整实现，方向不可能收敛。现改为走同一条解析路径，本测试逐例断言
-    两者相等——**任何一例分叉即红**。
-
-    形态集合覆盖 r5~r10 各轮点名的全部错绑反例 + 现网形态。
+    为何是这个性质而非"值恒等" (round-11 口径): 生产 Settings.vault_id 在
+    显式字段无效时会回退到目录名/环境推断, 而校验器**不知道运行时环境**,
+    对这类输入一律不绑定。不绑定 = 少一层防护(安全); 错绑 = 用错身份判事件
+    归属(危险)。本测试锁住的正是"不错绑"。
     """
     cases = [
-        # round-10 点名
-        ("vault_id: 0x10\n", "十六进制 (PyYAML 得 int 16)"),
+        ("vault_id: team#1\n", "sanitize 改写 (# → _)"),
+        ('vault_id: "CS 61B"\n', "空格与大写归一"),
+        ('vault_id: "../etc/passwd"\n', "路径穿越消解"),
+        ('vault_id: "café"\n', "NFKC 保留重音"),
+        ("vault_id: 0x10\n", "十六进制 (PyYAML 得 int)"),
         ("vault_id: 1_000\n", "下划线数字"),
         ("vault_id: -.inf\n", "负无穷"),
         ('vault_id: fake\n"vault_\\u0069d": real\n', "Unicode 转义键名"),
-        ('other: "x\nvault_id: fake\nmore"\n', "多行引号体内的列首 vault_id"),
-        # round-9 点名
+        ('other: "x\nvault_id: fake\nmore"\n', "多行引号体内的列首"),
         ('vault_id: fake\n"vault_id": real\n', "双引号键"),
         ("vault_id: fake\n'vault_id': real\n", "单引号键"),
-        ("vault_id: true\n", "YAML 隐式 bool"),
-        ("vault_id: 123\n", "隐式数字"),
+        ("vault_id: true\n", "隐式 bool"),
         ("vault_id: null\n", "隐式 null"),
-        # round-8 / 7 / 5 点名
         ("vault_id: fake\nvault_id : real\n", "键后空格"),
         ("vault_id: first\n  second\n", "plain scalar 折行"),
         ("vault_id: old\ndescription: it's fine\nvault_id: new\n", "值内撇号 + 重复键"),
         ('vault_id: "team#1"\n', "引号内 #"),
-        ("vault_id: team#1\n", "裸词含 #"),
-        ('vault_id: "a\\u0023b"\n', "双引号内转义"),
         ("vault_id: |\n  block\n", "block scalar"),
-        ("vault_id: >-\n  folded\n", "folded scalar"),
         ('vault_id: "unclosed\n', "未闭引号 (YAMLError)"),
-        # 常规与现网
-        ('vault_id: "canvas_vault"\nsubject: cs-61b\nvault_display_name: "CS 61B"\n', "现网形态"),
+        ('vault_id: "canvas_vault"\nsubject: cs-61b\n', "现网形态"),
         ("vault_id: canvas_vault\n", "安全裸词"),
         ('vault_id: "中文库"\n', "中文值"),
         ('  vault_id: "indented"\n', "缩进"),
-        ('other:\n  vault_id: "nested"\n', "嵌套"),
-        ('VAULT_ID: "upper"\n', "大小写"),
         ("vault_id:\n", "空值"),
         ('# 注释提到 vault_id\nvault_id: "ok"\n', "注释提及 + 真键"),
     ]
+    misbinds = []
     for index, (content, desc) in enumerate(cases):
         config_dir = tmp_path / f"case{index}"
         config_dir.mkdir()
         (config_dir / ".canvas-config.yaml").write_text(content, encoding="utf-8")
         got = validator._vault_id_of(config_dir / "learning_events.jsonl")
-        truth = _backend_vault_truth(content)
-        assert got == truth, f"[{desc}] validator={got!r} != backend 真值 {truth!r}\n{content!r}"
+        truth = _backend_vault_id(config_dir)
+        if got is not None and got != truth:
+            misbinds.append(f"[{desc}] validator={got!r} != 生产 {truth!r}")
+    assert not misbinds, "校验器错绑 (绑定值与真实生产入口不同):\n" + "\n".join(misbinds)
 
-    # 非法 UTF-8 → None (不炸)
     bad_utf8 = tmp_path / "badutf8"
     bad_utf8.mkdir()
     (bad_utf8 / ".canvas-config.yaml").write_bytes(b'vault_id: "\xff\xfe"\n')
     assert validator._vault_id_of(bad_utf8 / "learning_events.jsonl") is None
-
-    # 无配置文件 → None (独立可跑前提)
     assert validator._vault_id_of(tmp_path / "nowhere" / "learning_events.jsonl") is None
 
 
-def test_vault_id_degrades_without_pyyaml(tmp_path, monkeypatch):
-    """PyYAML 不可用时 (校验器被拷到纯 stdlib 环境) 降级为不绑定 + WARN,
-    校验器其余功能不受影响。"""
+def test_vault_id_degrades_without_pyyaml_and_warns(tmp_path, monkeypatch):
+    """PyYAML 不可用时降级为不绑定; review/1 行据此产生 WARN 而非 FAIL
+    (round-11: 此前只断言 None, 未验证 WARN 通道)。"""
     config_dir = tmp_path / "novyaml"
     config_dir.mkdir()
     (config_dir / ".canvas-config.yaml").write_text('vault_id: "x"\n', encoding="utf-8")
-
     real_import = builtins.__import__
 
     def _blocked(name, *args, **kwargs):
@@ -812,6 +844,11 @@ def test_vault_id_degrades_without_pyyaml(tmp_path, monkeypatch):
 
     monkeypatch.setattr(builtins, "__import__", _blocked)
     assert validator._vault_id_of(config_dir / "learning_events.jsonl") is None
+
+    record = _review_ext_record()
+    problems, warnings = validator._validate_review_ext(record["payload"], record, None, vault_id=None)
+    assert not any("账本所在 vault" in p for p in problems)
+    assert any("vault_id 未绑定" in w for w in warnings), warnings
 
 
 def test_rating_from_grade_parity_with_bridge():

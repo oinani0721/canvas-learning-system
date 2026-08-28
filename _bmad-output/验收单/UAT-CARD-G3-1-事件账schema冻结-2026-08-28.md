@@ -36,9 +36,10 @@
 | 校验脚本 vs **现网账本**（当前 23 行，用户仍在产生新事件） | **exit 0** 零 WARN 零 FAIL，且 sha256 运行前后一致（只读证明；存证按每轮整改重生成，含 HEAD/validator SHA/完整命令） |
 | 现网写点 0 误报 | 按 8 个写点 1:1 建模的 `real_shapes.jsonl`（含 Z 后缀时间戳/紧凑分隔符/中文 event_id）全过 |
 | 边界判定 | 截断行如实报 FAIL / 未知顶层字段拒绝 / naive 时间戳拒绝 / **NaN·Infinity 非标准常量拒绝（RFC 8259 严格）** / **行内重复键拒绝（json.loads 静默取后者的歧义面）** / 未知 event_version 走 WARN 前向兼容通道不误杀 |
-| 漂移锁 | EVENT_VERSION=1、9 类白名单、7 键形状、校验器复制份 == 真相源（四路契约测试）+ **`rating_from_grade` 与 `fsrs_bridge` 逐档等价**（千点网格 + 三档分界两侧）+ **W 与 review_time 的瞬间等价关系**（bridge `_iso` 写出格式改变即红）+ **`.canvas-config.yaml` vault_id 与 backend 真值面逐例等价**（改用 PyYAML 同源解析；27 形态含 round-5~10 各轮点名反例，逐例断言 `validator == backend`，任一分叉即红） |
+| 漂移锁 | EVENT_VERSION=1、9 类白名单、7 键形状、校验器复制份 == 真相源（四路契约测试）+ **`rating_from_grade` 与 `fsrs_bridge` 逐档等价**（千点网格 + 三档分界两侧）+ **W 与 review_time 的瞬间等价关系**（bridge `_iso` 写出格式改变即红）+ **vault_id 对真实生产入口 `Settings.vault_id` 的「绝不错绑」性质**（PyYAML 解析 + backend `sanitize_vault_id` 本体；25 形态含 r5~r11 各轮点名反例，逐例断言「要么等值、要么不绑定」，**错绑即红**） |
 | 铁律遵守 | `learning_event_log.py` **零改动**；git diff 只含新增文件 + CLAUDE.md/architecture.md 引用行 + CURRENT_TASK；未新建任何第二套账本 |
 | ruff | 本卡交付文件 All checks passed（`backend/scripts/` + 契约测试；**范围声明**：仓库其余既有告警不在本卡范围） |
+| 依赖口径（r10/r11 修正） | **账本校验主体 stdlib-only**；**vault_id 绑定层**需 PyYAML + 可 import 的 backend `app.config`（必须与生产 `Settings.vault_id` 逐环节同源），不可达时降级为不绑定 + WARN。schema §八、validator docstring、本单三处口径已统一 |
 
 ## 三、写点普查结论（逐点核对现行号，2026-08-28）
 
@@ -212,6 +213,19 @@
 | 四 | MEDIUM | 测试仍名为 `test_stability_executable_ceiling`，与已改为"语义合理性上界"的判据冲突（DD-13 名实一致） | **已修**：改名 `test_stability_semantic_ceiling` |
 
 十轮整改后复跑：契约测试 **54 passed + 1 skipped**、三文件合跑 **73 passed + 1 skipped**、现网账本（23 行）exit 0 零 WARN 且 `vault_id='canvas_vault'`（经 PyYAML 与 backend 同源）、round-10 全部点名反例对抗复验通过（`审查/g3-1-evidence/g3-round10-counterexamples.txt`）。
+### 十一轮复核处置（存档 `审查/codex-review-CARD-G3-1-G3-4-round11-2026-08-29.md`；**BLOCKER 保持清零**，3 HIGH + 3 MEDIUM）
+
+| # | 级别 | 十一轮发现 | 处置 |
+|---|---|---|---|
+| 二 | **HIGH（最关键）** | **「与 backend 完全同源」不成立——测试用的是假 oracle**：它只复刻了 `safe_load + strip`，而生产 `Settings.vault_id` 还会调 `sanitize_vault_id()`。最小真实反例：配置 `vault_id: team#1` ⇒ validator 绑定 `team#1`、**账本 0 problems 0 WARN**，而 backend 实际绑定 `team_1`。独立复算 27 例与完整 backend property **15/27 分叉** | **已修（逐环节同源）**：①校验器改为 **import backend 的 `sanitize_vault_id` 本体**（不再自写副本——复制必然漂移，r5~r11 已实证两次）；②测试 oracle 改为**真实 `Settings(CANVAS_BASE_PATH=...).vault_id`**，不再自行复刻；③断言改为**安全性质**——「绑定值要么等于生产取值、要么为 `None`，**绝不产生与生产不同的非 None 值**」（生产在显式字段无效时会回退目录名/env 推断，校验器不知运行时环境，对这类输入一律不绑定＝安全）。**实测错绑数 0**；④契约同步声明「**事件里写的必须是规范化后的形式**」（配置 `"canvas-vault"` ⇒ 生产取值 `canvas_vault`） |
+| 一 | HIGH | A7 行为已闭合，但**冻结文档自相矛盾**：主条款说端点不合法，下一条却称「合法的 `review_time = 9000-01-01Z`」，另一处仍残留 `≤9000` | **已修**：三处措辞统一为排他口径，矛盾句改写为「该端点本身按 A7 不合法，此处只说明 due 需要更宽的域」（残留计数实测 0） |
+| 一 | MEDIUM | `_parse_ts` 用**对象身份 `is`** 判排他上界，传值相等但新建的 `datetime` 会错误接受端点 | **已修**：改值比较 `==`（新建等值对象实测判 False） |
+| 三 | **HIGH** | proof 仍非唯一：①**E 按复合序取最大会让尾部逃逸**（`L1=t2, L2=t1` 两行未标乱序时 E=L1，区间只含 L1，单调门真空通过，**L2 完全逃逸**）；②「恰六键」与「Review 省略 step」直接矛盾；③`new_card` 左端点两处冲突（`0` vs `first_event_line-1`）、genesis 的 frontmatter 字节域与可复验原文未冻结；④单个 hash 不能证明「历史上从未存在未入账 Review 状态」 | **已修**：①**E 改为行号最大的适用事件** + 要求其后无适用事件（该反例现会被单调门正确判「不可证明」）；②状态对象改为「恰含**适用于该 state 的键**」（Learning/Relearning 六键、**Review 五键**）；③左端点统一为 `first_event_line - 1`，genesis 补**字节域冻结**（首个 `---` 下一字节 → 闭合 `---` 前一字节）+ 携带 `node_frontmatter_text` 原文供复验；④**证明强度诚实上限**成文——genesis 只能证明「重建时刻无 FSRS 状态」，不能证明历史；`new_card` 仅在该节点**账本历史完整**时可用，否则须人工裁定 |
+| 二 | MEDIUM | PyYAML 缺失时测试只断言 `None`，未验证 WARN 通道；深嵌套 YAML 可让 validator 抛 `RecursionError`（backend 会捕获回退） | **已修**：新增 WARN 通道断言；YAML 解析补捕 `RecursionError` |
+| 六 | MEDIUM | 三处仍称 `stdlib-only`（schema §八、validator docstring、验收单交付清单），与新增的 PyYAML/backend 依赖冲突 | **已修**：三处口径统一为「**主体 stdlib-only + vault_id 绑定层需 PyYAML/backend**」 |
+
+十一轮整改后复跑：契约测试 **54 passed + 1 skipped**、三文件合跑 **73 passed + 1 skipped**、现网账本（23 行）exit 0 零 WARN 且 `vault_id='canvas_vault'`、**对真实生产入口的错绑数 0**（`审查/g3-1-evidence/g3-round11-counterexamples.txt`）。
+
 
 ## 六、移交登记
 

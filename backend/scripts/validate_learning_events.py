@@ -2,9 +2,15 @@
 """learning_events.jsonl schema v1 确定性校验器 (CARD-G3-1)。
 
 契约: docs/learning-events-schema-v1.md §八。真相源 = backend/app/services/
-learning_event_log.py 的 EVENT_VERSION=1 现实; 本脚本 stdlib-only、可独立对
-任意 vault 账本执行, 白名单复制份由契约测试与真相源锁死同步
-(tests/regression/test_learning_events_schema_contract.py)。
+learning_event_log.py 的 EVENT_VERSION=1 现实; 白名单复制份由契约测试与真相源
+锁死同步 (tests/regression/test_learning_events_schema_contract.py)。
+
+依赖口径 (round-10/11 修正, 此前误称 stdlib-only):
+  - **账本校验主体 = stdlib-only**, 可独立对任意 vault 的 jsonl 执行;
+  - **vault_id 绑定层需 PyYAML + 可 import 的 backend app.config** —— 它必须
+    与生产 Settings.vault_id 逐环节同源 (safe_load → isinstance(str) →
+    sanitize_vault_id → != "default"), 复制副本必然漂移 (r5~r11 实证);
+  - 两者任一不可达 ⇒ **不绑定 + WARN**, 主体校验不受影响。
 
 Codex round-1 整改 (2026-08-28):
   - 严格 JSON: 拒 NaN/Infinity 非标准常量、拒对象内重复键;
@@ -153,7 +159,8 @@ def _parse_ts(value: object, upper_bound: Optional[datetime] = None) -> tuple[bo
         normalized = parsed.astimezone(timezone.utc)
     except (OverflowError, OSError, ValueError):
         return False, f"UTC 归一化越界 (下游 astimezone 会溢出): {value!r}"
-    bound_exclusive = upper_bound is not None and upper_bound is REVIEW_INPUT_MAX
+    # round-11 MEDIUM: 原用 `is` 判身份, 传值相等但新建的 datetime 会错误接受端点
+    bound_exclusive = upper_bound is not None and upper_bound == REVIEW_INPUT_MAX
     if (normalized >= REVIEW_INPUT_MAX) if bound_exclusive else (normalized > (upper_bound or TIMESTAMP_MAX)):
         # A7 (round-6 MEDIUM, round-7 分档): review 输入用更保守的
         # REVIEW_INPUT_MAX (调度还要叠加 interval + A3 的 +1s);
@@ -382,20 +389,41 @@ def _golden_manifest() -> Optional[dict]:
 #:   (3) 下一行不是缩进行 (排除 plain scalar 折行续接)。
 #: 代价: `vault_id: team#1` 等形态退化为不绑定 (保守: 失一层防护 != 错绑),
 #: 且 vault_id 本就是文件名安全 slug, 现网与部署模板均落在白名单形态内。
+def _sanitize_vault_id(value: str) -> Optional[str]:
+    """走 backend 的真实 `sanitize_vault_id`（同仓可达时），否则 None。
+
+    ⚠️ round-11 HIGH#2: 只做 `safe_load + strip` **仍与生产分叉** ——
+    `Settings.vault_id` 还会调 `sanitize_vault_id()`（`config.py:1020`），
+    实测 `vault_id: team#1` 生产得 `team_1` 而本脚本曾绑定 `team#1`。
+    复制该函数会重演"手写副本漂移"，故直接 import 真实实现；不可达时
+    (脚本被拷到别处) **不绑定**，由调用方 WARN 降级。
+    """
+    backend_root = Path(__file__).resolve().parents[1]
+    if str(backend_root) not in sys.path:
+        sys.path.insert(0, str(backend_root))
+    try:
+        from app.config import sanitize_vault_id  # noqa: PLC0415
+    except Exception:  # noqa: BLE001 — 任何导入失败都降级为不绑定
+        return None
+    try:
+        sanitized = sanitize_vault_id(value)
+    except Exception:  # noqa: BLE001
+        return None
+    return sanitized if sanitized and sanitized != "default" else None
+
+
 def _vault_id_of(ledger_path: Path) -> Optional[str]:
-    """账本所在 vault 的声明 vault_id (同目录 .canvas-config.yaml)。
+    """账本所在 vault 的**规范化** vault_id（同目录 .canvas-config.yaml）。
 
-    ⚠️ **round-10 终局决策：改用 PyYAML，与 backend 完全同源。**
-    此前五轮（r5~r9）反复出现同一类缺陷：手写 YAML 子集与 backend 的
-    `yaml.safe_load` 真值面分叉，导致**静默错绑**（`"vault_id": real` 引号键、
-    `vault_id: 0x10` 十六进制、`1_000` 下划线数字、`-.inf`、Unicode 转义键名
-    `"vault_\u0069d"`、多行引号体内的列首 `vault_id:` …）。每补一个形态就
-    出现下一个——手写子集追不上完整实现，方向不可能收敛。
+    ⚠️ **round-10/11 终局：与 backend 生产入口逐环节同源。**
+    此前 r5~r9 手写 YAML 子集反复静默错绑；r10 改走 `yaml.safe_load` 后
+    r11 又发现只做 `safe_load + strip` 仍与生产分叉——生产 `Settings.vault_id`
+    的完整链是 **`safe_load` → `isinstance(str)` → `sanitize_vault_id()` →
+    `!= "default"` 才采信**（`config.py:782-795`）。现逐环节复用同一实现：
+    解析用 PyYAML，规范化用 backend 的 `sanitize_vault_id` 本体。
 
-    现改为：**走与 backend 同一条解析路径**（`yaml.safe_load` + `isinstance(str)`，
-    见 `backend/app/config.py:782-788`），真值面按定义一致。
-    PyYAML 不可用时（校验器被拷到纯 stdlib 环境独立运行）**不绑定 + WARN**——
-    校验器其余全部功能不受影响，只是少一层 vault 身份防护。
+    任一环节不可达（PyYAML 缺失 / backend 不可 import）⇒ **不绑定 + WARN**，
+    校验器其余功能不受影响。
     """
     config = ledger_path.parent / ".canvas-config.yaml"
     if not config.is_file():
@@ -407,15 +435,15 @@ def _vault_id_of(ledger_path: Path) -> Optional[str]:
     try:
         with open(config, encoding="utf-8") as handle:
             data = yaml.safe_load(handle) or {}
-    except (OSError, UnicodeDecodeError, yaml.YAMLError):
+    except (OSError, UnicodeDecodeError, yaml.YAMLError, RecursionError):
+        # round-11 MEDIUM: 深嵌套 YAML 会 RecursionError, backend 也捕获回退
         return None
     if not isinstance(data, dict):
         return None
     value = data.get("vault_id")
-    # 与 backend 同判据: 非空 str 才采信 (数字/bool/null 等一律不绑定)
     if not isinstance(value, str) or not value.strip():
         return None
-    return value.strip()
+    return _sanitize_vault_id(value)
 
 
 def _rating_from_grade_norm(grade_norm: float) -> int:
