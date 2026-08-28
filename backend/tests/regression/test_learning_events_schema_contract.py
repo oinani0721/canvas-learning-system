@@ -1316,7 +1316,8 @@ def test_duplicate_line_numbers_fail_closed():
 
 
 def _write_ledger(tmp_path, *, trailing_lf=True):
-    """两条真实 review/1 事件的账本。"""
+    """两条真实 review/1 事件的账本 (含同目录 vault 配置)。"""
+    (tmp_path / ".canvas-config.yaml").write_text("vault_id: v\n", encoding="utf-8")
     rows = []
     for idx, (ts, eid) in enumerate(((_T1, "e1"), (_T2, "e2")), start=1):
         rows.append(
@@ -1387,6 +1388,10 @@ def test_ledger_mode_enforces_prefix_ends_without_lf(tmp_path):
 def test_ledger_mode_skips_out_of_order_events(tmp_path):
     """标了 out_of_order 的行不进 pending 集合 (§6.2), 抽取必须排除。"""
     ledger = tmp_path / "learning_events.jsonl"
+    # ⚠️ 真正的乱序事件其 review_time 必须**早于**已应用的最新事件 (§6.2:
+    # 乱序判据是 review_time <= W)。round-17 起, 标了 out_of_order 却更晚的行
+    # 会被判为"伪装成乱序的真实后继"并仍计入适用集。
+    earlier = "2025-12-01T10:00:00Z"
     rows = [
         json.dumps(
             {
@@ -1407,7 +1412,7 @@ def test_ledger_mode_skips_out_of_order_events(tmp_path):
                 "node_id": "n",
                 "recorded_at": _T2,
                 "effective_at": _T2,
-                "payload": {"schema_ext": "review/1", "review_time": _T2, "out_of_order": True},
+                "payload": {"schema_ext": "review/1", "review_time": earlier, "out_of_order": True},
             }
         ),
     ]
@@ -1537,7 +1542,14 @@ def test_genesis_fsrs_detection_is_yaml_semantic(text, should_reject):
     assert bool(hit) is should_reject, (text, problems)
 
 
-def _ledger_with(tmp_path, rows, name="learning_events.jsonl"):
+def _ledger_with(tmp_path, rows, name="learning_events.jsonl", vault_id="v"):
+    """写一份账本 + 同目录 vault 配置。
+
+    round-17 起 vault 身份无任何证据时 fail-closed, 而真实 vault 根都带
+    `.canvas-config.yaml` —— 夹具必须还原这一现实形态。
+    """
+    if vault_id is not None:
+        (tmp_path / ".canvas-config.yaml").write_text(f"vault_id: {vault_id}\n", encoding="utf-8")
     path = tmp_path / name
     path.write_text("\n".join(rows) + "\n", encoding="utf-8")
     return path
@@ -1918,3 +1930,122 @@ def test_survivor_params_hash_sentinel_in_interval(tmp_path):
     proof = _leaf(1, _T1, first_event_line=1, ledger_prefix_sha256=prefix)
     problems = validator.verify_degraded_proof(proof, [], ledger_path=ledger)
     assert any("degraded 哨兵" in p and "人工裁定" in p for p in problems), problems
+
+
+# ── round-18: Codex 十七轮的 3 HIGH + 5 MEDIUM + 3 LOW 逐条行为门 ──
+
+
+def test_partially_corrupt_manifest_fails_closed(monkeypatch):
+    """manifest **可达但残缺**时不得失败开放 (十七轮 HIGH)。
+
+    `_golden_manifest()` 只校验 version/hash；若其 scheduler_config 缺失或键不
+    全, 比较分支会被整个跳过 —— proof 携同款残缺配置即返回 []。
+    """
+    base = {"library_version": _GOLDEN_MANIFEST["library_version"], "params_hash": _GOLDEN_MANIFEST["params_hash"]}
+    for broken in (
+        {**base, "scheduler_config": {"desired_retention": 0.9}},  # 键不全
+        base,  # 整个字段缺失
+        {**base, "scheduler_config": "not-an-object"},
+    ):
+        monkeypatch.setattr(validator, "_golden_manifest", lambda b=broken: b)
+        proof = _leaf(2, _T2, first_event_line=1, scheduler_config={"desired_retention": 0.9})
+        problems = validator.verify_degraded_proof(proof, _APPLICABLE_2)
+        assert any("残缺" in p and "fail-closed" in p for p in problems), (broken, problems)
+
+
+def test_out_of_order_true_cannot_disguise_a_real_successor(tmp_path):
+    """标了 out_of_order 但时刻更晚 = 伪装成乱序的真实后继 (十七轮 HIGH)。
+
+    形态合法不等于语义为真: §6.2 的乱序判据是 `review_time <= W`。
+    """
+    later = json.loads(_event("e2", _T2))
+    later["payload"]["out_of_order"] = True
+    ledger = _ledger_with(tmp_path, [_event("e1", _T1), json.dumps(later)])
+    prefix, _, _ = validator.ledger_prefix(ledger, 1)
+    proof = _leaf(1, _T1, first_event_line=1, ledger_prefix_sha256=prefix)
+    problems = validator.verify_degraded_proof(proof, [], ledger_path=ledger)
+    assert any("伪装成乱序的真实后继" in p for p in problems), problems
+    assert any("未覆盖到账本末尾" in p for p in problems), problems
+
+
+def test_genuine_out_of_order_event_is_not_misrejected(tmp_path):
+    """真正的乱序事件 (时刻更早) 必须仍被排除, 不得误拒。"""
+    earlier = json.loads(_event("late", "2025-12-01T10:00:00Z"))
+    earlier["payload"]["out_of_order"] = True
+    ledger = _ledger_with(tmp_path, [_event("e1", _T1), json.dumps(earlier)])
+    prefix, _, _ = validator.ledger_prefix(ledger, 1)
+    proof = _leaf(1, _T1, first_event_line=1, ledger_prefix_sha256=prefix)
+    assert validator.verify_degraded_proof(proof, [], ledger_path=ledger) == []
+
+
+@pytest.mark.parametrize("carried", ["none", "partial"])
+def test_vault_identity_without_evidence_fails_closed(tmp_path, carried):
+    """两个锚都缺 / 只有部分行带 vault_id ⇒ vault 身份不可证, fail-closed。"""
+    rows = [_event("e1", _T1), _event("e2", _T2)]
+    if carried == "partial":
+        first = json.loads(rows[0])
+        first["payload"]["vault_id"] = "v"
+        rows[0] = json.dumps(first)
+    ledger = _ledger_with(tmp_path, rows, vault_id=None)  # 不写 .canvas-config.yaml
+    prefix, _, _ = validator.ledger_prefix(ledger, 2)
+    proof = _leaf(2, _T2, first_event_line=1, ledger_prefix_sha256=prefix)
+    problems = validator.verify_degraded_proof(proof, [], ledger_path=ledger)
+    marker = "纯属自报" if carried == "none" else "不可证"
+    assert any(marker in p for p in problems), (carried, problems)
+
+
+@pytest.mark.parametrize("bad", [[], 42, None, {"a": 1}])
+def test_non_string_vault_id_reports_instead_of_crashing(tmp_path, bad):
+    """非字符串 vault_id 必须报违规, 不得在集合构造处抛 TypeError。"""
+    ledger = _ledger_with(tmp_path, [_event("e1", _T1, vault_id="v")], vault_id=None)
+    prefix, _, _ = validator.ledger_prefix(ledger, 1)
+    proof = _leaf(1, _T1, first_event_line=1, vault_id=bad, ledger_prefix_sha256=prefix)
+    problems = validator.verify_degraded_proof(proof, [], ledger_path=ledger)
+    assert any("必须是字符串" in p for p in problems), (bad, problems)
+
+
+def test_survivor_recursion_shares_ledger_facts(tmp_path):
+    """ancestor 必须消费**共享的**账本事实, 而不是被跳过校验。
+
+    十七轮 survivor: 原门只统计最外层读取次数, 递归丢弃 scan/raw 后仍全绿。
+    判据改为**行为**——把 ancestor 的 prefix 改错, 必须报 ancestor 的实算不符。
+    """
+    ledger = _ledger_with(tmp_path, [_event("e1", _T1), _event("e2", _T2)])
+    prefix2, _, _ = validator.ledger_prefix(ledger, 2)
+    ancestor = _leaf(1, _T1, first_event_line=1, ledger_prefix_sha256="f" * 64)
+    proof = _layered(2, _T2, ancestor)
+    proof["ledger_prefix_sha256"] = prefix2
+    problems = validator.verify_degraded_proof(proof, [], ledger_path=ledger)
+    assert any("ancestor_proof:" in p and "与账本实算不符" in p for p in problems), problems
+
+
+def test_missing_pyyaml_rejects_even_clean_frontmatter(monkeypatch):
+    """无 PyYAML 时连干净的 frontmatter 也必须拒 —— 这是硬依赖不是降级。
+
+    十七轮: 原 PyYAML 测试的 fixture 只是默认 `title: n`, 说明却提到转义键;
+    本门把两种输入都锁死。
+    """
+    real_import = builtins.__import__
+
+    def blocked(name, *args, **kwargs):
+        if name == "yaml":
+            raise ImportError("blocked for test")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", blocked)
+    for text in ("title: n\n", '"fsrs_\\u0073tate": 2\n'):
+        proof = _leaf(2, _T2, first_event_line=1)
+        proof["origin"]["genesis_evidence"]["node_frontmatter_text"] = text
+        proof["origin"]["genesis_evidence"]["node_frontmatter_hash"] = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        problems = validator.verify_degraded_proof(proof, _APPLICABLE_2)
+        assert any("PyYAML 不可达" in p and "fail-closed" in p for p in problems), (text, problems)
+
+
+def test_degraded_lines_are_deduplicated(tmp_path):
+    """同一行的两个算法字段都是哨兵时, 行号不得重复记录 (十七轮 LOW)。"""
+    row = json.loads(_event("e1", _T1))
+    row["payload"]["fsrs_library_version"] = "degraded:x"
+    row["payload"]["fsrs_params_hash"] = "degraded:y"
+    ledger = _ledger_with(tmp_path, [json.dumps(row)])
+    scan, _ = validator.scan_ledger_bytes(ledger.read_bytes(), "n")
+    assert scan["degraded_lines"] == [1], scan["degraded_lines"]

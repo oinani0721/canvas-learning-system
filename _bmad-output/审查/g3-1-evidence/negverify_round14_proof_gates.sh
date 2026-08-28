@@ -29,6 +29,9 @@ FAILURES=0
 trap 'cp "$BAK" "$VALIDATOR"; rm -f "$BAK"' EXIT
 
 fail() { echo "  ❌ $*"; FAILURES=$((FAILURES + 1)); }
+# round-17 Codex MEDIUM: 中间恢复的 cp 原本不查返回码 —— 恢复失败会让后续变体
+# 全部跑在污染文件上, 结论不可信
+restore() { cp "$BAK" "$VALIDATOR" || { echo "  ❌ 恢复失败, 中止 (用 git checkout 还原)"; return 1; }; }
 pass() { echo "  ✅ $*"; }
 
 # mutate <perl表达式> — 断言恰好命中 1 处
@@ -37,15 +40,24 @@ mutate() {
   local before after
   before="$(shasum -a 256 "$VALIDATOR" | cut -d' ' -f1)"
   # round-16 Codex MEDIUM: 只比前后 SHA 不能排除"命中两处"。先用 /g 变体数命中数。
-  hits="$(perl -0ne "\$n = () = (\$_ =~ s${expr#s}g); print \$n" "$VALIDATOR" 2>/dev/null || echo "?")"
-  perl -0pi -e "$expr" "$VALIDATOR"
+  hits="$(perl -0ne "\$n = () = (\$_ =~ s${expr#s}g); print \$n" "$VALIDATOR" 2>/dev/null)" || hits=""
+  # round-17 Codex MEDIUM: 原实现把计数失败降级为 "?" 并放行 —— 计数不出来
+  # 就等于不知道变体语义是否唯一, 必须失败而不是放行
+  if [ -z "$hits" ]; then
+    fail "无法统计 mutation 命中次数 — 变体语义不可证, 拒绝据此下结论"
+    return 1
+  fi
+  if [ "$hits" != "1" ]; then
+    fail "mutation 命中 $hits 处 (要求恰 1 处) — 变体语义不唯一"
+    return 1
+  fi
+  if ! perl -0pi -e "$expr" "$VALIDATOR"; then
+    fail "perl mutation 返回非零 — 可能已部分改写, 本变体结论无效"
+    return 1
+  fi
   after="$(shasum -a 256 "$VALIDATOR" | cut -d' ' -f1)"
   if [ "$before" = "$after" ]; then
     fail "mutation 未命中 (文件未变) — 模式已与实现漂移, 本变体结论无效"
-    return 1
-  fi
-  if [ "$hits" != "1" ] && [ "$hits" != "?" ]; then
-    fail "mutation 命中 $hits 处 (要求恰 1 处) — 变体语义不唯一"
     return 1
   fi
   return 0
@@ -76,12 +88,19 @@ expect_red() {
     fail "0 个测试被收集 — 过滤表达式与实现漂移"
     return 1
   fi
-  local first="${expected%%|*}"
-  if ! grep -qE "^FAILED .*::(${expected})" <<<"$OUT"; then
-    fail "预期 ${first} 变红, 实际失败的是别的测试"
-    grep "^FAILED" <<<"$OUT" | head -3 | sed 's/^/     /'
-    return 1
-  fi
+  local first="${expected%%|*}" name
+  # round-17 Codex MEDIUM: "⊆ 预期集合"只要求至少一条预期项变红 —— 多测试场景下
+  # 其余预期项即便没红也会被判承重。改为**每一条预期项都必须变红**。
+  local IFS_SAVE="$IFS"; IFS='|'
+  for name in $expected; do
+    if ! grep -qE "^FAILED .*::${name}" <<<"$OUT"; then
+      IFS="$IFS_SAVE"
+      fail "预期 ${name} 变红, 实际未失败"
+      grep "^FAILED" <<<"$OUT" | head -3 | sed 's/^/     /'
+      return 1
+    fi
+  done
+  IFS="$IFS_SAVE"
   # round-16 Codex MEDIUM: 只查"预期那条在失败列表里"不够 —— 无关的连带失败会让
   # "该门承重"的结论不成立。判据 = 失败集合 ⊆ 预期集合。
   local others
@@ -117,84 +136,112 @@ echo "    正常链 L1=t1、L2=t2 的 ancestor(cursor=1) 会因 L2 存在而失�
 if mutate 's/            is_top_level=False,\n            _depth=depth \+ 1,/            is_top_level=True,\n            _depth=depth + 1,/'; then
   expect_red test_normal_two_layer_chain_is_provable "two_layer or bypass"
 fi
-cp "$BAK" "$VALIDATOR"
+restore || exit 1
 
 echo
 echo "=== 变体B: 拆掉跨层单调门 (round-12 反例的封堵) ==="
 if mutate 's/if ancestor_end is not None and ancestor_end >= instants\[0\]:/if False:/'; then
   expect_red test_layered_split_cannot_bypass_monotonicity "two_layer or bypass"
 fi
-cp "$BAK" "$VALIDATOR"
+restore || exit 1
 
 echo
 echo "=== 变体C: 拆掉最外层尾部门 (round-11 尾部逃逸的封堵) ==="
 if mutate 's/    if is_top_level:\n        tail = sorted/    if False:\n        tail = sorted/'; then
   expect_red "test_top_level_must_cover_ledger_tail|test_out_of_order_false_cannot_hide_tail_event" "tail"
 fi
-cp "$BAK" "$VALIDATOR"
+restore || exit 1
 
 echo
 echo "=== 变体D: state_hash 恒返回常量 (round-14 Codex: 同源循环下 14/14 仍全绿) ==="
 if mutate 's/    return hashlib\.sha256\(blob\)\.hexdigest\(\), \[\]/    return "0" * 64, []/'; then
   expect_red test_canonical_state_hash_matches_independent_oracle "independent_oracle"
 fi
-cp "$BAK" "$VALIDATOR"
+restore || exit 1
 
 echo
 echo "=== 变体E: genesis 原文 FSRS 字段检查失效 (round-14 Codex HIGH) ==="
 if mutate 's/        if offenders:/        if False:/'; then
   expect_red test_genesis_anchor_is_really_anchored "genesis_anchor"
 fi
-cp "$BAK" "$VALIDATOR"
+restore || exit 1
 
 echo
 echo "=== 变体F: genesis first_event_line 不校验 (round-15 Codex HIGH) ==="
 if mutate 's/    if earliest is not None and first_line != earliest:/    if False:/'; then
   expect_red test_first_event_line_must_equal_earliest_node_event "first_event_line"
 fi
-cp "$BAK" "$VALIDATOR"
+restore || exit 1
 
 echo
 echo "=== 变体G: 算法身份不绑 manifest (round-15 Codex HIGH) ==="
 if mutate 's/        elif manifest is not None and version != manifest\["library_version"\]:/        elif False:/'; then
   expect_red "test_algorithm_identity_binds_to_golden_manifest\[fsrs_library_version-garbage" "algorithm_identity"
 fi
-cp "$BAK" "$VALIDATOR"
+restore || exit 1
 
 echo
 echo "=== 变体H: earliest 退回最早**适用**行 (round-16 survivor) ==="
 if mutate 's/    earliest = min\(scan\["node_event_lines"\]\) if \(scan and scan\["node_event_lines"\]\) else \(min\(lines\) if lines else None\)/    earliest = min(lines) if lines else None/'; then
   expect_red test_survivor_earliest_uses_all_node_events "survivor_earliest"
 fi
-cp "$BAK" "$VALIDATOR"
+restore || exit 1
 
 echo
 echo "=== 变体I: stability 上界删除 (round-16 survivor) ==="
 if mutate 's/    if isinstance\(stability, float\) and not \(0 < stability <= STABILITY_MAX\):/    if isinstance(stability, float) and not (0 < stability):/'; then
   expect_red test_survivor_stability_upper_bound_is_enforced "survivor_stability"
 fi
-cp "$BAK" "$VALIDATOR"
+restore || exit 1
 
 echo
 echo "=== 变体J: 区间只查 library_version 哨兵 (round-16 survivor) ==="
 if mutate 's/            for key in \("fsrs_library_version", "fsrs_params_hash"\)/            for key in ("fsrs_library_version",)/'; then
   expect_red test_survivor_params_hash_sentinel_in_interval "survivor_params_hash"
 fi
-cp "$BAK" "$VALIDATOR"
+restore || exit 1
 
 echo
 echo "=== 变体K: out_of_order 退回"键存在即排除" (round-16 HIGH) ==="
-if mutate 's/            if payload\["out_of_order"\] is True:/            if True:/'; then
+if mutate 's/            if payload\["out_of_order"\] is not True:\n                problems.append\(/            if payload["out_of_order"] is not True:\n                continue\n                problems.append(/'; then
   expect_red test_out_of_order_false_cannot_hide_tail_event "out_of_order_false"
 fi
-cp "$BAK" "$VALIDATOR"
+restore || exit 1
 
 echo
 echo "=== 变体L: scheduler_config 退回 Python == 比较 (round-16 HIGH) ==="
 if mutate 's/            if _canon\(config\) != _canon\(manifest\["scheduler_config"\]\):/            if config != manifest["scheduler_config"]:/'; then
   expect_red "test_scheduler_config_compared_by_canonical_json" "canonical_json"
 fi
-cp "$BAK" "$VALIDATOR"
+restore || exit 1
+
+echo
+echo "=== 变体M: manifest 残缺不再 fail-closed (round-17 HIGH) ==="
+if mutate 's/        elif manifest is not None and not _manifest_config_usable\(manifest\):/        elif False:/'; then
+  expect_red test_partially_corrupt_manifest_fails_closed "partially_corrupt_manifest"
+fi
+restore || exit 1
+
+echo
+echo "=== 变体N: out_of_order 语义门失效 (round-17 HIGH) ==="
+if mutate 's/                if marked_at is not None and marked_at.tzinfo is not None and \(not prior or marked_at > max\(prior\)\):/                if False:/'; then
+  expect_red test_out_of_order_true_cannot_disguise_a_real_successor "disguise_a_real_successor"
+fi
+restore || exit 1
+
+echo
+echo "=== 变体O: vault 无证据不再 fail-closed (round-17 HIGH) ==="
+if mutate 's/            if not vault_ids and ledger_vault_id is None:/            if False:/'; then
+  expect_red "test_vault_identity_without_evidence_fails_closed" "without_evidence"
+fi
+restore || exit 1
+
+echo
+echo "=== 变体P: 递归不再共享账本事实 (round-17 survivor) ==="
+if mutate 's/            scan=scan,\n            ledger_raw=ledger_raw,\n            ledger_vault_id=ledger_vault_id,/            scan=None,\n            ledger_raw=None,\n            ledger_vault_id=None,/'; then
+  expect_red test_survivor_recursion_shares_ledger_facts "recursion_shares"
+fi
+restore || exit 1
 
 echo
 echo "=== 还原后全量 ==="

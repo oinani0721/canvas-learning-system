@@ -190,7 +190,8 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
 
 **三态语义（消解"已应用 vs 迟到乱序"歧义）**：`review_time ≤ W` 的事件**一律不推进 current state**——无论它是"已应用"还是"迟到的乱序事件"，对 current state 的动作**完全相同**，因此该歧义对 exactly-once 无影响。二者的区分只用于**账本标注**：
 - **乱序判据统一为 G3-3 卡面口径**（`review_time 早于已应用的最新事件`，即 `review_time ≤ W`，按绝对瞬间比较），标 `out_of_order`；本文档 pending 集合定义已显式**排除已标 out_of_order 的行**，两处口径自洽。
-- **`out_of_order` 字段冻结（round-4 HIGH#3）**：位置 = `payload.out_of_order`；类型 = **布尔 `true`**（唯一合法值）；**未标 = 不写该键**（禁止写 `false`、字符串 `"true"`、对象或任何其他形态——它们既非"已标"也非"未标"，会让 pending 排除条件产生歧义）。校验器机械强制该形态。
+- **`out_of_order` 字段冻结（round-4 HIGH#3，round-17 补语义门）**：位置 = `payload.out_of_order`；类型 = **布尔 `true`**（唯一合法值）；**未标 = 不写该键**（禁止写 `false`、字符串 `"true"`、对象或任何其他形态——它们既非"已标"也非"未标"，会让 pending 排除条件产生歧义）。校验器机械强制该形态。
+  ⚠️ **形态合法 ≠ 语义为真（round-17 Codex HIGH）**：proof 的 scanner 排除标了 `out_of_order` 的行，于是"标记本身"成了把事件移出适用集的手段。若某行标了该键、其 `review_time` 却**晚于此前所有适用事件**，它就是**被伪装成乱序的真实后继**——排除它即绕过尾部覆盖门。故 proof 侧额外强制：标记行的 `review_time` 必须**不晚于**此前适用事件的最大时刻（即符合本条乱序定义 `review_time ≤ W`）；不符者**报违规且仍计入适用集**。
 - **迟到事件的入账通道**：A3 的"严格大于 W"只约束**在线评分**（正常复习写入）。补录/迟到事件走**账本补录通道**：以原始 `review_time` 入账 + 标 `payload.out_of_order = true`，**不进 pending、不推进 current state**——因此与 A3 无冲突。
 - **degraded pending 处置（round-4 HIGH#3 + round-5 HIGH#3 解冻边界）**：当节点落入**残缺卡**（三态 fail-closed）时，该节点的 pending 集合**整体冻结**——不重放、不追加新在线事件（新评分应向用户如实报错而非静默丢弃）。禁止"跳过残缺节点继续写新事件"——那会在错误基线上叠加。
   - **解冻的唯一合法条件（round-5 提出，round-6 机械化）**：修复必须**把六字段与 `W` 原子重建到同一个可证明的账本边界**上——选定账本中某个事件 `E`，从**可证明起点**折叠到 `E` 为止，把结果的六字段与 `W = E.review_time` 在**同一次原子替换**中写入。三项必须机械确定：
@@ -200,11 +201,15 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
       - 两个 verifier 因此不会给出相反结果。
       - 📌 **可执行的单一事实（round-14，round-15 补真实绑定）**：以上分层语义已落成参考实现 `backend/scripts/validate_learning_events.py::verify_degraded_proof(proof, applicable, *, ledger_path=None)`——作用域由**内部**递归参数 `is_top_level` 承载（递归固定传 `False`），round-15 起**已移出公开签名**（公开可写等于给调用方一个关掉尾部门的开关）。行为门见 `test_learning_events_schema_contract.py::test_normal_two_layer_chain_is_provable`（正常两层链必须 PASS）与 `::test_layered_split_cannot_bypass_monotonicity`（分层绕过必须 FAIL）。
         **传 `ledger_path` = 账本直读模式**：verifier 用 `scan_ledger_bytes()` 在**单一字节快照**上抽取适用事件、该节点全部事件行、无扩展历史行、degraded 哨兵行与 vault_id 集合，并用 `ledger_prefix()` 复算 `ledger_prefix_sha256` 与 `prefix_ends_without_lf`，忽略调用方传入的 `applicable`。**生产接入必须传 `ledger_path`**——否则 `applicable` 是信任边界，调用方抽取不全会让最外层尾部门真空通过（round-14 Codex HIGH 实证）。
-        ⚠️ **verifier 不做的四件事**（round-15 Codex 指出前三条声明"强于实际实现"，此处逐条收紧）：
+        ⚠️ **verifier 不做的六件事**（round-15 起逐轮收紧，round-17 落定；与 `validate_learning_events.py` 的模块头注释、`verify_degraded_proof` docstring **三处同文**）：
         ① 不复算 FSRS 折叠（canonical reducer 属 G3-2）；
         ② 不复算 `result_hash`（同样依赖 reducer）；
-        ③ **不把 `genesis_evidence.node_frontmatter_text` 与真实节点文件的字节比对**——只验其与自报 hash 自洽、且顶层无 `fsrs_*` 键。节点文件路径不在 proof 内，该绑定须由调用方在重建时另行完成；
-        ④ 传 `ledger_path` 时读取的是**调用瞬间的快照**——快照之后的并发追加不在本次判定内，调用方须在**持有账本锁时**校验。
+        ③ 不传 `ledger_path` 时不复算 prefix、不自行抽取事件（`applicable` 即信任边界）；
+        ④ **不把 `genesis_evidence.node_frontmatter_text` 与真实节点文件的字节比对**——只验其与自报 hash 自洽、且顶层无 `fsrs_*` 键。节点文件路径不在 proof 内，该绑定须由调用方在重建时另行完成；
+        ⑤ **不做完整记录级 schema 校验**——scanner 只校验 proof 依赖的字段（`node_id` / `schema_ext` / `out_of_order` / `review_time` / `event_id` / 算法身份 / `vault_id`）。**proof 校验以「该账本已通过主体校验」为前置条件**；
+        ⑥ 传 `ledger_path` 时读取的是**调用瞬间的快照**——快照之后的并发追加不在本次判定内，调用方须在**持有账本锁时**校验。
+        📌 **proof 侧的强依赖（与账本主体校验不同口径）**：账本校验主体是 stdlib-only，但 **proof 侧强制要求 PyYAML**（genesis 顶层键判定）**与同仓 G3-4 golden manifest**（算法身份同源，且其 `scheduler_config` 须完整含六键）。任一不可达或残缺 ⇒ **fail-closed 报违规**，不降级放行——降级会让"合法形状版本 + 任意 hash + 残缺配置"直接通过（round-16/17 实证）。
+        📌 **`scheduler_config` 的类型冻结**：proof 的该字段必须与 manifest 的 **canonical JSON 文本逐字相同**（`json.dumps(sort_keys=True, separators=(",",":"))`）。这一并冻结了各键的 JSON 类型——`enable_fuzzing` 是 `false` 不是 `0`、`learning_steps_minutes` 是整数数组不是布尔数组、`maximum_interval` 是 `36500` 不是 `36500.0`。Python 的 `==` 对前两组判等（`0 == False`、`True == 1`），故**不得用 `==` 比较**。
         返回空违规 = "已判门内无歧义，可交付 reducer 复算"，**不等于** proof 成立。
       ⚠️ round-11 反例：若按 `(review_time, 行号)` 复合序取最大，当 `L1=t2`、`L2=t1`（两行都未标乱序）时 E=L1，区间只含 L1，单调门真空通过，**L2 完全逃逸未被覆盖**。改用行号口径后，E=L2，L1 与 L2 同在区间内，单调门会因 `t2 > t1` 而判该区间不自洽 ⇒ 正确地报"不可证明"。
     - **canonical reducer（round-6 实测的舍入歧义）**：折叠必须**逐事件按生产持久化精度舍入后再进下一步**（与 bridge 的写-读循环一致），**不得**在内存中连续折叠、只在末尾舍入。实测差异：三次 Good 后 `stability` = **10.9711**（逐步舍入）vs **10.9710**（末尾舍入）——两者都满足"折叠到 E"的粗描述，故边界必须唯一化。舍入精度以 bridge 写出 frontmatter 时的实际精度为准（G3-2 落地时把该常量与本条一并锁进测试）。

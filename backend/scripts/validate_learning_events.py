@@ -332,13 +332,24 @@ def classify_card_state(fields: dict) -> tuple[str, str]:
 # (左开右闭按行号)、层内单调、跨层单调、链终止与防循环、snapshot 三等式、
 # genesis 真锚、尾部作用域。
 #
-# **不做的事** (round-14 Codex HIGH: 此前只说"不复算 FSRS", 未点名以下三项):
+# **不做的事** (round-14 起逐轮点名, round-17 落定为六条):
 #   ① **不复算 FSRS 折叠** —— canonical reducer 的精度常量属 G3-2, 需真实 fsrs;
 #   ② **不复算 `result_hash`** —— 它是折叠产物的 hash, 同样依赖 reducer;
 #   ③ 不传 `ledger_path` 时**不复算 `ledger_prefix_sha256`、不自行抽取事件** ——
 #      此时 `applicable` 是**信任边界**, 其完整性由调用方保证 (抽取不全会让尾部
-#      门真空通过)。**传 `ledger_path` 即消除该边界**: verifier 自行抽取事件、
-#      复算 prefix、判定 `prefix_ends_without_lf`, 并忽略调用方传入的 applicable。
+#      门真空通过)。传 `ledger_path` 后 verifier 自行抽取事件、复算 prefix、判定
+#      `prefix_ends_without_lf`, 并忽略调用方传入的 applicable —— 但这**不等于**
+#      消除全部信任 (见 ⑤);
+#   ④ **不把 genesis 原文与真实节点文件的字节比对** (节点文件路径不在 proof 内);
+#   ⑤ **不做完整记录级 schema 校验** —— scanner 只校验 proof 依赖的字段
+#      (node_id / schema_ext / out_of_order / review_time / event_id / 算法身份 /
+#      vault_id)。**proof 校验以「该账本已通过本脚本的主体校验」为前置条件**;
+#   ⑥ 传 `ledger_path` 时读的是**调用瞬间的快照** —— 之后的并发追加不在判定内
+#      (调用方须在持有账本锁时校验)。
+#
+# **proof 侧的额外依赖 (与账本主体校验不同)**: 主体 stdlib-only, 但 proof 侧
+# **强制要求 PyYAML** (genesis 顶层键判定) 与**同仓 G3-4 golden manifest**
+# (算法身份同源)。二者任一不可达 ⇒ **fail-closed 报违规**, 不降级放行。
 #
 # 因此 verifier 返回空违规**不等于** proof 成立, 只等于"在上述已判门内无歧义,
 # 可交付 reducer 复算"。
@@ -488,6 +499,7 @@ def scan_ledger_bytes(raw: bytes, node_id: object) -> tuple[dict, list[str]]:
         "unextended_lines": [],
         "degraded_lines": [],
         "vault_ids": set(),
+        "vault_id_lines": set(),
         "bad_lines": [],
         "blank_lines": [],
     }
@@ -519,12 +531,26 @@ def scan_ledger_bytes(raw: bytes, node_id: object) -> tuple[dict, list[str]]:
             # round-16 Codex HIGH: 原实现按"键是否存在"排除 —— 写
             # `out_of_order: false` 即可把尾部事件从适用集里藏掉, 绕过尾部门。
             # §6.2 冻结: 该键唯一合法值是布尔 true, 未标则不写该键。
-            if payload["out_of_order"] is True:
-                continue
-            problems.append(
-                f"第 {idx} 行: out_of_order 形态非法 ({payload['out_of_order']!r}) — "
-                f"§6.2 冻结其唯一合法值为布尔 true, 未标则不写该键; 该行仍计入适用集"
-            )
+            if payload["out_of_order"] is not True:
+                problems.append(
+                    f"第 {idx} 行: out_of_order 形态非法 ({payload['out_of_order']!r}) — "
+                    f"§6.2 冻结其唯一合法值为布尔 true, 未标则不写该键; 该行仍计入适用集"
+                )
+            else:
+                # round-17 Codex HIGH: 形态合法**不等于**语义为真 —— §6.2 定义
+                # 乱序 = "review_time 早于已应用的最新事件"。若某行标了
+                # out_of_order 而其 review_time 却**晚于前面所有适用事件**, 它
+                # 就是一个被伪装成乱序的真实后继, 排除它即绕过尾部门。
+                marked_at = _instant(payload.get("review_time"))
+                prior = [_instant(ts) for _, ts, _ in scan["applicable"]]
+                prior = [i for i in prior if i is not None and i.tzinfo is not None]
+                if marked_at is not None and marked_at.tzinfo is not None and (not prior or marked_at > max(prior)):
+                    problems.append(
+                        f"第 {idx} 行标了 out_of_order, 但其 review_time 晚于此前所有适用事件 — "
+                        f"§6.2 的乱序判据是 review_time <= W, 该行是被伪装成乱序的真实后继; 仍计入适用集"
+                    )
+                else:
+                    continue
         review_time = payload.get("review_time")
         event_id = record.get("event_id")
         if not isinstance(review_time, str) or not isinstance(event_id, str):
@@ -538,6 +564,7 @@ def scan_ledger_bytes(raw: bytes, node_id: object) -> tuple[dict, list[str]]:
         vault_id = payload.get("vault_id")
         if isinstance(vault_id, str) and vault_id:
             scan["vault_ids"].add(vault_id)
+            scan["vault_id_lines"].add(idx)
         scan["applicable"].append((idx, review_time, event_id))
     return scan, problems
 
@@ -667,16 +694,37 @@ def _verify_proof_level(
         # 真实配置 (与主体校验同源) 作锚。
         claimed = proof.get("vault_id")
         vault_ids = scan["vault_ids"]
-        if vault_ids and vault_ids != {claimed}:
-            problems.append(
-                f"vault_id 与账本事件不符: proof 声称 {claimed!r}, 账本适用事件为 {sorted(vault_ids)} "
-                f"(须严格等于单一值)"
-            )
-        if ledger_vault_id is not None and claimed != ledger_vault_id:
-            problems.append(
-                f"vault_id 与账本所在 vault 配置不符: proof 声称 {claimed!r}, "
-                f".canvas-config.yaml 为 {ledger_vault_id!r}"
-            )
+        if not isinstance(claimed, str):
+            # round-17 Codex MEDIUM: 原实现先做 `{claimed}` 再走类型门,
+            # `vault_id: []` 会在集合构造处抛未捕获的 TypeError
+            problems.append(f"vault_id 必须是字符串才能与账本比对, 得到 {claimed!r}")
+        else:
+            if vault_ids and vault_ids != {claimed}:
+                problems.append(
+                    f"vault_id 与账本事件不符: proof 声称 {claimed!r}, 账本适用事件为 {sorted(vault_ids)} "
+                    f"(须严格等于单一值)"
+                )
+            if ledger_vault_id is not None and claimed != ledger_vault_id:
+                problems.append(
+                    f"vault_id 与账本所在 vault 配置不符: proof 声称 {claimed!r}, "
+                    f".canvas-config.yaml 为 {ledger_vault_id!r}"
+                )
+            # round-17 Codex HIGH: 两个锚都缺时 vault 身份纯属自报 —— 此前只在
+            # 范围声明里"如实登记", 但登记不是门。proof 是罕用的解冻管理路径,
+            # 真实 vault 均有 .canvas-config.yaml, 故此处 fail-closed 是安全的。
+            if not vault_ids and ledger_vault_id is None:
+                problems.append(
+                    f"vault 身份无任何证据可绑 (适用事件均无 vault_id, 且账本目录无可解析的 "
+                    f".canvas-config.yaml) — proof 声称的 {claimed!r} 纯属自报, fail-closed"
+                )
+            # 部分行带 vault_id、部分行不带 ⇒ 集合不足以判定全体
+            elif vault_ids and len(vault_ids) == 1:
+                carried = sum(1 for line, _, _ in scan["applicable"] if line in scan["vault_id_lines"])
+                if carried != len(scan["applicable"]):
+                    problems.append(
+                        f"仅 {carried}/{len(scan['applicable'])} 条适用事件带 vault_id — "
+                        f"其余行的 vault 归属不可证, fail-closed"
+                    )
 
     problems.extend(_check_proof_identity(proof))
 
@@ -833,7 +881,15 @@ def _check_proof_identity(proof: dict) -> list[str]:
     if "scheduler_config" in proof:
         if not isinstance(config, dict) or not config:
             problems.append("scheduler_config 必须是非空 JSON object (须完整可复算)")
-        elif manifest is not None and isinstance(manifest.get("scheduler_config"), dict):
+        elif manifest is not None and not _manifest_config_usable(manifest):
+            # round-17 Codex HIGH: _golden_manifest() 只校验 version/hash ——
+            # manifest 的 scheduler_config 缺失/非 dict/键不全时, 比较分支被整个
+            # 跳过, proof 携任意残缺配置即返回 []。可达但残缺 = 无法证明同源。
+            problems.append(
+                "golden manifest 的 scheduler_config 残缺 (缺失/非 object/键不全) — "
+                "无法证明算法配置同源, proof 侧 fail-closed (§6.2)"
+            )
+        elif manifest is not None:
             # round-16 Codex HIGH: 原用 Python `==` —— `enable_fuzzing: 0` 与
             # manifest 的 JSON `false` 判等 (Python 里 0 == False), 同理
             # `[true, 10]` 等于 `[1, 10]`。改按 **canonical JSON 文本**比较:
@@ -874,6 +930,12 @@ def _check_proof_identity(proof: dict) -> list[str]:
         if key in proof and (not isinstance(value, str) or not _SHA256_HEX_RE.match(value)):
             problems.append(f"{key} 必须是 64 位小写十六进制 sha256, 得到 {value!r}")
     return problems
+
+
+def _manifest_config_usable(manifest: dict) -> bool:
+    """golden manifest 的 scheduler_config 是否足以作同源判据 (round-17 HIGH)。"""
+    config = manifest.get("scheduler_config")
+    return isinstance(config, dict) and not (_SCHEDULER_CONFIG_KEYS - set(config))
 
 
 def _check_genesis(origin: dict, lines: dict, scan: Optional[dict]) -> tuple[Optional[int], list[str]]:
@@ -1037,14 +1099,22 @@ def verify_degraded_proof(
     完整性完全由调用方保证 —— 抽取不全会让最外层尾部门**真空通过**, prefix
     也只校验形状不复算。**生产接入必须传 `ledger_path`**。
 
-    ⚠️ **本函数不做的事** (round-15 逐项收紧后仍成立):
+    ⚠️ **本函数不做的六件事** (round-17 落定; 与模块头注释、schema §6.2 三处同文):
       ① 不复算 FSRS 折叠 (canonical reducer 属 G3-2);
       ② 不复算 `result_hash` (同样依赖 reducer);
-      ③ 不把 `genesis_evidence.node_frontmatter_text` 与**真实节点文件**的字节
-         比对 —— 只验其与自报 hash 自洽、且不含 FSRS 顶层键。节点文件路径不在
+      ③ 不传 `ledger_path` 时不复算 prefix、不自行抽取事件 (`applicable` 即信任边界);
+      ④ 不把 `genesis_evidence.node_frontmatter_text` 与**真实节点文件**的字节
+         比对 —— 只验其与自报 hash 自洽、且顶层无 FSRS 键。节点文件路径不在
          proof 内, 该绑定须由调用方在重建时另行完成;
-      ④ 传 `ledger_path` 时读取的是**调用瞬间的快照**: 快照之后的并发追加不在
+      ⑤ **不做完整记录级 schema 校验** —— scanner 只校验 proof 依赖的字段。
+         **本函数以「该账本已通过 validate_file() 主体校验」为前置条件**;
+      ⑥ 传 `ledger_path` 时读取的是**调用瞬间的快照**: 快照之后的并发追加不在
          本次判定内 (调用方须在持有账本锁时校验)。
+
+    ⚠️ **proof 侧的强依赖**: PyYAML (genesis 顶层键判定) + 同仓 G3-4 golden
+    manifest (算法身份同源)。任一不可达 ⇒ fail-closed 报违规, 不降级放行 ——
+    与「账本主体校验 stdlib-only」是两套口径, 语境不同。
+
     返回空 ≠ proof 成立, 只 = 已判门内无歧义, 可交付 reducer 复算。
 
     注: 尾部作用域参数 `is_top_level` 不在公开签名内 —— 它是递归内部状态,

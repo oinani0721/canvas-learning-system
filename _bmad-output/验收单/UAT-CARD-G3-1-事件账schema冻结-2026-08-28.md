@@ -29,7 +29,7 @@
 
 | 裁判 | 结果 |
 |---|---|
-| 契约测试 `backend/tests/regression/test_learning_events_schema_contract.py` | **143 passed + 1 skipped**（本文件单跑口径，十七轮整改后；skip = 仓内 vault 根无账本的 worktree 环境，主仓自动生效。与 golden 门 + 既有账本测试合跑 = **168 passed + 1 skipped**） |
+| 契约测试 `backend/tests/regression/test_learning_events_schema_contract.py` | **155 passed + 1 skipped**（本文件单跑口径，十八轮整改后；skip = 仓内 vault 根无账本的 worktree 环境，主仓自动生效。与 golden 门 + 既有账本测试合跑 = **180 passed + 1 skipped**） |
 | **真实 producer 执行**（Codex 一轮 HIGH 整改） | vault 三 skill 写点的 python 代码**从 SKILL.md 逐字提取执行**（ai-linked-doc 单行模板 / start-exam-board PYEOF 块 / quiz-answer 评分链账本段；仅路径常量重定向 tmp fixture），产物过校验器 + 幂等重放断言；backend 侧按 5 调用点实参形状经真实 `append_event` 写入后全过 |
 | 既有账本回归 `test_learning_event_log.py` | 6 passed（零改动） |
 | 校验脚本 vs 三 fixture | 合法 → exit 0 / 缺字段 → exit 1（点名 `effective_at`）/ 重复 event_id → exit 1（点名首见行号）（存证 `审查/g3-1-evidence/g3-1-fixture-validation.txt`） |
@@ -345,3 +345,26 @@
 ⚠️ **新判据当场发现的合理情况**：变体 C（拆尾部门）会让**两条**测试同时变红——`test_top_level_must_cover_ledger_tail` 与 `test_out_of_order_false_cannot_hide_tail_event` 都依赖该门。这说明"只许一条失败"过严，判据已改为**失败集合 ⊆ 预期集合**。
 
 裁判实测：契约测试 **143 passed + 1 skipped**。
+
+
+### 十七轮复核处置（G3-4 保持可验收；G3-1 残留 3 HIGH + 5 MEDIUM + 3 LOW，本轮全清）
+
+⚠️⚠️ **首先如实登记我自己的一个流程错误**：十七轮 Codex 点名"**所谓六条范围声明并未落文**——schema 仍写四条、模块注释三条、docstring 四条，而验收单却声称『三条扩六条、全部已修』"。**属实**。根因：我在负验证脚本 `bk794y3v2` 运行期间编辑了校验器，脚本退出时用它的旧备份把我的修改整个覆盖了；我没有复查文件实际内容就把"已修"写进了验收单。这正是我上一轮刚写进记忆的"变异脚本必须串行"，**同一 session 内又违反了一次**。本轮改法：动手前先 `ps aux | grep negverify` 确认无脚本在跑，改完立即 `grep -c` 复核条数（模块注释 6 / docstring 6 / schema 6）确认落文，才写文档。
+
+| # | 级别 | 十七轮发现 | 处置 |
+|---|---|---|---|
+| 一 | **HIGH** | **部分损坏但可达的 manifest 仍失败开放**：`_golden_manifest()` 只校验 version/hash，其 `scheduler_config` 缺失 / 非 dict / 键不全时，比较分支被整个跳过 ⇒ proof 携同款残缺配置（甚至六键全 `0`）返回 `[]` | **已修**：新增 `_manifest_config_usable()`——manifest 的 `scheduler_config` 必须是 dict 且含全部六键，否则**残缺即 fail-closed**。三形态（键不全 / 字段缺失 / 非 object）参数化实测全拦 |
+| 二 | **HIGH** | **`out_of_order: true` 可隐藏实际后继**：十六轮我修了 `false` 绕过，但**形态合法 ≠ 语义为真**——§6.2 的乱序定义是 `review_time ≤ W`；某行标了该键而 `review_time` 却晚于此前所有适用事件，就是**被伪装成乱序的真实后继**，排除它照样绕过尾部门。主体校验只验形态不验语义 | **已修**：proof 侧加语义门——标记行的 `review_time` 必须不晚于此前适用事件的最大时刻；不符者**报违规且仍计入适用集**。⚠️ **真正的乱序事件（时刻更早）不误拒**已实测（返回 `[]`）。该语义门同步写入 schema 的 `out_of_order` 冻结条款 |
+| 三 | **HIGH** | **vault 身份仍可自报**：严格集合只比较"实际出现的非空 vault 值"，缺失行不入集合 ⇒ 全缺 / 部分缺时 proof 可任填。我上一轮把它当"残余面登记"——但**登记不是门** | **已修**：①两个锚（事件 vault_id、账本 `.canvas-config.yaml`）都缺 ⇒ **fail-closed**；②部分行带 vault_id ⇒ 报"其余行的 vault 归属不可证"。查证真实 vault 根均带 `.canvas-config.yaml`，故 fail-closed 对现网安全。测试夹具同步补写 vault 配置以还原真实形态 |
+| 四 | MEDIUM | `proof.vault_id=[]` 在类型门**之前**执行 `{claimed}` ⇒ 抛未捕获 `TypeError` | **已修**：先做 `isinstance(str)` 门再做集合运算。四形态（`[]` / `42` / `None` / dict）参数化实测全报违规、零崩溃 |
+| 五 | MEDIUM | **递归共享未成门**：递归丢弃 `scan/raw/ledger_vault_id` 后契约测试仍全绿；新增的读取计数门只统计最外层 | **已修**：判据改为**行为**——把 ancestor 的 `ledger_prefix_sha256` 改错，必须报 `ancestor_proof: …与账本实算不符`（若递归不共享事实，ancestor 根本不会做该校验）。负验证新增变体 P 证明其承重 |
+| 六 | MEDIUM | 负验证脚本：命中数统计失败得 `?` 会被**放行**、perl 返回码未查、"⊆ 预期集合"只要求**至少一条**预期项变红、中间恢复 `cp` 未查返回码 | **已修**：①计数失败 ⇒ 直接判"变体语义不可证"而非放行；②检查 perl 返回码；③判据改为**预期集合中每一条都必须变红**；④`restore()` 检查返回码，失败即中止 |
+| 七 | MEDIUM | **六条范围、主体前置条件、PyYAML 硬依赖未进入规范锚点** | **已修（并已复核落文）**：模块注释 / 函数 docstring / schema §6.2 **三处同文六条**；新增两条此前完全没成文的：**⑤ 不做完整记录级 schema 校验，proof 以「账本已过主体校验」为前置条件**；**proof 侧强制依赖 PyYAML + golden manifest**（与账本主体 stdlib-only 是两套口径，任一不可达即 fail-closed） |
+| 八 | MEDIUM | `scheduler_config` 数值类型 / canonical 口径未在 schema 冻结 | **已修**：schema 写明 proof 的该字段须与 manifest 的 **canonical JSON 文本逐字相同**，并点名这一并冻结了各键 JSON 类型（`enable_fuzzing` 是 `false` 不是 `0` 等），且**不得用 Python `==` 比较** |
+| 九-十一 | LOW | PyYAML exact-key 诊断与 degraded 去重无回归门；CURRENT_TASK 时态过期；"现网带的是 group_id"措辞过宽（实际 7/23） | **全部已修**：补 `test_missing_pyyaml_rejects_even_clean_frontmatter`（两种输入都锁）与 `test_degraded_lines_are_deduplicated`；时态更正；措辞改为精确计数 |
+
+**十八轮负验证**：变体扩至 **十六个**（新增 M manifest 残缺 / N out_of_order 语义 / O vault 无证据 / P 递归共享），**全部如期变红**，还原后 `cmp` 逐字节一致，脚本 exit 0。
+
+⚠️ **机械化又一次准确报警**：本轮改了 `out_of_order` 分支形态后，变体 K 的 perl 模式立即失配 ⇒ 报"mutation 未命中"、`RESULT: FAIL`、exit 1。修好模式后十六变体全绿。
+
+裁判实测：契约测试 **155 passed + 1 skipped**、golden **19 passed**、三文件合跑 **180 passed + 1 skipped**、`test_fsrs_manager.py` **37 passed**、现网账本 exit 0 且前后 SHA 恒 `f78b99f3`、锁定 blob 恒定。
