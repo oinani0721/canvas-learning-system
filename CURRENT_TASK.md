@@ -2,20 +2,23 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**本车道状态**（2026-08-28 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **双卡 Codex 二轮整改后待验收**）:
-- ✅ CARD-G3-1（commit `63e034ec` + 二轮整改待提交）：D0 修订 + schema v1 冻结 + 严格校验器 + 契约测试
-  **29 passed + 1 skipped**（含 SKILL.md 逐字提取真实 producer 执行 ×3）。一轮 1B+6H、二轮 1B+2H+1M 全处置：
-  **§6.2 重写为 A1 write-ahead + A2 恢复先于新写 + A3 严格递增**（A2 消灭交错窗口 BLOCKER；字段名按
-  fsrs_bridge.py:44 更正为 `fsrs_last_review`、缺键=−∞、三态语义消歧）；校验器补控制字符不洗/
-  时间词法白名单正则/review1 跨字段绑定/超长整数不炸。现网账本 exit 0 SHA-bound 存证
-- ✅ CARD-G3-4（commit `a8bab73c` + 二轮整改待提交）：fsrs 6.3.1 真库 20 向量+3 曲线点、七门 **11 passed**。
-  二轮 HIGH（id 后缀推导 rating 可伪装）已修：组合按**真实 steps rating** 取 + prefix/时刻 skeleton 字面锁；
-  负验证 **v3 N0+N1–N9**（内联 mutation/restore 命令，含 algorithm 与 .post1 变体）全红留档
+**本车道状态**（2026-08-28 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **双卡 Codex 三轮整改后待验收**）:
+- ✅ CARD-G3-1（`63e034ec` + 整改 `4de42f69` + 三轮整改待提交）：D0 修订 + schema v1 冻结 + 严格校验器
+  + 契约测试 **35 passed + 1 skipped**（含 SKILL.md 逐字提取真实 producer 执行 ×3）。一/二/三轮
+  2B+7H+7M 全处置：§6.2 = **A1 write-ahead + A2 恢复先于新写 + A3 严格递增 + A4 临界区 + A5 整秒**
+  （A5 修小数秒二次推进 BLOCKER；A4 修并发绕过；水位线三态含**残缺卡 fail-closed**；乱序口径统一 G3-3
+  卡面 + 补录通道）；校验器补 marker 降级封堵 / 挂载点限定 / rating-grade 自洽 / 弃答恒 1 /
+  **库指纹绑定 golden manifest 真值** / offset 分钟 / RecursionError / Z 与 +00:00 语义比较
+- ✅ CARD-G3-4（`a8bab73c` + 整改 `4de42f69` + 三轮整改待提交）：fsrs 6.3.1 真库 20 向量+3 曲线点、
+  **九门 12 passed**。三轮 2H 已修：时刻 skeleton 改**逐步验证**（前缀时刻伪装）+ **scheduler_config
+  全字段字面锁**（retention 重定向）+ expected 类型门；负验证 **v4 N0+N1–N12**（每变体校验预期红门数
+  与门名、脚本 exit code 反映有效性）13/13 判定全对
 - ⛔ 移交：①test.yml 白名单 +2 测试文件 + root requirements paths（S8 独占 `.github/workflows/`；
   **CI 接入 DEFERRED / NOT-EXECUTED**，当前执行面 = 本地 pytest）；②tips.py 两条生产缺陷 →
-  **独立 micro-patch**（G3-7 卡面不含 tips）；③G3-3 须补等时拒绝/复合排序（A3 并发强制）
-- 纪律守住：learning_event_log.py/fsrs_manager.py 及全部 in-flight 锁定文件零改动（二轮 blob 复核在案）；不 push
-- 待办：二轮整改提交（第三笔）→ Codex 三轮复核 → 用户验收两单
+  **独立 micro-patch**（G3-7 卡面不含 tips）；③**G3-3 须补三项**：per-node 锁/CAS、等时拒绝/复合排序、
+  CAS 冲突后全事件重折叠（A4 的并发强制，其卡面当前只写"比较 last_review 后写"）
+- 纪律守住：learning_event_log.py/fsrs_manager.py 及全部 in-flight 锁定文件零改动（三轮 blob 复核在案）；不 push
+- 待办：三轮整改提交（第四笔）→ Codex 四轮复核 → 用户验收两单
 
 ---
 

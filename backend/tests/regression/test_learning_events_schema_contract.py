@@ -377,6 +377,130 @@ def test_review_ext_cross_field_bindings(tmp_path):
         assert expected_marker in result.stdout, f"{overrides} 的报告缺 {expected_marker}\n{result.stdout}"
 
 
+def _review_ext_record(event_type="answer_scored", node_id="Eigenvalues", **overrides):
+    """round-3 反例构造器: 可改顶层 event_type/node_id 与任意 payload 键。"""
+    payload = {
+        "schema_ext": "review/1",
+        "vault_id": "canvas-vault",
+        "concept_id": "Eigenvalues",
+        "rating": 3,
+        "review_time": "2026-08-01T10:00:00+00:00",
+        "fsrs_library_version": "6.3.1",
+        "fsrs_params_hash": "7b28ae29ac876981a7fca1424772214c7a4d9884439efd678ecb60e615b00342",
+        "grade_norm": 0.75,
+    }
+    payload.update(overrides)
+    return {
+        "event_id": "quiz:r3",
+        "event_version": 1,
+        "event_type": event_type,
+        "node_id": node_id,
+        "recorded_at": "2026-08-01T10:00:00+00:00",
+        "effective_at": "2026-08-01T10:00:00+00:00",
+        "payload": payload,
+    }
+
+
+def test_review_time_must_be_whole_second(tmp_path):
+    """Codex round-3 BLOCKER: W (frontmatter fsrs_last_review) 只有整秒精度,
+    小数秒 review_time 恒满足 `> W` → 同一事件重放二次推进 (实测 Learning→Review)。
+    契约 §6.2 A5 要求整秒, 校验器机械强制。"""
+    ledger = tmp_path / "learning_events.jsonl"
+    rec = _review_ext_record(review_time="2026-08-01T10:00:00.500000+00:00")
+    rec["effective_at"] = "2026-08-01T10:00:00.500000+00:00"
+    ledger.write_text(json.dumps(rec, ensure_ascii=False) + "\n", encoding="utf-8")
+    result = _run(ledger)
+    assert result.returncode == 1
+    assert "整秒" in result.stdout
+
+
+def test_review_ext_marker_downgrade_blocked(tmp_path):
+    """Codex round-3 HIGH: schema_ext='review/01' 或非字符串曾让扩展门整体
+    静默跳过 (坏行降级为历史行 exit 0); 去掉 marker 只留扩展键同理。"""
+    ledger = tmp_path / "learning_events.jsonl"
+    for marker in ("review/01", "review/2", 1, None):
+        rec = _review_ext_record(concept_id="不匹配的节点")
+        rec["payload"]["schema_ext"] = marker
+        ledger.write_text(json.dumps(rec, ensure_ascii=False) + "\n", encoding="utf-8")
+        result = _run(ledger)
+        assert result.returncode == 1, f"marker={marker!r} 应判违规\n{result.stdout}"
+        assert "schema_ext" in result.stdout
+
+    rec = _review_ext_record(concept_id="不匹配的节点")
+    del rec["payload"]["schema_ext"]
+    ledger.write_text(json.dumps(rec, ensure_ascii=False) + "\n", encoding="utf-8")
+    result = _run(ledger)
+    assert result.returncode == 1, "带扩展键却无 marker 应判违规\n" + result.stdout
+    assert "缺 schema_ext" in result.stdout
+
+
+def test_review_ext_semantic_bindings(tmp_path):
+    """Codex round-3 HIGH: 挂载点 / rating-grade 自洽 / 弃答一票否决 /
+    库指纹绑定 manifest 真值 / grade_norm 必填, 逐条机械验证。"""
+    ledger = tmp_path / "learning_events.jsonl"
+    cases = [
+        (dict(event_type="session_archived"), "只许挂在"),
+        (dict(rating=4, grade_norm=0.0), "不自洽"),
+        (dict(event_type="answer_abandoned", rating=4), "弃答"),
+        (dict(fsrs_library_version="999.999"), "golden manifest 真值"),
+        (dict(fsrs_params_hash="0" * 64), "golden manifest 真值"),
+        (dict(grade_norm=None), "grade_norm"),
+        (dict(grade_norm=1.5), "grade_norm"),
+        (dict(grade_norm=True), "grade_norm"),
+    ]
+    for kwargs, marker in cases:
+        event_type = kwargs.pop("event_type", "answer_scored")
+        rec = _review_ext_record(event_type=event_type, **kwargs)
+        ledger.write_text(json.dumps(rec, ensure_ascii=False) + "\n", encoding="utf-8")
+        result = _run(ledger)
+        assert result.returncode == 1, f"{event_type}/{kwargs} 应判违规\n{result.stdout}"
+        assert marker in result.stdout, f"{event_type}/{kwargs} 报告缺 {marker!r}\n{result.stdout}"
+
+
+def test_review_ext_valid_variants_pass(tmp_path):
+    """零误报守卫: 合法扩展行 (含弃答 rating=1、Z/+00:00 混写、degraded 成对) 全过。"""
+    ledger = tmp_path / "learning_events.jsonl"
+    abandoned = _review_ext_record(event_type="answer_abandoned", rating=1, grade_norm=0.0)
+    abandoned["event_id"] = "quiz:r3-abandoned"
+    mixed_tz = _review_ext_record(review_time="2026-08-01T10:00:00Z")
+    mixed_tz["event_id"] = "quiz:r3-tz"
+    degraded = _review_ext_record(
+        fsrs_library_version="degraded:fsrs-import-failed",
+        fsrs_params_hash="degraded:fsrs-import-failed",
+    )
+    degraded["event_id"] = "quiz:r3-degraded"
+    ledger.write_text(
+        "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in (abandoned, mixed_tz, degraded)),
+        encoding="utf-8",
+    )
+    result = _run(ledger)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_offset_minute_range_enforced():
+    """Codex round-3 MEDIUM: offset 分钟 \\d{2} 曾收 '+00:60'/'+00:99'。"""
+    for bad in ("2026-08-01T10:00:00+00:60", "2026-08-01T10:00:00+00:99"):
+        assert validator._parse_ts(bad)[0] is False, bad
+    for good in ("2026-08-01T10:00:00+08:45", "2026-08-01T10:00:00-03:30"):
+        assert validator._parse_ts(good)[0] is True, good
+
+
+def test_deep_nesting_not_crash(tmp_path):
+    """Codex round-3 MEDIUM: 深层嵌套曾 RecursionError 栈溢出并静默中断后续行。"""
+    ledger = tmp_path / "learning_events.jsonl"
+    depth = 200_000
+    good = (
+        '{"event_id": "archive:ok", "event_version": 1, "event_type": "session_archived",'
+        ' "node_id": "", "recorded_at": "2026-08-01T10:00:00+00:00",'
+        ' "effective_at": "2026-08-01T10:00:00+00:00", "payload": {}}'
+    )
+    ledger.write_text("[" * depth + "]" * depth + "\n" + good + "\n", encoding="utf-8")
+    result = _run(ledger)
+    assert result.returncode == 1
+    assert "Traceback" not in result.stderr
+    assert "LINE 1" in result.stdout
+
+
 def test_review_ext_marker_absent_means_legacy_untouched(tmp_path):
     """§6.3: 无 schema_ext 标记的历史行零追溯 — 扩展键缺失不判 FAIL。"""
     ledger = tmp_path / "learning_events.jsonl"

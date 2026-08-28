@@ -22,6 +22,18 @@ Codex round-2 整改 (2026-08-28):
     effective_at、version/hash 形状、degraded 成对且原因非空;
   - 超长整数字面量的 stdlib 限额 ValueError 单行判违规, 不炸整体 (MEDIUM)。
 
+Codex round-3 整改 (2026-08-28):
+  - review_time 必须整秒 (BLOCKER): W(fsrs_last_review) 只有整秒精度,
+    小数秒事件恒满足 `> W` → 同一事件二次推进 (实测 Learning→Review);
+  - marker 降级绕过封堵 (HIGH): schema_ext 值非 'review/1' 即违规;
+    复习事件带扩展键却无 marker 同样违规 (历史行不含这些键, 零误报);
+  - 完整语义绑定 (HIGH): 挂载点限 answer_scored/answer_abandoned;
+    grade_norm 必填且 ∈[0,1]; rating 与 grade_norm 按 rating_from_grade
+    口径自洽; 弃答 rating 恒为 1; library_version/params_hash 与同仓
+    G3-4 golden manifest **真值**相等 (manifest 不可达 → 形状校验 + WARN);
+  - offset 分钟限 00-59 (原 \\d{2} 收了 '+00:60'); 'Z' 与 '+00:00' 改按
+    绝对瞬间比较; 深层嵌套 RecursionError 单行判违规 (MEDIUM)。
+
 exit code: 0 = 全部通过; 1 = 存在违规; 2 = 用法/IO 错误。
 输出按行号确定性排序, 可入 CI / 存证。
 """
@@ -29,10 +41,12 @@ exit code: 0 = 全部通过; 1 = 存在违规; 2 = 用法/IO 错误。
 from __future__ import annotations
 
 import json
+import math
 import re
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 #: 与 learning_event_log.EVENT_VERSION 锁死同步 (契约测试断言)
 EVENT_VERSION = 1
@@ -94,15 +108,17 @@ def _strict_loads(line: str) -> object:
     return json.loads(line, parse_constant=_reject_constant, object_pairs_hook=_reject_dup_keys)
 
 
-#: §三 冻结受理语法的正词法 (Codex round-2 MEDIUM: fromisoformat 另收 week-date /
-#: 省略分钟 / '+00' / 逗号小数 / offset 秒, 与冻结语法不符 — 改正则先判词法)
-_TS_RE = re.compile(r"^\d{4}-\d{2}-\d{2}[Tt ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$")
+#: §三 冻结受理语法的正词法 (round-2: fromisoformat 另收 week-date / 省略分钟 /
+#: '+00' / 逗号小数 / offset 秒; round-3: offset 分钟须 00-59, 原 \d{2} 收了 +00:60)
+_TS_RE = re.compile(r"^\d{4}-\d{2}-\d{2}[Tt ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:[0-5]\d)$")
+#: 小数秒段 — review/1 事件禁用 (round-3 BLOCKER: W 只有整秒精度, 见 §6.2 A5)
+_SUBSECOND_RE = re.compile(r"^\d{4}-\d{2}-\d{2}[Tt ]\d{2}:\d{2}:\d{2}\.\d+")
 
 
 def _parse_ts(value: object) -> tuple[bool, str]:
     """扩展格式 ISO-8601 datetime 且 timezone-aware → (True, ''); 否则 (False, 原因)。
 
-    受理语法 (§三, 白名单正则): YYYY-MM-DD[Tt ]HH:MM[:SS[.f+]](Z|±HH:MM)。
+    受理语法 (§三, 白名单正则): YYYY-MM-DD[Tt ]HH:MM[:SS[.f+]](Z|±HH:[0-5]M)。
     先过正则再 fromisoformat 验语义 (月/日/时分秒取值合法)。
     """
     if not isinstance(value, str) or not value:
@@ -119,32 +135,110 @@ def _parse_ts(value: object) -> tuple[bool, str]:
     return True, ""
 
 
+def _instant(value: object) -> Optional[datetime]:
+    """已过 _parse_ts 的串 → 绝对瞬间 (用于跨字段语义比较: 'Z' 与 '+00:00'
+    是同一瞬间的两种写法, 不得因原字符串不等而误判 — round-3 MEDIUM)。"""
+    if not isinstance(value, str):
+        return None
+    text = value[:-1] + "+00:00" if value.endswith("Z") else value
+    try:
+        return datetime.fromisoformat(text)
+    except ValueError:
+        return None
+
+
 #: 正常 (非降级) 形状: 版本 = PEP 440 数字点版; hash = 64 hex (sha256)
 _VERSION_RE = re.compile(r"^\d+(\.\d+)*$")
 _HASH_RE = re.compile(r"^[0-9a-f]{64}$")
 
+#: review/1 扩展只许挂在这两类复习事件上 (round-3 HIGH: 曾可挂 session_archived)
+REVIEW_EVENT_TYPES = frozenset({"answer_scored", "answer_abandoned"})
 
-def _validate_review_ext(payload: dict, record: dict) -> list[str]:
-    """§六 复习域扩展行 (payload.schema_ext == 'review/1') 的完整校验。
+#: §6.1 扩展必填键 — 出现其中任一即视为"意图写扩展行", 缺 marker 判违规
+REVIEW_EXT_KEYS = frozenset(
+    {"vault_id", "concept_id", "rating", "review_time", "fsrs_library_version", "fsrs_params_hash"}
+)
 
-    含跨字段绑定 (Codex round-2 HIGH): concept_id 必须 == 顶层 node_id、
-    review_time 必须 == effective_at (同一业务时刻的两处表达)、
-    library_version/params_hash 形状受控且 degraded 哨兵必须成对+带非空原因。
+
+def _looks_like_review_ext(payload: dict) -> bool:
+    """payload 带扩展键但无合法 marker → 视为规避扩展校验的写法。
+
+    历史行 payload 只有 grade_norm/exam_board/attempt_count, 不含这些键,
+    因此对存量零误报 (round-3: 去掉 marker 曾等于免检)。
+    """
+    return bool(REVIEW_EXT_KEYS & set(payload.keys()))
+
+
+def _golden_manifest() -> Optional[dict]:
+    """定位同仓 G3-4 golden manifest (库版本/参数 hash 真值源)。
+
+    找不到 (校验器被拷到别处独立跑) → None, 调用方降级为只验形状 + WARN。
+    """
+    candidate = Path(__file__).resolve().parents[1] / "tests" / "regression" / "fsrs_golden_manifest.json"
+    if not candidate.is_file():
+        return None
+    try:
+        return json.loads(candidate.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def _rating_from_grade_norm(grade_norm: float) -> int:
+    """grade_norm → FSRS Rating, 与 fsrs_bridge.rating_from_grade 同口径
+    ([Decision-FSRS-1]: 还原 grade = 1 + 3·gn 后就近落四档, 越界钳制)。"""
+    grade = 1.0 + 3.0 * grade_norm
+    rating = int(math.floor(grade + 0.5))
+    return max(1, min(4, rating))
+
+
+def _validate_review_ext(payload: dict, record: dict, manifest: Optional[dict]) -> tuple[list[str], list[str]]:
+    """§六 复习域扩展行 (payload.schema_ext == 'review/1') 的完整语义校验。
+
+    → (violations, warnings)
+
+    绑定面 (round-2 HIGH + round-3 HIGH):
+      - 挂载点: 只许 answer_scored / answer_abandoned (曾可挂 session_archived);
+      - 身份: concept_id == 顶层 node_id;
+      - 时刻: review_time 与 effective_at 同一瞬间 (Z/+00:00 语义比较),
+        且**必须整秒** — W (fsrs_last_review) 只有整秒精度, 小数秒会让
+        同一事件恒满足 `> W` 而二次推进 (round-3 BLOCKER, §6.2 A5);
+      - 评分自洽: grade_norm ∈ [0,1] 必填; answer_scored 的 rating 必须等于
+        rating_from_grade(grade_norm); answer_abandoned 的 rating 恒为 1
+        ([Decision-FSRS-1] 弃答一票否决 Again);
+      - 库指纹: 非降级时须与 G3-4 golden manifest 的 library_version/
+        params_hash **真值相等** (manifest 不可达时降级为形状校验 + WARN);
+        degraded 哨兵成对且原因非空。
     """
     problems: list[str] = []
+    warnings: list[str] = []
+
+    event_type = record.get("event_type")
+    if event_type not in REVIEW_EVENT_TYPES:
+        problems.append(
+            f"schema_ext='{REVIEW_EXT_MARKER}' 只许挂在 {sorted(REVIEW_EVENT_TYPES)} 上, 实为 {event_type!r}"
+        )
+
     rating = payload.get("rating")
-    if isinstance(rating, bool) or not isinstance(rating, int) or rating not in (1, 2, 3, 4):
+    rating_ok = not isinstance(rating, bool) and isinstance(rating, int) and rating in (1, 2, 3, 4)
+    if not rating_ok:
         problems.append("扩展键 rating 必须为 int 1-4 (FSRS Rating)")
 
     review_time = payload.get("review_time")
     ok, why = _parse_ts(review_time)
     if not ok:
         problems.append(f"扩展键 review_time {why}")
-    elif review_time != record.get("effective_at"):
-        problems.append(
-            f"扩展键 review_time {review_time!r} != 顶层 effective_at "
-            f"{record.get('effective_at')!r} (§6.1 同一业务时刻必须一致)"
-        )
+    else:
+        if _SUBSECOND_RE.match(review_time):
+            problems.append(
+                f"扩展键 review_time 必须为整秒 {review_time!r} — frontmatter 水位线 "
+                "fsrs_last_review 只有整秒精度 (§6.2 A5), 小数秒会导致同一事件二次推进"
+            )
+        left, right = _instant(review_time), _instant(record.get("effective_at"))
+        if left is None or right is None or left != right:
+            problems.append(
+                f"扩展键 review_time {review_time!r} 与顶层 effective_at "
+                f"{record.get('effective_at')!r} 不是同一瞬间 (§6.1)"
+            )
 
     for key in ("vault_id", "concept_id"):
         value = payload.get(key)
@@ -157,13 +251,32 @@ def _validate_review_ext(payload: dict, record: dict) -> list[str]:
             f"扩展键 concept_id {concept_id!r} != 顶层 node_id {node_id!r} (§6.1 映射关系: node_id 承载 concept_id)"
         )
 
-    version = payload.get("fsrs_library_version")
-    hash_value = payload.get("fsrs_params_hash")
+    grade_norm = payload.get("grade_norm")
+    grade_ok = (
+        not isinstance(grade_norm, bool) and isinstance(grade_norm, (int, float)) and 0.0 <= float(grade_norm) <= 1.0
+    )
+    if not grade_ok:
+        problems.append("扩展键 grade_norm 必须为 [0,1] 区间数值")
+    if event_type == "answer_abandoned":
+        if rating_ok and rating != 1:
+            problems.append(
+                f"answer_abandoned 的 rating 必须为 1 (弃答一票否决 Again, [Decision-FSRS-1]), 实为 {rating}"
+            )
+    elif event_type == "answer_scored" and rating_ok and grade_ok:
+        expected = _rating_from_grade_norm(float(grade_norm))
+        if rating != expected:
+            problems.append(
+                f"rating {rating} 与 grade_norm {grade_norm} 不自洽 (rating_from_grade 口径应为 {expected})"
+            )
+
+    truth_version = manifest.get("library_version") if manifest else None
+    truth_hash = manifest.get("params_hash") if manifest else None
     degraded_flags = []
-    for key, value, shape_re, shape_desc in (
-        ("fsrs_library_version", version, _VERSION_RE, "数字点版 (如 6.3.1)"),
-        ("fsrs_params_hash", hash_value, _HASH_RE, "64 位小写 hex (sha256)"),
+    for key, shape_re, shape_desc, truth in (
+        ("fsrs_library_version", _VERSION_RE, "数字点版 (如 6.3.1)", truth_version),
+        ("fsrs_params_hash", _HASH_RE, "64 位小写 hex (sha256)", truth_hash),
     ):
+        value = payload.get(key)
         if not isinstance(value, str) or not value:
             problems.append(f"扩展键 {key} 必须为非空字符串 (降级时用 'degraded:<原因>')")
             degraded_flags.append(None)
@@ -172,27 +285,39 @@ def _validate_review_ext(payload: dict, record: dict) -> list[str]:
             degraded_flags.append(True)
             if not value[len(DEGRADED_PREFIX) :].strip():
                 problems.append(f"扩展键 {key} 的 degraded 哨兵必须带非空原因")
-        else:
-            degraded_flags.append(False)
-            if not shape_re.match(value):
-                problems.append(f"扩展键 {key} 形状非法 (须为{shape_desc}或 degraded 哨兵): {value!r}")
+            continue
+        degraded_flags.append(False)
+        if not shape_re.match(value):
+            problems.append(f"扩展键 {key} 形状非法 (须为{shape_desc}或 degraded 哨兵): {value!r}")
+        elif truth is None:
+            warnings.append(f"{key} 只做形状校验 — 未找到同仓 fsrs_golden_manifest.json, 无法绑定真值")
+        elif value != truth:
+            problems.append(
+                f"扩展键 {key} {value!r} != G3-4 golden manifest 真值 {truth!r} (§6.1 库指纹必须与冻结基线同源)"
+            )
     if len(set(f for f in degraded_flags if f is not None)) > 1:
         problems.append(
             "fsrs_library_version 与 fsrs_params_hash 的 degraded 状态必须成对 "
             "(§6.1: 降级时两键同为哨兵, 正常时两键同为真实值)"
         )
-    return problems
+    return problems, warnings
 
 
-def validate_record(record: object) -> list[str]:
-    """单条 v1 记录的违规清单 (空 = 合规)。
+def validate_record(record: object, manifest: Optional[dict] = None) -> list[str]:
+    """单条 v1 记录的违规清单 (空 = 合规); 便捷入口, 丢弃 warnings。"""
+    return validate_record_full(record, manifest)[0]
+
+
+def validate_record_full(record: object, manifest: Optional[dict] = None) -> tuple[list[str], list[str]]:
+    """单条 v1 记录 → (violations, warnings)。
 
     调用方须先按 §一 前向兼容规则分流: event_version 为 int 且 != 1 的行
     不应进入本函数 (validate_file 已处理)。
     """
     problems: list[str] = []
+    warnings: list[str] = []
     if not isinstance(record, dict):
-        return ["顶层必须是 JSON object"]
+        return ["顶层必须是 JSON object"], warnings
 
     keys = set(record.keys())
     missing = sorted(TOP_LEVEL_KEYS - keys)
@@ -229,10 +354,27 @@ def validate_record(record: object) -> list[str]:
     payload = record.get("payload")
     if "payload" in keys and not isinstance(payload, dict):
         problems.append("payload 必须为 JSON object")
-    elif isinstance(payload, dict) and payload.get("schema_ext") == REVIEW_EXT_MARKER:
-        problems.extend(_validate_review_ext(payload, record))
+    elif isinstance(payload, dict):
+        marker = payload.get("schema_ext")
+        if marker == REVIEW_EXT_MARKER:
+            ext_problems, ext_warnings = _validate_review_ext(payload, record, manifest)
+            problems.extend(ext_problems)
+            warnings.extend(ext_warnings)
+        elif "schema_ext" in payload:
+            # marker 降级绕过 (round-3 HIGH): 'review/01' / 非字符串等
+            # 曾让扩展门整体静默跳过, 坏行伪装成历史行 exit 0
+            problems.append(
+                f"payload.schema_ext 值非法 {marker!r} — v1 仅定义 '{REVIEW_EXT_MARKER}'; "
+                "禁止以未知 marker 绕过扩展校验"
+            )
+        elif event_type in REVIEW_EVENT_TYPES and _looks_like_review_ext(payload):
+            # 带扩展键但无 marker: 同样按扩展行校验, 防"去掉 marker 即免检"
+            problems.append(
+                "复习事件 payload 含扩展键但缺 schema_ext 标记 — 新写入必须显式标 "
+                f"'{REVIEW_EXT_MARKER}' (§6.1 机械标记), 历史行不得追加扩展键"
+            )
 
-    return problems
+    return problems, warnings
 
 
 def validate_file(path: Path) -> tuple[list[str], list[str]]:
@@ -244,6 +386,7 @@ def validate_file(path: Path) -> tuple[list[str], list[str]]:
     violations: list[str] = []
     warnings: list[str] = []
     seen_ids: dict[str, int] = {}
+    manifest = _golden_manifest()
 
     with open(path, "rb") as f:
         for lineno, raw in enumerate(f, 1):
@@ -271,6 +414,10 @@ def validate_file(path: Path) -> tuple[list[str], list[str]]:
                 # 该行判违规, 不炸整个校验 (Codex round-2 MEDIUM)
                 violations.append(f"LINE {lineno}: JSON 值超出解析限额 ({e})")
                 continue
+            except RecursionError:
+                # 深层嵌套 (round-3 MEDIUM: ~50 万层曾栈溢出并静默中断后续行)
+                violations.append(f"LINE {lineno}: JSON 嵌套过深, 超出解析器递归上限 — 疑似构造行")
+                continue
 
             # 前向兼容分流 (§一): 未知 int 版本 → 只 WARN, 完全跳过 v1 形状校验
             # (仍登记 event_id 唯一性 — 幂等键跨版本恒定, append_event 不看版本查重)
@@ -288,8 +435,11 @@ def validate_file(path: Path) -> tuple[list[str], list[str]]:
                     "前向兼容跳过形状校验 (读方须容忍未知版本)"
                 )
             else:
-                for problem in validate_record(record):
+                line_problems, line_warnings = validate_record_full(record, manifest)
+                for problem in line_problems:
                     violations.append(f"LINE {lineno}: {problem}")
+                for warning in line_warnings:
+                    warnings.append(f"LINE {lineno}: {warning}")
 
             if isinstance(record, dict):
                 event_id = record.get("event_id")

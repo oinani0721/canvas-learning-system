@@ -22,7 +22,7 @@
 
 | 裁判 | 结果 |
 |---|---|
-| 新建 `backend/tests/regression/test_fsrs_golden_vectors.py` | **11 passed 全绿**（Codex 一轮整改后：七门） |
+| 新建 `backend/tests/regression/test_fsrs_golden_vectors.py` | **12 passed 全绿**（三轮整改后：**九门** — 版本钉死 / 严格 requirements 解析 / 默认参数+枚举面 / params_hash 自洽 / manifest 元数据字面锁 / **scheduler_config 全字段字面锁** / 容差上限锁 / 矩阵结构+逐步时刻 skeleton / 向量重放） |
 | 现有 fsrs 套件不回归 | `test_fsrs_manager.py` / `test_create_fsrs_manager.py` / `test_fsrs_state_query.py` / `test_fsrs_bridge.py` / `test_fsrs_legacy_state_zero.py` / `test_fsrs_new_card_none_serialization.py` = **91 passed** + 扩面 `test_review_service_fsrs.py` / `test_story_38_3_fsrs_init_guarantee.py` / `test_mastery_engine_fsrs.py` / `test_fsrs_state_api.py` / `test_review_fsrs_degradation.py`（e2e）= **100 passed**，合计 191/191 零回归 |
 | 向量覆盖 | **5 关键态 × 4 评分 = 20 向量**：新卡首评 / Learning 第二步 / Review 准时 / **Review 逾期 30 天** / Relearning（`state_before_final_review` 字段逐条可核）+ retrievability 曲线 3 点（due/+7d/+30d） |
 | 确定性 | 固定 card_id + 固定 UTC 时刻链 + `enable_fuzzing=False`；生成器**连跑两次 byte 级一致** |
@@ -48,7 +48,7 @@
 | `backend/scripts/generate_fsrs_golden_vectors.py` | 确定性生成器（仅评审后重冻结时重跑） |
 | `backend/tests/regression/fsrs_golden_manifest.json` | versioned manifest（版本/算法/时区/参数 hash/枚举面/容差） |
 | `backend/tests/regression/fsrs_golden_vectors.json` | 20 向量 + 3 retrievability 点（自包含绝对时刻，不依赖生成器） |
-| `backend/tests/regression/test_fsrs_golden_vectors.py` | 五门回归测试 |
+| `backend/tests/regression/test_fsrs_golden_vectors.py` | 九门回归测试（12 passed） |
 | `requirements.txt` / `backend/requirements.txt` | `fsrs==6.3.1` 精确钉版 |
 
 ## 五、Codex 审查处置（一轮 → 整改全落地）
@@ -57,7 +57,7 @@
 
 | # | 级别 | 发现 | 处置 |
 |---|---|---|---|
-| c | **BLOCKER** | golden 测试不在 test.yml 显式清单，root requirements.txt 不在 paths trigger——CI 自动控制面五门均不执行 | **登记移交（本卡不可修）**：`.github/workflows/` 为第五批 **S8 车道独占**（开跑手册 V2 合同点）且 test.yml 零改动纪律。移交条款：主 session 合并后 micro-patch 把 `test_fsrs_golden_vectors.py` + `test_learning_events_schema_contract.py` 两行加入 test.yml 白名单、root `requirements.txt` 加入 paths trigger。测试文件 docstring 已注明。**在 CI 接入前，防漂移门的执行面 = 本地 pytest + Codex/主 session 复核**（如实声明，不装 CI 已生效） |
+| c | **BLOCKER** | golden 测试不在 test.yml 显式清单，root requirements.txt 不在 paths trigger——CI 自动控制面全部门均不执行 | **登记移交（本卡不可修）**：`.github/workflows/` 为第五批 **S8 车道独占**（开跑手册 V2 合同点）且 test.yml 零改动纪律。移交条款：主 session 合并后 micro-patch 把 `test_fsrs_golden_vectors.py` + `test_learning_events_schema_contract.py` 两行加入 test.yml 白名单、root `requirements.txt` 加入 paths trigger。测试文件 docstring 已注明。**在 CI 接入前，防漂移门的执行面 = 本地 pytest + Codex/主 session 复核**（如实声明，不装 CI 已生效） |
 | b | HIGH | 矩阵结构可篡改后全绿（重复向量/缺格/前态=999/retrievability 清空/algorithm='arbitrary' 均不红） | **已修（代码）**：新增门 5（manifest 元数据字面锁）+ 门 6（矩阵结构：5×4 组合全集、20 唯一 id、每场景前态字面锁、retrievability 恰 3 点升序）；重放门升级为**先重放前缀断言 state_before 实测值**再评最终分。全部 Codex 反例负验证 v2 翻红留档 |
 | — | HIGH/MEDIUM | 容差直接信任 manifest，放宽可静默削弱浮点门 | **已修（代码）**：`test_tolerance_ceiling_locked` 锁上限（rel ≤1e-9、abs ≤1e-12），manifest 单方放宽即红（负验证 N6） |
 | — | MEDIUM | requirements 正则 `^fsrs==6.3.1\b` 放过 `.post1`/marker | **已修（代码）**：改严格逐行解析——去注释、包名恰为 fsrs、整行全等 `fsrs==6.3.1`，且每份文件恰一行 |
@@ -66,7 +66,7 @@
 | a | LOW | `write_text` 未定 newline，Windows 重生成可产 CRLF | **已修（代码）**：生成器两处 `newline="\n"` |
 | a | LOW | 跨 CPU/libm 末位浮点 bytes 未物理验证 | **如实登记不修**：基线在本机（darwin/arm64, Python 3.14.4）生成；跨平台复现属容差设计承担面（rel=1e-9），无异构环境可实测，不作宣称 |
 
-整改后复跑：golden 门 11 passed、核心 fsrs 六文件 91 passed 复跑零回归、ruff 全过。
+整改后复跑：golden 门 12 passed、核心 fsrs 六文件 91 passed 复跑零回归、ruff 全过。
 
 ### 二轮复核处置（存档 `审查/codex-review-CARD-G3-1-G3-4-round2-2026-08-28.md`，G3-4 残留 1 HIGH + 2 MEDIUM）
 
@@ -76,6 +76,17 @@
 | — | MEDIUM | 负验证存档只有通用 pytest 命令、无各变体 mutation/restore 命令；实为 7 个负例却称 8；algorithm 与 `.post` 未入档 | **已修**：负验证 v3 重做（N0+N1–N9），每变体内联 mutation 与 restore 命令、脚本本体一并入档可重跑 |
 | — | MEDIUM | UAT 技术判据仍称"只经公开 re-export"，与测试实际直接 `from fsrs import` 矛盾 | **已修**：本单铁律行改为诚实口径（见 §二） |
 | e | — | CI 接入移交须标 DEFERRED / NOT-EXECUTED，不得称 CI 已生效 | **已如实**：处置表 #c 与 §六移交 1 均写明"在 CI 接入前防漂移门执行面 = 本地 pytest + 复核"，未宣称 CI 生效 |
+
+### 三轮复核处置（存档 `审查/codex-review-CARD-G3-1-G3-4-round3-2026-08-28.md`，G3-4 残留 2 HIGH + 2 MEDIUM）
+
+| # | 级别 | 三轮发现 | 处置 |
+|---|---|---|---|
+| 4a | **HIGH** | **前缀时刻仍可伪装**：时刻门只锁首步，后续 due 由已被篡改的 prefix 动态推导——把 `review_ontime__good` 第二步 `00:10→00:05`、同步最终时刻与真实库 expected，仍 11 passed | **已修**：时刻 skeleton 改**逐步验证**——首步 == `base_datetime`，其后每步时刻 == 上一步结果卡 `due` + 该步偏移（仅逾期场景最终步 30 天）；边验边用真实库推进。反例现翻红（`g3-round3-counterexamples.txt` R3-4） |
+| 4b | **HIGH（新）** | **scheduler_config 可自洽重定向**：只锁 21 个 `parameters`，把 `desired_retention` 0.9→0.8 并重算 manifest/vectors/hash 后仍 11 passed（仓库生成器 bytes 不变） | **已修**：新增门 `test_scheduler_config_non_parameter_fields_frozen`——`desired_retention`/`learning_steps`/`relearning_steps`/`maximum_interval`/`enable_fuzzing` 逐个字面锁 + 键集锁。反例现翻红（R3-5，原地自洽重算复验） |
+| 4c | MEDIUM（新） | expected 无类型门：`state=true`/`step=false` 全绿（Python bool 与 0/1 相等） | **已修**：`expected` 六字段类型断言（int 排除 bool、float/None、str/None）。反例现翻红（R3-6） |
+| — | MEDIUM | 负验证 v3 存档三处缺陷：版本探针转义错误记录 SyntaxError、脚本不校验预期失败（错了也 exit 0）、部分 mutation 命令 echo 断裂 | **已修**：重做为 **v4**（`negverify_v4.sh`）——修转义、每变体 `expect_gates` 校验**预期红门数与门名**、脚本 exit code 反映验证有效性、mutation 命令 `printf` 完整输出；变体扩到 **N0 + N1–N12**（补 round-3 三个新反例） |
+
+三轮整改后复跑：golden 门 **12 passed**、核心 fsrs 六文件 91 passed 零回归、三文件合跑 53 passed + 1 skipped、ruff 全过；负验证 v4 十三个判定全部符合预期。
 
 ## 六、移交登记
 

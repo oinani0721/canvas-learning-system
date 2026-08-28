@@ -86,29 +86,44 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
 
 - **不新增 event_type**：沿用既有 `answer_scored` / `answer_abandoned`（白名单不变，见 §七评审记录）。
 - **机械可判别标记（Codex round-1 HIGH）**：扩展行 payload **必须**含 `"schema_ext": "review/1"`。这是历史行与新契约行的唯一机械分界——校验器对含此标记的行强制以下键与类型，对无标记行（全部历史行）零追溯零误报。
-- **扩展必填键**（`schema_ext == "review/1"` 时 REQUIRED，类型由校验器强制）：
+  - **降级绕过封堵（Codex round-3 HIGH）**：`schema_ext` 出现但值不是 `"review/1"`（如 `"review/01"`、非字符串）= **违规**，不得静默降级为历史行；复习事件 payload **带扩展键却无 marker** 同样违规（历史行 payload 只有 `grade_norm`/`exam_board`/`attempt_count`，不含扩展键，故对存量零误报）。
+- **挂载点限定**：`review/1` 只许挂在 `answer_scored` / `answer_abandoned` 上（挂到 `session_archived` 等 = 违规）。
+- **扩展必填键**（`schema_ext == "review/1"` 时 REQUIRED，类型与语义由校验器强制）：
   - `vault_id`：非空 string——显式冗余 vault 归属（与文件位置隐含归属互证）
-  - `concept_id`：非空 string——映射关系 = 顶层 `node_id` 承载 concept_id（节点名），payload 内显式重申
+  - `concept_id`：非空 string，且**必须等于顶层 `node_id`**——映射关系 = `node_id` 承载 concept_id
   - `rating`：int 且 ∈ {1,2,3,4}（FSRS Rating；bool 伪装 int 判违规）
-  - `review_time`：本次复习业务时刻（§三受理语法，tz-aware；与 `effective_at` 一致）
-  - `fsrs_library_version` + `fsrs_params_hash`：产生本次调度结果的库版本与参数指纹。**口径 = G3-4 `backend/tests/regression/fsrs_golden_manifest.json` 的 `library_version` / `params_hash`（sha256 canonical scheduler_config）**——同分支交付，形式依赖已闭合。
-  - **降级口径（诚实声明，Codex round-1 HIGH）**：fsrs 库不可用而评分链仍降级运行时，两键填 `"degraded:<原因>"` 哨兵（如 `degraded:fsrs-import-failed`）——禁止编造 hash、禁止留空、禁止省键。校验器接受该哨兵形态。
+  - `grade_norm`：数值且 ∈ [0,1]（既有 quiz-answer 写点已产此键）
+  - **评分自洽（Codex round-3 HIGH）**：`answer_scored` 的 `rating` 必须等于 `rating_from_grade(grade_norm)`（`fsrs_bridge.rating_from_grade` 口径：`grade = 1 + 3·gn` 就近落四档、越界钳制）；`answer_abandoned` 的 `rating` **恒为 1**（[Decision-FSRS-1] 弃答一票否决 Again）。
+  - `review_time`：本次复习业务时刻（§三受理语法，tz-aware，**必须整秒**见 §6.2 A5）；与顶层 `effective_at` **同一瞬间**（按绝对时刻比较——`Z` 与 `+00:00` 是同一瞬间的两种写法，不按原字符串比）
+  - `fsrs_library_version` + `fsrs_params_hash`：产生本次调度结果的库版本与参数指纹。**非降级时必须与 G3-4 `backend/tests/regression/fsrs_golden_manifest.json` 的 `library_version` / `params_hash` 真值相等**（Codex round-3 HIGH：只验形状时 `999.999` + 全零 hash 可蒙混）；校验器找不到该 manifest（脚本被拷到别处独立运行）时降级为形状校验并输出 WARN。
+  - **降级口径（诚实声明）**：fsrs 库不可用而评分链仍降级运行时，两键填 `"degraded:<原因>"` 哨兵（如 `degraded:fsrs-import-failed`）——禁止编造 hash、禁止留空、禁止省键；两键的 degraded 状态必须**成对**，原因非空。
 
 ### 6.2 写序与崩溃恢复状态机（G3-2 落实；Codex round-1 BLOCKER + round-2 交错窗口整改）
 
-**水位线定义（字段名以真实实现为准）**：`W(node)` = 该节点 frontmatter 的 **`fsrs_last_review`**（`canvas-vault/.claude/scripts/fsrs_bridge.py:44-46` FIELD_ORDER 真相源；写出格式 `%Y-%m-%dT%H:%M:%SZ`，**秒级精度**）。**键缺失（新卡从未复习）⇒ `W = -∞`**（该节点全部事件均为 pending）。
+**水位线定义（字段名以真实实现为准）**：`W(node)` = 该节点 frontmatter 的 **`fsrs_last_review`**（`canvas-vault/.claude/scripts/fsrs_bridge.py:44-46` FIELD_ORDER 真相源；写出格式 `%Y-%m-%dT%H:%M:%SZ`，**秒级精度**）。
 
-**pending 集合**：账本中该节点全部 `payload.review_time > W` 的 `schema_ext=review/1` 事件，按 `(review_time, 账本行序)` 升序。
+**水位线三态（Codex round-3 HIGH：残缺卡不得当新卡）**：
+- **真新卡** = 节点 frontmatter **不含任何 `fsrs_*` 字段** ⇒ `W = -∞`，全部事件 pending（合法首事件路径）；
+- **正常卡** = 含 `fsrs_last_review` ⇒ `W` = 该值；
+- **残缺卡** = 含 `fsrs_due`/`fsrs_state` 等但**缺 `fsrs_last_review`** ⇒ **fail-closed**：禁止按 `-∞` 重放（会在已推进的旧状态上重放全账 → 二次推进），必须停止自动恢复并如实报 degraded，由工具/人工修复水位线后再继续。
 
-三条硬约束，G3-2 必须同时实现（缺一则 exactly-once 不成立）：
+**pending 集合**：账本中该节点全部满足以下全部条件的事件：`schema_ext == "review/1"`、**未标 `out_of_order`**、且 `payload.review_time > W`；按 `(review_time, 账本行序)` 升序。
+
+五条硬约束，G3-2 必须同时实现（缺一则 exactly-once 不成立）：
 
 - **A1 write-ahead**：先追加事件再更新 frontmatter。当前现实为 frontmatter 先写、事件后补，差异已在 D0 修订 §四登记。
 - **A2 恢复先于新写（消灭交错窗口）**：任何复习写点在**追加新事件之前**，必须先把该节点的 pending 集合按序重放至空。
-  - **为什么必要**（round-2 反例）：若允许"E1@t1 落账未应用时 E2@t2 直接从旧状态推进到 t2"，则水位线抬到 t2 后 E1 满足 `t1 ≤ W` 被误判已应用，**E1 对 current state 的贡献永久丢失**。A2 使任意时刻**至多只有最后一次追加的事件**可能处于 pending，该交错窗口在构造上不可能出现。
+  - **为什么必要**（round-2 反例）：若允许"E1@t1 落账未应用时 E2@t2 直接从旧状态推进到 t2"，则水位线抬到 t2 后 E1 满足 `t1 ≤ W` 被误判已应用，**E1 对 current state 的贡献永久丢失**。A2 使**单写者下**任意时刻至多只有最后一次追加的事件处于 pending，该交错窗口不会出现。**并发下 A2 本身不够**——见 A4。
   - 崩溃窗口全覆盖：①事件已落账、frontmatter 未推进 → 下次写入前 A2 重放恢复；②两者都完成 → `review_time ≤ W`，不推进（幂等）；③追加即崩（事件未落账）→ 账本与 frontmatter 一致，本次评分丢失属用户可感知重试面，非账本不一致。
-- **A3 严格递增 + 等时消解**：写侧必须保证同节点新事件 `review_time` **严格大于** `W`（秒级精度下若计算值等于 `W`，推进到 `W + 1s` 后再写）。这使 `>` 比较在秒级时间戳下无歧义。并发下的强制（两进程同时通过 A3 检查）归 **G3-3 per-node CAS**——⚠️ **移交条款**：G3-3 卡面当前未定义"等时拒绝/复合排序"，实施时须补此项，否则 A3 在并发面失去强制。
+- **A3 严格递增 + 等时消解**：写侧必须保证同节点新事件 `review_time` **严格大于** `W`（秒级精度下若计算值等于 `W`，推进到 `W + 1s` 后再写）。这使 `>` 比较在秒级时间戳下无歧义。
+- **A4 临界区（Codex round-3 BLOCKER：并发下 A2 可被绕过）**：**"读 W → 扫描 pending → 重放 → durable append 新事件 → apply → 原子发布 frontmatter"整段必须在 per-node 互斥（锁/CAS）内完成**。否则两进程可同时观察到 `pending = []` 并各自从同一旧状态计算，A2 的"至多一条 pending"不变式失效。
+  - 原子发布：frontmatter 六字段（FIELD_ORDER）与 `fsrs_last_review` 必须在**同一次原子替换**中落盘（`os.replace` 已是现有 bridge 的写法，可直接作为实现基础），杜绝"部分字段已更新、W 未更新"的半态。
+  - ⚠️ **移交条款（G3-3）**：per-node 锁/CAS、**等时拒绝/复合排序**、**CAS 冲突后按全事件重折叠**（而非在陈旧状态上重试）三项均须由 G3-3 落实——其卡面当前只写"比较 last_review/revision 后写"，不含后两项，实施时须补。本卡只冻结契约，不实现。
+- **A5 整秒精度（Codex round-3 BLOCKER：小数秒二次推进）**：`review_time` **必须为整秒**（无小数秒段）。因为 `W` 只有秒级精度，`10:00:00.5 > 10:00:00` 恒成立——同一事件重放会被判 pending 并**二次推进**（实测：首次应用后 Learning/due 10:10，重放同一事件推进为 Review/due +2d）。校验器对 `schema_ext=review/1` 行机械强制整秒。
 
-**三态语义（消解"已应用 vs 迟到乱序"歧义）**：`review_time ≤ W` 的事件**一律不推进 current state**——无论它是"已应用"还是"迟到的乱序事件"，对 current state 的动作**完全相同**，因此该歧义对 exactly-once 无影响。二者的区分只用于**账本标注**（G3-3 的 `out_of_order` 标记），其判据是**事件到达序**（追加时该事件 `review_time` 是否小于当时账本内该节点的最大 `review_time`），不是水位线。
+**三态语义（消解"已应用 vs 迟到乱序"歧义）**：`review_time ≤ W` 的事件**一律不推进 current state**——无论它是"已应用"还是"迟到的乱序事件"，对 current state 的动作**完全相同**，因此该歧义对 exactly-once 无影响。二者的区分只用于**账本标注**：
+- **乱序判据统一为 G3-3 卡面口径**（`review_time 早于已应用的最新事件`，即 `review_time ≤ W`），标 `out_of_order`；本文档 pending 集合定义已显式**排除已标 out_of_order 的行**，两处口径自洽。
+- **迟到事件的入账通道**：A3 的"严格大于 W"只约束**在线评分**（正常复习写入）。补录/迟到事件走**账本补录通道**：以原始 `review_time` 入账 + 标 `out_of_order`，**不进 pending、不推进 current state**——因此与 A3 无冲突。
 
 - **duplicate 与 IO 失败必须可区分**（§二折叠语义）：G3-2 写点先显式查重再追加，禁止依赖 `append_event` 的折叠布尔。
 - **截断尾行 LF 守卫**：见 §二"截断自愈"行。
@@ -128,7 +143,7 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
 
 - **定位**: 确定性、stdlib-only、可独立对任意 vault 的账本文件执行（不依赖 backend 运行环境）。白名单在脚本内复制一份，由契约测试与 `learning_event_log.EVENT_TYPES` 锁死同步（漂移即红）。
 - **用法**: `python3 backend/scripts/validate_learning_events.py <learning_events.jsonl 路径>`
-- **判定规则**（每行）: **严格 JSON** 可解析（RFC 8259——拒 `NaN`/`Infinity` 非标准常量、拒对象内重复键；写侧 `json.dumps(dict)` 不可能产出两者，合法数据零误报）；非法 UTF-8 字节序列 = 该行违规（逐行独立解码，不中断其余行）；**前向兼容分流**：`event_version` 为 int 且 ≠1 的行**只 WARN 并完全跳过 v1 形状校验**（Codex round-1：原"WARN+形状 FAIL 双发"违反前向兼容，已修）；v1 行：顶层键**恰好** 7 键、各字段类型/约束按 §三、`event_type` ∈ 白名单、时间戳按 §三受理语法且 tz-aware；payload 含 `schema_ext: "review/1"` 时强制 §6.1 扩展键类型。**文件级**: `event_id` 全文件唯一（跨版本行也登记——幂等键语义跨版本恒定）。无标记历史行的 payload 键集不做 FAIL 判定（§6.3）。
+- **判定规则**（每行）: **严格 JSON** 可解析（RFC 8259——拒 `NaN`/`Infinity` 非标准常量、拒对象内重复键；写侧 `json.dumps(dict)` 不可能产出两者，合法数据零误报）；非法 UTF-8 字节序列 = 该行违规（逐行独立解码，不中断其余行）；**前向兼容分流**：`event_version` 为 int 且 ≠1 的行**只 WARN 并完全跳过 v1 形状校验**（Codex round-1：原"WARN+形状 FAIL 双发"违反前向兼容，已修）；v1 行：顶层键**恰好** 7 键、各字段类型/约束按 §三、`event_type` ∈ 白名单、时间戳按 §三受理语法且 tz-aware；payload 含 `schema_ext: "review/1"` 时强制 §6.1 全部扩展键类型与**语义绑定**（挂载点 / concept_id==node_id / review_time 整秒且与 effective_at 同瞬间 / rating-grade_norm 自洽 / 弃答 rating=1 / 库指纹与 golden manifest 真值相等）；`schema_ext` 值非法或复习事件带扩展键却无 marker = 违规（防降级绕过）。深层嵌套（RecursionError）与超长整数（解析限额）均单行判违规、不中断其余行。**文件级**: `event_id` 全文件唯一（跨版本行也登记——幂等键语义跨版本恒定）。无标记历史行的 payload 键集不做 FAIL 判定（§6.3）。
 - **exit code**: `0` = 全部通过；`1` = 存在违规（逐行报告）；`2` = 用法/IO 错误。输出确定性排序，可入 CI。
 
 ## 九、已知差异登记（不改代码本体，如实记录）

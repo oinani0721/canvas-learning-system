@@ -1,11 +1,13 @@
-== live ledger validation evidence (validator round-3, SHA-bound) ==
-date: 2026-08-28T11:16:25Z
-git HEAD: a8bab73c7e294884e128b5702122702a8812516a [feat: FSRS golden vectors防漂移门七门+钉版6.3.1 [BATCH-2026-08-28-第五]
-  注: round-2 整改后的 bytes 尚未提交, 以下列 sha256 为准 (提交后见后继 commit)
+== live ledger validation evidence (validator round-4, SHA-bound) ==
+date: 2026-08-28T11:47:13Z
+git HEAD: 4de42f69f79e275d5b6460797ca40a763858b38a [fix: 二轮整改—恢复先于新写硬门+跨字段绑定+矩阵真实锁 [BATCH-2026-08-28-第五批]
+  注: round-3 整改后的工作树 bytes 尚未提交, 以下列 sha256 为准
 python: Python 3.14.4
-validator sha256:     13c03c7cc8f2a8aba8c637f9653a73f1444caf5fcf97658879f08f64c93fcef5
-contract test sha256: 6c8540f0c8e86167c1782350823ce0522483d1d316bb389df6c7a744df4c4130
+validator sha256:     827016b435e7f17d72f81314cc29270c598f66d53e0b3d2ff482a7694d0a71ab
+contract test sha256: 262fba8ca964942dee985c787c6dc710c1a293a3a2bcaff431b1226636e4f059
 command: backend/.venv/bin/python backend/scripts/validate_learning_events.py <vault>/learning_events.jsonl
+-- ledger 行数 --
+      22
 -- ledger shasum before --
 2a18023e71a046db8a8c52e098cd48bd0b9898596e4ea3024e18695827796cb6  /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/learning_events.jsonl
 -- validator run --

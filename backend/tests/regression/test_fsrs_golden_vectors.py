@@ -186,6 +186,26 @@ def test_manifest_metadata_frozen():
     assert MANIFEST["parameter_count"] == 21
 
 
+def test_scheduler_config_non_parameter_fields_frozen():
+    """Codex round-3 HIGH: 只锁 21 个 parameters 时, 把 desired_retention
+    0.9→0.8 并重算 manifest/vectors/hash 可自洽伪装 (11 passed 全绿) —
+    调度配置每个字段都必须字面锁死。"""
+    cfg = MANIFEST["scheduler_config"]
+    assert cfg["desired_retention"] == 0.9
+    assert cfg["learning_steps_minutes"] == [1, 10]
+    assert cfg["relearning_steps_minutes"] == [10]
+    assert cfg["maximum_interval"] == 36500
+    assert cfg["enable_fuzzing"] is False
+    assert set(cfg.keys()) == {
+        "parameters",
+        "desired_retention",
+        "learning_steps_minutes",
+        "relearning_steps_minutes",
+        "maximum_interval",
+        "enable_fuzzing",
+    }, "scheduler_config 键集变化 = 配置面漂移, 须评审重冻结"
+
+
 def test_tolerance_ceiling_locked():
     """容差只许更严不许放宽 — manifest 单方把 rel 调成 1e-3 即红。"""
     assert 0 < MANIFEST["comparison_tolerance"]["float_rel"] <= 1e-9
@@ -222,19 +242,41 @@ def test_matrix_structure_frozen():
         assert actual_prefix == expected_prefix, (
             f"{v['id']}: 前缀 rating 序列 {actual_prefix} != 场景 skeleton {expected_prefix}"
         )
-        # 时刻 skeleton: 前缀首步恒为 base_datetime; 逾期场景的最终时刻必须
-        # 比前缀末态 due 晚整 30 天, 其余场景恰等于 due (= 准时)
+        # 时刻 skeleton **逐步**验证 (Codex round-3 HIGH: 只锁首步时,
+        # 把中间步 00:10→00:05 并同步最终时刻与真实 expected 仍全绿 —
+        # 因为后续 due 由已被篡改的 prefix 动态推导)。
+        # 规则: 首步 == base_datetime; 其后每步时刻 == 上一步结果卡 due
+        # + 该步偏移 (仅逾期场景的最终步偏移 30 天, 其余恒 0)。
         times = [datetime.fromisoformat(s["review_at"]) for s in v["steps"]]
         assert times == sorted(times), f"{v['id']}: 复习时刻必须非降序"
-        assert times[0] == datetime.fromisoformat(MANIFEST["base_datetime"]), (
-            f"{v['id']}: 首步时刻必须为 manifest.base_datetime"
+        scheduler = _build_scheduler()
+        card = Card(card_id=MANIFEST["card_id"], due=datetime.fromisoformat(MANIFEST["base_datetime"]))
+        last_index = len(v["steps"]) - 1
+        for i, step in enumerate(v["steps"]):
+            offset_days = EXPECTED_FINAL_OFFSET_DAYS[scenario] if i == last_index else 0
+            expected_at = (
+                datetime.fromisoformat(MANIFEST["base_datetime"]) if i == 0 else card.due + timedelta(days=offset_days)
+            )
+            assert times[i] == expected_at, (
+                f"{v['id']}: 第 {i} 步时刻 {times[i].isoformat()} != skeleton 期望 "
+                f"{expected_at.isoformat()}（首步=base_datetime，其后=上一步 due+{offset_days}d）"
+            )
+            card, _ = scheduler.review_card(card, RATING_BY_NAME[step["rating"]], times[i])
+
+    # expected 字段类型门 (Codex round-3 MEDIUM: Python bool 与 0/1 数值相等,
+    # state=true / step=false 曾静默全绿)
+    for v in vectors:
+        e = v["expected"]
+        assert isinstance(e["state"], int) and not isinstance(e["state"], bool), f"{v['id']}: state 须为 int"
+        assert e["step"] is None or (isinstance(e["step"], int) and not isinstance(e["step"], bool)), (
+            f"{v['id']}: step 须为 int 或 null"
         )
-        prefix_card = _replay(v["steps"][:-1])
-        expected_final_at = prefix_card.due + timedelta(days=EXPECTED_FINAL_OFFSET_DAYS[scenario])
-        assert times[-1] == expected_final_at, (
-            f"{v['id']}: 最终复习时刻 {times[-1].isoformat()} != 前缀末态 due"
-            f"+{EXPECTED_FINAL_OFFSET_DAYS[scenario]}d ({expected_final_at.isoformat()})"
-        )
+        for key in ("stability", "difficulty"):
+            value = e[key]
+            assert value is None or (isinstance(value, float) and not isinstance(value, bool)), (
+                f"{v['id']}: {key} 须为 float 或 null"
+            )
+        assert isinstance(e["due"], str) and isinstance(e["last_review"], (str, type(None)))
 
     points = GOLDEN["retrievability"]["at"]
     assert len(points) == 3, "retrievability 曲线恰 3 点 (due/+7d/+30d)"

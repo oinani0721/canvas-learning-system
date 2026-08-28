@@ -5,7 +5,7 @@
 > **日期**: 2026-08-28
 > **一句话**: 你的复习系统现在有了一份"宪法"——白纸黑字写死：**笔记 frontmatter 是唯一的
 > 复习状态真相**，`learning_events.jsonl` 事件账只负责"记录发生过什么"（审计/防重/可重放）。
-> 这张卡**零代码改动**——既有账本实现（已在生产跑了一个月、22 条真实事件）原样不动，
+> 这张卡**零生产代码改动**（新增的是一个独立校验器脚本与测试，不动任何既有生产路径）——既有账本实现（已在生产跑了一个月、22 条真实事件）原样不动，
 > 只是把它的现实升格为冻结契约 + 配了一把可以随时检查账本健康的尺子。
 
 ---
@@ -29,7 +29,7 @@
 
 | 裁判 | 结果 |
 |---|---|
-| 契约测试 `backend/tests/regression/test_learning_events_schema_contract.py` | **25 passed + 1 skipped**（本文件单跑口径；skip = 仓内 vault 根无账本的 worktree 环境，主仓自动生效。另有既有 `test_learning_event_log.py` 6 passed 零改动） |
+| 契约测试 `backend/tests/regression/test_learning_events_schema_contract.py` | **35 passed + 1 skipped**（本文件单跑口径，三轮整改后；skip = 仓内 vault 根无账本的 worktree 环境，主仓自动生效。与 golden 门 + 既有账本测试合跑 = **53 passed + 1 skipped**） |
 | **真实 producer 执行**（Codex 一轮 HIGH 整改） | vault 三 skill 写点的 python 代码**从 SKILL.md 逐字提取执行**（ai-linked-doc 单行模板 / start-exam-board PYEOF 块 / quiz-answer 评分链账本段；仅路径常量重定向 tmp fixture），产物过校验器 + 幂等重放断言；backend 侧按 5 调用点实参形状经真实 `append_event` 写入后全过 |
 | 既有账本回归 `test_learning_event_log.py` | 6 passed（零改动） |
 | 校验脚本 vs 三 fixture | 合法 → exit 0 / 缺字段 → exit 1（点名 `effective_at`）/ 重复 event_id → exit 1（点名首见行号）（存证 `审查/g3-1-evidence/g3-1-fixture-validation.txt`） |
@@ -98,7 +98,22 @@
 | c-1 | — | "4 条真实 producer"中第四条只走共享 `append_event` + 手写实参，未经五个 backend callsite，标题略宽 | **已如实收窄**：本单 §二该行已写明"backend 侧按 5 调用点实参形状经真实 `append_event`"，不宣称走 endpoint |
 | a-1/a-2 | — | tips 两偏离 owner 不够确定（G3-7 卡面不含 tips） | **已收紧**：schema §九移交栏改为"**独立 micro-patch**（G3-7 卡面不含 tips）" |
 
-三轮复核状态：本轮整改后契约测试 **29 passed + 1 skipped**（本文件）、现网账本 exit 0、round-2 全部点名反例对抗复验翻红（`审查/g3-1-evidence/g3-round2-counterexamples.txt`）。
+### 三轮复核处置（存档 `审查/codex-review-CARD-G3-1-G3-4-round3-2026-08-28.md`，G3-1 残留 1 复合 BLOCKER + 1 HIGH + 3 MEDIUM）
+
+| # | 级别 | 三轮发现 | 处置 |
+|---|---|---|---|
+| 1a | **BLOCKER（新）** | **小数秒二次推进**：校验器允许 `10:00:00.500000Z`，而 bridge 把 `fsrs_last_review` 写成整秒 → 同一事件恒满足 `> W`，实测重放后 Learning→Review、due 从 10:10 跳到 +2d | **已修（契约+代码）**：§6.2 新增 **A5 整秒精度**硬约束；校验器对 `review/1` 行机械强制整秒（反例现报 FAIL） |
+| 1b | **BLOCKER** | **并发下 A2 可被绕过**：两进程可同时看到 `pending=[]` 并各自从同一旧状态计算；契约未要求锁覆盖完整临界区，"构造上不可能"措辞过强 | **已修（契约）**：§6.2 新增 **A4 临界区**——"读 W→扫 pending→重放→durable append→apply→原子发布"整段须在 per-node 互斥内；六字段与 W 须同一次原子替换（`os.replace`）；A2 措辞收窄为"单写者下"；**移交 G3-3 补三项**（per-node 锁/CAS、等时拒绝、CAS 冲突后全事件重折叠） |
+| 1c | **BLOCKER（新）** | **残缺卡**（有 `fsrs_due`/`fsrs_state` 但缺 `fsrs_last_review`）被当 `W=-∞`，会在已推进的旧状态上重放全账 | **已修（契约）**：§6.2 水位线三态——真新卡（无任何 `fsrs_*`）=`-∞`；正常卡=该值；**残缺卡 = fail-closed**（禁止自动重放，报 degraded 待修复） |
+| 1d | **BLOCKER** | **三态不自洽**：pending 定义未排除 `out_of_order`；A3"新事件 > W"与"迟到旧事件原时刻入账"冲突；乱序判据 schema（账本最大时间）与 G3-3 卡面（已应用最新事件）两口径 | **已修（契约）**：pending 定义显式排除 `out_of_order` 行；乱序判据**统一采用 G3-3 卡面口径**（`review_time ≤ W`）；新增**账本补录通道**——迟到事件以原时刻入账 + 标 `out_of_order`、不进 pending、不推进 current state，与 A3（只约束在线评分）无冲突 |
+| 2 | HIGH | review/1 语义绑定仍不全：`vault_id` 不符 / `rating=4+grade_norm=0` / 弃答 `rating=4` / `schema_ext="review/01"` 降级 / 挂 `session_archived` / 假版本+全零 hash / `grade_norm` 缺失越界，**均 exit 0** | **已修（代码+契约）**：挂载点限 `answer_scored`/`answer_abandoned`；marker 值非法或带扩展键无 marker 均判违规（封堵降级）；`grade_norm` 必填 ∈[0,1]；`rating` 与 `grade_norm` 按 `rating_from_grade` 口径自洽、弃答恒为 1；**库指纹与 G3-4 golden manifest 真值相等**（manifest 不可达 → 形状校验 + WARN）。七条反例现全部 FAIL |
+| 3 | MEDIUM | offset 分钟 `\d{2}` 收了 `+00:60`/`+00:99` | **已修**：正则改 `[0-5]\d`（合法 `+08:45`/`-03:30` 仍过） |
+| 4 | MEDIUM | 深层嵌套（~50 万层）触发未捕获 `RecursionError`，stdout 空并中断后续行 | **已修**：捕获 `RecursionError`，单行判违规不中断 |
+| 5 | MEDIUM | `Z` 与 `+00:00` 同一瞬间因原字符串不等被拒 | **已修**：跨字段时刻改按**绝对瞬间**比较（混写变体测试锚定 exit 0） |
+| — | MEDIUM | 存证 SHA 过期（记 `13c03c7…`，实际 validator 已变） | **已修**：round-4 存证重生成，SHA 与当前 bytes 一致 |
+| — | MEDIUM | 本单同时写 `25+1` 与 `29+1`；"零代码改动"与新增 validator/test 矛盾 | **已修**：全单计数统一为 **35 passed + 1 skipped**（本轮实测）；"零代码改动"改为"**零生产代码改动**（新增独立校验器与测试，不动任何既有生产路径）" |
+
+三轮整改后复跑：契约测试 **35 passed + 1 skipped**（本文件）、三文件合跑 **53 passed + 1 skipped**、现网账本 exit 0（SHA-bound）、round-2/round-3 全部点名反例对抗复验翻红（`审查/g3-1-evidence/g3-round{2,3}-counterexamples.txt`）。
 
 ## 六、移交登记
 
