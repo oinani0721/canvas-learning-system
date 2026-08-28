@@ -74,6 +74,41 @@ _SHA256_HEX_PAT = re.compile(r"^[0-9a-f]{64}$")
 EXPECTED_CLASS_DIST = {"budget_400": 89, "schema_entity_type": 2, "group_id_format": 1}
 
 
+def _path_is_within(target: str, root: str) -> bool:
+    """target 是否落在 root 目录内 —— 逐级向上比较 **inode 身份**。
+
+    round-7 BLOCKER 整改: 不能用路径字符串前缀判断 —— 大小写不敏感卷上
+    ``/Users/x`` 与 ``/users/x`` 的 realpath 字符串不同但 samefile=True，
+    prefix guard 会漏。本实现从 target 逐级取父目录，只要任一级与 root 同
+    (st_dev, st_ino) 即判定在其内；target 尚不存在时上溯到存在的祖先。
+    """
+    try:
+        root_st = os.stat(root)
+    except OSError:
+        return False
+    root_id = (root_st.st_dev, root_st.st_ino)
+    cur = os.path.realpath(target)
+    while True:
+        try:
+            st = os.stat(cur)
+            if (st.st_dev, st.st_ino) == root_id:
+                return True
+        except OSError:
+            pass  # 该级尚不存在（--out 待创建），继续上溯
+        parent = os.path.dirname(cur)
+        if parent == cur:
+            return False
+        cur = parent
+
+
+def _same_file(a: str, b: str) -> bool:
+    """按 inode 身份比较两个路径（不依赖字符串大小写/规范化）。"""
+    try:
+        return os.path.samefile(a, b)
+    except OSError:
+        return False
+
+
 def _split_jsonl_lines(raw: bytes) -> list[tuple[str, str | None]]:
     """按 JSONL 规范只以 LF 分帧，返回 [(line_text, decode_error_or_None)]。
 
@@ -186,8 +221,7 @@ def resolve_group_attribution(tokens: list[str], transcripts_dir: Path) -> dict:
     }
     uniq = sorted(set(tokens), key=len)
 
-    root_real = os.path.realpath(transcripts_dir)
-    root_prefix = root_real if root_real.endswith(os.sep) else root_real + os.sep
+    root_str = str(transcripts_dir)
     walk_errors: list[str] = []
 
     def _on_walk_error(err: OSError) -> None:
@@ -218,9 +252,8 @@ def resolve_group_attribution(tokens: list[str], transcripts_dir: Path) -> dict:
                 if not os.access(candidate, os.R_OK):
                     unreadable.append(candidate)
                     continue
-                real = os.path.realpath(candidate)
-                if not real.startswith(root_prefix):
-                    continue  # 目录 symlink 逃逸
+                if not _path_is_within(candidate, root_str):
+                    continue  # 目录 symlink 逃逸（inode 身份判定）
                 for t in matched:
                     per_token[t].append(candidate)
     result["all_candidate_paths"] = sorted(set(all_candidates))
@@ -424,20 +457,18 @@ def main(argv: list[str] | None = None) -> int:
     # 路径层防御：--out 的 realpath 不得落在 transcripts 根内、不得等于任一
     # 输入路径。路径层 + inode 层双保险，任一命中即拒绝。
     if args.out:
-        out_real = os.path.realpath(args.out)
-        tr_real = os.path.realpath(args.transcripts_dir)
-        tr_prefix = tr_real if tr_real.endswith(os.sep) else tr_real + os.sep
-        if out_real == tr_real or out_real.startswith(tr_prefix):
+        # round-7 BLOCKER 整改: 用 **inode 身份逐级比较**（_path_is_within），
+        # 不用路径字符串前缀 —— normcase 在 POSIX 上是恒等函数，大小写不敏感
+        # 卷上的别名根（/Users vs /users）realpath 字符串不同但 samefile=True。
+        if _path_is_within(args.out, args.transcripts_dir):
             print(
                 f"--out 落在 transcripts 根内（恢复源区域），无条件拒绝写出: {args.out}",
                 file=sys.stderr,
             )
             return 2
-        input_reals = {os.path.realpath(args.dlq)} | {os.path.realpath(c) for c in args.compare}
-        if args.qa_metrics_db:
-            input_reals.add(os.path.realpath(args.qa_metrics_db))
-        if out_real in input_reals:
-            print(f"--out 与输入文件路径相同（realpath 比较），拒绝写出: {args.out}", file=sys.stderr)
+        input_paths = [args.dlq, *args.compare] + ([args.qa_metrics_db] if args.qa_metrics_db else [])
+        if any(_same_file(args.out, ip) for ip in input_paths):
+            print(f"--out 与输入文件为同一对象（inode 比较），拒绝写出: {args.out}", file=sys.stderr)
             return 2
 
     # --out 碰撞守卫（写前）。round-2 BLOCKER-1 整改: 比较**文件身份**
@@ -705,6 +736,20 @@ def main(argv: list[str] | None = None) -> int:
 
     # round-3 BLOCKER-1 绕过① 整改: 归因到的 transcript 是恢复源，
     # --out 指向它同样会截断。写出前并入保护集（此时归因已完成）。
+    # round-7 整改: 扫描受阻 ⇒ 保护集必然不完整（隐藏目录内的源看不见）。
+    # 仅在台账标 unverifiable 不够 —— 直接拒绝写出，避免在保护集残缺时落盘。
+    scan_blocked = [
+        (k, v.get("scan_errors") or v.get("stat_failures"))
+        for k, v in group_attribution.items()
+        if v.get("scan_errors") or v.get("stat_failures")
+    ]
+    if scan_blocked and args.out:
+        print(
+            f"transcripts 扫描受阻（{len(scan_blocked)} 组），保护集不完整，拒绝写出台账；首例: {scan_blocked[0][1]}",
+            file=sys.stderr,
+        )
+        return 2
+
     for sess_info in group_attribution.values():
         for tpath in sess_info.get("all_candidate_paths", []):
             try:
@@ -724,45 +769,39 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         out_json = json.dumps(ledger, ensure_ascii=False, indent=1)
+        out_json.encode("utf-8")  # round-7 LOW: 编码错误必须在写出前暴露
     except (UnicodeEncodeError, ValueError):
-        # round-6 LOW 整改: name/error/group_id 等字段若含 escaped lone surrogate，
-        # ensure_ascii=False 写出会抛错并拒绝整次 census。回退 ensure_ascii=True
-        # （\uXXXX 转义，ASCII 安全）并在台账中显式标注该降级。
+        # name/error/group_id 等字段若含 escaped lone surrogate，UTF-8 写出会抛错。
+        # 回退 ensure_ascii=True（\uXXXX 转义，ASCII 安全）并在台账显式标注。
         ledger["json_encoding_note"] = "ensure_ascii=True fallback: 某字段含无法 UTF-8 编码的字符（lone surrogate）"
         out_json = json.dumps(ledger, ensure_ascii=True, indent=1)
     if args.out:
-        # round-3 整改: 消除 check-then-open TOCTOU。先以 O_NOFOLLOW 打开且
-        # **不带 O_TRUNC**，对**实际 fd** fstat 校验 inode；只有校验通过才
-        # ftruncate。检查与写入作用于同一 fd，检查后被换 symlink/hardlink 无效。
+        # round-7 架构整改: 不再截断既有文件 —— 同目录 O_EXCL 新建临时文件 →
+        # 写 → fsync → os.replace 原子替换。O_EXCL 保证目标是本进程新建的对象，
+        # 因此"把 --out 换成指向恢复源的 hardlink / 父目录 symlink / 大小写别名"
+        # 这一整类绕过全部失效（脚本从不 ftruncate 任何既有 inode）；同时消除
+        # 崩溃/ENOSPC 留下部分台账的风险（round-7 MEDIUM）。
+        out_path = Path(args.out)
+        tmp_path = out_path.with_name(f".{out_path.name}.census-tmp-{os.getpid()}")
         try:
-            fd = os.open(args.out, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+            tmp_fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
         except OSError as e:
-            print(f"--out 无法安全打开（symlink 或权限）: {args.out} ({e})", file=sys.stderr)
+            print(f"临时台账文件无法新建（O_EXCL）: {tmp_path} ({e})", file=sys.stderr)
             return 2
         try:
-            st = os.fstat(fd)
-            # round-4 MEDIUM 整改: 非常规文件（FIFO/设备/socket）拒绝
-            if not stat.S_ISREG(st.st_mode):
-                print(f"--out 不是常规文件（FIFO/设备/socket），拒绝写出: {args.out}", file=sys.stderr)
-                return 2
-            # round-5 HIGH 整改: 碰撞检查必须**先于** fchmod —— 否则 --out 指向
-            # 受保护的 0644 输入时，会先把只读输入的权限改成 0600 再拒绝。
-            if (st.st_dev, st.st_ino) in protected_ids:
-                print(
-                    f"--out 打开后经 fstat 判定与输入文件同一 inode，拒绝写出（防截断）: {args.out}",
-                    file=sys.stderr,
-                )
-                return 2
-            # 碰撞检查通过后才收紧权限（round-4 LOW: 0o600 只作用于新建）
-            if st.st_mode & 0o077:
-                os.fchmod(fd, 0o600)
-            os.ftruncate(fd, 0)
-            with os.fdopen(fd, "w", encoding="utf-8", closefd=True) as f:
-                fd = -1  # 所有权移交 fdopen
+            with os.fdopen(tmp_fd, "w", encoding="utf-8", closefd=False) as f:
                 f.write(out_json + "\n")
-        finally:
-            if fd >= 0:
-                os.close(fd)
+                f.flush()
+                os.fsync(tmp_fd)
+        except Exception as e:
+            os.close(tmp_fd)
+            os.unlink(tmp_path)
+            print(f"台账写入失败，已清理临时文件: {e}", file=sys.stderr)
+            return 2
+        os.close(tmp_fd)
+        # 原子替换。目标若是恢复源，路径层与 inode 层已在前面拒绝；此处 replace
+        # 只作用于本进程新建的 tmp，不存在"截断别人的文件"这一步。
+        os.replace(tmp_path, out_path)
         print(f"台账已写入: {args.out}")
     else:
         print(out_json)
