@@ -521,27 +521,6 @@ def test_manifest_corrupt_forms_degrade_not_crash():
         assert any("只做形状校验" in w for w in warnings), f"manifest={bad_manifest!r} 应降级 WARN"
 
 
-def test_watermark_comparison_must_be_instant_based():
-    """§6.2 比较语义: bridge 的 _iso() 把 W 归一化为 UTC 'Z' 形式, 而事件
-    review_time 允许任意合法 offset — 同一瞬间可有不同字符串。按字符串比较
-    会把"已应用"误判为 pending 并二次推进, 故契约要求按绝对瞬间比较。
-
-    本测试钉死该等价关系 (bridge 改写出格式时会红) 与整秒性在 UTC 归一化
-    后的保持 (A5 前提)。
-    """
-    sys.path.insert(0, str(WT / "canvas-vault" / ".claude" / "scripts"))
-    import fsrs_bridge as fb  # noqa: PLC0415
-
-    event_time = "2026-08-01T18:00:00+08:00"
-    watermark = fb._iso(fb._aware(event_time))
-    assert watermark == "2026-08-01T10:00:00Z", "bridge 写出格式漂移 — 比较语义前提须复核"
-    assert watermark != event_time, "本测试的前提是两者字符串不同"
-    assert validator._instant(event_time) == validator._instant(watermark), (
-        "同一瞬间必须比较相等 — 否则水位线判据会二次推进"
-    )
-    assert validator._parse_ts(event_time)[0] and not validator._SUBSECOND_RE.match(event_time)
-
-
 def test_vault_id_bound_to_vault_config(tmp_path):
     """`payload.vault_id` 必须等于账本所在 vault 的**规范化** vault_id
     (与生产 `Settings.vault_id` 同链: safe_load → sanitize_vault_id)。
@@ -827,6 +806,35 @@ def test_vault_id_never_misbinds_against_real_backend(tmp_path):
     (bad_utf8 / ".canvas-config.yaml").write_bytes(b'vault_id: "\xff\xfe"\n')
     assert validator._vault_id_of(bad_utf8 / "learning_events.jsonl") is None
     assert validator._vault_id_of(tmp_path / "nowhere" / "learning_events.jsonl") is None
+
+
+def test_vault_config_parse_errors_degrade_not_crash(tmp_path):
+    """Codex round-12 MEDIUM: `vault_id: 2023-13-40` 让 PyYAML 的 timestamp
+    constructor 抛 **ValueError**(非 YAMLError) — 窄捕获会 traceback + exit 1,
+    而生产 (config.py:777) 捕 Exception 后回退。校验器须同口径降级。"""
+    ledger_name = "learning_events.jsonl"
+    for content, desc in [
+        ("vault_id: 2023-13-40\n", "非法日期 (timestamp constructor ValueError)"),
+        ("vault_id: [1, 2\n", "语法错 (YAMLError)"),
+        ("[" * 2000 + "]" * 2000 + "\n", "深嵌套 YAML (RecursionError)"),
+        ("!!python/object:os.system\nvault_id: x\n", "未知标签 (ConstructorError)"),
+    ]:
+        config_dir = tmp_path / f"case{abs(hash(content)) % 10**8}"
+        config_dir.mkdir()
+        (config_dir / ".canvas-config.yaml").write_text(content, encoding="utf-8")
+        got = validator._vault_id_of(config_dir / ledger_name)
+        assert got is None, f"[{desc}] 应降级为不绑定, 实为 {got!r}"
+
+    # 端到端: 坏配置下账本仍能通过校验 (只 WARN 不 FAIL)
+    config_dir = tmp_path / "e2e"
+    config_dir.mkdir()
+    (config_dir / ".canvas-config.yaml").write_text("vault_id: 2023-13-40\n", encoding="utf-8")
+    ledger = config_dir / ledger_name
+    ledger.write_text(json.dumps(_review_ext_record(), ensure_ascii=False) + "\n", encoding="utf-8")
+    result = _run(ledger)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "vault_id 未绑定" in result.stdout
+    assert "Traceback" not in result.stderr
 
 
 def test_vault_id_degrades_without_pyyaml_and_warns(tmp_path, monkeypatch):

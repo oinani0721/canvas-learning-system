@@ -2,22 +2,21 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**本车道状态**（2026-08-29 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **十一轮 Codex；BLOCKER 连续四轮清零；G3-4 已 CONFIRMED-CLOSED**）:
-- ✅ CARD-G3-4：**六~十一轮连续 CONFIRMED-CLOSED**——十门 13 passed，声明范围内无语义级漂移可全绿
-- ✅ CARD-G3-1（`63e034ec` + 十笔整改 + 十一轮整改待提交）：契约测试 **54 passed + 1 skipped**，
-  三文件合跑 **73 passed + 1 skipped**。累计处置 2B+39H+48M。本轮关键：
-  **vault_id 与生产逐环节同源**——r11 发现我的测试 oracle 是**假的**（只复刻 `safe_load+strip`，
-  漏掉生产链里的 `sanitize_vault_id()`，`team#1` 实际应得 `team_1`，27 例中 15 例分叉）；
-  现校验器 import backend 的 `sanitize_vault_id` 本体、测试 oracle 改用**真实 `Settings.vault_id`**、
-  断言改为安全性质「**绝不产生与生产不同的非 None 值**」，实测**错绑数 0**；
-  另修 A7 文档三处矛盾、`_parse_ts` 的 `is` 改值比较、proof 的 E 选取（尾部逃逸）/键集矛盾/
-  genesis 左端点冲突 + 字节域 + **证明强度诚实上限**
+**本车道状态**（2026-08-29 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **十二轮 Codex；BLOCKER 连续五轮清零，HIGH 收敛至 1；G3-4 已 CONFIRMED-CLOSED**）:
+- ✅ CARD-G3-4：**六~十二轮连续 CONFIRMED-CLOSED**，十二轮明确「可独立验收」——十门 13 passed
+- ✅ CARD-G3-1（`63e034ec` + 十一笔整改 + 十二轮整改待提交）：契约测试 **55 passed + 1 skipped**，
+  三文件合跑 **74 passed + 1 skipped**。**十二轮 HIGH 从 3 降到 1 并已修**，累计处置 2B+40H+51M。
+  十二轮 Codex 确认闭合：A7 全部、**vault_id 假 oracle 与错绑**（其独立差分 **1229 种 YAML**：
+  267 同值绑定 / 962 保守 None / **非 None 错绑 0**）、PyYAML 缺失 WARN、YAML RecursionError。
+  本轮修：proof 键集表格化（消除「恰六键」与 Review 五键的矛盾）+ **跨层单调门**
+  （snapshot 分层曾可绕过层内单调性）+ YAML 异常捕获与生产同口径（`2023-13-40` 曾 traceback）
+  + 测试重名清理 + 交付清单依赖口径
 - ⛔ 移交（schema §九 逐条登记）：①test.yml 白名单 +2 测试 + root requirements paths（S8 独占；
   **CI DEFERRED/NOT-EXECUTED**）；②**G3-2 五项**；③**G3-3 七项**；④tips.py 两条 → 独立 micro-patch
 - ⚠️ 依赖口径：**账本校验主体 stdlib-only**；**vault_id 绑定层**需 PyYAML + 可 import 的 backend
-  `app.config`（须与生产逐环节同源），不可达时降级不绑定 + WARN。三处文档口径已统一
-- 纪律守住：learning_event_log.py/fsrs_manager.py 及全部 in-flight 锁定文件零改动（十一轮 blob 复核在案）；不 push
-- 待办：十一轮整改提交（第十二笔）→ Codex 十二轮复核 → 用户验收两单
+  `app.config`，不可达或配置解析异常时降级不绑定 + WARN。schema/validator/验收单四处口径已统一
+- 纪律守住：learning_event_log.py/fsrs_manager.py 及全部 in-flight 锁定文件零改动（十二轮 blob 复核在案）；不 push
+- 待办：十二轮整改提交（第十三笔）→ Codex 十三轮复核 → 用户验收两单
 
 ---
 

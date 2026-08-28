@@ -29,7 +29,7 @@
 
 | 裁判 | 结果 |
 |---|---|
-| 契约测试 `backend/tests/regression/test_learning_events_schema_contract.py` | **54 passed + 1 skipped**（本文件单跑口径，十轮整改后；skip = 仓内 vault 根无账本的 worktree 环境，主仓自动生效。与 golden 门 + 既有账本测试合跑 = **73 passed + 1 skipped**） |
+| 契约测试 `backend/tests/regression/test_learning_events_schema_contract.py` | **54 passed + 1 skipped**（本文件单跑口径，十轮整改后；skip = 仓内 vault 根无账本的 worktree 环境，主仓自动生效。与 golden 门 + 既有账本测试合跑 = **74 passed + 1 skipped**） |
 | **真实 producer 执行**（Codex 一轮 HIGH 整改） | vault 三 skill 写点的 python 代码**从 SKILL.md 逐字提取执行**（ai-linked-doc 单行模板 / start-exam-board PYEOF 块 / quiz-answer 评分链账本段；仅路径常量重定向 tmp fixture），产物过校验器 + 幂等重放断言；backend 侧按 5 调用点实参形状经真实 `append_event` 写入后全过 |
 | 既有账本回归 `test_learning_event_log.py` | 6 passed（零改动） |
 | 校验脚本 vs 三 fixture | 合法 → exit 0 / 缺字段 → exit 1（点名 `effective_at`）/ 重复 event_id → exit 1（点名首见行号）（存证 `审查/g3-1-evidence/g3-1-fixture-validation.txt`） |
@@ -58,7 +58,7 @@
 |---|---|
 | `docs/fsrs-truth-source-d0-revision.md` | D0/D2-A 正式修订（frontmatter=current state；事件账=审计/幂等/重放；禁第二套；现存偏离登记表→G3-2/3/5/7/8 交接） |
 | `docs/learning-events-schema-v1.md` | EVENT_VERSION=1 逐字段冻结契约 + 9 类事件契约 + 写点普查 + 复习域扩展规则（G3-2 预备）+ 白名单对账评审记录 |
-| `backend/scripts/validate_learning_events.py` | stdlib 确定性校验器（exit 0/1/2；可独立对任意 vault 账本跑） |
+| `backend/scripts/validate_learning_events.py` | 确定性校验器（exit 0/1/2）。**账本校验主体 stdlib-only**，可独立对任意 vault 的 jsonl 跑；**vault_id 绑定层**需 PyYAML + 可 import 的 backend `app.config`（须与生产 `Settings.vault_id` 逐环节同源），不可达或配置解析异常时降级为不绑定 + WARN，主体不受影响 |
 | `backend/tests/fixtures/learning_events/*.jsonl` | 合法/缺字段/重复/真实形状 四 fixture |
 | `backend/tests/regression/test_learning_events_schema_contract.py` | 契约测试（漂移即红） |
 | CLAUDE.md / docs/architecture.md | 各 +1 处引用（判据要求"被 CLAUDE.md/架构文档引用"） |
@@ -225,6 +225,20 @@
 | 六 | MEDIUM | 三处仍称 `stdlib-only`（schema §八、validator docstring、验收单交付清单），与新增的 PyYAML/backend 依赖冲突 | **已修**：三处口径统一为「**主体 stdlib-only + vault_id 绑定层需 PyYAML/backend**」 |
 
 十一轮整改后复跑：契约测试 **54 passed + 1 skipped**、三文件合跑 **73 passed + 1 skipped**、现网账本（23 行）exit 0 零 WARN 且 `vault_id='canvas_vault'`、**对真实生产入口的错绑数 0**（`审查/g3-1-evidence/g3-round11-counterexamples.txt`）。
+### 十二轮复核处置（存档 `审查/codex-review-CARD-G3-1-G3-4-round12-2026-08-29.md`；**BLOCKER 清零，HIGH 从 3 降到 1**）
+
+> **本轮 Codex 确认闭合**：A7（三处措辞 + `is`→`==` 值比较，含等值新建对象实测排他）、**vault_id 假 oracle 与非 None 错绑**（独立差分 **1229 种 YAML**：267 种同值绑定、962 种保守 `None`、**非 None 错绑 0**）、PyYAML 缺失 WARN 通道、YAML `RecursionError`。
+
+| # | 级别 | 十二轮发现 | 处置 |
+|---|---|---|---|
+| 三 | **HIGH** | proof 仍有两处：①`result_hash` 行仍写「恰六键」，与下一条的「Review 五键省略 step」**直接矛盾**——Review 无论五键还是六键都违反一条；②**snapshot 分层可绕过层内单调性**：`L1=t2、L2=t1` 可拆成 ancestor `(0,1]` 与本层 `(1,2]`，两个**单事件区间**的单调门都真空通过，全链非单调却蒙混过关 | **已修（契约）**：①键集改为**表格**逐 state 列明（Learning/Relearning 六键、**Review 五键**），全文以该表为准，「恰六键」措辞清零；②新增 **跨层单调门**——`ancestor_proof.review_time`（snapshot 的 W）必须**严格小于本层折叠区间首个事件的 `review_time``；反例现被正确判「不可证明」，且不误伤正常链（真实追加序天然满足） |
+| 二 | MEDIUM | vault_id **降级路径不完整**：`vault_id: 2023-13-40` 让 PyYAML 的 timestamp constructor 抛 **`ValueError`（非 YAMLError）**，窄捕获导致 **exit 1 + traceback**，而生产（`config.py:777`）捕 `Exception` 后回退 | **已修**：YAML 解析异常捕获**与生产同口径**（捕 `Exception`）。四种异常形态（非法日期 / 语法错 / 深嵌套 / 未知标签）实测全部降级为不绑定，端到端 CLI **exit 0 + WARN + 零 traceback** |
+| 四 | MEDIUM | 验收单**交付清单**行仍写无条件的「stdlib 确定性校验器」，未改为分层依赖口径 | **已修**：改为「账本校验主体 stdlib-only + vault_id 绑定层需 PyYAML/backend，异常时降级」 |
+| 六 | LOW | 契约测试内 `test_watermark_comparison_must_be_instant_based` **重名两次**，后者静默覆盖前者 | **已修**：删除被遮蔽的重复定义（现 1 处） |
+| 四 | 建议 | 深嵌套回归实际只测 JSON，建议补 YAML 专项锁 | **已补**：新增 `test_vault_config_parse_errors_degrade_not_crash`，含 2000 层 YAML 深嵌套 |
+
+十二轮整改后复跑：契约测试 **55 passed + 1 skipped**、三文件合跑 **74 passed + 1 skipped**、现网账本（23 行）exit 0 零 WARN 且 `vault_id='canvas_vault'`、round-12 全部点名反例对抗复验通过（`审查/g3-1-evidence/g3-round12-counterexamples.txt`）。
+
 
 
 ## 六、移交登记

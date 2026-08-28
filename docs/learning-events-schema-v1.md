@@ -208,9 +208,16 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
       | `fsrs_library_version` / `fsrs_params_hash` / `scheduler_config` | 复算所用的算法身份与完整配置（须与 G3-4 golden manifest 同源；`degraded:*` 哨兵不合格） |
       | `reducer` | canonical reducer 标识与其精度常量（见上一条；G3-2 落地时冻结具体值） |
       | `origin` | 起点，二选一：`{"kind": "new_card", "genesis_evidence": {...}}`（真新卡，链终止于此；折叠区间左端点 = `genesis_evidence.first_event_line - 1`，见下方 genesis 锚——round-11 修正原「取 0」与后文冲突）或 `{"kind": "snapshot", "state": {...}, "snapshot_hash": "...", "ancestor_proof": {...}}`（三条等式约束见下） |
-      | `result_hash` | 重建出的**状态对象**（恰六键，见下方"状态对象的唯一形状"）的 canonical JSON 的 UTF-8 字节 sha256——供他人独立复算比对 |
+      | `result_hash` | 重建出的**状态对象**（键集按下方"状态对象的唯一形状"——Learning/Relearning 六键、**Review 五键**）的 canonical JSON 的 UTF-8 字节 sha256——供他人独立复算比对 |
 
-    - **状态对象的唯一形状（round-9 HIGH#3，round-10 补值类型）**：proof 里出现的每个"状态"（`origin.snapshot.state`、`result` 等）都是**恰含 `fsrs_bridge.py:44-46` FIELD_ORDER 中「适用于该 `fsrs_state` 的键」的 JSON object**（Learning/Relearning = 六键；**Review = 五键，省略 `fsrs_step`**——与三态表的 canonical 形状一致，round-11 修正原「恰六键」与「Review 省略 step」的自相矛盾）：`fsrs_due` / `fsrs_state` / `fsrs_step` / `fsrs_stability` / `fsrs_difficulty` / `fsrs_last_review`。
+    - **状态对象的唯一形状（round-9 HIGH#3，round-10 补值类型）**：proof 里出现的每个"状态"（`origin.snapshot.state`、`result` 等）都是**恰含 `fsrs_bridge.py:44-46` FIELD_ORDER 中「适用于该 `fsrs_state` 的键」的 JSON object**：
+
+      | `fsrs_state` | 键集 |
+      |---|---|
+      | 1 Learning / 3 Relearning | 六键：`fsrs_due` / `fsrs_state` / `fsrs_step` / `fsrs_stability` / `fsrs_difficulty` / `fsrs_last_review` |
+      | 2 Review | **五键**：同上但**省略 `fsrs_step`**（与 §三态表的 canonical 形状一致——Review 态带 step 即非 canonical） |
+
+      （r11/r12 修正：早前几处混写"固定六键"，与 Review 省略 step 冲突；现全文以本表为准。）
       **值类型必须归一化后再序列化（round-10 HIGH）**——否则 `{"fsrs_state": 2, "fsrs_stability": 10}` 与 `{"fsrs_state": "2", "fsrs_stability": 10.0}` 都能通过三态判别却产生**不同 hash**，proof 失去唯一性：
 
       | 键 | canonical 类型 |
@@ -235,6 +242,9 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
       - 三者缺一 ⇒ 不可证明，必须改走 `snapshot` 分支或人工裁定。
       - ⚠️ **证明强度的诚实上限（round-11）**：`genesis_evidence` 证明的是"**重建时刻**该节点无任何 FSRS 状态"，**不能**证明"历史上从未存在过未入账的 Review 状态"（例如状态曾被手工删除）。因此 `new_card` 分支只在该节点**账本历史完整**（其全部复习事件都带 `review/1`）时可用；若存在无扩展的旧行，则该节点属 §"不可证明时必须继续冻结"，须人工裁定——工具不得自行采信 `new_card`。
     - **链的终止与防循环（round-8）**：`ancestor_proof` 链必须**终止于 `origin.kind == "new_card"`**；链上每一层的 `(vault_id, node_id)` 必须相同，且 `cursor_line` 必须**严格递减**（保证有限步终止、不可自引用）。任一条不满足 ⇒ 不可证明。
+    - **跨层单调门（round-12 HIGH：分层可绕过层内单调性）**：`ancestor_proof.review_time`（即 ancestor 折叠到的时刻，也是 snapshot 的 `W`）必须 **严格小于本层折叠区间中首个事件的 `review_time`**。
+      ⚠️ round-12 反例：`L1=t2、L2=t1`（`t2 > t1`，两行均未标 `out_of_order`）时，可拆成 ancestor 区间 `(0,1]` 与本层区间 `(1,2]`——两个**单事件区间**的层内单调门都**真空通过**，全链非单调却蒙混过关。加上本条后：ancestor 的 `W = t2` 不小于本层首事件的 `t1` ⇒ 正确判**不可证明**。
+      该条不会误伤正常链：真实追加序下时刻本就随行号递增，跨层边界自然满足严格小于。
     - **`prefix_ends_without_lf` 的取值规则（round-9）**：类型为 boolean。E 所在行**有**终止 LF 时该键**必须省略**（不得写 `false`）；**无**终止 LF（E 是文件末行且文件不以 LF 结尾）时**必须**写 `true`。这样"省略"与"false"不并存，比较无歧义。
     - **`degraded:*` 哨兵行不参与自动证明链**：其 `fsrs_library_version`/`params_hash` 是哨兵而非算法身份，无法确定性复算——含此类事件的区间必须由人工裁定。
   - **为什么必须如此**（round-5 两反例）：若 state 已含 `E2` 而水位线被随手修成 `W = t1` ⇒ `E2` 会被二次应用；若 state 仅含 `E1` 而 `W` 被修成 `t2` ⇒ `E2` 永久遗漏。两种错误都源于"state 与 W 不同源"。

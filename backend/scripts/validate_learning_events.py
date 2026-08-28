@@ -435,8 +435,11 @@ def _vault_id_of(ledger_path: Path) -> Optional[str]:
     try:
         with open(config, encoding="utf-8") as handle:
             data = yaml.safe_load(handle) or {}
-    except (OSError, UnicodeDecodeError, yaml.YAMLError, RecursionError):
-        # round-11 MEDIUM: 深嵌套 YAML 会 RecursionError, backend 也捕获回退
+    except Exception:  # noqa: BLE001 — 与生产同口径 (config.py:777 捕 Exception)
+        # round-11: 深嵌套 YAML 抛 RecursionError;
+        # round-12: `vault_id: 2023-13-40` 让 PyYAML timestamp constructor 抛
+        # ValueError(非 YAMLError) — 窄捕获会 traceback + exit 1, 而生产是回退。
+        # 任何解析异常一律降级为不绑定 + WARN。
         return None
     if not isinstance(data, dict):
         return None

@@ -1,10 +1,10 @@
-== live ledger validation evidence (validator round-12, SHA-bound) ==
-date: 2026-08-28T17:23:33Z
-git HEAD: a035850d6c72f5f354b3d201a0a58541de018029  # round-11 整改待提交
+== live ledger validation evidence (validator round-13, SHA-bound) ==
+date: 2026-08-28T17:45:14Z
+git HEAD: 6d3aafc7228e4339621344d770cf8e6ebb4eb476  # round-12 整改待提交
 python: Python 3.14.4; PyYAML: 6.0.3
-validator sha256: cbb6a21ace54cfccb993cfb22ac7d762f0b9848cb2345e83585e226f04945728
+validator sha256: cf88edd79e6c9712849218568706a971cf5a394b9b424908302a083ad88d5d8a
+test sha256:      e79bcdc8cbc4fbd3feba845093dcf21aa17299278294e2a252a7501c3727bc3f
 完整命令: cd <worktree> && backend/.venv/bin/python backend/scripts/validate_learning_events.py <vault>/learning_events.jsonl
-vault_id (PyYAML + backend sanitize_vault_id 同源): 'canvas_vault'
 -- ledger 行数 --
       23
 -- shasum before --
