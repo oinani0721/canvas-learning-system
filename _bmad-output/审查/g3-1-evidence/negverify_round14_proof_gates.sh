@@ -262,7 +262,10 @@ echo "    round-20 Codex: 原变体是**删除**收集 (靠「无 vault 证据�
 echo "    不能证明「次序」本身承重。现忠实地把收集移到 continue 之后。"
 if mutate 's/        vault_id = payload.get\("vault_id"\)\n        if isinstance\(vault_id, str\) and vault_id:\n            scan\["vault_ids"\].add\(vault_id\)\n            scan\["vault_id_lines"\].add\(idx\)\n        scan\["review_ext_lines"\].append\(idx\)\n/        scan["review_ext_lines"].append(idx)\n/' \
    && mutate 's/        review_time = payload.get\("review_time"\)\n/        vault_id = payload.get("vault_id")\n        if isinstance(vault_id, str) and vault_id:\n            scan["vault_ids"].add(vault_id)\n            scan["vault_id_lines"].add(idx)\n        review_time = payload.get("review_time")\n/'; then
-  expect_red test_genuine_out_of_order_cannot_hide_another_vault "hide_another_vault"
+  # round-21 Codex MEDIUM: 原先只期待 proof 级那条, 但它变红是被「仅 N/M 条带
+  # vault_id」这条**替代**门拒绝的, 归因不成立。新增的纯 scanner 事实门失败
+  # **只可能**因为收集次序变了 —— 归因落在它身上。
+  expect_red "test_scanner_collects_vault_from_out_of_order_rows|test_genuine_out_of_order_cannot_hide_another_vault" "hide_another_vault or collects_vault"
 fi
 restore || exit 1
 
@@ -290,7 +293,8 @@ restore || exit 1
 echo
 echo "=== 变体U: 缺 node_id 的记录退回静默跳过 (round-20 MEDIUM) ==="
 if mutate 's/        if not isinstance\(raw_node, str\):\n            scan\["unroutable_lines"\].append\(idx\)\n            continue/        if not isinstance(raw_node, str):\n            continue/'; then
-  expect_red test_v2_without_node_id_is_unroutable_not_silently_skipped "unroutable"
+  # 同一道门被两条测试覆盖: 语义门 + 非字符串 node_id 的五个参数实例
+  expect_red "test_v2_without_node_id_is_unroutable_not_silently_skipped|test_non_string_node_id_is_unroutable" "unroutable"
 fi
 restore || exit 1
 
@@ -298,6 +302,13 @@ echo
 echo "=== 变体V: 版本判断前移到 node 过滤之前 (round-20 误拒方向 survivor) ==="
 if mutate 's/        if raw_node != node_id:\n            continue\n/        if record.get("event_version") != EVENT_VERSION:\n            scan["unknown_version_lines"].append(idx)\n            continue\n        if raw_node != node_id:\n            continue\n/'; then
   expect_red test_v2_of_another_node_does_not_false_reject "another_node"
+fi
+restore || exit 1
+
+echo
+echo "=== 变体W: 主体校验器不再执行路由信封 (round-21 MEDIUM) ==="
+if mutate 's/                for key, ok in \(\n                    \("event_id", isinstance\(record.get\("event_id"\), str\) and bool\(record\["event_id"\]\)\),\n                    \("node_id", isinstance\(record.get\("node_id"\), str\)\),\n                \):/                for key, ok in ():/'; then
+  expect_red "test_main_validator_enforces_routing_envelope\[.*node_id\]|test_main_validator_enforces_routing_envelope\[.*event_id\]" "enforces_routing_envelope"
 fi
 restore || exit 1
 

@@ -218,16 +218,42 @@ def test_unknown_event_version_warns_not_fails(tmp_path):
 
 def test_unknown_version_new_shape_truly_skipped(tmp_path):
     """Codex round-1 HIGH: v2 若形状变化 (缺 v1 键/加新键), 原实现 WARN+FAIL
-    双发 exit 1 — 前向兼容必须**完全跳过**形状校验, 只 WARN。"""
+    双发 exit 1 — 前向兼容必须**完全跳过形状校验**, 只 WARN。
+
+    ⚠️ round-21 更新: 前向兼容跳过的是**形状**, **不包括路由信封**。原 fixture
+    连 node_id 都没有, 编码的是 §一 加入信封条款**之前**的契约; 现补齐信封键,
+    仍验"新增字段 + 改造 payload 不触发 FAIL"这一原意。
+    """
     ledger = tmp_path / "learning_events.jsonl"
     ledger.write_text(
-        '{"event_id": "future:1", "event_version": 2, "brand_new_field": true, "payload_v2": [1, 2]}\n',
+        '{"event_id": "future:1", "event_version": 2, "node_id": "n", "brand_new_field": true, "payload_v2": [1, 2]}\n',
         encoding="utf-8",
     )
     result = _run(ledger)
     assert result.returncode == 0, result.stdout + result.stderr
     assert "WARN" in result.stdout
     assert "FAIL" not in result.stdout
+
+
+@pytest.mark.parametrize(
+    "row, missing",
+    [
+        ('{"event_id": "future:1", "event_version": 2, "payload_v2": {}}', "node_id"),
+        ('{"event_version": 2, "node_id": "n", "payload_v2": {}}', "event_id"),
+    ],
+)
+def test_main_validator_enforces_routing_envelope(tmp_path, row, missing):
+    """主体校验器必须执行 §一 路由信封 —— 规范说"必须"就得有门。
+
+    round-21 Codex MEDIUM: schema 已冻结三键跨版本保留, 但主体对未知版本整行
+    跳过只发 WARN ⇒ 缺 node_id 的 v2 在主入口仍 PASS, 形成"proof scanner 拒绝、
+    主体裁判接受"的分裂。前向兼容跳过的是形状, 不包括信封。
+    """
+    ledger = tmp_path / "learning_events.jsonl"
+    ledger.write_text(row + "\n", encoding="utf-8")
+    result = _run(ledger)
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "路由信封" in result.stdout and missing in result.stdout
 
 
 def test_invalid_utf8_line_reported_not_crash(tmp_path):
@@ -2070,8 +2096,21 @@ def test_genuine_out_of_order_cannot_hide_another_vault(tmp_path):
     problems = validator.verify_degraded_proof(proof, [], ledger_path=ledger)
     assert any("vault_id 与账本事件不符" in p for p in problems), problems
 
+
+def test_scanner_collects_vault_from_out_of_order_rows(tmp_path):
+    """**纯 scanner 事实门**: 乱序行的 vault 必须进集合。
+
+    round-21 Codex MEDIUM: 负验证变体 Q(把 vault 收集移到 continue 之后) 之所以
+    变红, 是被"仅 N/M 条带 vault_id"这条**替代**门拒绝的 —— 无法归因于"次序"
+    本身。本门只断言 scanner 的直接产物, 它失败**只可能**因为收集次序变了。
+    """
+    late = json.loads(_event("e1", _T2, vault_id="a"))
+    early = json.loads(_event("e2", _T1, vault_id="b"))
+    early["payload"]["out_of_order"] = True
+    ledger = _ledger_with(tmp_path, [json.dumps(late), json.dumps(early)], vault_id=None)
     scan, _ = validator.scan_ledger_bytes(ledger.read_bytes(), "n")
     assert scan["vault_ids"] == {"a", "b"}, scan["vault_ids"]
+    assert scan["vault_id_lines"] == {1, 2}, scan["vault_id_lines"]
     assert [line for line, _, _ in scan["applicable"]] == [1]
 
 
@@ -2317,3 +2356,13 @@ def test_routing_envelope_is_frozen_in_schema():
     assert "路由信封" in schema
     for key in ("event_id", "event_version", "node_id"):
         assert key in schema.split("路由信封")[1][:400], key
+
+
+@pytest.mark.parametrize("bad_node", [123, None, [], {"a": 1}, True])
+def test_non_string_node_id_is_unroutable(tmp_path, bad_node):
+    """`node_id` 非字符串同样**不可路由** —— 不能因类型不对就当成别的节点。"""
+    row = json.loads(_event("weird", _T1, vault_id="v"))
+    row["node_id"] = bad_node
+    ledger = _ledger_with(tmp_path, [_event("e1", _T1, vault_id="v"), json.dumps(row)])
+    scan, _ = validator.scan_ledger_bytes(ledger.read_bytes(), "n")
+    assert scan["unroutable_lines"] == [2], (bad_node, scan["unroutable_lines"])

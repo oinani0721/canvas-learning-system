@@ -213,6 +213,7 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
         ⑥ 传 `ledger_path` 时读的是调用瞬间的快照 —— 之后的并发追加不在判定内 (调用方须在持有账本锁时校验)。
         📌 **proof 侧的强依赖（与账本主体校验不同口径）**：账本校验主体是 stdlib-only，但 **proof 侧强制要求 PyYAML**（genesis 顶层键判定）**与同仓 G3-4 golden manifest**（算法身份同源，且其 `scheduler_config` 须完整含六键）。任一不可达或残缺 ⇒ **fail-closed 报违规**，不降级放行——降级会让"合法形状版本 + 任意 hash + 残缺配置"直接通过（round-16/17 实证）。
         📌 **`scheduler_config` 的类型冻结**：proof 的该字段必须与 manifest 的 **canonical JSON 文本逐字相同**（`json.dumps(sort_keys=True, separators=(",",":"))`）。这一并冻结了各键的 JSON 类型——`enable_fuzzing` 是 `false` 不是 `0`、`learning_steps_minutes` 是整数数组不是布尔数组、`maximum_interval` 是 `36500` 不是 `36500.0`。Python 的 `==` 对前两组判等（`0 == False`、`True == 1`），故**不得用 `==` 比较**。
+        📌 另：proof 对**无法解释的记录**一律 fail-closed —— 未知 `event_version`（无法按 v1 解释）与缺失路由信封 `node_id`（无法判定归属）都**拒绝背书**，这是拒绝背书而非完整校验。
         返回空违规 = "已判门内无歧义，可交付 reducer 复算"，**不等于** proof 成立。
       ⚠️ round-11 反例：若按 `(review_time, 行号)` 复合序取最大，当 `L1=t2`、`L2=t1`（两行都未标乱序）时 E=L1，区间只含 L1，单调门真空通过，**L2 完全逃逸未被覆盖**。改用行号口径后，E=L2，L1 与 L2 同在区间内，单调门会因 `t2 > t1` 而判该区间不自洽 ⇒ 正确地报"不可证明"。
     - **canonical reducer（round-6 实测的舍入歧义）**：折叠必须**逐事件按生产持久化精度舍入后再进下一步**（与 bridge 的写-读循环一致），**不得**在内存中连续折叠、只在末尾舍入。实测差异：三次 Good 后 `stability` = **10.9711**（逐步舍入）vs **10.9710**（末尾舍入）——两者都满足"折叠到 E"的粗描述，故边界必须唯一化。舍入精度以 bridge 写出 frontmatter 时的实际精度为准（G3-2 落地时把该常量与本条一并锁进测试）。

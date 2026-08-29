@@ -2,29 +2,30 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**本车道状态**（2026-08-29 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **二十轮 Codex：HIGH 清零；⭐ CARD-G3-4 连续六轮「可验收」；G3-1 的 3 MEDIUM + 2 LOW 全清**）:
-- ⚠️⚠️ **更正一条我上轮给用户的错误事实**：曾报"账本无备份、第 23 条不可恢复、需用户裁决"——**错的**。
-  错因是 **zsh 未匹配的 glob 会中止整条命令**（`ls -d canvas-vault-backup* backups*` 里前者无匹配 ⇒
-  `backups*` 从未求值 ⇒ 回退分支误报"无备份"）。实况：`backups/learning_events.jsonl.
-  pre-s1-cleanup-20260829-061014` 一直在（23 行 `f78b99f3`），当前文件恰是它的前 7232 字节，
-  缺失行是**测试探针** `callout:c-409-guard`，另一车道**经授权**清理 S1 污染，**可完整恢复、非阻塞点**。
-  已写入记忆 `reference_zsh_unmatched_glob_aborts`，附纪律："没找到"≠"不存在"，断言不存在前须换独立手段复查
-- ⭐ **CARD-G3-4 = 可验收**（十五轮判定，十六~二十轮复核均保持）
-- ✅ G3-1 二十轮 3 MEDIUM + 2 LOW 全清：①**跨版本 routing 冻结**——schema §一 新增**路由信封**
-  （`event_id`/`event_version`/`node_id` 任何版本必须保留，优先于"v2 可改名任一顶层字段"），实现改为
-  缺 node_id ⇒ 不可路由 ⇒ fail-closed；**逃逸与误拒双向都有门**；②负验证 G/L/Q 归因修正
-  （**Q 原是删除收集、证不了次序承重**，改为忠实两步搬移）+ `COLLECTED` 不再重复累加（171→334 修为 174）；
-  ③scanner 键说明与诊断措辞
-- 裁判实测：契约 **173 passed + 1 skipped**、三文件合跑 **198 passed + 1 skipped**、
-  golden 19 + `test_fsrs_manager.py` 37 = 56、现网账本（22 行）exit 0 且 SHA 恒 `2a18023e`、
-  锁定 blob 恒定（`28cdaa18` / `980b3758`）；提交数 **21**（`git rev-list --count 37387a86..HEAD`）
-- 负验证**二十二变体全承重**、基线收集 174 项、脚本 exit 0
+**本车道状态**（2026-08-29 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **二十一轮 Codex：BLOCKER 0 / HIGH 0（连续两轮）；⭐ CARD-G3-4 连续七轮「可验收」；G3-1 的 2 MEDIUM 全清**）:
+- ⭐ **CARD-G3-4 = 可验收**（十五轮判定，十六~二十一轮复核均保持）
+- ✅ G3-1 二十一轮 2 MEDIUM 全清：
+  ①**规范说「必须」却没有门**——schema 冻结了路由信封三键，主体 `validate_file()` 却对未知版本
+  整行跳过只发 WARN ⇒ 缺 node_id 的 v2 在主入口仍 PASS，「proof 拒绝 / 主体接受」分裂。现主体
+  **强制信封三键**（前向兼容跳过的是形状，不含信封）；旧测试编码的是加条款前的契约，已更新；
+  **误伤面已复核**：现网账本与 23 行备份均仍 exit 0
+  ②**负验证 Q 归因**——Q 变红是被「仅 N/M 条带 vault_id」这条**替代**门拒绝，证不了目标门失效。
+  已拆出**纯 scanner 事实门**（只断言 `vault_ids == {a,b}`），失败只可能因收集次序变了
+- ⚠️ **本轮两处「门抓住了自己人」**（实证门不是装饰）：①三处同文门当场拦下我插错位置的段落——
+  该门上一轮才建，第一次拦的就是建门者；②负验证判据报 5 条「额外失败」，查证是新增参数化门的
+  正当覆盖，判据没误报、是我的预期清单没跟上
+- 裁判实测：契约 **181 passed + 1 skipped**、三文件合跑 **206 passed + 1 skipped**、
+  golden 19 + `test_fsrs_manager.py` 37 = 56、**现网账本与 23 行备份均 exit 0**、
+  锁定 blob 恒定（`28cdaa18` / `980b3758`）、提交数 **22**
+- 负验证**二十三变体全承重**、基线收集 182 项、脚本 exit 0
+- 📌 账本 23→22 行已定性：另一车道**经授权**清理 S1 测试污染（探针 `callout:c-409-guard`），
+  备份 `backups/learning_events.jsonl.pre-s1-cleanup-20260829-061014` 完整，**非阻塞点**
 - ⛔ 移交（schema §九 逐条登记）：①test.yml 白名单 +2 测试 + root requirements paths（S8 独占；
   **CI DEFERRED/NOT-EXECUTED**）；②**G3-2 五项**；③**G3-3 七项**；④tips.py 两条 → 独立 micro-patch
-- ⚠️ **负验证脚本必须串行**；**运行期间不得编辑任何被测文件**（十七轮曾因此丢失整批修改）
+- ⚠️ **负验证脚本必须串行**；运行期间不得编辑任何被测文件
 - ⚠️ 环境：本 worktree 的 pytest 须用 `backend/.venv/bin/python`（仓根 `.venv` 无 fastapi）
 - 纪律守住：learning_event_log.py / fsrs_manager.py 零改动；不 push；不碰 live vault 与 Neo4j 7691
-- 待办：Codex 二十一轮复核（只需审 G3-1）→ 用户验收两单
+- 待办：Codex 二十二轮复核（只需审 G3-1）→ 用户验收两单
 
 ---
 

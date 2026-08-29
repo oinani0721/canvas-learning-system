@@ -350,6 +350,8 @@ def classify_card_state(fields: dict) -> tuple[str, str]:
 # **强制要求 PyYAML** (genesis 顶层键判定) 与**同仓 G3-4 golden manifest**
 # (算法身份同源)。二者任一不可达 ⇒ **fail-closed 报违规**, 不降级放行。
 #
+# 另: proof 对无法解释的记录一律 fail-closed —— 未知 event_version（无法按 v1 解释）与缺失路由信封 node_id（无法判定归属）都拒绝背书，这是拒绝背书而非完整校验。
+#
 # 因此 verifier 返回空违规**不等于** proof 成立, 只等于"在上述已判门内无歧义,
 # 可交付 reducer 复算"。
 # --------------------------------------------------------------------------
@@ -1158,9 +1160,12 @@ def verify_degraded_proof(
          / out_of_order / review_time / event_id / 算法身份 / vault_id); proof
          校验以「该账本已通过主体校验」为前置条件;
       ⑥ 传 `ledger_path` 时读的是调用瞬间的快照 —— 之后的并发追加不在判定内 (调用方须在持有账本锁时校验)。
+
     ⚠️ **proof 侧的强依赖**: PyYAML (genesis 顶层键判定) + 同仓 G3-4 golden
     manifest (算法身份同源)。任一不可达 ⇒ fail-closed 报违规, 不降级放行 ——
     与「账本主体校验 stdlib-only」是两套口径, 语境不同。
+
+    ⚠️ 另: proof 对无法解释的记录一律 fail-closed —— 未知 event_version（无法按 v1 解释）与缺失路由信封 node_id（无法判定归属）都拒绝背书，这是拒绝背书而非完整校验。
 
     返回空 ≠ proof 成立, 只 = 已判门内无歧义, 可交付 reducer 复算。
 
@@ -1598,6 +1603,21 @@ def validate_file(path: Path) -> tuple[list[str], list[str]]:
                     f"LINE {lineno}: event_version={version} != {EVENT_VERSION} — "
                     "前向兼容跳过形状校验 (读方须容忍未知版本)"
                 )
+                # round-21 Codex MEDIUM: §一 路由信封是**跨版本义务**, 优先于
+                # "v2 可删除/改名任一顶层字段"。此前 schema 写了"必须保留", 主体
+                # 却对未知版本整行跳过、只发 WARN —— 规范说必须却没有门, 于是
+                # 「proof scanner 拒绝、主体裁判接受」并存。前向兼容跳过的是
+                # **形状校验**, 不包括信封本身。
+                for key, ok in (
+                    ("event_id", isinstance(record.get("event_id"), str) and bool(record["event_id"])),
+                    ("node_id", isinstance(record.get("node_id"), str)),
+                ):
+                    if not ok:
+                        violations.append(
+                            f"LINE {lineno}: 未知版本记录缺少路由信封键 {key} "
+                            f"(§一: event_id/event_version/node_id 任何版本都必须保留, "
+                            f"否则读方无法判定归属)"
+                        )
             else:
                 line_problems, line_warnings = validate_record_full(record, manifest, vault_id)
                 for problem in line_problems:

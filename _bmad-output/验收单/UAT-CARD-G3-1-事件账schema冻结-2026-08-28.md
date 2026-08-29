@@ -29,7 +29,7 @@
 
 | 裁判 | 结果 |
 |---|---|
-| 契约测试 `backend/tests/regression/test_learning_events_schema_contract.py` | **173 passed + 1 skipped**（本文件单跑口径，二十一轮整改后；skip = 仓内 vault 根无账本的 worktree 环境，主仓自动生效。与 golden 门 + 既有账本测试合跑 = **198 passed + 1 skipped**） |
+| 契约测试 `backend/tests/regression/test_learning_events_schema_contract.py` | **181 passed + 1 skipped**（本文件单跑口径，二十二轮整改后；skip = 仓内 vault 根无账本的 worktree 环境，主仓自动生效。与 golden 门 + 既有账本测试合跑 = **206 passed + 1 skipped**） |
 | **真实 producer 执行**（Codex 一轮 HIGH 整改） | vault 三 skill 写点的 python 代码**从 SKILL.md 逐字提取执行**（ai-linked-doc 单行模板 / start-exam-board PYEOF 块 / quiz-answer 评分链账本段；仅路径常量重定向 tmp fixture），产物过校验器 + 幂等重放断言；backend 侧按 5 调用点实参形状经真实 `append_event` 写入后全过 |
 | 既有账本回归 `test_learning_event_log.py` | 6 passed（零改动） |
 | 校验脚本 vs 三 fixture | 合法 → exit 0 / 缺字段 → exit 1（点名 `effective_at`）/ 重复 event_id → exit 1（点名首见行号）（存证 `审查/g3-1-evidence/g3-1-fixture-validation.txt`） |
@@ -455,3 +455,21 @@
 **二十二变体负验证**（新增 U 缺 node_id 静默跳过 / V 版本判断前移）：**全部承重**，基线收集 **174 项**，脚本 exit 0。
 
 裁判实测：契约 **173 passed + 1 skipped**、三文件合跑 **198 passed + 1 skipped**、golden + `test_fsrs_manager.py` **56 passed**、现网账本（22 行）exit 0 且前后 SHA 恒 `2a18023e`、锁定 blob 恒定。
+
+
+### 二十一轮复核处置（**HIGH 连续两轮清零**；G3-4 连续七轮可验收）
+
+| # | 级别 | 二十一轮发现 | 处置 |
+|---|---|---|---|
+| 一 | MEDIUM | **规范说"必须"却没有门**：schema §一 已冻结路由信封三键跨版本保留，但主体 `validate_file()` 对所有未知整数版本**整行跳过、只发 WARN** ⇒ 缺 `node_id` / 缺 `event_id` 的 v2 行在主入口仍返回 PASS。形成"**proof scanner 拒绝、主体裁判接受**"的分裂，跨版本信封**尚未真正冻结**。更直接的是，一条旧测试还显式要求"缺 `node_id` 的 v2 exit 0" | **已修**：主体对未知版本行**仍强制信封三键**（前向兼容跳过的是**形状**，不包括信封本身），逐键点名报违规。旧测试编码的是**加入信封条款之前**的契约，已补齐信封键并保留其原意（"新增字段 + 改造 payload 不触发 FAIL"）；另加两参数门锁死缺 `node_id` / 缺 `event_id` 各自 exit 1。**误伤面已复核**：现网账本（22 行）与备份（23 行原件）均仍 exit 0 |
+| 二 | MEDIUM | **负验证变体 Q 的归因仍不成立**：Q 两步搬移机械上确实只改次序（未删未改写），但 mutation 后**不是错误放行**，而是被"仅 N/M 条带 vault_id"这条**替代**门拒绝——因为 `review_ext_lines` 仍在 `continue` 之前。脚本只看到测试变红，**证不了目标安全门失效** | **已修**：拆出**纯 scanner 事实门** `test_scanner_collects_vault_from_out_of_order_rows`——只断言 `vault_ids == {a,b}` 与 `vault_id_lines == {1,2}`，它失败**只可能**因为收集次序变了。Q 的预期集合改为该门 + 原 proof 级门，归因落在前者 |
+| 三 | LOW | 三处范围声明共同遗漏"对无法解释的记录 fail-closed"（未知版本 / 不可路由）；非字符串 `node_id` 无门；`COLLECTED` 等 | **已修**：三处补同一句说明（⚠️ 插入位置经门校正，见下）；新增 `test_non_string_node_id_is_unroutable` 五形态参数化门 |
+
+**二十三变体负验证**（新增 W 主体信封门）：**全部承重**，基线收集 **182 项**，脚本 exit 0。
+
+#### ⚠️ 本轮两处"门抓住了自己人"（实证这些门不是装饰）
+
+1. **三处同文门当场变红**：我给范围声明补遗漏项时把新段落**插进了六条的区间内**，`test_scope_declaration_is_identical_in_three_places` 立刻失败。该门是上一轮才建的，**第一次真正拦下的就是建门者造成的漂移**。调整插入位置到依赖段之后即恢复。
+2. **负验证判据报出 5 条"额外失败"**：变体 U 拆掉 `unroutable` 判定后，除预期那条外还有 5 条红。查证是本轮新增的 `test_non_string_node_id_is_unroutable` 的五个参数实例，属**同一道门的正当覆盖**——判据没有误报，是我的预期清单没跟上。补进预期集合后全绿。
+
+裁判实测：契约 **181 passed + 1 skipped**、三文件合跑 **206 passed + 1 skipped**、golden + `test_fsrs_manager.py` **56 passed**、现网账本与 23 行备份**均 exit 0**、锁定 blob 恒定、提交数 **22**。
