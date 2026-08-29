@@ -104,6 +104,9 @@ expect_red() {
   local first="${expected%%|*}" name
   # round-17 Codex MEDIUM: "⊆ 预期集合"只要求至少一条预期项变红 —— 多测试场景下
   # 其余预期项即便没红也会被判承重。改为**每一条预期项都必须变红**。
+  # round-22 Codex MEDIUM: 预期项写**参数化基名**时, `^FAILED .*::name` 只要
+  # 任一实例红就通过, 无法机械证明"该门覆盖的全部实例都红"。故对基名额外要求:
+  # 该基名在**收集面**里有几个实例, 失败集合里就必须有几个。
   local IFS_SAVE="$IFS"; IFS='|'
   for name in $expected; do
     if ! grep -qE "^FAILED .*::${name}" <<<"$OUT"; then
@@ -111,6 +114,18 @@ expect_red() {
       fail "预期 ${name} 变红, 实际未失败"
       grep "^FAILED" <<<"$OUT" | head -3 | sed 's/^/     /'
       return 1
+    fi
+    # 基名 (不带 [ ]) 才做实例数核对
+    if [[ "$name" != *"["* ]]; then
+      local want got
+      want="$(cd "$WT/backend" && "$PY" -m pytest "$TESTS" --collect-only -q 2>/dev/null \
+        | grep -cE "::${name}(\[|$)")"
+      got="$(grep -cE "^FAILED .*::${name}(\[|$)" <<<"$OUT")"
+      if [ "${want:-0}" -gt 0 ] && [ "${got:-0}" -ne "${want:-0}" ]; then
+        IFS="$IFS_SAVE"
+        fail "${name} 收集到 ${want} 个实例但只有 ${got} 个变红 — 无法证明该门覆盖的全部实例都失效"
+        return 1
+      fi
     fi
   done
   IFS="$IFS_SAVE"
@@ -265,7 +280,10 @@ if mutate 's/        vault_id = payload.get\("vault_id"\)\n        if isinstance
   # round-21 Codex MEDIUM: 原先只期待 proof 级那条, 但它变红是被「仅 N/M 条带
   # vault_id」这条**替代**门拒绝的, 归因不成立。新增的纯 scanner 事实门失败
   # **只可能**因为收集次序变了 —— 归因落在它身上。
-  expect_red "test_scanner_collects_vault_from_out_of_order_rows|test_genuine_out_of_order_cannot_hide_another_vault" "hide_another_vault or collects_vault"
+  # ⚠️ round-22 Codex 称该 mutation 完整套件下 3 红 (含 vault 覆盖率门), 但本机
+  # 实测**只有 2 红** —— 过滤器已选中覆盖率门而它未失败 (该门的 ooo 行本就
+  # 不带 vault_id, 分母口径不受收集次序影响)。以实测为准, 分歧如实记录。
+  expect_red "test_scanner_collects_vault_from_out_of_order_rows|test_genuine_out_of_order_cannot_hide_another_vault" "hide_another_vault or collects_vault or coverage_denominator"
 fi
 restore || exit 1
 
@@ -294,7 +312,7 @@ echo
 echo "=== 变体U: 缺 node_id 的记录退回静默跳过 (round-20 MEDIUM) ==="
 if mutate 's/        if not isinstance\(raw_node, str\):\n            scan\["unroutable_lines"\].append\(idx\)\n            continue/        if not isinstance(raw_node, str):\n            continue/'; then
   # 同一道门被两条测试覆盖: 语义门 + 非字符串 node_id 的五个参数实例
-  expect_red "test_v2_without_node_id_is_unroutable_not_silently_skipped|test_non_string_node_id_is_unroutable" "unroutable"
+  expect_red "test_v2_without_node_id_is_unroutable_not_silently_skipped|test_non_string_node_id_is_unroutable|test_float_node_id_is_unroutable" "unroutable"
 fi
 restore || exit 1
 

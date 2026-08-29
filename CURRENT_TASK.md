@@ -2,30 +2,30 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**本车道状态**（2026-08-29 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **二十一轮 Codex：BLOCKER 0 / HIGH 0（连续两轮）；⭐ CARD-G3-4 连续七轮「可验收」；G3-1 的 2 MEDIUM 全清**）:
-- ⭐ **CARD-G3-4 = 可验收**（十五轮判定，十六~二十一轮复核均保持）
-- ✅ G3-1 二十一轮 2 MEDIUM 全清：
-  ①**规范说「必须」却没有门**——schema 冻结了路由信封三键，主体 `validate_file()` 却对未知版本
-  整行跳过只发 WARN ⇒ 缺 node_id 的 v2 在主入口仍 PASS，「proof 拒绝 / 主体接受」分裂。现主体
-  **强制信封三键**（前向兼容跳过的是形状，不含信封）；旧测试编码的是加条款前的契约，已更新；
-  **误伤面已复核**：现网账本与 23 行备份均仍 exit 0
-  ②**负验证 Q 归因**——Q 变红是被「仅 N/M 条带 vault_id」这条**替代**门拒绝，证不了目标门失效。
-  已拆出**纯 scanner 事实门**（只断言 `vault_ids == {a,b}`），失败只可能因收集次序变了
-- ⚠️ **本轮两处「门抓住了自己人」**（实证门不是装饰）：①三处同文门当场拦下我插错位置的段落——
-  该门上一轮才建，第一次拦的就是建门者；②负验证判据报 5 条「额外失败」，查证是新增参数化门的
-  正当覆盖，判据没误报、是我的预期清单没跟上
-- 裁判实测：契约 **181 passed + 1 skipped**、三文件合跑 **206 passed + 1 skipped**、
-  golden 19 + `test_fsrs_manager.py` 37 = 56、**现网账本与 23 行备份均 exit 0**、
-  锁定 blob 恒定（`28cdaa18` / `980b3758`）、提交数 **22**
-- 负验证**二十三变体全承重**、基线收集 182 项、脚本 exit 0
-- 📌 账本 23→22 行已定性：另一车道**经授权**清理 S1 测试污染（探针 `callout:c-409-guard`），
-  备份 `backups/learning_events.jsonl.pre-s1-cleanup-20260829-061014` 完整，**非阻塞点**
-- ⛔ 移交（schema §九 逐条登记）：①test.yml 白名单 +2 测试 + root requirements paths（S8 独占；
-  **CI DEFERRED/NOT-EXECUTED**）；②**G3-2 五项**；③**G3-3 七项**；④tips.py 两条 → 独立 micro-patch
+**本车道状态**（2026-08-29 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **二十二轮 Codex：BLOCKER 0 / HIGH 0（连续三轮）；⭐ CARD-G3-4 连续八轮「可验收」；G3-1 的 2 MEDIUM 全清**）:
+- ⭐ **CARD-G3-4 = 可验收**（十五轮判定，十六~二十二轮复核均保持）
+- 📌 **两卡完成条件均已满足**（详见两份验收单）；对抗审查已进入**渐近线**：HIGH 连续三轮 0，
+  MEDIUM 稳定 2，LOW 反增；发现性质已从「产品缺陷」转为「验证工装的归因完整性」
+- ✅ G3-1 二十二轮 2 MEDIUM 全清：
+  ①**主体信封只锁「缺键」未锁 value-shape**（presence-only 化后 `event_id:""` / `123` /
+  `node_id:1.5` 退化为零违规而契约全绿）⇒ 参数化 2→**9 例**；另发现当时**只有拒绝方向有门**
+  （把"非空"收窄为"长度>1"会误拒合法 `event_id:"x"` 而契约仍绿）⇒ 补**误拒方向反面门**
+  ②**负验证预期写基名时只要任一实例红就通过** ⇒ `expect_red` 加**逐实例核对**（收集面几个实例
+  就必须几个红）
+- ⚠️ **与 Codex 的一处分歧（以本机实测为准）**：它称变体Q 完整套件 3 红，实测**只有 2 红**
+  （过滤器已选中该覆盖率门而它未失败——该门的乱序行本就不带 vault_id）。已按实测改回并在
+  脚本注释 + 存证中如实记录，未采信未复现的结论
+- 裁判实测：契约 **194 passed + 1 skipped**、三文件合跑 **219 passed + 1 skipped**、
+  golden 19 + `test_fsrs_manager.py` 37 = 56、现网账本与 23 行备份均 exit 0、
+  锁定 blob 恒定（`28cdaa18` / `980b3758`）
+- 负验证**二十三变体全承重**（逐实例判据）、基线收集 195 项、脚本 exit 0
+- ⛔ 移交（schema §九 + 工装改进项）：①test.yml 白名单 +2 测试 + root requirements paths
+  （S8 独占；**CI DEFERRED/NOT-EXECUTED**）；②**G3-2 五项**；③**G3-3 七项**；④tips.py 两条
+  → 独立 micro-patch；⑤剩余 LOW（负验证运行时异常归因、fixture 主体合规性等）= 工装改进项
 - ⚠️ **负验证脚本必须串行**；运行期间不得编辑任何被测文件
 - ⚠️ 环境：本 worktree 的 pytest 须用 `backend/.venv/bin/python`（仓根 `.venv` 无 fastapi）
 - 纪律守住：learning_event_log.py / fsrs_manager.py 零改动；不 push；不碰 live vault 与 Neo4j 7691
-- 待办：Codex 二十二轮复核（只需审 G3-1）→ 用户验收两单
+- 待办：Codex 二十三轮复核（目标把 MEDIUM 压到 0）→ 交付两卡验收
 
 ---
 

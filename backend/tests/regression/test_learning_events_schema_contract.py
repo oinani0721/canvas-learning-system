@@ -238,8 +238,19 @@ def test_unknown_version_new_shape_truly_skipped(tmp_path):
 @pytest.mark.parametrize(
     "row, missing",
     [
+        # 缺键
         ('{"event_id": "future:1", "event_version": 2, "payload_v2": {}}', "node_id"),
         ('{"event_version": 2, "node_id": "n", "payload_v2": {}}', "event_id"),
+        # round-22 Codex MEDIUM: 原门只锁「缺键」, 把判定弱化成 presence-only 后
+        # 以下输入会从正确拒绝退化为零违规, 而完整契约仍全绿 ⇒ value-shape 也须锁
+        ('{"event_id": "", "event_version": 2, "node_id": "n", "payload_v2": {}}', "event_id"),
+        ('{"event_id": 123, "event_version": 2, "node_id": "n", "payload_v2": {}}', "event_id"),
+        ('{"event_id": "future:x", "event_version": 2, "node_id": 1.5, "payload_v2": {}}', "node_id"),
+        ('{"event_id": "future:x", "event_version": 2, "node_id": null, "payload_v2": {}}', "node_id"),
+        ('{"event_id": "future:x", "event_version": 2, "node_id": true, "payload_v2": {}}', "node_id"),
+        # 任意未知整数版本都须执行信封, 不只是 v2
+        ('{"event_id": "future:x", "event_version": 99, "payload_v2": {}}', "node_id"),
+        ('{"event_id": "future:x", "event_version": -1, "payload_v2": {}}', "node_id"),
     ],
 )
 def test_main_validator_enforces_routing_envelope(tmp_path, row, missing):
@@ -2366,3 +2377,54 @@ def test_non_string_node_id_is_unroutable(tmp_path, bad_node):
     ledger = _ledger_with(tmp_path, [_event("e1", _T1, vault_id="v"), json.dumps(row)])
     scan, _ = validator.scan_ledger_bytes(ledger.read_bytes(), "n")
     assert scan["unroutable_lines"] == [2], (bad_node, scan["unroutable_lines"])
+
+
+@pytest.mark.parametrize(
+    "row",
+    [
+        # 合法最短边界: 单字符 event_id、空串 node_id 都是合法值形状
+        '{"event_id": "x", "event_version": 2, "node_id": "n"}',
+        '{"event_id": "future:x", "event_version": 2, "node_id": ""}',
+        # 新增字段 + 改造 payload 仍不得触发 FAIL (前向兼容原意)
+        '{"event_id": "future:x", "event_version": 2, "node_id": "n", "brand_new": [1, 2]}',
+    ],
+)
+def test_routing_envelope_does_not_over_reject(tmp_path, row):
+    """信封门是**误拒方向**的反面门 —— 合法最短形状必须仍 exit 0。
+
+    round-22 Codex: 把"非空 event_id"错误收窄为"长度 > 1"后, 合法的
+    `event_id: "x"` 会被误拒而完整契约仍全绿 —— 说明当时只有拒绝方向有门。
+    """
+    ledger = tmp_path / "learning_events.jsonl"
+    ledger.write_text(row + "\n", encoding="utf-8")
+    result = _run(ledger)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "路由信封" not in result.stdout
+
+
+@pytest.mark.parametrize("bad_node", [1.5, 0.0])
+def test_float_node_id_is_unroutable(tmp_path, bad_node):
+    """JSON float 的 `node_id` 同样不可路由 (round-22 Codex LOW: 五形态漏了 float)。"""
+    row = json.loads(_event("weird", _T1, vault_id="v"))
+    row["node_id"] = bad_node
+    ledger = _ledger_with(tmp_path, [_event("e1", _T1, vault_id="v"), json.dumps(row)])
+    scan, _ = validator.scan_ledger_bytes(ledger.read_bytes(), "n")
+    assert scan["unroutable_lines"] == [2], (bad_node, scan["unroutable_lines"])
+
+
+def test_scope_extra_note_is_present_in_three_places():
+    """六条**区间之外**的补充说明也须三处都在 (round-22 Codex LOW: 该说明无门)。"""
+
+    def _plain(text):
+        # 三处载体的强调标记不同 (schema 用 markdown 粗体/反引号), 先剥掉再比
+        return text.replace("**", "").replace("`", "")
+
+    source = _plain(pathlib.Path(validator.__file__).read_text(encoding="utf-8"))
+    schema = _plain((WT / "docs" / "learning-events-schema-v1.md").read_text(encoding="utf-8"))
+    marker = "对无法解释的记录一律 fail-closed"  # 收窄: 泛词会撞上 scanner 注释里的同词
+    assert source.count(marker) == 2, "模块注释与 docstring 各须一处"
+    assert schema.count(marker) == 1
+    for carrier, text in (("validator", source), ("schema", schema)):
+        idx = text.find(marker)
+        window = text[idx : idx + 160]
+        assert "event_version" in window and "node_id" in window, (carrier, window[:120])

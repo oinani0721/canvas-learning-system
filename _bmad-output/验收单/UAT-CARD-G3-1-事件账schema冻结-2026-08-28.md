@@ -29,7 +29,7 @@
 
 | 裁判 | 结果 |
 |---|---|
-| 契约测试 `backend/tests/regression/test_learning_events_schema_contract.py` | **181 passed + 1 skipped**（本文件单跑口径，二十二轮整改后；skip = 仓内 vault 根无账本的 worktree 环境，主仓自动生效。与 golden 门 + 既有账本测试合跑 = **206 passed + 1 skipped**） |
+| 契约测试 `backend/tests/regression/test_learning_events_schema_contract.py` | **194 passed + 1 skipped**（本文件单跑口径，二十三轮整改后；skip = 仓内 vault 根无账本的 worktree 环境，主仓自动生效。与 golden 门 + 既有账本测试合跑 = **219 passed + 1 skipped**） |
 | **真实 producer 执行**（Codex 一轮 HIGH 整改） | vault 三 skill 写点的 python 代码**从 SKILL.md 逐字提取执行**（ai-linked-doc 单行模板 / start-exam-board PYEOF 块 / quiz-answer 评分链账本段；仅路径常量重定向 tmp fixture），产物过校验器 + 幂等重放断言；backend 侧按 5 调用点实参形状经真实 `append_event` 写入后全过 |
 | 既有账本回归 `test_learning_event_log.py` | 6 passed（零改动） |
 | 校验脚本 vs 三 fixture | 合法 → exit 0 / 缺字段 → exit 1（点名 `effective_at`）/ 重复 event_id → exit 1（点名首见行号）（存证 `审查/g3-1-evidence/g3-1-fixture-validation.txt`） |
@@ -473,3 +473,22 @@
 2. **负验证判据报出 5 条"额外失败"**：变体 U 拆掉 `unroutable` 判定后，除预期那条外还有 5 条红。查证是本轮新增的 `test_non_string_node_id_is_unroutable` 的五个参数实例，属**同一道门的正当覆盖**——判据没有误报，是我的预期清单没跟上。补进预期集合后全绿。
 
 裁判实测：契约 **181 passed + 1 skipped**、三文件合跑 **206 passed + 1 skipped**、golden + `test_fsrs_manager.py` **56 passed**、现网账本与 23 行备份**均 exit 0**、锁定 blob 恒定、提交数 **22**。
+
+
+### 二十二轮复核处置（**BLOCKER 0 / HIGH 0 连续三轮**；G3-4 连续八轮可验收）
+
+⚠️ **本轮起，发现的性质已从「产品缺陷」转为「验证工装的归因完整性」**——两条 MEDIUM 都是"把新门弱化后完整套件仍全绿"或"负验证预期集合不能证明完整红集"。仍逐条修，但如实记录这一变化：对抗审查已进入渐近线（HIGH 连续三轮 0，MEDIUM 稳定 2，LOW 反增）。
+
+| # | 级别 | 二十二轮发现 | 处置 |
+|---|---|---|---|
+| 一 | MEDIUM | **主体信封只锁「缺键」，未锁 value-shape**：把判定弱化为 presence-only 后，`event_id: ""` / `event_id: 123` / `node_id: 1.5` 都会从正确拒绝**退化为零违规**，而完整契约仍 181 passed。另：把"非空 event_id"错误收窄为"长度 > 1"后，合法的 `event_id: "x"` 会被**误拒**而契约仍全绿——说明当时**只有拒绝方向有门** | **已修（双向）**：①参数化从 2 例扩到 **9 例**（缺键 2 + 值形状 5 + 任意未知整数版本 2，含 `event_version: 99` / `-1`，证明不只识别 v2）；②新增**误拒方向反面门** `test_routing_envelope_does_not_over_reject`（单字符 `event_id`、空串 `node_id`、新增字段 + 改造 payload 三形态必须 exit 0 且不出现"路由信封"字样） |
+| 二 | MEDIUM | **负验证预期集合不能证明完整、精确红集**：预期项写**参数化基名**时，`^FAILED .*::name` 只要**任一实例**红就通过；U 因此不能机械证明五实例全红 | **已修**：`expect_red` 对基名额外做**逐实例核对**——该基名在收集面有几个实例，失败集合里就必须有几个；不足即判"无法证明该门覆盖的全部实例都失效" |
+| 三 | LOW | 五形态非字符串 `node_id` **漏了 JSON float**（`node_id: 1.5` 被漏过而契约全绿）；六条**区间之外**的补充说明无门（删改仍全绿） | **已修**：新增 `test_float_node_id_is_unroutable`（`1.5` / `0.0`）与 `test_scope_extra_note_is_present_in_three_places`（三处载体 markdown 标记不同，先剥 `**`/反引号再比） |
+
+**二十三变体负验证**（逐实例红集判据）：**全部承重**，基线收集 **195 项**，脚本 exit 0。
+
+#### ⚠️ 与 Codex 的一处分歧（以本机实测为准，不默默改掉）
+
+Codex 二十二轮称"精确 Q：完整套件 3 红，不是脚本声称的 2 红"（第三红为 vault 覆盖率门）。照此写进预期后**实测只有 2 红**——过滤器已选中该覆盖率门而它**未失败**。原因说得通：该门用的乱序行本就不带 `vault_id`，分母口径不受收集次序影响。**已按实测把预期改回 2 项，并在脚本注释与存证中如实记录该分歧**，未采信未复现的结论。
+
+裁判实测：契约 **194 passed + 1 skipped**、三文件合跑 **219 passed + 1 skipped**、golden + `test_fsrs_manager.py` **56 passed**、现网账本与 23 行备份**均 exit 0**、锁定 blob 恒定（`28cdaa18` / `980b3758`）。
