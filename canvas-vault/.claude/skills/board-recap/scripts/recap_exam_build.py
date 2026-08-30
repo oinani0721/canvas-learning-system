@@ -347,6 +347,13 @@ def _atomic_write(tmp: Path, target: Path, content: str, dir_fd: int) -> str | N
     O_DIRECTORY|O_NOFOLLOW 打开 检验白板/ 拿到 dfd 并校验它确在 vault 内,
     此后所有操作只用 **basename + dir_fd=dfd**。dfd 钉死的是那一个目录 inode,
     路径事后怎么换都改变不了操作落点 —— 窗口从根本上消失, 而不是被压小。
+
+    ⚠️ **作用域边界（独立复核明确要求不得外推）**: 本函数保证的是
+    「**锚定成功之后**, `_atomic_write` 内部的落点不再依赖路径解析」。
+    它**不**等于「整个程序从此完全不解析路径」——
+      · `_prepare` 在锚定**之前**仍有 mkdir、`_symlink_probe` 与打开目录时的路径解析;
+      · `cmd_undo` 是另一套**按路径**的流程, 不走本锚定。
+    写文档/验收单时请照此口径, 不要写成「全程 dirfd 化」。
     """
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
     tmp_name, target_name = tmp.name, target.name
