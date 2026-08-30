@@ -1,0 +1,31 @@
+{
+  "vault": "/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault",
+  "probe_skipped": false,
+  "checks_run": [
+    "G1",
+    "G2",
+    "G3",
+    "G4",
+    "G5",
+    "G6",
+    "G7",
+    "G8",
+    "G9",
+    "G10",
+    "G11"
+  ],
+  "checks_skipped": [],
+  "dirs_seen": 175,
+  "files_seen": 324,
+  "divergent_files": [
+    "chatgpt-adversarial-review-Q1Q2Q3-2026-05-12.md"
+  ],
+  "info": [
+    ".quarantine/UAT-2.5.X-test.md 的准入两列取自 any_level 行 root-uat-scratch(文件名黑名单盖过目录), 但其 owner/retention 只描述根级实例 —— 本文件的治理以容器行 dir-quarantine 为准",
+    "raw/CS188/CLAUDE.md 的准入两列取自 any_level 行 root-claude-md(文件名黑名单盖过目录), 但其 owner/retention 只描述根级实例 —— 本文件的治理以容器行 dir-raw 为准",
+    "raw/CS188/_misc/junk/未命名 1.md 的准入两列取自 any_level 行 root-untitled-scratch(文件名黑名单盖过目录), 但其 owner/retention 只描述根级实例 —— 本文件的治理以容器行 dir-misc-junk 为准",
+    "raw/CS188/_misc/junk/未命名.md 的准入两列取自 any_level 行 root-untitled-scratch(文件名黑名单盖过目录), 但其 owner/retention 只描述根级实例 —— 本文件的治理以容器行 dir-misc-junk 为准",
+    "raw/CS188/管道设计.md 的准入两列取自 any_level 行 root-pipeline-design(文件名黑名单盖过目录), 但其 owner/retention 只描述根级实例 —— 本文件的治理以容器行 dir-raw 为准"
+  ],
+  "findings": []
+}

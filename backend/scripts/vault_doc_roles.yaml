@@ -1,0 +1,1363 @@
+# CARD-G8-1 (BATCH-2026-08-29-第六批) — raw/wiki/schema 文档角色台账
+#
+# 真相源锚点:
+#   计划书 §3.7 Karpathy 映射表 (L178-191) + §4 目标架构分层与硬边界 (L195-213)
+#   + §G8 角色清单 (L343):
+#     _bmad-output/审查/2026-08-20-Canvas-Learning-System-生产力化长期Goal计划书.md
+#   doc_type 值域对齐: _bmad-output/审查/G4-16-doc-type-census-2026-08-28.md §4/§8
+#
+# 消费方: backend/scripts/check_vault_doc_roles.py (report / enforce 两档)
+# 后续消费方 (登记, 尚未接线): G8-2 统一 /lint 的 raw-derived 混淆子检查
+#   (总账 v2 G8-2 明写 "规则读 G8-1 台账")。
+#
+# ⛔ 契约钉死 (仿 readme_claims_rules.yaml + check_readme_claims.py 先例):
+#   1. 本文件**全文 SHA-256** 钉死在脚本 ROLES_SHA256 常量 —— 指纹比对**先于**
+#      yaml 解析。改任何一行都必须同 commit 更新脚本常量 (双文件改动, 审查可见),
+#      否则退出 2。伪绿无法由本文件单边达成。
+#      刷新指纹: python3 backend/scripts/check_vault_doc_roles.py --print-roles-sha
+#   2. doc_type_whitelist 的 (value, role, census_verdict_tag) 序列与脚本
+#      EXPECTED_DOC_TYPES 常量必须逐条逐序完全一致。
+#   3. 顶层节名与脚本 EXPECTED_SECTIONS 必须完全一致。
+#
+# ⛔ 反软化铁律 (本卡的存在理由):
+#   - 双准入面 (rag_index / memory_write) 的分歧是 **by-design 登记对象**,
+#     不是 bug —— 禁止为了让两列一致而改代码或改配置。分歧行必填
+#     divergence_reason (实测依据 + 归属)。
+#   - known_gaps 只豁免 "未登记类型" 三类 finding (G1/G2/G3), 且只接受
+#     **字面量**绑定 (禁通配符)。"台账与代码不符" 四类 (G4/G5/G6/G7)
+#     **永不可被 known_gaps 豁免** —— 那等于把台账做软来凑绿。
+#   - dir_glob 禁止裸通配 ("*" / "**" / "**/*") —— catch-all 会让
+#     "未登记类型" 检查恒绿从而失去意义。
+#
+# 匹配语义:
+#   - dir_glob / file_glob: `**/` = 任意层前缀, `/**` = 任意层后缀, `*` = 段内任意,
+#     `?` = 段内单字符。路径一律用 vault 相对 POSIX 形式。
+#   - **顺序敏感, 先匹配先命中** (防火墙式 ruleset): 特化行必须排在容器行之前。
+#   - frontmatter_type 里的 `(none)` = 该类文件允许没有 `type:` frontmatter
+#     (写侧 doc_type 会走默认值 note / 路径启发)。
+#
+# 字段语义 (每行必填, 缺一即 schema 红):
+#   id                 稳定标识 (kebab-case, 全局唯一)
+#   role               raw | wiki | schema | derived —— 口径见下方 roles 节
+#   match              {dir_glob: [...] | file_glob: [...], frontmatter_type: [...]}
+#   owner              这类文档的**产出责任方** (谁负责它存在且正确)
+#   editable_by        允许改它的角色 (用户 / 系统 / 两者 / 无人)
+#   rag_index          是否进 RAG 索引准入面 (vault_index_orchestrator.should_index)
+#   memory_write       是否进记忆写入准入面 (vault_admission.check_vault_path)
+#                      两列口径 = 该类**Markdown 文档**的准入。非 .md 文件由两面
+#                      共有的 not_markdown 规则统一拒 (见 admission_surfaces 的
+#                      reject_reasons), 与条目的 per-type 策略无关 —— 校验脚本对
+#                      非 md 改判 surface 级不变量, 不拿它比对本列。
+#   rag_retrieval      included | excluded_by_doc_type | not_indexed | conditional
+#                      `conditional` = 同一条目下**部分**文档被读侧排除, 取该值时
+#                      必须另填 rag_retrieval_note 说明哪部分、为什么 (round-6/7)
+#                      —— "进了索引表" 与 "检索可见" 在本仓是两件事:
+#                      原白板 doc_type=whiteboard 在库但被读侧 exclude_doc_types
+#                      挡掉 (信息隔离第二层)。只报 rag_index 会让台账对
+#                      信息隔离铁律撒谎, 故设第三列。
+#   provenance         来源与可追溯要求
+#   retention          生命周期保留期 / 可重建性
+#   divergence_reason  **条件必填**: 当 rag_index != memory_write 时必填, 否则禁填
+#   notes              可选补充
+
+schema_version: 1
+card: CARD-G8-1
+batch: BATCH-2026-08-29-第六批
+
+# ---------------------------------------------------------------------------
+# live vault 勘测快照 (信息性: 校验脚本复算漂移只报 INFO, 不判红 —— vault 是活的)
+# ---------------------------------------------------------------------------
+live_vault:
+  root: /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault
+  vault_id: canvas_vault
+  vault_display_name: CS 61B Canvas Vault
+  surveyed_at: "2026-08-30"
+  survey_method: >-
+    只读 os.walk (带错误回收, 见 checker `_walk_vault`) + 直接调用真实准入函数 (should_index / check_vault_path) 逐路径求值;
+    零写入, 前后 shasum 对账入证据包。
+  admission_probe:
+    total_files: 324
+    should_index_ok: 64
+    check_vault_path_ok: 63
+    divergent_files: 1
+
+# ---------------------------------------------------------------------------
+# 四值角色口径 (锚定计划书 §3.7 / §4, Karpathy 只作对照, 不引重型治理仪式)
+# ---------------------------------------------------------------------------
+roles:
+  raw:
+    definition: >-
+      受保护 source。课程材料与转录通常只读; 原白板由用户控制编辑, 系统只把它当
+      受保护 source (计划书 §3.7 raw 行原文)。硬边界 1: 不可被自动删除或静默覆盖。
+    container_convention: >-
+      .trash / .quarantine 这类**退役与隔离容器**按本角色登记: 其内容是 raw/wiki
+      混合退役物, 但治理属性与 raw 同构 —— 系统只读、绝不进任何准入面、绝不自动
+      重建或清理。这是登记约定, 已显式声明, 不是分类模糊。
+  wiki:
+    definition: >-
+      人类可编辑的中间层: 节点笔记、board recap、解释层 (计划书 §3.7 wiki 行 +
+      §4 "可编辑 wiki (节点笔记 / board recap)")。
+    boundary_note: >-
+      检验白板归此角色而非 derived: 计划书 §4 把 derived 定义为"**可重建**派生层",
+      而检验白板承载用户作答与评分, 无 canonical 上游可重放 —— 删了不可重建,
+      因此不满足 derived 定义。骨架由 start-exam-board 生成一事记在 provenance。
+  schema:
+    definition: >-
+      frontmatter 契约、BoardManifest、稳定 ID、关系与复习事件契约 (计划书 §3.7
+      schema 行)。本台账把**模板与工具/应用定义**一并归此角色 (templates/、
+      .claude/ skill 与 hook 定义、.obsidian/ 应用配置、.canvas-config.yaml):
+      它们都是"定义别的东西怎么长"的契约面, 不是知识内容本身。
+  derived:
+    definition: >-
+      可重建派生层: LanceDB / Graphiti / 每日 JSON+Markdown / Dashboard / Web UI /
+      Excalidraw export (计划书 §4 硬边界 2)。**不得反过来成为真相源**。
+      判定要件 = 存在 canonical 上游可重放; 不满足者不许标 derived。
+    granularity_note: >-
+      ⚠️ 判据的**粒度**说明 (round-6 MEDIUM): `role` 按**产物族**定
+      (计划书 §4 硬边界 2 逐项枚举了哪些族属派生层), 而**可重放性逐实例**在该行的
+      `retention` 里声明。二者不矛盾但必须分开读: Graphiti/Neo4j 族整体是 derived,
+      其中"历史缺正文的 episode"逐条标不可恢复 (G4-11 rebuild matrix);
+      思维导图族整体是 derived, 用户导出后添加的摆位/批注逐实例不可重放。
+      ⛔ 反过来不成立: 一个**整族**都没有 canonical 上游的东西 (如 `.claudian/sessions`、
+      `learning_events.jsonl`、raw 手绘图) 不许标 derived —— 这三处已分别更正为 raw。
+
+# ---------------------------------------------------------------------------
+# 双准入面 —— 本卡的核心登记对象
+# ---------------------------------------------------------------------------
+admission_surfaces:
+  rag_index:
+    fn: backend/app/services/vault_index_orchestrator.py::VaultIndexOrchestrator.should_index
+    sink: LanceDB `<vault>_vault_notes` 表 (行级 doc_type 字段)
+    reject_reasons: [outside_vault, not_markdown, blacklisted_dir, blacklisted_file]
+    note: >-
+      **不拒根级 md** —— 源码注释自述"根级用户笔记可检索是 by-design, 由根级文件名
+      黑名单管"(vault_index_orchestrator.py should_index docstring)。
+  memory_write:
+    fn: backend/app/core/vault_admission.py::check_vault_path
+    sink: 文件扫描类记忆写入口 (Neo4j / Graphiti 的 relationship_sync / error_rebuild 等)
+    reject_reasons:
+      [outside_vault, symlink_escape, not_markdown, root_level, blacklisted_dir, blacklisted_file]
+    note: >-
+      **拒根级 md** —— reason `root_level`, 源码理由"vault 根级直下的 md
+      (Dashboard/CLAUDE/杂项) 不是学习节点"。
+  git_dir_note: >-
+    校验脚本在目录与文件两个循环里都**无条件跳过 `.git/`** (对抗审查 MEDIUM 登记):
+    依据是 `.git` 在 IMMUTABLE_VAULT_SKIP_DIRS 硬底内、且是仓库内部结构而非 vault
+    文档面。跳过是刻意的, 不是漏扫 —— 如实登记于此, 避免被读成"扫描面不完整"。
+  shared_policy_source:
+    dirs: backend/app/config.py::Settings.effective_vault_skip_dirs()
+      (= VAULT_INDEX_SKIP_DIRS ∪ IMMUTABLE_VAULT_SKIP_DIRS)
+    files: backend/lib/agentic_rag/clients/lancedb_client.py::DEFAULT_VAULT_SKIP_FILES
+      + DEFAULT_VAULT_SKIP_ROOT_FILES
+    note: 目录与文件名黑名单两面共用, 故两列的分歧**只可能**来自各自私有的判定项。
+
+  # ⛔ 以下分歧是 by-design 登记对象, 不是修复对象。
+  #    校验脚本按 **类 (pattern)** 而非实例核对: 新增同类文件不判红,
+  #    出现**新类**分歧才判红 (G6)。
+  by_design_divergences:
+    - id: DIV-1-root-level-md
+      patterns: ["*.md"]       # vault 根级直下
+      scope: root
+      requires_resolution_stable: true
+      rag_index: true
+      memory_write: false
+      # ⛔ reason 绑定 (Codex round-1 BLOCKER-2): 只比 (true,false) 布尔对会把
+      #    **同向但不同因**的新分歧一并吞掉 —— 实测反例: 根级 symlink
+      #    `alias.md -> 节点/x.txt` 也是 (true,false), 但 reason 是 (ok, not_markdown),
+      #    与本类论证的 (ok, root_level) 是两回事。覆盖判定必须 reason 逐一相等。
+      rag_reason: ok
+      memory_reason: root_level
+      rationale: >-
+        两面对"根级 md"的语义本就不同: 笔记检索面认为根级用户笔记应可检索
+        (由根级文件名黑名单收口), 图/记忆写入面认为根级 md 不是学习节点。
+        双方源码各自写明了这一意图, 属设计分歧而非缺陷。
+      live_instances_2026_08_30:
+        - chatgpt-adversarial-review-Q1Q2Q3-2026-05-12.md
+      live_instance_count: 1
+      note: >-
+        其余 9 个根级 md **被两面同时拒, 故不构成分歧**, 但两面给出的 reason 不同
+        (Codex round-1 复算修正): 检索面以 `blacklisted_file` 拒 (命中
+        DEFAULT_VAULT_SKIP_FILES: CLAUDE.md / Dashboard.md / UAT-* / Untitled* /
+        未命名* / 2111.md, 或根级表 excalibrain.md), 记忆面以 `root_level` 拒
+        —— 因为 check_vault_path 的 root_level 判定**先于**文件名黑名单。
+        结论相同、路径不同, 如实登记。
+    - id: DIV-2-md-suffix-case
+      # ⛔ 只覆盖**非全小写**后缀 (MD / Md / mD)。刻意不写成 `[Mm][Dd]` ——
+      #    那会连全小写 `.md` 一起吃掉, 从而把将来出现的**新** (rag=false/mem=true)
+      #    分歧类误判成"已登记", 遮蔽 G6。登记面必须恰好等于已论证的那一类。
+      patterns: ["**/*.M[Dd]", "**/*.[Mm]D"]
+      scope: any
+      requires_resolution_stable: true
+      rag_index: false
+      memory_write: true
+      rag_reason: not_markdown
+      memory_reason: ok
+      rationale: >-
+        should_index 用 `rel_path.endswith(".md")` (大小写敏感);
+        check_vault_path 用 `resolved.suffix.lower() != ".md"` (大小写不敏感)。
+        故 `节点/FOO.MD` 会被检索面拒、被记忆面收。macOS APFS 大小写不敏感,
+        该形态可由外部工具/同步产生。
+      live_instances_2026_08_30: []
+      live_instance_count: 0
+      note: >-
+        live vault 当前 0 实例 —— **登记的是类不是实例**, 0 实例不等于不存在该分歧。
+        实证依据: 两函数后缀判定行的源码差异 (非推断)。
+
+# ---------------------------------------------------------------------------
+# vault 目录逐条 (顺序敏感: 特化行在前, 容器行在后)
+# ---------------------------------------------------------------------------
+vault_entries:
+  # ── 特化行: 跨容器出现、且角色不同于所在容器的目录 ──────────────────────
+  - id: dir-chunks
+    role: derived
+    match:
+      dir_glob: ["**/chunks", "**/chunks/**"]
+      frontmatter_type: ["(none)"]
+    owner: video-to-canvas 切片管道
+    editable_by: 无人 (机器产物)
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: 由 merged.md 切片生成, 与源笔记同内容
+    retention: 可重建 (重跑切片即可); 与源笔记双份入库会造成检索重复, 故黑名单
+    notes: 黑名单来源 VAULT_INDEX_SKIP_DIRS "chunks" (RAG-S1)
+
+  - id: dir-ai-explanations
+    role: derived
+    match:
+      dir_glob: ["**/*-explanations", "**/*-explanations/**"]
+      frontmatter_type: ["(none)"]
+    owner: AI 解释生成链
+    editable_by: 系统 (可覆盖重生)
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: 由对应源笔记/转录派生
+    retention: 可重建
+    notes: 黑名单 glob "*-explanations" (Phase A T1.1 用户实测污染清单)
+
+  - id: dir-excalidraw
+    role: raw
+    match:
+      dir_glob: ["**/Excalidraw", "**/Excalidraw/**"]
+      frontmatter_type: ["(none)"]
+    owner: 用户 (Obsidian Excalidraw 插件手绘)
+    editable_by: 用户
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: >-
+      用户手绘, **无上游**。live 实测 `raw/CS188/Excalidraw/Drawing 2026-04-04 …
+      .excalidraw.md` 的 frontmatter 只有 `excalidraw-plugin: parsed` + `tags`,
+      **没有 source_board 反链** —— 与 outputs 下的系统导出图 (三张, 均带
+      `source_board`) 是两类东西。
+    retention: 不可重建 (用户手绘内容, 硬边界 1 禁自动删除)
+    notes: >-
+      ⛔ 角色更正 (Codex round-1 HIGH): 本行原标 derived, 但台账自己的 derived
+      定义要件是"存在 canonical 上游可重放" —— 手绘图不满足。计划书 §4 说的
+      "Excalidraw export 是派生层" 指的是**系统导出**那一类, 已单独登记在
+      `art-mindmap-excalidraw`; 用户手绘目录不在其列。
+
+  - id: dir-misc-junk
+    role: raw
+    match:
+      dir_glob: ["**/_misc", "**/_misc/**"]
+      frontmatter_type: ["(none)"]
+    owner: 用户
+    editable_by: 用户
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: 未分类杂项 (下划线前缀 = 非学习内容约定)
+    retention: 用户自行清理, 系统不动
+    notes: 黑名单 "_misc"
+
+  - id: dir-node-modules
+    role: derived
+    match:
+      dir_glob: ["**/node_modules", "**/node_modules/**"]
+      frontmatter_type: ["(none)"]
+    owner: npm / 历史插件构建
+    editable_by: 无人
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: >-
+      依赖安装产物。live 实测 **35 个文件**（Codex round-1 复算修正: 原写
+      "历史残留空壳" 不实）, 集中在 raw/CS188 下两个历史插件/工具目录。
+    retention: 可重建 (npm install); 可安全删除
+    notes: 黑名单 "node_modules"
+
+  - id: dir-pycache
+    role: derived
+    match:
+      dir_glob: ["**/__pycache__", "**/__pycache__/**"]
+      frontmatter_type: ["(none)"]
+    owner: CPython
+    editable_by: 无人
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: .py 字节码缓存
+    retention: 可重建; 可安全删除
+    notes: 无独立黑名单条目, 由 .claude 父目录黑名单覆盖 (实测两面均拒)
+
+  - id: dir-obsidian-app
+    role: schema
+    match:
+      dir_glob: ["**/.obsidian", "**/.obsidian/**"]
+      frontmatter_type: ["concept", "exam_board", "(none)"]
+    owner: Obsidian 应用与插件
+    editable_by: 用户 (经 Obsidian UI) / 插件
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: 应用配置与插件数据; .obsidian/templates 下含 concept/exam-board 模板副本
+    retention: 随 vault 保留; 丢失只影响外观与插件状态
+    notes: IMMUTABLE_VAULT_SKIP_DIRS 硬底项
+
+  # ── 学习内容主干 ────────────────────────────────────────────────────────
+  - id: dir-yuan-baiban
+    role: raw
+    match:
+      dir_glob: ["原白板", "原白板/**"]
+      frontmatter_type: ["whiteboard"]
+    owner: 用户
+    editable_by: 用户 (系统只读; 计划书 §3.7 "原始白板由用户控制编辑, 系统只把它当受保护 source")
+    rag_index: true
+    memory_write: true
+    rag_retrieval: excluded_by_doc_type
+    provenance: 用户手写; source_board 反向链由节点侧维护
+    retention: 不可重建 (用户手写内容, 硬边界 1 禁自动删除或静默覆盖)
+    notes: >-
+      **在库但检索不可见**: doc_type=whiteboard 命中读侧 exclude_doc_types
+      (react_agent/tool_executor/agent_graph/supplementary_search_service 共 7 处
+      显式 + retriever 1 处默认)。G4-16 §3 登记的 Tier-2 旁路
+      (ENABLE_LANCEDB_TIER2_FALLBACK, 默认关) 是该结论的已知边界。
+
+  - id: dir-jiedian
+    role: wiki
+    match:
+      dir_glob: ["节点", "节点/**"]
+      frontmatter_type: ["concept", "(none)"]
+    owner: 用户 (AI 辅助派生)
+    editable_by: 用户 + 系统 (frontmatter mastery/last_reviewed 由复习链回写)
+    rag_index: true
+    memory_write: true
+    rag_retrieval: conditional
+    rag_retrieval_note: >-
+      ⛔ 不是一刀切 included (round-6 HIGH 实证): 本目录下**无 `type` 且含
+      `exam_question_id`** 的考察文件 (`节点/考察-*.md`, exam-quick skill 写入)
+      会被写侧推断为 `doc_type=exam_board` (`lancedb_client.py:2749-2757`),
+      随后被读侧 `exclude_doc_types` 挡掉 —— 这是**信息隔离的有意设计**
+      (题面不得经 RAG 回流)。其余 concept 笔记 = included。
+      live vault 实测 `节点/考察-*.md` **0 个**, 故当前无实例 —— 但登记的是类不是实例。
+    provenance: >-
+      source_board wikilink 指回原白板; frontmatter 是 FSRS 与掌握度的真相源
+      (learning_events.jsonl 为 append-only 事件账, 不取代 frontmatter)
+    retention: >-
+      不可重建 (用户手写正文)。⛔ 措辞更正 (round-4 HIGH: 本行原写"frontmatter 复习字段
+      可由事件账重放", 与 root-learning-events 的结论直接矛盾): 事件账**重放不出**
+      frontmatter 的复习字段 —— 写序是先原子写 frontmatter 再追加 event 且 append
+      失败明示不影响评分, event payload 也不含 mastery_*/fsrs_* 最终态。
+      二者互不可重建, 详见 root-learning-events.provenance。
+    notes: >-
+      `(none)` 实测存在 —— live vault `节点/cs-61b-csm.md` 无 `type:` frontmatter,
+      写侧 doc_type 走默认 "note"。这是值域现状登记, 不是缺陷。
+
+  - id: dir-jianyan-baiban
+    role: wiki
+    match:
+      dir_glob: ["检验白板", "检验白板/**"]
+      frontmatter_type: ["exam_board", "(none)"]
+    owner: start-exam-board / exam-quick skill 生成骨架, 用户作答
+    editable_by: 用户 (作答) + 系统 (评分回写)
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: 由原白板 + 节点派生出题; 作答与评分为用户/系统运行期产物
+    retention: >-
+      不可重建 (用户作答无 canonical 上游)。故按 roles.wiki.boundary_note
+      归 wiki 而非 derived。
+    notes: >-
+      ⛔ 信息隔离铁律 (Karpicke d=1.50) 双层防御第一层 = 目录黑名单
+      (IMMUTABLE_VAULT_SKIP_DIRS 硬底, env 不可撤销); 第二层 = 读侧
+      exclude_doc_types 含 exam_board。考题绝不能经 RAG 回流进学习对话。
+
+  - id: dir-yanshoudan
+    role: wiki
+    match:
+      dir_glob: ["验收单", "验收单/**"]
+      frontmatter_type: ["(none)"]
+    owner: 开发流程 (UAT 验收单)
+    editable_by: 用户 + Claude
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: 每卡验收产出; 正本在 repo `_bmad-output/验收单/`
+    retention: 随 vault 保留
+    notes: >-
+      ⛔ 信息隔离**单层**防御: frontmatter 无 doc_type, 读侧不挡, 目录黑名单是
+      唯一防线 —— 故列入 IMMUTABLE_VAULT_SKIP_DIRS 硬底 (config.py 注释原文)。
+      live vault 当前 0 文件。
+
+  - id: dir-raw
+    role: raw
+    match:
+      dir_glob: ["raw", "raw/**"]
+      frontmatter_type: ["(none)"]
+    owner: 用户 (课程材料导入)
+    editable_by: 用户 (系统只读)
+    rag_index: true
+    memory_write: true
+    rag_retrieval: conditional
+    rag_retrieval_note: >-
+      ⛔ 不能一刀切 included (round-7 HIGH): 写侧对"**无 `type` 且含 `exam_question_id`**"
+      的文档推断 `doc_type=exam_board`(`lancedb_client.py:2749-2757`) —— 该推断
+      **不限目录**。本条目允许无 type 的文档, 因此理论上可承载被读侧
+      `exclude_doc_types` 排除的考察文件。live vault 实测本目录下 0 个该形态文件,
+      其余文档 = included。登记的是类不是实例。
+    provenance: 课程讲义/转录/习题外部导入; 视频转录由 video-to-canvas 管道生成
+    retention: 不可重建 (外部素材); 硬边界 1 禁自动删除
+    notes: >-
+      写侧 doc_type: `/videos/` 路径下经 `_is_video_transcript` 启发判为
+      video_transcript (live 分布主力 2001 行), 其余走默认 note。
+      raw 下的 Excalidraw / _misc / *-explanations / chunks / node_modules /
+      .obsidian 由上方特化行先命中。
+
+  - id: dir-root-course-cs188
+    role: raw
+    match:
+      dir_glob: ["CS188", "CS188/**", "CS189", "CS189/**"]
+      frontmatter_type: ["(none)"]
+    owner: 用户 (课程材料导入)
+    editable_by: 用户
+    rag_index: true
+    memory_write: true
+    rag_retrieval: conditional
+    rag_retrieval_note: >-
+      ⛔ 不能一刀切 included (round-7 HIGH): 写侧对"**无 `type` 且含 `exam_question_id`**"
+      的文档推断 `doc_type=exam_board`(`lancedb_client.py:2749-2757`) —— 该推断
+      **不限目录**。本条目允许无 type 的文档, 因此理论上可承载被读侧
+      `exclude_doc_types` 排除的考察文件。live vault 实测本目录下 0 个该形态文件,
+      其余文档 = included。登记的是类不是实例。
+    provenance: 课程讲义直接落在 vault 根级课程目录 (未走 raw/ 归置)
+    retention: 不可重建 (外部素材)
+    notes: >-
+      如实登记的**归置不一致现状**: 同类课程材料同时存在 `raw/CS188/` 与根级
+      `CS188/`、`CS189/` 两处。两面准入均放行 (非黑名单目录), 与 raw/ 同权重。
+      归置收敛不属本卡 (本卡只登记现状), 见 known_gaps GAP-1。
+
+  - id: dir-multimodal
+    role: raw
+    match:
+      dir_glob: ["multimodal", "multimodal/**"]
+      frontmatter_type: ["(none)"]
+    owner: 多模态导入管道 (audio/image/pdf/video/thumbnails)
+    editable_by: 用户 (放素材) + 系统 (缩略图)
+    rag_index: true
+    memory_write: true
+    rag_retrieval: conditional
+    rag_retrieval_note: >-
+      ⛔ 不能一刀切 included (round-7 HIGH): 写侧对"**无 `type` 且含 `exam_question_id`**"
+      的文档推断 `doc_type=exam_board`(`lancedb_client.py:2749-2757`) —— 该推断
+      **不限目录**。本条目允许无 type 的文档, 因此理论上可承载被读侧
+      `exclude_doc_types` 排除的考察文件。live vault 实测本目录下 0 个该形态文件,
+      其余文档 = included。登记的是类不是实例。
+    provenance: 用户导入的媒体资产; thumbnails 为系统派生
+    retention: 素材不可重建; thumbnails 可重建
+    notes: >-
+      live vault 当前 0 文件 (仅空目录骨架)。非黑名单目录 —— 若未来放入 .md
+      将同时进两面; 非 .md 素材两面均以 not_markdown 拒。
+      多模态 image_ocr 写路径**不写 doc_type 字段** (G4-16 §1), 是读侧空串回退
+      的来源之一, 见 doc_type_whitelist.value_domain_closed。
+
+  - id: dir-wiki
+    role: wiki
+    match:
+      dir_glob: ["wiki", "wiki/**"]
+      frontmatter_type: ["(none)"]
+    owner: 用户 (预留的 wiki 中间层)
+    editable_by: 用户
+    rag_index: true
+    memory_write: true
+    rag_retrieval: conditional
+    rag_retrieval_note: >-
+      ⛔ 不能一刀切 included (round-7 HIGH): 写侧对"**无 `type` 且含 `exam_question_id`**"
+      的文档推断 `doc_type=exam_board`(`lancedb_client.py:2749-2757`) —— 该推断
+      **不限目录**。本条目允许无 type 的文档, 因此理论上可承载被读侧
+      `exclude_doc_types` 排除的考察文件。live vault 实测本目录下 0 个该形态文件,
+      其余文档 = included。登记的是类不是实例。
+    provenance: 预留结构 (wiki/canvases/<board>, wiki/concepts)
+    retention: 不可重建 (人写内容)
+    notes: >-
+      计划书 §3.7 wiki 行缺口原文"没有被明确命名和治理的 wiki 中间层"。
+      live vault 当前只有 .gitkeep 占位, 0 个 md —— 目录已存在但**尚未被使用**,
+      如实登记, 不代裁定其未来用途。
+
+  - id: dir-templates
+    role: schema
+    match:
+      dir_glob: ["templates", "templates/**"]
+      frontmatter_type: ["concept", "exam_board"]
+    owner: 系统 (Skill 模板)
+    editable_by: 用户 + 系统
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: frontmatter 契约的可执行样板
+    retention: 随代码演进; 可由 skill 重新铺设
+    notes: 黑名单 "templates"; 模板里的 type 值必须落在 doc_type_whitelist 内
+
+  - id: dir-outputs
+    role: derived
+    match:
+      dir_glob: ["outputs", "outputs/**"]
+      frontmatter_type: ["recap", "(none)"]
+    owner: 复习投影链 + board-recap skill
+    editable_by: 系统 (覆盖重生) / 用户可读改 recap 正文
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: 逐产物见 derived_artifacts 节
+    retention: 逐产物见 derived_artifacts 节
+    notes: >-
+      黑名单 "outputs"; 容器角色 derived, 但容器内 `回顾-*.md` 单独按
+      计划书 §4 "可编辑 wiki (节点笔记 / board recap)" 归 wiki
+      (见 derived_artifacts.art-recap-report)。
+
+  # ── 工具 / 应用 / 容器 ──────────────────────────────────────────────────
+  - id: dir-claude-tooling
+    role: schema
+    match:
+      dir_glob: [".claude", ".claude/**"]
+      frontmatter_type: ["(none)"]
+    owner: 开发 (Skill / hook / command 定义)
+    editable_by: Claude + 用户
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: vault 侧 skill 部署副本; 正本在 repo
+    retention: 可重建 (从 repo 重新部署)
+    notes: >-
+      ⛔ IMMUTABLE_VAULT_SKIP_DIRS 硬底。理由 (config.py 勘误后原文):
+      含 hooks (可执行) / settings (可能含 key) / SKILL.md 正文 (是 .md,
+      会被 Markdown 扫描器实际扫到)。
+      `.claude/cache/` 下另有 board-manifest 缓存, 见 derived_artifacts。
+
+  - id: dir-claudian-sessions
+    role: raw
+    match:
+      dir_glob: [".claudian/sessions", ".claudian/sessions/**"]
+      frontmatter_type: ["(none)"]
+    owner: Claudian 插件 (会话运行期落盘)
+    editable_by: 无人 (一次性原始记录)
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: 对话会话逐条落盘 (live 实测 30 个 session JSON), **无上游**
+    retention: 无 canonical 上游可重放, 丢失即历史对话不可回溯 (系统不自动清理)
+    notes: >-
+      ⛔ 与 dir-claudian-config 分行 (对抗审查 HIGH): 原来一条 `.claudian/**` 把
+      会话记录与应用配置全标同一角色, 但二者治理属性不同 —— 前者是**一次性原始记录**
+      (raw), 后者是**应用配置** (schema, 台账 roles.schema 定义明列)。
+
+  - id: dir-claudian-config
+    role: schema
+    match:
+      dir_glob: [".claudian"]
+      frontmatter_type: ["(none)"]
+    owner: Claudian 插件 (应用配置)
+    editable_by: 用户 (经 Claudian UI)
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: >-
+      `.claudian/claudian-settings.json` (live 实测 1 个) —— 顶层键含
+      model / providerConfigs / permissionMode / systemPrompt 等应用配置字段。
+    retention: 可重建 (重新配置); 丢失只影响插件行为, 不丢学习内容
+    notes: >-
+      dir_glob 只写 `.claudian` 目录本身 (不含 `/**`), 故只覆盖直接位于该目录下的
+      配置文件; `sessions/` 子树由 dir-claudian-sessions 承接。
+      黑名单 ".claudian" 使两者都不进任何准入面。
+
+  - id: dir-quarantine
+    role: raw
+    match:
+      dir_glob: [".quarantine", ".quarantine/**"]
+      frontmatter_type: ["concept", "(none)"]
+    owner: MCP 隔离流程 (P0-2)
+    editable_by: 用户 (人工处置)
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: 被判定为不该被消费的内容移入
+    retention: 保留至人工处置; 系统绝不自动清理或回收
+    notes: >-
+      ⛔ IMMUTABLE_VAULT_SKIP_DIRS 硬底 —— "定义上就是不该被消费的内容"。
+      按 roles.raw.container_convention 归 raw。
+
+  - id: dir-trash
+    role: raw
+    match:
+      dir_glob: [".trash", ".trash/**"]
+      frontmatter_type: ["mockup", "(none)"]
+    owner: 用户 (删除动作)
+    editable_by: 用户
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: 用户删除物 + 历史清理残留 (.cleanup-* / .deleted-* 后缀)
+    retention: 保留至用户手动清空; 系统绝不自动清理 (硬边界 1)
+    notes: >-
+      ⛔ IMMUTABLE_VAULT_SKIP_DIRS 硬底 —— "用户删掉的东西重新进检索面是明确的
+      违反预期"。按 roles.raw.container_convention 归 raw。
+
+# ---------------------------------------------------------------------------
+# vault 根级散文件逐条 (顺序敏感)
+# ---------------------------------------------------------------------------
+root_files:
+  - id: root-canvas-config
+    role: schema
+    match:
+      file_glob: [".canvas-config.yaml"]
+      frontmatter_type: ["(none)"]
+    owner: 用户 (vault 级配置)
+    editable_by: 用户
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: vault_id / subject / active_board 的唯一真相源 (Skill 从此读)
+    retention: 不可重建 (人写配置); 丢失则 vault 身份推断退化为文件夹名 sanitize
+    notes: 非 .md, 两面均以 not_markdown 拒
+
+  - id: root-mcp-json
+    role: schema
+    match:
+      file_glob: [".mcp.json"]
+      frontmatter_type: ["(none)"]
+    owner: 开发 (MCP server 声明)
+    editable_by: Claude + 用户
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: vault 侧 MCP 配置
+    retention: 可重建 (从 repo 模板)
+    notes: 非 .md
+
+  - id: root-learning-events
+    role: raw
+    match:
+      file_glob: ["learning_events.jsonl"]
+      frontmatter_type: ["(none)"]
+    owner: backend/app/services/learning_event_log.py (+ skill 侧写点)
+    editable_by: 系统 (append-only)
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: >-
+      append-only 复习事件账 (`learning_event_log.py:59 append_event` →
+      `:100 open(path, "a")`; G3-1 已冻结 schema v1)。
+      ⛔ **两个真相源不是同一个对象** (对抗审查 HIGH 的口径澄清):
+      `节点/*.md` 的 frontmatter 是 **FSRS 当前态**的真相源 (模块 docstring 原文
+      "frontmatter 仍是真相源, 不改架构"); 本文件是 **事件流**的 canonical 记录
+      (append-only, 无上游可重放)。
+      ⛔ 措辞更正 (round-3 实证, 原写"前者可由后者重放推导"**不成立**):
+      ① 写序是**先原子写 frontmatter 再追加 event** (`quiz-answer/SKILL.md` :316-343),
+         且 append 失败明示"不影响评分" (`learning_event_log.py:68` 永不抛异常、
+         :103-105 失败返回 False 主链不受影响) → 事件可在 frontmatter 已提交后**丢失**;
+      ② event payload 只含 grade_norm / exam_board / attempt_count,
+         **不含 mastery_a/mastery_b/fsrs_\* 最终态** → 即便不丢也重放不出当前态。
+      故正确表述是: 二者互不可重建, 事件流是**尽力而为的侧记**, 不是当前态的可重放上游。
+    retention: >-
+      append-only 永久保留; 无上游可重建 (删了即历史事件不可恢复)。
+      G3-1 事件账 schema v1 已冻结; 备份先例
+      `backups/learning_events.jsonl.pre-s1-cleanup-*`。
+    notes: >-
+      非 .md, 两面均以 not_markdown 拒; 归属车道 G3-1/G3-2。
+      ⛔ 角色两次更正, 如实留痕:
+      ① round-1 由 derived 改 schema —— derived 定义要件是"存在 canonical 上游可重放",
+         它自己就是那个账本, 标 derived 自相矛盾;
+      ② round-2 指出 schema 的依据被拉伸: 计划书 §3.7 schema 行说的
+         "关系与**复习事件契约**" 指的是**契约/schema 定义**(在代码侧, G3-1 冻结),
+         而本文件是该契约的**实例流** (live 22 行), 两者不是一回事。
+      **终版裁定 = raw**: 按 roles.raw.container_convention 的治理判据 ——
+      系统只读追加、无上游、不可重建、绝不自动清理, 与 raw 同构。
+      其 schema 定义在 `backend/app/services/learning_event_log.py` (代码侧, 不在 vault)。
+
+  - id: root-dashboard
+    scope: any_level
+    governance_scope: root_only
+    role: derived
+    match:
+      file_glob: ["Dashboard.md"]
+      frontmatter_type: ["dashboard"]
+    owner: Story 1.18 (DataviewJS 仪表盘定义)
+    editable_by: 用户 (查询块可改)
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: >-
+      文件本体是手写的 DataviewJS 视图定义; 它**渲染**的数据全部实时聚合自
+      `原白板/*.md` + `节点/*.md` frontmatter, FSRS 到期数消费
+      `outputs/今日复习.json` 投影 (Dashboard 正文自述)。
+    retention: >-
+      计划书 §4 硬边界 2 明列 Dashboard 为派生层, **不得成为真相源**。
+      视图定义可从 repo 模板重建。
+    notes: >-
+      两面均拒但 **reason 不同** (2026-08-30 实测): 检索面 `blacklisted_file`
+      (命中 DEFAULT_VAULT_SKIP_FILES 的 "Dashboard.md"), 记忆面 `root_level`
+      (check_vault_path 的 root_level 判定先于文件名黑名单)。
+      其 frontmatter `type: dashboard` 因此**永不进 LanceDB doc_type 列** ——
+      见 doc_type_whitelist.dashboard 的 census 差异说明。
+
+  - id: root-claude-md
+    scope: any_level
+    governance_scope: root_only
+    role: schema
+    match:
+      file_glob: ["CLAUDE.md"]
+      frontmatter_type: ["(none)"]
+    owner: 开发 (vault 侧 Claude 指令)
+    editable_by: Claude + 用户
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: vault 内工程指令, 非学习内容
+    retention: 可重建 (从 repo)
+    notes: >-
+      两面均拒, reason 分侧 (2026-08-30 实测): 根级 `CLAUDE.md` = 检索面
+      `blacklisted_file` / 记忆面 `root_level`; 深层 `raw/CS188/CLAUDE.md` =
+      两面同为 `blacklisted_file` (DEFAULT_VAULT_SKIP_FILES 任意层级生效)。
+
+  - id: root-excalibrain
+    role: derived
+    match:
+      file_glob: ["excalibrain.md"]
+      frontmatter_type: ["(none)"]
+    owner: ExcaliBrain 插件
+    editable_by: 无人 (插件运行时产物)
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: 插件按 vault 链接图运行时重绘
+    retention: 可重建 (插件重新生成)
+    notes: >-
+      检索面以 `blacklisted_file` 拒 —— 命中 DEFAULT_VAULT_SKIP_ROOT_FILES
+      ("excalibrain.md", **仅根级**, casefold 精确比较); 记忆面以 `root_level` 拒。
+      深层同名文件不受根级表影响 —— 那是 A-4 的历史教训。
+
+  - id: root-uat-scratch
+    scope: any_level
+    governance_scope: root_only
+    role: wiki
+    match:
+      file_glob: ["UAT-*.md", "*-test.md", "TestConcept*.md"]
+      frontmatter_type: ["(none)", "concept"]
+    owner: 开发 (UAT / 测试残留)
+    editable_by: Claude + 用户
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: Phase A T1.1 followup (2026-05-09) 登记的测试与 UAT 残留
+    retention: >-
+      **根级实例**可安全删除 (正本在 repo `_bmad-output/验收单/`)。
+      ⛔ governance_scope=root_only: 本行按 basename 在任意层级命中, 只为深层实例
+      贡献**准入两列**(文件名黑名单确实盖过目录); 深层实例的 owner/retention
+      以所在容器行为准 —— 例如 `.quarantine/UAT-2.5.X-test.md` 的保留期是
+      dir-quarantine 的"保留至人工处置, 系统绝不自动清理", **不是**这里的"可安全删除"。
+    notes: 命中 DEFAULT_VAULT_SKIP_FILES 的 "UAT-*.md" / "*-test.md" / "TestConcept*.md"
+
+  - id: root-untitled-scratch
+    scope: any_level
+    governance_scope: root_only
+    role: wiki
+    match:
+      file_glob: ["Untitled*.md", "未命名*.md", "2111.md"]
+      frontmatter_type: ["concept", "(none)"]
+    owner: 用户 (Obsidian 新建未命名 / 测试残留)
+    editable_by: 用户
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: Obsidian 默认新建文件名; "2111.md" 为登记在案的测试残留
+    retention: >-
+      **根级实例**可安全删除。governance_scope=root_only —— 深层同名文件
+      (如 `raw/CS188/_misc/junk/未命名.md`) 的 owner/retention 以容器行为准
+      (raw 素材"不可重建、硬边界 1 禁自动删除"), 本行只贡献准入两列。
+    notes: >-
+      `Untitled.md` 实测带 `type: concept` frontmatter —— 若文件名黑名单被撤,
+      它会以 doc_type=concept 直通入库。黑名单是这里的唯一防线。
+
+  - id: root-pipeline-design
+    scope: any_level
+    governance_scope: root_only
+    role: schema
+    match:
+      file_glob: ["管道设计.md"]
+      frontmatter_type: ["(none)"]
+    owner: 开发 (管道设计文档)
+    editable_by: Claude + 用户
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: 工程设计文档
+    retention: 可重建 (从 repo)
+    notes: >-
+      命中 DEFAULT_VAULT_SKIP_FILES "管道设计.md" (任意层级)。
+      live vault 根级当前无此文件, 但 `raw/CS188/管道设计.md` 实存并被两面拒 ——
+      本行按**文件名类**登记, 覆盖任意层级。
+
+  # ⛔ 兜底行必须排在最后 —— 这是唯一一条"未命中前述文件名黑名单的根级 md",
+  #    也是 DIV-1 by-design 分歧的落点。它**不是** catch-all: file_glob 限定
+  #    根级 *.md, 且 rag_index/memory_write 两列取值不同, 必须带 divergence_reason。
+  - id: root-loose-md
+    role: wiki
+    match:
+      file_glob: ["*.md"]
+      # 紧致性: 只列 live 实测存在的值。多列一个值 = 悄悄放宽 G3 (过度声明),
+      # test_frontmatter_type_lists_are_tight 会判红。根级散落笔记实测只有无 type 一种。
+      frontmatter_type: ["(none)"]
+    owner: >-
+      **逐实例登记** (见 known_instances) —— 本行不对未来的根级 md 泛化归属。
+      round-3 指出: 兜底行镜像的是**准入规则**, 不是来源; 一个机器生成的报告落在根目录
+      会被静默读成"用户手写"。故每新增一个根级 md, 校验脚本判 G9 要求逐个登记。
+    editable_by: 用户 (逐实例确认)
+    known_instances:
+      - chatgpt-adversarial-review-Q1Q2Q3-2026-05-12.md
+    rag_index: true
+    memory_write: false
+    rag_retrieval: conditional
+    rag_retrieval_note: >-
+      ⛔ 不能一刀切 included (round-7 HIGH): 写侧对"**无 `type` 且含 `exam_question_id`**"
+      的文档推断 `doc_type=exam_board`(`lancedb_client.py:2749-2757`) —— 该推断
+      **不限目录**。本条目允许无 type 的文档, 因此理论上可承载被读侧
+      `exclude_doc_types` 排除的考察文件。live vault 实测本目录下 0 个该形态文件,
+      其余文档 = included。登记的是类不是实例。
+    provenance: >-
+      **无固定生产者** —— 这正是本行必须逐实例登记的原因。
+      live 唯一实例 `chatgpt-adversarial-review-Q1Q2Q3-2026-05-12.md` = 人工存档的审查记录。
+    retention: >-
+      按实例定 —— 已登记的那一条为人工存档 (不可重建)。
+      新实例在登记前不得继承该结论 (G9 会判红要求登记)。
+    divergence_reason: >-
+      DIV-1-root-level-md (by-design, 非缺陷): should_index 不拒根级 md ——
+      源码 docstring 自述"根级用户笔记可检索是 by-design, 由根级文件名黑名单管";
+      check_vault_path 拒根级 md, reason `root_level`, 源码理由"vault 根级直下的 md
+      不是学习节点"。两面对同一路径的语义判断本就不同, 各自都写明了意图。
+      **本卡只登记不修** —— 消除它需要改其中一面的准入语义, 那是产品决策
+      (根级笔记该不该进图), 不是本台账的权限。实测证据:
+      324 文件全量双面求值, 分歧恰 1 条, 即此行。
+    notes: >-
+      顺序契约: 本行必须是 root_files 的**最后一行**, 否则会抢走前面所有
+      黑名单行的命中 (脚本 EXPECTED_LAST_ROOT_FILE_ID 常量钉死)。
+      ⚠️ 「兜底行是不是软化?」的正面回答 (对抗审查提问): **不是**。真实代码对根级 md
+      的规则就是"未命中文件名黑名单即放行", 这一行**如实镜像**了该规则; 若不设它,
+      每新增一个根级 md 都会报 G2 噪音, 而真正的风险 (根级笔记进 RAG 不进图)
+      恰恰被 DIV-1 显式登记并列为用户裁决点。它也不是 catch-all —— 语义判定
+      `is_catch_all("*.md")` 为 False (吃不下任何多段路径), 且受 scope=root 限制。
+      **代价如实说明**: 任何新放进 vault 根目录的 .md 都会即刻可被 RAG 检索到 ——
+      这正是需要用户拍板的那条产品语义。
+
+# ---------------------------------------------------------------------------
+# 派生物类型逐条 (vault 内文件 + vault 外存储)
+# ---------------------------------------------------------------------------
+derived_artifacts:
+  - id: art-daily-review-json
+    role: derived
+    surface: vault_file
+    match:
+      file_glob: ["outputs/今日复习.json"]
+      frontmatter_type: ["(none)"]
+    owner: >-
+      scripts/daily_review_pick.py (launchd `com.canvas.daily-review`)。
+      ⚠️ 调度更正 (round-7 LOW, 已对 plist 复核): **不是"每日 09:05"**, 而是
+      **09:05–20:05 每小时一档 + RunAtLoad**（CARD-A3: 每小时重扫当天新到期的重学卡,
+      同日重复推送由 last_push_accepted_date 去重）。
+    editable_by: 系统 (整文件覆盖)
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: >-
+      schema_version 3, 含 vault_id / date / generated_at / top_boards。
+      到期口径唯一裁判 = daily_review_pick; 消费方 = send_bark 推送 payload、
+      review_overview 聚合端点、Dashboard 的 FSRS 到期数。
+    retention: 可重建 (重跑 daily_review_pick); 每日覆盖, 不留历史
+    notes: 计划书 §4 硬边界 2 明列"每日 JSON/Markdown"为派生层
+
+  - id: art-daily-review-md
+    role: derived
+    surface: vault_file
+    match:
+      file_glob: ["outputs/今日复习.md"]
+      frontmatter_type: ["(none)"]
+    owner: scripts/daily_review_pick.py
+    editable_by: 系统 (整文件覆盖)
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: 与 art-daily-review-json 同源同批产出 (人读版)
+    retention: 可重建; 每日覆盖
+    notes: >-
+      ⚠️ 措辞更正 (对抗审查 MEDIUM): 原写"到期查询链 endpoints/review.py 消费此文件"
+      —— 实测 `endpoints/review.py:599` 命中的只是**注释**, 真实到期链读的是
+      `outputs/今日复习.json`(见 art-daily-review-json 的消费方)。
+      本文件是**人读版**, 当前无生产代码消费方。
+
+  - id: art-recap-report
+    role: wiki
+    surface: vault_file
+    match:
+      file_glob: ["outputs/回顾-*.md"]
+      frontmatter_type: ["recap"]
+    owner: board-recap skill (.claude/skills/board-recap/scripts/recap_scan.py + Claude 写作)
+    editable_by: 用户 + Claude
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: >-
+      recap_scan.py 只读扫描原白板/节点产出 scan JSON, Claude 据此写作报告正文。
+      文件名契约 `回顾-<board>-<YYYY-MM-DD>.md` (recap_scan.py 正则锁定)。
+    retention: >-
+      正文含 Claude 写作与用户批改, **不可逐字重建**; 底层 scan JSON 可重跑。
+      按计划书 §4 "可编辑 wiki (节点笔记 / board recap)" 归 wiki。
+    notes: >-
+      `type: recap` 是 **doc_type 值域之外**的 frontmatter type ——
+      因 outputs/ 在目录黑名单, 它永不进 LanceDB。
+      见 frontmatter_types_outside_doc_type。
+
+  - id: art-recap-scan-json
+    role: derived
+    surface: vault_file
+    match:
+      file_glob: ["outputs/.recap-scan-*.json", "outputs/.recap-manifest-*.json"]
+      frontmatter_type: ["(none)"]
+    owner: .claude/skills/board-recap/scripts/recap_scan.py
+    editable_by: 系统 (整文件覆盖)
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: 只读扫描产物, 每板一份 (`.recap-scan-<board>.json` / `.recap-manifest-<board>.json`)
+    retention: 可重建 (重跑 recap_scan)
+    notes: 点前缀 = Obsidian 内不可见; 非 .md, 两面 not_markdown 拒
+
+  - id: art-mindmap-excalidraw
+    role: derived
+    surface: vault_file
+    match:
+      file_glob: ["outputs/思维导图-*.excalidraw.md"]
+      frontmatter_type: ["(none)"]
+    owner: 思维导图导出链 (一次性导出 v3)
+    editable_by: 用户 (自由摆位/批注)
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: >-
+      由 `原白板/<board>` + 节点 md 一次性导出; frontmatter 带
+      `excalidraw-plugin: parsed` 与 `source_board` 反链; 节点正文为**实时嵌入**,
+      图内不存副本。
+    retention: >-
+      **role=derived 的依据**: 存在 canonical 上游 (`source_board` 反链 + 节点 md),
+      可重新导出。**已知有损边界**: 用户在导出后添加的摆位/批注**无上游**,
+      重新导出会丢失 —— 按计划书 §4 硬边界 1 (用户手写内容不可被静默覆盖) 与
+      硬边界 6 (跨格式写入先 preview、可撤销、输出显式损失报告), 重导出必须先
+      preview 并报告损失。文件正文自述"系统不回头读它、也不会自动更新"。
+    notes: >-
+      双重排除: outputs/ 目录黑名单 + `*.excalidraw.md` 文件名黑名单 (任意层级)。
+      ⚠️ 与 `dir-excalidraw` 的分界 (Codex round-1 HIGH-2): 本行是**系统导出**
+      (live 三张, 均带 `source_board`), 故 derived; `raw/**/Excalidraw/` 下是
+      **用户手绘** (实测无 source_board、无上游), 归 raw。同为 .excalidraw.md
+      不代表同一角色 —— 判据是有无 canonical 上游, 不是后缀。
+
+  - id: art-exam-boards-outputs
+    role: derived
+    surface: vault_file
+    match:
+      file_glob: ["outputs/exam_boards/**"]
+      frontmatter_type: ["(none)"]
+    owner: 出题链导出面
+    editable_by: 系统
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: 检验白板导出目录
+    retention: 可重建
+    notes: live vault 当前只有 .gitkeep 占位, 0 实际产物 —— 如实登记为空
+
+  - id: art-rag-s26-board-backup
+    role: raw
+    surface: vault_file
+    match:
+      file_glob: [".claude/cache/rag-s2.6-concepts-backup/**"]
+      frontmatter_type: ["(none)"]
+    owner: Story RAG-S2.6 导航改造迁移 (回滚点)
+    editable_by: 无人 (回滚快照, 只读)
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: >-
+      6 块原白板在 RAG-S2.6 导航改造**迁移前的逐字节原样** (`*.md.bak`)。
+      消费方 `backend/scripts/run_skill_navigation_probe.py:40` 以 `BAK_DIR` 读取做
+      前后对照。留档见 `_bmad-output/研究/2026-08-11-RAG-S2.6-导航改造-实施留档.md`。
+    retention: >-
+      **不可重建** (是迁移前原样, 无上游可重放) —— 回滚窗口关闭前不得删除。
+      故归 raw 而非 derived。
+    notes: >-
+      ⛔ 独立成行 (Codex round-1 HIGH): 原被 `art-board-manifest-cache` 的
+      `.claude/cache/**` 过宽 glob 吞掉, 导致 6 个回滚备份被登记成
+      "board manifest 缓存 / 可重建" —— owner 与可重建性双错。
+
+  - id: art-board-manifest-cache
+    role: derived
+    surface: vault_file
+    match:
+      file_glob: [".claude/cache/board-manifest/**"]
+      frontmatter_type: ["(none)"]
+    owner: board_manifest_service
+    editable_by: 系统
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: 板级 manifest 解析缓存 (ID_STABILITY = basename_v1_will_upgrade_in_1_5)
+    retention: 可重建 (重新解析原白板)
+    notes: >-
+      由 .claude 目录黑名单覆盖。glob 已收窄到 `board-manifest/` 子目录 ——
+      同级的 `rag-s2.6-concepts-backup/` 是另一物, 见 art-rag-s26-board-backup。
+
+  - id: art-overview-html
+    role: derived
+    surface: http_response
+    # store / http_response 不落 vault 文件 —— match 留空, 身份面走 identifier
+    # (round-8: 显式空列表 `file_glob: []` 已被契约禁止, 因为它在普通行上是软化写法)
+    match: {}
+    # store / http_response 行不落 vault 文件, 无法用 glob 机械识别 ——
+    # 改用 identifier 显式登记其身份面 (schema 强制非空, 见脚本 _verify_entry)。
+    identifier:
+      route: "GET /api/v1/review/overview/page"
+      module: backend/app/api/v1/endpoints/review_overview.py
+    owner: backend/app/api/v1/endpoints/review_overview.py (`GET /api/v1/review/overview/page`)
+    editable_by: 无人 (每次请求内联渲染)
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: >-
+      内联 HTML, 零外部 CDN / 零 JS; 只读聚合各 vault `outputs/今日复习.json`
+      (页脚自述数据来源)。D1 已上线 Anki 化三级视图 + 板级深链。
+    retention: 不落盘 (无保留期); 完全由投影 JSON 重建
+    notes: >-
+      计划书 §4 硬边界 2 明列 Web UI 为派生层。**不写入 vault** ——
+      故两列准入面均不适用 (登记为 false + surface: http_response)。
+
+  - id: art-lancedb-tables
+    role: derived
+    surface: store
+    # store / http_response 不落 vault 文件 —— match 留空, 身份面走 identifier
+    # (round-8: 显式空列表 `file_glob: []` 已被契约禁止, 因为它在普通行上是软化写法)
+    match: {}
+    identifier:
+      production_path: "/lancedb (容器 LANCEDB_DATA_PATH)"
+      table_glob: ["<vault>_vault_notes", "<vault>_file_fingerprints"]
+      legacy_table_glob: ["vault_notes", "file_fingerprints", "test_table"]
+    owner: backend/lib/agentic_rag/clients/lancedb_client.py + vault_index_orchestrator
+    editable_by: 系统
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: >-
+      表名按 vault 命名空间化 `<vault>_vault_notes` / `<vault>_file_fingerprints`。
+      **生产路径 = 容器内 `/lancedb`** (`LANCEDB_DATA_PATH`), 2026-08-30 实测三表:
+      `canvas_vault_vault_notes` / `canvas_vault_file_fingerprints` +
+      legacy 无前缀 `file_fingerprints`。
+      ⚠️ 容器内另有 **`/app/data/lancedb`**(四表: active_vault_* + canvas_vault_*)
+      与宿主 `data/lancedb`、`backend/data/lancedb` —— 均**非生产读写路径**,
+      属 G2-4 legacy 表回退删除的地盘 (Codex round-1 复算修正: 本行原把
+      /app/data/lancedb 误当生产面)。
+      行级 doc_type 字段值域见 doc_type_whitelist。
+    retention: >-
+      可重建 (full_rebuild 从 vault md 重新索引)。**不得成为真相源**
+      (计划书 §4 硬边界 2)。
+    notes: >-
+      rag_index/memory_write 两列对本行的语义 = "该产物本身是否被当作文档喂进
+      两个准入面" —— 它是索引本身而非被索引物, 故双 false, 无分歧。
+
+  - id: art-neo4j-groups
+    role: derived
+    surface: store
+    # store / http_response 不落 vault 文件 —— match 留空, 身份面走 identifier
+    # (round-8: 显式空列表 `file_glob: []` 已被契约禁止, 因为它在普通行上是软化写法)
+    match: {}
+    identifier:
+      bolt: "bolt://localhost:7691 (live) / 7692 (test)"
+      group_id_format: "vault__<id> (双下划线); 子组 __canvas / __semantic / punycode 学科子组"
+    owner: backend/app/clients/neo4j_client.py + sync/relationship 写链
+    editable_by: 系统
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: >-
+      物理 group_id 格式 `vault__<id>` (双下划线, T1 契约 2026-07-10;
+      graphiti_core validator 拒冒号)。7691 实测 2026-08-30 并存 **12 个 group**。
+      节点标签组合实测 (Codex round-1 复算修正: 原按 `labels(n)[0]` 统计,
+      漏了**次标签**): `[Entity]`×99 / `[Episodic]`×35 /
+      **`[Entity, LearningConcept]`×27** / `[CanvasNode]`×21 / `[EntityNode]`×3 /
+      `[User]`×2 / `[Concept]`×1 / `[VaultIdentity]`×1。
+      `db.labels()` 另注册 CanvasBoard / Community / Node / Saga / EpisodicNode
+      五个**当前 0 实例**的标签。
+      写身份复合键化见 .claude/rules/cypher-write-contract.md。
+    retention: >-
+      CanvasNode/Concept/LEARNED 可由 vault md + 事件账重建;
+      Episodic 的可重建性依 G4-11 rebuild matrix 逐条裁定, **不得整体宣称可重建**
+      (计划书 §4 硬边界 2 明令)。
+    notes: "同 art-lancedb-tables —— 它是记忆本身而非被写入物, 故双 false"
+
+  - id: art-graphiti-episodes
+    role: derived
+    surface: store
+    # store / http_response 不落 vault 文件 —— match 留空, 身份面走 identifier
+    # (round-8: 显式空列表 `file_glob: []` 已被契约禁止, 因为它在普通行上是软化写法)
+    match: {}
+    identifier:
+      group_id_suffix: "__semantic"
+      dlq: backend/data/dead_letter_episodes.jsonl
+    owner: >-
+      backend/app/services/episode_worker.py (队列/入队) + backend/app/graphiti/
+      (canvas_episode schema / group_id_compat / entity_types 等构件)。
+      ⚠️ 复算更正 (对抗审查 2026-08-30): 本行原写 "backend/app/graphiti/
+      (episode_worker + outbox)" —— `app/graphiti/` 下**没有** episode_worker,
+      它在 `app/services/`; outbox 也不是该目录下的模块。
+      ⚠️ 路径更正 (round-8): A7 outbox 在 `memory_service._record_structured_outbox`,
+      落盘的是 **`backend/data/failed_writes.jsonl`** (`FAILED_WRITES_FILE`),
+      **不是** `backend/data/outbox/` —— 后者是另一套 event bus 的目录。
+    editable_by: 系统
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: >-
+      semantic episode ledger → Graphiti projection (计划书 §4 分层图)。
+      group_id 走 `<vault>__semantic` 子组; 7691 实测 Episodic 共 35 条。
+      死信落 `backend/data/dead_letter_episodes.jsonl` —— ⚠️ **该路径是每棵树各一份**
+      (复算更正, 对抗审查 2026-08-30): 本 worktree **无此文件**; 主仓
+      `canvas-learning-system/backend/data/` 下为 685 行; G4-9 census 分类的
+      **92 条**是 `feature-obsidian-hybrid-dev` worktree 那一份 (census 原文带该前缀)。
+      原写法把行数与路径错配, 已改为分树声明。
+    retention: >-
+      **role=derived 的依据**: 计划书 §4 硬边界 2 把 Graphiti **显式列入**派生层。
+      但可重建性是**逐条**的: ⛔ 只对 rebuild matrix 标记 `replayable` 的 episode
+      宣称可重建; 历史缺正文项必须明确标为**不可恢复**, 不能用愿景覆盖事实
+      (同条原文)。即"角色由计划书枚举定, 重建承诺按 episode 逐条给" ——
+      两者不矛盾, 但不得把前者读成"整体可重建"。归属 G4-11。
+    notes: 同上, 双 false
+
+# ---------------------------------------------------------------------------
+# doc_type 取值白名单 —— 本台账是真相源 (卡片 (c) + G4-16 FU-3 移交)
+# ---------------------------------------------------------------------------
+doc_type_whitelist:
+  contract: >-
+    本节是 LanceDB `<vault>_vault_notes` 行级 `doc_type` 字段的取值白名单真相源。
+    G4-16 census FU-3 明写"枚举口径依 G8-1 raw/wiki/schema 角色台账定版后落地,
+    本卡不代 G8-1 冻结值域"。**本台账只定版值域, 不代 FU-3 落地写侧校验** ——
+    写侧 frontmatter 直通面的白名单校验仍是 G4-16 FU-3 的移交项。
+  writers:
+    - backend/lib/agentic_rag/clients/lancedb_client.py 批量索引路径 (推导 → metadata → SQL 列)
+    - backend/lib/agentic_rag/clients/lancedb_client.py 单文件更新路径 (同一推导规则)
+    - "backend/lib/agentic_rag/clients/lancedb_client.py::add_documents() 通用 sink (无校验透传)"
+  derivation_order:
+    - frontmatter `type:` 直通 (lower/strip, **无白名单校验**)
+    - 无 `type` 但含 `exam_question_id` → 推断 exam_board (信息隔离; :2749-2757)
+    - 路径启发 `_is_video_transcript` → video_transcript
+    - 默认 → note
+  derivation_caveat: >-
+    ⚠️ "显式 frontmatter type 优先于路径推断" **只对 note 之外的值成立**
+    (round-6 MEDIUM 实证): 覆盖条件写的是 `if fm_doc_type == "note" and
+    _is_video_transcript(path)` (`lancedb_client.py:1774` / `:2059`) ——
+    显式写 `type: note` 与走默认值得到的 "note" **在这一步不可区分**,
+    因此放在 `/videos/` 下的、显式 `type: note` 的笔记仍会被改判 video_transcript。
+  value_domain_closed: false
+  unclosed_surface: >-
+    G4-16 census §4 第 6 行"空串/自由值"如实登记的三个未闭合面:
+    (1) frontmatter `type:` 直通无白名单 —— 用户写什么就入库什么;
+    (2) `add_documents()` 通用 sink 无校验透传;
+    (3) 多模态 image_ocr 写路径**不含 doc_type 字段** → 读侧空串回退。
+    live 库当前 0 条野值。收口归 G4-16 FU-3 / FU-4。
+  values:
+    - value: note
+      roles: ["raw", "wiki"]
+      registered_by: [dir-jiedian, dir-raw, dir-root-course-cs188, dir-multimodal, dir-wiki]
+      write_path: 默认值 (无 frontmatter type 且非视频路径)
+      census_verdict_tag: wired
+      census_verdict: "接线 —— 不在排除集 → 可检索; 测试契约锁定 (G4-16 §4 行 1)"
+      live_rows_2026_08_28: 69
+    - value: whiteboard
+      roles: ["raw"]
+      registered_by: [dir-yuan-baiban]
+      write_path: "frontmatter `type: whiteboard` 直通"
+      census_verdict_tag: wired
+      census_verdict: >-
+        接线 —— exclude 集 7+1 处消费 (隔离第二层); 默认 Tier-1 下在库但检索不可见
+        = 设计行为 (G4-16 §4 行 3)
+      live_rows_2026_08_28: 16
+    - value: exam_board
+      roles: ["raw", "wiki"]
+      registered_by:
+        - dir-jianyan-baiban
+        - dir-jiedian
+        # round-8 引用完整性: 写侧推断不限目录, 凡"允许无 type 且进索引"的条目
+        # 都能产出 exam_board, 必须一并登记 (checker 会机械复算这份清单)
+        - dir-raw
+        - dir-root-course-cs188
+        - dir-multimodal
+        - dir-wiki
+        - root-loose-md
+      write_path: >-
+        两条: ① 显式 `type: exam_board` frontmatter **直通**
+        (round-8 措辞更正: 原写"`检验白板/` 目录形态"不准 —— 目录本身不是派生条件,
+        检验白板下的文件是靠自身 frontmatter 带该值); ② **无 `type` 且含 `exam_question_id`** 的文档
+        (`lancedb_client.py:2749-2757`) —— 后者**不限目录**, 典型落点是
+        exam-quick 写入的 `节点/考察-*.md`, 故 registered_by 含 dir-jiedian
+        (round-7 HIGH: 原来只登记了 ① )。
+      census_verdict_tag: wired
+      census_verdict: >-
+        接线 —— live 0 行原因已实测坐实 (无考察文件存在 + 黑名单拦检验白板目录
+        两因叠加), 非死值 (G4-16 §4 行 4)
+      live_rows_2026_08_28: 0
+    - value: video_transcript
+      roles: ["raw"]
+      registered_by: [dir-raw]
+      write_path: 路径启发 `_is_video_transcript`
+      census_verdict_tag: wired
+      census_verdict: "接线 —— live 分布主力; 与并行 source_type 一起驱动 rerank 权重 (G4-16 §4 行 2)"
+      live_rows_2026_08_28: 2001
+    - value: concept
+      roles: ["schema", "wiki"]
+      registered_by: [dir-jiedian, dir-templates, root-untitled-scratch]
+      write_path: "frontmatter `type: concept` 直通"
+      census_verdict_tag: value_wired_weight_key_unreachable
+      census_verdict: >-
+        值接线; 权重键 = 直接 lookup 不可达、聚合可达但非决定项 ——
+        TYPE_WEIGHTS["concept"] 实为 source_type 键, indexer 永不写
+        source_type="concept" (G4-16 §4 行 5; 删键裁定列 FU-1)
+      live_rows_2026_08_28: 117
+    - value: dashboard
+      roles: ["derived"]
+      registered_by: [root-dashboard]
+      write_path: "frontmatter `type: dashboard` 直通 —— 但恒被根级文件名黑名单拦截"
+      census_verdict_tag: card_added__census_absent
+      census_verdict: >-
+        ⛔ 口径差异如实登记: G4-16 census §4 的第 6 行是"空串/自由值"(值域未闭合面),
+        **不是** dashboard。本卡卡文 (c) 点名的六取值用 dashboard 顶替了该行。
+        两者不是同一个东西, 不可静默调和 —— 本台账按卡文登记 dashboard 为
+        **vault frontmatter 命名空间取值**, 并如实声明它**尚未成为 LanceDB 行级取值**:
+        live vault 唯一实例 Dashboard.md 命中 DEFAULT_VAULT_SKIP_FILES 恒被拦,
+        census live 分布中它 0 行且未出现在 §4 六值表内。census 的"空串/自由值"
+        另存于本节 value_domain_closed / unclosed_surface, 未被丢弃。
+      live_rows_2026_08_28: 0
+
+# ---------------------------------------------------------------------------
+# live vault 存在、但不在 doc_type 值域内的 frontmatter type (如实登记)
+# ---------------------------------------------------------------------------
+frontmatter_types_outside_doc_type:
+  - type: recap
+    registered_by: [art-recap-report, dir-outputs]
+    live_files_2026_08_30: 4
+    why_not_doc_type: >-
+      board recap 报告只落在 outputs/, 而 outputs 在目录黑名单 → 永不进 LanceDB,
+      故从未成为 doc_type 行级取值。
+    risk_if_blacklist_changes: >-
+      若 outputs 被移出黑名单, `type: recap` 会经 frontmatter 直通面
+      (无白名单校验) 成为第 7 种 doc_type 值 —— 这正是 G4-16 FU-3 要收口的面。
+    owner_card: G4-16 FU-3
+  - type: mockup
+    registered_by: [dir-trash]
+    live_files_2026_08_30: 1
+    why_not_doc_type: >-
+      仅存于 .trash/ (IMMUTABLE 硬底黑名单), 是 UX 方案样稿的历史残留。
+    risk_if_blacklist_changes: >-
+      .trash 是不可撤销硬底, 无法经 env 移出 → 风险等级低于 recap。
+    owner_card: G4-16 FU-3
+
+# ---------------------------------------------------------------------------
+# repo 侧文档 (另节登记 —— 完全在 vault 准入面之外, 不参与 live 扫描)
+# ---------------------------------------------------------------------------
+# ⛔ 范围声明 (对抗审查 HIGH 的如实回应): 本节是**选定文档面**的登记, 不是 repo
+# 全量 Markdown 普查。**实测数字** (2026-08-30, 用本脚本自身的 glob_match 对
+# `git ls-files -z '*.md'` 逐条复算): tracked **2428** / 本节 6 条 path_glob 覆盖
+# **1460** / 未覆盖 **968** (CURRENT_TASK.md / PRD.md / .claude/agents/*.md /
+# _decisions/** 等)。⚠️ 原写"约 1000 覆盖 / 1400+ 未覆盖" 是估数且方向写反, 已按实测更正。
+# 未覆盖部分 **不在本卡范围** —— 卡片 (a) 的覆盖要求针对的是 **live vault**,
+# repo 侧只要求"另节登记"。全量 repo 普查若有必要, 属独立卡, 此处显式移交而非默认已做。
+repo_docs:
+  - id: repo-readme
+    role: wiki
+    path_glob: ["README.md"]
+    owner: 开发
+    editable_by: Claude + 用户
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: 禁夸大声明规则由 backend/scripts/readme_claims_rules.yaml 机械裁判 (G1-5)
+    retention: 随仓库
+  - id: repo-claude-md
+    role: schema
+    path_glob: ["CLAUDE.md", ".claude/rules/*.md"]
+    owner: 开发
+    editable_by: Claude + 用户
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: 项目指令与 Cypher 读写契约 (R1-R5 / W1-W5)
+    retention: 随仓库
+  - id: repo-bmad-output
+    role: wiki
+    path_glob: ["_bmad-output/**"]
+    owner: 开发流程 (审查 / 验收单 / goal-cards / 研究)
+    editable_by: Claude + 用户
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: 逐卡审查存档与验收单; 本台账的锚点文档均在此
+    retention: 随仓库, 永久保留 (审计链)
+  - id: repo-docs
+    role: wiki
+    path_glob: ["docs/**"]
+    owner: 开发
+    editable_by: Claude + 用户
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: 架构 / API 契约 / known-gotchas / 项目状态
+    retention: 随仓库
+  - id: repo-openspec
+    role: schema
+    path_glob: ["openspec/**"]
+    owner: OpenSpec CLI + Claude
+    editable_by: Claude (走 CLI 流程)
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: change proposal / design / specs / tasks 四件套, `openspec validate --strict` 裁判
+    retention: 随仓库; archive 后合并进主 spec
+  - id: repo-anchor-prd
+    role: schema
+    path_glob: ["/Users/Heishing/Desktop/spring course 2026/CS 61B/14-scheme-a-implementation-prd.md"]
+    owner: 用户 (唯一真相源)
+    editable_by: 仅用户 (Claude 只读, pretool-guard.js hook 强制阻断写)
+    rag_index: false
+    memory_write: false
+    rag_retrieval: not_indexed
+    provenance: PRD v5 锚定文档; §12 决策区 D1-D14 为用户手工批注
+    retention: 永久; 在 repo 之外
+
+# ---------------------------------------------------------------------------
+# 显式缺口登记 (只豁免 G1/G2/G3 三类"未登记类型"; 字面量绑定, 禁通配)
+# ---------------------------------------------------------------------------
+known_gaps:
+  - id: GAP-1
+    kind: placement_inconsistency
+    literal: "CS188"
+    finding_codes: []
+    reason: >-
+      课程材料同时归置在 `raw/CS188/` 与 vault 根级 `CS188/`、`CS189/` 两处,
+      两面准入均放行。本卡只登记现状不做归置收敛 (硬边界: 只登记, 不改 SKIP_DIRS
+      实现, 也不搬用户文件)。已在 dir-root-course-cs188 登记为正式行,
+      故本条**不豁免任何 finding**, 仅作移交备案。
+    owner_card: 未分配 (建议随 G8-2 raw-derived 混淆检查一并裁定)

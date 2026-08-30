@@ -1,0 +1,9 @@
+[2m台账[0m /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t4-roles/backend/scripts/vault_doc_roles.yaml
+[2mvault[0m /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault  (175 目录 / 324 文件, 只读)
+[2m双准入面实测分歧[0m 1 条: chatgpt-adversarial-review-Q1Q2Q3-2026-05-12.md
+[2m  info  .quarantine/UAT-2.5.X-test.md 的准入两列取自 any_level 行 root-uat-scratch(文件名黑名单盖过目录), 但其 owner/retention 只描述根级实例 —— 本文件的治理以容器行 dir-quarantine 为准[0m
+[2m  info  raw/CS188/CLAUDE.md 的准入两列取自 any_level 行 root-claude-md(文件名黑名单盖过目录), 但其 owner/retention 只描述根级实例 —— 本文件的治理以容器行 dir-raw 为准[0m
+[2m  info  raw/CS188/_misc/junk/未命名 1.md 的准入两列取自 any_level 行 root-untitled-scratch(文件名黑名单盖过目录), 但其 owner/retention 只描述根级实例 —— 本文件的治理以容器行 dir-misc-junk 为准[0m
+[2m  info  raw/CS188/_misc/junk/未命名.md 的准入两列取自 any_level 行 root-untitled-scratch(文件名黑名单盖过目录), 但其 owner/retention 只描述根级实例 —— 本文件的治理以容器行 dir-misc-junk 为准[0m
+[2m  info  raw/CS188/管道设计.md 的准入两列取自 any_level 行 root-pipeline-design(文件名黑名单盖过目录), 但其 owner/retention 只描述根级实例 —— 本文件的治理以容器行 dir-raw 为准[0m
+[92m✓ 无 finding —— live vault 全部类型已登记, 且台账双列与真实函数一致[0m
