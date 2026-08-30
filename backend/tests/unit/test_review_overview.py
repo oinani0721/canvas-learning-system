@@ -8,9 +8,15 @@ CARD-G3-6a (BATCH-2026-08-29-第六批) 追加: 五桶分层计数消费与跨�
 真文件), settings 走 reload_settings 真实配置机器 — 禁 mock 文件系统语义。
 """
 
+import hashlib
 import json
 import os
+import shutil
+import subprocess
+import sys
+import threading
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from urllib.parse import quote
 
 import pytest
@@ -1088,3 +1094,639 @@ def test_buckets_gate_accepts_real_producer_payload(tmp_path, overview_env):
         "future": 5,
     }
     assert entry["projection"]["due_count"] == payload["stats"]["due_nodes"] == 3
+
+
+# ════════════════════════════════════════════════════════════════════
+# CARD-G6-1 投影按需重建 (BATCH-2026-08-31-第七批)
+#
+# 一律真跑: 真 vault 目录 + 真节点 md + 真 subprocess 起真生产器脚本。
+# 不 mock 子进程、不 mock 文件系统 —— 本卡要证的恰恰是"写侧只碰了什么"
+# 与"并发下落盘不撕裂", 这两条在 mock 下无从证起。
+# ════════════════════════════════════════════════════════════════════
+
+_REFRESH_URL = "/api/v1/review/overview/refresh"
+_WT = Path(__file__).resolve().parents[3]
+_PICK_PATH = _WT / "scripts" / "daily_review_pick.py"
+_DECAY_PATH = _WT / "canvas-vault" / ".claude" / "scripts" / "decay_beta.py"
+
+
+def _node_md(board: str = "CS 61B", *, fsrs_due: str | None = None, extra: str = "") -> str:
+    """真节点 frontmatter (字段名与 daily_review_pick.scan_nodes 消费面对齐)。"""
+    fm = f'type: concept\nsource_board: "[[原白板/{board}]]"\n'
+    if fsrs_due is not None:
+        fm += f"fsrs_due: {fsrs_due}\n"
+    return f"---\n{fm}{extra}---\n这是真实的一句定义内容，不是占位符。\n"
+
+
+def _mk_node_vault(root: Path, name: str, nodes: dict[str, str]) -> Path:
+    """可被生产器真扫的 vault: .obsidian + 节点/*.md + vault 内 decay_beta。"""
+    vault = root / name
+    (vault / ".obsidian").mkdir(parents=True)
+    (vault / "节点").mkdir(parents=True)
+    scripts = vault / ".claude" / "scripts"
+    scripts.mkdir(parents=True)
+    shutil.copy(_DECAY_PATH, scripts)
+    for stem, content in nodes.items():
+        (vault / "节点" / f"{stem}.md").write_text(content, encoding="utf-8")
+    return vault
+
+
+def _tree(root: Path) -> dict[str, str]:
+    """全树指纹: 相对路径 → sha256 (目录记 <dir>)。
+
+    key 集合本身进指纹 —— 只比对已知文件的内容会漏掉"新增了一个文件"
+    (vault 内 __pycache__ 正是这种形态), 那样这道门就成了摆设。
+    """
+    out: dict[str, str] = {}
+    for p in sorted(root.rglob("*")):
+        rel = p.relative_to(root).as_posix()
+        out[rel] = "<dir>" if p.is_dir() else hashlib.sha256(p.read_bytes()).hexdigest()
+    return out
+
+
+def _is_projection_path(rel: str, vault_name: str) -> bool:
+    """本端点唯一获准改动的写面: <vault>/outputs/ 与 outputs/今日复习.*"""
+    return rel == f"{vault_name}/outputs" or rel.startswith(f"{vault_name}/outputs/今日复习.")
+
+
+@pytest.fixture
+def refresh_env(overview_env, monkeypatch):
+    """overview_env + 去抖窗口归零 (去抖本身另有专用用例锁)。
+
+    同时清掉 DAILY_REVIEW_PICK: 否则宿主环境若恰好设了它, 全部用例都会
+    去跑别处的脚本, 结果与被测 commit 无关。
+    """
+    import app.api.v1.endpoints.review_overview as mod
+
+    monkeypatch.delenv(mod._PICK_SCRIPT_ENV, raising=False)
+    monkeypatch.setattr(mod, "_REFRESH_TTL_SECONDS", 0.0)
+    return overview_env
+
+
+def test_refresh_rebuilds_projection_and_response_matches_disk(refresh_env):
+    """卡文 (c) 第一条: 盘中改一节点 fsrs_due → POST refresh → 响应与盘上
+    JSON 一致且含该节点。
+
+    两次真重建对比: 第一次全员未到期 (due=0), 改盘后第二次该节点必须出现
+    在盘上 due_nodes 里, 且响应的聚合条目与盘上 JSON 同源自洽。
+    """
+    root, client = refresh_env
+    vault = _mk_node_vault(
+        root,
+        "vault-r",
+        {
+            "定义甲": _node_md(fsrs_due='"2099-01-01T00:00:00Z"'),
+            "定义乙": _node_md(board="数学", fsrs_due='"2099-01-01T00:00:00Z"'),
+        },
+    )
+    proj = vault / "outputs" / "今日复习.json"
+
+    first = client.post(_REFRESH_URL, data={"vault_id": "vault-r"})
+    assert first.status_code == 200, first.text
+    assert proj.exists(), "第一次 refresh 就该把投影生成出来 (无投影库的首建路径)"
+    assert json.loads(proj.read_text(encoding="utf-8"))["stats"]["due_nodes"] == 0
+
+    # 盘中把一个节点改成已到期 (模拟 quiz 写侧刚落 fsrs_due)
+    (vault / "节点" / "定义甲.md").write_text(_node_md(fsrs_due='"2020-01-01T00:00:00Z"'), encoding="utf-8")
+
+    resp = client.post(_REFRESH_URL, data={"vault_id": "vault-r"})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["rebuilt"] is True and body["reason"] == "rebuilt"
+    assert body["rebuild_count"] == 2 and body["duration_ms"] > 0
+
+    disk = json.loads(proj.read_text(encoding="utf-8"))
+    assert [r["node"] for r in disk["due_nodes"]] == ["定义甲"], "盘上明细必须含被改的那个节点"
+    proj_summary = body["entry"]["projection"]
+    assert body["entry"]["status"] == "ok"
+    # 响应与盘上一致: 计数、板、以及点名到该节点
+    assert proj_summary["due_count"] == disk["stats"]["due_nodes"] == 1
+    assert proj_summary["top_node"] == "定义甲", "响应里点名的正是被改的那个节点"
+    assert proj_summary["recommended_board"] == "CS 61B"
+    assert proj_summary["generated_at"] == disk["generated_at"]
+    assert [r["board"] for r in proj_summary["boards"] if r["due"]] == ["CS 61B"]
+
+
+def test_refresh_writes_only_projection_and_never_touches_runner_state(refresh_env):
+    """卡文 (b)(c): 只写 outputs/今日复习.*; runner state 逐字节不变。
+
+    两态都锁 —— 已存在的 state 文件 shasum 必须不变, 本来不存在的
+    state 文件之后也必须仍不存在 ("没有发生"不等于"验证通过", 只查前者
+    等于放行"顺手创建一个 state"这条路)。
+    全树指纹覆盖整个 VAULTS_ROOT: vault 内 __pycache__ (生产器 import
+    decay_beta 的副产物) 会直接在这里露馅。
+    """
+    root, client = refresh_env
+    vault = _mk_node_vault(root, "vault-w", {"甲": _node_md(), "乙": _node_md(board="数学")})
+
+    backups = root / "backups"  # 非 vault (无 .obsidian) — 不进枚举, 只作写面靶子
+    backups.mkdir()
+    state = backups / "daily-review.vault-w.state.json"
+    state.write_text(
+        '{"schema_version": 1, "board_last_recommended": {"CS 61B": "2026-08-01"}}\n',
+        encoding="utf-8",
+    )
+    state_sha = hashlib.sha256(state.read_bytes()).hexdigest()
+    absent_state = backups / "daily-review.从未存在.state.json"
+
+    before = _tree(root)
+    assert client.post(_REFRESH_URL, data={"vault_id": "vault-w"}).status_code == 200
+    after = _tree(root)
+
+    assert hashlib.sha256(state.read_bytes()).hexdigest() == state_sha, "runner state 必须逐字节不变"
+    assert not absent_state.exists(), "不得凭空创建 runner state"
+
+    changed = {k for k in set(before) | set(after) if before.get(k) != after.get(k)}
+    illegal = {k for k in changed if not _is_projection_path(k, "vault-w")}
+    assert illegal == set(), f"写面越界: {sorted(illegal)}"
+    assert changed == {
+        "vault-w/outputs",
+        "vault-w/outputs/今日复习.json",
+        "vault-w/outputs/今日复习.md",
+    }, "写面必须恰好是这三项 (目录 + 两个产物), 多一项少一项都不行"
+
+
+def test_refresh_and_generator_interleaved_never_yield_unparsable_projection(refresh_env):
+    """卡文 (c): 并发 refresh × 生产器 --write 交错, 每轮 JSON 可 parse 且过 _summarize。
+
+    ⚠ 如实声明替换: 卡文写的是 "runner --now"。第二个写者这里用
+    `daily_review_pick.py --write` 而非 daily_review_run.py —— 撕裂门的被测
+    对象是 **outputs/ 两文件的原子发布**, 而 runner 落盘走的正是
+    picker.atomic_write 这同一段 (daily_review_run.ensure_payload 直接调它);
+    跑真 runner 还会连带写 backups/ state 与触推送链, 与本卡"不写 runner
+    state"的裁判自相矛盾, 且 daily_review_run.py 在本车道硬边界之外。
+    """
+    root, client = refresh_env
+    vault = _mk_node_vault(
+        root,
+        "vault-c",
+        {f"节点{i:02d}": _node_md(board=f"板{i % 4}", fsrs_due=f'"20{20 + i % 5}-01-01T00:00:00Z"') for i in range(48)},
+    )
+    proj = vault / "outputs" / "今日复习.json"
+    assert client.post(_REFRESH_URL, data={"vault_id": "vault-c"}).status_code == 200
+
+    import app.api.v1.endpoints.review_overview as mod
+
+    stop = threading.Event()
+    writer_failures: list[str] = []
+    writer_rounds = 0
+
+    def _writer():
+        nonlocal writer_rounds
+        env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+        while not stop.is_set():
+            r = subprocess.run(
+                [sys.executable, str(_PICK_PATH), "--vault", str(vault), "--write"],
+                capture_output=True,
+                text=True,
+                env=env,
+            )
+            if r.returncode != 0:
+                writer_failures.append(r.stderr[-300:])
+                return
+            writer_rounds += 1
+
+    thread = threading.Thread(target=_writer, daemon=True)
+    thread.start()
+    try:
+        for i in range(12):
+            resp = client.post(_REFRESH_URL, data={"vault_id": "vault-c"})
+            assert resp.status_code == 200, resp.text
+            raw = proj.read_text(encoding="utf-8")
+            payload = json.loads(raw)  # 撕裂的拼接物在这里就炸
+            mod._summarize(payload)  # 且必须过总览端点的全部门禁
+            assert resp.json()["entry"]["status"] in ("ok", "stale"), resp.json()["entry"].get("error")
+    finally:
+        stop.set()
+        thread.join(timeout=120)
+    assert not writer_failures, f"并发写者自身失败: {writer_failures[:1]}"
+    assert not thread.is_alive()
+    # ⚠ 反死门: 写者线程一次都没跑完的话, 上面 12 轮"没撕裂"只是因为根本
+    # 没有第二个写者 —— 那这道门是空的。必须先证明交错真实发生。
+    assert writer_rounds >= 3, f"并发写者只完成 {writer_rounds} 轮, 交错未真实发生, 本门不成立"
+    # 交错结束后不得留下任何 tmp 残渣
+    assert list((vault / "outputs").glob("*.tmp")) == []
+
+
+def test_get_endpoints_stay_pure_after_refresh(refresh_env):
+    """卡文 (c): GET /overview 与 /page 恒纯 (前后 outputs mtime + shasum 断言)。"""
+    root, client = refresh_env
+    vault = _mk_node_vault(root, "vault-g", {"甲": _node_md()})
+    assert client.post(_REFRESH_URL, data={"vault_id": "vault-g"}).status_code == 200
+
+    outputs = vault / "outputs"
+
+    def _snap():
+        return {
+            p.name: (p.stat().st_mtime_ns, hashlib.sha256(p.read_bytes()).hexdigest())
+            for p in sorted(outputs.iterdir())
+        }
+
+    before = _snap()
+    for _ in range(3):
+        assert client.get("/api/v1/review/overview").status_code == 200
+        assert client.get("/api/v1/review/overview/page").status_code == 200
+    assert _snap() == before, "GET 侧任何一次调用都不许改动投影 (mtime 也不许动)"
+
+
+def test_ttl_debounce_ten_clicks_at_most_one_rebuild(overview_env, monkeypatch):
+    """卡文 (b): 短窗 10 连击 ≤1 次真实重建, 重建计数暴露在响应。
+
+    刻意不用 refresh_env —— 这条要跑**默认 TTL**, 归零后就没有可测的东西了。
+    """
+    import app.api.v1.endpoints.review_overview as mod
+
+    monkeypatch.delenv(mod._PICK_SCRIPT_ENV, raising=False)
+    assert mod._REFRESH_TTL_SECONDS > 0, "默认必须有去抖窗口"
+
+    root, client = overview_env
+    vault = _mk_node_vault(root, "vault-d", {"甲": _node_md()})
+    proj = vault / "outputs" / "今日复习.json"
+
+    bodies = []
+    for _ in range(10):
+        r = client.post(_REFRESH_URL, data={"vault_id": "vault-d"})
+        assert r.status_code == 200, r.text
+        bodies.append(r.json())
+        if len(bodies) == 1:
+            first_sig = (proj.stat().st_mtime_ns, hashlib.sha256(proj.read_bytes()).hexdigest())
+
+    assert bodies[0]["rebuilt"] is True and bodies[0]["reason"] == "rebuilt"
+    assert all(b["rebuilt"] is False and b["reason"] == "debounced" for b in bodies[1:])
+    assert {b["rebuild_count"] for b in bodies} == {1}, "10 次点击只许有 1 次真实重建"
+    assert all(b["retry_after_seconds"] > 0 for b in bodies[1:])
+    assert bodies[0]["debounce_ttl_seconds"] == mod._REFRESH_TTL_SECONDS
+    assert (proj.stat().st_mtime_ns, hashlib.sha256(proj.read_bytes()).hexdigest()) == first_sig, (
+        "被去抖的 9 次不许碰盘"
+    )
+    # 去抖返回的仍是真实盘上状态, 不是"上次响应的缓存复读"
+    assert bodies[-1]["entry"]["projection"]["generated_at"] == json.loads(proj.read_text("utf-8"))["generated_at"]
+
+
+def test_debounce_window_is_per_vault_not_global(refresh_env, monkeypatch):
+    """去抖账按库独立: A 库刚重建过, 不许把 B 库的第一次点击也吞掉。"""
+    import app.api.v1.endpoints.review_overview as mod
+
+    monkeypatch.setattr(mod, "_REFRESH_TTL_SECONDS", 300.0)
+    root, client = refresh_env
+    _mk_node_vault(root, "vault-x", {"甲": _node_md()})
+    _mk_node_vault(root, "vault-y", {"乙": _node_md()})
+
+    assert client.post(_REFRESH_URL, data={"vault_id": "vault-x"}).json()["rebuilt"] is True
+    assert client.post(_REFRESH_URL, data={"vault_id": "vault-x"}).json()["rebuilt"] is False
+    y = client.post(_REFRESH_URL, data={"vault_id": "vault-y"}).json()
+    assert y["rebuilt"] is True and y["rebuild_count"] == 1
+    assert (root / "vault-y" / "outputs" / "今日复习.json").exists()
+
+
+def test_second_click_while_rebuild_in_flight_returns_in_progress(refresh_env):
+    """同库已有重建在飞 → 立刻回 in_progress, 不排队。
+
+    sync 端点跑在 FastAPI 共享线程池 (默认 40 线程) 里: 阻塞等锁会让连点
+    把整池占满, 连只读的 /overview 都被拖住。这里把该库的锁先占住冒充
+    "在飞", 端点必须立刻回话而不是卡住 (若它选择阻塞, 本用例会挂死)。
+    """
+    import app.api.v1.endpoints.review_overview as mod
+
+    root, client = refresh_env
+    vault = _mk_node_vault(root, "vault-i", {"甲": _node_md()})
+    key = str(Path(root).resolve() / "vault-i")  # 端点侧的 key 是 resolve 过的
+    lock = threading.Lock()
+    with mod._refresh_guard:
+        mod._refresh_locks[key] = lock
+    assert lock.acquire(blocking=False)
+    try:
+        resp = client.post(_REFRESH_URL, data={"vault_id": "vault-i"})
+    finally:
+        lock.release()
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["rebuilt"] is False and body["reason"] == "in_progress"
+    assert not (vault / "outputs").exists(), "在飞时第二个请求不许也去写盘"
+    assert body["entry"]["status"] == "no_projection", "在飞时如实报当前盘上状态, 不编造投影"
+
+
+def test_missing_pick_script_fails_closed_503_without_writing(refresh_env, monkeypatch):
+    """卡文 (b): 路径耦合断裂 → 503 fail-closed, 绝不静默假成功。
+
+    关键在于**一个字节都不许写** —— 「找不到生产器就本地重算一份」会当场
+    造出 A2 明令禁止的第二套到期裁判。
+    """
+    import app.api.v1.endpoints.review_overview as mod
+
+    root, client = refresh_env
+    _mk_node_vault(root, "vault-f", {"甲": _node_md()})
+    monkeypatch.setattr(mod, "_PICK_REL", ("scripts", "根本不存在的生产器.py"))
+    monkeypatch.setenv(mod._PICK_SCRIPT_ENV, str(root / "也不存在.py"))
+
+    before = _tree(root)
+    resp = client.post(_REFRESH_URL, data={"vault_id": "vault-f"})
+    assert resp.status_code == 503
+    detail = resp.json()["detail"]
+    assert detail["error"] == "pick_script_not_found"
+    assert detail["tried"], "必须列出试过的路径 (否则现场无从诊断)"
+    assert _tree(root) == before, "fail-closed 路径不许留下任何写入"
+
+
+def test_pick_nonzero_exit_fails_closed_503(refresh_env, monkeypatch, tmp_path):
+    """生产器非零退出 → 503 + stderr 尾部, 不许把旧投影当新的宣称成功。"""
+    import app.api.v1.endpoints.review_overview as mod
+
+    root, client = refresh_env
+    _mk_node_vault(root, "vault-e", {"甲": _node_md()})
+    boom = tmp_path / "boom.py"
+    boom.write_text("import sys\nsys.stderr.write('生产器炸了: 边界条件 X\\n')\nsys.exit(3)\n", encoding="utf-8")
+    monkeypatch.setenv(mod._PICK_SCRIPT_ENV, str(boom))
+
+    resp = client.post(_REFRESH_URL, data={"vault_id": "vault-e"})
+    assert resp.status_code == 503
+    detail = resp.json()["detail"]
+    assert detail["error"] == "pick_failed" and detail["returncode"] == 3
+    assert "生产器炸了" in detail["stderr_tail"]
+    assert not (root / "vault-e" / "outputs").exists(), "失败不许留下半个 outputs"
+
+
+def test_zero_exit_without_projection_is_not_success(refresh_env, monkeypatch, tmp_path):
+    """Codex round-1 HIGH-1: 退出码 0 ≠ 重建成功。
+
+    一个 rc=0 却什么都不写的生产器, 若被记成 rebuilt=true, 表单路径再 303
+    跳回总览页 —— 用户看到"点了、跳回来了、什么都没变", 静默假成功的完整
+    形态。必须 503, 且**不许提交 TTL mark**(否则用户修好前每次点击都被
+    去抖吃掉, 永远修不回来)。
+    """
+    import app.api.v1.endpoints.review_overview as mod
+
+    root, client = refresh_env
+    _mk_node_vault(root, "vault-noop", {"甲": _node_md()})
+    noop = tmp_path / "noop.py"
+    noop.write_text("import sys\nsys.exit(0)\n", encoding="utf-8")
+    monkeypatch.setenv(mod._PICK_SCRIPT_ENV, str(noop))
+    monkeypatch.setattr(mod, "_REFRESH_TTL_SECONDS", 300.0)  # 有窗口才测得出"没记 mark"
+
+    for i in (1, 2):
+        resp = client.post(_REFRESH_URL, data={"vault_id": "vault-noop"})
+        assert resp.status_code == 503, f"第{i}次: rc=0 但无产物必须 503, 实为 {resp.status_code}"
+        assert resp.json()["detail"]["error"] == "projection_missing_after_rebuild"
+    assert not (root / "vault-noop" / "outputs").exists()
+
+    # 表单路径同样不许降级成 303
+    form = client.post(_REFRESH_URL, data={"vault_id": "vault-noop", "redirect": "page"}, follow_redirects=False)
+    assert form.status_code == 503 and "刷新失败" in form.text
+
+
+def test_zero_exit_with_corrupt_projection_is_not_success(refresh_env, monkeypatch, tmp_path):
+    """rc=0 但产出过不了 schema v3 门禁 → 同样不算重建成功。"""
+    import app.api.v1.endpoints.review_overview as mod
+
+    root, client = refresh_env
+    _mk_node_vault(root, "vault-garbage", {"甲": _node_md()})
+    faker = tmp_path / "faker.py"
+    faker.write_text(
+        "import sys, pathlib\n"
+        "v = pathlib.Path(sys.argv[sys.argv.index('--vault') + 1])\n"
+        "(v / 'outputs').mkdir(parents=True, exist_ok=True)\n"
+        "(v / 'outputs' / '今日复习.json').write_text('{\"schema_version\": 2}', encoding='utf-8')\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv(mod._PICK_SCRIPT_ENV, str(faker))
+
+    resp = client.post(_REFRESH_URL, data={"vault_id": "vault-garbage"})
+    assert resp.status_code == 503
+    assert resp.json()["detail"]["error"] == "projection_corrupt_after_rebuild"
+
+
+def test_symlink_aliases_share_one_debounce_ledger(refresh_env, monkeypatch):
+    """Codex round-1 BLOCKER-2 附带: 同一物理库的两条软链别名必须共用同一
+    把锁与同一本去抖账 —— 用字面路径做 key 会给它们各一份, 同一个物理库
+    就能被两条别名并发重建。"""
+    import app.api.v1.endpoints.review_overview as mod
+
+    monkeypatch.setattr(mod, "_REFRESH_TTL_SECONDS", 300.0)
+    root, client = refresh_env
+    _mk_node_vault(root, "物理库", {"甲": _node_md()})
+    (root / "别名库").symlink_to(Path(root).resolve() / "物理库", target_is_directory=True)
+
+    first = client.post(_REFRESH_URL, data={"vault_id": "物理库"}).json()
+    assert first["rebuilt"] is True
+    alias = client.post(_REFRESH_URL, data={"vault_id": "别名库"}).json()
+    assert alias["rebuilt"] is False and alias["reason"] == "debounced", "别名必须落进同一本去抖账"
+    assert alias["rebuild_count"] == 1
+
+
+def test_cross_site_form_post_is_blocked(refresh_env):
+    """本端点会写文件并起子进程, 而全站无鉴权 —— 别的网页放一个跨站 <form>
+    就能借用户的浏览器把它发出去 (CORS 只挡读响应, 挡不住副作用)。
+
+    同源提交与非浏览器客户端 (curl / 验收脚本, 两个头都不带) 必须照常放行。
+    """
+    root, client = refresh_env
+    _mk_node_vault(root, "vault-csrf", {"甲": _node_md()})
+
+    for headers in (
+        {"Sec-Fetch-Site": "cross-site"},
+        {"Origin": "https://evil.example.com"},
+        {"Sec-Fetch-Site": "same-site", "Origin": "http://attacker.testserver"},
+    ):
+        r = client.post(_REFRESH_URL, data={"vault_id": "vault-csrf"}, headers=headers)
+        assert r.status_code == 403, f"{headers} 应被拒, 实为 {r.status_code}"
+        assert r.json()["detail"]["error"] == "cross_site_blocked"
+    assert not (root / "vault-csrf" / "outputs").exists(), "被拒的跨站请求不许留下任何写入"
+
+    # 本页发起的同源提交照常
+    ok = client.post(
+        _REFRESH_URL,
+        data={"vault_id": "vault-csrf"},
+        headers={"Sec-Fetch-Site": "same-origin", "Origin": "http://testserver"},
+    )
+    assert ok.status_code == 200 and ok.json()["rebuilt"] is True
+    # 不带这两个头的客户端 (curl) 照常
+    assert client.post(_REFRESH_URL, data={"vault_id": "vault-csrf"}).status_code == 200
+
+
+def test_symlinked_vault_outside_root_is_refused(refresh_env, tmp_path_factory):
+    """VAULTS_ROOT 下指向库外的软链会被 `is_dir()` 当成真库列出来 —— 那时
+    refresh 就把东西写到了库外。realpath 归属判定必须挡住它 (Codex 探针
+    VAULT_SYMLINK 同型)。"""
+    root, client = refresh_env
+    outside = tmp_path_factory.mktemp("outside")
+    _mk_node_vault(outside, "真身", {"甲": _node_md()})
+    (root / "看起来在根里的库").symlink_to(outside / "真身", target_is_directory=True)
+
+    resp = client.post(_REFRESH_URL, data={"vault_id": "看起来在根里的库"})
+    assert resp.status_code == 503
+    assert resp.json()["detail"]["error"] == "vault_outside_root"
+    assert not (outside / "真身" / "outputs").exists(), "拒绝之后不许有任何库外写入"
+
+
+def test_symlinked_outputs_outside_vault_is_refused(refresh_env, tmp_path_factory):
+    """`<vault>/outputs` 指向库外时, "只写 outputs/今日复习.*" 这句话字面
+    还成立, 实际写面却已经出了库 (Codex 探针 OUTPUTS_SYMLINK 同型)。"""
+    root, client = refresh_env
+    vault = _mk_node_vault(root, "outputs被换掉的库", {"甲": _node_md()})
+    elsewhere = tmp_path_factory.mktemp("elsewhere") / "落点"
+    elsewhere.mkdir()
+    (vault / "outputs").symlink_to(elsewhere, target_is_directory=True)
+
+    resp = client.post(_REFRESH_URL, data={"vault_id": "outputs被换掉的库"})
+    assert resp.status_code == 503
+    assert resp.json()["detail"]["error"] == "outputs_outside_vault"
+    assert list(elsewhere.iterdir()) == [], "拒绝之后库外落点必须仍是空的"
+
+
+def test_child_env_is_allowlisted_not_inherited(refresh_env, monkeypatch):
+    """子进程环境是白名单, 不是 `dict(os.environ)`。
+
+    整份继承会让 PYTHONPATH 把 `import decay_beta` 解析到**库外**的另一个
+    模块, 那段代码在后端进程权限下执行、想写哪儿写哪儿 (Codex 探针
+    INHERITED_ENV 同型)。这里直接查子进程环境的构造。
+    """
+    import app.api.v1.endpoints.review_overview as mod
+
+    monkeypatch.setenv("PYTHONPATH", "/tmp/注入点")
+    monkeypatch.setenv("PYTHONSTARTUP", "/tmp/注入.py")
+    monkeypatch.setenv("SOME_SECRET_TOKEN", "sk-不该进子进程")
+    monkeypatch.setenv("TZ", "Asia/Shanghai")
+
+    env = mod._child_env()
+    assert "PYTHONPATH" not in env and "PYTHONSTARTUP" not in env
+    assert "SOME_SECRET_TOKEN" not in env, "后端进程的密钥不该顺手进子进程"
+    assert env["PYTHONDONTWRITEBYTECODE"] == "1" and env["PYTHONNOUSERSITE"] == "1"
+    assert env.get("TZ") == "Asia/Shanghai", "时区要透传 — 本地日语义得与宿主一致"
+
+    # 端到端: 带着注入 env 跑真 refresh 仍要正常出投影 (白名单没砍掉必需项)
+    root, client = refresh_env
+    _mk_node_vault(root, "vault-env", {"甲": _node_md()})
+    resp = client.post(_REFRESH_URL, data={"vault_id": "vault-env"})
+    assert resp.status_code == 200 and resp.json()["entry"]["status"] == "ok"
+
+
+def test_unconfigured_vault_gets_human_hint_not_bare_traceback(refresh_env):
+    """只有 .obsidian/ 的库 (被库枚举捞进来但从没配过每日复习): 生产器会抛
+    ModuleNotFoundError: decay_beta —— 必须给人话诊断, 不能只甩 traceback。
+
+    实测场景, 不是假想: 库枚举规则只看 .obsidian/, live 上就有这种库。
+    """
+    root, client = refresh_env
+    _mk_vault(root, "光有obsidian的库")  # 无 节点/, 无 .claude/scripts/decay_beta.py
+
+    resp = client.post(_REFRESH_URL, data={"vault_id": "光有obsidian的库"})
+    assert resp.status_code == 503
+    detail = resp.json()["detail"]
+    assert detail["error"] == "pick_failed"
+    assert "节点" in detail["hint"] and "decay_beta.py" in detail["hint"]
+    # 原始现场不许藏 —— 人话解释旁边仍要有 stderr 尾部
+    assert "decay_beta" in detail["stderr_tail"]
+
+    # 配齐的库不该带这条提示 (提示恒挂 = 提示无意义)
+    _mk_node_vault(root, "配齐的库", {"甲": _node_md()})
+    ok = client.post(_REFRESH_URL, data={"vault_id": "配齐的库"})
+    assert ok.status_code == 200 and ok.json()["rebuilt"] is True
+
+
+def test_form_path_failure_renders_error_page_and_keeps_status(refresh_env):
+    """表单路径失败 → 人话 HTML 错误页, **状态码仍是原样的 4xx/5xx**。
+
+    失败时 303 跳回总览页, 用户会看到"页面刷新了但什么都没变"→ 以为成功了,
+    那就是静默假成功的浏览器版本。
+    """
+    root, client = refresh_env
+    _mk_vault(root, "没配过的库")
+
+    resp = client.post(_REFRESH_URL, data={"vault_id": "没配过的库", "redirect": "page"}, follow_redirects=False)
+    assert resp.status_code == 503, "失败绝不许降级成 3xx/2xx"
+    assert resp.headers["content-type"].startswith("text/html")
+    assert "刷新失败" in resp.text and "没配过的库" in resp.text
+    assert "decay_beta.py" in resp.text  # hint 上页
+    assert "回到总览页" in resp.text
+    assert "<script" not in resp.text.lower()
+
+    # 未知库走表单也是错误页, 且状态码保持 404
+    r404 = client.post(_REFRESH_URL, data={"vault_id": "根本没有这个库", "redirect": "page"}, follow_redirects=False)
+    assert r404.status_code == 404 and "刷新失败" in r404.text
+
+
+def test_error_page_escapes_hostile_vault_name(refresh_env):
+    """错误页里的库名同样是外部输入 —— 未转义即 XSS (且这条路径最容易漏)。"""
+    root, client = refresh_env
+    hostile = 'x"><img src=y onerror=alert(2)>'
+    _mk_vault(root, hostile)
+
+    resp = client.post(_REFRESH_URL, data={"vault_id": hostile, "redirect": "page"}, follow_redirects=False)
+    assert resp.status_code == 503
+    assert "<img src=y onerror=alert(2)>" not in resp.text
+    assert "&lt;img src=y onerror=alert(2)&gt;" in resp.text
+
+
+def test_unknown_vault_id_404_and_broken_root_503(refresh_env, monkeypatch):
+    """vault_id 只认枚举出来的真实库名 (天然堵死 ../ 遍历); 根不可用 → 503。"""
+    import types
+
+    import app.api.v1.endpoints.review_overview as mod
+
+    root, client = refresh_env
+    _mk_node_vault(root, "vault-k", {"甲": _node_md()})
+
+    for bogus in ("不存在的库", "../", "../vault-k", "vault-k/节点"):
+        r = client.post(_REFRESH_URL, data={"vault_id": bogus})
+        assert r.status_code == 404, f"{bogus!r} 应 404, 实为 {r.status_code}"
+        assert r.json()["detail"]["error"] == "vault_not_found"
+
+    monkeypatch.setattr(
+        mod,
+        "get_settings",
+        lambda: types.SimpleNamespace(VAULTS_ROOT=str(root / "没有这个根"), ACTIVE_VAULT="x"),
+    )
+    r = client.post(_REFRESH_URL, data={"vault_id": "vault-k"})
+    assert r.status_code == 503 and r.json()["detail"]["error"] == "vaults_root_invalid"
+
+
+def test_page_refresh_form_is_zero_js_and_redirects_back(refresh_env):
+    """卡文 (a): 页面上的刷新按钮是纯 HTML form POST, 零 JS; PRG 回跳。"""
+    root, client = refresh_env
+    _mk_node_vault(root, "vault-p", {"甲": _node_md()})
+    _mk_vault(root, "vault-empty")  # 无投影库同样要有刷新按钮 (它最需要)
+
+    page = client.get("/api/v1/review/overview/page")
+    assert page.status_code == 200
+    assert page.text.count(f'action="{_REFRESH_URL}"') == 2, "两个库各一个刷新表单"
+    assert '<input type="hidden" name="vault_id" value="vault-p">' in page.text
+    assert '<input type="hidden" name="vault_id" value="vault-empty">' in page.text
+    assert 'name="redirect" value="page"' in page.text
+    assert "<script" not in page.text.lower() and "onclick" not in page.text.lower()
+
+    resp = client.post(_REFRESH_URL, data={"vault_id": "vault-p", "redirect": "page"}, follow_redirects=False)
+    assert resp.status_code == 303, "PRG: 303 回 GET, 浏览器刷新不会重复提交"
+    assert resp.headers["location"] == "/api/v1/review/overview/page"
+    assert (root / "vault-p" / "outputs" / "今日复习.json").exists()
+
+
+def test_refresh_form_escapes_hostile_vault_name(refresh_env):
+    """库名里的引号/尖括号必须转义 —— 目录名是外部输入, 直接进属性即 XSS。
+
+    敌对名里不能含 `/` (它是路径分隔符, mkdir 会造出两级目录而不是一个
+    敌对库名 —— 实测踩过), 故用无斜杠的 img/onerror 载荷。
+    """
+    root, client = refresh_env
+    hostile = 'a"><img src=x onerror=alert(1)>'
+    _mk_node_vault(root, hostile, {"甲": _node_md()})
+
+    page = client.get("/api/v1/review/overview/page")
+    assert page.status_code == 200
+    assert "<img src=x onerror=alert(1)>" not in page.text, "原样注入即 XSS"
+    assert "&lt;img src=x onerror=alert(1)&gt;" in page.text
+    assert 'value="a&quot;&gt;&lt;img src=x onerror=alert(1)&gt;"' in page.text
+    # 表单能真提交回来 (转义不等于把库名改坏 — 端点仍按原名匹配到该库)
+    resp = client.post(_REFRESH_URL, data={"vault_id": hostile}, follow_redirects=False)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["vault_id"] == hostile
+    assert (root / hostile / "outputs" / "今日复习.json").exists()
+
+
+def test_missing_vault_id_is_422_not_silent_noop(refresh_env):
+    """缺 vault_id → 422 (FastAPI 表单校验), 不许静默重建"某个"库。"""
+    root, client = refresh_env
+    _mk_node_vault(root, "vault-m", {"甲": _node_md()})
+    resp = client.post(_REFRESH_URL, data={})
+    assert resp.status_code == 422
+    assert not (root / "vault-m" / "outputs").exists()

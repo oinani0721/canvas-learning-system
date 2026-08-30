@@ -6,10 +6,13 @@ CARD-G3-6a (BATCH-2026-08-29-第六批) 追加: 五桶划分律 (互斥+完备) 
 why_due 6 模板 / 加性纯度金样 (pop 新字段后与引入前字面量深度全等)。
 """
 
+import os
 import shutil
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+import pytest
 
 WT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(WT / "scripts"))
@@ -898,3 +901,73 @@ def test_today_sh_three_tier_fallback_never_raises():
     assert picker._today_sh(low) == low.date(), "下界: 上海与 UTC 换算双溢出 → 退自身表示日"
     normal = datetime(2026, 7, 30, 1, 0, tzinfo=timezone.utc)
     assert picker._today_sh(normal).isoformat() == "2026-07-30", "常规值仍走上海日"
+
+
+# ════════════════════════════════════════════════════════════════════
+# CARD-G6-1 (BATCH-2026-08-31-第七批) atomic_write tmp 唯一化
+# ════════════════════════════════════════════════════════════════════
+
+
+def test_atomic_write_abandons_legacy_fixed_tmp_name(tmp_path):
+    """旧实现固定用 `<原名>.tmp`, 两个并发写者共享同一个 tmp —— 各按自己的
+    offset 落盘, 内容交错, 总长等于较长那份 (wc -c 看不出), 随后双方
+    os.replace 发布同一个拼接损坏物。
+
+    这里在那个固定名上放一个**目录**: 只要实现还在用它, write_text 必炸
+    (IsADirectoryError); 唯一化后的实现根本不碰它, 照常发布。确定性门,
+    不靠赛跑概率。
+    """
+    target = tmp_path / "今日复习.json"
+    legacy_tmp = tmp_path / "今日复习.json.tmp"  # 旧实现: with_suffix(".json.tmp")
+    legacy_tmp.mkdir()
+
+    picker.atomic_write(target, '{"schema_version": 3}\n')
+
+    assert target.read_text(encoding="utf-8") == '{"schema_version": 3}\n'
+    assert legacy_tmp.is_dir(), "旧固定名不该被碰"
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["今日复习.json", "今日复习.json.tmp"], (
+        "发布后不得残留任何 tmp"
+    )
+
+
+def test_atomic_write_tmp_names_are_distinct_across_calls(tmp_path):
+    """同目录下两个不同 target 各自的 tmp 名互不相同, 且都以 `<原名>.` 开头
+    (与 outputs/今日复习.* 同前缀 —— 不给"只写今日复习.*"的写面审计新增
+    可见面), 以 `.tmp` 收尾 (outputs/*.md 一类 glob 不会误吃)。
+
+    观测手段: 在 write_text 落盘的一瞬间用目录快照抓 tmp 名 —— 不打桩
+    os.replace (patch 进程内共享的 os 属性会连 pathlib 内部一起拦)。
+    """
+    seen: list[str] = []
+    orig = picker.Path.write_text
+
+    def _spy(self, *a, **kw):
+        rc = orig(self, *a, **kw)
+        seen.extend(p.name for p in tmp_path.iterdir() if p.name.endswith(".tmp"))
+        return rc
+
+    picker.Path.write_text = _spy
+    try:
+        picker.atomic_write(tmp_path / "今日复习.json", "a\n")
+        picker.atomic_write(tmp_path / "今日复习.md", "b\n")
+    finally:
+        picker.Path.write_text = orig
+
+    assert len(seen) == 2 and len(set(seen)) == 2, f"两次落盘的 tmp 名必须互异: {seen}"
+    assert seen[0].startswith("今日复习.json.") and seen[0].endswith(".tmp")
+    assert seen[1].startswith("今日复习.md.") and seen[1].endswith(".tmp")
+    assert str(os.getpid()) in seen[0], "tmp 名须含 pid — 跨进程并发才不撞"
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["今日复习.json", "今日复习.md"]
+
+
+def test_atomic_write_cleans_tmp_when_publish_fails(tmp_path):
+    """发布失败必须清掉半截 tmp —— 留在 vault 里同样是写面污染 (且会被
+    Obsidian 同步 / 备份链一路带走)。target 是目录时 os.replace 必失败。"""
+    target = tmp_path / "今日复习.json"
+    target.mkdir()
+
+    with pytest.raises(OSError):
+        picker.atomic_write(target, "内容\n")
+
+    assert list(tmp_path.glob("今日复习.json.*.tmp")) == [], "失败路径必须清掉 tmp 残渣"
+    assert target.is_dir(), "失败不该把 target 改成别的东西"
