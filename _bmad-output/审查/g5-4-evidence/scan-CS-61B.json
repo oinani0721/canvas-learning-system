@@ -1,0 +1,204 @@
+{
+ "board_exists": true,
+ "board_stem": "CS 61B",
+ "board_name": "CS 61B 数据结构",
+ "recap_date": "2026-08-28",
+ "report_path": "outputs/回顾-CS 61B-2026-08-28.md",
+ "data_mode": "fallback_local",
+ "manifest": {
+  "unusable_reason": "未提供 --manifest"
+ },
+ "source_revision": {
+  "board_sha256": "c544f19530e35bc6788e6a4ea1eb17f5974237f2ac25929f35b3f57cbf590878",
+  "board_mtime_utc": "2026-08-15T00:00:21Z",
+  "scan_at_utc": "2026-08-28T14:09:48Z",
+  "manifest_generated_at": null,
+  "manifest_lag_seconds": null,
+  "manifest_stale": null
+ },
+ "signals": {
+  "signals_version": 1,
+  "policy": "zero_threshold",
+  "asof": "2026-08-28T14:09:48Z",
+  "unanswered_question_age": {
+   "value": 17,
+   "denominator": 3,
+   "percentile_ref": {
+    "p25_days": 17,
+    "p50_days": 17,
+    "p75_days": 17,
+    "max_days": 17
+   },
+   "availability": "文件",
+   "asof": "2026-08-28T14:09:48Z",
+   "undated": 0,
+   "note": "value=最老年龄(天); added_at=最后变更时间(C5 边界), 时序封顶文件档; 未答=全部 tips 上界(无已答标记); 无时间戳条目不参与"
+  },
+  "source_coverage": {
+   "value": 0,
+   "denominator": 2,
+   "percentile_ref": null,
+   "by_role": {
+    "seed": {
+     "with_provenance": 0,
+     "total": 2
+    }
+   },
+   "availability": "文件",
+   "asof": "2026-08-28T14:09:48Z",
+   "note": "来源锚点=source_note 或 relation.target; 二值信号无分位, 板内参考=by_role"
+  },
+  "unsourced_conclusions": {
+   "value": null,
+   "denominator": 0,
+   "percentile_ref": null,
+   "node_ids": [],
+   "availability": "无据",
+   "asof": "2026-08-28T14:09:48Z",
+   "note": "分母=派生角色成员; fallback 的角色为本地推定 → 推定档; 分母 0 = 无据"
+  },
+  "duplicate_accumulation": {
+   "value": 0,
+   "denominator": 3,
+   "percentile_ref": null,
+   "groups": [],
+   "availability": "文件",
+   "asof": "2026-08-28T14:09:48Z",
+   "note": "重复口径=空白折叠+casefold+200字截断后全等 (超长 tips 仅比对前 200 字, M9 截断口径); value=冗余条数 Σ(组-1); 空文本不参与"
+  }
+ },
+ "ledger": {
+  "seeds": [
+   {
+    "node_id": "cs-61b-csm",
+    "role": "seed",
+    "role_source": "local_inferred",
+    "is_stub": false,
+    "mastery_score": 0.3,
+    "mastery_source": "local_frontmatter",
+    "attempt_count": null,
+    "last_examined": null,
+    "created_at": null,
+    "created_from": null,
+    "source_note": null,
+    "pick_rank": null,
+    "relation_type": null,
+    "relation_target": null,
+    "derived_at": null,
+    "derived_reason": null,
+    "tips": [
+     {
+      "text": "提供有针对性的 (affinity) 辅导小组，例如面向女性、LGBTQ+、EOP、SEED 或 CS Scholar 的学生 [03:21]()。",
+      "tag": "error",
+      "understanding": "fuzzy",
+      "added_at": "2026-08-10T14:50:07.564Z"
+     },
+     {
+      "text": "每学期末开放申请，下学期初截止 [03:57]()。",
+      "tag": "tips",
+      "understanding": "understood",
+      "added_at": "2026-08-10T14:50:07.564Z"
+     }
+    ],
+    "tips_count": 2,
+    "tips_open": 1,
+    "error_candidates_pending": 0,
+    "body_callout_count": 3,
+    "derived_children": null,
+    "derived_children_count": null
+   },
+   {
+    "node_id": "csm-tutoring-unit-credit",
+    "role": "seed",
+    "role_source": "local_inferred",
+    "is_stub": false,
+    "mastery_score": 0.01,
+    "mastery_source": "local_frontmatter",
+    "attempt_count": "1",
+    "last_examined": "2026-08-11T13:55:58Z",
+    "created_at": null,
+    "created_from": null,
+    "source_note": null,
+    "pick_rank": null,
+    "relation_type": null,
+    "relation_target": null,
+    "derived_at": null,
+    "derived_reason": null,
+    "tips": [
+     {
+      "text": "你在考『csm-tutoring-unit-credit』时作答「111」，没说清这个节点在 CS 61B 主题下讲什么、为什么值得单独成节点。 AI 判断来源：你在回答『csm-tutoring-unit-credit』的考题时提出。原因：0 分作答暴露的概念缺口——CSM 辅导学分这一概念尚未建立起来。",
+      "tag": "question",
+      "understanding": null,
+      "added_at": "2026-08-11T13:56:49.967Z"
+     }
+    ],
+    "tips_count": 1,
+    "tips_open": 1,
+    "error_candidates_pending": 0,
+    "body_callout_count": 1,
+    "derived_children": null,
+    "derived_children_count": null
+   }
+  ],
+  "derived": [],
+  "unknown": []
+ },
+ "counts": {
+  "members": 2,
+  "seeds": 2,
+  "derived": 0,
+  "stubs": 0,
+  "never_examined": 1,
+  "tips_total": 3,
+  "tips_unanswered_upper_bound": 3,
+  "tips_understanding_open": 2,
+  "tips_undated": 0,
+  "body_callouts": 4,
+  "annotations": 3,
+  "relation_types": {},
+  "error_candidates_pending": 0
+ },
+ "tips_oldest3": [
+  {
+   "text": "提供有针对性的 (affinity) 辅导小组，例如面向女性、LGBTQ+、EOP、SEED 或 CS Scholar 的学生 [03:21]()。",
+   "tag": "error",
+   "understanding": "fuzzy",
+   "added_at": "2026-08-10T14:50:07.564Z",
+   "node_id": "cs-61b-csm"
+  },
+  {
+   "text": "每学期末开放申请，下学期初截止 [03:57]()。",
+   "tag": "tips",
+   "understanding": "understood",
+   "added_at": "2026-08-10T14:50:07.564Z",
+   "node_id": "cs-61b-csm"
+  },
+  {
+   "text": "你在考『csm-tutoring-unit-credit』时作答「111」，没说清这个节点在 CS 61B 主题下讲什么、为什么值得单独成节点。 AI 判断来源：你在回答『csm-tutoring-unit-credit』的考题时提出。原因：0 分作答暴露的概念缺口——CSM 辅导学分这一概念尚未建立起来。",
+   "tag": "question",
+   "understanding": null,
+   "added_at": "2026-08-11T13:56:49.967Z",
+   "node_id": "csm-tutoring-unit-credit"
+  }
+ ],
+ "scale_gate": {
+  "member_threshold": 30,
+  "annotation_threshold": 100,
+  "over_threshold": false,
+  "detail_k": 10,
+  "detail_node_ids": null,
+  "tail_counts": null
+ },
+ "concepts_members": [
+  "cs-61b-csm",
+  "csm-tutoring-unit-credit"
+ ],
+ "previous_recap": {
+  "path": "/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/outputs/回顾-CS 61B-2026-08-27.md",
+  "date": "2026-08-27",
+  "same_day": false,
+  "actions_section": "1. 节点 csm-tutoring-unit-credit（CSM 辅导学分）mastery 0.01（beta）、考过 1 次且得分为最低档、question 批注未闭环 1 条【实测】——用 `/node-chat 节点/csm-tutoring-unit-credit` 继续剖析该节点。\n2. 节点 cs-61b-csm 从未考察（last_examined 为空）、mastery 0.3（legacy_v2）【实测】——用 `/start-exam-board from CS 61B node cs-61b-csm` 定向考察。\n3. 节点 cs-61b-csm 有 1 条 error 批注理解度停在 fuzzy（未闭环）【实测】——在 `节点/cs-61b-csm` 里 `Cmd+Shift+A` 补批注 / 更新理解度 checkbox。\n4. 全板 2 个种子、派生计数 0，两份材料都还没向下拆解【实测】——在原白板选中相关文本 `Cmd+Shift+D` 派生新节点。\n5. 检验白板 CS 61B-2026-08-11-1538 仍是 in_progress、第二问尚无得分【实测】——完成考察或数据更新后再跑一次 `/board-recap CS 61B` 复盘。",
+  "selfevals": []
+ },
+ "unsafe_write_targets": []
+}

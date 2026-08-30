@@ -1,0 +1,55 @@
+{
+ "mode": "preview",
+ "write_side": "none",
+ "anchor": "特征值与特征向量",
+ "ts": "2026-08-28-2000",
+ "boards": [
+  {
+   "board_stem": "特征值与特征向量",
+   "exists": true,
+   "board_sha256": "bcf4c2b84df49a299095309f511b4f77227695419e402a813c43b6c9f3c1e964",
+   "members": 3,
+   "seeds": 1,
+   "derived": 2,
+   "listed_in_concepts": 3,
+   "ghost_links": [],
+   "ghost_count": 0,
+   "tips_total": 0,
+   "tips_unanswered_upper_bound": 0,
+   "member_ids": [
+    "Fundamentals",
+    "Characteristic-Equation-for-Eigenvalues",
+    "Eigenvalues-are-special-vectors-that-sat"
+   ]
+  },
+  {
+   "board_stem": "CS 61B",
+   "exists": true,
+   "board_sha256": "a46068ff75a6dc867a63e2cdbe524e0b054c23b634158a1daeb5912426d055a2",
+   "members": 1,
+   "seeds": 1,
+   "derived": 0,
+   "listed_in_concepts": 1,
+   "ghost_links": [],
+   "ghost_count": 0,
+   "tips_total": 0,
+   "tips_unanswered_upper_bound": 0,
+   "member_ids": [
+    "cs-61b-csm"
+   ]
+  }
+ ],
+ "target_path": "检验白板/特征值与特征向量-2026-08-28-2000.md",
+ "target_exists": false,
+ "totals": {
+  "boards": 2,
+  "members": 4,
+  "members_listed": 4,
+  "duplicate_members": 0,
+  "tips_total": 0,
+  "ghosts": 0
+ },
+ "content": "---\ntype: exam_board\nrecap_kind: stage_recap\nsource_board: \"[[原白板/特征值与特征向量]]\"\nrecap_boards:\n  - \"[[原白板/特征值与特征向量]]\"\n  - \"[[原白板/CS 61B]]\"\ncreated_at: \"2026-08-28T20:00:00Z\"\nstatus: done\ngenerated_by: board-recap-exam v1 (CARD-G5-9)\n---\n\n# 阶段回顾 · 特征值与特征向量 等 2 板 · 2026-08-28\n\n> [!info]+ 阶段回顾检验白板（链接回原板 · 不含正文 · 无题面）\n> 本板是阶段回顾产物：只列链接与脚本数字，不复制任何正文，也不含题目。\n> 要出题请对某块原白板运行 /start-exam-board（本板不可作为出题源）。\n\n## 覆盖范围\n\n- [[原白板/特征值与特征向量]] — 成员 3（1 种子 + 2 派生）/ 批注 0 条（未答上界 0，无已答标记）\n- [[原白板/CS 61B]] — 成员 1（1 种子 + 0 派生）/ 批注 0 条（未答上界 0，无已答标记）\n\n## 成员链接（回原节点）\n\n### [[原白板/特征值与特征向量]]\n\n- [[节点/Fundamentals]]\n- [[节点/Characteristic-Equation-for-Eigenvalues]]\n- [[节点/Eigenvalues-are-special-vectors-that-sat]]\n\n### [[原白板/CS 61B]]\n\n- [[节点/cs-61b-csm]]\n\n## 阶段数字（脚本产出 · 判读留人）\n\n- 覆盖 2 板 / 总成员 4（按节点去重）/ 总批注 0 条（未答上界 0）\n- 数据面：本地只读扫描（fallback 口径，与 /board-recap 第一刀一致）· 取数时刻 2026-08-28T20:00:00Z\n",
+ "content_sha256": "804d621653d37d77f6bb0ef5d7be2e92e6637cc8a60bcbb884a268cb9ba55e3a",
+ "next_step": "用户确认后跑 create，并把本 content_sha256 传给 --expect-content-sha（绑定所见即所写）"
+}

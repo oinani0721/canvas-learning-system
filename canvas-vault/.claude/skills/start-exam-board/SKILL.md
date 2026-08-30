@@ -418,6 +418,13 @@ questions:
 - 理解自评行用 `→` 作分隔符（不用冒号，避免与题目里的冒号混淆），值填在 `→` 之后。
 - **硬验证**：写前检查目标路径 `startsWith("检验白板/")`，不符 → 停止 `✗ 路径硬约束违反`。
 
+> [!note]+ 已登记亚型：stage-recap 阶段回顾板（用户裁决 甲，2026-08-30）
+> `/board-recap` 第二刀（`recap_exam_build.py`）产出的**阶段回顾检验白板**是本模板的合法亚型，与标准考察板的差异为设计意图而非漂移：
+> - `status: done` + `questions: []`（空）——**安全停设计**：quiz-answer 扫到即跳过，不会把复习摘要当试卷批改；
+> - 附加字段 `recap_kind` / `recap_boards`（加性，标准板无此二键）；
+> - 无 `selected_node`（阶段回顾覆盖多节点，不指向单点）。
+> 消费方约定：按 `type: exam_board` 扫描的工具须容忍此亚型（board_manifest 已验证 0 parse_errors）；只处理"进行中"考察的工具按 `status` 过滤即天然跳过。本亚型的产生器唯一 owner = board-recap skill，其余任何 skill 禁止产出 `questions: []` 的 exam_board。
+
 ## Step 6.5 · 学习事件落日志（批次3' 2-4，MEM-FLYWHEEL）
 
 白板写入成功后，用 `Write` 写 `/tmp/exam-created-event.json`：`{"vault_root": "<vault 绝对路径>", "exam_board": "检验白板/<文件名>.md", "node": "<target>", "ts": "<Step 6 用的 ISO 时间戳>"}`，然后 **`Bash` 运行下面这段静态 python**（⛔ 逐字照抄；写失败不阻断出题，回执照发）：

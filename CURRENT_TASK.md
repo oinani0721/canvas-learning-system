@@ -2,26 +2,15 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**本车道状态**（2026-08-30 · 分支 `card/s3-events` · BATCH-2026-08-29-第六批 车道 T2 · **CARD-收口A ①② 已完成 + 已合并主干 `a9c8b97c`，待验收**）:
-- ✅ **① G3-1 末轮独立复核（round-23）已入库且非空**（13830 字节）：BLOCKER 0 / HIGH 0 / MEDIUM 2 / LOW 8
-  ⇒ 按本批停轮规则（BLOCKER/HIGH → 再一轮；MEDIUM/LOW → 登记结案）判定 **结案，不再开轮**
-  - ⚠️ 卡文事实二次更正：裁定书称 round-18 为 0 字节，第六批手册更正为 round-20；
-    实测 round-20/21/22 均已提交且非空，真正 0 字节未跟踪的是 **round-23**
-- ✅ **round-19 遗留的那条 HIGH 以证据闭合**（不再开轮）：备份 23 行 vs 现网 22 行的 diff 唯一差异是
-  `callout:c-409-guard` 测试探针；第五批裁定 §二 另证其为**用户 2026-08-29 授权**的 S1 污染清理（备份先行）
-  - 如实边界：两文件均 untracked ⇒「可恢复」仅限当前本机，无版本化持久保证
-- ✅ **② 两个回归文件接入 CI**（第五批裁定 S3-b）：`.github/workflows/test.yml` 纯新增 10 行、零删除
-  - 本地等价验证先行：15 文件 303 passed → 加两个后 **516 passed + 1 skipped**（303+213=516 严格可加 ⇒ 零交叉污染）
-  - ⛔ 过程抓到会让 CI **exit 127 且静默丢 4 个测试文件**的坑：注释不可放进 pytest 的反斜杠续行序列
-    （YAML 校验器抓不到——它只把 run 当字符串标量）。新增 shell 语义校验：把 pytest 换成 printf 真跑数实参
-- ✅ **⑤ 已合并主干 `a9c8b97c`**（合并提交 `4748bad2`）：merge-base `37387a86`（**在 feature worktree 内算**；
-  主仓口径会错到 `671ae7e7`、文件面膨胀到 1014）；冲突仅 `CURRENT_TASK.md` 一处，逐处人工解，禁用 -X ours/theirs
-  - ⚠️ 主干在本卡作业期间从 `2164b498` 前进到 `a9c8b97c`（新合入 D3+D4、D2a+D2b 及卡文更新）。
-    该推进推翻了本卡早先两条结论：`fsrs_manager.py` 已被 D3/D4 改动（`980b3758`→`f9edc906`）、
-    主干动了 `backend/tests/unit/conftest.py`。合并后判据实跑仍绿（219+1 / 517+1）
-- 📌 证据：`_bmad-output/审查/closeout-a-evidence/`（ci-equivalence / ci-preflight /
-  ci-yaml-shell-semantics / g31-round19-high-closure）
-
+**主干状态**（2026-08-30 · `worktree-feature-obsidian-hybrid-dev` · 第六批收官合并中）:
+- ✅ 第六批 7 卡已合并（G4-1a/DEBT-15+14/G8-1/G5-3/G3-6a/S3双卡 G3-1+G3-4），CI 三门连续绿
+- ✅ CARD-收口A 全项闭合：①G3-1 round-23 结案（0H）②CI 接线（test.yml +10 行，517 passed）
+  ③G5-9 十轮结案（0H）+ ③b G5-4 round-6（4H→维护卡B）⑤s3/s6 均已预合主干
+- ✅ 用户三裁决（2026-08-30）：D-2=**甲**（stage-recap 亚型已登记进 start-exam-board 模板）；
+  G5-4 4H **确认**移交维护卡B；D-1 按建议。记录：`_bmad-output/审查/2026-08-30-用户裁决记录-D1-D2-维护卡B.md`
+- 🔜 本合并（s6-recap: G5-4+G5-9）+ t2-closeout 后，第六批 10 卡全部落账（143 卡完成 43）
+- 📌 移交下一批：维护卡B（verifier 加固 4H+双向语料）/ M7 Unicode 控制字符（与 G5-3 合卡）/
+  M11 跨板共享节点批注重复计数（数字错误，优先）/ M10 结构化 provenance / L12 空目录残留
 ---
 
 **当前状态**（2026-08-20 · **Codex 四轮拒绝收官 → 九路验证 9/9 CONFIRMED → C1-C4 修复批全部落地，五轮送审就绪** · 最近完成的产品提交 `c154a7f2`(C1 真实入口准入) · PLAN `R11-BATCH2-2026-08-17`。⚠️ 锚点纪律：①不记累计 commit 数 ②不落盘 CI run 号/通过数（连续两轮落盘即过期被抓——CI 状态以 `gh run list --limit 3` 实查为准）③收官状态由外部复核裁定不由施工方自宣）:

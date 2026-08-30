@@ -433,8 +433,12 @@ if (weakNodes.length === 0) {
 ```dataviewjs
 // T6 (2026-07-10) — 考察历史聚合: 扫 检验白板/ type=exam_board 的 frontmatter。
 // HARD-SILENT 不破: 进行中场次只显示状态不显示分数; 完成场次才显示均分。
+// CARD-G5-9 (2026-08-28): 阶段回顾板也落在 检验白板/ 且 type=exam_board
+// (为复用 start-exam-board 的防嵌套与消费面契约), 但它**不是一场考察** ——
+// 无 questions、status 恒 done。不排除的话会被当成"已完成考察"计入场次与
+// 完成数, 污染这里的统计。按 recap_kind 显式排除。
 const boards = dv.pages('"检验白板"')
-  .where(p => p.type === "exam_board")
+  .where(p => p.type === "exam_board" && p.recap_kind !== "stage_recap")
   .sort(p => p.created_at, "desc");
 
 if (boards.length === 0) {

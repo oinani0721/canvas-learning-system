@@ -1,0 +1,3885 @@
+Reading additional input from stdin...
+OpenAI Codex v0.147.0
+--------
+workdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+model: gpt-5.6-sol
+provider: openai
+approval: on-request
+sandbox: read-only
+reasoning effort: ultra
+reasoning summaries: auto
+session id: 01a051ed-6ff0-7243-b9c5-0c987e9ea663
+--------
+user
+你是独立复核者。请做**第 5 轮窄范围实现审阅**，直接输出中文 Markdown 报告（read-only）。
+
+工作目录：/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+
+## 范围（严格限定）
+
+**只读这一个实现文件**：`canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py`
+
+⛔ **请不要读 `backend/tests/skills/test_g5_9_recap_exam.py`** —— 它是对抗性测试语料，
+前几轮复核在读它时被平台内容过滤器中断导致整轮报废。承重性请用第 2 项的脚本输出判断。
+
+## 背景（重要：本轮有一个额外任务）
+
+这是同一份实现的**第 5 轮**。历轮 HIGH 计数：4 → 4 → 4 → 5，**未收敛**，但落点在向边缘移动：
+主路径缺陷 → 主路径遗漏面 → 失败路径 → 上一轮修复自身的边界。
+
+上一轮（round-4）给出 5 条 HIGH，全部已整改（commit `ec79d34c`），逐条说明见
+`_bmad-output/审查/codex-review-CARD-G5-9-round4-处置.md`：
+
+1. 写入后复核 `os.stat` → 改 `os.lstat` + 显式拒绝 symlink；
+2. 撤销结果过早清 `published` 致失败详情被吞 → 只有确实删掉才清，结果用 `rollback_note` 承载；
+3. `_rollback_published` 返回值二态无法区分「已删/拒删」→ 改三态 `("deleted"|"absent"|"kept", 原因)`；
+4. `_fsync_dir` 豁免集含 `EPERM` 且把「不支持」当成功 → `EPERM` 判 failed，`EINVAL/ENOTSUP` 单列 `"unsupported"`；
+5. 删源后的目录 fsync 结果被忽略 → 写进回执 `warning`。
+
+## 需要回答的两件事
+
+### 1. 这五条整改是否各自成立、有无引入新问题
+
+逐条给 CLOSED / STILL-OPEN / PARTIAL + 精确 文件:行号。重点看**新代码自己的失败分支**
+（这正是前两轮 HIGH 的成因）：三态返回值的每个分支调用方是否都正确处理？
+`rollback_note` 会不会漏设或误设？`"unsupported"` 档的两个调用点处理是否一致？
+`warning` 字段会不会在不该出现时出现？有无 fd 泄漏？
+
+### 2. ⭐ 收敛性评估（本轮的额外任务，请务必回答）
+
+本卡采用的停轮规则是：**BLOCKER 或 HIGH > 0 → 再一轮；MEDIUM/LOW → 登记结案**。
+现在面临的判断是：**是否值得再开第 6 轮？**
+
+请给出你的独立判断，并说明依据：
+
+- 你本轮发现的问题，与前四轮相比，**严重度与可达性**是在上升、持平，还是下降？
+- 它们是「**真实产品行为错误**」（用户会看到错误结果 / 数据会损坏），
+  还是「**理论可达但需要极端条件**」（需要攻击者同时控制文件系统与时序），
+  还是「**验证工装的归因完整性**」（实现本身正确，只是测试锁得不够死）？
+- 以「每轮成本 ≈ 40 分钟 + 一次整改」为前提，你认为**再开一轮的预期收益**是否还为正？
+- 如果你认为应该停，请明确说明**停在什么状态**（哪些残留必须写进验收单让用户知情）。
+
+⚠️ 请诚实：如果确实还有严重问题，不要为了「收敛」而降级；
+反之如果已进入边际收益递减区，也请直说，不要为了显得严谨而堆砌低价值发现。
+
+## 承重性与回归（用脚本输出判断，不要读测试源码）
+
+```
+cd backend && DEBUG=true NEO4J_ENABLED=false .venv/bin/python \
+  "../_bmad-output/审查/g5-9-evidence/round1-high-negverify.py"
+```
+（**19 个变体**，期望全部「如期变红」+ 还原后字节与备份逐字相同 + `RESULT: PASS`）
+
+```
+cd backend && DEBUG=true NEO4J_ENABLED=false .venv/bin/python -m pytest \
+  tests/regression/test_recap_scan_signals.py tests/skills/test_g5_9_recap_exam.py \
+  -q -p no:cacheprovider -p no:warnings --override-ini="addopts="
+```
+（期望 173 passed）
+
+## 硬约束
+- 只读；不写入 canvas-vault；不修改任何 tracked 文件。
+- 上面那个脚本会原地改被测文件并自行还原——跑完请确认 `git status` 干净。
+
+## 输出要求
+- 结论先行 + **收敛性判断（建议继续 / 建议停轮）**。
+- 每条发现标 BLOCKER / HIGH / MEDIUM / LOW + 精确 文件:行号。
+- 末尾给「残留清单」四级条数。
+- 只有「会导致数据损坏 / 回执与实际写入不一致 / 失效判定让套件仍全绿」才算 HIGH。
+- 如实声明未能验证的部分。
+**Planning read-only audit on implementation file**
+**Planning parallel read-only canvas audit**
+**Confirming read scope and repo status**
+codex
+我会按独立对抗审阅来做：静态复核只打开指定实现文件，不打开 round-4 处置文档或测试源码；另外以三个并行静态视角交叉检查五项整改、失败分支与残留严重度。随后严格按给定命令串行跑 19 变体脚本和 173 项回归，并在前后核对实现文件哈希与 `git status`。我也会采用既有 Canvas 审计记忆中的“证据优先、生产入口、状态分层”方法，避免把测试绿误当实现证明。
+  → 读取相关审计记忆与指定实现文件，建立行号和控制流索引
+  • 并行复核五项整改及新失败分支，汇总独立发现
+  • 运行 19 变体承重脚本与 173 项回归，核对还原和工作树
+  • 复算严重度并给出停轮/继续的收敛性结论
+**Planning keyword searches for MEMORY and skills**
+exec
+/bin/zsh -lc "rg -n -C 3 'adversarial|CARD-G5-9|recap_exam|round-4|round4|P1 adversarial' /Users/Heishing/.codex/memories/MEMORY.md" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+31-scope: Evidence-first audit of project readiness plus a bounded 24-hour writer/reviewer orchestration design. The frozen runbook supports only a Bootstrap-Prep authorization request, not execution.
+32-applies_to: cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output; reuse_rule=revalidate checkout, SHA, CI, unresolved findings, and current authorization before reuse; never treat this historical runbook as permission to create roots, clones, or run agents.
+33-
+34:## Task 1: Full-project adversarial audit and productivity direction, partial
+35-
+36-### rollout_summary_files
+37-
+38:- rollout_summaries/2026-08-19T18-23-31-2Aoh-canvas_learning_system_adversarial_audit_and_24h_orchestrati.md (cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output, rollout_path=/Users/Heishing/.codex/sessions/2026/08/20/rollout-2026-08-20T02-23-31-01a01b43-9daa-7ef1-8e35-587f59df3ec1.jsonl, updated_at=2026-08-24T13:41:20+00:00, thread_id=01a01b43-9daa-7ef1-8e35-587f59df3ec1, outcome=partial; audit and plan only)
+39-
+40-### keywords
+41-
+--
+45-
+46-### rollout_summary_files
+47-
+48:- rollout_summaries/2026-08-19T18-23-31-2Aoh-canvas_learning_system_adversarial_audit_and_24h_orchestrati.md (cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output, rollout_path=/Users/Heishing/.codex/sessions/2026/08/20/rollout-2026-08-20T02-23-31-01a01b43-9daa-7ef1-8e35-587f59df3ec1.jsonl, updated_at=2026-08-24T13:41:20+00:00, thread_id=01a01b43-9daa-7ef1-8e35-587f59df3ec1, outcome=success; PASS_FOR_BOOTSTRAP_PREP_REQUEST only)
+49-
+50-### keywords
+51-
+--
+181-
+182-- Expired `pending-user-confirmation` receipt/envelope is not authority. New exact envelope/digest/challenge is needed. The existing `scripts/bmad/scan_feedback.py` did not cover actual output; freeze a new scanner contract/no-write boundary before census. [Task 1]
+183-
+184:# Task Group: Canvas Learning System P1-05/P1-01/P1-08 adversarial security review
+185-scope: Read-only, parallel audit of vault admission/indexing, Graphiti quarantine isolation, SnapshotV3, and recovery-anchor closure claims.
+186-applies_to: cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output; reuse_rule=revalidate SHA, CI, actual call sites, and live Neo4j state in the target checkout.
+187-
+188:## Task 1: P1-05c/P1-01/P1-08 parallel adversarial review, closure rejected
+189-
+190-### rollout_summary_files
+191-
+192:- rollout_summaries/2026-08-17T01-56-07-ZNCd-agents_guide_and_p1_05c_adversarial_audit.md (cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output, rollout_path=/Users/Heishing/.codex/sessions/2026/08/17/rollout-2026-08-17T09-56-07-01a00d6e-ea40-70a1-a23c-d51342eeeacd.jsonl, updated_at=2026-08-19T17:56:56+00:00, thread_id=01a00d6e-ea40-70a1-a23c-d51342eeeacd, outcome=partial; final read-only verdict)
+193-
+194-### keywords
+195-
+196-- P1-05c, P1-05, P1-01, P1-08, check_vault_path, vault_index_orchestrator, LanceDB, Graphiti, DEFAULT_GROUP_ID, SnapshotV3, CURRENT_TASK.md
+197-
+198:## Task 2: P1-05b five-question adversarial audit, reproducible bypasses
+199-
+200-### rollout_summary_files
+201-
+202:- rollout_summaries/2026-08-19T14-44-08-upza-p1_05b_adversarial_review_finds_admission_quarantine_snapsho.md (cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output, rollout_path=/Users/Heishing/.codex/sessions/2026/08/19/rollout-2026-08-19T22-44-08-01a01a7a-c47f-70e2-8e5e-524e1591da78.jsonl, updated_at=2026-08-19T15:12:50+00:00, thread_id=01a01a7a-c47f-70e2-8e5e-524e1591da78, outcome=partial; detailed counterexamples)
+203-
+204-### keywords
+205-
+--
+212-
+213-## Reusable knowledge
+214-
+215:- Related skill: skills/canvas-adversarial-audit/SKILL.md. P1-05/P1-01/P1-08 remained STILL-OPEN; F-02 tombstone filtering and F-05 live resilience were closed. Rejected vault inputs must show zero open/hash/index/write. [Task 1][Task 2]
+216-- Reproduced: `vault/raw/escape.md -> /outside/secret.md` was counted by `backfill_vault(..., execute=False)`; case-sensitive `fnmatch` admitted `.CLAUDE/SKILL.md` and `raw/claude.md`. Edge filtering alone was insufficient because exact readers/node search could cross Graphiti groups. [Task 2]
+217-- SnapshotV3 needs invalid/future same-generation self-healing, extra-field, strict-type, huge finite mastery, and identity/length collision coverage. [Task 1][Task 2]
+218-
+--
+229-
+230-### rollout_summary_files
+231-
+232:- rollout_summaries/2026-08-17T01-56-07-ZNCd-agents_guide_and_p1_05c_adversarial_audit.md (cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output, rollout_path=/Users/Heishing/.codex/sessions/2026/08/17/rollout-2026-08-17T09-56-07-01a00d6e-ea40-70a1-a23c-d51342eeeacd.jsonl, updated_at=2026-08-19T17:56:56+00:00, thread_id=01a00d6e-ea40-70a1-a23c-d51342eeeacd, outcome=success)
+233-
+234-### keywords
+235-
+
+**Reviewing skill section for extraction**
+exec
+/bin/zsh -lc "wc -l /Users/Heishing/.codex/memories/skills/canvas-adversarial-audit/SKILL.md && sed -n '1,240p' /Users/Heishing/.codex/memories/skills/canvas-adversarial-audit/SKILL.md" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+      50 /Users/Heishing/.codex/memories/skills/canvas-adversarial-audit/SKILL.md
+---
+name: canvas-adversarial-audit
+description: Conduct a read-only, parallel, evidence-first adversarial audit of Canvas P1 closure claims, especially vault admission, Graphiti quarantine, and SnapshotV3.
+argument-hint: "[task-book path or P1 scope]"
+user-invocable: false
+allowed-tools: Read, Grep, Glob, Bash
+---
+
+# Canvas adversarial audit
+
+## When to use
+
+Use for a user-requested adversarial or closure audit in the Canvas Learning System worktree, particularly P1-05/P1-01/P1-08. Do not use to implement fixes, access prohibited raw-vault content, or declare a historical finding current without revalidation.
+
+## Inputs / context to gather
+
+1. Read the task book, `AGENTS.md`, worktree topology, allowed/prohibited paths, and reporting contract.
+2. Record checkout SHA, branch, WT/MAIN labels, current `CURRENT_TASK.md`, and requested P1 claims.
+3. Identify actual production entrypoints, not merely the tests that claim to cover them.
+
+## Procedure
+
+1. Split independent tracks: vault admission/indexing and tests; Graphiti quarantine/retrieval; SnapshotV3/recovery anchors. Keep the audit read-only.
+2. For each claim, build an evidence matrix: claim, `file:line`, adversarial input/state, actual entrypoint/path, observed result, severity, PASS/PARTIAL/FAIL, and limitations.
+3. Directly exercise real entrypoints with temporary fixtures where permitted. For path admission include symlink, directory symlink, blacklisted filename in an allowed directory, case variant, and nonexistent path. Assert rejected inputs perform zero open/hash/index/write.
+4. For quarantine, test ordinary edge search plus node search and exact-reader paths (`search_nodes`, `read_node_tips`, `read_node_errors`, `read_node_edge_reasons`). Use read-only Neo4j queries and `EXPLAIN` where allowed; distinguish observed metadata exposure from unproven fact-body leakage.
+5. For SnapshotV3, test same-generation invalid/future version self-healing, extra fields, strict typing, huge finite values that may produce NaN/Infinity, and identity/length collision boundaries.
+6. Compare recovery anchors with machine facts: current HEAD, Actions status, test counts, and unresolved findings. Separate targeted-test results from whole CI.
+7. Cross-check high-severity findings independently. Write the final matrix before closure language; explicitly retain `UNVERIFIABLE` items and failed counterexample attempts.
+
+## Efficiency plan
+
+- Start from task-book source handles and `rg` for real call sites; cache the entrypoint map for all tracks.
+- Parallelize independent tracks, then have the primary reviewer re-open only high-severity evidence.
+- Stop treating a test as evidence once it only hits source text, a helper, fake client, `__new__`, or monkeypatch; pivot to the real entrypoint.
+
+## Pitfalls and fixes
+
+- Green tests but unsafe closure -> tests do not reach production behavior. Add direct entrypoint fixtures and capture full stdout/trace before an assertion.
+- `session:` IDs used as provenance -> ID shape alone is not proof. Preserve provenance or report PARTIAL.
+- Quarantine count passes -> exact-reader/node-search surfaces may still cross groups. Test those surfaces specifically.
+- `CURRENT_TASK.md` says closed but anchors disagree -> rebuild anchors from current HEAD, Actions, and unresolved findings.
+
+## Verification checklist
+
+- Every finding has `file:line`, reproduction, severity, result, and claim-conflict explanation.
+- Final report labels WT/MAIN and all verification limits; no prohibited files or raw vault were read.
+- Production entrypoints, not only helpers, were tested for each security claim.
+- CI status is reported as whole-workflow status, not only passing targeted jobs.
+- P1 closure is withheld whenever a reproducible bypass or unverified critical surface remains.
+
+**Planning tool discovery for Graphiti**
+**Planning sequential tool calls**
+mcp: sequential-thinking/sequentialthinking started
+mcp: sequential-thinking/sequentialthinking (completed)
+**Gathering git status and commit info**
+**Planning parallel git and file commands**
+exec
+/bin/zsh -lc 'wc -l canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+exec
+/bin/zsh -lc 'git rev-parse HEAD' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+    1197 canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py
+
+ succeeded in 0ms:
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+ec79d34c9df4b92788ab9f1fc272408dc296604e
+
+exec
+/bin/zsh -lc 'shasum -a 256 canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+166a1cf18be4dd66fb5817882dc7753d399a5eb998a89f58af6d4ab99c072ce1  canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py
+
+exec
+/bin/zsh -lc 'git merge-base --is-ancestor ec79d34c HEAD' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+
+exec
+/bin/zsh -lc 'git status --short --branch' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+## card/s6-recap
+
+**Planning segmented implementation analysis**
+**Spawning independent inspection agents**
+**Planning parallel file reading**
+codex
+基线已固定：当前 `HEAD` 正是 `ec79d34c`，初始工作树干净；实现文件初始 SHA-256 为 `166a1cf1…c072ce1`。现在三条静态复核轨已并行启动，我在主轨逐行重建实际控制流。
+exec
+/bin/zsh -lc "nl -ba canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py | sed -n '1,400p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+     1	#!/usr/bin/env python3
+     2	"""board-recap 第二刀 · 阶段回顾检验白板构建器 (CARD-G5-9, BATCH-2026-08-28-第五批).
+     3	
+     4	职责边界 (与 SKILL.md 的分工):
+     5	  多板/阶段范围的检验白板生成 — preview (板名/成员链接/覆盖/未答数字 +
+     6	  拟写入全文) → 用户在 skill 层确认 → create 原子创建 检验白板/ 下 1 个
+     7	  md → undo 字节级回退。exam_service / verification_service 零接触 —
+     8	  格式契约直接复用 start-exam-board 的 检验白板/<stem>-<ts>.md 文件面。
+     9	
+    10	硬约束:
+    11	  - **preview 零写侧**: preview 子命令只读 vault, 不写任何文件。未确认
+    12	    (= 不跑 create) 时全 vault 字节不变。
+    13	  - **create 恰 1 新文件**: 唯一写面 = ``检验白板/<anchor>-<ts>.md``;
+    14	    目标已存在 → 拒绝 (不覆盖); 同目录 tmp + os.replace 原子落盘;
+    15	    写前 lstat symlink 预检 (目录与目标被 symlink 布防 → 拒绝)。
+    16	  - **undo 字节级回退**: 校验路径 containment + generated_by 指纹 +
+    17	    sha256 全等 (用户改过的文件拒绝回退, 不静默丢改动); 回退 = move 到
+    18	    vault 外 --undo-dir 留痕, ⛔ 不物理删除 (对齐「默认不 delete」)。
+    19	  - **消费面兼容契约** (fixture 锁定):
+    20	    * frontmatter 无 ``questions`` 键、0 个 ``concept:`` 行 →
+    21	      board_manifest 的 exam_history 收录 question_count=0,
+    22	      past_question_digests 零新增;
+    23	    * ``type: exam_board`` + 路径在 检验白板/ 下 → start-exam-board
+    24	      Step 1 防嵌套拒绝以它为出题源;
+    25	    * ``status: done`` + 无答题区疑问批注 → quiz-answer Step 0 done
+    26	      分支「无新疑问」安全停, 零写侧;
+    27	    * frontmatter 为合法 YAML → board_manifest 扫描 0 parse_errors。
+    28	  - **不复制正文**: 产物内容 = 链接回原板/原节点 + 脚本数字 + 固定模板句,
+    29	    ⛔ 不含任何节点正文片段。诚实边界 (round-3 L2): 复用的
+    30	    ``_ledger_from_local`` 会**读取**节点全文以判 is_stub/统计正文 callout,
+    31	    所以正文确实进过内存 —— 保证的是"**不写进产物**", 不是"不读取"
+    32	    (哨兵串断言锁的正是前者)。
+    33	  - 纯 stdlib; 数据面复用同目录 recap_scan.py 的 fallback 只读扫描函数
+    34	    (importlib 加载, 确定性口径与 /board-recap 第一刀一致)。
+    35	  - 退出码: 0 = 正常 (拒绝也是 0, JSON 里给 refusal_reason — 拒绝是
+    36	    skill 的决策); 2 = 环境不可用 / 参数非法。
+    37	
+    38	D5 前置登记 (诚实条款): 本卡开发时 D5 前置 1 (用户 UAT 反馈) 未发生 —
+    39	live 侧价值验证顺延 G5-11, 本脚本只交 worktree 面 + fixture 证据。
+    40	"""
+    41	
+    42	from __future__ import annotations
+    43	
+    44	import argparse
+    45	import errno
+    46	import hashlib
+    47	import importlib.util
+    48	import json
+    49	import os
+    50	import re
+    51	import shlex
+    52	import stat
+    53	import sys
+    54	from datetime import datetime, timezone
+    55	from pathlib import Path
+    56	
+    57	EXAM_DIR = "检验白板"
+    58	BOARD_DIR = "原白板"
+    59	GENERATED_BY = "board-recap-exam v1 (CARD-G5-9)"
+    60	_TS_RE = re.compile(r"^\d{4}-\d{2}-\d{2}-\d{4}$")
+    61	# codex round-1 HIGH-1: argparse 的 required=True 只保证 flag **出现**, 不保证
+    62	# 值非空。原判定写作 `if args.expect_content_sha and args.expect_content_sha != sha`
+    63	# —— 空串 falsy 直接跳过比较, `--expect-content-sha ''` 即可创建用户从未确认过
+    64	# 的字节 (复核者隔离实测 created:true、写出 1092 bytes)。修法 = 形状白名单 +
+    65	# **无条件**比较: 值必须 64 位小写十六进制, 否则 exit 2 且零写侧。
+    66	# 同一形状约束施于 undo 的 --expect-sha (同型问题)。
+    67	_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+    68	
+    69	# ── 复用第一刀的确定性扫描函数 (同目录 recap_scan.py) ──
+    70	# ⛔ round-4 新增 FAIL: importlib 加载会在 skill 目录写 __pycache__/*.pyc —
+    71	# 那是 vault 内的**写侧**, 直接违反 preview 零写侧承诺 (证据快照只覆盖四个
+    72	# 数据目录才没发现)。sys.dont_write_bytecode 必须在 exec_module **之前**置位,
+    73	# 并在之后恢复, 保证本脚本任何路径都不向 vault 落字节码。
+    74	_SCAN_PATH = Path(__file__).resolve().parent / "recap_scan.py"
+    75	_prev_dont_write = sys.dont_write_bytecode
+    76	sys.dont_write_bytecode = True
+    77	try:
+    78	    _spec = importlib.util.spec_from_file_location("recap_scan", _SCAN_PATH)
+    79	    _rs = importlib.util.module_from_spec(_spec)
+    80	    _spec.loader.exec_module(_rs)
+    81	finally:
+    82	    sys.dont_write_bytecode = _prev_dont_write
+    83	
+    84	
+    85	def _fail_env(msg: str) -> int:
+    86	    print(json.dumps({"error": msg}, ensure_ascii=False))
+    87	    return 2
+    88	
+    89	
+    90	def _sanitize_ghost_id(raw: str) -> str:
+    91	    """幽灵 id 入产物前的结构净化 (round-4 H9)。
+    92	
+    93	    幽灵 id 是白板 Concepts 小节里的**自由文本**（成员正则允许换行、反引号
+    94	    等）。原样放进 `` `…` `` 会被换行终止行、被反引号闭合代码跨度, 从而在
+    95	    产物里生成独立的 Markdown 行。这里折叠全部空白、剔除反引号与会起结构
+    96	    作用的字符, 并硬截断 —— 产物只把它当**标识串回显**, 不承载任何格式。
+    97	    """
+    98	    s = " ".join(str(raw or "").split())
+    99	    s = re.sub(r"[`\[\]|<>\\]", "", s)
+   100	    s = "".join(ch for ch in s if ch.isprintable())
+   101	    return s[:120] or "(空名)"
+   102	
+   103	
+   104	def _scan_board(vault: Path, stem: str) -> dict:
+   105	    """单板只读扫描 (fallback 口径, 与 recap_scan 第一刀一致)。"""
+   106	    board_path = _rs._contained_md(vault / BOARD_DIR, stem)
+   107	    if board_path is None:
+   108	        return {
+   109	            "board_stem": stem,
+   110	            "exists": False,
+   111	            "refusal_reason": "板名非法 (containment 拒绝)",
+   112	        }
+   113	    if not board_path.is_file():
+   114	        return {
+   115	            "board_stem": stem,
+   116	            "exists": False,
+   117	            "refusal_reason": "原白板文件不存在",
+   118	        }
+   119	    board_text = _rs._read(board_path)
+   120	    _, board_body = _rs._frontmatter_and_body(board_text)
+   121	    sec = _rs._CONCEPTS_SECTION_RE.search(board_body)
+   122	    sec_body = re.sub(r"<!--.*?-->", "", sec.group(1), flags=re.S) if sec else ""
+   123	    bullet_lines = "\n".join(
+   124	        ln for ln in sec_body.splitlines() if re.match(r"^\s*-\s", ln)
+   125	    )
+   126	    members = list(
+   127	        dict.fromkeys(m.strip() for m in _rs._CONCEPT_LINK_RE.findall(bullet_lines))
+   128	    )
+   129	    ledger = _rs._ledger_from_local(vault, members)
+   130	    tips_total = sum(r.get("tips_count", 0) for r in ledger)
+   131	    # 幽灵链接 (workflow round-2 confirmed): Concepts 里列了但节点文件不存在/
+   132	    # 名非法/不可读 → _ledger_from_local 给 role="unknown" + exists=False。
+   133	    # 原实现把它们计进 members 却不进 seeds/derived, 产出「成员 3(1 种子 +
+   134	    # 0 派生)」这种自相矛盾数字, 还把死 wikilink 原样写进产物且零标记。
+   135	    # 现在: 分开计数, member_ids 只留真实存在的, 幽灵单列并在产物显式成段。
+   136	    live_rows = [r for r in ledger if r.get("role") in ("seed", "derived")]
+   137	    # round-4 H9: ghost id 来自白板 Concepts 的自由文本 (成员正则允许换行与
+   138	    # 反引号) — 原样嵌进 `…` 会被换行/反引号突破隔离, 在产物里生成独立行。
+   139	    # 一律折叠空白 + 剔除反引号与 Markdown 结构字符后再入产物。
+   140	    ghosts = [
+   141	        {
+   142	            "node_id": _sanitize_ghost_id(r["node_id"]),
+   143	            "reason": r.get("role_source") or "unknown",
+   144	        }
+   145	        for r in ledger
+   146	        if r.get("role") not in ("seed", "derived")
+   147	    ]
+   148	    return {
+   149	        "board_stem": stem,
+   150	        "exists": True,
+   151	        "board_sha256": hashlib.sha256(board_text.encode("utf-8")).hexdigest(),
+   152	        # members 只数可解析成员, 与 seeds+derived 恒等 (X+Y==N 不再矛盾)
+   153	        "members": len(live_rows),
+   154	        "seeds": sum(1 for r in live_rows if r.get("role") == "seed"),
+   155	        "derived": sum(1 for r in live_rows if r.get("role") == "derived"),
+   156	        "listed_in_concepts": len(ledger),
+   157	        "ghost_links": ghosts,
+   158	        "ghost_count": len(ghosts),
+   159	        "tips_total": tips_total,
+   160	        # 学习 vault 无「已答」标记 → 未答 = 全部 tips 上界 (C5 同口径)
+   161	        "tips_unanswered_upper_bound": tips_total,
+   162	        "member_ids": [r["node_id"] for r in live_rows],
+   163	    }
+   164	
+   165	
+   166	def _render_content(boards: list[dict], anchor: str, ts: str, created_at: str) -> str:
+   167	    """产物全文 — 链接 + 脚本数字 + 固定模板句, 零正文复制。
+   168	
+   169	    frontmatter 契约: 无 questions 键 / 0 个 concept: 行 / status: done /
+   170	    type: exam_board — 消费面兼容判据见模块 docstring。
+   171	    """
+   172	    n = len(boards)
+   173	    # ⛔ round-6 终裁复核: 节点/ 是**一 vault 一学科的扁平共享池**, 同一节点被
+   174	    # 两块板的 ## Concepts 同时列出是正常形态。原先各板 members/tips 直接相加
+   175	    # → 跨板成员在「阶段数字」里被重复计数, 且产物把同一节点重复列成员链接,
+   176	    # 全程零去重零声明。现在: 总计按 node_id 去重, 并如实声明去重量。
+   177	    all_member_ids: list[str] = []
+   178	    for b in boards:
+   179	        all_member_ids.extend(b["member_ids"])
+   180	    uniq_members = list(dict.fromkeys(all_member_ids))
+   181	    total_members = len(uniq_members)
+   182	    dup_members = len(all_member_ids) - total_members
+   183	    total_tips = sum(b["tips_total"] for b in boards)
+   184	    fm = [
+   185	        "---",
+   186	        "type: exam_board",
+   187	        "recap_kind: stage_recap",
+   188	        f'source_board: "[[原白板/{anchor}]]"',
+   189	        "recap_boards:",
+   190	        *[f'  - "[[原白板/{b["board_stem"]}]]"' for b in boards],
+   191	        f'created_at: "{created_at}"',
+   192	        "status: done",
+   193	        f"generated_by: {GENERATED_BY}",
+   194	        "---",
+   195	    ]
+   196	    lines = [
+   197	        *fm,
+   198	        "",
+   199	        f"# 阶段回顾 · {anchor} 等 {n} 板 · {ts[:10]}",
+   200	        "",
+   201	        "> [!info]+ 阶段回顾检验白板（链接回原板 · 不含正文 · 无题面）",
+   202	        "> 本板是阶段回顾产物：只列链接与脚本数字，不复制任何正文，也不含题目。",
+   203	        "> 要出题请对某块原白板运行 /start-exam-board（本板不可作为出题源）。",
+   204	        "",
+   205	        "## 覆盖范围",
+   206	        "",
+   207	    ]
+   208	    total_ghosts = sum(b["ghost_count"] for b in boards)
+   209	    for b in boards:
+   210	        ghost_note = (
+   211	            f" · ⚠ Concepts 另列 {b['ghost_count']} 条链接指向不存在/不可读的节点（见下）"
+   212	            if b["ghost_count"]
+   213	            else ""
+   214	        )
+   215	        lines.append(
+   216	            f"- [[原白板/{b['board_stem']}]] — 成员 {b['members']}"
+   217	            f"（{b['seeds']} 种子 + {b['derived']} 派生）/ 批注 {b['tips_total']} 条"
+   218	            f"（未答上界 {b['tips_unanswered_upper_bound']}，无已答标记）{ghost_note}"
+   219	        )
+   220	    lines += ["", "## 成员链接（回原节点）", ""]
+   221	    for b in boards:
+   222	        lines.append(f"### [[原白板/{b['board_stem']}]]")
+   223	        lines.append("")
+   224	        if b["member_ids"]:
+   225	            lines += [f"- [[节点/{m}]]" for m in b["member_ids"]]
+   226	        else:
+   227	            lines.append("- （本板 Concepts 小节无可解析成员）")
+   228	        lines.append("")
+   229	    if total_ghosts:
+   230	        # 幽灵链接单列成段并**不写成 wikilink**（写了就是死链），如实标原因
+   231	        lines += [
+   232	            "## 待修链接（Concepts 里列了但打不开）",
+   233	            "",
+   234	        ]
+   235	        for b in boards:
+   236	            for g in b["ghost_links"]:
+   237	                lines.append(
+   238	                    f"- `{b['board_stem']}` → `节点/{g['node_id']}.md`（{g['reason']}）"
+   239	                )
+   240	        lines.append("")
+   241	    lines += [
+   242	        "## 阶段数字（脚本产出 · 判读留人）",
+   243	        "",
+   244	        f"- 覆盖 {n} 板 / 总成员 {total_members}（按节点去重）/ 总批注 {total_tips} 条（未答上界 {total_tips}）"
+   245	        + (f" / 跨板重复成员 {dup_members} 个" if dup_members else "")
+   246	        + (f" / 待修链接 {total_ghosts} 条" if total_ghosts else ""),
+   247	        f"- 数据面：本地只读扫描（fallback 口径，与 /board-recap 第一刀一致）· 取数时刻 {created_at}",
+   248	        "",
+   249	    ]
+   250	    return "\n".join(lines)
+   251	
+   252	
+   253	def _symlink_probe(vault: Path, target: Path, tmp: Path) -> str | None:
+   254	    """写前 lstat 预检 — 目录 / 最终目标 / **落盘用的 tmp 路径** 三者。
+   255	
+   256	    W4 (workflow round-1 复现, BLOCKER): 只查目录与 target 而漏 tmp,
+   257	    预置 ``<target>.g59-tmp`` symlink 会让 write_text 跟随链接写到 vault
+   258	    外 (覆盖任意外部文件), 随后 os.replace 把 target 本身变成指向 vault
+   259	    外的 symlink; 且 undo 的 resolve() 会逃出 exam_root 导致无法回退。
+   260	    本函数是第一道; 真正的防线是 _atomic_write 的 O_EXCL|O_NOFOLLOW。
+   261	    """
+   262	    for p in (vault / EXAM_DIR, target, tmp):
+   263	        if p.is_symlink():
+   264	            return f"写入目标被 symlink 布防: {p}"
+   265	    return None
+   266	
+   267	
+   268	def _created_at(ts: str) -> str:
+   269	    """--ts (YYYY-MM-DD-HHMM) → ISO Z 串。
+   270	
+   271	    ⚠️ round-3 M7 + workflow round-2: 本函数只做格式转换 —— **调用方必须
+   272	    保证 ts 本身是 UTC 时刻**。默认 ts 现取 ``datetime.now(timezone.utc)``
+   273	    (原先取本地墙钟却硬贴 Z, 在 Asia/Shanghai 写出快 8 小时的假 UTC,
+   274	    与 start-exam-board 的 ``date -u`` 分属两个时钟, 导致
+   275	    board_manifest_service 的 exam_history 按 created_at 排序错位)。
+   276	    """
+   277	    return f"{ts[:10]}T{ts[11:13]}:{ts[13:15]}:00Z"
+   278	
+   279	
+   280	def _fsync_dir(d: Path) -> tuple[str, str | None]:
+   281	    """目录项持久化 (round-3 M5): 只 fsync 文件不 fsync 父目录时,
+   282	    崩溃后可能文件内容在而目录项丢失。
+   283	
+   284	    ⛔ round-3 HIGH-4: 原实现把 open/fsync 的失败**全部静默吞掉并返回 None**,
+   285	    调用方无从分辨"成功"与"失败"。undo 因此会在**留痕目录项未持久化**的情况下
+   286	    继续删除源文件 —— 崩溃模型下可能**两端皆失**(源已删、留痕的目录项没落盘)。
+   287	    修法: 返回失败原因, 由调用方决定是否 fail-closed。
+   288	    → ("ok"|"unsupported"|"failed", 说明|None)。
+   289	    round-4 HIGH-4 起改为**三态**: "unsupported" 单列, 因为「该 FS 不支持 fsync 目录」
+   290	    只说明**无法证明已持久化**, 既不是成功也不是失败 —— 把它伪装成成功会让 undo
+   291	    在无从证明的情况下继续删源。调用方须显式决定如何对待这一档。
+   292	
+   293	    诚实边界: 部分文件系统对目录 fd 的 fsync 返回 EINVAL/ENOTSUP, 那**不是**
+   294	    持久化失败而是"不支持"。这两类必须区分, 否则会在正常 FS 上误拒。
+   295	    """
+   296	    try:
+   297	        fd = os.open(d, os.O_RDONLY)
+   298	    except OSError as e:
+   299	        return "failed", f"目录打开失败 {type(e).__name__}"
+   300	    unsupported = None
+   301	    try:
+   302	        try:
+   303	            os.fsync(fd)
+   304	        except OSError as e:
+   305	            errno_ = getattr(e, "errno", None)
+   306	            # ⛔ round-4 HIGH-4: 原豁免集含 EPERM —— 它**不能**证明「不支持」,
+   307	            # 更可能是真实的权限/策略拒绝, 当成成功会让 undo 继续删源。已移除。
+   308	            # 且 EINVAL/ENOTSUP 只说明「**无法证明**已持久化」, 不等于成功 ——
+   309	            # 改为单独一档 "unsupported", 由调用方决定怎么办(而不是伪装成 None)。
+   310	            if errno_ in (errno.EINVAL, errno.ENOTSUP):
+   311	                unsupported = f"该文件系统不支持 fsync 目录 ({type(e).__name__})"
+   312	            else:
+   313	                return "failed", f"目录 fsync 失败 {type(e).__name__}"
+   314	    finally:
+   315	        # round-4 MEDIUM-2: close 若抛错, 原实现会直接逸出并破坏 JSON 回执契约。
+   316	        try:
+   317	            os.close(fd)
+   318	        except OSError:
+   319	            pass
+   320	    if unsupported:
+   321	        return "unsupported", unsupported
+   322	    return "ok", None
+   323	
+   324	
+   325	def _open_exam_dirfd(vault: Path) -> tuple[int | None, str | None]:
+   326	    """打开 检验白板/ 并返回一个**钉死该目录 inode** 的 dir_fd。
+   327	
+   328	    主 session 并行复核 HIGH-4 的正解。三重校验:
+   329	    1. ``O_DIRECTORY|O_NOFOLLOW`` —— 目录本身若是 symlink 直接 ELOOP 失败;
+   330	    2. ``os.fstat(dfd)`` 与 ``os.stat(vault/EXAM_DIR)`` 的 (dev, ino) 必须相同
+   331	       —— 打开的确是我们校验过的那个目录, 不是打开后被换掉的另一个;
+   332	    3. dfd 与 vault 必须**同一文件系统** (st_dev 相同) —— 目录被换成指向外部
+   333	       挂载点的链接时, 即便前两条侥幸通过也会在这里被拦。
+   334	    → (dfd | None, 失败原因 | None)。调用方负责 os.close(dfd)。
+   335	    """
+   336	    exam = vault / EXAM_DIR
+   337	    try:
+   338	        dfd = os.open(exam, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+   339	    except OSError as e:
+   340	        return (
+   341	            None,
+   342	            f"{EXAM_DIR}/ 打开失败 (被 symlink 布防或不是目录): {type(e).__name__}",
+   343	        )
+   344	    try:
+   345	        st_dfd = os.fstat(dfd)
+   346	        st_path = os.stat(exam)
+   347	        st_vault = os.stat(vault)
+   348	    except OSError as e:
+   349	        os.close(dfd)
+   350	        return None, f"{EXAM_DIR}/ 身份校验失败: {type(e).__name__}"
+   351	    if (st_dfd.st_dev, st_dfd.st_ino) != (st_path.st_dev, st_path.st_ino):
+   352	        os.close(dfd)
+   353	        return None, f"{EXAM_DIR}/ 在打开前后被替换 (inode 变化), 拒绝写入"
+   354	    if st_dfd.st_dev != st_vault.st_dev:
+   355	        os.close(dfd)
+   356	        return None, f"{EXAM_DIR}/ 与 vault 不在同一文件系统 (疑似越界挂载), 拒绝写入"
+   357	    return dfd, None
+   358	
+   359	
+   360	def _dirfd_still_in_vault(dir_fd: int, vault: Path) -> str | None:
+   361	    """复核 dir_fd 指向的仍是 vault 内那个 检验白板/ 目录。
+   362	
+   363	    ⛔ round-3 HIGH-1: `_open_exam_dirfd` 只在**打开那一刻**做一次 inode 快照。
+   364	    校验通过之后, 若有人把该目录 rename 到 vault **外**(同一文件系统),
+   365	    dfd 仍指向那个已被移走的 inode —— 写入会真的落在 vault 外, 而回执照旧
+   366	    按词法路径报 `created: true`, 用户以为文件在 vault 里。
+   367	    修法: 发布完成后**再核一次**「vault/检验白板 这个路径今天解析出来的 inode,
+   368	    是否还等于我们手里 dfd 的 inode」。不等 = 目录已被移走/替换。
+   369	    → None = 仍在; str = 失败原因。
+   370	
+   371	    诚实边界: 这是**事后检测**, 不是事前阻止 —— POSIX 没有"把 inode 钉在某个
+   372	    父目录里"的原语。它保证的是**不会谎报成功**(检测到就如实回报并撤销),
+   373	    而不是"不可能被移走"。残留窗口与 lstat→unlink 那处同源, 已在验收单声明。
+   374	    """
+   375	    try:
+   376	        # ⛔ round-4 HIGH-1: 原用 os.stat —— 它**跟随 symlink**。反例: 把目录 rename
+   377	        # 出 vault 后, 在原路径放一个指回它的 symlink, os.stat 解析后拿到的 inode
+   378	        # 仍等于 dir_fd 的 inode ⇒ 复核通过, 文件照旧落在 vault 外而回执报成功。
+   379	        # 改用 lstat 并**显式拒绝 symlink**: 该路径本就应当是真目录, 不是别名。
+   380	        st_now = os.lstat(vault / EXAM_DIR)
+   381	        st_dfd = os.fstat(dir_fd)
+   382	    except OSError as e:
+   383	        return f"写入后复核 {EXAM_DIR}/ 失败: {type(e).__name__}"
+   384	    if stat.S_ISLNK(st_now.st_mode):
+   385	        return f"{EXAM_DIR}/ 在写入期间被替换成 symlink — 写入落点不可信"
+   386	    if (st_now.st_dev, st_now.st_ino) != (st_dfd.st_dev, st_dfd.st_ino):
+   387	        return (
+   388	            f"{EXAM_DIR}/ 在写入期间被替换或移出 vault "
+   389	            "(目录 inode 已变) — 写入落点不可信"
+   390	        )
+   391	    return None
+   392	
+   393	
+   394	def _rollback_published(
+   395	    name: str,
+   396	    dir_fd: int,
+   397	    identity: tuple[int, int] | None = None,
+   398	    *,
+   399	    expect_sha: str | None = None,
+   400	) -> tuple[str, str | None]:
+
+exec
+/bin/zsh -lc "nl -ba canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py | sed -n '401,800p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+exec
+/bin/zsh -lc "nl -ba canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py | sed -n '801,1197p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+   401	    """撤销**我们自己**刚发布的 target —— 仅当它当前确实还是我们那一份。
+   402	
+   403	    round-3 HIGH-3: 原实现按 basename 直接 unlink 并静默吞掉失败, 两个问题:
+   404	      · identity 快照可能已过时 —— 期间路径被换入他人文件时会误删;
+   405	      · 删除失败被吞 ⇒ 错误字节的 target 留在 vault 里, 回执却只报失败。
+   406	
+   407	    「还是我们那一份」有两种判法, 按调用场景取其一:
+   408	      · ``identity``  —— 比 (dev, ino), 用于「刚 link 出来、inode 已知」的场景;
+   409	      · ``expect_sha`` —— 比内容 SHA, 用于 HIGH-1 那种「目录整体被移走」的场景
+   410	        (此时 inode 仍是我们的, 但我们想确认删的确是自己写的那份字节)。
+   411	    两者都给则必须同时满足。任一不符 ⇒ **不删**(那不是我们的东西)。
+   412	    ⛔ round-4 HIGH-3: 原先只返回 `None | str`, 而 `None` 同时表示四种截然不同的
+   413	    结果(已删 / 本就不存在 / identity 不符**没删** / SHA 不符**没删**)。调用方无法
+   414	    分辨, 于是一律拼「已撤销该文件」—— **回执与实际副作用直接不一致**。
+   415	    改为三态: ("deleted"|"absent"|"kept", 失败原因|None)。
+   416	    · deleted = 确实删了; · absent = 本就不在; · kept = **判据不符, 故意没删**。
+   417	    """
+   418	    if identity is None and expect_sha is None:
+   419	        # round-4 LOW-1: 两个判据都不给 ⇒ 无从证明「这是我们的」, 拒绝删除。
+   420	        return "kept", "未提供任何身份判据, 拒绝删除"
+   421	    try:
+   422	        st_now = os.lstat(name, dir_fd=dir_fd)
+   423	    except FileNotFoundError:
+   424	        return "absent", None  # 已经不在了, 无需撤销
+   425	    except OSError as e:
+   426	        return "kept", f"撤销前复核失败 {type(e).__name__}"
+   427	    if identity is not None and (st_now.st_dev, st_now.st_ino) != identity:
+   428	        return "kept", None  # 已不是我们的 inode ⇒ 是别人的文件, 绝不删
+   429	    if expect_sha is not None:
+   430	        try:
+   431	            cfd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=dir_fd)
+   432	            try:
+   433	                buf = b""
+   434	                while chunk := os.read(cfd, 1 << 20):
+   435	                    buf += chunk
+   436	            finally:
+   437	                os.close(cfd)
+   438	        except OSError as e:
+   439	            return "kept", f"撤销前回读失败 {type(e).__name__}"
+   440	        if hashlib.sha256(buf).hexdigest() != expect_sha:
+   441	            return "kept", None  # 内容已不是我们写的那份 ⇒ 不删
+   442	    try:
+   443	        os.unlink(name, dir_fd=dir_fd)
+   444	    except OSError as e:
+   445	        return "kept", f"unlink 失败 {type(e).__name__}"
+   446	    return "deleted", None
+   447	
+   448	
+   449	def _atomic_write(
+   450	    tmp: Path, target: Path, content: str, dir_fd: int
+   451	) -> tuple[str | None, str | None]:
+   452	    """O_EXCL|O_NOFOLLOW 写 tmp → fsync → **link 到 target (no-replace)** →
+   453	    unlink tmp → fsync 父目录。
+   454	
+   455	    W4 纵深防御: O_NOFOLLOW 让 tmp 若是 symlink 直接 ELOOP 失败 (不跟随),
+   456	    O_CREAT|O_EXCL 让 tmp 已存在时直接失败 (不覆盖并发/残留文件) —
+   457	    lstat 预检与实际写之间的 TOCTOU 窗口由内核标志封死。
+   458	    round-3 H6: 落盘不再用 ``os.replace`` (它会**覆盖**预检之后才出现的
+   459	    target) —— 改用 ``os.link``: 目标已存在时内核直接 EEXIST, 原子且永不
+   460	    覆盖; 成功后 unlink tmp, 目标是同一 inode 的硬链接 (内容已 fsync)。
+   461	    round-3 M5: 补 fsync 父目录; tmp 清理失败如实回报而非静默吞掉。
+   462	    → (失败原因 | None, 告警 | None)。失败时目标未创建; 告警只表示 tmp
+   463	    未清理 (目标已正确落盘), 由调用方如实写进回执而非当作失败。
+   464	
+   465	    ⛔ 主 session 并行复核 HIGH-4 (实测反例: probe 后把 检验白板/ 换成指向
+   466	    vault 外的目录 symlink, create 仍返回 created:true 且**文件落在 vault 外**):
+   467	    此前 `_prepare` 的目录守卫、`_symlink_probe` 与本函数的 open/link 全部**按路径**
+   468	    操作 —— 检查与使用之间隔着可被替换的路径解析, O_NOFOLLOW 只护住最后一段,
+   469	    中段/父目录被换掉时护不住。修法 = **dirfd 锚定**: 调用方用
+   470	    O_DIRECTORY|O_NOFOLLOW 打开 检验白板/ 拿到 dfd 并校验它确在 vault 内,
+   471	    此后所有操作只用 **basename + dir_fd=dfd**。dfd 钉死的是那一个目录 inode,
+   472	    路径事后怎么换都改变不了操作落点 —— 窗口从根本上消失, 而不是被压小。
+   473	
+   474	    ⚠️ **作用域边界（独立复核明确要求不得外推）**: 本函数保证的是
+   475	    「**锚定成功之后**, `_atomic_write` 内部的落点不再依赖路径解析」。
+   476	    它**不**等于「整个程序从此完全不解析路径」——
+   477	      · `_prepare` 在锚定**之前**仍有 mkdir、`_symlink_probe` 与打开目录时的路径解析;
+   478	      · `cmd_undo` 是另一套**按路径**的流程, 不走本锚定。
+   479	    写文档/验收单时请照此口径, 不要写成「全程 dirfd 化」。
+   480	    """
+   481	    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+   482	    tmp_name, target_name = tmp.name, target.name
+   483	    published = False  # link 是否已成功 (round-3 HIGH-2)
+   484	    rollback_note = None  # 撤销未完成时的如实说明 (round-4 HIGH-2)
+   485	    st_written = None
+   486	    try:
+   487	        fd = os.open(tmp_name, flags, 0o644, dir_fd=dir_fd)
+   488	    except OSError as e:
+   489	        return (
+   490	            f"临时文件创建失败 (symlink 布防或残留 {tmp.name}): {type(e).__name__}",
+   491	            None,
+   492	        )
+   493	    try:
+   494	        with os.fdopen(fd, "w", encoding="utf-8", closefd=False) as f:
+   495	            f.write(content)
+   496	            f.flush()
+   497	            os.fsync(f.fileno())
+   498	        # round-4 H6: 发布的字节必须是**我们刚写的那个 inode** — 关闭 fd 后
+   499	        # 按路径 link, 期间 tmp 若被替换会发布他人内容。这里用写入时的 fd 记下
+   500	        # (dev,ino), link 之后立刻核对 target 是同一 inode, 不符则撤销发布。
+   501	        st_written = os.fstat(fd)
+   502	        os.close(fd)
+   503	        fd = -1
+   504	        os.link(
+   505	            tmp_name, target_name, src_dir_fd=dir_fd, dst_dir_fd=dir_fd
+   506	        )  # EEXIST 绝不覆盖
+   507	        # round-3 HIGH-2: link 一旦成功, target 就**已经发布**了。此后回读若抛
+   508	        # EMFILE/EIO 之类, 原实现会掉进下方统一 except —— 那里只删 tmp,
+   509	        # **把已发布的 target 留在 vault 里**却回报"原子写失败"。
+   510	        # 修法: 用显式状态记住"已发布", 让失败路径知道自己要撤销发布。
+   511	        published = True
+   512	        # codex round-1 HIGH-2 (a): 只比 (dev,ino) 不足 —— 别的进程**原地改写
+   513	        # 同一个 tmp inode** 时两侧 inode 恒等, 核对照样通过, 发布出去的却是
+   514	        # 他人字节 (复核者隔离注入实测: 回执 SHA e51ca99e… 与目标实际 43cb09e0…
+   515	        # 分叉, 而 _atomic_write 返回 err=None)。修法 = 发布后**重读目标字节**
+   516	        # 并与我们要写的 content 做 sha 全等, inode 与字节两条都过才算发布成功。
+   517	        want_sha = hashlib.sha256(content.encode("utf-8")).hexdigest()
+   518	        vfd = os.open(target_name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=dir_fd)
+   519	        try:
+   520	            st_pub = os.fstat(vfd)
+   521	            got = b""
+   522	            while chunk := os.read(vfd, 1 << 20):
+   523	                got += chunk
+   524	        finally:
+   525	            os.close(vfd)
+   526	        same_inode = (st_pub.st_dev, st_pub.st_ino) == (
+   527	            st_written.st_dev,
+   528	            st_written.st_ino,
+   529	        )
+   530	        if not same_inode or hashlib.sha256(got).hexdigest() != want_sha:
+   531	            # codex round-1 HIGH-2 (b): 原实现在这里 target.unlink() —— 但走到
+   532	            # 本分支恰恰说明 target 已**不是我们的 inode**(被并发替换), 按路径
+   533	            # 删它等于删掉别人刚创建的文件, 且回执还报失败 → 文件静默丢失。
+   534	            # 修法: inode 不符时**绝不删**, 只如实回报; 仅当 inode 仍是我们的
+   535	            # (纯字节被原地改写) 才撤销自己的发布。
+   536	            if same_inode:
+   537	                # round-3 HIGH-3: same_inode 来自**已打开 fd 的快照**, 到这里可能
+   538	                # 已经过时 —— 期间路径若被换入别的文件, 按 basename 删就删掉了
+   539	                # 他人的文件。修法: 紧贴 unlink 前**再 lstat 一次**核 identity;
+   540	                # 且删除失败**不再静默吞掉**(否则会留下错误字节的 target 而回执
+   541	                # 只报失败)。
+   542	                # ⛔ round-4 HIGH-2: 原实现在拿到结果**之前**就 published = False,
+   543	                # 于是外层 except 里 `if published:` 不成立、rb_err 被重置为 None,
+   544	                # 「已发布目标未能撤销」这条关键信息被整个吞掉, 回执只剩
+   545	                # 「原子写失败: OSError」。修法: 只有**确实删掉**才清 published;
+   546	                # 撤销结果用外层可见的 rollback_note 承载, 不依赖异常传递。
+   547	                rb_state, rb_err = _rollback_published(
+   548	                    target_name, dir_fd, (st_written.st_dev, st_written.st_ino)
+   549	                )
+   550	                if rb_state == "deleted" or rb_state == "absent":
+   551	                    published = False
+   552	                else:
+   553	                    rollback_note = rb_err or "判据不符, 已保留(未删除)"
+   554	                raise OSError("published bytes mismatch (in-place rewrite)")
+   555	            published = False  # 不是我们的 inode ⇒ 不属于我们, 无需也不得撤销
+   556	            raise OSError(
+   557	                "published inode mismatch (concurrent replacement; 未删除该文件)"
+   558	            )
+   559	    except OSError as e:
+   560	        if fd >= 0:
+   561	            try:
+   562	                os.close(fd)
+   563	            except OSError:
+   564	                pass
+   565	        # round-3 HIGH-2: 若 link 已成功而后续步骤抛错, target 已经发布出去了 ——
+   566	        # 必须撤销自己的发布, 否则「回执报失败、文件却留在 vault 里」。
+   567	        if published:
+   568	            rb_state, rb_err2 = _rollback_published(
+   569	                target_name, dir_fd, (st_written.st_dev, st_written.st_ino)
+   570	            )
+   571	            if rb_state not in ("deleted", "absent"):
+   572	                rollback_note = rb_err2 or "判据不符, 已保留(未删除)"
+   573	        # round-3 MEDIUM-5: tmp 清理失败原先被吞 —— 残留会让下次同 ts 的 O_EXCL
+   574	        # 直接失败, 而用户拿不到任何线索。改为并入错误消息如实回报。
+   575	        tmp_err = None
+   576	        try:
+   577	            os.unlink(tmp_name, dir_fd=dir_fd)
+   578	        except FileNotFoundError:
+   579	            pass
+   580	        except OSError as te:
+   581	            tmp_err = f"{tmp_name}: {type(te).__name__}"
+   582	        kind = (
+   583	            "目标已存在 (并发创建), 拒绝覆盖"
+   584	            if isinstance(e, FileExistsError)
+   585	            else "原子写失败"
+   586	        )
+   587	        msg = f"{kind}: {type(e).__name__}"
+   588	        if rollback_note:
+   589	            msg += f" (⚠️ 已发布的目标仍在 vault 里: {rollback_note}, 请手动检查)"
+   590	        if tmp_err:
+   591	            msg += f" (⚠️ 临时文件未清理 {tmp_err}, 下次同 ts 会被拒, 请手动删除)"
+   592	        return msg, None
+   593	    warn = None
+   594	    try:
+   595	        os.unlink(tmp_name, dir_fd=dir_fd)
+   596	    except OSError as e:
+   597	        warn = f"临时文件未能清理 ({tmp.name}: {type(e).__name__})，下次 create 同 ts 会被拒绝，请手动删除"
+   598	    try:
+   599	        os.fsync(dir_fd)  # dirfd 已在手, 直接 fsync 它 (不再按路径重开)
+   600	    except OSError:
+   601	        pass
+   602	    return None, warn
+   603	
+   604	
+   605	def _prepare(args) -> tuple[list[dict], str, Path] | int:
+   606	    """preview/create 共用的数据面: 扫描各板 + 定目标路径。"""
+   607	    vault = Path(args.vault)
+   608	    if not (vault / BOARD_DIR).is_dir():
+   609	        return _fail_env(f"vault 不可用: {vault / BOARD_DIR} 不存在")
+   610	    # 目录级 symlink 守卫 (与 recap_scan 同语义)
+   611	    vault_resolved = vault.resolve()
+   612	    for sub in (BOARD_DIR, "节点", EXAM_DIR):
+   613	        d = vault / sub
+   614	        if not d.exists():
+   615	            continue
+   616	        try:
+   617	            escaped = not d.resolve().is_relative_to(vault_resolved)
+   618	        except (OSError, ValueError):
+   619	            escaped = True
+   620	        if escaped:
+   621	            return _fail_env(
+   622	                f"vault 不可用: {sub}/ 目录 resolve 到 vault 之外 (symlink 越界)"
+   623	            )
+   624	    stems = list(dict.fromkeys(args.boards))
+   625	    if not stems:
+   626	        return _fail_env("--boards 至少给 1 块板")
+   627	    anchor = args.anchor or stems[0]
+   628	    if anchor not in stems:
+   629	        return _fail_env(f"--anchor {anchor!r} 不在 --boards 里")
+   630	    # round-3 M6: wikilink 语义字符 — `#` 是 heading 锚点、`|` 是别名分隔,
+   631	    # 板名含它们时产物写出的 [[原白板/A#B]] 会被消费方 (resolve_node_id)
+   632	    # 截断成另一个板名 → scan_vault 归属错乱且不报 parse error。文件系统
+   633	    # 允许这两个字符, 所以必须在本层显式拒绝而不是指望 containment。
+   634	    # round-6 终裁复核: `]` 同样是 wikilink 终止符 (板名含 `]]` 时
+   635	    # resolve_node_id 在首个 `]]` 处截断 → 归属错乱), `[` 同理
+   636	    bad = [s for s in stems if any(c in s for c in "#|^][")]
+   637	    if bad:
+   638	        return _fail_env(f"板名含 wikilink 语义字符 (#/|/^/[/]), 拒绝: {bad}")
+   639	    # round-3 M7: --ts 不只验形状 — 必须是真实存在的日历时刻
+   640	    # (2026-99-99-9999 曾通过, 会写出非法 created_at 并阻断 SnapshotV3 刷新)
+   641	    if not _TS_RE.match(args.ts):
+   642	        return _fail_env(f"--ts 非法: {args.ts!r} (须为 YYYY-MM-DD-HHMM)")
+   643	    try:
+   644	        datetime.strptime(args.ts, "%Y-%m-%d-%H%M")
+   645	    except ValueError as e:
+   646	        return _fail_env(f"--ts 不是真实时刻: {args.ts!r} ({e})")
+   647	    boards = [_scan_board(vault, s) for s in stems]
+   648	    target = vault / EXAM_DIR / f"{anchor}-{args.ts}.md"
+   649	    return boards, anchor, target
+   650	
+   651	
+   652	def cmd_preview(args) -> int:
+   653	    prep = _prepare(args)
+   654	    if isinstance(prep, int):
+   655	        return prep
+   656	    boards, anchor, target = prep
+   657	    vault = Path(args.vault)
+   658	    missing = [b["board_stem"] for b in boards if not b["exists"]]
+   659	    out: dict = {
+   660	        "mode": "preview",
+   661	        "write_side": "none",
+   662	        "anchor": anchor,
+   663	        "ts": args.ts,
+   664	        "boards": boards,
+   665	        "target_path": str(target.relative_to(vault)),
+   666	        "target_exists": target.exists(),
+   667	    }
+   668	    if missing:
+   669	        out["refusal_reason"] = f"以下板不存在或板名非法: {missing} (create 将拒绝)"
+   670	    elif target.exists() or target.is_symlink():
+   671	        # round-3 L1: 既有目标此前只给 target_exists=true 而无 refusal_reason,
+   672	        # 与 SKILL.md「refusal_reason 非空 → 如实转告并停」的契约不符
+   673	        out["refusal_reason"] = (
+   674	            f"目标已存在: {target.name} (create 将拒绝覆盖; 换 --ts 或先 undo)"
+   675	        )
+   676	    else:
+   677	        content = _render_content(boards, anchor, args.ts, _created_at(args.ts))
+   678	        # round-6: 与产物同口径 —— 成员按 node_id 去重 (扁平共享池跨板重复)
+   679	        all_ids: list[str] = []
+   680	        for b in boards:
+   681	            all_ids.extend(b["member_ids"])
+   682	        uniq = list(dict.fromkeys(all_ids))
+   683	        out["totals"] = {
+   684	            "boards": len(boards),
+   685	            "members": len(uniq),
+   686	            "members_listed": len(all_ids),
+   687	            "duplicate_members": len(all_ids) - len(uniq),
+   688	            "tips_total": sum(b["tips_total"] for b in boards),
+   689	            "ghosts": sum(b["ghost_count"] for b in boards),
+   690	        }
+   691	        out["content"] = content
+   692	        out["content_sha256"] = hashlib.sha256(content.encode("utf-8")).hexdigest()
+   693	        out["next_step"] = (
+   694	            "用户确认后跑 create，并把本 content_sha256 传给 --expect-content-sha"
+   695	            "（绑定所见即所写）"
+   696	        )
+   697	    print(json.dumps(out, ensure_ascii=False, indent=1))
+   698	    return 0
+   699	
+   700	
+   701	def cmd_create(args) -> int:
+   702	    prep = _prepare(args)
+   703	    if isinstance(prep, int):
+   704	        return prep
+   705	    boards, anchor, target = prep
+   706	    vault = Path(args.vault)
+   707	    missing = [b["board_stem"] for b in boards if not b["exists"]]
+   708	    if missing:
+   709	        print(
+   710	            json.dumps(
+   711	                {
+   712	                    "mode": "create",
+   713	                    "created": False,
+   714	                    "refusal_reason": f"板不存在/非法: {missing}",
+   715	                },
+   716	                ensure_ascii=False,
+   717	            )
+   718	        )
+   719	        return 0
+   720	    if target.exists() or target.is_symlink():
+   721	        print(
+   722	            json.dumps(
+   723	                {
+   724	                    "mode": "create",
+   725	                    "created": False,
+   726	                    "refusal_reason": f"目标已存在, 拒绝覆盖: {target.name}",
+   727	                },
+   728	                ensure_ascii=False,
+   729	            )
+   730	        )
+   731	        return 0
+   732	    content = _render_content(boards, anchor, args.ts, _created_at(args.ts))
+   733	    sha = hashlib.sha256(content.encode("utf-8")).hexdigest()
+   734	    # round-3 H5: preview→create 之间 vault 可能变化 (新增成员/改批注),
+   735	    # 相同 --ts 并不保证所见即所写。--expect-content-sha 把用户**确认过的
+   736	    # 那份字节**绑进来: 不符即拒, 零写侧, 让 skill 重跑 preview 再确认。
+   737	    # codex round-1 HIGH-1: 形状先于比较 —— 空串/非 64 位 hex 一律 exit 2,
+   738	    # 不再走 falsy 短路; 比较本身改为**无条件**。
+   739	    if not _SHA256_RE.match(args.expect_content_sha or ""):
+   740	        return _fail_env(
+   741	            "--expect-content-sha 必须是 preview 回执里的 64 位小写十六进制 "
+   742	            "content_sha256（空串或非法形状一律拒绝，防绕过用户确认）"
+   743	        )
+   744	    if args.expect_content_sha != sha:
+   745	        print(
+   746	            json.dumps(
+   747	                {
+   748	                    "mode": "create",
+   749	                    "created": False,
+   750	                    "refusal_reason": (
+   751	                        "内容与用户确认的 preview 不一致 (期间 vault 有变化) — "
+   752	                        "已零写侧退出, 请重跑 preview 让用户确认新内容"
+   753	                    ),
+   754	                    "expected_sha256": args.expect_content_sha,
+   755	                    "actual_sha256": sha,
+   756	                },
+   757	                ensure_ascii=False,
+   758	                indent=1,
+   759	            )
+   760	        )
+   761	        return 0
+   762	    try:
+   763	        (vault / EXAM_DIR).mkdir(exist_ok=True)
+   764	    except OSError as e:  # round-3 L3: I/O 异常归一到 JSON+exit 2 契约
+   765	        return _fail_env(f"{EXAM_DIR}/ 目录不可用: {type(e).__name__}")
+   766	    tmp = target.with_name(target.name + ".g59-tmp")
+   767	    probe = _symlink_probe(vault, target, tmp)
+   768	    if probe:
+   769	        return _fail_env(probe)
+   770	    # 主 session 并行复核 HIGH-4: 上面的 probe 仍是「按路径检查」，与实际写入之间
+   771	    # 隔着可被替换的路径解析（实测：probe 后把 检验白板/ 换成指向 vault 外的目录
+   772	    # symlink，create 仍 created:true 且文件落在 vault 外）。这里改为**先取 dirfd
+   773	    # 锚定目录 inode**，之后所有写侧操作只用 basename + dir_fd —— 路径事后怎么换
+   774	    # 都改变不了操作落点。probe 保留为第一道快速拒绝（诊断信息更友好）。
+   775	    dfd, dfd_err = _open_exam_dirfd(vault)
+   776	    if dfd_err:
+   777	        return _fail_env(dfd_err)
+   778	    try:
+   779	        write_err, warn = _atomic_write(tmp, target, content, dfd)
+   780	        # round-3 HIGH-1: dirfd 的身份校验只发生在打开那一刻。写入完成后再核一次
+   781	        # 「vault/检验白板 现在解析出的 inode 是否仍等于 dfd 的 inode」——
+   782	        # 若期间目录被 rename 出 vault, 这里会检出, 从而**不会谎报 created:true**。
+   783	        if not write_err:
+   784	            moved = _dirfd_still_in_vault(dfd, vault)
+   785	            if moved:
+   786	                rb_state, rb_err = _rollback_published(
+   787	                    target.name, dfd, None, expect_sha=sha
+   788	                )
+   789	                # round-4 HIGH-3: 三态如实转述 —— "kept" 表示判据不符**故意没删**,
+   790	                # 绝不能像原来那样一律拼「已撤销该文件」(回执与副作用不一致)。
+   791	                tail = {
+   792	                    "deleted": " (已撤销该文件)",
+   793	                    "absent": " (该文件已不存在)",
+   794	                }.get(
+   795	                    rb_state,
+   796	                    f" (⚠️ 文件仍在: {rb_err or '判据不符, 故意未删'}, 请手动检查)",
+   797	                )
+   798	                write_err = moved + tail
+   799	    finally:
+   800	        os.close(dfd)
+
+ succeeded in 0ms:
+   801	    if write_err:
+   802	        return _fail_env(write_err)
+   803	    rel = str(target.relative_to(vault))
+   804	    receipt = {
+   805	        "mode": "create",
+   806	        "created": True,
+   807	        "created_path": rel,
+   808	        "content_sha256": sha,
+   809	        "bytes": len(content.encode("utf-8")),
+   810	        # round-3 H8: 路径含空格/括号/& 时未加引号的 hint 是**语法错误的**
+   811	        # shell 命令 (zsh -n 实测 parse error) — 逐参数 shlex.quote
+   812	        # round-3 H8 + round-4: 路径含空格/括号/& 时未加引号的 hint 是**语法
+   813	        # 错误的** shell 命令 (zsh -n 实测 parse error) — 逐参数 shlex.quote;
+   814	        # 且 undo-dir 占位符不能写成 `<...>` (shell 重定向语法, 整条仍解析失败),
+   815	        # 改成可直接替换的引号串。
+   816	        # codex round-1 MEDIUM-7: SKILL.md 称 undo_hint「可直接复制执行」, 但串以
+   817	        # `undo …` 开头 —— 缺 `python3 <本脚本>` 前缀, 在普通 shell 里 `undo` 不是
+   818	        # 命令 (zsh: command not found)。补上解释器与脚本绝对路径, 让文档的承诺成立。
+   819	        "undo_hint": (
+   820	            f"{shlex.quote(sys.executable)} {shlex.quote(str(Path(__file__).resolve()))} "
+   821	            f"undo --vault {shlex.quote(str(vault))} --path {shlex.quote(rel)} "
+   822	            f"--expect-sha {sha} --undo-dir 'PUT_A_DIR_OUTSIDE_THE_VAULT_HERE'"
+   823	        ),
+   824	    }
+   825	    if warn:
+   826	        receipt["warning"] = warn
+   827	    print(json.dumps(receipt, ensure_ascii=False, indent=1))
+   828	    return 0
+   829	
+   830	
+   831	def cmd_undo(args) -> int:
+   832	    vault = Path(args.vault)
+   833	    # codex round-1 HIGH-1 同型: --expect-sha 也必须先过形状白名单, 否则空串
+   834	    # 会让下游的 sha 全等比较失去意义 (undo 的判定虽然是无条件比较, 但空串
+   835	    # 期望值配上"不符即拒"会退化成**恒拒**, 掩盖真实的绑定失效)。
+   836	    if not _SHA256_RE.match(args.expect_sha or ""):
+   837	        return _fail_env(
+   838	            "--expect-sha 必须是 create 回执里的 64 位小写十六进制 content_sha256"
+   839	        )
+   840	    # ⛔ round-6 终裁复核: cmd_undo 此前完全没有 create 侧的「目录 symlink 越界」
+   841	    # 守卫 —— containment 只比 target.resolve() 与 exam_root.resolve(), 两者
+   842	    # 一起被 symlink 带出 vault 后仍判 contained=True, undo 就会去动 vault 外
+   843	    # 的文件。这里补上与 _prepare 同款的目录级守卫。
+   844	    vault_resolved = vault.resolve()
+   845	    for sub in (BOARD_DIR, "节点", EXAM_DIR):
+   846	        d = vault / sub
+   847	        if not d.exists():
+   848	            continue
+   849	        try:
+   850	            escaped = not d.resolve().is_relative_to(vault_resolved)
+   851	        except (OSError, ValueError):
+   852	            escaped = True
+   853	        if escaped:
+   854	            return _fail_env(
+   855	                f"vault 不可用: {sub}/ 目录 resolve 到 vault 之外 (symlink 越界)"
+   856	            )
+   857	    # 主 session 并行复核 HIGH-5 前半: 原实现直接 `.resolve()`, 会**解掉最后一段
+   858	    # 的 symlink** —— 传入同目录 alias(`alias.md -> real.md`) 时, 回执声称移除的是
+   859	    # alias, 实际移走的却是 referent, 并在 vault 里留下一条死链。后面的 O_NOFOLLOW
+   860	    # 完全看不到这一点, 因为它拿到的已经是 resolve 之后的真实路径。
+   861	    # 修法: 先按**未解析路径**判 leaf 是不是 symlink, 是就直接拒绝 —— undo 的语义
+   862	    # 是「把我创建的那个文件移走」, 对 alias 无定义, 不猜。
+   863	    raw_target = vault / args.path
+   864	    if raw_target.is_symlink():
+   865	        return _fail_env(
+   866	            f"undo 目标是 symlink, 拒绝 (回退语义对别名无定义, 避免移走 referent "
+   867	            f"并留下死链): {args.path}"
+   868	        )
+   869	    target = raw_target.resolve()
+   870	    exam_root = (vault / EXAM_DIR).resolve()
+   871	    try:
+   872	        contained = target.is_relative_to(exam_root)
+   873	    except ValueError:
+   874	        contained = False
+   875	    if not contained:
+   876	        return _fail_env(f"undo 目标必须在 {EXAM_DIR}/ 内: {args.path}")
+   877	    if not target.is_file():
+   878	        print(
+   879	            json.dumps(
+   880	                {
+   881	                    "mode": "undo",
+   882	                    "undone": False,
+   883	                    "refusal_reason": "目标不存在 (无可回退)",
+   884	                },
+   885	                ensure_ascii=False,
+   886	            )
+   887	        )
+   888	        return 0
+   889	    # round-3 H7: 校验的字节与最终移走的字节必须**是同一个 inode** —
+   890	    # 原实现 read_bytes 校验后按路径 shutil.move, 期间编辑器/同步程序若替换
+   891	    # 文件, 移走的是未经校验的新版本 (用户改动被静默丢进留痕目录)。
+   892	    # 现在: O_NOFOLLOW 打开拿 fd → 从 fd 读校验 → 记 (dev, ino) →
+   893	    # 移动前后各 lstat 一次比对同一 inode, 不符即拒。
+   894	    try:
+   895	        tfd = os.open(target, os.O_RDONLY | os.O_NOFOLLOW)
+   896	    except OSError as e:
+   897	        return _fail_env(f"undo 目标打开失败 (symlink 或权限): {type(e).__name__}")
+   898	    try:
+   899	        st_open = os.fstat(tfd)
+   900	        raw = b""
+   901	        while chunk := os.read(tfd, 1 << 20):
+   902	            raw += chunk
+   903	    finally:
+   904	        os.close(tfd)
+   905	    identity = (st_open.st_dev, st_open.st_ino)
+   906	    sha = hashlib.sha256(raw).hexdigest()
+   907	    if sha != args.expect_sha:
+   908	        print(
+   909	            json.dumps(
+   910	                {
+   911	                    "mode": "undo",
+   912	                    "undone": False,
+   913	                    "refusal_reason": "内容 sha256 与创建回执不符 (文件已被改动, 拒绝静默丢弃改动)",
+   914	                    "actual_sha256": sha,
+   915	                },
+   916	                ensure_ascii=False,
+   917	            )
+   918	        )
+   919	        return 0
+   920	    if GENERATED_BY.encode("utf-8") not in raw:
+   921	        print(
+   922	            json.dumps(
+   923	                {
+   924	                    "mode": "undo",
+   925	                    "undone": False,
+   926	                    "refusal_reason": "缺本脚本 generated_by 指纹, 拒绝回退非本脚本产物",
+   927	                },
+   928	                ensure_ascii=False,
+   929	            )
+   930	        )
+   931	        return 0
+   932	    undo_dir = Path(args.undo_dir).resolve()
+   933	    try:
+   934	        inside_vault = undo_dir.is_relative_to(vault.resolve())
+   935	    except ValueError:
+   936	        inside_vault = False
+   937	    if inside_vault:
+   938	        return _fail_env("--undo-dir 必须在 vault 之外 (vault 内不留新文件)")
+   939	    try:
+   940	        undo_dir.mkdir(parents=True, exist_ok=True)
+   941	    except OSError as e:  # round-3 L3
+   942	        return _fail_env(f"--undo-dir 不可用: {type(e).__name__}")
+   943	    # W5 (workflow round-1): 留痕名只含秒级时间戳 + 固定 target.name, 同秒
+   944	    # 二次 undo 同一 (anchor,ts) 会被 shutil.move 覆盖 → 先前留痕字节丢失,
+   945	    # 违反「不物理删除」。碰撞时顺延 -2/-3…, 绝不覆盖既有留痕。
+   946	    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+   947	    # round-3 H7 二段: 移动前复核 inode 未被替换 (校验窗口结束)
+   948	    try:
+   949	        st_now = os.lstat(target)
+   950	    except OSError as e:
+   951	        return _fail_env(f"undo 目标已消失: {type(e).__name__}")
+   952	    if (st_now.st_dev, st_now.st_ino) != identity:
+   953	        print(
+   954	            json.dumps(
+   955	                {
+   956	                    "mode": "undo",
+   957	                    "undone": False,
+   958	                    "refusal_reason": (
+   959	                        "校验后文件被替换 (inode 变化) — 拒绝移走未经校验的版本"
+   960	                    ),
+   961	                },
+   962	                ensure_ascii=False,
+   963	            )
+   964	        )
+   965	        return 0
+   966	    # W5 + round-3 M4: 留痕目的端**独占创建** (O_EXCL) 而不是 exists() 后
+   967	    # shutil.move —— 后者在目的端有竞态, 且跨文件系统会退化成 copy+unlink。
+   968	    # 这里: 先在目的端 O_EXCL 写出校验过的字节 + fsync, 确认落盘后才 unlink
+   969	    # 源 (耐久回退: 任何时刻崩溃都不会两头皆空)。
+   970	    dest = undo_dir / f"undone-{stamp}-{target.name}"
+   971	    seq, dfd = 1, None
+   972	    while dfd is None:
+   973	        try:
+   974	            dfd = os.open(
+   975	                dest, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644
+   976	            )
+   977	        except FileExistsError:
+   978	            seq += 1
+   979	            if seq > 999:
+   980	                return _fail_env("留痕文件名碰撞超过 999 次, 拒绝回退 (换 --undo-dir)")
+   981	            dest = undo_dir / f"undone-{stamp}-{seq}-{target.name}"
+   982	        except OSError as e:
+   983	            return _fail_env(f"留痕文件创建失败: {type(e).__name__}")
+   984	    try:
+   985	        with os.fdopen(dfd, "wb") as f:
+   986	            f.write(raw)
+   987	            f.flush()
+   988	            os.fsync(f.fileno())
+   989	    except OSError as e:
+   990	        try:
+   991	            dest.unlink()
+   992	        except OSError:
+   993	            pass
+   994	        return _fail_env(f"留痕写入失败, 已放弃回退 (原文件未动): {type(e).__name__}")
+   995	    # round-3 HIGH-4: 留痕的**目录项**没落盘就删源, 崩溃后可能两端皆失。
+   996	    # 这里改为 fail-closed: fsync 目录失败即拒绝回退, 原文件原样保留。
+   997	    dsync_state, dsync_msg = _fsync_dir(undo_dir)
+   998	    dsync_err = dsync_msg if dsync_state == "failed" else None
+   999	    if dsync_err:
+  1000	        print(
+  1001	            json.dumps(
+  1002	                {
+  1003	                    "mode": "undo",
+  1004	                    "undone": False,
+  1005	                    "refusal_reason": (
+  1006	                        f"留痕目录项未能持久化 ({dsync_err}) — 未删除 vault 内文件; "
+  1007	                        "此时删源在崩溃后可能两端皆失。请换一个 --undo-dir 重试"
+  1008	                    ),
+  1009	                    "retained_at": str(dest),
+  1010	                },
+  1011	                ensure_ascii=False,
+  1012	            )
+  1013	        )
+  1014	        return 0
+  1015	    # codex round-1 HIGH-3 (2): 留痕写完 + fsync 之后**从未回读校验** —— 复核者
+  1016	    # 隔离注入原地改写留痕 inode 后, 源文件照删、回执 retained SHA 报 765bf07e…
+  1017	    # 而留痕实际是 3710644e…: 「写留痕后才删源」的耐久承诺被架空 (留下的是坏
+  1018	    # 备份, 而源已不可回). 修法 = 删源之前把留痕**重新打开读回**, inode 与
+  1019	    # sha 两条都全等才继续; 任一不符 → 绝不删源 (vault 内原件仍在, 不丢字节)。
+  1020	    try:
+  1021	        rfd = os.open(dest, os.O_RDONLY | os.O_NOFOLLOW)
+  1022	        try:
+  1023	            st_dest = os.fstat(rfd)
+  1024	            back = b""
+  1025	            while chunk := os.read(rfd, 1 << 20):
+  1026	                back += chunk
+  1027	        finally:
+  1028	            os.close(rfd)
+  1029	    except OSError as e:
+  1030	        return _fail_env(
+  1031	            f"留痕写出后不可回读, 已放弃回退 (原文件未动): {type(e).__name__}"
+  1032	        )
+  1033	    if st_dest.st_size != len(raw) or hashlib.sha256(back).hexdigest() != sha:
+  1034	        print(
+  1035	            json.dumps(
+  1036	                {
+  1037	                    "mode": "undo",
+  1038	                    "undone": False,
+  1039	                    "refusal_reason": (
+  1040	                        "留痕落盘后回读校验不符 (备份被替换或原地改写) — "
+  1041	                        "未删除 vault 内文件; 该留痕不可信, 请换 --undo-dir 重试"
+  1042	                    ),
+  1043	                    "retained_at": str(dest),
+  1044	                    "retained_sha256_actual": hashlib.sha256(back).hexdigest(),
+  1045	                    "expected_sha256": sha,
+  1046	                },
+  1047	                ensure_ascii=False,
+  1048	            )
+  1049	        )
+  1050	        return 0
+  1051	    # round-4: inode 复核与 unlink 之间仍有窗口 — 留痕写入耗时里文件可能被
+  1052	    # 替换。紧贴 unlink 前**再复核一次**, 把窗口压到系统调用级; 不符则保留
+  1053	    # 原文件 (留痕已在 vault 外, 不丢字节) 并如实告知。
+  1054	    # round-4 H7: 只比 (dev,ino) 不够 —— 编辑器**原地改写**同一 inode 时
+  1055	    # 两次 lstat 都不变, undo 会删掉用户刚写的内容。改为**重读内容比对 sha**
+  1056	    # (inode 一并核, 覆盖替换与原地改写两种形态)。
+  1057	    try:
+  1058	        cfd = os.open(target, os.O_RDONLY | os.O_NOFOLLOW)
+  1059	    except OSError as e:
+  1060	        return _fail_env(
+  1061	            f"undo 目标在留痕后不可读 (留痕已存 {dest}): {type(e).__name__}"
+  1062	        )
+  1063	    try:
+  1064	        st_final = os.fstat(cfd)
+  1065	        cur = b""
+  1066	        while chunk := os.read(cfd, 1 << 20):
+  1067	            cur += chunk
+  1068	    finally:
+  1069	        os.close(cfd)
+  1070	    if (st_final.st_dev, st_final.st_ino) != identity or hashlib.sha256(
+  1071	        cur
+  1072	    ).hexdigest() != sha:
+  1073	        print(
+  1074	            json.dumps(
+  1075	                {
+  1076	                    "mode": "undo",
+  1077	                    "undone": False,
+  1078	                    "refusal_reason": (
+  1079	                        "留痕写出期间原文件内容发生变化 (替换或原地改写) — "
+  1080	                        f"未删除 vault 内文件; 校验过的旧版本已备份在 {dest}"
+  1081	                    ),
+  1082	                    "retained_at": str(dest),
+  1083	                },
+  1084	                ensure_ascii=False,
+  1085	            )
+  1086	        )
+  1087	        return 0
+  1088	    # codex round-1 HIGH-3 (1): 上面的重读校验在 os.close(cfd) 后才 unlink,
+  1089	    # 中间仍有窗口 —— 复核者在该窗口换入 USER-NEW-BYTES, 结果新 inode 被删、
+  1090	    # 留痕里只有旧版本, 而回执报 undone:true。POSIX 没有「按 inode 删除」的
+  1091	    # 原语, 能做到的最紧形态是**紧贴 unlink 前再 lstat 一次**核 identity,
+  1092	    # 把窗口压到相邻两个系统调用之间。残留窗口如实声明在 SKILL.md。
+  1093	    try:
+  1094	        st_pre_unlink = os.lstat(target)
+  1095	    except OSError as e:
+  1096	        return _fail_env(
+  1097	            f"删除前复核失败, 未删除 (留痕已存 {dest}): {type(e).__name__}"
+  1098	        )
+  1099	    if (st_pre_unlink.st_dev, st_pre_unlink.st_ino) != identity:
+  1100	        print(
+  1101	            json.dumps(
+  1102	                {
+  1103	                    "mode": "undo",
+  1104	                    "undone": False,
+  1105	                    "refusal_reason": (
+  1106	                        "删除前一刻文件被替换 (inode 变化) — 未删除, "
+  1107	                        f"避免误删他人写入; 校验过的旧版本已备份在 {dest}"
+  1108	                    ),
+  1109	                    "retained_at": str(dest),
+  1110	                },
+  1111	                ensure_ascii=False,
+  1112	            )
+  1113	        )
+  1114	        return 0
+  1115	    try:
+  1116	        os.unlink(target)
+  1117	    except OSError as e:
+  1118	        return _fail_env(
+  1119	            f"留痕已保存 {dest} 但原文件删除失败 (vault 内仍在): {type(e).__name__}"
+  1120	        )
+  1121	    # round-4 HIGH-5: 原实现忽略删源后的目录 fsync 结果并无条件报 undone:true。
+  1122	    # 此刻文件已删、无法回退, 但**必须如实告知**: 若目录项未持久化, 崩溃后源文件
+  1123	    # 可能"复活", 回执与持久状态分叉。改为把它写进回执的 warning。
+  1124	    src_state, src_msg = _fsync_dir(target.parent)
+  1125	    print(
+  1126	        json.dumps(
+  1127	            {
+  1128	                "mode": "undo",
+  1129	                "undone": True,
+  1130	                "removed_path": args.path,
+  1131	                "retained_at": str(dest),
+  1132	                "retained_sha256": sha,
+  1133	                **(
+  1134	                    {}
+  1135	                    if src_state == "ok"
+  1136	                    else {
+  1137	                        "warning": (
+  1138	                            f"源目录项持久化未确认 ({src_msg}) — 崩溃后源文件可能重现; "
+  1139	                            f"留痕已在 {dest}"
+  1140	                        )
+  1141	                    }
+  1142	                ),
+  1143	            },
+  1144	            ensure_ascii=False,
+  1145	            indent=1,
+  1146	        )
+  1147	    )
+  1148	    return 0
+  1149	
+  1150	
+  1151	def main() -> int:
+  1152	    ap = argparse.ArgumentParser(
+  1153	        description="阶段回顾检验白板构建器 (preview 只读 / create 恰 1 新文件 / undo 字节回退)"
+  1154	    )
+  1155	    sub = ap.add_subparsers(dest="cmd", required=True)
+  1156	    # round-3 M7: 默认戳取 **UTC** — 原先用本地墙钟却给 created_at 贴 Z,
+  1157	    # 与 start-exam-board 的 `date -u` 分属两个时钟 (Asia/Shanghai 快 8h),
+  1158	    # 导致 exam_history 按 created_at 排序错位。
+  1159	    default_ts = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M")
+  1160	    for name in ("preview", "create"):
+  1161	        p = sub.add_parser(name)
+  1162	        p.add_argument("--vault", required=True)
+  1163	        p.add_argument(
+  1164	            "--boards", nargs="+", required=True, help="原白板 stem 列表 (≥1)"
+  1165	        )
+  1166	        p.add_argument(
+  1167	            "--anchor", default=None, help="锚板 (文件名主干; 缺省=第一块板)"
+  1168	        )
+  1169	        p.add_argument(
+  1170	            "--ts",
+  1171	            default=default_ts,
+  1172	            help="时间戳 YYYY-MM-DD-HHMM (**UTC**; preview→create 传同值)",
+  1173	        )
+  1174	        if name == "create":
+  1175	            # round-4 H5: 原为可选 → 省略即退回"同 ts 靠巧合"的不安全语义,
+  1176	            # 且测试 helper 自己也在省略。改为 **required**: 没有用户确认过的
+  1177	            # 字节指纹就没有 create。
+  1178	            p.add_argument(
+  1179	                "--expect-content-sha",
+  1180	                required=True,
+  1181	                help="preview 回执的 content_sha256（必传）— 不符即拒，绑定用户确认过的字节",
+  1182	            )
+  1183	    u = sub.add_parser("undo")
+  1184	    u.add_argument("--vault", required=True)
+  1185	    u.add_argument(
+  1186	        "--path", required=True, help="create 回执里的 created_path (vault 相对路径)"
+  1187	    )
+  1188	    u.add_argument("--expect-sha", required=True, help="create 回执里的 content_sha256")
+  1189	    u.add_argument("--undo-dir", required=True, help="vault 外留痕目录")
+  1190	    args = ap.parse_args()
+  1191	    return {"preview": cmd_preview, "create": cmd_create, "undo": cmd_undo}[args.cmd](
+  1192	        args
+  1193	    )
+  1194	
+  1195	
+  1196	if __name__ == "__main__":
+  1197	    sys.exit(main())
+
+**Planning segmented file retrieval**
+exec
+/bin/zsh -lc "nl -ba canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py | sed -n '240,500p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+   240	        lines.append("")
+   241	    lines += [
+   242	        "## 阶段数字（脚本产出 · 判读留人）",
+   243	        "",
+   244	        f"- 覆盖 {n} 板 / 总成员 {total_members}（按节点去重）/ 总批注 {total_tips} 条（未答上界 {total_tips}）"
+   245	        + (f" / 跨板重复成员 {dup_members} 个" if dup_members else "")
+   246	        + (f" / 待修链接 {total_ghosts} 条" if total_ghosts else ""),
+   247	        f"- 数据面：本地只读扫描（fallback 口径，与 /board-recap 第一刀一致）· 取数时刻 {created_at}",
+   248	        "",
+   249	    ]
+   250	    return "\n".join(lines)
+   251	
+   252	
+   253	def _symlink_probe(vault: Path, target: Path, tmp: Path) -> str | None:
+   254	    """写前 lstat 预检 — 目录 / 最终目标 / **落盘用的 tmp 路径** 三者。
+   255	
+   256	    W4 (workflow round-1 复现, BLOCKER): 只查目录与 target 而漏 tmp,
+   257	    预置 ``<target>.g59-tmp`` symlink 会让 write_text 跟随链接写到 vault
+   258	    外 (覆盖任意外部文件), 随后 os.replace 把 target 本身变成指向 vault
+   259	    外的 symlink; 且 undo 的 resolve() 会逃出 exam_root 导致无法回退。
+   260	    本函数是第一道; 真正的防线是 _atomic_write 的 O_EXCL|O_NOFOLLOW。
+   261	    """
+   262	    for p in (vault / EXAM_DIR, target, tmp):
+   263	        if p.is_symlink():
+   264	            return f"写入目标被 symlink 布防: {p}"
+   265	    return None
+   266	
+   267	
+   268	def _created_at(ts: str) -> str:
+   269	    """--ts (YYYY-MM-DD-HHMM) → ISO Z 串。
+   270	
+   271	    ⚠️ round-3 M7 + workflow round-2: 本函数只做格式转换 —— **调用方必须
+   272	    保证 ts 本身是 UTC 时刻**。默认 ts 现取 ``datetime.now(timezone.utc)``
+   273	    (原先取本地墙钟却硬贴 Z, 在 Asia/Shanghai 写出快 8 小时的假 UTC,
+   274	    与 start-exam-board 的 ``date -u`` 分属两个时钟, 导致
+   275	    board_manifest_service 的 exam_history 按 created_at 排序错位)。
+   276	    """
+   277	    return f"{ts[:10]}T{ts[11:13]}:{ts[13:15]}:00Z"
+   278	
+   279	
+   280	def _fsync_dir(d: Path) -> tuple[str, str | None]:
+   281	    """目录项持久化 (round-3 M5): 只 fsync 文件不 fsync 父目录时,
+   282	    崩溃后可能文件内容在而目录项丢失。
+   283	
+   284	    ⛔ round-3 HIGH-4: 原实现把 open/fsync 的失败**全部静默吞掉并返回 None**,
+   285	    调用方无从分辨"成功"与"失败"。undo 因此会在**留痕目录项未持久化**的情况下
+   286	    继续删除源文件 —— 崩溃模型下可能**两端皆失**(源已删、留痕的目录项没落盘)。
+   287	    修法: 返回失败原因, 由调用方决定是否 fail-closed。
+   288	    → ("ok"|"unsupported"|"failed", 说明|None)。
+   289	    round-4 HIGH-4 起改为**三态**: "unsupported" 单列, 因为「该 FS 不支持 fsync 目录」
+   290	    只说明**无法证明已持久化**, 既不是成功也不是失败 —— 把它伪装成成功会让 undo
+   291	    在无从证明的情况下继续删源。调用方须显式决定如何对待这一档。
+   292	
+   293	    诚实边界: 部分文件系统对目录 fd 的 fsync 返回 EINVAL/ENOTSUP, 那**不是**
+   294	    持久化失败而是"不支持"。这两类必须区分, 否则会在正常 FS 上误拒。
+   295	    """
+   296	    try:
+   297	        fd = os.open(d, os.O_RDONLY)
+   298	    except OSError as e:
+   299	        return "failed", f"目录打开失败 {type(e).__name__}"
+   300	    unsupported = None
+   301	    try:
+   302	        try:
+   303	            os.fsync(fd)
+   304	        except OSError as e:
+   305	            errno_ = getattr(e, "errno", None)
+   306	            # ⛔ round-4 HIGH-4: 原豁免集含 EPERM —— 它**不能**证明「不支持」,
+   307	            # 更可能是真实的权限/策略拒绝, 当成成功会让 undo 继续删源。已移除。
+   308	            # 且 EINVAL/ENOTSUP 只说明「**无法证明**已持久化」, 不等于成功 ——
+   309	            # 改为单独一档 "unsupported", 由调用方决定怎么办(而不是伪装成 None)。
+   310	            if errno_ in (errno.EINVAL, errno.ENOTSUP):
+   311	                unsupported = f"该文件系统不支持 fsync 目录 ({type(e).__name__})"
+   312	            else:
+   313	                return "failed", f"目录 fsync 失败 {type(e).__name__}"
+   314	    finally:
+   315	        # round-4 MEDIUM-2: close 若抛错, 原实现会直接逸出并破坏 JSON 回执契约。
+   316	        try:
+   317	            os.close(fd)
+   318	        except OSError:
+   319	            pass
+   320	    if unsupported:
+   321	        return "unsupported", unsupported
+   322	    return "ok", None
+   323	
+   324	
+   325	def _open_exam_dirfd(vault: Path) -> tuple[int | None, str | None]:
+   326	    """打开 检验白板/ 并返回一个**钉死该目录 inode** 的 dir_fd。
+   327	
+   328	    主 session 并行复核 HIGH-4 的正解。三重校验:
+   329	    1. ``O_DIRECTORY|O_NOFOLLOW`` —— 目录本身若是 symlink 直接 ELOOP 失败;
+   330	    2. ``os.fstat(dfd)`` 与 ``os.stat(vault/EXAM_DIR)`` 的 (dev, ino) 必须相同
+   331	       —— 打开的确是我们校验过的那个目录, 不是打开后被换掉的另一个;
+   332	    3. dfd 与 vault 必须**同一文件系统** (st_dev 相同) —— 目录被换成指向外部
+   333	       挂载点的链接时, 即便前两条侥幸通过也会在这里被拦。
+   334	    → (dfd | None, 失败原因 | None)。调用方负责 os.close(dfd)。
+   335	    """
+   336	    exam = vault / EXAM_DIR
+   337	    try:
+   338	        dfd = os.open(exam, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+   339	    except OSError as e:
+   340	        return (
+   341	            None,
+   342	            f"{EXAM_DIR}/ 打开失败 (被 symlink 布防或不是目录): {type(e).__name__}",
+   343	        )
+   344	    try:
+   345	        st_dfd = os.fstat(dfd)
+   346	        st_path = os.stat(exam)
+   347	        st_vault = os.stat(vault)
+   348	    except OSError as e:
+   349	        os.close(dfd)
+   350	        return None, f"{EXAM_DIR}/ 身份校验失败: {type(e).__name__}"
+   351	    if (st_dfd.st_dev, st_dfd.st_ino) != (st_path.st_dev, st_path.st_ino):
+   352	        os.close(dfd)
+   353	        return None, f"{EXAM_DIR}/ 在打开前后被替换 (inode 变化), 拒绝写入"
+   354	    if st_dfd.st_dev != st_vault.st_dev:
+   355	        os.close(dfd)
+   356	        return None, f"{EXAM_DIR}/ 与 vault 不在同一文件系统 (疑似越界挂载), 拒绝写入"
+   357	    return dfd, None
+   358	
+   359	
+   360	def _dirfd_still_in_vault(dir_fd: int, vault: Path) -> str | None:
+   361	    """复核 dir_fd 指向的仍是 vault 内那个 检验白板/ 目录。
+   362	
+   363	    ⛔ round-3 HIGH-1: `_open_exam_dirfd` 只在**打开那一刻**做一次 inode 快照。
+   364	    校验通过之后, 若有人把该目录 rename 到 vault **外**(同一文件系统),
+   365	    dfd 仍指向那个已被移走的 inode —— 写入会真的落在 vault 外, 而回执照旧
+   366	    按词法路径报 `created: true`, 用户以为文件在 vault 里。
+   367	    修法: 发布完成后**再核一次**「vault/检验白板 这个路径今天解析出来的 inode,
+   368	    是否还等于我们手里 dfd 的 inode」。不等 = 目录已被移走/替换。
+   369	    → None = 仍在; str = 失败原因。
+   370	
+   371	    诚实边界: 这是**事后检测**, 不是事前阻止 —— POSIX 没有"把 inode 钉在某个
+   372	    父目录里"的原语。它保证的是**不会谎报成功**(检测到就如实回报并撤销),
+   373	    而不是"不可能被移走"。残留窗口与 lstat→unlink 那处同源, 已在验收单声明。
+   374	    """
+   375	    try:
+   376	        # ⛔ round-4 HIGH-1: 原用 os.stat —— 它**跟随 symlink**。反例: 把目录 rename
+   377	        # 出 vault 后, 在原路径放一个指回它的 symlink, os.stat 解析后拿到的 inode
+   378	        # 仍等于 dir_fd 的 inode ⇒ 复核通过, 文件照旧落在 vault 外而回执报成功。
+   379	        # 改用 lstat 并**显式拒绝 symlink**: 该路径本就应当是真目录, 不是别名。
+   380	        st_now = os.lstat(vault / EXAM_DIR)
+   381	        st_dfd = os.fstat(dir_fd)
+   382	    except OSError as e:
+   383	        return f"写入后复核 {EXAM_DIR}/ 失败: {type(e).__name__}"
+   384	    if stat.S_ISLNK(st_now.st_mode):
+   385	        return f"{EXAM_DIR}/ 在写入期间被替换成 symlink — 写入落点不可信"
+   386	    if (st_now.st_dev, st_now.st_ino) != (st_dfd.st_dev, st_dfd.st_ino):
+   387	        return (
+   388	            f"{EXAM_DIR}/ 在写入期间被替换或移出 vault "
+   389	            "(目录 inode 已变) — 写入落点不可信"
+   390	        )
+   391	    return None
+   392	
+   393	
+   394	def _rollback_published(
+   395	    name: str,
+   396	    dir_fd: int,
+   397	    identity: tuple[int, int] | None = None,
+   398	    *,
+   399	    expect_sha: str | None = None,
+   400	) -> tuple[str, str | None]:
+   401	    """撤销**我们自己**刚发布的 target —— 仅当它当前确实还是我们那一份。
+   402	
+   403	    round-3 HIGH-3: 原实现按 basename 直接 unlink 并静默吞掉失败, 两个问题:
+   404	      · identity 快照可能已过时 —— 期间路径被换入他人文件时会误删;
+   405	      · 删除失败被吞 ⇒ 错误字节的 target 留在 vault 里, 回执却只报失败。
+   406	
+   407	    「还是我们那一份」有两种判法, 按调用场景取其一:
+   408	      · ``identity``  —— 比 (dev, ino), 用于「刚 link 出来、inode 已知」的场景;
+   409	      · ``expect_sha`` —— 比内容 SHA, 用于 HIGH-1 那种「目录整体被移走」的场景
+   410	        (此时 inode 仍是我们的, 但我们想确认删的确是自己写的那份字节)。
+   411	    两者都给则必须同时满足。任一不符 ⇒ **不删**(那不是我们的东西)。
+   412	    ⛔ round-4 HIGH-3: 原先只返回 `None | str`, 而 `None` 同时表示四种截然不同的
+   413	    结果(已删 / 本就不存在 / identity 不符**没删** / SHA 不符**没删**)。调用方无法
+   414	    分辨, 于是一律拼「已撤销该文件」—— **回执与实际副作用直接不一致**。
+   415	    改为三态: ("deleted"|"absent"|"kept", 失败原因|None)。
+   416	    · deleted = 确实删了; · absent = 本就不在; · kept = **判据不符, 故意没删**。
+   417	    """
+   418	    if identity is None and expect_sha is None:
+   419	        # round-4 LOW-1: 两个判据都不给 ⇒ 无从证明「这是我们的」, 拒绝删除。
+   420	        return "kept", "未提供任何身份判据, 拒绝删除"
+   421	    try:
+   422	        st_now = os.lstat(name, dir_fd=dir_fd)
+   423	    except FileNotFoundError:
+   424	        return "absent", None  # 已经不在了, 无需撤销
+   425	    except OSError as e:
+   426	        return "kept", f"撤销前复核失败 {type(e).__name__}"
+   427	    if identity is not None and (st_now.st_dev, st_now.st_ino) != identity:
+   428	        return "kept", None  # 已不是我们的 inode ⇒ 是别人的文件, 绝不删
+   429	    if expect_sha is not None:
+   430	        try:
+   431	            cfd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=dir_fd)
+   432	            try:
+   433	                buf = b""
+   434	                while chunk := os.read(cfd, 1 << 20):
+   435	                    buf += chunk
+   436	            finally:
+   437	                os.close(cfd)
+   438	        except OSError as e:
+   439	            return "kept", f"撤销前回读失败 {type(e).__name__}"
+   440	        if hashlib.sha256(buf).hexdigest() != expect_sha:
+   441	            return "kept", None  # 内容已不是我们写的那份 ⇒ 不删
+   442	    try:
+   443	        os.unlink(name, dir_fd=dir_fd)
+   444	    except OSError as e:
+   445	        return "kept", f"unlink 失败 {type(e).__name__}"
+   446	    return "deleted", None
+   447	
+   448	
+   449	def _atomic_write(
+   450	    tmp: Path, target: Path, content: str, dir_fd: int
+   451	) -> tuple[str | None, str | None]:
+   452	    """O_EXCL|O_NOFOLLOW 写 tmp → fsync → **link 到 target (no-replace)** →
+   453	    unlink tmp → fsync 父目录。
+   454	
+   455	    W4 纵深防御: O_NOFOLLOW 让 tmp 若是 symlink 直接 ELOOP 失败 (不跟随),
+   456	    O_CREAT|O_EXCL 让 tmp 已存在时直接失败 (不覆盖并发/残留文件) —
+   457	    lstat 预检与实际写之间的 TOCTOU 窗口由内核标志封死。
+   458	    round-3 H6: 落盘不再用 ``os.replace`` (它会**覆盖**预检之后才出现的
+   459	    target) —— 改用 ``os.link``: 目标已存在时内核直接 EEXIST, 原子且永不
+   460	    覆盖; 成功后 unlink tmp, 目标是同一 inode 的硬链接 (内容已 fsync)。
+   461	    round-3 M5: 补 fsync 父目录; tmp 清理失败如实回报而非静默吞掉。
+   462	    → (失败原因 | None, 告警 | None)。失败时目标未创建; 告警只表示 tmp
+   463	    未清理 (目标已正确落盘), 由调用方如实写进回执而非当作失败。
+   464	
+   465	    ⛔ 主 session 并行复核 HIGH-4 (实测反例: probe 后把 检验白板/ 换成指向
+   466	    vault 外的目录 symlink, create 仍返回 created:true 且**文件落在 vault 外**):
+   467	    此前 `_prepare` 的目录守卫、`_symlink_probe` 与本函数的 open/link 全部**按路径**
+   468	    操作 —— 检查与使用之间隔着可被替换的路径解析, O_NOFOLLOW 只护住最后一段,
+   469	    中段/父目录被换掉时护不住。修法 = **dirfd 锚定**: 调用方用
+   470	    O_DIRECTORY|O_NOFOLLOW 打开 检验白板/ 拿到 dfd 并校验它确在 vault 内,
+   471	    此后所有操作只用 **basename + dir_fd=dfd**。dfd 钉死的是那一个目录 inode,
+   472	    路径事后怎么换都改变不了操作落点 —— 窗口从根本上消失, 而不是被压小。
+   473	
+   474	    ⚠️ **作用域边界（独立复核明确要求不得外推）**: 本函数保证的是
+   475	    「**锚定成功之后**, `_atomic_write` 内部的落点不再依赖路径解析」。
+   476	    它**不**等于「整个程序从此完全不解析路径」——
+   477	      · `_prepare` 在锚定**之前**仍有 mkdir、`_symlink_probe` 与打开目录时的路径解析;
+   478	      · `cmd_undo` 是另一套**按路径**的流程, 不走本锚定。
+   479	    写文档/验收单时请照此口径, 不要写成「全程 dirfd 化」。
+   480	    """
+   481	    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+   482	    tmp_name, target_name = tmp.name, target.name
+   483	    published = False  # link 是否已成功 (round-3 HIGH-2)
+   484	    rollback_note = None  # 撤销未完成时的如实说明 (round-4 HIGH-2)
+   485	    st_written = None
+   486	    try:
+   487	        fd = os.open(tmp_name, flags, 0o644, dir_fd=dir_fd)
+   488	    except OSError as e:
+   489	        return (
+   490	            f"临时文件创建失败 (symlink 布防或残留 {tmp.name}): {type(e).__name__}",
+   491	            None,
+   492	        )
+   493	    try:
+   494	        with os.fdopen(fd, "w", encoding="utf-8", closefd=False) as f:
+   495	            f.write(content)
+   496	            f.flush()
+   497	            os.fsync(f.fileno())
+   498	        # round-4 H6: 发布的字节必须是**我们刚写的那个 inode** — 关闭 fd 后
+   499	        # 按路径 link, 期间 tmp 若被替换会发布他人内容。这里用写入时的 fd 记下
+   500	        # (dev,ino), link 之后立刻核对 target 是同一 inode, 不符则撤销发布。
+
+exec
+/bin/zsh -lc "nl -ba canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py | sed -n '500,760p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+   500	        # (dev,ino), link 之后立刻核对 target 是同一 inode, 不符则撤销发布。
+   501	        st_written = os.fstat(fd)
+   502	        os.close(fd)
+   503	        fd = -1
+   504	        os.link(
+   505	            tmp_name, target_name, src_dir_fd=dir_fd, dst_dir_fd=dir_fd
+   506	        )  # EEXIST 绝不覆盖
+   507	        # round-3 HIGH-2: link 一旦成功, target 就**已经发布**了。此后回读若抛
+   508	        # EMFILE/EIO 之类, 原实现会掉进下方统一 except —— 那里只删 tmp,
+   509	        # **把已发布的 target 留在 vault 里**却回报"原子写失败"。
+   510	        # 修法: 用显式状态记住"已发布", 让失败路径知道自己要撤销发布。
+   511	        published = True
+   512	        # codex round-1 HIGH-2 (a): 只比 (dev,ino) 不足 —— 别的进程**原地改写
+   513	        # 同一个 tmp inode** 时两侧 inode 恒等, 核对照样通过, 发布出去的却是
+   514	        # 他人字节 (复核者隔离注入实测: 回执 SHA e51ca99e… 与目标实际 43cb09e0…
+   515	        # 分叉, 而 _atomic_write 返回 err=None)。修法 = 发布后**重读目标字节**
+   516	        # 并与我们要写的 content 做 sha 全等, inode 与字节两条都过才算发布成功。
+   517	        want_sha = hashlib.sha256(content.encode("utf-8")).hexdigest()
+   518	        vfd = os.open(target_name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=dir_fd)
+   519	        try:
+   520	            st_pub = os.fstat(vfd)
+   521	            got = b""
+   522	            while chunk := os.read(vfd, 1 << 20):
+   523	                got += chunk
+   524	        finally:
+   525	            os.close(vfd)
+   526	        same_inode = (st_pub.st_dev, st_pub.st_ino) == (
+   527	            st_written.st_dev,
+   528	            st_written.st_ino,
+   529	        )
+   530	        if not same_inode or hashlib.sha256(got).hexdigest() != want_sha:
+   531	            # codex round-1 HIGH-2 (b): 原实现在这里 target.unlink() —— 但走到
+   532	            # 本分支恰恰说明 target 已**不是我们的 inode**(被并发替换), 按路径
+   533	            # 删它等于删掉别人刚创建的文件, 且回执还报失败 → 文件静默丢失。
+   534	            # 修法: inode 不符时**绝不删**, 只如实回报; 仅当 inode 仍是我们的
+   535	            # (纯字节被原地改写) 才撤销自己的发布。
+   536	            if same_inode:
+   537	                # round-3 HIGH-3: same_inode 来自**已打开 fd 的快照**, 到这里可能
+   538	                # 已经过时 —— 期间路径若被换入别的文件, 按 basename 删就删掉了
+   539	                # 他人的文件。修法: 紧贴 unlink 前**再 lstat 一次**核 identity;
+   540	                # 且删除失败**不再静默吞掉**(否则会留下错误字节的 target 而回执
+   541	                # 只报失败)。
+   542	                # ⛔ round-4 HIGH-2: 原实现在拿到结果**之前**就 published = False,
+   543	                # 于是外层 except 里 `if published:` 不成立、rb_err 被重置为 None,
+   544	                # 「已发布目标未能撤销」这条关键信息被整个吞掉, 回执只剩
+   545	                # 「原子写失败: OSError」。修法: 只有**确实删掉**才清 published;
+   546	                # 撤销结果用外层可见的 rollback_note 承载, 不依赖异常传递。
+   547	                rb_state, rb_err = _rollback_published(
+   548	                    target_name, dir_fd, (st_written.st_dev, st_written.st_ino)
+   549	                )
+   550	                if rb_state == "deleted" or rb_state == "absent":
+   551	                    published = False
+   552	                else:
+   553	                    rollback_note = rb_err or "判据不符, 已保留(未删除)"
+   554	                raise OSError("published bytes mismatch (in-place rewrite)")
+   555	            published = False  # 不是我们的 inode ⇒ 不属于我们, 无需也不得撤销
+   556	            raise OSError(
+   557	                "published inode mismatch (concurrent replacement; 未删除该文件)"
+   558	            )
+   559	    except OSError as e:
+   560	        if fd >= 0:
+   561	            try:
+   562	                os.close(fd)
+   563	            except OSError:
+   564	                pass
+   565	        # round-3 HIGH-2: 若 link 已成功而后续步骤抛错, target 已经发布出去了 ——
+   566	        # 必须撤销自己的发布, 否则「回执报失败、文件却留在 vault 里」。
+   567	        if published:
+   568	            rb_state, rb_err2 = _rollback_published(
+   569	                target_name, dir_fd, (st_written.st_dev, st_written.st_ino)
+   570	            )
+   571	            if rb_state not in ("deleted", "absent"):
+   572	                rollback_note = rb_err2 or "判据不符, 已保留(未删除)"
+   573	        # round-3 MEDIUM-5: tmp 清理失败原先被吞 —— 残留会让下次同 ts 的 O_EXCL
+   574	        # 直接失败, 而用户拿不到任何线索。改为并入错误消息如实回报。
+   575	        tmp_err = None
+   576	        try:
+   577	            os.unlink(tmp_name, dir_fd=dir_fd)
+   578	        except FileNotFoundError:
+   579	            pass
+   580	        except OSError as te:
+   581	            tmp_err = f"{tmp_name}: {type(te).__name__}"
+   582	        kind = (
+   583	            "目标已存在 (并发创建), 拒绝覆盖"
+   584	            if isinstance(e, FileExistsError)
+   585	            else "原子写失败"
+   586	        )
+   587	        msg = f"{kind}: {type(e).__name__}"
+   588	        if rollback_note:
+   589	            msg += f" (⚠️ 已发布的目标仍在 vault 里: {rollback_note}, 请手动检查)"
+   590	        if tmp_err:
+   591	            msg += f" (⚠️ 临时文件未清理 {tmp_err}, 下次同 ts 会被拒, 请手动删除)"
+   592	        return msg, None
+   593	    warn = None
+   594	    try:
+   595	        os.unlink(tmp_name, dir_fd=dir_fd)
+   596	    except OSError as e:
+   597	        warn = f"临时文件未能清理 ({tmp.name}: {type(e).__name__})，下次 create 同 ts 会被拒绝，请手动删除"
+   598	    try:
+   599	        os.fsync(dir_fd)  # dirfd 已在手, 直接 fsync 它 (不再按路径重开)
+   600	    except OSError:
+   601	        pass
+   602	    return None, warn
+   603	
+   604	
+   605	def _prepare(args) -> tuple[list[dict], str, Path] | int:
+   606	    """preview/create 共用的数据面: 扫描各板 + 定目标路径。"""
+   607	    vault = Path(args.vault)
+   608	    if not (vault / BOARD_DIR).is_dir():
+   609	        return _fail_env(f"vault 不可用: {vault / BOARD_DIR} 不存在")
+   610	    # 目录级 symlink 守卫 (与 recap_scan 同语义)
+   611	    vault_resolved = vault.resolve()
+   612	    for sub in (BOARD_DIR, "节点", EXAM_DIR):
+   613	        d = vault / sub
+   614	        if not d.exists():
+   615	            continue
+   616	        try:
+   617	            escaped = not d.resolve().is_relative_to(vault_resolved)
+   618	        except (OSError, ValueError):
+   619	            escaped = True
+   620	        if escaped:
+   621	            return _fail_env(
+   622	                f"vault 不可用: {sub}/ 目录 resolve 到 vault 之外 (symlink 越界)"
+   623	            )
+   624	    stems = list(dict.fromkeys(args.boards))
+   625	    if not stems:
+   626	        return _fail_env("--boards 至少给 1 块板")
+   627	    anchor = args.anchor or stems[0]
+   628	    if anchor not in stems:
+   629	        return _fail_env(f"--anchor {anchor!r} 不在 --boards 里")
+   630	    # round-3 M6: wikilink 语义字符 — `#` 是 heading 锚点、`|` 是别名分隔,
+   631	    # 板名含它们时产物写出的 [[原白板/A#B]] 会被消费方 (resolve_node_id)
+   632	    # 截断成另一个板名 → scan_vault 归属错乱且不报 parse error。文件系统
+   633	    # 允许这两个字符, 所以必须在本层显式拒绝而不是指望 containment。
+   634	    # round-6 终裁复核: `]` 同样是 wikilink 终止符 (板名含 `]]` 时
+   635	    # resolve_node_id 在首个 `]]` 处截断 → 归属错乱), `[` 同理
+   636	    bad = [s for s in stems if any(c in s for c in "#|^][")]
+   637	    if bad:
+   638	        return _fail_env(f"板名含 wikilink 语义字符 (#/|/^/[/]), 拒绝: {bad}")
+   639	    # round-3 M7: --ts 不只验形状 — 必须是真实存在的日历时刻
+   640	    # (2026-99-99-9999 曾通过, 会写出非法 created_at 并阻断 SnapshotV3 刷新)
+   641	    if not _TS_RE.match(args.ts):
+   642	        return _fail_env(f"--ts 非法: {args.ts!r} (须为 YYYY-MM-DD-HHMM)")
+   643	    try:
+   644	        datetime.strptime(args.ts, "%Y-%m-%d-%H%M")
+   645	    except ValueError as e:
+   646	        return _fail_env(f"--ts 不是真实时刻: {args.ts!r} ({e})")
+   647	    boards = [_scan_board(vault, s) for s in stems]
+   648	    target = vault / EXAM_DIR / f"{anchor}-{args.ts}.md"
+   649	    return boards, anchor, target
+   650	
+   651	
+   652	def cmd_preview(args) -> int:
+   653	    prep = _prepare(args)
+   654	    if isinstance(prep, int):
+   655	        return prep
+   656	    boards, anchor, target = prep
+   657	    vault = Path(args.vault)
+   658	    missing = [b["board_stem"] for b in boards if not b["exists"]]
+   659	    out: dict = {
+   660	        "mode": "preview",
+   661	        "write_side": "none",
+   662	        "anchor": anchor,
+   663	        "ts": args.ts,
+   664	        "boards": boards,
+   665	        "target_path": str(target.relative_to(vault)),
+   666	        "target_exists": target.exists(),
+   667	    }
+   668	    if missing:
+   669	        out["refusal_reason"] = f"以下板不存在或板名非法: {missing} (create 将拒绝)"
+   670	    elif target.exists() or target.is_symlink():
+   671	        # round-3 L1: 既有目标此前只给 target_exists=true 而无 refusal_reason,
+   672	        # 与 SKILL.md「refusal_reason 非空 → 如实转告并停」的契约不符
+   673	        out["refusal_reason"] = (
+   674	            f"目标已存在: {target.name} (create 将拒绝覆盖; 换 --ts 或先 undo)"
+   675	        )
+   676	    else:
+   677	        content = _render_content(boards, anchor, args.ts, _created_at(args.ts))
+   678	        # round-6: 与产物同口径 —— 成员按 node_id 去重 (扁平共享池跨板重复)
+   679	        all_ids: list[str] = []
+   680	        for b in boards:
+   681	            all_ids.extend(b["member_ids"])
+   682	        uniq = list(dict.fromkeys(all_ids))
+   683	        out["totals"] = {
+   684	            "boards": len(boards),
+   685	            "members": len(uniq),
+   686	            "members_listed": len(all_ids),
+   687	            "duplicate_members": len(all_ids) - len(uniq),
+   688	            "tips_total": sum(b["tips_total"] for b in boards),
+   689	            "ghosts": sum(b["ghost_count"] for b in boards),
+   690	        }
+   691	        out["content"] = content
+   692	        out["content_sha256"] = hashlib.sha256(content.encode("utf-8")).hexdigest()
+   693	        out["next_step"] = (
+   694	            "用户确认后跑 create，并把本 content_sha256 传给 --expect-content-sha"
+   695	            "（绑定所见即所写）"
+   696	        )
+   697	    print(json.dumps(out, ensure_ascii=False, indent=1))
+   698	    return 0
+   699	
+   700	
+   701	def cmd_create(args) -> int:
+   702	    prep = _prepare(args)
+   703	    if isinstance(prep, int):
+   704	        return prep
+   705	    boards, anchor, target = prep
+   706	    vault = Path(args.vault)
+   707	    missing = [b["board_stem"] for b in boards if not b["exists"]]
+   708	    if missing:
+   709	        print(
+   710	            json.dumps(
+   711	                {
+   712	                    "mode": "create",
+   713	                    "created": False,
+   714	                    "refusal_reason": f"板不存在/非法: {missing}",
+   715	                },
+   716	                ensure_ascii=False,
+   717	            )
+   718	        )
+   719	        return 0
+   720	    if target.exists() or target.is_symlink():
+   721	        print(
+   722	            json.dumps(
+   723	                {
+   724	                    "mode": "create",
+   725	                    "created": False,
+   726	                    "refusal_reason": f"目标已存在, 拒绝覆盖: {target.name}",
+   727	                },
+   728	                ensure_ascii=False,
+   729	            )
+   730	        )
+   731	        return 0
+   732	    content = _render_content(boards, anchor, args.ts, _created_at(args.ts))
+   733	    sha = hashlib.sha256(content.encode("utf-8")).hexdigest()
+   734	    # round-3 H5: preview→create 之间 vault 可能变化 (新增成员/改批注),
+   735	    # 相同 --ts 并不保证所见即所写。--expect-content-sha 把用户**确认过的
+   736	    # 那份字节**绑进来: 不符即拒, 零写侧, 让 skill 重跑 preview 再确认。
+   737	    # codex round-1 HIGH-1: 形状先于比较 —— 空串/非 64 位 hex 一律 exit 2,
+   738	    # 不再走 falsy 短路; 比较本身改为**无条件**。
+   739	    if not _SHA256_RE.match(args.expect_content_sha or ""):
+   740	        return _fail_env(
+   741	            "--expect-content-sha 必须是 preview 回执里的 64 位小写十六进制 "
+   742	            "content_sha256（空串或非法形状一律拒绝，防绕过用户确认）"
+   743	        )
+   744	    if args.expect_content_sha != sha:
+   745	        print(
+   746	            json.dumps(
+   747	                {
+   748	                    "mode": "create",
+   749	                    "created": False,
+   750	                    "refusal_reason": (
+   751	                        "内容与用户确认的 preview 不一致 (期间 vault 有变化) — "
+   752	                        "已零写侧退出, 请重跑 preview 让用户确认新内容"
+   753	                    ),
+   754	                    "expected_sha256": args.expect_content_sha,
+   755	                    "actual_sha256": sha,
+   756	                },
+   757	                ensure_ascii=False,
+   758	                indent=1,
+   759	            )
+   760	        )
+
+exec
+/bin/zsh -lc "nl -ba canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py | sed -n '760,930p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+   760	        )
+   761	        return 0
+   762	    try:
+   763	        (vault / EXAM_DIR).mkdir(exist_ok=True)
+   764	    except OSError as e:  # round-3 L3: I/O 异常归一到 JSON+exit 2 契约
+   765	        return _fail_env(f"{EXAM_DIR}/ 目录不可用: {type(e).__name__}")
+   766	    tmp = target.with_name(target.name + ".g59-tmp")
+   767	    probe = _symlink_probe(vault, target, tmp)
+   768	    if probe:
+   769	        return _fail_env(probe)
+   770	    # 主 session 并行复核 HIGH-4: 上面的 probe 仍是「按路径检查」，与实际写入之间
+   771	    # 隔着可被替换的路径解析（实测：probe 后把 检验白板/ 换成指向 vault 外的目录
+   772	    # symlink，create 仍 created:true 且文件落在 vault 外）。这里改为**先取 dirfd
+   773	    # 锚定目录 inode**，之后所有写侧操作只用 basename + dir_fd —— 路径事后怎么换
+   774	    # 都改变不了操作落点。probe 保留为第一道快速拒绝（诊断信息更友好）。
+   775	    dfd, dfd_err = _open_exam_dirfd(vault)
+   776	    if dfd_err:
+   777	        return _fail_env(dfd_err)
+   778	    try:
+   779	        write_err, warn = _atomic_write(tmp, target, content, dfd)
+   780	        # round-3 HIGH-1: dirfd 的身份校验只发生在打开那一刻。写入完成后再核一次
+   781	        # 「vault/检验白板 现在解析出的 inode 是否仍等于 dfd 的 inode」——
+   782	        # 若期间目录被 rename 出 vault, 这里会检出, 从而**不会谎报 created:true**。
+   783	        if not write_err:
+   784	            moved = _dirfd_still_in_vault(dfd, vault)
+   785	            if moved:
+   786	                rb_state, rb_err = _rollback_published(
+   787	                    target.name, dfd, None, expect_sha=sha
+   788	                )
+   789	                # round-4 HIGH-3: 三态如实转述 —— "kept" 表示判据不符**故意没删**,
+   790	                # 绝不能像原来那样一律拼「已撤销该文件」(回执与副作用不一致)。
+   791	                tail = {
+   792	                    "deleted": " (已撤销该文件)",
+   793	                    "absent": " (该文件已不存在)",
+   794	                }.get(
+   795	                    rb_state,
+   796	                    f" (⚠️ 文件仍在: {rb_err or '判据不符, 故意未删'}, 请手动检查)",
+   797	                )
+   798	                write_err = moved + tail
+   799	    finally:
+   800	        os.close(dfd)
+   801	    if write_err:
+   802	        return _fail_env(write_err)
+   803	    rel = str(target.relative_to(vault))
+   804	    receipt = {
+   805	        "mode": "create",
+   806	        "created": True,
+   807	        "created_path": rel,
+   808	        "content_sha256": sha,
+   809	        "bytes": len(content.encode("utf-8")),
+   810	        # round-3 H8: 路径含空格/括号/& 时未加引号的 hint 是**语法错误的**
+   811	        # shell 命令 (zsh -n 实测 parse error) — 逐参数 shlex.quote
+   812	        # round-3 H8 + round-4: 路径含空格/括号/& 时未加引号的 hint 是**语法
+   813	        # 错误的** shell 命令 (zsh -n 实测 parse error) — 逐参数 shlex.quote;
+   814	        # 且 undo-dir 占位符不能写成 `<...>` (shell 重定向语法, 整条仍解析失败),
+   815	        # 改成可直接替换的引号串。
+   816	        # codex round-1 MEDIUM-7: SKILL.md 称 undo_hint「可直接复制执行」, 但串以
+   817	        # `undo …` 开头 —— 缺 `python3 <本脚本>` 前缀, 在普通 shell 里 `undo` 不是
+   818	        # 命令 (zsh: command not found)。补上解释器与脚本绝对路径, 让文档的承诺成立。
+   819	        "undo_hint": (
+   820	            f"{shlex.quote(sys.executable)} {shlex.quote(str(Path(__file__).resolve()))} "
+   821	            f"undo --vault {shlex.quote(str(vault))} --path {shlex.quote(rel)} "
+   822	            f"--expect-sha {sha} --undo-dir 'PUT_A_DIR_OUTSIDE_THE_VAULT_HERE'"
+   823	        ),
+   824	    }
+   825	    if warn:
+   826	        receipt["warning"] = warn
+   827	    print(json.dumps(receipt, ensure_ascii=False, indent=1))
+   828	    return 0
+   829	
+   830	
+   831	def cmd_undo(args) -> int:
+   832	    vault = Path(args.vault)
+   833	    # codex round-1 HIGH-1 同型: --expect-sha 也必须先过形状白名单, 否则空串
+   834	    # 会让下游的 sha 全等比较失去意义 (undo 的判定虽然是无条件比较, 但空串
+   835	    # 期望值配上"不符即拒"会退化成**恒拒**, 掩盖真实的绑定失效)。
+   836	    if not _SHA256_RE.match(args.expect_sha or ""):
+   837	        return _fail_env(
+   838	            "--expect-sha 必须是 create 回执里的 64 位小写十六进制 content_sha256"
+   839	        )
+   840	    # ⛔ round-6 终裁复核: cmd_undo 此前完全没有 create 侧的「目录 symlink 越界」
+   841	    # 守卫 —— containment 只比 target.resolve() 与 exam_root.resolve(), 两者
+   842	    # 一起被 symlink 带出 vault 后仍判 contained=True, undo 就会去动 vault 外
+   843	    # 的文件。这里补上与 _prepare 同款的目录级守卫。
+   844	    vault_resolved = vault.resolve()
+   845	    for sub in (BOARD_DIR, "节点", EXAM_DIR):
+   846	        d = vault / sub
+   847	        if not d.exists():
+   848	            continue
+   849	        try:
+   850	            escaped = not d.resolve().is_relative_to(vault_resolved)
+   851	        except (OSError, ValueError):
+   852	            escaped = True
+   853	        if escaped:
+   854	            return _fail_env(
+   855	                f"vault 不可用: {sub}/ 目录 resolve 到 vault 之外 (symlink 越界)"
+   856	            )
+   857	    # 主 session 并行复核 HIGH-5 前半: 原实现直接 `.resolve()`, 会**解掉最后一段
+   858	    # 的 symlink** —— 传入同目录 alias(`alias.md -> real.md`) 时, 回执声称移除的是
+   859	    # alias, 实际移走的却是 referent, 并在 vault 里留下一条死链。后面的 O_NOFOLLOW
+   860	    # 完全看不到这一点, 因为它拿到的已经是 resolve 之后的真实路径。
+   861	    # 修法: 先按**未解析路径**判 leaf 是不是 symlink, 是就直接拒绝 —— undo 的语义
+   862	    # 是「把我创建的那个文件移走」, 对 alias 无定义, 不猜。
+   863	    raw_target = vault / args.path
+   864	    if raw_target.is_symlink():
+   865	        return _fail_env(
+   866	            f"undo 目标是 symlink, 拒绝 (回退语义对别名无定义, 避免移走 referent "
+   867	            f"并留下死链): {args.path}"
+   868	        )
+   869	    target = raw_target.resolve()
+   870	    exam_root = (vault / EXAM_DIR).resolve()
+   871	    try:
+   872	        contained = target.is_relative_to(exam_root)
+   873	    except ValueError:
+   874	        contained = False
+   875	    if not contained:
+   876	        return _fail_env(f"undo 目标必须在 {EXAM_DIR}/ 内: {args.path}")
+   877	    if not target.is_file():
+   878	        print(
+   879	            json.dumps(
+   880	                {
+   881	                    "mode": "undo",
+   882	                    "undone": False,
+   883	                    "refusal_reason": "目标不存在 (无可回退)",
+   884	                },
+   885	                ensure_ascii=False,
+   886	            )
+   887	        )
+   888	        return 0
+   889	    # round-3 H7: 校验的字节与最终移走的字节必须**是同一个 inode** —
+   890	    # 原实现 read_bytes 校验后按路径 shutil.move, 期间编辑器/同步程序若替换
+   891	    # 文件, 移走的是未经校验的新版本 (用户改动被静默丢进留痕目录)。
+   892	    # 现在: O_NOFOLLOW 打开拿 fd → 从 fd 读校验 → 记 (dev, ino) →
+   893	    # 移动前后各 lstat 一次比对同一 inode, 不符即拒。
+   894	    try:
+   895	        tfd = os.open(target, os.O_RDONLY | os.O_NOFOLLOW)
+   896	    except OSError as e:
+   897	        return _fail_env(f"undo 目标打开失败 (symlink 或权限): {type(e).__name__}")
+   898	    try:
+   899	        st_open = os.fstat(tfd)
+   900	        raw = b""
+   901	        while chunk := os.read(tfd, 1 << 20):
+   902	            raw += chunk
+   903	    finally:
+   904	        os.close(tfd)
+   905	    identity = (st_open.st_dev, st_open.st_ino)
+   906	    sha = hashlib.sha256(raw).hexdigest()
+   907	    if sha != args.expect_sha:
+   908	        print(
+   909	            json.dumps(
+   910	                {
+   911	                    "mode": "undo",
+   912	                    "undone": False,
+   913	                    "refusal_reason": "内容 sha256 与创建回执不符 (文件已被改动, 拒绝静默丢弃改动)",
+   914	                    "actual_sha256": sha,
+   915	                },
+   916	                ensure_ascii=False,
+   917	            )
+   918	        )
+   919	        return 0
+   920	    if GENERATED_BY.encode("utf-8") not in raw:
+   921	        print(
+   922	            json.dumps(
+   923	                {
+   924	                    "mode": "undo",
+   925	                    "undone": False,
+   926	                    "refusal_reason": "缺本脚本 generated_by 指纹, 拒绝回退非本脚本产物",
+   927	                },
+   928	                ensure_ascii=False,
+   929	            )
+   930	        )
+
+exec
+/bin/zsh -lc "nl -ba canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py | sed -n '930,1197p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+   930	        )
+   931	        return 0
+   932	    undo_dir = Path(args.undo_dir).resolve()
+   933	    try:
+   934	        inside_vault = undo_dir.is_relative_to(vault.resolve())
+   935	    except ValueError:
+   936	        inside_vault = False
+   937	    if inside_vault:
+   938	        return _fail_env("--undo-dir 必须在 vault 之外 (vault 内不留新文件)")
+   939	    try:
+   940	        undo_dir.mkdir(parents=True, exist_ok=True)
+   941	    except OSError as e:  # round-3 L3
+   942	        return _fail_env(f"--undo-dir 不可用: {type(e).__name__}")
+   943	    # W5 (workflow round-1): 留痕名只含秒级时间戳 + 固定 target.name, 同秒
+   944	    # 二次 undo 同一 (anchor,ts) 会被 shutil.move 覆盖 → 先前留痕字节丢失,
+   945	    # 违反「不物理删除」。碰撞时顺延 -2/-3…, 绝不覆盖既有留痕。
+   946	    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+   947	    # round-3 H7 二段: 移动前复核 inode 未被替换 (校验窗口结束)
+   948	    try:
+   949	        st_now = os.lstat(target)
+   950	    except OSError as e:
+   951	        return _fail_env(f"undo 目标已消失: {type(e).__name__}")
+   952	    if (st_now.st_dev, st_now.st_ino) != identity:
+   953	        print(
+   954	            json.dumps(
+   955	                {
+   956	                    "mode": "undo",
+   957	                    "undone": False,
+   958	                    "refusal_reason": (
+   959	                        "校验后文件被替换 (inode 变化) — 拒绝移走未经校验的版本"
+   960	                    ),
+   961	                },
+   962	                ensure_ascii=False,
+   963	            )
+   964	        )
+   965	        return 0
+   966	    # W5 + round-3 M4: 留痕目的端**独占创建** (O_EXCL) 而不是 exists() 后
+   967	    # shutil.move —— 后者在目的端有竞态, 且跨文件系统会退化成 copy+unlink。
+   968	    # 这里: 先在目的端 O_EXCL 写出校验过的字节 + fsync, 确认落盘后才 unlink
+   969	    # 源 (耐久回退: 任何时刻崩溃都不会两头皆空)。
+   970	    dest = undo_dir / f"undone-{stamp}-{target.name}"
+   971	    seq, dfd = 1, None
+   972	    while dfd is None:
+   973	        try:
+   974	            dfd = os.open(
+   975	                dest, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644
+   976	            )
+   977	        except FileExistsError:
+   978	            seq += 1
+   979	            if seq > 999:
+   980	                return _fail_env("留痕文件名碰撞超过 999 次, 拒绝回退 (换 --undo-dir)")
+   981	            dest = undo_dir / f"undone-{stamp}-{seq}-{target.name}"
+   982	        except OSError as e:
+   983	            return _fail_env(f"留痕文件创建失败: {type(e).__name__}")
+   984	    try:
+   985	        with os.fdopen(dfd, "wb") as f:
+   986	            f.write(raw)
+   987	            f.flush()
+   988	            os.fsync(f.fileno())
+   989	    except OSError as e:
+   990	        try:
+   991	            dest.unlink()
+   992	        except OSError:
+   993	            pass
+   994	        return _fail_env(f"留痕写入失败, 已放弃回退 (原文件未动): {type(e).__name__}")
+   995	    # round-3 HIGH-4: 留痕的**目录项**没落盘就删源, 崩溃后可能两端皆失。
+   996	    # 这里改为 fail-closed: fsync 目录失败即拒绝回退, 原文件原样保留。
+   997	    dsync_state, dsync_msg = _fsync_dir(undo_dir)
+   998	    dsync_err = dsync_msg if dsync_state == "failed" else None
+   999	    if dsync_err:
+  1000	        print(
+  1001	            json.dumps(
+  1002	                {
+  1003	                    "mode": "undo",
+  1004	                    "undone": False,
+  1005	                    "refusal_reason": (
+  1006	                        f"留痕目录项未能持久化 ({dsync_err}) — 未删除 vault 内文件; "
+  1007	                        "此时删源在崩溃后可能两端皆失。请换一个 --undo-dir 重试"
+  1008	                    ),
+  1009	                    "retained_at": str(dest),
+  1010	                },
+  1011	                ensure_ascii=False,
+  1012	            )
+  1013	        )
+  1014	        return 0
+  1015	    # codex round-1 HIGH-3 (2): 留痕写完 + fsync 之后**从未回读校验** —— 复核者
+  1016	    # 隔离注入原地改写留痕 inode 后, 源文件照删、回执 retained SHA 报 765bf07e…
+  1017	    # 而留痕实际是 3710644e…: 「写留痕后才删源」的耐久承诺被架空 (留下的是坏
+  1018	    # 备份, 而源已不可回). 修法 = 删源之前把留痕**重新打开读回**, inode 与
+  1019	    # sha 两条都全等才继续; 任一不符 → 绝不删源 (vault 内原件仍在, 不丢字节)。
+  1020	    try:
+  1021	        rfd = os.open(dest, os.O_RDONLY | os.O_NOFOLLOW)
+  1022	        try:
+  1023	            st_dest = os.fstat(rfd)
+  1024	            back = b""
+  1025	            while chunk := os.read(rfd, 1 << 20):
+  1026	                back += chunk
+  1027	        finally:
+  1028	            os.close(rfd)
+  1029	    except OSError as e:
+  1030	        return _fail_env(
+  1031	            f"留痕写出后不可回读, 已放弃回退 (原文件未动): {type(e).__name__}"
+  1032	        )
+  1033	    if st_dest.st_size != len(raw) or hashlib.sha256(back).hexdigest() != sha:
+  1034	        print(
+  1035	            json.dumps(
+  1036	                {
+  1037	                    "mode": "undo",
+  1038	                    "undone": False,
+  1039	                    "refusal_reason": (
+  1040	                        "留痕落盘后回读校验不符 (备份被替换或原地改写) — "
+  1041	                        "未删除 vault 内文件; 该留痕不可信, 请换 --undo-dir 重试"
+  1042	                    ),
+  1043	                    "retained_at": str(dest),
+  1044	                    "retained_sha256_actual": hashlib.sha256(back).hexdigest(),
+  1045	                    "expected_sha256": sha,
+  1046	                },
+  1047	                ensure_ascii=False,
+  1048	            )
+  1049	        )
+  1050	        return 0
+  1051	    # round-4: inode 复核与 unlink 之间仍有窗口 — 留痕写入耗时里文件可能被
+  1052	    # 替换。紧贴 unlink 前**再复核一次**, 把窗口压到系统调用级; 不符则保留
+  1053	    # 原文件 (留痕已在 vault 外, 不丢字节) 并如实告知。
+  1054	    # round-4 H7: 只比 (dev,ino) 不够 —— 编辑器**原地改写**同一 inode 时
+  1055	    # 两次 lstat 都不变, undo 会删掉用户刚写的内容。改为**重读内容比对 sha**
+  1056	    # (inode 一并核, 覆盖替换与原地改写两种形态)。
+  1057	    try:
+  1058	        cfd = os.open(target, os.O_RDONLY | os.O_NOFOLLOW)
+  1059	    except OSError as e:
+  1060	        return _fail_env(
+  1061	            f"undo 目标在留痕后不可读 (留痕已存 {dest}): {type(e).__name__}"
+  1062	        )
+  1063	    try:
+  1064	        st_final = os.fstat(cfd)
+  1065	        cur = b""
+  1066	        while chunk := os.read(cfd, 1 << 20):
+  1067	            cur += chunk
+  1068	    finally:
+  1069	        os.close(cfd)
+  1070	    if (st_final.st_dev, st_final.st_ino) != identity or hashlib.sha256(
+  1071	        cur
+  1072	    ).hexdigest() != sha:
+  1073	        print(
+  1074	            json.dumps(
+  1075	                {
+  1076	                    "mode": "undo",
+  1077	                    "undone": False,
+  1078	                    "refusal_reason": (
+  1079	                        "留痕写出期间原文件内容发生变化 (替换或原地改写) — "
+  1080	                        f"未删除 vault 内文件; 校验过的旧版本已备份在 {dest}"
+  1081	                    ),
+  1082	                    "retained_at": str(dest),
+  1083	                },
+  1084	                ensure_ascii=False,
+  1085	            )
+  1086	        )
+  1087	        return 0
+  1088	    # codex round-1 HIGH-3 (1): 上面的重读校验在 os.close(cfd) 后才 unlink,
+  1089	    # 中间仍有窗口 —— 复核者在该窗口换入 USER-NEW-BYTES, 结果新 inode 被删、
+  1090	    # 留痕里只有旧版本, 而回执报 undone:true。POSIX 没有「按 inode 删除」的
+  1091	    # 原语, 能做到的最紧形态是**紧贴 unlink 前再 lstat 一次**核 identity,
+  1092	    # 把窗口压到相邻两个系统调用之间。残留窗口如实声明在 SKILL.md。
+  1093	    try:
+  1094	        st_pre_unlink = os.lstat(target)
+  1095	    except OSError as e:
+  1096	        return _fail_env(
+  1097	            f"删除前复核失败, 未删除 (留痕已存 {dest}): {type(e).__name__}"
+  1098	        )
+  1099	    if (st_pre_unlink.st_dev, st_pre_unlink.st_ino) != identity:
+  1100	        print(
+  1101	            json.dumps(
+  1102	                {
+  1103	                    "mode": "undo",
+  1104	                    "undone": False,
+  1105	                    "refusal_reason": (
+  1106	                        "删除前一刻文件被替换 (inode 变化) — 未删除, "
+  1107	                        f"避免误删他人写入; 校验过的旧版本已备份在 {dest}"
+  1108	                    ),
+  1109	                    "retained_at": str(dest),
+  1110	                },
+  1111	                ensure_ascii=False,
+  1112	            )
+  1113	        )
+  1114	        return 0
+  1115	    try:
+  1116	        os.unlink(target)
+  1117	    except OSError as e:
+  1118	        return _fail_env(
+  1119	            f"留痕已保存 {dest} 但原文件删除失败 (vault 内仍在): {type(e).__name__}"
+  1120	        )
+  1121	    # round-4 HIGH-5: 原实现忽略删源后的目录 fsync 结果并无条件报 undone:true。
+  1122	    # 此刻文件已删、无法回退, 但**必须如实告知**: 若目录项未持久化, 崩溃后源文件
+  1123	    # 可能"复活", 回执与持久状态分叉。改为把它写进回执的 warning。
+  1124	    src_state, src_msg = _fsync_dir(target.parent)
+  1125	    print(
+  1126	        json.dumps(
+  1127	            {
+  1128	                "mode": "undo",
+  1129	                "undone": True,
+  1130	                "removed_path": args.path,
+  1131	                "retained_at": str(dest),
+  1132	                "retained_sha256": sha,
+  1133	                **(
+  1134	                    {}
+  1135	                    if src_state == "ok"
+  1136	                    else {
+  1137	                        "warning": (
+  1138	                            f"源目录项持久化未确认 ({src_msg}) — 崩溃后源文件可能重现; "
+  1139	                            f"留痕已在 {dest}"
+  1140	                        )
+  1141	                    }
+  1142	                ),
+  1143	            },
+  1144	            ensure_ascii=False,
+  1145	            indent=1,
+  1146	        )
+  1147	    )
+  1148	    return 0
+  1149	
+  1150	
+  1151	def main() -> int:
+  1152	    ap = argparse.ArgumentParser(
+  1153	        description="阶段回顾检验白板构建器 (preview 只读 / create 恰 1 新文件 / undo 字节回退)"
+  1154	    )
+  1155	    sub = ap.add_subparsers(dest="cmd", required=True)
+  1156	    # round-3 M7: 默认戳取 **UTC** — 原先用本地墙钟却给 created_at 贴 Z,
+  1157	    # 与 start-exam-board 的 `date -u` 分属两个时钟 (Asia/Shanghai 快 8h),
+  1158	    # 导致 exam_history 按 created_at 排序错位。
+  1159	    default_ts = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M")
+  1160	    for name in ("preview", "create"):
+  1161	        p = sub.add_parser(name)
+  1162	        p.add_argument("--vault", required=True)
+  1163	        p.add_argument(
+  1164	            "--boards", nargs="+", required=True, help="原白板 stem 列表 (≥1)"
+  1165	        )
+  1166	        p.add_argument(
+  1167	            "--anchor", default=None, help="锚板 (文件名主干; 缺省=第一块板)"
+  1168	        )
+  1169	        p.add_argument(
+  1170	            "--ts",
+  1171	            default=default_ts,
+  1172	            help="时间戳 YYYY-MM-DD-HHMM (**UTC**; preview→create 传同值)",
+  1173	        )
+  1174	        if name == "create":
+  1175	            # round-4 H5: 原为可选 → 省略即退回"同 ts 靠巧合"的不安全语义,
+  1176	            # 且测试 helper 自己也在省略。改为 **required**: 没有用户确认过的
+  1177	            # 字节指纹就没有 create。
+  1178	            p.add_argument(
+  1179	                "--expect-content-sha",
+  1180	                required=True,
+  1181	                help="preview 回执的 content_sha256（必传）— 不符即拒，绑定用户确认过的字节",
+  1182	            )
+  1183	    u = sub.add_parser("undo")
+  1184	    u.add_argument("--vault", required=True)
+  1185	    u.add_argument(
+  1186	        "--path", required=True, help="create 回执里的 created_path (vault 相对路径)"
+  1187	    )
+  1188	    u.add_argument("--expect-sha", required=True, help="create 回执里的 content_sha256")
+  1189	    u.add_argument("--undo-dir", required=True, help="vault 外留痕目录")
+  1190	    args = ap.parse_args()
+  1191	    return {"preview": cmd_preview, "create": cmd_create, "undo": cmd_undo}[args.cmd](
+  1192	        args
+  1193	    )
+  1194	
+  1195	
+  1196	if __name__ == "__main__":
+  1197	    sys.exit(main())
+
+**Planning commit diff inspection**
+**Analyzing lstat and atomic write handling**
+**Verifying rollback and error handling logic**
+**Tracing rollback_note lifecycle bug**
+**Analyzing rollback race condition impacts**
+**Identifying stale rollback_note bug causing false warnings**
+**Reassessing severity level for false positive**
+**Analyzing rollback identity mismatch risks**
+**Identifying POSIX race condition vulnerability**
+**Analyzing rollback data loss risk**
+**Evaluating race condition in rollback unlink**
+**Inspecting unsupported fsync handling**
+**Identifying unsupported FS durability risk**
+**Confirming inconsistent unsupported fsync handling**
+**Evaluating fail-closed risk on unsupported**
+**Analyzing file descriptor closing and leak risks**
+**Verifying robust file descriptor closure handling**
+**Confirming undo temp fd closure and risks**
+**Evaluating os.fdopen error handling**
+**Tracing fsync warning and error propagation**
+**Noting rollback tmp file residue risk**
+**Identifying silent fsync failures in atomic write**
+**Planning error severity assessment and code enumeration**
+exec
+/bin/zsh -lc "rg -n '_rollback_published|_fsync_dir|rollback_note|published =|warning|os\\.open|os\\.close|os\\.fdopen' canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+280:def _fsync_dir(d: Path) -> tuple[str, str | None]:
+297:        fd = os.open(d, os.O_RDONLY)
+317:            os.close(fd)
+334:    → (dfd | None, 失败原因 | None)。调用方负责 os.close(dfd)。
+338:        dfd = os.open(exam, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+349:        os.close(dfd)
+352:        os.close(dfd)
+355:        os.close(dfd)
+394:def _rollback_published(
+431:            cfd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=dir_fd)
+437:                os.close(cfd)
+483:    published = False  # link 是否已成功 (round-3 HIGH-2)
+484:    rollback_note = None  # 撤销未完成时的如实说明 (round-4 HIGH-2)
+487:        fd = os.open(tmp_name, flags, 0o644, dir_fd=dir_fd)
+494:        with os.fdopen(fd, "w", encoding="utf-8", closefd=False) as f:
+502:        os.close(fd)
+511:        published = True
+518:        vfd = os.open(target_name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=dir_fd)
+525:            os.close(vfd)
+542:                # ⛔ round-4 HIGH-2: 原实现在拿到结果**之前**就 published = False,
+546:                # 撤销结果用外层可见的 rollback_note 承载, 不依赖异常传递。
+547:                rb_state, rb_err = _rollback_published(
+551:                    published = False
+553:                    rollback_note = rb_err or "判据不符, 已保留(未删除)"
+555:            published = False  # 不是我们的 inode ⇒ 不属于我们, 无需也不得撤销
+562:                os.close(fd)
+568:            rb_state, rb_err2 = _rollback_published(
+572:                rollback_note = rb_err2 or "判据不符, 已保留(未删除)"
+588:        if rollback_note:
+589:            msg += f" (⚠️ 已发布的目标仍在 vault 里: {rollback_note}, 请手动检查)"
+786:                rb_state, rb_err = _rollback_published(
+800:        os.close(dfd)
+826:        receipt["warning"] = warn
+895:        tfd = os.open(target, os.O_RDONLY | os.O_NOFOLLOW)
+904:        os.close(tfd)
+974:            dfd = os.open(
+985:        with os.fdopen(dfd, "wb") as f:
+997:    dsync_state, dsync_msg = _fsync_dir(undo_dir)
+1021:        rfd = os.open(dest, os.O_RDONLY | os.O_NOFOLLOW)
+1028:            os.close(rfd)
+1058:        cfd = os.open(target, os.O_RDONLY | os.O_NOFOLLOW)
+1069:        os.close(cfd)
+1088:    # codex round-1 HIGH-3 (1): 上面的重读校验在 os.close(cfd) 后才 unlink,
+1123:    # 可能"复活", 回执与持久状态分叉。改为把它写进回执的 warning。
+1124:    src_state, src_msg = _fsync_dir(target.parent)
+1137:                        "warning": (
+
+**Preparing escalated script execution**
+**Confirming escalated command execution**
+codex
+静态主轨已确认一个关键分叉需要由承重脚本验证：`unsupported` 在留痕目录调用点被当作可继续，而源目录调用点却会告警；同时 `rollback_note` 存在“一次撤销拒绝、第二次撤销成功”时可能保留旧说明的边界。我现在开始跑用户指定的 19 变体；该脚本获准原地改实现并自还原，因此会在结束后立即复核哈希与状态。
+exec
+/bin/zsh -lc 'env DEBUG=true NEO4J_ENABLED=false .venv/bin/python ../_bmad-output/审查/g5-9-evidence/round1-high-negverify.py' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/backend
+**Planning wait after functions exec call**
+**Planning polling with session stdin writing**
+**Planning periodic user updates**
+**Planning script runtime polling**
+**Planning poll command implementation**
+codex
+19 变体脚本仍在运行，目前尚未吐出分段输出；我会继续等待它自然完成，不中断其自还原流程。静态交叉审阅已一致确认：`_fsync_dir` 的三态分类本身正确，但删源前调用方没有 fail-closed 处理 `unsupported`，这不是工装问题，而是可导致“两端皆空”的真实耐久性风险。
+ succeeded in 194508ms:
+备份: /tmp/recap_exam_build.negverify.bak (sha 166a1cf18be4dd66…)
+
+=== 基线: 完整套件应全绿 ===
+  ✅ 基线 exit=0 | 68 passed in 5.55s
+
+=== 变体 A: HIGH-1 回退: --expect-content-sha 恢复 falsy 短路（空串绕过用户确认） ===
+  ✅ 如期变红 | 7 failed, 61 deselected in 0.79s
+
+=== 变体 B: HIGH-1 同型回退: undo 的 --expect-sha 去掉形状白名单 ===
+  ✅ 如期变红 | 1 failed, 67 deselected in 0.53s
+
+=== 变体 C: HIGH-4 survivor 复现: 从 wikilink 禁止集里只移除 `|` ===
+  ✅ 如期变红 | 1 failed, 4 passed, 63 deselected in 0.62s
+
+=== 变体 D: HIGH-4 survivor 复现: 同时禁用目录守卫 + _symlink_probe + dirfd 锚定（纵深三层） ===
+  ✅ 如期变红 | 1 failed, 1 passed, 66 deselected in 0.59s
+
+=== 变体 E: HIGH-2(a) 回退: 发布后只比 (dev,ino)，不回读字节 ===
+  ✅ 如期变红 | 1 failed, 67 deselected in 0.36s
+
+=== 变体 F: HIGH-2(b) 回退: inode 不符时按路径 unlink（会删掉并发者的文件） ===
+  ✅ 如期变红 | 1 failed, 67 deselected in 0.36s
+
+=== 变体 G: HIGH-3(2) 回退: 删源前不回读校验留痕字节 ===
+  ✅ 如期变红 | 1 failed, 67 deselected in 0.49s
+
+=== 变体 I: 主session HIGH-4 回退: 写侧从 dirfd 锚定退回按路径 open/link ===
+  ✅ 如期变红 | 1 failed, 67 deselected in 0.44s
+
+=== 变体 J: 主session HIGH-5 回退: undo 恢复对 leaf symlink 的 resolve (移走 referent) ===
+  ✅ 如期变红 | 1 failed, 67 deselected in 0.53s
+
+=== 变体 K: round-3 HIGH-1 回退: 去掉写入后「dfd 是否仍是 vault 内那个目录」的复核 ===
+  ✅ 如期变红 | 2 failed, 66 deselected in 0.51s
+
+=== 变体 L: round-3 HIGH-2 回退: 失败路径不再撤销已发布的 target ===
+  ✅ 如期变红 | 1 failed, 67 deselected in 0.37s
+
+=== 变体 M: round-3 HIGH-3 回退: 撤销前不再复核 identity、且吞掉 unlink 失败 ===
+  ✅ 如期变红 | 2 failed, 66 deselected in 0.38s
+
+=== 变体 N: round-3 HIGH-4 回退: _fsync_dir 恢复 fail-open + undo 不再据此拒绝 ===
+  ✅ 如期变红 | 2 failed, 66 deselected in 0.49s
+
+=== 变体 O: round-4 HIGH-1 回退: 写入后复核改回 os.stat (跟随 symlink) 且不拒 symlink ===
+  ✅ 如期变红 | 1 failed, 67 deselected in 0.44s
+
+=== 变体 P: round-4 HIGH-2/3 回退: 撤销未完成时不再写进回执 ===
+  ✅ 如期变红 | 1 failed, 67 deselected in 0.36s
+
+=== 变体 Q: round-4 HIGH-4 回退: EPERM 重新并入 fsync 豁免集 ===
+  ✅ 如期变红 | 1 failed, 67 deselected in 0.36s
+
+=== 变体 R: round-4 HIGH-5 回退: 删源后的目录 fsync 结果重新被忽略 ===
+  ✅ 如期变红 | 1 failed, 67 deselected in 0.49s
+
+=== 变体 S: round-4 LOW-1 回退: 双空判据恢复无条件删除 ===
+  ✅ 如期变红 | 1 failed, 67 deselected in 0.36s
+
+=== 变体 H: HIGH-3(1) 回退: 去掉紧贴 unlink 前的 identity 复核 ===
+  ✅ 如期变红 | 1 failed, 67 deselected in 0.49s
+
+=== 还原后复核 ===
+  ✅ 字节与备份逐字相同 (sha 166a1cf18be4dd66…)
+  ✅ 还原后完整套件 exit=0 | 68 passed in 5.58s
+
+RESULT: PASS — 全部新门均为承重门
+
+**Planning hash and status checks before regression**
+exec
+/bin/zsh -lc 'shasum -a 256 canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+166a1cf18be4dd66fb5817882dc7753d399a5eb998a89f58af6d4ab99c072ce1  canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py
+
+exec
+/bin/zsh -lc 'git status --short --branch' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+## card/s6-recap
+
+**Evaluating pytest cache behavior**
+**Planning pytest run with timeout and escalation**
+codex
+19 个变体全部“如期变红”，基线与还原后套件均为 68 passed，且实现文件 SHA-256 已恢复为同一值、工作树仍干净。现在运行用户指定的两文件回归；我只采用 pytest 汇总输出，不打开测试源码。
+exec
+/bin/zsh -lc 'env DEBUG=true NEO4J_ENABLED=false .venv/bin/python -m pytest tests/regression/test_recap_scan_signals.py tests/skills/test_g5_9_recap_exam.py -q -p no:cacheprovider -p no:warnings --override-ini="addopts="' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/backend
+ exited 1 in 273ms:
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/backend/.venv/lib/python3.14/site-packages/pytest/__main__.py", line 9, in <module>
+    raise SystemExit(pytest.console_main())
+                     ~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/backend/.venv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 223, in console_main
+    code = main()
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/backend/.venv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 193, in main
+    config = _prepareconfig(new_args, plugins)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/backend/.venv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 361, in _prepareconfig
+    config: Config = pluginmanager.hook.pytest_cmdline_parse(
+                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        pluginmanager=pluginmanager, args=args
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/backend/.venv/lib/python3.14/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/backend/.venv/lib/python3.14/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/backend/.venv/lib/python3.14/site-packages/pluggy/_callers.py", line 167, in _multicall
+    raise exception
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/backend/.venv/lib/python3.14/site-packages/pluggy/_callers.py", line 139, in _multicall
+    teardown.throw(exception)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/backend/.venv/lib/python3.14/site-packages/_pytest/helpconfig.py", line 124, in pytest_cmdline_parse
+    config = yield
+             ^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/backend/.venv/lib/python3.14/site-packages/pluggy/_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/backend/.venv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 1186, in pytest_cmdline_parse
+    self.parse(args)
+    ~~~~~~~~~~^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/backend/.venv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 1556, in parse
+    self.hook.pytest_load_initial_conftests(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        early_config=self, args=args, parser=self._parser
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/backend/.venv/lib/python3.14/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/backend/.venv/lib/python3.14/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/backend/.venv/lib/python3.14/site-packages/pluggy/_callers.py", line 167, in _multicall
+    raise exception
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/backend/.venv/lib/python3.14/site-packages/pluggy/_callers.py", line 116, in _multicall
+    next(function_gen)  # first yield
+    ~~~~^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/backend/.venv/lib/python3.14/site-packages/_pytest/capture.py", line 170, in pytest_load_initial_conftests
+    capman.start_global_capturing()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/backend/.venv/lib/python3.14/site-packages/_pytest/capture.py", line 773, in start_global_capturing
+    self._global_capturing = _get_multicapture(self._method)
+                             ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/backend/.venv/lib/python3.14/site-packages/_pytest/capture.py", line 714, in _get_multicapture
+    return MultiCapture(in_=FDCapture(0), out=FDCapture(1), err=FDCapture(2))
+                                              ~~~~~~~~~^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/backend/.venv/lib/python3.14/site-packages/_pytest/capture.py", line 493, in __init__
+    TemporaryFile(buffering=0),
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tempfile.py", line 652, in TemporaryFile
+    prefix, suffix, dir, output_type = _sanitize_params(prefix, suffix, dir)
+                                       ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tempfile.py", line 127, in _sanitize_params
+    dir = gettempdir()
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tempfile.py", line 312, in gettempdir
+    return _os.fsdecode(_gettempdir())
+                        ~~~~~~~~~~~^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tempfile.py", line 305, in _gettempdir
+    tempdir = _get_default_tempdir()
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tempfile.py", line 222, in _get_default_tempdir
+    raise FileNotFoundError(_errno.ENOENT,
+                            "No usable temporary directory found in %s" %
+                            dirlist)
+FileNotFoundError: [Errno 2] No usable temporary directory found in ['/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/', '/tmp', '/var/tmp', '/usr/tmp', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/backend']
+
+**Rerunning with elevated permissions**
+exec
+/bin/zsh -lc 'env DEBUG=true NEO4J_ENABLED=false .venv/bin/python -m pytest tests/regression/test_recap_scan_signals.py tests/skills/test_g5_9_recap_exam.py -q -p no:cacheprovider -p no:warnings --override-ini="addopts="' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/backend
+ succeeded in 21671ms:
+........................................................................ [ 41%]
+........................................................................ [ 83%]
+.............................                                            [100%]
+173 passed in 13.49s
+
+**Continuing static audit and gathering agents**
+**Planning dynamic inspection with constraints**
+**Mapping static fix implementations**
+**Reviewing rollback result clearing logic**
+**Prioritizing genuine issue verification**
+**Identifying fsync omission in rollback deletion**
+**Confirming multiple high-severity fsync issues**
+**Verifying candidate M2 defect and totals**
+**Tracing TOCTOU vulnerability in atomic write**
+**Analyzing test coverage for unlink race condition**
+**Reassessing failure cleanup severity**
+**Evaluating _rollback_published race severity**
+**Analyzing _atomic_write fsync issue**
+**Assessing create durability classification**
+**Calibrating durability warning levels**
+**Identifying incomplete rollback error reporting**
+**Clarifying _rollback_published behavior**
+**Fixing state classification for race conditions**
+**Assessing concurrency impact on deletion state**
+**Planning mutation for stale file race**
+**Evaluating mutation risks and fd handling**
+**Verifying file descriptor management and leaks**
+**Assessing rare file descriptor issue and symlink race**
+**Evaluating directory fsync behavior and error handling**
+**Validating warning and test result consistency**
+**Verifying clean git status after regression**
+exec
+/bin/zsh -lc 'shasum -a 256 canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+166a1cf18be4dd66fb5817882dc7753d399a5eb998a89f58af6d4ab99c072ce1  canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py
+
+exec
+/bin/zsh -lc 'git diff --exit-code -- canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+
+exec
+/bin/zsh -lc 'git status --short --branch' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+## card/s6-recap
+
+**Completing plan update and tests**
+codex
+回归结果为 `173 passed in 13.49s`。最终复核也已确认：实现文件哈希仍与基线逐字相同，`git diff --exit-code` 为 0，`git status` 只有分支标题、无脏项。绿灯证明 19 个既有门具备承重性，但不会覆盖静态审阅发现的“新状态组合”；我正在做最后的严重度去重，避免把同一根因重复计数。
+静态三轨、19 变体、173 项回归及最终工作树核验均完成；正在合并同根问题并按用户阈值定级。
+  ✓ 读取相关审计记忆与指定实现文件，建立行号和控制流索引
+  ✓ 并行复核五项整改及新失败分支，汇总独立发现
+  ✓ 运行 19 变体承重脚本与 173 项回归，核对还原和工作树
+  → 复算严重度并给出停轮/继续的收敛性结论
+**Planning sequential reasoning steps**
+mcp: sequential-thinking/sequentialthinking started
+mcp: sequential-thinking/sequentialthinking (completed)
+**Assessing report detail level**
+**Confirming high severity for rollback issue**
+**Planning grouping of directory durability issues**
+**Identifying potential bugs and fd leak**
+**Running targeted git diff on commit**
+exec
+/bin/zsh -lc 'git show --format= --unified=45 ec79d34c -- canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+diff --git a/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py b/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py
+index e9d27f60..93857864 100644
+--- a/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py
++++ b/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py
+@@ -7,90 +7,91 @@
+   md → undo 字节级回退。exam_service / verification_service 零接触 —
+   格式契约直接复用 start-exam-board 的 检验白板/<stem>-<ts>.md 文件面。
+ 
+ 硬约束:
+   - **preview 零写侧**: preview 子命令只读 vault, 不写任何文件。未确认
+     (= 不跑 create) 时全 vault 字节不变。
+   - **create 恰 1 新文件**: 唯一写面 = ``检验白板/<anchor>-<ts>.md``;
+     目标已存在 → 拒绝 (不覆盖); 同目录 tmp + os.replace 原子落盘;
+     写前 lstat symlink 预检 (目录与目标被 symlink 布防 → 拒绝)。
+   - **undo 字节级回退**: 校验路径 containment + generated_by 指纹 +
+     sha256 全等 (用户改过的文件拒绝回退, 不静默丢改动); 回退 = move 到
+     vault 外 --undo-dir 留痕, ⛔ 不物理删除 (对齐「默认不 delete」)。
+   - **消费面兼容契约** (fixture 锁定):
+     * frontmatter 无 ``questions`` 键、0 个 ``concept:`` 行 →
+       board_manifest 的 exam_history 收录 question_count=0,
+       past_question_digests 零新增;
+     * ``type: exam_board`` + 路径在 检验白板/ 下 → start-exam-board
+       Step 1 防嵌套拒绝以它为出题源;
+     * ``status: done`` + 无答题区疑问批注 → quiz-answer Step 0 done
+       分支「无新疑问」安全停, 零写侧;
+     * frontmatter 为合法 YAML → board_manifest 扫描 0 parse_errors。
+   - **不复制正文**: 产物内容 = 链接回原板/原节点 + 脚本数字 + 固定模板句,
+     ⛔ 不含任何节点正文片段。诚实边界 (round-3 L2): 复用的
+     ``_ledger_from_local`` 会**读取**节点全文以判 is_stub/统计正文 callout,
+     所以正文确实进过内存 —— 保证的是"**不写进产物**", 不是"不读取"
+     (哨兵串断言锁的正是前者)。
+   - 纯 stdlib; 数据面复用同目录 recap_scan.py 的 fallback 只读扫描函数
+     (importlib 加载, 确定性口径与 /board-recap 第一刀一致)。
+   - 退出码: 0 = 正常 (拒绝也是 0, JSON 里给 refusal_reason — 拒绝是
+     skill 的决策); 2 = 环境不可用 / 参数非法。
+ 
+ D5 前置登记 (诚实条款): 本卡开发时 D5 前置 1 (用户 UAT 反馈) 未发生 —
+ live 侧价值验证顺延 G5-11, 本脚本只交 worktree 面 + fixture 证据。
+ """
+ 
+ from __future__ import annotations
+ 
+ import argparse
+ import errno
+ import hashlib
+ import importlib.util
+ import json
+ import os
+ import re
+ import shlex
++import stat
+ import sys
+ from datetime import datetime, timezone
+ from pathlib import Path
+ 
+ EXAM_DIR = "检验白板"
+ BOARD_DIR = "原白板"
+ GENERATED_BY = "board-recap-exam v1 (CARD-G5-9)"
+ _TS_RE = re.compile(r"^\d{4}-\d{2}-\d{2}-\d{4}$")
+ # codex round-1 HIGH-1: argparse 的 required=True 只保证 flag **出现**, 不保证
+ # 值非空。原判定写作 `if args.expect_content_sha and args.expect_content_sha != sha`
+ # —— 空串 falsy 直接跳过比较, `--expect-content-sha ''` 即可创建用户从未确认过
+ # 的字节 (复核者隔离实测 created:true、写出 1092 bytes)。修法 = 形状白名单 +
+ # **无条件**比较: 值必须 64 位小写十六进制, 否则 exit 2 且零写侧。
+ # 同一形状约束施于 undo 的 --expect-sha (同型问题)。
+ _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+ 
+ # ── 复用第一刀的确定性扫描函数 (同目录 recap_scan.py) ──
+ # ⛔ round-4 新增 FAIL: importlib 加载会在 skill 目录写 __pycache__/*.pyc —
+ # 那是 vault 内的**写侧**, 直接违反 preview 零写侧承诺 (证据快照只覆盖四个
+ # 数据目录才没发现)。sys.dont_write_bytecode 必须在 exec_module **之前**置位,
+ # 并在之后恢复, 保证本脚本任何路径都不向 vault 落字节码。
+ _SCAN_PATH = Path(__file__).resolve().parent / "recap_scan.py"
+ _prev_dont_write = sys.dont_write_bytecode
+ sys.dont_write_bytecode = True
+ try:
+     _spec = importlib.util.spec_from_file_location("recap_scan", _SCAN_PATH)
+     _rs = importlib.util.module_from_spec(_spec)
+     _spec.loader.exec_module(_rs)
+ finally:
+     sys.dont_write_bytecode = _prev_dont_write
+ 
+ 
+ def _fail_env(msg: str) -> int:
+     print(json.dumps({"error": msg}, ensure_ascii=False))
+     return 2
+ 
+ 
+ def _sanitize_ghost_id(raw: str) -> str:
+     """幽灵 id 入产物前的结构净化 (round-4 H9)。
+ 
+     幽灵 id 是白板 Concepts 小节里的**自由文本**（成员正则允许换行、反引号
+     等）。原样放进 `` `…` `` 会被换行终止行、被反引号闭合代码跨度, 从而在
+     产物里生成独立的 Markdown 行。这里折叠全部空白、剔除反引号与会起结构
+     作用的字符, 并硬截断 —— 产物只把它当**标识串回显**, 不承载任何格式。
+     """
+@@ -234,362 +235,400 @@ def _render_content(boards: list[dict], anchor: str, ts: str, created_at: str) -
+         for b in boards:
+             for g in b["ghost_links"]:
+                 lines.append(
+                     f"- `{b['board_stem']}` → `节点/{g['node_id']}.md`（{g['reason']}）"
+                 )
+         lines.append("")
+     lines += [
+         "## 阶段数字（脚本产出 · 判读留人）",
+         "",
+         f"- 覆盖 {n} 板 / 总成员 {total_members}（按节点去重）/ 总批注 {total_tips} 条（未答上界 {total_tips}）"
+         + (f" / 跨板重复成员 {dup_members} 个" if dup_members else "")
+         + (f" / 待修链接 {total_ghosts} 条" if total_ghosts else ""),
+         f"- 数据面：本地只读扫描（fallback 口径，与 /board-recap 第一刀一致）· 取数时刻 {created_at}",
+         "",
+     ]
+     return "\n".join(lines)
+ 
+ 
+ def _symlink_probe(vault: Path, target: Path, tmp: Path) -> str | None:
+     """写前 lstat 预检 — 目录 / 最终目标 / **落盘用的 tmp 路径** 三者。
+ 
+     W4 (workflow round-1 复现, BLOCKER): 只查目录与 target 而漏 tmp,
+     预置 ``<target>.g59-tmp`` symlink 会让 write_text 跟随链接写到 vault
+     外 (覆盖任意外部文件), 随后 os.replace 把 target 本身变成指向 vault
+     外的 symlink; 且 undo 的 resolve() 会逃出 exam_root 导致无法回退。
+     本函数是第一道; 真正的防线是 _atomic_write 的 O_EXCL|O_NOFOLLOW。
+     """
+     for p in (vault / EXAM_DIR, target, tmp):
+         if p.is_symlink():
+             return f"写入目标被 symlink 布防: {p}"
+     return None
+ 
+ 
+ def _created_at(ts: str) -> str:
+     """--ts (YYYY-MM-DD-HHMM) → ISO Z 串。
+ 
+     ⚠️ round-3 M7 + workflow round-2: 本函数只做格式转换 —— **调用方必须
+     保证 ts 本身是 UTC 时刻**。默认 ts 现取 ``datetime.now(timezone.utc)``
+     (原先取本地墙钟却硬贴 Z, 在 Asia/Shanghai 写出快 8 小时的假 UTC,
+     与 start-exam-board 的 ``date -u`` 分属两个时钟, 导致
+     board_manifest_service 的 exam_history 按 created_at 排序错位)。
+     """
+     return f"{ts[:10]}T{ts[11:13]}:{ts[13:15]}:00Z"
+ 
+ 
+-def _fsync_dir(d: Path) -> str | None:
++def _fsync_dir(d: Path) -> tuple[str, str | None]:
+     """目录项持久化 (round-3 M5): 只 fsync 文件不 fsync 父目录时,
+     崩溃后可能文件内容在而目录项丢失。
+ 
+     ⛔ round-3 HIGH-4: 原实现把 open/fsync 的失败**全部静默吞掉并返回 None**,
+     调用方无从分辨"成功"与"失败"。undo 因此会在**留痕目录项未持久化**的情况下
+     继续删除源文件 —— 崩溃模型下可能**两端皆失**(源已删、留痕的目录项没落盘)。
+     修法: 返回失败原因, 由调用方决定是否 fail-closed。
+-    → None = 成功 (或该 FS 不支持 fsync 目录, 见下); str = 失败原因。
++    → ("ok"|"unsupported"|"failed", 说明|None)。
++    round-4 HIGH-4 起改为**三态**: "unsupported" 单列, 因为「该 FS 不支持 fsync 目录」
++    只说明**无法证明已持久化**, 既不是成功也不是失败 —— 把它伪装成成功会让 undo
++    在无从证明的情况下继续删源。调用方须显式决定如何对待这一档。
+ 
+     诚实边界: 部分文件系统对目录 fd 的 fsync 返回 EINVAL/ENOTSUP, 那**不是**
+     持久化失败而是"不支持"。这两类必须区分, 否则会在正常 FS 上误拒。
+     """
+     try:
+         fd = os.open(d, os.O_RDONLY)
+     except OSError as e:
+-        return f"目录打开失败 {type(e).__name__}"
++        return "failed", f"目录打开失败 {type(e).__name__}"
++    unsupported = None
+     try:
+-        os.fsync(fd)
+-    except OSError as e:
+-        if getattr(e, "errno", None) in (errno.EINVAL, errno.ENOTSUP, errno.EPERM):
+-            return None  # FS 不支持 fsync 目录 —— 不是持久化失败
+-        return f"目录 fsync 失败 {type(e).__name__}"
++        try:
++            os.fsync(fd)
++        except OSError as e:
++            errno_ = getattr(e, "errno", None)
++            # ⛔ round-4 HIGH-4: 原豁免集含 EPERM —— 它**不能**证明「不支持」,
++            # 更可能是真实的权限/策略拒绝, 当成成功会让 undo 继续删源。已移除。
++            # 且 EINVAL/ENOTSUP 只说明「**无法证明**已持久化」, 不等于成功 ——
++            # 改为单独一档 "unsupported", 由调用方决定怎么办(而不是伪装成 None)。
++            if errno_ in (errno.EINVAL, errno.ENOTSUP):
++                unsupported = f"该文件系统不支持 fsync 目录 ({type(e).__name__})"
++            else:
++                return "failed", f"目录 fsync 失败 {type(e).__name__}"
+     finally:
+-        os.close(fd)
+-    return None
++        # round-4 MEDIUM-2: close 若抛错, 原实现会直接逸出并破坏 JSON 回执契约。
++        try:
++            os.close(fd)
++        except OSError:
++            pass
++    if unsupported:
++        return "unsupported", unsupported
++    return "ok", None
+ 
+ 
+ def _open_exam_dirfd(vault: Path) -> tuple[int | None, str | None]:
+     """打开 检验白板/ 并返回一个**钉死该目录 inode** 的 dir_fd。
+ 
+     主 session 并行复核 HIGH-4 的正解。三重校验:
+     1. ``O_DIRECTORY|O_NOFOLLOW`` —— 目录本身若是 symlink 直接 ELOOP 失败;
+     2. ``os.fstat(dfd)`` 与 ``os.stat(vault/EXAM_DIR)`` 的 (dev, ino) 必须相同
+        —— 打开的确是我们校验过的那个目录, 不是打开后被换掉的另一个;
+     3. dfd 与 vault 必须**同一文件系统** (st_dev 相同) —— 目录被换成指向外部
+        挂载点的链接时, 即便前两条侥幸通过也会在这里被拦。
+     → (dfd | None, 失败原因 | None)。调用方负责 os.close(dfd)。
+     """
+     exam = vault / EXAM_DIR
+     try:
+         dfd = os.open(exam, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+     except OSError as e:
+         return (
+             None,
+             f"{EXAM_DIR}/ 打开失败 (被 symlink 布防或不是目录): {type(e).__name__}",
+         )
+     try:
+         st_dfd = os.fstat(dfd)
+         st_path = os.stat(exam)
+         st_vault = os.stat(vault)
+     except OSError as e:
+         os.close(dfd)
+         return None, f"{EXAM_DIR}/ 身份校验失败: {type(e).__name__}"
+     if (st_dfd.st_dev, st_dfd.st_ino) != (st_path.st_dev, st_path.st_ino):
+         os.close(dfd)
+         return None, f"{EXAM_DIR}/ 在打开前后被替换 (inode 变化), 拒绝写入"
+     if st_dfd.st_dev != st_vault.st_dev:
+         os.close(dfd)
+         return None, f"{EXAM_DIR}/ 与 vault 不在同一文件系统 (疑似越界挂载), 拒绝写入"
+     return dfd, None
+ 
+ 
+ def _dirfd_still_in_vault(dir_fd: int, vault: Path) -> str | None:
+     """复核 dir_fd 指向的仍是 vault 内那个 检验白板/ 目录。
+ 
+     ⛔ round-3 HIGH-1: `_open_exam_dirfd` 只在**打开那一刻**做一次 inode 快照。
+     校验通过之后, 若有人把该目录 rename 到 vault **外**(同一文件系统),
+     dfd 仍指向那个已被移走的 inode —— 写入会真的落在 vault 外, 而回执照旧
+     按词法路径报 `created: true`, 用户以为文件在 vault 里。
+     修法: 发布完成后**再核一次**「vault/检验白板 这个路径今天解析出来的 inode,
+     是否还等于我们手里 dfd 的 inode」。不等 = 目录已被移走/替换。
+     → None = 仍在; str = 失败原因。
+ 
+     诚实边界: 这是**事后检测**, 不是事前阻止 —— POSIX 没有"把 inode 钉在某个
+     父目录里"的原语。它保证的是**不会谎报成功**(检测到就如实回报并撤销),
+     而不是"不可能被移走"。残留窗口与 lstat→unlink 那处同源, 已在验收单声明。
+     """
+     try:
+-        st_now = os.stat(vault / EXAM_DIR)
++        # ⛔ round-4 HIGH-1: 原用 os.stat —— 它**跟随 symlink**。反例: 把目录 rename
++        # 出 vault 后, 在原路径放一个指回它的 symlink, os.stat 解析后拿到的 inode
++        # 仍等于 dir_fd 的 inode ⇒ 复核通过, 文件照旧落在 vault 外而回执报成功。
++        # 改用 lstat 并**显式拒绝 symlink**: 该路径本就应当是真目录, 不是别名。
++        st_now = os.lstat(vault / EXAM_DIR)
+         st_dfd = os.fstat(dir_fd)
+     except OSError as e:
+         return f"写入后复核 {EXAM_DIR}/ 失败: {type(e).__name__}"
++    if stat.S_ISLNK(st_now.st_mode):
++        return f"{EXAM_DIR}/ 在写入期间被替换成 symlink — 写入落点不可信"
+     if (st_now.st_dev, st_now.st_ino) != (st_dfd.st_dev, st_dfd.st_ino):
+         return (
+             f"{EXAM_DIR}/ 在写入期间被替换或移出 vault "
+             "(目录 inode 已变) — 写入落点不可信"
+         )
+     return None
+ 
+ 
+ def _rollback_published(
+     name: str,
+     dir_fd: int,
+     identity: tuple[int, int] | None = None,
+     *,
+     expect_sha: str | None = None,
+-) -> str | None:
++) -> tuple[str, str | None]:
+     """撤销**我们自己**刚发布的 target —— 仅当它当前确实还是我们那一份。
+ 
+     round-3 HIGH-3: 原实现按 basename 直接 unlink 并静默吞掉失败, 两个问题:
+       · identity 快照可能已过时 —— 期间路径被换入他人文件时会误删;
+       · 删除失败被吞 ⇒ 错误字节的 target 留在 vault 里, 回执却只报失败。
+ 
+     「还是我们那一份」有两种判法, 按调用场景取其一:
+       · ``identity``  —— 比 (dev, ino), 用于「刚 link 出来、inode 已知」的场景;
+       · ``expect_sha`` —— 比内容 SHA, 用于 HIGH-1 那种「目录整体被移走」的场景
+         (此时 inode 仍是我们的, 但我们想确认删的确是自己写的那份字节)。
+     两者都给则必须同时满足。任一不符 ⇒ **不删**(那不是我们的东西)。
+-    → None = 已撤销 / 无需撤销; str = 失败原因(调用方须写进回执, 不得吞)。
++    ⛔ round-4 HIGH-3: 原先只返回 `None | str`, 而 `None` 同时表示四种截然不同的
++    结果(已删 / 本就不存在 / identity 不符**没删** / SHA 不符**没删**)。调用方无法
++    分辨, 于是一律拼「已撤销该文件」—— **回执与实际副作用直接不一致**。
++    改为三态: ("deleted"|"absent"|"kept", 失败原因|None)。
++    · deleted = 确实删了; · absent = 本就不在; · kept = **判据不符, 故意没删**。
+     """
++    if identity is None and expect_sha is None:
++        # round-4 LOW-1: 两个判据都不给 ⇒ 无从证明「这是我们的」, 拒绝删除。
++        return "kept", "未提供任何身份判据, 拒绝删除"
+     try:
+         st_now = os.lstat(name, dir_fd=dir_fd)
+     except FileNotFoundError:
+-        return None  # 已经不在了, 无需撤销
++        return "absent", None  # 已经不在了, 无需撤销
+     except OSError as e:
+-        return f"撤销前复核失败 {type(e).__name__}"
++        return "kept", f"撤销前复核失败 {type(e).__name__}"
+     if identity is not None and (st_now.st_dev, st_now.st_ino) != identity:
+-        return None  # 已不是我们的 inode ⇒ 是别人的文件, 绝不删
++        return "kept", None  # 已不是我们的 inode ⇒ 是别人的文件, 绝不删
+     if expect_sha is not None:
+         try:
+             cfd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=dir_fd)
+             try:
+                 buf = b""
+                 while chunk := os.read(cfd, 1 << 20):
+                     buf += chunk
+             finally:
+                 os.close(cfd)
+         except OSError as e:
+-            return f"撤销前回读失败 {type(e).__name__}"
++            return "kept", f"撤销前回读失败 {type(e).__name__}"
+         if hashlib.sha256(buf).hexdigest() != expect_sha:
+-            return None  # 内容已不是我们写的那份 ⇒ 不删
++            return "kept", None  # 内容已不是我们写的那份 ⇒ 不删
+     try:
+         os.unlink(name, dir_fd=dir_fd)
+     except OSError as e:
+-        return f"unlink 失败 {type(e).__name__}"
+-    return None
++        return "kept", f"unlink 失败 {type(e).__name__}"
++    return "deleted", None
+ 
+ 
+ def _atomic_write(
+     tmp: Path, target: Path, content: str, dir_fd: int
+ ) -> tuple[str | None, str | None]:
+     """O_EXCL|O_NOFOLLOW 写 tmp → fsync → **link 到 target (no-replace)** →
+     unlink tmp → fsync 父目录。
+ 
+     W4 纵深防御: O_NOFOLLOW 让 tmp 若是 symlink 直接 ELOOP 失败 (不跟随),
+     O_CREAT|O_EXCL 让 tmp 已存在时直接失败 (不覆盖并发/残留文件) —
+     lstat 预检与实际写之间的 TOCTOU 窗口由内核标志封死。
+     round-3 H6: 落盘不再用 ``os.replace`` (它会**覆盖**预检之后才出现的
+     target) —— 改用 ``os.link``: 目标已存在时内核直接 EEXIST, 原子且永不
+     覆盖; 成功后 unlink tmp, 目标是同一 inode 的硬链接 (内容已 fsync)。
+     round-3 M5: 补 fsync 父目录; tmp 清理失败如实回报而非静默吞掉。
+     → (失败原因 | None, 告警 | None)。失败时目标未创建; 告警只表示 tmp
+     未清理 (目标已正确落盘), 由调用方如实写进回执而非当作失败。
+ 
+     ⛔ 主 session 并行复核 HIGH-4 (实测反例: probe 后把 检验白板/ 换成指向
+     vault 外的目录 symlink, create 仍返回 created:true 且**文件落在 vault 外**):
+     此前 `_prepare` 的目录守卫、`_symlink_probe` 与本函数的 open/link 全部**按路径**
+     操作 —— 检查与使用之间隔着可被替换的路径解析, O_NOFOLLOW 只护住最后一段,
+     中段/父目录被换掉时护不住。修法 = **dirfd 锚定**: 调用方用
+     O_DIRECTORY|O_NOFOLLOW 打开 检验白板/ 拿到 dfd 并校验它确在 vault 内,
+     此后所有操作只用 **basename + dir_fd=dfd**。dfd 钉死的是那一个目录 inode,
+     路径事后怎么换都改变不了操作落点 —— 窗口从根本上消失, 而不是被压小。
+ 
+     ⚠️ **作用域边界（独立复核明确要求不得外推）**: 本函数保证的是
+     「**锚定成功之后**, `_atomic_write` 内部的落点不再依赖路径解析」。
+     它**不**等于「整个程序从此完全不解析路径」——
+       · `_prepare` 在锚定**之前**仍有 mkdir、`_symlink_probe` 与打开目录时的路径解析;
+       · `cmd_undo` 是另一套**按路径**的流程, 不走本锚定。
+     写文档/验收单时请照此口径, 不要写成「全程 dirfd 化」。
+     """
+     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+     tmp_name, target_name = tmp.name, target.name
+     published = False  # link 是否已成功 (round-3 HIGH-2)
++    rollback_note = None  # 撤销未完成时的如实说明 (round-4 HIGH-2)
+     st_written = None
+     try:
+         fd = os.open(tmp_name, flags, 0o644, dir_fd=dir_fd)
+     except OSError as e:
+         return (
+             f"临时文件创建失败 (symlink 布防或残留 {tmp.name}): {type(e).__name__}",
+             None,
+         )
+     try:
+         with os.fdopen(fd, "w", encoding="utf-8", closefd=False) as f:
+             f.write(content)
+             f.flush()
+             os.fsync(f.fileno())
+         # round-4 H6: 发布的字节必须是**我们刚写的那个 inode** — 关闭 fd 后
+         # 按路径 link, 期间 tmp 若被替换会发布他人内容。这里用写入时的 fd 记下
+         # (dev,ino), link 之后立刻核对 target 是同一 inode, 不符则撤销发布。
+         st_written = os.fstat(fd)
+         os.close(fd)
+         fd = -1
+         os.link(
+             tmp_name, target_name, src_dir_fd=dir_fd, dst_dir_fd=dir_fd
+         )  # EEXIST 绝不覆盖
+         # round-3 HIGH-2: link 一旦成功, target 就**已经发布**了。此后回读若抛
+         # EMFILE/EIO 之类, 原实现会掉进下方统一 except —— 那里只删 tmp,
+         # **把已发布的 target 留在 vault 里**却回报"原子写失败"。
+         # 修法: 用显式状态记住"已发布", 让失败路径知道自己要撤销发布。
+         published = True
+         # codex round-1 HIGH-2 (a): 只比 (dev,ino) 不足 —— 别的进程**原地改写
+         # 同一个 tmp inode** 时两侧 inode 恒等, 核对照样通过, 发布出去的却是
+         # 他人字节 (复核者隔离注入实测: 回执 SHA e51ca99e… 与目标实际 43cb09e0…
+         # 分叉, 而 _atomic_write 返回 err=None)。修法 = 发布后**重读目标字节**
+         # 并与我们要写的 content 做 sha 全等, inode 与字节两条都过才算发布成功。
+         want_sha = hashlib.sha256(content.encode("utf-8")).hexdigest()
+         vfd = os.open(target_name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=dir_fd)
+         try:
+             st_pub = os.fstat(vfd)
+             got = b""
+             while chunk := os.read(vfd, 1 << 20):
+                 got += chunk
+         finally:
+             os.close(vfd)
+         same_inode = (st_pub.st_dev, st_pub.st_ino) == (
+             st_written.st_dev,
+             st_written.st_ino,
+         )
+         if not same_inode or hashlib.sha256(got).hexdigest() != want_sha:
+             # codex round-1 HIGH-2 (b): 原实现在这里 target.unlink() —— 但走到
+             # 本分支恰恰说明 target 已**不是我们的 inode**(被并发替换), 按路径
+             # 删它等于删掉别人刚创建的文件, 且回执还报失败 → 文件静默丢失。
+             # 修法: inode 不符时**绝不删**, 只如实回报; 仅当 inode 仍是我们的
+             # (纯字节被原地改写) 才撤销自己的发布。
+             if same_inode:
+                 # round-3 HIGH-3: same_inode 来自**已打开 fd 的快照**, 到这里可能
+                 # 已经过时 —— 期间路径若被换入别的文件, 按 basename 删就删掉了
+                 # 他人的文件。修法: 紧贴 unlink 前**再 lstat 一次**核 identity;
+                 # 且删除失败**不再静默吞掉**(否则会留下错误字节的 target 而回执
+                 # 只报失败)。
+-                rb_err = _rollback_published(
++                # ⛔ round-4 HIGH-2: 原实现在拿到结果**之前**就 published = False,
++                # 于是外层 except 里 `if published:` 不成立、rb_err 被重置为 None,
++                # 「已发布目标未能撤销」这条关键信息被整个吞掉, 回执只剩
++                # 「原子写失败: OSError」。修法: 只有**确实删掉**才清 published;
++                # 撤销结果用外层可见的 rollback_note 承载, 不依赖异常传递。
++                rb_state, rb_err = _rollback_published(
+                     target_name, dir_fd, (st_written.st_dev, st_written.st_ino)
+                 )
+-                published = False
+-                if rb_err:
+-                    raise OSError(f"published bytes mismatch; 撤销失败: {rb_err}")
++                if rb_state == "deleted" or rb_state == "absent":
++                    published = False
++                else:
++                    rollback_note = rb_err or "判据不符, 已保留(未删除)"
+                 raise OSError("published bytes mismatch (in-place rewrite)")
+             published = False  # 不是我们的 inode ⇒ 不属于我们, 无需也不得撤销
+             raise OSError(
+                 "published inode mismatch (concurrent replacement; 未删除该文件)"
+             )
+     except OSError as e:
+         if fd >= 0:
+             try:
+                 os.close(fd)
+             except OSError:
+                 pass
+         # round-3 HIGH-2: 若 link 已成功而后续步骤抛错, target 已经发布出去了 ——
+         # 必须撤销自己的发布, 否则「回执报失败、文件却留在 vault 里」。
+-        rb_err = None
+         if published:
+-            rb_err = _rollback_published(
++            rb_state, rb_err2 = _rollback_published(
+                 target_name, dir_fd, (st_written.st_dev, st_written.st_ino)
+             )
++            if rb_state not in ("deleted", "absent"):
++                rollback_note = rb_err2 or "判据不符, 已保留(未删除)"
+         # round-3 MEDIUM-5: tmp 清理失败原先被吞 —— 残留会让下次同 ts 的 O_EXCL
+         # 直接失败, 而用户拿不到任何线索。改为并入错误消息如实回报。
+         tmp_err = None
+         try:
+             os.unlink(tmp_name, dir_fd=dir_fd)
+         except FileNotFoundError:
+             pass
+         except OSError as te:
+             tmp_err = f"{tmp_name}: {type(te).__name__}"
+         kind = (
+             "目标已存在 (并发创建), 拒绝覆盖"
+             if isinstance(e, FileExistsError)
+             else "原子写失败"
+         )
+         msg = f"{kind}: {type(e).__name__}"
+-        if rb_err:
+-            msg += f" (⚠️ 已发布的目标未能撤销: {rb_err}, 请手动检查)"
++        if rollback_note:
++            msg += f" (⚠️ 已发布的目标仍在 vault 里: {rollback_note}, 请手动检查)"
+         if tmp_err:
+             msg += f" (⚠️ 临时文件未清理 {tmp_err}, 下次同 ts 会被拒, 请手动删除)"
+         return msg, None
+     warn = None
+     try:
+         os.unlink(tmp_name, dir_fd=dir_fd)
+     except OSError as e:
+         warn = f"临时文件未能清理 ({tmp.name}: {type(e).__name__})，下次 create 同 ts 会被拒绝，请手动删除"
+     try:
+         os.fsync(dir_fd)  # dirfd 已在手, 直接 fsync 它 (不再按路径重开)
+     except OSError:
+         pass
+     return None, warn
+ 
+ 
+ def _prepare(args) -> tuple[list[dict], str, Path] | int:
+     """preview/create 共用的数据面: 扫描各板 + 定目标路径。"""
+     vault = Path(args.vault)
+     if not (vault / BOARD_DIR).is_dir():
+         return _fail_env(f"vault 不可用: {vault / BOARD_DIR} 不存在")
+     # 目录级 symlink 守卫 (与 recap_scan 同语义)
+     vault_resolved = vault.resolve()
+     for sub in (BOARD_DIR, "节点", EXAM_DIR):
+         d = vault / sub
+         if not d.exists():
+             continue
+         try:
+             escaped = not d.resolve().is_relative_to(vault_resolved)
+         except (OSError, ValueError):
+             escaped = True
+         if escaped:
+             return _fail_env(
+                 f"vault 不可用: {sub}/ 目录 resolve 到 vault 之外 (symlink 越界)"
+             )
+     stems = list(dict.fromkeys(args.boards))
+     if not stems:
+         return _fail_env("--boards 至少给 1 块板")
+     anchor = args.anchor or stems[0]
+     if anchor not in stems:
+         return _fail_env(f"--anchor {anchor!r} 不在 --boards 里")
+     # round-3 M6: wikilink 语义字符 — `#` 是 heading 锚点、`|` 是别名分隔,
+     # 板名含它们时产物写出的 [[原白板/A#B]] 会被消费方 (resolve_node_id)
+     # 截断成另一个板名 → scan_vault 归属错乱且不报 parse error。文件系统
+     # 允许这两个字符, 所以必须在本层显式拒绝而不是指望 containment。
+     # round-6 终裁复核: `]` 同样是 wikilink 终止符 (板名含 `]]` 时
+@@ -702,94 +741,103 @@ def cmd_create(args) -> int:
+             "--expect-content-sha 必须是 preview 回执里的 64 位小写十六进制 "
+             "content_sha256（空串或非法形状一律拒绝，防绕过用户确认）"
+         )
+     if args.expect_content_sha != sha:
+         print(
+             json.dumps(
+                 {
+                     "mode": "create",
+                     "created": False,
+                     "refusal_reason": (
+                         "内容与用户确认的 preview 不一致 (期间 vault 有变化) — "
+                         "已零写侧退出, 请重跑 preview 让用户确认新内容"
+                     ),
+                     "expected_sha256": args.expect_content_sha,
+                     "actual_sha256": sha,
+                 },
+                 ensure_ascii=False,
+                 indent=1,
+             )
+         )
+         return 0
+     try:
+         (vault / EXAM_DIR).mkdir(exist_ok=True)
+     except OSError as e:  # round-3 L3: I/O 异常归一到 JSON+exit 2 契约
+         return _fail_env(f"{EXAM_DIR}/ 目录不可用: {type(e).__name__}")
+     tmp = target.with_name(target.name + ".g59-tmp")
+     probe = _symlink_probe(vault, target, tmp)
+     if probe:
+         return _fail_env(probe)
+     # 主 session 并行复核 HIGH-4: 上面的 probe 仍是「按路径检查」，与实际写入之间
+     # 隔着可被替换的路径解析（实测：probe 后把 检验白板/ 换成指向 vault 外的目录
+     # symlink，create 仍 created:true 且文件落在 vault 外）。这里改为**先取 dirfd
+     # 锚定目录 inode**，之后所有写侧操作只用 basename + dir_fd —— 路径事后怎么换
+     # 都改变不了操作落点。probe 保留为第一道快速拒绝（诊断信息更友好）。
+     dfd, dfd_err = _open_exam_dirfd(vault)
+     if dfd_err:
+         return _fail_env(dfd_err)
+     try:
+         write_err, warn = _atomic_write(tmp, target, content, dfd)
+         # round-3 HIGH-1: dirfd 的身份校验只发生在打开那一刻。写入完成后再核一次
+         # 「vault/检验白板 现在解析出的 inode 是否仍等于 dfd 的 inode」——
+         # 若期间目录被 rename 出 vault, 这里会检出, 从而**不会谎报 created:true**。
+         if not write_err:
+             moved = _dirfd_still_in_vault(dfd, vault)
+             if moved:
+-                rb = _rollback_published(target.name, dfd, None, expect_sha=sha)
+-                write_err = moved + (
+-                    f" (已撤销该文件)" if not rb else f"; 撤销失败: {rb}"
++                rb_state, rb_err = _rollback_published(
++                    target.name, dfd, None, expect_sha=sha
++                )
++                # round-4 HIGH-3: 三态如实转述 —— "kept" 表示判据不符**故意没删**,
++                # 绝不能像原来那样一律拼「已撤销该文件」(回执与副作用不一致)。
++                tail = {
++                    "deleted": " (已撤销该文件)",
++                    "absent": " (该文件已不存在)",
++                }.get(
++                    rb_state,
++                    f" (⚠️ 文件仍在: {rb_err or '判据不符, 故意未删'}, 请手动检查)",
+                 )
++                write_err = moved + tail
+     finally:
+         os.close(dfd)
+     if write_err:
+         return _fail_env(write_err)
+     rel = str(target.relative_to(vault))
+     receipt = {
+         "mode": "create",
+         "created": True,
+         "created_path": rel,
+         "content_sha256": sha,
+         "bytes": len(content.encode("utf-8")),
+         # round-3 H8: 路径含空格/括号/& 时未加引号的 hint 是**语法错误的**
+         # shell 命令 (zsh -n 实测 parse error) — 逐参数 shlex.quote
+         # round-3 H8 + round-4: 路径含空格/括号/& 时未加引号的 hint 是**语法
+         # 错误的** shell 命令 (zsh -n 实测 parse error) — 逐参数 shlex.quote;
+         # 且 undo-dir 占位符不能写成 `<...>` (shell 重定向语法, 整条仍解析失败),
+         # 改成可直接替换的引号串。
+         # codex round-1 MEDIUM-7: SKILL.md 称 undo_hint「可直接复制执行」, 但串以
+         # `undo …` 开头 —— 缺 `python3 <本脚本>` 前缀, 在普通 shell 里 `undo` 不是
+         # 命令 (zsh: command not found)。补上解释器与脚本绝对路径, 让文档的承诺成立。
+         "undo_hint": (
+             f"{shlex.quote(sys.executable)} {shlex.quote(str(Path(__file__).resolve()))} "
+             f"undo --vault {shlex.quote(str(vault))} --path {shlex.quote(rel)} "
+             f"--expect-sha {sha} --undo-dir 'PUT_A_DIR_OUTSIDE_THE_VAULT_HERE'"
+         ),
+     }
+     if warn:
+         receipt["warning"] = warn
+     print(json.dumps(receipt, ensure_ascii=False, indent=1))
+     return 0
+ 
+ 
+ def cmd_undo(args) -> int:
+     vault = Path(args.vault)
+     # codex round-1 HIGH-1 同型: --expect-sha 也必须先过形状白名单, 否则空串
+     # 会让下游的 sha 全等比较失去意义 (undo 的判定虽然是无条件比较, 但空串
+     # 期望值配上"不符即拒"会退化成**恒拒**, 掩盖真实的绑定失效)。
+     if not _SHA256_RE.match(args.expect_sha or ""):
+         return _fail_env(
+             "--expect-sha 必须是 create 回执里的 64 位小写十六进制 content_sha256"
+         )
+     # ⛔ round-6 终裁复核: cmd_undo 此前完全没有 create 侧的「目录 symlink 越界」
+     # 守卫 —— containment 只比 target.resolve() 与 exam_root.resolve(), 两者
+     # 一起被 symlink 带出 vault 后仍判 contained=True, undo 就会去动 vault 外
+     # 的文件。这里补上与 _prepare 同款的目录级守卫。
+@@ -904,91 +952,92 @@ def cmd_undo(args) -> int:
+     if (st_now.st_dev, st_now.st_ino) != identity:
+         print(
+             json.dumps(
+                 {
+                     "mode": "undo",
+                     "undone": False,
+                     "refusal_reason": (
+                         "校验后文件被替换 (inode 变化) — 拒绝移走未经校验的版本"
+                     ),
+                 },
+                 ensure_ascii=False,
+             )
+         )
+         return 0
+     # W5 + round-3 M4: 留痕目的端**独占创建** (O_EXCL) 而不是 exists() 后
+     # shutil.move —— 后者在目的端有竞态, 且跨文件系统会退化成 copy+unlink。
+     # 这里: 先在目的端 O_EXCL 写出校验过的字节 + fsync, 确认落盘后才 unlink
+     # 源 (耐久回退: 任何时刻崩溃都不会两头皆空)。
+     dest = undo_dir / f"undone-{stamp}-{target.name}"
+     seq, dfd = 1, None
+     while dfd is None:
+         try:
+             dfd = os.open(
+                 dest, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644
+             )
+         except FileExistsError:
+             seq += 1
+             if seq > 999:
+                 return _fail_env("留痕文件名碰撞超过 999 次, 拒绝回退 (换 --undo-dir)")
+             dest = undo_dir / f"undone-{stamp}-{seq}-{target.name}"
+         except OSError as e:
+             return _fail_env(f"留痕文件创建失败: {type(e).__name__}")
+     try:
+         with os.fdopen(dfd, "wb") as f:
+             f.write(raw)
+             f.flush()
+             os.fsync(f.fileno())
+     except OSError as e:
+         try:
+             dest.unlink()
+         except OSError:
+             pass
+         return _fail_env(f"留痕写入失败, 已放弃回退 (原文件未动): {type(e).__name__}")
+     # round-3 HIGH-4: 留痕的**目录项**没落盘就删源, 崩溃后可能两端皆失。
+     # 这里改为 fail-closed: fsync 目录失败即拒绝回退, 原文件原样保留。
+-    dsync_err = _fsync_dir(undo_dir)
++    dsync_state, dsync_msg = _fsync_dir(undo_dir)
++    dsync_err = dsync_msg if dsync_state == "failed" else None
+     if dsync_err:
+         print(
+             json.dumps(
+                 {
+                     "mode": "undo",
+                     "undone": False,
+                     "refusal_reason": (
+                         f"留痕目录项未能持久化 ({dsync_err}) — 未删除 vault 内文件; "
+                         "此时删源在崩溃后可能两端皆失。请换一个 --undo-dir 重试"
+                     ),
+                     "retained_at": str(dest),
+                 },
+                 ensure_ascii=False,
+             )
+         )
+         return 0
+     # codex round-1 HIGH-3 (2): 留痕写完 + fsync 之后**从未回读校验** —— 复核者
+     # 隔离注入原地改写留痕 inode 后, 源文件照删、回执 retained SHA 报 765bf07e…
+     # 而留痕实际是 3710644e…: 「写留痕后才删源」的耐久承诺被架空 (留下的是坏
+     # 备份, 而源已不可回). 修法 = 删源之前把留痕**重新打开读回**, inode 与
+     # sha 两条都全等才继续; 任一不符 → 绝不删源 (vault 内原件仍在, 不丢字节)。
+     try:
+         rfd = os.open(dest, os.O_RDONLY | os.O_NOFOLLOW)
+         try:
+             st_dest = os.fstat(rfd)
+             back = b""
+             while chunk := os.read(rfd, 1 << 20):
+                 back += chunk
+         finally:
+             os.close(rfd)
+     except OSError as e:
+         return _fail_env(
+             f"留痕写出后不可回读, 已放弃回退 (原文件未动): {type(e).__name__}"
+         )
+     if st_dest.st_size != len(raw) or hashlib.sha256(back).hexdigest() != sha:
+         print(
+             json.dumps(
+                 {
+                     "mode": "undo",
+                     "undone": False,
+                     "refusal_reason": (
+                         "留痕落盘后回读校验不符 (备份被替换或原地改写) — "
+                         "未删除 vault 内文件; 该留痕不可信, 请换 --undo-dir 重试"
+                     ),
+                     "retained_at": str(dest),
+@@ -1027,99 +1076,112 @@ def cmd_undo(args) -> int:
+                     "mode": "undo",
+                     "undone": False,
+                     "refusal_reason": (
+                         "留痕写出期间原文件内容发生变化 (替换或原地改写) — "
+                         f"未删除 vault 内文件; 校验过的旧版本已备份在 {dest}"
+                     ),
+                     "retained_at": str(dest),
+                 },
+                 ensure_ascii=False,
+             )
+         )
+         return 0
+     # codex round-1 HIGH-3 (1): 上面的重读校验在 os.close(cfd) 后才 unlink,
+     # 中间仍有窗口 —— 复核者在该窗口换入 USER-NEW-BYTES, 结果新 inode 被删、
+     # 留痕里只有旧版本, 而回执报 undone:true。POSIX 没有「按 inode 删除」的
+     # 原语, 能做到的最紧形态是**紧贴 unlink 前再 lstat 一次**核 identity,
+     # 把窗口压到相邻两个系统调用之间。残留窗口如实声明在 SKILL.md。
+     try:
+         st_pre_unlink = os.lstat(target)
+     except OSError as e:
+         return _fail_env(
+             f"删除前复核失败, 未删除 (留痕已存 {dest}): {type(e).__name__}"
+         )
+     if (st_pre_unlink.st_dev, st_pre_unlink.st_ino) != identity:
+         print(
+             json.dumps(
+                 {
+                     "mode": "undo",
+                     "undone": False,
+                     "refusal_reason": (
+                         "删除前一刻文件被替换 (inode 变化) — 未删除, "
+                         f"避免误删他人写入; 校验过的旧版本已备份在 {dest}"
+                     ),
+                     "retained_at": str(dest),
+                 },
+                 ensure_ascii=False,
+             )
+         )
+         return 0
+     try:
+         os.unlink(target)
+     except OSError as e:
+         return _fail_env(
+             f"留痕已保存 {dest} 但原文件删除失败 (vault 内仍在): {type(e).__name__}"
+         )
+-    _fsync_dir(target.parent)
++    # round-4 HIGH-5: 原实现忽略删源后的目录 fsync 结果并无条件报 undone:true。
++    # 此刻文件已删、无法回退, 但**必须如实告知**: 若目录项未持久化, 崩溃后源文件
++    # 可能"复活", 回执与持久状态分叉。改为把它写进回执的 warning。
++    src_state, src_msg = _fsync_dir(target.parent)
+     print(
+         json.dumps(
+             {
+                 "mode": "undo",
+                 "undone": True,
+                 "removed_path": args.path,
+                 "retained_at": str(dest),
+                 "retained_sha256": sha,
++                **(
++                    {}
++                    if src_state == "ok"
++                    else {
++                        "warning": (
++                            f"源目录项持久化未确认 ({src_msg}) — 崩溃后源文件可能重现; "
++                            f"留痕已在 {dest}"
++                        )
++                    }
++                ),
+             },
+             ensure_ascii=False,
+             indent=1,
+         )
+     )
+     return 0
+ 
+ 
+ def main() -> int:
+     ap = argparse.ArgumentParser(
+         description="阶段回顾检验白板构建器 (preview 只读 / create 恰 1 新文件 / undo 字节回退)"
+     )
+     sub = ap.add_subparsers(dest="cmd", required=True)
+     # round-3 M7: 默认戳取 **UTC** — 原先用本地墙钟却给 created_at 贴 Z,
+     # 与 start-exam-board 的 `date -u` 分属两个时钟 (Asia/Shanghai 快 8h),
+     # 导致 exam_history 按 created_at 排序错位。
+     default_ts = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M")
+     for name in ("preview", "create"):
+         p = sub.add_parser(name)
+         p.add_argument("--vault", required=True)
+         p.add_argument(
+             "--boards", nargs="+", required=True, help="原白板 stem 列表 (≥1)"
+         )
+         p.add_argument(
+             "--anchor", default=None, help="锚板 (文件名主干; 缺省=第一块板)"
+         )
+         p.add_argument(
+             "--ts",
+             default=default_ts,
+             help="时间戳 YYYY-MM-DD-HHMM (**UTC**; preview→create 传同值)",
+         )
+         if name == "create":
+             # round-4 H5: 原为可选 → 省略即退回"同 ts 靠巧合"的不安全语义,
+             # 且测试 helper 自己也在省略。改为 **required**: 没有用户确认过的
+             # 字节指纹就没有 create。
+             p.add_argument(
+                 "--expect-content-sha",
+                 required=True,
+                 help="preview 回执的 content_sha256（必传）— 不符即拒，绑定用户确认过的字节",
+             )
+     u = sub.add_parser("undo")
+     u.add_argument("--vault", required=True)
+     u.add_argument(
+         "--path", required=True, help="create 回执里的 created_path (vault 相对路径)"
+     )
+
+**Verifying file descriptor leak fix**
+**Preparing precise citation line ranges**
+exec
+/bin/zsh -lc "nl -ba /Users/Heishing/.codex/memories/MEMORY.md | sed -n '184,216p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+   184	# Task Group: Canvas Learning System P1-05/P1-01/P1-08 adversarial security review
+   185	scope: Read-only, parallel audit of vault admission/indexing, Graphiti quarantine isolation, SnapshotV3, and recovery-anchor closure claims.
+   186	applies_to: cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output; reuse_rule=revalidate SHA, CI, actual call sites, and live Neo4j state in the target checkout.
+   187	
+   188	## Task 1: P1-05c/P1-01/P1-08 parallel adversarial review, closure rejected
+   189	
+   190	### rollout_summary_files
+   191	
+   192	- rollout_summaries/2026-08-17T01-56-07-ZNCd-agents_guide_and_p1_05c_adversarial_audit.md (cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output, rollout_path=/Users/Heishing/.codex/sessions/2026/08/17/rollout-2026-08-17T09-56-07-01a00d6e-ea40-70a1-a23c-d51342eeeacd.jsonl, updated_at=2026-08-19T17:56:56+00:00, thread_id=01a00d6e-ea40-70a1-a23c-d51342eeeacd, outcome=partial; final read-only verdict)
+   193	
+   194	### keywords
+   195	
+   196	- P1-05c, P1-05, P1-01, P1-08, check_vault_path, vault_index_orchestrator, LanceDB, Graphiti, DEFAULT_GROUP_ID, SnapshotV3, CURRENT_TASK.md
+   197	
+   198	## Task 2: P1-05b five-question adversarial audit, reproducible bypasses
+   199	
+   200	### rollout_summary_files
+   201	
+   202	- rollout_summaries/2026-08-19T14-44-08-upza-p1_05b_adversarial_review_finds_admission_quarantine_snapsho.md (cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output, rollout_path=/Users/Heishing/.codex/sessions/2026/08/19/rollout-2026-08-19T22-44-08-01a01a7a-c47f-70e2-8e5e-524e1591da78.jsonl, updated_at=2026-08-19T15:12:50+00:00, thread_id=01a01a7a-c47f-70e2-8e5e-524e1591da78, outcome=partial; detailed counterexamples)
+   203	
+   204	### keywords
+   205	
+   206	- P1-05b, symlink_escape, casefold, vault_backfill, lancedb_client, quarantine__p105b, search_nodes, read_node_tips, manifest-v3, NaN
+   207	
+   208	## User preferences
+   209	
+   210	- “启动并行 agent 进行对抗性审查” -> use independent evidence tracks and cross-check severity; every finding needs `file:line`, reproduction path/result, severity, conflict explanation, PASS/PARTIAL/FAIL, and limits. [Task 1][Task 2]
+   211	- Respect read-only task-book boundaries, WT/MAIN labels, explicit `UNVERIFIABLE`, and no raw-vault access; do not fix code in the audit. [Task 1]
+   212	
+   213	## Reusable knowledge
+   214	
+   215	- Related skill: skills/canvas-adversarial-audit/SKILL.md. P1-05/P1-01/P1-08 remained STILL-OPEN; F-02 tombstone filtering and F-05 live resilience were closed. Rejected vault inputs must show zero open/hash/index/write. [Task 1][Task 2]
+   216	- Reproduced: `vault/raw/escape.md -> /outside/secret.md` was counted by `backfill_vault(..., execute=False)`; case-sensitive `fnmatch` admitted `.CLAUDE/SKILL.md` and `raw/claude.md`. Edge filtering alone was insufficient because exact readers/node search could cross Graphiti groups. [Task 2]
+
+exec
+/bin/zsh -lc "nl -ba /Users/Heishing/.codex/memories/skills/canvas-adversarial-audit/SKILL.md | sed -n '19,48p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+    19	3. Identify actual production entrypoints, not merely the tests that claim to cover them.
+    20	
+    21	## Procedure
+    22	
+    23	1. Split independent tracks: vault admission/indexing and tests; Graphiti quarantine/retrieval; SnapshotV3/recovery anchors. Keep the audit read-only.
+    24	2. For each claim, build an evidence matrix: claim, `file:line`, adversarial input/state, actual entrypoint/path, observed result, severity, PASS/PARTIAL/FAIL, and limitations.
+    25	3. Directly exercise real entrypoints with temporary fixtures where permitted. For path admission include symlink, directory symlink, blacklisted filename in an allowed directory, case variant, and nonexistent path. Assert rejected inputs perform zero open/hash/index/write.
+    26	4. For quarantine, test ordinary edge search plus node search and exact-reader paths (`search_nodes`, `read_node_tips`, `read_node_errors`, `read_node_edge_reasons`). Use read-only Neo4j queries and `EXPLAIN` where allowed; distinguish observed metadata exposure from unproven fact-body leakage.
+    27	5. For SnapshotV3, test same-generation invalid/future version self-healing, extra fields, strict typing, huge finite values that may produce NaN/Infinity, and identity/length collision boundaries.
+    28	6. Compare recovery anchors with machine facts: current HEAD, Actions status, test counts, and unresolved findings. Separate targeted-test results from whole CI.
+    29	7. Cross-check high-severity findings independently. Write the final matrix before closure language; explicitly retain `UNVERIFIABLE` items and failed counterexample attempts.
+    30	
+    31	## Efficiency plan
+    32	
+    33	- Start from task-book source handles and `rg` for real call sites; cache the entrypoint map for all tracks.
+    34	- Parallelize independent tracks, then have the primary reviewer re-open only high-severity evidence.
+    35	- Stop treating a test as evidence once it only hits source text, a helper, fake client, `__new__`, or monkeypatch; pivot to the real entrypoint.
+    36	
+    37	## Pitfalls and fixes
+    38	
+    39	- Green tests but unsafe closure -> tests do not reach production behavior. Add direct entrypoint fixtures and capture full stdout/trace before an assertion.
+    40	- `session:` IDs used as provenance -> ID shape alone is not proof. Preserve provenance or report PARTIAL.
+    41	- Quarantine count passes -> exact-reader/node-search surfaces may still cross groups. Test those surfaces specifically.
+    42	- `CURRENT_TASK.md` says closed but anchors disagree -> rebuild anchors from current HEAD, Actions, and unresolved findings.
+    43	
+    44	## Verification checklist
+    45	
+    46	- Every finding has `file:line`, reproduction, severity, result, and claim-conflict explanation.
+    47	- Final report labels WT/MAIN and all verification limits; no prohibited files or raw vault were read.
+    48	- Production entrypoints, not only helpers, were tested for each security claim.
+
+**Planning report structure and citations**
+**Classifying partial rollback and deletion issues**
+**Evaluating TOCTOU rollback severity**
+**Assessing file warning reliability**
+**Confirming high severity criteria alignment**
+**Evaluating severity classification edge cases**
+**Assessing overinflation in security severity**
+**Consolidating rollback severity assessments**
+**Reclassifying create rollback severity to Medium**
+**Distinguishing receipt mismatch severity**
+**Assessing test coverage gaps for fsync handling**
+**Focusing review on five specific fixes**
+**Assessing scope limits for audit**
+**Clarifying issue inclusion criteria**
+**Identifying potential file descriptor leak**
+**Analyzing fd close behavior and os.fdopen risks**
+**Reviewing fd close error handling and leak risks**
+**Verifying test environment and retry outcome**
+**Confirming test pass and recommending next round**
+**Assessing targeted fix benefits and recommending focused audit**
+**Defining PARTIAL status with line references**
+**Analyzing directory fsync and unlink behavior**
+**Evaluating atomic write fsync durability and rollback risks**
+**Confirming severity inclusion for data damage risk**
+**Assessing product error convergence**
+**Identifying duplicate tips counting issue**
+**Evaluating double rollback error handling**
+**Clarifying error handling nuances**
+**Analyzing file unlink race conditions**
+**Highlighting atomic write durability concern**
+**Classifying issue severity as High**
+**Evaluating severity consistency across reports**
+**Marking stale note issue as High**
+**Classifying rollback_note as High**
+**Refining report scope with targeted Highs**
+**Assessing tri-state bug severity**
+**Grouping high-severity durability issues**
+**Analyzing historical high-severity counts**
+**Creating rollback for failure path**
+**Defining narrow-scope review scope and output**
+**Planning clickable code link formatting**
+**Designing clickable line range links**
+**Analyzing rollback transient failure scenarios**
+**Refining severity classification criteria**
+**Balancing severity and convergence strategy**
+**Differentiating data loss severity**
+**Clarifying risk level criteria for data loss**
+**Evaluating fsync support impact on warnings**
+**Reviewing test coverage for warning scenarios**
+**Planning round6 targeted testing**
+**Planning targeted fix to prevent data loss**
+**Documenting acceptance criteria after fix**
+**Summarizing partial and closed fsync fixes**
+**Classifying receipt mismatch severity levels**
+**Confirming high and medium severity classifications**
+**Analyzing tri-state rollback instability**
+**Evaluating TOCTOU and warning accuracy**
+mcp: sequential-thinking/sequentialthinking started
+mcp: sequential-thinking/sequentialthinking (completed)
+**Completing update plan**
+严重度与可达性已去重定级；报告结论为继续一轮定向整改。
+  ✓ 读取相关审计记忆与指定实现文件，建立行号和控制流索引
+  ✓ 并行复核五项整改及新失败分支，汇总独立发现
+  ✓ 运行 19 变体承重脚本与 173 项回归，核对还原和工作树
+  ✓ 复算严重度并给出停轮/继续的收敛性结论
+**Outlining narrow scope review report**
+**Summarizing partial and closed findings with line references**
+**Assessing TOCTOU cleanup risks**
+**Verifying file descriptor handling and severity classification**
+**Evaluating sandbox failure and residual errors**
+**Planning detailed residuals citation format**
+**Refining citation ranges to exclude blanks**
+**Finalizing citation blocks and scope details**
+**Confirming repository reading scope phrasing**
+**Documenting targeted rerun results**
+**Analyzing issue manifestation and status details**
+**Planning final report structure**
+**Classifying defects as partial and still-open**
+codex
+# 第 5 轮窄范围实现审阅
+
+## 结论先行
+
+**建议继续第 6 轮，但应是定向终止轮，不再开放式扩面。**
+
+当前结论：**BLOCKER 0 / HIGH 2 / MEDIUM 2 / LOW 1**。最高严重度仍为 HIGH，按既定停轮规则尚不能结案。
+
+与前四轮相比：
+
+- 严重度等级仍为 HIGH，但数量从上一轮 5 条下降到本轮 2 个根因。
+- 可达性明显下降：问题已从普通主路径退到文件系统耐久性、并发回退和异常重试组合。
+- 但 HIGH-1 不需要攻击者，只需目录 fsync 不受支持再发生崩溃，可能造成不可逆数据丢失，因此第 6 轮预期收益仍为正。
+
+## 五项整改判定
+
+| # | 判定 | 结论 |
+|---|---|---|
+| 1. 写后 `lstat` 并拒绝 symlink | **CLOSED** | [`recap_exam_build.py:375–390`](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:375)、[`783–800`](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:783) 已使用 `lstat`、显式拒绝 leaf symlink，并在异常后走三态撤销；原反例闭合。 |
+| 2. 仅确实删除后清 `published`，用 `rollback_note` 承载 | **PARTIAL** | 首次撤销处理正确，但第二次撤销成功时不会清除第一次的旧 `rollback_note`。 |
+| 3. `_rollback_published` 三态 | **PARTIAL** | 单次映射完整；组合调用和 `"deleted"` 的耐久语义仍不完整，与第 2 项共享 HIGH-2。 |
+| 4. `_fsync_dir` 三态、移除 EPERM 豁免 | **PARTIAL（安全目标 STILL-OPEN）** | 分类函数正确，但删源前调用方把 `"unsupported"` 静默当成可继续。 |
+| 5. 删源后 fsync 结果进入 `warning` | **CLOSED** | [`recap_exam_build.py:1115–1147`](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:1115) 中只有成功 unlink 后才检查；`ok` 无 warning，`failed/unsupported` 均有 warning。 |
+
+## HIGH
+
+### HIGH-1 — 留痕目录 `unsupported` 后仍删除源文件
+
+位置：[`recap_exam_build.py:289–321`](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:289)、[`997–999`](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:997)、[`1115–1116`](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:1115)
+
+`EINVAL/ENOTSUP` 已正确返回 `"unsupported"`，但调用方只阻断 `"failed"`：
+
+```python
+dsync_err = dsync_msg if dsync_state == "failed" else None
+```
+
+所以 `"unsupported"` 会继续走到 `os.unlink(target)`。若随后崩溃，留痕目录项可能未落盘，而源删除已落盘，造成两端皆空。后面的源目录 warning 也不能补救；若源文件系统 fsync 正常，回执甚至完全没有 warning。
+
+**类型：真实产品数据损坏风险。** 条件是特定文件系统加崩溃，不需要攻击者。
+
+### HIGH-2 — 三态重试后回执可能与实际撤销状态相反
+
+位置：[`recap_exam_build.py:547–554`](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:547)、[`567–572`](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:567)、[`588–590`](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:588)
+
+可达顺序：
+
+1. 第一次 rollback 返回 `kept`，设置旧 `rollback_note`；
+2. 外层异常处理因 `published=True` 立即第二次 rollback；
+3. 第二次若返回 `deleted` 或 `absent`，代码既不清旧 note，也不重新归并状态；
+4. 最终仍报告“已发布的目标仍在 vault 里”，实际已删除或不存在。
+
+此外，[`recap_exam_build.py:442–446`](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:442) 在 `unlink` 后未经目录 fsync 就返回 `"deleted"`；[`786–798`](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:786) 会据此明确声称“已撤销”。崩溃后目标仍可能重现。
+
+**类型：回执与实际写入/撤销状态不一致。** 需要异常回退、瞬时条件变化或崩溃，可达性低于前几轮，但符合本卡 HIGH 口径。
+
+## MEDIUM
+
+### MEDIUM-1 — create 目录 fsync 错误仍被静默吞掉
+
+位置：[`recap_exam_build.py:598–602`](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:598)、[`801–827`](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:801)
+
+任何目录 `fsync` 错误都被 `pass`，随后仍返回 `created:true` 且无 warning。即时状态正确，但崩溃耐久性未确认；由于丢失的是可重新生成的 recap 产物、未删除既有用户数据，定为 MEDIUM。
+
+### MEDIUM-2 — 清理/复核仍有 pathname 与 inode 脱钩窗口
+
+位置：[`recap_exam_build.py:421–445`](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:421)、[`575–597`](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:575)、[`296–303`](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:296)
+
+- SHA-only rollback 读完一个 inode 后，直接按名称 unlink，没有紧贴删除前重新绑定 identity。
+- tmp 清理同样直接按名称 unlink。
+- `_fsync_dir` 按路径重开目录，未使用 `O_DIRECTORY|O_NOFOLLOW` 或 inode 复核。
+
+需要攻击者或同步程序控制同目录并命中窄时序；可能删除换入文件或 fsync 错目录，属于理论可达边界。
+
+## LOW
+
+### LOW-1 — tmp 已不存在时仍可能产生错误 warning
+
+位置：[`recap_exam_build.py:594–597`](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:594)、[`825–826`](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:825)
+
+成功路径没有像失败路径那样单列 `FileNotFoundError`。若 tmp 已被并发删除，仍会提示“临时文件未能清理、请手动删除”。这是误告警，不影响最终 target。
+
+新加的“源目录项持久化未确认” warning 本身没有发现误设或漏设。
+
+## fd 结论
+
+未发现普通成功或 `OSError` 分支上的确定性 fd 泄漏：
+
+- `_fsync_dir` 使用 `finally`；
+- rollback、发布复核和 undo 的读取 fd 均有 `finally`；
+- create 的目录 fd 在外层 `finally` 关闭；
+- 留痕写 fd 由 `with os.fdopen(...)` 管理。
+
+`close()` 自身失败时的 POSIX 状态未做故障注入，不能据静态代码证明绝对无泄漏，但没有普通可达泄漏证据。
+
+## 承重性、回归与限制
+
+- 19 个变体全部如期变红；还原前后均为 `68 passed`，`RESULT: PASS`。
+- 还原后实现 SHA-256 与基线完全相同：`166a1cf18be4dd66fb5817882dc7753d399a5eb998a89f58af6d4ab99c072ce1`。
+- 指定回归：`173 passed in 13.49s`。
+- 最终 `git diff --exit-code` 为 0，`git status` 干净。
+- 第一次 pytest 因只读沙箱没有可写临时目录而在收集前失败；授权重跑后通过，不是实现失败。
+- 未打开测试源码或 round-4 处置文档；仓库源码人工阅读仅限指定实现文件。
+- 没有对本轮新发现做额外故障注入，因此崩溃后的实际文件系统结果仍属静态控制流与耐久性模型结论。
+
+## 收敛性判断
+
+**建议继续第 6 轮，预期收益仍为正。** 原因不是继续搜边角，而是 HIGH-1 是集中、可整改且可能造成不可逆数据丢失的确定控制流错误；HIGH-2 则直接影响撤销回执可信度。
+
+第 6 轮若关闭这两个 HIGH，建议即停止继续扩轮，并将以下事项写入验收单后结案：
+
+- create 目录 fsync 仍是 best-effort；
+- pathname/inode 极窄竞态仍存在；
+- tmp `ENOENT` 可能产生保守假 warning；
+- 本次只验证了定向套件，不代表全量 CI、live UAT 或生产文件系统耐久性。
+
+**残留清单：BLOCKER 0 / HIGH 2 / MEDIUM 2 / LOW 1。**
+
+
+tokens used
+150,940

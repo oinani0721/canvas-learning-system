@@ -1,0 +1,146 @@
+备份: /tmp/recap_exam_build.negverify.bak (sha 57ffeb405ecbef3b…)
+
+=== 基线: 完整套件应全绿 ===
+  ✅ 基线 exit=0 | 97 passed in 6.76s
+
+=== 变体 A: HIGH-1 回退: --expect-content-sha 恢复 falsy 短路（空串绕过用户确认） ===
+  ✅ 如期变红 | 7 failed, 90 deselected in 0.83s
+
+=== 变体 B: HIGH-1 同型回退: undo 的 --expect-sha 去掉形状白名单 ===
+  ✅ 如期变红 | 1 failed, 96 deselected in 0.57s
+
+=== 变体 C: HIGH-4 survivor 复现: 从 wikilink 禁止集里只移除 `|` ===
+  ✅ 如期变红 | 1 failed, 4 passed, 92 deselected in 0.76s
+
+=== 变体 D: HIGH-4 survivor 复现: 同时禁用目录守卫 + _symlink_probe + dirfd 锚定（纵深三层） ===
+  ✅ 如期变红 | 1 failed, 1 passed, 95 deselected in 0.63s
+
+=== 变体 E: HIGH-2(a) 回退: 发布后只比 (dev,ino)，不回读字节 ===
+  ✅ 如期变红 | 1 failed, 96 deselected in 0.43s
+
+=== 变体 F: HIGH-2(b) 回退: inode 不符时按路径 unlink（会删掉并发者的文件） ===
+  ✅ 如期变红 | 1 failed, 96 deselected in 0.38s
+
+=== 变体 G: HIGH-3(2) 回退: 删源前不回读校验留痕字节 ===
+  ✅ 如期变红 | 1 failed, 96 deselected in 0.51s
+
+=== 变体 I: 主session HIGH-4 回退: 写侧从 dirfd 锚定退回按路径 open/link ===
+  ✅ 如期变红 | 1 failed, 96 deselected in 0.45s
+
+=== 变体 J: 主session HIGH-5 回退: undo 恢复对 leaf symlink 的 resolve (移走 referent) ===
+  ✅ 如期变红 | 1 failed, 96 deselected in 0.55s
+
+=== 变体 K: round-3 HIGH-1 回退: 去掉写入后「dfd 是否仍是 vault 内那个目录」的复核 ===
+  ✅ 如期变红 | 2 failed, 95 deselected in 0.53s
+
+=== 变体 L: round-3 HIGH-2 回退: 失败路径不再撤销已发布的 target ===
+  ✅ 如期变红 | 1 failed, 96 deselected in 0.38s
+
+=== 变体 M: round-3 HIGH-3 回退: 撤销前不再复核 identity、且吞掉 unlink 失败 ===
+  ✅ 如期变红 | 2 failed, 95 deselected in 0.39s
+
+=== 变体 N: round-3 HIGH-4 回退: _fsync_dir 恢复 fail-open + undo 不再据此拒绝 ===
+  ✅ 如期变红 | 2 failed, 95 deselected in 0.50s
+
+=== 变体 O: round-4 HIGH-1 回退: 写入后复核改回 os.stat (跟随 symlink) 且不拒 symlink ===
+  ✅ 如期变红 | 1 failed, 96 deselected in 0.57s
+
+=== 变体 P: round-4 HIGH-2/3 回退: 撤销未完成时不再写进回执 ===
+  ✅ 如期变红 | 1 failed, 96 deselected in 0.39s
+
+=== 变体 Q: round-4 HIGH-4 回退: EPERM 重新并入 fsync 豁免集 ===
+  ✅ 如期变红 | 1 failed, 96 deselected in 0.38s
+
+=== 变体 R: round-4 HIGH-5 回退: 删源后的目录 fsync 结果重新被忽略 ===
+  ✅ 如期变红 | 1 failed, 96 deselected in 0.51s
+
+=== 变体 S: round-4 LOW-1 回退: 双空判据恢复无条件删除 ===
+  ✅ 如期变红 | 1 failed, 96 deselected in 0.38s
+
+=== 变体 T: round-5 HIGH-1 回退: undo 只挡 "failed", "unsupported" 照样删源 ===
+  ✅ 如期变红 | 1 failed, 96 deselected in 0.51s
+
+=== 变体 U: round-5 HIGH-2a 回退: 第二次撤销成功时不清旧 rollback_note ===
+  ✅ 如期变红 | 1 failed, 96 deselected in 0.38s
+
+=== 变体 V: round-5 HIGH-2b 回退: unlink 后不 fsync 目录, 直接报 "deleted" ===
+  ✅ 如期变红 | 1 failed, 96 deselected in 0.38s
+
+=== 变体 W: round-5 LOW-1 回退: 成功路径不再单列 tmp 的 FileNotFoundError ===
+  ✅ 如期变红 | 1 failed, 96 deselected in 0.38s
+
+=== 变体 X: round-5 MEDIUM-2 回退: _fsync_dir 去掉 O_DIRECTORY|O_NOFOLLOW ===
+  ✅ 如期变红 | 1 failed, 96 deselected in 0.40s
+
+=== 变体 H: HIGH-3(1) 回退: 去掉紧贴 unlink 前的 identity 复核 ===
+  ✅ 如期变红 | 1 failed, 96 deselected in 0.54s
+
+=== 变体 Y: round-6 反例1 回退: EINVAL/ENOTSUP 落回 "deleted" ===
+  ✅ 如期变红 | 2 failed, 1 passed, 94 deselected in 0.44s
+
+=== 变体 Z: round-6 反例1b 回退: 不再封闭非 OSError(删后异常外逸=无回执) ===
+  ✅ 如期变红 | 1 failed, 96 deselected in 0.41s
+
+=== 变体 AA: round-6 反例2 回退: 首次撤销分支重新读错变量名(UnboundLocalError) ===
+  ✅ 如期变红 | 1 failed, 96 deselected in 0.43s
+
+=== 变体 AB: round-6 反例3 回退: 回执文案不再区分「已删未确认」与「仍在」 ===
+  ✅ 如期变红 | 1 failed, 96 deselected in 0.53s
+
+=== 变体 AC: round-7 阻断3B 回退: unlink 的 FileNotFoundError 重新泛化为 kept ===
+  ✅ 如期变红 | 1 failed, 96 deselected in 0.55s
+
+=== 变体 AD: round-7 阻断3B 回退: unlink 其他错误恢复断言式措辞 ===
+  ✅ 如期变红 | 1 failed, 96 deselected in 0.53s
+
+=== 变体 AE: round-7 阻断3A 回退: 第三调用点去掉崩溃重现警示 ===
+  ✅ 如期变红 | 1 failed, 96 deselected in 0.63s
+
+=== 变体 AF: round-8 HIGH-1 回退: 回读块的 FileNotFoundError 重新被宽泛 OSError 兜住 ===
+  ✅ 如期变红 | 1 failed, 96 deselected in 0.48s
+
+=== 变体 M1-deleted: 矩阵①×deleted: 弱化首次撤销对该状态的分派 ===
+  ✅ 如期变红 | 1 failed, 96 deselected in 0.40s
+
+=== 变体 M1-absent: 矩阵①×absent: 弱化首次撤销对该状态的分派 ===
+  ✅ 如期变红 | 1 failed, 96 deselected in 0.39s
+
+=== 变体 M1-deleted_unsynced: 矩阵①×deleted_unsynced: 弱化首次撤销对该状态的分派 ===
+  ✅ 如期变红 | 1 failed, 96 deselected in 0.39s
+
+=== 变体 M1-kept: 矩阵(1)x kept: 锁「kept 必然进入二次撤销」—— 该格无独立出口, 见处置表 ===
+  ✅ 如期变红 | 1 failed, 96 deselected in 0.42s
+
+=== 变体 M2-deleted: 矩阵②×deleted: 弱化二次撤销对该状态的分派 ===
+  ✅ 如期变红 | 1 failed, 96 deselected in 0.38s
+
+=== 变体 M2-absent: 矩阵②×absent: 弱化二次撤销对该状态的分派 ===
+  ✅ 如期变红 | 1 failed, 96 deselected in 0.44s
+
+=== 变体 M2-deleted_unsynced: 矩阵②×deleted_unsynced: 弱化二次撤销对该状态的分派 ===
+  ✅ 如期变红 | 1 failed, 96 deselected in 0.40s
+
+=== 变体 M2-kept: 矩阵②×kept: 弱化二次撤销对该状态的分派 ===
+  ✅ 如期变红 | 1 failed, 96 deselected in 0.41s
+
+=== 变体 M3-deleted: 矩阵③×deleted: 弱化目录移出分支对该状态的文案 ===
+  ✅ 如期变红 | 1 failed, 96 deselected in 0.53s
+
+=== 变体 M3-absent: 矩阵③×absent: 弱化目录移出分支对该状态的文案 ===
+  ✅ 如期变红 | 1 failed, 96 deselected in 0.50s
+
+=== 变体 M3-deleted_unsynced: 矩阵③×deleted_unsynced: 弱化目录移出分支对该状态的文案 ===
+  ✅ 如期变红 | 1 failed, 96 deselected in 0.51s
+
+=== 变体 M3-kept: 矩阵③×kept: 弱化目录移出分支对该状态的文案 ===
+  ✅ 如期变红 | 1 failed, 96 deselected in 0.46s
+
+=== 变体清单自检(独立冻结集合) ===
+  冻结期望 44 个 / 定义 44 个 / 实跑 44 个
+  ✅ 冻结期望 / 定义 / 实跑 三者完全一致
+
+=== 还原后复核 ===
+  ✅ 字节与备份逐字相同 (sha 57ffeb405ecbef3b…)
+  ✅ 还原后完整套件 exit=0 | 97 passed in 6.82s
+
+RESULT: PASS — 全部新门均为承重门
