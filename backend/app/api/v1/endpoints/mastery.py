@@ -21,7 +21,6 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from app.config import DEFAULT_GROUP_ID
 from app.models.mastery_models import (
     CalibrationRequest,
 )

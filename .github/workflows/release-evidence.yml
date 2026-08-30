@@ -1,0 +1,48 @@
+# CARD-R-EVD (BATCH-2026-08-28-第五批) — Release 旅程证据 manifest 机械门
+# 独立 workflow (仿 readme-claims.yml 先例), test.yml 零改动。
+# paths 触发限: 证据目录 + schema + 校验器 + 裁判测试 + 本 workflow 自身。
+# 依赖自足: 只装 jsonschema + pytest (校验器为 stdlib + jsonschema, 不拉 app 栈)。
+# 裁判测试用 --noconftest 隔离 backend/tests/unit/conftest.py 的重依赖
+# (与 readme-claims.yml 同一处置, 测试文件按自足原则编写)。
+# ⚠️ 本门的覆盖边界 (Codex round-1 MEDIUM, 诚实声明): --all 只证明"已入库的
+# manifest 都自洽", **不**证明"某个 RC 的证据齐了"——后者是
+# `--require-complete <rc>` 的 RC 发布门, 由人在冻结 RC 时显式跑
+# (CI 无从知道当前该验哪个 rc)。仓内目前唯一的 manifest 是 D5 格式演示件
+# (provenance.mode=reconstructed), 它按设计不计入任何 RC 完整性。
+# ⚠️ DEBT-7 交接: 本 workflow 用 paths 过滤——设为全局 required check 时,
+# 被 paths 跳过的 PR 会永远 Pending (GitHub 官方行为), 届时须改 always-run
+# + job 内条件跳过。
+name: Release Evidence Check
+permissions:
+  contents: read
+on:
+  pull_request:
+    paths:
+      - 'docs/release-evidence/**'
+      - 'backend/scripts/validate_release_manifest.py'
+      - 'backend/tests/unit/test_validate_release_manifest.py'
+      - '.github/workflows/release-evidence.yml'
+  push:
+    paths:
+      - 'docs/release-evidence/**'
+      - 'backend/scripts/validate_release_manifest.py'
+      - 'backend/tests/unit/test_validate_release_manifest.py'
+      - '.github/workflows/release-evidence.yml'
+
+jobs:
+  manifests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install deps
+        run: pip install jsonschema pytest
+      - name: Validate all release evidence manifests
+        # artifact checksum 真验默认开启, 无需 --verify-artifacts
+        run: python backend/scripts/validate_release_manifest.py --all
+      - name: Validator unit tests (conftest-isolated)
+        run: >
+          python -m pytest backend/tests/unit/test_validate_release_manifest.py
+          --noconftest -q -p no:cacheprovider --override-ini addopts=

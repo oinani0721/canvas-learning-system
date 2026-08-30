@@ -1,0 +1,10 @@
+FAILED tests/unit/test_supplementary_reranker.py::TestTypeWeightsIndexerTransition::test_indexer_note_mapped_to_canonical
+FAILED tests/unit/test_supplementary_reranker.py::TestTypeWeightsIndexerTransition::test_indexer_video_transcript_mapped_to_canonical
+FAILED tests/unit/test_supplementary_reranker.py::TestFilterFloor::test_floor_triggered_marks_first_material
+FAILED tests/unit/test_supplementary_reranker.py::TestFilterFloor::test_min_keep_zero_disables_floor
+FAILED tests/unit/test_supplementary_reranker.py::TestFilterFloor::test_floor_triggered_when_kill_ratio_high
+FAILED tests/unit/test_supplementary_reranker.py::TestFilterFloor::test_floor_still_respects_top_k
+FAILED tests/unit/test_supplementary_reranker.py::TestFilterFloorTaintExclusion::test_min_keep_floor_excludes_review_taint
+FAILED tests/unit/test_supplementary_reranker.py::TestFilterFloorTaintExclusion::test_floor_no_taint_field_treated_as_clean
+FAILED tests/unit/test_supplementary_reranker.py::TestFilterFloorTaintExclusion::test_floor_all_review_returns_empty_list
+================== 9 failed, 102 passed, 10 warnings in 0.47s ==================

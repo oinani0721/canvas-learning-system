@@ -1,31 +1,37 @@
 # CARD-C6 (BATCH-2026-08-25-跨vault与收束) semantic rewrite of the wave-5
-# Stage B P0 cross-vault leak guard.  The original file asserted that
-# `_resolve_memory_group_id` honoured the per-request ContextVar
-# (`_current_subject_id`).  That resolver was removed in the Story 2.5.Y
-# group_id migration; mechanical renaming is impossible because the new
-# resolver has the OPPOSITE contract (see module docstring below).
+# Stage B P0 cross-vault leak guard — then CARD-G2-2 (BATCH-2026-08-28)
+# contract REVERSAL, exactly the "deliberate red test" the C6 docstring
+# predicted: the write-side resolver moved from "process-level active
+# vault, ContextVar ignored" to "per-request VaultScope first".
 """Memory write-side vault isolation regression tests.
 
-CONTRACT — memory 写侧 group_id 解析 = 进程级单 active vault (frozen here):
+CONTRACT — memory 写侧 group_id 解析 = per-request VaultScope 优先
+(CARD-G2-2 反转, frozen here):
 
 ``_vault_scoped_group_id`` resolves the vault via
-``app.config.get_current_vault_id()`` (= ``get_settings().vault_id``,
-derived from ``.canvas-config.yaml`` / ``ACTIVE_VAULT``).  It deliberately
-IGNORES the per-request ContextVar
-(``app.core.subject_config._current_subject_id``) that the pre-2.5.Y
-``_resolve_memory_group_id`` honoured — asserted below with a CONFLICTING
-ContextVar, not just an unset one.
+``app.core.vault_scope.current_vault_id()``: the per-request scope's
+vault segment (the ``_current_subject_id`` ContextVar injected by the
+endpoint-boundary ``resolve_vault_scope``) when one is set, falling back
+to the process-level active vault (``app.config.get_current_vault_id()``)
+when no request scope is active (background tasks / CLI / schedulers).
 
-Scope of the guarantee (Codex CARD-C6 review, HIGH-2/HIGH-3 rectified):
+Why this is safe where the pre-2.5.Y ContextVar preference was not:
+CARD-G2-2's 409 fail-closed gate guarantees that on request paths the
+injected scope's vault EQUALS the active vault (a mismatch is rejected
+at the endpoint boundary before any write).  The only sanctioned
+divergence is the chat.py hook cwd derivation (documented legal
+exception), where honouring the per-request vault is precisely the
+correct isolation behaviour.
 
-* It covers exactly the group_id resolution routed through
+Scope of the guarantee (Codex CARD-C6 review, HIGH-2/HIGH-3 rectified;
+updated by CARD-G2-2):
+
+* It covers the group_id resolution routed through
   ``_vault_scoped_group_id`` (record_learning_event / batch / episode
   write paths, plus the score-history query path, in memory_service).
-  Known pre-existing exception OUTSIDE this resolver,
-  documented here and NOT fixed by this card: ``record_knowledge_entity``
-  forwards a caller-supplied ``group_id or DEFAULT_GROUP_ID`` verbatim
-  (e.g. verification_service passes bare canvas names) — closing that gap
-  belongs to a future memory write-side card, not this regression guard.
+  The C6-documented exception is now CLOSED by CARD-G2-2:
+  ``record_knowledge_entity`` falls back to
+  ``vault_scope.current_group_id()`` (no more DEFAULT_GROUP_ID).
 * Isolation holds between processes whose CANONICAL vault_ids differ.
   ``sanitize_vault_id`` is lossy ("CS 61B" and "CS-61B" both canonicalize
   to "cs_61b"), so two vaults with display names that collide after
@@ -33,18 +39,11 @@ Scope of the guarantee (Codex CARD-C6 review, HIGH-2/HIGH-3 rectified):
   ``test_lossy_sanitization_boundary_is_pinned`` below rather than
   papered over.
 
-Coupling with future multi-vault work: a single backend process serving
-several vaults at once (长期计划 D1-B 形态; the cross-vault Web UI 刚需链
-consumes per-vault projections and does not by itself require it) cannot
-reuse this resolver as-is — it would need per-request vault scoping again.
-These tests freeze today's single-active-vault contract explicitly so that
-such a change surfaces as a deliberate red test, not silent drift.
-
-Patch-target note: ``_vault_scoped_group_id`` performs a function-body
-``from app.config import get_current_vault_id`` at call time, so tests
-MUST patch ``app.config.get_current_vault_id``.  Patching the
-``app.services.memory_service`` namespace has no effect (the name never
-enters that module's dict).
+Patch-target note: ``vault_scope.current_vault_id`` performs a
+function-body ``from app.config import get_current_vault_id`` at call
+time, so tests MUST patch ``app.config.get_current_vault_id``.  Patching
+the ``app.services.memory_service`` namespace has no effect (the name
+never enters that module's dict).
 """
 
 from unittest.mock import patch
@@ -58,7 +57,9 @@ from app.services.memory_service import _vault_scoped_group_id
 
 
 class TestVaultScopedGroupId:
-    """Freeze the vault:-prefixed, process-level-vault write-side contract."""
+    """Freeze the vault:-prefixed, per-request-VaultScope-first write-side
+    contract (CARD-G2-2; falls back to the process active vault when no
+    request scope is set)."""
 
     def setup_method(self):
         # Token-based restore: teardown reset() puts back the OUTER value
@@ -83,21 +84,32 @@ class TestVaultScopedGroupId:
         assert gid.startswith("vault:"), f"write-side must use vault: prefix, got {gid}"
         assert gid == "vault:数学"
 
-    def test_conflicting_contextvar_is_ignored(self):
-        """The core inversion of the wave-5-era contract, frozen EXPLICITLY:
-        a per-request ContextVar pointing at a DIFFERENT vault must not
-        influence the resolver — the process-level active vault wins.
+    def test_conflicting_contextvar_wins(self):
+        """CARD-G2-2 contract REVERSAL (the C6-predicted deliberate red
+        test, now green under the new contract): a per-request scope
+        pointing at a DIFFERENT vault takes precedence over the
+        process-level active vault.
 
-        Guards against a regression that re-introduces "prefer ContextVar
-        when it looks like vault:*" (which the pre-2.5.Y resolver did):
-        such a hybrid would pass every other test in this file but fail
-        this one.
+        On request paths the 409 gate makes this divergence impossible;
+        the case exists for the hook-cwd documented legal exception,
+        where writing under the request's vault (not the process vault)
+        is the correct isolation behaviour.
         """
         set_current_subject_id("vault:contextvar_vault:algorithms")
         with patch("app.config.get_current_vault_id", return_value="process_vault"):
             gid = _vault_scoped_group_id("algorithms", canvas_name="dijkstra")
+        assert gid == "vault:contextvar_vault:dijkstra"
+        assert "process_vault" not in gid, (
+            f"per-request scope must win over process vault (CARD-G2-2): {gid}"
+        )
+
+    def test_unset_contextvar_falls_back_to_active_vault(self):
+        """No request scope (ContextVar at its DEFAULT_SUBJECT_ID default,
+        as in background tasks / CLI) → process-level active vault, same
+        as the pre-G2-2 contract."""
+        with patch("app.config.get_current_vault_id", return_value="process_vault"):
+            gid = _vault_scoped_group_id("algorithms", canvas_name="dijkstra")
         assert gid == "vault:process_vault:dijkstra"
-        assert "contextvar_vault" not in gid, f"per-request ContextVar leaked into write-side group_id: {gid}"
 
     def test_canvas_name_takes_priority_over_subject(self):
         """D16 规约: 二级隔离优先 canvas 名 — when both are supplied the

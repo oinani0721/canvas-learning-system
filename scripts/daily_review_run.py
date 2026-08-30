@@ -71,9 +71,15 @@ def load_state() -> dict:
         return {"schema_version": 1, "board_last_recommended": {}}
     try:
         st = json.loads(state.read_text(encoding="utf-8"))
+        # Codex-D2b M1: 合法 JSON 但结构错型 (顶层非 dict / 账本非 dict) 与
+        # 语法损坏同等对待 — 隔离重建, 不让 setdefault/.values() 半路炸
+        if not isinstance(st, dict) or not isinstance(
+            st.get("board_last_recommended", {}), dict
+        ):
+            raise ValueError("state 结构错型")
         st.setdefault("board_last_recommended", {})
         return st
-    except (json.JSONDecodeError, OSError):
+    except (json.JSONDecodeError, OSError, ValueError):
         quarantine = state.with_name(
             state.name + ".corrupt-" + datetime.now().strftime("%Y%m%dT%H%M%S"))
         try:
@@ -130,7 +136,8 @@ def ensure_payload(st: dict, now: datetime, today: str) -> tuple[dict | None, st
     生成时记录的最早未来到期点 (next_due_utc) 也重扫 (Codex-A3 BLOCKER:
     09:59 落 fsrs_due=10:09 → 10:05 重扫时未到期 → 11:05 若只看 mtime 会
     整天 cached, 当天到期卡丢失 — 卡片 :89 警告的缺陷位移)。push 去重
-    不在此处: last_push_accepted_date 天然保证同日只推一次。
+    不在此处: last_push_accepted_date + last_push_kind 门保证同日至多
+    rest→due 两推 (CARD-D2b; state 持久化成立前提, 见推送门注释)。
     """
     payload_path = VAULT / "outputs" / "今日复习.json"
     first_gen_today = st.get("last_generate_date") != today
@@ -169,10 +176,19 @@ def ensure_payload(st: dict, now: datetime, today: str) -> tuple[dict | None, st
     if payload.get("upcoming"):
         nexts.append(payload["upcoming"][0]["next_due"])
     st["next_due_utc"] = min(nexts, default="")
-    if ranked and first_gen_today:
-        # CARD-A3: 重扫路径不写 — tie-break 的「上次被推荐日期」是天级轮转
-        # 语义, 重扫换榜也补写会把第二个板标成「今天推荐过」, 污染后续排序
+    credited_today = (
+        st.get("last_recommend_credit_date") == today
+        # Codex-D2a H1: 升级当天旧 state 自然缺 marker, 但旧门若已落账其值
+        # 必是 today — 只认 marker 会给第二个板补账, 突破每日一次上界
+        or today in st["board_last_recommended"].values()
+    )
+    if ranked and not credited_today:
+        # CARD-A3/D2a: 每天只给第一个「非空」榜首落账一次 — 重扫换榜也补写
+        # 会把第二个板标成「今天推荐过」, 污染 tie-break 天级轮转; 但门不能
+        # 绑 first_gen_today: 空首扫日 (休息日/纯空) 会把当天唯一一次落账
+        # 机会白白烧掉, board_last_recommended 永远空置
         st["board_last_recommended"][ranked[0]["board"]] = today
+        st["last_recommend_credit_date"] = today
     save_state(st)
     return payload, "new"
 
@@ -216,7 +232,15 @@ def main() -> int:
     push, fallback = "-", "-"
     if not noti:
         push = "skip-empty"  # 无板可推 (全占位/空 vault): md 已如实落盘
-    elif st.get("last_push_accepted_date") == today:
+    elif st.get("last_push_accepted_date") == today and not (
+        st.get("last_push_kind") == "rest" and payload.get("top_boards")
+    ):
+        # CARD-D2b 方案甲: 当日已推但语义从 rest 反转为 due (休息推送后盘中
+        # 转出到期) 时放行一次二推 — 同 id 服务端覆盖 (A4 契约, 通知中心
+        # 不堆叠), due 落账后恒 skip-done → state 持久化成立时每日至多
+        # 2 次 accepted (accepted 后崩溃窗/损坏重建的 at-least-once 残余
+        # 与 A4/A7 既有语义同级, Codex-D2b H1/H2 如实入档)。旧 state 缺
+        # last_push_kind → 条件恒真 → 保守一日一推 (向后兼容)
         push = "skip-done"
     elif not (PUSH_WINDOW[0] <= local.time() < PUSH_WINDOW[1]):
         push = "skip-window"  # RunAtLoad 早触发 / 21:00 后唤醒: 只落盘
@@ -226,6 +250,10 @@ def main() -> int:
         rc = send_bark.send(noti, payload.get("vault_id") or VAULT.resolve().name)
         if rc == 0:
             st["last_push_accepted_date"] = today
+            # CARD-D2b: 语义账只在 accepted 时落 — 失败保持原 kind, 反转门
+            # 敞开, 次小时 launchd 触发自然幂等重试。缺 top_boards 键的
+            # legacy 缓存 payload 语义未知 → 保守记 due (关反转门, Codex M2)
+            st["last_push_kind"] = "due" if payload.get("top_boards", True) else "rest"
             st["last_result"], st["last_error"] = "pushed", ""
             save_state(st)
             push = "accepted"

@@ -372,3 +372,77 @@ class TestFSRSStateIntegration:
             stability=5.0, difficulty=7.5, state=2, reps=3, lapses=0
         )
         assert 1 <= state.difficulty <= 10
+
+
+class TestAutoCreatePersistHonestyD3:
+    """CARD-D3: get_fsrs_state auto-create 分支消费 _save_card_states 返回值 —
+    写失败时 found=True + persisted=False + reason='auto_created_not_persisted'
+    (原 :2093 丢弃返回值 → 重启后卡消失、due 被静默重置)。"""
+
+    @pytest.fixture(autouse=True)
+    def _isolate_card_states_file(self, tmp_path, monkeypatch):
+        import app.services.review_service as rs_module
+
+        monkeypatch.setattr(
+            rs_module, "_CARD_STATES_FILE", tmp_path / "fsrs_card_states.json"
+        )
+
+    @pytest.mark.asyncio
+    async def test_auto_create_reports_persisted_flag_honestly(
+        self, review_service_factory, monkeypatch
+    ):
+        from pathlib import Path
+
+        import app.services.review_service as rs_module
+
+        svc = review_service_factory()
+        ok = await svc.get_fsrs_state("d3-auto-ok")
+        assert ok["found"] is True
+        assert ok["persisted"] is True
+        # Codex LOW-1: 锁定"键必须缺席"契约 (防 None 值破坏既有
+        # result.get("reason", "") 消费方), 不接受 {"reason": None}
+        assert "reason" not in ok
+
+        monkeypatch.setattr(
+            rs_module, "_CARD_STATES_FILE", Path("/dev/null/card-states.json")
+        )
+        svc2 = review_service_factory()
+        bad = await svc2.get_fsrs_state("d3-auto-fail")
+        assert bad["found"] is True
+        assert bad["persisted"] is False
+        assert bad["reason"] == "auto_created_not_persisted"
+
+    @pytest.mark.asyncio
+    async def test_existing_card_reports_persisted_true(
+        self, review_service_factory
+    ):
+        """已在持久层的卡走 else 分支 → persisted=True, 无 reason。"""
+        svc = review_service_factory()
+        await svc.get_fsrs_state("d3-existing")  # auto-create + 落盘
+        again = await svc.get_fsrs_state("d3-existing")  # 命中缓存/持久层
+        assert again["found"] is True
+        assert again["persisted"] is True
+        assert "reason" not in again  # Codex LOW-1: 键必须缺席
+
+    @pytest.mark.asyncio
+    async def test_persist_failure_not_whitewashed_by_cache_hit(
+        self, review_service_factory, monkeypatch
+    ):
+        """Codex HIGH-1 反例: auto-create 写失败后, 同实例第二次查询命中
+        缓存不得把失败洗白成 persisted=True (卡留在 _card_states, 原实现
+        else 分支无条件 True + 删 reason)。"""
+        from pathlib import Path
+
+        import app.services.review_service as rs_module
+
+        monkeypatch.setattr(
+            rs_module, "_CARD_STATES_FILE", Path("/dev/null/card-states.json")
+        )
+        svc = review_service_factory()
+        first = await svc.get_fsrs_state("d3-dirty")
+        assert first["found"] is True
+        assert first["persisted"] is False
+        second = await svc.get_fsrs_state("d3-dirty")
+        assert second["found"] is True
+        assert second["persisted"] is False, "缓存命中不得洗白未持久化状态"
+        assert second["reason"] == "cached_state_not_persisted"

@@ -3,12 +3,13 @@
 ensure_payload 缓存失效三场景锁定: 当天已生成后, 节点池比 payload 新
 (quiz 写侧刚更新 fsrs_due / 新增节点) 必须重扫; 无变动仍复用; 重扫后
 同日推送去重 (skip-done) 与 tie-break 语义 (board_last_recommended
-只在首次生成时写) 不被破坏。
+每天只在第一个非空榜首落账一次, CARD-D2a) 不被破坏。
 
 只 assert dict / 状态 / runner 状态行, 不 assert 今日复习.md 渲染文本
 (与 A2 渲染层解耦)。mtime 全部 os.utime 显式钉死, 不依赖墙钟顺序。
 """
 
+import hashlib
 import json
 import os
 import plistlib
@@ -261,7 +262,7 @@ def test_plist_hourly_slots_inside_push_window():
         assert lo <= dtime(s["Hour"], s["Minute"]) < hi  # 全部落在推送窗内
 
 
-# ── tie-break 守卫: 重扫路径不写 board_last_recommended (卡片风险条目) ──
+# ── tie-break 守卫: 当天已落账后, 重扫不补写 board_last_recommended ──
 
 
 def test_rescan_does_not_touch_board_last_recommended(tmp_path, monkeypatch):
@@ -281,8 +282,102 @@ def test_rescan_does_not_touch_board_last_recommended(tmp_path, monkeypatch):
     payload2, gen2 = runner.ensure_payload(st, NOW, TODAY)
     assert gen2 == "new"
     assert payload2["top_boards"][0]["board"] == "B板"
-    # 核心: 重扫换榜也不得把 B板 标成「今天推荐过」— 天级轮转语义只属于首扫
+    # 核心: 重扫换榜也不得把 B板 标成「今天推荐过」— 当天的账已记在 A板
     assert st["board_last_recommended"] == {"A板": TODAY}
+
+
+# ── CARD-D2a (BATCH-2026-08-27-Anki化与诚实收尾): 空首扫日轮转账修复 ──
+# 实测缺陷链: 首扫为空 (休息日/纯空 vault) 时 first_gen_today 已被消耗,
+# 同日重扫出的第一个非空榜首永远不落账 → board_last_recommended 全程 {},
+# tie-break 第 2 键把空串当「从未推荐」排最前 → 启动期并列时同板霸榜。
+
+
+def test_rest_day_first_nonempty_top_gets_credit(tmp_path, monkeypatch):
+    """休息日形态: 首扫全员未来到期 (榜空) 不落账; 时间跨过到期点后重扫出的
+    当天第一个非空榜首必须落账; 同日再重扫换榜不得二次落账 (每天只一次)。"""
+    due_extra = "fsrs_due: 2026-07-30T02:30:00Z\n"
+    vault = _vault(tmp_path, {"重学卡": _node(board="A板", extra=due_extra)})
+    _patch_runner(monkeypatch, vault, tmp_path)
+    st = runner.load_state()
+
+    # 02:00 首扫: 卡 02:30 才到期 → 榜空 (休息日形态), 不落账
+    payload1, gen1 = runner.ensure_payload(st, NOW, TODAY)
+    assert gen1 == "new" and payload1["top_boards"] == []
+    assert st["board_last_recommended"] == {}
+
+    # 03:05 跨过到期点重扫: 当天第一个非空榜首 → 必须落账
+    _pin_pool_older_than_payload(vault, BASE)
+    later = datetime(2026, 7, 30, 3, 5, tzinfo=timezone.utc)
+    payload2, gen2 = runner.ensure_payload(st, later, TODAY)
+    assert gen2 == "new"
+    assert payload2["top_boards"][0]["board"] == "A板"
+    assert st["board_last_recommended"] == {"A板": TODAY}, (
+        "空首扫日的第一个非空榜首必须获得轮转账, 否则 tie-break 永远视其从未推荐"
+    )
+    # Codex-D2a L1: 落账必须已随 save_state 落盘 (跨进程持久化), 第三段
+    # 从磁盘重载 state 继续 — 「赋值挪到 save 之后」类回归在此现形
+    on_disk = json.loads(runner.state_path().read_text(encoding="utf-8"))
+    assert on_disk["board_last_recommended"] == {"A板": TODAY}
+    assert on_disk["last_recommend_credit_date"] == TODAY
+    st = runner.load_state()
+
+    # 同日再重扫: 同形 B板 节点 (pick 相同) 靠 tie-break 登顶, 也不得补账
+    (vault / "节点" / "b乙.md").write_text(_node(board="B板", extra=due_extra), encoding="utf-8")
+    _pin_pool_older_than_payload(vault, BASE)
+    _set_mtime(vault / "节点" / "b乙.md", BASE + 200)
+    _set_mtime(vault / "节点", BASE + 200)
+    payload3, gen3 = runner.ensure_payload(st, later, TODAY)
+    assert gen3 == "new"
+    assert payload3["top_boards"][0]["board"] == "B板"
+    assert st["board_last_recommended"] == {"A板": TODAY}, "当日已落账后, 重扫换榜不得把第二个板标成「今天推荐过」"
+
+
+def test_legacy_state_credited_today_without_marker_not_double_credited(tmp_path, monkeypatch):
+    """升级当天兼容 (Codex-D2a H1): 旧版 runner 已在今天落账 (值=today) 但
+    state 自然缺 last_recommend_credit_date — 同日换榜重扫不得再次落账,
+    否则 A、B 同日均标 today, 突破每日一次上界并污染 tie-break。"""
+    vault = _vault(tmp_path, {"a甲": _node(board="A板")})
+    _patch_runner(monkeypatch, vault, tmp_path)
+    st = runner.load_state()
+    _, gen1 = runner.ensure_payload(st, NOW, TODAY)
+    assert gen1 == "new"
+    assert st["board_last_recommended"] == {"A板": TODAY}
+    # 模拟旧版 runner 留下的 state: 当日已落账、自然缺新 marker
+    del st["last_recommend_credit_date"]
+    runner.save_state(st)
+    st = runner.load_state()
+
+    (vault / "节点" / "b乙.md").write_text(_node(board="B板"), encoding="utf-8")
+    _pin_pool_older_than_payload(vault, BASE)
+    _set_mtime(vault / "节点" / "b乙.md", BASE + 200)
+    _set_mtime(vault / "节点", BASE + 200)
+    payload2, gen2 = runner.ensure_payload(st, NOW, TODAY)
+    assert gen2 == "new"
+    assert payload2["top_boards"][0]["board"] == "B板"
+    assert st["board_last_recommended"] == {"A板": TODAY}, (
+        "旧 state 无 marker 但值已含 today — 视为当日已落账, 不得给 B 补账"
+    )
+
+
+def test_empty_vault_first_scan_then_new_node_gets_credit(tmp_path, monkeypatch):
+    """纯空形态: 空 vault 首扫 (无通知) 不落账; 同日新增真板节点后重扫,
+    该榜首必须落账 — 不得因「今天已首扫过」而整天欠账。"""
+    vault = _vault(tmp_path, {})
+    _patch_runner(monkeypatch, vault, tmp_path)
+    st = runner.load_state()
+
+    payload1, gen1 = runner.ensure_payload(st, NOW, TODAY)
+    assert gen1 == "new" and payload1["notification"] is None
+    assert st["board_last_recommended"] == {}
+
+    (vault / "节点" / "甲.md").write_text(_node(board="真板"), encoding="utf-8")
+    _pin_pool_older_than_payload(vault, BASE)
+    _set_mtime(vault / "节点" / "甲.md", BASE + 200)
+    _set_mtime(vault / "节点", BASE + 200)
+    payload2, gen2 = runner.ensure_payload(st, NOW, TODAY)
+    assert gen2 == "new"
+    assert payload2["top_boards"][0]["board"] == "真板"
+    assert st["board_last_recommended"] == {"真板": TODAY}
 
 
 # ── CARD-C1a (BATCH-2026-08-25-跨vault与收束): 多 vault 命名空间隔离 ──
@@ -524,8 +619,9 @@ def test_migrate_crlf_state_byte_identical_and_idempotent(tmp_path, monkeypatch,
 
 
 def test_migrate_refuses_non_dict_state(tmp_path, monkeypatch, capsys):
-    """Codex-C1a B3: '[]' 是合法 JSON 但 runner load_state 会当场炸 —
-    结构必须校验到 dict 级, 拒迁且零写入。"""
+    """Codex-C1a B3: '[]' 是合法 JSON — migrate 结构必须校验到 dict 级,
+    拒迁且零写入保数据 (runner load_state 自 D2b-M1 起对错型隔离重建
+    不再当场炸, 但重建即丢账 — 迁移侧拒迁仍是第一道防线)。"""
     backups = tmp_path / "backups"
     backups.mkdir()
     (backups / "daily-review.state.json").write_text("[]", encoding="utf-8")
@@ -587,3 +683,241 @@ def test_migrate_preplanted_symlink_target_not_overwritten(tmp_path, monkeypatch
     assert not new.is_symlink() and new.is_file(), "rename 应替换链接名为常规文件"
     assert json.loads(new.read_text(encoding="utf-8"))["last_generate_date"] == "2026-07-29"
     assert (backups / "daily-review.state.json.bak").exists()
+
+
+# ── CARD-D2b (BATCH-2026-08-27-Anki化与诚实收尾): 休息日反转推送 (方案甲) ──
+# 实测缺陷链: 09:06 休息推送 accepted → 14:06 due_crossed 重扫, payload/总览
+# 页已更新, 但 last_push_accepted_date==today 门拦推送 (skip-done) → 手机
+# 整天停留「今日无到期」。方案甲: 仅放行 rest→due 语义反转一次 (同 id 服务
+# 端覆盖 = A4 既有契约, 通知中心不堆叠); state 持久化成立时每天推送上界
+# = 2 (rest + due; accepted 后崩溃窗/损坏重建残余 = A4/A7 既有语义, 入档)。
+
+
+def _push_harness(monkeypatch, tmp_path, vault, rcs):
+    """main() 端到端打桩: 窗口门放行 (机器时区无关), send 按 rcs 队列返回并
+    截获 (id, title) — 多余的 send 调用会越界报错 (兼当哨兵), osascript
+    兜底打桩防真弹通知。"""
+    _patch_runner(monkeypatch, vault, tmp_path)
+    monkeypatch.setattr(runner, "PUSH_WINDOW", (dtime(0, 0), dtime(23, 59, 59)))
+    calls = []
+
+    def _send(noti, vault_id=None):
+        calls.append((noti["id"], noti["title"]))
+        return rcs[len(calls) - 1]
+
+    monkeypatch.setattr(runner.send_bark, "send", _send)
+    monkeypatch.setattr(runner, "osascript_fallback", lambda noti: True)
+    return calls
+
+
+def _run_main(monkeypatch, capsys, vault, now_arg) -> str:
+    monkeypatch.setattr(sys, "argv", ["daily_review_run.py", "--now", now_arg, "--vault", str(vault)])
+    assert runner.main() == 0
+    return capsys.readouterr().out
+
+
+def test_rest_to_due_reversal_pushes_second_time(tmp_path, monkeypatch, capsys):
+    """rest→due 放行一次: 早晨休息推送后, 盘中转出到期 → 第二推放行且与
+    首推同 id (服务端覆盖, 手机原地刷新); due 之后恒 skip-done (上界 2)。"""
+    vault = _vault(tmp_path, {"重学卡": _node(board="A板", extra="fsrs_due: 2026-07-30T06:00:00Z\n")})
+    calls = _push_harness(monkeypatch, tmp_path, vault, rcs=[0, 0])
+
+    out1 = _run_main(monkeypatch, capsys, vault, "2026-07-30T10:00:00+08:00")  # 02:00Z
+    assert "generate:new" in out1 and "push:accepted" in out1
+    assert runner.load_state()["last_push_kind"] == "rest"
+    assert calls[0][1] == "📚 今日无到期节点"
+
+    _pin_pool_older_than_payload(vault, BASE)
+    out2 = _run_main(monkeypatch, capsys, vault, "2026-07-30T14:05:00+08:00")  # 06:05Z 跨到期
+    assert "generate:new" in out2 and "push:accepted" in out2, (
+        "rest→due 语义反转必须放行第二推, 不得让手机整天停留「今日无到期」"
+    )
+    assert runner.load_state()["last_push_kind"] == "due"
+    assert len(calls) == 2 and calls[1][1] == "📚 今日复习 · A板"
+    assert calls[1][0] == calls[0][0], "两推必须同 id — 服务端覆盖而非堆叠"
+
+    _pin_pool_older_than_payload(vault, BASE)
+    out3 = _run_main(monkeypatch, capsys, vault, "2026-07-30T15:05:00+08:00")
+    assert "push:skip-done" in out3
+    assert len(calls) == 2, "due 之后不得再推 — 每天推送上界 = 2"
+
+
+def test_due_to_due_rescan_stays_skip_done(tmp_path, monkeypatch, capsys):
+    """due→due 不放行: 早晨到期推送后, 盘中重扫榜更新也 skip-done (与场景 3
+    互补 — 那条锁旧 state 无 last_push_kind 的保守回退, 本条锁写入后语义)。"""
+    vault = _vault(tmp_path, {"甲": _node(board="A板")})
+    calls = _push_harness(monkeypatch, tmp_path, vault, rcs=[0])
+
+    out1 = _run_main(monkeypatch, capsys, vault, "2026-07-30T10:00:00+08:00")
+    assert "push:accepted" in out1
+    assert runner.load_state()["last_push_kind"] == "due"
+
+    (vault / "节点" / "乙.md").write_text(_node(board="B板"), encoding="utf-8")
+    _pin_pool_older_than_payload(vault, BASE)
+    _set_mtime(vault / "节点" / "乙.md", BASE + 200)
+    _set_mtime(vault / "节点", BASE + 200)
+    out2 = _run_main(monkeypatch, capsys, vault, "2026-07-30T14:05:00+08:00")
+    assert "generate:new" in out2 and "push:skip-done" in out2
+    assert len(calls) == 1
+    assert runner.load_state()["last_push_kind"] == "due"
+
+
+def test_rest_to_rest_rescan_stays_skip_done(tmp_path, monkeypatch, capsys):
+    """rest→rest 不放行: 休息推送后重扫仍是休息日 (榜仍空) → skip-done,
+    反转门只认「转出到期」这一种语义变化。"""
+    vault = _vault(tmp_path, {"重学卡": _node(board="A板", extra="fsrs_due: 2026-07-30T12:00:00Z\n")})
+    calls = _push_harness(monkeypatch, tmp_path, vault, rcs=[0])
+
+    out1 = _run_main(monkeypatch, capsys, vault, "2026-07-30T10:00:00+08:00")  # 02:00Z
+    assert "push:accepted" in out1
+    assert runner.load_state()["last_push_kind"] == "rest"
+
+    (vault / "节点" / "乙.md").write_text(
+        _node(board="B板", extra="fsrs_due: 2026-07-30T13:00:00Z\n"), encoding="utf-8"
+    )
+    _pin_pool_older_than_payload(vault, BASE)
+    _set_mtime(vault / "节点" / "乙.md", BASE + 200)
+    _set_mtime(vault / "节点", BASE + 200)
+    out2 = _run_main(monkeypatch, capsys, vault, "2026-07-30T11:05:00+08:00")  # 03:05Z 仍未到期
+    assert "generate:new" in out2 and "push:skip-done" in out2
+    assert len(calls) == 1
+    assert runner.load_state()["last_push_kind"] == "rest"
+
+
+def test_second_push_failure_retries_next_hour(tmp_path, monkeypatch, capsys):
+    """二推失败幂等重试: 反转门只在 accepted 时关闭 (last_push_kind 翻 due),
+    失败保持 rest → 次小时 launchd 触发自然重试; 连续失败本地兜底只弹一次
+    (Codex-D2b L2); 成功后清错收口。"""
+    vault = _vault(tmp_path, {"重学卡": _node(board="A板", extra="fsrs_due: 2026-07-30T06:00:00Z\n")})
+    calls = _push_harness(monkeypatch, tmp_path, vault, rcs=[0, 1, 1, 0])
+    fallbacks = []
+    monkeypatch.setattr(runner, "osascript_fallback", lambda noti: fallbacks.append(noti["title"]) or True)
+    today = datetime.fromisoformat("2026-07-30T10:00:00+08:00").astimezone().date().isoformat()
+
+    out1 = _run_main(monkeypatch, capsys, vault, "2026-07-30T10:00:00+08:00")
+    assert "push:accepted" in out1
+
+    _pin_pool_older_than_payload(vault, BASE)
+    out2 = _run_main(monkeypatch, capsys, vault, "2026-07-30T14:05:00+08:00")
+    assert "push:failed" in out2 and "fallback:ok" in out2
+    st2 = runner.load_state()
+    assert st2["last_push_kind"] == "rest", "失败不得翻 due — 否则重试门被永久关闭"
+    assert st2["last_result"] == "generated_push_failed"
+    assert st2["last_error"] == "bark-send"
+    assert st2["last_local_notify_date"] == today
+    assert fallbacks == ["📚 今日复习 · A板"]
+
+    _pin_pool_older_than_payload(vault, BASE)
+    out3 = _run_main(monkeypatch, capsys, vault, "2026-07-30T15:05:00+08:00")
+    assert "push:failed" in out3 and "fallback:-" in out3, "同日本地兜底只弹一次"
+    assert len(fallbacks) == 1
+
+    _pin_pool_older_than_payload(vault, BASE)
+    out4 = _run_main(monkeypatch, capsys, vault, "2026-07-30T16:05:00+08:00")
+    assert "push:accepted" in out4, "次小时必须幂等重试成功"
+    st4 = runner.load_state()
+    assert st4["last_push_kind"] == "due"
+    assert st4["last_result"] == "pushed" and st4["last_error"] == "", "成功后必须清错"
+    assert [t for _, t in calls] == [
+        "📚 今日无到期节点",
+        "📚 今日复习 · A板",
+        "📚 今日复习 · A板",
+        "📚 今日复习 · A板",
+    ]
+
+    _pin_pool_older_than_payload(vault, BASE)
+    out5 = _run_main(monkeypatch, capsys, vault, "2026-07-30T17:05:00+08:00")
+    assert "push:skip-done" in out5
+    assert len(calls) == 4
+
+
+def test_rest_due_rest_due_oscillation_capped_at_two(tmp_path, monkeypatch, capsys):
+    """Codex-D2b M3: 全天 rest→due→rest→due 振荡 — 第二次 accepted (due) 后
+    无论语义再怎么翻转, 当日不得出现第三次发送 (rcs 越界哨兵扛门)。防
+    「任意已知语义变化均放行」类回归 mutant。"""
+    vault = _vault(tmp_path, {"重学卡": _node(board="A板", extra="fsrs_due: 2026-07-30T06:00:00Z\n")})
+    calls = _push_harness(monkeypatch, tmp_path, vault, rcs=[0, 0])
+
+    out1 = _run_main(monkeypatch, capsys, vault, "2026-07-30T10:00:00+08:00")
+    assert "push:accepted" in out1  # rest
+    _pin_pool_older_than_payload(vault, BASE)
+    out2 = _run_main(monkeypatch, capsys, vault, "2026-07-30T14:05:00+08:00")
+    assert "push:accepted" in out2  # due (反转放行一次)
+
+    # 盘中考完: 卡推到明天 → 榜回空 (due→rest), 不得再推
+    (vault / "节点" / "重学卡.md").write_text(
+        _node(board="A板", extra="fsrs_due: 2026-07-31T06:00:00Z\n"), encoding="utf-8"
+    )
+    _pin_pool_older_than_payload(vault, BASE)
+    _set_mtime(vault / "节点" / "重学卡.md", BASE + 200)
+    _set_mtime(vault / "节点", BASE + 200)
+    out3 = _run_main(monkeypatch, capsys, vault, "2026-07-30T15:05:00+08:00")
+    assert "generate:new" in out3 and "push:skip-done" in out3
+
+    # 又冒出新到期卡 (第二次 rest→due 形态) — 反转门当日只放行一次
+    (vault / "节点" / "新卡.md").write_text(_node(board="B板"), encoding="utf-8")
+    _pin_pool_older_than_payload(vault, BASE)
+    _set_mtime(vault / "节点" / "新卡.md", BASE + 200)
+    _set_mtime(vault / "节点", BASE + 200)
+    out4 = _run_main(monkeypatch, capsys, vault, "2026-07-30T16:05:00+08:00")
+    assert "generate:new" in out4 and "push:skip-done" in out4
+    assert len(calls) == 2, "振荡日 accepted 上界 = 2 (rest + due 各一次)"
+
+
+def test_structurally_corrupt_state_quarantined_not_crash(tmp_path, monkeypatch, capsys):
+    """Codex-D2b M1: 合法 JSON 但结构错型的 state (顶层 [] / 账本 []) 必须
+    与语法损坏同等对待 — 隔离重建不炸, 当轮照常生成+推送。已知代价 (如实
+    入档): 重建即丢当日推送账, 与既有语法损坏路径同级。"""
+    vault = _vault(tmp_path, {"甲": _node(board="A板")})
+    calls = _push_harness(monkeypatch, tmp_path, vault, rcs=[0, 0])
+    state = runner.state_path()
+    state.parent.mkdir(parents=True, exist_ok=True)
+
+    state.write_text("[]", encoding="utf-8")  # 顶层非 dict
+    out1 = _run_main(monkeypatch, capsys, vault, "2026-07-30T10:00:00+08:00")
+    assert "generate:new" in out1 and "push:accepted" in out1
+    assert runner.load_state()["last_push_kind"] == "due"
+    # Codex-D2b-r2 L2: 错型件必须隔离留档 (防「删 quarantine 直接吞档」回归)
+    assert list(state.parent.glob(state.name + ".corrupt-*")), "错型 state 必须隔离留档"
+
+    # 账本错型 (board_last_recommended 非 dict) 同样隔离重建
+    state.write_text(json.dumps({"schema_version": 1, "board_last_recommended": []}), encoding="utf-8")
+    out2 = _run_main(monkeypatch, capsys, vault, "2026-07-30T11:05:00+08:00")
+    assert "generate:new" in out2 and "push:accepted" in out2
+    assert len(calls) == 2
+
+
+def test_legacy_cached_payload_without_top_boards_records_due(tmp_path, monkeypatch, capsys):
+    """Codex-D2b M2: 迁移前 legacy 缓存 payload 无 top_boards 键 — 语义未知,
+    accepted 落账必须保守记 due (关闭反转门), 不得记 rest 造成 due→due 二推。"""
+    vault = _vault(tmp_path, {"甲": _node(board="A板")})
+    calls = _push_harness(monkeypatch, tmp_path, vault, rcs=[0])
+    now_arg = "2026-07-30T10:00:00+08:00"
+    today = datetime.fromisoformat(now_arg).astimezone().date().isoformat()
+
+    legacy = {
+        "schema_version": 3,
+        "date": today,
+        "notification": {
+            "title": "📚 今日复习 · A板",
+            "body": "b",
+            "group": "canvas复习",
+            "id": f"canvas-review-{today}",
+        },
+    }
+    raw = json.dumps(legacy, ensure_ascii=False, indent=2) + "\n"
+    out_dir = vault / "outputs"
+    out_dir.mkdir(parents=True)
+    (out_dir / "今日复习.json").write_text(raw, encoding="utf-8")
+    st = runner.load_state()
+    st["last_generate_date"] = today
+    st["payload_sha256"] = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+    runner.save_state(st)
+    _pin_pool_older_than_payload(vault, BASE)
+
+    out = _run_main(monkeypatch, capsys, vault, now_arg)
+    assert "generate:cached" in out and "push:accepted" in out
+    assert len(calls) == 1
+    assert runner.load_state()["last_push_kind"] == "due", (
+        "legacy payload 语义未知必须保守记 due — 记 rest 会让当日 due 重扫误开反转门"
+    )

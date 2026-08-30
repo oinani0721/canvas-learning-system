@@ -1,0 +1,44 @@
+# CARD-DEBT-5 (BATCH-2026-08-28-第五批) — 活动 Obsidian 插件 build/test 门
+# 独立 workflow (仿 readme-claims.yml 小型独立 job 先例), test.yml 零改动。
+# paths 触发限: frontend/obsidian-plugin/** + 本 workflow 自身。
+# CI 环境自足 (readme-claims 首跑教训): node 版本显式 setup (24 = 本地裁判
+# 实测版本 v24.16.0, 当前 LTS); npm ci 依赖已入库的 package-lock.json
+# (本卡将其从插件 .gitignore 放行——无 lockfile 时 npm ci 直接报错)。
+# 本地等价验证: cd frontend/obsidian-plugin && npm ci && npm run build && npm test
+# (存档: _bmad-output/审查/debt5-evidence-2026-08-28/)。
+# ⚠️ DEBT-7 交接 (Codex round-1 MEDIUM): 本 workflow 用 paths 过滤——若将
+# build-test 设为全局 required check, 被 paths 跳过的 PR 会永远 Pending
+# (GitHub 官方行为)。启用 required 时须改为 always-run + job 内条件跳过,
+# 或用 path-scoped required 策略。
+name: Plugin CI
+permissions:
+  contents: read
+on:
+  pull_request:
+    paths:
+      - 'frontend/obsidian-plugin/**'
+      - '.github/workflows/plugin-ci.yml'
+  push:
+    paths:
+      - 'frontend/obsidian-plugin/**'
+      - '.github/workflows/plugin-ci.yml'
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/obsidian-plugin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: frontend/obsidian-plugin/package-lock.json
+      - name: Install (npm ci, lockfile-exact)
+        run: npm ci --no-audit --no-fund
+      - name: Build (esbuild production)
+        run: npm run build
+      - name: Test (node --test)
+        run: npm test

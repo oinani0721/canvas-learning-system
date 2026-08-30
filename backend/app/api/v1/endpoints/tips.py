@@ -17,6 +17,9 @@ from typing import Any, Dict, List
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+# CARD-G2-2 (2026-08-28): tips 作用域解析统一走 vault_scope 唯一解析点
+from app.core.vault_scope import resolve_vault_group_id
+
 logger = logging.getLogger(__name__)
 
 tips_router = APIRouter()
@@ -25,18 +28,17 @@ tips_router = APIRouter()
 def _resolve_tips_group_id(vault_id: str | None = None) -> str:
     """B2 修复 (2026-07-12 对抗审查): tips 写读统一落当前 vault 桶。
 
-    旧契约 5 处全用 DEFAULT_GROUP_ID (vault:default) —— 实时批注落错桶,
-    要等下次重启 vault_backfill 重放 frontmatter 才进正确 vault 桶,
-    多 vault 并存时必串库。显式 vault_id (插件传) 优先; 缺省回退当前
-    激活 vault (与 vault_backfill / canvas_projection_sync 同源)。
+    CARD-G2-2 (2026-08-28): 私有 helper 改调 vault_scope 唯一解析点。
+    语义收紧: 显式 vault_id 与进程 active vault 不一致时 409 fail-closed
+    (原实现会静默为他 vault 构组); 缺省回退当前激活 vault 不变。
     写读两侧 (save/search/find_episode) 全部走本函数保持成对。
-    """
-    from app.config import get_current_vault_id, sanitize_vault_id
-    from app.core.subject_config import build_vault_group_id
 
-    if vault_id and vault_id.strip():
-        return build_vault_group_id(sanitize_vault_id(vault_id))
-    return build_vault_group_id(get_current_vault_id())
+    ⚠️ 刻意**不接** subject_id (Codex round-1 MEDIUM-12): tips GET 端点
+    无 subject 参数, 写侧若落 ``vault:<id>:<subject>`` 子组则读侧只查
+    root group、永远回读不到。SaveTipRequest.subject_id 字段保留 (旧
+    契约测试依赖) 但不参与构组; 要贯通须读写端点成对改造 = 后续卡。
+    """
+    return resolve_vault_group_id(vault_id)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -57,6 +59,10 @@ class SaveTipRequest(BaseModel):
         ),
     )
 
+    subject_id: str | None = Field(
+        default=None,
+        description="可选 vault 内学科二级 (D16 group 规约; CARD-G2-2 加性补齐)",
+    )
     content: str = Field(..., min_length=1, description="The selected text content")
     title: str = Field(..., min_length=1, description="User-provided title for the tip")
     tags: List[str] = Field(
@@ -215,6 +221,10 @@ async def get_tips(
     Returns:
         GetTipsResponse with list of tips and total count.
     """
+    # CARD-G2-2 Codex round-1 BLOCKER-2 整改: 解析必须在 try 之外 —
+    # 原实现让 409 落进下方的宽 except, 被吞成 200 + 空 tips 列表
+    # (跨 vault 错配伪装成「这个节点没有批注」)。
+    group_id = _resolve_tips_group_id(vault_id)
     try:
         from app.services.memory_service import get_memory_service
 
@@ -224,7 +234,7 @@ async def get_tips(
         # B2 (2026-07-12): 读侧与写侧成对 — 同走 _resolve_tips_group_id
         results = await memory_svc.search_memories(
             query=f"learning_tip node_id:{node_id}",
-            group_id=_resolve_tips_group_id(vault_id),
+            group_id=group_id,
             limit=50,
         )
 
@@ -283,6 +293,11 @@ async def save_tip(request: SaveTipRequest) -> Dict[str, Any]:
     """
     tip_id = str(uuid.uuid4())
 
+    # CARD-G2-2 Codex round-1 BLOCKER-2 整改: 解析提到 try 之外, 否则
+    # 409 会被下方宽 except 改写成 500 (插件看到的是「服务器错误」而非
+    # 「vault 错配」, 且无法据此纠正)。
+    group_id = _resolve_tips_group_id(request.vault_id)
+
     try:
         from app.services.memory_service import get_memory_service
 
@@ -310,7 +325,7 @@ async def save_tip(request: SaveTipRequest) -> Dict[str, Any]:
                 "source_timestamp": request.source_timestamp,
                 "created_at": datetime.now(timezone.utc).isoformat(),
             },
-            group_id=_resolve_tips_group_id(request.vault_id),
+            group_id=group_id,
         )
 
         # A7 (P2): 诚实反映持久化结果 — 不再无条件 saved=True。
@@ -347,6 +362,9 @@ async def save_relation(request: SaveRelationRequest) -> Dict[str, Any]:
     """P4 (A+-prime): 派生关系原因实时入图。"""
     from app.services.memory_service import get_memory_service
 
+    # CARD-G2-2 BLOCKER-2 整改: 解析在 try 之外 (409 不得被改写成 500)。
+    group_id = _resolve_tips_group_id(request.vault_id)
+
     try:
         memory_svc = await get_memory_service()
         result = await memory_svc.record_knowledge_entity(
@@ -359,7 +377,7 @@ async def save_relation(request: SaveRelationRequest) -> Dict[str, Any]:
                 "reason": request.reason,
                 "source_timestamp": request.source_timestamp,
             },
-            group_id=_resolve_tips_group_id(request.vault_id),
+            group_id=group_id,
         )
         write_status = result.get("status", "written") if isinstance(result, dict) else "written"
         degraded = write_status == "degraded"
@@ -421,6 +439,13 @@ async def batch_sync_callouts(request: BatchSyncRequest) -> Dict[str, Any]:
 
     Story 2.4 Plan B Phase 2 (2026-05-14), re-enabled 2026-06-11.
     """
+    # CARD-G2-2 Codex round-1 BLOCKER-2 整改 (三处):
+    # (1) 循环外解析恰一次 —— 原实现每 item 解析 2 次 (N×2);
+    # (2) 解析在幂等键写入之前 —— 原顺序会让被 409 拒绝的请求先污染
+    #     _BATCH_HASH_CACHE, 客户端纠正 vault 后重试被误判「重复」而丢批注;
+    # (3) 解析在 try 之外 —— 否则 409 被记成 item failure, 整体仍返回 200。
+    group_id = _resolve_tips_group_id(request.vault_id)
+
     try:
         from app.services.memory_service import get_memory_service
 
@@ -440,7 +465,7 @@ async def batch_sync_callouts(request: BatchSyncRequest) -> Dict[str, Any]:
                 already_exists = await memory_svc.find_episode_by_content_hash(
                     node_id=request.node_id,
                     content_hash=callout.content_hash,
-                    group_id=_resolve_tips_group_id(request.vault_id),
+                    group_id=group_id,
                 )
                 if already_exists:
                     skipped += 1
@@ -469,7 +494,7 @@ async def batch_sync_callouts(request: BatchSyncRequest) -> Dict[str, Any]:
                         "created_at": datetime.now(timezone.utc).isoformat(),
                         "batch_sync": True,
                     },
-                    group_id=_resolve_tips_group_id(request.vault_id),
+                    group_id=group_id,
                 )
                 # A7 (P2): degraded 未入图, 不计入 synced
                 if isinstance(batch_result, dict) and batch_result.get("status") == "degraded":
@@ -553,6 +578,12 @@ class CalloutDirectResponse(BaseModel):
 async def callout_direct(request: CalloutDirectRequest) -> Dict[str, Any]:
     from app.services.learning_event_log import append_event
 
+    # CARD-G2-2 Codex round-1 BLOCKER-2 整改: 解析必须先于任何早返与
+    # 幂等事件落账 —— 原顺序下跨 vault 请求会先写 callout_ingested
+    # (以 callout_id 为幂等键), 客户端纠正 vault 后重试被判「duplicate」,
+    # 批注永久丢失。现在错配请求在写任何状态前就 409。
+    group_id = _resolve_tips_group_id(request.vault_id)
+
     if request.callout_type not in ("question", "error"):
         return CalloutDirectResponse(
             callout_id=request.callout_id,
@@ -576,8 +607,6 @@ async def callout_direct(request: CalloutDirectRequest) -> Dict[str, Any]:
             lane="question_episode" if request.callout_type == "question" else "error_candidate",
             message="duplicate callout_id, 幂等跳过",
         ).model_dump()
-
-    group_id = _resolve_tips_group_id(request.vault_id)
 
     if request.callout_type == "question":
         # 陈述句化 episode → worker 队列 (背压/死信/免重试全复用),

@@ -23,7 +23,6 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.config import DEFAULT_GROUP_ID
 from app.models.exam_models import (
     CanvasAnalysisRequest,
     CanvasAnalysisResponse,
@@ -50,43 +49,9 @@ logger = logging.getLogger(__name__)
 exam_router = APIRouter()
 
 
-# Wave-5 Stage B (2026-05-12) — Multi-vault ContextVar 注入辅助.
-# Exam endpoints (4 个 group_id Query) 此前 ContextVar 未注入 → 跨 vault 考试记录串库.
-def _resolve_vault_group_id(
-    vault_id: Optional[str],
-    subject_id: Optional[str] = None,
-    canvas_path: Optional[str] = None,
-    legacy_group_id: Optional[str] = None,
-) -> str:
-    """Wave-5 Stage B — vault_id → ContextVar 注入 + 派生 group_id."""
-    from app.config import sanitize_vault_id
-    from app.core.subject_config import (
-        build_vault_group_id,
-        canonical_group_id,
-        set_current_subject_id,
-    )
-
-    if vault_id and vault_id.strip():
-        sanitized = sanitize_vault_id(vault_id)
-        derived = build_vault_group_id(
-            sanitized,
-            subject_id=subject_id,
-            canvas_path=canvas_path,
-        )
-    elif legacy_group_id and legacy_group_id.strip():
-        logger.warning(
-            "Wave-5 Stage B: exam endpoint vault_id missing, falling back to deprecated group_id=%s",
-            legacy_group_id,
-        )
-        derived = canonical_group_id(legacy_group_id)
-    else:
-        logger.warning(
-            "Wave-5 Stage B: exam endpoint both vault_id and group_id missing, falling back to DEFAULT_GROUP_ID"
-        )
-        derived = DEFAULT_GROUP_ID
-
-    set_current_subject_id(derived)
-    return derived
+# CARD-G2-2 (2026-08-28): 本地克隆删除, 统一走 app.core.vault_scope 唯一
+# 解析点 (409 fail-closed + 双缺失推导 active vault, 语义见其 docstring)。
+from app.core.vault_scope import resolve_vault_group_id as _resolve_vault_group_id
 
 
 @exam_router.post("/exam/start", response_model=ExamSessionResponse)

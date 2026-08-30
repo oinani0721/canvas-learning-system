@@ -1,0 +1,198 @@
+{
+  "schema_version": "1.0.0",
+  "journey_id": "J08",
+  "journey_title": "信息收集 skills — board-recap 半程 (示例回填, 非 RC 证据)",
+  "rc": "example-backfill-d5",
+  "provenance": {
+    "mode": "reconstructed",
+    "reconstructed_from": "_bmad-output/审查/d5-evidence-2026-08-27/ (D5-结案报告.md + before.txt + after-check.txt, 归档于 commit c823a35fa9cd91fae29b409ba7e000834b09f726) + 主仓 .git/worktrees/feature-obsidian-hybrid-dev/logs/HEAD 第 251-252 行 (执行期 HEAD 的直接证据) + 上述三份归档文件在 worktree .claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/d5-evidence-2026-08-27/ 下的 birth time (本仓 checkout 的副本 mtime 已是 checkout 时刻, 不可用)",
+    "unproven_fields": [
+      "candidate.branch — worktree 的实际分支名为 worktree-feature-obsidian-hybrid-dev; D5 归档未记录执行期分支, 此处填实测值而非推断值, 但'执行期就是这个分支'仍无直接记录。",
+      "environment.host_os / environment.runtimes — D5 结案报告未记录 OS 与 Python 版本, 此处只写到可证粒度。",
+      "environment.services — 报告未记录数据面形态; 按 skill 源码 (recap_scan.py 无任何 HTTP 调用, SKILL.md 走 MCP 工具 get_board_manifest) 回填, 属代码推断而非执行期记录。",
+      "execution.started_at — 取 before.txt 的 birth time (基线落盘时刻); 真实起手更早, 无记录。",
+      "execution.finished_at — 取 D5-结案报告.md 的 birth time (06:20:16), 那是收尾文档落盘时刻而非执行边界; 最后一份执行产物 after-check.txt 落盘于 06:18:39。",
+      "execution.operator — 报告记有'主 session + 4 个盲测 agent', 未记具体会话标识。",
+      "execution.commands — 报告以散文叙述流程, 未逐条记录命令原文与退出码; 此处的命令与 exit_code 均为按叙述重建, 且**不完整**: D5-3 依赖的 recap_scan.py --verify 与 MCP get_board_manifest 调用未出现在命令表里。",
+      "execution.commands[].cwd — 写作 canvas-vault, 实际指向**主仓** canvas-vault (6+14+10=30 个 md, 与 before.txt 逐行吻合), 不是 candidate.worktree 下那份陈旧副本 (4+10+1=15 个 md, 不含被测文件)。这是本仓双树拓扑的既有现象, D5 归档未声明。",
+      "environment.models[].name — 报告写'Claude Fable 5', 未记模型 ID 与版本串。"
+    ],
+    "note": "本 manifest 是 CARD-R-EVD 的格式演示件, 由既有 D5 归档事后回填。语义规则 S10/S13/S17 因此把它锁在 E2、禁止签字、不计入 RC 门。真正的 RC 证据必须在执行期实录 (provenance.mode=live, unproven_fields 为空, dirty=false)。本文件经一轮红队 example-fidelity 审计逐条核对归档与 git 事实后重写, 修正了 11 处 overclaim (详见 known_limitations 与 _bmad-output/审查/revd-redteam-2026-08-28.md)。"
+  },
+  "candidate": {
+    "sha": "91383b1f76db6d670b47860d6c1f0364b22167d9",
+    "branch": "worktree-feature-obsidian-hybrid-dev",
+    "dirty": true,
+    "worktree": ".claude/worktrees/feature-obsidian-hybrid-dev"
+  },
+  "environment": {
+    "host_os": "darwin (macOS, Apple Silicon; 具体版本未记录)",
+    "runtimes": {
+      "python": "backend/.venv (版本未记录)"
+    },
+    "models": [
+      {
+        "role": "recap-report-writer (主 session)",
+        "name": "Claude Fable 5"
+      },
+      {
+        "role": "blind-test-agent ×4 (最小上下文, 均未读 _bmad-output / 批次文档)",
+        "name": "Claude Fable 5"
+      }
+    ],
+    "index_sha": null,
+    "index_sha_null_reason": "board-recap skill 走 recap_scan.py 直读 vault markdown + MCP 工具取 board manifest, 不经检索索引; 本旅程无 index 参与。",
+    "services": {
+      "canvas-learning-mcp": "MCP 工具 get_board_manifest (含 include_exam_history 参数); 版本与传输端点未记录"
+    }
+  },
+  "execution": {
+    "started_at": "2026-08-27T06:12:24+08:00",
+    "finished_at": "2026-08-27T06:20:16+08:00",
+    "operator": "主 session (Claude Fable 5) + 4 个最小上下文盲测 agent",
+    "commands": [
+      {
+        "cmd": "shasum -a 256 原白板/*.md 节点/*.md 检验白板/*.md > before.txt",
+        "cwd": "canvas-vault (主仓, 非 candidate.worktree 内的副本)",
+        "exit_code": 0,
+        "note": "按结案报告叙述重建 (见 provenance.unproven_fields)。产物 before.txt 收录 30 行摘要: 原白板 6 + 节点 14 + 检验白板 10。本命令在主仓 canvas-vault 上今日重跑可字节级复现 before.txt (含 glob 顺序)。"
+      },
+      {
+        "cmd": "/board-recap <板名>  # 4 板, 每板一个最小上下文盲测 agent",
+        "cwd": "canvas-vault (主仓)",
+        "exit_code": 0,
+        "note": "按叙述重建。四板 = CS188 lecture 2 / 特征值与特征向量 / CS 61B / 递归与分治 (特殊字符板名边界)。skill 内部的 MCP get_board_manifest 调用与 recap_scan.py --verify 未单列为命令行。"
+      },
+      {
+        "cmd": "for f in outputs/回顾-*-2026-08-27.md; do python ../_bmad-output/审查/c5-evidence-2026-08-25/check_report_sections.py \"$f\"; done",
+        "cwd": "canvas-vault (主仓)",
+        "exit_code": 0,
+        "note": "按叙述重建, 并按红队审计更正: 该裁判脚本位于 CARD-C5 证据目录, 从不在 skill 树内; 它只吃单个文件 (path = sys.argv[1]), 故 4 份报告需 4 次调用而非一次 glob。"
+      },
+      {
+        "cmd": "shasum -a 256 -c before.txt > after-check.txt",
+        "cwd": "canvas-vault (主仓)",
+        "exit_code": 0,
+        "note": "唯一有直接产物佐证的一条: after-check.txt 30 行全 OK。"
+      }
+    ],
+    "skips_or_mocks": {
+      "declared": true,
+      "items": [
+        {
+          "what": "拆分建议 preview / clear-inbox skill / undo 三段未执行",
+          "why": "D5 只验 board-recap 半程; 缺口部分的能力当时尚未实现 (D5-A 两个窄 skill 属 OBJ-03 切片), 故本旅程为 J08 的部分覆盖, 不是全链。"
+        },
+        {
+          "what": "用户 UAT 评价未收集",
+          "why": "4 份回顾报告已产出待用户评价, D5 结案时用户反馈尚未发生 (结案报告 §第二刀前置条件 1)。"
+        }
+      ]
+    }
+  },
+  "assertions": [
+    {
+      "id": "D5-1",
+      "statement": "before.txt 基线覆盖的 30 个 vault 文件在 skill 全程前后 shasum 完全一致 (这 30 个文件零静默改写)",
+      "method": "shasum -a 256 前基线 before.txt → 全程后 shasum -c 得 after-check.txt, 30/30 OK",
+      "result": "pass",
+      "evidence": "after-check.txt",
+      "note": "覆盖面按红队审计更正: 30 个文件是主仓 vault 186 个 md 中的原白板/节点/检验白板三目录, 不是全 vault; 且 shasum -c 结构上检测不到新建文件。"
+    },
+    {
+      "id": "D5-1b",
+      "statement": "前置基线覆盖 30 个文件 (原白板 6 + 节点 14 + 检验白板 10)",
+      "method": "before.txt 逐行摘要清单, 行数与分类可数; 今日在主仓 canvas-vault 重跑同一命令可字节级复现",
+      "result": "pass",
+      "evidence": "before.txt"
+    },
+    {
+      "id": "D5-2",
+      "statement": "4 份回顾报告全部通过 check_report_sections.py 的机械裁判 (manifest 模式下实测 16 项)",
+      "method": "check_report_sections.py 逐份跑 (结案报告记为主 session 亲跑, 非 agent 自评)",
+      "result": "pass",
+      "evidence": "repo://_bmad-output/审查/d5-evidence-2026-08-27/D5-结案报告.md",
+      "note": "项数按红队审计更正: 结案报告写「18 项」, 实测该脚本在 data_mode=manifest 下恰好 16 项 ✓, 源码上限 17 项 (须 --expect-fallback), 18 在两种模式下都不可达。4/4 PASS 的结论不受影响。"
+    },
+    {
+      "id": "D5-3",
+      "statement": "verifier 数字终核 4/4 首跑即 VERIFY PASS, 零返工",
+      "method": "board-recap 内建 verifier (recap_scan.py --verify) 对报告数字与 scan JSON 逐项比对",
+      "result": "pass",
+      "evidence": "repo://_bmad-output/审查/d5-evidence-2026-08-27/D5-结案报告.md",
+      "note": "仅以结案报告的记述为凭; 对应的 --verify 调用未出现在 commands 表里 (见 unproven_fields)。"
+    },
+    {
+      "id": "D5-4",
+      "statement": "写侧足迹 = outputs/ 12 个文件 (4 报告 + 8 审计快照) + canvas-vault/CLAUDE.md 与 Dashboard.md 各加 /board-recap 入口 (发现性打磨, 共 +3 行); 被 before.txt 覆盖的 30 个文件零改写",
+      "method": "执行窗口内 canvas-vault 下 mtime 落在 06:12–06:22 的文件枚举 + D5-1 的 30 文件 hash 不变互证",
+      "result": "pass",
+      "evidence": "after-check.txt",
+      "note": "本条经红队审计**改写**: 原文写作「无 vault 内容写入」, 与事实不符 —— CLAUDE.md 与 Dashboard.md 于 06:19:25 (执行窗口内) 被写并随 c823a35f 提交, 结案报告自己的判据行也记了这次打磨。所引 after-check.txt 结构上无法支撑更宽的「无写入」主张。"
+    },
+    {
+      "id": "D5-5",
+      "statement": "4 个盲测 agent 均未读 _bmad-output / 批次文档 (盲测纯度)",
+      "method": "agent 上下文构造时的目录约束 + 事后 agent 自述交叉核对",
+      "result": "pass",
+      "evidence": "repo://_bmad-output/审查/d5-evidence-2026-08-27/D5-结案报告.md",
+      "note": "方法学为约束+自述, 非机械强制 —— 证据强度弱于 D5-1, 如实记录。"
+    },
+    {
+      "id": "D5-6",
+      "statement": "J08 全链 (recap → 拆分 preview → 派生 → clear-inbox → undo) 走通",
+      "method": "未执行 —— 拆分 preview / clear-inbox / undo 能力当时未实现",
+      "result": "not_run",
+      "note": "本示例 result=partial 的直接原因; 缺口交接 G5-11 / R-J08。"
+    }
+  ],
+  "rollback": {
+    "performed": false,
+    "result": "not_applicable",
+    "reason": "board-recap 薄版 skill 的契约是零 vault 写侧, 无状态变更可回滚; 本次实际发生的写入 (outputs/ 12 个新文件 + CLAUDE.md/Dashboard.md 各加入口行) 均为新增内容, 删除或 git revert 即复原, 未做破坏性变更。注: 措辞按红队审计更正 —— 原文称「零 vault 写侧」与 D5-4 的事实不符。"
+  },
+  "artifacts": [
+    {
+      "path": "before.txt",
+      "sha256": "20cd4c9f865fbc1b07421f712fe8571aef0768d7f63f0b8d2a9ad8e6d29f584a",
+      "bytes": 3246,
+      "redacted": false,
+      "description": "30 文件 shasum 前基线 (仅文件名 + 摘要, 无正文内容)"
+    },
+    {
+      "path": "after-check.txt",
+      "sha256": "e0806236e0a00ad16d0bde2cd1d53b7c0d5dc674c54e6a000b94ef9a09eac45b",
+      "bytes": 1386,
+      "redacted": false,
+      "description": "shasum -c 校验结果, 30/30 OK"
+    },
+    {
+      "path": "repo://_bmad-output/审查/d5-evidence-2026-08-27/D5-结案报告.md",
+      "sha256": "e197155c19363a374b2154edddb7c5451865c6eb5217d06fc9bc7d59797ad85c",
+      "bytes": 4173,
+      "redacted": false,
+      "description": "D5 结案报告 (判据表 + 24 条摩擦点 + 第二刀前置条件)。repo:// 前缀 = 相对仓库根解析, 演示引用证据目录之外的既有归档而不复制一份。"
+    }
+  ],
+  "slo": {
+    "manifest_revision": null,
+    "measurements": []
+  },
+  "signoff": {
+    "status": "pending",
+    "note": "示例回填件, 不请求用户签字 (S10 亦禁止回填件带 approved)。D5 本体的用户 UAT 反馈同样仍未发生 (结案报告 §第二刀前置条件 1)。"
+  },
+  "evidence_level": "E2",
+  "result": "partial",
+  "known_limitations": [
+    "本 manifest 是 R-EVD 的**格式演示回填件**, 不是 clean RC 证据: provenance.mode=reconstructed、candidate.dirty=true、无 SLO 阈值对照、无用户签字 —— 按 §12.5 只能是 E2, 且语义规则 S10/S13/S17 会阻止它标更高等级。",
+    "candidate.dirty=true 是**已证伪而非未证明**: 执行结束时 (06:20:16) canvas-vault/CLAUDE.md 与 Dashboard.md 已于 06:19:25 被改且尚未提交 (它们随 06:21:32 的 c823a35f 落库), 归档目录下的 before.txt/after-check.txt 亦为未跟踪文件。schema 早先把 dirty 写死为 const false, 逼得这份如实回填只能写假话; 现已放开为 boolean 并由 S17 把住发布线。",
+    "candidate.sha 由主仓 .git/worktrees/feature-obsidian-hybrid-dev/logs/HEAD 第 251-252 行**直接证明**: HEAD 自 05:30:04 起为 91383b1f, 至 06:21:32 才变为 c823a35f, 完整覆盖 06:12:24–06:20:16 的执行窗口。(首版曾误把归档提交 c823a35f 当候选 —— 它在执行时尚不存在。)",
+    "J08 仅覆盖 recap 半程; 拆分 preview / clear-inbox / undo 三段无证据 (对应 skips_or_mocks 第 1 条)。",
+    "六条断言中只有 D5-1 / D5-1b / D5-4 有可机械复核的产物; D5-2 / D5-3 / D5-5 仅以结案报告的记述为凭。",
+    "断言 D5-1 的覆盖面是主仓 vault 186 个 md 中的 30 个 (原白板/节点/检验白板三目录), 且 shasum -c 检测不到新建文件 —— 它支撑不了任何「全 vault 无变化」的主张。",
+    "盲测纯度断言 (D5-5) 靠上下文约束 + agent 自述, 无机械强制手段。",
+    "D5 结案报告记录的数据面信号 (7 个派生节点 mastery 均匀 0.3 疑为默认值、tips id 空串 ×2 等) 是被观察对象的质量问题, 不影响本 manifest 的断言判定, 但按诚实原则一并登记。"
+  ],
+  "notes": "CARD-R-EVD 的示例 manifest, 数据取自已归档的 CARD-D5 证据。用途有二: 演示 schema 各字段怎么填; 演示一个「部分覆盖 + 有 skip 声明 + 事后回填 + 脏树 + 未签字」的真实状态如何被如实表达, 而不是粉饰成 pass。本文件被改过两轮: Codex round-1 指出首版把归档提交 c823a35f 误当候选 SHA 并混入报告未记录的环境事实; 红队 example-fidelity 审计随后又逐条核对出 11 处 overclaim (最重的是断言 D5-4 原称「无 vault 内容写入」而实际写了两个文件, 以及 dirty 的真值是 true) 与 1 处 underclaim (candidate.sha 其实有 reflog 直接证明, 无需降格为推断)。两轮的具体条目见 _bmad-output/审查/revd-redteam-2026-08-28.md。"
+}

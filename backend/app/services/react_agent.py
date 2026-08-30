@@ -21,40 +21,22 @@ from typing import Any, Dict, List, Optional
 from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
 
-from app.config import DEFAULT_GROUP_ID
-from app.core.subject_config import (
-    DEFAULT_SUBJECT_ID,
-    canonical_group_id,
-    get_current_subject_id,
-)
+from app.core.vault_scope import current_group_id
 from app.graphiti.group_id_compat import to_physical_group_id
 
 logger = structlog.get_logger(__name__)
 
 
 def _resolve_effective_group_id() -> str:
-    """Wave-5 Stage B — group_id 解析优先级:
+    """Wave-5 Stage B → CARD-G2-2 (2026-08-28) — group_id 统一读取口:
 
-    1. ContextVar (get_current_subject_id) → canonical_group_id 归一化
-    2. fallback DEFAULT_GROUP_ID + warning (deprecated 兜底)
-
-    模式参考 backend/app/services/error_writer.py:~520-536.
+    vault_scope.current_group_id(): ContextVar 注入值 canonical 化,
+    未注入时推导 active vault 组 (DEFAULT_GROUP_ID 兜底退役)。
 
     Returns:
         归一化后的 vault: 前缀 group_id (跨 vault 隔离的关键).
     """
-    ctx_value = get_current_subject_id()
-    if ctx_value and ctx_value != DEFAULT_SUBJECT_ID:
-        return canonical_group_id(ctx_value)
-
-    logger.warning(
-        "react_agent.group_id_fallback_to_default",
-        fallback=DEFAULT_GROUP_ID,
-        hint=(
-            "Wave-5 Stage B: ReAct agent caller should inject ContextVar (set_current_subject_id) for vault isolation"
-        ),
-    )
-    return DEFAULT_GROUP_ID
+    return current_group_id()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

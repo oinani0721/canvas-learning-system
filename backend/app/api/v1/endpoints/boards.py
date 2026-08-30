@@ -60,21 +60,15 @@ async def get_board_manifest_http(
     """
     import pydantic
 
-    from app.config import get_current_vault_id, get_settings, sanitize_vault_id
-    from app.core.subject_config import build_vault_group_id, set_current_subject_id
+    from app.config import get_settings
+    from app.core.vault_scope import resolve_vault_scope
 
-    # manifest 是文件读模型, 只能读当前挂载 vault — vault_id 不匹配即拒
-    # (fail-closed 先行, 防 vault split-brain 把 A vault 的结构当 B vault 返回)
-    resolved_vault = sanitize_vault_id(req.vault_id)
-    current = get_current_vault_id()
-    if resolved_vault != current:
-        raise HTTPException(
-            status_code=409,
-            detail=f"vault 未激活: {resolved_vault} (当前挂载: {current}) — "
-            "manifest 只读当前 vault, 不做跨 vault 文件访问",
-        )
-    # group 上下文仅为与 exam_sessions 模板姿势一致 (manifest 本身不读 Neo4j)
-    set_current_subject_id(build_vault_group_id(resolved_vault, subject_id=req.subject_id))
+    # manifest 是文件读模型, 只能读当前挂载 vault — vault_id 不匹配即 409
+    # (fail-closed 先行, 防 vault split-brain 把 A vault 的结构当 B vault 返回)。
+    # CARD-G2-2 (2026-08-28): 本文件的手写 409 是 vault_scope 统一语义的先例
+    # 来源, 现改调唯一解析点 (group 注入仅为与 exam_sessions 模板姿势一致,
+    # manifest 本身不读 Neo4j)。
+    resolve_vault_scope(req.vault_id, subject_id=req.subject_id)
 
     settings = get_settings()
     try:

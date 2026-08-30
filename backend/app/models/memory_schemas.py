@@ -396,6 +396,13 @@ class BatchEpisodesRequest(BaseModel):
     events: List[BatchEventItem] = Field(
         ..., max_length=50, description="批量事件列表(最多50个)"
     )
+    # CARD-G2-2 (2026-08-28): 批量写入此前零 vault 解析 — 缓存 episode 不含
+    # group, Neo4j fallback 落 vault:default 而 Graphiti 按 active vault 构组,
+    # 形成跨存储 split-brain (Codex round-1 BLOCKER-4)。加性可选字段。
+    vault_id: Optional[str] = Field(
+        default=None,
+        description="Vault 身份 (推荐必填; 与 active vault 不一致时 409)",
+    )
 
     model_config = ConfigDict(
         json_schema_extra={

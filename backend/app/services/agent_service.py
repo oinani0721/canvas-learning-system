@@ -29,7 +29,6 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from cachetools import TTLCache
 
-from app.config import DEFAULT_GROUP_ID
 from app.core.failed_writes_constants import FAILED_WRITES_FILE, failed_writes_lock
 from app.middleware.prompt_injection_guard import (
     SAFETY_BLOCK_INPUT_MESSAGE,
@@ -1921,20 +1920,13 @@ class AgentService:
                 get_color_meaning,
                 get_source_description,
             )
-            from app.core.subject_config import (
-                canonical_group_id,
-                get_current_subject_id,
-            )
+            from app.core.vault_scope import current_group_id
             from app.graphiti.group_id_compat import to_physical_group_id
 
-            # wave-5 Stage B P0 (2026-05-11): prefer ContextVar so the color
-            # transition is stored under the originating request's vault —
-            # prevents cross-vault leak. [ChatGPT v4 Agent C P0 fix]
-            ctx_value = get_current_subject_id()
+            # CARD-G2-2 (2026-08-28): scope 统一经 current_group_id() 读取
+            # (原 ContextVar→DEFAULT_GROUP_ID 兜底退役, 未注入时推导 active vault)。
             # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式（写侧，与 _query_neo4j_memories 读侧成对）
-            effective_group_id = to_physical_group_id(
-                canonical_group_id(ctx_value) if ctx_value else DEFAULT_GROUP_ID
-            )
+            effective_group_id = to_physical_group_id(current_group_id())
 
             old_meaning = get_color_meaning(old_color)
             new_meaning = get_color_meaning(new_color)
@@ -2175,19 +2167,13 @@ class AgentService:
         LIMIT 5
         """
 
-        # wave-5 Stage B P0 (2026-05-11): prefer ContextVar (vault) over the
-        # global DEFAULT_GROUP_ID so memory queries don't leak across vaults.
-        from app.core.subject_config import (
-            canonical_group_id,
-            get_current_subject_id,
-        )
+        # CARD-G2-2 (2026-08-28): scope 统一经 current_group_id() 读取, memory
+        # 查询保持 vault 隔离 (未注入时推导 active vault, 不落 DEFAULT_GROUP_ID)。
+        from app.core.vault_scope import current_group_id
         from app.graphiti.group_id_compat import to_physical_group_id
 
-        _mem_ctx = get_current_subject_id()
         # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式（读侧，与 _record_color_transition 写侧成对）
-        effective_group_id = to_physical_group_id(
-            canonical_group_id(_mem_ctx) if _mem_ctx else DEFAULT_GROUP_ID
-        )
+        effective_group_id = to_physical_group_id(current_group_id())
 
         # Execute query
         params = {"query_text": content[:100], "group_id": effective_group_id}
@@ -4067,17 +4053,11 @@ class AgentService:
                 from app.services.mastery_engine import get_mastery_engine
                 from app.services.mastery_store import MasteryStore
 
-                # wave-5 Stage B P0 (2026-05-11): prefer ContextVar (vault)
-                # so mastery lookup is scoped to the originating vault.
-                from app.core.subject_config import (
-                    canonical_group_id,
-                    get_current_subject_id,
-                )
+                # CARD-G2-2 (2026-08-28): scope 统一经 current_group_id() 读取,
+                # mastery 查询保持发起请求 vault 的隔离。
+                from app.core.vault_scope import current_group_id
 
-                _mctx = get_current_subject_id()
-                _mastery_group_id = (
-                    canonical_group_id(_mctx) if _mctx else DEFAULT_GROUP_ID
-                )
+                _mastery_group_id = current_group_id()
 
                 _m_engine = get_mastery_engine()  # Uses fusion-enabled singleton
                 _m_store = MasteryStore(get_neo4j_client())

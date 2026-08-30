@@ -297,6 +297,12 @@ class FSRSManager:
             card_dict = dict(card) if isinstance(card, dict) else {}
             if card_dict.get("state") == 0:
                 card_dict["state"] = 1  # legacy New → Learning, 写侧不产 0
+            # CARD-D4: create_card/_fallback_review 直出 raw datetime, 写侧
+            # 必须 isoformat — 与 deserialize_card 的 fromisoformat 对称
+            # (原样 json.dumps 直接 TypeError, 写读不对称)。
+            for key in ("due", "last_review"):
+                if isinstance(card_dict.get(key), datetime):
+                    card_dict[key] = card_dict[key].isoformat()
 
         return json.dumps(card_dict)
 

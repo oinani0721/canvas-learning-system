@@ -75,10 +75,19 @@ def _settings_factory(*, debug: bool, key: str):
 
 @pytest.fixture
 def auth_client() -> Generator[TestClient, None, None]:
-    """A TestClient that bypasses the real SyncService so we test auth alone."""
-    with patch(
-        "app.services.sync_service.SyncService.process_sync_batch",
-        new=AsyncMock(return_value=EMPTY_OK_RESPONSE),
+    """A TestClient that bypasses the real SyncService so we test auth alone.
+
+    CARD-G2-2 (2026-08-28): 同时把 SAMPLE_PAYLOAD 的 vault 声明为进程
+    active vault。409 fail-closed 生效后, 「请求 vault ≠ active vault」
+    会在鉴权**之后**被拒 —— 本文件测的是鉴权矩阵, 不是 vault 隔离,
+    不激活就会让每条 200 断言变成 409, 淹没真正的鉴权回归信号。
+    """
+    with (
+        patch(
+            "app.services.sync_service.SyncService.process_sync_batch",
+            new=AsyncMock(return_value=EMPTY_OK_RESPONSE),
+        ),
+        patch("app.config.get_current_vault_id", return_value=SAMPLE_PAYLOAD["vault_id"]),
     ):
         with TestClient(app) as test_client:
             yield test_client
