@@ -262,6 +262,15 @@ async def get_concept_history(
     memory_service: MemoryServiceDep,
     user_id: Optional[str] = Query(None, description="用户ID (optional)"),
     limit: int = Query(50, ge=1, le=200, description="最大返回数量"),
+    vault_id: Optional[str] = Query(
+        default=None,
+        min_length=1,
+        description="Multi-vault — 推荐必填. 注入 ContextVar 防跨 vault 概念历史串库.",
+    ),
+    subject_id: Optional[str] = Query(default=None),
+    group_id: Optional[str] = Query(
+        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
+    ),
 ) -> ConceptHistoryResponse:
     """
     查询概念学习历史
@@ -271,8 +280,23 @@ async def get_concept_history(
     - 返回时间线数据
     - 包含得分变化
 
+    CARD-G4-1b (2026-08-31) — 与 ``/review-suggestions`` 同款 vault 解析:
+    ``vault_id`` / ``subject_id`` / 兼容 ``group_id`` 三参注入 ContextVar,
+    下游 ``neo4j_client.get_concept_history`` 由此拿到本请求的读作用域。
+
+    ⚠️ 产品可见变化: 本端点此前**恒返回空 timeline** —— client 侧同名方法
+    无论是否连着 Neo4j 都只读 JSON 模拟器 (真实部署下那是空壳)。本卡给它补了
+    真实 Cypher 分支后, 端点开始**可能有数据**。
+
     [Source: docs/stories/22.4.story.md#Dev-Notes]
     """
+    # Multi-vault — vault_id ContextVar 注入 (与 review-suggestions 同款)
+    _resolve_vault_group_id(
+        vault_id,
+        subject_id=subject_id,
+        legacy_group_id=group_id,
+    )
+
     try:
         result = await memory_service.get_concept_history(
             concept_id=concept_id, user_id=user_id, limit=limit

@@ -328,14 +328,59 @@ class MemoryService:
         Uses _recovery_lock to prevent concurrent recovery from multiple
         simultaneous get_learning_history() calls.
 
+        CARD-G4-1b (2026-08-31) — 方案甲: 按 **active vault 前缀族**装载。
+
+        为什么显式解析 active vault, 而不是让 client 走默认推导链:
+        ``require_read_group(None)`` 会**先看 per-request ContextVar**。恢复
+        既可能在启动期跑 (ContextVar 空 → 推导 active vault, 正确), 也可能
+        由第一次查询**惰性**触发 (``get_learning_history`` 路径) —— 那时
+        ContextVar 往往已被端点注入成 canvas 级子组 ``vault:v:board``。
+        进程级 episode 缓存若按某一次请求的板级作用域装载, 之后
+        ``_episodes_recovered`` 置 True, **其余白板的历史就永久装不进来了**。
+        缓存是进程级的, 作用域也必须是进程级的。
+
+        语义收窄如实声明: "全库所有 vault" → "active vault 及其子组族"。
+        2026-08-30 现网 7691 只读实测全库唯一 LEARNED 边就在 active vault 的
+        punycode 子组内 ⇒ **现网返回逐字节相同**; 多 vault 部署下才有差异
+        (而那正是要修的泄漏)。
+
         [Source: docs/stories/38.2.story.md#Task-2]
         """
+        # ⚠️ 作用域解析放在 try **之外** (与 conversation_inheritance 的
+        # Codex round-1 H-3 同型): 下面的 except 是"Neo4j 依赖故障 → 优雅降级
+        # 空历史"。把解析放进去, 配置断裂会被伪装成"Neo4j 不可用"。
+        #
+        # Codex round-1 HIGH-3 整改 (2026-08-31): 初版直接 `default_vault_group_id()`
+        # 再把结果当**显式**入参传下去 —— 而 `_validate_scope_shape` 对显式传入的
+        # `vault:default` 污染桶**只告警放行**。于是"active vault 没配置"会走成:
+        # 查空桶 → 0 条 → `_episodes_recovered = True` → **永不重试**, 正好把配置
+        # 断裂伪装成"这个用户没有学习记录", 与本方法声称的 fail-closed 自相矛盾。
+        #
+        # 改法: 在一个**全新的空 Context** 里调 `require_read_group(None)`。
+        #   · 新 Context 没有任何 ContextVar 赋值 ⇒ `get_current_subject_id()` 取
+        #     ContextVar 默认值 ⇒ 跳过"显式"分支, 走 **active vault 派生**分支
+        #     —— 正是方案甲要的"进程级作用域, 不受本次请求影响";
+        #   · 派生分支对污染桶**抛** `VaultScopeUnresolved` ⇒ 配置断裂会说话。
+        # 用空 Context 而不是手动 set/reset 私有 ContextVar: 不改调用方上下文,
+        # 也不依赖 `subject_config` 的私有名。
+        import contextvars
+
+        from app.core.vault_scope import require_read_group
+
+        recovery_scope = contextvars.Context().run(
+            require_read_group,
+            None,
+            context="memory_service._recover_episodes_from_neo4j",
+        )
+
         async with self._recovery_lock:
             # Double-check after acquiring lock (another coroutine may have completed recovery)
             if self._episodes_recovered:
                 return
             try:
-                records = await self.neo4j.get_all_recent_episodes(limit=1000)
+                records = await self.neo4j.get_all_recent_episodes(
+                    limit=1000, group_id=recovery_scope
+                )
                 added = 0
                 if records:
                     # Build set of existing episode keys to avoid duplicates
@@ -385,6 +430,12 @@ class MemoryService:
                 )
             except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
                 # AC-3: Graceful degradation — start with empty history
+                #
+                # CARD-G4-1b: 这三类是**依赖故障**。``VaultScopeUnresolved``
+                # 刻意不继承 RuntimeError (vault_scope 模块 docstring 有说明),
+                # 因此作用域不可信时会从这里**穿透**上抛, 而不是被折算成
+                # "Neo4j 不可用 → 空历史" —— 后者会把配置断裂伪装成没有数据。
+                # 请勿把本 except 放宽成 ``Exception``。
                 self._episodes_recovered = False
                 logger.warning(f"MemoryService: Neo4j unavailable, starting with empty history ({e})")
 
@@ -815,17 +866,27 @@ class MemoryService:
         }
 
     async def get_concept_history(
-        self, concept_id: str, user_id: Optional[str] = None, limit: int = 50
+        self,
+        concept_id: str,
+        user_id: Optional[str] = None,
+        limit: int = 50,
+        group_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         查询概念学习历史
 
         ✅ Verified from AC-22.4.3: GET /api/v1/memory/concepts/{id}/history
 
+        CARD-G4-1b (2026-08-31): 透传读作用域给 client。省略时由
+        ``neo4j_client.get_concept_history`` 走统一解析链 (per-request
+        ContextVar — 端点已按 review-suggestions 同款注入 → active vault)。
+        另见该 client 方法的名实一致修复说明: 本端点此前恒返回空 timeline。
+
         Args:
-            concept_id: 概念ID
+            concept_id: 概念ID (或概念名)
             user_id: 用户ID (optional)
             limit: 最大返回数量
+            group_id: 读作用域 (optional)
 
         Returns:
             Dict with timeline data and score changes
@@ -842,7 +903,7 @@ class MemoryService:
         # Get history from Neo4j
         try:
             history = await self.neo4j.get_concept_history(
-                concept_id=concept_id, user_id=user_id, limit=limit
+                concept_id=concept_id, user_id=user_id, limit=limit, group_id=group_id
             )
         except Exception as e:  # noqa: BLE001 — 故障如实上报, 不伪装空历史
             logger.error(f"Concept history query failed for {concept_id}: {e}")

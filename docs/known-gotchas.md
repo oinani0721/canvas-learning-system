@@ -28,6 +28,7 @@
 | G-PIPE-005 | ~~Strategy Selector 完整映射但无人调用~~ | ~~Phase 3 构建组件但未接线~~ | ✅ S35审计确认：代码已归档至_bmad-output/archive/fusion/strategy_selector.py，不在生产路径。当前fusion策略内联于retrieval service | DD-11 |
 | G-PIPE-006 | ~~Verification 系统与 Retrieval 系统信息断层~~ | ~~两套系统独立开发~~ | ✅ S34修复(1f19e00)：verification_service:717调record_knowledge_entity回写exam_attempt到Neo4j，闭合反馈环 | DD-11 |
 | G-PIPE-007 | S18-4 发现: progressive_scope_search/expand_neighbors 为死代码 | 并行开发文件隔离导致跨文件接线遗漏 | ✅ 已修复 | DD-11 并行Agent接线检查 |
+| G-PIPE-008 | Canvas 关联族三方法双料僵尸: `neo4j_client.get_canvas_associations` / `get_canvas_concepts` / `find_common_concepts`（含 `load_all_canvas_associations`）**生产零调用方 + 现网 7691 零数据** | Story 36.5/36.6 建了查询层, 消费方从未接线 | ⚠️ 2026-08-31 CARD-G4-1b 登记: 本卡只做**读作用域契约收口 + 单测**（Cypher 逐 alias 过滤 + JSON 镜像行为门）, **不新增消费方、不造真库行为门种子**。保留/退役的处置决定另立卡 —— 退役要连 `Canvas`/`ASSOCIATED_WITH` 的写侧一起看, 超出读收口卡范围 | DD-11 |
 
 ## G-TYPE: 类型不匹配
 
@@ -136,7 +137,7 @@
 | 分类 | 总计 | 已修复 | 有意保留/延后 | 待修复 |
 |------|------|--------|-------------|--------|
 | G-FAKE | 7 | 6 | 1 (006 FR-KG-04 Phase 7 弃用) | 0 |
-| G-PIPE | 7 | 5 | 2 (002 future feature, 004 有意禁用) | 0 |
+| G-PIPE | 8 | 5 | 3 (002 future feature, 004 有意禁用, 008 待处置决定) | 0 |
 | G-TYPE | 2 | 2 | 0 | 0 |
 | G-ASYNC | 2 | 2 | 0 | 0 |
 | G-API | 2 | 2 | 0 | 0 |

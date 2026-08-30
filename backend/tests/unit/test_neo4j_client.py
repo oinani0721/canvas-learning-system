@@ -98,6 +98,18 @@ def _json_fallback_scope() -> str:
     return current_group_id()
 
 
+def scope_physical(group_id: str) -> str:
+    """逻辑 D16 组 → 物理 `vault__` 组 (库内/JSON 内的落盘形态)。"""
+    from app.graphiti.group_id_compat import to_physical_group_id
+
+    return to_physical_group_id(group_id)
+
+
+async def _unreachable_run_query(*_args, **_kwargs):
+    """作用域解析失败时**不得**发出查询 —— 发出即说明 fail-closed 在查询之后。"""
+    raise AssertionError("scope 解析失败后仍发出了查询 (fail-closed 位置错误)")
+
+
 class TestNeo4jClientJsonFallback:
     """Test Neo4jClient JSON fallback mode - AC-3."""
 
@@ -371,6 +383,10 @@ class TestNeo4jClientJsonFallback:
                     "timestamp": "2024-01-01T00:00:00",
                     "last_score": 90,
                     "review_count": 3,
+                    # CARD-G4-1b (2026-08-31): `_handle_query_history` 升为
+                    # fail-closed 后, 无归属的记录不再对任何作用域可见 —— 与
+                    # 生产写侧 (JSON 分支恒落物理化 group_id) 对齐。
+                    "group_id": _json_fallback_scope(),
                 }
             ],
         }
@@ -714,3 +730,394 @@ class TestNeo4jClientCleanup:
 
             mock_driver.close.assert_called_once()
             assert client._initialized is False
+
+
+# =============================================================================
+# CARD-G4-1b (BATCH-2026-08-31-第七批) — client 层读收口单测
+#
+# 关联族三方法 (`get_canvas_associations` / `get_canvas_concepts` /
+# `find_common_concepts`) 是**双料僵尸**: 生产零调用方 + 现网零数据。按卡文
+# (d) 只做契约收口 + 单测, **不**往 7692 造行为门种子、**不**新增消费方
+# (G-PIPE 处置登记另立卡)。因此这一族的判据分两层:
+#   · Cypher 侧 —— 拦截真实发出的查询, 断言**每个 alias** 都带上了
+#     `read_group_filter` 的等值 OR 前缀片段, 且 scope 参数确实绑定;
+#   · JSON 镜像侧 —— 真实行为门 (镜像本来就不需要 Neo4j): 两个 vault 的
+#     同名 canvas 数据互不可见, 且本 vault 的子组数据可见 (保召回)。
+#
+# 另有两条与作用域无关但同批的结构门: 关键词路由不变量 (误路由面的静态锁)
+# 与 fail-closed 痕迹。
+# =============================================================================
+
+
+class TestG41bReadScopeContract:
+    """CARD-G4-1b: 5 读方法 + 4 JSON 镜像的作用域收口。"""
+
+    @pytest.fixture
+    def scope(self):
+        return _json_fallback_scope()
+
+    @pytest.fixture
+    def other_scope(self):
+        """与当前作用域**同前缀但不同 vault** 的另一个组。
+
+        故意取 `<scope>_other` 而不是随便一个名字: 它能同时锁住"裸前缀误配"
+        (若过滤写成不带 `__` 定界符的 startswith, `vault__x` 会吃掉
+        `vault__x_other`, 本组数据就会串进来)。
+        """
+        return f"{scope_physical(_json_fallback_scope())}_other"
+
+    # ── Cypher 侧: 逐 alias 过滤片段 ────────────────────────────────────
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "method,kwargs,branch_aliases",
+        [
+            # `branch_aliases`: **按 UNION 分段**给出每段各自引入的 alias。
+            # ⚠️ 不能把所有 alias 摊平成一个集合再查子串 —— `get_canvas_concepts`
+            # 的两个 UNION 分支都有一个叫 `n` 的 alias (分支1=Node, 分支2=
+            # LearningNode), 摊平后删掉分支1的 `n` 过滤, 分支2 的那份仍然满足
+            # 子串断言, 门照绿。变异负控 `canvas-concepts-drop-n` 实测抓到过这个
+            # 死门 —— 判据的粒度必须与缺陷的粒度对齐。
+            ("get_canvas_associations", {"canvas_path": "a.canvas"}, (("source", "r", "target"),)),
+            ("get_canvas_concepts", {"canvas_path": "a.canvas"}, (("c", "cn", "n"), ("c", "n", "concept"))),
+            (
+                "find_common_concepts",
+                {"canvas1": "a.canvas", "canvas2": "b.canvas"},
+                (("c1", "cn1", "n1", "c2", "cn2", "n2"),),
+            ),
+            ("get_all_recent_episodes", {}, (("r", "c"),)),
+            ("get_concept_history", {"concept_id": "x"}, (("r", "c"),)),
+        ],
+    )
+    async def test_cypher_filters_every_alias(self, tmp_path, method, kwargs, branch_aliases):
+        from app.core.vault_scope import read_group_filter
+
+        client = Neo4jClient(use_json_fallback=False, storage_path=tmp_path / "s.json")
+        client._initialized = True
+        captured = {}
+
+        async def _capture(query, **params):
+            captured["query"] = query
+            captured["params"] = params
+            return []
+
+        client.run_query = _capture
+        await getattr(client, method)(**kwargs)
+
+        segments = [seg for seg in captured["query"].split("UNION")]
+        assert len(segments) == len(branch_aliases), (
+            f"{method}: UNION 分段数与期望不符 ({len(segments)} vs "
+            f"{len(branch_aliases)}) —— 查询结构变了, 本门的分段判据已失真"
+        )
+        for seg, aliases in zip(segments, branch_aliases):
+            for alias in aliases:
+                assert read_group_filter(alias) in seg, (
+                    f"{method}: 分支内 alias {alias!r} 缺 group 过滤 (R1 每个 alias 逐一过滤)\n{seg}"
+                )
+        assert captured["params"].get("group_id"), f"{method}: scope 参数未绑定"
+        assert captured["params"].get("group_prefix", "").endswith("__"), (
+            f"{method}: 前缀锚必须带 `__` 定界符, 否则 vault__x 会吃掉 vault__xy"
+        )
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "method,kwargs",
+        [
+            ("get_canvas_associations", {"canvas_path": "a.canvas"}),
+            ("get_canvas_concepts", {"canvas_path": "a.canvas"}),
+            ("find_common_concepts", {"canvas1": "a.canvas", "canvas2": "b.canvas"}),
+            ("get_all_recent_episodes", {}),
+            ("get_concept_history", {"concept_id": "x"}),
+        ],
+    )
+    async def test_blank_scope_is_refused_not_derived(self, tmp_path, method, kwargs):
+        """显式空白串 = 调用方 bug, 不得静默推导到另一个作用域 (C1 口径)。"""
+        from app.core.vault_scope import VaultScopeUnresolved
+
+        client = Neo4jClient(use_json_fallback=False, storage_path=tmp_path / "s.json")
+        client._initialized = True
+        client.run_query = _unreachable_run_query
+
+        with pytest.raises(VaultScopeUnresolved):
+            await getattr(client, method)(group_id="   ", **kwargs)
+
+    # ── JSON 镜像侧: 真实可见面行为门 ──────────────────────────────────
+
+    @pytest.mark.asyncio
+    async def test_associations_json_mirror_is_scoped(self, tmp_path, scope, other_scope):
+        client = Neo4jClient(use_json_fallback=True, storage_path=tmp_path / "a.json")
+        await client.initialize()
+        sub = f"{scope_physical(scope)}__board_x"  # 本 vault 的白板子组
+        client._data["canvas_associations"] = [
+            {
+                "association_id": "mine-root",
+                "source_canvas": "a.canvas",
+                "target_canvas": "b.canvas",
+                "association_type": "t",
+                "created_at": "2026-01-01",
+                "group_id": scope_physical(scope),
+            },
+            {
+                "association_id": "mine-sub",
+                "source_canvas": "a.canvas",
+                "target_canvas": "b.canvas",
+                "association_type": "t",
+                "created_at": "2026-01-02",
+                "group_id": sub,
+            },
+            {
+                "association_id": "theirs",
+                "source_canvas": "a.canvas",
+                "target_canvas": "b.canvas",
+                "association_type": "t",
+                "created_at": "2026-01-03",
+                "group_id": other_scope,
+            },
+        ]
+
+        got = {a["association_id"] for a in await client.get_canvas_associations(canvas_path="a.canvas")}
+        assert got == {"mine-root", "mine-sub"}, f"保召回(子组)/零泄漏(他 vault) 至少一半红: {sorted(got)}"
+
+    @pytest.mark.asyncio
+    async def test_canvas_concepts_json_mirror_is_scoped(self, tmp_path, scope, other_scope):
+        client = Neo4jClient(use_json_fallback=True, storage_path=tmp_path / "c.json")
+        await client.initialize()
+        sub = f"{scope_physical(scope)}__board_x"
+        client._data["relationships"] = [
+            {
+                "user_id": "u",
+                "concept_name": "mine-root",
+                "canvas_path": "shared.canvas",
+                "group_id": scope_physical(scope),
+            },
+            {"user_id": "u", "concept_name": "mine-sub", "canvas_path": "shared.canvas", "group_id": sub},
+            {"user_id": "u", "concept_name": "theirs", "canvas_path": "shared.canvas", "group_id": other_scope},
+        ]
+
+        got = set(await client.get_canvas_concepts("shared.canvas"))
+        assert got == {"mine-root", "mine-sub"}, f"同名 canvas 在两个 vault 各有节点, 可见面不对: {sorted(got)}"
+
+        # find_common_concepts 的两边必须取自同一个可见面 —— 否则"共同概念"
+        # 会由跨 vault 的一侧凑出来。
+        # ⚠️ 正向对照不可省 (Codex round-1 MEDIUM): 只有"跨 vault 应为空"这半,
+        # 把 find_common 写死成 `return []` 也照样全绿。
+        client._data["relationships"] += [
+            # 他 vault 在 other.canvas 上也有 theirs → 若过滤失效, 交集会凑出它
+            {"user_id": "u", "concept_name": "theirs", "canvas_path": "other.canvas", "group_id": other_scope},
+            # 本 vault 在 other.canvas 上有 mine-root → 正向对照, 必须被算出来
+            {
+                "user_id": "u",
+                "concept_name": "mine-root",
+                "canvas_path": "other.canvas",
+                "group_id": scope_physical(scope),
+            },
+        ]
+        common = set(await client.find_common_concepts("shared.canvas", "other.canvas"))
+        assert common == {"mine-root"}, f"缺失(正向对照红)/多出(跨 vault 凑出红): {sorted(common)}"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("method", ["associations", "canvas_concepts"])
+    async def test_mirror_path_match_is_exact_like_cypher(self, tmp_path, scope, method):
+        """镜像的 canvas path 匹配必须与 Cypher **同为精确相等**。
+
+        Codex round-1 HIGH: `_get_canvas_concepts_json_fallback` 原来用**子串
+        包含**判断 path, 而 Cypher 是 `MATCH (c:Canvas {path: $canvasPath})`
+        精确匹配 —— 于是 `x/a.canvas.bak` 会被 `a.canvas` 命中, 降级前后返回不同
+        的概念集合。本门用"超串路径"当探针: 精确匹配下它必须**不**命中。
+        这两个镜像按卡文 (d) 不做真库对拍, 一致性由本门与逐 alias 片段门保证。
+        """
+        client = Neo4jClient(use_json_fallback=True, storage_path=tmp_path / "x.json")
+        await client.initialize()
+        gid = scope_physical(scope)
+        target = "a.canvas"
+        superstring = "x/a.canvas.bak"  # 含 target 作为子串, 但不等于它
+
+        if method == "associations":
+            client._data["canvas_associations"] = [
+                {
+                    "association_id": "sup",
+                    "source_canvas": superstring,
+                    "target_canvas": superstring,
+                    "association_type": "t",
+                    "created_at": "2026-01-01",
+                    "group_id": gid,
+                },
+                {
+                    "association_id": "exact",
+                    "source_canvas": target,
+                    "target_canvas": "b.canvas",
+                    "association_type": "t",
+                    "created_at": "2026-01-02",
+                    "group_id": gid,
+                },
+            ]
+            got = {a["association_id"] for a in await client.get_canvas_associations(canvas_path=target)}
+            assert got == {"exact"}, f"path 匹配不是精确相等: {sorted(got)}"
+        else:
+            client._data["relationships"] = [
+                {"user_id": "u", "concept_name": "from-superstring", "canvas_path": superstring, "group_id": gid},
+                {"user_id": "u", "concept_name": "from-exact", "canvas_path": target, "group_id": gid},
+            ]
+            got = set(await client.get_canvas_concepts(target))
+            assert got == {"from-exact"}, f"path 匹配不是精确相等: {sorted(got)}"
+
+    @pytest.mark.asyncio
+    async def test_all_recent_episodes_json_mirror_is_scoped(self, tmp_path, scope, other_scope):
+        client = Neo4jClient(use_json_fallback=True, storage_path=tmp_path / "e.json")
+        await client.initialize()
+        sub = f"{scope_physical(scope)}__board_x"
+        client._data["relationships"] = [
+            {"user_id": "u", "concept_name": "mine-root", "timestamp": "2026-01-01", "group_id": scope_physical(scope)},
+            {"user_id": "u", "concept_name": "mine-sub", "timestamp": "2026-01-02", "group_id": sub},
+            {"user_id": "u", "concept_name": "theirs", "timestamp": "2026-01-03", "group_id": other_scope},
+            {"user_id": "u", "concept_name": "orphan", "timestamp": "2026-01-04"},
+        ]
+
+        got = {e["concept"] for e in await client.get_all_recent_episodes(limit=50)}
+        assert got == {"mine-root", "mine-sub"}, f"无归属记录(orphan)/他 vault 记录不得进 episode 缓存: {sorted(got)}"
+
+    # ── 关键词路由不变量 (误路由面的静态锁) ─────────────────────────────
+
+    @pytest.mark.asyncio
+    async def test_learned_query_shapes_all_route_to_a_scoped_handler(self, tmp_path):
+        """三条 `MATCH…LEARNED` 形状的查询都落在**会过滤 scope** 的 handler 上。
+
+        `_run_query_json_fallback` 按关键词派发。中途降级时:
+          · 带 next_review → `_handle_query_reviews` (G4-1a 已 fail-closed)
+          · 其余           → `_handle_query_history` (本卡升 fail-closed)
+        这条门锁住"路由表没有第三条出口" —— 若有人新增一个不过滤的 handler
+        或改了判据顺序, 降级时就会出现一条不过 scope 的读。
+        """
+        client = Neo4jClient(use_json_fallback=True, storage_path=tmp_path / "r.json")
+        await client.initialize()
+        seen = []
+
+        async def _spy(name):
+            async def _inner(params):
+                seen.append(name)
+                return []
+
+            return _inner
+
+        client._handle_query_reviews = await _spy("reviews")
+        client._handle_query_history = await _spy("history")
+
+        await client._run_query_json_fallback(
+            "MATCH (u:User)-[r:LEARNED]->(c:Concept) WHERE r.next_review < datetime()", {}
+        )
+        await client._run_query_json_fallback("MATCH (u:User)-[r:LEARNED]->(c:Concept) RETURN c.name", {})
+        assert seen == ["reviews", "history"], seen
+
+    @pytest.mark.asyncio
+    async def test_handle_query_history_fail_closed(self, tmp_path, caplog):
+        """无 scope → 空 + ERROR; 有 scope → 读得到 (正向对照防"恒空"假绿)。"""
+        import logging
+
+        scope = _json_fallback_scope()
+        client = Neo4jClient(use_json_fallback=True, storage_path=tmp_path / "h.json")
+        await client.initialize()
+        client._data["relationships"] = [
+            {
+                "user_id": "u",
+                "concept_name": "mine",
+                "concept_id": "cid",
+                "timestamp": "2026-01-01",
+                "group_id": scope_physical(scope),
+            }
+        ]
+
+        with caplog.at_level(logging.ERROR):
+            refused = await client._handle_query_history({"userId": "u"})
+        assert refused == []
+        assert any("G4-1b" in r.message for r in caplog.records)
+
+        allowed = await client._handle_query_history({"userId": "u", "group_id": scope_physical(scope)})
+        assert [r["concept"] for r in allowed] == ["mine"]
+
+    @pytest.mark.asyncio
+    async def test_degraded_date_filter_is_timezone_correct(self, tmp_path):
+        """降级路径的日期过滤按**真实时序**比，不是按 ISO 字符串字典序。
+
+        Codex round-3 Q3' 回归锁。探针刻意取"字典序与时序相反"的一对:
+          记录  `2026-01-01T00:00:00+08:00`  = UTC 2025-12-31T16:00Z
+          下界  `2026-01-01T00:00:00+00:00`  = UTC 2026-01-01T00:00Z
+        字符串比较里 `+08:00` > `+00:00` ⇒ 记录被判为"在下界之后"而**错误放行**;
+        转成 UTC 再比才知道它其实更早, 应当被排除。
+        """
+        scope = _json_fallback_scope()
+        client = Neo4jClient(use_json_fallback=True, storage_path=tmp_path / "tz.json")
+        await client.initialize()
+        client._data["relationships"] = [
+            {
+                "user_id": "u",
+                "concept_name": "east",
+                "concept_id": "e",
+                "timestamp": "2026-01-01T00:00:00+08:00",
+                "group_id": scope_physical(scope),
+            },
+            {
+                "user_id": "u",
+                "concept_name": "utc-later",
+                "concept_id": "l",
+                "timestamp": "2026-01-02T00:00:00+00:00",
+                "group_id": scope_physical(scope),
+            },
+        ]
+        params = {
+            "userId": "u",
+            "group_id": scope_physical(scope),
+            "startDate": "2026-01-01T00:00:00+00:00",
+        }
+        got = {r["concept"] for r in await client._handle_query_history(params)}
+        assert got == {"utc-later"}, f"日期过滤用了字典序而不是真实时序: {sorted(got)}"
+
+    @pytest.mark.asyncio
+    async def test_degraded_unparseable_date_bound_fails_closed(self, tmp_path, caplog):
+        """畸形的日期边界 → 拒绝该条, 而不是"过滤悄悄消失、全都放行"。
+
+        Codex round-4 Q3'' 回归锁。正向对照同时在场: 同一份数据换成**可解析**的
+        边界时必须读得到 —— 否则"返回空"可能只是这条路径本来就读不出东西。
+        """
+        import logging
+
+        scope = _json_fallback_scope()
+        client = Neo4jClient(use_json_fallback=True, storage_path=tmp_path / "bad.json")
+        await client.initialize()
+        client._data["relationships"] = [
+            {
+                "user_id": "u",
+                "concept_name": "mine",
+                "concept_id": "m",
+                "timestamp": "2026-06-01T00:00:00+00:00",
+                "group_id": scope_physical(scope),
+            },
+        ]
+        base = {"userId": "u", "group_id": scope_physical(scope)}
+
+        with caplog.at_level(logging.ERROR):
+            refused = await client._handle_query_history({**base, "startDate": "not-a-date"})
+        assert refused == [], f"畸形边界下过滤被跳过, 记录被放行: {refused}"
+        assert any("unparseable date bound" in r.message for r in caplog.records)
+
+        allowed = await client._handle_query_history({**base, "startDate": "2026-01-01T00:00:00+00:00"})
+        assert [r["concept"] for r in allowed] == ["mine"], (
+            f"正向对照红: 可解析边界也读不到, 上面的空结果不能证明是 fail-closed {allowed}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_concept_id_match_is_id_or_name_on_both_sides(self, tmp_path):
+        """点查按 id **或** name —— 生产写侧从不落 c.id, 只按 id 查等于恒空。
+
+        Cypher 片段与 JSON 镜像必须同一套规则, 否则降级前后条数会变。
+        """
+        from app.clients.neo4j_client import _CONCEPT_ID_MATCH_CYPHER, _concept_id_matches
+
+        assert "c.id = $conceptId" in _CONCEPT_ID_MATCH_CYPHER
+        assert "c.name = $conceptId" in _CONCEPT_ID_MATCH_CYPHER
+        # 两个字段**取不同值**, 才能分辨 OR 与 AND (Codex round-1 HIGH:
+        # 取相同值的 fixture 杀不掉 `OR → AND` 变异)
+        rec = {"concept_id": "X-id", "concept_name": "X"}
+        assert _concept_id_matches(rec, "X-id"), "按 id 命中失效"
+        assert _concept_id_matches(rec, "X"), "按 name 命中失效 —— 生产 Concept 没有 id, 只按 id 查会让端点恒空"
+        assert _concept_id_matches({"concept_name": "X"}, "X"), "无 id 的生产形态命中失效"
+        assert not _concept_id_matches({"concept_id": "Y", "concept_name": "Z"}, "X")

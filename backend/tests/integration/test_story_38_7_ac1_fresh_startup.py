@@ -14,6 +14,25 @@ from app.services.memory_service import MemoryService
 
 from tests.integration.conftest import make_mock_learning_memory, make_mock_neo4j
 
+
+def _recovery_scope() -> str:
+    """CARD-G4-1b: 启动恢复按 **active vault 根组** (方案甲) 装载。
+
+    `_recover_episodes_from_neo4j` 现在把作用域显式传给 client, 所以断言调用
+    参数时必须带上它 —— 这正是"进程级缓存用进程级作用域"的可验证痕迹。
+    """
+    from app.core.subject_config import default_vault_group_id
+
+    return default_vault_group_id()
+
+
+def _scope_physical(suffix: str = "") -> str:
+    """当前读作用域的物理组 (JSON 存储里的落盘形态)。"""
+    from app.graphiti.group_id_compat import to_physical_group_id
+
+    return to_physical_group_id(_recovery_scope()) + suffix
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # AC-1: Fresh Environment Startup Verification
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -92,7 +111,9 @@ class TestAC1FreshEnvironmentStartup:
         assert ms._episodes_recovered is True
         assert len(ms._episodes) == 1
         assert ms._episodes[0]["concept"] == "Python"
-        neo4j.get_all_recent_episodes.assert_awaited_once_with(limit=1000)
+        neo4j.get_all_recent_episodes.assert_awaited_once_with(
+            limit=1000, group_id=_recovery_scope()
+        )
 
     @pytest.mark.asyncio
     async def test_memory_service_degrades_when_neo4j_unavailable(self):
@@ -101,8 +122,13 @@ class TestAC1FreshEnvironmentStartup:
         _episodes_recovered stays False and _episodes stays empty.
         """
         neo4j = make_mock_neo4j()
+        # CARD-G4-1b: 裸 `Exception` **从来不在**生产 except 的捕获范围
+        # `(RuntimeError, ConnectionError, asyncio.TimeoutError)` 里 —— 这条
+        # 用例过去是靠异常穿透而红/绿含混的。改成真实会发生的 ConnectionError,
+        # AC-3 的优雅降级才第一次被真正验证。生产 except **不得**放宽成
+        # Exception: 那会连 VaultScopeUnresolved 一起吞掉。
         neo4j.get_all_recent_episodes = AsyncMock(
-            side_effect=Exception("Connection refused")
+            side_effect=ConnectionError("Connection refused")
         )
         learning_mem = make_mock_learning_memory()
 

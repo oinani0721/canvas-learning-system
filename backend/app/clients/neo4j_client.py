@@ -19,7 +19,7 @@ import asyncio
 import json
 import logging
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -142,6 +142,61 @@ def _is_valid_physical_group_id(value: Optional[str]) -> bool:
     if not suffix or any(ch.isspace() for ch in suffix):
         return False
     return all(seg for seg in suffix.split("__"))
+
+
+#: 概念点查的 Cypher 匹配片段 (CARD-G4-1b)。
+#:
+#: ⚠️ 为什么不是单纯的 ``c.id = $conceptId``: 生产写侧
+#: ``create_learning_relationship`` 的 MERGE 身份是 ``{name, group_id}``,
+#: **从不落 ``c.id``** —— 只按 id 点查会让 ``/concepts/{id}/history`` 端点
+#: 换了真 Cypher 之后**仍然**恒空 (名实一致修了个寂寞)。而调用方手里能拿到
+#: 的标识符恰恰只有名字: ``get_review_suggestions`` / ``get_learning_history``
+#: 返回的 ``concept_id`` 就是 ``c.id``, 在生产数据上恒 null。
+#: 因此按 id **或** name 命中; 两者都在 group 过滤之内, 不构成跨 vault 面
+#: (读契约 R3 说的"name 派生 ID 只在 vault 内唯一"正好由 R1 过滤兜住)。
+#: JSON 镜像 :func:`_concept_id_matches` 与本片段**逐字同语义**。
+_CONCEPT_ID_MATCH_CYPHER = "(c.id = $conceptId OR c.name = $conceptId)"
+
+
+def _concept_id_matches(rel: Dict[str, Any], concept_id: str) -> bool:
+    """JSON 镜像侧的概念点查判定 — 与 :data:`_CONCEPT_ID_MATCH_CYPHER` 对应。
+
+    两侧必须同一套命中规则, 否则 Neo4j 可用与降级两条路径会给出不同的历史
+    条数 (本卡"镜像与 Cypher 同批同语义"的落点之一)。
+    """
+    return rel.get("concept_id") == concept_id or rel.get("concept_name") == concept_id
+
+
+def _as_utc(value: Any) -> Optional[datetime]:
+    """把 ISO-8601 串 / datetime 归一成**带时区的 UTC** datetime。
+
+    Codex round-3 Q3' 整改: 降级路径原先直接比 ISO **字符串**。同一格式同一
+    时区时字典序确实等于时序, 但 ``datetime.isoformat()`` 允许任意偏移量
+    (``2026-01-01T00:00:00+08:00`` vs ``...T00:00:00Z``), 混合偏移下字典序
+    与真实时序**不一致** —— 边界条数会静默错。这里统一转 UTC 再比。
+
+    naive (无 tzinfo) 一律按 UTC 解释并在此点名: 本仓写侧
+    ``create_learning_relationship`` 落的是 ``datetime()`` (服务端时区),
+    JSON 镜像落的是 ``datetime.now().isoformat()`` (本机 naive) —— 两者本就
+    没有统一时区语义, 这是既有形态; 本函数只保证**同一次比较的两侧口径一致**,
+    不假装解决了全仓时区统一。
+
+    Returns:
+        归一后的 aware datetime; 解析失败返回 None (调用方据此放弃该条过滤,
+        而不是拿一个错的比较结果继续)。
+    """
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        dt = value
+    else:
+        try:
+            dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except (TypeError, ValueError):
+            return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
 
 
 class Neo4jClient:
@@ -756,34 +811,99 @@ class Neo4jClient:
         user_id = params.get("userId")
         concept_id = params.get("conceptId")
 
-        # CARD-G4-1a / Codex round-2: 传了 scope 就按 scope 过滤。
-        # ⚠️ 与 `_handle_query_reviews` 的**区别**(有意为之): 本分支的主调用方是
-        # `get_concept_history`, 它的 Cypher 路径本卡**没有**封堵(整族读方法移交
-        # CARD-G4-1b, 需读写两端一起改)。若在此单方面 fail-closed, 等于把一个本
-        # 卡不拥有的功能在降级模式下打断 —— 而泄漏面并不会因此变小(Cypher 路径
-        # 照样无过滤)。所以这里只做"有 scope 则过滤 + 无 scope 告警", 与 Cypher
-        # 侧保持同等口径; 真正的 fail-closed 随 G4-1b 两侧同批上。
+        # CARD-G4-1b (2026-08-31) — 升 fail-closed, 与 `_handle_query_reviews`
+        # 完全同口径。G4-1a 当时只做"有 scope 则过滤 + 无 scope 告警", 理由是
+        # 主调用方 `get_concept_history` 的 Cypher 路径尚未封堵, 单方面
+        # fail-closed 会打断一个那张卡不拥有的功能。本卡把 Cypher 侧一并封了
+        # (get_concept_history 补真实 Cypher 分支 + get_all_recent_episodes /
+        # get_learning_history 全部注入 scope), 前提消失。
+        #
+        # ⚠️ 本 handler 是**关键词路由**的落点 (`_run_query_json_fallback`:
+        # "MATCH" + "LEARNED" 且无 "next_review"), 而不只是 get_concept_history
+        # 的镜像 —— `get_learning_history` 与 `get_all_recent_episodes` 的
+        # Cypher 在**中途降级** (`_run_query_neo4j` 重试耗尽 → `_fallback_to_json`)
+        # 时同样落到这里。若此处不 fail-closed, 那两条刚封的读只要"把 Neo4j 弄
+        # 挂"就能整库倾倒。三个生产入口现在都经 read_scope_params 注入
+        # `group_id`, 缺失即代表有人绕过了收口, 拒绝而不是全库扫。
         scope = params.get("group_id")
         if not scope:
-            logger.warning(
-                "[G4-1a] JSON fallback history query without scope — cross-vault "
-                "read surface (user_id=%s, concept_id=%s). 收敛移交 CARD-G4-1b "
-                "(与 get_concept_history 的 Cypher 路径同批)。",
+            logger.error(
+                "[G4-1b] JSON fallback history query without scope — refusing "
+                "cross-vault full scan (user_id=%s, concept_id=%s)",
                 user_id,
                 concept_id,
             )
+            return []
 
         from app.core.vault_scope import group_in_read_scope
 
         results = []
 
+        # Codex round-2 Q3 整改: `get_learning_history` 的三个可选过滤在中途降级
+        # 时被静默丢弃 —— 同一次调用"Neo4j 活着"与"跑一半挂了"返回的**条数与内容**
+        # 都不同。三者的语义逐条对齐 Cypher 侧:
+        #   startDate → `r.timestamp >= $startDate`
+        #   endDate   → `r.timestamp <= $endDate`
+        #   concept   → `toLower(c.name) CONTAINS toLower($concept)`
+        # 时间比较统一转 aware UTC 再比 (``_as_utc``) —— 不依赖 ISO 字典序,
+        # 混合时区偏移下字典序≠时序 (Codex round-3 Q3')。记录没有 timestamp
+        # 时**不放行**(与 Cypher 的 NULL 比较结果为 null、不满足 WHERE 同口径)。
+        #
+        # ⚠️ **与 Cypher 侧的既有偏差, 如实登记 + 实测证据**:
+        # `get_learning_history` 的 Cypher 把 `r.timestamp` (写侧
+        # `create_learning_relationship` 用 `datetime()` 落的是 **temporal** 值)
+        # 与 `$startDate` (调用方 `datetime.isoformat()` 落的是**字符串**) 直接
+        # 比较。2026-08-31 于 7692 实测:
+        #
+        #     WITH datetime('2026-06-01T00:00:00Z') AS t, '2026-01-01T00:00:00' AS lo
+        #     RETURN t >= lo, (t >= lo) IS NULL     →  null, true
+        #
+        # 即**比较运算符对不可比类型返回 null**, WHERE 不满足 ⇒ 带 startDate 的
+        # 查询恒空。(Neo4j 文档里"跨类型有序"那套规则管的是 ORDER BY 的排序上下文,
+        # 不是 `<`/`>=` 比较运算符 —— 这两件事容易被混为一谈, 故留实测在此。)
+        #
+        # 也就是说 **Cypher 路径的日期过滤本身就是坏的**(既有缺陷, G4-1a 之前
+        # 即如此, 与跨库读无关)。本卡把降级路径修成**正确**语义, 因此这两条路径
+        # 在带日期过滤时**不等价**: 降级侧对、Cypher 侧恒空。修 Cypher 侧要动
+        # 写侧类型或读侧参数类型, 属另一张卡, 已在验收单登记。不要据此认为两侧已对齐。
+        start_date = params.get("startDate")
+        end_date = params.get("endDate")
+        concept_filter = params.get("concept")
+
         for rel in self._data.get("relationships", []):
             if user_id and rel["user_id"] != user_id:
                 continue
-            if concept_id and rel.get("concept_id") != concept_id:
+            if concept_id and not _concept_id_matches(rel, concept_id):
                 continue
-            if scope and not group_in_read_scope(rel.get("group_id"), scope):
+            if not group_in_read_scope(rel.get("group_id"), scope):
                 continue
+            if start_date or end_date:
+                ts = _as_utc(rel.get("timestamp"))
+                if ts is None:
+                    continue
+                # Codex round-4 Q3'' 整改: **边界**解析失败也要 fail-closed。
+                # 原来 `lo/hi` 为 None 时过滤被整个跳过 —— 调用方传了个畸形
+                # startDate, 结果是"过滤悄悄消失、全都放行", 正是本卡在别处反复
+                # 堵的那种"把没生效当成没限制"。传了就必须能解析。
+                lo = _as_utc(start_date) if start_date else None
+                hi = _as_utc(end_date) if end_date else None
+                if (start_date and lo is None) or (end_date and hi is None):
+                    logger.error(
+                        "[G4-1b] JSON fallback history query has unparseable date "
+                        "bound (startDate=%r, endDate=%r) — refusing to drop the "
+                        "filter silently",
+                        start_date,
+                        end_date,
+                    )
+                    continue
+                if lo is not None and ts < lo:
+                    continue
+                if hi is not None and ts > hi:
+                    continue
+            if concept_filter:
+                name = rel.get("concept_name") or ""
+                if str(concept_filter).lower() not in str(name).lower():
+                    continue
 
             results.append(
                 {
@@ -799,6 +919,14 @@ class Neo4jClient:
         # Sort by timestamp (newest first)
         results.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
 
+        # Codex round-1 HIGH-2 整改: 尊重查询自带的 limit。本 handler 是**中途
+        # 降级**的落点, 三个调用方 (learning_history / concept_history /
+        # all_recent_episodes) 的 Cypher 都写了 `LIMIT $limit` 且都把 limit 放进
+        # 了 params —— 降级后忽略它, 会让同一次调用在"Neo4j 活着"与"跑一半挂了"
+        # 两种情况下返回不同条数。
+        limit = params.get("limit")
+        if isinstance(limit, int) and limit >= 0:
+            return results[:limit]
         return results
 
     async def create_learning_relationship(
@@ -965,27 +1093,90 @@ class Neo4jClient:
         return suggestions
 
     async def get_concept_history(
-        self, concept_id: str, user_id: Optional[str] = None, limit: int = 50
+        self,
+        concept_id: str,
+        user_id: Optional[str] = None,
+        limit: int = 50,
+        group_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         Get learning history for a specific concept.
 
         ✅ Verified from AC-22.4.3: GET /api/v1/memory/concepts/{id}/history
 
+        CARD-G4-1b (2026-08-31) — **名实一致修复 + 读作用域收口**。
+
+        修复前本方法**无论是否连着 Neo4j** 都直接调 ``_handle_query_history``,
+        即永远读 JSON 模拟器的 ``self._data``。真实部署走 Neo4j 模式时
+        ``self._data`` 是空壳 ⇒ ``/api/v1/memory/concepts/{id}/history``
+        端点**恒返回空 timeline**, 而调用方只能把它读成"这个概念没学过"。
+        名字叫 "get_concept_history"、实际从不查图 —— DD-13 名实一致的典型。
+        本卡补上真实 Cypher 分支 (模板取自 :meth:`get_learning_history`,
+        加概念点查条件), JSON 路径退回它本来的位置: **降级** fallback。
+        ⚠️ 产品可见变化: 该端点从"恒 EMPTY"变成"可能有数据"。
+
+        读作用域走统一链 ``read_scope_params`` (显式 → per-request ContextVar
+        → active vault → 解析不出即抛), ``r`` / ``c`` 两个 alias 逐一过滤
+        (R1「每个 alias 逐一过滤」), 等值 OR 前缀语义 (现网存量 Concept /
+        LEARNED 全在 punycode 子组, 等值锚 vault 根组会整页空)。
+
         Args:
-            concept_id: Concept ID
+            concept_id: Concept ID **或概念名** (见 :data:`_CONCEPT_ID_MATCH_CYPHER`)
             user_id: Optional user ID filter
             limit: Maximum results
+            group_id: 读作用域 (G4-1b); 省略时按统一链推导
 
         Returns:
             List of learning history records
+
+        Raises:
+            VaultScopeUnresolved: group 解析失败 (拒绝无作用域读取)
         """
-        params = {"conceptId": concept_id, "limit": limit}
+        from app.core.vault_scope import read_group_filter, read_scope_params
+
+        scope_params = read_scope_params(
+            group_id, context="neo4j_client.get_concept_history"
+        )
+        params: Dict[str, Any] = {
+            "conceptId": concept_id,
+            "limit": limit,
+            **scope_params,
+        }
         if user_id:
             params["userId"] = user_id
 
-        results = await self._handle_query_history(params)
-        return results[:limit]
+        if self._use_json_fallback:
+            results = await self._handle_query_history(params)
+            return results[:limit]
+
+        user_clause = " AND u.id = $userId" if user_id else ""
+        query = f"""
+        MATCH (u:User)-[r:LEARNED]->(c:Concept)
+        WHERE {_CONCEPT_ID_MATCH_CYPHER}
+          AND {read_group_filter("r")}
+          AND {read_group_filter("c")}{user_clause}
+        RETURN u.id as user_id,
+               c.name as concept,
+               c.id as concept_id,
+               r.score as score,
+               r.timestamp as timestamp,
+               r.group_id as group_id,
+               r.review_count as review_count
+        ORDER BY r.timestamp DESC
+        LIMIT $limit
+        """
+        results = await self.run_query(query, **params)
+
+        # T1 统一 (2026-07-10): 物理 __ 格式读回后转 D16 冒号, 与
+        # get_learning_history 的对外输出契约一致 (R5 输出边界还原)。
+        from app.graphiti.group_id_compat import desanitize_group_id_from_graphiti
+
+        for record in results or []:
+            if isinstance(record, dict) and record.get("group_id"):
+                record["group_id"] = desanitize_group_id_from_graphiti(
+                    record["group_id"]
+                )
+        return (results or [])[:limit]
 
     async def get_learning_history(
         self,
@@ -1750,121 +1941,132 @@ class Neo4jClient:
         canvas_path: Optional[str] = None,
         association_type: Optional[str] = None,
         limit: int = 100,
+        group_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         Get Canvas associations from Neo4j graph.
 
         Story 36.5 AC-3: Query canvas associations.
 
+        CARD-G4-1b (2026-08-31) — 读作用域收口 (审计 §5 #11/#12/#13/#14)。
+        原先四个分支按 path / type 全库扫, 零 group 过滤: 两个 vault 里同名
+        白板的关联会互相读到。写侧 ``create_canvas_association`` 已在 G2-3
+        给 Canvas ×2 与 ``ASSOCIATED_WITH`` 三个身份全部落 group_id, 本方法
+        按同一锚点对 **source / r / target 三侧逐一过滤** (R1「每个 alias
+        逐一过滤」; 只锚 source 会依赖"关联两端不跨组"这个在存量图上不可证
+        的前提, 按 R1 只能判 CONDITIONAL)。
+
+        ⚠️ 结构变更说明 (供审阅比对): 原四个分支的 MATCH / RETURN / ORDER /
+        LIMIT **逐字相同**, 只有 WHERE 条件不同。四份拷贝各自加三条过滤极易
+        漂移 (改三处漏一处 = 一条静默泄漏分支), 故合并为按需拼接 WHERE ——
+        与同文件 :meth:`get_learning_history` 的既有写法同型。四种入参组合的
+        行为**逐条等价**于原实现 + group 过滤。
+
         Args:
             canvas_path: Optional filter by source or target canvas path
             association_type: Optional filter by association type
             limit: Maximum results (default: 100)
+            group_id: 读作用域 (G4-1b); 省略时按统一链推导
 
         Returns:
             List of association dicts with all properties
 
+        Raises:
+            VaultScopeUnresolved: group 解析失败 (拒绝无作用域读取)
+
         [Source: docs/stories/36.5.story.md#Task-1.2]
         """
+        from app.core.vault_scope import read_group_filter, read_scope_params
+
+        scope_params = read_scope_params(
+            group_id, context="neo4j_client.get_canvas_associations"
+        )
+
         if self._use_json_fallback:
-            return await self._get_associations_json_fallback(canvas_path, association_type, limit)
-
-        # Build dynamic query based on filters
-        if canvas_path and association_type:
-            query = """
-            MATCH (source:Canvas)-[r:ASSOCIATED_WITH]->(target:Canvas)
-            WHERE (source.path = $canvasPath OR target.path = $canvasPath)
-              AND r.association_type = $associationType
-            RETURN r.association_id as association_id,
-                   source.path as source_canvas,
-                   target.path as target_canvas,
-                   r.association_type as association_type,
-                   r.confidence as confidence,
-                   r.shared_concepts as shared_concepts,
-                   r.bidirectional as bidirectional,
-                   r.auto_generated as auto_generated,
-                   r.created_at as created_at,
-                   r.updated_at as updated_at
-            ORDER BY r.created_at DESC
-            LIMIT $limit
-            """
-            results = await self.run_query(
-                query,
-                canvasPath=canvas_path,
-                associationType=association_type,
-                limit=limit,
+            return await self._get_associations_json_fallback(
+                canvas_path, association_type, limit, group_id=group_id
             )
-        elif canvas_path:
-            query = """
-            MATCH (source:Canvas)-[r:ASSOCIATED_WITH]->(target:Canvas)
-            WHERE source.path = $canvasPath OR target.path = $canvasPath
-            RETURN r.association_id as association_id,
-                   source.path as source_canvas,
-                   target.path as target_canvas,
-                   r.association_type as association_type,
-                   r.confidence as confidence,
-                   r.shared_concepts as shared_concepts,
-                   r.bidirectional as bidirectional,
-                   r.auto_generated as auto_generated,
-                   r.created_at as created_at,
-                   r.updated_at as updated_at
-            ORDER BY r.created_at DESC
-            LIMIT $limit
-            """
-            results = await self.run_query(query, canvasPath=canvas_path, limit=limit)
-        elif association_type:
-            query = """
-            MATCH (source:Canvas)-[r:ASSOCIATED_WITH]->(target:Canvas)
-            WHERE r.association_type = $associationType
-            RETURN r.association_id as association_id,
-                   source.path as source_canvas,
-                   target.path as target_canvas,
-                   r.association_type as association_type,
-                   r.confidence as confidence,
-                   r.shared_concepts as shared_concepts,
-                   r.bidirectional as bidirectional,
-                   r.auto_generated as auto_generated,
-                   r.created_at as created_at,
-                   r.updated_at as updated_at
-            ORDER BY r.created_at DESC
-            LIMIT $limit
-            """
-            results = await self.run_query(query, associationType=association_type, limit=limit)
-        else:
-            query = """
-            MATCH (source:Canvas)-[r:ASSOCIATED_WITH]->(target:Canvas)
-            RETURN r.association_id as association_id,
-                   source.path as source_canvas,
-                   target.path as target_canvas,
-                   r.association_type as association_type,
-                   r.confidence as confidence,
-                   r.shared_concepts as shared_concepts,
-                   r.bidirectional as bidirectional,
-                   r.auto_generated as auto_generated,
-                   r.created_at as created_at,
-                   r.updated_at as updated_at
-            ORDER BY r.created_at DESC
-            LIMIT $limit
-            """
-            results = await self.run_query(query, limit=limit)
 
-        return results
+        params: Dict[str, Any] = {"limit": limit, **scope_params}
+        conditions = [
+            read_group_filter("source"),
+            read_group_filter("r"),
+            read_group_filter("target"),
+        ]
+        if canvas_path:
+            conditions.append("(source.path = $canvasPath OR target.path = $canvasPath)")
+            params["canvasPath"] = canvas_path
+        if association_type:
+            conditions.append("r.association_type = $associationType")
+            params["associationType"] = association_type
+
+        where_clause = "\n              AND ".join(conditions)
+        query = f"""
+        MATCH (source:Canvas)-[r:ASSOCIATED_WITH]->(target:Canvas)
+        WHERE {where_clause}
+        RETURN r.association_id as association_id,
+               source.path as source_canvas,
+               target.path as target_canvas,
+               r.association_type as association_type,
+               r.confidence as confidence,
+               r.shared_concepts as shared_concepts,
+               r.bidirectional as bidirectional,
+               r.auto_generated as auto_generated,
+               r.created_at as created_at,
+               r.updated_at as updated_at
+        ORDER BY r.created_at DESC
+        LIMIT $limit
+        """
+        return await self.run_query(query, **params)
 
     async def _get_associations_json_fallback(
-        self, canvas_path: Optional[str], association_type: Optional[str], limit: int
+        self,
+        canvas_path: Optional[str],
+        association_type: Optional[str],
+        limit: int,
+        group_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         Get canvas associations from JSON fallback storage.
 
         Story 36.5 AC-3: JSON fallback mode preserved.
 
+        CARD-G4-1b (2026-08-31): 与 Cypher 侧**同批**加 group 过滤 —— 只封
+        Cypher 一侧, "把 Neo4j 弄挂"就能把刚封的跨 vault 面整个拿回来。写侧
+        ``_create_association_json_fallback`` 的记录本就带 ``group_id``
+        (G2-3 W1 镜像), 本方法按同一 scope 语义过滤。
+
+        ⚠️ **可见面等价的边界**(Codex round-1 MEDIUM, 如实声明): JSON 存储是
+        **反规范化**的 —— 一条关联记录只带**一个** ``group_id``, 而 Cypher 侧
+        过滤的是 ``source`` / ``r`` / ``target`` **三个** alias。对本仓写侧产出的
+        数据 (三者同组) 两侧结果相同; 但对"关系在 A、端点在 B"这类**存量错组**
+        数据, Cypher 会拒、JSON 会放行。镜像层无法表达 per-alias 归属, 这是存储
+        形态决定的上限, 不是本卡漏改。
+
+        Args:
+            canvas_path: Optional filter by source or target canvas path
+            association_type: Optional filter by association type
+            limit: Maximum results
+            group_id: 读作用域 (与 Cypher 路径同一解析链)
+
+        Raises:
+            VaultScopeUnresolved: group 解析失败 (拒绝无作用域读取)
+
         [Source: docs/stories/36.5.story.md#Task-1.2]
         """
+        from app.core.vault_scope import group_in_read_scope, require_read_group
+
+        scope = require_read_group(
+            group_id, context="neo4j_client._get_associations_json_fallback"
+        )
         associations = self._data.get("canvas_associations", [])
         results = []
 
         for assoc in associations:
             # Apply filters
+            if not group_in_read_scope(assoc.get("group_id"), scope):
+                continue
+
             if canvas_path:
                 if assoc.get("source_canvas") != canvas_path and assoc.get("target_canvas") != canvas_path:
                     continue
@@ -2087,18 +2289,30 @@ class Neo4jClient:
         logger.warning(f"Canvas association not found (JSON): {association_id}")
         return False
 
-    async def load_all_canvas_associations(self) -> List[Dict[str, Any]]:
+    async def load_all_canvas_associations(
+        self, group_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """
         Load all canvas associations at startup.
 
         Story 36.5 AC-4: Load existing associations from Neo4j on startup.
 
+        CARD-G4-1b: "all" 指**本作用域内**全部, 不是全库 —— 名字里的 all
+        沿用 Story 36.5 原义 (无 path/type 过滤), 作用域仍由
+        :meth:`get_canvas_associations` 统一收口。
+
+        Args:
+            group_id: 读作用域 (G4-1b); 省略时按统一链推导
+
         Returns:
-            List of all canvas associations
+            List of all canvas associations in scope
+
+        Raises:
+            VaultScopeUnresolved: group 解析失败 (拒绝无作用域读取)
 
         [Source: docs/stories/36.5.story.md#Task-3.1]
         """
-        return await self.get_canvas_associations(limit=10000)
+        return await self.get_canvas_associations(limit=10000, group_id=group_id)
 
     # =========================================================================
     # Canvas Concept Query Methods
@@ -2106,133 +2320,241 @@ class Neo4jClient:
     # [Source: docs/stories/36.6.story.md]
     # =========================================================================
 
-    async def get_canvas_concepts(self, canvas_path: str) -> List[str]:
+    async def get_canvas_concepts(
+        self, canvas_path: str, group_id: Optional[str] = None
+    ) -> List[str]:
         """
         Get all concepts associated with a Canvas.
 
         Story 36.6 Task 2.1: Query concepts from Canvas via Neo4j.
 
-        Cypher query:
-        ```
-        MATCH (c:Canvas {path: $canvas_path})-[:CONTAINS]->(n:LearningNode)-[:HAS_CONCEPT]->(concept:Concept)
-        RETURN DISTINCT concept.name as concept_name
-        ```
+        CARD-G4-1b (2026-08-31) — 读作用域收口 (审计 §5 #17)。原先按
+        ``Canvas.path`` 全库扫, UNION 两个分支均无 group 过滤: canvas path
+        只在 vault 内唯一 (读契约 R3 明列的反例), 两个 vault 里同名白板会
+        互相读到对方的节点文本。
+
+        逐 alias 过滤口径:
+        - 分支 1 (``CONTAINS_NODE``/``Node``): ``c`` / ``cn`` / ``n`` 三个
+          alias 全过滤 —— 写侧 G2-3 给 Canvas / Node / CONTAINS_NODE 三者都
+          落了 group_id, 关系侧可查且必须查 (R1)。
+        - 分支 2 (``CONTAINS``/``LearningNode``/``HAS_CONCEPT``): 过滤
+          ``c`` / ``n`` / ``concept`` **三个节点 alias**; 两个关系类型
+          **不过滤**, 因为全仓**没有任何写侧**产出它们 (grep: LearningNode /
+          CONTAINS / HAS_CONCEPT 只出现在本文件的读查询与 docstring 里),
+          它们身上不存在 group_id 属性 —— 给一个恒不存在的属性加等值过滤,
+          只会让这条本就结构性死掉的分支变成"恒空", 掩盖它是死分支的事实,
+          属于假门。两端节点都已过滤, R1 的"全覆盖"由此成立 (不依赖
+          "关系不跨组"这个不可证前提)。
 
         Args:
             canvas_path: Canvas file path
+            group_id: 读作用域 (G4-1b); 省略时按统一链推导
 
         Returns:
             List of concept names associated with the Canvas
 
+        Raises:
+            VaultScopeUnresolved: group 解析失败 (拒绝无作用域读取)
+
         [Source: docs/stories/36.6.story.md#Task-2.1]
         """
-        if self._use_json_fallback:
-            return await self._get_canvas_concepts_json_fallback(canvas_path)
+        from app.core.vault_scope import read_group_filter, read_scope_params
 
-        query = """
-        MATCH (c:Canvas {path: $canvasPath})-[:CONTAINS_NODE]->(n:Node)
+        scope_params = read_scope_params(
+            group_id, context="neo4j_client.get_canvas_concepts"
+        )
+
+        if self._use_json_fallback:
+            return await self._get_canvas_concepts_json_fallback(
+                canvas_path, group_id=group_id
+            )
+
+        query = f"""
+        MATCH (c:Canvas {{path: $canvasPath}})-[cn:CONTAINS_NODE]->(n:Node)
         WHERE n.text IS NOT NULL AND n.text <> ''
+          AND {read_group_filter("c")}
+          AND {read_group_filter("cn")}
+          AND {read_group_filter("n")}
         RETURN DISTINCT n.text as concept_name
         UNION
-        MATCH (c:Canvas {path: $canvasPath})-[:CONTAINS]->(n:LearningNode)-[:HAS_CONCEPT]->(concept:Concept)
+        MATCH (c:Canvas {{path: $canvasPath}})-[:CONTAINS]->(n:LearningNode)-[:HAS_CONCEPT]->(concept:Concept)
+        WHERE {read_group_filter("c")}
+          AND {read_group_filter("n")}
+          AND {read_group_filter("concept")}
         RETURN DISTINCT concept.name as concept_name
         """
-        results = await self.run_query(query, canvasPath=canvas_path)
+        results = await self.run_query(query, canvasPath=canvas_path, **scope_params)
 
         return [r["concept_name"] for r in results if r.get("concept_name")]
 
-    async def _get_canvas_concepts_json_fallback(self, canvas_path: str) -> List[str]:
+    async def _get_canvas_concepts_json_fallback(
+        self, canvas_path: str, group_id: Optional[str] = None
+    ) -> List[str]:
         """
         Get canvas concepts from JSON fallback storage.
 
         Story 36.6 Task 2.1: JSON fallback mode.
 
+        CARD-G4-1b (2026-08-31): 与 Cypher 侧同批加 group 过滤。
+
+        ⚠️ ``canvas_concepts`` 映射表 (``{path: [names]}``) **不带任何归属
+        信息** —— 它是纯 path→names 的字典, 无处施加 scope。本卡的处置是
+        **停止读它**并显式记录理由, 而不是"当作本 vault 的数据放行": 后者
+        在多 vault 下就是按同名 path 串读。全仓无任何写侧向该键写入 (grep
+        ``canvas_concepts`` 只有本方法一处读), 故这不是功能损失。
+
+        ⚠️⚠️ **本镜像与 Cypher 侧不是语义等价的, 本卡也不宣称等价**
+        (Codex round-2 Q2 如实声明):
+
+        - Cypher 侧走的是图遍历 ``Canvas -[CONTAINS_NODE]-> Node``;
+          JSON 存储里**根本没有 Canvas/Node 实体**, 只有一张扁平的
+          ``relationships`` 表, 镜像只能用 ``rel["canvas_path"]`` 近似。
+        - 而全仓唯一往 ``self._data["relationships"]`` 写记录的地方是
+          ``_handle_merge_learning``, 它写入的键是
+          ``id / user_id / concept_id / concept_name / timestamp /
+          last_score / next_review / review_count / group_id``
+          —— **不含 ``canvas_path``**。也就是说本镜像在真实数据上**恒返回空**,
+          它是结构性死分支 (与它背后那三个零调用方的 Cypher 方法同属
+          G-PIPE-008 双料僵尸)。
+
+        本卡对这一族给出的保证**只有作用域收口**: 凡是能被本镜像返回的记录,
+        必须落在读作用域内 (单测用合成 fixture 锁死这条)。"两条路径返回同一个
+        结果集"这种更强的说法在这里**不成立**, 不要据此推断降级前后体验一致。
+
         Args:
             canvas_path: Canvas file path
+            group_id: 读作用域 (与 Cypher 路径同一解析链)
 
         Returns:
             List of concept names
 
+        Raises:
+            VaultScopeUnresolved: group 解析失败 (拒绝无作用域读取)
+
         [Source: docs/stories/36.6.story.md#Task-2.1]
         """
+        from app.core.vault_scope import group_in_read_scope, require_read_group
+
+        scope = require_read_group(
+            group_id, context="neo4j_client._get_canvas_concepts_json_fallback"
+        )
         concepts = set()
 
         # Check relationships for concepts linked to this canvas
         for rel in self._data.get("relationships", []):
-            # Check if relationship mentions this canvas path
-            if canvas_path in str(rel.get("canvas_path", "")) or canvas_path in str(rel.get("source", "")):
+            if not group_in_read_scope(rel.get("group_id"), scope):
+                continue
+            # Codex round-1 HIGH-1 整改: **精确**匹配, 与 Cypher 的
+            # `MATCH (c:Canvas {path: $canvasPath})` 同形 (原来是子串包含,
+            # `x/a.canvas.bak` 会被 `a.canvas` 命中)。
+            # Codex round-2 Q2 整改: 去掉 `rel.get("source") == canvas_path`
+            # 这一支 —— 全仓没有任何写侧往关系记录里放 `source`, 它是**无法证明
+            # 含义**的匹配面 (读契约 R3 反对的那类"来源不可证的标识符")。
+            if rel.get("canvas_path") == canvas_path:
                 concept_name = rel.get("concept_name") or rel.get("concept")
                 if concept_name:
                     concepts.add(concept_name)
 
-        # Also check canvas_concepts mapping if exists
-        canvas_concepts_map = self._data.get("canvas_concepts", {})
-        if canvas_path in canvas_concepts_map:
-            concepts.update(canvas_concepts_map[canvas_path])
-
         return list(concepts)
 
-    async def find_common_concepts(self, canvas1: str, canvas2: str) -> List[str]:
+    async def find_common_concepts(
+        self, canvas1: str, canvas2: str, group_id: Optional[str] = None
+    ) -> List[str]:
         """
         Find common concepts between two Canvases.
 
         Story 36.6 Task 2.2: Query common concepts from Neo4j.
 
-        Cypher query:
-        ```
-        MATCH (c1:Canvas {path: $canvas1})-[:CONTAINS]->(n1:LearningNode)-[:HAS_CONCEPT]->(concept:Concept)
-        MATCH (c2:Canvas {path: $canvas2})-[:CONTAINS]->(n2:LearningNode)-[:HAS_CONCEPT]->(concept)
-        RETURN DISTINCT concept.name as common_concept
-        ```
+        CARD-G4-1b (2026-08-31) — 读作用域收口 (审计 §5 #18)。原先只按两个
+        canvas path 定位、零 group 过滤 —— 而 canvas path 只在 vault 内唯一,
+        "两块白板的共同概念"会把另一个 vault 里同名白板的节点算进来。
+        四个 alias (``c1`` / ``cn1`` / ``n1`` / 以及 ``c2`` / ``cn2`` / ``n2``)
+        逐一过滤, 与 :meth:`get_canvas_concepts` 分支 1 同口径。
 
         Args:
             canvas1: First Canvas file path
             canvas2: Second Canvas file path
+            group_id: 读作用域 (G4-1b); 省略时按统一链推导
 
         Returns:
             List of common concept names
 
+        Raises:
+            VaultScopeUnresolved: group 解析失败 (拒绝无作用域读取)
+
         [Source: docs/stories/36.6.story.md#Task-2.2]
         """
-        if self._use_json_fallback:
-            return await self._find_common_concepts_json_fallback(canvas1, canvas2)
+        from app.core.vault_scope import read_group_filter, read_scope_params
 
-        query = """
-        MATCH (c1:Canvas {path: $canvas1})-[:CONTAINS_NODE]->(n1:Node)
+        scope_params = read_scope_params(
+            group_id, context="neo4j_client.find_common_concepts"
+        )
+
+        if self._use_json_fallback:
+            return await self._find_common_concepts_json_fallback(
+                canvas1, canvas2, group_id=group_id
+            )
+
+        query = f"""
+        MATCH (c1:Canvas {{path: $canvas1}})-[cn1:CONTAINS_NODE]->(n1:Node)
         WHERE n1.text IS NOT NULL AND n1.text <> ''
+          AND {read_group_filter("c1")}
+          AND {read_group_filter("cn1")}
+          AND {read_group_filter("n1")}
         WITH COLLECT(DISTINCT n1.text) as concepts1
-        MATCH (c2:Canvas {path: $canvas2})-[:CONTAINS_NODE]->(n2:Node)
+        MATCH (c2:Canvas {{path: $canvas2}})-[cn2:CONTAINS_NODE]->(n2:Node)
         WHERE n2.text IS NOT NULL AND n2.text <> ''
+          AND {read_group_filter("c2")}
+          AND {read_group_filter("cn2")}
+          AND {read_group_filter("n2")}
         WITH concepts1, COLLECT(DISTINCT n2.text) as concepts2
         RETURN [c IN concepts1 WHERE c IN concepts2] as common_concepts
         """
-        results = await self.run_query(query, canvas1=canvas1, canvas2=canvas2)
+        results = await self.run_query(
+            query, canvas1=canvas1, canvas2=canvas2, **scope_params
+        )
 
         if results and results[0].get("common_concepts"):
             return results[0]["common_concepts"]
         return []
 
-    async def _find_common_concepts_json_fallback(self, canvas1: str, canvas2: str) -> List[str]:
+    async def _find_common_concepts_json_fallback(
+        self, canvas1: str, canvas2: str, group_id: Optional[str] = None
+    ) -> List[str]:
         """
         Find common concepts between two canvases from JSON fallback storage.
 
         Story 36.6 Task 2.2: JSON fallback mode.
 
+        CARD-G4-1b: scope 透传给两次 ``_get_canvas_concepts_json_fallback``
+        —— 交集的两边必须取自**同一个**可见面, 否则"共同概念"会由跨 vault
+        的一侧凑出来。
+
         Args:
             canvas1: First Canvas file path
             canvas2: Second Canvas file path
+            group_id: 读作用域 (与 Cypher 路径同一解析链)
 
         Returns:
             List of common concept names
 
+        Raises:
+            VaultScopeUnresolved: group 解析失败 (拒绝无作用域读取)
+
         [Source: docs/stories/36.6.story.md#Task-2.2]
         """
-        concepts1 = set(await self._get_canvas_concepts_json_fallback(canvas1))
-        concepts2 = set(await self._get_canvas_concepts_json_fallback(canvas2))
+        concepts1 = set(
+            await self._get_canvas_concepts_json_fallback(canvas1, group_id=group_id)
+        )
+        concepts2 = set(
+            await self._get_canvas_concepts_json_fallback(canvas2, group_id=group_id)
+        )
 
         return list(concepts1.intersection(concepts2))
 
-    async def get_all_recent_episodes(self, limit: int = 1000) -> List[Dict[str, Any]]:
+    async def get_all_recent_episodes(
+        self, limit: int = 1000, group_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """
         Get all recent learning episodes across all users.
 
@@ -2240,19 +2562,55 @@ class Neo4jClient:
         Used by MemoryService._recover_episodes_from_neo4j() to populate
         the in-memory episode cache on restart.
 
+        CARD-G4-1b (2026-08-31) — 读作用域收口 (审计 §5 #19)。原查询是
+        ``MATCH (u:User)-[r:LEARNED]->(c:Concept)`` 全库扫 (只有 LIMIT),
+        是本族里泄漏面最大的一条: 它的产物直接进**进程级** episode 缓存,
+        于是 Tier 3 缓存召回、学习历史兜底全都能看到别的 vault 的记录。
+        ``r`` / ``c`` 两个 alias 逐一过滤 (``u:User`` 是跨 vault 共享的身份
+        节点, 无 group_id 属性, 不参与过滤 —— 归属由 LEARNED 边与 Concept
+        承载)。
+
+        ⚠️ 方法名里的 "all" 从"全库所有 vault"收窄为"**本作用域族内**所有"
+        (等值 OR 前缀)。2026-08-30 现网 7691 只读实测: 全库唯一的 LEARNED
+        边落在 ``vault__canvas_vault__xn--jhqx6ce6ettpca6420ada2925d``,
+        即 active vault 的 punycode 子组 —— 按 active vault 根组 + 前缀语义
+        装载, 与收窄前的现网返回相同。语义收窄是真的 (多 vault 部署下不再装
+        别的 vault)。
+
+        ⚠️ **"相同"是 2026-08-30 的快照结论, 不是代码不变量**(Codex round-1
+        MEDIUM 整改): 它成立的前提是"当时全库只有一条 LEARNED 边且属于 active
+        vault"。只要别的 vault 写入了更新的记录、或本 vault 记录数超过
+        ``limit``、或同 timestamp 排序不稳定, 收窄前后的 top-N 序列就会不同。
+        那属于**预期内的修复**(少装别的 vault), 不是回归 —— 但不可以拿这句
+        "相同"当持续保证。
+
         Args:
             limit: Maximum number of episodes to return (default: 1000)
+            group_id: 读作用域 (G4-1b); 省略时按统一链推导。
+                恢复路径请**显式**传 active vault 根组 —— 见
+                ``memory_service._recover_episodes_from_neo4j`` 的说明。
 
         Returns:
             List of episode dicts with user_id, concept, score, timestamp, etc.
 
+        Raises:
+            VaultScopeUnresolved: group 解析失败 (拒绝无作用域读取)
+
         [Source: docs/stories/38.2.story.md#Task-1]
         """
-        if self._use_json_fallback:
-            return await self._get_all_recent_episodes_json(limit)
+        from app.core.vault_scope import read_group_filter, read_scope_params
 
-        query = """
+        scope_params = read_scope_params(
+            group_id, context="neo4j_client.get_all_recent_episodes"
+        )
+
+        if self._use_json_fallback:
+            return await self._get_all_recent_episodes_json(limit, group_id=group_id)
+
+        query = f"""
         MATCH (u:User)-[r:LEARNED]->(c:Concept)
+        WHERE {read_group_filter("r")}
+          AND {read_group_filter("c")}
         RETURN u.id as user_id,
                c.name as concept,
                c.id as concept_id,
@@ -2263,19 +2621,48 @@ class Neo4jClient:
         ORDER BY r.timestamp DESC
         LIMIT $limit
         """
-        return await self.run_query(query, limit=limit)
+        # Codex round-1 HIGH-2 整改: 外层再切一次 limit。Cypher 的 `LIMIT $limit`
+        # 在**中途降级**时不生效 —— 那条路走 `_run_query_json_fallback` 的关键词
+        # 路由, Cypher 文本里的 LIMIT 只是字符串。不补这一刀, "启动即 JSON 模式"
+        # (走 `_get_all_recent_episodes_json`, 有切片) 与"运行中切 JSON"会返回
+        # 不同条数。
+        rows = await self.run_query(query, limit=limit, **scope_params)
+        return (rows or [])[:limit]
 
-    async def _get_all_recent_episodes_json(self, limit: int = 1000) -> List[Dict[str, Any]]:
+    async def _get_all_recent_episodes_json(
+        self, limit: int = 1000, group_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """
         JSON fallback: get all recent episodes from relationships.
 
         Story 38.2 AC-2: JSON fallback for episode recovery.
 
+        CARD-G4-1b: 与 Cypher 侧同批加 scope 过滤 —— 单侧封堵可被"把 Neo4j
+        弄挂"绕过。
+
+        ⚠️ **可见面等价的边界**(同 ``_get_associations_json_fallback``): 本镜像
+        按记录自带的单个 ``group_id`` 过滤, Cypher 侧过滤 ``r`` / ``c`` 两个
+        alias。本仓写侧两者同组 ⇒ 结果相同; 存量错组数据下 Cypher 更严。
+
+        Args:
+            limit: Maximum number of episodes to return
+            group_id: 读作用域 (与 Cypher 路径同一解析链)
+
+        Raises:
+            VaultScopeUnresolved: group 解析失败 (拒绝无作用域读取)
+
         [Source: docs/stories/38.2.story.md#Task-1.2]
         """
+        from app.core.vault_scope import group_in_read_scope, require_read_group
+
+        scope = require_read_group(
+            group_id, context="neo4j_client._get_all_recent_episodes_json"
+        )
         rels = self._data.get("relationships", [])
         results = []
         for rel in rels:
+            if not group_in_read_scope(rel.get("group_id"), scope):
+                continue
             # Field mapping: JSON storage uses different names than Cypher output
             # JSON "concept_name" → output "concept" (matches Cypher c.name as concept)
             # JSON "last_score" → output "score" (matches Cypher r.score as score)
