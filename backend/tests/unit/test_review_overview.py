@@ -11,6 +11,7 @@ CARD-G3-6a (BATCH-2026-08-29-第六批) 追加: 五桶分层计数消费与跨�
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -40,17 +41,24 @@ def _utc_z(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+#: bucket 缺省哨兵: 按 due_reason 推导 (生产器构造律 —— due_nodes 行只可能落
+#: 到期三桶, 且 new 桶 ⟺ due_reason=="new")。显式传 bucket 的用例不受影响。
+_AUTO_BUCKET = "__auto__"
+
+
 def _due_row(
     node: str,
     board,
     *,
     due_reason: str = "new",
     fsrs_due: str = "",
-    bucket: str = "new",
+    bucket: str | None = _AUTO_BUCKET,
     why_due: str = "新卡未排期，视同即刻到期 · 从未考察",
 ):
     """daily_review_pick.build_payload due_rows 的全字段真形状
     (CARD-G3-6a 起行尾多 bucket/why_due 两个加性字段)。"""
+    if bucket == _AUTO_BUCKET:
+        bucket = "new" if due_reason == "new" else "due_now"
     return {
         "node": node,
         "board": board,
@@ -1730,3 +1738,285 @@ def test_missing_vault_id_is_422_not_silent_noop(refresh_env):
     resp = client.post(_REFRESH_URL, data={})
     assert resp.status_code == 422
     assert not (root / "vault-m" / "outputs").exists()
+
+
+# ════════════════════════════════════════════════════════════════════
+# CARD-G6-4 节点级明细与精确开节点 (BATCH-2026-08-31-第七批)
+#
+# 8 类探针 (沿 CARD-D1 复核的敌对形状思路):
+#   ① 展开结构与顺序 ② 字段渲染 ③ 深链编码 ④ 降级(旧投影/零到期/无投影)
+#   ⑤ XSS 转义 ⑥ 形状垃圾门禁 ⑦ JSON 加性契约与同源 ⑧ 窄窗不横溢(结构性)
+# 零 schema 改动: 全部字段都已在 due_nodes 行里, 本卡只是把它们渲染出来。
+# ════════════════════════════════════════════════════════════════════
+
+
+def _nodes_projection(vault_id: str, rows: list[dict], *, generated_at=None, top: list | None = None) -> dict:
+    """带 bucket/why_due 的 due_nodes 明细投影 (不含顶层 buckets 键 —— 本卡
+    只消费行内字段, 顶层分组的跨源对账归 G3-6a 既有用例)。"""
+    gen = generated_at or _now_local().isoformat(timespec="seconds")
+    boards = sorted({r["board"] for r in rows})
+    return _projection(
+        vault_id,
+        generated_at=gen,
+        due_nodes=rows,
+        stats={"due_nodes": len(rows)},
+        top_boards=top
+        if top is not None
+        else [{"board": b, "top_node": rows[0]["node"], "pending": 1} for b in boards],
+    )
+
+
+def test_g64_expand_structure_and_urgency_order(overview_env):
+    """① 展开结构 + 顺序: 每个有到期节点的板恰好一个 details/summary,
+    节点条数 == 该板到期数; 顺序按紧迫度 —— 逾期最久在最前, 新卡("现在")
+    排在已逾期节点之后。
+
+    顺序这条不是审美: 字典序把新卡的空串当最小, 会让"逾期 3 天"被"现在"
+    盖掉 —— CARD-D1 复核在板级 earliest 上抓过同一个缺陷, 明细里不许重犯。
+    """
+    root, client = overview_env
+    now = _now_local()
+    rows = [
+        _due_row("新卡节点", "甲板"),  # fsrs_due="" → 现在
+        _due_row("逾期3天", "甲板", due_reason="scheduled", fsrs_due=_utc_z(now - timedelta(days=3))),
+        _due_row("逾期1天", "甲板", due_reason="scheduled", fsrs_due=_utc_z(now - timedelta(days=1))),
+        _due_row("乙板节点", "乙板", due_reason="scheduled", fsrs_due=_utc_z(now - timedelta(days=2))),
+    ]
+    _mk_vault(root, "vault-a", _nodes_projection("vault-a", rows))
+
+    p = client.get("/api/v1/review/overview").json()["vaults"][0]["projection"]
+    by = {b["board"]: b for b in p["boards"]}
+    assert [n["node"] for n in by["甲板"]["nodes"]] == ["逾期3天", "逾期1天", "新卡节点"], (
+        "逾期最久在前, 新卡(=现在)垫后"
+    )
+    assert len(by["甲板"]["nodes"]) == by["甲板"]["due"] == 3
+    assert [n["node"] for n in by["乙板"]["nodes"]] == ["乙板节点"]
+
+    page = client.get("/api/v1/review/overview/page").text
+    assert page.count("<details") == 2, "两个有到期节点的板各一个折叠区"
+    assert "展开 3 个到期节点" in page and "展开 1 个到期节点" in page
+    # 折叠区必须在整宽行里 (塞进"白板名"单元格会把第一列撑宽挤扁其余四列)
+    assert '<td colspan="5"' in page
+
+
+def test_g64_node_fields_are_rendered_humanized(overview_env):
+    """② 字段渲染: 桶位中文标签 / 到期人话 / why_due 原文都上页。"""
+    root, client = overview_env
+    now = _now_local()
+    rows = [
+        _due_row(
+            "学习中的节点",
+            "甲板",
+            due_reason="scheduled",
+            fsrs_due=_utc_z(now - timedelta(days=5)),
+            bucket="learning_queue",
+            why_due="10 分钟前答错，回炉重学",
+        ),
+        _due_row("崭新节点", "甲板", bucket="new", why_due="新卡未排期，视同即刻到期 · 从未考察"),
+    ]
+    _mk_vault(root, "vault-a", _nodes_projection("vault-a", rows))
+    page = client.get("/api/v1/review/overview/page").text
+
+    assert "学习中" in page and "新卡" in page, "桶位要显示中文标签, 不是机器枚举名"
+    assert "learning_queue" not in page, "机器枚举名不该漏到页面上"
+    assert "10 分钟前答错，回炉重学" in page, "why_due 原文照登"
+    assert "逾期5天" in page and "现在" in page, "到期时刻要人话化"
+
+
+def test_g64_node_deeplink_percent_encoding(overview_env):
+    """③ 深链编码: obsidian://open?vault=<库>&file=节点%2F<名>.md,
+    库名与节点名分别 percent-encode (含中文 / 空格 / & / # / ?)。"""
+    root, client = overview_env
+    tricky = "A&B #1 ? 递归 base-case"
+    rows = [_due_row(tricky, "甲板")]
+    _mk_vault(root, "库 名&带符号", _nodes_projection("库 名&带符号", rows))
+
+    page = client.get("/api/v1/review/overview/page").text
+    expect = (
+        "obsidian://open?vault="
+        + quote("库 名&带符号", safe="")
+        + "&amp;file="  # HTML 属性里 & 转义为 &amp;
+        + quote(f"节点/{tricky}.md", safe="")
+    )
+    assert expect in page, "节点深链缺失或未按 percent-encode 约定"
+    assert "%2F" in expect, "路径分隔符必须编码 (safe='')"
+    # 板深链与节点深链指向不同目录, 不许互相串
+    assert quote("原白板/甲板.md", safe="") in page
+
+
+def test_g64_degradations(overview_env):
+    """④ 降级三态: 旧投影(无 bucket/why_due)不伪造分层标签 / 零到期板无折叠区 /
+    无投影库不出现任何节点深链 (沿 CARD-D1 不做假链接的口径)。"""
+    root, client = overview_env
+    now_iso = _now_local().isoformat(timespec="seconds")
+    # 旧投影: _projection 默认的 due_nodes 行本来就没有 bucket/why_due
+    _mk_vault(root, "vault-old", _projection("vault-old", generated_at=now_iso, due=["老节点"]))
+    _mk_vault(root, "vault-none")  # 无投影
+
+    data = client.get("/api/v1/review/overview").json()
+    old = {v["vault_id"]: v for v in data["vaults"]}["vault-old"]["projection"]
+    node = old["boards"][0]["nodes"][0]
+    assert node["bucket"] is None and node["why_due"] is None, "缺省就是 None, 不许编"
+
+    page = client.get("/api/v1/review/overview/page").text
+    assert "展开 1 个到期节点" in page, "旧投影一样能展开 — 只是少了桶位标签"
+    # 桶位小标签有专属样式串; 旧投影下一个都不该出现 (卡片汇总行的"新卡 N"
+    # 是另一处文案, 用样式串定位可精确区分)
+    assert "border-radius:4px;padding:0 6px;font-size:11px" not in page, "旧投影不许出现伪造的桶位小标签"
+    assert quote("节点/老节点.md", safe="") in page, "旧投影的节点深链照常"
+    # 无投影库: 该库卡片里不许有任何节点深链
+    assert "vault-none" in page and "该库尚无今日复习投影" in page
+    assert page.count(quote("节点/", safe="")) == 1, "只有 vault-old 那一个节点链, 无投影库零链接"
+
+
+def test_g64_zero_due_board_has_no_expander(overview_env):
+    """④(续) 零到期板 (只有未来排期) 没有可展开的到期节点 — 不给空折叠区。"""
+    root, client = overview_env
+    now = _now_local()
+    payload = _projection(
+        "vault-a",
+        generated_at=now.isoformat(timespec="seconds"),
+        due_nodes=[_due_row("甲节点", "甲板")],
+        stats={"due_nodes": 1},
+        upcoming=[{"board": "零到期板", "next_due": _utc_z(now + timedelta(days=3)), "node": "未来节点"}],
+    )
+    _mk_vault(root, "vault-a", payload)
+
+    p = client.get("/api/v1/review/overview").json()["vaults"][0]["projection"]
+    by = {b["board"]: b for b in p["boards"]}
+    assert by["零到期板"]["due"] == 0 and by["零到期板"]["nodes"] == []
+    page = client.get("/api/v1/review/overview/page").text
+    assert page.count("<details") == 1, "只有甲板一个折叠区"
+    assert "零到期板" in page and "未来节点" not in page, "未来节点不在 due_nodes 里, 不该被渲染成到期节点"
+
+
+def test_g64_hostile_node_strings_are_escaped(overview_env):
+    """⑤ XSS 转义: 节点名与 why_due 都是外部输入, 直接进 HTML 即注入。"""
+    root, client = overview_env
+    payload_node = 'n"><img src=x onerror=1>'
+    payload_why = "why<b>粗体</b>&符号"
+    rows = [_due_row(payload_node, "甲板", bucket="new", why_due=payload_why)]
+    _mk_vault(root, "vault-a", _nodes_projection("vault-a", rows))
+
+    page = client.get("/api/v1/review/overview/page").text
+    assert "<img src=x onerror=1>" not in page
+    assert "&lt;img src=x onerror=1&gt;" in page
+    assert "<b>粗体</b>" not in page and "&lt;b&gt;粗体&lt;/b&gt;" in page
+    assert "&amp;符号" in page
+
+
+def test_g64_dirty_bucket_or_why_degrades_corrupt_not_ok(overview_env):
+    """⑥ 形状垃圾门禁: bucket/why_due 此前只在有顶层 buckets 时被 _gate_buckets
+    间接核对 —— 旧投影下它们完全没验形。既然本卡要把它们渲染出来, 就必须自己
+    门禁, 否则形状垃圾直通页面。
+
+    每一条都必须降级为 corrupt, 且健康库不受拖累。
+    """
+    root, client = overview_env
+    now_iso = _now_local().isoformat(timespec="seconds")
+    _mk_vault(root, "vault-ok", _nodes_projection("vault-ok", [_due_row("好节点", "甲板")]))
+
+    hostile = {
+        "bad-bucket-enum": _due_row("n", "甲板", bucket="不是桶名"),
+        "bad-bucket-type": _due_row("n", "甲板", bucket=3),
+        # Codex-G6-4 round-1: due_nodes 行按构造只可能落到期三桶。放行
+        # bucket="future" 会让一个已逾期节点在页面上被标成「未来」——
+        # 比不标更坏, 那是主动误导
+        "bad-bucket-nondue": _due_row(
+            "n", "甲板", due_reason="scheduled", fsrs_due="2020-01-01T00:00:00Z", bucket="future"
+        ),
+        "bad-bucket-due-today": _due_row(
+            "n", "甲板", due_reason="scheduled", fsrs_due="2020-01-01T00:00:00Z", bucket="due_today"
+        ),
+        # new 桶 ⟺ due_reason=="new" (与 _gate_buckets ④ 同一条构造律的逆检查;
+        # 顶层无 buckets 键时那个函数根本不跑)
+        "bad-bucket-new-vs-scheduled": _due_row(
+            "n", "甲板", due_reason="scheduled", fsrs_due="2020-01-01T00:00:00Z", bucket="new"
+        ),
+        "bad-bucket-duenow-vs-new": _due_row("n", "甲板", due_reason="new", bucket="due_now"),
+        "bad-why-empty": _due_row("n", "甲板", why_due=""),
+        "bad-why-type": _due_row("n", "甲板", why_due=["列表"]),
+        "bad-why-null-but-bucket": _due_row("n", "甲板", why_due=None),
+    }
+    for name, row in hostile.items():
+        _mk_vault(root, name, _nodes_projection(name, [row]))
+
+    data = client.get("/api/v1/review/overview").json()
+    by = {v["vault_id"]: v for v in data["vaults"]}
+    assert by["vault-ok"]["status"] == "ok", by["vault-ok"].get("error")
+    for name in hostile:
+        if name == "bad-why-null-but-bucket":
+            # why_due 显式 null = 旧投影缺省形态, 合法 (只是不渲染那一行)
+            assert by[name]["status"] == "ok", f"{name} 应放行: {by[name].get('error')}"
+            continue
+        assert by[name]["status"] == "corrupt", f"{name} 应 corrupt, 实为 {by[name]['status']}"
+    assert client.get("/api/v1/review/overview/page").status_code == 200, "脏库不许把页面打成 500"
+
+
+def test_g64_nodes_are_purely_additive_and_same_source(overview_env):
+    """⑦ 加性契约 + 同源: boards 行只多一个 nodes 键, 既有键一个不动;
+    nodes 逐条与 due_nodes 明细同源 (身份/reason/fsrs_due/bucket/why_due 全等),
+    合计 == 该板 due。"""
+    root, client = overview_env
+    now = _now_local()
+    rows = [
+        _due_row(
+            "甲1",
+            "甲板",
+            due_reason="scheduled",
+            fsrs_due=_utc_z(now - timedelta(days=2)),
+            bucket="due_now",
+            why_due="到期了",
+        ),
+        _due_row("甲2", "甲板", bucket="new", why_due="新卡"),
+        _due_row("乙1", "乙板", bucket="new", why_due="新卡"),
+    ]
+    _mk_vault(root, "vault-a", _nodes_projection("vault-a", rows))
+
+    p = client.get("/api/v1/review/overview").json()["vaults"][0]["projection"]
+    for b in p["boards"]:
+        assert set(b) == {"board", "due", "due_new", "placeholder", "earliest", "nodes"}, (
+            f"boards 行只许加性追加 nodes, 实为 {sorted(b)}"
+        )
+        assert len(b["nodes"]) == b["due"]
+        for n in b["nodes"]:
+            assert set(n) == {"node", "due_reason", "fsrs_due", "bucket", "why_due"}
+    src = {r["node"]: r for r in rows}
+    for b in p["boards"]:
+        for n in b["nodes"]:
+            o = src[n["node"]]
+            assert (n["due_reason"], n["fsrs_due"], n["bucket"], n["why_due"]) == (
+                o["due_reason"],
+                o["fsrs_due"],
+                o["bucket"],
+                o["why_due"],
+            ), f"{n['node']} 与 due_nodes 明细不同源"
+    assert sum(len(b["nodes"]) for b in p["boards"]) == p["due_count"] == 3
+
+
+def test_g64_narrow_viewport_structural_guarantees(overview_env):
+    """⑧ 窄窗不横溢 (结构性断言 —— 真实像素测量属用户 UAT 那一步)。
+
+    锁三条会导致 375px 横向溢出的写法:
+      (a) 表格必须仍在 overflow-x:auto 容器里 (宽内容自己滚, 不推 body);
+      (b) 节点条目必须允许长词折行 (overflow-wrap/word-break) —— 长节点名或
+          长 why_due 不折行就会把整行顶宽;
+      (c) 页面里不许出现固定 px 的 width/min-width (相对单位才随窗口缩)。
+    """
+    root, client = overview_env
+    rows = [
+        _due_row(
+            "一个非常非常长的节点名字用来测试折行行为" * 3,
+            "甲板",
+            bucket="new",
+            why_due="一段很长的理由" * 20,
+        )
+    ]
+    _mk_vault(root, "vault-a", _nodes_projection("vault-a", rows))
+    page = client.get("/api/v1/review/overview/page").text
+
+    assert "overflow-x:auto" in page, "(a) 宽表格要有自己的横向滚动容器"
+    assert "overflow-wrap:anywhere" in page and "word-break:break-word" in page, "(b) 节点条目必须能折行"
+    assert not re.search(r"(?<!max-)width:\s*\d+px", page), "(c) 不许固定 px 宽度"
+    # viewport meta 在位 (缺了移动端会按 980px 虚拟视口渲染, 必横溢)
+    assert 'name="viewport" content="width=device-width, initial-scale=1"' in page

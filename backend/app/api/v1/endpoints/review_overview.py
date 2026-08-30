@@ -28,6 +28,12 @@ POST /api/v1/review/overview/refresh — 显式用户触发, subprocess 直调
 scripts/daily_review_pick.py --vault <该库> --write。GET 两个端点的**只读
 纯度不变** (本模块仍不含第二套到期算法, 重建一律委托生产器唯一裁判);
 写侧安全与 fail-closed 口径见 _rebuild_projection 的 docstring。
+
+CARD-G6-4 (同批) 节点级明细: 板行之下加一行 details/summary 折叠区, 展开逐
+节点显示 名称 / 桶位 / 到期人话 / why_due, 节点名是 obsidian://open 深链指向
+节点/<name>.md。**零 schema 改动** —— 全部字段都已在 due_nodes 行里, 本卡只
+是把此前只用于对账的 bucket/why_due 拿来渲染 (并因此给它们补了独立门禁:
+旧投影没有 buckets 顶层键时 _gate_buckets 不跑, 这两个字段此前完全没验形)。
 """
 
 from __future__ import annotations
@@ -159,6 +165,27 @@ def _gate_due_groups(due_nodes: list) -> dict[str, dict]:
         # 生产器构造律: scheduled ⟺ fsrs_due 非空 (new/malformed 均为空串)
         if (reason == "scheduled") != bool(ts):
             raise ValueError(f"due_nodes[{i}] due_reason={reason!r} 与 fsrs_due={ts!r} 不自洽")
+        # CARD-G6-4: bucket/why_due 从"只留底给 _gate_buckets 对账"升为"要渲染
+        # 到页面上", 所以必须自己验形 —— 旧投影 (无 buckets 顶层键) 下
+        # _gate_buckets 根本不跑, 这两个字段此前是**完全没门禁**的; 直接拿去
+        # 渲染就等于开了一条形状垃圾通道。缺省 (None) 是合法的旧投影形态,
+        # 有值就必须是生产器的合法取值。
+        bucket = row.get("bucket")
+        if bucket is not None:
+            # Codex-G6-4 round-1: 只校验"属于五桶之一"不够 —— due_nodes 的行
+            # **按构造只可能落三个到期桶** (生产器 S1: 到期三桶的成员恒等于
+            # due_nodes 明细; due_today/future 是非到期侧, 在 due_nodes 里没有
+            # 对手盘)。放行 bucket="future" 会让一个已逾期节点在页面上被标成
+            # 「未来」—— 比不标更坏, 那是主动误导。
+            if bucket not in _DUE_BUCKETS:
+                raise ValueError(f"due_nodes[{i}].bucket 非到期桶: {bucket!r} (due_nodes 行只可能落到期三桶)")
+            # 与 _gate_buckets ④ 同一条构造律的逆检查 —— 顶层无 buckets 键时
+            # 那个函数根本不跑, 这条自洽性此前无人把关
+            if (bucket == "new") != (reason == "new"):
+                raise ValueError(f"due_nodes[{i}] bucket={bucket!r} 与 due_reason={reason!r} 不自洽")
+        why = row.get("why_due")
+        if why is not None and (not isinstance(why, str) or not why):
+            raise ValueError(f"due_nodes[{i}].why_due 应为非空字符串或缺省, 实为 {why!r}")
         g = groups.setdefault(board, {"due": 0, "new": 0, "scheduled": 0, "earliest": "", "rows": {}})
         # CARD-G3-6a: 逐行留底 (节点身份 + 行内 bucket/why_due) 供 _gate_buckets
         # 做成员级跨源核对 —— 只留聚合计数会让"身份被替换但计数不变"的桶位
@@ -166,8 +193,8 @@ def _gate_due_groups(due_nodes: list) -> dict[str, dict]:
         g["rows"][node] = {
             "reason": reason,
             "fsrs_due": ts,
-            "bucket": row.get("bucket"),
-            "why_due": row.get("why_due"),
+            "bucket": bucket,
+            "why_due": why,
         }
         g["due"] += 1
         if reason == "new":
@@ -560,6 +587,17 @@ def _board_link(vault_id: str, board: str) -> str:
     return "obsidian://open?vault=" + quote(vault_id, safe="") + "&file=" + quote(f"原白板/{board}.md", safe="")
 
 
+def _node_link(vault_id: str, node: str) -> str:
+    """obsidian:// 节点深链 (CARD-G6-4) —— 节点名==扁平池文件 stem 约定。
+
+    与 _board_link 同一条编码纪律: `safe=""` 让路径分隔符 `/` 也被
+    percent-encode 成 `%2F` —— 节点名里出现 `/`(macOS 目录名里非法但 JSON
+    投影里可以有)、`&`、`#`、`?` 时, 不转义会把 query 参数截断成另一个链接。
+    库名与节点名分别编码, 不拼完再编。
+    """
+    return "obsidian://open?vault=" + quote(vault_id, safe="") + "&file=" + quote(f"节点/{node}.md", safe="")
+
+
 #: 状态 → (徽标文案, 徽标色) — 页面与 JSON status 同一枚举
 _STATUS_META = {
     "ok": ("今日投影", "#16a34a"),
@@ -652,7 +690,15 @@ def _summarize(payload: dict) -> dict:
             raise ValueError("buckets 在场但 boards 缺席 — 非生产器产物 (二者同版一起落盘)")
         bucket_counts = _gate_buckets(payload["buckets"], groups, stats, generated_at, future_map, up_gated)
     board_rows = [
-        {"board": b, "due": g["due"], "due_new": g["new"], "placeholder": ph_map.get(b), "earliest": g["earliest"]}
+        {
+            "board": b,
+            "due": g["due"],
+            "due_new": g["new"],
+            "placeholder": ph_map.get(b),
+            "earliest": g["earliest"],
+            # CARD-G6-4 加性: 板内到期节点明细 (纯消费既有 due_nodes 行, 零 schema 改动)
+            "nodes": _node_rows(g["rows"]),
+        }
         for b, g in groups.items()
     ]
     board_rows.sort(key=lambda r: (prio.get(r["board"], len(prio)), -r["due"], r["board"]))
@@ -665,6 +711,7 @@ def _summarize(payload: dict) -> dict:
                 "placeholder": ph_map.get(z["board"]),
                 # next_due 空串 = 无未来排期 (占位符专属板) → 无数据 "—"
                 "earliest": z["next_due"] or None,
+                "nodes": [],  # 零到期板没有到期节点可展开 (未来节点不在 due_nodes 里)
             }
             for z in rollup_zero
             if z["board"] not in groups  # 防御: 同板双列时到期行为准
@@ -672,7 +719,14 @@ def _summarize(payload: dict) -> dict:
         zero_rows.sort(key=lambda r: (r["earliest"] is None, r["earliest"] or "", r["board"]))
     else:
         zero_rows = [
-            {"board": u["board"], "due": 0, "due_new": 0, "placeholder": None, "earliest": u["next_due"]}
+            {
+                "board": u["board"],
+                "due": 0,
+                "due_new": 0,
+                "placeholder": None,
+                "earliest": u["next_due"],
+                "nodes": [],
+            }
             for u in up_gated
             if u["board"] not in groups  # 防御: 生产器不会让同板双列, 双列时到期行为准
         ]
@@ -716,6 +770,33 @@ def _summarize(payload: dict) -> dict:
         # CARD-G3-6a 加性: 五桶分层计数; 缺省 null = 旧投影无 buckets 键
         "bucket_counts": bucket_counts,
     }
+
+
+def _node_rows(rows: dict[str, dict]) -> list[dict]:
+    """板内到期节点明细 (CARD-G6-4) —— 纯消费 _gate_due_groups 已门禁过的行。
+
+    排序 = 紧迫度降序, 与既有板级 `earliest` 的口径**同一条规则**:
+    已排期的到期时刻恒在过去, 越早越紧迫, 所以先按非空时间戳升序; 新卡的
+    fsrs_due 是空串 (语义 = 现在), 排在已逾期节点之后 —— 字典序把 "" 当最小
+    会让"逾期 3 天"被"现在"盖掉, 那正是 D1 复核抓过的低估紧迫度缺陷, 这里
+    不许在明细里重犯一遍。同刻按节点名稳定排序 (防同分随机漂)。
+
+    bucket / why_due 可能为 None (G3-6a 之前的旧投影没有这两个字段) —— 渲染层
+    据此降级为"—", 不伪造分层标签。
+    """
+    return sorted(
+        (
+            {
+                "node": node,
+                "due_reason": meta["reason"],
+                "fsrs_due": meta["fsrs_due"],
+                "bucket": meta["bucket"],
+                "why_due": meta["why_due"],
+            }
+            for node, meta in rows.items()
+        ),
+        key=lambda r: (r["fsrs_due"] == "", r["fsrs_due"], r["node"]),
+    )
 
 
 def _reject_nonstandard_json(const: str):
@@ -835,8 +916,61 @@ _TD = "padding:5px 8px;border-bottom:1px solid #f3f4f6"
 _TD_NUM = _TD + ";text-align:center;white-space:nowrap"
 
 
+#: 节点明细行样式 (CARD-G6-4) —— 全部相对单位 + 允许折行, 375px 窄窗不横溢
+_NODE_LI = "margin:0 0 6px;list-style:none;line-height:1.5;overflow-wrap:anywhere;word-break:break-word"
+#: 桶位小标签
+_NODE_TAG = (
+    "display:inline-block;background:#f3f4f6;color:#4b5563;border-radius:4px;"
+    "padding:0 6px;font-size:11px;margin-left:6px;white-space:nowrap"
+)
+
+
+def _node_detail_html(vault_id: str, nodes: list[dict], now_sh: datetime) -> str:
+    """板行下的节点级明细 (CARD-G6-4): 名称 + 桶位 + 到期人话 + why_due + 深链。
+
+    纯 `<details>/<summary>` 折叠, 零 JS。每个节点名是一条 obsidian:// 深链,
+    点了直接开那个节点 md。
+    bucket / why_due 缺省 (G3-6a 之前的旧投影) 时整块不出现 —— 不伪造分层标签,
+    与卡片汇总行"无 buckets 就不显示分层行"同一条纪律。
+    """
+    if not nodes:
+        return ""
+    items = []
+    for n in nodes:
+        name = html.escape(n["node"])
+        link = html.escape(_node_link(vault_id, n["node"]))
+        eta, eta_color = _humanize_due(n["fsrs_due"], now_sh)
+        tag = (
+            ""
+            if n.get("bucket") is None
+            else f'<span style="{_NODE_TAG}">{html.escape(_BUCKET_CN[n["bucket"]])}</span>'
+        )
+        why = (
+            ""
+            if not n.get("why_due")
+            else f'<div style="color:#6b7280;font-size:12px;margin-top:1px">{html.escape(n["why_due"])}</div>'
+        )
+        items.append(
+            f'<li style="{_NODE_LI}">'
+            f'<a href="{link}" style="color:#2563eb;text-decoration:none">{name}</a>'
+            f"{tag}"
+            f'<span style="color:{eta_color};font-size:12px;margin-left:6px">{html.escape(eta)}</span>'
+            f"{why}</li>"
+        )
+    return (
+        f'<details style="margin:2px 0 4px"><summary style="cursor:pointer;color:#6b7280;'
+        f'font-size:12px;padding:2px 0">展开 {len(nodes)} 个到期节点</summary>'
+        f'<ul style="margin:6px 0 2px;padding:0">{"".join(items)}</ul></details>'
+    )
+
+
 def _board_table_html(vault_id: str, boards: list[dict], now_sh: datetime) -> str:
-    """三级视图第二/三级: 板表格 白板名|到期|新卡|待剖析|最早到期。"""
+    """三级视图第二/三级: 板表格 白板名|到期|新卡|待剖析|最早到期。
+
+    CARD-G6-4: 有到期节点的板在数据行之下多一行 `colspan=5` 的折叠区
+    (`<details>`)。放在整宽的第二行而不是塞进"白板名"那一格 —— 塞进单元格
+    会把第一列撑宽、把其余四列挤扁, 375px 窄窗尤其难看。
+    """
     if not boards:
         return '<div style="color:#6b7280;margin:10px 0;font-size:13px">该库暂无到期或已排期的白板</div>'
     head = "".join(f'<th style="{_TH}">{c}</th>' for c in ("白板名", "到期", "新卡", "待剖析", "最早到期"))
@@ -856,6 +990,9 @@ def _board_table_html(vault_id: str, boards: list[dict], now_sh: datetime) -> st
             f'<td style="{_TD};white-space:nowrap;color:{eta_color}">{html.escape(eta)}</td>'
             f"</tr>"
         )
+        detail = _node_detail_html(vault_id, r.get("nodes") or [], now_sh)
+        if detail:
+            rows_html.append(f'<tr><td colspan="5" style="{_TD};padding-top:0">{detail}</td></tr>')
     return (
         '<div style="overflow-x:auto;margin:10px 0 4px">'
         '<table style="border-collapse:collapse;width:100%;font-size:13px">'
