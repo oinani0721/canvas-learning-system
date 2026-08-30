@@ -43,6 +43,19 @@ $ git log --oneline -1 37387a86
 
 两分支 merge-base 均为 `37387a86`，**与卡文预期一致 ✅**。
 
+⚠️ **上面这两条命令用的是分支名（可变 ref），现在已不能原样复现**——
+主干在本卡作业期间前进到 `a9c8b97c`，同样的命令今天会返回 `a9c8b97c` 而非 `37387a86`
+（自审 LOW-1 指出这一点）。**用不可变的 merge parents 才能永久复现**：
+
+```bash
+$ git merge-base 4748bad2^1 4748bad2^2
+37387a8662e9dd646fad5628841679d777cb7eae
+$ git merge-base c0912962^1 c0912962^2
+37387a8662e9dd646fad5628841679d777cb7eae
+```
+
+历史结论成立，问题只在证据的可复现性——**取证命令应尽量绑到不可变对象**。
+
 ### ⛔ 主仓陷阱已复现（证明卡文的警告是真的，不是传闻）
 
 ```
@@ -85,6 +98,19 @@ b2ece11606880498d47a309e357f5d91f0a29dd9
 | `card/s3-events` | 75 | **仅 `CURRENT_TASK.md` 1 个** |
 | `card/s6-recap` | 40 | **空集** |
 
+⚠️ **以上是勘探期（分支 tip = `9014f313` / `4717a2cd`，trunk = `2164b498`）的数字，
+不等于实际合并时的数字**（自审 HIGH-3 指出本卡曾把两者混写）。实际合并时实测：
+
+```bash
+git diff --name-only 37387a86..4748bad2^1 | wc -l   # 82  (S3)
+git diff --name-only 37387a86..c0912962^1 | wc -l   # 48  (S6)
+# 与 trunk a9c8b97c 的交集（comm -12）：两者均为 CURRENT_TASK.md 一个
+```
+
+差异来源：两分支各自被本卡新增了提交；**S6 的冲突是本卡自己引入的**——
+③ 整改里更新了 `CURRENT_TASK.md`，于是它与主干侧同一文件相撞，
+勘探期的「零冲突」结论因此不再成立。
+
 ---
 
 ## 三、语义兼容（文件面不重叠 ≠ 合并后测试仍绿，故另查）
@@ -97,7 +123,7 @@ b2ece11606880498d47a309e357f5d91f0a29dd9
 | G3-1/G3-4 **锁定 blob** 是否被主干改动 | 三方 `git rev-parse <ref>:<path>` | ⚠️ **此结论已被推翻，见文首「首要更正」**。对 `2164b498` 为真；对实际合并的 `a9c8b97c`，`fsrs_manager.py` 已由 D3/D4 改为 `f9edc906`。`learning_event_log.py` 仍 `28cdaa18` 四方一致 |
 | 主干是否动过任何 `conftest.py` | `git diff --name-only 37387a86 trunk -- '*conftest.py'` | ⚠️ **此结论已被推翻，见文首「首要更正」**。对 `2164b498` 为空；`2164b498→a9c8b97c` 动了 `backend/tests/unit/conftest.py` |
 | 主干是否动过 `canvas-vault/`（S6 消费面） | `git diff --name-only 37387a86 trunk -- canvas-vault` | ✅ **空** |
-| S6 判据的依赖面 | 读 `backend/tests/skills/test_g5_9_recap_exam.py` 的 import | ✅ 只有 `hashlib/json/subprocess/sys/pathlib/pytest` —— 纯 stdlib + pytest，与主干 39 处后端改动**完全绝缘** |
+| S6 判据的依赖面 | 读 `backend/tests/skills/test_g5_9_recap_exam.py` 的 import | ⚠️ **此结论过强，已按自审 MEDIUM-3 更正**。顶层 import 确实只有 stdlib + pytest，但**函数内**导入并调用 `app.services.board_manifest_service.scan_vault`（`:202-216`）；`test_recap_scan_signals.py:384-396` 用 `build_manifest`；且根 `tests/conftest.py` 无条件导入 `app.main`。⇒ **并非「天然绝缘」**。可合并结论改由 §五 的实跑支撑（主干未改相关 service/vault，160 passed） |
 | S3 判据的依赖面 | 读两个回归文件的 import | ⚠️ 经 `tests/conftest.py` 间接 `from app.main import app`，而主干改了 15 个 endpoints ⇒ **存在理论耦合，必须靠合并后真跑判据来定**（见 §五） |
 
 ---
@@ -146,8 +172,11 @@ b2ece11606880498d47a309e357f5d91f0a29dd9
 | S6 完整裁判（`test_recap_scan_signals.py` + `test_g5_9_recap_exam.py`） | 160 passed | **160 passed** | ✅ 零变化 |
 | 负验证 10 变体 | 10/10 变红 | **10/10 变红**，还原后字节逐字相同 | ✅ |
 
-⇒ **S6 可合并**。主干 39 处后端改动对 S6 判据零影响——`test_g5_9_recap_exam.py`
-只 import stdlib + pytest，与后端服务面天然绝缘（这条在勘探期就查实，且合并后仍成立）。
+⇒ **S6 可合并**——依据是**实跑**（160 passed + 负验证 10/10），不是「绝缘」。
+⚠️ 自审 MEDIUM-3 指出「只 import stdlib + pytest 所以天然绝缘」这个理由**不成立**：
+测试在函数内调用 `board_manifest_service.scan_vault`，根 conftest 也无条件导入 `app.main`。
+真实情况是：**主干这次恰好没改到 S6 会碰的 service 与 vault**，所以判据不受影响 —— 这是
+可验证的事实，而不是结构性豁免。下次主干若动 `board_manifest_service`，S6 判据必须重跑。
 
 ---
 
