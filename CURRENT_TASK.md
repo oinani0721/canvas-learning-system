@@ -2,19 +2,20 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**本车道状态**（2026-08-27 · 分支 `card/n5-split` · BATCH-2026-08-27-第四批 车道 5 · **G5-1 + G5-2 双卡 v3（Codex 三/四轮对抗后）待验收**）:
-- ✅ CARD-G5-1 触发矩阵 v3：矩阵文档（15 正例含 5 用户逐字 + 10 负例 + 语料覆盖自陈 + §三 待拍板 + **§五 登记簿 4 条**）
-  + checker v3 9/9（real_floor 代码锚+归属锚语义分类；18 类变异负控全抓）+ headless 三轮全量重放（judge v3：
-  sidecar 绑定/终局唯一/manifest 含 .claude/skills）：**⛔ N4「回顾一下+板名」无斜杠存档 2 采样 1 次真触发 board-recap**
-  （最重要发现，直接喂 §三 拍板）+ N6 误触发全局 study-plan（2/2 复现）+ N2 代行写侧 + B2 形式化漂移（存档 5 份 2/3）
-- ✅ CARD-G5-2 拆分 preview 引擎 v3：split_preview.py（写侧物理 fail-closed 次序修正+单FD / 目录级 symlink containment /
-  slug JS空白集+UTF-16 边界+偏差5声明）+ 裁判 34 条四轮先红后绿（含剥离反事实常驻测试）+ live 全 324 文件全字段
-  基线零净差异（set -x 回放+引擎字节绑定, `审查/g5-2-evidence/`）
-- Codex：G5-1 三轮（1 轮 3B+4H → 2 轮复核 → 3 轮终核）；G5-2 四轮（cyber误拦→6H→复核→终核）全存档
-- 验收单：`验收单/UAT-CARD-G5-{1,2}-*.md`；**不 push**
-- ⛔ 待用户：①验收两单 ②拍板 R8 口令取舍（G5-8 前必裁, N4 实证必读）③语料覆盖自陈口径认可（C/D 类无真实触发语,
-  总账「各≥3 真实正例」硬门 vs 语料实况的裁决权在用户）④outputs/ 测试产物未入 commit
-
+**本车道状态**（2026-08-30 · 分支 `card/s6-recap` · BATCH-2026-08-29-第六批 车道 T2 · **CARD-收口A ③ G5-9 两轮整改完成，待验收**）:
+- ✅ **G5-9 codex 审查存档已补齐**（第五批裁定 S6-a，纪律硬项）。同一 commit `4717a2cd` 有**两份独立复核**：
+  本车道 codex（BLOCKER 0 / HIGH 4 / MEDIUM 8 / LOW 2）+ 另一 session 并行 codex（**BLOCKER 2** / HIGH 4 / MEDIUM 5 / LOW 1）
+- ⛔ **两份报告曾因并发写同一路径产生拼接损坏并被 `git add -A` 提交进 `9e24ef40`**；
+  已完整恢复为两个独立文件，事故与教训写在 `codex-review-CARD-G5-9-两份复核合并处置.md` §一
+- ✅ **两份合计 6 条 BLOCKER/HIGH 已全部处置**：空 SHA 绕过确认门 / 发布字节未校验 / 回滚删他人文件 /
+  undo 留痕未回读 / unlink 前无 identity 复核 / **父目录 symlink 实测写出 vault 外**（dirfd 锚定封死）/
+  **undo 解 leaf symlink 移走 referent 留死链**（leaf symlink 直接拒绝）
+- ⚠️ **2 条升级用户裁决**（本卡不擅自决定）：B2 DD-14 的 `PLAN-NNN` 口径与 `BATCH/CARD` 批次实践冲突
+  （全批次提交皆此形态，非孤例）；H6 产物 frontmatter schema —— 总账 `:471` 明文记载「需用户拍板」
+- 📌 判据：`test_g5_9_recap_exam.py` 33 → **55 passed**；S6 完整裁判 **160 passed**（裁定书基线 138）；
+  负验证 **10 变体 10/10 承重**，还原后字节与备份逐字相同；ruff lint + format 全绿
+- 📌 移交：M7 板名 Unicode 控制字符（建议与 G5-3 归一化合卡）/ M10 结构化 provenance /
+  **M11 跨板共享节点批注重复计数（数字错误，优先）** / L12 空目录残留
 ---
 
 **当前状态**（2026-08-20 · **Codex 四轮拒绝收官 → 九路验证 9/9 CONFIRMED → C1-C4 修复批全部落地，五轮送审就绪** · 最近完成的产品提交 `c154a7f2`(C1 真实入口准入) · PLAN `R11-BATCH2-2026-08-17`。⚠️ 锚点纪律：①不记累计 commit 数 ②不落盘 CI run 号/通过数（连续两轮落盘即过期被抓——CI 状态以 `gh run list --limit 3` 实查为准）③收官状态由外部复核裁定不由施工方自宣）:

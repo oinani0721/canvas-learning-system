@@ -23,6 +23,7 @@ fixtures 在 tmp_path 程序化构造 (与 test_split_preview.py 同惯例)。
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import subprocess
@@ -887,19 +888,21 @@ def test_atomic_write_rejects_inplace_rewritten_publish(tmp_path):
     tmp_p, target = d / "t.tmp", d / "t.md"
     real_link = mod.os.link
 
-    def evil_link(src, dst):
-        real_link(src, dst)
-        fd = mod.os.open(dst, mod.os.O_WRONLY | mod.os.O_TRUNC)
+    def evil_link(src, dst, **kw):
+        real_link(src, dst, **kw)
+        fd = mod.os.open(target, mod.os.O_WRONLY | mod.os.O_TRUNC)
         try:
             mod.os.write(fd, b"ATTACKER-BYTES-SAME-INODE\n")
         finally:
             mod.os.close(fd)
 
+    dfd = mod.os.open(d, mod.os.O_RDONLY | mod.os.O_DIRECTORY)
     mod.os.link = evil_link
     try:
-        err, _warn = mod._atomic_write(tmp_p, target, "USER-CONFIRMED-CONTENT\n")
+        err, _warn = mod._atomic_write(tmp_p, target, "USER-CONFIRMED-CONTENT\n", dfd)
     finally:
         mod.os.link = real_link
+        mod.os.close(dfd)
     assert err is not None, "发布字节被篡改却报成功"
     assert "bytes mismatch" in err or "原子写失败" in err
     assert not target.exists(), "字节不符却把污染内容留在了 vault 里"
@@ -915,16 +918,18 @@ def test_atomic_write_does_not_delete_concurrent_replacement(tmp_path):
     tmp_p, target = d / "t.tmp", d / "t.md"
     real_link = mod.os.link
 
-    def evil_link(src, dst):
-        real_link(src, dst)
-        mod.os.unlink(dst)  # 并发者移走我们的硬链接…
-        Path(dst).write_text("SOMEONE-ELSES-FILE\n", encoding="utf-8")  # …换上自己的
+    def evil_link(src, dst, **kw):
+        real_link(src, dst, **kw)
+        mod.os.unlink(target)  # 并发者移走我们的硬链接…
+        target.write_text("SOMEONE-ELSES-FILE\n", encoding="utf-8")  # …换上自己的
 
+    dfd = mod.os.open(d, mod.os.O_RDONLY | mod.os.O_DIRECTORY)
     mod.os.link = evil_link
     try:
-        err, _warn = mod._atomic_write(tmp_p, target, "USER-CONFIRMED-CONTENT\n")
+        err, _warn = mod._atomic_write(tmp_p, target, "USER-CONFIRMED-CONTENT\n", dfd)
     finally:
         mod.os.link = real_link
+        mod.os.close(dfd)
     assert err is not None, "inode 不符却报成功"
     assert target.exists(), "把并发写入者的文件删掉了（原实现的行为）"
     assert target.read_text(encoding="utf-8") == "SOMEONE-ELSES-FILE\n"
@@ -1043,3 +1048,89 @@ def test_undo_hint_is_actually_executable(tmp_path):
     assert res["undone"] is True, f"hint 执行未完成回退: {res}"
     assert not target.exists(), "回退后目标仍在"
     assert res["retained_sha256"] == out["content_sha256"]
+
+
+# ═════════ 主 session 并行复核 HIGH-4 / HIGH-5 回归锁（CARD-收口A ③ 二段）═════════
+#
+# 这两条来自与本车道**并行**的另一份独立复核（见 codex-review-CARD-G5-9-主session
+# 独立复核-2026-08-30.md）。本车道首轮把 HIGH-4 定级为 MEDIUM-3 并登记结案，
+# 但对方给出了**实证反例**——created:true 且文件落在 vault 外——定级明显偏轻。
+# 下面两条门直接复现对方的反例形态。
+
+
+def test_create_refuses_when_exam_dir_swapped_after_probe(tmp_path):
+    """HIGH-4 承重门（对方实证反例的直接复现）。
+
+    反例形态：`_symlink_probe` 通过之后、真正写入之前，把 `检验白板/` 换成指向
+    vault 外的目录 symlink。原实现的 open/link 全部按路径，于是写到了 vault 外
+    （对方实测 created:true、文件出现在 vault 外）。
+
+    注入点必须落在 probe 与写入之间。这里 patch `_symlink_probe`：它返回 None
+    （放行）之后立刻做替换 —— 正是那个窗口。修法（dirfd 锚定）下必须拒绝。
+    """
+    vault = build_vault(tmp_path)
+    sha = do_preview(vault, ["板一"])["content_sha256"]
+    outside = tmp_path / "outside_target"
+    outside.mkdir()
+    exam = vault / EXAM_DIR_NAME
+    mod = _load_module()
+    real_probe = mod._symlink_probe
+
+    def evil_probe(v, t, tm):
+        r = real_probe(v, t, tm)
+        if r is None:  # ← probe 放行的那一刻，窗口就在这里
+            for f in exam.iterdir():
+                f.unlink()
+            exam.rmdir()
+            exam.symlink_to(outside, target_is_directory=True)
+        return r
+
+    mod._symlink_probe = evil_probe
+    try:
+        rc = mod.cmd_create(
+            argparse.Namespace(
+                vault=str(vault),
+                boards=["板一"],
+                anchor=None,
+                ts=TS,
+                expect_content_sha=sha,
+            )
+        )
+    finally:
+        mod._symlink_probe = real_probe
+    assert rc == 2, f"probe 后目录被换成越界 symlink，仍未拒绝 (rc={rc})"
+    assert list(outside.iterdir()) == [], f"写到了 vault 外: {list(outside.iterdir())}"
+
+
+def test_undo_refuses_symlink_alias_instead_of_moving_referent(tmp_path):
+    """HIGH-5 前半承重门（对方实证反例的直接复现）。
+
+    反例形态：给 undo 传一个同目录 alias（`alias.md -> real.md`）。原实现先
+    `.resolve()` 解掉 leaf symlink，于是**回执声称移除 alias、实际移走 referent**，
+    并在 vault 里留下一条死链；后面的 O_NOFOLLOW 看不到这一点（它拿到的已是解析后
+    的真实路径）。修法：按未解析路径判 leaf 是否 symlink，是则直接拒绝。
+    """
+    vault = build_vault(tmp_path)
+    out = do_create(vault, ["板一"])
+    real = vault / out["created_path"]
+    alias = real.with_name("alias-别名.md")
+    alias.symlink_to(real.name)  # 同目录 alias
+    undo_dir = tmp_path / "keep-alias"
+    undo_dir.mkdir()
+
+    r = run_cli(
+        "undo",
+        "--vault",
+        str(vault),
+        "--path",
+        str(alias.relative_to(vault)),
+        "--expect-sha",
+        out["content_sha256"],
+        "--undo-dir",
+        str(undo_dir),
+    )
+    assert r.returncode == 2, f"alias 未被拒绝: rc={r.returncode} {r.stdout}"
+    assert "symlink" in r.stdout, f"拒绝理由未点名 symlink: {r.stdout}"
+    assert real.is_file(), "referent 被移走了（正是要防的形态）"
+    assert alias.is_symlink() and alias.resolve() == real.resolve(), "alias 变成了死链"
+    assert list(undo_dir.iterdir()) == [], "拒绝路径却写了留痕"

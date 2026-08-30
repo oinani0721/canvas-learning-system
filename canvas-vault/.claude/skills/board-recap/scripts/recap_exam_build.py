@@ -290,7 +290,42 @@ def _fsync_dir(d: Path) -> None:
         os.close(fd)
 
 
-def _atomic_write(tmp: Path, target: Path, content: str) -> str | None:
+def _open_exam_dirfd(vault: Path) -> tuple[int | None, str | None]:
+    """打开 检验白板/ 并返回一个**钉死该目录 inode** 的 dir_fd。
+
+    主 session 并行复核 HIGH-4 的正解。三重校验:
+    1. ``O_DIRECTORY|O_NOFOLLOW`` —— 目录本身若是 symlink 直接 ELOOP 失败;
+    2. ``os.fstat(dfd)`` 与 ``os.stat(vault/EXAM_DIR)`` 的 (dev, ino) 必须相同
+       —— 打开的确是我们校验过的那个目录, 不是打开后被换掉的另一个;
+    3. dfd 与 vault 必须**同一文件系统** (st_dev 相同) —— 目录被换成指向外部
+       挂载点的链接时, 即便前两条侥幸通过也会在这里被拦。
+    → (dfd | None, 失败原因 | None)。调用方负责 os.close(dfd)。
+    """
+    exam = vault / EXAM_DIR
+    try:
+        dfd = os.open(exam, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    except OSError as e:
+        return (
+            None,
+            f"{EXAM_DIR}/ 打开失败 (被 symlink 布防或不是目录): {type(e).__name__}",
+        )
+    try:
+        st_dfd = os.fstat(dfd)
+        st_path = os.stat(exam)
+        st_vault = os.stat(vault)
+    except OSError as e:
+        os.close(dfd)
+        return None, f"{EXAM_DIR}/ 身份校验失败: {type(e).__name__}"
+    if (st_dfd.st_dev, st_dfd.st_ino) != (st_path.st_dev, st_path.st_ino):
+        os.close(dfd)
+        return None, f"{EXAM_DIR}/ 在打开前后被替换 (inode 变化), 拒绝写入"
+    if st_dfd.st_dev != st_vault.st_dev:
+        os.close(dfd)
+        return None, f"{EXAM_DIR}/ 与 vault 不在同一文件系统 (疑似越界挂载), 拒绝写入"
+    return dfd, None
+
+
+def _atomic_write(tmp: Path, target: Path, content: str, dir_fd: int) -> str | None:
     """O_EXCL|O_NOFOLLOW 写 tmp → fsync → **link 到 target (no-replace)** →
     unlink tmp → fsync 父目录。
 
@@ -303,10 +338,20 @@ def _atomic_write(tmp: Path, target: Path, content: str) -> str | None:
     round-3 M5: 补 fsync 父目录; tmp 清理失败如实回报而非静默吞掉。
     → (失败原因 | None, 告警 | None)。失败时目标未创建; 告警只表示 tmp
     未清理 (目标已正确落盘), 由调用方如实写进回执而非当作失败。
+
+    ⛔ 主 session 并行复核 HIGH-4 (实测反例: probe 后把 检验白板/ 换成指向
+    vault 外的目录 symlink, create 仍返回 created:true 且**文件落在 vault 外**):
+    此前 `_prepare` 的目录守卫、`_symlink_probe` 与本函数的 open/link 全部**按路径**
+    操作 —— 检查与使用之间隔着可被替换的路径解析, O_NOFOLLOW 只护住最后一段,
+    中段/父目录被换掉时护不住。修法 = **dirfd 锚定**: 调用方用
+    O_DIRECTORY|O_NOFOLLOW 打开 检验白板/ 拿到 dfd 并校验它确在 vault 内,
+    此后所有操作只用 **basename + dir_fd=dfd**。dfd 钉死的是那一个目录 inode,
+    路径事后怎么换都改变不了操作落点 —— 窗口从根本上消失, 而不是被压小。
     """
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+    tmp_name, target_name = tmp.name, target.name
     try:
-        fd = os.open(tmp, flags, 0o644)
+        fd = os.open(tmp_name, flags, 0o644, dir_fd=dir_fd)
     except OSError as e:
         return (
             f"临时文件创建失败 (symlink 布防或残留 {tmp.name}): {type(e).__name__}",
@@ -323,14 +368,16 @@ def _atomic_write(tmp: Path, target: Path, content: str) -> str | None:
         st_written = os.fstat(fd)
         os.close(fd)
         fd = -1
-        os.link(tmp, target)  # 目标已存在 → FileExistsError, 绝不覆盖
+        os.link(
+            tmp_name, target_name, src_dir_fd=dir_fd, dst_dir_fd=dir_fd
+        )  # EEXIST 绝不覆盖
         # codex round-1 HIGH-2 (a): 只比 (dev,ino) 不足 —— 别的进程**原地改写
         # 同一个 tmp inode** 时两侧 inode 恒等, 核对照样通过, 发布出去的却是
         # 他人字节 (复核者隔离注入实测: 回执 SHA e51ca99e… 与目标实际 43cb09e0…
         # 分叉, 而 _atomic_write 返回 err=None)。修法 = 发布后**重读目标字节**
         # 并与我们要写的 content 做 sha 全等, inode 与字节两条都过才算发布成功。
         want_sha = hashlib.sha256(content.encode("utf-8")).hexdigest()
-        vfd = os.open(target, os.O_RDONLY | os.O_NOFOLLOW)
+        vfd = os.open(target_name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=dir_fd)
         try:
             st_pub = os.fstat(vfd)
             got = b""
@@ -350,7 +397,7 @@ def _atomic_write(tmp: Path, target: Path, content: str) -> str | None:
             # (纯字节被原地改写) 才撤销自己的发布。
             if same_inode:
                 try:
-                    target.unlink()
+                    os.unlink(target_name, dir_fd=dir_fd)
                 except OSError:
                     pass
                 raise OSError("published bytes mismatch (in-place rewrite)")
@@ -364,7 +411,7 @@ def _atomic_write(tmp: Path, target: Path, content: str) -> str | None:
             except OSError:
                 pass
         try:
-            tmp.unlink()
+            os.unlink(tmp_name, dir_fd=dir_fd)
         except OSError:
             pass
         kind = (
@@ -375,10 +422,13 @@ def _atomic_write(tmp: Path, target: Path, content: str) -> str | None:
         return f"{kind}: {type(e).__name__}", None
     warn = None
     try:
-        tmp.unlink()
+        os.unlink(tmp_name, dir_fd=dir_fd)
     except OSError as e:
         warn = f"临时文件未能清理 ({tmp.name}: {type(e).__name__})，下次 create 同 ts 会被拒绝，请手动删除"
-    _fsync_dir(target.parent)
+    try:
+        os.fsync(dir_fd)  # dirfd 已在手, 直接 fsync 它 (不再按路径重开)
+    except OSError:
+        pass
     return None, warn
 
 
@@ -547,7 +597,18 @@ def cmd_create(args) -> int:
     probe = _symlink_probe(vault, target, tmp)
     if probe:
         return _fail_env(probe)
-    write_err, warn = _atomic_write(tmp, target, content)
+    # 主 session 并行复核 HIGH-4: 上面的 probe 仍是「按路径检查」，与实际写入之间
+    # 隔着可被替换的路径解析（实测：probe 后把 检验白板/ 换成指向 vault 外的目录
+    # symlink，create 仍 created:true 且文件落在 vault 外）。这里改为**先取 dirfd
+    # 锚定目录 inode**，之后所有写侧操作只用 basename + dir_fd —— 路径事后怎么换
+    # 都改变不了操作落点。probe 保留为第一道快速拒绝（诊断信息更友好）。
+    dfd, dfd_err = _open_exam_dirfd(vault)
+    if dfd_err:
+        return _fail_env(dfd_err)
+    try:
+        write_err, warn = _atomic_write(tmp, target, content, dfd)
+    finally:
+        os.close(dfd)
     if write_err:
         return _fail_env(write_err)
     rel = str(target.relative_to(vault))
@@ -604,7 +665,19 @@ def cmd_undo(args) -> int:
             return _fail_env(
                 f"vault 不可用: {sub}/ 目录 resolve 到 vault 之外 (symlink 越界)"
             )
-    target = (vault / args.path).resolve()
+    # 主 session 并行复核 HIGH-5 前半: 原实现直接 `.resolve()`, 会**解掉最后一段
+    # 的 symlink** —— 传入同目录 alias(`alias.md -> real.md`) 时, 回执声称移除的是
+    # alias, 实际移走的却是 referent, 并在 vault 里留下一条死链。后面的 O_NOFOLLOW
+    # 完全看不到这一点, 因为它拿到的已经是 resolve 之后的真实路径。
+    # 修法: 先按**未解析路径**判 leaf 是不是 symlink, 是就直接拒绝 —— undo 的语义
+    # 是「把我创建的那个文件移走」, 对 alias 无定义, 不猜。
+    raw_target = vault / args.path
+    if raw_target.is_symlink():
+        return _fail_env(
+            f"undo 目标是 symlink, 拒绝 (回退语义对别名无定义, 避免移走 referent "
+            f"并留下死链): {args.path}"
+        )
+    target = raw_target.resolve()
     exam_root = (vault / EXAM_DIR).resolve()
     try:
         contained = target.is_relative_to(exam_root)
