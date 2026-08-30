@@ -2,7 +2,7 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**本车道状态**（2026-08-30 · 分支 `card/s3-events` · BATCH-2026-08-29-第六批 车道 T2 · **CARD-收口A ①② 已完成 + 已合并主干 2164b498，待验收**）:
+**本车道状态**（2026-08-30 · 分支 `card/s3-events` · BATCH-2026-08-29-第六批 车道 T2 · **CARD-收口A ①② 已完成 + 已合并主干 `a9c8b97c`，待验收**）:
 - ✅ **① G3-1 末轮独立复核（round-23）已入库且非空**（13830 字节）：BLOCKER 0 / HIGH 0 / MEDIUM 2 / LOW 8
   ⇒ 按本批停轮规则（BLOCKER/HIGH → 再一轮；MEDIUM/LOW → 登记结案）判定 **结案，不再开轮**
   - ⚠️ 卡文事实二次更正：裁定书称 round-18 为 0 字节，第六批手册更正为 round-20；
@@ -14,8 +14,11 @@
   - 本地等价验证先行：15 文件 303 passed → 加两个后 **516 passed + 1 skipped**（303+213=516 严格可加 ⇒ 零交叉污染）
   - ⛔ 过程抓到会让 CI **exit 127 且静默丢 4 个测试文件**的坑：注释不可放进 pytest 的反斜杠续行序列
     （YAML 校验器抓不到——它只把 run 当字符串标量）。新增 shell 语义校验：把 pytest 换成 printf 真跑数实参
-- ✅ **⑤ 已合并主干**：merge-base `37387a86`（**在 feature worktree 内算**；主仓口径会错到 `671ae7e7`、
-  文件面从 75 膨胀到 1014）；冲突仅 `CURRENT_TASK.md` 一处，逐处人工解，禁用 -X ours/theirs
+- ✅ **⑤ 已合并主干 `a9c8b97c`**（合并提交 `4748bad2`）：merge-base `37387a86`（**在 feature worktree 内算**；
+  主仓口径会错到 `671ae7e7`、文件面膨胀到 1014）；冲突仅 `CURRENT_TASK.md` 一处，逐处人工解，禁用 -X ours/theirs
+  - ⚠️ 主干在本卡作业期间从 `2164b498` 前进到 `a9c8b97c`（新合入 D3+D4、D2a+D2b 及卡文更新）。
+    该推进推翻了本卡早先两条结论：`fsrs_manager.py` 已被 D3/D4 改动（`980b3758`→`f9edc906`）、
+    主干动了 `backend/tests/unit/conftest.py`。合并后判据实跑仍绿（219+1 / 517+1）
 - 📌 证据：`_bmad-output/审查/closeout-a-evidence/`（ci-equivalence / ci-preflight /
   ci-yaml-shell-semantics / g31-round19-high-closure）
 
