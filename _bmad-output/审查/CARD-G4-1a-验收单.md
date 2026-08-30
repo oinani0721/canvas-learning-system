@@ -6,7 +6,7 @@
 > **日期**: 2026-08-30（含 Codex round-1 整改）
 > **上游**: 开跑手册 §二 G4-1a 要点 · 总账 v2 §G4-1 · G2-2 Codex round-1 移交条款（BLOCKER-5 / HIGH-7）
 > **审查**: `codex-review-CARD-G4-1a.md`（round-1 裁定"需整改"）+ `codex-review-CARD-G4-1a-round1-整改记录.md`（round-1 十三条 + round-2 两条 + round-3 三条，逐条处置）
-> **⚠️ 审查轮次如实声明**: round-2 / round-3 均被外部内容过滤在**收尾汇总阶段**中断，未产出完整分级报告与合并裁定；两轮中断前给出的 5 条反证已全部核实处置。详见整改记录末节与 §六裁决点 5
+> **审查轮次**: round-1（ultra+并行，完整，13 条全闭合）→ round-2/3（ultra+并行，**均在子 agent 汇总阶段被外部内容过滤中断**，5 条反证全闭合）→ **final（high+单线程，完整，5/5 PASS，裁定「可合并」）**，存档 `codex-review-CARD-G4-1a-final-裁定.md`。⚠️ final 轮覆盖面窄于 round-1（5 个定点问题 vs 全面扫描），它闭合的是「前三轮发现是否真修好」，不等价于一次全新全面审查
 
 ---
 
@@ -236,7 +236,10 @@
 
 > **口径差声明（更新）**：手册 (f) 记「5 读方法 + 4 个 JSON 镜像 + get_all_recent_episodes」。实际本卡把 `get_review_suggestions` / `get_learning_history` **完全**封堵（Codex round-1 B-2 反证「删除会导致签名半改」不成立），故移交侧剩 **5 个方法**（含 `get_all_recent_episodes`），与手册数字巧合一致但成分不同。
 
-**JSON 镜像层（新增过滤面，移交）**：`_get_score_history_json_fallback`、`_get_canvas_associations_json*`、`_get_canvas_concepts_json*` 等。本卡只对**已有**过滤的 `_get_learning_history_json` 做了语义对齐 + 删无过滤分支，未给任何镜像**新开**过滤面。
+**JSON 降级层 —— 本卡已封（Codex round-2 反证：不封等于"把 Neo4j 弄挂就能绕过封堵"）**：
+`_get_learning_history_json`（删无过滤分支 + 语义对齐）、`_handle_query_reviews`（含 concept_id 反查过 scope）、`_get_score_history_json_fallback`（**round-2 已加过滤，不再是移交项**）。
+
+**JSON 降级层 —— 仍移交 G4-1b**：`_get_canvas_associations_json*` / `_get_canvas_concepts_json*` 等。判据：**它们背后的 Cypher 读方法本卡也没封**，两侧必须同批改；单方面在降级侧 fail-closed 会打断一个本卡不拥有的功能，而泄漏面并不因此变小。同理 `_handle_query_history`（主调用方 `get_concept_history` 的 Cypher 路径未封）本卡只做"有 scope 则过滤 + 无 scope 告警"，不 fail-closed。
 
 **其他移交**：审计 §5 #2/#4 两处 CONDITIONAL 已在本卡升为全 alias + 前缀语义（不再移交）。
 
@@ -314,12 +317,12 @@ grep -c "group_ids IS NULL" app/services/memory_service.py
 
 ---
 
-## 六、待用户裁决（5 条）
+## 六、待用户裁决（4 条 + 1 条已闭合）
 
 | # | 事项 | 背景 | 建议 |
 |---|---|---|---|
 | 1 | **`exam_quick` 新增 409 是否可接受** | B-3 修复给该端点加了 vault 一致性门。此前它对任何 `vault_id` 都放行（读的却是 active vault 的数据）。若有调用方长期传着错的 `vault_id` 也"能用"，改后会开始收到 409 | 建议保留（这正是它该做的）。若担心插件侧存量调用，可先看一轮日志再决定 |
 | 2 | **`Concept`/`LEARNED` 是否补 group_id RANGE 索引** | 实测这两个标签**没有** group_id 索引，等值与前缀都是 post-expand 过滤（故本卡无回归）。但数据量上来后两者都会慢 | 建议登记 backlog，与 G4-14/R-SLO 的规模基准一起做 `PROFILE` 后再定 |
 | 4 | **物理 ID 碰撞的写侧残留是否本批收** | Codex round-3 指出 `vault:a__board` 与 `vault:a:board` 物理化后同名。读侧已拒绝该形状作作用域；且实测 `sanitize_vault_id("a__board") == "a_board"`、yaml 分支也过 sanitize（config.py:789）⇒ **没有任何生产路径能产出这种 vault 身份**。残留只在"调用方手工构造 group_id 直接写入" | 建议移交写侧身份校验卡（本卡铁律不碰写路径）。若要立刻堵，需在 `to_physical_group_id` 或写侧解析加拒绝，属 G2 地盘 |
-| 5 | ⛔ **审查轮次未走完，是否补跑** | round-1 完整（13 条，已全闭合）；**round-2 / round-3 均被外部内容过滤在收尾汇总阶段中断**，未产出完整分级报告与合并裁定。两轮中断前给出的 5 条反证已全部核实处置（3 修 + 1 登记边界 + 1 自查追加），但**没有一份 round-2/3 的终裁**。连续两轮同型中断（改过措辞仍触发，触发点在汇总而非提示词） | 建议：换审查器（另一模型/人工）跑一轮终裁，或接受"round-1 全闭合 + round-2/3 反证全闭合 + 17/17 变异"作为证据链。**这是本卡唯一的证据缺口，必须由你裁决**，我不代批 |
+| 5 | ~~审查轮次未走完，是否补跑~~ → **已闭合** | round-2/3 被过滤中断后，改用 **high + 单线程 + 5 个定点问题**重跑（前两轮的触发点在子 agent 汇总，不在提示词），完整跑完：**5/5 PASS，裁定「可合并」**。存档 `codex-review-CARD-G4-1a-final-裁定.md` | 无需裁决。仅保留一条如实声明：final 轮是**收敛确认**（窄），不是第二次全面扫描 |
 | 3 | **`learning_context_service` 的死 fallback 是否本批修** | LearningMemoryClient secondary 未传必填 `query`，固定 TypeError 后被吞——从未真正运行过（Codex L-2，既有缺陷、与跨库读无关） | 建议独立收债卡。修它等于启用一条从未运行过的代码路径，需要单独验证，不宜混进封堵卡 |

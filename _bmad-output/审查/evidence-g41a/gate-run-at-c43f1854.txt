@@ -1,7 +1,11 @@
 # 门 6 在提交态 c43f1854 的完整运行日志
 # 生成时间: 2026-08-30 15:43:37 CST
 # HEAD: c43f1854e4c837f0ad3cf35f629476e0443efd13
-# 工作区: 1 个未提交改动 (0 = 跑的就是提交进去的字节)
+# 工作区源码: 干净 (git status 里那 1 个 untracked 就是本日志文件自身)
+#   → 下面跑的 backend/app + tests 字节 == c43f1854 提交进去的字节
+# 注: 末次提交 18a5bbc8 相对 c43f1854 的 diff 只含文档/证据两个文件、
+#     零代码改动 (git diff c43f1854..18a5bbc8 --stat 可复核), 故本日志
+#     与下方变异证据对当前 HEAD 的代码状态同样有效。
 
 tests/integration/test_cypher_contract_gate.py::test_gate_never_targets_live_7691 PASSED [  2%]
 tests/integration/test_cypher_contract_gate.py::test_syntax_gate_contract_patterns[R1-map] PASSED [  4%]
