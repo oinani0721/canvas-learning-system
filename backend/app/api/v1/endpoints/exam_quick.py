@@ -94,9 +94,29 @@ async def exam_quick(req: ExamQuickRequest) -> ExamQuickResponse:
     """读 frontmatter.tips → LLM 拼 prompt 出题 → 返回 question_text.
 
     response time: ~3-5s (单 LLM call). 失败时降级到回退题模板.
+
+    CARD-G4-1a / Codex round-1 B-3 (2026-08-30) — 跨库串读封堵:
+    本端点请求体**强制**带 ``vault_id``, 但此前完全不解析、不下传, 直接调
+    ``_fetch_tips_and_errors(node_id)``。于是 vault A 的进程收到
+    ``vault_id=B`` 的请求时, 读的是 **A** 的批注与错因, 却把生成的题目记成
+    B 的 (``_QUESTION_STORE[...]["vault_id"] = req.vault_id``)。canvas node id
+    并非全局唯一 (读契约 R3 明列的反例), 所以 A/B 同名节点会直接串库。
+
+    现在走 G2-2 的统一解析点 ``resolve_vault_group_id``: 显式 vault 与进程
+    active vault 不一致 → 409 fail-closed(不静默改写作用域), 一致则注入
+    ContextVar 并把 group 显式下传给 tips/errors 这一路。
     """
+    from app.core.vault_scope import VaultScopeUnresolved, resolve_vault_group_id
+
+    # 解析在 try **之外**: 下面的 except 是"上下文取不到就降级空 tips",
+    # 而 vault 不一致 / 作用域不可信必须显式失败, 不能被降级掩盖。
+    scope_group_id = resolve_vault_group_id(req.vault_id)
+
     try:
-        tips, _errors = await _fetch_tips_and_errors(req.node_id)
+        tips, _errors = await _fetch_tips_and_errors(req.node_id, scope_group_id)
+    except VaultScopeUnresolved:
+        # 作用域不可信 ≠ 上下文暂时取不到 (Codex round-1 H-3)
+        raise
     except Exception as e:
         # 上下文获取失败不应导致 500 — 降级为空 tips, 让 generate_question 走回退路径
         logger.warning(

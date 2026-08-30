@@ -160,27 +160,24 @@ class ArchiveScheduler:
         Returns:
             List of node IDs.
         """
-        from app.config import DEFAULT_GROUP_ID
-        from app.core.subject_config import (
-            canonical_group_id,
-            get_current_subject_id,
-        )
+        from app.core.vault_scope import require_read_group
         from app.services.memory_service import get_memory_service
 
-        # wave-5 Stage B P0 (2026-05-11): scheduled cron does not have a
-        # per-request ContextVar; fall back to DEFAULT_GROUP_ID with a
-        # WARNING so the leak risk surfaces in logs.  Future: schedule
-        # cron per-vault and propagate vault_id via the scheduler.
-        ctx_value = get_current_subject_id()
-        if ctx_value:
-            effective_group_id = canonical_group_id(ctx_value)
-        else:
-            effective_group_id = DEFAULT_GROUP_ID
-            logger.warning(
-                "[archive_scheduler] No vault ContextVar — falling back to "
-                "DEFAULT_GROUP_ID. Risk: scheduled archive may scan wrong vault.",
-                fallback=DEFAULT_GROUP_ID,
-            )
+        # CARD-G4-1a / Codex round-1 H-1 (2026-08-30) — 本地解析链已删除。
+        # 旧实现: `ctx = get_current_subject_id(); if ctx: canonical(ctx) else
+        # DEFAULT_GROUP_ID`。两个缺陷:
+        #   1. ContextVar 的**默认值是 'general'**(不是空), 恒 truthy —— else
+        #      分支是死代码, 那句"回落 DEFAULT_GROUP_ID"的 WARNING 从不打印;
+        #   2. 于是走的是 `canonical_group_id('general')`, 稳定得到
+        #      `vault:default` 污染桶。本调度器由 main.py 每 24h 真实启动,
+        #      结果是它长期在空桶里扫, 恒认为"没有活跃对话"(或处理污染桶里
+        #      的错误节点), 而日志里一句告警都没有。
+        # 现在统一走读侧解析口: ContextVar 有真实 vault 就用它, 否则推导进程
+        # active vault; 推导不出或落到 vault:default 污染桶则显式抛错
+        # (由下方 except 记 error, 不静默当成"没有活跃节点")。
+        effective_group_id = require_read_group(
+            context="archive_scheduler._get_active_node_ids"
+        )
 
         memory_svc = await get_memory_service()
 

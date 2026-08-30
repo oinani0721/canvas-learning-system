@@ -152,25 +152,50 @@ class TestGetReviewSuggestionsCypher:
         )
 
     @pytest.mark.asyncio
-    async def test_read_without_group_id_uses_alias(
+    async def test_read_without_group_id_still_scoped(
         self, neo4j_client_with_capture: Any
     ) -> None:
+        """CARD-G4-1a (2026-08-30) — 原名 test_read_without_group_id_uses_alias。
+
+        契约变更: 不传 group_id **不再**意味着"不过滤"。审计 §5 #3 的无 group
+        分支已删除 (Codex round-1 B-2), 作用域改由 read_scope_params 统一解析
+        (per-request ContextVar → active vault → 解析不出即抛)。本用例保留原有
+        的 `r.score AS last_score` 断言, 并加上"仍然带组过滤"的新断言。
+        """
         client, capture = neo4j_client_with_capture
         await client.get_review_suggestions(user_id="u1", limit=5, group_id=None)
         cypher = capture.find_query_with("LEARNED")
         assert "r.score as last_score" in cypher.lower()
         assert "r.last_score" not in cypher
+        assert "$group_id" in cypher and "$group_prefix" in cypher, (
+            f"不传 group_id 也必须带作用域过滤 (R4 禁止静默全库读); got: {cypher}"
+        )
 
     @pytest.mark.asyncio
     async def test_read_filter_by_group_id_when_provided(
         self, neo4j_client_with_capture: Any
     ) -> None:
+        """CARD-G4-1a: 过滤形态由等值 `$groupId` 改为**等值 OR 前缀**。
+
+        原断言 `c.group_id = $groupId` 锁的是旧的等值语义 —— 现网存量 Concept/
+        LEARNED 全在 canvas 子组, 等值会让复习建议整页空 (见读契约 R4 前缀语义
+        段)。新断言锁三件事: 两个 alias 都过滤、参数名成对、前缀锚带 `__` 定界符。
+        """
         client, capture = neo4j_client_with_capture
         await client.get_review_suggestions(user_id="u1", limit=10, group_id="math")
         cypher = capture.find_query_with("LEARNED")
-        assert "c.group_id = $groupId" in cypher, (
-            "get_review_suggestions must filter by group_id when one is provided"
-        )
+        for alias in ("c", "r"):
+            assert f"{alias}.group_id = $group_id" in cypher, (
+                f"alias {alias!r} 缺等值过滤 (R1 每个 alias 逐一过滤); got: {cypher}"
+            )
+            assert f"{alias}.group_id STARTS WITH $group_prefix" in cypher, (
+                f"alias {alias!r} 缺前缀过滤 (vault 子组会被误挡); got: {cypher}"
+            )
+        params = capture.find_params_with("LEARNED") if hasattr(capture, "find_params_with") else None
+        if params is not None:
+            assert params["group_prefix"] == params["group_id"] + "__", (
+                "前缀锚必须带 `__` 定界符, 否则 vault__x 会吃掉 vault__xy"
+            )
 
 
 # ---------------------------------------------------------------------------

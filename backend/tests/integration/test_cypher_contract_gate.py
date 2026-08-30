@@ -744,3 +744,503 @@ async def test_group_resolved_from_canvas_path_branch(gate_client):
     # 清理: 该分支产出的 group 不带 gate 前缀, 模块级 cleanup 靠 path/id 兜底
     await gate_client.run_query("MATCH (c:Canvas {path: $path}) DETACH DELETE c", path=canvas_path)
     await gate_client.run_query("MATCH (n:Node {id: $nid}) DETACH DELETE n", nid=node_id)
+
+
+# ---------------------------------------------------------------------------
+# 门 6 — 读侧作用域行为门 (CARD-G4-1a, BATCH-2026-08-29-第六批)
+#
+# 门 2 只验了"同名概念在两 vault 不串"这一半 (泄漏面)。G4-1a 把 service 层的
+# `group_id=None` 直通封死后, 出现了**方向相反**的新风险: 写侧按 D16 规约把
+# 内容写进 vault 的二级子组 (canvas / semantic / punycode), 若读侧用等值过滤
+# 锚 vault 根组, 泄漏堵住了但"复习建议整页空" —— 比泄漏更像产品坏了。
+# 2026-08-30 现网 7691 只读实测: 全库唯一 Concept 与唯一 LEARNED 边都落在
+# `vault__canvas_vault__xn--jhqx6ce6ettpca6420ada2925d`, vault 根组零命中。
+#
+# 因此本门**成对**断言, 两半缺一不可:
+#   (保召回) A vault 根组读 → A 的 canvas/semantic/punycode 子组数据全部可见;
+#   (零泄漏) 同一次读 → B vault 数据 0 条;
+#   (保隔离) A 的 board_x 子组读 → 兄弟板 board_y 仍不可见 (证明保召回不是
+#            靠"把隔离放宽成 vault 级"换来的);
+#   (防误配) `vault__g21gate_a` 的前缀不得吃到 `vault__g21gate_ab`。
+# 读路径走**真实生产方法** (Neo4jClient.get_review_suggestions /
+# get_learning_history / get_concept_score_history、conversation_inheritance
+# 的邻居查询), 不是重写一遍 Cypher 自测自。
+# ---------------------------------------------------------------------------
+
+G41A_USER = f"{GATE_PREFIX}_g41a_user"
+G41A_ALIAS_USER = f"{GATE_PREFIX}_g41a_alias_user"
+G41A_NODE = f"{GATE_PREFIX}_g41a_node"
+G41A_CANVAS = f"{GATE_PREFIX}_g41a_board.canvas"
+
+# A vault 的四类组: 根 / canvas 子组 / semantic 影子组 / punycode 中文白板子组
+GID_A_BRDX = to_physical_group_id(f"{GID_A_LOGICAL}:board_x")
+GID_A_BRDX_SEM = to_physical_group_id(f"{GID_A_LOGICAL}:board_x:semantic")
+GID_A_BRDY = to_physical_group_id(f"{GID_A_LOGICAL}:board_y")
+GID_A_SEM = to_physical_group_id(f"{GID_A_LOGICAL}:semantic")
+GID_A_PUNY = to_physical_group_id(f"{GID_A_LOGICAL}:特征值与特征向量")
+# 近似前缀的**另一个** vault — 防裸前缀误配 (vault__x 吃掉 vault__xy)
+GID_AB_LOGICAL = f"vault:{GATE_PREFIX}_ab"
+GID_AB = to_physical_group_id(GID_AB_LOGICAL)
+
+#: concept 名 → 所属物理组。名字自带归属, 断言直接比集合。
+_G41A_CONCEPTS = {
+    f"{GATE_PREFIX}_g41a_a_root": GID_A,
+    f"{GATE_PREFIX}_g41a_a_brdx": GID_A_BRDX,
+    f"{GATE_PREFIX}_g41a_a_brdx_sem": GID_A_BRDX_SEM,
+    f"{GATE_PREFIX}_g41a_a_brdy": GID_A_BRDY,
+    f"{GATE_PREFIX}_g41a_a_sem": GID_A_SEM,
+    f"{GATE_PREFIX}_g41a_a_puny": GID_A_PUNY,
+    f"{GATE_PREFIX}_g41a_b_root": GID_B,
+    f"{GATE_PREFIX}_g41a_ab_root": GID_AB,
+}
+
+#: score-history 五个 alias 的逐个异组样本 (H-4): key = "哪个 alias 在 B"。
+#: "ok" 是全 A 正向对照 —— 没有它, "把过滤写死成永远返回空"也能让负门全绿。
+_SCORE_ALIAS_CASES = {
+    "ok": {"n": GID_A, "c": GID_A, "cn": GID_A, "e": GID_A, "r": GID_A},
+    "n": {"n": GID_B, "c": GID_A, "cn": GID_A, "e": GID_A, "r": GID_A},
+    "c": {"n": GID_A, "c": GID_B, "cn": GID_A, "e": GID_A, "r": GID_A},
+    "cn": {"n": GID_A, "c": GID_A, "cn": GID_B, "e": GID_A, "r": GID_A},
+    "e": {"n": GID_A, "c": GID_A, "cn": GID_A, "e": GID_B, "r": GID_A},
+    "r": {"n": GID_A, "c": GID_A, "cn": GID_A, "e": GID_A, "r": GID_B},
+}
+
+#: A vault 根组读**应当**看到的全集 (保召回门的正向期望)。
+#: 注意 `gid.startswith(GID_A)` 是错的 —— 它会把 `vault__g21gate_ab` 也算进来
+#: (正是本门要抓的误配)。锚点必须带 `__` 定界符, 与 read_group_filter 同口径。
+_A_SCOPE_EXPECTED = {
+    name
+    for name, gid in _G41A_CONCEPTS.items()
+    if gid == GID_A or gid.startswith(GID_A + "__")
+}
+
+
+def test_g41a_punycode_subgroup_is_really_punycode():
+    """自证: 中文白板子组确实转成了 punycode 形态 (与现网存量同形)。
+
+    这条若红, 说明下面的"punycode 子组可见"门测的根本不是 punycode。
+    """
+    assert GID_A_PUNY.startswith(GID_A + "__xn--"), GID_A_PUNY
+    assert GID_AB.startswith(GID_A), "近似前缀样本失效, 防误配门失去意义"
+    assert GID_AB != GID_A
+
+
+@pytest.fixture
+async def g41a_seed(gate_client):
+    """按写契约形态 (W1 复合键 + 关系带 group) 铺 8 个组的 LEARNED 数据。
+
+    next_review 设为过去 → 全部满足 get_review_suggestions 的 due 条件。
+
+    ⚠️ 必须**依赖 gate_client 且 function 作用域**: gate_client 在每次 setup /
+    teardown 都跑 ``_CLEANUP_QUERIES``, 模块级 seed 会被第二个用例的 client
+    清掉, 之后所有断言都对着空库假绿。声明依赖保证"先清后种"的顺序。
+    """
+    await gate_client.run_query("MERGE (u:User {id: $uid})", uid=G41A_USER)
+    for name, gid in _G41A_CONCEPTS.items():
+        await gate_client.run_query(
+            """
+            MERGE (c:Concept {name: $name, group_id: $gid})
+            SET c.probe = $probe, c.id = $name
+            WITH c
+            MATCH (u:User {id: $uid})
+            MERGE (u)-[r:LEARNED {group_id: $gid}]->(c)
+            SET r.score = 42,
+                r.review_count = 1,
+                r.timestamp = $ts,
+                r.next_review = datetime() - duration('P1D')
+            """,
+            name=name,
+            gid=gid,
+            uid=G41A_USER,
+            probe=GATE_PREFIX,
+            ts="2026-08-30T00:00:00",
+        )
+    # 自证 seed 真的落库了 —— 否则下面每一条"看不到 B"都可能是空库假绿
+    planted = await gate_client.run_query(
+        "MATCH (c:Concept) WHERE c.probe = $probe AND c.name STARTS WITH $p "
+        "RETURN count(c) AS c",
+        probe=GATE_PREFIX,
+        p=f"{GATE_PREFIX}_g41a",
+    )
+    assert planted and planted[0]["c"] == len(_G41A_CONCEPTS), (
+        f"g41a seed 未完整落库: {planted}"
+    )
+    return _G41A_CONCEPTS
+
+
+def _names(rows, key="concept"):
+    return {r[key] for r in rows if str(r.get(key, "")).startswith(GATE_PREFIX)}
+
+
+# ── 6.1 契约片段在真实 server 上的行为 (等值 OR 前缀) ─────────────────────
+
+
+async def test_g41a_contract_fragment_recall_and_isolation(gate_client, g41a_seed):
+    """read_group_filter + read_scope_params 的输出在真库上同时满足保召回与零泄漏."""
+    from app.core.vault_scope import read_group_filter, read_scope_params
+
+    params = read_scope_params(GID_A_LOGICAL, context="gate")
+    rows = await gate_client.run_query(
+        f"MATCH (n:Concept) WHERE {read_group_filter('n')} AND n.probe = $probe "
+        "RETURN n.name AS concept",
+        probe=GATE_PREFIX,
+        **params,
+    )
+    got = _names(rows)
+    assert _A_SCOPE_EXPECTED <= got, (
+        f"保召回门红: A vault 子组数据被误挡, 缺失 {_A_SCOPE_EXPECTED - got}"
+    )
+    assert f"{GATE_PREFIX}_g41a_b_root" not in got, "零泄漏门红: 读到了 B vault"
+    assert f"{GATE_PREFIX}_g41a_ab_root" not in got, (
+        "防误配门红: `vault__x` 前缀吃掉了另一个 vault `vault__xy`"
+    )
+
+
+async def test_g41a_canvas_scope_still_isolates_sibling_board(gate_client, g41a_seed):
+    """保隔离: 前缀语义锚在 board_x 子组时, 兄弟板 board_y 仍不可见。
+
+    这条是"保召回不得靠放宽隔离换取"的反向锁 —— 若有人把锚点改成 vault 根,
+    本条立即红。
+    """
+    from app.core.vault_scope import read_group_filter, read_scope_params
+
+    params = read_scope_params(f"{GID_A_LOGICAL}:board_x", context="gate")
+    rows = await gate_client.run_query(
+        f"MATCH (n:Concept) WHERE {read_group_filter('n')} AND n.probe = $probe "
+        "RETURN n.name AS concept",
+        probe=GATE_PREFIX,
+        **params,
+    )
+    got = _names(rows)
+    assert got == {
+        f"{GATE_PREFIX}_g41a_a_brdx",
+        f"{GATE_PREFIX}_g41a_a_brdx_sem",  # 自己的影子子组仍在可见面内
+    }, f"canvas 级作用域的可见面不对: {got}"
+
+
+# ── 6.2 真实生产读路径 (Neo4jClient 方法) ────────────────────────────────
+
+
+async def test_g41a_review_suggestions_recall_from_subgroups(gate_client, g41a_seed):
+    """用户可感门: vault 根组读"复习建议"必须看得到子组里的概念。
+
+    这正是卡文 §二 点名的现网风险 —— 存量 Concept/LEARNED 全在 punycode
+    子组, 等值过滤会让这个接口整页空。
+    """
+    rows = await gate_client.get_review_suggestions(
+        user_id=G41A_USER, limit=50, group_id=GID_A_LOGICAL
+    )
+    got = _names(rows)
+    assert f"{GATE_PREFIX}_g41a_a_puny" in got, (
+        "保召回门红: punycode 白板子组的待复习概念看不见 = 复习建议变空"
+    )
+    assert _A_SCOPE_EXPECTED <= got, f"A vault 子组缺失: {_A_SCOPE_EXPECTED - got}"
+
+
+async def test_g41a_review_suggestions_zero_cross_vault_leak(gate_client, g41a_seed):
+    """同一次读: B vault 与近似前缀 vault 的待复习概念 0 条。"""
+    rows = await gate_client.get_review_suggestions(
+        user_id=G41A_USER, limit=50, group_id=GID_A_LOGICAL
+    )
+    got = _names(rows)
+    assert f"{GATE_PREFIX}_g41a_b_root" not in got
+    assert f"{GATE_PREFIX}_g41a_ab_root" not in got
+    # 反向: B 作用域看得到自己、看不到 A
+    rows_b = await gate_client.get_review_suggestions(
+        user_id=G41A_USER, limit=50, group_id=GID_B_LOGICAL
+    )
+    got_b = _names(rows_b)
+    assert got_b == {f"{GATE_PREFIX}_g41a_b_root"}, got_b
+
+
+async def test_g41a_learning_history_recall_and_isolation(gate_client, g41a_seed):
+    """get_learning_history 同一套语义 (r + c 双 alias 过滤)。"""
+    rows = await gate_client.get_learning_history(
+        user_id=G41A_USER, group_id=GID_A_LOGICAL, limit=100
+    )
+    got = _names(rows)
+    assert _A_SCOPE_EXPECTED <= got, f"A vault 子组缺失: {_A_SCOPE_EXPECTED - got}"
+    assert f"{GATE_PREFIX}_g41a_b_root" not in got
+    assert f"{GATE_PREFIX}_g41a_ab_root" not in got
+
+
+async def test_g41a_score_history_scoped_read(gate_client):
+    """get_concept_score_history: 同 node id + 同 canvas path 在两 vault 各写一份,
+    读侧必须只见本 vault 的分数 (审计 §5 #8 补齐)。"""
+    for gid, score in ((GID_A_PUNY, 11), (GID_B, 99)):
+        ok = await gate_client.record_score_history(
+            concept_id=G41A_NODE,
+            canvas_name=G41A_CANVAS,
+            score=score,
+            timestamp="2026-08-30T01:00:00",
+            group_id=gid,
+        )
+        assert ok is True, f"seed 写入失败 (group={gid})"
+
+    a_rows = await gate_client.get_concept_score_history(
+        concept_id=G41A_NODE, canvas_name=G41A_CANVAS, limit=10, group_id=GID_A_LOGICAL
+    )
+    b_rows = await gate_client.get_concept_score_history(
+        concept_id=G41A_NODE, canvas_name=G41A_CANVAS, limit=10, group_id=GID_B_LOGICAL
+    )
+    assert [r["score"] for r in a_rows] == [11], (
+        f"A 作用域读到了非 A 的分数 (保召回/零泄漏双检): {a_rows}"
+    )
+    assert [r["score"] for r in b_rows] == [99], b_rows
+
+
+async def test_g41a_score_history_fail_closed_on_unresolved_group(gate_client, monkeypatch):
+    """无法解析作用域时抛错而不是返回空列表 —— 空列表会被展示成"没有历史分数"。
+
+    Codex round-1 H-2 整改: 除了显式空白串, 还必须覆盖**生产默认**形态
+    `group_id=None` + 无 per-request ContextVar + 进程无 active vault。
+    旧实现复用写侧 resolver, 该形态会由 canvas_name 推导出
+    `vault__default__<canvas>` —— 查询成功、零命中、被上层记成正常 empty
+    并进 30s 缓存, 正是本卡要防的静默断读。
+    """
+    import app.config as config_mod
+    from app.core.subject_config import _current_subject_id
+    from app.core.vault_scope import VaultScopeUnresolved
+
+    # 形态 1: 显式空白串 = 调用方 bug, 不得推导到别的 vault
+    with pytest.raises(VaultScopeUnresolved):
+        await gate_client.get_concept_score_history(
+            concept_id=G41A_NODE, canvas_name=G41A_CANVAS, limit=5, group_id="   "
+        )
+
+    # 形态 2: 生产默认 None + ContextVar 未注入 + 无 active vault
+    monkeypatch.setattr(config_mod, "get_current_vault_id", lambda: "default")
+    token = _current_subject_id.set("general")
+    try:
+        with pytest.raises(VaultScopeUnresolved):
+            await gate_client.get_concept_score_history(
+                concept_id=G41A_NODE, canvas_name=G41A_CANVAS, limit=5
+            )
+    finally:
+        _current_subject_id.reset(token)
+
+
+# ── 6.3 逐 alias 异组负门 (Codex round-1 H-4 整改) ───────────────────────
+# 6.1/6.2 的 fixture 把一条记录的所有 alias 放在同一个 group —— 任何**单个**
+# alias 的过滤丢失都会被其他 alias 兜住, 门照绿 (实测: 把 read_group_filter
+# 对 r 单独改成恒真, 门 6 仍 9/9 passed)。下面为每个 alias 单独构造"只有它在
+# B、其余在 A"的记录: 该 alias 的过滤一旦失效, 记录就会在 A 视角下现形。
+
+
+@pytest.fixture
+async def g41a_alias_seed(gate_client):
+    """逐 alias 异组样本。命名 `<prefix>_x<alias>` 标明哪个 alias 在 B。"""
+    await gate_client.run_query("MERGE (u:User {id: $uid})", uid=G41A_ALIAS_USER)
+    # review/history: (c, r) 两个 alias 各错一次
+    for name, cgid, rgid in (
+        (f"{GATE_PREFIX}_g41a_xr", GID_A, GID_B),  # 概念在 A, 关系在 B
+        (f"{GATE_PREFIX}_g41a_xc", GID_B, GID_A),  # 概念在 B, 关系在 A
+        (f"{GATE_PREFIX}_g41a_ok", GID_A, GID_A),  # 全 A — 正向对照, 必须可见
+    ):
+        await gate_client.run_query(
+            """
+            MERGE (c:Concept {name: $name, group_id: $cgid})
+            SET c.probe = $probe, c.id = $name
+            WITH c
+            MATCH (u:User {id: $uid})
+            MERGE (u)-[r:LEARNED {group_id: $rgid}]->(c)
+            SET r.score = 7, r.review_count = 1, r.timestamp = $ts,
+                r.next_review = datetime() - duration('P1D')
+            """,
+            name=name, cgid=cgid, rgid=rgid, uid=G41A_ALIAS_USER,
+            probe=GATE_PREFIX, ts="2026-08-30T00:00:00",
+        )
+
+    # score history: n / c / cn / r / e 五个 alias 各错一次 + 一条全 A 对照
+    for tag, gids in _SCORE_ALIAS_CASES.items():
+        await gate_client.run_query(
+            """
+            MERGE (n:Node {id: $nid, group_id: $ngid})
+            MERGE (c:Canvas {path: $path, group_id: $cgid})
+            MERGE (c)-[cn:CONTAINS_NODE {group_id: $cngid}]->(n)
+            CREATE (e:Episode {id: randomUUID(), type: 'scoring',
+                               group_id: $egid, timestamp: datetime($ts)})
+            CREATE (e)-[:SCORED {score: $score, group_id: $rgid,
+                                 timestamp: datetime($ts)}]->(n)
+            """,
+            nid=f"{GATE_PREFIX}_g41a_sc_{tag}", path=f"{GATE_PREFIX}_g41a_sc_{tag}.canvas",
+            ngid=gids["n"], cgid=gids["c"], cngid=gids["cn"],
+            egid=gids["e"], rgid=gids["r"],
+            score=1, ts="2026-08-30T02:00:00",
+        )
+    return True
+
+
+@pytest.mark.parametrize(
+    "crossed,visible",
+    [
+        (f"{GATE_PREFIX}_g41a_xr", False),  # r 在 B → r 过滤失效则现形
+        (f"{GATE_PREFIX}_g41a_xc", False),  # c 在 B → c 过滤失效则现形
+        (f"{GATE_PREFIX}_g41a_ok", True),   # 全 A 正向对照 (防"写死成空"假绿)
+    ],
+)
+async def test_g41a_review_suggestions_per_alias(gate_client, g41a_alias_seed, crossed, visible):
+    rows = await gate_client.get_review_suggestions(
+        user_id=G41A_ALIAS_USER, limit=50, group_id=GID_A_LOGICAL
+    )
+    assert (crossed in _names(rows)) is visible, (
+        f"{crossed} 可见性应为 {visible}; 实得 {sorted(_names(rows))}"
+    )
+
+
+@pytest.mark.parametrize(
+    "crossed,visible",
+    [
+        (f"{GATE_PREFIX}_g41a_xr", False),
+        (f"{GATE_PREFIX}_g41a_xc", False),
+        (f"{GATE_PREFIX}_g41a_ok", True),
+    ],
+)
+async def test_g41a_learning_history_per_alias(gate_client, g41a_alias_seed, crossed, visible):
+    rows = await gate_client.get_learning_history(
+        user_id=G41A_ALIAS_USER, group_id=GID_A_LOGICAL, limit=100
+    )
+    assert (crossed in _names(rows)) is visible, (
+        f"{crossed} 可见性应为 {visible}; 实得 {sorted(_names(rows))}"
+    )
+
+
+@pytest.mark.parametrize("tag", sorted(_SCORE_ALIAS_CASES))
+async def test_g41a_score_history_per_alias(gate_client, g41a_alias_seed, tag):
+    """五个 alias 各错一次: 只有全 A 的对照能读到分数, 其余一律 0 条。"""
+    rows = await gate_client.get_concept_score_history(
+        concept_id=f"{GATE_PREFIX}_g41a_sc_{tag}",
+        canvas_name=f"{GATE_PREFIX}_g41a_sc_{tag}.canvas",
+        limit=10,
+        group_id=GID_A_LOGICAL,
+    )
+    if tag == "ok":
+        assert [r["score"] for r in rows] == [1], f"正向对照读不到分数: {rows}"
+    else:
+        assert rows == [], (
+            f"alias {tag!r} 在 B 组却被 A 作用域读到 —— 该 alias 的过滤失效: {rows}"
+        )
+
+
+async def test_g41a_canvas_scope_via_production_methods(gate_client, g41a_seed):
+    """M-1 整改: canvas 级作用域的隔离必须由**生产方法**证明, 不能只测 helper。
+
+    生产方法若把 `vault:A:board_x` 错误提升成 `vault:A`, helper 门与根组生产门
+    都仍绿, 但 board_x 会看到父组与兄弟板 —— 本条正是那个漏网场景的锁。
+    """
+    scope = f"{GID_A_LOGICAL}:board_x"
+    expected = {f"{GATE_PREFIX}_g41a_a_brdx", f"{GATE_PREFIX}_g41a_a_brdx_sem"}
+    for label, rows in (
+        ("review", await gate_client.get_review_suggestions(
+            user_id=G41A_USER, limit=50, group_id=scope)),
+        ("history", await gate_client.get_learning_history(
+            user_id=G41A_USER, group_id=scope, limit=100)),
+    ):
+        got = _names(rows)
+        assert got == expected, f"{label}: canvas 作用域可见面不对 {sorted(got)}"
+
+
+async def test_g41a_inheritance_neighbors_are_vault_scoped(gate_client, monkeypatch):
+    """conversation_inheritance 邻居查询三 alias 过滤 (G2-2 Codex HIGH-7 移交)。
+
+    两 vault 各建一对同名 EntityNode 邻居 —— 封堵前 A 会读到 B 的邻居名与边标签。
+    """
+    import app.clients.neo4j_client as neo4j_client_mod
+    from app.services.conversation_inheritance import (
+        _fetch_neighbor_records_for_inheritance,
+    )
+
+    monkeypatch.setattr(neo4j_client_mod, "get_neo4j_client", lambda: gate_client)
+
+    anchor = f"{GATE_PREFIX}_g41a_anchor"
+    for gid, neighbor in ((GID_A_PUNY, f"{GATE_PREFIX}_g41a_nbr_a"), (GID_B, f"{GATE_PREFIX}_g41a_nbr_b")):
+        await gate_client.run_query(
+            """
+            MERGE (n:EntityNode {name: $anchor, group_id: $gid})
+            MERGE (m:EntityNode {name: $neighbor, group_id: $gid})
+            MERGE (n)-[r:RELATES_TO {group_id: $gid}]->(m)
+            SET r.label = $neighbor
+            """,
+            anchor=anchor,
+            neighbor=neighbor,
+            gid=gid,
+        )
+
+    try:
+        a_records = await _fetch_neighbor_records_for_inheritance(
+            anchor, GID_A_LOGICAL
+        )
+        b_records = await _fetch_neighbor_records_for_inheritance(
+            anchor, GID_B_LOGICAL
+        )
+        a_names = {r.get("name") for r in a_records}
+        b_names = {r.get("name") for r in b_records}
+        assert a_names == {f"{GATE_PREFIX}_g41a_nbr_a"}, (
+            f"A 视角邻居集合不对 (保召回 punycode 子组 + 零泄漏 B): {a_names}"
+        )
+        assert b_names == {f"{GATE_PREFIX}_g41a_nbr_b"}, b_names
+    finally:
+        await gate_client.run_query(
+            "MATCH (n:EntityNode) WHERE n.name STARTS WITH $p DETACH DELETE n",
+            p=f"{GATE_PREFIX}_g41a",
+        )
+
+
+async def test_g41a_inheritance_per_alias_negative(gate_client, monkeypatch):
+    """B-1 / H-4 回归锁: 三个 alias 逐个异组 + NULL 关系, 每种都必须不可见。
+
+    ⚠️ `r` 为 NULL 的那条是 Codex round-1 **B-1** 的直接回归锁 —— 初版对关系
+    alias 用了 `allow_null=True`, 理由是"两端节点已锚定, 边不可能跨库"。存量
+    W1 clobber 图上这不成立: 节点可以现归 A, 而一条曾在 B 上下文生成的边仍是
+    NULL group 且 label/reason 承载 B 的语义, 而本查询恰恰返回这两个字段。
+    """
+    import app.clients.neo4j_client as neo4j_client_mod
+    from app.services.conversation_inheritance import (
+        _fetch_neighbor_records_for_inheritance,
+    )
+
+    monkeypatch.setattr(neo4j_client_mod, "get_neo4j_client", lambda: gate_client)
+
+    anchor = f"{GATE_PREFIX}_g41a_ali_anchor"
+    # (邻居名, 锚点组, 邻居组, 边组 — None 表示边不带 group_id)
+    cases = [
+        (f"{GATE_PREFIX}_g41a_ali_ok", GID_A, GID_A, GID_A),        # 全 A: 可见
+        (f"{GATE_PREFIX}_g41a_ali_xnbr", GID_A, GID_B, GID_A),      # 邻居在 B
+        (f"{GATE_PREFIX}_g41a_ali_xrel", GID_A, GID_A, GID_B),      # 边在 B
+        (f"{GATE_PREFIX}_g41a_ali_xnull", GID_A, GID_A, None),      # 边无 group
+    ]
+    try:
+        for neighbor, ngid, mgid, rgid in cases:
+            if rgid is None:
+                await gate_client.run_query(
+                    """
+                    MERGE (n:EntityNode {name: $anchor, group_id: $ngid})
+                    MERGE (m:EntityNode {name: $neighbor, group_id: $mgid})
+                    MERGE (n)-[r:RELATES_TO {label: $neighbor}]->(m)
+                    """,
+                    anchor=anchor, neighbor=neighbor, ngid=ngid, mgid=mgid,
+                )
+            else:
+                await gate_client.run_query(
+                    """
+                    MERGE (n:EntityNode {name: $anchor, group_id: $ngid})
+                    MERGE (m:EntityNode {name: $neighbor, group_id: $mgid})
+                    MERGE (n)-[r:RELATES_TO {group_id: $rgid}]->(m)
+                    SET r.label = $neighbor
+                    """,
+                    anchor=anchor, neighbor=neighbor, ngid=ngid, mgid=mgid, rgid=rgid,
+                )
+
+        got = {
+            r.get("name")
+            for r in await _fetch_neighbor_records_for_inheritance(anchor, GID_A_LOGICAL)
+        }
+        assert got == {f"{GATE_PREFIX}_g41a_ali_ok"}, (
+            "逐 alias 负门失败 — 期望只见全 A 的那条; 实得 "
+            f"{sorted(x for x in got if x)}"
+        )
+    finally:
+        await gate_client.run_query(
+            "MATCH (n:EntityNode) WHERE n.name STARTS WITH $p DETACH DELETE n",
+            p=f"{GATE_PREFIX}_g41a",
+        )

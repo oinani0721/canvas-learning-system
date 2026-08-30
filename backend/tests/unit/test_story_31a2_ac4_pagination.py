@@ -12,7 +12,12 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from tests.unit.test_story_31a2_helpers import _make_neo4j_mock, _make_service
+from tests.unit.test_story_31a2_helpers import (
+    _make_neo4j_mock,
+    _make_service,
+    _scope,
+    _subject_scope,
+)
 
 # =============================================================================
 # AC-31.A.2.4: Pagination and Filtering
@@ -145,8 +150,20 @@ class TestAC31A24_PaginationAndFiltering:
         assert len(kwargs["group_id"]) > 0
 
     @pytest.mark.asyncio
-    async def test_no_subject_means_no_group_id(self):
-        """Without subject, group_id should be None."""
+    async def test_no_subject_still_scopes_to_active_vault(self):
+        """CARD-G4-1a (2026-08-30) — 契约反转, 逐字记录原因:
+
+        原用例名 ``test_no_subject_means_no_group_id``, 断言 ``group_id is None``。
+        那正是本卡要封堵的跨库读泄漏面: ``group_id=None`` 传到
+        ``neo4j_client.get_learning_history`` 后不拼任何 group 过滤 = 全库扫描,
+        用户在 A vault 查学习历史会读到 B vault 的记录 (读契约 R4:violation,
+        G2-2 Codex round-1 BLOCKER-5 移交项)。
+
+        新契约: 无 subject/canvas 时 fail-closed 解析**当前 vault 根组**, 而不是
+        放弃过滤。vault 根组经前缀语义仍可见其全部二级子组 (canvas / semantic /
+        punycode), 所以封堵不缩召回 —— 那一半由
+        tests/integration/test_cypher_contract_gate.py 门 6 在真库上锁死。
+        """
         mock_neo4j = _make_neo4j_mock()
         service = _make_service(mock_neo4j)
         await service.initialize()
@@ -154,7 +171,10 @@ class TestAC31A24_PaginationAndFiltering:
         await service.get_learning_history(user_id="u1")
 
         kwargs = mock_neo4j.get_learning_history.call_args.kwargs
-        assert kwargs["group_id"] is None
+        assert kwargs["group_id"] is not None, "读侧不得再退回无作用域全库查询"
+        assert kwargs["group_id"].startswith("vault:"), kwargs["group_id"]
+        # 且必须与 per-request 作用域一致 (不是随便造一个非 None 值)
+        assert kwargs["group_id"] == _scope()
 
     # --- Date Filters ---
 
@@ -195,12 +215,14 @@ class TestAC31A24_PaginationAndFiltering:
 
         service._episodes = [
             {
+                "group_id": _scope(),
                 "user_id": "u1",
                 "concept": "矩阵乘法",
                 "score": 90,
                 "timestamp": "2026-02-05T10:00:00",
             },
             {
+                "group_id": _scope(),
                 "user_id": "u1",
                 "concept": "概率论",
                 "score": 80,
@@ -220,8 +242,14 @@ class TestAC31A24_PaginationAndFiltering:
         service = _make_service(mock_neo4j)
         await service.initialize()
 
+        # CARD-G4-1a: 传了 subject ⇒ 作用域是**学科子组** `<vault>:<subject>`,
+        # 子组读看不到父组 (前缀语义只向下不向上)。所以 fixture 必须把两条
+        # episode 分别落进各自的学科子组 —— 与生产写侧 `_vault_scoped_group_id
+        # (subject)` 的落点一致。基线该用例本就是红的 (无归属 episode 被作用域
+        # 过滤), 本卡把它一并修绿, 见验收单 §二(e)。
         service._episodes = [
             {
+                "group_id": _subject_scope("数学"),
                 "user_id": "u1",
                 "concept": "矩阵",
                 "subject": "数学",
@@ -229,6 +257,7 @@ class TestAC31A24_PaginationAndFiltering:
                 "timestamp": "2026-02-05T10:00:00",
             },
             {
+                "group_id": _subject_scope("物理"),
                 "user_id": "u1",
                 "concept": "量子力学",
                 "subject": "物理",
@@ -250,9 +279,9 @@ class TestAC31A24_PaginationAndFiltering:
         await service.initialize()
 
         service._episodes = [
-            {"user_id": "u1", "concept": "Old", "timestamp": "2026-01-01T10:00:00"},
-            {"user_id": "u1", "concept": "Current", "timestamp": "2026-02-05T10:00:00"},
-            {"user_id": "u1", "concept": "Future", "timestamp": "2026-03-01T10:00:00"},
+            {"group_id": _scope(), "user_id": "u1", "concept": "Old", "timestamp": "2026-01-01T10:00:00"},
+            {"group_id": _scope(), "user_id": "u1", "concept": "Current", "timestamp": "2026-02-05T10:00:00"},
+            {"group_id": _scope(), "user_id": "u1", "concept": "Future", "timestamp": "2026-03-01T10:00:00"},
         ]
 
         result = await service.get_learning_history(
@@ -272,9 +301,9 @@ class TestAC31A24_PaginationAndFiltering:
         await service.initialize()
 
         service._episodes = [
-            {"user_id": "u1", "concept": "Oldest", "timestamp": "2026-02-01T10:00:00"},
-            {"user_id": "u1", "concept": "Newest", "timestamp": "2026-02-05T10:00:00"},
-            {"user_id": "u1", "concept": "Middle", "timestamp": "2026-02-03T10:00:00"},
+            {"group_id": _scope(), "user_id": "u1", "concept": "Oldest", "timestamp": "2026-02-01T10:00:00"},
+            {"group_id": _scope(), "user_id": "u1", "concept": "Newest", "timestamp": "2026-02-05T10:00:00"},
+            {"group_id": _scope(), "user_id": "u1", "concept": "Middle", "timestamp": "2026-02-03T10:00:00"},
         ]
 
         result = await service.get_learning_history(user_id="u1")
@@ -290,8 +319,8 @@ class TestAC31A24_PaginationAndFiltering:
         await service.initialize()
 
         service._episodes = [
-            {"user_id": "u1", "concept": "Mine", "timestamp": "2026-02-05T10:00:00"},
-            {"user_id": "u2", "concept": "NotMine", "timestamp": "2026-02-05T10:00:00"},
+            {"group_id": _scope(), "user_id": "u1", "concept": "Mine", "timestamp": "2026-02-05T10:00:00"},
+            {"group_id": _scope(), "user_id": "u2", "concept": "NotMine", "timestamp": "2026-02-05T10:00:00"},
         ]
 
         result = await service.get_learning_history(user_id="u1")

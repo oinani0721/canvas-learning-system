@@ -87,6 +87,17 @@ class TestNeo4jClientInitialization:
         assert stats["mode"] == "JSON_FALLBACK"
 
 
+def _json_fallback_scope() -> str:
+    """CARD-G4-1a: JSON 降级模式下记录的归属 = 当前读作用域。
+
+    降级路径与 Cypher 路径同一套 scope 语义（Codex round-2 反证：不过滤等于
+    "把 Neo4j 弄挂就能绕过封堵"）。生产写侧本来就落 group_id，fixture 对齐。
+    """
+    from app.core.vault_scope import current_group_id
+
+    return current_group_id()
+
+
 class TestNeo4jClientJsonFallback:
     """Test Neo4jClient JSON fallback mode - AC-3."""
 
@@ -324,6 +335,11 @@ class TestNeo4jClientJsonFallback:
                     "last_score": 80,
                     "next_review": past_date,
                     "review_count": 1,
+                    # CARD-G4-1a (2026-08-30): JSON 降级模式的复习建议现在也按
+                    # 作用域过滤 (Codex round-2: 否则"把 Neo4j 弄挂"就能绕过封
+                    # 堵)。生产写侧 create_learning_relationship 的 JSON 分支本
+                    # 来就落物理化 group_id, fixture 与之对齐。
+                    "group_id": _json_fallback_scope(),
                 }
             ],
         }

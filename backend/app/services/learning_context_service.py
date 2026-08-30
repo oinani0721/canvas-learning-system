@@ -21,6 +21,8 @@ from datetime import datetime
 import structlog
 from typing import Optional
 
+from app.core.vault_scope import VaultScopeUnresolved
+
 logger = structlog.get_logger(__name__)
 
 # Token budget: Tier 1 + Tier 2 combined must stay under 4K tokens.
@@ -117,13 +119,27 @@ async def _fetch_mastery(node_id: str, group_id: str) -> dict:
     return result
 
 
-async def _fetch_tips_and_errors(node_id: str) -> tuple[list[dict], list[dict]]:
+async def _fetch_tips_and_errors(
+    node_id: str, group_id: Optional[str] = None
+) -> tuple[list[dict], list[dict]]:
     """Fetch tips and error records from MemoryService episodes.
 
     Tips are episodes with episode_type="learning_tip" and matching node_id.
     Errors are episodes with episode_type="misconception" and matching node_id.
 
-    Returns (tips_list, errors_list) of dicts.
+    CARD-G4-1a (2026-08-30, G2-2 Codex BLOCKER-5 移交项): 本函数此前**不接收**
+    group —— 调用方 ``get_node_context`` 明明已经算出了 group_id, 却只把它给了
+    mastery / neighbor 两路, tips/errors 这一路调 ``search_memories(group_id=
+    None)``, 三层检索全部无组过滤 = 用户在 A vault 的节点上会看到 B vault 的
+    批注与错因。现在 group 显式下传; 省略时 memory_service 侧仍会
+    ``require_read_group`` fail-closed 兜底 (不会退回全库)。
+
+    Args:
+        node_id: Canvas 节点标识。
+        group_id: 读作用域 (调用方 ``get_node_context`` 已解析)。
+
+    Returns:
+        (tips_list, errors_list) of dicts.
     """
     tips: list[dict] = []
     errors: list[dict] = []
@@ -136,6 +152,7 @@ async def _fetch_tips_and_errors(node_id: str) -> tuple[list[dict], list[dict]]:
         # Use public search_memories() API instead of accessing private _episodes
         episodes = await memory_svc.search_memories(
             query=node_id,
+            group_id=group_id,
             max_results=MAX_TIPS + MAX_ERRORS,
         )
         for episode in episodes:
@@ -168,6 +185,10 @@ async def _fetch_tips_and_errors(node_id: str) -> tuple[list[dict], list[dict]]:
                         "remedy": meta.get("remedy", ""),
                     }
                 )
+    except VaultScopeUnresolved:
+        # CARD-G4-1a / Codex round-1 H-3: 作用域不可信**不是**依赖故障 ——
+        # 吞掉它会把"配置坏了"呈现成"这个节点没有批注/错因"(静默断读)。
+        raise
     except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
         logger.warning("Failed to fetch tips/errors for %s: %s", node_id, e)
 
@@ -289,7 +310,9 @@ async def get_node_context(
 
     mastery_data, (tips, errors), neighbor_records = await asyncio.gather(
         _fetch_mastery(node_id, group_id),
-        _fetch_tips_and_errors(node_id),
+        # CARD-G4-1a: group 下传 — 上面已解析出的作用域此前只喂给 mastery /
+        # neighbor 两路, tips/errors 这一路是跨 vault 的。
+        _fetch_tips_and_errors(node_id, group_id),
         _fetch_neighbor_records(node_id, group_id),
     )
 
