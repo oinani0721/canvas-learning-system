@@ -1,0 +1,36 @@
+== Codex round-10 点名反例的对抗复验 ==
+date: 2026-08-28T16:48:38Z
+validator sha256: 3fb478adeb24820d2b6c8d92529d241f98c5133cf8a92d024982e793ab11f51c
+
+--- [R10-2 HIGH] vault_id: 改用 PyYAML 后与 backend 真值面逐例等价 ---
+  OK r10 十六进制               validator=None             backend=None
+  OK r10 下划线数字              validator=None             backend=None
+  OK r10 负无穷                validator=None             backend=None
+  OK r10 Unicode 转义键        validator='real'           backend='real'
+  OK r10 多行引号体              validator=None             backend=None
+  OK r9 引号键                 validator='real'           backend='real'
+  OK r9 隐式 bool             validator=None             backend=None
+  OK r8 键后空格                validator='real'           backend='real'
+  OK r7 折行                  validator='first second'   backend='first second'
+  OK r7 撇号                  validator='new'            backend='new'
+  OK 现网形态                   validator='canvas_vault'   backend='canvas_vault'
+  → 与 backend 真值面分叉数: 0 (期望 0)
+  真实现网: 'canvas_vault'
+
+--- [R10-1 HIGH] A7 文档与实现对齐 (排他上界) ---
+  schema 排他措辞出现次数: 2
+  review_time=9000-01-01T00:00:00Z 受理: False (期望 False)
+  review_time=8999-12-31T23:59:59Z 受理: True (期望 True)
+
+--- [R10-3 HIGH] proof schema 新增条款 (文本核验) ---
+  OK 条款「值类型必须归一化后再序列化」出现 1 次
+  OK 条款「genesis_evidence」出现 1 次
+  OK 条款「单调性硬门」出现 1 次
+  OK 条款「node_frontmatter_hash」出现 1 次
+
+--- [R10-4 MEDIUM] 测试名与判据一致 (DD-13) ---
+  semantic_ceiling 命名: 1
+  旧 executable 命名残留: 0
+
+--- 终态 ---
+================== 73 passed, 1 skipped, 10 warnings in 2.76s ==================

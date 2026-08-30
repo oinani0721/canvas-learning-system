@@ -1,0 +1,84 @@
+# round-18 负验证存证 (十六变体; 可重跑: bash negverify_round14_proof_gates.sh — 必须串行)
+
+=== 基线 (未改动): 五门应全绿 ===
+  ✅ 基线全绿 (exit 0, 收集 304 项)
+     ================ 8 passed, 148 deselected, 10 warnings in 0.43s ================
+
+=== 变体A: 尾部约束**递归**施于 ancestor (round-13 指出的另一种解释) ===
+    正常链 L1=t1、L2=t2 的 ancestor(cursor=1) 会因 L2 存在而失效
+  ✅ test_normal_two_layer_chain_is_provable 如期变红
+     =========== 1 failed, 1 passed, 154 deselected, 10 warnings in 0.43s ===========
+
+=== 变体B: 拆掉跨层单调门 (round-12 反例的封堵) ===
+  ✅ test_layered_split_cannot_bypass_monotonicity 如期变红
+     =========== 1 failed, 1 passed, 154 deselected, 10 warnings in 0.47s ===========
+
+=== 变体C: 拆掉最外层尾部门 (round-11 尾部逃逸的封堵) ===
+  ✅ test_top_level_must_cover_ledger_tail 如期变红
+     ================ 2 failed, 154 deselected, 10 warnings in 0.45s ================
+
+=== 变体D: state_hash 恒返回常量 (round-14 Codex: 同源循环下 14/14 仍全绿) ===
+  ✅ test_canonical_state_hash_matches_independent_oracle 如期变红
+     ================ 1 failed, 155 deselected, 10 warnings in 0.43s ================
+
+=== 变体E: genesis 原文 FSRS 字段检查失效 (round-14 Codex HIGH) ===
+  ✅ test_genesis_anchor_is_really_anchored 如期变红
+     =========== 1 failed, 2 passed, 153 deselected, 10 warnings in 0.43s ===========
+
+=== 变体F: genesis first_event_line 不校验 (round-15 Codex HIGH) ===
+  ✅ test_first_event_line_must_equal_earliest_node_event 如期变红
+     =========== 1 failed, 1 passed, 154 deselected, 10 warnings in 0.46s ===========
+
+=== 变体G: 算法身份不绑 manifest (round-15 Codex HIGH) ===
+  ✅ test_algorithm_identity_binds_to_golden_manifest\[fsrs_library_version-garbage 如期变红
+     =========== 1 failed, 7 passed, 148 deselected, 10 warnings in 0.47s ===========
+
+=== 变体H: earliest 退回最早**适用**行 (round-16 survivor) ===
+  ✅ test_survivor_earliest_uses_all_node_events 如期变红
+     ================ 1 failed, 155 deselected, 10 warnings in 0.49s ================
+
+=== 变体I: stability 上界删除 (round-16 survivor) ===
+  ✅ test_survivor_stability_upper_bound_is_enforced 如期变红
+     ================ 1 failed, 155 deselected, 10 warnings in 0.45s ================
+
+=== 变体J: 区间只查 library_version 哨兵 (round-16 survivor) ===
+  ✅ test_survivor_params_hash_sentinel_in_interval 如期变红
+     ================ 1 failed, 155 deselected, 10 warnings in 0.52s ================
+
+=== 变体K: out_of_order 退回键存在即排除 (round-16 HIGH) ===
+  ✅ test_out_of_order_false_cannot_hide_tail_event 如期变红
+     ================ 1 failed, 155 deselected, 10 warnings in 0.48s ================
+
+=== 变体L: scheduler_config 退回 Python == 比较 (round-16 HIGH) ===
+  ✅ test_scheduler_config_compared_by_canonical_json 如期变红
+     ================ 2 failed, 154 deselected, 10 warnings in 0.50s ================
+
+=== 变体M: manifest 残缺不再 fail-closed (round-17 HIGH) ===
+  ✅ test_partially_corrupt_manifest_fails_closed 如期变红
+     ================ 1 failed, 155 deselected, 10 warnings in 0.49s ================
+
+=== 变体N: out_of_order 语义门失效 (round-17 HIGH) ===
+  ✅ test_out_of_order_true_cannot_disguise_a_real_successor 如期变红
+     ================ 1 failed, 155 deselected, 10 warnings in 0.56s ================
+
+=== 变体O: vault 无证据不再 fail-closed (round-17 HIGH) ===
+  ✅ test_vault_identity_without_evidence_fails_closed 如期变红
+     =========== 1 failed, 1 passed, 154 deselected, 10 warnings in 0.60s ===========
+
+=== 变体P: 递归不再共享账本事实 (round-17 survivor) ===
+  ✅ test_survivor_recursion_shares_ledger_facts 如期变红
+     ================ 1 failed, 155 deselected, 10 warnings in 0.60s ================
+
+=== 还原后全量 ===
+  ✅ 还原后全绿且字节与备份逐字相同
+     ================= 155 passed, 1 skipped, 10 warnings in 6.08s ==================
+
+RESULT: PASS — 全部门均为承重门
+脚本 exit = 0
+
+===================================================================
+机械化又一次准确报警 (上一次运行): 本轮改了 out_of_order 分支形态后,
+变体K 的 perl 模式立即失配 ⇒ 报「mutation 未命中」、RESULT: FAIL、exit 1。
+===================================================================
+  ❌ mutation 未命中 (文件未变) — 模式已与实现漂移, 本变体结论无效
+RESULT: FAIL — 1 项不符预期

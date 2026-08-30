@@ -1,0 +1,197 @@
+== G3-4 负验证存档 v4 (Codex round-3 整改) ==
+date: 2026-08-28T14:35:28Z
+git HEAD: 026d07351ae6bd5d7a230ff1e086bf0400002cf4 (branch card/s3-events)
+python: Python 3.14.4
+fsrs installed: 6.3.1
+test sha256:     14118eb4f02c4d4239a9792b00a73ad5cc56c58e11a905653e5ec932a43e94bc
+manifest sha256: 82eaaffa2a064064140916a272e8b4d4256fe4bd58cdb4914c4793646af3cb09
+vectors sha256:  df60dbc6192c499ad21da6533f35ed2e0e316f5d4bc52fb45b711d4cae6f49a3
+gate command: .venv/bin/python -m pytest tests/regression/test_fsrs_golden_vectors.py -q
+变体总数: 1 基线 (N0) + 12 负例 (N1-N12); 每例校验预期红门数与门名
+注: N5/N11 自 round-6 起各触发 2 门 (曲线门加强后一并覆盖), 预期值已同步
+
+--- [N0] 基线 → 期望 0 门红 ---
+  gate summary : ======================= 13 passed, 10 warnings in 0.53s ========================
+  failed gates : <none>
+  ✅ 判定符合预期
+
+--- [N1] manifest params_hash 首字符篡改 ---
+  mutation:
+    | import json,pathlib
+    | p=pathlib.Path("tests/regression/fsrs_golden_manifest.json");m=json.loads(p.read_text());h=m["params_hash"]
+    | m["params_hash"]=("0" if h[0]!="0" else "1")+h[1:]
+    | p.write_text(json.dumps(m,ensure_ascii=False,indent=2,sort_keys=True)+"\n")
+  gate summary : ================== 1 failed, 12 passed, 10 warnings in 0.57s ===================
+  failed gates : test_params_hash_integrity
+  ✅ 判定符合预期
+  restore : .venv/bin/python scripts/generate_fsrs_golden_vectors.py
+
+--- [N2] 向量 stability +0.5 ---
+  mutation:
+    | import json,pathlib
+    | p=pathlib.Path("tests/regression/fsrs_golden_vectors.json");d=json.loads(p.read_text())
+    | d["vectors"][0]["expected"]["stability"]+=0.5
+    | p.write_text(json.dumps(d,ensure_ascii=False,indent=2,sort_keys=True)+"\n")
+  gate summary : ================== 1 failed, 12 passed, 10 warnings in 0.51s ===================
+  failed gates : test_all_golden_vectors_replay_exact
+  ✅ 判定符合预期
+  restore : .venv/bin/python scripts/generate_fsrs_golden_vectors.py
+
+--- [N3] 仅改 manifest library_version=6.4.0 (GOLDEN 不动) ---
+  mutation:
+    | import json,pathlib
+    | p=pathlib.Path("tests/regression/fsrs_golden_manifest.json");m=json.loads(p.read_text())
+    | m["library_version"]="6.4.0"
+    | p.write_text(json.dumps(m,ensure_ascii=False,indent=2,sort_keys=True)+"\n")
+  gate summary : ================== 3 failed, 10 passed, 10 warnings in 0.57s ===================
+  failed gates : test_installed_version_matches_frozen_manifest test_params_hash_integrity test_requirements_pin_exact_version
+  ✅ 判定符合预期
+  restore : .venv/bin/python scripts/generate_fsrs_golden_vectors.py
+
+--- [N4] 末向量替换为首向量副本 (重复+缺格) ---
+  mutation:
+    | import json,pathlib
+    | p=pathlib.Path("tests/regression/fsrs_golden_vectors.json");d=json.loads(p.read_text())
+    | d["vectors"][-1]=d["vectors"][0]
+    | p.write_text(json.dumps(d,ensure_ascii=False,indent=2,sort_keys=True)+"\n")
+  gate summary : ================== 1 failed, 12 passed, 10 warnings in 0.53s ===================
+  failed gates : test_matrix_structure_frozen
+  ✅ 判定符合预期
+  restore : .venv/bin/python scripts/generate_fsrs_golden_vectors.py
+
+--- [N5] retrievability.at 清空 (round-6 起曲线门也覆盖 → 2 门红) ---
+  mutation:
+    | import json,pathlib
+    | p=pathlib.Path("tests/regression/fsrs_golden_vectors.json");d=json.loads(p.read_text())
+    | d["retrievability"]["at"]=[]
+    | p.write_text(json.dumps(d,ensure_ascii=False,indent=2,sort_keys=True)+"\n")
+  gate summary : ================== 2 failed, 11 passed, 10 warnings in 0.49s ===================
+  failed gates : test_matrix_structure_frozen test_retrievability_curve_matches_golden
+  ✅ 判定符合预期
+  restore : .venv/bin/python scripts/generate_fsrs_golden_vectors.py
+
+--- [N6] 容差放宽 float_rel=1e-3 ---
+  mutation:
+    | import json,pathlib
+    | p=pathlib.Path("tests/regression/fsrs_golden_manifest.json");m=json.loads(p.read_text())
+    | m["comparison_tolerance"]["float_rel"]=1e-3
+    | p.write_text(json.dumps(m,ensure_ascii=False,indent=2,sort_keys=True)+"\n")
+  gate summary : ================== 1 failed, 12 passed, 10 warnings in 0.48s ===================
+  failed gates : test_tolerance_ceiling_locked
+  ✅ 判定符合预期
+  restore : .venv/bin/python scripts/generate_fsrs_golden_vectors.py
+
+--- [N7] state_before_final_review=999 ---
+  mutation:
+    | import json,pathlib
+    | p=pathlib.Path("tests/regression/fsrs_golden_vectors.json");d=json.loads(p.read_text())
+    | d["vectors"][0]["state_before_final_review"]=999
+    | p.write_text(json.dumps(d,ensure_ascii=False,indent=2,sort_keys=True)+"\n")
+  gate summary : ================== 2 failed, 11 passed, 10 warnings in 0.70s ===================
+  failed gates : test_all_golden_vectors_replay_exact test_matrix_structure_frozen
+  ✅ 判定符合预期
+  restore : .venv/bin/python scripts/generate_fsrs_golden_vectors.py
+
+--- [N8] manifest algorithm 改任意值 ---
+  mutation:
+    | import json,pathlib
+    | p=pathlib.Path("tests/regression/fsrs_golden_manifest.json");m=json.loads(p.read_text())
+    | m["algorithm"]="arbitrary"
+    | p.write_text(json.dumps(m,ensure_ascii=False,indent=2,sort_keys=True)+"\n")
+  gate summary : ================== 1 failed, 12 passed, 10 warnings in 0.85s ===================
+  failed gates : test_manifest_metadata_frozen
+  ✅ 判定符合预期
+  restore : .venv/bin/python scripts/generate_fsrs_golden_vectors.py
+
+--- [N9] requirements 改 fsrs==6.3.1.post1 ---
+  mutation: sed -i '' 's/^fsrs==6.3.1$/fsrs==6.3.1.post1/' requirements.txt
+  gate summary : ================== 1 failed, 12 passed, 10 warnings in 0.63s ===================
+  failed gates : test_requirements_pin_exact_version
+  ✅ 判定符合预期
+  restore : sed -i '' 's/^fsrs==6.3.1.post1$/fsrs==6.3.1/' requirements.txt
+
+--- [N10·round-3] 前缀时刻伪装: review_ontime__good 第二步 00:10→00:05, expected 由真实库自洽重算 ---
+  mutation:
+    | import json,pathlib
+    | from datetime import datetime,timedelta
+    | from fsrs import Card,Rating,Scheduler
+    | m=json.loads(pathlib.Path("tests/regression/fsrs_golden_manifest.json").read_text())
+    | p=pathlib.Path("tests/regression/fsrs_golden_vectors.json");d=json.loads(p.read_text());cfg=m["scheduler_config"]
+    | s=Scheduler(parameters=cfg["parameters"],desired_retention=cfg["desired_retention"],
+    |  learning_steps=[timedelta(minutes=x) for x in cfg["learning_steps_minutes"]],
+    |  relearning_steps=[timedelta(minutes=x) for x in cfg["relearning_steps_minutes"]],
+    |  maximum_interval=cfg["maximum_interval"],enable_fuzzing=cfg["enable_fuzzing"])
+    | RB={"again":Rating.Again,"hard":Rating.Hard,"good":Rating.Good,"easy":Rating.Easy}
+    | v=[x for x in d["vectors"] if x["id"]=="review_ontime__good"][0]
+    | v["steps"][1]["review_at"]="2026-01-01T00:05:00+00:00"
+    | c=Card(card_id=m["card_id"],due=datetime.fromisoformat(m["base_datetime"]))
+    | for st in v["steps"][:-1]: c,_=s.review_card(c,RB[st["rating"]],datetime.fromisoformat(st["review_at"]))
+    | v["steps"][-1]["review_at"]=c.due.isoformat()
+    | c,_=s.review_card(c,RB[v["steps"][-1]["rating"]],c.due)
+    | v["expected"]={"stability":c.stability,"difficulty":c.difficulty,"due":c.due.isoformat(),
+    |  "last_review":c.last_review.isoformat(),"state":int(c.state),"step":c.step}
+    | p.write_text(json.dumps(d,ensure_ascii=False,indent=2,sort_keys=True)+"\n")
+  gate summary : ================== 1 failed, 12 passed, 10 warnings in 0.59s ===================
+  failed gates : test_matrix_structure_frozen
+  ✅ 判定符合预期
+  restore : .venv/bin/python scripts/generate_fsrs_golden_vectors.py
+
+--- [N11·round-3] scheduler_config 重定向 0.9→0.8 自洽重算 (round-6 起曲线门也覆盖 → 2 门红) ---
+  mutation:
+    | import hashlib,json,pathlib
+    | from datetime import datetime,timedelta
+    | from fsrs import Card,Rating,Scheduler
+    | MP=pathlib.Path("tests/regression/fsrs_golden_manifest.json");VP=pathlib.Path("tests/regression/fsrs_golden_vectors.json")
+    | m=json.loads(MP.read_text());d=json.loads(VP.read_text())
+    | m["scheduler_config"]["desired_retention"]=0.8
+    | m["params_hash"]=hashlib.sha256(json.dumps(m["scheduler_config"],sort_keys=True,separators=(",",":")).encode()).hexdigest()
+    | d["params_hash"]=m["params_hash"];cfg=m["scheduler_config"]
+    | def mk(): return Scheduler(parameters=cfg["parameters"],desired_retention=cfg["desired_retention"],
+    |  learning_steps=[timedelta(minutes=x) for x in cfg["learning_steps_minutes"]],
+    |  relearning_steps=[timedelta(minutes=x) for x in cfg["relearning_steps_minutes"]],
+    |  maximum_interval=cfg["maximum_interval"],enable_fuzzing=cfg["enable_fuzzing"])
+    | RB={"again":Rating.Again,"hard":Rating.Hard,"good":Rating.Good,"easy":Rating.Easy}
+    | base=datetime.fromisoformat(m["base_datetime"])
+    | for v in d["vectors"]:
+    |     s=mk();c=Card(card_id=m["card_id"],due=base);steps=[];n=len(v["steps"])
+    |     for i,st in enumerate(v["steps"]):
+    |         off=30 if (i==n-1 and v["scenario"]=="review_overdue_30d") else 0
+    |         at=base if i==0 else c.due+timedelta(days=off)
+    |         steps.append({"rating":st["rating"],"review_at":at.isoformat()})
+    |         if i==n-1: v["state_before_final_review"]=int(c.state)
+    |         c,_=s.review_card(c,RB[st["rating"]],at)
+    |     v["steps"]=steps
+    |     v["expected"]={"stability":c.stability,"difficulty":c.difficulty,"due":c.due.isoformat(),
+    |      "last_review":c.last_review.isoformat() if c.last_review else None,"state":int(c.state),"step":c.step}
+    | s=mk();c=Card(card_id=m["card_id"],due=base)
+    | c,_=s.review_card(c,Rating.Good,base);c,_=s.review_card(c,Rating.Good,c.due)
+    | d["retrievability"]["steps"]=[{"rating":"good","review_at":base.isoformat()},{"rating":"good","review_at":c.last_review.isoformat()}]
+    | d["retrievability"]["at"]=[{"current_datetime":(c.due+timedelta(days=k)).isoformat(),
+    |  "expected":s.get_card_retrievability(c,c.due+timedelta(days=k))} for k in (0,7,30)]
+    | MP.write_text(json.dumps(m,ensure_ascii=False,indent=2,sort_keys=True)+"\n")
+    | VP.write_text(json.dumps(d,ensure_ascii=False,indent=2,sort_keys=True)+"\n")
+  gate summary : ================== 2 failed, 11 passed, 10 warnings in 0.52s ===================
+  failed gates : test_retrievability_curve_matches_golden test_scheduler_config_non_parameter_fields_frozen
+  ✅ 判定符合预期
+  restore : .venv/bin/python scripts/generate_fsrs_golden_vectors.py
+
+--- [N12·round-3] expected 类型伪装 state=true (Python bool 与 1 相等) ---
+  mutation:
+    | import json,pathlib
+    | p=pathlib.Path("tests/regression/fsrs_golden_vectors.json");d=json.loads(p.read_text())
+    | d["vectors"][0]["expected"]["state"]=True
+    | p.write_text(json.dumps(d,ensure_ascii=False,indent=2,sort_keys=True)+"\n")
+  gate summary : ================== 1 failed, 12 passed, 10 warnings in 0.46s ===================
+  failed gates : test_matrix_structure_frozen
+  ✅ 判定符合预期
+  restore : .venv/bin/python scripts/generate_fsrs_golden_vectors.py
+
+--- 终态: 恢复后 sha256 与基线一致性 + 全绿 ---
+manifest sha256: 82eaaffa2a064064140916a272e8b4d4256fe4bd58cdb4914c4793646af3cb09
+vectors sha256:  df60dbc6192c499ad21da6533f35ed2e0e316f5d4bc52fb45b711d4cae6f49a3
+requirements fsrs 行: 131:fsrs==6.3.1
+  gate summary : ======================= 13 passed, 10 warnings in 0.44s ========================
+  failed gates : <none>
+  ✅ 判定符合预期
+
+RESULT: 全部 13 个判定 (N0 基线 + N1-N12) 均符合预期

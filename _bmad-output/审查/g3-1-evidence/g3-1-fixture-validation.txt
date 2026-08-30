@@ -1,0 +1,23 @@
+== fixture PASS/FAIL evidence (validator round-4, SHA-bound) ==
+date: 2026-08-28T11:47:13Z
+git HEAD: 4de42f69f79e275d5b6460797ca40a763858b38a
+validator sha256: 827016b435e7f17d72f81314cc29270c598f66d53e0b3d2ff482a7694d0a71ab
+python: Python 3.14.4
+--- valid.jsonl (sha256 7ae5f7e4f2ab72099270c9984a72611a3ee5e35a9d828159cb1bb28e09174234) ---
+  command: backend/.venv/bin/python backend/scripts/validate_learning_events.py backend/tests/fixtures/learning_events/valid.jsonl
+RESULT: PASS — schema v1 合规 (backend/tests/fixtures/learning_events/valid.jsonl)
+  exit=0
+--- missing_field.jsonl (sha256 81dd893677ee42625cbcca965151d8ce182a5cadcae9f439a68d6970b0b41947) ---
+  command: backend/.venv/bin/python backend/scripts/validate_learning_events.py backend/tests/fixtures/learning_events/missing_field.jsonl
+FAIL  LINE 1: 缺字段: effective_at
+RESULT: FAIL — 1 项违规 (schema v1, backend/tests/fixtures/learning_events/missing_field.jsonl)
+  exit=1
+--- duplicate_event_id.jsonl (sha256 5fa15458fb64172c85a68d6fd076eb3f3caf6dcc645207b62171e7720f430d92) ---
+  command: backend/.venv/bin/python backend/scripts/validate_learning_events.py backend/tests/fixtures/learning_events/duplicate_event_id.jsonl
+FAIL  LINE 2: event_id 'exam:重复检验白板' 重复 (首见 LINE 1) — 幂等键必须全文件唯一
+RESULT: FAIL — 1 项违规 (schema v1, backend/tests/fixtures/learning_events/duplicate_event_id.jsonl)
+  exit=1
+--- real_shapes.jsonl (sha256 25e6d5b4b27e02f1d1e1548a8630333183d1b2c6c534b33a3c80d80f96234822) ---
+  command: backend/.venv/bin/python backend/scripts/validate_learning_events.py backend/tests/fixtures/learning_events/real_shapes.jsonl
+RESULT: PASS — schema v1 合规 (backend/tests/fixtures/learning_events/real_shapes.jsonl)
+  exit=0

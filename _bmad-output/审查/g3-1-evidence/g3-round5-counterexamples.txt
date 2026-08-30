@@ -1,0 +1,42 @@
+== Codex round-5 点名反例的对抗复验 ==
+date: 2026-08-28T13:24:48Z
+validator sha256:     3fad7314365356430fe44839aaacfefd1d22647cb417b47976eb23312852d027
+golden test sha256:   cf34824cc363390c56c380b08ac93925f001fe6573aa7260aa7d545c3c9d0887
+contract test sha256: 5cf42fa58c03718d3276fa07dd576d1d8420fdd02f51ac9ce1838f01e2d7277b
+
+--- [R5-1 HIGH#4] vault_id 解析四反例 (错绑/漏绑) ---
+  OK 引号内 # (曾截成 team → 错绑)                      got='team#1' expect='team#1'
+  OK 跨行 (曾读成 subject: cs61b)                    got=None expect=None
+  OK block scalar (曾读成 |)                       got=None expect=None
+  OK 重复键 (曾取首项, PyYAML 取末项)                     got='b' expect='b'
+  OK 未闭引号                                       got=None expect=None
+  OK 非法 UTF-8 不炸                                got=None
+
+--- [R5-2 MEDIUM] manifest 真值形状 (空串/畸形版本/短 hash) → 应降级 WARN 不绑定 ---
+  manifest={'library_version': '', 'params_hash': 'aaaaaaaaaaaa…'} 通过形状校验=False (期望 False)
+  manifest={'library_version': 'x.y', 'params_hash': 'aaaaaaaaaaaa…'} 通过形状校验=False (期望 False)
+  manifest={'library_version': '6.3.1', 'params_hash': 'short'} 通过形状校验=False (期望 False)
+
+--- [R5-3 MEDIUM] UTC 归一化越界日期 (bridge astimezone 会 OverflowError) ---
+  0001-01-01T00:00:00+08:00: accepted=False UTC 归一化越界 (下游 astimezone 会溢出): '0001-01-01T00:00:00+08:00'
+  9999-12-31T23:59:59-08:00: accepted=False UTC 归一化越界 (下游 astimezone 会溢出): '9999-12-31T23:59:59-08:00'
+  2026-08-01T10:00:00+08:00: accepted=True 
+
+--- [R5-4 LOW] G3-4 覆盖缺口: card.state=2.0 / description 改写 / tolerance 加键 ---
+  [card.state=2.0]
+FAILED tests/regression/test_fsrs_golden_vectors.py::test_retrievability_curve_matches_golden
+================== 1 failed, 12 passed, 10 warnings in 0.63s ===================
+  [description 改写]
+FAILED tests/regression/test_fsrs_golden_vectors.py::test_matrix_structure_frozen
+================== 1 failed, 12 passed, 10 warnings in 0.52s ===================
+  [tolerance 加键]
+FAILED tests/regression/test_fsrs_golden_vectors.py::test_tolerance_ceiling_locked
+================== 1 failed, 12 passed, 10 warnings in 0.51s ===================
+  [向量塞未知键]
+FAILED tests/regression/test_fsrs_golden_vectors.py::test_matrix_structure_frozen
+================== 1 failed, 12 passed, 10 warnings in 0.51s ===================
+
+--- 终态: 恢复后 sha + 全绿 ---
+manifest sha256: 82eaaffa2a064064140916a272e8b4d4256fe4bd58cdb4914c4793646af3cb09
+vectors sha256:  df60dbc6192c499ad21da6533f35ed2e0e316f5d4bc52fb45b711d4cae6f49a3
+================== 55 passed, 1 skipped, 10 warnings in 3.92s ==================

@@ -126,7 +126,9 @@ ftfy>=6.0.0
 # FSRS-6 algorithm — Scheduler class (renamed from FSRS in 6.0.0)
 # Package name on PyPI is 'fsrs' (not 'py-fsrs')
 # ==========================================================
-fsrs>=6.0.0,<7.0.0
+# ⛔ 精确钉版 (CARD-G3-4): golden vectors 防漂移门 (tests/regression/
+# test_fsrs_golden_vectors.py) 绑定此版本; 升级须重冻结基线
+fsrs==6.3.1
 
 # ==========================================================
 # Result Merging (Story 33.7)

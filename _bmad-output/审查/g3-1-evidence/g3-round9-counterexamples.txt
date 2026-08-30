@@ -1,0 +1,36 @@
+== Codex round-9 点名反例的对抗复验 ==
+date: 2026-08-28T16:19:24Z
+validator sha256:     972ef4dc8e1546b4668531cfa615ff2cb07e6954be325127a030157d9adce4f0
+
+--- [R9-1 HIGH] 域闭包: 合法 review_time 必须产出合法 W ---
+  前态 W=8999-12-31T23:59:59Z → classify: normal (期望 normal)
+  review_time=9000-01-01T00:00:00Z: 受理=False ← 闭包: 拒绝会产出非法 W 的输入
+  review_time=8999-12-31T23:59:59Z: 受理=True
+
+--- [R9-2 HIGH] vault_id 引号键与 YAML 隐式类型 ---
+  OK 引号键 (PyYAML=real, 曾返回 fake)        got=None expect=None
+  OK 单引号键                               got=None expect=None
+  OK 隐式 bool                            got=None expect=None
+  OK 隐式数字                               got=None expect=None
+  OK 现网形态                               got='canvas_vault' expect='canvas_vault'
+  OK 注释提及不计数                            got='ok' expect='ok'
+  真实现网: 'canvas_vault'
+
+--- [R9-3 HIGH] proof schema 唯一化 (契约文本核验) ---
+  OK 条款「状态对象的唯一形状」出现 2 次
+  OK 条款「ancestor_proof.result_hash」出现 1 次
+  OK 条款「折叠区间的闭开」出现 1 次
+  OK 条款「取值规则」出现 1 次
+
+--- [R9-4 MEDIUM] W 整秒 + 超大整数 stability ---
+  OK W 含小数秒 → degraded
+  !! stability=10**309 抛 OverflowError (需 fail-closed)
+
+--- 终态 ---
+================== 71 passed, 1 skipped, 10 warnings in 3.36s ==================
+RESULT: PASS — schema v1 合规 (/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/learning_events.jsonl)
+  live-exit=0
+
+--- [R9-4 重做] _finite_number 超大整数 fail-closed ---
+  已修: float(10**309) 的 OverflowError 现被捕获 → None → degraded
+  验证: 10**309 / '1'+400个0 / 10**400 三形态均判 degraded, 零 traceback

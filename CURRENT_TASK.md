@@ -2,35 +2,25 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**本车道状态**（2026-08-28 · 分支 `card/s2-neo4j` · BATCH-2026-08-28-第五批 车道 S2 · **CARD-G2-3 加固轮完成待验收**）:
-- ✅ 10 站点写身份复合键化（neo4j_client 8 方法 + fallback_sync 2 条 replay）+ `_resolve_physical_group_id()`
-  先解析后进键 + fail-closed 拒写（logger.error 首日观察，不静默降级 DEFAULT）+ JSON 镜像双键
-- ✅ 迁移器 `backend/scripts/migrate_write_identity_g23.py`：现网 7691 只读 dry-run **pending=0**
-  （"迁移=证明零动作"）+ 单次运行内计数全等（证据 `_bmad-output/审查/evidence-g23/`）
-- ✅ 裁判：`pytest tests/integration/test_cypher_contract_gate.py tests/unit/test_neo4j_client.py -q` **64 passed**
-  （2 条 xfail 去标翻绿 + 门 4 六条 + 门 5 解析链正向两条 + 退化输入/段级校验门）；迁移器行为门 **25 passed**；
-  grep 清零；零回归（77 条基线失败逐字节一致，四轮复验）
-- ✅ **两路审查全修**：内部 5 维对抗工作流 10 条确认 + **Codex 三轮**（round-1 六条含 BLOCKER「端口≠数据库身份」→
-  加 store identity 闸；round-2 六条；round-3 五条：空串与空白口径统一 / 探针按错误码区分不把抖动当拒写 /
-  零写入失败改变退出码 / 逻辑重复身份跳过并登记 / 去重 pass 先行 / 脏空白组留人清洗 / 实时比对不可达需显式表态）
-- ✅ **变异负控 23/23 能红**（`backend/scripts/g23_mutation_negative_controls.py`，可复跑，相对路径可移植）
-- ⛔ 移交 G2-2：失败重放条目无 vault 维度，跨 vault 切换期间重放仍归新 active vault（需 VaultScope + 条目补字段）
-- 验收单 `验收单/UAT-CARD-G2-3-*.md`；审查存档 `审查/codex-review-CARD-G2-3.md`；**不 push**
-
----
-
-**上一批次归档**（2026-08-27 · 分支 `card/n5-split` · BATCH-2026-08-27-第四批 车道 5 · G5-1 + G5-2 双卡 v3 待验收）:
-- ✅ CARD-G5-1 触发矩阵 v3：矩阵文档（15 正例含 5 用户逐字 + 10 负例 + 语料覆盖自陈 + §三 待拍板 + **§五 登记簿 4 条**）
-  + checker v3 9/9（real_floor 代码锚+归属锚语义分类；18 类变异负控全抓）+ headless 三轮全量重放（judge v3：
-  sidecar 绑定/终局唯一/manifest 含 .claude/skills）：**⛔ N4「回顾一下+板名」无斜杠存档 2 采样 1 次真触发 board-recap**
-  （最重要发现，直接喂 §三 拍板）+ N6 误触发全局 study-plan（2/2 复现）+ N2 代行写侧 + B2 形式化漂移（存档 5 份 2/3）
-- ✅ CARD-G5-2 拆分 preview 引擎 v3：split_preview.py（写侧物理 fail-closed 次序修正+单FD / 目录级 symlink containment /
-  slug JS空白集+UTF-16 边界+偏差5声明）+ 裁判 34 条四轮先红后绿（含剥离反事实常驻测试）+ live 全 324 文件全字段
-  基线零净差异（set -x 回放+引擎字节绑定, `审查/g5-2-evidence/`）
-- Codex：G5-1 三轮（1 轮 3B+4H → 2 轮复核 → 3 轮终核）；G5-2 四轮（cyber误拦→6H→复核→终核）全存档
-- 验收单：`验收单/UAT-CARD-G5-{1,2}-*.md`；**不 push**
-- ⛔ 待用户：①验收两单 ②拍板 R8 口令取舍（G5-8 前必裁, N4 实证必读）③语料覆盖自陈口径认可（C/D 类无真实触发语,
-  总账「各≥3 真实正例」硬门 vs 语料实况的裁决权在用户）④outputs/ 测试产物未入 commit
+**本车道状态**（2026-08-30 · 分支 `card/s3-events` · BATCH-2026-08-29-第六批 车道 T2 · **CARD-收口A ①② 已完成 + 已合并主干 `a9c8b97c`，待验收**）:
+- ✅ **① G3-1 末轮独立复核（round-23）已入库且非空**（13830 字节）：BLOCKER 0 / HIGH 0 / MEDIUM 2 / LOW 8
+  ⇒ 按本批停轮规则（BLOCKER/HIGH → 再一轮；MEDIUM/LOW → 登记结案）判定 **结案，不再开轮**
+  - ⚠️ 卡文事实二次更正：裁定书称 round-18 为 0 字节，第六批手册更正为 round-20；
+    实测 round-20/21/22 均已提交且非空，真正 0 字节未跟踪的是 **round-23**
+- ✅ **round-19 遗留的那条 HIGH 以证据闭合**（不再开轮）：备份 23 行 vs 现网 22 行的 diff 唯一差异是
+  `callout:c-409-guard` 测试探针；第五批裁定 §二 另证其为**用户 2026-08-29 授权**的 S1 污染清理（备份先行）
+  - 如实边界：两文件均 untracked ⇒「可恢复」仅限当前本机，无版本化持久保证
+- ✅ **② 两个回归文件接入 CI**（第五批裁定 S3-b）：`.github/workflows/test.yml` 纯新增 10 行、零删除
+  - 本地等价验证先行：15 文件 303 passed → 加两个后 **516 passed + 1 skipped**（303+213=516 严格可加 ⇒ 零交叉污染）
+  - ⛔ 过程抓到会让 CI **exit 127 且静默丢 4 个测试文件**的坑：注释不可放进 pytest 的反斜杠续行序列
+    （YAML 校验器抓不到——它只把 run 当字符串标量）。新增 shell 语义校验：把 pytest 换成 printf 真跑数实参
+- ✅ **⑤ 已合并主干 `a9c8b97c`**（合并提交 `4748bad2`）：merge-base `37387a86`（**在 feature worktree 内算**；
+  主仓口径会错到 `671ae7e7`、文件面膨胀到 1014）；冲突仅 `CURRENT_TASK.md` 一处，逐处人工解，禁用 -X ours/theirs
+  - ⚠️ 主干在本卡作业期间从 `2164b498` 前进到 `a9c8b97c`（新合入 D3+D4、D2a+D2b 及卡文更新）。
+    该推进推翻了本卡早先两条结论：`fsrs_manager.py` 已被 D3/D4 改动（`980b3758`→`f9edc906`）、
+    主干动了 `backend/tests/unit/conftest.py`。合并后判据实跑仍绿（219+1 / 517+1）
+- 📌 证据：`_bmad-output/审查/closeout-a-evidence/`（ci-equivalence / ci-preflight /
+  ci-yaml-shell-semantics / g31-round19-high-closure）
 
 ---
 

@@ -1,0 +1,21 @@
+=== 基线 (未改动) ===
+================ 3 passed, 67 deselected, 10 warnings in 0.38s =================
+
+=== 变体A: 尾部约束**递归**施于 ancestor (round-13 指出的另一种解释) ===
+    期望: test_normal_two_layer_chain_is_provable 变红
+    —— 正常链 L1=t1、L2=t2 的 ancestor(cursor=1) 会因 L2 存在而失效
+FAILED tests/regression/test_learning_events_schema_contract.py::test_normal_two_layer_chain_is_provable
+=========== 1 failed, 1 passed, 68 deselected, 10 warnings in 0.42s ============
+
+=== 变体B: 拆掉跨层单调门 (round-12 反例的封堵) ===
+    期望: test_layered_split_cannot_bypass_monotonicity 变红
+FAILED tests/regression/test_learning_events_schema_contract.py::test_layered_split_cannot_bypass_monotonicity
+=========== 1 failed, 1 passed, 68 deselected, 10 warnings in 0.41s ============
+
+=== 变体C: 拆掉最外层尾部门 (round-11 尾部逃逸的封堵) ===
+    期望: test_top_level_must_cover_ledger_tail 变红
+FAILED tests/regression/test_learning_events_schema_contract.py::test_top_level_must_cover_ledger_tail
+================ 1 failed, 69 deselected, 10 warnings in 0.40s =================
+
+=== 还原后全量 ===
+================== 69 passed, 1 skipped, 10 warnings in 3.49s ==================

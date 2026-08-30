@@ -1,0 +1,59 @@
+# round-16 负验证存证 (可重跑: bash negverify_round14_proof_gates.sh; 必须串行)
+
+=== 基线 (未改动): 五门应全绿 ===
+  ✅ 基线全绿 (exit 0, 收集 255 项)
+     ================ 7 passed, 124 deselected, 10 warnings in 0.39s ================
+
+=== 变体A: 尾部约束**递归**施于 ancestor (round-13 指出的另一种解释) ===
+    正常链 L1=t1、L2=t2 的 ancestor(cursor=1) 会因 L2 存在而失效
+  ✅ test_normal_two_layer_chain_is_provable 如期变红
+     =========== 1 failed, 1 passed, 129 deselected, 10 warnings in 0.41s ===========
+
+=== 变体B: 拆掉跨层单调门 (round-12 反例的封堵) ===
+  ✅ test_layered_split_cannot_bypass_monotonicity 如期变红
+     =========== 1 failed, 1 passed, 129 deselected, 10 warnings in 0.41s ===========
+
+=== 变体C: 拆掉最外层尾部门 (round-11 尾部逃逸的封堵) ===
+  ✅ test_top_level_must_cover_ledger_tail 如期变红
+     ================ 1 failed, 130 deselected, 10 warnings in 0.40s ================
+
+=== 变体D: state_hash 恒返回常量 (round-14 Codex: 同源循环下 14/14 仍全绿) ===
+  ✅ test_canonical_state_hash_matches_independent_oracle 如期变红
+     ================ 1 failed, 130 deselected, 10 warnings in 0.40s ================
+
+=== 变体E: genesis 原文 FSRS 字段检查失效 (round-14 Codex HIGH) ===
+  ✅ test_genesis_anchor_is_really_anchored 如期变红
+     =========== 1 failed, 2 passed, 128 deselected, 10 warnings in 0.41s ===========
+
+=== 变体F: genesis first_event_line 不校验 (round-15 Codex HIGH) ===
+  ✅ test_first_event_line_must_equal_earliest_node_event 如期变红
+     =========== 1 failed, 1 passed, 129 deselected, 10 warnings in 0.41s ===========
+
+=== 变体G: 算法身份不绑 manifest (round-15 Codex HIGH) ===
+  ✅ test_algorithm_identity_binds_to_golden_manifest\[fsrs_library_version-garbage 如期变红
+     =========== 1 failed, 7 passed, 123 deselected, 10 warnings in 0.41s ===========
+
+=== 还原后全量 ===
+  ✅ 还原后全绿且字节与备份逐字相同
+     ================= 130 passed, 1 skipped, 10 warnings in 3.63s ==================
+
+RESULT: PASS — 全部门均为承重门
+脚本 exit = 0
+
+===================================================================
+⚠️ 操作教训: 本轮一度并发跑了两个负验证实例, 二者都原地 mutate 同一
+校验器, B 的备份取自 A 已 mutate 之后 ⇒ 还原时把 A 的 mutation 写回,
+留下一个 state_hash 恒返回常量的校验器, 而契约测试照样全绿。
+发现它的正是本轮新加的「还原后字节须与备份逐字相同」那道门。
+该脚本必须串行运行。下面是被污染那次的输出:
+===================================================================
+  ❌ 基线 exit code 1 (期望 0) — 后续变体结论不可信
+  ❌ mutation 未命中 (文件未变) — 模式已与实现漂移, 本变体结论无效
+  ✅ test_layered_split_cannot_bypass_monotonicity 如期变红
+  ❌ 预期 exit code 1 (有测试失败), 实际 0 — 可能是 collection/internal error 而非真的门变红
+  ❌ mutation 未命中 (文件未变) — 模式已与实现漂移, 本变体结论无效
+  ❌ mutation 未命中 (文件未变) — 模式已与实现漂移, 本变体结论无效
+  ❌ 预期 exit code 1 (有测试失败), 实际 0 — 可能是 collection/internal error 而非真的门变红
+  ✅ test_algorithm_identity_binds_to_golden_manifest\[fsrs_library_version-garbage 如期变红
+  ❌ 还原后 exit code 1 — 脚本未正确恢复文件, 或存在真实失败
+RESULT: FAIL — 7 项不符预期

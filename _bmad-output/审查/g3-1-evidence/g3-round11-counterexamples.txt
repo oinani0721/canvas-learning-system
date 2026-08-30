@@ -1,0 +1,31 @@
+== Codex round-11 点名反例的对抗复验 ==
+date: 2026-08-28T17:23:01Z
+validator sha256: cbb6a21ace54cfccb993cfb22ac7d762f0b9848cb2345e83585e226f04945728
+test sha256:      f9f79fbad9ea89a92a9484ac2ebb3c91975f8c181be3bc340f3614d10365346b
+
+--- [R11-2 HIGH] vault_id vs 真实生产入口 Settings.vault_id (非假 oracle) ---
+  OK  等值  r11 反例 team#1 (生产 sanitize→team_1)   validator='team_1'         生产='team_1'
+  OK  等值  空格大写归一                               validator='cs_61b'         生产='cs_61b'
+  OK  等值  路径穿越                                 validator='etc_passwd'     生产='etc_passwd'
+  OK  等值  NFKC 重音                              validator='café'           生产='café'
+  OK  降级不绑  十六进制                                 validator=None             生产='canvas_vault'
+  OK  等值  折行                                   validator='first_second'   生产='first_second'
+  OK  等值  引号键                                  validator='real'           生产='real'
+  OK  等值  现网形态                                 validator='canvas_vault'   生产='canvas_vault'
+  → **错绑数: 0** (安全性质: 绝不产生与生产不同的非 None 值)
+
+--- [R11-1 HIGH] A7 文档矛盾清理 ---
+  残留 '合法的 review_time = 9000' 句: 0
+0
+  残留 stdlib-only 无限定: 0
+0
+  值相等的新建 datetime 作上界 (原 is 判身份会漏): False (期望 False)
+
+--- [R11-3 HIGH] proof 三处修正 (文本核验) ---
+  OK 条款「行号最大的适用事件」出现 1 次
+  OK 条款「Review = 五键」出现 1 次
+  OK 条款「genesis_evidence.first_event_line - 1」出现 2 次
+  OK 条款「证明强度的诚实上限」出现 1 次
+
+--- 终态 ---
+================== 73 passed, 1 skipped, 10 warnings in 3.14s ==================

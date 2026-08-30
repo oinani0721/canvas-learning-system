@@ -1,0 +1,24 @@
+== 锁定文件零改动证明 2026-08-28T09:09:42Z ==
+-- git diff 对锁定文件 (应为空) --
+(empty = 零改动)
+-- 全部改动面 --
+ M ../CLAUDE.md
+ M ../CURRENT_TASK.md
+ M requirements.txt
+ M ../docs/architecture.md
+ M ../requirements.txt
+?? "../_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G3-1-2026-08-28.md"
+?? "../_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G3-4-2026-08-28.md"
+?? "../_bmad-output/\345\256\241\346\237\245/g3-1-evidence/"
+?? "../_bmad-output/\345\256\241\346\237\245/g3-4-evidence/"
+?? "../_bmad-output/\351\252\214\346\224\266\345\215\225/UAT-CARD-G3-1-\344\272\213\344\273\266\350\264\246schema\345\206\273\347\273\223-2026-08-28.md"
+?? "../_bmad-output/\351\252\214\346\224\266\345\215\225/UAT-CARD-G3-4-FSRS-golden-vectors-2026-08-28.md"
+?? scripts/generate_fsrs_golden_vectors.py
+?? scripts/validate_learning_events.py
+?? tests/fixtures/learning_events/
+?? tests/regression/fsrs_golden_manifest.json
+?? tests/regression/fsrs_golden_vectors.json
+?? tests/regression/test_fsrs_golden_vectors.py
+?? tests/regression/test_learning_events_schema_contract.py
+?? ../docs/fsrs-truth-source-d0-revision.md
+?? ../docs/learning-events-schema-v1.md

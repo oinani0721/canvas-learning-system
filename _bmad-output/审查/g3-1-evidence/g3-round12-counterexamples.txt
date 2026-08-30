@@ -1,0 +1,27 @@
+== Codex round-12 点名反例的对抗复验 ==
+date: 2026-08-28T17:44:23Z
+validator sha256: cf88edd79e6c9712849218568706a971cf5a394b9b424908302a083ad88d5d8a
+
+--- [R12-2 MEDIUM] vault_id 降级完整性 (PyYAML 非 YAMLError 异常) ---
+  OK r12 反例: 非法日期 (timestamp ValueError)      → None
+  OK 语法错 YAMLError                            → None
+  OK 深嵌套 RecursionError                       → None
+  OK 未知标签 ConstructorError                    → None
+  OK 端到端 CLI: exit=0 traceback=False WARN=True
+
+--- [R12-3 HIGH] proof 两处修正 ---
+  OK 「跨层单调门」×1
+  OK 「严格小于本层折叠区间中首个事件」×1
+  OK 「2 Review | \*\*五键\*\*」×1
+  残留「恰六键」: 0
+0
+
+--- [R12-4 LOW] 重名与口径 ---
+  重名测试定义数: 1
+  UAT 无条件 stdlib 措辞: 0
+0
+
+--- 终态 ---
+================== 74 passed, 1 skipped, 10 warnings in 3.28s ==================
+RESULT: PASS — schema v1 合规 (/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/learning_events.jsonl)
+  live-exit=0
