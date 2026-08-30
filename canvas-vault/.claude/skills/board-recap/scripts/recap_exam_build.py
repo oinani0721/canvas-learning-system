@@ -49,6 +49,7 @@ import json
 import os
 import re
 import shlex
+import stat
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -276,7 +277,7 @@ def _created_at(ts: str) -> str:
     return f"{ts[:10]}T{ts[11:13]}:{ts[13:15]}:00Z"
 
 
-def _fsync_dir(d: Path) -> str | None:
+def _fsync_dir(d: Path) -> tuple[str, str | None]:
     """目录项持久化 (round-3 M5): 只 fsync 文件不 fsync 父目录时,
     崩溃后可能文件内容在而目录项丢失。
 
@@ -284,7 +285,10 @@ def _fsync_dir(d: Path) -> str | None:
     调用方无从分辨"成功"与"失败"。undo 因此会在**留痕目录项未持久化**的情况下
     继续删除源文件 —— 崩溃模型下可能**两端皆失**(源已删、留痕的目录项没落盘)。
     修法: 返回失败原因, 由调用方决定是否 fail-closed。
-    → None = 成功 (或该 FS 不支持 fsync 目录, 见下); str = 失败原因。
+    → ("ok"|"unsupported"|"failed", 说明|None)。
+    round-4 HIGH-4 起改为**三态**: "unsupported" 单列, 因为「该 FS 不支持 fsync 目录」
+    只说明**无法证明已持久化**, 既不是成功也不是失败 —— 把它伪装成成功会让 undo
+    在无从证明的情况下继续删源。调用方须显式决定如何对待这一档。
 
     诚实边界: 部分文件系统对目录 fd 的 fsync 返回 EINVAL/ENOTSUP, 那**不是**
     持久化失败而是"不支持"。这两类必须区分, 否则会在正常 FS 上误拒。
@@ -292,16 +296,30 @@ def _fsync_dir(d: Path) -> str | None:
     try:
         fd = os.open(d, os.O_RDONLY)
     except OSError as e:
-        return f"目录打开失败 {type(e).__name__}"
+        return "failed", f"目录打开失败 {type(e).__name__}"
+    unsupported = None
     try:
-        os.fsync(fd)
-    except OSError as e:
-        if getattr(e, "errno", None) in (errno.EINVAL, errno.ENOTSUP, errno.EPERM):
-            return None  # FS 不支持 fsync 目录 —— 不是持久化失败
-        return f"目录 fsync 失败 {type(e).__name__}"
+        try:
+            os.fsync(fd)
+        except OSError as e:
+            errno_ = getattr(e, "errno", None)
+            # ⛔ round-4 HIGH-4: 原豁免集含 EPERM —— 它**不能**证明「不支持」,
+            # 更可能是真实的权限/策略拒绝, 当成成功会让 undo 继续删源。已移除。
+            # 且 EINVAL/ENOTSUP 只说明「**无法证明**已持久化」, 不等于成功 ——
+            # 改为单独一档 "unsupported", 由调用方决定怎么办(而不是伪装成 None)。
+            if errno_ in (errno.EINVAL, errno.ENOTSUP):
+                unsupported = f"该文件系统不支持 fsync 目录 ({type(e).__name__})"
+            else:
+                return "failed", f"目录 fsync 失败 {type(e).__name__}"
     finally:
-        os.close(fd)
-    return None
+        # round-4 MEDIUM-2: close 若抛错, 原实现会直接逸出并破坏 JSON 回执契约。
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+    if unsupported:
+        return "unsupported", unsupported
+    return "ok", None
 
 
 def _open_exam_dirfd(vault: Path) -> tuple[int | None, str | None]:
@@ -355,10 +373,16 @@ def _dirfd_still_in_vault(dir_fd: int, vault: Path) -> str | None:
     而不是"不可能被移走"。残留窗口与 lstat→unlink 那处同源, 已在验收单声明。
     """
     try:
-        st_now = os.stat(vault / EXAM_DIR)
+        # ⛔ round-4 HIGH-1: 原用 os.stat —— 它**跟随 symlink**。反例: 把目录 rename
+        # 出 vault 后, 在原路径放一个指回它的 symlink, os.stat 解析后拿到的 inode
+        # 仍等于 dir_fd 的 inode ⇒ 复核通过, 文件照旧落在 vault 外而回执报成功。
+        # 改用 lstat 并**显式拒绝 symlink**: 该路径本就应当是真目录, 不是别名。
+        st_now = os.lstat(vault / EXAM_DIR)
         st_dfd = os.fstat(dir_fd)
     except OSError as e:
         return f"写入后复核 {EXAM_DIR}/ 失败: {type(e).__name__}"
+    if stat.S_ISLNK(st_now.st_mode):
+        return f"{EXAM_DIR}/ 在写入期间被替换成 symlink — 写入落点不可信"
     if (st_now.st_dev, st_now.st_ino) != (st_dfd.st_dev, st_dfd.st_ino):
         return (
             f"{EXAM_DIR}/ 在写入期间被替换或移出 vault "
@@ -373,7 +397,7 @@ def _rollback_published(
     identity: tuple[int, int] | None = None,
     *,
     expect_sha: str | None = None,
-) -> str | None:
+) -> tuple[str, str | None]:
     """撤销**我们自己**刚发布的 target —— 仅当它当前确实还是我们那一份。
 
     round-3 HIGH-3: 原实现按 basename 直接 unlink 并静默吞掉失败, 两个问题:
@@ -385,16 +409,23 @@ def _rollback_published(
       · ``expect_sha`` —— 比内容 SHA, 用于 HIGH-1 那种「目录整体被移走」的场景
         (此时 inode 仍是我们的, 但我们想确认删的确是自己写的那份字节)。
     两者都给则必须同时满足。任一不符 ⇒ **不删**(那不是我们的东西)。
-    → None = 已撤销 / 无需撤销; str = 失败原因(调用方须写进回执, 不得吞)。
+    ⛔ round-4 HIGH-3: 原先只返回 `None | str`, 而 `None` 同时表示四种截然不同的
+    结果(已删 / 本就不存在 / identity 不符**没删** / SHA 不符**没删**)。调用方无法
+    分辨, 于是一律拼「已撤销该文件」—— **回执与实际副作用直接不一致**。
+    改为三态: ("deleted"|"absent"|"kept", 失败原因|None)。
+    · deleted = 确实删了; · absent = 本就不在; · kept = **判据不符, 故意没删**。
     """
+    if identity is None and expect_sha is None:
+        # round-4 LOW-1: 两个判据都不给 ⇒ 无从证明「这是我们的」, 拒绝删除。
+        return "kept", "未提供任何身份判据, 拒绝删除"
     try:
         st_now = os.lstat(name, dir_fd=dir_fd)
     except FileNotFoundError:
-        return None  # 已经不在了, 无需撤销
+        return "absent", None  # 已经不在了, 无需撤销
     except OSError as e:
-        return f"撤销前复核失败 {type(e).__name__}"
+        return "kept", f"撤销前复核失败 {type(e).__name__}"
     if identity is not None and (st_now.st_dev, st_now.st_ino) != identity:
-        return None  # 已不是我们的 inode ⇒ 是别人的文件, 绝不删
+        return "kept", None  # 已不是我们的 inode ⇒ 是别人的文件, 绝不删
     if expect_sha is not None:
         try:
             cfd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=dir_fd)
@@ -405,14 +436,14 @@ def _rollback_published(
             finally:
                 os.close(cfd)
         except OSError as e:
-            return f"撤销前回读失败 {type(e).__name__}"
+            return "kept", f"撤销前回读失败 {type(e).__name__}"
         if hashlib.sha256(buf).hexdigest() != expect_sha:
-            return None  # 内容已不是我们写的那份 ⇒ 不删
+            return "kept", None  # 内容已不是我们写的那份 ⇒ 不删
     try:
         os.unlink(name, dir_fd=dir_fd)
     except OSError as e:
-        return f"unlink 失败 {type(e).__name__}"
-    return None
+        return "kept", f"unlink 失败 {type(e).__name__}"
+    return "deleted", None
 
 
 def _atomic_write(
@@ -450,6 +481,7 @@ def _atomic_write(
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
     tmp_name, target_name = tmp.name, target.name
     published = False  # link 是否已成功 (round-3 HIGH-2)
+    rollback_note = None  # 撤销未完成时的如实说明 (round-4 HIGH-2)
     st_written = None
     try:
         fd = os.open(tmp_name, flags, 0o644, dir_fd=dir_fd)
@@ -507,12 +539,18 @@ def _atomic_write(
                 # 他人的文件。修法: 紧贴 unlink 前**再 lstat 一次**核 identity;
                 # 且删除失败**不再静默吞掉**(否则会留下错误字节的 target 而回执
                 # 只报失败)。
-                rb_err = _rollback_published(
+                # ⛔ round-4 HIGH-2: 原实现在拿到结果**之前**就 published = False,
+                # 于是外层 except 里 `if published:` 不成立、rb_err 被重置为 None,
+                # 「已发布目标未能撤销」这条关键信息被整个吞掉, 回执只剩
+                # 「原子写失败: OSError」。修法: 只有**确实删掉**才清 published;
+                # 撤销结果用外层可见的 rollback_note 承载, 不依赖异常传递。
+                rb_state, rb_err = _rollback_published(
                     target_name, dir_fd, (st_written.st_dev, st_written.st_ino)
                 )
-                published = False
-                if rb_err:
-                    raise OSError(f"published bytes mismatch; 撤销失败: {rb_err}")
+                if rb_state == "deleted" or rb_state == "absent":
+                    published = False
+                else:
+                    rollback_note = rb_err or "判据不符, 已保留(未删除)"
                 raise OSError("published bytes mismatch (in-place rewrite)")
             published = False  # 不是我们的 inode ⇒ 不属于我们, 无需也不得撤销
             raise OSError(
@@ -526,11 +564,12 @@ def _atomic_write(
                 pass
         # round-3 HIGH-2: 若 link 已成功而后续步骤抛错, target 已经发布出去了 ——
         # 必须撤销自己的发布, 否则「回执报失败、文件却留在 vault 里」。
-        rb_err = None
         if published:
-            rb_err = _rollback_published(
+            rb_state, rb_err2 = _rollback_published(
                 target_name, dir_fd, (st_written.st_dev, st_written.st_ino)
             )
+            if rb_state not in ("deleted", "absent"):
+                rollback_note = rb_err2 or "判据不符, 已保留(未删除)"
         # round-3 MEDIUM-5: tmp 清理失败原先被吞 —— 残留会让下次同 ts 的 O_EXCL
         # 直接失败, 而用户拿不到任何线索。改为并入错误消息如实回报。
         tmp_err = None
@@ -546,8 +585,8 @@ def _atomic_write(
             else "原子写失败"
         )
         msg = f"{kind}: {type(e).__name__}"
-        if rb_err:
-            msg += f" (⚠️ 已发布的目标未能撤销: {rb_err}, 请手动检查)"
+        if rollback_note:
+            msg += f" (⚠️ 已发布的目标仍在 vault 里: {rollback_note}, 请手动检查)"
         if tmp_err:
             msg += f" (⚠️ 临时文件未清理 {tmp_err}, 下次同 ts 会被拒, 请手动删除)"
         return msg, None
@@ -744,10 +783,19 @@ def cmd_create(args) -> int:
         if not write_err:
             moved = _dirfd_still_in_vault(dfd, vault)
             if moved:
-                rb = _rollback_published(target.name, dfd, None, expect_sha=sha)
-                write_err = moved + (
-                    f" (已撤销该文件)" if not rb else f"; 撤销失败: {rb}"
+                rb_state, rb_err = _rollback_published(
+                    target.name, dfd, None, expect_sha=sha
                 )
+                # round-4 HIGH-3: 三态如实转述 —— "kept" 表示判据不符**故意没删**,
+                # 绝不能像原来那样一律拼「已撤销该文件」(回执与副作用不一致)。
+                tail = {
+                    "deleted": " (已撤销该文件)",
+                    "absent": " (该文件已不存在)",
+                }.get(
+                    rb_state,
+                    f" (⚠️ 文件仍在: {rb_err or '判据不符, 故意未删'}, 请手动检查)",
+                )
+                write_err = moved + tail
     finally:
         os.close(dfd)
     if write_err:
@@ -946,7 +994,8 @@ def cmd_undo(args) -> int:
         return _fail_env(f"留痕写入失败, 已放弃回退 (原文件未动): {type(e).__name__}")
     # round-3 HIGH-4: 留痕的**目录项**没落盘就删源, 崩溃后可能两端皆失。
     # 这里改为 fail-closed: fsync 目录失败即拒绝回退, 原文件原样保留。
-    dsync_err = _fsync_dir(undo_dir)
+    dsync_state, dsync_msg = _fsync_dir(undo_dir)
+    dsync_err = dsync_msg if dsync_state == "failed" else None
     if dsync_err:
         print(
             json.dumps(
@@ -1069,7 +1118,10 @@ def cmd_undo(args) -> int:
         return _fail_env(
             f"留痕已保存 {dest} 但原文件删除失败 (vault 内仍在): {type(e).__name__}"
         )
-    _fsync_dir(target.parent)
+    # round-4 HIGH-5: 原实现忽略删源后的目录 fsync 结果并无条件报 undone:true。
+    # 此刻文件已删、无法回退, 但**必须如实告知**: 若目录项未持久化, 崩溃后源文件
+    # 可能"复活", 回执与持久状态分叉。改为把它写进回执的 warning。
+    src_state, src_msg = _fsync_dir(target.parent)
     print(
         json.dumps(
             {
@@ -1078,6 +1130,16 @@ def cmd_undo(args) -> int:
                 "removed_path": args.path,
                 "retained_at": str(dest),
                 "retained_sha256": sha,
+                **(
+                    {}
+                    if src_state == "ok"
+                    else {
+                        "warning": (
+                            f"源目录项持久化未确认 ({src_msg}) — 崩溃后源文件可能重现; "
+                            f"留痕已在 {dest}"
+                        )
+                    }
+                ),
             },
             ensure_ascii=False,
             indent=1,

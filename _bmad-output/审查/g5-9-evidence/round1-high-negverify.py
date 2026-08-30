@@ -71,6 +71,16 @@ _DIRFD_OFF: list[tuple[str, str]] = [
         "    if st_dfd.st_dev != st_vault.st_dev:",
         "    if False:",
     ),
+    # round-4 起 `_dirfd_still_in_vault` 的 S_ISLNK 检查成了第四层 —— 任何声称
+    # 「回退 HIGH-4/父目录防护」的变体都必须连它一起禁, 否则拒绝来自它。
+    (
+        "    if stat.S_ISLNK(st_now.st_mode):",
+        "    if False:",
+    ),
+    (
+        "            if moved:",
+        "            if False:",
+    ),
 ]
 _PATH_BASED_OPS: list[tuple[str, str]] = [
     (
@@ -230,8 +240,10 @@ VARIANTS: list[tuple[str, str, list[tuple[str, str]], str]] = [
         "round-3 HIGH-2 回退: 失败路径不再撤销已发布的 target",
         [
             (
-                "        rb_err = None\n        if published:",
-                "        rb_err = None\n        if False:",
+                "        if published:\n"
+                "            rb_state, rb_err2 = _rollback_published(",
+                "        if False:\n"
+                "            rb_state, rb_err2 = _rollback_published(",
             )
         ],
         "test_atomic_write_rolls_back_when_readback_raises",
@@ -242,20 +254,20 @@ VARIANTS: list[tuple[str, str, list[tuple[str, str]], str]] = [
         [
             (
                 "    if identity is not None and (st_now.st_dev, st_now.st_ino) != identity:\n"
-                "        return None  # 已不是我们的 inode ⇒ 是别人的文件, 绝不删",
-                "    if False:\n        return None",
+                '        return "kept", None  # 已不是我们的 inode ⇒ 是别人的文件, 绝不删',
+                '    if False:\n        return "kept", None',
             ),
             (
                 "    try:\n"
                 "        os.unlink(name, dir_fd=dir_fd)\n"
                 "    except OSError as e:\n"
-                '        return f"unlink 失败 {type(e).__name__}"\n'
-                "    return None",
+                '        return "kept", f"unlink 失败 {type(e).__name__}"\n'
+                '    return "deleted", None',
                 "    try:\n"
                 "        os.unlink(name, dir_fd=dir_fd)\n"
                 "    except OSError:\n"
                 "        pass\n"
-                "    return None",
+                '    return "deleted", None',
             ),
         ],
         "test_rollback_published_refuses_to_delete_someone_elses_file or "
@@ -266,16 +278,67 @@ VARIANTS: list[tuple[str, str, list[tuple[str, str]], str]] = [
         "round-3 HIGH-4 回退: _fsync_dir 恢复 fail-open + undo 不再据此拒绝",
         [
             (
-                '        return f"目录 fsync 失败 {type(e).__name__}"',
-                "        return None",
+                '                return "failed", f"目录 fsync 失败 {type(e).__name__}"',
+                '                return "ok", None',
             ),
             (
-                "    dsync_err = _fsync_dir(undo_dir)\n    if dsync_err:",
-                "    dsync_err = _fsync_dir(undo_dir)\n    if False:",
+                '    dsync_err = dsync_msg if dsync_state == "failed" else None\n    if dsync_err:',
+                '    dsync_err = dsync_msg if dsync_state == "failed" else None\n    if False:',
             ),
         ],
         "test_undo_refuses_when_retention_dir_fsync_fails or "
         "test_fsync_dir_reports_failure_instead_of_silently_succeeding",
+    ),
+    (
+        "O",
+        "round-4 HIGH-1 回退: 写入后复核改回 os.stat (跟随 symlink) 且不拒 symlink",
+        [
+            (
+                "        st_now = os.lstat(vault / EXAM_DIR)",
+                "        st_now = os.stat(vault / EXAM_DIR)",
+            ),
+            ("    if stat.S_ISLNK(st_now.st_mode):", "    if False:"),
+        ],
+        "test_create_detects_exam_dir_replaced_by_symlink_alias",
+    ),
+    (
+        "P",
+        "round-4 HIGH-2/3 回退: 撤销未完成时不再写进回执",
+        [("        if rollback_note:", "        if False:")],
+        "test_atomic_write_reports_target_left_behind_when_rollback_refuses",
+    ),
+    (
+        "Q",
+        "round-4 HIGH-4 回退: EPERM 重新并入 fsync 豁免集",
+        [
+            (
+                "            if errno_ in (errno.EINVAL, errno.ENOTSUP):",
+                "            if errno_ in (errno.EINVAL, errno.ENOTSUP, errno.EPERM):",
+            )
+        ],
+        "test_fsync_dir_does_not_treat_eperm_as_unsupported",
+    ),
+    (
+        "R",
+        "round-4 HIGH-5 回退: 删源后的目录 fsync 结果重新被忽略",
+        [
+            (
+                '                    if src_state == "ok"',
+                "                    if True",
+            )
+        ],
+        "test_undo_warns_when_source_dir_fsync_unconfirmed",
+    ),
+    (
+        "S",
+        "round-4 LOW-1 回退: 双空判据恢复无条件删除",
+        [
+            (
+                "    if identity is None and expect_sha is None:",
+                "    if False:",
+            )
+        ],
+        "test_rollback_published_refuses_without_any_criterion",
     ),
     (
         "H",

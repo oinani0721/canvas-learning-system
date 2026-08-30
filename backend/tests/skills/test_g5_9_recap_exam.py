@@ -24,6 +24,7 @@ fixtures 在 tmp_path 程序化构造 (与 test_split_preview.py 同惯例)。
 from __future__ import annotations
 
 import argparse
+import errno
 import hashlib
 import json
 import subprocess
@@ -956,7 +957,7 @@ def test_undo_refuses_when_retention_bytes_corrupted(tmp_path, capsys):
     real_fsync_dir = mod._fsync_dir
 
     def evil_fsync_dir(d):
-        real_fsync_dir(d)
+        r = real_fsync_dir(d)
         if Path(d) == undo_dir:  # 留痕刚落盘的那一次
             for f in undo_dir.iterdir():
                 fd = mod.os.open(f, mod.os.O_WRONLY | mod.os.O_TRUNC)
@@ -964,6 +965,7 @@ def test_undo_refuses_when_retention_bytes_corrupted(tmp_path, capsys):
                     mod.os.write(fd, b"CORRUPTED-BACKUP\n")
                 finally:
                     mod.os.close(fd)
+        return r
 
     mod._fsync_dir = evil_fsync_dir
     try:
@@ -1153,10 +1155,11 @@ def test_rollback_published_refuses_to_delete_someone_elses_file(tmp_path):
     victim.write_text("SOMEONE-ELSES-FILE\n", encoding="utf-8")
     dfd = mod.os.open(d, mod.os.O_RDONLY | mod.os.O_DIRECTORY)
     try:
-        err = mod._rollback_published("t.md", dfd, (99999, 99999))  # 故意不匹配
+        state, err = mod._rollback_published("t.md", dfd, (99999, 99999))
     finally:
         mod.os.close(dfd)
     assert err is None, f"不该报错: {err}"
+    assert state == "kept", f"identity 不符时应如实回报 kept，实际 {state}"
     assert victim.is_file(), "删掉了不属于自己的文件"
     assert victim.read_text(encoding="utf-8") == "SOMEONE-ELSES-FILE\n"
 
@@ -1178,11 +1181,12 @@ def test_rollback_published_reports_unlink_failure_instead_of_swallowing(tmp_pat
 
     mod.os.unlink = evil_unlink
     try:
-        err = mod._rollback_published("t.md", dfd, (st.st_dev, st.st_ino))
+        state, err = mod._rollback_published("t.md", dfd, (st.st_dev, st.st_ino))
     finally:
         mod.os.unlink = real_unlink
         mod.os.close(dfd)
     assert err is not None, "删除失败却报成功（原实现的行为）"
+    assert state == "kept", f"删除失败时状态应为 kept，实际 {state}"
     assert "unlink" in err
 
 
@@ -1225,7 +1229,8 @@ def test_fsync_dir_reports_failure_instead_of_silently_succeeding(tmp_path):
     mod = _load_module()
     d = tmp_path / "d"
     d.mkdir()
-    assert mod._fsync_dir(d) is None, "正常目录不该报错"
+    st0, msg0 = mod._fsync_dir(d)
+    assert st0 == "ok" and msg0 is None, f"正常目录应为 ok，实际 {st0}/{msg0}"
     real_fsync = mod.os.fsync
 
     def evil_fsync(fd):
@@ -1233,10 +1238,11 @@ def test_fsync_dir_reports_failure_instead_of_silently_succeeding(tmp_path):
 
     mod.os.fsync = evil_fsync
     try:
-        err = mod._fsync_dir(d)
+        state, err = mod._fsync_dir(d)
     finally:
         mod.os.fsync = real_fsync
-    assert err is not None, "fsync 失败却返回 None（原实现的 fail-open）"
+    assert state == "failed", f"EIO 应判 failed，实际 {state}"
+    assert err is not None, "fsync 失败却报成功（原实现的 fail-open）"
     assert "fsync" in err
 
 
@@ -1253,7 +1259,7 @@ def test_undo_refuses_when_retention_dir_fsync_fails(tmp_path, capsys):
 
     def evil_fsync_dir(dd):
         if Path(dd) == undo_dir:
-            return "目录 fsync 失败 OSError"  # 模拟持久化失败
+            return "failed", "目录 fsync 失败 OSError"  # 模拟持久化失败
         return real_fsync_dir(dd)
 
     mod._fsync_dir = evil_fsync_dir
@@ -1341,3 +1347,165 @@ def test_create_detects_exam_dir_swapped_to_another_dir_after_anchor(tmp_path, c
     out = capsys.readouterr().out
     assert rc == 2, f"目录被换成另一个同名目录却报成功: rc={rc} {out}"
     assert "inode 已变" in out or "被替换或移出" in out, f"未点名 inode 变化: {out}"
+
+
+# ═════ round-4 五条 HIGH 回归锁（CARD-收口A ③ 四段）═════
+#
+# round-4 的发现全是「**我上一轮的修复本身有洞**」——不是新功能出错，
+# 而是加固动作自己的边界没收干净。最典型是 HIGH-1：我用 os.stat 做写入后复核，
+# 而 os.stat **跟随 symlink**，于是「把目录移走 + 在原路径放个指回它的 symlink」
+# 就能让复核通过。
+
+
+def test_create_detects_exam_dir_replaced_by_symlink_alias(tmp_path, capsys):
+    """HIGH-1 承重门：写入后复核原用 `os.stat`（跟随 symlink）。
+    反例＝把 `检验白板/` 移出 vault，再在原路径放一个**指回它**的 symlink：
+    `os.stat` 解析后拿到的 inode 仍等于 dir_fd 的 inode ⇒ 复核被绕过，
+    文件实际落在 vault 外而回执报成功。修法是改 `os.lstat` 并显式拒绝 symlink。"""
+    vault = build_vault(tmp_path)
+    sha = do_preview(vault, ["板一"])["content_sha256"]
+    exam = vault / EXAM_DIR_NAME
+    moved = tmp_path / "moved_exam"
+    mod = _load_module()
+    real_atomic = mod._atomic_write
+
+    def evil_atomic(tmp_p, target, content, dir_fd):
+        r = real_atomic(tmp_p, target, content, dir_fd)
+        exam.rename(moved)  # 目录移出 vault
+        exam.symlink_to(moved, target_is_directory=True)  # 原路径放别名指回它
+        return r
+
+    mod._atomic_write = evil_atomic
+    try:
+        rc = mod.cmd_create(
+            argparse.Namespace(
+                vault=str(vault),
+                boards=["板一"],
+                anchor=None,
+                ts=TS,
+                expect_content_sha=sha,
+            )
+        )
+    finally:
+        mod._atomic_write = real_atomic
+    out = capsys.readouterr().out
+    assert rc == 2, f"symlink 别名绕过了写入后复核: rc={rc} {out}"
+    assert "symlink" in out, f"拒绝理由未点名 symlink: {out}"
+
+
+def test_atomic_write_reports_target_left_behind_when_rollback_refuses(tmp_path):
+    """HIGH-2 + HIGH-3 承重门：内容不符时若撤销**判据不符而没删**，
+    回执必须如实说「文件仍在」，不能吞掉（原实现先清 published 再抛，
+    外层把 rb_err 重置为 None，只剩「原子写失败: OSError」）。"""
+    mod = _load_module()
+    d = tmp_path / "d"
+    d.mkdir()
+    tmp_p, target = d / "t.tmp", d / "t.md"
+    dfd = mod.os.open(d, mod.os.O_RDONLY | mod.os.O_DIRECTORY)
+    real_link = mod.os.link
+    real_rb = mod._rollback_published
+
+    def evil_link(src, dst, **kw):
+        real_link(src, dst, **kw)
+        fd = mod.os.open(target, mod.os.O_WRONLY | mod.os.O_TRUNC)
+        try:
+            mod.os.write(fd, b"ATTACKER\n")  # 同 inode、内容不符
+        finally:
+            mod.os.close(fd)
+
+    def refusing_rb(*a, **kw):
+        return "kept", None  # 模拟「判据不符，故意没删」
+
+    mod.os.link, mod._rollback_published = evil_link, refusing_rb
+    try:
+        err, _warn = mod._atomic_write(tmp_p, target, "USER-CONFIRMED\n", dfd)
+    finally:
+        mod.os.link, mod._rollback_published = real_link, real_rb
+        mod.os.close(dfd)
+    assert err is not None
+    assert "仍在" in err, f"撤销未完成却没在回执里说明: {err}"
+
+
+def test_fsync_dir_does_not_treat_eperm_as_unsupported(tmp_path):
+    """HIGH-4 承重门：`EPERM` **不能**证明「该 FS 不支持 fsync 目录」，
+    更可能是真实的权限/策略拒绝。把它当成功会让 undo 在无从证明的情况下删源。"""
+    mod = _load_module()
+    d = tmp_path / "d"
+    d.mkdir()
+    real_fsync = mod.os.fsync
+
+    def eperm_fsync(fd):
+        raise OSError(errno.EPERM, "simulated EPERM")
+
+    mod.os.fsync = eperm_fsync
+    try:
+        state, msg = mod._fsync_dir(d)
+    finally:
+        mod.os.fsync = real_fsync
+    assert state == "failed", f"EPERM 被当成了 {state}（原实现误列入豁免集）"
+    assert msg
+
+
+def test_fsync_dir_separates_unsupported_from_ok(tmp_path):
+    """HIGH-4 承重门（另一半）：`EINVAL/ENOTSUP` 只说明「**无法证明**已持久化」，
+    既不是成功也不是失败，必须单列一档，不能伪装成 ok。"""
+    mod = _load_module()
+    d = tmp_path / "d"
+    d.mkdir()
+    real_fsync = mod.os.fsync
+
+    def einval_fsync(fd):
+        raise OSError(errno.EINVAL, "simulated ENOTSUP")
+
+    mod.os.fsync = einval_fsync
+    try:
+        state, msg = mod._fsync_dir(d)
+    finally:
+        mod.os.fsync = real_fsync
+    assert state == "unsupported", f"应单列 unsupported，实际 {state}"
+    assert msg and "不支持" in msg
+
+
+def test_undo_warns_when_source_dir_fsync_unconfirmed(tmp_path, capsys):
+    """HIGH-5 承重门：删源之后的目录 fsync 结果原先被完全忽略、无条件报
+    `undone: true`。此刻已无法回退，但**必须如实告知**——否则崩溃后源文件
+    可能"复活"，回执与持久状态分叉。"""
+    vault = build_vault(tmp_path)
+    out = do_create(vault, ["板一"])
+    undo_dir = tmp_path / "keep-srcfsync"
+    undo_dir.mkdir()
+    target_parent = (vault / out["created_path"]).parent
+    mod = _load_module()
+    real_fsync_dir = mod._fsync_dir
+
+    def evil_fsync_dir(dd):
+        if Path(dd) == target_parent:
+            return "failed", "目录 fsync 失败 OSError"
+        return real_fsync_dir(dd)
+
+    mod._fsync_dir = evil_fsync_dir
+    try:
+        rc = mod.cmd_undo(_undo_args(vault, out["created_path"], out["content_sha256"], undo_dir))
+    finally:
+        mod._fsync_dir = real_fsync_dir
+    res = json.loads(capsys.readouterr().out)
+    assert rc == 0 and res["undone"] is True
+    assert "warning" in res, f"源目录持久化未确认却没有 warning: {res}"
+    assert "持久化未确认" in res["warning"]
+
+
+def test_rollback_published_refuses_without_any_criterion(tmp_path):
+    """LOW-1 承重门：两个判据都不给时**不得**无条件删除——那等于
+    「无从证明这是我们的东西」却照删。"""
+    mod = _load_module()
+    d = tmp_path / "d"
+    d.mkdir()
+    f = d / "t.md"
+    f.write_text("SOMEONE\n", encoding="utf-8")
+    dfd = mod.os.open(d, mod.os.O_RDONLY | mod.os.O_DIRECTORY)
+    try:
+        state, err = mod._rollback_published("t.md", dfd, None)
+    finally:
+        mod.os.close(dfd)
+    assert state == "kept" and err, "双空判据竟无条件删除"
+    assert f.is_file(), "在没有任何身份判据的情况下删掉了文件"
