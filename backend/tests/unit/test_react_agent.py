@@ -64,12 +64,14 @@ class TestReactAgentGroupIdContextVar:
 
     @pytest.mark.asyncio
     async def test_react_agent_fallback_when_no_contextvar(
-        self, reset_react_module_state, caplog
+        self, reset_react_module_state
     ):
-        """ContextVar 未设置 (default) → fallback DEFAULT_GROUP_ID + logger.warning."""
-        import logging
+        """CARD-G2-2 断言翻新: ContextVar 未设置 (default) → 经
+        vault_scope.current_group_id() 推导 active vault 组 —
+        DEFAULT_GROUP_ID (vault:default 污染桶) 兜底退役, 原 warning 随之取消
+        (推导 active vault 是契约内正常路径, 不再是 deprecated 兜底)."""
+        from unittest.mock import patch as _patch
 
-        from app.config import DEFAULT_GROUP_ID
         from app.services import react_agent as ra_module
         from app.services.react_agent import search_knowledge_graph
 
@@ -78,32 +80,17 @@ class TestReactAgentGroupIdContextVar:
         ra_module._neo4j_client = mock_neo4j
 
         # 不 set ContextVar — fixture 已 reset 到 DEFAULT_SUBJECT_ID ("general")
-        with caplog.at_level(logging.WARNING):
+        with _patch("app.config.get_current_vault_id", return_value="active_vault"):
             await search_knowledge_graph.ainvoke(
                 {"query": "fallback test", "num_results": 3}
             )
 
-        # cypher 收到 DEFAULT_GROUP_ID fallback (T1: 绑定前转物理 __ 格式)
-        from app.graphiti.group_id_compat import to_physical_group_id
-
-        expected_physical = to_physical_group_id(DEFAULT_GROUP_ID)
+        # cypher 收到 active vault 组 (T1: 绑定前转物理 __ 格式)
         assert mock_neo4j.run_query.called
         call_kwargs = mock_neo4j.run_query.call_args.kwargs
-        assert call_kwargs.get("group_id") == expected_physical, (
-            f"fallback path 应使用物理格式 {expected_physical} "
-            f"(DEFAULT_GROUP_ID={DEFAULT_GROUP_ID} 经 to_physical_group_id), "
+        assert call_kwargs.get("group_id") == "vault__active_vault", (
+            f"fallback path 应推导 active vault (物理格式 vault__active_vault), "
             f"实际 group_id={call_kwargs.get('group_id')}"
-        )
-
-        # logger.warning 必须触发 (结构化日志)
-        warning_records = [
-            r
-            for r in caplog.records
-            if "react_agent.group_id_fallback_to_default" in r.getMessage()
-            or "react_agent.group_id_fallback_to_default" in str(r.msg)
-        ]
-        assert warning_records, (
-            "fallback path 必须 logger.warning 提示调用方注入 ContextVar"
         )
 
     @pytest.mark.asyncio
@@ -139,8 +126,15 @@ class TestReactAgentGroupIdContextVar:
         assert mock_neo4j.run_query.called
         call_kwargs = mock_neo4j.run_query.call_args.kwargs
         # record_learning_memory uses groupId (camelCase) not group_id
-        # T1 统一 (2026-07-10): 写侧 Cypher 绑定值同样是物理 __ 格式
-        assert call_kwargs.get("groupId") == "vault__数学", (
+        # T1 统一 (2026-07-10): 写侧 Cypher 绑定值同样是物理 __ 格式。
+        # CARD-G2-2 翻新 (基线即红的陈旧断言): M1-E2E (2026-07-13) 起 CJK
+        # 物理形态收敛 punycode (to_physical_group_id docstring 契约),
+        # 期望值按契约函数计算而非硬编码 vault__数学。
+        from app.graphiti.group_id_compat import to_physical_group_id
+
+        expected_physical = to_physical_group_id("vault:数学")
+        assert call_kwargs.get("groupId") == expected_physical, (
             f"P0 write violation: cypher groupId={call_kwargs.get('groupId')} "
-            f"(预期物理格式 vault__数学)"
+            f"(预期 T1 物理格式 {expected_physical})"
         )
+        assert call_kwargs.get("groupId") != "vault:数学", "逻辑冒号格式禁止直接绑定 Cypher"

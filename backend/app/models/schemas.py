@@ -955,7 +955,23 @@ class FSRSStateQueryResponse(BaseModel):
     found: bool = Field(True, description="Whether a card was found for this concept")
     reason: Optional[str] = Field(
         None,
-        description="Reason when found=false: 'no_card_created', 'fsrs_not_initialized', or error details",
+        description=(
+            "Reason when found=false: 'no_card_created', 'fsrs_not_initialized', "
+            "or error details. CARD-D3: also set with found=true when "
+            "persisted=false ('auto_created_not_persisted' — this request's "
+            "auto-create write failed; 'cached_state_not_persisted' — a prior "
+            "write of this concept failed and the card lives in memory only)"
+        ),
+    )
+    # CARD-D3: 加性可选字段 — auto-create 写盘失败时如实标 False
+    # (found=True 只保证卡在内存, persisted 才是持久层的真话)
+    persisted: Optional[bool] = Field(
+        None,
+        description=(
+            "Whether the card state is in the persistence layer. False when "
+            "an auto-created card failed to write to disk (memory-only, lost "
+            "on restart). None for legacy responses / not-found cases."
+        ),
     )
 
 
@@ -983,6 +999,23 @@ class RecordReviewResponse(BaseModel):
     )
     algorithm: str = Field(
         "fsrs-4.5", description="Algorithm used: 'fsrs-4.5' or 'ebbinghaus-fallback'"
+    )
+    # CARD-D3: 加性可选字段 (默认 None 向后兼容, 200 语义不变) —
+    # 沿用 SubmitAnswerResponse 的 degraded 字段先例
+    card_state_persisted: Optional[bool] = Field(
+        None,
+        description=(
+            "Whether the FSRS card state was persisted to disk. False = "
+            "recorded in memory only (lost on restart), see degraded_reason. "
+            "None = not applicable (ebbinghaus-fallback has no card state)."
+        ),
+    )
+    degraded_reason: Optional[str] = Field(
+        None,
+        description=(
+            "Set when card_state_persisted=false: 'card_state_write_failed' "
+            "or 'empty_concept_id_not_persisted'"
+        ),
     )
 
 

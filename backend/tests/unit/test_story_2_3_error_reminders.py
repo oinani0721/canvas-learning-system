@@ -19,6 +19,7 @@ from app.services.chat_context_assembler import (
     ChatContextAssembler,
     CurrentNoteContext,
 )
+from app.models.service_status import StatusedResult
 from app.services.memory_service import MemoryService
 
 
@@ -306,10 +307,12 @@ async def test_search_error_memories_filters_by_episode_type():
         ),
     ]
 
+    # CARD-G4-2: search_error_memories 内部改调 search_memories_with_status
+    # (故障不再被剥成空 list), mock 目标同步更新; 数据意图不变。
     with patch.object(
         svc,
-        "search_memories",
-        new=AsyncMock(return_value=raw_episodes),
+        "search_memories_with_status",
+        new=AsyncMock(return_value=StatusedResult.from_items(raw_episodes)),
     ):
         result = await svc.search_error_memories(node_id="admissibility", limit=10)
 
@@ -329,10 +332,12 @@ async def test_search_error_memories_sorts_by_timestamp_desc():
         _make_episode("middle", episode_type="error", timestamp="2026-04-15T08:00:00"),
     ]
 
+    # CARD-G4-2: search_error_memories 内部改调 search_memories_with_status
+    # (故障不再被剥成空 list), mock 目标同步更新; 数据意图不变。
     with patch.object(
         svc,
-        "search_memories",
-        new=AsyncMock(return_value=raw_episodes),
+        "search_memories_with_status",
+        new=AsyncMock(return_value=StatusedResult.from_items(raw_episodes)),
     ):
         result = await svc.search_error_memories(node_id="admissibility", limit=10)
 
@@ -351,10 +356,12 @@ async def test_search_error_memories_truncates_to_limit():
         for i in range(1, 11)  # 10 episodes
     ]
 
+    # CARD-G4-2: search_error_memories 内部改调 search_memories_with_status
+    # (故障不再被剥成空 list), mock 目标同步更新; 数据意图不变。
     with patch.object(
         svc,
-        "search_memories",
-        new=AsyncMock(return_value=raw_episodes),
+        "search_memories_with_status",
+        new=AsyncMock(return_value=StatusedResult.from_items(raw_episodes)),
     ):
         result_default = await svc.search_error_memories(node_id="admissibility")
         result_custom = await svc.search_error_memories(
@@ -384,8 +391,8 @@ async def test_search_error_memories_normalizes_schema():
 
     with patch.object(
         svc,
-        "search_memories",
-        new=AsyncMock(return_value=raw),
+        "search_memories_with_status",
+        new=AsyncMock(return_value=StatusedResult.from_items(raw)),
     ):
         result = await svc.search_error_memories(node_id="admissibility")
 
@@ -406,7 +413,7 @@ async def test_search_error_memories_passes_node_id_filter_to_search_memories():
     svc = MemoryService()
     mock = AsyncMock(return_value=[])
 
-    with patch.object(svc, "search_memories", new=mock):
+    with patch.object(svc, "search_memories_with_status", new=mock):
         await svc.search_error_memories(
             node_id="admissibility",
             group_id="vault:cs_61b",
@@ -425,9 +432,10 @@ async def test_search_error_memories_passes_node_id_filter_to_search_memories():
 async def test_search_error_memories_oversample_size():
     """oversample = max(20, limit*4): limit=10 → 40; limit=3 → 20."""
     svc = MemoryService()
-    mock = AsyncMock(return_value=[])
+    # CARD-G4-2: 状态方法返回 StatusedResult 而非裸 list
+    mock = AsyncMock(return_value=StatusedResult.from_items([]))
 
-    with patch.object(svc, "search_memories", new=mock):
+    with patch.object(svc, "search_memories_with_status", new=mock):
         await svc.search_error_memories(node_id="x", limit=10)
         assert mock.call_args.kwargs["max_results"] == 40
 

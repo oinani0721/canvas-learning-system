@@ -29,7 +29,6 @@ from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
 from app.api.v1.endpoints._vault_id_resolver import resolve_vault_group_id
-from app.config import DEFAULT_GROUP_ID
 
 logger = logging.getLogger(__name__)
 
@@ -103,10 +102,9 @@ def _get_cached(cache_key: str) -> dict | None:
 
     cache_key must encode both node_id and group_id so that the same
     node accessed under different subjects receives isolated entries.
-    Callers should pass ``f"{group_id or DEFAULT_GROUP_ID}:{node_id}"``
-    — using the app-level DEFAULT_GROUP_ID (not a literal "default" string)
-    keeps the cache entry aligned with the group_id that
-    ``get_node_context`` actually resolves to under its own fallback.
+    Callers should pass ``f"{resolved_group_id}:{node_id}"`` — the group
+    resolved by ``vault_scope`` (CARD-G2-2), which is always non-empty and
+    aligned with the group_id that ``get_node_context`` resolves to.
     """
     entry = _context_cache.get(cache_key)
     if entry is None:
@@ -237,7 +235,8 @@ async def get_node_context_endpoint(
     # — otherwise a cross-subject hit would leak neighbors from group A to
     # group B when their TTLs overlap (FR-KG-04 isolation Phase 2).
     # Wave-5 Stage B 续: cache_key 用 resolved_group_id 防多 vault 同 node_id 串库.
-    cache_key = f"{resolved_group_id or DEFAULT_GROUP_ID}:{node_id}"
+    # CARD-G2-2 (2026-08-28): resolver 恒返回非空 group, 死防御 or-DEFAULT 移除。
+    cache_key = f"{resolved_group_id}:{node_id}"
     cached = _get_cached(cache_key)
     if cached is None:
         cached = await get_node_context(node_id=node_id, group_id=resolved_group_id)

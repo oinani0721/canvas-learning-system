@@ -150,7 +150,8 @@ class TestMemoryServicePreferred:
         """MemoryService 可用时不应再直连 Graphiti（后者召回面窄一层）。"""
 
         async def _hits(node_id, group_id, limit=10):
-            return [{"content": "提示: 来自 MemoryService 的三组同查"}]
+            # CARD-G4-2: helper 契约改为 (条目, 降级原因) — 无降级时 reason=None
+            return [{"content": "提示: 来自 MemoryService 的三组同查"}], None
 
         monkeypatch.setattr("agentic_rag.mastery_injection._search_via_memory_service", _hits)
         client = _strict_client([{"content": "不该被用到"}])
@@ -168,7 +169,7 @@ class TestMemoryServicePreferred:
         async def _capture(node_id, group_id, limit=10):
             seen["group_id"] = group_id
             seen["node_id"] = node_id
-            return []
+            return [], None
 
         monkeypatch.setattr("agentic_rag.mastery_injection._search_via_memory_service", _capture)
 

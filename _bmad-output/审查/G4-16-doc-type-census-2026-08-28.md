@@ -1,0 +1,150 @@
+# CARD-G4-16 — doc_type 族接线普查与裁定报告
+
+> **批次**: BATCH-2026-08-28-第五批 / CARD-G4-16（2h · wave 1 · 防暗坑）
+> **锚点**: 计划书 L69（§2.3 STILL-OPEN 前半「doc_type 整族未接线」）——G4-12 已收该行后半"指标名实不符"，本卡收 doc_type 消费链本体
+> **代码基线**: worktree `card/s5-census` @ **`37387a86`**（全部 file:line 以此 SHA 为准；config.py 同时在他卡编辑面上，行号会漂移——复核请先 checkout 此 SHA）
+> **证据包**: `_bmad-output/审查/G4-16-evidence/`（146 行 grep 清单、落点测试 before/after、live 分布实测）
+> **执行日期**: 2026-08-28
+
+---
+
+## §1 枚举口径与总量
+
+`git grep -n "doc_type" 37387a86 -- "backend/*.py"` → **18 文件 146 行**（逐行清单：证据包 `doc_type-146-occurrences@37387a86.txt`；**必须用 pinned git grep 复核**——工作树裸 `grep -rn backend` 会扫入 `backend/.venv` 得 30 文件 198 行，Codex round-1 MEDIUM-5）。与勘探预告完全一致。
+
+**范围声明（Codex round-1 HIGH-4）**：本 census 的对象是 **backend/*.py 中 LanceDB `vault_notes` 行级 `doc_type` 字段**。仓库根 `scripts/migrate_story_frontmatter.py:62` 写 `doc_type: story`、`scripts/sync_links.py:63/:85` 消费 story/epic（行号已按 pinned 37387a86 复核，round-2 LOW 修正）——那是 **BMAD 文档 frontmatter 的同名异物命名空间**，不入 LanceDB、不与本字段互通，不在本卡值域表内（如实登记防混淆）。
+
+**18 文件角色分布**（行数 = doc_type 出现行数）：
+
+| 角色 | 文件 | 行数 |
+|---|---|---|
+| **写侧（唯一写入方）** | `lib/agentic_rag/clients/lancedb_client.py` | 69 |
+| 生产消费·检索服务 | `app/services/supplementary_search_service.py` | 5 |
+| 生产消费·检索器 | `lib/agentic_rag/retrievers/vault_notes_retriever.py` | 13 |
+| 生产消费·隔离面 | `app/services/tool_executor.py` / `app/services/react_agent.py` / `lib/agentic_rag/agent_graph.py` | 3 / 2 / 1 |
+| 生产消费·MCP | `app/mcp/tools/note_search_tools.py` | 2 |
+| 注释引用（本卡修正对象） | `app/services/supplementary_reranker.py` | 1 |
+| 配置/文档注释 | `app/config.py`（:48-50 双层防御注释）/ `app/api/v1/endpoints/metadata.py`（:569 docstring） | 2 / 1 |
+| 回归裁判脚本 | `scripts/run_vault_retrieval_regression.py`（:134/:143 污染硬禁类型判定） | 3 |
+| 测试契约（7 文件） | `test_rag_p0_doc_type_filter`(20) / `test_rag_stage2_chain_unify_contracts`(9) / `test_rag_stage2_chunk_contracts`(7) / `test_rag_stage2_t6_verification_contracts`(4) / `test_immutable_skip_dirs_contract`(2) / `test_rag_stage2_rerank_contracts`(1) / `test_rag_stage0_contracts`(1) | 44 |
+
+**写入方论证（Codex round-1 MEDIUM-3/LOW-1 修订）**：`vault_notes` 表的**显式值生产者恰两处**，均在 `lancedb_client.py`——批量索引路径（:1773-1777 推导 → :1795 metadata + :1818 SQL 列）与单文件更新路径（:2058-2062 推导 → :2078 + :2101），两路共用同一推导规则：`frontmatter.type` **直通**（:2740 lower/strip，无白名单——`whiteboard` 即由此直通入库，:2767 只是消费该值做样板剥离，不是推断点）→ 检验白板推断 `exam_board`（:2756）→ 路径启发 `video_transcript`（`_is_video_transcript`）→ 默认 `"note"`。此外存在**通用 sink**：公共 `add_documents()`（:3615）可无校验透传调用方传入的任意 `doc_type`（含 Chroma 迁移脚本内嵌 metadata_json 路径）——静态未发现当前有第三方经此向 `vault_notes` 写第三种值，但"唯一"须限定为"两显式生产者 + 通用 sink 无校验"。多模态 image_ocr 写路径（:1279-1293）**不含 doc_type 字段**——读侧空串回退的真实来源之一。
+
+## §2 live 分布实测（容器内只读）
+
+`docker exec` 容器内 lancedb 只读扫描 `canvas_vault_vault_notes`（2203 行，2026-08-28）：
+
+```
+video_transcript 2001 (90.8%) | concept 117 | note 69 | whiteboard 16 | exam_board 0 | 空/自由值 0
+```
+
+## §3 消费链实测
+
+- **排除过滤（真实消费主链）**：`exclude_doc_types=["whiteboard","exam_board"]` 于 react_agent:115/:124、tool_executor:112/:122、agent_graph:208、supplementary_search_service:834/:849 显式传入，vault_notes_retriever:82 为默认值——共 7 处显式 + 1 处默认，SQL `NOT IN` 落到 lancedb doc_type 列。**边界（Codex round-1 MEDIUM-4）**：该隔离只覆盖默认 Tier-1 路径——`ENABLE_LANCEDB_TIER2_FALLBACK`（默认关闭）开启后 legacy tier-2 直查裸 `vault_notes` 无 doc_type WHERE（supplementary_search_service.py:863），"在库但检索不可见"仅在默认配置下成立（登记 FU-5）。这是检验白板信息隔离（Karpicke 主动回忆）的**读侧第二层防御**（第一层 = config.py 目录黑名单，:48-50 注释如实记录"验收单/_待处理 无 doc_type，单层防御"）。
+- **正向过滤（休眠 API）**：`vault_notes_retriever` 的 `doc_type: List[str]` 参数（:100/:143/:191）生产调用 **0 处**（仅 test_rag_p0_doc_type_filter 锁 `_build_where_filters` 契约）——注释自述"未来出题链定向取材 opt-in"，属预留接口非死代码（测试在位防漂移）。
+- **material dict 透传（Codex round-1 HIGH-1 修订）**：supplementary_search_service:975 读 `metadata.doc_type`（"" 回退）→ :1047 进 material dict。**生产消费方存在**：MCP `note_search_tools._material_to_item` 的 clean 分支把 `doc_type` 列入 signal_keys 透传进 `NoteResultItem.metadata` 对外输出（note_search_tools.py:289/:385；tainted 分支按契约剔除，test_rag_stage2_chain_unify_contracts:265 锁定）——是**纯透传**（无分支/加权逻辑），此前报告与注释称"0 生产读取方"过强，已修正。原 :1044-1045 注释声称"doc_type=按类型加权与断言用"仍为**名实不符**：加权实际按材料 `source_type` 在 `rerank()` 内 `weights.get` 完成（`get_type_weight` 仅测试调用，Codex round-1 MEDIUM-2 修订），与 doc_type 无关。
+- **裁判消费**：run_vault_retrieval_regression:134/:143 以 doc_type ∈ 硬禁集（whiteboard/exam_board 类）判定检索污染——回归门真实消费方。
+
+## §4 六取值逐个裁定（接线 / 死值）
+
+| # | 取值 | 写侧 | live 行数 | 读侧消费 | **裁定** |
+|---|---|---|---|---|---|
+| 1 | `note` | 默认值 + frontmatter（:1773/:2058） | 69 | 不在排除集 → 可检索；测试契约锁定 | **接线** |
+| 2 | `video_transcript` | 路径启发（:1774/:2059） | 2001 | 同上；且与并行 source_type=video_transcript 一起驱动 rerank 权重 | **接线** |
+| 3 | `whiteboard` | frontmatter `type: whiteboard` 直通（:2740；:2767 仅消费做样板剥离，LOW-1 修订） | 16 | exclude 集 7+1 处消费（隔离第二层）；默认 Tier-1 下在库但检索不可见 = 设计行为（Tier-2 flag 例外见 §3/FU-5） | **接线** |
+| 4 | `exam_board` | 检验白板推断（:2756） | 0 | exclude 集同上。live 0 行原因（Codex round-1 HIGH-2 指出原归因不完整，本轮实测坐实）：exam-quick 考察文件写向**可索引**的 `节点/考察-*.md`（exam-quick.ts:39/:75，目录黑名单不拦）——live vault 实测该形态文件 **0 个**；`检验白板/` 目录唯一 1 个 md 则被目录黑名单拦截。0 行 = "无考察文件存在 + 黑名单拦检验白板目录"两因叠加，非纯黑名单 | **接线**（0 行原因已实测坐实，非死值） |
+| 5 | `concept` | frontmatter `type: concept` 直通 | 117 | 入库真实 + MCP metadata 透传在位；但**无按 "concept" 特化分支的读侧**——自称消费方 `TYPE_WEIGHTS["concept"]` 实为 **source_type 键**，indexer 永不写 source_type="concept" → **直接 lookup 不可达**；concept 材料命中的权重键由**路径启发的 source_type 独立决定**（普通路径→note 1.0，/videos/ 下→video_transcript 0.75），与 doc_type 无关；聚合面 `get_filter_threshold()` 消费全表 values()（chat.py:428 生产调用），concept=1.0 非最小值、当前不影响阈值（Codex round-1 HIGH-3/MEDIUM-1 修订） | **值接线；权重键=直接 lookup 不可达、聚合可达但非决定项**（注释已修正保键；删键列 FU-1） |
+| 6 | 空串/自由值 | image_ocr 路径缺字段 + frontmatter 任意小写串直通（:2740 无白名单；note_search_tools:276 注释自认无枚举校验） | 0 | 读侧 "" 回退（:975）后仅影响透传与 doc_type 过滤；**权重不受影响也不由 doc_type 决定**——source_type 恒独立有值且**按路径二分**：自由值笔记在普通路径→note 1.0、在 `/videos/` 下→video_transcript 0.75；image_ocr 行→0.6（非 DEFAULT 0.5）。（round-1 HIGH-3 + round-2 HIGH-3 修订：原"自由值→note 1.0"的无条件表述已加路径条件） | **值域未闭合**（live 暂 0 行；白名单校验列 FU-3，口径依 G8-1） |
+
+**grep 复核 0 未裁定残留**：146 行中除上表六值与字段名本身的出现外，无其他 doc_type 取值字面量（TYPE_WEIGHTS 的 lecture_notes/discussion 等 6 个 PRD 档位是 **source_type** 前向兼容键、注释已自述 forward-compat，不属 doc_type 值域；test fixture 的 "lecture"/"discussion" 仅锁 `_build_where_filters` SQL 拼接契约）。
+
+## §5 ≤1h 轻量处置（本卡完成，注释-only，零行为改动）
+
+1. `supplementary_reranker.py` `TYPE_WEIGHTS["concept"]`：原注释"派生概念节点 (doc_type=concept) → 用户手写, 最高"名实不符（该键按 source_type 匹配、直接 lookup 永不命中）。**保守方案：改注释保键**——终版注释（经 Codex round-1 修订）如实声明：直接 lookup 不可达（生产加权 = rerank() 内 weights.get，get_type_weight 仅测试调用）、doc_type=concept 笔记的 source_type 由路径启发独立决定（note 或 video_transcript）、聚合面 get_filter_threshold() 可达但 concept=1.0 当前非决定值；删键裁定列 FU-1。
+2. `supplementary_search_service.py` :1044 区注释：删去"doc_type=按类型加权与断言用"的错误声明，终版（经 Codex round-1 修订）改为："doc_type 不参与加权（加权按 source_type 走权重表）；生产消费 = MCP note_search_tools 将 clean 材料 doc_type 透传进输出 metadata（纯透传无分支）；另有测试契约锁定 + 定向取材预留"。
+
+## §6 落点测试 before/after（裁判判据）
+
+两个落点测试文件 = `tests/unit/test_supplementary_reranker.py` + `tests/unit/test_supplementary_search_service.py`。
+
+- **基线（动手前存档）**：**9 failed / 102 passed**（`G4-16-evidence/baseline-before-edits.txt`）——全部 9 条在 reranker 文件：TypeWeightsIndexerTransition×2 + TestFilterFloor×4 + TestFilterFloorTaintExclusion×3；search_service 文件 0 失败。勘探预告"约 10 个既有失败"，实测 9，偏差 1 条按实测为准。
+- **处置后**：**9 failed / 102 passed**，FAILED 清单逐条 diff 为空 → **零新增失败 PASS**（`after-edits.txt`）。
+- ruff check + format 两文件全过。
+- **证据绑定（round-1 MEDIUM-5 → round-3 实质闭合）**：round-1/2 只存 FAILED 节点摘要，Codex round-3 判定"历史 stdout 不可事后补造"属实——故本轮**重做了一次可复验的完整捕获**取代历史摘要：用 `git checkout 37387a86 -- <两文件>` 把文件切回基线版**真实重跑**（`pytest-before-full-stdout.txt`，完整 stdout+traceback+exit_code=1），再 `git checkout HEAD -- <两文件>` 重跑（`pytest-after-full-stdout.txt`）。两份完整输出经**内存地址与耗时归一化后逐字节相同**（未归一化时的全部差异 = CPython 对象地址与 pytest 耗时）。metadata 记录两次命令、两文件 blob、Python 版本、两份产物 sha256。
+- **取值字面量证据（round-2 新 MEDIUM → round-3 补完）**：`live-distribution-and-value-grep.txt` 的字面量 grep 是**启发式辅助视图**（含 `"doc_type"`/`"file_path"` 等假阳性，非精确全集）；六值全集的权威依据是 §1/§4 的逐点人工裁定 + pinned 146 行清单。round-3 整改：两条生成命令改为**无占位符、可直接复跑**（docker 一行式 + `git grep` pinned 37387a86，`zsh -n` 语法校验通过），扫描结果随文件重新实跑落盘。
+
+**9 条既有失败根因方向**（登记入 FU-2，本卡不修）：测试仍按 2026-05-12 设计断言 `note→0.7 中档`（test :579 docstring 自述），而 RAG-S2 T2（2026-08-09）已把 note/concept 翻转为 1.0（权重方向"手写最高"）且 rerank_score 计算随之变化 → FilterFloor 族的 0.42 过滤阈值场景不再触发。属"生产权重翻转未同步测试"的陈债（Codex 独立溯源到翻转 commit `fcd34953`，并确认 floor 用例修法应调输入使 floor 继续触发、不应放宽预期），与本卡注释修正无关（before/after 失败节点全等自证）。
+
+## §7 follow-up 登记（超出本卡预算项，显式移交）
+
+| # | 事项 | 建议归属 |
+|---|---|---|
+| FU-1 | `TYPE_WEIGHTS["concept"]` 删键：**非绝对死键**（get_filter_threshold 聚合消费全表 values()，chat.py:428）——删键前须断言阈值不漂移 + 补"concept 材料按 source_type 命中权重"回归断言 | 检索质量后续卡（与 FU-2 同修最经济） |
+| FU-2 | 落点测试 9 条既有失败：按 RAG-S2 T2 翻转后的权重表重写断言（或裁定翻转错误回滚——需检索质量数据裁决，本卡无权代裁） | 检索质量后续卡 |
+| FU-3 | doc_type 枚举白名单校验（写侧 :2740 frontmatter 直通 + note_search_tools 无枚举）：**枚举口径依 G8-1 raw/wiki/schema 角色台账定版后落地**，本卡不代 G8-1 冻结值域 | G8-1 及其后续 |
+| FU-4 | image_ocr 写路径补 doc_type 字段（当前缺字段 → 读侧空串回退），随 FU-3 白名单一并定值 | 同 FU-3 |
+| FU-5 | `ENABLE_LANCEDB_TIER2_FALLBACK`（默认关）开启后 tier-2 直查绕过 doc_type 排除（supplementary_search_service.py:863）——检验白板隔离在该配置下失效，需补 tier-2 侧 WHERE 或在 flag 文档标注隔离代价 | 隔离面后续卡（本卡铁律禁改隔离面，仅登记） |
+
+## §8 G8-1 台账对齐条目（软依赖注记）
+
+供 G8-1 收录：`doc_type` = LanceDB 行级**文档角色** schema 字段；权威值域现状 = {note, video_transcript, whiteboard, exam_board, concept} + 未闭合 frontmatter 直通面；写入方 = lancedb_client **两显式生产者**（批量/单文件）+ `add_documents()` 无校验通用 sink（round-2 MEDIUM-3：摘要与 §1 口径统一，不得退回"唯一"）；消费主链 = 检验白板隔离排除集 + 回归污染裁判；与 source_type（内容来源形态：note/video_transcript/image_ocr/neighbor_expansion）**字段职责与赋值链分离**（doc_type 主要来自 frontmatter 直通+推断；source_type 在 vault 笔记索引路径为路径启发二分 note/video_transcript，另有 image_ocr 的**显式赋值**与 neighbor_expansion 的**运行期赋值**——round-2 修正"纯路径启发"的不实表述；二者共享 `_is_video_transcript` 但互不复制取值），G4-16 前的注释曾将二者混同（已修正）。命名与取值最终口径以 G8-1 台账为准。
+
+## §9 Codex round-1 整改记录（FAIL → 全项整改）
+
+Codex round-1 终裁 FAIL（0 BLOCKER / 4 HIGH / 5 MEDIUM / 1 LOW），同时确认：两文件与 HEAD 的无属性 AST 完全相等（注释-only 铁律 PASS）、隔离面零改动 PASS、9 条既有失败根因归因 PASS（溯源 `fcd34953`）、pinned git grep 18/146 复算 PASS。逐条整改：
+
+- **HIGH-1（遗漏 MCP 生产消费方）**：§3 与 supplementary_search_service 注释改为如实声明 note_search_tools:289/:385 透传消费；"0 生产读取方"表述撤回。
+- **HIGH-2（exam_board live=0 归因）**：本轮补实测——live vault `节点/考察-*.md` 实存 0 个 + `检验白板/` 唯一 1 md 被黑名单拦截，两因叠加坐实（§4 行 4 重写，UNVERIFIED 消除）。
+- **HIGH-3（六值表混同 doc_type/source_type）**：concept/空串/image_ocr 三处行为结论按 source_type 独立决定改写（§4 行 5/6 + reranker 注释重写）。
+- **HIGH-4（根 scripts/ 命名空间）**：§1 增范围声明，BMAD frontmatter `doc_type: story` 同名异物如实登记。
+- **MEDIUM-1（非绝对死键）**：get_filter_threshold 聚合可达入注释与 FU-1；裁定改"直接 lookup 不可达、聚合可达非决定项"。
+- **MEDIUM-2（get_type_weight 调用链）**：注释与报告改为 rerank() 内 weights.get 为生产路径。
+- **MEDIUM-3（通用 sink）**：§1 写入方论证改"两显式生产者 + add_documents 无校验 sink"。
+- **MEDIUM-4（Tier-2 旁路）**：§3 边界声明 + FU-5 登记（本卡铁律禁改隔离面）。
+- **MEDIUM-5（可复验性）**：枚举命令改 pinned git grep（工作树裸 grep 会扫 .venv 得 30/198 的陷阱已写明）；证据包补 test-run-metadata.txt。
+- **LOW-1（whiteboard 来源行号）**：:2740 直通为写侧来源，:2767 为消费点（§1/§4 修正）。
+
+整改后复跑落点测试：9 failed / 102 passed，失败节点与基线逐条相同——注释修订不改任何行为。
+
+## §10 Codex round-2 复审整改记录（7/10 CLOSED → 剩余 3 项 + 4 新发现全部整改）
+
+round-2 确认 HIGH-1/2/4、MEDIUM-1/2/4、LOW-1 共 7 项 CLOSED，并独立复跑坐实三条铁律（AST 全等注释-only、隔离面零改动、9 failed/102 passed 与基线同集合同顺序）。未闭合 3 项 + 新发现 4 条，逐条整改：
+
+- **HIGH-3 NOT-CLOSED（自由值权重表述仍无条件）**：§4 行 6 曾写"自由值→note 1.0"，但 `/videos/` 下 `type: foo` 的 source_type 按路径变为 video_transcript（0.75）。**整改**：加路径条件二分表述。
+- **MEDIUM-3 NOT-CLOSED（§8 摘要自相矛盾）**：§1 已写"两生产者 + 通用 sink"，§8 移交摘要却退回"写入方唯一（双路径）"。**整改**：§8 口径与 §1 统一。
+- **MEDIUM-5 NOT-CLOSED（测试 provenance 不足）**：metadata 缺过滤管道说明与 blob 摘要，且 10 行摘要不是所列命令的直接产物。**整改**：metadata 补过滤管道、pytest.ini 影响、源 blob 摘要、exit code；同时**如实声明**两次历史运行的完整 stdout 无法事后补造，可复验的是当前 HEAD 复跑同结果。
+- **新 MEDIUM（source_type "纯路径启发"不实）**：image_ocr 为显式赋值、neighbor_expansion 为运行期赋值。§8 已修正。
+- **新 MEDIUM（reranker:196 陈旧注释）**：floor 兜底注释仍写 `note=0.7 / 0.5×0.7=0.35` 的历史算例。**整改**：加注 fcd34953 翻转后 note=1.0、该算例为历史情形、floor 机制仍生效、测试重写归 FU-2（仍为注释-only）。
+- **新 MEDIUM（字面量 grep 证据假阳性）**：§6 已降级其为启发式辅助视图并补生成命令。
+- **新 LOW（根脚本行号）**：按 pinned SHA 修正为 migrate:62 / sync:63/:85。
+
+## §11 Codex round-3 复审整改记录（5/7 CLOSED → 剩 2 项实质闭合）
+
+round-3 裁定 5 CLOSED（自由值路径条件 / §8 摘要口径 / source_type 赋值链 / reranker 陈旧算例 / 根脚本行号），三条行为铁律复验通过（AST 全等注释-only、隔离面零改动、失败节点集合相同），阻断点收敛为**证据可复验性**两项：
+
+- **MEDIUM-5 测试 provenance**：round-3 指出"当前复跑不能补造历史证据"——完全正确。**整改思路改变**：不再试图为历史运行补 provenance，而是**重做一次可复验的完整对照**——把两文件用 git 对象切回 37387a86 真实重跑得 before，切回 HEAD 重跑得 after，两份完整 stdout（含 traceback、exit_code）归一化内存地址与耗时后**逐字节相同**。证据从"声明"变为"可复跑复算"。
+- **live/value-grep 命令可执行性**：`<lancedb…>` 占位符 + `zsh -n` 报 unmatched quote + 裸 grep 未绑定 SHA。**整改**：两条命令改写为无占位符完整形式（docker 一行式；`git grep` pinned 37387a86），`zsh -n` 校验通过，结果随文件重新实跑。
+
+## §12 Codex round-4 复审整改记录（6/7 CLOSED → 剩 1 项闭合）
+
+round-4 裁定 6/7 CLOSED（含 live/value-grep 命令一项经其**真实复跑成功**转 CLOSED），并独立复算确认：两份 stdout 与 metadata 声明自洽（各 109 行/9957 bytes/111 collected/9 failed/102 passed/exit_code=1）；**归一化未掩盖实质差异**——原始 diff 只有 9 处 CPython 对象地址与 `0.47s→0.45s`，仅应用声明的两条规则后双方均 9912 bytes、sha256 `03e57607…84e8` byte-equal。
+
+剩余一项及整改：
+
+- **MEDIUM-5 重放 recipe 不确定 → CLOSED**：metadata 仍保留 `<out>` / `<同两文件>` 占位符（原样 `zsh -n` exit 1），且 after 绑定会漂移的 `HEAD`。**整改**：四条命令全部改为**字面可粘贴形式**（绝对路径、无占位符，逐条 `zsh -n` 通过，③ 归一化 diff 已实证复跑为空），after 的运行树绑定**固定 commit `73102875`**（并附证：两个 py 文件在 `73102875` 与 `fce0d8a2` 之间 `git diff` 为空、blob 同为 `73579b22`，故绑定固定 SHA 与捕获时状态一致）；另补 `git checkout HEAD` 恢复步骤避免复跑残留。
+- **新 LOW（"完整 traceback"措辞）**：实为 `pytest.ini` 配置下的 `--tb=short` 输出。→ metadata 已改为"未经 grep 过滤地保存了该配置下的全部 stdout+stderr"并注明 tb 形式。
+- **新 LOW（live 证据为格式化展示）**：不阻断，已在该文件顶部声明为"启发式辅助视图 + 结果随文件实跑落盘"，数值/字面量同集经 round-4 复跑确认。
+
+## §13 Codex round-5 终裁：CARD-G4-16 可验收
+
+经 **5 轮**独立对抗审查（Codex gpt-5.6-sol / ultra，全程 read-only 沙箱），最终裁定 **CARD-G4-16 可验收**，唯一阻断项 MEDIUM-5 已 CLOSED，**无必须再做项**。
+
+| 项 | 裁定 | 复核依据（Codex 独立复算/复跑） |
+|---|---|---|
+| (a) 重放命令可执行 | **PASS** | 四条命令 `zsh -n` 均为 0、无占位符；③ 归一化 diff 按字面**只读实跑** exit 0 |
+| (b) 运行树绑定确定 | **PASS** | `73102875..fce0d8a2`、`73102875..HEAD` 对两目标文件**零差异**；稳定 blob reranker `73579b22…` / search `5ff33104…` |
+| (c) stdout 与声明自洽 | **PASS** | 两份各 109 行 9957 bytes、111 collected、9 failed/102 passed、exit 1，失败节点集合完全相同；原始差异仅 9 处对象地址与 `0.47s→0.45s`；归一化后均 9912 bytes、SHA-256 `03e57607…84e8`。`--tb=short` 声明与 `pytest.ini:19` 一致 |
+| (d) 三条行为铁律 | **PASS** | `37387a86..HEAD` **仅改注释**；两文件无属性 AST SHA 保持 `18aae6e0…` / `03e79eea…`；`whiteboard/exam_board` 排除链、Tier-2 边界、SQL `NOT IN` **均无行为变化** |
+| (e) 枚举与六值裁定 | **PASS** | pinned `git grep` 独立得 **18 文件 / 146 行**，与证据逐字节相同（SHA-256 `94b01dc3…`）；六类裁定与 `37387a86` 代码一致。当前 HEAD 因新增注释为 18/148，报告已明确绑定基线，**不构成漂移** |
+
+**两条非阻断 LOW 已顺手清理**：metadata 的单数 blob 措辞改为分别列出两个文件的稳定 blob；`live-distribution-and-value-grep.txt` 顶部补声明"所载结果为经过排版格式化的展示（非原始 stdout 逐字节转存）"。

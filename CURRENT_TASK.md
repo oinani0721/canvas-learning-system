@@ -2,30 +2,22 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**本车道状态**（2026-08-29 · 分支 `card/s3-events` · BATCH-2026-08-28-第五批 车道 S3 · **二十二轮 Codex：BLOCKER 0 / HIGH 0（连续三轮）；⭐ CARD-G3-4 连续八轮「可验收」；G3-1 的 2 MEDIUM 全清**）:
-- ⭐ **CARD-G3-4 = 可验收**（十五轮判定，十六~二十二轮复核均保持）
-- 📌 **两卡完成条件均已满足**（详见两份验收单）；对抗审查已进入**渐近线**：HIGH 连续三轮 0，
-  MEDIUM 稳定 2，LOW 反增；发现性质已从「产品缺陷」转为「验证工装的归因完整性」
-- ✅ G3-1 二十二轮 2 MEDIUM 全清：
-  ①**主体信封只锁「缺键」未锁 value-shape**（presence-only 化后 `event_id:""` / `123` /
-  `node_id:1.5` 退化为零违规而契约全绿）⇒ 参数化 2→**9 例**；另发现当时**只有拒绝方向有门**
-  （把"非空"收窄为"长度>1"会误拒合法 `event_id:"x"` 而契约仍绿）⇒ 补**误拒方向反面门**
-  ②**负验证预期写基名时只要任一实例红就通过** ⇒ `expect_red` 加**逐实例核对**（收集面几个实例
-  就必须几个红）
-- ⚠️ **与 Codex 的一处分歧（以本机实测为准）**：它称变体Q 完整套件 3 红，实测**只有 2 红**
-  （过滤器已选中该覆盖率门而它未失败——该门的乱序行本就不带 vault_id）。已按实测改回并在
-  脚本注释 + 存证中如实记录，未采信未复现的结论
-- 裁判实测：契约 **194 passed + 1 skipped**、三文件合跑 **219 passed + 1 skipped**、
-  golden 19 + `test_fsrs_manager.py` 37 = 56、现网账本与 23 行备份均 exit 0、
-  锁定 blob 恒定（`28cdaa18` / `980b3758`）
-- 负验证**二十三变体全承重**（逐实例判据）、基线收集 195 项、脚本 exit 0
-- ⛔ 移交（schema §九 + 工装改进项）：①test.yml 白名单 +2 测试 + root requirements paths
-  （S8 独占；**CI DEFERRED/NOT-EXECUTED**）；②**G3-2 五项**；③**G3-3 七项**；④tips.py 两条
-  → 独立 micro-patch；⑤剩余 LOW（负验证运行时异常归因、fixture 主体合规性等）= 工装改进项
-- ⚠️ **负验证脚本必须串行**；运行期间不得编辑任何被测文件
-- ⚠️ 环境：本 worktree 的 pytest 须用 `backend/.venv/bin/python`（仓根 `.venv` 无 fastapi）
-- 纪律守住：learning_event_log.py / fsrs_manager.py 零改动；不 push；不碰 live vault 与 Neo4j 7691
-- 待办：Codex 二十三轮复核（目标把 MEDIUM 压到 0）→ 交付两卡验收
+**本车道状态**（2026-08-30 · 分支 `card/s3-events` · BATCH-2026-08-29-第六批 车道 T2 · **CARD-收口A ①② 已完成 + 已合并主干 2164b498，待验收**）:
+- ✅ **① G3-1 末轮独立复核（round-23）已入库且非空**（13830 字节）：BLOCKER 0 / HIGH 0 / MEDIUM 2 / LOW 8
+  ⇒ 按本批停轮规则（BLOCKER/HIGH → 再一轮；MEDIUM/LOW → 登记结案）判定 **结案，不再开轮**
+  - ⚠️ 卡文事实二次更正：裁定书称 round-18 为 0 字节，第六批手册更正为 round-20；
+    实测 round-20/21/22 均已提交且非空，真正 0 字节未跟踪的是 **round-23**
+- ✅ **round-19 遗留的那条 HIGH 以证据闭合**（不再开轮）：备份 23 行 vs 现网 22 行的 diff 唯一差异是
+  `callout:c-409-guard` 测试探针；第五批裁定 §二 另证其为**用户 2026-08-29 授权**的 S1 污染清理（备份先行）
+  - 如实边界：两文件均 untracked ⇒「可恢复」仅限当前本机，无版本化持久保证
+- ✅ **② 两个回归文件接入 CI**（第五批裁定 S3-b）：`.github/workflows/test.yml` 纯新增 10 行、零删除
+  - 本地等价验证先行：15 文件 303 passed → 加两个后 **516 passed + 1 skipped**（303+213=516 严格可加 ⇒ 零交叉污染）
+  - ⛔ 过程抓到会让 CI **exit 127 且静默丢 4 个测试文件**的坑：注释不可放进 pytest 的反斜杠续行序列
+    （YAML 校验器抓不到——它只把 run 当字符串标量）。新增 shell 语义校验：把 pytest 换成 printf 真跑数实参
+- ✅ **⑤ 已合并主干**：merge-base `37387a86`（**在 feature worktree 内算**；主仓口径会错到 `671ae7e7`、
+  文件面从 75 膨胀到 1014）；冲突仅 `CURRENT_TASK.md` 一处，逐处人工解，禁用 -X ours/theirs
+- 📌 证据：`_bmad-output/审查/closeout-a-evidence/`（ci-equivalence / ci-preflight /
+  ci-yaml-shell-semantics / g31-round19-high-closure）
 
 ---
 

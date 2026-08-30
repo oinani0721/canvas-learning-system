@@ -1,0 +1,62 @@
+== CARD-G4-9 只读自证（round-10 整改版）==
+脚本 sha256: 68474df978bafe944e29ee3b2a5bcea5d963c67cc85b5d51a263cb484178270f
+脚本 git blob: 2f3fd0a02c3eef8f818e65a698db70f90aa3a610
+回归测试: backend/tests/regression/test_census_dead_letter_readonly_contract.py（20 passed = 17 行为 + 3 源码静态；逐项明细见 readonly-contract-tests.txt）
+
+--- (1) import 全 stdlib:
+66:from __future__ import annotations
+68:import argparse
+69:import hashlib
+70:import json
+71:import os
+72:import re
+73:import sqlite3
+74:import stat
+75:import sys
+76:from collections import Counter, defaultdict
+77:from datetime import datetime, timezone
+78:from pathlib import Path
+--- (2) neo4j/graphiti/bolt/app. 在 import 行命中（应 0）:
+0
+0 ✓
+--- (3) --apply 定义（应 0）:
+0
+0 ✓
+--- (4) 截断调用（应 0）:
+0
+0 ✓
+--- (5) 写出链: 类型门 → O_EXCL tmp → fsync → replace → 父目录 fsync → 异常清理:
+12:  - 本进程**唯一有意的写动作**是产出 --out 台账 JSON（经 O_EXCL 临时文件 +
+834:        # round-7 架构整改: 不再截断既有文件 —— 同目录 O_EXCL 新建临时文件 →
+835:        # 写 → fsync → os.replace 原子替换。O_EXCL 保证目标是本进程新建的对象，
+841:        # replace 发布后不再打开 --out，S_ISREG 门随之丢失 —— os.replace 会
+843:        # --out 若已存在且不是常规文件，或是 symlink（replace 替换链接本身
+853:            if stat.S_ISLNK(out_lst.st_mode):
+857:                print(f"--out 已存在且不是常规文件（FIFO/设备/目录/socket），拒绝写出: {out_path}", file=sys.stderr)
+861:            tmp_fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+863:            print(f"临时台账文件无法新建（O_EXCL）: {tmp_path} ({e})", file=sys.stderr)
+869:                os.fsync(tmp_fd)
+872:            os.unlink(tmp_path)
+879:            os.replace(tmp_path, out_path)
+882:                os.fsync(dir_fd)
+887:                os.unlink(tmp_path)
+--- (6) SQLite 只读语义（源 fd 只读 + 内存副本解耦 + query_only；不用 URI mode=ro）:
+324:    ``PRAGMA query_only=ON`` 作纵深防御），**不再声称 URI ``mode=ro``**。
+325:    字段名为 ``source_fd_opened_readonly`` 而非 ``opened_readonly``。
+337:    ``deserialize``：全程不经路径、不落任何文件，两个问题一并消失。
+339:    result: dict = {"db_path": str(db_path), "source_fd_opened_readonly": False}
+355:        # 此刻已成立，不得等到 deserialize 成功才置真（DB malformed 时
+357:        result["source_fd_opened_readonly"] = True
+372:        conn.deserialize(db_bytes)
+374:        result["verdict"] = f"deserialize_failed: {str(e)[:80]}"
+381:        result["read_mode"] = "in_memory_deserialize_from_verified_fd"
+382:        result["source_sha256"] = hashlib.sha256(db_bytes).hexdigest()
+383:        # R9 建议项: 内存连接本身可写（deserialize 语义），显式设 query_only
+385:        # 副本与源文件完全解耦**，query_only 只是纵深防御。
+386:        conn.execute("PRAGMA query_only=ON")
+401:    except sqlite3.Error as e:
+402:        # round-10 整改（实测）: deserialize 是**延迟验证** —— malformed DB 的
+--- (7) 安全边界段在位（可确证/不声称/前提三分）:
+46:  - **可确证**: 对本次运行列出的输入文件（--dlq / --compare / --qa-metrics-db），
+49:  - **不声称**: 在共享可写目录、存在并发写者、SQLite DB 正被写入等敌意环境下
+52:  - **前提**: "DB 静止"由操作者保证 —— 0 行 / 固定 sha / 前后同 SHA 本身

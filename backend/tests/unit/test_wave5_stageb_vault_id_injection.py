@@ -114,11 +114,13 @@ class TestErrorsEndpointsInjectContextVar:
         from app.api.v1.endpoints.errors import _resolve_vault_group_id
         from app.core.subject_config import get_current_subject_id
 
-        derived = _resolve_vault_group_id(
-            "cs_61b",
-            subject_id=None,
-            canvas_path="节点/X.md",
-        )
+        # CARD-G2-2: 显式 vault_id 必须与进程 active vault 一致 (否则 409)
+        with patch("app.config.get_current_vault_id", return_value="cs_61b"):
+            derived = _resolve_vault_group_id(
+                "cs_61b",
+                subject_id=None,
+                canvas_path="节点/X.md",
+            )
         assert derived.startswith("vault:cs_61b")
         # ContextVar 真注入 — get_current_subject_id 应读到 derived
         current = get_current_subject_id()
@@ -190,13 +192,15 @@ class TestMasteryEndpointsContextVarInjection:
     def test_resolve_with_vault_id(self):
         from app.api.v1.endpoints.mastery import _resolve_vault_group_id
 
-        derived = _resolve_vault_group_id("cs_61b")
+        with patch("app.config.get_current_vault_id", return_value="cs_61b"):
+            derived = _resolve_vault_group_id("cs_61b")
         assert derived == "vault:cs_61b"
 
     def test_resolve_with_vault_id_and_subject(self):
         from app.api.v1.endpoints.mastery import _resolve_vault_group_id
 
-        derived = _resolve_vault_group_id("cs_61b", subject_id="algorithms")
+        with patch("app.config.get_current_vault_id", return_value="cs_61b"):
+            derived = _resolve_vault_group_id("cs_61b", subject_id="algorithms")
         assert derived == "vault:cs_61b:algorithms"
 
     def test_resolve_falls_back_to_legacy_group_id(self):
@@ -209,13 +213,14 @@ class TestMasteryEndpointsContextVarInjection:
         # canonical_group_id 把 cs188 映射到 vault:default
         assert derived.startswith("vault:")
 
-    def test_resolve_falls_back_to_default(self):
+    def test_resolve_falls_back_to_active_vault(self):
+        """CARD-G2-2 断言翻新: 双缺失不再落 DEFAULT_GROUP_ID —
+        推导进程 active vault 组 (memory.py 批次1\'① 姿势统一化)."""
         from app.api.v1.endpoints.mastery import _resolve_vault_group_id
 
-        derived = _resolve_vault_group_id(None, legacy_group_id=None)
-        # DEFAULT_GROUP_ID 已经 canonical 化
-        assert isinstance(derived, str)
-        assert len(derived) > 0
+        with patch("app.config.get_current_vault_id", return_value="active_vault"):
+            derived = _resolve_vault_group_id(None, legacy_group_id=None)
+        assert derived == "vault:active_vault"
 
     def test_resolve_calls_set_current_subject_id(self):
         """验证 set_current_subject_id 被实际调用 (ContextVar 真注入)."""
@@ -226,9 +231,12 @@ class TestMasteryEndpointsContextVarInjection:
         def fake_set(value):
             captured["value"] = value
 
-        with patch(
-            "app.core.subject_config.set_current_subject_id",
-            side_effect=fake_set,
+        with (
+            patch("app.config.get_current_vault_id", return_value="数学"),
+            patch(
+                "app.core.subject_config.set_current_subject_id",
+                side_effect=fake_set,
+            ),
         ):
             _resolve_vault_group_id("数学")
 
@@ -238,7 +246,8 @@ class TestMasteryEndpointsContextVarInjection:
         """中文 vault_id (NFKC + casefold + \\w) 不应坍缩 default."""
         from app.api.v1.endpoints.mastery import _resolve_vault_group_id
 
-        derived = _resolve_vault_group_id("数学")
+        with patch("app.config.get_current_vault_id", return_value="数学"):
+            derived = _resolve_vault_group_id("数学")
         assert derived == "vault:数学"
         # 反例: 旧 sanitize_vault_id 会坍缩到 'default', 新实现保留 CJK
 
@@ -334,7 +343,8 @@ class TestExamEndpointsContextVarInjection:
     def test_exam_resolve_with_vault_id(self):
         from app.api.v1.endpoints.exam import _resolve_vault_group_id
 
-        derived = _resolve_vault_group_id("cs_61b")
+        with patch("app.config.get_current_vault_id", return_value="cs_61b"):
+            derived = _resolve_vault_group_id("cs_61b")
         assert derived == "vault:cs_61b"
 
     def test_exam_resolve_calls_set_current_subject_id(self):
@@ -345,9 +355,12 @@ class TestExamEndpointsContextVarInjection:
         def fake_set(value):
             captured["value"] = value
 
-        with patch(
-            "app.core.subject_config.set_current_subject_id",
-            side_effect=fake_set,
+        with (
+            patch("app.config.get_current_vault_id", return_value="cs_61b"),
+            patch(
+                "app.core.subject_config.set_current_subject_id",
+                side_effect=fake_set,
+            ),
         ):
             _resolve_vault_group_id("cs_61b", subject_id="algorithms")
 
@@ -367,8 +380,11 @@ class TestMultiVaultIsolation:
     def test_different_vaults_derive_different_group_ids(self):
         from app.api.v1.endpoints.mastery import _resolve_vault_group_id
 
-        gid_a = _resolve_vault_group_id("cs_61b")
-        gid_b = _resolve_vault_group_id("数学")
+        # CARD-G2-2: 各 vault 需在各自为 active 的进程内解析 (409 门)
+        with patch("app.config.get_current_vault_id", return_value="cs_61b"):
+            gid_a = _resolve_vault_group_id("cs_61b")
+        with patch("app.config.get_current_vault_id", return_value="数学"):
+            gid_b = _resolve_vault_group_id("数学")
         assert gid_a != gid_b
         assert gid_a == "vault:cs_61b"
         assert gid_b == "vault:数学"
@@ -376,8 +392,9 @@ class TestMultiVaultIsolation:
     def test_same_vault_different_subjects_distinct(self):
         from app.api.v1.endpoints.mastery import _resolve_vault_group_id
 
-        gid_algo = _resolve_vault_group_id("cs_61b", subject_id="algorithms")
-        gid_db = _resolve_vault_group_id("cs_61b", subject_id="databases")
+        with patch("app.config.get_current_vault_id", return_value="cs_61b"):
+            gid_algo = _resolve_vault_group_id("cs_61b", subject_id="algorithms")
+            gid_db = _resolve_vault_group_id("cs_61b", subject_id="databases")
         assert gid_algo != gid_db
         assert gid_algo == "vault:cs_61b:algorithms"
         assert gid_db == "vault:cs_61b:databases"
@@ -386,7 +403,9 @@ class TestMultiVaultIsolation:
         """中文 vault 不应坍缩到 ASCII default (旧 bug Phase B0.1 修)."""
         from app.api.v1.endpoints.mastery import _resolve_vault_group_id
 
-        gid_cn = _resolve_vault_group_id("笔记库")
-        gid_default = _resolve_vault_group_id("default")
+        with patch("app.config.get_current_vault_id", return_value="笔记库"):
+            gid_cn = _resolve_vault_group_id("笔记库")
+        with patch("app.config.get_current_vault_id", return_value="default"):
+            gid_default = _resolve_vault_group_id("default")
         assert gid_cn != gid_default
         assert gid_cn == "vault:笔记库"

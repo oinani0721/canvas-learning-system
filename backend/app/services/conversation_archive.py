@@ -92,20 +92,13 @@ class ArchiveManager:
             return
         self._initialized = True
         try:
-            from app.config import DEFAULT_GROUP_ID
-            from app.core.subject_config import (
-                canonical_group_id,
-                get_current_subject_id,
-            )
+            from app.core.vault_scope import current_group_id
             from app.services.memory_service import get_memory_service
 
-            # wave-5 Stage B P0 (2026-05-11): prefer ContextVar (vault) over the
-            # global DEFAULT_GROUP_ID — avoids restoring archive markers from
-            # the wrong vault when called from a per-request scope.
-            ctx_value = get_current_subject_id()
-            effective_group_id = (
-                canonical_group_id(ctx_value) if ctx_value else DEFAULT_GROUP_ID
-            )
+            # wave-5 Stage B P0 (2026-05-11) → CARD-G2-2 (2026-08-28): scope
+            # 统一经 vault_scope.current_group_id() 读取 (ContextVar 未注入时
+            # 推导 active vault, 不再回落 DEFAULT_GROUP_ID 污染桶)。
+            effective_group_id = current_group_id()
 
             memory_svc = await get_memory_service()
             results = await memory_svc.search_memories(
@@ -291,18 +284,11 @@ class ArchiveManager:
 
         # Run distillation
         try:
-            from app.config import DEFAULT_GROUP_ID
-            from app.core.subject_config import (
-                canonical_group_id,
-                get_current_subject_id,
-            )
+            from app.core.vault_scope import current_group_id
             from app.services.conversation_distiller import get_conversation_distiller
 
-            # wave-5 Stage B P0 (2026-05-11): prefer ContextVar over DEFAULT_GROUP_ID.
-            ctx_value = get_current_subject_id()
-            effective_group_id = (
-                canonical_group_id(ctx_value) if ctx_value else DEFAULT_GROUP_ID
-            )
+            # CARD-G2-2 (2026-08-28): scope 统一经 current_group_id() 读取。
+            effective_group_id = current_group_id()
 
             distiller = get_conversation_distiller()
             result = await distiller.distill_and_persist(
@@ -370,20 +356,13 @@ class ArchiveManager:
         prior = self._archive_log.get(node_id)
         if prior is None or not prior.has_structured_data:
             try:
-                from app.config import DEFAULT_GROUP_ID
-                from app.core.subject_config import (
-                    canonical_group_id,
-                    get_current_subject_id,
-                )
+                from app.core.vault_scope import current_group_id
                 from app.services.conversation_distiller import (
                     get_conversation_distiller,
                 )
 
-                # wave-5 Stage B P0 (2026-05-11): prefer ContextVar.
-                ctx_value = get_current_subject_id()
-                effective_group_id = (
-                    canonical_group_id(ctx_value) if ctx_value else DEFAULT_GROUP_ID
-                )
+                # CARD-G2-2 (2026-08-28): scope 统一经 current_group_id() 读取。
+                effective_group_id = current_group_id()
 
                 distiller = get_conversation_distiller()
                 result = await distiller.distill_and_persist(
@@ -506,19 +485,12 @@ class ArchiveManager:
         Returns:
             List of message dicts with role, content, timestamp.
         """
-        from app.config import DEFAULT_GROUP_ID
-        from app.core.subject_config import (
-            canonical_group_id,
-            get_current_subject_id,
-        )
+        from app.core.vault_scope import current_group_id
         from app.services.memory_service import get_memory_service
 
-        # wave-5 Stage B P0 (2026-05-11): prefer ContextVar to scope the
-        # message search to the originating request's vault.
-        ctx_value = get_current_subject_id()
-        effective_group_id = (
-            canonical_group_id(ctx_value) if ctx_value else DEFAULT_GROUP_ID
-        )
+        # CARD-G2-2 (2026-08-28): scope 统一经 current_group_id() 读取, 消息
+        # 搜索仍绑定发起请求的 vault (ContextVar 未注入时推导 active vault)。
+        effective_group_id = current_group_id()
 
         memory_svc = await get_memory_service()
 
@@ -572,18 +544,11 @@ class ArchiveManager:
             tier: Archive tier label.
         """
         try:
-            from app.config import DEFAULT_GROUP_ID
-            from app.core.subject_config import (
-                canonical_group_id,
-                get_current_subject_id,
-            )
+            from app.core.vault_scope import current_group_id
             from app.services.memory_service import get_memory_service
 
-            # wave-5 Stage B P0 (2026-05-11): prefer ContextVar.
-            ctx_value = get_current_subject_id()
-            effective_group_id = (
-                canonical_group_id(ctx_value) if ctx_value else DEFAULT_GROUP_ID
-            )
+            # CARD-G2-2 (2026-08-28): scope 统一经 current_group_id() 读取。
+            effective_group_id = current_group_id()
 
             memory_svc = await get_memory_service()
 

@@ -17,7 +17,7 @@ from typing import Optional
 from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 
-from app.config import DEFAULT_GROUP_ID
+from app.core.vault_scope import current_group_id
 from app.graphiti.group_id_compat import to_physical_group_id
 from app.services.mastery_engine import get_mastery_engine
 from app.services.mastery_store import get_mastery_store
@@ -144,7 +144,10 @@ def _get_prescriptive_message(level: int, freshness: str) -> str:
 @profile_router.get("/profile/{node_id}/summary", response_model=ProfileSummary)
 async def get_profile_summary(
     node_id: str,
-    group_id: str = Query(default=DEFAULT_GROUP_ID),
+    group_id: Optional[str] = Query(
+        default=None,
+        description="缺省经 vault_scope 推导当前 vault 作用域 (CARD-G2-2)",
+    ),
 ):
     """
     Get mastery summary and learning statistics for a node.
@@ -154,7 +157,7 @@ async def get_profile_summary(
     engine = _get_engine()
     store = _get_store()
 
-    concept = await store.get_concept(node_id, group_id)
+    concept = await store.get_concept(node_id, (group_id if group_id and group_id.strip() else current_group_id()))
 
     if concept is None:
         # Node has no mastery data yet - return default empty profile
@@ -201,7 +204,10 @@ async def get_profile_summary(
 @profile_router.get("/profile/{node_id}/tips")
 async def get_profile_tips(
     node_id: str,
-    group_id: str = Query(default=DEFAULT_GROUP_ID),
+    group_id: Optional[str] = Query(
+        default=None,
+        description="缺省经 vault_scope 推导当前 vault 作用域 (CARD-G2-2)",
+    ),
 ):
     """
     Get all tips annotations for a node from Graphiti.
@@ -230,7 +236,7 @@ async def get_profile_tips(
         records = await client.run_query(
             query,
             # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
-            group_id=to_physical_group_id(group_id),
+            group_id=to_physical_group_id((group_id if group_id and group_id.strip() else current_group_id())),
             node_id=node_id,
         )
 
@@ -267,7 +273,10 @@ async def get_profile_tips(
 @profile_router.get("/profile/{node_id}/weaknesses")
 async def get_profile_weaknesses(
     node_id: str,
-    group_id: str = Query(default=DEFAULT_GROUP_ID),
+    group_id: Optional[str] = Query(
+        default=None,
+        description="缺省经 vault_scope 推导当前 vault 作用域 (CARD-G2-2)",
+    ),
 ):
     """
     Get weakness patterns for a node (positive framing: "areas to strengthen").
@@ -299,7 +308,7 @@ async def get_profile_weaknesses(
         records = await client.run_query(
             query,
             # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
-            group_id=to_physical_group_id(group_id),
+            group_id=to_physical_group_id((group_id if group_id and group_id.strip() else current_group_id())),
             node_id=node_id,
         )
 
@@ -330,7 +339,10 @@ async def get_profile_weaknesses(
 @profile_router.get("/profile/{node_id}/qa-highlights")
 async def get_profile_qa_highlights(
     node_id: str,
-    group_id: str = Query(default=DEFAULT_GROUP_ID),
+    group_id: Optional[str] = Query(
+        default=None,
+        description="缺省经 vault_scope 推导当前 vault 作用域 (CARD-G2-2)",
+    ),
 ):
     """
     Get key Q&A pairs for a node, clustered by topic.
@@ -357,7 +369,7 @@ async def get_profile_qa_highlights(
         records = await client.run_query(
             query,
             # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
-            group_id=to_physical_group_id(group_id),
+            group_id=to_physical_group_id((group_id if group_id and group_id.strip() else current_group_id())),
             node_id=node_id,
         )
 

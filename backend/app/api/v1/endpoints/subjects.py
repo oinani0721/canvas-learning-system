@@ -75,25 +75,16 @@ def _resolve_read_group_params(vault_id: Optional[str]) -> dict:
         绑定值已过 to_physical_group_id (双下划线物理格式), 直接可绑
         Neo4j group_id 属性。
     """
-    from app.core.subject_config import DEFAULT_SUBJECT_ID, get_current_subject_id
     from app.graphiti.group_id_compat import to_physical_group_id
 
     if vault_id and vault_id.strip():
         logical = resolve_vault_group_id(vault_id)
     else:
-        logical = get_current_subject_id()
-        if not logical or logical == DEFAULT_SUBJECT_ID:
-            from app.config import get_current_vault_id, sanitize_vault_id
-            from app.core.subject_config import build_vault_group_id
+        # CARD-G2-2 (2026-08-28): "ContextVar → 否则激活 vault" 兜底链收敛为
+        # vault_scope.current_group_id() 统一读取口 (G-DEFAULT 范式内建)。
+        from app.core.vault_scope import current_group_id
 
-            active_vault = sanitize_vault_id(get_current_vault_id())
-            logger.warning(
-                "P0-SYNC-ISO R10: subjects endpoint called without vault_id and "
-                "no group in ContextVar — falling back to ACTIVE vault '%s' "
-                "(G-DEFAULT pattern, metadata.py 2026-07-10)",
-                active_vault,
-            )
-            logical = build_vault_group_id(active_vault)
+        logical = current_group_id()
 
     physical = to_physical_group_id(logical)
     return {"group_id": physical, "group_prefix": f"{physical}__"}

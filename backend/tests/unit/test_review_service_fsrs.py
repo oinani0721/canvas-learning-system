@@ -640,3 +640,123 @@ class TestAutoPersistCounterRemoved:
             await svc.save_card_state("c4-fail", '{"state": 1}', "board.canvas", 3)
             is False
         )
+
+
+class TestCardStatePersistHonestyD3:
+    """CARD-D3: record_review_result 消费 _save_card_states 返回值 —
+    持久化失败不得再被丢弃后谎报纯成功 (原 :1018 丢弃返回值,
+    API 200 无任何失败字段)。沿用 /dev/null 注入范式 (Codex HIGH-1 先例)。"""
+
+    @pytest.mark.asyncio
+    async def test_record_review_reports_persist_success_and_failure(
+        self, review_service_factory, monkeypatch
+    ):
+        """成功→card_state_persisted=True; 文件写失败→False + degraded_reason。"""
+        from pathlib import Path
+
+        import app.services.review_service as rs_module
+
+        svc = review_service_factory()
+        ok = await svc.record_review_result(
+            canvas_name="d3.canvas", concept_id="d3-persist-ok", rating=3
+        )
+        assert ok["status"] == "recorded"
+        assert ok["card_state_persisted"] is True
+        assert ok["degraded_reason"] is None
+
+        monkeypatch.setattr(
+            rs_module, "_CARD_STATES_FILE", Path("/dev/null/card-states.json")
+        )
+        svc2 = review_service_factory()
+        bad = await svc2.record_review_result(
+            canvas_name="d3.canvas", concept_id="d3-persist-fail", rating=3
+        )
+        # 评分计算本身仍成功 (status=recorded), 但持久化结果必须如实标注
+        assert bad["status"] == "recorded"
+        assert bad["card_state_persisted"] is False
+        assert bad["degraded_reason"] == "card_state_write_failed"
+
+    @pytest.mark.asyncio
+    async def test_record_review_empty_concept_id_marks_not_persisted(
+        self, review_service
+    ):
+        """empty concept_id 分支: 卡状态算了但没存, 不得沉默。"""
+        result = await review_service.record_review_result(
+            canvas_name="d3.canvas", concept_id="", rating=3
+        )
+        assert result["status"] == "recorded"
+        assert result["card_state_persisted"] is False
+        assert result["degraded_reason"] == "empty_concept_id_not_persisted"
+
+    @pytest.mark.asyncio
+    async def test_record_review_fallback_marks_not_applicable(
+        self, fallback_service
+    ):
+        """Ebbinghaus fallback 无 FSRS 卡状态可持久化 → 标注不适用 (None)。"""
+        result = await fallback_service.record_review_result(
+            canvas_name="d3.canvas", concept_id="d3-fallback", rating=3
+        )
+        assert result["algorithm"] == "ebbinghaus-fallback"
+        assert result["card_state_persisted"] is None
+        assert result["degraded_reason"] is None
+
+    @pytest.mark.asyncio
+    async def test_record_review_unicode_write_failure_stays_fsrs_and_honest(
+        self, review_service_factory
+    ):
+        """Codex HIGH-3: lone surrogate concept_id 使 UTF-8 写盘抛
+        UnicodeEncodeError (ValueError 族) — 必须在持久化边界归一为
+        False, 不得冒泡成 Ebbinghaus fallback 谎报"不适用"。"""
+        svc = review_service_factory()
+        result = await svc.record_review_result(
+            canvas_name="d3.canvas", concept_id="\ud800", rating=3
+        )
+        assert result["algorithm"] == "fsrs-4.5"
+        assert result["card_state_persisted"] is False
+        assert result["degraded_reason"] == "card_state_write_failed"
+
+    @pytest.mark.asyncio
+    async def test_surrogate_key_does_not_poison_subsequent_saves(
+        self, review_service_factory
+    ):
+        """Codex 二轮残留 HIGH: 序列化类失败 (毒 key) 必须回滚隔离, 不得
+        永久留在全量快照里拖垮后续正常 concept 的持久化 (二轮实测
+        normal-after-surrogate 也失败)。磁盘失败 (OSError) 则保留内存。"""
+        svc = review_service_factory()
+        bad = await svc.record_review_result(
+            canvas_name="d3.canvas", concept_id="\ud800", rating=3
+        )
+        assert bad["card_state_persisted"] is False
+        assert "\ud800" not in svc._card_states, "毒 key 必须被回滚隔离"
+        good = await svc.record_review_result(
+            canvas_name="d3.canvas", concept_id="normal-after-surrogate", rating=3
+        )
+        assert good["card_state_persisted"] is True
+        assert good["degraded_reason"] is None
+
+    @pytest.mark.asyncio
+    async def test_save_card_states_pending_mutation_inside_lock(
+        self, review_service_factory, monkeypatch
+    ):
+        """Codex HIGH-2: mutation 随 pending 参数移入锁内 — 成功快照必含
+        本次状态 (bool 与本响应的 card_data 绑定), 失败时 concept 进
+        dirty 集合供查询侧诚实上报。"""
+        import json as _json
+        from pathlib import Path
+
+        import app.services.review_service as rs_module
+
+        svc = review_service_factory()
+        ok = await svc._save_card_states(pending=("d3-bind", '{"state": 1}'))
+        assert ok is True
+        assert svc._card_states["d3-bind"] == '{"state": 1}'
+        on_disk = _json.loads(rs_module._CARD_STATES_FILE.read_text("utf-8"))
+        assert on_disk["d3-bind"] == '{"state": 1}'
+        assert "d3-bind" not in svc._unpersisted_concepts
+
+        monkeypatch.setattr(
+            rs_module, "_CARD_STATES_FILE", Path("/dev/null/card-states.json")
+        )
+        bad = await svc._save_card_states(pending=("d3-bind-fail", "{}"))
+        assert bad is False
+        assert "d3-bind-fail" in svc._unpersisted_concepts

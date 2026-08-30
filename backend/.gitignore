@@ -1,0 +1,5 @@
+# G-DEP-001 venv 迁移备份目录（BATCH-2026-08-28-第五批 / CARD-DEBT-9）
+# 旧 venv 走 mv+新建路线留存为 .venv-pre-<tag>-backup，防数千 untracked 文件涌入 git status
+# 本文件为 CARD-DEBT-9 独占合同点（总账 v2 L5 决议），全批其余车道禁改
+# 前导 / 锚定 backend 根，不递归匹配子目录（Codex round-1 LOW-1 收窄）
+/.venv-pre-*
