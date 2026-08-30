@@ -1,0 +1,6 @@
+== diff CS188 lecture 2 · summary={"added": 2, "changed": 1, "removed": 1, "moved": 1, "unchanged": 24} · entries=5 · unchanged=24
+  changed  bsa1-09a7d188234051aa  reasons=['content']  moved=False
+  added    bsa1-8e952dec73b4086e  reasons=[]  moved=False
+  moved    bsa1-dc820e7489c2e317  reasons=[]  moved=True
+  added    bsa1-b62c758606a3ac18  reasons=[]  moved=False
+  removed  bsa1-41b31e0388f3e789  reasons=[]  moved=False

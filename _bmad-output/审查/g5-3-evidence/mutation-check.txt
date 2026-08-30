@@ -1,0 +1,74 @@
+== G5-3 回归门变异反证 ==
+engine: d088c5e38f0c6eb0f9ca98a547bb4a06a9e45eed722dbdd604a7b578602ab7ad
+judge : 03d625216d9a8a1384c675718d0776a179f9e257985785e503463a8260bc8ea2
+
+[no-seed-dedup] 撤销 Concepts 种子 NFC 去重
+    → test_duplicate_seed_in_concepts_no_longer_kills_the_board: ✅ 变红
+[fallback-anchor-with-line] 把行号塞回 fallback 命名锚点
+    → test_fallback_name_has_no_line_number: ✅ 变红
+[fingerprint-includes-machine] 指纹不再排除机器生成段
+    → test_machine_generated_tail_does_not_pollute_fingerprint: ✅ 变红
+[basis-out-of-key] 把 basis 从身份键载荷里拿掉
+    → test_seed_whole_to_section_changes_id_via_basis: ✅ 变红
+[no-ambiguous-flag] 不再标记身份歧义
+    → test_duplicate_paths_are_flagged_as_identity_ambiguous: ✅ 变红
+[no-truncation-suspect] 撤销截断嫌疑标记与 over_threshold 告警
+    → test_truncation_suspect_flagged_when_board_grows_past_same_threshold: ✅ 变红
+[no-vault-warning] 撤销跨 vault 告警
+    → test_cross_vault_compare_warns: ✅ 变红
+[no-basis-integrity] 撤销同 ID 两侧 basis 相等校验
+    → test_same_id_different_basis_is_refused: ✅ 变红
+[no-overlap-reason] 撤销 overlap 变更项
+    → test_derived_overlap_transition_gets_its_own_reason: ✅ 变红
+[no-md-escape] 撤销 MD 表格单元格转义
+    → test_pipe_in_heading_does_not_break_md_table: ✅ 变红
+[no-filename-length-check] 撤销产物文件名长度预检
+    → test_overlong_board_name_rejected_with_zero_products: ✅ 变红
+[no-candidate-schema-check] 撤销候选 source_anchor 整段入口校验（连同复算兜底一并撤，以隔离该门）
+    → test_broken_source_anchor_rejected_before_any_write: ✅ 变红
+[occurrence-counts-candidates-only] occurrence 改为只数达标候选（撤销「按全部小节计数」）
+    → test_occurrence_counts_all_sections_not_just_candidates: ✅ 变红
+[ra-ignores-comment-mask] Recent Activity 扫描不再避开普通 HTML 注释
+    → test_commented_out_recent_activity_does_not_swallow_user_text: ✅ 变红
+[schema-check-existence-only] 撤销 vault_fingerprint 的存在+格式校验（安全字段可缺失 → fail-open）
+    → test_missing_or_mistyped_safety_fields_are_refused[<lambda>-vault_fingerprint]: ✅ 变红
+[no-created-file-rollback] 成对发布失败时不撤销本次新建的空文件
+    → test_second_product_rejection_leaves_no_first_product: ✅ 变红
+[basis-compare-raw] basis 比较退回 raw dict（NFC/NFD 等价改名被假拒绝）
+    → test_nfc_nfd_equivalent_source_name_is_not_falsely_refused: ✅ 变红
+[max-units-unchecked] 撤销 --max-units 正整数校验
+    → test_max_units_must_be_positive: ✅ 变红
+[payload-no-length-prefix] 载荷退回裸 U+0000 拼接（分段歧义可碰撞）
+    → test_payload_encoding_is_injective_under_nul_bytes: ✅ 变红
+[bool-counts-as-int] 整数校验退回 isinstance(v, int)（Python 把 bool 当 int → JSON true/false 放行）
+    → test_bool_is_not_accepted_as_int_on_candidate[True-index]: ✅ 变红
+[rollback-uses-exists] 回滚判「本次新建」退回 Path.exists()（dangling symlink 被误删）
+    → test_dangling_symlink_target_is_not_deleted_on_rejection: ✅ 变红
+[no-stable-id-recompute] 撤销 stable_id 复算对账（「类型对但语义坏」整类放行）
+    → test_semantically_broken_but_well_typed_input_is_refused[<lambda>-复算]: ✅ 变红
+[no-cross-field-binding] 撤销 basis↔候选/anchor 的交叉绑定校验
+    → test_semantically_broken_but_well_typed_input_is_refused[<lambda>-basis]: ✅ 变红
+[no-id-format-check] 撤销 stable_id / content_fingerprint 格式校验
+    → test_semantically_broken_but_well_typed_input_is_refused[<lambda>-stable_id]: ✅ 变红
+[no-scale-gate-consistency] 撤销 scale_gate 四方对账（改 total_candidates 即可静默压掉截断告警）
+    → test_semantic_layer_fail_open_is_closed[<lambda>-scale_gate]: ✅ 变红
+[accepts-foreign-namespace] 撤销「只认本引擎这一代」（两侧协同重标 namespace 即可全过）
+    → test_relabelled_namespace_on_both_sides_is_refused: ✅ 变红
+[no-vault-fingerprint-format] 撤销 vault_fingerprint 格式校验（空白串可通过）
+    → test_semantic_layer_fail_open_is_closed[<lambda>-vault_fingerprint]: ✅ 变红
+[heading-path-depth-only] 标题路径绑定退回「只比层数」（同层数伪造标题可静默通过）
+    → test_same_depth_forged_heading_path_is_refused: ✅ 变红
+[no-board-file-binding] 撤销 board ↔ board_file 对账
+    → test_board_relabel_without_board_file_is_refused: ✅ 变红
+[no-basis-dir-binding] 撤销 basis ↔ 来源目录前缀的自洽校验
+    → test_internally_checkable_forgery_is_refused[来源目录]: ✅ 变红
+[no-suggested-name-recompute] 撤销 suggested_name 由原文标题复算的对账
+    → test_internally_checkable_forgery_is_refused[复算不符]: ✅ 变红
+[no-sources-membership] 撤销「候选来源文件必须在 sources 清单里」
+    → test_internally_checkable_forgery_is_refused[sources]: ✅ 变红
+[no-id-stability-binding] 撤销 id_stability 常量比对
+    → test_internally_checkable_forgery_is_refused[id_stability]: ✅ 变红
+
+✅ 33 个变异体全部让对应的门变红 —— 无空转门
+
+变异反证退出码: 0 （0 = 每个变异体都让对应的门变红）

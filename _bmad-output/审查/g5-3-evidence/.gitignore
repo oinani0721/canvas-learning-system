@@ -1,0 +1,5 @@
+# run1/ 是 live preview 的**全量副本**（两跑逐字节比对的中间物）。
+# 它与 outputs/ 下的产物内容重复，且含用户讲义正文标题——不入库。
+# 「两跑一致」这条判据由 live-run-log.txt 里的 `b*-two-run-diff rc=0`
+# 与 engine-and-products.sha256 的字节绑定共同证明，复跑 run_live_evidence.sh 即可重建。
+run1/

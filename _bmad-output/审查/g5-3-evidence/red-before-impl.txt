@@ -1,0 +1,25 @@
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/skills/test_split_stable_id.py::TestStableIdShape::test_prefix_namespace_and_basis
+FAILED tests/skills/test_split_stable_id.py::TestStableIdShape::test_stable_id_is_pure_function_of_basis
+FAILED tests/skills/test_split_stable_id.py::TestContentEdit::test_body_edit_keeps_id_and_reports_changed
+FAILED tests/skills/test_split_stable_id.py::TestReorder::test_swap_keeps_ids_and_reports_minimal_move_set
+FAILED tests/skills/test_split_stable_id.py::TestLineDrift::test_line_shift_is_not_a_change
+FAILED tests/skills/test_split_stable_id.py::TestHeadingRename::test_rename_yields_new_id_removed_plus_added
+FAILED tests/skills/test_split_stable_id.py::TestHeadingRename::test_ancestor_rename_changes_whole_subtree
+FAILED tests/skills/test_split_stable_id.py::TestHeadingRename::test_number_prefix_and_timestamp_do_not_change_id
+FAILED tests/skills/test_split_stable_id.py::TestDuplicateAndNameConflict::test_duplicate_heading_path_split_by_occurrence
+FAILED tests/skills/test_split_stable_id.py::TestDuplicateAndNameConflict::test_pool_conflict_changes_resolved_name_and_is_reported
+FAILED tests/skills/test_split_stable_id.py::TestUnicodeNormalization::test_nfd_heading_yields_same_stable_id
+FAILED tests/skills/test_split_stable_id.py::TestUnicodeNormalization::test_nfd_body_does_not_change_fingerprint
+FAILED tests/skills/test_split_stable_id.py::TestDiffGuards::test_rejects_v1_schema_input
+FAILED tests/skills/test_split_stable_id.py::TestDiffGuards::test_rejects_cross_board_compare
+FAILED tests/skills/test_split_stable_id.py::TestDiffGuards::test_rejects_missing_stable_id
+FAILED tests/skills/test_split_stable_id.py::TestDiffGuards::test_diff_is_byte_identical_on_rerun
+FAILED tests/skills/test_split_stable_id.py::TestDiffGuards::test_diff_md_is_human_readable
+FAILED tests/skills/test_split_stable_id.py::TestLiveRealBoards::test_two_runs_on_real_boards_give_identical_stable_ids
+FAILED tests/skills/test_split_stable_id.py::TestLiveRealBoards::test_live_diff_of_two_identical_runs_is_all_unchanged
+================== 19 failed, 2 passed, 10 warnings in 3.59s ===================

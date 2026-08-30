@@ -706,5 +706,7 @@ class TestPreviewHonesty:
         assert "未执行" in md and "G5-10" in md
         assert "已派生为 [[节点/" in md  # 展示性 wikilink 插入 diff
         data = json.loads((out / "split-preview-板A.json").read_text(encoding="utf-8"))
-        assert data["schema_version"] == 1
+        # CARD-G5-3 加性升级 1→2（追加 stable_id 三件套, v1 字段一个不少;
+        # 加性契约的逐字段硬门在 tests/skills/test_split_stable_id.py::TestSchemaV2Additive）
+        assert data["schema_version"] == 2
         assert "未创建任何节点" in data["not_executed_disclaimer"]
