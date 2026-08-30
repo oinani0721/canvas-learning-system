@@ -1767,6 +1767,20 @@ def test_missing_vault_id_is_422_not_silent_noop(refresh_env):
 # ════════════════════════════════════════════════════════════════════
 
 
+def _bucket_tags(page: str) -> list[str]:
+    """页面上**桶位小标签**的取值，按渲染顺序。
+
+    收官审计教训: 直接 `assert "新卡" in page` 零区分力 —— 「新卡」还出现在
+    板表格列头 `<th>`、卡片汇总行「· 新卡 N」、分层行「分层 · 新卡 N」、以及
+    why_due 正文里。要断言标签本身, 就得按标签的**结构**取值。
+    这里从生产代码的 `_NODE_TAG` 样式串派生 selector, 样式改了这里跟着变,
+    不会变成一条绑死在旧 CSS 上的死断言。
+    """
+    import app.api.v1.endpoints.review_overview as mod
+
+    return re.findall(rf'<span style="{re.escape(mod._NODE_TAG)}">([^<]*)</span>', page)
+
+
 def _nodes_projection(vault_id: str, rows: list[dict], *, generated_at=None, top: list | None = None) -> dict:
     """带 bucket/why_due 的 due_nodes 明细投影 (不含顶层 buckets 键 —— 本卡
     只消费行内字段, 顶层分组的跨源对账归 G3-6a 既有用例)。"""
@@ -1834,7 +1848,12 @@ def test_g64_node_fields_are_rendered_humanized(overview_env):
     _mk_vault(root, "vault-a", _nodes_projection("vault-a", rows))
     page = client.get("/api/v1/review/overview/page").text
 
-    assert "学习中" in page and "新卡" in page, "桶位要显示中文标签, 不是机器枚举名"
+    # ⚠ 曾经写成 `assert "新卡" in page` —— 「新卡」在页面上还出现在**列头 <th>**、
+    # 卡片汇总行「· 新卡 N」、分层行「分层 · 新卡 N」和 why_due 正文里, 那条断言
+    # 零区分力: 桶位标签一个都不渲染它照样过（收官审计抓到）。
+    # 改成按标签的**实际标记**取值来断言。
+    # 顺序 = 紧迫度: 已逾期的 learning_queue 在前, 新卡("现在")垫后
+    assert _bucket_tags(page) == ["学习中", "新卡"], f"两个节点应各渲染一个桶位标签, 实为 {_bucket_tags(page)}"
     assert "learning_queue" not in page, "机器枚举名不该漏到页面上"
     assert "10 分钟前答错，回炉重学" in page, "why_due 原文照登"
     assert "逾期5天" in page and "现在" in page, "到期时刻要人话化"
@@ -1856,7 +1875,11 @@ def test_g64_node_deeplink_percent_encoding(overview_env):
         + quote(f"节点/{tricky}.md", safe="")
     )
     assert expect in page, "节点深链缺失或未按 percent-encode 约定"
-    assert "%2F" in expect, "路径分隔符必须编码 (safe='')"
+    # ⚠ 曾经写成 `assert "%2F" in expect` —— expect 是**本测试自己**用
+    # quote(safe="") 拼的, 那条断言恒真、对实现零约束（收官审计抓到）。
+    # 要断言的是**页面**里出现了编码后的分隔符, 且没有出现裸斜杠形态。
+    assert "%2F" in page, "页面上的节点深链必须把路径分隔符编码成 %2F"
+    assert "file=节点/" not in page, "不许出现未编码的裸 `节点/` 形态"
     # 板深链与节点深链指向不同目录, 不许互相串
     assert quote("原白板/甲板.md", safe="") in page
 
@@ -1877,9 +1900,10 @@ def test_g64_degradations(overview_env):
 
     page = client.get("/api/v1/review/overview/page").text
     assert "展开 1 个到期节点" in page, "旧投影一样能展开 — 只是少了桶位标签"
-    # 桶位小标签有专属样式串; 旧投影下一个都不该出现 (卡片汇总行的"新卡 N"
-    # 是另一处文案, 用样式串定位可精确区分)
-    assert "border-radius:4px;padding:0 6px;font-size:11px" not in page, "旧投影不许出现伪造的桶位小标签"
+    # ⚠ 曾经把这条负断言绑死在一段 CSS 子串上 —— 改一下样式它就恒真了
+    # （收官审计抓到）。改用与正向断言**同一个** _bucket_tags 取值器:
+    # 正向用例证明它取得到标签, 这里证明旧投影下取到的是空 —— 同一把尺子。
+    assert _bucket_tags(page) == [], f"旧投影不许伪造桶位标签, 实为 {_bucket_tags(page)}"
     assert quote("节点/老节点.md", safe="") in page, "旧投影的节点深链照常"
     # 无投影库: 该库卡片里不许有任何节点深链
     assert "vault-none" in page and "该库尚无今日复习投影" in page
@@ -2123,11 +2147,24 @@ def test_hostname_host_is_refused_ip_and_localhost_pass(refresh_env, monkeypatch
             assert r.json()["detail"]["error"] == "host_not_allowed"
 
     # IPv6 回环: TestClient 的 base_url 解析不了 "http://[::1]:8011" (httpx 限制,
-    # 非生产缺陷), 所以直接验判据本身 —— starlette 的 URL.hostname 会把方括号
-    # 脱掉给出 "::1", ip_address 认得它
-    import ipaddress as _ip
+    # 非生产缺陷), 所以直接对**生产函数**喂一个 IPv6 回环请求。
+    # ⚠ 曾经写成 `assert ipaddress.ip_address("::1")` —— 那是在断言 stdlib,
+    # 对被测代码零约束（收官审计抓到）。要走的是 _assert_same_origin 本身。
+    from starlette.requests import Request as _Req
 
-    assert _ip.ip_address("::1")
+    v6 = _Req(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": _REFRESH_URL,
+            "headers": [(b"host", b"[::1]:8011")],
+            "server": ("::1", 8011),
+            "scheme": "http",
+            "query_string": b"",
+        }
+    )
+    assert v6.url.hostname == "::1", "starlette 会脱掉方括号 — 前提校验"
+    mod._assert_same_origin(v6)  # 不抛 = IPv6 回环被放行
 
     # 部署方显式列出的主机名可放行 (Tailscale MagicDNS / mDNS 名的逃生口)
     monkeypatch.setenv(mod._ALLOWED_HOSTS_ENV, "my-mac.local, another.host")
@@ -2156,3 +2193,107 @@ def test_form_path_in_progress_shows_notice_not_fake_success(refresh_env):
     assert "正在重建中" in resp.text and "回到总览页" in resp.text
     assert "<script" not in resp.text.lower()
     assert not (vault / "outputs").exists(), "在飞时第二个请求不许也去写盘"
+
+
+def test_repeated_refresh_with_zero_changes_still_succeeds(refresh_env):
+    """⚠ 覆盖缺口补测: 原地连点、中间**一个字都不改**, 每次都必须成功。
+
+    这条不是理论推演 —— 实测发现 generated_at 是**秒级**精度, 同一秒内的
+    多次重建产出**逐字节相同**的 JSON (sha 全等)。也就是说 round-3 的"发布
+    证明"在这条最常见的用户路径上, 完全靠 sha 之外的信号撑着。若指纹只用
+    sha, 用户连点第二下就会收到 503 —— 一个把正常操作判成失败的 BLOCKER。
+    """
+    root, client = refresh_env
+    vault = _mk_node_vault(root, "vault-nochange", {"甲": _node_md()})
+    proj = vault / "outputs" / "今日复习.json"
+
+    sigs = []
+    for i in range(5):
+        r = client.post(_REFRESH_URL, data={"vault_id": "vault-nochange"})
+        # ← 这条才是本用例的承重断言
+        assert r.status_code == 200, f"第{i + 1}次连点应成功, 实为 {r.status_code} {r.text[:300]}"
+        assert r.json()["rebuilt"] is True
+        st = proj.stat()
+        sigs.append((st.st_ino, st.st_mtime_ns))
+
+    assert len(set(sigs)) == len(sigs), "inode/mtime 必须每次都变 —— 它们是这条路径上唯一的发布信号"
+
+    # 前提的**确定性**表述: generated_at 是秒级精度 (无小数秒), 因此同一秒内的
+    # 两次重建必然产出逐字节相同的 JSON。
+    # ⚠ 不要写成"5 次的 sha 全等" —— 循环可能跨过秒边界, 那是一条按时序抽签的
+    # flaky 断言 (本用例首次运行就这样红过一次)。结构事实才是可断言的那个。
+    gen = json.loads(proj.read_text(encoding="utf-8"))["generated_at"]
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:[+-]\d{2}:\d{2}|Z)", gen), (
+        f"generated_at 应为秒级精度且无小数秒, 实为 {gen!r} —— 若生产器改成了亚秒精度, "
+        f"内容会每次都变, 本用例锁的风险面需重新评估"
+    )
+
+
+def test_publish_fingerprint_uses_three_independent_signals(refresh_env, tmp_path):
+    """指纹必须是 (inode, mtime_ns, sha) 三元组。
+
+    三个信号各自都会在某类文件系统上退化 (实测):
+      · sha    —— 同一秒内内容逐字节相同
+      · mtime  —— 容器 /tmp 的 overlayfs 上 6 次 os.replace 只得 3 个不同值
+      · inode  —— 同一 overlayfs 上会被复用 (在两个值间轮换)
+    生产挂载 (/vaults VirtioFS) 与宿主 APFS 上 inode 与 mtime 都是每次必变。
+    """
+    import app.api.v1.endpoints.review_overview as mod
+
+    p = tmp_path / "x.json"
+    p.write_text("a", encoding="utf-8")
+    fp = mod._publish_fingerprint(p)
+    assert isinstance(fp, tuple) and len(fp) == 3, f"指纹应为三元组, 实为 {fp!r}"
+    st = p.stat()
+    assert fp[0] == st.st_ino and fp[1] == st.st_mtime_ns
+    assert fp[2] == hashlib.sha256(b"a").hexdigest()
+
+    # os.replace 换 inode —— 内容与 mtime 都可能不变, inode 是最后一道
+    tmp = tmp_path / "x.tmp"
+    tmp.write_text("a", encoding="utf-8")
+    os.replace(tmp, p)
+    assert mod._publish_fingerprint(p) != fp, "os.replace 之后指纹必须不同"
+
+    assert mod._publish_fingerprint(tmp_path / "根本不存在.json") is None
+
+
+def test_child_tz_is_forced_so_container_utc_cannot_produce_yesterday(refresh_env, monkeypatch):
+    """⛔ 收官审计抓到的真缺陷: 容器 TZ 为空 + /etc/localtime→Etc/UTC（现网实测），
+    而生产器的 `payload["date"]` / md 标题 / 通知 id 全走**进程本地时区**。
+    不强制 TZ 的话，上海 00:00-08:00 这 8 小时里 refresh 产出的是**昨天**的日期，
+    而端点照样 rebuilt=true / status=ok —— 页面上没有任何异常信号。
+
+    这条坑读侧早修掉了（stale 判定 astimezone(_TZ_SHANGHAI)），写侧不能搬回来。
+
+    ⚠ 本用例**端到端**验：把父进程 TZ 设成 UTC 再跑真 subprocess，产出的 date
+    必须仍是上海日。只断言 `_child_env()["TZ"] == "Asia/Shanghai"` 是不够的 ——
+    那只证明字典里有这个键，证不了子进程真的按它算日期。
+    """
+    import app.api.v1.endpoints.review_overview as mod
+
+    # 父进程冒充容器：TZ=UTC
+    monkeypatch.setenv("TZ", "UTC")
+    env = mod._child_env()
+    assert env["TZ"] == mod._DISPLAY_TZ_NAME == "Asia/Shanghai", "父进程的 TZ 不许影响子进程"
+
+    root, client = refresh_env
+    vault = _mk_node_vault(root, "vault-tz", {"甲": _node_md()})
+    assert client.post(_REFRESH_URL, data={"vault_id": "vault-tz"}).status_code == 200
+
+    payload = json.loads((vault / "outputs" / "今日复习.json").read_text(encoding="utf-8"))
+    sh_today = datetime.now(_SH).date().isoformat()
+    assert payload["date"] == sh_today, (
+        f"父进程 TZ=UTC 时产出的 date={payload['date']!r} 应仍是上海日 {sh_today!r} —— "
+        f"否则上海 00:00-08:00 会静默产出昨天的复习清单"
+    )
+    assert payload["generated_at"].endswith("+08:00"), (
+        f"generated_at 应带 +08:00 偏移, 实为 {payload['generated_at']!r}"
+    )
+    md_head = (vault / "outputs" / "今日复习.md").read_text(encoding="utf-8").splitlines()[0]
+    assert sh_today in md_head, f"md 标题也必须是上海日, 实为 {md_head!r}"
+    noti = payload.get("notification")
+    if noti:  # 空 vault 时无通知; 有则 id 必须是上海日 (否则会覆盖昨天那条推送)
+        assert noti["id"] == f"canvas-review-{sh_today}"
+
+    # 读写两侧共用同一个字面量, 永不漂移
+    assert getattr(mod._TZ_SHANGHAI, "key", "Asia/Shanghai") == mod._DISPLAY_TZ_NAME

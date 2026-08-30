@@ -960,8 +960,18 @@ def test_atomic_write_refuses_to_reuse_an_existing_tmp(tmp_path, monkeypatch):
 
 
 def test_atomic_write_does_not_follow_a_symlinked_tmp(tmp_path, monkeypatch):
-    """O_NOFOLLOW: tmp 名若被抢先建成一条指向库外的软链, 普通 open 会跟随它
-    并把内容写到库外 —— 必须直接失败。"""
+    """tmp 名被抢先建成一条指向库外的软链时, 必须直接失败, 不许把内容写到库外。
+
+    ⚠ 如实说明这条测试**实际证的是什么**（收官审计抓到, 原 docstring 名不副实）:
+    它证的是 `O_EXCL`, 不是 `O_NOFOLLOW`。实测: 对一个软链路径调
+    `os.open(p, O_WRONLY|O_CREAT|O_EXCL)` —— **不带** O_NOFOLLOW —— 同样抛
+    `FileExistsError(17)`, 因为 O_CREAT|O_EXCL 遇到任何已存在的名字（软链也算
+    一个名字）都失败。也就是说在本调用形态下 O_NOFOLLOW 被 O_EXCL 完全遮蔽,
+    是纵深防御而非承重件, 单独删掉它这条用例照样绿。
+    保留 O_NOFOLLOW 的理由: 若将来有人把 O_EXCL 去掉（比如为了"tmp 残留时能
+    覆盖"），O_NOFOLLOW 是仅剩的那道挡软链的门 —— 但届时必须补一条真能打红
+    它的用例, 不能沿用这一条。
+    """
     tmp_of = _pin_tmp_name(monkeypatch)
     target = tmp_path / "今日复习.json"
     outside = tmp_path / "库外落点.txt"

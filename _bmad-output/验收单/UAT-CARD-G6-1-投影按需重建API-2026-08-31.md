@@ -97,19 +97,19 @@
 
 | 项目 | 结果 |
 |---|---|
-| `pytest tests/unit/test_review_overview.py tests/regression/test_daily_review_pick.py -q` | **72 passed**（随机序与固定序各跑一遍都全绿） |
-| 新增用例数 | 端点侧 22 条 + 生产器原子写 3 条 |
+| `pytest tests/unit/test_review_overview.py tests/regression/test_daily_review_pick.py -q` | **90 passed**（随机序与固定序各跑一遍都全绿）<br>⚠️ 这是**当前 HEAD** 的数字。本卡首次提交时是 72，round-3 整改 + 收官审计整改各加了一批用例 |
+| 新增用例数 | 端点侧 31 条 + 生产器原子写 5 条（含 round-3 与收官审计补的）|
 | **Codex 对抗审查** | 两轮。Round-1 报 2 BLOCKER + 3 HIGH + 1 MEDIUM，其中 **4 条真修 CLOSED**、1 条部分整改、1 条如实登记为残余（逐条处置见审查存档）|
-| **变异负验证**（证明门不是死门） | **16/16 变异全部使对应门变红**（含 Codex 整改项的 4 条：containment / env 白名单 / rc=0 读回校验 / 同源门）|
+| **变异负验证**（证明门不是死门） | 分四批共 **29 条，全部使对应门变红**：首轮 16 条 + round-3 整改 7 条 + TZ 强制 2 条 + 审计整改 4 条。<br>⚠️ **如实说明**：首轮那 16 条是**在当时那个 commit 上**跑出来的结果；round-3 之后代码变了，其中部分变异的锚点字符串已不存在，**照原样重跑会中止而不是复现 16/16**。变异结论是「某次针对某版代码的证据」，不是可以随时重放的回归套件 |
 | 写面审计（全树 sha256 指纹，含文件集合本身） | refresh 一次后，整个 VAULTS_ROOT 里**恰好只有** `<vault>/outputs/`、`outputs/今日复习.json`、`outputs/今日复习.md` 三项变动，多一项少一项都判红 |
 | runner state 不变 | 已存在的 state 文件 shasum 逐字节不变；本来不存在的 state 文件之后仍不存在（两态都锁——只查前者等于放行"顺手创建一个 state"） |
 | GET 侧纯度 | `/overview` 与 `/page` 各调 3 次，`outputs/` 下所有文件的 **mtime_ns + sha256 完全不变** |
 | 并发不撕裂 | 后端 refresh × 生产器 `--write` 真进程交错 12 轮，每轮盘上 JSON 都能 parse 且过 `_summarize` 全部门禁；并附带断言"并发写者至少真跑完 3 轮"，防止这道门因为线程没跑起来而空过 |
 | **容器直跑实测** | 容器内 `python 3.11.15` 跑生产器 rc=0、无 stderr、产出 schema v3 + 五桶位；写面只有 outputs 两文件 |
 | **容器反向实测** | 同一容器里**不设** `PYTHONDONTWRITEBYTECODE` 时，会在库里落 `.claude/scripts/__pycache__/decay_beta.cpython-311.pyc`——证明这个环境变量是真的在承重，不是装饰 |
-| **真 uvicorn + 真 HTTP 端到端走查** | 页面 3 个刷新表单 / 0 个 `<script>`；同源表单 POST → `303 → /overview/page`；点完「分层 · 新卡 1 · 学习中 0 · 到期 3 · 今天晚些 0 · 未来 1」这行**从无到有**（就是卡文预告的旧 schema 升级五桶位那一幕）；连点 6 次全部去抖、重建计数恒为 1 |
-| **跨站表单被拒（live 实测）** | 带 `Origin: https://evil.example.com` 的 POST → **403**，零写入；同源提交与 curl 照常 |
-| **没配过的库走表单（live 实测）** | → **503 + 人话 HTML 错误页**（「该库还没为『每日复习』配置好: 缺 节点 与 .claude/scripts/decay_beta.py」），0 个 `<script>`；未知库 → 404 |
+| **真 uvicorn + 真 HTTP 端到端走查**（本地，`VAULTS_ROOT` 指向 tmp fixture；**不是现网**）| 页面 3 个刷新表单 / 0 个 `<script>`；同源表单 POST → `303 → /overview/page`；点完「分层 · 新卡 1 · 学习中 0 · 到期 3 · 今天晚些 0 · 未来 1」这行**从无到有**（就是卡文预告的旧 schema 升级五桶位那一幕）；连点 6 次全部去抖、重建计数恒为 1 |
+| **跨站表单被拒**（本地 uvicorn + tmp fixture 实测，非现网）| 带 `Origin: https://evil.example.com` 的 POST → **403**，零写入；同源提交与 curl 照常 |
+| **没配过的库走表单**（本地 uvicorn + tmp fixture 实测，非现网）| → **503 + 人话 HTML 错误页**（「该库还没为『每日复习』配置好: 缺 节点 与 .claude/scripts/decay_beta.py」），0 个 `<script>`；未知库 → 404 |
 | **Codex round-3 复核后的加固**（下列每条都有独立的门 + 变异验证）| ① 「跑完了但什么都没写」不再算成功——用产物的修改时间+内容指纹证明**这一次**真的发布了；产物不成对（只有 json 没有 md）同样判失败 ② 生产器落盘改用 `O_EXCL`+`O_NOFOLLOW` 开临时文件（撞名不复用、不跟随软链写到库外）③ 子进程输出不再整份读进内存，非法字节也不会把 503 打成 500 ④ 加 Host 白名单挡 DNS rebinding ⑤ 「正在重建中」给专门的提示页，不再和成功一样跳回 |
 | 既有回归 | `test_daily_review_run.py` / `test_vault_doc_roles.py` / 五桶位与 boards rollup 既有用例全绿 |
 | `ruff check` | All checks passed |
@@ -184,6 +184,7 @@
 
 - 代码：`backend/app/api/v1/endpoints/review_overview.py`（`_pick_script_candidates` / `_child_env` / `_run_pick` / `_refresh_key` / `_read_entry` / `_rebuild_projection` / `_assert_write_target_contained` / `_refresh_target` / `_assert_same_origin` / `_error_page_html` / `review_overview_refresh` / `_refresh_form_html`）
 - 生产器：`scripts/daily_review_pick.py::atomic_write`
-- 测试：`backend/tests/unit/test_review_overview.py`（`_REFRESH_URL` 之后的 22 条）、`backend/tests/regression/test_daily_review_pick.py`（末尾 3 条）
-- 变异负验证脚本：`scratchpad/mutate_g61.py`（16 条，全部使对应门变红）
+- 测试：`backend/tests/unit/test_review_overview.py`（`_REFRESH_URL` 之后的 31 条）、`backend/tests/regression/test_daily_review_pick.py`（末尾 5 条）
+- 变异负验证脚本：`scratchpad/mutate_g61.py` / `mutate_g61_r3.py` / `mutate_tz.py` / `mutate_audit.py`
+  ⚠️ **这些脚本在 session 级临时目录里，不随仓库保存**——它们是产出证据的工具，不是可重放的资产。上面表格里的变异结论就是它们留下的全部证据
 - Codex 审查存档：`_bmad-output/审查/2026-08-31-CARD-G6-1-Codex对抗审查.md`

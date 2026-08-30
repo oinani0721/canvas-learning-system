@@ -69,10 +69,14 @@ _PROJECTION_REL = ("outputs", "今日复习.json")
 #: 展示时区: 统一 Asia/Shanghai (CARD-D1 — live 容器跑 UTC, astimezone()
 #: 会显示 UTC 裸串差 8 小时)。容器缺 tzdata 时退化为固定 +8 (Asia/Shanghai
 #: 自 1991 年起无夏令时, 固定偏移语义等价)。
+#: 显示时区的名字 —— 读侧的 _TZ_SHANGHAI 与写侧子进程的 TZ 共用这一个字面量,
+#: 二者永不漂移 (CARD-G6-1 收官审计)
+_DISPLAY_TZ_NAME = "Asia/Shanghai"
+
 try:
     from zoneinfo import ZoneInfo
 
-    _TZ_SHANGHAI = ZoneInfo("Asia/Shanghai")
+    _TZ_SHANGHAI = ZoneInfo(_DISPLAY_TZ_NAME)
 except Exception:  # noqa: BLE001 — ZoneInfoNotFoundError / ImportError 同一退化
     _TZ_SHANGHAI = timezone(timedelta(hours=8))
 
@@ -1229,8 +1233,10 @@ def _resolve_pick_script(vaults_root: Path) -> Path:
     )
 
 
-#: 子进程环境白名单 —— 只透传这些, 其余一律不带 (见 _child_env)
-_ENV_PASSTHROUGH = ("PATH", "HOME", "TMPDIR", "TZ", "LANG", "LC_ALL", "LC_CTYPE", "SYSTEMROOT")
+#: 子进程环境白名单 —— 只透传这些, 其余一律不带 (见 _child_env)。
+#: ⛔ TZ **不在**白名单里: 它由 _child_env 强制设成 _DISPLAY_TZ_NAME, 不接受
+#: 父进程的值 (容器里父进程的 TZ 是空的, 空 = UTC = 错日期)
+_ENV_PASSTHROUGH = ("PATH", "HOME", "TMPDIR", "LANG", "LC_ALL", "LC_CTYPE", "SYSTEMROOT")
 
 
 def _child_env() -> dict[str, str]:
@@ -1244,7 +1250,22 @@ def _child_env() -> dict[str, str]:
     `PYTHONSTARTUP` / `PYTHONHOME` / `PYTHONWARNINGS` 同族。
 
     白名单只保留跑一个 stdlib 脚本真正需要的: 解释器路径查找 (PATH)、
-    临时目录、时区 (astimezone 的本地日语义要与宿主一致)、locale。
+    临时目录、locale。
+
+    ⛔ TZ 是**强制**设成显示时区, 不是"有就透传": 生产器的
+    `payload["date"] = now.astimezone().date().isoformat()` 与由它派生的
+    md 标题 `# 今日复习 · <date>`、Bark 通知 id `canvas-review-<date>` 全都
+    走**进程本地时区**。而后端容器 `TZ` 为空、`/etc/localtime -> Etc/UTC`
+    (现网实测), 于是上海 00:00-08:00 这 8 小时里 refresh 产出的是**昨天**的
+    日期 —— 端点照样返回 rebuilt=true / status=ok, 页面上没有任何异常信号,
+    正是"静默产出错日期"。宿主 launchd runner 跑在 Asia/Shanghai 下产出的
+    是正确日期, 于是同一个库的两条生成路径会给出不同的 date, 取决于谁最后写。
+
+    这条坑本文件读侧早已点名并修掉 (stale 判定用 `astimezone(_TZ_SHANGHAI)`,
+    见 _vault_entry 的注释), 本卡新开的**写侧**必须同口径, 否则等于把它原样
+    搬了回来。用同一个 _DISPLAY_TZ_NAME 字面量, 读写两侧永不漂移。
+    (收官审计实测: TZ=Asia/Shanghai → date=2026-08-31, TZ=UTC → date=2026-08-30,
+     同一时刻同一个库。)
 
     PYTHONDONTWRITEBYTECODE=1 不是可选项: 生产器的 load_decay() 会
     `import decay_beta`, 该模块在 **vault 内** (<vault>/.claude/scripts/),
@@ -1255,6 +1276,9 @@ def _child_env() -> dict[str, str]:
     env = {k: v for k in _ENV_PASSTHROUGH if (v := os.environ.get(k)) is not None}
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     env["PYTHONNOUSERSITE"] = "1"
+    # 强制, 不是透传 —— 见上面 docstring。父进程的 TZ 不参与决定 (容器里它是空的,
+    # 空就等于 UTC; 而"读侧显示用 Shanghai、写侧落盘用 UTC"是不能存在的组合)
+    env["TZ"] = _DISPLAY_TZ_NAME
     return env
 
 
@@ -1337,17 +1361,34 @@ def _refresh_key(vault_dir: Path) -> str:
 _PROJECTION_MD_REL = ("outputs", "今日复习.md")
 
 
-def _publish_fingerprint(path: Path) -> tuple[int, str] | None:
-    """(mtime_ns, sha256) —— 用来证明「**这一次**真的发布了产物」。
+def _publish_fingerprint(path: Path) -> tuple[int, int, str] | None:
+    """(st_ino, st_mtime_ns, sha256) —— 证明「**这一次**真的发布了产物」。
 
     Codex round-3 HIGH: 只看"盘上有一份可消费 JSON"证不了本次重建成功 ——
     一个 rc=0 却什么都不写的生产器, 若盘上原本就有昨天的好投影, 会被算成
-    本次重建成功。生产器发布走 os.replace(新写的 tmp), 所以每次发布必得
-    一个新的 mtime; 内容变了 sha 也变。两者都没动 = 什么都没发布。
+    本次重建成功。生产器发布走 os.replace(新写的 tmp): 路径改指向一个新建
+    的 inode, 于是 inode 变、mtime 变; 内容变了 sha 也变。三者全没动 =
+    什么都没发布。
+
+    ⚠ 为什么必须三个信号一起用 (实测, 不是推测):
+    - **只用 sha 不成立**: generated_at 是**秒级**精度, 同一秒内的两次重建
+      产出**逐字节相同**的文件 (本机实测 5 次连点 sha 全等)。
+    - **只用 mtime 不成立**: mtime 粒度随文件系统而变 —— 容器 /tmp 的
+      overlayfs 上 6 次连续 os.replace 只得到 3 个不同 mtime (实测)。
+    - inode 在生产路径上是最强的那个: /vaults 的 VirtioFS 与宿主 APFS 都是
+      6/6 全不同 (实测)。
+
+    ⚠ 残余 (如实登记, 不假装堵住): 在**同时**具备 inode 复用与粗粒度 mtime
+    的文件系统上 (实测 /tmp overlayfs 就是: inode 在两个值间轮换),
+    "同一 tick 内内容无变化的重建" 仍可能三个信号全等而被判成「没发布」。
+    该误判方向是 **fail-closed** —— 用户看到 503 而不是假成功, 盘上数据仍
+    正确。且它在生产挂载上不可达 (上面两组实测)。VAULTS_ROOT 若被指到
+    这类文件系统, 现象是"刷新恒 503 projection_not_republished", 日志里有
+    明确哨兵可查。
     """
     try:
         st = path.stat()
-        return (st.st_mtime_ns, hashlib.sha256(path.read_bytes()).hexdigest())
+        return (st.st_ino, st.st_mtime_ns, hashlib.sha256(path.read_bytes()).hexdigest())
     except OSError:
         return None
 
@@ -1471,11 +1512,22 @@ def _rebuild_projection(vault_dir: Path, script: Path) -> tuple[dict, dict | Non
                 },
             )
         if after_fp == before_fp:
+            # 哨兵: 这条也可能是"文件系统 inode 复用 + 粗粒度 mtime"造成的误判
+            # (见 _publish_fingerprint 的残余登记) —— 把三元组打进日志, 现场可辨
+            logger.error(
+                "review_overview refresh 判定未发布",
+                vault=vault_dir.name,
+                fingerprint=str(after_fp),
+                hint="若该 vault 所在文件系统 inode 复用且 mtime 粗粒度, 这可能是误判",
+            )
             raise HTTPException(
                 status_code=503,
                 detail={
                     "error": "projection_not_republished",
-                    "message": "生产器退出码为 0, 但 outputs/今日复习.json 与调用前逐字节且同 mtime — 本次什么都没发布",
+                    "message": (
+                        "生产器退出码为 0, 但 outputs/今日复习.json 的 inode/mtime/内容三者与调用前全等"
+                        " — 本次什么都没发布"
+                    ),
                     "stderr_tail": (proc.stderr or "")[-400:],
                 },
             )
@@ -1612,7 +1664,14 @@ def _extra_allowed_hosts() -> frozenset[str]:
 def _assert_same_origin(request: Request) -> None:
     """状态变更请求的同源门 (纯 HTML 表单可用, 零 JS)。
 
-    本后端全站无鉴权 (本机单用户服务), 而这个端点会**写文件并起 Python
+    ⚠ 事实更正 (收官审计): 本后端**并非**全站无鉴权 —— `app/security.py` 的
+    `require_internal_api_key` 是成体系的写侧约定 (sync / boards / memory /
+    exam_sessions / system 与 chat router 都挂了它, 现网 INTERNAL_API_KEY 已配)。
+    本端点没挂它, 是因为它读自定义请求头 `X-CLS-Internal-Key`, 而卡文硬要求的
+    "纯 HTML 表单、零 JS" 发不出自定义头 —— 二者不可兼得, 已上用户裁决点 D-7。
+    在那之前本端点对"能连到这个端口的人"是敞开的; 下面这道门只解决 CSRF。
+
+    这个端点会**写文件并起 Python
     子进程** —— 用户在浏览器里打开的任意页面, 只要放一个跨站 <form
     action="http://localhost:8011/...">, 浏览器就会替用户把这个 POST 发出去;
     CORS 只挡"读响应", 挡不住副作用。这是本端点独有的新暴露面 (GET 侧只读,
@@ -1743,13 +1802,15 @@ def review_overview_refresh(
     到某个 event loop (TestClient 每请求换 loop, asyncio.Lock 会跨 loop 炸)。
 
     响应字段:
-      rebuilt / reason      本次是否真起了子进程并**跑成功**(rc=0)。
-                            ⚠ 语义边界: 它说的是"生产器成功跑完一次", 不是
-                            "盘上现在一定有投影" —— 一个 rc=0 却什么都不写的
-                            生产器 (只有被 DAILY_REVIEW_PICK 换成别的脚本时
-                            才可能) 会让 rebuilt=true 而 entry.status 仍是
-                            no_projection。**盘上状态以 entry.status 为准**,
-                            它是真去读文件得出的; rebuilt 只是过程信号。
+      rebuilt / reason      本次是否真起了子进程并**发布了新产物**。
+                            rebuilt=true 时三件事同时成立 (round-3 收紧):
+                            子进程 rc=0、json 的 (inode, mtime_ns, sha) 相对
+                            调用前变过、md 在位、且读回过 schema v3 门禁。
+                            任一不成立 → 503, 不会返回 rebuilt=true。
+                            ⚠ 本段曾写着"rebuilt=true 可与 entry.status=
+                            no_projection 并存" —— 那是 round-3 之前的语义,
+                            现在那种情形一律 503 (收官审计抓到的过期自述,
+                            且它会进 OpenAPI 误导 API 调用方)。
                             reason ∈ rebuilt / debounced (落在 TTL 窗口内) /
                             in_progress (同库另一次重建在飞, 本次不排队)
       rebuild_count         该库自**本进程启动**以来的真实重建次数 (进程内计数,
