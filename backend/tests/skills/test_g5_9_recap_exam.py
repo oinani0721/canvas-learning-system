@@ -1649,3 +1649,155 @@ def test_fsync_dir_refuses_symlink_path(tmp_path):
     state, msg = mod._fsync_dir(link)
     assert state == "failed", f"symlink 路径应被拒绝，实际 {state}"
     assert msg and "打开失败" in msg
+
+
+# ═════ round-6 定向终止轮：四态 × 调用点矩阵（CARD-收口A ③ 六段）═════
+#
+# round-6 的关闭条件之一是「三个调用点的四态矩阵均有承重验证」——
+# 这正是上一轮漏掉确定性 UnboundLocalError 的根因：
+# 我加了 deleted_unsynced 这个状态，却**只在第二个调用点测过它**。
+#
+# 教训：**加一个状态要同时改三处——产生点、所有消费点、以及面向用户的文案。**
+# 并且每个 (状态 × 调用点) 组合都要有门，否则漏掉的那格就是下一个 bug 的藏身处。
+
+
+@pytest.mark.parametrize(
+    "errno_code,expect_reason",
+    [
+        (errno.EINVAL, "不支持"),  # round-6 反例 1：原实现误归为 deleted
+        (errno.ENOTSUP, "不支持"),
+        (errno.EIO, "持久化未确认"),
+    ],
+)
+def test_rollback_always_reports_unsynced_when_fsync_unconfirmed(tmp_path, errno_code, expect_reason):
+    """round-6 关闭条件 1：**凡是拿不到持久化确认的情形**都必须产生
+    `deleted_unsynced`。原实现把 `EINVAL/ENOTSUP` 排除在外 ⇒ 落回 `deleted`，
+    而「该 FS 不支持 fsync 目录」恰恰意味着持久化同样未获确认。"""
+    mod = _load_module()
+    d = tmp_path / "d"
+    d.mkdir()
+    f = d / "t.md"
+    f.write_text("OURS\n", encoding="utf-8")
+    st = f.stat()
+    dfd = mod.os.open(d, mod.os.O_RDONLY | mod.os.O_DIRECTORY)
+    real_fsync = mod.os.fsync
+
+    def failing_fsync(fd):
+        raise OSError(errno_code, "simulated")
+
+    mod.os.fsync = failing_fsync
+    try:
+        state, msg = mod._rollback_published("t.md", dfd, (st.st_dev, st.st_ino))
+    finally:
+        mod.os.fsync = real_fsync
+        mod.os.close(dfd)
+    assert state == "deleted_unsynced", f"errno={errno_code} 被归为 {state}"
+    assert msg and expect_reason in msg
+    assert not f.exists(), "文件确实应已删除"
+
+
+def test_rollback_does_not_leak_non_oserror_after_unlink(tmp_path):
+    """round-6 关闭条件 1（另一半）：此刻文件**已 unlink**，若 `os.fsync` 抛出
+    非 `OSError`，异常外逸就意味着「删完了却没有任何结构化回执」。必须封闭。"""
+    mod = _load_module()
+    d = tmp_path / "d"
+    d.mkdir()
+    f = d / "t.md"
+    f.write_text("OURS\n", encoding="utf-8")
+    st = f.stat()
+    dfd = mod.os.open(d, mod.os.O_RDONLY | mod.os.O_DIRECTORY)
+    real_fsync = mod.os.fsync
+
+    def weird_fsync(fd):
+        raise RuntimeError("not an OSError")
+
+    mod.os.fsync = weird_fsync
+    try:
+        state, msg = mod._rollback_published("t.md", dfd, (st.st_dev, st.st_ino))
+    finally:
+        mod.os.fsync = real_fsync
+        mod.os.close(dfd)
+    assert state == "deleted_unsynced", f"非 OSError 未被封闭，实际 {state}"
+    assert msg and "RuntimeError" in msg
+
+
+def test_atomic_write_first_rollback_unsynced_yields_structured_receipt(tmp_path):
+    """round-6 关闭条件 2+3（**确定性 bug 的直接回归锁**）：
+    首次撤销分支原本读了 `rb_err2`，而该作用域里的变量叫 `rb_err`
+    ⇒ `deleted_unsynced` 一走到就是 `UnboundLocalError`；此刻目标已 unlink，
+    异常又不是 `OSError`，逃过外层捕获 ⇒ **删完了却没有任何结构化回执**。
+
+    并且回执文案必须说「已撤销…但持久化未确认」，而不是模板默认的「目标仍在 vault 里」。"""
+    mod = _load_module()
+    d = tmp_path / "d"
+    d.mkdir()
+    tmp_p, target = d / "t.tmp", d / "t.md"
+    dfd = mod.os.open(d, mod.os.O_RDONLY | mod.os.O_DIRECTORY)
+    real_link, real_rb = mod.os.link, mod._rollback_published
+
+    def evil_link(src, dst, **kw):
+        real_link(src, dst, **kw)
+        fd = mod.os.open(target, mod.os.O_WRONLY | mod.os.O_TRUNC)
+        try:
+            mod.os.write(fd, b"ATTACKER\n")  # 同 inode、内容不符 → 触发首次撤销
+        finally:
+            mod.os.close(fd)
+
+    def unsynced_rb(*a, **kw):
+        real_rb(*a, **kw)  # 真删掉
+        return "deleted_unsynced", "已删除但目录项持久化未确认 OSError"
+
+    mod.os.link, mod._rollback_published = evil_link, unsynced_rb
+    try:
+        err, _warn = mod._atomic_write(tmp_p, target, "USER-CONFIRMED\n", dfd)
+    finally:
+        mod.os.link, mod._rollback_published = real_link, real_rb
+        mod.os.close(dfd)
+    assert err is not None, "未产生结构化回执（原实现在此抛 UnboundLocalError）"
+    assert "已撤销该文件" in err, f"文案未反映「已删」: {err}"
+    assert "仍在 vault 里" not in err, f"文案与事实相反: {err}"
+    assert "崩溃后目标可能重现" in err, f"未提示持久化未确认: {err}"
+
+
+def test_atomic_write_second_rollback_unsynced_wording_matches_fact(tmp_path):
+    """round-6 关闭条件 3（第二个调用点）：外层二次撤销返回 `deleted_unsynced` 时，
+    统一模板原本仍输出「已发布的目标仍在 vault 里」——与事实相反。"""
+    mod = _load_module()
+    d = tmp_path / "d"
+    d.mkdir()
+    tmp_p, target = d / "t.tmp", d / "t.md"
+    dfd = mod.os.open(d, mod.os.O_RDONLY | mod.os.O_DIRECTORY)
+    real_link, real_rb = mod.os.link, mod._rollback_published
+    calls = {"n": 0}
+    state = {"linked": False}
+
+    def evil_link(src, dst, **kw):
+        real_link(src, dst, **kw)
+        state["linked"] = True
+
+    real_open = mod.os.open
+
+    def evil_open(path, *a, **kw):
+        if state["linked"] and path == "t.md":
+            raise OSError(errno.EMFILE, "simulated")  # 回读抛错 → 走外层撤销
+        return real_open(path, *a, **kw)
+
+    def staged_rb(*a, **kw):
+        calls["n"] += 1
+        real_rb(*a, **kw)
+        return "deleted_unsynced", "已删除但目录项持久化未确认 OSError"
+
+    mod.os.link, mod.os.open, mod._rollback_published = evil_link, evil_open, staged_rb
+    try:
+        err, _warn = mod._atomic_write(tmp_p, target, "USER-CONFIRMED\n", dfd)
+    finally:
+        mod.os.link, mod.os.open, mod._rollback_published = (
+            real_link,
+            real_open,
+            real_rb,
+        )
+        mod.os.close(dfd)
+    assert calls["n"] >= 1, "未触达外层撤销"
+    assert err is not None
+    assert "仍在 vault 里" not in err, f"文案与事实相反: {err}"
+    assert "已撤销该文件" in err, f"未反映已删: {err}"

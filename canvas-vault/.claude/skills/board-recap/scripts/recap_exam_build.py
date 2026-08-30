@@ -452,11 +452,23 @@ def _rollback_published(
     # 「已撤销」—— 但目录项未 fsync, 崩溃后目标可能**重现**, 声称就成了假话。
     # 这里对已在手的 dir_fd 直接 fsync(无需按路径重开)。失败不改结论(文件确实
     # 已从目录移除), 但降级为 "deleted_unsynced" 让调用方能如实措辞。
+    # ⛔ round-6 反例 1: 原实现把 EINVAL/ENOTSUP 排除在外 ⇒ 落回 "deleted"。
+    # 但「该 FS 不支持 fsync 目录」恰恰意味着**持久化同样未获确认** ——
+    # 与 _fsync_dir 的 "unsupported" 是同一语义, 不该在这里被当成已确认。
+    # ⇒ 凡是拿不到确认的情形, 一律 deleted_unsynced。
+    # 同时封闭非 OSError(round-6 指出 os.fsync 理论上可抛别的异常, 而此刻文件
+    # 已 unlink, 异常外逸就意味着「删完了却没有任何结构化回执」)。
     try:
         os.fsync(dir_fd)
     except OSError as e:
-        if getattr(e, "errno", None) not in (errno.EINVAL, errno.ENOTSUP):
-            return "deleted_unsynced", f"已删除但目录项持久化未确认 {type(e).__name__}"
+        if getattr(e, "errno", None) in (errno.EINVAL, errno.ENOTSUP):
+            return (
+                "deleted_unsynced",
+                "已删除, 但该文件系统不支持 fsync 目录, 持久化未获确认",
+            )
+        return "deleted_unsynced", f"已删除但目录项持久化未确认 {type(e).__name__}"
+    except Exception as e:  # noqa: BLE001 —— 见上方注释: 此刻绝不能让异常外逸
+        return "deleted_unsynced", f"已删除但目录项持久化未确认 {type(e).__name__}"
     return "deleted", None
 
 
@@ -495,7 +507,8 @@ def _atomic_write(
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
     tmp_name, target_name = tmp.name, target.name
     published = False  # link 是否已成功 (round-3 HIGH-2)
-    rollback_note = None  # 撤销未完成时的如实说明 (round-4 HIGH-2)
+    rollback_note = None  # 撤销未完成/未确认时的如实说明 (round-4 HIGH-2)
+    rollback_deleted = False  # note 描述的是「已删但未确认」还是「仍在」(round-6)
     st_written = None
     try:
         fd = os.open(tmp_name, flags, 0o644, dir_fd=dir_fd)
@@ -561,10 +574,15 @@ def _atomic_write(
                 rb_state, rb_err = _rollback_published(
                     target_name, dir_fd, (st_written.st_dev, st_written.st_ino)
                 )
+                # ⛔ round-6 反例 2: 这里原本读 `rb_err2` —— 但本作用域里的变量叫
+                # `rb_err`。`deleted_unsynced` 一走到就是确定性 UnboundLocalError,
+                # 而此刻目标**已经 unlink**, 该异常又不是 OSError ⇒ 逃过外层捕获,
+                # 形成「删完了却没有任何结构化回执」的路径。ruff 与 73 个测试都没抓到,
+                # 因为**没有测试走过首次调用点的 deleted_unsynced 分支**。
                 if rb_state in ("deleted", "absent", "deleted_unsynced"):
                     published = False
-                    if rb_state == "deleted_unsynced":
-                        rollback_note = rb_err2
+                    rollback_note = rb_err if rb_state == "deleted_unsynced" else None
+                    rollback_deleted = rb_state == "deleted_unsynced"
                 else:
                     rollback_note = rb_err or "判据不符, 已保留(未删除)"
                 raise OSError("published bytes mismatch (in-place rewrite)")
@@ -589,11 +607,12 @@ def _atomic_write(
             # 回执仍说「目标仍在 vault 里」而实际已删 —— **回执与事实相反**。
             # 修法: 以**最后一次**结果为准, 成功即清除旧 note。
             if rb_state in ("deleted", "absent"):
-                rollback_note = None
+                rollback_note, rollback_deleted = None, False
             elif rb_state == "deleted_unsynced":
-                rollback_note = rb_err2  # 已删, 但持久化未确认 —— 如实说
+                rollback_note, rollback_deleted = rb_err2, True  # 已删但未确认
             else:
                 rollback_note = rb_err2 or "判据不符, 已保留(未删除)"
+                rollback_deleted = False
         # round-3 MEDIUM-5: tmp 清理失败原先被吞 —— 残留会让下次同 ts 的 O_EXCL
         # 直接失败, 而用户拿不到任何线索。改为并入错误消息如实回报。
         tmp_err = None
@@ -610,7 +629,16 @@ def _atomic_write(
         )
         msg = f"{kind}: {type(e).__name__}"
         if rollback_note:
-            msg += f" (⚠️ 已发布的目标仍在 vault 里: {rollback_note}, 请手动检查)"
+            # ⛔ round-6 反例 3: 统一模板一律说「目标仍在 vault 里」, 但
+            # deleted_unsynced 的事实是**已删、只是持久化未确认** —— 文案与事实相反。
+            # 用 rollback_deleted 标记区分两种截然不同的善后动作。
+            if rollback_deleted:
+                msg += (
+                    f" (⚠️ 已撤销该文件, 但{rollback_note}; "
+                    "崩溃后目标可能重现, 请复查该路径)"
+                )
+            else:
+                msg += f" (⚠️ 已发布的目标仍在 vault 里: {rollback_note}, 请手动检查)"
         if tmp_err:
             msg += f" (⚠️ 临时文件未清理 {tmp_err}, 下次同 ts 会被拒, 请手动删除)"
         return msg, None
