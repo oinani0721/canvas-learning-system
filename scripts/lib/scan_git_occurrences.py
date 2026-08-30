@@ -58,9 +58,13 @@ SHELL_PREFIX = {"if", "then", "else", "elif", "while", "until", "do", "!",
 
 # python/js 里唯一能真正执行 git 的途径。行内无这些关键词 ⇒ git 只出现在
 # 日志/文案字符串里（实测误报：security_reminder_hook.py 的 debug_log(...)）。
+# 关键：要求这些名字后面紧跟 `(` 或 `.`，即它确实是**被调用**的，
+# 而不是恰好作为字符串元素出现。否则
+#   AUDIT_KEYWORDS = ["subprocess", "git", "push", "x"]
+# 这种纯数据会被误判成进程调用（实测误报 N24）。
 EXEC_API = re.compile(
-    r"subprocess|spawn|exec|system|Popen|check_output|check_call|execa|shelljs|"
-    r"child_process|os\.popen|commands\.")
+    r"\b(subprocess|spawnSync|spawn|execSync|execFileSync|execFile|exec|system|Popen|"
+    r"check_output|check_call|execa|shelljs|child_process|popen)\s*[.(]")
 
 PREFILTER = re.compile(r"\b(git|" + "|".join(re.escape(r) for r in sorted(SCRIPT_RUNNERS)) + r")\b")
 
@@ -267,6 +271,56 @@ def classify_git_command(tokens, seek_git=False):
     return None, None
 
 
+def inline_shell_code(tokens):
+    """若该命令是 `sh -c '<code>'` / `bash -c '<code>'`，返回内联代码。
+
+    Codex round-2 B-05 实测逃逸：settings exec-form 的 `sh -c "git push rogue"`
+    整条被忽略（-c 之后被当成「不是路径」就丢掉了），必须回头当命令解析。
+    """
+    idx = 0
+    while idx < len(tokens) and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", tokens[idx]):
+        idx += 1
+    if idx >= len(tokens):
+        return None
+    if os.path.basename(tokens[idx]) not in SCRIPT_RUNNERS:
+        return None
+    for j in range(idx + 1, len(tokens)):
+        if tokens[j] in ("-c", "--command"):
+            if j + 1 < len(tokens):
+                return tokens[j + 1]
+            return None
+        if not tokens[j].startswith("-"):
+            return None
+    return None
+
+
+def direct_script_call(tokens):
+    """首 token 本身就是一个脚本路径（`./helper.sh` / `/abs/helper.sh`），无解释器前缀。
+
+    Codex round-2 B-05 实测逃逸：直接执行 rogue-helper.sh 时递归闭包看不见它。
+    """
+    idx = 0
+    while idx < len(tokens) and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", tokens[idx]):
+        idx += 1
+    if idx >= len(tokens):
+        return None
+    t = tokens[idx]
+    if os.path.basename(t) in SCRIPT_RUNNERS or os.path.basename(t) in GIT_NAMES:
+        return None
+    # 路径 token 不含空格、不以 - 开头。缺这两条会把防护清单里的字符串
+    # 字面量误当路径——实测误报：guard-hook.sh 的数组元素含斜杠，
+    # 曾被解析成脚本路径并报 UNREACHABLE。
+    if not t or " " in t or t.startswith("-"):
+        return None
+    ext = os.path.splitext(t)[1].lower()
+    if ext in (".sh", ".bash", ".zsh", ".py", ".js", ".mjs", ".cjs", ".rb", ".pl", ".cmd"):
+        return t
+    # 无扩展名时要求明确的路径形态，不认裸词
+    if t.startswith("./") or t.startswith("../") or t.startswith("/"):
+        return t
+    return None
+
+
 def script_reference(tokens):
     """若该 simple command 是在调用另一个脚本，返回被调脚本路径（供递归闭包）。"""
     idx = 0
@@ -335,12 +389,39 @@ def scan(path):
     if buf:
         merged.append((start or len(raw_lines), buf))
 
+    # heredoc 体：`cmd <<'TAG'` 到独立一行 `TAG` 之间全是文本，不是命令。
+    # 实测误报 N23：post-tool-router.sh 里 cat <<'DOC' … DOC 的正文被当成 git push。
+    heredoc_lines = set()
+    if not is_py and not is_js:
+        cur_tag = None
+        for idx_m, (mln, mtext) in enumerate(merged):
+            if cur_tag is not None:
+                heredoc_lines.add(mln)
+                if mtext.strip() == cur_tag:
+                    cur_tag = None
+                continue
+            m = re.search(r"<<-?\s*([\"']?)([A-Za-z_][A-Za-z0-9_]*)\1", mtext)
+            if m:
+                cur_tag = m.group(2)
+
     for lineno, text in merged:
-        if lineno in skip:
+        if lineno in skip or lineno in heredoc_lines:
             continue
         stripped = text.strip()
         if not stripped or stripped.startswith("#"):
             continue
+        # 纯字符串字面量行 = 防护清单 / deny 规则 / 描述文案，是写副作用的反面。
+        # 例如 settings.json 的 deny 条目、guard-hook.sh 的拦截项数组元素。
+        # （负验证 N6 反向哨兵守此条）
+        if (len(stripped) > 1
+                and stripped[0] in ("\"", "'")
+                and stripped.rstrip(",").endswith(stripped[0])):
+            # ⚠️ 只有「引号内含空格的多词短语」才是文案/deny 条目。
+            #    引号内是单个无空格 token 的，是带引号的**路径调用**，
+            #    如 "/abs/path/helper.sh" —— 不能跳过（实测漏报：N18）。
+            inner = stripped.rstrip(",")[1:-1]
+            if " " in inner:
+                continue
         # 预过滤：既要留住含 git 的行，也要留住「调用其它脚本」的行——
         # 后者是递归闭包的入口（bash ./child.sh 里一个 git 字都没有）。
         if not PREFILTER.search(text):
@@ -376,7 +457,25 @@ def scan(path):
                 emit("UNANALYZABLE", lineno, reason, cmd[:90])
             elif sig:
                 emit("OCC", lineno, sig, cmd[:90])
-            ref = script_reference(tokens)
+            # sh -c '<code>' 的内联代码：当作命令继续拆解
+            inline = inline_shell_code(tokens)
+            if inline:
+                try:
+                    for sub in split_simple_commands(inline):
+                        subtok = shlex.split(sub, comments=False, posix=True)
+                        if not subtok:
+                            continue
+                        ssig, sreason = classify_git_command(subtok)
+                        if sreason:
+                            emit("UNANALYZABLE", lineno, sreason, sub[:90])
+                        elif ssig:
+                            emit("OCC", lineno, ssig, f"[-c] {sub[:80]}")
+                        sref = script_reference(subtok) or direct_script_call(subtok)
+                        if sref:
+                            emit("REF", lineno, sref)
+                except Exception as exc:
+                    emit("UNANALYZABLE", lineno, f"cannot lex -c payload: {exc}", inline[:90])
+            ref = script_reference(tokens) or direct_script_call(tokens)
             if ref:
                 emit("REF", lineno, ref)
 

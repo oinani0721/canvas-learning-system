@@ -4,7 +4,14 @@
 # BATCH-2026-08-29-第六批 / CARD-DEBT-15
 #
 # 目的：把「哪些 hook 允许写 git」变成可机械复核的硬门。
-#       任何**未登记**的 auto stage / commit / push 出现 → FAIL。
+#       **被本扫描器识别到的**未登记 git 写 → FAIL；识别不到的构造一律
+#       fail-closed 报 UNANALYZABLE / UNREACHABLE / UNPARSEABLE。
+#
+# ⚠️ 能力边界（Codex 两轮审查结论，勿高估）：
+#    本脚本**不能**证明「所有未登记的 auto stage/commit/push 都会被抓到」。
+#    未覆盖：managed/MDM settings、CLI --settings/--plugin-dir、
+#    skill/agent frontmatter hooks。详见台账 §3.6。
+#    ⇒ auto-sync 锁仍是主要防线，本脚本不是。
 #
 # ⛔⛔⛔ 首要警示（门 1）⛔⛔⛔
 #   ~/.claude/auto-sync.lock.d 是一个 mkdir 原子锁的**僵尸残留**（持锁进程早死）。
@@ -105,37 +112,56 @@ registry_lookup() {
       echo "KEEP|同上，本地快照 commit，无 push" ;;
 
     # ---- 已人工核查的解析边界（ACK）----
-    # 每条都实测过「该文件 git add/commit/push 计数 = 0」，故解析不了不等于藏了写。
+    #
+    # ⚠️ ACK 的含义与局限（Codex round-2 M-02 整改后的准确表述）：
+    #    它**不是**「该来源没有 git 写」的授权——main-lefthook / wt-lefthook /
+    #    daily-brief 三者都确有 git 写，且已各自以 KEEP 单独登记。
+    #    ACK 只认领「该来源里**这一类**静态分析读不动的构造」，
+    #    并附上人工核查时看到的具体内容。
+    #
+    #    残留风险（未解决，见台账 §3.5 与裁决点 U6）：ACK 按
+    #    `<source>::<边界类型>` 登记，不绑定行号与命令指纹。同一来源日后
+    #    **新增**另一条读不动的命令，会被同一条 ACK 覆盖而不报警。
+    #    round-2 已实测到这个风险的第一次真实发作：lefthook 的
+    #    `extends -> rogue-extend.yml` 曾被「动态 pathspec」那条 ACK 放行，
+    #    故 extends/remotes 已改用独立签名后缀 UNANALYZABLE:EXTERNAL_CONFIG，
+    #    不再共用。
+    #
+    # ⛔ EXTERNAL_CONFIG 一律不给 ACK：lefthook 的 extends/remotes 会把
+    #    仓外配置合并进来，静态扫描根本看不到那部分内容，必须 FAIL。
+
     "main-lefthook::UNANALYZABLE")\
-      echo "ACK|lefthook.yml:32 的 git add \"\$schema\" 是 for 循环内的动态 pathspec，范围限于 specs/data/generated/*.schema.json，与 add:path 同源同窄" ;;
+      echo "ACK|lefthook.yml:32 for 循环内的 git add \"\$schema\"（动态 pathspec）。人工核查：循环体遍历 specs/data/generated/*.schema.json，与同文件 L26 的 add:path 同源同窄" ;;
     "wt-lefthook::UNANALYZABLE")\
-      echo "ACK|同上（worktree 版）" ;;
+      echo "ACK|同上（worktree 版 lefthook.yml:32）" ;;
+
     "main-settings:post-tool-router::UNANALYZABLE")\
-      echo "ACK|全部是 \$PROJECT_ROOT/.venv/bin/activate 一类的动态 source 路径；实测 post-tool-router.sh 的 git add/commit/push 计数 = 0" ;;
-    "main-settings:post-tool-router::UNREACHABLE")\
-      echo "ACK|REF 指向 pytest（PATH 上的可执行名，非仓内脚本），非缺失文件" ;;
+      echo "ACK|post-tool-router.sh 的 \$PROJECT_ROOT/.venv/bin/activate 一类动态 source 路径。人工核查：全文 git add/commit/push 计数 = 0" ;;
+    "main-settings:pytest::UNREACHABLE")\
+      echo "ACK|REF 解析到 pytest——那是 PATH 上的可执行名而非仓内脚本路径，非缺失文件" ;;
+
     "launch-agents:ai.openclaw.checkin-ask::UNANALYZABLE")\
-      echo "ACK|oc-checkin-ask.sh 内嵌 python3 -c heredoc 与中文多行 PROMPT，shell 词法无法闭合；实测该脚本 git add/commit/push 计数 = 0" ;;
+      echo "ACK|oc-checkin-ask.sh 内嵌 python3 -c heredoc 与中文多行 PROMPT，shell 词法无法闭合。人工核查：全文 git add/commit/push 计数 = 0" ;;
     "launch-agents:ai.openclaw.checkin-failsafe::UNANALYZABLE")\
-      echo "ACK|同上，实测 git 写计数 = 0" ;;
+      echo "ACK|同上形态（内嵌 python3 -c）。人工核查：git 写计数 = 0" ;;
     "launch-agents:ai.openclaw.daily-brief::UNANALYZABLE")\
-      echo "ACK|同一脚本内的 python3 -c heredoc 与 \$NVM_DIR/nvm.sh 动态 source；该脚本真实的 git 写已由上面两条 KEEP 显式登记" ;;
-    "launch-agents:ai.openclaw.daily-brief::UNREACHABLE")\
-      echo "ACK|REF 解析到 heredoc 标记 <<PY 而非真实路径，是解析假象非缺失文件" ;;
-    "launch-agents:ai.openclaw.deadman::UNREACHABLE")\
-      echo "ACK|同上，heredoc 标记误识别" ;;
-    "launch-agents:com.canvas.memory-health::UNANALYZABLE")\
-      echo "ACK|memory-health.sh 的 cypher-shell 单行内嵌查询含未闭合引号；实测该脚本无 git 写" ;;
-    "plugin-hooks:6.3.0:run-hook::UNANALYZABLE")\
-      echo "ACK|superpowers run-hook.cmd 是 Windows 批处理（REM 注释行），在 macOS 不执行；实测无 git 写" ;;
-    "plugin-hooks:6.3.0:run-hook::UNREACHABLE")\
-      echo "ACK|%HOOK_DIR%%~1 是 Windows 批处理变量语法，非 POSIX 路径" ;;
+      echo "ACK|同一脚本内的 python3 -c heredoc 与 \$NVM_DIR/nvm.sh 动态 source。该脚本**确有** git 写，但已由上方两条 KEEP（add:ALL / commit）逐条显式登记，本 ACK 只认领读不动的那部分" ;;
+    "launch-agents:<<PY::UNREACHABLE")\
+      echo "ACK|REF 解析到 heredoc 起始标记 <<PY 而非真实路径，是解析假象非缺失文件" ;;
+
+    "launch-agents:com.google.GoogleUpdater.wake::UNANALYZABLE")\
+      echo "ACK|第三方二进制（GoogleUpdater.app 可执行体），静态分析读不了。人工核查：plist argv 四项均不含 git，与本仓无关" ;;
+    "launch-agents:com.valvesoftware.steamclean::UNANALYZABLE")\
+      echo "ACK|第三方二进制（Steam steamclean），argv 不含 git，与本仓无关" ;;
+    "launch-agents:homebrew.mxcl.ollama::UNANALYZABLE")\
+      echo "ACK|第三方二进制（ollama serve），argv 不含 git，与本仓无关" ;;
+
     "plugin-hooks:claude-security:banner_hook::UNANALYZABLE")\
-      echo "ACK|\$(dirname -- \$0)/banner_notice.py 动态路径；实测 banner_hook.sh 无 git 写" ;;
+      echo "ACK|banner_hook.sh 的 \$(dirname -- \$0)/banner_notice.py 动态路径。人工核查：该脚本 git 写计数 = 0" ;;
     "plugin-hooks:ralph-loop:hook::UNANALYZABLE")\
-      echo "ACK|stop-hook.sh:133 是 perl 正则字面量被误识别为路径；实测该脚本无 git 写" ;;
-    "global-settings:claude-hook-toast::UNANALYZABLE")\
-      echo "ACK|claude-hook-toast.sh:94 是 perl -e 内联代码（POSIX::setsid detach）；实测无 git 写" ;;
+      echo "ACK|stop-hook.sh:133 是 perl 正则字面量被误识别为路径。人工核查：该脚本 git 写计数 = 0" ;;
+    "plugin-hooks:6.3.0:%HOOK_DIR%%~1::UNREACHABLE")\
+      echo "ACK|%HOOK_DIR%%~1 是 Windows 批处理变量语法（superpowers run-hook.cmd），非 POSIX 路径；该 .cmd 在 macOS 不执行，且全文无 git 写" ;;
 
     *) return 1 ;;
   esac
@@ -286,11 +312,23 @@ main() {
   echo "════════════════════════════════════════════════════════════════"
   printf ' 结果：PASS=%d  WARN=%d  FAIL=%d\n' "$PASS_COUNT" "$WARN_COUNT" "$FAIL_COUNT"
   echo "════════════════════════════════════════════════════════════════"
+
+  # ⚠️ 三态而非二态（Codex round-2 M-01）：
+  #    旧版在 FAIL=0 时一律打印「全门通过」，哪怕登记表里还挂着 4 条
+  #    REMOVE（主仓 Stop 链的 add:ALL/commit/push×2 依然在位）。
+  #    那读起来像「系统是安全的」，实际只是「现状与登记表吻合」。
+  #    两者必须分开说。
   if [ "$FAIL_COUNT" -gt 0 ]; then
-    red " 断言失败：存在未登记写副作用、无法解析的命令，或闸门失守。"
+    red " [FAIL] 断言失败：存在未登记写副作用、无法解析的命令，或闸门失守。"
     exit 1
   fi
-  green " 全门通过。"
+  if [ "$WARN_COUNT" -gt 0 ]; then
+    yellow " [KNOWN_UNSAFE] 登记吻合，但仍有 ${WARN_COUNT} 条**已知危险写链在位**（裁定为「建议去除」，待用户确认）。"
+    echo "                这**不等于安全**——它只说明现状与登记表一致，没有出现新的未登记写。"
+    echo "                在这些写链被移除前，~/.claude/auto-sync.lock.d 仍是主要防线。"
+    exit 0
+  fi
+  green " [SAFE] 登记吻合，且无「建议去除」项在位。"
   exit 0
 }
 

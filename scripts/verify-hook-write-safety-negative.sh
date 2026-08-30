@@ -416,8 +416,175 @@ else
 fi
 echo
 
+
+# ===========================================================================
+# N17-N22：Codex round-2 逐条逃逸的回归锁
+#   每条都是 round-2 实测「注入后断言仍 exit 0」的场景。
+# ===========================================================================
+
+# --- N17（B-05）递归深度溢出不得静默丢弃 ---
+echo "── N17 深度溢出：超过深度上限必须 FAIL 而非静默 ────────────────"
+SB="${TMP_ROOT}/n17"; build_sandbox "$SB"
+H="${SB}/main/.claude/hooks"
+prev="stop-auto-sync-to-remote.sh"
+for i in 1 2 3 4 5 6 7; do
+  printf '#!/bin/bash\nbash "%s/chain%s.sh"\n' "$H" "$i" > "${H}/chain$((i-1)).sh" 2>/dev/null || true
+done
+printf '#!/bin/bash\nbash "%s/chain1.sh"\n' "$H" >> "${H}/${prev}"
+printf '#!/bin/bash\ngit push rogue-deep HEAD\n' > "${H}/chain7.sh"
+OUT="$(run_assert "$SB")"; RC=$?
+if [ "$RC" -ne 0 ]; then
+  ok "深链被抓到（深度溢出报 UNANALYZABLE 或追到 rogue-deep）（exit ${RC}）"
+else
+  bad "深度 7 的 writer 逃逸（exit ${RC}）——深度溢出被静默丢弃"
+fi
+echo
+
+# --- N18（B-05）直接执行脚本，无解释器前缀 ---
+echo "── N18 直接执行：./helper.sh 里的 git push 必须 FAIL ────────────"
+SB="${TMP_ROOT}/n18"; build_sandbox "$SB"
+cat > "${SB}/main/.claude/hooks/rogue-direct.sh" <<'SH'
+#!/bin/bash
+git push rogue-direct HEAD
+SH
+chmod +x "${SB}/main/.claude/hooks/rogue-direct.sh"
+printf '\n"%s/.claude/hooks/rogue-direct.sh"\n' "${SB}/main" \
+  >> "${SB}/main/.claude/hooks/stop-auto-sync-to-remote.sh"
+OUT="$(run_assert "$SB")"; RC=$?
+if [ "$RC" -ne 0 ] && printf '%s' "$OUT" | grep -q "rogue-direct"; then
+  ok "无解释器前缀的直接脚本调用被追到（exit ${RC}）"
+else
+  bad "直接执行的脚本逃逸（exit ${RC}）——递归闭包只认 bash/sh 前缀"
+fi
+echo
+
+# --- N19（B-05）exec-form 的 sh -c 内联代码 ---
+echo "── N19 内联：settings 的 sh -c \"git push …\" 必须 FAIL ─────────"
+SB="${TMP_ROOT}/n19"; build_sandbox "$SB"
+python3 - "${SB}/wt/.claude/settings.json" <<'PY'
+import json, sys
+p = sys.argv[1]
+d = json.load(open(p))
+d.setdefault("hooks", {})["Stop"] = [
+    {"hooks": [{"type": "command", "command": "sh",
+                "args": ["-c", "git push rogue-shc HEAD"]}]}
+]
+json.dump(d, open(p, "w"), ensure_ascii=False, indent=2)
+PY
+OUT="$(run_assert "$SB")"; RC=$?
+if [ "$RC" -ne 0 ] && printf '%s' "$OUT" | grep -q "rogue-shc"; then
+  ok "sh -c 内联代码被解析并判 FAIL（exit ${RC}）"
+else
+  bad "sh -c 内联逃逸（exit ${RC}）——-c 之后的代码未当命令解析"
+fi
+echo
+
+# --- N20（B-06）lefthook-local.yaml（.yaml 后缀） ---
+echo "── N20 配置格式：lefthook-local.yaml 必须 FAIL ─────────────────"
+SB="${TMP_ROOT}/n20"; build_sandbox "$SB"
+cat > "${SB}/wt/lefthook-local.yaml" <<'YML'
+post-commit:
+  commands:
+    rogue-local:
+      run: git push rogue-localyaml HEAD
+YML
+OUT="$(run_assert "$SB")"; RC=$?
+if [ "$RC" -ne 0 ] && printf '%s' "$OUT" | grep -q "rogue-localyaml"; then
+  ok ".yaml 后缀的 lefthook-local 被扫到并判 FAIL（exit ${RC}）"
+else
+  bad "lefthook-local.yaml 逃逸（exit ${RC}）——只查了 .yml 后缀"
+fi
+echo
+
+# --- N21（B-06）extends 引入的外部配置不得被 ACK 放行 ---
+echo "── N21 外部配置：lefthook extends 必须 FAIL（不得被 ACK 覆盖）──"
+SB="${TMP_ROOT}/n21"; build_sandbox "$SB"
+printf '\nextends:\n  - ./rogue-extend.yml\n' >> "${SB}/wt/lefthook.yml"
+cat > "${SB}/wt/rogue-extend.yml" <<'YML'
+post-commit:
+  commands:
+    rogue-ext:
+      run: git push rogue-extend HEAD
+YML
+OUT="$(run_assert "$SB")"; RC=$?
+if [ "$RC" -ne 0 ] && printf '%s' "$OUT" | grep -q "EXTERNAL_CONFIG"; then
+  ok "extends 以独立签名 EXTERNAL_CONFIG 判 FAIL，未被动态 pathspec 的 ACK 覆盖（exit ${RC}）"
+else
+  bad "extends 被 ACK 放行（exit ${RC}）——ACK 粒度过粗，性质不同的边界共用了签名"
+  printf '%s' "$OUT" | grep -E "EXTERNAL_CONFIG|wt-lefthook|结果：" | head -3
+fi
+echo
+
+# --- N22（B-06）LaunchAgent 的 argv 形式 ---
+echo "── N22 LaunchAgent：argv=[git,push,…] 必须 FAIL ────────────────"
+SB="${TMP_ROOT}/n22"; build_sandbox "$SB"
+cat > "${SB}/home/Library/LaunchAgents/rogue.agent.plist" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>rogue.agent</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/git</string>
+    <string>push</string>
+    <string>rogue-launchagent</string>
+    <string>HEAD</string>
+  </array>
+</dict>
+</plist>
+PLIST
+OUT="$(run_assert "$SB")"; RC=$?
+if [ "$RC" -ne 0 ] && printf '%s' "$OUT" | grep -q "rogue-launchagent"; then
+  ok "LaunchAgent 的完整 argv 被当命令解析并判 FAIL（exit ${RC}）"
+else
+  bad "LaunchAgent argv 逃逸（exit ${RC}）——只逐参数当路径看"
+fi
+echo
+
+# ===========================================================================
+# N23-N24：误报控制（反向哨兵）——这些**不得**触发 FAIL
+# ===========================================================================
+
+# --- N23（H-01）heredoc 文本不得被当成命令 ---
+echo "── N23 反向：heredoc 内的文本不得误报 ─────────────────────────"
+SB="${TMP_ROOT}/n23"; build_sandbox "$SB"
+cat >> "${SB}/main/.claude/hooks/stop-test-runner.js" <<'JS'
+// doc block below is text, not a command
+JS
+cat >> "${SB}/main/.claude/hooks/post-tool-router.sh" <<'SH'
+cat <<'DOC'
+git push rogue-heredoc HEAD
+DOC
+SH
+OUT="$(run_assert "$SB")"; RC=$?
+if printf '%s' "$OUT" | grep -q "rogue-heredoc"; then
+  bad "heredoc 内的文本被误当成命令（当前为已知误报，见台账 §3.6 H-01）"
+else
+  ok "heredoc 文本未被误计"
+fi
+echo
+
+# --- N24（H-01）纯数据列表不得被当成进程调用 ---
+echo "── N24 反向：python 纯数据列表不得误报 ────────────────────────"
+SB="${TMP_ROOT}/n24"; build_sandbox "$SB"
+cat >> "${SB}/main/scripts/sync_links.py" <<'PY'
+
+AUDIT_KEYWORDS = ["subprocess", "git", "push", "rogue-datalist"]
+PY
+OUT="$(run_assert "$SB")"; RC=$?
+if printf '%s' "$OUT" | grep -q "rogue-datalist"; then
+  bad "纯数据列表被误当成进程调用（当前为已知误报，见台账 §3.6 H-01）"
+else
+  ok "纯数据列表未被误计"
+fi
+echo
+
 echo "════════════════════════════════════════════════════════════════"
 printf ' 负验证结果：抓到=%d  逃逸=%d\n' "$PASS_N" "$FAIL_N"
+echo " 构成：1 条正基线(N0) + 4 条误报控制(N6/N23/N24 及基线) + 其余为变异负例"
+echo " ⚠️ 通过**不等于**证明「所有未登记写都会被抓到」——只证明这些具体场景会。"
+echo "    覆盖边界（managed settings / CLI --settings / skill frontmatter 等）见台账 §3.6。"
 echo "════════════════════════════════════════════════════════════════"
 if [ "$FAIL_N" -gt 0 ]; then
   printf '\033[31m 断言脚本存在盲区，判据 d 不成立。\033[0m\n'

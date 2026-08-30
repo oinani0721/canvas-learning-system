@@ -23,6 +23,7 @@ import json
 import os
 import plistlib
 import re
+import shlex
 import subprocess
 import sys
 
@@ -38,6 +39,19 @@ out_lines = []
 
 def emit(source_key, signature, evidence):
     out_lines.append(f"{source_key}::{signature}\t{evidence}")
+
+
+def short_label(path):
+    """脚本路径 → 登记表用的稳定 label。
+
+    必须只有这一处定义：同一个脚本可能经两条路径被扫到
+    （settings 的扩展名正则 / 内联命令的 REF 展开），
+    两处若各自造 label，登记表会全面失配（实测：auto-sync 的四条签名
+    因此从 `main-settings:auto-sync::…` 变成
+    `main-settings:stop-auto-sync-to-remote.sh::…`，登记表整片查无此项）。
+    """
+    return re.sub(r"^stop-|-to-remote|\.(sh|bash|zsh|js|py|cmd|mjs|cjs|ts|rb|pl)$",
+                  "", os.path.basename(path))
 
 
 def run_scanner(path):
@@ -79,7 +93,13 @@ def scan_closure(source_key, label, entry_path, base_dir, visited=None, depth=0)
     if visited is None:
         visited = set()
     real = os.path.realpath(entry_path)
-    if real in visited or depth > 6:
+    if real in visited:
+        return
+    if depth > 6:
+        # Codex round-2 B-05：深度 7 的 writer 原先被静默丢弃 ⇒ exit 0。
+        # 看不到就必须报，不能当作「没有写副作用」。
+        emit(f"{source_key}:{label}", "UNANALYZABLE",
+             f"{entry_path}（调用链深度超过 6，未继续展开）")
         return
     visited.add(real)
 
@@ -90,6 +110,11 @@ def scan_closure(source_key, label, entry_path, base_dir, visited=None, depth=0)
     if os.path.basename(entry_path) in INTERPRETERS:
         return
     if is_binary(entry_path):
+        # Codex round-2 B-05：编译后的 .git/hooks/pre-commit 内含
+        # execlp("git",...push...)，原先被二进制检测静默跳过 ⇒ exit 0。
+        # 静态分析确实读不了二进制，但那正是必须 fail-closed 的理由。
+        emit(f"{source_key}:{label}", "UNANALYZABLE",
+             f"{entry_path}（二进制可执行，静态分析无法判断其是否写 git）")
         return
 
     occ, refs, bad = run_scanner(entry_path)
@@ -109,7 +134,8 @@ def scan_closure(source_key, label, entry_path, base_dir, visited=None, depth=0)
             emit(f"{source_key}:{label}", "UNANALYZABLE",
                  f"{base}:{lineno} 未知包装器目标 — {ref}")
             continue
-        scan_closure(source_key, label, cand, os.path.dirname(cand), visited, depth + 1)
+        scan_closure(source_key, short_label(cand), cand,
+                     os.path.dirname(cand), visited, depth + 1)
 
 
 def expand_vars(cmd, project_dir, home):
@@ -147,37 +173,56 @@ def handle_settings(source_key, path, project_dir, home):
                 # {"command":"git","args":["push","rogue","HEAD"]} 完全逃逸
                 args = h.get("args")
                 if isinstance(args, list):
-                    cmd = " ".join([cmd] + [str(a) for a in args])
+                    # ⚠️ 必须 shlex.quote：朴素 join 会把
+                    #   {"command":"sh","args":["-c","git push rogue HEAD"]}
+                    # 拼成 `sh -c git push rogue HEAD`，-c 的参数退化成裸的 `git`，
+                    # 后面几个词变成 sh 的额外参数，整条内联代码解析不出来（实测 N19 漏报）。
+                    cmd = " ".join([cmd] + [shlex.quote(str(a)) for a in args])
                 if not cmd.strip():
                     continue
                 expanded = expand_vars(cmd, project_dir, home)
                 label = f"inline-{event}"
                 # 内联 git 写（不经脚本中转）
-                occ = parse_inline(expanded)
+                occ, inline_refs = parse_inline(expanded)
                 for sig, snippet in occ:
                     emit(f"{source_key}:{label}", sig, f"{os.path.basename(path)} hooks.{event}  {snippet}")
+                # 内联命令里调用的脚本也要展开（B-05：bash rogue.txt 曾整条逃逸）
+                for iref in inline_refs:
+                    if "$" in iref or "`" in iref:
+                        emit(f"{source_key}:{label}", "UNANALYZABLE",
+                             f"{os.path.basename(path)} hooks.{event} 动态脚本路径 — {iref}")
+                        continue
+                    icand = iref if os.path.isabs(iref) else os.path.normpath(
+                        os.path.join(project_dir, iref.lstrip("./")))
+                    if icand in seen:
+                        continue
+                    seen.add(icand)
+                    scan_closure(source_key, short_label(icand), icand,
+                                 os.path.dirname(icand))
                 # 脚本中转 → 递归闭包
                 for tok in re.findall(r"\S+\.(?:sh|bash|zsh|js|mjs|cjs|ts|py|cmd|rb|pl)", expanded.replace('"', "").replace("'", "")):
                     cand = tok if tok.startswith("/") else os.path.normpath(os.path.join(project_dir, tok.lstrip("./")))
                     if cand in seen:
                         continue
                     seen.add(cand)
-                    short = re.sub(r"^stop-|-to-remote|\.(sh|js|py|cmd|mjs|cjs|ts|rb|pl)$", "",
-                                   os.path.basename(cand))
-                    scan_closure(source_key, short, cand, os.path.dirname(cand))
+                    scan_closure(source_key, short_label(cand), cand, os.path.dirname(cand))
 
 
 def parse_inline(command_text):
-    """解析一段内联命令文本（不落盘），返回 [(sig, snippet)]。"""
+    """解析一段内联命令文本（不落盘），返回 ([(sig, snippet)], refs)。
+
+    ⚠️ refs 必须回传（Codex round-2 B-05）：原实现丢弃 scanner 返回的 refs，
+    于是 settings 里 `bash rogue.txt` 这类内联调用的下游脚本完全没被展开。
+    """
     import tempfile
     with tempfile.NamedTemporaryFile("w", suffix=".sh", delete=False) as fh:
         fh.write(command_text + "\n")
         tmp = fh.name
     try:
-        occ, _refs, bad = run_scanner(tmp)
+        occ, refs, bad = run_scanner(tmp)
         res = [(s, sn) for _l, s, sn in occ]
         res += [("UNANALYZABLE", f"{r} — {sn}") for _l, r, sn in bad]
-        return res
+        return res, [r for _l, r in refs]
     finally:
         try:
             os.unlink(tmp)
@@ -195,9 +240,12 @@ def handle_yaml_lefthook(source_key, path):
         emit(source_key, "UNPARSEABLE", f"{path}（读取失败: {type(exc).__name__}）")
         return
     # H6：extends / remotes 会把外部配置合并进来，静态扫本文件看不到那部分
+    # ⚠️ 用独立签名后缀（Codex round-2 B-06 实测）：若与「动态 pathspec」共用
+    #    `<source>::UNANALYZABLE`，那条 ACK 会把性质完全不同的 extends 外部配置
+    #    一并放行——实测 `extends -> rogue-extend.yml` 里的 git push 就是这样逃掉的。
     for key in ("extends:", "remotes:"):
         if re.search(rf"^{key}", text, re.M):
-            emit(source_key, "UNANALYZABLE",
+            emit(source_key, "UNANALYZABLE:EXTERNAL_CONFIG",
                  f"{os.path.basename(path)} 含 `{key}`——lefthook 会合并外部配置，"
                  f"静态扫描覆盖不到；须以 `lefthook dump` 的合并结果为准")
     occ, _refs, bad = run_scanner(path)
@@ -207,13 +255,27 @@ def handle_yaml_lefthook(source_key, path):
     for lineno, reason, snippet in bad:
         emit(source_key, "UNANALYZABLE", f"{base}:{lineno} {reason} — {snippet}")
     # lefthook-local 覆盖层
-    local = os.path.join(os.path.dirname(path), "lefthook-local.yml")
-    if os.path.isfile(local):
+    # lefthook 支持多种文件名/后缀，只查 .yml 会漏（B-06 实测：lefthook-local.yaml 逃逸）
+    d = os.path.dirname(path)
+    for lname in ("lefthook-local.yml", "lefthook-local.yaml",
+                  "lefthook.yaml", ".lefthook.yml", ".lefthook.yaml"):
+        local = os.path.join(d, lname)
+        if not os.path.isfile(local) or os.path.realpath(local) == os.path.realpath(path):
+            continue
+        ltext = ""
+        try:
+            ltext = open(local, errors="replace").read()
+        except Exception:
+            pass
+        for key in ("extends:", "remotes:"):
+            if re.search(rf"^{key}", ltext, re.M):
+                emit(source_key, "UNANALYZABLE:EXTERNAL_CONFIG",
+                     f"{lname} 含 `{key}`——合并外部配置，静态扫描覆盖不到")
         occ2, _r2, bad2 = run_scanner(local)
         for lineno, sig, snippet in occ2:
-            emit(source_key, sig, f"lefthook-local.yml:{lineno}  {snippet}")
+            emit(source_key, sig, f"{lname}:{lineno}  {snippet}")
         for lineno, reason, snippet in bad2:
-            emit(source_key, "UNANALYZABLE", f"lefthook-local.yml:{lineno} {reason} — {snippet}")
+            emit(source_key, "UNANALYZABLE", f"{lname}:{lineno} {reason} — {snippet}")
 
 
 def handle_hookdir(source_key, repo):
@@ -256,12 +318,26 @@ def handle_launchagents(source_key, d):
             emit(f"{source_key}:{label}", "UNPARSEABLE",
                  f"{name}（plist 解析失败: {type(exc).__name__}）")
             continue
-        targets = []
+        # ⚠️ 先把 Program + ProgramArguments 当作**一条完整命令**解析
+        #    （Codex round-2 B-06 实测逃逸两例）：
+        #      ["/usr/bin/git","push","rogue","HEAD"]   ← 逐参数当路径看则完全漏掉
+        #      ["/bin/sh","-c","git push rogue HEAD"]   ← 同上
+        argv = []
         if isinstance(pl.get("Program"), str):
-            targets.append(pl["Program"])
+            argv.append(pl["Program"])
         pa = pl.get("ProgramArguments")
         if isinstance(pa, list):
-            targets.extend([a for a in pa if isinstance(a, str)])
+            argv.extend([a for a in pa if isinstance(a, str)])
+        if argv:
+            cmdline = " ".join(shlex.quote(a) for a in argv)
+            aocc, arefs = parse_inline(cmdline)
+            for sig, snippet in aocc:
+                emit(f"{source_key}:{label}", sig, f"{name} argv  {snippet}")
+            for aref in arefs:
+                if os.path.isabs(aref) and os.path.isfile(aref):
+                    scan_closure(source_key, label, aref, os.path.dirname(aref))
+
+        targets = list(argv)
         for t in targets:
             if not t.startswith("/"):
                 continue
