@@ -1,20 +1,20 @@
-[baseline] 109 passed, 10 warnings in 2.13s
-[eq-only         ] RED  ✅  15 failed, 79 passed, 10 warnings in 2.32s
-[always-true     ] RED  ✅  27 failed, 67 passed, 10 warnings in 1.93s
-[mem-eq-only     ] RED  ✅  1 failed, 7 passed, 10 warnings in 0.37s
-[mem-always      ] RED  ✅  2 failed, 6 passed, 10 warnings in 0.41s
-[no-fail-closed  ] RED  ✅  3 failed, 83 passed, 10 warnings in 2.16s
-[no-shape-check  ] RED  ✅  6 failed, 31 passed, 10 warnings in 0.37s
-[alias-c         ] RED  ✅  3 failed, 46 passed, 10 warnings in 2.37s
-[alias-r         ] RED  ✅  4 failed, 45 passed, 10 warnings in 2.15s
-[alias-n         ] RED  ✅  3 failed, 46 passed, 10 warnings in 1.76s
-[alias-cn        ] RED  ✅  1 failed, 48 passed, 10 warnings in 1.62s
-[alias-e         ] RED  ✅  1 failed, 48 passed, 10 warnings in 1.95s
-[alias-neighbor  ] RED  ✅  1 failed, 48 passed, 10 warnings in 2.22s
-[no-collision-check] RED  ✅  1 failed, 14 passed, 10 warnings in 0.37s
-[json-review-unscoped] RED  ✅  1 failed, 14 passed, 10 warnings in 0.36s
-[json-concept-id-unscoped] RED  ✅  1 failed, 14 passed, 10 warnings in 0.36s
+[baseline] 109 passed, 10 warnings in 2.08s
+[eq-only         ] RED  ✅  15 failed, 79 passed, 10 warnings in 1.70s
+[always-true     ] RED  ✅  28 failed, 66 passed, 10 warnings in 2.45s
+[mem-eq-only     ] RED  ✅  1 failed, 7 passed, 10 warnings in 0.39s
+[mem-always      ] RED  ✅  2 failed, 6 passed, 10 warnings in 0.39s
+[no-fail-closed  ] RED  ✅  3 failed, 83 passed, 10 warnings in 2.26s
+[no-shape-check  ] RED  ✅  6 failed, 31 passed, 10 warnings in 0.41s
+[alias-c         ] RED  ✅  3 failed, 46 passed, 10 warnings in 2.05s
+[alias-r         ] RED  ✅  4 failed, 45 passed, 10 warnings in 2.09s
+[alias-n         ] RED  ✅  3 failed, 46 passed, 10 warnings in 2.12s
+[alias-cn        ] RED  ✅  1 failed, 48 passed, 10 warnings in 1.60s
+[alias-e         ] RED  ✅  1 failed, 48 passed, 10 warnings in 1.50s
+[alias-neighbor  ] RED  ✅  1 failed, 48 passed, 10 warnings in 1.73s
+[no-collision-check] RED  ✅  1 failed, 14 passed, 10 warnings in 0.36s
+[json-review-unscoped] RED  ✅  1 failed, 14 passed, 10 warnings in 0.38s
+[json-concept-id-unscoped] RED  ✅  1 failed, 14 passed, 10 warnings in 0.40s
 [ctxvar-treated-as-derived] RED  ✅  1 failed, 14 passed, 10 warnings in 0.36s
-[json-score-unscoped] RED  ✅  1 failed, 14 passed, 10 warnings in 0.36s
+[json-score-unscoped] RED  ✅  1 failed, 14 passed, 10 warnings in 0.35s
 
 结果: 17/17 变异被杀 (门能红)

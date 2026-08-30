@@ -108,9 +108,9 @@
 | `..._contract_fragment_recall_and_isolation` | 保召回 + 零泄漏 + 防误配 |
 | `..._canvas_scope_still_isolates_sibling_board` | 保隔离（helper 层） |
 | `..._canvas_scope_via_production_methods` | 保隔离（**生产方法**层，M-1 整改） |
-| `..._review_suggestions_recall_from_subgroups` | **用户可感**：真实 `get_review_suggestions` 必须看得到 punycode 子组 |
-| `..._review_suggestions_zero_cross_vault_leak` | B/`_ab` 0 条 + 反向 B 只见 B |
-| `..._learning_history_recall_and_isolation` | 同语义 |
+| `..._review_suggestions_recall_and_isolation_in_one_read` | **用户可感 + 卡文 (c) 的"同时"**：真实 `get_review_suggestions` 读**一次**，对**同一个结果集**断言 `got == _A_SCOPE_EXPECTED` —— 一次蕴含 (i) A 的 root/canvas/semantic/punycode 全在，(ii) B 不在，(iii) 近似前缀 vault 不在 |
+| `..._review_suggestions_zero_cross_vault_leak` | 补充：反向 B 作用域只见 B |
+| `..._learning_history_recall_and_isolation` | 同口径，同样对同一结果集断言精确相等 |
 | `..._score_history_scoped_read` | 同 node id + 同 canvas path 两 vault 各写一份，各读各的 |
 | `..._score_history_fail_closed_on_unresolved_group` | 显式空白串 **+ 生产默认 `None` 无 ContextVar 无 active vault**（H-2 整改） |
 | `..._inheritance_neighbors_are_vault_scoped` | 邻居查询 A/B 各见各的 |
@@ -122,6 +122,16 @@
 | `..._review_suggestions_per_alias` / `..._learning_history_per_alias` | `c` / `r` 各错一次 + 全 A 正向对照 |
 | `..._score_history_per_alias` | `n` / `c` / `cn` / `e` / `r` 五个各错一次 + 正向对照 |
 | `..._inheritance_per_alias_negative` | 异组 `neighbor` / 异组 `r` / **NULL `r`**（B-1 直接回归锁）+ 正向对照 |
+
+**"同时"的落实（Stop hook 质询后强化）**：卡文 (c) 要求"**同时**断言子组可见 + 他库 0 条"。初版的生产方法门把召回与泄漏拆成**两次独立读**各证一半——那只证明了"某次读能看到 A"和"某次读看不到 B"，没证明"**这一次**读既完整又干净"。现改为对同一结果集断言**精确集合相等**（严格强于"超集 + 不含"）。契约片段门 `..._contract_fragment_recall_and_isolation` 本就是一次读三面同断。
+
+**可核验的活体读数**（`evidence-g41a/prove_condition_c.py`，输出 `condition-c-live-readout.txt`）：在 7692 铺 A 根组 / A canvas 子组 / A semantic 影子组 / A punycode 子组 / B 根组 / 近似前缀 vault 六组数据，用**生产方法** `get_review_suggestions` 以 A 根组读一次，逐条打印返回与未返回：
+
+```
+✅ 返回  A 根组 / A canvas 子组 / A semantic 影子组 / A punycode 子组
+⛔ 未返回 B 根组 / 近似前缀 vault
+保召回 PASS(缺 []) · 零泄漏 PASS(多 []) · 同一个结果集同时成立 PASS
+```
 
 **fixture 假绿防线**：`g41a_seed` / `g41a_alias_seed` 均依赖 function-scoped `gate_client`（它每次 setup/teardown 都跑 `_CLEANUP_QUERIES`，模块级 seed 会被第二个用例清掉、之后所有"看不到 B"都对着空库假绿）；seed 末尾自证条数落库。
 

@@ -921,20 +921,45 @@ async def test_g41a_canvas_scope_still_isolates_sibling_board(gate_client, g41a_
 # ── 6.2 真实生产读路径 (Neo4jClient 方法) ────────────────────────────────
 
 
-async def test_g41a_review_suggestions_recall_from_subgroups(gate_client, g41a_seed):
-    """用户可感门: vault 根组读"复习建议"必须看得到子组里的概念。
+async def test_g41a_review_suggestions_recall_and_isolation_in_one_read(
+    gate_client, g41a_seed
+):
+    """用户可感门: vault 根组读"复习建议"必须**在同一个结果集里**同时满足
+    保召回与零泄漏。
 
-    这正是卡文 §二 点名的现网风险 —— 存量 Concept/LEARNED 全在 punycode
-    子组, 等值过滤会让这个接口整页空。
+    卡文 (c) 的措辞是"**同时**断言子组可见 + 他库 0 条"。拆成两次独立读、
+    各证一半是不够的 —— 那样只证明了"某次读能看到 A"和"某次读看不到 B",
+    没证明"**这一次**读既完整又干净"。所以这里断言**精确集合相等**:
+    它一次性蕴含 (i) A 的 root/canvas/semantic/punycode 子组全部在内,
+    (ii) B vault 不在内, (iii) 近似前缀 vault `_ab` 不在内。
+
+    现网风险背景: 存量 Concept/LEARNED 全在 punycode 子组, 等值过滤会让
+    这个接口整页空。
     """
     rows = await gate_client.get_review_suggestions(
         user_id=G41A_USER, limit=50, group_id=GID_A_LOGICAL
     )
     got = _names(rows)
-    assert f"{GATE_PREFIX}_g41a_a_puny" in got, (
-        "保召回门红: punycode 白板子组的待复习概念看不见 = 复习建议变空"
+
+    # 一次断言同时覆盖三面 (缺失 / 多出 均会被 == 抓到)
+    assert got == _A_SCOPE_EXPECTED, (
+        f"缺失(保召回红): {sorted(_A_SCOPE_EXPECTED - got)}; "
+        f"多出(零泄漏红): {sorted(got - _A_SCOPE_EXPECTED)}"
     )
-    assert _A_SCOPE_EXPECTED <= got, f"A vault 子组缺失: {_A_SCOPE_EXPECTED - got}"
+    # 冗余但可读: 点名三类子组各自在内, 门红时能一眼看出是哪类丢了
+    for kind, name in (
+        ("punycode 中文白板子组", f"{GATE_PREFIX}_g41a_a_puny"),
+        ("canvas 子组", f"{GATE_PREFIX}_g41a_a_brdx"),
+        ("semantic 影子组", f"{GATE_PREFIX}_g41a_a_sem"),
+        ("vault 根组", f"{GATE_PREFIX}_g41a_a_root"),
+    ):
+        assert name in got, f"保召回门红: {kind} 的待复习概念看不见"
+    # 冗余但可读: 点名他库两类各自不在内
+    for kind, name in (
+        ("B vault", f"{GATE_PREFIX}_g41a_b_root"),
+        ("近似前缀 vault (vault__x 不得吃掉 vault__xy)", f"{GATE_PREFIX}_g41a_ab_root"),
+    ):
+        assert name not in got, f"零泄漏门红: 读到了 {kind}"
 
 
 async def test_g41a_review_suggestions_zero_cross_vault_leak(gate_client, g41a_seed):
@@ -954,12 +979,20 @@ async def test_g41a_review_suggestions_zero_cross_vault_leak(gate_client, g41a_s
 
 
 async def test_g41a_learning_history_recall_and_isolation(gate_client, g41a_seed):
-    """get_learning_history 同一套语义 (r + c 双 alias 过滤)。"""
+    """get_learning_history 同一套语义 (r + c 双 alias 过滤)。
+
+    与 review 门同口径: 对**同一个结果集**断言精确集合相等 —— 一次性蕴含
+    "A 的四类组全在内"与"B / 近似前缀 vault 一条不在内"。
+    """
     rows = await gate_client.get_learning_history(
         user_id=G41A_USER, group_id=GID_A_LOGICAL, limit=100
     )
     got = _names(rows)
-    assert _A_SCOPE_EXPECTED <= got, f"A vault 子组缺失: {_A_SCOPE_EXPECTED - got}"
+    assert got == _A_SCOPE_EXPECTED, (
+        f"缺失(保召回红): {sorted(_A_SCOPE_EXPECTED - got)}; "
+        f"多出(零泄漏红): {sorted(got - _A_SCOPE_EXPECTED)}"
+    )
+    assert f"{GATE_PREFIX}_g41a_a_puny" in got, "punycode 子组的学习历史看不见"
     assert f"{GATE_PREFIX}_g41a_b_root" not in got
     assert f"{GATE_PREFIX}_g41a_ab_root" not in got
 
