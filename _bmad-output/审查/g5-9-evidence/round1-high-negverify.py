@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import shutil
 import subprocess
 import sys
@@ -505,26 +506,137 @@ VARIANTS: list[tuple[str, str, list[tuple[str, str]], str]] = [
         "test_rollback_reports_absent_when_target_vanished_before_readback",
     ),
     (
-        "AG",
-        "round-8 HIGH-2 矩阵门①②: 首次撤销把 deleted_unsynced 误当无需说明",
+        "M1-deleted",
+        "矩阵①×deleted: 弱化首次撤销对该状态的分派",
         [
             (
-                '                    rollback_note = rb_err if rb_state == "deleted_unsynced" else None',
-                "                    rollback_note = None",
+                '                    rollback_note = rb_err if rb_state == "deleted_unsynced" else None\n                    rollback_deleted = rb_state == "deleted_unsynced"',
+                '                    rollback_note = "SPURIOUS"\n                    rollback_deleted = False',
             )
         ],
-        "test_matrix_callsite1_2_consumes_each_state",
+        "test_matrix_callsite1_2_consumes_each_state[deleted-cs1]",
     ),
     (
-        "AH",
-        "round-8 HIGH-2 矩阵门③: 目录移出分支的 absent 文案错用 deleted 文案",
+        "M1-absent",
+        "矩阵①×absent: 弱化首次撤销对该状态的分派",
+        [
+            (
+                '                    rollback_note = rb_err if rb_state == "deleted_unsynced" else None\n                    rollback_deleted = rb_state == "deleted_unsynced"',
+                '                    rollback_note = "SPURIOUS"\n                    rollback_deleted = False',
+            )
+        ],
+        "test_matrix_callsite1_2_consumes_each_state[absent-cs1]",
+    ),
+    (
+        "M1-deleted_unsynced",
+        "矩阵①×deleted_unsynced: 弱化首次撤销对该状态的分派",
+        [
+            (
+                '                    rollback_note = rb_err if rb_state == "deleted_unsynced" else None\n                    rollback_deleted = rb_state == "deleted_unsynced"',
+                "                    rollback_note = None\n                    rollback_deleted = False",
+            )
+        ],
+        "test_matrix_callsite1_2_consumes_each_state[deleted_unsynced-cs1]",
+    ),
+    (
+        "M1-kept",
+        "矩阵(1)x kept: 锁「kept 必然进入二次撤销」—— 该格无独立出口, 见处置表",
+        [
+            (
+                '                if rb_state in ("deleted", "absent", "deleted_unsynced"):\n'
+                "                    published = False",
+                "                if True:\n                    published = False",
+            )
+        ],
+        "test_matrix_callsite1_kept_always_falls_through_to_second_rollback",
+    ),
+    (
+        "M2-deleted",
+        "矩阵②×deleted: 弱化二次撤销对该状态的分派",
+        [
+            (
+                "                rollback_note, rollback_deleted = None, False",
+                '                rollback_note, rollback_deleted = "SPURIOUS", False',
+            )
+        ],
+        "test_matrix_callsite1_2_consumes_each_state[deleted-cs2]",
+    ),
+    (
+        "M2-absent",
+        "矩阵②×absent: 弱化二次撤销对该状态的分派",
+        [
+            (
+                "                rollback_note, rollback_deleted = None, False",
+                '                rollback_note, rollback_deleted = "SPURIOUS", False',
+            )
+        ],
+        "test_matrix_callsite1_2_consumes_each_state[absent-cs2]",
+    ),
+    (
+        "M2-deleted_unsynced",
+        "矩阵②×deleted_unsynced: 弱化二次撤销对该状态的分派",
+        [
+            (
+                "                rollback_note, rollback_deleted = rb_err2, True  # 已删但未确认",
+                "                rollback_note, rollback_deleted = rb_err2, False",
+            )
+        ],
+        "test_matrix_callsite1_2_consumes_each_state[deleted_unsynced-cs2]",
+    ),
+    (
+        "M2-kept",
+        "矩阵②×kept: 弱化二次撤销对该状态的分派",
+        [
+            (
+                '                rollback_note = rb_err2 or "判据不符, 已保留(未删除)"',
+                "                rollback_note = None",
+            )
+        ],
+        "test_matrix_callsite1_2_consumes_each_state[kept-cs2]",
+    ),
+    (
+        "M3-deleted",
+        "矩阵③×deleted: 弱化目录移出分支对该状态的文案",
+        [
+            (
+                '                    "deleted": " (已撤销该文件)",',
+                '                    "deleted": " (X)",',
+            )
+        ],
+        "test_matrix_callsite3_consumes_each_state[cs3-deleted]",
+    ),
+    (
+        "M3-absent",
+        "矩阵③×absent: 弱化目录移出分支对该状态的文案",
         [
             (
                 '                    "absent": " (该文件已不存在)",',
-                '                    "absent": " (已撤销该文件)",',
+                '                    "absent": " (X)",',
             )
         ],
-        "test_matrix_callsite3_consumes_each_state",
+        "test_matrix_callsite3_consumes_each_state[cs3-absent]",
+    ),
+    (
+        "M3-deleted_unsynced",
+        "矩阵③×deleted_unsynced: 弱化目录移出分支对该状态的文案",
+        [
+            (
+                '                        "崩溃后目标可能重现, 请复查该路径)"',
+                '                        ")"',
+            )
+        ],
+        "test_matrix_callsite3_consumes_each_state[cs3-deleted_unsynced]",
+    ),
+    (
+        "M3-kept",
+        "矩阵③×kept: 弱化目录移出分支对该状态的文案",
+        [
+            (
+                "                    f\" (⚠️ {rb_err or '判据不符, 故意未删, 目标仍在'}, 请手动检查该路径)\",",
+                '                    " (X)",',
+            )
+        ],
+        "test_matrix_callsite3_consumes_each_state[cs3-kept]",
     ),
 ]
 
@@ -532,7 +644,13 @@ VARIANTS: list[tuple[str, str, list[tuple[str, str]], str]] = [
 # ⛔ 独立冻结的变体名集合(round-8 HIGH-3) —— **不得由 VARIANTS 推导**,
 # 否则误删变体时两边一起变、自检恒真。改动变体清单时必须手工同步这里。
 EXPECTED_NAMES: frozenset[str] = frozenset(
-    "A B C D E F G H I J K L M N O P Q R S T U V W X Y Z AA AB AC AD AE AF AG AH".split()
+    (
+        "A B C D E F G H I J K L M N O P Q R S T U V W X Y Z AA AB AC AD AE AF "
+        # 12 格逐格归因矩阵(round-9 条件2): 调用点①②③ × 四态, 每格独立 selector
+        "M1-deleted M1-absent M1-deleted_unsynced M1-kept "
+        "M2-deleted M2-absent M2-deleted_unsynced M2-kept "
+        "M3-deleted M3-absent M3-deleted_unsynced M3-kept"
+    ).split()
 )
 
 
@@ -597,10 +715,31 @@ def main() -> int:
         try:
             rc, line = run_pytest(selector)
             executed_names.append(name)  # ⚠️ 只有 pytest **真的跑过**才记名
-            if rc != 0:
+            # ⛔ round-9 条件3: 原判据是 `rc != 0` —— 但 pytest 的 **rc=5 表示
+            # 「没有收集到任何测试」**。反例(复核者实测):
+            #   run_pytest("__matches_nothing__") → (5, "96 deselected")
+            # 一个匹配不到任何测试的 selector 会被判成「如期变红」。
+            # 这与「否定断言恒真」是同一类错: **把「没有发生」当成了「验证通过」**。
+            #
+            # ⚠️ 第一版修法用 "deselected" 字样判零命中 —— 但正常单选场景的输出
+            # 也是 "1 passed, 95 deselected", 于是把正常执行误判成零命中。
+            # ⇒ 判据必须看**是否真有测试被执行**: rc==5 或输出里 passed/failed 全为 0。
+            m_pass = re.search(r"(\d+) passed", line)
+            m_fail = re.search(r"(\d+) failed", line)
+            n_pass = int(m_pass.group(1)) if m_pass else 0
+            n_fail = int(m_fail.group(1)) if m_fail else 0
+            if rc == 5 or (n_pass + n_fail) == 0:
+                print(
+                    f"  ❌ selector 零命中(rc={rc}, 0 个测试被执行) —— 不能算变红 | {line}"
+                )
+                ok = False
+            elif rc == 1 and n_fail > 0:
                 print(f"  ✅ 如期变红 | {line}")
-            else:
+            elif rc == 0:
                 print(f"  ❌ 弱化实现后仍全绿 = 该门非承重 | {line}")
+                ok = False
+            else:
+                print(f"  ❌ 非预期退出码 rc={rc} | {line}")
                 ok = False
         finally:
             shutil.copy2(BACKUP, SRC)

@@ -2035,41 +2035,64 @@ def _atomic_write_with_stubbed_rollback(mod, tmp_path, state, note, *, outer=Fal
     return err, target.exists()
 
 
-@pytest.mark.parametrize("outer", [False, True], ids=["callsite1_first", "callsite2_outer"])
+@pytest.mark.parametrize("outer", [False, True], ids=["cs1", "cs2"])
 @pytest.mark.parametrize(
-    "state,note,must_have,must_not_have",
+    "state,note,expected_suffix",
     [
-        ("deleted", None, None, "仍在"),
-        ("absent", None, None, "仍在"),
-        ("deleted_unsynced", "目录项持久化未确认 X", "已撤销该文件", "仍在 vault 里"),
-        ("kept", "判据不符, 目标仍在", "请手动检查", None),
+        # ⚠️ 这里必须用**正向断言**（断言完整形态），不能用 `X not in err`。
+        # 第一版写的是 must_not_have="仍在" —— 但 deleted/absent 状态下
+        # rollback_note 本就是 None、后缀**根本不拼**，输出里天然没有「仍在」
+        # ⇒ 否定断言恒真、门不承重。这与 round-7 那道门返工三版是同一个坑，
+        # 我在不同位置犯了第二次 ⇒ **「用否定断言写门」这个习惯本身有问题**。
+        ("deleted", None, ""),  # 已删且已确认 ⇒ 无任何撤销后缀
+        ("absent", None, ""),  # 本就不存在 ⇒ 无任何撤销后缀
+        (
+            "deleted_unsynced",
+            "目录项持久化未确认 X",
+            " (⚠️ 已撤销该文件, 但目录项持久化未确认 X; 崩溃后目标可能重现, 请复查该路径)",
+        ),
+        (
+            "kept",
+            "判据不符, 目标仍在",
+            " (⚠️ 判据不符, 目标仍在, 请手动检查该路径)",
+        ),
     ],
     ids=["deleted", "absent", "deleted_unsynced", "kept"],
 )
-def test_matrix_callsite1_2_consumes_each_state(tmp_path, outer, state, note, must_have, must_not_have):
-    """12 格矩阵的 ①②（8 格）：每格只固定一个状态，断言该调用点的回执措辞
-    与该状态**相符**，且不出现与事实相反的表述。"""
+def test_matrix_callsite1_2_consumes_each_state(tmp_path, outer, state, note, expected_suffix):
+    """12 格矩阵的 ①②（8 格）：每格只固定一个状态，断言该调用点的回执
+    **恰好**是该状态应有的完整形态——正向断言才能让两种实现产生可区分的输出。"""
     mod = _load_module()
     err, _ = _atomic_write_with_stubbed_rollback(mod, tmp_path, state, note, outer=outer)
-    assert err is not None, f"({'②' if outer else '①'}, {state}) 未产生结构化回执"
-    if must_have:
-        assert must_have in err, f"({'②' if outer else '①'}, {state}) 缺 {must_have!r}: {err}"
-    if must_not_have:
-        assert must_not_have not in err, f"({'②' if outer else '①'}, {state}) 出现与事实相反的 {must_not_have!r}: {err}"
+    cs = "②" if outer else "①"
+    assert err is not None, f"({cs}, {state}) 未产生结构化回执"
+    base = "原子写失败: OSError"
+    assert err == base + expected_suffix, (
+        f"({cs}, {state}) 回执与该状态应有形态不符\n  实际: {err!r}\n  期望: {base + expected_suffix!r}"
+    )
 
 
 @pytest.mark.parametrize(
-    "state,note,must_have",
+    "state,note,expected_tail",
     [
-        ("deleted", None, "已撤销该文件"),
-        ("absent", None, "该文件已不存在"),
-        ("deleted_unsynced", "目录项持久化未确认 X", "崩溃后目标可能重现"),
-        ("kept", "撤销结果未确认 (unlink 失败 PermissionError), 目标可能仍在", "未确认"),
+        # 同 (1)(2)：正向断言完整尾串，不用 `in`（弱化文案后仍可能碰巧包含子串）。
+        ("deleted", None, " (已撤销该文件)"),
+        ("absent", None, " (该文件已不存在)"),
+        (
+            "deleted_unsynced",
+            "目录项持久化未确认 X",
+            " (已撤销该文件, 但目录项持久化未确认 X; 崩溃后目标可能重现, 请复查该路径)",
+        ),
+        (
+            "kept",
+            "撤销结果未确认 (unlink 失败 PermissionError), 目标可能仍在",
+            " (⚠️ 撤销结果未确认 (unlink 失败 PermissionError), 目标可能仍在, 请手动检查该路径)",
+        ),
     ],
-    ids=["deleted", "absent", "deleted_unsynced", "kept"],
+    ids=["cs3-deleted", "cs3-absent", "cs3-deleted_unsynced", "cs3-kept"],
 )
-def test_matrix_callsite3_consumes_each_state(tmp_path, capsys, state, note, must_have):
-    """12 格矩阵的 ③（4 格）：目录移出后的撤销，逐状态断言文案与事实相符。"""
+def test_matrix_callsite3_consumes_each_state(tmp_path, capsys, state, note, expected_tail):
+    """12 格矩阵的第三调用点（4 格）：目录移出后的撤销，逐状态**正向**断言文案尾串。"""
     vault = build_vault(tmp_path)
     sha = do_preview(vault, ["板一"])["content_sha256"]
     exam = vault / EXAM_DIR_NAME
@@ -2099,5 +2122,57 @@ def test_matrix_callsite3_consumes_each_state(tmp_path, capsys, state, note, mus
     finally:
         mod._atomic_write, mod._rollback_published = real_atomic, real_rb
     out = capsys.readouterr().out
-    assert rc == 2, f"(③, {state}) 目录移出却未拒绝: {out}"
-    assert must_have in out, f"(③, {state}) 缺 {must_have!r}: {out}"
+    assert rc == 2, f"(cs3, {state}) 目录移出却未拒绝: {out}"
+    payload = json.loads(out)
+    assert payload["error"].endswith(expected_tail), (
+        f"(cs3, {state}) 文案尾串不符\n  实际: {payload['error']!r}\n  期望以此结尾: {expected_tail!r}"
+    )
+
+
+def test_matrix_callsite1_kept_always_falls_through_to_second_rollback(tmp_path):
+    """12 格矩阵的 (1)x kept —— **这一格在实现上没有独立出口**，故单独立门说明。
+
+    `kept` 状态下首次撤销**不清 `published`**，于是外层 `if published:` 成立、
+    二次撤销再跑一遍并**覆盖** `rollback_note`。所以「cs1 x kept」的最终回执
+    实际由第二调用点决定，弱化第一调用点那一行不会改变输出。
+
+    ⇒ 复核者要求「12 格逐格归因」时隐含假设每格都有独立出口，而这一格没有。
+    诚实的做法是**锁住这个结构性事实本身**，而不是硬造变体去凑满 12 格：
+    只要 `kept` 仍会落到二次撤销，撤销就一定被重试过一次——这正是我们要保证的行为
+    （第一次拒删不等于放弃，必须再试）。
+    """
+    mod = _load_module()
+    calls = {"n": 0}
+    real_rb = mod._rollback_published
+
+    def counting_rb(*a, **kw):
+        calls["n"] += 1
+        return "kept", "判据不符, 目标仍在"
+
+    mod._rollback_published = counting_rb
+    try:
+        _atomic_write_with_stubbed_rollback  # noqa: B018 —— 复用同一驱动器
+        d = tmp_path / "d-kept-fallthrough"
+        d.mkdir()
+        tmp_p, target = d / "t.tmp", d / "t.md"
+        dfd = mod.os.open(d, mod.os.O_RDONLY | mod.os.O_DIRECTORY)
+        real_link, real_open = mod.os.link, mod.os.open
+
+        def evil_link(src, dst, **kw):
+            real_link(src, dst, **kw)
+            fd = real_open(target, mod.os.O_WRONLY | mod.os.O_TRUNC)
+            try:
+                mod.os.write(fd, b"MISMATCH\n")
+            finally:
+                mod.os.close(fd)
+
+        mod.os.link = evil_link
+        try:
+            err, _warn = mod._atomic_write(tmp_p, target, "USER-CONFIRMED\n", dfd)
+        finally:
+            mod.os.link = real_link
+            mod.os.close(dfd)
+    finally:
+        mod._rollback_published = real_rb
+    assert calls["n"] == 2, f"kept 状态下撤销应被重试恰好 2 次（首次 + 外层），实际 {calls['n']} 次"
+    assert err is not None
