@@ -38,7 +38,9 @@ CARD-G6-4 (同批) 节点级明细: 板行之下加一行 details/summary 折叠
 
 from __future__ import annotations
 
+import hashlib
 import html
+import ipaddress
 import json
 import math
 import os
@@ -857,7 +859,15 @@ def _vault_entry(vault_dir: Path, today: date) -> dict:
 
 def _collect() -> dict:
     s = get_settings()
-    vaults_root = Path(s.VAULTS_ROOT).resolve()
+    try:
+        vaults_root = Path(s.VAULTS_ROOT).resolve()
+    except OSError as e:
+        # 防御深度 (Codex round-3 提出; 本平台未复现 resolve 抛错, 如实登记):
+        # 本端点的全部错误路径都该是 503, 不许有一条能逃逸成 500
+        raise HTTPException(
+            status_code=503,
+            detail={"error": "vaults_root_invalid", "message": f"{type(e).__name__}: {str(e)[:200]}"},
+        )
     if not vaults_root.is_dir():
         raise HTTPException(
             status_code=500,
@@ -1250,10 +1260,16 @@ def _child_env() -> dict[str, str]:
 
 def _run_pick(script: Path, vault_dir: Path) -> subprocess.CompletedProcess:
     """跑 `python <script> --vault <vault> --write` (写面只有 outputs/今日复习.*)。"""
+    # stdout 丢弃 (Codex round-3): 生产器会把整份 payload 打到 stdout —— 大库
+    # 里那是几 MB 的无用副本, 我们只从盘上读产物。errors="replace": 子进程
+    # 若吐出非法字节, 严格解码会抛 UnicodeDecodeError 逃逸成 500, 而这里的
+    # 全部错误路径都该是 503。
     return subprocess.run(  # noqa: S603 — argv 列表 + 服务端自解析路径, 无 shell
         [sys.executable, str(script), "--vault", str(vault_dir), "--write"],
-        capture_output=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
         text=True,
+        errors="replace",
         timeout=_REFRESH_TIMEOUT_SECONDS,
         cwd=str(script.parent),
         env=_child_env(),
@@ -1277,7 +1293,19 @@ def _pick_failure_hint(vault_dir: Path) -> str | None:
     每日复习配过), 点刷新时生产器抛 ModuleNotFoundError: decay_beta ——
     直接把 traceback 甩给用户等于没解释。
     """
-    missing = [rel for rel in _REVIEW_ENABLED_MARKERS if not (vault_dir / rel).exists()]
+    # Codex round-3: 原来用 .exists(), 一个普通文件叫「节点」或一个目录叫
+    # 「decay_beta.py」都会被判成"配置齐全"(实测确认) —— 按类型逐项判。
+    # (它同时断言 .exists() 会抛异常把 503 打成 500 —— 实测**不成立**:
+    #  Path.exists() 内部吞 OSError/ValueError, 软链自环下返回 False。这里
+    #  仍包一层 try 只是防御深度, 不宣称修掉了一个已复现的缺陷。)
+    try:
+        missing = [
+            rel
+            for rel, want_dir in (("节点", True), (".claude/scripts/decay_beta.py", False))
+            if not ((vault_dir / rel).is_dir() if want_dir else (vault_dir / rel).is_file())
+        ]
+    except OSError:
+        return None  # 提示是锦上添花, 探不出来就不提示, 绝不影响主判定
     if not missing:
         return None
     return (
@@ -1296,8 +1324,32 @@ def _refresh_key(vault_dir: Path) -> str:
     """
     try:
         return str(vault_dir.resolve())
+    except OSError as e:
+        # Codex round-3: 退回字面路径会重新把同一物理库的两条别名拆成两把锁 ——
+        # 那正是本函数要消灭的东西。解析不了就 fail-closed 拒绝重建。
+        raise HTTPException(
+            status_code=503,
+            detail={"error": "path_resolve_failed", "message": f"{type(e).__name__}: {str(e)[:200]}"},
+        )
+
+
+#: 投影产物相对路径 (生产器 --write 的全部写面)
+_PROJECTION_MD_REL = ("outputs", "今日复习.md")
+
+
+def _publish_fingerprint(path: Path) -> tuple[int, str] | None:
+    """(mtime_ns, sha256) —— 用来证明「**这一次**真的发布了产物」。
+
+    Codex round-3 HIGH: 只看"盘上有一份可消费 JSON"证不了本次重建成功 ——
+    一个 rc=0 却什么都不写的生产器, 若盘上原本就有昨天的好投影, 会被算成
+    本次重建成功。生产器发布走 os.replace(新写的 tmp), 所以每次发布必得
+    一个新的 mtime; 内容变了 sha 也变。两者都没动 = 什么都没发布。
+    """
+    try:
+        st = path.stat()
+        return (st.st_mtime_ns, hashlib.sha256(path.read_bytes()).hexdigest())
     except OSError:
-        return str(vault_dir)  # 解析不了就退回字面路径 (总比没有 key 好)
+        return None
 
 
 def _read_entry(vault_dir: Path) -> dict:
@@ -1367,6 +1419,9 @@ def _rebuild_projection(vault_dir: Path, script: Path) -> tuple[dict, dict | Non
                 "rebuild_count": _refresh_counts.get(key, 0),
             }, None
         started = time.monotonic()
+        json_path = vault_dir.joinpath(*_PROJECTION_REL)
+        md_path = vault_dir.joinpath(*_PROJECTION_MD_REL)
+        before_fp = _publish_fingerprint(json_path)
         try:
             proc = _run_pick(script, vault_dir)
         except subprocess.TimeoutExpired:
@@ -1395,13 +1450,18 @@ def _rebuild_projection(vault_dir: Path, script: Path) -> tuple[dict, dict | Non
                 detail["hint"] = hint
             raise HTTPException(status_code=503, detail=detail)
         elapsed_ms = round((time.monotonic() - started) * 1000, 1)
-        # rc=0 还不算重建成功 (Codex round-1 HIGH-1): 一个退出码为 0 却没落盘
-        # 的生产器会让 rebuilt=true 与"盘上根本没有投影"并存, 表单路径再一
-        # 303 跳回总览页, 用户看到的就是"点了、跳回来了、什么都没变"——
-        # 静默假成功的完整形态。**读回来确认产物真的可用, 才算数**;
-        # 不可用时也不提交 TTL mark, 否则用户修好前的每次点击都被去抖吃掉。
-        entry = _read_entry(vault_dir)
-        if entry["status"] == "no_projection":
+        # rc=0 还不算重建成功 (Codex round-1 HIGH-1 + round-3 收紧)。
+        # 两道独立的证明, 缺一不可:
+        #   ① **发布证明** —— json 的 (mtime_ns, sha256) 相对本次调用前必须变过,
+        #      且 md 必须在位。只查"盘上有一份可消费 JSON"证不了本次重建成功:
+        #      一个 rc=0 却什么都不写的生产器, 在盘上原本就有昨天好投影的库上
+        #      会被算成成功 (round-3 实证)。生产器发布走 os.replace(新写的 tmp),
+        #      每次发布必得新 mtime, 所以"两者都没动"= 什么都没发布。
+        #   ② **可消费证明** —— 读回来必须过 schema v3 门禁。
+        # 任一不成立都不提交 TTL mark / 计数 —— 否则用户修好之前的每次点击
+        # 都被去抖吃掉, 永远修不回来。
+        after_fp = _publish_fingerprint(json_path)
+        if after_fp is None:
             raise HTTPException(
                 status_code=503,
                 detail={
@@ -1410,6 +1470,25 @@ def _rebuild_projection(vault_dir: Path, script: Path) -> tuple[dict, dict | Non
                     "stderr_tail": (proc.stderr or "")[-400:],
                 },
             )
+        if after_fp == before_fp:
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "error": "projection_not_republished",
+                    "message": "生产器退出码为 0, 但 outputs/今日复习.json 与调用前逐字节且同 mtime — 本次什么都没发布",
+                    "stderr_tail": (proc.stderr or "")[-400:],
+                },
+            )
+        if not md_path.is_file():
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "error": "projection_md_missing",
+                    "message": "生产器退出码为 0, 但 outputs/今日复习.md 不在位 — 产物不成对, 未视为重建成功",
+                    "stderr_tail": (proc.stderr or "")[-400:],
+                },
+            )
+        entry = _read_entry(vault_dir)
         if entry["status"] == "corrupt":
             raise HTTPException(
                 status_code=503,
@@ -1520,6 +1599,16 @@ def _refresh_target(vault_id: str) -> tuple[Path, Path]:
     return match, _resolve_pick_script(vaults_root)
 
 
+#: 额外放行的 Host (逗号分隔) —— 默认只放行 localhost 与 IP 字面量;
+#: 需要按主机名访问 (Tailscale MagicDNS / mDNS 名) 时由部署方显式列出
+_ALLOWED_HOSTS_ENV = "REVIEW_REFRESH_ALLOWED_HOSTS"
+
+
+def _extra_allowed_hosts() -> frozenset[str]:
+    raw = os.environ.get(_ALLOWED_HOSTS_ENV, "")
+    return frozenset(h.strip() for h in raw.split(",") if h.strip())
+
+
 def _assert_same_origin(request: Request) -> None:
     """状态变更请求的同源门 (纯 HTML 表单可用, 零 JS)。
 
@@ -1538,6 +1627,26 @@ def _assert_same_origin(request: Request) -> None:
     ⚠ 这不是鉴权: 同机的任意进程仍能直接调它 (全站皆然)。堵住的是"用户
     浏览器被别的网页当枪使"这一条, 不是"本机进程越权"。
     """
+    # Codex round-3: 期望 Origin 是拿请求自身的 Host 拼的 —— DNS rebinding 下
+    # 攻击者的域名解析到 127.0.0.1, 于是 Host / Origin / Sec-Fetch-Site 三者
+    # 会同时"合法", 整道门被绕过。rebinding 必须依赖**域名**(IP 字面量没法
+    # 重新解析), 所以只放行 localhost 与 IP 字面量, 就把这条路堵死;
+    # 用手机按局域网 IP 打开页面 (192.168.x.x:8011) 照常可用。
+    host = request.url.hostname or ""
+    if host != "localhost" and host not in _extra_allowed_hosts():
+        try:
+            ipaddress.ip_address(host)
+        except ValueError:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "host_not_allowed",
+                    "message": (
+                        f"只接受 localhost 或 IP 字面量访问 (实为 Host: {host}) — 防 DNS rebinding。"
+                        f"确需按主机名访问时, 用环境变量 {_ALLOWED_HOSTS_ENV} 逗号分隔列出"
+                    ),
+                },
+            )
     site = request.headers.get("sec-fetch-site")
     if site is not None and site not in ("same-origin", "none"):
         raise HTTPException(
@@ -1556,6 +1665,23 @@ def _assert_same_origin(request: Request) -> None:
                 "message": f"跨站请求被拒 (Origin: {origin}) — 刷新只接受本页发起的提交",
             },
         )
+
+
+def _notice_page_html(title: str, body: str, back: str) -> str:
+    """中性提示页 (零 JS) —— 既不是成功也不是失败的那一类结果。"""
+    return (
+        '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        f"<title>{html.escape(title)}</title></head>"
+        '<body style="font-family:-apple-system,BlinkMacSystemFont,'
+        "'PingFang SC','Helvetica Neue',sans-serif;background:#f5f5f7;"
+        'margin:0;padding:24px"><div style="max-width:640px;background:#fff;border:1px solid #e5e7eb;'
+        'border-radius:12px;padding:20px 24px">'
+        f'<h1 style="font-size:20px;margin:0 0 8px">⏳ {html.escape(title)}</h1>'
+        f'<div style="font-size:14px;margin-bottom:14px">{html.escape(body)}</div>'
+        f'<a href="{html.escape(back)}" style="font-size:14px;color:#2563eb;'
+        'text-decoration:none">← 回到总览页</a></div></body></html>'
+    )
 
 
 def _error_page_html(status: int, vault_id: str, detail, back: str) -> str:
@@ -1650,6 +1776,17 @@ def review_overview_refresh(
             status_code=e.status_code,
         )
     if redirect == "page":
+        if result["reason"] == "in_progress":
+            # Codex round-3: 在飞时若照常 303 回总览页, 用户看到的与成功一模一样
+            # (页面数字没变) —— 又是一次"看起来像成功"。给一页如实的等待提示。
+            return HTMLResponse(
+                content=_notice_page_html(
+                    f"{vault_id} 正在重建中",
+                    "这个库已经有一次刷新在跑了，本次没有重复启动。等几秒回总览页看最新数字。",
+                    request.url_for("review_overview_page").path,
+                ),
+                status_code=200,
+            )
         # PRG: 303 回 GET, 浏览器刷新不会重复提交
         return RedirectResponse(url=request.url_for("review_overview_page").path, status_code=303)
     return JSONResponse(

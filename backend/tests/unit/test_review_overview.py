@@ -177,7 +177,10 @@ def overview_env(tmp_path):
         _sync_main_settings()
         from app.main import app
 
-        yield tmp_path, TestClient(app)
+        # base_url 用回环地址而非默认 testserver: refresh 端点有 Host 白名单
+        # (只放行 localhost 与 IP 字面量, 防 DNS rebinding), 默认的 testserver
+        # 是个主机名, 会被正确地挡掉
+        yield tmp_path, TestClient(app, base_url="http://127.0.0.1:8011")
     finally:
         for k, v in saved.items():
             if v is None:
@@ -1494,7 +1497,8 @@ def test_zero_exit_with_corrupt_projection_is_not_success(refresh_env, monkeypat
         "import sys, pathlib\n"
         "v = pathlib.Path(sys.argv[sys.argv.index('--vault') + 1])\n"
         "(v / 'outputs').mkdir(parents=True, exist_ok=True)\n"
-        "(v / 'outputs' / '今日复习.json').write_text('{\"schema_version\": 2}', encoding='utf-8')\n",
+        "(v / 'outputs' / '今日复习.json').write_text('{\"schema_version\": 2}', encoding='utf-8')\n"
+        "(v / 'outputs' / '今日复习.md').write_text('# 假的\\n', encoding='utf-8')\n",
         encoding="utf-8",
     )
     monkeypatch.setenv(mod._PICK_SCRIPT_ENV, str(faker))
@@ -1545,7 +1549,7 @@ def test_cross_site_form_post_is_blocked(refresh_env):
     ok = client.post(
         _REFRESH_URL,
         data={"vault_id": "vault-csrf"},
-        headers={"Sec-Fetch-Site": "same-origin", "Origin": "http://testserver"},
+        headers={"Sec-Fetch-Site": "same-origin", "Origin": "http://127.0.0.1:8011"},
     )
     assert ok.status_code == 200 and ok.json()["rebuilt"] is True
     # 不带这两个头的客户端 (curl) 照常
@@ -1630,6 +1634,19 @@ def test_unconfigured_vault_gets_human_hint_not_bare_traceback(refresh_env):
     _mk_node_vault(root, "配齐的库", {"甲": _node_md()})
     ok = client.post(_REFRESH_URL, data={"vault_id": "配齐的库"})
     assert ok.status_code == 200 and ok.json()["rebuilt"] is True
+
+    # Codex round-3: 只用 .exists() 判断时, 一个**普通文件**叫「节点」、一个
+    # **目录**叫「decay_beta.py」都会被判成"配置齐全" —— 提示消失, 用户只剩
+    # 一段 traceback。按类型逐项判才挡得住 (实测确认 .exists() 对两者都为 True)
+    weird = _mk_vault(root, "类型错位的库")
+    (weird / "节点").write_text("我是个文件不是目录", encoding="utf-8")
+    (weird / ".claude" / "scripts" / "decay_beta.py").mkdir(parents=True)
+    r = client.post(_REFRESH_URL, data={"vault_id": "类型错位的库"})
+    assert r.status_code == 503
+    d = r.json()["detail"]
+    assert d["error"] == "pick_failed"
+    assert "hint" in d, "类型错位同样是'没配好', 必须给人话提示而不是只甩 traceback"
+    assert "节点" in d["hint"] and "decay_beta.py" in d["hint"]
 
 
 def test_form_path_failure_renders_error_page_and_keeps_status(refresh_env):
@@ -2020,3 +2037,122 @@ def test_g64_narrow_viewport_structural_guarantees(overview_env):
     assert not re.search(r"(?<!max-)width:\s*\d+px", page), "(c) 不许固定 px 宽度"
     # viewport meta 在位 (缺了移动端会按 980px 虚拟视口渲染, 必横溢)
     assert 'name="viewport" content="width=device-width, initial-scale=1"' in page
+
+
+# ════════════════════════════════════════════════════════════════════
+# CARD-G6-1 round-3 整改门 (Codex 复核后加固)
+# ════════════════════════════════════════════════════════════════════
+
+
+def test_zero_exit_without_republishing_is_not_success(refresh_env, monkeypatch, tmp_path):
+    """Codex round-3 HIGH: 只查"盘上有一份可消费 JSON"证不了本次重建成功。
+
+    盘上原本就有好投影时, 一个 rc=0 却什么都不写的生产器会被算成成功。
+    发布证明 = json 的 (mtime_ns, sha256) 相对本次调用前必须变过。
+    """
+    import app.api.v1.endpoints.review_overview as mod
+
+    root, client = refresh_env
+    vault = _mk_node_vault(root, "vault-nore", {"甲": _node_md()})
+    assert client.post(_REFRESH_URL, data={"vault_id": "vault-nore"}).status_code == 200
+    good = (vault / "outputs" / "今日复习.json").read_bytes()
+
+    noop = tmp_path / "noop2.py"
+    noop.write_text("import sys\nsys.exit(0)\n", encoding="utf-8")
+    monkeypatch.setenv(mod._PICK_SCRIPT_ENV, str(noop))
+
+    resp = client.post(_REFRESH_URL, data={"vault_id": "vault-nore"})
+    assert resp.status_code == 503, "盘上有好投影也不能把'什么都没做'算成重建成功"
+    assert resp.json()["detail"]["error"] == "projection_not_republished"
+    assert (vault / "outputs" / "今日复习.json").read_bytes() == good, "失败路径不许动盘上产物"
+
+
+def test_zero_exit_with_only_json_is_not_success(refresh_env, monkeypatch, tmp_path):
+    """产物不成对 (只有 json 没有 md) 同样不算重建成功 —— md 是人读的那一份,
+    缺了它页面看着正常、Obsidian 里却没有今日复习。"""
+    import app.api.v1.endpoints.review_overview as mod
+
+    root, client = refresh_env
+    _mk_node_vault(root, "vault-jsononly", {"甲": _node_md()})
+    half = tmp_path / "half.py"
+    half.write_text(
+        "import sys, pathlib, json, datetime\n"
+        "v = pathlib.Path(sys.argv[sys.argv.index('--vault') + 1])\n"
+        "(v / 'outputs').mkdir(parents=True, exist_ok=True)\n"
+        "p = {'schema_version': 3, 'vault_id': v.name, 'top_boards': [], 'upcoming': [],\n"
+        "     'due_nodes': [], 'ineligible': {'placeholder': [], 'test_excluded': [], 'corrupt': []},\n"
+        "     'stats': {'due_nodes': 0}, 'unassigned_nodes': [], 'notification': None,\n"
+        "     'date': datetime.date.today().isoformat(),\n"
+        "     'generated_at': datetime.datetime.now().astimezone().isoformat(timespec='seconds')}\n"
+        "(v / 'outputs' / '今日复习.json').write_text(json.dumps(p, ensure_ascii=False), encoding='utf-8')\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv(mod._PICK_SCRIPT_ENV, str(half))
+
+    resp = client.post(_REFRESH_URL, data={"vault_id": "vault-jsononly"})
+    assert resp.status_code == 503
+    assert resp.json()["detail"]["error"] == "projection_md_missing"
+
+
+def test_hostname_host_is_refused_ip_and_localhost_pass(refresh_env, monkeypatch):
+    """Codex round-3: 期望 Origin 是拿请求自身 Host 拼的 —— DNS rebinding 下
+    攻击者的域名解析到本机, Host/Origin/Sec-Fetch-Site 会同时"合法", 整道
+    同源门被绕过。rebinding 必须依赖**域名**, 所以只放行 localhost 与 IP 字面量。
+    """
+    import app.api.v1.endpoints.review_overview as mod
+
+    root, client = refresh_env
+    _mk_node_vault(root, "vault-host", {"甲": _node_md()})
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    for base, ok in (
+        ("http://127.0.0.1:8011", True),
+        ("http://localhost:8011", True),
+        ("http://192.168.1.9:8011", True),  # 手机按局域网 IP 打开, 必须照常可用
+        ("http://evil.example.com", False),
+        ("http://my-mac.local:8011", False),
+    ):
+        c = TestClient(app, base_url=base)
+        r = c.post(_REFRESH_URL, data={"vault_id": "vault-host"})
+        if ok:
+            assert r.status_code == 200, f"{base} 应放行, 实为 {r.status_code} {r.text[:200]}"
+        else:
+            assert r.status_code == 403, f"{base} 应拒绝, 实为 {r.status_code}"
+            assert r.json()["detail"]["error"] == "host_not_allowed"
+
+    # IPv6 回环: TestClient 的 base_url 解析不了 "http://[::1]:8011" (httpx 限制,
+    # 非生产缺陷), 所以直接验判据本身 —— starlette 的 URL.hostname 会把方括号
+    # 脱掉给出 "::1", ip_address 认得它
+    import ipaddress as _ip
+
+    assert _ip.ip_address("::1")
+
+    # 部署方显式列出的主机名可放行 (Tailscale MagicDNS / mDNS 名的逃生口)
+    monkeypatch.setenv(mod._ALLOWED_HOSTS_ENV, "my-mac.local, another.host")
+    c = TestClient(app, base_url="http://my-mac.local:8011")
+    assert c.post(_REFRESH_URL, data={"vault_id": "vault-host"}).status_code == 200
+
+
+def test_form_path_in_progress_shows_notice_not_fake_success(refresh_env):
+    """Codex round-3: 在飞时若照常 303 回总览页, 用户看到的与成功一模一样
+    (数字没变) —— 又是一次"看起来像成功"。必须给一页如实的等待提示。"""
+    import app.api.v1.endpoints.review_overview as mod
+
+    root, client = refresh_env
+    vault = _mk_node_vault(root, "vault-prog", {"甲": _node_md()})
+    key = str(Path(root).resolve() / "vault-prog")
+    lock = threading.Lock()
+    with mod._refresh_guard:
+        mod._refresh_locks[key] = lock
+    assert lock.acquire(blocking=False)
+    try:
+        resp = client.post(_REFRESH_URL, data={"vault_id": "vault-prog", "redirect": "page"}, follow_redirects=False)
+    finally:
+        lock.release()
+
+    assert resp.status_code == 200 and resp.headers["content-type"].startswith("text/html")
+    assert "正在重建中" in resp.text and "回到总览页" in resp.text
+    assert "<script" not in resp.text.lower()
+    assert not (vault / "outputs").exists(), "在飞时第二个请求不许也去写盘"

@@ -640,8 +640,14 @@ def atomic_write(path: Path, content: str):
     落盘失败时留一个半截 tmp 在 vault 里, 同样是写面污染。
     """
     tmp = path.with_name(f"{path.name}.{os.getpid()}.{uuid.uuid4().hex[:8]}.tmp")
+    # O_EXCL | O_NOFOLLOW (CARD-G6-1 round-3): pid+随机后缀已经让撞名几乎不可能,
+    # 但"几乎"不是保证 —— O_EXCL 让撞名直接 FileExistsError 而不是两个写者
+    # 又共享同一个 tmp; O_NOFOLLOW 让"tmp 名被抢先建成一条指向库外的软链"
+    # 这条路失败而不是把内容写到库外 (普通 open 会跟随软链并 truncate)。
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
     try:
-        tmp.write_text(content, encoding="utf-8")
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(content)
         os.replace(tmp, path)
     except BaseException:
         try:

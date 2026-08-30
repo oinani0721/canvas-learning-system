@@ -9,6 +9,7 @@ why_due 6 模板 / 加性纯度金样 (pop 新字段后与引入前字面量深�
 import os
 import shutil
 import sys
+import types
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -930,33 +931,55 @@ def test_atomic_write_abandons_legacy_fixed_tmp_name(tmp_path):
     )
 
 
-def test_atomic_write_tmp_names_are_distinct_across_calls(tmp_path):
-    """同目录下两个不同 target 各自的 tmp 名互不相同, 且都以 `<原名>.` 开头
-    (与 outputs/今日复习.* 同前缀 —— 不给"只写今日复习.*"的写面审计新增
-    可见面), 以 `.tmp` 收尾 (outputs/*.md 一类 glob 不会误吃)。
+def _pin_tmp_name(monkeypatch, hex8: str = "deadbeef"):
+    """把 picker 内的 uuid 换成定值, 让 tmp 名可预测 —— 只替换 picker 模块里
+    的那个引用 (monkeypatch.setattr(picker, "uuid", ...)), 不动全局 uuid 模块。
+    返回给定 target 的确切 tmp 路径。"""
+    monkeypatch.setattr(picker, "uuid", types.SimpleNamespace(uuid4=lambda: types.SimpleNamespace(hex=hex8 + "0" * 24)))
+    return lambda target: target.with_name(f"{target.name}.{os.getpid()}.{hex8}.tmp")
 
-    观测手段: 在 write_text 落盘的一瞬间用目录快照抓 tmp 名 —— 不打桩
-    os.replace (patch 进程内共享的 os 属性会连 pathlib 内部一起拦)。
+
+def test_atomic_write_refuses_to_reuse_an_existing_tmp(tmp_path, monkeypatch):
+    """O_EXCL: tmp 名万一撞上已存在的文件, 必须直接失败, **不能**打开它接着写
+    —— 那等于两个写者又共享了同一个 tmp, 正是本改动要消灭的东西。
+    且不许把别人的那个文件删掉或截断 (它不是我们建的)。
+
+    观测手段: 把 picker 内的 uuid 钉成定值让 tmp 名可预测 —— 不打桩
+    os.replace / os.open (patch 进程内共享的 os 属性会连 pathlib 内部一起拦)。
     """
-    seen: list[str] = []
-    orig = picker.Path.write_text
+    tmp_of = _pin_tmp_name(monkeypatch)
+    target = tmp_path / "今日复习.json"
+    squatter = tmp_of(target)
+    squatter.write_text("别人的在途内容\n", encoding="utf-8")
 
-    def _spy(self, *a, **kw):
-        rc = orig(self, *a, **kw)
-        seen.extend(p.name for p in tmp_path.iterdir() if p.name.endswith(".tmp"))
-        return rc
+    with pytest.raises(FileExistsError):
+        picker.atomic_write(target, '{"schema_version": 3}\n')
 
-    picker.Path.write_text = _spy
-    try:
-        picker.atomic_write(tmp_path / "今日复习.json", "a\n")
-        picker.atomic_write(tmp_path / "今日复习.md", "b\n")
-    finally:
-        picker.Path.write_text = orig
+    assert squatter.read_text(encoding="utf-8") == "别人的在途内容\n", "不许截断/删除别人的 tmp"
+    assert not target.exists(), "失败就不该发布任何东西"
 
-    assert len(seen) == 2 and len(set(seen)) == 2, f"两次落盘的 tmp 名必须互异: {seen}"
-    assert seen[0].startswith("今日复习.json.") and seen[0].endswith(".tmp")
-    assert seen[1].startswith("今日复习.md.") and seen[1].endswith(".tmp")
-    assert str(os.getpid()) in seen[0], "tmp 名须含 pid — 跨进程并发才不撞"
+
+def test_atomic_write_does_not_follow_a_symlinked_tmp(tmp_path, monkeypatch):
+    """O_NOFOLLOW: tmp 名若被抢先建成一条指向库外的软链, 普通 open 会跟随它
+    并把内容写到库外 —— 必须直接失败。"""
+    tmp_of = _pin_tmp_name(monkeypatch)
+    target = tmp_path / "今日复习.json"
+    outside = tmp_path / "库外落点.txt"
+    tmp_of(target).symlink_to(outside)
+
+    with pytest.raises(OSError):
+        picker.atomic_write(target, "机密内容\n")
+
+    assert not outside.exists(), "内容不许顺着软链写到库外"
+    assert not target.exists()
+
+
+def test_atomic_write_publishes_and_leaves_no_residue(tmp_path):
+    """正常路径 (真随机 tmp 名): 两个不同 target 各自发布成功, 目录里不留残渣。"""
+    picker.atomic_write(tmp_path / "今日复习.json", "a\n")
+    picker.atomic_write(tmp_path / "今日复习.md", "b\n")
+    assert (tmp_path / "今日复习.json").read_text(encoding="utf-8") == "a\n"
+    assert (tmp_path / "今日复习.md").read_text(encoding="utf-8") == "b\n"
     assert sorted(p.name for p in tmp_path.iterdir()) == ["今日复习.json", "今日复习.md"]
 
 
