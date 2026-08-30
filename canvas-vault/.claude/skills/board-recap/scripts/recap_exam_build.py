@@ -56,6 +56,13 @@ EXAM_DIR = "检验白板"
 BOARD_DIR = "原白板"
 GENERATED_BY = "board-recap-exam v1 (CARD-G5-9)"
 _TS_RE = re.compile(r"^\d{4}-\d{2}-\d{2}-\d{4}$")
+# codex round-1 HIGH-1: argparse 的 required=True 只保证 flag **出现**, 不保证
+# 值非空。原判定写作 `if args.expect_content_sha and args.expect_content_sha != sha`
+# —— 空串 falsy 直接跳过比较, `--expect-content-sha ''` 即可创建用户从未确认过
+# 的字节 (复核者隔离实测 created:true、写出 1092 bytes)。修法 = 形状白名单 +
+# **无条件**比较: 值必须 64 位小写十六进制, 否则 exit 2 且零写侧。
+# 同一形状约束施于 undo 的 --expect-sha (同型问题)。
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 # ── 复用第一刀的确定性扫描函数 (同目录 recap_scan.py) ──
 # ⛔ round-4 新增 FAIL: importlib 加载会在 skill 目录写 __pycache__/*.pyc —
@@ -317,13 +324,39 @@ def _atomic_write(tmp: Path, target: Path, content: str) -> str | None:
         os.close(fd)
         fd = -1
         os.link(tmp, target)  # 目标已存在 → FileExistsError, 绝不覆盖
-        st_pub = os.lstat(target)
-        if (st_pub.st_dev, st_pub.st_ino) != (st_written.st_dev, st_written.st_ino):
-            try:
-                target.unlink()
-            except OSError:
-                pass
-            raise OSError("published inode mismatch")
+        # codex round-1 HIGH-2 (a): 只比 (dev,ino) 不足 —— 别的进程**原地改写
+        # 同一个 tmp inode** 时两侧 inode 恒等, 核对照样通过, 发布出去的却是
+        # 他人字节 (复核者隔离注入实测: 回执 SHA e51ca99e… 与目标实际 43cb09e0…
+        # 分叉, 而 _atomic_write 返回 err=None)。修法 = 发布后**重读目标字节**
+        # 并与我们要写的 content 做 sha 全等, inode 与字节两条都过才算发布成功。
+        want_sha = hashlib.sha256(content.encode("utf-8")).hexdigest()
+        vfd = os.open(target, os.O_RDONLY | os.O_NOFOLLOW)
+        try:
+            st_pub = os.fstat(vfd)
+            got = b""
+            while chunk := os.read(vfd, 1 << 20):
+                got += chunk
+        finally:
+            os.close(vfd)
+        same_inode = (st_pub.st_dev, st_pub.st_ino) == (
+            st_written.st_dev,
+            st_written.st_ino,
+        )
+        if not same_inode or hashlib.sha256(got).hexdigest() != want_sha:
+            # codex round-1 HIGH-2 (b): 原实现在这里 target.unlink() —— 但走到
+            # 本分支恰恰说明 target 已**不是我们的 inode**(被并发替换), 按路径
+            # 删它等于删掉别人刚创建的文件, 且回执还报失败 → 文件静默丢失。
+            # 修法: inode 不符时**绝不删**, 只如实回报; 仅当 inode 仍是我们的
+            # (纯字节被原地改写) 才撤销自己的发布。
+            if same_inode:
+                try:
+                    target.unlink()
+                except OSError:
+                    pass
+                raise OSError("published bytes mismatch (in-place rewrite)")
+            raise OSError(
+                "published inode mismatch (concurrent replacement; 未删除该文件)"
+            )
     except OSError as e:
         if fd >= 0:
             try:
@@ -481,7 +514,14 @@ def cmd_create(args) -> int:
     # round-3 H5: preview→create 之间 vault 可能变化 (新增成员/改批注),
     # 相同 --ts 并不保证所见即所写。--expect-content-sha 把用户**确认过的
     # 那份字节**绑进来: 不符即拒, 零写侧, 让 skill 重跑 preview 再确认。
-    if args.expect_content_sha and args.expect_content_sha != sha:
+    # codex round-1 HIGH-1: 形状先于比较 —— 空串/非 64 位 hex 一律 exit 2,
+    # 不再走 falsy 短路; 比较本身改为**无条件**。
+    if not _SHA256_RE.match(args.expect_content_sha or ""):
+        return _fail_env(
+            "--expect-content-sha 必须是 preview 回执里的 64 位小写十六进制 "
+            "content_sha256（空串或非法形状一律拒绝，防绕过用户确认）"
+        )
+    if args.expect_content_sha != sha:
         print(
             json.dumps(
                 {
@@ -523,7 +563,11 @@ def cmd_create(args) -> int:
         # 错误的** shell 命令 (zsh -n 实测 parse error) — 逐参数 shlex.quote;
         # 且 undo-dir 占位符不能写成 `<...>` (shell 重定向语法, 整条仍解析失败),
         # 改成可直接替换的引号串。
+        # codex round-1 MEDIUM-7: SKILL.md 称 undo_hint「可直接复制执行」, 但串以
+        # `undo …` 开头 —— 缺 `python3 <本脚本>` 前缀, 在普通 shell 里 `undo` 不是
+        # 命令 (zsh: command not found)。补上解释器与脚本绝对路径, 让文档的承诺成立。
         "undo_hint": (
+            f"{shlex.quote(sys.executable)} {shlex.quote(str(Path(__file__).resolve()))} "
             f"undo --vault {shlex.quote(str(vault))} --path {shlex.quote(rel)} "
             f"--expect-sha {sha} --undo-dir 'PUT_A_DIR_OUTSIDE_THE_VAULT_HERE'"
         ),
@@ -536,6 +580,13 @@ def cmd_create(args) -> int:
 
 def cmd_undo(args) -> int:
     vault = Path(args.vault)
+    # codex round-1 HIGH-1 同型: --expect-sha 也必须先过形状白名单, 否则空串
+    # 会让下游的 sha 全等比较失去意义 (undo 的判定虽然是无条件比较, 但空串
+    # 期望值配上"不符即拒"会退化成**恒拒**, 掩盖真实的绑定失效)。
+    if not _SHA256_RE.match(args.expect_sha or ""):
+        return _fail_env(
+            "--expect-sha 必须是 create 回执里的 64 位小写十六进制 content_sha256"
+        )
     # ⛔ round-6 终裁复核: cmd_undo 此前完全没有 create 侧的「目录 symlink 越界」
     # 守卫 —— containment 只比 target.resolve() 与 exam_root.resolve(), 两者
     # 一起被 symlink 带出 vault 后仍判 contained=True, undo 就会去动 vault 外
@@ -680,6 +731,42 @@ def cmd_undo(args) -> int:
             pass
         return _fail_env(f"留痕写入失败, 已放弃回退 (原文件未动): {type(e).__name__}")
     _fsync_dir(undo_dir)
+    # codex round-1 HIGH-3 (2): 留痕写完 + fsync 之后**从未回读校验** —— 复核者
+    # 隔离注入原地改写留痕 inode 后, 源文件照删、回执 retained SHA 报 765bf07e…
+    # 而留痕实际是 3710644e…: 「写留痕后才删源」的耐久承诺被架空 (留下的是坏
+    # 备份, 而源已不可回). 修法 = 删源之前把留痕**重新打开读回**, inode 与
+    # sha 两条都全等才继续; 任一不符 → 绝不删源 (vault 内原件仍在, 不丢字节)。
+    try:
+        rfd = os.open(dest, os.O_RDONLY | os.O_NOFOLLOW)
+        try:
+            st_dest = os.fstat(rfd)
+            back = b""
+            while chunk := os.read(rfd, 1 << 20):
+                back += chunk
+        finally:
+            os.close(rfd)
+    except OSError as e:
+        return _fail_env(
+            f"留痕写出后不可回读, 已放弃回退 (原文件未动): {type(e).__name__}"
+        )
+    if st_dest.st_size != len(raw) or hashlib.sha256(back).hexdigest() != sha:
+        print(
+            json.dumps(
+                {
+                    "mode": "undo",
+                    "undone": False,
+                    "refusal_reason": (
+                        "留痕落盘后回读校验不符 (备份被替换或原地改写) — "
+                        "未删除 vault 内文件; 该留痕不可信, 请换 --undo-dir 重试"
+                    ),
+                    "retained_at": str(dest),
+                    "retained_sha256_actual": hashlib.sha256(back).hexdigest(),
+                    "expected_sha256": sha,
+                },
+                ensure_ascii=False,
+            )
+        )
+        return 0
     # round-4: inode 复核与 unlink 之间仍有窗口 — 留痕写入耗时里文件可能被
     # 替换。紧贴 unlink 前**再复核一次**, 把窗口压到系统调用级; 不符则保留
     # 原文件 (留痕已在 vault 外, 不丢字节) 并如实告知。
@@ -710,6 +797,33 @@ def cmd_undo(args) -> int:
                     "refusal_reason": (
                         "留痕写出期间原文件内容发生变化 (替换或原地改写) — "
                         f"未删除 vault 内文件; 校验过的旧版本已备份在 {dest}"
+                    ),
+                    "retained_at": str(dest),
+                },
+                ensure_ascii=False,
+            )
+        )
+        return 0
+    # codex round-1 HIGH-3 (1): 上面的重读校验在 os.close(cfd) 后才 unlink,
+    # 中间仍有窗口 —— 复核者在该窗口换入 USER-NEW-BYTES, 结果新 inode 被删、
+    # 留痕里只有旧版本, 而回执报 undone:true。POSIX 没有「按 inode 删除」的
+    # 原语, 能做到的最紧形态是**紧贴 unlink 前再 lstat 一次**核 identity,
+    # 把窗口压到相邻两个系统调用之间。残留窗口如实声明在 SKILL.md。
+    try:
+        st_pre_unlink = os.lstat(target)
+    except OSError as e:
+        return _fail_env(
+            f"删除前复核失败, 未删除 (留痕已存 {dest}): {type(e).__name__}"
+        )
+    if (st_pre_unlink.st_dev, st_pre_unlink.st_ino) != identity:
+        print(
+            json.dumps(
+                {
+                    "mode": "undo",
+                    "undone": False,
+                    "refusal_reason": (
+                        "删除前一刻文件被替换 (inode 变化) — 未删除, "
+                        f"避免误删他人写入; 校验过的旧版本已备份在 {dest}"
                     ),
                     "retained_at": str(dest),
                 },

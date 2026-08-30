@@ -371,14 +371,21 @@ python3 "<vault 绝对路径>/.claude/skills/board-recap/scripts/recap_scan.py" 
    输出 JSON 含各板数字（成员/种子/派生/批注/未答上界/`ghost_count`）、`target_path`、**拟写入全文 `content` 与
    `content_sha256`**。把覆盖范围数字与目标路径**原样**呈给用户；`ghost_count` 非零时一并说明
    「板上有 N 条链接指向不存在的节点，产物会单列成『待修链接』段而不是当成成员」。
-   `refusal_reason` 非空（板不存在／板名含 `#`/`|`/`^`／目标已存在）→ 如实转告并停，⛔ 不得替用户改板名。
+   `refusal_reason` 非空（板不存在／目标已存在）→ 如实转告并停，⛔ 不得替用户改板名。
+   板名含 wikilink 语义字符（`#` `|` `^` `[` `]` 共 **5** 个）走的是另一条路径：脚本 **exit 2** 并输出
+   `{"error": ...}`（不是 `refusal_reason`）——安全行为比本文档旧版描述的更强。
 2. **确认（AskUserQuestion）**：明确问「创建这张阶段回顾检验白板？」。⛔ 用户未确认 = 到此为止，零写侧——
    不 create、不留任何新文件。
 3. **创建**：确认后跑 `create` 子命令，**必须同时传两个绑定参数**：
    - `--ts` 与 preview 完全相同
    - `--expect-content-sha <preview 的 content_sha256>` ——⛔ **必传**。它把用户确认过的那份字节钉死：
-     preview 之后 vault 若有任何变化（新增成员/改批注），create 会**零写侧拒绝**并要求重跑 preview 再确认。
-     没有它，「所见即所写」只是巧合而非保证。
+     绑定的是**拟写入的那份全文字节**（不是 vault 的输入状态）：preview 之后只要产物内容会变（新增成员/
+     改批注等），create 就**零写侧拒绝**并要求重跑 preview 再确认。
+     ⚠️ 诚实边界（codex round-1 MEDIUM-1）：若 vault 改动**不影响产物字节**（例如改了某节点正文但
+     角色与计数不变），sha 不变、旧 sha 仍可创建——保证是「输出字节未变时所见即所写」，
+     不是「vault 任何变化都拒绝」。
+     另：`--expect-content-sha` 的值必须是 64 位小写十六进制；空串/非法形状一律 exit 2
+     （codex round-1 HIGH-1：旧实现空串会因 falsy 短路跳过比较，等于绕过用户确认）。
    回执含 `created_path` / `content_sha256` / `undo_hint`（已 shell-quote，可直接复制执行），三者**原样**给用户；
    回执带 `warning` 字段时一并转告。目标已存在 → 脚本拒绝不覆盖，如实转告。
 4. **Undo（用户要求撤销时）**：跑 `undo` 子命令（参数照抄 create 回执的 `undo_hint`；`--undo-dir` 用
@@ -412,7 +419,7 @@ python3 "<vault 绝对路径>/.claude/skills/board-recap/scripts/recap_scan.py" 
 | 第二刀目标检验白板已存在 | preview 即给 `refusal_reason`；create 拒绝不覆盖（换 `--ts` 或先 undo） |
 | 第二刀 preview 后 vault 有变化 | create 带 `--expect-content-sha` 时零写侧拒绝 → 重跑 preview 让用户重新确认 |
 | 第二刀 undo 时文件已被用户改动 | 脚本 sha/inode 校验拒绝回退，转告用户手动处理 |
-| 第二刀板名含 `#`/`|`/`^` | 脚本 exit 2 拒绝（wikilink 语义字符会让消费方归属错乱） |
+| 第二刀板名含 `#`/`\|`/`^`/`[`/`]` | 脚本 exit 2 + `{"error":...}` 拒绝（wikilink 语义字符会让消费方归属错乱） |
 
 ## 约束与参考
 

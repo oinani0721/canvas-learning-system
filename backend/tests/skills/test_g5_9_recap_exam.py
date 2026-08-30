@@ -36,6 +36,7 @@ SCRIPT = REPO_ROOT / "canvas-vault" / ".claude" / "skills" / "board-recap" / "sc
 
 TS = "2026-08-28-1200"
 BODY_SENTINEL = "SECRET-NODE-BODY-MUST-NOT-LEAK"
+EXAM_DIR_NAME = "检验白板"  # 与脚本 EXAM_DIR 同值（CARD-收口A ③ 新增门共用）
 
 
 def run_cli(*argv: str) -> subprocess.CompletedProcess:
@@ -706,3 +707,339 @@ def test_declared_consumers_exclude_stage_recap():
     assert 'recap_kind !== "stage_recap"' in dash, "Dashboard 考察历史未排除阶段回顾板"
     qa = (vault_root / ".claude" / "skills" / "quiz-answer" / "SKILL.md").read_text(encoding="utf-8")
     assert "recap_kind: stage_recap" in qa, "quiz-answer 定位级联未排除阶段回顾板"
+
+
+# ══════════════════ codex round-1 HIGH 回归锁（本批 CARD-收口A ③）══════════════════
+#
+# 首轮独立复核给出 0 BLOCKER / 4 HIGH / 8 MEDIUM / 2 LOW，其中 HIGH-4 是
+# 「五类关键变异有四类 survivor」——把安全判定弱化后完整套件仍 33 passed。
+# 下面每一条都对应一个 survivor 或一条实现级 HIGH，判据是：**把实现里对应的
+# 判定改回去，本条必须变红**（负验证记录见 g5-9-evidence/round1-high-negverify.txt）。
+#
+# 需要「运行中途注入」的性质（HIGH-2 发布字节、HIGH-3 留痕与删除窗口）无法用
+# CLI 子进程表达，改为函数级导入 + monkeypatch 精确注入；其余走真实 CLI。
+
+
+def _load_module():
+    """按被测脚本自身的零写侧约定导入它（不落 __pycache__）。"""
+    import importlib.util
+
+    prev = sys.dont_write_bytecode
+    sys.dont_write_bytecode = True
+    try:
+        spec = importlib.util.spec_from_file_location("recap_exam_build_ut", SCRIPT)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+    finally:
+        sys.dont_write_bytecode = prev
+    return mod
+
+
+# ── HIGH-1: 空/非法 --expect-content-sha 不得绕过用户确认 ──
+
+
+@pytest.mark.parametrize(
+    "bad_sha",
+    [
+        "",  # ⛔ 复核者实测的绕过形态: falsy 短路跳过比较 → created:true
+        "  ",
+        "0" * 63,  # 长度不足
+        "0" * 65,  # 长度超出
+        "0" * 63 + "G",  # 非十六进制
+        "A" * 64,  # 大写（preview 回执恒为小写）
+        "not-a-sha",
+    ],
+)
+def test_create_rejects_malformed_expect_content_sha(tmp_path, bad_sha):
+    """HIGH-1 承重门: required=True 只保证 flag 出现、不保证值合法。
+    空串曾因 falsy 直接跳过比较 ⇒ 可创建用户从未确认过的字节。
+    现在形状不合法一律 exit 2 且**零写侧**。"""
+    vault = build_vault(tmp_path)
+    snap = vault_snapshot(vault)
+    r = run_cli(
+        "create",
+        "--vault",
+        str(vault),
+        "--boards",
+        "板一",
+        "--ts",
+        TS,
+        "--expect-content-sha",
+        bad_sha,
+    )
+    assert r.returncode == 2, f"非法 sha {bad_sha!r} 未被拒绝: {r.stdout}"
+    target = vault / EXAM_DIR_NAME / f"板一-{TS}.md"
+    assert not target.exists(), f"非法 sha {bad_sha!r} 却创建了目标"
+    assert vault_snapshot(vault) == snap, "拒绝路径改动了 vault"
+
+
+def test_undo_rejects_malformed_expect_sha(tmp_path):
+    """HIGH-1 同型: undo 的 --expect-sha 也必须先过形状白名单。"""
+    vault = build_vault(tmp_path)
+    out = do_create(vault, ["板一"])
+    for bad in ("", "0" * 63, "not-a-sha"):
+        r = run_cli(
+            "undo",
+            "--vault",
+            str(vault),
+            "--path",
+            out["created_path"],
+            "--expect-sha",
+            bad,
+            "--undo-dir",
+            str(tmp_path / "keep"),
+        )
+        assert r.returncode == 2, f"undo 接受了非法 --expect-sha {bad!r}"
+        assert (vault / out["created_path"]).is_file(), "非法参数却动了目标"
+
+
+# ── HIGH-4 survivor: wikilink 语义字符逐字符承重（此前只有整体门，删掉 `|` 仍全绿）──
+
+
+@pytest.mark.parametrize("ch", ["#", "|", "^", "[", "]"])
+def test_board_name_rejects_each_wikilink_char(tmp_path, ch):
+    """HIGH-4 survivor 封堵: 从禁止集里**单独**移除任一字符都必须让本条变红。
+    原实现有整体门但无逐字符参数化 ⇒ 只删 `|` 时套件仍 33 passed。"""
+    vault = build_vault(tmp_path)
+    snap = vault_snapshot(vault)
+    r = run_cli("preview", "--vault", str(vault), "--boards", f"板一{ch}别名", "--ts", TS)
+    assert r.returncode == 2, f"板名含 {ch!r} 未被拒绝: {r.stdout}"
+    assert "wikilink" in r.stdout, f"拒绝理由未点名 wikilink: {r.stdout}"
+    assert vault_snapshot(vault) == snap
+
+
+# ── HIGH-4 survivor: 目标目录被 symlink 布防的守卫（此前测试没传 sha，撞的是 argparse）──
+
+
+def test_create_refuses_symlinked_exam_dir_with_valid_sha(tmp_path):
+    """HIGH-4 survivor 封堵 + 假门修复。
+
+    复核者点名: 既有的三条 create 拒绝测试都**没传 --expect-content-sha**，
+    因此在 argparse 阶段就 exit 2，从未触达被测的防御 ⇒ 禁用父目录 symlink
+    守卫后套件仍 33 passed。本条先跑 preview 取**合法 sha**，再把 检验白板/
+    换成指向 vault 外的 symlink，确保请求真正走到守卫层。
+    """
+    vault = build_vault(tmp_path)
+    sha = do_preview(vault, ["板一"])["content_sha256"]
+    outside = tmp_path / "outside_dir"
+    outside.mkdir()
+    victim = outside / "victim.md"
+    victim.write_text("ORIGINAL\n", encoding="utf-8")
+    exam = vault / EXAM_DIR_NAME
+    exam.rmdir()
+    exam.symlink_to(outside, target_is_directory=True)
+
+    r = run_cli(
+        "create",
+        "--vault",
+        str(vault),
+        "--boards",
+        "板一",
+        "--ts",
+        TS,
+        "--expect-content-sha",
+        sha,
+    )
+    assert r.returncode == 2, f"检验白板/ 被 symlink 布防却未拒绝: {r.stdout}"
+    assert victim.read_text(encoding="utf-8") == "ORIGINAL\n", "vault 外文件被改"
+    assert list(outside.iterdir()) == [victim], f"vault 外新增了文件: {list(outside.iterdir())}"
+
+
+def test_create_refuses_tmp_symlink_with_valid_sha(tmp_path):
+    """假门修复: 与既有 test_create_refuses_tmp_symlink_no_escape 同场景，
+    但**带合法 sha**，保证拒绝来自 W4 防御而不是 argparse。"""
+    vault = build_vault(tmp_path)
+    sha = do_preview(vault, ["板一"])["content_sha256"]
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    victim = outside / "victim.txt"
+    victim.write_text("ORIGINAL-OUTSIDE-CONTENT\n", encoding="utf-8")
+    (vault / EXAM_DIR_NAME / f"板一-{TS}.md.g59-tmp").symlink_to(victim)
+    snap = vault_snapshot(vault)
+
+    r = run_cli(
+        "create",
+        "--vault",
+        str(vault),
+        "--boards",
+        "板一",
+        "--ts",
+        TS,
+        "--expect-content-sha",
+        sha,
+    )
+    assert r.returncode == 2, f"tmp symlink 未被拒绝: {r.stdout}"
+    assert victim.read_text(encoding="utf-8") == "ORIGINAL-OUTSIDE-CONTENT\n"
+    assert not (vault / EXAM_DIR_NAME / f"板一-{TS}.md").exists()
+    assert vault_snapshot(vault) == snap
+
+
+# ── HIGH-2: 发布字节必须被回读校验；inode 不符时绝不删他人文件 ──
+
+
+def test_atomic_write_rejects_inplace_rewritten_publish(tmp_path):
+    """HIGH-2 (a) 承重门: 只比 (dev,ino) 挡不住**原地改写同一 inode**——
+    两侧 inode 恒等而字节已分叉。注入方式 = 让 os.link 在建立硬链接后
+    立刻原地改写该 inode，模拟并发写入者。修法是发布后回读比 sha。"""
+    mod = _load_module()
+    d = tmp_path / "d"
+    d.mkdir()
+    tmp_p, target = d / "t.tmp", d / "t.md"
+    real_link = mod.os.link
+
+    def evil_link(src, dst):
+        real_link(src, dst)
+        fd = mod.os.open(dst, mod.os.O_WRONLY | mod.os.O_TRUNC)
+        try:
+            mod.os.write(fd, b"ATTACKER-BYTES-SAME-INODE\n")
+        finally:
+            mod.os.close(fd)
+
+    mod.os.link = evil_link
+    try:
+        err, _warn = mod._atomic_write(tmp_p, target, "USER-CONFIRMED-CONTENT\n")
+    finally:
+        mod.os.link = real_link
+    assert err is not None, "发布字节被篡改却报成功"
+    assert "bytes mismatch" in err or "原子写失败" in err
+    assert not target.exists(), "字节不符却把污染内容留在了 vault 里"
+
+
+def test_atomic_write_does_not_delete_concurrent_replacement(tmp_path):
+    """HIGH-2 (b) 承重门: inode 不符说明 target 已**不是我们的文件**，
+    此时按路径 unlink 等于删掉并发写入者刚创建的文件（复核者实测：返回失败
+    时文件已丢失）。修法是这一分支绝不删，只如实回报。"""
+    mod = _load_module()
+    d = tmp_path / "d"
+    d.mkdir()
+    tmp_p, target = d / "t.tmp", d / "t.md"
+    real_link = mod.os.link
+
+    def evil_link(src, dst):
+        real_link(src, dst)
+        mod.os.unlink(dst)  # 并发者移走我们的硬链接…
+        Path(dst).write_text("SOMEONE-ELSES-FILE\n", encoding="utf-8")  # …换上自己的
+
+    mod.os.link = evil_link
+    try:
+        err, _warn = mod._atomic_write(tmp_p, target, "USER-CONFIRMED-CONTENT\n")
+    finally:
+        mod.os.link = real_link
+    assert err is not None, "inode 不符却报成功"
+    assert target.exists(), "把并发写入者的文件删掉了（原实现的行为）"
+    assert target.read_text(encoding="utf-8") == "SOMEONE-ELSES-FILE\n"
+
+
+# ── HIGH-3: 留痕字节回读校验 + 删除前一刻的 identity 复核 ──
+
+
+def _undo_args(vault: Path, path: str, sha: str, undo_dir: Path):
+    import argparse as _ap
+
+    return _ap.Namespace(vault=str(vault), path=path, expect_sha=sha, undo_dir=str(undo_dir))
+
+
+def test_undo_refuses_when_retention_bytes_corrupted(tmp_path, capsys):
+    """HIGH-3 (2) 承重门: 留痕写完 + fsync 后从不回读 ⇒ 备份被原地改写时
+    源照删、回执 SHA 说谎（复核者实测 retained 765bf07e… vs 实际 3710644e…）。
+    注入方式 = 在写留痕后紧接着的 _fsync_dir 里原地改写留痕字节。"""
+    vault = build_vault(tmp_path)
+    out = do_create(vault, ["板一"])
+    undo_dir = tmp_path / "keep"
+    undo_dir.mkdir()
+    mod = _load_module()
+    real_fsync_dir = mod._fsync_dir
+
+    def evil_fsync_dir(d):
+        real_fsync_dir(d)
+        if Path(d) == undo_dir:  # 留痕刚落盘的那一次
+            for f in undo_dir.iterdir():
+                fd = mod.os.open(f, mod.os.O_WRONLY | mod.os.O_TRUNC)
+                try:
+                    mod.os.write(fd, b"CORRUPTED-BACKUP\n")
+                finally:
+                    mod.os.close(fd)
+
+    mod._fsync_dir = evil_fsync_dir
+    try:
+        rc = mod.cmd_undo(_undo_args(vault, out["created_path"], out["content_sha256"], undo_dir))
+    finally:
+        mod._fsync_dir = real_fsync_dir
+    res = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert res["undone"] is False, "留痕已损坏却报回退成功"
+    assert "回读校验不符" in res["refusal_reason"]
+    assert (vault / out["created_path"]).is_file(), "留痕不可信却删掉了源文件"
+
+
+def test_undo_refuses_when_target_swapped_before_unlink(tmp_path, capsys):
+    """HIGH-3 (1) 承重门: 最终重读校验后先 close(fd) 再按路径 unlink，
+    窗口内换入的新文件会被误删（复核者注入 USER-NEW-BYTES 实测新 inode 被删、
+    留痕只有旧版本、回执仍报 undone:true）。修法 = 紧贴 unlink 前再核一次
+    identity。
+
+    ⚠️ 注入点必须精确落在**那个窗口内**。本条第一版注入在 `_fsync_dir(undo_dir)`，
+    结果被更早的 cfd 重读校验抓住 —— 负验证变体 H 当场证明该门非承重（去掉
+    unlink 前那道复核后测试仍绿）。现改注入 `os.lstat`：cmd_undo 对 target 的
+    第 2 次 lstat 正是 unlink 前那次，在它真正取值**之前**把文件换掉。
+    """
+    vault = build_vault(tmp_path)
+    out = do_create(vault, ["板一"])
+    undo_dir = tmp_path / "keep2"
+    undo_dir.mkdir()
+    target = vault / out["created_path"]
+    mod = _load_module()
+    real_lstat = mod.os.lstat
+    seen = {"n": 0}
+
+    def evil_lstat(path, *a, **kw):
+        # ⛔ 不能用「对 target 的第 N 次调用」定位注入点: mod.os 就是全局 os
+        # 模块, patch 它会拦下**进程内所有** os.lstat —— 包括 pathlib 内部的,
+        # 于是交换会提前发生并被**第一道** st_now 检查抓住, 测试变成锁错了门
+        # (负验证变体 H 首跑正是这样绿的, 拒绝理由是「校验后文件被替换」)。
+        # 改为按调用帧定位: 只在 cmd_undo 自己的帧里、且 st_dest 已存在
+        # (说明留痕回读已完成 ⇒ 这一定是 unlink 前那次 lstat) 时注入。
+        f = sys._getframe(1)
+        if f.f_code.co_name == "cmd_undo" and "st_dest" in f.f_locals and Path(str(path)) == target and seen["n"] == 0:
+            seen["n"] += 1
+            target.unlink()  # 换 inode，内容换成用户刚写的新字节
+            target.write_text("USER-NEW-BYTES\n", encoding="utf-8")
+        return real_lstat(path, *a, **kw)
+
+    mod.os.lstat = evil_lstat
+    try:
+        rc = mod.cmd_undo(_undo_args(vault, out["created_path"], out["content_sha256"], undo_dir))
+    finally:
+        mod.os.lstat = real_lstat
+    res = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert seen["n"] == 1, "未触达 unlink 前的 identity 复核点（注入点失效）"
+    assert "删除前一刻" in res.get("refusal_reason", ""), f"拒绝来自更早的检查而不是 unlink 前那道: {res}"
+    assert res["undone"] is False, "窗口内被换掉却报回退成功"
+    assert target.is_file(), "误删了用户在窗口内写入的新文件"
+    assert target.read_text(encoding="utf-8") == "USER-NEW-BYTES\n"
+
+
+# ── MEDIUM-7: undo_hint 必须真的可以「复制执行」（SKILL.md 明写了这句承诺）──
+
+
+def test_undo_hint_is_actually_executable(tmp_path):
+    """codex round-1 MEDIUM-7 承重门: 旧 hint 以 `undo …` 开头，缺
+    `python3 <脚本>` 前缀 ⇒ 普通 shell 里 `undo: command not found`，
+    而 SKILL.md 却称「可直接复制执行」。这里把 hint **原样跑一遍**：
+    只替换 --undo-dir 占位符，其余逐字不动，必须真的完成回退。"""
+    import shlex
+
+    vault = build_vault(tmp_path)
+    out = do_create(vault, ["板一"])
+    target = vault / out["created_path"]
+    assert target.is_file()
+    undo_dir = tmp_path / "hint-undo"
+    undo_dir.mkdir()
+    cmd = shlex.split(out["undo_hint"].replace("PUT_A_DIR_OUTSIDE_THE_VAULT_HERE", str(undo_dir)))
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, f"hint 原样执行失败: rc={r.returncode} {r.stderr[:400]}"
+    res = json.loads(r.stdout)
+    assert res["undone"] is True, f"hint 执行未完成回退: {res}"
+    assert not target.exists(), "回退后目标仍在"
+    assert res["retained_sha256"] == out["content_sha256"]

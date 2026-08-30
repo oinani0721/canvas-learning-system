@@ -1,0 +1,34 @@
+备份: /tmp/recap_exam_build.negverify.bak (sha 4e99f06b41c8d3af…)
+
+=== 基线: 完整套件应全绿 ===
+  ✅ 基线 exit=0 | 53 passed in 5.45s
+
+=== 变体 A: HIGH-1 回退: --expect-content-sha 恢复 falsy 短路（空串绕过用户确认） ===
+  ✅ 如期变红 | 7 failed, 46 deselected in 0.86s
+
+=== 变体 B: HIGH-1 同型回退: undo 的 --expect-sha 去掉形状白名单 ===
+  ✅ 如期变红 | 1 failed, 52 deselected in 0.57s
+
+=== 变体 C: HIGH-4 survivor 复现: 从 wikilink 禁止集里只移除 `|` ===
+  ✅ 如期变红 | 1 failed, 4 passed, 48 deselected in 0.70s
+
+=== 变体 D: HIGH-4 survivor 复现: 同时禁用目录 symlink 守卫与 _symlink_probe（纵深两层） ===
+  ✅ 如期变红 | 1 failed, 1 passed, 51 deselected in 0.64s
+
+=== 变体 E: HIGH-2(a) 回退: 发布后只比 (dev,ino)，不回读字节 ===
+  ✅ 如期变红 | 1 failed, 52 deselected in 0.40s
+
+=== 变体 F: HIGH-2(b) 回退: inode 不符时按路径 unlink（会删掉并发者的文件） ===
+  ✅ 如期变红 | 1 failed, 52 deselected in 0.37s
+
+=== 变体 G: HIGH-3(2) 回退: 删源前不回读校验留痕字节 ===
+  ✅ 如期变红 | 1 failed, 52 deselected in 0.53s
+
+=== 变体 H: HIGH-3(1) 回退: 去掉紧贴 unlink 前的 identity 复核 ===
+  ✅ 如期变红 | 1 failed, 52 deselected in 0.54s
+
+=== 还原后复核 ===
+  ✅ 字节与备份逐字相同 (sha 4e99f06b41c8d3af…)
+  ✅ 还原后完整套件 exit=0 | 53 passed in 5.12s
+
+RESULT: PASS — 全部新门均为承重门
