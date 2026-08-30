@@ -50,6 +50,25 @@
 
 ---
 
+## 〇、一条输入缺口（如实声明）
+
+卡文首句写「**必读：手册 §二 两卡要点**」。本批次（第七批）的开跑手册**在仓库里不存在** ——
+`_bmad-output/implementation-artifacts/goal-cards/` 下最新的是
+`2026-08-29-第六批开跑手册-6车道7卡.md`；我在主仓、各 worktree、以及所有
+2026-08-30 之后修改过的 md 里都搜过 `G2-4`，没有第七批手册。
+
+所以我按以下替代真相源执行，并在此声明以便你核对我是不是漏了要点：
+
+1. **卡文本身**（`/goal` 全文，条款极详细，(a)-(d) 逐条可判）；
+2. **总账 v2 §G2-4 / §G2-5 逐卡档案**（`2026-08-28-主goal全量分goal总账-v2.md:439-460`）；
+3. **第六批手册 §三 的公共纪律**（codex 命令加 `</dev/null`、commitlint 长度、
+   guard-hook 拦 rm 用 mv、不 push、live vault 与 Neo4j 7691 只读、
+   `exam_service.py`/`verification_service.py` 归 G5-12 禁改）。
+
+若第七批手册确实存在于我看不到的地方，请把 §二 给我，我照它复核一遍。
+
+---
+
 ## 二、完成条件逐条对账
 
 | 卡文条款 | 状态 | 证据 |
@@ -94,6 +113,24 @@ venv 跑同样的命令 —— 这样"这条失败是不是我弄的"有实证�
 | `tests/integration/test_multi_vault_isolation.py` | 4 failed / 8 passed | 同样这 4 条 | 零新增；`test_lancedb_resolve_table_name_per_request_vault` **通过** |
 | `tests/regression/test_rag_stage1_index_contracts.py` | 35 passed / 0 failed | — | 索引契约未被波及 |
 | `-k multimodal`（unit+regression） | 5 failed / 80 passed | 同样这 5 条 / 79 passed | 零新增（80 vs 79 = 本卡新增的守卫测试） |
+
+### 存量测试适配逐条记录（卡文 (d) 明写要求「预计 5-8 个存量测试需适配，逐一记录」）
+
+实际适配 **6 个文件**（落在预估区间内），每条都注明"为什么非改不可"——凡是
+"删掉断言让它变绿"的都不算适配，下表每一条要么是被测行为真的没了，要么是原断言
+本身证伪：
+
+| # | 文件 | 改了什么 | 为什么非改不可 |
+|---|---|---|---|
+| 1 | `tests/unit/test_supplementary_search_service.py` | `TestTier2FallbackGate`（6 条）→ `TestTier2BranchRemoved`（5 条）；`TestTopLevelDegradedFromLegacyFallback`（3 条）→ `TestLegacyFallbackDegradedPathRemoved`（4 条） | 原来锁的是"env 开关默认关"与"tier-2 命中时顶层翻 degraded"。**被锁的行为整个删除了**，所以不是改断言，是换成**删除锁**（断言开关与旧函数名不存在、env 设 true 也不碰 `client._db`） |
+| 2 | `tests/regression/test_rag_stage2_chain_unify_contracts.py` | monkeypatch 目标改名；删一处 `delenv`；`test_tier1_vector_fallback_excludes_exam_board` → `test_vector_fallback_excludes_exam_board`；**新增** `query_type` 值序列断言 | 函数改名（DD-13）必须同步；`delenv` 的对象已不存在；新增的值断言是 Codex MEDIUM-2 抓出的——原断言只数调用次数，在"回退其实又跑了一次 hybrid"时照样绿 |
+| 3 | `tests/regression/test_rag_stage2_rerank_contracts.py` | `test_dedup_merges_taint_fail_closed` 去掉 `is_legacy_fallback` 那半边断言 | 该字段**全仓唯一生产者**（tier-2）已删，继承逻辑随之移除。taint / injection_risk 的 fail-closed 语义**原样保留**并仍被断言 |
+| 4 | `tests/regression/test_rag_stage2_t6_verification_contracts.py` | monkeypatch 目标改名 | 同 #2 的改名连带 |
+| 5 | `backend/scripts/vault_doc_roles.yaml` | G4-16 登记的「Tier-2 旁路」边界描述改为"已关闭" | 台账里那条边界随分支删除而失效，不改台账就在说谎 |
+| 6 | `backend/scripts/check_vault_doc_roles.py` | `ROLES_SHA256` 刷新 | #5 改了 yaml 就必须同步这个强制指纹，否则 `test_vault_doc_roles.py` 在 setup 直接 `ConfigError`。**这条是 Codex BLOCKER-3 替我抓到的，我自己漏了**（我的 `-k` 选择面没覆盖它） |
+
+**零"降低门槛"式适配**：没有任何一条是通过放宽断言、加 `xfail`、或缩小参数化范围
+让测试变绿的。
 
 ---
 
@@ -242,6 +279,9 @@ course_id/tags/rrf_k/doc_type/exclude_doc_types`）。也就是说 `multimodal_s
 ---
 
 ## 六、待你裁决（⛔ 不自作主张）
+
+> 两卡的裁决点已集中到 `_bmad-output/验收单/裁决点汇总-车道V5-G2-4与G2-5-2026-08-31.md`（编号 D1-D7），
+> 该文件同时写明「为什么这些必须由你决定、我不自行执行」。下面是本卡这一半的原文。
 
 1. **现网裸 `file_fingerprints`（77 行）怎么处置**
    - 甲：归档（复制到 `_g24archive__file_fingerprints__{ts}` 后 drop 原表）—— 需先把 volume 做隔离副本，

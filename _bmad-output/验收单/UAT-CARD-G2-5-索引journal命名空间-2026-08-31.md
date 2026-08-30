@@ -137,6 +137,9 @@ MUTATED RUN: 4 failed, 11 passed
 
 ## 六、待你裁决
 
+> 两卡的裁决点已集中到 `_bmad-output/验收单/裁决点汇总-车道V5-G2-4与G2-5-2026-08-31.md`（编号 D1-D7），
+> 该文件同时写明「为什么这些必须由你决定、我不自行执行」。下面是本卡这一半的原文。
+
 1. **C 类 14 项要不要现在排卡**：其中 `canvas_events_fallback.json` / `outbox/events.jsonl` /
    `learning_memories.json` / `neo4j_memory.json` / `sync_checkpoint.json` / `failed_writes.jsonl` /
    `failed_edge_syncs.jsonl` / `dead_letter_episodes.jsonl` 都属 Neo4j 写侧回放/死信面，
