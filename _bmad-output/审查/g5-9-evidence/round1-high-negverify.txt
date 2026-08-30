@@ -1,40 +1,52 @@
-备份: /tmp/recap_exam_build.negverify.bak (sha 516ef31ff026af11…)
+备份: /tmp/recap_exam_build.negverify.bak (sha 7a8d1dc9aa300bec…)
 
 === 基线: 完整套件应全绿 ===
-  ✅ 基线 exit=0 | 55 passed in 6.60s
+  ✅ 基线 exit=0 | 62 passed in 5.42s
 
 === 变体 A: HIGH-1 回退: --expect-content-sha 恢复 falsy 短路（空串绕过用户确认） ===
-  ✅ 如期变红 | 7 failed, 48 deselected in 0.96s
+  ✅ 如期变红 | 7 failed, 55 deselected in 0.79s
 
 === 变体 B: HIGH-1 同型回退: undo 的 --expect-sha 去掉形状白名单 ===
-  ✅ 如期变红 | 1 failed, 54 deselected in 0.61s
+  ✅ 如期变红 | 1 failed, 61 deselected in 0.53s
 
 === 变体 C: HIGH-4 survivor 复现: 从 wikilink 禁止集里只移除 `|` ===
-  ✅ 如期变红 | 1 failed, 4 passed, 50 deselected in 0.75s
+  ✅ 如期变红 | 1 failed, 4 passed, 57 deselected in 0.64s
 
 === 变体 D: HIGH-4 survivor 复现: 同时禁用目录守卫 + _symlink_probe + dirfd 锚定（纵深三层） ===
-  ✅ 如期变红 | 1 failed, 1 passed, 53 deselected in 0.72s
+  ✅ 如期变红 | 1 failed, 1 passed, 60 deselected in 0.60s
 
 === 变体 E: HIGH-2(a) 回退: 发布后只比 (dev,ino)，不回读字节 ===
-  ✅ 如期变红 | 1 failed, 54 deselected in 0.41s
+  ✅ 如期变红 | 1 failed, 61 deselected in 0.39s
 
 === 变体 F: HIGH-2(b) 回退: inode 不符时按路径 unlink（会删掉并发者的文件） ===
-  ✅ 如期变红 | 1 failed, 54 deselected in 0.45s
+  ✅ 如期变红 | 1 failed, 61 deselected in 0.40s
 
 === 变体 G: HIGH-3(2) 回退: 删源前不回读校验留痕字节 ===
-  ✅ 如期变红 | 1 failed, 54 deselected in 0.62s
+  ✅ 如期变红 | 1 failed, 61 deselected in 0.50s
 
 === 变体 I: 主session HIGH-4 回退: 写侧从 dirfd 锚定退回按路径 open/link ===
-  ✅ 如期变红 | 1 failed, 54 deselected in 0.54s
+  ✅ 如期变红 | 1 failed, 61 deselected in 0.45s
 
 === 变体 J: 主session HIGH-5 回退: undo 恢复对 leaf symlink 的 resolve (移走 referent) ===
-  ✅ 如期变红 | 1 failed, 54 deselected in 0.61s
+  ✅ 如期变红 | 1 failed, 61 deselected in 0.53s
+
+=== 变体 K: round-3 HIGH-1 回退: 去掉写入后「dfd 是否仍是 vault 内那个目录」的复核 ===
+  ✅ 如期变红 | 2 failed, 60 deselected in 0.53s
+
+=== 变体 L: round-3 HIGH-2 回退: 失败路径不再撤销已发布的 target ===
+  ✅ 如期变红 | 1 failed, 61 deselected in 0.39s
+
+=== 变体 M: round-3 HIGH-3 回退: 撤销前不再复核 identity、且吞掉 unlink 失败 ===
+  ✅ 如期变红 | 2 failed, 60 deselected in 0.42s
+
+=== 变体 N: round-3 HIGH-4 回退: _fsync_dir 恢复 fail-open + undo 不再据此拒绝 ===
+  ✅ 如期变红 | 2 failed, 60 deselected in 0.55s
 
 === 变体 H: HIGH-3(1) 回退: 去掉紧贴 unlink 前的 identity 复核 ===
-  ✅ 如期变红 | 1 failed, 54 deselected in 0.56s
+  ✅ 如期变红 | 1 failed, 61 deselected in 0.58s
 
 === 还原后复核 ===
-  ✅ 字节与备份逐字相同 (sha 516ef31ff026af11…)
-  ✅ 还原后完整套件 exit=0 | 55 passed in 6.19s
+  ✅ 字节与备份逐字相同 (sha 7a8d1dc9aa300bec…)
+  ✅ 还原后完整套件 exit=0 | 62 passed in 6.14s
 
 RESULT: PASS — 全部新门均为承重门

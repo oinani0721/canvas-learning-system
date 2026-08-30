@@ -42,6 +42,7 @@ live 侧价值验证顺延 G5-11, 本脚本只交 worktree 面 + fixture 证据�
 from __future__ import annotations
 
 import argparse
+import errno
 import hashlib
 import importlib.util
 import json
@@ -275,19 +276,32 @@ def _created_at(ts: str) -> str:
     return f"{ts[:10]}T{ts[11:13]}:{ts[13:15]}:00Z"
 
 
-def _fsync_dir(d: Path) -> None:
+def _fsync_dir(d: Path) -> str | None:
     """目录项持久化 (round-3 M5): 只 fsync 文件不 fsync 父目录时,
-    崩溃后可能文件内容在而目录项丢失。失败静默 (不是所有 FS 都支持)。"""
+    崩溃后可能文件内容在而目录项丢失。
+
+    ⛔ round-3 HIGH-4: 原实现把 open/fsync 的失败**全部静默吞掉并返回 None**,
+    调用方无从分辨"成功"与"失败"。undo 因此会在**留痕目录项未持久化**的情况下
+    继续删除源文件 —— 崩溃模型下可能**两端皆失**(源已删、留痕的目录项没落盘)。
+    修法: 返回失败原因, 由调用方决定是否 fail-closed。
+    → None = 成功 (或该 FS 不支持 fsync 目录, 见下); str = 失败原因。
+
+    诚实边界: 部分文件系统对目录 fd 的 fsync 返回 EINVAL/ENOTSUP, 那**不是**
+    持久化失败而是"不支持"。这两类必须区分, 否则会在正常 FS 上误拒。
+    """
     try:
         fd = os.open(d, os.O_RDONLY)
-    except OSError:
-        return
+    except OSError as e:
+        return f"目录打开失败 {type(e).__name__}"
     try:
         os.fsync(fd)
-    except OSError:
-        pass
+    except OSError as e:
+        if getattr(e, "errno", None) in (errno.EINVAL, errno.ENOTSUP, errno.EPERM):
+            return None  # FS 不支持 fsync 目录 —— 不是持久化失败
+        return f"目录 fsync 失败 {type(e).__name__}"
     finally:
         os.close(fd)
+    return None
 
 
 def _open_exam_dirfd(vault: Path) -> tuple[int | None, str | None]:
@@ -325,7 +339,85 @@ def _open_exam_dirfd(vault: Path) -> tuple[int | None, str | None]:
     return dfd, None
 
 
-def _atomic_write(tmp: Path, target: Path, content: str, dir_fd: int) -> str | None:
+def _dirfd_still_in_vault(dir_fd: int, vault: Path) -> str | None:
+    """复核 dir_fd 指向的仍是 vault 内那个 检验白板/ 目录。
+
+    ⛔ round-3 HIGH-1: `_open_exam_dirfd` 只在**打开那一刻**做一次 inode 快照。
+    校验通过之后, 若有人把该目录 rename 到 vault **外**(同一文件系统),
+    dfd 仍指向那个已被移走的 inode —— 写入会真的落在 vault 外, 而回执照旧
+    按词法路径报 `created: true`, 用户以为文件在 vault 里。
+    修法: 发布完成后**再核一次**「vault/检验白板 这个路径今天解析出来的 inode,
+    是否还等于我们手里 dfd 的 inode」。不等 = 目录已被移走/替换。
+    → None = 仍在; str = 失败原因。
+
+    诚实边界: 这是**事后检测**, 不是事前阻止 —— POSIX 没有"把 inode 钉在某个
+    父目录里"的原语。它保证的是**不会谎报成功**(检测到就如实回报并撤销),
+    而不是"不可能被移走"。残留窗口与 lstat→unlink 那处同源, 已在验收单声明。
+    """
+    try:
+        st_now = os.stat(vault / EXAM_DIR)
+        st_dfd = os.fstat(dir_fd)
+    except OSError as e:
+        return f"写入后复核 {EXAM_DIR}/ 失败: {type(e).__name__}"
+    if (st_now.st_dev, st_now.st_ino) != (st_dfd.st_dev, st_dfd.st_ino):
+        return (
+            f"{EXAM_DIR}/ 在写入期间被替换或移出 vault "
+            "(目录 inode 已变) — 写入落点不可信"
+        )
+    return None
+
+
+def _rollback_published(
+    name: str,
+    dir_fd: int,
+    identity: tuple[int, int] | None = None,
+    *,
+    expect_sha: str | None = None,
+) -> str | None:
+    """撤销**我们自己**刚发布的 target —— 仅当它当前确实还是我们那一份。
+
+    round-3 HIGH-3: 原实现按 basename 直接 unlink 并静默吞掉失败, 两个问题:
+      · identity 快照可能已过时 —— 期间路径被换入他人文件时会误删;
+      · 删除失败被吞 ⇒ 错误字节的 target 留在 vault 里, 回执却只报失败。
+
+    「还是我们那一份」有两种判法, 按调用场景取其一:
+      · ``identity``  —— 比 (dev, ino), 用于「刚 link 出来、inode 已知」的场景;
+      · ``expect_sha`` —— 比内容 SHA, 用于 HIGH-1 那种「目录整体被移走」的场景
+        (此时 inode 仍是我们的, 但我们想确认删的确是自己写的那份字节)。
+    两者都给则必须同时满足。任一不符 ⇒ **不删**(那不是我们的东西)。
+    → None = 已撤销 / 无需撤销; str = 失败原因(调用方须写进回执, 不得吞)。
+    """
+    try:
+        st_now = os.lstat(name, dir_fd=dir_fd)
+    except FileNotFoundError:
+        return None  # 已经不在了, 无需撤销
+    except OSError as e:
+        return f"撤销前复核失败 {type(e).__name__}"
+    if identity is not None and (st_now.st_dev, st_now.st_ino) != identity:
+        return None  # 已不是我们的 inode ⇒ 是别人的文件, 绝不删
+    if expect_sha is not None:
+        try:
+            cfd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=dir_fd)
+            try:
+                buf = b""
+                while chunk := os.read(cfd, 1 << 20):
+                    buf += chunk
+            finally:
+                os.close(cfd)
+        except OSError as e:
+            return f"撤销前回读失败 {type(e).__name__}"
+        if hashlib.sha256(buf).hexdigest() != expect_sha:
+            return None  # 内容已不是我们写的那份 ⇒ 不删
+    try:
+        os.unlink(name, dir_fd=dir_fd)
+    except OSError as e:
+        return f"unlink 失败 {type(e).__name__}"
+    return None
+
+
+def _atomic_write(
+    tmp: Path, target: Path, content: str, dir_fd: int
+) -> tuple[str | None, str | None]:
     """O_EXCL|O_NOFOLLOW 写 tmp → fsync → **link 到 target (no-replace)** →
     unlink tmp → fsync 父目录。
 
@@ -357,6 +449,8 @@ def _atomic_write(tmp: Path, target: Path, content: str, dir_fd: int) -> str | N
     """
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
     tmp_name, target_name = tmp.name, target.name
+    published = False  # link 是否已成功 (round-3 HIGH-2)
+    st_written = None
     try:
         fd = os.open(tmp_name, flags, 0o644, dir_fd=dir_fd)
     except OSError as e:
@@ -378,6 +472,11 @@ def _atomic_write(tmp: Path, target: Path, content: str, dir_fd: int) -> str | N
         os.link(
             tmp_name, target_name, src_dir_fd=dir_fd, dst_dir_fd=dir_fd
         )  # EEXIST 绝不覆盖
+        # round-3 HIGH-2: link 一旦成功, target 就**已经发布**了。此后回读若抛
+        # EMFILE/EIO 之类, 原实现会掉进下方统一 except —— 那里只删 tmp,
+        # **把已发布的 target 留在 vault 里**却回报"原子写失败"。
+        # 修法: 用显式状态记住"已发布", 让失败路径知道自己要撤销发布。
+        published = True
         # codex round-1 HIGH-2 (a): 只比 (dev,ino) 不足 —— 别的进程**原地改写
         # 同一个 tmp inode** 时两侧 inode 恒等, 核对照样通过, 发布出去的却是
         # 他人字节 (复核者隔离注入实测: 回执 SHA e51ca99e… 与目标实际 43cb09e0…
@@ -403,11 +502,19 @@ def _atomic_write(tmp: Path, target: Path, content: str, dir_fd: int) -> str | N
             # 修法: inode 不符时**绝不删**, 只如实回报; 仅当 inode 仍是我们的
             # (纯字节被原地改写) 才撤销自己的发布。
             if same_inode:
-                try:
-                    os.unlink(target_name, dir_fd=dir_fd)
-                except OSError:
-                    pass
+                # round-3 HIGH-3: same_inode 来自**已打开 fd 的快照**, 到这里可能
+                # 已经过时 —— 期间路径若被换入别的文件, 按 basename 删就删掉了
+                # 他人的文件。修法: 紧贴 unlink 前**再 lstat 一次**核 identity;
+                # 且删除失败**不再静默吞掉**(否则会留下错误字节的 target 而回执
+                # 只报失败)。
+                rb_err = _rollback_published(
+                    target_name, dir_fd, (st_written.st_dev, st_written.st_ino)
+                )
+                published = False
+                if rb_err:
+                    raise OSError(f"published bytes mismatch; 撤销失败: {rb_err}")
                 raise OSError("published bytes mismatch (in-place rewrite)")
+            published = False  # 不是我们的 inode ⇒ 不属于我们, 无需也不得撤销
             raise OSError(
                 "published inode mismatch (concurrent replacement; 未删除该文件)"
             )
@@ -417,16 +524,33 @@ def _atomic_write(tmp: Path, target: Path, content: str, dir_fd: int) -> str | N
                 os.close(fd)
             except OSError:
                 pass
+        # round-3 HIGH-2: 若 link 已成功而后续步骤抛错, target 已经发布出去了 ——
+        # 必须撤销自己的发布, 否则「回执报失败、文件却留在 vault 里」。
+        rb_err = None
+        if published:
+            rb_err = _rollback_published(
+                target_name, dir_fd, (st_written.st_dev, st_written.st_ino)
+            )
+        # round-3 MEDIUM-5: tmp 清理失败原先被吞 —— 残留会让下次同 ts 的 O_EXCL
+        # 直接失败, 而用户拿不到任何线索。改为并入错误消息如实回报。
+        tmp_err = None
         try:
             os.unlink(tmp_name, dir_fd=dir_fd)
-        except OSError:
+        except FileNotFoundError:
             pass
+        except OSError as te:
+            tmp_err = f"{tmp_name}: {type(te).__name__}"
         kind = (
             "目标已存在 (并发创建), 拒绝覆盖"
             if isinstance(e, FileExistsError)
             else "原子写失败"
         )
-        return f"{kind}: {type(e).__name__}", None
+        msg = f"{kind}: {type(e).__name__}"
+        if rb_err:
+            msg += f" (⚠️ 已发布的目标未能撤销: {rb_err}, 请手动检查)"
+        if tmp_err:
+            msg += f" (⚠️ 临时文件未清理 {tmp_err}, 下次同 ts 会被拒, 请手动删除)"
+        return msg, None
     warn = None
     try:
         os.unlink(tmp_name, dir_fd=dir_fd)
@@ -614,6 +738,16 @@ def cmd_create(args) -> int:
         return _fail_env(dfd_err)
     try:
         write_err, warn = _atomic_write(tmp, target, content, dfd)
+        # round-3 HIGH-1: dirfd 的身份校验只发生在打开那一刻。写入完成后再核一次
+        # 「vault/检验白板 现在解析出的 inode 是否仍等于 dfd 的 inode」——
+        # 若期间目录被 rename 出 vault, 这里会检出, 从而**不会谎报 created:true**。
+        if not write_err:
+            moved = _dirfd_still_in_vault(dfd, vault)
+            if moved:
+                rb = _rollback_published(target.name, dfd, None, expect_sha=sha)
+                write_err = moved + (
+                    f" (已撤销该文件)" if not rb else f"; 撤销失败: {rb}"
+                )
     finally:
         os.close(dfd)
     if write_err:
@@ -810,7 +944,25 @@ def cmd_undo(args) -> int:
         except OSError:
             pass
         return _fail_env(f"留痕写入失败, 已放弃回退 (原文件未动): {type(e).__name__}")
-    _fsync_dir(undo_dir)
+    # round-3 HIGH-4: 留痕的**目录项**没落盘就删源, 崩溃后可能两端皆失。
+    # 这里改为 fail-closed: fsync 目录失败即拒绝回退, 原文件原样保留。
+    dsync_err = _fsync_dir(undo_dir)
+    if dsync_err:
+        print(
+            json.dumps(
+                {
+                    "mode": "undo",
+                    "undone": False,
+                    "refusal_reason": (
+                        f"留痕目录项未能持久化 ({dsync_err}) — 未删除 vault 内文件; "
+                        "此时删源在崩溃后可能两端皆失。请换一个 --undo-dir 重试"
+                    ),
+                    "retained_at": str(dest),
+                },
+                ensure_ascii=False,
+            )
+        )
+        return 0
     # codex round-1 HIGH-3 (2): 留痕写完 + fsync 之后**从未回读校验** —— 复核者
     # 隔离注入原地改写留痕 inode 后, 源文件照删、回执 retained SHA 报 765bf07e…
     # 而留痕实际是 3710644e…: 「写留痕后才删源」的耐久承诺被架空 (留下的是坏

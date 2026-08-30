@@ -1134,3 +1134,210 @@ def test_undo_refuses_symlink_alias_instead_of_moving_referent(tmp_path):
     assert real.is_file(), "referent 被移走了（正是要防的形态）"
     assert alias.is_symlink() and alias.resolve() == real.resolve(), "alias 变成了死链"
     assert list(undo_dir.iterdir()) == [], "拒绝路径却写了留痕"
+
+
+# ══════ round-3 窄范围复核的 4 条 HIGH + 2 条 M/L 回归锁（CARD-收口A ③ 三段）══════
+#
+# round-3 确认前两段的主路径修复全部到位（4 项题定校验 PASS、10/10 承重），
+# 但在**失败路径与竞态窗口**上找到 4 条新 HIGH。共同成因：
+# **每加一道检查，就新增一条「它自己失败时」的路径** —— 这是加固工作的固有代价。
+
+
+def test_rollback_published_refuses_to_delete_someone_elses_file(tmp_path):
+    """HIGH-3 承重门：`_rollback_published` 的 identity 快照可能已过时。
+    传入一个**不匹配**的 identity（模拟路径已被换成他人文件），必须**不删**。"""
+    mod = _load_module()
+    d = tmp_path / "d"
+    d.mkdir()
+    victim = d / "t.md"
+    victim.write_text("SOMEONE-ELSES-FILE\n", encoding="utf-8")
+    dfd = mod.os.open(d, mod.os.O_RDONLY | mod.os.O_DIRECTORY)
+    try:
+        err = mod._rollback_published("t.md", dfd, (99999, 99999))  # 故意不匹配
+    finally:
+        mod.os.close(dfd)
+    assert err is None, f"不该报错: {err}"
+    assert victim.is_file(), "删掉了不属于自己的文件"
+    assert victim.read_text(encoding="utf-8") == "SOMEONE-ELSES-FILE\n"
+
+
+def test_rollback_published_reports_unlink_failure_instead_of_swallowing(tmp_path):
+    """HIGH-3 承重门（另一半）：删除失败**不得静默吞掉**，否则错误字节的
+    target 留在 vault 里而回执只报「失败」。"""
+    mod = _load_module()
+    d = tmp_path / "d"
+    d.mkdir()
+    f = d / "t.md"
+    f.write_text("OURS\n", encoding="utf-8")
+    st = f.stat()
+    dfd = mod.os.open(d, mod.os.O_RDONLY | mod.os.O_DIRECTORY)
+    real_unlink = mod.os.unlink
+
+    def evil_unlink(*a, **kw):
+        raise PermissionError("simulated")
+
+    mod.os.unlink = evil_unlink
+    try:
+        err = mod._rollback_published("t.md", dfd, (st.st_dev, st.st_ino))
+    finally:
+        mod.os.unlink = real_unlink
+        mod.os.close(dfd)
+    assert err is not None, "删除失败却报成功（原实现的行为）"
+    assert "unlink" in err
+
+
+def test_atomic_write_rolls_back_when_readback_raises(tmp_path):
+    """HIGH-2 承重门：`os.link` 成功后 target 已发布；若随后的回读抛
+    EMFILE/EIO 之类，原实现掉进统一错误分支只删 tmp，**把已发布的 target
+    留在 vault 里**却回报失败。修法是用 `published` 状态让失败路径撤销发布。"""
+    mod = _load_module()
+    d = tmp_path / "d"
+    d.mkdir()
+    tmp_p, target = d / "t.tmp", d / "t.md"
+    dfd = mod.os.open(d, mod.os.O_RDONLY | mod.os.O_DIRECTORY)
+    real_open = mod.os.open
+    state = {"linked": False}
+    real_link = mod.os.link
+
+    def evil_link(src, dst, **kw):
+        real_link(src, dst, **kw)
+        state["linked"] = True
+
+    def evil_open(path, *a, **kw):
+        # 只在 link 之后、对 target 的回读上抛错
+        if state["linked"] and path == "t.md":
+            raise OSError(24, "simulated EMFILE")
+        return real_open(path, *a, **kw)
+
+    mod.os.link, mod.os.open = evil_link, evil_open
+    try:
+        err, _warn = mod._atomic_write(tmp_p, target, "USER-CONFIRMED\n", dfd)
+    finally:
+        mod.os.link, mod.os.open = real_link, real_open
+        mod.os.close(dfd)
+    assert err is not None, "回读抛错却报成功"
+    assert not target.exists(), "回执报失败，却把已发布的目标留在了 vault 里"
+
+
+def test_fsync_dir_reports_failure_instead_of_silently_succeeding(tmp_path):
+    """HIGH-4 承重门（下半）：`_fsync_dir` 原先吞掉全部错误并返回 None，
+    调用方无从分辨成功与失败。现在必须返回失败原因。"""
+    mod = _load_module()
+    d = tmp_path / "d"
+    d.mkdir()
+    assert mod._fsync_dir(d) is None, "正常目录不该报错"
+    real_fsync = mod.os.fsync
+
+    def evil_fsync(fd):
+        raise OSError(5, "simulated EIO")
+
+    mod.os.fsync = evil_fsync
+    try:
+        err = mod._fsync_dir(d)
+    finally:
+        mod.os.fsync = real_fsync
+    assert err is not None, "fsync 失败却返回 None（原实现的 fail-open）"
+    assert "fsync" in err
+
+
+def test_undo_refuses_when_retention_dir_fsync_fails(tmp_path, capsys):
+    """HIGH-4 承重门（上半）：留痕的**目录项**没落盘就删源，崩溃后可能两端皆失。
+    现在必须 fail-closed —— 拒绝回退且原文件原样保留。"""
+    vault = build_vault(tmp_path)
+    out = do_create(vault, ["板一"])
+    undo_dir = tmp_path / "keep-fsyncfail"
+    undo_dir.mkdir()
+    target = vault / out["created_path"]
+    mod = _load_module()
+    real_fsync_dir = mod._fsync_dir
+
+    def evil_fsync_dir(dd):
+        if Path(dd) == undo_dir:
+            return "目录 fsync 失败 OSError"  # 模拟持久化失败
+        return real_fsync_dir(dd)
+
+    mod._fsync_dir = evil_fsync_dir
+    try:
+        rc = mod.cmd_undo(_undo_args(vault, out["created_path"], out["content_sha256"], undo_dir))
+    finally:
+        mod._fsync_dir = real_fsync_dir
+    res = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert res["undone"] is False, "留痕目录项未持久化却报回退成功"
+    assert "持久化" in res["refusal_reason"]
+    assert target.is_file(), "fail-open 删掉了源文件"
+
+
+def test_create_detects_exam_dir_moved_out_of_vault_after_anchor(tmp_path, capsys):
+    """HIGH-1 承重门：dirfd 只在打开那一刻做 inode 快照。校验通过后把
+    检验白板/ rename 到 vault **外**（同一文件系统），dfd 仍指向已外移的 inode ——
+    写入真的落在 vault 外，而回执照旧按词法路径报 created:true。
+    修法是写入完成后再核一次「vault/检验白板 现在的 inode 是否还等于 dfd 的」。"""
+    vault = build_vault(tmp_path)
+    sha = do_preview(vault, ["板一"])["content_sha256"]
+    outside = tmp_path / "moved_away"
+    exam = vault / EXAM_DIR_NAME
+    mod = _load_module()
+    real_atomic = mod._atomic_write
+
+    def evil_atomic(tmp_p, target, content, dir_fd):
+        r = real_atomic(tmp_p, target, content, dir_fd)
+        # 写入已完成、复核之前：把目录整体移出 vault（同一文件系统）
+        exam.rename(outside)
+        return r
+
+    mod._atomic_write = evil_atomic
+    try:
+        rc = mod.cmd_create(
+            argparse.Namespace(
+                vault=str(vault),
+                boards=["板一"],
+                anchor=None,
+                ts=TS,
+                expect_content_sha=sha,
+            )
+        )
+    finally:
+        mod._atomic_write = real_atomic
+    out = capsys.readouterr().out
+    assert rc == 2, f"目录被移出 vault 却报成功: rc={rc} {out}"
+    # 两种形态都算命中：目录被整体移走 ⇒ 路径不存在（FileNotFoundError）；
+    # 目录被换成另一个同名目录 ⇒ inode 已变。二者都由写入后复核检出。
+    assert "写入后复核" in out or "移出 vault" in out or "inode 已变" in out, f"拒绝理由未点名写入后复核: {out}"
+    assert "已撤销该文件" in out, f"检出后未撤销已发布的文件: {out}"
+    assert not (outside / f"板一-{TS}.md").exists(), "文件留在了 vault 外"
+
+
+def test_create_detects_exam_dir_swapped_to_another_dir_after_anchor(tmp_path, capsys):
+    """HIGH-1 承重门（另一形态）：目录被换成**另一个同名目录**（路径仍存在，
+    但 inode 变了）。这条专门锁 inode 比对那一支，避免只被 FileNotFoundError 覆盖。"""
+    vault = build_vault(tmp_path)
+    sha = do_preview(vault, ["板一"])["content_sha256"]
+    exam = vault / EXAM_DIR_NAME
+    decoy = tmp_path / "decoy_dir"
+    decoy.mkdir()
+    mod = _load_module()
+    real_atomic = mod._atomic_write
+
+    def evil_atomic(tmp_p, target, content, dir_fd):
+        r = real_atomic(tmp_p, target, content, dir_fd)
+        exam.rename(tmp_path / "stashed")  # 移走原目录
+        decoy.rename(exam)  # 换上另一个同名目录（inode 不同）
+        return r
+
+    mod._atomic_write = evil_atomic
+    try:
+        rc = mod.cmd_create(
+            argparse.Namespace(
+                vault=str(vault),
+                boards=["板一"],
+                anchor=None,
+                ts=TS,
+                expect_content_sha=sha,
+            )
+        )
+    finally:
+        mod._atomic_write = real_atomic
+    out = capsys.readouterr().out
+    assert rc == 2, f"目录被换成另一个同名目录却报成功: rc={rc} {out}"
+    assert "inode 已变" in out or "被替换或移出" in out, f"未点名 inode 变化: {out}"

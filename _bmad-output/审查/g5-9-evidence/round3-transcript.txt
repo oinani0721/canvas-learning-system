@@ -1,0 +1,1537 @@
+Reading additional input from stdin...
+OpenAI Codex v0.147.0
+--------
+workdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+model: gpt-5.6-sol
+provider: openai
+approval: on-request
+sandbox: read-only
+reasoning effort: ultra
+reasoning summaries: auto
+session id: 01a051a0-24e7-7af2-b940-f869dc54abe1
+--------
+user
+你是独立复核者。请做一次**窄范围实现审阅**，直接输出中文 Markdown 报告（read-only）。
+
+工作目录：/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+
+## 范围（严格限定，请勿超出）
+
+**只读这一个实现文件**：`canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py`
+
+⛔ **请不要读 `backend/tests/skills/test_g5_9_recap_exam.py`**（它是对抗性测试语料，
+前几轮复核在读它时被平台内容过滤器中断，导致整轮报废）。
+测试是否承重，请改用下面第 3 项的脚本输出来判断，不要阅读测试源码。
+
+## 需要回答的三件事
+
+### 1. 目录句柄锚定的实现是否自洽（`_open_exam_dirfd` + `_atomic_write`）
+
+- `_open_exam_dirfd()`（约 :293-325）用 `O_DIRECTORY|O_NOFOLLOW` 打开目标目录，
+  再做 (dev, ino) 一致性校验与「与 vault 同一文件系统」校验，返回目录 fd。
+- `_atomic_write()`（约 :352-429）此后的 open / link / 回读 / unlink / fsync
+  是否**全部**使用 basename + `dir_fd=`，有无遗漏的按路径调用？
+- 有无 fd 泄漏（异常分支是否都关了 fd）？
+- 失败分支的清理是否正确（尤其「目标 inode 已不是自己的」那一支是否**不删**）？
+
+### 2. undo 流程的三处校验是否自洽
+
+- 最后一段是符号链接时直接拒绝（约 :674-680）——判断时机是否在 `.resolve()` **之前**？
+- 留痕写入 + fsync 之后，删源之前是否**重新打开读回**并核对 size 与 sha？
+- `os.unlink` 之前是否**紧贴着**再做一次 (dev, ino) 一致性核对？
+- 这三处的失败分支是否都「不删源」并如实回报？有无 fd 泄漏？
+
+### 3. 承重性（用脚本输出判断，不要读测试源码）
+
+请运行：
+
+```
+cd backend && DEBUG=true NEO4J_ENABLED=false .venv/bin/python \
+  "../_bmad-output/审查/g5-9-evidence/round1-high-negverify.py"
+```
+
+该脚本会把实现里的 10 处判定逐个改回旧形态、跑对应测试、再逐字节还原。
+请核对它的输出：10 个变体是否都「如期变红」？还原后源文件 SHA 是否与备份一致？
+最后是否 `RESULT: PASS`？
+
+另请跑一遍回归确认无破坏：
+
+```
+cd backend && DEBUG=true NEO4J_ENABLED=false .venv/bin/python -m pytest \
+  tests/regression/test_recap_scan_signals.py tests/skills/test_g5_9_recap_exam.py \
+  -q -p no:cacheprovider -p no:warnings --override-ini="addopts="
+```
+（期望 160 passed）
+
+## 硬约束
+- 只读；不写入 canvas-vault；不修改任何 tracked 文件。
+- 上面那个脚本会原地改被测文件并自行还原——跑完请确认工作树 `git status` 干净。
+
+## 输出要求
+- 结论先行：上述实现是否「自洽且承重」，还是「仍有实现级缺陷」。
+- 每条发现标 BLOCKER / HIGH / MEDIUM / LOW + 精确 文件:行号。
+- 末尾给「残留清单」四级条数。
+- 只有「会导致数据损坏 / 回执与实际写入不一致 / 失效判定让套件仍全绿」才算 HIGH。
+- 如实声明未能验证的部分（例如未读测试源码这一限制）。
+**Planning read-only audit using memory skills**
+**Designing multi-agent audit within scope**
+**Planning sequential multi-agent audit steps**
+codex
+我会按独立、只读、fail-closed 的方式复核：只检查指定实现文件，并把两条命令的“进程实际输出”作为测试承重证据，绝不打开测试源码。这个任务与既有的 Canvas 对抗性审阅流程完全匹配，我先读取该审阅 skill 的约束，再分成目录句柄、undo、运行证据三条独立轨道交叉核对。
+**Searching MEMORY.md for Graphiti**
+exec
+/bin/zsh -lc "rg -n -C 3 'adversarial|g5-9|recap|card-s6|review' /Users/Heishing/.codex/memories/MEMORY.md" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+28-- Do not disable an entire SPreset merely to remove chain-of-thought formatting; preserve prompt/card injections and items marked “别关”. [Task 1]
+29-
+30-# Task Group: Canvas Learning System long-running cross-model orchestration and productivity governance
+31:scope: Evidence-first audit of project readiness plus a bounded 24-hour writer/reviewer orchestration design. The frozen runbook supports only a Bootstrap-Prep authorization request, not execution.
+32-applies_to: cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output; reuse_rule=revalidate checkout, SHA, CI, unresolved findings, and current authorization before reuse; never treat this historical runbook as permission to create roots, clones, or run agents.
+33-
+34:## Task 1: Full-project adversarial audit and productivity direction, partial
+35-
+36-### rollout_summary_files
+37-
+38:- rollout_summaries/2026-08-19T18-23-31-2Aoh-canvas_learning_system_adversarial_audit_and_24h_orchestrati.md (cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output, rollout_path=/Users/Heishing/.codex/sessions/2026/08/20/rollout-2026-08-20T02-23-31-01a01b43-9daa-7ef1-8e35-587f59df3ec1.jsonl, updated_at=2026-08-24T13:41:20+00:00, thread_id=01a01b43-9daa-7ef1-8e35-587f59df3ec1, outcome=partial; audit and plan only)
+39-
+40-### keywords
+41-
+--
+45-
+46-### rollout_summary_files
+47-
+48:- rollout_summaries/2026-08-19T18-23-31-2Aoh-canvas_learning_system_adversarial_audit_and_24h_orchestrati.md (cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output, rollout_path=/Users/Heishing/.codex/sessions/2026/08/20/rollout-2026-08-20T02-23-31-01a01b43-9daa-7ef1-8e35-587f59df3ec1.jsonl, updated_at=2026-08-24T13:41:20+00:00, thread_id=01a01b43-9daa-7ef1-8e35-587f59df3ec1, outcome=success; PASS_FOR_BOOTSTRAP_PREP_REQUEST only)
+49-
+50-### keywords
+51-
+--
+55-
+56-- When asking for “对抗性审查并且修复” and “使用并行 agent workflow”, expect independent evidence tracks with gaps, priorities, and exit gates; distinguish decisions, implementation, tests, and user acceptance. [Task 1]
+57-- For long-running repair, the user does not want several manual iTerm sessions or model overreach: use a supervisor, dependency gates, leases, crash recovery, human gates, and stop rules; a model saying “Goal achieved” is not completion. [Task 2]
+58:- The approved execution order was “先止血、数据边界、可信基线、安全写入基建、分批落地、价值验证、缓行”; Dashboard Web UI is deferred and a broad review MVP should be output-only. [Task 1]
+59-
+60-## Reusable knowledge
+61-
+62-- In this project family: frontend `frontend/obsidian-plugin/`, backend `backend/app/`, RAG `backend/lib/agentic_rag/`; default backend test is `cd backend && .venv/bin/pytest tests/ -x -q`. The represented CI run `32280954498` had 271 passed/13 skipped but Dependency Audit failed on five vulnerabilities; rulesets/required checks were still unset. Rebuild `CURRENT_TASK.md` from HEAD, Actions, and open facts. [Task 1]
+63-- P1-05c evidence still found real vault-admission and LanceDB/orchestrator bypasses; a Graphiti exact-reader helper fix does not prove callers pass the correct group. SnapshotV3 still needs strict schema, bad-cache self-healing, and no ID truncation. [Task 1]
+64-- Use official Codex app-server/subagents, Claude Goals/Agent SDK only in permitted phases, and a non-LLM supervisor. Third-party orchestration plugins may notify or show a read-only dashboard but must not control authorization, evidence, or merging. [Task 2]
+65:- Permission stages are `ORCH-BOOTSTRAP-PREP-V1` (supervised trusted-root construction), `ORCH-SETUP-V1`, then `ORCH-RUN-V1` (up to 24h). Bootstrap request limits: 6h, 6 builder attempts, one reviewer attempt per role, two heavy tests, 1,500,000 tokens, `no_auto_resume=true`. [Task 2]
+66-- Envelope binds only target path, schema hash, construction-contract hash, and `preimage=ABSENT`; the activator creates actual approval-projection SHA, then binds claim/task/result/event. Keep SETUP/RUN claims separate; owner acquires `O_NOFOLLOW|O_CLOEXEC` advisory lock before LLM launch and restart increments epoch/fencing token. Reviewers independently materialize the exact candidate bundle and bind SHA, I/O hashes, command, exit, stdout/stderr, verdict, and limits. [Task 2]
+67-
+68-## Failures and how to do differently
+--
+80-
+81-### rollout_summary_files
+82-
+83:- rollout_summaries/2026-08-23T07-46-17-9G79-gov01_a4_blocked_recovery4_lab_freeze_review_fail.md (cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev, rollout_path=/Users/Heishing/.codex/sessions/2026/08/23/rollout-2026-08-23T15-46-17-01a02d95-a6b8-7cf3-b775-6b8afa4464db.jsonl, updated_at=2026-08-24T12:24:52+00:00, thread_id=01a02d95-a6b8-7cf3-b775-6b8afa4464db, outcome=partial; no edit/candidate/review)
+84-
+85-### keywords
+86-
+87-- GOV01, A4, design-claude.json, A4_DESIGN_DIVERGENCE, WAITING_FOR_A4_DESIGN_HANDOFF, d3167d0655fed91a9b96547c50f6adffb07a0bfe, git ls-files, canvas-vault
+88-
+89:## Task 2: Recovery-4 isolated lab package, local suite PASS / freeze review FAIL
+90-
+91-### rollout_summary_files
+92-
+93:- rollout_summaries/2026-08-23T07-46-17-9G79-gov01_a4_blocked_recovery4_lab_freeze_review_fail.md (cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev, rollout_path=/Users/Heishing/.codex/sessions/2026/08/23/rollout-2026-08-23T15-46-17-01a02d95-a6b8-7cf3-b775-6b8afa4464db.jsonl, updated_at=2026-08-24T12:24:52+00:00, thread_id=01a02d95-a6b8-7cf3-b775-6b8afa4464db, outcome=partial; isolated lab only)
+94-
+95-### keywords
+96-
+--
+111-## Failures and how to do differently
+112-
+113-- Missing handoff is a hard wait condition, not implied approval. `ps` was sandbox-denied (`operation not permitted`); mark the census unavailable rather than successful. [Task 1]
+114:- Freeze reviewer rejected the lab: missing reproducible full ordinal-9595 input, stdlib origin-byte hashes, exact freeze execution contract/argv/env/cwd enforcement, post-chmod mode proof, and final fsync/reopen/short-write proof. Do not run `freeze_package.py` until a new stable package independently addresses them. [Task 2]
+115-- Do not embed private transcript/session paths in public/minimal package artifacts. [Task 2]
+116-
+117-# Task Group: Canvas Learning System GOV01 exact-object and CACHE-PREP atomicity audit
+--
+126-
+127-### keywords
+128-
+129:- GOV01-A4, d3167d06, c1990df5, 2cf9cbf0, git bundle verify, exact bytes, isolated bare repo, review binding, canvas-vault
+130-
+131-## Task 2: CACHE-PREP-V1 ADOPT/live-cache atomicity R2, FAIL / BLOCKED
+132-
+--
+145-
+146-## Reusable knowledge
+147-
+148:- If incremental `git bundle verify` fails in the original worktree because its prerequisite object is absent, seed an isolated bare repo with parent then child bundles. The verified chain was `d3167d06 -> c1990df5395267058a8ec74e415a2ae646d3c261 -> 2cf9cbf0f73479805d4d413fd72829ff825b38bf`; `c1990df5` changed six A4 files, while `2cf9cbf0` adds one generation-envelope JSON. A content-equivalent amended tree still needs fresh review binding. [Task 1]
+149-- Static ADOPT/LIVE code had FD-relative anchoring/nofollow, owner/mode/nlink checks, no-overwrite, file/parent fsync, and offline no-network/index/lifecycle closure for ADOPT/LIVE. Candidate-wide zero-network is invalid because FETCH contains HTTPS code. [Task 2]
+150-- Required closure: persistent per-digest adopter claim/journal and restart reconciliation; valid-existing/invalid-existing/missing branches; same-FD write/readback hash; post-open parent/ancestor identity checks through rename; no-replace publication and parent durability seal; bounded `scandir` enumeration and durable partial-mutation/residue evidence on unexpected exceptions. [Task 2]
+151-
+--
+174-
+175-## Reusable knowledge
+176-
+177:- Order: `GOV-01-VERIFIED clean candidate → OpenSpec → schema/checker → A01 boundary receipt → no-cap census/A01 snapshot → A02 seed/replay → ChatGPT blind review → Codex reconciliation → user dispute/waiver → joint A01/A02 completion → A03 candidate → user exact-byte lock`. A01 cannot complete independently of A02. [Task 1]
+178-- Boundary receipt binds SHA/tree, parent/cutoff, roots/planes, parser/normalizer/scanner/exclusion hashes, scope and user-approval commitments, and output allowlist. Truth atoms are versioned `AtomicAnnotation`, not marker counts. [Task 1]
+179-
+180-## Failures and how to do differently
+181-
+182-- Expired `pending-user-confirmation` receipt/envelope is not authority. New exact envelope/digest/challenge is needed. The existing `scripts/bmad/scan_feedback.py` did not cover actual output; freeze a new scanner contract/no-write boundary before census. [Task 1]
+183-
+184:# Task Group: Canvas Learning System P1-05/P1-01/P1-08 adversarial security review
+185-scope: Read-only, parallel audit of vault admission/indexing, Graphiti quarantine isolation, SnapshotV3, and recovery-anchor closure claims.
+186-applies_to: cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output; reuse_rule=revalidate SHA, CI, actual call sites, and live Neo4j state in the target checkout.
+187-
+188:## Task 1: P1-05c/P1-01/P1-08 parallel adversarial review, closure rejected
+189-
+190-### rollout_summary_files
+191-
+192:- rollout_summaries/2026-08-17T01-56-07-ZNCd-agents_guide_and_p1_05c_adversarial_audit.md (cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output, rollout_path=/Users/Heishing/.codex/sessions/2026/08/17/rollout-2026-08-17T09-56-07-01a00d6e-ea40-70a1-a23c-d51342eeeacd.jsonl, updated_at=2026-08-19T17:56:56+00:00, thread_id=01a00d6e-ea40-70a1-a23c-d51342eeeacd, outcome=partial; final read-only verdict)
+193-
+194-### keywords
+195-
+196-- P1-05c, P1-05, P1-01, P1-08, check_vault_path, vault_index_orchestrator, LanceDB, Graphiti, DEFAULT_GROUP_ID, SnapshotV3, CURRENT_TASK.md
+197-
+198:## Task 2: P1-05b five-question adversarial audit, reproducible bypasses
+199-
+200-### rollout_summary_files
+201-
+202:- rollout_summaries/2026-08-19T14-44-08-upza-p1_05b_adversarial_review_finds_admission_quarantine_snapsho.md (cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output, rollout_path=/Users/Heishing/.codex/sessions/2026/08/19/rollout-2026-08-19T22-44-08-01a01a7a-c47f-70e2-8e5e-524e1591da78.jsonl, updated_at=2026-08-19T15:12:50+00:00, thread_id=01a01a7a-c47f-70e2-8e5e-524e1591da78, outcome=partial; detailed counterexamples)
+203-
+204-### keywords
+205-
+--
+212-
+213-## Reusable knowledge
+214-
+215:- Related skill: skills/canvas-adversarial-audit/SKILL.md. P1-05/P1-01/P1-08 remained STILL-OPEN; F-02 tombstone filtering and F-05 live resilience were closed. Rejected vault inputs must show zero open/hash/index/write. [Task 1][Task 2]
+216-- Reproduced: `vault/raw/escape.md -> /outside/secret.md` was counted by `backfill_vault(..., execute=False)`; case-sensitive `fnmatch` admitted `.CLAUDE/SKILL.md` and `raw/claude.md`. Edge filtering alone was insufficient because exact readers/node search could cross Graphiti groups. [Task 2]
+217-- SnapshotV3 needs invalid/future same-generation self-healing, extra-field, strict-type, huge finite mastery, and identity/length collision coverage. [Task 1][Task 2]
+218-
+--
+229-
+230-### rollout_summary_files
+231-
+232:- rollout_summaries/2026-08-17T01-56-07-ZNCd-agents_guide_and_p1_05c_adversarial_audit.md (cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output, rollout_path=/Users/Heishing/.codex/sessions/2026/08/17/rollout-2026-08-17T09-56-07-01a00d6e-ea40-70a1-a23c-d51342eeeacd.jsonl, updated_at=2026-08-19T17:56:56+00:00, thread_id=01a00d6e-ea40-70a1-a23c-d51342eeeacd, outcome=success)
+233-
+234-### keywords
+235-
+
+**Planning to review skill and memory lines**
+exec
+/bin/zsh -lc 'wc -l /Users/Heishing/.codex/memories/skills/canvas-adversarial-audit/SKILL.md && nl -ba /Users/Heishing/.codex/memories/skills/canvas-adversarial-audit/SKILL.md' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+      50 /Users/Heishing/.codex/memories/skills/canvas-adversarial-audit/SKILL.md
+     1	---
+     2	name: canvas-adversarial-audit
+     3	description: Conduct a read-only, parallel, evidence-first adversarial audit of Canvas P1 closure claims, especially vault admission, Graphiti quarantine, and SnapshotV3.
+     4	argument-hint: "[task-book path or P1 scope]"
+     5	user-invocable: false
+     6	allowed-tools: Read, Grep, Glob, Bash
+     7	---
+     8	
+     9	# Canvas adversarial audit
+    10	
+    11	## When to use
+    12	
+    13	Use for a user-requested adversarial or closure audit in the Canvas Learning System worktree, particularly P1-05/P1-01/P1-08. Do not use to implement fixes, access prohibited raw-vault content, or declare a historical finding current without revalidation.
+    14	
+    15	## Inputs / context to gather
+    16	
+    17	1. Read the task book, `AGENTS.md`, worktree topology, allowed/prohibited paths, and reporting contract.
+    18	2. Record checkout SHA, branch, WT/MAIN labels, current `CURRENT_TASK.md`, and requested P1 claims.
+    19	3. Identify actual production entrypoints, not merely the tests that claim to cover them.
+    20	
+    21	## Procedure
+    22	
+    23	1. Split independent tracks: vault admission/indexing and tests; Graphiti quarantine/retrieval; SnapshotV3/recovery anchors. Keep the audit read-only.
+    24	2. For each claim, build an evidence matrix: claim, `file:line`, adversarial input/state, actual entrypoint/path, observed result, severity, PASS/PARTIAL/FAIL, and limitations.
+    25	3. Directly exercise real entrypoints with temporary fixtures where permitted. For path admission include symlink, directory symlink, blacklisted filename in an allowed directory, case variant, and nonexistent path. Assert rejected inputs perform zero open/hash/index/write.
+    26	4. For quarantine, test ordinary edge search plus node search and exact-reader paths (`search_nodes`, `read_node_tips`, `read_node_errors`, `read_node_edge_reasons`). Use read-only Neo4j queries and `EXPLAIN` where allowed; distinguish observed metadata exposure from unproven fact-body leakage.
+    27	5. For SnapshotV3, test same-generation invalid/future version self-healing, extra fields, strict typing, huge finite values that may produce NaN/Infinity, and identity/length collision boundaries.
+    28	6. Compare recovery anchors with machine facts: current HEAD, Actions status, test counts, and unresolved findings. Separate targeted-test results from whole CI.
+    29	7. Cross-check high-severity findings independently. Write the final matrix before closure language; explicitly retain `UNVERIFIABLE` items and failed counterexample attempts.
+    30	
+    31	## Efficiency plan
+    32	
+    33	- Start from task-book source handles and `rg` for real call sites; cache the entrypoint map for all tracks.
+    34	- Parallelize independent tracks, then have the primary reviewer re-open only high-severity evidence.
+    35	- Stop treating a test as evidence once it only hits source text, a helper, fake client, `__new__`, or monkeypatch; pivot to the real entrypoint.
+    36	
+    37	## Pitfalls and fixes
+    38	
+    39	- Green tests but unsafe closure -> tests do not reach production behavior. Add direct entrypoint fixtures and capture full stdout/trace before an assertion.
+    40	- `session:` IDs used as provenance -> ID shape alone is not proof. Preserve provenance or report PARTIAL.
+    41	- Quarantine count passes -> exact-reader/node-search surfaces may still cross groups. Test those surfaces specifically.
+    42	- `CURRENT_TASK.md` says closed but anchors disagree -> rebuild anchors from current HEAD, Actions, and unresolved findings.
+    43	
+    44	## Verification checklist
+    45	
+    46	- Every finding has `file:line`, reproduction, severity, result, and claim-conflict explanation.
+    47	- Final report labels WT/MAIN and all verification limits; no prohibited files or raw vault were read.
+    48	- Production entrypoints, not only helpers, were tested for each security claim.
+    49	- CI status is reported as whole-workflow status, not only passing targeted jobs.
+    50	- P1 closure is withheld whenever a reproducible bypass or unverified critical surface remains.
+
+**Planning git status and SHA inspection**
+  → 锁定范围与基线：记录 HEAD/分支/工作树状态，只读取指定实现文件
+  • 并行复核 _open_exam_dirfd/_atomic_write 与 undo 三重校验
+  • 运行 10 变体负验证脚本并核对逐项结果、还原 SHA
+  • 运行 160 项回归并确认最终工作树无新增差异
+  • 汇总精确行号、分级、限制与四级残留清单
+**Planning sequential tool calls**
+mcp: sequential-thinking/sequentialthinking started
+mcp: sequential-thinking/sequentialthinking (completed)
+**Planning parallel git and file commands**
+exec
+/bin/zsh -lc 'git branch --show-current' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+card/s6-recap
+
+exec
+/bin/zsh -lc 'git rev-parse HEAD' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+exec
+/bin/zsh -lc 'wc -l canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+d608733c619d1bae0caa1046db953ed7258d7348
+
+ succeeded in 0ms:
+     983 canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py
+
+exec
+/bin/zsh -lc 'shasum -a 256 canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+59fc71a4c83f2d7579618ff9be155272c78588ceb12693daead2ff7f707a089e  canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py
+
+exec
+/bin/zsh -lc 'git status --short' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+ M canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py
+
+**Confirming baseline dirty status**
+**Planning full implementation file inspection**
+codex
+基线发现一个需要如实保留的状态：在运行任何验证前，指定实现文件已经是 `git status` 的 `M`，因此“最终工作树干净”客观上无法成立。我不会触碰或清理这项既有修改；已锁定当前字节 SHA-256 为 `59fc71a4…089e`，脚本结束后会要求同 SHA 且状态与基线完全一致，并把这一区别写入报告。
+**Assigning bounded tasks to three agents**
+**Inspecting file with targeted grep searches**
+exec
+/bin/zsh -lc "rg -n '"'^def |os'"\\.(open|close|link|unlink|fsync|fdopen|stat|lstat)|\\.resolve\\(|_atomic_write|_open_exam_dirfd|undo' canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+7:  md → undo 字节级回退。exam_service / verification_service 零接触 —
+16:  - **undo 字节级回退**: 校验路径 containment + generated_by 指纹 +
+18:    vault 外 --undo-dir 留痕, ⛔ 不物理删除 (对齐「默认不 delete」)。
+64:# 同一形状约束施于 undo 的 --expect-sha (同型问题)。
+72:_SCAN_PATH = Path(__file__).resolve().parent / "recap_scan.py"
+83:def _fail_env(msg: str) -> int:
+88:def _sanitize_ghost_id(raw: str) -> str:
+102:def _scan_board(vault: Path, stem: str) -> dict:
+164:def _render_content(boards: list[dict], anchor: str, ts: str, created_at: str) -> str:
+251:def _symlink_probe(vault: Path, target: Path, tmp: Path) -> str | None:
+257:    外的 symlink; 且 undo 的 resolve() 会逃出 exam_root 导致无法回退。
+258:    本函数是第一道; 真正的防线是 _atomic_write 的 O_EXCL|O_NOFOLLOW。
+266:def _created_at(ts: str) -> str:
+278:def _fsync_dir(d: Path) -> None:
+282:        fd = os.open(d, os.O_RDONLY)
+286:        os.fsync(fd)
+290:        os.close(fd)
+293:def _open_exam_dirfd(vault: Path) -> tuple[int | None, str | None]:
+298:    2. ``os.fstat(dfd)`` 与 ``os.stat(vault/EXAM_DIR)`` 的 (dev, ino) 必须相同
+302:    → (dfd | None, 失败原因 | None)。调用方负责 os.close(dfd)。
+306:        dfd = os.open(exam, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+314:        st_path = os.stat(exam)
+315:        st_vault = os.stat(vault)
+317:        os.close(dfd)
+320:        os.close(dfd)
+323:        os.close(dfd)
+328:def _atomic_write(tmp: Path, target: Path, content: str, dir_fd: int) -> str | None:
+336:    target) —— 改用 ``os.link``: 目标已存在时内核直接 EEXIST, 原子且永不
+352:    「**锚定成功之后**, `_atomic_write` 内部的落点不再依赖路径解析」。
+355:      · `cmd_undo` 是另一套**按路径**的流程, 不走本锚定。
+361:        fd = os.open(tmp_name, flags, 0o644, dir_fd=dir_fd)
+368:        with os.fdopen(fd, "w", encoding="utf-8", closefd=False) as f:
+371:            os.fsync(f.fileno())
+376:        os.close(fd)
+378:        os.link(
+384:        # 分叉, 而 _atomic_write 返回 err=None)。修法 = 发布后**重读目标字节**
+387:        vfd = os.open(target_name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=dir_fd)
+394:            os.close(vfd)
+407:                    os.unlink(target_name, dir_fd=dir_fd)
+417:                os.close(fd)
+421:            os.unlink(tmp_name, dir_fd=dir_fd)
+432:        os.unlink(tmp_name, dir_fd=dir_fd)
+436:        os.fsync(dir_fd)  # dirfd 已在手, 直接 fsync 它 (不再按路径重开)
+442:def _prepare(args) -> tuple[list[dict], str, Path] | int:
+448:    vault_resolved = vault.resolve()
+454:            escaped = not d.resolve().is_relative_to(vault_resolved)
+489:def cmd_preview(args) -> int:
+511:            f"目标已存在: {target.name} (create 将拒绝覆盖; 换 --ts 或先 undo)"
+538:def cmd_create(args) -> int:
+612:    dfd, dfd_err = _open_exam_dirfd(vault)
+616:        write_err, warn = _atomic_write(tmp, target, content, dfd)
+618:        os.close(dfd)
+632:        # 且 undo-dir 占位符不能写成 `<...>` (shell 重定向语法, 整条仍解析失败),
+634:        # codex round-1 MEDIUM-7: SKILL.md 称 undo_hint「可直接复制执行」, 但串以
+635:        # `undo …` 开头 —— 缺 `python3 <本脚本>` 前缀, 在普通 shell 里 `undo` 不是
+637:        "undo_hint": (
+638:            f"{shlex.quote(sys.executable)} {shlex.quote(str(Path(__file__).resolve()))} "
+639:            f"undo --vault {shlex.quote(str(vault))} --path {shlex.quote(rel)} "
+640:            f"--expect-sha {sha} --undo-dir 'PUT_A_DIR_OUTSIDE_THE_VAULT_HERE'"
+649:def cmd_undo(args) -> int:
+652:    # 会让下游的 sha 全等比较失去意义 (undo 的判定虽然是无条件比较, 但空串
+658:    # ⛔ round-6 终裁复核: cmd_undo 此前完全没有 create 侧的「目录 symlink 越界」
+659:    # 守卫 —— containment 只比 target.resolve() 与 exam_root.resolve(), 两者
+660:    # 一起被 symlink 带出 vault 后仍判 contained=True, undo 就会去动 vault 外
+662:    vault_resolved = vault.resolve()
+668:            escaped = not d.resolve().is_relative_to(vault_resolved)
+675:    # 主 session 并行复核 HIGH-5 前半: 原实现直接 `.resolve()`, 会**解掉最后一段
+679:    # 修法: 先按**未解析路径**判 leaf 是不是 symlink, 是就直接拒绝 —— undo 的语义
+684:            f"undo 目标是 symlink, 拒绝 (回退语义对别名无定义, 避免移走 referent "
+687:    target = raw_target.resolve()
+688:    exam_root = (vault / EXAM_DIR).resolve()
+694:        return _fail_env(f"undo 目标必须在 {EXAM_DIR}/ 内: {args.path}")
+699:                    "mode": "undo",
+700:                    "undone": False,
+713:        tfd = os.open(target, os.O_RDONLY | os.O_NOFOLLOW)
+715:        return _fail_env(f"undo 目标打开失败 (symlink 或权限): {type(e).__name__}")
+722:        os.close(tfd)
+729:                    "mode": "undo",
+730:                    "undone": False,
+742:                    "mode": "undo",
+743:                    "undone": False,
+750:    undo_dir = Path(args.undo_dir).resolve()
+752:        inside_vault = undo_dir.is_relative_to(vault.resolve())
+756:        return _fail_env("--undo-dir 必须在 vault 之外 (vault 内不留新文件)")
+758:        undo_dir.mkdir(parents=True, exist_ok=True)
+760:        return _fail_env(f"--undo-dir 不可用: {type(e).__name__}")
+762:    # 二次 undo 同一 (anchor,ts) 会被 shutil.move 覆盖 → 先前留痕字节丢失,
+767:        st_now = os.lstat(target)
+769:        return _fail_env(f"undo 目标已消失: {type(e).__name__}")
+774:                    "mode": "undo",
+775:                    "undone": False,
+788:    dest = undo_dir / f"undone-{stamp}-{target.name}"
+792:            dfd = os.open(
+798:                return _fail_env("留痕文件名碰撞超过 999 次, 拒绝回退 (换 --undo-dir)")
+799:            dest = undo_dir / f"undone-{stamp}-{seq}-{target.name}"
+803:        with os.fdopen(dfd, "wb") as f:
+806:            os.fsync(f.fileno())
+813:    _fsync_dir(undo_dir)
+820:        rfd = os.open(dest, os.O_RDONLY | os.O_NOFOLLOW)
+827:            os.close(rfd)
+836:                    "mode": "undo",
+837:                    "undone": False,
+840:                        "未删除 vault 内文件; 该留痕不可信, 请换 --undo-dir 重试"
+854:    # 两次 lstat 都不变, undo 会删掉用户刚写的内容。改为**重读内容比对 sha**
+857:        cfd = os.open(target, os.O_RDONLY | os.O_NOFOLLOW)
+860:            f"undo 目标在留痕后不可读 (留痕已存 {dest}): {type(e).__name__}"
+868:        os.close(cfd)
+875:                    "mode": "undo",
+876:                    "undone": False,
+887:    # codex round-1 HIGH-3 (1): 上面的重读校验在 os.close(cfd) 后才 unlink,
+889:    # 留痕里只有旧版本, 而回执报 undone:true。POSIX 没有「按 inode 删除」的
+893:        st_pre_unlink = os.lstat(target)
+902:                    "mode": "undo",
+903:                    "undone": False,
+915:        os.unlink(target)
+924:                "mode": "undo",
+925:                "undone": True,
+937:def main() -> int:
+939:        description="阶段回顾检验白板构建器 (preview 只读 / create 恰 1 新文件 / undo 字节回退)"
+969:    u = sub.add_parser("undo")
+975:    u.add_argument("--undo-dir", required=True, help="vault 外留痕目录")
+977:    return {"preview": cmd_preview, "create": cmd_create, "undo": cmd_undo}[args.cmd](
+
+**Planning parallel code section reads**
+exec
+/bin/zsh -lc "nl -ba canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py | sed -n '1,120p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+     1	#!/usr/bin/env python3
+     2	"""board-recap 第二刀 · 阶段回顾检验白板构建器 (CARD-G5-9, BATCH-2026-08-28-第五批).
+     3	
+     4	职责边界 (与 SKILL.md 的分工):
+     5	  多板/阶段范围的检验白板生成 — preview (板名/成员链接/覆盖/未答数字 +
+     6	  拟写入全文) → 用户在 skill 层确认 → create 原子创建 检验白板/ 下 1 个
+     7	  md → undo 字节级回退。exam_service / verification_service 零接触 —
+     8	  格式契约直接复用 start-exam-board 的 检验白板/<stem>-<ts>.md 文件面。
+     9	
+    10	硬约束:
+    11	  - **preview 零写侧**: preview 子命令只读 vault, 不写任何文件。未确认
+    12	    (= 不跑 create) 时全 vault 字节不变。
+    13	  - **create 恰 1 新文件**: 唯一写面 = ``检验白板/<anchor>-<ts>.md``;
+    14	    目标已存在 → 拒绝 (不覆盖); 同目录 tmp + os.replace 原子落盘;
+    15	    写前 lstat symlink 预检 (目录与目标被 symlink 布防 → 拒绝)。
+    16	  - **undo 字节级回退**: 校验路径 containment + generated_by 指纹 +
+    17	    sha256 全等 (用户改过的文件拒绝回退, 不静默丢改动); 回退 = move 到
+    18	    vault 外 --undo-dir 留痕, ⛔ 不物理删除 (对齐「默认不 delete」)。
+    19	  - **消费面兼容契约** (fixture 锁定):
+    20	    * frontmatter 无 ``questions`` 键、0 个 ``concept:`` 行 →
+    21	      board_manifest 的 exam_history 收录 question_count=0,
+    22	      past_question_digests 零新增;
+    23	    * ``type: exam_board`` + 路径在 检验白板/ 下 → start-exam-board
+    24	      Step 1 防嵌套拒绝以它为出题源;
+    25	    * ``status: done`` + 无答题区疑问批注 → quiz-answer Step 0 done
+    26	      分支「无新疑问」安全停, 零写侧;
+    27	    * frontmatter 为合法 YAML → board_manifest 扫描 0 parse_errors。
+    28	  - **不复制正文**: 产物内容 = 链接回原板/原节点 + 脚本数字 + 固定模板句,
+    29	    ⛔ 不含任何节点正文片段。诚实边界 (round-3 L2): 复用的
+    30	    ``_ledger_from_local`` 会**读取**节点全文以判 is_stub/统计正文 callout,
+    31	    所以正文确实进过内存 —— 保证的是"**不写进产物**", 不是"不读取"
+    32	    (哨兵串断言锁的正是前者)。
+    33	  - 纯 stdlib; 数据面复用同目录 recap_scan.py 的 fallback 只读扫描函数
+    34	    (importlib 加载, 确定性口径与 /board-recap 第一刀一致)。
+    35	  - 退出码: 0 = 正常 (拒绝也是 0, JSON 里给 refusal_reason — 拒绝是
+    36	    skill 的决策); 2 = 环境不可用 / 参数非法。
+    37	
+    38	D5 前置登记 (诚实条款): 本卡开发时 D5 前置 1 (用户 UAT 反馈) 未发生 —
+    39	live 侧价值验证顺延 G5-11, 本脚本只交 worktree 面 + fixture 证据。
+    40	"""
+    41	
+    42	from __future__ import annotations
+    43	
+    44	import argparse
+    45	import hashlib
+    46	import importlib.util
+    47	import json
+    48	import os
+    49	import re
+    50	import shlex
+    51	import sys
+    52	from datetime import datetime, timezone
+    53	from pathlib import Path
+    54	
+    55	EXAM_DIR = "检验白板"
+    56	BOARD_DIR = "原白板"
+    57	GENERATED_BY = "board-recap-exam v1 (CARD-G5-9)"
+    58	_TS_RE = re.compile(r"^\d{4}-\d{2}-\d{2}-\d{4}$")
+    59	# codex round-1 HIGH-1: argparse 的 required=True 只保证 flag **出现**, 不保证
+    60	# 值非空。原判定写作 `if args.expect_content_sha and args.expect_content_sha != sha`
+    61	# —— 空串 falsy 直接跳过比较, `--expect-content-sha ''` 即可创建用户从未确认过
+    62	# 的字节 (复核者隔离实测 created:true、写出 1092 bytes)。修法 = 形状白名单 +
+    63	# **无条件**比较: 值必须 64 位小写十六进制, 否则 exit 2 且零写侧。
+    64	# 同一形状约束施于 undo 的 --expect-sha (同型问题)。
+    65	_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+    66	
+    67	# ── 复用第一刀的确定性扫描函数 (同目录 recap_scan.py) ──
+    68	# ⛔ round-4 新增 FAIL: importlib 加载会在 skill 目录写 __pycache__/*.pyc —
+    69	# 那是 vault 内的**写侧**, 直接违反 preview 零写侧承诺 (证据快照只覆盖四个
+    70	# 数据目录才没发现)。sys.dont_write_bytecode 必须在 exec_module **之前**置位,
+    71	# 并在之后恢复, 保证本脚本任何路径都不向 vault 落字节码。
+    72	_SCAN_PATH = Path(__file__).resolve().parent / "recap_scan.py"
+    73	_prev_dont_write = sys.dont_write_bytecode
+    74	sys.dont_write_bytecode = True
+    75	try:
+    76	    _spec = importlib.util.spec_from_file_location("recap_scan", _SCAN_PATH)
+    77	    _rs = importlib.util.module_from_spec(_spec)
+    78	    _spec.loader.exec_module(_rs)
+    79	finally:
+    80	    sys.dont_write_bytecode = _prev_dont_write
+    81	
+    82	
+    83	def _fail_env(msg: str) -> int:
+    84	    print(json.dumps({"error": msg}, ensure_ascii=False))
+    85	    return 2
+    86	
+    87	
+    88	def _sanitize_ghost_id(raw: str) -> str:
+    89	    """幽灵 id 入产物前的结构净化 (round-4 H9)。
+    90	
+    91	    幽灵 id 是白板 Concepts 小节里的**自由文本**（成员正则允许换行、反引号
+    92	    等）。原样放进 `` `…` `` 会被换行终止行、被反引号闭合代码跨度, 从而在
+    93	    产物里生成独立的 Markdown 行。这里折叠全部空白、剔除反引号与会起结构
+    94	    作用的字符, 并硬截断 —— 产物只把它当**标识串回显**, 不承载任何格式。
+    95	    """
+    96	    s = " ".join(str(raw or "").split())
+    97	    s = re.sub(r"[`\[\]|<>\\]", "", s)
+    98	    s = "".join(ch for ch in s if ch.isprintable())
+    99	    return s[:120] or "(空名)"
+   100	
+   101	
+   102	def _scan_board(vault: Path, stem: str) -> dict:
+   103	    """单板只读扫描 (fallback 口径, 与 recap_scan 第一刀一致)。"""
+   104	    board_path = _rs._contained_md(vault / BOARD_DIR, stem)
+   105	    if board_path is None:
+   106	        return {
+   107	            "board_stem": stem,
+   108	            "exists": False,
+   109	            "refusal_reason": "板名非法 (containment 拒绝)",
+   110	        }
+   111	    if not board_path.is_file():
+   112	        return {
+   113	            "board_stem": stem,
+   114	            "exists": False,
+   115	            "refusal_reason": "原白板文件不存在",
+   116	        }
+   117	    board_text = _rs._read(board_path)
+   118	    _, board_body = _rs._frontmatter_and_body(board_text)
+   119	    sec = _rs._CONCEPTS_SECTION_RE.search(board_body)
+   120	    sec_body = re.sub(r"<!--.*?-->", "", sec.group(1), flags=re.S) if sec else ""
+
+exec
+/bin/zsh -lc "nl -ba canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py | sed -n '240,445p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+   240	        "## 阶段数字（脚本产出 · 判读留人）",
+   241	        "",
+   242	        f"- 覆盖 {n} 板 / 总成员 {total_members}（按节点去重）/ 总批注 {total_tips} 条（未答上界 {total_tips}）"
+   243	        + (f" / 跨板重复成员 {dup_members} 个" if dup_members else "")
+   244	        + (f" / 待修链接 {total_ghosts} 条" if total_ghosts else ""),
+   245	        f"- 数据面：本地只读扫描（fallback 口径，与 /board-recap 第一刀一致）· 取数时刻 {created_at}",
+   246	        "",
+   247	    ]
+   248	    return "\n".join(lines)
+   249	
+   250	
+   251	def _symlink_probe(vault: Path, target: Path, tmp: Path) -> str | None:
+   252	    """写前 lstat 预检 — 目录 / 最终目标 / **落盘用的 tmp 路径** 三者。
+   253	
+   254	    W4 (workflow round-1 复现, BLOCKER): 只查目录与 target 而漏 tmp,
+   255	    预置 ``<target>.g59-tmp`` symlink 会让 write_text 跟随链接写到 vault
+   256	    外 (覆盖任意外部文件), 随后 os.replace 把 target 本身变成指向 vault
+   257	    外的 symlink; 且 undo 的 resolve() 会逃出 exam_root 导致无法回退。
+   258	    本函数是第一道; 真正的防线是 _atomic_write 的 O_EXCL|O_NOFOLLOW。
+   259	    """
+   260	    for p in (vault / EXAM_DIR, target, tmp):
+   261	        if p.is_symlink():
+   262	            return f"写入目标被 symlink 布防: {p}"
+   263	    return None
+   264	
+   265	
+   266	def _created_at(ts: str) -> str:
+   267	    """--ts (YYYY-MM-DD-HHMM) → ISO Z 串。
+   268	
+   269	    ⚠️ round-3 M7 + workflow round-2: 本函数只做格式转换 —— **调用方必须
+   270	    保证 ts 本身是 UTC 时刻**。默认 ts 现取 ``datetime.now(timezone.utc)``
+   271	    (原先取本地墙钟却硬贴 Z, 在 Asia/Shanghai 写出快 8 小时的假 UTC,
+   272	    与 start-exam-board 的 ``date -u`` 分属两个时钟, 导致
+   273	    board_manifest_service 的 exam_history 按 created_at 排序错位)。
+   274	    """
+   275	    return f"{ts[:10]}T{ts[11:13]}:{ts[13:15]}:00Z"
+   276	
+   277	
+   278	def _fsync_dir(d: Path) -> None:
+   279	    """目录项持久化 (round-3 M5): 只 fsync 文件不 fsync 父目录时,
+   280	    崩溃后可能文件内容在而目录项丢失。失败静默 (不是所有 FS 都支持)。"""
+   281	    try:
+   282	        fd = os.open(d, os.O_RDONLY)
+   283	    except OSError:
+   284	        return
+   285	    try:
+   286	        os.fsync(fd)
+   287	    except OSError:
+   288	        pass
+   289	    finally:
+   290	        os.close(fd)
+   291	
+   292	
+   293	def _open_exam_dirfd(vault: Path) -> tuple[int | None, str | None]:
+   294	    """打开 检验白板/ 并返回一个**钉死该目录 inode** 的 dir_fd。
+   295	
+   296	    主 session 并行复核 HIGH-4 的正解。三重校验:
+   297	    1. ``O_DIRECTORY|O_NOFOLLOW`` —— 目录本身若是 symlink 直接 ELOOP 失败;
+   298	    2. ``os.fstat(dfd)`` 与 ``os.stat(vault/EXAM_DIR)`` 的 (dev, ino) 必须相同
+   299	       —— 打开的确是我们校验过的那个目录, 不是打开后被换掉的另一个;
+   300	    3. dfd 与 vault 必须**同一文件系统** (st_dev 相同) —— 目录被换成指向外部
+   301	       挂载点的链接时, 即便前两条侥幸通过也会在这里被拦。
+   302	    → (dfd | None, 失败原因 | None)。调用方负责 os.close(dfd)。
+   303	    """
+   304	    exam = vault / EXAM_DIR
+   305	    try:
+   306	        dfd = os.open(exam, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+   307	    except OSError as e:
+   308	        return (
+   309	            None,
+   310	            f"{EXAM_DIR}/ 打开失败 (被 symlink 布防或不是目录): {type(e).__name__}",
+   311	        )
+   312	    try:
+   313	        st_dfd = os.fstat(dfd)
+   314	        st_path = os.stat(exam)
+   315	        st_vault = os.stat(vault)
+   316	    except OSError as e:
+   317	        os.close(dfd)
+   318	        return None, f"{EXAM_DIR}/ 身份校验失败: {type(e).__name__}"
+   319	    if (st_dfd.st_dev, st_dfd.st_ino) != (st_path.st_dev, st_path.st_ino):
+   320	        os.close(dfd)
+   321	        return None, f"{EXAM_DIR}/ 在打开前后被替换 (inode 变化), 拒绝写入"
+   322	    if st_dfd.st_dev != st_vault.st_dev:
+   323	        os.close(dfd)
+   324	        return None, f"{EXAM_DIR}/ 与 vault 不在同一文件系统 (疑似越界挂载), 拒绝写入"
+   325	    return dfd, None
+   326	
+   327	
+   328	def _atomic_write(tmp: Path, target: Path, content: str, dir_fd: int) -> str | None:
+   329	    """O_EXCL|O_NOFOLLOW 写 tmp → fsync → **link 到 target (no-replace)** →
+   330	    unlink tmp → fsync 父目录。
+   331	
+   332	    W4 纵深防御: O_NOFOLLOW 让 tmp 若是 symlink 直接 ELOOP 失败 (不跟随),
+   333	    O_CREAT|O_EXCL 让 tmp 已存在时直接失败 (不覆盖并发/残留文件) —
+   334	    lstat 预检与实际写之间的 TOCTOU 窗口由内核标志封死。
+   335	    round-3 H6: 落盘不再用 ``os.replace`` (它会**覆盖**预检之后才出现的
+   336	    target) —— 改用 ``os.link``: 目标已存在时内核直接 EEXIST, 原子且永不
+   337	    覆盖; 成功后 unlink tmp, 目标是同一 inode 的硬链接 (内容已 fsync)。
+   338	    round-3 M5: 补 fsync 父目录; tmp 清理失败如实回报而非静默吞掉。
+   339	    → (失败原因 | None, 告警 | None)。失败时目标未创建; 告警只表示 tmp
+   340	    未清理 (目标已正确落盘), 由调用方如实写进回执而非当作失败。
+   341	
+   342	    ⛔ 主 session 并行复核 HIGH-4 (实测反例: probe 后把 检验白板/ 换成指向
+   343	    vault 外的目录 symlink, create 仍返回 created:true 且**文件落在 vault 外**):
+   344	    此前 `_prepare` 的目录守卫、`_symlink_probe` 与本函数的 open/link 全部**按路径**
+   345	    操作 —— 检查与使用之间隔着可被替换的路径解析, O_NOFOLLOW 只护住最后一段,
+   346	    中段/父目录被换掉时护不住。修法 = **dirfd 锚定**: 调用方用
+   347	    O_DIRECTORY|O_NOFOLLOW 打开 检验白板/ 拿到 dfd 并校验它确在 vault 内,
+   348	    此后所有操作只用 **basename + dir_fd=dfd**。dfd 钉死的是那一个目录 inode,
+   349	    路径事后怎么换都改变不了操作落点 —— 窗口从根本上消失, 而不是被压小。
+   350	
+   351	    ⚠️ **作用域边界（独立复核明确要求不得外推）**: 本函数保证的是
+   352	    「**锚定成功之后**, `_atomic_write` 内部的落点不再依赖路径解析」。
+   353	    它**不**等于「整个程序从此完全不解析路径」——
+   354	      · `_prepare` 在锚定**之前**仍有 mkdir、`_symlink_probe` 与打开目录时的路径解析;
+   355	      · `cmd_undo` 是另一套**按路径**的流程, 不走本锚定。
+   356	    写文档/验收单时请照此口径, 不要写成「全程 dirfd 化」。
+   357	    """
+   358	    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+   359	    tmp_name, target_name = tmp.name, target.name
+   360	    try:
+   361	        fd = os.open(tmp_name, flags, 0o644, dir_fd=dir_fd)
+   362	    except OSError as e:
+   363	        return (
+   364	            f"临时文件创建失败 (symlink 布防或残留 {tmp.name}): {type(e).__name__}",
+   365	            None,
+   366	        )
+   367	    try:
+   368	        with os.fdopen(fd, "w", encoding="utf-8", closefd=False) as f:
+   369	            f.write(content)
+   370	            f.flush()
+   371	            os.fsync(f.fileno())
+   372	        # round-4 H6: 发布的字节必须是**我们刚写的那个 inode** — 关闭 fd 后
+   373	        # 按路径 link, 期间 tmp 若被替换会发布他人内容。这里用写入时的 fd 记下
+   374	        # (dev,ino), link 之后立刻核对 target 是同一 inode, 不符则撤销发布。
+   375	        st_written = os.fstat(fd)
+   376	        os.close(fd)
+   377	        fd = -1
+   378	        os.link(
+   379	            tmp_name, target_name, src_dir_fd=dir_fd, dst_dir_fd=dir_fd
+   380	        )  # EEXIST 绝不覆盖
+   381	        # codex round-1 HIGH-2 (a): 只比 (dev,ino) 不足 —— 别的进程**原地改写
+   382	        # 同一个 tmp inode** 时两侧 inode 恒等, 核对照样通过, 发布出去的却是
+   383	        # 他人字节 (复核者隔离注入实测: 回执 SHA e51ca99e… 与目标实际 43cb09e0…
+   384	        # 分叉, 而 _atomic_write 返回 err=None)。修法 = 发布后**重读目标字节**
+   385	        # 并与我们要写的 content 做 sha 全等, inode 与字节两条都过才算发布成功。
+   386	        want_sha = hashlib.sha256(content.encode("utf-8")).hexdigest()
+   387	        vfd = os.open(target_name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=dir_fd)
+   388	        try:
+   389	            st_pub = os.fstat(vfd)
+   390	            got = b""
+   391	            while chunk := os.read(vfd, 1 << 20):
+   392	                got += chunk
+   393	        finally:
+   394	            os.close(vfd)
+   395	        same_inode = (st_pub.st_dev, st_pub.st_ino) == (
+   396	            st_written.st_dev,
+   397	            st_written.st_ino,
+   398	        )
+   399	        if not same_inode or hashlib.sha256(got).hexdigest() != want_sha:
+   400	            # codex round-1 HIGH-2 (b): 原实现在这里 target.unlink() —— 但走到
+   401	            # 本分支恰恰说明 target 已**不是我们的 inode**(被并发替换), 按路径
+   402	            # 删它等于删掉别人刚创建的文件, 且回执还报失败 → 文件静默丢失。
+   403	            # 修法: inode 不符时**绝不删**, 只如实回报; 仅当 inode 仍是我们的
+   404	            # (纯字节被原地改写) 才撤销自己的发布。
+   405	            if same_inode:
+   406	                try:
+   407	                    os.unlink(target_name, dir_fd=dir_fd)
+   408	                except OSError:
+   409	                    pass
+   410	                raise OSError("published bytes mismatch (in-place rewrite)")
+   411	            raise OSError(
+   412	                "published inode mismatch (concurrent replacement; 未删除该文件)"
+   413	            )
+   414	    except OSError as e:
+   415	        if fd >= 0:
+   416	            try:
+   417	                os.close(fd)
+   418	            except OSError:
+   419	                pass
+   420	        try:
+   421	            os.unlink(tmp_name, dir_fd=dir_fd)
+   422	        except OSError:
+   423	            pass
+   424	        kind = (
+   425	            "目标已存在 (并发创建), 拒绝覆盖"
+   426	            if isinstance(e, FileExistsError)
+   427	            else "原子写失败"
+   428	        )
+   429	        return f"{kind}: {type(e).__name__}", None
+   430	    warn = None
+   431	    try:
+   432	        os.unlink(tmp_name, dir_fd=dir_fd)
+   433	    except OSError as e:
+   434	        warn = f"临时文件未能清理 ({tmp.name}: {type(e).__name__})，下次 create 同 ts 会被拒绝，请手动删除"
+   435	    try:
+   436	        os.fsync(dir_fd)  # dirfd 已在手, 直接 fsync 它 (不再按路径重开)
+   437	    except OSError:
+   438	        pass
+   439	    return None, warn
+   440	
+   441	
+   442	def _prepare(args) -> tuple[list[dict], str, Path] | int:
+   443	    """preview/create 共用的数据面: 扫描各板 + 定目标路径。"""
+   444	    vault = Path(args.vault)
+   445	    if not (vault / BOARD_DIR).is_dir():
+
+exec
+/bin/zsh -lc "nl -ba canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py | sed -n '530,650p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+   530	        out["next_step"] = (
+   531	            "用户确认后跑 create，并把本 content_sha256 传给 --expect-content-sha"
+   532	            "（绑定所见即所写）"
+   533	        )
+   534	    print(json.dumps(out, ensure_ascii=False, indent=1))
+   535	    return 0
+   536	
+   537	
+   538	def cmd_create(args) -> int:
+   539	    prep = _prepare(args)
+   540	    if isinstance(prep, int):
+   541	        return prep
+   542	    boards, anchor, target = prep
+   543	    vault = Path(args.vault)
+   544	    missing = [b["board_stem"] for b in boards if not b["exists"]]
+   545	    if missing:
+   546	        print(
+   547	            json.dumps(
+   548	                {
+   549	                    "mode": "create",
+   550	                    "created": False,
+   551	                    "refusal_reason": f"板不存在/非法: {missing}",
+   552	                },
+   553	                ensure_ascii=False,
+   554	            )
+   555	        )
+   556	        return 0
+   557	    if target.exists() or target.is_symlink():
+   558	        print(
+   559	            json.dumps(
+   560	                {
+   561	                    "mode": "create",
+   562	                    "created": False,
+   563	                    "refusal_reason": f"目标已存在, 拒绝覆盖: {target.name}",
+   564	                },
+   565	                ensure_ascii=False,
+   566	            )
+   567	        )
+   568	        return 0
+   569	    content = _render_content(boards, anchor, args.ts, _created_at(args.ts))
+   570	    sha = hashlib.sha256(content.encode("utf-8")).hexdigest()
+   571	    # round-3 H5: preview→create 之间 vault 可能变化 (新增成员/改批注),
+   572	    # 相同 --ts 并不保证所见即所写。--expect-content-sha 把用户**确认过的
+   573	    # 那份字节**绑进来: 不符即拒, 零写侧, 让 skill 重跑 preview 再确认。
+   574	    # codex round-1 HIGH-1: 形状先于比较 —— 空串/非 64 位 hex 一律 exit 2,
+   575	    # 不再走 falsy 短路; 比较本身改为**无条件**。
+   576	    if not _SHA256_RE.match(args.expect_content_sha or ""):
+   577	        return _fail_env(
+   578	            "--expect-content-sha 必须是 preview 回执里的 64 位小写十六进制 "
+   579	            "content_sha256（空串或非法形状一律拒绝，防绕过用户确认）"
+   580	        )
+   581	    if args.expect_content_sha != sha:
+   582	        print(
+   583	            json.dumps(
+   584	                {
+   585	                    "mode": "create",
+   586	                    "created": False,
+   587	                    "refusal_reason": (
+   588	                        "内容与用户确认的 preview 不一致 (期间 vault 有变化) — "
+   589	                        "已零写侧退出, 请重跑 preview 让用户确认新内容"
+   590	                    ),
+   591	                    "expected_sha256": args.expect_content_sha,
+   592	                    "actual_sha256": sha,
+   593	                },
+   594	                ensure_ascii=False,
+   595	                indent=1,
+   596	            )
+   597	        )
+   598	        return 0
+   599	    try:
+   600	        (vault / EXAM_DIR).mkdir(exist_ok=True)
+   601	    except OSError as e:  # round-3 L3: I/O 异常归一到 JSON+exit 2 契约
+   602	        return _fail_env(f"{EXAM_DIR}/ 目录不可用: {type(e).__name__}")
+   603	    tmp = target.with_name(target.name + ".g59-tmp")
+   604	    probe = _symlink_probe(vault, target, tmp)
+   605	    if probe:
+   606	        return _fail_env(probe)
+   607	    # 主 session 并行复核 HIGH-4: 上面的 probe 仍是「按路径检查」，与实际写入之间
+   608	    # 隔着可被替换的路径解析（实测：probe 后把 检验白板/ 换成指向 vault 外的目录
+   609	    # symlink，create 仍 created:true 且文件落在 vault 外）。这里改为**先取 dirfd
+   610	    # 锚定目录 inode**，之后所有写侧操作只用 basename + dir_fd —— 路径事后怎么换
+   611	    # 都改变不了操作落点。probe 保留为第一道快速拒绝（诊断信息更友好）。
+   612	    dfd, dfd_err = _open_exam_dirfd(vault)
+   613	    if dfd_err:
+   614	        return _fail_env(dfd_err)
+   615	    try:
+   616	        write_err, warn = _atomic_write(tmp, target, content, dfd)
+   617	    finally:
+   618	        os.close(dfd)
+   619	    if write_err:
+   620	        return _fail_env(write_err)
+   621	    rel = str(target.relative_to(vault))
+   622	    receipt = {
+   623	        "mode": "create",
+   624	        "created": True,
+   625	        "created_path": rel,
+   626	        "content_sha256": sha,
+   627	        "bytes": len(content.encode("utf-8")),
+   628	        # round-3 H8: 路径含空格/括号/& 时未加引号的 hint 是**语法错误的**
+   629	        # shell 命令 (zsh -n 实测 parse error) — 逐参数 shlex.quote
+   630	        # round-3 H8 + round-4: 路径含空格/括号/& 时未加引号的 hint 是**语法
+   631	        # 错误的** shell 命令 (zsh -n 实测 parse error) — 逐参数 shlex.quote;
+   632	        # 且 undo-dir 占位符不能写成 `<...>` (shell 重定向语法, 整条仍解析失败),
+   633	        # 改成可直接替换的引号串。
+   634	        # codex round-1 MEDIUM-7: SKILL.md 称 undo_hint「可直接复制执行」, 但串以
+   635	        # `undo …` 开头 —— 缺 `python3 <本脚本>` 前缀, 在普通 shell 里 `undo` 不是
+   636	        # 命令 (zsh: command not found)。补上解释器与脚本绝对路径, 让文档的承诺成立。
+   637	        "undo_hint": (
+   638	            f"{shlex.quote(sys.executable)} {shlex.quote(str(Path(__file__).resolve()))} "
+   639	            f"undo --vault {shlex.quote(str(vault))} --path {shlex.quote(rel)} "
+   640	            f"--expect-sha {sha} --undo-dir 'PUT_A_DIR_OUTSIDE_THE_VAULT_HERE'"
+   641	        ),
+   642	    }
+   643	    if warn:
+   644	        receipt["warning"] = warn
+   645	    print(json.dumps(receipt, ensure_ascii=False, indent=1))
+   646	    return 0
+   647	
+   648	
+   649	def cmd_undo(args) -> int:
+   650	    vault = Path(args.vault)
+
+exec
+/bin/zsh -lc "nl -ba canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py | sed -n '649,936p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+   649	def cmd_undo(args) -> int:
+   650	    vault = Path(args.vault)
+   651	    # codex round-1 HIGH-1 同型: --expect-sha 也必须先过形状白名单, 否则空串
+   652	    # 会让下游的 sha 全等比较失去意义 (undo 的判定虽然是无条件比较, 但空串
+   653	    # 期望值配上"不符即拒"会退化成**恒拒**, 掩盖真实的绑定失效)。
+   654	    if not _SHA256_RE.match(args.expect_sha or ""):
+   655	        return _fail_env(
+   656	            "--expect-sha 必须是 create 回执里的 64 位小写十六进制 content_sha256"
+   657	        )
+   658	    # ⛔ round-6 终裁复核: cmd_undo 此前完全没有 create 侧的「目录 symlink 越界」
+   659	    # 守卫 —— containment 只比 target.resolve() 与 exam_root.resolve(), 两者
+   660	    # 一起被 symlink 带出 vault 后仍判 contained=True, undo 就会去动 vault 外
+   661	    # 的文件。这里补上与 _prepare 同款的目录级守卫。
+   662	    vault_resolved = vault.resolve()
+   663	    for sub in (BOARD_DIR, "节点", EXAM_DIR):
+   664	        d = vault / sub
+   665	        if not d.exists():
+   666	            continue
+   667	        try:
+   668	            escaped = not d.resolve().is_relative_to(vault_resolved)
+   669	        except (OSError, ValueError):
+   670	            escaped = True
+   671	        if escaped:
+   672	            return _fail_env(
+   673	                f"vault 不可用: {sub}/ 目录 resolve 到 vault 之外 (symlink 越界)"
+   674	            )
+   675	    # 主 session 并行复核 HIGH-5 前半: 原实现直接 `.resolve()`, 会**解掉最后一段
+   676	    # 的 symlink** —— 传入同目录 alias(`alias.md -> real.md`) 时, 回执声称移除的是
+   677	    # alias, 实际移走的却是 referent, 并在 vault 里留下一条死链。后面的 O_NOFOLLOW
+   678	    # 完全看不到这一点, 因为它拿到的已经是 resolve 之后的真实路径。
+   679	    # 修法: 先按**未解析路径**判 leaf 是不是 symlink, 是就直接拒绝 —— undo 的语义
+   680	    # 是「把我创建的那个文件移走」, 对 alias 无定义, 不猜。
+   681	    raw_target = vault / args.path
+   682	    if raw_target.is_symlink():
+   683	        return _fail_env(
+   684	            f"undo 目标是 symlink, 拒绝 (回退语义对别名无定义, 避免移走 referent "
+   685	            f"并留下死链): {args.path}"
+   686	        )
+   687	    target = raw_target.resolve()
+   688	    exam_root = (vault / EXAM_DIR).resolve()
+   689	    try:
+   690	        contained = target.is_relative_to(exam_root)
+   691	    except ValueError:
+   692	        contained = False
+   693	    if not contained:
+   694	        return _fail_env(f"undo 目标必须在 {EXAM_DIR}/ 内: {args.path}")
+   695	    if not target.is_file():
+   696	        print(
+   697	            json.dumps(
+   698	                {
+   699	                    "mode": "undo",
+   700	                    "undone": False,
+   701	                    "refusal_reason": "目标不存在 (无可回退)",
+   702	                },
+   703	                ensure_ascii=False,
+   704	            )
+   705	        )
+   706	        return 0
+   707	    # round-3 H7: 校验的字节与最终移走的字节必须**是同一个 inode** —
+   708	    # 原实现 read_bytes 校验后按路径 shutil.move, 期间编辑器/同步程序若替换
+   709	    # 文件, 移走的是未经校验的新版本 (用户改动被静默丢进留痕目录)。
+   710	    # 现在: O_NOFOLLOW 打开拿 fd → 从 fd 读校验 → 记 (dev, ino) →
+   711	    # 移动前后各 lstat 一次比对同一 inode, 不符即拒。
+   712	    try:
+   713	        tfd = os.open(target, os.O_RDONLY | os.O_NOFOLLOW)
+   714	    except OSError as e:
+   715	        return _fail_env(f"undo 目标打开失败 (symlink 或权限): {type(e).__name__}")
+   716	    try:
+   717	        st_open = os.fstat(tfd)
+   718	        raw = b""
+   719	        while chunk := os.read(tfd, 1 << 20):
+   720	            raw += chunk
+   721	    finally:
+   722	        os.close(tfd)
+   723	    identity = (st_open.st_dev, st_open.st_ino)
+   724	    sha = hashlib.sha256(raw).hexdigest()
+   725	    if sha != args.expect_sha:
+   726	        print(
+   727	            json.dumps(
+   728	                {
+   729	                    "mode": "undo",
+   730	                    "undone": False,
+   731	                    "refusal_reason": "内容 sha256 与创建回执不符 (文件已被改动, 拒绝静默丢弃改动)",
+   732	                    "actual_sha256": sha,
+   733	                },
+   734	                ensure_ascii=False,
+   735	            )
+   736	        )
+   737	        return 0
+   738	    if GENERATED_BY.encode("utf-8") not in raw:
+   739	        print(
+   740	            json.dumps(
+   741	                {
+   742	                    "mode": "undo",
+   743	                    "undone": False,
+   744	                    "refusal_reason": "缺本脚本 generated_by 指纹, 拒绝回退非本脚本产物",
+   745	                },
+   746	                ensure_ascii=False,
+   747	            )
+   748	        )
+   749	        return 0
+   750	    undo_dir = Path(args.undo_dir).resolve()
+   751	    try:
+   752	        inside_vault = undo_dir.is_relative_to(vault.resolve())
+   753	    except ValueError:
+   754	        inside_vault = False
+   755	    if inside_vault:
+   756	        return _fail_env("--undo-dir 必须在 vault 之外 (vault 内不留新文件)")
+   757	    try:
+   758	        undo_dir.mkdir(parents=True, exist_ok=True)
+   759	    except OSError as e:  # round-3 L3
+   760	        return _fail_env(f"--undo-dir 不可用: {type(e).__name__}")
+   761	    # W5 (workflow round-1): 留痕名只含秒级时间戳 + 固定 target.name, 同秒
+   762	    # 二次 undo 同一 (anchor,ts) 会被 shutil.move 覆盖 → 先前留痕字节丢失,
+   763	    # 违反「不物理删除」。碰撞时顺延 -2/-3…, 绝不覆盖既有留痕。
+   764	    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+   765	    # round-3 H7 二段: 移动前复核 inode 未被替换 (校验窗口结束)
+   766	    try:
+   767	        st_now = os.lstat(target)
+   768	    except OSError as e:
+   769	        return _fail_env(f"undo 目标已消失: {type(e).__name__}")
+   770	    if (st_now.st_dev, st_now.st_ino) != identity:
+   771	        print(
+   772	            json.dumps(
+   773	                {
+   774	                    "mode": "undo",
+   775	                    "undone": False,
+   776	                    "refusal_reason": (
+   777	                        "校验后文件被替换 (inode 变化) — 拒绝移走未经校验的版本"
+   778	                    ),
+   779	                },
+   780	                ensure_ascii=False,
+   781	            )
+   782	        )
+   783	        return 0
+   784	    # W5 + round-3 M4: 留痕目的端**独占创建** (O_EXCL) 而不是 exists() 后
+   785	    # shutil.move —— 后者在目的端有竞态, 且跨文件系统会退化成 copy+unlink。
+   786	    # 这里: 先在目的端 O_EXCL 写出校验过的字节 + fsync, 确认落盘后才 unlink
+   787	    # 源 (耐久回退: 任何时刻崩溃都不会两头皆空)。
+   788	    dest = undo_dir / f"undone-{stamp}-{target.name}"
+   789	    seq, dfd = 1, None
+   790	    while dfd is None:
+   791	        try:
+   792	            dfd = os.open(
+   793	                dest, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644
+   794	            )
+   795	        except FileExistsError:
+   796	            seq += 1
+   797	            if seq > 999:
+   798	                return _fail_env("留痕文件名碰撞超过 999 次, 拒绝回退 (换 --undo-dir)")
+   799	            dest = undo_dir / f"undone-{stamp}-{seq}-{target.name}"
+   800	        except OSError as e:
+   801	            return _fail_env(f"留痕文件创建失败: {type(e).__name__}")
+   802	    try:
+   803	        with os.fdopen(dfd, "wb") as f:
+   804	            f.write(raw)
+   805	            f.flush()
+   806	            os.fsync(f.fileno())
+   807	    except OSError as e:
+   808	        try:
+   809	            dest.unlink()
+   810	        except OSError:
+   811	            pass
+   812	        return _fail_env(f"留痕写入失败, 已放弃回退 (原文件未动): {type(e).__name__}")
+   813	    _fsync_dir(undo_dir)
+   814	    # codex round-1 HIGH-3 (2): 留痕写完 + fsync 之后**从未回读校验** —— 复核者
+   815	    # 隔离注入原地改写留痕 inode 后, 源文件照删、回执 retained SHA 报 765bf07e…
+   816	    # 而留痕实际是 3710644e…: 「写留痕后才删源」的耐久承诺被架空 (留下的是坏
+   817	    # 备份, 而源已不可回). 修法 = 删源之前把留痕**重新打开读回**, inode 与
+   818	    # sha 两条都全等才继续; 任一不符 → 绝不删源 (vault 内原件仍在, 不丢字节)。
+   819	    try:
+   820	        rfd = os.open(dest, os.O_RDONLY | os.O_NOFOLLOW)
+   821	        try:
+   822	            st_dest = os.fstat(rfd)
+   823	            back = b""
+   824	            while chunk := os.read(rfd, 1 << 20):
+   825	                back += chunk
+   826	        finally:
+   827	            os.close(rfd)
+   828	    except OSError as e:
+   829	        return _fail_env(
+   830	            f"留痕写出后不可回读, 已放弃回退 (原文件未动): {type(e).__name__}"
+   831	        )
+   832	    if st_dest.st_size != len(raw) or hashlib.sha256(back).hexdigest() != sha:
+   833	        print(
+   834	            json.dumps(
+   835	                {
+   836	                    "mode": "undo",
+   837	                    "undone": False,
+   838	                    "refusal_reason": (
+   839	                        "留痕落盘后回读校验不符 (备份被替换或原地改写) — "
+   840	                        "未删除 vault 内文件; 该留痕不可信, 请换 --undo-dir 重试"
+   841	                    ),
+   842	                    "retained_at": str(dest),
+   843	                    "retained_sha256_actual": hashlib.sha256(back).hexdigest(),
+   844	                    "expected_sha256": sha,
+   845	                },
+   846	                ensure_ascii=False,
+   847	            )
+   848	        )
+   849	        return 0
+   850	    # round-4: inode 复核与 unlink 之间仍有窗口 — 留痕写入耗时里文件可能被
+   851	    # 替换。紧贴 unlink 前**再复核一次**, 把窗口压到系统调用级; 不符则保留
+   852	    # 原文件 (留痕已在 vault 外, 不丢字节) 并如实告知。
+   853	    # round-4 H7: 只比 (dev,ino) 不够 —— 编辑器**原地改写**同一 inode 时
+   854	    # 两次 lstat 都不变, undo 会删掉用户刚写的内容。改为**重读内容比对 sha**
+   855	    # (inode 一并核, 覆盖替换与原地改写两种形态)。
+   856	    try:
+   857	        cfd = os.open(target, os.O_RDONLY | os.O_NOFOLLOW)
+   858	    except OSError as e:
+   859	        return _fail_env(
+   860	            f"undo 目标在留痕后不可读 (留痕已存 {dest}): {type(e).__name__}"
+   861	        )
+   862	    try:
+   863	        st_final = os.fstat(cfd)
+   864	        cur = b""
+   865	        while chunk := os.read(cfd, 1 << 20):
+   866	            cur += chunk
+   867	    finally:
+   868	        os.close(cfd)
+   869	    if (st_final.st_dev, st_final.st_ino) != identity or hashlib.sha256(
+   870	        cur
+   871	    ).hexdigest() != sha:
+   872	        print(
+   873	            json.dumps(
+   874	                {
+   875	                    "mode": "undo",
+   876	                    "undone": False,
+   877	                    "refusal_reason": (
+   878	                        "留痕写出期间原文件内容发生变化 (替换或原地改写) — "
+   879	                        f"未删除 vault 内文件; 校验过的旧版本已备份在 {dest}"
+   880	                    ),
+   881	                    "retained_at": str(dest),
+   882	                },
+   883	                ensure_ascii=False,
+   884	            )
+   885	        )
+   886	        return 0
+   887	    # codex round-1 HIGH-3 (1): 上面的重读校验在 os.close(cfd) 后才 unlink,
+   888	    # 中间仍有窗口 —— 复核者在该窗口换入 USER-NEW-BYTES, 结果新 inode 被删、
+   889	    # 留痕里只有旧版本, 而回执报 undone:true。POSIX 没有「按 inode 删除」的
+   890	    # 原语, 能做到的最紧形态是**紧贴 unlink 前再 lstat 一次**核 identity,
+   891	    # 把窗口压到相邻两个系统调用之间。残留窗口如实声明在 SKILL.md。
+   892	    try:
+   893	        st_pre_unlink = os.lstat(target)
+   894	    except OSError as e:
+   895	        return _fail_env(
+   896	            f"删除前复核失败, 未删除 (留痕已存 {dest}): {type(e).__name__}"
+   897	        )
+   898	    if (st_pre_unlink.st_dev, st_pre_unlink.st_ino) != identity:
+   899	        print(
+   900	            json.dumps(
+   901	                {
+   902	                    "mode": "undo",
+   903	                    "undone": False,
+   904	                    "refusal_reason": (
+   905	                        "删除前一刻文件被替换 (inode 变化) — 未删除, "
+   906	                        f"避免误删他人写入; 校验过的旧版本已备份在 {dest}"
+   907	                    ),
+   908	                    "retained_at": str(dest),
+   909	                },
+   910	                ensure_ascii=False,
+   911	            )
+   912	        )
+   913	        return 0
+   914	    try:
+   915	        os.unlink(target)
+   916	    except OSError as e:
+   917	        return _fail_env(
+   918	            f"留痕已保存 {dest} 但原文件删除失败 (vault 内仍在): {type(e).__name__}"
+   919	        )
+   920	    _fsync_dir(target.parent)
+   921	    print(
+   922	        json.dumps(
+   923	            {
+   924	                "mode": "undo",
+   925	                "undone": True,
+   926	                "removed_path": args.path,
+   927	                "retained_at": str(dest),
+   928	                "retained_sha256": sha,
+   929	            },
+   930	            ensure_ascii=False,
+   931	            indent=1,
+   932	        )
+   933	    )
+   934	    return 0
+   935	
+   936	
+
+**Identifying directory race condition**
+**Analyzing atomic write exception handling**
+**Highlighting write confirmation mismatch issue**
+**Identifying atomic write failure risks**
+**Analyzing atomic write error handling boundaries**
+**Evaluating race conditions in file cleanup**
+**Identifying risky tmp file cleanup causing data loss**
+**Analyzing inode behavior in tmp file replacement**
+**Evaluating symlink impact on os.link behavior**
+**Identifying inode hardlink residue issue**
+**Analyzing leftover target validation timing**
+**Noting inode identity was not verified**
+**Assessing file descriptor handling and data integrity risks**
+**Identifying silent directory fsync failure risk**
+**Detecting race condition in unlink process**
+**Analyzing error handling for true failure reporting**
+**Verifying OSError propagation and unlink race conditions**
+**Evaluating renameat2 for atomicity tradeoffs**
+**Analyzing unlink-lstat race condition semantics**
+**Evaluating atomic write and directory swap risks**
+**Tracing directory rename attack vector**
+**Identifying TOCTOU vulnerability in vault access**
+**Validating post-open directory rename risk**
+**Confirming static defect in directory renaming**
+**Assessing dirfd test variants for rename prevention**
+**Analyzing rename atomicity and cleanup risks**
+**Identifying cleanup issue with EMFILE errors**
+**Analyzing inode cleanup and failure handling**
+**Assessing fsync failure and race conditions**
+**Verifying atomic hardlink creation and cleanup**
+**Planning directory rename analysis**
+**Planning test execution sequencing**
+**Coordinating test command execution**
+**Planning delay for agent synchronization**
+collab: Wait
+**Identifying need for two agents**
+collab: Wait
+**Planning syntax check and backup hashing**
+**Planning git diff inspection approach**
+**Designing safe mutation execution workflow**
+基线已锁定：HEAD d608733c；运行前目标文件已是既有 M，SHA-256 59fc71a4…089e。静态复核正在三轨交叉核对。
+  ✓ 锁定范围与基线：记录 HEAD/分支/工作树状态，只读取指定实现文件
+  → 并行复核 _open_exam_dirfd/_atomic_write 与 undo 三重校验
+  • 运行 10 变体负验证脚本并核对逐项结果、还原 SHA
+  • 运行 160 项回归并确认最终工作树无新增差异
+  • 汇总精确行号、分级、限制与四级残留清单
+codex
+静态复核已确认 undo 的三道题定校验顺序正确，所有“明确拒绝”路径都位于唯一的源删除调用之前。当前正在做更苛刻的交叉检查：不仅看判定是否存在，还检查目录在 fd 校验后被移动、以及 hard-link 发布后验证阶段异常时，回执是否可能与真实落点分叉。随后才会启动会临时改写源码的负验证脚本，避免与静态读取并发。
+collab: Wait
+**Checking for stuck agents**
+collab: Wait
+collab: Wait
+**Planning agent interruption for partial results**
+**Running negative verification and requesting tool approval**
+exec
+/bin/zsh -lc 'DEBUG=true NEO4J_ENABLED=false .venv/bin/python "../_bmad-output/审查/g5-9-evidence/round1-high-negverify.py"' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/backend
+**Adjusting execution with wait for cell 10**
+**Planning polling via write_stdin for session**
+**Adjusting wait time for cell execution**
+**Extending wait time for output**
+codex
+负验证正在运行；目前进程仍在执行且尚未吐出缓冲输出，我没有启动任何并行写操作。结束后会先做源文件 SHA/状态核验；若脚本异常中止，我会把“还原未证实”作为硬失败处理。
+ succeeded in 115747ms:
+备份: /tmp/recap_exam_build.negverify.bak (sha 59fc71a4c83f2d75…)
+
+=== 基线: 完整套件应全绿 ===
+  ✅ 基线 exit=0 | 55 passed in 5.18s
+
+=== 变体 A: HIGH-1 回退: --expect-content-sha 恢复 falsy 短路（空串绕过用户确认） ===
+  ✅ 如期变红 | 7 failed, 48 deselected in 0.78s
+
+=== 变体 B: HIGH-1 同型回退: undo 的 --expect-sha 去掉形状白名单 ===
+  ✅ 如期变红 | 1 failed, 54 deselected in 0.52s
+
+=== 变体 C: HIGH-4 survivor 复现: 从 wikilink 禁止集里只移除 `|` ===
+  ✅ 如期变红 | 1 failed, 4 passed, 50 deselected in 0.63s
+
+=== 变体 D: HIGH-4 survivor 复现: 同时禁用目录守卫 + _symlink_probe + dirfd 锚定（纵深三层） ===
+  ✅ 如期变红 | 1 failed, 1 passed, 53 deselected in 0.58s
+
+=== 变体 E: HIGH-2(a) 回退: 发布后只比 (dev,ino)，不回读字节 ===
+  ✅ 如期变红 | 1 failed, 54 deselected in 0.36s
+
+=== 变体 F: HIGH-2(b) 回退: inode 不符时按路径 unlink（会删掉并发者的文件） ===
+  ✅ 如期变红 | 1 failed, 54 deselected in 0.36s
+
+=== 变体 G: HIGH-3(2) 回退: 删源前不回读校验留痕字节 ===
+  ✅ 如期变红 | 1 failed, 54 deselected in 0.48s
+
+=== 变体 I: 主session HIGH-4 回退: 写侧从 dirfd 锚定退回按路径 open/link ===
+  ✅ 如期变红 | 1 failed, 54 deselected in 0.44s
+
+=== 变体 J: 主session HIGH-5 回退: undo 恢复对 leaf symlink 的 resolve (移走 referent) ===
+  ✅ 如期变红 | 1 failed, 54 deselected in 0.52s
+
+=== 变体 H: HIGH-3(1) 回退: 去掉紧贴 unlink 前的 identity 复核 ===
+  ✅ 如期变红 | 1 failed, 54 deselected in 0.49s
+
+=== 还原后复核 ===
+  ✅ 字节与备份逐字相同 (sha 59fc71a4c83f2d75…)
+  ✅ 还原后完整套件 exit=0 | 55 passed in 5.05s
+
+RESULT: PASS — 全部新门均为承重门
+
+**Verifying SHA and git status**
+exec
+/bin/zsh -lc 'shasum -a 256 canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+59fc71a4c83f2d7579618ff9be155272c78588ceb12693daead2ff7f707a089e  canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py
+
+exec
+/bin/zsh -lc 'git status --short' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+
+**Investigating git status inconsistency**
+**Analyzing git index and working tree differences**
+**Comparing blob hashes between HEAD and working file**
+**Inspecting git diff metadata**
+codex
+10 个变体均已逐项“如期变红”，脚本报告还原字节 SHA 与备份一致，且最终 `RESULT: PASS`。我已独立复算目标文件 SHA，确实仍为 `59fc71a4…089e`。另有一个基线现象需继续厘清：首次状态曾显示该文件为 `M`，脚本后状态却为空；我会只用 Git 对同一文件的对象/索引元数据核对，确认没有脚本意外改索引。
+exec
+/bin/zsh -lc 'git ls-files -s -- canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+100644 191d814eaae88825cc6a8e68bf575d242674e16d 0	canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py
+
+exec
+/bin/zsh -lc 'git hash-object canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+191d814eaae88825cc6a8e68bf575d242674e16d
+
+exec
+/bin/zsh -lc 'git diff --cached --name-status -- canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+
+exec
+/bin/zsh -lc 'git diff --name-status -- canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+
+exec
+/bin/zsh -lc 'git rev-parse HEAD:canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+191d814eaae88825cc6a8e68bf575d242674e16d
+
+exec
+/bin/zsh -lc 'git status --porcelain=v2 --untracked-files=all' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+
+**Investigating transient modified file state**
+**Clarifying race condition in status and hash checks**
+exec
+/bin/zsh -lc 'DEBUG=true NEO4J_ENABLED=false .venv/bin/python -m pytest tests/regression/test_recap_scan_signals.py tests/skills/test_g5_9_recap_exam.py -q -p no:cacheprovider -p no:warnings --override-ini="addopts="' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/backend
+ succeeded in 21232ms:
+........................................................................ [ 45%]
+........................................................................ [ 90%]
+................                                                         [100%]
+160 passed in 13.07s
+
+**Verifying clean git status and final hashes**
+exec
+/bin/zsh -lc 'shasum -a 256 canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+59fc71a4c83f2d7579618ff9be155272c78588ceb12693daead2ff7f707a089e  canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py
+
+exec
+/bin/zsh -lc 'git diff --cached --exit-code -- canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+
+exec
+/bin/zsh -lc 'git diff --exit-code -- canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+
+exec
+/bin/zsh -lc 'git status --short --untracked-files=all' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+
+**Planning final follow-up task**
+mcp: sequential-thinking/sequentialthinking started
+mcp: sequential-thinking/sequentialthinking (completed)
+**Auditing directory move vulnerability**
+**Tracing directory rename race condition**
+**Identifying target cleanup failure**
+**Analyzing file descriptor error handling**
+**Evaluating undo durability risks**
+**Identifying unreported fsync failure**
+**Highlighting fsync error handling flaw**
+**Assessing TOCTOU unlink race condition severity**
+**Documenting known residual race limitation**
+**Analyzing symlink race condition**
+**Identifying symlink race fix limitations**
+**Detecting directory guard path race**
+**Confirming dirfd final requirement**
+**Finalizing count and undo considerations**
+静态交叉复核完成；10 个负变体均如期变红并完整还原；指定回归 160 passed；最终 SHA 与 git 工作树均已核验。
+  ✓ 锁定范围与基线：记录 HEAD/分支/工作树状态，只读取指定实现文件
+  ✓ 并行复核 _open_exam_dirfd/_atomic_write 与 undo 三重校验
+  ✓ 运行 10 变体负验证脚本并核对逐项结果、还原 SHA
+  ✓ 运行 160 项回归并确认最终工作树无新增差异
+  → 汇总精确行号、分级、限制与四级残留清单
+**Classifying annotation and cleanup issues**
+**Identifying high-risk TOCTOU unlink vulnerability**
+**Confirming high unlink TOCTOU flaw**
+**Analyzing inode and hash mismatch scenario**
+**Identifying race condition and fd leak risks**
+**Confirming incomplete exception handling for fd leaks**
+**Analyzing file descriptor leak risks**
+**Identifying high-risk undo cleanup flaw**
+**Evaluating concurrency race conditions**
+**Distinguishing test coverage from implementation defects**
+**Clarifying Git status anomalies and baseline integrity**
+**Planning final sequential git status check**
+exec
+/bin/zsh -lc 'git status --short --untracked-files=all' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap
+ succeeded in 0ms:
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+
+**Finalizing memory citations and line references**
+**Confirming rollout IDs and citation scope**
+mcp: sequential-thinking/sequentialthinking started
+mcp: sequential-thinking/sequentialthinking (completed)
+报告证据已完成交叉核对：题定门承重，但静态审阅发现未被 10 个变体覆盖的实现级高危异常/竞态路径。
+  ✓ 锁定范围与基线：记录 HEAD/分支/工作树状态，只读取指定实现文件
+  ✓ 并行复核 _open_exam_dirfd/_atomic_write 与 undo 三重校验
+  ✓ 运行 10 变体负验证脚本并核对逐项结果、还原 SHA
+  ✓ 运行 160 项回归并确认最终工作树无新增差异
+  ✓ 汇总精确行号、分级、限制与四级残留清单
+**Drafting Chinese Markdown report structure**
+**Analyzing symlink cleanup concurrency risks**
+**Highlighting dirfd move race limitation**
+**Identifying swallowed fsync errors impacting durability**
+**Flagging unhandled OSError causing non-JSON failure**
+**Noting missing inode comparison for destination**
+**Reviewing test failure summaries and content validation**
+**Summarizing transient Git state and backup file handling**
+**Evaluating high-severity issue fixes**
+**Classifying directory fsync as high-severity defect**
+**Including low-severity annotation and FD leak findings**
+**Clarifying race condition findings with verdict table**
+**Planning precise file path linking for report citations**
+**Analyzing high-severity inode mismatch scenario**
+**Verifying inode unlink behavior and mismatch handling**
+**Analyzing concurrency and file descriptor exhaustion effects**
+**Evaluating fsync failure impact on durability**
+**Assessing fsync and tmp cleanup reliability**
+**Reviewing error handling and fd management**
+**Clarifying implementation file read scope**
+**Documenting file access methods**
+**Planning detailed severity report structure**
+**Finalizing code analysis summary**
+**Assessing unresolved race conditions and final git state**
+**Confirming final clean state**
+**Verifying annotation and docstring discrepancies**
+**Assessing exception handling and fsync failure impact**
+**Clarifying file operation nuances and defect severity**
+**Outlining detailed report structure and severity mapping**
+**Analyzing file operation race conditions**
+**Assessing undo check strictness and labeling**
+codex
+# 独立窄范围实现审阅报告
+
+## 结论
+
+**仍有实现级缺陷。**
+
+- 承重性：**PASS**。10/10 旧形态变体全部如期变红，恢复后 55 项全绿，额外回归为 **160 passed**。
+- 题定 undo 三处校验：均已正确落位。
+- 整体实现自洽性：**FAIL**。静态复核发现 4 项未被上述变体覆盖的 HIGH 路径，可能导致越界写入、数据损失或回执与实际写入不一致。
+
+## 实现级发现
+
+1. **HIGH — dirfd 校验后目录仍可被移出 vault**
+
+   [_open_exam_dirfd:306–325](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:306) 只做一次 inode/同文件系统快照。校验通过后，若在 [_atomic_write 调用前](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:612) 将该目录 rename 到 vault 外同一文件系统，dfd 仍指向已外移 inode；写入会落在外部目录，而 [回执仍生成 vault 内词法路径并报 `created:true`](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:621)。
+
+2. **HIGH — link 成功后的验证异常可能留下 target，却回报失败**
+
+   [target 已在 378–380 发布](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:378)；随后回读 open/fstat/read 若出现 `EMFILE`、`EIO` 等异常，[统一错误路径仅删除 tmp](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:414)，可能留下本次创建的 target，但返回“原子写失败”。
+
+3. **HIGH — mismatch 回滚使用过期身份，且吞掉 target 删除失败**
+
+   `same_inode` 来自已打开 fd 的快照。若其后路径被换入其他文件，[按 basename unlink](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:399) 仍可能删除替代文件；若 unlink 自身失败，[异常又被静默吞掉](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:405)，错误字节 target 可留存而回执只报失败。  
+   直接进入 `same_inode=False` 的 [411–413](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:411) 分支本身正确：**不会删除目标**。
+
+4. **HIGH — undo 的目录 fsync 失败会 fail-open，之后仍删除源**
+
+   [_fsync_dir](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:278) 吞掉目录 open/fsync 错误；undo 在 [813](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:813) 调用后仍可于 [915](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:915) 删除源。在“目的目录项未持久化后崩溃”的模型下，可能两端皆失。
+
+5. **MEDIUM — atomic_write 失败路径静默吞掉 tmp 清理错误**
+
+   [420–423](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:420) 不回报 tmp 删除失败，可能留下残留并阻断后续 `O_EXCL` 重试。
+
+6. **MEDIUM — undo 两处读错误不按 JSON 契约回报**
+
+   初始源回读 [713–722](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:713) 和留痕后的源回读 [857–868](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:857) 均有 `finally` 关闭 fd，但内部 `fstat/read` 的 `OSError` 会直接外抛。源不会删除，但不能如实输出结构化拒绝回执。
+
+7. **LOW — 非 OSError 异常可能泄漏 tmp fd**
+
+   [fdopen 使用 `closefd=False`](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:367)，外围仅捕获 `OSError`；非 `OSError` 异常没有总 `finally` 关闭底层 fd。正常及常规 `OSError` 路径未见泄漏。
+
+8. **LOW — 返回类型注解与实际值不一致**
+
+   [_atomic_write 注解](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:328) 是 `str | None`，实际返回二元组并在 [616](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:616) 解包。
+
+## 题定校验结果
+
+- `_atomic_write` 内的 tmp open、link、target 回读 open、target/tmp unlink 和目录 fsync，确实全部采用 basename + `dir_fd`；读取、fstat、close 则直接使用已打开 fd。**PASS**
+- leaf symlink 在 [681–686](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:681) 拒绝，`.resolve()` 位于 [687](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:687)。**PASS**
+- 留痕写入及文件 fsync 后，于 [819–849](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:819) 重新打开并核对 size、SHA。**PASS**
+- 源文件再次核对 inode+SHA 后，于 [892–915](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-s6-recap/canvas-vault/.claude/skills/board-recap/scripts/recap_exam_build.py:892) 紧贴 unlink 再做 inode 检查。明确失败分支均先返回、不删源。**PASS**
+- `lstat → unlink` 仍是两个系统调用间的已声明 TOCTOU；本次未将这一已知边界重复计为新发现。
+
+## 承重与回归证据
+
+- 负验证基线：`55 passed`
+- 10/10 变体全部如期变红：
+  - A：`7 failed, 48 deselected`
+  - C：`1 failed, 4 passed, 50 deselected`
+  - D：`1 failed, 1 passed, 53 deselected`
+  - B/E/F/G/H/I/J：各 `1 failed, 54 deselected`
+- 逐字节还原后：`55 passed`
+- 脚本最终：`RESULT: PASS — 全部新门均为承重门`
+- 指定回归：`160 passed in 13.07s`
+- 独立复算源文件 SHA-256：`59fc71a4c83f2d7579618ff9be155272c78588ceb12693daead2ff7f707a089e`
+- 最终 `git status --short --untracked-files=all` 为空；工作树干净。
+
+未打开、展示或分析测试源码；仅执行了用户指定命令。上述新增 HIGH 为单文件静态可达路径，未另做竞态故障注入。
+
+## 残留清单
+
+- BLOCKER：**0**
+- HIGH：**4**
+- MEDIUM：**2**
+- LOW：**2**
+
+
+tokens used
+86,299

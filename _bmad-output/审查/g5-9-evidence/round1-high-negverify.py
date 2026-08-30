@@ -210,6 +210,74 @@ VARIANTS: list[tuple[str, str, list[tuple[str, str]], str]] = [
         "test_undo_refuses_symlink_alias_instead_of_moving_referent",
     ),
     (
+        "K",
+        "round-3 HIGH-1 回退: 去掉写入后「dfd 是否仍是 vault 内那个目录」的复核",
+        [
+            (
+                "        if not write_err:\n"
+                "            moved = _dirfd_still_in_vault(dfd, vault)\n"
+                "            if moved:",
+                "        if False:\n"
+                "            moved = _dirfd_still_in_vault(dfd, vault)\n"
+                "            if moved:",
+            )
+        ],
+        "test_create_detects_exam_dir_moved_out_of_vault_after_anchor or "
+        "test_create_detects_exam_dir_swapped_to_another_dir_after_anchor",
+    ),
+    (
+        "L",
+        "round-3 HIGH-2 回退: 失败路径不再撤销已发布的 target",
+        [
+            (
+                "        rb_err = None\n        if published:",
+                "        rb_err = None\n        if False:",
+            )
+        ],
+        "test_atomic_write_rolls_back_when_readback_raises",
+    ),
+    (
+        "M",
+        "round-3 HIGH-3 回退: 撤销前不再复核 identity、且吞掉 unlink 失败",
+        [
+            (
+                "    if identity is not None and (st_now.st_dev, st_now.st_ino) != identity:\n"
+                "        return None  # 已不是我们的 inode ⇒ 是别人的文件, 绝不删",
+                "    if False:\n        return None",
+            ),
+            (
+                "    try:\n"
+                "        os.unlink(name, dir_fd=dir_fd)\n"
+                "    except OSError as e:\n"
+                '        return f"unlink 失败 {type(e).__name__}"\n'
+                "    return None",
+                "    try:\n"
+                "        os.unlink(name, dir_fd=dir_fd)\n"
+                "    except OSError:\n"
+                "        pass\n"
+                "    return None",
+            ),
+        ],
+        "test_rollback_published_refuses_to_delete_someone_elses_file or "
+        "test_rollback_published_reports_unlink_failure_instead_of_swallowing",
+    ),
+    (
+        "N",
+        "round-3 HIGH-4 回退: _fsync_dir 恢复 fail-open + undo 不再据此拒绝",
+        [
+            (
+                '        return f"目录 fsync 失败 {type(e).__name__}"',
+                "        return None",
+            ),
+            (
+                "    dsync_err = _fsync_dir(undo_dir)\n    if dsync_err:",
+                "    dsync_err = _fsync_dir(undo_dir)\n    if False:",
+            ),
+        ],
+        "test_undo_refuses_when_retention_dir_fsync_fails or "
+        "test_fsync_dir_reports_failure_instead_of_silently_succeeding",
+    ),
+    (
         "H",
         "HIGH-3(1) 回退: 去掉紧贴 unlink 前的 identity 复核",
         [
