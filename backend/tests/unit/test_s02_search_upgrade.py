@@ -362,6 +362,11 @@ async def test_search_memories_sorted_by_relevance():
     svc = _make_service()
 
     # Pre-populate in-memory episodes for tier 3
+    # CARD-G4-1a (2026-08-30): Tier 3 内存 episode 必须带归属 —— 读侧封堵后
+    # 作用域恒非空, 无 group_id 的条目 fail-closed 不可见 (生产写路径现在
+    # 一律落 group_id, 此处与之对齐)。
+    from app.core.vault_scope import current_group_id
+
     svc._episodes = [
         {
             "episode_id": "mem-1",
@@ -370,6 +375,7 @@ async def test_search_memories_sorted_by_relevance():
             "concept": "python",
             "node_id": "n1",
             "source": "in_memory",
+            "group_id": current_group_id(),
         }
     ]
 

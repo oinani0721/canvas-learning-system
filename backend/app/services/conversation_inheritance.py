@@ -61,7 +61,8 @@ async def get_inherited_context(
 
         group_id = current_group_id()
 
-    neighbor_records = await _fetch_neighbor_records_for_inheritance(node_id)
+    # CARD-G4-1a: group 下传 — 邻居查询此前不接收作用域 (G2-2 Codex HIGH-7)。
+    neighbor_records = await _fetch_neighbor_records_for_inheritance(node_id, group_id)
 
     if not neighbor_records:
         return list()
@@ -106,20 +107,53 @@ async def get_inherited_context(
     return results
 
 
-async def _fetch_neighbor_records_for_inheritance(node_id: str) -> list[dict]:
+async def _fetch_neighbor_records_for_inheritance(
+    node_id: str, group_id: Optional[str] = None
+) -> list[dict]:
     """Fetch 1-hop neighbor records from Neo4j for inheritance.
 
     Same Neo4j query pattern as learning_context_service._fetch_neighbor_records().
     Graceful degradation: returns empty on Neo4j failure (non-blocking).
+
+    CARD-G4-1a (2026-08-30, G2-2 Codex HIGH-7 移交项) — 三 alias 组过滤:
+    原查询只按 ``name`` / ``mastery_concept_id`` 匹配, 零 group 过滤。这两个
+    键都是 vault 内唯一而非全局唯一 (读契约 R3 反例), 所以 A vault 的"求逆
+    矩阵"节点会把 B vault 同名节点的**邻居名 + 边标签**继承进对话上下文。
+
+    过滤强度: **三个 alias 一律严格**(等值 OR 前缀, 不容忍 NULL)。
+
+    ⚠️ Codex round-1 B-1 整改 (2026-08-30): 初版对关系 alias ``r`` 用了
+    ``allow_null=True``, 理由是"两端节点已严格锚定, 边不可能跨库"。该理由**不
+    成立**且读契约 R1 明文禁止依赖这种隐含前提: 在 W1 clobber 存量图上, 两个
+    节点可以现归 A, 而一条**曾在 B 上下文生成**的关系仍是 NULL group 且其
+    ``label`` / ``reason`` 承载 B 的语义 —— 本查询恰好返回这两个字段, 于是 B
+    的关系语义会进入 A 的对话上下文。端点当下的归属证明不了边内容的来源。
+    存量 NULL 边若确实存在, 应当先迁移/隔离, 不能在读侧对所有 vault 放行。
+
+    2026-08-30 现网 7691 只读实测: EntityNode 3/3 全带 group_id (零 NULL),
+    EntityNode↔EntityNode 边 0 条 —— 严格过滤在现网无召回损失。
     """
+    from app.core.vault_scope import read_scope_params
+
+    # ⚠️ 作用域解析必须在 try **之外** (Codex round-1 H-3): 下面的 except 是
+    # "Neo4j 依赖故障 → 优雅降级返回空邻居"。把作用域解析放进去, 配置断裂就会
+    # 被伪装成"这个节点没有邻居"。VaultScopeUnresolved 也刻意不继承 RuntimeError。
+    scope_params = read_scope_params(
+        group_id,
+        context="conversation_inheritance._fetch_neighbor_records_for_inheritance",
+    )
     try:
         from app.clients.neo4j_client import get_neo4j_client
+        from app.core.vault_scope import read_group_filter
 
         neo4j = get_neo4j_client()
         records = await neo4j.run_query(
-            """
+            f"""
             MATCH (n:EntityNode)-[r]-(neighbor:EntityNode)
-            WHERE n.name = $node_id OR n.mastery_concept_id = $node_id
+            WHERE (n.name = $node_id OR n.mastery_concept_id = $node_id)
+              AND {read_group_filter("n")}
+              AND {read_group_filter("neighbor")}
+              AND {read_group_filter("r")}
             RETURN DISTINCT
                 neighbor.name AS name,
                 neighbor.mastery_concept_id AS node_id,
@@ -129,6 +163,7 @@ async def _fetch_neighbor_records_for_inheritance(node_id: str) -> list[dict]:
             """,
             node_id=node_id,
             limit=MAX_INHERITED_NEIGHBORS * 2,
+            **scope_params,
         )
         if records:
             return [dict(r) for r in records]

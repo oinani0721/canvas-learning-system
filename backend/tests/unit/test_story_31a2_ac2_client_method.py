@@ -13,6 +13,19 @@ from unittest.mock import MagicMock
 import pytest
 from app.clients.neo4j_client import Neo4jClient
 
+
+def _json_scope() -> str:
+    """CARD-G4-1a (2026-08-30): JSON 降级层的记录也必须带归属。
+
+    ``get_learning_history`` 的无 group 全库分支已删除 (Codex round-1 B-2),
+    降级路径与 Cypher 路径同一套作用域语义 —— 不传 group 不再等于"整个 JSON
+    库全返回"。生产写侧 ``create_learning_relationship`` 的 JSON 分支本来就落
+    物理化 group_id, 本 helper 让 fixture 与之一致, 不是为绿放水。
+    """
+    from app.core.vault_scope import current_group_id
+
+    return current_group_id()
+
 # =============================================================================
 # AC-31.A.2.2: Neo4jClient.get_learning_history() Method
 # [Source: docs/stories/31.A.2.story.md#AC-31.A.2.2]
@@ -51,12 +64,14 @@ class TestAC31A22_Neo4jClientMethod:
         # Inject test data
         client._data["relationships"] = [
             {
+                "group_id": _json_scope(),
                 "user_id": "u1",
                 "concept_name": "A",
                 "timestamp": "2026-02-05T10:00:00",
                 "last_score": 90,
             },
             {
+                "group_id": _json_scope(),
                 "user_id": "u2",
                 "concept_name": "B",
                 "timestamp": "2026-02-05T10:00:00",
@@ -77,12 +92,14 @@ class TestAC31A22_Neo4jClientMethod:
 
         client._data["relationships"] = [
             {
+                "group_id": _json_scope(),
                 "user_id": "u1",
                 "concept_name": "线性代数-矩阵乘法",
                 "timestamp": "2026-02-05T10:00:00",
                 "last_score": 90,
             },
             {
+                "group_id": _json_scope(),
                 "user_id": "u1",
                 "concept_name": "概率论-贝叶斯",
                 "timestamp": "2026-02-05T10:00:00",
@@ -103,6 +120,7 @@ class TestAC31A22_Neo4jClientMethod:
 
         client._data["relationships"] = [
             {
+                "group_id": _json_scope(),
                 "user_id": "u1",
                 "concept_name": "A",
                 "group_id": "math-001",
@@ -110,6 +128,7 @@ class TestAC31A22_Neo4jClientMethod:
                 "last_score": 90,
             },
             {
+                "group_id": _json_scope(),
                 "user_id": "u1",
                 "concept_name": "B",
                 "group_id": "physics-001",
@@ -131,18 +150,21 @@ class TestAC31A22_Neo4jClientMethod:
 
         client._data["relationships"] = [
             {
+                "group_id": _json_scope(),
                 "user_id": "u1",
                 "concept_name": "Old",
                 "timestamp": "2026-01-01T10:00:00",
                 "last_score": 70,
             },
             {
+                "group_id": _json_scope(),
                 "user_id": "u1",
                 "concept_name": "Current",
                 "timestamp": "2026-02-05T10:00:00",
                 "last_score": 85,
             },
             {
+                "group_id": _json_scope(),
                 "user_id": "u1",
                 "concept_name": "Future",
                 "timestamp": "2026-03-01T10:00:00",
@@ -167,6 +189,7 @@ class TestAC31A22_Neo4jClientMethod:
 
         client._data["relationships"] = [
             {
+                "group_id": _json_scope(),
                 "user_id": "u1",
                 "concept_name": f"C{i}",
                 "timestamp": f"2026-02-05T{10 + i}:00:00",
@@ -187,18 +210,21 @@ class TestAC31A22_Neo4jClientMethod:
 
         client._data["relationships"] = [
             {
+                "group_id": _json_scope(),
                 "user_id": "u1",
                 "concept_name": "Oldest",
                 "timestamp": "2026-02-01T10:00:00",
                 "last_score": 70,
             },
             {
+                "group_id": _json_scope(),
                 "user_id": "u1",
                 "concept_name": "Newest",
                 "timestamp": "2026-02-05T10:00:00",
                 "last_score": 90,
             },
             {
+                "group_id": _json_scope(),
                 "user_id": "u1",
                 "concept_name": "Middle",
                 "timestamp": "2026-02-03T10:00:00",
@@ -219,10 +245,10 @@ class TestAC31A22_Neo4jClientMethod:
 
         client._data["relationships"] = [
             {
+                "group_id": _json_scope(),
                 "user_id": "u1",
                 "concept_name": "Test",
                 "concept_id": "c-1",
-                "group_id": "math-001",
                 "agent_type": "scoring",
                 "timestamp": "2026-02-05T10:00:00",
                 "last_score": 90,
@@ -239,7 +265,12 @@ class TestAC31A22_Neo4jClientMethod:
         assert item["concept_id"] == "c-1"
         assert item["score"] == 90
         assert item["timestamp"] == "2026-02-05T10:00:00"
-        assert item["group_id"] == "math-001"
+        # CARD-G4-1a: 原 fixture 用裸值 "math-001" 且断言原样回显。该记录现在
+        # 落在当前作用域外, 会被 R4 过滤掉 (与 Cypher 路径同语义)。改为落在
+        # 作用域内, 并保留"输出边界还原成 D16 冒号格式"的原契约断言 (R5)。
+        from app.graphiti.group_id_compat import desanitize_group_id_from_graphiti
+
+        assert item["group_id"] == desanitize_group_id_from_graphiti(_json_scope())
         assert item["review_count"] == 3
 
     @pytest.mark.asyncio

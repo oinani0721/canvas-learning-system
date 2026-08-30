@@ -1,0 +1,82 @@
+# 门 6 在提交态 c43f1854 的完整运行日志
+# 生成时间: 2026-08-30 15:43:37 CST
+# HEAD: c43f1854e4c837f0ad3cf35f629476e0443efd13
+# 工作区源码: 干净 (git status 里那 1 个 untracked 就是本日志文件自身)
+#   → 下面跑的 backend/app + tests 字节 == c43f1854 提交进去的字节
+# 注: 末次提交 18a5bbc8 相对 c43f1854 的 diff 只含文档/证据两个文件、
+#     零代码改动 (git diff c43f1854..18a5bbc8 --stat 可复核), 故本日志
+#     与下方变异证据对当前 HEAD 的代码状态同样有效。
+
+tests/integration/test_cypher_contract_gate.py::test_gate_never_targets_live_7691 PASSED [  2%]
+tests/integration/test_cypher_contract_gate.py::test_syntax_gate_contract_patterns[R1-map] PASSED [  4%]
+tests/integration/test_cypher_contract_gate.py::test_syntax_gate_contract_patterns[R1-multi-alias] PASSED [  6%]
+tests/integration/test_cypher_contract_gate.py::test_syntax_gate_contract_patterns[R1-where] PASSED [  8%]
+tests/integration/test_cypher_contract_gate.py::test_syntax_gate_contract_patterns[W1-composite-merge] PASSED [ 10%]
+tests/integration/test_cypher_contract_gate.py::test_syntax_gate_contract_patterns[W2-scoped-delete] PASSED [ 12%]
+tests/integration/test_cypher_contract_gate.py::test_syntax_gate_contract_patterns[W5-scoped-update] PASSED [ 14%]
+tests/integration/test_cypher_contract_gate.py::test_syntax_gate_helper_output_supported_shapes[match-delete] PASSED [ 16%]
+tests/integration/test_cypher_contract_gate.py::test_syntax_gate_helper_output_supported_shapes[match-orderby] PASSED [ 18%]
+tests/integration/test_cypher_contract_gate.py::test_syntax_gate_helper_output_supported_shapes[match-return] PASSED [ 20%]
+tests/integration/test_cypher_contract_gate.py::test_syntax_gate_helper_output_supported_shapes[match-set] PASSED [ 22%]
+tests/integration/test_cypher_contract_gate.py::test_syntax_gate_helper_output_existing_where_and PASSED [ 24%]
+tests/integration/test_cypher_contract_gate.py::test_helper_merge_lead_limitation_documented PASSED [ 26%]
+tests/integration/test_cypher_contract_gate.py::test_dual_vault_read_isolation_raw_filter PASSED [ 28%]
+tests/integration/test_cypher_contract_gate.py::test_dual_vault_read_isolation_helper_injection PASSED [ 30%]
+tests/integration/test_cypher_contract_gate.py::test_dual_vault_w1_composite_key_no_collision PASSED [ 32%]
+tests/integration/test_cypher_contract_gate.py::test_concept_write_identity_dual_vault_current_state PASSED [ 34%]
+tests/integration/test_cypher_contract_gate.py::test_learned_edge_write_identity_dual_vault_current_state PASSED [ 36%]
+tests/integration/test_cypher_contract_gate.py::test_canvas_node_write_identity_dual_vault PASSED [ 38%]
+tests/integration/test_cypher_contract_gate.py::test_score_history_write_identity_dual_vault PASSED [ 40%]
+tests/integration/test_cypher_contract_gate.py::test_edge_delete_scoped_dual_vault PASSED [ 42%]
+tests/integration/test_cypher_contract_gate.py::test_canvas_association_scoped_update_and_delete PASSED [ 44%]
+tests/integration/test_cypher_contract_gate.py::test_fallback_replay_write_identity_dual_vault PASSED [ 46%]
+tests/integration/test_cypher_contract_gate.py::test_group_unresolvable_fail_closed_no_500 PASSED [ 48%]
+tests/integration/test_cypher_contract_gate.py::test_group_resolved_from_contextvar_branch PASSED [ 51%]
+tests/integration/test_cypher_contract_gate.py::test_group_resolved_from_canvas_path_branch PASSED [ 53%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_punycode_subgroup_is_really_punycode PASSED [ 55%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_contract_fragment_recall_and_isolation PASSED [ 57%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_canvas_scope_still_isolates_sibling_board PASSED [ 59%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_review_suggestions_recall_and_isolation_in_one_read PASSED [ 61%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_review_suggestions_zero_cross_vault_leak PASSED [ 63%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_learning_history_recall_and_isolation PASSED [ 65%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_score_history_scoped_read PASSED [ 67%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_score_history_fail_closed_on_unresolved_group PASSED [ 69%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_review_suggestions_per_alias[g21gate_g41a_xr-False] PASSED [ 71%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_review_suggestions_per_alias[g21gate_g41a_xc-False] PASSED [ 73%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_review_suggestions_per_alias[g21gate_g41a_ok-True] PASSED [ 75%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_learning_history_per_alias[g21gate_g41a_xr-False] PASSED [ 77%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_learning_history_per_alias[g21gate_g41a_xc-False] PASSED [ 79%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_learning_history_per_alias[g21gate_g41a_ok-True] PASSED [ 81%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_score_history_per_alias[c] PASSED [ 83%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_score_history_per_alias[cn] PASSED [ 85%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_score_history_per_alias[e] PASSED [ 87%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_score_history_per_alias[n] PASSED [ 89%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_score_history_per_alias[ok] PASSED [ 91%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_score_history_per_alias[r] PASSED [ 93%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_canvas_scope_via_production_methods PASSED [ 95%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_inheritance_neighbors_are_vault_scoped PASSED [ 97%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_inheritance_per_alias_negative PASSED [100%]
+======================= 49 passed, 10 warnings in 1.86s ========================
+
+════════════════════════════════════════════════════════
+# 强化后的两条门是否真能红 (串行变异, 只跑这两条)
+════════════════════════════════════════════════════════
+
+--- 变异: eq-only ---
+E   AssertionError: 缺失(保召回红): ['g21gate_g41a_a_brdx', 'g21gate_g41a_a_brdx_sem', 'g21gate_g41a_a_brdy', 'g21gate_g41a_a_puny', 'g21gate_g41a_a_sem']; 多出(零泄漏红): []
+E   AssertionError: 缺失(保召回红): ['g21gate_g41a_a_brdx', 'g21gate_g41a_a_brdx_sem', 'g21gate_g41a_a_brdy', 'g21gate_g41a_a_puny', 'g21gate_g41a_a_sem']; 多出(零泄漏红): []
+FAILED tests/integration/test_cypher_contract_gate.py::test_g41a_review_suggestions_recall_and_isolation_in_one_read
+FAILED tests/integration/test_cypher_contract_gate.py::test_g41a_learning_history_recall_and_isolation
+================ 2 failed, 47 deselected, 10 warnings in 0.50s =================
+  (已还原, 逐字节一致)
+
+--- 变异: always-true ---
+E   AssertionError: 缺失(保召回红): []; 多出(零泄漏红): ['g21gate_g41a_ab_root', 'g21gate_g41a_b_root']
+E   AssertionError: 缺失(保召回红): []; 多出(零泄漏红): ['g21gate_g41a_ab_root', 'g21gate_g41a_b_root']
+FAILED tests/integration/test_cypher_contract_gate.py::test_g41a_review_suggestions_recall_and_isolation_in_one_read
+FAILED tests/integration/test_cypher_contract_gate.py::test_g41a_learning_history_recall_and_isolation
+================ 2 failed, 47 deselected, 10 warnings in 0.53s =================
+  (已还原, 逐字节一致)
+
+--- 还原后复跑这两条 ---
+================ 2 passed, 47 deselected, 10 warnings in 0.47s =================

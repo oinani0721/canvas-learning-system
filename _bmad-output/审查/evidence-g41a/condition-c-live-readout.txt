@@ -1,0 +1,20 @@
+铺的数据 (物理组 → 概念名):
+  vault__provec_a                                      provec_A 根组
+  vault__provec_a__board_x                             provec_A canvas 子组
+  vault__provec_a__semantic                            provec_A semantic 影子组
+  vault__provec_a__xn--jhqx6ce6ettpca6420ada2925d      provec_A punycode 子组
+  vault__provec_b                                      provec_B 根组
+  vault__provec_ab                                     provec_近似前缀 vault
+
+用 A vault 根组 (vault:provec_a) 调**生产方法** get_review_suggestions 读一次:
+  ✅ 返回  provec_A canvas 子组
+  ✅ 返回  provec_A punycode 子组
+  ✅ 返回  provec_A semantic 影子组
+  ✅ 返回  provec_A 根组
+  ⛔ 未返回 provec_B 根组
+  ⛔ 未返回 provec_近似前缀 vault
+
+判定:
+  保召回 (A 四类组全在)  : PASS  缺 []
+  零泄漏 (B / 近似前缀不在): PASS  多 []
+  同一个结果集同时成立    : PASS

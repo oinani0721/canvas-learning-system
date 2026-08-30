@@ -679,11 +679,29 @@ class Neo4jClient:
         if not user_id:
             return []
 
+        # CARD-G4-1a / Codex round-2 (2026-08-30) — **降级模式的同一个泄漏**:
+        # 本模拟器此前完全忽略 group 参数, 于是 Neo4j 一降级, Cypher 侧刚封住
+        # 的跨 vault 面就整个回来 (复习建议返回全部 vault 的待复习概念)。
+        # 封堵可以被"把 Neo4j 弄挂"绕过 = 等于没封。scope 取查询自带的
+        # group_id 参数 (由 read_scope_params 注入, 恒存在); 缺失即 fail-closed。
+        scope = params.get("group_id")
+        if not scope:
+            logger.error(
+                "[G4-1a] JSON fallback review query without scope — refusing "
+                "cross-vault full scan (user_id=%s)",
+                user_id,
+            )
+            return []
+
+        from app.core.vault_scope import group_in_read_scope
+
         now = datetime.now()
         results = []
 
         for rel in self._data.get("relationships", []):
             if rel["user_id"] != user_id:
+                continue
+            if not group_in_read_scope(rel.get("group_id"), scope):
                 continue
 
             # Check if due for review
@@ -692,8 +710,17 @@ class Neo4jClient:
                 try:
                     next_review = datetime.fromisoformat(next_review_str)
                     if next_review < now:
+                        # Codex round-3 (2026-08-30): concept 反查曾按 **name
+                        # 全库匹配** —— 关系过滤住了, 但两个 vault 有同名概念
+                        # 时会取到他 vault 那条的 concept_id (标识符级串读)。
+                        # 反查同样要过 scope; 命中不到就用关系自带的 id 兜底。
                         concept = next(
-                            (c for c in self._data["concepts"] if c["name"] == rel["concept_name"]),
+                            (
+                                c
+                                for c in self._data["concepts"]
+                                if c["name"] == rel["concept_name"]
+                                and group_in_read_scope(c.get("group_id"), scope)
+                            ),
                             {
                                 "id": rel.get("concept_id", ""),
                                 "name": rel["concept_name"],
@@ -729,12 +756,33 @@ class Neo4jClient:
         user_id = params.get("userId")
         concept_id = params.get("conceptId")
 
+        # CARD-G4-1a / Codex round-2: 传了 scope 就按 scope 过滤。
+        # ⚠️ 与 `_handle_query_reviews` 的**区别**(有意为之): 本分支的主调用方是
+        # `get_concept_history`, 它的 Cypher 路径本卡**没有**封堵(整族读方法移交
+        # CARD-G4-1b, 需读写两端一起改)。若在此单方面 fail-closed, 等于把一个本
+        # 卡不拥有的功能在降级模式下打断 —— 而泄漏面并不会因此变小(Cypher 路径
+        # 照样无过滤)。所以这里只做"有 scope 则过滤 + 无 scope 告警", 与 Cypher
+        # 侧保持同等口径; 真正的 fail-closed 随 G4-1b 两侧同批上。
+        scope = params.get("group_id")
+        if not scope:
+            logger.warning(
+                "[G4-1a] JSON fallback history query without scope — cross-vault "
+                "read surface (user_id=%s, concept_id=%s). 收敛移交 CARD-G4-1b "
+                "(与 get_concept_history 的 Cypher 路径同批)。",
+                user_id,
+                concept_id,
+            )
+
+        from app.core.vault_scope import group_in_read_scope
+
         results = []
 
         for rel in self._data.get("relationships", []):
             if user_id and rel["user_id"] != user_id:
                 continue
             if concept_id and rel.get("concept_id") != concept_id:
+                continue
+            if scope and not group_in_read_scope(rel.get("group_id"), scope):
                 continue
 
             results.append(
@@ -869,38 +917,44 @@ class Neo4jClient:
         # read r.last_score, a property no write path ever set, so the API
         # always returned null and the review scheduler operated blind.
         # The alias keeps the JSON key "last_score" for backwards compatibility.
-        if group_id:
-            query = """
-            MATCH (u:User {id: $userId})-[r:LEARNED]->(c:Concept)
-            WHERE r.next_review < datetime() AND c.group_id = $groupId
-            RETURN c.name as concept,
-                   c.id as concept_id,
-                   r.score as last_score,
-                   r.review_count as review_count,
-                   r.next_review as due_date
-            ORDER BY r.next_review
-            LIMIT $limit
-            """
-            # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
-            results = await self.run_query(
-                query,
-                userId=user_id,
-                limit=limit,
-                groupId=to_physical_group_id(group_id),
-            )
-        else:
-            query = """
-            MATCH (u:User {id: $userId})-[r:LEARNED]->(c:Concept)
-            WHERE r.next_review < datetime()
-            RETURN c.name as concept,
-                   c.id as concept_id,
-                   r.score as last_score,
-                   r.review_count as review_count,
-                   r.next_review as due_date
-            ORDER BY r.next_review
-            LIMIT $limit
-            """
-            results = await self.run_query(query, userId=user_id, limit=limit)
+        # CARD-G4-1a (2026-08-30) — 审计 §5 #3 (R4:violation) 的无 group 分支
+        # **已删除**。Codex round-1 B-2: 保留它 = 漏洞原语仍在, 任何 CLI /
+        # 后台任务 / 新 service 直接调这个公共 client 就立刻恢复"同一 user 的
+        # 全 vault 扫描"。签名保持 ``group_id: Optional`` 不变 (兼容既有调用
+        # 面), 但**行为**统一走 read_scope_params: 不传就按 per-request /
+        # active vault 解析, 解析不出就抛 —— 无过滤分支不复存在。
+        #
+        # 过滤语义 = 等值 OR 前缀 (读契约 R1 的 vault 内二级 namespace 口径)。
+        # 现网实证: 全库唯一的 Concept 与唯一的 LEARNED 边都落在 canvas 子组
+        # `vault__canvas_vault__xn--jhqx6ce6ettpca6420ada2925d`, vault 根组零
+        # 命中 —— 按根组等值查, "复习建议"会整页空。
+        # `r` alias 一并过滤 (审计 §5 #2 CONDITIONAL: LEARNED 自带 group_id)。
+        from app.core.vault_scope import read_group_filter, read_scope_params
+
+        # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
+        # (read_scope_params 内部即 to_physical_group_id)
+        scope_params = read_scope_params(
+            group_id, context="neo4j_client.get_review_suggestions"
+        )
+        query = f"""
+        MATCH (u:User {{id: $userId}})-[r:LEARNED]->(c:Concept)
+        WHERE r.next_review < datetime()
+          AND {read_group_filter("c")}
+          AND {read_group_filter("r")}
+        RETURN c.name as concept,
+               c.id as concept_id,
+               r.score as last_score,
+               r.review_count as review_count,
+               r.next_review as due_date
+        ORDER BY r.next_review
+        LIMIT $limit
+        """
+        results = await self.run_query(
+            query,
+            userId=user_id,
+            limit=limit,
+            **scope_params,
+        )
 
         # Add priority based on review count
         suggestions = []
@@ -987,10 +1041,21 @@ class Neo4jClient:
         if concept:
             query += " AND toLower(c.name) CONTAINS toLower($concept)"
             params["concept"] = concept
-        if group_id:
-            query += " AND r.group_id = $groupId"
-            # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
-            params["groupId"] = to_physical_group_id(group_id)
+        # CARD-G4-1a (2026-08-30, Codex round-1 B-2): group 过滤从**可选拼接**
+        # 改为**无条件**。原来 `if group_id:` 让不传 group 的调用直接跑无过滤
+        # Cypher (审计 §5 #4 CONDITIONAL 的实质)。签名仍是 Optional, 但行为统一
+        # 走 read_scope_params (不传 → per-request/active vault → 解析不出即抛)。
+        # 语义: 等值 → 等值 OR 前缀 (与 get_review_suggestions 同因: 存量
+        # LEARNED 边落在 canvas 子组, vault 根组等值查恒空); 并补 c alias ——
+        # 原查询只过滤了关系 r, 概念节点侧未过滤 (R1「每个 alias 逐一过滤」)。
+        # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
+        # (read_scope_params 内部即 to_physical_group_id)
+        from app.core.vault_scope import read_group_filter, read_scope_params
+
+        query += f" AND {read_group_filter('r')} AND {read_group_filter('c')}"
+        params.update(
+            read_scope_params(group_id, context="neo4j_client.get_learning_history")
+        )
 
         query += """
         RETURN c.name as concept,
@@ -1030,6 +1095,12 @@ class Neo4jClient:
 
         [Source: docs/stories/31.A.2.story.md#AC-31.A.2.2]
         """
+        from app.core.vault_scope import group_in_read_scope, require_read_group
+
+        # 与 Cypher 路径同一个解析链 (Codex round-1 B-2): 降级模式也 fail-closed。
+        scope = require_read_group(
+            group_id, context="neo4j_client._get_learning_history_json"
+        )
         results = []
 
         for rel in self._data.get("relationships", []):
@@ -1060,10 +1131,16 @@ class Neo4jClient:
             # JSON fallback 前已物理化 (vault__x), 而调用方传逻辑冒号格式 —
             # 两侧都过 to_physical_group_id 再比较, 顺带兼容 T1 前写入的
             # 冒号存量 JSON (免清洗)。
-            if group_id:
-                stored_gid = rel.get("group_id") or ""
-                if to_physical_group_id(stored_gid) != to_physical_group_id(group_id):
-                    continue
+            # CARD-G4-1a (2026-08-30): 等值 → 前缀语义, 与上面 Cypher 侧逐字
+            # 对齐 —— 本镜像是 Neo4j 不可用时的**同一个读**, 两条路径可见面
+            # 不同 = 降级前后用户看到的历史条数会变。group_in_read_scope 内部
+            # 同样双侧 to_physical_group_id, 上面注释的 T1 兼容口径不变。
+            # (JSON 镜像层**新增** group 过滤的那几处仍移交 CARD-G4-1b;
+            #  此处只是把**已有**过滤的比较语义对齐, 不新开过滤面。)
+            # Codex round-1 B-2 同修: `if group_id:` 去掉 —— 降级模式下不传
+            # group 同样不该变成"整个 JSON 库全返回"。作用域在函数入口统一解析。
+            if not group_in_read_scope(rel.get("group_id"), scope):
+                continue
 
             from app.graphiti.group_id_compat import (
                 desanitize_group_id_from_graphiti,
@@ -1253,56 +1330,118 @@ class Neo4jClient:
         return deleted > 0
 
     async def get_concept_score_history(
-        self, concept_id: str, canvas_name: str, limit: int = 5
+        self, concept_id: str, canvas_name: str, limit: int = 5, group_id: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Get historical scores for a concept.
 
         Story 31.5 AC-31.5.1: Query recent N score records for difficulty adaptation.
 
+        CARD-G4-1a (2026-08-30) — 读写对称补齐 (审计 §5 #8, R1:violation):
+        本查询此前只按 ``Node.id`` + ``Canvas.path`` 定位, 零 group 过滤。两者
+        都不是全局唯一 ID (canvas node id 可外部传入、缺失时仅取 UUID 前 8 位,
+        属读契约 R3 明列的反例), 所以两个 vault 里同名白板的同 id 节点会互相
+        读到对方的分数。写侧 ``record_score_history`` 已在 G2-3 给 Node/Canvas/
+        CONTAINS_NODE/Episode/SCORED **五个**身份全部落 group_id, 本方法按同一
+        锚点逐 alias 过滤 (R1「每个 alias 逐一过滤」)。
+
+        组解析走**读侧**链 ``read_scope_params`` (显式 → per-request ContextVar
+        → active vault → 解析不出即抛)。⚠️ Codex round-1 H-2 整改 (2026-08-30):
+        此前复用写侧 ``_resolve_physical_group_id``, 它在无 ContextVar 时会由
+        canvas_path 推导出 ``vault__default__<canvas>`` —— 后台/CLI 读会"查询成
+        功但零命中", 被上层折算成正常的 ``empty`` 并进 30s 缓存, 正是本卡要防
+        的静默断读。canvas_name 在本方法里**只作查询条件**, 不参与 vault 推导。
+
+        解析失败 **抛错**而不是返回空列表 —— 上层
+        ``memory_service.get_concept_score_history`` 的 except 会把它折算成
+        ``status="unavailable"`` + reason, 而静默返回 [] 会被展示成"这个概念没
+        有历史分数" (CARD-G4-2 禁止的假空)。
+
         Args:
             concept_id: Concept/Node ID
             canvas_name: Canvas file name
             limit: Maximum number of records (default: 5)
+            group_id: 读作用域 (G4-1a); 省略时按写侧同链推导
 
         Returns:
             List of dicts with score, timestamp fields (ordered from oldest to newest)
 
+        Raises:
+            VaultScopeUnresolved: group 解析失败 (拒绝无作用域读取)
+
         [Source: docs/stories/31.5.story.md#Task-2.2]
         """
         if self._use_json_fallback:
-            return await self._get_score_history_json_fallback(concept_id, canvas_name, limit)
+            # Codex round-2: 降级路径同样按 scope 过滤 —— 否则"把 Neo4j 弄挂"
+            # 就能绕过封堵。其余 JSON 镜像 (canvas associations / concepts) 仍
+            # 移交 CARD-G4-1b: 它们背后的 Cypher 读方法本卡也没封, 两侧同批改。
+            return await self._get_score_history_json_fallback(
+                concept_id, canvas_name, limit, group_id=group_id
+            )
 
-        query = """
-        MATCH (n:Node {id: $conceptId})<-[:CONTAINS_NODE]-(c:Canvas {path: $canvasPath})
+        from app.core.vault_scope import read_group_filter, read_scope_params
+
+        scope_params = read_scope_params(
+            group_id, context="neo4j_client.get_concept_score_history"
+        )
+
+        query = f"""
+        MATCH (n:Node {{id: $conceptId}})<-[cn:CONTAINS_NODE]-(c:Canvas {{path: $canvasPath}})
+        WHERE {read_group_filter("n")}
+          AND {read_group_filter("c")}
+          AND {read_group_filter("cn")}
         MATCH (n)<-[r:SCORED]-(e:Episode)
+        WHERE {read_group_filter("r")}
+          AND {read_group_filter("e")}
         RETURN r.score as score, r.timestamp as timestamp
         ORDER BY r.timestamp DESC
         LIMIT $limit
         """
-        results = await self.run_query(query, conceptId=concept_id, canvasPath=canvas_name, limit=limit)
+        results = await self.run_query(
+            query,
+            conceptId=concept_id,
+            canvasPath=canvas_name,
+            limit=limit,
+            **scope_params,
+        )
 
         # Reverse to get oldest-to-newest order
         return list(reversed(results))
 
     async def _get_score_history_json_fallback(
-        self, concept_id: str, canvas_name: str, limit: int = 5
+        self, concept_id: str, canvas_name: str, limit: int = 5, group_id: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Get score history from JSON fallback storage.
 
         Story 31.5 AC-31.5.1: JSON fallback for score history query.
 
+        CARD-G4-1a / Codex round-2 (2026-08-30): 本镜像原先零 group 过滤 ——
+        Cypher 侧刚封住的跨 vault 面, 只要 Neo4j 一降级就整个回来 (两个 vault
+        同名 canvas 的同 id 节点互相读到对方分数)。**封堵可以被"把 Neo4j 弄挂"
+        绕过 = 等于没封**, 所以它不能留在 G4-1b 移交里。写侧
+        ``record_score_history`` 的 JSON 分支落 ``group_id: physical``,
+        本方法按同一 scope 语义过滤。
+
         Args:
             concept_id: Concept/Node ID
             canvas_name: Canvas file name
             limit: Maximum number of records
+            group_id: 读作用域 (与 Cypher 路径同一解析链)
 
         Returns:
             List of dicts with score, timestamp fields
 
+        Raises:
+            VaultScopeUnresolved: group 解析失败 (拒绝无作用域读取)
+
         [Source: docs/stories/31.5.story.md#Task-2.2]
         """
+        from app.core.vault_scope import group_in_read_scope, require_read_group
+
+        scope = require_read_group(
+            group_id, context="neo4j_client._get_score_history_json_fallback"
+        )
         results = []
 
         # Check in-memory relationships for matching concept
@@ -1313,6 +1452,8 @@ class Neo4jClient:
                 or rel.get("concept_name", "").find(concept_id) >= 0
                 or rel.get("node_id") == concept_id
             ):
+                if not group_in_read_scope(rel.get("group_id"), scope):
+                    continue
                 score = rel.get("last_score")
                 timestamp = rel.get("timestamp")
 
@@ -1323,6 +1464,8 @@ class Neo4jClient:
         score_history = self._data.get("score_history", [])
         for record in score_history:
             if record.get("concept_id") == concept_id or record.get("node_id") == concept_id:
+                if not group_in_read_scope(record.get("group_id"), scope):
+                    continue
                 results.append({"score": record.get("score"), "timestamp": record.get("timestamp")})
 
         # Sort by timestamp (oldest first) and limit

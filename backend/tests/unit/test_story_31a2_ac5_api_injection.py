@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from tests.unit.test_story_31a2_helpers import _make_neo4j_mock, _make_service
+from tests.unit.test_story_31a2_helpers import _make_neo4j_mock, _make_service, _scope
 
 # =============================================================================
 # AC-31.A.2.5: API Endpoint Dependency Injection Fix
@@ -93,7 +93,7 @@ class TestEdgeCases:
         await service.initialize()
 
         service._episodes.append(
-            {"user_id": "u1", "concept": "Fallback", "timestamp": "2026-02-05T10:00:00"}
+            {"group_id": _scope(), "user_id": "u1", "concept": "Fallback", "timestamp": "2026-02-05T10:00:00"}
         )
 
         result = await service.get_learning_history(user_id="u1")

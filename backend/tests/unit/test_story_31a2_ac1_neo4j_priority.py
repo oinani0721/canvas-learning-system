@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from tests.unit.test_story_31a2_helpers import _make_neo4j_mock, _make_service
+from tests.unit.test_story_31a2_helpers import _make_neo4j_mock, _make_service, _scope
 
 # =============================================================================
 # AC-31.A.2.1: Neo4j Query Priority (from Neo4j, fallback to memory)
@@ -46,6 +46,7 @@ class TestAC31A21_Neo4jQueryPriority:
         # Memory data is now MERGED (not excluded) for complete score history
         service._episodes.append(
             {
+                "group_id": _scope(),
                 "user_id": "u1",
                 "concept": "Memory-向量",
                 "score": 50,
@@ -102,6 +103,7 @@ class TestAC31A21_Neo4jQueryPriority:
 
         service._episodes.append(
             {
+                "group_id": _scope(),
                 "user_id": "u1",
                 "concept": "内存数据",
                 "score": 70,
@@ -140,6 +142,7 @@ class TestAC31A21_Neo4jQueryPriority:
 
         service._episodes.append(
             {
+                "group_id": _scope(),
                 "user_id": "u1",
                 "concept": "内存回退",
                 "score": 60,
@@ -174,6 +177,7 @@ class TestAC31A21_Neo4jQueryPriority:
         # Same event in memory (same node_id + timestamp = deduped)
         service._episodes.append(
             {
+                "group_id": _scope(),
                 "user_id": "u1",
                 "concept": "A",
                 "score": 90,

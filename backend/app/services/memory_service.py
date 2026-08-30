@@ -134,6 +134,12 @@ def _vault_scoped_group_id(subject=None, canvas_name=None) -> str:
 # Story 31.5: Cache TTL for score history queries (30 seconds)
 SCORE_HISTORY_CACHE_TTL = 30
 
+#: CARD-G4-1a: vault 子组枚举的分页大小与硬上限 (Codex round-1 M-2)。
+#: 分页保证"全部子组可见"与 Cypher/内存侧前缀语义等价; 硬上限只是防失控,
+#: 真撞到就如实上报 degraded, 不静默按收窄面检索。
+_SUBGROUP_PAGE_SIZE = 500
+_SUBGROUP_HARD_CAP = 5000
+
 # Story 38.6: FAILED_WRITES_FILE and failed_writes_lock imported from
 # app.core.failed_writes_constants (shared with agent_service.py)
 
@@ -641,7 +647,16 @@ class MemoryService:
         elif subject:
             group_id = _vault_scoped_group_id(subject)
         else:
-            group_id = None
+            # CARD-G4-1a (2026-08-30): 此处曾落 None —— Neo4j 侧 `if group_id`
+            # 分支不成立 = 不拼 group 过滤 = 全库扫描 (读契约 R4 违规, G2-2
+            # Codex BLOCKER-5 移交项)。改为 fail-closed 解析当前 vault 根组;
+            # 根组经**前缀语义**可见其全部二级子组 (canvas/semantic/punycode),
+            # 因此封堵不缩召回。
+            from app.core.vault_scope import require_read_group
+
+            group_id = require_read_group(
+                context="memory_service.get_learning_history"
+            )
 
         # ✅ Story 31.A.2 AC-31.A.2.1: Query from Neo4j first (replaces memory-only read)
         episodes = []
@@ -679,8 +694,19 @@ class MemoryService:
         # isolation (Story 30.8 AC-30.8.1). Without this, when Neo4j is unavailable
         # and we fall back to in-memory _episodes, queries with canvas_path would
         # leak data from other canvases that share the same user_id.
-        if group_id:
-            memory_episodes = [e for e in memory_episodes if e.get("group_id", "") == group_id]
+        #
+        # CARD-G4-1a (2026-08-30): 等值比较 → 前缀语义。上面 else 分支不再落
+        # None 后, group_id 恒非空; 若仍用等值, vault 根组读会把落在 canvas /
+        # semantic / punycode 二级子组的 episode 全部误挡 (现网存量恰好全在
+        # punycode 子组 → "学习历史突然空了")。group_in_read_scope 与 Cypher
+        # 侧 read_group_filter 是同一套可见性规则, 保证 Neo4j 可用与降级两条
+        # 路径的隔离结果一致。canvas 级读 (scope 已是子组) 仍只见自己, 兄弟
+        # 白板不可见。
+        from app.core.vault_scope import group_in_read_scope
+
+        memory_episodes = [
+            e for e in memory_episodes if group_in_read_scope(e.get("group_id"), group_id)
+        ]
 
         # Apply date filters to in-memory episodes
         # S34 Bug fix #3: Normalize both sides to str for consistent comparison
@@ -736,17 +762,21 @@ class MemoryService:
             # canvas_name + inferred subject — failed_writes.jsonl historical entries
             # don't carry group_id directly, so we reconstruct it the same way the
             # write path does.
-            if group_id:
+            # CARD-G4-1a (2026-08-30): 与内存 episode 同修 —— 重建出来的 group
+            # 恒是 canvas 级子组 (vault:v:board), 而本次读的 scope 可能是 vault
+            # 根组, 等值比较会把 fallback 条目全部误挡 (Story 38.6 AC-4 "用户
+            # 永远看不到断档"的保证在根组读下失效)。改用同一套前缀语义。
+            def _derive_group_id(fs: Dict[str, Any]) -> str:
+                canvas_name_field = fs.get("canvas_name", "") or ""
+                if not canvas_name_field:
+                    return ""
+                inferred_subj = subject or extract_subject_from_canvas_path(canvas_name_field)
+                cn_only = extract_canvas_name(canvas_name_field)
+                return _vault_scoped_group_id(inferred_subj, canvas_name=cn_only)
 
-                def _derive_group_id(fs: Dict[str, Any]) -> str:
-                    canvas_name_field = fs.get("canvas_name", "") or ""
-                    if not canvas_name_field:
-                        return ""
-                    inferred_subj = subject or extract_subject_from_canvas_path(canvas_name_field)
-                    cn_only = extract_canvas_name(canvas_name_field)
-                    return _vault_scoped_group_id(inferred_subj, canvas_name=cn_only)
-
-                failed_scores = [fs for fs in failed_scores if _derive_group_id(fs) == group_id]
+            failed_scores = [
+                fs for fs in failed_scores if group_in_read_scope(_derive_group_id(fs), group_id)
+            ]
             # Deduplicate: only include fallback entries not already in episodes
             existing_keys = {(e.get("node_id", ""), e.get("timestamp", "")) for e in episodes}
             for fs in failed_scores:
@@ -1028,7 +1058,15 @@ class MemoryService:
         elif subject:
             group_id = _vault_scoped_group_id(subject)
         else:
-            group_id = None
+            # CARD-G4-1a (2026-08-30): 同 get_learning_history —— 此处落 None
+            # 会走 neo4j_client.get_review_suggestions 的**无 group 分支**
+            # (审计 §5 #3, R4:violation), 把全库所有 vault 的待复习概念端给
+            # 用户。改 fail-closed 解析 vault 根组 + 客户端前缀过滤。
+            from app.core.vault_scope import require_read_group
+
+            group_id = require_read_group(
+                context="memory_service.get_review_suggestions_with_status"
+            )
 
         # CARD-G4-2 Codex round-1 BLOCKER-4: 卡文点名的 suggestions 读路径 —
         # 后端降级/异常时此前静默返回空, 与「没有待复习概念」不可分辨。
@@ -1228,6 +1266,16 @@ class MemoryService:
                     "canvas_path": event["canvas_path"],
                     "node_id": event["node_id"],
                     "metadata": event.get("metadata", {}),
+                    # CARD-G4-1a (2026-08-30): 内存 episode 必须自带归属。读侧
+                    # 封堵后作用域恒非空, 无 group 的条目在**任何** vault 视角
+                    # 下都不可见 (fail-closed) —— 这两条 batch/temporal 写路径
+                    # 此前不落 group, 于是 Tier 3 内存检索会静默丢掉它们。
+                    # 归属按 canvas 推导, 与 get_learning_history 的 canvas 级
+                    # 读作用域同构 (同一个白板写进去、同一个白板读得出来)。
+                    "group_id": _vault_scoped_group_id(
+                        extract_subject_from_canvas_path(event["canvas_path"]),
+                        canvas_name=extract_canvas_name(event["canvas_path"]),
+                    ),
                 }
 
                 # Story 30.10 AC-30.10.3: Dedup batch episodes
@@ -1734,16 +1782,23 @@ class MemoryService:
                 semantic_group_id,
             )
 
-            _gid_phys = sanitize_group_id_for_graphiti(group_id) if group_id else None
+            # CARD-G4-1a (2026-08-30): 此前 group_id 为空 → _search_groups=None
+            # → graphiti search_ 不带 group_ids = **搜全部 vault**。改 fail-closed
+            # 必填解析 (读契约 R4)。
+            from app.core.vault_scope import require_read_group
+
+            _gid_phys = sanitize_group_id_for_graphiti(
+                require_read_group(group_id, context="memory_service._search_graphiti")
+            )
             # 批次1'④ (MEM-FLYWHEEL): punycode 白板级子组并入检索 — 中文白板名
             # 转码组 (vault__x__xn--*) 曾不在搜索范围, 组内 fact 逐字查不到
             # (审查实锤: q1 完美中文答案搁浅在 punycode 组)
-            _search_groups = None
-            if _gid_phys:
-                _search_groups = [_gid_phys, semantic_group_id(_gid_phys)]
-                _search_groups += await self._expand_vault_subgroups(
-                    _gid_phys, fail_sink=coverage_sink
-                )
+            # —— 这正是 Tier 1 侧的"前缀语义"实现: 组集合 = 本组 + 影子组 +
+            # 全部 `本组__*` 子组, 与 read_group_filter 的可见面等价。
+            _search_groups = [_gid_phys, semantic_group_id(_gid_phys)]
+            _search_groups += await self._expand_vault_subgroups(
+                _gid_phys, fail_sink=coverage_sink
+            )
             search_kwargs: Dict[str, Any] = {
                 "query": query,
                 "config": config_with_limit,
@@ -1842,11 +1897,21 @@ class MemoryService:
                 semantic_group_id,
             )
 
-            _gid_phys = sanitize_group_id_for_graphiti(group_id) if group_id else None
+            # CARD-G4-1a: legacy 路径与 Tier 1 同修 —— 空 group 时 group_ids=None
+            # 同样是全 vault 搜索面 (它是 recipe 不可用时的实际生产路径)。
+            from app.core.vault_scope import require_read_group
+
+            _gid_phys = sanitize_group_id_for_graphiti(
+                require_read_group(
+                    group_id, context="memory_service._search_graphiti_legacy"
+                )
+            )
+            _legacy_groups = [_gid_phys, semantic_group_id(_gid_phys)]
+            _legacy_groups += await self._expand_vault_subgroups(_gid_phys)
             results = await asyncio.wait_for(
                 worker._graphiti.search(
                     query=query,
-                    group_ids=([_gid_phys, semantic_group_id(_gid_phys)] if _gid_phys else None),
+                    group_ids=_legacy_groups,
                     num_results=limit,
                 ),
                 timeout=2.0,
@@ -1903,15 +1968,43 @@ class MemoryService:
             return cached[1]
         groups: List[str] = []
         try:
-            records = await self.neo4j.run_query(
-                "MATCH (n) WHERE n.group_id STARTS WITH $prefix RETURN DISTINCT n.group_id AS gid LIMIT 50",
-                prefix=prefix,
-            )
-            for rec in records or []:
-                data = rec if isinstance(rec, dict) else rec.data()
-                gid = str(data.get("gid") or "")
-                if gid:
-                    groups.append(gid)
+            # CARD-G4-1a / Codex round-1 M-2 (2026-08-30): 原实现是
+            # `RETURN DISTINCT ... LIMIT 50` —— **无 ORDER BY 的截断**。一个
+            # vault 超过 50 个子组 (白板 + 各自的 semantic 影子组 + punycode)
+            # 时, 第 51 个之后进不进搜索面是不确定的, 于是 Graphiti 侧的"全部
+            # 子组可见"与 Cypher / 内存侧的前缀语义**不等价**, 表现为根组搜索
+            # 随机漏召回。改为: 确定性排序 + 分页取全量; 真的撞到硬上限才截断,
+            # 且如实记入 fail_sink (= 覆盖面收窄 → degraded, 不假装完整)。
+            page_size = _SUBGROUP_PAGE_SIZE
+            offset = 0
+            truncated = False
+            while True:
+                records = await self.neo4j.run_query(
+                    "MATCH (n) WHERE n.group_id STARTS WITH $prefix "
+                    "RETURN DISTINCT n.group_id AS gid "
+                    "ORDER BY gid SKIP $offset LIMIT $limit",
+                    prefix=prefix,
+                    offset=offset,
+                    limit=page_size,
+                )
+                page = []
+                for rec in records or []:
+                    data = rec if isinstance(rec, dict) else rec.data()
+                    gid = str(data.get("gid") or "")
+                    if gid:
+                        page.append(gid)
+                groups.extend(page)
+                if len(page) < page_size:
+                    break
+                offset += page_size
+                if len(groups) >= _SUBGROUP_HARD_CAP:
+                    truncated = True
+                    break
+            if truncated and fail_sink is not None:
+                fail_sink.append(
+                    f"subgroup enumeration truncated at {_SUBGROUP_HARD_CAP} "
+                    f"groups (prefix={prefix}) — 检索覆盖面不完整"
+                )
         except Exception as e:  # noqa: BLE001 — 读侧扩展, 降级不炸
             logger.debug("[批次1'④] 子组枚举失败 (跳过扩展): %s", e)
             # CARD-G4-2 (2026-08-28): 枚举失败 = 检索面收窄 (punycode 白板级
@@ -2045,10 +2138,20 @@ class MemoryService:
             # 批次5' e2e 修正 (2026-07-24): group 过滤扩 semantic 影子组 —
             # worker 入图的 episode (批注直连/对话归档) 物理落 __semantic 组,
             # 旧单组过滤让 fulltext 兜底对这些内容恒空。
-            cypher = """
+            #
+            # CARD-G4-1a (2026-08-30): 删掉 group_ids 的 NULL 逃逸子句 ——
+            # 那条子句让"没传 group"直接等于全库 fulltext 扫描 (读契约 R4)。
+            # (逃逸子句原文见本卡 diff; 此处不复写字面量, 否则 grep 门误报。)
+            # 同时把 `IN [本组, 影子组]` 白名单换成契约规范的**等值 OR 前缀**:
+            # 白名单只枚举了两个组, vault 根组读依然看不到 canvas / punycode
+            # 二级子组的 episode; 前缀语义一次覆盖全部 (影子组 vault__v__semantic
+            # 本身也落在 `vault__v__` 前缀内)。
+            from app.core.vault_scope import read_group_filter, read_scope_params
+
+            cypher = f"""
             CALL db.index.fulltext.queryNodes('episode_content', $search_term)
             YIELD node, score
-            WHERE ($group_ids IS NULL OR node.group_id IN $group_ids)
+            WHERE {read_group_filter("node")}
             RETURN node, score
             ORDER BY score DESC
             LIMIT $limit
@@ -2062,21 +2165,16 @@ class MemoryService:
 
             # T1 统一 (2026-07-10): episode 节点物理存 `__` 格式 — 冒号格式
             # 直查恒空 (Tier 2 断了两个月, Tier 1 降级时整条 search 静默空)。
-            from app.graphiti.group_id_compat import (
-                semantic_group_id,
-                to_physical_group_id,
+            # read_scope_params 内部即 to_physical_group_id, 物理化保持不变。
+            scope_params = read_scope_params(
+                group_id, context="memory_service._search_neo4j_fulltext"
             )
-
-            group_ids = None
-            if group_id:
-                phys = to_physical_group_id(group_id)
-                group_ids = [phys, semantic_group_id(phys)]
 
             records = await self.neo4j.run_query(
                 cypher,
                 search_term=safe_query,
-                group_ids=group_ids,
                 limit=limit,
+                **scope_params,
             )
             from app.graphiti.group_id_compat import (
                 desanitize_group_id_from_graphiti,
@@ -2161,6 +2259,16 @@ class MemoryService:
 
         query = expand_query(query)
 
+        # CARD-G4-1a (2026-08-30): 三层检索的作用域在**入口解析一次**, 三个
+        # Tier 共用同一个 group —— 否则 Tier 1/2 各自解析、Tier 3 拿 None,
+        # 同一次 search 会给出三种不同的隔离面。三个 Tier 内部仍各自
+        # require_read_group (被直接调用时也 fail-closed), 解析幂等。
+        from app.core.vault_scope import group_in_read_scope, require_read_group
+
+        group_id = require_read_group(
+            group_id, context="memory_service.search_memories_with_status"
+        )
+
         effective_limit = limit if limit is not None else max_results
         seen_ids: set = set()
         merged: List[Dict[str, Any]] = []
@@ -2205,7 +2313,11 @@ class MemoryService:
         for episode in reversed(self._episodes):
             if len(merged) >= effective_limit:
                 break
-            if group_id and episode.get("group_id", "") != group_id:
+            # CARD-G4-1a (2026-08-30): 卡文未点名、通读发现的**同类**漏点 ——
+            # 入口 group 恒非空后, 这行等值比较从"常年不生效"变成"生效且过严",
+            # 会把落在 canvas/semantic/punycode 子组的内存 episode 全部丢掉
+            # (Tier 1/2 都改了前缀语义, 唯独 Tier 3 收窄 = 三层可见面不一致)。
+            if not group_in_read_scope(episode.get("group_id"), group_id):
                 continue
             ep_id = episode.get("episode_id", "")
             if ep_id in seen_ids:
@@ -2420,6 +2532,12 @@ class MemoryService:
             "node_id": node_id,
             "edge_id": edge_id,
             "metadata": metadata or {},
+            # CARD-G4-1a: 同 record_batch_learning_events —— 内存 episode 自带
+            # 归属, 否则读侧封堵后 Tier 3 检索永远看不到时序事件。
+            "group_id": _vault_scoped_group_id(
+                extract_subject_from_canvas_path(canvas_path),
+                canvas_name=extract_canvas_name(canvas_path),
+            ),
         }
 
         # Store in memory
