@@ -1418,3 +1418,108 @@ def test_verify_scale_decoy_line_rejected(tmp_path):
     r = run_verify(report)
     assert r.returncode == 1, "诱饵行让假的规模自陈通过了"
     assert "规模自陈" in r.stdout
+
+
+# ══════════════════ CARD-M11M7 · M7 板名/节点名字符拒绝集 ══════════════════
+# unsafe_name_chars() 是 _contained_md 的字符判据（一处判定），拒绝集从 C0 扩到
+# DEL + C1 + 行分隔符。⛔ 边界最容易写错（<0x20 / <=0x9F 任一端 off-by-one 都会
+# 让实现悄悄放行或误伤），所以这里逐个边界字符正反双向锁。
+
+
+def _load_recap_scan():
+    """按被测脚本自身的零写侧约定导入它（不落 __pycache__）。"""
+    import importlib.util
+
+    if not SCRIPT.exists():
+        pytest.fail(f"被测脚本不存在: {SCRIPT}")
+    prev = sys.dont_write_bytecode
+    sys.dont_write_bytecode = True
+    try:
+        spec = importlib.util.spec_from_file_location("recap_scan_ut", SCRIPT)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+    finally:
+        sys.dont_write_bytecode = prev
+    return mod
+
+
+@pytest.mark.parametrize(
+    "ch,expected,why",
+    [
+        ("\x1f", True, "U+001F 是 C0 末位 — 原判据 ord<0x20 的上边界内"),
+        (" ", False, "U+0020 空格 — 边界外, 合法板名常有"),
+        ("~", False, "U+007E — DEL 的前一位, 必须放行"),
+        ("\x7f", True, "U+007F DEL — 实测致 PyYAML ReaderError"),
+        ("\x80", True, "U+0080 — C1 首位"),
+        ("\x85", True, "U+0085 NEL — 实测致 exam_history.board_id=null"),
+        ("\x9f", True, "U+009F — C1 末位"),
+        ("\xa0", False, "U+00A0 NBSP — C1 的后一位, 是合法可打印空白必须放行"),
+        ("\u2028", True, "U+2028 行分隔符 — splitlines 会在此断行"),
+        ("\u2029", True, "U+2029 段分隔符"),
+        ("\u200b", False, "U+200B 零宽空格 — 不属本判据（verifier 另有正文零宽检查）"),
+        ("中", False, "CJK"),
+        ("①", False, "带圈数字"),
+        ("é", False, "带音标拉丁字母"),
+        ("🎯", False, "emoji（星平面字符）"),
+    ],
+    ids=lambda v: None,
+)
+def test_m7_unsafe_name_chars_boundaries(ch, expected, why):
+    """拒绝集的正反双向边界锁 — 每个「拒」的紧邻位都配了一个「放」。"""
+    rs = _load_recap_scan()
+    got = bool(rs.unsafe_name_chars(f"板{ch}名"))
+    assert got is expected, f"{why}: 期望{'拒绝' if expected else '放行'}, 实际{'拒绝' if got else '放行'}"
+
+
+def test_m7_unsafe_name_chars_reports_all_codepoints_deduped():
+    """诊断面: 返回全部命中码位、去重保序（拒绝原因要能点名到具体字符）。"""
+    rs = _load_recap_scan()
+    assert rs.unsafe_name_chars("干净的板名") == []
+    assert rs.unsafe_name_chars("板\x85名\x7f尾\x85") == ["U+0085", "U+007F"]
+
+
+def test_m7_containment_rejects_control_char_names(tmp_path):
+    """_contained_md 侧: 控制字符名一律拒绝，且**不因文件真实存在而放行**。"""
+    rs = _load_recap_scan()
+    base = tmp_path / "原白板"
+    base.mkdir(parents=True)
+    for stem in ("板\x7f甲", "板\x85乙", "板\u2028丙"):
+        (base / f"{stem}.md").write_text("x", encoding="utf-8")  # 文件真实存在
+        assert rs._contained_md(base, stem) is None, f"控制字符名被放行: {stem!r}"
+    ok = "板一"
+    (base / f"{ok}.md").write_text("x", encoding="utf-8")
+    assert rs._contained_md(base, ok) == base / f"{ok}.md", "合法板名被误拒"
+
+
+def test_m7_collect_refuses_control_char_board(tmp_path):
+    """CLI 级: collect 对控制字符板名走 containment 拒绝分支（exit 0 + board_exists false）。"""
+    vault = build_vault(tmp_path, ["SeedA"])
+    bad = f"{BOARD}\x85尾"
+    (vault / "原白板" / f"{bad}.md").write_text(
+        f"---\ntype: whiteboard\n---\n\n# {bad}\n\n## Concepts\n\n- [[节点/SeedA]]\n", encoding="utf-8"
+    )
+    r = run_collect(vault, bad)
+    assert r.returncode == 0, r.stderr
+    out = json.loads(r.stdout)
+    assert out["board_exists"] is False, f"控制字符板名被当成正常板扫描: {out.get('board_stem')!r}"
+    assert "containment" in out["refusal_reason"], out["refusal_reason"]
+    # Codex round-1 LOW: 原文案一律说"路径分隔符/父目录引用或越界" —— 对控制字符
+    # 板名而言那句话是**错的**，用户按它去查路径永远查不出问题。必须点名码位。
+    assert "U+0085" in out["refusal_reason"], f"字符类拒绝被误述为路径问题: {out['refusal_reason']!r}"
+    assert "路径分隔符" not in out["refusal_reason"], f"字符类拒绝仍在说路径: {out['refusal_reason']!r}"
+
+
+def test_m7_collect_path_traversal_still_says_path(tmp_path):
+    """反向锁: **真正的**路径越界仍报路径原因（别把两个成因合并成一句）。"""
+    vault = build_vault(tmp_path, ["SeedA"])
+    out = json.loads(run_collect(vault, "../外部板").stdout)
+    assert out["board_exists"] is False
+    assert "路径分隔符" in out["refusal_reason"], out["refusal_reason"]
+    assert "U+" not in out["refusal_reason"], out["refusal_reason"]
+
+
+def test_m7_collect_normal_board_still_works(tmp_path):
+    """放行门: 收紧后正常板名的 collect 全链不变（防误伤整条第一刀）。"""
+    scan = collect_json(standard_vault(tmp_path))
+    assert scan["board_exists"] is True
+    assert scan["counts"]["members"] == 3
