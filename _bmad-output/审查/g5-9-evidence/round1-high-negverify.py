@@ -487,7 +487,53 @@ VARIANTS: list[tuple[str, str, list[tuple[str, str]], str]] = [
         ],
         "test_create_third_callsite_unsynced_has_crash_warning",
     ),
+    (
+        "AF",
+        "round-8 HIGH-1 回退: 回读块的 FileNotFoundError 重新被宽泛 OSError 兜住",
+        [
+            (
+                "        except FileNotFoundError:\n"
+                "            # ⛔ round-8 HIGH-1: 3B 只修了 unlink 那一半, **回读块仍被宽泛的\n"
+                "            # except OSError 兜住**。可达路径: lstat 成功 → 并发者删文件 →\n"
+                "            # os.open 抛 FileNotFoundError → 被归 kept ⇒ 回执说「目标可能仍在」，\n"
+                "            # 而它**已经不存在**。与 unlink 侧同理, 必须归 absent。\n"
+                '            return "absent", None\n'
+                "        except OSError as e:",
+                "        except OSError as e:",
+            )
+        ],
+        "test_rollback_reports_absent_when_target_vanished_before_readback",
+    ),
+    (
+        "AG",
+        "round-8 HIGH-2 矩阵门①②: 首次撤销把 deleted_unsynced 误当无需说明",
+        [
+            (
+                '                    rollback_note = rb_err if rb_state == "deleted_unsynced" else None',
+                "                    rollback_note = None",
+            )
+        ],
+        "test_matrix_callsite1_2_consumes_each_state",
+    ),
+    (
+        "AH",
+        "round-8 HIGH-2 矩阵门③: 目录移出分支的 absent 文案错用 deleted 文案",
+        [
+            (
+                '                    "absent": " (该文件已不存在)",',
+                '                    "absent": " (已撤销该文件)",',
+            )
+        ],
+        "test_matrix_callsite3_consumes_each_state",
+    ),
 ]
+
+
+# ⛔ 独立冻结的变体名集合(round-8 HIGH-3) —— **不得由 VARIANTS 推导**,
+# 否则误删变体时两边一起变、自检恒真。改动变体清单时必须手工同步这里。
+EXPECTED_NAMES: frozenset[str] = frozenset(
+    "A B C D E F G H I J K L M N O P Q R S T U V W X Y Z AA AB AC AD AE AF AG AH".split()
+)
 
 
 def sha(p: Path) -> str:
@@ -525,14 +571,13 @@ def main() -> int:
     print(f"备份: {BACKUP} (sha {base_sha[:16]}…)\n")
 
     ok = True
-    ran = 0
+    executed_names: list[str] = []
     print("=== 基线: 完整套件应全绿 ===")
     rc, line = run_pytest(None)
     print(f"  {'✅' if rc == 0 else '❌'} 基线 exit={rc} | {line}")
     ok &= rc == 0
 
     for name, desc, pairs, selector in VARIANTS:
-        ran += 1
         print(f"\n=== 变体 {name}: {desc} ===")
         text = SRC.read_text(encoding="utf-8")
         bad = False
@@ -551,6 +596,7 @@ def main() -> int:
         SRC.write_text(text, encoding="utf-8")
         try:
             rc, line = run_pytest(selector)
+            executed_names.append(name)  # ⚠️ 只有 pytest **真的跑过**才记名
             if rc != 0:
                 print(f"  ✅ 如期变红 | {line}")
             else:
@@ -562,19 +608,38 @@ def main() -> int:
                 print("  ❌ 还原失败：字节与备份不一致")
                 ok = False
 
-    # ⛔ round-7 自检门: CARD-收口A 曾用整段行号替换修变体, **误删了 W/X 两个**,
-    # 而脚本照样 RESULT: PASS —— 它只对**存在的**变体求值。更糟的是我据此在提交
-    # 信息与验收单里写了「28 变体 28/28」, 而实际只剩 22 个, 构成不实陈述
-    # (由 round-7 独立复核数 stdout 才发现)。
-    # ⇒ 脚本必须自己核对「声明数 == 实跑数」, 否则「删了门还全绿」永远不会被发现。
-    print(f"\n=== 变体计数自检 ===")
-    declared = len(VARIANTS)
-    print(f"  声明 {declared} 个; 本次实跑 {ran} 个")
-    if declared != ran:
-        print(f"  ❌ 声明数与实跑数不符 —— 有变体未被执行(可能被误删或提前 continue)")
+    # ⛔ round-8 HIGH-3: round-7 那版自检门是**循环论证** —— `ran` 在 mutation 校验和
+    # pytest 执行**之前**就自增, 而「声明数」又取同一个 VARIANTS 的长度。
+    # 于是再误删 W/X 时两个数会**一起减少, 仍显示一致**; mutation 未命中、pytest
+    # 根本没跑, 也照样计入「实跑」。它抓不到它本该抓的那个失败。
+    # ⇒ 改为三条独立判据:
+    #   ① EXPECTED_NAMES 是**独立冻结**的常量(不由 VARIANTS 推导);
+    #   ② executed_names 只在 pytest **真的返回**之后才追加;
+    #   ③ 定义集合 / 唯一性 / 执行集合三者必须完全一致。
+    print("\n=== 变体清单自检(独立冻结集合) ===")
+    defined = [v[0] for v in VARIANTS]
+    print(
+        f"  冻结期望 {len(EXPECTED_NAMES)} 个 / 定义 {len(defined)} 个 / 实跑 {len(executed_names)} 个"
+    )
+    if len(defined) != len(set(defined)):
+        dup = sorted({n for n in defined if defined.count(n) > 1})
+        print(f"  ❌ 变体名重复: {dup}")
         ok = False
-    else:
-        print(f"  ✅ 一致")
+    if set(defined) != EXPECTED_NAMES:
+        print(
+            f"  ❌ 定义集合 != 冻结期望; 缺失={sorted(EXPECTED_NAMES - set(defined))} 多余={sorted(set(defined) - EXPECTED_NAMES)}"
+        )
+        print(
+            "     (若确实新增/删除了变体, 请**同步更新 EXPECTED_NAMES 常量**并在处置表说明)"
+        )
+        ok = False
+    if set(executed_names) != EXPECTED_NAMES:
+        print(
+            f"  ❌ 实跑集合 != 冻结期望; 未执行={sorted(EXPECTED_NAMES - set(executed_names))}"
+        )
+        ok = False
+    if ok:
+        print("  ✅ 冻结期望 / 定义 / 实跑 三者完全一致")
 
     print("\n=== 还原后复核 ===")
     same = sha(SRC) == base_sha

@@ -1943,3 +1943,161 @@ def test_create_third_callsite_kept_does_not_assert_still_present(tmp_path, caps
     assert rc == 2
     assert "未确认" in out and "可能仍在" in out, f"未采用保守措辞: {out}"
     assert "请手动检查该路径" in out
+
+
+def test_rollback_reports_absent_when_target_vanished_before_readback(tmp_path):
+    """round-8 HIGH-1 承重门：3B 只修了 `unlink` 那一半，**回读块仍被宽泛的
+    `except OSError` 兜住**。可达路径：`lstat` 成功 → 并发者删文件 →
+    `os.open` 抛 `FileNotFoundError` → 被归 `kept` ⇒ 回执说「目标可能仍在」，
+    而它**已经不存在**。与 unlink 侧同理，必须归 `absent`。
+
+    （第三调用点传的正是 `expect_sha`，所以这条路径实际可达。）"""
+    mod = _load_module()
+    d = tmp_path / "d"
+    d.mkdir()
+    f = d / "t.md"
+    f.write_text("OURS\n", encoding="utf-8")
+    dfd = mod.os.open(d, mod.os.O_RDONLY | mod.os.O_DIRECTORY)
+    real_open = mod.os.open
+
+    def vanishing_open(name, *a, **kw):
+        if name == "t.md":
+            raise FileNotFoundError("并发者已删")
+        return real_open(name, *a, **kw)
+
+    mod.os.open = vanishing_open
+    try:
+        state, msg = mod._rollback_published("t.md", dfd, None, expect_sha="0" * 64)
+    finally:
+        mod.os.open = real_open
+        mod.os.close(dfd)
+    assert state == "absent", f"回读阶段目标已消失却报 {state}（被宽泛 OSError 兜住）"
+    assert msg is None
+
+
+# ══════════ round-8 HIGH-2：三调用点 × 四态 的 12 格逐格归因矩阵 ══════════
+#
+# round-8 指出：现有变体只能证明**状态生产端**（_rollback_published 自己返回什么），
+# 不能证明**三个调用点分别正确消费四态**；共享 helper 变异与 `or` selector
+# 都无法逐格归因。
+#
+# 下面按 (调用点, 状态) 逐格建门：每条只 stub `_rollback_published` 返回**指定状态**，
+# 断言**该调用点**在该状态下的可观察行为——不依赖其他格、不共享 selector。
+#
+# 三个调用点：
+#   ① 首次撤销（_atomic_write 内，内容不符分支）
+#   ② 二次撤销（_atomic_write 外层 except，published 仍为真）
+#   ③ 目录移出后的撤销（cmd_create 的 _dirfd_still_in_vault 检出分支）
+
+
+def _atomic_write_with_stubbed_rollback(mod, tmp_path, state, note, *, outer=False):
+    """驱动 ① 或 ② 调用点，并把 `_rollback_published` 固定为给定状态。
+
+    outer=False → 内容不符触发**首次**撤销；
+    outer=True  → 回读抛错走外层 except 的**二次**撤销。
+    返回 (err, target 是否仍存在)。
+    """
+    d = tmp_path / f"d-{state}-{int(outer)}"
+    d.mkdir()
+    tmp_p, target = d / "t.tmp", d / "t.md"
+    dfd = mod.os.open(d, mod.os.O_RDONLY | mod.os.O_DIRECTORY)
+    real_link, real_open, real_rb = mod.os.link, mod.os.open, mod._rollback_published
+    linked = {"v": False}
+
+    def evil_link(src, dst, **kw):
+        real_link(src, dst, **kw)
+        linked["v"] = True
+        if not outer:  # 内容不符 → 首次撤销
+            fd = real_open(target, mod.os.O_WRONLY | mod.os.O_TRUNC)
+            try:
+                mod.os.write(fd, b"MISMATCH\n")
+            finally:
+                mod.os.close(fd)
+
+    def evil_open(name, *a, **kw):
+        if outer and linked["v"] and name == "t.md":
+            raise OSError(errno.EMFILE, "simulated")  # 回读抛错 → 外层撤销
+        return real_open(name, *a, **kw)
+
+    def stub_rb(*a, **kw):
+        return state, note
+
+    mod.os.link, mod.os.open, mod._rollback_published = evil_link, evil_open, stub_rb
+    try:
+        err, _warn = mod._atomic_write(tmp_p, target, "USER-CONFIRMED\n", dfd)
+    finally:
+        mod.os.link, mod.os.open, mod._rollback_published = (
+            real_link,
+            real_open,
+            real_rb,
+        )
+        mod.os.close(dfd)
+    return err, target.exists()
+
+
+@pytest.mark.parametrize("outer", [False, True], ids=["callsite1_first", "callsite2_outer"])
+@pytest.mark.parametrize(
+    "state,note,must_have,must_not_have",
+    [
+        ("deleted", None, None, "仍在"),
+        ("absent", None, None, "仍在"),
+        ("deleted_unsynced", "目录项持久化未确认 X", "已撤销该文件", "仍在 vault 里"),
+        ("kept", "判据不符, 目标仍在", "请手动检查", None),
+    ],
+    ids=["deleted", "absent", "deleted_unsynced", "kept"],
+)
+def test_matrix_callsite1_2_consumes_each_state(tmp_path, outer, state, note, must_have, must_not_have):
+    """12 格矩阵的 ①②（8 格）：每格只固定一个状态，断言该调用点的回执措辞
+    与该状态**相符**，且不出现与事实相反的表述。"""
+    mod = _load_module()
+    err, _ = _atomic_write_with_stubbed_rollback(mod, tmp_path, state, note, outer=outer)
+    assert err is not None, f"({'②' if outer else '①'}, {state}) 未产生结构化回执"
+    if must_have:
+        assert must_have in err, f"({'②' if outer else '①'}, {state}) 缺 {must_have!r}: {err}"
+    if must_not_have:
+        assert must_not_have not in err, f"({'②' if outer else '①'}, {state}) 出现与事实相反的 {must_not_have!r}: {err}"
+
+
+@pytest.mark.parametrize(
+    "state,note,must_have",
+    [
+        ("deleted", None, "已撤销该文件"),
+        ("absent", None, "该文件已不存在"),
+        ("deleted_unsynced", "目录项持久化未确认 X", "崩溃后目标可能重现"),
+        ("kept", "撤销结果未确认 (unlink 失败 PermissionError), 目标可能仍在", "未确认"),
+    ],
+    ids=["deleted", "absent", "deleted_unsynced", "kept"],
+)
+def test_matrix_callsite3_consumes_each_state(tmp_path, capsys, state, note, must_have):
+    """12 格矩阵的 ③（4 格）：目录移出后的撤销，逐状态断言文案与事实相符。"""
+    vault = build_vault(tmp_path)
+    sha = do_preview(vault, ["板一"])["content_sha256"]
+    exam = vault / EXAM_DIR_NAME
+    moved = tmp_path / f"moved-{state}"
+    mod = _load_module()
+    real_atomic, real_rb = mod._atomic_write, mod._rollback_published
+
+    def evil_atomic(tmp_p, target, content, dir_fd):
+        r = real_atomic(tmp_p, target, content, dir_fd)
+        exam.rename(moved)
+        return r
+
+    def stub_rb(*a, **kw):
+        return state, note
+
+    mod._atomic_write, mod._rollback_published = evil_atomic, stub_rb
+    try:
+        rc = mod.cmd_create(
+            argparse.Namespace(
+                vault=str(vault),
+                boards=["板一"],
+                anchor=None,
+                ts=TS,
+                expect_content_sha=sha,
+            )
+        )
+    finally:
+        mod._atomic_write, mod._rollback_published = real_atomic, real_rb
+    out = capsys.readouterr().out
+    assert rc == 2, f"(③, {state}) 目录移出却未拒绝: {out}"
+    assert must_have in out, f"(③, {state}) 缺 {must_have!r}: {out}"

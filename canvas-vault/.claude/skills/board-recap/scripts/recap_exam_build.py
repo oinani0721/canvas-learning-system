@@ -428,6 +428,7 @@ def _rollback_published(
     except FileNotFoundError:
         return "absent", None  # 已经不在了, 无需撤销
     except OSError as e:
+        # 注: 上面已单列 FileNotFoundError → absent, 此处只处理其余不可确认错误。
         return "kept", f"撤销结果未确认 (复核失败 {type(e).__name__}), 目标可能仍在"
     if identity is not None and (st_now.st_dev, st_now.st_ino) != identity:
         return "kept", None  # 已不是我们的 inode ⇒ 是别人的文件, 绝不删
@@ -440,6 +441,12 @@ def _rollback_published(
                     buf += chunk
             finally:
                 os.close(cfd)
+        except FileNotFoundError:
+            # ⛔ round-8 HIGH-1: 3B 只修了 unlink 那一半, **回读块仍被宽泛的
+            # except OSError 兜住**。可达路径: lstat 成功 → 并发者删文件 →
+            # os.open 抛 FileNotFoundError → 被归 kept ⇒ 回执说「目标可能仍在」，
+            # 而它**已经不存在**。与 unlink 侧同理, 必须归 absent。
+            return "absent", None
         except OSError as e:
             return "kept", f"撤销结果未确认 (回读失败 {type(e).__name__}), 目标可能仍在"
         if hashlib.sha256(buf).hexdigest() != expect_sha:
