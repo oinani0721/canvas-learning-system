@@ -71,7 +71,7 @@ async def _init_supp_lancedb_singleton() -> Any:
         return None
     # RAG-S2 T6 审查修复 (2026-08-10): hook/enrich 专属实例 (get_lancedb_client
     # 每次调用新建, 本 singleton 不与索引端点共享) — 关掉 search() 异常吞噬,
-    # 让基础设施故障沿 _two_tier_search → search_supplementary(search_failed,
+    # 让基础设施故障沿 _vault_scoped_search → search_supplementary(search_failed,
     # degraded=True) 进降级标注, 而不是被吞成 [] → 假 empty_index (「检索
     # 正常但无材料」反向误导, MCP 面 T5 已修 hook 面同姿势对齐)。
     if hasattr(client, "enable_fallback"):

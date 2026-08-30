@@ -7,7 +7,7 @@ supplementary_search_service / chat endpoints 完全无 unit test.
 - _classify_snippet_taint: Phase A0.5-P prompt injection 三级分类 (quarantine/review/clean)
 - format_supplementary_xml: Phase A0.5-P taint-aware XML 输出
 - _elbow_cut: Phase A0 relative drop ratio 截断
-- _two_tier_search rank decay: Phase A0-I tier-2 fallback [0.31, 0.50] 防绕过过滤
+- CARD-G2-4 删除锁: tier-2 裸表直开分支 / 其 env 闸 / legacy 降级通道均已删除
 - apply_source_priority: Phase A0-J pattern 加 **/ 前缀防失配
 - Story 2.2+2.9 T3.8: format_supplementary_xml 透出 rerank 4 字段 attribute
 """
@@ -465,135 +465,133 @@ class TestClassifySnippetTaintFailClosed:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# P0-D (2026-05-12 hotfix): tier-2 legacy fallback degraded 顶层旗帜.
+# CARD-G2-4: tier-2 legacy 降级路径已删除 — 这里锁的是"删干净了"而非"还在работа"
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-class TestTopLevelDegradedFromLegacyFallback:
-    """P0-D: tier-2 行级 is_legacy_fallback 必须冒泡到顶层 degraded=True."""
+class TestLegacyFallbackDegradedPathRemoved:
+    """P0-D 的 tier-2 顶层降级旗帜随 tier-2 一起删除, 本组锁死它不回来。
 
-    def test_legacy_hit_propagates_degraded_true(self):
-        """is_real_vault_file 通过 + materials 带 is_legacy_fallback=True →
-        顶层 degraded=True + reason 含 tier2_legacy_unprefixed."""
+    ⚠️ 这组测试的失败方向很重要: 如果有人把 tier-2 或
+    ``is_legacy_fallback`` 冒泡逻辑加回来, 下面第一条会**变红**
+    (reason 不再是 None / degraded 变 True)。它不是恒真断言 ——
+    第三条用一条真会命中的路径 (表缺失) 证明 degraded 通道本身是活的。
+    """
+
+    @staticmethod
+    def _row(path: str, score: float = 0.6, **extra):
+        row = {
+            "score": score,
+            "content": "real content " * 30,  # 凑足 >=64 字节, 过空文档门
+            "doc_id": "d1",
+            "metadata": {"canvas_file": path},
+            "canvas_file": path,
+        }
+        row.update(extra)
+        return row
+
+    def test_row_carrying_legacy_flag_no_longer_degrades_top_level(self):
+        """即便某行仍带 is_legacy_fallback=True (本仓已无生产者, 此处人造),
+        顶层也不再翻 degraded —— tier-2 的整条降级通道已删除。"""
         import asyncio
         from unittest.mock import patch
 
         from app.services import supplementary_search_service as svc
 
         async def _run():
-            client_obj = object()  # 任意 non-None
-
-            async def stub_two_tier(client, query, num_results):
+            async def stub_search(client, query, num_results):
                 return [
-                    {
-                        "score": 0.5,
-                        "content": "real content " * 30,  # 凑足 >=64 字节
-                        "doc_id": "d1",
-                        "metadata": {
-                            "canvas_file": "节点/X.md",
-                            "is_legacy_fallback": True,
-                        },
-                        "canvas_file": "节点/X.md",
-                        "is_legacy_fallback": True,
-                        "degraded": True,
-                    }
+                    self._row(
+                        "节点/X.md",
+                        0.5,
+                        is_legacy_fallback=True,
+                        degraded=True,
+                    )
                 ]
 
-            with patch.object(svc, "_two_tier_search", new=stub_two_tier):
-                # bypass file existence check
+            with patch.object(svc, "_vault_scoped_search", new=stub_search):
                 with patch.object(svc, "_is_real_vault_file", return_value=True):
                     return await svc.search_supplementary(
                         query="some query",
-                        lancedb_client=client_obj,
+                        lancedb_client=object(),
                         min_relevance=0.30,
                     )
 
         result = asyncio.run(_run())
-        assert result["degraded"] is True
-        assert result["reason"] is not None
-        assert "tier2_legacy_unprefixed" in result["reason"]
+        assert result["degraded"] is False, "tier-2 降级通道已删, 不应再有行级旗帜冒泡"
+        assert result["reason"] is None
+        assert "tier2_legacy_unprefixed" not in str(result), "'tier2_legacy_unprefixed' 标签必须随 tier-2 一同消失"
 
-    def test_non_legacy_keeps_degraded_false(self):
-        """正常 hybrid 命中 (无 is_legacy_fallback) → 顶层 degraded=False."""
+    def test_normal_hit_is_ok_status(self):
+        """正常命中 → degraded=False + status='ok' (CARD-G2-4 新增字段)。"""
         import asyncio
         from unittest.mock import patch
 
         from app.services import supplementary_search_service as svc
 
         async def _run():
-            client_obj = object()
+            async def stub_search(client, query, num_results):
+                return [self._row("节点/Y.md", 0.7)]
 
-            async def stub_two_tier(client, query, num_results):
-                return [
-                    {
-                        "score": 0.7,
-                        "content": "normal content " * 20,
-                        "doc_id": "d2",
-                        "metadata": {"canvas_file": "节点/Y.md"},
-                        "canvas_file": "节点/Y.md",
-                    }
-                ]
-
-            with patch.object(svc, "_two_tier_search", new=stub_two_tier):
+            with patch.object(svc, "_vault_scoped_search", new=stub_search):
                 with patch.object(svc, "_is_real_vault_file", return_value=True):
                     return await svc.search_supplementary(
                         query="other query",
-                        lancedb_client=client_obj,
+                        lancedb_client=object(),
                         min_relevance=0.30,
                     )
 
         result = asyncio.run(_run())
         assert result["degraded"] is False
+        assert result["status"] == "ok"
 
-    def test_legacy_hit_reason_is_single_canonical_label(self):
-        """Wave-2 P0-2 漏修-2 (2026-05-12) — reason 必须是单一规范标签.
+    def test_table_missing_is_unavailable_with_reason(self):
+        """正向对照 (证明 degraded/unavailable 通道是活的, 不是恒 False):
+        表缺失 → degraded=True + status='unavailable' + reason 含表名。"""
+        import asyncio
+        from unittest.mock import patch
 
-        旧 bug: ``prior_reason = None if materials else "all_filtered_below_threshold"``
-        在 legacy_hit 路径里是死分支 (legacy_hit=True 已隐含 materials 非空),
-        prior_reason 永远 None, merged_reason 永远等于 new_reason — 三元和拼接
-        都是死代码. 修法: 直接写 "tier2_legacy_unprefixed" 单一标签.
+        from agentic_rag.clients.lancedb_client import TableMissingError
+        from app.services import supplementary_search_service as svc
 
-        本测试锁死规范输出, 防有人误把 ``None; tier2_legacy_unprefixed`` 拼接回去.
-        """
+        async def _run():
+            async def stub_search(client, query, num_results):
+                raise TableMissingError("myvault_vault_notes")
+
+            with patch.object(svc, "_vault_scoped_search", new=stub_search):
+                return await svc.search_supplementary(
+                    query="q",
+                    lancedb_client=object(),
+                )
+
+        result = asyncio.run(_run())
+        assert result["degraded"] is True
+        assert result["status"] == "unavailable"
+        assert result["reason"] and "myvault_vault_notes" in result["reason"]
+        assert result["reason"].startswith("lancedb_table_missing"), (
+            f"表缺失必须有专属 reason 档位, 不得塌缩成 search_failed: {result['reason']!r}"
+        )
+        assert result["materials"] == []
+
+    def test_table_missing_reason_is_distinguishable_from_search_failed(self):
+        """反向对照: 普通 RuntimeError 仍走 search_failed 档 —— 两档不得同形,
+        否则「表没建」和「查询炸了」给用户的下一步动作会被混为一谈。"""
         import asyncio
         from unittest.mock import patch
 
         from app.services import supplementary_search_service as svc
 
         async def _run():
-            client_obj = object()
+            async def stub_search(client, query, num_results):
+                raise RuntimeError("index corrupted")
 
-            async def stub_two_tier(client, query, num_results):
-                return [
-                    {
-                        "score": 0.5,
-                        "content": "legacy real content " * 30,
-                        "doc_id": "leg1",
-                        "metadata": {
-                            "canvas_file": "节点/Legacy.md",
-                            "is_legacy_fallback": True,
-                        },
-                        "canvas_file": "节点/Legacy.md",
-                        "is_legacy_fallback": True,
-                        "degraded": True,
-                    }
-                ]
-
-            with patch.object(svc, "_two_tier_search", new=stub_two_tier):
-                with patch.object(svc, "_is_real_vault_file", return_value=True):
-                    return await svc.search_supplementary(
-                        query="legacy query",
-                        lancedb_client=client_obj,
-                        min_relevance=0.30,
-                    )
+            with patch.object(svc, "_vault_scoped_search", new=stub_search):
+                return await svc.search_supplementary(query="q", lancedb_client=object())
 
         result = asyncio.run(_run())
-        # 规范: 单一标签, 无 "None;" 前缀, 无任何分隔符拼接
-        assert result["reason"] == "tier2_legacy_unprefixed", (
-            f"reason 应是单一规范标签 'tier2_legacy_unprefixed', 实际 {result['reason']!r}. "
-            "若看到 'None; tier2_legacy_unprefixed' 说明死分支被重新引入."
-        )
-        assert "None" not in (result["reason"] or ""), "reason 不应含 'None' 字面 (prior_reason 死分支泄漏)"
+        assert result["reason"].startswith("search_failed")
+        assert "lancedb_table_missing" not in result["reason"]
+        assert result["status"] == "unavailable"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -994,125 +992,112 @@ class TestFormatSupplementaryXmlMetadataRedaction:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Wave-5 Stage C P1-9 (ChatGPT v4): LanceDB Tier-2 unprefixed fallback gate
+# CARD-G2-4: tier-2 裸表直开分支与 ENABLE_LANCEDB_TIER2_FALLBACK 闸已删除
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-class TestTier2FallbackGate:
-    """P1-9: Tier-2 unprefixed fallback gated by ENABLE_LANCEDB_TIER2_FALLBACK env."""
+class TestTier2BranchRemoved:
+    """删除锁: 裸表直开路径与它的 env 开关都不得回来。
 
-    def test_enable_tier2_fallback_default_false(self, monkeypatch):
-        """No env var → False (production-safe default)."""
-        from app.services.supplementary_search_service import _enable_tier2_fallback
+    这组替换了原 ``TestTier2FallbackGate`` (它锁的是"开关默认关")。
+    开关式防线的问题在于它只是运行期的 —— 一次误设 env 就恢复跨 vault
+    泄漏面。CARD-G2-4 把分支本身删掉, 因此本组锁的是**结构性缺席**。
+    """
 
-        monkeypatch.delenv("ENABLE_LANCEDB_TIER2_FALLBACK", raising=False)
-        assert _enable_tier2_fallback() is False
+    def test_env_gate_helper_is_gone(self):
+        """``_enable_tier2_fallback`` 不复存在 —— 它是 tier-2 的唯一开关。"""
+        from app.services import supplementary_search_service as svc
 
-    def test_enable_tier2_fallback_explicit_false(self, monkeypatch):
-        """Env var 'false' / '0' / 'no' → False."""
-        from app.services.supplementary_search_service import _enable_tier2_fallback
+        assert not hasattr(svc, "_enable_tier2_fallback"), "ENABLE_LANCEDB_TIER2_FALLBACK 闸已随 tier-2 删除, 不得复活"
 
-        for v in ("false", "FALSE", "0", "no", "off", ""):
-            monkeypatch.setenv("ENABLE_LANCEDB_TIER2_FALLBACK", v)
-            assert _enable_tier2_fallback() is False, f"value {v!r} should disable"
+    def test_two_tier_name_replaced_by_vault_scoped(self):
+        """DD-13 名实一致: 只剩一层了, 函数名不能还叫 two_tier。"""
+        from app.services import supplementary_search_service as svc
 
-    def test_enable_tier2_fallback_truthy_values(self, monkeypatch):
-        """Env var 'true' / '1' / 'yes' / 'on' → True (case-insensitive)."""
-        from app.services.supplementary_search_service import _enable_tier2_fallback
+        assert not hasattr(svc, "_two_tier_search"), "旧名不得保留别名 (会让'还有两层'的错觉继续传播)"
+        assert hasattr(svc, "_vault_scoped_search")
 
-        for v in ("true", "TRUE", "True", "1", "yes", "YES", "on", "ON"):
-            monkeypatch.setenv("ENABLE_LANCEDB_TIER2_FALLBACK", v)
-            assert _enable_tier2_fallback() is True, f"value {v!r} should enable"
+    def test_env_var_is_inert_no_bare_table_access(self, monkeypatch):
+        """⛔ 核心回归锁: 即便把旧 env 设成 true, 检索也绝不碰 ``client._db``。
 
-    def test_tier2_fallback_disabled_by_default_skips_unprefixed_table(self, monkeypatch):
-        """P1-9: When env var unset (production default), tier-2 must NOT open
-        unprefixed vault_notes table — _two_tier_search returns [] after tier-1 empty."""
+        失败方向: 谁把 tier-2 加回来, ``list_tables`` / ``open_table`` 就会被调,
+        本条立刻变红。为证明这不是恒真断言, 同一个 mock 上先验证 tier-1 的
+        ``client.search`` **确实**被调用过 (路径真的跑到了)。
+        """
         import asyncio
         from unittest.mock import AsyncMock, MagicMock
 
         from app.services import supplementary_search_service as svc
 
-        # Ensure default — env var unset.
-        monkeypatch.delenv("ENABLE_LANCEDB_TIER2_FALLBACK", raising=False)
+        monkeypatch.setenv("ENABLE_LANCEDB_TIER2_FALLBACK", "true")
 
         async def _run():
             client = MagicMock()
-            # Tier-1 returns empty (no hybrid results).
-            client.search = AsyncMock(return_value=[])
-            # Tier-2 path would access client._db / list_tables / open_table.
-            # We assert none of these get touched when gate is disabled.
+            client.search = AsyncMock(return_value=[])  # tier-1 空
             client._db = MagicMock()
             client._db.list_tables = MagicMock(return_value=["vault_notes"])
+            client._db.table_names = MagicMock(return_value=["vault_notes"])
             client._db.open_table = MagicMock()
             client.resolve_table_name = MagicMock(return_value="canvas_vault_vault_notes")
-
-            result = await svc._two_tier_search(client, query="x", num_results=5)
+            result = await svc._vault_scoped_search(client, query="x", num_results=5)
             return result, client
 
         result, client = asyncio.run(_run())
-        assert result == [], "tier-2 must NOT execute when gate disabled"
-        # Tier-2 internals must not be touched.
+        assert result == []
+        assert client.search.await_count == 1, "正向对照: tier-1 必须真的被调用过"
         client._db.list_tables.assert_not_called()
+        client._db.table_names.assert_not_called()
         client._db.open_table.assert_not_called()
 
-    def test_tier2_fallback_enabled_via_env_var_proceeds(self, monkeypatch):
-        """P1-9: When ENABLE_LANCEDB_TIER2_FALLBACK=true, tier-2 must proceed
-        (i.e. attempt to access ``client._db`` after tier-1 empty)."""
+    def test_table_missing_propagates_not_swallowed(self):
+        """表缺失沿 ``_vault_scoped_search`` 原样上抛, 不降级成 vector 重试。
+
+        反例锁: 若谁给表缺失加上 vector-only 重试, ``search`` 会被调两次,
+        本条变红。
+        """
         import asyncio
+
+        import pytest as _pytest
         from unittest.mock import AsyncMock, MagicMock
+
+        from agentic_rag.clients.lancedb_client import TableMissingError
+        from app.services import supplementary_search_service as svc
+
+        client = MagicMock()
+        client.search = AsyncMock(side_effect=TableMissingError("v_vault_notes"))
+
+        with _pytest.raises(TableMissingError):
+            asyncio.run(svc._vault_scoped_search(client, query="x", num_results=3))
+        assert client.search.await_count == 1, "表缺失不得触发 vector-only 二次重试"
+
+    def test_hybrid_failure_still_falls_back_to_vector(self):
+        """未被本卡改变的既有行为 (RAG-S2 T5 HIGH-1): hybrid 报**别的**错
+        仍走 vector-only 回退, 且回退分支保留 exam_board/whiteboard 排除。"""
+        import asyncio
+        from unittest.mock import MagicMock
 
         from app.services import supplementary_search_service as svc
 
-        monkeypatch.setenv("ENABLE_LANCEDB_TIER2_FALLBACK", "true")
+        calls = []
 
-        async def _run():
-            client = MagicMock()
-            client.search = AsyncMock(return_value=[])  # tier-1 empty
-            # Tier-2 path: list_tables returns vault_notes, resolve_table_name
-            # returns a prefixed name → tier-2 logic proceeds to open_table.
-            client._db = MagicMock()
-            client._db.list_tables = MagicMock(return_value=["vault_notes"])
-            client.resolve_table_name = MagicMock(return_value="canvas_vault_vault_notes")
+        class _FlakyClient:
+            _initialized = True
+            _db = MagicMock()
 
-            # Stub open_table → table whose search returns an empty df so the
-            # function still returns [], but list_tables MUST have been called.
-            tbl = MagicMock()
-            empty_df = MagicMock()
-            empty_df.empty = True
-            tbl.search.return_value.limit.return_value.to_pandas.return_value = empty_df
-            client._db.open_table = MagicMock(return_value=tbl)
+            async def search(self, **kwargs):
+                calls.append(kwargs)
+                if kwargs.get("query_type") == "hybrid":
+                    raise RuntimeError("hybrid index broken")
+                return []
 
-            result = await svc._two_tier_search(client, query="x", num_results=5)
-            return result, client
-
-        result, client = asyncio.run(_run())
-        # Result may be [] (empty df), but the key contract is: tier-2 path was
-        # invoked (list_tables called once when gate enabled).
-        assert client._db.list_tables.called, "tier-2 must execute and call list_tables when gate enabled"
-        assert result == [], "empty df → empty result (still no exception)"
-
-    def test_tier2_fallback_enabled_emits_warning_log(self, monkeypatch, caplog):
-        """P1-9: When tier-2 proceeds via env var, log.warning announces
-        'tier-2 fallback enabled' so Ops sees legacy-mode signal."""
-        import asyncio
-        import logging
-        from unittest.mock import AsyncMock, MagicMock
-
-        from app.services import supplementary_search_service as svc
-
-        monkeypatch.setenv("ENABLE_LANCEDB_TIER2_FALLBACK", "true")
-
-        async def _run():
-            client = MagicMock()
-            client.search = AsyncMock(return_value=[])
-            client._db = MagicMock()
-            client._db.list_tables = MagicMock(return_value=[])  # tier-2 bails on empty
-            return await svc._two_tier_search(client, query="probe", num_results=3)
-
-        with caplog.at_level(logging.WARNING):
-            asyncio.run(_run())
-
-        warning_text = " ".join(r.getMessage() for r in caplog.records if r.levelno >= logging.WARNING)
-        assert "tier-2 fallback enabled" in warning_text, (
-            f"expected 'tier-2 fallback enabled' in WARNING, got: {warning_text[:400]}"
+        result = asyncio.run(svc._vault_scoped_search(_FlakyClient(), query="q", num_results=10))
+        assert result == []
+        assert len(calls) == 2, "hybrid 失败后应走 vector 回退"
+        # ⛔ Codex round-1 MEDIUM-2: 必须断言**值**, 不能只看"有没有第二次调用"。
+        # search() 的 query_type 默认就是 hybrid, 所以"第二次调用存在"完全不能
+        # 证明它是 vector —— 旧写法在真实行为是 ["hybrid","hybrid"] 时照样绿。
+        assert [c.get("query_type") for c in calls] == ["hybrid", "vector"], (
+            f"回退必须真的是 vector-only, 实际 {[c.get('query_type') for c in calls]}"
         )
+        assert "exam_board" in calls[1].get("exclude_doc_types", [])
+        assert "whiteboard" in calls[1].get("exclude_doc_types", [])

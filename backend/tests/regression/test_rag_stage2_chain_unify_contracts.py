@@ -60,10 +60,10 @@ def wired(monkeypatch):
     """svc 接确定性替身: 检索结果可注入 / 文件存在恒真 / source_priority 恒等。"""
     rows = []
 
-    async def canned_two_tier(client, query, num_results):
+    async def canned_vault_scoped(client, query, num_results):
         return list(rows)
 
-    monkeypatch.setattr(svc, "_two_tier_search", canned_two_tier)
+    monkeypatch.setattr(svc, "_vault_scoped_search", canned_vault_scoped)
     monkeypatch.setattr(svc, "_is_real_vault_file", lambda path: True)
 
     import app.core.reference_config as ref
@@ -174,7 +174,6 @@ def test_mcp_fast_path_exam_board_excluded_at_query(monkeypatch):
 
     monkeypatch.setattr(nst, "_get_fast_client", canned_client)
     monkeypatch.delenv("RAG_EXTENDED_MODE", raising=False)
-    monkeypatch.delenv("ENABLE_LANCEDB_TIER2_FALLBACK", raising=False)
 
     out = _search_notes(max_results=10)
     assert "exam_board" in captured.get("exclude_doc_types", []), "HARD-ISO: MCP 链必须排除考题白板"
@@ -480,13 +479,16 @@ def test_m6_incremental_endpoint_is_410_gone():
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 组 E — Step 0: tier-1 vector 回退分支排除 exam_board
+# 组 E — Step 0: hybrid 失败后的 vector 回退分支排除 exam_board
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-def test_tier1_vector_fallback_excludes_exam_board(monkeypatch):
+def test_vector_fallback_excludes_exam_board():
     """hybrid 异常回退 vector-only 时 exclude_doc_types 必须含 exam_board —
-    此前漏排 = 考题隔离 (HARD-ISO) 的旁路。"""
+    此前漏排 = 考题隔离 (HARD-ISO) 的旁路。
+
+    CARD-G2-4: 原函数名 tier1_ 与旧的 tier-1/tier-2 分层命名绑定; tier-2 删除后
+    只剩一条 vault-scoped 路径, 名字随之改。"""
     calls = []
 
     class _FlakyClient:
@@ -498,10 +500,13 @@ def test_tier1_vector_fallback_excludes_exam_board(monkeypatch):
                 raise RuntimeError("hybrid index broken")
             return []
 
-    monkeypatch.delenv("ENABLE_LANCEDB_TIER2_FALLBACK", raising=False)
-    result = asyncio.run(svc._two_tier_search(_FlakyClient(), query="q", num_results=10))
+    result = asyncio.run(svc._vault_scoped_search(_FlakyClient(), query="q", num_results=10))
     assert result == []
     assert len(calls) == 2, "hybrid 失败后应走 vector 回退"
+    assert [c.get("query_type") for c in calls] == ["hybrid", "vector"], (
+        "CARD-G2-4 (Codex round-1 MEDIUM-2): 回退必须显式 vector — "
+        f"search() 默认 query_type=hybrid, 不显式传就是再跑一次 hybrid; 实际 {[c.get('query_type') for c in calls]}"
+    )
     assert "exam_board" in calls[1].get("exclude_doc_types", []), "回退分支漏排 exam_board = 隔离旁路回归"
     assert "whiteboard" in calls[1].get("exclude_doc_types", [])
 

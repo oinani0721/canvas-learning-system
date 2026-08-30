@@ -52,10 +52,10 @@ def _raw_row(path, raw_score, score=None, fts=False):
 def wired(monkeypatch):
     rows = []
 
-    async def canned_two_tier(client, query, num_results):
+    async def canned_vault_scoped(client, query, num_results):
         return list(rows)
 
-    monkeypatch.setattr(svc, "_two_tier_search", canned_two_tier)
+    monkeypatch.setattr(svc, "_vault_scoped_search", canned_vault_scoped)
     monkeypatch.setattr(svc, "_is_real_vault_file", lambda path: True)
 
     import app.core.reference_config as ref

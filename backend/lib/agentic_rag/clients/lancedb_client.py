@@ -83,6 +83,36 @@ except ImportError:
     JIEBA_AVAILABLE = False
 
 
+class TableMissingError(RuntimeError):
+    """CARD-G2-4: vault 专属表不存在 — 故障, 不是「健康空」。
+
+    引入动机 (BATCH-2026-08-29-第七批 / CARD-G2-4): 删除 B0.7 legacy 回退后,
+    ``{vault}_{table}`` 不存在时不再静默落到裸表。此时必须让调用方**知道**
+    表缺失, 而不是收到一个与「索引过但真没命中」无法区分的空列表 ——
+    后者正是计划书 :48 记的「legacy 表 fail-open」暗坑的另一半。
+
+    继承 ``RuntimeError`` 而非裸 ``Exception`` 的理由 (兼容契约):
+    既有窄捕获调用方 (``react_agent.search_vault_notes`` 的两级 except 捕
+    ``RuntimeError/ConnectionError/ValueError``、``_search_internal`` 原本就
+    抛 ``RuntimeError``) 无需改动即可继续兜住本异常, 行为不劣于改动前;
+    而 ``search()`` 内部用 ``isinstance`` 精确放行, 使它**唯一地**穿透
+    ``enable_fallback`` 的「任何错 → []」吞噬门 (其余异常契约不变, 防波及)。
+
+    Attributes:
+        table_name: 缺失的**已解析**表名 (含 vault 前缀), 供上层写进
+            ``reason`` 与 Ops 日志 —— 诊断信息必须能直接对上 LanceDB 里
+            该建而未建的那张表。
+    """
+
+    def __init__(self, table_name: str, detail: str = ""):
+        self.table_name = table_name
+        self.detail = detail
+        msg = f"LanceDB table '{table_name}' does not exist"
+        if detail:
+            msg = f"{msg} ({detail})"
+        super().__init__(msg)
+
+
 def _jieba_tokenize(text: str) -> str:
     """
     Story 2.4 AC-1/AC-2: jieba 中文预分词
@@ -732,31 +762,75 @@ class LanceDBClient:
     def resolve_table_name(self, table_name: str) -> str:
         """Prefix table_name with vault_id for namespace isolation.
 
-        Phase B0.7 (Round-4 ChatGPT V3 Q2 选项 B 兼容读策略):
-        若 {vid}_{table_name} 不存在但 unprefixed {table_name} 存在
-        → 回退到 unprefixed 读取（保留 'default' 旧数据兼容期）
-        新 vault 数据写入仍用 prefixed; 旧数据通过 fallback 仍可见.
+        CARD-G2-4 (BATCH-2026-08-29-第七批): **删除 Phase B0.7 legacy 回退**。
+
+        旧行为 (已删): 若 ``{vid}_{table_name}`` 不存在但裸 ``{table_name}``
+        存在 → 返回裸表名。该回退同时污染读写两侧 —— 本方法被 7 处内部
+        调用, 其中 6 处是索引/写路径 (``rebuild_index`` / ``index_image_content``
+        / ``index_canvas`` / ``index_vault_notes`` / ``index_single_file`` /
+        ``add_documents``), 只有 ``search`` 是读侧:
+        新 vault 首次索引时 prefixed 表尚未建, 回退会把新 vault 的数据
+        **写进裸表**, 与其它 vault 的存量混在一起 (计划书 :113 记的
+        「legacy vault_notes 读写共用回退」)。读侧同理: vault A 查不到自己
+        的表就去读裸表里 vault B 的行, 且下游无法区分这是回退还是本 vault
+        真实数据。
+
+        现行为: 非 default vault 恒返回 prefixed 名。表不存在时由读路径
+        抛 :class:`TableMissingError` (故障), 写路径正常建 prefixed 新表 ——
+        **不再有任何路径落到裸表**。
+
+        ⚠️ 保留的窄映射 (勿删): ``vid`` 为空或 ``"default"`` → 返回裸表名。
+        这不是 legacy 回退, 而是**单 vault 部署的正常命名空间** (裸表就是
+        它的表)。删掉会炸单 vault 部署。判据钉死在
+        ``tests/unit/test_lancedb_vault_isolation.py:23`` 与 ``:35``。
         """
         vid = self.active_vault_id
         if not vid or vid == "default":
             return table_name
         if table_name.startswith(f"{vid}_"):
             return table_name
-        prefixed = f"{vid}_{table_name}"
-        # Phase B0.7 fallback: 若 prefixed 不存在但 unprefixed 存在 → 读 unprefixed
+        return f"{vid}_{table_name}"
+
+    def _is_table_absent(self, table_name: str) -> bool:
+        """CARD-G2-4: 打表失败时判别「表不存在」vs「表在但打不开」。
+
+        分流依据是目录的**实查**, 不做异常文案匹配 —— LanceDB 的
+        missing-table 异常类型与文案在 0.x 期间换过多次 (``FileNotFoundError``
+        / ``ValueError`` / ``LanceError``), 按文案匹配会在升版时静默失效,
+        变成一道恒判 False 的死门。
+
+        ⛔ 必须走 ``list_tables(limit=None)`` 而不是 ``table_names()``
+        (Codex round-1 审查抓出, lancedb 0.30.2 实测):
+        ``DBConnection.table_names(page_token=None, limit=10)`` —— **默认只返回
+        前 10 张表**。库里超过 10 张表时, 第 11 张之后的表会被判成"不存在",
+        于是一个明明在的表被本卡的 fail-closed 通道当成缺表抛出去。
+        ``list_tables(limit=None)`` 才是全量。
+
+        列举本身失败时返回 ``False`` (fail-safe): 判不出来就当基础设施故障,
+        沿用旧 ``RuntimeError`` 契约, **不**误报表缺失 —— 误报会让本卡新增的
+        fail-closed 通道去吞一个其实与 vault 隔离无关的故障。
+        """
+        if self._db is None:
+            return False
         try:
-            if self._db is not None:
-                all_tables = self._db.table_names()
-                if prefixed not in all_tables and table_name in all_tables:
-                    logger.debug(
-                        "[LanceDB B0.7 fallback] %s not found, reading legacy %s",
-                        prefixed,
-                        table_name,
-                    )
-                    return table_name
+            return table_name not in set(self._all_table_names())
         except Exception:
-            pass
-        return prefixed
+            return False
+
+    def _all_table_names(self) -> list:
+        """全量表名 —— 绕开 ``table_names()`` 的 limit=10 默认分页。
+
+        兼容两代 API: 新版 ``list_tables(limit=None)`` 返回
+        ``ListTablesResponse(tables=[...])``, 旧版返回 plain list;
+        都没有时退回 ``table_names()`` 并**显式**把 limit 调大 (它至少
+        比默认 10 诚实)。
+        """
+        if self._db is None:
+            return []
+        if hasattr(self._db, "list_tables"):
+            raw = self._db.list_tables(limit=None)
+            return list(getattr(raw, "tables", raw))
+        return list(self._db.table_names(limit=10_000))
 
     def list_vault_tables(self, vault_id: str | None = None) -> list[str]:
         """Return table names belonging to a specific vault."""
@@ -3058,6 +3132,20 @@ class LanceDBClient:
 
             return results
 
+        except TableMissingError:
+            # CARD-G2-4: 表缺失是**唯一**穿透 enable_fallback 吞噬门的异常。
+            # 删掉 B0.7 回退后, 「vault 专属表不存在」不再被裸表兜底; 若这里
+            # 仍吞成 [], 调用方拿到的空列表与「索引正常但真没命中」逐字同形,
+            # 故障就又一次伪装成健康空 (计划书 :48 legacy fail-open 的本体)。
+            # 其余异常 (超时 / 打不开 / 查询报错) 维持旧「任何错 → []」契约,
+            # 防止本卡外溢成全链行为变更。
+            if LOGURU_ENABLED:
+                logger.warning(
+                    f"LanceDBClient.search: table '{table_name}' missing — "
+                    "propagating TableMissingError (fail-closed, no legacy fallback)"
+                )
+            raise
+
         except asyncio.TimeoutError:
             if LOGURU_ENABLED:
                 logger.warning(f"LanceDBClient.search timeout ({self.timeout_ms}ms)")
@@ -3173,8 +3261,15 @@ class LanceDBClient:
             table = self._db.open_table(table_name)
             self._tables_cache[table_name] = table
         except Exception as e:
+            # CARD-G2-4: 分流「表不存在」与「表在但打不开」。前者是 vault
+            # 专属表未建 (删掉 B0.7 回退后唯一的表现形式), 必须让上层看见
+            # 并透出 degraded/unavailable; 后者维持 RAG-S2 T6 的旧契约
+            # (RuntimeError → search() 外层 enable_fallback 门吞成 [])。
+            absent = self._is_table_absent(table_name)
             if LOGURU_ENABLED:
-                logger.debug(f"Table {table_name} not found: {e}")
+                logger.debug(f"Table {table_name} open failed (absent={absent}): {e}")
+            if absent:
+                raise TableMissingError(table_name, f"open_table failed: {e}") from e
             # RAG-S2 T6 审查修复 (2026-08-10): 表打不开是基础设施故障不是
             # 合法空 — raise 让 search() 外层 enable_fallback 门决定吞或抛
             # (enable_fallback=True 调用方在外层照旧吞成 [], 行为不变;
