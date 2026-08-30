@@ -51,13 +51,30 @@ class LanceDBIndexService:
     - Lazy LanceDB client initialization
     """
 
-    def __init__(self) -> None:
+    def __init__(self, state_dir: Optional[str] = None) -> None:
+        """``state_dir``: journal 落盘目录 (默认 ``backend/app/data``)。
+
+        ⛔ Codex round-1 HIGH-2: legacy 路径改由 ``_pending_file.parent`` 派生,
+        免得"测试只搬 _pending_file"时隔离动作打到真实 data 目录。
+        """
         self._lancedb_client = None
         self._client_unavailable = False  # [Review H1/M2] skip retries when module missing
         self._pending_tasks: Dict[str, asyncio.Task] = {}
         self._indexing_canvases: set[str] = set()  # [Review M1] track active indexing
         self._file_lock = threading.Lock()  # [Review H2] protect JSONL concurrent writes
-        self._pending_file: Path = Path(__file__).parent.parent / "data" / "lancedb_pending_index.jsonl"
+        # CARD-G2-5: pending journal 按 vault 命名空间 (旧的无维度路径只在
+        # recover_pending() 里被隔离, 不加载)。key 取部署期 settings.vault_id,
+        # 不读 per-request ContextVar —— 见 app/core/vault_state_paths.py。
+        from app.core.vault_state_paths import (
+            deployment_vault_key,
+            namespaced_state_path,
+        )
+
+        _data_dir = Path(state_dir) if state_dir else Path(__file__).parent.parent / "data"
+        self._state_dir: Path = _data_dir
+        self._journal_stem: str = "lancedb_pending_index"
+        self._vault_key: str = deployment_vault_key()
+        self._pending_file: Path = namespaced_state_path(_data_dir, self._journal_stem, vault_key=self._vault_key)
         self._debounce_seconds: float = settings.LANCEDB_INDEX_DEBOUNCE_MS / 1000.0
         self._index_timeout: float = settings.LANCEDB_INDEX_TIMEOUT
 
@@ -179,6 +196,13 @@ class LanceDBIndexService:
         finally:
             self._indexing_canvases.discard(key)
 
+    @property
+    def _legacy_pending_file(self) -> Path:
+        """G2-5 之前的无维度 journal —— 由当前 journal 的目录派生 (见 __init__)。"""
+        from app.core.vault_state_paths import legacy_state_path
+
+        return legacy_state_path(self._pending_file.parent, self._journal_stem)
+
     async def recover_pending(self, canvas_base_path: str) -> Dict[str, int]:
         """
         Recover and retry pending index operations from JSONL file.
@@ -190,7 +214,16 @@ class LanceDBIndexService:
 
         Returns:
             Dict with 'recovered' and 'pending' counts
+
+        CARD-G2-5: 只加载**本 vault** 的 journal; G2-5 之前的无维度旧文件在这里
+        被改名隔离并跳过 (条目无从判断 vault 归属, 按当前 vault 重放 = 串台)。
         """
+        from app.core.vault_state_paths import quarantine_legacy_state_file
+
+        quarantine_legacy_state_file(
+            self._legacy_pending_file, context="lancedb_index_service", active_path=self._pending_file
+        )
+
         if not self._pending_file.exists():
             return {"recovered": 0, "pending": 0}
 

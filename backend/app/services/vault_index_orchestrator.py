@@ -95,10 +95,30 @@ class PendingEntry:
 class VaultIndexOrchestrator:
     """Single write-side entry point for the vault_notes LanceDB index."""
 
-    def __init__(self, vault_path: str):
+    def __init__(self, vault_path: str, state_dir: Optional[str] = None):
+        """``state_dir``: journal 落盘目录 (默认 ``backend/app/data``)。
+
+        ⛔ Codex round-1 HIGH-2: 测试只重定位 ``_pending_file`` 时, 旧实现里
+        构造期固定下来的 legacy 绝对路径**仍指向真实 data 目录**, 于是一次
+        recover 会把用户真实的 journal 改名。现在 legacy 路径由
+        ``_pending_file.parent`` 派生 (见 ``_legacy_pending_file`` property),
+        搬 journal 就自动带着它一起搬; 同时提供显式 ``state_dir`` 注入口。
+        """
         self.vault_path = vault_path
         self._pending: Dict[str, PendingEntry] = {}
-        self._pending_file = Path(__file__).parent.parent / "data" / "vault_index_pending.jsonl"
+        # CARD-G2-5: durable pending journal 按 vault 命名空间。旧的无维度路径
+        # 只在 recover() 里被**隔离**(改名), 绝不加载 —— 见 recover() 与
+        # app/core/vault_state_paths.py 的 docstring。
+        from app.core.vault_state_paths import (
+            deployment_vault_key,
+            namespaced_state_path,
+        )
+
+        _data_dir = Path(state_dir) if state_dir else Path(__file__).parent.parent / "data"
+        self._state_dir = _data_dir
+        self._journal_stem = "vault_index_pending"
+        self._vault_key = deployment_vault_key()
+        self._pending_file = namespaced_state_path(_data_dir, self._journal_stem, vault_key=self._vault_key)
         self._client: Optional[Any] = None
         self._client_lock = asyncio.Lock()
         self._wake = asyncio.Event()
@@ -284,9 +304,31 @@ class VaultIndexOrchestrator:
         except Exception as e:
             logger.error(f"[RAG-S1] pending persist failed: {e}")
 
+    @property
+    def _legacy_pending_file(self) -> Path:
+        """G2-5 之前的无维度 journal —— **由当前 journal 的目录派生**。
+
+        不在构造期固定成绝对路径: 那样一来"把 _pending_file 搬到 tmp"的测试
+        会让隔离动作打到真实 data 目录 (Codex round-1 HIGH-2)。
+        """
+        from app.core.vault_state_paths import legacy_state_path
+
+        return legacy_state_path(self._pending_file.parent, self._journal_stem)
+
     def recover(self) -> int:
         """Load durable pending on startup. in_flight -> pending (the crash
-        interrupted them mid-index; delete-before-insert makes replay safe)."""
+        interrupted them mid-index; delete-before-insert makes replay safe).
+
+        CARD-G2-5: 只加载**本 vault** 的 journal。G2-5 之前的无维度旧文件在这里
+        被改名隔离并**跳过** —— 它的条目按当前 vault 重放就是跨 vault 串台
+        (vault A 的相对路径进了 vault B 的索引)。
+        """
+        from app.core.vault_state_paths import quarantine_legacy_state_file
+
+        quarantine_legacy_state_file(
+            self._legacy_pending_file, context="vault_index_orchestrator", active_path=self._pending_file
+        )
+
         if not self._pending_file.exists():
             return 0
         recovered = 0
