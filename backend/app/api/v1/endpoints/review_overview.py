@@ -14,6 +14,14 @@ CARD-D1 三级视图: vault 卡片 (名+四态徽标+汇总行) → 板表格 (�
 脏行按既有 corrupt 语义降级); 行序 = 有到期板按 top_boards 优先级 → 零到期
 板按 next_due。时间统一转 Asia/Shanghai 人话化 (修现网容器 UTC 缺陷);
 obsidian:// 深链按 原白板/<板名>.md 约定, 无投影 vault 降级文案不做假链接。
+
+CARD-G3-6a (BATCH-2026-08-29-第六批) 消费端最小接线: 投影加性新增顶层
+buckets 五桶 (new/learning_queue/due_now/due_today/future) 后, 本端点只多
+消费桶位计数 — 卡片汇总行下多一条「分层」分布行, JSON 多 bucket_counts。
+板级到期数仍由 due_nodes group-by 派生 (不从 buckets 抄), stats.due_nodes
+仍是权威计数 (生产器 S2「加标签不搬移」使这两条口径分毫未动)。桶内
+why_due 的节点级展示属 G6-5 地盘, 这里只门禁不渲染。旧投影 (无 buckets 键)
+保持 ok 且 bucket_counts=null — 不伪造分层数字, 也不倒逼迁移。
 """
 
 from __future__ import annotations
@@ -115,7 +123,10 @@ def _gate_due_groups(due_nodes: list) -> dict[str, dict]:
     盖掉, 低估紧迫度 (冒烟实测抓到)。全新卡板才落 "" → 渲染"现在"。
     """
     groups: dict[str, dict] = {}
-    seen_rows: set[tuple[str, str]] = set()
+    # Codex round-5 HIGH: 生产器的节点身份是**全局唯一**的文件 stem
+    # (sorted((vault/"节点").glob("*.md")) → path.stem), 不是 (板, 节点) 复合键 —
+    # 用复合键去重会放行"同一节点在两个板各出现一次"的伪造 (虚增板级与桶级计数)
+    seen_rows: set[str] = set()
     for i, row in enumerate(due_nodes):
         if not isinstance(row, dict):
             raise ValueError(f"due_nodes[{i}] 应为 object, 实为 {type(row).__name__}")
@@ -125,10 +136,11 @@ def _gate_due_groups(due_nodes: list) -> dict[str, dict]:
         node = row.get("node")
         if not isinstance(node, str) or not node:
             raise ValueError(f"due_nodes[{i}].node 应为非空字符串, 实为 {node!r}")
-        # Codex-D1 H5: 重复行会被静默重复计数 — 生产器 stem 唯一, 重复即垃圾
-        if (board, node) in seen_rows:
-            raise ValueError(f"due_nodes[{i}] 重复行: {board!r}/{node!r}")
-        seen_rows.add((board, node))
+        # Codex-D1 H5 + round-5 收紧: 重复行会被静默重复计数 — 生产器 stem
+        # 全局唯一, 同名节点无论落在哪个板都是垃圾
+        if node in seen_rows:
+            raise ValueError(f"due_nodes[{i}] 节点重复 (stem 全局唯一): {node!r} (本行板 {board!r})")
+        seen_rows.add(node)
         reason = row.get("due_reason")
         if reason not in ("new", "scheduled", "malformed"):
             raise ValueError(f"due_nodes[{i}].due_reason 枚举外: {reason!r}")
@@ -136,7 +148,16 @@ def _gate_due_groups(due_nodes: list) -> dict[str, dict]:
         # 生产器构造律: scheduled ⟺ fsrs_due 非空 (new/malformed 均为空串)
         if (reason == "scheduled") != bool(ts):
             raise ValueError(f"due_nodes[{i}] due_reason={reason!r} 与 fsrs_due={ts!r} 不自洽")
-        g = groups.setdefault(board, {"due": 0, "new": 0, "scheduled": 0, "earliest": ""})
+        g = groups.setdefault(board, {"due": 0, "new": 0, "scheduled": 0, "earliest": "", "rows": {}})
+        # CARD-G3-6a: 逐行留底 (节点身份 + 行内 bucket/why_due) 供 _gate_buckets
+        # 做成员级跨源核对 —— 只留聚合计数会让"身份被替换但计数不变"的桶位
+        # 投影蒙混过关 (Codex round-1 HIGH)
+        g["rows"][node] = {
+            "reason": reason,
+            "fsrs_due": ts,
+            "bucket": row.get("bucket"),
+            "why_due": row.get("why_due"),
+        }
         g["due"] += 1
         if reason == "new":
             g["new"] += 1
@@ -176,7 +197,7 @@ def _gate_upcoming(upcoming: list) -> list[dict]:
 
 def _gate_boards_rollup(
     rollup, due_groups: dict[str, dict], flat_placeholder: int
-) -> tuple[dict[str, int], list[dict]]:
+) -> tuple[dict[str, int], list[dict], dict[str, tuple[int, str]]]:
     """P1 加性 boards rollup 门禁 (可选顶层键: 旧投影缺省走纯派生路径)。
 
     消费两块: 板级 placeholder 归属 (待剖析列) + due==0 零到期板全量
@@ -194,6 +215,9 @@ def _gate_boards_rollup(
     rollup_due: dict[str, int] = {}
     rollup_new: dict[str, int] = {}
     rollup_sched: dict[str, int] = {}
+    # CARD-G3-6a: 板级未到期 (数量, 最近排期) —— buckets 的非到期两桶在
+    # due_nodes 里没有对手盘 (S2 不搬移), rollup 是它们唯一的跨源对账面
+    future_map: dict[str, tuple[int, str]] = {}
     zero: list[dict] = []
     for i, r in enumerate(rollup):
         if not isinstance(r, dict):
@@ -224,6 +248,7 @@ def _gate_boards_rollup(
         if counts["due"] == 0 and counts["future"] == 0 and counts["placeholder"] == 0:
             raise ValueError(f"boards[{i}] 全零板 {board!r} 非生产器产物")
         ph_map[board] = counts["placeholder"]
+        future_map[board] = (counts["future"], next_due)
         rollup_due[board] = counts["due"]
         rollup_new[board] = counts["due_new"]
         rollup_sched[board] = counts["due_scheduled"]
@@ -243,7 +268,227 @@ def _gate_boards_rollup(
             )
     if sum(ph_map.values()) > flat_placeholder:
         raise ValueError(f"boards rollup placeholder 合计 {sum(ph_map.values())} 超过扁平列表总数 {flat_placeholder}")
-    return ph_map, zero
+    return ph_map, zero, future_map
+
+
+#: CARD-G3-6a 五桶枚举 — 与生产器 daily_review_pick.BUCKET_ORDER 同名同序
+_BUCKET_ORDER = ("new", "learning_queue", "due_now", "due_today", "future")
+#: 其中三个到期桶: 成员恒等于 due_nodes 明细 (生产器 S2「加标签不搬移」)
+_DUE_BUCKETS = ("new", "learning_queue", "due_now")
+#: 生产器 build_payload 对 upcoming 的截断上限 (payload["upcoming"] = upcoming[:3])
+_UPCOMING_LIMIT = 3
+#: 桶位人读标签 (页面汇总行)
+_BUCKET_CN = {
+    "new": "新卡",
+    "learning_queue": "学习中",
+    "due_now": "到期",
+    "due_today": "今天晚些",
+    "future": "未来",
+}
+
+
+def _sh_day(ts: str):
+    """UTC-Z 定长串 → Asia/Shanghai 日期; 不可表示时 None (年份极值)。"""
+    try:
+        return datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).astimezone(_TZ_SHANGHAI).date()
+    except (ValueError, OverflowError, OSError):
+        return None
+
+
+def _gate_buckets(
+    buckets,
+    due_groups: dict[str, dict],
+    stats: dict,
+    generated_at: str,
+    future_map: dict[str, tuple[int, str]],
+    up_gated: list[dict],
+) -> dict[str, int]:
+    """G3-6a 加性 buckets 门禁 (可选顶层键: 旧投影缺省走 None 路径)。
+
+    只消费桶位计数 (卡片汇总行的分层分布); why_due 的节点级展示属 G6-5 地盘,
+    这里只门禁不渲染 —— 但仍逐行验形, 不给形状垃圾发 ok。
+
+    跨源一致性 (与 _gate_boards_rollup 同一纪律): 生产器 S1/S2 构造保证
+    ① 五桶两两不交 (同一 board/node 只出现一次);
+    ② 三个到期桶的**成员身份**恒等于 due_nodes 明细的 (board, node) 集合
+       —— 只比计数会让"身份被整体替换但每板数量不变"的投影蒙混过关
+       (Codex round-1 HIGH 实证), 故这里比集合而非比数字;
+    ③ 逐节点 bucket / why_due / fsrs_due 在两处表示必须逐字相等 (生产器
+       同源赋值), 且 bucket 值必须等于它所在的桶名;
+    ④ 桶特定时间语义: new 桶 ⟺ 明细 due_reason=="new" 且 fsrs_due 空;
+       learning_queue / due_now 的明细 reason ∈ {scheduled, malformed};
+       due_today / future 的 fsrs_due 恒非空 (未到期必有合法排期);
+    ⑤ 到期三桶合计 == stats.due_nodes 权威计数;
+       due_today + future 合计 == stats.future_nodes;
+    ⑥ 非到期两桶在 due_nodes 里没有对手盘 (S2 不搬移), 故改用两条独立对账
+       (Codex round-2 HIGH: 只查"时间非空 + 总数"时, 把 due_today 整体换成
+       远期 FAKE-* 身份仍能拿到 ok):
+       (a) 以投影自带的 generated_at 为参照时钟**重算桶判据** —— 每行
+           fsrs_due 必须严格晚于 generated_at (未到期), 且 due_today 与
+           generated_at 同一 Asia/Shanghai 日、future 必须晚于该日;
+           时刻不可表示 (年份极值) 只允许出现在 future (与生产器兜底同口径);
+       (b) 与 boards rollup 逐板对账 —— 板级非到期行数 == rollup.future,
+           板内最早 fsrs_due == rollup.next_due;
+       (c) 与 upcoming 对身份 —— upcoming 逐条命名了"零到期板的最早到期节点",
+           该 (board, node) 必须出现在非到期桶里且时刻等于 next_due
+           (Codex round-3: 非到期节点在 due_nodes 里没有对手盘, upcoming 是
+           投影内唯一另一处点名它们的地方)。upcoming 本身先被钉死在 rollup
+           上 —— 板集合 / 条数 / 升序 / next_due 全从 rollup 复算 (Codex
+           round-4: 否则清空或换板即可整体跳过本条);
+       (d) 到期侧时间逆检查 —— due_reason=="scheduled" 的到期成员其 fsrs_due
+           必须不晚于参照时钟 (Codex round-4: 否则未来时刻可伪装成 due_now)。
+    任一不成立即 ValueError → 整库按既有 corrupt 语义降级。
+    参照时钟要求: buckets 在场时 generated_at 必须是生产器确切形态 —— 拿不到
+    可信时钟就无从重算桶判据, 与其放行不如按 corrupt 降级 (生产器恒产出该形态)。
+    boards 同在要求: buckets 在场时 boards 必须同在 —— 二者由同一版生产器一起
+    产出, "有 buckets 无 boards" 不是任何历史形态, 放行它等于放弃 (b) 的对账。
+
+    ⚠ 消费端核验的原理上限 (Codex round-3/4 复核后如实记录, 非遗漏):
+    本门禁能证的是「生产器发出的多份表示彼此自洽」。对**只在投影里出现一次**
+    的数据 —— **凡未被 upcoming 点名的非到期节点名**(含: 截断范围外的零到期板、
+    有到期成员之板的未来节点、入选板里非最早的那些节点), 以及判 learning 用的
+    fsrs_state (根本不落盘) —— 消费端**在原理上**无法独立核验: 没有第二个来源
+    可比, 再加断言也只是让伪造者多改一个字段
+    (round-4 复核确认 fsrs_state 这条论证成立)。A2 的架构裁定本就是「投影是
+    全系统到期口径唯一裁判, 消费端只读不重算」, 这类正确性由生产器侧契约
+    测试保证 (五桶划分律 + fsrs_state 六态用例), 不由本函数保证。
+    why_due 同理只验非空与两处相等 —— 在消费端重算 S3 模板等于把生产器逻辑
+    抄第二份, 模板一演进两边必漂; 它是受信生产器字段。
+    """
+    if not isinstance(buckets, dict):
+        raise ValueError(f"buckets 应为 object, 实为 {type(buckets).__name__}")
+    if set(buckets) != set(_BUCKET_ORDER):
+        raise ValueError(f"buckets 键集合非 G3-6a 五桶: {sorted(buckets)}")
+    # ⑥(a) 参照时钟: 生产器 build_payload 的 now, 落盘为 generated_at
+    if not _GENERATED_AT_RE.fullmatch(generated_at):
+        raise ValueError(f"buckets 在场但 generated_at 非生产器形态, 无可信参照时钟: {generated_at!r}")
+    try:
+        ref = datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
+        ref_z = ref.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        ref_day = ref.astimezone(_TZ_SHANGHAI).date()
+    except (ValueError, OverflowError, OSError) as e:
+        raise ValueError(f"generated_at 无法换算为参照时钟: {generated_at!r} ({e})")
+    nondue_by_board: dict[str, list[str]] = {}
+    nondue_ids: dict[tuple[str, str], str] = {}
+    # Codex round-5 HIGH: 节点身份全局唯一 (生产器 = 文件 stem) —— 用
+    # (板, 节点) 复合键去重会放行"同名节点在两个板各落一桶"的伪造, 那直接
+    # 违反 S1「每个节点恰好落一桶」并虚增计数
+    counts: dict[str, int] = {}
+    seen: set[str] = set()
+    claimed_due: dict[tuple[str, str], tuple[str, str, str]] = {}
+    for name in _BUCKET_ORDER:
+        rows = buckets[name]
+        if not isinstance(rows, list):
+            raise ValueError(f"buckets.{name} 应为数组, 实为 {type(rows).__name__}")
+        for i, r in enumerate(rows):
+            if not isinstance(r, dict):
+                raise ValueError(f"buckets.{name}[{i}] 应为 object, 实为 {type(r).__name__}")
+            for f in ("node", "board", "why_due"):
+                v = r.get(f)
+                if not isinstance(v, str) or not v:
+                    raise ValueError(f"buckets.{name}[{i}].{f} 应为非空字符串, 实为 {v!r}")
+            ts = _due_ts(r.get("fsrs_due"), f"buckets.{name}[{i}].fsrs_due")
+            key = (r["board"], r["node"])
+            if r["node"] in seen:  # S1 互斥: 同一节点落两桶/两板 = 划分律被打破
+                raise ValueError(f"buckets.{name}[{i}] 节点重复 (stem 全局唯一): {r['node']!r} (本行板 {r['board']!r})")
+            seen.add(r["node"])
+            if name in _DUE_BUCKETS:
+                claimed_due[key] = (name, ts, r["why_due"])
+                continue
+            # ⑥(a) 非到期两桶: 用参照时钟重算生产器的判桶条件
+            if not ts:
+                # 未到期必有合法排期 (生产器: fsrs_due 空 ⟹ 恒 due_now)
+                raise ValueError(f"buckets.{name}[{i}] 未到期桶的 fsrs_due 不得为空: {key[0]!r}/{key[1]!r}")
+            if ts <= ref_z:
+                raise ValueError(f"buckets.{name}[{i}] fsrs_due={ts} 不晚于 generated_at, 应属到期侧")
+            day = _sh_day(ts)
+            if day is None:
+                # 时刻不可表示: 生产器兜底恒归 future, 不可能是"今天"
+                if name != "future":
+                    raise ValueError(f"buckets.{name}[{i}] fsrs_due={ts} 不可换算, 只允许出现在 future 桶")
+            elif name == "due_today" and day != ref_day:
+                raise ValueError(f"buckets.due_today[{i}] fsrs_due={ts} 非 generated_at 的同一上海日 {ref_day}")
+            elif name == "future" and day <= ref_day:
+                raise ValueError(f"buckets.future[{i}] fsrs_due={ts} 仍在上海日 {ref_day} 内, 应属 due_today")
+            nondue_by_board.setdefault(r["board"], []).append(ts)
+            nondue_ids[key] = ts
+        counts[name] = len(rows)
+    # ② 成员身份恒等 (只比计数挡不住整体身份替换 — Codex round-1 HIGH)
+    detail = {(b, n): meta for b, g in due_groups.items() for n, meta in g["rows"].items()}
+    if set(claimed_due) != set(detail):
+        only_bucket = sorted(set(claimed_due) - set(detail))[:5]
+        only_detail = sorted(set(detail) - set(claimed_due))[:5]
+        raise ValueError(f"buckets 到期成员与 due_nodes 明细不一致: 仅在桶={only_bucket} 仅在明细={only_detail}")
+    for key, (name, ts, why) in claimed_due.items():
+        meta = detail[key]
+        # ③ 两处表示同源: 行内 bucket/why_due/fsrs_due 与桶内逐字相等
+        if meta["bucket"] != name:
+            raise ValueError(f"due_nodes 行 {key[0]!r}/{key[1]!r} 的 bucket={meta['bucket']!r} 与所在桶 {name!r} 矛盾")
+        if meta["why_due"] != why:
+            raise ValueError(f"due_nodes 行 {key[0]!r}/{key[1]!r} 的 why_due 与桶内不一致")
+        if meta["fsrs_due"] != ts:
+            raise ValueError(f"due_nodes 行 {key[0]!r}/{key[1]!r} 的 fsrs_due 与桶内不一致")
+        # ④ 桶特定时间语义 (生产器 S1 判据的逆检查)
+        if name == "new" and (meta["reason"] != "new" or ts):
+            raise ValueError(f"buckets.new 成员 {key[1]!r} 非真新卡: due_reason={meta['reason']!r} fsrs_due={ts!r}")
+        if name != "new" and meta["reason"] == "new":
+            raise ValueError(f"buckets.{name} 成员 {key[1]!r} 实为真新卡 (due_reason=new), 应属 new 桶")
+        # 到期侧时间逆检查 (Codex round-4 HIGH): 已排期的到期成员其时刻必须
+        # 不晚于参照时钟 —— 否则"未来时刻伪装成 due_now/learning_queue"能绕过
+        if meta["reason"] == "scheduled" and ts > ref_z:
+            raise ValueError(f"buckets.{name} 成员 {key[1]!r} 的 fsrs_due={ts} 晚于 generated_at, 不该在到期侧")
+    due_total = sum(counts[b] for b in _DUE_BUCKETS)
+    if due_total != _strict_int(stats.get("due_nodes")):
+        raise ValueError(f"buckets 到期三桶合计 {due_total} != stats.due_nodes {stats.get('due_nodes')!r}")
+    future_total = counts["due_today"] + counts["future"]
+    try:
+        stats_future = _strict_int(stats.get("future_nodes"))
+    except ValueError as e:
+        raise ValueError(f"stats.future_nodes {e}")
+    if future_total != stats_future:
+        raise ValueError(f"buckets 非到期两桶合计 {future_total} != stats.future_nodes {stats_future}")
+    # ⑥(b) 与 boards rollup 逐板对账 (调用方已保证 boards 同在)
+    claimed = {b: (len(ts_list), min(ts_list)) for b, ts_list in nondue_by_board.items()}
+    rollup_future = {b: v for b, v in future_map.items() if v[0] > 0}
+    if claimed != rollup_future:
+        # Codex round-5 LOW: 大投影别把整张映射塞进错误消息 (会进响应 error 字段)
+        diff = sorted(b for b in set(claimed) | set(rollup_future) if claimed.get(b) != rollup_future.get(b))
+        raise ValueError(
+            f"buckets 非到期分层与 boards rollup 不一致: 共 {len(diff)} 板不符, 例如 "
+            + ", ".join(f"{b!r} 桶={claimed.get(b)} rollup={rollup_future.get(b)}" for b in diff[:3])
+        )
+    # ⑥(c) 与 upcoming 对身份: 零到期板的最早到期节点在两处必须是同一个。
+    # 先把 upcoming 本身钉死在 rollup 上 (Codex round-4 HIGH): 否则清空
+    # upcoming 或换成别的板, 本条对账就被整体跳过了。
+    # 生产器构造律: upcoming = {rollup 里 due==0 且 future>0 的板} 按 next_due
+    # 升序取前 3 —— 板集合 / 条数 / 顺序 / next_due 四者全可从 rollup 复算。
+    cand = {b: nd for b, (cnt, nd) in future_map.items() if cnt > 0 and b not in due_groups}
+    if len(up_gated) != min(_UPCOMING_LIMIT, len(cand)):
+        raise ValueError(f"upcoming 条数 {len(up_gated)} != min({_UPCOMING_LIMIT}, 零到期且有排期板数 {len(cand)})")
+    chosen = [u["board"] for u in up_gated]
+    if any(b not in cand for b in chosen):
+        raise ValueError(f"upcoming 含非「零到期且有排期」板: {[b for b in chosen if b not in cand]}")
+    picked = [u["next_due"] for u in up_gated]
+    if picked != sorted(picked):
+        raise ValueError(f"upcoming 未按 next_due 升序: {picked}")
+    rest = [nd for b, nd in cand.items() if b not in chosen]
+    if rest and picked and max(picked) > min(rest):
+        # 截断边界并列允许 (生产器 sort 稳定, 同刻任一板皆可), 严格更早的板被漏掉则不允许
+        raise ValueError(f"upcoming 漏掉了更早到期的板: 已选最晚 {max(picked)} > 未选最早 {min(rest)}")
+    for u in up_gated:
+        if u["next_due"] != cand[u["board"]]:
+            raise ValueError(f"upcoming {u['board']!r} 的 next_due={u['next_due']} != rollup {cand[u['board']]}")
+        key = (u["board"], u["node"])
+        if key not in nondue_ids:
+            raise ValueError(f"upcoming 点名的 {u['board']!r}/{u['node']!r} 不在任何非到期桶里")
+        if nondue_ids[key] != u["next_due"]:
+            raise ValueError(
+                f"upcoming {u['board']!r}/{u['node']!r} 的 next_due={u['next_due']} 与桶内 {nondue_ids[key]} 不一致"
+            )
+        board_min = min(nondue_by_board[u["board"]])
+        if u["next_due"] != board_min:
+            raise ValueError(f"upcoming {u['board']!r} 的 next_due={u['next_due']} 非板内最早 {board_min}")
+    return counts
 
 
 def _humanize_due(ts: str | None, now_sh: datetime) -> tuple[str, str]:
@@ -375,13 +620,26 @@ def _summarize(payload: dict) -> dict:
     # 排序) → 零到期板 (按 next_due 升序)。P1 rollup 在场时提供板级
     # placeholder 归属 (待剖析列) 与零到期板全量; 缺省 (旧投影) 时待剖析
     # 为 null → 渲染 "—", 零到期板回落 upcoming[:3]。
+    generated_at = payload.get("generated_at")
+    if not isinstance(generated_at, str):
+        raise ValueError(f"generated_at 应为字符串, 实为 {type(generated_at).__name__}")
     groups = _gate_due_groups(due_nodes)
     ph_map: dict[str, int] = {}
     rollup_zero: list[dict] | None = None
+    future_map: dict[str, tuple[int, str]] | None = None
     # "boards" in payload 而非 .get(): 显式 null 不是"旧投影缺省", 是形状
     # 垃圾 (Codex-D1 H5) — 生产器恒产出数组
     if "boards" in payload:
-        ph_map, rollup_zero = _gate_boards_rollup(payload["boards"], groups, len(placeholder))
+        ph_map, rollup_zero, future_map = _gate_boards_rollup(payload["boards"], groups, len(placeholder))
+    # CARD-G3-6a 加性: 五桶分层计数 (同 "boards" 口径 — 显式 null 不是"旧
+    # 投影缺省", 是形状垃圾; 生产器恒产出五键 object)
+    bucket_counts = None
+    if "buckets" in payload:
+        # Codex round-3: 二者由同一版生产器一起产出 —— "有 buckets 无 boards"
+        # 不是任何历史形态, 放行它等于放弃非到期两桶的逐板对账
+        if future_map is None:
+            raise ValueError("buckets 在场但 boards 缺席 — 非生产器产物 (二者同版一起落盘)")
+        bucket_counts = _gate_buckets(payload["buckets"], groups, stats, generated_at, future_map, up_gated)
     board_rows = [
         {"board": b, "due": g["due"], "due_new": g["new"], "placeholder": ph_map.get(b), "earliest": g["earliest"]}
         for b, g in groups.items()
@@ -410,9 +668,6 @@ def _summarize(payload: dict) -> dict:
         zero_rows.sort(key=lambda r: (r["earliest"], r["board"]))
     board_rows += zero_rows
 
-    generated_at = payload.get("generated_at")
-    if not isinstance(generated_at, str):
-        raise ValueError(f"generated_at 应为字符串, 实为 {type(generated_at).__name__}")
     # round2 (Codex-D1 H5 残留): date 是生产器 date().isoformat() 产物 —
     # 词形 + 日历双验, 垃圾值不发 ok (缺省 None 容旧投影)
     date_v = payload.get("date")
@@ -447,6 +702,8 @@ def _summarize(payload: dict) -> dict:
         # 据此算"未归板"差额; 不能从 board_rows 重加 (纯无主占位符时
         # boards 为空, 差额会被错误置零)。缺省 null = rollup 不在场
         "placeholder_attributed": sum(ph_map.values()) if rollup_zero is not None else None,
+        # CARD-G3-6a 加性: 五桶分层计数; 缺省 null = 旧投影无 buckets 键
+        "bucket_counts": bucket_counts,
     }
 
 
@@ -628,9 +885,20 @@ def _card_html(entry: dict, now_sh: datetime) -> str:
             f'<span style="font-size:13px;color:#6b7280"> · 新卡 {int(proj["due_new_count"])}'
             f" · 待剖析 {int(proj['placeholder_backlog'])}{ph_note}</span></div>"
         )
+        # CARD-G3-6a: 分层分布行 (缺省 = 旧投影无 buckets 键 → 整行不出现,
+        # 不显示可能不可信的零)
+        bc = proj.get("bucket_counts")
+        layers = (
+            ""
+            if bc is None
+            else '<div style="font-size:12px;color:#6b7280;margin:2px 0 0">分层 · '
+            + " · ".join(f"{_BUCKET_CN[b]} {int(bc[b])}" for b in _BUCKET_ORDER)
+            + "</div>"
+        )
         gen_disp = html.escape(_fmt_projection_time(str(proj.get("generated_at") or "—")))
         body = (
             summary
+            + layers
             + _board_table_html(entry["vault_id"], proj["boards"], now_sh)
             + f'<div style="color:#6b7280;font-size:12px;margin:4px 0 6px">生成于 {gen_disp}</div>'
             + open_link

@@ -2,6 +2,8 @@
 
 12 场景运行时矩阵之外的纯逻辑层: 病理日期不崩全轮 / wikilink 归一 /
 占位符跳过 / tie-break 三级 / 脏数值进 corrupt / BOM 容忍。
+CARD-G3-6a (BATCH-2026-08-29-第六批) 追加: 五桶划分律 (互斥+完备) /
+why_due 6 模板 / 加性纯度金样 (pop 新字段后与引入前字面量深度全等)。
 """
 
 import shutil
@@ -219,6 +221,7 @@ def test_projection_v3_purely_additive_keeps_v2_contract(tmp_path):
         "upcoming",
         "due_nodes",
         "boards",  # CARD-D1 P1 加性新增 (板级全量 rollup, 本断言显式扩)
+        "buckets",  # CARD-G3-6a 加性新增 (五桶节点级分组, 本断言显式扩)
         "ineligible",
         "stats",
         "notification",
@@ -397,6 +400,13 @@ def test_boards_rollup_golden_old_fields_frozen(tmp_path):
     payload, _ = picker.build_payload(vault, NOW, {}, picker.load_decay(vault))
 
     boards = payload.pop("boards")  # CARD-D1 P1 唯一新增 — 摘掉后与金样全等
+    # CARD-G3-6a 后续加性: 顶层 buckets + due_nodes 行内 bucket/why_due。
+    # 本测试守的是「rollup 引入前」那份金样, 故新一轮加性字段同样摘掉 —
+    # 摘完仍须与 D1 之前的字面量深度全等 (累积冻结, 每轮加性都在此复核)。
+    payload.pop("buckets")
+    for _row in payload["due_nodes"]:
+        _row.pop("bucket")
+        _row.pop("why_due")
     golden = {
         "unassigned_nodes": [],
         "schema_version": 3,
@@ -447,5 +457,444 @@ def test_boards_rollup_golden_old_fields_frozen(tmp_path):
         },
     }
     assert payload == golden, "旧字段深度全等被打破 — P1 不再是纯加性"
-    assert list(payload) == [k for k in golden if k != "boards"], "顶层键序漂移 (落盘 diff 稳定性)"
+    assert list(payload) == list(golden), "顶层键序漂移 (落盘 diff 稳定性)"
     assert [r["board"] for r in boards] == ["别板", "普通板"]
+
+
+# ── CARD-G3-6a: 五桶位与 why_due (BATCH-2026-08-29-第六批) ──
+# S1 划分律: 级联 new > learning_queue > due_now > due_today > future,
+#    划分域 = 已归板且非 ineligible, 恰好一桶 (互斥+完备)。
+# S2 加标签不搬移: 节点仍留在 due_nodes 内, stats 口径分毫不动 (R2 高风险面 —
+#    搬移会同时改动 review_overview 权威计数与 Dashboard dv.io.load 数字)。
+# S3 why_due: 6 个确定性模板, 恒非空, 槽位只填投影内已有的真实数据。
+
+
+def _bucket_names(payload):
+    """{桶名: [节点名]} — 桶内序 = 扫描序 (sorted stem)。"""
+    return {b: [r["node"] for r in rows] for b, rows in payload["buckets"].items()}
+
+
+def _why_map(payload):
+    """{节点名: why_due} — 跨全部五桶展平 (S1 互斥保证键不冲突)。"""
+    return {r["node"]: r["why_due"] for rows in payload["buckets"].values() for r in rows}
+
+
+def test_buckets_five_way_partition_each_bucket_covered(tmp_path):
+    """五桶各一 + S1 划分律: 键序恒定 / 两两不交 / 并集==已归板节点 /
+    到期三桶合计==stats.due_nodes / 非到期两桶合计==stats.future_nodes。"""
+    payload, _ = _build(
+        tmp_path,
+        {
+            "真新卡": _node(board="A板"),
+            "学习中": _node(board="A板", extra="fsrs_due: 2026-07-28T01:00:00Z\nfsrs_state: 1\n"),
+            "普通到期": _node(board="A板", extra="fsrs_due: 2026-07-28T01:00:00Z\nfsrs_state: 2\n"),
+            "今天晚些": _node(board="B板", extra="fsrs_due: 2026-07-30T13:00:00Z\n"),
+            "远期": _node(board="B板", extra="fsrs_due: 2026-08-15T01:00:00Z\n"),
+        },
+    )
+    assert list(payload["buckets"]) == [
+        "new",
+        "learning_queue",
+        "due_now",
+        "due_today",
+        "future",
+    ], "落盘键序 = S1 级联优先级顺序"
+    assert _bucket_names(payload) == {
+        "new": ["真新卡"],
+        "learning_queue": ["学习中"],
+        "due_now": ["普通到期"],
+        "due_today": ["今天晚些"],
+        "future": ["远期"],
+    }
+    rows = [r for rs in payload["buckets"].values() for r in rs]
+    names = [r["node"] for r in rows]
+    assert len(names) == len(set(names)), "S1 互斥: 同一节点不得落两桶"
+    assert set(names) == {"真新卡", "学习中", "普通到期", "今天晚些", "远期"}, "S1 完备: 已归板节点全覆盖"
+    assert all(r["why_due"] for r in rows), "S3: why_due 恒非空"
+    assert all(set(r) == {"node", "board", "why_due", "fsrs_due"} for r in rows)
+    b, s = payload["buckets"], payload["stats"]
+    assert len(b["new"]) + len(b["learning_queue"]) + len(b["due_now"]) == s["due_nodes"] == 3
+    assert len(b["due_today"]) + len(b["future"]) == s["future_nodes"] == 2
+
+
+def test_buckets_due_today_uses_shanghai_day_not_utc_day(tmp_path):
+    """跨上海日边界 (S1 第 4 桶): NOW=2026-07-30T01:00Z = 上海 07-30 09:00。
+    13:00Z / 15:59:59Z / 16:00Z 同属 UTC 07-30, 但上海侧前两个仍是 07-30、
+    第三个已是 07-31 —— 用 UTC 日判会把 16:00Z 错判进 due_today。
+    并锁 now 表示无关性: 同一时刻以 +08:00 表示时判桶结果逐字相同。"""
+    nodes = {
+        "上海今天": _node(extra="fsrs_due: 2026-07-30T13:00:00Z\n"),
+        "上海日末": _node(extra="fsrs_due: 2026-07-30T15:59:59Z\n"),
+        "上海跨日": _node(extra="fsrs_due: 2026-07-30T16:00:00Z\n"),
+    }
+    payload, _ = _build(tmp_path, nodes)
+    b = _bucket_names(payload)
+    assert set(b["due_today"]) == {"上海今天", "上海日末"}
+    assert b["future"] == ["上海跨日"]
+    why = _why_map(payload)
+    assert why["上海今天"] == "今天 21:00 到期（尚未到点）"
+    assert why["上海日末"] == "今天 23:59 到期（尚未到点）"
+    assert why["上海跨日"] == "明天 7月31日 00:00 到期"
+    local = _build(tmp_path, nodes, now=NOW.astimezone(timezone(timedelta(hours=8))))[0]
+    assert _bucket_names(local) == b and _why_map(local) == why, "now 用本地时区表示不得改判"
+
+
+def test_buckets_malformed_fail_open_and_new_card_edges(tmp_path):
+    """边界: malformed fail-open 落 due_now 并在 why_due 里点名原值 (不装
+    能解析); 无 fsrs_due 落 new; 闲置片段源自 last_examined。
+    S2 同步锁定: 四个节点全部仍在 due_nodes 内, stats.due_nodes 不因分桶变化。"""
+    payload, _ = _build(
+        tmp_path,
+        {
+            "脏日期": _node(extra="fsrs_due: 2026-13-01T00:00:00Z\n"),
+            "带偏移": _node(extra="fsrs_due: 2026-07-29T01:00:00+08:00\n"),
+            "无字段": _node(),
+            "考过的新卡": _node(extra="last_examined: 2026-07-20T01:00:00Z\n"),
+        },
+    )
+    b = _bucket_names(payload)
+    assert set(b["due_now"]) == {"脏日期", "带偏移"}
+    assert set(b["new"]) == {"无字段", "考过的新卡"}
+    why = _why_map(payload)
+    assert why["脏日期"] == "到期待复习 · 到期时间无法解析(2026-13-01T00:00:00Z)，保守视同到期 · 从未考察"
+    assert why["带偏移"] == "到期待复习 · 到期时间无法解析(2026-07-29T01:00:00+08:00)，保守视同到期 · 从未考察"
+    assert why["无字段"] == "新卡未排期，视同即刻到期 · 从未考察"
+    assert why["考过的新卡"] == "新卡未排期，视同即刻到期 · 已闲置 10 天"
+    assert {d["node"] for d in payload["due_nodes"]} == {"脏日期", "带偏移", "无字段", "考过的新卡"}
+    assert payload["stats"]["due_nodes"] == 4, "S2: 加标签不改到期口径"
+
+
+def test_buckets_learning_states_and_unknown_state_fallback(tmp_path):
+    """S1 fsrs_state 裁定: py-fsrs v6 Learning=1 / Relearning=3, 历史哨兵 0
+    按 fsrs_bridge 读侧归一同口径并入 learning_queue; Review=2 / 非整数 /
+    无法解析一律不享分层, 落 due_now (未知值不吞节点)。
+    learning_queue 另要求「已到期」—— 学习态但未到期的仍按时间落 future。"""
+    due = "fsrs_due: 2026-07-28T01:00:00Z\n"
+    payload, _ = _build(
+        tmp_path,
+        {
+            "学习1": _node(extra=due + "fsrs_state: 1\n"),
+            "重学3": _node(extra=due + "fsrs_state: 3\n"),
+            "哨兵0": _node(extra=due + "fsrs_state: 0\n"),
+            "复习2": _node(extra=due + "fsrs_state: 2\n"),
+            "垃圾值": _node(extra=due + "fsrs_state: abc\n"),
+            "小数值": _node(extra=due + "fsrs_state: 1.5\n"),
+            "学习态未到期": _node(extra="fsrs_due: 2026-08-15T01:00:00Z\nfsrs_state: 1\n"),
+        },
+    )
+    b = _bucket_names(payload)
+    assert set(b["learning_queue"]) == {"学习1", "重学3", "哨兵0"}
+    assert set(b["due_now"]) == {"复习2", "垃圾值", "小数值"}
+    assert b["future"] == ["学习态未到期"]
+    why = _why_map(payload)
+    assert why["学习1"] == "学习中 · 已逾期 2 天（7月28日到期） · 从未考察"
+    assert why["哨兵0"] == "学习中 · 已逾期 2 天（7月28日到期） · 从未考察"
+    assert why["重学3"] == "重学中 · 已逾期 2 天（7月28日到期） · 从未考察"
+    assert why["复习2"] == "到期待复习 · 已逾期 2 天（7月28日到期） · 从未考察"
+    assert why["学习态未到期"] == "16 天后 8月15日 09:00 到期"
+
+
+def test_buckets_same_day_overdue_reads_as_clock_time(tmp_path):
+    """S3 到期片段 delta==0 分支: 上海同日但已过点 → 说「今天 HH:MM 到期」
+    而不是「已逾期 0 天」。"""
+    payload, _ = _build(tmp_path, {"今早到期": _node(extra="fsrs_due: 2026-07-30T00:00:00Z\n")})
+    assert _bucket_names(payload)["due_now"] == ["今早到期"]
+    assert _why_map(payload)["今早到期"] == "到期待复习 · 今天 08:00 到期 · 从未考察"
+
+
+def test_buckets_domain_excludes_unassigned_and_ineligible(tmp_path):
+    """S1 划分域: 未归板 (unassigned_nodes 已点名) 与 ineligible 三类
+    (placeholder/test_excluded/corrupt 已点名) 一律不进桶 —— 不重复点名,
+    也不静默吞。"""
+    payload, _ = _build(
+        tmp_path,
+        {
+            "孤儿": "---\ntype: concept\n---\n真实内容。\n",
+            "占位": _node().replace("真实内容。", "> 你的 1-2 句精准定义"),
+            "TestConcept-伪": _node(),
+            "损坏": _node(extra="mastery_a: -3\nmastery_b: 2\n"),
+            "正常": _node(),
+        },
+    )
+    assert [r["node"] for rs in payload["buckets"].values() for r in rs] == ["正常"]
+    assert payload["unassigned_nodes"] == ["孤儿"]
+    assert payload["ineligible"]["placeholder"] == ["占位"]
+    assert payload["ineligible"]["test_excluded"] == ["TestConcept-伪"]
+    assert payload["ineligible"]["corrupt"] == ["损坏"]
+
+
+def test_buckets_empty_vault_keys_always_present(tmp_path):
+    """空 vault 契约: 五键恒在 (与 ineligible 同风格, 消费方不做存在性分支)。"""
+    payload, _ = _build(tmp_path, {})
+    assert payload["buckets"] == {
+        "new": [],
+        "learning_queue": [],
+        "due_now": [],
+        "due_today": [],
+        "future": [],
+    }
+
+
+def test_buckets_due_rows_mirror_bucket_grouping(tmp_path):
+    """S2 加标签不搬移 (R2 硬判据): 到期三桶的成员集合必须逐个仍在
+    due_nodes 内, 且行内 bucket/why_due 与 buckets 分组同源逐字相等 ——
+    任何「把 new/learning_queue 搬出 due_nodes」的改法都在此翻车 (它会
+    同时改动 review_overview 的 stats.due_nodes 权威计数与 Dashboard 的
+    dv.io.load 明细)。"""
+    payload, _ = _build(
+        tmp_path,
+        {
+            "新": _node(),
+            "学": _node(extra="fsrs_due: 2026-07-28T01:00:00Z\nfsrs_state: 3\n"),
+            "到": _node(extra="fsrs_due: 2026-07-28T01:00:00Z\n"),
+            "未": _node(extra="fsrs_due: 2026-08-15T01:00:00Z\n"),
+        },
+    )
+    b = payload["buckets"]
+    due_bucket_rows = b["new"] + b["learning_queue"] + b["due_now"]
+    assert {r["node"] for r in due_bucket_rows} == {d["node"] for d in payload["due_nodes"]}
+    assert len(payload["due_nodes"]) == payload["stats"]["due_nodes"] == 3
+    by_row = {d["node"]: (d["bucket"], d["why_due"], d["fsrs_due"]) for d in payload["due_nodes"]}
+    for name, rows in (("new", b["new"]), ("learning_queue", b["learning_queue"]), ("due_now", b["due_now"])):
+        for r in rows:
+            assert by_row[r["node"]] == (name, r["why_due"], r["fsrs_due"]), "两处表示必须同源"
+    assert by_row["新"][0] == "new" and by_row["学"][0] == "learning_queue"
+    assert by_row["到"][0] == "due_now"
+    # 未到期节点不得混进 due_nodes (划分只贴标签, 不搬人)
+    assert "未" not in by_row and b["future"] == [
+        {
+            "node": "未",
+            "board": "普通板",
+            "why_due": "16 天后 8月15日 09:00 到期",
+            "fsrs_due": "2026-08-15T01:00:00Z",
+        }
+    ]
+
+
+def test_buckets_golden_pre_g36a_fields_frozen(tmp_path):
+    """G3-6a 加性纯度金样 (仿 D1 test_boards_rollup_golden_old_fields_frozen):
+    冻结 G3-6a 引入前的完整 payload 字面量 (含 D1 的 boards rollup), 摘掉本卡
+    新增的顶层 buckets 与 due_nodes 行内 bucket/why_due 后深度全等 + 顶层键序
+    恒等 —— 旧字段任何值/键序/嵌套漂移都在此翻车。
+    generated_at/date 按 NOW.astimezone() 计算 (跟随机器时区, 非被测逻辑);
+    vault 名固定 g36avault 保 vault_id 确定性。"""
+    vault = tmp_path / "g36avault"
+    scripts = vault / ".claude" / "scripts"
+    scripts.mkdir(parents=True)
+    (vault / "节点").mkdir()
+    shutil.copy(WT / "canvas-vault" / ".claude" / "scripts" / "decay_beta.py", scripts)
+    for name, content in {
+        "存量": _node(),
+        "已排期": _node(board="别板", extra="fsrs_due: 2026-08-15T01:00:00Z\n"),
+        "占位": _node().replace("真实内容。", "> 你的 1-2 句精准定义"),
+    }.items():
+        (vault / "节点" / f"{name}.md").write_text(content, encoding="utf-8")
+    payload, _ = picker.build_payload(vault, NOW, {}, picker.load_decay(vault))
+
+    buckets = payload.pop("buckets")  # G3-6a 唯一新增顶层键
+    row_add = [(r.pop("bucket"), r.pop("why_due")) for r in payload["due_nodes"]]  # 行内两字段
+    golden = {
+        "unassigned_nodes": [],
+        "schema_version": 3,
+        "vault_id": "g36avault",
+        "date": NOW.astimezone().date().isoformat(),
+        "generated_at": NOW.astimezone().isoformat(timespec="seconds"),
+        "top_boards": [
+            {
+                "board": "普通板",
+                "top_node": "存量",
+                "priority": 0.0709,
+                "pending": 1,
+                "idle_days": None,
+                "difficulty": "",
+                "next_due": "",
+            }
+        ],
+        "upcoming": [{"board": "别板", "next_due": "2026-08-15T01:00:00Z", "node": "已排期"}],
+        "due_nodes": [
+            {
+                "node": "存量",
+                "board": "普通板",
+                "state": "none",
+                "pick": 0.0709,
+                "fsrs_due": "",
+                "due_reason": "new",
+                "last_examined": "",
+                "difficulty": "",
+            }
+        ],
+        "boards": [
+            {
+                "board": "别板",
+                "due": 0,
+                "due_new": 0,
+                "due_scheduled": 0,
+                "future": 1,
+                "next_due": "2026-08-15T01:00:00Z",
+                "placeholder": 0,
+                "earliest_overdue": "",
+            },
+            {
+                "board": "普通板",
+                "due": 1,
+                "due_new": 1,
+                "due_scheduled": 0,
+                "future": 0,
+                "next_due": "",
+                "placeholder": 1,
+                "earliest_overdue": "",
+            },
+        ],
+        "ineligible": {"placeholder": ["占位"], "test_excluded": [], "corrupt": []},
+        "stats": {
+            "new": 0,
+            "legacy": 0,
+            "none": 2,
+            "ineligible": 1,
+            "test_excluded": 0,
+            "corrupt": 0,
+            "unassigned": 0,
+            "due_nodes": 1,
+            "future_nodes": 1,
+        },
+        "notification": {
+            "title": "📚 今日复习 · 普通板",
+            "body": "存量 待巩固 · 从未考察",
+            "group": "canvas复习",
+            "id": "canvas-review-2026-07-30",
+        },
+    }
+    assert payload == golden, "G3-6a 引入前的字段深度全等被打破 — 不再是纯加性"
+    assert list(payload) == list(golden), "顶层键序漂移 (落盘 diff 稳定性)"
+    # Codex round-1 LOW: dict 深度相等不查嵌套键序 — 嵌套对象逐个补键序断言,
+    # 否则 due_nodes 行 / boards 行 / stats 的旧键重排不会翻车
+    assert list(payload["due_nodes"][0]) == list(golden["due_nodes"][0]), "due_nodes 行键序漂移"
+    assert [list(r) for r in payload["boards"]] == [list(r) for r in golden["boards"]], "boards 行键序漂移"
+    assert list(payload["stats"]) == list(golden["stats"]), "stats 键序漂移"
+    assert list(payload["ineligible"]) == list(golden["ineligible"]), "ineligible 键序漂移"
+    assert list(payload["notification"]) == list(golden["notification"]), "notification 键序漂移"
+    assert list(payload["top_boards"][0]) == list(golden["top_boards"][0]), "top_boards 行键序漂移"
+    assert list(payload["upcoming"][0]) == list(golden["upcoming"][0]), "upcoming 行键序漂移"
+    assert row_add == [("new", "新卡未排期，视同即刻到期 · 从未考察")]
+    assert buckets["new"] == [
+        {"node": "存量", "board": "普通板", "why_due": "新卡未排期，视同即刻到期 · 从未考察", "fsrs_due": ""}
+    ]
+    assert buckets["future"] == [
+        {
+            "node": "已排期",
+            "board": "别板",
+            "why_due": "16 天后 8月15日 09:00 到期",
+            "fsrs_due": "2026-08-15T01:00:00Z",
+        }
+    ]
+    assert buckets["learning_queue"] == buckets["due_now"] == buckets["due_today"] == []
+
+
+def test_render_md_appends_bucket_section(tmp_path):
+    """用户可感面: 人读清单末尾多出「分层队列」段 (计数行 + 每节点桶位标签
+    与 why_due); 原表格 / 一键开考段零改动。"""
+    payload, ranked = _build(
+        tmp_path,
+        {
+            "新卡节点": _node(),
+            "学习节点": _node(extra="fsrs_due: 2026-07-28T01:00:00Z\nfsrs_state: 1\n"),
+            "未来节点": _node(board="别板", extra="fsrs_due: 2026-08-15T01:00:00Z\n"),
+        },
+    )
+    md = picker.render_md(payload, ranked)
+    assert "## 分层队列" in md
+    assert "新卡 1 · 学习中 1 · 到期待复习 0 · 今天晚些到期 0 · 未来排期 1" in md
+    assert "- 学习节点 · 普通板 — 学习中 · 已逾期 2 天（7月28日到期） · 从未考察" in md
+    assert "- 未来节点 · 别板 — 16 天后 8月15日 09:00 到期" in md
+    # 既有段落不受影响 (加性: 只在末尾追加)
+    assert "| 板 | 优先分 | 到期待复习 | 最该考 | 难度 | 闲置 | 板内下次到期 |" in md
+    assert "`/start-exam-board from 普通板 node 学习节点`" in md, "命令段仍绑定 pick 最低节点, 不受分桶影响"
+
+
+# ── Codex round-1 整改回归 (CARD-G3-6a) ──
+
+
+def test_dirty_fsrs_due_raw_is_sanitized_in_why_due(tmp_path):
+    """Codex round-1 MEDIUM: why_due 会被拼进人读 md 并可能被下游 HTML 渲染。
+    脏 fsrs_due 原值必须先过 ISO-8601 白名单 (非白名单字符 → "?") 再截 40 字,
+    不得把 frontmatter 里的任意串原样接进渲染面。"""
+    payload, ranked = _build(
+        tmp_path,
+        {"注入": _node(extra="fsrs_due: bad|<img src=x onerror=alert(1)>\n")},
+    )
+    why = _why_map(payload)["注入"]
+    assert why == "到期待复习 · 到期时间无法解析(bad??img src?x onerror?alert?1??)，保守视同到期 · 从未考察"
+    # 模板自带的圆括号是定界符, 危险字符只看摘录本身
+    excerpt = why.split("(", 1)[1].split(")", 1)[0]
+    for ch in "|<>=()":
+        assert ch not in excerpt, f"危险字符 {ch!r} 未被安全化"
+    assert why in picker.render_md(payload, ranked), "人读清单里落的是同一条安全化字符串"
+    # 超长原值截断 (白名单内字符也不例外)
+    long_payload, _ = _build(tmp_path, {"超长": _node(extra="fsrs_due: " + "9" * 200 + "\n")})
+    assert "(" + "9" * 40 + ")" in _why_map(long_payload)["超长"]
+
+
+def test_extreme_now_falls_back_instead_of_crashing():
+    """Codex round-1 HIGH: 极值 now 的上海日换算会 OverflowError。判桶层必须
+    退化 (今天基准回落 UTC 日, 时间槽位用极值兜底文案), 不得抛异常中断整轮。
+    直测 assign_bucket: build_payload 在同样输入下会先崩在 HEAD 起就存在的
+    payload["date"] = now.astimezone() 上, 那条不属本卡改动面。"""
+    now = datetime(9999, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
+    node = {
+        "node": "极值",
+        "board": "B板",
+        "due_now": True,
+        "fsrs_due": "9999-12-31T23:59:59Z",
+        "due_fail_open": False,
+        "fsrs_due_raw": "9999-12-31T23:59:59Z",
+        "fsrs_state": None,
+        "idle_days": None,
+    }
+    bucket, why = picker.assign_bucket(node, now)
+    assert bucket == "due_now"
+    assert why == "到期待复习 · 到期时刻超出可显示范围 · 从未考察"
+    # 未到期侧的极值兜底 (归 future, 不猜日期)
+    future_node = {**node, "due_now": False}
+    assert picker.assign_bucket(future_node, datetime(2026, 7, 30, 1, 0, tzinfo=timezone.utc)) == (
+        "future",
+        "到期时刻超出可显示范围，按未来排期处理",
+    )
+    # 今天基准退化为 UTC 日 (不崩)
+    assert picker._today_sh(now) == now.date()
+
+
+def test_cli_rejects_unconvertible_now_with_clear_error(tmp_path):
+    """Codex round-1 HIGH: 极值 --now 在 HEAD 起就会抛 OverflowError traceback
+    中断整轮 (崩在 payload["date"])。入口改为明确拒绝 —— 退出码非 0、给人话
+    原因、不吐 traceback; 正常 --now 不受影响。"""
+    import json
+    import subprocess
+
+    vault = tmp_path / "clivault"
+    scripts = vault / ".claude" / "scripts"
+    scripts.mkdir(parents=True)
+    (vault / "节点").mkdir()
+    shutil.copy(WT / "canvas-vault" / ".claude" / "scripts" / "decay_beta.py", scripts)
+    (vault / "节点" / "存量.md").write_text(_node(), encoding="utf-8")
+    cmd = [sys.executable, str(WT / "scripts" / "daily_review_pick.py"), "--vault", str(vault), "--now"]
+
+    bad = subprocess.run([*cmd, "9999-12-31T23:59:59Z"], capture_output=True, text=True)
+    assert bad.returncode != 0
+    assert "--now 超出可换算范围" in bad.stderr
+    assert "Traceback" not in bad.stderr, "极值输入不得吐 traceback"
+
+    ok = subprocess.run([*cmd, "2026-07-30T01:00:00Z"], capture_output=True, text=True)
+    assert ok.returncode == 0, ok.stderr
+    assert json.loads(ok.stdout)["stats"]["due_nodes"] == 1
+
+
+def test_today_sh_three_tier_fallback_never_raises():
+    """Codex round-2 MEDIUM: UTC 回退本身也可能溢出 (year=1 且 offset=+14,
+    换算需减 14 小时 → 年份下溢)。三档兜底必须保证本函数对任何 aware
+    datetime 都不抛。"""
+    up = datetime(9999, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
+    assert picker._today_sh(up) == up.date(), "上界: 上海换算溢出 → 退 UTC 日"
+    low = datetime(1, 1, 1, 0, 0, tzinfo=timezone(timedelta(hours=14)))
+    assert picker._today_sh(low) == low.date(), "下界: 上海与 UTC 换算双溢出 → 退自身表示日"
+    normal = datetime(2026, 7, 30, 1, 0, tzinfo=timezone.utc)
+    assert picker._today_sh(normal).isoformat() == "2026-07-30", "常规值仍走上海日"

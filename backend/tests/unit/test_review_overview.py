@@ -3,6 +3,7 @@
 四类锁定: 聚合正确 / 缺投影显式降级 / 损坏 JSON 不 500 / stale 徽标。
 CARD-D1 (BATCH-2026-08-27-Anki化与诚实收尾) 追加: 板级聚合与 stats 自洽 /
 due_nodes 脏行 corrupt 降级 / Asia/Shanghai 时间人话化 / 无投影深链降级。
+CARD-G3-6a (BATCH-2026-08-29-第六批) 追加: 五桶分层计数消费与跨源门禁。
 真实文件 fixture: tmp_path 里建真 vault 目录 (.obsidian + outputs/今日复习.json
 真文件), settings 走 reload_settings 真实配置机器 — 禁 mock 文件系统语义。
 """
@@ -33,8 +34,17 @@ def _utc_z(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _due_row(node: str, board, *, due_reason: str = "new", fsrs_due: str = ""):
-    """daily_review_pick.build_payload due_rows 的全字段真形状。"""
+def _due_row(
+    node: str,
+    board,
+    *,
+    due_reason: str = "new",
+    fsrs_due: str = "",
+    bucket: str = "new",
+    why_due: str = "新卡未排期，视同即刻到期 · 从未考察",
+):
+    """daily_review_pick.build_payload due_rows 的全字段真形状
+    (CARD-G3-6a 起行尾多 bucket/why_due 两个加性字段)。"""
     return {
         "node": node,
         "board": board,
@@ -44,7 +54,14 @@ def _due_row(node: str, board, *, due_reason: str = "new", fsrs_due: str = ""):
         "due_reason": due_reason,
         "last_examined": "",
         "difficulty": "",
+        "bucket": bucket,
+        "why_due": why_due,
     }
+
+
+def _bucket_row(node: str, board: str, *, fsrs_due: str = "", why: str = "理由"):
+    """daily_review_pick buckets 桶内行的真形状 (四字段)。"""
+    return {"node": node, "board": board, "why_due": why, "fsrs_due": fsrs_due}
 
 
 def _projection(
@@ -764,3 +781,310 @@ def test_humanize_due_shanghai_midnight_semantics():
     assert _humanize_due("", now_sh)[0] == "现在"
     assert _humanize_due(None, now_sh)[0] == "—"
     assert _humanize_due("9999-12-31T23:59:59Z", now_sh)[0] == "—", "极值溢出降级不炸"
+
+
+def _sh_at(day, hour: int, minute: int = 0) -> datetime:
+    """指定上海本地日的某时刻 (aware) —— 判桶门禁按上海日算, fixture 必须
+    显式构造上海日边界, 不能用 now±N 天糊过去 (Codex round-2 D)。"""
+    from datetime import time as _time
+
+    return datetime.combine(day, _time(hour, minute), tzinfo=_SH)
+
+
+def test_buckets_layer_counts_and_cross_source_gate(overview_env):
+    """CARD-G3-6a 加性 buckets 消费 (BATCH-2026-08-29-第六批)。
+
+    ① 正常投影: 五桶计数进 JSON (bucket_counts) 与页面「分层」汇总行;
+    ② 旧投影无 buckets 键 → 仍 ok 且 bucket_counts=null (加性不倒逼迁移);
+    ③ 跨源不一致一律 corrupt 降级 —— 含 Codex round-1/round-2 指出的两类
+       身份级旁路: 到期三桶靠与 due_nodes 的成员恒等堵, 非到期两桶在
+       due_nodes 里没有对手盘, 改靠「以 generated_at 为参照时钟重算桶判据」
+       + 「与 boards rollup 逐板对账」双路堵。
+
+    时钟基准全部由 generated_at 显式给定 (上海今日 08:00), 与运行时刻无关 —
+    due_today 取同日 23:00, future 取次日 09:00, 跨午夜运行也不漂。
+    """
+    root, client = overview_env
+    sh_today = datetime.now(_SH).date()
+    gen = _sh_at(sh_today, 8)
+    gen_iso = gen.isoformat(timespec="seconds")
+    overdue = _utc_z(gen - timedelta(days=3))
+    today_late = _utc_z(_sh_at(sh_today, 23))
+    tomorrow = _utc_z(_sh_at(sh_today + timedelta(days=1), 9))
+    W_NEW = "新卡未排期，视同即刻到期 · 从未考察"
+    W_LEARN = "学习中 · 已逾期 3 天 · 从未考察"
+    W_DUE = "到期待复习 · 已逾期 3 天 · 从未考察"
+    rows = [
+        _due_row("n1", "甲板"),
+        _due_row("n2", "甲板", due_reason="scheduled", fsrs_due=overdue, bucket="learning_queue", why_due=W_LEARN),
+        _due_row("n3", "乙板", due_reason="scheduled", fsrs_due=overdue, bucket="due_now", why_due=W_DUE),
+    ]
+    good = {
+        "new": [_bucket_row("n1", "甲板", why=W_NEW)],
+        "learning_queue": [_bucket_row("n2", "甲板", fsrs_due=overdue, why=W_LEARN)],
+        "due_now": [_bucket_row("n3", "乙板", fsrs_due=overdue, why=W_DUE)],
+        "due_today": [_bucket_row("f1", "丙板", fsrs_due=today_late, why="今天 23:00 到期（尚未到点）")],
+        "future": [_bucket_row("f2", "丙板", fsrs_due=tomorrow, why="明天 09:00 到期")],
+    }
+    _blank = {
+        "due": 0,
+        "due_new": 0,
+        "due_scheduled": 0,
+        "future": 0,
+        "next_due": "",
+        "placeholder": 0,
+        "earliest_overdue": "",
+    }
+    rollup = [
+        {**_blank, "board": "甲板", "due": 2, "due_new": 1, "due_scheduled": 1, "earliest_overdue": overdue},
+        {**_blank, "board": "乙板", "due": 1, "due_scheduled": 1, "earliest_overdue": overdue},
+        {**_blank, "board": "丙板", "future": 2, "next_due": today_late},
+    ]
+    stats = {"due_nodes": 3, "future_nodes": 2}
+    tops = [{"board": "甲板", "top_node": "n1", "pending": 2}]
+    # 零到期板的最早到期节点 —— 投影内唯一另一处点名非到期节点的地方
+    upcoming = [{"board": "丙板", "next_due": today_late, "node": "f1"}]
+
+    def _mk(
+        name, *, buckets, due_nodes=rows, st=stats, boards=rollup, generated_at=gen_iso, up=upcoming, drop_boards=False
+    ):
+        proj = _projection(
+            name,
+            generated_at=generated_at,
+            due_nodes=due_nodes,
+            stats=st,
+            top_boards=tops,
+            upcoming=up,
+            boards=boards,
+            buckets=buckets,
+        )
+        if drop_boards:
+            proj.pop("boards")
+        _mk_vault(root, name, proj)
+
+    _mk("vault-buckets", buckets=good)
+    # 旧投影: 无 buckets 键 → 不降级, 只是没有分层数据
+    _mk_vault(root, "vault-nobuckets", _projection("vault-nobuckets", generated_at=gen_iso))
+
+    # ── 形状层旁路 ──
+    shape_bad: dict[str, object] = {
+        "bad-buckets-null": None,  # 显式 null 不是"旧投影缺省", 是形状垃圾
+        "bad-buckets-keys": {k: v for k, v in good.items() if k != "future"},
+        "bad-buckets-row": {**good, "due_today": [{**good["due_today"][0], "why_due": ""}]},
+        # S1 互斥被打破: n1 同时出现在 new 与 due_now
+        "bad-buckets-dup": {**good, "due_now": [*good["due_now"], _bucket_row("n1", "甲板", why=W_NEW)]},
+        # 未到期桶的 fsrs_due 不得为空 (空串 ⟹ 恒 due_now)
+        "bad-buckets-empty-future-ts": {**good, "due_today": [_bucket_row("f1", "丙板", why="x")]},
+        # 非到期两桶合计与 stats.future_nodes 漂移
+        "bad-buckets-future-drift": {**good, "future": []},
+    }
+    for name, b in shape_bad.items():
+        _mk(name, buckets=b)
+
+    # ── 到期三桶: 身份/语义层旁路 (Codex round-1 HIGH: 逐板计数全不变, 只换身份) ──
+    _mk(
+        "bad-buckets-identity",
+        buckets={
+            **good,
+            "new": [_bucket_row("FAKE-1", "甲板", why=W_NEW)],
+            "learning_queue": [_bucket_row("FAKE-2", "甲板", fsrs_due=overdue, why=W_LEARN)],
+            "due_now": [_bucket_row("FAKE-3", "乙板", fsrs_due=overdue, why=W_DUE)],
+        },
+    )
+    # 行内 bucket 与所在桶矛盾 (n2 在 learning_queue, 行却自称 due_now)
+    _mk("bad-buckets-label-conflict", buckets=good, due_nodes=[rows[0], {**rows[1], "bucket": "due_now"}, rows[2]])
+    # 行内 why_due 与桶内不一致 (两处表示不同源)
+    _mk("bad-buckets-why-conflict", buckets=good, due_nodes=[rows[0], {**rows[1], "why_due": "另一套说法"}, rows[2]])
+    # new 桶成员实为已排期卡 (语义反例, 且逐板计数不变)
+    _mk(
+        "bad-buckets-new-semantics",
+        buckets={
+            **good,
+            "new": [_bucket_row("n2", "甲板", fsrs_due=overdue, why=W_LEARN)],
+            "learning_queue": [_bucket_row("n1", "甲板", why=W_NEW)],
+        },
+        due_nodes=[{**rows[0], "bucket": "learning_queue"}, {**rows[1], "bucket": "new"}, rows[2]],
+    )
+    # 到期三桶合计与 stats.due_nodes 权威计数漂移
+    _mk("bad-buckets-stats-drift", buckets=good, st={"due_nodes": 9, "future_nodes": 2})
+
+    # ── 非到期两桶: 身份/语义层旁路 (Codex round-2 HIGH — 上一轮的残留面) ──
+    # 纯时间反例: 身份不变、只把 due_today 的时刻挪到远期 → 违反"同上海日"
+    # (Codex round-3 LOW: 与身份反例拆开, 一个失败条件不掩盖另一个)
+    _mk(
+        "bad-buckets-nondue-wrong-day",
+        buckets={
+            **good,
+            "due_today": [_bucket_row("f1", "丙板", fsrs_due="2099-01-01T00:00:00Z", why="x")],
+        },
+    )
+    # 纯身份反例 (Codex round-3 HIGH): 同板、同时刻、同 why_due, 只换节点名 —
+    # 时间判据与逐板对账全部通过, 只有 upcoming 身份对账能挡下
+    _mk(
+        "bad-buckets-nondue-identity",
+        buckets={
+            **good,
+            "due_today": [_bucket_row("FAKE-4", "丙板", fsrs_due=today_late, why="今天 23:00 到期（尚未到点）")],
+        },
+    )
+    # upcoming 的 next_due 与桶内该节点时刻不一致
+    _mk("bad-buckets-upcoming-ts-drift", buckets=good, up=[{"board": "丙板", "next_due": tomorrow, "node": "f1"}])
+    # 清空 upcoming 想整体跳过身份对账 (Codex round-4 HIGH): 条数必须由 rollup 复算
+    _mk("bad-buckets-upcoming-emptied", buckets=good, up=[])
+    # upcoming 换成一个「有到期节点」的板 (甲板) —— 不符合零到期资格
+    _mk("bad-buckets-upcoming-wrong-board", buckets=good, up=[{"board": "甲板", "next_due": today_late, "node": "n1"}])
+    # 未来时刻伪装成 due_now (两处 fsrs_due 同步改, 逐板计数不变) —
+    # 靠到期侧时间逆检查挡下 (Codex round-4 HIGH)
+    _mk(
+        "bad-buckets-due-future-ts",
+        buckets={**good, "due_now": [_bucket_row("n3", "乙板", fsrs_due=today_late, why=W_DUE)]},
+        due_nodes=[rows[0], rows[1], {**rows[2], "fsrs_due": today_late}],
+    )
+    # buckets 在场但 boards 缺席 —— 非任何历史形态 (Codex round-3 HIGH)
+    _mk("bad-buckets-no-boards", buckets=good, drop_boards=True)
+    # 同名节点跨板各落一桶 (Codex round-5 HIGH): 生产器 stem 全局唯一, 用
+    # (板, 节点) 复合键去重会放行这类伪造 —— 它直接违反 S1「恰好一桶」且虚增计数
+    _mk(
+        "bad-buckets-node-dup-across-boards",
+        buckets={**good, "future": [*good["future"], _bucket_row("n1", "丙板", fsrs_due=tomorrow, why="x")]},
+        st={"due_nodes": 3, "future_nodes": 3},
+        boards=[*rollup[:2], {**_blank, "board": "丙板", "future": 3, "next_due": today_late}],
+    )
+    # due_nodes 侧同名节点跨板重复 (同一收紧的另一半)
+    _mk(
+        "bad-due-nodes-node-dup-across-boards",
+        buckets=good,
+        due_nodes=[
+            *rows,
+            _due_row("n1", "乙板", due_reason="scheduled", fsrs_due=overdue, bucket="due_now", why_due=W_DUE),
+        ],
+    )
+    # future 桶塞已到期时刻 (应属到期侧)
+    _mk("bad-buckets-nondue-past", buckets={**good, "future": [_bucket_row("f2", "丙板", fsrs_due=overdue, why="x")]})
+    # future 桶塞同上海日时刻 (应属 due_today)
+    _mk(
+        "bad-buckets-future-same-day",
+        buckets={**good, "future": [_bucket_row("f2", "丙板", fsrs_due=today_late, why="x")]},
+    )
+    # 与 boards rollup 逐板对账: rollup 声称丙板只有 1 个未到期
+    _mk(
+        "bad-buckets-rollup-future-drift",
+        buckets=good,
+        boards=[*rollup[:2], {**_blank, "board": "丙板", "future": 1, "next_due": today_late}],
+    )
+    # buckets 在场却给不出可信参照时钟 → 无从重算桶判据, 按 corrupt 降级
+    _mk("bad-buckets-badgen", buckets=good, generated_at="20260830")
+
+    resp = client.get("/api/v1/review/overview")
+    assert resp.status_code == 200
+    by_id = {v["vault_id"]: v for v in resp.json()["vaults"]}
+    for name in (
+        *shape_bad,
+        "bad-buckets-identity",
+        "bad-buckets-label-conflict",
+        "bad-buckets-why-conflict",
+        "bad-buckets-new-semantics",
+        "bad-buckets-stats-drift",
+        "bad-buckets-nondue-wrong-day",
+        "bad-buckets-nondue-identity",
+        "bad-buckets-upcoming-ts-drift",
+        "bad-buckets-upcoming-emptied",
+        "bad-buckets-upcoming-wrong-board",
+        "bad-buckets-due-future-ts",
+        "bad-buckets-no-boards",
+        "bad-buckets-node-dup-across-boards",
+        "bad-due-nodes-node-dup-across-boards",
+        "bad-buckets-nondue-past",
+        "bad-buckets-future-same-day",
+        "bad-buckets-rollup-future-drift",
+        "bad-buckets-badgen",
+    ):
+        assert by_id[name]["status"] == "corrupt", f"{name} 跨源不一致必须 corrupt 降级"
+    assert by_id["vault-nobuckets"]["status"] == "ok"
+    assert by_id["vault-nobuckets"]["projection"]["bucket_counts"] is None, "旧投影不伪造分层数字"
+    entry = by_id["vault-buckets"]
+    assert entry["status"] == "ok", entry.get("error")
+    assert entry["projection"]["bucket_counts"] == {
+        "new": 1,
+        "learning_queue": 1,
+        "due_now": 1,
+        "due_today": 1,
+        "future": 1,
+    }
+    # 分层三桶合计仍等于权威计数, 分层只是标签不是搬移 (生产器 S2)
+    assert entry["projection"]["due_count"] == 3
+
+    page = client.get("/api/v1/review/overview/page")
+    assert page.status_code == 200
+    assert "分层 · 新卡 1 · 学习中 1 · 到期 1 · 今天晚些 1 · 未来 1" in page.text
+    assert page.text.count("分层 · ") == 1, "无 buckets 的旧投影卡片不出现分层行"
+
+
+def test_buckets_gate_accepts_real_producer_payload(tmp_path, overview_env):
+    """假阳性防线 (Codex round-2 C/D): 不用手搓 fixture —— 直接跑真生产器
+    daily_review_pick.build_payload 产出投影, 落成真文件后过总览端点, 必须
+    ok 且分层计数与生产器 buckets 逐字相等。门禁若把生产器真实产出判成
+    corrupt, 本用例立刻红。"""
+    import shutil
+    import sys
+    from pathlib import Path
+
+    wt = Path(__file__).resolve().parents[3]
+    sys.path.insert(0, str(wt / "scripts"))
+    import daily_review_pick as picker
+
+    root, client = overview_env
+    vault = root / "vault-real"
+    (vault / ".obsidian").mkdir(parents=True)
+    scripts = vault / ".claude" / "scripts"
+    scripts.mkdir(parents=True)
+    (vault / "节点").mkdir()
+    shutil.copy(wt / "canvas-vault" / ".claude" / "scripts" / "decay_beta.py", scripts)
+
+    now = datetime.now(_SH).replace(hour=9, minute=0, second=0, microsecond=0)
+    sh_today = now.date()
+
+    def _node(board, extra=""):
+        return f'---\ntype: concept\nsource_board: "[[原白板/{board}]]"\n{extra}---\n真实内容。\n'
+
+    files = {
+        "真新卡": _node("甲板"),
+        "学习中": _node("甲板", f"fsrs_due: {_utc_z(now - timedelta(days=2))}\nfsrs_state: 1\n"),
+        "普通到期": _node("乙板", f"fsrs_due: {_utc_z(now - timedelta(days=1))}\nfsrs_state: 2\n"),
+        "今天晚些": _node("丙板", f"fsrs_due: {_utc_z(_sh_at(sh_today, 23))}\n"),
+        "远期": _node("丙板", f"fsrs_due: {_utc_z(_sh_at(sh_today + timedelta(days=5), 9))}\n"),
+    }
+    # 再造 4 个零到期板 —— 共 5 个候选、upcoming 被生产器截断到 3, 逼真跑通
+    # 「条数 == min(3, 候选数)」与「未选中的板不得更早」两条新对账
+    # (Codex round-4 B: 这正是最容易误伤真实产物的地方)
+    for i, day in enumerate((2, 3, 4, 6), start=1):
+        files[f"零到期{i}"] = _node(f"板{i}", f"fsrs_due: {_utc_z(_sh_at(sh_today + timedelta(days=day), 9))}\n")
+    for name, content in files.items():
+        (vault / "节点" / f"{name}.md").write_text(content, encoding="utf-8")
+    payload, _ = picker.build_payload(vault, now, {}, picker.load_decay(vault))
+    (vault / "outputs").mkdir()
+    (vault / "outputs" / "今日复习.json").write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+
+    # 防门禁分支空跑: 真产物必须同时带 boards / buckets / 非空 upcoming,
+    # 否则 (b)(c) 两条对账在本用例里等于没跑
+    assert payload["upcoming"] and payload["boards"] and payload["buckets"]
+    assert payload["upcoming"][0]["board"] == "丙板", "零到期板才进 upcoming, 且按 next_due 升序"
+    assert len(payload["upcoming"]) == 3, "生产器把 upcoming 截断到 3, 候选实为 5 板"
+    zero_due = [r["board"] for r in payload["boards"] if r["due"] == 0 and r["future"] > 0]
+    assert len(zero_due) == 5, "截断分支必须真的被触发, 否则新对账等于空跑"
+
+    entry = {v["vault_id"]: v for v in client.get("/api/v1/review/overview").json()["vaults"]}["vault-real"]
+    assert entry["status"] == "ok", entry.get("error")
+    assert entry["projection"]["bucket_counts"] == {
+        b: len(payload["buckets"][b]) for b in ("new", "learning_queue", "due_now", "due_today", "future")
+    }
+    assert entry["projection"]["bucket_counts"] == {
+        "new": 1,
+        "learning_queue": 1,
+        "due_now": 1,
+        "due_today": 1,
+        "future": 5,
+    }
+    assert entry["projection"]["due_count"] == payload["stats"]["due_nodes"] == 3
