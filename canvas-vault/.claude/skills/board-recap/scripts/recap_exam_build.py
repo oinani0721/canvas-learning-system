@@ -294,7 +294,10 @@ def _fsync_dir(d: Path) -> tuple[str, str | None]:
     持久化失败而是"不支持"。这两类必须区分, 否则会在正常 FS 上误拒。
     """
     try:
-        fd = os.open(d, os.O_RDONLY)
+        # round-5 MEDIUM-2: 原为裸 O_RDONLY —— 按路径重开时若该路径已被换成
+        # symlink 或非目录, 会 fsync 到别处。补 O_DIRECTORY|O_NOFOLLOW:
+        # 不是目录或是符号链接即失败, 而不是静默作用在错误对象上。
+        fd = os.open(d, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     except OSError as e:
         return "failed", f"目录打开失败 {type(e).__name__}"
     unsupported = None
@@ -412,8 +415,10 @@ def _rollback_published(
     ⛔ round-4 HIGH-3: 原先只返回 `None | str`, 而 `None` 同时表示四种截然不同的
     结果(已删 / 本就不存在 / identity 不符**没删** / SHA 不符**没删**)。调用方无法
     分辨, 于是一律拼「已撤销该文件」—— **回执与实际副作用直接不一致**。
-    改为三态: ("deleted"|"absent"|"kept", 失败原因|None)。
-    · deleted = 确实删了; · absent = 本就不在; · kept = **判据不符, 故意没删**。
+    改为四态: ("deleted"|"deleted_unsynced"|"absent"|"kept", 说明|None)。
+    · deleted = 确实删了**且目录项已持久化**; · deleted_unsynced = 删了但持久化未确认
+    (round-5 HIGH-2b: 崩溃后目标可能重现, 调用方不得声称「已撤销」而不加限定);
+    · absent = 本就不在; · kept = **判据不符, 故意没删**。
     """
     if identity is None and expect_sha is None:
         # round-4 LOW-1: 两个判据都不给 ⇒ 无从证明「这是我们的」, 拒绝删除。
@@ -443,6 +448,15 @@ def _rollback_published(
         os.unlink(name, dir_fd=dir_fd)
     except OSError as e:
         return "kept", f"unlink 失败 {type(e).__name__}"
+    # round-5 HIGH-2(b): 原实现 unlink 后直接返回 "deleted", 调用方据此明确声称
+    # 「已撤销」—— 但目录项未 fsync, 崩溃后目标可能**重现**, 声称就成了假话。
+    # 这里对已在手的 dir_fd 直接 fsync(无需按路径重开)。失败不改结论(文件确实
+    # 已从目录移除), 但降级为 "deleted_unsynced" 让调用方能如实措辞。
+    try:
+        os.fsync(dir_fd)
+    except OSError as e:
+        if getattr(e, "errno", None) not in (errno.EINVAL, errno.ENOTSUP):
+            return "deleted_unsynced", f"已删除但目录项持久化未确认 {type(e).__name__}"
     return "deleted", None
 
 
@@ -547,8 +561,10 @@ def _atomic_write(
                 rb_state, rb_err = _rollback_published(
                     target_name, dir_fd, (st_written.st_dev, st_written.st_ino)
                 )
-                if rb_state == "deleted" or rb_state == "absent":
+                if rb_state in ("deleted", "absent", "deleted_unsynced"):
                     published = False
+                    if rb_state == "deleted_unsynced":
+                        rollback_note = rb_err2
                 else:
                     rollback_note = rb_err or "判据不符, 已保留(未删除)"
                 raise OSError("published bytes mismatch (in-place rewrite)")
@@ -568,7 +584,15 @@ def _atomic_write(
             rb_state, rb_err2 = _rollback_published(
                 target_name, dir_fd, (st_written.st_dev, st_written.st_ino)
             )
-            if rb_state not in ("deleted", "absent"):
+            # ⛔ round-5 HIGH-2: 第一次撤销若返回 kept 会设下 rollback_note;
+            # 这里第二次若**成功删掉**, 原实现既不清旧 note 也不重算状态 ⇒
+            # 回执仍说「目标仍在 vault 里」而实际已删 —— **回执与事实相反**。
+            # 修法: 以**最后一次**结果为准, 成功即清除旧 note。
+            if rb_state in ("deleted", "absent"):
+                rollback_note = None
+            elif rb_state == "deleted_unsynced":
+                rollback_note = rb_err2  # 已删, 但持久化未确认 —— 如实说
+            else:
                 rollback_note = rb_err2 or "判据不符, 已保留(未删除)"
         # round-3 MEDIUM-5: tmp 清理失败原先被吞 —— 残留会让下次同 ts 的 O_EXCL
         # 直接失败, 而用户拿不到任何线索。改为并入错误消息如实回报。
@@ -593,6 +617,10 @@ def _atomic_write(
     warn = None
     try:
         os.unlink(tmp_name, dir_fd=dir_fd)
+    except FileNotFoundError:
+        # round-5 LOW-1: tmp 已被并发清掉是**正常**结果, 不是「未能清理」。
+        # 失败路径早已单列了它, 成功路径漏了 ⇒ 会发出误导性的「请手动删除」。
+        pass
     except OSError as e:
         warn = f"临时文件未能清理 ({tmp.name}: {type(e).__name__})，下次 create 同 ts 会被拒绝，请手动删除"
     try:
@@ -791,6 +819,7 @@ def cmd_create(args) -> int:
                 tail = {
                     "deleted": " (已撤销该文件)",
                     "absent": " (该文件已不存在)",
+                    "deleted_unsynced": f" (已撤销, 但{rb_err or '目录项持久化未确认'})",
                 }.get(
                     rb_state,
                     f" (⚠️ 文件仍在: {rb_err or '判据不符, 故意未删'}, 请手动检查)",
@@ -995,7 +1024,12 @@ def cmd_undo(args) -> int:
     # round-3 HIGH-4: 留痕的**目录项**没落盘就删源, 崩溃后可能两端皆失。
     # 这里改为 fail-closed: fsync 目录失败即拒绝回退, 原文件原样保留。
     dsync_state, dsync_msg = _fsync_dir(undo_dir)
-    dsync_err = dsync_msg if dsync_state == "failed" else None
+    # ⛔ round-5 HIGH-1: 上一轮把 _fsync_dir 改成三态、专为区分「不支持」,
+    # 结果这里只挡了 "failed" —— "unsupported" 照样走到 os.unlink(target)。
+    # 我**创造了这个区分却没在消费端用它**。而 "unsupported" 的语义恰恰是
+    # 「**无法证明**留痕目录项已落盘」: 此时删源, 崩溃后可能两端皆空,
+    # 且丢的是用户原始文件(不可重生)。删源是不可逆动作 ⇒ 必须 fail-closed。
+    dsync_err = dsync_msg if dsync_state in ("failed", "unsupported") else None
     if dsync_err:
         print(
             json.dumps(
@@ -1003,8 +1037,9 @@ def cmd_undo(args) -> int:
                     "mode": "undo",
                     "undone": False,
                     "refusal_reason": (
-                        f"留痕目录项未能持久化 ({dsync_err}) — 未删除 vault 内文件; "
-                        "此时删源在崩溃后可能两端皆失。请换一个 --undo-dir 重试"
+                        f"留痕目录项持久化未获确认 ({dsync_err}) — 未删除 vault 内文件; "
+                        "此时删源在崩溃后可能两端皆失(丢的是不可重生的用户原件)。"
+                        "请换一个 --undo-dir(如本地磁盘目录)重试"
                     ),
                     "retained_at": str(dest),
                 },

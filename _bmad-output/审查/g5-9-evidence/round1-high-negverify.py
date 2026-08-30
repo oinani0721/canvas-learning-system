@@ -261,13 +261,11 @@ VARIANTS: list[tuple[str, str, list[tuple[str, str]], str]] = [
                 "    try:\n"
                 "        os.unlink(name, dir_fd=dir_fd)\n"
                 "    except OSError as e:\n"
-                '        return "kept", f"unlink 失败 {type(e).__name__}"\n'
-                '    return "deleted", None',
+                '        return "kept", f"unlink 失败 {type(e).__name__}"',
                 "    try:\n"
                 "        os.unlink(name, dir_fd=dir_fd)\n"
                 "    except OSError:\n"
-                "        pass\n"
-                '    return "deleted", None',
+                "        pass",
             ),
         ],
         "test_rollback_published_refuses_to_delete_someone_elses_file or "
@@ -282,8 +280,10 @@ VARIANTS: list[tuple[str, str, list[tuple[str, str]], str]] = [
                 '                return "ok", None',
             ),
             (
-                '    dsync_err = dsync_msg if dsync_state == "failed" else None\n    if dsync_err:',
-                '    dsync_err = dsync_msg if dsync_state == "failed" else None\n    if False:',
+                '    dsync_err = dsync_msg if dsync_state in ("failed", "unsupported") else None\n'
+                "    if dsync_err:",
+                '    dsync_err = dsync_msg if dsync_state in ("failed", "unsupported") else None\n'
+                "    if False:",
             ),
         ],
         "test_undo_refuses_when_retention_dir_fsync_fails or "
@@ -339,6 +339,70 @@ VARIANTS: list[tuple[str, str, list[tuple[str, str]], str]] = [
             )
         ],
         "test_rollback_published_refuses_without_any_criterion",
+    ),
+    (
+        "T",
+        'round-5 HIGH-1 回退: undo 只挡 "failed", "unsupported" 照样删源',
+        [
+            (
+                '    dsync_err = dsync_msg if dsync_state in ("failed", "unsupported") else None',
+                '    dsync_err = dsync_msg if dsync_state == "failed" else None',
+            )
+        ],
+        "test_undo_refuses_when_retention_dir_fsync_unsupported",
+    ),
+    (
+        "U",
+        "round-5 HIGH-2a 回退: 第二次撤销成功时不清旧 rollback_note",
+        [
+            (
+                '            if rb_state in ("deleted", "absent"):\n'
+                "                rollback_note = None",
+                "            if False:\n                rollback_note = None",
+            )
+        ],
+        "test_atomic_write_clears_stale_rollback_note_on_second_success",
+    ),
+    (
+        "V",
+        'round-5 HIGH-2b 回退: unlink 后不 fsync 目录, 直接报 "deleted"',
+        [
+            (
+                "    try:\n"
+                "        os.fsync(dir_fd)\n"
+                "    except OSError as e:\n"
+                '        if getattr(e, "errno", None) not in (errno.EINVAL, errno.ENOTSUP):\n'
+                '            return "deleted_unsynced", f"已删除但目录项持久化未确认 {type(e).__name__}"',
+                "    try:\n        pass\n    except OSError:\n        pass",
+            )
+        ],
+        "test_rollback_reports_unsynced_when_dir_fsync_fails",
+    ),
+    (
+        "W",
+        "round-5 LOW-1 回退: 成功路径不再单列 tmp 的 FileNotFoundError",
+        [
+            (
+                "    except FileNotFoundError:\n"
+                "        # round-5 LOW-1: tmp 已被并发清掉是**正常**结果, 不是「未能清理」。\n"
+                "        # 失败路径早已单列了它, 成功路径漏了 ⇒ 会发出误导性的「请手动删除」。\n"
+                "        pass\n"
+                "    except OSError as e:",
+                "    except OSError as e:",
+            )
+        ],
+        "test_atomic_write_no_false_warning_when_tmp_already_gone",
+    ),
+    (
+        "X",
+        "round-5 MEDIUM-2 回退: _fsync_dir 去掉 O_DIRECTORY|O_NOFOLLOW",
+        [
+            (
+                "        fd = os.open(d, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)",
+                "        fd = os.open(d, os.O_RDONLY)",
+            )
+        ],
+        "test_fsync_dir_refuses_symlink_path",
     ),
     (
         "H",

@@ -1509,3 +1509,143 @@ def test_rollback_published_refuses_without_any_criterion(tmp_path):
         mod.os.close(dfd)
     assert state == "kept" and err, "双空判据竟无条件删除"
     assert f.is_file(), "在没有任何身份判据的情况下删掉了文件"
+
+
+# ═════ round-5 两条 HIGH + M/L 回归锁（CARD-收口A ③ 五段 · 定向终止轮）═════
+#
+# round-5 的 HIGH-1 是**上一轮修复的直接副产品**：我把 _fsync_dir 改成三态、
+# 专为区分「不支持」，结果调用方只挡了 "failed" —— "unsupported" 照样删源。
+# 教训：三态返回值的价值全在**调用方怎么分派**；只改函数不改调用方，
+# 等于把风险从「看不见」变成「看得见但没人看」。
+
+
+def test_undo_refuses_when_retention_dir_fsync_unsupported(tmp_path, capsys):
+    """HIGH-1 承重门：`"unsupported"` 的语义是「**无法证明**留痕目录项已落盘」。
+    此时删源，崩溃后可能两端皆空——且丢的是**不可重生的用户原件**。
+    删源是不可逆动作 ⇒ 必须与 `"failed"` 同样 fail-closed。"""
+    vault = build_vault(tmp_path)
+    out = do_create(vault, ["板一"])
+    undo_dir = tmp_path / "keep-unsupported"
+    undo_dir.mkdir()
+    target = vault / out["created_path"]
+    mod = _load_module()
+    real_fsync_dir = mod._fsync_dir
+
+    def evil_fsync_dir(dd):
+        if Path(dd) == undo_dir:
+            return "unsupported", "该文件系统不支持 fsync 目录 (OSError)"
+        return real_fsync_dir(dd)
+
+    mod._fsync_dir = evil_fsync_dir
+    try:
+        rc = mod.cmd_undo(_undo_args(vault, out["created_path"], out["content_sha256"], undo_dir))
+    finally:
+        mod._fsync_dir = real_fsync_dir
+    res = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert res["undone"] is False, "unsupported 仍删了源（只挡 failed 的老行为）"
+    assert "持久化未获确认" in res["refusal_reason"]
+    assert target.is_file(), "不可逆地删掉了用户原件"
+
+
+def test_atomic_write_clears_stale_rollback_note_on_second_success(tmp_path):
+    """HIGH-2(a) 承重门：第一次撤销返回 kept 会设下 rollback_note；
+    外层第二次若**成功删掉**，必须清掉旧 note——否则回执说「目标仍在 vault 里」
+    而实际已删，**回执与事实相反**。"""
+    mod = _load_module()
+    d = tmp_path / "d"
+    d.mkdir()
+    tmp_p, target = d / "t.tmp", d / "t.md"
+    dfd = mod.os.open(d, mod.os.O_RDONLY | mod.os.O_DIRECTORY)
+    real_link, real_rb = mod.os.link, mod._rollback_published
+    calls = {"n": 0}
+
+    def evil_link(src, dst, **kw):
+        real_link(src, dst, **kw)
+        fd = mod.os.open(target, mod.os.O_WRONLY | mod.os.O_TRUNC)
+        try:
+            mod.os.write(fd, b"ATTACKER\n")  # 同 inode、内容不符 → 触发第一次撤销
+        finally:
+            mod.os.close(fd)
+
+    def staged_rb(*a, **kw):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return "kept", "第一次拒删"
+        return real_rb(*a, **kw)  # 第二次走真实逻辑（会真删掉）
+
+    mod.os.link, mod._rollback_published = evil_link, staged_rb
+    try:
+        err, _warn = mod._atomic_write(tmp_p, target, "USER-CONFIRMED\n", dfd)
+    finally:
+        mod.os.link, mod._rollback_published = real_link, real_rb
+        mod.os.close(dfd)
+    assert calls["n"] >= 2, "未触达第二次撤销（注入点失效）"
+    assert err is not None
+    assert not target.exists(), "第二次撤销应已删掉目标"
+    assert "仍在" not in err, f"目标已删，回执却说仍在: {err}"
+
+
+def test_rollback_reports_unsynced_when_dir_fsync_fails(tmp_path):
+    """HIGH-2(b) 承重门：`unlink` 后未 fsync 目录就返回 "deleted"，
+    调用方据此明确声称「已撤销」——但崩溃后目标可能重现，声称就成了假话。
+    修法是降级为 "deleted_unsynced" 让调用方能如实措辞。"""
+    mod = _load_module()
+    d = tmp_path / "d"
+    d.mkdir()
+    f = d / "t.md"
+    f.write_text("OURS\n", encoding="utf-8")
+    st = f.stat()
+    dfd = mod.os.open(d, mod.os.O_RDONLY | mod.os.O_DIRECTORY)
+    real_fsync = mod.os.fsync
+
+    def eio_fsync(fd):
+        raise OSError(errno.EIO, "simulated EIO")
+
+    mod.os.fsync = eio_fsync
+    try:
+        state, msg = mod._rollback_published("t.md", dfd, (st.st_dev, st.st_ino))
+    finally:
+        mod.os.fsync = real_fsync
+        mod.os.close(dfd)
+    assert state == "deleted_unsynced", f"应降级为 deleted_unsynced，实际 {state}"
+    assert msg and "持久化未确认" in msg
+    assert not f.exists(), "文件确实应已删除（只是持久化未确认）"
+
+
+def test_atomic_write_no_false_warning_when_tmp_already_gone(tmp_path):
+    """LOW-1 承重门：tmp 已被并发清掉是**正常**结果，不该报「未能清理、请手动删除」。
+    失败路径早已单列 FileNotFoundError，成功路径漏了。"""
+    mod = _load_module()
+    d = tmp_path / "d"
+    d.mkdir()
+    tmp_p, target = d / "t.tmp", d / "t.md"
+    dfd = mod.os.open(d, mod.os.O_RDONLY | mod.os.O_DIRECTORY)
+    real_unlink = mod.os.unlink
+
+    def evil_unlink(name, **kw):
+        if name == "t.tmp":
+            raise FileNotFoundError("already gone")
+        return real_unlink(name, **kw)
+
+    mod.os.unlink = evil_unlink
+    try:
+        err, warn = mod._atomic_write(tmp_p, target, "OK\n", dfd)
+    finally:
+        mod.os.unlink = real_unlink
+        mod.os.close(dfd)
+    assert err is None, f"正常路径不该失败: {err}"
+    assert warn is None, f"tmp 已不存在却发了误告警: {warn}"
+
+
+def test_fsync_dir_refuses_symlink_path(tmp_path):
+    """MEDIUM-2 承重门：`_fsync_dir` 按路径重开目录，若该路径已被换成 symlink，
+    裸 `O_RDONLY` 会 fsync 到别处。补 `O_DIRECTORY|O_NOFOLLOW` 后必须失败。"""
+    mod = _load_module()
+    real = tmp_path / "real"
+    real.mkdir()
+    link = tmp_path / "link"
+    link.symlink_to(real, target_is_directory=True)
+    state, msg = mod._fsync_dir(link)
+    assert state == "failed", f"symlink 路径应被拒绝，实际 {state}"
+    assert msg and "打开失败" in msg
