@@ -2,20 +2,17 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**本车道状态**（2026-08-30 · 分支 `card/s6-recap` · BATCH-2026-08-29-第六批 车道 T2 · **CARD-收口A ③ G5-9 两轮整改完成，待验收**）:
-- ✅ **G5-9 codex 审查存档已补齐**（第五批裁定 S6-a，纪律硬项）。同一 commit `4717a2cd` 有**两份独立复核**：
-  本车道 codex（BLOCKER 0 / HIGH 4 / MEDIUM 8 / LOW 2）+ 另一 session 并行 codex（**BLOCKER 2** / HIGH 4 / MEDIUM 5 / LOW 1）
-- ⛔ **两份报告曾因并发写同一路径产生拼接损坏并被 `git add -A` 提交进 `9e24ef40`**；
-  已完整恢复为两个独立文件，事故与教训写在 `codex-review-CARD-G5-9-两份复核合并处置.md` §一
-- ✅ **两份合计 6 条 BLOCKER/HIGH 已全部处置**：空 SHA 绕过确认门 / 发布字节未校验 / 回滚删他人文件 /
-  undo 留痕未回读 / unlink 前无 identity 复核 / **父目录 symlink 实测写出 vault 外**（dirfd 锚定封死）/
-  **undo 解 leaf symlink 移走 referent 留死链**（leaf symlink 直接拒绝）
-- ⚠️ **2 条升级用户裁决**（本卡不擅自决定）：B2 DD-14 的 `PLAN-NNN` 口径与 `BATCH/CARD` 批次实践冲突
-  （全批次提交皆此形态，非孤例）；H6 产物 frontmatter schema —— 总账 `:471` 明文记载「需用户拍板」
-- 📌 判据：`test_g5_9_recap_exam.py` 33 → **55 passed**；S6 完整裁判 **160 passed**（裁定书基线 138）；
-  负验证 **10 变体 10/10 承重**，还原后字节与备份逐字相同；ruff lint + format 全绿
-- 📌 移交：M7 板名 Unicode 控制字符（建议与 G5-3 归一化合卡）/ M10 结构化 provenance /
-  **M11 跨板共享节点批注重复计数（数字错误，优先）** / L12 空目录残留
+**本车道状态**（2026-08-30 · 分支 `card/s6-recap` · BATCH-2026-08-29-第六批 车道 T2 · **CARD-收口A ③ G5-9 十轮对抗复核已结案**）:
+- 🎯 **round-10 独立裁定「可结案」**：HIGH 0 / MEDIUM 0 / LOW 2 / INFO 3，
+  复核者明确「不建议再开第 11 轮」。总表见 `_bmad-output/审查/codex-review-CARD-G5-9-结案总表.md`
+- 📌 十轮净增：测试 **33 → 97**、负验证变体 **0 → 44**、S6 完整裁判 **138 → 202**
+- 📌 HIGH 轨迹 4→4→4→5→2→1→1→3→2→**0**（非单调，每次回升都是**上一轮修复自身引入的新面**）；
+  真正单调的是**发现性质**：主路径缺陷 → 遗漏面 → 失败路径 → 修复自身边界 → **我的报告不实/我的门循环论证** → 结构性形态
+- ⛔ **仍待用户裁定（非结案）**：B2 DD-14 口径冲突 / H6 产物 frontmatter schema（总账 :471 明文需拍板）
+- 📌 移交后续卡：M7 板名 Unicode 控制字符（建议与 G5-3 合卡）/ M10 结构化 provenance /
+  **M11 跨板共享节点批注重复计数（数字错误，建议优先）** / L12 空目录残留 / MEDIUM-6 / LOW-7
+- ⚠️ 结构性残留（不可修，已写进验收单）：`cs1 × kept` 必经二次撤销、create 侧 fsync best-effort、
+  `lstat → unlink` 极窄竞态（POSIX 无按 inode 删除原语）
 ---
 
 **当前状态**（2026-08-20 · **Codex 四轮拒绝收官 → 九路验证 9/9 CONFIRMED → C1-C4 修复批全部落地，五轮送审就绪** · 最近完成的产品提交 `c154a7f2`(C1 真实入口准入) · PLAN `R11-BATCH2-2026-08-17`。⚠️ 锚点纪律：①不记累计 commit 数 ②不落盘 CI run 号/通过数（连续两轮落盘即过期被抓——CI 状态以 `gh run list --limit 3` 实查为准）③收官状态由外部复核裁定不由施工方自宣）:
