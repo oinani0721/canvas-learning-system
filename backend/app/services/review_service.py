@@ -69,7 +69,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path as _Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from app.core.decision_tracker import log_decision
 from app.core.exceptions import CanvasNotFoundException, TaskNotFoundError
@@ -304,6 +304,9 @@ class ReviewService:
         self._task_canvas_map: Dict[str, str] = {}  # Maps task_id to canvas_name
         # Story 32.2 + P0-2: Card state storage with file persistence
         self._card_states: Dict[str, str] = self._load_card_states()
+        # CARD-D3 Codex HIGH-1: 写失败后仍留在内存缓存的 concept (重启即丢)。
+        # 全量快照写成功时整体治愈 (clear), 查询侧据此如实上报 persisted。
+        self._unpersisted_concepts: set = set()
         logger.debug("ReviewService initialized")
 
     @staticmethod
@@ -322,20 +325,35 @@ class ReviewService:
             logger.warning(f"Failed to load FSRS card states: {e}")
         return {}
 
-    async def _save_card_states(self) -> bool:
+    async def _save_card_states(
+        self, pending: Optional[Tuple[str, str]] = None
+    ) -> bool:
         """P0-2: Persist card states to JSON file with concurrency protection.
 
         H2 fix: Uses asyncio.Lock to prevent concurrent writes and atomic
         write (temp file + rename) to prevent file corruption.
 
+        Args:
+            pending: (concept_id, card_data) 本次要写入的状态。
+                CARD-D3 Codex HIGH-2: mutation 必须在锁内应用, 快照才必然
+                包含本次状态 — 返回的 bool 才与本次响应的 card_data 绑定
+                (原锁外 mutate 可被并发覆盖, True 证明不了本次成功)。
+
         Returns:
             True if the atomic write completed; False if it failed (logged).
             CARD-C4 Codex HIGH-1: 文件是唯一真实持久化通道, 失败必须可被
-            调用方看见——save_card_state 消费此值, 不再把"仅内存暂存、
-            重启即丢"谎报成持久化成功。(评分/auto-create 两处调用点的
-            失败信号消费归后续卡, 本卡不改其控制流。)
+            调用方看见。CARD-D3: 评分/auto-create/save_card_state 三处
+            调用点均已消费此值。失败时 pending concept 进 _unpersisted_
+            concepts; 成功的全量快照治愈全部历史失败 (clear)。
+            CARD-D3 Codex HIGH-3: except 含 ValueError — lone surrogate
+            concept_id 的 UnicodeEncodeError 属 ValueError 族, 必须在
+            持久化边界归一为 False, 不得冒泡进算法 fallback。
         """
+        _missing = object()
         async with _card_states_lock:
+            if pending is not None:
+                prev = self._card_states.get(pending[0], _missing)
+                self._card_states[pending[0]] = pending[1]
             try:
                 _CARD_STATES_FILE.parent.mkdir(parents=True, exist_ok=True)
                 data = json.dumps(self._card_states, ensure_ascii=False, indent=2)
@@ -346,8 +364,26 @@ class ReviewService:
                 logger.debug(
                     f"Saved {len(self._card_states)} FSRS card states to {_CARD_STATES_FILE}"
                 )
+                # 全量快照已落盘 → 所有历史写失败的 concept 同时被治愈
+                self._unpersisted_concepts.clear()
                 return True
-            except (OSError, TypeError) as e:
+            except (TypeError, ValueError) as e:
+                # Codex 二轮残留 HIGH: 序列化/编码失败 = 本次 pending 数据
+                # 有毒 (mutation 是唯一入口, 存量条目必然干净) — 必须回滚
+                # 隔离, 否则毒 key 留在全量快照里拖垮后续所有 concept 的写。
+                if pending is not None:
+                    if prev is _missing:
+                        self._card_states.pop(pending[0], None)
+                    else:
+                        self._card_states[pending[0]] = prev
+                    self._unpersisted_concepts.add(pending[0])
+                logger.warning(f"Failed to save FSRS card states: {e}")
+                return False
+            except OSError as e:
+                # 磁盘失败: 卡数据本身没问题, 保留内存 (重启即丢, dirty
+                # 标记), 磁盘恢复后下一次成功全量写即治愈。
+                if pending is not None:
+                    self._unpersisted_concepts.add(pending[0])
                 logger.warning(f"Failed to save FSRS card states: {e}")
                 return False
 
@@ -1013,15 +1049,25 @@ class ReviewService:
                 card_data = self._fsrs_manager.serialize_card(updated_card)
 
                 # Store in memory cache + persist to file (P0-2)
+                # CARD-D3: 消费 _save_card_states 返回值 (Codex HIGH-1 的
+                # 失败信号在此前被丢弃) — 文件是唯一真实持久化通道, 写失败
+                # 意味着"仅内存暂存、重启即丢", 必须在返回值里如实标注。
                 if concept_id:
-                    self._card_states[concept_id] = card_data
-                    await self._save_card_states()
+                    # Codex HIGH-2: mutation 随 pending 进锁内, 不在此处赋值
+                    card_state_persisted = await self._save_card_states(
+                        pending=(concept_id, card_data)
+                    )
+                    degraded_reason = (
+                        None if card_state_persisted else "card_state_write_failed"
+                    )
                 else:
                     # M3 fix: Warn when concept_id is empty — card state will not be persisted
                     logger.warning(
                         f"Empty concept_id for canvas '{canvas_name}' — "
                         f"FSRS card state computed but NOT persisted"
                     )
+                    card_state_persisted = False
+                    degraded_reason = "empty_concept_id_not_persisted"
 
                 # Extract state value safely
                 state_val = getattr(updated_card, "state", 0)
@@ -1055,6 +1101,9 @@ class ReviewService:
                     "recorded_at": datetime.now(timezone.utc).isoformat(),
                     "status": "recorded",
                     "algorithm": "fsrs-4.5",
+                    # CARD-D3: 持久化诚实信号 (评分计算成功 != 状态已落盘)
+                    "card_state_persisted": card_state_persisted,
+                    "degraded_reason": degraded_reason,
                 }
 
             # INTENTIONAL: Third-party py-fsrs library may raise unpredictable errors; fallback to legacy
@@ -1094,6 +1143,9 @@ class ReviewService:
             "recorded_at": now_utc.isoformat(),
             "status": "recorded",
             "algorithm": "ebbinghaus-fallback",
+            # CARD-D3: fallback 分支没有 FSRS 卡状态可持久化 → 不适用 (None)
+            "card_state_persisted": None,
+            "degraded_reason": None,
         }
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -2022,8 +2074,8 @@ class ReviewService:
             (in-memory cache still updated, lost on restart). Codex HIGH-1:
             返回值必须如实反映唯一真实通道的结果。
         """
-        self._card_states[concept_id] = card_data
-        persisted = await self._save_card_states()
+        # CARD-D3 Codex HIGH-2: mutation 随 pending 进锁内
+        persisted = await self._save_card_states(pending=(concept_id, card_data))
         logger.debug(f"Saved card state to memory cache: {concept_id}")
         return persisted
 
@@ -2089,11 +2141,28 @@ class ReviewService:
                 # G-FAKE-007), 每次必失败只留 warning + 计数器, 从未写入过任何
                 # 存储。文件通道即唯一真实持久化; 真接 Graphiti 须等 epic-5a
                 # C-1/C-2 契约。
-                self._card_states[concept_id] = card_data
-                await self._save_card_states()
+                # CARD-D3: 消费返回值 — auto-create 写失败时卡只活在内存,
+                # 重启后消失、due 被重置, 必须让调用方看见 (persisted=False)。
+                # Codex HIGH-2: mutation 随 pending 进锁内。
+                auto_created = True
+                persisted = await self._save_card_states(
+                    pending=(concept_id, card_data)
+                )
+                if not persisted:
+                    logger.warning(
+                        f"Auto-created FSRS card for {concept_id} NOT persisted "
+                        f"(file write failed) — card exists in memory only"
+                    )
             else:
                 # Deserialize existing card
                 card = self._fsrs_manager.deserialize_card(card_data)
+                # CARD-D3 Codex HIGH-1: 缓存命中不得无条件视为已持久化 —
+                # 此前写失败的 concept 在 _unpersisted_concepts 里, 命中它
+                # 必须继续如实上报 False (锁内读: 与在途写串行, 写者失败
+                # add / 成功 clear 之后本读取才进行)。
+                auto_created = False
+                async with _card_states_lock:
+                    persisted = concept_id not in self._unpersisted_concepts
 
             # Get retrievability (current recall probability)
             retrievability = self._fsrs_manager.get_retrievability(card)
@@ -2120,6 +2189,10 @@ class ReviewService:
             difficulty = getattr(card, "difficulty", None)
             result = {
                 "found": True,
+                # CARD-D3: found=True 只说明卡存在 (可能仅内存), persisted
+                # 才是持久层的真话; reason 仅在失败时出现 (避免 None 值
+                # 破坏既有 result.get("reason", "") 消费方)。
+                "persisted": persisted,
                 "stability": float(stability) if stability is not None else 1.0,
                 "difficulty": float(difficulty) if difficulty is not None else 5.0,
                 "state": state_int,
@@ -2130,6 +2203,12 @@ class ReviewService:
                 "last_review": getattr(card, "last_review", None),
                 "card_state": card_data,  # Full JSON for plugin to cache/deserialize
             }
+            if not persisted:
+                result["reason"] = (
+                    "auto_created_not_persisted"
+                    if auto_created
+                    else "cached_state_not_persisted"
+                )
 
             logger.debug(
                 f"FSRS state for {concept_id}: stability={result['stability']:.2f}, "

@@ -81,12 +81,20 @@ def review_service(review_service_factory):
 
 @pytest.fixture
 def fallback_service(mock_canvas_service, mock_task_manager):
-    """ReviewService with FSRS disabled (Ebbinghaus fallback mode)."""
+    """ReviewService with FSRS disabled (Ebbinghaus fallback mode).
+
+    CARD-D3 Codex LOW-2: 构造会把模块全局 FSRS_RUNTIME_OK 置 False,
+    yield 后恢复原值, 防止污染同 worker 随后的 health 类测试。
+    """
+    from app.services import review_service as rs_module
     from app.services.review_service import ReviewService
 
+    prev_runtime_ok = rs_module.FSRS_RUNTIME_OK
     with patch("app.services.review_service.create_fsrs_manager", return_value=None):
-        return ReviewService(
+        svc = ReviewService(
             canvas_service=mock_canvas_service,
             task_manager=mock_task_manager,
             fsrs_manager=None,
         )
+    yield svc
+    rs_module.FSRS_RUNTIME_OK = prev_runtime_ok
