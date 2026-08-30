@@ -1423,7 +1423,9 @@ def test_atomic_write_reports_target_left_behind_when_rollback_refuses(tmp_path)
         mod.os.link, mod._rollback_published = real_link, real_rb
         mod.os.close(dfd)
     assert err is not None
-    assert "仍在" in err, f"撤销未完成却没在回执里说明: {err}"
+    # round-7 3B 后文案改保守（不再一律断言「仍在」，未确认时说「可能仍在」）
+    assert "判据不符" in err or "仍在" in err, f"撤销未完成却没在回执里说明: {err}"
+    assert "请手动检查" in err
 
 
 def test_fsync_dir_does_not_treat_eperm_as_unsupported(tmp_path):
@@ -1571,7 +1573,7 @@ def test_atomic_write_clears_stale_rollback_note_on_second_success(tmp_path):
     def staged_rb(*a, **kw):
         calls["n"] += 1
         if calls["n"] == 1:
-            return "kept", "第一次拒删"
+            return "kept", "STALE-FIRST-NOTE-MUST-NOT-SURVIVE"
         return real_rb(*a, **kw)  # 第二次走真实逻辑（会真删掉）
 
     mod.os.link, mod._rollback_published = evil_link, staged_rb
@@ -1583,7 +1585,18 @@ def test_atomic_write_clears_stale_rollback_note_on_second_success(tmp_path):
     assert calls["n"] >= 2, "未触达第二次撤销（注入点失效）"
     assert err is not None
     assert not target.exists(), "第二次撤销应已删掉目标"
-    assert "仍在" not in err, f"目标已删，回执却说仍在: {err}"
+    # ⚠️ 原断言写的是 `"仍在" not in err` —— 但 round-7 的 3B 把保守文案里的
+    # 「仍在」去掉了，于是这道门被**我自己的文案修改架空**：禁掉清除逻辑后照样绿。
+    # 改为断言**性质**：第一次那条 note 的内容绝不能残留到最终回执里。
+    # ⚠️ 这道门被返工过两次，教训值得留在这里：
+    #   ① 原断言 `"仍在" not in err` —— round-7 的 3B 把保守文案里的「仍在」去掉了，
+    #      于是它被**我自己的文案修改架空**；
+    #   ② 改成 `哨兵 not in err` 仍不承重 —— 第二次撤销成功后 rollback_note 被清成
+    #      None、`if rollback_note:` 不成立，**后缀根本不拼**，两种实现的输出都不含
+    #      哨兵 ⇒ **否定断言在「该内容根本不出现」时恒真**。
+    # ⇒ 改为**正向断言**：正例下 err 必须**恰好**是无后缀形态；
+    #    mutation 下旧 note 会被拼上去，字符串随即不等 ⇒ 门真正承重。
+    assert err == "原子写失败: OSError", f"第二次撤销已成功，回执却带上了撤销未完成的后缀: {err!r}"
 
 
 def test_rollback_reports_unsynced_when_dir_fsync_fails(tmp_path):
@@ -1801,3 +1814,132 @@ def test_atomic_write_second_rollback_unsynced_wording_matches_fact(tmp_path):
     assert err is not None
     assert "仍在 vault 里" not in err, f"文案与事实相反: {err}"
     assert "已撤销该文件" in err, f"未反映已删: {err}"
+
+
+# ═════ round-7 收官轮：3A/3B + 矩阵缺格（CARD-收口A ③ 七段）═════
+
+
+def test_rollback_reports_absent_when_target_vanished_before_unlink(tmp_path):
+    """round-7 阻断 3B（**回执与事实相反**的确定性反例）：
+    `lstat` 看见目标后、`unlink` 之前被并发者删掉 ⇒ `FileNotFoundError`。
+    原实现泛化成 `kept`，调用方据此声称「目标仍在 vault 里」——**路径实际已不存在**。
+    归 `absent` 才是事实。"""
+    mod = _load_module()
+    d = tmp_path / "d"
+    d.mkdir()
+    f = d / "t.md"
+    f.write_text("OURS\n", encoding="utf-8")
+    st = f.stat()
+    dfd = mod.os.open(d, mod.os.O_RDONLY | mod.os.O_DIRECTORY)
+    real_unlink = mod.os.unlink
+
+    def vanishing_unlink(name, **kw):
+        raise FileNotFoundError("并发者已删")
+
+    mod.os.unlink = vanishing_unlink
+    try:
+        state, msg = mod._rollback_published("t.md", dfd, (st.st_dev, st.st_ino))
+    finally:
+        mod.os.unlink = real_unlink
+        mod.os.close(dfd)
+    assert state == "absent", f"目标已消失却报 {state}（原实现泛化成 kept）"
+    assert msg is None
+
+
+def test_rollback_unconfirmed_wording_is_conservative(tmp_path):
+    """round-7 阻断 3B（另一半）：`unlink` 的**其他** OSError 确实无法确认目标去向，
+    措辞必须保守（「撤销结果未确认…可能仍在」），不得断言「仍在」。"""
+    mod = _load_module()
+    d = tmp_path / "d"
+    d.mkdir()
+    f = d / "t.md"
+    f.write_text("OURS\n", encoding="utf-8")
+    st = f.stat()
+    dfd = mod.os.open(d, mod.os.O_RDONLY | mod.os.O_DIRECTORY)
+    real_unlink = mod.os.unlink
+
+    def eperm_unlink(name, **kw):
+        raise PermissionError("simulated")
+
+    mod.os.unlink = eperm_unlink
+    try:
+        state, msg = mod._rollback_published("t.md", dfd, (st.st_dev, st.st_ino))
+    finally:
+        mod.os.unlink = real_unlink
+        mod.os.close(dfd)
+    assert state == "kept"
+    assert msg and "未确认" in msg and "可能仍在" in msg, f"措辞不够保守: {msg}"
+
+
+def test_create_third_callsite_unsynced_has_crash_warning(tmp_path, capsys):
+    """round-7 阻断 3A（**矩阵缺格**）：第三调用点（目录移出后的撤销）的
+    `deleted_unsynced` 文案原先只说「已撤销，但持久化未确认」，
+    缺「崩溃后目标可能重现 / 请复查该路径」——前两个调用点都有，唯独它没有。"""
+    vault = build_vault(tmp_path)
+    sha = do_preview(vault, ["板一"])["content_sha256"]
+    exam = vault / EXAM_DIR_NAME
+    moved = tmp_path / "moved_exam"
+    mod = _load_module()
+    real_atomic, real_rb = mod._atomic_write, mod._rollback_published
+
+    def evil_atomic(tmp_p, target, content, dir_fd):
+        r = real_atomic(tmp_p, target, content, dir_fd)
+        exam.rename(moved)  # 触发「目录移出 vault」检出
+        return r
+
+    def unsynced_rb(*a, **kw):
+        return "deleted_unsynced", "目录项持久化未确认 OSError"
+
+    mod._atomic_write, mod._rollback_published = evil_atomic, unsynced_rb
+    try:
+        rc = mod.cmd_create(
+            argparse.Namespace(
+                vault=str(vault),
+                boards=["板一"],
+                anchor=None,
+                ts=TS,
+                expect_content_sha=sha,
+            )
+        )
+    finally:
+        mod._atomic_write, mod._rollback_published = real_atomic, real_rb
+    out = capsys.readouterr().out
+    assert rc == 2
+    assert "崩溃后目标可能重现" in out, f"第三调用点缺崩溃警示: {out}"
+    assert "请复查该路径" in out, f"第三调用点缺复查提示: {out}"
+
+
+def test_create_third_callsite_kept_does_not_assert_still_present(tmp_path, capsys):
+    """round-7 矩阵缺格（第三调用点 × kept）：撤销结果未确认时不得断言「文件仍在」。"""
+    vault = build_vault(tmp_path)
+    sha = do_preview(vault, ["板一"])["content_sha256"]
+    exam = vault / EXAM_DIR_NAME
+    moved = tmp_path / "moved_exam2"
+    mod = _load_module()
+    real_atomic, real_rb = mod._atomic_write, mod._rollback_published
+
+    def evil_atomic(tmp_p, target, content, dir_fd):
+        r = real_atomic(tmp_p, target, content, dir_fd)
+        exam.rename(moved)
+        return r
+
+    def kept_rb(*a, **kw):
+        return "kept", "撤销结果未确认 (unlink 失败 PermissionError), 目标可能仍在"
+
+    mod._atomic_write, mod._rollback_published = evil_atomic, kept_rb
+    try:
+        rc = mod.cmd_create(
+            argparse.Namespace(
+                vault=str(vault),
+                boards=["板一"],
+                anchor=None,
+                ts=TS,
+                expect_content_sha=sha,
+            )
+        )
+    finally:
+        mod._atomic_write, mod._rollback_published = real_atomic, real_rb
+    out = capsys.readouterr().out
+    assert rc == 2
+    assert "未确认" in out and "可能仍在" in out, f"未采用保守措辞: {out}"
+    assert "请手动检查该路径" in out

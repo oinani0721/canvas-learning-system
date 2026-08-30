@@ -258,13 +258,7 @@ VARIANTS: list[tuple[str, str, list[tuple[str, str]], str]] = [
                 '    if False:\n        return "kept", None',
             ),
             (
-                "    try:\n"
-                "        os.unlink(name, dir_fd=dir_fd)\n"
-                "    except OSError as e:\n"
-                '        return "kept", f"unlink 失败 {type(e).__name__}"',
-                "    try:\n"
-                "        os.unlink(name, dir_fd=dir_fd)\n"
-                "    except OSError:\n"
+                '        return "kept", f"撤销结果未确认 (unlink 失败 {type(e).__name__}), 目标可能仍在"',
                 "        pass",
             ),
         ],
@@ -357,9 +351,13 @@ VARIANTS: list[tuple[str, str, list[tuple[str, str]], str]] = [
         [
             (
                 '            if rb_state in ("deleted", "absent"):\n'
-                "                rollback_note, rollback_deleted = None, False",
+                "                rollback_note, rollback_deleted = None, False\n"
+                '            elif rb_state == "deleted_unsynced":\n'
+                "                rollback_note, rollback_deleted = rb_err2, True",
                 "            if False:\n"
-                "                rollback_note, rollback_deleted = None, False",
+                "                rollback_note, rollback_deleted = None, False\n"
+                '            elif rb_state == "deleted_unsynced":\n'
+                "                rollback_note, rollback_deleted = rb_err2, True",
             )
         ],
         "test_atomic_write_clears_stale_rollback_note_on_second_success",
@@ -376,6 +374,32 @@ VARIANTS: list[tuple[str, str, list[tuple[str, str]], str]] = [
         "test_rollback_reports_unsynced_when_dir_fsync_fails",
     ),
     (
+        "W",
+        "round-5 LOW-1 回退: 成功路径不再单列 tmp 的 FileNotFoundError",
+        [
+            (
+                "    except FileNotFoundError:\n"
+                "        # round-5 LOW-1: tmp 已被并发清掉是**正常**结果, 不是「未能清理」。\n"
+                "        # 失败路径早已单列了它, 成功路径漏了 ⇒ 会发出误导性的「请手动删除」。\n"
+                "        pass\n"
+                "    except OSError as e:",
+                "    except OSError as e:",
+            )
+        ],
+        "test_atomic_write_no_false_warning_when_tmp_already_gone",
+    ),
+    (
+        "X",
+        "round-5 MEDIUM-2 回退: _fsync_dir 去掉 O_DIRECTORY|O_NOFOLLOW",
+        [
+            (
+                "        fd = os.open(d, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)",
+                "        fd = os.open(d, os.O_RDONLY)",
+            )
+        ],
+        "test_fsync_dir_refuses_symlink_path",
+    ),
+    (
         "H",
         "HIGH-3(1) 回退: 去掉紧贴 unlink 前的 identity 复核",
         [
@@ -385,6 +409,83 @@ VARIANTS: list[tuple[str, str, list[tuple[str, str]], str]] = [
             )
         ],
         "test_undo_refuses_when_target_swapped_before_unlink",
+    ),
+    (
+        "Y",
+        'round-6 反例1 回退: EINVAL/ENOTSUP 落回 "deleted"',
+        [
+            (
+                '        if getattr(e, "errno", None) in (errno.EINVAL, errno.ENOTSUP):',
+                "        if False:",
+            )
+        ],
+        "test_rollback_always_reports_unsynced_when_fsync_unconfirmed",
+    ),
+    (
+        "Z",
+        "round-6 反例1b 回退: 不再封闭非 OSError(删后异常外逸=无回执)",
+        [
+            (
+                "    except Exception as e:  # noqa: BLE001",
+                "    except ValueError as e:  # 故意收窄",
+            )
+        ],
+        "test_rollback_does_not_leak_non_oserror_after_unlink",
+    ),
+    (
+        "AA",
+        "round-6 反例2 回退: 首次撤销分支重新读错变量名(UnboundLocalError)",
+        [
+            (
+                '                    rollback_note = rb_err if rb_state == "deleted_unsynced" else None',
+                '                    rollback_note = rb_err2 if rb_state == "deleted_unsynced" else None',
+            )
+        ],
+        "test_atomic_write_first_rollback_unsynced_yields_structured_receipt",
+    ),
+    (
+        "AB",
+        "round-6 反例3 回退: 回执文案不再区分「已删未确认」与「仍在」",
+        [("            if rollback_deleted:", "            if False:")],
+        "test_atomic_write_first_rollback_unsynced_yields_structured_receipt",
+    ),
+    (
+        "AC",
+        "round-7 阻断3B 回退: unlink 的 FileNotFoundError 重新泛化为 kept",
+        [
+            (
+                "    except FileNotFoundError:\n"
+                '        # ⛔ round-7 阻断 3B: 原实现把它泛化成 "kept" ⇒ 调用方声称「目标仍在\n'
+                "        # vault 里」，而路径**实际已经不存在**（lstat 看见之后被并发者删掉）。\n"
+                "        # 这是确定性的「回执与实际副作用相反」。归 absent 才是事实。\n"
+                '        return "absent", None\n'
+                "    except OSError as e:",
+                "    except OSError as e:",
+            )
+        ],
+        "test_rollback_reports_absent_when_target_vanished_before_unlink",
+    ),
+    (
+        "AD",
+        "round-7 阻断3B 回退: unlink 其他错误恢复断言式措辞",
+        [
+            (
+                '        return "kept", f"撤销结果未确认 (unlink 失败 {type(e).__name__}), 目标可能仍在"',
+                '        return "kept", f"unlink 失败 {type(e).__name__}"',
+            )
+        ],
+        "test_rollback_unconfirmed_wording_is_conservative",
+    ),
+    (
+        "AE",
+        "round-7 阻断3A 回退: 第三调用点去掉崩溃重现警示",
+        [
+            (
+                '                        "崩溃后目标可能重现, 请复查该路径)"',
+                '                        ")"',
+            )
+        ],
+        "test_create_third_callsite_unsynced_has_crash_warning",
     ),
 ]
 
@@ -424,12 +525,14 @@ def main() -> int:
     print(f"备份: {BACKUP} (sha {base_sha[:16]}…)\n")
 
     ok = True
+    ran = 0
     print("=== 基线: 完整套件应全绿 ===")
     rc, line = run_pytest(None)
     print(f"  {'✅' if rc == 0 else '❌'} 基线 exit={rc} | {line}")
     ok &= rc == 0
 
     for name, desc, pairs, selector in VARIANTS:
+        ran += 1
         print(f"\n=== 变体 {name}: {desc} ===")
         text = SRC.read_text(encoding="utf-8")
         bad = False
@@ -458,6 +561,20 @@ def main() -> int:
             if sha(SRC) != base_sha:
                 print("  ❌ 还原失败：字节与备份不一致")
                 ok = False
+
+    # ⛔ round-7 自检门: CARD-收口A 曾用整段行号替换修变体, **误删了 W/X 两个**,
+    # 而脚本照样 RESULT: PASS —— 它只对**存在的**变体求值。更糟的是我据此在提交
+    # 信息与验收单里写了「28 变体 28/28」, 而实际只剩 22 个, 构成不实陈述
+    # (由 round-7 独立复核数 stdout 才发现)。
+    # ⇒ 脚本必须自己核对「声明数 == 实跑数」, 否则「删了门还全绿」永远不会被发现。
+    print(f"\n=== 变体计数自检 ===")
+    declared = len(VARIANTS)
+    print(f"  声明 {declared} 个; 本次实跑 {ran} 个")
+    if declared != ran:
+        print(f"  ❌ 声明数与实跑数不符 —— 有变体未被执行(可能被误删或提前 continue)")
+        ok = False
+    else:
+        print(f"  ✅ 一致")
 
     print("\n=== 还原后复核 ===")
     same = sha(SRC) == base_sha

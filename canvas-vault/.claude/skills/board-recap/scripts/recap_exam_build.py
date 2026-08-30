@@ -428,7 +428,7 @@ def _rollback_published(
     except FileNotFoundError:
         return "absent", None  # 已经不在了, 无需撤销
     except OSError as e:
-        return "kept", f"撤销前复核失败 {type(e).__name__}"
+        return "kept", f"撤销结果未确认 (复核失败 {type(e).__name__}), 目标可能仍在"
     if identity is not None and (st_now.st_dev, st_now.st_ino) != identity:
         return "kept", None  # 已不是我们的 inode ⇒ 是别人的文件, 绝不删
     if expect_sha is not None:
@@ -441,13 +441,19 @@ def _rollback_published(
             finally:
                 os.close(cfd)
         except OSError as e:
-            return "kept", f"撤销前回读失败 {type(e).__name__}"
+            return "kept", f"撤销结果未确认 (回读失败 {type(e).__name__}), 目标可能仍在"
         if hashlib.sha256(buf).hexdigest() != expect_sha:
             return "kept", None  # 内容已不是我们写的那份 ⇒ 不删
     try:
         os.unlink(name, dir_fd=dir_fd)
+    except FileNotFoundError:
+        # ⛔ round-7 阻断 3B: 原实现把它泛化成 "kept" ⇒ 调用方声称「目标仍在
+        # vault 里」，而路径**实际已经不存在**（lstat 看见之后被并发者删掉）。
+        # 这是确定性的「回执与实际副作用相反」。归 absent 才是事实。
+        return "absent", None
     except OSError as e:
-        return "kept", f"unlink 失败 {type(e).__name__}"
+        # 其余错误确实**无法确认**目标去向 —— 措辞必须保守，不得断言「仍在」。
+        return "kept", f"撤销结果未确认 (unlink 失败 {type(e).__name__}), 目标可能仍在"
     # round-5 HIGH-2(b): 原实现 unlink 后直接返回 "deleted", 调用方据此明确声称
     # 「已撤销」—— 但目录项未 fsync, 崩溃后目标可能**重现**, 声称就成了假话。
     # 这里对已在手的 dir_fd 直接 fsync(无需按路径重开)。失败不改结论(文件确实
@@ -638,7 +644,7 @@ def _atomic_write(
                     "崩溃后目标可能重现, 请复查该路径)"
                 )
             else:
-                msg += f" (⚠️ 已发布的目标仍在 vault 里: {rollback_note}, 请手动检查)"
+                msg += f" (⚠️ {rollback_note}, 请手动检查该路径)"
         if tmp_err:
             msg += f" (⚠️ 临时文件未清理 {tmp_err}, 下次同 ts 会被拒, 请手动删除)"
         return msg, None
@@ -847,10 +853,13 @@ def cmd_create(args) -> int:
                 tail = {
                     "deleted": " (已撤销该文件)",
                     "absent": " (该文件已不存在)",
-                    "deleted_unsynced": f" (已撤销, 但{rb_err or '目录项持久化未确认'})",
+                    "deleted_unsynced": (
+                        f" (已撤销该文件, 但{rb_err or '目录项持久化未确认'}; "
+                        "崩溃后目标可能重现, 请复查该路径)"
+                    ),
                 }.get(
                     rb_state,
-                    f" (⚠️ 文件仍在: {rb_err or '判据不符, 故意未删'}, 请手动检查)",
+                    f" (⚠️ {rb_err or '判据不符, 故意未删, 目标仍在'}, 请手动检查该路径)",
                 )
                 write_err = moved + tail
     finally:
