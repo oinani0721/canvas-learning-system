@@ -97,6 +97,14 @@ jobs:
       #      test_memory_service_contextvar_leak.py 已按 `_vault_scoped_group_id`
       #      新契约（进程级单 active vault，忽略 ContextVar）语义重写，
       #      conftest 的 collect_ignore 已回收，文件已加入下方显式清单。
+      #   4. ✅ 已完成 (BATCH-2026-08-29-第六批 / CARD-收口A): G3-1 事件账 schema
+      #      契约 test_learning_events_schema_contract.py 与 G3-4 FSRS golden
+      #      vectors test_fsrs_golden_vectors.py 此前未接入任何 workflow
+      #      (第五批复核裁定 S3-b)，已加入下方显式清单。接入前按本步**完全相同**
+      #      的 env/选择集/flags 做过本地等价验证：原 15 文件 303 passed →
+      #      加这两个后 516 passed + 1 skipped（303+213=516 严格可加，证明与既有
+      #      清单无交叉污染）。那 1 skipped 是 live 账本用例的自带守卫
+      #      (contract:1078)，CI 无 vault 时同样 skip，不会红。
       - name: Run tests
         env:
           # R11-BATCH2 第三环 —— 修掉 hypothesis 与 collection error 后暴露出来的:
@@ -127,6 +135,8 @@ jobs:
             tests/regression/test_all_index_entrypoints_hostile_env.py \
             tests/regression/test_tombstone_read_side_contract.py \
             tests/regression/test_real_entrypoint_admission.py \
+            tests/regression/test_fsrs_golden_vectors.py \
+            tests/regression/test_learning_events_schema_contract.py \
             tests/unit/test_vault_admission.py \
             tests/unit/test_memory_service_contextvar_leak.py \
             -m "not integration" \
