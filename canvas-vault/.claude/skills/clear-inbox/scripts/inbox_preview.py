@@ -1,0 +1,1431 @@
+#!/usr/bin/env python3
+"""clear-inbox · inbox_preview.py — 待处理盘点提名 preview 引擎（CARD-G5-6 · 只读）v1
+
+对 `_待处理/`（可 --inbox-dir 覆盖）做确定性盘点：逐份给出**建议去向 + 依据 +
+冲突标记**，超额按最旧优先分批（≤10），附 Sleeping/ 台账与 30 天标记，输出
+版本化 JSON（schema_version=1，冻结）+ 自渲染人读 MD。
+
+规格来源 = `_bmad-output/研究/语料快照-G5-1/2026-08-16-批注回复-R8-清待处理skill详细使用流程.md`
+的 **Step 0-2 只读半边**（守卫 / 盘点分批 / 逐份提名）。Step 3-5（用户拍板、
+执行、写侧回执）不在本卡范围 —— 属 CARD-G5-7 执行侧与撤销链。
+
+⛔ 红线（沿用 board-split G5-2/G5-3 先例）：
+  - **零写侧**：只读 vault 与收件箱既有文件；唯一写入 = --out-dir（缺省
+    `<vault>/outputs/`）下的两份 preview 产物。不移动、不删除、不改 frontmatter。
+  - scripts-only：无 SKILL.md、无 LLM 叙述层 —— 故不触
+    `backend/scripts/check_skill_routing_block.py::EXPECTED_SKILLS`（T3 只认
+    `skills/*/SKILL.md`）。skill 化与登记留给下梯队。
+  - 确定性：同输入二跑 JSON+MD 逐字节相等（零时间戳零随机；「现在」经 --now 注入）。
+
+━━━━━━━━━━━━━━━ 判据次序（卡片钦定，落盘 criteria_order 逐字同序）━━━━━━━━━━━━━━━
+  C1 source URL        frontmatter `source:` 为 http(s) URL → primary-record · 留原地
+  C2 AI 自述           文头窗口出现字面量 AI 生成标记 → secondary-synthesis · 归档
+                       （文件名带 R{n}_ 时归轮次目录，否则 `deep research 报告/`）
+  C3 空 / 空骨架       0 字节，或剥离后实质正文 = 0 → 建议删
+  C4 精确重复          归一化正文与库内某文件**逐字相等** → 建议删 + 正本相对路径
+  C5 R{n}_ 文件名      → 归档到 `R{n}/`（类型按子模式表判，判不出则类型留空并标注）
+  C6 兜底              → **拿不准**：不给去向、不给类型，附一句具体提问
+
+⛔ 「拿不准」0 硬猜 —— 三条可机械检验的不变式（裁判逐条钉死）：
+  1. `verdict == "建议删"` ⟹ `criterion ∈ {C3, C4}`；且 C4 必须给出 `exact_duplicate_of`。
+     **近似重复（difflib）永远不产出建议删** —— 它只标「疑似·拿不准」。
+  2. `criterion == "C6"` ⟹ `target_hint is None` 且 `nomination_type is None`。
+     兜底不许被降级成一个看起来确定的去向（例如「默认归档到某处」）。
+  3. 「归入白板」「新建节点」需要判断材料主题与既有白板的归属关系 —— 本引擎
+     **无机械判据，故恒不产出**（`verdict_vocabulary.human_only`）。这类材料一律
+     落 C6 拿不准并把这两个选项写进提问里，交给人/LLM 层。
+
+⛔ 显式偏差与已知边界（全部声明，无未声明项）：
+  1. **近似重复不是第七条判据，是修饰符**。R8 原稿 #4 写的是「高相似 → 建议删」，
+     卡片把它收紧为「精确重复才建议删」。于是 difflib 相似度在本引擎里**永远不决定
+     任何事**：前面已有判据命中时它挂 conflict 留痕；走到 C6 时它把兜底理由具体化为
+     「疑似重复」。verdict 不受相似度影响 —— 0.93 这个数只呈现，不裁决。
+  2. **精确重复在 C1/C2/C5 命中时不夺 verdict**（次序铁律），但证据必须留痕：
+     `exact_duplicate_of` 照常填、并挂 `exact_duplicate_under_other_verdict` 冲突。
+     信息零丢失，次序仍然是真的次序而不是「谁先算完谁赢」。
+  3. **批内互为逐字重复**（两件都在收件箱）→ 只挂 `duplicate_within_batch` 冲突，
+     **不**产出建议删：谁是正本在只读侧不可判，判了就是硬猜。
+  4. **AI 自述标记是字面量匹配，不做语义否定检测**：正文写「这不是 AI 生成的」也会
+     命中。故 basis 一律带上行号与逐字片段供人核对 —— 本引擎只提名，不执行。
+  5. **裸 --now 按 Asia/Shanghai 解释**（不用 `datetime.astimezone()` 的宿主本地时区）：
+     本卡有「二跑逐字节相等」硬门，宿主 TZ 会让同一份输入在不同机器产出不同产物。
+     此处与 `scripts/daily_review_pick.py` 的裸时间语义有意分歧，理由如上。
+  6. **年龄口径**：秒级四舍五入后按整日向下取整。不四舍五入的话，`os.utime` 的
+     float→ns 转换抖动（|ts| > 2^53 ns 时约 ±128ns）会把「整 5 天」判成 4 天。
+  7. **`last_cleanup`（R8 Step 0 的「上次清仓 3 天前」）恒为 null**：只读 preview
+     不持有清仓台账，该台账属执行侧（G5-7）。如实留空并说明，不推测、不伪造。
+  8. **近似比对有成本上界**：正文超 `NEAR_DUP_BODY_CHAR_CAP` 或长度比落在
+     `[1/NEAR_DUP_LEN_RATIO, NEAR_DUP_LEN_RATIO]` 之外的对不比。跳过数落进
+     `near_dup_scan` —— 「没比对」与「比对过没有」必须在产物里可区分。
+  9. **语料库规模上界** `CORPUS_FILE_CAP`：超出即截断并置 `truncated=true`。
+     截断状态下「无重复」只意味着「已扫的部分无重复」，产物如实这么写。
+ 10. **产物名取自收件箱目录 basename**：两个不同路径但同 basename 的收件箱
+     （`a/_待处理` 与 `b/_待处理`）写同一个 --out-dir 会互相覆盖。不自动加路径
+     哈希消歧 —— 那会让产物名不可预测；请给不同的 --out-dir。
+ 11. **正本选择在多份同正文时取相对路径字典序最小者**（其余落
+     `exact_duplicate_others`）。没有更有依据的选法就选一个**可预测**的 ——
+     取"最先扫到的"会让正本随目录遍历顺序变。
+ 12. **frontmatter 解析是顶层 `key: value` 扫描，不引 YAML 依赖**：块标量
+     （`source: |` 换行缩进）拿到的值是 `|` 而非 URL，于是 C1 不命中、材料落到
+     后续判据。方向是安全的（不会误判成一手），但确实识别不了这种写法。
+ 13. **身份键对文件名做 NFC 归一**：只差 NFC/NFD 形态的两个文件名会得到同一个
+     stable_id（与 `split_preview` 的重名判定同口径）。macOS 上这两者本就不能共存；
+     在允许共存的文件系统上，这是一个已知且有意的合并。
+ 14. **极值时刻一律降级不崩、也不伪造**：人话时刻不可表示时落 `unrepresentable`
+     占位，绝不换算出一个看似正常的时间。两条来源的可达性**不同**，如实分列：
+     - **mtime 侧不可能越界**。实测（macOS APFS，本卡取证）：`os.utime` 把
+       mtime 设到 9999-12-31 时**静默钳位**到 int64 纳秒上界 = 2262-04-11T23:47:16Z，
+       `st_mtime` 与 `st_mtime_ns` 回读到的都是钳位值，不抛异常。所以引擎能观测到的
+       最大 mtime 就是 2262-04-11 —— 人话格式化不会从 mtime 溢出。⛔ 这里的诚实点是：
+       那个 2262 **不是引擎编的**，是文件系统真实存着的值，引擎照实报。
+     - **`--now` 侧可达**（不受文件系统约束）：`--now 9999-12-31T23:59:59+00:00` 换算到
+       Asia/Shanghai 即 OverflowError，`--now …-11:00` 连 UTC 侧都 ValueError ——
+       此时落占位。**不**在入口拒绝：拒绝会让「时刻太大」这件事看起来像输入非法，
+       而它其实只是「这个时刻没法用人话写出来」，产物本身照常成立。
+     `age_days` 由「秒差四舍五入到整秒后整除 86400」得出，不受格式化降级影响。
+
+━━━━━━━━━━━━━━━━━━━━━ 与 board-split 的复用关系（卡片 (c)）━━━━━━━━━━━━━━━━━━━━━
+本模块以 importlib 从**兄弟 skill** `board-split/scripts/split_preview.py` 加载并复用：
+`compute_stable_id`（身份键编码纪律）、`write_pair_atomically_checked` / `prepare_out_dir`
+/ `assert_symlink_free`（写侧物理防御：先验祖先链无 symlink 再单级 mkdir、O_NOFOLLOW +
+nlink 准入、两份产物先验完再落笔、失败只回滚本次新建的目录项）、`nfc`、`md_cell`、
+`MAX_FILENAME_BYTES`。**不复制一份**：那套防御经多轮对抗审查加固，复制等于制造第二个
+会漂移的安全实现。来源缺失时 fail-closed 报出确切路径，不做本地降级副本。
+
+⛔ 身份空间不可互换（DD-13 名实一致，与 split_preview 对 board_manifest 的声明同型）：
+  `compute_stable_id` 的命名空间段写死为 `split-anchor/v1`、前缀 `bsa1-`，指向
+  「原板里的一段来源锚点」。本模块的 ID 指向「收件箱里的一个文件路径」，语义不同层。
+  做法：把 `INBOX_ID_NAMESPACE = "inbox-item/v1"` 塞进 heading-path 槽位（该函数的载荷
+  用长度前缀编码，对任意字节单射 → 与任何真实 split 候选的载荷必不相同），再把返回值的
+  `bsa1-` 换成自有前缀 `inb1-`。于是编码纪律单一真相源，标签不冒充。
+  身份键里**只有路径**：改内容、改 mtime、改 frontmatter 一律不换 ID；改名/移动才换。
+
+用法:
+    python3 inbox_preview.py --vault <vault> --now <ISO时刻> [--inbox-dir DIR]
+                             [--out-dir DIR] [--batch-size N≤10]
+退出码: 0 成功（含空仓）/ 1 输入非法、显式 inbox 不存在、写侧防御拒绝
+"""
+
+from __future__ import annotations
+
+import argparse
+import difflib
+import hashlib
+import importlib.util
+import json
+import os
+import re
+import sys
+from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
+
+# ───────────────────── 复用来源装载（fail-closed，不做降级副本） ─────────────────────
+
+#: 兄弟 skill 的只读 preview 引擎 —— 写侧物理防御与身份键编码的单一真相源。
+_SP_PATH = (
+    Path(__file__).resolve().parents[2] / "board-split" / "scripts" / "split_preview.py"
+)
+
+
+def _load_split_preview():
+    """加载复用来源。⛔ 缺失即拒绝运行：本引擎的写侧防御全部来自它，
+    退化成「自己简单写一下」等于在安全面上开一个没人审过的旁路。"""
+    if not _SP_PATH.is_file():
+        raise SystemExit(
+            "✗ 复用来源缺失，拒绝以未加固的写侧运行。需要文件: "
+            f"{_SP_PATH}\n"
+            "  （本引擎的 out-dir symlink 守卫 / O_NOFOLLOW 准入 / 双产物原子发布"
+            " 全部复用该模块，不做本地降级副本。）"
+        )
+    spec = importlib.util.spec_from_file_location("_g56_split_preview", _SP_PATH)
+    mod = importlib.util.module_from_spec(spec)
+    # ⛔ 零写侧的第一现场（Codex 审查实证抓出）：`exec_module` 默认会在被导入模块
+    # 旁边写 `__pycache__/*.pyc` —— 那是往 **vault 里**、而且是**另一条车道的
+    # board-split 目录里**落文件。零写侧不是"不改用户的 md"，是"除 out-dir 外
+    # 一个字节都不落"。原先的零写快照抓不到它: fixture 树里根本没有真实 skills 目录，
+    # 而 live 快照跑的时候 .pyc 早已存在且是最新的, 于是"没有变化"= 假绿。
+    prev = sys.dont_write_bytecode
+    sys.dont_write_bytecode = True
+    try:
+        spec.loader.exec_module(mod)
+    finally:
+        sys.dont_write_bytecode = prev
+    return mod
+
+
+_SP = _load_split_preview()
+
+nfc = _SP.nfc
+md_cell = _SP.md_cell
+MAX_FILENAME_BYTES = _SP.MAX_FILENAME_BYTES
+
+# ───────────────────────────────── 常量 ─────────────────────────────────
+
+SCHEMA_VERSION = 1  # 冻结：本卡产物形状即 v1 契约
+GENERATOR = "clear-inbox/inbox_preview.py v1.0 (CARD-G5-6 inbox preview, read-only)"
+
+INBOX_ID_NAMESPACE = "inbox-item/v1"
+INBOX_ID_PREFIX = "inb1-"
+INBOX_ID_BASIS = "inbox-file"
+ID_STABILITY = "inbox_path_v1"  # ≠ split_preview 的 split_anchor_v1
+
+DEFAULT_INBOX_NAME = "_待处理"
+SLEEPING_DIR_NAME = "Sleeping"
+
+#: D15 确认预算：一次性 >20 项完成率趋近 0；每件 3-5 秒的勾选量才会被真正做完。
+#: 上限硬编码为 10 —— --batch-size 只能在 [1,10] 内调小，不能突破。
+BATCH_MAX = 10
+
+#: 睡满即提醒的门槛（R8 Step 4「睡满 30 天后清仓时自动提醒」）。
+SLEEP_ALERT_DAYS = 30
+
+#: 近似重复：只用于标「疑似·拿不准」，**绝不**产出建议删。
+NEAR_DUP_RATIO = 0.90
+NEAR_DUP_BODY_CHAR_CAP = 200_000
+NEAR_DUP_LEN_RATIO = 1.5  # 长度比超出 [1/1.5, 1.5] 的对直接跳过（并计数留痕）
+NEAR_DUP_TOP_N = 3  # 每件最多呈现的疑似正本数（按 ratio 降序、路径升序）
+
+#: 语料库扫描上界（防 --vault 误指到 home 之类的大树）。
+CORPUS_FILE_CAP = 5000
+#: 语料库排除的目录名：产物目录 + 一切隐藏目录（.obsidian/.git/.claude/.trash…）。
+CORPUS_EXCLUDED_DIR_NAMES = frozenset({"outputs"})
+
+#: C2 文头窗口：frontmatter 块 + 其后前 N 行。窗口之外的同款字样不算「文头自述」。
+HEAD_SCAN_LINES = 20
+
+#: C2 字面量标记表（确定性常量，非 LLM 判断）。命中时 basis 带行号与逐字片段。
+#: ⛔ 每一条都必须是**生成断言**，不是话题提及（Codex HIGH 实证）：原先收了裸词
+#: `Deep Research`，于是手写笔记 `# Deep Research 产品比较` 也被判成 AI 产物并给出
+#: 确定的归档去向 —— 那是硬猜。收窄后 `…由 Deep Research 生成` 仍命中。
+AI_MARKERS = (
+    "由 Deep Research 生成",
+    "Deep Research 生成",
+    "deep research 生成",
+    "由 DeepResearch 生成",
+    "DeepResearch 生成",
+    "Generated by Deep Research",
+    "由 AI 生成",
+    "由AI生成",
+    "AI 生成",
+    "AI生成",
+    "由 Claude 生成",
+    "由 ChatGPT 生成",
+    "由 GPT 生成",
+    "本文由 AI",
+    "本报告由 AI",
+    "Generated by AI",
+    "generated by AI",
+)
+
+#: C5 轮次目录的类型子模式表（判不出则类型留空并标 type_uncertain）。
+ROUND_SUBPATTERNS = (
+    ("批注回复", "annotation-reply"),
+    ("研究", "secondary-synthesis"),
+    ("调研", "secondary-synthesis"),
+    ("report", "secondary-synthesis"),
+)
+
+DR_TARGET = "deep research 报告/"
+
+CRITERIA_ORDER = (
+    "C1_source_url",
+    "C2_ai_self_declared",
+    "C3_empty_or_skeleton",
+    "C4_exact_duplicate",
+    "C5_round_filename",
+    "C6_undecided",
+)
+
+V_STAY = "留原地"
+V_ARCHIVE = "归档"
+V_DELETE = "建议删"
+V_UNSURE = "拿不准"
+V_TO_BOARD = "归入白板"
+V_NEW_NODE = "新建节点"
+
+VERDICT_VOCABULARY = {
+    "all": [V_TO_BOARD, V_NEW_NODE, V_ARCHIVE, V_DELETE, V_STAY, V_UNSURE],
+    "card_enumerated": [V_TO_BOARD, V_NEW_NODE, V_ARCHIVE, V_DELETE],
+    "reachable_by_engine": [V_STAY, V_ARCHIVE, V_DELETE, V_UNSURE],
+    "human_only": [V_TO_BOARD, V_NEW_NODE],
+    "human_only_note": (
+        "「归入白板」「新建节点」需要判断材料主题与既有白板/节点的归属关系，"
+        "本引擎无机械判据 —— 恒不产出。这类材料一律落 C6 拿不准，并把这两个选项"
+        "写进提问里交给人裁决。给不出机械依据还硬填一个去向，就是硬猜。"
+    ),
+}
+
+UNDECIDED_ASK = "这份要归入哪块白板、还是新建节点、还是归档（二手综合 / 一手快照）？"
+
+NOT_EXECUTED = (
+    "本 preview 只读生成：未移动、未删除、未修改任何 vault 或收件箱既有文件"
+    "（唯一写入 = out-dir 下两份 preview 产物，缺省落 <vault>/outputs/）；"
+    "逐条拍板与执行属 CARD-G5-7，本引擎不提供任何写侧动作。"
+)
+
+LAST_CLEANUP_NOTE = (
+    "只读 preview 不持有清仓台账（R8 Step 0 的「上次清仓 N 天前」需执行侧记录，"
+    "属 CARD-G5-7）。此处如实留空，不推测、不伪造。"
+)
+
+#: 标签（= 收件箱目录 basename，进产物文件名）的非法字符类。
+#: ⛔ 与 split_preview._BAD_NAME **逐字同源**：该常量为私有，故此处平行定义，
+#: 由裁判 `test_reuses_split_preview_helpers_by_import` 断言两者 pattern 逐字相等，
+#: 防「两套判据各自漂移」。
+_BAD_LABEL = re.compile(r'[\\/`$"\']|\.\.|^\.|[\x00-\x1f]')
+
+#: 人话时区：**固定 +08:00**，刻意不走 `ZoneInfo("Asia/Shanghai")`。
+#: ⛔ 理由是本卡有「二跑逐字节相等」硬门，而该门必须**跨宿主**成立：ZoneInfo 在装了
+#: tzdata 的机器上会给 1986-1991 年的日期套上夏令时（实测 1988-07-01 → +09:00），
+#: 没装 tzdata 的机器退化成 +08:00 —— 同一份输入在两台机器产出不同字节。
+#: 代价是那六年的历史时刻不带夏令时；收件箱材料不可能有 1980 年代的 mtime，
+#: 拿一个不可能发生的历史精度去换一个每次都要成立的确定性，是划算的。
+#: （与 `scripts/daily_review_pick.py` 优先 ZoneInfo 的口径有意分歧，理由如上。）
+_TZ_SHANGHAI = timezone(timedelta(hours=8))
+
+_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}(?:\s|$)")
+_LIST_PREFIX_RE = re.compile(r"^\s*(?:[-*+]\s+|\d{1,3}[.)]\s+|>\s?)+")
+#: 纯结构行（分隔线 / 表格分隔 / 空列表符）。⛔ 不含 `~`：`~~~` 是代码围栏标记，
+#: 由 `_classify_lines` 的状态机处理；把它当"结构"曾让整段围栏代码凭空消失。
+_ONLY_STRUCT_RE = re.compile(r"^[\s\-=*_|:#>]*$")
+#: 代码围栏（``` 或 ~~~，允许最多 3 空格缩进）
+_FENCE_RE = re.compile(r"^\s{0,3}(`{3,}|~{3,})")
+_FM_KEY_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_-]*):\s*(.*)$")
+#: frontmatter 首个有效行必须像 YAML 映射键 —— 否则那只是被两条 `---` 夹住的正文
+_FM_LOOKS_LIKE_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_-]*\s*:")
+#: ⛔ host 段必须非空：`https?://\S+` 会把 `https://?` 也认成一手来源（Codex HIGH）
+_URL_RE = re.compile(r"^https?://[^\s/?#]+\S*$")
+_ROUND_RE = re.compile(r"(?:^|[^0-9A-Za-z])R(\d{1,4})_")
+
+
+# ───────────────────────────── 身份键 ─────────────────────────────
+
+
+def compute_inbox_stable_id(rel_path: str) -> str:
+    """收件箱条目身份键 = f(路径)。改内容/改 mtime 不换 ID；改名/移动才换。
+
+    编码纪律复用 `split_preview.compute_stable_id`（长度前缀载荷，对任意字节单射），
+    命名空间经 heading-path 槽位注入，返回值改挂自有前缀 —— 见文件头「身份空间
+    不可互换」。**不**把 mtime/size/内容进键：那样一改正文就换身份，diff 无意义。
+    """
+    raw = _SP.compute_stable_id(rel_path, [INBOX_ID_NAMESPACE], 1, INBOX_ID_BASIS)
+    return INBOX_ID_PREFIX + raw[len(_SP.STABLE_ID_PREFIX) :]
+
+
+# ───────────────────────────── 时间 ─────────────────────────────
+
+
+def parse_now(raw: str) -> datetime:
+    """--now → aware datetime。裸时间按 Asia/Shanghai 解释（显式偏差 5）。"""
+    try:
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError as e:
+        raise SystemExit(
+            f"✗ --now 不是合法 ISO-8601 时刻: {raw!r}（例: 2026-08-31T00:00:00+08:00）"
+        ) from e
+    return dt if dt.tzinfo else dt.replace(tzinfo=_TZ_SHANGHAI)
+
+
+def _epoch_s(dt: datetime) -> float:
+    return dt.timestamp()
+
+
+def days_between(now_s: float, then_s: float) -> int:
+    """整日年龄。⛔ 先把秒差取**最近整秒**再整除 86400 —— 见显式偏差 6。
+    用的是 Python `round`（ties-to-even，不是"半数远离零"）；此处只用于吸收
+    文件系统纳秒往返的亚微秒抖动，恰好落在 .5 的秒差在真实 mtime 上不会出现。"""
+    return int(round(now_s - then_s)) // 86400
+
+
+#: 时刻不可表示时的占位（不是"没有时间"，是"这个 mtime 超出日历可表示范围"）。
+UNREPRESENTABLE = "unrepresentable"
+
+
+def _fmt(sec: float, tz, pattern: str) -> str:
+    """⛔ 极值 mtime（如被置成 9999 年末，+8h 后溢出到 10000 年）会让
+    `datetime.fromtimestamp` 抛 OverflowError —— 一个畸形 mtime 不该炸掉整份 preview。
+    与 `scripts/daily_review_pick.py::_sh_local` 同款诚实降级：返回占位串，
+    **不**伪造一个看似正常的时间。"""
+    try:
+        return datetime.fromtimestamp(sec, tz=tz).strftime(pattern)
+    except (OverflowError, OSError, ValueError):
+        return UNREPRESENTABLE
+
+
+def fmt_utc(sec: float) -> str:
+    return _fmt(sec, timezone.utc, "%Y-%m-%dT%H:%M:%SZ")
+
+
+def fmt_local(sec: float) -> str:
+    return _fmt(sec, _TZ_SHANGHAI, "%Y-%m-%d %H:%M")
+
+
+# ───────────────────────── 文本解析（确定性） ─────────────────────────
+
+
+def frontmatter_span(lines: list[str]) -> int:
+    """frontmatter 块**占用的行数**（含首尾两条分隔线）；无 / 缺闭合时为 0。
+
+    ⛔ 单独抽出来是因为 `head_window` 需要的是「跳过几行」而不是「里面有几个键」。
+    早先版本用 `len(fm) + 2` 反推，遇到**空 frontmatter**（`---` 紧接 `---`）时
+    `fm == []` 被当成「没有 frontmatter」，报出的行号就整体偏 2 行 —— 依据里的
+    行号是给人核对用的，偏了就等于没有。
+    """
+    if not lines or lines[0].strip() != "---":
+        return 0
+    end = None
+    for i in range(1, len(lines)):
+        if lines[i].strip() in ("---", "..."):
+            end = i
+            break
+    if end is None:
+        return 0  # 缺闭合 → 视为无 frontmatter
+    # ⛔ 还要**真的像** frontmatter（Codex HIGH 实证）：`---\n这是唯一正文\n---`
+    # 原先被整段当 frontmatter 吞掉 → 正文为空 → 输出「建议删」。把用户正文误判成
+    # 空文件的删除提名，比不提名坏得多。
+    for ln in lines[1:end]:
+        t = ln.strip()
+        if not t or t.startswith("#"):
+            continue  # 空行与 YAML 注释不作数
+        return end + 1 if _FM_LOOKS_LIKE_KEY_RE.match(ln) else 0
+    return end + 1  # 空 frontmatter（`---` 紧接 `---`）
+
+
+def split_frontmatter(text: str) -> tuple[list[str], list[str]]:
+    """→ (frontmatter 行, 其余行)。只认文件头的 `---` 对；缺闭合视为无 frontmatter。"""
+    lines = text.splitlines()
+    n = frontmatter_span(lines)
+    return (lines[1 : n - 1] if n else []), lines[n:]
+
+
+def frontmatter_map(fm_lines: list[str]) -> dict:
+    """顶层 `key: value` 扫描（不引 YAML 依赖；嵌套/列表值不解析，本卡不需要）。"""
+    out: dict[str, str] = {}
+    for ln in fm_lines:
+        m = _FM_KEY_RE.match(ln)
+        if not m:
+            continue
+        val = m.group(2).strip()
+        if len(val) >= 2 and val[0] == val[-1] and val[0] in "\"'":
+            val = val[1:-1]
+        else:
+            # 未加引号时剥行尾 YAML 注释（`source: https://x # 官方来源`）——
+            # 不剥的话注释会被并进值里，合法 URL 反而漏掉 C1（Codex MEDIUM）
+            val = re.sub(r"\s+#.*$", "", val).strip()
+        out.setdefault(m.group(1), val)
+    return out
+
+
+def _classify_lines(text: str) -> list[tuple[str, bool]]:
+    """→ [(行, 该行是否在代码围栏内)]，已剥离 frontmatter 与**围栏外**的 HTML 注释。
+
+    ⛔ 围栏状态机是 Codex 两条 BLOCKER 的正解。原先没有它：
+      - `~~~` 被当成"纯结构行"删掉，围栏里的 `# comment` 又被当成 Markdown 标题删掉，
+        于是一份只有一段 shell 代码的文件被判成空骨架 → **建议删**；
+      - 而文件头明明声明着"代码块内容留在正文里"。声明与实现对不上就是掩饰。
+    注释剥离只作用于围栏外：代码里的 `<!-- -->` 是代码，不是说明。
+    """
+    _, rest = split_frontmatter(text)
+    out: list[tuple[str, bool]] = []
+    in_fence = False
+    fence_char = ""
+    in_comment = False
+    for ln in rest:
+        m = _FENCE_RE.match(ln)
+        if m and not in_comment:
+            tok = m.group(1)[0]
+            if not in_fence:
+                in_fence, fence_char = True, tok
+                out.append((ln, True))
+                continue
+            if tok == fence_char:
+                in_fence, fence_char = False, ""
+                out.append((ln, True))
+                continue
+        if in_fence:
+            out.append((ln, True))
+            continue
+        kept, rem = "", ln
+        while rem:
+            if in_comment:
+                i = rem.find("-->")
+                if i < 0:
+                    break
+                rem, in_comment = rem[i + 3 :], False
+            else:
+                i = rem.find("<!--")
+                if i < 0:
+                    kept += rem
+                    break
+                kept += rem[:i]
+                rem, in_comment = rem[i + 4 :], True
+        out.append((kept, False))
+    return out
+
+
+def dup_body(text: str) -> str:
+    """**逐字保真**的正文形态 —— C4「精确重复」的唯一比对依据。
+
+    只做无语义的归一：丢标题行（围栏外）、行尾空白 rstrip、丢空行、NFC。
+    ⛔ **不** `.strip()` 每行、**不**剥列表符号：那会抹掉代码缩进，让
+    `if ok:` + 缩进 `run()` 与 `if ok:` + 顶格 `run()` 判成"逐字相等"，
+    进而对一份语义完全不同的文件给出「建议删」（Codex BLOCKER 实证）。
+    有后果的提名，依据必须逐字。
+    ⛔ 标题不进比对：同一段材料被粘两份时标题常不同（R8 判据 4 说的是「正文高相似」）。
+    """
+    parts: list[str] = []
+    for ln, is_code in _classify_lines(text):
+        if not is_code and _HEADING_RE.match(ln):
+            continue
+        t = ln.rstrip()
+        if not t:
+            continue
+        parts.append(nfc(t))
+    return "\n".join(parts)
+
+
+def has_substantive_content(text: str) -> bool:
+    """这份材料有没有**实质正文** —— C3「空 / 空骨架」的唯一依据。
+
+    与 `dup_body` 刻意分家：这里回答「是不是只剩脚手架」，可以激进归一化
+    （剥列表符、丢纯结构行）；那里回答「是不是逐字相同」，必须逐字保真。
+    合用一个函数正是 Codex BLOCKER 的根因。
+    """
+    for ln, is_code in _classify_lines(text):
+        if is_code:
+            if ln.strip() and not _FENCE_RE.match(ln):
+                return True  # 围栏内有真实代码行
+            continue
+        if _HEADING_RE.match(ln):
+            continue
+        t = _LIST_PREFIX_RE.sub("", ln).strip()
+        if t and not _ONLY_STRUCT_RE.match(t):
+            return True
+    return False
+
+
+def skeleton_note(text: str, size: int) -> str:
+    """空/骨架的**逐项计数**依据 —— 不是「看起来是空的」而是数出来的。"""
+    if size == 0:
+        return "0 字节空文件"
+    lines = _classify_lines(text)
+    headings = sum(1 for ln, c in lines if not c and _HEADING_RE.match(ln))
+    struct = sum(
+        1 for ln, c in lines if not c and not _HEADING_RE.match(ln) and ln.strip()
+    )
+    fences = sum(1 for ln, c in lines if c)
+    return (
+        f"剥离 frontmatter / HTML 注释后实质正文 0 字符"
+        f"（{size} 字节文件：标题 {headings} 行、纯结构行 {struct} 行、"
+        f"代码围栏 {fences} 行、其余皆空行）"
+    )
+
+
+def head_window(text: str) -> list[tuple[int, str]]:
+    """C2 扫描窗口：frontmatter 行 + 其后前 HEAD_SCAN_LINES 行；返回 (1-based 行号, 原文)。"""
+    lines = text.splitlines()
+    n = frontmatter_span(lines)
+    win: list[tuple[int, str]] = [(i + 1, lines[i]) for i in range(min(n, len(lines)))]
+    for j, ln in enumerate(lines[n : n + HEAD_SCAN_LINES]):
+        win.append((n + j + 1, ln))
+    return win
+
+
+def find_ai_marker(text: str) -> tuple[int, str] | None:
+    """文头窗口内的字面量 AI 标记。同行多命中时取「最靠前、同位置取最长」——确定性。"""
+    for lineno, ln in head_window(text):
+        hits = [(ln.find(m), -len(m), m) for m in AI_MARKERS if m in ln]
+        if hits:
+            _, _, marker = min(hits)
+            return lineno, marker
+    return None
+
+
+def round_of(name: str) -> str | None:
+    m = _ROUND_RE.search(name)
+    return m.group(1) if m else None
+
+
+def round_type(name: str) -> str | None:
+    for pat, typ in ROUND_SUBPATTERNS:
+        if pat in name:
+            return typ
+    return None
+
+
+# ───────────────────────────── 扫描 ─────────────────────────────
+
+
+def read_text_or_none(p: Path) -> str | None:
+    try:
+        return p.read_bytes().decode("utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+
+
+def scan_corpus(
+    vault: Path, excluded_roots: list[str]
+) -> tuple[dict[str, list[str]], list[tuple[str, str]], dict]:
+    """库内 .md 语料：→ (归一化正文 → [相对路径…], [(路径, 正文)…], 统计)。
+
+    排除：一切隐藏目录、`outputs/`、收件箱子树、产物目录子树。
+    ⛔ **空正文不进重复索引** —— 否则库内任意两个空骨架互为「正本」，会撑出一条
+    有后果的建议删，其证据是「两个都是空的」。C3 虽然先命中，但索引本身必须先干净：
+    门要防的是未来次序调整时的静默失效，不只是当下这一次。
+    """
+    by_body: dict[str, list[str]] = {}
+    bodies: list[tuple[str, str]] = []
+    stats = {
+        "files_scanned": 0,
+        "files_indexed": 0,
+        "skipped_empty_body": 0,
+        "skipped_symlink": 0,
+        "skipped_unreadable": 0,
+        "truncated": False,
+        "file_cap": CORPUS_FILE_CAP,
+    }
+    for dirpath, dirnames, filenames in os.walk(vault):
+        dirnames[:] = sorted(
+            d
+            for d in dirnames
+            if not d.startswith(".")
+            and d not in CORPUS_EXCLUDED_DIR_NAMES
+            and os.path.realpath(os.path.join(dirpath, d)) not in excluded_roots
+        )
+        for fn in sorted(filenames):
+            if not fn.endswith(".md"):
+                continue
+            if stats["files_scanned"] >= CORPUS_FILE_CAP:
+                # ⛔ 不在此处 return —— 早退会绕过下面的排序尾巴, 让"截断"与"未截断"
+                # 两条路径产出形态不同的索引。置位后跳出全部循环, 走同一个出口。
+                stats["truncated"] = True
+                dirnames.clear()
+                break
+            p = Path(dirpath) / fn
+            stats["files_scanned"] += 1
+            if p.is_symlink():
+                stats["skipped_symlink"] += 1
+                continue
+            text = read_text_or_none(p)
+            if text is None:
+                stats["skipped_unreadable"] += 1
+                continue
+            if not has_substantive_content(text):
+                stats["skipped_empty_body"] += 1
+                continue
+            body = dup_body(text)
+            if not body:
+                stats["skipped_empty_body"] += 1
+                continue
+            rel = p.relative_to(vault).as_posix()
+            by_body.setdefault(body, []).append(rel)
+            bodies.append((rel, body))
+            stats["files_indexed"] += 1
+        if stats["truncated"]:
+            break
+    for v in by_body.values():
+        v.sort()
+    bodies.sort()
+    return by_body, bodies, stats
+
+
+def near_duplicates(
+    body: str, corpus_bodies: list[tuple[str, str]], scan: dict
+) -> list[dict]:
+    """difflib 近似（按行比对）。⛔ 只标疑似，永不裁决 —— 见显式偏差 1。"""
+    if not body:
+        return []
+    a_lines = body.split("\n")
+    la = len(body)
+    hits: list[tuple[float, str]] = []
+    for rel, other in corpus_bodies:
+        if other == body:
+            continue  # 逐字相等归 C4，不重复计入疑似
+        lb = len(other)
+        if la > NEAR_DUP_BODY_CHAR_CAP or lb > NEAR_DUP_BODY_CHAR_CAP:
+            scan["skipped_oversize"] += 1
+            continue
+        if not (1 / NEAR_DUP_LEN_RATIO <= (lb / la if la else 0) <= NEAR_DUP_LEN_RATIO):
+            scan["skipped_length_prefilter"] += 1
+            continue
+        scan["compared_pairs"] += 1
+        sm = difflib.SequenceMatcher(None, a_lines, other.split("\n"), autojunk=False)
+        if sm.real_quick_ratio() < NEAR_DUP_RATIO or sm.quick_ratio() < NEAR_DUP_RATIO:
+            continue
+        r = sm.ratio()
+        if r >= NEAR_DUP_RATIO:
+            hits.append((r, rel))
+    hits.sort(key=lambda x: (-x[0], x[1]))
+    return [{"path": rel, "ratio": round(r, 4)} for r, rel in hits[:NEAR_DUP_TOP_N]]
+
+
+# ───────────────────────── 逐份提名（判据次序即本函数结构） ─────────────────────────
+
+
+def nominate(
+    item: dict,
+    text: str | None,
+    dup_index: dict[str, list[str]],
+    corpus_bodies: list[tuple[str, str]],
+    scan: dict,
+    batch_body_counts: dict[str, int],
+) -> dict:
+    """对一件材料出提名。**次序即 CRITERIA_ORDER**，先命中者定 verdict；
+    后续判据的证据仍全量附上（conflicts / exact_duplicate_of / near_duplicates）。"""
+    name = item["name"]
+    conflicts: list[dict] = []
+
+    if text is None:
+        # 非 UTF-8（PDF/图片等）：除 0 字节外无任何可机械判读的信号 → 不猜。
+        if item["size_bytes"] == 0:
+            return _fill(
+                item,
+                "C3_empty_or_skeleton",
+                V_DELETE,
+                None,
+                None,
+                "0 字节空文件",
+                True,
+                conflicts=conflicts,
+            )
+        return _fill(
+            item,
+            "C6_undecided",
+            V_UNSURE,
+            None,
+            None,
+            "非 UTF-8 文本，本引擎不解析其正文",
+            False,
+            uncertain_reason="非 UTF-8 文本（如 PDF / 图片），六判据中除「0 字节」外无一可施加",
+            ask=UNDECIDED_ASK,
+            conflicts=conflicts,
+        )
+
+    fm = frontmatter_map(split_frontmatter(text)[0])
+    substantive = has_substantive_content(text)
+    body = dup_body(text) if substantive else ""
+    rnd = round_of(name)
+
+    # ── 后置证据（不参与次序，但必须全量呈现） ──
+    exact_all = sorted(dup_index.get(body, [])) if body else []
+    exact_of = exact_all[0] if exact_all else None
+    exact_others = exact_all[1:]
+    near = near_duplicates(body, corpus_bodies, scan)
+    within_batch = bool(body) and batch_body_counts.get(body, 0) > 1
+    if within_batch:
+        conflicts.append(
+            {
+                "kind": "duplicate_within_batch",
+                "detail": "本批内另有正文逐字相同的材料 —— 谁是正本在只读侧不可判，"
+                "故不产出建议删，请你指定保留哪一份",
+            }
+        )
+
+    def finish(criterion, verdict, ntype, target, basis, confident, **kw):
+        if exact_of and criterion != "C4_exact_duplicate":
+            conflicts.append(
+                {
+                    "kind": "exact_duplicate_under_other_verdict",
+                    "detail": f"正文与 {exact_of} 逐字相同，但按判据次序本件归 {criterion}"
+                    "（次序不因重复而改变，证据在此留痕）",
+                }
+            )
+        if near and criterion != "C6_undecided":
+            conflicts.append(
+                {
+                    "kind": "near_duplicate_suspected",
+                    "detail": "疑似与 "
+                    + "、".join(f"{n['path']}(ratio {n['ratio']})" for n in near)
+                    + " 高相似 —— 疑似不改提名、更不建议删，需你一句话确认",
+                }
+            )
+        return _fill(
+            item,
+            criterion,
+            verdict,
+            ntype,
+            target,
+            basis,
+            confident,
+            exact_of=exact_of,
+            exact_others=exact_others,
+            near=near,
+            conflicts=conflicts,
+            **kw,
+        )
+
+    # ── C1 source URL ──
+    src = fm.get("source", "")
+    if src and _URL_RE.match(src):
+        return finish(
+            "C1_source_url",
+            V_STAY,
+            "primary-record",
+            None,
+            f"frontmatter source 为一手 URL：{src}",
+            True,
+        )
+
+    # ── C2 AI 自述 ──
+    hit = find_ai_marker(text)
+    if hit:
+        lineno, marker = hit
+        target = f"R{rnd}/" if rnd else DR_TARGET
+        return finish(
+            "C2_ai_self_declared",
+            V_ARCHIVE,
+            "secondary-synthesis",
+            target,
+            f"文头第 {lineno} 行自述「{marker}」"
+            + (f"；文件名带 R{rnd}_ 故归轮次目录" if rnd else ""),
+            True,
+        )
+
+    # ── C3 空 / 空骨架 ──
+    if not substantive:
+        return finish(
+            "C3_empty_or_skeleton",
+            V_DELETE,
+            None,
+            None,
+            skeleton_note(text, item["size_bytes"]),
+            True,
+        )
+
+    # ── C4 精确重复（**逐字相等**才算；近似永不到这里） ──
+    # ⛔ 批内也有同稿时**不再**否决 C4（Codex MEDIUM 实证）：只要库内已经有一份
+    # 逐字相同的，收件箱这份就是多余的 —— 与批内还有几份同稿无关。
+    if exact_of:
+        if exact_others:
+            basis = (
+                f"库内已有 {len(exact_all)} 份正文逐字相同的文件："
+                + "、".join(exact_all)
+                + "。⛔ 哪一份算「正本」不可判（无机械依据），"
+                "但收件箱这份相对它们是多余的，故仍建议删"
+            )
+            conflicts.append(
+                {
+                    "kind": "multiple_canonical_candidates",
+                    "detail": f"库内有 {len(exact_all)} 份同正文文件，"
+                    f"`exact_duplicate_of` 取相对路径字典序最小者仅为**可预测的代表**，"
+                    "不主张它比其余几份更正本",
+                }
+            )
+        else:
+            basis = f"归一化正文与 {exact_of} 逐字相等（sha256 相同）"
+        return finish("C4_exact_duplicate", V_DELETE, None, None, basis, True)
+
+    # ── C5 R{n}_ 文件名 ──
+    if rnd:
+        typ = round_type(name)
+        return finish(
+            "C5_round_filename",
+            V_ARCHIVE,
+            typ,
+            f"R{rnd}/",
+            f"文件名带 R{rnd}_ → 归轮次目录"
+            + (
+                f"；子模式命中 → 类型 {typ}"
+                if typ
+                else "；子模式未命中 → 类型留空（去向确定，类型拿不准，不硬填）"
+            ),
+            True,
+            type_uncertain=typ is None,
+        )
+
+    # ── C6 兜底：拿不准（不给去向、不给类型） ──
+    if within_batch:
+        reason = "本批内有正文逐字相同的另一件，谁是正本不可判 —— 不硬猜"
+    elif near:
+        reason = (
+            "疑似与 "
+            + "、".join(f"{n['path']}(ratio {n['ratio']})" for n in near)
+            + " 高相似，但**未逐字相等** —— 近似不等于重复，不硬猜"
+        )
+    else:
+        reason = (
+            "六判据全不命中：无 source URL、文头无 AI 自述、有实质正文、"
+            "与库内无逐字相同正本、文件名无 R{n}_ 轮次标记"
+        )
+    return finish(
+        "C6_undecided",
+        V_UNSURE,
+        None,
+        None,
+        "无机械判据可施加",
+        False,
+        uncertain_reason=reason,
+        ask=UNDECIDED_ASK,
+    )
+
+
+def _fill(
+    item: dict,
+    criterion: str,
+    verdict: str,
+    ntype: str | None,
+    target: str | None,
+    basis: str,
+    confident: bool,
+    *,
+    uncertain_reason: str | None = None,
+    ask: str | None = None,
+    type_uncertain: bool = False,
+    exact_of: str | None = None,
+    exact_others: list[str] | None = None,
+    near: list[dict] | None = None,
+    conflicts: list[dict] | None = None,
+) -> dict:
+    out = dict(item)
+    out.update(
+        {
+            "criterion": criterion,
+            "verdict": verdict,
+            "nomination_type": ntype,
+            "target_hint": target,
+            "basis": basis,
+            "confident": confident,
+            "type_uncertain": type_uncertain,
+            "uncertain_reason": uncertain_reason,
+            "ask": ask,
+            "exact_duplicate_of": exact_of,
+            "exact_duplicate_others": exact_others or [],
+            "near_duplicates": near or [],
+            "conflicts": conflicts or [],
+        }
+    )
+    return out
+
+
+# ───────────────────────────── 装配 ─────────────────────────────
+
+
+def list_inbox(inbox: Path, now_s: float) -> tuple[list[dict], list[dict]]:
+    """收件箱顶层盘点 → (条目, 跳过留痕)。Sleeping/ 另计台账，其余子目录声明跳过。"""
+    items: list[dict] = []
+    skipped: list[dict] = []
+    with os.scandir(inbox) as it:
+        entries = sorted(it, key=lambda e: e.name)
+    for entry in entries:
+        p = Path(entry.path)
+        if entry.is_symlink():
+            skipped.append(
+                {
+                    "name": entry.name,
+                    "reason": "条目是 symlink，不跟随（可能指向 vault 外）",
+                }
+            )
+            continue
+        if entry.is_dir():
+            if entry.name == SLEEPING_DIR_NAME:
+                continue  # 走 Sleeping 台账
+            skipped.append(
+                {
+                    "name": entry.name,
+                    "reason": "子目录不在本卡盘点范围（只盘点顶层文件与 Sleeping/ 台账）",
+                }
+            )
+            continue
+        if not entry.is_file():
+            # FIFO / 设备 / 套接字：read_bytes 可能直接阻塞，绝不碰
+            skipped.append(
+                {
+                    "name": entry.name,
+                    "reason": "不是普通文件（FIFO / 设备 / 套接字等），不读取",
+                }
+            )
+            continue
+        try:
+            st = p.stat()
+        except OSError as e:
+            # 扫目录与取属性之间材料被移走 —— 跳过留痕, 不让一次竞态崩掉整份 preview
+            skipped.append(
+                {
+                    "name": entry.name,
+                    "reason": f"读取属性失败（可能已被移走）: {e.strerror}",
+                }
+            )
+            continue
+        items.append(
+            {
+                "stable_id": compute_inbox_stable_id(
+                    f"{nfc(inbox.name)}/{nfc(entry.name)}"
+                ),
+                "name": entry.name,
+                "rel_path": f"{inbox.name}/{entry.name}",
+                "size_bytes": st.st_size,
+                "mtime_utc": fmt_utc(st.st_mtime),
+                "mtime_local": fmt_local(st.st_mtime),
+                "age_days": days_between(now_s, st.st_mtime),
+                # 排序用纳秒整数（float 秒会把相差 1ns 的两件折叠成相等，
+                # 于是"最旧优先"退化成按文件名 —— Codex LOW 实证）
+                "_mtime_ns": st.st_mtime_ns,
+                "_path": str(p),
+            }
+        )
+    # 最旧优先；同 mtime 按名字升序 —— 二跑同序的唯一保证
+    items.sort(key=lambda d: (d["_mtime_ns"], d["name"]))
+    return items, skipped
+
+
+def build_sleeping(inbox: Path, now_s: float, exists: bool) -> dict:
+    d = inbox / SLEEPING_DIR_NAME
+    if not exists or not d.is_dir() or d.is_symlink():
+        return {
+            "dir": f"{inbox.name}/{SLEEPING_DIR_NAME}",
+            "exists": False,
+            "count": 0,
+            "oldest_days": None,
+            "over_30d_count": 0,
+            "alert_threshold_days": SLEEP_ALERT_DAYS,
+            "items": [],
+            "skipped": [],
+        }
+    out: list[dict] = []
+    skipped: list[dict] = []
+    with os.scandir(d) as it:
+        entries = sorted(it, key=lambda e: e.name)
+    for entry in entries:
+        # ⛔ 与收件箱同一条纪律：跳过必须留痕，不静默消失。
+        if entry.is_symlink():
+            skipped.append({"name": entry.name, "reason": "条目是 symlink，不跟随"})
+            continue
+        if entry.is_dir():
+            skipped.append(
+                {"name": entry.name, "reason": "Sleeping/ 下的子目录不计入台账"}
+            )
+            continue
+        p = Path(entry.path)
+        try:
+            st = p.stat()
+        except OSError as e:
+            skipped.append(
+                {
+                    "name": entry.name,
+                    "reason": f"读取属性失败（可能已被移走）: {e.strerror}",
+                }
+            )
+            continue
+        source, slept_at, days = (
+            "mtime",
+            fmt_utc(st.st_mtime),
+            days_between(now_s, st.st_mtime),
+        )
+        text = read_text_or_none(p)
+        if text is not None:
+            raw = frontmatter_map(split_frontmatter(text)[0]).get("slept_at", "")
+            parsed = _parse_slept_at(raw)
+            if parsed is not None:
+                source, slept_at = "frontmatter", raw
+                days = days_between(now_s, _epoch_s(parsed))
+            elif raw:
+                source = "mtime(frontmatter slept_at 不可解析，如实退回文件 mtime)"
+        out.append(
+            {
+                "name": entry.name,
+                "slept_at": slept_at,
+                "slept_at_source": source,
+                "slept_days": days,
+                "over_30d": days >= SLEEP_ALERT_DAYS,
+            }
+        )
+    out.sort(key=lambda x: (-x["slept_days"], x["name"]))
+    return {
+        "dir": f"{inbox.name}/{SLEEPING_DIR_NAME}",
+        "exists": True,
+        "count": len(out),
+        "oldest_days": max((x["slept_days"] for x in out), default=None),
+        "over_30d_count": sum(1 for x in out if x["over_30d"]),
+        "alert_threshold_days": SLEEP_ALERT_DAYS,
+        "items": out,
+        "skipped": skipped,
+    }
+
+
+def _parse_slept_at(raw: str) -> datetime | None:
+    if not raw:
+        return None
+    try:
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        try:
+            d = date.fromisoformat(raw)
+        except ValueError:
+            return None
+        dt = datetime(d.year, d.month, d.day)
+    return dt if dt.tzinfo else dt.replace(tzinfo=_TZ_SHANGHAI)
+
+
+def build_receipt(data: dict) -> str:
+    inv, sl = data["inventory"], data["sleeping"]
+    if not data["inbox_exists"]:
+        head = f"{data['inbox_dir']} 尚未创建（等同空仓，该 vault 还没开始用收件箱）。"
+    elif inv["total"] == 0:
+        head = f"{data['inbox_dir']} 已空，没有待处理材料。"
+    else:
+        head = f"{data['inbox_dir']} 共 {inv['total']} 件" + (
+            f"，本批取最旧的 {len(data['items'])} 件（其余 {len(inv['deferred'])} 件留待下次）。"
+            if inv["over_budget"]
+            else f"，本批全取（{len(data['items'])} 件）。"
+        )
+    if not sl["exists"]:
+        tail = "Sleeping/ 未建立，无睡眠台账。"
+    elif sl["count"] == 0:
+        tail = "Sleeping/ 是空的。"
+    else:
+        tail = f"Sleeping 睡着 {sl['count']} 件（最久 {sl['oldest_days']} 天"
+        tail += (
+            f"，其中 {sl['over_30d_count']} 件已睡满 {SLEEP_ALERT_DAYS} 天 ⚠️）。"
+            if sl["over_30d_count"]
+            else "）。"
+        )
+    return head + " " + tail
+
+
+def build_preview(
+    vault: Path,
+    inbox: Path,
+    inbox_exists: bool,
+    now: datetime,
+    batch_size: int,
+    excluded_roots: list[str],
+) -> dict:
+    now_s = _epoch_s(now)
+    items_raw, skipped = list_inbox(inbox, now_s) if inbox_exists else ([], [])
+    total = len(items_raw)
+    batch_raw = items_raw[:batch_size]
+    deferred = [
+        {
+            "name": it["name"],
+            "age_days": it["age_days"],
+            "mtime_local": it["mtime_local"],
+        }
+        for it in items_raw[batch_size:]
+    ]
+
+    dup_index, corpus_bodies, corpus_stats = scan_corpus(vault, excluded_roots)
+    scan = {
+        "ratio_threshold": NEAR_DUP_RATIO,
+        "body_char_cap": NEAR_DUP_BODY_CHAR_CAP,
+        "length_prefilter_ratio": NEAR_DUP_LEN_RATIO,
+        "top_n_reported": NEAR_DUP_TOP_N,
+        "compared_pairs": 0,
+        "skipped_oversize": 0,
+        "skipped_length_prefilter": 0,
+        "note": "「跳过」≠「无重复」：跳过的对从未比对过，产物如实分列两个计数。",
+    }
+
+    texts = {it["rel_path"]: read_text_or_none(Path(it["_path"])) for it in batch_raw}
+    batch_body_counts: dict[str, int] = {}
+    for it in batch_raw:
+        t = texts[it["rel_path"]]
+        if t is None:
+            continue
+        b = dup_body(t) if has_substantive_content(t) else ""
+        if b:
+            batch_body_counts[b] = batch_body_counts.get(b, 0) + 1
+
+    items: list[dict] = []
+    for idx, it in enumerate(batch_raw, start=1):
+        text = texts[it["rel_path"]]
+        base = {k: v for k, v in it.items() if not k.startswith("_")}
+        base["index"] = idx
+        base["text_readable"] = text is not None
+        items.append(
+            nominate(base, text, dup_index, corpus_bodies, scan, batch_body_counts)
+        )
+
+    data = {
+        "schema_version": SCHEMA_VERSION,
+        "generator": GENERATOR,
+        "id_namespace": INBOX_ID_NAMESPACE,
+        "id_stability": ID_STABILITY,
+        "vault_fingerprint": "vf1-"
+        + hashlib.sha256(os.path.realpath(vault).encode("utf-8")).hexdigest()[:16],
+        "now": now.isoformat(),
+        "now_utc": fmt_utc(now_s),
+        "now_local": fmt_local(now_s),
+        "inbox_dir": f"{inbox.name}/",
+        "inbox_exists": inbox_exists,
+        "label": inbox.name,
+        "criteria_order": list(CRITERIA_ORDER),
+        "verdict_vocabulary": VERDICT_VOCABULARY,
+        "corpus": corpus_stats,
+        "inventory": {
+            "total": total,
+            "batch_size": batch_size,
+            "batch_max": BATCH_MAX,
+            "batch_rule": "最旧优先（mtime 升序，同 mtime 按文件名升序），"
+            f"单批上限 {BATCH_MAX} 件（D15 确认预算：一次性 >20 项完成率趋近 0）",
+            "over_budget": total > batch_size,
+            "deferred": deferred,
+            "skipped": skipped,
+        },
+        "items": items,
+        "sleeping": build_sleeping(inbox, now_s, inbox_exists),
+        "near_dup_scan": scan,
+        "last_cleanup": None,
+        "last_cleanup_note": LAST_CLEANUP_NOTE,
+        "not_executed_disclaimer": NOT_EXECUTED,
+    }
+    data["receipt"] = build_receipt(data)
+    return data
+
+
+# ───────────────────────── 人读 MD（纯自渲染，只消费 JSON dict） ─────────────────────────
+
+
+def render_md(d: dict) -> str:
+    L: list[str] = []
+    L.append(f"# 待处理盘点 preview · {d['label']}")
+    L.append("")
+    L.append(f"> {d['not_executed_disclaimer']}")
+    L.append(
+        f"> 基准时刻 `--now`：{d['now_local']}（Asia/Shanghai）· schema v{d['schema_version']}"
+    )
+    L.append("")
+    L.append("## 一、回执")
+    L.append("")
+    L.append(d["receipt"])
+    L.append("")
+    L.append(f"- 上次清仓：**不可得** —— {d['last_cleanup_note']}")
+    c = d["corpus"]
+    L.append(
+        f"- 语料库：扫描 {c['files_scanned']} 份 .md，进重复索引 {c['files_indexed']} 份"
+        f"（空正文 {c['skipped_empty_body']} 份不进索引 · symlink {c['skipped_symlink']} · "
+        f"不可读 {c['skipped_unreadable']}）"
+        + (
+            "　⚠️ **已达扫描上限被截断**，「无重复」仅代表已扫部分"
+            if c["truncated"]
+            else ""
+        )
+    )
+    L.append("")
+
+    L.append(f"## 二、本批提名（{len(d['items'])} 件，最旧优先）")
+    L.append("")
+    if not d["items"]:
+        L.append("_（本批无材料）_")
+    else:
+        L.append("| # | 文件 | 年龄 | 建议去向 | 提名类型 | 判据 | 依据 | 冲突 |")
+        L.append("|---|---|---|---|---|---|---|---|")
+        for it in d["items"]:
+            conflict = (
+                "；".join(f"{x['kind']}" for x in it["conflicts"])
+                if it["conflicts"]
+                else "—"
+            )
+            target = f"（→ {it['target_hint']}）" if it["target_hint"] else ""
+            L.append(
+                "| {i} | {n} | {a} 天 | {v}{t} | {ty} | {c} | {b} | {cf} |".format(
+                    i=it["index"],
+                    n=md_cell(it["name"]),
+                    a=it["age_days"],
+                    v=md_cell(it["verdict"]),
+                    t=md_cell(target),
+                    ty=md_cell(it["nomination_type"] or "—"),
+                    c=md_cell(it["criterion"]),
+                    b=md_cell(it["basis"]),
+                    cf=md_cell(conflict),
+                )
+            )
+    L.append("")
+
+    unsure = [it for it in d["items"] if not it["confident"]]
+    L.append(f"## 三、拿不准（{len(unsure)} 件 · 需你一句话）")
+    L.append("")
+    if not unsure:
+        L.append("_（本批无拿不准条目）_")
+    else:
+        for it in unsure:
+            L.append(f"- **{it['index']}. {it['name']}** —— {it['uncertain_reason']}")
+            L.append(f"  - 请回一句：{it['ask']}")
+    L.append("")
+
+    dups = [
+        it for it in d["items"] if it["exact_duplicate_of"] or it["near_duplicates"]
+    ]
+    L.append("## 四、重复线索")
+    L.append("")
+    if not dups:
+        L.append("_（本批未发现逐字重复或疑似高相似）_")
+    else:
+        for it in dups:
+            if it["exact_duplicate_of"]:
+                extra = (
+                    f"；另有副本 {'、'.join(it['exact_duplicate_others'])}"
+                    if it["exact_duplicate_others"]
+                    else ""
+                )
+                L.append(
+                    f"- **{it['name']}** · 逐字相同 → 正本 `{it['exact_duplicate_of']}`{extra}"
+                )
+            for n in it["near_duplicates"]:
+                L.append(
+                    f"- **{it['name']}** · 疑似（ratio {n['ratio']}）→ `{n['path']}`"
+                    "　— 疑似不等于重复，**不建议删**，需你确认"
+                )
+    s = d["near_dup_scan"]
+    L.append("")
+    L.append(
+        f"> 近似比对：阈值 {s['ratio_threshold']}，实比 {s['compared_pairs']} 对；"
+        f"因体积跳过 {s['skipped_oversize']} 对、因长度差跳过 {s['skipped_length_prefilter']} 对。"
+        f"{s['note']}"
+    )
+    L.append("")
+
+    sl = d["sleeping"]
+    L.append(f"## 五、Sleeping 台账（{sl['count']} 件）")
+    L.append("")
+    if not sl["items"]:
+        L.append("_（Sleeping/ 未建立或为空）_")
+    else:
+        L.append("| 文件 | 睡了几天 | 起算依据 | 满 30 天 |")
+        L.append("|---|---|---|---|")
+        for x in sl["items"]:
+            L.append(
+                f"| {md_cell(x['name'])} | {x['slept_days']} | {md_cell(x['slept_at_source'])} "
+                f"| {'⚠️ 是' if x['over_30d'] else '否'} |"
+            )
+    L.append("")
+
+    dfr = d["inventory"]["deferred"]
+    L.append(f"## 六、本批之外（{len(dfr)} 件，本次不提名）")
+    L.append("")
+    if not dfr:
+        L.append("_（无积压）_")
+    else:
+        for x in dfr:
+            L.append(f"- {x['name']}（{x['age_days']} 天 · {x['mtime_local']}）")
+    skp = d["inventory"]["skipped"]
+    if skp:
+        L.append("")
+        L.append("**跳过留痕**（不静默消失）：")
+        for x in skp:
+            L.append(f"- {x['name']} —— {x['reason']}")
+    L.append("")
+
+    L.append("## 七、引擎边界（如实声明）")
+    L.append("")
+    v = d["verdict_vocabulary"]
+    L.append(f"- 引擎可达去向：{'、'.join(v['reachable_by_engine'])}")
+    L.append(f"- **恒不产出**：{'、'.join(v['human_only'])} —— {v['human_only_note']}")
+    L.append(
+        "- 近似重复（difflib）**永不**产出建议删：只有归一化正文逐字相等才给"
+        "「建议删 + 正本路径」。"
+    )
+    L.append(
+        "- AI 自述标记为字面量匹配，不做语义否定检测；依据一律带行号与逐字片段供你核对。"
+    )
+    L.append(f"- 判据次序（先命中者定去向）：{' → '.join(d['criteria_order'])}")
+    L.append("")
+    return "\n".join(L) + "\n"
+
+
+# ───────────────────────────── 入口 ─────────────────────────────
+
+
+def validate_label(label: str) -> None:
+    if not label or _BAD_LABEL.search(label):
+        raise SystemExit(
+            f"✗ 收件箱目录名含非法字符或路径逃逸，拒绝用作产物名: {label!r}"
+        )
+
+
+def validate_product_filename(label: str) -> None:
+    """产物文件名长度预检 —— ⛔ 必须在 prepare_out_dir **之前**调用，
+    否则会「先建好 out-dir、再在写入时 ENAMETOOLONG」：拒绝但已留空目录。"""
+    for suffix in (".json", ".md"):
+        n = len(f"inbox-preview-{label}{suffix}".encode("utf-8"))
+        if n > MAX_FILENAME_BYTES:
+            raise SystemExit(
+                f"✗ 收件箱目录名过长，产物文件名 {n} 字节超出上限 {MAX_FILENAME_BYTES}: "
+                f"inbox-preview-{label}{suffix}"
+            )
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(
+        description="待处理盘点提名 preview（只读, CARD-G5-6）"
+    )
+    ap.add_argument("--vault", required=True, help="vault 根目录")
+    ap.add_argument(
+        "--now", required=True, help="基准时刻 ISO-8601（裸时间按 Asia/Shanghai 解释）"
+    )
+    ap.add_argument(
+        "--inbox-dir",
+        default=None,
+        help=f"收件箱目录（缺省 <vault>/{DEFAULT_INBOX_NAME}）。"
+        "显式给定却不存在 = 拒绝；缺省路径不存在 = 空仓回执",
+    )
+    ap.add_argument(
+        "--out-dir",
+        default=None,
+        help="产物目录（缺省 <vault>/outputs；父目录必须已存在）",
+    )
+    ap.add_argument(
+        "--batch-size", type=int, default=BATCH_MAX, help=f"单批件数（1..{BATCH_MAX}）"
+    )
+    args = ap.parse_args()
+
+    # ⛔ 次序铁律：全部输入守卫跑完**再**碰 out-dir —— 拒绝路径必须零产物。
+    if not (1 <= args.batch_size <= BATCH_MAX):
+        raise SystemExit(
+            f"✗ --batch-size 必须在 1..{BATCH_MAX}（D15 确认预算上限，不得突破）, 实得 {args.batch_size}"
+        )
+    now = parse_now(args.now)
+
+    vault = Path(args.vault)
+    if vault.is_symlink():
+        raise SystemExit(f"✗ vault 路径本身是 symlink, 拒绝越界读取: {vault}")
+    if not vault.is_dir():
+        raise SystemExit(f"✗ vault 不存在或不是目录: {vault}")
+    vault = vault.resolve()
+
+    explicit = args.inbox_dir is not None
+    inbox = Path(args.inbox_dir) if explicit else vault / DEFAULT_INBOX_NAME
+    if inbox.is_symlink():
+        raise SystemExit(f"✗ 收件箱目录本身是 symlink, 拒绝越界读取: {inbox}")
+    inbox_exists = inbox.is_dir()
+    if explicit and not inbox_exists:
+        # 用户明确指了路径却找不到 = 写错了。绝不能报成「空仓」把 typo 掩盖掉。
+        raise SystemExit(f"✗ --inbox-dir 指定的目录不存在: {inbox}")
+
+    validate_label(inbox.name)
+    validate_product_filename(inbox.name)
+
+    out_dir_arg = Path(args.out_dir) if args.out_dir else vault / "outputs"
+    inbox_real, out_real = os.path.realpath(inbox), os.path.realpath(out_dir_arg)
+    if out_real == inbox_real or out_real.startswith(inbox_real + os.sep):
+        # ⛔ 否则第一次跑落下的两份产物，第二次跑会被当成待处理材料盘点进来 ——
+        # 「同输入二跑逐字节相等」当场不成立，而且是那种跑两次才看得见的不成立。
+        raise SystemExit(
+            f"✗ 产物目录不能位于收件箱内, 拒绝运行（二跑会把上一次的产物当成待处理材料）: {out_dir_arg}"
+        )
+    excluded = [inbox_real, out_real]
+
+    data = build_preview(vault, inbox, inbox_exists, now, args.batch_size, excluded)
+    payload_json = json.dumps(data, ensure_ascii=False, indent=2) + "\n"
+    payload_md = render_md(data)
+
+    out_dir = _SP.prepare_out_dir(out_dir_arg)
+    json_path = out_dir / f"inbox-preview-{inbox.name}.json"
+    md_path = out_dir / f"inbox-preview-{inbox.name}.md"
+    _SP.write_pair_atomically_checked(
+        [(json_path, payload_json), (md_path, payload_md)]
+    )
+
+    print(
+        f"✓ preview 已生成（只读引擎, 未动 vault 任何既有文件）: {json_path} / {md_path}"
+    )
+    print(f"  {data['receipt']}")
+    unsure = sum(1 for i in data["items"] if not i["confident"])
+    print(
+        f"  本批 {len(data['items'])} 件 · 拿不准 {unsure} 件 · "
+        f"建议删 {sum(1 for i in data['items'] if i['verdict'] == V_DELETE)} 件"
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
