@@ -1,0 +1,435 @@
+{
+  "survived": [
+    {
+      "lens": "id-stability",
+      "severity": "MEDIUM",
+      "severity_after": "MEDIUM",
+      "title": "同一来源文件被扫两次（Concepts 重复列种子 / NFC-NFD 孪生名）必撞 ID，整板 preview 直接 exit 1；且该自检可被规模门旁路",
+      "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/.claude/skills/board-split/scripts/split_preview.py",
+      "line": 721,
+      "claim": "occurrence 是**每次 collect_candidates 调用内**重新计数的（:526 局部 dict），而 build_preview 对 seeds_raw 逐条扫描、不去重（:615-671）。同一文件被扫两次 → (file_rel, norm_path, occurrence) 三元组逐字相同 → stable_id 必撞 → :726 自检 SystemExit，整块板拿不到任何 preview。NFD 变体更隐蔽：compute_stable_id 对 file_rel 做了 nfc()（:472），resolve_name 也做 NFC 归一（自陈的「显式偏差 2」），这两处「自觉增强」恰恰把两条不同字节的板文本折叠成同一个身份。错误文案只印哈希（「身份键缺维」），既不指出是哪一行板文本、也不指出是重复扫描导致，用户无从下手。另外自检只跑在 `final`（= 规模门截断后的 kept，:678/:722），截断把撞车对切开时自检直接失效。",
+      "repro": "C1 重复种子：板 T3.md 的 Concepts 写两行 `- [[节点/SeedA]] — 种子`，节点/SeedA.md 有一个达标小节。\n  python3 <engine> --vault <c1> --board T3 --out-dir <o>\n  → `✗ 引擎自检失败: 同一 preview 内 stable_id 重复 ['bsa1-48f6d82c66fdd884'] —— 身份键缺维, 拒绝输出`，exit=1，零产物。\nC2 NFC/NFD 孪生：节点/ 下只有一个 NFC 的 `Café.md`，板 Concepts 一行写 NFC 名、一行写 NFD 名（macOS APFS 归一化不敏感，两行都 exists()）。\n  → `✗ 引擎自检失败: … 重复 ['bsa1-ad1d02e40f376a5d']`，exit=1。\n自检旁路：同一个 C1 vault 加 `--max-units 1`\n  python3 <engine> --vault <c1> --board T3 --out-dir <o2> --max-units 1\n  → exit=0，`候选 1/2 · ⚠ 已截断`，产物照常落盘，两条同 ID 的候选被静默留下一条（sources 里 `节点/SeedA.md` 仍出现两次）。",
+      "suggested_fix": "在 build_preview 遍历 seeds_raw 之前按 nfc(seed) 去重（保留首次出现并在 sources 里对被跳过的那条留痕 `duplicate: true`），从源头消除同文件二次扫描；自检移到截断**之前**、对全量 candidates 跑；错误文案带上撞车两条的 source_anchor（file+line_start），让人能直接定位到板里那两行。",
+      "unverified": true,
+      "verdicts": []
+    },
+    {
+      "lens": "id-stability",
+      "severity": "MEDIUM",
+      "severity_after": "MEDIUM",
+      "title": "规模门截断与 diff 交互：仍在板上的小节被报成 removed，人读 MD 对截断零提示",
+      "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/.claude/skills/board-split/scripts/split_preview.py",
+      "line": 678,
+      "claim": "`kept = candidates[:max_units]`（:678）在 stable_id 计算之后按文档序硬切，diff 只看两侧 candidates 数组（build_diff :1010-1013），没有任何「这条是被规模门切掉的、不是从板上消失的」的判别。于是板一旦超过 30 个候选，任何在前部插入小节的编辑都会把尾部一条挤出窗口，diff 报一条**假 removed**。render_diff_md 从头到尾不渲染 `over_threshold` / `scale_gate`（该字段只静静躺在 JSON 的 old/new `_meta` 里），人读 MD 上「移除（removed）」那一行看起来和真删除一模一样。live 最大板 `CS188 lecture 2` 已经 27/30，再长 4 节就撞门。",
+      "repro": "造板 T5.md：`# 大板` 下 32 个达标小节 `## 第1节`…`## 第32节`；新版唯一编辑 = 在最前面插入 `## 新插入的第零节`（其余一字不改）。两次都用**缺省** --max-units（30）。\n  python3 <engine> --vault <d1> --board T5 --out-dir <od1>   # 候选 30/32 · ⚠ 已截断\n  python3 <engine> --vault <d2> --board T5 --out-dir <od2>   # 候选 30/33 · ⚠ 已截断\n  python3 <engine> --diff <od1>/split-preview-T5.json <od2>/split-preview-T5.json --out-dir <dd>\n预期：added 1（第零节），其余 unchanged/moved，无 removed。\n实际：`新增 1 · 内容变更 0 · 移动 0 · 移除 1 · 未变 29`，`第30节` 落在 removed 表里：\n  | `第30节` | `bsa1-f19ad4f529b89715` | `原白板/T5.md:148-152` | 大板 › 第30节 |\n而 `grep -n '^## 第30节' <d2>/原白板/T5.md` → `153:## 第30节`，它根本没被删。\n`grep -E '截断|规模|threshold' <dd>/split-diff-T5.md` 在 MD 全文找不到任何截断提示。",
+      "suggested_fix": "build_diff 里读两侧 `scale_gate`：任一侧 `over_threshold` 为真时，给落在窗口边界外的 added/removed entry 打 `truncation_suspect: true`，并在 render_diff_md 总览下方加一行硬提示「⚠ 旧/新 preview 均被规模门截断（30/33），下方 added/removed 可能是窗口移动而非真实增删」。另外 diff 应校验两侧 `scale_gate.threshold` 是否一致，不一致直接拒比或显著告警。",
+      "unverified": true,
+      "verdicts": []
+    },
+    {
+      "lens": "id-stability",
+      "severity": "MEDIUM",
+      "severity_after": "MEDIUM",
+      "title": "slug 落空的标题（`## .gitignore 的作用`、`## 一、`）建议名 = sha1(file:行号)，纯行号漂移就换名并被 diff 报 changed(name)",
+      "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/.claude/skills/board-split/scripts/split_preview.py",
+      "line": 190,
+      "claim": "`emit()` 里 `anchor = f\"{file_rel}:{sec['line']}\"`（:534），`_fallback_stub` 把这个含**行号**的锚点做 sha1 当名字（:190-193）。`_clean_for_slug` 用 `_SENT_SPLIT=[\\n。.！!？?；;]` 取首句，所以任何以 `.` / `。` 开头的标题（`## .gitignore 的作用`、`## .env 配置`）首句为空 → 走 fallback；`## 一、`、`## [00:15]()` 这类被 clean_heading 吃空的也走 fallback。结果：stable_id 稳住了，但 resolved_name 变了 → diff 判 `changed(reason=name)`。这与契约 §4.2 第 1 行「行号漂移（文件任意位置增删行，只要不改本小节内容）→ 不换 ID」的宣传意图、以及 §4.2 最后一行把 resolved_name 变化的成因**只**列为「因 节点/ 池变化」直接冲突；同一份 diff MD 的「未变」节还印着「行号漂移不算变化」。TestLineDrift 用的是 `反射代理`/`理性代理` 这种正常标题，跑不到 fallback 分支。（诚实说明：现网 vault 6 块板 + 节点池实测命中 0 条，属未来触发面。）",
+      "repro": "板 T7.md：`# CS 61B` 下两节 `## .gitignore 的作用`（两行达标正文）与 `## 正常小节`。新版唯一编辑 = 在 `# CS 61B` 下插一行说明文字（纯行号漂移，两节正文一字未动）。\n  python3 <engine> --vault <g1> --board T7 --out-dir <go>\n  python3 <engine> --vault <g2> --board T7 --out-dir <gn>\n  python3 <engine> --diff <go>/split-preview-T7.json <gn>/split-preview-T7.json --out-dir <gd>\n预期：两条全 unchanged。\n实际：`新增 0 · 内容变更 1 · 移动 0 · 移除 0 · 未变 1`\n  changed bsa1-a66241791ae6c2c4 ['name'] derived-479f4c -> derived-a246e4\n同一份 MD 下面「## 未变（unchanged）」还写着「共 1 条：内容指纹、重名解析、相对位置全部一致（行号漂移不算变化）」。\n（`## 一、` / `## 二、` 同理，且两者归一化后都是空串 `''`，heading_path_normalized 变成 ['板名','']，身份只剩 occurrence 撑着。）",
+      "suggested_fix": "fallback 锚点改用**不含行号**的稳定量——直接用 stable_id 本体（或 `sha1(file_rel ‖ norm_path ‖ occurrence)`），这样落空标题的建议名与 L1 身份键同生共死，行号漂移不再改名；同时在契约 §4.2 最后一行补上「resolved_name 还会因 slug 落空走 fallback 而变」，或在候选上输出 `name_from_fallback: true` 让消费方知道这个名字不是从标题来的。",
+      "unverified": true,
+      "verdicts": []
+    },
+    {
+      "lens": "diff-correctness",
+      "severity": "HIGH",
+      "severity_after": "MEDIUM",
+      "title": "规模门截断在两侧阈值相同时把仍然存在的小节报成 removed，diff 产物零告警",
+      "file": "canvas-vault/.claude/skills/board-split/scripts/split_preview.py",
+      "line": 1088,
+      "claim": "成立，但需三处修正表述：(1) 行号锚点错——截断发生在 build_preview 的 `kept = candidates[:max_units]`（split_preview.py:678），removed 判定循环在 :1093-1108，scale_gate 进 _meta 在 :1116（不是 :1103，:1103 是 `\"old\": _side(c, None)`）；:1088 落在 unchanged 分支里，与本缺陷无关。(2)「零告警」只对 diff 产物成立，不可读成「引擎全程不告警」——preview 侧是有信号的：o2 运行时 stdout 打印 `候选 30/31 · ⚠ 已截断`，preview MD「规模自陈」写有「候选单元: 30（总 31，⚠ 已按规模门截断保留文档序前 30 个）」；缺陷精确定位是：该信号在 diff 边界被整段丢弃，diff JSON 虽保留了 old/new 两侧 scale_gate（机读可自查），但 summary / entries / MD 三处全不消费，人读产物因此零提示，且总览两侧都印「候选 30」（candidate_count=kept 数）连间接线索都不给。(3) 准确说法应为：规模门截断在**两侧阈值相同、板体增长跨过阈值**时，把仍原封不动存在于板里的尾部小节报成 removed，并附一个指向未改动文件的具体锚点；契约 §8.6 只声明了「两次 preview 用了不同 --max-units」一种成因，其给出的自查建议在本场景恒为假绿灯。现网 CS188 lecture 2 板已 27/30，触发只需再加 3-4 节，属常规增长即可撞上。",
+      "repro": "⚠ 必须在 /private/tmp 下跑（引擎的 assert_symlink_free 会拒绝 /tmp，因为它是 symlink）。\n\ncd /private/tmp && mkdir -p g53/vault/{原白板,节点,outputs}\npython3 - <<'PY'\nfrom pathlib import Path\nB1=\"反射代理只看当前感知就决定行动，不保存历史也不预测未来，是最简单的一类代理。\"\nB2=\"第二行正文：代理函数把感知历史映射到行动，这是分析一切代理行为的数学起点。\"\nsec=lambda h: f\"## {h}\\n\\n{B1}\\n{B2}\\n\\n\"\nfm=\"---\\ntype: whiteboard\\n---\\n\\n# 主板\\n\\n\"\ns30=[sec(f\"节{i:02d}\") for i in range(1,31)]\np=Path(\"/private/tmp/g53/vault/原白板/板G.md\")\np.write_text(fm+\"\".join(s30),encoding=\"utf-8\")\nPY\nE=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/.claude/skills/board-split/scripts/split_preview.py\npython3 $E --vault /private/tmp/g53/vault --board 板G --out-dir /private/tmp/g53/o1   # 候选 30/30\n# 只在板顶部插一节（其余 30 节一字未动）：\npython3 - <<'PY'\nfrom pathlib import Path\nB1=\"反射代理只看当前感知就决定行动，不保存历史也不预测未来，是最简单的一类代理。\"\nB2=\"第二行正文：代理函数把感知历史映射到行动，这是分析一切代理行为的数学起点。\"\nsec=lambda h: f\"## {h}\\n\\n{B1}\\n{B2}\\n\\n\"\np=Path(\"/private/tmp/g53/vault/原白板/板G.md\")\np.write_text(p.read_text().replace(\"# 主板\\n\\n\",\"# 主板\\n\\n\"+sec(\"节00-新插入\"),1),encoding=\"utf-8\")\nPY\npython3 $E --vault /private/tmp/g53/vault --board 板G --out-dir /private/tmp/g53/o2   # 候选 30/31 · ⚠ 已截断\npython3 $E --diff /private/tmp/g53/o1/split-preview-板G.json /private/tmp/g53/o2/split-preview-板G.json --out-dir /private/tmp/g53/d\n\n预期：新增 1 · 移除 0（节30 还在板里，只是被规模门挡在候选之外，最起码要给出截断告警）。\n实际：`新增 1 · 内容变更 0 · 移动 0 · 移除 1 · 未变 29`；split-diff-板G.md 的「移除（removed）」表列出 `节30 | bsa1-8b18b13ea0cc0b09 | 原白板/板G.md:152-156`，而 grep 该 MD 得不到任何「截断/规模门/over_threshold」字样。JSON 里 old.scale_gate.threshold==new.scale_gate.threshold==30（阈值一致，契约建议的自查失效），new.scale_gate.over_threshold==true 却无人消费。",
+      "suggested_fix": "build_diff 计算 removed 时，若 `new.scale_gate.over_threshold` 为真（或两侧 threshold/kept 不一致），给这些 entry 打上 `truncation_suspect: true` 并在 summary 增设 `removed_possibly_truncated` 计数；render_diff_md 在总览下方与 removed 表头前输出一条明确横幅（例：「⚠ 新侧候选被规模门截断 31→30，下列 removed 可能只是被截掉而非真的从板里消失」）。契约 §8.6 同步补上「同一阈值 + 板体增长」这一未声明分支，并撤下「核对两侧阈值是否一致」这条会给假绿灯的止损建议。",
+      "unverified": false,
+      "verdicts": [
+        {
+          "refuted": false,
+          "reason": "指控的复现路径亲手跑通，现象与声称逐字一致。/private/tmp/g53 合成板：o1=候选 30/30，顶部插一节后 o2=候选 30/31 · ⚠ 已截断，diff 输出 `新增 1 · 内容变更 0 · 移动 0 · 移除 1 · 未变 29`，split-diff-板G.md 的「移除（removed）」表列 `节30 | bsa1-8b18b13ea0cc0b09 | 原白板/板G.md:152-156`——该小节在板里一字未改。JSON 实测 old.scale_gate={threshold:30,total:30,kept:30,over:false}、new.scale_gate={threshold:30,total:31,kept:30,over:true}：两侧 threshold 都是 30，契约 §8.6（docs/design/split-stable-id-contract.md:380-385）唯一给出的止损建议「读 diff 前应先核对两侧阈值是否一致」在此场景确实是假绿灯。render_diff_md 的 _meta 只取 candidate_count/board_sha256，全程不消费 scale_gate；grep MD 无「截断/规模门/over_threshold」任何字样（仅第 44 行命中一个「阈值」，是讲相似度改名识别的无关免责声明）。更糟的是 diff 总览两侧都印「候选 30」——因为 candidate_count = len(candidates) 是 kept 数，连间接线索都没有。危害并非理论：把 live 板 canvas-vault/原白板/CS188 lecture 2.md 只读拷到 /private/tmp/g53b 实跑，现状就是 27/27，距规模门只差 3 节；顶部加 4 节后 diff 即报 `未来展望：信息搜索与-A | bsa1-035eb4f100092ebc | 节点/lecture 2.md:1313-1319` 为 removed，锚点指向一份根本没被改动的种子笔记。裁判侧亦无防线：test_split_preview.py:369 只验 preview 单侧截断，无任何测试断言 diff 侧对截断的感知。故指控成立。",
+          "severity_after": "MEDIUM"
+        },
+        {
+          "refuted": false,
+          "reason": "按「是否只是重述已声明边界」的口径逐条查证后，反驳不成立。全仓唯一相关声明是 docs/design/split-stable-id-contract.md:380-385 §8.6；模块 docstring、build_diff docstring、MOVED_SEMANTICS、TRADEOFF_NOTE、test_split_stable_id.py 类/方法 docstring 均无第二处（`scale_gate` 在 test 里只作为 V1 顶层字段保留清单的一项出现，非行为声明）。§8.6 的问题不是\"枚举不全\"，而是**声明的止损手段被实测证伪**：它把触发面用\"若…不同的 --max-units\"这个条件从句钉死，并要求读者\"核对两侧阈值是否一致\"——而在 /private/tmp 实测里两侧阈值都是默认 30、自查通过，diff 仍把板内原封不动的 `节30` 报成 removed。这属于「声明与实际行为不符」而非「已声明取舍」，按本卡\"诚实声明\"的验收标准即真发现。复现（已亲跑，live vault 只读未动）：/private/tmp/g53rebut2 下建 30 节板→preview o1（候选 30/30）→仅在板顶插一节→preview o2（候选 30/31 · ⚠已截断）→`--diff o1 o2`，实得 `新增 1 · 内容变更 0 · 移动 0 · 移除 1 · 未变 29`，split-diff-板G.md「移除（removed）」表列 `节30 | bsa1-8b18b13ea0cc0b09 | 原白板/板G.md:152-156`，全文 grep `截断|规模门|over_threshold` 零命中；JSON 里 old/new threshold 均为 30、new.over_threshold=true 却无人消费。另佐证严重性不至 HIGH：截断在生成侧已双重告警（CLI stdout 与 preview MD 均写明），信号只是没被携带进 diff 产物；`_meta` 已把 scale_gate 取到手边，render_diff_md 一行即可消费，属于可低成本补的诚实性缺口而非引擎正确性缺陷。",
+          "severity_after": "MEDIUM"
+        }
+      ]
+    },
+    {
+      "lens": "diff-correctness",
+      "severity": "MEDIUM",
+      "severity_after": "MEDIUM",
+      "title": "同名小节前插导致 occurrence 位移，把未被编辑的小节报成 changed(content)",
+      "file": "canvas-vault/.claude/skills/board-split/scripts/split_preview.py",
+      "line": 529,
+      "claim": "stable_id 的第三维 occurrence 按文档序计数（第 529 行）。在同名同父小节前面新插一节，旧小节的 occurrence 由 1 变 2，于是 occurrence=1 这个 ID 在新侧被**新插入的**小节占据。build_diff 看到该 ID 两侧都在、指纹不同，判 `changed` 且 reason=`content`——但事实是没有任何小节的正文被编辑过。契约表 4.1 #5 声明的后果是「位移的那些换 ID」（读者会预期 removed+added），实际输出是 changed+added；diff 产物里的 TRADEOFF_NOTE 只覆盖「改标题实词」，对本场景一字未提。结果是 provenance 被静默移花接木：原小节的 ID/锚点被新小节继承，而「内容变更」这个断言是事实错误。",
+      "repro": "E=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/.claude/skills/board-split/scripts/split_preview.py\nmkdir -p /private/tmp/g53o/vault/{原白板,节点,outputs}\npython3 - <<'PY'\nfrom pathlib import Path\nB1=\"反射代理只看当前感知就决定行动，不保存历史也不预测未来，是最简单的一类代理。\"\nB2=\"第二行正文：代理函数把感知历史映射到行动，这是分析一切代理行为的数学起点。\"\nOLD=\"旧例题第一行正文，这里是原来那道题目的完整描述，字数足够长以便通过确定性门槛判定。\\n旧例题第二行正文，这里是原来那道题的解法说明，字数同样足够长以通过门槛。\"\nNEW=\"新插入例题第一行正文，这是刚刚加进来的一道新题目的完整描述，字数足够长通过门槛。\\n新插入例题第二行正文，这是新题的解法说明，字数同样足够长以通过确定性门槛。\"\nfm=\"---\\ntype: whiteboard\\n---\\n\\n# 主板\\n\\n\"\nintro=f\"## 引言\\n\\n{B1}\\n{B2}\\n\\n\"\nPath(\"/private/tmp/g53o/before.md\").write_text(fm+intro+f\"## 例题\\n\\n{OLD}\\n\\n\",encoding=\"utf-8\")\nPath(\"/private/tmp/g53o/after.md\").write_text(fm+intro+f\"## 例题\\n\\n{NEW}\\n\\n## 例题\\n\\n{OLD}\\n\\n\",encoding=\"utf-8\")\nPY\ncp /private/tmp/g53o/before.md /private/tmp/g53o/vault/原白板/板O.md\npython3 $E --vault /private/tmp/g53o/vault --board 板O --out-dir /private/tmp/g53o/a\ncp /private/tmp/g53o/after.md  /private/tmp/g53o/vault/原白板/板O.md   # 只是在前面加了一节，旧的「## 例题」逐字未动\npython3 $E --vault /private/tmp/g53o/vault --board 板O --out-dir /private/tmp/g53o/b\npython3 $E --diff /private/tmp/g53o/a/split-preview-板O.json /private/tmp/g53o/b/split-preview-板O.json --out-dir /private/tmp/g53o/d\n\n预期（语义真相）：added 1（新例题），旧例题 unchanged 或至多 moved。\n实际：`新增 1 · 内容变更 1 · 移动 0 · 移除 0 · 未变 1`。split-diff-板O.json 里 changed 那条 change_reasons==[\"content\"]，old/new 锚点都是 line_start=12——即引擎声称第 12 行那节「正文变了」，而真实的第 12 行那节是**新插入**的，原来的那节被挤到 17 行且内容完全没动。",
+      "suggested_fix": "两条并行：(a) diff 侧检测 occurrence 位移——同一 (file, heading_path_normalized) 下新旧两侧 occurrence 计数不同时，给受影响的 entry 打 `occurrence_shift: true` 并在 change_reasons 之外单列，MD 里补一条与 TRADEOFF_NOTE 平级的声明（现在只有「改名断 provenance」一条）；(b) 契约表 4.1 #5 的「后果」列改成与实际输出一致的描述（「后面同名者换 ID → 前插场景表现为 changed(content) + added，而非 removed + added」），并在裁判里加一条钉死本场景的测试——现有 TestDuplicateHeading 只覆盖了「两节同时存在时靠 occurrence 分开」，没覆盖「前插导致位移」。",
+      "unverified": true,
+      "verdicts": []
+    },
+    {
+      "lens": "diff-correctness",
+      "severity": "MEDIUM",
+      "severity_after": "MEDIUM",
+      "title": "标题含 | （如 P(A|B)）使 preview MD 表格列错位，重名告警被挤出可见列",
+      "file": "canvas-vault/.claude/skills/board-split/scripts/split_preview.py",
+      "line": 832,
+      "claim": "第 832 行把 `path`（source_anchor.heading_path 的原始标题文本，未做任何 Markdown 单元格转义）直接插进 7 列表格。标题里的 `|` 会多产生一个单元格，GFM 丢弃超出表头的尾部单元格并整体左移列 —— 「重名」列显示半截标题，真正的重名告警落到「已派生重叠」列，原本的已派生重叠值被丢弃。resolved_name 走 slug 会剥掉 `|` 所以不受影响，正是这一点让问题只在标题路径列爆发、不易被注意。概率/条件独立类板（`P(A|B)`、`P(A|B)=P(A)`）是本项目 CS188 板的常见标题形态。同一未转义模式也在 render_diff_md 的 added/removed 表（标题路径列）。",
+      "repro": "E=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/.claude/skills/board-split/scripts/split_preview.py\nmkdir -p /private/tmp/g53p/vault/{原白板,节点,outputs}\nprintf '# 条件概率-P(AB)\\n' > '/private/tmp/g53p/vault/节点/条件概率-P(AB).md'   # 制造真实重名\npython3 - <<'PY'\nfrom pathlib import Path\nB1=\"反射代理只看当前感知就决定行动，不保存历史也不预测未来，是最简单的一类代理。\"\nB2=\"第二行正文：代理函数把感知历史映射到行动，这是分析一切代理行为的数学起点。\"\nPath(\"/private/tmp/g53p/vault/原白板/板P.md\").write_text(\n  f\"---\\ntype: whiteboard\\n---\\n\\n# 主板\\n\\n## 条件概率 P(A|B)\\n\\n{B1}\\n{B2}\\n\\n\",encoding=\"utf-8\")\nPY\npython3 $E --vault /private/tmp/g53p/vault --board 板P --out-dir /private/tmp/g53p/o\ngrep -n '^| 1 |' /private/tmp/g53p/o/split-preview-板P.md\n\n预期（表头 7 列 → 数据 7 列）：标题路径=「主板 › 条件概率 P(A|B)」，重名=「⚠ 撞 `节点/条件概率-P(AB).md` → 建议 `条件概率-P(AB)_2`」，已派生重叠=「无」。\n实际：数据行有 8 个单元格。按 GFM 渲染后 —— 标题路径=「主板 › 条件概率 P(A」、重名=「B)」、已派生重叠=「⚠ 撞 `节点/条件概率-P(AB).md` → 建议 `条件概率-P(AB)_2`」，末尾的「无」被丢弃。也就是说决策关键的「重名」列显示成半截标题，重名告警跑到了错误的列头下。",
+      "suggested_fix": "在 render_md / render_diff_md 里对所有进表格单元的自由文本（heading_path 拼出的 path、conflict_with、existing_nodes）统一走一个 `_cell()` 转义器：`s.replace(\"\\\\\", \"\\\\\\\\\").replace(\"|\", \"\\\\|\")`，并把换行折成空格。裁判里补一条金样本：标题为 `条件概率 P(A|B)` 时，preview MD 与 diff MD 的每一数据行单元格数必须等于表头单元格数。",
+      "unverified": true,
+      "verdicts": []
+    },
+    {
+      "lens": "diff-correctness",
+      "severity": "LOW",
+      "severity_after": "LOW",
+      "title": "derived_overlap 完全不进 diff：候选「变成已派生」这一跃迁只表现为 content 一个 reason",
+      "file": "canvas-vault/.claude/skills/board-split/scripts/split_preview.py",
+      "line": 984,
+      "claim": "`_side()`（第 984 行）挑了 index/rank/suggested_name/resolved_name/content_fingerprint/source_anchor/basis 与四个 conflict 字段，唯独没有 `derived_overlap`；build_diff 的 change_reasons 也只认 conflict/content/name。于是「这条候选已经被派生成 节点/X，不该再进拆分清单」这个管道里最关键的状态跃迁（false→true），在 diff 里与「有人改了一句话」完全同形：state=changed、change_reasons=[\"content\"]，entries 与 MD 全文不含 derived_overlap 或「已派生」任何字样。讽刺的是这正是 preview 自己的「展示性 diff」预告 G5-10 会插入的那行 callout —— 走完确认闭环后回头跑 diff，读者从 diff 一侧无法分辨哪些 changed 是自家管道写进去的派生痕迹。",
+      "repro": "E=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/.claude/skills/board-split/scripts/split_preview.py\nmkdir -p /private/tmp/g53d/vault/{原白板,节点,outputs}\npython3 - <<'PY'\nfrom pathlib import Path\nB1=\"反射代理只看当前感知就决定行动，不保存历史也不预测未来，是最简单的一类代理。\"\nB2=\"第二行正文：代理函数把感知历史映射到行动，这是分析一切代理行为的数学起点。\"\nPath(\"/private/tmp/g53d/vault/原白板/板D.md\").write_text(\n  f\"---\\ntype: whiteboard\\n---\\n\\n# 主板\\n\\n## 反射代理\\n\\n{B1}\\n{B2}\\n\\n\",encoding=\"utf-8\")\nPY\npython3 $E --vault /private/tmp/g53d/vault --board 板D --out-dir /private/tmp/g53d/a\n# 模拟 G5-10 按 preview 自己预告的那行插入派生 callout（节点名与 stub 不同 = 用户改过名）\npython3 - <<'PY'\nfrom pathlib import Path\np=Path(\"/private/tmp/g53d/vault/原白板/板D.md\")\np.write_text(p.read_text().replace(\"## 反射代理\\n\",\"## 反射代理\\n\\n> [!relation/related_to]+ 已派生为 [[节点/Reflex-Agent]] · 相关\\n\",1),encoding=\"utf-8\")\nPath(\"/private/tmp/g53d/vault/节点/Reflex-Agent.md\").write_text(\"# Reflex-Agent\\n\",encoding=\"utf-8\")\nPY\npython3 $E --vault /private/tmp/g53d/vault --board 板D --out-dir /private/tmp/g53d/b\npython3 $E --diff /private/tmp/g53d/a/split-preview-板D.json /private/tmp/g53d/b/split-preview-板D.json --out-dir /private/tmp/g53d/d\npython3 -c \"import json;d=json.load(open('/private/tmp/g53d/d/split-diff-板D.json'));print(d['entries'][0]['state'],d['entries'][0]['change_reasons']);print('has derived_overlap:', 'derived_overlap' in json.dumps(d))\"\ngrep -c 已派生 /private/tmp/g53d/d/split-diff-板D.md\n\n两份 preview 里 derived_overlap 明确翻转：{\"overlapping\": false, \"existing_nodes\": []} → {\"overlapping\": true, \"existing_nodes\": [\"Reflex-Agent\"]}。\n预期：diff 至少让这一跃迁可见（新增一个 reason 或在 side 里带上 derived_overlap）。\n实际：state=changed、change_reasons=['content']；has derived_overlap: False；diff MD 里 grep「已派生」计数为 0。",
+      "suggested_fix": "把 `derived_overlap` 加进 `_side()` 的输出，并在 build_diff 的 change_reasons 里增设 `overlap`（overlapping 布尔或 existing_nodes 列表变化时触发，仍按字典序排在 conflict 之后 content 之前——注意现在的顺序是硬编码追加而非 sorted()，加新 reason 时必须一并改成 `reasons = sorted(reasons)` 才能兑现 docstring 与契约 §8.3 的「字典序输出」宣称）。render_diff_md 的 changed 表补一列「已派生重叠」。",
+      "unverified": true,
+      "verdicts": []
+    },
+    {
+      "lens": "additive-compat",
+      "severity": "HIGH",
+      "severity_after": "MEDIUM",
+      "title": "规模门截断把仍然存在的小节报成 removed，diff MD 零截断提示（契约 §8.6 的声明覆盖不到这个场景）",
+      "file": "canvas-vault/.claude/skills/board-split/scripts/split_preview.py",
+      "line": 1088,
+      "claim": "准确说法：build_diff 的 removed 判定（split_preview.py:1095-1108，指控引用的 1088 落在 unchanged 分支）只做「新侧 stable_id 集合里有没有它」，而新侧候选是被 --max-units 按文档序截断过的（build_preview:677-678 `kept = candidates[:max_units]`）。板子在两次 preview 之间跨过阈值时，落在阈值外但仍在板里的小节被判为 removed。实跑复现：两侧同用 --max-units 2，新板仅在最前插入一个达标小节 `## 零`，diff 输出 summary={added:1, changed:0, removed:1, moved:0, unchanged:1}，removed 表里是仍然存在的 `乙`。\n\n关键在于契约 §8.6 的缓解**判据错了**（不只是「覆盖不到」）：它声明的危害限定在「两次 preview 用了不同的 --max-units」，给出的缓解是「核对两侧阈值是否一致」——本场景两侧 threshold 都是 2，该检查通过，误报仍在。正确判据应是 `new.scale_gate.over_threshold == true`（或 `total_candidates != kept`），而非比较 threshold。\n\n两处需要修正指控的表述（不影响成立）：\n1. 信息并非完全丢失——diff **JSON** 的 `old`/`new` meta 各带 `scale_gate`（实测新侧 `{threshold:2,total_candidates:3,kept:2,over_threshold:true}`）。哑的是人读面：`render_diff_md`（:1138-1230）从头到尾不渲染 scale_gate（`grep -c '截断\\|规模门\\|over_threshold'` = 0），`run_diff_mode` 的 stdout 也只打四态计数。对照之下 **preview** 侧 MD 是有提示的（`render_md`:786 输出「⚠ 已按规模门截断保留文档序前 N 个」），所以缺口精确定位在 diff 渲染器 + diff stdout，不是引擎不知情。\n2. 且 diff MD 总览行只写 `候选 2 / 候选 2`（`candidate_count` = kept），两侧数字相等，对读者是**反向安抚**——看不出新侧实为 3 选 2。\n\n裁判现状：`backend/tests/skills/` 64 passed，无任何用例覆盖 diff 侧截断提示（`test_split_preview.py:398` 断言的是 preview MD 含「截断」；`test_split_stable_id.py:76` 只把 scale_gate 列为保留字段）。\n\n现实距离已只读核实：`canvas-vault/outputs/split-preview-CS188 lecture 2.json` = `{threshold:30, total_candidates:27, kept:27, over_threshold:false}`，再加 4 个达标小节即触发。\n\n危害边界（如实收窄）：引擎只读、不删任何东西，当前无 live 板越阈值（27/30、1/30），G5-10 确认阶段尚未存在，因此后果是「人读报告给出错误结论 + 契约给出失效的安全检查」，不是数据损坏。修法很小：diff MD 加截断横幅 + 对落在截断区的 removed 条目打 suspect 标（判据用 over_threshold 而非 threshold 相等），并把 §8.6 的缓解改成同一判据。",
+      "repro": "在 /tmp 下造两份同名板（两次都用同一个 --max-units，构造前提就是让声明的缓解失效）：\nc_old/原白板/板C.md = frontmatter + `# 主板` + 两个达标小节 `## 甲` `## 乙`；\nc_new/原白板/板C.md = 同一份，只在最前面插入一个达标小节 `## 零`（乙 仍在，新板第 16 行）。\n\nS=/Users/Heishing/.../card-t5-stableid/canvas-vault/.claude/skills/board-split/scripts/split_preview.py\npython3 $S --vault c_old --board 板C --out-dir out_c_old --max-units 2\npython3 $S --vault c_new --board 板C --out-dir out_c_new --max-units 2\npython3 $S --diff out_c_old/split-preview-板C.json out_c_new/split-preview-板C.json --out-dir out_c_diff\n\n预期：乙 未被删除，diff 不应把它列进 removed；即便列了，人读 MD 也应显式说明『新侧已按规模门截断，此条可能仍在板里』。\n实际（实跑）：summary = {added:1, changed:0, removed:1, moved:0, unchanged:1}；removed 表里赫然是 `乙`，旧锚点 `原白板/板C.md:11-15`；`grep -c '截断\\|规模门\\|over_threshold' out_c_diff/split-diff-板C.md` = 0。新侧 scale_gate = {threshold:2, total_candidates:3, kept:2, over_threshold:true}——引擎自己知道截断了，产物 MD 一个字不说。\n现实距离：live 板 `CS188 lecture 2` 当前 27/30（canvas-vault/outputs/split-preview-CS188 lecture 2.json），再加 4 个达标小节就跨默认阈值，届时尾部候选会被报成『移除』。",
+      "suggested_fix": "两处任选其一或都做：(1) build_diff 在 new.scale_gate.over_threshold 为真时，把落在截断线之后的 removed 条目单独标一个 `removed_reason: \"scale_gate_truncated\"`（或干脆拒绝比对一份被截断的 preview，与拒 v1 同规格）；(2) render_diff_md 的「总览」区无条件渲染两侧 threshold / total_candidates / over_threshold，并在 removed 小节顶部加一行截断告警。契约 §8.6 同步扩写：不只是『两侧阈值不同』，只要任一侧 over_threshold 为真，removed 就不可信。",
+      "unverified": false,
+      "verdicts": [
+        {
+          "refuted": false,
+          "reason": "按指控给的路径亲手跑通，每一个数字都对上了。/tmp 下自建两份同名板（两侧都用 --max-units 2，构造前提就是让契约声明的缓解失效），新板只在最前插入一个达标小节 `## 零`，`乙` 仍在（新板第 15-17 行）。实跑输出：preview 新侧「候选 2/3 · ⚠ 已截断」；diff「新增 1 · 内容变更 0 · 移动 0 · 移除 1 · 未变 1」；split-diff-板C.md 的「移除（removed）」表里赫然是 `乙`（旧锚点 `原白板/板C.md:11-13`）；`grep -c '截断\\|规模门\\|over_threshold' split-diff-板C.md` = 0。新侧 preview 的 scale_gate 确为 `{threshold:2, total_candidates:3, kept:2, over_threshold:true}`——引擎自己知道截断了，人读产物一个字不说，stdout 也不说。\n\n契约那一半同样成立且是这条指控最硬的部分：§8.6（split-stable-id-contract.md:380-385）把危害限定为「两次 preview 若用了**不同的** --max-units」，缓解写的是「读 diff 前应先核对两侧阈值是否一致」。本场景两侧 threshold 都是 2，这个检查会通过——契约提供的不是缺失的保护，而是一条**会给出虚假安心**的检查。正确判据是 new.scale_gate.over_threshold，代码与文档都没用它。\n\n现实距离也核实了（只读 live outputs）：CS188 lecture 2 现为 27/30、over_threshold=false，再加 4 个达标小节就跨默认阈值。tests/skills/ 64 passed，无一条裁判覆盖 diff 侧截断提示，所以这是个真空区而非已知取舍。\n\n不判 refuted 的理由：现象逐字复现，无夸大成分——指控自己的「预期」也承认截断后 diff 客观上无法知道 `乙` 是否还在，只要求显式说明，这个诉求与代码缺口精确对齐。仅两处表述需修正（引用行号 1088 落在 unchanged 分支，真正的 removed 循环在 :1095；diff JSON 其实带 scale_gate，哑的只有 MD 与 stdout），已写入 corrected_claim。",
+          "severity_after": "MEDIUM"
+        },
+        {
+          "refuted": false,
+          "reason": "指控成立，且不是在重述已声明的边界。判据是任务给定的分叉：「已显式声明且声明准确 → refuted=true；未声明，或声明与实际行为不符 → refuted=false」。本条同时落在后两者上。\n\n一、声明的触发条件与实际不符（核心）。契约 §8.6 把截断×diff 的交互条件写成「两次 preview 若用了**不同的** --max-units」，而实际触发条件是「新侧 over_threshold」——后者是前者的严格超集。§8.6 把一个特例误当成了通例。\n\n二、声明给出的缓解措施在失败场景下会通过，构成主动误导。§8.6 的处方是「读 diff 前应先核对两侧阈值是否一致」。我按指控构造两侧同为 --max-units 2 的场景实跑：old.threshold==new.threshold==2，该核对通过，而 summary 仍为 {added:1,changed:0,removed:1,moved:0,unchanged:1}，removed 表里是 `乙`，而 `乙` 在新板第 17 行明确仍存在。一条照着契约做就会得出错误结论的缓解，比没有缓解更糟——这正是「声明与实际行为不符」。\n\n三、穷尽核对后确认其余位置零声明。我逐一读了模块 docstring、TRADEOFF_NOTE（只覆盖 改标题实词→removed+added 这一条取舍）、MOVED_SEMANTICS（只覆盖 LCS 最小移动集少报）、build_diff docstring（只覆盖状态优先级），以及 test_split_stable_id.py / test_split_preview.py 的全部类与方法 docstring：无任何一处提到「截断会造成 removed」。所以这不是 docstring 里写明了、指控人没读到的取舍。\n\n四、引擎对自己的诚实标准前后不一致。同一个文件里，preview 渲染器（:786）会输出「⚠ 已按规模门截断保留文档序前 N 个」，并且 test_split_preview.py:398 用 `assert \"截断\" in md` 把了门；diff 渲染器既不渲染也无门。既然本卡的验收标准是「诚实声明」，preview 侧已经确立了「截断必须在人读产物里说出来」这条自定标准，diff 侧未达标就是缺陷而非取舍。\n\n五、比指控本身更重的一点：MD 不只是省略信号。render_diff_md 打印的 `候选 N` 取 candidate_count = len(candidates) = kept 数，于是本场景渲染成「旧候选 2 / 新候选 2」——两个完全对称的数字，读者最自然的解读就是「乙 被真删了、零 被真加了」。它掩盖而非仅仅遗漏了新侧 3→2 的截断。\n\n为何定 HIGH 而非 BLOCKER：正确数据确实还在 diff JSON 里（new.scale_gate.over_threshold=true），绕开 §8.6 的处方去直接查原始 JSON 的读者仍能识破；引擎全程只读，不销毁任何东西；修复面很小（diff MD 渲染 scale_gate + 改写 §8.6 触发条件）。但误报落在一块距默认阈值仅 4 个小节的真实板（CS188 lecture 2 实测 27/30）上，且发生在一张全部价值主张就是「diff 信号诚实」的卡上，人读产物给出零线索、契约处方还为其背书——高于 MEDIUM。\n\n事实核验：指控中每一条可验证断言我都实跑复现，无一虚构（summary 数值、removed 条目与旧锚点、grep 计数为 0、两侧 scale_gate、live 板 27/30）。现有 64 条用例全绿，无任一条覆盖本场景。",
+          "severity_after": "HIGH"
+        }
+      ]
+    },
+    {
+      "lens": "additive-compat",
+      "severity": "HIGH",
+      "severity_after": "MEDIUM",
+      "title": "板 ## Concepts 里同一个种子出现两次 → G5-3 引擎自检直接 exit 1 零产物（G5-2 同输入正常出图），且报错把成因误诊成「身份键缺维」",
+      "file": "canvas-vault/.claude/skills/board-split/scripts/split_preview.py",
+      "line": 627,
+      "claim": "准确说法：（1）现象与成因属实——build_preview（split_preview.py:627）遍历 seeds_raw 不去重，同名种子出现两次即对同一文件跑两遍 collect_candidates，产出相同 stable_id，724-728 自检 raise SystemExit，整块板零产物、out-dir 都不创建。（2）但「G5-2 同输入正常出图」这句夸大了基线质量：实测 out_old JSON 里两条候选指向**同一段** `节点/种子X.md:7–12`，第二条被重名解析改名成 `搜索问题_2`，sources 把 `节点/种子X.md` 列了两遍，board_members.seeds 是 `['种子X','种子X']`——G5-2 出的是一份带幽灵重复候选的错图，G5-10 照它建节点会凭空多造一个节点。所以这不是「本来好用 → 被本卡弄坏」，而是「原来静默出错 → 现在大声拒绝」；本卡的真实回退是把一个既有的重复扫描缺陷从 silent-wrong 变成 fail-closed 全板不可用，且没给出任何自救提示。（3）报错文案确属误诊：身份键没缺维（同一 file_rel + 同一归一标题路径 + 同一 occurrence 本就该同 ID），缺的是来源文件去重。（4）指控漏了一条更现实的触发面：NFC/NFD 双形态重复 wikilink 无需任何手写编辑即可撞上同一硬退，因为 compute_stable_id 对 file_rel 做了 nfc() 归一而 build_preview 把两种拼写当两个不同种子。（5）修复方向是一行：进循环前对 seeds_raw 按 nfc 归一保序去重（并让 board_members.seeds 如实保留原始重复以便告警），而非放宽自检。",
+      "repro": "S_new=/Users/Heishing/.../card-t5-stableid/canvas-vault/.claude/skills/board-split/scripts/split_preview.py\ngit show HEAD:canvas-vault/.claude/skills/board-split/scripts/split_preview.py > /tmp/split_preview_v1.py\n\n造板 d1/原白板/板D.md，## Concepts 段里放两行指向同一个种子（一行机器行、一行手写行，正是 sync 脚本会保留的形态）：\n```\n## Concepts\n\n- [[节点/种子X]] — 种子 · 掌握度 0.30 · 未考\n- [[节点/种子X]] — 种子（我手写的备注行，sync 脚本会原样保留）\n```\nd1/节点/种子X.md 里放一个达标的 `## 搜索问题` 小节。\n\npython3 $S_new --vault d1 --board 板D --out-dir out_new   → RC=1，stderr: `✗ 引擎自检失败: 同一 preview 内 stable_id 重复 ['bsa1-d128bf64edda5e04'] —— 身份键缺维, 拒绝输出`，out_new 目录都没建\npython3 /tmp/split_preview_v1.py --vault d1 --board 板D --out-dir out_old → RC=0，`候选 2/2`，正常产出\n\n输入不是我硬造的：canvas-vault/.claude/scripts/sync_board_concepts.py:441 有一条明确的保留分支 —— `elif steady and not machine: warns.append(f\"段内 [[{...}]] 那行带了自定义文字, 已保留未收编 — 目录另有一份自动行\")`，即脚本会主动让「手写行 + 自己生成的自动行」同时存在于 ## Concepts 段。两行只要都能被 split_preview 的 _CONCEPT_LINE（`^-\\s+\\[\\[节点/([^\\]|]+)\\]\\]\\s+—\\s+(种子|派生自)`）匹到，preview 就整块炸掉。\n（现网实测暂未触发：6 块 live 板的种子行当前无重复。）",
+      "suggested_fix": "parse_members 或 build_preview 里对 seeds_raw 做保序去重（`dict.fromkeys(seeds_raw)`），并在 sources 里留一条 `duplicated_in_concepts` 痕迹说明「Concepts 段列了 N 次，只扫一次」。自检保留，但把文案从「身份键缺维」改成分类诊断：先判是否同一 file_rel 被扫多次（输入重复），再落到「身份键缺维」。另外自检只跑在截断后的 kept 上，这意味着同样的重复输入在 --max-units 更小时反而能过——去重后这个不一致也一并消失。",
+      "unverified": false,
+      "verdicts": [
+        {
+          "refuted": false,
+          "reason": "现象 100% 复现，逐字吻合。构造 g53a/d1（板D 的 ## Concepts 放一行机器行 + 一行手写行，均指向 节点/种子X）后：新引擎 `python3 <worktree>/canvas-vault/.claude/skills/board-split/scripts/split_preview.py --vault d1 --board 板D --out-dir out_new` → RC=1，stderr 正是 `✗ 引擎自检失败: 同一 preview 内 stable_id 重复 ['bsa1-d128bf64edda5e04'] —— 身份键缺维, 拒绝输出`，out_new 目录根本没建；同输入跑 `git show HEAD:canvas-vault/.claude/skills/board-split/scripts/split_preview.py` 落地的 G5-2 版 → RC=0，`候选 2/2`。成因定位也对：build_preview:627 的 `for seed in seeds_raw` 不去重，同一份 节点/种子X.md 被 read_bytes + collect_candidates 两遍，产出逐字相同的 stable_id，724-728 自检把它当双射破裂当场 raise SystemExit。输入不是硬造：把机器行复制到自动块之后再加句备注（`- [[节点/种子X]] — 种子 · 掌握度 0.30 · 未考 ← 我还没懂这块`）即可——实测该行能被 sync 的 `_CONCEPT_LINE` 匹到、被 `$` 锚定的 `_SCRIPT_LINE`/`_PLUGIN_LINE` 判为非机器行（走 sync_board_concepts.py:441 的「已保留未收编」分支），同时又能被 split_preview 的 `_CONCEPT_LINE` 匹到。我另外跑出一条指控没提到、且完全不需要手写的触发路径：两行 Concepts 用 NFC / NFD 两种字节形态写同一个节点名（macOS 上落盘 NFD、键入 NFC 是常态，仓库别处已在防这条），两个 wikilink 在 APFS 上都 exists()，file_rel 字节不同但 compute_stable_id 里 `nfc(file_rel)` 把它们归一到同一个载荷 → 同样 RC=1 硬退（`bsa1-467d1f5cf397ce9a`，构造见 g53b/d2/原白板/板E.md）。所以缺陷成立、可用性回退成立、报错文案确实误诊。不判 refuted=true 的理由就是这三条都亲手跑出来了；但严重度要往下压，见 corrected_claim。",
+          "severity_after": "MEDIUM"
+        },
+        {
+          "refuted": false,
+          "reason": "指控的核心站得住，但两处需要修正，故整体降级而非驳回。\n\n【已复现，逐字属实】\nmkdir -p /tmp/g53rep2/d1/{原白板,节点}\nprintf '# 板D\\n\\n## Concepts\\n\\n- [[节点/种子X]] — 种子 · 掌握度 0.30 · 未考\\n- [[节点/种子X]] — 种子（我手写的备注行）\\n' > /tmp/g53rep2/d1/原白板/板D.md\nprintf '# 种子X\\n\\n## 搜索问题\\n\\n（两行 ≥60 字符正文）\\n' > /tmp/g53rep2/d1/节点/种子X.md\ncd /tmp/g53rep2 && python3 <worktree>/canvas-vault/.claude/skills/board-split/scripts/split_preview.py --vault d1 --board 板D --out-dir out_new\n→ RC=1, stderr `✗ 引擎自检失败: 同一 preview 内 stable_id 重复 ['bsa1-d128bf64edda5e04'] —— 身份键缺维, 拒绝输出`, out_new/ 未建。\ngit show HEAD:canvas-vault/.../split_preview.py > /tmp/v1.py; python3 /tmp/v1.py --vault d1 --board 板D --out-dir out_old → RC=0, `候选 2/2`。\n\n【输入可达性成立】sync_board_concepts.py:442 `elif steady and not machine: warns.append(... \"已保留未收编 — 目录另有一份自动行\")` —— 兄弟脚本按设计让「手写行 + 自动行」共存。两行都能被 split_preview.py:389 `_CONCEPT_LINE`（只锚到 `— 种子`）匹到；parse_members(392-400) 与 build_preview:627 `for seed in seeds_raw` 均不去重，同一份种子文件被 collect_candidates 扫两遍 → 逐字相同 stable_id → 725-728 raise SystemExit。\n\n【为什么不是「已声明的取舍」→ refuted=false】\n拒绝输出这个动作确实已声明（引擎 719-720 注释、契约 §五「引擎自检」、§8.2 守卫表）。但声明的**成因判定与实际行为不符**：契约 §五 与 727 行文案把重复归为「身份键缺了一维（而不是哈希碰巧碰撞）」这个二选一穷举。实测该输入下身份键三维（file_rel / heading_path_normalized / occurrence）全部正确，重复的唯一成因是同一来源文件被枚举两遍——这第三种成因在 docstring、契约、两份裁判文件里全无记载（grep 「重复/去重/两次/dup」确认；test_split_preview.py 全部 concepts fixture 都是单行种子）。按本卡「诚实声明」验收口径，这是声明不准确，不是重述边界。\n\n【指控需修正的两点】\n1. 「G5-2 同输入正常出图」高估了旧行为：out_old 产物是 `搜索问题` 与 `搜索问题_2` 两条候选，source_anchor 都是 `节点/种子X.md` 3-6 行、sources 里同一 sha256 列两遍。G5-10 会照此建两个重复节点。所以 G5-3 不是「把好的变坏」，是「把静默错误换成了带错误诊断的硬停」——fail-closed 方向本身是对的。\n2. 因此不该按「可用性回退」记高危：无写侧风险、live 6 板当前不触发、修复面 = seeds_raw 保序去重一行 + 改报错文案 + 契约 §五 补第三种成因。",
+          "severity_after": "MEDIUM"
+        }
+      ]
+    },
+    {
+      "lens": "additive-compat",
+      "severity": "MEDIUM",
+      "severity_after": "MEDIUM",
+      "title": "diff 产物完全丢掉 derived_overlap：候选从「未派生」变成「已派生为 [[节点/X]]」，diff 只说 content 变了",
+      "file": "canvas-vault/.claude/skills/board-split/scripts/split_preview.py",
+      "line": 984,
+      "claim": "_side() 把 v1 的 derived_overlap 字段整个丢弃（old/new 两侧都没有），change_reasons 也不含 overlap 这一类。结果：G5-2 特意做出来、preview MD 专门有一列的「已派生重叠」信号——也就是『这段已经是节点了，别再拆一次』——在 diff 视图里彻底不可见。G5-10 确认创建阶段如果以 diff 为输入，就拿不到这个去重依据。",
+      "repro": "S=/Users/Heishing/.../card-t5-stableid/canvas-vault/.claude/skills/board-split/scripts/split_preview.py\ne_old/原白板/板E.md：`## 反射代理` + 两行达标正文。\ne_new/原白板/板E.md：同上，正文后加一行 `> [!relation/related_to]+ 已派生为 [[节点/反射代理笔记]] · 相关`（即 /ai-linked-doc 真实会插入的派生 callout）。\n\npython3 $S --vault e_old --board 板E --out-dir out_e_old\npython3 $S --vault e_new --board 板E --out-dir out_e_new\npython3 $S --diff out_e_old/split-preview-板E.json out_e_new/split-preview-板E.json --out-dir out_e_diff\n\n两份 preview 的 derived_overlap 确实翻了：old = {'overlapping': False, 'existing_nodes': []}，new = {'overlapping': True, 'existing_nodes': ['反射代理笔记']}。\n预期：diff 至少在 entry 的 old/new 两侧带上 derived_overlap，或在 change_reasons 里出现一个 overlap 类原因。\n实际（实跑）：entries[0].change_reasons == ['content']；`'derived_overlap' in json.dumps(diff_json)` == False；split-diff-板E.md 的「内容变更」表只有『变更项 = content』一列信息，读 diff 的人无从知道这条候选已经被派生成节点了。",
+      "suggested_fix": "_side() 里补 `\"derived_overlap\": c.get(\"derived_overlap\")`（纯加性，不动既有键序）；build_diff 的 reasons 增加一个 `overlap` 取值（比较 derived_overlap 的 overlapping + existing_nodes）；render_diff_md 的 changed 表加一列「已派生重叠」，或至少在节点名后缀标注。顺带把 §8.3 的判据表补上这一维。",
+      "unverified": true,
+      "verdicts": []
+    },
+    {
+      "lens": "test-false-green",
+      "severity": "HIGH",
+      "severity_after": "HIGH",
+      "title": "规模门截断把「仍然存在的小节」报成 removed，人读 diff MD 零提示，且无任何裁判",
+      "file": "canvas-vault/.claude/skills/board-split/scripts/split_preview.py",
+      "line": 678,
+      "claim": "准确说法：`build_diff`（:1007）只消费两侧 `candidates` 数组，而该数组已在 :678 被 `kept = candidates[:max_units]` 截断，且 diff 全程不读 `over_threshold`——于是规模门边界上的进出被当成真实的 added/removed。危害不是理论边界：live 板 CS188 lecture 2 已 27/30，日常追加几节即跨门，实测把逐字节未变的 `节点/lecture 2.md` §6.5 报成 removed。人读 MD 是纯谎报（render_diff_md :1138 零渲染 scale_gate，而同页脚为 moved 语义 :878、改标题断 provenance :886 都写了长篇诚实声明）。两处需对指控原文修正/补充：(1) 指控给的 `/tmp/sg` out-dir 在 macOS 会被引擎 symlink 守卫直接拒绝，复现须用 `/private/tmp/sg`；(2) 「零提示」只对人读 MD 成立——diff **JSON** 的 `_meta`（:1117）确实带了两侧 `scale_gate`（本例 old 31/30、new 32/30，`over_threshold: True`），机器侧信号在，缺的是 diff 逻辑不消费它、MD 不渲染它。修复面因此很窄：MD 渲染 scale_gate + 对落在截断边界的 added/removed 打标（或按门内交集重算），并补一条 scale_gate × diff 的裁判。",
+      "repro": "1) 建两个 vault，old 板含 31 个达标 `## 小节i`，new 板在最前面多插一节 `## 新插入的一节`（其余 31 节逐字不变）：\npython3 - <<'EOF'\nimport pathlib\nSP=pathlib.Path('/tmp/sg'); B1='反射代理只看当前感知就决定行动，不保存历史也不预测未来，是最简单的一类代理。'; B2='第二行正文：代理函数把感知历史映射到行动，这是分析一切代理行为的数学起点。'\nsec=lambda h: f'## {h}\\n\\n{B1}\\n{B2}\\n\\n'\nfor tag,first in (('old',[]),('new',['新插入的一节'])):\n    v=SP/f'vault-{tag}'\n    for d in ('原白板','节点','outputs'): (v/d).mkdir(parents=True,exist_ok=True)\n    (v/'原白板'/'板A.md').write_text('---\\ntype: whiteboard\\n---\\n\\n# 主板\\n\\n'+''.join(sec(h) for h in first+[f'小节{i}' for i in range(1,32)]),encoding='utf-8')\nEOF\n2) python3 <engine> --vault /tmp/sg/vault-old --board 板A --out-dir /tmp/sg/o-old\n   python3 <engine> --vault /tmp/sg/vault-new --board 板A --out-dir /tmp/sg/o-new\n   python3 <engine> --diff /tmp/sg/o-old/split-preview-板A.json /tmp/sg/o-new/split-preview-板A.json --out-dir /tmp/sg/d\n预期: 新增 1 · 移除 0（板上没删过任何东西）。\n实际（实测输出）: `新增 1 · 内容变更 0 · 移动 0 · 移除 1 · 未变 29`，entries 里 `removed = 小节30`；`grep -E '截断|规模|threshold' /tmp/sg/d/split-diff-板A.md` 零命中。\n3) 裁判空转证明: 整套 `backend/tests/skills/` 对该场景无任何用例（grep scale_gate 只在 test_split_preview.py:383-387 命中 preview 单侧）。",
+      "suggested_fix": "diff 侧读取两份 preview 的 `scale_gate`：任一 `over_threshold` 为真时，(a) 把落在门外的 stable_id 单列成第五态 `truncated`（或至少把此类 entry 降级为 `unknown` 并在 JSON 打 `truncation_suspect: true`），(b) 在 render_diff_md 总览区加一条与 moved_semantics 同级的显式警示，说明「removed/added 可能只是规模门位移，不代表板上真有增删」。同时补一条裁判：old/new 各 31/32 候选 + --max-units 30，断言不得出现 removed。",
+      "unverified": false,
+      "verdicts": [
+        {
+          "refuted": false,
+          "reason": "指控按其给的路径实测**逐字复现**（唯一偏差：`--out-dir /tmp/sg` 在 macOS 被引擎自身的 `assert_symlink_free` 拒绝，须改 `/private/tmp/sg`，与缺陷无关）。合成用例输出与指控声称完全一致：`新增 1 · 内容变更 0 · 移动 0 · 移除 1 · 未变 29`，`removed = 小节30`（bsa1-fc94b9e2409f473d，锚点 原白板/板A.md:152-156）；反向删 小节1 → `added = 小节31` 的幻影新增。更进一步，我把用户 live 板 `原白板/CS188 lecture 2.md`（取证包 run1 实测已 27/30 候选，距门仅 3）连同 14 份 `节点/` 种子笔记 copy 到 /private/tmp/sg3，只做「old 追加 4 节 / new 追加 5 节」这种日常记笔记增量，diff 即报 `removed = DFS、BFS、IDS、UCS-对比总结`（锚点 节点/lecture 2.md:1287-1312）——该种子文件在两个 vault 里由同一次 shutil.copy2 产生、逐字节相同，那节一个字都没动。人读 MD `grep -cE '截断|规模门|scale_gate|threshold'` = 0。代码侧三处行号全部核实：:678 `kept = candidates[:max_units]`；build_diff(:1007) 全程只遍历两侧 `candidates`，从不读 `over_threshold`；render_diff_md(:1138) 不渲染 scale_gate，而同一份 MD 页脚给 MOVED_SEMANTICS(:878) 与 TRADEOFF_NOTE(:886) 都写了长篇诚实声明。裁判侧 grep 证实 scale_gate 只在 test_split_preview.py:383-387 单侧断言 + test_split_stable_id.py:76 字段名元组，两份文件无任何 >30 候选的 diff 用例；suite 现状 67 passed 全绿。故指控成立，不予证伪。",
+          "severity_after": "HIGH"
+        },
+        {
+          "refuted": false,
+          "reason": "复现成立，且**不是**已声明取舍——唯一的声明与实际行为不符。\n\n【复现，同阈值】/private/tmp/sg 自建两副本（live vault 零触碰）：old 板 31 节、new 板最前插一节共 32 节，其余 31 节逐字不变，两侧均用默认 --max-units=30。\n  preview old → `候选 30/31 · ⚠ 已截断`；preview new → `候选 30/32 · ⚠ 已截断`\n  diff → `新增 1 · 内容变更 0 · 移动 0 · 移除 1 · 未变 29`，removed 表出 `小节30`（bsa1-fc94b9e2409f473d，锚点 原白板/板A.md:152-156）。板上一个字都没删。反向（两份 JSON 对调）同样成立：只删一节却报 `小节30` 为 added。\n\n【为什么不是已声明边界】全仓唯一声明是 docs/design/split-stable-id-contract.md:380-386 §8.6：「两次 preview 若用了**不同的** --max-units，被截掉的候选会在 diff 里显示为 removed…读 diff 前应先核对两侧阈值是否一致。」\n  1. 前件是「不同阈值」，本复现是**相同阈值**（30==30），不在声明覆盖面内；\n  2. 更关键：它给出的读者自检动作「核对两侧阈值是否一致」在本场景**恰好通过**，按契约照做的人只会确认「阈值一致 → 这条 removed 是真的」。这不是「声明不全」，是声明把读者指向了错误的不变量。\n  3. 引擎侧零声明：模块 docstring 的「哪些会/不会换 ID」清单、MOVED_SEMANTICS(:878)、TRADEOFF_NOTE(:886)、build_diff、render_diff_md(:1156) 全无一字提规模门；两份裁判文件的类/方法 docstring 亦无。对照该引擎对 moved 最小移动集、改标题断 provenance 都写了长篇诚实声明，此处确属未声明面。\n\n【人读面确认】render_diff_md 不渲染 scale_gate 四个字段中的任何一个；`grep -E '截断|规模|threshold|scale|门' /private/tmp/sg/d/split-diff-板A.md` 仅命中第 44 行的 TRADEOFF_NOTE——那是讲**改名**的，与规模门无关。MD 头部两侧都写「候选 30」，完全看不出截断。\n\n【裁判确认】backend/tests/skills/ 67 passed 全绿。`grep -n scale_gate tests/skills/*.py` 仅 test_split_stable_id.py:76（V1_TOP_FIELDS 存在性清单条目）与 test_split_preview.py:385-387（preview 单侧截断）。scale_gate × diff 组合零覆盖，指控此点准确。\n\n【现实性】live 最大板 CS188 lecture 2 = 27/30 候选（_bmad-output/审查/g5-3-evidence/live-run-log.txt），再加 4 节即越门，非纯理论边角。\n\n【指控中被我修正的部分】「无任何提示」若读作全管道则夸大：diff JSON 的 _meta 确实带两侧 scale_gate（old total=31 / new total=32，over_threshold 双 true），机器可检；且截断本身在 preview 阶段被大声自陈两次（CLI stdout `⚠ 已截断` + preview MD「⚠ 已按规模门截断保留文档序前 30 个」）。断链发生在 diff 产物这一环。加上引擎只读、创建须经 G5-10 逐条人工确认，无数据损失，故降为 MEDIUM 而非 HIGH。",
+          "severity_after": "MEDIUM"
+        }
+      ]
+    },
+    {
+      "lens": "test-false-green",
+      "severity": "HIGH",
+      "severity_after": "MEDIUM",
+      "title": "occurrence「按全部小节计数而非仅候选」这条明写保证零裁判——变异体把 provenance 静默错锚到另一小节并判 unchanged，测试仍 30 全绿",
+      "file": "backend/tests/skills/test_split_stable_id.py",
+      "line": 326,
+      "claim": "准确说法：`compute_stable_id` docstring（split_preview.py，\"occurrence …按**全部小节**计数而非仅候选\"）与 `docs/design/split-stable-id-contract.md:82` 同款明写的这条保证，在两份裁判里**零覆盖**——把 `collect_candidates` 的计数循环改成只对通过 `level>=2 and passes_content_gate` 的小节计数，`tests/skills/` 仍 **70 passed**（基线也是 70 passed；已对当前 750 行 / 36 测试版判官 + 当前引擎 md5 86dfd1c4 现场重跑复核）。\n\n现象部分成立：变异体确实把两个**不同**小节配成一对——OLD 的 L11 小节与 NEW 的 L7 小节共用 `…779de9`（真引擎 OLD=[(…91d31a,occ2,L11),(…6c7f83,occ3,L16)] / NEW=[(…779de9,occ1,L7),(…91d31a,occ2,L12),(…6c7f83,occ3,L17)]，变异 OLD=[(…779de9,occ1,L11),(…91d31a,occ2,L16)]，与指控 step-3 数字逐位吻合）。\n\n但指控自称的加重情节「并判 unchanged … 比报 removed+added 更坏」在它自己给的 fixture 上**跑不出来**：用它描述的板（第 1 节正文补成达标、2/3 逐字不变）实跑 `--diff`，变异体输出 `{'added':1,'changed':2,'removed':0,'moved':0,'unchanged':0}`，三条 entry 是 changed(content) ×2 + added ×1——L2 内容指纹（0aa5ca vs aeb5b8）当场把错配的一对抓成 changed。只有额外把新第 1 节正文构造成与旧第 2 节**逐字节相同**，才会出现一条 unchanged；而那一条的 content_fingerprint 与 resolved_name 本来就完全相同，说它 unchanged 不构成对内容的谎报（真正的错锚在那一跑里表现为：一条一字未动的旧小节被报成 `added`）。\n\n另：测试数「30 passed / 30 全绿」不实，该文件 36 条、整目录 70 条。\n\n结论：这是一条**真实的裁判缺口**（明写契约无测试、变异存活），但它是覆盖缺口而非线上缺陷（真引擎行为正确），且指控用来抬高严重度的「静默判 unchanged」情节按其自述复现路径不成立。",
+      "repro": "1) 复制引擎到 /tmp/e_occ.py，在 collect_candidates 的 `for sec in secs:` 计数循环开头插入「非候选则 occurrence=0 并 continue」（即只对通过内容门的小节计数）。\n2) 构造 old 板：三个 `## 例题`，第 1 个正文只有「待补。」（不达标），第 2/3 个正文达标。new 板：把第 1 个的正文补成达标，第 2/3 个逐字不变。\n3) 真引擎（实测）: OLD ids/occ/line = [(…91d31a, occ2, L11), (…6c7f83, occ3, L16)]；NEW = [(…779de9, occ1, L7), (…91d31a, occ2, L12), (…6c7f83, occ3, L17)] —— 两条老候选 ID 稳定，正确。\n   变异引擎（实测）: OLD = [(…779de9, occ1, L11), (…91d31a, occ2, L16)]；NEW = [(…779de9, occ1, L7), …] —— 老的 L11 小节和新的 L7 小节共用 ID …779de9，diff 把两个**不同**小节配成一对。\n4) 用 /tmp 里改了 SCRIPT 常量的测试副本跑变异引擎 → **30 passed**。",
+      "suggested_fix": "补一条用例，就用上面的三节 fixture：断言 old 两条候选的 stable_id 在 new 里**逐一存活**（`set(old ids) <= set(new ids)`），且 old 第一条候选的 stable_id_basis.occurrence == 2（证明它确实是按全部小节数出来的），diff 只出 1 条 added。",
+      "unverified": false,
+      "verdicts": [
+        {
+          "refuted": false,
+          "reason": "按指控给的路径亲手跑完了全部四步。(1)(2) 变异体与 fixture 照做构造成功；(3) 两引擎 preview 输出与指控 step-3 的 ID 后六位 / occurrence / 行号**逐位吻合**（真 OLD 91d31a@L11+6c7f83@L16，变异 OLD 779de9@L11+91d31a@L16，老 L11 与新 L7 共用 779de9 → 错锚属实）；(4) 变异存活属实——`cd backend && ./.venv/bin/pytest tests/skills/ -q -p no:randomly` 基线 70 passed，把 SCRIPT 指向变异引擎的 /tmp 判官副本同样 70 passed，且该保证在 compute_stable_id docstring 与 split-stable-id-contract.md:82 两处明写却无任何 fixture 构造「同名小节中有一条不达标」。故核心指控（明写保证零裁判）成立，不予推翻。\n\n但指控的危害描述被夸大：用它自己描述的 fixture 实跑 --diff，变异体给出 unchanged:0、changed(content)×2 + added×1，因为 L2 指纹（0aa5ca vs aeb5b8）当场捕获了错配对。要逼出 unchanged 必须再额外构造「新第 1 节正文与旧第 2 节逐字节相同」，而那种情况下配对双方 content_fingerprint 与 resolved_name 都相同，unchanged 并非对内容的谎报。附带两处数字不实：该文件 36 测试（非 30），整目录 70。\n\n因此 refuted=false（指控站得住）但表述不准，需按 corrected_claim 改写；严重度从「provenance 静默错锚判 unchanged」的 HIGH 语气降到 MEDIUM——线上引擎行为正确，缺的是钉死该不变量的一条 fixture。",
+          "severity_after": "MEDIUM"
+        },
+        {
+          "refuted": true,
+          "reason": "指控成立的只有「变异体存活」这半句，而它赖以升级严重度的两个断言都被实测推翻。实测 1：把 collect_candidates 计数循环改成只数过内容门的小节（/tmp 下 mutant.py），用指控自述的 fixture（三个 ## 例题，old #1 为「待补。」，new #1 补齐达标，#2/#3 逐字不变）跑真引擎与变异引擎，真引擎 old=[…91d31a occ2 L11, …6c7f83 occ3 L16] / new=[…779de9 occ1 L7, …91d31a occ2 L12, …6c7f83 occ3 L17]（ID 稳定，声明与实现一致），变异引擎把老 L11 的 ID 安到新 L7 上——但 diff 报的是 changed(content)，summary 为 added 1 / changed 2 / unchanged 0，与正确引擎的 summary 完全一致，**没有任何 unchanged**。「静默判 unchanged、比 removed+added 更坏」不复现；unchanged 需要「补进去的正文与后一同名小节逐字相同」的退化构造才出现。实测 2：同一 harness 跑全量 tests/skills，变异体 68 passed / 2 failed，未变异对照 engine.py 同样 68 passed / 2 failed 且失败的是同两条 TestDiffGuards（拷贝产物），故变异体确实无人杀死。但杀不死的是什么：变异体的行为落回 docs/design/split-stable-id-contract.md §4.1 #5 与其 ⚠ 块已明写的既有风险区——「occurrence 位移 → 后者继承前者的 ID → provenance 被静默错配 … 这是 occurrence 方案的真实代价，不加掩饰 … 同一文件里出现完全同名同父的小节是已知风险区」，缓解手段显式移交 G5-10 / v2；且该 ID 继承语义已被 test_split_stable_id.py:576-588 在删除方向钉死。「按全部小节计数」（契约 §2.3、引擎 docstring :457-468）是把该已声明风险的一个触发器摘掉的加性加固，不在 §4.2 稳定面的承诺清单里。本卡验收标准是「诚实声明」而非「零边界」：声明存在、声明准确、最坏情况写得比指控还狠，指控实为「加固超出声明下限、超出部分没配专属变异杀手」，且用一个不复现的 unchanged 把它包装成 provenance 静默错锚。",
+          "severity_after": "LOW"
+        }
+      ]
+    },
+    {
+      "lens": "test-false-green",
+      "severity": "MEDIUM",
+      "severity_after": "MEDIUM",
+      "title": "diff 输入侧的 stable_id 重复守卫零裁判——删掉它后重复 ID 被静默吞掉、产出错误 diff，测试仍全绿",
+      "file": "backend/tests/skills/test_split_stable_id.py",
+      "line": 409,
+      "claim": "load_preview_json :943-947 有一道「preview 内 stable_id 重复 → 双射破裂拒绝比对」的守卫，build_preview :727 另有一道同族的引擎自检。TestDiffGuards 覆盖了缺 stable_id、schema v1、跨板、非字符串 board，唯独没覆盖重复 ID。两处守卫分别删除后，裁判都 30 passed 存活。第一处是**外部可达**的（diff 的输入是磁盘上任何人可编辑的 JSON），删掉后 `old_by = {c['stable_id']: c ...}` 会静默用后者覆盖前者，diff 少算一条候选却照常出报告。",
+      "repro": "1) 取任意一份 split-preview-板A.json，把 candidates[0] 整条复制一份追加到数组末尾（同 stable_id，改 index 与 resolved_name），存为 /tmp/dup-old.json。\n2) `python3 <engine> --diff /tmp/dup-old.json <正常 new.json> --out-dir /tmp/db`\n   真引擎（实测）: 退出 1，`✗ 旧 preview 内 stable_id 重复 bsa1-… ，双射破裂拒绝比对`。\n3) 复制引擎并删掉 :943-947 那个 `if sid in seen: raise SystemExit(...)` 块 → 同一条命令退出 0，输出 `新增 0 · 内容变更 1 · 移动 0 · 移除 0 · 未变 0`（被复制的那条候选凭空消失）。\n4) 用改了 SCRIPT 的测试副本跑该变异引擎 → **30 passed**。同样地，删掉 build_preview :725-728 的引擎自检也 30 passed 存活。",
+      "suggested_fix": "TestDiffGuards 里补一条：手工造重复 stable_id 的 JSON，断言 returncode != 0 且输出含「重复」，并断言拒绝路径零产物（沿用 test_rejects_v1_schema_input 的 `not reject_dir.exists()` 手法）。引擎自检那道则可用「把 file 维从 compute_stable_id 载荷里拿掉」等价场景做红线用例，或至少直接单测 build_preview 的 dup 分支。",
+      "unverified": true,
+      "verdicts": []
+    },
+    {
+      "lens": "test-false-green",
+      "severity": "MEDIUM",
+      "severity_after": "MEDIUM",
+      "title": "stable_id 与 diff 守卫都没有 vault 维——两个互不相干 vault 的同名板可以互比，凭空伪造出一份编辑史",
+      "file": "canvas-vault/.claude/skills/board-split/scripts/split_preview.py",
+      "line": 1019,
+      "claim": "L1 身份键载荷 = 命名空间 + **vault 内相对路径**（`原白板/板A.md`）+ 归一化标题路径 + occurrence，不含任何 vault 标识；preview JSON 里也没有任何 vault 字段（只有 board / board_file / board_sha256 / sources 相对路径）。build_diff :1019 的唯一同一性守卫是 `old['board'] != new['board']` 的**板名**比较。结果：两个毫不相干 vault 里同名的 `原白板/板A.md`，同名小节拿到**逐字节相同**的 stable_id，diff 顺利跑通并把两块不同板的差异报成同一块板的 changed。board_sha256 虽然不同，但正常的 old/new 快照它本来就不同，读者无从分辨。这与本仓 vault 隔离硬规则（R1/W1 契约）的方向相反，且零裁判（现有 test_rejects_cross_board_compare 只挡板名不同的情形）。",
+      "repro": "1) 建 vaultA：`原白板/板A.md` 含 `## 反射代理` + 两行正文。建 vaultB（完全独立目录）：`原白板/板A.md` 含同名 `## 反射代理`，但正文后面多一段 ```python 代码。\n2) 各跑一次 preview。实测两边候选的 stable_id 完全相同：`bsa1-653acfc1ce92df43`；`board_sha256` 不同。\n3) `python3 <engine> --diff <vaultA 的 preview.json> <vaultB 的 preview.json> --out-dir /tmp/xv`\n预期: 拒绝比对（不同 vault，不是同一块板的两次快照）。\n实际: 退出 0，输出 `新增 0 · 内容变更 1 · 移动 0 · 移除 0 · 未变 0` —— 一份不存在的编辑史。",
+      "suggested_fix": "preview JSON 里落一个 vault 身份字段（vault 目录 realpath 的 sha256 前 16 位，或读 .canvas-config.yaml 的 vault_id），diff 时与 board 一同做等值守卫（不等即拒绝，或要求显式 --allow-cross-vault）。是否把 vault 维并进 stable_id 载荷属契约变更，可只在 diff 守卫层收口，避免动已有 ID。",
+      "unverified": true,
+      "verdicts": []
+    },
+    {
+      "lens": "test-false-green",
+      "severity": "MEDIUM",
+      "severity_after": "MEDIUM",
+      "title": "live「≥2 真实板」验收可被循环内 pytest.skip 静默清零；LIVE_VAULT 是指向主仓（非本 worktree）的硬编码绝对路径",
+      "file": "backend/tests/skills/test_split_stable_id.py",
+      "line": 614,
+      "claim": "唯一兑现「live ≥2 真实板」这条验收要求的是 test_two_runs_on_real_boards_give_identical_stable_ids，但它在 :615-617 用循环内 `pytest.skip` 做前置检查——两块硬编码板名（`CS188 lecture 2` / `特征值与特征向量`）任意一块改名或缺失，整条测试就整体 SKIP，真实板覆盖从 2 直接掉到 0，套件照常绿。另一条 live 测试只用 LIVE_BOARDS[0]，兜不住「≥2」。更根本的是 LIVE_VAULT（:45）是写死的 `/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault` 绝对路径，指向**主仓**的 vault，而 SCRIPT 用的是 REPO_ROOT（本 worktree）的引擎；换一台机器 / CI / 别人的 clone 上，class 级 skipif 直接让整类 live 取证消失，而这正是本卡取证包 g5-3-evidence 的核心主张。",
+      "repro": "1) mkdir -p /tmp/fakelive/{原白板,节点,outputs}；只把 `CS188 lecture 2.md` 拷进去（模拟第二块板被改名/缺失）。\n2) 复制 test_split_stable_id.py 到 /tmp，只改两行：LIVE_VAULT 指向 /tmp/fakelive，SCRIPT 指向 worktree 的 split_preview.py。\n3) `cd backend && ./.venv/bin/pytest /tmp/test_live.py -q -p no:randomly -rs`\n实际（实测）: `SKIPPED [1] ... live 板缺失: 特征值与特征向量`，「≥2 真实板」这条验收无声消失，退出状态里没有任何红。",
+      "suggested_fix": "把「板存在」从 skip 改成 fail（或至少：LIVE_VAULT 存在时缺板即 fail，只在 LIVE_VAULT 整个不存在时才 skip），并显式断言实际跑过的板数 >= 2。LIVE_VAULT 改成先读环境变量（如 SPLIT_LIVE_VAULT）、缺省回落 REPO_ROOT/'canvas-vault'，让本 worktree 自带的 vault 也能兑现同一条验收；板名列表同样改成「取 原白板/ 下前 2 块非空板」而不是写死两个中文名。",
+      "unverified": true,
+      "verdicts": []
+    },
+    {
+      "lens": "readonly-writeside",
+      "severity": "HIGH",
+      "severity_after": "MEDIUM",
+      "title": "机器追加的 `## Recent Activity` / AUTO-GENERATED 尾块落在最后一条候选的 span 内，被算进 content_fingerprint —— 每派生一次节点就凭空多一条 changed(content)",
+      "file": "canvas-vault/.claude/skills/board-split/scripts/split_preview.py",
+      "line": 547,
+      "claim": "机制与现象成立，但三处表述需修正：(1) 载荷机制只是 strip_generated 规则 4——`## Recent Activity` 标题行被打上 stripped 掩码，sections_of 建 heads 时跳过它，于是上一节 end 落穿到 EOF；AUTO-GENERATED 对本身不含标题，在模板布局下并非致因。(2) 波及面 = 每个来源文件的**最后一条**候选（end==EOF 的那条），不是全部候选；每次派生多报一条 changed，不是每条候选多一条。(3) 「G5-10 插链会插到日志行」不成立——render_md 的展示性 diff 只用 line_start，插入点正确；受影响的只是「按 line_start..line_end 取整段内容」这类消费方，而 G5-10 尚不存在，属前瞻推断而非当下可观测。当下现网影响确为 0（六块板最后一个非 RA 标题是 `## 🔗 节点关系图`，正文是 dataviewjs fence + 引用块，过不了 content gate）。但比指控更该被强调的一点是：这**不**在 docs/design/split-stable-id-contract.md §3.1 已声明的取舍里——§3.1 声明的是「AUTO-GENERATED 段在小节里被重写 → changed，有意接受」，前提是 span 正确；本例是生成尾块本应终止 span 却静默没终止，导致 source_anchor.line_end 本身就是错的（人读候选表今天就印着 `原白板/测试板.md:117-132` 这种把 10 行活动日志算进候选区间的锚点），而契约 §4「诚实边界」清单未列此项，两份裁判文件也无任何用例覆盖「候选后跟 Recent Activity 尾块」。",
+      "repro": "mkdir -p V/原白板 V/节点；写 V/原白板/活动板.md：\n```\n# 活动板\n\n## 核心小节\n\n这是核心小节的第一行正文内容用来凑够字符数目要求足够长足够长足够长。\n这是核心小节的第二行正文内容用来凑够字符数目要求足够长足够长足够长。\n\n## Recent Activity\n\n- 2026-05-09T08:54:18.093Z: Whiteboard created\n```\n1) python3 split_preview.py --vault V --board 活动板 --out-dir OUT；cp 产物 RA-OLD.json\n   → 候选 `核心小节`，source_anchor = 3-10（注意 line_end=10 已经盖住 Recent Activity），fp = cf1-51712478fde34777\n2) 只往文件末尾 append 一行活动日志（模拟一次 /ai-linked-doc 派生）：\n   echo '- 2026-08-30T10:00:00.000Z: Extracted [[节点/别的东西]] via canvas:ai-linked-doc' >> V/原白板/活动板.md\n3) 再跑 preview → RA-NEW.json；fp 变成 cf1-b28852dbc5171883\n4) python3 split_preview.py --diff RA-OLD.json RA-NEW.json --out-dir OUT\n预期：核心小节 unchanged（它的正文一个字节都没动）。\n实际：`内容变更 1`，changed 表 `核心小节 | bsa1-aff90fad5dd43ee3 | content | 原白板/活动板.md:3-10 | 原白板/活动板.md:3-11`。\n（现网六块板今天板体候选数为 0，全部候选来自种子笔记，所以此刻是潜伏态；但模板保证每块板尾部都是 Recent Activity，而引擎的 scaffold_note 恰恰在劝用户「拆分素材应先进入种子笔记/板正文」。）",
+      "suggested_fix": "把小节 span 的右边界收到「第一个被 strip_generated 判为生成段起点的行」之前（AUTO-GENERATED 起始行 / Recent Activity 标题行），source_anchor.line_end 与 compute_content_fingerprint 共用这个收紧后的边界。文件头「指纹不复用剥离掩码」的理由只涉及**代码 fence**，把 fence 继续留在指纹里即可，不必连带把生成日志也吞进来。",
+      "unverified": false,
+      "verdicts": [
+        {
+          "refuted": false,
+          "reason": "按指控给的复现路径亲手跑通，数值逐位吻合：候选 `核心小节` / stable_id `bsa1-aff90fad5dd43ee3` / 锚点 3-10 / fp `cf1-51712478fde34777`；仅向文件末尾 append 一行 ai-linked-doc 活动日志后 → fp `cf1-b28852dbc5171883`、锚点 3-11、diff 输出「新增 0 · 内容变更 1 · 移动 0 · 移除 0 · 未变 0」，changed 表 reason=content。又用现网真板副本（cp 线上 `原白板/CS188 lecture 2.md` 到 /tmp 侧 vault，在 `## Recent Activity` 前插入一节用户笔记）复跑：候选锚点 117-132（把整段 10 行活动日志吞进候选区间），append 一行日志后 → 117-133、fp e2d27bfa… → c6b1a19e…、`内容变更 1`。代码侧机制核实：strip_generated 规则 4 把 `## Recent Activity` 行置 stripped；sections_of 对 stripped/comments 行 `continue` 不收进 heads，于是前一节找不到同级或更高级后继标题，end = len(lines)；compute_content_fingerprint(lines, sec['line'], sec['end'])（:547）不带任何掩码逐行取原始行。触发链也核实为真：configure-whiteboard/templates/whiteboard.md.template 最后一节确为 `## Recent Activity`（现网六块板 grep 标题全部如此），ai-linked-doc/SKILL.md Step 7 明写「用 Edit 在 `## Recent Activity` section append」。build_diff 的 content 判定只看 fingerprint（锚点变化本身不触发 changed），所以这确是纯假阳性。不判 refuted 的核心理由：不仅 diff 多报，source_anchor.line_end 今天就是错的且直接印在人读报告里，而引擎自己的 scaffold_note 恰恰劝用户「拆分素材应先进入种子笔记/板正文」——一旦照做即触发。",
+          "severity_after": "MEDIUM"
+        },
+        {
+          "refuted": true,
+          "reason": "复现完全成立（/private/tmp/g53-rebut-95154：stable_id 两侧同为 bsa1-aff90fad5dd43ee3，fp cf1-51712478fde34777 → cf1-b28852dbc5171883，anchor 3-10 → 3-11，diff summary {\"added\":0,\"changed\":1,...}，与指控字字相符）。但这条行为已被显式声明两处，指控对两处均未交锋：\n\n(1) docs/design/split-stable-id-contract.md:97-107 §3.1 —— 第 99 行把「指纹故意不复用」的剥离掩码逐项列出，**明文含 Recent Activity**（frontmatter / AUTO-GENERATED 对 / 代码 fence / Recent Activity / HTML 注释）；第 106 行写明代价：「小节里的…段被同步脚本重写时，该候选会判 changed。这是有意接受的——宁可多报一次「你可能想看一眼」，不可少报一次真实内容变动。」多报正是被选定的那一侧。\n\n(2) docs/design/split-stable-id-contract.md:275-283 §7.2「re-baseline 规则（⛔ 硬要求）」—— 逐字预告了指控的场景：派生写入（含插链 callout）「必然把被插入的小节判 changed」，故「G5-10 写完（含插链）必须立即重跑一次 preview 落新基线… diff 永远比较**同一写代之间**的两份 preview，不跨写操作比较。不遵守这条，用户每次拆完节点都会看到一堆自己造成的假 changed。」指控的「每派生一次就多一条 changed」正是这条规则存在的理由，缓解手段已是硬要求。\n\n(3) 复现前提本身不成立于真实链路：/ai-linked-doc 派生并非「板正文一个字没改」——它同时改 ## Concepts、把选中文本替换为 wikilink、插入 [!relation/…] callout（canvas-vault/.claude/skills/ai-linked-doc/SKILL.md），全是内容写入，按 §7.2 本就该判 changed。\n\n(4) 本卡的头号保证未被证伪：复现中 stable_id 两侧完全相同，§4.2「行号漂移不换 ID」的稳定面完好；这是指纹层的多报，不是 ID 不稳定。\n\n(5) 现网影响为 0，指控自己也承认：_bmad-output/审查/g5-3-evidence/live-stable-ids.txt 显示 28 条 live 候选全部根在种子笔记 H1（CS 188：人工智能搜索 / Linear Algebra Fundamentals），节点文件不带 Recent Activity 节；live-diff-summary.txt 两块板 changed=0。\n\n验收标准是「诚实声明」而非「零边界」，该现象及其缓解均已声明且与实际行为一致，故判 refuted=true。残余只有 §3.1 措辞「小节里的」未覆盖「尾部同级生成节被吞到 EOF」这一具体形态，属 §4 边界表可补一行的文档精度问题，评 LOW。",
+          "severity_after": "LOW"
+        }
+      ]
+    },
+    {
+      "lens": "readonly-writeside",
+      "severity": "MEDIUM",
+      "severity_after": "MEDIUM",
+      "title": "规模门截断导致 diff 把「被截掉但仍在板上的小节」报成 removed，人读 MD 里没有任何截断提示",
+      "file": "canvas-vault/.claude/skills/board-split/scripts/split_preview.py",
+      "line": 678,
+      "claim": "build_preview 用 kept = candidates[:max_units] 截断，被截掉的候选不进 JSON。build_diff 只看两侧 candidates 数组，凡旧侧有、新侧无的一律判 removed——它不知道那条只是被规模门挤出去了。板顶新增一节就会把尾部一条挤出窗口，diff 于是同时报一条 added 和一条**假 removed**。更糟的是 render_diff_md 从头到尾不输出 scale_gate/over_threshold（grep 计数为 0），总览只写「候选 5」，读者无从察觉两侧都被截断过。数据在 JSON 的 old/new.scale_gate 里躺着，人读产物没用。现网 `CS188 lecture 2` 候选 27 条，缺省阈值 30——再加 4 节就进这个区。",
+      "repro": "造 原白板/规模板.md，6 个达标小节 `## 节1`…`## 节6`。\n1) python3 split_preview.py --vault V --board 规模板 --out-dir OUT --max-units 5 → `候选 5/6 · ⚠ 已截断`；cp 产物 OLD-gate.json\n2) 在 `## 节1` 之前插入一个新的达标小节 `## 节0`\n3) 再跑 --max-units 5 → `候选 5/7 · ⚠ 已截断`；cp 产物 NEW-gate.json\n4) python3 split_preview.py --diff OLD-gate.json NEW-gate.json --out-dir OUT\n预期：added 1（节0），并明确告知尾部有候选因规模门落在窗口外。\n实际：`新增 1 · 内容变更 0 · 移动 0 · 移除 1 · 未变 4`，removed 表里是 `节5 | bsa1-2b4c2f1874eb0194 | 原白板/规模板.md:23-27`；而 `grep -c '^## 节5' V/原白板/规模板.md` = 1，节5 根本没被删。MD 全文 grep 'over_threshold|截断|规模门' 命中 0。",
+      "suggested_fix": "build_diff 里读两侧 scale_gate：任一 over_threshold 为真时，(a) 在 diff JSON 顶层加 truncation_warning 字段并在 render_diff_md 的总览上方渲染醒目横幅；(b) 对落在旧侧末尾、且旧侧 over_threshold 为真的 removed 条目改判独立状态（如 truncated_out）而不是 removed，避免把「窗口外」冒充成「已删除」。",
+      "unverified": true,
+      "verdicts": []
+    },
+    {
+      "lens": "readonly-writeside",
+      "severity": "MEDIUM",
+      "severity_after": "MEDIUM",
+      "title": "`## Concepts` 里同一份种子被列两次（重复行，或 NFC/NFD 两种写法）会让整块板的 preview 硬失败退出 1 —— 相对 G5-2 是可用性倒退，且报错把原因归给「身份键缺维」",
+      "file": "canvas-vault/.claude/skills/board-split/scripts/split_preview.py",
+      "line": 727,
+      "claim": "parse_members 不去重，build_preview 对 seeds_raw 逐条 collect_candidates，于是同一份种子文件被扫两遍；两遍的 file_rel 相同、occurrence 各自从 1 数起，产出完全相同的 stable_id。G5-3 新加的自检撞见重复就 raise SystemExit，整块板一条候选都不输出。同一份输入在 G5-2（HEAD~1）下能正常出 preview（4/4 候选），所以这是本卡引入的倒退。macOS 变体更隐蔽：`[[节点/Café]]`（NFC）与 `[[节点/Café]]`（NFD）在 APFS 上指向**同一个文件**，compute_stable_id 又对 file_rel 做了 nfc()，于是磁盘上只有一个文件也能撞出重复 ID。错误文案「身份键缺维, 拒绝输出」把成员表重复误诊成键设计缺陷，排障方向被带偏。",
+      "repro": "A. 字面重复：在 板/原白板/测试板.md 的 `## Concepts` 里把同一行写两遍：\n   `- [[节点/Alpha]] — 种子`\n   `- [[节点/Alpha]] — 种子`\n   python3 split_preview.py --vault V --board 测试板 --out-dir OUT\n   预期：出 preview（重复成员至多留痕）。实际：`✗ 引擎自检失败: 同一 preview 内 stable_id 重复 ['bsa1-6feeca6a1fada51c'] —— 身份键缺维, 拒绝输出`，exit=1，OUT 目录空。\n   对照：git show HEAD~1:...split_preview.py > OLD_ENGINE.py; python3 OLD_ENGINE.py --vault V --board 测试板 --out-dir OUT2 → `✓ preview 已生成 … 候选 4/4`，exit=0。\nB. NFC/NFD 变体（磁盘上只有一个 节点/Café.md）：Concepts 两行分别写 NFC 的 `Café` 和 NFD 的 `Café`（unicodedata.normalize 构造），同样 `✗ 引擎自检失败 … bsa1-7fbb6b86af583358`，exit=1。",
+      "suggested_fix": "在 build_preview 遍历 seeds_raw 之前按 nfc(seed) 去重：保留首次出现，重复项照既有留痕格式写进 sources（如 `skipped: \"成员表重复声明, 已按首次出现处理\"`）。这样自检才回到它真正的语义——「身份键设计缺维」的最后防线，而不是被成员表书写问题误触发。",
+      "unverified": true,
+      "verdicts": []
+    },
+    {
+      "lens": "readonly-writeside",
+      "severity": "LOW",
+      "severity_after": "LOW",
+      "title": "JSON/MD 两个产物非原子写：MD 写入被防御拒绝时 JSON 已经落盘，留下半截产物或「新 JSON + 上一版 MD」的错配对",
+      "file": "canvas-vault/.claude/skills/board-split/scripts/split_preview.py",
+      "line": 1348,
+      "claim": "run_diff_mode 的 docstring 立的是「拒绝路径必须零产物」的次序铁律（板名校验的次序问题已修好），但两次 safe_write_text 是先 json 后 md，中间没有回滚。md 目标命中 O_NOFOLLOW / nlink>1 / 不可写时，进程 exit 1，而 json 已经写完。out-dir 里若本来就有上一轮的同名 .md，用户拿到的是「本轮的 JSON + 上一轮的 MD」——两份产物互相矛盾却都长得像正常产物。preview 模式（1320/1321 行）同型。",
+      "repro": "mkdir -p OUTSYM && ln -sf /private/tmp/g53/DECOY2.md 'OUTSYM/split-diff-测试板.md'\npython3 split_preview.py --diff PREVIEW.json PREVIEW.json --out-dir OUTSYM\n预期（按 docstring）：拒绝且零产物。\n实际：`✗ 写入目标被 symlink 布防或不可写, 拒绝写入: OUTSYM/split-diff-测试板.md ([Errno 62] …)`，exit=1，但 `ls -la OUTSYM` 显示 `split-diff-测试板.json` 已经 7593 字节落盘。",
+      "suggested_fix": "两个目标做统一的两阶段写：先对 json_path 与 md_path 各自跑一遍 open(O_NOFOLLOW|O_CREAT|O_EXCL 或 O_NOFOLLOW + fstat nlink) 预检并持有 fd，两个都过了再各自 ftruncate+write；或写 out_dir 内的临时文件后用 os.replace 双双落位，任一步失败即清理临时文件。",
+      "unverified": true,
+      "verdicts": []
+    },
+    {
+      "lens": "honesty-naming",
+      "severity": "HIGH",
+      "severity_after": "HIGH",
+      "title": "规模门跨线把「还在板上、一字未动」的候选报成 removed，而 diff MD 对截断只字不提（现网已到 27/30）",
+      "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/.claude/skills/board-split/scripts/split_preview.py",
+      "line": 678,
+      "claim": "指控成立，仅两处表述需精确化。行号：`_meta()` 实际在 split_preview.py:1110（非 :1103），`render_diff_md()` 定义在 :1138（非 :1131-1160）；`kept = candidates[:max_units]` 的 :678 引用准确。沙箱 removed 行锚点实测为 `原白板/K.md:11-13`（指控写 11-14，取决于板文件尾行，非实质差异）。更准确的说法应补上两点：一、`docs/design/split-stable-id-contract.md` §8.6 已声明该交互，但**只声明了「两侧 --max-units 不同」这一种情形**，并给出「读 diff 前应先核对两侧阈值是否一致」的补救——而真正高发的情形恰恰是**两侧阈值相同、板自己长过线**（本复现 3/3，现网 30/30），此时按契约自己的补救去核对会得到「阈值一致」的假放行，声明形同虚设；二、机器可读侧未失真（diff JSON 的 `new.scale_gate.over_threshold=True` 是对的），失真只发生在人读 MD 与 CLI stdout 这两条人类唯一会看的通道。最小修法有二选一或并用：render_diff_md 在总览处渲染两侧 threshold/total_candidates/over_threshold，并在任一侧 over_threshold=True 时对 removed 节加截断警示；或在 build_diff 里把「新侧 total_candidates > kept 且该 sid 落在被截区间」的条目标为 `truncated` 而非 `removed`。",
+      "repro": "沙箱（live 只读，全部在 /tmp 副本上）：\n1) 建 vault，原白板/K.md = `# 主板` + 三个达标 ##小节 Alpha/Beta/Gamma；\n   `python3 split_preview.py --vault SB/v --board K --out-dir SB/out --max-units 3` → 存为 old.json\n   实测 old scale_gate = {'threshold':3,'total_candidates':3,'kept':3,'over_threshold':False}\n2) **只在最前面插入第四节 Zeta**（Alpha/Beta/Gamma 一字未动，全都还在板文件里）→ 重跑 → new.json\n   实测 new scale_gate = {'threshold':3,'total_candidates':4,'kept':3,'over_threshold':True}\n3) `python3 split_preview.py --diff SB/out/old.json SB/out/new.json --out-dir SB/out`\n预期：added=1(Zeta)，removed=0，并且 MD 至少提示「新侧已按规模门截断 3/4」。\n实际：`新增 1 · 内容变更 0 · 移动 0 · 移除 1 · 未变 2`；split-diff-K.md 的「## 移除（removed）」表里赫然列着 `| Gamma | bsa1-bd5d55788ac619ef | 原白板/K.md:11-14 | 主板 › Gamma |`；对整份 MD 做 grep，规模门 / 截断 / threshold / over_threshold / scale_gate **一个都搜不到**（脚本内 `any(w in md for w in (...))` 返回 False）。\n现网触发距离：取证包 _bmad-output/审查/g5-3-evidence/run1/split-preview-CS188 lecture 2.json 实测 scale_gate = {'threshold':30,'total_candidates':27}——该板再长出 4 个达标小节即触发，且届时报出的假 removed 数量随插入位置可达数条。",
+      "suggested_fix": "build_diff 读入 old/new 的 scale_gate：任一侧 over_threshold 为真时，对「不在对侧保留窗口内、但对侧 total_candidates 覆盖得到」的 stable_id 单列 `truncated` 态，或至少给该 removed/added entry 打 `truncation_suspected: true`；render_diff_md 顶部照 render_md 的样子补一条「⚠ 旧/新侧已按规模门截断 kept/total，本 diff 的 added/removed 可能是截断窗口位移而非真实增删」横幅。",
+      "unverified": false,
+      "verdicts": [
+        {
+          "refuted": false,
+          "reason": "亲手按指控路径在 /tmp 沙箱复现，现象逐字命中，无夸大。(1) 引擎 :678 `kept = candidates[:max_units]` 先截断再产出候选，`build_diff` (:1007) 只按 stable_id 集合做差，被规模门挤出保留窗口的候选在新侧 JSON 中不存在 → 被判 removed。(2) 沙箱实测：old scale_gate={'threshold':3,'total_candidates':3,'kept':3,'over_threshold':False}；只在板最前插入第四节 Zeta（Alpha/Beta/Gamma 一字未动、全都还在板文件里）后 new scale_gate={'threshold':3,'total_candidates':4,'kept':3,'over_threshold':True}；diff 输出 `新增 1 · 内容变更 0 · 移动 0 · 移除 1 · 未变 2`，split-diff-K.md 的「## 移除（removed）」表里赫然列着 `| Gamma | bsa1-bd5d55788ac619ef | 原白板/K.md:11-13 | 主板 › Gamma |`——stable_id 与指控给的完全一致。(3) 对整份 diff MD grep「规模门/截断/threshold/over_threshold/scale_gate/max_units」返回 NONE FOUND；而同一引擎的 preview MD 有 `- 候选单元: **3**（总 4，⚠ 已按规模门截断保留文档序前 3 个）`——两份人读产物的诚实度确实不对称。(4) 现网触发距离属实：取证包 run1/split-preview-CS188 lecture 2.json 实测 {'threshold':30,'total_candidates':27,'kept':27}，再长 4 个达标小节即跨线；插入 k 个新节于板首会让末尾 k 条老候选掉出窗口，假 removed 数随之为数条。危害不仅没被夸大，反而比指控写的更硬：docs/design/split-stable-id-contract.md:380-385（§8.6）虽声明了该交互，但只覆盖「两次 preview 用了**不同的** --max-units」并给出补救「读 diff 前应先核对两侧阈值是否一致」——本复现里两侧阈值都是 3（现网同理都是 30），照着契约自己的补救去核对会得到「阈值一致 → 这条 removed 是真的」的假放行。裁判也未覆盖：scale_gate 在 test_split_stable_id.py:76 只作为 v1 字段存在性列表出现，整套 tests/skills/ 66 passed 全绿而缺陷仍在。",
+          "severity_after": "HIGH"
+        },
+        {
+          "refuted": false,
+          "reason": "指控站得住，但需要收窄。防守方唯一能引的挡箭牌是契约文档 §8.6（:380-386），它确实以「声明」名义写了规模门 × diff 的交互——所以指控里「diff 会把被截断候选报成 removed」这半句本身不是新发现。但 §8.6 的声明与实际行为**不符**，而不是准确覆盖：它把触发条件限定成「两次 preview 用了不同的 --max-units」，并让读者用「核对两侧阈值是否一致」自保。我在 /tmp 沙箱（live vault 只读未动）实跑：两侧 --max-units 均为 3（阈值一致，§8.6 处方全绿），只在板首插入 Zeta，Alpha/Beta/Gamma 一字未动且仍在板文件里，diff 仍输出「新增 1 · 移除 1」，removed 表赫然列着 Gamma（bsa1-bd5d55788ac619ef，原白板/K.md:13-16）。即声明所指的触发条件不是真实主触发条件，而缺省阈值 DEFAULT_MAX_UNITS=30 固定不变，阈值不变恰恰是常态，被漏掉的正是唯一会自然发生的那条路。真正的判别信号 over_threshold False→True 在 §8.6 全文未被提及。叠加两条独立的未声明面：render_diff_md() 对截断零渲染（对产物 MD grep 规模门/截断/threshold/over_threshold/scale_gate 命中数 = 0，总览两侧「候选 3/候选 3」连计数暗示都没有），而同引擎的 preview MD 有「⚠ 已按规模门截断」横幅——人读层诚实度不对等；且无任何裁判钉这条交互（scale_gate 在 test_split_stable_id.py 仅 :76 字段清单出现，test_split_preview.py:369 只验 preview 侧，取证包零提及）。现网距离属实：CS188 lecture 2 实测 27/30、over_threshold=False，再加 4 节即入此态。故不构成「重述已声明边界」，refuted=false。定级 MEDIUM 而非 HIGH：引擎全程只读、无写侧与数据损失，原始信号仍完整保留在 diff JSON 的两侧 scale_gate 里（机器读者可恢复），且存在一条方向正确、只是范围写窄的声明——损害面限于人读 MD 的误导与设计文档的失准，恰好击中本卡「诚实声明」这条验收线，故也不低于 MEDIUM。",
+          "severity_after": "MEDIUM"
+        }
+      ]
+    },
+    {
+      "lens": "honesty-naming",
+      "severity": "MEDIUM",
+      "severity_after": "MEDIUM",
+      "title": "「标题编号与 [MM:SS]() 变化不算变化」只对 stable_id 成立，对 diff 的 changed 判定不成立——live 板复本实测 3 条假「内容变更」",
+      "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/.claude/skills/board-split/scripts/split_preview.py",
+      "line": 491,
+      "claim": "文件头 :31-33「哪些**不**换 ID：…标题编号与 [MM:SS]() 标记变化（clean_heading 吸收）」与 render_md :774 给用户看的横幅「抗行号漂移、抗调序、**抗标题编号与 [MM:SS]() 变化**」都没有限定作用域，而指纹 span 用 `sec['end']`（含子小节），子标题那一行是原样进指纹的、不过 clean_heading。于是子小节的编号/时间戳一变，父候选立刻被报成 changed(reason=content)。compute_content_fingerprint 的免责说明只写了「改子小节**正文**会让父子两条候选都判 changed」，把装饰性标记这一类漏在外面——而吸收编号变化恰恰是该 ID 设计给自己写的头号立项理由（:497「真实讲义板重编号…不吸收则「稳定 ID」名存实亡」）。",
+      "repro": "用 live 板的**副本**（live 全程只读，脚本结尾断言 live 字节未变，实测 True）：\n1) 把 canvas-vault/原白板/CS188 lecture 2.md 与 canvas-vault/节点/lecture 2.md 复制进 /tmp 沙箱 vault；\n2) 只对 `###` 及以下标题行里的 `[MM:SS]()` 标记做 +1 秒（正则替换，共命中 22 处），**正文一个字节不动**；\n3) 对改前/改后各跑一次 preview，再 `--diff`。\n预期：全部 unchanged（引擎自称吸收该变化）。\n实际：stable_id 全等 ✓，但 `{'added':0,'changed':3,'removed':0,'moved':0,'unchanged':24}`，三条 changed 的 reasons 均为 ['content']，命中的正是取证包 run1 里那 3 个嵌套父候选：`课程概述与理性代理`(span 55-160)、`搜索问题的形式化`(span 356-633)、`搜索结构：状态空间图与搜索树`(span 634-751)。\n最小复现同样成立：`## 搜索算法`(带直属正文) + `### 2.1/2.2/2.3 子节`，仅把编号整体改成 3.1/3.2/3.3 → `changed 1 reasons=['content']`。",
+      "suggested_fix": "二选一，别两头占：(a) 算指纹时对 span 内**标题行**先过 clean_heading 再入哈希（正文行仍原样，代码块感知不受影响），使编号/时间戳变化对父子两层一致地被吸收；(b) 保持现状但把 :31-33 的「不换 ID」清单和 :774 的用户横幅显式限定为「仅指 stable_id；父候选的 content_fingerprint 会因子标题装饰性变化而变，diff 会报 changed(content)」，并把 :491 的括注从「改子小节正文」改成「改子小节的任何行（含子标题行本身）」。",
+      "unverified": true,
+      "verdicts": []
+    },
+    {
+      "lens": "honesty-naming",
+      "severity": "MEDIUM",
+      "severity_after": "MEDIUM",
+      "title": "指纹「故意不复用剥离掩码」的代价没披露：Recent Activity / AUTO-GENERATED 机器刷新被报成用户内容变更",
+      "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/.claude/skills/board-split/scripts/split_preview.py",
+      "line": 23,
+      "claim": "文件头 :23-26 与 :498-503 把「不复用剥离掩码」论证成单向的诚实选择，唯一举证是「用掩码会让小节内代码块整块改写纹丝不动，那是掩饰」。反向代价一句没写：引擎自己在 strip_generated(:236) 里把 AUTO-GENERATED 对与 Recent Activity 节定义为「生成段不算素材」，而指纹恰恰把这些段算作内容。结果是 sync_board_concepts.py / 派生管道每刷一次 Recent Activity，包住它的候选就被报一条 changed(reason=content)，人读 MD 里与真实正文改写完全同形、不可区分。",
+      "repro": "沙箱构造该 vault 的标准节点形态：\n- 原白板/G.md = `# 主板` + `## Concepts`(含 `- [[节点/反射代理]] — 种子`) + 一个达标 `## 板体小节`；\n- 节点/反射代理.md = `# 反射代理` + 达标正文 + `## Recent Activity` + `- 2026-08-01 复习一次`（因唯一的 ##节被剥离，该种子走 seed-note-whole 整篇回退，span 覆盖全文）。\n跑 preview 存 old.json；**只把 Recent Activity 里的日期改成 2026-08-30**（用户正文一字未动）；重跑存 new.json；`--diff`。\n预期：全 unchanged（生成段刷新不是内容变更 —— 这正是引擎剥离它的理由）。\n实际：`{'added':0,'changed':1,'removed':0,'moved':0,'unchanged':1}`，`changed '反射代理_2' reasons=['content']`，指纹由 cf1-a5c5711c2867d409 变为 cf1-53b69dd2bc06394e。\n现网相关性：live 板 特征值与特征向量 的唯一候选 basis 正是 seed-note-whole（节点/Fundamentals.md span 129-173，取证包 run1 可查）；该 vault 的板/节点普遍带 `## Recent Activity`（原白板/特征值与特征向量.md:193、AUTO-GENERATED 对在 :26/:31），该种子一旦被管道补上 Recent Activity 即触发。",
+      "suggested_fix": "指纹分两支：正文行原样入哈希（保住代码块可感知），但 strip_generated 判定为生成段的行整体排除（注释掩码可继续不排除）。若坚持现状不改行为，则必须在 :23-26 与 :498-503 补上等重量的反向声明：「代价 = 生成段（AUTO-GENERATED / Recent Activity）机器刷新会被报成 changed(content)，与真实正文改写不可区分」，否则这段注释只陈述了对自己有利的一半。",
+      "unverified": true,
+      "verdicts": []
+    },
+    {
+      "lens": "honesty-naming",
+      "severity": "MEDIUM",
+      "severity_after": "MEDIUM",
+      "title": "「行号漂移不换 ID 是结构性保证」有一条间接行号路径：fallback stub 把行号灌进 suggested_name，纯行号漂移被报成 changed(name)",
+      "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/.claude/skills/board-split/scripts/split_preview.py",
+      "line": 534,
+      "claim": "stable_id 本身确实没有行号（这半边属实）。但 :534 `anchor = f\"{file_rel}:{sec['line']}\"` 把行号喂给 :535 的 derive_concept_stub，标题清洗后为空时走 :190 `_fallback_stub(anchor)` = sha1(含行号的锚点)。于是同一小节的 suggested_name/resolved_name 随行号漂移而变，diff 判 changed(reason='name')。:192 的自陈「改用来源锚点 sha1 前 6 位——同锚点恒同名」只说了确定性、回避了锚点本身含行号这一点；:31 的「不换 ID：行号漂移」与 render_diff_md :1227 给用户的「未变…（行号漂移不算变化）」在这条路径上都不成立。测试 test_line_shift_is_not_a_change 用的全是正常标题，扫不到这条分支。",
+      "repro": "沙箱 vault，原白板/T.md：\n```\n# 板\n\n## [00:12]()\n<两行达标正文>\n\n## 普通标题\n<两行达标正文>\n```\n跑 preview → 候选1 = `bsa1-0c612c252954ac6a` / suggested_name `derived-dcf966`（clean_heading 剥掉 [00:12]() 后为空 → 走 fallback）。\n然后**只在 `# 板` 下面插入两行板层导语**（纯行号漂移，两个 ##小节的 span 内容一字未动，line_start 3→6 / 7→10），重跑 → 同一 stable_id，但 suggested_name 变成 `derived-83cb52`。\n`--diff` 预期：`unchanged 2`。\n实际：`新增 0 · 内容变更 1 · 移动 0 · 移除 0 · 未变 1`，`changed bsa1-0c612c252954ac6a ['name'] derived-dcf966 → derived-83cb52`。\n现网：我对 live vault 的 原白板/ + 节点/ 全量扫了一遍 clean_heading 后清洗为空的标题，当前 0 例——所以这是潜伏项而非正在流血项；但 video-to-canvas 生成的板正是纯 [MM:SS]() 标题的天然产地，而契约把它写成了「结构性保证」。",
+      "suggested_fix": "锚点去掉行号，改用已经算好的稳定三元组（file_rel + heading_path_normalized + occurrence）做 fallback 种子——同样确定性、同样满足「二跑逐字节相等」硬门，且把行号彻底赶出候选身份与命名两条链路。若不改，则 :31 的「不换 ID：行号漂移」必须补一句「suggested_name 例外：标题清洗后为空时回退名以行号为种子」，:192 的「同锚点恒同名」也要改成「锚点含行号，故行号漂移会改名」。",
+      "unverified": true,
+      "verdicts": []
+    },
+    {
+      "lens": "honesty-naming",
+      "severity": "LOW",
+      "severity_after": "LOW",
+      "title": "「哪些操作会换 ID」清单漏列一条：给标题行加行内 HTML 注释 → 该小节整体消失 + 整棵子树换 ID",
+      "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/.claude/skills/board-split/scripts/split_preview.py",
+      "line": 28,
+      "claim": "comment_mask(:282) 是整行粒度：只要一行里出现 `<!--`，该行整行被掩掉，sections_of(:330) 就不再把它当标题。所以在一个标题行尾加一句 `<!-- 待补 -->`，等价于把这一级标题从结构里删掉——该小节自己变成 removed，它的所有子小节因祖先链少一环而全部换 ID（removed + added）。:28-30 的「会换 ID」七条清单里没有这一条；comment_mask 的 docstring 虽写了「该掩码同时约束 小节切分」，但那是实现层备注，不是面向用户的不稳定面声明，而写批注/待办注释在这个 vault 是常规动作。",
+      "repro": "沙箱 vault，原白板/H.md：\n```\n# 主板\n\n## 搜索算法\n<两行达标正文>\n\n### 宽度优先\n<两行达标正文>\n```\n跑 preview → 两条候选：`搜索算法` bsa1-4ac61f0e8c9ab934 (path 主板›搜索算法)、`宽度优先` bsa1-e04175c71014a56c (path 主板›搜索算法›宽度优先)。\n然后**只把标题改成 `## 搜索算法 <!-- 待补 -->`**，其余一字不动，重跑 → 只剩一条候选 `宽度优先` bsa1-19affe88ca66fae5，path 塌成 (主板›宽度优先)。\n`--diff` 实际：`新增 1 · 移除 2 · 未变 0`（added 宽度优先 / removed 搜索算法 + removed 宽度优先）。\n预期（按清单该有的诚实度）：这条操作应在 :28-30 里被点名，或注释掩码应只掩掉注释区间而非整行标题。",
+      "suggested_fix": "两条路任选：(a) 把注释掩码改成区间粒度——同行 `<!--` 之前的内容仍参与标题识别，则 `## 搜索算法 <!-- 待补 -->` 仍是 `搜索算法`，ID 不动；(b) 保持行为，在 :28-30 的「会换 ID」清单末尾补一条「在标题行上追加行内 HTML 注释（整行被注释掩码吞掉 → 该小节消失且其子树祖先链缩短）」，并在 comment_mask docstring 里点明这条对 stable_id 的连带后果。",
+      "unverified": true,
+      "verdicts": []
+    }
+  ],
+  "killed": [
+    {
+      "lens": "id-stability",
+      "severity": "HIGH",
+      "title": "同标题兄弟纯调序会互换身份，契约 §4.2「小节整体前后调序 → 不换 ID」是假的",
+      "claim": "occurrence 是**位置序号**（split_preview.py:529 `seen_paths[norm] = seen_paths.get(norm,0)+1`，按文档序递增），所以对归一化标题路径相同的兄弟小节，身份键**含**文档序。把两个同名兄弟整块互换，两条 stable_id 原地不动、内容却互换了归属：ID→内容的绑定被静默调包。契约 §4.2 第 3 行「小节整体前后调序 | 身份键不含文档序」对这一类无条件宣称稳定；§4.1 #5 新加的 ⚠ 块只覆盖了「增删」，没覆盖「调序」。裁判 TestReorder::test_swap_keeps_ids_and_reports_minimal_move_set 用的是三个**互不相同**的标题（反射代理/理性代理/搜索问题），因此完全跑不到这个区。",
+      "why_killed": [
+        "亲手按指控给的路径复现了，现象数字完全一致，但三条构成「指控成立」的支柱经实跑核对全部崩塌，危害被显著夸大。\n\n【复现确认】/private/tmp/g53-refute-a 下两份 vault（v1/v2，板 原白板/T2.md 三节 `## 例题`(特征值) / `## 讲解` / `## 例题`(SVD)；v2 只把两个 `## 例题` 整块互换，diff 确认 `## 讲解` 一字未动）：\n  python3 <engine> --vault .../v1 --board T2 --out-dir .../o1\n  python3 <engine> --vault .../v2 --board T2 --out-dir .../o2\n  python3 <engine> --diff .../o1/split-preview-T2.json .../o2/split-preview-T2.json --out-dir .../d\n输出 `新增 0 · 内容变更 2 · 移动 0 · 移除 0 · 未变 1`；ID 原地不动（bsa1-b7109d46d448586c occ=1 / bsa1-0d8cb6a8ec2ee019 occ=2），指纹互换（cf1-1f7709fec9180725 ↔ cf1-d035a4cb995cca56）。现象为真。\n\n【支柱1崩塌 —— 不是「静默」】diff 对两条**都**报 state=changed、change_reasons=[\"content\"]，JSON 里 old/new 两侧 content_fingerprint 全部落地，人读 MD「内容变更（changed）」表两行都写着「变更项 content」。这恰恰是契约 §4.1 #5 ⚠ 块自己写的检出签名：「一旦 ID 未变而指纹变了，就该提示『来源可能已被替换，请人工确认』」。互换产生的正是这一模式，不是无信号。\n\n【支柱2崩塌 —— 「没有任何字段提示这两条是互换」为假】互换证据在 diff JSON 自身字段里就是**精确等值**可判的，不需任何阈值或启发式。实跑一段纯 exact-equality 交叉匹配（new_fp(A)==old_fp(B) 且 new_fp(B)==old_fp(A)）当场检出 ('bsa1-0d8cb6a8ec2ee019','bsa1-b7109d46d448586c')。缺的只是人读 MD 未把这条渲染出来，不是数据缺失。\n\n【支柱3崩塌 —— 「§4.1 #5 ⚠ 块只覆盖增删」为假】contract:149-150 ⚠ 块收尾句是类级声明：「**在此之前，同一文件里出现完全同名同父的小节是已知风险区。**」按「同名同父小节」整类声明，不限增删；同块还写明缓解手段（G5-10 存 split_content_fingerprint 比对）与根治路径（§十 split-anchor/v2 引入不依赖序号的判别维度）。互换正落在这块已声明风险区内。\n\n【§4.2:157 那一行的字面主张其实成立】该行断言列写的是「不换 ID」，依据「身份键不含文档序」。实跑里 ID 确实一个没换（removed=0 / added=0，两个 ID 两侧都在），字面主张为真。指控把「不换 ID」重读成「provenance 绑定不变」再宣布该行是假的——换了主语。\n\n【模型层面：现有裁判确实没跑到这个区，但这不是引擎 bug】v2 那份文件的字节，无论用户是「整块互换」还是「把两段正文各自重打成对方内容」得到的，完全相同。只读两份快照的引擎对两种编辑史必然给出同一份报告；而 §4.2 第 2 行又承诺「本小节正文任意改动不换 ID」——在归一化标题路径逐字相同的兄弟上，位置是唯一可用判别维，用内容做身份会直接推翻那条稳定面承诺。故「changed×2」是该身份模型下唯一诚实的报法。\n\n【附带核对】backend/tests/skills/ 67 passed（-q --no-header -p no:randomly）。另：指控自称 engine sha `dda61a1584d5a251` 与本仓当前该文件的 sha256/sha1/git-hash/md5 前16位（1300a3589f23eb22 / 9a03f921fd353417 / cf993e205a7c9ae4 / eea28ac1548eacb9）无一对上——不影响结论（现象照样复现），但取证标识不可信。\n\n综上：现象真、定性假。剩下的只是文档交叉引用与一条可选渲染增强，够不上「契约 §4.2 是假的」。",
+        "已在 /private/tmp 下建 v1/v2 两个 vault 实测复现（engine sha256 前 16 位 1300a3589f23eb22）：板 T2 含 `## 例题`(特征值) / `## 讲解` / `## 例题`(SVD)，v2 把两个 `## 例题` 整块互换。结果与指控一致——OLD bsa1-8666c67c7ad64e34/cf1-63df5f9023aa4e2d、bsa1-ebd4708b0767cd42/cf1-752559c9909b0702；NEW 两个 ID 原地不动、两个指纹互换；diff 输出「新增 0 · 内容变更 2 · 移动 0 · 移除 0 · 未变 1」，人读 MD「## 移动（moved）」为「（无）」。机制描述属实。\n\n但指控的**标题命题**不成立，且其**实质后果**是已显式声明的取舍：\n\n1) §4.2 的宣称是「不换 ID」。repro 里两条 stable_id **一条都没换**——该行断言字面为真，指控用自己的 repro 推翻不了它。指控真正攻击的是「ID 保住 ≠ provenance 保住」，那是另一条命题。\n\n2) 那条命题正是 docs/design/split-stable-id-contract.md:145-155（§4.1 #5 ⚠ 块）的主题，逐字写着：「如果此时 X#1 已经被 G5-10 派生成节点，那个节点的 split_stable_id 现在会指向 X#2 的内容 —— **provenance 被静默错配**」「这是 occurrence 方案的真实代价，不加掩饰」。收尾句更是**不限定于增删**的泛化声明：「**在此之前，同一文件里出现完全同名同父的小节是已知风险区。**」纯调序互换正是这个风险区里的一个实例。\n\n3) 指控称「没有任何字段提示」，不实。同一 ⚠ 块给出的检测签名就是本 repro 的输出形态：「一旦 **ID 未变而指纹变了**，就该提示『来源可能已被替换，请人工确认』」——即 stable_id 不变 + change_reasons=[content]，×2，正是实测所见。承载该判定的数据对已由 §7.1 item 2 锁定（派生节点 frontmatter 的 `split_content_fingerprint` 创建时刻快照 ↔ 当前 preview 同 ID 候选的指纹）。缓解与根治被明确声明为本卡不实施（「留给 G5-10 与后续卡」/ §十 split-anchor/v2 引入不依赖序号的判别维度）。引擎模块 docstring（split_preview.py:30-34）与之口径一致：「同名同父小节增删致序号位移」列在会换 ID 面，「小节整体调序」列在不换 ID 面。\n\n4) 指控称裁判 TestReorder 用三个互不相同的标题「跑不到这个区」——属实，但这个区另有裁判把守：TestUnstableSurface::test_deleting_earlier_duplicate_shifts_occurrence（契约 §4.1 #5 的实证锚）与 TestDuplicateAndNameConflict::test_duplicate_heading_path_split_by_occurrence 正是钉 occurrence 方案代价的两条。缺的只是「调序」这一变体的补充覆盖，属加测建议，不是未声明行为。\n\n结论：本卡验收标准是「诚实声明」而非「零边界」。该行为的机制、最坏后果（provenance 静默错配）、检测签名（ID 未变指纹变）、风险区范围（同一文件出现完全同名同父小节）、以及缓解被推迟到哪张卡，全部已在契约 §4.1 #5 与 §7.1、§十 显式写明，且声明与实测行为一致。指控在重述一条已写明的边界，只是把边界的两条表格措辞（§4.2 依据格过宽、§4.1 #5 操作格未含「调序」）当成了行为缺陷。"
+      ]
+    },
+    {
+      "lens": "id-stability",
+      "severity": "HIGH",
+      "title": "clean_heading 吸收编号把「1. 概述 / 2. 概述」拖进同名撞车区，删前一条后存活者被报 removed、被删者的 ID 报 changed",
+      "claim": "契约把风险区界定为「同一文件里出现**完全同名同父**的小节」（§4.1 #5 ⚠），同时把「标题编号变化」当稳定面卖（§2.2 line 65 / §4.2 line 158）。两条合在一起是自相矛盾的：`_NUM_PREFIX` 剥掉编号后，`## 1. 概述` 与 `## 2. 概述` 归一化后**逐字相同**，用户眼里它们「不同名」，引擎眼里它们是同名兄弟。于是编号型讲义板（正是本卡宣称的目标场景）默认就落在最坏情况里，而按文档字面读者完全识别不出来。触发后果是 §4.1 ⚠ 描述的 provenance 倒置，但没有任何 machine-readable 信号：diff 的 JSON entries 里 changed/removed 两条都不带任何「ID 可能被重绑」的字段。",
+      "why_killed": [
+        "现象 100% 复现，但危害被实质性夸大，且核心是**已声明并已用测试钉死的设计代价**，不是被发现的缺陷。\n\n【复现确认】按指控给的路径亲手跑通，逐字命中：`新增 0 · 内容变更 1 · 移动 0 · 移除 1 · 未变 0`；changed=`bsa1-9117789962753e66` reasons=['content']，old标题`1. 概述`→new标题`2. 概述`；removed=`bsa1-77f8d24409f89879`（该节其实还在板上）；幸存节指纹 `cf1-9aadc39a6c9dcddf` 同时出现在 removed 的 old 侧与 changed 的 new 侧。现象本身零争议。\n\n【但指控的四条新论点逐条不成立】\n\n1. **「自相矛盾」为假。** 实测 EXP-1：纯重编号（`## 1. 向量空间`/`## 2. 特征值` → `## 3.`/`## 4.`）两条 ID 逐字不变（`bsa1-3b62733d9c68331a` / `bsa1-436d36f7602ed1bb`）。§4.2 的稳定性宣称独立为真，§4.1 #5 的位移宣称独立为真，二者描述的是**不同操作**（重编号同一节 vs 删掉同名兄弟），联合一致。缺的只是一句交叉引用，不是矛盾。\n\n2. **行为不止「被文档记录」，而是被裁判钉死。** `test_split_stable_id.py:559` 断言 `survivor[\"stable_id\"] == first_id`，注释写明「幸存者继承 occurrence=1 的 ID —— 这是该方案如实的代价」。契约 §4.1 #5 ⚠（line 138-149）**提前逐字预言了我跑出的输出形态**：「diff 会把这件事报成「X#2 的 ID 消失了（removed）+ X#1 的 ID 内容变了（changed）」」，并点名后果「provenance 被静默错配」、给出缓解手段（G5-10 存 split_content_fingerprint）、声明风险区。指控的「实际」栏 = 设计文档的事前预测。\n\n3. **「编号型讲义板默认就落在最坏情况里」是显著夸大。** 实测 EXP-2：真实编号讲义板的常见形态（`## 1. 向量空间` > `### 概述`，`## 2. 特征值` > `### 概述`）两条拿到**不同** ID（均 occ=1）——祖先链把它们区分开了。撞车需要「归一化后同名的**平级兄弟共父**」这一更窄条件。编号吸收确实**扩大**了 #5 的撞车类，但远非「默认」。\n\n4. **「没有任何 machine-readable 信号」不准确。** `stable_id_basis.occurrence` 就在 preview schema 里且契约 line 192 明示「复算 stable_id 的三个输入，全部公开」；occurrence≥2 正是「此 ID 骑在兄弟序号上」的机读标记，我这次 of1 第二条即 `occurrence: 2`。diff 头部 `old.source`/`new.source` 回链两份 preview，消费方可 join。此外 removed 条目实际携带了 `conflict_in_preview: true` / `resolved_name: 概述_2`（名字层相关信号）。\n\n【残余的合理部分】仅两处措辞/工效学：⚠ 收尾句「完全同名同父」按字面读像原文逐字相同，应写「**归一化后**同名同父」；diff entry 未内联 occurrence，且 `change_reasons` 只报 `['content']` 而原文标题确实从 `1. 概述` 变成 `2. 概述`。属打磨项，不是缺陷。\n\n测试全绿：67 passed。",
+        "指控描述的行为属实且我复现一致（stable_id 逐字相同：changed bsa1-9117789962753e66 reasons=['content']，removed bsa1-77f8d24409f89879，summary「新增 0 · 内容变更 1 · 移动 0 · 移除 1 · 未变 0」），但它是**已被逐字声明的取舍**，不是未声明行为，四条实证如下。\n\n1) 后果原文已写死。契约 §4.1 #5 ⚠（docs/design/split-stable-id-contract.md:138-149）：「删掉 X#1 之后，X#2 的 occurrence 从 2 变 1 —— 它拿到的**不是一个全新 ID，而正是 X#1 原来的 ID**。后果：diff 会把这件事报成「X#2 的 ID 消失了（removed）+ X#1 的 ID 内容变了（changed）」，而实际发生的是「删了一个、留了一个」…**provenance 被静默错配**。」我实测的输出与这句话逐字对应。裁判 backend/tests/skills/test_split_stable_id.py:515-527 `TestUnstableSurface::test_deleting_earlier_duplicate_shifts_occurrence` 把两半都钉死（含 `assert survivor[\"stable_id\"] == first_id, \"幸存者继承 occurrence=1 的 ID —— 这是该方案如实的代价\"`）。引擎 docstring split_preview.py:29-33 也把「同名同父小节增删致序号位移」列在会换 ID 面，与「标题编号与 [MM:SS]() 标记变化（clean_heading 吸收）」相隔两行并列呈现。\n\n2) 指控声称缺失的「编号被吸收⇒同名」这道桥，就写在 occurrence 的定义里。§2.1 line 42：「`occurrence` = 同一文件内、**归一化标题路径逐字相同**的小节的出现序号」；§2.1 line 41 已定义 `path` = 归一化标题路径；§2.2 line 62 的归一化示例正是 `2.1 反射代理` → `反射代理`。§4.1 ⚠ 自身（line 139）用的也是「两个**标题路径逐字相同**的小节」这一精确表述，line 149 的「完全同名」只是其后的口语化收尾。所以「用户眼里不同名 / 引擎眼里同名」不是隐藏语义，而是定义直述。\n\n3) 「没有任何 machine-readable 信号」不成立于 preview 层，且在 diff 层是**显式移交项**。§5 line 195-198 明写：`source_anchor.heading_path` 保留原文、`stable_id_basis.heading_path_normalized` 为归一化后，两者并存是有意的，「**消费方要对 ID 语义做判断时必须读后者**」。我在复现产物里核对：of1 两条候选的 heading_path_normalized 均为 `['线性代数讲义','概述']`、occurrence 分别 1/2 —— 这正是「同名兄弟 + 落在风险区」的机器可读信号，且 diff 的两个输入文件本就在消费方手里。至于 diff entry 本身不带 occurrence（`_side()` split_preview.py:996-1006 确实不透出 stable_id_basis），§4.1 line 145-148 已把缓解手段点名移交：「缓解手段（**本卡不实施**，留给 G5-10 与后续卡）：派生节点 frontmatter 里同时存 split_content_fingerprint…一旦 ID 未变而指纹变了，就该提示「来源可能已被替换，请人工确认」。根治要等 split-anchor/v2」。而且在 ID 层这件事**原理上不可判**——本例的 '1. 概述'→'2. 概述' 与「同一小节被重编号 1→2」（§4.2 line 158 明确宣称的稳定面，裁判 test_number_prefix_and_timestamp_do_not_change_id 钉死）在身份键上完全同形，这正是契约把缓解路由到指纹而非 ID 的原因。\n\n4) 「编号型讲义板正是本卡目标场景，默认就落在最坏情况里」被取证包实测证伪。我统计 _bmad-output/审查/g5-3-evidence/run1/split-preview-CS188 lecture 2.json：27 条候选中 27 条的标题编号/时间戳标记被 clean_heading 吸收，occurrence 分布 `{1: 27}`，零碰撞；特征值板 1 条候选亦 occurrence=1。吸收编号本身从不制造碰撞，只有**兄弟标题实词逐字重复**（`1. 概述` 与 `2. 概述` 同为「概述」）才会，这在真实讲义板上是罕例而非默认。§2.2 line 65-66 说明吸收编号的理由（中间插一节导致后面全体重编号是高频操作），与 §4.1 #5 的重名风险是同一条归一化规则的两个正交后果，不构成自相矛盾——契约任何一处都没有声称「编号不同 ⇒ ID 不同」。\n\n复现命令（已在 scratchpad 自建 vault 副本执行，live vault 与 worktree 零改动）：\n  python3 <engine> --vault $SP/rep/v1 --board T6 --out-dir $SP/rep/of1\n  python3 <engine> --vault $SP/rep/v2 --board T6 --out-dir $SP/rep/of2\n  python3 <engine> --diff $SP/rep/of1/split-preview-T6.json $SP/rep/of2/split-preview-T6.json --out-dir $SP/rep/df"
+      ]
+    },
+    {
+      "lens": "test-false-green",
+      "severity": "HIGH",
+      "title": "「指纹故意不复用剥离掩码」这条头号设计声明零裁判——把它改回剥离掩码，代码块整块改写被报「未变」而 30 条测试全绿",
+      "claim": "引擎文件头 :24-26 与 compute_content_fingerprint docstring（:485-508）用最重的措辞立了一条契约：指纹**不**复用候选判定的剥离掩码，「用剥离掩码算指纹会让『小节内代码块整块改写』纹丝不动，那是掩饰」。裁判里唯一碰指纹归一化的用例是 test_nfd_body_does_not_change_fingerprint（NFC）与 test_trailing_whitespace_and_blank_lines_change_nothing，两条都不含代码 fence——这条声明本身完全没有对应断言。变异测试实证：把指纹改成跳过 strip_generated 掩码行后，一次整块代码改写的 diff 从「内容变更 1」翻成「未变 1」，而裁判 30 passed 全绿。",
+      "why_killed": [
+        "按指控给的四步复现路径亲手跑完。步骤 1-3 复现：把 compute_content_fingerprint 改成复用 strip_generated 掩码后，同一 `## 反射代理` 小节仅重写 ```python fence，真引擎报「内容变更 1 · 未变 1」，变异引擎报「内容变更 0 · 未变 2」——引擎层现象属实。但指控的承重论断（步骤 4「裁判 30 passed 全绿 / 这条声明零裁判」）跑不出来：把当前 test_split_stable_id.py 复制到 /private/tmp/g53b/test2_mut.py、只改 SCRIPT 指向变异引擎，结果是 `1 failed, 36 passed`，被 TestFingerprintCoverage::test_fence_and_comment_edits_are_seen_by_fingerprint 当场打死（test_split_stable_id.py:285，`assert 'cf1-4657f631cf15b2b4' != 'cf1-4657f631cf15b2b4'`，失败信息即「⛔ 代码块整块改写必须被指纹感知 —— 否则 diff 报「无变化」就是掩饰（契约 §3.1）」）。该用例构三块只差 fence 正文（print(1)/print(999)）与 HTML 注释（备注一/备注二）的板，断言三者 stable_id 相同而两个 content_fingerprint 必须都变——正是指控声称「完全没有对应断言」的那条契约的专用杀手裁判。对照组：未变异快照 36 passed；全量 tests/skills/ 71 passed。锚定版本：引擎 sha256 前 12 位 1b5e2310bc7a，裁判 a86add326c02。如实补一句：审查期间被审文件在被并发改写（13:14 时裁判 676 行、确无 TestFingerprintCoverage；13:17 起 750 行、已含），故该指控对某个中途快照可能曾成立，但对交付态不成立。按「按当前交付物实跑判定」+「不确定默认 refuted」，判证伪。",
+        "指控的经验性核心（「这条声明零裁判 / 改回剥离掩码后 30 条测试全绿 / 裁判在此点空转」）在当前被审树上**不成立**，我按其复现路径逐步复跑证实：\n\n1) 变异复现成立：把 compute_content_fingerprint 改成 `_stripped = strip_generated(lines)` + `if _stripped[i]: continue`（/private/tmp/g53mut/e_mut.py），同一对 old/new 板（仅改 ```python fence 内容）真引擎 diff = {added:0, changed:1, removed:0, moved:0, unchanged:1}，变异引擎 = {added:0, changed:0, removed:0, moved:0, unchanged:2}。即真引擎行为与文件头 :24-26 / docstring :485-508 的声明**完全一致**，声明准确、名副其实。\n\n2) 但「裁判空转」不成立：把 test_split_stable_id.py 复制到 /private/tmp/g53mut/test_mut.py、只改 SCRIPT 指向变异引擎后跑 `./.venv/bin/pytest /private/tmp/g53mut/test_mut.py -q -p no:randomly`，结果是 **1 failed, 32 passed**，而非指控声称的 30 passed。被杀的正是这条专门为该声明立的硬门：\n   backend/tests/skills/test_split_stable_id.py::TestFingerprintCoverage::test_fence_and_comment_edits_are_seen_by_fingerprint（:281-289），断言文案直接引用契约 §3.1 和「掩饰」二字：\n   `assert b[\"content_fingerprint\"] != f[\"content_fingerprint\"], \"⛔ 代码块整块改写必须被指纹感知 —— 否则 diff 报「无变化」就是掩饰（契约 §3.1）\"`，并额外覆盖 HTML 注释掩码那一臂，同时锁住 stable_id 不动。该用例在真引擎上是绿的（全量 tests/skills/ 里它不在失败名单）。\n\n3) 指控数字的来源已定位：证据包 `_bmad-output/审查/g5-3-evidence/pytest-green.txt` 记的是 `64 passed`（该文件当时 30 条），当前该文件 collect 34 条。也就是说这条覆盖缺口在取证快照时刻是真实的，但在被审交付树上已被一条**专杀该变异**的裁判补齐，我实测其确实杀得掉。指控描述的树态已过期。\n\n补充（不属本条指控、且是移动靶）：full run 现为 `1 failed, 67 passed`，红的是 TestDiffGuards::test_mismatched_scale_gate_raises_a_visible_warning——该用例是我跑测期间（文件 mtime 13:17，我的快照 13:16）另一路并发写入的在飞编辑，与指纹掩码这条声明无关，不作为本条的证据。"
+      ]
+    },
+    {
+      "lens": "readonly-writeside",
+      "severity": "HIGH",
+      "title": "occurrence 序号位移会把 stable_id 改嫁给别的小节 —— diff 把「仍然存在的小节」报成 removed，把「一个字没改的小节」报成 changed",
+      "claim": "身份键第四维 occurrence 是「同一归一化标题路径在文件内的第几次出现」。而 normalize_heading_text 会主动剥掉标题编号（`1. ` / `一、`），于是 `## 1. 例题` `## 2. 例题` `## 3. 例题` 三节全部归一成同一路径 `例题`，靠 occurrence 1/2/3 区分。删掉其中第一节后，后两节的 occurrence 从 2/3 变成 1/2，于是它们**继承了前驱的 stable_id**。diff 因此：(a) 把最后一条（`3. 例题`，文件里还在）报成 removed；(b) 把两条正文一字未动的小节报成 changed(content)。这不是文档已声明的「序号位移导致 ID 变化」——它是 ID **改嫁**：同一个 bsa1- 键在新旧两版指向两段不同内容，而 stable_id 正是 G5-10 要写进节点 frontmatter 的 provenance 锚。引擎自检只查「同一份 preview 内不重复」，抓不到跨版本改嫁。",
+      "why_killed": [
+        "按指控给的复现路径亲手跑通，现象逐字属实：/private/tmp/g53-refute-a 建 vault，三节 `## 1./2./3. 例题`，首跑得 bsa1-071be91efd9df20a(occ=1,甲) / bsa1-536c22cd506a873a(occ=2,乙) / bsa1-bb31703453598c61(occ=3,丙)（与指控给的 16 位十六进制完全一致）；删掉第一节后再跑得 bsa1-071be9…(occ=1, 指纹变成原乙的 cf1-2e8d2828571f2267) / bsa1-536c22…(occ=2, 指纹变成原丙的 cf1-529288e914337966)；--diff 输出 `新增 0 · 内容变更 2 · 移动 0 · 移除 1 · 未变 0`，removed 行 = `例题_3` / bsa1-bb31703453598c61 / 旧锚点 11-13 / 标题路径「讲义板 › 3. 例题」，changed 两行 reason 均为 content 且正文一字未动。机制无争议。\n\n判 refuted=true 的依据是指控的决定性论断被证伪。指控明说：「这不是文档已声明的『序号位移导致 ID 变化』——它是 ID 改嫁」，整条指控的价值全押在「改嫁属未披露、超出已声明边界」上。实况相反：\n1) docs/design/split-stable-id-contract.md §4.1 表格第 5 行后果栏直接写「位移的那些换 ID，**且会继承前一个的 ID**（见下方 ⚠）」；紧随的 ⚠ 块（:138-151）把指控的三个要点逐条写死——(a) 继承而非新 ID：「它拿到的不是一个全新 ID，而正是 X#1 原来的 ID」；(b) diff 误报形态：「diff 会把这件事报成『X#2 的 ID 消失了（removed）+ X#1 的 ID 内容变了（changed）』，而实际发生的是『删了一个、留了一个』」；(c) 指控着重强调的 G5-10 provenance 危害：「那个节点的 split_stable_id 现在会指向 X#2 的内容 —— provenance 被静默错配」。并给出缓解（frontmatter 存 split_content_fingerprint，ID 未变而指纹变即提示人工确认）、根治（split-anchor/v2）、风险区声明。指控声称的「超出已声明边界」在原文里字面存在，指控似乎只读了 split_preview.py 模块 docstring 的一行摘要「同名同父小节增删致序号位移」而未读它所指向的契约文档。\n2) 该行为有专门的通过测试钉死：backend/tests/skills/test_split_stable_id.py:547-559 `test_deleting_earlier_duplicate_shifts_occurrence`，docstring 明写「并且如实钉住后果: 幸存者**继承了**被删者的 ID（而不是拿到一个全新 ID）」，断言 `assert survivor[\"stable_id\"] == first_id, \"幸存者继承 occurrence=1 的 ID —— 这是该方案如实的代价\"`。实跑 `./.venv/bin/pytest tests/skills/ -q -p no:randomly -k \"occurrence or duplicate\"` → 3 passed。\n3) 指控的次要论据「引擎自检只查同一份 preview 内不重复，抓不到跨版本改嫁」属实（split_preview.py:719/945 确为单份内互异检查），但危害被夸大：diff 产物本身已把判别证据全部输出——changed entry 同时带 old.heading_path=[\"讲义板\",\"1. 例题\"] 与 new.heading_path=[\"讲义板\",\"2. 例题\"]，以及新旧 content_fingerprint（cf1-1882e1… → cf1-2e8d28…），契约 §7.1 指定的「ID 未变而指纹变了 → 提示来源可能已被替换」哨兵完全可由本 diff 的输出计算，无需引擎内建。\n\n综上：现象真实但被包装成未披露缺陷，而它是文档逐字声明 + 测试断言 + 缓解方案已指定的已知取舍。按任务口径「现象存在但危害被夸大 → refuted=true」。降级为 LOW 而非 NON_ISSUE，仅因人读 MD 页脚未复述 #5 警告这一展示层缺口客观存在（但那不是指控所控内容）。",
+        "指控的核心断言「这不是文档已声明的『序号位移导致 ID 变化』——它是 ID 改嫁」在事实上不成立：契约文档正是用「改嫁」的措辞声明的。\n\n1) 复现完全成立，且与文档预测逐条吻合。我在 scratchpad 自建 vault 副本（live vault 只读未碰）跑通指控的四步：OLD 三候选 bsa1-071be91efd9df20a(occ=1,甲)/bsa1-536c22cd506a873a(occ=2,乙)/bsa1-bb31703453598c61(occ=3,丙)；删掉 `## 1. 例题` 后 NEW 只剩两条，ID 复用为 071be9…/536c22…（乙丙继承甲乙的 ID）；`--diff` 输出 `新增 0 · 内容变更 2 · 移动 0 · 移除 1`，removed 表为 `例题_3`（旧锚点 原白板/讲义板.md:17-20），changed 两条 reason=content。数字与指控一字不差。\n\n2) 但这正是 docs/design/split-stable-id-contract.md §4.1 表格第 5 行 + 其后 ⚠ 块的原文内容，且写的比指控更细：\n   - 表格第 5 行后果列原文：「位移的那些换 ID，**且会继承前一个的 ID**（见下方 ⚠）」——「继承」二字即指控所谓「改嫁」；\n   - ⚠ 块原文：「它拿到的**不是一个全新 ID，而正是 X#1 原来的 ID**」；\n   - ⚠ 块把 diff 报表形态提前写死：「diff 会把这件事报成『X#2 的 ID 消失了（removed）+ X#1 的 ID 内容变了（changed）』，而实际发生的是『删了一个、留了一个』」——这就是我实测到的 removed 1 + changed 2；\n   - ⚠ 块把指控主打的 G5-10 后果也点名：「如果此时 X#1 已经被 G5-10 派生成节点，那个节点的 split_stable_id 现在会指向 X#2 的内容 —— **provenance 被静默错配**」；\n   - 并给出缓解与根治路径：本卡不实施，缓解=派生节点同存 split_content_fingerprint（ID 未变而指纹变 → 提示人工确认），根治待 split-anchor/v2 引入不依赖序号的判别维度（§十）；收尾句「在此之前，同一文件里出现完全同名同父的小节是已知风险区」。\n   引擎模块 docstring（split_preview.py:28-29）作为摘要列了「同名同父小节增删致序号位移」并明确指向「逐条见契约文档 §不稳定面」，摘要与正文分工清楚，没有拿摘要掩盖正文。\n\n3) 声明不是空话，被裁判钉死且现在是绿的：backend/tests/skills/test_split_stable_id.py:515 `TestUnstableSurface::test_deleting_earlier_duplicate_shifts_occurrence`，最后一条断言 `assert survivor[\"stable_id\"] == first_id, \"幸存者继承 occurrence=1 的 ID —— 这是该方案如实的代价\"`。即测试不是只验「换了 ID」，而是**正断言继承**这一最坏情况。`./.venv/bin/pytest tests/skills/ -q -p no:randomly` → 67 passed；单点该测试 1 passed。\n\n4) 指控的两条补充论据也已被覆盖：\n   - 「引擎自检只查同一份 preview 内不重复，抓不到跨版本改嫁」——契约 §八守卫表正是这么写的（守卫仅含 schema_version<2 / 跨板 / 缺 ID / 单份内 ID 重复），§4.1 ⚠ 明说根治要等 v2，属显式已知缺口；\n   - 「静默」——文档自己用的就是「provenance 被**静默**错配」。且实测 diff JSON 的 changed entry 里 old/new 的 source_anchor.heading_path 分别是 [\"讲义板\",\"1. 例题\"] 与 [\"讲义板\",\"2. 例题\"]，原文标题路径变化在产物中可见（MD 表未展示该列，但 JSON 未隐藏）。\n\n结论：本卡验收基准是「诚实声明」而非「零边界」。该行为是取舍已声明 + 后果已写死 + 测试已钉住 + 缓解与根治路径已规划的典型案例，指控属于对 §4.1 #5 ⚠ 的重述。降为 NON_ISSUE；仅留一条 LOW 级文档示例补全（见 corrected_claim）。"
+      ]
+    }
+  ]
+}

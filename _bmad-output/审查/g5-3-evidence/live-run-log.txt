@@ -1,0 +1,109 @@
++ export PYTHONDONTWRITEBYTECODE=1
++ PYTHONDONTWRITEBYTECODE=1
++ date -u +%Y-%m-%dT%H:%M:%SZ
+2026-08-30T08:11:15Z
++ shasum -a 256 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/.claude/skills/board-split/scripts/split_preview.py
+d088c5e38f0c6eb0f9ca98a547bb4a06a9e45eed722dbdd604a7b578602ab7ad  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/.claude/skills/board-split/scripts/split_preview.py
++ python3 $'/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/_bmad-output/审�\237�/g5-2-evidence/collect_live_baseline.py' /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault
++ echo 'collect-before rc=0'
+collect-before rc=0
++ python3 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/.claude/skills/board-split/scripts/split_preview.py --vault /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault --board 'CS188 lecture 2' --out-dir /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs
+✓ preview 已生成（只读引擎, 未动 vault 既有文件）: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-preview-CS188 lecture 2.json / /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-preview-CS188 lecture 2.md
+  候选 27/27
++ echo 'run1-b1 rc=0'
+run1-b1 rc=0
++ python3 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/.claude/skills/board-split/scripts/split_preview.py --vault /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault --board $'�\211��\201�\200��\216�\211��\201�\220\221�\207\217' --out-dir /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs
+✓ preview 已生成（只读引擎, 未动 vault 既有文件）: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-preview-特征值与特征向量.json / /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-preview-特征值与特征向量.md
+  候选 1/1
++ echo 'run1-b2 rc=0'
+run1-b2 rc=0
++ mkdir -p $'/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/_bmad-output/审�\237�/g5-3-evidence/run1'
++ cp '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-preview-CS188 lecture 2.json' $'/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/_bmad-output/审�\237�/g5-3-evidence/run1/'
++ cp $'/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-preview-�\211��\201�\200��\216�\211��\201�\220\221�\207\217.json' $'/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/_bmad-output/审�\237�/g5-3-evidence/run1/'
++ python3 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/.claude/skills/board-split/scripts/split_preview.py --vault /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault --board 'CS188 lecture 2' --out-dir /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs
+✓ preview 已生成（只读引擎, 未动 vault 既有文件）: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-preview-CS188 lecture 2.json / /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-preview-CS188 lecture 2.md
+  候选 27/27
++ echo 'run2-b1 rc=0'
+run2-b1 rc=0
++ python3 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/.claude/skills/board-split/scripts/split_preview.py --vault /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault --board $'�\211��\201�\200��\216�\211��\201�\220\221�\207\217' --out-dir /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs
+✓ preview 已生成（只读引擎, 未动 vault 既有文件）: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-preview-特征值与特征向量.json / /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-preview-特征值与特征向量.md
+  候选 1/1
++ echo 'run2-b2 rc=0'
+run2-b2 rc=0
++ diff '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/_bmad-output/审查/g5-3-evidence/run1/split-preview-CS188 lecture 2.json' '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-preview-CS188 lecture 2.json'
++ echo 'b1-two-run-diff rc=0 (0=stable_id 完全一致)'
+b1-two-run-diff rc=0 (0=stable_id 完全一致)
++ diff $'/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/_bmad-output/审�\237�/g5-3-evidence/run1/split-preview-�\211��\201�\200��\216�\211��\201�\220\221�\207\217.json' $'/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-preview-�\211��\201�\200��\216�\211��\201�\220\221�\207\217.json'
++ echo 'b2-two-run-diff rc=0 (0=stable_id 完全一致)'
+b2-two-run-diff rc=0 (0=stable_id 完全一致)
++ python3 $'/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/_bmad-output/审�\237�/g5-3-evidence/dump_ids.py' preview '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-preview-CS188 lecture 2.json' $'/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-preview-�\211��\201�\200��\216�\211��\201�\220\221�\207\217.json'
++ tee $'/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/_bmad-output/审�\237�/g5-3-evidence/live-stable-ids.txt'
+== CS188 lecture 2 · schema_version=2 · id_stability=split_anchor_v1 · ns=split-anchor/v1 · 候选 27
+  bsa1-09a7d188234051aa  cf1-f607df28bd8443c9  occ=1  课程概述与理性代理  ← CS 188：人工智能搜索 › 课程概述与理性代理
+  bsa1-84f9e22ad00d6965  cf1-2f447fdc406f69bd  occ=1  课程目标与学习方法  ← CS 188：人工智能搜索 › 课程概述与理性代理 › 课程目标与学习方法
+  bsa1-673dbddc30c982aa  cf1-3b24b692f85c26b5  occ=1  代理-(Agent)-与环境模型  ← CS 188：人工智能搜索 › 课程概述与理性代理 › 代理 (Agent) 与环境模型
+  bsa1-89138735129b0f39  cf1-8fdf857860246faf  occ=1  吃豆人-(Pac-Man)-代理示例  ← CS 188：人工智能搜索 › 代理类型：反射与规划 › 吃豆人 (Pac-Man) 代理示例
+  bsa1-dc820e7489c2e317  cf1-5a537e76869deb7d  occ=1  反射代理-(Reflex-Agents)  ← CS 188：人工智能搜索 › 代理类型：反射与规划 › 反射代理 (Reflex Agents)
+  bsa1-41b31e0388f3e789  cf1-88d7aff62c949e5f  occ=1  规划代理-(Planning-Agents)  ← CS 188：人工智能搜索 › 代理类型：反射与规划 › 规划代理 (Planning Agents)
+  bsa1-2e53a306aaa4a2cd  cf1-565fbec213190eea  occ=1  规划代理演示  ← CS 188：人工智能搜索 › 代理类型：反射与规划 › 规划代理演示
+  bsa1-96637df3d07fbe48  cf1-d1cb2d11f1eebb64  occ=1  搜索问题的形式化  ← CS 188：人工智能搜索 › 搜索问题的形式化
+  bsa1-2cacf8af36bac821  cf1-a7456bbf78806f90  occ=1  搜索问题的核心组成  ← CS 188：人工智能搜索 › 搜索问题的形式化 › 搜索问题的核心组成
+  bsa1-493766e1c640127c  cf1-b6bc9a452b733d62  occ=1  搜索的重要性与应用  ← CS 188：人工智能搜索 › 搜索问题的形式化 › 搜索的重要性与应用
+  bsa1-9062ee04e253472f  cf1-220a1da8bf038eac  occ=1  搜索问题是模型：罗马尼亚旅行示例  ← CS 188：人工智能搜索 › 搜索问题的形式化 › 搜索问题是模型：罗马尼亚旅行示例
+  bsa1-bec9c13171949690  cf1-9cfc09d5ddf10931  occ=1  状态空间中的细节抽象  ← CS 188：人工智能搜索 › 搜索问题的形式化 › 状态空间中的细节抽象
+  bsa1-eaae14188d80f75c  cf1-652dbd868365bc8e  occ=1  状态空间的大小  ← CS 188：人工智能搜索 › 搜索问题的形式化 › 状态空间的大小
+  bsa1-a87ec395d74b1821  cf1-a946a00e8133999f  occ=1  测验：安全通过  ← CS 188：人工智能搜索 › 搜索问题的形式化 › 测验：安全通过
+  bsa1-79dfc1cf7141f94c  cf1-aafdadfd33d272a5  occ=1  搜索结构：状态空间图与搜索树  ← CS 188：人工智能搜索 › 搜索结构：状态空间图与搜索树
+  bsa1-3909a461abc67643  cf1-1afe77bb517b66f4  occ=1  状态空间图-(State-Space-Graphs)  ← CS 188：人工智能搜索 › 搜索结构：状态空间图与搜索树 › 状态空间图 (State Space Graphs)
+  bsa1-ccf1ac9379d13df9  cf1-a57bf1d6bc0fb1e2  occ=1  搜索树-(Search-Trees)  ← CS 188：人工智能搜索 › 搜索结构：状态空间图与搜索树 › 搜索树 (Search Trees)
+  bsa1-192f21daa3bac4d5  cf1-5eab303c9d840fc9  occ=1  测验：状态空间图-vs  ← CS 188：人工智能搜索 › 搜索结构：状态空间图与搜索树 › 测验：状态空间图 vs. 搜索树
+  bsa1-77c35981d9cb98e7  cf1-b4d2ec578bceaab3  occ=1  算法伪代码与核心循环  ← CS 188：人工智能搜索 › 通用树搜索算法 › 算法伪代码与核心循环
+  bsa1-b613a6b59141808a  cf1-ae4a60b57321ce3b  occ=1  树搜索示例  ← CS 188：人工智能搜索 › 通用树搜索算法 › 树搜索示例
+  bsa1-d24b3cfcfb36e21a  cf1-21c5755298765433  occ=1  搜索算法属性  ← CS 188：人工智能搜索 › 通用树搜索算法 › 搜索算法属性
+  bsa1-20b572e4556ee23a  cf1-b4692956fefe32ac  occ=1  深度优先搜索-(Depth-First-Search,-DFS)  ← CS 188：人工智能搜索 › 无信息搜索算法 › 深度优先搜索 (Depth-First Search, DFS)
+  bsa1-bf1e22358a2f6117  cf1-f6d70085e7bb7107  occ=1  广度优先搜索-(Breadth-First-Search,-BFS)  ← CS 188：人工智能搜索 › 无信息搜索算法 › 广度优先搜索 (Breadth-First Search, BFS)
+  bsa1-709c3ce36f43a879  cf1-b91ceb48f5752e22  occ=1  迭代加深-(Iterative-Deepening-Search,-IDS)  ← CS 188：人工智能搜索 › 无信息搜索算法 › 迭代加深 (Iterative Deepening Search, IDS)
+  bsa1-1602e6eb1c42b214  cf1-95f90369f1b3f91e  occ=1  成本敏感搜索与一致成本搜索-(Cost-Sensitive-Search-&  ← CS 188：人工智能搜索 › 无信息搜索算法 › 成本敏感搜索与一致成本搜索 (Cost-Sensitive Search & Uniform Cost Search, UCS)
+  bsa1-7222b4f26e7dc0bd  cf1-961bacc2e2c2e4ee  occ=1  DFS、BFS、IDS、UCS-对比总结  ← CS 188：人工智能搜索 › 无信息搜索算法 › DFS、BFS、IDS、UCS 对比总结
+  bsa1-9de9bde3f09efdb2  cf1-0f8b42db6cd52579  occ=1  未来展望：信息搜索与-A  ← CS 188：人工智能搜索 › 未来展望：信息搜索与 A\*
+== 特征值与特征向量 · schema_version=2 · id_stability=split_anchor_v1 · ns=split-anchor/v1 · 候选 1
+  bsa1-452a358110ac04a2  cf1-3a9aa404fa08519b  occ=1  Linear-Algebra-Fundamentals  ← Linear Algebra Fundamentals
++ python3 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/.claude/skills/board-split/scripts/split_preview.py --diff '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/_bmad-output/审查/g5-3-evidence/run1/split-preview-CS188 lecture 2.json' '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-preview-CS188 lecture 2.json' --out-dir /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs
+✓ diff 已生成（只比对两份 JSON, 未读 vault、未动任何既有文件）: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-diff-CS188 lecture 2.json / /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-diff-CS188 lecture 2.md
+  新增 0 · 内容变更 0 · 移动 0 · 移除 0 · 未变 27
++ echo 'diff-b1 rc=0'
+diff-b1 rc=0
++ python3 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/.claude/skills/board-split/scripts/split_preview.py --diff $'/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/_bmad-output/审�\237�/g5-3-evidence/run1/split-preview-�\211��\201�\200��\216�\211��\201�\220\221�\207\217.json' $'/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-preview-�\211��\201�\200��\216�\211��\201�\220\221�\207\217.json' --out-dir /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs
+✓ diff 已生成（只比对两份 JSON, 未读 vault、未动任何既有文件）: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-diff-特征值与特征向量.json / /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-diff-特征值与特征向量.md
+  新增 0 · 内容变更 0 · 移动 0 · 移除 0 · 未变 1
++ echo 'diff-b2 rc=0'
+diff-b2 rc=0
++ python3 $'/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/_bmad-output/审�\237�/g5-3-evidence/dump_ids.py' diff '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-diff-CS188 lecture 2.json' $'/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-diff-�\211��\201�\200��\216�\211��\201�\220\221�\207\217.json'
++ tee $'/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/_bmad-output/审�\237�/g5-3-evidence/live-diff-summary.txt'
+== diff CS188 lecture 2 · summary={"added": 0, "changed": 0, "removed": 0, "moved": 0, "unchanged": 27} · entries=0 · unchanged=27
+== diff 特征值与特征向量 · summary={"added": 0, "changed": 0, "removed": 0, "moved": 0, "unchanged": 1} · entries=0 · unchanged=1
++ python3 $'/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/_bmad-output/审�\237�/g5-2-evidence/collect_live_baseline.py' /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault
++ echo 'collect-after rc=0'
+collect-after rc=0
++ diff $'/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/_bmad-output/审�\237�/g5-3-evidence/live-full-before.tsv' $'/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/_bmad-output/审�\237�/g5-3-evidence/live-full-after.tsv'
++ echo 'baseline-diff rc=0 (0=零净差异)'
+baseline-diff rc=0 (0=零净差异)
++ shasum -a 256 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/.claude/skills/board-split/scripts/split_preview.py
++ tee $'/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/_bmad-output/审�\237�/g5-3-evidence/engine-and-products.sha256'
+d088c5e38f0c6eb0f9ca98a547bb4a06a9e45eed722dbdd604a7b578602ab7ad  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/.claude/skills/board-split/scripts/split_preview.py
++ find /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs -type f -print0
++ sort -z
++ xargs -0 shasum -a 256
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/exam_boards/.gitkeep
+3095fb04a6aaf82fe3e418710db915a5205b68c18ffc1615763559923689be2a  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-diff-特征值与特征向量.json
+476e94fb47aba1083d66a685413ca1ab502d51b1117d0a912806c8e15dc1e1ef  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-diff-特征值与特征向量.md
+d349b38b4fd0131bdec6c42053e6c0966f62b89b7ab63b4b5a305e297bb5acf7  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-diff-CS188 lecture 2-四态演示.json
+997cbf66496a11e34b8cfb1c1be59cc855fcaabab28e670eda6f8c222ede3abd  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-diff-CS188 lecture 2-四态演示.md
+73f9a8438814ca129a3ce8edb3a7392283e30361ee9ae91c1808da8b31853b52  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-diff-CS188 lecture 2.json
+abc8eb9a47e0d6916257f5725bff3792fb6fde7c6e43cdb7a1e8e6a356466e49  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-diff-CS188 lecture 2.md
+34875a5774920bc5caa04dcc2084ae154fb6940b091266d2cd944b1183948690  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-preview-特征值与特征向量.json
+3318a3d805592ae2523fe6a277ba5a8c1e7ecb8c719f5f98a494ef7bbf75b0c2  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-preview-特征值与特征向量.md
+02e67c880657f87bfbbd3d60295905ee520d2d6ec6222acdf08e30a4ef960a57  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-preview-CS188 lecture 2.json
+1f8ebda5e391c8715e3136095c0a88a0d794d9311806f24bee1db3245f47abf8  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-preview-CS188 lecture 2.md
++ date -u +%Y-%m-%dT%H:%M:%SZ
+2026-08-30T08:11:15Z

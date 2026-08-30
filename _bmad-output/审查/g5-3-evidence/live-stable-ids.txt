@@ -1,0 +1,30 @@
+== CS188 lecture 2 · schema_version=2 · id_stability=split_anchor_v1 · ns=split-anchor/v1 · 候选 27
+  bsa1-09a7d188234051aa  cf1-f607df28bd8443c9  occ=1  课程概述与理性代理  ← CS 188：人工智能搜索 › 课程概述与理性代理
+  bsa1-84f9e22ad00d6965  cf1-2f447fdc406f69bd  occ=1  课程目标与学习方法  ← CS 188：人工智能搜索 › 课程概述与理性代理 › 课程目标与学习方法
+  bsa1-673dbddc30c982aa  cf1-3b24b692f85c26b5  occ=1  代理-(Agent)-与环境模型  ← CS 188：人工智能搜索 › 课程概述与理性代理 › 代理 (Agent) 与环境模型
+  bsa1-89138735129b0f39  cf1-8fdf857860246faf  occ=1  吃豆人-(Pac-Man)-代理示例  ← CS 188：人工智能搜索 › 代理类型：反射与规划 › 吃豆人 (Pac-Man) 代理示例
+  bsa1-dc820e7489c2e317  cf1-5a537e76869deb7d  occ=1  反射代理-(Reflex-Agents)  ← CS 188：人工智能搜索 › 代理类型：反射与规划 › 反射代理 (Reflex Agents)
+  bsa1-41b31e0388f3e789  cf1-88d7aff62c949e5f  occ=1  规划代理-(Planning-Agents)  ← CS 188：人工智能搜索 › 代理类型：反射与规划 › 规划代理 (Planning Agents)
+  bsa1-2e53a306aaa4a2cd  cf1-565fbec213190eea  occ=1  规划代理演示  ← CS 188：人工智能搜索 › 代理类型：反射与规划 › 规划代理演示
+  bsa1-96637df3d07fbe48  cf1-d1cb2d11f1eebb64  occ=1  搜索问题的形式化  ← CS 188：人工智能搜索 › 搜索问题的形式化
+  bsa1-2cacf8af36bac821  cf1-a7456bbf78806f90  occ=1  搜索问题的核心组成  ← CS 188：人工智能搜索 › 搜索问题的形式化 › 搜索问题的核心组成
+  bsa1-493766e1c640127c  cf1-b6bc9a452b733d62  occ=1  搜索的重要性与应用  ← CS 188：人工智能搜索 › 搜索问题的形式化 › 搜索的重要性与应用
+  bsa1-9062ee04e253472f  cf1-220a1da8bf038eac  occ=1  搜索问题是模型：罗马尼亚旅行示例  ← CS 188：人工智能搜索 › 搜索问题的形式化 › 搜索问题是模型：罗马尼亚旅行示例
+  bsa1-bec9c13171949690  cf1-9cfc09d5ddf10931  occ=1  状态空间中的细节抽象  ← CS 188：人工智能搜索 › 搜索问题的形式化 › 状态空间中的细节抽象
+  bsa1-eaae14188d80f75c  cf1-652dbd868365bc8e  occ=1  状态空间的大小  ← CS 188：人工智能搜索 › 搜索问题的形式化 › 状态空间的大小
+  bsa1-a87ec395d74b1821  cf1-a946a00e8133999f  occ=1  测验：安全通过  ← CS 188：人工智能搜索 › 搜索问题的形式化 › 测验：安全通过
+  bsa1-79dfc1cf7141f94c  cf1-aafdadfd33d272a5  occ=1  搜索结构：状态空间图与搜索树  ← CS 188：人工智能搜索 › 搜索结构：状态空间图与搜索树
+  bsa1-3909a461abc67643  cf1-1afe77bb517b66f4  occ=1  状态空间图-(State-Space-Graphs)  ← CS 188：人工智能搜索 › 搜索结构：状态空间图与搜索树 › 状态空间图 (State Space Graphs)
+  bsa1-ccf1ac9379d13df9  cf1-a57bf1d6bc0fb1e2  occ=1  搜索树-(Search-Trees)  ← CS 188：人工智能搜索 › 搜索结构：状态空间图与搜索树 › 搜索树 (Search Trees)
+  bsa1-192f21daa3bac4d5  cf1-5eab303c9d840fc9  occ=1  测验：状态空间图-vs  ← CS 188：人工智能搜索 › 搜索结构：状态空间图与搜索树 › 测验：状态空间图 vs. 搜索树
+  bsa1-77c35981d9cb98e7  cf1-b4d2ec578bceaab3  occ=1  算法伪代码与核心循环  ← CS 188：人工智能搜索 › 通用树搜索算法 › 算法伪代码与核心循环
+  bsa1-b613a6b59141808a  cf1-ae4a60b57321ce3b  occ=1  树搜索示例  ← CS 188：人工智能搜索 › 通用树搜索算法 › 树搜索示例
+  bsa1-d24b3cfcfb36e21a  cf1-21c5755298765433  occ=1  搜索算法属性  ← CS 188：人工智能搜索 › 通用树搜索算法 › 搜索算法属性
+  bsa1-20b572e4556ee23a  cf1-b4692956fefe32ac  occ=1  深度优先搜索-(Depth-First-Search,-DFS)  ← CS 188：人工智能搜索 › 无信息搜索算法 › 深度优先搜索 (Depth-First Search, DFS)
+  bsa1-bf1e22358a2f6117  cf1-f6d70085e7bb7107  occ=1  广度优先搜索-(Breadth-First-Search,-BFS)  ← CS 188：人工智能搜索 › 无信息搜索算法 › 广度优先搜索 (Breadth-First Search, BFS)
+  bsa1-709c3ce36f43a879  cf1-b91ceb48f5752e22  occ=1  迭代加深-(Iterative-Deepening-Search,-IDS)  ← CS 188：人工智能搜索 › 无信息搜索算法 › 迭代加深 (Iterative Deepening Search, IDS)
+  bsa1-1602e6eb1c42b214  cf1-95f90369f1b3f91e  occ=1  成本敏感搜索与一致成本搜索-(Cost-Sensitive-Search-&  ← CS 188：人工智能搜索 › 无信息搜索算法 › 成本敏感搜索与一致成本搜索 (Cost-Sensitive Search & Uniform Cost Search, UCS)
+  bsa1-7222b4f26e7dc0bd  cf1-961bacc2e2c2e4ee  occ=1  DFS、BFS、IDS、UCS-对比总结  ← CS 188：人工智能搜索 › 无信息搜索算法 › DFS、BFS、IDS、UCS 对比总结
+  bsa1-9de9bde3f09efdb2  cf1-0f8b42db6cd52579  occ=1  未来展望：信息搜索与-A  ← CS 188：人工智能搜索 › 未来展望：信息搜索与 A\*
+== 特征值与特征向量 · schema_version=2 · id_stability=split_anchor_v1 · ns=split-anchor/v1 · 候选 1
+  bsa1-452a358110ac04a2  cf1-3a9aa404fa08519b  occ=1  Linear-Algebra-Fundamentals  ← Linear Algebra Fundamentals

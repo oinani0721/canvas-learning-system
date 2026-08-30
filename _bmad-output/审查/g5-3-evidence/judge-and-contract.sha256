@@ -1,0 +1,3 @@
+03d625216d9a8a1384c675718d0776a179f9e257985785e503463a8260bc8ea2  backend/tests/skills/test_split_stable_id.py
+cb237f2da69bef6446ed87d6d199ddbbe20ab12ef1abc754ba26c78a34240c7f  backend/tests/skills/test_split_preview.py
+269acc4a8d3aa148d05b15d9db4bb780aeeb713b01f8c4319a20eee35ac9e259  docs/design/split-stable-id-contract.md

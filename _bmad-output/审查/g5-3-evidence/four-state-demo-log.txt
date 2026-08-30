@@ -1,0 +1,45 @@
++ export PYTHONDONTWRITEBYTECODE=1
++ PYTHONDONTWRITEBYTECODE=1
++ python3 $'/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/_bmad-output/审�\237�/g5-2-evidence/collect_live_baseline.py' /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault
++ echo 'collect-before rc=0'
+collect-before rc=0
++ rm -rf /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t5-stableid/ef6b5012-08e6-4a09-aac0-5661c100b05f/scratchpad/g53g/vault
++ mkdir -p $'/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t5-stableid/ef6b5012-08e6-4a09-aac0-5661c100b05f/scratchpad/g53g/vault/�\216\237�\231��\235�' $'/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t5-stableid/ef6b5012-08e6-4a09-aac0-5661c100b05f/scratchpad/g53g/vault/�\212\202�\202�'
++ cp '/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/原白板/CS188 lecture 2.md' $'/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t5-stableid/ef6b5012-08e6-4a09-aac0-5661c100b05f/scratchpad/g53g/vault/�\216\237�\231��\235�/'
++ cp '/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/节点/代理函数-(Agent-Function).md' '/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/节点/反射代理的局限性引出了规划代理-(Planning-Agents)-的需求.md' '/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/节点/理性代理-(Rational-Agent).md' '/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/节点/代理决策分析-0303().md' '/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/节点/规划的分类-1549().md' $'/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/�\212\202�\202�/�\204�\210\222代�\220\206�\232\204�\211��\202�.md' $'/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/�\212\202�\202�/代�\220\206类�\236\213�\232�\217\215�\204�\216�\204�\210\222.md' $'/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/�\212\202�\202�/Characteristic-Equation-for-Eigenvalues.md' $'/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/�\212\202�\202�/cs-61b-csm.md' $'/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/�\212\202�\202�/csm-tutoring-unit-credit.md' $'/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/�\212\202�\202�/Eigenvalues-are-special-vectors-that-sat.md' $'/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/�\212\202�\202�/Fundamentals.md' '/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/节点/lecture 2.md' $'/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/�\212\202�\202�/my-recursion-notes.md' $'/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t5-stableid/ef6b5012-08e6-4a09-aac0-5661c100b05f/scratchpad/g53g/vault/�\212\202�\202�/'
++ python3 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/.claude/skills/board-split/scripts/split_preview.py --vault /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t5-stableid/ef6b5012-08e6-4a09-aac0-5661c100b05f/scratchpad/g53g/vault --board 'CS188 lecture 2' --out-dir /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t5-stableid/ef6b5012-08e6-4a09-aac0-5661c100b05f/scratchpad/g53g/base
+✓ preview 已生成（只读引擎, 未动 vault 既有文件）: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t5-stableid/ef6b5012-08e6-4a09-aac0-5661c100b05f/scratchpad/g53g/base/split-preview-CS188 lecture 2.json / /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t5-stableid/ef6b5012-08e6-4a09-aac0-5661c100b05f/scratchpad/g53g/base/split-preview-CS188 lecture 2.md
+  候选 27/27
++ echo 'base rc=0'
+base rc=0
++ python3 $'/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/_bmad-output/审�\237�/g5-3-evidence/mutate_board.py' /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t5-stableid/ef6b5012-08e6-4a09-aac0-5661c100b05f/scratchpad/g53g/vault '/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t5-stableid/ef6b5012-08e6-4a09-aac0-5661c100b05f/scratchpad/g53g/base/split-preview-CS188 lecture 2.json'
+变异目标文件: 节点/lecture 2.md（候选 27）· frontmatter 行号漂移=是
+  改正文  : 课程概述与理性代理  [bsa1-09a7d188234051aa]
+  调序    : 反射代理-(Reflex-Agents) → 移到 吃豆人-(Pac-Man)-代理示例 之前  [bsa1-dc820e7489c2e317]
+  改标题  : 规划代理-(Planning-Agents)  [bsa1-41b31e0388f3e789]
++ python3 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/.claude/skills/board-split/scripts/split_preview.py --vault /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t5-stableid/ef6b5012-08e6-4a09-aac0-5661c100b05f/scratchpad/g53g/vault --board 'CS188 lecture 2' --out-dir /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t5-stableid/ef6b5012-08e6-4a09-aac0-5661c100b05f/scratchpad/g53g/after
+✓ preview 已生成（只读引擎, 未动 vault 既有文件）: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t5-stableid/ef6b5012-08e6-4a09-aac0-5661c100b05f/scratchpad/g53g/after/split-preview-CS188 lecture 2.json / /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t5-stableid/ef6b5012-08e6-4a09-aac0-5661c100b05f/scratchpad/g53g/after/split-preview-CS188 lecture 2.md
+  候选 28/28
++ echo 'after rc=0'
+after rc=0
++ python3 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/.claude/skills/board-split/scripts/split_preview.py --diff '/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t5-stableid/ef6b5012-08e6-4a09-aac0-5661c100b05f/scratchpad/g53g/base/split-preview-CS188 lecture 2.json' '/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t5-stableid/ef6b5012-08e6-4a09-aac0-5661c100b05f/scratchpad/g53g/after/split-preview-CS188 lecture 2.json' --out-dir /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs
+✓ diff 已生成（只比对两份 JSON, 未读 vault、未动任何既有文件）: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-diff-CS188 lecture 2.json / /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-diff-CS188 lecture 2.md
+  新增 2 · 内容变更 1 · 移动 1 · 移除 1 · 未变 24
++ echo 'diff rc=0'
+diff rc=0
++ mv '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-diff-CS188 lecture 2.json' '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-diff-CS188 lecture 2-四态演示.json'
++ mv '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-diff-CS188 lecture 2.md' '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-diff-CS188 lecture 2-四态演示.md'
++ python3 $'/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/_bmad-output/审�\237�/g5-3-evidence/dump_ids.py' diff '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/canvas-vault/outputs/split-diff-CS188 lecture 2-四态演示.json'
++ tee $'/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/_bmad-output/审�\237�/g5-3-evidence/four-state-demo-summary.txt'
+== diff CS188 lecture 2 · summary={"added": 2, "changed": 1, "removed": 1, "moved": 1, "unchanged": 24} · entries=5 · unchanged=24
+  changed  bsa1-09a7d188234051aa  reasons=['content']  moved=False
+  added    bsa1-8e952dec73b4086e  reasons=[]  moved=False
+  moved    bsa1-dc820e7489c2e317  reasons=[]  moved=True
+  added    bsa1-b62c758606a3ac18  reasons=[]  moved=False
+  removed  bsa1-41b31e0388f3e789  reasons=[]  moved=False
++ python3 $'/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-stableid/_bmad-output/审�\237�/g5-2-evidence/collect_live_baseline.py' /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault
++ echo 'collect-after rc=0'
+collect-after rc=0
++ diff /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t5-stableid/ef6b5012-08e6-4a09-aac0-5661c100b05f/scratchpad/g53g/live-before.tsv /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t5-stableid/ef6b5012-08e6-4a09-aac0-5661c100b05f/scratchpad/g53g/live-after.tsv
++ echo 'live-baseline-diff rc=0 (0=live 零净差异)'
+live-baseline-diff rc=0 (0=live 零净差异)
