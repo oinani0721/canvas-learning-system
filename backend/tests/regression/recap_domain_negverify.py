@@ -50,7 +50,9 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "survivor-2 规模行允许式去掉行尾锚（H-2 前半全线）",
         [
             (
-                'r"^[>\\s]*\\d+\\s*成员（\\d+\\s*种子\\s*\\+\\s*\\d+\\s*派生，\\d+\\s*占位）"\n                r"\\s*/\\s*\\d+\\s*批注\\s*/?\\s*$"',
+                # ⛔ CARD-维护B-R2 (d): 允许式表已从 _verify_report 局部提为模块级
+                # _FALLBACK_DERIVE_ALLOW，缩进 16→12 空格——锚点随之更新（变异性质不变）。
+                'r"^[>\\s]*\\d+\\s*成员（\\d+\\s*种子\\s*\\+\\s*\\d+\\s*派生，\\d+\\s*占位）"\n            r"\\s*/\\s*\\d+\\s*批注\\s*/?\\s*$"',
                 'r"^[>\\s]*\\d+\\s*成员（\\d+\\s*种子\\s*\\+\\s*\\d+\\s*派生，\\d+\\s*占位）"',
             )
         ],
@@ -75,6 +77,52 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "survivor-5 D2 叙述域计数绑定整体关闭（本卡原始命题）",
         [("    _verify_prose_counts(text, scan, problems)\n", "")],
         "bare_count_in_prose",
+    ),
+    # ── CARD-维护B-R2 (g): 第七批复核 F-4 的三个 survivor + 本卡两处新面的承重变体。
+    # 每条的 keyword 都指向 (b)-(e) 配的新承重门；隔离拷贝重放证据见验收单 4-A。
+    (
+        "survivor-6 S1 `_NODATA_REASONS` 增「任意原因」（F-4: 既有门只喂固定 bogus）",
+        [('    "数据源不可用",\n)', '    "数据源不可用",\n    "任意原因",\n)')],
+        "skill_sync_nodata_reasons_table or nodata_reason_outside_table",
+    ),
+    (
+        "survivor-7 S3 围栏剥离退回单层（F-4: `> > ```` 逃逸 + Obsidian 渲染引用内代码块）",
+        [('bare = re.sub(r"^[>\\s]*", "", ln)', 'bare = re.sub(r"^>?[^\\S\\n]*", "", ln)')],
+        "multilevel_blockquote_fence or strip_code_blocks_unit_contract",
+    ),
+    (
+        "survivor-8 S4 允许式表增「备注：…派生」自由式（F-4: 无依据可写的模式混入）",
+        [
+            (
+                '        "skill:③段固定句式",\n    ),\n)',
+                '        "skill:③段固定句式",\n    ),\n'
+                '    (re.compile(r"^\\s*备注[：:].*派生.*$"), "skill:③段固定句式"),\n)',
+            )
+        ],
+        "freeform_derivation_note or derive_allow_entries_are_grounded",
+    ),
+    (
+        "survivor-9 (e) 注记槽退化为自由文本（H-3「先开放再排除」黑名单老路复活）",
+        [
+            (
+                "            note_slot = (\n"
+                '                rf"(?:\\s*[·，,、]?\\s*"\n'
+                "                rf\"(?:{'|'.join(re.escape(x) for x in _SIGNAL_TAIL_NOTES)}))?\"\n"
+                "            )",
+                '            note_slot = r"(?:[^【】]*)"',
+            )
+        ],
+        "signal_tail_note_outside_table",
+    ),
+    (
+        "survivor-10 (e) `_SIGNAL_TAIL_NOTES` 增「另有仨条」（封闭表被单侧扩表）",
+        [
+            (
+                '_SIGNAL_TAIL_NOTES = ("口径一致",)',
+                '_SIGNAL_TAIL_NOTES = ("口径一致", "另有仨条")',
+            )
+        ],
+        "skill_sync_signal_tail_notes_table",
     ),
 ]
 

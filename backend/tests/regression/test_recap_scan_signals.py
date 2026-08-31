@@ -2180,3 +2180,609 @@ def test_audit_number_form_fixes_do_not_overreach(tmp_path, prose, ids):
     v = _verdicts_on_all_boards(tmp_path, prose)
     assert len(set(v.values())) == 1, f"{ids}: 四板判决不一致: {v}"
     assert not any(v.values()), f"{ids}: 合法语料被误伤: {v}"
+
+
+# ══════════ CARD-维护B-R2 · survivor 承重门（BATCH-2026-09-01-第八批） ══════════
+# 第七批复核裁定 F-4: 在隔离拷贝上重放 round-6 的 survivor，S1/S3/S4 变异后
+# **全套件 passed/failed 集合与原版逐字相同** = 门没锁住；验收单「survivor 5 条
+# 全部如期变红」那一行不实（那 5 条锁的是别的性质）。
+# 本节为三个 survivor + 一个旧 survivor 各配**先红后绿**的承重门。
+# ⛔ 每道门写明「它证明什么、不证明什么」——不写比门宽的话。
+
+SIGNAL_LABELS = ("未答问题年龄", "来源覆盖率", "无来源结论", "重复堆积")
+SKILL_MD = SCRIPT.parent.parent / "SKILL.md"
+
+
+def _parse_skill_nodata_reasons(skill_text: str) -> list[str]:
+    """从 SKILL.md ③段铁律里解析五条无据原因（顺序保留）。
+
+    ⛔ 解析必须真的读文件：返回常量的"解析器"会让同步锁恒绿（假门）。
+    锚点是铁律原文「原因只能逐字取自下列」，其后**第一条**全部由反引号项
+    与 `/` 组成的行即原因表行；找不到就返回空表（让比对失败并点名），
+    ⛔ 不静默回退成"就当它们相等"。
+    """
+    idx = skill_text.find("原因只能逐字取自下列")
+    if idx < 0:
+        return []
+    for line in skill_text[idx:].splitlines()[1:]:
+        if re.fullmatch(r"\s*`[^`\n]+`(?:\s*/\s*`[^`\n]+`)+\s*", line):
+            return re.findall(r"`([^`\n]+)`", line)
+    return []
+
+
+def _parse_skill_tail_notes(skill_text: str) -> list[str]:
+    """从 SKILL.md ③段铁律里解析**信号行尾部注记**封闭表（CARD-维护B-R2 (e)）。"""
+    idx = skill_text.find("附注只许")
+    if idx < 0:
+        return []
+    for line in skill_text[idx:].splitlines()[1:]:
+        toks = re.findall(r"`([^`\n]+)`", line)
+        if toks:
+            return toks
+    return []
+
+
+# ── (b) S1: `_NODATA_REASONS` 增一条即放宽，无任何测试锁表 ──────────────
+
+
+def test_domain_skill_sync_nodata_reasons_table():
+    """b1 · S1 承重门①「SKILL 同步锁」: 代码表与 SKILL.md 铁律表必须**全等**。
+
+    survivor 实证: 往 `_NODATA_REASONS` 里加第六项「任意原因」，
+    既有门 `test_verify_nodata_reason_whitelist` 只喂固定 bogus 串，
+    表多一条只放宽那一个字面 —— 全套件 196 passed 无新增红。
+    代码注释写着「新增文案必须两处同改」，但那只是**注释约定**，没有门。
+
+    **它证明什么**: 代码的五条原因与 SKILL.md 文档面逐字同序一致；
+    单侧增删（代码侧或文档侧）立刻变红。
+    **它不证明什么**: 不证明这五条原因本身是"对的"文案，也不证明
+    verifier 在运行时真的按这张表拦截（那是 b2 的行为门的事）。
+    """
+    rs = _load_recap_scan()
+    skill_text = SKILL_MD.read_text(encoding="utf-8")
+    parsed = _parse_skill_nodata_reasons(skill_text)
+    assert len(parsed) == 5, f"SKILL.md 原因表解析异常（应 5 条，得 {parsed}）"
+    assert tuple(parsed) == rs._NODATA_REASONS, (
+        f"代码与 SKILL.md 的无据原因表不同步:\n  代码 = {rs._NODATA_REASONS}\n  SKILL = {tuple(parsed)}"
+    )
+    # ⛔ 篡改门（MEMORY `reference_positive_gate_needs_tamper_test`）:
+    # 只验「真语料 PASS」不证明门在工作 —— 必须证明它对**不同步**会报警。
+    # 三种篡改都从**文档侧文本**下手，因此同时证明解析器真的在读 SKILL.md、
+    # 不是返回一个与代码常量同源的副本。
+    reason_line = next(
+        ln
+        for ln in skill_text[skill_text.find("原因只能逐字取自下列") :].splitlines()[1:]
+        if re.fullmatch(r"\s*`[^`\n]+`(?:\s*/\s*`[^`\n]+`)+\s*", ln)
+    )
+    tampers = {
+        "多一项": reason_line + " / `任意原因`",
+        "少一项": " / ".join(reason_line.strip().split(" / ")[:-1]),
+        "改顺序": " / ".join(reversed(reason_line.strip().split(" / "))),
+    }
+    for name, bad_line in tampers.items():
+        bad = skill_text.replace(reason_line, bad_line, 1)
+        assert bad != skill_text, f"{name}: 篡改未命中，这条篡改门测的是空气"
+        assert tuple(_parse_skill_nodata_reasons(bad)) != rs._NODATA_REASONS, (
+            f"{name} 后同步锁仍判「一致」—— 该锁不承重"
+        )
+
+
+@pytest.mark.parametrize(
+    "reason",
+    ["任意原因", "其他", "略", "见上文", "分母为零（补充）"],
+    ids=["renyi", "qita", "lve", "jianshangwen", "fenmu_suffix"],
+)
+def test_domain_block_nodata_reason_outside_table(tmp_path, reason):
+    """b2 · S1 承重门②「表外原因行为门」: 表外原因必须被 verifier 实际拦下。
+
+    与 b1 互补: b1 锁"表的内容"，b2 锁"表在运行时真的封闭"。
+    `分母为零（补充）` 一条专打**前缀式**放行——它以合法原因开头，
+    只有整行锚定（`$`）才拦得住。
+
+    **它证明什么**: 这五个表外原因写进无据行时 exit 1 且点名「未整行匹配标准式」。
+    **它不证明什么**: 不证明表内五条原因**都**能放行（那由既有的
+    `test_verify_nodata_lines_pass` 与本套件的真语料门覆盖），
+    也不证明穷尽了所有表外写法——表外是无限集，本门取五个代表。
+    """
+    vault = build_vault(tmp_path, ["SeedA", "DerivedB"])
+    write_node(vault, "SeedA")
+    write_node(vault, "DerivedB", derived_from="[[SeedA]]")
+    scan = collect_json(vault)
+    assert scan["signals"]["duplicate_accumulation"]["availability"] == "无据"
+    report = write_report(vault, scan)
+    text = report.read_text(encoding="utf-8")
+    line = next(ln for ln in text.splitlines() if "重复堆积" in ln)
+    bogus = f"> - 重复堆积：无据（{reason}）"
+    assert bogus != line, "构造与原行相同，这条门测的是空气"
+    report.write_text(text.replace(line, bogus, 1), encoding="utf-8")
+    r = run_verify(report)
+    assert r.returncode == 1, f"表外原因「{reason}」被放行:\n{r.stdout}"
+    assert "无据行未整行匹配标准式" in r.stdout, f"拦截理由不是白名单:\n{r.stdout}"
+    assert "VERIFY PASS" not in r.stdout
+
+
+# ── (c) S3: 多层引用前缀下围栏只剥一层 ──────────────────────────────
+
+
+def _wrap_signals_in_fence(text: str, prefix: str) -> str:
+    """把四条信号行整体包进 `<prefix>``` … <prefix>``` `，信号行同层前缀。"""
+    lines = text.splitlines()
+    idx = [i for i, ln in enumerate(lines) if any(lb in ln for lb in SIGNAL_LABELS)]
+    start, end = idx[0], idx[-1]
+    body = [prefix + re.sub(r"^[>\s]*", "", lines[i]) for i in range(start, end + 1)]
+    out = lines[:start] + [prefix + "```"] + body + [prefix + "```"] + lines[end + 1 :]
+    return "\n".join(out)
+
+
+@pytest.mark.parametrize("prefix", ["> > ", "> > > ", ">>"], ids=["depth2", "depth3", "no_space"])
+def test_domain_block_multilevel_blockquote_fence(tmp_path, prefix):
+    """c1 · S3 承重门①「多层引用围栏行为门」: 任意层引用前缀下的围栏都必须识别。
+
+    survivor 实证: `_strip_code_blocks` 的 `^[>\\s]*` 改成 `^>?[^\\S\\n]*`（只剥一层）后
+    全套件 196 passed 无新增红。既有门 `test_verify_blockquote_fence_hides_nothing`
+    只构造**一层** `> ```；`grep -c "> > " 测试文件` = 0。
+    而 `> > - 信号行` 恰好落在信号行前缀允许式 `[>\\-*·\\s]{0,6}`（6 字符）里
+    ⇒ 变异体下 VERIFY PASS，可 Obsidian 把它渲染成**引用内代码块**（读者看到灰底代码）。
+
+    **它证明什么**: 二层/三层/无空格三种前缀下，藏进围栏的信号行都不被当成在场，
+    且拦截理由是"代码块相关"而非碰巧撞上别的规则。
+    **它不证明什么**: 不证明所有 CommonMark 引用嵌套形态都覆盖（如引用内列表内围栏），
+    也不证明围栏识别对 `~~~` 与反引号的所有交叉组合都正确（同族另配 old-1 门）。
+    """
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    report = write_report(vault, scan)
+    base = run_verify(report)
+    assert base.returncode == 0, f"基线报告本身就不过 verifier:\n{base.stdout}"
+    before = report.read_text(encoding="utf-8")
+    after = _wrap_signals_in_fence(before, prefix)
+    assert after != before, "变异未命中：报告一字未改，这条门测的是空气"
+    report.write_text(after, encoding="utf-8")
+    r = run_verify(report)
+    assert r.returncode != 0, f"{prefix!r} 层引用内的围栏未被识别:\n{r.stdout}"
+    assert "代码块内出现信号名" in r.stdout or "缺信号行" in r.stdout, (
+        f"拦截理由与「信号行藏在代码块里」无关（可能撞上了别的规则）:\n{r.stdout}"
+    )
+    assert "VERIFY PASS" not in r.stdout
+
+
+def test_domain_strip_code_blocks_unit_contract():
+    """c2 · S3 承重门②「`_strip_code_blocks` 单元契约门」: 直接调函数验双向行为。
+
+    行为门（c1）走整条 verifier，误伤面与拦截面都可能被别的规则掩盖；
+    这道单元门把契约钉在函数本身：**任意层引用前缀**下的围栏整块剥空，
+    而**合法的多层引用列表**与四空格三级列表一个字都不许动。
+
+    **它证明什么**: 该函数对 2/3 层引用围栏整块置空、对两类合法结构零改动。
+    **它不证明什么**: 不证明调用方（`_verify_signal_lines` / `_verify_prose_counts`）
+    正确使用了它——那是 c1 与 D2 门的事。
+    """
+    rs = _load_recap_scan()
+    # 卡文点名的字面反例（S3 survivor 的逃逸形态）: `> > ``` 三行必须全部变空
+    literal = "> > ```\n> > x\n> > ```"
+    got = rs._strip_code_blocks(literal)
+    # ⚠️ 必须用 split("\n") 不能用 splitlines(): 三行全空时结果是 "\n\n",
+    # splitlines() 只给两项（末尾换行后无内容），断言会**因构造错误而红**
+    # ——第一次写就踩了，如实留注。
+    assert got.split("\n") == ["", "", ""], f"两层引用围栏未整块剥空: {got!r}"
+    for depth in (3,):
+        p = "> " * depth
+        src = f"{p}```\n{p}藏起来的正文\n{p}```"
+        got = rs._strip_code_blocks(src)
+        assert got.split("\n") == ["", "", ""], f"{depth} 层引用围栏未整块剥空: {got!r}"
+    # 正向对照（误伤锁）: 合法结构一个字都不许动
+    for legit in (
+        "> > - 合法二级引用列表",
+        "- 一级\n  - 二级\n    - 三级列表（四空格缩进，合法 Markdown）",
+    ):
+        assert rs._strip_code_blocks(legit) == legit, f"合法结构被误剥: {legit!r}"
+
+
+def test_domain_block_fence_close_must_be_same_char(tmp_path):
+    """old-1 承重门: 闭栏的「同字符」条件是承重的（`~~~` 不得关掉 ``` 开的围栏）。
+
+    ⛔ 本卡新发现（不在 goal 点名的三个 survivor 内）: (a) 重放实测，
+    单独删掉闭栏的「同字符」判据后全套件 196 passed 无新增红——**它也是 survivor**。
+    验收单原写「变异脚本的 survivor-1 已把 E1 两条判据一起禁，现如期变红 2/2」，
+    但那条变体是把**同字符 + 长度 + 尾随空白**三条一起禁；
+    只禁同字符这一条时套件全绿 ⇒ 那句话比证据宽。
+
+    **它证明什么**: 用 `~~~` 伪闭合一个 ``` 围栏时，其后的信号行仍被当作在块内。
+    **它不证明什么**: 不证明 CommonMark 围栏规则被完整实现（长度/缩进/info string
+    另有 `test_domain_block_four_fence_short_close` 等门）。
+    """
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    report = write_report(vault, scan)
+    base = run_verify(report)
+    assert base.returncode == 0, f"基线报告本身就不过 verifier:\n{base.stdout}"
+    before = report.read_text(encoding="utf-8")
+    first_sig = next(ln for ln in before.splitlines() if SIGNAL_LABELS[0] in ln)
+    after = before.replace(first_sig, "> ```\n> 无关正文\n> ~~~\n" + first_sig, 1)
+    assert after != before, "变异未命中：报告一字未改，这条门测的是空气"
+    report.write_text(after, encoding="utf-8")
+    r = run_verify(report)
+    assert r.returncode != 0, f"`~~~` 伪闭合了 ``` 围栏，信号行被当成在场:\n{r.stdout}"
+    assert "代码块内出现信号名" in r.stdout or "缺信号行" in r.stdout, f"拦截理由与围栏无关:\n{r.stdout}"
+
+
+# ── (d) S4: fallback「派生」允许式加一条自由叙述即放宽 ────────────────
+
+D1_NEGATIVES = [
+    "备注：SeedA 的派生子女数为 3 个。",
+    "注：SeedA 的派生子女数为 3 个。",
+    "说明：SeedA 的派生子女数为 3 个。",
+    "补充：SeedA 的派生子女数为 3 个。",
+    "PS：SeedA 的派生子女数为 3 个。",
+    "> 备注：SeedA 的派生子女数为 3 个。",
+    "- 备注：SeedA 的派生子女数为 3 个。",
+    "SeedA 派生了 3 个子节点。",
+]
+
+
+@pytest.mark.parametrize(
+    "bogus",
+    D1_NEGATIVES,
+    ids=["beizhu", "zhu", "shuoming", "buchong", "ps", "quote_beizhu", "list_beizhu", "bare"],
+)
+def test_domain_block_freeform_derivation_note(tmp_path, bogus):
+    """d1 · S4 承重门①「自由叙述行为门」: 模板外的「派生」表述必须被拦。
+
+    survivor 实证: 往允许式里加一条 `^\\s*备注[：:].*派生.*$` 后全套件 196 passed
+    无新增红 —— 既有门 `test_verify_derivation_assertion_outside_seed_section`
+    只喂**对全部模式都不匹配**的句子，往表里加一条模式除非恰好有测试喂那条模式
+    的句子，否则不可见。
+
+    ⚠️ 语料刻意避开 `_D2_CLAIM_RE`（无「本板/全板 + 共有」）与 fallback 禁词表，
+    否则拦截会来自别的规则、变异体下仍红 ⇒ 门看着绿其实不承重。
+
+    **它证明什么**: 七种前缀 + 一句裸叙述写进 fallback 报告 ①段时 exit 1，
+    且理由是「模板外的『派生』表述」。
+    **它不证明什么**: 不证明允许式表本身完备（合法形态另由放行门与 d2 覆盖），
+    也不覆盖 manifest 模式（该检查是 fallback 专属）。
+    """
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    assert scan["data_mode"] == "fallback_local"
+    report = write_report(vault, scan)
+    base = run_verify(report)
+    assert base.returncode == 0, f"基线报告本身就不过 verifier:\n{base.stdout}"
+    lines = report.read_text(encoding="utf-8").splitlines()
+    idx = next(i for i, ln in enumerate(lines) if ln.startswith("### ① "))
+    lines.insert(idx + 1, bogus)
+    report.write_text("\n".join(lines), encoding="utf-8")
+    r = run_verify(report)
+    assert r.returncode == 1, f"模板外派生叙述被放行: {bogus}\n{r.stdout}"
+    assert "模板外的『派生』表述" in r.stdout, (
+        f"拦截理由不是派生白名单（可能撞上了别的规则，那样这条门就不承重）:\n{r.stdout}"
+    )
+
+
+# SKILL Step 5 模板 / live 真报告里**合法**的「派生」行形态（d2 的正例集）
+D2_SKILL_POSITIVES = [
+    "> 3 成员（1 种子 + 2 派生，0 占位）/ 3 批注 /",
+    "## 台账（种子/派生）",
+    "### 派生",
+    "> - 无来源结论：1/2 派生角色成员缺来源锚点【文件】",
+    "> - 无来源结论：无据（本板无派生角色成员）",
+    "> - 关系类型分布：derived_from 1 · extends 1",
+    "2. 在原白板选中相关文本 `Cmd+Shift+D` 派生新节点【实测】",
+    "2 个派生角色成员缺来源锚点。",
+    "方向叙述：来源锚点缺失集中在派生角色成员，关联声明以既有数据为准。",
+]
+
+
+def test_domain_derive_allow_entries_are_grounded(tmp_path):
+    """d2 · S4 承重门②「允许式绑定结构门」: 每条允许式都必须有**可验证的依据**。
+
+    d1 拦的是"表外的句子"，d2 拦的是"往表里塞一条没有依据的模式"——
+    后者才是 survivor 的实际形态（改的是实现，不是报告）。
+    逐条判据:
+      · `scan:<路径>` → 该路径必须能在**真实** scan JSON 里解析到；
+      · `md:heading`  → 模式必须以 `^#{1,6}` 起（真的是在匹配标题结构）；
+      · `skill:action-verb` → 模式必须含 SKILL HARD-CONSTRAINTS 白名单动词之一；
+      · `skill:③段固定句式` → 归口 SKILL.md ③段模板/叙述句式；
+      · 且**每条**模式至少匹配一条 SKILL 模板正例、且**不匹配** d1 反例集里的任何一行。
+
+    最后一条是关键: 「备注：…派生…」这类自由允许式无论挂什么依据，
+    都会因为"匹配到了 d1 反例"而变红。
+
+    **它证明什么**: 表内 8 条允许式各有可解析的依据、都在匹配真实模板形态、
+    且没有一条会顺带放行 d1 的越界语料。
+    **它不证明什么**: 不证明这 8 条**穷尽**了合法形态（漏一条合法形态表现为误伤，
+    由 live/合成真语料放行门守）；`skill:③段固定句式` 的依据是**语义归口**，
+    不是与 SKILL.md 的逐字比对（SKILL.md:203 原文无「角色」二字，逐字锁会锁错）。
+    """
+    rs = _load_recap_scan()
+    scan = collect_json(standard_vault(tmp_path))
+    table = rs._FALLBACK_DERIVE_ALLOW
+    assert len(table) >= 8, f"允许式表条目数异常: {len(table)}"
+    for pattern, basis in table:
+        if basis.startswith("scan:"):
+            node = scan
+            for part in basis[len("scan:") :].split("."):
+                assert isinstance(node, dict) and part in node, (
+                    f"依据 {basis!r} 在真实 scan JSON 里解析不到（到 {part!r} 断链）"
+                )
+                node = node[part]
+        elif basis == "md:heading":
+            assert pattern.pattern.startswith("^#{1,6}"), f"依据声明为标题结构，模式却不是标题锚定: {pattern.pattern!r}"
+        elif basis == "skill:action-verb":
+            # ⚠️ 白名单动词在模式里是**正则转义**过的（`Cmd\+Shift\+D`），
+            # 裸子串比对会恒假 —— 这条断言第一次写就因此变红，如实留注。
+            assert any(v in pattern.pattern or re.escape(v) in pattern.pattern for v in rs._VERIFY_ACTION_VERBS), (
+                f"依据声明为 SKILL 白名单动词，模式里却没有任何白名单动词: {pattern.pattern!r}"
+            )
+        elif basis == "skill:③段固定句式":
+            assert "派生角色成员" in pattern.pattern, (
+                f"依据声明为 ③段固定句式，模式却不含该句式的锚: {pattern.pattern!r}"
+            )
+        else:
+            pytest.fail(f"未知依据类型 {basis!r} —— 新增允许式必须带可验证依据")
+        assert any(pattern.match(p) for p in D2_SKILL_POSITIVES), (
+            f"允许式 {pattern.pattern!r} 匹配不到任何 SKILL 模板正例（它在放行什么？）"
+        )
+        for neg in D1_NEGATIVES:
+            assert not pattern.match(neg), f"允许式 {pattern.pattern!r}（依据 {basis}）放行了越界语料: {neg!r}"
+
+
+def test_domain_derive_allow_covers_every_skill_positive(tmp_path):
+    """d2 反向锁: 每条 SKILL 模板正例都必须被表里**某条**允许式放行。
+
+    只验"允许式不放行反例"会让"把表删空"通过（空表不放行任何反例）。
+    这条从另一侧钉住: 表不能收窄到打到合法模板。
+    """
+    rs = _load_recap_scan()
+    for pos in D2_SKILL_POSITIVES:
+        assert any(p.match(pos) for p, _ in rs._FALLBACK_DERIVE_ALLOW), (
+            f"SKILL 模板正例被允许式表整体拒绝（误伤）: {pos!r}"
+        )
+
+
+@pytest.mark.parametrize(
+    "bogus",
+    [
+        "派生角色成员的子女数为 987654 个。",
+        "3 个派生角色成员的子女数合计 987654 个。",
+        "本轮优化集中在派生角色成员的 987654 个子女上。",
+    ],
+    ids=["free_tail", "leading_count_free_tail", "jizhong_free_tail"],
+)
+def test_domain_block_derive_clause_free_tail(tmp_path, bogus):
+    """D3 裁决（⑦ 自由段收紧）: 「派生角色成员」句式的自由尾段不得夹带子女数。
+
+    ⛔ (a) 重放实测的**同族缺口**（不在三个 survivor 内）: ⑦ 原式
+    `^[>\\s]*(?:\\d+\\s*个)?派生角色成员[^。\\n]*。?\\s*$` 的 `[^。\\n]*` 自由段
+    让「派生角色成员的子女数为 987654 个。」在**原版**上 exit 0。
+    收紧口径以 SKILL.md:267 信号行模板（`<value>/<denominator> 派生角色成员缺来源锚点`）
+    + :203 叙述句式（原文「N 个派生成员缺来源锚点」，无「角色」二字——
+    同步锁比**匹配语义**不比字面）为准: 谓语固定为「缺来源锚点」，尾段禁裸数字。
+
+    **它证明什么**: 三种自由尾段形态现在 exit 1 且理由是派生白名单。
+    **它不证明什么**: 不证明 fallback 下所有伪计数都被拦（D2 只管自称全板规模的句式，
+    D1 只管模板行；两者未覆盖的位置仍留给人工判读——这是如实登记的边界）。
+    """
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    assert scan["data_mode"] == "fallback_local"
+    report = write_report(vault, scan)
+    lines = report.read_text(encoding="utf-8").splitlines()
+    idx = next(i for i, ln in enumerate(lines) if ln.startswith("### ③ "))
+    lines.insert(idx + 1, bogus)
+    report.write_text("\n".join(lines), encoding="utf-8")
+    r = run_verify(report)
+    assert r.returncode == 1, f"⑦ 自由尾段仍放行: {bogus}\n{r.stdout}"
+    assert "模板外的『派生』表述" in r.stdout, f"拦截理由不是派生白名单:\n{r.stdout}"
+
+
+# ── (e) 「口径一致」封闭注记槽（第七批 §三 B-1 建议甲，默认执行、待用户裁决） ──
+
+
+def _tail_note_line(text: str, label: str, note_form: str) -> tuple[str, str]:
+    """把 label 信号行的档位标注前插入注记，返回 (原行, 新行)。"""
+    line = _sig_line(text, label)
+    return line, line.replace("【", note_form + "【", 1)
+
+
+@pytest.mark.parametrize(
+    "label,note_form",
+    [
+        ("来源覆盖率", "口径一致"),
+        ("来源覆盖率", " · 口径一致"),
+        ("无来源结论", "口径一致"),
+    ],
+    ids=["coverage_adjacent", "coverage_middot", "unsourced_adjacent"],
+)
+def test_domain_allow_signal_tail_note(tmp_path, label, note_form):
+    """e1 放行门: 信号行尾部的**封闭表**注记「口径一致」必须放行。
+
+    ⛔ 这是 goal 点名、round-5/6 一直挂着的输入。开工前实测（存档
+    `evidence/e1-pre-implementation-red.txt`）: 紧接式与 ` · ` 分隔式**均 exit 1**
+    （理由「未整行匹配标准式」）⇒ 本门先红后绿成立。
+
+    处置口径 = 第七批复核裁定 §三 **B-1 建议甲（放宽规则）**，
+    ⚠️ 与本卡上一版验收单裁决点 1 的甲/乙标签**相反**（那里甲 = 不许附注）：
+    实现的是**封闭表注记槽**（`_SIGNAL_TAIL_NOTES`），不是自由文本槽——
+    自由槽等于把 H-3 那条黑名单老路重开一遍。**仍待你裁决**。
+
+    **它证明什么**: 表内短语在两种分隔形态下、在 X/N 型信号行上放行且整篇 VERIFY PASS。
+    **它不证明什么**: 不证明"任意附注"放行（e2 反向锁），也不证明无据行可带附注
+    （无据行不适用本槽，e2 末条锁）。
+    """
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    report = write_report(vault, scan)
+    base = run_verify(report)
+    assert base.returncode == 0, f"基线报告本身就不过 verifier:\n{base.stdout}"
+    text = report.read_text(encoding="utf-8")
+    old, new = _tail_note_line(text, label, note_form)
+    assert new != old, "构造未命中，这条门测的是空气"
+    report.write_text(text.replace(old, new, 1), encoding="utf-8")
+    r = run_verify(report)
+    assert r.returncode == 0, f"封闭表注记被误伤 ({label}/{note_form!r}):\n{r.stdout}"
+    assert "VERIFY PASS" in r.stdout
+
+
+@pytest.mark.parametrize(
+    "note_form",
+    [
+        "口径一致另有仨条",
+        "另有仨条口径一致",
+        "口径一致 2/3",
+        "口径一致/3",
+        "口径一致口径一致",
+        "口径不一致",
+    ],
+    ids=["note_then_smuggle", "smuggle_then_note", "note_then_pair", "note_then_slash", "note_twice", "not_in_table"],
+)
+def test_domain_block_signal_tail_note_outside_table(tmp_path, note_form):
+    """e2 拦截门: 注记槽是**封闭表**，不是自由文本槽。
+
+    ⛔ 槽一旦写成 `[^【】]*` 之类的自由式，H-3 那条"先开放再排除"的黑名单老路
+    立刻复活（「另有仨条」正是当年绕过的原话）。本门逐条钉死:
+    表内短语的前后都不许夹带、不许重复、近似词（`口径不一致`）不算。
+
+    **它证明什么**: 六种夹带/近似形态一律 exit 1 且理由是"未整行匹配标准式"。
+    **它不证明什么**: 不证明穷尽了所有夹带写法（表外是无限集），
+    只证明槽的**封闭性**在这六个代表形态上成立。
+    """
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    report = write_report(vault, scan)
+    text = report.read_text(encoding="utf-8")
+    old, new = _tail_note_line(text, "来源覆盖率", note_form)
+    assert new != old, "构造未命中，这条门测的是空气"
+    report.write_text(text.replace(old, new, 1), encoding="utf-8")
+    r = run_verify(report)
+    assert r.returncode == 1, f"表外注记被放行: {note_form!r}\n{r.stdout}"
+    assert "未整行匹配标准式" in r.stdout, f"拦截理由异常:\n{r.stdout}"
+    assert "VERIFY PASS" not in r.stdout
+
+
+def test_domain_block_nodata_line_takes_no_tail_note(tmp_path):
+    """e2 补充: **无据行**不适用注记槽（它另有整行固定模板）。"""
+    vault = build_vault(tmp_path, ["SeedA", "DerivedB"])
+    write_node(vault, "SeedA")
+    write_node(vault, "DerivedB", derived_from="[[SeedA]]")
+    scan = collect_json(vault)
+    assert scan["signals"]["duplicate_accumulation"]["availability"] == "无据"
+    report = write_report(vault, scan)
+    text = report.read_text(encoding="utf-8")
+    line = next(ln for ln in text.splitlines() if "重复堆积" in ln)
+    report.write_text(text.replace(line, line + "口径一致", 1), encoding="utf-8")
+    r = run_verify(report)
+    assert r.returncode == 1, f"无据行带了注记却被放行:\n{r.stdout}"
+    assert "无据行未整行匹配标准式" in r.stdout
+
+
+def test_domain_skill_sync_signal_tail_notes_table():
+    """e3 表锁: `_SIGNAL_TAIL_NOTES` 与 SKILL.md ③段铁律的附注表必须全等 + 篡改门。
+
+    **它证明什么**: 代码侧注记表与文档侧逐字同序一致，单侧改动即红。
+    **它不证明什么**: 不证明表内短语在运行时真的放行（e1）或表外真的被拦（e2）。
+    """
+    rs = _load_recap_scan()
+    skill_text = SKILL_MD.read_text(encoding="utf-8")
+    parsed = _parse_skill_tail_notes(skill_text)
+    assert parsed, "SKILL.md 里解析不到信号行附注表"
+    assert tuple(parsed) == rs._SIGNAL_TAIL_NOTES, (
+        f"代码与 SKILL.md 的附注表不同步:\n  代码 = {rs._SIGNAL_TAIL_NOTES}\n  SKILL = {tuple(parsed)}"
+    )
+    note_line = next(
+        ln for ln in skill_text[skill_text.find("附注只许") :].splitlines()[1:] if re.findall(r"`([^`\n]+)`", ln)
+    )
+    for name, bad_line in {
+        "多一项": note_line.replace("`口径一致`", "`口径一致` / `另有仨条`", 1),
+        "改文案": note_line.replace("`口径一致`", "`口径不一致`", 1),
+    }.items():
+        bad = skill_text.replace(note_line, bad_line, 1)
+        assert bad != skill_text, f"{name}: 篡改未命中，这条篡改门测的是空气"
+        assert tuple(_parse_skill_tail_notes(bad)) != rs._SIGNAL_TAIL_NOTES, (
+            f"{name} 后附注表同步锁仍判「一致」—— 该锁不承重"
+        )
+
+
+def test_domain_allow_note_as_independent_line(tmp_path):
+    """e4 现状锁: 「口径一致」写成**下一条独立叙述行**始终放行（round-1 Codex 的建议形态）。
+
+    开工前实测 exit 0；本门把它钉住，防止注记槽上线后反而把这条路堵死。
+    """
+    r = _mutate_report(
+        tmp_path,
+        lambda text, scan: text.replace("\n方向叙述：", "\n\n口径一致。\n\n方向叙述：", 1),
+    )
+    assert r.returncode == 0, f"独立叙述行形态被误伤:\n{r.stdout}"
+
+
+# ── (f) 含 signals 的真语料放行门（第七批 §三 B-3 建议「补」，默认执行） ──
+
+SYNTH_FIXTURES = Path(__file__).parent / "fixtures" / "recap_synthetic_signals"
+SYNTH_REPORT = "回顾-CS 61B-2026-09-01.md"
+
+
+def _synth_workdir(tmp_path: Path) -> Path:
+    work = tmp_path / "outputs"
+    work.mkdir(parents=True)
+    for src in SYNTH_FIXTURES.iterdir():
+        shutil.copy2(src, work / src.name)
+    return work
+
+
+def test_synthetic_signals_report_passes(tmp_path):
+    """(f) 放行门: **含 signals 的真 scan** 渲染出的整篇报告必须 exit 0。
+
+    ⛔ 证据边界（Codex round-1 MEDIUM 的直接整改）: 四份 live 真报告的 scan
+    **都没有 `signals` 键**，生产代码会整块跳过信号行校验 ⇒ 它们能证明
+    「D1/D2 不误伤真语料」，**不能**证明「信号行固定尾部不误伤」。
+
+    本 fixture 的诚实口径 = **scan 真、③段渲染**（⛔ 不是「live 真报告」）:
+      · scan JSON 是 live vault `CS 61B` 板的**只读** collect 真产物
+        （执行前后 live outputs 8 份 shasum+mtime 逐字相同，证据在验收单）；
+      · 报告③段的四条信号行按 SKILL.md Step 5 模板逐字渲染，
+        其余散文取自 live 2026-08-27 真报告并按 fallback 口径去掉 manifest 专属陈述。
+    ⚠️ synthetic 标记落在**目录名**上而非文件名: verifier 强制
+    「文件名解析出的板名 == frontmatter board」，文件名带后缀会被判
+    「绑定另一块板的 scan JSON」（实测）。
+
+    **它证明什么**: 真 scan 的四条信号行（含一条无据行）在整篇报告里不被误伤。
+    **它不证明什么**: 不证明这份报告是 LLM 真实产出的（③段是我按模板渲染的），
+    也没有 live 侧的逐字节哈希门（scan 随时间变，钉不住）。
+    """
+    work = _synth_workdir(tmp_path)
+    scan = json.loads((work / ".recap-scan-CS 61B.json").read_text(encoding="utf-8"))
+    assert "signals" in scan, "fixture 的 scan 没有 signals 键，这条门测的是空气"
+    assert scan["signals"]["source_coverage"]["availability"] != "无据", (
+        "fixture 的信号全是无据档，证明不了 X/N 型固定尾部不误伤"
+    )
+    r = run_verify(work / SYNTH_REPORT)
+    assert r.returncode == 0, f"含 signals 的真语料被误伤:\n{r.stdout}"
+    assert "VERIFY PASS" in r.stdout
+
+
+@pytest.mark.parametrize(
+    "old,new",
+    [
+        ("最老 21 天", "最老 22 天"),
+        ("参与统计 3 条", "参与统计 4 条"),
+        ("p25/p50/p75 = 20/21/21 天", "p25/p50/p75 = 20/21/99 天"),
+        ("0/2 成员含来源锚点", "1/2 成员含来源锚点"),
+        ("0/3 条批注为重复条目", "1/3 条批注为重复条目"),
+        ("无来源结论：无据（本板无派生角色成员）", "无来源结论：0/2 派生角色成员缺来源锚点【文件】"),
+    ],
+    ids=["age_value", "age_denom", "percentile", "coverage_value", "duplicate_value", "nodata_to_measured"],
+)
+def test_synthetic_signals_tamper_fails(tmp_path, old, new):
+    """(f) 篡改门（与放行门同权重）: 真语料**被篡改后**必须 FAIL。
+
+    ⛔ Codex round-1 BLOCKER-3 的教训: 放行门只证明了「真报告 PASS」，
+    **没有证明「真报告被篡改后 FAIL」**——正例过了就以为门在工作，是假绿的经典形态。
+    六条各打一个信号字段（含把无据行改写成有数行）。
+    """
+    work = _synth_workdir(tmp_path)
+    rp = work / SYNTH_REPORT
+    before = rp.read_text(encoding="utf-8")
+    after = before.replace(old, new, 1)
+    assert after != before, f"篡改未命中「{old}」，这条门测的是空气"
+    rp.write_text(after, encoding="utf-8")
+    r = run_verify(rp)
+    assert r.returncode == 1, f"信号数字被改却仍 PASS: {old} → {new}\n{r.stdout}"
