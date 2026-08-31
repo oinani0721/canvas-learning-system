@@ -306,12 +306,17 @@ async def rag_query(
         subject_id=request.subject_id,
         canvas_path=request.canvas_file,
     )
-    logger.info(
-        "RAG query scope resolved: vault=%s source=%s group=%s",
-        _scope.vault_id,
-        _scope.source,
-        _scope.group_id,
-    )
+    # 与入口日志同口径: 观测失败最多损失可观测性, 不得成为业务失败源
+    # (G4-3 round-3 HIGH-1 确立的纪律; 本卡新增日志一律惰性参数)。
+    try:
+        logger.info(
+            "RAG query scope resolved: vault=%s source=%s group=%s",
+            _scope.vault_id,
+            _scope.source,
+            _scope.group_id,
+        )
+    except Exception:  # noqa: BLE001 — 观测面刻意兜底
+        pass
 
     try:
         result = await rag_service.query(
