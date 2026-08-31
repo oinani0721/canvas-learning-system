@@ -21,6 +21,7 @@ Tests for POST /api/v1/agents/recommend-action endpoint:
 from typing import Any, Dict, List, Optional
 
 import pytest
+from fastapi import Response  # CARD-G4-4: handler 新签名
 from app.api.v1.endpoints.agents import (
     _calculate_trend,
     _recommend_action_from_score,
@@ -73,7 +74,11 @@ class MockMemoryService:
         }
 
         if self.should_raise:
-            raise Exception("Mock history query error")
+            # CARD-G4-4 适配注: 原抛裸 Exception, 但 handler 的优雅降级
+            # 只捕预期依赖故障 (RuntimeError/ConnectionError/Timeout/Value/
+            # TypeError) — 裸 Exception 穿透是 handler 的**设计行为**, 本
+            # 测试意图「依赖故障不阻断响应」应在预期异常类型内验证。
+            raise RuntimeError("Mock history query error")
 
         return {
             "items": self.history_items,
@@ -267,7 +272,7 @@ class TestRecommendActionEndpoint:
             include_history=False,
         )
 
-        response = await recommend_action(request, mock_memory)
+        response = await recommend_action(request, Response(), mock_memory)  # CARD-G4-4: 签名加性注入
 
         assert isinstance(response, RecommendActionResponse)
         assert response.action == ActionType.decompose
@@ -286,7 +291,7 @@ class TestRecommendActionEndpoint:
             include_history=False,
         )
 
-        response = await recommend_action(request, mock_memory)
+        response = await recommend_action(request, Response(), mock_memory)  # CARD-G4-4: 签名加性注入
 
         assert response.action == ActionType.explain
         assert response.agent == "/agents/explain/oral"
@@ -302,7 +307,7 @@ class TestRecommendActionEndpoint:
             include_history=False,
         )
 
-        response = await recommend_action(request, mock_memory)
+        response = await recommend_action(request, Response(), mock_memory)  # CARD-G4-4: 签名加性注入
 
         assert response.action == ActionType.next
         assert response.agent is None
@@ -325,7 +330,7 @@ class TestRecommendActionEndpoint:
             concept="contrapositive",
         )
 
-        response = await recommend_action(request, mock_memory)
+        response = await recommend_action(request, Response(), mock_memory)  # CARD-G4-4: 签名加性注入
 
         # Should have queried history
         assert mock_memory.call_count == 1
@@ -348,7 +353,7 @@ class TestRecommendActionEndpoint:
         )
 
         # Should not raise, should continue without history
-        response = await recommend_action(request, mock_memory)
+        response = await recommend_action(request, Response(), mock_memory)  # CARD-G4-4: 签名加性注入
 
         assert response.action == ActionType.explain
         assert response.history_context is None
@@ -364,7 +369,7 @@ class TestRecommendActionEndpoint:
             include_history=True,
         )
 
-        response = await recommend_action(request, mock_memory)
+        response = await recommend_action(request, Response(), mock_memory)  # CARD-G4-4: 签名加性注入
 
         # Should have queried but no context due to empty results
         assert mock_memory.call_count == 1
@@ -388,7 +393,7 @@ class TestRecommendActionEndpoint:
             include_history=True,
         )
 
-        response = await recommend_action(request, mock_memory)
+        response = await recommend_action(request, Response(), mock_memory)  # CARD-G4-4: 签名加性注入
 
         # Only valid scores should be included
         assert response.history_context is not None
@@ -415,7 +420,7 @@ class TestRecommendActionEndpoint:
             include_history=True,
         )
 
-        response = await recommend_action(request, mock_memory)
+        response = await recommend_action(request, Response(), mock_memory)  # CARD-G4-4: 签名加性注入
 
         assert response.review_suggested is True
         assert response.history_context is not None
@@ -444,7 +449,7 @@ class TestRecommendActionEndpoint:
             include_history=True,
         )
 
-        response = await recommend_action(request, mock_memory)
+        response = await recommend_action(request, Response(), mock_memory)  # CARD-G4-4: 签名加性注入
 
         assert response.history_context is not None
         # Scores should be ordered by timestamp descending: 90, 70, 60, 50
@@ -469,7 +474,7 @@ class TestRecommendActionEndpoint:
             include_history=True,
         )
 
-        response = await recommend_action(request, mock_memory)
+        response = await recommend_action(request, Response(), mock_memory)  # CARD-G4-4: 签名加性注入
 
         assert response.history_context is not None
         # Without timestamps, source order preserved: 80, 60, 70

@@ -407,9 +407,18 @@ async def retrieve_lancedb(state: CanvasRAGState, runtime: Runtime[CanvasRAGConf
             lancedb_results.extend(subject_results)
 
         # Story 2-8 H2: 1-hop wiki-link neighbor expansion on search results
+        # CARD-G4-4 Codex round-1 BLOCKER-1: expand_neighbors 内部直接
+        # open_table(传入名), 不走作用域解析 —— 原固定传裸 "vault_notes" 会让
+        # 邻居扩展绕过 vault 命名空间、从裸 legacy 表带回其他 vault 的内容
+        # (真库反例复现)。邻居应从**被检索的同一张表**扩展: 主链
+        # search_multiple_tables 默认查 DEFAULT_TABLES=["canvas_nodes"],
+        # 这里显式 resolve 同一张表 (同一 ContextVar 解析源)。
+        # ⚠️ 原值 "vault_notes" 与 DEFAULT_TABLES 脱节属存量缺陷, 本卡一并
+        # 统一; resolve 的裸表回退 (B0.7) 是 lancedb_client 既有语义
+        # (V5 未合面), 其收敛登记移交。
         lancedb_results = await client.expand_neighbors(
             results=lancedb_results,
-            table_name="vault_notes",
+            table_name=client.resolve_table_name("canvas_nodes"),
             max_neighbors=neighbor_max_count,
             score_decay=neighbor_score_decay,
         )
