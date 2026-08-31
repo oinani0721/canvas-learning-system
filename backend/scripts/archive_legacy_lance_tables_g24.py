@@ -56,6 +56,7 @@ from typing import Any, Dict, List, Optional
 
 try:
     import lancedb
+    import pyarrow as pa
     import pyarrow.parquet as pq
 except ImportError:  # pragma: no cover - 环境缺依赖时显式失败
     print("ERROR: lancedb / pyarrow not installed", file=sys.stderr)
@@ -233,10 +234,65 @@ def _normalize_type_repr(type_repr: str) -> str:
     return out
 
 
+def _metadata_repr(md) -> str:
+    """metadata 的确定性渲染 —— None 与 ``{}`` 归一为 ``meta=-``。
+
+    非空时按 key **字节序**排序 (与 ``equals(check_metadata=True)`` 的顺序无关
+    语义对齐), 每对渲染成 ``repr(k)=repr(v)`` —— bytes repr 不解码, 非 UTF-8
+    的 value 不会在这里炸掉。
+    """
+    if not md:
+        return "meta=-"
+    return "meta=" + ",".join(f"{k!r}={md[k]!r}" for k in sorted(md))
+
+
+def _render_field(f, label: Optional[str] = None) -> str:
+    """递归渲染一个 Arrow field —— **nested 子字段的 metadata 同样参与**。
+
+    ⛔ Codex round-3 HIGH 残余实证: 只渲染顶层 ``f.metadata`` 时, ``struct<x:int64>``
+    子字段 metadata ``{unit:cm}`` vs ``{unit:m}`` 的两张表 ``equals(check_metadata=True)``
+    为 False 而摘要逐字相同, 对账判同后源表被 drop。
+
+    - ``label`` 非 None 时覆盖字段名渲染 —— 仅用于 list 容器的 value field:
+      Lance 侧名恒 ``item`` / Parquet 读回恒 ``element`` (2026-09-01 实测), 统一成
+      ``elem``, 与 ``_LIST_ELEM_LABELS`` 的标签归一**同一语义同一声明**; 其
+      nullable/metadata 如实参与 (实测两侧保真)。
+    - struct 子字段用真名 (``equals`` 本就区分, 两侧往返保真)。
+    - map 在 Lance 建表即 RustPanic (2026-09-01 实测, lance-encoding 未实现),
+      本归档器场景不可达; 仍渲染 key/item 子字段 (pyarrow 子字段名恒 key/value)
+      只为对 Parquet 侧输入的完整性。
+    - dictionary 等其余容器无子 field metadata 面 (无 ``value_field``), 不递归。
+    """
+    name = label if label is not None else f.name
+    parts = [
+        name,
+        _normalize_type_repr(str(f.type)),
+        "null" if f.nullable else "notnull",
+        _metadata_repr(f.metadata),
+    ]
+    t = f.type
+    if pa.types.is_struct(t):
+        parts.append("{" + ",".join(_render_field(t.field(i)) for i in range(t.num_fields)) + "}")
+    elif pa.types.is_map(t):
+        parts.append("{" + _render_field(t.key_field) + "," + _render_field(t.item_field) + "}")
+    elif pa.types.is_list(t) or pa.types.is_large_list(t) or pa.types.is_fixed_size_list(t):
+        parts.append("{" + _render_field(t.value_field, label="elem") + "}")
+    return ":".join(parts)
+
+
 def _arrow_digest(at) -> Dict[str, Any]:
-    schema_repr = "|".join(
-        f"{f.name}:{_normalize_type_repr(str(f.type))}:{'null' if f.nullable else 'notnull'}" for f in at.schema
-    )
+    """schema 摘要与 ``pyarrow.Schema.equals(check_metadata=True)`` 同语义 (顺序无关)。
+
+    每个字段经 ``_render_field`` **递归**渲染 name/type/nullable/field metadata
+    (含 nested 子字段), 末尾追加 **schema 级 metadata** —— 仅 metadata 不同的
+    两张表必须给出不同的 ``schema_sha16`` (⛔ Codex round-2 HIGH-1 + round-3 残余:
+    漏 metadata / 只渲染顶层都会让对账判同后 drop 源表)。
+    唯一有意偏离 = list 内层标签 item/element 归一 (见 ``_LIST_ELEM_LABELS`` 与
+    ``_render_field``, 顶层与递归层同语义)。
+    ⛔ 不用 ``schema.serialize()`` 整体哈希 —— 它会把 item/element 标签差异带
+    回来, 让每张 vector 表的 Parquet 对账恒失败。
+    """
+    schema_repr = "|".join(_render_field(f) for f in at.schema) + f"||schema:{_metadata_repr(at.schema.metadata)}"
     rows = at.to_pylist()
     payload = sorted(json.dumps({k: _cell(v) for k, v in sorted(r.items())}, ensure_ascii=False) for r in rows)
     content = hashlib.sha256(json.dumps(payload, ensure_ascii=False).encode("utf-8")).hexdigest()

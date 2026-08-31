@@ -67,6 +67,12 @@
 
 若第七批手册确实存在于我看不到的地方，请把 §二 给我，我照它复核一遍。
 
+> **更正（2026-09-01 第八批，round-3 整改时核实）**：上面「第七批手册在仓库里不存在」**不实**。
+> 手册一直在 `feature-obsidian-hybrid-dev` worktree：
+> `_bmad-output/implementation-artifacts/goal-cards/2026-08-31-第七批开跑手册-7车道11卡.md`。
+> 当时我只搜了本车道与主仓，没有搜其它 worktree 的 goal-cards 目录——搜索面不足，
+> 不是文件不存在。本段原文按「如实保留错误判断」原则不删，以此更正为准。
+
 ---
 
 ## 二、完成条件逐条对账
@@ -189,6 +195,11 @@ tier-2 是该字段在全仓的**唯一生产者**。删除后它的 4 处消费
 `signal_keys` 元组里仍列着该字段名。它是 `{k: m[k] for k in signal_keys if m.get(k) is not None}`
 形态的投影白名单，字段永不出现即永不投影 —— **零行为影响**，但字面已陈旧。
 该文件不在本车道独占清单内，故只登记不改。
+
+> **更正（2026-09-01 第八批）**：本段与 §五/§七 LOW-2 自相矛盾——LOW-2 整改**已经**删掉了
+> `note_search_tools.py` 与 `chat.py` 的 `is_legacy_fallback` 投影字段（2026-09-01 grep 两文件
+> 0 命中实证）。本段「未清理（登记移交）」是 LOW-2 整改**之前**写的、整改后忘了回改，
+> 以 §五/§七 为准；§六.5 的 FU-2 同此作废。§六 裁决点 2 因此已无实体，无需裁决。
 
 ### 6. 我曾越界改 `multimodal_store.py`，**已全部还原**（连同我的错误判断一起纠正）
 
@@ -335,7 +346,7 @@ Round 1 判 **FAIL**（3 BLOCKER / 3 HIGH / 6 MEDIUM / 2 LOW）。我先逐条**
 | BLOCKER-1 | `file://` 双解释绕过 live 拒绝闸（闸按普通路径解析、`lancedb.connect` 按 URI 解析） | 属实 | `canonical_db_path()` 一律拒绝带 scheme 的写法，同一个 `Path` 同时交给闸与 connect | `test_uri_db_path_is_refused` |
 | BLOCKER-2 | 归档副本留在同一个 LanceDB 里，会被后端启动的 schema 自愈 drop（源表与归档双双消失） | 属实——`_cache_tables()` 对每张非指纹表跑 `_check_and_fix_dimension_mismatch()`，缺 `doc_type` 就 drop | 归档改为导出到 **DB 目录之外**的 Parquet + 回读核对后才 drop | `test_archive_survives_client_schema_repair`（跑**真实**的 `_cache_tables()`，并用一张同样缺 `doc_type` 的前缀表做正向对照证明它真的会删） |
 | BLOCKER-3 | 改了 `vault_doc_roles.yaml` 却没刷新 `check_vault_doc_roles.py` 的强制 SHA → 既有测试红 | 属实，我完全漏了（我的 `-k` 选择面没覆盖它） | `ROLES_SHA256` 刷新为 `2a68d4cd…` | `-k vault_doc_roles` 119 passed |
-| HIGH-1 | `str()` 指纹把 `1` 与 `"1"` 判成相同，对账"通过"后就删源表 | 属实 | 指纹改为 Arrow schema + **类型化**单元格（`type(v).__name__` + `repr`），schema 也参与对账 | `test_digest_is_type_sensitive`（含"真相同必须同指纹"的正向对照） |
+| HIGH-1 | `str()` 指纹把 `1` 与 `"1"` 判成相同，对账"通过"后就删源表；round-2 复核仍开：摘要漏 `Schema.metadata` 与 `Field.metadata`，仅 metadata 不同的表被判同后 drop | 属实 | round-1: 指纹改为 Arrow schema + **类型化**单元格（`type(v).__name__` + `repr`），schema 也参与对账。**round-3: schema/field metadata 纳入摘要，与 `equals(check_metadata=True)` 同语义**（key 字节序排序 + None/`{}` 归一 + bytes repr；唯一有意偏离 = list 内层 item/element 标签归一），详见 §八 | ① `test_digest_distinguishes_schema_metadata` ② `test_digest_distinguishes_field_metadata` ③ `test_digest_equal_for_identical_and_key_order_permuted_metadata` ④ `test_digest_equality_tracks_arrow_check_metadata` ⑤ `test_apply_reconciles_and_drops_metadata_bearing_table` ⑥ 既有 `test_live_shaped_fixture_flags_bare_fingerprints` + `test_apply_exports_parquet_outside_db_then_drops` 原样全绿；round-1 的 `test_digest_is_type_sensitive` 保留 |
 | HIGH-2 | 未复用应用的 `sanitize_vault_id`，`ACTIVE_VAULT="Default"` 会被判成多 vault → 误删正常裸表 | 属实 | 只接受 `app.config.sanitize_vault_id`，导不到就 fail closed | `test_capitalized_default_is_single_vault`；现网证据里 raw `canvas-vault` → canonical `canvas_vault` 正是这条 |
 | HIGH-3 | 白名单漏表（`canvas_explanations` / `edge_rationales`）→ 真受影响的裸表被报成 clean | 属实 | 补全表名契约；**契约外的裸表不再等于干净**，进 `unknown_bare` + exit 2 | `test_unknown_bare_table_is_pending_not_clean` |
 | MEDIUM-1 | `table_names()` 默认 `limit=10`，`_is_table_absent` 会把第 11 张之后的表判成不存在 | 属实（lancedb 0.30.2 签名实查） | 新增 `_all_table_names()` 走 `list_tables(limit=None)` | `test_is_table_absent_sees_past_default_pagination`（含"默认确实只给 10 张"的前提断言） |
@@ -355,3 +366,262 @@ Round 1 判 **FAIL**（3 BLOCKER / 3 HIGH / 6 MEDIUM / 2 LOW）。我先逐条**
 
 **流程教训（如实记）**：我在 Codex 跑着的时候还在改代码，导致它反复重读工作区、
 并在报告里专门声明"审查期间工作区发生过并发修改"。发起审查后应当冻结改动。
+
+---
+
+## 八、第八批 round-3 整改（HIGH-1）[BATCH-2026-09-01-第八批 / CARD-G2-4]
+
+> round-2 存档（`_bmad-output/审查/codex-review-CARD-G2-4-G2-5-round2.md` 第 4 条）判
+> HIGH-1 STILL-OPEN：摘要只含字段名/类型/nullable，漏 `Schema.metadata` 与
+> `Field.metadata`——同 `x:int64` 同数据、仅 metadata 不同的两张表
+> `equals(check_metadata=True)=False` 而摘要逐字相同，`export_table` 对账判同后源表被 drop。
+> 本节为第八批 round-3 收口记录；证据文件全部在 `_bmad-output/审查/evidence-g24/`。
+
+### 8.1 修法（卡文 (a)）
+
+`_arrow_digest()`（`backend/scripts/archive_legacy_lance_tables_g24.py`）的 `schema_repr`
+每个字段追加该字段 metadata 的确定性渲染，末尾追加 schema 级 metadata 渲染：
+
+- None 与 `{}` 归一为同一字面 `meta=-`（pyarrow 两级均判等，2026-09-01 backend venv 实测）；
+- 非空按 key **字节序**排序（与 `equals(check_metadata=True)` 的顺序无关语义对齐）；
+- 每对渲染 `repr(k)=repr(v)`——bytes repr 不解码，非 UTF-8 值不炸；
+- `schema_sha16` 继续由 schema_repr 派生，`export_table`（round-4 更正：现位于
+  **306-321**，写此节时为 :290-295）的对账**自动**覆盖 metadata，不另加分支；
+- docstring 写明「与 `pyarrow.Schema.equals(check_metadata=True)` 同语义（顺序无关）；
+  唯一有意偏离 = list 内层标签 item/element 归一（见 `_LIST_ELEM_LABELS`）」；
+- ⛔ 未用 `schema.serialize()` 整体哈希——它会把 Parquet 往返必然产生的 item/element
+  标签差异带回来，让每张 vector 表对账恒失败。
+
+前提实证（写码前 backend venv 逐条跑过）：pyarrow 23.0.1 下 schema 级与 field 级
+`{}` vs None 均判等、键顺序不同的同集合判等、值不同判不等、field metadata 参与
+`check_metadata=True`；Lance `create_table→to_arrow` 与 Parquet `write→read` 对
+schema+field metadata **双向保真**（回读 `equals(check_metadata=True)=True`）。
+
+### 8.2 4-A Claude 已代验 —— (a)-(e) 全部裁判输出
+
+**(a) 最小反例探针**（当前 HEAD 曾输出 False）：
+
+```
+$ .venv/bin/python -c "...a=pa.table({'x':[1]}); b=同数据+field metadata {b'u':b'cm'}+schema metadata {b'o':b'A'};
+  print(digest(a)['schema_sha16']!=digest(b)['schema_sha16'])"
+True                                                        （evidence-g24/a-judge-probe.txt）
+```
+
+**(b) 回归锁先红后绿**（红态 = 改码前实跑，evidence-g24/b-locks-pre-fix-red.txt）：
+
+```
+改码前: FAILED ① test_digest_distinguishes_schema_metadata
+        FAILED ② test_digest_distinguishes_field_metadata
+        FAILED ④ test_digest_equality_tracks_arrow_check_metadata
+        PASSED ③ test_digest_equal_for_identical_and_key_order_permuted_metadata
+        PASSED ⑤ test_apply_reconciles_and_drops_metadata_bearing_table
+        → 3 failed, 2 passed（③⑤ 是正向对照，改码前本就该绿，如实记录）
+改码后: pytest tests/unit/test_archive_legacy_lance_tables_g24.py -q
+        → 20 passed（基线 15 + 新增 5，0 failed）      （evidence-g24/b-locks-post-fix-green.txt）
+```
+
+**(c) 机械变异**（串行、原地改、还原逐字节比对；evidence-g24/c-mutation-red.txt）：
+
+```
+变异前:  20 passed；shasum = 7a555308d8554801e07261205344e92b2484863525784f96c1b08d98a74c3796
+变异中:  去掉 metadata 渲染（恢复旧 name:type:nullable 三元组），只跑 ①②④⑤:
+         FAILED ①  FAILED ②  FAILED ④  PASSED ⑤   → 3 failed, 1 passed（①②④ 必红达成）
+还原后:  cmp 逐字节相同 + shasum 与变异前逐字相同（同上值）；全文件复跑 20 passed
+```
+
+**⑤ 不比什么**：⑤ 是端到端**正向对照**（带 metadata 的表照常归档+drop+回读保真），它锁的是
+「纳入 metadata 不会把正常 apply 弄假红」，不锁「缺 metadata 渲染会被抓」——变异下仍绿是
+**设计内**行为，抓变异的门是 ①②④。
+
+**(d) grep/契约门不回退**：
+
+```
+$ bash backend/scripts/g24_grep_gate.sh                     → rc=0（三判据+三次正向对照自检全过）
+$ pytest tests/unit -q -k "lancedb or supplementary or g24 or vault_doc_roles"
+  基线(baseline-round3.txt):   13 failed / 284 passed （4542 collected / 297 selected）
+  改码后(post-fix-suite-round3.txt): 13 failed / 289 passed （+5 = 本节新增回归锁）
+  comm 双向差集: 新增失败 0 条、消失失败 0 条（13 条存量失败逐字相同; evidence-g24/comm-new-failures.txt）
+```
+
+**(e) 现网证据口径声明**：`evidence-g24/live-lancedb-census-2026-08-31.json` 里的
+`schema_sha16`/`schema_repr` 是 **round-2 前旧算法**（无 metadata 渲染）的产物，
+**不可与新算法产出的任何摘要比对**——同一张表两套算法给出不同 sha 是预期而非漂移。
+未重跑现网普查：归档器脚本只存在于本分支，现网容器挂的是主干代码树，重跑需向 live
+容器注入本分支脚本（越出只读边界），且对账语义不依赖现网重测；裸 `file_fingerprints`
+77 行仍按第七批 §三 L-1 建议丙 = **只登记等 G2-9**（待你裁决，见 8.4）。
+
+### 8.3 4-B 你来验
+
+**无变化** —— 这张卡这一轮改的是清理旧资料前的内部核对判断，你在软件里看不到任何新
+东西、也不会有任何操作变化。它的意义是：将来清理旧资料时，两份「看起来一样、实际
+标注不一样」的资料不会再被当成同一份而误删。
+
+### 8.4 待你裁决（按第七批 §三 建议**默认执行**，均为默认值、**待你裁决**，未裁定）
+
+| # | 事项 | 第七批建议 | 本轮按默认的执行 |
+|---|---|---|---|
+| L-1 | 现网裸 `file_fingerprints` 77 行处置（甲清理/乙迁移/丙登记等 G2-9） | 丙 | 只登记、不动现网；pending=1 维持在台账（§六.1 原文保留） |
+| L-3 | 「`ENABLE_LANCEDB_TIER2_FALLBACK` 全仓 0 命中」字面未达（剩测试删除锁+门脚本自身+历史存档）是否豁免 | 豁免（都是锁死它的证据，不是活代码） | grep 门 G3 维持枚举豁免形态（§三.3 原文保留） |
+
+### 8.5 第七批瑕疵更正（本节一并收口）
+
+1. **批次日期误写**：本卡此前三个 commit（`9c366d27`/`4da0116d`/`a94caa3d`）的批次标记
+   写的是 `BATCH-2026-08-29-第七批`，第七批实际开跑日为 2026-08-31（已登记为第七批瑕疵）。
+   历史 commit 不改写；本节对应 commit 改用正确标记 `[BATCH-2026-09-01-第八批 / CARD-G2-4]`。
+2. **§〇「手册不存在」不实** —— 已在 §〇 原地追加更正（手册在 feature-obsidian-hybrid-dev
+   worktree，当时搜索面不足）。
+3. **§三.4 与 §五/§七 LOW-2 自相矛盾** —— 已在 §三.4 原地追加更正（LOW-2 已删
+   `is_legacy_fallback` 投影字段，grep 0 命中实证；FU-2 作废，§六 裁决点 2 已无实体）。
+
+### 8.6 本卡本轮未证明什么（必填，如实）
+
+- **不证明跨机器/跨版本 metadata 编码一致**：摘要用 Python `repr(bytes)` 与 key 字节序，
+  只在同一 Python/pyarrow 栈内自洽；不同版本若改变 repr 形态，历史 JSON 里的 sha 不可比
+  （对账总在单次运行内两侧同算法，故不受影响）。
+- **不证明摘要渲染串是单射**：`repr` 的引号/转义规则在实际 metadata 上无已知碰撞，但没有
+  形式化证明「任意两个不同 metadata 映射必得不同渲染」。
+- **④ 一致性锁只覆盖非 list 类型**：list 内层 item/element 标签归一是已声明的唯一偏离，
+  在 list 类型上摘要语义与 `equals(check_metadata=True)` 有意不同（那正是 BLOCKER-2 时代
+  修 Parquet 往返假红的代价），不在 ④ 的证明范围。
+- **不证明现网数据在新算法下的形态**（见 8.2 (e)：未重跑现网普查及原因）。
+
+### 8.7 Codex round-3
+
+见 `_bmad-output/审查/codex-review-CARD-G2-4-round3.md`（定向复核 HIGH-1 是否
+CONFIRMED-CLOSED + round-2 已 CLOSED 各条未重开 + (b) 六锁是否死门）。
+
+**判决：清零 = 否**。顶层 schema/field metadata 确认已修（Codex 实跑最小反例通过），
+但抓出一条 **HIGH 残余**：递归层缺失——`struct` 子字段的 metadata 不参与摘要，
+`struct<x:int64>` 仅子字段 metadata 不同的两张表 `check_metadata=True` 为 False 而
+`schema_sha16` 相同，Codex 实测对账判同后仍会 drop（本机往返保真救不了对账闸——
+闸的职责就是识别不保真的回读）。另判 **MEDIUM**：④ 一致性锁是死门——「只按 value
+排序、完全忽略 key」的渲染变异下 7 pair 全绿（pair 集漏 key-only 与 nested 两类差异，
+Codex 给出实测复现）。LOW×3：§八引用的 `export_table :290-295` 行号已漂移（实际
+306-321）；「297 collected」措辞不准（实为 4542 collected / 297 selected）；round-3
+变异证据包不含 shasum 前后对照，不能单独复算。
+
+### 8.8 round-4 整改（Codex round-3 HIGH 残余 + MEDIUM/LOW）
+
+**修法**（`_arrow_digest` 一处，`_render_field` 新增递归）：
+
+- 新增 `_render_field(f, label=None)`：递归渲染字段——name/type/nullable/field
+  metadata 之外，struct/map/list 三类容器的**子字段**同样递归渲染（struct 子字段用
+  真名；list 家族 value field 名字统一渲染 `elem`，与 `_LIST_ELEM_LABELS` 同一
+  已声明偏离——Lance 侧名恒 `item` / Parquet 读回恒 `element`，2026-09-01 实测；
+  value field 的 nullable/metadata 如实参与，实测两侧往返保真）；
+- map 在 Lance 建表即 RustPanic（lance-encoding 未实现，2026-09-01 实测），生产
+  不可达，仅为 Parquet 侧输入完整性渲染 key/value 子字段；
+- 顶层渲染改走 `_render_field`，schema 级 metadata 追加不变；
+- **测试**：④ 的 pair 集从 7 扩到 11（补 key-only 差异 ×2——顶层与 nested 子字段各
+  一、nested struct 子字段差异 ×3，Codex 的 key-blind 与 nested-blind 变异自此必红）；
+  新增 ⑦ `test_digest_renders_nested_struct_child_metadata`（round-3 HIGH 反例原样：
+  无/cm/m 三态判异 + 内容指纹不变 + 同 metadata 正向对照）、⑧
+  `test_digest_renders_nested_list_child_metadata_and_elem_label`（value field 名字
+  item/element 判同、metadata/nullable 判异，普通 list 与 fixed_size_list 各测）。
+
+**先红后绿**：⑦⑧ 与扩展 ④ 在改码前未单独跑红态——本轮的红态证据由「改码前 HEAD
+就是 Codex round-3 审查时的代码（`7a555308…`），Codex 已实测 ④ 与 nested 反例在其上
+为绿/判同」承担；改码后 `pytest tests/unit/test_archive_legacy_lance_tables_g24.py -q`
+→ **22 passed**（20 + ⑦⑧），0 failed。
+
+**机械变异 round-4**（串行、原地改、还原 sha256 逐字比对；证据
+`evidence-g24/c-mutation-red-round4.txt`，脚本含四次还原自检）：
+
+| 变异 | 内容 | 预期 | 实测 |
+|---|---|---|---|
+| M-A | `_metadata_repr` 改 value-only（完全忽略 key，Codex 变异原样） | ④ 红 | 1 failed ✓ |
+| M-B | `_render_field` 删递归三分支（nested-blind） | ⑦+④ 红 | 2 failed ✓ |
+| M-C | metadata 渲染整体摘除（字段级+schema 级） | ①②④⑦⑧ 红 | 5 failed ✓ |
+| M-D | value field 名字归一失效（label 忽略，用真名） | ⑧ 红 | 1 failed ✓ |
+
+还原后 `sha256 = cc5b098806bcf809c40e41877a53a4125ea26150ca014b742e8b1af9da704d05` 与
+变异前一致；首轮 M-A 曾写错（只改排序键、渲染仍含 key → 1 passed），如实记录：
+**变异本身也要防假绿**——「门没变红」先查变异是否真的命中被测逻辑，再怀疑门。
+
+**(d) 不回退**：`g24_grep_gate.sh` rc=0；全 `-k` 套件
+`post-fix-suite-round4.txt` = 13 failed / 291 passed，与基线 comm 双向差集为空
+（`comm-new-failures-round4.txt` 0 行；291 = 284 基线 + ⑦⑧ 两条新锁 + ④ 内部扩展不增数）。
+
+**Codex round-3 LOW×3 处置**：`export_table` 行号引用更正为 **306-321**（§8.2 (a) 的
+「:290-295」同此更正）；「297 collected」更正为「4542 collected / 297 selected」
+（8.2 (d) 的 297 口径实为 selected 数）；round-4 起变异证据带还原 sha256 自检
+（round-3 的缺口不再复现）。round-3 探针/测试输出存档：
+`evidence-g24/a-judge-probe-round4.txt`（True）、`c-mutation-red-round4.txt`。
+
+### 8.9 本卡 round-4 仍未证明什么（追加）
+
+- ⑧ 的「判同」半边（item vs element 名字归一）只锁**顶层 list**；嵌套在 struct 内的
+  list 的 value field 名字归一走同一条 `_render_field` 代码路径，但没有专门 pair。
+- map 递归分支在生产不可达（Lance 建表即崩），其正确性只由单元渲染测试覆盖，
+  无端到端证明——如实声明，不为「完整性」虚构场景。
+- ④ 的 pair 集仍是有限集：语义一致性在「Arrow 全部可能的 schema 对」上不可穷举证明，
+  只能说「已覆盖已知的全部差异类别（顶层/子字段 × metadata 值/键序/key-only/缺失/
+  nullable × 顶层 list 标签归一）」。
+
+### 8.10 Codex round-4
+
+见 `_bmad-output/审查/codex-review-CARD-G2-4-round4.md`。
+
+**判决：BLOCKER/HIGH 清零 = 是**（round-3 HIGH 残余 CONFIRMED-CLOSED——原反例三态
+判异 + 强制不保真回读 `reconciled=False` 整批 abort，Codex 实跑；round-2 全部 CLOSED
+条目未重开；key-only 修复确认有效）。判决同时给出 2 MEDIUM + 4 LOW：
+
+- **MEDIUM×2（回归门缺口，非实现缺陷——Codex 明证实测当前实现正确）**：⑦/④ 可被
+  「单层扁平 struct（只内联直接子字段、不递归）」绕过；⑧ 可被「仅顶层 list 归一」绕过。
+  **处置 = 当场堵口**（round-4b，本节 8.11）。
+- LOW×4 逐条处置见 8.11。
+
+### 8.11 round-4b 堵口与 LOW×4 处置
+
+**MEDIUM×2 堵口（只加测试，不动生产代码）**：
+
+- ⑦ 加**双层 struct pair**：孙字段 metadata 有/无必须判异（正中「只扁平一层」绕过）；
+- ⑧ 加**struct 内嵌 list pair**：递归层 value field 名字 item/element 同样必须归一
+  （正中「仅顶层归一」绕过）。
+
+**绕过变异复现验证**（`evidence-g24/c-mutation-red-round4b.txt`，自包含：前后完整
+sha256 + 指定门红 + 还原逐字比对；脚本存 scratchpad）：
+
+```
+BEFORE sha256 = cc5b0988…704d05
+R1v2 flat-struct（Codex 绕过同形态, 首版复现偏弱已修正）→ FAILED ⑦（指定门红）✓
+R2v2 top-level-elem（同上）                          → FAILED ⑧（指定门红）✓
+AFTER sha256 = cc5b0988…704d05, RESTORE-IDENTICAL = True
+堵口后全文件: 22 passed（⑦⑧ 内部加 pair 不增测试数）
+```
+
+⚠️ 如实记录：第一版复现写得比 Codex 的绕过**弱**（R1 展开到孙层、R2 把递归层也放行），
+两变异 22 passed 伪装成「门没堵上」——复核 Codex 原文逐字对形态后才复现成功。教训：
+**验证绕过堵口的变异必须与审查者描述的形态逐字同构，弱变异不被抓 ≠ 门有效**。
+
+**(d) 最终对账（round-4b 后）**：`g24_grep_gate.sh` rc=0（`evidence-g24/grep-gate-round4.txt`
+存档）；`post-fix-suite-round4.txt` = 13 failed / 291 passed，与基线 comm 双向差集为空
+（`comm-new-failures-round4.txt` 0 行）。291 算术更正（Codex LOW）：284 基线 +
+round-3 新增 5（①-⑤）+ round-4 新增 2（⑦⑧，pair 扩展不增数）= 291。
+
+**LOW×4 处置**：
+
+1. `export_table` 行号再漂移（round-3 给的 306-321 在 round-4 改动后已是 343-366）——
+   **处置 = 验收单一律改用函数名引用**（`export_table()` / `_arrow_digest()`），行号
+   类引用自此不再写入本验收单；8.2/8.8 已写行号的两处由本条统一更正覆盖。
+2. 「297 collected」——已在 8.8 更正为「4542 collected / 297 selected」（Codex 确认落实）。
+3. 变异证据不自包含——round-4b 起证据带前后完整 sha256 + 指定门名 + 还原逐字比对
+   （见上）；round-4 首轮证据（`c-mutation-red-round4.txt`）保持原样不篡改，其缺口由
+   8.8 的脚本路径引用补足（脚本完整保存在 scratchpad 会话目录，随 commit 不入库）。
+4. grep gate rc=0 未绑定——已存档 `evidence-g24/grep-gate-round4.txt`（含全部判据输出）。
+
+### 8.12 Codex 轮次汇总与最终状态
+
+| 轮 | 判决 | 收口动作 |
+|---|---|---|
+| round-1（第七批） | FAIL：3 BLOCKER / 3 HIGH / 6 MEDIUM / 2 LOW | 全整改（§七表） |
+| round-2（主 session 定向） | 清零=否：HIGH-1 STILL-OPEN（metadata 缺失） | 第八批 (a) 修法 |
+| round-3（第八批） | 清零=否：HIGH 残余（nested 缺失）+ ④ 死门 MEDIUM + LOW×3 | round-4 递归修法 + pair 扩展 |
+| **round-4（第八批）** | **清零=是**；2 MEDIUM（门缺口）+ 4 LOW | round-4b 当场堵口 + 本节处置 |
+
+最终裁判：22 passed；grep gate rc=0；comm 零新增失败；变异矩阵 M-A~M-D + R1v2/R2v2
+全部按指定门变红；还原 sha256 `cc5b0988…704d05` / 测试 `6d1498cc…e49b`。
+**提交前 ruff format**（pre-commit 拦下本次引入的格式漂移，正式格式化非绕过）：
+两文件重排后复跑 22 passed + (a) 探针 True，行为零变化；最终提交态
+脚本 `7c7aa627866ea4b1…907a` / 测试 `25e8f037b8ed5bef…c23e7`（8.11/8.8 中的
+cc5b/6d1498 为格式化前变异对账态，如实保留）。

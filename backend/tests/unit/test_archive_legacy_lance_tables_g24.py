@@ -148,6 +148,245 @@ def test_digest_is_type_sensitive(tmp_path):
     assert mod.table_digest(t_same)["content_sha256"] == d_int["content_sha256"]
 
 
+# ── HIGH-1 round-3: metadata 纳入摘要 (BATCH-2026-09-01-第八批 / CARD-G2-4) ──
+
+
+def _int_table(md_field=None, md_schema=None):
+    """同 ``x:int64`` 同数据 ``[1]``, 只有 metadata 可变 —— HIGH-1 最小反例载体。"""
+    import pyarrow as pa
+
+    schema = pa.schema([pa.field("x", pa.int64(), metadata=md_field)], metadata=md_schema)
+    return pa.table({"x": pa.array([1], pa.int64())}, schema=schema)
+
+
+def test_digest_distinguishes_schema_metadata():
+    """⛔ Codex round-2 HIGH-1 回归锁 (b)①: 仅 schema 级 metadata 不同 → 摘要必不同。
+
+    round-2 最小反例: 同 ``x:int64`` 同数据, 仅 ``Schema.metadata`` 不同,
+    ``equals(check_metadata=True)`` 为 False, 旧摘要却逐字相同 —— 对账判同后
+    源表就被 drop。metadata 差异只该体现在 schema 摘要, 不该污染内容指纹。
+    """
+    d_plain = mod._arrow_digest(_int_table())
+    d_tagged = mod._arrow_digest(_int_table(md_schema={b"origin": b"vaultA"}))
+    assert d_plain["schema_repr"] != d_tagged["schema_repr"], "schema 级 metadata 必须参与摘要"
+    assert d_plain["schema_sha16"] != d_tagged["schema_sha16"]
+    assert d_plain["content_sha256"] == d_tagged["content_sha256"], "metadata 差异不得改变内容指纹"
+
+
+def test_digest_distinguishes_field_metadata():
+    """⛔ Codex round-2 HIGH-1 回归锁 (b)②: 仅 field 级 metadata 不同 → 摘要必不同。"""
+    d_plain = mod._arrow_digest(_int_table())
+    d_tagged = mod._arrow_digest(_int_table(md_field={b"unit": b"cm"}))
+    assert d_plain["schema_repr"] != d_tagged["schema_repr"], "field 级 metadata 必须参与摘要"
+    assert d_plain["schema_sha16"] != d_tagged["schema_sha16"]
+    assert d_plain["content_sha256"] == d_tagged["content_sha256"]
+
+
+def test_digest_equal_for_identical_and_key_order_permuted_metadata():
+    """(b)③ 正向对照: metadata 逐字相同 → 摘要相同; 键顺序不同的同集合 → 摘要相同。
+
+    没有这条, ①② 的"不等"可以由一个恒不等的摘要(如掺时间戳)假满足;
+    键序对照锁"确定性渲染 = 按 key 字节序排序", 与
+    ``equals(check_metadata=True)`` 的顺序无关语义对齐。
+    """
+    md = {b"a": b"1", b"b": b"2"}
+    d1 = mod._arrow_digest(_int_table(md_schema=dict(md), md_field={b"u": b"cm"}))
+    d2 = mod._arrow_digest(_int_table(md_schema=dict(md), md_field={b"u": b"cm"}))
+    assert d1["schema_repr"] == d2["schema_repr"]
+    assert d1["schema_sha16"] == d2["schema_sha16"]
+
+    d_permuted = mod._arrow_digest(_int_table(md_schema={b"b": b"2", b"a": b"1"}, md_field={b"u": b"cm"}))
+    assert d_permuted["schema_sha16"] == d1["schema_sha16"], "键顺序不同的同集合必须同摘要"
+
+
+def test_digest_equality_tracks_arrow_check_metadata():
+    """(b)④ 一致性锁: 摘要等价 ⇔ ``Schema.equals(check_metadata=True)``。
+
+    pair 集只用非 list 类型 —— list 内层 item/element 标签归一是摘要已声明的
+    唯一有意偏离 (见 ``_LIST_ELEM_LABELS``), 在 list 类型上两侧语义本就不同。
+
+    ⛔ Codex round-3 MEDIUM 整改: 旧 pair 集漏「同 value 不同 key」与「nested
+    子字段 metadata」两类差异 —— 它实证把渲染改成「只按 value 排序、完全忽略
+    key」后旧 ④ 仍全绿 (死门)。本 pair 集必须含这两类, 使 key-blind 与
+    nested-blind 变体都转红。
+    """
+
+    def _struct_table(child_md=None):
+        import pyarrow as pa
+
+        child = pa.field("x", pa.int64(), metadata=child_md)
+        return pa.table(
+            {"n": pa.array([{"x": 1}], pa.struct([child]))},
+            schema=pa.schema([pa.field("n", pa.struct([child]))]),
+        )
+
+    pairs = [
+        (_int_table(), _int_table()),  # 无 vs 无
+        (_int_table(), _int_table(md_schema={b"o": b"A"})),  # 无 vs 有 (schema 级)
+        (_int_table(), _int_table(md_field={b"u": b"cm"})),  # 无 vs 有 (field 级)
+        (  # 有 vs 键顺序不同的同集合
+            _int_table(md_schema={b"a": b"1", b"b": b"2"}),
+            _int_table(md_schema={b"b": b"2", b"a": b"1"}),
+        ),
+        (_int_table(md_schema={b"a": b"1"}), _int_table(md_schema={b"a": b"2"})),  # 有 vs 值不同
+        (_int_table(md_schema={}), _int_table()),  # {} vs None (schema 级)
+        (_int_table(md_field={}), _int_table()),  # {} vs None (field 级)
+        # ⛔ key-only 差异 (同 value 不同 key) —— Codex round-3 key-blind 变异死门补丁
+        (_int_table(md_schema={b"a": b"1"}), _int_table(md_schema={b"z": b"1"})),
+        # ⛔ nested struct 子字段 metadata 差异 —— round-3 HIGH 残余反例原样
+        (_struct_table(), _struct_table(child_md={b"unit": b"cm"})),
+        (_struct_table(child_md={b"unit": b"cm"}), _struct_table(child_md={b"unit": b"m"})),
+        # nested 子字段 key-only 差异
+        (_struct_table(child_md={b"a": b"1"}), _struct_table(child_md={b"z": b"1"})),
+    ]
+    for t1, t2 in pairs:
+        arrow_eq = t1.schema.equals(t2.schema, check_metadata=True)
+        digest_eq = mod._arrow_digest(t1)["schema_sha16"] == mod._arrow_digest(t2)["schema_sha16"]
+        assert arrow_eq == digest_eq, (
+            f"摘要与 pyarrow 语义分叉: arrow={arrow_eq} digest={digest_eq} ({t1.schema!r} vs {t2.schema!r})"
+        )
+
+
+def test_digest_renders_nested_struct_child_metadata():
+    """(b)⑦ round-3 HIGH 残余回归锁: nested struct 子字段 metadata 必须参与摘要。
+
+    Codex round-3 实证: 只渲染顶层 f.metadata 时, ``struct<x:int64>`` 子字段
+    metadata ``{unit:cm}`` vs ``{unit:m}`` 的两张表 ``equals(check_metadata=True)``
+    为 False 而 schema_sha16 逐字相同 —— 对账判同后源表被 drop。本条同 ①② 形态:
+    差异必须体现在 schema 摘要, 不得污染内容指纹。
+    """
+
+    def _struct_table(child_md):
+        import pyarrow as pa
+
+        child = pa.field("x", pa.int64(), metadata=child_md)
+        return pa.table(
+            {"n": pa.array([{"x": 1}], pa.struct([child]))},
+            schema=pa.schema([pa.field("n", pa.struct([child]))]),
+        )
+
+    d_plain = mod._arrow_digest(_struct_table(None))
+    d_cm = mod._arrow_digest(_struct_table({b"unit": b"cm"}))
+    d_m = mod._arrow_digest(_struct_table({b"unit": b"m"}))
+
+    assert d_plain["schema_sha16"] != d_cm["schema_sha16"], "nested 子字段有/无 metadata 必须不同"
+    assert d_cm["schema_sha16"] != d_m["schema_sha16"], "nested 子字段 metadata 值不同必须不同"
+    assert d_cm["content_sha256"] == d_m["content_sha256"] == d_plain["content_sha256"], "metadata 差异不得改变内容指纹"
+    # 正向对照: 同 metadata (键顺序无关) 的 nested 表摘要相同
+    d_cm2 = mod._arrow_digest(_struct_table({b"unit": b"cm"}))
+    assert d_cm2["schema_sha16"] == d_cm["schema_sha16"]
+
+    # ⛔ round-4 Codex MEDIUM 堵口: 双层 struct —— 深层孙字段的 metadata 必须参与
+    # （「只扁平渲染直接子字段、不继续递归」的变异在单层 pair 下全绿, 实测可绕过）
+    def _nested2_table(leaf_md):
+        import pyarrow as pa
+
+        leaf = pa.field("x", pa.int64(), metadata=leaf_md)
+        mid = pa.field("m", pa.struct([leaf]))
+        return pa.table(
+            {"o": pa.array([{"m": {"x": 1}}], pa.struct([mid]))},
+            schema=pa.schema([pa.field("o", pa.struct([mid]))]),
+        )
+
+    assert (
+        mod._arrow_digest(_nested2_table(None))["schema_sha16"]
+        != mod._arrow_digest(_nested2_table({b"unit": b"cm"}))["schema_sha16"]
+    ), "双层 struct 的孙字段 metadata 必须参与摘要（递归必须走到底）"
+
+
+def test_digest_renders_nested_list_child_metadata_and_elem_label():
+    """(b)⑧ round-3 补充锁: list 容器 value field 的 metadata/nullable 参与摘要。
+
+    value field 的名字按已声明偏离统一渲染成 ``elem`` (Lance=item / Parquet=
+    element, 2026-09-01 实测) —— 所以**仅名字差异**必须判同, 而 value field 的
+    metadata 差异必须判异 (普通 list 与 fixed_size_list 各测一遍)。nullable 差异
+    是 Arrow 层真差异 (round-3 实测两侧往返保真), 也必须判异。
+    """
+    import pyarrow as pa
+
+    def _table(ty):
+        return pa.table({"v": pa.array([[1]], ty)}, schema=pa.schema([pa.field("v", ty)]))
+
+    # 仅 value-field 名字 item vs element (Lance vs Parquet 往返形态) → 摘要必须相同
+    t_item = _table(pa.list_(pa.field("item", pa.int64())))
+    t_elem = _table(pa.list_(pa.field("element", pa.int64())))
+    assert mod._arrow_digest(t_item)["schema_sha16"] == mod._arrow_digest(t_elem)["schema_sha16"], (
+        "value field 名字 item/element 是已声明归一, 不得判异"
+    )
+
+    # value field metadata 差异 → 摘要必须不同 (普通 list)
+    ty_cm = pa.list_(pa.field("item", pa.int64(), metadata={b"u": b"cm"}))
+    t_meta = _table(ty_cm)
+    assert mod._arrow_digest(t_item)["schema_sha16"] != mod._arrow_digest(t_meta)["schema_sha16"], (
+        "list value field metadata 必须参与摘要"
+    )
+
+    # fixed_size_list (vector 列现网同型) 同规则 —— 数据须每列表恰 2 元素
+    fsl_plain = pa.list_(pa.int32(), 2)
+    t_fsl = pa.table({"v": pa.array([[1, 2]], fsl_plain)}, schema=pa.schema([pa.field("v", fsl_plain)]))
+    fsl_cm_ty = pa.list_(pa.field("item", pa.int32(), metadata={b"u": b"cm"}), 2)
+    t_fsl_meta = pa.table({"v": pa.array([[1, 2]], fsl_cm_ty)}, schema=pa.schema([pa.field("v", fsl_cm_ty)]))
+    assert mod._arrow_digest(t_fsl)["schema_sha16"] != mod._arrow_digest(t_fsl_meta)["schema_sha16"], (
+        "fixed_size_list value field metadata 必须参与摘要"
+    )
+
+    # value field nullable 差异 → 摘要必须不同 (round-3 实测 nullable 两侧往返保真)
+    ty_nn = pa.list_(pa.field("item", pa.int64(), nullable=False))
+    t_nn = _table(ty_nn)
+    assert mod._arrow_digest(t_item)["schema_sha16"] != mod._arrow_digest(t_nn)["schema_sha16"], (
+        "list value field nullable 必须参与摘要"
+    )
+
+    # ⛔ round-4 Codex MEDIUM 堵口: struct 内嵌 list —— 递归层的名字归一必须生效
+    # （「仅顶层归一 item/element」的变异在只测顶层 list 的断言下全绿, 实测可绕过）
+    s_item = pa.schema([pa.field("n", pa.struct([pa.field("v", pa.list_(pa.field("item", pa.int64())))]))])
+    s_elem = pa.schema([pa.field("n", pa.struct([pa.field("v", pa.list_(pa.field("element", pa.int64())))]))])
+    t_n_item = pa.table({"n": pa.array([{"v": [1]}], s_item.field(0).type)}, schema=s_item)
+    t_n_elem = pa.table({"n": pa.array([{"v": [1]}], s_elem.field(0).type)}, schema=s_elem)
+    assert mod._arrow_digest(t_n_item)["schema_sha16"] == mod._arrow_digest(t_n_elem)["schema_sha16"], (
+        "递归层 value field 名字 item/element 同样必须归一"
+    )
+
+
+def test_apply_reconciles_and_drops_metadata_bearing_table(tmp_path, monkeypatch, capsys):
+    """(b)⑤ 端到端正向对照: 带 metadata 的裸表照常归档 + drop, 回读保 metadata。
+
+    证明纳入 metadata **不会**让正常 apply 对账假红 (Lance 与 Parquet 两侧
+    均保 metadata, 2026-09-01 实测)。回读断言用原始 schema 对象 +
+    ``equals(check_metadata=True)`` 做独立 oracle, 不经被测摘要。
+    """
+    import pyarrow as pa
+    import pyarrow.parquet as _pq
+
+    path = tmp_path / "db" / "lancedb"
+    path.parent.mkdir(parents=True)
+    db = lancedb.connect(str(path))
+    schema = pa.schema(
+        [
+            pa.field("doc_id", pa.string(), metadata={b"unit": b"cm"}),
+            pa.field("content", pa.string()),
+        ],
+        metadata={b"origin": b"vaultA"},
+    )
+    db.create_table(
+        "vault_notes",
+        data=pa.table({"doc_id": ["a", "b"], "content": ["c1", "c2"]}, schema=schema),
+    )
+    db.create_table("v1_vault_notes", data=_rows("V1", 2))
+
+    rc = _run(["--db-path", str(path), "--active-vault", "v1", "--apply"], monkeypatch)
+    report = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    rec = report["archived"][0]
+    assert rec["source"] == "vault_notes"
+    assert rec["reconciled"] is True
+    assert rec["source_dropped"] is True
+
+    back = _pq.read_table(rec["archive_file"])
+    assert back.schema.equals(schema, check_metadata=True), "归档回读必须原样保住 schema+field metadata"
+
+
 # ── vault 身份归一 ──────────────────────────────────────────────────────────
 
 

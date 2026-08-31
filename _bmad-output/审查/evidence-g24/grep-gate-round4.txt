@@ -1,0 +1,21 @@
+CARD-G2-4 裁判门 @ /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance
+
+── G1 B0.7 回退日志: 'reading legacy'
+  · 自检通过 (种下的对照被抓到)
+  ✓ 0 命中
+
+── G2 在线路径直开裸表: AST 判 X.open_table(<裸表名>)
+  · 自检通过 (AST 扫描器抓到了种下的单引号违规形态)
+  ✓ 0 条**新增**裸表直开 (扫描面: backend/app backend/lib)
+  · 存量基线 (棘轮, 新增即判红; 本卡射程外, 已登记 FU-4):
+      BASELINE backend/app/api/v1/endpoints/edges.py:216: open_table("edge_rationales")  [存量, 已登记 FU-4, 本卡不改]
+      BASELINE backend/app/api/v1/endpoints/edges.py:220: create_table("edge_rationales")  [存量, 已登记 FU-4, 本卡不改]
+  · 扫描面 = backend/app backend/lib (在线路径定义); 测试/脚本刻意不在内 —
+    行为门与归档器必须能直开裸表来构造场景 / 做归档。
+
+── G3 tier-2 env 闸: 'ENABLE_LANCEDB_TIER2_FALLBACK'
+  · 自检通过 (种下的对照被抓到)
+  ✓ 白名单外 0 命中
+  ✓ 白名单内引用全部落在 TestTier2BranchRemoved 区间 L999-L1103 或自称删除的说明行
+
+全部判据通过 (含三次正向对照自检 + 扫描面存在性校验)
