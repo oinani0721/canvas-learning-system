@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 
 from app.config import Settings, get_settings
 from app.security import require_internal_api_key
+from app.utils.cypher_helpers import allow_cross_vault
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,7 @@ class HealthResponse(BaseModel):
     timestamp: str
 
 
+@allow_cross_vault(reason="connectivity ping (RETURN 1) — no business data read")
 async def _check_neo4j(settings: Settings) -> ComponentStatus:
     """Check Neo4j connectivity via Bolt driver."""
     try:
