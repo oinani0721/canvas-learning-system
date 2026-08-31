@@ -1,0 +1,209 @@
+==============================================================================
+CARD-G4-3 变异门验证 (严格串行)
+==============================================================================
+
+[锚点预校验] 14 个变异的全部锚点均恰好命中 1 次 ✓
+
+[基线] rc=0 collected=81
+81 passed, 148 deselected, 11 warnings in 0.65s
+
+[M1] 四态字段从可选改必填 —— 破坏加性
+  → ✓ 被抓住 (3 条门变红, 含全部预期门)
+  collected=81 (基线 81)  rc=1
+  ERROR    app.api.v1.endpoints.memory:memory.py:268 Failed to get learning history: 1 validation error for LearningHistoryResponse
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestEpisodesFourState::test_absent_service_keys_yield_null_not_invented_status
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemorySchemaRequiredSetsFrozen::test_required_set_unchanged[LearningHistoryResponse]
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemorySchemaRequiredSetsFrozen::test_new_status_fields_are_optional_everywhere
+  3 failed, 78 passed, 148 deselected, 11 warnings in 0.73s
+  还原逐字相同 ✓ (memory_schemas.py)
+
+[M2] trace 去掉枚举归一 —— 会写出 'ServiceStatus.DEGRADED'
+  → ✓ 被抓住 (2 条门变红, 含全部预期门)
+  collected=81 (基线 81)  rc=1
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceAlignment::test_review_suggestions_unavailable_logs_decision
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceEnumNormalization::test_enum_valued_status_normalizes_in_trace_and_body
+  2 failed, 79 passed, 148 deselected, 11 warnings in 0.67s
+  还原逐字相同 ✓ (decision_tracker.py)
+
+[M3] 端点在状态缺失时自作主张补 'empty' —— 发明状态
+  → ✓ 被抓住 (4 条门变红, 含全部预期门)
+  collected=81 (基线 81)  rc=1
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestEpisodesFourState::test_absent_service_keys_yield_null_not_invented_status
+  FAILED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagQueryFourStatePassthrough::test_missing_status_stays_null_not_invented
+  FAILED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagQueryFourStatePassthrough::test_state_key_entirely_absent_is_tolerated
+  FAILED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagProductionStateShapesAllReturn200::test_create_initial_state_shape_returns_200
+  4 failed, 77 passed, 148 deselected, 11 warnings in 0.75s
+  还原逐字相同 ✓ (memory.py, rag.py)
+
+[M4] /review-suggestions 信封回退成裸 list
+  → ✓ 被抓住 (8 条门变红, 含全部预期门)
+  collected=81 (基线 81)  rc=1
+              side_effect=RuntimeError("trace sink failed"),
+  {"event": "retrieval status decision logging failed (fail-open); function=memory.get_review_suggestions status=unavailable", "exc_info": ["<class 'RuntimeError'>", "RuntimeError('trace sink failed')", "<traceback object at 0x137d9a200>"], "logger": "app.core.decision_tracker", "level": "error", "timestamp": "2026-08-31T04:31:57.596212Z"}
+  ERROR    app.core.decision_tracker:decision_tracker.py:147 retrieval status decision logging failed (fail-open); function=memory.get_review_suggestions status=unavailable
+  RuntimeError: trace sink failed
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestReviewSuggestionsEnvelope::test_envelope_carries_status[<lambda>-ok-None]
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestReviewSuggestionsEnvelope::test_envelope_carries_status[<lambda>-empty-None]
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestReviewSuggestionsEnvelope::test_envelope_carries_status[<lambda>-degraded-graphiti down]
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestReviewSuggestionsEnvelope::test_envelope_carries_status[<lambda>-unavailable-ConnectionRefusedError: bolt]
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestReviewSuggestionsEnvelope::test_items_payload_shape_unchanged
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestReviewSuggestionsEnvelope::test_unavailable_returns_200_with_empty_items
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryAdditiveContract::test_review_suggestions_envelope_is_declared_breaking_not_additive
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceFailOpen::test_review_suggestions_trace_failure_does_not_break_response
+  8 failed, 73 passed, 148 deselected, 11 warnings in 0.81s
+  还原逐字相同 ✓ (memory.py)
+
+[M6] 端点用 .get(k, 'low') 而非 `or 'low'` —— 真实 fallback 的 None 撞响应模型 (Codex BLOCKER-1)
+  → ✓ 被抓住 (4 条门变红, 含全部预期门)
+  collected=81 (基线 81)  rc=1
+  FAILED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagRealFallbackEntrypoint::test_real_ainvoke_none_fallback_returns_200_unavailable
+  FAILED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagProductionStateShapesAllReturn200::test_create_initial_state_shape_returns_200
+  FAILED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagProductionStateShapesAllReturn200::test_fallback_result_shape_returns_200[ainvoke_returned_none]
+  FAILED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagProductionStateShapesAllReturn200::test_fallback_result_shape_returns_200[some_other_reason]
+  4 failed, 77 passed, 148 deselected, 11 warnings in 0.97s
+  还原逐字相同 ✓ (rag.py)
+
+[M7] trace 落账去掉 fail-open —— 观测面异常升成业务 500 (Codex HIGH-1)
+  → ✓ 被抓住 (7 条门变红, 含全部预期门)
+  collected=81 (基线 81)  rc=1
+              side_effect=RuntimeError("trace sink failed"),
+  {"event": "Failed to get learning history: trace sink failed", "logger": "app.api.v1.endpoints.memory", "level": "error", "timestamp": "2026-08-31T04:32:37.953550Z"}
+  ERROR    app.api.v1.endpoints.memory:memory.py:268 Failed to get learning history: trace sink failed
+              side_effect=RuntimeError("trace sink failed"),
+  {"event": "Failed to get concept history: trace sink failed", "logger": "app.api.v1.endpoints.memory", "level": "error", "timestamp": "2026-08-31T04:32:37.984224Z"}
+  ERROR    app.api.v1.endpoints.memory:memory.py:323 Failed to get concept history: trace sink failed
+                  side_effect=RuntimeError("trace sink failed"),
+  {"event": "Failed to get learning history: trace sink failed", "logger": "app.api.v1.endpoints.memory", "level": "error", "timestamp": "2026-08-31T04:32:37.994744Z"}
+  ERROR    app.api.v1.endpoints.memory:memory.py:268 Failed to get learning history: trace sink failed
+                  side_effect=RuntimeError("trace sink failed"),
+  {"event": "Failed to get concept history: trace sink failed", "logger": "app.api.v1.endpoints.memory", "level": "error", "timestamp": "2026-08-31T04:32:38.004351Z"}
+  ERROR    app.api.v1.endpoints.memory:memory.py:323 Failed to get concept history: trace sink failed
+              side_effect=RuntimeError("trace sink failed"),
+  {"event": "Failed to get review suggestions: trace sink failed", "logger": "app.api.v1.endpoints.memory", "level": "error", "timestamp": "2026-08-31T04:32:38.014270Z"}
+  ERROR    app.api.v1.endpoints.memory:memory.py:436 Failed to get review suggestions: trace sink failed
+              side_effect=RuntimeError("trace sink failed"),
+  effect = RuntimeError('trace sink failed')
+  E               RuntimeError: trace sink failed
+                  side_effect=RuntimeError("trace sink failed"),
+  effect = RuntimeError('trace sink failed')
+  E               RuntimeError: trace sink failed
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceFailOpen::test_trace_sink_failure_does_not_break_response[/api/v1/memory/episodes?user_id=u-get_learning_history-<lambda>-unavailable-neo4j down]
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceFailOpen::test_trace_sink_failure_does_not_break_response[/api/v1/memory/concepts/c/history-get_concept_history-<lambda>-degraded-partial timeline]
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceFailOpen::test_both_sink_and_fallback_logger_failing_still_returns_200[/api/v1/memory/episodes?user_id=u-get_learning_history-<lambda>-unavailable-neo4j down]
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceFailOpen::test_both_sink_and_fallback_logger_failing_still_returns_200[/api/v1/memory/concepts/c/history-get_concept_history-<lambda>-degraded-partial timeline]
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceFailOpen::test_review_suggestions_trace_failure_does_not_break_response
+  FAILED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagTraceFailOpen::test_trace_sink_failure_does_not_break_the_response
+  FAILED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagTraceFailOpen::test_both_sink_and_fallback_logger_failing_still_returns_200
+  7 failed, 74 passed, 148 deselected, 11 warnings in 1.03s
+  还原逐字相同 ✓ (decision_tracker.py)
+
+[M8] 只删 fail-open 的**二级**兜底 (logger.exception 自身抛错时的保护)
+  → ✓ 被抓住 (3 条门变红, 含全部预期门)
+  collected=81 (基线 81)  rc=1
+                  side_effect=RuntimeError("trace sink failed"),
+  ERROR    app.api.v1.endpoints.memory:memory.py:268 Failed to get learning history: logging backend is also dead
+                  side_effect=RuntimeError("trace sink failed"),
+  ERROR    app.api.v1.endpoints.memory:memory.py:323 Failed to get concept history: logging backend is also dead
+  effect = RuntimeError('trace sink failed')
+  E               RuntimeError: trace sink failed
+                  side_effect=RuntimeError("trace sink failed"),
+  args = ('retrieval status decision logging failed (fail-open); function=%s status=%s', 'rag_query', 'unavailable')
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceFailOpen::test_both_sink_and_fallback_logger_failing_still_returns_200[/api/v1/memory/episodes?user_id=u-get_learning_history-<lambda>-unavailable-neo4j down]
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceFailOpen::test_both_sink_and_fallback_logger_failing_still_returns_200[/api/v1/memory/concepts/c/history-get_concept_history-<lambda>-degraded-partial timeline]
+  FAILED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagTraceFailOpen::test_both_sink_and_fallback_logger_failing_still_returns_200
+  3 failed, 78 passed, 148 deselected, 11 warnings in 0.88s
+  还原逐字相同 ✓ (decision_tracker.py)
+
+[M9] helper 提前 return, 根本不落账 (门若只断言 200 就抓不住这种退化)
+  → ✓ 被抓住 (12 条门变红, 含全部预期门)
+  collected=81 (基线 81)  rc=1
+          (2026-08-31 变异实测: 去掉归一后原断言 61 passed 全绿, 是一道死门。)
+              side_effect=RuntimeError("trace sink failed"),
+              side_effect=RuntimeError("trace sink failed"),
+                  side_effect=RuntimeError("trace sink failed"),
+                  side_effect=RuntimeError("trace sink failed"),
+              side_effect=RuntimeError("trace sink failed"),
+              side_effect=RuntimeError("trace sink failed"),
+                  side_effect=RuntimeError("trace sink failed"),
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceAlignment::test_degraded_logs_decision_with_enum_value
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceAlignment::test_review_suggestions_unavailable_logs_decision
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceAlignment::test_concept_history_degraded_logs_decision
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceEnumNormalization::test_enum_valued_status_normalizes_in_trace_and_body
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceFailOpen::test_trace_sink_failure_does_not_break_response[/api/v1/memory/episodes?user_id=u-get_learning_history-<lambda>-unavailable-neo4j down]
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceFailOpen::test_trace_sink_failure_does_not_break_response[/api/v1/memory/concepts/c/history-get_concept_history-<lambda>-degraded-partial timeline]
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceFailOpen::test_both_sink_and_fallback_logger_failing_still_returns_200[/api/v1/memory/episodes?user_id=u-get_learning_history-<lambda>-unavailable-neo4j down]
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceFailOpen::test_both_sink_and_fallback_logger_failing_still_returns_200[/api/v1/memory/concepts/c/history-get_concept_history-<lambda>-degraded-partial timeline]
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceFailOpen::test_review_suggestions_trace_failure_does_not_break_response
+  FAILED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagTraceAlignment::test_degraded_logs_decision_with_enum_value
+  FAILED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagTraceFailOpen::test_trace_sink_failure_does_not_break_the_response
+  FAILED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagTraceFailOpen::test_both_sink_and_fallback_logger_failing_still_returns_200
+  12 failed, 69 passed, 148 deselected, 11 warnings in 0.77s
+  还原逐字相同 ✓ (decision_tracker.py)
+
+[M10] 把 EMPTY 加进落账集合 —— round-3 实证的**真存活**变异 (正常流量污染决策日志)
+  → ✓ 被抓住 (2 条门变红, 含全部预期门)
+  collected=81 (基线 81)  rc=1
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceAlignment::test_healthy_states_do_not_spam_trace[empty]
+  FAILED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagTraceAlignment::test_healthy_states_do_not_log_decision[empty]
+  2 failed, 79 passed, 148 deselected, 11 warnings in 0.74s
+  还原逐字相同 ✓ (decision_tracker.py)
+
+[M11] 信封的 items 键改名 —— 条目载荷契约被破坏
+  → ✓ 被抓住 (7 条门变红, 含全部预期门)
+  collected=81 (基线 81)  rc=1
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestReviewSuggestionsEnvelope::test_envelope_carries_status[<lambda>-ok-None]
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestReviewSuggestionsEnvelope::test_envelope_carries_status[<lambda>-empty-None]
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestReviewSuggestionsEnvelope::test_envelope_carries_status[<lambda>-degraded-graphiti down]
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestReviewSuggestionsEnvelope::test_envelope_carries_status[<lambda>-unavailable-ConnectionRefusedError: bolt]
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestReviewSuggestionsEnvelope::test_items_payload_shape_unchanged
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestReviewSuggestionsEnvelope::test_unavailable_returns_200_with_empty_items
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryAdditiveContract::test_review_suggestions_envelope_is_declared_breaking_not_additive
+  7 failed, 74 passed, 148 deselected, 11 warnings in 0.77s
+  还原逐字相同 ✓ (memory.py, memory_schemas.py)
+
+[M12] retrieval_status 字段类型从枚举退回裸 str —— OpenAPI 值域约束消失
+  → ✓ 被抓住 (2 条门变红, 含全部预期门)
+  collected=81 (基线 81)  rc=1
+          这两个变异**真存活** (79 passed 全绿)。
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceEnumNormalization::test_out_of_domain_status_fails_loud_not_silently_passed_through
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemorySchemaRequiredSetsFrozen::test_status_field_value_domain_is_the_unified_enum[LearningHistoryResponse]
+  2 failed, 79 passed, 148 deselected, 11 warnings in 0.73s
+  还原逐字相同 ✓ (memory_schemas.py)
+
+[M12a] ConceptHistoryResponse 的 retrieval_status 退回裸 str (round-4 实证的同型真存活变异)
+  → ✓ 被抓住 (1 条门变红, 含全部预期门)
+  collected=81 (基线 81)  rc=1
+          这两个变异**真存活** (79 passed 全绿)。
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemorySchemaRequiredSetsFrozen::test_status_field_value_domain_is_the_unified_enum[ConceptHistoryResponse]
+  1 failed, 80 passed, 148 deselected, 11 warnings in 0.73s
+  还原逐字相同 ✓ (memory_schemas.py)
+
+[M12b] ReviewSuggestionsResponse 的 retrieval_status 退回裸 str (同上)
+  → ✓ 被抓住 (1 条门变红, 含全部预期门)
+  collected=81 (基线 81)  rc=1
+          这两个变异**真存活** (79 passed 全绿)。
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemorySchemaRequiredSetsFrozen::test_status_field_value_domain_is_the_unified_enum[ReviewSuggestionsResponse]
+  1 failed, 80 passed, 148 deselected, 11 warnings in 0.73s
+  还原逐字相同 ✓ (memory_schemas.py)
+
+[M5] unavailable 升成 503 —— 破坏「200 语义不变」
+  → ✓ 被抓住 (3 条门变红, 含全部预期门)
+  collected=81 (基线 81)  rc=1
+  ERROR    app.api.v1.endpoints.memory:memory.py:438 Failed to get review suggestions: 503: ConnectionRefusedError: bolt
+  ERROR    app.api.v1.endpoints.memory:memory.py:438 Failed to get review suggestions: 503: neo4j down
+              side_effect=RuntimeError("trace sink failed"),
+  {"event": "retrieval status decision logging failed (fail-open); function=memory.get_review_suggestions status=unavailable", "exc_info": ["<class 'RuntimeError'>", "RuntimeError('trace sink failed')", "<traceback object at 0x14469b080>"], "logger": "app.core.decision_tracker", "level": "error", "timestamp": "2026-08-31T04:35:56.806524Z"}
+  ERROR    app.core.decision_tracker:decision_tracker.py:147 retrieval status decision logging failed (fail-open); function=memory.get_review_suggestions status=unavailable
+  RuntimeError: trace sink failed
+  ERROR    app.api.v1.endpoints.memory:memory.py:438 Failed to get review suggestions: 503: bolt refused
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestReviewSuggestionsEnvelope::test_envelope_carries_status[<lambda>-unavailable-ConnectionRefusedError: bolt]
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestReviewSuggestionsEnvelope::test_unavailable_returns_200_with_empty_items
+  FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceFailOpen::test_review_suggestions_trace_failure_does_not_break_response
+  3 failed, 78 passed, 148 deselected, 11 warnings in 0.76s
+  还原逐字相同 ✓ (memory.py)
+
+[还原后复跑] rc=0 collected=81
+81 passed, 148 deselected, 11 warnings in 0.71s
+
+==============================================================================
+✓ 14 个变异全部被门抓住, 且还原后仍全绿

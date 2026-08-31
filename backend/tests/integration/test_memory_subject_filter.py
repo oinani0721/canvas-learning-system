@@ -176,9 +176,11 @@ class TestReviewSuggestionsSubjectFilter:
         self, async_client: AsyncClient
     ):
         """
-        Review suggestions response should be a list of suggestion objects.
+        Review suggestions response should be an envelope carrying the list.
 
-        ✅ Verified from backend/app/models/memory_schemas.py ReviewSuggestionResponse
+        ✅ Verified from backend/app/models/memory_schemas.py ReviewSuggestionsResponse
+        ⚠️ CARD-G4-3 (2026-08-31): 顶层由裸数组改为信封 {items, retrieval_status,
+        retrieval_status_reason} —— 裸数组体内无处承载四态。条目字段未变。
         """
         response = await async_client.get(
             "/api/v1/memory/review-suggestions",
@@ -186,11 +188,13 @@ class TestReviewSuggestionsSubjectFilter:
         )
         data = response.json()
 
-        assert isinstance(data, list)
+        assert isinstance(data, dict)
+        assert isinstance(data["items"], list)
+        assert "retrieval_status" in data
 
         # If there are suggestions, verify structure
-        if len(data) > 0:
-            suggestion = data[0]
+        if len(data["items"]) > 0:
+            suggestion = data["items"][0]
             assert "concept" in suggestion
             assert "concept_id" in suggestion
             assert "priority" in suggestion
@@ -224,7 +228,8 @@ class TestReviewSuggestionsSubjectFilter:
         )
         assert response.status_code == 200
         data = response.json()
-        assert len(data) <= 5
+        # CARD-G4-3: 信封化, 条目在 items 下
+        assert len(data["items"]) <= 5
 
     async def test_review_suggestions_subject_none_returns_all(
         self, async_client: AsyncClient

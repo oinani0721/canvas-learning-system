@@ -75,7 +75,25 @@ rows = await client.run_query(
 
 **已封堵站点（G4-1a）**：`memory_service.get_learning_history` / `get_review_suggestions_with_status` / `search_memories_with_status`（Tier 1/2/3 + legacy graphiti 路径）、`learning_context_service._fetch_tips_and_errors`、`conversation_inheritance._fetch_neighbor_records_for_inheritance`、`neo4j_client.get_concept_score_history` / `get_learning_history` / `get_review_suggestions`（有 group 分支）。
 
-**未封堵存量**：`neo4j_client` 的 `get_concept_history` / `get_canvas_associations`（4 分支）/ `get_canvas_concepts` / `find_common_concepts` / `get_all_recent_episodes` + JSON 镜像族 → **CARD-G4-1b**。清单见审计文档 §5 与 `_bmad-output/审查/CARD-G4-1a-验收单.md`。
+**已封堵站点（G4-1b，BATCH-2026-08-31-第七批 · 存量清零）**：`neo4j_client` 的 `get_concept_history` / `get_canvas_associations`（原 4 分支，已合并为按需拼接 WHERE）/ `load_all_canvas_associations` / `get_canvas_concepts` / `find_common_concepts` / `get_all_recent_episodes`，以及 4 个 JSON 镜像 `_get_associations_json_fallback` / `_get_canvas_concepts_json_fallback` / `_find_common_concepts_json_fallback` / `_get_all_recent_episodes_json`；`_handle_query_history` 升 fail-closed（对齐 `_handle_query_reviews`）。
+
+> **R4 未封堵存量：清零。** `neo4j_client.py` 内已无「无 group 的业务读」（`@allow_cross_vault` 显式豁免除外）。
+
+G4-1b 一并处理的三件事，口径记在这里以免后人重犯：
+
+1. **名实一致（DD-13）**：`get_concept_history` 原先**无论是否连着 Neo4j** 都只读 JSON 模拟器，真实部署下 `/api/v1/memory/concepts/{id}/history` **恒返回空 timeline**。本卡补真实 Cypher 分支，端点从「恒 EMPTY」变「可能有数据」。概念点查按 `c.id` **或** `c.name` 命中——生产写侧 `create_learning_relationship` 的 MERGE 身份是 `{name, group_id}`，**从不落 `c.id`**，只按 id 查等于修了个寂寞。
+2. **误路由旁路必须与 Cypher 同批封**：`_run_query_json_fallback` 按关键词派发，`MATCH…LEARNED` 且无 `next_review` 的**三条**读（`get_learning_history` / `get_all_recent_episodes` / `get_concept_history`）在**中途降级**（`_run_query_neo4j` 重试耗尽 → `_fallback_to_json`）时全部落到 `_handle_query_history`。单封 Cypher 一侧 = 「把 Neo4j 弄挂」即可绕过。
+3. **进程级缓存不得按请求级作用域装载**：`memory_service._recover_episodes_from_neo4j` 在一个**全新的空 `contextvars.Context()`** 里调 `require_read_group(None)`——惰性恢复会在某块白板的请求里触发，按板级作用域装载并置 `_episodes_recovered=True` 后，其余白板的历史永久装不进来。空 Context 里没有任何 ContextVar 赋值，于是跳过「显式」分支、走 **active vault 派生**分支（进程级语义），而派生分支对 `vault:default` 污染桶**抛** `VaultScopeUnresolved`（配置断裂会说话）。
+
+   > ⚠️ **别写成 `default_vault_group_id()` 再当显式入参传**（G4-1b 初版做法，Codex round-1 HIGH-3 打回）：`_validate_scope_shape` 对**显式**传入的污染桶只告警放行，于是配置坏掉的进程会走成「查空桶 → 0 条 → `_episodes_recovered=True` → **永不重试**」，把配置断裂伪装成没有数据。
+   >
+   > （本条曾一度把被打回的初版记成正式口径——独立审计 2026-08-31 抓出并更正。规则文件是后人照抄的模板，写错等于把缺陷复制到下一张卡。）
+
+   语义收窄如实声明：`get_all_recent_episodes` 的 "all" 从「全库所有 vault」收窄为「本作用域族内」。2026-08-30 现网实测全库唯一 LEARNED 边就在 active vault 的 punycode 子组内，故当时**返回相同**——这是那一天的**快照结论，不是代码不变量**（别的 vault 写入更新记录 / 本 vault 记录数超 limit / 同 timestamp 排序不稳，任一发生就会不同，那属预期内的修复）。
+
+**关联族三方法的处置（`get_canvas_associations` / `get_canvas_concepts` / `find_common_concepts`）**：生产**零调用方** + 现网**零数据**（双料僵尸）。本卡只做契约收口 + 单测（Cypher 侧逐 alias 过滤片段断言 + JSON 镜像行为门），**不造真库行为门种子、不新增消费方**；G-PIPE 处置（保留/退役）登记另立卡。
+
+> **死分支如实记录**：`get_canvas_concepts` 的 UNION 第二支用 `CONTAINS` / `LearningNode` / `HAS_CONCEPT`，全仓**没有任何写侧**产出它们（2026-08-31 于 7692 `EXPLAIN` 实测服务端告警 "relationship type does not exist" / "label does not exist"）。该支只过滤三个**节点** alias，两个关系类型不过滤——给一个恒不存在的属性加等值过滤只会让死分支变「恒空」，掩盖它是死分支的事实（假门）。两端节点都已过滤，R1 全覆盖成立，不依赖「关系不跨组」这个不可证前提。
 
 ### R5 — physical format：绑定物理格式，输出边界还原
 
@@ -86,4 +104,6 @@ rows = await client.run_query(
 
 生产读侧大面积不满足 R1/R4（尤以 `neo4j_client.py` 无 group 读、Canvas 关联查询为甚），逐条清单与分类见审计文档。本契约对**新增代码即刻生效**；存量收敛按审计清单分批移交（G2-3 起）。
 
-**G4-1a 收敛进度（service 层 BLOCKER 面已封堵）**：审计 §5「无 group 读 9 处」中 #8（`get_concept_score_history`）已修；#3（`get_review_suggestions` 无 group 分支）已在**唯一生产调用方**侧封死并加 `logger.error` 哨兵，client 签名收敛移交 G4-1b；#2/#4 两处 CONDITIONAL（alias 部分过滤 / group 依赖可选参数）已升为全 alias 过滤 + 前缀语义。剩余 #11-#14 / #17 / #18 / #19 与 JSON 镜像族 → **CARD-G4-1b**。
+**G4-1a 收敛进度（service 层 BLOCKER 面已封堵）**：审计 §5「无 group 读 9 处」中 #8（`get_concept_score_history`）已修；#3（`get_review_suggestions` 无 group 分支）已在**唯一生产调用方**侧封死并加 `logger.error` 哨兵，client 签名收敛移交 G4-1b；#2/#4 两处 CONDITIONAL（alias 部分过滤 / group 依赖可选参数）已升为全 alias 过滤 + 前缀语义。
+
+**G4-1b 收敛进度（client 层收口，2026-08-31）**：审计 §5 剩余的 #11-#14（`get_canvas_associations` 四分支）/ #17（`get_canvas_concepts`）/ #18（`find_common_concepts`）/ #19（`get_all_recent_episodes`）+ G2-2 移交项 2（`get_concept_history`）+ JSON 镜像族**全部封堵**。`neo4j_client.py` 的 R1/R4 存量**清零**（grep 判据见 `_bmad-output/审查/CARD-G4-1b-验收单.md`）。假绿防线：`backend/scripts/g41b_mutation_negative_controls.py`（19 类机械变异，串行，还原逐字节比对；判据是**指定的那道门**必须变红，不是「某处有失败」）+ `backend/scripts/g41b_readscope_grep_gate.py`（AST 门，带 `EXPECTED_READ_METHODS` 验伪锚，并显式打印它自己的两个已知假阴面）。

@@ -1,0 +1,51 @@
+# CARD-G4-3 终验冻结清单 (SHA-256)
+# 生成: 2026-08-31 13:10:20
+# 覆盖: 生产代码 + 测试 + **验收单本体** + 登记文档 + 审查存档 + 证据 —— 全链同一快照。
+#
+# Codex round-3 LOW-3: 前版只绑 evidence 7 个文件, 证明不了「代码—测试—证据—声明」同源。
+# Codex round-4 MEDIUM-4: 施工期排除验收单可以理解, 但**终验冻结不能排除主要声明载体**。
+#   → 本清单为终验版, 验收单已纳入。清单自身由 commit hash 锚定。
+#
+# ⚠️ 格式口径提示: 本仓有两份 ruff 配置 —— 根 ruff.toml (默认 line-length 88)
+#   与 backend/ruff.toml (120)。lefthook 从**仓库根**跑, 故提交门口径 = 88。
+#   在 backend/ 目录里跑 ruff format 会用 120, 与提交门不一致 (本卡踩过)。
+#
+# 用法: 对任一文件跑 shasum -a 256, 应得下方同值; 不一致即说明快照漂移。
+
+## 生产代码 (4)
+ffd2cf49f4ab3e61ef0b372c840c2ff233bf120c141c524ecfc106fe3b6679b8  backend/app/models/memory_schemas.py
+195606c7c75ff9c925f21d72746444d44cdff63c7fba64b60f3735db6ea9b6f8  backend/app/api/v1/endpoints/memory.py
+d86c60c99472016681c8f815112750d05b5e5d95e4680e902b0ac4361f671e04  backend/app/api/v1/endpoints/rag.py
+054d096cd144a642e2c8bb1ca826f0053380ca3a90b084dbac3b5806a51f52b7  backend/app/core/decision_tracker.py
+
+## 新增测试 (2)
+c2f1603dbd1cab512d92753d1f5085d23ccc64fb7a5bc53441b6746ca9e9b7b3  backend/tests/api/v1/endpoints/test_memory_four_state_api.py
+2e72f4f21d14fecaf9684bf20f2b3e9f88c6eaf617d80257e85bafcefba99e0f  backend/tests/api/v1/endpoints/test_rag_four_state_api.py
+
+## 断言适配 (2)
+9830fd62b864e26c1b919ce9014e92985709fce55b2ab54c6e7e53f1ce436440  backend/tests/integration/test_memory_subject_filter.py
+e03f2380a99d067e103470bfac3d39e374d54449137fba5ccaff4a62481ab222  tests/integration/test_memory_api.py
+
+## 文档 (2) — 含验收单本体
+36d949fc308c898d7107d4b056d695819ad23f30de0a6b8140327a62f21214b4  _bmad-output/审查/CARD-G4-3-验收单.md
+6a92bf1ea97c45ab173880f1adc23a222362f686bbeba4708c7843663304a32d  _bmad-output/审查/CARD-G4-3-状态词汇对齐登记.md
+
+## 审查存档 (4)
+59e44cda2730634c3aade8fb81ff7b31410207aef0338591fbb84bf880ae0f52  _bmad-output/审查/codex-review-CARD-G4-3.md
+7c1a4a19a2fb276a9a10f438ec952e251b01d46c0fbe74b96eab92ae61b0ce57  _bmad-output/审查/codex-review-CARD-G4-3-round2.md
+791424114491f21302fb4fed9d1351e2a3c727f4a933688f33fb359d4bbffb14  _bmad-output/审查/codex-review-CARD-G4-3-round3.md
+280564666ea00f45da455ee137b63d03310146eb2be7f813c27e9cb08d12c714  _bmad-output/审查/codex-review-CARD-G4-3-round4.md
+
+## 证据 (6 txt + 1 py)
+8e92e356f63aae048f8949acf7482e2d9004b620a3619b9dbc84f50f55b875eb  _bmad-output/审查/evidence-g43/01-review-suggestions-消费方证据.txt
+ed5e76baab294495fbdb9d83281f1249815274e30ff6c23807f21cc7db5915cf  _bmad-output/审查/evidence-g43/02-先红-定稿测试在HEAD代码上的回放.txt
+6a109e8e32832cca9996686332eb5b8650dae13d15fa6681276dc6aefeb8c6b7  _bmad-output/审查/evidence-g43/03-基线失败清单-59条.txt
+65db2f4330b902310574689cbaf1112c00da2f0193a7eab061544a596f196af1  _bmad-output/审查/evidence-g43/04-变异门验证-输出.txt
+6a109e8e32832cca9996686332eb5b8650dae13d15fa6681276dc6aefeb8c6b7  _bmad-output/审查/evidence-g43/05-最终失败清单-59条.txt
+6ee1be98b44bc5fa279ecfd32c387af8d308dadf8ed2b54235cb71795ff8988a  _bmad-output/审查/evidence-g43/06-comm对账.txt
+2cf35d42fce298e42fe2b0b490ffa22cfdb877db83a2249059ffe5cc2853fef1  _bmad-output/审查/evidence-g43/mutation_gate_check_g43.py
+
+## 基线
+HEAD = 9cf0fb85ed839bb7035d023534fca222a24d6968
+
+## 合计 21 个文件, 6 个 artifact 分组

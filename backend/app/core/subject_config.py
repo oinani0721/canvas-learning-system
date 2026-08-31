@@ -16,6 +16,8 @@ import logging
 from contextvars import ContextVar
 from typing import TYPE_CHECKING, List, Optional
 
+from app.utils.cypher_helpers import allow_cross_vault
+
 if TYPE_CHECKING:
     from neo4j import AsyncDriver
 
@@ -60,6 +62,7 @@ def set_current_subject_id(subject_id: str) -> None:
     _current_subject_id.set(subject_id if subject_id else DEFAULT_SUBJECT_ID)
 
 
+@allow_cross_vault(reason="bootstrap — list all user-created subjects across vaults")
 async def list_subjects_from_neo4j(neo4j_driver: "AsyncDriver") -> List[dict]:
     """
     Fetch the dynamic list of user-created subjects from Neo4j.

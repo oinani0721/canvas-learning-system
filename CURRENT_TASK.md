@@ -2,15 +2,14 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**主干状态**（2026-08-30 · `worktree-feature-obsidian-hybrid-dev` · 第六批收官合并中）:
-- ✅ 第六批 7 卡已合并（G4-1a/DEBT-15+14/G8-1/G5-3/G3-6a/S3双卡 G3-1+G3-4），CI 三门连续绿
-- ✅ CARD-收口A 全项闭合：①G3-1 round-23 结案（0H）②CI 接线（test.yml +10 行，517 passed）
-  ③G5-9 十轮结案（0H）+ ③b G5-4 round-6（4H→维护卡B）⑤s3/s6 均已预合主干
-- ✅ 用户三裁决（2026-08-30）：D-2=**甲**（stage-recap 亚型已登记进 start-exam-board 模板）；
-  G5-4 4H **确认**移交维护卡B；D-1 按建议。记录：`_bmad-output/审查/2026-08-30-用户裁决记录-D1-D2-维护卡B.md`
-- 🔜 本合并（s6-recap: G5-4+G5-9）+ t2-closeout 后，第六批 10 卡全部落账（143 卡完成 43）
-- 📌 移交下一批：维护卡B（verifier 加固 4H+双向语料）/ M7 Unicode 控制字符（与 G5-3 合卡）/
-  M11 跨板共享节点批注重复计数（数字错误，优先）/ M10 结构化 provenance / L12 空目录残留
+**主干状态**（2026-08-31 · `worktree-feature-obsidian-hybrid-dev` · 第七批收官已 push `a920e15c`，排第八批中）:
+- ✅ 第七批合 7 卡（G4-1b/M11M7/G6-1/G6-4/G4-3/DEBT-13/DEBT-16），回归 743 passed；CI 以 `gh run list --limit 3` 实查
+- ✅ G6-1/G6-4 已部署：compose 加 `DAILY_REVIEW_PICK`（用户 V3 标签页裁「甲」）+ 后端重启，总览页刷新/展开走查 OK
+- 🔴 **未合 4 卡留分支**（⛔ 权威清单 `_bmad-output/implementation-artifacts/goal-cards/未合卡追踪台账.md`，排卡前先跑其 git 核对命令）：
+  维护卡B(`card/v2-recapfix` 3 变异体存活) / G2-4+G2-5(`card/v5-lance` 3 HIGH) / G5-6(`card/v6-inbox` 1B+4H)
+- 📋 裁定与 30+ 待用户裁决点：`_bmad-output/审查/2026-08-31-第七批复核裁定与待裁决登记.md`（含 V3 车道误发 Bark，需用户确认四作答）
+- 🔜 第八批手册 `goal-cards/2026-09-01-第八批开跑手册-*.md`（workflow `wf_944c3371-3ef` 生成，以 ls 为准）；
+  新微卡 TEST-bark-autostub / TEST-isolate-lifespan / OBS-nothrow-logging / DEBT-openapi-sync；总账 143 卡完成 50
 ---
 
 **当前状态**（2026-08-20 · **Codex 四轮拒绝收官 → 九路验证 9/9 CONFIRMED → C1-C4 修复批全部落地，五轮送审就绪** · 最近完成的产品提交 `c154a7f2`(C1 真实入口准入) · PLAN `R11-BATCH2-2026-08-17`。⚠️ 锚点纪律：①不记累计 commit 数 ②不落盘 CI run 号/通过数（连续两轮落盘即过期被抓——CI 状态以 `gh run list --limit 3` 实查为准）③收官状态由外部复核裁定不由施工方自宣）:

@@ -47,6 +47,20 @@ def memory_service(mock_neo4j_client, mock_learning_memory_client):
     return svc
 
 
+def _scope_physical(suffix: str = "") -> str:
+    """当前读作用域的物理组 (可带子组后缀)。
+
+    CARD-G4-1b: 恢复路径按 **active vault 前缀族**装载, JSON 镜像与 Cypher
+    两侧都按 scope 过滤 —— fixture 的归属必须落在可见面内, 否则测的是
+    "全被过滤掉"而不是"恢复能用"。原 fixture 写死 ``"math"``, 那是 Story
+    1.9 时代的裸 subject 组, 与 vault 作用域不同族。
+    """
+    from app.core.subject_config import default_vault_group_id
+    from app.graphiti.group_id_compat import to_physical_group_id
+
+    return to_physical_group_id(default_vault_group_id()) + suffix
+
+
 def _make_episodes(count: int):
     """Helper: generate N fake episode records from Neo4j."""
     return [
@@ -56,7 +70,7 @@ def _make_episodes(count: int):
             "concept_id": f"cid-{i}",
             "score": 80 + i,
             "timestamp": f"2026-02-0{min(i + 1, 9)}T10:00:00",
-            "group_id": "math",
+            "group_id": _scope_physical(),
             "review_count": i,
         }
         for i in range(count)
@@ -83,7 +97,7 @@ class TestGetAllRecentEpisodes:
                     "concept_id": "c1",
                     "last_score": 90,
                     "timestamp": "2026-02-05T10:00:00",
-                    "group_id": "math",
+                    "group_id": _scope_physical(),
                     "review_count": 3,
                 },
                 {
@@ -92,7 +106,7 @@ class TestGetAllRecentEpisodes:
                     "concept_id": "c2",
                     "last_score": 75,
                     "timestamp": "2026-02-06T12:00:00",
-                    "group_id": "math",
+                    "group_id": _scope_physical(),
                     "review_count": 1,
                 },
             ],
@@ -120,6 +134,7 @@ class TestGetAllRecentEpisodes:
                     "user_id": f"u{i}",
                     "concept_name": f"c{i}",
                     "timestamp": f"2026-01-{10 + i:02d}T00:00:00",
+                    "group_id": _scope_physical(),
                 }
                 for i in range(20)
             ],
@@ -181,7 +196,7 @@ class TestEpisodeRecovery:
     ):
         """AC-3: Neo4j unavailable → empty episodes + WARNING log."""
         mock_neo4j_client.get_all_recent_episodes = AsyncMock(
-            side_effect=Exception("Connection refused")
+            side_effect=ConnectionError("Connection refused")
         )
 
         with caplog.at_level(logging.WARNING):
@@ -200,7 +215,7 @@ class TestEpisodeRecovery:
     ):
         """AC-3: New episodes still appendable during degraded mode."""
         mock_neo4j_client.get_all_recent_episodes = AsyncMock(
-            side_effect=Exception("Connection refused")
+            side_effect=ConnectionError("Connection refused")
         )
         mock_neo4j_client.create_learning_relationship = AsyncMock(return_value=True)
 
@@ -247,7 +262,7 @@ class TestLazyRecovery:
         """AC-3: Lazy recovery when Neo4j becomes available after failed startup."""
         # Simulate startup failure
         mock_neo4j_client.get_all_recent_episodes = AsyncMock(
-            side_effect=Exception("Connection refused")
+            side_effect=ConnectionError("Connection refused")
         )
         await memory_service.initialize()
         assert memory_service._episodes_recovered is False
@@ -328,7 +343,7 @@ class TestRecoveryIntegration:
                     "concept_id": "cid-1",
                     "score": None,
                     "timestamp": "2026-02-06T10:00:00",
-                    "group_id": "math",
+                    "group_id": _scope_physical(),
                     "review_count": 1,
                 }
             ]
@@ -351,7 +366,7 @@ class TestRecoveryIntegration:
 
         # Startup: Neo4j down
         mock_neo4j_client.get_all_recent_episodes = AsyncMock(
-            side_effect=Exception("Connection refused")
+            side_effect=ConnectionError("Connection refused")
         )
         await svc.initialize()
         assert svc._episodes_recovered is False
@@ -366,3 +381,112 @@ class TestRecoveryIntegration:
 
         assert svc._episodes_recovered is True
         assert len(svc._episodes) == 2
+
+
+# ---- CARD-G4-1b (BATCH-2026-08-31-第七批): 恢复的作用域正面锁 ----
+
+
+class TestRecoveryScopeG41b:
+    """方案甲: 启动恢复按 **active vault 前缀族**装载。
+
+    上面 Story 38.2 的用例全部用 ``MagicMock(spec=Neo4jClient)``, mock 对
+    ``group_id`` 传什么都照单全收 —— 它们证明不了作用域。本组是独立的正面锁:
+    一半断言"传的是 active vault 根组、且不受请求级 ContextVar 影响", 另一半
+    用**真实 JSON 模式 client** 端到端验可见面。
+    """
+
+    @pytest.mark.asyncio
+    async def test_recovery_passes_active_vault_group_not_contextvar(
+        self, memory_service, mock_neo4j_client
+    ):
+        """作用域必须来自 active vault, 不能被某次请求的板级 ContextVar 收窄。
+
+        进程级 episode 缓存一旦按板级作用域装载并置 ``_episodes_recovered``,
+        其余白板的历史就永久装不进来 —— 惰性恢复恰恰会在请求里触发。
+        """
+        from app.core.subject_config import _current_subject_id, default_vault_group_id
+
+        mock_neo4j_client.get_all_recent_episodes = AsyncMock(return_value=[])
+        token = _current_subject_id.set(f"{default_vault_group_id()}:board_x")
+        try:
+            await memory_service.initialize()
+        finally:
+            _current_subject_id.reset(token)
+
+        kwargs = mock_neo4j_client.get_all_recent_episodes.await_args.kwargs
+        assert kwargs["group_id"] == default_vault_group_id(), (
+            f"恢复作用域应为 active vault 根组, 实得 {kwargs.get('group_id')!r}"
+        )
+        assert kwargs["limit"] == 1000
+
+    @pytest.mark.asyncio
+    async def test_recovery_loads_family_and_drops_other_vault(self, tmp_path):
+        """真实 client 端到端: 子组进缓存 (保召回), 他 vault 与无归属不进 (零泄漏)。"""
+        from app.services.memory_service import MemoryService
+
+        client = Neo4jClient(use_json_fallback=True, storage_path=tmp_path / "rec.json")
+        await client.initialize()
+        client._data["relationships"] = [
+            {"user_id": "u", "concept_name": "mine-root", "timestamp": "2026-01-01",
+             "group_id": _scope_physical()},
+            {"user_id": "u", "concept_name": "mine-board", "timestamp": "2026-01-02",
+             "group_id": _scope_physical("__board_x")},
+            {"user_id": "u", "concept_name": "theirs", "timestamp": "2026-01-03",
+             "group_id": _scope_physical("_other")},
+            {"user_id": "u", "concept_name": "orphan", "timestamp": "2026-01-04"},
+        ]
+
+        svc = MemoryService(neo4j_client=client)
+        await svc._recover_episodes_from_neo4j()
+
+        got = {e["concept"] for e in svc._episodes}
+        assert got == {"mine-root", "mine-board"}, (
+            f"缺失(保召回红)/多出(零泄漏红): {sorted(got)}"
+        )
+        assert svc._episodes_recovered is True
+
+    @pytest.mark.asyncio
+    async def test_unconfigured_active_vault_fails_closed_not_silent_empty(
+        self, memory_service, mock_neo4j_client, monkeypatch
+    ):
+        """active vault 没配置 → **上抛**, 而不是"装了 0 条然后再也不重试"。
+
+        Codex round-1 HIGH-3 回归锁: 初版先自己算出 ``default_vault_group_id()``
+        再当**显式**入参传下去, 而显式分支对 ``vault:default`` 污染桶只告警放行
+        —— 于是配置坏掉的进程会走成 查空桶 → 0 条 → ``_episodes_recovered=True``
+        → 永不重试, 把配置断裂伪装成"这个用户没有学习记录"。
+        改用"空 Context 里走派生分支"后, 污染桶会 fail-closed。
+        """
+        import app.config as config_mod
+        from app.core.vault_scope import VaultScopeUnresolved
+
+        # active vault 推导不出 → sanitize 兜底成 "default" (污染桶)
+        monkeypatch.setattr(config_mod, "get_current_vault_id", lambda: "default")
+
+        with pytest.raises(VaultScopeUnresolved):
+            await memory_service._recover_episodes_from_neo4j()
+
+        assert memory_service._episodes_recovered is False, (
+            "配置断裂却标记成'已恢复' —— 之后永远不会再试"
+        )
+        mock_neo4j_client.get_all_recent_episodes.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_unresolvable_scope_is_not_disguised_as_neo4j_down(
+        self, memory_service, mock_neo4j_client
+    ):
+        """作用域不可信 → 上抛, **不得**被折算成"Neo4j 不可用 → 空历史"。
+
+        后者会把配置断裂伪装成"这个用户没有学习记录"。``VaultScopeUnresolved``
+        刻意不继承 RuntimeError 正是为此; 本条锁住那个设计不被后人放宽。
+        """
+        from app.core.vault_scope import VaultScopeUnresolved
+
+        mock_neo4j_client.get_all_recent_episodes = AsyncMock(
+            side_effect=VaultScopeUnresolved("gate-injected: scope unresolved")
+        )
+
+        with pytest.raises(VaultScopeUnresolved):
+            await memory_service._recover_episodes_from_neo4j()
+
+        assert memory_service._episodes_recovered is False
