@@ -94,18 +94,125 @@ S3 why_due 取值枚举与生成规则
   承载「为什么今天不用做」的诚实说明, 绝不给未到期节点编造到期理由。
   时区: 人话一律 Asia/Shanghai (与 CARD-D1 总览页同一口径); 落盘的
   fsrs_due / next_due 仍是 UTC-Z 原样, 不动。
+
+═══════════════════════════════════════════════════════════════════════
+CARD-G3-6b 板级 why_this_board 与系数版本化 (BATCH-2026-09-01-第八批)
+═══════════════════════════════════════════════════════════════════════
+schema_version 仍为 3。落地前先书面裁定, 审查按本节判 (S4/S5/S6)。
+
+S4 排序因子清单 + why_this_board 生成律
+  排序因子 (真相源 = TIE_FACTOR_KEYS 常量, 自上而下逐级 tie-break;
+  _tie 排序键由它逐键派生, sha 指纹摘的也是它 —— 单一真相源, 两处不可
+  各自漂移, Codex round-1 HIGH 整改):
+    1 priority_pick          round(top pick, 8) — 衰减 Beta μ−σ, 越低越先
+    2 board_last_recommended 板上次被推荐日期串, 空串(从未)排最前
+    3 min_last_examined      板内到期节点最老 last_examined, 空串排最前
+    4 board                  板名字典序 (最终稳定锚)
+  ⚠ 本卡对排序逻辑零改动 —— 上表是把 HEAD 既有行为显式化, 不是新规则。
+  改序另立卡; 金样门锁住"HEAD 产出与本卡产出的 top_boards 顺序逐字相同"。
+
+  why_this_board 是恒非空人话串, 由 why_this_board(factors) 这一个纯函数
+  从 factors 生成 —— 同一份 factors 恒得同一句 (契约测试把落盘 factors 代
+  回模板复算比对)。禁 LLM、禁渲染层再算: review_overview 只 html.escape 后
+  原样显示, 一个数字都不碰。factors 全部是投影内已有数据的确定性派生:
+    due_total       板内到期节点数 (== 同行 pending, 同源)
+    due_new         其中真新卡数 (无 fsrs_due 且非 fail-open)
+    due_scheduled   其中已排期数 (fsrs_due 非空)
+    due_malformed   其中脏日期 fail-open 数
+                    ↑ 三者互斥完备, 合计恒 == due_total (与 boards rollup
+                      的 due 三分同一条判据, 不另立口径)
+    overdue_days    板内已排期到期节点最早 fsrs_due 的逾期天数 (上海日差,
+                    取整; None = 无已排期到期节点, 或该时刻不可表示)
+    idle_days       top_node 的闲置天数 (== 同行 idle_days, 同源同值)
+    never_recommended  该板在 state 的 board_last_recommended 里无记录
+    recommend_gap_days 距上次推荐天数 (None = 从未 / 记录不可解析)
+  「没有」与「算不出」不混为一谈: overdue_days is None 时看 due_scheduled
+  —— 为 0 说明板内压根没有已排期到期节点, 非 0 说明时刻超出可显示范围
+  (S3 极值兜底同款诚实降级)。recommend_gap_days 同理配 never_recommended。
+
+  模板 = 至多 5 个片段以 " · " 连接 (缺省片段整段不出现, 不填「无」):
+    规模  "N 个节点到期" (+ "（其中 M 张新卡）" 当 due_new > 0)
+    紧迫  "最早的已逾期 N 天" | "最早的今天到期" | "最早到期时刻超出可显示范围"
+          (due_scheduled == 0 时整段省略 —— 全是新卡的板没有「逾期」可言)
+    脏值  "含 N 个到期时间无法解析的节点" (仅 due_malformed > 0)
+    闲置  "最该考的从未考察" | "最该考的已闲置 N 天"
+    冷却  "这块板从未被推荐过" | "今天已推荐过" | "距上次推荐 N 天"
+          | "上次推荐日期无法解析" | "上次推荐日期晚于今天" (记录晚于今天属
+          异常状态 —— 不 clamp 成 0 伪装成"今天刚推荐过", Codex round-1
+          MEDIUM 整改; recommend_gap_days 允许负值即表达此态)
+  字符白名单 (沿 S3 :82 同一条口径): 成句只含 中文 / 数字 / "·" / 空格 /
+  "（）" —— 槽位全部是本文件自产的 int 与固定中文, 板名/节点名一律不进句
+  (它们已在同一行的 board/top_node 字段里, 拼进来既冗余, 又把 frontmatter
+  自由文本引进了渲染面)。契约测试断言 sanitize(句) == 句: 模板将来若引入
+  白名单外字符, 该门变红, 而不是静默把不可信串送进 HTML。
+
+S5 系数版本化: manifest 的权威边界 (哪些改了真生效, 哪些只是登记)
+  scripts/review_rank_manifest.json (version=1) 分两节, 语义不同 —— 混为
+  一谈会造出「看起来能配、改了没用」的假配置:
+    authoritative  运行时真相源, 改了下一轮立刻生效。当前只有
+                   estimated_minutes 两个常量 (per_due_node / per_new_node)
+                   —— 它们只影响本卡新增字段, 不触碰任何 A2 冻结面。
+    recorded       登记快照, 改了不改变行为, 只打一行 stderr 漂移告警。
+                   ranking_factors (真相源是 _tie 代码) / limits (真相源是
+                   ranked[:3], 改它会动 A2 冻结的榜长) / decay_beta_constants
+                   (真相源是 vault 内 decay_beta.py 模块, 本卡禁改其本体)。
+  payload.rank_manifest = {version, sha256}:
+    version  manifest 文件的版本号; 文件缺失/损坏时为 None (诚实说「没有
+             版本」而不是假装有), 同时 stderr 告警 + 用内置默认继续 ——
+             配置文件丢了不该让每日推送整轮失败, 但也不许静默。
+    sha256   ⚠ 指纹算的是「运行时实际生效的系数」的规范序列化, 不是
+             manifest 文件的字节。这条是本卡最容易做假的地方: 若只对文件
+             取 hash, 那么别人改 decay_beta.py 的 GAMMA (系数真的变了)
+             指纹却纹丝不动, 版本化就成了摆设。实际入摘要的是 version +
+             因子序 + 生效分钟常量 + 生效上限 + 从模块读到的 decay 六个
+             实际值, 任一变化 → sha 变 (契约测试逐项变异验证)。
+
+S6 归属与上限裁定 (无归属 / 一节点多板 / 同名板 / 上限 / 去重)
+  无归属  _board_name(source_board) 返 None 的节点不进任何板, 点名在
+          unassigned_nodes (HEAD 既有语义, 本卡零改动, 只补独立测试)。
+  一节点多板  ⚠ 不支持, 且不发明语义。2026-09-01 live 实测 14 个节点的
+          source_board 取值分布: 全部是单值 wikilink 串 (`[[原白板/X]]`),
+          零个 YAML 数组、零个逗号分隔多值。两种可能的多板写法, 实测行为
+          **并不相同** (下列结论由 _fm_str/_board_name 真实调用得出, 非推理):
+            a) YAML 数组 `source_board: ["[[A]]", "[[B]]"]`
+               → _fm_str 的 `[^"\\n]+?` 跨不过内嵌引号, 整行不匹配 → 该节点
+                 视同"无 source_board" → 不进任何板, 点名在 unassigned_nodes。
+                 即: 不静默丢弃, 但也拿不到板 —— 用户会在 md 末尾看见它。
+            b) 单串多值 `source_board: "[[A]], [[B]]"` (无内嵌引号)
+               → 整串当成一个板名, _board_name 的 rsplit("/",1)[-1] 使其归到
+                 **最后**一个路径段 (不是第一个) —— 一个既非 A 也非"多板"的
+                 板名, 属于会静默错归的形态。
+          裁定: 两者均保持现状并登记, 不为现网不存在的形态发明多板归属语义
+          (DD-10 防蔓延)。b) 的错归风险如实登记在验收单"未证明什么"节 ——
+          修它要动 _board_name 的归一规则, 那会影响全部单值节点的板身份,
+          超出本卡加性边界。真出现多板需求时另立卡 —— 届时 due 计数、rollup
+          合计恒等、buckets 划分律三处都要同步改, 那不是加性扩展。
+  同名板  _board_name 取 wikilink 最后一段 (`原白板/X` → `X`), 因此不同
+          路径下的同名板会合并成同一块板。裁定: 保持现状 —— 板名是本系统
+          全链路的板身份 (notification 标题 / obsidian 深链 / state 的
+          board_last_recommended 键 / rollup 行键全按板名), 只在选点侧改成
+          带路径的身份会与其余四处不一致。登记 + 独立测试锁定该行为。
+  上限    top_boards / upcoming 各截 [:3] 是 HEAD 既有行为, 本卡不改截断。
+          新增顶层 truncated = {"top_boards": bool, "upcoming": bool} ——
+          只是把「你看到的不是全部」显式说出来 (ranked 全量仍供 runner 的
+          next_due_utc 计算使用, daily_review_run:172-178, 消费面零变化)。
+  去重    板内节点按文件 stem 唯一 (同目录同名 .md 不可能共存); 板级按 dict
+          键唯一, 同一板名在 ranked / upcoming 二者中至多出现一次且互斥
+          (有到期 → ranked, 全员未到期 → upcoming)。本卡补独立测试锁定
+          「同一板名不跨 ranked/upcoming 双列」。
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import os
 import re
 import sys
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 #: 与 start-exam-board SKILL Step 3 完全同一条占位符规则 (终审 A3)
@@ -159,6 +266,42 @@ LEARNING_STATES = (0, 1, 3)
 #: 脏 fsrs_due 原值进 why_due 前逐字符过滤 —— why_due 会拼进人读 md 并可能
 #: 被下游 HTML 渲染, 原样透传等于把 frontmatter 任意串接进渲染面。
 _DUE_RAW_UNSAFE = re.compile(r"[^0-9A-Za-z:+. -]")
+
+#: ═══ CARD-G3-6b ═══
+#: S4 why_this_board 字符白名单: 中文 / 数字 / "·" / 空格 / 全角括号。
+#: 槽位全是本文件自产的 int 与固定中文, 板名/节点名一律不进句 —— 此正则是
+#: 该承诺的可执行形态 (契约测试断言 sub 后与原句逐字相同)。
+_WHY_BOARD_UNSAFE = re.compile(r"[^0-9一-鿿·（） ]")
+
+#: S5 系数清单文件名 (与本脚本同目录)
+MANIFEST_FILENAME = "review_rank_manifest.json"
+
+#: S4 排序因子序 — 单一真相源 (Codex round-1 HIGH 整改): rank_boards 的 _tie
+#: 排序键由本元组逐键派生, sha 指纹摘的也是它。交换/增删此处顺序, 实际排序
+#: 与指纹**同变** —— 两份表达可以各自漂移的形态被构造性消灭 (原先常量与 _tie
+#: 字面元组互不相干, 内存里交换 _tie 因子而指纹纹丝不动, 版本化成了摆设)。
+TIE_FACTOR_KEYS = (
+    "priority_pick",
+    "board_last_recommended",
+    "min_last_examined",
+    "board",
+)
+
+#: S4 priority_pick 的取整位数 — 因子「可执行取值规则」的一部分 (Codex
+#: round-2 HIGH): 精度收紧会让原本 8 位可分的近邻 pick 变同分而改排序,
+#: 故精度本身必须登记进指纹。改此常量 → 排序与 sha 同变。
+TIE_PICK_ROUND_DIGITS = 8
+
+#: S6 既有截断上限 (HEAD 起就是 3, 本卡零改动 —— 只登记并透出 truncated)
+TOP_BOARDS_LIMIT = 3
+UPCOMING_LIMIT = 3
+
+#: S5 estimated_minutes 内置默认 — manifest 的 authoritative 节可覆盖。
+#: ⚠ 拍脑袋的经验值, 非实测: 新卡首次剖析更慢, 故 5 > 3。
+DEFAULT_MINUTES = {"per_due_node": 3, "per_new_node": 5}
+
+#: S5 入指纹的 decay_beta 六常量名 (排序固定 → 指纹稳定)
+DECAY_CONSTANT_NAMES = ("BETA_EXPLORE", "FLOOR", "GAMMA", "GAMMA_DAILY", "PRIOR_A", "PRIOR_B")
 
 
 def _aware(s: str) -> datetime:
@@ -403,8 +546,226 @@ def scan_nodes(vault: Path, now: datetime, decay):
     return nodes, stats, ineligible, placeholder_boards
 
 
-def rank_boards(nodes, board_last_recommended: dict):
-    """板级聚合: priority = min(pick), 终审 A3 tie-break。"""
+def load_rank_manifest(path=None):
+    """S5 读系数清单 → (version, minutes, recorded)。缺失/损坏 = 诚实降级。
+
+    返回的 minutes 恒是可用的一对非负 int: manifest 给不出合法值时逐项回落
+    内置默认并 stderr 点名 —— 配置文件丢了不该让每日推送整轮失败, 但也绝不
+    静默 (静默降级 = 把配置断裂伪装成"就该是这个数")。version 只在文件与
+    version 字段双双可用时为整数, 其余一律 None ("没有版本"而非假装有)。
+    """
+    path = Path(path) if path is not None else Path(__file__).resolve().parent / MANIFEST_FILENAME
+    minutes = dict(DEFAULT_MINUTES)
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:  # ValueError ⊃ JSONDecodeError
+        print(f"[pick] 系数清单不可用, 用内置默认: {path} ({type(e).__name__})", file=sys.stderr)
+        return None, minutes, {}
+    if not isinstance(raw, dict):
+        print(f"[pick] 系数清单不是 object, 用内置默认: {path}", file=sys.stderr)
+        return None, minutes, {}
+
+    version = raw.get("version")
+    if not isinstance(version, int) or isinstance(version, bool):
+        print(f"[pick] 系数清单 version 非整数, 记为 None: {version!r}", file=sys.stderr)
+        version = None
+
+    auth = raw.get("authoritative")
+    # 三层 (authoritative 节 / estimated_minutes 子节 / 叶键) 任何一层缺失、
+    # null 或形状不符都必须点名回落, 不许静默 (Codex round-2 MEDIUM: 前一轮
+    # 只修了叶键, 父节缺失照样无声 —— 配置断裂被伪装成"就该是这个数")
+    if not isinstance(auth, dict):
+        print(f"[pick] authoritative 节缺失或形状不符({auth!r}), 分钟用内置默认",
+              file=sys.stderr)
+        cfg = None
+    else:
+        cfg = auth.get("estimated_minutes")
+        if not isinstance(cfg, dict):
+            print(f"[pick] authoritative.estimated_minutes 缺失或形状不符({cfg!r}), "
+                  "分钟用内置默认", file=sys.stderr)
+            cfg = {}
+    if isinstance(cfg, dict):
+        for k in DEFAULT_MINUTES:
+            v = cfg.get(k)
+            if isinstance(v, int) and not isinstance(v, bool) and v >= 0:
+                minutes[k] = v
+            else:
+                # 缺键与非法值同等待遇: 点名后再回落 (Codex round-1 MEDIUM —
+                # 只验"在场但坏", 会放过"压根没写"的半份配置, 让静默回落
+                # 伪装成用户确实配了)
+                print(f"[pick] estimated_minutes.{k} 缺失或非法({v!r}), 用内置默认 {minutes[k]}",
+                      file=sys.stderr)
+
+    recorded = raw.get("recorded")
+    return version, minutes, (recorded if isinstance(recorded, dict) else {})
+
+
+def _recorded_claim(recorded: dict, key: str, subkey: str | None = None):
+    """recorded 小节取值, 剥掉 "_" 开头的说明键; 形状不符返 None (= 未登记)。"""
+    node = recorded.get(key)
+    if not isinstance(node, dict):
+        return None
+    if subkey is not None:
+        return node.get(subkey)
+    return {k: v for k, v in node.items() if not k.startswith("_")}
+
+
+def _warn_recorded_drift(recorded: dict, effective: dict):
+    """S5: recorded 是快照不是配置 —— 与实际生效值不符时逐项出声, 以实际为准。
+
+    这是"配置断裂会说话"的最小形态: 有人改了 decay_beta 的系数 / 改了榜长
+    却没更新登记, 下一轮生成就有一行 stderr 指出来, 而不是让快照悄悄过期。
+    """
+    for label, claimed, actual in (
+        ("ranking_factors.order",
+         _recorded_claim(recorded, "ranking_factors", "order"), list(effective["ranking_factors"])),
+        ("limits", _recorded_claim(recorded, "limits"), effective["limits"]),
+        ("decay_beta_constants",
+         _recorded_claim(recorded, "decay_beta_constants"), effective["decay_beta_constants"]),
+    ):
+        if claimed is not None and claimed != actual:
+            print(f"[pick] 系数清单 recorded.{label} 与实际生效值不符 "
+                  f"(登记={claimed!r} 实际={actual!r}); 以实际为准", file=sys.stderr)
+
+
+def _implementation_sha(path=None) -> str:
+    """S5 本生成器源码的实现指纹 (Codex round-2 HIGH)。
+
+    因子清单/精度常量只能覆盖「登记过的配置面」, 覆不完取值绑定这类字面
+    代码 —— 把 pick.py 自身字节也摘进指纹, 任何排序规则改动 (精度/绑定/
+    方向/新因子) 必然变 sha。粒度因此从「系数」变粗为「实现+系数」: 改
+    注释也会变指纹, 属预期内的保守取舍 (宁可指纹变多, 不可规则变更漏网)。
+    """
+    p = Path(path) if path is not None else Path(__file__).resolve()
+    return hashlib.sha256(p.read_bytes()).hexdigest()
+
+
+def effective_rank_config(decay, version, minutes: dict) -> dict:
+    """S5 运行时实际生效的全部系数 —— sha256 的被摘要对象。
+
+    ⚠ 摘要的是"生效值"而不是 manifest 文件字节: 只对文件取 hash 的话, 别人
+    改 decay_beta.py 的 GAMMA (系数真的变了) 指纹却纹丝不动, 版本化就成了
+    摆设。decay 六常量一律从模块现场读 (getattr 缺失记 None —— 缺了指纹也
+    该变), 上限与因子序/取整精度取代码常量, 分钟取 manifest 生效值,
+    implementation_sha256 摘本文件字节 (round-2 HIGH: 取值绑定无法全部
+    数据化, 实现指纹兜住「改代码规则而指纹不动」的整类攻击)。
+    """
+    return {
+        "version": version,
+        "ranking_factors": list(TIE_FACTOR_KEYS),
+        "tie_pick_round_digits": int(TIE_PICK_ROUND_DIGITS),
+        "estimated_minutes": {k: int(minutes[k]) for k in sorted(minutes)},
+        "limits": {"top_boards": TOP_BOARDS_LIMIT, "upcoming": UPCOMING_LIMIT},
+        "decay_beta_constants": {k: getattr(decay, k, None) for k in DECAY_CONSTANT_NAMES},
+        "implementation_sha256": _implementation_sha(),
+    }
+
+
+def build_rank_manifest(decay, version, minutes: dict, recorded: dict) -> dict:
+    """S5 payload.rank_manifest = {version, sha256}; 顺带发漂移告警。"""
+    effective = effective_rank_config(decay, version, minutes)
+    _warn_recorded_drift(recorded, effective)
+    blob = json.dumps(effective, sort_keys=True, ensure_ascii=False, allow_nan=False)
+    return {"version": version, "sha256": hashlib.sha256(blob.encode("utf-8")).hexdigest()}
+
+
+def _board_factors(board: str, due: list, top: dict, today_sh, board_last_recommended: dict) -> dict:
+    """S4 因子提取: 全部是投影内已有数据的确定性派生 —— 不虚构、不估算。
+
+    overdue_days 只看板内"已排期且已到期"的最早 fsrs_due (与 rollup 的
+    earliest_overdue 同源同判据)。None 有两个来源, 靠 due_scheduled 区分:
+    为 0 = 板内压根没有已排期到期节点; 非 0 = 该时刻不可表示 (年份极值)。
+    """
+    scheduled = [n["fsrs_due"] for n in due if n["fsrs_due"]]
+    overdue_days = None
+    if scheduled:
+        earliest_sh = _sh_local(min(scheduled))
+        if earliest_sh is not None:
+            # delta > 0 不可达 (到期判定是 UTC 词法 <= now, 上海日差不会为正);
+            # 仍夹到 0 —— 真出现时按"今天到期"说, 不吐负数天。
+            overdue_days = max(0, (today_sh - earliest_sh.date()).days)
+
+    rec = board_last_recommended.get(board, "")
+    gap = None
+    if rec:
+        try:
+            # 不夹负值 (Codex round-1 MEDIUM): 记录晚于今天属异常状态, 如实
+            # 上抛负数让模板走诚实分支 —— clamp 成 0 会把「记录异常」伪装成
+            # 「今天刚推荐过」, 违反 S4 不虚构。
+            gap = (today_sh - date.fromisoformat(rec)).days
+        except (ValueError, TypeError):
+            # state 里的日期串损坏: 如实说"算不出", 不当作从未推荐 (那会让
+            # 一块刚推过的板伪装成冷板, 拿到不该有的解释)
+            gap = None
+    return {
+        "due_total": len(due),
+        "due_new": sum(1 for n in due if not n["fsrs_due"] and not n["due_fail_open"]),
+        "due_scheduled": sum(1 for n in due if n["fsrs_due"]),
+        "due_malformed": sum(1 for n in due if n["due_fail_open"]),
+        "overdue_days": overdue_days,
+        "idle_days": (None if top["idle_days"] is None else int(top["idle_days"])),
+        "never_recommended": not rec,
+        "recommend_gap_days": gap,
+    }
+
+
+def why_this_board(f: dict) -> str:
+    """S4 模板: factors → 恒非空人话串。纯函数 — 同一 factors 恒得同一句。
+
+    契约测试把落盘的 factors 原样喂回本函数, 要求与落盘的 why_this_board
+    逐字相同 —— 解释与数字之间没有第二条通路 (没有 LLM, 没有渲染层再算)。
+    """
+    scale = f"{int(f['due_total'])} 个节点到期"
+    if f["due_new"]:
+        scale += f"（其中 {int(f['due_new'])} 张新卡）"
+    parts = [scale]
+    if f["due_scheduled"]:
+        od = f["overdue_days"]
+        if od is None:
+            parts.append("最早到期时刻超出可显示范围")
+        elif od > 0:
+            parts.append(f"最早的已逾期 {int(od)} 天")
+        else:
+            parts.append("最早的今天到期")
+    if f["due_malformed"]:
+        parts.append(f"含 {int(f['due_malformed'])} 个到期时间无法解析的节点")
+    parts.append("最该考的从未考察" if f["idle_days"] is None
+                 else f"最该考的已闲置 {int(f['idle_days'])} 天")
+    if f["never_recommended"]:
+        parts.append("这块板从未被推荐过")
+    elif f["recommend_gap_days"] is None:
+        parts.append("上次推荐日期无法解析")
+    elif f["recommend_gap_days"] < 0:
+        # 记录晚于今天 (时钟回拨/时区错乱/手滑改了 state) — 如实说异常,
+        # 不 clamp 成 0 伪装成"今天刚推荐过" (Codex round-1 MEDIUM)
+        parts.append("上次推荐日期晚于今天")
+    elif f["recommend_gap_days"] == 0:
+        parts.append("今天已推荐过")
+    else:
+        parts.append(f"距上次推荐 {int(f['recommend_gap_days'])} 天")
+    return " · ".join(parts)
+
+
+def estimated_minutes(f: dict, minutes: dict) -> int:
+    """S5 板级预计工作量: 新卡按 per_new_node, 其余到期按 per_due_node。
+
+    三分互斥完备 (S4), 故 new + scheduled + malformed 恰好覆盖 due_total。
+    常量归 manifest 的 authoritative 节 —— 用户改了下一轮立刻生效。
+    """
+    other = int(f["due_scheduled"]) + int(f["due_malformed"])
+    return int(f["due_new"]) * int(minutes["per_new_node"]) + other * int(minutes["per_due_node"])
+
+
+def rank_boards(nodes, board_last_recommended: dict, now: datetime, minutes: dict | None = None):
+    """板级聚合: priority = min(pick), 终审 A3 tie-break。
+
+    CARD-G3-6b 加性 (S4): 行尾追加 why_this_board / estimated_minutes /
+    factors 三个字段 —— 排序键 (_tie) 与既有七字段一个不动, 行内新字段
+    排在旧字段之后 (落盘键序稳定)。now/minutes 是新增入参: 前者供逾期与
+    冷却天数换算 (此前本函数不需要时间), 后者是 manifest 生效的分钟常量。
+    """
+    minutes = minutes or DEFAULT_MINUTES
+    today_sh = _today_sh(now)
     boards: dict[str, list] = {}
     unassigned = []
     for n in nodes:
@@ -422,6 +783,15 @@ def rank_boards(nodes, board_last_recommended: dict):
             upcoming.append({"board": board, "next_due": nxt["fsrs_due"], "node": nxt["node"]})
             continue
         top = min(due, key=lambda n: n["pick"])   # WHAT: 到期集合内衰减 Beta 排序
+        factors = _board_factors(board, due, top, today_sh, board_last_recommended)
+        # 排序键由 TIE_FACTOR_KEYS 逐键派生 (单一真相源, 见常量处裁定) ——
+        # 各键取值与 HEAD 的字面 _tie 元组逐位相同, 初始顺序下排序行为零变化
+        tie_parts = {
+            "priority_pick": round(top["pick"], TIE_PICK_ROUND_DIGITS),
+            "board_last_recommended": board_last_recommended.get(board, ""),  # 空串 = 从未被推荐, 排最前
+            "min_last_examined": min(n["last_examined"] for n in due),        # 空串 = 有从未考节点, 排最前
+            "board": board,
+        }
         ranked.append({
             "board": board,
             "top_node": top["node"],
@@ -430,12 +800,12 @@ def rank_boards(nodes, board_last_recommended: dict):
             "idle_days": (None if top["idle_days"] is None else int(top["idle_days"])),
             "difficulty": top["difficulty"],
             "next_due": min((n["fsrs_due"] for n in members if not n["due_now"]), default=""),
-            "_tie": (
-                round(top["pick"], 8),
-                board_last_recommended.get(board, ""),   # 空串 = 从未被推荐, 排最前
-                min(n["last_examined"] for n in due),    # 空串 = 有从未考节点, 排最前
-                board,
-            ),
+            # CARD-G3-6b 加性 (S4): 板级解释三件套 — why 由 factors 单向复算,
+            # factors 同时落盘让消费方能自证那句话没跑偏 (禁 UI 再算)
+            "why_this_board": why_this_board(factors),
+            "estimated_minutes": estimated_minutes(factors, minutes),
+            "factors": factors,
+            "_tie": tuple(tie_parts[k] for k in TIE_FACTOR_KEYS),
         })
     ranked.sort(key=lambda r: r["_tie"])
     for r in ranked:
@@ -457,9 +827,17 @@ def _body(top: dict) -> str:
     return f"{top['top_node']} 待巩固 · {idle}"
 
 
-def build_payload(vault: Path, now: datetime, board_last_recommended: dict, decay):
+def build_payload(vault: Path, now: datetime, board_last_recommended: dict, decay,
+                  manifest_path=None):
+    """CARD-G3-6b: 新增可选 manifest_path (缺省 = 本脚本同目录的系数清单)。
+
+    runner 侧调用形态不变 (daily_review_run:159-160 传四个位置参数) —— 新
+    参数是加性关键字, 消费面零变化。
+    """
+    version, minutes, recorded = load_rank_manifest(manifest_path)
+    rank_manifest = build_rank_manifest(decay, version, minutes, recorded)
     nodes, stats, ineligible, placeholder_boards = scan_nodes(vault, now, decay)
-    ranked, upcoming, unassigned = rank_boards(nodes, board_last_recommended)
+    ranked, upcoming, unassigned = rank_boards(nodes, board_last_recommended, now, minutes)
     stats["unassigned"] = len(unassigned)
     # CARD-G3-6a S1: 级联判桶 + why_due 一次算好, due_nodes 行与 buckets 分组
     # 同源引用同一对值 (禁两处各算一遍 → 禁口径分裂)。划分域 = 已归板。
@@ -484,6 +862,10 @@ def build_payload(vault: Path, now: datetime, board_last_recommended: dict, deca
             # 个字段 — 到期三桶之一 + 人话理由。旧字段一个不改。
             "bucket": n["bucket"],
             "why_due": n["why_due"],
+            # CARD-G3-6b 加性 (裁决②, 承 G3-6a 移交 #2): 结构化闲置天数 ——
+            # 与 why_due 的闲置片段同源同值 (都出自 scan_nodes 的 idle_days),
+            # 下游要按闲置排序时不必再从人话串里抠数字。None = 从未考察。
+            "idle_days": (None if n["idle_days"] is None else int(n["idle_days"])),
         }
         for n in nodes if n["board"] and n["due_now"]
     ]
@@ -539,14 +921,25 @@ def build_payload(vault: Path, now: datetime, board_last_recommended: dict, deca
         "vault_id": Path(vault).resolve().name,
         "date": now.astimezone().date().isoformat(),
         "generated_at": now.astimezone().isoformat(timespec="seconds"),
-        "top_boards": ranked[:3],
-        "upcoming": upcoming[:3],
+        # CARD-G3-6b: 字面量 3 换成具名常量 —— 值恒等 (行为零变化), 但让
+        # truncated 的判据与截断本身同源, 不给"上限改了一处漏一处"留缝
+        "top_boards": ranked[:TOP_BOARDS_LIMIT],
+        "upcoming": upcoming[:UPCOMING_LIMIT],
         "due_nodes": due_rows,
         "boards": boards_rollup,  # CARD-D1 P1 加性: 板级全量 rollup
         "buckets": buckets,       # CARD-G3-6a 加性: 五桶节点级分组 (S1 划分)
         "ineligible": ineligible,
         "stats": stats,
         "notification": None,
+        # CARD-G3-6b 加性 (S5): 本轮实际生效系数的版本与指纹 — 消费方据此
+        # 判断"解释是按哪套系数算的"; version=None 表示清单缺失/损坏
+        "rank_manifest": rank_manifest,
+        # CARD-G3-6b 加性 (S6): 显式说"你看到的不是全部"。截断行为本身零
+        # 改动 (HEAD 起就截 3), 这里只是把它从隐式变成可见。
+        "truncated": {
+            "top_boards": len(ranked) > TOP_BOARDS_LIMIT,
+            "upcoming": len(upcoming) > UPCOMING_LIMIT,
+        },
     }
     day_id = f"canvas-review-{payload['date']}"
     if ranked:
@@ -591,6 +984,20 @@ def render_md(payload, ranked) -> str:
     if payload.get("upcoming"):
         for u in payload["upcoming"]:
             lines.append(f"| {u['board']} | - | 0（未到期） | - | - | - | {u['next_due'][:10]} |")
+    # CARD-G3-6b 加性段 (S4): 表格零改动, 只在其后追加「为什么是这几块板」
+    # —— 与 G3-6a 分层队列段同一条纪律 (加标签不改既有面)。句子由白名单模板
+    # 产出; 板名与既有表格行同值同面 (render_md 全文对 board/node 从未转义,
+    # 属存量面, 本卡不新增可见面也不单独修 —— 统一转义策略是另一张卡)。
+    if any(r.get("why_this_board") for r in ranked):
+        lines += ["", "## 为什么是这几块板", ""]
+        for r in ranked:
+            why = r.get("why_this_board")
+            if not why:
+                continue
+            mins = r.get("estimated_minutes")
+            eta = (f" · 预计 {int(mins)} 分钟"
+                   if isinstance(mins, int) and not isinstance(mins, bool) else "")
+            lines.append(f"- **{r['board']}** — {why}{eta}")
     if ranked:
         lines += ["", "## 一键开考（整行复制到 Claudian）", ""]
         for r in ranked:
