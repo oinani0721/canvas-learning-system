@@ -1535,10 +1535,15 @@ def test_cross_site_form_post_is_blocked(refresh_env):
     root, client = refresh_env
     _mk_node_vault(root, "vault-csrf", {"甲": _node_md()})
 
+    # ⚠ 每个组合只带**一个**会触发拒绝的头 —— 原来第三条同时带了外域 Origin,
+    # 而 Origin 分支单独就会 403 且 error 码相同, 于是 same-site 那条分支
+    # 被完全遮蔽: 把它改成放行, 测试照样绿（收官审计抓到）。
     for headers in (
         {"Sec-Fetch-Site": "cross-site"},
+        # same-site ≠ same-origin: 同注册域下的另一个子域也算 same-site,
+        # 它不是"本页发起的提交"。这一条**不带 Origin**, 单独隔离该分支。
+        {"Sec-Fetch-Site": "same-site"},
         {"Origin": "https://evil.example.com"},
-        {"Sec-Fetch-Site": "same-site", "Origin": "http://attacker.testserver"},
     ):
         r = client.post(_REFRESH_URL, data={"vault_id": "vault-csrf"}, headers=headers)
         assert r.status_code == 403, f"{headers} 应被拒, 实为 {r.status_code}"
@@ -2193,6 +2198,94 @@ def test_form_path_in_progress_shows_notice_not_fake_success(refresh_env):
     assert "正在重建中" in resp.text and "回到总览页" in resp.text
     assert "<script" not in resp.text.lower()
     assert not (vault / "outputs").exists(), "在飞时第二个请求不许也去写盘"
+
+
+def test_form_path_debounced_shows_notice_not_fake_success(overview_env, monkeypatch):
+    """⛔ 收官审计: round-3 只给 in_progress 做了提示页, 把 **debounced 漏在原地**。
+
+    失败场景很日常: 用户刚做完一道题 (写了 fsrs_due), 10 秒内点刷新 → 拿到与成功
+    **逐字节相同**的 303 + 相同 Location + 空 body → 页面看着刷新了、数字却没动,
+    而他没有任何办法知道"这次根本没重建"。
+    纪律: **凡是没真重建的分支, 都不许走那条与成功同形的 303**。
+    """
+    import app.api.v1.endpoints.review_overview as mod
+
+    monkeypatch.delenv(mod._PICK_SCRIPT_ENV, raising=False)
+    monkeypatch.setattr(mod, "_REFRESH_TTL_SECONDS", 300.0)  # 有窗口才测得出 debounced
+    root, client = overview_env
+    _mk_node_vault(root, "vault-deb", {"甲": _node_md()})
+
+    first = client.post(_REFRESH_URL, data={"vault_id": "vault-deb", "redirect": "page"}, follow_redirects=False)
+    assert first.status_code == 303, "第一次是真重建 → PRG 303"
+
+    second = client.post(_REFRESH_URL, data={"vault_id": "vault-deb", "redirect": "page"}, follow_redirects=False)
+    assert second.status_code != 303, "被去抖的一次不许与成功同形"
+    assert second.status_code == 200 and second.headers["content-type"].startswith("text/html")
+    assert "刚刚才刷新过" in second.text
+    assert "没有" in second.text and "重新计算" in second.text, "必须明说这次没重建"
+    assert "回到总览页" in second.text
+    assert "<script" not in second.text.lower()
+
+    # 两条"没真重建"的分支都不许 303 —— 用 rebuilt 而不是逐个 reason 判, 将来
+    # 新增第三种 reason 时这条纪律自动覆盖它
+    assert second.text != first.text
+
+
+def test_allowed_hosts_env_is_normalized_like_url_hostname(refresh_env, monkeypatch):
+    """⛔ 收官审计: `request.url.hostname` 是 urlsplit 归一过的 —— **小写、不含端口、
+    IPv6 去方括号**。白名单原来只 strip 后裸比, 于是用户照着地址栏里看到的东西去配
+    (`My-Mac.local` 或 `my-mac.local:8011`) 会继续 403, 而错误信息没说要小写、不带端口
+    —— 一个"照做了却还是不行"的坑。
+    """
+    import app.api.v1.endpoints.review_overview as mod
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    root, client = refresh_env
+    _mk_node_vault(root, "vault-hostnorm", {"甲": _node_md()})
+
+    for raw in ("My-Mac.local", "my-mac.local:8011", "  MY-MAC.LOCAL  ", "[::1]:8011,My-Mac.local"):
+        monkeypatch.setenv(mod._ALLOWED_HOSTS_ENV, raw)
+        assert "my-mac.local" in mod._extra_allowed_hosts(), f"{raw!r} 应归一到 my-mac.local"
+        c = TestClient(app, base_url="http://my-mac.local:8011")
+        r = c.post(_REFRESH_URL, data={"vault_id": "vault-hostnorm"})
+        assert r.status_code == 200, f"配了 {raw!r} 之后应放行, 实为 {r.status_code} {r.text[:200]}"
+
+    # IPv6 带方括号与端口也要能配
+    monkeypatch.setenv(mod._ALLOWED_HOSTS_ENV, "[fd00::1]:8011")
+    assert mod._extra_allowed_hosts() == frozenset({"fd00::1"})
+    # 空 / 纯逗号不许产出空串条目（空串会匹配 hostname 为空的请求）
+    monkeypatch.setenv(mod._ALLOWED_HOSTS_ENV, " , ,, ")
+    assert mod._extra_allowed_hosts() == frozenset()
+
+
+def test_review_enabled_markers_constant_is_the_single_source(refresh_env):
+    """⛔ 收官审计: `_REVIEW_ENABLED_MARKERS` 一度是**死常量** —— 定义处带着
+    "生产器对一个库的最低要求"的注释, 而 `_pick_failure_hint` 内联重写了同一对判据,
+    全仓零引用它。以后有人按注释改常量, 提示文案不会跟着变, 且无人报警。
+
+    本用例通过**改常量**来证明它真的是唯一真相源。
+    """
+    import app.api.v1.endpoints.review_overview as mod
+
+    root, client = refresh_env
+    weird = _mk_vault(root, "改了常量的库")
+    (weird / "节点").mkdir()
+    (weird / ".claude" / "scripts").mkdir(parents=True)
+    (weird / ".claude" / "scripts" / "decay_beta.py").write_text("PRIOR_A=1\n", encoding="utf-8")
+
+    # 常量说还要一个不存在的东西 → 提示必须点名它 (证明提示读的就是这个常量)
+    orig = mod._REVIEW_ENABLED_MARKERS
+    try:
+        mod._REVIEW_ENABLED_MARKERS = orig + (("这个文件根本不存在.md", False),)
+        hint = mod._pick_failure_hint(weird)
+        assert hint and "这个文件根本不存在.md" in hint, f"提示未跟随常量, 实为 {hint!r}"
+    finally:
+        mod._REVIEW_ENABLED_MARKERS = orig
+
+    # 还原后该库两项齐全 → 无提示
+    assert mod._pick_failure_hint(weird) is None
 
 
 def test_repeated_refresh_with_zero_changes_still_succeeds(refresh_env):

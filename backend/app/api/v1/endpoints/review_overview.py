@@ -1301,9 +1301,12 @@ def _run_pick(script: Path, vault_dir: Path) -> subprocess.CompletedProcess:
     )
 
 
-#: 生产器对一个库的最低要求 (daily_review_pick.scan_nodes 扫 节点/;
-#: load_decay 从库内 .claude/scripts 导 decay_beta)
-_REVIEW_ENABLED_MARKERS = ("节点", ".claude/scripts/decay_beta.py")
+#: 生产器对一个库的最低要求, (相对路径, 是否应为目录)。
+#: daily_review_pick.scan_nodes 扫 节点/; load_decay 从库内 .claude/scripts 导 decay_beta。
+#: ⚠ 收官审计: 这个常量一度成了**死常量** —— 定义在这里带着"最低要求"的注释,
+#: 而 _pick_failure_hint 里内联重写了同一对判据, 全仓零引用它。以后有人按注释
+#: 改这里, 提示文案不会跟着变且无人报警。现在由 _pick_failure_hint 唯一消费。
+_REVIEW_ENABLED_MARKERS = (("节点", True), (".claude/scripts/decay_beta.py", False))
 
 
 def _pick_failure_hint(vault_dir: Path) -> str | None:
@@ -1325,7 +1328,7 @@ def _pick_failure_hint(vault_dir: Path) -> str | None:
     try:
         missing = [
             rel
-            for rel, want_dir in (("节点", True), (".claude/scripts/decay_beta.py", False))
+            for rel, want_dir in _REVIEW_ENABLED_MARKERS
             if not ((vault_dir / rel).is_dir() if want_dir else (vault_dir / rel).is_file())
         ]
     except OSError:
@@ -1657,8 +1660,26 @@ _ALLOWED_HOSTS_ENV = "REVIEW_REFRESH_ALLOWED_HOSTS"
 
 
 def _extra_allowed_hosts() -> frozenset[str]:
-    raw = os.environ.get(_ALLOWED_HOSTS_ENV, "")
-    return frozenset(h.strip() for h in raw.split(",") if h.strip())
+    """解析白名单并**归一到与 request.url.hostname 同一形态**。
+
+    收官审计: `request.url.hostname` 是 urlsplit 归一过的 —— **小写、不含端口、
+    IPv6 去方括号**。而白名单原来只 strip 后裸比, 于是用户照着地址栏里看到的
+    东西去配 (`My-Mac.local` 或 `my-mac.local:8011`) 会继续 403, 错误信息还
+    只说"逗号分隔列出", 没说必须小写、不带端口 —— 一个"照做了却还是不行"的坑。
+    这里替用户把大小写、端口、方括号都吃掉。
+    """
+    out = set()
+    for raw in os.environ.get(_ALLOWED_HOSTS_ENV, "").split(","):
+        h = raw.strip().lower()
+        if not h:
+            continue
+        if h.startswith("["):  # [::1]:8011 / [::1]
+            h = h[1:].split("]", 1)[0]
+        elif h.count(":") == 1:  # host:port (IPv6 裸串含多个冒号, 不在此列)
+            h = h.split(":", 1)[0]
+        if h:
+            out.add(h)
+    return frozenset(out)
 
 
 def _assert_same_origin(request: Request) -> None:
@@ -1837,18 +1858,28 @@ def review_overview_refresh(
             status_code=e.status_code,
         )
     if redirect == "page":
-        if result["reason"] == "in_progress":
-            # Codex round-3: 在飞时若照常 303 回总览页, 用户看到的与成功一模一样
-            # (页面数字没变) —— 又是一次"看起来像成功"。给一页如实的等待提示。
+        # ⛔ **凡是没真重建的分支, 都不许走那条与成功逐字节同形的 303**。
+        # round-3 只为 in_progress 做了这件事, 把 debounced 漏在原地 (收官审计
+        # 抓到, 复核员实测"实况比报告更坏: 连『生成于』时间没走这条线索都不存在"):
+        # 用户刚做完一道题 (写了 fsrs_due) 、10 秒内点刷新 → 拿到与成功一模一样
+        # 的 303 + 相同 Location + 空 body → 页面看着刷新了、数字却没动, 而他
+        # 没有任何办法知道"这次根本没重建"。
+        if not result["rebuilt"]:
+            wait = result.get("retry_after_seconds") or 0
+            title, body = (
+                (f"{vault_id} 正在重建中", "这个库已经有一次刷新在跑了，本次没有重复启动。等几秒回总览页看最新数字。")
+                if result["reason"] == "in_progress"
+                else (
+                    f"{vault_id} 刚刚才刷新过",
+                    f"{_REFRESH_TTL_SECONDS:g} 秒内已经重建过一次，本次**没有**重新计算，"
+                    f"页面上还是上一次的结果。若你刚改过节点，等约 {wait:.0f} 秒后再点一次。",
+                )
+            )
             return HTMLResponse(
-                content=_notice_page_html(
-                    f"{vault_id} 正在重建中",
-                    "这个库已经有一次刷新在跑了，本次没有重复启动。等几秒回总览页看最新数字。",
-                    request.url_for("review_overview_page").path,
-                ),
+                content=_notice_page_html(title, body, request.url_for("review_overview_page").path),
                 status_code=200,
             )
-        # PRG: 303 回 GET, 浏览器刷新不会重复提交
+        # PRG: 303 回 GET, 浏览器刷新不会重复提交 —— 只有**真重建了**才走这里
         return RedirectResponse(url=request.url_for("review_overview_page").path, status_code=303)
     return JSONResponse(
         {
