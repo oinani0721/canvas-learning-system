@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from typing import Annotated, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.decision_tracker import log_retrieval_status_decision
 from app.core.vault_scope import resolve_vault_scope
@@ -56,6 +56,17 @@ class RAGQueryRequest(BaseModel):
             "与进程 active vault 不一致 → 409。"
         ),
     )
+
+    @field_validator("vault_id")
+    @classmethod
+    def _reject_blank_vault_id(cls, v: str) -> str:
+        # CARD-G4-4 Codex round-1 HIGH-2: min_length=1 拦不住纯空白串;
+        # resolve_vault_scope 把空白当「缺失」走双缺失推导 → 空白请求
+        # 会以 active vault 作用域 200 通过, 等于契约被绕过。在模型层
+        # fail-closed (422)。
+        if not v or not v.strip():
+            raise ValueError("vault_id 不能为空白")
+        return v
     canvas_file: Optional[str] = Field(
         None, description="Canvas 文件路径 (用于上下文过滤)"
     )

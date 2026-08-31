@@ -312,7 +312,7 @@ def _seed_dual_vault_db(tmp_path):
         "vault_a_canvas_nodes": [
             {
                 "doc_id": "a_unique",
-                "content": "红黑树旋转的颜色翻转规则",
+                "content": "红黑树旋转的颜色翻转规则 [[递归基础]] [[b秘密板]]",
                 "vector": _vec(0.10),
                 "content_tokenized": _jieba_tokens("红黑树旋转的颜色翻转规则"),
                 "canvas_file": "a.canvas",
@@ -323,6 +323,13 @@ def _seed_dual_vault_db(tmp_path):
                 "vector": _vec(0.20),
                 "content_tokenized": _jieba_tokens("递归的基础定义: 函数调用自身"),
                 "canvas_file": "a.canvas",
+            },
+            {
+                "doc_id": "a_neighbor",
+                "content": "递归基础 A 库版本内容",
+                "vector": _vec(0.30),
+                "content_tokenized": _jieba_tokens("递归基础 A 库版本内容"),
+                "canvas_file": "递归基础.canvas",
             },
         ],
         "vault_b_canvas_nodes": [
@@ -339,6 +346,18 @@ def _seed_dual_vault_db(tmp_path):
                 "vector": _vec(0.20),
                 "content_tokenized": _jieba_tokens("递归的进阶定义: 尾递归优化与调用栈"),
                 "canvas_file": "b.canvas",
+            },
+        ],
+        # 裸 legacy 表 (无 vault 前缀) — Codex round-1 BLOCKER-1 反例:
+        # 邻居扩展若绕过作用域解析直接 open 裸表, B 的秘密内容会混进
+        # vault A 的检索结果。本表只有 B 内容, 修复后 A 作用域永不触达。
+        "vault_notes": [
+            {
+                "doc_id": "b_secret",
+                "content": "B 库绝密量子隐形传态",
+                "vector": _vec(0.10),
+                "content_tokenized": _jieba_tokens("B 库绝密量子隐形传态"),
+                "canvas_file": "b秘密板.canvas",
             },
         ],
     }
@@ -444,4 +463,29 @@ class TestDualVaultIsolationOnTmpLanceDB:
         """前置自证: 两张表物理共存于同一个库 — 排除「物理分库所以查不到」
         的平凡隔离, 证明的是命名空间隔离本身。"""
         names = set(self.db.table_names())
-        assert {"vault_a_canvas_nodes", "vault_b_canvas_nodes"} <= names
+        assert {"vault_a_canvas_nodes", "vault_b_canvas_nodes", "vault_notes"} <= names
+
+    def test_wikilink_neighbor_expansion_stays_in_vault(self, monkeypatch):
+        """Codex round-1 BLOCKER-1 的门: 邻居扩展必须作用域内。
+
+        a_unique 携带两个 wiki-link: [[递归基础]] (A 库内有对应板, 正向
+        对照 — 扩展链活着) 和 [[b秘密板]] (只有裸 legacy 表有, 泄漏探针)。
+        expand_neighbors 若直接 open 裸 vault_notes 表 (修复前行为),
+        B 的绝密内容会混进结果; 修复后扩展读 A 前缀表, 只带回 A 邻居。
+        """
+        pairs = _run_retrieve_lancedb(
+            monkeypatch, self.tmp_path, vault="vault_a", query="红黑树"
+        )
+        contents = " | ".join(c for _, c in pairs)
+        ids = [d for d, _ in pairs]
+
+        assert any(d.endswith("a_neighbor") for d in ids), (
+            f"正向对照失败: wiki-link 邻居扩展没有带回 A 库邻居 {pairs} — "
+            "扩展链断了, 本门的隔离断言因此无效"
+        )
+        assert not any(d.endswith("b_secret") for d in ids), (
+            f"邻居扩展混入裸表 B 内容: {pairs} — 作用域旁路回来了"
+        )
+        assert "量子隐形传态" not in contents, (
+            f"裸表内容按 doc_id 之外的复核也命中: {contents}"
+        )

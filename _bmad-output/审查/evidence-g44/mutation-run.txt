@@ -1,12 +1,9 @@
-[M1-去422] 还原逐字节一致 ✓
 [M1-去422] ✓ 指定门变红 (exit=1)
-[M2-去409-恢复旁路] 还原逐字节一致 ✓
 [M2-去409-恢复旁路] ✓ 指定门变红 (exit=1)
-[M3-内链改回进程级] 还原逐字节一致 ✓
 [M3-内链改回进程级] ✓ 指定门变红 (exit=1)
-[M4-fixture同组化] 还原逐字节一致 ✓
 [M4-fixture同组化] ✓ 指定门变红 (exit=1)
-[M5-哨兵降级debug] 还原逐字节一致 ✓
-[M5-哨兵降级debug] ✓ 指定门变红 (exit=4)
+[M5-哨兵降级debug] ✓ 指定门变红 (exit=1)
+[M6-expand裸表旁路] ✓ 指定门变红 (exit=1)
+[M7-空白validator失效] ✓ 指定门变红 (exit=1)
 
-ALL 5 MUTATIONS KILLED THEIR GATES ✓
+ALL 7 MUTATIONS KILLED THEIR GATES (exit=1 only) ✓
