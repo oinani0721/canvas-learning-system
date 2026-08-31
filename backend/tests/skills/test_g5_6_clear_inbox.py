@@ -692,20 +692,54 @@ def test_no_bytecode_cache_written_into_vault_skills(tmp_path):
     **board-split 目录**里写 `__pycache__/*.pyc` —— 既是往 vault 落文件, 也是
     伸手进另一条车道的地盘。
 
-    这条门必须先把缓存清干净再跑, 否则「缓存已存在且是最新的 → 本次没写 → 全绿」
-    是假绿: 上一条 fixture 快照门看不见它(fixture 树里没有真实 skills 目录),
-    live 快照门也看不见(跑之前 .pyc 早就在那了)。
+    (d) tmp 隔离重构 (CARD-G5-6b): 不再 rmtree checkout 里的 `__pycache__`
+    (裁判不该动被测 checkout 的任何目录项), 改为把两个脚本按**同一相对布局**
+    拷进 tmp (SCRIPT 的 `_SP_PATH` 由 `__file__` 推导, 布局一致副本才能定位
+    它自己的 split_preview 副本), 在副本上跑 CLI 与 importlib 加载, 断言副本树
+    下零 `__pycache__`。副本 sha256 必须等于 checkout 原件 —— 否则门测的是副本
+    不是被测物。CLI 子进程**显式剥掉 PYTHONDONTWRITEBYTECODE**: 裁判命令带着
+    它跑时, 子进程继承该变量会让 SCRIPT 内部的 dont_write_bytecode 保护永远
+    不被考验(门空转); 在副本树上剥掉它, 内部保护成为唯一防线, 删掉保护当场
+    在副本树留下缓存 → 门变红。
     """
-    for d in (SCRIPT.parent, SPLIT_SCRIPT.parent):
-        shutil.rmtree(d / "__pycache__", ignore_errors=True)
+    skills_copy = tmp_path / "skills"
+    for src in (SCRIPT, SPLIT_SCRIPT):
+        dst = skills_copy / src.relative_to(SKILLS)
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dst)
+        assert hashlib.sha256(dst.read_bytes()).hexdigest() == hashlib.sha256(src.read_bytes()).hexdigest(), (
+            f"副本与 checkout 原件不一致: {src}"
+        )
+    script_copy = skills_copy / SCRIPT.relative_to(SKILLS)
 
     vault, out = base_vault(tmp_path)
-    assert run_cli(vault, out).returncode == 0
-    load_module()
-    load_split_module()
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONDONTWRITEBYTECODE"}
+    r = subprocess.run(
+        [
+            sys.executable,
+            str(script_copy),
+            "--vault",
+            str(vault),
+            "--out-dir",
+            str(out),
+            "--now",
+            NOW_ISO,
+        ],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert r.returncode == 0, r.stderr[-300:]
 
-    for d in (SCRIPT.parent, SPLIT_SCRIPT.parent):
-        assert not (d / "__pycache__").exists(), f"运行/导入在 {d} 落下了字节码缓存"
+    spec = importlib.util.spec_from_file_location("inbox_preview_tmpcopy", script_copy)
+    mod = importlib.util.module_from_spec(spec)
+    _exec_no_bytecode(spec, mod)
+    assert mod._SP_PATH == skills_copy / SPLIT_SCRIPT.relative_to(SKILLS), (
+        "副本没有解析到副本树里的 split_preview —— 布局与 checkout 不一致"
+    )
+
+    caches = sorted(p.relative_to(skills_copy) for p in skills_copy.rglob("__pycache__"))
+    assert not caches, f"运行/导入在副本树落下了字节码缓存: {caches}"
 
 
 def test_reject_out_dir_inside_inbox(tmp_path):
@@ -1085,3 +1119,383 @@ def test_schema_version_frozen_at_one(tmp_path):
     assert data["schema_version"] == 1
     assert data["id_namespace"] == "inbox-item/v1"
     assert data["not_executed_disclaimer"]
+
+
+# ─────────── H. round-2 定向整改回归门 (CARD-G5-6b: B3/H1/H2/H3/H4) ───────────
+# 每道门先红后绿: 反例断言在前 (修复前必红), 正向对照在同一测试内 (防修过头)。
+
+
+def test_fence_close_requires_same_char_min_length_and_bare_fence(tmp_path):
+    """⛔ B3 回归: 关闭围栏 = 同字符 且 长度 ≥ 开启长度 且 围栏后仅空白
+    (CommonMark 4.5)。
+
+    原实现只比字符: ```` 里的 ``` 被当关闭、``` 后带 info string 的行也被当关闭,
+    围栏内容 `# keep` 落到围栏外被 `_HEADING_RE` 剥掉 → 整份文件被误判成
+    空骨架 → 建议删。
+    """
+    vault, out = base_vault(tmp_path)
+    inbox = vault / "_待处理"
+    mk(inbox / "四反引号.md", "````\n```\n# keep\n````\n", age_days=9)
+    mk(inbox / "四波浪线.md", "~~~~\n~~~\n# keep\n~~~~\n", age_days=8)
+    # CommonMark: 关闭围栏不得带 info string → ```python 是围栏内容, 不是关闭
+    mk(inbox / "关闭带infostring.md", "```\n```python\n# keep\n```\n", age_days=7)
+    # 同字符子句: ``` 围栏里的 ~~~ 行是内容, 不是关闭 (删掉同字符判断即翻红)
+    mk(inbox / "混合字符.md", "```\n~~~\n# keep\n```\n", age_days=6)
+    # 制表符缩进不构成围栏 (CommonMark: ≥4 列是缩进代码块); \t``` 不得提前关闭 ——
+    # ⛔ 语料不得带正文行: 有正文行时「提前关闭」也杀不死断言, 变异会存活
+    mk(inbox / "tab关闭围栏.md", "```\n\t```\n# 标题\n", age_days=5)
+    # 围栏内容行哪怕每行都长得像围栏标记, 也是实质正文 (Markdown 围栏语法速查)
+    mk(
+        inbox / "围栏速查.md",
+        "# Markdown 围栏语法速查\n\n## 空围栏怎么写\n\n````\n```\n```\n~~~\n~~~\n````\n",
+        age_days=4,
+    )
+    # 正向对照: 只有围栏无内容 → 仍是空骨架; 正常围栏包着注释 → 仍非空骨架
+    mk(inbox / "只有围栏.md", "````\n````\n", age_days=2)
+    mk(inbox / "正常围栏.md", "```\n# keep\n```\n", age_days=1)
+
+    assert run_cli(vault, out).returncode == 0
+    data = load_json(out)
+    for name in (
+        "四反引号.md",
+        "四波浪线.md",
+        "关闭带infostring.md",
+        "混合字符.md",
+        "tab关闭围栏.md",
+        "围栏速查.md",
+    ):
+        it = item_by_name(data, name)
+        assert it["criterion"] != "C3_empty_or_skeleton", f"{name} 的围栏内容被剥掉了"
+        assert it["verdict"] != "建议删", name
+    only = item_by_name(data, "只有围栏.md")
+    assert only["criterion"] == "C3_empty_or_skeleton"
+    assert only["verdict"] == "建议删"
+    normal = item_by_name(data, "正常围栏.md")
+    assert normal["criterion"] != "C3_empty_or_skeleton"
+    assert normal["verdict"] != "建议删"
+
+
+def test_url_without_host_is_not_primary_record(tmp_path):
+    """⛔ H1 回归: `https://:443/x`、`https://user@/x` 没有 host —— 能过纯正则,
+    但 `urlsplit(...).hostname` 为空, 不构成「一手来源」的机械证据。"""
+    vault, out = base_vault(tmp_path)
+    inbox = vault / "_待处理"
+    mk(
+        inbox / "空host端口.md",
+        "---\nsource: https://:443/x\n---\n\n正文甲一。\n正文甲二。\n",
+        age_days=4,
+    )
+    mk(
+        inbox / "空host用户.md",
+        "---\nsource: https://user@/x\n---\n\n正文乙一。\n正文乙二。\n",
+        age_days=3,
+    )
+    # 正向对照: 带端口/查询/锚点的正常 URL 仍是一手来源
+    mk(
+        inbox / "带端口正常.md",
+        "---\nsource: https://example.com:8443/a?b=c#d\n---\n\n正文丙一。\n正文丙二。\n",
+        age_days=2,
+    )
+
+    assert run_cli(vault, out).returncode == 0
+    data = load_json(out)
+    for name in ("空host端口.md", "空host用户.md"):
+        it = item_by_name(data, name)
+        assert it["criterion"] != "C1_source_url", name
+        assert it["nomination_type"] != "primary-record", name
+    pos = item_by_name(data, "带端口正常.md")
+    assert pos["criterion"] == "C1_source_url"
+    assert pos["nomination_type"] == "primary-record"
+
+
+def test_ai_marker_needs_boundary_after_literal(tmp_path):
+    """⛔ H2 回归: 标记右侧必须满足边界规则 —— 话题提及不是生成断言, 不得被归档。
+    ⛔ round-3 自审 H2-1 扩: 汉字收尾标记后须为行尾/空白/标点; ASCII 字母收尾
+    标记(`Generated by AI`)后空白**不算**边界 —— `Generated by AI Lab` 是机构名,
+    `本文由 AI 领域…` 是话题, 放行空白就是把边界规则对这些标记变成空操作。"""
+    vault, out = base_vault(tmp_path)
+    inbox = vault / "_待处理"
+    mk(
+        inbox / "版权话题.md",
+        "# AI 生成内容的版权问题\n\n话题正文一。\n话题正文二。\n",
+        age_days=9,
+    )
+    mk(
+        inbox / "由字版权话题.md",
+        "# 由 AI 生成内容的版权问题\n\n话题正文三。\n话题正文四。\n",
+        age_days=8,
+    )
+    mk(
+        inbox / "评测话题.md",
+        "# Deep Research 生成质量评测\n\n评测正文一。\n评测正文二。\n",
+        age_days=7,
+    )
+    mk(
+        inbox / "本文由话题.md",
+        "# 访谈整理\n\n本文由 AI 领域的三位研究者共同撰写，记录分歧。\n访谈正文二。\n",
+        age_days=6,
+    )
+    mk(
+        inbox / "英文机构.md",
+        "# Lab notes\n\nGenerated by AI Lab researchers in Beijing.\n笔记正文二。\n",
+        age_days=5,
+    )
+    # 正向对照: 行尾/标点/加粗收尾仍命中, 依据带行号与逐字片段
+    mk(
+        inbox / "行尾自述.md",
+        "# 报告甲\n\n> 本文由 AI 生成\n\n自述正文一。\n自述正文二。\n",
+        age_days=4,
+    )
+    mk(
+        inbox / "标点自述.md",
+        "# 报告乙\n\n由 AI 生成，仅供参考\n\n自述正文三。\n自述正文四。\n",
+        age_days=3,
+    )
+    mk(
+        inbox / "英文句点自述.md",
+        "# Report\n\nThis draft was generated by AI.\n报告正文二。\n",
+        age_days=2,
+    )
+    mk(
+        inbox / "加粗自述.md",
+        "# 报告丙\n\n**由 AI 生成**\n\n自述正文五。\n自述正文六。\n",
+        age_days=1,
+    )
+
+    assert run_cli(vault, out).returncode == 0
+    data = load_json(out)
+    for name in (
+        "版权话题.md",
+        "由字版权话题.md",
+        "评测话题.md",
+        "本文由话题.md",
+        "英文机构.md",
+    ):
+        it = item_by_name(data, name)
+        assert it["criterion"] != "C2_ai_self_declared", name
+        # ⛔ round-3 Codex MEDIUM: 只排除 C2 曾放过「整批被判 C3 建议删」的变异 ——
+        # 负例必须同时钉住「没有被破坏性提名」
+        assert it["verdict"] != "建议删", name
+        assert it["confident"] is False, name
+        assert it["target_hint"] is None and it["nomination_type"] is None, name
+    tail = item_by_name(data, "行尾自述.md")
+    assert tail["criterion"] == "C2_ai_self_declared"
+    assert "第 3 行" in tail["basis"], f"依据必须带行号: {tail['basis']}"
+    punct = item_by_name(data, "标点自述.md")
+    assert punct["criterion"] == "C2_ai_self_declared"
+    assert "由 AI 生成" in punct["basis"], f"依据必须带逐字片段: {punct['basis']}"
+    en = item_by_name(data, "英文句点自述.md")
+    assert en["criterion"] == "C2_ai_self_declared", "英文句点边界必须仍命中"
+    bold = item_by_name(data, "加粗自述.md")
+    assert bold["criterion"] == "C2_ai_self_declared", "Markdown 加粗收尾必须仍命中"
+
+
+def test_bare_ai_markers_are_removed_from_table():
+    """⛔ H2 回归(表锁): 裸词「AI 生成」「AI生成」是「由 AI 生成」「由AI生成」的
+    严格子串; 截断形态「本文由 AI」「本报告由 AI」被「由 AI 生成」覆盖断言形态 ——
+    从表中删除不丢任何带断言锚的命中, 只丢话题提及类误命中。"""
+    mod = load_module()
+    assert "AI 生成" not in mod.AI_MARKERS
+    assert "AI生成" not in mod.AI_MARKERS
+    assert "本文由 AI" not in mod.AI_MARKERS
+    assert "本报告由 AI" not in mod.AI_MARKERS
+
+
+def test_bare_url_line_is_not_a_frontmatter_key(tmp_path):
+    """⛔ H3 回归: 正文行 `http://example.com/path` 里的 `http:` 不是 YAML 键 ——
+    整篇不得被吞成 frontmatter 后判成「空骨架 → 建议删」, 更不得给出
+    「其余皆空行」这类假依据。"""
+    vault, out = base_vault(tmp_path)
+    mk(vault / "_待处理" / "裸URL行.md", "---\nhttp://example.com/path\n---\n", age_days=3)
+    # 正向对照: 真正的 frontmatter source 键仍走 C1
+    mk(
+        vault / "_待处理" / "真source.md",
+        "---\nsource: http://example.com/path\n---\n\n正文一。\n正文二。\n",
+        age_days=2,
+    )
+    assert run_cli(vault, out).returncode == 0
+    data = load_json(out)
+    it = item_by_name(data, "裸URL行.md")
+    assert it["criterion"] != "C3_empty_or_skeleton"
+    assert it["verdict"] != "建议删"
+    assert "其余皆空行" not in it["basis"], f"假依据: {it['basis']}"
+    pos = item_by_name(data, "真source.md")
+    assert pos["criterion"] == "C1_source_url"
+
+
+def test_frontmatter_span_requires_key_then_space_or_eol():
+    """⛔ H3 回归(纯函数): YAML 映射键必须是 `key:` 后接空白或行尾;
+    `https://example.com` 的 `https:` 不满足 → span 必须为 0。"""
+    mod = load_module()
+    bad = "---\nhttps://example.com\n---\n\n正文。\n".splitlines()
+    assert mod.frontmatter_span(bad) == 0
+    good = "---\ntags:\n---\n\n正文。\n".splitlines()
+    assert mod.frontmatter_span(good) == 3
+
+
+def test_key_without_space_after_colon_falls_to_c6(tmp_path):
+    """D2 连带钉住: `source:https://x`(冒号后无空格) 此后不再识别为键 → 该行成为
+    正文、材料落 C6 拿不准 —— 方向安全(不误判一手), 且此偏差已写进文件头声明。"""
+    vault, out = base_vault(tmp_path)
+    mk(
+        vault / "_待处理" / "无空格键.md",
+        "---\nsource:https://example.com/x\n---\n\n正文一。\n正文二。\n",
+        age_days=3,
+    )
+    assert run_cli(vault, out).returncode == 0
+    it = load_json(out)["items"][0]
+    assert it["criterion"] == "C6_undecided"
+    assert it["verdict"] == "拿不准"
+
+
+def test_md_multi_canonical_declares_undecidable_not_crowned(tmp_path):
+    """⛔ H4 回归: JSON basis 声明「哪一份算正本不可判」时, 人读 MD §四不得再
+    钦定「正本 `字典序首项`」—— 那与 basis 自相矛盾。单正本时 MD 仍明确给出
+    正本路径 (正向对照同测, 防修过头)。只改 MD 渲染, JSON schema v1 冻结。"""
+    vault, out = base_vault(tmp_path)
+    body = "同一段被存过两次的正文。\n第二行。\n"
+    mk(vault / "节点" / "甲本.md", body, age_days=40)
+    (vault / "归档").mkdir()
+    mk(vault / "归档" / "乙本.md", body, age_days=39)
+    mk(vault / "_待处理" / "第三份.md", body, age_days=2)
+    single = "只存过一次的正文。\n它的第二行。\n"
+    mk(vault / "节点" / "唯一正本.md", single, age_days=40)
+    mk(vault / "_待处理" / "唯一副本.md", single, age_days=3)
+
+    assert run_cli(vault, out).returncode == 0
+    md = products(out)[1].read_text(encoding="utf-8")
+    multi_line = next(ln for ln in md.splitlines() if ln.startswith("- **第三份.md**"))
+    assert "不可判" in multi_line, f"MD 钦定了正本: {multi_line}"
+    assert "正本 `" not in multi_line, multi_line
+    assert "另有副本" not in multi_line, multi_line
+    # 不可判 ≠ 不给线索: 两个候选路径都要向人呈现
+    assert "节点/甲本.md" in multi_line and "归档/乙本.md" in multi_line
+    single_line = next(ln for ln in md.splitlines() if ln.startswith("- **唯一副本.md**"))
+    assert "正本 `节点/唯一正本.md`" in single_line
+
+
+def test_source_declared_clipping_is_never_suggested_for_deletion(tmp_path):
+    """⛔ round-3 自审 H1-1/H3-1: C1 判据收窄后,「只有 frontmatter、没有正文」的
+    剪藏不得从「留原地」翻成「空骨架 → 建议删」。
+
+    三道护栏 (显式偏差 15): frontmatter 有 source 声明 / 含解析不成键的行 /
+    文件以未闭合 HTML 注释结尾 → 一律落 C6 拿不准, 永不判 C3。
+    同时覆盖: 引号+行尾注释的 source 仍走 C1 (先剥注释再剥引号)、
+    冒号前空格的键仍被解析、大写 scheme 仍是一手来源。
+    """
+    vault, out = base_vault(tmp_path)
+    inbox = vault / "_待处理"
+    # 护栏 A: source 声明了但不是合法 URL, 无正文 → 拿不准, 不建议删
+    mk(inbox / "空host剪藏.md", "---\nsource: https://:443/x\n---\n", age_days=9)
+    mk(inbox / "空host用户剪藏.md", "---\nsource: https://user@/x\n---\n", age_days=8)
+    # 护栏 B: source 冒号后无空格排在合法键后面 → 该行被吞, 但解析不全不判空骨架
+    mk(
+        inbox / "书签无空格键.md",
+        "---\ntitle: 论文摘录\nsource:https://arxiv.org/abs/2401.00001\n---\n",
+        age_days=7,
+    )
+    # 正向对照: 合法 source + 无正文 → 仍 C1 留原地 (C1 在 C3 之前, 剪藏受保护)
+    mk(inbox / "正常空剪藏.md", "---\nsource: https://ok.test/clip\n---\n", age_days=6)
+    # 引号 + 行尾注释组合: 先剥注释再剥引号 → C1
+    mk(
+        inbox / "引号注释剪藏.md",
+        '---\nsource: "https://quoted.test/x" # 官方来源\n---\n',
+        age_days=5,
+    )
+    # 冒号前空格: `source : url` 也是合法 YAML 键 (pyyaml 同判) → C1
+    mk(inbox / "冒号前空格剪藏.md", "---\nsource : https://spaced.test/x\n---\n", age_days=4)
+    # 大写 scheme: RFC 3986 §3.1 大小写不敏感 → C1
+    mk(
+        inbox / "大写scheme.md",
+        "---\nsource: HTTPS://Upper.Test/a\n---\n\n正文一。\n正文二。\n",
+        age_days=3,
+    )
+    # 正向对照: 无 source 的纯空骨架 → 仍 C3 建议删 (护栏不得误伤存量判据)
+    mk(inbox / "纯空骨架.md", "---\ntitle: t\n---\n\n# 只有标题\n", age_days=2)
+
+    assert run_cli(vault, out).returncode == 0
+    data = load_json(out)
+    for name in ("空host剪藏.md", "空host用户剪藏.md", "书签无空格键.md"):
+        it = item_by_name(data, name)
+        assert it["verdict"] != "建议删", f"{name} 被护栏漏掉了: {it['basis']}"
+        assert it["criterion"] == "C6_undecided", name
+        assert it["confident"] is False, name
+    for name in (
+        "正常空剪藏.md",
+        "引号注释剪藏.md",
+        "冒号前空格剪藏.md",
+        "大写scheme.md",
+    ):
+        it = item_by_name(data, name)
+        assert it["criterion"] == "C1_source_url", f"{name}: {it['basis']}"
+        assert it["verdict"] == "留原地", name
+    quoted = item_by_name(data, "引号注释剪藏.md")
+    assert "官方来源" not in quoted["basis"], quoted["basis"]
+    skeleton = item_by_name(data, "纯空骨架.md")
+    assert skeleton["criterion"] == "C3_empty_or_skeleton"
+    assert skeleton["verdict"] == "建议删"
+
+
+def test_unclosed_html_comment_never_suggested_for_deletion(tmp_path):
+    """⛔ round-3 自审 B3-1: `<!--` 没等到 `-->` 就到文件尾时, 哪些内容被注释吞掉
+    是引擎猜不了的 —— 不得据此判「空骨架 → 建议删」, 更不得给出
+    「标题 0 行、代码围栏 0 行」这种与肉眼可见内容矛盾的假依据。"""
+    vault, out = base_vault(tmp_path)
+    inbox = vault / "_待处理"
+    mk(
+        inbox / "注释未闭合.md",
+        "<!-- 说明: 粘贴时忘了闭合\n```python\n# keep\n这段正文其实存在\n",
+        age_days=5,
+    )
+    # 正向对照: 闭合注释的空骨架 → 仍 C3 建议删 (护栏不误伤存量判据)
+    mk(inbox / "闭合注释骨架.md", "---\ntitle: t\n---\n\n# 标题\n\n<!-- 注释 -->\n", age_days=4)
+
+    assert run_cli(vault, out).returncode == 0
+    data = load_json(out)
+    it = item_by_name(data, "注释未闭合.md")
+    assert it["verdict"] != "建议删", f"未闭合注释的文件被建议删了: {it['basis']}"
+    assert it["criterion"] == "C6_undecided"
+    assert "其余皆空行" not in it["basis"], f"假依据: {it['basis']}"
+    skeleton = item_by_name(data, "闭合注释骨架.md")
+    assert skeleton["criterion"] == "C3_empty_or_skeleton"
+    assert skeleton["verdict"] == "建议删"
+
+
+def test_fence_close_trailing_whitespace_must_be_ascii(tmp_path):
+    """⛔ round-3 Codex BLOCKER: 关闭围栏行尾只允许 ASCII 空白 (CommonMark 4.5)。
+
+    `str.strip()` 接受一切 Unicode 空白 —— 行尾一个 U+00A0 (NBSP, 从网页复制
+    常见) 曾让该行被当成合法关闭围栏, 围栏提前闭合, `# keep` 被剥 →
+    「空骨架 → 建议删 confident=true」。NBSP 行在 CommonMark 里是围栏**内容**。
+    """
+    vault, out = base_vault(tmp_path)
+    mk(
+        vault / "_待处理" / "nbsp关闭.md",
+        "```\n```\xa0\n# keep\n```\n",
+        age_days=5,
+    )
+    # 正向对照: 行尾 ASCII 空白/制表符仍是合法关闭 (不得修过头) ——
+    # ⛔ 语料必须是「只包围栏无内容」: 带真实内容行时断言杀不死变异
+    mk(vault / "_待处理" / "ascii尾随.md", "```\n``` \t\n", age_days=4)
+
+    assert run_cli(vault, out).returncode == 0
+    data = load_json(out)
+    it = item_by_name(data, "nbsp关闭.md")
+    assert it["criterion"] != "C3_empty_or_skeleton", f"NBSP 提前关闭了围栏: {it['basis']}"
+    assert it["verdict"] != "建议删", it["basis"]
+    pos = item_by_name(data, "ascii尾随.md")
+    assert pos["criterion"] == "C3_empty_or_skeleton", "只包围栏无内容 → 仍空骨架"
+    assert pos["verdict"] == "建议删"
+
+
+def test_frontmatter_map_value_fidelity():
+    """⛔ round-3 自审 GATE-1/H3-3: _FM_KEY_RE 的**值提取**半边此前无任何门锁 ——
+    回退旧正则 63 条照样全绿。本门锁三个行为: 值含冒号的键完整保留 /
+    冒号前空格的键被解析 / 冒号后无空格仍不认键 (值不吞 URL)。"""
+    mod = load_module()
+    fm = mod.frontmatter_map(["created: 2026-01-01T00:00:00+08:00"])
+    assert fm["created"] == "2026-01-01T00:00:00+08:00", "值里的冒号不得截断值"
+    fm = mod.frontmatter_map(["title : x"])
+    assert fm["title"] == "x", "冒号前空格的键 (pyyaml 认) 必须解析出值"
+    fm = mod.frontmatter_map(["source:https://x"])
+    assert "source" not in fm, "冒号后无空格不认键, URL 不得被吞成值"
