@@ -63,22 +63,28 @@ HANDOFF_ANCHORS: List[Tuple[str, str, str]] = [
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def _alias_table(tree: ast.Module) -> Set[str]:
-    """本文件里指向 nothrow 的本地别名。
+def _alias_table(tree: ast.Module) -> Tuple[Set[str], Set[str]]:
+    """本文件里指向 nothrow 的本地别名 + nothrow_logging 的模块别名。
 
-    Codex round-1 LOW-8: 只认 **from app.core.nothrow_logging import nothrow**
-    (module 尾段匹配) —— 名字恰好叫 nothrow 的其它来源 (第三方、本地 helper)
-    不能作为"已包装"的证据。
+    Codex round-1 LOW-8/round-2 MEDIUM-8: 只认**完整模块路径**
+    ``app.core.nothrow_logging`` (round-1 的尾段匹配会把 ``evil.nothrow_logging``
+    判成真来源); 同时收集 ``import app.core.nothrow_logging as obs`` 的模块
+    别名, 让 ``obs.nothrow(...)`` 形态也能被识别 (round-2 指出的漏判)。
     """
     names: Set[str] = set()
+    module_aliases: Set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
             mod = node.module or ""
-            if mod == "app.core.nothrow_logging" or mod.endswith(".nothrow_logging"):
+            if mod == "app.core.nothrow_logging":
                 for alias in node.names:
                     if alias.name == "nothrow":
                         names.add(alias.asname or alias.name)
-    return names
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "app.core.nothrow_logging":
+                    module_aliases.add(alias.asname or alias.name)
+    return names, module_aliases
 
 
 def _local_nothrow_shadows(tree: ast.Module) -> List[Tuple[str, int]]:
@@ -114,7 +120,22 @@ def _is_call_named(node: ast.AST, names: Set[str], attr: Optional[str] = None) -
 
 
 def _is_nothrow_call(node: ast.AST, aliases: Set[str]) -> bool:
-    return _is_call_named(node, aliases)
+    """nothrow(...) / obs.nothrow(...) 形态判定。
+
+    Name 形态要求在 alias 表内 (来源已验证是 app.core.nothrow_logging);
+    Attribute 形态只认**尾名** nothrow —— 模块别名 (``obs.nothrow``) 的证据
+    就是尾名本身, 模块别名表只用于让 ``obs`` 不被误判成别的名字。
+    (round-2 自检现场修正: Attribute 分支曾错用名字表匹配 attr, 导致
+    模块别名形态恒漏判 —— 被新增的模块别名自检案例当场抓出。)
+    """
+    if not isinstance(node, ast.Call):
+        return False
+    func = node.func
+    if isinstance(func, ast.Name):
+        return func.id in aliases
+    if isinstance(func, ast.Attribute):
+        return func.attr == "nothrow"
+    return False
 
 
 def _is_getlogger_call(node: ast.AST) -> bool:
@@ -281,8 +302,8 @@ def _self_check() -> None:
     ]
     for src, expect_wrapped in cases:
         tree = ast.parse(src)
-        aliases = _alias_table(tree)
-        bs = _bindings(tree, src.splitlines(), aliases)
+        nothrow_names, _module_aliases = _alias_table(tree)
+        bs = _bindings(tree, src.splitlines(), nothrow_names | _module_aliases)
         got = bool(bs) and bs[0].wrapped
         if got is not expect_wrapped:
             print(
@@ -299,8 +320,8 @@ def _self_check() -> None:
     ]
     for src, expect_wrapped in suspect_cases:
         tree = ast.parse(src)
-        aliases = _alias_table(tree)
-        bs = _bindings(tree, src.splitlines(), aliases)
+        nothrow_names, _module_aliases = _alias_table(tree)
+        bs = _bindings(tree, src.splitlines(), nothrow_names | _module_aliases)
         got = bool(bs) and bs[0].wrapped
         if got is not expect_wrapped:
             print(
@@ -308,6 +329,14 @@ def _self_check() -> None:
                 file=sys.stderr,
             )
             raise SystemExit(2)
+
+    # 模块别名形态 (import app.core.nothrow_logging as obs; obs.nothrow(...))
+    tree = ast.parse("import app.core.nothrow_logging as obs\nlogger = obs.nothrow(logging.getLogger(__name__))")
+    nt_names, mod_aliases = _alias_table(tree)
+    bs = _bindings(tree, src.splitlines()[:0] or ["x"], nt_names | mod_aliases)
+    if not (bs and bs[0].wrapped):
+        print("⛔ 模块别名自检失败: obs.nothrow(...) 没被判已包装", file=sys.stderr)
+        raise SystemExit(2)
 
     # root-module 便捷调用 (logging.error('boom')) 必须被看见
     tree = ast.parse("import logging\nlogging.error('boom')")
@@ -348,8 +377,15 @@ def scan_endpoints(backend: Path) -> Dict[str, dict]:
         if tree is None:
             result[path.name] = {"error": "parse failed"}
             continue
-        aliases = _alias_table(tree)
-        bindings = _bindings(tree, lines, aliases)
+        nothrow_names, module_aliases = _alias_table(tree)
+        shadows = _local_nothrow_shadows(tree)
+        all_nothrow_names = nothrow_names | module_aliases
+        bindings = _bindings(tree, lines, all_nothrow_names)
+        if shadows:
+            # Codex round-2 MEDIUM-8: 本地重定义了 nothrow 的文件, 其"已包装"
+            # 判定不可信 —— 强制降级为未包装 (宁可误报不漏报)。
+            for b in bindings:
+                b.wrapped = False
         bound_names = {b.name for b in bindings}
         spans = _spans(tree)
         imported = _imported_logger_names(tree)
@@ -358,7 +394,6 @@ def scan_endpoints(backend: Path) -> Dict[str, dict]:
         inline = [c for c in calls if c.receiver == "<inline-getLogger>"]
         root_calls = [c for c in calls if c.receiver == "<root-logging>"]
         ext_calls = [c for c in calls if c.receiver and c.receiver.startswith("<external:")]
-        shadows = _local_nothrow_shadows(tree)
         stdlib_bs = [b for b in bindings if b.kind == "stdlib"]
         structlog_bs = [b for b in bindings if b.kind == "structlog"]
         module_calls = [c for c in calls if c.receiver in bound_names]
@@ -389,8 +424,8 @@ def scan_handoff(backend: Path) -> List[dict]:
         if tree is None:
             out.append({"file": rel, "func": "*", "error": "parse failed / missing"})
             continue
-        aliases = _alias_table(tree)
-        bindings = _bindings(tree, lines, aliases)
+        nothrow_names, _module_aliases = _alias_table(tree)
+        bindings = _bindings(tree, lines, nothrow_names | _module_aliases)
         names = {b.name for b in bindings}
         spans = _spans(tree)
         calls = _calls(tree, names, lines, spans)
@@ -439,7 +474,7 @@ def main() -> int:
         total_calls += len(info["calls"]) + info["inline_calls"] + len(info["external_calls"])
         total_fstring += len(info["fstring_calls"]) + sum(1 for c in info["external_calls"] if c.fstring)
         total_inline += info["inline_calls"]
-        has_calls = bool(info["calls"]) or info["inline_calls"] > 0
+        has_calls = bool(info["calls"]) or info["inline_calls"] > 0 or bool(info["root_calls"])
         if info["external"] and not info["bindings"]:
             external_only.append(name)
             continue

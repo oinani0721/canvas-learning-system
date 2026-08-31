@@ -32,10 +32,10 @@
 ```
 命令: cd backend && caffeinate -i .venv/bin/pytest tests/api/v1/endpoints/test_nothrow_logging_api.py tests/api/v1/endpoints/test_rag_four_state_api.py tests/api/v1/endpoints/test_memory_four_state_api.py tests/api/v1/endpoints/test_rag_vault_scope_api.py -q -p no:cacheprovider
 期望: 全绿；后三文件 passed ≥ G4-4 收官记录
-实际: 107 passed, 14 warnings in 1.46s（round-1 整改后 115 passed = 18+30+49+18）
-分文件: nothrow 13→18 | rag_four_state 30 | memory 49 | rag_vault_scope 15→18
+实际: 逐轮记录——首验 107 passed (13+30+49+15)；round-1 整改后 115 (18+30+49+18)；round-2 整改后 **118 passed** (21+30+49+18)，2026-09-01 终态
+分文件（终态）: nothrow 21 | rag_four_state 30 | memory 49 | rag_vault_scope 18
 证明: 新门全绿 + G4-3/G4-4 既有门零回归（memory 49 改写前后两次实测一致；rag_four_state 断言零改动仅 patch 目标下移）。
-不证明: 服务层旁路已修（本卡不改服务层）；生产日志行为（全进程内 mock）。⚠️ 第 4 文件 test_rag_vault_scope_api.py 是 G4-4 的 untracked 交付物（round-1 MEDIUM-6），主 session 复核须在 G4-4 收尾 commit 后重放。
+不证明: 服务层旁路已修（本卡不改服务层）；生产日志行为（全进程内 mock）。第 4 文件 test_rag_vault_scope_api.py 已由 G4-4 收尾 commit（aaecf696）入树（round-2 复核确认），纯净 checkout 可重放。
 ```
 
 ### 裁判 2 — 负控 3 变异
@@ -95,7 +95,7 @@
 
 ## 四、4-B 用户可见变化（零技术词）
 
-无变化（日志系统出问题不会再把正常查询变成报错）。以前如果负责记日志的那部分坏了，用户查一个东西可能莫名其妙收到一条错误；现在坏了也只是"少记一条记录"，查询结果照常回来。界面上看不到任何不同。
+查询功能本身没有变化（本卡覆盖的两个模块里，负责记录的环节出问题时，不会再把正常的查询变成报错）。以前如果那部分坏了，查一个东西可能莫名其妙收到一条错误；现在坏了也只是"少记一条记录"，查询结果照常回来。界面上看不到任何不同。范围之外的其它环节（如检索服务内部）的同类问题不在本卡处理范围，已另行登记。
 
 （D3-A grep 自检：对上段 grep 禁词表 → **0 命中**，2026-09-01 实测。）
 
@@ -199,5 +199,19 @@ test_rag_four_state_api.py 入口日志注入用例（原 :188-200）：patch �
 | 8 | LOW | inventory 漏 `logging.error()` 根模块便捷调用；名字叫 nothrow 的本地假包装可骗过判定 | **成立** | 新增 `<root-logging>` 接收者识别 + `_local_nothrow_shadows`（SUSPECT 标注）+ alias 来源必须 `app.core.nothrow_logging` + 自检扩至 7 条（篡改 4 + 假包装 2 + 根模块 1）；实现期自检还抓出本分支初版条件写错对象层级（`func.value` 是 Name 不是 Attribute）——自检价值的现场证明 |
 | 10 | LOW | openapi 证据未落档 | **成立** | 本卡实测：before/after 全量 `app.openapi()` 归一化（sort_keys + 剔 x-generated-at）diff **空**；Codex 独立复算受影响 router 固定 blob 归一化 SHA-256 `f62f4ee196a7dc69fd2a651fe3d1655242bb5f39fa5d6e40025574a1f1bc319e`（双端一致）登记为交叉证据 |
 
-**Round 2**：整改后全量复核（四文件 115 passed / 负控逐门 PASS rc=0 / ruff 全绿 / inventory 自检 7+2 通过）已执行，整改 commit 后重发送审。[结果待填]
+**Round 2**（锚定 `6b995031`）：终裁 **`BLOCKER/HIGH 清零：是`** —— round-1 两个 HIGH 均确认消除。存档：`_bmad-output/审查/codex-review-CARD-OBS-nothrow-logging-round2.md`。按卡文纪律（BLOCKER/HIGH 续轮、MEDIUM/LOW 登记结案）：
+
+| # | 严重级 | round-2 发现 | 处置 |
+|---|---|---|---|
+| 1 | MEDIUM | docstring"RecursionError 包装器看不见"表述**错误**（重抛后仍在 `_guarded` 调用窗口内会被接住）；`wrapped.log()` 缺 level 的绑定错发生在守护区前 | **已修**（本 commit）：守护区定义改写为"进入 `_guarded` 后至 inner 返回前"；log() 绑定错明确划出承诺外；MemoryError/RecursionError 如实归入接住清单 |
+| 4 | MEDIUM | `_ours` 渲染门缺 3 模板（/rag/query 503/500、concept-history） | **已修**（本 commit）：渲染门扩为 6 模板全覆盖 |
+| 8 | MEDIUM | inventory 报告层：root_calls 未入 has_calls/总数；`evil.nothrow_logging` 尾段匹配假阳；本地重定义 nothrow 仍判已包装；`obs.nothrow` 模块别名漏判；health 锚未核实际调用 | **已修**（本 commit）：完整模块名严格匹配；模块别名收集 + `obs.nothrow` 识别（实现期自检当场抓出 Attribute 分支错用名字表后修正）；shadow 文件强制降级未包装；root_calls 纳入 has_calls/总数；health 锚强化 |
+| 2 | MEDIUM | `__format__` 边界下"当前生产异常逐字等价"不能再无条件成立 | **措辞已收窄**（§五 第 2 条 round-1 已披露；再删"无条件"限定），维持现实现（惰性适配对象复杂度不值） |
+| 9 | MEDIUM | 4-B"日志系统出问题也只是少记一条"超出两模块范围；107/115 混写；vault-scope untracked 表述过时 | **已修**（本 commit）：4-B 限定"本卡覆盖的两个模块"；终态 118 passed 统一；入树状态更新 |
+| 3/5 | LOW | 诊断门泛化样本、exception() 帧门未参数化 | L-3 诊断门第二组样本与 exception 参数化登记为后续增强（现有门已证真实有效）；§五 第 9 条声明保留 |
+| 6 | LOW | patch 下移仍锁同一回归，无需修复 | Codex 自判无需修复 |
+| 7 | LOW | M3 memory 门原因词不鉴别（共用 "500"） | **已修**（本 commit）：`reason_by_gate` 按门配置，memory 门须含 "Internal Server Error"/"text/plain" |
+| 10 | LOW | openapi 证据落档 | round-1 已落（§三 裁判 6），round-2 复算全量归一化 SHA-256 `982eda0e2351117d75b6bb5a5b2dfb81bab6f86d8b29985656c9c8a7484180f6` 双端一致，登记交叉证据 |
+
+**终态复核（整改 commit 后）**：四文件 **118 passed**（21+30+49+18）/ 负控逐门 PASS rc=0 / ruff check+format 全绿 / inventory 自检 7+2 + 结构锚 2 全过。Codex round-2 已确认 BLOCKER/HIGH 清零；MEDIUM/LOW 按卡文纪律登记结案（上表）。
 

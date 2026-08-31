@@ -85,6 +85,10 @@ class Mutation:
     edits: list  # [(old, new), ...]
     expect_red_tests: list  # nodeid 整段匹配 (parametrize 尾巴也必须逐字一致)
     reason_keywords: list = field(default_factory=list)
+    # 按门覆盖原因关键字 (Codex round-2 LOW-7): 共用关键字的门会被"状态码恰
+    # 好相同"的无关失败背书 —— memory 门本来就期望 500, 必须用 content-type
+    # 鉴别。缺省回落 reason_keywords。
+    reason_by_gate: dict = field(default_factory=dict)
     desc: str = ""
 
 
@@ -111,6 +115,7 @@ MUTATIONS = [
         edits=[(_M3_OLD, _M3_NEW)],
         expect_red_tests=[GATE_ENTRY_200, GATE_ENTRY_503, GATE_MEM_DETAIL],
         reason_keywords=["500"],
+        reason_by_gate={GATE_MEM_DETAIL: ["Internal Server Error", "text/plain"]},
         desc="except 删除 (透明转发) 后三道门全红",
     ),
 ]
@@ -229,7 +234,8 @@ def main() -> int:
                     # 卡文口径: 失败原因含 "500" / "await_count" —— **任一**命中
                     # (M1 下 await_count 断言排在状态码断言之后, 前者红了后者
                     # 不会渲染; all 语义会把 M1 误判死门 —— 首跑实测)。
-                    reasons_ok = any(kw in out for kw in m.reason_keywords)
+                    kws = m.reason_by_gate.get(nid, m.reason_keywords)
+                    reasons_ok = any(kw in out for kw in kws)
                     per_gate.append((nid, red, reasons_ok, summary))
             finally:
                 shutil.copyfile(backups[m.target], m.target)

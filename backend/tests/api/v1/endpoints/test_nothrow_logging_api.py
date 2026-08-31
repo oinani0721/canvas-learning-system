@@ -507,31 +507,71 @@ class TestWrapperIsNotANoOp:
         assert records[0].funcName == "caller_function_for_frame_check", f"log() 路径调用点漂移: {records[0].funcName}"
 
     @pytest.mark.parametrize(
-        "case_id,path,service_attr,expected_template,expected_args",
+        "case_id,method,path,service_attr,exc_type,expected_template,expected_args",
         [
             (
                 "rag-503",
+                "get",
                 "/api/v1/rag/weak-concepts/数学/离散数学.canvas",
                 "get_weak_concepts",
+                RAGUnavailableError,
                 "RAG service unavailable: %s",
                 ("bolt refused",),
             ),
             (
+                "rag-query-503",
+                "post",
+                None,  # /rag/query, body = _QUERY_BODY
+                "query",
+                RAGUnavailableError,
+                "RAG service unavailable: %s",
+                ("upstream refused",),
+            ),
+            (
+                "rag-query-500",
+                "post",
+                None,
+                "query",
+                RAGServiceError,
+                "RAG query failed: %s",
+                ("upstream exploded",),
+            ),
+            (
                 "memory-episodes",
+                "get",
                 "/api/v1/memory/episodes?user_id=u",
                 "get_learning_history",
+                RuntimeError,
                 "Failed to get learning history: %s",
                 ("neo4j exploded",),
             ),
             (
+                "memory-concept-history",
+                "get",
+                "/api/v1/memory/concepts/concept-123/history",
+                "get_concept_history",
+                RuntimeError,
+                "Failed to get concept history: %s",
+                ("index dead",),
+            ),
+            (
                 "review-suggestions",
+                "get",
                 "/api/v1/memory/review-suggestions?user_id=u",
                 "get_review_suggestions_with_status",
+                RuntimeError,
                 "Failed to get review suggestions: %s",
                 ("downstream dead",),
             ),
         ],
-        ids=["rag-503", "memory-episodes", "review-suggestions"],
+        ids=[
+            "rag-503",
+            "rag-query-503",
+            "rag-query-500",
+            "memory-episodes",
+            "memory-concept-history",
+            "review-suggestions",
+        ],
     )
     def test_error_templates_render_completely(
         self,
@@ -540,24 +580,29 @@ class TestWrapperIsNotANoOp:
         mock_memory_service: MagicMock,
         caplog: pytest.LogCaptureFixture,
         case_id: str,
-        path: str,
+        method: str,
+        path: Optional[str],
         service_attr: str,
+        exc_type: type,
         expected_template: str,
         expected_args: tuple,
     ):
-        """Codex round-1 MEDIUM-4: ``_ours`` 只证明"调用发生了", 不证明"日志
-        渲染成功" —— 错误参数会让 ``getMessage()`` 在 Handler 内静默炸掉。
-        这条门走**正常**错误路径 (service 抛、日志不注入), 断言捕获的 record
-        能完整渲染出模板 + 参数。
+        """Codex round-1 MEDIUM-4 (+ round-2 MEDIUM-4 补齐 6 模板全覆盖):
+        ``_ours`` 只证明"调用发生了", 不证明"日志渲染成功" —— 错误参数会让
+        ``getMessage()`` 在 Handler 内静默炸掉。这条门走**正常**错误路径
+        (service 抛、日志不注入), 断言捕获的 record 能完整渲染出模板 + 参数。
+        覆盖两文件全部 6 个 error 模板 (round-2 点名补齐 /rag/query 503/500
+        与 concept-history 三处)。
         """
-        if case_id == "rag-503":
-            getattr(mock_rag_service, service_attr).side_effect = RAGUnavailableError(*expected_args)
-        else:
-            getattr(mock_memory_service, service_attr).side_effect = RuntimeError(*expected_args)
+        target = mock_rag_service if service_attr in ("query", "get_weak_concepts") else mock_memory_service
+        getattr(target, service_attr).side_effect = exc_type(*expected_args)
 
-        logger_name = "app.api.v1.endpoints.rag" if case_id == "rag-503" else "app.api.v1.endpoints.memory"
+        logger_name = "app.api.v1.endpoints.rag" if case_id.startswith("rag") else "app.api.v1.endpoints.memory"
         with caplog.at_level(logging.ERROR, logger=logger_name):
-            client.get(path)
+            if method == "post":
+                client.post(path or "/api/v1/rag/query", json=_QUERY_BODY)
+            else:
+                client.get(path)
 
         ours = [r for r in caplog.records if r.getMessage().startswith(expected_template.split(":")[0])]
         assert ours, f"端点错误日志没写出来 (case={case_id})"
