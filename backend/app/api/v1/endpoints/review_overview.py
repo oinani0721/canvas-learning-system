@@ -1711,7 +1711,9 @@ def _assert_same_origin(request: Request) -> None:
     # 攻击者的域名解析到 127.0.0.1, 于是 Host / Origin / Sec-Fetch-Site 三者
     # 会同时"合法", 整道门被绕过。rebinding 必须依赖**域名**(IP 字面量没法
     # 重新解析), 所以只放行 localhost 与 IP 字面量, 就把这条路堵死;
-    # 用手机按局域网 IP 打开页面 (192.168.x.x:8011) 照常可用。
+    # IP 字面量一律放行。⚠ 如实说明: 当前端口只绑 127.0.0.1 (2026-07-31 P0-0,
+    # 实测局域网 IP 连不上), 所以局域网 IP 这一支现在走不到 —— 它是纵深防御,
+    # 将来若放开监听不必再回来改代码。
     host = request.url.hostname or ""
     if host != "localhost" and host not in _extra_allowed_hosts():
         try:

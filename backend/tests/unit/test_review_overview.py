@@ -2139,7 +2139,9 @@ def test_hostname_host_is_refused_ip_and_localhost_pass(refresh_env, monkeypatch
     for base, ok in (
         ("http://127.0.0.1:8011", True),
         ("http://localhost:8011", True),
-        ("http://192.168.1.9:8011", True),  # 手机按局域网 IP 打开, 必须照常可用
+        # ⚠ 局域网 IP 必须放行 —— 但如实说明: 当前端口只绑 127.0.0.1 (实测局域网
+        # 连不上), 这一支现在走不到, 锁的是"将来放开监听时不必改代码"这条纵深防御
+        ("http://192.168.1.9:8011", True),
         ("http://evil.example.com", False),
         ("http://my-mac.local:8011", False),
     ):
