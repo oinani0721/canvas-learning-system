@@ -86,7 +86,7 @@
 | §2 HIGH | 中途降级不泄漏，但**改变结果语义**：learning_history 丢日期/概念过滤；episodes 丢 limit；其余查询落 `else -> []` | **成立**（泄漏面确认已闭，但 limit 那条是我自己的"同语义"承诺没兑现） | `get_all_recent_episodes` 外层补 `[:limit]`；`_handle_query_history` 尊重 `params["limit"]`；门 7.6 加"降级后 limit 必须生效"断言。**date/concept 过滤与 `else -> []` 不修**：那要给模拟器补一套查询解析，属另一张卡，已登记（见验收单 §四） |
 | §2 OK | 穷举 16 个 `run_query` 形状，无未过滤读出口；fail-closed 未打断正常读 | 采纳（与我方判断一致） | — |
 | §3 HIGH | 显式传 `default_vault_group_id()` 会被当"explicit"，**绕过** `vault:default` 污染桶的 fail-closed → 配置断裂时"装 0 条 + `_episodes_recovered=True` + 永不重试" | **成立，且是本轮最重的一条**（我在规划阶段判断过这个风险并认为可接受——判错了：漏看了"不再重试"这半） | 改为在**全新空 `contextvars.Context()`** 里调 `require_read_group(None)`：新 Context 无 ContextVar 赋值 ⇒ 走 **active vault 派生**分支（方案甲要的进程级语义）＋ 污染桶 fail-closed。新增门 `test_unconfigured_active_vault_fails_closed_not_silent_empty` |
-| §3 MEDIUM | "现网返回逐字节相同"只是快照结论，不是代码不变量 | **成立** | docstring + 契约文档 + 验收单三处都改成"2026-08-30 快照结论"，并写明它失效的三种情形（别的 vault 有更新记录 / 超 limit / 同 timestamp 排序不稳） |
+| Q3' MEDIUM | "现网返回逐字节相同"只是快照结论，不是代码不变量 | **成立** | 改成"2026-08-30 快照结论"并写明失效的三种情形（别的 vault 有更新记录 / 超 limit / 同 timestamp 排序不稳）。⚠️ **本行原先写「docstring + 契约文档 + 验收单三处都改」，实际当时只改了 docstring 一处**——独立审计 2026-08-31 抓出，另两处已补 | |
 | §3 MEDIUM | "Neo4j 不可用会优雅降级"的异常范围被写宽了；`Neo4jError`/`ValueError` 会穿透 | **成立**（既有形态） | 不放宽 `except`（放宽会吞 `VaultScopeUnresolved`）；验收单 §四已登记为独立收债卡 |
 | §4 HIGH | id/name 门杀不死 `OR → AND` 变异（seed 把 `c.id` 设成等于 `c.name`） | **成立，真死门** | 新增 `g41b_idname_seed`：一条**没有 `c.id`**（生产形态，fixture 自证 `c.id IS NULL`）＋ 一条 `id != name`；两条门分别锁 name 分支与 id 分支；新增变异 `ch-and-not-or` |
 | §4 HIGH | 门 7.5 声称覆盖"四个 JSON 镜像"，实际只覆盖 episodes 一个 | **成立**（措辞夸大） | 门 7.5 docstring 改为如实声明覆盖 3 条 LEARNED 族读（4 个镜像里只含 `_get_all_recent_episodes_json`），并指明另三个镜像由单测的路径对称门 + 逐 alias 片段门覆盖、原因是卡文 (d) 禁造真库种子 |

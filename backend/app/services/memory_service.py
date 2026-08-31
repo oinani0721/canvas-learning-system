@@ -919,7 +919,12 @@ class MemoryService:
                     "score": record.get("score"),
                     "user_id": record.get("user_id"),
                     "concept": record.get("concept"),
-                    "review_count": record.get("review_count", 0),
+                    # 独立审计 (2026-08-31): `.get(k, 0)` 只在**键缺失**时兜底,
+                    # 而 Cypher 对不存在的属性返回的是键存在、值为 None ——
+                    # 响应模型 `review_count: int` 收到 None 直接 ValidationError
+                    # → 端点 500。本卡把这条路径从"恒空"变成"真有数据"之后,
+                    # 这个既有缺陷才第一次可达, 故随本卡一并收。
+                    "review_count": record.get("review_count") or 0,
                 }
             )
 

@@ -167,6 +167,39 @@ def _concept_id_matches(rel: Dict[str, Any], concept_id: str) -> bool:
     return rel.get("concept_id") == concept_id or rel.get("concept_name") == concept_id
 
 
+def _iso_timestamps(records: Any) -> Any:
+    """把 Cypher 读回的 **temporal** 时间戳归一成 ISO-8601 字符串（原地改 records）。
+
+    ⚠️ 独立审计 (2026-08-31) 抓出的 HIGH，本卡自己的门全绿却漏掉：
+
+    写侧 ``create_learning_relationship`` 落的是 ``SET r.timestamp = datetime()``
+    —— **temporal 值**；驱动 ``result.data()`` 不做转换, 于是 ``run_query`` 返回的是
+    ``neo4j.time.DateTime`` 对象。而 API 响应模型 ``ConceptHistoryTimeline.timestamp``
+    是 ``Optional[str]``, pydantic 直接 ``ValidationError`` → 端点 HTTP **500**。
+    JSON 镜像那侧返回的却是 ISO **字符串** (``datetime.now().isoformat()``),
+    两条路径类型不一致 —— 正是本卡"降级前后同一套可见面"要消除的那种分叉。
+
+    **为什么本卡的门没抓到**: 所有真库门的种子都写 ``r.timestamp = $ts`` 且
+    ``$ts`` 绑的是**字符串**, 与生产写侧的 ``datetime()`` 形态不同。fixture 形态
+    ≠ 生产形态 —— 与本卡已经抓到的"生产从不落 ``c.id``"是同一类陷阱, 抓到了一次
+    却在同一张卡里漏了第二次。门 7.8 用生产形态种子端到端锁死这条。
+
+    归一而不是放宽响应模型: ISO 串是这套 API 既有的对外契约
+    (``_handle_merge_learning`` 落的就是 ``now.isoformat()``), 改模型会让两条路径
+    继续各说各话。与相邻的 ``desanitize_group_id_from_graphiti`` 同属 R5
+    "输出边界还原"。
+    """
+    for record in records or []:
+        if not isinstance(record, dict):
+            continue
+        ts = record.get("timestamp")
+        if ts is None or isinstance(ts, str):
+            continue
+        iso = getattr(ts, "isoformat", None)
+        record["timestamp"] = iso() if callable(iso) else str(ts)
+    return records
+
+
 def _as_utc(value: Any) -> Optional[datetime]:
     """把 ISO-8601 串 / datetime 归一成**带时区的 UTC** datetime。
 
@@ -836,6 +869,7 @@ class Neo4jClient:
             return []
 
         from app.core.vault_scope import group_in_read_scope
+        from app.graphiti.group_id_compat import desanitize_group_id_from_graphiti
 
         results = []
 
@@ -912,6 +946,17 @@ class Neo4jClient:
                     "concept_id": rel.get("concept_id"),
                     "score": rel.get("last_score"),
                     "timestamp": rel.get("timestamp"),
+                    # 独立审计 (2026-08-31) 抓出: 本落点原先**不返回 group_id**,
+                    # 而 `_get_learning_history_json` / `_get_all_recent_episodes_json`
+                    # 两个镜像都返回。中途降级时 `get_all_recent_episodes` 落到这里,
+                    # 恢复进 episode 缓存的记录就带**空** group_id —— 之后每一次
+                    # `group_in_read_scope` 判定都是 False (无归属不属于任何可见面),
+                    # 那些 episode 永久不可见, 且 `_episodes_recovered=True` 不会重恢复。
+                    # 与镜像逐字同型 (含 agent_type), 输出 D16 冒号格式 (R5 还原)。
+                    "group_id": desanitize_group_id_from_graphiti(
+                        rel.get("group_id") or ""
+                    ),
+                    "agent_type": rel.get("agent_type"),
                     "review_count": rel.get("review_count", 0),
                 }
             )
@@ -1176,7 +1221,8 @@ class Neo4jClient:
                 record["group_id"] = desanitize_group_id_from_graphiti(
                     record["group_id"]
                 )
-        return (results or [])[:limit]
+        # 独立审计 HIGH: temporal → ISO 串, 否则响应模型校验失败 → 端点 500
+        return _iso_timestamps(results or [])[:limit]
 
     async def get_learning_history(
         self,
@@ -1268,7 +1314,9 @@ class Neo4jClient:
         for record in results or []:
             if isinstance(record, dict) and record.get("group_id"):
                 record["group_id"] = desanitize_group_id_from_graphiti(record["group_id"])
-        return results
+        # 与 get_concept_history 同口径 (独立审计 HIGH): 三条 LEARNED 读的
+        # timestamp 都归一成 ISO 串, 与 JSON 镜像侧逐字同型。
+        return _iso_timestamps(results)
 
     async def _get_learning_history_json(
         self,
@@ -2627,7 +2675,10 @@ class Neo4jClient:
         # (走 `_get_all_recent_episodes_json`, 有切片) 与"运行中切 JSON"会返回
         # 不同条数。
         rows = await self.run_query(query, limit=limit, **scope_params)
-        return (rows or [])[:limit]
+        # 同 get_concept_history (独立审计 HIGH): temporal → ISO 串。恢复进
+        # 进程级 episode 缓存的记录若带 DateTime 对象, 与内存侧的字符串
+        # timestamp 混在一起, 去重键 / 排序 / 与 JSON 镜像对拍全都会错型。
+        return _iso_timestamps(rows or [])[:limit]
 
     async def _get_all_recent_episodes_json(
         self, limit: int = 1000, group_id: Optional[str] = None

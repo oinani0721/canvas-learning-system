@@ -1121,3 +1121,68 @@ class TestG41bReadScopeContract:
         assert _concept_id_matches(rec, "X"), "按 name 命中失效 —— 生产 Concept 没有 id, 只按 id 查会让端点恒空"
         assert _concept_id_matches({"concept_name": "X"}, "X"), "无 id 的生产形态命中失效"
         assert not _concept_id_matches({"concept_id": "Y", "concept_name": "Z"}, "X")
+
+
+class TestG41bMisrouteFieldParity:
+    """独立审计 (2026-08-31): 中途降级落点与 JSON 镜像的**字段集**必须一致。
+
+    `_handle_query_history` 原先不返回 `group_id` —— 而 `get_all_recent_episodes`
+    中途降级时正落在它上面, 恢复进**进程级** episode 缓存的记录就带空 group_id。
+    之后每一次 `group_in_read_scope` 判定都是 False (无归属不属于任何可见面),
+    那些 episode 永久不可见, 且 `_episodes_recovered=True` 不会再恢复一次。
+
+    门 7.5 只比 concept **名集合**, 字段缺失它看不见 —— 这条补上那一面。
+    """
+
+    @pytest.mark.asyncio
+    async def test_misroute_handler_returns_same_keys_as_json_mirror(self, tmp_path):
+        scope = _json_fallback_scope()
+        gid = scope_physical(scope)
+        client = Neo4jClient(use_json_fallback=True, storage_path=tmp_path / "parity.json")
+        await client.initialize()
+        rel = {
+            "user_id": "u",
+            "concept_name": "mine",
+            "concept_id": "cid",
+            "timestamp": "2026-01-01T00:00:00",
+            "last_score": 80,
+            "review_count": 2,
+            "agent_type": "tutor",
+            "group_id": gid,
+        }
+        client._data["relationships"] = [rel]
+
+        misroute = await client._handle_query_history({"userId": "u", "group_id": gid})
+        mirror = await client._get_all_recent_episodes_json(limit=10, group_id=scope)
+        assert misroute and mirror
+
+        missing = set(mirror[0]) - set(misroute[0])
+        assert not missing, (
+            f"降级落点比镜像少了字段 {sorted(missing)} —— 中途降级恢复的 episode "
+            "会缺归属, 之后被每一次作用域读永久挡掉"
+        )
+
+    @pytest.mark.asyncio
+    async def test_midflight_recovered_episode_stays_visible(self, tmp_path):
+        """端到端: 中途降级恢复的 episode 必须仍落在作用域可见面内。
+
+        正向对照式断言——不是"字段存在"，而是"拿它去做作用域判定为 True"。
+        """
+        from app.core.vault_scope import group_in_read_scope
+
+        scope = _json_fallback_scope()
+        gid = scope_physical(scope)
+        client = Neo4jClient(use_json_fallback=True, storage_path=tmp_path / "vis.json")
+        await client.initialize()
+        client._data["relationships"] = [
+            {"user_id": "u", "concept_name": "mine", "concept_id": "c",
+             "timestamp": "2026-01-01T00:00:00", "last_score": 80,
+             "review_count": 1, "group_id": f"{gid}__board_x"}
+        ]
+
+        rows = await client._handle_query_history({"userId": "u", "group_id": gid})
+        assert rows, "前置条件: 降级落点应当读得到本作用域的数据"
+        assert group_in_read_scope(rows[0].get("group_id"), scope) is True, (
+            f"降级恢复的 episode 归属为 {rows[0].get('group_id')!r} —— "
+            "作用域判定为 False, 它会永久不可见"
+        )

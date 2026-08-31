@@ -188,6 +188,12 @@ def main() -> int:
     reads = 0
     scanned_methods: set[str] = set()
     violations = []
+    #: 靠"同方法内别处有过滤"放行的读 —— 本门的已知假阴面, 打印出来供人工过目,
+    #: 而不是静默放行 (静默放行会让"零违规"读起来比它证明的更强)。
+    multi_read_exempt: list = []
+    #: 被判为"写"而跳过读门的方法名 —— 防止一条读查询因含写关键字被静默排除后
+    #: 连 EXPECTED_READ_METHODS 自检都发现不了 (独立审计 2026-08-31)。
+    write_skipped: set = set()
     for node in candidates:
         text = _literal_parts(node)
         if "MATCH (" not in text:
@@ -195,7 +201,15 @@ def main() -> int:
         if not any(tok in text for tok in BUSINESS_TOKENS):
             continue
         if WRITE_KEYWORD_RE.search(text.upper()):
-            continue  # 写查询 → 归 W1-W5
+            # 写查询 → 归 W1-W5。
+            # ⚠️ **已知假阴** (独立审计 2026-08-31): 一条**读**查询若正好含
+            # `SET` / `CREATE` 这类词 (如返回别名 `AS created_at` 之外, 还有
+            # `MATCH ... WITH ... SET` 这种读写混合形态), 会被整条跳过、
+            # 连 `reads` 都不计, 于是 EXPECTED_READ_METHODS 自检也发现不了。
+            # 下面把跳过的写查询按方法名登记并打印 —— 让"哪些被当成写"可见,
+            # 而不是消失。真正的读写分类由写契约 W1-W5 的门负责。
+            write_skipped.add(owner.get(node.lineno, "<module>"))
+            continue
         reads += 1
         scanned_methods.add(owner.get(node.lineno, "<module>"))
         if node.lineno in exempt_lines:
@@ -203,7 +217,18 @@ def main() -> int:
         if any(ev in text for ev in FILTER_EVIDENCE):
             continue
         if node.lineno in filtered_lines:
-            continue  # 增量拼接: 过滤在同一方法的后续语句里
+            # 增量拼接: 过滤在同一方法的后续语句里 (如 get_learning_history 的
+            # `query += f" AND {read_group_filter('r')}"`)。
+            #
+            # ⚠️ **本放行的已知假阴** (独立审计 2026-08-31, 如实登记):
+            # 判定单位是"方法"。若在一个**已有过滤**的方法里再加一条**完全无过滤**
+            # 的业务读, 本门数得到它却判它合规 —— 因为同方法内别处出现过过滤证据。
+            # 收紧需要做数据流分析 (哪个过滤片段拼进了哪条查询字符串), 超出一道
+            # grep 门该做的事; 那一面由门 7 的**逐 alias 行为门**覆盖 (它对每条
+            # 生产读单独造"只有该 alias 在 B"的记录)。
+            # 本门的定位因此是"**方法级**的粗筛 + 清单锁", 不是逐查询的证明。
+            multi_read_exempt.append((node.lineno, owner.get(node.lineno, "?")))
+            continue
         violations.append((node.lineno, text.strip().splitlines()[0][:100]))
 
     print(f"扫描 {TARGET.relative_to(BACKEND)}: 业务读查询 {reads} 条, 覆盖方法 {len(scanned_methods)} 个")
@@ -213,6 +238,11 @@ def main() -> int:
             file=sys.stderr,
         )
         return 2
+    if write_skipped:
+        print(
+            f"ℹ️  跳过 {len(write_skipped)} 个方法的查询 (含写关键字, 归写契约 W1-W5): "
+            + ", ".join(sorted(write_skipped))
+        )
     if scanned_methods != set(EXPECTED_READ_METHODS):
         print(
             "⛔ 门失真: 实际检查到的读方法集合与 EXPECTED_READ_METHODS 不符\n"
@@ -226,6 +256,13 @@ def main() -> int:
         for lineno, head in violations:
             print(f"   {TARGET.name}:{lineno}  {head}", file=sys.stderr)
         return 1
+    if multi_read_exempt:
+        print(
+            f"ℹ️  {len(multi_read_exempt)} 条读靠「同方法内别处有过滤」放行 "
+            "(方法级判据的已知假阴面, 逐条由门 7 的逐 alias 行为门覆盖):"
+        )
+        for lineno, meth in multi_read_exempt:
+            print(f"     {TARGET.name}:{lineno}  in {meth}()")
     print("✅ 无残留: 每条业务读都带 group 过滤 (或已 @allow_cross_vault 显式豁免)")
     return 0
 

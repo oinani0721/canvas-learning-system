@@ -1767,3 +1767,132 @@ async def test_g41b_handle_query_history_fail_closed_without_scope(tmp_path, cap
         f"正向对照红: 带 scope 也读不到数据, 上面的空结果不能证明是 fail-closed {allowed}"
     )
     await client.cleanup()
+
+
+# ── 7.8 生产形态端到端: temporal 时间戳必须能过 API 响应模型 ──────────────
+#
+# 独立审计 (2026-08-31) 抓出的 HIGH: 本卡的头号交付物 (get_concept_history 名实
+# 一致) 在**真实数据**上是坏的 —— 端点从"200 + 空 timeline"变成 **HTTP 500**。
+#
+# 为什么上面 7.1-7.7 全绿却漏掉: 它们的种子一律写 `r.timestamp = $ts` 且 `$ts`
+# 绑**字符串**, 而生产写侧 `create_learning_relationship` 落的是
+# `SET r.timestamp = datetime()` —— **temporal 值**, 驱动读回来是
+# `neo4j.time.DateTime` 对象, 而 `ConceptHistoryTimeline.timestamp: Optional[str]`。
+# **fixture 形态 ≠ 生产形态** —— 与本卡已经抓到的"生产从不落 c.id"是同一类陷阱,
+# 抓到了一次却在同一张卡里漏了第二次。
+#
+# 本门的判据因此有意选在**最远的下游**: 不止断言 client 返回什么类型, 而是让数据
+# 真的走到 pydantic 响应模型。断言"类型是 str"能被一句 `str()` 糊弄过去; 断言
+# "响应模型收得下"才是端点真正的门槛。
+
+
+G41B_PROD_USER = f"{GATE_PREFIX}_g41b_prod_user"
+G41B_PROD_CONCEPT = f"{GATE_PREFIX}_g41b_prod_concept"
+
+
+@pytest.fixture
+async def g41b_production_shape_seed(gate_client):
+    """按**生产写侧逐字同型**种一条 LEARNED 边。
+
+    与 `g41a_seed` 的关键差别: `r.timestamp = datetime()` (temporal), 不是字符串;
+    且**不设** `review_count` —— Cypher 对不存在的属性返回 None, 而
+    `ConceptHistoryTimeline.review_count: int` 收不下 None。两者都是生产可达形态。
+    """
+    await gate_client.run_query(
+        """
+        MERGE (u:User {id: $uid})
+        MERGE (c:Concept {name: $name, group_id: $gid})
+        SET c.probe = $probe
+        WITH c
+        MATCH (u:User {id: $uid})
+        MERGE (u)-[r:LEARNED {group_id: $gid}]->(c)
+        SET r.timestamp = datetime(), r.score = 80
+        """,
+        uid=G41B_PROD_USER, name=G41B_PROD_CONCEPT, gid=GID_A_PUNY, probe=GATE_PREFIX,
+    )
+    # 自证种子确实是 temporal 且 review_count 确实缺失 —— 否则本门测的不是生产形态
+    probe = await gate_client.run_query(
+        "MATCH ()-[r:LEARNED]->(c:Concept {name: $name}) "
+        "RETURN valueType(r.timestamp) AS vt, r.review_count AS rc",
+        name=G41B_PROD_CONCEPT,
+    )
+    assert probe, "seed 未落库"
+    assert "ZONED DATETIME" in str(probe[0]["vt"]).upper(), (
+        f"种子的 timestamp 不是 temporal, 本门测的不是生产形态: {probe[0]['vt']}"
+    )
+    assert probe[0]["rc"] is None, "种子的 review_count 应当缺失 (生产可达形态)"
+    return True
+
+
+async def test_g41b_production_shape_reaches_api_response_model(
+    gate_client, g41b_production_shape_seed
+):
+    """生产形态数据必须能一路走到 API 响应模型而不抛 —— 端点不 500。
+
+    链路: Cypher → client → memory_service 的 timeline 构造(逐字复刻) → pydantic。
+    """
+    from app.models.memory_schemas import ConceptHistoryResponse
+    from app.services.memory_service import MemoryService
+
+    rows = await gate_client.get_concept_history(
+        G41B_PROD_CONCEPT, group_id=GID_A_LOGICAL
+    )
+    assert len(rows) == 1, f"生产形态种子读不到 (保召回红): {rows}"
+
+    # ⚠️ 走**真实的 service 调用链**, 不复刻它的逻辑。
+    # 初版这里把 memory_service 的 timeline 构造"逐字复刻"进了测试 —— 于是这道门
+    # 从不执行它声称保护的那段生产代码: 变异负控把 service 的
+    # `record.get("review_count") or 0` 改回 `.get(k, 0)`, 门照样全绿 (实测 GREEN)。
+    # 复刻逻辑 = 测自己写的那份副本。门必须调真实链路。
+    svc = MemoryService(neo4j_client=gate_client)
+    svc._initialized = True
+    result = await svc.get_concept_history(G41B_PROD_CONCEPT, group_id=GID_A_LOGICAL)
+
+    # 端点做的就是这一句 (endpoints/memory.py: `ConceptHistoryResponse(**result)`),
+    # 它在 try 里, 抛异常 → HTTPException 500。
+    resp = ConceptHistoryResponse(**result)
+    assert len(resp.timeline) == 1, f"service 层没把数据带出来: {result}"
+    assert isinstance(resp.timeline[0].timestamp, str) and resp.timeline[0].timestamp
+    assert resp.timeline[0].review_count == 0
+
+
+async def test_g41b_learned_reads_return_same_timestamp_type_as_json_mirror(
+    gate_client, g41b_production_shape_seed, tmp_path
+):
+    """三条 LEARNED 读: Cypher 侧与 JSON 镜像侧的 timestamp **类型**必须一致。
+
+    这是"降级前后同一套可见面"在**类型**维度上的补充 —— 门 7.5 只比 concept 名
+    集合, 类型分叉它看不见。而类型一分叉, 去重键 / 排序 / 上层 pydantic 全会错。
+    """
+    mirror = _json_client(tmp_path, {f"{GATE_PREFIX}_g41b_mirror_ts": GID_A_PUNY},
+                          name="g41b_ts_parity.json")
+    await mirror.initialize()
+    try:
+        pairs = (
+            (
+                "concept_history",
+                await gate_client.get_concept_history(G41B_PROD_CONCEPT, group_id=GID_A_LOGICAL),
+                await mirror.get_concept_history(f"{GATE_PREFIX}_g41b_mirror_ts", group_id=GID_A_LOGICAL),
+            ),
+            (
+                "learning_history",
+                await gate_client.get_learning_history(user_id=G41B_PROD_USER, group_id=GID_A_LOGICAL),
+                await mirror.get_learning_history(user_id=G41A_USER, group_id=GID_A_LOGICAL),
+            ),
+            (
+                "all_recent_episodes",
+                await gate_client.get_all_recent_episodes(group_id=GID_A_LOGICAL),
+                await mirror.get_all_recent_episodes(group_id=GID_A_LOGICAL),
+            ),
+        )
+        for label, cypher_rows, json_rows in pairs:
+            assert cypher_rows, f"{label}: Cypher 侧无数据, 类型对拍无意义"
+            assert json_rows, f"{label}: JSON 侧无数据, 类型对拍无意义"
+            ct = type(cypher_rows[0]["timestamp"]).__name__
+            jt = type(json_rows[0]["timestamp"]).__name__
+            assert ct == jt == "str", (
+                f"{label}: 两条路径的 timestamp 类型不一致 —— "
+                f"Cypher={ct} JSON={jt} (生产写侧落 temporal, 镜像落 ISO 串)"
+            )
+    finally:
+        await mirror.cleanup()
