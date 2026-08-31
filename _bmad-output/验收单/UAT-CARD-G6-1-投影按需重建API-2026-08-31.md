@@ -16,26 +16,50 @@
 
 ---
 
-## ⛔ 开始验收前：有一个你必须先拍板的事
+## ⛔ 开始验收前：这两卡还没上线，有两步前置
 
-**现在这个按钮在 live 上点下去会显示错误（503），不会有任何效果。**
+> ⚠️ **本节是更正过的。** 我第一版把这里写成"选个甲/乙/丙就能点"——**那是错的**：
+> 选了甲、加了环境变量、重启容器，按钮**依然不会出现**。收官自审时我才查清，
+> 漏了更前面的一步。下面是核实过的完整链路。
 
-原因（我实测过，不是猜的）：后端容器里找不到生产器脚本 `daily_review_pick.py`。
-- 容器把主仓根挂成 `/vaults`，但主仓当前在 `main` 分支，`main` 的 `scripts/` 里**没有**这个脚本；
-- 脚本只存在于各个 worktree 里，容器能看到的那份在
-  `/vaults/.claude/worktrees/feature-obsidian-hybrid-dev/scripts/daily_review_pick.py`（我已在容器内 `ls` 确认可读）。
+**现在打开总览页，是看不到「🔄 刷新投影」按钮的**（G6-4 的「展开」也一样）。
+不是坏了，是**代码还没进到跑着的那个容器里**。
 
-我**故意让它报 503 而不是悄悄糊弄过去**——找不到唯一裁判就本地重算一份，会当场造出 A2 明令禁止的"第二套到期口径"，那比报错糟得多。
+### 第 1 步：合并（这不是选项，是前提）
 
-### 需要你选一个（我不擅自改 docker-compose.yml，它是跨车道共享文件）
+我实测的部署拓扑：
+
+| 事实 | 实测证据 |
+|---|---|
+| 跑着的容器由 `feature-obsidian-hybrid-dev` 那个 worktree 的 compose 创建 | `docker inspect` 的 compose 标签 |
+| 容器里的 `/app` 就绑挂着**那个 worktree 的 `backend/`** | 同上的 mounts |
+| 我这 5 个 commit 在 `card/v3-webui` 分支上，**全部领先于**部署分支 `worktree-feature-obsidian-hybrid-dev` | `git log 部署分支..card/v3-webui` = 5 条 |
+| 所以容器里那份 `review_overview.py` 搜不到本批次的任何标记 | 容器内 grep 计数 = **0** |
+
+→ **必须先把 `card/v3-webui` 合进 `worktree-feature-obsidian-hybrid-dev`**（就是你每批收尾时那句
+`chore: merge card/xxx`）。这一步之前，下面所有浏览器步骤都不成立。
+
+**合并要不要做、什么时候做，是你的决定**（这批还有别的车道要一起收），我不擅自合。
+
+### 第 2 步：让容器找得到生产器脚本（合并之后才轮到这一步）
+
+合并完按钮就出来了，但点下去仍会是 **503**——因为后端要调 `daily_review_pick.py`，而它在容器里的
+搜索路径上不存在：
+
+- `/vaults` 挂的是**主仓根**，主仓在 `main` 分支，而 `main` 的 `scripts/` 里 daily_review 相关文件数 = **0**（实测）
+- 那份脚本在容器里唯一可读的位置是
+  `/vaults/.claude/worktrees/feature-obsidian-hybrid-dev/scripts/daily_review_pick.py`（已 `ls` 确认）
+
+我**故意让它报 503 而不是悄悄糊弄过去**——找不到唯一裁判就本地重算一份，会当场造出
+A2 明令禁止的"第二套到期口径"，那比报错糟得多。
 
 | 选项 | 做法 | 代价 |
 |---|---|---|
-| **甲（推荐）** | 给 backend 服务加一行环境变量：`DAILY_REVIEW_PICK=/vaults/.claude/worktrees/feature-obsidian-hybrid-dev/scripts/daily_review_pick.py` | 改 1 行 `docker-compose.yml` + 重启容器；路径绑死在某个 worktree 名上，那个 worktree 改名就失效 |
-| **乙** | 把 daily-review 一族脚本合并进 `main` 分支的 `scripts/`，让 `/vaults/scripts/` 天然有它 | 治本，路径不再依赖 worktree；但属于主仓分支管理，不在本卡范围 |
-| **丙** | 先不管，本卡只在测试环境成立，等 G6-2 交互壳一起部署 | 你现在点按钮永远是 503 |
+| **甲（推荐）** | 给 backend 服务加一行环境变量：<br>`DAILY_REVIEW_PICK=/vaults/.claude/worktrees/feature-obsidian-hybrid-dev/scripts/daily_review_pick.py` | 改 1 行 `docker-compose.yml` + 重启；路径绑死在那个 worktree 名上，改名就失效 |
+| **乙** | 把 daily-review 一族脚本合并进 `main` 分支的 `scripts/`，让 `/vaults/scripts/` 天然有它 | 治本（路径不再依赖 worktree 名），但属于主仓分支管理，不在本卡范围 |
+| **丙** | 先不管，等 G6-2 交互壳做完一起部署 | 合并后按钮会出现，但点了永远 503 |
 
-**你只需要回一个字（甲/乙/丙），改配置和重启容器我来做——你不用碰终端。**
+**第 2 步你只需回一个字（甲/乙/丙），改配置和重启我来做——你不用碰终端。**
 
 > 我不推荐"给容器加嵌套挂载"这条路：`/vaults` 已整体挂了主仓根，再往 `/vaults/scripts` 上叠一层子挂载，正是
 > `./data:/app/data` 那个坑的同型（记录在 docker-compose.yml 的注释里：docker inspect 看得见、容器里从不生效）。
@@ -44,7 +68,8 @@
 
 ## 你要做的验收（全部在浏览器里，不用开终端）
 
-> 前提：上面选了甲或乙并重启过容器。若选丙，跳过本节，只看 §"我已经代你跑完的"。
+> 前提：**第 1 步合并已完成** + 第 2 步选了甲或乙并重启过容器。
+> 若两步都还没做，跳过本节，只看 §"我已经代你跑完的"——那些我都在本地真跑过了。
 
 ### 步骤 1 — 看见按钮
 1. 浏览器打开 `http://localhost:8011/api/v1/review/overview/page`
