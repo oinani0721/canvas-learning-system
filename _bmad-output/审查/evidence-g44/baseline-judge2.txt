@@ -1,0 +1,557 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w8-scope/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 229 items / 152 deselected / 77 selected
+
+tests/api/v1/endpoints/test_agents_encoding.py ................          [ 20%]
+tests/api/v1/endpoints/test_agents_health.py ............                [ 36%]
+tests/api/v1/endpoints/test_agents_learning_event.py ................... [ 61%]
+                                                                         [ 61%]
+tests/api/v1/endpoints/test_rag_four_state_api.py ...................... [ 89%]
+........                                                                 [100%]
+
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w8-scope/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w8-scope/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w8-scope/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w8-scope/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:805
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w8-scope/backend/app/api/v1/endpoints/chat.py:805: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:105
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w8-scope/backend/app/api/v1/endpoints/metadata.py:105: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:176
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w8-scope/backend/app/api/v1/endpoints/metadata.py:176: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w8-scope/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+tests/api/v1/endpoints/test_agents_learning_event.py::TestEndpointIntegration::test_decompose_basic_triggers_recording
+tests/api/v1/endpoints/test_agents_learning_event.py::TestEndpointIntegration::test_learning_event_failure_does_not_block_response
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w8-scope/backend/app/api/v1/endpoints/agents.py:787: DeprecationWarning: deprecated
+    legacy_group_id=request.group_id,
+
+tests/api/v1/endpoints/test_agents_learning_event.py::TestEndpointIntegration::test_decompose_deep_triggers_recording
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w8-scope/backend/app/api/v1/endpoints/agents.py:900: DeprecationWarning: deprecated
+    legacy_group_id=request.group_id,
+
+tests/api/v1/endpoints/test_agents_learning_event.py::TestEndpointIntegration::test_score_understanding_triggers_recording
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w8-scope/backend/app/api/v1/endpoints/agents.py:1019: DeprecationWarning: deprecated
+    legacy_group_id=request.group_id,
+
+tests/api/v1/endpoints/test_agents_learning_event.py::TestEndpointIntegration::test_explain_oral_triggers_recording
+tests/api/v1/endpoints/test_agents_learning_event.py::TestAllExplainEndpointsRecording::test_explain_endpoint_records_event[explain_oral-explain_oral]
+tests/api/v1/endpoints/test_agents_learning_event.py::TestAllExplainEndpointsRecording::test_explain_endpoint_records_event[explain_clarification-explain_clarification]
+tests/api/v1/endpoints/test_agents_learning_event.py::TestAllExplainEndpointsRecording::test_explain_endpoint_records_event[explain_comparison-explain_comparison]
+tests/api/v1/endpoints/test_agents_learning_event.py::TestAllExplainEndpointsRecording::test_explain_endpoint_records_event[explain_memory-explain_memory]
+tests/api/v1/endpoints/test_agents_learning_event.py::TestAllExplainEndpointsRecording::test_explain_endpoint_records_event[explain_four_level-explain_four-level]
+tests/api/v1/endpoints/test_agents_learning_event.py::TestAllExplainEndpointsRecording::test_explain_endpoint_records_event[explain_example-explain_example]
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w8-scope/backend/app/api/v1/endpoints/agents.py:1168: DeprecationWarning: deprecated
+    legacy_group_id=request.group_id,
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+__________ TestRecordLearningEvent.test_record_learning_event_success __________
+----------------------------- Captured stdout call -----------------------------
+{"event": "Story 12.A.5: Recorded learning event: episode-mock-1 for concept: \u9006\u5426\u547d\u9898\u7684\u5b9a\u4e49...", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.292442Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.endpoints.agents:agents.py:397 Story 12.A.5: Recorded learning event: episode-mock-1 for concept: 逆否命题的定义...
+_ TestRecordLearningEvent.test_record_learning_event_includes_required_fields __
+----------------------------- Captured stdout call -----------------------------
+{"event": "Story 12.A.5: Recorded learning event: episode-mock-1 for concept: \u9006\u5426\u547d\u9898...", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.293054Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.endpoints.agents:agents.py:397 Story 12.A.5: Recorded learning event: episode-mock-1 for concept: 逆否命题...
+________ TestRecordLearningEvent.test_record_learning_event_with_score _________
+----------------------------- Captured stdout call -----------------------------
+{"event": "Story 12.A.5: Recorded learning event: episode-mock-1 for concept: \u7528\u6237\u5bf9\u9006\u5426\u547d\u9898\u7684\u7406\u89e3...", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.294272Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.endpoints.agents:agents.py:397 Story 12.A.5: Recorded learning event: episode-mock-1 for concept: 用户对逆否命题的理解...
+______ TestRecordLearningEvent.test_record_learning_event_failure_silent _______
+----------------------------- Captured stdout call -----------------------------
+{"event": "Story 12.A.5: Failed to record learning event: Mock DB Error", "logger": "app.api.v1.endpoints.agents", "level": "error", "timestamp": "2026-08-31T16:44:14.295051Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.api.v1.endpoints.agents:agents.py:402 Story 12.A.5: Failed to record learning event: Mock DB Error
+___ TestRecordLearningEvent.test_record_learning_event_different_agent_types ___
+----------------------------- Captured stdout call -----------------------------
+{"event": "Story 12.A.5: Recorded learning event: episode-mock-1 for concept: \u6982\u5ff51...", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.295696Z"}
+{"event": "Story 12.A.5: Recorded learning event: episode-mock-2 for concept: \u6982\u5ff52...", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.295752Z"}
+{"event": "Story 12.A.5: Recorded learning event: episode-mock-3 for concept: \u6982\u5ff53...", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.295780Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.endpoints.agents:agents.py:397 Story 12.A.5: Recorded learning event: episode-mock-1 for concept: 概念1...
+INFO     app.api.v1.endpoints.agents:agents.py:397 Story 12.A.5: Recorded learning event: episode-mock-2 for concept: 概念2...
+INFO     app.api.v1.endpoints.agents:agents.py:397 Story 12.A.5: Recorded learning event: episode-mock-3 for concept: 概念3...
+_______ TestBackgroundTaskIntegration.test_background_task_non_blocking ________
+----------------------------- Captured stdout call -----------------------------
+{"event": "Story 12.A.5: Recorded learning event: episode-mock-1 for concept: \u540e\u53f0\u4efb\u52a1\u6d4b\u8bd5...", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.296327Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.endpoints.agents:agents.py:397 Story 12.A.5: Recorded learning event: episode-mock-1 for concept: 后台任务测试...
+_____ TestBackgroundTaskIntegration.test_background_task_failure_graceful ______
+----------------------------- Captured stdout call -----------------------------
+{"event": "Story 12.A.5: Failed to record learning event: Mock DB Error", "logger": "app.api.v1.endpoints.agents", "level": "error", "timestamp": "2026-08-31T16:44:14.296895Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.api.v1.endpoints.agents:agents.py:402 Story 12.A.5: Failed to record learning event: Mock DB Error
+_______ TestMemoryServiceSingleton.test_singleton_returns_same_instance ________
+----------------------------- Captured stdout call -----------------------------
+{"event": "Creating MemoryService singleton instance", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-08-31T16:44:14.297724Z"}
+{"event": "MemoryService singleton initialized", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-08-31T16:44:14.297806Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.memory_service:memory_service.py:2910 {'event': 'Creating MemoryService singleton instance', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-08-31T16:44:14.297724Z'}
+INFO     app.services.memory_service:memory_service.py:2915 {'event': 'MemoryService singleton initialized', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-08-31T16:44:14.297806Z'}
+_______ TestEndpointIntegration.test_decompose_basic_triggers_recording ________
+----------------------------- Captured stdout call -----------------------------
+{"event": "vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)", "logger": "app.core.vault_scope", "level": "warning", "timestamp": "2026-08-31T16:44:14.299301Z"}
+{"event": "RAG service not available: RAG not available in tests", "logger": "app.api.v1.endpoints.agents", "level": "warning", "timestamp": "2026-08-31T16:44:14.299433Z"}
+{"event": "decompose_basic: canvas=Math53.canvas, node=node_test1, pos=(100,200), has_rag_context=False", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.299467Z"}
+{"event": "Story 12.A.5: Recorded learning event: episode-mock-1 for concept: \u9006\u5426\u547d\u9898\u7684\u5b9a\u4e49\u548c\u6027\u8d28...", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.299521Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.core.vault_scope:vault_scope.py:195 vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)
+WARNING  app.api.v1.endpoints.agents:agents.py:623 RAG service not available: RAG not available in tests
+INFO     app.api.v1.endpoints.agents:agents.py:818 decompose_basic: canvas=Math53.canvas, node=node_test1, pos=(100,200), has_rag_context=False
+INFO     app.api.v1.endpoints.agents:agents.py:397 Story 12.A.5: Recorded learning event: episode-mock-1 for concept: 逆否命题的定义和性质...
+________ TestEndpointIntegration.test_decompose_deep_triggers_recording ________
+----------------------------- Captured stdout call -----------------------------
+{"event": "vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)", "logger": "app.core.vault_scope", "level": "warning", "timestamp": "2026-08-31T16:44:14.300825Z"}
+{"event": "RAG service not available: RAG not available in tests", "logger": "app.api.v1.endpoints.agents", "level": "warning", "timestamp": "2026-08-31T16:44:14.300904Z"}
+{"event": "decompose_deep: canvas=Math53.canvas, node=node_deep1, pos=(100,200), has_rag_context=False", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.300928Z"}
+{"event": "Story 12.A.5: Recorded learning event: episode-mock-1 for concept: \u9006\u5426\u547d\u9898\u7684\u5b9a\u4e49\u548c\u6027\u8d28...", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.300975Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.core.vault_scope:vault_scope.py:195 vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)
+WARNING  app.api.v1.endpoints.agents:agents.py:623 RAG service not available: RAG not available in tests
+INFO     app.api.v1.endpoints.agents:agents.py:931 decompose_deep: canvas=Math53.canvas, node=node_deep1, pos=(100,200), has_rag_context=False
+INFO     app.api.v1.endpoints.agents:agents.py:397 Story 12.A.5: Recorded learning event: episode-mock-1 for concept: 逆否命题的定义和性质...
+_____ TestEndpointIntegration.test_score_understanding_triggers_recording ______
+----------------------------- Captured stdout call -----------------------------
+{"event": "vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)", "logger": "app.core.vault_scope", "level": "warning", "timestamp": "2026-08-31T16:44:14.302488Z"}
+{"event": "RAG service not available: RAG not available in tests", "logger": "app.api.v1.endpoints.agents", "level": "warning", "timestamp": "2026-08-31T16:44:14.302568Z"}
+{"event": "score_understanding: canvas=Math53.canvas, nodes=['node_score1'], has_rag_context=False, has_node_content=False", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.302594Z"}
+{"event": "Story 12.A.5: Recorded learning event: episode-mock-1 for concept: \u9006\u5426\u547d\u9898\u7406\u89e3...", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.302653Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.core.vault_scope:vault_scope.py:195 vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)
+WARNING  app.api.v1.endpoints.agents:agents.py:623 RAG service not available: RAG not available in tests
+INFO     app.api.v1.endpoints.agents:agents.py:1038 score_understanding: canvas=Math53.canvas, nodes=['node_score1'], has_rag_context=False, has_node_content=False
+INFO     app.api.v1.endpoints.agents:agents.py:397 Story 12.A.5: Recorded learning event: episode-mock-1 for concept: 逆否命题理解...
+_________ TestEndpointIntegration.test_explain_oral_triggers_recording _________
+----------------------------- Captured stdout call -----------------------------
+{"event": "vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)", "logger": "app.core.vault_scope", "level": "warning", "timestamp": "2026-08-31T16:44:14.303880Z"}
+{"event": "[Story 12.B.1] explain_oral START: canvas=Math53.canvas, node_id=node_oral1, has_realtime_content=False", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.303938Z"}
+{"event": "RAG service not available: RAG not available in tests", "logger": "app.api.v1.endpoints.agents", "level": "warning", "timestamp": "2026-08-31T16:44:14.303973Z"}
+{"event": "explain_oral: canvas=Math53.canvas, node=node_oral1, pos=(100,200,400,200), has_rag_context=False", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.304004Z"}
+{"event": "[Story 12.D.3] Received node content: node_id=node_oral1, canvas_name=Math53.canvas, has_node_content=False, node_content_len=0, content_preview=", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.304025Z"}
+{"event": "[Story 12.B.1] explain_oral SUCCESS: explanation_len=7", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.304071Z"}
+{"event": "Story 12.A.5: Recorded learning event: episode-mock-1 for concept: \u9006\u5426\u547d\u9898\u7684\u5b9a\u4e49\u548c\u6027\u8d28...", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.304099Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.core.vault_scope:vault_scope.py:195 vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)
+INFO     app.api.v1.endpoints.agents:agents.py:1182 [Story 12.B.1] explain_oral START: canvas=Math53.canvas, node_id=node_oral1, has_realtime_content=False
+WARNING  app.api.v1.endpoints.agents:agents.py:623 RAG service not available: RAG not available in tests
+INFO     app.api.v1.endpoints.agents:agents.py:1227 explain_oral: canvas=Math53.canvas, node=node_oral1, pos=(100,200,400,200), has_rag_context=False
+INFO     app.api.v1.endpoints.agents:agents.py:1234 [Story 12.D.3] Received node content: node_id=node_oral1, canvas_name=Math53.canvas, has_node_content=False, node_content_len=0, content_preview=
+INFO     app.api.v1.endpoints.agents:agents.py:1353 [Story 12.B.1] explain_oral SUCCESS: explanation_len=7
+INFO     app.api.v1.endpoints.agents:agents.py:397 Story 12.A.5: Recorded learning event: episode-mock-1 for concept: 逆否命题的定义和性质...
+_ TestEndpointIntegration.test_learning_event_failure_does_not_block_response __
+----------------------------- Captured stdout call -----------------------------
+{"event": "vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)", "logger": "app.core.vault_scope", "level": "warning", "timestamp": "2026-08-31T16:44:14.305447Z"}
+{"event": "RAG service not available: RAG not available in tests", "logger": "app.api.v1.endpoints.agents", "level": "warning", "timestamp": "2026-08-31T16:44:14.305525Z"}
+{"event": "decompose_basic: canvas=Math53.canvas, node=node_fail, pos=(100,200), has_rag_context=False", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.305549Z"}
+{"event": "Story 12.A.5: Failed to record learning event: Mock DB Error", "logger": "app.api.v1.endpoints.agents", "level": "error", "timestamp": "2026-08-31T16:44:14.305595Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.core.vault_scope:vault_scope.py:195 vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)
+WARNING  app.api.v1.endpoints.agents:agents.py:623 RAG service not available: RAG not available in tests
+INFO     app.api.v1.endpoints.agents:agents.py:818 decompose_basic: canvas=Math53.canvas, node=node_fail, pos=(100,200), has_rag_context=False
+ERROR    app.api.v1.endpoints.agents:agents.py:402 Story 12.A.5: Failed to record learning event: Mock DB Error
+_ TestAllExplainEndpointsRecording.test_explain_endpoint_records_event[explain_oral-explain_oral] _
+----------------------------- Captured stdout call -----------------------------
+{"event": "vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)", "logger": "app.core.vault_scope", "level": "warning", "timestamp": "2026-08-31T16:44:14.306812Z"}
+{"event": "[Story 12.B.1] explain_oral START: canvas=Math53.canvas, node_id=node_explain_oral, has_realtime_content=False", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.306862Z"}
+{"event": "RAG service not available: RAG not available in tests", "logger": "app.api.v1.endpoints.agents", "level": "warning", "timestamp": "2026-08-31T16:44:14.306892Z"}
+{"event": "explain_oral: canvas=Math53.canvas, node=node_explain_oral, pos=(100,200,400,200), has_rag_context=False", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.306911Z"}
+{"event": "[Story 12.D.3] Received node content: node_id=node_explain_oral, canvas_name=Math53.canvas, has_node_content=False, node_content_len=0, content_preview=", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.306931Z"}
+{"event": "[Story 12.B.1] explain_oral SUCCESS: explanation_len=4", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.306972Z"}
+{"event": "Story 12.A.5: Recorded learning event: episode-mock-1 for concept: \u9006\u5426\u547d\u9898\u7684\u5b9a\u4e49\u548c\u6027\u8d28...", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.306996Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.core.vault_scope:vault_scope.py:195 vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)
+INFO     app.api.v1.endpoints.agents:agents.py:1182 [Story 12.B.1] explain_oral START: canvas=Math53.canvas, node_id=node_explain_oral, has_realtime_content=False
+WARNING  app.api.v1.endpoints.agents:agents.py:623 RAG service not available: RAG not available in tests
+INFO     app.api.v1.endpoints.agents:agents.py:1227 explain_oral: canvas=Math53.canvas, node=node_explain_oral, pos=(100,200,400,200), has_rag_context=False
+INFO     app.api.v1.endpoints.agents:agents.py:1234 [Story 12.D.3] Received node content: node_id=node_explain_oral, canvas_name=Math53.canvas, has_node_content=False, node_content_len=0, content_preview=
+INFO     app.api.v1.endpoints.agents:agents.py:1353 [Story 12.B.1] explain_oral SUCCESS: explanation_len=4
+INFO     app.api.v1.endpoints.agents:agents.py:397 Story 12.A.5: Recorded learning event: episode-mock-1 for concept: 逆否命题的定义和性质...
+_ TestAllExplainEndpointsRecording.test_explain_endpoint_records_event[explain_clarification-explain_clarification] _
+----------------------------- Captured stdout call -----------------------------
+{"event": "vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)", "logger": "app.core.vault_scope", "level": "warning", "timestamp": "2026-08-31T16:44:14.308101Z"}
+{"event": "[Story 12.B.1] explain_clarification START: canvas=Math53.canvas, node_id=node_explain_clarification, has_realtime_content=False", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.308142Z"}
+{"event": "RAG service not available: RAG not available in tests", "logger": "app.api.v1.endpoints.agents", "level": "warning", "timestamp": "2026-08-31T16:44:14.308173Z"}
+{"event": "explain_clarification: canvas=Math53.canvas, node=node_explain_clarification, pos=(100,200,400,200), has_rag_context=False", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.308192Z"}
+{"event": "[Story 12.D.3] Received node content: node_id=node_explain_clarification, canvas_name=Math53.canvas, has_node_content=False, node_content_len=0, content_preview=", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.308210Z"}
+{"event": "[Story 12.B.1] explain_clarification SUCCESS: explanation_len=4", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.308244Z"}
+{"event": "Story 12.A.5: Recorded learning event: episode-mock-1 for concept: \u9006\u5426\u547d\u9898\u7684\u5b9a\u4e49\u548c\u6027\u8d28...", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.308267Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.core.vault_scope:vault_scope.py:195 vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)
+INFO     app.api.v1.endpoints.agents:agents.py:1182 [Story 12.B.1] explain_clarification START: canvas=Math53.canvas, node_id=node_explain_clarification, has_realtime_content=False
+WARNING  app.api.v1.endpoints.agents:agents.py:623 RAG service not available: RAG not available in tests
+INFO     app.api.v1.endpoints.agents:agents.py:1227 explain_clarification: canvas=Math53.canvas, node=node_explain_clarification, pos=(100,200,400,200), has_rag_context=False
+INFO     app.api.v1.endpoints.agents:agents.py:1234 [Story 12.D.3] Received node content: node_id=node_explain_clarification, canvas_name=Math53.canvas, has_node_content=False, node_content_len=0, content_preview=
+INFO     app.api.v1.endpoints.agents:agents.py:1353 [Story 12.B.1] explain_clarification SUCCESS: explanation_len=4
+INFO     app.api.v1.endpoints.agents:agents.py:397 Story 12.A.5: Recorded learning event: episode-mock-1 for concept: 逆否命题的定义和性质...
+_ TestAllExplainEndpointsRecording.test_explain_endpoint_records_event[explain_comparison-explain_comparison] _
+----------------------------- Captured stdout call -----------------------------
+{"event": "vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)", "logger": "app.core.vault_scope", "level": "warning", "timestamp": "2026-08-31T16:44:14.309462Z"}
+{"event": "[Story 12.B.1] explain_comparison START: canvas=Math53.canvas, node_id=node_explain_comparison, has_realtime_content=False", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.309544Z"}
+{"event": "RAG service not available: RAG not available in tests", "logger": "app.api.v1.endpoints.agents", "level": "warning", "timestamp": "2026-08-31T16:44:14.309592Z"}
+{"event": "explain_comparison: canvas=Math53.canvas, node=node_explain_comparison, pos=(100,200,400,200), has_rag_context=False", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.309615Z"}
+{"event": "[Story 12.D.3] Received node content: node_id=node_explain_comparison, canvas_name=Math53.canvas, has_node_content=False, node_content_len=0, content_preview=", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.309635Z"}
+{"event": "[Story 12.B.1] explain_comparison SUCCESS: explanation_len=4", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.309681Z"}
+{"event": "Story 12.A.5: Recorded learning event: episode-mock-1 for concept: \u9006\u5426\u547d\u9898\u7684\u5b9a\u4e49\u548c\u6027\u8d28...", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.309712Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.core.vault_scope:vault_scope.py:195 vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)
+INFO     app.api.v1.endpoints.agents:agents.py:1182 [Story 12.B.1] explain_comparison START: canvas=Math53.canvas, node_id=node_explain_comparison, has_realtime_content=False
+WARNING  app.api.v1.endpoints.agents:agents.py:623 RAG service not available: RAG not available in tests
+INFO     app.api.v1.endpoints.agents:agents.py:1227 explain_comparison: canvas=Math53.canvas, node=node_explain_comparison, pos=(100,200,400,200), has_rag_context=False
+INFO     app.api.v1.endpoints.agents:agents.py:1234 [Story 12.D.3] Received node content: node_id=node_explain_comparison, canvas_name=Math53.canvas, has_node_content=False, node_content_len=0, content_preview=
+INFO     app.api.v1.endpoints.agents:agents.py:1353 [Story 12.B.1] explain_comparison SUCCESS: explanation_len=4
+INFO     app.api.v1.endpoints.agents:agents.py:397 Story 12.A.5: Recorded learning event: episode-mock-1 for concept: 逆否命题的定义和性质...
+_ TestAllExplainEndpointsRecording.test_explain_endpoint_records_event[explain_memory-explain_memory] _
+----------------------------- Captured stdout call -----------------------------
+{"event": "vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)", "logger": "app.core.vault_scope", "level": "warning", "timestamp": "2026-08-31T16:44:14.311569Z"}
+{"event": "[Story 12.B.1] explain_memory START: canvas=Math53.canvas, node_id=node_explain_memory, has_realtime_content=False", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.311659Z"}
+{"event": "RAG service not available: RAG not available in tests", "logger": "app.api.v1.endpoints.agents", "level": "warning", "timestamp": "2026-08-31T16:44:14.311704Z"}
+{"event": "explain_memory: canvas=Math53.canvas, node=node_explain_memory, pos=(100,200,400,200), has_rag_context=False", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.311727Z"}
+{"event": "[Story 12.D.3] Received node content: node_id=node_explain_memory, canvas_name=Math53.canvas, has_node_content=False, node_content_len=0, content_preview=", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.311747Z"}
+{"event": "[Story 12.B.1] explain_memory SUCCESS: explanation_len=4", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.311788Z"}
+{"event": "Story 12.A.5: Recorded learning event: episode-mock-1 for concept: \u9006\u5426\u547d\u9898\u7684\u5b9a\u4e49\u548c\u6027\u8d28...", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.311814Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.core.vault_scope:vault_scope.py:195 vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)
+INFO     app.api.v1.endpoints.agents:agents.py:1182 [Story 12.B.1] explain_memory START: canvas=Math53.canvas, node_id=node_explain_memory, has_realtime_content=False
+WARNING  app.api.v1.endpoints.agents:agents.py:623 RAG service not available: RAG not available in tests
+INFO     app.api.v1.endpoints.agents:agents.py:1227 explain_memory: canvas=Math53.canvas, node=node_explain_memory, pos=(100,200,400,200), has_rag_context=False
+INFO     app.api.v1.endpoints.agents:agents.py:1234 [Story 12.D.3] Received node content: node_id=node_explain_memory, canvas_name=Math53.canvas, has_node_content=False, node_content_len=0, content_preview=
+INFO     app.api.v1.endpoints.agents:agents.py:1353 [Story 12.B.1] explain_memory SUCCESS: explanation_len=4
+INFO     app.api.v1.endpoints.agents:agents.py:397 Story 12.A.5: Recorded learning event: episode-mock-1 for concept: 逆否命题的定义和性质...
+_ TestAllExplainEndpointsRecording.test_explain_endpoint_records_event[explain_four_level-explain_four-level] _
+----------------------------- Captured stdout call -----------------------------
+{"event": "vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)", "logger": "app.core.vault_scope", "level": "warning", "timestamp": "2026-08-31T16:44:14.313172Z"}
+{"event": "[Story 12.B.1] explain_four-level START: canvas=Math53.canvas, node_id=node_explain_four_level, has_realtime_content=False", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.313231Z"}
+{"event": "RAG service not available: RAG not available in tests", "logger": "app.api.v1.endpoints.agents", "level": "warning", "timestamp": "2026-08-31T16:44:14.313276Z"}
+{"event": "explain_four-level: canvas=Math53.canvas, node=node_explain_four_level, pos=(100,200,400,200), has_rag_context=False", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.313296Z"}
+{"event": "[Story 12.D.3] Received node content: node_id=node_explain_four_level, canvas_name=Math53.canvas, has_node_content=False, node_content_len=0, content_preview=", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.313315Z"}
+{"event": "[Story 12.B.1] explain_four-level SUCCESS: explanation_len=4", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.313353Z"}
+{"event": "Story 12.A.5: Recorded learning event: episode-mock-1 for concept: \u9006\u5426\u547d\u9898\u7684\u5b9a\u4e49\u548c\u6027\u8d28...", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.313387Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.core.vault_scope:vault_scope.py:195 vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)
+INFO     app.api.v1.endpoints.agents:agents.py:1182 [Story 12.B.1] explain_four-level START: canvas=Math53.canvas, node_id=node_explain_four_level, has_realtime_content=False
+WARNING  app.api.v1.endpoints.agents:agents.py:623 RAG service not available: RAG not available in tests
+INFO     app.api.v1.endpoints.agents:agents.py:1227 explain_four-level: canvas=Math53.canvas, node=node_explain_four_level, pos=(100,200,400,200), has_rag_context=False
+INFO     app.api.v1.endpoints.agents:agents.py:1234 [Story 12.D.3] Received node content: node_id=node_explain_four_level, canvas_name=Math53.canvas, has_node_content=False, node_content_len=0, content_preview=
+INFO     app.api.v1.endpoints.agents:agents.py:1353 [Story 12.B.1] explain_four-level SUCCESS: explanation_len=4
+INFO     app.api.v1.endpoints.agents:agents.py:397 Story 12.A.5: Recorded learning event: episode-mock-1 for concept: 逆否命题的定义和性质...
+_ TestAllExplainEndpointsRecording.test_explain_endpoint_records_event[explain_example-explain_example] _
+----------------------------- Captured stdout call -----------------------------
+{"event": "vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)", "logger": "app.core.vault_scope", "level": "warning", "timestamp": "2026-08-31T16:44:14.314592Z"}
+{"event": "[Story 12.B.1] explain_example START: canvas=Math53.canvas, node_id=node_explain_example, has_realtime_content=False", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.314638Z"}
+{"event": "RAG service not available: RAG not available in tests", "logger": "app.api.v1.endpoints.agents", "level": "warning", "timestamp": "2026-08-31T16:44:14.314670Z"}
+{"event": "explain_example: canvas=Math53.canvas, node=node_explain_example, pos=(100,200,400,200), has_rag_context=False", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.314690Z"}
+{"event": "[Story 12.D.3] Received node content: node_id=node_explain_example, canvas_name=Math53.canvas, has_node_content=False, node_content_len=0, content_preview=", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.314708Z"}
+{"event": "[Story 12.B.1] explain_example SUCCESS: explanation_len=4", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.314740Z"}
+{"event": "Story 12.A.5: Recorded learning event: episode-mock-1 for concept: \u9006\u5426\u547d\u9898\u7684\u5b9a\u4e49\u548c\u6027\u8d28...", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-08-31T16:44:14.314762Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.core.vault_scope:vault_scope.py:195 vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)
+INFO     app.api.v1.endpoints.agents:agents.py:1182 [Story 12.B.1] explain_example START: canvas=Math53.canvas, node_id=node_explain_example, has_realtime_content=False
+WARNING  app.api.v1.endpoints.agents:agents.py:623 RAG service not available: RAG not available in tests
+INFO     app.api.v1.endpoints.agents:agents.py:1227 explain_example: canvas=Math53.canvas, node=node_explain_example, pos=(100,200,400,200), has_rag_context=False
+INFO     app.api.v1.endpoints.agents:agents.py:1234 [Story 12.D.3] Received node content: node_id=node_explain_example, canvas_name=Math53.canvas, has_node_content=False, node_content_len=0, content_preview=
+INFO     app.api.v1.endpoints.agents:agents.py:1353 [Story 12.B.1] explain_example SUCCESS: explanation_len=4
+INFO     app.api.v1.endpoints.agents:agents.py:397 Story 12.A.5: Recorded learning event: episode-mock-1 for concept: 逆否命题的定义和性质...
+_ TestRagQueryFourStatePassthrough.test_state_status_reaches_http_surface[ok-None] _
+----------------------------- Captured stdout call -----------------------------
+{"event": "RAG query: \u4ec0\u4e48\u662f\u9006\u5426\u547d\u9898\uff1f... subject=None cross=False", "logger": "app.api.v1.endpoints.rag", "level": "info", "timestamp": "2026-08-31T16:44:14.318307Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.endpoints.rag:rag.py:279 RAG query: 什么是逆否命题？... subject=None cross=False
+_ TestRagQueryFourStatePassthrough.test_state_status_reaches_http_surface[empty-None] _
+----------------------------- Captured stdout call -----------------------------
+{"event": "RAG query: \u4ec0\u4e48\u662f\u9006\u5426\u547d\u9898\uff1f... subject=None cross=False", "logger": "app.api.v1.endpoints.rag", "level": "info", "timestamp": "2026-08-31T16:44:14.321509Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.endpoints.rag:rag.py:279 RAG query: 什么是逆否命题？... subject=None cross=False
+_ TestRagQueryFourStatePassthrough.test_state_status_reaches_http_surface[degraded-graphiti timeout \u2014 lancedb \u72ec\u625b] _
+----------------------------- Captured stdout call -----------------------------
+{"event": "RAG query: \u4ec0\u4e48\u662f\u9006\u5426\u547d\u9898\uff1f... subject=None cross=False", "logger": "app.api.v1.endpoints.rag", "level": "info", "timestamp": "2026-08-31T16:44:14.324164Z"}
+{"event": "decision_recorded", "logger": "app.core.decision_tracker", "level": "info", "timestamp": "2026-08-31T16:44:14.324255Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.endpoints.rag:rag.py:279 RAG query: 什么是逆否命题？... subject=None cross=False
+INFO     app.core.decision_tracker:decision_tracker.py:68 decision_recorded
+_ TestRagQueryFourStatePassthrough.test_state_status_reaches_http_surface[unavailable-rag fallback: ainvoke returned None] _
+----------------------------- Captured stdout call -----------------------------
+{"event": "RAG query: \u4ec0\u4e48\u662f\u9006\u5426\u547d\u9898\uff1f... subject=None cross=False", "logger": "app.api.v1.endpoints.rag", "level": "info", "timestamp": "2026-08-31T16:44:14.326861Z"}
+{"event": "decision_recorded", "logger": "app.core.decision_tracker", "level": "info", "timestamp": "2026-08-31T16:44:14.327128Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.endpoints.rag:rag.py:279 RAG query: 什么是逆否命题？... subject=None cross=False
+INFO     app.core.decision_tracker:decision_tracker.py:68 decision_recorded
+_ TestRagQueryFourStatePassthrough.test_missing_status_stays_null_not_invented _
+----------------------------- Captured stdout call -----------------------------
+{"event": "RAG query: \u4ec0\u4e48\u662f\u9006\u5426\u547d\u9898\uff1f... subject=None cross=False", "logger": "app.api.v1.endpoints.rag", "level": "info", "timestamp": "2026-08-31T16:44:14.330270Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.endpoints.rag:rag.py:279 RAG query: 什么是逆否命题？... subject=None cross=False
+_ TestRagQueryFourStatePassthrough.test_state_key_entirely_absent_is_tolerated _
+----------------------------- Captured stdout call -----------------------------
+{"event": "RAG query: \u4ec0\u4e48\u662f\u9006\u5426\u547d\u9898\uff1f... subject=None cross=False", "logger": "app.api.v1.endpoints.rag", "level": "info", "timestamp": "2026-08-31T16:44:14.332913Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.endpoints.rag:rag.py:279 RAG query: 什么是逆否命题？... subject=None cross=False
+_____ TestRagQueryFourStatePassthrough.test_unavailable_still_returns_200 ______
+----------------------------- Captured stdout call -----------------------------
+{"event": "RAG query: \u4ec0\u4e48\u662f\u9006\u5426\u547d\u9898\uff1f... subject=None cross=False", "logger": "app.api.v1.endpoints.rag", "level": "info", "timestamp": "2026-08-31T16:44:14.335765Z"}
+{"event": "decision_recorded", "logger": "app.core.decision_tracker", "level": "info", "timestamp": "2026-08-31T16:44:14.335868Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.endpoints.rag:rag.py:279 RAG query: 什么是逆否命题？... subject=None cross=False
+INFO     app.core.decision_tracker:decision_tracker.py:68 decision_recorded
+_ TestRagQueryFourStatePassthrough.test_status_value_domain_matches_unified_enum _
+----------------------------- Captured stdout call -----------------------------
+{"event": "RAG query: \u4ec0\u4e48\u662f\u9006\u5426\u547d\u9898\uff1f... subject=None cross=False", "logger": "app.api.v1.endpoints.rag", "level": "info", "timestamp": "2026-08-31T16:44:14.338418Z"}
+{"event": "RAG query: \u4ec0\u4e48\u662f\u9006\u5426\u547d\u9898\uff1f... subject=None cross=False", "logger": "app.api.v1.endpoints.rag", "level": "info", "timestamp": "2026-08-31T16:44:14.339233Z"}
+{"event": "RAG query: \u4ec0\u4e48\u662f\u9006\u5426\u547d\u9898\uff1f... subject=None cross=False", "logger": "app.api.v1.endpoints.rag", "level": "info", "timestamp": "2026-08-31T16:44:14.339908Z"}
+{"event": "decision_recorded", "logger": "app.core.decision_tracker", "level": "info", "timestamp": "2026-08-31T16:44:14.339985Z"}
+{"event": "RAG query: \u4ec0\u4e48\u662f\u9006\u5426\u547d\u9898\uff1f... subject=None cross=False", "logger": "app.api.v1.endpoints.rag", "level": "info", "timestamp": "2026-08-31T16:44:14.340639Z"}
+{"event": "decision_recorded", "logger": "app.core.decision_tracker", "level": "info", "timestamp": "2026-08-31T16:44:14.340693Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.endpoints.rag:rag.py:279 RAG query: 什么是逆否命题？... subject=None cross=False
+INFO     app.api.v1.endpoints.rag:rag.py:279 RAG query: 什么是逆否命题？... subject=None cross=False
+INFO     app.api.v1.endpoints.rag:rag.py:279 RAG query: 什么是逆否命题？... subject=None cross=False
+INFO     app.core.decision_tracker:decision_tracker.py:68 decision_recorded
+INFO     app.api.v1.endpoints.rag:rag.py:279 RAG query: 什么是逆否命题？... subject=None cross=False
+INFO     app.core.decision_tracker:decision_tracker.py:68 decision_recorded
+______ TestRagTraceAlignment.test_degraded_logs_decision_with_enum_value _______
+----------------------------- Captured stdout call -----------------------------
+{"event": "RAG query: \u4ec0\u4e48\u662f\u9006\u5426\u547d\u9898\uff1f... subject=None cross=False", "logger": "app.api.v1.endpoints.rag", "level": "info", "timestamp": "2026-08-31T16:44:14.343352Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.endpoints.rag:rag.py:279 RAG query: 什么是逆否命题？... subject=None cross=False
+______ TestRagTraceAlignment.test_healthy_states_do_not_log_decision[ok] _______
+----------------------------- Captured stdout call -----------------------------
+{"event": "RAG query: \u4ec0\u4e48\u662f\u9006\u5426\u547d\u9898\uff1f... subject=None cross=False", "logger": "app.api.v1.endpoints.rag", "level": "info", "timestamp": "2026-08-31T16:44:14.348973Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.endpoints.rag:rag.py:279 RAG query: 什么是逆否命题？... subject=None cross=False
+_____ TestRagTraceAlignment.test_healthy_states_do_not_log_decision[empty] _____
+----------------------------- Captured stdout call -----------------------------
+{"event": "RAG query: \u4ec0\u4e48\u662f\u9006\u5426\u547d\u9898\uff1f... subject=None cross=False", "logger": "app.api.v1.endpoints.rag", "level": "info", "timestamp": "2026-08-31T16:44:14.351759Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.endpoints.rag:rag.py:279 RAG query: 什么是逆否命题？... subject=None cross=False
+_____________ TestRagTraceAlignment.test_ok_does_not_log_decision ______________
+----------------------------- Captured stdout call -----------------------------
+{"event": "RAG query: \u4ec0\u4e48\u662f\u9006\u5426\u547d\u9898\uff1f... subject=None cross=False", "logger": "app.api.v1.endpoints.rag", "level": "info", "timestamp": "2026-08-31T16:44:14.354525Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.endpoints.rag:rag.py:279 RAG query: 什么是逆否命题？... subject=None cross=False
+_________ TestRagTraceAlignment.test_null_status_does_not_log_decision _________
+----------------------------- Captured stdout call -----------------------------
+{"event": "RAG query: \u4ec0\u4e48\u662f\u9006\u5426\u547d\u9898\uff1f... subject=None cross=False", "logger": "app.api.v1.endpoints.rag", "level": "info", "timestamp": "2026-08-31T16:44:14.357365Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.endpoints.rag:rag.py:279 RAG query: 什么是逆否命题？... subject=None cross=False
+______ TestRagAdditiveContract.test_legacy_schema_parses_new_response[ok] ______
+----------------------------- Captured stdout call -----------------------------
+{"event": "RAG query: \u4ec0\u4e48\u662f\u9006\u5426\u547d\u9898\uff1f... subject=None cross=False", "logger": "app.api.v1.endpoints.rag", "level": "info", "timestamp": "2026-08-31T16:44:14.359919Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.endpoints.rag:rag.py:279 RAG query: 什么是逆否命题？... subject=None cross=False
+____ TestRagAdditiveContract.test_legacy_schema_parses_new_response[empty] _____
+----------------------------- Captured stdout call -----------------------------
+{"event": "RAG query: \u4ec0\u4e48\u662f\u9006\u5426\u547d\u9898\uff1f... subject=None cross=False", "logger": "app.api.v1.endpoints.rag", "level": "info", "timestamp": "2026-08-31T16:44:14.362879Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.endpoints.rag:rag.py:279 RAG query: 什么是逆否命题？... subject=None cross=False
+___ TestRagAdditiveContract.test_legacy_schema_parses_new_response[degraded] ___
+----------------------------- Captured stdout call -----------------------------
+{"event": "RAG query: \u4ec0\u4e48\u662f\u9006\u5426\u547d\u9898\uff1f... subject=None cross=False", "logger": "app.api.v1.endpoints.rag", "level": "info", "timestamp": "2026-08-31T16:44:14.365530Z"}
+{"event": "decision_recorded", "logger": "app.core.decision_tracker", "level": "info", "timestamp": "2026-08-31T16:44:14.365613Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.endpoints.rag:rag.py:279 RAG query: 什么是逆否命题？... subject=None cross=False
+INFO     app.core.decision_tracker:decision_tracker.py:68 decision_recorded
+_ TestRagAdditiveContract.test_legacy_schema_parses_new_response[unavailable] __
+----------------------------- Captured stdout call -----------------------------
+{"event": "RAG query: \u4ec0\u4e48\u662f\u9006\u5426\u547d\u9898\uff1f... subject=None cross=False", "logger": "app.api.v1.endpoints.rag", "level": "info", "timestamp": "2026-08-31T16:44:14.368444Z"}
+{"event": "decision_recorded", "logger": "app.core.decision_tracker", "level": "info", "timestamp": "2026-08-31T16:44:14.368553Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.endpoints.rag:rag.py:279 RAG query: 什么是逆否命题？... subject=None cross=False
+INFO     app.core.decision_tracker:decision_tracker.py:68 decision_recorded
+_____ TestRagAdditiveContract.test_legacy_schema_parses_new_response[None] _____
+----------------------------- Captured stdout call -----------------------------
+{"event": "RAG query: \u4ec0\u4e48\u662f\u9006\u5426\u547d\u9898\uff1f... subject=None cross=False", "logger": "app.api.v1.endpoints.rag", "level": "info", "timestamp": "2026-08-31T16:44:14.371597Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.endpoints.rag:rag.py:279 RAG query: 什么是逆否命题？... subject=None cross=False
+_ TestRagAdditiveContract.test_legacy_nested_multimodal_model_actually_participates _
+----------------------------- Captured stdout call -----------------------------
+{"event": "RAG query: \u4ec0\u4e48\u662f\u9006\u5426\u547d\u9898\uff1f... subject=None cross=False", "logger": "app.api.v1.endpoints.rag", "level": "info", "timestamp": "2026-08-31T16:44:14.374574Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.endpoints.rag:rag.py:279 RAG query: 什么是逆否命题？... subject=None cross=False
+_______ TestRagAdditiveContract.test_legacy_required_keys_all_preserved ________
+----------------------------- Captured stdout call -----------------------------
+{"event": "RAG query: \u4ec0\u4e48\u662f\u9006\u5426\u547d\u9898\uff1f... subject=None cross=False", "logger": "app.api.v1.endpoints.rag", "level": "info", "timestamp": "2026-08-31T16:44:14.377643Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.endpoints.rag:rag.py:279 RAG query: 什么是逆否命题？... subject=None cross=False
+_ TestRagRealFallbackEntrypoint.test_real_ainvoke_none_fallback_returns_200_unavailable _
+----------------------------- Captured stdout call -----------------------------
+{"event": "RAG query: \u4ec0\u4e48\u662f\u9006\u5426\u547d\u9898\uff1f... subject=None cross=False", "logger": "app.api.v1.endpoints.rag", "level": "info", "timestamp": "2026-08-31T16:44:14.383697Z"}
+{"event": "RAGService: ainvoke returned None for query: \u4ec0\u4e48\u662f\u9006\u5426\u547d\u9898\uff1f...", "logger": "app.services.rag_service", "level": "warning", "timestamp": "2026-08-31T16:44:14.383779Z"}
+{"event": "RAGService: Using fallback result, reason: ainvoke_returned_none", "logger": "app.services.rag_service", "level": "warning", "timestamp": "2026-08-31T16:44:14.383829Z"}
+{"event": "decision_recorded", "logger": "app.core.decision_tracker", "level": "info", "timestamp": "2026-08-31T16:44:14.383887Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.endpoints.rag:rag.py:279 RAG query: 什么是逆否命题？... subject=None cross=False
+WARNING  app.services.rag_service:rag_service.py:328 {'event': 'RAGService: ainvoke returned None for query: 什么是逆否命题？...', 'logger': 'app.services.rag_service', 'level': 'warning', 'timestamp': '2026-08-31T16:44:14.383779Z'}
+WARNING  app.services.rag_service:rag_service.py:209 {'event': 'RAGService: Using fallback result, reason: ainvoke_returned_none', 'logger': 'app.services.rag_service', 'level': 'warning', 'timestamp': '2026-08-31T16:44:14.383829Z'}
+INFO     app.core.decision_tracker:decision_tracker.py:68 decision_recorded
+_ TestRagRealFallbackEntrypoint.test_query_with_fallback_exception_exit_reports_unavailable _
+----------------------------- Captured stdout call -----------------------------
+{"event": "RAG query fallback due to error: graphiti exploded", "logger": "app.services.rag_service", "level": "error", "timestamp": "2026-08-31T16:44:14.384864Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.services.rag_service:rag_service.py:494 {'event': 'RAG query fallback due to error: graphiti exploded', 'logger': 'app.services.rag_service', 'level': 'error', 'timestamp': '2026-08-31T16:44:14.384864Z'}
+___ TestRagTraceFailOpen.test_trace_sink_failure_does_not_break_the_response ___
+----------------------------- Captured stdout call -----------------------------
+{"event": "RAG query: \u4ec0\u4e48\u662f\u9006\u5426\u547d\u9898\uff1f... subject=None cross=False", "logger": "app.api.v1.endpoints.rag", "level": "info", "timestamp": "2026-08-31T16:44:14.388027Z"}
+{"event": "retrieval status decision logging failed (fail-open); function=rag_query status=degraded", "exc_info": ["<class 'RuntimeError'>", "RuntimeError('trace sink failed')", "<traceback object at 0x13658d5c0>"], "logger": "app.core.decision_tracker", "level": "error", "timestamp": "2026-08-31T16:44:14.388118Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.endpoints.rag:rag.py:279 RAG query: 什么是逆否命题？... subject=None cross=False
+ERROR    app.core.decision_tracker:decision_tracker.py:147 retrieval status decision logging failed (fail-open); function=rag_query status=degraded
+Traceback (most recent call last):
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w8-scope/backend/app/core/decision_tracker.py", line 139, in log_retrieval_status_decision
+    return log_decision(
+        function=function,
+    ...<2 lines>...
+        reason=reason or f"retrieval_status={normalized} reported without reason",
+    )
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py", line 1176, in __call__
+    return self._mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py", line 1180, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py", line 1241, in _execute_mock_call
+    raise effect
+RuntimeError: trace sink failed
+_ TestRagTraceFailOpen.test_both_sink_and_fallback_logger_failing_still_returns_200 _
+----------------------------- Captured stdout call -----------------------------
+{"event": "RAG query: \u4ec0\u4e48\u662f\u9006\u5426\u547d\u9898\uff1f... subject=None cross=False", "logger": "app.api.v1.endpoints.rag", "level": "info", "timestamp": "2026-08-31T16:44:14.391541Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.endpoints.rag:rag.py:279 RAG query: 什么是逆否命题？... subject=None cross=False
+_ TestRagProductionStateShapesAllReturn200.test_create_initial_state_shape_returns_200 _
+----------------------------- Captured stdout call -----------------------------
+{"event": "Agentic RAG module loaded successfully. AGENTIC_RAG_AVAILABLE=True", "logger": "lib.agentic_rag", "level": "info", "timestamp": "2026-08-31T16:44:14.394135Z"}
+{"event": "RAG query: \u4ec0\u4e48\u662f\u9006\u5426\u547d\u9898\uff1f... subject=None cross=False", "logger": "app.api.v1.endpoints.rag", "level": "info", "timestamp": "2026-08-31T16:44:14.395227Z"}
+------------------------------ Captured log call -------------------------------
+INFO     lib.agentic_rag:__init__.py:71 Agentic RAG module loaded successfully. AGENTIC_RAG_AVAILABLE=True
+INFO     app.api.v1.endpoints.rag:rag.py:279 RAG query: 什么是逆否命题？... subject=None cross=False
+_ TestRagProductionStateShapesAllReturn200.test_fallback_result_shape_returns_200[ainvoke_returned_none] _
+----------------------------- Captured stdout call -----------------------------
+{"event": "RAGService: Using fallback result, reason: ainvoke_returned_none", "logger": "app.services.rag_service", "level": "warning", "timestamp": "2026-08-31T16:44:14.397515Z"}
+{"event": "RAG query: \u4ec0\u4e48\u662f\u9006\u5426\u547d\u9898\uff1f... subject=None cross=False", "logger": "app.api.v1.endpoints.rag", "level": "info", "timestamp": "2026-08-31T16:44:14.398080Z"}
+{"event": "decision_recorded", "logger": "app.core.decision_tracker", "level": "info", "timestamp": "2026-08-31T16:44:14.398167Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.rag_service:rag_service.py:209 {'event': 'RAGService: Using fallback result, reason: ainvoke_returned_none', 'logger': 'app.services.rag_service', 'level': 'warning', 'timestamp': '2026-08-31T16:44:14.397515Z'}
+INFO     app.api.v1.endpoints.rag:rag.py:279 RAG query: 什么是逆否命题？... subject=None cross=False
+INFO     app.core.decision_tracker:decision_tracker.py:68 decision_recorded
+_ TestRagProductionStateShapesAllReturn200.test_fallback_result_shape_returns_200[some_other_reason] _
+----------------------------- Captured stdout call -----------------------------
+{"event": "RAGService: Using fallback result, reason: some_other_reason", "logger": "app.services.rag_service", "level": "warning", "timestamp": "2026-08-31T16:44:14.400268Z"}
+{"event": "RAG query: \u4ec0\u4e48\u662f\u9006\u5426\u547d\u9898\uff1f... subject=None cross=False", "logger": "app.api.v1.endpoints.rag", "level": "info", "timestamp": "2026-08-31T16:44:14.400995Z"}
+{"event": "decision_recorded", "logger": "app.core.decision_tracker", "level": "info", "timestamp": "2026-08-31T16:44:14.401113Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.rag_service:rag_service.py:209 {'event': 'RAGService: Using fallback result, reason: some_other_reason', 'logger': 'app.services.rag_service', 'level': 'warning', 'timestamp': '2026-08-31T16:44:14.400268Z'}
+INFO     app.api.v1.endpoints.rag:rag.py:279 RAG query: 什么是逆否命题？... subject=None cross=False
+INFO     app.core.decision_tracker:decision_tracker.py:68 decision_recorded
+=========================== short test summary info ============================
+PASSED tests/api/v1/endpoints/test_agents_encoding.py::test_encoding_error_returns_encoding_error_type
+PASSED tests/api/v1/endpoints/test_agents_encoding.py::test_encoding_error_is_retryable
+PASSED tests/api/v1/endpoints/test_agents_encoding.py::test_encoding_error_diagnostic_contains_position
+PASSED tests/api/v1/endpoints/test_agents_encoding.py::test_encoding_error_diagnostic_contains_hex_char_code
+PASSED tests/api/v1/endpoints/test_agents_encoding.py::test_encoding_error_diagnostic_chinese_character
+PASSED tests/api/v1/endpoints/test_agents_encoding.py::test_encoding_error_logs_ascii_safe
+PASSED tests/api/v1/endpoints/test_agents_encoding.py::test_encoding_error_cancels_request_cache
+PASSED tests/api/v1/endpoints/test_agents_encoding.py::test_encoding_error_no_cancel_when_no_cache_key
+PASSED tests/api/v1/endpoints/test_agents_encoding.py::test_encoding_error_empty_object
+PASSED tests/api/v1/endpoints/test_agents_encoding.py::test_encoding_error_position_out_of_bounds
+PASSED tests/api/v1/endpoints/test_agents_encoding.py::test_decompose_basic_has_encoding_error_handler
+PASSED tests/api/v1/endpoints/test_agents_encoding.py::test_decompose_deep_has_encoding_error_handler
+PASSED tests/api/v1/endpoints/test_agents_encoding.py::test_decompose_question_has_encoding_error_handler
+PASSED tests/api/v1/endpoints/test_agents_encoding.py::test_call_explanation_has_encoding_error_handler
+PASSED tests/api/v1/endpoints/test_agents_encoding.py::test_score_understanding_has_encoding_error_handler
+PASSED tests/api/v1/endpoints/test_agents_encoding.py::test_generate_verification_questions_has_encoding_error_handler
+PASSED tests/api/v1/endpoints/test_agents_health.py::test_health_check_healthy_status
+PASSED tests/api/v1/endpoints/test_agents_health.py::test_health_check_degraded_status
+PASSED tests/api/v1/endpoints/test_agents_health.py::test_health_check_unhealthy_no_api_key
+PASSED tests/api/v1/endpoints/test_agents_health.py::test_health_check_unhealthy_no_client
+PASSED tests/api/v1/endpoints/test_agents_health.py::test_health_check_with_api_test_success
+PASSED tests/api/v1/endpoints/test_agents_health.py::test_health_check_with_api_test_failure
+PASSED tests/api/v1/endpoints/test_agents_health.py::test_health_check_without_api_test
+PASSED tests/api/v1/endpoints/test_agents_health.py::test_health_check_cache_ttl
+PASSED tests/api/v1/endpoints/test_agents_health.py::test_health_check_cache_expired
+PASSED tests/api/v1/endpoints/test_agents_health.py::test_health_check_separate_cache_keys
+PASSED tests/api/v1/endpoints/test_agents_health.py::test_health_check_response_model
+PASSED tests/api/v1/endpoints/test_agents_health.py::test_health_check_timestamp_format
+PASSED tests/api/v1/endpoints/test_agents_learning_event.py::TestRecordLearningEvent::test_record_learning_event_success
+PASSED tests/api/v1/endpoints/test_agents_learning_event.py::TestRecordLearningEvent::test_record_learning_event_includes_required_fields
+PASSED tests/api/v1/endpoints/test_agents_learning_event.py::TestRecordLearningEvent::test_record_learning_event_with_score
+PASSED tests/api/v1/endpoints/test_agents_learning_event.py::TestRecordLearningEvent::test_record_learning_event_failure_silent
+PASSED tests/api/v1/endpoints/test_agents_learning_event.py::TestRecordLearningEvent::test_record_learning_event_different_agent_types
+PASSED tests/api/v1/endpoints/test_agents_learning_event.py::TestBackgroundTaskIntegration::test_background_task_non_blocking
+PASSED tests/api/v1/endpoints/test_agents_learning_event.py::TestBackgroundTaskIntegration::test_background_task_failure_graceful
+PASSED tests/api/v1/endpoints/test_agents_learning_event.py::TestMemoryServiceSingleton::test_singleton_returns_same_instance
+PASSED tests/api/v1/endpoints/test_agents_learning_event.py::TestEndpointIntegration::test_decompose_basic_triggers_recording
+PASSED tests/api/v1/endpoints/test_agents_learning_event.py::TestEndpointIntegration::test_decompose_deep_triggers_recording
+PASSED tests/api/v1/endpoints/test_agents_learning_event.py::TestEndpointIntegration::test_score_understanding_triggers_recording
+PASSED tests/api/v1/endpoints/test_agents_learning_event.py::TestEndpointIntegration::test_explain_oral_triggers_recording
+PASSED tests/api/v1/endpoints/test_agents_learning_event.py::TestEndpointIntegration::test_learning_event_failure_does_not_block_response
+PASSED tests/api/v1/endpoints/test_agents_learning_event.py::TestAllExplainEndpointsRecording::test_explain_endpoint_records_event[explain_oral-explain_oral]
+PASSED tests/api/v1/endpoints/test_agents_learning_event.py::TestAllExplainEndpointsRecording::test_explain_endpoint_records_event[explain_clarification-explain_clarification]
+PASSED tests/api/v1/endpoints/test_agents_learning_event.py::TestAllExplainEndpointsRecording::test_explain_endpoint_records_event[explain_comparison-explain_comparison]
+PASSED tests/api/v1/endpoints/test_agents_learning_event.py::TestAllExplainEndpointsRecording::test_explain_endpoint_records_event[explain_memory-explain_memory]
+PASSED tests/api/v1/endpoints/test_agents_learning_event.py::TestAllExplainEndpointsRecording::test_explain_endpoint_records_event[explain_four_level-explain_four-level]
+PASSED tests/api/v1/endpoints/test_agents_learning_event.py::TestAllExplainEndpointsRecording::test_explain_endpoint_records_event[explain_example-explain_example]
+PASSED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagQueryFourStatePassthrough::test_state_status_reaches_http_surface[ok-None]
+PASSED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagQueryFourStatePassthrough::test_state_status_reaches_http_surface[empty-None]
+PASSED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagQueryFourStatePassthrough::test_state_status_reaches_http_surface[degraded-graphiti timeout \u2014 lancedb \u72ec\u625b]
+PASSED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagQueryFourStatePassthrough::test_state_status_reaches_http_surface[unavailable-rag fallback: ainvoke returned None]
+PASSED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagQueryFourStatePassthrough::test_missing_status_stays_null_not_invented
+PASSED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagQueryFourStatePassthrough::test_state_key_entirely_absent_is_tolerated
+PASSED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagQueryFourStatePassthrough::test_unavailable_still_returns_200
+PASSED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagQueryFourStatePassthrough::test_status_value_domain_matches_unified_enum
+PASSED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagTraceAlignment::test_degraded_logs_decision_with_enum_value
+PASSED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagTraceAlignment::test_entry_logger_failure_does_not_break_response
+PASSED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagTraceAlignment::test_healthy_states_do_not_log_decision[ok]
+PASSED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagTraceAlignment::test_healthy_states_do_not_log_decision[empty]
+PASSED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagTraceAlignment::test_ok_does_not_log_decision
+PASSED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagTraceAlignment::test_null_status_does_not_log_decision
+PASSED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagAdditiveContract::test_legacy_schema_parses_new_response[ok]
+PASSED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagAdditiveContract::test_legacy_schema_parses_new_response[empty]
+PASSED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagAdditiveContract::test_legacy_schema_parses_new_response[degraded]
+PASSED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagAdditiveContract::test_legacy_schema_parses_new_response[unavailable]
+PASSED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagAdditiveContract::test_legacy_schema_parses_new_response[None]
+PASSED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagAdditiveContract::test_legacy_nested_multimodal_model_actually_participates
+PASSED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagAdditiveContract::test_legacy_required_keys_all_preserved
+PASSED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagSchemaRequiredSetFrozen::test_required_set_stays_empty
+PASSED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagSchemaRequiredSetFrozen::test_status_field_value_domain_is_the_unified_enum
+PASSED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagRealFallbackEntrypoint::test_real_ainvoke_none_fallback_returns_200_unavailable
+PASSED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagRealFallbackEntrypoint::test_query_with_fallback_exception_exit_reports_unavailable
+PASSED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagTraceFailOpen::test_trace_sink_failure_does_not_break_the_response
+PASSED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagTraceFailOpen::test_both_sink_and_fallback_logger_failing_still_returns_200
+PASSED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagProductionStateShapesAllReturn200::test_create_initial_state_shape_returns_200
+PASSED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagProductionStateShapesAllReturn200::test_fallback_result_shape_returns_200[ainvoke_returned_none]
+PASSED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagProductionStateShapesAllReturn200::test_fallback_result_shape_returns_200[some_other_reason]
+=============== 77 passed, 152 deselected, 21 warnings in 0.72s ================
+<sys>:0: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
