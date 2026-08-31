@@ -283,6 +283,15 @@ class ReviewService:
             self._fsrs_manager = fsrs_manager
             self._fsrs_init_ok = True
             FSRS_RUNTIME_OK = True
+            # CARD-DEBT-8 (Codex round-1 M1): 外来注入的 manager 缺
+            # library_available 时 helper 走 fail-open 缺省 True——改
+            # fail-closed 会打红既有 mock 注入套件, 故保留 HEAD 行为但
+            # 让这个边缘显式出声 (一次性, 不在每次调用时刷屏)。
+            if not hasattr(self._fsrs_manager, "library_available"):
+                logger.warning(
+                    "Injected fsrs_manager lacks 'library_available' "
+                    "(CARD-DEBT-8); assuming real py-fsrs library (fail-open)"
+                )
             logger.info("FSRS manager initialized successfully")
         else:
             # Story 32.8: Auto-create via unified factory (checks USE_FSRS internally)
@@ -314,8 +323,11 @@ class ReviewService:
 
         manager 存在只证明 fsrs_manager 模块可导入; py-fsrs 缺失时底层走
         _fallback_review（简单倍率调度）, algorithm 字段必须据此如实上报。
-        getattr 缺省 True: 测试注入的替身 manager 无此属性时按"在位"处理,
-        与 HEAD 行为一致; 真实 FSRSManager 恒有 library_available。
+        getattr 缺省 True 是**显式裁决** (Codex round-1 M1): 生产 factory
+        产出的 FSRSManager 恒有此属性, 缺属性的只有外来注入的替身/旧式
+        wrapper——对它们 fail-open 保持 HEAD 行为, 改 fail-closed 会把
+        既有 mock 注入套件全部打红; 缺属性情形已在 __init__ 一次性
+        warning 出声。
         """
         return bool(getattr(self._fsrs_manager, "library_available", True))
 

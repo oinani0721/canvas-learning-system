@@ -89,7 +89,9 @@ print("RECORD-HONEST-OK")
 
 def test_fallback_record_review_result_keeps_persistence_signal():
     """CARD-D3 持久化信号不得被本卡冲掉: fallback 激活且写失败时,
-    degraded_reason 须同时携带 fsrs_library_missing 与 card_state_write_failed。"""
+    degraded_reason 须精确等于 fsrs_library_missing,card_state_write_failed
+    (顺序 + 逗号定界都锁死, Codex round-1 LOW-1: substring 断言杀不死
+    删逗号变异)。"""
     probe = (
         _BLOCK_FSRS
         + (_PROBE_PRELUDE % _LIB_PATH)
@@ -103,9 +105,8 @@ svc._save_card_states = _fail_save
 r = asyncio.run(
     svc.record_review_result(canvas_name="board", concept_id="c1", rating=3)
 )
-reason = r.get("degraded_reason") or ""
-assert "fsrs_library_missing" in reason, f"got {reason!r}"
-assert "card_state_write_failed" in reason, f"D3 signal lost: {reason!r}"
+reason = r.get("degraded_reason")
+assert reason == "fsrs_library_missing,card_state_write_failed", f"got {reason!r}"
 print("D3-SIGNAL-OK")
 """
     )
@@ -143,12 +144,17 @@ print("SCHEDULE-HONEST-OK")
 
 def test_fallback_get_fsrs_state_reports_honest_algorithm():
     """底层 fallback 激活时 get_fsrs_state 响应须加性携带
-    algorithm=fsrs-fallback-scheduler + degraded_reason。"""
+    algorithm=fsrs-fallback-scheduler + degraded_reason, 且实例属性
+    library_available 必须如实为 False (Codex round-1 M3: 钉死实例
+    真相源, 杀死「绕过实例属性直读模块标志」的存活变异)。"""
     probe = (
         _BLOCK_FSRS
         + (_PROBE_PRELUDE % _LIB_PATH)
         + r"""
 assert not fm.FSRS_AVAILABLE
+assert svc._fsrs_manager.library_available is False, (
+    f"instance truth source broken: {svc._fsrs_manager.library_available!r}"
+)
 r = asyncio.run(svc.get_fsrs_state("c3"))
 assert r["found"] is True
 assert r.get("algorithm") == "fsrs-fallback-scheduler", f"got {r.get('algorithm')!r}"
@@ -163,26 +169,40 @@ print("STATE-HONEST-OK")
 
 
 def test_real_library_responses_unchanged():
-    """裁决③对照: 真实库在位时 algorithm 仍为 fsrs-4.5, 且三个响应
-    均不新增 fallback 专属键（degraded_reason 语义与 HEAD 逐键一致:
-    record_review_result 持久化成功时为 None; schedule_review /
-    get_fsrs_state 响应根本没有该键, 也没有 algorithm 新键）。"""
+    """裁决③对照: 真实库在位时 algorithm 仍为 fsrs-4.5, 响应**键集合精确
+    等于** HEAD 契约 (Codex round-1 M3: 仅断言个别键杀不死「夹带新键/
+    篡改既有值」变异, 故锁全键集 + 关键值不变式), 且实例属性真相源为
+    True。get_fsrs_state 的 reason 键仅 persisted=False 时出现, 故对其
+    只锁「禁止 fallback 键」。"""
     probe = (
         (_PROBE_PRELUDE % _LIB_PATH)
         + r"""
 assert fm.FSRS_AVAILABLE, "prerequisite: real py-fsrs present"
+assert svc._fsrs_manager.library_available is True, "instance truth source broken"
 rec = asyncio.run(
     svc.record_review_result(canvas_name="board", concept_id="c1", rating=3)
 )
+assert sorted(rec.keys()) == sorted([
+    "canvas_name", "concept_id", "rating", "score", "next_review",
+    "interval_days", "fsrs_state", "card_data", "details", "recorded_at",
+    "status", "algorithm", "card_state_persisted", "degraded_reason",
+]), f"record keys drifted: {sorted(rec.keys())}"
 assert rec["algorithm"] == "fsrs-4.5", f"got {rec['algorithm']!r}"
 assert rec["degraded_reason"] is None, f"got {rec['degraded_reason']!r}"
+assert rec["status"] == "recorded"
+assert isinstance(rec["interval_days"], int) and rec["interval_days"] >= 0
 sch = asyncio.run(svc.schedule_review(canvas_name="board", concept_id="c2"))
+assert sorted(sch.keys()) == sorted([
+    "canvas_name", "concept_id", "scheduled_date", "interval_days",
+    "retrievability", "fsrs_state", "card_data", "status", "algorithm",
+]), f"schedule keys drifted: {sorted(sch.keys())}"
 assert sch["algorithm"] == "fsrs-4.5", f"got {sch['algorithm']!r}"
-assert "degraded_reason" not in sch, "new key leaked into real-library path"
+assert sch["status"] == "scheduled"
 st = asyncio.run(svc.get_fsrs_state("c3"))
 assert st["found"] is True
-assert "algorithm" not in st, "new key leaked into real-library path"
-assert "degraded_reason" not in st, "new key leaked into real-library path"
+assert not ({"algorithm", "degraded_reason"} & set(st.keys())), (
+    f"fallback keys leaked into real-library path: {sorted(st.keys())}"
+)
 print("REAL-UNCHANGED-OK")
 """
     )

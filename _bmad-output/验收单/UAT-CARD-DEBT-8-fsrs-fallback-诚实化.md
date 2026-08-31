@@ -28,7 +28,20 @@
 | 3 | `-k "fsrs or review_service or story_38_3"` 开工基线 vs 改后 | ✅ 193 passed 前后一致，0 新增失败 | `baseline-k-filter.txt` / `after-k-filter-v2.txt` |
 | 4 | 无新增第三个模块级标志 | ✅ `FSRS_RUNTIME_OK\|FSRS_AVAILABLE\|FSRS_LIB` grep 与 HEAD 逐行相同 | 本文件下方原文摘录 |
 | 5 | 先红后绿 | ✅ 改码前 4 failed + 1 passed（红因=`lied fsrs-4.5: 'fsrs-4.5'`），改后 5 passed | `red-state-run.txt` |
-| 6 | 变异负控制（串行 10 条，超卡文 ≥2 要求） | ✅ 10/10 KILLED，还原后 sha256 逐字节一致 | `mutation-run-v2.txt` |
+| 6 | 变异负控制（串行 10 条，超卡文 ≥2 要求） | ✅ 10/10 KILLED，还原后 sha256 逐字节一致 | `mutation-run-v2.txt` / `mutation-run-v3.txt` |
+| 7 | **Codex round-1 终判** | ✅ **PASS：0 BLOCKER / 0 HIGH**；3 MEDIUM 中 2 条当场整改、1 条登记移交，2 LOW 中 1 条当场整改、1 条并入移交 | `_bmad-output/审查/codex-review-CARD-DEBT-8.md` |
+
+**Codex 三项正面确认**（「未发现」= 没审出问题）：底层真值链全通（factory 缺库路径四层标志逐层 False → 三入口诚实）；无第三个模块级标志（grep 与 HEAD 逐行相同）；真实库路径与 `a63fadd3^` 对照**逐键相等**（`*_equal=True` ×5，含写失败与空 concept_id 路径）。
+
+**Codex M/LOW 处置**（整改后全门复绿：探针 5 passed / 七文件 136 passed / 变异 10/10 / -k 193 passed）：
+
+| 条目 | 内容 | 处置 |
+|------|------|------|
+| M1 | 注入缺 `library_available` 属性的 manager 时 fail-open 复活谎报 | **已整改**：`__init__` 一次性 warning 显式出声；fail-open 保留为显式裁决（改 fail-closed 会打红既有 mock 注入套件，且越文件边界），why 已写进 helper docstring |
+| M2 | py-fsrs 缺失环境下既有 `TestCardStatePersistHonestyD3` 4 条精确断言回归（拼接值≠旧单值） | **登记移交**（§移交项 5）：修复须改 `test_review_service_fsrs.py`，越本卡独占面；真库环境（本机）全绿 |
+| M3 | 真实库探针只查个别键，锁不死「夹带键/绕过实例真相源」变异 | **已整改**：三响应改精确键集断言 + 关键值不变式 + `library_available is True/False` 实例真相源双环境钉死 |
+| LOW1 | D3 拼接只查 substring，杀不死删逗号变异 | **已整改**：断言升级为精确全串 `fsrs_library_missing,card_state_write_failed` |
+| LOW2 | `schemas.py` 的 `algorithm`/`degraded_reason` 契约描述未含第三值/复合值 | **登记移交**（§移交项 3 扩充） |
 
 **裁判 2 探针原文输出**（跑前后 `backend/data` 全目录 sha256 比对，diff 为空）：
 
@@ -76,8 +89,9 @@ DATA-UNCHANGED-OK (真门: sha256 全目录比对)
 
 1. **`GET /api/v1/review/fsrs-state` 的新诚实键透不到 HTTP**（review.py:1437 白名单构造响应 + response model 无字段）——本卡在 service 层修好，但该端点消费方拿不到；PUT /record 路径已实证可见（review.py:1122/:1125 转发）。
 2. **`/api/v1/health` 的 `components.fsrs` 在 py-fsrs 缺失时仍报 "ok"**（health.py:108；两个分支分别依赖恒真标志与「manager 对象存在」语义）——修复触及 FSRS_RUNTIME_OK 语义（裁决② 禁区），须持卡人/用户另裁。
-3. **`RecordReviewResponse.algorithm` 契约描述未含第三值**（schemas.py:1001，"fsrs-4.5 or ebbinghaus-fallback"）——一行描述同步，LOW。
+3. **`RecordReviewResponse` 契约描述未同步**（schemas.py:1001 `algorithm` 描述只有 "fsrs-4.5 or ebbinghaus-fallback"；Codex LOW2 补充：:1013 `degraded_reason` 描述宣称「仅持久化失败时出现、仅两个单值」，现成功时也可能带 `fsrs_library_missing`、双降级为复合值）——两行描述同步，LOW。
 4. `schedule_review` 无 HTTP 端点（纯内部调用），其诚实化仅服务层可见——现状如实记录。
+5. **缺 py-fsrs 环境下既有 D3 测试类回归**（Codex round-1 M2：屏蔽 fsrs 后 `TestCardStatePersistHonestyD3` 4 failed——精确断言 `degraded_reason` 旧单值/`algorithm` 旧恒值，与本卡新诚实值冲突）——修复须改 `test_review_service_fsrs.py`（越本卡独占面），真库环境全绿不受影响；建议随下批测试卫生卡把该类断言改为 fallback-感知。
 
 ### ⚠️ 本卡执行过程事故披露（已全部恢复）
 
