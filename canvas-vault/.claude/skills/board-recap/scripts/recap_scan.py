@@ -71,7 +71,6 @@ import json
 import math
 import re
 import sys
-import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -872,6 +871,13 @@ _SIGNAL_TAILS = {
     "unsourced_conclusions": "派生角色成员缺来源锚点",
     "duplicate_accumulation": "条批注为重复条目",
 }
+# CARD-维护B-R2 (e) · 第七批裁定 B-1 甲（放宽规则, 待用户裁决）: 信号行尾部的
+# **封闭注记表** — 标准尾部与档位标注之间允许一个可选注记, 注记只许**逐字**取自
+# 本表（正向允许式, 不是自由文本槽——槽退化成 `[^【】]*` 就重开了 H-3 黑名单老路）。
+# 与 SKILL.md ③段信号行铁律同表同改, 同步由 e3 表锁测试逐字比对。
+# ⛔ 表内短语不得含任何数字/量词字符（槽在 D2 治理之外, 靠表封闭性兜底）。
+# 无据行**不适用**本表（无据行另有整行固定模板, 见 _NODATA_REASONS）。
+_SIGNAL_TAIL_NOTES = ("口径一致",)
 # 年龄信号标准行: 最老 N 天（参与统计 D 条，p25/p50/p75 = a/b/c 天）
 _SIG_AGE_RE = re.compile(
     r"最老\s*(\d+)\s*天\s*[（(]\s*参与统计\s*(\d+)\s*条[，,]\s*"
@@ -887,19 +893,11 @@ _SIGNAL_REQUIRED_FIELDS = (
     "availability",
     "asof",
 )
-# 汉字数字在 Unicode 里多数是 Lo (Letter,other) 而非 No —— unicodedata
-# 的数值属性**不认** 一/七/壹 等, 必须显式补全 (小写 + 大写 + 表量字)。
-# ⛔ 不含「零/〇」— 无据说明里「分母为零」是自然表述, 且零不构成虚报数值
-# (无据行的风险是**虚报有值**, 不是说"没有")。
-_EXTRA_QUANTITY_CHARS = (
-    "一二三四五六七八九十百千万亿"  # 小写
-    "壹贰叁肆伍陆柒捌玖拾佰仟萬億"  # 大写
-    "两俩双廿卅半"  # 表量
-)
-
-
 # 无据行允许的**全部**原因文案 (round-5: 白名单取代数字黑名单)。
-# 与 SKILL.md Step 5 模板逐字一致 — 新增文案必须两处同改。
+# 与 SKILL.md Step 5 模板逐字一致 — 新增文案必须两处同改
+# (同步由 b1「SKILL 同步锁」测试逐字比对, 单侧改动即红)。
+# ⛔ CARD-维护B-R2: 此前「两处同改」只是注释约定, 表增一条只放宽那一个字面,
+# 没有任何测试锁成员/长度/与 SKILL.md 的同步 (S1 survivor 实测)。
 _NODATA_REASONS = (
     "无带时间戳批注",
     "分母为零",
@@ -907,23 +905,6 @@ _NODATA_REASONS = (
     "本板无批注",
     "数据源不可用",
 )
-
-
-def _has_numeric(text: str) -> bool:
-    """任意 Unicode **数值**字符检测 (round-4 H2/H3 结构性终结)。
-
-    字符黑名单是打不完的地鼠: 已被绕过的有全角 `３`、中文 `七十七`、
-    大写 `壹`、Arabic-Indic `٩`、上标 `⁹`…… 改用 unicodedata 的数值属性
-    (Nd/Nl/No 全覆盖, 含各语系数字与上下标), 再补几个无数值属性的表量汉字。
-    """
-    for ch in text:
-        if ch in "零〇":
-            continue
-        if ch in _EXTRA_QUANTITY_CHARS:
-            return True
-        if unicodedata.category(ch) in ("Nd", "Nl", "No"):
-            return True
-    return False
 
 
 def _verify_signal_schema(key: str, sig, problems: list[str]) -> bool:
@@ -1127,12 +1108,10 @@ def _verify_signal_lines(text: str, signals: dict, problems: list[str]) -> None:
             else:
                 # ⛔ 维护卡 B · H-3: 尾部原为 `(?P<tail>[^【】]*)` —— **先开放再排除**
                 # (排除数值字符与 `/` 形态)。复核者的判词是对的: 那"本质仍是黑名单",
-                # 实测「另有仨条」照样放行 (仨不在 _has_numeric 覆盖面且无 `/`)。
+                # 实测「另有仨条」照样放行 (生僻量词不在任何表内且无 `/`)。
                 # 而尾部本来就是**固定文案** (SKILL Step 5 模板逐字规定), 所以改成
                 # 正向允许式: 只许这三句之一, 锚 `$`。字符层攻防到此结束 ——
                 # 「仨/皕/零」这类生僻写法不需要被逐个枚举, 它们进不来。
-                # 副作用 (期望中的): `_has_numeric` 不再参与信号行判定, round-5 起
-                # 「口径一致」被误判为夹带数值的**误伤随之消失**。
                 tail = _SIGNAL_TAILS.get(key)
                 if tail is None:  # 新增信号必须在 _SIGNAL_TAILS 里登记尾部文案
                     problems.append(
@@ -1145,7 +1124,18 @@ def _verify_signal_lines(text: str, signals: dict, problems: list[str]) -> None:
                 )
             # 行首前缀白名单: 引用符/列表符/单空格间隔 — ⛔ 不允许四空格以上
             # 缩进 (缩进代码块形态, round-5: 不再靠 _strip_code_blocks 剥它)
-            strict = rf"^(?! {{4}}|\t)[>\-*·\s]{{0,6}}{body}\s*【{re.escape(str(avail))}】\s*$"
+            # CARD-维护B-R2 (e): body 与档位之间插入**可选注记槽** — 注记只许逐字
+            # 取自 _SIGNAL_TAIL_NOTES（封闭表 alternation, 槽至多出现一次）,
+            # 可紧接或以 ·/，/,/、 与标准尾部分隔。四条信号行统一适用;
+            # 无据行不适用（其整行模板在上方, 未插槽）。
+            note_slot = (
+                rf"(?:\s*[·，,、]?\s*"
+                rf"(?:{'|'.join(re.escape(x) for x in _SIGNAL_TAIL_NOTES)}))?"
+            )
+            strict = (
+                rf"^(?! {{4}}|\t)[>\-*·\s]{{0,6}}{body}{note_slot}"
+                rf"\s*【{re.escape(str(avail))}】\s*$"
+            )
             m = re.match(strict, line)
             if not m:
                 problems.append(
@@ -1155,8 +1145,8 @@ def _verify_signal_lines(text: str, signals: dict, problems: list[str]) -> None:
             # ⛔ 维护卡 B · H-3: 这里原有一段"尾部禁数值字符 + 禁 X/N 形态"的**黑名单**
             # 后置检查 (round-4→round-5 的字符表路线)。现已**整体删除** —— 尾部改成
             # 正向允许式后, 任何非标准尾部在上面的整行 fullmatch 处就已经 FAIL,
-            # 这段检查恒不触发, 留着只会让人以为字符表还在承重。
-            # 删除它同时消灭了 `_has_numeric` 把「一」判成数值导致的「口径一致」误伤。
+            # 这段检查恒不触发, 留着只会让人以为字符表还在承重
+            # (「口径一致」早年的字符表误伤也随之消灭, 见 (e) 注记槽)。
 
 
 def _SECTION_RE(section: str) -> str:
@@ -1196,6 +1186,64 @@ _SEED_LEDGER_LINE_RE = re.compile(
     r"^[>\s]*-\s+(?P<node>\S.*?)\s+—\s+"
     r"(?:批注\s*(?P<n>\d+)\s*条|(?P<none>无批注))"
     r"(?P<rest>\s*[；;·].*)?\s*$"
+)
+
+# ── CARD-维护B-R2 (d): fallback 派生允许式（从 _verify_report 局部提为模块级） ──
+# 行为与原局部 tuple 逐条等价（纯搬家）, 除 ⑦ 及其同句式 ⑧ 的 D3 收紧（见行内注）。
+# 每条附「依据」元数据, 由 d2 绑定结构门逐条验证——依据必须真实存在:
+#   scan:<路径>          collect 产物 JSON 里可解析到的真实字段
+#   md:heading           Markdown 标题结构（模式必须以 ^#{1,6} 起）
+#   skill:action-verb    SKILL HARD-CONSTRAINTS 白名单动词句（含 Cmd+Shift+D）
+#   skill:③段固定句式    SKILL.md ③段模板（:267 无来源结论信号行）与叙述句式
+#                        （:203「N 个派生成员缺来源锚点」——语义锚, 非逐字）
+# ⛔ 新增条目必须带上表内可验证的依据; 无依据可写的允许式（如「备注：…派生」
+# 自由叙述）会被 d2 结构门与 d1 行为门双向拒绝（S4 survivor 的承重防线）。
+_FALLBACK_DERIVE_ALLOW: tuple[tuple[re.Pattern[str], str], ...] = (
+    # ① 规模自陈行 — counts.derived
+    # ⛔ 维护卡 B · H-2: 原式**缺 `$`**, 而 `p.match()` 只认前缀 —— 于是在
+    # 一条完全正确的规模行**尾部追加**任意文字 (实证:「，SeedA 的派生子女
+    # 共有仨个」) 仍然 match 成功、照样 PASS。现按模板补全整行并锚 `$`:
+    # 五元组之后只许是 `/ N 批注` 与可选的行尾 `/`。
+    (
+        re.compile(
+            r"^[>\s]*\d+\s*成员（\d+\s*种子\s*\+\s*\d+\s*派生，\d+\s*占位）"
+            r"\s*/\s*\d+\s*批注\s*/?\s*$"
+        ),
+        "scan:counts.derived",
+    ),
+    # ② 任意层级的段落标题 (## 台账（种子/派生） / ### 派生)
+    (re.compile(r"^#{1,6}[^\S\n].*$"), "md:heading"),
+    # ③ 无来源结论信号行 — signals.unsourced_conclusions (分母=派生角色数)
+    (
+        re.compile(r"^[>\-*·\s]{0,6}无来源结论[：:].*【.+】\s*$"),
+        "scan:signals.unsourced_conclusions",
+    ),
+    # ④ 无来源结论**无据**行 — 白名单文案「本板无派生角色成员」含该词
+    (
+        re.compile(r"^[>\-*·\s]{0,6}无来源结论[：:]\s*无据\s*[（(][^\n]*[）)]\s*$"),
+        "scan:signals.unsourced_conclusions",
+    ),
+    # ⑤ 关系类型分布行 — counts.relation_types
+    (re.compile(r"^[>\-*·\s]{0,6}关系类型分布[：:].*$"), "scan:counts.relation_types"),
+    # ⑥ SKILL HARD-CONSTRAINTS #3 的白名单动作句 (含「Cmd+Shift+D 派生」)
+    #    ⛔ round-6 终裁复核: 漏掉它曾让**按 SKILL 逐字写的合法报告**FAIL
+    (re.compile(r"^\s*\d+\.\s.*Cmd\+Shift\+D.*派生.*$"), "skill:action-verb"),
+    # ⑦ ③段定量叙述 — CARD-维护B-R2 D3 收紧: 谓语绑定「缺来源锚点」
+    #    (SKILL.md:267 信号行模板 / :203 叙述句式的语义锚), 且尾段禁裸数字。
+    #    原式 `派生角色成员[^。\n]*` 的自由段放行过
+    #    「派生角色成员的子女数为 987654 个。」(同族缺口, (a) 重放实证)。
+    #    live 4 份 fixture 实测**零命中**「派生角色成员」(全为 manifest 报告,
+    #    本检查是 fallback 专属), 收紧无 live 正例可伤。
+    (
+        re.compile(r"^[>\s]*(?:\d+\s*个)?派生角色成员缺来源锚点[^。\n0-9]*。?\s*$"),
+        "skill:③段固定句式",
+    ),
+    # ⑧ 同句式「集中在」变体 — 与 ⑦ 同步收紧两侧尾段禁裸数字
+    #    (否则「优化集中在派生角色成员的 987654 个子女上」同型放行)
+    (
+        re.compile(r"^[^。\n0-9]*集中在派生角色成员[^。\n0-9]*。?\s*$"),
+        "skill:③段固定句式",
+    ),
 )
 
 # ── 维护卡 B · D2「有据叙述域」 ────────────────────────────────────────────
@@ -1775,39 +1823,11 @@ def _verify_report(path: str) -> int:
                     )
         # round-5: 断言可以写在种子段**之外** (派生段/①②段/散文行) —— 段内
         # 白名单管不到。故对**全文**做一层: fallback 下任何含「派生」的行都
-        # 必须整行匹配下列两个有据模板之一 (规模自陈 = counts.derived;
-        # ③段关系分布 = counts.relation_types)。其余一律违规, 不再问它
-        # "是不是在断言子女数"。
-        # 合法用法白名单 (逐条对应 scan JSON 里**有据**的字段):
-        derive_ok = (
-            # ① 规模自陈行 — counts.derived
-            # ⛔ 维护卡 B · H-2: 原式**缺 `$`**, 而 `p.match()` 只认前缀 —— 于是在
-            # 一条完全正确的规模行**尾部追加**任意文字 (实证:「，SeedA 的派生子女
-            # 共有仨个」) 仍然 match 成功、照样 PASS。复核者判"不是真正整行匹配"
-            # 完全成立。现按模板补全整行并锚 `$`: 五元组之后只许是
-            # `/ N 批注` 与可选的行尾 `/`。
-            re.compile(
-                r"^[>\s]*\d+\s*成员（\d+\s*种子\s*\+\s*\d+\s*派生，\d+\s*占位）"
-                r"\s*/\s*\d+\s*批注\s*/?\s*$"
-            ),
-            # ② 任意层级的段落标题 (## 台账（种子/派生） / ### 派生)
-            re.compile(r"^#{1,6}[^\S\n].*$"),
-            # ③ 无来源结论信号行 — signals.unsourced_conclusions (分母=派生角色数)
-            re.compile(r"^[>\-*·\s]{0,6}无来源结论[：:].*【.+】\s*$"),
-            # ④ 无来源结论**无据**行 — 白名单文案「本板无派生角色成员」含该词
-            re.compile(r"^[>\-*·\s]{0,6}无来源结论[：:]\s*无据\s*[（(][^\n]*[）)]\s*$"),
-            # ⑤ 关系类型分布行 — counts.relation_types
-            re.compile(r"^[>\-*·\s]{0,6}关系类型分布[：:].*$"),
-            # ⑥ SKILL HARD-CONSTRAINTS #3 的白名单动作句 (含「Cmd+Shift+D 派生」)
-            #    ⛔ round-6 终裁复核: 漏掉它曾让**按 SKILL 逐字写的合法报告**FAIL
-            re.compile(r"^\s*\d+\.\s.*Cmd\+Shift\+D.*派生.*$"),
-            # ⑦ ③段定量叙述 — 固定句式, 不再无条件放行任何含该短语的行
-            #    (原 `^.*派生角色成员.*$` 可夹带任意子女数断言)
-            re.compile(r"^[>\s]*(?:\d+\s*个)?派生角色成员[^。\n]*。?\s*$"),
-            re.compile(r"^[^。\n]*集中在派生角色成员[^。\n]*。?\s*$"),
-        )
+        # 必须整行匹配 _FALLBACK_DERIVE_ALLOW 的有据模板之一 (表定义与逐条
+        # 依据见模块级常量, CARD-维护B-R2 (d) 纯搬家)。其余一律违规,
+        # 不再问它"是不是在断言子女数"。
         for ln in text.splitlines():
-            if "派生" in ln and not any(p.match(ln) for p in derive_ok):
+            if "派生" in ln and not any(p.match(ln) for p, _ in _FALLBACK_DERIVE_ALLOW):
                 problems.append(
                     "fallback 报告出现模板外的『派生』表述 "
                     "(子女数在 fallback 恒无据; 允许的只有规模自陈行/段落标题/"
