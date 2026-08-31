@@ -5,7 +5,7 @@ status: "review"
 version: "3"
 date: "2026-09-01"
 developer: "Claude Code (Fable 5)"
-commit: "(commit 后回填)"
+commit: "e1dab3c5"
 batch: "BATCH-2026-09-01-第八批"
 ---
 
@@ -189,7 +189,7 @@ C/D/E 是守卫三层（KEY_FILE 重定向 / osascript 打桩 / reload 自愈）
   - `backend/tests/regression/bark_egress_probe.py`（(c) 探针 + C/D/E 自证门（E 锁双模块）+ 双墙断网，新增）
   - `backend/scripts/bark_autostub_negative_control.py`（(c) 八跑负控：判据含摘要唯一性 + 整行锚定 + 异常来源绑定，新增）
 - **Codex 对抗审查**：round-1 `_bmad-output/审查/codex-review-CARD-TEST-bark-autostub.md`（FAIL 3H+2M+3L → 全整改）；round-2 `codex-review-CARD-TEST-bark-autostub-round2.md`（FAIL 3H+3M+4L → round-3 全整改）；round-3 `codex-review-CARD-TEST-bark-autostub-round3.md`（终轮，回填）
-- **Git commit**：(commit 后回填)
+- **Git commit**：`e1dab3c5`（card/w4-micro，未 push）
 - **完成条件 → 落点**：
   - (a) → send_bark.py:38-41 + :128（+5/-1）
   - (b) → tests/regression/conftest.py `_bark_egress_guard`（① KEY_FILE=loopback 假 key（偏差 8/11）；② 拒绝器；③ osascript 桩；④ 全局 urlopen 兜底；+ reload 双保险（偏差 9/12））
