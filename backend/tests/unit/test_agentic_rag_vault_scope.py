@@ -312,6 +312,7 @@ def _seed_dual_vault_db(tmp_path):
         "vault_a_canvas_nodes": [
             {
                 "doc_id": "a_unique",
+                "subject": "math",
                 "content": "红黑树旋转的颜色翻转规则 [[递归基础]] [[b秘密板]]",
                 "vector": _vec(0.10),
                 "content_tokenized": _jieba_tokens("红黑树旋转的颜色翻转规则"),
@@ -319,6 +320,7 @@ def _seed_dual_vault_db(tmp_path):
             },
             {
                 "doc_id": "same_name_a",
+                "subject": "math",
                 "content": "递归的基础定义: 函数调用自身",
                 "vector": _vec(0.20),
                 "content_tokenized": _jieba_tokens("递归的基础定义: 函数调用自身"),
@@ -326,6 +328,7 @@ def _seed_dual_vault_db(tmp_path):
             },
             {
                 "doc_id": "a_neighbor",
+                "subject": "math",
                 "content": "递归基础 A 库版本内容",
                 "vector": _vec(0.30),
                 "content_tokenized": _jieba_tokens("递归基础 A 库版本内容"),
@@ -335,6 +338,7 @@ def _seed_dual_vault_db(tmp_path):
         "vault_b_canvas_nodes": [
             {
                 "doc_id": "b_unique",
+                "subject": "cs",
                 "content": "贝尔不等式的量子纠缠判据",
                 "vector": _vec(0.10),
                 "content_tokenized": _jieba_tokens("贝尔不等式的量子纠缠判据"),
@@ -342,6 +346,7 @@ def _seed_dual_vault_db(tmp_path):
             },
             {
                 "doc_id": "same_name_b",
+                "subject": "cs",
                 "content": "递归的进阶定义: 尾递归优化与调用栈",
                 "vector": _vec(0.20),
                 "content_tokenized": _jieba_tokens("递归的进阶定义: 尾递归优化与调用栈"),
@@ -354,6 +359,7 @@ def _seed_dual_vault_db(tmp_path):
         "vault_notes": [
             {
                 "doc_id": "b_secret",
+                "subject": "cs",
                 "content": "B 库绝密量子隐形传态",
                 "vector": _vec(0.10),
                 "content_tokenized": _jieba_tokens("B 库绝密量子隐形传态"),
@@ -361,6 +367,22 @@ def _seed_dual_vault_db(tmp_path):
             },
         ],
     }
+    # 干扰行 (近距): 把 a_neighbor 挤出主检索 top — Codex round-2 整改:
+    # a_neighbor 原本就在主检索结果里, 扩展结果被 existing_doc_ids 去重,
+    # neighbor_expansion 标记恒不出现 (Codex 恒等函数反例)。挤出后
+    # a_neighbor 只能经 wiki-link 扩展进入, 活性门才成立。
+    rows["vault_a_canvas_nodes"].extend(
+        {
+            "doc_id": f"a_filler_{i}",
+            "subject": "math",
+            "content": f"占位干扰内容第{i}号与查询词无关",
+            "vector": _vec(0.12 + i * 0.001),
+            "content_tokenized": _jieba_tokens(f"占位干扰内容第{i}号"),
+            "canvas_file": f"a{i}.canvas",
+        }
+        for i in range(6)
+    )
+
     db = lancedb.connect(str(tmp_path))
     for name, data in rows.items():
         db.create_table(name, data=data)
@@ -384,7 +406,12 @@ def _make_client(tmp_path):
 
 
 def _run_retrieve_lancedb(monkeypatch, tmp_path, *, vault: str, query: str):
-    """以 vault 作用域跑真实 retrieve_lancedb 节点, 返回结果 doc_id/content。"""
+    """以 vault 作用域跑真实 retrieve_lancedb 节点。
+
+    返回 (doc_id, content, source_type) 三元组列表 —— source_type 来自
+    metadata (expand_neighbors 标 neighbor_expansion), 活性门靠它区分
+    「主检索带回」与「扩展带回」。
+    """
     client = _make_client(tmp_path)
     monkeypatch.setattr(
         nodes, "_get_lancedb_client", AsyncMock(return_value=client), raising=True
@@ -408,7 +435,14 @@ def _run_retrieve_lancedb(monkeypatch, tmp_path, *, vault: str, query: str):
         _reset_scope(token)
 
     results = update.get("lancedb_results", [])
-    return [(r.get("doc_id", ""), r.get("content", "")) for r in results]
+    return [
+        (
+            r.get("doc_id", ""),
+            r.get("content", ""),
+            (r.get("metadata") or {}).get("source_type", ""),
+        )
+        for r in results
+    ]
 
 
 class TestDualVaultIsolationOnTmpLanceDB:
@@ -421,11 +455,11 @@ class TestDualVaultIsolationOnTmpLanceDB:
         pairs = _run_retrieve_lancedb(
             monkeypatch, self.tmp_path, vault="vault_a", query="贝尔不等式"
         )
-        ids = [d for d, _ in pairs]
+        ids = [d for d, _, _ in pairs]
         assert not any(d.endswith("b_unique") for d in ids), (
             f"vault A 的检索结果混入了 vault B 独有笔记: {pairs} — 跨 vault 泄漏"
         )
-        contents = " | ".join(c for _, c in pairs)
+        contents = " | ".join(c for _, c, _ in pairs)
         assert "贝尔不等式" not in contents, (
             f"vault A 检索到 B 的内容 (按 doc_id 之外的内容复核): {contents}"
         )
@@ -435,7 +469,7 @@ class TestDualVaultIsolationOnTmpLanceDB:
         pairs = _run_retrieve_lancedb(
             monkeypatch, self.tmp_path, vault="vault_a", query="红黑树"
         )
-        ids = [d for d, _ in pairs]
+        ids = [d for d, _, _ in pairs]
         assert any(d.endswith("a_unique") for d in ids), f"正向对照失败: vault A 没查到自己的笔记 {pairs}"
 
     def test_same_name_note_returns_only_vault_a_version(self, monkeypatch):
@@ -444,7 +478,7 @@ class TestDualVaultIsolationOnTmpLanceDB:
         pairs = _run_retrieve_lancedb(
             monkeypatch, self.tmp_path, vault="vault_a", query="递归"
         )
-        contents = [c for _, c in pairs]
+        contents = [c for _, c, _ in pairs]
         assert any("基础定义" in c for c in contents), (
             f"vault A 没查到自己的同名笔记 {pairs}"
         )
@@ -456,7 +490,7 @@ class TestDualVaultIsolationOnTmpLanceDB:
         pairs = _run_retrieve_lancedb(
             monkeypatch, self.tmp_path, vault="vault_b", query="红黑树"
         )
-        ids = [d for d, _ in pairs]
+        ids = [d for d, _, _ in pairs]
         assert not any(d.endswith("a_unique") for d in ids), f"反向泄漏: vault B 查到了 vault A 独有笔记 {pairs}"
 
     def test_shared_db_precondition_tables_coexist(self):
@@ -468,24 +502,112 @@ class TestDualVaultIsolationOnTmpLanceDB:
     def test_wikilink_neighbor_expansion_stays_in_vault(self, monkeypatch):
         """Codex round-1 BLOCKER-1 的门: 邻居扩展必须作用域内。
 
-        a_unique 携带两个 wiki-link: [[递归基础]] (A 库内有对应板, 正向
-        对照 — 扩展链活着) 和 [[b秘密板]] (只有裸 legacy 表有, 泄漏探针)。
-        expand_neighbors 若直接 open 裸 vault_notes 表 (修复前行为),
-        B 的绝密内容会混进结果; 修复后扩展读 A 前缀表, 只带回 A 邻居。
+        a_unique 携带两个 wiki-link: [[递归基础]] (A 库内有对应板) 和
+        [[b秘密板]] (只有裸 legacy 表有, 泄漏探针)。
+
+        ⚠️ 活性判据 (Codex round-2 整改): 必须存在 metadata.source_type ==
+        "neighbor_expansion" 的结果行 —— a_neighbor 本身也在主检索表里,
+        只断言「结果含 a_neighbor」恒真 (把 expand_neighbors 换成恒等
+        函数照样绿, Codex 实证)。只有扩展链活着才会产出 neighbor_
+        expansion 标记, 该断言才能杀死「扩展静默失效」的假绿。
         """
         pairs = _run_retrieve_lancedb(
             monkeypatch, self.tmp_path, vault="vault_a", query="红黑树"
         )
-        contents = " | ".join(c for _, c in pairs)
-        ids = [d for d, _ in pairs]
+        contents = " | ".join(c for _, c, _ in pairs)
+        ids = [d for d, _, _ in pairs]
+        sources = [s for _, _, s in pairs]
 
-        assert any(d.endswith("a_neighbor") for d in ids), (
-            f"正向对照失败: wiki-link 邻居扩展没有带回 A 库邻居 {pairs} — "
-            "扩展链断了, 本门的隔离断言因此无效"
+        assert any(s == "neighbor_expansion" for s in sources), (
+            f"结果中没有任何 neighbor_expansion 标记行: {pairs} — "
+            "wiki-link 邻居扩展链没活, 本门的隔离断言因此无效"
+        )
+        expanded = [c for _, c, s in pairs if s == "neighbor_expansion"]
+        assert any("A 库版本" in c for c in expanded), (
+            f"扩展带回的邻居不是 A 库版本: {expanded}"
         )
         assert not any(d.endswith("b_secret") for d in ids), (
             f"邻居扩展混入裸表 B 内容: {pairs} — 作用域旁路回来了"
         )
         assert "量子隐形传态" not in contents, (
             f"裸表内容按 doc_id 之外的复核也命中: {contents}"
+        )
+
+    @pytest.mark.xfail(
+        reason=(
+            "已知边界 (Codex round-2 新发现 HIGH): expand_neighbors 不传 "
+            "subject, LIKE 匹配整张 vault 表 — 同 vault 内跨 subject 的 "
+            "邻居过滤未做。收口在 expand_neighbors 签名 (lancedb_client, "
+            "V5 未合禁改面), 登记移交; 收口后本用例转正为门。"
+        ),
+        strict=False,
+    )
+    def test_neighbor_expansion_respects_subject_boundary(self, monkeypatch):
+        """同 vault 跨 subject: math 请求的邻居不得带 physics 板内容。
+        当前生产行为会带 (xfail 锁住已知缺陷, 防止无声回归为「更糟」)。"""
+        import lancedb as _ldb
+
+        # physics 板的机密只有 subject=physics 可见
+        tbl = _ldb.connect(str(self.tmp_path)).open_table("vault_a_canvas_nodes")
+        tbl.add(
+            [
+                {
+                    "doc_id": "physics_secret",
+                    "content": "PHYSICS_SECRET 物理学机密内容",
+                    "vector": _vec(0.30),
+                    "content_tokenized": _jieba_tokens("PHYSICS_SECRET 物理学机密内容"),
+                    "canvas_file": "物理板.canvas",
+                }
+            ]
+        )
+        try:
+            tbl.create_fts_index("content_tokenized", replace=True)
+        except Exception:
+            pass
+
+        # a_unique 加 [[物理板]] 链接 → 扩展会 LIKE 命中 physics 行
+        _ldb.connect(str(self.tmp_path)).open_table(
+            "vault_a_canvas_nodes"
+        ).delete('doc_id == "a_unique"')
+        tbl.add(
+            [
+                {
+                    "doc_id": "a_unique",
+                    "subject": "math",
+                    "content": "红黑树旋转的颜色翻转规则 [[递归基础]] [[物理板]]",
+                    "vector": _vec(0.10),
+                    "content_tokenized": _jieba_tokens("红黑树旋转的颜色翻转规则"),
+                    "canvas_file": "a.canvas",
+                }
+            ]
+        )
+
+        client = _make_client(self.tmp_path)
+        monkeypatch.setattr(
+            nodes, "_get_lancedb_client", AsyncMock(return_value=client), raising=True
+        )
+        monkeypatch.setattr(
+            "agentic_rag.clients.lancedb_client.LanceDBClient.embed",
+            AsyncMock(return_value=_vec(0.15)),
+            raising=True,
+        )
+
+        token = _set_scope("vault:vault_a")
+        try:
+            state = {
+                "messages": [{"role": "user", "content": "红黑树"}],
+                "canvas_file": None,
+                "subject": "math",
+                "cross_subject": False,
+            }
+            update = asyncio.run(nodes.retrieve_lancedb(state, None))
+        finally:
+            _reset_scope(token)
+
+        contents = " | ".join(
+            r.get("content", "") for r in update.get("lancedb_results", [])
+        )
+        assert "PHYSICS_SECRET" not in contents, (
+            "math 请求的邻居扩展带入了 physics 板内容 (已知边界, 若此断言"
+            "通过说明 expand 已收口 subject — 请把 xfail 转正为门)"
         )
