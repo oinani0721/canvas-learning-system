@@ -1521,7 +1521,8 @@ def test_m7_collect_refuses_control_char_board(tmp_path):
     vault = build_vault(tmp_path, ["SeedA"])
     bad = f"{BOARD}\x85尾"
     (vault / "原白板" / f"{bad}.md").write_text(
-        f"---\ntype: whiteboard\n---\n\n# {bad}\n\n## Concepts\n\n- [[节点/SeedA]]\n", encoding="utf-8"
+        f"---\ntype: whiteboard\n---\n\n# {bad}\n\n## Concepts\n\n- [[节点/SeedA]]\n",
+        encoding="utf-8",
     )
     r = run_collect(vault, bad)
     assert r.returncode == 0, r.stderr
@@ -1684,7 +1685,10 @@ def test_domain_block_bare_count_in_prose(tmp_path):
 )
 def test_domain_allow_legit_prose(tmp_path, prose):
     """放行门: 合法叙述不得被收紧误伤（五类合法语料各一组）。"""
-    r = _mutate_report(tmp_path, lambda text, scan: text.replace("## 三维审查", f"## 三维审查\n\n- {prose}【实测】", 1))
+    r = _mutate_report(
+        tmp_path,
+        lambda text, scan: text.replace("## 三维审查", f"## 三维审查\n\n- {prose}【实测】", 1),
+    )
     assert r.returncode == 0, f"合法语料被误伤 ({prose}):\n{r.stdout}"
 
 
@@ -1776,7 +1780,9 @@ def test_domain_block_bare_count_in_each_d2_section(tmp_path, section):
     r = _mutate_report(
         tmp_path,
         lambda text, scan: text.replace(
-            f"## {section}\n", f"## {section}\n- 本板共有 987654 个隐藏节点。【实测】\n", 1
+            f"## {section}\n",
+            f"## {section}\n- 本板共有 987654 个隐藏节点。【实测】\n",
+            1,
         ),
     )
     assert r.returncode != 0, f"『{section}』段的裸计数未被拦:\n{r.stdout}"
@@ -1793,7 +1799,11 @@ def test_domain_block_survives_section_title_suffix(tmp_path, suffix):
 
     def m(text, scan):
         text = text.replace("## 三维审查", f"## 三维审查{suffix}", 1)
-        return text.replace(f"## 三维审查{suffix}", f"## 三维审查{suffix}\n\n- 本板共有 987654 个隐藏节点。【实测】", 1)
+        return text.replace(
+            f"## 三维审查{suffix}",
+            f"## 三维审查{suffix}\n\n- 本板共有 987654 个隐藏节点。【实测】",
+            1,
+        )
 
     r = _mutate_report(tmp_path, m)
     assert r.returncode != 0, f"标题后缀 {suffix!r} 关掉了 D2:\n{r.stdout}"
@@ -1817,7 +1827,10 @@ def test_domain_block_seed_count_tamper_on_real_manifest_line(tmp_path):
     text = report.read_text(encoding="utf-8")
     line = next(ln for ln in text.splitlines() if ln.startswith("- cs-61b-csm — 批注"))
     assert "批注 2 条" in line, f"前提失效，真报告形态已变: {line}"
-    report.write_text(text.replace(line, line.replace("批注 2 条", "批注 999 条", 1), 1), encoding="utf-8")
+    report.write_text(
+        text.replace(line, line.replace("批注 2 条", "批注 999 条", 1), 1),
+        encoding="utf-8",
+    )
     r = run_verify(report)
     assert r.returncode != 0, f"真实 manifest 台账行的伪计数未被拦:\n{r.stdout}"
 
@@ -1849,7 +1862,10 @@ def test_domain_allow_range_expression(tmp_path, prose):
     因为后者的 scan 里恰好有个无关的整数 3。**合法与否取决于另一块板的偶然数字**，
     这是明确的误伤，按结构豁免整段区间。
     """
-    r = _mutate_report(tmp_path, lambda text, scan: text.replace("## 三维审查", f"## 三维审查\n\n- {prose}【实测】", 1))
+    r = _mutate_report(
+        tmp_path,
+        lambda text, scan: text.replace("## 三维审查", f"## 三维审查\n\n- {prose}【实测】", 1),
+    )
     assert r.returncode == 0, f"范围表达被误伤 ({prose}):\n{r.stdout}"
 
 
@@ -1869,7 +1885,11 @@ def test_domain_number_pool_excludes_string_derived_digits(tmp_path):
     report = write_report(vault, scan)
     text = report.read_text(encoding="utf-8")
     report.write_text(
-        text.replace("## 三维审查", f"## 三维审查\n\n- 本板共有 {int(frag)} 个隐藏节点。【实测】", 1),
+        text.replace(
+            "## 三维审查",
+            f"## 三维审查\n\n- 本板共有 {int(frag)} 个隐藏节点。【实测】",
+            1,
+        ),
         encoding="utf-8",
     )
     r = run_verify(report)
@@ -1949,7 +1969,10 @@ def test_domain_covers_scale_callout_preamble(tmp_path):
     # 模板里的「manifest（N 次调用）」不再由 D2 管——它没有自称全板规模，
     # 且该数由 D1 的 data_mode 绑定面负责。这里锁的是 **preamble 段确实在域内**：
     # 往 callout 里塞一句自称全板规模的假计数，必须被拦。
-    report.write_text(text.replace("> 数据面：", "> 本板共有 987654 个子节点。\n> 数据面：", 1), encoding="utf-8")
+    report.write_text(
+        text.replace("> 数据面：", "> 本板共有 987654 个子节点。\n> 数据面：", 1),
+        encoding="utf-8",
+    )
     r = run_verify(report)
     assert r.returncode != 0, f"规模 callout（preamble）里的越界数字未被拦:\n{r.stdout}"
 
@@ -2109,7 +2132,11 @@ def test_audit_verdict_is_board_independent(tmp_path, prose):
 
 @pytest.mark.parametrize(
     "prose",
-    ["本板共有 987654 个子节点。", "这块板共有 99 个子节点。", "全板总共 987654 条批注。"],
+    [
+        "本板共有 987654 个子节点。",
+        "这块板共有 99 个子节点。",
+        "全板总共 987654 条批注。",
+    ],
     ids=["ben_ban", "zhe_kuai_ban", "quan_ban"],
 )
 def test_audit_scale_claims_blocked_on_every_board(tmp_path, prose):
@@ -2346,6 +2373,46 @@ def test_domain_block_multilevel_blockquote_fence(tmp_path, prefix):
     assert "VERIFY PASS" not in r.stdout
 
 
+def test_domain_block_list_item_fence_hides_signals(tmp_path):
+    """round-2 线索门（Codex 被截断前的中途发现，本车道独立复现）: 列表项内围栏。
+
+    `> - ``` … > - ``` `（列表项围栏）在 Obsidian 里渲染为**列表项内的代码块**
+    （读者看到灰底），但 `_strip_code_blocks` 原来只剥引用前缀不剥列表标记，
+    `- ``` ` 不被识别为开栏 ⇒ 藏在里面的信号行被当成在场陈述，整篇 VERIFY PASS。
+    开工前实测两种形态 exit 0（存档 `evidence-maintb-r2/` 同族的
+    `codex-hint-repro.txt`，先红证据）。
+
+    **它证明什么**: 列表项围栏（缩进内容 / `- ` 内容两种形态）里的信号行不被当在场。
+    **它不证明什么**: 不证明所有 CommonMark 容器嵌套形态（引用内列表内列表等）
+    都被覆盖——按 round-5 以来的口径，以「模板允许的前缀形态」为封闭集。
+    """
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    report = write_report(vault, scan)
+    base = run_verify(report)
+    assert base.returncode == 0, f"基线报告本身就不过 verifier:\n{base.stdout}"
+    text = report.read_text(encoding="utf-8")
+    lines = text.splitlines()
+    idx = [i for i, ln in enumerate(lines) if any(lb in ln for lb in SIGNAL_LABELS)]
+    start, end = idx[0], idx[-1]
+
+    for name, body in (
+        (
+            "indented_content",
+            ["> - ```"] + [">   " + re.sub(r"^[>\s]*-\s*", "", lines[i]) for i in range(start, end + 1)] + [">   ```"],
+        ),
+        (
+            "dash_content",
+            ["> - ```"] + ["> - " + re.sub(r"^[>\s]*-\s*", "", lines[i]) for i in range(start, end + 1)] + ["> - ```"],
+        ),
+    ):
+        out = lines[:start] + body + lines[end + 1 :]
+        report.write_text("\n".join(out) + "\n", encoding="utf-8")
+        r = run_verify(report)
+        assert r.returncode != 0, f"列表项围栏形态 {name} 仍被放行:\n{r.stdout}"
+        assert "代码块内出现信号名" in r.stdout or "缺信号行" in r.stdout, f"{name}: 拦截理由与围栏无关:\n{r.stdout}"
+
+
 def test_domain_strip_code_blocks_unit_contract():
     """c2 · S3 承重门②「`_strip_code_blocks` 单元契约门」: 直接调函数验双向行为。
 
@@ -2365,6 +2432,20 @@ def test_domain_strip_code_blocks_unit_contract():
     # splitlines() 只给两项（末尾换行后无内容），断言会**因构造错误而红**
     # ——第一次写就踩了，如实留注。
     assert got.split("\n") == ["", "", ""], f"两层引用围栏未整块剥空: {got!r}"
+    # round-2 线索（列表项围栏）: `- ``` ` 开栏同样必须整块剥空
+    for src in (
+        "> - ```\n> - 未答问题年龄：无据（无带时间戳批注）\n> - ```",
+        "- ```\n- 未答问题年龄：无据（无带时间戳批注）\n- ```",
+        "> > - ```\n> > - x\n> > - ```",
+    ):
+        got = rs._strip_code_blocks(src)
+        assert got.split("\n") == ["", "", ""], f"列表项围栏未整块剥空: {src!r} → {got!r}"
+    # `---` 是 thematic break 不是列表围栏，不得被列表符剥离误判成围栏
+    assert rs._strip_code_blocks("---\n正文\n---").splitlines() == [
+        "---",
+        "正文",
+        "---",
+    ]
     for depth in (3,):
         p = "> " * depth
         src = f"{p}```\n{p}藏起来的正文\n{p}```"
@@ -2423,7 +2504,16 @@ D1_NEGATIVES = [
 @pytest.mark.parametrize(
     "bogus",
     D1_NEGATIVES,
-    ids=["beizhu", "zhu", "shuoming", "buchong", "ps", "quote_beizhu", "list_beizhu", "bare"],
+    ids=[
+        "beizhu",
+        "zhu",
+        "shuoming",
+        "buchong",
+        "ps",
+        "quote_beizhu",
+        "list_beizhu",
+        "bare",
+    ],
 )
 def test_domain_block_freeform_derivation_note(tmp_path, bogus):
     """d1 · S4 承重门①「自由叙述行为门」: 模板外的「派生」表述必须被拦。
@@ -2633,7 +2723,14 @@ def test_domain_allow_signal_tail_note(tmp_path, label, note_form):
         "口径一致口径一致",
         "口径不一致",
     ],
-    ids=["note_then_smuggle", "smuggle_then_note", "note_then_pair", "note_then_slash", "note_twice", "not_in_table"],
+    ids=[
+        "note_then_smuggle",
+        "smuggle_then_note",
+        "note_then_pair",
+        "note_then_slash",
+        "note_twice",
+        "not_in_table",
+    ],
 )
 def test_domain_block_signal_tail_note_outside_table(tmp_path, note_form):
     """e2 拦截门: 注记槽是**封闭表**，不是自由文本槽。
@@ -2767,9 +2864,19 @@ def test_synthetic_signals_report_passes(tmp_path):
         ("p25/p50/p75 = 20/21/21 天", "p25/p50/p75 = 20/21/99 天"),
         ("0/2 成员含来源锚点", "1/2 成员含来源锚点"),
         ("0/3 条批注为重复条目", "1/3 条批注为重复条目"),
-        ("无来源结论：无据（本板无派生角色成员）", "无来源结论：0/2 派生角色成员缺来源锚点【文件】"),
+        (
+            "无来源结论：无据（本板无派生角色成员）",
+            "无来源结论：0/2 派生角色成员缺来源锚点【文件】",
+        ),
     ],
-    ids=["age_value", "age_denom", "percentile", "coverage_value", "duplicate_value", "nodata_to_measured"],
+    ids=[
+        "age_value",
+        "age_denom",
+        "percentile",
+        "coverage_value",
+        "duplicate_value",
+        "nodata_to_measured",
+    ],
 )
 def test_synthetic_signals_tamper_fails(tmp_path, old, new):
     """(f) 篡改门（与放行门同权重）: 真语料**被篡改后**必须 FAIL。

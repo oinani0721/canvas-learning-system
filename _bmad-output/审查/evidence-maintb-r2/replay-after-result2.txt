@@ -1,0 +1,11 @@
+拷贝树被测文件（整改后）sha256=0c4faa50dbdc…
+✅ survivor-6 S1 `_NODATA_REASONS` 增「任意原因」: 18 failed → 门红: ['test_domain_block_nodata_reason_outside_table[renyi]', 'test_domain_skill_sync_nodata_reasons_table']
+✅ survivor-7 S3 :1011 改单层剥离（含列表符剥离退化）: 21 failed → 门红: ['test_domain_block_list_item_fence_hides_signals', 'test_domain_block_multilevel_blockquote_fence[depth2]', 'test_domain_block_multilevel_blockquote_fence[depth3]', 'test_domain_block_multilevel_blockquote_fence[no_space]', 'test_domain_strip_code_blocks_unit_contract']
+✅ survivor-8 S4 允许式表增备注自由式: 18 failed → 门红: ['test_domain_block_freeform_derivation_note[beizhu]', 'test_domain_derive_allow_entries_are_grounded']
+✅ old-1 删闭栏同字符条件（仅留长度）: 17 failed → 门红: ['test_domain_block_fence_close_must_be_same_char']
+✅ ⑦ 退化为原自由段式: 18 failed → 门红: ['test_domain_block_derive_clause_free_tail[free_tail]', 'test_domain_block_derive_clause_free_tail[leading_count_free_tail]']
+✅ survivor-9 注记槽退化 `[^【】]*` 自由文本: 31 failed → 门红: ['test_domain_block_signal_tail_note_outside_table[not_in_table]', 'test_domain_block_signal_tail_note_outside_table[note_then_pair]', 'test_domain_block_signal_tail_note_outside_table[note_then_slash]', 'test_domain_block_signal_tail_note_outside_table[note_then_smuggle]', 'test_domain_block_signal_tail_note_outside_table[note_twice]', 'test_domain_block_signal_tail_note_outside_table[smuggle_then_note]']
+✅ survivor-10 `_SIGNAL_TAIL_NOTES` 增「另有仨条」: 18 failed → 门红: ['test_domain_skill_sync_signal_tail_notes_table']
+✅ ⑧ 退化为原自由段式: 17 failed → 门红: ['test_domain_block_derive_clause_free_tail[jizhong_free_tail]']
+
+全部承重（共 8 条变体）

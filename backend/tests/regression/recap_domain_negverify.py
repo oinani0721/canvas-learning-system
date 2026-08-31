@@ -87,8 +87,16 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
     ),
     (
         "survivor-7 S3 围栏剥离退回单层（F-4: `> > ```` 逃逸 + Obsidian 渲染引用内代码块）",
-        [('bare = re.sub(r"^[>\\s]*", "", ln)', 'bare = re.sub(r"^>?[^\\S\\n]*", "", ln)')],
-        "multilevel_blockquote_fence or strip_code_blocks_unit_contract",
+        [
+            (
+                # ⛔ CARD-维护B-R2 round-2 线索修复后锚点更新: bare 现含列表符剥离
+                # （`> - ``` 列表项围栏）。变异性质不变——退回"既不剥多层引用
+                # 也不剥列表符"的单层形态, c1/c2 与列表项围栏门都应变红。
+                'bare = re.sub(r"^[>\\s]*(?:[-*+][^\\S\\n]+)?", "", ln)',
+                'bare = re.sub(r"^>?[^\\S\\n]*", "", ln)',
+            )
+        ],
+        "multilevel_blockquote_fence or strip_code_blocks_unit_contract or list_item_fence",
     ),
     (
         "survivor-8 S4 允许式表增「备注：…派生」自由式（F-4: 无依据可写的模式混入）",

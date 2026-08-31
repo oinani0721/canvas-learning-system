@@ -988,8 +988,14 @@ def _strip_code_blocks(text: str) -> str:
     open_re = re.compile(r"^(?P<ind> {0,3})(?P<fence>`{3,}|~{3,})")
     close_re = re.compile(r"^ {0,3}(?P<fence>`{3,}|~{3,})[^\S\n]*$")
     for ln in text.splitlines():
-        # 剥任意层引用前缀后再判围栏
-        bare = re.sub(r"^[>\s]*", "", ln)
+        # 剥任意层引用前缀后再判围栏。
+        # ⛔ CARD-维护B-R2 round-2 线索（Codex 被截断前的中途发现, 本车道独立复现）:
+        # 只剥 `>`/空白不剥**列表标记**时, `> - ``` ` (列表项内围栏, Obsidian 渲染为
+        # 列表项内的代码块) 不被识别为开栏 —— 藏进里面的信号行被当成在场陈述,
+        # 整篇 VERIFY PASS (实测 A/A2 两形态 exit 0)。剥列表符只影响**围栏判定**
+        # (非围栏行 out.append 原样保留), 标记后须有空白 (`- ``` 是列表项围栏,
+        # `---` 是 thematic break 不是列表)。
+        bare = re.sub(r"^[>\s]*(?:[-*+][^\S\n]+)?", "", ln)
         if fence is None:
             m = open_re.match(bare)
             # 反引号围栏的 info string 不得含反引号 (CommonMark);
