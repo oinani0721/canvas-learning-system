@@ -1,0 +1,490 @@
+.......F....FFFFF.....................................................FF [ 30%]
+FFFF.............FFFF................................................... [ 60%]
+..........................................................FFFF.......... [ 90%]
+.......................                                                  [100%]
+=================================== FAILURES ===================================
+_______________ test_cross_mode_signal_consistency_real_manifest _______________
+
+tmp_path = PosixPath('/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v2-recapfix/eae83438-b9b9-4e2f-b4e6-b04dc366883d/scratchpad/bt-after/test_cross_mode_signal_consist0')
+
+    def test_cross_mode_signal_consistency_real_manifest(tmp_path):
+        """F1 回归锁 (Codex G5-4 round-1 复现路径): 同一 vault 用**真**
+        board_manifest_service.build_manifest 产 manifest, 两模式的来源覆盖/
+        无来源结论 value/denominator 必须全等 — fallback 不得比 manifest 多报
+        「无来源」假警报。"""
+>       from app.services.board_manifest_service import build_manifest
+E       ModuleNotFoundError: No module named 'app'
+
+tests/regression/test_recap_scan_signals.py:390: ModuleNotFoundError
+______ test_role_matches_backend_node_role_exactly[derived-from: null\n] _______
+
+tmp_path = PosixPath('/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v2-recapfix/eae83438-b9b9-4e2f-b4e6-b04dc366883d/scratchpad/bt-after/test_role_matches_backend_node0')
+fm_extra = 'derived-from: null\n'
+
+    @pytest.mark.parametrize(
+        "fm_extra",
+        [
+            "derived-from: null\n",
+            "derived-from:\n",
+            'derived-from: ""\n',
+            "created_from: ai_linked_doc # 派生自插件\n",
+            "created_from: manual\n",
+        ],
+    )
+    def test_role_matches_backend_node_role_exactly(tmp_path, fm_extra):
+        """H1 回归锁 (round-3): fallback 的 role 必须与后端 _node_role 对同一
+        frontmatter 给出**相同**结论——null/空值按 truthiness 判 seed，
+        带行尾注释的 created_from 仍判 derived。"""
+>       from app.services.board_manifest_service import _node_role
+E       ModuleNotFoundError: No module named 'app'
+
+tests/regression/test_recap_scan_signals.py:478: ModuleNotFoundError
+_________ test_role_matches_backend_node_role_exactly[derived-from:\n] _________
+
+tmp_path = PosixPath('/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v2-recapfix/eae83438-b9b9-4e2f-b4e6-b04dc366883d/scratchpad/bt-after/test_role_matches_backend_node1')
+fm_extra = 'derived-from:\n'
+
+    @pytest.mark.parametrize(
+        "fm_extra",
+        [
+            "derived-from: null\n",
+            "derived-from:\n",
+            'derived-from: ""\n',
+            "created_from: ai_linked_doc # 派生自插件\n",
+            "created_from: manual\n",
+        ],
+    )
+    def test_role_matches_backend_node_role_exactly(tmp_path, fm_extra):
+        """H1 回归锁 (round-3): fallback 的 role 必须与后端 _node_role 对同一
+        frontmatter 给出**相同**结论——null/空值按 truthiness 判 seed，
+        带行尾注释的 created_from 仍判 derived。"""
+>       from app.services.board_manifest_service import _node_role
+E       ModuleNotFoundError: No module named 'app'
+
+tests/regression/test_recap_scan_signals.py:478: ModuleNotFoundError
+_______ test_role_matches_backend_node_role_exactly[derived-from: ""\n] ________
+
+tmp_path = PosixPath('/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v2-recapfix/eae83438-b9b9-4e2f-b4e6-b04dc366883d/scratchpad/bt-after/test_role_matches_backend_node2')
+fm_extra = 'derived-from: ""\n'
+
+    @pytest.mark.parametrize(
+        "fm_extra",
+        [
+            "derived-from: null\n",
+            "derived-from:\n",
+            'derived-from: ""\n',
+            "created_from: ai_linked_doc # 派生自插件\n",
+            "created_from: manual\n",
+        ],
+    )
+    def test_role_matches_backend_node_role_exactly(tmp_path, fm_extra):
+        """H1 回归锁 (round-3): fallback 的 role 必须与后端 _node_role 对同一
+        frontmatter 给出**相同**结论——null/空值按 truthiness 判 seed，
+        带行尾注释的 created_from 仍判 derived。"""
+>       from app.services.board_manifest_service import _node_role
+E       ModuleNotFoundError: No module named 'app'
+
+tests/regression/test_recap_scan_signals.py:478: ModuleNotFoundError
+_ test_role_matches_backend_node_role_exactly[created_from: ai_linked_doc # \u6d3e\u751f\u81ea\u63d2\u4ef6\n] _
+
+tmp_path = PosixPath('/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v2-recapfix/eae83438-b9b9-4e2f-b4e6-b04dc366883d/scratchpad/bt-after/test_role_matches_backend_node3')
+fm_extra = 'created_from: ai_linked_doc # 派生自插件\n'
+
+    @pytest.mark.parametrize(
+        "fm_extra",
+        [
+            "derived-from: null\n",
+            "derived-from:\n",
+            'derived-from: ""\n',
+            "created_from: ai_linked_doc # 派生自插件\n",
+            "created_from: manual\n",
+        ],
+    )
+    def test_role_matches_backend_node_role_exactly(tmp_path, fm_extra):
+        """H1 回归锁 (round-3): fallback 的 role 必须与后端 _node_role 对同一
+        frontmatter 给出**相同**结论——null/空值按 truthiness 判 seed，
+        带行尾注释的 created_from 仍判 derived。"""
+>       from app.services.board_manifest_service import _node_role
+E       ModuleNotFoundError: No module named 'app'
+
+tests/regression/test_recap_scan_signals.py:478: ModuleNotFoundError
+_____ test_role_matches_backend_node_role_exactly[created_from: manual\n] ______
+
+tmp_path = PosixPath('/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v2-recapfix/eae83438-b9b9-4e2f-b4e6-b04dc366883d/scratchpad/bt-after/test_role_matches_backend_node4')
+fm_extra = 'created_from: manual\n'
+
+    @pytest.mark.parametrize(
+        "fm_extra",
+        [
+            "derived-from: null\n",
+            "derived-from:\n",
+            'derived-from: ""\n',
+            "created_from: ai_linked_doc # 派生自插件\n",
+            "created_from: manual\n",
+        ],
+    )
+    def test_role_matches_backend_node_role_exactly(tmp_path, fm_extra):
+        """H1 回归锁 (round-3): fallback 的 role 必须与后端 _node_role 对同一
+        frontmatter 给出**相同**结论——null/空值按 truthiness 判 seed，
+        带行尾注释的 created_from 仍判 derived。"""
+>       from app.services.board_manifest_service import _node_role
+E       ModuleNotFoundError: No module named 'app'
+
+tests/regression/test_recap_scan_signals.py:478: ModuleNotFoundError
+________________ test_falsy_derived_from_matches_backend[false] ________________
+
+tmp_path = PosixPath('/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v2-recapfix/eae83438-b9b9-4e2f-b4e6-b04dc366883d/scratchpad/bt-after/test_falsy_derived_from_matche0')
+falsy = 'false'
+
+    @pytest.mark.parametrize(
+        "falsy",
+        ["false", "0", '""', "{}", "[]", "Null"],
+    )
+    def test_falsy_derived_from_matches_backend(tmp_path, falsy):
+        """round-4 H1 回归锁: YAML falsy 全集（不只 null/~）都按后端语义判 seed。"""
+>       from app.services.board_manifest_service import _node_role
+E       ModuleNotFoundError: No module named 'app'
+
+tests/regression/test_recap_scan_signals.py:1136: ModuleNotFoundError
+__________________ test_falsy_derived_from_matches_backend[0] __________________
+
+tmp_path = PosixPath('/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v2-recapfix/eae83438-b9b9-4e2f-b4e6-b04dc366883d/scratchpad/bt-after/test_falsy_derived_from_matche1')
+falsy = '0'
+
+    @pytest.mark.parametrize(
+        "falsy",
+        ["false", "0", '""', "{}", "[]", "Null"],
+    )
+    def test_falsy_derived_from_matches_backend(tmp_path, falsy):
+        """round-4 H1 回归锁: YAML falsy 全集（不只 null/~）都按后端语义判 seed。"""
+>       from app.services.board_manifest_service import _node_role
+E       ModuleNotFoundError: No module named 'app'
+
+tests/regression/test_recap_scan_signals.py:1136: ModuleNotFoundError
+_________________ test_falsy_derived_from_matches_backend[""] __________________
+
+tmp_path = PosixPath('/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v2-recapfix/eae83438-b9b9-4e2f-b4e6-b04dc366883d/scratchpad/bt-after/test_falsy_derived_from_matche2')
+falsy = '""'
+
+    @pytest.mark.parametrize(
+        "falsy",
+        ["false", "0", '""', "{}", "[]", "Null"],
+    )
+    def test_falsy_derived_from_matches_backend(tmp_path, falsy):
+        """round-4 H1 回归锁: YAML falsy 全集（不只 null/~）都按后端语义判 seed。"""
+>       from app.services.board_manifest_service import _node_role
+E       ModuleNotFoundError: No module named 'app'
+
+tests/regression/test_recap_scan_signals.py:1136: ModuleNotFoundError
+_________________ test_falsy_derived_from_matches_backend[{}] __________________
+
+tmp_path = PosixPath('/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v2-recapfix/eae83438-b9b9-4e2f-b4e6-b04dc366883d/scratchpad/bt-after/test_falsy_derived_from_matche3')
+falsy = '{}'
+
+    @pytest.mark.parametrize(
+        "falsy",
+        ["false", "0", '""', "{}", "[]", "Null"],
+    )
+    def test_falsy_derived_from_matches_backend(tmp_path, falsy):
+        """round-4 H1 回归锁: YAML falsy 全集（不只 null/~）都按后端语义判 seed。"""
+>       from app.services.board_manifest_service import _node_role
+E       ModuleNotFoundError: No module named 'app'
+
+tests/regression/test_recap_scan_signals.py:1136: ModuleNotFoundError
+_________________ test_falsy_derived_from_matches_backend[[]] __________________
+
+tmp_path = PosixPath('/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v2-recapfix/eae83438-b9b9-4e2f-b4e6-b04dc366883d/scratchpad/bt-after/test_falsy_derived_from_matche4')
+falsy = '[]'
+
+    @pytest.mark.parametrize(
+        "falsy",
+        ["false", "0", '""', "{}", "[]", "Null"],
+    )
+    def test_falsy_derived_from_matches_backend(tmp_path, falsy):
+        """round-4 H1 回归锁: YAML falsy 全集（不只 null/~）都按后端语义判 seed。"""
+>       from app.services.board_manifest_service import _node_role
+E       ModuleNotFoundError: No module named 'app'
+
+tests/regression/test_recap_scan_signals.py:1136: ModuleNotFoundError
+________________ test_falsy_derived_from_matches_backend[Null] _________________
+
+tmp_path = PosixPath('/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v2-recapfix/eae83438-b9b9-4e2f-b4e6-b04dc366883d/scratchpad/bt-after/test_falsy_derived_from_matche5')
+falsy = 'Null'
+
+    @pytest.mark.parametrize(
+        "falsy",
+        ["false", "0", '""', "{}", "[]", "Null"],
+    )
+    def test_falsy_derived_from_matches_backend(tmp_path, falsy):
+        """round-4 H1 回归锁: YAML falsy 全集（不只 null/~）都按后端语义判 seed。"""
+>       from app.services.board_manifest_service import _node_role
+E       ModuleNotFoundError: No module named 'app'
+
+tests/regression/test_recap_scan_signals.py:1136: ModuleNotFoundError
+____ test_relationships_truthiness_matches_backend[relationships:\n-False] _____
+
+tmp_path = PosixPath('/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v2-recapfix/eae83438-b9b9-4e2f-b4e6-b04dc366883d/scratchpad/bt-after/test_relationships_truthiness_0')
+rel_block = 'relationships:\n', expect_derived = False
+
+    @pytest.mark.parametrize(
+        "rel_block,expect_derived",
+        [
+            ("relationships:\n", False),  # 空值 → 后端 falsy → seed
+            ("relationships: null\n", False),
+            ("relationships: []\n", False),
+            ('relationships:\n  - type: extends\n    target: "[[节点/S]]"\n', True),
+        ],
+    )
+    def test_relationships_truthiness_matches_backend(tmp_path, rel_block, expect_derived):
+        """round-4 回归锁: relationships 也走 truthiness（键存在不等于有内容）——
+        与后端 _node_role 逐形态对拍。"""
+>       from app.services.board_manifest_service import _node_role
+E       ModuleNotFoundError: No module named 'app'
+
+tests/regression/test_recap_scan_signals.py:1282: ModuleNotFoundError
+__ test_relationships_truthiness_matches_backend[relationships: null\n-False] __
+
+tmp_path = PosixPath('/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v2-recapfix/eae83438-b9b9-4e2f-b4e6-b04dc366883d/scratchpad/bt-after/test_relationships_truthiness_1')
+rel_block = 'relationships: null\n', expect_derived = False
+
+    @pytest.mark.parametrize(
+        "rel_block,expect_derived",
+        [
+            ("relationships:\n", False),  # 空值 → 后端 falsy → seed
+            ("relationships: null\n", False),
+            ("relationships: []\n", False),
+            ('relationships:\n  - type: extends\n    target: "[[节点/S]]"\n', True),
+        ],
+    )
+    def test_relationships_truthiness_matches_backend(tmp_path, rel_block, expect_derived):
+        """round-4 回归锁: relationships 也走 truthiness（键存在不等于有内容）——
+        与后端 _node_role 逐形态对拍。"""
+>       from app.services.board_manifest_service import _node_role
+E       ModuleNotFoundError: No module named 'app'
+
+tests/regression/test_recap_scan_signals.py:1282: ModuleNotFoundError
+___ test_relationships_truthiness_matches_backend[relationships: []\n-False] ___
+
+tmp_path = PosixPath('/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v2-recapfix/eae83438-b9b9-4e2f-b4e6-b04dc366883d/scratchpad/bt-after/test_relationships_truthiness_2')
+rel_block = 'relationships: []\n', expect_derived = False
+
+    @pytest.mark.parametrize(
+        "rel_block,expect_derived",
+        [
+            ("relationships:\n", False),  # 空值 → 后端 falsy → seed
+            ("relationships: null\n", False),
+            ("relationships: []\n", False),
+            ('relationships:\n  - type: extends\n    target: "[[节点/S]]"\n', True),
+        ],
+    )
+    def test_relationships_truthiness_matches_backend(tmp_path, rel_block, expect_derived):
+        """round-4 回归锁: relationships 也走 truthiness（键存在不等于有内容）——
+        与后端 _node_role 逐形态对拍。"""
+>       from app.services.board_manifest_service import _node_role
+E       ModuleNotFoundError: No module named 'app'
+
+tests/regression/test_recap_scan_signals.py:1282: ModuleNotFoundError
+_ test_relationships_truthiness_matches_backend[relationships:\n  - type: extends\n    target: "[[\u8282\u70b9/S]]"\n-True] _
+
+tmp_path = PosixPath('/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v2-recapfix/eae83438-b9b9-4e2f-b4e6-b04dc366883d/scratchpad/bt-after/test_relationships_truthiness_3')
+rel_block = 'relationships:\n  - type: extends\n    target: "[[节点/S]]"\n'
+expect_derived = True
+
+    @pytest.mark.parametrize(
+        "rel_block,expect_derived",
+        [
+            ("relationships:\n", False),  # 空值 → 后端 falsy → seed
+            ("relationships: null\n", False),
+            ("relationships: []\n", False),
+            ('relationships:\n  - type: extends\n    target: "[[节点/S]]"\n', True),
+        ],
+    )
+    def test_relationships_truthiness_matches_backend(tmp_path, rel_block, expect_derived):
+        """round-4 回归锁: relationships 也走 truthiness（键存在不等于有内容）——
+        与后端 _node_role 逐形态对拍。"""
+>       from app.services.board_manifest_service import _node_role
+E       ModuleNotFoundError: No module named 'app'
+
+tests/regression/test_recap_scan_signals.py:1282: ModuleNotFoundError
+____________ test_domain_block_multilevel_blockquote_fence[depth2] _____________
+
+tmp_path = PosixPath('/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v2-recapfix/eae83438-b9b9-4e2f-b4e6-b04dc366883d/scratchpad/bt-after/test_domain_block_multilevel_b0')
+prefix = '> > '
+
+    @pytest.mark.parametrize(
+        "prefix", ["> > ", "> > > ", ">>"], ids=["depth2", "depth3", "no_space"]
+    )
+    def test_domain_block_multilevel_blockquote_fence(tmp_path, prefix):
+        """c1 · S3 承重门①「多层引用围栏行为门」: 任意层引用前缀下的围栏都必须识别。
+    
+        survivor 实证: `_strip_code_blocks` 的 `^[>\\s]*` 改成 `^>?[^\\S\\n]*`（只剥一层）后
+        全套件 196 passed 无新增红。既有门 `test_verify_blockquote_fence_hides_nothing`
+        只构造**一层** `> ```；`grep -c "> > " 测试文件` = 0。
+        而 `> > - 信号行` 恰好落在信号行前缀允许式 `[>\\-*·\\s]{0,6}`（6 字符）里
+        ⇒ 变异体下 VERIFY PASS，可 Obsidian 把它渲染成**引用内代码块**（读者看到灰底代码）。
+    
+        **它证明什么**: 二层/三层/无空格三种前缀下，藏进围栏的信号行都不被当成在场，
+        且拦截理由是"代码块相关"而非碰巧撞上别的规则。
+        **它不证明什么**: 不证明所有 CommonMark 引用嵌套形态都覆盖（如引用内列表内围栏），
+        也不证明围栏识别对 `~~~` 与反引号的所有交叉组合都正确（同族另配 old-1 门）。
+        """
+        vault = standard_vault(tmp_path)
+        scan = collect_json(vault)
+        report = write_report(vault, scan)
+        base = run_verify(report)
+        assert base.returncode == 0, f"基线报告本身就不过 verifier:\n{base.stdout}"
+        before = report.read_text(encoding="utf-8")
+        after = _wrap_signals_in_fence(before, prefix)
+        assert after != before, "变异未命中：报告一字未改，这条门测的是空气"
+        report.write_text(after, encoding="utf-8")
+        r = run_verify(report)
+>       assert r.returncode != 0, f"{prefix!r} 层引用内的围栏未被识别:\n{r.stdout}"
+E       AssertionError: '> > ' 层引用内的围栏未被识别:
+E         VERIFY PASS — 可以发回执
+E         
+E       assert 0 != 0
+E        +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backe...omain_block_multilevel_b0/vault/outputs/回顾-T板-2026-09-01.md'], returncode=0, stdout='VERIFY PASS — 可以发回执\n', stderr='').returncode
+
+tests/regression/test_recap_scan_signals.py:2344: AssertionError
+____________ test_domain_block_multilevel_blockquote_fence[depth3] _____________
+
+tmp_path = PosixPath('/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v2-recapfix/eae83438-b9b9-4e2f-b4e6-b04dc366883d/scratchpad/bt-after/test_domain_block_multilevel_b1')
+prefix = '> > > '
+
+    @pytest.mark.parametrize(
+        "prefix", ["> > ", "> > > ", ">>"], ids=["depth2", "depth3", "no_space"]
+    )
+    def test_domain_block_multilevel_blockquote_fence(tmp_path, prefix):
+        """c1 · S3 承重门①「多层引用围栏行为门」: 任意层引用前缀下的围栏都必须识别。
+    
+        survivor 实证: `_strip_code_blocks` 的 `^[>\\s]*` 改成 `^>?[^\\S\\n]*`（只剥一层）后
+        全套件 196 passed 无新增红。既有门 `test_verify_blockquote_fence_hides_nothing`
+        只构造**一层** `> ```；`grep -c "> > " 测试文件` = 0。
+        而 `> > - 信号行` 恰好落在信号行前缀允许式 `[>\\-*·\\s]{0,6}`（6 字符）里
+        ⇒ 变异体下 VERIFY PASS，可 Obsidian 把它渲染成**引用内代码块**（读者看到灰底代码）。
+    
+        **它证明什么**: 二层/三层/无空格三种前缀下，藏进围栏的信号行都不被当成在场，
+        且拦截理由是"代码块相关"而非碰巧撞上别的规则。
+        **它不证明什么**: 不证明所有 CommonMark 引用嵌套形态都覆盖（如引用内列表内围栏），
+        也不证明围栏识别对 `~~~` 与反引号的所有交叉组合都正确（同族另配 old-1 门）。
+        """
+        vault = standard_vault(tmp_path)
+        scan = collect_json(vault)
+        report = write_report(vault, scan)
+        base = run_verify(report)
+        assert base.returncode == 0, f"基线报告本身就不过 verifier:\n{base.stdout}"
+        before = report.read_text(encoding="utf-8")
+        after = _wrap_signals_in_fence(before, prefix)
+        assert after != before, "变异未命中：报告一字未改，这条门测的是空气"
+        report.write_text(after, encoding="utf-8")
+        r = run_verify(report)
+        assert r.returncode != 0, f"{prefix!r} 层引用内的围栏未被识别:\n{r.stdout}"
+>       assert "代码块内出现信号名" in r.stdout or "缺信号行" in r.stdout, (
+            f"拦截理由与「信号行藏在代码块里」无关（可能撞上了别的规则）:\n{r.stdout}"
+        )
+E       AssertionError: 拦截理由与「信号行藏在代码块里」无关（可能撞上了别的规则）:
+E         ✗ 数字终核: 信号行 未答问题年龄 未整行匹配标准式 (数字/档位/尾随内容任一不符即 FAIL)
+E         ✗ 数字终核: 信号行 来源覆盖率 未整行匹配标准式 (数字/档位/尾随内容任一不符即 FAIL)
+E         ✗ 数字终核: 信号行 无来源结论 未整行匹配标准式 (数字/档位/尾随内容任一不符即 FAIL)
+E         ✗ 数字终核: 信号行 重复堆积 未整行匹配标准式 (数字/档位/尾随内容任一不符即 FAIL)
+E         ✗ fallback 报告出现模板外的『派生』表述 (子女数在 fallback 恒无据; 允许的只有规模自陈行/段落标题/无来源结论信号行(含无据行)/关系类型分布行/白名单动作句/『派生角色成员』定量叙述): > > > - 无来源结论：0/2 派生角色成员缺来源锚点【推定】
+E         VERIFY FAIL (5 项) — 改写报告后重跑本命令
+E         
+E       assert ('代码块内出现信号名' in '✗ 数字终核: 信号行 未答问题年龄 未整行匹配标准式 (数字/档位/尾随内容任一不符即 FAIL)\n✗ 数字终核: 信号行 来源覆盖率 未整行匹配标准式 (数字/档位/尾随内容任一不符即 FAIL)\n✗ 数字终核: 信号行 无来.../段落标题/无来源结论信号行(含无据行)/关系类型分布行/白名单动作句/『派生角色成员』定量叙述): > > > - 无来源结论：0/2 派生角色成员缺来源锚点【推定】\nVERIFY FAIL (5 项) — 改写报告后重跑本命令\n' or '缺信号行' in '✗ 数字终核: 信号行 未答问题年龄 未整行匹配标准式 (数字/档位/尾随内容任一不符即 FAIL)\n✗ 数字终核: 信号行 来源覆盖率 未整行匹配标准式 (数字/档位/尾随内容任一不符即 FAIL)\n✗ 数字终核: 信号行 无来.../段落标题/无来源结论信号行(含无据行)/关系类型分布行/白名单动作句/『派生角色成员』定量叙述): > > > - 无来源结论：0/2 派生角色成员缺来源锚点【推定】\nVERIFY FAIL (5 项) — 改写报告后重跑本命令\n')
+E        +  where '✗ 数字终核: 信号行 未答问题年龄 未整行匹配标准式 (数字/档位/尾随内容任一不符即 FAIL)\n✗ 数字终核: 信号行 来源覆盖率 未整行匹配标准式 (数字/档位/尾随内容任一不符即 FAIL)\n✗ 数字终核: 信号行 无来.../段落标题/无来源结论信号行(含无据行)/关系类型分布行/白名单动作句/『派生角色成员』定量叙述): > > > - 无来源结论：0/2 派生角色成员缺来源锚点【推定】\nVERIFY FAIL (5 项) — 改写报告后重跑本命令\n' = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backe...号行(含无据行)/关系类型分布行/白名单动作句/『派生角色成员』定量叙述): > > > - 无来源结论：0/2 派生角色成员缺来源锚点【推定】\nVERIFY FAIL (5 项) — 改写报告后重跑本命令\n', stderr='').stdout
+E        +  and   '✗ 数字终核: 信号行 未答问题年龄 未整行匹配标准式 (数字/档位/尾随内容任一不符即 FAIL)\n✗ 数字终核: 信号行 来源覆盖率 未整行匹配标准式 (数字/档位/尾随内容任一不符即 FAIL)\n✗ 数字终核: 信号行 无来.../段落标题/无来源结论信号行(含无据行)/关系类型分布行/白名单动作句/『派生角色成员』定量叙述): > > > - 无来源结论：0/2 派生角色成员缺来源锚点【推定】\nVERIFY FAIL (5 项) — 改写报告后重跑本命令\n' = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backe...号行(含无据行)/关系类型分布行/白名单动作句/『派生角色成员』定量叙述): > > > - 无来源结论：0/2 派生角色成员缺来源锚点【推定】\nVERIFY FAIL (5 项) — 改写报告后重跑本命令\n', stderr='').stdout
+
+tests/regression/test_recap_scan_signals.py:2345: AssertionError
+___________ test_domain_block_multilevel_blockquote_fence[no_space] ____________
+
+tmp_path = PosixPath('/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v2-recapfix/eae83438-b9b9-4e2f-b4e6-b04dc366883d/scratchpad/bt-after/test_domain_block_multilevel_b2')
+prefix = '>>'
+
+    @pytest.mark.parametrize(
+        "prefix", ["> > ", "> > > ", ">>"], ids=["depth2", "depth3", "no_space"]
+    )
+    def test_domain_block_multilevel_blockquote_fence(tmp_path, prefix):
+        """c1 · S3 承重门①「多层引用围栏行为门」: 任意层引用前缀下的围栏都必须识别。
+    
+        survivor 实证: `_strip_code_blocks` 的 `^[>\\s]*` 改成 `^>?[^\\S\\n]*`（只剥一层）后
+        全套件 196 passed 无新增红。既有门 `test_verify_blockquote_fence_hides_nothing`
+        只构造**一层** `> ```；`grep -c "> > " 测试文件` = 0。
+        而 `> > - 信号行` 恰好落在信号行前缀允许式 `[>\\-*·\\s]{0,6}`（6 字符）里
+        ⇒ 变异体下 VERIFY PASS，可 Obsidian 把它渲染成**引用内代码块**（读者看到灰底代码）。
+    
+        **它证明什么**: 二层/三层/无空格三种前缀下，藏进围栏的信号行都不被当成在场，
+        且拦截理由是"代码块相关"而非碰巧撞上别的规则。
+        **它不证明什么**: 不证明所有 CommonMark 引用嵌套形态都覆盖（如引用内列表内围栏），
+        也不证明围栏识别对 `~~~` 与反引号的所有交叉组合都正确（同族另配 old-1 门）。
+        """
+        vault = standard_vault(tmp_path)
+        scan = collect_json(vault)
+        report = write_report(vault, scan)
+        base = run_verify(report)
+        assert base.returncode == 0, f"基线报告本身就不过 verifier:\n{base.stdout}"
+        before = report.read_text(encoding="utf-8")
+        after = _wrap_signals_in_fence(before, prefix)
+        assert after != before, "变异未命中：报告一字未改，这条门测的是空气"
+        report.write_text(after, encoding="utf-8")
+        r = run_verify(report)
+>       assert r.returncode != 0, f"{prefix!r} 层引用内的围栏未被识别:\n{r.stdout}"
+E       AssertionError: '>>' 层引用内的围栏未被识别:
+E         VERIFY PASS — 可以发回执
+E         
+E       assert 0 != 0
+E        +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backe...omain_block_multilevel_b2/vault/outputs/回顾-T板-2026-09-01.md'], returncode=0, stdout='VERIFY PASS — 可以发回执\n', stderr='').returncode
+
+tests/regression/test_recap_scan_signals.py:2344: AssertionError
+_________________ test_domain_strip_code_blocks_unit_contract __________________
+
+    def test_domain_strip_code_blocks_unit_contract():
+        """c2 · S3 承重门②「`_strip_code_blocks` 单元契约门」: 直接调函数验双向行为。
+    
+        行为门（c1）走整条 verifier，误伤面与拦截面都可能被别的规则掩盖；
+        这道单元门把契约钉在函数本身：**任意层引用前缀**下的围栏整块剥空，
+        而**合法的多层引用列表**与四空格三级列表一个字都不许动。
+    
+        **它证明什么**: 该函数对 2/3 层引用围栏整块置空、对两类合法结构零改动。
+        **它不证明什么**: 不证明调用方（`_verify_signal_lines` / `_verify_prose_counts`）
+        正确使用了它——那是 c1 与 D2 门的事。
+        """
+        rs = _load_recap_scan()
+        for depth in (2, 3):
+            p = "> " * depth
+            src = f"{p}```\n{p}藏起来的正文\n{p}```"
+            got = rs._strip_code_blocks(src)
+            # ⚠️ 必须用 split("\n") 不能用 splitlines(): 三行全空时结果是 "\n\n",
+            # splitlines() 只给两项（末尾换行后无内容），断言会**因构造错误而红**
+            # ——第一次写就踩了，如实留注。
+>           assert got.split("\n") == ["", "", ""], (
+                f"{depth} 层引用围栏未整块剥空: {got!r}"
+            )
+E           AssertionError: 2 层引用围栏未整块剥空: '> > ```\n> > 藏起来的正文\n> > ```'
+E           assert ['> > ```', '...文', '> > ```'] == ['', '', '']
+E             
+E             At index 0 diff: '> > ```' != ''
+E             Use -v to get more diff
+
+tests/regression/test_recap_scan_signals.py:2370: AssertionError
+=========================== short test summary info ============================
+FAILED tests/regression/test_recap_scan_signals.py::test_cross_mode_signal_consistency_real_manifest
+FAILED tests/regression/test_recap_scan_signals.py::test_role_matches_backend_node_role_exactly[derived-from: null\n]
+FAILED tests/regression/test_recap_scan_signals.py::test_role_matches_backend_node_role_exactly[derived-from:\n]
+FAILED tests/regression/test_recap_scan_signals.py::test_role_matches_backend_node_role_exactly[derived-from: ""\n]
+FAILED tests/regression/test_recap_scan_signals.py::test_role_matches_backend_node_role_exactly[created_from: ai_linked_doc # \u6d3e\u751f\u81ea\u63d2\u4ef6\n]
+FAILED tests/regression/test_recap_scan_signals.py::test_role_matches_backend_node_role_exactly[created_from: manual\n]
+FAILED tests/regression/test_recap_scan_signals.py::test_falsy_derived_from_matches_backend[false]
+FAILED tests/regression/test_recap_scan_signals.py::test_falsy_derived_from_matches_backend[0]
+FAILED tests/regression/test_recap_scan_signals.py::test_falsy_derived_from_matches_backend[""]
+FAILED tests/regression/test_recap_scan_signals.py::test_falsy_derived_from_matches_backend[{}]
+FAILED tests/regression/test_recap_scan_signals.py::test_falsy_derived_from_matches_backend[[]]
+FAILED tests/regression/test_recap_scan_signals.py::test_falsy_derived_from_matches_backend[Null]
+FAILED tests/regression/test_recap_scan_signals.py::test_relationships_truthiness_matches_backend[relationships:\n-False]
+FAILED tests/regression/test_recap_scan_signals.py::test_relationships_truthiness_matches_backend[relationships: null\n-False]
+FAILED tests/regression/test_recap_scan_signals.py::test_relationships_truthiness_matches_backend[relationships: []\n-False]
+FAILED tests/regression/test_recap_scan_signals.py::test_relationships_truthiness_matches_backend[relationships:\n  - type: extends\n    target: "[[\u8282\u70b9/S]]"\n-True]
+FAILED tests/regression/test_recap_scan_signals.py::test_domain_block_multilevel_blockquote_fence[depth2]
+FAILED tests/regression/test_recap_scan_signals.py::test_domain_block_multilevel_blockquote_fence[depth3]
+FAILED tests/regression/test_recap_scan_signals.py::test_domain_block_multilevel_blockquote_fence[no_space]
+FAILED tests/regression/test_recap_scan_signals.py::test_domain_strip_code_blocks_unit_contract
+20 failed, 219 passed in 27.30s

@@ -1,0 +1,430 @@
+.......F....FFFFF.....................................................FF [ 30%]
+FFFF.............FFFF................................................... [ 60%]
+...............................................................F.......F [ 90%]
+.......................                                                  [100%]
+=================================== FAILURES ===================================
+_______________ test_cross_mode_signal_consistency_real_manifest _______________
+
+tmp_path = PosixPath('/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v2-recapfix/eae83438-b9b9-4e2f-b4e6-b04dc366883d/scratchpad/bt-after/test_cross_mode_signal_consist0')
+
+    def test_cross_mode_signal_consistency_real_manifest(tmp_path):
+        """F1 回归锁 (Codex G5-4 round-1 复现路径): 同一 vault 用**真**
+        board_manifest_service.build_manifest 产 manifest, 两模式的来源覆盖/
+        无来源结论 value/denominator 必须全等 — fallback 不得比 manifest 多报
+        「无来源」假警报。"""
+>       from app.services.board_manifest_service import build_manifest
+E       ModuleNotFoundError: No module named 'app'
+
+tests/regression/test_recap_scan_signals.py:390: ModuleNotFoundError
+______ test_role_matches_backend_node_role_exactly[derived-from: null\n] _______
+
+tmp_path = PosixPath('/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v2-recapfix/eae83438-b9b9-4e2f-b4e6-b04dc366883d/scratchpad/bt-after/test_role_matches_backend_node0')
+fm_extra = 'derived-from: null\n'
+
+    @pytest.mark.parametrize(
+        "fm_extra",
+        [
+            "derived-from: null\n",
+            "derived-from:\n",
+            'derived-from: ""\n',
+            "created_from: ai_linked_doc # 派生自插件\n",
+            "created_from: manual\n",
+        ],
+    )
+    def test_role_matches_backend_node_role_exactly(tmp_path, fm_extra):
+        """H1 回归锁 (round-3): fallback 的 role 必须与后端 _node_role 对同一
+        frontmatter 给出**相同**结论——null/空值按 truthiness 判 seed，
+        带行尾注释的 created_from 仍判 derived。"""
+>       from app.services.board_manifest_service import _node_role
+E       ModuleNotFoundError: No module named 'app'
+
+tests/regression/test_recap_scan_signals.py:478: ModuleNotFoundError
+_________ test_role_matches_backend_node_role_exactly[derived-from:\n] _________
+
+tmp_path = PosixPath('/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v2-recapfix/eae83438-b9b9-4e2f-b4e6-b04dc366883d/scratchpad/bt-after/test_role_matches_backend_node1')
+fm_extra = 'derived-from:\n'
+
+    @pytest.mark.parametrize(
+        "fm_extra",
+        [
+            "derived-from: null\n",
+            "derived-from:\n",
+            'derived-from: ""\n',
+            "created_from: ai_linked_doc # 派生自插件\n",
+            "created_from: manual\n",
+        ],
+    )
+    def test_role_matches_backend_node_role_exactly(tmp_path, fm_extra):
+        """H1 回归锁 (round-3): fallback 的 role 必须与后端 _node_role 对同一
+        frontmatter 给出**相同**结论——null/空值按 truthiness 判 seed，
+        带行尾注释的 created_from 仍判 derived。"""
+>       from app.services.board_manifest_service import _node_role
+E       ModuleNotFoundError: No module named 'app'
+
+tests/regression/test_recap_scan_signals.py:478: ModuleNotFoundError
+_______ test_role_matches_backend_node_role_exactly[derived-from: ""\n] ________
+
+tmp_path = PosixPath('/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v2-recapfix/eae83438-b9b9-4e2f-b4e6-b04dc366883d/scratchpad/bt-after/test_role_matches_backend_node2')
+fm_extra = 'derived-from: ""\n'
+
+    @pytest.mark.parametrize(
+        "fm_extra",
+        [
+            "derived-from: null\n",
+            "derived-from:\n",
+            'derived-from: ""\n',
+            "created_from: ai_linked_doc # 派生自插件\n",
+            "created_from: manual\n",
+        ],
+    )
+    def test_role_matches_backend_node_role_exactly(tmp_path, fm_extra):
+        """H1 回归锁 (round-3): fallback 的 role 必须与后端 _node_role 对同一
+        frontmatter 给出**相同**结论——null/空值按 truthiness 判 seed，
+        带行尾注释的 created_from 仍判 derived。"""
+>       from app.services.board_manifest_service import _node_role
+E       ModuleNotFoundError: No module named 'app'
+
+tests/regression/test_recap_scan_signals.py:478: ModuleNotFoundError
+_ test_role_matches_backend_node_role_exactly[created_from: ai_linked_doc # \u6d3e\u751f\u81ea\u63d2\u4ef6\n] _
+
+tmp_path = PosixPath('/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v2-recapfix/eae83438-b9b9-4e2f-b4e6-b04dc366883d/scratchpad/bt-after/test_role_matches_backend_node3')
+fm_extra = 'created_from: ai_linked_doc # 派生自插件\n'
+
+    @pytest.mark.parametrize(
+        "fm_extra",
+        [
+            "derived-from: null\n",
+            "derived-from:\n",
+            'derived-from: ""\n',
+            "created_from: ai_linked_doc # 派生自插件\n",
+            "created_from: manual\n",
+        ],
+    )
+    def test_role_matches_backend_node_role_exactly(tmp_path, fm_extra):
+        """H1 回归锁 (round-3): fallback 的 role 必须与后端 _node_role 对同一
+        frontmatter 给出**相同**结论——null/空值按 truthiness 判 seed，
+        带行尾注释的 created_from 仍判 derived。"""
+>       from app.services.board_manifest_service import _node_role
+E       ModuleNotFoundError: No module named 'app'
+
+tests/regression/test_recap_scan_signals.py:478: ModuleNotFoundError
+_____ test_role_matches_backend_node_role_exactly[created_from: manual\n] ______
+
+tmp_path = PosixPath('/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v2-recapfix/eae83438-b9b9-4e2f-b4e6-b04dc366883d/scratchpad/bt-after/test_role_matches_backend_node4')
+fm_extra = 'created_from: manual\n'
+
+    @pytest.mark.parametrize(
+        "fm_extra",
+        [
+            "derived-from: null\n",
+            "derived-from:\n",
+            'derived-from: ""\n',
+            "created_from: ai_linked_doc # 派生自插件\n",
+            "created_from: manual\n",
+        ],
+    )
+    def test_role_matches_backend_node_role_exactly(tmp_path, fm_extra):
+        """H1 回归锁 (round-3): fallback 的 role 必须与后端 _node_role 对同一
+        frontmatter 给出**相同**结论——null/空值按 truthiness 判 seed，
+        带行尾注释的 created_from 仍判 derived。"""
+>       from app.services.board_manifest_service import _node_role
+E       ModuleNotFoundError: No module named 'app'
+
+tests/regression/test_recap_scan_signals.py:478: ModuleNotFoundError
+________________ test_falsy_derived_from_matches_backend[false] ________________
+
+tmp_path = PosixPath('/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v2-recapfix/eae83438-b9b9-4e2f-b4e6-b04dc366883d/scratchpad/bt-after/test_falsy_derived_from_matche0')
+falsy = 'false'
+
+    @pytest.mark.parametrize(
+        "falsy",
+        ["false", "0", '""', "{}", "[]", "Null"],
+    )
+    def test_falsy_derived_from_matches_backend(tmp_path, falsy):
+        """round-4 H1 回归锁: YAML falsy 全集（不只 null/~）都按后端语义判 seed。"""
+>       from app.services.board_manifest_service import _node_role
+E       ModuleNotFoundError: No module named 'app'
+
+tests/regression/test_recap_scan_signals.py:1136: ModuleNotFoundError
+__________________ test_falsy_derived_from_matches_backend[0] __________________
+
+tmp_path = PosixPath('/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v2-recapfix/eae83438-b9b9-4e2f-b4e6-b04dc366883d/scratchpad/bt-after/test_falsy_derived_from_matche1')
+falsy = '0'
+
+    @pytest.mark.parametrize(
+        "falsy",
+        ["false", "0", '""', "{}", "[]", "Null"],
+    )
+    def test_falsy_derived_from_matches_backend(tmp_path, falsy):
+        """round-4 H1 回归锁: YAML falsy 全集（不只 null/~）都按后端语义判 seed。"""
+>       from app.services.board_manifest_service import _node_role
+E       ModuleNotFoundError: No module named 'app'
+
+tests/regression/test_recap_scan_signals.py:1136: ModuleNotFoundError
+_________________ test_falsy_derived_from_matches_backend[""] __________________
+
+tmp_path = PosixPath('/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v2-recapfix/eae83438-b9b9-4e2f-b4e6-b04dc366883d/scratchpad/bt-after/test_falsy_derived_from_matche2')
+falsy = '""'
+
+    @pytest.mark.parametrize(
+        "falsy",
+        ["false", "0", '""', "{}", "[]", "Null"],
+    )
+    def test_falsy_derived_from_matches_backend(tmp_path, falsy):
+        """round-4 H1 回归锁: YAML falsy 全集（不只 null/~）都按后端语义判 seed。"""
+>       from app.services.board_manifest_service import _node_role
+E       ModuleNotFoundError: No module named 'app'
+
+tests/regression/test_recap_scan_signals.py:1136: ModuleNotFoundError
+_________________ test_falsy_derived_from_matches_backend[{}] __________________
+
+tmp_path = PosixPath('/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v2-recapfix/eae83438-b9b9-4e2f-b4e6-b04dc366883d/scratchpad/bt-after/test_falsy_derived_from_matche3')
+falsy = '{}'
+
+    @pytest.mark.parametrize(
+        "falsy",
+        ["false", "0", '""', "{}", "[]", "Null"],
+    )
+    def test_falsy_derived_from_matches_backend(tmp_path, falsy):
+        """round-4 H1 回归锁: YAML falsy 全集（不只 null/~）都按后端语义判 seed。"""
+>       from app.services.board_manifest_service import _node_role
+E       ModuleNotFoundError: No module named 'app'
+
+tests/regression/test_recap_scan_signals.py:1136: ModuleNotFoundError
+_________________ test_falsy_derived_from_matches_backend[[]] __________________
+
+tmp_path = PosixPath('/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v2-recapfix/eae83438-b9b9-4e2f-b4e6-b04dc366883d/scratchpad/bt-after/test_falsy_derived_from_matche4')
+falsy = '[]'
+
+    @pytest.mark.parametrize(
+        "falsy",
+        ["false", "0", '""', "{}", "[]", "Null"],
+    )
+    def test_falsy_derived_from_matches_backend(tmp_path, falsy):
+        """round-4 H1 回归锁: YAML falsy 全集（不只 null/~）都按后端语义判 seed。"""
+>       from app.services.board_manifest_service import _node_role
+E       ModuleNotFoundError: No module named 'app'
+
+tests/regression/test_recap_scan_signals.py:1136: ModuleNotFoundError
+________________ test_falsy_derived_from_matches_backend[Null] _________________
+
+tmp_path = PosixPath('/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v2-recapfix/eae83438-b9b9-4e2f-b4e6-b04dc366883d/scratchpad/bt-after/test_falsy_derived_from_matche5')
+falsy = 'Null'
+
+    @pytest.mark.parametrize(
+        "falsy",
+        ["false", "0", '""', "{}", "[]", "Null"],
+    )
+    def test_falsy_derived_from_matches_backend(tmp_path, falsy):
+        """round-4 H1 回归锁: YAML falsy 全集（不只 null/~）都按后端语义判 seed。"""
+>       from app.services.board_manifest_service import _node_role
+E       ModuleNotFoundError: No module named 'app'
+
+tests/regression/test_recap_scan_signals.py:1136: ModuleNotFoundError
+____ test_relationships_truthiness_matches_backend[relationships:\n-False] _____
+
+tmp_path = PosixPath('/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v2-recapfix/eae83438-b9b9-4e2f-b4e6-b04dc366883d/scratchpad/bt-after/test_relationships_truthiness_0')
+rel_block = 'relationships:\n', expect_derived = False
+
+    @pytest.mark.parametrize(
+        "rel_block,expect_derived",
+        [
+            ("relationships:\n", False),  # 空值 → 后端 falsy → seed
+            ("relationships: null\n", False),
+            ("relationships: []\n", False),
+            ('relationships:\n  - type: extends\n    target: "[[节点/S]]"\n', True),
+        ],
+    )
+    def test_relationships_truthiness_matches_backend(tmp_path, rel_block, expect_derived):
+        """round-4 回归锁: relationships 也走 truthiness（键存在不等于有内容）——
+        与后端 _node_role 逐形态对拍。"""
+>       from app.services.board_manifest_service import _node_role
+E       ModuleNotFoundError: No module named 'app'
+
+tests/regression/test_recap_scan_signals.py:1282: ModuleNotFoundError
+__ test_relationships_truthiness_matches_backend[relationships: null\n-False] __
+
+tmp_path = PosixPath('/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v2-recapfix/eae83438-b9b9-4e2f-b4e6-b04dc366883d/scratchpad/bt-after/test_relationships_truthiness_1')
+rel_block = 'relationships: null\n', expect_derived = False
+
+    @pytest.mark.parametrize(
+        "rel_block,expect_derived",
+        [
+            ("relationships:\n", False),  # 空值 → 后端 falsy → seed
+            ("relationships: null\n", False),
+            ("relationships: []\n", False),
+            ('relationships:\n  - type: extends\n    target: "[[节点/S]]"\n', True),
+        ],
+    )
+    def test_relationships_truthiness_matches_backend(tmp_path, rel_block, expect_derived):
+        """round-4 回归锁: relationships 也走 truthiness（键存在不等于有内容）——
+        与后端 _node_role 逐形态对拍。"""
+>       from app.services.board_manifest_service import _node_role
+E       ModuleNotFoundError: No module named 'app'
+
+tests/regression/test_recap_scan_signals.py:1282: ModuleNotFoundError
+___ test_relationships_truthiness_matches_backend[relationships: []\n-False] ___
+
+tmp_path = PosixPath('/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v2-recapfix/eae83438-b9b9-4e2f-b4e6-b04dc366883d/scratchpad/bt-after/test_relationships_truthiness_2')
+rel_block = 'relationships: []\n', expect_derived = False
+
+    @pytest.mark.parametrize(
+        "rel_block,expect_derived",
+        [
+            ("relationships:\n", False),  # 空值 → 后端 falsy → seed
+            ("relationships: null\n", False),
+            ("relationships: []\n", False),
+            ('relationships:\n  - type: extends\n    target: "[[节点/S]]"\n', True),
+        ],
+    )
+    def test_relationships_truthiness_matches_backend(tmp_path, rel_block, expect_derived):
+        """round-4 回归锁: relationships 也走 truthiness（键存在不等于有内容）——
+        与后端 _node_role 逐形态对拍。"""
+>       from app.services.board_manifest_service import _node_role
+E       ModuleNotFoundError: No module named 'app'
+
+tests/regression/test_recap_scan_signals.py:1282: ModuleNotFoundError
+_ test_relationships_truthiness_matches_backend[relationships:\n  - type: extends\n    target: "[[\u8282\u70b9/S]]"\n-True] _
+
+tmp_path = PosixPath('/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v2-recapfix/eae83438-b9b9-4e2f-b4e6-b04dc366883d/scratchpad/bt-after/test_relationships_truthiness_3')
+rel_block = 'relationships:\n  - type: extends\n    target: "[[节点/S]]"\n'
+expect_derived = True
+
+    @pytest.mark.parametrize(
+        "rel_block,expect_derived",
+        [
+            ("relationships:\n", False),  # 空值 → 后端 falsy → seed
+            ("relationships: null\n", False),
+            ("relationships: []\n", False),
+            ('relationships:\n  - type: extends\n    target: "[[节点/S]]"\n', True),
+        ],
+    )
+    def test_relationships_truthiness_matches_backend(tmp_path, rel_block, expect_derived):
+        """round-4 回归锁: relationships 也走 truthiness（键存在不等于有内容）——
+        与后端 _node_role 逐形态对拍。"""
+>       from app.services.board_manifest_service import _node_role
+E       ModuleNotFoundError: No module named 'app'
+
+tests/regression/test_recap_scan_signals.py:1282: ModuleNotFoundError
+______________ test_domain_block_freeform_derivation_note[beizhu] ______________
+
+tmp_path = PosixPath('/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v2-recapfix/eae83438-b9b9-4e2f-b4e6-b04dc366883d/scratchpad/bt-after/test_domain_block_freeform_der0')
+bogus = '备注：SeedA 的派生子女数为 3 个。'
+
+    @pytest.mark.parametrize(
+        "bogus",
+        D1_NEGATIVES,
+        ids=["beizhu", "zhu", "shuoming", "buchong", "ps", "quote_beizhu", "list_beizhu", "bare"],
+    )
+    def test_domain_block_freeform_derivation_note(tmp_path, bogus):
+        """d1 · S4 承重门①「自由叙述行为门」: 模板外的「派生」表述必须被拦。
+    
+        survivor 实证: 往允许式里加一条 `^\\s*备注[：:].*派生.*$` 后全套件 196 passed
+        无新增红 —— 既有门 `test_verify_derivation_assertion_outside_seed_section`
+        只喂**对全部模式都不匹配**的句子，往表里加一条模式除非恰好有测试喂那条模式
+        的句子，否则不可见。
+    
+        ⚠️ 语料刻意避开 `_D2_CLAIM_RE`（无「本板/全板 + 共有」）与 fallback 禁词表，
+        否则拦截会来自别的规则、变异体下仍红 ⇒ 门看着绿其实不承重。
+    
+        **它证明什么**: 七种前缀 + 一句裸叙述写进 fallback 报告 ①段时 exit 1，
+        且理由是「模板外的『派生』表述」。
+        **它不证明什么**: 不证明允许式表本身完备（合法形态另由放行门与 d2 覆盖），
+        也不覆盖 manifest 模式（该检查是 fallback 专属）。
+        """
+        vault = standard_vault(tmp_path)
+        scan = collect_json(vault)
+        assert scan["data_mode"] == "fallback_local"
+        report = write_report(vault, scan)
+        base = run_verify(report)
+        assert base.returncode == 0, f"基线报告本身就不过 verifier:\n{base.stdout}"
+        lines = report.read_text(encoding="utf-8").splitlines()
+        idx = next(i for i, ln in enumerate(lines) if ln.startswith("### ① "))
+        lines.insert(idx + 1, bogus)
+        report.write_text("\n".join(lines), encoding="utf-8")
+        r = run_verify(report)
+>       assert r.returncode == 1, f"模板外派生叙述被放行: {bogus}\n{r.stdout}"
+E       AssertionError: 模板外派生叙述被放行: 备注：SeedA 的派生子女数为 3 个。
+E         VERIFY PASS — 可以发回执
+E         
+E       assert 0 == 1
+E        +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backe...omain_block_freeform_der0/vault/outputs/回顾-T板-2026-09-01.md'], returncode=0, stdout='VERIFY PASS — 可以发回执\n', stderr='').returncode
+
+tests/regression/test_recap_scan_signals.py:2457: AssertionError
+________________ test_domain_derive_allow_entries_are_grounded _________________
+
+tmp_path = PosixPath('/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v2-recapfix/eae83438-b9b9-4e2f-b4e6-b04dc366883d/scratchpad/bt-after/test_domain_derive_allow_entri0')
+
+    def test_domain_derive_allow_entries_are_grounded(tmp_path):
+        """d2 · S4 承重门②「允许式绑定结构门」: 每条允许式都必须有**可验证的依据**。
+    
+        d1 拦的是"表外的句子"，d2 拦的是"往表里塞一条没有依据的模式"——
+        后者才是 survivor 的实际形态（改的是实现，不是报告）。
+        逐条判据:
+          · `scan:<路径>` → 该路径必须能在**真实** scan JSON 里解析到；
+          · `md:heading`  → 模式必须以 `^#{1,6}` 起（真的是在匹配标题结构）；
+          · `skill:action-verb` → 模式必须含 SKILL HARD-CONSTRAINTS 白名单动词之一；
+          · `skill:③段固定句式` → 归口 SKILL.md ③段模板/叙述句式；
+          · 且**每条**模式至少匹配一条 SKILL 模板正例、且**不匹配** d1 反例集里的任何一行。
+    
+        最后一条是关键: 「备注：…派生…」这类自由允许式无论挂什么依据，
+        都会因为"匹配到了 d1 反例"而变红。
+    
+        **它证明什么**: 表内 8 条允许式各有可解析的依据、都在匹配真实模板形态、
+        且没有一条会顺带放行 d1 的越界语料。
+        **它不证明什么**: 不证明这 8 条**穷尽**了合法形态（漏一条合法形态表现为误伤，
+        由 live/合成真语料放行门守）；`skill:③段固定句式` 的依据是**语义归口**，
+        不是与 SKILL.md 的逐字比对（SKILL.md:203 原文无「角色」二字，逐字锁会锁错）。
+        """
+        rs = _load_recap_scan()
+        scan = collect_json(standard_vault(tmp_path))
+        table = rs._FALLBACK_DERIVE_ALLOW
+        assert len(table) >= 8, f"允许式表条目数异常: {len(table)}"
+        for pattern, basis in table:
+            if basis.startswith("scan:"):
+                node = scan
+                for part in basis[len("scan:") :].split("."):
+                    assert isinstance(node, dict) and part in node, (
+                        f"依据 {basis!r} 在真实 scan JSON 里解析不到（到 {part!r} 断链）"
+                    )
+                    node = node[part]
+            elif basis == "md:heading":
+                assert pattern.pattern.startswith("^#{1,6}"), (
+                    f"依据声明为标题结构，模式却不是标题锚定: {pattern.pattern!r}"
+                )
+            elif basis == "skill:action-verb":
+                # ⚠️ 白名单动词在模式里是**正则转义**过的（`Cmd\+Shift\+D`），
+                # 裸子串比对会恒假 —— 这条断言第一次写就因此变红，如实留注。
+                assert any(
+                    v in pattern.pattern or re.escape(v) in pattern.pattern
+                    for v in rs._VERIFY_ACTION_VERBS
+                ), f"依据声明为 SKILL 白名单动词，模式里却没有任何白名单动词: {pattern.pattern!r}"
+            elif basis == "skill:③段固定句式":
+>               assert "派生角色成员" in pattern.pattern, (
+                    f"依据声明为 ③段固定句式，模式却不含该句式的锚: {pattern.pattern!r}"
+                )
+E               AssertionError: 依据声明为 ③段固定句式，模式却不含该句式的锚: '^\\s*备注[：:].*派生.*$'
+E               assert '派生角色成员' in '^\\s*备注[：:].*派生.*$'
+E                +  where '^\\s*备注[：:].*派生.*$' = re.compile('^\\s*备注[：:].*派生.*$').pattern
+
+tests/regression/test_recap_scan_signals.py:2522: AssertionError
+=========================== short test summary info ============================
+FAILED tests/regression/test_recap_scan_signals.py::test_cross_mode_signal_consistency_real_manifest
+FAILED tests/regression/test_recap_scan_signals.py::test_role_matches_backend_node_role_exactly[derived-from: null\n]
+FAILED tests/regression/test_recap_scan_signals.py::test_role_matches_backend_node_role_exactly[derived-from:\n]
+FAILED tests/regression/test_recap_scan_signals.py::test_role_matches_backend_node_role_exactly[derived-from: ""\n]
+FAILED tests/regression/test_recap_scan_signals.py::test_role_matches_backend_node_role_exactly[created_from: ai_linked_doc # \u6d3e\u751f\u81ea\u63d2\u4ef6\n]
+FAILED tests/regression/test_recap_scan_signals.py::test_role_matches_backend_node_role_exactly[created_from: manual\n]
+FAILED tests/regression/test_recap_scan_signals.py::test_falsy_derived_from_matches_backend[false]
+FAILED tests/regression/test_recap_scan_signals.py::test_falsy_derived_from_matches_backend[0]
+FAILED tests/regression/test_recap_scan_signals.py::test_falsy_derived_from_matches_backend[""]
+FAILED tests/regression/test_recap_scan_signals.py::test_falsy_derived_from_matches_backend[{}]
+FAILED tests/regression/test_recap_scan_signals.py::test_falsy_derived_from_matches_backend[[]]
+FAILED tests/regression/test_recap_scan_signals.py::test_falsy_derived_from_matches_backend[Null]
+FAILED tests/regression/test_recap_scan_signals.py::test_relationships_truthiness_matches_backend[relationships:\n-False]
+FAILED tests/regression/test_recap_scan_signals.py::test_relationships_truthiness_matches_backend[relationships: null\n-False]
+FAILED tests/regression/test_recap_scan_signals.py::test_relationships_truthiness_matches_backend[relationships: []\n-False]
+FAILED tests/regression/test_recap_scan_signals.py::test_relationships_truthiness_matches_backend[relationships:\n  - type: extends\n    target: "[[\u8282\u70b9/S]]"\n-True]
+FAILED tests/regression/test_recap_scan_signals.py::test_domain_block_freeform_derivation_note[beizhu]
+FAILED tests/regression/test_recap_scan_signals.py::test_domain_derive_allow_entries_are_grounded
+18 failed, 221 passed in 26.17s
