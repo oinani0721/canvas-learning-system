@@ -18,7 +18,9 @@ from typing import Annotated, List, Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.core.decision_tracker import log_retrieval_status_decision
 from app.core.subject_config import set_current_subject_id
+from app.models.service_status import ServiceStatus
 from app.services.rag_service import (
     RAGService,
     RAGServiceError,
@@ -140,6 +142,23 @@ class RAGQueryResponse(BaseModel):
         default_factory=RAGQueryMetadata, description="元数据"
     )
 
+    # ── CARD-G4-3 加性四态字段 (纯透传 CanvasRAGState.retrieval_status) ──
+    # 状态由 fuse_results 汇聚层折算 (lib/agentic_rag/nodes.py:589) 或由
+    # rag_service 的 fallback 出口给出; 端点只负责搬运, 不参与判定。
+    # null 的语义是「本次未产出状态」(state 初值即 None, 图早退时如此),
+    # 与 empty 严格区分 —— 把 null 归一成 ok/empty 正是本卡要消灭的伪装。
+    retrieval_status: Optional[ServiceStatus] = Field(
+        None,
+        description=(
+            "检索四态 (G4-2 统一枚举): ok / empty / degraded / unavailable。"
+            "null=本次未产出状态。注意与 HTTP 503 的分工: 503 表示 RAG 服务"
+            "整体不可达, 本字段表示这一次检索结果的可信度。"
+        ),
+    )
+    retrieval_status_reason: Optional[str] = Field(
+        None, description="故障说明 — degraded/unavailable 时非空"
+    )
+
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
@@ -252,9 +271,16 @@ async def rag_query(
         HTTPException 503: RAG 服务不可用
         HTTPException 500: 查询执行失败
     """
-    logger.info(
-        f"RAG query: {request.query[:50]}... subject={request.subject_id} cross={request.cross_subject}"
-    )
+    # CARD-G4-3 Codex round-3 HIGH-1: 这条入口日志在主 try **之外**, 它抛错会
+    # 让请求直接 500 且 `rag_service.query` 一次都没被调用 —— 观测面又一次成了
+    # 业务面的失败源, 而且它在**本卡已修改的文件里**, 不能推给"服务层硬边界外"。
+    # 与 log_retrieval_status_decision 同口径: 观测失败最多损失可观测性。
+    try:
+        logger.info(
+            f"RAG query: {request.query[:50]}... subject={request.subject_id} cross={request.cross_subject}"
+        )
+    except Exception:  # noqa: BLE001 — 观测面刻意兜底
+        pass
 
     # Story 1.9 CRITICAL fix: Set ContextVar so downstream services
     # (via get_current_subject_id()) see the correct subject.
@@ -275,6 +301,22 @@ async def rag_query(
         # 转换结果格式 (Story 35.8: 含multimodal_results)
         # Map LangGraph state keys → response format
         reranked = result.get("reranked_results", result.get("results", []))
+
+        # CARD-G4-3: 四态纯透传 + 故障态落 trace。
+        # 归一与"仅故障态落账"的判断收在 decision_tracker 单点 (memory 端点
+        # 共用同一个), 端点这里只负责取值和搬运。
+        retrieval_status = result.get("retrieval_status")
+        retrieval_status_reason = result.get("retrieval_status_reason")
+        log_retrieval_status_decision(
+            function="rag_query",
+            status=retrieval_status,
+            reason=retrieval_status_reason,
+            input_summary={
+                "query": request.query[:80],
+                "subject_id": request.subject_id,
+            },
+        )
+
         return RAGQueryResponse(
             results=[
                 SearchResultItem(
@@ -296,7 +338,16 @@ async def rag_query(
                 )
                 for mm in result.get("multimodal_results", [])
             ],
-            quality_grade=result.get("quality_grade", "low"),
+            # CARD-G4-3 Codex round-1 BLOCKER-1: 必须是 `or "low"` 而不是
+            # `.get(..., "low")`。rag_service 的**三个** fallback 出口
+            # (:216 / :481 / :500) 都显式写 `"quality_grade": None`, 而
+            # `.get` 的默认值只在**键缺失**时生效, 键存在且为 None 时原样返回
+            # None → 撞上 `quality_grade: str` 的响应模型 → 500。
+            # 后果: 所有 retrieval_status="unavailable" 的真实路径都返回 500,
+            # 「unavailable 仍 200」这条本卡判据在真实入口上根本不成立
+            # (本卡新增测试此前用合成 state 固定给 quality_grade="high",
+            # 因此是假绿 —— 已补真实 RAGService 回归门)。
+            quality_grade=result.get("quality_grade") or "low",
             result_count=len(reranked),
             latency_ms=LatencyInfo(
                 graphiti=result.get("graphiti_latency_ms"),
@@ -323,6 +374,8 @@ async def rag_query(
                 fusion_strategy=result.get("fusion_strategy"),
                 reranking_strategy=result.get("reranking_strategy"),
             ),
+            retrieval_status=retrieval_status,
+            retrieval_status_reason=retrieval_status_reason,
         )
 
     except RAGUnavailableError as e:

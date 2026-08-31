@@ -31,6 +31,7 @@ from typing import Annotated, List, Optional
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: APIRouter)
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
+from app.core.decision_tracker import log_retrieval_status_decision
 from app.models.memory_schemas import (
     BatchEpisodesRequest,
     BatchEpisodesResponse,
@@ -42,6 +43,7 @@ from app.models.memory_schemas import (
     LearningHistoryResponse,
     MemoryHealthResponse,
     ReviewSuggestionResponse,
+    ReviewSuggestionsResponse,
 )
 from app.security import require_internal_api_key
 from app.services.memory_service import (
@@ -71,6 +73,19 @@ from app.core.vault_scope import resolve_vault_group_id as _resolve_vault_group_
 
 # Type alias for MemoryService dependency — delegates to service-layer singleton
 MemoryServiceDep = Annotated[MemoryService, Depends(get_memory_service)]
+
+
+# =============================================================================
+# CARD-G4-3 (BATCH-2026-08-31-第七批) — 四态贯穿 API/trace 面
+# =============================================================================
+# 本文件的四态改动只做两件事: 把服务层 (G4-2) 已经算出来的四态**原样**送到
+# HTTP 响应, 以及在故障态上落一条 trace。端点是管道不是判官 —— 不折算、
+# 不归一、不补默认值。
+#
+# trace 归一逻辑收在 app.core.decision_tracker.log_retrieval_status_decision
+# 单点 (rag 端点共用同一个), 避免"每个端点各写一遍、其中一处忘了 .value"。
+#
+# 硬边界 (卡文): 不碰 memory_service/rag_service 服务层实现, 只透传。
 
 
 # =============================================================================
@@ -228,12 +243,25 @@ async def get_learning_history(
             for item in result.get("items", [])
         ]
 
+        # CARD-G4-3: 服务层 (memory_service.py:813-814) 已经算好四态, 此前在
+        # 这一行被丢弃 —— Neo4j 挂了与"这段时间没学习"在 HTTP 面上同形。
+        retrieval_status = result.get("retrieval_status")
+        retrieval_status_reason = result.get("retrieval_status_reason")
+        log_retrieval_status_decision(
+            function="memory.get_learning_history",
+            status=retrieval_status,
+            reason=retrieval_status_reason,
+            input_summary={"user_id": user_id, "canvas_path": canvas_path},
+        )
+
         return LearningHistoryResponse(
             items=items,
             total=result.get("total", 0),
             page=result.get("page", 1),
             page_size=result.get("page_size", 50),
             pages=result.get("pages", 0),
+            retrieval_status=retrieval_status,
+            retrieval_status_reason=retrieval_status_reason,
         )
 
     except Exception as e:
@@ -262,6 +290,15 @@ async def get_concept_history(
     memory_service: MemoryServiceDep,
     user_id: Optional[str] = Query(None, description="用户ID (optional)"),
     limit: int = Query(50, ge=1, le=200, description="最大返回数量"),
+    vault_id: Optional[str] = Query(
+        default=None,
+        min_length=1,
+        description="Multi-vault — 推荐必填. 注入 ContextVar 防跨 vault 概念历史串库.",
+    ),
+    subject_id: Optional[str] = Query(default=None),
+    group_id: Optional[str] = Query(
+        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
+    ),
 ) -> ConceptHistoryResponse:
     """
     查询概念学习历史
@@ -271,11 +308,37 @@ async def get_concept_history(
     - 返回时间线数据
     - 包含得分变化
 
+    CARD-G4-1b (2026-08-31) — 与 ``/review-suggestions`` 同款 vault 解析:
+    ``vault_id`` / ``subject_id`` / 兼容 ``group_id`` 三参注入 ContextVar,
+    下游 ``neo4j_client.get_concept_history`` 由此拿到本请求的读作用域。
+
+    ⚠️ 产品可见变化: 本端点此前**恒返回空 timeline** —— client 侧同名方法
+    无论是否连着 Neo4j 都只读 JSON 模拟器 (真实部署下那是空壳)。本卡给它补了
+    真实 Cypher 分支后, 端点开始**可能有数据**。
+
     [Source: docs/stories/22.4.story.md#Dev-Notes]
     """
+    # Multi-vault — vault_id ContextVar 注入 (与 review-suggestions 同款)
+    _resolve_vault_group_id(
+        vault_id,
+        subject_id=subject_id,
+        legacy_group_id=group_id,
+    )
+
     try:
         result = await memory_service.get_concept_history(
             concept_id=concept_id, user_id=user_id, limit=limit
+        )
+
+        # CARD-G4-3: service 一直在返回 retrieval_status/reason 两键
+        # (memory_service.py:892-893), 但 ConceptHistoryResponse 没有这两个
+        # 字段, pydantic 默认 extra="ignore" 把它们**静默**吞掉。加了字段后
+        # 这里的 **result 自动接上, 端点逻辑一行未改 —— 但 trace 要显式落。
+        log_retrieval_status_decision(
+            function="memory.get_concept_history",
+            status=result.get("retrieval_status"),
+            reason=result.get("retrieval_status_reason"),
+            input_summary={"concept_id": concept_id, "user_id": user_id},
         )
 
         return ConceptHistoryResponse(**result)
@@ -296,9 +359,15 @@ async def get_concept_history(
 
 @memory_router.get(
     "/review-suggestions",
-    response_model=List[ReviewSuggestionResponse],
+    response_model=ReviewSuggestionsResponse,
     summary="获取复习建议",
-    description="获取基于艾宾浩斯遗忘曲线的复习建议",
+    description=(
+        "获取基于艾宾浩斯遗忘曲线的复习建议。\n\n"
+        "⚠️ CARD-G4-3 (2026-08-31) 契约变更: 响应从裸 JSON 数组改为信封对象 "
+        "`{items, retrieval_status, retrieval_status_reason}`。原数组内容现位于 "
+        "`items`；条目自身的字段一个字未变。变更原因: JSON 顶层是数组时无处承载 "
+        "四态状态，`[]` 无法区分「没有待复习概念」与「Neo4j 挂了」。"
+    ),
     dependencies=[Depends(require_internal_api_key)],  # P0-3
 )
 async def get_review_suggestions(
@@ -318,7 +387,7 @@ async def get_review_suggestions(
     group_id: Optional[str] = Query(
         default=None, deprecated=True, description="Deprecated — 改用 vault_id."
     ),
-) -> List[ReviewSuggestionResponse]:
+) -> ReviewSuggestionsResponse:
     """
     获取复习建议
 
@@ -335,8 +404,17 @@ async def get_review_suggestions(
     Wave-5 Stage B (2026-05-12) — Multi-vault P0-2:
     - vault_id 推荐必填, 注入 ContextVar 防跨 vault 复习建议串库.
 
+    CARD-G4-3 (2026-08-31) — **破坏性契约变更, 非加性**:
+    - 返回值从裸 ``List[ReviewSuggestionResponse]`` 改为
+      ``ReviewSuggestionsResponse`` 信封 (``items`` + 四态)。JSON 顶层是数组时
+      体内物理上无处承载状态字段, 加性在此不可能。实测零生产消费方。
+    - 内部改调 ``get_review_suggestions_with_status()``: 委托版
+      ``get_review_suggestions()`` 只返回 ``.items``, 状态在服务层出口第一步
+      就丢了, 端点再怎么加字段也无从谈起。
+
     [Source: docs/stories/22.4.story.md#API端点实现]
     [Source: docs/stories/30.8.story.md#Task-3.2]
+    [Source: _bmad-output/审查/CARD-G4-3-验收单.md §四 拍板项 1]
     """
     # Wave-5 Stage B — vault_id ContextVar 注入
     _resolve_vault_group_id(
@@ -347,21 +425,36 @@ async def get_review_suggestions(
     )
 
     try:
-        suggestions = await memory_service.get_review_suggestions(
+        # CARD-G4-3: 改调 _with_status 版。委托版 get_review_suggestions()
+        # 只返回 .items —— 状态在**服务层出口第一步**就被丢了, 端点再怎么
+        # 加字段也无从谈起。两个方法 G4-2 时都已存在, 这里只是换调用点,
+        # 未动服务层实现 (硬边界)。
+        result = await memory_service.get_review_suggestions_with_status(
             user_id=user_id, limit=limit, subject=subject, canvas_path=canvas_path
         )
 
-        return [
-            ReviewSuggestionResponse(
-                concept=s.get("concept", ""),
-                concept_id=s.get("concept_id", ""),
-                last_score=s.get("last_score"),
-                review_count=s.get("review_count", 0),
-                due_date=s.get("due_date", ""),
-                priority=s.get("priority", "medium"),
-            )
-            for s in suggestions
-        ]
+        log_retrieval_status_decision(
+            function="memory.get_review_suggestions",
+            status=result.status,
+            reason=result.reason,
+            input_summary={"user_id": user_id, "subject": subject, "limit": limit},
+        )
+
+        return ReviewSuggestionsResponse(
+            items=[
+                ReviewSuggestionResponse(
+                    concept=s.get("concept", ""),
+                    concept_id=s.get("concept_id", ""),
+                    last_score=s.get("last_score"),
+                    review_count=s.get("review_count", 0),
+                    due_date=s.get("due_date", ""),
+                    priority=s.get("priority", "medium"),
+                )
+                for s in result.items
+            ],
+            retrieval_status=result.status,
+            retrieval_status_reason=result.reason,
+        )
 
     except Exception as e:
         logger.error(f"Failed to get review suggestions: {e}")

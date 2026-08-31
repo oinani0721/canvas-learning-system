@@ -104,6 +104,7 @@ import math
 import os
 import re
 import sys
+import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -625,9 +626,35 @@ def render_md(payload, ranked) -> str:
 
 
 def atomic_write(path: Path, content: str):
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(content, encoding="utf-8")
-    os.replace(tmp, path)
+    """同目录 tmp → os.replace 原子发布 (CARD-G6-1: tmp 名唯一化)。
+
+    旧实现用固定名 `<原名>.tmp`: 两个写者并发时共享同一个 tmp —— 各自按
+    自己的 offset 落盘, 内容交错, 总长等于较长那份 (wc -c 看不出), 随后
+    双方 os.replace 发布的是同一个拼接损坏物。宿主 launchd runner ×
+    后端 refresh 端点恰好是这个形态; VirtioFS 上文件锁行为不可证, 底线
+    只能押在「每个写者有独占的 tmp + 单次 rename 发布」上。
+
+    tmp 名仍以 `<原名>.` 开头 (今日复习.json.<pid>.<8hex>.tmp): 与 outputs/
+    今日复习.* 同前缀, 不给「只写 今日复习.*」的写面审计新增可见面; 且
+    `.tmp` 后缀让 outputs/*.md 一类的 glob 不会误吃它。异常路径清残渣 ——
+    落盘失败时留一个半截 tmp 在 vault 里, 同样是写面污染。
+    """
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.{uuid.uuid4().hex[:8]}.tmp")
+    # O_EXCL | O_NOFOLLOW (CARD-G6-1 round-3): pid+随机后缀已经让撞名几乎不可能,
+    # 但"几乎"不是保证 —— O_EXCL 让撞名直接 FileExistsError 而不是两个写者
+    # 又共享同一个 tmp; O_NOFOLLOW 让"tmp 名被抢先建成一条指向库外的软链"
+    # 这条路失败而不是把内容写到库外 (普通 open 会跟随软链并 truncate)。
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(content)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        raise
 
 
 def load_decay(vault: Path):
@@ -674,9 +701,16 @@ def main():
     if args.write:
         out = vault / "outputs"
         out.mkdir(parents=True, exist_ok=True)
-        atomic_write(out / "今日复习.md", render_md(payload, ranked))
-        atomic_write(out / "今日复习.json",
-                     json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
+        # CARD-G6-1: 两份内容先全部渲染好, 再连着发布两次 —— md 与 json 是
+        # 一对, 两个写者并发时可能各中一半 (md 来自 B、json 来自 A, Codex
+        # 探针 PAIR_FINAL 实测成立)。把渲染/序列化挪到两次 rename 之前,
+        # 窗口从"一次 json.dumps 的时长"收窄到"一次文件 I/O 的时长"。
+        # ⚠ 只是收窄不是消除: 真正的配对原子性要目录级换名或跨进程锁,
+        # VirtioFS 上锁行为不可证, 本卡不假装做到 (如实登记)。
+        md_text = render_md(payload, ranked)
+        json_text = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+        atomic_write(out / "今日复习.md", md_text)
+        atomic_write(out / "今日复习.json", json_text)
     print(json.dumps(payload, ensure_ascii=False))
 
 

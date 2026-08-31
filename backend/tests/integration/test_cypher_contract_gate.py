@@ -1277,3 +1277,622 @@ async def test_g41a_inheritance_per_alias_negative(gate_client, monkeypatch):
             "MATCH (n:EntityNode) WHERE n.name STARTS WITH $p DETACH DELETE n",
             p=f"{GATE_PREFIX}_g41a",
         )
+
+
+# ---------------------------------------------------------------------------
+# 门 7 — client 层读收口行为门 (CARD-G4-1b, BATCH-2026-08-31-第七批)
+#
+# 门 6 封的是 service 层的 BLOCKER 面 (review / history / score / inheritance)。
+# 本门封 `neo4j_client` 自己剩下的 5 个读方法与 4 个 JSON 镜像, 四个主题:
+#
+#   7.1/7.2 concept-history —— 该方法此前**根本不查图** (无论是否连着 Neo4j
+#           都只读 JSON 模拟器), 端点恒空。补真实 Cypher 后必须同时满足
+#           "双 vault 各自召回自己" 与 "互不可见", 并逐 alias 可红。
+#   7.3/7.4 recovery 只装本 vault 族 —— 产物进**进程级** episode 缓存,
+#           泄漏面最大。方案甲 = active vault 根组 + 前缀语义。
+#   7.5     LEARNED 族三条读的降级前后对拍 —— 只封一侧, "把 Neo4j 弄挂"即可
+#           绕过。⚠️ 只覆盖 4 个镜像里的 `_get_all_recent_episodes_json`;
+#           另三个镜像 (associations / canvas concepts / common concepts)
+#           **没有任何门在证明它们与 Cypher 语义等价**, 本卡也不做这个宣称
+#           (它们在真实数据上恒空, 见各自 docstring)。
+#   7.6/7.7 误路由旁路 —— `_run_query_json_fallback` 按关键词派发,
+#           `MATCH…LEARNED` 且无 `next_review` 的查询 (learning_history /
+#           all_recent_episodes / concept_history 三条) **中途降级**时全都
+#           落到 `_handle_query_history`。它若不 fail-closed, 三条刚封的读
+#           只要把 Neo4j 弄挂就能整库倾倒。
+#
+# 断言形态一律沿用门 6: 对**同一个结果集**取精确集合相等 (否定断言在空结果
+# 上恒真, 不能单用); 逐 alias 门另造"只有该 alias 在 B"的记录 + 全 A 正向
+# 对照 (同组 fixture 杀不掉单 alias 变异 —— 门 6 的 H-4 教训)。
+# ---------------------------------------------------------------------------
+
+
+def _json_client(tmp_path, rows, name="g41b_mirror.json"):
+    """构造一个 JSON 降级模式 client, 关系表按 (concept, group) 铺。
+
+    rows: {concept_name: physical_group_id} —— 与 Cypher 侧 seed 同一份逻辑
+    数据, 用于降级前后的**可见面**对拍 (见门 7.5: 比的是 concept 名集合,
+    不是完整查询语义)。
+    """
+    import json as _json
+
+    from app.clients.neo4j_client import Neo4jClient
+
+    path = tmp_path / name
+    data = {
+        "users": [{"id": G41A_USER}],
+        "concepts": [
+            {"id": cname, "name": cname, "group_id": gid} for cname, gid in rows.items()
+        ],
+        "relationships": [
+            {
+                "id": f"rel-{i}",
+                "user_id": G41A_USER,
+                "concept_id": cname,
+                "concept_name": cname,
+                "timestamp": "2026-08-30T00:00:00",
+                "last_score": 42,
+                "next_review": "2020-01-01T00:00:00",
+                "review_count": 1,
+                "group_id": gid,
+            }
+            for i, (cname, gid) in enumerate(rows.items())
+        ],
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(_json.dumps(data), encoding="utf-8")
+    # retry 收到最小值: 误路由门要反复触发"重试耗尽 → 降级", 默认的
+    # 指数退避 (1s/2s/4s × 7 次探针) 会让这道门跑 27s。压到 1 次尝试 +
+    # 10ms 退避后仍走**同一条** `_run_query_neo4j → _fallback_to_json` 路径,
+    # 只是不再干等。
+    return Neo4jClient(
+        use_json_fallback=True,
+        storage_path=path,
+        retry_attempts=1,
+        retry_delay_base=0.01,
+        retry_max_delay=0.02,
+    )
+
+
+# ── 7.1/7.2 get_concept_history: 双 vault 召回 + 隔离 + 逐 alias ──────────
+
+
+async def test_g41b_concept_history_recall_and_isolation(gate_client, g41a_seed):
+    """A/B 两个作用域各读一次 —— 各自看全自己的族, 互相 0 条。
+
+    seed 的每个概念 `c.id` 都等于它的名字, 而 `_CONCEPT_ID_MATCH_CYPHER` 按
+    id **或** name 命中, 所以这里按名字点查 = 生产里调用方手上唯一能拿到的
+    标识符形态 (生产写侧从不落 c.id)。
+    """
+    a_name = f"{GATE_PREFIX}_g41a_a_puny"  # A 的 punycode 子组 (现网存量同形)
+    b_name = f"{GATE_PREFIX}_g41a_b_root"
+
+    a_rows = await gate_client.get_concept_history(a_name, group_id=GID_A_LOGICAL)
+    b_rows = await gate_client.get_concept_history(b_name, group_id=GID_B_LOGICAL)
+    # 交叉: A 的作用域点查 B 的概念 / B 的作用域点查 A 的概念
+    cross_ab = await gate_client.get_concept_history(b_name, group_id=GID_A_LOGICAL)
+    cross_ba = await gate_client.get_concept_history(a_name, group_id=GID_B_LOGICAL)
+
+    assert _names(a_rows) == {a_name}, (
+        f"保召回红: A 根组作用域读不到自己 punycode 子组的概念历史 {a_rows}"
+    )
+    assert _names(b_rows) == {b_name}, b_rows
+    assert cross_ab == [], f"零泄漏红: A 作用域读到了 B 的概念历史 {cross_ab}"
+    assert cross_ba == [], f"零泄漏红: B 作用域读到了 A 的概念历史 {cross_ba}"
+
+
+async def test_g41b_concept_history_is_not_reading_the_json_simulator(gate_client, g41a_seed):
+    """名实一致锁: 连着 Neo4j 时必须走真 Cypher, 不得回落 JSON 模拟器。
+
+    修复前本方法无条件调 `_handle_query_history` —— 真实部署下 `self._data`
+    是空壳, 端点恒返回空 timeline。这条门直接钉住"有数据可读"这一事实:
+    client 处于 Neo4j 模式且 `_data` 为空, 却仍能读到 seed 的历史。
+    """
+    assert gate_client.is_fallback_mode is False, "前置条件: 本门必须在 Neo4j 模式下跑"
+    assert not gate_client._data.get("relationships"), (
+        "前置条件: JSON 模拟器必须是空的 —— 否则读到数据也证明不了走的是 Cypher"
+    )
+    rows = await gate_client.get_concept_history(
+        f"{GATE_PREFIX}_g41a_a_root", group_id=GID_A_LOGICAL
+    )
+    assert _names(rows) == {f"{GATE_PREFIX}_g41a_a_root"}, (
+        f"名实一致红: Neo4j 模式下 get_concept_history 仍然没有查到图上的数据 {rows}"
+    )
+
+
+@pytest.mark.parametrize(
+    "crossed,visible",
+    [
+        (f"{GATE_PREFIX}_g41a_xr", False),  # 关系在 B → r 过滤失效则现形
+        (f"{GATE_PREFIX}_g41a_xc", False),  # 概念在 B → c 过滤失效则现形
+        (f"{GATE_PREFIX}_g41a_ok", True),   # 全 A 正向对照 (防"写死成空"假绿)
+    ],
+)
+async def test_g41b_concept_history_per_alias(gate_client, g41a_alias_seed, crossed, visible):
+    rows = await gate_client.get_concept_history(crossed, group_id=GID_A_LOGICAL)
+    assert (crossed in _names(rows)) is visible, (
+        f"{crossed} 可见性应为 {visible}; 实得 {sorted(_names(rows))}"
+    )
+
+
+# ── 7.3/7.4 get_all_recent_episodes + 启动恢复 ───────────────────────────
+
+
+async def test_g41b_all_recent_episodes_scoped(gate_client, g41a_seed):
+    """全库扫 → 作用域族扫。同一个结果集精确相等 (保召回 + 零泄漏)。"""
+    rows = await gate_client.get_all_recent_episodes(limit=500, group_id=GID_A_LOGICAL)
+    assert _names(rows) == _A_SCOPE_EXPECTED, (
+        f"缺失(保召回红): {sorted(_A_SCOPE_EXPECTED - _names(rows))}; "
+        f"多出(零泄漏红): {sorted(_names(rows) - _A_SCOPE_EXPECTED)}"
+    )
+    rows_b = await gate_client.get_all_recent_episodes(limit=500, group_id=GID_B_LOGICAL)
+    assert _names(rows_b) == {f"{GATE_PREFIX}_g41a_b_root"}, _names(rows_b)
+
+
+async def test_g41b_recovery_loads_only_active_vault_family(
+    gate_client, g41a_seed, monkeypatch
+):
+    """方案甲行为门: 启动恢复只装 **active vault 族**, 且不受请求级作用域影响。
+
+    两半缺一不可:
+      (保召回) A 的 root/canvas/semantic/punycode 子组全部进缓存 —— 现网存量
+               LEARNED 就在 punycode 子组, 这半塌了等于"重启后历史全丢";
+      (零泄漏) B vault 与近似前缀 vault 一条都不进。
+    第三条断言钉住"进程级缓存不得被请求级 ContextVar 收窄": 把 ContextVar
+    注入成板级子组后再恢复, 结果必须仍是整个 vault 族。
+    """
+    import app.core.subject_config as subject_config_mod
+    from app.core.subject_config import _current_subject_id
+    from app.services.memory_service import MemoryService
+
+    monkeypatch.setattr(
+        subject_config_mod, "default_vault_group_id", lambda: GID_A_LOGICAL
+    )
+
+    async def _recovered_names(ctx_scope=None):
+        svc = MemoryService(neo4j_client=gate_client)
+        token = _current_subject_id.set(ctx_scope) if ctx_scope else None
+        try:
+            await svc._recover_episodes_from_neo4j()
+        finally:
+            if token is not None:
+                _current_subject_id.reset(token)
+        assert svc._episodes_recovered is True
+        return {
+            e["concept"]
+            for e in svc._episodes
+            if str(e.get("concept", "")).startswith(GATE_PREFIX)
+        }
+
+    got = await _recovered_names()
+    assert got == _A_SCOPE_EXPECTED, (
+        f"缺失(保召回红): {sorted(_A_SCOPE_EXPECTED - got)}; "
+        f"多出(零泄漏红): {sorted(got - _A_SCOPE_EXPECTED)}"
+    )
+
+    # 惰性恢复可能发生在某块白板的请求里 —— 缓存是进程级的, 作用域不得被
+    # 那次请求收窄成板级, 否则其余白板的历史永远装不进来 (_episodes_recovered
+    # 已置 True, 不会再恢复)。
+    got_under_board_ctx = await _recovered_names(ctx_scope=f"{GID_A_LOGICAL}:board_x")
+    assert got_under_board_ctx == _A_SCOPE_EXPECTED, (
+        "恢复被请求级 ContextVar 收窄成板级作用域 —— 进程级缓存会永久缺其余白板: "
+        f"{sorted(got_under_board_ctx)}"
+    )
+
+
+# ── 7.5 LEARNED 族三条读: 降级前后的**可见面**对拍 (不是完整语义等价) ──
+
+
+async def test_g41b_json_mirror_visibility_equals_cypher(gate_client, g41a_seed, tmp_path):
+    """LEARNED 族**三条读**降级前后的**可见面**对拍。
+
+    同一份逻辑数据分别落 Neo4j 与 JSON, 这三条读**能看到哪些 concept** 必须相等。
+
+    ⚠️ **本门比的是什么, 不比什么**(Codex round-4 Q5'' 整改, 防措辞过宽):
+    比的是 ``_names()`` 取出的 **concept 名集合**。**不比**返回字段的完整性、
+    排序、分页、日期过滤等其余语义 —— 那些各有自己的门 (门 7.6 管降级路径的
+    limit / concept / startDate; 字段与排序无专门门)。所以本门证明的是
+    "降级前后**看得见的东西**一样", 不是"两条路径完全等价"。
+
+    只封 Cypher 一侧的话, "把 Neo4j 弄挂"就能把刚封的跨 vault 面整个拿回来;
+    只封镜像一侧则会在降级时打断功能。两侧同批改的验收判据就是这条对拍。
+
+    ⚠️ **覆盖面如实声明**(Codex round-1 HIGH / round-2 Q5 整改): 本门对拍的是
+    ``get_all_recent_episodes`` / ``get_learning_history`` / ``get_concept_history``
+    三条 —— 4 个 JSON 镜像里只覆盖到 ``_get_all_recent_episodes_json``。
+
+    另三个镜像 (associations / canvas concepts / common concepts) **没有**真库
+    对拍, 也**没有**任何门在证明它们与 Cypher 语义等价 —— 本卡不做这个宣称。
+    原因有二: (i) 卡文 (d) 明令关联族"不造行为门种子"; (ii) 更根本的是
+    JSON 存储里没有 Canvas/Node 实体, 镜像只能按扁平字段近似图遍历, 而全仓
+    唯一的 relationships 写入点根本不写 ``canvas_path`` —— 那几个镜像在真实
+    数据上恒空 (见 ``_get_canvas_concepts_json_fallback`` docstring)。
+    对那一族, 本卡的保证**只有作用域收口**(单测合成 fixture 锁)。
+    别把本门读成"四个镜像都验过了", 也别读成"另三个镜像语义已对齐"。
+    """
+    mirror = _json_client(tmp_path, _G41A_CONCEPTS)
+    await mirror.initialize()
+    assert mirror.is_fallback_mode is True
+
+    for label, cypher_rows, json_rows in (
+        (
+            "all_recent_episodes",
+            await gate_client.get_all_recent_episodes(limit=500, group_id=GID_A_LOGICAL),
+            await mirror.get_all_recent_episodes(limit=500, group_id=GID_A_LOGICAL),
+        ),
+        (
+            "learning_history",
+            await gate_client.get_learning_history(
+                user_id=G41A_USER, group_id=GID_A_LOGICAL, limit=500
+            ),
+            await mirror.get_learning_history(
+                user_id=G41A_USER, group_id=GID_A_LOGICAL, limit=500
+            ),
+        ),
+        (
+            "concept_history",
+            await gate_client.get_concept_history(
+                f"{GATE_PREFIX}_g41a_a_puny", group_id=GID_A_LOGICAL
+            ),
+            await mirror.get_concept_history(
+                f"{GATE_PREFIX}_g41a_a_puny", group_id=GID_A_LOGICAL
+            ),
+        ),
+    ):
+        assert _names(cypher_rows) == _names(json_rows), (
+            f"{label}: 降级前后可见面不同 —— Cypher={sorted(_names(cypher_rows))} "
+            f"JSON={sorted(_names(json_rows))}"
+        )
+    # 正向对照: 两侧都真的读到了东西 (否则"相等"可能只是双双为空的假绿)
+    assert _names(await mirror.get_all_recent_episodes(limit=500, group_id=GID_A_LOGICAL)) == (
+        _A_SCOPE_EXPECTED
+    )
+    await mirror.cleanup()
+
+
+# ── 7.6/7.7 误路由旁路 ───────────────────────────────────────────────────
+
+
+async def test_g41b_midflight_fallback_misroute_stays_scoped(tmp_path, monkeypatch):
+    """中途降级 (Neo4j 打挂) 时, 关键词误路由不得变成整库倾倒。
+
+    `_run_query_json_fallback` 按 `MATCH` + `LEARNED` + 无 `next_review` 把
+    **三条**不同的读全部派给 `_handle_query_history`。这里让驱动在查询中途
+    抛可重试异常, 走真实的 `_fallback_to_json` 路径, 断言降级后的结果仍然
+    只含本作用域的数据。
+    """
+    from neo4j.exceptions import ServiceUnavailable
+
+    client = _json_client(tmp_path, _G41A_CONCEPTS, name="g41b_midflight.json")
+    await client.initialize()
+    # 伪装成 Neo4j 模式, 让 run_query 走 _run_query_neo4j → 失败 → 降级
+    client._use_json_fallback = False
+
+    class _BoomDriver:
+        def session(self, **_kw):
+            raise ServiceUnavailable("gate-injected: neo4j went away mid-flight")
+
+        async def close(self):
+            return None
+
+    def _rearm():
+        """每次探针前重新武装"中途降级"。
+
+        ⚠️ 变异负控实测抓到的坑 (2026-08-31): `_fallback_to_json()` 会把
+        `_use_json_fallback` 置 True **并关掉 driver**。所以第一次探针之后,
+        后续调用走的是各方法自己的 `if self._use_json_fallback:` 分支
+        (`_get_learning_history_json` —— 它本来就实现了 date/concept 过滤),
+        **不再经过关键词误路由**。不重新武装, 门名叫 misroute、测的却是另一
+        条路径: 把 `_handle_query_history` 的 date/concept 过滤整个删掉,
+        本门仍然全绿。
+        """
+        client._use_json_fallback = False
+        client._driver = _BoomDriver()
+
+    _rearm()
+
+    # 三条形状**逐个**验 (Codex round-1 HIGH 整改: 初版只跑了 episodes 一条)
+    rows = await client.get_all_recent_episodes(limit=500, group_id=GID_A_LOGICAL)
+    assert client.is_fallback_mode is True, "前置条件: 本门必须真的走了中途降级"
+    assert _names(rows) == _A_SCOPE_EXPECTED, (
+        "误路由旁路: 中途降级后 get_all_recent_episodes 的结果越出了作用域 —— "
+        f"多出 {sorted(_names(rows) - _A_SCOPE_EXPECTED)}"
+    )
+
+    _rearm()
+    hist = await client.get_learning_history(
+        user_id=G41A_USER, group_id=GID_A_LOGICAL, limit=500
+    )
+    assert _names(hist) == _A_SCOPE_EXPECTED, (
+        "误路由旁路: get_learning_history 中途降级后越出作用域 —— "
+        f"多出 {sorted(_names(hist) - _A_SCOPE_EXPECTED)}"
+    )
+
+    _rearm()
+    one = await client.get_concept_history(
+        f"{GATE_PREFIX}_g41a_a_puny", group_id=GID_A_LOGICAL
+    )
+    assert _names(one) == {f"{GATE_PREFIX}_g41a_a_puny"}, one
+    _rearm()
+    cross = await client.get_concept_history(
+        f"{GATE_PREFIX}_g41a_b_root", group_id=GID_A_LOGICAL
+    )
+    assert cross == [], f"误路由旁路: A 作用域降级后读到了 B 的概念历史 {cross}"
+
+    # limit 不得在降级路径上丢失。
+    # ⚠️ Codex round-2 Q5 整改: 断言必须挂在**没有外层切片**的入口上。
+    # `get_all_recent_episodes` 自己在 run_query 之后又切了一刀, 所以拿它测
+    # 根本抓不到 `_handle_query_history` 丢 limit —— 那才是降级时真正在跑的
+    # 代码。`get_learning_history` 没有外层切片, 它才是有效探针。
+    _rearm()
+    capped_hist = await client.get_learning_history(
+        user_id=G41A_USER, group_id=GID_A_LOGICAL, limit=2
+    )
+    assert len(capped_hist) == 2, (
+        f"降级路径丢了 limit: 要 2 条, 实得 {len(capped_hist)} 条 —— "
+        "handler 忽略了 params['limit'] (外层无切片, 这里是唯一能抓到它的地方)"
+    )
+    _rearm()
+    capped_ep = await client.get_all_recent_episodes(limit=2, group_id=GID_A_LOGICAL)
+    assert len(capped_ep) == 2, f"episodes 外层切片也失效: {len(capped_ep)}"
+
+    # date / concept 过滤同样不得在降级路径上被静默丢弃 (Codex round-2 Q3)
+    _rearm()
+    named = await client.get_learning_history(
+        user_id=G41A_USER, group_id=GID_A_LOGICAL, limit=500, concept="a_puny"
+    )
+    assert _names(named) == {f"{GATE_PREFIX}_g41a_a_puny"}, (
+        f"降级路径丢了 concept 过滤: {sorted(_names(named))}"
+    )
+    from datetime import datetime as _dt
+
+    _rearm()
+    future = await client.get_learning_history(
+        user_id=G41A_USER,
+        group_id=GID_A_LOGICAL,
+        limit=500,
+        start_date=_dt(2099, 1, 1),
+    )
+    assert future == [], f"降级路径丢了 startDate 过滤: {len(future)} 条"
+    await client.cleanup()
+
+
+G41B_IDNAME_USER = f"{GATE_PREFIX}_g41b_idname_user"
+#: 生产形态: create_learning_relationship 的 MERGE 身份是 {name, group_id},
+#: **从不落 c.id** —— 所以这个概念节点没有 id 属性。
+G41B_NAME_ONLY = f"{GATE_PREFIX}_g41b_name_only"
+#: 对照形态: id 与 name **不同**, 用来单独证明 id 分支自己也生效。
+#: (若 seed 把 id 设成与 name 相同, `OR` 改成 `AND` 也照样命中 —— 门就死了)
+G41B_ID_DIFFERS = f"{GATE_PREFIX}_g41b_id_differs"
+G41B_DISTINCT_ID = f"{G41B_ID_DIFFERS}--distinct-id"
+
+
+@pytest.fixture
+async def g41b_idname_seed(gate_client):
+    """概念点查的两种标识符形态。
+
+    Codex round-1 HIGH 整改: `g41a_seed` 把 `c.id` 设成与 `c.name` 相同, 于是
+    把 `_CONCEPT_ID_MATCH_CYPHER` 的 `OR` 改成 `AND` 时所有门仍然全绿 ——
+    而生产数据里 `c.id` 是 **null**, `AND` 会让端点重新恒空。本 fixture 造出
+    两者可分辨的数据, 让那条变异能被杀。
+    """
+    await gate_client.run_query("MERGE (u:User {id: $uid})", uid=G41B_IDNAME_USER)
+    await gate_client.run_query(
+        """
+        MERGE (c:Concept {name: $name, group_id: $gid})
+        SET c.probe = $probe
+        WITH c
+        MATCH (u:User {id: $uid})
+        MERGE (u)-[r:LEARNED {group_id: $gid}]->(c)
+        SET r.score = 5, r.timestamp = $ts
+        """,
+        name=G41B_NAME_ONLY, gid=GID_A_PUNY, uid=G41B_IDNAME_USER,
+        probe=GATE_PREFIX, ts="2026-08-31T00:00:00",
+    )
+    await gate_client.run_query(
+        """
+        MERGE (c:Concept {name: $name, group_id: $gid})
+        SET c.probe = $probe, c.id = $cid
+        WITH c
+        MATCH (u:User {id: $uid})
+        MERGE (u)-[r:LEARNED {group_id: $gid}]->(c)
+        SET r.score = 6, r.timestamp = $ts
+        """,
+        name=G41B_ID_DIFFERS, gid=GID_A_PUNY, cid=G41B_DISTINCT_ID,
+        uid=G41B_IDNAME_USER, probe=GATE_PREFIX, ts="2026-08-31T00:00:01",
+    )
+    # 自证: 生产形态那条**确实**没有 id 属性 (否则下面测的不是生产形态)
+    probe = await gate_client.run_query(
+        "MATCH (c:Concept {name: $name}) RETURN c.id AS cid", name=G41B_NAME_ONLY
+    )
+    assert probe and probe[0]["cid"] is None, f"seed 形态不对, c.id 应为 null: {probe}"
+    return True
+
+
+async def test_g41b_concept_history_matches_production_shape_without_c_id(
+    gate_client, g41b_idname_seed
+):
+    """生产形态 (Concept 无 `c.id`) 必须能按**名字**查到历史。
+
+    这条是"名实一致修复"的真正判据: 只按 `c.id` 点查, 换了真 Cypher 之后端点
+    **仍然**恒空 —— 因为生产写侧从不落 id。把匹配片段的 `OR` 改成 `AND`,
+    本条立即红。
+    """
+    rows = await gate_client.get_concept_history(
+        G41B_NAME_ONLY, group_id=GID_A_LOGICAL
+    )
+    assert _names(rows) == {G41B_NAME_ONLY}, (
+        f"按名字点查生产形态的概念读不到历史 (c.id 为 null): {rows}"
+    )
+
+
+async def test_g41b_concept_history_matches_by_distinct_id(
+    gate_client, g41b_idname_seed
+):
+    """id 与 name **不同**时, 按 id 也必须能查到 —— 证明 id 分支不是摆设。
+
+    与上一条合起来才构成 `OR` 的完整判据: 一条只有 name 能命中, 一条只有 id
+    能命中 (按名字查这条会命中它自己, 所以这里断言的是 id 那一半)。
+    """
+    rows = await gate_client.get_concept_history(
+        G41B_DISTINCT_ID, group_id=GID_A_LOGICAL
+    )
+    assert _names(rows) == {G41B_ID_DIFFERS}, (
+        f"按 c.id 点查 (id != name) 读不到历史: {rows}"
+    )
+
+
+async def test_g41b_handle_query_history_fail_closed_without_scope(tmp_path, caplog):
+    """`_handle_query_history` 无 scope → 拒绝全库扫 (对齐 `_handle_query_reviews`)。
+
+    正向对照同时断言: 带 scope 时它**读得到**数据 —— 否则"无 scope 返回空"
+    可能只是这个 handler 本来就读不出东西的假绿。
+    """
+    import logging
+
+    client = _json_client(tmp_path, _G41A_CONCEPTS, name="g41b_failclosed.json")
+    await client.initialize()
+
+    with caplog.at_level(logging.ERROR):
+        refused = await client._handle_query_history({"userId": G41A_USER})
+    assert refused == [], f"无 scope 时仍返回了 {len(refused)} 条跨 vault 记录"
+    assert any("G4-1b" in r.message for r in caplog.records), (
+        "fail-closed 必须留下 ERROR 级痕迹, 否则是静默断读"
+    )
+
+    allowed = await client._handle_query_history(
+        {"userId": G41A_USER, "group_id": GID_A}
+    )
+    assert _names(allowed) == _A_SCOPE_EXPECTED, (
+        f"正向对照红: 带 scope 也读不到数据, 上面的空结果不能证明是 fail-closed {allowed}"
+    )
+    await client.cleanup()
+
+
+# ── 7.8 生产形态端到端: temporal 时间戳必须能过 API 响应模型 ──────────────
+#
+# 独立审计 (2026-08-31) 抓出的 HIGH: 本卡的头号交付物 (get_concept_history 名实
+# 一致) 在**真实数据**上是坏的 —— 端点从"200 + 空 timeline"变成 **HTTP 500**。
+#
+# 为什么上面 7.1-7.7 全绿却漏掉: 它们的种子一律写 `r.timestamp = $ts` 且 `$ts`
+# 绑**字符串**, 而生产写侧 `create_learning_relationship` 落的是
+# `SET r.timestamp = datetime()` —— **temporal 值**, 驱动读回来是
+# `neo4j.time.DateTime` 对象, 而 `ConceptHistoryTimeline.timestamp: Optional[str]`。
+# **fixture 形态 ≠ 生产形态** —— 与本卡已经抓到的"生产从不落 c.id"是同一类陷阱,
+# 抓到了一次却在同一张卡里漏了第二次。
+#
+# 本门的判据因此有意选在**最远的下游**: 不止断言 client 返回什么类型, 而是让数据
+# 真的走到 pydantic 响应模型。断言"类型是 str"能被一句 `str()` 糊弄过去; 断言
+# "响应模型收得下"才是端点真正的门槛。
+
+
+G41B_PROD_USER = f"{GATE_PREFIX}_g41b_prod_user"
+G41B_PROD_CONCEPT = f"{GATE_PREFIX}_g41b_prod_concept"
+
+
+@pytest.fixture
+async def g41b_production_shape_seed(gate_client):
+    """按**生产写侧逐字同型**种一条 LEARNED 边。
+
+    与 `g41a_seed` 的关键差别: `r.timestamp = datetime()` (temporal), 不是字符串;
+    且**不设** `review_count` —— Cypher 对不存在的属性返回 None, 而
+    `ConceptHistoryTimeline.review_count: int` 收不下 None。两者都是生产可达形态。
+    """
+    await gate_client.run_query(
+        """
+        MERGE (u:User {id: $uid})
+        MERGE (c:Concept {name: $name, group_id: $gid})
+        SET c.probe = $probe
+        WITH c
+        MATCH (u:User {id: $uid})
+        MERGE (u)-[r:LEARNED {group_id: $gid}]->(c)
+        SET r.timestamp = datetime(), r.score = 80
+        """,
+        uid=G41B_PROD_USER, name=G41B_PROD_CONCEPT, gid=GID_A_PUNY, probe=GATE_PREFIX,
+    )
+    # 自证种子确实是 temporal 且 review_count 确实缺失 —— 否则本门测的不是生产形态
+    probe = await gate_client.run_query(
+        "MATCH ()-[r:LEARNED]->(c:Concept {name: $name}) "
+        "RETURN valueType(r.timestamp) AS vt, r.review_count AS rc",
+        name=G41B_PROD_CONCEPT,
+    )
+    assert probe, "seed 未落库"
+    assert "ZONED DATETIME" in str(probe[0]["vt"]).upper(), (
+        f"种子的 timestamp 不是 temporal, 本门测的不是生产形态: {probe[0]['vt']}"
+    )
+    assert probe[0]["rc"] is None, "种子的 review_count 应当缺失 (生产可达形态)"
+    return True
+
+
+async def test_g41b_production_shape_reaches_api_response_model(
+    gate_client, g41b_production_shape_seed
+):
+    """生产形态数据必须能一路走到 API 响应模型而不抛 —— 端点不 500。
+
+    链路: Cypher → client → memory_service 的 timeline 构造(逐字复刻) → pydantic。
+    """
+    from app.models.memory_schemas import ConceptHistoryResponse
+    from app.services.memory_service import MemoryService
+
+    rows = await gate_client.get_concept_history(
+        G41B_PROD_CONCEPT, group_id=GID_A_LOGICAL
+    )
+    assert len(rows) == 1, f"生产形态种子读不到 (保召回红): {rows}"
+
+    # ⚠️ 走**真实的 service 调用链**, 不复刻它的逻辑。
+    # 初版这里把 memory_service 的 timeline 构造"逐字复刻"进了测试 —— 于是这道门
+    # 从不执行它声称保护的那段生产代码: 变异负控把 service 的
+    # `record.get("review_count") or 0` 改回 `.get(k, 0)`, 门照样全绿 (实测 GREEN)。
+    # 复刻逻辑 = 测自己写的那份副本。门必须调真实链路。
+    svc = MemoryService(neo4j_client=gate_client)
+    svc._initialized = True
+    result = await svc.get_concept_history(G41B_PROD_CONCEPT, group_id=GID_A_LOGICAL)
+
+    # 端点做的就是这一句 (endpoints/memory.py: `ConceptHistoryResponse(**result)`),
+    # 它在 try 里, 抛异常 → HTTPException 500。
+    resp = ConceptHistoryResponse(**result)
+    assert len(resp.timeline) == 1, f"service 层没把数据带出来: {result}"
+    assert isinstance(resp.timeline[0].timestamp, str) and resp.timeline[0].timestamp
+    assert resp.timeline[0].review_count == 0
+
+
+async def test_g41b_learned_reads_return_same_timestamp_type_as_json_mirror(
+    gate_client, g41b_production_shape_seed, tmp_path
+):
+    """三条 LEARNED 读: Cypher 侧与 JSON 镜像侧的 timestamp **类型**必须一致。
+
+    这是"降级前后同一套可见面"在**类型**维度上的补充 —— 门 7.5 只比 concept 名
+    集合, 类型分叉它看不见。而类型一分叉, 去重键 / 排序 / 上层 pydantic 全会错。
+    """
+    mirror = _json_client(tmp_path, {f"{GATE_PREFIX}_g41b_mirror_ts": GID_A_PUNY},
+                          name="g41b_ts_parity.json")
+    await mirror.initialize()
+    try:
+        pairs = (
+            (
+                "concept_history",
+                await gate_client.get_concept_history(G41B_PROD_CONCEPT, group_id=GID_A_LOGICAL),
+                await mirror.get_concept_history(f"{GATE_PREFIX}_g41b_mirror_ts", group_id=GID_A_LOGICAL),
+            ),
+            (
+                "learning_history",
+                await gate_client.get_learning_history(user_id=G41B_PROD_USER, group_id=GID_A_LOGICAL),
+                await mirror.get_learning_history(user_id=G41A_USER, group_id=GID_A_LOGICAL),
+            ),
+            (
+                "all_recent_episodes",
+                await gate_client.get_all_recent_episodes(group_id=GID_A_LOGICAL),
+                await mirror.get_all_recent_episodes(group_id=GID_A_LOGICAL),
+            ),
+        )
+        for label, cypher_rows, json_rows in pairs:
+            assert cypher_rows, f"{label}: Cypher 侧无数据, 类型对拍无意义"
+            assert json_rows, f"{label}: JSON 侧无数据, 类型对拍无意义"
+            ct = type(cypher_rows[0]["timestamp"]).__name__
+            jt = type(json_rows[0]["timestamp"]).__name__
+            assert ct == jt == "str", (
+                f"{label}: 两条路径的 timestamp 类型不一致 —— "
+                f"Cypher={ct} JSON={jt} (生产写侧落 temporal, 镜像落 ISO 串)"
+            )
+    finally:
+        await mirror.cleanup()

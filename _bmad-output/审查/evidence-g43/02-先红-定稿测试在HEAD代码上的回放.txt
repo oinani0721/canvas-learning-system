@@ -1,0 +1,68 @@
+# CARD-G4-3 先红回放（定稿版测试 x HEAD 9cf0fb85 生产代码）
+# 做法: git show HEAD:<4 个生产文件> 覆盖工作树 -> 跑裁判命令 -> finally 还原
+# 期望: 大面积变红。仍绿的是「旧契约别坏」的守门用例, 它们在 HEAD 上本来就该绿,
+#       定稿后也必须仍绿 —— 它们变红才是坏消息。
+
+        (2026-08-31 变异实测: 去掉归一后原断言 61 passed 全绿, 是一道死门。)
+        这两个变异**真存活** (79 passed 全绿)。
+        这两个变异**真存活** (79 passed 全绿)。
+        这两个变异**真存活** (79 passed 全绿)。
+            side_effect=RuntimeError("trace sink failed"),
+            side_effect=RuntimeError("trace sink failed"),
+                side_effect=RuntimeError("trace sink failed"),
+                side_effect=RuntimeError("trace sink failed"),
+            side_effect=RuntimeError("trace sink failed"),
+            side_effect=RuntimeError("entry log sink failed"),
+effect = RuntimeError('entry log sink failed')
+E               RuntimeError: entry log sink failed
+            side_effect=RuntimeError("trace sink failed"),
+                side_effect=RuntimeError("trace sink failed"),
+FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestEpisodesFourState::test_status_is_passed_through_verbatim[ok-None]
+FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestEpisodesFourState::test_status_is_passed_through_verbatim[empty-None]
+FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestEpisodesFourState::test_status_is_passed_through_verbatim[degraded-Neo4j unreachable \u2014 \u5185\u5b58\u515c\u5e95\u63a5\u7ba1]
+FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestEpisodesFourState::test_status_is_passed_through_verbatim[unavailable-ConnectionRefusedError: bolt://localhost:7687]
+FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestEpisodesFourState::test_absent_service_keys_yield_null_not_invented_status
+FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestConceptHistoryFourState::test_status_is_passed_through_verbatim[ok-None]
+FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestConceptHistoryFourState::test_status_is_passed_through_verbatim[empty-None]
+FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestConceptHistoryFourState::test_status_is_passed_through_verbatim[degraded-partial timeline \u2014 graphiti down]
+FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestConceptHistoryFourState::test_status_is_passed_through_verbatim[unavailable-RuntimeError: driver closed]
+FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestConceptHistoryFourState::test_unavailable_empty_timeline_is_distinguishable_from_empty
+FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestReviewSuggestionsEnvelope::test_envelope_carries_status[<lambda>-ok-None]
+FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestReviewSuggestionsEnvelope::test_envelope_carries_status[<lambda>-empty-None]
+FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestReviewSuggestionsEnvelope::test_envelope_carries_status[<lambda>-degraded-graphiti down]
+FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestReviewSuggestionsEnvelope::test_envelope_carries_status[<lambda>-unavailable-ConnectionRefusedError: bolt]
+FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestReviewSuggestionsEnvelope::test_items_payload_shape_unchanged
+FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestReviewSuggestionsEnvelope::test_endpoint_consumes_status_aware_service_method
+FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestReviewSuggestionsEnvelope::test_unavailable_returns_200_with_empty_items
+FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceAlignment::test_degraded_logs_decision_with_enum_value
+FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceAlignment::test_review_suggestions_unavailable_logs_decision
+FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceAlignment::test_concept_history_degraded_logs_decision
+FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryAdditiveContract::test_review_suggestions_envelope_is_declared_breaking_not_additive
+FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceEnumNormalization::test_enum_valued_status_normalizes_in_trace_and_body
+FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceEnumNormalization::test_out_of_domain_status_fails_loud_not_silently_passed_through
+FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemorySchemaRequiredSetsFrozen::test_new_status_fields_are_optional_everywhere
+FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemorySchemaRequiredSetsFrozen::test_status_field_value_domain_is_the_unified_enum[LearningHistoryResponse]
+FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemorySchemaRequiredSetsFrozen::test_status_field_value_domain_is_the_unified_enum[ConceptHistoryResponse]
+FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemorySchemaRequiredSetsFrozen::test_status_field_value_domain_is_the_unified_enum[ReviewSuggestionsResponse]
+FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceFailOpen::test_trace_sink_failure_does_not_break_response[/api/v1/memory/episodes?user_id=u-get_learning_history-<lambda>-unavailable-neo4j down]
+FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceFailOpen::test_trace_sink_failure_does_not_break_response[/api/v1/memory/concepts/c/history-get_concept_history-<lambda>-degraded-partial timeline]
+FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceFailOpen::test_both_sink_and_fallback_logger_failing_still_returns_200[/api/v1/memory/episodes?user_id=u-get_learning_history-<lambda>-unavailable-neo4j down]
+FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceFailOpen::test_both_sink_and_fallback_logger_failing_still_returns_200[/api/v1/memory/concepts/c/history-get_concept_history-<lambda>-degraded-partial timeline]
+FAILED tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceFailOpen::test_review_suggestions_trace_failure_does_not_break_response
+FAILED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagQueryFourStatePassthrough::test_state_status_reaches_http_surface[ok-None]
+FAILED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagQueryFourStatePassthrough::test_state_status_reaches_http_surface[empty-None]
+FAILED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagQueryFourStatePassthrough::test_state_status_reaches_http_surface[degraded-graphiti timeout \u2014 lancedb \u72ec\u625b]
+FAILED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagQueryFourStatePassthrough::test_state_status_reaches_http_surface[unavailable-rag fallback: ainvoke returned None]
+FAILED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagQueryFourStatePassthrough::test_missing_status_stays_null_not_invented
+FAILED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagQueryFourStatePassthrough::test_state_key_entirely_absent_is_tolerated
+FAILED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagQueryFourStatePassthrough::test_status_value_domain_matches_unified_enum
+FAILED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagTraceAlignment::test_degraded_logs_decision_with_enum_value
+FAILED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagTraceAlignment::test_entry_logger_failure_does_not_break_response
+FAILED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagSchemaRequiredSetFrozen::test_status_field_value_domain_is_the_unified_enum
+FAILED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagRealFallbackEntrypoint::test_real_ainvoke_none_fallback_returns_200_unavailable
+FAILED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagTraceFailOpen::test_trace_sink_failure_does_not_break_the_response
+FAILED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagTraceFailOpen::test_both_sink_and_fallback_logger_failing_still_returns_200
+FAILED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagProductionStateShapesAllReturn200::test_create_initial_state_shape_returns_200
+FAILED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagProductionStateShapesAllReturn200::test_fallback_result_shape_returns_200[ainvoke_returned_none]
+FAILED tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagProductionStateShapesAllReturn200::test_fallback_result_shape_returns_200[some_other_reason]
+48 failed, 33 passed, 148 deselected, 11 warnings in 1.14s

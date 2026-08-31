@@ -46,6 +46,7 @@ from app.models.common import (
 )
 from app.models.schemas import HealthCheckResponse
 from app.services.resource_monitor import get_resource_metrics_snapshot
+from app.utils.cypher_helpers import allow_cross_vault
 
 # Get logger for this module
 logger = logging.getLogger(__name__)
@@ -706,6 +707,7 @@ async def _ensure_neo4j_driver():
     return _cached_neo4j_driver
 
 
+@allow_cross_vault(reason="connectivity ping (RETURN 1) — no business data read")
 async def _test_neo4j_connection() -> bool:
     """
     测试Neo4j连接（仅执行查询，驱动应已初始化）。

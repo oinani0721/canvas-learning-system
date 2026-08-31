@@ -195,6 +195,11 @@ services:
       # reranker (M5): local 必须指向 llama-server --rerank (:18012), 不可指 Ollama/LM Studio
       - GRAPHITI_RERANKER_PROVIDER=${GRAPHITI_RERANKER_PROVIDER:-gemini}
       - GRAPHITI_RERANKER_BASE_URL=${GRAPHITI_RERANKER_BASE_URL:-http://host.docker.internal:18012/v1}
+      # CARD-G6-1 (2026-08-31): 总览页「刷新投影」端点调用的生产器脚本位置。/vaults 是主仓根
+      # (main 分支), 而 main 的 scripts/ 里没有 daily-review 一族 —— 显式指到部署 worktree 的那份。
+      # 用户 2026-08-31 裁定「甲」(路径绑死 worktree 名, 改名即失效; 治本方案 = 并进 main 的 scripts/)。
+      # 回退: 删本行 + `docker compose up -d backend`。
+      - DAILY_REVIEW_PICK=${DAILY_REVIEW_PICK:-/vaults/.claude/worktrees/feature-obsidian-hybrid-dev/scripts/daily_review_pick.py}
     extra_hosts:
       # 让容器内能用 host.docker.internal 访问宿主机 Ollama (Linux 需要; Mac/Win 默认有)
       - "host.docker.internal:host-gateway"

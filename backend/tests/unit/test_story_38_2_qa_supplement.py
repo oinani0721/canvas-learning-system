@@ -19,6 +19,25 @@ from app.services.memory_service import MemoryService
 
 from tests.conftest import simulate_async_delay
 
+
+def _recovery_scope() -> str:
+    """CARD-G4-1b: 启动恢复按 **active vault 根组** (方案甲) 装载。
+
+    `_recover_episodes_from_neo4j` 现在把作用域显式传给 client, 所以断言调用
+    参数时必须带上它 —— 这正是"进程级缓存用进程级作用域"的可验证痕迹。
+    """
+    from app.core.subject_config import default_vault_group_id
+
+    return default_vault_group_id()
+
+
+def _scope_physical(suffix: str = "") -> str:
+    """当前读作用域的物理组 (JSON 存储里的落盘形态)。"""
+    from app.graphiti.group_id_compat import to_physical_group_id
+
+    return to_physical_group_id(_recovery_scope()) + suffix
+
+
 # ---- Fixtures ----
 
 
@@ -281,11 +300,15 @@ class TestJsonFallbackEdgeCases:
                     "user_id": "u1",
                     "concept_name": "algebra",
                     "timestamp": None,  # None timestamp
+                    # CARD-G4-1b: 无归属记录不属于任何 vault 的可见面
+                    # (allow_null=False 同口径), fixture 补齐归属
+                    "group_id": _scope_physical(),
                 },
                 {
                     "user_id": "u2",
                     "concept_name": "calculus",
                     "timestamp": "2026-02-06T12:00:00",
+                    "group_id": _scope_physical(),
                 },
             ],
         }
@@ -310,6 +333,7 @@ class TestJsonFallbackEdgeCases:
                     "user_id": f"u{i}",
                     "concept_name": f"c{i}",
                     "timestamp": f"2026-01-{10 + i:02d}T00:00:00",
+                    "group_id": _scope_physical(),
                 }
                 for i in range(5)
             ],
@@ -337,7 +361,8 @@ class TestJsonFallbackEdgeCases:
             "users": [],
             "concepts": [],
             "relationships": [
-                {"user_id": "u1"},  # minimal — only user_id
+                # CARD-G4-1b: 归属是可见性的前提, 其余字段仍缺失以测健壮性
+                {"user_id": "u1", "group_id": _scope_physical()},
             ],
         }
         client._initialized = True
@@ -365,7 +390,9 @@ class TestCodeReviewFixes:
 
         await memory_service.initialize()
 
-        mock_neo4j_client.get_all_recent_episodes.assert_called_once_with(limit=1000)
+        mock_neo4j_client.get_all_recent_episodes.assert_called_once_with(
+            limit=1000, group_id=_recovery_scope()
+        )
 
     @pytest.mark.asyncio
     async def test_episode_id_uniqueness_across_users(
@@ -403,7 +430,7 @@ class TestCodeReviewFixes:
         """Lazy recovery deduplicates on (user_id, concept, timestamp) — exact matches only."""
         # Startup fails
         mock_neo4j_client.get_all_recent_episodes = AsyncMock(
-            side_effect=Exception("Connection refused")
+            side_effect=ConnectionError("Connection refused")  # CARD-G4-1b
         )
         await memory_service.initialize()
 
@@ -454,7 +481,7 @@ class TestCodeReviewFixes:
     ):
         """Same user+concept but different timestamps are kept (not deduped)."""
         mock_neo4j_client.get_all_recent_episodes = AsyncMock(
-            side_effect=Exception("Connection refused")
+            side_effect=ConnectionError("Connection refused")  # CARD-G4-1b
         )
         await memory_service.initialize()
 
@@ -541,7 +568,7 @@ class TestConcurrentRecoveryProtection:
         svc._learning_memory = mock_learning_memory_client
         # Startup: Neo4j down
         mock_neo4j_client.get_all_recent_episodes = AsyncMock(
-            side_effect=Exception("Connection refused")
+            side_effect=ConnectionError("Connection refused")  # CARD-G4-1b
         )
         await svc.initialize()
         assert svc._episodes_recovered is False
@@ -549,7 +576,7 @@ class TestConcurrentRecoveryProtection:
         # Now Neo4j comes back — add a small delay to simulate real query
         call_count = 0
 
-        async def slow_get_episodes(limit=1000):
+        async def slow_get_episodes(limit=1000, group_id=None):
             nonlocal call_count
             call_count += 1
             await simulate_async_delay(0.05)  # Small delay to allow concurrent entry
