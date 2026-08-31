@@ -29,9 +29,8 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Response
 # 各 handler 经 X-Vault-Scope-Source 响应头携带 VaultScope.source
 # (request-vault / legacy-group / active-vault)。选响应头而非响应体字段:
 # schemas.py 不在本卡独占面内, 响应模型加字段会进 openapi 契约面。
-# ⚠️ 过渡态: 调用点尚未切换到 resolve_vault_scope, 暂留旧 import。
-from app.api.v1.endpoints._vault_id_resolver import resolve_vault_group_id  # noqa: F401
 from app.api.v1.endpoints.memory import MemoryServiceDep
+from app.core.vault_scope import resolve_vault_scope
 from app.config import settings
 from app.core.exceptions import CanvasNotFoundException
 from app.core.request_cache import request_cache
@@ -766,6 +765,7 @@ def cancel_request(cache_key: str) -> None:
 )
 async def decompose_basic(
     request: DecomposeRequest,
+    response: Response,  # CARD-G4-4: 透出 X-Vault-Scope-Source
     background_tasks: BackgroundTasks,  # Story 12.A.5: 后台任务支持
     agent_service: AgentServiceDep,
     context_service: ContextEnrichmentServiceDep,
@@ -787,11 +787,12 @@ async def decompose_basic(
     [Story 12.H.5: Request Deduplication]
     """
     # Wave-5 Stage B 续 — vault_id 注入 ContextVar (memory_service / rag_service 都依赖此)
-    resolve_vault_group_id(
+    _scope = resolve_vault_scope(
         request.vault_id,
         subject_id=request.subject_id,
         legacy_group_id=request.group_id,
     )
+    response.headers["X-Vault-Scope-Source"] = _scope.source
 
     # Story 12.H.5: Check for duplicate request
     cache_key = check_duplicate_request(
@@ -880,6 +881,7 @@ async def decompose_basic(
 )
 async def decompose_deep(
     request: DecomposeRequest,
+    response: Response,  # CARD-G4-4: 透出 X-Vault-Scope-Source
     background_tasks: BackgroundTasks,  # Story 12.A.5: 后台任务支持
     agent_service: AgentServiceDep,
     context_service: ContextEnrichmentServiceDep,
@@ -899,12 +901,16 @@ async def decompose_deep(
     [Story 12.A.5: 学习事件自动记录]
     [Story 12.H.5: Request Deduplication]
     """
-    # Wave-5 Stage B 续 — vault_id 注入 ContextVar
-    resolve_vault_group_id(
+    # CARD-G4-4: 解析请求作用域并加性透出来源 (X-Vault-Scope-Source 响应头)。
+    # agents 契约不变: vault_id 仍 Optional, 双缺失仍推导 active (G2-2 契约 3,
+    # vault_scope 推导分支自带 warning)。解析结果注入 ContextVar 供下游
+    # memory_service / rag_service 消费, 语义与旧 resolve_vault_group_id 完全一致。
+    _scope = resolve_vault_scope(
         request.vault_id,
         subject_id=request.subject_id,
         legacy_group_id=request.group_id,
     )
+    response.headers["X-Vault-Scope-Source"] = _scope.source
 
     # Story 12.H.5: Check for duplicate request
     cache_key = check_duplicate_request(
@@ -999,6 +1005,7 @@ async def decompose_deep(
 )
 async def score_understanding(
     request: ScoreRequest,
+    response: Response,  # CARD-G4-4: 透出 X-Vault-Scope-Source
     background_tasks: BackgroundTasks,  # Story 12.A.5: 后台任务支持
     agent_service: AgentServiceDep,
     canvas_service: CanvasServiceDep,
@@ -1019,11 +1026,12 @@ async def score_understanding(
     [Story 12.H.5: Request Deduplication]
     """
     # Wave-5 Stage B 续 — vault_id 注入 ContextVar (scoring 调 mastery_store per-vault)
-    resolve_vault_group_id(
+    _scope = resolve_vault_scope(
         request.vault_id,
         subject_id=request.subject_id,
         legacy_group_id=request.group_id,
     )
+    response.headers["X-Vault-Scope-Source"] = _scope.source
 
     # Story 12.A.2: Get RAG context for first node (for scoring context)
     first_node_id = request.node_ids[0] if request.node_ids else ""
@@ -1154,6 +1162,7 @@ async def _call_explanation(
     rag_service: RAGServiceDep,  # Story 12.A.2: RAG integration
     background_tasks: BackgroundTasks,  # Story 12.A.5: 后台任务支持
     memory_service: MemoryServiceDep,  # Story 12.A.5: 学习事件记录
+    response: Response,  # CARD-G4-4: 透出 X-Vault-Scope-Source
 ) -> ExplainResponse:
     """
     统一解释调用辅助函数。
@@ -1168,11 +1177,12 @@ async def _call_explanation(
     """
     # Wave-5 Stage B 续 — vault_id 注入 ContextVar
     # (覆盖全部 6 explain_* endpoints, 因为它们都 delegate 到本 helper)
-    resolve_vault_group_id(
+    _scope = resolve_vault_scope(
         request.vault_id,
         subject_id=request.subject_id,
         legacy_group_id=request.group_id,
     )
+    response.headers["X-Vault-Scope-Source"] = _scope.source
 
     # Story 12.H.5: Check for duplicate request
     cache_key = check_duplicate_request(
@@ -1429,6 +1439,7 @@ async def _call_explanation(
 )
 async def explain_oral(
     request: ExplainRequest,
+    response: Response,  # CARD-G4-4: 透出 X-Vault-Scope-Source
     background_tasks: BackgroundTasks,  # Story 12.A.5
     agent_service: AgentServiceDep,
     context_service: ContextEnrichmentServiceDep,
@@ -1455,6 +1466,7 @@ async def explain_oral(
         rag_service,
         background_tasks,
         memory_service,
+        response,
     )
 
 
@@ -1466,6 +1478,7 @@ async def explain_oral(
 )
 async def explain_clarification(
     request: ExplainRequest,
+    response: Response,  # CARD-G4-4: 透出 X-Vault-Scope-Source
     background_tasks: BackgroundTasks,  # Story 12.A.5
     agent_service: AgentServiceDep,
     context_service: ContextEnrichmentServiceDep,
@@ -1492,6 +1505,7 @@ async def explain_clarification(
         rag_service,
         background_tasks,
         memory_service,
+        response,
     )
 
 
@@ -1503,6 +1517,7 @@ async def explain_clarification(
 )
 async def explain_comparison(
     request: ExplainRequest,
+    response: Response,  # CARD-G4-4: 透出 X-Vault-Scope-Source
     background_tasks: BackgroundTasks,  # Story 12.A.5
     agent_service: AgentServiceDep,
     context_service: ContextEnrichmentServiceDep,
@@ -1529,6 +1544,7 @@ async def explain_comparison(
         rag_service,
         background_tasks,
         memory_service,
+        response,
     )
 
 
@@ -1540,6 +1556,7 @@ async def explain_comparison(
 )
 async def explain_memory(
     request: ExplainRequest,
+    response: Response,  # CARD-G4-4: 透出 X-Vault-Scope-Source
     background_tasks: BackgroundTasks,  # Story 12.A.5
     agent_service: AgentServiceDep,
     context_service: ContextEnrichmentServiceDep,
@@ -1566,6 +1583,7 @@ async def explain_memory(
         rag_service,
         background_tasks,
         memory_service,
+        response,
     )
 
 
@@ -1577,6 +1595,7 @@ async def explain_memory(
 )
 async def explain_four_level(
     request: ExplainRequest,
+    response: Response,  # CARD-G4-4: 透出 X-Vault-Scope-Source
     background_tasks: BackgroundTasks,  # Story 12.A.5
     agent_service: AgentServiceDep,
     context_service: ContextEnrichmentServiceDep,
@@ -1603,6 +1622,7 @@ async def explain_four_level(
         rag_service,
         background_tasks,
         memory_service,
+        response,
     )
 
 
@@ -1614,6 +1634,7 @@ async def explain_four_level(
 )
 async def explain_example(
     request: ExplainRequest,
+    response: Response,  # CARD-G4-4: 透出 X-Vault-Scope-Source
     background_tasks: BackgroundTasks,  # Story 12.A.5
     agent_service: AgentServiceDep,
     context_service: ContextEnrichmentServiceDep,
@@ -1640,6 +1661,7 @@ async def explain_example(
         rag_service,
         background_tasks,
         memory_service,
+        response,
     )
 
 
@@ -1657,6 +1679,7 @@ async def explain_example(
 )
 async def generate_verification_questions(
     request: VerificationQuestionRequest,
+    response: Response,  # CARD-G4-4: 透出 X-Vault-Scope-Source
     agent_service: AgentServiceDep,
     context_service: ContextEnrichmentServiceDep,
     rag_service: RAGServiceDep,  # Story 12.A.2: RAG integration
@@ -1675,12 +1698,16 @@ async def generate_verification_questions(
     [Story 12.A.2: Agent-RAG Bridge Layer]
     [Story 12.H.5: Request Deduplication]
     """
-    # Wave-5 Stage B 续 — vault_id 注入 ContextVar
-    resolve_vault_group_id(
+    # CARD-G4-4: 解析请求作用域并加性透出来源 (X-Vault-Scope-Source 响应头)。
+    # agents 契约不变: vault_id 仍 Optional, 双缺失仍推导 active (G2-2 契约 3,
+    # vault_scope 推导分支自带 warning)。解析结果注入 ContextVar 供下游
+    # memory_service / rag_service 消费, 语义与旧 resolve_vault_group_id 完全一致。
+    _scope = resolve_vault_scope(
         request.vault_id,
         subject_id=request.subject_id,
         legacy_group_id=request.group_id,
     )
+    response.headers["X-Vault-Scope-Source"] = _scope.source
 
     # Story 12.H.5: Check for duplicate request
     cache_key = check_duplicate_request(
@@ -1777,6 +1804,7 @@ async def generate_verification_questions(
 )
 async def decompose_question(
     request: QuestionDecomposeRequest,
+    response: Response,  # CARD-G4-4: 透出 X-Vault-Scope-Source
     agent_service: AgentServiceDep,
     context_service: ContextEnrichmentServiceDep,
     rag_service: RAGServiceDep,  # Story 12.A.2: RAG integration
@@ -1795,12 +1823,16 @@ async def decompose_question(
     [Story 12.A.2: Agent-RAG Bridge Layer]
     [Story 12.H.5: Request Deduplication]
     """
-    # Wave-5 Stage B 续 — vault_id 注入 ContextVar
-    resolve_vault_group_id(
+    # CARD-G4-4: 解析请求作用域并加性透出来源 (X-Vault-Scope-Source 响应头)。
+    # agents 契约不变: vault_id 仍 Optional, 双缺失仍推导 active (G2-2 契约 3,
+    # vault_scope 推导分支自带 warning)。解析结果注入 ContextVar 供下游
+    # memory_service / rag_service 消费, 语义与旧 resolve_vault_group_id 完全一致。
+    _scope = resolve_vault_scope(
         request.vault_id,
         subject_id=request.subject_id,
         legacy_group_id=request.group_id,
     )
+    response.headers["X-Vault-Scope-Source"] = _scope.source
 
     # Story 12.H.5: Check for duplicate request
     cache_key = check_duplicate_request(
@@ -2010,6 +2042,7 @@ def _recommend_action_from_score(
 )
 async def recommend_action(
     request: RecommendActionRequest,
+    response: Response,  # CARD-G4-4: 透出 X-Vault-Scope-Source
     memory_service: MemoryServiceDep,
 ) -> RecommendActionResponse:
     """
@@ -2042,11 +2075,12 @@ async def recommend_action(
     [Source: specs/data/recommend-action-response.schema.json]
     """
     # Wave-5 Stage B 续 — vault_id 注入 ContextVar (memory_service.get_learning_history per-vault)
-    resolve_vault_group_id(
+    _scope = resolve_vault_scope(
         request.vault_id,
         subject_id=request.subject_id,
         legacy_group_id=request.group_id,
     )
+    response.headers["X-Vault-Scope-Source"] = _scope.source
 
     # [Code Review M3 fix]: Add request dedup for consistency with other endpoints
     cache_key = check_duplicate_request(

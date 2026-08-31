@@ -28,6 +28,21 @@ from app.api.v1.endpoints.rag import rag_router
 from app.models.service_status import SERVICE_STATUS_VALUES
 from app.services.rag_service import get_rag_service
 
+# ── CARD-G4-4 最小适配 ────────────────────────────────────────────────────
+# vault_id 改必填后, 本文件所有 /rag/query POST 都携带 vault_id。钉住
+# 进程级 active vault 到固定值, 防真实 .env/.canvas-config.yaml 环境耦合
+# (CARD-G2-2 翻新过的同类坑)。四态透传语义与 vault 无关, 断言零改动。
+import pytest as _pytest
+
+
+@_pytest.fixture(autouse=True)
+def _pin_active_vault_for_g44(monkeypatch):
+    import app.config as app_config_mod
+
+    monkeypatch.setattr(
+        app_config_mod, "get_current_vault_id", lambda: "v_active", raising=True
+    )
+
 # ═══════════════════════════════════════════════════════════════════════════
 # Fixtures
 # ═══════════════════════════════════════════════════════════════════════════
@@ -73,7 +88,10 @@ def client(mock_rag_service: MagicMock) -> TestClient:
 
 
 def _post(client: TestClient):
-    return client.post("/api/v1/rag/query", json={"query": "什么是逆否命题？"})
+    return client.post(
+        "/api/v1/rag/query",
+        json={"query": "什么是逆否命题？", "vault_id": "v_active"},
+    )
 
 
 def _traced_output(spy) -> str:
@@ -389,7 +407,10 @@ class TestRagRealFallbackEntrypoint:
         with patch("app.services.rag_service.canvas_agentic_rag") as graph:
             graph.ainvoke = AsyncMock(return_value=None)
             with TestClient(app, raise_server_exceptions=False) as c:
-                response = c.post("/api/v1/rag/query", json={"query": "什么是逆否命题？"})
+                response = c.post(
+                    "/api/v1/rag/query",
+                    json={"query": "什么是逆否命题？", "vault_id": "v_active"},
+                )
             assert graph.ainvoke.await_count == 1, "没走到真实图执行, 这个门就没测到东西"
 
         assert response.status_code == 200, "真实 fallback 出口返回了非 200 —— 「unavailable 仍 200」在生产形状上不成立"

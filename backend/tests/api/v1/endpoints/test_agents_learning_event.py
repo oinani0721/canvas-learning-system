@@ -22,7 +22,7 @@ from app.api.v1.endpoints.agents import (
     _record_learning_event,
 )
 from app.services.memory_service import get_memory_service
-from fastapi import BackgroundTasks
+from fastapi import BackgroundTasks, Response  # Response: CARD-G4-4 handler 新签名
 
 
 class MockMemoryService:
@@ -345,6 +345,7 @@ class TestEndpointIntegration:
             context_service=mock_dependencies["context_service"],
             rag_service=mock_dependencies["rag_service"],
             memory_service=mock_dependencies["memory_service"],
+            response=Response(),  # CARD-G4-4: 签名加性注入
         )
 
         # Then: Background task was added
@@ -382,6 +383,7 @@ class TestEndpointIntegration:
             context_service=mock_dependencies["context_service"],
             rag_service=mock_dependencies["rag_service"],
             memory_service=mock_dependencies["memory_service"],
+            response=Response(),  # CARD-G4-4: 签名加性注入
         )
 
         await background_tasks()
@@ -430,6 +432,7 @@ class TestEndpointIntegration:
             canvas_service=mock_canvas_service,
             rag_service=mock_dependencies["rag_service"],
             memory_service=mock_dependencies["memory_service"],
+            response=Response(),  # CARD-G4-4: 签名加性注入
         )
 
         await background_tasks()
@@ -465,6 +468,7 @@ class TestEndpointIntegration:
             context_service=mock_dependencies["context_service"],
             rag_service=mock_dependencies["rag_service"],
             memory_service=mock_dependencies["memory_service"],
+            response=Response(),  # CARD-G4-4: 签名加性注入
         )
 
         await background_tasks()
@@ -499,6 +503,7 @@ class TestEndpointIntegration:
         # Then: Response is successful
         response = await decompose_basic(
             request=request,
+            response=Response(),  # CARD-G4-4: 签名加性注入
             background_tasks=background_tasks,
             agent_service=mock_dependencies["agent_service"],
             context_service=mock_dependencies["context_service"],
@@ -573,6 +578,7 @@ class TestAllExplainEndpointsRecording:
             context_service=mock_deps["context_service"],
             rag_service=mock_deps["rag_service"],
             memory_service=memory_service,
+            response=Response(),  # CARD-G4-4: 签名加性注入
         )
 
         await background_tasks()
