@@ -35,6 +35,10 @@ DEFAULT_SERVER = "https://api.day.app"
 TIMEOUT_S = 10
 RETRIES = 2
 
+#: 唯一网络出口缝 (CARD-TEST-bark-autostub): 生产路径常规行为不变;
+#: 唯一可观察差异 = import 后对 urllib.request.urlopen 的重绑不再被观察
+_urlopen = urllib.request.urlopen
+
 
 #: hash 域后缀形态 — 用于把「原样域」与「hash 域」分开, 保证两域不重叠
 _HASH_TAIL = re.compile(r"-[0-9a-f]{16}$")
@@ -121,7 +125,7 @@ def send(notification: dict, vault_id: str | None = None) -> int:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(req, timeout=TIMEOUT_S) as resp:
+            with _urlopen(req, timeout=TIMEOUT_S) as resp:
                 http = resp.status
                 try:
                     code = json.loads(resp.read().decode("utf-8")).get("code")

@@ -1,0 +1,3314 @@
+Reading additional input from stdin...
+OpenAI Codex v0.147.0
+--------
+workdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro
+model: gpt-5.6-sol
+provider: openai
+approval: on-request
+sandbox: read-only
+reasoning effort: ultra
+reasoning summaries: auto
+session id: 01a059bf-a73d-7182-9a5c-2b7b066b8eb9
+--------
+user
+# 独立对抗审查 round-2 — CARD-TEST-bark-autostub（复核 round-1 整改 + 回归面）
+
+你是独立代码审查员，这是同一张卡的**第二轮**。round-1 你判 FAIL（3 HIGH + 2 MEDIUM + 3 LOW）。本轮任务：逐条复核整改是否真实落地、有没有引入**新的**回归，再给最终裁定。
+
+只读以下文件（绝对路径）：
+
+1. /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/scripts/send_bark.py
+2. /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/tests/regression/conftest.py
+3. /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/tests/regression/test_daily_review_run.py
+4. /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/tests/regression/bark_egress_probe.py
+5. /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/scripts/bark_autostub_negative_control.py
+6. /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/_bmad-output/审查/CARD-TEST-bark-autostub-验收单.md
+
+上下文（零改动）：scripts/daily_review_run.py（:250 调 send；:267-272 osascript 兜底）。
+
+## round-1 发现 → 声称的整改（逐条核）
+
+- **H1** (:232) KEY_FILE→不存在路径使忘打桩的 main() 静默 skip-nokey 返 0，「响亮失败」不成立 → **整改**：KEY_FILE 改指 tmp 下**格式合法且真实存在**的假 key，load_key 成功 → 必然走到 `_urlopen` 拒绝器 → 响亮失败。env BARK_KEY_FILE 同步重定向。
+- **H2** (:205) 守卫与测试共用 monkeypatch，测试 undo() 一次拆三层 → **整改**：守卫改用**独立** `pytest.MonkeyPatch()` 实例（fixture 不再取 monkeypatch 形参），finally 里独立 undo。
+- **H3** (:229) importlib.reload(send_bark/runnner) 恢复生产值 → **整改**：守卫 patch `importlib.reload`（属性式调用），对 `("send_bark","daily_review_run")` 的 reload 完成后自动重打三层。**如实交代**：整改初版把判断条件错写成测试模块名元组，条件恒假、重打永不触发——本卡新增的 E/E' 篡改门（见下）当场抓住，已改为生产模块名。`from importlib import reload` 预绑定形态拦不住，已声明为如实边界。
+- **M1** (negctl :42) B 判据仅子串匹配、可假绿 → **整改**：判据收紧为 rc + pytest 摘要行（恰 `1 failed(, N warnings)`，出现 error 即拒收）+ **整行锚定正则** `^E\s+AssertionError: Bark egress attempted in tests\s*$`；TimeoutExpired 捕获记 FAIL。负控扩为八跑 A/B/C'/C/D/D'/E/E'（C/D/E = 守卫三层各自 + reload 自愈的放行门；C'/D'/E' = --noconftest 篡改门，证明放行门真的依赖守卫）。
+- **M2** (:201) endswith 模块门误伤/漏防 → **整改**：按模块名末段**精确枚举**匹配 `_BARK_GUARDED_MODULES = ("test_daily_review_run", "bark_egress_probe")`；「目录内新增文件默认不设防」在 conftest 注释与验收单均声明为边界 + 裁决点。
+- **L1** (:205) 零副作用过宽（tmp_path/monkeypatch 形参改变 1028 条测试的 fixture 图）→ **整改**：fixture 只取 `request`；布防模块的 tmp 目录用 `tempfile.mkdtemp` + finally rmtree；非布防模块零 fixture 图变化。验收单措辞收窄。
+- **L2** (send_bark:40) 「零行为变化」过宽（import 时冻结别名不观察后续 rebind）→ **整改**：注释如实改为「生产路径绑定同一函数对象」；验收单收窄措辞。
+- **L3** (probe:60) 代理清理不重建已缓存 opener → **整改**：注释改「尽力消除 + 双墙兜底」，探针加第二道墙 `socket.create_connection` 拦截器（两墙都记录 host）。
+- **L4** (conftest:213) docstring 行号 :134/:136 漂移 → **整改**：已改 :138/:140。
+
+## 本轮审查重点
+
+- R1: 逐条核上表 9 项整改是否真实落地（file:line 证据），有没有「改了措辞没改行为」的假整改。
+- R2: 整改引入的**新**回归：独立 MonkeyPatch 的 teardown 顺序/泄漏；importlib.reload 全进程 patch 在布防测试期间的意外后果；假 key（真实存在）相对不存在 key 的新暴露面（例如 reload 自愈失效 + 假 key = 真出网尝试假 key？评估这条链的可达性）；negctl 八跑的子进程面。
+- R3: 负控八跑判据还有没有假绿形态（重点：`re.fullmatch(r"1 failed(, \d+ warnings?)?", body)` 的绕过、`"error" not in body` 的绕过、E 门 E' 门的判据）。
+- R4: 新的声明-证据差：conftest/probe/negctl 三文件 docstring 与实际行为逐字对照；验收单 v2 的 4-A 表与「未证明什么」「不比什么」是否与代码一致（验收单本轮已重写为 v2）。
+- R5: 模块门精确枚举后，有没有新的漏防或误伤形态。
+
+可运行只读验证命令（cd backend 后 `.venv/bin/pytest` / `.venv/bin/python scripts/bark_autostub_negative_control.py`，全部加 `-p no:cacheprovider`；**⛔ 禁止运行 scripts/daily_review_run.py、scripts/daily-review-push.sh 或任何会真实外发的入口**；负控八跑是安全的——探针双墙保证不出网、C/D/E 结构性断言零副作用，可亲自复跑核对）。
+
+## 输出格式
+
+每条发现：`[BLOCKER|HIGH|MEDIUM|LOW] file:line — 一句话缺陷 + 复现思路`。
+对 round-1 九项逐条给 `已整改/未整改/部分整改` 判定。
+无发现的审查面明确写「R# 无发现」。
+末行 `VERDICT: PASS` 或 `VERDICT: FAIL`（存在 BLOCKER/HIGH 即 FAIL）。
+**Clarifying file read restrictions**
+**Evaluating multi-agent read-only strategy**
+**Verifying audit skill availability**
+codex
+我会按只读、fail-closed 方式复核：先独立重算六个指定文件的实现与声明，再并行做守卫/负控/验收单三条对抗审查，最后只运行你明确允许的安全测试命令；不会触碰或运行真实外发入口。由于这是既有 Canvas 对抗审查，我也会先做一次轻量历史审查规约核对。
+**Planning sequential memory search**
+exec
+/bin/zsh -lc 'rg -n -i "CARD-TEST|bark|autostub|adversarial audit|对抗审查|canvas-adversarial" /Users/Heishing/.codex/memories/MEMORY.md' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro
+ succeeded in 0ms:
+37:## Task 1: Full-project adversarial audit and productivity direction, partial
+201:## Task 2: P1-05b five-question adversarial audit, reproducible bypasses
+218:- Related skill: skills/canvas-adversarial-audit/SKILL.md. P1-05/P1-01/P1-08 remained STILL-OPEN; F-02 tombstone filtering and F-05 live resilience were closed. Rejected vault inputs must show zero open/hash/index/write. [Task 1][Task 2]
+
+**Opening and reviewing SKILL and MEMORY sections**
+exec
+/bin/zsh -lc "sed -n '190,224p' /Users/Heishing/.codex/memories/MEMORY.md && wc -l /Users/Heishing/.codex/memories/skills/canvas-adversarial-audit/SKILL.md && sed -n '1,240p' /Users/Heishing/.codex/memories/skills/canvas-adversarial-audit/SKILL.md" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro
+ succeeded in 0ms:
+
+## Task 1: P1-05c/P1-01/P1-08 parallel adversarial review, closure rejected
+
+### rollout_summary_files
+
+- rollout_summaries/2026-08-17T01-56-07-ZNCd-agents_guide_and_p1_05c_adversarial_audit.md (cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output, rollout_path=/Users/Heishing/.codex/sessions/2026/08/17/rollout-2026-08-17T09-56-07-01a00d6e-ea40-70a1-a23c-d51342eeeacd.jsonl, updated_at=2026-08-19T17:56:56+00:00, thread_id=01a00d6e-ea40-70a1-a23c-d51342eeeacd, outcome=partial; final read-only verdict)
+
+### keywords
+
+- P1-05c, P1-05, P1-01, P1-08, check_vault_path, vault_index_orchestrator, LanceDB, Graphiti, DEFAULT_GROUP_ID, SnapshotV3, CURRENT_TASK.md
+
+## Task 2: P1-05b five-question adversarial audit, reproducible bypasses
+
+### rollout_summary_files
+
+- rollout_summaries/2026-08-19T14-44-08-upza-p1_05b_adversarial_review_finds_admission_quarantine_snapsho.md (cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output, rollout_path=/Users/Heishing/.codex/sessions/2026/08/19/rollout-2026-08-19T22-44-08-01a01a7a-c47f-70e2-8e5e-524e1591da78.jsonl, updated_at=2026-08-19T15:12:50+00:00, thread_id=01a01a7a-c47f-70e2-8e5e-524e1591da78, outcome=partial; detailed counterexamples)
+
+### keywords
+
+- P1-05b, symlink_escape, casefold, vault_backfill, lancedb_client, quarantine__p105b, search_nodes, read_node_tips, manifest-v3, NaN
+
+## User preferences
+
+- “启动并行 agent 进行对抗性审查” -> use independent evidence tracks and cross-check severity; every finding needs `file:line`, reproduction path/result, severity, conflict explanation, PASS/PARTIAL/FAIL, and limits. [Task 1][Task 2]
+- Respect read-only task-book boundaries, WT/MAIN labels, explicit `UNVERIFIABLE`, and no raw-vault access; do not fix code in the audit. [Task 1]
+
+## Reusable knowledge
+
+- Related skill: skills/canvas-adversarial-audit/SKILL.md. P1-05/P1-01/P1-08 remained STILL-OPEN; F-02 tombstone filtering and F-05 live resilience were closed. Rejected vault inputs must show zero open/hash/index/write. [Task 1][Task 2]
+- Reproduced: `vault/raw/escape.md -> /outside/secret.md` was counted by `backfill_vault(..., execute=False)`; case-sensitive `fnmatch` admitted `.CLAUDE/SKILL.md` and `raw/claude.md`. Edge filtering alone was insufficient because exact readers/node search could cross Graphiti groups. [Task 2]
+- SnapshotV3 needs invalid/future same-generation self-healing, extra-field, strict-type, huge finite mastery, and identity/length collision coverage. [Task 1][Task 2]
+
+## Failures and how to do differently
+
+- Green tests hitting source text, helpers, fake clients, `__new__`, or monkeypatches are not closure; pivot to production entrypoints and full stdout/trace. Test `search_nodes`, `read_node_tips`, `read_node_errors`, and `read_node_edge_reasons`. [Task 1][Task 2]
+      50 /Users/Heishing/.codex/memories/skills/canvas-adversarial-audit/SKILL.md
+---
+name: canvas-adversarial-audit
+description: Conduct a read-only, parallel, evidence-first adversarial audit of Canvas P1 closure claims, especially vault admission, Graphiti quarantine, and SnapshotV3.
+argument-hint: "[task-book path or P1 scope]"
+user-invocable: false
+allowed-tools: Read, Grep, Glob, Bash
+---
+
+# Canvas adversarial audit
+
+## When to use
+
+Use for a user-requested adversarial or closure audit in the Canvas Learning System worktree, particularly P1-05/P1-01/P1-08. Do not use to implement fixes, access prohibited raw-vault content, or declare a historical finding current without revalidation.
+
+## Inputs / context to gather
+
+1. Read the task book, `AGENTS.md`, worktree topology, allowed/prohibited paths, and reporting contract.
+2. Record checkout SHA, branch, WT/MAIN labels, current `CURRENT_TASK.md`, and requested P1 claims.
+3. Identify actual production entrypoints, not merely the tests that claim to cover them.
+
+## Procedure
+
+1. Split independent tracks: vault admission/indexing and tests; Graphiti quarantine/retrieval; SnapshotV3/recovery anchors. Keep the audit read-only.
+2. For each claim, build an evidence matrix: claim, `file:line`, adversarial input/state, actual entrypoint/path, observed result, severity, PASS/PARTIAL/FAIL, and limitations.
+3. Directly exercise real entrypoints with temporary fixtures where permitted. For path admission include symlink, directory symlink, blacklisted filename in an allowed directory, case variant, and nonexistent path. Assert rejected inputs perform zero open/hash/index/write.
+4. For quarantine, test ordinary edge search plus node search and exact-reader paths (`search_nodes`, `read_node_tips`, `read_node_errors`, `read_node_edge_reasons`). Use read-only Neo4j queries and `EXPLAIN` where allowed; distinguish observed metadata exposure from unproven fact-body leakage.
+5. For SnapshotV3, test same-generation invalid/future version self-healing, extra fields, strict typing, huge finite values that may produce NaN/Infinity, and identity/length collision boundaries.
+6. Compare recovery anchors with machine facts: current HEAD, Actions status, test counts, and unresolved findings. Separate targeted-test results from whole CI.
+7. Cross-check high-severity findings independently. Write the final matrix before closure language; explicitly retain `UNVERIFIABLE` items and failed counterexample attempts.
+
+## Efficiency plan
+
+- Start from task-book source handles and `rg` for real call sites; cache the entrypoint map for all tracks.
+- Parallelize independent tracks, then have the primary reviewer re-open only high-severity evidence.
+- Stop treating a test as evidence once it only hits source text, a helper, fake client, `__new__`, or monkeypatch; pivot to the real entrypoint.
+
+## Pitfalls and fixes
+
+- Green tests but unsafe closure -> tests do not reach production behavior. Add direct entrypoint fixtures and capture full stdout/trace before an assertion.
+- `session:` IDs used as provenance -> ID shape alone is not proof. Preserve provenance or report PARTIAL.
+- Quarantine count passes -> exact-reader/node-search surfaces may still cross groups. Test those surfaces specifically.
+- `CURRENT_TASK.md` says closed but anchors disagree -> rebuild anchors from current HEAD, Actions, and unresolved findings.
+
+## Verification checklist
+
+- Every finding has `file:line`, reproduction, severity, result, and claim-conflict explanation.
+- Final report labels WT/MAIN and all verification limits; no prohibited files or raw vault were read.
+- Production entrypoints, not only helpers, were tested for each security claim.
+- CI status is reported as whole-workflow status, not only passing targeted jobs.
+- P1 closure is withheld whenever a reproducible bypass or unverified critical surface remains.
+
+**Planning sequential reasoning calls**
+mcp: sequential-thinking/sequentialthinking started
+mcp: sequential-thinking/sequentialthinking (completed)
+**Designing constrained agent roles**
+**Inspecting six files with line numbers**
+codex
+并行审查已拆成三条：守卫生命周期与 reload、自证负控判据、验收单声明一致性。我现在主审逐行读取全部六个允许文件，并会对任何高严重度候选做第二次独立复现。
+exec
+/bin/zsh -lc 'nl -ba scripts/send_bark.py; nl -ba backend/tests/regression/conftest.py; nl -ba backend/tests/regression/test_daily_review_run.py' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro
+ succeeded in 0ms:
+     1	#!/usr/bin/env python3
+     2	"""Bark 推送器 (DAILY-REVIEW-PUSH-2026-07-29, 终审 A5 硬化版)。
+     3	
+     4	安全契约:
+     5	  - key 只存 ~/.config/canvas-review/bark.key (600), 不进 URL/argv/日志
+     6	  - POST https://api.day.app/push JSON body (非 GET 路径拼接 — 免 URL
+     7	    编码地雷 + 免板名进进程参数)
+     8	  - 同日稳定 notification id → Bark 端幂等更新 (本地 at-least-once +
+     9	    服务端同 id 覆盖, 终审 A4 网络 exactly-once 的正解)
+    10	  - 内容形态: 明文具体板名 (用户 2026-07-29 拍板; E2E 加密进 backlog)
+    11	
+    12	退出码: 0 = 服务端明确接受 (HTTP 200 且 body code==200)
+    13	        2 = 未配置 key (跳过, 不算错)
+    14	        1 = 发送失败 (调用方走 osascript 兜底)
+    15	"""
+    16	
+    17	from __future__ import annotations
+    18	
+    19	import argparse
+    20	import hashlib
+    21	import json
+    22	import os
+    23	import re
+    24	import sys
+    25	import time
+    26	import urllib.error
+    27	import urllib.request
+    28	from pathlib import Path
+    29	
+    30	KEY_FILE = Path(
+    31	    os.environ.get("BARK_KEY_FILE")
+    32	    or Path.home() / ".config" / "canvas-review" / "bark.key"
+    33	)
+    34	DEFAULT_SERVER = "https://api.day.app"
+    35	TIMEOUT_S = 10
+    36	RETRIES = 2
+    37	
+    38	#: 唯一网络出口缝 (CARD-TEST-bark-autostub): 全模块只此一处真正出网,
+    39	#: 测试打桩点收敛到这个名字 — 生产路径绑定同一函数对象, 行为零变化
+    40	_urlopen = urllib.request.urlopen
+    41	
+    42	
+    43	#: hash 域后缀形态 — 用于把「原样域」与「hash 域」分开, 保证两域不重叠
+    44	_HASH_TAIL = re.compile(r"-[0-9a-f]{16}$")
+    45	#: key 主体安全上限 (Codex-C1a HIGH: NAME_MAX=255, 232 字节合法目录名会让
+    46	#: daily-review.<key>.state.json 超限; 100 + 1 + 16 + 前后缀 ≪ 255)
+    47	_KEY_MAX_BYTES = 100
+    48	
+    49	
+    50	def vault_key(vault_id: str) -> str:
+    51	    """vault 目录名 → 文件名/通知 id 安全 key (CARD-C1a 命名空间规则唯一定义点)。
+    52	
+    53	    两域设计 (Codex-C1a B2/H1 处置):
+    54	      原样域 — ASCII 短名 (canvas-vault) 原样返回; 但排除恰好长得像 hash 域
+    55	               后缀 (-<16hex> 结尾) 的名字与超长名;
+    56	      hash 域 — 其余 (中文库名 / 超长名 / 撞后缀形态) slug 化并追加 sha256
+    57	               前 16 hex (64 bit — 8 hex 时 2^16 生日构造即可撞, 已实测)。
+    58	    两域互不重叠 → 不同目录名撞 key 只剩 64bit hash 碰撞一条路。state 文件名
+    59	    (daily_review_run.state_path) / push.sh 锁 / Bark 有效 id 共用本函数,
+    60	    同一 vault 三处 key 恒等 (push.sh 经 python 调用本函数, 不再 basename)。
+    61	    """
+    62	    # 目录名按字面精确处理, 不裁剪空白 — str.strip() 会吞 Unicode 空白,
+    63	    # 令 "foo" 与 "foo\xa0" 两个不同目录名撞 key (Codex-C1a round2 实测)
+    64	    raw = str(vault_id or "").rstrip("/").rsplit("/", 1)[-1] or "vault"
+    65	    safe = re.sub(r"[^0-9A-Za-z._-]", "-", raw).strip("-.")
+    66	    if (safe == raw and not _HASH_TAIL.search(raw)
+    67	            and len(raw.encode("utf-8")) <= _KEY_MAX_BYTES):
+    68	        return safe
+    69	    digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+    70	    return f"{(safe or 'vault')[:_KEY_MAX_BYTES]}-{digest}"
+    71	
+    72	
+    73	def load_key() -> tuple[str, str] | None:
+    74	    """读 key 文件 → (server, device_key)。兼容整段 URL 或裸 key。
+    75	
+    76	    Code-Review L4: 格式不合法 (贴了裸域名/空串) 按未配置处理并给具体
+    77	    提示, 不进重试循环报误导性的 net= 错误。
+    78	    """
+    79	    if not KEY_FILE.exists():
+    80	        print("bark skip(未配置) — 写入 ~/.config/canvas-review/bark.key 后启用")
+    81	        return None
+    82	    raw = KEY_FILE.read_text(encoding="utf-8").strip().rstrip("/")
+    83	    if raw.startswith("http"):
+    84	        server, _, key = raw.rpartition("/")
+    85	    else:
+    86	        server, key = DEFAULT_SERVER, raw
+    87	    if not re.fullmatch(r"[A-Za-z0-9_-]{8,64}", key) or not server.startswith("http"):
+    88	        print("bark skip(key格式不合法 — 应为 Bark app 复制的推送 key)")
+    89	        return None
+    90	    return (server, key)
+    91	
+    92	
+    93	def send(notification: dict, vault_id: str | None = None) -> int:
+    94	    cfg = load_key()
+    95	    if cfg is None:
+    96	        return 2
+    97	    server, device_key = cfg
+    98	    noti_id = notification["id"]
+    99	    group = notification.get("group", "canvas复习")
+   100	    if vault_id:
+   101	        # CARD-C1a: vault 维度只在 send 侧组合 — payload.notification.id 的值
+   102	        # 是 A2 冻结契约不可改; 有效去重 id / 分组在这里追加 vault, 防第二
+   103	        # vault 同日同 id 覆盖第一 vault 的手机通知。vault_id 缺省 (旧 payload)
+   104	        # 走原样 id, 加性兼容。
+   105	        noti_id = f"{noti_id}-{vault_key(vault_id)}"
+   106	        group = f"{group}·{vault_id}"
+   107	    body = json.dumps(
+   108	        {
+   109	            "device_key": device_key,
+   110	            "title": notification["title"],
+   111	            "body": notification["body"],
+   112	            "group": group,
+   113	            "id": noti_id,
+   114	        },
+   115	        ensure_ascii=False,
+   116	    ).encode("utf-8")
+   117	
+   118	    last_err = "unknown"
+   119	    for attempt in range(1 + RETRIES):
+   120	        if attempt:
+   121	            time.sleep(2 * attempt)
+   122	        req = urllib.request.Request(
+   123	            f"{server}/push", data=body,
+   124	            headers={"Content-Type": "application/json; charset=utf-8"},
+   125	            method="POST",
+   126	        )
+   127	        try:
+   128	            with _urlopen(req, timeout=TIMEOUT_S) as resp:
+   129	                http = resp.status
+   130	                try:
+   131	                    code = json.loads(resp.read().decode("utf-8")).get("code")
+   132	                except (json.JSONDecodeError, UnicodeDecodeError):
+   133	                    code = None
+   134	            if http == 200 and code == 200:
+   135	                print(f"bark accepted http={http} code={code}")
+   136	                return 0
+   137	            last_err = f"http={http} code={code}"
+   138	        except urllib.error.HTTPError as e:
+   139	            last_err = f"http={e.code}"
+   140	        except (urllib.error.URLError, TimeoutError, OSError) as e:
+   141	            last_err = f"net={type(e).__name__}"
+   142	    print(f"bark failed {last_err}")  # 永不打印 key/URL
+   143	    return 1
+   144	
+   145	
+   146	def main():
+   147	    ap = argparse.ArgumentParser(description="Bark 推送 (payload 不进命令行)")
+   148	    ap.add_argument("--payload", required=True, help="今日复习.json 路径")
+   149	    args = ap.parse_args()
+   150	    payload = json.loads(Path(args.payload).read_text(encoding="utf-8"))
+   151	    noti = payload.get("notification")
+   152	    if not noti:
+   153	        print("bark skip(无可推内容)")
+   154	        return 2
+   155	    return send(noti, payload.get("vault_id"))
+   156	
+   157	
+   158	if __name__ == "__main__":
+   159	    sys.exit(main())
+     1	# Story 7.3: Prompt Regression Test — Shared Fixtures
+     2	# [Source: _bmad-output/implementation-artifacts/7-3-prompt-version-regression-test.md]
+     3	"""
+     4	Shared fixtures for prompt regression tests.
+     5	
+     6	Provides:
+     7	  - prompt_registry: Pre-loaded PromptRegistry instance
+     8	  - baseline_loader: Helper to load baseline scenario JSON files
+     9	  - llm_mode: Dual mode support (replay vs live)
+    10	  - regression_report: Collects per-test metrics for report generation
+    11	"""
+    12	
+    13	import importlib
+    14	import json
+    15	import logging
+    16	import shutil
+    17	import tempfile
+    18	from pathlib import Path
+    19	from typing import Any, Dict, List
+    20	
+    21	import pytest
+    22	from app.services.prompt_registry import PromptRegistry
+    23	
+    24	logger = logging.getLogger(__name__)
+    25	
+    26	# Directories
+    27	_BACKEND_DIR = Path(__file__).parent.parent.parent
+    28	_PROMPTS_DIR = _BACKEND_DIR / "app" / "prompts"
+    29	_BASELINES_DIR = _BACKEND_DIR / "tests" / "fixtures" / "regression_baselines"
+    30	
+    31	
+    32	def pytest_addoption(parser):
+    33	    """Add --live and --prompt CLI options for regression tests."""
+    34	    parser.addoption(
+    35	        "--live",
+    36	        action="store_true",
+    37	        default=False,
+    38	        help="Run regression tests with real LLM calls (default: replay mode)",
+    39	    )
+    40	    parser.addoption(
+    41	        "--prompt",
+    42	        action="store",
+    43	        default=None,
+    44	        help="Run regression tests only for a specific prompt name (e.g., autoscore)",
+    45	    )
+    46	
+    47	
+    48	@pytest.fixture(scope="session")
+    49	def is_live_mode(request) -> bool:
+    50	    """Whether tests should call real LLM (True) or use replay fixtures (False)."""
+    51	    return request.config.getoption("--live", default=False)
+    52	
+    53	
+    54	@pytest.fixture(scope="session")
+    55	def prompt_registry() -> PromptRegistry:
+    56	    """
+    57	    Session-scoped PromptRegistry loaded with all prompt templates.
+    58	
+    59	    This is a real PromptRegistry (no mocking), loaded from the actual
+    60	    prompts/ directory.
+    61	    """
+    62	    PromptRegistry.reset_instance()
+    63	    registry = PromptRegistry.get_instance(prompts_dir=_PROMPTS_DIR)
+    64	    registry.load_all()
+    65	    return registry
+    66	
+    67	
+    68	@pytest.fixture(scope="session")
+    69	def baselines_dir() -> Path:
+    70	    """Path to the regression_baselines/ directory."""
+    71	    return _BASELINES_DIR
+    72	
+    73	
+    74	class BaselineLoader:
+    75	    """Load baseline scenario JSON files for a specific prompt type."""
+    76	
+    77	    def __init__(self, prompt_name: str, baselines_dir: Path):
+    78	        self._dir = baselines_dir / prompt_name
+    79	        self._prompt_name = prompt_name
+    80	
+    81	    def load_all(self) -> List[Dict[str, Any]]:
+    82	        """Load all scenario JSON files, sorted by filename."""
+    83	        if not self._dir.exists():
+    84	            raise FileNotFoundError(f"Baseline directory not found: {self._dir}")
+    85	        scenarios = list()
+    86	        for f in sorted(self._dir.glob("scenario_*.json")):
+    87	            data = json.loads(f.read_text(encoding="utf-8"))
+    88	            data["_source_file"] = f.name
+    89	            scenarios.append(data)
+    90	        if not scenarios:
+    91	            raise FileNotFoundError(f"No scenario_*.json files found in {self._dir}")
+    92	        return scenarios
+    93	
+    94	    def load_one(self, filename: str) -> Dict[str, Any]:
+    95	        """Load a specific scenario file."""
+    96	        path = self._dir / filename
+    97	        if not path.exists():
+    98	            raise FileNotFoundError(f"Scenario file not found: {path}")
+    99	        data = json.loads(path.read_text(encoding="utf-8"))
+   100	        data["_source_file"] = filename
+   101	        return data
+   102	
+   103	
+   104	@pytest.fixture
+   105	def autoscore_baselines(baselines_dir) -> BaselineLoader:
+   106	    """Loader for AutoSCORE regression baselines."""
+   107	    return BaselineLoader("autoscore", baselines_dir)
+   108	
+   109	
+   110	@pytest.fixture
+   111	def question_gen_baselines(baselines_dir) -> BaselineLoader:
+   112	    """Loader for question generation regression baselines."""
+   113	    return BaselineLoader("question_gen", baselines_dir)
+   114	
+   115	
+   116	@pytest.fixture
+   117	def context_extract_baselines(baselines_dir) -> BaselineLoader:
+   118	    """Loader for context extraction regression baselines."""
+   119	    return BaselineLoader("context_extract", baselines_dir)
+   120	
+   121	
+   122	# Story 2.13: New baseline loaders for retrieval pipeline prompts
+   123	@pytest.fixture
+   124	def query_rewrite_baselines(baselines_dir) -> BaselineLoader:
+   125	    """Loader for query rewrite regression baselines."""
+   126	    return BaselineLoader("query_rewrite", baselines_dir)
+   127	
+   128	
+   129	@pytest.fixture
+   130	def crag_grading_baselines(baselines_dir) -> BaselineLoader:
+   131	    """Loader for CRAG document grading regression baselines."""
+   132	    return BaselineLoader("crag_grading", baselines_dir)
+   133	
+   134	
+   135	@pytest.fixture
+   136	def search_intent_baselines(baselines_dir) -> BaselineLoader:
+   137	    """Loader for search intent analysis regression baselines."""
+   138	    return BaselineLoader("search_intent", baselines_dir)
+   139	
+   140	
+   141	@pytest.fixture
+   142	def query_optimize_baselines(baselines_dir) -> BaselineLoader:
+   143	    """Loader for query optimize regression baselines."""
+   144	    return BaselineLoader("query_optimize", baselines_dir)
+   145	
+   146	
+   147	class RegressionMetricsCollector:
+   148	    """Collects per-scenario metrics during a regression test run."""
+   149	
+   150	    def __init__(self):
+   151	        self.results: List[Dict[str, Any]] = list()
+   152	
+   153	    def record(
+   154	        self,
+   155	        scenario_id: str,
+   156	        prompt_name: str,
+   157	        prompt_version: int,
+   158	        metrics: Dict[str, Any],
+   159	        passed: bool,
+   160	        details: str = "",
+   161	    ):
+   162	        self.results.append(
+   163	            {
+   164	                "scenario_id": scenario_id,
+   165	                "prompt_name": prompt_name,
+   166	                "prompt_version": prompt_version,
+   167	                "metrics": metrics,
+   168	                "passed": passed,
+   169	                "details": details,
+   170	            }
+   171	        )
+   172	
+   173	    def summary(self) -> Dict[str, Any]:
+   174	        total = len(self.results)
+   175	        passed_count = sum(1 for r in self.results if r["passed"])
+   176	        failed_count = total - passed_count
+   177	        pass_rate = (passed_count / total * 100) if total > 0 else 0.0
+   178	        return {
+   179	            "total_scenarios": total,
+   180	            "passed": passed_count,
+   181	            "failed": failed_count,
+   182	            "pass_rate": pass_rate,
+   183	            "results": self.results,
+   184	        }
+   185	
+   186	
+   187	@pytest.fixture
+   188	def regression_metrics() -> RegressionMetricsCollector:
+   189	    """Per-test metrics collector for regression report generation."""
+   190	    return RegressionMetricsCollector()
+   191	
+   192	
+   193	# ── CARD-TEST-bark-autostub: Bark 外发自动打桩守卫 ──────────────────────
+   194	# 生产链 daily_review_run.main() → send_bark.send() → _urlopen(POST
+   195	# {server}/push) 会真推真机 (--now 10:00+08:00 恒在推送窗内); send 失败还会
+   196	# osascript 真弹 macOS 通知。此前全靠每条测试各自记得替换 send — 新增一条
+   197	# main() 测试忘替换 = 真推。本 fixture 把「忘了打桩」的默认后果从「真推」
+   198	# 翻转为「响亮失败」。
+   199	
+   200	#: 守卫布防面 = 精确枚举 (按模块名末段比对)。不用 endswith 启发: 它会误伤
+   201	#: foo_test_daily_review_run, 也漏防 test_daily_review_run_cli 这类未来
+   202	#: 拆分名 (Codex round-1 MEDIUM)。新推送测试文件要布防必须显式加进本元组 —
+   203	#: 「目录内新增文件默认不设防」是如实边界 (验收单裁决点 2), 不是疏漏。
+   204	_BARK_GUARDED_MODULES = ("test_daily_review_run", "bark_egress_probe")
+   205	
+   206	
+   207	@pytest.fixture(autouse=True)
+   208	def _bark_egress_guard(request):
+   209	    """daily_review_run 测试的三层外发防线 (function 级 autouse)。
+   210	
+   211	    ① send_bark.KEY_FILE → tmp 假 key (格式合法且真实存在): 让 load_key
+   212	       成功, 忘打桩的测试必然走到 ② 拒绝器 — 不存在的 key 会让 send 静默
+   213	       skip-nokey 返 0, 那恰是假绿通道 (Codex round-1 HIGH)。
+   214	       env BARK_KEY_FILE 同步重定向: reload(send_bark) 重跑模块顶层重新
+   215	       解析时仍落 tmp。
+   216	    ② send_bark._urlopen → 抛 AssertionError("Bark egress attempted in
+   217	       tests") 的拒绝器 — send_bark 的 except 只吞 HTTPError/URLError/
+   218	       TimeoutError/OSError (send_bark.py:138/:140), AssertionError 必然
+   219	       穿透 send 与 runner.main 炸红测试。
+   220	    ③ daily_review_run.osascript_fallback → 记录并返回 True (不弹真通知)。
+   221	
+   222	    独立 MonkeyPatch 实例 (round-1 HIGH): 测试自己的 monkeypatch.undo()
+   223	    只拆测试自己的桩, 波及不到本守卫。
+   224	    reload 双保险: importlib.reload 的属性式调用被拦, 对布防模块的 reload
+   225	    完成后自动重打三层; `from importlib import reload` 预绑定形态拦不住
+   226	    (如实边界 — reload 自毁属进程内故意对抗, 不在「忘打桩」威胁模型内)。
+   227	
+   228	    测试内显式 monkeypatch.setattr 可覆盖任意一层 (守卫 setup 在先, 测试
+   229	    的 patch 后设先生效) — _capture_bark_request 即覆盖 ①②。
+   230	    imports 在模块门之后惰性执行; scripts 目录只对布防模块进 sys.path。
+   231	    非布防模块: 本 fixture 只实例化 request, 不碰 fixture 图其余部分。
+   232	    """
+   233	    if request.module.__name__.rsplit(".", 1)[-1] not in _BARK_GUARDED_MODULES:
+   234	        yield None
+   235	        return
+   236	
+   237	    scripts_dir = _BACKEND_DIR.parent / "scripts"
+   238	    patcher = pytest.MonkeyPatch()
+   239	    tmp_dir = Path(tempfile.mkdtemp(prefix="bark-guard-"))
+   240	    osascript_calls: List[Dict[str, Any]] = []
+   241	    try:
+   242	        key_file = tmp_dir / "bark.key"
+   243	        key_file.write_text("bark-guard-fake-key-0001\n", encoding="utf-8")
+   244	        patcher.setenv("BARK_KEY_FILE", str(key_file))
+   245	        patcher.syspath_prepend(str(scripts_dir))
+   246	        import daily_review_run
+   247	        import send_bark
+   248	
+   249	        def _refuse_egress(*args, **kwargs):
+   250	            raise AssertionError("Bark egress attempted in tests")
+   251	
+   252	        def _stub_osascript(noti):
+   253	            osascript_calls.append(dict(noti))
+   254	            return True
+   255	
+   256	        def _reapply():
+   257	            patcher.setattr(send_bark, "KEY_FILE", key_file)
+   258	            patcher.setattr(send_bark, "_urlopen", _refuse_egress)
+   259	            patcher.setattr(daily_review_run, "osascript_fallback", _stub_osascript)
+   260	
+   261	        _real_reload = importlib.reload
+   262	
+   263	        #: reload 双保险盯的是「守卫打过桩的生产模块」— reload 它们会重跑
+   264	        #: 模块顶层把生产值写回 (KEY_FILE/_urlopen/osascript_fallback),
+   265	        #: 完成后重打; 不是盯测试模块名 (round-2 自测抓出: 拿
+   266	        #: _BARK_GUARDED_MODULES 判被 reload 的生产模块名, 条件恒假)。
+   267	        _PATCHED_MODULES = ("send_bark", "daily_review_run")
+   268	
+   269	        def _guarded_reload(module):
+   270	            result = _real_reload(module)
+   271	            if module.__name__ in _PATCHED_MODULES:
+   272	                _reapply()
+   273	            return result
+   274	
+   275	        patcher.setattr(importlib, "reload", _guarded_reload)
+   276	        _reapply()
+   277	        yield osascript_calls
+   278	    finally:
+   279	        patcher.undo()
+   280	        shutil.rmtree(tmp_dir, ignore_errors=True)
+     1	"""daily_review_run 当天重学卡刷新 (CARD-A3, BATCH-2026-08-24-复习闭环)。
+     2	
+     3	ensure_payload 缓存失效三场景锁定: 当天已生成后, 节点池比 payload 新
+     4	(quiz 写侧刚更新 fsrs_due / 新增节点) 必须重扫; 无变动仍复用; 重扫后
+     5	同日推送去重 (skip-done) 与 tie-break 语义 (board_last_recommended
+     6	每天只在第一个非空榜首落账一次, CARD-D2a) 不被破坏。
+     7	
+     8	只 assert dict / 状态 / runner 状态行, 不 assert 今日复习.md 渲染文本
+     9	(与 A2 渲染层解耦)。mtime 全部 os.utime 显式钉死, 不依赖墙钟顺序。
+    10	"""
+    11	
+    12	import hashlib
+    13	import json
+    14	import os
+    15	import plistlib
+    16	import re
+    17	import shutil
+    18	import sys
+    19	from datetime import datetime, time as dtime, timezone
+    20	from pathlib import Path
+    21	
+    22	WT = Path(__file__).resolve().parents[3]
+    23	sys.path.insert(0, str(WT / "scripts"))
+    24	
+    25	import daily_review_run as runner  # noqa: E402
+    26	
+    27	NOW = datetime(2026, 7, 30, 2, 0, tzinfo=timezone.utc)
+    28	TODAY = "2026-07-30"
+    29	BASE = 1_700_000_000  # 人工 mtime 基准: 只比大小, 绝对值无意义
+    30	
+    31	
+    32	def _node(board="普通板", extra=""):
+    33	    return f'---\ntype: concept\nsource_board: "[[原白板/{board}]]"\n{extra}---\n真实内容。\n'
+    34	
+    35	
+    36	def _vault(tmp_path, nodes: dict, name: str = "vault") -> Path:
+    37	    vault = tmp_path / name
+    38	    scripts = vault / ".claude" / "scripts"
+    39	    scripts.mkdir(parents=True)
+    40	    (vault / "节点").mkdir()
+    41	    shutil.copy(WT / "canvas-vault" / ".claude" / "scripts" / "decay_beta.py", scripts)
+    42	    for fname, content in nodes.items():
+    43	        (vault / "节点" / f"{fname}.md").write_text(content, encoding="utf-8")
+    44	    return vault
+    45	
+    46	
+    47	def _patch_runner(monkeypatch, vault, tmp_path):
+    48	    """CARD-C1a: STATE/LOG 常量已函数化为 BACKUPS 派生 (state_path/log_line),
+    49	    fixture 只注入 BACKUPS 一处 — 所有 state/log 写入随之进 tmp, 防写真实
+    50	    backups/。逐用例检查: 本文件所有落盘路径均经 VAULT (tmp) 或 BACKUPS (tmp)。"""
+    51	    monkeypatch.setattr(runner, "VAULT", vault)
+    52	    monkeypatch.setattr(runner, "BACKUPS", tmp_path / "backups")
+    53	
+    54	
+    55	def _set_mtime(path: Path, ts: float):
+    56	    os.utime(path, (ts, ts))
+    57	
+    58	
+    59	def _pin_pool_older_than_payload(vault: Path, payload_ts: float):
+    60	    """把 节点/ 目录与现有节点文件全部钉到 payload 之前 (无变动基线)。"""
+    61	    for p in (vault / "节点").glob("*.md"):
+    62	        _set_mtime(p, payload_ts - 100)
+    63	    _set_mtime(vault / "节点", payload_ts - 100)
+    64	    _set_mtime(vault / "outputs" / "今日复习.json", payload_ts)
+    65	
+    66	
+    67	# ── 场景 1: 节点变动 → 同日缓存失效, 重扫结果含该节点 ──
+    68	
+    69	
+    70	def test_node_change_invalidates_same_day_cache(tmp_path, monkeypatch):
+    71	    vault = _vault(tmp_path, {"甲": _node()})
+    72	    _patch_runner(monkeypatch, vault, tmp_path)
+    73	    st = runner.load_state()
+    74	    payload1, gen1 = runner.ensure_payload(st, NOW, TODAY)
+    75	    assert gen1 == "new"
+    76	    assert {d["node"] for d in payload1["due_nodes"]} == {"甲"}
+    77	
+    78	    # 写侧模拟: 当天考完甲后新增重学卡乙 (新卡无 fsrs_due = 即刻到期)
+    79	    (vault / "节点" / "乙.md").write_text(_node(), encoding="utf-8")
+    80	    _pin_pool_older_than_payload(vault, BASE)
+    81	    _set_mtime(vault / "节点" / "乙.md", BASE + 200)
+    82	    _set_mtime(vault / "节点", BASE + 200)
+    83	
+    84	    payload2, gen2 = runner.ensure_payload(st, NOW, TODAY)
+    85	    assert gen2 == "new", "节点池比 payload 新时必须重扫, 不得整日复用早晨快照"
+    86	    assert "乙" in {d["node"] for d in payload2["due_nodes"]}
+    87	    assert payload2["schema_version"] == 3  # 只消费 A2 的 v3, 不改 schema
+    88	
+    89	
+    90	# ── 场景 2: 无变动 → 仍走缓存 (每小时触发不得变成每小时全量重扫) ──
+    91	
+    92	
+    93	def test_unchanged_pool_still_cached(tmp_path, monkeypatch):
+    94	    vault = _vault(tmp_path, {"甲": _node()})
+    95	    _patch_runner(monkeypatch, vault, tmp_path)
+    96	    st = runner.load_state()
+    97	    payload1, gen1 = runner.ensure_payload(st, NOW, TODAY)
+    98	    assert gen1 == "new"
+    99	
+   100	    _pin_pool_older_than_payload(vault, BASE)
+   101	
+   102	    payload2, gen2 = runner.ensure_payload(st, NOW, TODAY)
+   103	    assert gen2 == "cached"
+   104	    assert payload2 == payload1  # 复用的是同一份落盘 payload
+   105	
+   106	
+   107	# ── 场景 3: 重扫后同日推送仍 skip-done (Bark 同 id 去重门不被重扫击穿) ──
+   108	
+   109	
+   110	def test_rescan_keeps_same_day_push_skip_done(tmp_path, monkeypatch, capsys):
+   111	    vault = _vault(tmp_path, {"甲": _node()})
+   112	    _patch_runner(monkeypatch, vault, tmp_path)
+   113	    now_arg = "2026-07-30T10:00:00+08:00"
+   114	    # today 按 runner 同一变换推导 (机器时区无关): skip-done 门在窗口门之前
+   115	    today = datetime.fromisoformat(now_arg).astimezone().date().isoformat()
+   116	
+   117	    st = runner.load_state()
+   118	    _, gen1 = runner.ensure_payload(st, datetime.fromisoformat(now_arg), today)
+   119	    assert gen1 == "new"
+   120	    st["last_push_accepted_date"] = today  # 早晨那次推送已被服务端接受
+   121	    runner.save_state(st)
+   122	
+   123	    (vault / "节点" / "乙.md").write_text(_node(), encoding="utf-8")
+   124	    _pin_pool_older_than_payload(vault, BASE)
+   125	    _set_mtime(vault / "节点" / "乙.md", BASE + 200)
+   126	    _set_mtime(vault / "节点", BASE + 200)
+   127	
+   128	    # 哨兵而非 mock: 该路径下 send 被调用即测试失败 (同日去重门失守)
+   129	    def _sentinel(noti):
+   130	        raise AssertionError("同日已推送后, 重扫不得再次触发 Bark 发送")
+   131	
+   132	    monkeypatch.setattr(runner.send_bark, "send", _sentinel)
+   133	    monkeypatch.setattr(
+   134	        sys,
+   135	        "argv",
+   136	        ["daily_review_run.py", "--now", now_arg, "--vault", str(vault)],
+   137	    )
+   138	    assert runner.main() == 0
+   139	    out = capsys.readouterr().out
+   140	    assert "generate:new" in out, "重扫必须真的发生 (否则本场景空转)"
+   141	    assert "push:skip-done" in out
+   142	
+   143	    st2 = runner.load_state()
+   144	    assert st2["last_push_accepted_date"] == today
+   145	    assert st2["last_generate_date"] == today
+   146	
+   147	
+   148	# ── 内审 HIGH (mutation 缺口): 两条 mtime 失效通道各自单独锁定 ──
+   149	# 场景 1/3 同时钉文件+目录 mtime, 任一通道被删测试仍绿; 以下两测各锁一半。
+   150	
+   151	
+   152	def test_infile_update_alone_triggers_rescan(tmp_path, monkeypatch):
+   153	    """只有文件 mtime 变、目录 mtime 钉旧 (APFS 原地更新 fsrs_due 的
+   154	    真实形态 — quiz 写侧头号生产场景) 也必须失效缓存。"""
+   155	    vault = _vault(tmp_path, {"甲": _node()})
+   156	    _patch_runner(monkeypatch, vault, tmp_path)
+   157	    st = runner.load_state()
+   158	    _, gen1 = runner.ensure_payload(st, NOW, TODAY)
+   159	    assert gen1 == "new"
+   160	
+   161	    _pin_pool_older_than_payload(vault, BASE)
+   162	    _set_mtime(vault / "节点" / "甲.md", BASE + 200)  # 只 bump 文件, 目录不动
+   163	
+   164	    _, gen2 = runner.ensure_payload(st, NOW, TODAY)
+   165	    assert gen2 == "new", "原地更新节点内容 (目录 mtime 不变) 必须触发重扫"
+   166	
+   167	
+   168	def test_deletion_via_dir_mtime_triggers_rescan(tmp_path, monkeypatch):
+   169	    """删除节点不留文件 mtime、只改目录 mtime, 也必须失效缓存,
+   170	    且被删节点从投影消失 (否则被删节点整天霸占推荐)。"""
+   171	    vault = _vault(tmp_path, {"甲": _node(), "乙": _node()})
+   172	    _patch_runner(monkeypatch, vault, tmp_path)
+   173	    st = runner.load_state()
+   174	    payload1, gen1 = runner.ensure_payload(st, NOW, TODAY)
+   175	    assert gen1 == "new"
+   176	    assert {d["node"] for d in payload1["due_nodes"]} == {"甲", "乙"}
+   177	
+   178	    (vault / "节点" / "乙.md").unlink()
+   179	    _pin_pool_older_than_payload(vault, BASE)
+   180	    _set_mtime(vault / "节点", BASE + 200)  # 只 bump 目录 (删除的真实形态)
+   181	
+   182	    payload2, gen2 = runner.ensure_payload(st, NOW, TODAY)
+   183	    assert gen2 == "new"
+   184	    assert {d["node"] for d in payload2["due_nodes"]} == {"甲"}
+   185	
+   186	
+   187	# ── 内审 MEDIUM (实测复现): 扫描-落盘窗口内的写侧更新不得整天丢失 ──
+   188	
+   189	
+   190	def test_write_during_scan_window_not_lost(tmp_path, monkeypatch):
+   191	    """写侧恰在扫描完成后、payload 落盘前落地一张重学卡: 该卡 mtime 早于
+   192	    payload 落盘时刻, 若以落盘时刻为基准则整天 cached 丢卡。基准必须是
+   193	    扫描起点。真实 build_payload 照常执行, 仅在其返回后注入竞态写入。"""
+   194	    vault = _vault(tmp_path, {"甲": _node()})
+   195	    _patch_runner(monkeypatch, vault, tmp_path)
+   196	    st = runner.load_state()
+   197	
+   198	    import daily_review_pick as picker
+   199	
+   200	    real_build = picker.build_payload
+   201	    fired = []
+   202	
+   203	    def _race_build(*args, **kwargs):
+   204	        result = real_build(*args, **kwargs)
+   205	        if not fired:  # 只在首轮注入一次
+   206	            fired.append(1)
+   207	            (vault / "节点" / "竞态.md").write_text(_node(), encoding="utf-8")
+   208	        return result
+   209	
+   210	    monkeypatch.setattr(picker, "build_payload", _race_build)
+   211	    payload1, gen1 = runner.ensure_payload(st, NOW, TODAY)
+   212	    assert gen1 == "new"
+   213	    assert "竞态" not in {d["node"] for d in payload1["due_nodes"]}  # 首轮扫描没看到它
+   214	
+   215	    payload2, gen2 = runner.ensure_payload(st, NOW, TODAY)
+   216	    assert gen2 == "new", "竞态窗口内落地的节点必须在下一轮触发重扫, 不得整天 cached"
+   217	    assert "竞态" in {d["node"] for d in payload2["due_nodes"]}
+   218	
+   219	
+   220	# ── Codex BLOCKER: 时间推进跨过未来 fsrs_due 也必须失效缓存 ──
+   221	# 复现链: 09:59 写侧落 fsrs_due=10:09 → 10:05 mtime 重扫 (未到期, 空清单)
+   222	# → 11:05 已到期但节点池没再变 → 若只看 mtime 则整天 cached, 当天到期卡
+   223	# 丢失 — 恰是卡片档案 :89 警告的「缺陷位移」。
+   224	
+   225	
+   226	def test_time_crossing_future_due_invalidates_cache(tmp_path, monkeypatch):
+   227	    vault = _vault(
+   228	        tmp_path,
+   229	        {"重学卡": _node(extra="fsrs_due: 2026-07-30T02:30:00Z\n")},
+   230	    )
+   231	    _patch_runner(monkeypatch, vault, tmp_path)
+   232	    st = runner.load_state()
+   233	
+   234	    # 02:00 生成: 卡 02:30 才到期, 清单为空 (upcoming 记录了未来到期)
+   235	    payload1, gen1 = runner.ensure_payload(st, NOW, TODAY)
+   236	    assert gen1 == "new" and payload1["due_nodes"] == []
+   237	
+   238	    _pin_pool_older_than_payload(vault, BASE)
+   239	
+   240	    # 03:05 (跨过 02:30, 节点池零变动): 必须重扫, 到期卡进清单
+   241	    later = datetime(2026, 7, 30, 3, 5, tzinfo=timezone.utc)
+   242	    payload2, gen2 = runner.ensure_payload(st, later, TODAY)
+   243	    assert gen2 == "new", "时间越过未来到期点必须失效缓存, 不得因节点未变而整天 cached"
+   244	    assert {d["node"] for d in payload2["due_nodes"]} == {"重学卡"}
+   245	
+   246	    # 03:06 再跑: 已无未来到期点、池未变 → 回到正常缓存 (不得退化成每轮全扫)
+   247	    _pin_pool_older_than_payload(vault, BASE)
+   248	    _, gen3 = runner.ensure_payload(st, datetime(2026, 7, 30, 3, 6, tzinfo=timezone.utc), TODAY)
+   249	    assert gen3 == "cached"
+   250	
+   251	
+   252	# ── Codex MEDIUM: plist 12 档 (Hour,Minute) 契约整体锁定 (Hour 计数太弱) ──
+   253	
+   254	
+   255	def test_plist_hourly_slots_inside_push_window():
+   256	    with open(WT / "scripts" / "launchd" / "com.canvas.daily-review.plist", "rb") as f:
+   257	        plist = plistlib.load(f)
+   258	    slots = plist["StartCalendarInterval"]
+   259	    assert slots == [{"Hour": h, "Minute": 5} for h in range(9, 21)]  # 9:05–20:05 共 12 档
+   260	    lo, hi = runner.PUSH_WINDOW
+   261	    for s in slots:
+   262	        assert lo <= dtime(s["Hour"], s["Minute"]) < hi  # 全部落在推送窗内
+   263	
+   264	
+   265	# ── tie-break 守卫: 当天已落账后, 重扫不补写 board_last_recommended ──
+   266	
+   267	
+   268	def test_rescan_does_not_touch_board_last_recommended(tmp_path, monkeypatch):
+   269	    vault = _vault(tmp_path, {"a甲": _node(board="A板")})
+   270	    _patch_runner(monkeypatch, vault, tmp_path)
+   271	    st = runner.load_state()
+   272	    _, gen1 = runner.ensure_payload(st, NOW, TODAY)
+   273	    assert gen1 == "new"
+   274	    assert st["board_last_recommended"] == {"A板": TODAY}
+   275	
+   276	    # 新增 B 板节点后重扫: 同分 tie-break 下 B 板 (从未被推荐) 会登顶
+   277	    (vault / "节点" / "b乙.md").write_text(_node(board="B板"), encoding="utf-8")
+   278	    _pin_pool_older_than_payload(vault, BASE)
+   279	    _set_mtime(vault / "节点" / "b乙.md", BASE + 200)
+   280	    _set_mtime(vault / "节点", BASE + 200)
+   281	
+   282	    payload2, gen2 = runner.ensure_payload(st, NOW, TODAY)
+   283	    assert gen2 == "new"
+   284	    assert payload2["top_boards"][0]["board"] == "B板"
+   285	    # 核心: 重扫换榜也不得把 B板 标成「今天推荐过」— 当天的账已记在 A板
+   286	    assert st["board_last_recommended"] == {"A板": TODAY}
+   287	
+   288	
+   289	# ── CARD-D2a (BATCH-2026-08-27-Anki化与诚实收尾): 空首扫日轮转账修复 ──
+   290	# 实测缺陷链: 首扫为空 (休息日/纯空 vault) 时 first_gen_today 已被消耗,
+   291	# 同日重扫出的第一个非空榜首永远不落账 → board_last_recommended 全程 {},
+   292	# tie-break 第 2 键把空串当「从未推荐」排最前 → 启动期并列时同板霸榜。
+   293	
+   294	
+   295	def test_rest_day_first_nonempty_top_gets_credit(tmp_path, monkeypatch):
+   296	    """休息日形态: 首扫全员未来到期 (榜空) 不落账; 时间跨过到期点后重扫出的
+   297	    当天第一个非空榜首必须落账; 同日再重扫换榜不得二次落账 (每天只一次)。"""
+   298	    due_extra = "fsrs_due: 2026-07-30T02:30:00Z\n"
+   299	    vault = _vault(tmp_path, {"重学卡": _node(board="A板", extra=due_extra)})
+   300	    _patch_runner(monkeypatch, vault, tmp_path)
+   301	    st = runner.load_state()
+   302	
+   303	    # 02:00 首扫: 卡 02:30 才到期 → 榜空 (休息日形态), 不落账
+   304	    payload1, gen1 = runner.ensure_payload(st, NOW, TODAY)
+   305	    assert gen1 == "new" and payload1["top_boards"] == []
+   306	    assert st["board_last_recommended"] == {}
+   307	
+   308	    # 03:05 跨过到期点重扫: 当天第一个非空榜首 → 必须落账
+   309	    _pin_pool_older_than_payload(vault, BASE)
+   310	    later = datetime(2026, 7, 30, 3, 5, tzinfo=timezone.utc)
+   311	    payload2, gen2 = runner.ensure_payload(st, later, TODAY)
+   312	    assert gen2 == "new"
+   313	    assert payload2["top_boards"][0]["board"] == "A板"
+   314	    assert st["board_last_recommended"] == {"A板": TODAY}, (
+   315	        "空首扫日的第一个非空榜首必须获得轮转账, 否则 tie-break 永远视其从未推荐"
+   316	    )
+   317	    # Codex-D2a L1: 落账必须已随 save_state 落盘 (跨进程持久化), 第三段
+   318	    # 从磁盘重载 state 继续 — 「赋值挪到 save 之后」类回归在此现形
+   319	    on_disk = json.loads(runner.state_path().read_text(encoding="utf-8"))
+   320	    assert on_disk["board_last_recommended"] == {"A板": TODAY}
+   321	    assert on_disk["last_recommend_credit_date"] == TODAY
+   322	    st = runner.load_state()
+   323	
+   324	    # 同日再重扫: 同形 B板 节点 (pick 相同) 靠 tie-break 登顶, 也不得补账
+   325	    (vault / "节点" / "b乙.md").write_text(_node(board="B板", extra=due_extra), encoding="utf-8")
+   326	    _pin_pool_older_than_payload(vault, BASE)
+   327	    _set_mtime(vault / "节点" / "b乙.md", BASE + 200)
+   328	    _set_mtime(vault / "节点", BASE + 200)
+   329	    payload3, gen3 = runner.ensure_payload(st, later, TODAY)
+   330	    assert gen3 == "new"
+   331	    assert payload3["top_boards"][0]["board"] == "B板"
+   332	    assert st["board_last_recommended"] == {"A板": TODAY}, "当日已落账后, 重扫换榜不得把第二个板标成「今天推荐过」"
+   333	
+   334	
+   335	def test_legacy_state_credited_today_without_marker_not_double_credited(tmp_path, monkeypatch):
+   336	    """升级当天兼容 (Codex-D2a H1): 旧版 runner 已在今天落账 (值=today) 但
+   337	    state 自然缺 last_recommend_credit_date — 同日换榜重扫不得再次落账,
+   338	    否则 A、B 同日均标 today, 突破每日一次上界并污染 tie-break。"""
+   339	    vault = _vault(tmp_path, {"a甲": _node(board="A板")})
+   340	    _patch_runner(monkeypatch, vault, tmp_path)
+   341	    st = runner.load_state()
+   342	    _, gen1 = runner.ensure_payload(st, NOW, TODAY)
+   343	    assert gen1 == "new"
+   344	    assert st["board_last_recommended"] == {"A板": TODAY}
+   345	    # 模拟旧版 runner 留下的 state: 当日已落账、自然缺新 marker
+   346	    del st["last_recommend_credit_date"]
+   347	    runner.save_state(st)
+   348	    st = runner.load_state()
+   349	
+   350	    (vault / "节点" / "b乙.md").write_text(_node(board="B板"), encoding="utf-8")
+   351	    _pin_pool_older_than_payload(vault, BASE)
+   352	    _set_mtime(vault / "节点" / "b乙.md", BASE + 200)
+   353	    _set_mtime(vault / "节点", BASE + 200)
+   354	    payload2, gen2 = runner.ensure_payload(st, NOW, TODAY)
+   355	    assert gen2 == "new"
+   356	    assert payload2["top_boards"][0]["board"] == "B板"
+   357	    assert st["board_last_recommended"] == {"A板": TODAY}, (
+   358	        "旧 state 无 marker 但值已含 today — 视为当日已落账, 不得给 B 补账"
+   359	    )
+   360	
+   361	
+   362	def test_empty_vault_first_scan_then_new_node_gets_credit(tmp_path, monkeypatch):
+   363	    """纯空形态: 空 vault 首扫 (无通知) 不落账; 同日新增真板节点后重扫,
+   364	    该榜首必须落账 — 不得因「今天已首扫过」而整天欠账。"""
+   365	    vault = _vault(tmp_path, {})
+   366	    _patch_runner(monkeypatch, vault, tmp_path)
+   367	    st = runner.load_state()
+   368	
+   369	    payload1, gen1 = runner.ensure_payload(st, NOW, TODAY)
+   370	    assert gen1 == "new" and payload1["notification"] is None
+   371	    assert st["board_last_recommended"] == {}
+   372	
+   373	    (vault / "节点" / "甲.md").write_text(_node(board="真板"), encoding="utf-8")
+   374	    _pin_pool_older_than_payload(vault, BASE)
+   375	    _set_mtime(vault / "节点" / "甲.md", BASE + 200)
+   376	    _set_mtime(vault / "节点", BASE + 200)
+   377	    payload2, gen2 = runner.ensure_payload(st, NOW, TODAY)
+   378	    assert gen2 == "new"
+   379	    assert payload2["top_boards"][0]["board"] == "真板"
+   380	    assert st["board_last_recommended"] == {"真板": TODAY}
+   381	
+   382	
+   383	# ── CARD-C1a (BATCH-2026-08-25-跨vault与收束): 多 vault 命名空间隔离 ──
+   384	
+   385	
+   386	def test_two_vaults_same_day_push_and_state_isolated(tmp_path, monkeypatch, capsys):
+   387	    """全局单例根缺陷的修复锁定: vault A 当日推送后, vault B 同日必须仍能
+   388	    推送 (旧 last_push_accepted_date 全局 → B 永远 skip-done); 两个 state
+   389	    文件独立; 互跑后各自缓存门仍 cached (旧 payload_sha256 单值 → 乒乓失效)。
+   390	
+   391	    已知局限: 本测两库跑在同一 Python 进程, 证明的是 state 隔离, 不证明
+   392	    生产「一库一进程」契约 — 后者由 wrapper shell 层循环保证 (进程内复用
+   393	    会踩 pick.load_decay 的 decay_beta import 缓存, 见 wrapper 注释)。"""
+   394	    vault_a = _vault(tmp_path, {"甲": _node()}, name="vaultA")
+   395	    vault_b = _vault(tmp_path, {"乙": _node()}, name="vaultB")
+   396	    monkeypatch.setattr(runner, "BACKUPS", tmp_path / "backups")
+   397	    # runner.main 会改写模块全局 VAULT — 先经 monkeypatch 登记原值,
+   398	    # teardown 恢复, 防测试顺序依赖 (Codex-C1a M1)
+   399	    monkeypatch.setattr(runner, "VAULT", runner.VAULT)
+   400	    # 窗口门放行 (机器时区无关): 本测锁 state 隔离, 不锁窗口语义
+   401	    monkeypatch.setattr(runner, "PUSH_WINDOW", (dtime(0, 0), dtime(23, 59, 59)))
+   402	    sent = []
+   403	    monkeypatch.setattr(
+   404	        runner.send_bark,
+   405	        "send",
+   406	        lambda noti, vault_id=None: sent.append((noti["id"], vault_id)) or 0,
+   407	    )
+   408	    now_arg = "2026-07-30T10:00:00+08:00"
+   409	
+   410	    def _run(vault) -> str:
+   411	        monkeypatch.setattr(
+   412	            sys,
+   413	            "argv",
+   414	            ["daily_review_run.py", "--now", now_arg, "--vault", str(vault)],
+   415	        )
+   416	        assert runner.main() == 0
+   417	        return capsys.readouterr().out
+   418	
+   419	    out_a = _run(vault_a)
+   420	    assert "generate:new" in out_a and "push:accepted" in out_a
+   421	    out_b = _run(vault_b)
+   422	    assert "generate:new" in out_b and "push:accepted" in out_b, (
+   423	        "vault A 推过后 vault B 同日必须仍可推送 (state 全局单例会误判 skip-done)"
+   424	    )
+   425	    # send 侧拿到的是各自 payload 的顶层 vault_id (通知 id 值本身不含 vault)
+   426	    assert [v for _, v in sent] == ["vaultA", "vaultB"]
+   427	    assert all(nid == "canvas-review-2026-07-30" for nid, _ in sent)
+   428	
+   429	    state_a = tmp_path / "backups" / "daily-review.vaultA.state.json"
+   430	    state_b = tmp_path / "backups" / "daily-review.vaultB.state.json"
+   431	    assert state_a.exists() and state_b.exists(), "两个 vault 必须各有独立 state 文件"
+   432	    assert (
+   433	        json.loads(state_a.read_text(encoding="utf-8"))["last_push_accepted_date"]
+   434	        == json.loads(state_b.read_text(encoding="utf-8"))["last_push_accepted_date"]
+   435	    )
+   436	
+   437	    # 互跑第二轮: 各自缓存门仍 cached + 同日去重 skip-done (乒乓失效修复)
+   438	    _pin_pool_older_than_payload(vault_a, BASE)
+   439	    _pin_pool_older_than_payload(vault_b, BASE)
+   440	    out_a2 = _run(vault_a)
+   441	    assert "generate:cached" in out_a2 and "push:skip-done" in out_a2
+   442	    out_b2 = _run(vault_b)
+   443	    assert "generate:cached" in out_b2 and "push:skip-done" in out_b2
+   444	    assert len(sent) == 2, "第二轮不得再发推送"
+   445	
+   446	    log_text = (tmp_path / "backups" / "daily-review.log").read_text(encoding="utf-8")
+   447	    assert "vault=vaultA" in log_text and "vault=vaultB" in log_text
+   448	
+   449	
+   450	def test_payload_carries_top_level_vault_id(tmp_path, monkeypatch):
+   451	    """C1a 加性契约: payload 顶层新增 vault_id, schema_version 仍 3,
+   452	    notification.id 值不动 (A2 冻结 — send 侧才组合 vault 维度)。"""
+   453	    vault = _vault(tmp_path, {"甲": _node()}, name="vaultA")
+   454	    _patch_runner(monkeypatch, vault, tmp_path)
+   455	    st = runner.load_state()
+   456	    payload, gen = runner.ensure_payload(st, NOW, TODAY)
+   457	    assert gen == "new"
+   458	    assert payload["vault_id"] == "vaultA"
+   459	    assert payload["schema_version"] == 3
+   460	    assert payload["notification"]["id"] == f"canvas-review-{payload['date']}"
+   461	    on_disk = json.loads((vault / "outputs" / "今日复习.json").read_text(encoding="utf-8"))
+   462	    assert on_disk["vault_id"] == "vaultA"
+   463	
+   464	
+   465	# ── CARD-C1a: send 侧组合有效通知 id (payload.notification.id 值冻结不动) ──
+   466	
+   467	
+   468	def _capture_bark_request(monkeypatch, tmp_path) -> dict:
+   469	    """网络出口打桩 (仅测试进程内): 截获 send_bark 实际提交给 Bark API 的
+   470	    请求体做断言。真发 = 每次跑测试都向真机推真通知, 才是纪律违规;
+   471	    仓库既有惯例同源 (本文件场景 3 的 send 哨兵)。"""
+   472	    key_file = tmp_path / "bark.key"
+   473	    key_file.write_text("testkey-12345678\n", encoding="utf-8")
+   474	    monkeypatch.setattr(runner.send_bark, "KEY_FILE", key_file)
+   475	    captured = {}
+   476	
+   477	    class _AcceptedResp:
+   478	        status = 200
+   479	
+   480	        def read(self):
+   481	            return b'{"code":200}'
+   482	
+   483	        def __enter__(self):
+   484	            return self
+   485	
+   486	        def __exit__(self, *args):
+   487	            return False
+   488	
+   489	    def _capture_urlopen(req, timeout=None):
+   490	        captured["body"] = json.loads(req.data.decode("utf-8"))
+   491	        return _AcceptedResp()
+   492	
+   493	    # CARD-TEST-bark-autostub: patch 模块内唯一出口缝, 不再改全局
+   494	    # urllib.request.urlopen (旧写法会波及同进程内一切 urllib 用户)
+   495	    monkeypatch.setattr(runner.send_bark, "_urlopen", _capture_urlopen)
+   496	    return captured
+   497	
+   498	
+   499	def test_send_bark_composes_vault_scoped_id_and_group(tmp_path, monkeypatch):
+   500	    captured = _capture_bark_request(monkeypatch, tmp_path)
+   501	    noti = {"title": "t", "body": "b", "group": "canvas复习", "id": "canvas-review-2026-07-30"}
+   502	    assert runner.send_bark.send(noti, "vaultA") == 0
+   503	    assert captured["body"]["id"] == "canvas-review-2026-07-30-vaultA"
+   504	    assert "vaultA" in captured["body"]["group"]
+   505	    # 传入 dict 不被就地改写 (payload 落盘值 = A2 冻结契约)
+   506	    assert noti["id"] == "canvas-review-2026-07-30"
+   507	    assert noti["group"] == "canvas复习"
+   508	
+   509	
+   510	def test_send_bark_without_vault_id_keeps_legacy_shape(tmp_path, monkeypatch):
+   511	    """迁移前旧 payload (无顶层 vault_id) 走原样 id/group — 加性兼容下界。"""
+   512	    captured = _capture_bark_request(monkeypatch, tmp_path)
+   513	    noti = {"title": "t", "body": "b", "group": "canvas复习", "id": "canvas-review-2026-07-30"}
+   514	    assert runner.send_bark.send(noti) == 0
+   515	    assert captured["body"]["id"] == "canvas-review-2026-07-30"
+   516	    assert captured["body"]["group"] == "canvas复习"
+   517	
+   518	
+   519	def test_vault_key_slug_rules():
+   520	    """两域设计 (Codex-C1a B2/H1): ASCII 短名原样; 非 ASCII slug+hash16;
+   521	    hash 域后缀形态的 ASCII 名强制改道 hash 域 (两域不重叠 → 「数学 的 key
+   522	    恰好被某 ASCII 目录名占用」这类直白碰撞不可构造); 超长名截断+hash,
+   523	    state 文件名恒在 NAME_MAX 内; 输出恒为文件名/通知 id 安全字符集。"""
+   524	    vault_key = runner.send_bark.vault_key
+   525	    assert vault_key("canvas-vault") == "canvas-vault"
+   526	    k1, k2 = vault_key("数学"), vault_key("物理")
+   527	    assert k1 != k2
+   528	    for k in (k1, k2):
+   529	        assert re.fullmatch(r"[0-9A-Za-z._-]+-[0-9a-f]{16}", k)
+   530	    # 域分离: 中文库的 key 本身作为目录名再进来, 必须映射到不同 key
+   531	    assert vault_key(k1) != k1
+   532	    # 超长合法目录名不得让 daily-review.<key>.state.json 超 NAME_MAX=255
+   533	    long_key = vault_key("a" * 232)
+   534	    assert len(f"daily-review.{long_key}.state.json".encode("utf-8")) <= 255
+   535	    assert long_key != vault_key("a" * 233)
+   536	    # 目录名字面精确: Unicode 空白尾巴是另一个库, 不得与裸名撞 key
+   537	    assert vault_key("foo ") != vault_key("foo")
+   538	    # 路径传入也归约到目录名 (调用方兜底)
+   539	    assert vault_key("/tmp/x/canvas-vault/") == "canvas-vault"
+   540	
+   541	
+   542	# ── CARD-C1a: 旧全局 state 迁移 (dry-run 零写入 / 实迁保留 .bak) ──
+   543	
+   544	
+   545	def _old_state_fixture(tmp_path) -> Path:
+   546	    backups = tmp_path / "backups"
+   547	    backups.mkdir()
+   548	    old = backups / "daily-review.state.json"
+   549	    old.write_text(
+   550	        json.dumps({"schema_version": 1, "last_generate_date": "2026-07-29"}, ensure_ascii=False), encoding="utf-8"
+   551	    )
+   552	    return backups
+   553	
+   554	
+   555	def _run_migrate(monkeypatch, argv: list[str]) -> int:
+   556	    import migrate_daily_review_state as migrate
+   557	
+   558	    monkeypatch.setattr(sys, "argv", ["migrate_daily_review_state.py", *argv])
+   559	    return migrate.main()
+   560	
+   561	
+   562	def test_migrate_dry_run_writes_nothing(tmp_path, monkeypatch, capsys):
+   563	    backups = _old_state_fixture(tmp_path)
+   564	    before = sorted(p.name for p in backups.iterdir())
+   565	    rc = _run_migrate(monkeypatch, ["--vault", "canvas-vault", "--backups", str(backups), "--dry-run"])
+   566	    assert rc == 0
+   567	    out = capsys.readouterr().out
+   568	    assert "daily-review.state.json" in out and "daily-review.canvas-vault.state.json" in out
+   569	    assert sorted(p.name for p in backups.iterdir()) == before, "dry-run 必须零写入"
+   570	    # Codex-C1a B3: 字面零写含 __pycache__ — 模块必须已挂 bytecode 禁写防线
+   571	    assert sys.dont_write_bytecode, "migrate 模块应设 sys.dont_write_bytecode"
+   572	
+   573	
+   574	def test_migrate_apply_keeps_bak_and_refuses_overwrite(tmp_path, monkeypatch, capsys):
+   575	    backups = _old_state_fixture(tmp_path)
+   576	    original = (backups / "daily-review.state.json").read_text(encoding="utf-8")
+   577	    rc = _run_migrate(monkeypatch, ["--vault", "canvas-vault", "--backups", str(backups)])
+   578	    assert rc == 0
+   579	    new = backups / "daily-review.canvas-vault.state.json"
+   580	    bak = backups / "daily-review.state.json.bak"
+   581	    assert new.read_text(encoding="utf-8") == original
+   582	    assert bak.read_text(encoding="utf-8") == original, "实迁必须保留 .bak 供回滚"
+   583	    assert not (backups / "daily-review.state.json").exists()
+   584	
+   585	    # 二次实迁 (旧文件重新出现) 不得覆盖已存在的新文件
+   586	    (backups / "daily-review.state.json").write_text("{}", encoding="utf-8")
+   587	    rc2 = _run_migrate(monkeypatch, ["--vault", "canvas-vault", "--backups", str(backups)])
+   588	    assert rc2 == 1
+   589	    assert new.read_text(encoding="utf-8") == original
+   590	
+   591	
+   592	def test_migrate_symlink_vault_arg_matches_runner_key(tmp_path, monkeypatch):
+   593	    """经 symlink 传 --vault 时, 迁移目标文件名必须与 runner state_path 恒等
+   594	    — migrate 取字面名而 runner resolve 的话, 迁移会落到永远不被读的文件。"""
+   595	    backups = _old_state_fixture(tmp_path)
+   596	    real = _vault(tmp_path, {"甲": _node()}, name="真库")
+   597	    link = tmp_path / "alias"
+   598	    link.symlink_to(real)
+   599	
+   600	    rc = _run_migrate(monkeypatch, ["--vault", str(link), "--backups", str(backups)])
+   601	    assert rc == 0
+   602	    monkeypatch.setattr(runner, "VAULT", link)
+   603	    monkeypatch.setattr(runner, "BACKUPS", backups)
+   604	    assert runner.state_path().exists(), "迁移产出的文件名必须能被 runner 读到"
+   605	
+   606	
+   607	def test_migrate_crlf_state_byte_identical_and_idempotent(tmp_path, monkeypatch, capsys):
+   608	    """Codex-C1a round4: CRLF 换行的合法 state 必须按字节原样迁移 (文本模式
+   609	    read_text 会洗成 LF, 令 new≠bak 击穿完成态判据), 且重跑判 '已完成'。"""
+   610	    backups = tmp_path / "backups"
+   611	    backups.mkdir()
+   612	    crlf = b'{\r\n  "schema_version": 1,\r\n  "last_generate_date": "2026-07-29"\r\n}\r\n'
+   613	    (backups / "daily-review.state.json").write_bytes(crlf)
+   614	    rc = _run_migrate(monkeypatch, ["--vault", "canvas-vault", "--backups", str(backups)])
+   615	    assert rc == 0
+   616	    new = backups / "daily-review.canvas-vault.state.json"
+   617	    assert new.read_bytes() == crlf, "迁移必须逐字节保真 (含 CRLF)"
+   618	    rc2 = _run_migrate(monkeypatch, ["--vault", "canvas-vault", "--backups", str(backups)])
+   619	    assert rc2 == 0
+   620	    assert "已完成" in capsys.readouterr().out
+   621	
+   622	
+   623	def test_migrate_refuses_non_dict_state(tmp_path, monkeypatch, capsys):
+   624	    """Codex-C1a B3: '[]' 是合法 JSON — migrate 结构必须校验到 dict 级,
+   625	    拒迁且零写入保数据 (runner load_state 自 D2b-M1 起对错型隔离重建
+   626	    不再当场炸, 但重建即丢账 — 迁移侧拒迁仍是第一道防线)。"""
+   627	    backups = tmp_path / "backups"
+   628	    backups.mkdir()
+   629	    (backups / "daily-review.state.json").write_text("[]", encoding="utf-8")
+   630	    rc = _run_migrate(monkeypatch, ["--vault", "canvas-vault", "--backups", str(backups)])
+   631	    assert rc == 1
+   632	    assert not (backups / "daily-review.canvas-vault.state.json").exists()
+   633	    assert not (backups / "daily-review.state.json.bak").exists()
+   634	    assert (backups / "daily-review.state.json").read_text(encoding="utf-8") == "[]"
+   635	
+   636	
+   637	def test_migrate_refuses_overwriting_existing_bak(tmp_path, monkeypatch):
+   638	    """Codex-C1a B3: 预置 .bak (上次回滚副本/手工备份) 不许被静默覆盖;
+   639	    拒迁后原文件与 .bak 双双原样。"""
+   640	    backups = _old_state_fixture(tmp_path)
+   641	    (backups / "daily-review.state.json.bak").write_text("旧备份", encoding="utf-8")
+   642	    rc = _run_migrate(monkeypatch, ["--vault", "canvas-vault", "--backups", str(backups)])
+   643	    assert rc == 1
+   644	    assert not (backups / "daily-review.canvas-vault.state.json").exists()
+   645	    assert (backups / "daily-review.state.json.bak").read_text(encoding="utf-8") == "旧备份"
+   646	    assert (backups / "daily-review.state.json").exists()
+   647	
+   648	
+   649	def test_migrate_interrupted_states_have_explicit_exits(tmp_path, monkeypatch, capsys):
+   650	    """Codex-C1a F3 状态机锁定: 仅剩 .bak (写 new 前中止) → rc1 且给出恢复
+   651	    指引, 不得谎报 '无需迁移'; new+.bak 双在 (已完成) → rc0 幂等;
+   652	    new 损坏 + .bak 在 (写入途中中止) → rc1 指引重迁。"""
+   653	    backups = tmp_path / "backups"
+   654	    backups.mkdir()
+   655	    bak = backups / "daily-review.state.json.bak"
+   656	    new = backups / "daily-review.canvas-vault.state.json"
+   657	
+   658	    bak.write_text('{"schema_version": 1}', encoding="utf-8")
+   659	    rc = _run_migrate(monkeypatch, ["--vault", "canvas-vault", "--backups", str(backups)])
+   660	    assert rc == 1
+   661	    assert "恢复" in capsys.readouterr().err
+   662	
+   663	    new.write_text('{"schema_version": 1}', encoding="utf-8")
+   664	    rc2 = _run_migrate(monkeypatch, ["--vault", "canvas-vault", "--backups", str(backups)])
+   665	    assert rc2 == 0
+   666	    assert "已完成" in capsys.readouterr().out
+   667	
+   668	    new.write_text('{"半截', encoding="utf-8")
+   669	    rc3 = _run_migrate(monkeypatch, ["--vault", "canvas-vault", "--backups", str(backups)])
+   670	    assert rc3 == 1
+   671	    assert "重迁" in capsys.readouterr().err
+   672	
+   673	
+   674	def test_migrate_preplanted_symlink_target_not_overwritten(tmp_path, monkeypatch):
+   675	    """Codex-C1a F4/N1: 目标位置被预置成悬空 symlink (指向尚不存在的路径)
+   676	    时, mkstemp+rename 发布只替换链接名本身 — 内容绝不被引到 symlink 指向
+   677	    的位置落盘, 终点成为常规文件。"""
+   678	    backups = _old_state_fixture(tmp_path)
+   679	    hijack_target = tmp_path / "劫持目标.json"  # 不存在 → 悬空 symlink 过得了 exists 预检
+   680	    new = backups / "daily-review.canvas-vault.state.json"
+   681	    new.symlink_to(hijack_target)
+   682	    rc = _run_migrate(monkeypatch, ["--vault", "canvas-vault", "--backups", str(backups)])
+   683	    assert rc == 0
+   684	    assert not hijack_target.exists(), "悬空 symlink 不得被跟随, 在其目标处落文件"
+   685	    assert not new.is_symlink() and new.is_file(), "rename 应替换链接名为常规文件"
+   686	    assert json.loads(new.read_text(encoding="utf-8"))["last_generate_date"] == "2026-07-29"
+   687	    assert (backups / "daily-review.state.json.bak").exists()
+   688	
+   689	
+   690	# ── CARD-D2b (BATCH-2026-08-27-Anki化与诚实收尾): 休息日反转推送 (方案甲) ──
+   691	# 实测缺陷链: 09:06 休息推送 accepted → 14:06 due_crossed 重扫, payload/总览
+   692	# 页已更新, 但 last_push_accepted_date==today 门拦推送 (skip-done) → 手机
+   693	# 整天停留「今日无到期」。方案甲: 仅放行 rest→due 语义反转一次 (同 id 服务
+   694	# 端覆盖 = A4 既有契约, 通知中心不堆叠); state 持久化成立时每天推送上界
+   695	# = 2 (rest + due; accepted 后崩溃窗/损坏重建残余 = A4/A7 既有语义, 入档)。
+   696	
+   697	
+   698	def _push_harness(monkeypatch, tmp_path, vault, rcs):
+   699	    """main() 端到端打桩: 窗口门放行 (机器时区无关), send 按 rcs 队列返回并
+   700	    截获 (id, title) — 多余的 send 调用会越界报错 (兼当哨兵), osascript
+   701	    兜底打桩防真弹通知。"""
+   702	    _patch_runner(monkeypatch, vault, tmp_path)
+   703	    monkeypatch.setattr(runner, "PUSH_WINDOW", (dtime(0, 0), dtime(23, 59, 59)))
+   704	    calls = []
+   705	
+   706	    def _send(noti, vault_id=None):
+   707	        calls.append((noti["id"], noti["title"]))
+   708	        return rcs[len(calls) - 1]
+   709	
+   710	    monkeypatch.setattr(runner.send_bark, "send", _send)
+   711	    monkeypatch.setattr(runner, "osascript_fallback", lambda noti: True)
+   712	    return calls
+   713	
+   714	
+   715	def _run_main(monkeypatch, capsys, vault, now_arg) -> str:
+   716	    monkeypatch.setattr(sys, "argv", ["daily_review_run.py", "--now", now_arg, "--vault", str(vault)])
+   717	    assert runner.main() == 0
+   718	    return capsys.readouterr().out
+   719	
+   720	
+   721	def test_rest_to_due_reversal_pushes_second_time(tmp_path, monkeypatch, capsys):
+   722	    """rest→due 放行一次: 早晨休息推送后, 盘中转出到期 → 第二推放行且与
+   723	    首推同 id (服务端覆盖, 手机原地刷新); due 之后恒 skip-done (上界 2)。"""
+   724	    vault = _vault(tmp_path, {"重学卡": _node(board="A板", extra="fsrs_due: 2026-07-30T06:00:00Z\n")})
+   725	    calls = _push_harness(monkeypatch, tmp_path, vault, rcs=[0, 0])
+   726	
+   727	    out1 = _run_main(monkeypatch, capsys, vault, "2026-07-30T10:00:00+08:00")  # 02:00Z
+   728	    assert "generate:new" in out1 and "push:accepted" in out1
+   729	    assert runner.load_state()["last_push_kind"] == "rest"
+   730	    assert calls[0][1] == "📚 今日无到期节点"
+   731	
+   732	    _pin_pool_older_than_payload(vault, BASE)
+   733	    out2 = _run_main(monkeypatch, capsys, vault, "2026-07-30T14:05:00+08:00")  # 06:05Z 跨到期
+   734	    assert "generate:new" in out2 and "push:accepted" in out2, (
+   735	        "rest→due 语义反转必须放行第二推, 不得让手机整天停留「今日无到期」"
+   736	    )
+   737	    assert runner.load_state()["last_push_kind"] == "due"
+   738	    assert len(calls) == 2 and calls[1][1] == "📚 今日复习 · A板"
+   739	    assert calls[1][0] == calls[0][0], "两推必须同 id — 服务端覆盖而非堆叠"
+   740	
+   741	    _pin_pool_older_than_payload(vault, BASE)
+   742	    out3 = _run_main(monkeypatch, capsys, vault, "2026-07-30T15:05:00+08:00")
+   743	    assert "push:skip-done" in out3
+   744	    assert len(calls) == 2, "due 之后不得再推 — 每天推送上界 = 2"
+   745	
+   746	
+   747	def test_due_to_due_rescan_stays_skip_done(tmp_path, monkeypatch, capsys):
+   748	    """due→due 不放行: 早晨到期推送后, 盘中重扫榜更新也 skip-done (与场景 3
+   749	    互补 — 那条锁旧 state 无 last_push_kind 的保守回退, 本条锁写入后语义)。"""
+   750	    vault = _vault(tmp_path, {"甲": _node(board="A板")})
+   751	    calls = _push_harness(monkeypatch, tmp_path, vault, rcs=[0])
+   752	
+   753	    out1 = _run_main(monkeypatch, capsys, vault, "2026-07-30T10:00:00+08:00")
+   754	    assert "push:accepted" in out1
+   755	    assert runner.load_state()["last_push_kind"] == "due"
+   756	
+   757	    (vault / "节点" / "乙.md").write_text(_node(board="B板"), encoding="utf-8")
+   758	    _pin_pool_older_than_payload(vault, BASE)
+   759	    _set_mtime(vault / "节点" / "乙.md", BASE + 200)
+   760	    _set_mtime(vault / "节点", BASE + 200)
+   761	    out2 = _run_main(monkeypatch, capsys, vault, "2026-07-30T14:05:00+08:00")
+   762	    assert "generate:new" in out2 and "push:skip-done" in out2
+   763	    assert len(calls) == 1
+   764	    assert runner.load_state()["last_push_kind"] == "due"
+   765	
+   766	
+   767	def test_rest_to_rest_rescan_stays_skip_done(tmp_path, monkeypatch, capsys):
+   768	    """rest→rest 不放行: 休息推送后重扫仍是休息日 (榜仍空) → skip-done,
+   769	    反转门只认「转出到期」这一种语义变化。"""
+   770	    vault = _vault(tmp_path, {"重学卡": _node(board="A板", extra="fsrs_due: 2026-07-30T12:00:00Z\n")})
+   771	    calls = _push_harness(monkeypatch, tmp_path, vault, rcs=[0])
+   772	
+   773	    out1 = _run_main(monkeypatch, capsys, vault, "2026-07-30T10:00:00+08:00")  # 02:00Z
+   774	    assert "push:accepted" in out1
+   775	    assert runner.load_state()["last_push_kind"] == "rest"
+   776	
+   777	    (vault / "节点" / "乙.md").write_text(
+   778	        _node(board="B板", extra="fsrs_due: 2026-07-30T13:00:00Z\n"), encoding="utf-8"
+   779	    )
+   780	    _pin_pool_older_than_payload(vault, BASE)
+   781	    _set_mtime(vault / "节点" / "乙.md", BASE + 200)
+   782	    _set_mtime(vault / "节点", BASE + 200)
+   783	    out2 = _run_main(monkeypatch, capsys, vault, "2026-07-30T11:05:00+08:00")  # 03:05Z 仍未到期
+   784	    assert "generate:new" in out2 and "push:skip-done" in out2
+   785	    assert len(calls) == 1
+   786	    assert runner.load_state()["last_push_kind"] == "rest"
+   787	
+   788	
+   789	def test_second_push_failure_retries_next_hour(tmp_path, monkeypatch, capsys):
+   790	    """二推失败幂等重试: 反转门只在 accepted 时关闭 (last_push_kind 翻 due),
+   791	    失败保持 rest → 次小时 launchd 触发自然重试; 连续失败本地兜底只弹一次
+   792	    (Codex-D2b L2); 成功后清错收口。"""
+   793	    vault = _vault(tmp_path, {"重学卡": _node(board="A板", extra="fsrs_due: 2026-07-30T06:00:00Z\n")})
+   794	    calls = _push_harness(monkeypatch, tmp_path, vault, rcs=[0, 1, 1, 0])
+   795	    fallbacks = []
+   796	    monkeypatch.setattr(runner, "osascript_fallback", lambda noti: fallbacks.append(noti["title"]) or True)
+   797	    today = datetime.fromisoformat("2026-07-30T10:00:00+08:00").astimezone().date().isoformat()
+   798	
+   799	    out1 = _run_main(monkeypatch, capsys, vault, "2026-07-30T10:00:00+08:00")
+   800	    assert "push:accepted" in out1
+   801	
+   802	    _pin_pool_older_than_payload(vault, BASE)
+   803	    out2 = _run_main(monkeypatch, capsys, vault, "2026-07-30T14:05:00+08:00")
+   804	    assert "push:failed" in out2 and "fallback:ok" in out2
+   805	    st2 = runner.load_state()
+   806	    assert st2["last_push_kind"] == "rest", "失败不得翻 due — 否则重试门被永久关闭"
+   807	    assert st2["last_result"] == "generated_push_failed"
+   808	    assert st2["last_error"] == "bark-send"
+   809	    assert st2["last_local_notify_date"] == today
+   810	    assert fallbacks == ["📚 今日复习 · A板"]
+   811	
+   812	    _pin_pool_older_than_payload(vault, BASE)
+   813	    out3 = _run_main(monkeypatch, capsys, vault, "2026-07-30T15:05:00+08:00")
+   814	    assert "push:failed" in out3 and "fallback:-" in out3, "同日本地兜底只弹一次"
+   815	    assert len(fallbacks) == 1
+   816	
+   817	    _pin_pool_older_than_payload(vault, BASE)
+   818	    out4 = _run_main(monkeypatch, capsys, vault, "2026-07-30T16:05:00+08:00")
+   819	    assert "push:accepted" in out4, "次小时必须幂等重试成功"
+   820	    st4 = runner.load_state()
+   821	    assert st4["last_push_kind"] == "due"
+   822	    assert st4["last_result"] == "pushed" and st4["last_error"] == "", "成功后必须清错"
+   823	    assert [t for _, t in calls] == [
+   824	        "📚 今日无到期节点",
+   825	        "📚 今日复习 · A板",
+   826	        "📚 今日复习 · A板",
+   827	        "📚 今日复习 · A板",
+   828	    ]
+   829	
+   830	    _pin_pool_older_than_payload(vault, BASE)
+   831	    out5 = _run_main(monkeypatch, capsys, vault, "2026-07-30T17:05:00+08:00")
+   832	    assert "push:skip-done" in out5
+   833	    assert len(calls) == 4
+   834	
+   835	
+   836	def test_rest_due_rest_due_oscillation_capped_at_two(tmp_path, monkeypatch, capsys):
+   837	    """Codex-D2b M3: 全天 rest→due→rest→due 振荡 — 第二次 accepted (due) 后
+   838	    无论语义再怎么翻转, 当日不得出现第三次发送 (rcs 越界哨兵扛门)。防
+   839	    「任意已知语义变化均放行」类回归 mutant。"""
+   840	    vault = _vault(tmp_path, {"重学卡": _node(board="A板", extra="fsrs_due: 2026-07-30T06:00:00Z\n")})
+   841	    calls = _push_harness(monkeypatch, tmp_path, vault, rcs=[0, 0])
+   842	
+   843	    out1 = _run_main(monkeypatch, capsys, vault, "2026-07-30T10:00:00+08:00")
+   844	    assert "push:accepted" in out1  # rest
+   845	    _pin_pool_older_than_payload(vault, BASE)
+   846	    out2 = _run_main(monkeypatch, capsys, vault, "2026-07-30T14:05:00+08:00")
+   847	    assert "push:accepted" in out2  # due (反转放行一次)
+   848	
+   849	    # 盘中考完: 卡推到明天 → 榜回空 (due→rest), 不得再推
+   850	    (vault / "节点" / "重学卡.md").write_text(
+   851	        _node(board="A板", extra="fsrs_due: 2026-07-31T06:00:00Z\n"), encoding="utf-8"
+   852	    )
+   853	    _pin_pool_older_than_payload(vault, BASE)
+   854	    _set_mtime(vault / "节点" / "重学卡.md", BASE + 200)
+   855	    _set_mtime(vault / "节点", BASE + 200)
+   856	    out3 = _run_main(monkeypatch, capsys, vault, "2026-07-30T15:05:00+08:00")
+   857	    assert "generate:new" in out3 and "push:skip-done" in out3
+   858	
+   859	    # 又冒出新到期卡 (第二次 rest→due 形态) — 反转门当日只放行一次
+   860	    (vault / "节点" / "新卡.md").write_text(_node(board="B板"), encoding="utf-8")
+   861	    _pin_pool_older_than_payload(vault, BASE)
+   862	    _set_mtime(vault / "节点" / "新卡.md", BASE + 200)
+   863	    _set_mtime(vault / "节点", BASE + 200)
+   864	    out4 = _run_main(monkeypatch, capsys, vault, "2026-07-30T16:05:00+08:00")
+   865	    assert "generate:new" in out4 and "push:skip-done" in out4
+   866	    assert len(calls) == 2, "振荡日 accepted 上界 = 2 (rest + due 各一次)"
+   867	
+   868	
+   869	def test_structurally_corrupt_state_quarantined_not_crash(tmp_path, monkeypatch, capsys):
+   870	    """Codex-D2b M1: 合法 JSON 但结构错型的 state (顶层 [] / 账本 []) 必须
+   871	    与语法损坏同等对待 — 隔离重建不炸, 当轮照常生成+推送。已知代价 (如实
+   872	    入档): 重建即丢当日推送账, 与既有语法损坏路径同级。"""
+   873	    vault = _vault(tmp_path, {"甲": _node(board="A板")})
+   874	    calls = _push_harness(monkeypatch, tmp_path, vault, rcs=[0, 0])
+   875	    state = runner.state_path()
+   876	    state.parent.mkdir(parents=True, exist_ok=True)
+   877	
+   878	    state.write_text("[]", encoding="utf-8")  # 顶层非 dict
+   879	    out1 = _run_main(monkeypatch, capsys, vault, "2026-07-30T10:00:00+08:00")
+   880	    assert "generate:new" in out1 and "push:accepted" in out1
+   881	    assert runner.load_state()["last_push_kind"] == "due"
+   882	    # Codex-D2b-r2 L2: 错型件必须隔离留档 (防「删 quarantine 直接吞档」回归)
+   883	    assert list(state.parent.glob(state.name + ".corrupt-*")), "错型 state 必须隔离留档"
+   884	
+   885	    # 账本错型 (board_last_recommended 非 dict) 同样隔离重建
+   886	    state.write_text(json.dumps({"schema_version": 1, "board_last_recommended": []}), encoding="utf-8")
+   887	    out2 = _run_main(monkeypatch, capsys, vault, "2026-07-30T11:05:00+08:00")
+   888	    assert "generate:new" in out2 and "push:accepted" in out2
+   889	    assert len(calls) == 2
+   890	
+   891	
+   892	def test_legacy_cached_payload_without_top_boards_records_due(tmp_path, monkeypatch, capsys):
+   893	    """Codex-D2b M2: 迁移前 legacy 缓存 payload 无 top_boards 键 — 语义未知,
+   894	    accepted 落账必须保守记 due (关闭反转门), 不得记 rest 造成 due→due 二推。"""
+   895	    vault = _vault(tmp_path, {"甲": _node(board="A板")})
+   896	    calls = _push_harness(monkeypatch, tmp_path, vault, rcs=[0])
+   897	    now_arg = "2026-07-30T10:00:00+08:00"
+   898	    today = datetime.fromisoformat(now_arg).astimezone().date().isoformat()
+   899	
+   900	    legacy = {
+   901	        "schema_version": 3,
+   902	        "date": today,
+   903	        "notification": {
+   904	            "title": "📚 今日复习 · A板",
+   905	            "body": "b",
+   906	            "group": "canvas复习",
+   907	            "id": f"canvas-review-{today}",
+   908	        },
+   909	    }
+   910	    raw = json.dumps(legacy, ensure_ascii=False, indent=2) + "\n"
+   911	    out_dir = vault / "outputs"
+   912	    out_dir.mkdir(parents=True)
+   913	    (out_dir / "今日复习.json").write_text(raw, encoding="utf-8")
+   914	    st = runner.load_state()
+   915	    st["last_generate_date"] = today
+   916	    st["payload_sha256"] = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+   917	    runner.save_state(st)
+   918	    _pin_pool_older_than_payload(vault, BASE)
+   919	
+   920	    out = _run_main(monkeypatch, capsys, vault, now_arg)
+   921	    assert "generate:cached" in out and "push:accepted" in out
+   922	    assert len(calls) == 1
+   923	    assert runner.load_state()["last_push_kind"] == "due", (
+   924	        "legacy payload 语义未知必须保守记 due — 记 rest 会让当日 due 重扫误开反转门"
+   925	    )
+
+**Planning targeted conftest and test reads**
+exec
+/bin/zsh -lc "nl -ba backend/tests/regression/conftest.py | sed -n '193,330p'; rg -n \"bark|reload|guard|MonkeyPatch|undo|KEY_FILE|urlopen|noconftest|autostub|osascript\" backend/tests/regression/test_daily_review_run.py" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro
+ succeeded in 0ms:
+   193	# ── CARD-TEST-bark-autostub: Bark 外发自动打桩守卫 ──────────────────────
+   194	# 生产链 daily_review_run.main() → send_bark.send() → _urlopen(POST
+   195	# {server}/push) 会真推真机 (--now 10:00+08:00 恒在推送窗内); send 失败还会
+   196	# osascript 真弹 macOS 通知。此前全靠每条测试各自记得替换 send — 新增一条
+   197	# main() 测试忘替换 = 真推。本 fixture 把「忘了打桩」的默认后果从「真推」
+   198	# 翻转为「响亮失败」。
+   199	
+   200	#: 守卫布防面 = 精确枚举 (按模块名末段比对)。不用 endswith 启发: 它会误伤
+   201	#: foo_test_daily_review_run, 也漏防 test_daily_review_run_cli 这类未来
+   202	#: 拆分名 (Codex round-1 MEDIUM)。新推送测试文件要布防必须显式加进本元组 —
+   203	#: 「目录内新增文件默认不设防」是如实边界 (验收单裁决点 2), 不是疏漏。
+   204	_BARK_GUARDED_MODULES = ("test_daily_review_run", "bark_egress_probe")
+   205	
+   206	
+   207	@pytest.fixture(autouse=True)
+   208	def _bark_egress_guard(request):
+   209	    """daily_review_run 测试的三层外发防线 (function 级 autouse)。
+   210	
+   211	    ① send_bark.KEY_FILE → tmp 假 key (格式合法且真实存在): 让 load_key
+   212	       成功, 忘打桩的测试必然走到 ② 拒绝器 — 不存在的 key 会让 send 静默
+   213	       skip-nokey 返 0, 那恰是假绿通道 (Codex round-1 HIGH)。
+   214	       env BARK_KEY_FILE 同步重定向: reload(send_bark) 重跑模块顶层重新
+   215	       解析时仍落 tmp。
+   216	    ② send_bark._urlopen → 抛 AssertionError("Bark egress attempted in
+   217	       tests") 的拒绝器 — send_bark 的 except 只吞 HTTPError/URLError/
+   218	       TimeoutError/OSError (send_bark.py:138/:140), AssertionError 必然
+   219	       穿透 send 与 runner.main 炸红测试。
+   220	    ③ daily_review_run.osascript_fallback → 记录并返回 True (不弹真通知)。
+   221	
+   222	    独立 MonkeyPatch 实例 (round-1 HIGH): 测试自己的 monkeypatch.undo()
+   223	    只拆测试自己的桩, 波及不到本守卫。
+   224	    reload 双保险: importlib.reload 的属性式调用被拦, 对布防模块的 reload
+   225	    完成后自动重打三层; `from importlib import reload` 预绑定形态拦不住
+   226	    (如实边界 — reload 自毁属进程内故意对抗, 不在「忘打桩」威胁模型内)。
+   227	
+   228	    测试内显式 monkeypatch.setattr 可覆盖任意一层 (守卫 setup 在先, 测试
+   229	    的 patch 后设先生效) — _capture_bark_request 即覆盖 ①②。
+   230	    imports 在模块门之后惰性执行; scripts 目录只对布防模块进 sys.path。
+   231	    非布防模块: 本 fixture 只实例化 request, 不碰 fixture 图其余部分。
+   232	    """
+   233	    if request.module.__name__.rsplit(".", 1)[-1] not in _BARK_GUARDED_MODULES:
+   234	        yield None
+   235	        return
+   236	
+   237	    scripts_dir = _BACKEND_DIR.parent / "scripts"
+   238	    patcher = pytest.MonkeyPatch()
+   239	    tmp_dir = Path(tempfile.mkdtemp(prefix="bark-guard-"))
+   240	    osascript_calls: List[Dict[str, Any]] = []
+   241	    try:
+   242	        key_file = tmp_dir / "bark.key"
+   243	        key_file.write_text("bark-guard-fake-key-0001\n", encoding="utf-8")
+   244	        patcher.setenv("BARK_KEY_FILE", str(key_file))
+   245	        patcher.syspath_prepend(str(scripts_dir))
+   246	        import daily_review_run
+   247	        import send_bark
+   248	
+   249	        def _refuse_egress(*args, **kwargs):
+   250	            raise AssertionError("Bark egress attempted in tests")
+   251	
+   252	        def _stub_osascript(noti):
+   253	            osascript_calls.append(dict(noti))
+   254	            return True
+   255	
+   256	        def _reapply():
+   257	            patcher.setattr(send_bark, "KEY_FILE", key_file)
+   258	            patcher.setattr(send_bark, "_urlopen", _refuse_egress)
+   259	            patcher.setattr(daily_review_run, "osascript_fallback", _stub_osascript)
+   260	
+   261	        _real_reload = importlib.reload
+   262	
+   263	        #: reload 双保险盯的是「守卫打过桩的生产模块」— reload 它们会重跑
+   264	        #: 模块顶层把生产值写回 (KEY_FILE/_urlopen/osascript_fallback),
+   265	        #: 完成后重打; 不是盯测试模块名 (round-2 自测抓出: 拿
+   266	        #: _BARK_GUARDED_MODULES 判被 reload 的生产模块名, 条件恒假)。
+   267	        _PATCHED_MODULES = ("send_bark", "daily_review_run")
+   268	
+   269	        def _guarded_reload(module):
+   270	            result = _real_reload(module)
+   271	            if module.__name__ in _PATCHED_MODULES:
+   272	                _reapply()
+   273	            return result
+   274	
+   275	        patcher.setattr(importlib, "reload", _guarded_reload)
+   276	        _reapply()
+   277	        yield osascript_calls
+   278	    finally:
+   279	        patcher.undo()
+   280	        shutil.rmtree(tmp_dir, ignore_errors=True)
+132:    monkeypatch.setattr(runner.send_bark, "send", _sentinel)
+404:        runner.send_bark,
+468:def _capture_bark_request(monkeypatch, tmp_path) -> dict:
+469:    """网络出口打桩 (仅测试进程内): 截获 send_bark 实际提交给 Bark API 的
+472:    key_file = tmp_path / "bark.key"
+474:    monkeypatch.setattr(runner.send_bark, "KEY_FILE", key_file)
+489:    def _capture_urlopen(req, timeout=None):
+493:    # CARD-TEST-bark-autostub: patch 模块内唯一出口缝, 不再改全局
+494:    # urllib.request.urlopen (旧写法会波及同进程内一切 urllib 用户)
+495:    monkeypatch.setattr(runner.send_bark, "_urlopen", _capture_urlopen)
+499:def test_send_bark_composes_vault_scoped_id_and_group(tmp_path, monkeypatch):
+500:    captured = _capture_bark_request(monkeypatch, tmp_path)
+502:    assert runner.send_bark.send(noti, "vaultA") == 0
+510:def test_send_bark_without_vault_id_keeps_legacy_shape(tmp_path, monkeypatch):
+512:    captured = _capture_bark_request(monkeypatch, tmp_path)
+514:    assert runner.send_bark.send(noti) == 0
+524:    vault_key = runner.send_bark.vault_key
+700:    截获 (id, title) — 多余的 send 调用会越界报错 (兼当哨兵), osascript
+710:    monkeypatch.setattr(runner.send_bark, "send", _send)
+711:    monkeypatch.setattr(runner, "osascript_fallback", lambda noti: True)
+796:    monkeypatch.setattr(runner, "osascript_fallback", lambda noti: fallbacks.append(noti["title"]) or True)
+808:    assert st2["last_error"] == "bark-send"
+
+**Identifying relevant test ranges**
+exec
+/bin/zsh -lc "nl -ba backend/tests/regression/test_daily_review_run.py | sed -n '1,160p'; nl -ba backend/tests/regression/test_daily_review_run.py | sed -n '380,540p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro
+ succeeded in 0ms:
+     1	"""daily_review_run 当天重学卡刷新 (CARD-A3, BATCH-2026-08-24-复习闭环)。
+     2	
+     3	ensure_payload 缓存失效三场景锁定: 当天已生成后, 节点池比 payload 新
+     4	(quiz 写侧刚更新 fsrs_due / 新增节点) 必须重扫; 无变动仍复用; 重扫后
+     5	同日推送去重 (skip-done) 与 tie-break 语义 (board_last_recommended
+     6	每天只在第一个非空榜首落账一次, CARD-D2a) 不被破坏。
+     7	
+     8	只 assert dict / 状态 / runner 状态行, 不 assert 今日复习.md 渲染文本
+     9	(与 A2 渲染层解耦)。mtime 全部 os.utime 显式钉死, 不依赖墙钟顺序。
+    10	"""
+    11	
+    12	import hashlib
+    13	import json
+    14	import os
+    15	import plistlib
+    16	import re
+    17	import shutil
+    18	import sys
+    19	from datetime import datetime, time as dtime, timezone
+    20	from pathlib import Path
+    21	
+    22	WT = Path(__file__).resolve().parents[3]
+    23	sys.path.insert(0, str(WT / "scripts"))
+    24	
+    25	import daily_review_run as runner  # noqa: E402
+    26	
+    27	NOW = datetime(2026, 7, 30, 2, 0, tzinfo=timezone.utc)
+    28	TODAY = "2026-07-30"
+    29	BASE = 1_700_000_000  # 人工 mtime 基准: 只比大小, 绝对值无意义
+    30	
+    31	
+    32	def _node(board="普通板", extra=""):
+    33	    return f'---\ntype: concept\nsource_board: "[[原白板/{board}]]"\n{extra}---\n真实内容。\n'
+    34	
+    35	
+    36	def _vault(tmp_path, nodes: dict, name: str = "vault") -> Path:
+    37	    vault = tmp_path / name
+    38	    scripts = vault / ".claude" / "scripts"
+    39	    scripts.mkdir(parents=True)
+    40	    (vault / "节点").mkdir()
+    41	    shutil.copy(WT / "canvas-vault" / ".claude" / "scripts" / "decay_beta.py", scripts)
+    42	    for fname, content in nodes.items():
+    43	        (vault / "节点" / f"{fname}.md").write_text(content, encoding="utf-8")
+    44	    return vault
+    45	
+    46	
+    47	def _patch_runner(monkeypatch, vault, tmp_path):
+    48	    """CARD-C1a: STATE/LOG 常量已函数化为 BACKUPS 派生 (state_path/log_line),
+    49	    fixture 只注入 BACKUPS 一处 — 所有 state/log 写入随之进 tmp, 防写真实
+    50	    backups/。逐用例检查: 本文件所有落盘路径均经 VAULT (tmp) 或 BACKUPS (tmp)。"""
+    51	    monkeypatch.setattr(runner, "VAULT", vault)
+    52	    monkeypatch.setattr(runner, "BACKUPS", tmp_path / "backups")
+    53	
+    54	
+    55	def _set_mtime(path: Path, ts: float):
+    56	    os.utime(path, (ts, ts))
+    57	
+    58	
+    59	def _pin_pool_older_than_payload(vault: Path, payload_ts: float):
+    60	    """把 节点/ 目录与现有节点文件全部钉到 payload 之前 (无变动基线)。"""
+    61	    for p in (vault / "节点").glob("*.md"):
+    62	        _set_mtime(p, payload_ts - 100)
+    63	    _set_mtime(vault / "节点", payload_ts - 100)
+    64	    _set_mtime(vault / "outputs" / "今日复习.json", payload_ts)
+    65	
+    66	
+    67	# ── 场景 1: 节点变动 → 同日缓存失效, 重扫结果含该节点 ──
+    68	
+    69	
+    70	def test_node_change_invalidates_same_day_cache(tmp_path, monkeypatch):
+    71	    vault = _vault(tmp_path, {"甲": _node()})
+    72	    _patch_runner(monkeypatch, vault, tmp_path)
+    73	    st = runner.load_state()
+    74	    payload1, gen1 = runner.ensure_payload(st, NOW, TODAY)
+    75	    assert gen1 == "new"
+    76	    assert {d["node"] for d in payload1["due_nodes"]} == {"甲"}
+    77	
+    78	    # 写侧模拟: 当天考完甲后新增重学卡乙 (新卡无 fsrs_due = 即刻到期)
+    79	    (vault / "节点" / "乙.md").write_text(_node(), encoding="utf-8")
+    80	    _pin_pool_older_than_payload(vault, BASE)
+    81	    _set_mtime(vault / "节点" / "乙.md", BASE + 200)
+    82	    _set_mtime(vault / "节点", BASE + 200)
+    83	
+    84	    payload2, gen2 = runner.ensure_payload(st, NOW, TODAY)
+    85	    assert gen2 == "new", "节点池比 payload 新时必须重扫, 不得整日复用早晨快照"
+    86	    assert "乙" in {d["node"] for d in payload2["due_nodes"]}
+    87	    assert payload2["schema_version"] == 3  # 只消费 A2 的 v3, 不改 schema
+    88	
+    89	
+    90	# ── 场景 2: 无变动 → 仍走缓存 (每小时触发不得变成每小时全量重扫) ──
+    91	
+    92	
+    93	def test_unchanged_pool_still_cached(tmp_path, monkeypatch):
+    94	    vault = _vault(tmp_path, {"甲": _node()})
+    95	    _patch_runner(monkeypatch, vault, tmp_path)
+    96	    st = runner.load_state()
+    97	    payload1, gen1 = runner.ensure_payload(st, NOW, TODAY)
+    98	    assert gen1 == "new"
+    99	
+   100	    _pin_pool_older_than_payload(vault, BASE)
+   101	
+   102	    payload2, gen2 = runner.ensure_payload(st, NOW, TODAY)
+   103	    assert gen2 == "cached"
+   104	    assert payload2 == payload1  # 复用的是同一份落盘 payload
+   105	
+   106	
+   107	# ── 场景 3: 重扫后同日推送仍 skip-done (Bark 同 id 去重门不被重扫击穿) ──
+   108	
+   109	
+   110	def test_rescan_keeps_same_day_push_skip_done(tmp_path, monkeypatch, capsys):
+   111	    vault = _vault(tmp_path, {"甲": _node()})
+   112	    _patch_runner(monkeypatch, vault, tmp_path)
+   113	    now_arg = "2026-07-30T10:00:00+08:00"
+   114	    # today 按 runner 同一变换推导 (机器时区无关): skip-done 门在窗口门之前
+   115	    today = datetime.fromisoformat(now_arg).astimezone().date().isoformat()
+   116	
+   117	    st = runner.load_state()
+   118	    _, gen1 = runner.ensure_payload(st, datetime.fromisoformat(now_arg), today)
+   119	    assert gen1 == "new"
+   120	    st["last_push_accepted_date"] = today  # 早晨那次推送已被服务端接受
+   121	    runner.save_state(st)
+   122	
+   123	    (vault / "节点" / "乙.md").write_text(_node(), encoding="utf-8")
+   124	    _pin_pool_older_than_payload(vault, BASE)
+   125	    _set_mtime(vault / "节点" / "乙.md", BASE + 200)
+   126	    _set_mtime(vault / "节点", BASE + 200)
+   127	
+   128	    # 哨兵而非 mock: 该路径下 send 被调用即测试失败 (同日去重门失守)
+   129	    def _sentinel(noti):
+   130	        raise AssertionError("同日已推送后, 重扫不得再次触发 Bark 发送")
+   131	
+   132	    monkeypatch.setattr(runner.send_bark, "send", _sentinel)
+   133	    monkeypatch.setattr(
+   134	        sys,
+   135	        "argv",
+   136	        ["daily_review_run.py", "--now", now_arg, "--vault", str(vault)],
+   137	    )
+   138	    assert runner.main() == 0
+   139	    out = capsys.readouterr().out
+   140	    assert "generate:new" in out, "重扫必须真的发生 (否则本场景空转)"
+   141	    assert "push:skip-done" in out
+   142	
+   143	    st2 = runner.load_state()
+   144	    assert st2["last_push_accepted_date"] == today
+   145	    assert st2["last_generate_date"] == today
+   146	
+   147	
+   148	# ── 内审 HIGH (mutation 缺口): 两条 mtime 失效通道各自单独锁定 ──
+   149	# 场景 1/3 同时钉文件+目录 mtime, 任一通道被删测试仍绿; 以下两测各锁一半。
+   150	
+   151	
+   152	def test_infile_update_alone_triggers_rescan(tmp_path, monkeypatch):
+   153	    """只有文件 mtime 变、目录 mtime 钉旧 (APFS 原地更新 fsrs_due 的
+   154	    真实形态 — quiz 写侧头号生产场景) 也必须失效缓存。"""
+   155	    vault = _vault(tmp_path, {"甲": _node()})
+   156	    _patch_runner(monkeypatch, vault, tmp_path)
+   157	    st = runner.load_state()
+   158	    _, gen1 = runner.ensure_payload(st, NOW, TODAY)
+   159	    assert gen1 == "new"
+   160	
+   380	    assert st["board_last_recommended"] == {"真板": TODAY}
+   381	
+   382	
+   383	# ── CARD-C1a (BATCH-2026-08-25-跨vault与收束): 多 vault 命名空间隔离 ──
+   384	
+   385	
+   386	def test_two_vaults_same_day_push_and_state_isolated(tmp_path, monkeypatch, capsys):
+   387	    """全局单例根缺陷的修复锁定: vault A 当日推送后, vault B 同日必须仍能
+   388	    推送 (旧 last_push_accepted_date 全局 → B 永远 skip-done); 两个 state
+   389	    文件独立; 互跑后各自缓存门仍 cached (旧 payload_sha256 单值 → 乒乓失效)。
+   390	
+   391	    已知局限: 本测两库跑在同一 Python 进程, 证明的是 state 隔离, 不证明
+   392	    生产「一库一进程」契约 — 后者由 wrapper shell 层循环保证 (进程内复用
+   393	    会踩 pick.load_decay 的 decay_beta import 缓存, 见 wrapper 注释)。"""
+   394	    vault_a = _vault(tmp_path, {"甲": _node()}, name="vaultA")
+   395	    vault_b = _vault(tmp_path, {"乙": _node()}, name="vaultB")
+   396	    monkeypatch.setattr(runner, "BACKUPS", tmp_path / "backups")
+   397	    # runner.main 会改写模块全局 VAULT — 先经 monkeypatch 登记原值,
+   398	    # teardown 恢复, 防测试顺序依赖 (Codex-C1a M1)
+   399	    monkeypatch.setattr(runner, "VAULT", runner.VAULT)
+   400	    # 窗口门放行 (机器时区无关): 本测锁 state 隔离, 不锁窗口语义
+   401	    monkeypatch.setattr(runner, "PUSH_WINDOW", (dtime(0, 0), dtime(23, 59, 59)))
+   402	    sent = []
+   403	    monkeypatch.setattr(
+   404	        runner.send_bark,
+   405	        "send",
+   406	        lambda noti, vault_id=None: sent.append((noti["id"], vault_id)) or 0,
+   407	    )
+   408	    now_arg = "2026-07-30T10:00:00+08:00"
+   409	
+   410	    def _run(vault) -> str:
+   411	        monkeypatch.setattr(
+   412	            sys,
+   413	            "argv",
+   414	            ["daily_review_run.py", "--now", now_arg, "--vault", str(vault)],
+   415	        )
+   416	        assert runner.main() == 0
+   417	        return capsys.readouterr().out
+   418	
+   419	    out_a = _run(vault_a)
+   420	    assert "generate:new" in out_a and "push:accepted" in out_a
+   421	    out_b = _run(vault_b)
+   422	    assert "generate:new" in out_b and "push:accepted" in out_b, (
+   423	        "vault A 推过后 vault B 同日必须仍可推送 (state 全局单例会误判 skip-done)"
+   424	    )
+   425	    # send 侧拿到的是各自 payload 的顶层 vault_id (通知 id 值本身不含 vault)
+   426	    assert [v for _, v in sent] == ["vaultA", "vaultB"]
+   427	    assert all(nid == "canvas-review-2026-07-30" for nid, _ in sent)
+   428	
+   429	    state_a = tmp_path / "backups" / "daily-review.vaultA.state.json"
+   430	    state_b = tmp_path / "backups" / "daily-review.vaultB.state.json"
+   431	    assert state_a.exists() and state_b.exists(), "两个 vault 必须各有独立 state 文件"
+   432	    assert (
+   433	        json.loads(state_a.read_text(encoding="utf-8"))["last_push_accepted_date"]
+   434	        == json.loads(state_b.read_text(encoding="utf-8"))["last_push_accepted_date"]
+   435	    )
+   436	
+   437	    # 互跑第二轮: 各自缓存门仍 cached + 同日去重 skip-done (乒乓失效修复)
+   438	    _pin_pool_older_than_payload(vault_a, BASE)
+   439	    _pin_pool_older_than_payload(vault_b, BASE)
+   440	    out_a2 = _run(vault_a)
+   441	    assert "generate:cached" in out_a2 and "push:skip-done" in out_a2
+   442	    out_b2 = _run(vault_b)
+   443	    assert "generate:cached" in out_b2 and "push:skip-done" in out_b2
+   444	    assert len(sent) == 2, "第二轮不得再发推送"
+   445	
+   446	    log_text = (tmp_path / "backups" / "daily-review.log").read_text(encoding="utf-8")
+   447	    assert "vault=vaultA" in log_text and "vault=vaultB" in log_text
+   448	
+   449	
+   450	def test_payload_carries_top_level_vault_id(tmp_path, monkeypatch):
+   451	    """C1a 加性契约: payload 顶层新增 vault_id, schema_version 仍 3,
+   452	    notification.id 值不动 (A2 冻结 — send 侧才组合 vault 维度)。"""
+   453	    vault = _vault(tmp_path, {"甲": _node()}, name="vaultA")
+   454	    _patch_runner(monkeypatch, vault, tmp_path)
+   455	    st = runner.load_state()
+   456	    payload, gen = runner.ensure_payload(st, NOW, TODAY)
+   457	    assert gen == "new"
+   458	    assert payload["vault_id"] == "vaultA"
+   459	    assert payload["schema_version"] == 3
+   460	    assert payload["notification"]["id"] == f"canvas-review-{payload['date']}"
+   461	    on_disk = json.loads((vault / "outputs" / "今日复习.json").read_text(encoding="utf-8"))
+   462	    assert on_disk["vault_id"] == "vaultA"
+   463	
+   464	
+   465	# ── CARD-C1a: send 侧组合有效通知 id (payload.notification.id 值冻结不动) ──
+   466	
+   467	
+   468	def _capture_bark_request(monkeypatch, tmp_path) -> dict:
+   469	    """网络出口打桩 (仅测试进程内): 截获 send_bark 实际提交给 Bark API 的
+   470	    请求体做断言。真发 = 每次跑测试都向真机推真通知, 才是纪律违规;
+   471	    仓库既有惯例同源 (本文件场景 3 的 send 哨兵)。"""
+   472	    key_file = tmp_path / "bark.key"
+   473	    key_file.write_text("testkey-12345678\n", encoding="utf-8")
+   474	    monkeypatch.setattr(runner.send_bark, "KEY_FILE", key_file)
+   475	    captured = {}
+   476	
+   477	    class _AcceptedResp:
+   478	        status = 200
+   479	
+   480	        def read(self):
+   481	            return b'{"code":200}'
+   482	
+   483	        def __enter__(self):
+   484	            return self
+   485	
+   486	        def __exit__(self, *args):
+   487	            return False
+   488	
+   489	    def _capture_urlopen(req, timeout=None):
+   490	        captured["body"] = json.loads(req.data.decode("utf-8"))
+   491	        return _AcceptedResp()
+   492	
+   493	    # CARD-TEST-bark-autostub: patch 模块内唯一出口缝, 不再改全局
+   494	    # urllib.request.urlopen (旧写法会波及同进程内一切 urllib 用户)
+   495	    monkeypatch.setattr(runner.send_bark, "_urlopen", _capture_urlopen)
+   496	    return captured
+   497	
+   498	
+   499	def test_send_bark_composes_vault_scoped_id_and_group(tmp_path, monkeypatch):
+   500	    captured = _capture_bark_request(monkeypatch, tmp_path)
+   501	    noti = {"title": "t", "body": "b", "group": "canvas复习", "id": "canvas-review-2026-07-30"}
+   502	    assert runner.send_bark.send(noti, "vaultA") == 0
+   503	    assert captured["body"]["id"] == "canvas-review-2026-07-30-vaultA"
+   504	    assert "vaultA" in captured["body"]["group"]
+   505	    # 传入 dict 不被就地改写 (payload 落盘值 = A2 冻结契约)
+   506	    assert noti["id"] == "canvas-review-2026-07-30"
+   507	    assert noti["group"] == "canvas复习"
+   508	
+   509	
+   510	def test_send_bark_without_vault_id_keeps_legacy_shape(tmp_path, monkeypatch):
+   511	    """迁移前旧 payload (无顶层 vault_id) 走原样 id/group — 加性兼容下界。"""
+   512	    captured = _capture_bark_request(monkeypatch, tmp_path)
+   513	    noti = {"title": "t", "body": "b", "group": "canvas复习", "id": "canvas-review-2026-07-30"}
+   514	    assert runner.send_bark.send(noti) == 0
+   515	    assert captured["body"]["id"] == "canvas-review-2026-07-30"
+   516	    assert captured["body"]["group"] == "canvas复习"
+   517	
+   518	
+   519	def test_vault_key_slug_rules():
+   520	    """两域设计 (Codex-C1a B2/H1): ASCII 短名原样; 非 ASCII slug+hash16;
+   521	    hash 域后缀形态的 ASCII 名强制改道 hash 域 (两域不重叠 → 「数学 的 key
+   522	    恰好被某 ASCII 目录名占用」这类直白碰撞不可构造); 超长名截断+hash,
+   523	    state 文件名恒在 NAME_MAX 内; 输出恒为文件名/通知 id 安全字符集。"""
+   524	    vault_key = runner.send_bark.vault_key
+   525	    assert vault_key("canvas-vault") == "canvas-vault"
+   526	    k1, k2 = vault_key("数学"), vault_key("物理")
+   527	    assert k1 != k2
+   528	    for k in (k1, k2):
+   529	        assert re.fullmatch(r"[0-9A-Za-z._-]+-[0-9a-f]{16}", k)
+   530	    # 域分离: 中文库的 key 本身作为目录名再进来, 必须映射到不同 key
+   531	    assert vault_key(k1) != k1
+   532	    # 超长合法目录名不得让 daily-review.<key>.state.json 超 NAME_MAX=255
+   533	    long_key = vault_key("a" * 232)
+   534	    assert len(f"daily-review.{long_key}.state.json".encode("utf-8")) <= 255
+   535	    assert long_key != vault_key("a" * 233)
+   536	    # 目录名字面精确: Unicode 空白尾巴是另一个库, 不得与裸名撞 key
+   537	    assert vault_key("foo ") != vault_key("foo")
+   538	    # 路径传入也归约到目录名 (调用方兜底)
+   539	    assert vault_key("/tmp/x/canvas-vault/") == "canvas-vault"
+   540	
+
+**Examining MonkeyPatch reapply and reload effects**
+**Analyzing guarded importlib.reload wrapper side effects**
+**Identifying fail-open risk with importlib reload**
+**Analyzing pytest fixture teardown order**
+**Verifying monkeypatch behavior during module reload**
+**Assessing module caching and alias risks**
+**Verifying test module guarding logic**
+exec
+/bin/zsh -lc 'nl -ba backend/tests/regression/bark_egress_probe.py; nl -ba backend/scripts/bark_autostub_negative_control.py' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro
+ succeeded in 0ms:
+     1	"""Bark 外发负门探针 (CARD-TEST-bark-autostub)。
+     2	
+     3	文件名不带 test_ 前缀 — 目录发现模式 (python_files=test_*.py) 收不到它,
+     4	只由 backend/scripts/bark_autostub_negative_control.py 以显式 nodeid 八跑:
+     5	
+     6	  A  (--noconftest, 守卫失效) test_probe: 证明「去掉 fixture 就会尝试外发」
+     7	     — send_bark 真走 urllib 出网路径, 被本探针自装的双拦截器挡住
+     8	     (socket.getaddrinfo + socket.create_connection, 记录 host 并抛
+     9	     gaierror — 任何情况下都不出网) → 期望 PASS;
+    10	  B  (正常 conftest, 守卫布防) test_probe: _bark_egress_guard 的拒绝器在
+    11	     DNS 之前抛 AssertionError("Bark egress attempted in tests") → 期望 FAIL;
+    12	  C  (布防) test_keyfile_guarded: 守卫层① KEY_FILE 重定向的放行门;
+    13	  C' (--noconftest) 同 nodeid: 层①篡改门 — 证明 C 依赖守卫而非恒真;
+    14	  D  (布防) test_osascript_guarded: 守卫层③ osascript 打桩的放行门;
+    15	  D' (--noconftest) 同 nodeid: 层③篡改门;
+    16	  E  (布防) test_reload_selfheal: reload 双保险放行门 (reload 后三层被重打);
+    17	  E' (--noconftest) 同 nodeid: reload 篡改门。
+    18	
+    19	C/D/E 全部结构性断言 (不触发网络也不弹通知), 布防/卸甲两形态下都零副作用。
+    20	
+    21	探针不依赖根 conftest 的 --live/--prompt (A/C'/D'/E' 模式下 pytest_addoption
+    22	失效), 也不 import test_daily_review_run 取共享 helper — 各 conftest 形态
+    23	下跨模块 import 行为不同, 自包含免歧义。
+    24	"""
+    25	
+    26	import socket
+    27	import sys
+    28	from datetime import time as dtime
+    29	from pathlib import Path
+    30	
+    31	WT = Path(__file__).resolve().parents[3]
+    32	sys.path.insert(0, str(WT / "scripts"))
+    33	
+    34	import daily_review_run as runner  # noqa: E402
+    35	
+    36	NOW_ARG = "2026-07-30T10:00:00+08:00"
+    37	
+    38	
+    39	def _make_vault(tmp_path: Path) -> Path:
+    40	    """test_daily_review_run._vault 同款最小 vault: 一张即刻到期节点卡,
+    41	    保证 payload 带 notification (否则 push:skip-empty, send 根本不被调,
+    42	    探针在 A/B 两种形态下都空转)。live vault 只读 (只 copy decay_beta.py)。"""
+    43	    vault = tmp_path / "vault"
+    44	    scripts = vault / ".claude" / "scripts"
+    45	    scripts.mkdir(parents=True)
+    46	    (vault / "节点").mkdir()
+    47	    decay = WT / "canvas-vault" / ".claude" / "scripts" / "decay_beta.py"
+    48	    (scripts / "decay_beta.py").write_bytes(decay.read_bytes())
+    49	    (vault / "节点" / "甲.md").write_text(
+    50	        '---\ntype: concept\nsource_board: "[[原白板/普通板]]"\n---\n真实内容。\n',
+    51	        encoding="utf-8",
+    52	    )
+    53	    return vault
+    54	
+    55	
+    56	def test_probe(tmp_path, monkeypatch, capsys):
+    57	    # 本探针自身的最后防线: 无论守卫在不在, 双墙 (DNS + 建连) 恒断网。
+    58	    # 两墙都记录 host — 任一被触发都满足「观察到解析尝试」的断言; 即便
+    59	    # 未来 urllib 绕过 getaddrinfo 直连, create_connection 墙仍拦住
+    60	    resolved_hosts = []
+    61	
+    62	    def _intercept_getaddrinfo(host, *args, **kwargs):
+    63	        resolved_hosts.append(host)
+    64	        raise socket.gaierror(-2, "blocked by bark_egress_probe")
+    65	
+    66	    def _intercept_create_connection(address, *args, **kwargs):
+    67	        if isinstance(address, tuple) and address:
+    68	            resolved_hosts.append(address[0])
+    69	        raise socket.gaierror(-2, "blocked by bark_egress_probe (create_connection)")
+    70	
+    71	    monkeypatch.setattr(socket, "getaddrinfo", _intercept_getaddrinfo)
+    72	    monkeypatch.setattr(socket, "create_connection", _intercept_create_connection)
+    73	    # 代理会把首跳解析目标换成代理主机, 断言锚点 api.day.app 就失配 —
+    74	    # 且 urllib 在 env 之外还读 macOS 系统代理 (getproxies_macosx_sysconf;
+    75	    # 本机实测系统代理在, A 模式首跳解析记到 127.0.0.1)。env + getproxies
+    76	    # 双禁 = 尽力消除代理首跳 (已建 opener 的缓存形态拦不住, 如实边界 —
+    77	    # 上面双墙恒兜底); 拦截器保证两种形态下都不出网
+    78	    for var in ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "all_proxy"):
+    79	        monkeypatch.delenv(var, raising=False)
+    80	    monkeypatch.setattr(runner.send_bark.urllib.request, "getproxies", lambda: {})
+    81	
+    82	    key_file = tmp_path / "bark.key"
+    83	    key_file.write_text("probekey-12345678\n", encoding="utf-8")
+    84	    monkeypatch.setattr(runner.send_bark, "KEY_FILE", key_file)
+    85	    # 单次尝试足以取证 — 免 RETRIES=2 的 2s+4s 重试空等
+    86	    monkeypatch.setattr(runner.send_bark, "RETRIES", 0)
+    87	    # A 模式 (无守卫) 下 push:failed 会走 osascript 兜底 subprocess 真弹
+    88	    # macOS 通知 — 探针自行打桩 (B 模式守卫已桩, 此处覆盖等价)
+    89	    monkeypatch.setattr(runner, "osascript_fallback", lambda noti: True)
+    90	
+    91	    vault = _make_vault(tmp_path)
+    92	    monkeypatch.setattr(runner, "VAULT", vault)
+    93	    monkeypatch.setattr(runner, "BACKUPS", tmp_path / "backups")
+    94	    # 窗口门放行 (机器时区无关) — 既有 _push_harness 同款; 探针证的是
+    95	    # 「send 被调后会不会出网」, 不是窗口语义
+    96	    monkeypatch.setattr(runner, "PUSH_WINDOW", (dtime(0, 0), dtime(23, 59, 59)))
+    97	    monkeypatch.setattr(
+    98	        sys, "argv", ["daily_review_run.py", "--now", NOW_ARG, "--vault", str(vault)]
+    99	    )
+   100	
+   101	    assert runner.main() == 0
+   102	    out = capsys.readouterr().out
+   103	    assert any("api.day.app" in str(h) for h in resolved_hosts), (
+   104	        f"未观察到对 api.day.app 的解析尝试 (resolved={resolved_hosts!r})"
+   105	    )
+   106	    assert "push:failed" in out
+   107	
+   108	
+   109	def test_keyfile_guarded():
+   110	    """自证门 C (armed): 守卫层① KEY_FILE 重定向的放行门 — 布防下
+   111	    send_bark.KEY_FILE 必须已被移出真实 key 位置。结构性断言, 只比路径
+   112	    不读内容, 布防/卸甲两形态都零副作用。"""
+   113	    import send_bark
+   114	
+   115	    real_key = Path.home() / ".config" / "canvas-review" / "bark.key"
+   116	    kf = Path(send_bark.KEY_FILE)
+   117	    assert kf != real_key, "守卫未布防: send_bark.KEY_FILE 仍指向真实 key 位置"
+   118	
+   119	
+   120	def test_osascript_guarded():
+   121	    """自证门 D (armed): 守卫层③ osascript_fallback 打桩的放行门 — 布防下
+   122	    它必须是守卫的记录桩而非 runner 原始实现。按 __qualname__ 结构性断言
+   123	    (任何测试侧替身都会改 qualname), 不调用函数, 布防/卸甲两形态都零副作用
+   124	    (调真函数 = 卸甲形态下真弹通知, 恰是要避免的事)。"""
+   125	    import daily_review_run
+   126	
+   127	    fn = daily_review_run.osascript_fallback
+   128	    assert getattr(fn, "__qualname__", "") != "osascript_fallback", (
+   129	        "守卫未布防: osascript_fallback 仍是 runner 原始实现"
+   130	    )
+   131	
+   132	
+   133	def test_reload_selfheal():
+   134	    """自证门 E (armed): reload 双保险 — reload(send_bark) 重跑模块顶层
+   135	    (KEY_FILE/_urlopen 被生产值重写) 后, 守卫须自动重打三层。仅 reload
+   136	    不调 send, 布防/卸甲两形态都零出网。"""
+   137	    import importlib
+   138	
+   139	    import send_bark
+   140	
+   141	    importlib.reload(send_bark)
+   142	    real_key = Path.home() / ".config" / "canvas-review" / "bark.key"
+   143	    assert Path(send_bark.KEY_FILE) != real_key, (
+   144	        "守卫未布防或 reload 自愈失效: reload 后 KEY_FILE 回到真实 key 位置"
+   145	    )
+   146	    assert getattr(send_bark._urlopen, "__qualname__", "") != "urlopen", (
+   147	        "守卫未布防或 reload 自愈失效: reload 后 _urlopen 回到真实 urlopen"
+   148	    )
+     1	#!/usr/bin/env python3
+     2	"""CARD-TEST-bark-autostub 负控裁判 (A/B/C'/C/D/D'/E/E' 八跑, 串行子进程)。
+     3	
+     4	A  (disarmed): --noconftest 卸下守卫 → test_probe 期望 PASS —— 证明「去掉
+     5	   fixture 就会真的尝试外发」(探针自装的 getaddrinfo/create_connection
+     6	   双拦截器挡住, 任何情况下不出网);
+     7	B  (armed):    正常 conftest → test_probe 期望 FAIL, 且失败必须是指定的
+     8	   那道断言 (pytest 输出里整行 `E   AssertionError: Bark egress attempted
+     9	   in tests`) —— 拒绝器层在被它验证的逻辑;
+    10	C  (armed):    test_keyfile_guarded 期望 PASS —— 守卫层① KEY_FILE 重定向
+    11	   的放行门;
+    12	C' (disarmed): --noconftest 同 nodeid 期望 FAIL(指定消息) —— 层①篡改门:
+    13	   证明 C 真的依赖守卫, 不是恒真;
+    14	D  (armed):    test_osascript_guarded 期望 PASS —— 守卫层③ osascript 打桩
+    15	   的放行门;
+    16	D' (disarmed): --noconftest 同 nodeid 期望 FAIL(指定消息) —— 层③篡改门;
+    17	E  (armed):    test_reload_selfheal 期望 PASS —— reload 双保险放行门;
+    18	E' (disarmed): --noconftest 同 nodeid 期望 FAIL(指定消息) —— reload 篡改门。
+    19	
+    20	判据口径 (round-2 收紧): 每跑核「退出码 + pytest 摘要行 + 指定断言正则」
+    21	—— 摘要必须恰为 `1 passed` / `1 failed` (可选 `, N warnings`), 出现 error
+    22	或多余用例即拒收; 指定断言按整行锚定 (^E\\s+...), 字符串碰巧出现在
+    23	traceback 源码行里不算数。TimeoutExpired 捕获记 FAIL, 不炸取证面。
+    24	
+    25	exit 0 仅当八跑全部按期望。串行、子进程、-p no:cacheprovider 防并行
+    26	session 共享 .pytest_cache 踩踏。
+    27	"""
+    28	
+    29	import re
+    30	import subprocess
+    31	import sys
+    32	from pathlib import Path
+    33	
+    34	BACKEND = Path(__file__).resolve().parents[1]
+    35	PROBE = "tests/regression/bark_egress_probe.py"
+    36	CASES = [
+    37	    ("A/disarmed-probe-egress-attempted", f"{PROBE}::test_probe", ["--noconftest"], "pass", None),
+    38	    ("B/armed-probe-refused", f"{PROBE}::test_probe", [], "fail",
+    39	     r"^E\s+AssertionError: Bark egress attempted in tests\s*$"),
+    40	    ("C/armed-keyfile-guarded", f"{PROBE}::test_keyfile_guarded", [], "pass", None),
+    41	    ("C'/disarmed-keyfile-tamper", f"{PROBE}::test_keyfile_guarded", ["--noconftest"], "fail",
+    42	     r"^E\s+AssertionError: 守卫未布防: send_bark\.KEY_FILE"),
+    43	    ("D/armed-osascript-guarded", f"{PROBE}::test_osascript_guarded", [], "pass", None),
+    44	    ("D'/disarmed-osascript-tamper", f"{PROBE}::test_osascript_guarded", ["--noconftest"], "fail",
+    45	     r"^E\s+AssertionError: 守卫未布防: osascript_fallback"),
+    46	    ("E/armed-reload-selfheal", f"{PROBE}::test_reload_selfheal", [], "pass", None),
+    47	    ("E'/disarmed-reload-tamper", f"{PROBE}::test_reload_selfheal", ["--noconftest"], "fail",
+    48	     r"^E\s+AssertionError: 守卫未布防或 reload 自愈失效: reload 后 KEY_FILE"),
+    49	]
+    50	
+    51	
+    52	def _summary_body(stdout: str) -> str:
+    53	    """取 pytest 末行摘要的正文, 如 '1 failed, 10 warnings'。"""
+    54	    for line in reversed(stdout.splitlines()):
+    55	        m = re.match(r"=+\s+(.*?)\s+in\s+[\d.]+s(?:\s.*)?\s*=+\s*$", line.strip())
+    56	        if m:
+    57	            return m.group(1)
+    58	    return ""
+    59	
+    60	
+    61	def _judged(label: str, nodeid: str, extra: list, expect: str, pattern: str | None) -> bool:
+    62	    cmd = [sys.executable, "-m", "pytest", "-p", "no:cacheprovider", *extra, nodeid]
+    63	    print(f"[{label}] $ {' '.join(cmd)}", flush=True)
+    64	    try:
+    65	        proc = subprocess.run(cmd, cwd=BACKEND, capture_output=True, text=True, timeout=600)
+    66	        rc, out = proc.returncode, proc.stdout
+    67	        sys.stdout.write(out)
+    68	        sys.stderr.write(proc.stderr)
+    69	    except subprocess.TimeoutExpired as e:
+    70	        sys.stdout.write(e.stdout or "" if isinstance(e.stdout, str) else "")
+    71	        sys.stderr.write(str(e))
+    72	        print(f"[{label}] TIMEOUT after 600s")
+    73	        return False
+    74	
+    75	    body = _summary_body(out)
+    76	    shape_ok = bool(re.fullmatch(r"1 passed(, \d+ warnings?)?", body)) if expect == "pass" else (
+    77	        bool(re.fullmatch(r"1 failed(, \d+ warnings?)?", body))
+    78	    )
+    79	    shape_ok = shape_ok and " no tests ran" not in out and "error" not in body
+    80	    regex_ok = pattern is None or (
+    81	        pattern is not None and re.search(pattern, out, re.MULTILINE) is not None
+    82	    )
+    83	    rc_ok = rc == (0 if expect == "pass" else 1)
+    84	    ok = rc_ok and shape_ok and regex_ok
+    85	    print(
+    86	        f"[{label}] expect {expect.upper()} -> ok={ok} rc={rc} summary='{body}' "
+    87	        f"regex={'n/a' if pattern is None else bool(regex_ok)}"
+    88	    )
+    89	    return ok
+    90	
+    91	
+    92	def main() -> int:
+    93	    results = [_judged(label, nodeid, extra, expect, pattern) for label, nodeid, extra, expect, pattern in CASES]
+    94	    for (label, _, _, expect, _), ok in zip(CASES, results):
+    95	        print(f"{label}: expect {expect.upper()} -> {'ok' if ok else 'MISMATCH'}")
+    96	    if all(results):
+    97	        print(
+    98	            "NEGATIVE-CONTROL: PASS "
+    99	            "(armed=probe-FAILED-as-expected, disarmed=probe-PASSED-egress-attempted)"
+   100	        )
+   101	        return 0
+   102	    print("NEGATIVE-CONTROL: FAIL")
+   103	    return 1
+   104	
+   105	
+   106	if __name__ == "__main__":
+   107	    sys.exit(main())
+
+**Analyzing pytest summary regex accuracy**
+**Evaluating pytest fake-green vulnerability severity**
+**Assessing pattern anchoring for error matching**
+**Analyzing pytest failure logic**
+**Evaluating pytest summary parsing accuracy**
+**Verifying pytest summary override risks**
+**Assessing summary override limitations**
+**Analyzing gate pass inconsistencies and reload gaps**
+**Verifying reload layer coverage discrepancy**
+**Evaluating test environment key reload risks**
+**Assessing test suite real network risk**
+exec
+/bin/zsh -lc "nl -ba '_bmad-output/审查/CARD-TEST-bark-autostub-验收单.md'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro
+ succeeded in 0ms:
+     1	---
+     2	story: "CARD-TEST-bark-autostub"
+     3	title: "bark-autostub"
+     4	status: "review"
+     5	version: "2"
+     6	date: "2026-09-01"
+     7	developer: "Claude Code (Fable 5)"
+     8	commit: "(commit 后回填)"
+     9	batch: "BATCH-2026-09-01-第八批"
+    10	---
+    11	
+    12	# CARD-TEST-bark-autostub 验收单（给你看的版本）
+    13	
+    14	> [!info]+ 这是什么
+    15	> 这是第八批 W4 车道第 ① 卡的验收文档。技术细节全部在「🤖 Claude 已代验」段，你只看 4-B 那一小段。
+    16	
+    17	---
+    18	
+    19	## 🎯 这个卡要做到什么
+    20	
+    21	以后任何人给复习推送的测试套件加新测试时，就算忘了做防护，测试也**不会**再往你手机上推真通知——它会自己响亮地失败，逼着写测试的人补防护。
+    22	
+    23	---
+    24	
+    25	## 📖 你的视角
+    26	
+    27	**作为** 每天靠手机推送提醒复习的用户，
+    28	**我想** 开发和测试过程永远不要碰我的真实手机通知，
+    29	**以便** 我收到的每条推送都是真的当日复习提醒，不被测试假通知污染或顶掉。
+    30	
+    31	---
+    32	
+    33	## 🖥️ 交互流程
+    34	
+    35	```
+    36	1. 你什么都不用做
+    37	       ↓
+    38	2. 你的手机今天、以后都只收到真实的复习推送
+    39	       ↓
+    40	3. （这张卡是纯保护性质的，装好后你看不到任何变化）
+    41	```
+    42	
+    43	---
+    44	
+    45	## 🤖 Claude 已代验（4-A：全部裁判输出）
+    46	
+    47	> [!success]+ 六条裁判全绿，以下为逐条证据（round-2 整改后终态实测）
+    48	
+    49	| # | 裁判 | 期望 | 实测 | 结果 |
+    50	|---|---|---|---|---|
+    51	| 1 | `caffeinate -i .venv/bin/pytest tests/regression/test_daily_review_run.py -q -p no:cacheprovider` | passed == 开工基线 N=32 | `32 passed, 10 warnings in 0.82s`（开工 collect-only 基线亦 32） | ✅ |
+    52	| 2 | `.venv/bin/python scripts/bark_autostub_negative_control.py` | 末行 NEGATIVE-CONTROL: PASS + exit 0 | 末行 PASS（下表八跑逐行），脚本 exit 0 | ✅ |
+    53	| 3 | (d) 两条 grep | 0 行 / 恰 1 行 | grep-1 输出 0 行（rc=1）；grep-2 恰 1 行 = `scripts/daily_review_run.py:250` | ✅ |
+    54	| 4 | 模块门零副作用 | regression collect 计数不变 + pick 37 不变 | fixture 加入前后均 `1028 tests collected`；`test_daily_review_pick.py` 前后均 `37 passed` | ✅ |
+    55	| 5 | `stat -f %m ~/.config/canvas-review/bark.key` 裁判 1 前后 | 不变 | 前 `1785602341` / 后 `1785602341` | ✅ |
+    56	| 6 | `.venv/bin/ruff check`（conftest.py / bark_egress_probe.py / bark_autostub_negative_control.py / send_bark.py） | 0 error | `All checks passed!` rc=0 | ✅ |
+    57	
+    58	### 裁判 2 负控八跑逐行（v2：放行门 ×3 + 篡改门 ×3 + 探针双跑）
+    59	
+    60	| 跑 | 形态 | nodeid | 期望 | 实测摘要 |
+    61	|---|---|---|---|---|
+    62	| A | --noconftest（卸甲） | test_probe | PASS | `1 passed` rc=0 ✅ |
+    63	| B | 布防 | test_probe | FAIL + 指定拒绝器断言 | `1 failed, 10 warnings` rc=1，整行 `E AssertionError: Bark egress attempted in tests` ✅ |
+    64	| C | 布防 | test_keyfile_guarded | PASS | `1 passed, 10 warnings` ✅ |
+    65	| C' | --noconftest | test_keyfile_guarded | FAIL + 指定消息 | `1 failed`，`E …守卫未布防: send_bark.KEY_FILE 仍指向真实 key 位置` ✅ |
+    66	| D | 布防 | test_osascript_guarded | PASS | `1 passed, 10 warnings` ✅ |
+    67	| D' | --noconftest | test_osascript_guarded | FAIL + 指定消息 | `1 failed`，`E …守卫未布防: osascript_fallback 仍是 runner 原始实现` ✅ |
+    68	| E | 布防 | test_reload_selfheal | PASS | `1 passed, 10 warnings` ✅ |
+    69	| E' | --noconftest | test_reload_selfheal | FAIL + 指定消息 | `1 failed`，`E …reload 后 KEY_FILE 回到真实 key 位置` ✅ |
+    70	
+    71	末行：`NEGATIVE-CONTROL: PASS (armed=probe-FAILED-as-expected, disarmed=probe-PASSED-egress-attempted)`，exit 0。
+    72	
+    73	C/D/E 是守卫三层（KEY_FILE 重定向 / osascript 打桩 / reload 自愈）各自的**放行门**；C'/D'/E' 是对应的**篡改门**——卸甲必须翻红，证明放行门真的依赖守卫而非恒真。
+    74	
+    75	### 拒绝器不被吞的证明（行号为改后实况）
+    76	
+    77	`send_bark.py` 网络循环内仅有两个 except：`:138 except urllib.error.HTTPError`、`:140 except (urllib.error.URLError, TimeoutError, OSError)`。`AssertionError` 与它们无继承关系，必然穿透 `send()`；`daily_review_run.main()` 的 try 只包 `ensure_payload`（:224-229），`:250` 的 send 调用不在 try 内。负控 B 跑实证整行输出含 `AssertionError: Bark egress attempted in tests`。
+    78	
+    79	### (a) 缝的改动实况
+    80	
+    81	`git diff HEAD --numstat` → `scripts/send_bark.py` 为 **+5 / -1**（新增 3 行注释 + 1 行别名 + 1 行空行；删除 1 行旧调用点改写为 `_urlopen(req, timeout=TIMEOUT_S)`）。卡文 (a) 限「≤5 行」按增行计恰好合规。别名在 import 时与 `urllib.request.urlopen` 绑定同一函数对象，生产调用路径语义不变（如实边界：绑定后不再观察对 `urllib.request.urlopen` 的后续 rebind，如 tracing 注入——本仓无此用法）。
+    82	
+    83	### 同类扫描结果表（(d) 可复跑命令，cwd = LANE 仓根）
+    84	
+    85	| 门 | 命令 | 期望 | 实测 |
+    86	|---|---|---|---|
+    87	| 测试侧无第二处出网面 | `grep -rn "send_bark\.send\|_urlopen\|api\.day\.app\|osascript" backend/tests --include='*.py' \| grep -v "regression/test_daily_review_run.py\|regression/conftest.py\|regression/bark_egress_probe.py"` | 0 行 | 0 行（rc=1） |
+    88	| 生产侧唯一 send 调用点 | `grep -rn "send_bark\.send(" scripts backend/app --include='*.py' --include='*.sh'` | 恰 1 行 | `scripts/daily_review_run.py:250` 恰 1 行 |
+    89	
+    90	（卡文原命令用 `LANE/` 绝对前缀，此处等价改为 cwd=仓根 的相对路径，命中集合逐字相同。扫描是文本级不是 AST——它证明「当前快照无第二处」，对未来新增代码无约束力。）
+    91	
+    92	### 每道门「不比什么」
+    93	
+    94	| 门 | 它证明什么 | 它**不**证明什么 |
+    95	|---|---|---|
+    96	| 裁判 1（32 绿） | 现有 32 条在守卫下语义不变 | 不证明未来新增的测试自动受保护——布防面是**两个模块名的精确枚举**，同目录新建测试文件（如 test_daily_review_push.py）默认不设防（裁决点 5 / 待你批扩面方案） |
+    97	| 负控 A（卸甲 PASS） | 探针这条 main() 路径在无守卫时会真的尝试外发（解析 api.day.app 被观察到） | 不证明所有可能的出网路径都被探针枚举；只锚定 send_bark 经 `_urlopen` 这一条（「唯一」由同类扫描门背书） |
+    98	| 负控 B（布防 FAIL+指定断言） | 拒绝器在被它验证的逻辑上，且判据按整行锚定 + 摘要形状收紧（error 即拒收） | 不证明 `--noconftest` 以外的进程内自解脱绑（见「未证明」#4） |
+    99	| C/C'（KEY_FILE 门） | 布防下 KEY_FILE 已移出真实位置；卸甲翻红 | 结构性断言，不证明真调 send 时的行为（行为面由 A/B 覆盖） |
+   100	| D/D'（osascript 门） | 布防下 fallback 是替身；卸甲翻红 | 同上（不真调函数——调了在卸甲形态就真弹通知） |
+   101	| E/E'（reload 门） | reload 生产模块后三层被自动重打；卸甲翻红 | `from importlib import reload` 预绑定形态拦不住（见「未证明」#4） |
+   102	| 裁判 4（1028/37 不变） | 非布防模块的收集/通过面不变；且守卫 fixture 对它们只实例化 `request`（不碰 fixture 图） | 不证明布防模块零开销（它们多了守卫三层 + 一个 mkdtemp 临时目录，测试结束即删） |
+   103	| 裁判 5（mtime 不变） | 真 key 文件未被**写** | **读取未被证明**——mtime 不反映读；靠 KEY_FILE 重定向 + 拒绝器双层保证测试不该走到读真 key 那步 |
+   104	| 裁判 6（ruff） | 四文件无 lint error | 不证明逻辑正确性 |
+   105	
+   106	### 本卡未证明什么（必填段）
+   107	
+   108	1. **未证明真 key 从未被读取**：mtime 只证未写；「import 瞬间之外、守卫覆盖之外的读」没有系统级取证（如 fs 审计）。
+   109	2. **未覆盖两个布防模块名之外的未来测试**：同目录新文件、tests/regression 之外的目录（tests/unit、tests/api 等）未来若直调 send_bark 不受防线保护（当前 grep 门证明现在为 0）。目录级自动扩面方案列为裁决点 5。
+   110	3. **未证明生产链行为**：本卡零改生产逻辑（(a) 缝除外），不为 runner 窗口门/重试/兜底语义提供新证据。
+   111	4. **进程内故意对抗不在威胁模型**：`from importlib import reload` 的预绑定形态、`del sys.modules[...]` 后重建、测试自建第二个模块实例——这类「故意自解脱绑」守卫不承诺拦截（`importlib.reload` 的属性式调用已锁，from-import 逃逸已如实声明）；负控也只覆盖显式列出的八跑。
+   112	5. **代理清理是尽力消除**：已建 opener 的缓存形态拦不住（探针双墙 getaddrinfo + create_connection 恒兜底，两种形态都不出网）。
+   113	
+   114	---
+   115	
+   116	## 👤 你来验（4-B）
+   117	
+   118	> [!info]+ 这张卡对你没有任何可见变化
+   119	> 本卡是纯保护性质的：**无变化（你的手机不会再收到测试假通知）**。
+   120	> 你不需要做任何操作。如果今后某天你的手机在没有复习内容的时刻收到一条奇怪的「今日复习」推送，那就是这道防线漏了，直接批注告诉我。
+   121	
+   122	- [ ] 我今天正常用手机 → 我没看到任何多余的假推送 → 我感觉一切照旧、很安心
+   123	
+   124	---
+   125	
+   126	## 🚦 验收结果
+   127	
+   128	**默认裁决回执全数确认即通过**：回复「CARD-TEST-bark-autostub 通过」，本卡随 ②（isolate-lifespan）一起合中间 commit。
+   129	**任何一条不同意**：在批注区写明，我按你的裁决改。
+   130	
+   131	---
+   132	
+   133	## 📝 你的批注区
+   134	
+   135	> [!question]+ 待你裁决（默认裁决回执 1-4 = 卡文列明的默认值；5-10 = 本卡执行中的如实偏差，依据在括号内）
+   136	>
+   137	> **默认裁决（均已按默认执行）**
+   138	> 1. **send_bark.py ≤5 行缝**：已落地（+5/-1）。若你不许动 send_bark.py，退回方案是测试侧只 patch send_bark 模块内命名空间壳。
+   139	> 2. **autouse 放 regression/conftest.py 带模块门**（不放根 conftest）：已执行。
+   140	> 3. **osascript_fallback 打桩**：已执行（守卫内记录并返回 True）。
+   141	> 4. **探针文件不带 test_ 前缀**：已执行（默认收集不到，1028 计数不变实证）。
+   142	>
+   143	> **执行偏差（每条附依据）**
+   144	> 5. **模块门 = 两模块名精确枚举** `("test_daily_review_run", "bark_egress_probe")`，且**新文件默认不设防**。依据：精确枚举防 endswith 的误伤/漏防（round-1 MEDIUM）；探针必须在布防面内否则负控 B 失效。**待你裁决扩面方案**：目录级门（该目录任何文件都布防）更省心，但会把无关测试文件也圈进守卫的 fixture 图；维持枚举则每加一个推送测试文件要手动加一行。我推荐维持枚举 + 在 conftest 注释里写明（现状），等你批。
+   145	> 6. **探针在卡文之外自加了桩**：osascript_fallback（卸甲形态会真弹 macOS 通知）、PUSH_WINDOW 放行（机器时区无关）、RETRIES=0（免 2s+4s 重试空等）、DNS/建连双墙 + 代理禁用（见 7）。
+   146	> 7. **真实发现**：本机配有 macOS 系统代理——`urllib` 在 env 之外还读系统代理，卸甲形态首跳解析记到的是代理主机 `127.0.0.1` 而非 `api.day.app`（负控首跑 FAIL 抓出）。探针现清代理 env + patch `getproxies`，强制直连形态。**含义**：若真发生测试外发事故，流量会先走你的本地代理——代理日志可作事后取证面。
+   147	> 8. **KEY_FILE 重定向从卡文字面的「不存在的路径」改为「真实存在的假 key」**。依据：不存在的 key 会让 send 走 rc=2 静默分支（返 0 不报错）——恰好把「忘了打桩 = 响亮失败」变成「忘了打桩 = 假绿」，是 Codex round-1 的 HIGH-1；假 key 让 load_key 成功、拒绝器必然可达。这是对卡文 (b)① 字面的偏离、对 (b) 意图（响亮失败）的忠于。
+   148	> 9. **reload 双保险**：守卫 patch `importlib.reload`（仅布防测试期间进程级生效），对 send_bark/daily_review_run 的 reload 完成后自动重打三层。如实边界：`from importlib import reload` 预绑定形态拦不住（已声明）；E/E' 门证明自愈真的在工作（初版条件写错命名空间，被 E 门当场抓住后修正）。
+   149	> 10. **负控从卡文的 A/B 两跑扩为八跑**（C/C'、D/D'、E/E' 三对放行/篡改门）。依据：放行门必须配篡改门，否则「门存在」≠「门在工作」（项目教训 feedback 正反门配对）；A/B 只锁三层中的第②层。
+   150	>
+   151	> **审查轨迹（如实）**：Codex round-1 判 FAIL（3H+2M+3L，全文 `codex-review-CARD-TEST-bark-autostub.md`）；并行 7 维度对抗审查产 22 条发现（其中「守卫层①抢先短路使拒绝器不可达」「负控只锁一层」与 Codex 重合互证，全程记录在案）；整改后 E 门自测又抓出一个我自己的 bug（reload 重打条件写错命名空间，见 9）；round-2 复审结论见 `codex-review-CARD-TEST-bark-autostub-round2.md`（回填）。
+   152	
+   153	（空）
+   154	
+   155	---
+   156	
+   157	## 🔗 技术 spec 参考（给 Claude 读的）
+   158	
+   159	- **卡文**：`feature-obsidian-hybrid-dev/_bmad-output/implementation-artifacts/goal-cards/第八批-goals/W4-1.md`
+   160	- **改动/新增文件**：
+   161	  - `scripts/send_bark.py`（(a) 缝，+5/-1）
+   162	  - `backend/tests/regression/conftest.py`（(b) `_bark_egress_guard` v2：独立 MonkeyPatch + 精确模块门 + reload 双保险）
+   163	  - `backend/tests/regression/test_daily_review_run.py`（`_capture_bark_request` 改 patch 缝）
+   164	  - `backend/tests/regression/bark_egress_probe.py`（(c) 探针 + C/D/E 自证门，新增）
+   165	  - `backend/scripts/bark_autostub_negative_control.py`（(c) 八跑负控，新增）
+   166	- **Codex 对抗审查**：round-1 `_bmad-output/审查/codex-review-CARD-TEST-bark-autostub.md`（FAIL 3H+2M+3L → 全整改）；round-2 `codex-review-CARD-TEST-bark-autostub-round2.md`（回填）
+   167	- **Git commit**：(commit 后回填)
+   168	- **完成条件 → 落点**：
+   169	  - (a) → send_bark.py:38-41 + :128（+5/-1）
+   170	  - (b) → tests/regression/conftest.py `_bark_egress_guard`（① KEY_FILE=假 key 偏差见裁决 8；② 拒绝器；③ osascript 桩；+ reload 双保险）
+   171	  - (c) → tests/regression/bark_egress_probe.py + backend/scripts/bark_autostub_negative_control.py（八跑，偏差见裁决 10）
+   172	  - (d) → 本单「同类扫描结果表」
+   173	  - (e) → 本单 4-A 表六行
+   174	
+   175	---
+   176	
+   177	## 📅 下一步
+   178	
+   179	1. **默认裁决 + 偏差 5-10 全数确认** → 说「通过」→ 本卡随 ② 合中间 commit
+   180	2. **任何裁决点不同意** → 批注区写明 → 我按裁决调整后重跑六条裁判
+
+**Identifying contradiction in test suite protection claims**
+**Evaluating test boundary and network patch effectiveness**
+**Tracing HTTPConnection instantiation timing**
+**Examining HTTPConnection socket patching**
+**Verifying HTTPConnection constructor behavior**
+**Analyzing test_probe network behavior**
+**Evaluating monkeypatch undo testing gaps**
+**Planning safe sequential test execution**
+**Disabling Python bytecode writes**
+codex
+静态复核已确认 H1/H2/H3 的主体代码确实存在；我同时看到两处需要动态区分“实现成立”与“验收证据过宽”的候选：reload 门实际覆盖的模块范围，以及八跑裁判是否能把指定断言与真实失败绑定。现在开始跑允许的 32 条回归和安全八跑。
+exec
+/bin/zsh -lc 'PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest tests/regression/test_daily_review_run.py -q -p no:cacheprovider' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend
+ exited 1 in 564ms:
+Traceback (most recent call last):
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/bin/pytest", line 6, in <module>
+    sys.exit(console_main())
+             ~~~~~~~~~~~~^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 223, in console_main
+    code = main()
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 193, in main
+    config = _prepareconfig(new_args, plugins)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 361, in _prepareconfig
+    config: Config = pluginmanager.hook.pytest_cmdline_parse(
+                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        pluginmanager=pluginmanager, args=args
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/pluggy/_callers.py", line 167, in _multicall
+    raise exception
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/pluggy/_callers.py", line 139, in _multicall
+    teardown.throw(exception)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/_pytest/helpconfig.py", line 124, in pytest_cmdline_parse
+    config = yield
+             ^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/pluggy/_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 1186, in pytest_cmdline_parse
+    self.parse(args)
+    ~~~~~~~~~~^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 1556, in parse
+    self.hook.pytest_load_initial_conftests(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        early_config=self, args=args, parser=self._parser
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/pluggy/_callers.py", line 167, in _multicall
+    raise exception
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/pluggy/_callers.py", line 139, in _multicall
+    teardown.throw(exception)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/_pytest/warnings.py", line 128, in pytest_load_initial_conftests
+    return (yield)
+            ^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/pluggy/_callers.py", line 116, in _multicall
+    next(function_gen)  # first yield
+    ~~~~^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/_pytest/capture.py", line 170, in pytest_load_initial_conftests
+    capman.start_global_capturing()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/_pytest/capture.py", line 773, in start_global_capturing
+    self._global_capturing = _get_multicapture(self._method)
+                             ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/_pytest/capture.py", line 714, in _get_multicapture
+    return MultiCapture(in_=FDCapture(0), out=FDCapture(1), err=FDCapture(2))
+                                              ~~~~~~~~~^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/_pytest/capture.py", line 493, in __init__
+    TemporaryFile(buffering=0),
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tempfile.py", line 652, in TemporaryFile
+    prefix, suffix, dir, output_type = _sanitize_params(prefix, suffix, dir)
+                                       ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tempfile.py", line 127, in _sanitize_params
+    dir = gettempdir()
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tempfile.py", line 312, in gettempdir
+    return _os.fsdecode(_gettempdir())
+                        ~~~~~~~~~~~^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tempfile.py", line 305, in _gettempdir
+    tempdir = _get_default_tempdir()
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tempfile.py", line 222, in _get_default_tempdir
+    raise FileNotFoundError(_errno.ENOENT,
+                            "No usable temporary directory found in %s" %
+                            dirlist)
+FileNotFoundError: [Errno 2] No usable temporary directory found in ['/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/', '/tmp', '/var/tmp', '/usr/tmp', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend']
+
+**Escalating permissions for write access**
+exec
+/bin/zsh -lc 'PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest tests/regression/test_daily_review_run.py -q -p no:cacheprovider' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend
+**Adjusting execution to use wait function**
+ succeeded in 12709ms:
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 32 items
+
+tests/regression/test_daily_review_run.py .............................. [ 93%]
+..                                                                       [100%]
+
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:805
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/app/api/v1/endpoints/chat.py:805: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:105
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/app/api/v1/endpoints/metadata.py:105: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:176
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/app/api/v1/endpoints/metadata.py:176: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================= 32 passed, 10 warnings in 0.77s ========================
+
+**Planning escalated subprocess execution**
+exec
+/bin/zsh -lc 'PYTHONDONTWRITEBYTECODE=1 .venv/bin/python scripts/bark_autostub_negative_control.py' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend
+**Switching to exec write_stdin polling**
+ succeeded in 65703ms:
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0 -- /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/bin/python
+hypothesis profile 'default'
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 1 item
+
+tests/regression/bark_egress_probe.py::test_probe PASSED                 [100%]
+
+============================== 1 passed in 0.10s ===============================
+[A/disarmed-probe-egress-attempted] expect PASS -> ok=True rc=0 summary='1 passed' regex=n/a
+[B/armed-probe-refused] $ /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/bin/python -m pytest -p no:cacheprovider tests/regression/bark_egress_probe.py::test_probe
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0 -- /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/bin/python
+hypothesis profile 'dev' -> max_examples=20, deadline=timedelta(milliseconds=10000)
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 1 item
+
+tests/regression/bark_egress_probe.py::test_probe FAILED                 [100%]
+
+=================================== FAILURES ===================================
+__________________________________ test_probe __________________________________
+tests/regression/bark_egress_probe.py:101: in test_probe
+    assert runner.main() == 0
+           ^^^^^^^^^^^^^
+../scripts/daily_review_run.py:250: in main
+    rc = send_bark.send(noti, payload.get("vault_id") or VAULT.resolve().name)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../scripts/send_bark.py:128: in send
+    with _urlopen(req, timeout=TIMEOUT_S) as resp:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/regression/conftest.py:251: in _refuse_egress
+    raise AssertionError("Bark egress attempted in tests")
+E   AssertionError: Bark egress attempted in tests
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:805
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/app/api/v1/endpoints/chat.py:805: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:105
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/app/api/v1/endpoints/metadata.py:105: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:176
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/app/api/v1/endpoints/metadata.py:176: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/regression/bark_egress_probe.py::test_probe - AssertionError: Ba...
+======================== 1 failed, 10 warnings in 0.66s ========================
+[B/armed-probe-refused] expect FAIL -> ok=True rc=1 summary='1 failed, 10 warnings' regex=True
+[C/armed-keyfile-guarded] $ /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/bin/python -m pytest -p no:cacheprovider tests/regression/bark_egress_probe.py::test_keyfile_guarded
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0 -- /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/bin/python
+hypothesis profile 'dev' -> max_examples=20, deadline=timedelta(milliseconds=10000)
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 1 item
+
+tests/regression/bark_egress_probe.py::test_keyfile_guarded PASSED       [100%]
+
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:805
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/app/api/v1/endpoints/chat.py:805: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:105
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/app/api/v1/endpoints/metadata.py:105: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:176
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/app/api/v1/endpoints/metadata.py:176: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 1 passed, 10 warnings in 0.51s ========================
+[C/armed-keyfile-guarded] expect PASS -> ok=True rc=0 summary='1 passed, 10 warnings' regex=n/a
+[C'/disarmed-keyfile-tamper] $ /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/bin/python -m pytest -p no:cacheprovider --noconftest tests/regression/bark_egress_probe.py::test_keyfile_guarded
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0 -- /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/bin/python
+hypothesis profile 'default'
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 1 item
+
+tests/regression/bark_egress_probe.py::test_keyfile_guarded FAILED       [100%]
+
+=================================== FAILURES ===================================
+_____________________________ test_keyfile_guarded _____________________________
+tests/regression/bark_egress_probe.py:117: in test_keyfile_guarded
+    assert kf != real_key, "守卫未布防: send_bark.KEY_FILE 仍指向真实 key 位置"
+E   AssertionError: 守卫未布防: send_bark.KEY_FILE 仍指向真实 key 位置
+E   assert PosixPath('/Users/Heishing/.config/canvas-review/bark.key') != PosixPath('/Users/Heishing/.config/canvas-review/bark.key')
+=========================== short test summary info ============================
+FAILED tests/regression/bark_egress_probe.py::test_keyfile_guarded - Assertio...
+============================== 1 failed in 0.15s ===============================
+[C'/disarmed-keyfile-tamper] expect FAIL -> ok=True rc=1 summary='1 failed' regex=True
+[D/armed-osascript-guarded] $ /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/bin/python -m pytest -p no:cacheprovider tests/regression/bark_egress_probe.py::test_osascript_guarded
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0 -- /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/bin/python
+hypothesis profile 'dev' -> max_examples=20, deadline=timedelta(milliseconds=10000)
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 1 item
+
+tests/regression/bark_egress_probe.py::test_osascript_guarded PASSED     [100%]
+
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:805
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/app/api/v1/endpoints/chat.py:805: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:105
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/app/api/v1/endpoints/metadata.py:105: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:176
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/app/api/v1/endpoints/metadata.py:176: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 1 passed, 10 warnings in 0.55s ========================
+[D/armed-osascript-guarded] expect PASS -> ok=True rc=0 summary='1 passed, 10 warnings' regex=n/a
+[D'/disarmed-osascript-tamper] $ /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/bin/python -m pytest -p no:cacheprovider --noconftest tests/regression/bark_egress_probe.py::test_osascript_guarded
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0 -- /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/bin/python
+hypothesis profile 'default'
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 1 item
+
+tests/regression/bark_egress_probe.py::test_osascript_guarded FAILED     [100%]
+
+=================================== FAILURES ===================================
+____________________________ test_osascript_guarded ____________________________
+tests/regression/bark_egress_probe.py:128: in test_osascript_guarded
+    assert getattr(fn, "__qualname__", "") != "osascript_fallback", (
+E   AssertionError: 守卫未布防: osascript_fallback 仍是 runner 原始实现
+E   assert 'osascript_fallback' != 'osascript_fallback'
+E    +  where 'osascript_fallback' = getattr(<function osascript_fallback at 0x109fb10c0>, '__qualname__', '')
+=========================== short test summary info ============================
+FAILED tests/regression/bark_egress_probe.py::test_osascript_guarded - Assert...
+============================== 1 failed in 0.14s ===============================
+[D'/disarmed-osascript-tamper] expect FAIL -> ok=True rc=1 summary='1 failed' regex=True
+[E/armed-reload-selfheal] $ /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/bin/python -m pytest -p no:cacheprovider tests/regression/bark_egress_probe.py::test_reload_selfheal
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0 -- /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/bin/python
+hypothesis profile 'dev' -> max_examples=20, deadline=timedelta(milliseconds=10000)
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 1 item
+
+tests/regression/bark_egress_probe.py::test_reload_selfheal PASSED       [100%]
+
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:805
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/app/api/v1/endpoints/chat.py:805: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:105
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/app/api/v1/endpoints/metadata.py:105: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:176
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/app/api/v1/endpoints/metadata.py:176: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 1 passed, 10 warnings in 0.48s ========================
+[E/armed-reload-selfheal] expect PASS -> ok=True rc=0 summary='1 passed, 10 warnings' regex=n/a
+[E'/disarmed-reload-tamper] $ /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/bin/python -m pytest -p no:cacheprovider --noconftest tests/regression/bark_egress_probe.py::test_reload_selfheal
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0 -- /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/bin/python
+hypothesis profile 'default'
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 1 item
+
+tests/regression/bark_egress_probe.py::test_reload_selfheal FAILED       [100%]
+
+=================================== FAILURES ===================================
+_____________________________ test_reload_selfheal _____________________________
+tests/regression/bark_egress_probe.py:143: in test_reload_selfheal
+    assert Path(send_bark.KEY_FILE) != real_key, (
+E   AssertionError: 守卫未布防或 reload 自愈失效: reload 后 KEY_FILE 回到真实 key 位置
+E   assert PosixPath('/Users/Heishing/.config/canvas-review/bark.key') != PosixPath('/Users/Heishing/.config/canvas-review/bark.key')
+E    +  where PosixPath('/Users/Heishing/.config/canvas-review/bark.key') = Path(PosixPath('/Users/Heishing/.config/canvas-review/bark.key'))
+E    +    where PosixPath('/Users/Heishing/.config/canvas-review/bark.key') = <module 'send_bark' from '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/scripts/send_bark.py'>.KEY_FILE
+=========================== short test summary info ============================
+FAILED tests/regression/bark_egress_probe.py::test_reload_selfheal - Assertio...
+============================== 1 failed in 0.15s ===============================
+[E'/disarmed-reload-tamper] expect FAIL -> ok=True rc=1 summary='1 failed' regex=True
+A/disarmed-probe-egress-attempted: expect PASS -> ok
+B/armed-probe-refused: expect FAIL -> ok
+C/armed-keyfile-guarded: expect PASS -> ok
+C'/disarmed-keyfile-tamper: expect FAIL -> ok
+D/armed-osascript-guarded: expect PASS -> ok
+D'/disarmed-osascript-tamper: expect FAIL -> ok
+E/armed-reload-selfheal: expect PASS -> ok
+E'/disarmed-reload-tamper: expect FAIL -> ok
+NEGATIVE-CONTROL: PASS (armed=probe-FAILED-as-expected, disarmed=probe-PASSED-egress-attempted)
+
+**Analyzing cross-test reload wrapper behavior**
+**Identifying cross-test stub persistence causing false positives**
+**Assessing high-risk prebound reload vulnerability**
+**Clarifying function binding comment**
+**Planning safe fixture invocation**
+**Planning safe fixture generator invocation**
+**Considering pre-fixture patching**
+**Verifying network capture and cleanup behavior**
+**Confirming fixture teardown and key cleanup**
+**Assessing stale importlib.reload wrapper risk**
+**Assessing fixture teardown ordering impact**
+**Evaluating importlib.reload monkeypatch risks**
+**Confirming fake key minimizes notification risk**
+**Planning safe notification test execution**
+**Verifying reload effect on URL capture and send**
+codex
+32 条基线与八跑均按当前实现通过；这只能证明列出的路径。我正在复现一个八跑未覆盖的生命周期反例：被保存的 reload 引用在守卫 teardown 后是否还能重入旧闭包，以及预绑定 reload 是否让“真实假 key”走到网络缝。复现会先把底层出口替换为内存捕获器，绝不出网。
+exec
+/bin/zsh -lc "PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -c 'import importlib, importlib.util, sys, types, urllib.request
+from pathlib import Path
+backend = Path.cwd()
+spec = importlib.util.spec_from_file_location(\"audit_regression_conftest\", backend / \"tests/regression/conftest.py\")
+conf = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(conf)
+real_urlopen = urllib.request.urlopen
+seen = []
+class Resp:
+    status = 200
+    def read(self): return b\"{\\\"code\\\":200}\"
+    def __enter__(self): return self
+    def __exit__(self, *args): return False
+def capture(req, timeout=None):
+    seen.append(req.full_url)
+    return Resp()
+urllib.request.urlopen = capture
+prebound = importlib.reload
+request = types.SimpleNamespace(module=types.SimpleNamespace(__name__=\"bark_egress_probe\"))
+gen = conf._bark_egress_guard.__wrapped__(request)
+next(gen)
+import send_bark
+fake_before = Path(send_bark.KEY_FILE)
+prebound(send_bark)
+rc = send_bark.send({\"id\":\"audit\",\"title\":\"t\",\"body\":\"b\"})
+saved_wrapper = importlib.reload
+gen.close()
+saved_wrapper(send_bark)
+stale = Path(send_bark.KEY_FILE)
+print(f\"PREBOUND fake_exists={fake_before.exists()} rc={rc} captured={seen}\")
+print(f\"STALE key_exists={stale.exists()} urlopen={getattr(send_bark._urlopen, chr(95)+chr(95)+\\\"qualname\\\"+chr(95)+chr(95), type(send_bark._urlopen).__name__)}\")
+urllib.request.urlopen = real_urlopen'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend
+ exited 1 in 0ms:
+  File "<string>", line 31
+    print(f"STALE key_exists={stale.exists()} urlopen={getattr(send_bark._urlopen, chr(95)+chr(95)+\"qualname\"+chr(95)+chr(95), type(send_bark._urlopen).__name__)}")
+                                                                                                    ^
+SyntaxError: unexpected character after line continuation character
+
+**Correcting quoting for rerun**
+exec
+/bin/zsh -lc "PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -c 'import importlib, importlib.util, sys, types, urllib.request
+from pathlib import Path
+backend = Path.cwd()
+spec = importlib.util.spec_from_file_location(\"audit_regression_conftest\", backend / \"tests/regression/conftest.py\")
+conf = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(conf)
+real_urlopen = urllib.request.urlopen
+seen = []
+class Resp:
+    status = 200
+    def read(self): return b\"{\\\"code\\\":200}\"
+    def __enter__(self): return self
+    def __exit__(self, *args): return False
+def capture(req, timeout=None):
+    seen.append(req.full_url)
+    return Resp()
+urllib.request.urlopen = capture
+prebound = importlib.reload
+request = types.SimpleNamespace(module=types.SimpleNamespace(__name__=\"bark_egress_probe\"))
+gen = conf._bark_egress_guard.__wrapped__(request)
+next(gen)
+import send_bark
+fake_before = Path(send_bark.KEY_FILE)
+prebound(send_bark)
+rc = send_bark.send({\"id\":\"audit\",\"title\":\"t\",\"body\":\"b\"})
+saved_wrapper = importlib.reload
+gen.close()
+saved_wrapper(send_bark)
+stale = Path(send_bark.KEY_FILE)
+print(\"PREBOUND fake_exists=%s rc=%s captured=%s\" % (fake_before.exists(), rc, seen))
+print(\"STALE key_exists=%s urlopen=%s\" % (stale.exists(), getattr(send_bark._urlopen, \"__qualname__\", type(send_bark._urlopen).__name__)))
+urllib.request.urlopen = real_urlopen'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend
+ exited 1 in 9322ms:
+2026-09-01 05:46:37 [debug    ] RAGService: Added /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/lib to sys.path
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+Building prefix dict from the default dictionary ...
+Loading model from cache /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/jieba.cache
+Loading model cost 0.363 seconds.
+Prefix dict has been built successfully.
+2026-09-01 05:46:42 [info     ] RAGService: LangGraph/Agentic RAG available. LANGGRAPH_AVAILABLE=True
+Traceback (most recent call last):
+  File "<string>", line 28, in <module>
+    saved_wrapper(send_bark)
+    ~~~~~~~~~~~~~^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/tests/regression/conftest.py", line 271, in _guarded_reload
+    result = _real_reload(module)
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/importlib/__init__.py", line 128, in reload
+    raise ModuleNotFoundError(f"spec not found for the module {name!r}", name=name)
+ModuleNotFoundError: spec not found for the module 'send_bark'
+bark accepted http=200 code=200
+
+**Adjusting sys.path for module import**
+**Preparing rerun with adjusted sys.path**
+exec
+/bin/zsh -lc "PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -c 'import importlib, importlib.util, sys, types, urllib.request
+from pathlib import Path
+backend = Path.cwd()
+sys.path.insert(0, str(backend.parent / \"scripts\"))
+spec = importlib.util.spec_from_file_location(\"audit_regression_conftest\", backend / \"tests/regression/conftest.py\")
+conf = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(conf)
+real_urlopen = urllib.request.urlopen
+seen = []
+class Resp:
+    status = 200
+    def read(self): return b\"{\\\"code\\\":200}\"
+    def __enter__(self): return self
+    def __exit__(self, *args): return False
+def capture(req, timeout=None):
+    seen.append(req.full_url)
+    return Resp()
+urllib.request.urlopen = capture
+prebound = importlib.reload
+request = types.SimpleNamespace(module=types.SimpleNamespace(__name__=\"bark_egress_probe\"))
+gen = conf._bark_egress_guard.__wrapped__(request)
+next(gen)
+import send_bark
+fake_before = Path(send_bark.KEY_FILE)
+prebound(send_bark)
+rc = send_bark.send({\"id\":\"audit\",\"title\":\"t\",\"body\":\"b\"})
+saved_wrapper = importlib.reload
+gen.close()
+saved_wrapper(send_bark)
+stale = Path(send_bark.KEY_FILE)
+print(\"PREBOUND fake_exists=%s rc=%s captured=%s\" % (fake_before.exists(), rc, seen))
+print(\"STALE key_exists=%s urlopen=%s\" % (stale.exists(), getattr(send_bark._urlopen, \"__qualname__\", type(send_bark._urlopen).__name__)))
+urllib.request.urlopen = real_urlopen'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend
+ succeeded in 7849ms:
+2026-09-01 05:47:22 [debug    ] RAGService: Added /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/lib to sys.path
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+Building prefix dict from the default dictionary ...
+Loading model from cache /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/jieba.cache
+Loading model cost 0.275 seconds.
+Prefix dict has been built successfully.
+2026-09-01 05:47:26 [info     ] RAGService: LangGraph/Agentic RAG available. LANGGRAPH_AVAILABLE=True
+bark accepted http=200 code=200
+PREBOUND fake_exists=False rc=0 captured=['https://api.day.app/push']
+STALE key_exists=False urlopen=_bark_egress_guard.<locals>._refuse_egress
+
+**Verifying key stale handling with send return code**
+**Planning isolated reproduction for send failure**
+**Planning subprocess monkeypatch testing**
+**Assessing false positive conditions in output parsing**
+**Evaluating subprocess test isolation and failure patterns**
+**Assessing core claim severity and boundaries**
+**Clarifying partial and full remediation statuses**
+**Confirming M2 full remediation with known boundary**
+**Analyzing fixture graph changes with autouse fixture**
+**Evaluating fixture graph impact and classification tiers**
+2026-08-31T21:50:11.933352Z ERROR codex_core::tools::router: error=timeout_ms must be at least 10000
+**Checking negative agent status**
+**Planning dynamic M1 spoof testing**
+**Analyzing regex multiline impact on pytest summary matching**
+**Evaluating pytest error handling and output nuances**
+**Assessing subprocess timeout risks**
+**Verifying test environment interactions**
+**Analyzing stale wrapper contamination risks**
+**Identifying wrapper import leak risks**
+**Testing negative script output**
+exec
+/bin/zsh -lc "PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -c 'import importlib.util, re
+from pathlib import Path
+p = Path(\"scripts/bark_autostub_negative_control.py\")
+s = importlib.util.spec_from_file_location(\"neg\", p)
+m = importlib.util.module_from_spec(s)
+s.loader.exec_module(m)
+out = \"E   AssertionError: Bark egress attempted in tests\\n================ 1 failed in 0.10s ================\\n\"
+body = m._summary_body(out)
+pat = m.CASES[1][4]
+shape = bool(re.fullmatch(r\"1 failed(, \\d+ warnings?)?\", body))
+regex = re.search(pat, out, re.MULTILINE) is not None
+print(\"rc=1 body=%r shape=%s regex=%s judged=%s\" % (body, shape, regex, shape and regex))'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend
+ succeeded in 0ms:
+rc=1 body='1 failed' shape=True regex=True judged=True
+
+**Enhancing synthetic test output with unrelated error**
+**Validating summary parsing and test output patterns**
+**Evaluating threat level for future file leak**
+**Clarifying risk levels for test suite updates**
+**Identifying high-risk reload side effects**
+**Analyzing stale wrapper effects in tests**
+**Verifying module teardown effects on tests**
+collab: Wait
+**Sending status request**
+**Confirming agent finalization**
+**Inspecting exact memory lines for citation**
+exec
+/bin/zsh -lc "nl -ba /Users/Heishing/.codex/memories/MEMORY.md | sed -n '207,224p'; nl -ba /Users/Heishing/.codex/memories/skills/canvas-adversarial-audit/SKILL.md | sed -n '13,50p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro
+ succeeded in 0ms:
+   207	### keywords
+   208	
+   209	- P1-05b, symlink_escape, casefold, vault_backfill, lancedb_client, quarantine__p105b, search_nodes, read_node_tips, manifest-v3, NaN
+   210	
+   211	## User preferences
+   212	
+   213	- “启动并行 agent 进行对抗性审查” -> use independent evidence tracks and cross-check severity; every finding needs `file:line`, reproduction path/result, severity, conflict explanation, PASS/PARTIAL/FAIL, and limits. [Task 1][Task 2]
+   214	- Respect read-only task-book boundaries, WT/MAIN labels, explicit `UNVERIFIABLE`, and no raw-vault access; do not fix code in the audit. [Task 1]
+   215	
+   216	## Reusable knowledge
+   217	
+   218	- Related skill: skills/canvas-adversarial-audit/SKILL.md. P1-05/P1-01/P1-08 remained STILL-OPEN; F-02 tombstone filtering and F-05 live resilience were closed. Rejected vault inputs must show zero open/hash/index/write. [Task 1][Task 2]
+   219	- Reproduced: `vault/raw/escape.md -> /outside/secret.md` was counted by `backfill_vault(..., execute=False)`; case-sensitive `fnmatch` admitted `.CLAUDE/SKILL.md` and `raw/claude.md`. Edge filtering alone was insufficient because exact readers/node search could cross Graphiti groups. [Task 2]
+   220	- SnapshotV3 needs invalid/future same-generation self-healing, extra-field, strict-type, huge finite mastery, and identity/length collision coverage. [Task 1][Task 2]
+   221	
+   222	## Failures and how to do differently
+   223	
+   224	- Green tests hitting source text, helpers, fake clients, `__new__`, or monkeypatches are not closure; pivot to production entrypoints and full stdout/trace. Test `search_nodes`, `read_node_tips`, `read_node_errors`, and `read_node_edge_reasons`. [Task 1][Task 2]
+    13	Use for a user-requested adversarial or closure audit in the Canvas Learning System worktree, particularly P1-05/P1-01/P1-08. Do not use to implement fixes, access prohibited raw-vault content, or declare a historical finding current without revalidation.
+    14	
+    15	## Inputs / context to gather
+    16	
+    17	1. Read the task book, `AGENTS.md`, worktree topology, allowed/prohibited paths, and reporting contract.
+    18	2. Record checkout SHA, branch, WT/MAIN labels, current `CURRENT_TASK.md`, and requested P1 claims.
+    19	3. Identify actual production entrypoints, not merely the tests that claim to cover them.
+    20	
+    21	## Procedure
+    22	
+    23	1. Split independent tracks: vault admission/indexing and tests; Graphiti quarantine/retrieval; SnapshotV3/recovery anchors. Keep the audit read-only.
+    24	2. For each claim, build an evidence matrix: claim, `file:line`, adversarial input/state, actual entrypoint/path, observed result, severity, PASS/PARTIAL/FAIL, and limitations.
+    25	3. Directly exercise real entrypoints with temporary fixtures where permitted. For path admission include symlink, directory symlink, blacklisted filename in an allowed directory, case variant, and nonexistent path. Assert rejected inputs perform zero open/hash/index/write.
+    26	4. For quarantine, test ordinary edge search plus node search and exact-reader paths (`search_nodes`, `read_node_tips`, `read_node_errors`, `read_node_edge_reasons`). Use read-only Neo4j queries and `EXPLAIN` where allowed; distinguish observed metadata exposure from unproven fact-body leakage.
+    27	5. For SnapshotV3, test same-generation invalid/future version self-healing, extra fields, strict typing, huge finite values that may produce NaN/Infinity, and identity/length collision boundaries.
+    28	6. Compare recovery anchors with machine facts: current HEAD, Actions status, test counts, and unresolved findings. Separate targeted-test results from whole CI.
+    29	7. Cross-check high-severity findings independently. Write the final matrix before closure language; explicitly retain `UNVERIFIABLE` items and failed counterexample attempts.
+    30	
+    31	## Efficiency plan
+    32	
+    33	- Start from task-book source handles and `rg` for real call sites; cache the entrypoint map for all tracks.
+    34	- Parallelize independent tracks, then have the primary reviewer re-open only high-severity evidence.
+    35	- Stop treating a test as evidence once it only hits source text, a helper, fake client, `__new__`, or monkeypatch; pivot to the real entrypoint.
+    36	
+    37	## Pitfalls and fixes
+    38	
+    39	- Green tests but unsafe closure -> tests do not reach production behavior. Add direct entrypoint fixtures and capture full stdout/trace before an assertion.
+    40	- `session:` IDs used as provenance -> ID shape alone is not proof. Preserve provenance or report PARTIAL.
+    41	- Quarantine count passes -> exact-reader/node-search surfaces may still cross groups. Test those surfaces specifically.
+    42	- `CURRENT_TASK.md` says closed but anchors disagree -> rebuild anchors from current HEAD, Actions, and unresolved findings.
+    43	
+    44	## Verification checklist
+    45	
+    46	- Every finding has `file:line`, reproduction, severity, result, and claim-conflict explanation.
+    47	- Final report labels WT/MAIN and all verification limits; no prohibited files or raw vault were read.
+    48	- Production entrypoints, not only helpers, were tested for each security claim.
+    49	- CI status is reported as whole-workflow status, not only passing targeted jobs.
+    50	- P1 closure is withheld whenever a reproducible bypass or unverified critical surface remains.
+
+**Clarifying rollout IDs for citations**
+**Assessing Graphiti tool absence and verifying test findings**
+**Documenting high severity stale wrapper issue**
+**Planning reproduction with RC2 and confirming stale key issue**
+**Identifying regex injection and test coverage gaps**
+**Assessing reload isolation challenges for reapply**
+**Verifying mutation test results**
+**Assessing documentation and fixture discrepancies**
+**Verifying no hidden socket misfires**
+**Assessing test_probe cleanup and security details**
+**Identifying import mismatch in regression subtree**
+collab: Wait
+**Inspecting agent test status**
+**Considering interrupting negative agent to retrieve previous output**
+**Finalizing acceptance agent**
+**Evaluating document drift severity**
+**Classifying acceptance headline as high severity**
+**Clarifying final output requirements**
+collab: Wait
+**Planning proactive multiagent collection**
+codex
+动态结果已固定：32/32 通过，八跑脚本 exit 0；但主审的安全反例也已复现，预绑定 reload 的确绕过拒绝器并到达 `https://api.day.app/push` 的内存捕获缝，保存的旧 reload wrapper 在 teardown 后也会重挂已删除 key，重新制造静默分支。当前结论已经达到 FAIL 阈值，我再收束负控与声明差的严重度。
+collab: Wait
+2026-08-31T21:56:54.174840Z ERROR codex_models_manager::manager: failed to refresh available models: timeout waiting for child process to exit
+**Listing possible interruption causes**
+2026-08-31T21:57:16.973529Z ERROR codex_models_manager::manager: failed to load models cache: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-08-31T21:57:17.014267Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+**Verifying fake key format and length**
+**Assessing partial and full fix statuses**
+**Confirming full fix for M2 with future gap note**
+**Deciding partial fix status**
+**Summarizing status counts and formatting**
+**Confirming formatted status output style**
+**Deciding label format with relative paths**
+**Summarizing high-severity test issues**
+**Analyzing error handling in test summary**
+**Evaluating test coverage and docstring discrepancies**
+**Confirming intentional basename matching behavior**
+**Verifying test coverage and scope limitations**
+**Confirming test execution constraints and subprocess isolation**
+**Flagging potential unenumerated file leak**
+**Confirming fixture request behavior**
+**Evaluating fixture graph and patching effects**
+**Confirming wrapper key absence**
+collab: Wait
+**Assessing subprocess interrupt issues**
+**Planning agent interruption**
+**Planning findings status notation**
+**Resolving verdict and citation placement**
+**Analyzing prebound reload and notification logic**
+**Assessing notification fallback and key validity risks**
+**Pinpointing high-risk defect at conftest.py:233**
+**Refining mutation testing strategy**
+**Clarifying test result limitations and claims**
+**Marking unverified acceptance claim**
+**Assessing test coverage progress**
+**Clarifying false positive classification**
+**Planning clickable link formatting**
+**Designing markdown report format**
+**Classifying anchors and reproduction details**
+**Summarizing partial test findings**
+**Confirming audit findings and citation details**
+**Including rollout IDs in citations**
+**Finalizing verdict and citation placement**
+**Analyzing urllib capture reset behavior**
+**Verifying pytest captured stdout behavior**
+**Analyzing pytest exit code behavior**
+**Validating test reload and patch isolation**
+codex
+结论：round-2 仍有 3 个 HIGH，不能通过。32 条回归与八跑虽然全绿，但存在可复现的真实外发绕过和跨测试假绿。
+
+### 发现
+
+[HIGH] [backend/tests/regression/conftest.py:224](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/tests/regression/conftest.py:224) — collection 期预绑定的 `from importlib import reload` 可绕过属性补丁；reload 后合法假 key 仍存在而 `_urlopen` 恢复生产出口。安全复现中调用 `send()` 得到 `captured=['https://api.day.app/push']`、rc=0；去掉内存捕获器即真实外发通知内容。
+
+[HIGH] [backend/tests/regression/conftest.py:256](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/tests/regression/conftest.py:256) — `_guarded_reload` 闭包可逃逸至 teardown 后并复用已 `undo()` 的旧 `MonkeyPatch`，永久重挂已删除的旧 key 路径，重新打开静默 rc=2 假绿。复现：保存守卫期 `importlib.reload`→fixture 结束→调用旧 wrapper；实测 `KEY_FILE.exists()==False` 且旧拒绝器被重挂，八跑因每案独立子进程看不到此污染。
+
+[HIGH] [backend/tests/regression/conftest.py:233](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/tests/regression/conftest.py:233) — 未枚举的新推送测试文件默认 fail-open，与验收单“以后任何人加新测试也不会真推”的核心承诺直接冲突。复现：新增 `test_daily_review_push.py`，模块门立即早退，三层均保持生产值；验收单后文声明边界不能抵消前文绝对保证。
+
+[MEDIUM] [backend/scripts/bark_autostub_negative_control.py:80](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/scripts/bark_autostub_negative_control.py:80) — 指定断言仍只是 stdout 文本匹配，没有绑定真实异常来源；测试打印目标 `E   AssertionError...` 后因无关原因失败即可假绿，且 C'/D'/E' 正则没有行尾锚。合成 rc=1 输出已得到 `body='1 failed', shape=True, regex=True`。
+
+[MEDIUM] [backend/scripts/bark_autostub_negative_control.py:52](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/scripts/bark_autostub_negative_control.py:52) — `"error" not in body` 在前置 fullmatch 后是空操作，也不检查完整输出；插件或 `atexit` 在真实 error 摘要后追加伪 `1 failed` 摘要，会被反向扫描优先采用。
+
+[MEDIUM] [backend/tests/regression/bark_egress_probe.py:133](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/tests/regression/bark_egress_probe.py:133) — E/E' 只 reload `send_bark` 并检查 KEY_FILE/_urlopen，没有 reload `daily_review_run` 或检查 fallback，不能证明验收单所称“两生产模块、三层自愈”。从 `_PATCHED_MODULES` 删除 `daily_review_run`，现有八跑仍可全绿。
+
+[LOW] [scripts/send_bark.py:38](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/scripts/send_bark.py:38) — 注释仍保留“行为零变化”；导入后重绑 `urllib.request.urlopen` 时，冻结的 `_urlopen` 不会观察该变化，L2 措辞未真正收窄。
+
+[LOW] [backend/tests/regression/conftest.py:211](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/tests/regression/conftest.py:211) — docstring 称缺 key 会让 `send` 返回 0，但 `send_bark.py:93-96` 实际返回 2；只有上层 runner 可能归并为 0。
+
+[LOW] [_bmad-output/审查/CARD-TEST-bark-autostub-验收单.md:102](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/_bmad-output/审查/CARD-TEST-bark-autostub-验收单.md:102) — “非布防模块零 fixture 图变化”仍不准确；autouse fixture 与 `request` 依赖依然加入 closure，只是已移除 `tmp_path/monkeypatch`。
+
+[LOW] [backend/tests/regression/conftest.py:203](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/tests/regression/conftest.py:203) — 注释指向验收单“裁决点 2”，实际模块枚举边界位于裁决点 5。
+
+### Round-1 九项复核
+
+- H1：已整改。真实合法假 key、环境变量重定向和拒绝器均落地；正常路径 B 门响亮失败。
+- H2：已整改。独立 `MonkeyPatch` 与正常逆序 teardown 有效，测试自己的 `undo()` 不会拆守卫。
+- H3：部分整改。生产模块名判断已修正，属性式成功 reload 会重打；但预绑定绕过及 stale-wrapper 生命周期回归仍是 HIGH。
+- M1：部分整改。rc、摘要、超时及八跑均落地，但异常来源与伪摘要仍可假绿。
+- M2：部分整改。`endswith` 已替换为末段精确枚举；新文件默认漏防仍与核心承诺冲突。
+- L1：部分整改。重依赖已移除、临时目录正确清理，但“零 fixture 图变化”仍是假声明。
+- L2：部分整改。验收单已写明 import-time 边界，但源文件仍称“行为零变化”。
+- L3：已整改。DNS 与建连双墙均存在，代理清理边界如实声明。
+- L4：已整改。`:138/:140` 与当前 `send_bark.py` 行号一致。
+
+### 验证与审查面
+
+- `test_daily_review_run.py`：`32 passed, 10 warnings in 0.77s`。
+- 八跑负控：全部按预期，脚本 exit 0、末行 `NEGATIVE-CONTROL: PASS`。
+- R2 正常独立 MonkeyPatch teardown：无发现；发现集中在 wrapper 逃逸生命周期。
+- R3：存在上述两个判据假绿面。
+- R4：headline、E/E' 证明范围、fixture 图和裁决点引用均有声明差。
+- R5：已枚举模块的末段匹配无额外问题；未枚举新文件默认漏防构成 HIGH。
+- 4-A #3–#6 因“只读六文件”范围未独立复跑，不能把验收单自报结果升级为本轮确认。
+
+VERDICT: FAIL
+
+
+tokens used
+146,243
