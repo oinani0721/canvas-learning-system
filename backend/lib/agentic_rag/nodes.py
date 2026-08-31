@@ -62,6 +62,37 @@ _lancedb_client: Optional[LanceDBClient] = None
 _temporal_client: Optional[TemporalClient] = None
 
 
+def _warn_subject_scope_mismatch(state: CanvasRAGState, *, logger_ctx: str) -> None:
+    """CARD-G4-4: state["subject"] 与请求级 VaultScope 二级一致性哨兵。
+
+    rag 端点经 ``resolve_vault_scope`` 注入 ContextVar (group 含二级 =
+    请求 subject_id); ``rag_service.query`` 又把同一 subject_id 写进
+    ``state["subject"]`` —— 两者同源 (同一请求字段), 正常路径恒一致。
+    本检查是哨兵而非门: 若未来某调用方往 state["subject"] 塞了与请求
+    作用域不同的值 (如经 query_with_fallback 旁路), 在此显式告警而非
+    静默分裂 —— 检索链用 state["subject"], 记忆注入用 ContextVar, 分裂
+    会让两条链落到不同作用域。哨兵自身不得成为业务失败源, 任何异常吞掉。
+    """
+    try:
+        from app.core.subject_config import sanitize_subject_name
+        from app.core.vault_scope import current_group_id
+
+        subject = state.get("subject")
+        if not subject:
+            return
+        parts = current_group_id().split(":")
+        if len(parts) >= 3 and parts[2] and parts[2] != sanitize_subject_name(str(subject)):
+            logger.warning(
+                "[%s] state.subject=%r 与请求级 VaultScope 二级 %r 不一致 — "
+                "检索链与记忆注入可能落在不同作用域 (CARD-G4-4 哨兵)",
+                logger_ctx,
+                subject,
+                parts[2],
+            )
+    except Exception as e:  # noqa: BLE001 — 哨兵失败只损失告警
+        logger.debug("[%s] subject-scope sentinel skipped: %s", logger_ctx, e)
+
+
 def _safe_get_config(runtime: Runtime[CanvasRAGConfig], key: str, default: Any = None) -> Any:
     """
     Safely access runtime context with None protection.
@@ -202,6 +233,7 @@ async def retrieve_graphiti(state: CanvasRAGState, runtime: Runtime[CanvasRAGCon
     )
     canvas_file = state.get("canvas_file")
     subject = state.get("subject")
+    _warn_subject_scope_mismatch(state, logger_ctx="retrieve_graphiti")
 
     # Story 1.9: Build scoped group_id for Graphiti search isolation.
     # When subject is set, use build_group_id to scope the search.
@@ -291,6 +323,7 @@ async def retrieve_lancedb(state: CanvasRAGState, runtime: Runtime[CanvasRAGConf
     neighbor_score_decay = _safe_get_config(runtime, "neighbor_score_decay", 0.7)
     canvas_file = state.get("canvas_file")
     subject = state.get("subject")
+    _warn_subject_scope_mismatch(state, logger_ctx="retrieve_lancedb")
 
     # Story 2.4: Extract course_id and tags from state for pre-filtering
     course_id = state.get("course_id")
@@ -1772,8 +1805,15 @@ async def compress_context_node(state: CanvasRAGState, runtime: Runtime[CanvasRA
             # 跨 vault 泄漏。范式同 chat.py:290-297。
             memory_group_id = None
             try:
-                from app.config import get_current_vault_id
+                # CARD-G4-4: 改读**请求级** VaultScope (app.core.vault_scope)。
+                # 原先经 app.config 的进程级读取口拿的是 active vault ——
+                # 请求作用域与进程级在 hook-cwd 等合法场景下可不同, 且请求级
+                # 二级 (subject) 不会反映到这里。
+                # current_vault_id() 读 ContextVar 已注入 group 的 vault 段
+                # (请求路径恒已注入, 由 resolve_vault_scope 完成); 未注入
+                # (后台任务) 时派生 active vault, 与 G2-2 推导语义一致。
                 from app.core.subject_config import build_vault_group_id
+                from app.core.vault_scope import current_vault_id
 
                 # ⛔ P1-02 复核修正 (Codex 2026-08-19): **必须用基组, 不能传
                 # canvas_path**。tips 的写侧 _resolve_tips_group_id
@@ -1783,7 +1823,8 @@ async def compress_context_node(state: CanvasRAGState, runtime: Runtime[CanvasRA
                 # → 写基组读子组, 实算 overlap = ∅, 召回恒空。
                 # live 佐证: SelfAnnotation 112 edges / 21 nodes 全在
                 # vault__canvas_vault 基组。
-                memory_group_id = build_vault_group_id(get_current_vault_id())
+                memory_group_id = build_vault_group_id(current_vault_id())
+                _warn_subject_scope_mismatch(state, logger_ctx="compress_context")
             except Exception as gid_exc:  # noqa: BLE001
                 logger.warning(
                     "[compress_context] group_id 解析失败, 跳过学习记忆注入以免跨 vault 检索: %s",
