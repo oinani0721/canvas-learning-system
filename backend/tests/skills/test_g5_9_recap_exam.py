@@ -24,8 +24,10 @@ fixtures 在 tmp_path 程序化构造 (与 test_split_preview.py 同惯例)。
 from __future__ import annotations
 
 import argparse
+import contextlib
 import errno
 import hashlib
+import io
 import json
 import subprocess
 import sys
@@ -55,11 +57,15 @@ def run_cli(*argv: str) -> subprocess.CompletedProcess:
 # ────────────────────────── fixture 构造器 ──────────────────────────
 
 
-def write_node(vault: Path, name: str, *, derived_from: str | None = None) -> None:
+def write_node(vault: Path, name: str, *, derived_from: str | None = None, tips: int = 0) -> None:
     fm = ["---", "type: concept", 'source_board: "[[原白板/板一]]"']
     if derived_from:
         fm.append(f'derived-from: "[[{derived_from}]]"')
         fm.append(f'source_note: "[[节点/{derived_from}]]"')
+    if tips:  # CARD-M11M7: 批注去重判据需要「节点自带 N 条批注」的构造能力
+        fm.append("tips:")
+        for i in range(tips):
+            fm += [f"  - text: {name} 的疑问 {i + 1}", "    tag: question", "    understanding: unclear"]
     fm.append("---")
     body = f"# {name}\n\n## 核心概念\n\n{BODY_SENTINEL} {name} 的正文定义。\n"
     (vault / "节点" / f"{name}.md").write_text("\n".join(fm) + "\n" + body, encoding="utf-8")
@@ -2176,3 +2182,425 @@ def test_matrix_callsite1_kept_always_falls_through_to_second_rollback(tmp_path)
         mod._rollback_published = real_rb
     assert calls["n"] == 2, f"kept 状态下撤销应被重试恰好 2 次（首次 + 外层），实际 {calls['n']} 次"
     assert err is not None
+
+
+# ══════════════════ CARD-M11M7 · BATCH-2026-08-31-第七批 ══════════════════
+# 上游: codex-review-CARD-G5-9-两份复核合并处置.md §四「登记结案 → 移交」两条
+#   M11 跨板共享节点的**批注**被重复计数（成员已按 node_id 去重、批注却按板相加
+#       ⇒ 产物写出「总成员 1 / 总批注 2」这种自相矛盾数字。复核者定性为**数字错误**）
+#   M7  板名含 U+007F ⇒ PyYAML ReaderError ⇒ board_manifest 记 file_parse_failed;
+#       板名含 U+0085 ⇒ YAML 视其为行断, source_board 值断裂 ⇒ exam_history.board_id=null
+#       （两者均为本卡开工前的**实测复现**，不是转述台账；见验收单 §二）
+
+
+def build_shared_node_vault(tmp_path: Path) -> Path:
+    """两板共享同一个含 1 条批注的节点 — M11 复现构造。
+
+    节点/ 是一 vault 一学科的**扁平共享池**，同一节点被两块板的 ## Concepts
+    同时列出是正常形态（round-6 终裁已确认，:171 注释有载）。
+    """
+    vault = tmp_path / "vault"
+    for sub in ("原白板", "节点", "检验白板", "outputs"):
+        (vault / sub).mkdir(parents=True)
+    for board in ("板一", "板二"):
+        (vault / "原白板" / f"{board}.md").write_text(
+            f"---\ntype: whiteboard\nboard_name: {board}\n---\n\n# {board}\n\n## Concepts\n\n- [[节点/NodeShared]]\n",
+            encoding="utf-8",
+        )
+    write_node(vault, "NodeShared", tips=1)
+    return vault
+
+
+def build_disjoint_tips_vault(tmp_path: Path) -> Path:
+    """两板各有**独占**节点、各 1 条批注 — M11 修复的反向锁（总批注必须仍是 2）。"""
+    vault = tmp_path / "vault"
+    for sub in ("原白板", "节点", "检验白板", "outputs"):
+        (vault / sub).mkdir(parents=True)
+    for board, member in (("板一", "NodeOnlyA"), ("板二", "NodeOnlyB")):
+        (vault / "原白板" / f"{board}.md").write_text(
+            f"---\ntype: whiteboard\nboard_name: {board}\n---\n\n# {board}\n\n## Concepts\n\n- [[节点/{member}]]\n",
+            encoding="utf-8",
+        )
+        write_node(vault, member, tips=1)
+    return vault
+
+
+def test_m11_shared_node_tips_deduped_in_receipt(tmp_path):
+    """M11: 回执 totals 的 tips_total 必须与 members 同口径（按 node_id 去重）。"""
+    out = do_preview(build_shared_node_vault(tmp_path), ["板一", "板二"])
+    t = out["totals"]
+    assert t["members"] == 1, "前提失效: 成员本就该去重为 1"
+    assert t["duplicate_members"] == 1, "前提失效: 该构造必须触发跨板重复"
+    assert t["tips_total"] == 1, (
+        f"跨板共享节点的批注被重复计数（M11）: members 去重为 {t['members']}，tips_total 却是 {t['tips_total']}"
+    )
+
+
+def test_m11_product_stage_numbers_line_deduped(tmp_path):
+    """M11: 产物「阶段数字」行与回执同口径 —— 两处是同型 bug，必须一起修。"""
+    out = do_preview(build_shared_node_vault(tmp_path), ["板一", "板二"])
+    line = next(ln for ln in out["content"].splitlines() if ln.startswith("- 覆盖 "))
+    assert "总成员 1" in line, line
+    assert "总批注 1 条" in line, f"产物行仍按板相加（M11）: {line}"
+    assert f"未答上界 {out['totals']['tips_total']}" in line, f"未答上界与 tips_total 脱钩: {line}"
+
+
+def test_m11_per_board_tips_unchanged(tmp_path):
+    """M11 边界锁: **单板自身**的批注数不去重（板内节点本就唯一），覆盖范围行仍报各板真值。"""
+    out = do_preview(build_shared_node_vault(tmp_path), ["板一", "板二"])
+    board_lines = [ln for ln in out["content"].splitlines() if ln.startswith("- [[原白板/")]
+    assert len(board_lines) == 2, board_lines
+    for ln in board_lines:
+        assert "批注 1 条" in ln, f"板级数字被误改（应保持各板真值）: {ln}"
+
+
+def test_m11_disjoint_nodes_tips_still_sum(tmp_path):
+    """M11 反向锁: 无跨板共享时总批注仍是各板之和 —— 防「去重」被写成 max/取一 之类的错误聚合。"""
+    out = do_preview(build_disjoint_tips_vault(tmp_path), ["板一", "板二"])
+    t = out["totals"]
+    assert t["duplicate_members"] == 0, "前提失效: 该构造不该有跨板重复"
+    assert t["members"] == 2
+    assert t["tips_total"] == 2, f"独占节点的批注被错误折叠: tips_total={t['tips_total']}（应为 2）"
+
+
+# ── M7: 板名控制字符 ────────────────────────────────────────────────
+
+CTRL_BOARD_CASES = [
+    ("\x7f", "u007f-del"),  # 实测 → PyYAML ReaderError → file_parse_failed
+    ("\x85", "u0085-nel"),  # 实测 → source_board 值断裂 → exam_history.board_id=null
+    ("\x9f", "u009f-apc"),  # C1 同族（与 U+0085 同一 YAML 不可打印面）
+    ("\u2028", "u2028-ls"),  # 行分隔符: str.splitlines() 与 YAML 均视为行断
+    ("\u2029", "u2029-ps"),
+]
+
+
+def build_ctrl_vault(tmp_path: Path, stem: str) -> Path:
+    """板名含指定字符的最小 vault（文件系统允许这些字符 ⇒ 必须在脚本层显式拒绝）。"""
+    vault = tmp_path / "vault"
+    for sub in ("原白板", "节点", "检验白板", "outputs"):
+        (vault / sub).mkdir(parents=True)
+    (vault / "原白板" / f"{stem}.md").write_text(
+        "---\ntype: whiteboard\n---\n\n# board\n\n## Concepts\n\n- [[节点/NodeA]]\n",
+        encoding="utf-8",
+    )
+    write_node(vault, "NodeA")
+    return vault
+
+
+@pytest.mark.parametrize("ch,label", CTRL_BOARD_CASES, ids=[c[1] for c in CTRL_BOARD_CASES])
+def test_m7_control_char_board_refused_before_write(tmp_path, ch, label):
+    """M7: preview 必须给出 refusal_reason，create 必须拒绝且 检验白板/ 零新增。"""
+    stem = f"板{ch}甲"
+    vault = build_ctrl_vault(tmp_path, stem)
+    pv = do_preview(vault, [stem])
+    assert pv.get("refusal_reason"), f"{label}: preview 未拒绝控制字符板名（M7）"
+    # 拒绝原因必须点名码位，且必须出现在**顶层** refusal_reason ——
+    # SKILL.md 的契约是「refusal_reason 非空 → 如实转告并停」，skill 转告的就是这一句；
+    # 这些字符在编辑器里完全看不见，只说「板名非法」用户无从知道改哪里。
+    assert f"U+{ord(ch):04X}" in pv["refusal_reason"], f"{label}: 顶层拒绝原因未点名码位: {pv['refusal_reason']!r}"
+    assert "content_sha256" not in pv, f"{label}: 已拒绝却仍产出待写内容"
+    cr = do_create(vault, [stem])
+    assert cr.get("created") is not True, f"{label}: create 仍写出产物（M7）"
+    assert list((vault / EXAM_DIR_NAME).iterdir()) == [], f"{label}: 检验白板/ 出现新增文件"
+    # Codex round-1 LOW: direct create（跳过 preview）此前只说"板不存在/非法"——
+    # 同一个拒绝在两个入口说法不同，从 create 这条路进来就拿不到可行动的信息。
+    assert f"U+{ord(ch):04X}" in cr["refusal_reason"], f"{label}: create 侧拒绝原因未点名码位: {cr['refusal_reason']!r}"
+
+
+# ⛔ 只列**实测有症状**的三个字符。U+2028/U+2029 在当前 PyYAML 下既不报 parse error
+# 也不致 board_id=null（本卡开工前实测），把它们放进这条断言 = 一道**本来就绿**的假门
+# （MEMORY reference_gate_design_pitfalls：把「没有发生」当「验证通过」）。它们的拒绝
+# 由上面 test_m7_control_char_board_refused_before_write 承重，那条确实先红后绿。
+CTRL_SYMPTOM_CASES = [c for c in CTRL_BOARD_CASES if c[1] in ("u007f-del", "u0085-nel", "u009f-apc")]
+
+
+@pytest.mark.parametrize("ch,label", CTRL_SYMPTOM_CASES, ids=[c[1] for c in CTRL_SYMPTOM_CASES])
+def test_m7_no_parse_failure_and_no_null_board_id(tmp_path, ch, label):
+    """M7 结果面锁（消费方视角）: 真 board_manifest_service 扫描后
+    既无 file_parse_failed，exam_history 也不出现 board_id=null。"""
+    from app.services.board_manifest_service import scan_vault
+
+    stem = f"板{ch}甲"
+    vault = build_ctrl_vault(tmp_path, stem)
+    do_create(vault, [stem])
+    full = scan_vault(vault)
+    failed = [e for e in full["parse_errors"] if e.get("error_code") == "file_parse_failed"]
+    assert failed == [], f"{label}: 产物致 file_parse_failed（M7）: {failed}"
+    nulls = [e for e in full["exam_history"] if e.get("board_id") is None]
+    assert nulls == [], f"{label}: exam_history 出现 board_id=null（M7）: {nulls}"
+
+
+@pytest.mark.parametrize(
+    "stem",
+    ["板一", "CS 61B 第 3 周", "线性代数-复习", "Lecture 14（补）", "板_一.v2", "第①章"],
+    ids=["cjk", "space-digit", "hyphen", "fullwidth-paren", "underscore-dot", "circled-digit"],
+)
+def test_m7_legitimate_board_names_still_accepted(tmp_path, stem):
+    """M7 放行门（与拦截门同权重）: 正常板名不得被收紧误伤。
+
+    round-5 的教训——「多禁一点」的每一步都会同时抬高误伤面，而误伤在 fixture 里
+    不会自己变红，只会在真实用板时炸。"""
+    vault = build_ctrl_vault(tmp_path, stem)
+    pv = do_preview(vault, [stem])
+    assert not pv.get("refusal_reason"), f"合法板名被误拒（M7 误伤）: {stem!r} → {pv.get('refusal_reason')}"
+    cr = do_create(vault, [stem])
+    assert cr.get("created") is True, f"合法板名 create 被误拒: {stem!r} → {cr.get('refusal_reason')}"
+
+
+def test_m7_control_char_node_name_is_ghost_not_member(tmp_path):
+    """M7 节点侧: 含控制字符的**节点**名进不了成员集，如实落到待修链接（ghost）。
+
+    ⚠️ 本用例同时**锁定一个本卡未修的更深破坏面**（实测，不是推测）：
+    U+0085 在 ## Concepts 里还会连带吞掉**同板的后续成员**——成员提取先做
+    `sec_body.splitlines()`，U+0085 在此处断行后 `- [[节点/Node` 成了半截 bullet，
+    而成员正则允许跨行，于是把它和下一条 bullet 粘成一个畸形 id
+    （实测捕获 `'Node\\n- [[节点/NodeA'`）。所以实测是 members=0 / ghosts=1，
+    而不是「坏的变 ghost、好的还在」的 members=1。
+
+    ⛔ 归属：这一层在**字符拒绝集的上游**（提取阶段），修它要动 `_CONCEPT_LINK_RE`
+    与 bullet_lines 的构造，超出本卡授权（M7 = 板名拒绝集扩展）→ 验收单 §五 登记移交。
+    本用例因此**不是先红后绿项**：修复前后同样绿，它锁的是「现状 + 边界」。
+    """
+    vault = tmp_path / "vault"
+    for sub in ("原白板", "节点", "检验白板", "outputs"):
+        (vault / sub).mkdir(parents=True)
+    bad_node = "Node\x85X"
+    (vault / "原白板" / "板一.md").write_text(
+        f"---\ntype: whiteboard\n---\n\n# 板一\n\n## Concepts\n\n- [[节点/{bad_node}]]\n- [[节点/NodeA]]\n",
+        encoding="utf-8",
+    )
+    write_node(vault, "NodeA")
+    (vault / "节点" / f"{bad_node}.md").write_text(
+        "---\ntype: concept\n---\n\n# X\n\n## 核心概念\n\n正文。\n", encoding="utf-8"
+    )
+    pv = do_preview(vault, ["板一"])
+    assert pv["totals"]["ghosts"] == 1, f"控制字符节点名未被如实标为待修链接: {pv['totals']}"
+    assert pv["totals"]["members"] == 0, (
+        f"实况锁: U+0085 会吞掉同板后续成员（见 docstring），实测 totals={pv['totals']}"
+    )
+    # 无论落到哪一侧，控制字符都不得原样进产物（_sanitize_ghost_id 的 isprintable 兜底）
+    assert "\x85" not in pv["content"], "控制字符原样写进了产物"
+    assert bad_node not in pv["content"], "含控制字符的节点名原样写进了产物"
+
+
+def _racing_read_preview(mod, vault, cmd, **extra):
+    """注入式竞态：让 NodeShared.md 在**第二块板扫描时**多出一条批注。
+
+    手法取自 Codex round-1 的实验（monkeypatch `_rs._read`）。它当时用这个构造
+    证伪了实现 docstring 里"同一 node_id 在不同板上 tips_count 必然相同"的声明。
+    """
+    real_read = mod._rs._read
+    calls = {"n": 0}
+
+    def racing_read(path):
+        text = real_read(path)
+        calls["n"] += 1
+        if path.name == "NodeShared.md" and calls["n"] > 2:
+            text = text.replace(
+                "understanding: unclear\n---",
+                "understanding: unclear\n  - text: 新增疑问\n    tag: question\n    understanding: unclear\n---",
+            )
+        return text
+
+    boards = extra.pop("boards", ["板一", "板二"])
+    mod._rs._read = racing_read
+    try:
+        args = argparse.Namespace(vault=str(vault), boards=boards, anchor=None, ts=TS, **extra)
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = cmd(args)
+    finally:
+        mod._rs._read = real_read
+    return rc, json.loads(buf.getvalue())
+
+
+def test_m11_tips_conflict_preview_fail_closed(tmp_path):
+    """M11 竞态锁: 取数期间节点被改 → preview **拒绝**，不发布任何总数。
+
+    Codex round-1 MEDIUM 的整改。演进过程如实记录（两步）：
+      ① 最初实现取首现值且**静默** → 产物写「板一 1 条 + 板二 2 条 / 总计 1 条」，
+         自相矛盾且零解释；
+      ② 改成"取首现值 + 警告行"后仍不够——复核者实测该总数**顺序相关**：
+         `--boards A B` 得 1 而 `B A` 得 2。一个依赖参数排列顺序的数字不该被写进
+         产物，更不该被 create 落盘。max/min/sum 都不是正确替代，正确语义是
+         「取数期间 vault 在变，这次的数不可信，请重跑」。
+    ⇒ 现在 fail-closed：给 refusal_reason、不产 content（于是 create 无 sha 可绑）。
+    """
+    mod = _load_module()
+    vault = build_shared_node_vault(tmp_path)
+    rc, out = _racing_read_preview(mod, vault, mod.cmd_preview)
+
+    assert rc == 0, "拒绝仍走 exit 0 + refusal_reason（拒绝是 skill 的决策）"
+    assert "取数期间" in out.get("refusal_reason", ""), f"竞态下未拒绝: {out.get('refusal_reason')!r}"
+    assert "NodeShared" in out["refusal_reason"], "拒绝原因未点名冲突节点"
+    # ⛔ 不确定的数字一个都不许发布——这句话原先只兑现了顶层（Codex round-2 MEDIUM：
+    # boards 明细里的板级计数同样顺序相关，却照样发布，而这条注释当时就写在这里）
+    assert "totals" not in out, f"拒绝态仍发布了总数: {out.get('totals')}"
+    assert "content" not in out and "content_sha256" not in out, "拒绝态仍产出了待写内容"
+    # ⛔ 抹除面按 round-3 实证扩到**全部取自本次扫描的数字**：复核者用 240 块板实测，
+    # seeds/derived 有 125/240 块随板序交换——「结构信息不随取数顺序变」这个理由被证伪。
+    for b in out["boards"]:
+        assert b["counts_untrusted"] is True, "抹掉计数却没留标记（消费方会把缺字段当 0）"
+        assert b["board_stem"] in ("板一", "板二"), b
+        leaked = set(b) - {"board_stem", "exists", "refusal_reason", "counts_untrusted"}
+        assert not leaked, f"拒绝态仍发布取自本次扫描的字段: {sorted(leaked)}"
+
+
+def test_m11_tips_conflict_board_counts_order_independent(tmp_path):
+    """M11 顺序无关锁: 反转 --boards 顺序，**公开出去的东西必须逐字节相同**。
+
+    Codex round-2 的判据原文：竞态下 `--boards 板一 板二` 与 `板二 板一` 会让同一块板
+    的公开数字从 1 变 2。抹掉不可信计数之后，两种顺序的输出（按板名排序后）必须一致——
+    这条断言直接锁住"顺序相关的数字不得外泄"这个性质本身，而不是锁某个具体数值。
+    """
+    mod = _load_module()
+
+    def public_view(boards_arg):
+        vault = build_shared_node_vault(tmp_path / boards_arg[0])
+        _, out = _racing_read_preview(mod, vault, mod.cmd_preview, boards=boards_arg)
+        return {b["board_stem"]: b for b in out["boards"]}, out["refusal_reason"]
+
+    ab, reason_ab = public_view(["板一", "板二"])
+    ba, reason_ba = public_view(["板二", "板一"])
+    assert "取数期间" in reason_ab and "取数期间" in reason_ba
+    assert ab == ba, f"公开输出随板序变化（顺序相关的数字外泄）:\n A,B={ab}\n B,A={ba}"
+
+
+@pytest.mark.parametrize("combo", ["target_exists", "missing_board"])
+def test_m11_conflict_declared_even_when_other_refusal_wins(tmp_path, combo):
+    """M11 组合态锁: 冲突与别的拒绝理由同时成立时，冲突**仍必须被说出来**。
+
+    Codex round-2 MEDIUM 的第二半：冲突判定原先挂在 elif 链末端，
+    「目标已存在 + 冲突」和「缺板 + 冲突」两种组合态会被前面的分支抢走，
+    拒绝理由里完全不提冲突——用户换个 `--ts` 重跑照样撞上，而那时板级数字已不可信。
+    """
+    mod = _load_module()
+    vault = build_shared_node_vault(tmp_path)
+    boards_arg = ["板一", "板二"]
+    if combo == "target_exists":
+        (vault / EXAM_DIR_NAME / f"板一-{TS}.md").write_text("占位\n", encoding="utf-8")
+        expect_first = "目标已存在"
+    else:
+        boards_arg = ["板一", "板二", "不存在的板"]
+        expect_first = "板不存在或板名非法"
+
+    _, out = _racing_read_preview(mod, vault, mod.cmd_preview, boards=boards_arg)
+    reason = out["refusal_reason"]
+    assert expect_first in reason, f"前提失效，未触发 {combo}: {reason!r}"
+    assert "取数期间" in reason, f"{combo} 抢先后冲突被吞掉: {reason!r}"
+    assert "totals" not in out and "content" not in out
+
+
+def test_m11_tips_conflict_create_fail_closed_zero_write(tmp_path):
+    """M11 竞态锁（写侧）: create 独立复核一次并**零写**拒绝。
+
+    不能只靠 preview 拦：preview 与 create 是两次独立扫描，变动可能恰好落在两者
+    之间；且 direct create 根本不经过 preview。
+
+    ⚠ 这条测试的承重性被复核者连挑两轮，两次都对：
+      · round-2：原先传全零 SHA——**撤掉冲突门后 SHA-mismatch 分支同样零写**，
+        所以「零写由冲突门保证」是假承重；
+      · round-3：改传无竞态下的 `good_sha` 仍不够——竞态下真正会被渲染的是**另一份**
+        内容，撤掉冲突门后拦住写入的仍是 SHA-mismatch。复核者实测：传竞态那份真 SHA
+        并禁掉冲突门，`created:true`，写出 1273 bytes。
+    ⇒ 现在先在**禁掉冲突门**的条件下取到竞态那份真 SHA（并当场证明它确实能写出产物），
+      再恢复冲突门用同一份 SHA 重跑——唯一能挡住写入的就只剩冲突门，因果才真正承重。
+      ⛔ 这里**只禁冲突门这一层**，其余防线全开：要证明的是「没有别的门在替它挡」，
+      与 MEMORY `reference_mutation_must_disable_all_layers` 那条（证明门承重要禁全部
+      同类防线）是同一枚硬币的两面，方向相反。
+    """
+    mod = _load_module()
+
+    # ① 取"竞态下真正会被渲染"的那份 SHA：临时禁掉冲突门，用全零 SHA 撞出真实 sha
+    real_guard = mod._tips_conflict_refusal
+    mod._tips_conflict_refusal = lambda boards: None
+    try:
+        probe = build_shared_node_vault(tmp_path / "probe")
+        _, out0 = _racing_read_preview(mod, probe, mod.cmd_create, expect_content_sha="0" * 64, undo_dir=None)
+        raced_sha = out0.get("actual_sha256")
+        assert raced_sha and raced_sha != "0" * 64, f"没拿到竞态内容的 sha: {out0}"
+        # 用它再跑一次：证明**禁掉冲突门后这份 SHA 真的会写出产物**
+        probe2 = build_shared_node_vault(tmp_path / "probe2")
+        _, out1 = _racing_read_preview(mod, probe2, mod.cmd_create, expect_content_sha=raced_sha, undo_dir=None)
+        assert out1.get("created") is True, (
+            f"前提失效：禁掉冲突门后这份 SHA 也没能创建，下面的零写就不是冲突门的功劳: {out1}"
+        )
+    finally:
+        mod._tips_conflict_refusal = real_guard
+
+    # ② 恢复冲突门，用**同一份 SHA** 重跑 → 唯一能挡住写入的只剩冲突门
+    vault = build_shared_node_vault(tmp_path / "racing")
+    before = vault_snapshot(vault)
+    rc, out = _racing_read_preview(mod, vault, mod.cmd_create, expect_content_sha=raced_sha, undo_dir=None)
+
+    assert rc == 0
+    assert out["created"] is False, "竞态下 create 仍写出了产物"
+    assert "取数期间" in out["refusal_reason"], (
+        f"没被冲突门挡住（若显示 SHA 不符，说明拦它的是别的门）: {out['refusal_reason']!r}"
+    )
+    assert vault_snapshot(vault) == before, "拒绝路径改动了 vault（应零写）"
+    assert list((vault / EXAM_DIR_NAME).iterdir()) == [], "检验白板/ 出现新增文件"
+
+
+def test_m11_conflict_does_not_mask_invalid_sha_exit_code(tmp_path):
+    """M11 · Codex round-2 LOW-1: 冲突门不得遮蔽 `--expect-content-sha` 的形状契约。
+
+    既有契约是「空串/非 64 位 hex 一律 exit 2」。冲突门若排在形状校验之前，
+    「冲突 + 非法 SHA」会得到 exit 0 + created:false——安全上仍零写，但一个**参数
+    错误**被悄悄改写成了业务拒绝，退出码契约就此失真。
+
+    ⚠ round-3 收紧：这条契约原先**依赖 vault 状态**——形状校验排在 missing/target/
+    conflict 之后，于是「缺板 + 空 SHA」「目标已存在 + NOTHEX」等组合实测是 exit 0。
+    参数合法性与 vault 状态无关 ⇒ 形状校验已提到 cmd_create 最前，本测试逐组合验证。
+    """
+    mod = _load_module()
+    combos = ["fresh", "conflict", "target_exists", "missing", "target+missing"]
+    for bad_sha in ("", "NOTHEX", "A" * 64):
+        for combo in combos:
+            vault = build_shared_node_vault(tmp_path / f"bad-{bad_sha or 'empty'}-{combo}")
+            boards_arg = ["板一", "板二"]
+            if "target" in combo:
+                (vault / EXAM_DIR_NAME / f"板一-{TS}.md").write_text("占位\n", encoding="utf-8")
+            if "missing" in combo:
+                boards_arg = ["板一", "板二", "不存在的板"]
+            before = vault_snapshot(vault)
+            rc, out = _racing_read_preview(
+                mod,
+                vault,
+                mod.cmd_create,
+                boards=boards_arg,
+                expect_content_sha=bad_sha,
+                undo_dir=None,
+            )
+            assert rc == 2, f"非法 SHA {bad_sha!r} 在 {combo} 下未走 exit 2（退出码契约依赖状态）: rc={rc} {out}"
+            assert vault_snapshot(vault) == before, f"{combo}: 参数错误路径也必须零写"
+
+
+def test_m11_no_conflict_refusal_when_consistent(tmp_path):
+    """反向锁: 一致时既不拒绝、产物也不含任何冲突措辞（fail-closed 不得误伤正常路径）。"""
+    out = do_preview(build_shared_node_vault(tmp_path), ["板一", "板二"])
+    assert not out.get("refusal_reason"), out.get("refusal_reason")
+    assert out["totals"]["tips_total"] == 1
+    assert "取数期间" not in out["content"]
+
+
+def test_m11_partial_overlap_totals(tmp_path):
+    """M11 边界: 部分重叠（板一 A,B / 板二 B,C）—— 最能抓住错误聚合的构造。
+
+    独立重算: A=1 + B=2 + C=3 = 6。若实现退化为「按板相加」会得 8，
+    退化为「只取首板」会得 3，退化为 max/取一 也都对不上 6。
+    """
+    vault = tmp_path / "vault"
+    for sub in ("原白板", "节点", "检验白板", "outputs"):
+        (vault / sub).mkdir(parents=True)
+    for board, members in (("板一", ["A", "B"]), ("板二", ["B", "C"])):
+        links = "\n".join(f"- [[节点/{m}]]" for m in members)
+        (vault / "原白板" / f"{board}.md").write_text(
+            f"---\ntype: whiteboard\n---\n\n# {board}\n\n## Concepts\n\n{links}\n",
+            encoding="utf-8",
+        )
+    for name, n in (("A", 1), ("B", 2), ("C", 3)):
+        write_node(vault, name, tips=n)
+    t = do_preview(vault, ["板一", "板二"])["totals"]
+    assert t["members"] == 3 and t["duplicate_members"] == 1
+    assert t["tips_total"] == 6, f"部分重叠聚合错误: {t}"

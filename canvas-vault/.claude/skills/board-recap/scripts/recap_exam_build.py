@@ -105,10 +105,19 @@ def _scan_board(vault: Path, stem: str) -> dict:
     """单板只读扫描 (fallback 口径, 与 recap_scan 第一刀一致)。"""
     board_path = _rs._contained_md(vault / BOARD_DIR, stem)
     if board_path is None:
+        # M7 (CARD-M11M7): containment 是唯一判定, 这里只做**诊断** —— 拒绝原因
+        # 点名具体码位, 否则用户只看到"板名非法"却不知是哪个不可见字符 (U+0085
+        # 这类在编辑器里完全看不出来, 而它会让 exam_history.board_id 静默变 null)。
+        codes = _rs.unsafe_name_chars(stem)
+        why = (
+            f"板名含不可用于 YAML/行级解析的字符 {', '.join(codes)}"
+            if codes
+            else "板名非法 (containment 拒绝)"
+        )
         return {
             "board_stem": stem,
             "exists": False,
-            "refusal_reason": "板名非法 (containment 拒绝)",
+            "refusal_reason": why,
         }
     if not board_path.is_file():
         return {
@@ -160,7 +169,53 @@ def _scan_board(vault: Path, stem: str) -> dict:
         # 学习 vault 无「已答」标记 → 未答 = 全部 tips 上界 (C5 同口径)
         "tips_unanswered_upper_bound": tips_total,
         "member_ids": [r["node_id"] for r in live_rows],
+        # M11 (CARD-M11M7): 跨板聚合必须按**节点**去重, 所以上抛 per-node 计数
+        # 而不是只上抛板级合计。⛔ 只上抛 {node_id: int} 纯计数, 不上抛 ledger 行 ——
+        # ledger 含正文派生字段, 扩大它的传播面会顶到本脚本"产物零正文"的核心约束。
+        "member_tips": {r["node_id"]: r.get("tips_count", 0) for r in live_rows},
     }
+
+
+def _cross_board_totals(
+    boards: list[dict],
+) -> tuple[list[str], list[str], int, list[str]]:
+    """跨板聚合的**唯一口径** → (逐板列出的成员, 去重后成员, 去重后批注数, 冲突节点)。
+
+    ⛔ M11 (CARD-M11M7): 原先 ``_render_content`` 与 ``cmd_preview`` **各算各的**,
+    两处都是"成员按 node_id 去重、批注按板相加" —— 两块板共享同一个含 1 条批注的
+    节点时写出「总成员 1 / 总批注 2」。同型错误出现两次正是因为算法有两份拷贝,
+    所以修法不是各改一处, 而是把口径收成这一个函数。
+
+    同一 node_id 在不同板上的 tips_count **正常情况下必然相同** (同一个节点文件
+    读出来的); 唯一的例外是**扫描期间该文件被改** —— 各板逐个顺序扫描, 中途改动
+    会让先扫的板与后扫的板读到不同值。
+
+    此时第四个返回值列出冲突节点, 调用方据此 **fail-closed 拒绝** (见
+    ``_tips_conflict_refusal``): 不发布总数、不渲染产物、不落盘, 且 boards 明细里
+    顺序相关的板级计数也一并抹掉。演进如实记录 (Codex 两轮各推了一步):
+      · 最初取首现值且**静默** → 产物出现「板一 1 条 + 板二 2 条 / 总计 1 条」;
+      · 改成「取首现值 + 产物警告行」→ 仍在发布一个**顺序相关**的数字
+        (``--boards A B`` 得 1 而 ``B A`` 得 2), 于是改为拒绝;
+      · 拒绝后板级明细一度还在发布 (同样顺序相关) → 一并抹掉。
+    """
+    listed: list[str] = []
+    tips_by_node: dict[str, int] = {}
+    conflicts: list[str] = []
+    for b in boards:
+        # 板不存在/板名非法时 _scan_board 只返回 refusal 三元组, 没有成员字段 ——
+        # 冲突检查现在跑在 missing 判定**之前** (组合态要求), 必须容得下这种板。
+        if not b.get("exists"):
+            continue
+        listed.extend(b["member_ids"])
+        for node_id, count in b["member_tips"].items():
+            if node_id in tips_by_node:
+                if tips_by_node[node_id] != count and node_id not in conflicts:
+                    conflicts.append(node_id)
+            else:
+                tips_by_node[node_id] = count
+    uniq = list(dict.fromkeys(listed))
+    total = sum(tips_by_node.get(node_id, 0) for node_id in uniq)
+    return listed, uniq, total, conflicts
 
 
 def _render_content(boards: list[dict], anchor: str, ts: str, created_at: str) -> str:
@@ -174,13 +229,11 @@ def _render_content(boards: list[dict], anchor: str, ts: str, created_at: str) -
     # 两块板的 ## Concepts 同时列出是正常形态。原先各板 members/tips 直接相加
     # → 跨板成员在「阶段数字」里被重复计数, 且产物把同一节点重复列成员链接,
     # 全程零去重零声明。现在: 总计按 node_id 去重, 并如实声明去重量。
-    all_member_ids: list[str] = []
-    for b in boards:
-        all_member_ids.extend(b["member_ids"])
-    uniq_members = list(dict.fromkeys(all_member_ids))
+    # M11 (CARD-M11M7): 批注与成员同口径 —— 原先 total_tips 按板相加, 跨板共享
+    # 节点的批注被重复计入, 与已去重的 total_members 摆在同一行自相矛盾。
+    all_member_ids, uniq_members, total_tips, _conflicts = _cross_board_totals(boards)
     total_members = len(uniq_members)
     dup_members = len(all_member_ids) - total_members
-    total_tips = sum(b["tips_total"] for b in boards)
     fm = [
         "---",
         "type: exam_board",
@@ -241,13 +294,69 @@ def _render_content(boards: list[dict], anchor: str, ts: str, created_at: str) -
     lines += [
         "## 阶段数字（脚本产出 · 判读留人）",
         "",
-        f"- 覆盖 {n} 板 / 总成员 {total_members}（按节点去重）/ 总批注 {total_tips} 条（未答上界 {total_tips}）"
+        # M11: 批注括号里点明"同口径" —— 数字改对之后, 读者还需要知道它跟成员
+        # 是同一套去重规则算出来的 (否则会以为总批注仍是各板相加)。
+        f"- 覆盖 {n} 板 / 总成员 {total_members}（按节点去重）"
+        f"/ 总批注 {total_tips} 条（同口径去重，未答上界 {total_tips}）"
         + (f" / 跨板重复成员 {dup_members} 个" if dup_members else "")
         + (f" / 待修链接 {total_ghosts} 条" if total_ghosts else ""),
         f"- 数据面：本地只读扫描（fallback 口径，与 /board-recap 第一刀一致）· 取数时刻 {created_at}",
-        "",
     ]
+    # ⛔ M11 · Codex round-1 MEDIUM: 冲突态**不再走到这里** —— 调用方在
+    # _tips_conflict_refusal() 处已 fail-closed 拒绝, 本函数只渲染一致的数据。
+    # (原先的做法是渲染一行警告后照常产出, 但那个总数依赖 --boards 的排列顺序:
+    #  [A(1),B(2)] 得 1 而 [B(2),A(1)] 得 2 —— 一个顺序相关的数字不该被写进产物,
+    #  更不该被 create 落盘。这与本脚本既有的 fail-closed 惯例同线。)
+    lines += [""]
     return "\n".join(lines)
+
+
+# 冲突态下**允许**保留的板级键 —— 正向白名单: 以后给 _scan_board 加字段,
+# 默认落进抹除侧而不是默认泄漏出去。
+_TRUSTED_BOARD_KEYS = ("board_stem", "exists", "refusal_reason")
+
+
+def _redact_untrusted_counts(boards: list[dict]) -> list[dict]:
+    """冲突态下抹掉 boards 明细里**一切取自本次扫描的数字**, 只留板的身份。
+
+    ⛔ 演进两步, 两步都由复核者的实测推动:
+      · round-2: 顶层拒绝后各板 ``tips_total`` 仍被发布, 而它随扫描顺序变化
+        (反转 ``--boards``, 同一块板的公开值从 1 变 2) ⇒ 抹掉三个 tips 字段;
+      · round-3: 我当时保留 ``members/seeds/derived/ghost_count`` 的理由是"结构信息
+        不随取数顺序变" —— **这个理由被实测证伪**。取数期间被改的节点可以同时改动
+        ``derived-from``, role 判定随之翻转; 复核者用 240 块同构板实测,
+        ``seeds/derived`` 有 **125/240** 块随板序交换。那条理由只在"文件不变"时成立,
+        而冲突的定义恰恰是文件在变。
+
+    ⇒ 现在的语义收成干净的一句话: **这次取数不可信 ⇒ 一个取自它的数字都不发布**。
+    保留的只有板的身份 (板名 / 是否存在 / 拒绝原因) —— 那几项不是本次扫描算出来的。
+    """
+    redacted = []
+    for b in boards:
+        if b.get("exists"):
+            b = {k: v for k, v in b.items() if k in _TRUSTED_BOARD_KEYS}
+            b["counts_untrusted"] = True
+        redacted.append(b)
+    return redacted
+
+
+def _tips_conflict_refusal(boards: list[dict]) -> str | None:
+    """取数期间节点被改 (各板读到不同批注数) → 拒绝理由; 一致时 None。
+
+    ⛔ M11 · Codex round-1 MEDIUM 整改: 检测到冲突时**不发布任何总数**。
+    理由是该总数**顺序相关**——同一份 vault, `--boards A B` 得 1 而 `B A` 得 2
+    (复核者实测)。取首现值 + 警告行的做法虽然不再静默, 但仍把一个不确定的数字
+    写进产物、且 create 照样落盘。max/min/sum 都不是正确替代 —— 正确的语义是
+    「取数期间 vault 在变, 这次的数不可信, 请重跑」。
+    """
+    _, _, _, conflicts = _cross_board_totals(boards)
+    if not conflicts:
+        return None
+    names = ", ".join(_sanitize_ghost_id(x) for x in conflicts)
+    return (
+        f"取数期间下列节点的批注数发生变化 (各板读到不同值), 本次数字不可信: {names} "
+        f"(共 {len(conflicts)} 个; 请重跑 preview)"
+    )
 
 
 def _symlink_probe(vault: Path, target: Path, tmp: Path) -> str | None:
@@ -725,36 +834,52 @@ def cmd_preview(args) -> int:
     boards, anchor, target = prep
     vault = Path(args.vault)
     missing = [b["board_stem"] for b in boards if not b["exists"]]
+    # ⛔ M11 · Codex round-2 MEDIUM: 冲突必须在**构造输出之前**判定, 且判定结果要
+    # 同时作用于两处 —— ① 顶层不发布总数; ② boards 明细里那些**顺序相关**的板级
+    # 数字也不能发布。原实现只做了 ①: 反转 --boards 顺序会让同一块板的公开数字
+    # 从 1 变 2, 而"不确定的数字一个都不许发布"这句话是我自己写在测试注释里的。
+    # 且冲突判定原先挂在 elif 链末端, 「目标已存在 + 冲突」/「缺板 + 冲突」两种
+    # 组合态会被前面的分支抢走, 拒绝理由里完全不提冲突。
+    conflict = _tips_conflict_refusal(boards)
     out: dict = {
         "mode": "preview",
         "write_side": "none",
         "anchor": anchor,
         "ts": args.ts,
-        "boards": boards,
+        "boards": _redact_untrusted_counts(boards) if conflict else boards,
         "target_path": str(target.relative_to(vault)),
         "target_exists": target.exists(),
     }
     if missing:
-        out["refusal_reason"] = f"以下板不存在或板名非法: {missing} (create 将拒绝)"
+        # M7 (CARD-M11M7): 逐板原因要带到**顶层** —— SKILL.md 的契约是
+        # 「refusal_reason 非空 → 如实转告并停」, skill 层转告的就是这一句;
+        # 把码位只放进 boards 明细等于没做诊断 (U+0085 在编辑器里完全看不见,
+        # 用户看到"板名非法"却无从知道改哪里)。
+        why = "; ".join(b["refusal_reason"] for b in boards if not b["exists"])
+        out["refusal_reason"] = (
+            f"以下板不存在或板名非法: {missing} (create 将拒绝) — {why}"
+        )
     elif target.exists() or target.is_symlink():
         # round-3 L1: 既有目标此前只给 target_exists=true 而无 refusal_reason,
         # 与 SKILL.md「refusal_reason 非空 → 如实转告并停」的契约不符
         out["refusal_reason"] = (
             f"目标已存在: {target.name} (create 将拒绝覆盖; 换 --ts 或先 undo)"
         )
+    elif conflict is not None:
+        # ⛔ M11 · Codex round-1 MEDIUM: 取数期间 vault 在变 → 不发布任何总数,
+        # 也不产出 content (于是 create 无 sha 可绑, 天然连带拒绝)。
+        out["refusal_reason"] = f"{conflict} (create 将拒绝)"
     else:
         content = _render_content(boards, anchor, args.ts, _created_at(args.ts))
         # round-6: 与产物同口径 —— 成员按 node_id 去重 (扁平共享池跨板重复)
-        all_ids: list[str] = []
-        for b in boards:
-            all_ids.extend(b["member_ids"])
-        uniq = list(dict.fromkeys(all_ids))
+        # M11 (CARD-M11M7): 连**批注**一起走同一个口径函数, 回执与产物不再各算各的
+        all_ids, uniq, tips_total, _conflicts = _cross_board_totals(boards)
         out["totals"] = {
             "boards": len(boards),
             "members": len(uniq),
             "members_listed": len(all_ids),
             "duplicate_members": len(all_ids) - len(uniq),
-            "tips_total": sum(b["tips_total"] for b in boards),
+            "tips_total": tips_total,
             "ghosts": sum(b["ghost_count"] for b in boards),
         }
         out["content"] = content
@@ -763,11 +888,27 @@ def cmd_preview(args) -> int:
             "用户确认后跑 create，并把本 content_sha256 传给 --expect-content-sha"
             "（绑定所见即所写）"
         )
+    # 组合态收口 (Codex round-2 MEDIUM 后半): 冲突被「缺板」/「目标已存在」抢了先时,
+    # 它**必须仍被说出来** —— 用户换个 --ts 重跑照样会撞上, 而板级数字此刻已不可信。
+    # ⚠ 这段必须在 if/elif/else 链**之后**独立成句: 早前把它写成链中间的一个 if,
+    # 直接把渲染 else 挂到了它身上, 于是「有缺板但无冲突」也会去渲染 (测试当场变红)。
+    if conflict is not None and conflict not in out.get("refusal_reason", ""):
+        out["refusal_reason"] = f"{out['refusal_reason']} | 另: {conflict}"
     print(json.dumps(out, ensure_ascii=False, indent=1))
     return 0
 
 
 def cmd_create(args) -> int:
+    # ⛔ Codex round-3 LOW: 「--expect-content-sha 形状非法一律 exit 2」这条契约
+    # 原先**依赖状态** —— 形状校验排在 missing/target/conflict 之后, 于是
+    # 「缺板 + 空 SHA」「目标已存在 + NOTHEX」等组合实测是 exit 0 (零写, 但退出码
+    # 与契约不符, 调用方无法靠退出码区分"参数写错了"和"业务拒绝")。
+    # 参数合法性与 vault 状态无关 ⇒ 提到最前, 无条件先判。
+    if not _SHA256_RE.match(args.expect_content_sha or ""):
+        return _fail_env(
+            "--expect-content-sha 必须是 preview 回执里的 64 位小写十六进制 "
+            "content_sha256（空串或非法形状一律拒绝，防绕过用户确认）"
+        )
     prep = _prepare(args)
     if isinstance(prep, int):
         return prep
@@ -775,12 +916,16 @@ def cmd_create(args) -> int:
     vault = Path(args.vault)
     missing = [b["board_stem"] for b in boards if not b["exists"]]
     if missing:
+        # M7 · Codex round-1 LOW: 与 preview 对称地带上逐板原因 (含 U+XXXX 码位) ——
+        # direct create (跳过 preview) 此前只说"板不存在/非法", 同一个拒绝在两个入口
+        # 说法不同, 用户从 create 这条路进来就拿不到可行动的信息。
+        why = "; ".join(b["refusal_reason"] for b in boards if not b["exists"])
         print(
             json.dumps(
                 {
                     "mode": "create",
                     "created": False,
-                    "refusal_reason": f"板不存在/非法: {missing}",
+                    "refusal_reason": f"板不存在/非法: {missing} — {why}",
                 },
                 ensure_ascii=False,
             )
@@ -798,18 +943,26 @@ def cmd_create(args) -> int:
             )
         )
         return 0
-    content = _render_content(boards, anchor, args.ts, _created_at(args.ts))
-    sha = hashlib.sha256(content.encode("utf-8")).hexdigest()
     # round-3 H5: preview→create 之间 vault 可能变化 (新增成员/改批注),
     # 相同 --ts 并不保证所见即所写。--expect-content-sha 把用户**确认过的
     # 那份字节**绑进来: 不符即拒, 零写侧, 让 skill 重跑 preview 再确认。
     # codex round-1 HIGH-1: 形状先于比较 —— 空串/非 64 位 hex 一律 exit 2,
     # 不再走 falsy 短路; 比较本身改为**无条件**。
-    if not _SHA256_RE.match(args.expect_content_sha or ""):
-        return _fail_env(
-            "--expect-content-sha 必须是 preview 回执里的 64 位小写十六进制 "
-            "content_sha256（空串或非法形状一律拒绝，防绕过用户确认）"
+    # ⚠ 形状校验已提到本函数最前 (Codex round-2 LOW-1 → round-3 LOW): 它与 vault
+    # 状态无关, 排在 missing/target/conflict 之后会让退出码契约依赖状态。
+    if (conflict := _tips_conflict_refusal(boards)) is not None:
+        # ⛔ M11 · Codex round-1 MEDIUM: create 侧独立复核一次 —— 不能只靠 preview
+        # 拦。preview 与 create 是两次独立扫描, 变动可能恰好发生在两者之间;
+        # 且 direct create 根本不经过 preview。零写拒绝 (在 render/mkdir/写之前)。
+        print(
+            json.dumps(
+                {"mode": "create", "created": False, "refusal_reason": conflict},
+                ensure_ascii=False,
+            )
         )
+        return 0
+    content = _render_content(boards, anchor, args.ts, _created_at(args.ts))
+    sha = hashlib.sha256(content.encode("utf-8")).hexdigest()
     if args.expect_content_sha != sha:
         print(
             json.dumps(
