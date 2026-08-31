@@ -20,10 +20,12 @@ backend/data/fsrs_card_states.json —— 所有探针必须子进程隔离
 (sys.modules['fsrs']=None 屏蔽 import) 且 _CARD_STATES_FILE 指向 tmp。
 
 本文件不比什么: 不证明 py-fsrs 在位时调度数值正确（tests/unit/
-test_fsrs_manager.py 的职责）; 不证明 API 端点层转发该字段
-（test_fsrs_state_api.py 待 CARD-TEST-isolate-lifespan 合入后由主
-session 补跑）; manager 为 None 的 ebbinghaus-fallback 分支
-(:944/:1145) 语义本卡零改动, 不在锁定面内。
+test_fsrs_manager.py 的职责）; 不证明 API 端点层转发该字段——已实证
+GET /api/v1/review/fsrs-state 端点用显式字段白名单构造响应且 response
+model 无 algorithm/degraded_reason 字段, 新键透不到 HTTP（移交项,
+见验收单 UAT-CARD-DEBT-8 §移交项 1; test_fsrs_state_api.py 本身待
+W4② 合入后由主 session 补跑）; manager 为 None 的 ebbinghaus-fallback
+分支 (:944/:1145) 语义本卡零改动, 不在锁定面内。
 """
 
 import subprocess
@@ -113,17 +115,24 @@ print("D3-SIGNAL-OK")
 
 
 def test_fallback_schedule_review_reports_honest_algorithm():
-    """底层 fallback 激活时 schedule_review (:922) 同样不得谎报 fsrs-4.5。"""
+    """底层 fallback 激活时 schedule_review (:922) 同样不得谎报 fsrs-4.5,
+    且 log_decision 决策日志的 reason 也不得宣称 FSRS-4.5。"""
     probe = (
         _BLOCK_FSRS
         + (_PROBE_PRELUDE % _LIB_PATH)
         + r"""
 assert not fm.FSRS_AVAILABLE
+captured = []
+rs.log_decision = lambda **kw: captured.append(kw)  # 捕获决策日志
 r = asyncio.run(svc.schedule_review(canvas_name="board", concept_id="c2"))
 assert r["algorithm"] != "fsrs-4.5", f"lied fsrs-4.5: {r['algorithm']!r}"
 assert r["algorithm"] == "fsrs-fallback-scheduler", f"got {r['algorithm']!r}"
 reason = r.get("degraded_reason")
 assert reason and "fsrs_library_missing" in reason, f"got {reason!r}"
+assert captured, "log_decision not called"
+log_reason = captured[-1].get("reason", "")
+assert "FSRS-4.5" not in log_reason, f"decision log still lies: {log_reason!r}"
+assert "fallback" in log_reason, f"got {log_reason!r}"
 print("SCHEDULE-HONEST-OK")
 """
     )

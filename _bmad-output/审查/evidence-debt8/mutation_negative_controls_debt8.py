@@ -94,6 +94,13 @@ MUTATIONS = [
         "self.library_available = True",
         T_STATE,
     ),
+    (
+        "M10-log_decision-reason恒FSRS-4.5（决策日志说谎）",
+        RS,
+        "reason=f\"{'FSRS-4.5' if self._fsrs_library_ok() else 'fallback'} scheduling, \"",
+        'reason=f"FSRS-4.5 scheduling, "',
+        T_SCHED,
+    ),
 ]
 
 

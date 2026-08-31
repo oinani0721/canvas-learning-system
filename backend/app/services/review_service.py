@@ -893,7 +893,8 @@ class ReviewService:
                     # New cards: stability/difficulty are None — formatting them
                     # with ':.2f' raised TypeError, silently degrading every new
                     # concept to the Ebbinghaus fallback via the except below.
-                    reason=f"FSRS-4.5 scheduling, "
+                    # CARD-DEBT-8: 底层 fallback 激活时决策日志也不得谎报 FSRS-4.5。
+                    reason=f"{'FSRS-4.5' if self._fsrs_library_ok() else 'fallback'} scheduling, "
                     f"stability={_fmt_optional_2f(getattr(card, 'stability', None))}, "
                     f"difficulty={_fmt_optional_2f(getattr(card, 'difficulty', None))}",
                 )
