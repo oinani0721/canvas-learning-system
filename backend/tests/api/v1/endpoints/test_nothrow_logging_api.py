@@ -398,6 +398,8 @@ class TestSecondLevelFallback:
         """降级那条日志必须能定位到"哪个 logger 的哪个方法为什么坏了"。
 
         否则"吞掉异常"就变成了"把故障藏起来"。
+        (Codex round-1 LOW-3: 必须**单条** rendered line 同时含三项 —— join 后
+        分别搜的话, 三条各带一项的残缺日志也能拼过。)
         """
         fallback = MagicMock()
 
@@ -409,10 +411,10 @@ class TestSecondLevelFallback:
             call.args[0] % tuple(call.args[1:]) if len(call.args) > 1 else call.args[0]
             for call in fallback.warning.call_args_list
         ]
-        joined = " | ".join(rendered)
-        assert "app.api.v1.endpoints.rag" in joined, "降级行没写清是哪个 logger 坏了"
-        assert "'info'" in joined, "降级行没写清是哪个方法坏了"
-        assert SINK_DEAD in joined, "降级行没带原始异常, 无法定位根因"
+        complete = [
+            line for line in rendered if "app.api.v1.endpoints.rag" in line and "'info'" in line and SINK_DEAD in line
+        ]
+        assert complete, f"没有一条降级行同时带 logger 名 + 方法名 + 原始异常 —— 诊断上下文被拆散了。实得: {rendered}"
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -458,6 +460,112 @@ class TestWrapperIsNotANoOp:
             "包装器把自己写成了日志来源 (_STACKLEVEL_OFFSET 失准)"
         )
         assert record.filename == "rag.py", f"调用点文件漂移: {record.filename}"
+
+    def test_stacklevel_none_does_not_propagate(self):
+        """Codex round-1 HIGH-1 的直接回归锁: 参数归一化必须发生在守护区内。
+
+        ``wrapped.info("x", stacklevel=None)`` 会让补偿算式 ``1 + None`` 抛
+        TypeError —— 补偿曾在 try 之外, 该错直接传播击穿 no-throw 承诺。
+        """
+        base = logging.getLogger("probe.stacklevel-none")
+        base.addHandler(logging.NullHandler())
+        wrapped = NoThrowLogger(base)
+
+        fallback = MagicMock()
+        with patch.object(nothrow_logging, "_FALLBACK_LOGGER", fallback):
+            try:
+                wrapped.info("x", stacklevel=None)  # type: ignore[arg-type]
+            except Exception as exc:  # noqa: BLE001 — 断言的就是不传播
+                pytest.fail(f"stacklevel=None 的 TypeError 传播了: {exc!r}")
+
+        assert fallback.warning.call_count == 1, "降级路径没被走到 —— 错被静默吞掉了"
+
+    def test_frame_transparent_for_log_level_path(self):
+        """``log(level, ...)`` 路径的帧透明 (Codex round-1 LOW-5)。
+
+        info 门只锁了 info; ``log()`` 与 ``exception()`` 共用同一 ``_guarded``,
+        offset 应一致 —— 这里把 ``log()`` 也钉住 (exception 路径需构造 except
+        块, 同构性由实现保证, 验收单 §五 第 9 条如实声明)。
+        """
+        records: list = []
+
+        class _Cap(logging.Handler):
+            def emit(self, record: logging.LogRecord) -> None:
+                records.append(record)
+
+        base = logging.getLogger("probe.frame-log")
+        base.setLevel(logging.DEBUG)
+        base.addHandler(_Cap())
+        base.propagate = False
+
+        def caller_function_for_frame_check():
+            nothrow_logging.nothrow(base).log(logging.INFO, "via log() %s", 1)
+
+        caller_function_for_frame_check()
+
+        assert records, "log() 路径没写出日志"
+        assert records[0].funcName == "caller_function_for_frame_check", f"log() 路径调用点漂移: {records[0].funcName}"
+
+    @pytest.mark.parametrize(
+        "case_id,path,service_attr,expected_template,expected_args",
+        [
+            (
+                "rag-503",
+                "/api/v1/rag/weak-concepts/数学/离散数学.canvas",
+                "get_weak_concepts",
+                "RAG service unavailable: %s",
+                ("bolt refused",),
+            ),
+            (
+                "memory-episodes",
+                "/api/v1/memory/episodes?user_id=u",
+                "get_learning_history",
+                "Failed to get learning history: %s",
+                ("neo4j exploded",),
+            ),
+            (
+                "review-suggestions",
+                "/api/v1/memory/review-suggestions?user_id=u",
+                "get_review_suggestions_with_status",
+                "Failed to get review suggestions: %s",
+                ("downstream dead",),
+            ),
+        ],
+        ids=["rag-503", "memory-episodes", "review-suggestions"],
+    )
+    def test_error_templates_render_completely(
+        self,
+        client: TestClient,
+        mock_rag_service: MagicMock,
+        mock_memory_service: MagicMock,
+        caplog: pytest.LogCaptureFixture,
+        case_id: str,
+        path: str,
+        service_attr: str,
+        expected_template: str,
+        expected_args: tuple,
+    ):
+        """Codex round-1 MEDIUM-4: ``_ours`` 只证明"调用发生了", 不证明"日志
+        渲染成功" —— 错误参数会让 ``getMessage()`` 在 Handler 内静默炸掉。
+        这条门走**正常**错误路径 (service 抛、日志不注入), 断言捕获的 record
+        能完整渲染出模板 + 参数。
+        """
+        if case_id == "rag-503":
+            getattr(mock_rag_service, service_attr).side_effect = RAGUnavailableError(*expected_args)
+        else:
+            getattr(mock_memory_service, service_attr).side_effect = RuntimeError(*expected_args)
+
+        logger_name = "app.api.v1.endpoints.rag" if case_id == "rag-503" else "app.api.v1.endpoints.memory"
+        with caplog.at_level(logging.ERROR, logger=logger_name):
+            client.get(path)
+
+        ours = [r for r in caplog.records if r.getMessage().startswith(expected_template.split(":")[0])]
+        assert ours, f"端点错误日志没写出来 (case={case_id})"
+        record = ours[0]
+        assert record.msg == expected_template, f"模板不是惰性 %s 形态: {record.msg!r}"
+        assert len(record.args) == 1, f"实参数量不符: {record.args!r}"
+        assert str(record.args[0]) == expected_args[0], "渲染出的异常消息不符"
+        assert record.getMessage() == expected_template % expected_args, "渲染结果与预期不符"
 
 
 # ═══════════════════════════════════════════════════════════════════════════

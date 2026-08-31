@@ -59,8 +59,8 @@ GATE_MEM_DETAIL = (
 _RAG_WRAPPED_LINE = "logger = nothrow(logging.getLogger(__name__))"
 _RAG_UNWRAPPED_LINE = "logger = logging.getLogger(__name__)"
 
-_M3_OLD = """        kwargs["stacklevel"] = kwargs.get("stacklevel", 1) + _STACKLEVEL_OFFSET
-        try:
+_M3_OLD = """        try:
+            kwargs["stacklevel"] = kwargs.get("stacklevel", 1) + _STACKLEVEL_OFFSET
             getattr(self.inner, method)(*args, **kwargs)
         except Exception as exc:  # noqa: BLE001 — 观测面刻意兜底, 见模块 docstring
             try:
@@ -216,20 +216,21 @@ def main() -> int:
         for m in MUTATIONS:
             print(f"\n=== {m.name}: {m.desc} ===")
             m.target.write_text(_apply(originals[m.target], m.edits))
+            # 逐门单跑 + 逐门原因匹配 (Codex round-1 LOW-7): 多门合跑时对整份
+            # 输出做一次 any(keyword) 的话, 第一门的关键字能替其余门的"别的
+            # 原因失败"背书 —— 原因必须按门绑定。
+            per_gate = []
             try:
-                code, out = _run_pytest(m.expect_red_tests)
-                summary = _summary(out)
-                failed = _failed_tests(out)
-                red = code != 0 and " failed" in out
-                missing = [want for want in m.expect_red_tests if not any(_test_matches(want, nid) for nid in failed)]
-                if missing:
-                    # 有失败但不是声称的那道门 —— 按死门处理并点名 (g41b 同款)
-                    red = False
-                    summary = f"{summary} | 未红的指定门: {missing}"
-                # 卡文口径: 失败原因含 "500" / "await_count" —— 是**任一**命中
-                # (M1 下 await_count 断言排在状态码断言之后, 前者红了后者不会
-                # 渲染; 若实现成 all, M1 会被误判死门 —— 首跑实测)。
-                reasons_ok = any(kw in out for kw in m.reason_keywords)
+                for nid in m.expect_red_tests:
+                    code, out = _run_pytest([nid])
+                    failed = _failed_tests(out)
+                    red = code != 0 and " failed" in out and any(_test_matches(nid, x) for x in failed)
+                    summary = _summary(out)
+                    # 卡文口径: 失败原因含 "500" / "await_count" —— **任一**命中
+                    # (M1 下 await_count 断言排在状态码断言之后, 前者红了后者
+                    # 不会渲染; all 语义会把 M1 误判死门 —— 首跑实测)。
+                    reasons_ok = any(kw in out for kw in m.reason_keywords)
+                    per_gate.append((nid, red, reasons_ok, summary))
             finally:
                 shutil.copyfile(backups[m.target], m.target)
                 restored_ok = filecmp.cmp(backups[m.target], m.target, shallow=False)
@@ -238,18 +239,16 @@ def main() -> int:
                 return 3
             # return 不放进 finally (g41a 教训: 会吞掉正在传播的异常)
 
-            if not red:
+            bad = [nid for nid, red, rok, _s in per_gate if not (red and rok)]
+            if bad:
                 dead_gates += 1
-                print(f"⛔ 死门: {m.name} — 指定门没有以『测试失败』的方式变红")
-                print(f"   实得: {summary}")
+                for nid, red, rok, summary in per_gate:
+                    if not (red and rok):
+                        why = "没有以『测试失败』的方式变红" if not red else "失败原因不是预期的"
+                        print(f"⛔ 死门: {m.name} → {nid.rsplit('::', 1)[-1]} — {why}")
+                        print(f"   实得: {summary}")
                 continue
-            if not reasons_ok:
-                dead_gates += 1
-                missing_kw = [kw for kw in m.reason_keywords if kw not in out]
-                print(f"⛔ 死门: {m.name} — 门红了但失败原因不是预期的 (缺关键字 {missing_kw})")
-                print(f"   实得: {summary}")
-                continue
-            print(f"✓ {m.name}: 指定门全红且原因匹配 | {summary}")
+            print(f"✓ {m.name}: 指定门全红且原因逐门匹配 | {per_gate[0][3]}")
 
         print()
         if dead_gates:
