@@ -22,9 +22,15 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: BackgroundTasks)
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Response
 
-from app.api.v1.endpoints._vault_id_resolver import resolve_vault_group_id
+# CARD-G4-4: agents 端点保留 G2-2「vault_id Optional + 双缺失推导 active
+# vault」契约不动 (插件 agents/dialog 依赖), 只加性透出解析来源 ——
+# 各 handler 经 X-Vault-Scope-Source 响应头携带 VaultScope.source
+# (request-vault / legacy-group / active-vault)。选响应头而非响应体字段:
+# schemas.py 不在本卡独占面内, 响应模型加字段会进 openapi 契约面。
+# ⚠️ 过渡态: 调用点尚未切换到 resolve_vault_scope, 暂留旧 import。
+from app.api.v1.endpoints._vault_id_resolver import resolve_vault_group_id  # noqa: F401
 from app.api.v1.endpoints.memory import MemoryServiceDep
 from app.config import settings
 from app.core.exceptions import CanvasNotFoundException
