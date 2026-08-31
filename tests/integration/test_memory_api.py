@@ -98,12 +98,22 @@ def mock_memory_service():
             }
         ]
 
+    # CARD-G4-3 (2026-08-31): 端点改调四态版 get_review_suggestions_with_status,
+    # 委托版 get_review_suggestions 在服务层出口第一步就把状态丢了。
+    async def mock_get_review_suggestions_with_status(**kwargs):
+        from app.models.service_status import StatusedResult
+
+        return StatusedResult.from_items(await mock_get_review_suggestions(**kwargs))
+
     service.initialize = AsyncMock(side_effect=mock_initialize)
     service.cleanup = AsyncMock(side_effect=mock_cleanup)
     service.record_learning_event = AsyncMock(side_effect=mock_record_learning_event)
     service.get_learning_history = AsyncMock(side_effect=mock_get_learning_history)
     service.get_concept_history = AsyncMock(side_effect=mock_get_concept_history)
     service.get_review_suggestions = AsyncMock(side_effect=mock_get_review_suggestions)
+    service.get_review_suggestions_with_status = AsyncMock(
+        side_effect=mock_get_review_suggestions_with_status
+    )
 
     return service
 
@@ -360,12 +370,15 @@ class TestGetReviewSuggestions:
         )
 
         # Assert
+        # CARD-G4-3 (2026-08-31) 契约变更: 裸数组 → 信封 {items, retrieval_status,
+        # retrieval_status_reason}。原数组内容现位于 items, 条目字段未变。
         assert response.status_code == 200
         data = response.json()
-        assert isinstance(data, list)
-        assert len(data) == 1
-        assert data[0]["concept"] == "逆否命题"
-        assert data[0]["priority"] == "high"
+        assert isinstance(data, dict)
+        assert len(data["items"]) == 1
+        assert data["items"][0]["concept"] == "逆否命题"
+        assert data["items"][0]["priority"] == "high"
+        assert data["retrieval_status"] == "ok"
 
     def test_get_review_suggestions_with_limit(self, test_client, mock_memory_service):
         """Test review suggestions with custom limit."""
@@ -376,7 +389,10 @@ class TestGetReviewSuggestions:
 
         # Assert
         assert response.status_code == 200
-        call_kwargs = mock_memory_service.get_review_suggestions.call_args.kwargs
+        # CARD-G4-3: 端点改调四态版
+        call_kwargs = (
+            mock_memory_service.get_review_suggestions_with_status.call_args.kwargs
+        )
         assert call_kwargs["limit"] == 5
 
     def test_get_review_suggestions_missing_user_id(self, test_client):
@@ -478,10 +494,12 @@ class TestResponseFormat:
         )
 
         # Assert
+        # CARD-G4-3: 顶层换信封, 条目自身字段契约一个字未变。
         data = response.json()
-        assert isinstance(data, list)
-        if len(data) > 0:
-            suggestion = data[0]
+        assert isinstance(data, dict)
+        assert isinstance(data["items"], list)
+        if len(data["items"]) > 0:
+            suggestion = data["items"][0]
             assert "concept" in suggestion
             assert "concept_id" in suggestion
             assert "priority" in suggestion

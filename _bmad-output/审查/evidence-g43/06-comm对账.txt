@@ -1,0 +1,31 @@
+# CARD-G4-3 comm 对账（既有套件零新增失败）— round-4 整改后定稿
+# 生成: 2026-08-31 13:06:55
+
+## 命令口径（改动前后逐字相同）
+cd backend && caffeinate -i .venv/bin/pytest \
+  tests/api tests/integration/test_memory_subject_filter.py \
+  tests/integration/test_rag_multimodal_api.py tests/unit/test_four_state_injection.py \
+  tests/unit/test_service_status_contract.py tests/unit/test_rag_multimodal_integration.py \
+  ../tests/integration/test_memory_api.py -q -p no:cacheprovider --override-ini="addopts="
+
+⚠️ 副作用披露: 本命令含存量文件 tests/api/v1/endpoints/test_metadata_subject_mapping.py,
+   它用 with TestClient(app.main.app) 启真实 lifespan → 连 bolt://localhost:7691 + 幂等 DDL,
+   并写两个 git-ignored 运行时文件。**裁判命令 (-k "memory or rag") 无此副作用**
+   (Codex round-4 独立复跑: PORT7691_SOCKET_CALLS=0, 两文件 SHA 前后一致)。详见验收单 §七之二。
+
+## 汇总行
+基线 (HEAD 9cf0fb85 代码态) : 59 failed, 243 passed, 4 warnings in 1053.21s (0:17:33)
+定稿 (round-1/2/3/4 全整改) : 59 failed, 322 passed, 4 warnings in 1751.79s (0:29:11)
+
+收集总数: 基线 302 → 定稿 381 (差 79 = 本卡新增用例数)
+通过数  : 243 → 322 (差 79, 同上) —— 反证这一跑收的是定稿版测试文件
+
+## comm -23 (仅基线有 = 意外修好的, 应为空)
+(空)
+
+## comm -13 (仅定稿有 = 新增失败, 必须为空)
+(空)
+
+## 两份清单的 SHA-256（逐字节同一，比 comm 空更强）
+6a109e8e32832cca9996686332eb5b8650dae13d15fa6681276dc6aefeb8c6b7  _bmad-output/审查/evidence-g43/03-基线失败清单-59条.txt
+6a109e8e32832cca9996686332eb5b8650dae13d15fa6681276dc6aefeb8c6b7  _bmad-output/审查/evidence-g43/05-最终失败清单-59条.txt
