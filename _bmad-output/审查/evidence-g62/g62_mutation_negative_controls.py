@@ -6,6 +6,12 @@
 **破坏被测行为**的变异, 判据是**指定的那一道门变红**(不是"某处有失败":
 后者会把"改坏 A 却只有 B 红"这种门错位当成功)。
 
+Codex round-1 HIGH-4 整改: 「变红」的判据不再是 returncode != 0 ——
+exit 4 (nodeid 不存在 / collected 0) / collection error 同样非零, 会把
+「门根本没跑」误认证成「门抓住了变异」。现在变红必须同时满足:
+pytest 退出非零 **且** stdout 含 "1 failed" **且** short summary 里
+FAILED 的正是**指定的那个测试节点** (靠 -rf 强制输出 summary)。
+
 纪律 (前几批踩出来的):
   · **串行**执行 —— 脚本原地改被测文件, 并发会让 B 的还原把 A 的变异写回,
     而测试照样全绿 (第六批教训);
@@ -21,6 +27,7 @@
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -28,7 +35,7 @@ from pathlib import Path
 BACKEND = Path.cwd()
 TARGET = BACKEND / "app" / "api" / "v1" / "endpoints" / "review_app.py"
 TESTFILE = "tests/unit/test_review_app.py"
-PYTEST = [str(BACKEND / ".venv" / "bin" / "pytest"), "-q", "-p", "no:cacheprovider", "-x"]
+PYTEST = [str(BACKEND / ".venv" / "bin" / "pytest"), "-q", "-rf", "-p", "no:cacheprovider", "-x"]
 
 #: (编号, 说明, old, new, 必须变红的测试节点)
 MUTATIONS: list[tuple[str, str, str, str, str]] = [
@@ -262,11 +269,46 @@ MUTATIONS: list[tuple[str, str, str, str, str]] = [
     ),
     (
         "M30",
-        "review_app.py 自行读盘算投影 → 第二套管道",
+        "端点里 import pathlib → import 白名单失守 (第二套管道的载体)",
         "    urls = {",
-        '    _ = __import__("pathlib").Path(".").read_text if False else None  # subprocess\n'
+        "    import pathlib\n"
         "    urls = {",
-        "test_no_second_due_pipeline_in_python_module",
+        "test_review_app_module_imports_are_closed",
+    ),
+    (
+        "M31",
+        "刷新反馈 TTL 归零 → rebuilt 重绘即抹掉反馈 (HIGH-1 回归)",
+        "const NOTE_TTL_MS = 15000;",
+        "const NOTE_TTL_MS = 0;",
+        "test_js_refresh_wiring_note_survives_rerender_and_inflight_guard",
+    ),
+    (
+        "M32",
+        "就地补的写入副作用被掏掉 (只置标志不写 DOM) → 按钮旁的『重建中…』永远等不来结局",
+        'if (span.getAttribute("data-note-for") === vid) { span.innerHTML = n.html; patched = true; }',
+        'if (span.getAttribute("data-note-for") === vid) { patched = true; }',
+        "test_js_refresh_wiring_note_survives_rerender_and_inflight_guard",
+    ),
+    (
+        "M33",
+        "在飞防抖删除 → 同库连点发多个 POST",
+        "if (state.inflight[vid]) return;  // 同库重建在飞, 不发第二个 POST",
+        ";",
+        "test_js_refresh_wiring_note_survives_rerender_and_inflight_guard",
+    ),
+    (
+        "M34",
+        "rebuilt 后不立即重拉 → 数字停在旧投影",
+        "if (resp.ok && payload && payload.rebuilt) poll();  // 真重建 → 立即重拉 (反馈在 state.notes, 重绘不丢)",
+        ";",
+        "test_js_refresh_wiring_note_survives_rerender_and_inflight_guard",
+    ),
+    (
+        "M35",
+        "端点里内建 open() 读盘 → AST 调用门 (字符串黑名单的绕过面)",
+        "    urls = {",
+        '    urls = {"probe": open("今日复习.json").read(),',
+        "test_review_app_module_imports_are_closed",
     ),
 ]
 
@@ -308,7 +350,12 @@ def main() -> int:
         TARGET.write_text(mutated, encoding="utf-8")
         try:
             proc = run_gate(gate)
-            red = proc.returncode != 0
+            out = proc.stdout + proc.stderr
+            red = (
+                proc.returncode != 0
+                and re.search(r"\b1 failed\b", out) is not None
+                and f"FAILED {TESTFILE}::{gate}" in out
+            )
         finally:
             TARGET.write_bytes(original)
             restored = TARGET.read_bytes()

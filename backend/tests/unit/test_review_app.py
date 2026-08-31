@@ -1,21 +1,30 @@
-"""交互复习壳 (CARD-G6-2, BATCH-2026-09-01-第八批)。
+"""交互复习壳 (CARD-G6-2, BATCH-2026-09-01-第八批; Codex round-1 整改后形态)。
 
 四类锁定:
   A. 单文件自足 —— 零外部 URL / 零 CDN / 零外部资源标签; API 路径来自
-     url_for 注入而非硬编码; 只 fetch 同源那两个端点。
+     url_for 注入而非硬编码 (换前缀挂载的行为门); JS 只 fetch 同源两端点。
   B. 与零 JS 只读页共存 —— 两页同时 200; review_overview.py 的 `<script`
      计数与开工基线 (1, 唯一命中是 :1286 docstring「python <script>」) 相等。
-  C. 渲染纯函数 (node --test) —— 四态徽标 / unavailable 不白屏 / 休息日
-     空状态 / W6 三字段有无各一 / 轮询 clamp / 隐藏暂停 / XSS 转义。
-     ⚠ 被测 JS **从实际 HTTP 响应体里割出来**, 不是模板常量的副本 ——
-     测的是注入后的真实产物 (占位符没被替换、注入值走样, 这些门都会红)。
+  C. 渲染 + 接线 (node --test) —— 四态徽标 / unavailable 不白屏 / 休息日
+     空状态 / W6 三字段有无各一 / 轮询 clamp / 隐藏暂停 / XSS 转义 /
+     刷新反馈持久化与在飞防抖。
+     ⚠ 被测 JS 是**响应里的整个 <script> 原文**, 在受控沙箱 (stub
+     document/fetch/timer) 中**直接执行**后从沙箱作用域导出断言 ——
+     没有任何按注释标记割取代码的通道, 「注释里藏一份好代码骗提取器、
+     浏览器执行另一份」的攻击面不成立 (Codex round-1 HIGH-3); 轮询/点击
+     接线也在同一沙箱里以假事件驱动断言。
   D. 不重算到期 —— 喂一份 due_count 与 boards 明细刻意不一致的投影,
      页面必须显示服务端权威 due_count; JS 若偷偷重算, 本门变红。
+
+fail-closed (Codex round-1 HIGH-2): node 不可用时 node_harness fixture
+直接 pytest.fail —— 本文件的 JS 门**不允许静默 skip 假绿**, 因此本文件
+不存在任何 skip 路径 (裁判命令锁定 skipped == 0 由结构保证)。
 
 真实 HTTP 响应 + 真 node 进程, 无 mock。TestClient 一律裸构造 (不带 with):
 起 lifespan 会连 7691 (第七批 F-3)。
 """
 
+import ast
 import json
 import re
 import shutil
@@ -43,6 +52,8 @@ _ENDPOINTS_DIR = Path(__file__).resolve().parents[2] / "app" / "api" / "v1" / "e
 #: 计数为 1, 唯一命中是 :1286 docstring 里的「python <script> --vault」——
 #: 与 JS 无关。零 JS 页未被本卡改动的判据。
 _ZERO_JS_BASELINE = 1
+
+_NODE = shutil.which("node") or ""  # 空串 = 不可用 (node_harness 里 fail-closed)
 
 
 @pytest.fixture
@@ -109,7 +120,7 @@ def test_api_paths_injected_from_url_for_not_hardcoded(client, page_html):
     """路径来自 url_for 注入 —— 模板本体不含任何硬编码 API 路径。"""
     from app.main import app
 
-    urls = json.loads(re.search(r"const URLS = (\{.*?\});", page_html).group(1))
+    urls = json.loads(_group(r"const URLS = (\{.*?\});", page_html))
     assert urls == {
         "overview": app.url_path_for("review_overview"),
         "refresh": app.url_path_for("review_overview_refresh"),
@@ -141,7 +152,7 @@ def test_api_paths_follow_mount_prefix_not_hardcoded():
     try:
         resp = c.get("/alt-prefix/overview/app")
         assert resp.status_code == 200, resp.text
-        urls = json.loads(re.search(r"const URLS = (\{.*?\});", resp.text).group(1))
+        urls = json.loads(_group(r"const URLS = (\{.*?\});", resp.text))
         assert urls == {
             "overview": "/alt-prefix/overview",
             "refresh": "/alt-prefix/overview/refresh",
@@ -160,16 +171,17 @@ def test_js_fetches_only_the_two_same_origin_endpoints(page_html):
 def test_auto_poll_never_posts_only_manual_button_does(page_html):
     """默认裁决②: 自动轮询绝不 POST refresh。
 
-    判据取自结构而非措辞 —— 整页只有一处 method:"POST", 且它在
-    URLS.refresh 的 fetch 里; 轮询函数 poll() 的函数体内不含 POST。
+    判据取自结构而非措辞 —— 整页只有一处 method:"POST", 且它在手动刷新
+    处理器 onRefreshClick 里; 轮询函数 poll() 的函数体内不含 POST。
     """
     assert page_html.count('method: "POST"') == 1
-    poll_body = re.search(r"async function poll\(\)\s*\{(.*?)\n\}", page_html, re.S).group(1)
+    poll_body = _group(r"async function poll\(\)\s*\{(.*?)\n\}", page_html, re.S)
     assert "POST" not in poll_body
     assert "URLS.refresh" not in poll_body
-    # 唯一的 POST 出现在点击处理器里
-    click_body = re.search(r'addEventListener\("click".*?\n\}\);', page_html, re.S).group(0)
+    click_body = _group(r"async function onRefreshClick\(ev\)\s*\{(.*?)\n\}", page_html, re.S)
     assert 'method: "POST"' in click_body
+    # 点击处理器确实被接到 cards 容器上 (不是只有个没人调用的函数)
+    assert 'addEventListener("click", onRefreshClick)' in page_html
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -196,10 +208,10 @@ def test_zero_js_page_source_untouched():
 
 def test_status_meta_and_buckets_shared_not_copied(page_html):
     """四态文案/桶位标签是 import 来的同一份 —— 不新造第二套词汇。"""
-    injected_meta = json.loads(re.search(r"const STATUS_META = (\{.*?\});", page_html).group(1))
+    injected_meta = json.loads(_group(r"const STATUS_META = (\{.*?\});", page_html))
     assert injected_meta == {k: list(v) for k, v in _STATUS_META.items()}
-    assert json.loads(re.search(r"const BUCKET_CN = (\{.*?\});", page_html).group(1)) == _BUCKET_CN
-    assert json.loads(re.search(r"const BUCKET_ORDER = (\[.*?\]);", page_html).group(1)) == list(_BUCKET_ORDER)
+    assert json.loads(_group(r"const BUCKET_CN = (\{.*?\});", page_html)) == _BUCKET_CN
+    assert json.loads(_group(r"const BUCKET_ORDER = (\[.*?\]);", page_html)) == list(_BUCKET_ORDER)
     # 篡改门: 上面三条只证明"注入值正确", 挡不住"JS 里另抄一份字面量"。
     # 模板本体不许出现任何徽标文案 —— 抄一份 = 本门立刻红。
     for label, _color in _STATUS_META.values():
@@ -207,33 +219,153 @@ def test_status_meta_and_buckets_shared_not_copied(page_html):
 
 
 def test_no_second_due_pipeline_in_python_module():
-    """本模块不得自己算到期 —— 它只做模板注入 (无 json 读盘/无子进程)。"""
+    """字符串黑名单快门 (便宜的一层) + AST 结构门 (下一道, 不可被措辞绕过)。"""
     src = (_ENDPOINTS_DIR / "review_app.py").read_text(encoding="utf-8")
     for banned in ("subprocess", "read_text(", "_collect(", "_summarize("):
         assert banned not in src, f"review_app.py 出现了它不该有的 {banned!r}"
 
 
+def test_review_app_module_imports_are_closed():
+    """AST 结构门 (Codex round-1 HIGH-4 后新增): 本模块只允许「模板注入」
+    这一种依赖形态 —— import 白名单 + 禁内建读盘/执行调用。
+
+    字符串黑名单 (`"subprocess" not in src`) 可被 json.load(open(...)) /
+    Path.open() 等措辞绕过; AST 门直接枚举 import 与调用形态, 新增任何
+    依赖 = 红, 不存在换拼法绕过的问题。
+    """
+    ALLOWED_IMPORTS = {
+        "__future__.annotations",
+        "json",
+        "fastapi.APIRouter",
+        "fastapi.Request",
+        "fastapi.responses.HTMLResponse",
+        "app.api.v1.endpoints.review_overview._BUCKET_CN",
+        "app.api.v1.endpoints.review_overview._BUCKET_ORDER",
+        "app.api.v1.endpoints.review_overview._STATUS_META",
+    }
+    src = (_ENDPOINTS_DIR / "review_app.py").read_text(encoding="utf-8")
+    tree = ast.parse(src)
+    collected: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            collected.update(a.name for a in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            mod = node.module or ""
+            collected.update(f"{mod}.{a.name}" if mod else a.name for a in node.names)
+    banned = collected - ALLOWED_IMPORTS
+    assert not banned, f"出现白名单外的 import: {sorted(banned)} — 第二套管道的载体"
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            f = node.func
+            if isinstance(f, ast.Name) and f.id in {"open", "exec", "eval", "__import__"}:
+                pytest.fail(f"禁用内建调用 {f.id}() — 本模块只做模板注入, 不读盘不执行")
+            if isinstance(f, ast.Attribute) and f.attr in {"read_text", "read_bytes", "open"}:
+                pytest.fail(f"禁用读盘调用 .{f.attr}() — 本模块只做模板注入")
+
+
 # ════════════════════════════════════════════════════════════════════
-# C/D. 渲染纯函数断言 (node --test; 完成条件 b/c)
+# C/D. 沙箱执行真实 <script> + node --test 断言 (完成条件 b/c)
 # ════════════════════════════════════════════════════════════════════
 
-_NODE = shutil.which("node")
+#: 沙箱 boot 器: node_harness fixture 生成 boot.mjs, 测试文件导入它执行
+#: page-script.js (响应里的真实 <script> 原文) 并导出沙箱作用域的函数。
+_BOOT_MJS = r"""
+import fs from "node:fs";
+
+const SRC = fs.readFileSync(new URL("./page-script.js", import.meta.url), "utf8");
+
+export function mkNode(id) {
+  const node = {
+    id, innerHTML: "", textContent: "", hidden: false, className: "", disabled: false,
+    _attrs: {}, _desc: null, parentElement: null,
+    setAttribute(k, v) { node._attrs[k] = String(v); },
+    getAttribute(k) { return node._attrs[k] ?? null; },
+    addEventListener() {},
+    querySelector() { return null; },
+    querySelectorAll() { return []; },
+  };
+  return node;
+}
+
+export function matches(node, sel) {
+  if (sel === "[data-refresh-vault]") return node._attrs["data-refresh-vault"] !== undefined;
+  if (sel === "[data-note-for]") return node._attrs["data-note-for"] !== undefined;
+  return false;
+}
+
+export const flush = () => new Promise(r => setTimeout(r, 0));
+
+export function boot({getJson, postJson, hidden = false} = {}) {
+  const els = {};
+  const handlers = {};
+  const timers = [];
+  const calls = {get: 0, post: 0};
+  function makeEl(id) {
+    const node = mkNode(id);
+    node.addEventListener = (t, fn) => { handlers[id + "::" + t] = fn; };
+    node.querySelectorAll = sel => (node._desc || []).filter(n => matches(n, sel));
+    return node;
+  }
+  const documentStub = {
+    hidden,
+    getElementById: id => (els[id] ??= makeEl(id)),
+    addEventListener: (t, fn) => { handlers["document::" + t] = fn; },
+  };
+  const fetchStub = async (url, opts = {}) => {
+    if (opts && opts.method === "POST") {
+      calls.post += 1;
+      const h = typeof postJson === "function" ? postJson(url, opts) : postJson;
+      return h === undefined || h === null ? {ok: false, status: 0, json: async () => null} : h;
+    }
+    calls.get += 1;
+    const h = typeof getJson === "function" ? getJson(url) : getJson;
+    return h === undefined || h === null ? {ok: false, status: 0, json: async () => null} : h;
+  };
+  const sandbox = new Function(
+    "document", "fetch", "setTimeout", "clearTimeout",
+    SRC +
+    "\n;return {esc, shDay, parseDueMs, humanizeDue, computePollDelayMs, visibilityAction," +
+    " boardLink, nodeLink, nodeDetailHtml, boardTableHtml, restDayHtml, renderVaultCard," +
+    " renderPage, renderUnavailableBanner, renderRefreshResult, freshNotes};"
+  );
+  const api = sandbox(
+    documentStub, fetchStub,
+    (fn, ms) => { timers.push({fn, ms}); return timers.length; },
+    () => {},
+  );
+  return {api, els, handlers, timers, calls, document: documentStub};
+}
+"""
 
 
-def _extract_pure_js(html: str) -> str:
-    """从**实际响应体**割出常量区 + 纯函数区 (不是模板副本)。"""
-    const = re.search(r"// __CONSTANTS_BEGIN__\n(.*?)// __CONSTANTS_END__", html, re.S).group(1)
-    pure = re.search(r"// __PURE_RENDER_BEGIN__\n(.*?)// __PURE_RENDER_END__", html, re.S).group(1)
-    assert "__URLS_JSON__" not in const, "占位符没被替换 — 页面发出去的是模板本身"
-    assert "document" not in pure and "fetch(" not in pure, "纯函数区混入了副作用代码"
-    names = re.findall(r"^function (\w+)", pure, re.M)
-    return const + "\n" + pure + "\nexport {" + ", ".join(names) + "};\n"
+def _group(pattern: str, text: str, flags: int = 0) -> str:
+    """re.search().group(1) 的非 None 断言版 — pyright 严格模式友好。"""
+    m = re.search(pattern, text, flags)
+    assert m is not None, f"模式未命中: {pattern!r}"
+    return m.group(1)
+
+
+def _extract_script(html: str) -> str:
+    """从实际响应体取出**整个** <script> 原文 (不是任何按标记的割取)。"""
+    assert html.count("<script>") == 1 and "<script " not in html, "script 标签形态变了, 提取契约失效"
+    m = re.search(r"<script>\n(.*?)</script>", html, re.S)
+    assert m is not None, "script 主体未命中"
+    src = m.group(1)
+    assert "__URLS_JSON__" not in src, "占位符没被替换 — 页面发出去的是模板本身"
+    return src
 
 
 @pytest.fixture
 def node_harness(tmp_path, page_html):
-    """把真实响应里的纯函数写成 ESM 模块, 供 node --test 导入。"""
-    (tmp_path / "render.mjs").write_text(_extract_pure_js(page_html), encoding="utf-8")
+    """真实脚本 + 沙箱 boot 器写入 tmp; node 不可用时 fail-closed (不 skip)。"""
+    if _NODE is None:
+        pytest.fail(
+            "node 不可用 — 本文件 10+ 道 JS 门禁止静默 skip 假绿 (Codex round-1 "
+            "HIGH-2 fail-closed); 本环境必须装 node, 或实现卡文默认裁决④的 "
+            "Python 解析 fallback 后再改本门"
+        )
+    (tmp_path / "page-script.js").write_text(_extract_script(page_html), encoding="utf-8")
+    (tmp_path / "boot.mjs").write_text(_BOOT_MJS, encoding="utf-8")
     return tmp_path
 
 
@@ -250,13 +382,12 @@ def _run_node(tmp_path: Path, test_src: str) -> subprocess.CompletedProcess:
 
 def _assert_node_green(proc: subprocess.CompletedProcess):
     assert proc.returncode == 0, f"node --test 失败:\n{proc.stdout}\n{proc.stderr}"
+    # skipped 必须为 0 — 门不许被 conditional skip 悄悄掏空 (HIGH-2 配套);
+    # 零计数 (`# skipped 0` / `skipped 0`) 放行, 非零即红
+    assert not re.search(r"\bskipped?\s*[:=]?\s*[1-9]", proc.stdout), f"出现非零 skip:\n{proc.stdout}"
 
 
-pytestmark_node = pytest.mark.skipif(_NODE is None, reason="node 不可用")
-
-# ── fixture JSON: 覆盖四态 + 休息日 + W6 三字段 ────────────────────
-_NOW_MS = 1_788_000_000_000  # 固定时钟 (2026-08-29T22:40:00Z 附近), 不读真实时间
-
+#: 测试公共 fixture JSON: 覆盖四态 + 休息日 + W6 三字段 (固定时钟, 不读真实时间)
 _FIX_JS = r"""
 const NOW = 1788000000000;
 const OK_VAULT = {
@@ -290,46 +421,49 @@ const STALE = {vault_id: "cs188", status: "stale", error: null,
 const NO_PROJ = {vault_id: "test-vault", status: "no_projection", error: null, projection: null};
 const CORRUPT = {vault_id: "旧库", status: "corrupt",
   error: "ValueError: 仅支持 schema_version 3, 实为 2", projection: null};
+// 空 vaults 的成功 GET — boot() 首轮 poll 用
+const EMPTY_OK = () => ({ok: true, status: 200, json: async () => ({vaults: [OK_VAULT]})});
+"""
+
+_BOOT_PRELUDE = r"""
+import test from "node:test";
+import assert from "node:assert/strict";
+import {boot, flush, mkNode, matches} from "./boot.mjs";
 """
 
 
-@pytestmark_node
 def test_js_renders_four_states_and_unknown_state_defense(node_harness):
     """四态徽标各出一条 + 未知态防御 (不白屏, 原字面灰徽标)。"""
     proc = _run_node(
         node_harness,
-        r"""
-import test from "node:test";
-import assert from "node:assert/strict";
-import {renderVaultCard} from "./render.mjs";
-"""
+        _BOOT_PRELUDE
         + _FIX_JS
         + r"""
 test("ok 徽标", () => {
-  const h = renderVaultCard(OK_VAULT, NOW);
+  const h = boot().api.renderVaultCard(OK_VAULT, NOW);
   assert.match(h, /今日投影/);
   assert.match(h, /#16a34a/);
   assert.match(h, /到期 <b>3<\/b>/);
 });
 test("stale 徽标", () => {
-  const h = renderVaultCard(STALE, NOW);
+  const h = boot().api.renderVaultCard(STALE, NOW);
   assert.match(h, /过期投影/);
   assert.ok(!h.includes("今日投影"), "stale 不许装成 ok");
 });
 test("no_projection 徽标 + 降级文案, 不做假深链", () => {
-  const h = renderVaultCard(NO_PROJ, NOW);
+  const h = boot().api.renderVaultCard(NO_PROJ, NOW);
   assert.match(h, /无投影/);
   assert.match(h, /该库尚无今日复习投影/);
   assert.ok(!h.includes("obsidian://open?vault=test-vault"), "无投影不该给库深链");
 });
 test("corrupt 徽标 + 原始错误可见", () => {
-  const h = renderVaultCard(CORRUPT, NOW);
+  const h = boot().api.renderVaultCard(CORRUPT, NOW);
   assert.match(h, /投影损坏/);
   assert.match(h, /schema_version 3/);
   assert.ok(!h.includes("今日投影"));
 });
 test("未知 status 不白屏 (原字面 + 灰徽标)", () => {
-  const h = renderVaultCard({vault_id: "x", status: "unregistered", error: null, projection: null}, NOW);
+  const h = boot().api.renderVaultCard({vault_id: "x", status: "unregistered", error: null, projection: null}, NOW);
   assert.match(h, /unregistered/);
   assert.match(h, /#6b7280/);
   assert.ok(h.length > 50);
@@ -339,32 +473,27 @@ test("未知 status 不白屏 (原字面 + 灰徽标)", () => {
     _assert_node_green(proc)
 
 
-@pytestmark_node
 def test_js_rest_day_empty_state_matches_pick_copy(node_harness):
     """休息日空状态: 文案对齐 daily_review_pick.py:599/:564。"""
     proc = _run_node(
         node_harness,
-        r"""
-import test from "node:test";
-import assert from "node:assert/strict";
-import {renderVaultCard} from "./render.mjs";
-"""
+        _BOOT_PRELUDE
         + _FIX_JS
         + r"""
 test("ok + due_count=0 → 休息日文案, 不显示到期 0 的大数字", () => {
-  const h = renderVaultCard(REST_DAY, NOW);
+  const h = boot().api.renderVaultCard(REST_DAY, NOW);
   assert.match(h, /今日无到期节点，休息一天。/);
   assert.match(h, /按计划推进 · 最近到期 线性代数 · 2026-09-03/);
   assert.ok(!/到期 <b>0<\/b>/.test(h), "休息日不该摆一个到期 0 的大数字");
 });
 test("有到期时不走休息日分支", () => {
-  const h = renderVaultCard(OK_VAULT, NOW);
+  const h = boot().api.renderVaultCard(OK_VAULT, NOW);
   assert.ok(!h.includes("休息一天"));
 });
 test("stale 且 due_count=0 也不算休息日 (数据是旧的, 不许说今天没到期)", () => {
   const s = JSON.parse(JSON.stringify(STALE));
   s.projection.due_count = 0; s.projection.boards = [];
-  const h = renderVaultCard(s, NOW);
+  const h = boot().api.renderVaultCard(s, NOW);
   assert.ok(!h.includes("休息一天"), "过期投影不能冒充『今天没到期』");
 });
 """,
@@ -372,52 +501,57 @@ test("stale 且 due_count=0 也不算休息日 (数据是旧的, 不许说今天
     _assert_node_green(proc)
 
 
-@pytestmark_node
 def test_js_unavailable_banner_never_blank_screen(node_harness):
-    """完成条件 b: fetch 失败/非 200/JSON 坏 → 横幅 + 保留旧数据, 不白屏。"""
+    """完成条件 b: fetch 失败/非 200/JSON 坏 → 横幅 + 保留旧数据, 不白屏。
+
+    同时用沙箱真实走一遍「首轮 GET 失败」的接线: 横幅真的被写进 DOM stub,
+    连接徽标翻红 — 不是只测字符串函数。
+    """
     proc = _run_node(
         node_harness,
-        r"""
-import test from "node:test";
-import assert from "node:assert/strict";
-import {renderUnavailableBanner, renderPage} from "./render.mjs";
-"""
+        _BOOT_PRELUDE
         + _FIX_JS
         + r"""
 test("有过成功数据 → 说明保留了哪一刻的数据", () => {
-  const b = renderUnavailableBanner("HTTP 502", "14:32:05");
+  const b = boot().api.renderUnavailableBanner("HTTP 502", "14:32:05");
   assert.match(b, /后端离线\/不可用/);
   assert.match(b, /HTTP 502/);
   assert.match(b, /保留 14:32:05 的最后一次成功数据/);
 });
 test("从未成功过 → 诚实说没有数据 (不装成有)", () => {
-  const b = renderUnavailableBanner("Failed to fetch", null);
+  const b = boot().api.renderUnavailableBanner("Failed to fetch", null);
   assert.match(b, /尚未成功获取过数据/);
   assert.ok(!b.includes("保留"));
 });
 test("空 vaults 列表 → 显式空态文案, 不是空白", () => {
-  const h = renderPage({vaults: []}, NOW);
+  const h = boot().api.renderPage({vaults: []}, NOW);
   assert.match(h, /未发现任何 vault/);
 });
 test("畸形响应 (缺 vaults 键) 不抛异常, 给空态", () => {
-  assert.match(renderPage({}, NOW), /未发现任何 vault/);
-  assert.match(renderPage(null, NOW), /未发现任何 vault/);
+  assert.match(boot().api.renderPage({}, NOW), /未发现任何 vault/);
+  assert.match(boot().api.renderPage(null, NOW), /未发现任何 vault/);
+});
+test("接线: 首轮 GET 503 → 横幅上屏 + 徽标翻红 + 保留重试排程, 不白屏", async () => {
+  const b = boot();  // getJson 缺省 → {ok:false,status:0}
+  await flush();
+  assert.match(b.els["banner"].innerHTML, /后端离线\/不可用/);
+  assert.equal(b.els["banner"].hidden, false);
+  assert.equal(b.els["conn"].className, "conn down");
+  assert.equal(b.els["conn"].textContent, "后端不可用");
+  assert.equal(b.timers.length, 1, "必须保留一次重试排程");
+  assert.equal(b.timers[0].ms, 10000, "unavailable 态按 10s 重试");
+  assert.equal(b.els["cards"].innerHTML, "", "失败路径不得往卡片区塞任何假装成功的内容");
 });
 """,
     )
     _assert_node_green(proc)
 
 
-@pytestmark_node
 def test_js_w6_additive_fields_present_and_absent(node_harness):
     """W6 (CARD-G3-6b) 三字段: 有 → 渲染; 无 → 整块不出现 (各一条)。"""
     proc = _run_node(
         node_harness,
-        r"""
-import test from "node:test";
-import assert from "node:assert/strict";
-import {renderVaultCard} from "./render.mjs";
-"""
+        _BOOT_PRELUDE
         + _FIX_JS
         + r"""
 function withW6() {
@@ -428,46 +562,45 @@ function withW6() {
   return v;
 }
 test("why_this_board 在场 → 板行下出现说明行", () => {
-  assert.match(renderVaultCard(withW6(), NOW), /逾期最久 \+ 上次暴露最短路径缺口/);
+  assert.match(boot().api.renderVaultCard(withW6(), NOW), /逾期最久 \+ 上次暴露最短路径缺口/);
 });
 test("why_this_board 缺省 → 整块不出现", () => {
-  const h = renderVaultCard(OK_VAULT, NOW);
+  const h = boot().api.renderVaultCard(OK_VAULT, NOW);
   assert.ok(!h.includes('class="why"'), "缺省时不该出现说明行容器");
 });
 test("estimated_minutes 在场 → 约 N 分钟标签", () => {
-  assert.match(renderVaultCard(withW6(), NOW), /约 25 分钟/);
+  assert.match(boot().api.renderVaultCard(withW6(), NOW), /约 25 分钟/);
 });
 test("estimated_minutes 缺省 → 不出现标签", () => {
-  assert.ok(!renderVaultCard(OK_VAULT, NOW).includes("分钟"));
+  assert.ok(!boot().api.renderVaultCard(OK_VAULT, NOW).includes("分钟"));
 });
 test("estimated_minutes 非有限数 → 当缺省处理, 不渲染 NaN/Infinity", () => {
   const v = JSON.parse(JSON.stringify(OK_VAULT));
   v.projection.boards[0].estimated_minutes = "25";  // 字符串不是有限数
-  const h = renderVaultCard(v, NOW);
+  const h = boot().api.renderVaultCard(v, NOW);
   assert.ok(!h.includes("分钟"));
   assert.ok(!h.includes("NaN") && !h.includes("Infinity"));
 });
 test("rank_manifest 在场 → 底部小注", () => {
-  assert.match(renderVaultCard(withW6(), NOW), /rank_manifest/);
+  assert.match(boot().api.renderVaultCard(withW6(), NOW), /rank_manifest/);
 });
 test("rank_manifest 缺省 → 整块不出现", () => {
-  assert.ok(!renderVaultCard(OK_VAULT, NOW).includes("rank_manifest"));
+  assert.ok(!boot().api.renderVaultCard(OK_VAULT, NOW).includes("rank_manifest"));
 });
 """,
     )
     _assert_node_green(proc)
 
 
-@pytestmark_node
 def test_js_poll_interval_clamped_and_visibility_pauses(node_harness):
-    """完成条件 c: 轮询周期 clamp(next_due−now, 5s, 60s) + 隐藏暂停。"""
+    """完成条件 c: 轮询周期 clamp(next_due−now, 5s, 60s) + 隐藏暂停。
+
+    clamp 断言一半走纯函数, 一半走真实接线: boot 成功拉取后, 实际排程的
+    setTimeout 延迟必须等于 computePollDelayMs 的裁决。
+    """
     proc = _run_node(
         node_harness,
-        r"""
-import test from "node:test";
-import assert from "node:assert/strict";
-import {computePollDelayMs, visibilityAction} from "./render.mjs";
-"""
+        _BOOT_PRELUDE
         + _FIX_JS
         + r"""
 function at(secondsFromNow) {  // 构造一个 now+N 秒的 next_due 投影
@@ -476,43 +609,58 @@ function at(secondsFromNow) {  // 构造一个 now+N 秒的 next_due 投影
     projection: {next_upcoming: {board: "b", next_due: iso, node: "n"}}}]};
 }
 test("6 秒后到期 → 6 秒后再问 (区间内原样)", () => {
-  assert.equal(computePollDelayMs(at(6), NOW), 6000);
+  assert.equal(boot().api.computePollDelayMs(at(6), NOW), 6000);
 });
 test("2 秒后到期 → 夹到下限 5 秒 (不打爆后端)", () => {
-  assert.equal(computePollDelayMs(at(2), NOW), 5000);
+  assert.equal(boot().api.computePollDelayMs(at(2), NOW), 5000);
 });
 test("1 小时后到期 → 夹到上限 60 秒 (不睡死)", () => {
-  assert.equal(computePollDelayMs(at(3600), NOW), 60000);
+  assert.equal(boot().api.computePollDelayMs(at(3600), NOW), 60000);
 });
 test("已过期的 next_due → 回落上限, 不空转", () => {
-  assert.equal(computePollDelayMs(at(-100), NOW), 60000);
+  assert.equal(boot().api.computePollDelayMs(at(-100), NOW), 60000);
 });
 test("没有任何 upcoming → 回落上限", () => {
-  assert.equal(computePollDelayMs({vaults: [NO_PROJ, CORRUPT]}, NOW), 60000);
-  assert.equal(computePollDelayMs({vaults: []}, NOW), 60000);
-  assert.equal(computePollDelayMs(null, NOW), 60000);
+  assert.equal(boot().api.computePollDelayMs({vaults: [NO_PROJ, CORRUPT]}, NOW), 60000);
+  assert.equal(boot().api.computePollDelayMs({vaults: []}, NOW), 60000);
+  assert.equal(boot().api.computePollDelayMs(null, NOW), 60000);
 });
 test("多库取最近的那个未来时刻", () => {
   const data = {vaults: [at(50).vaults[0], at(8).vaults[0], at(-5).vaults[0]]};
-  assert.equal(computePollDelayMs(data, NOW), 8000);
+  assert.equal(boot().api.computePollDelayMs(data, NOW), 8000);
 });
 test("畸形 next_due 不炸, 按无排期处理", () => {
   const bad = {vaults: [{vault_id: "v", status: "ok",
     projection: {next_upcoming: {board: "b", next_due: "20260901", node: "n"}}}]};
-  assert.equal(computePollDelayMs(bad, NOW), 60000);
+  assert.equal(boot().api.computePollDelayMs(bad, NOW), 60000);
 });
 test("页面隐藏 → 取消排程且不拉取", () => {
-  assert.deepEqual(visibilityAction(true), {cancelTimer: true, pollNow: false});
+  assert.deepEqual(boot().api.visibilityAction(true), {cancelTimer: true, pollNow: false});
 });
 test("回到前台 → 取消旧排程并立即拉一轮", () => {
-  assert.deepEqual(visibilityAction(false), {cancelTimer: true, pollNow: true});
+  assert.deepEqual(boot().api.visibilityAction(false), {cancelTimer: true, pollNow: true});
+});
+test("接线: 成功轮询后实际排程延迟 = clamp 裁决 (60s 上限路径)", async () => {
+  const b = boot({getJson: EMPTY_OK()});
+  await flush();
+  assert.equal(b.calls.get, 1);
+  assert.equal(b.timers.length, 1);
+  assert.equal(b.timers[0].ms, 60000, "next_due 在远期 → 排程必须落在 60s 上限");
+  assert.match(b.els["nextpoll"].textContent, /60 秒后/);
+  assert.equal(b.els["conn"].className, "conn ok");
+});
+test("接线: 页面以隐藏态启动 → 首轮照拉, 但不排下一轮", async () => {
+  const b = boot({getJson: EMPTY_OK(), hidden: true});
+  await flush();
+  assert.equal(b.calls.get, 1, "首轮拉取不受隐藏影响 (数据还是要拿的)");
+  assert.equal(b.timers.length, 0, "隐藏期间不得排下一轮");
+  assert.match(b.els["nextpoll"].textContent, /已暂停/);
 });
 """,
     )
     _assert_node_green(proc)
 
 
-@pytestmark_node
 def test_js_new_due_card_appears_after_next_due_passes(node_harness):
     """完成条件 c 的行为链: next_due=now+6s → 6 秒后那一轮的响应里出现新到期卡。
 
@@ -524,11 +672,7 @@ def test_js_new_due_card_appears_after_next_due_passes(node_harness):
     """
     proc = _run_node(
         node_harness,
-        r"""
-import test from "node:test";
-import assert from "node:assert/strict";
-import {computePollDelayMs, renderPage} from "./render.mjs";
-"""
+        _BOOT_PRELUDE
         + _FIX_JS
         + r"""
 const dueAt = new Date(NOW + 6000).toISOString().replace(/\.\d{3}Z$/, "Z");
@@ -546,15 +690,15 @@ const after = {vaults: [{vault_id: "v", status: "ok", error: null, projection: {
             fsrs_due: dueAt, bucket: "due_now", why_due: "排期到点"}]}]}}]};
 
 test("① 下一次 GET 排在 next_due 时刻 (6 秒)", () => {
-  assert.equal(computePollDelayMs(before, NOW), 6000);
+  assert.equal(boot().api.computePollDelayMs(before, NOW), 6000);
 });
 test("② 到点前那一轮: 休息日, 页面没有该到期卡", () => {
-  const h = renderPage(before, NOW);
+  const h = boot().api.renderPage(before, NOW);
   assert.match(h, /休息一天/);
   assert.ok(!h.includes("二叉堆"), "还没到期就不该出现节点");
 });
 test("③ 到点后那一轮: 到期卡与节点明细出现", () => {
-  const h = renderPage(after, NOW + 6000);
+  const h = boot().api.renderPage(after, NOW + 6000);
   assert.match(h, /到期 <b>1<\/b>/);
   assert.match(h, /堆与优先队列/);
   assert.match(h, /二叉堆/);
@@ -565,94 +709,200 @@ test("③ 到点后那一轮: 到期卡与节点明细出现", () => {
     _assert_node_green(proc)
 
 
-@pytestmark_node
 def test_js_refresh_result_visible_and_never_fakes_success(node_harness):
     """完成条件 c: 手动刷新的 rebuild_count / 去抖态 / 失败在页面可见。
 
     去抖与失败**都不许长得像成功** —— 那正是零 JS 页 round-3 修过的
-    「与成功逐字节同形的 303」的浏览器版本。
+    「与成功逐字节同形的 303」的浏览器版本。四个 JSON 分支都带 rebuild_count
+    (Codex round-1 HIGH-1 的第三点)。
     """
     proc = _run_node(
         node_harness,
-        r"""
-import test from "node:test";
-import assert from "node:assert/strict";
-import {renderRefreshResult} from "./render.mjs";
-test("真重建 → 显示本进程重建次数", () => {
-  const h = renderRefreshResult(200, {rebuilt: true, reason: "rebuilt", rebuild_count: 3});
+        _BOOT_PRELUDE
+        + _FIX_JS
+        + r"""
+test("真重建 → 显示本进程累计次数", () => {
+  const h = boot().api.renderRefreshResult(200, {rebuilt: true, reason: "rebuilt", rebuild_count: 3});
   assert.match(h, /已重建/);
-  assert.match(h, /第 3 次/);
+  assert.match(h, /累计 3 次/);
   assert.match(h, /rnote ok/);
 });
-test("去抖 → 明说本次没重算 + 还要等多久", () => {
-  const h = renderRefreshResult(200, {rebuilt: false, reason: "debounced",
-    debounce_ttl_seconds: 10, retry_after_seconds: 6.2});
-  assert.match(h, /10 秒内已重建过，本次未重算/);
+test("去抖 → 明说本次没重算 + 累计次数 + 还要等多久", () => {
+  const h = boot().api.renderRefreshResult(200, {rebuilt: false, reason: "debounced",
+    debounce_ttl_seconds: 10, retry_after_seconds: 6.2, rebuild_count: 3});
+  assert.match(h, /10 秒内已重建过/);
+  assert.match(h, /累计 3 次/);
+  assert.match(h, /本次未重算/);
   assert.match(h, /约 7 秒后可再试/);
   assert.match(h, /rnote warn/);
-  assert.ok(!h.includes("已重建（"), "去抖不许长得像成功");
+  assert.ok(!h.includes("✅") && !/rnote ok/.test(h), "去抖不许长得像成功");
 });
-test("in_progress → 说清没重复启动", () => {
-  const h = renderRefreshResult(200, {rebuilt: false, reason: "in_progress"});
+test("in_progress → 说清没重复启动 + 累计次数", () => {
+  const h = boot().api.renderRefreshResult(200, {rebuilt: false, reason: "in_progress", rebuild_count: 5});
   assert.match(h, /已有一次重建在跑/);
+  assert.match(h, /累计 5 次/);
   assert.ok(!/rnote ok/.test(h));
 });
+test("rebuild_count 缺省也不显示 undefined", () => {
+  const h = boot().api.renderRefreshResult(200, {rebuilt: true, reason: "rebuilt"});
+  assert.match(h, /已重建/);
+  assert.ok(!h.includes("undefined") && !h.includes("null"));
+});
 test("503 → 显示状态码与后端给的原因", () => {
-  const h = renderRefreshResult(503, {detail: {error: "pick_missing", message: "生产器脚本不可用"}});
+  const h = boot().api.renderRefreshResult(503, {detail: {error: "pick_missing", message: "生产器脚本不可用"}});
   assert.match(h, /HTTP 503/);
   assert.match(h, /生产器脚本不可用/);
   assert.match(h, /rnote err/);
 });
 test("403 同源门 → 原样呈现, 不吞", () => {
-  const h = renderRefreshResult(403, {detail: {error: "cross_site_blocked", message: "跨站请求被拒"}});
+  const h = boot().api.renderRefreshResult(403, {detail: {error: "cross_site_blocked", message: "跨站请求被拒"}});
   assert.match(h, /HTTP 403/);
   assert.match(h, /跨站请求被拒/);
 });
 test("网络错误 (status 0) → 明确说网络失败", () => {
-  assert.match(renderRefreshResult(0, {detail: "Failed to fetch"}), /网络错误/);
+  assert.match(boot().api.renderRefreshResult(0, {detail: "Failed to fetch"}), /网络错误/);
 });
 test("响应体不是 JSON (payload=null) 也不白, 给状态码", () => {
-  assert.match(renderRefreshResult(500, null), /HTTP 500/);
+  assert.match(boot().api.renderRefreshResult(500, null), /HTTP 500/);
 });
 """,
     )
     _assert_node_green(proc)
 
 
-@pytestmark_node
-def test_js_shows_authoritative_due_count_never_recomputes(node_harness):
-    """完成条件 (硬边界): JS 内不实现任何 due 算法 —— 只消费投影。
+def test_js_refresh_wiring_note_survives_rerender_and_inflight_guard(node_harness):
+    """Codex round-1 HIGH-1 的接线门: 刷新反馈进持久状态, 不被重绘抹掉。
 
-    行为门 (非否定断言): 喂一份 due_count=7 而 boards 明细只有 2 的投影
-    (服务端 _summarize 允许这种并陈: stats 是权威计数, 明细可因脏行降级),
-    页面必须显示 7。若 JS 私下按明细重算, 会显示 2, 本门变红。
+    场景全部在沙箱里以真实脚本 + 假事件驱动:
+      ① POST 去抖结局 → 反馈就地写进 note span (含 rebuild_count);
+      ② 之后一轮轮询重绘 → 反馈**仍在** (从 state.notes 恢复, 15s TTL 内);
+      ③ TTL 过期后的重绘 → 反馈消失 (不永久占卡片);
+      ④ 在飞期间重复点击 → 只发一个 POST;
+      ⑤ rebuilt 结局 → 立即补一轮 GET (数字马上更新)。
     """
     proc = _run_node(
         node_harness,
-        r"""
-import test from "node:test";
-import assert from "node:assert/strict";
-import {renderVaultCard} from "./render.mjs";
-"""
+        _BOOT_PRELUDE
+        + _FIX_JS
+        + r"""
+function makeWorld() {
+  const b = boot({
+    getJson: EMPTY_OK(),
+    postJson: () => ({ok: true, status: 200, json: async () =>
+      ({rebuilt: false, reason: "debounced", debounce_ttl_seconds: 10,
+        retry_after_seconds: 6.6, rebuild_count: 3})}),
+  });
+  return b;
+}
+function attachButtonNote(b, vid) {
+  const btn = mkNode("btn-" + vid);
+  btn._attrs["data-refresh-vault"] = vid;
+  const note = mkNode("note-" + vid);
+  note._attrs["data-note-for"] = vid;
+  b.els["cards"]._desc = [btn, note];
+  return {btn, note};
+}
+const clickEvent = btn => ({target: {closest: sel => (matches(btn, sel) ? btn : null)}});
+
+test("① 去抖反馈就地写进 note (含累计次数), 按钮恢复可用", async () => {
+  const b = makeWorld();
+  await flush();
+  const {btn, note} = attachButtonNote(b, "cs_61b");
+  await b.handlers["cards::click"](clickEvent(btn));
+  assert.match(note.innerHTML, /未重算/);
+  assert.match(note.innerHTML, /累计 3 次/);
+  assert.equal(btn.disabled, false, "POST 结束后按钮必须解锁");
+  assert.equal(b.calls.post, 1);
+});
+test("② 反馈不被下一轮重绘抹掉 (HIGH-1 主场景)", async () => {
+  const b = makeWorld();
+  await flush();
+  const {btn} = attachButtonNote(b, "cs_61b");
+  await b.handlers["cards::click"](clickEvent(btn));
+  // 下一轮轮询 (回前台触发) → renderCards 用 freshNotes 恢复反馈
+  b.handlers["document::visibilitychange"]();
+  await flush();
+  assert.match(b.els["cards"].innerHTML, /未重算/);
+  assert.match(b.els["cards"].innerHTML, /累计 3 次/);
+});
+test("③ TTL 过期后重绘, 反馈退场 (不永久占卡片)", async () => {
+  const b = makeWorld();
+  await flush();
+  const {btn, note} = attachButtonNote(b, "cs_61b");
+  await b.handlers["cards::click"](clickEvent(btn));
+  assert.ok(b.api.freshNotes(Date.now() + 16000) !== undefined);
+  assert.deepEqual(b.api.freshNotes(Date.now() + 16000), {}, "15s TTL 后不得再有 note");
+  assert.deepEqual(Object.keys(b.api.freshNotes(Date.now())), ["cs_61b"], "TTL 内必须还有 note");
+  assert.ok(note.innerHTML.length > 0);
+});
+test("④ 在飞期间重复点击 → 只发一个 POST", async () => {
+  const b = makeWorld();
+  await flush();
+  const {btn} = attachButtonNote(b, "cs_61b");
+  const p1 = b.handlers["cards::click"](clickEvent(btn));
+  const p2 = b.handlers["cards::click"](clickEvent(btn));
+  await Promise.all([p1, p2]);
+  assert.equal(b.calls.post, 1, "同库在飞时第二个点击不得发 POST");
+});
+test("⑤ rebuilt 结局 → 立即补一轮 GET", async () => {
+  const b = boot({
+    getJson: EMPTY_OK(),
+    postJson: () => ({ok: true, status: 200, json: async () =>
+      ({rebuilt: true, reason: "rebuilt", rebuild_count: 4})}),
+  });
+  await flush();
+  assert.equal(b.calls.get, 1);
+  const {btn} = attachButtonNote(b, "cs_61b");
+  await b.handlers["cards::click"](clickEvent(btn));
+  await flush();
+  assert.equal(b.calls.get, 2, "真重建后必须立即重拉总览");
+  assert.match(b.els["cards"].innerHTML, /已重建/);
+});
+test("⑥ 反馈期间被重绘换过 DOM → 结局靠重绘恢复 (就地补不到的路径)", async () => {
+  const b = makeWorld();
+  await flush();
+  const {btn} = attachButtonNote(b, "cs_61b");
+  const p = b.handlers["cards::click"](clickEvent(btn));
+  // POST 在飞时页面被重绘 (模拟一轮轮询), 旧 note span 脱离 DOM
+  b.els["cards"]._desc = [];
+  await p;
+  // 就地补找不到 span → 必须走 renderCards 恢复, 卡片上仍能看到去抖反馈
+  assert.match(b.els["cards"].innerHTML, /未重算/);
+});
+""",
+    )
+    _assert_node_green(proc)
+
+
+def test_js_shows_authoritative_due_count_never_recomputes(node_harness):
+    """完成条件 (硬边界): JS 内不实现任何 due 算法 —— 只消费投影。
+
+    行为门 (非否定断言): 喂一份 due_count=7 而 boards 明细只有 2+1 的投影
+    (服务端 _summarize 允许这种并陈: stats 是权威计数, 明细可因脏行降级),
+    页面必须显示 7。若 JS 私下按明细重算, 会显示 3, 本门变红。
+    """
+    proc = _run_node(
+        node_harness,
+        _BOOT_PRELUDE
         + _FIX_JS
         + r"""
 test("显示服务端权威 due_count, 不按明细重加", () => {
   const v = JSON.parse(JSON.stringify(OK_VAULT));
   v.projection.due_count = 7;   // 权威计数
   // 明细仍是 2+1=3 —— 若 JS 重算就会显示 3
-  const h = renderVaultCard(v, NOW);
+  const h = boot().api.renderVaultCard(v, NOW);
   assert.match(h, /到期 <b>7<\/b>/);
   assert.ok(!/到期 <b>3<\/b>/.test(h), "页面重算了到期数 — 违反『只消费投影』");
 });
 test("板行到期数直接取 boards[].due, 不按 nodes 长度重数", () => {
   const v = JSON.parse(JSON.stringify(OK_VAULT));
   v.projection.boards[0].due = 9;   // 明细只有 1 个 node
-  assert.match(renderVaultCard(v, NOW), /<b>9<\/b>/);
+  assert.match(boot().api.renderVaultCard(v, NOW), /<b>9<\/b>/);
 });
 test("休息日判定读 due_count, 不读 boards 是否为空", () => {
   const v = JSON.parse(JSON.stringify(OK_VAULT));
   v.projection.boards = [];        // 明细空, 但权威计数非零
-  const h = renderVaultCard(v, NOW);
+  const h = boot().api.renderVaultCard(v, NOW);
   assert.ok(!h.includes("休息一天"), "权威计数非零时不许说休息");
   assert.match(h, /到期 <b>3<\/b>/);
 });
@@ -661,24 +911,22 @@ test("休息日判定读 due_count, 不读 boards 是否为空", () => {
     _assert_node_green(proc)
 
 
-@pytestmark_node
 def test_js_escapes_hostile_names_and_encodes_deep_links(node_harness):
     """XSS / 深链编码: 库名、板名、节点名、错误串都来自外部 JSON。"""
     proc = _run_node(
         node_harness,
-        r"""
-import test from "node:test";
-import assert from "node:assert/strict";
-import {renderVaultCard, boardLink, nodeLink} from "./render.mjs";
+        _BOOT_PRELUDE
+        + _FIX_JS
+        + r"""
 test("恶意库名不产生可执行标签", () => {
-  const h = renderVaultCard({vault_id: '<img src=x onerror=alert(1)>', status: "corrupt",
+  const h = boot().api.renderVaultCard({vault_id: '<img src=x onerror=alert(1)>', status: "corrupt",
     error: '</script><script>alert(2)</script>', projection: null}, 0);
   assert.ok(!h.includes("<img"), "库名未转义");
   assert.ok(!h.includes("<script"), "错误串未转义");
   assert.match(h, /&lt;img/);
 });
 test("板名里的引号不能撑破 href 属性", () => {
-  const h = renderVaultCard({vault_id: "v", status: "ok", error: null, projection: {
+  const h = boot().api.renderVaultCard({vault_id: "v", status: "ok", error: null, projection: {
     due_count: 1, due_new_count: 0, placeholder_backlog: 0, bucket_counts: null,
     generated_at: "g", next_upcoming: null,
     boards: [{board: '" onmouseover="alert(1)', due: 1, due_new: 0,
@@ -686,18 +934,18 @@ test("板名里的引号不能撑破 href 属性", () => {
   assert.ok(!h.includes('onmouseover="alert'), "属性被撑破");
 });
 test("深链把 / & # ? 一并编码 (与服务端 quote(safe='') 同语义)", () => {
-  const l = boardLink("v/a", "b&c#d?e");
+  const api = boot().api;
+  const l = api.boardLink("v/a", "b&c#d?e");
   assert.ok(l.includes("v%2Fa"));
   assert.ok(l.includes("%26") && l.includes("%23") && l.includes("%3F"));
   assert.ok(!l.slice("obsidian://open?vault=".length).includes("/"));
-  assert.ok(nodeLink("v", "x/y").includes("%2Fy"));
+  assert.ok(api.nodeLink("v", "x/y").includes("%2Fy"));
 });
 """,
     )
     _assert_node_green(proc)
 
 
-@pytestmark_node
 def test_js_humanize_due_matches_server_side_wording(node_harness):
     """同源锁: JS 的到期人话与服务端 _humanize_due 逐条相同。
 
@@ -726,9 +974,10 @@ def test_js_humanize_due_matches_server_side_wording(node_harness):
     proc = _run_node(
         node_harness,
         "import test from 'node:test';\nimport assert from 'node:assert/strict';\n"
-        "import {humanizeDue} from './render.mjs';\n"
+        "import {boot} from './boot.mjs';\n"
         f"const NOW = {_NOW_MS};\nconst CASES = {json.dumps(cases, ensure_ascii=False)};\n"
         r"""
+const humanizeDue = boot().api.humanizeDue;
 for (const c of CASES) {
   test("与服务端一致: " + c.label, () => {
     assert.equal(humanizeDue(c.ts, NOW).text, c.expected);
@@ -737,3 +986,7 @@ for (const c of CASES) {
 """,
     )
     _assert_node_green(proc)
+
+
+#: 固定时钟毫秒 (与 _FIX_JS 的 NOW 同源; 放在文件尾供上面的对拍测试引用)
+_NOW_MS = 1_788_000_000_000

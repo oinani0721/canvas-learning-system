@@ -14,7 +14,7 @@ GET /api/v1/review/overview/app — 单文件交互 HTML (内联 CSS/JS, 零 CDN
   改任何到期展示。
 - 页面隐藏 (visibilitychange) 时暂停轮询, 回到前台立即拉一轮。
 - 自动轮询**绝不** POST refresh — 只有手动「刷新投影」按钮才 POST
-  (响应的 rebuilt/reason/rebuild_count/去抖态在按钮旁可见化)。
+  (同库重建在飞期间按钮禁用, 不发第二个 POST)。
 - 两个 API path 用 request.url_for 注入 (不硬编码) — prefix 改动不漂移。
 - 四态徽标字面从 review_overview._STATUS_META **import 后注入** JS (共享
   不复制, W6 改文案本页自动跟随); 前端另有第五态 unavailable: fetch 失败/
@@ -31,13 +31,18 @@ GET /api/v1/review/overview/app — 单文件交互 HTML (内联 CSS/JS, 零 CDN
   boards[].estimated_minutes (有限数→「约 N 分钟」标签) / projection 顶层
   rank_manifest (在场→底部小注, 不解析内部形状)。W6 先合、透传位置以合并
   后主干为准 — 缺省不出现的设计保证位置不符时页面不炸只是不显示。
+- 刷新反馈进**持久状态** (state.notes, 15s TTL): 手动刷新的结局 (重建/
+  去抖/在跑/失败, 均含 rebuild_count) 写进状态而非只写 DOM —— rebuilt 触发
+  的立即重拉、或任何一轮轮询重绘, 都会从状态恢复反馈, 不会被下一帧抹掉
+  (Codex round-1 HIGH-1); 在飞期间按钮禁用也是渲染态的一部分, 重绘不会
+  意外解锁成可双击。
 
-JS 结构 (测试契约): <script> 内以 `// __CONSTANTS_BEGIN__/__END__` 与
-`// __PURE_RENDER_BEGIN__/__END__` 标记出无副作用区 (纯函数: 输入 JSON →
-输出 HTML 字符串/数值, 不碰 DOM/fetch/时钟) — tests/unit/test_review_app.py
-从**实际响应的 HTML** 提取这两段喂 `node --test` 做渲染断言 (默认裁决④),
-测的是注入后的真实产物而非模板副本。副作用壳 (fetch/定时器/事件绑定) 只
-消费纯函数的返回值, 由浏览器走查佐证。
+JS 结构 (测试契约, Codex round-1 HIGH-3 后的形态): tests/unit/test_review_app.py
+把响应里的**整个 <script> 原文**放进受控沙箱 (stub document/fetch/timer)
+直接执行, 纯函数从执行后的沙箱作用域导出断言 —— 不存在任何「按注释标记
+割取代码」的通道, 注释里藏一份好代码骗提取器的攻击面不成立; 副作用壳
+(轮询/点击流程) 也在同一沙箱里以假事件驱动做接线断言。node 不可用时该
+fixture fail-closed (pytest.fail), 禁止静默 skip 假绿 (Codex round-1 HIGH-2)。
 """
 
 from __future__ import annotations
@@ -145,7 +150,6 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
 存在同名库时可能跳到先注册的那个，以 Obsidian 侧库列表为准</div>
 <script>
 "use strict";
-// __CONSTANTS_BEGIN__
 // 服务端注入 (url_for 路径 + review_overview 共享字面 — 单一来源, 不复制)
 const URLS = __URLS_JSON__;
 const STATUS_META = __STATUS_META_JSON__;
@@ -154,12 +158,10 @@ const BUCKET_ORDER = __BUCKET_ORDER_JSON__;
 const POLL_MIN_MS = 5000;   // 轮询下限 (默认裁决②: clamp 5s)
 const POLL_MAX_MS = 60000;  // 轮询上限 (默认裁决②: clamp 60s)
 const RETRY_DELAY_MS = 10000;  // unavailable 态的固定重试间隔 (在 clamp 区间内)
-// __CONSTANTS_END__
+const NOTE_TTL_MS = 15000;  // 刷新反馈的可见窗: 足够活过 rebuilt 触发的立即重拉, 不永久占卡片
 
-// __PURE_RENDER_BEGIN__
 // ═══ 纯渲染函数: 输入 JSON → 输出 HTML 字符串/数值。无 DOM、无 fetch、
-// 无时钟读取 (nowMs 一律显式入参) — tests/unit/test_review_app.py 提取
-// 本区段在 node --test 中断言。 ═══
+// 无时钟读取 (nowMs 一律显式入参)。 ═══
 function esc(s) {
   return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 }
@@ -260,7 +262,7 @@ function restDayHtml(proj) {
     esc(nu.board) + " · " + esc(String(nu.next_due).slice(0, 10)) + "</div>" : "";
   return '<div class="restday">✅ 今日无到期节点，休息一天。' + tail + "</div>";
 }
-function renderVaultCard(entry, nowMs) {
+function renderVaultCard(entry, nowMs, noteHtml, isInflight) {
   // 未知 status 防御: 原字面灰徽标 (未来第五态不白屏)
   const meta = STATUS_META[entry.status] || [entry.status, "#6b7280"];
   const vid = entry.vault_id;
@@ -287,41 +289,49 @@ function renderVaultCard(entry, nowMs) {
   } else {
     body = '<div class="corrupt-err">投影文件无法解析<br><code>' + esc(String(entry.error || "")) + "</code></div>";
   }
+  // noteHtml 是 renderRefreshResult 的成品 HTML (内部已 esc), 由调用方从
+  // 持久状态传入 — 重绘后反馈得以恢复 (Codex round-1 HIGH-1)
   return '<div class="card"><div class="card-head"><b>' + esc(vid) + "</b>" +
     '<span class="badge" style="background:' + meta[1] + '">' + esc(meta[0]) + "</span></div>" + body +
-    '<div class="actions"><button class="btn" data-refresh-vault="' + esc(vid) + '">🔄 刷新投影</button>' +
-    '<span class="rnote" data-note></span></div></div>';
+    '<div class="actions"><button class="btn"' + (isInflight ? " disabled" : "") +
+    ' data-refresh-vault="' + esc(vid) + '">🔄 刷新投影</button>' +
+    '<span class="rnote" data-note-for="' + esc(vid) + '">' + (noteHtml || "") + "</span></div></div>";
 }
-function renderPage(data, nowMs) {
+function renderPage(data, nowMs, notes, inflight) {
   const vaults = data && Array.isArray(data.vaults) ? data.vaults : [];
   if (!vaults.length) return '<div class="empty">VAULTS_ROOT 下未发现任何 vault (需含 .obsidian/ 目录)</div>';
-  return vaults.map(e => renderVaultCard(e, nowMs)).join("");
+  return vaults.map(e => renderVaultCard(e, nowMs, (notes && notes[e.vault_id]) || "",
+    !!(inflight && inflight[e.vault_id]))).join("");
 }
 function renderUnavailableBanner(detail, lastOkText) {
   const keep = lastOkText ? "页面保留 " + esc(lastOkText) + " 的最后一次成功数据。" : "尚未成功获取过数据。";
   return "<b>⚠ 后端离线/不可用</b> — " + esc(detail) + "。" + keep + "自动重试中…";
 }
 function renderRefreshResult(status, payload) {
-  // POST /overview/refresh 响应可见化 (rebuilt / debounced / in_progress / 失败)
+  // POST /overview/refresh 响应可见化 — rebuilt/debounced/in_progress/失败
+  // 四种结局都尽量带上 rebuild_count (进程内累计); 去抖与失败绝不长得像成功
+  // (零 JS 页 round-3 修过的「与成功同形的 303」不许在交互壳还魂)
+  const count = payload && payload.rebuild_count !== undefined && payload.rebuild_count !== null
+    ? "（本进程累计 " + esc(payload.rebuild_count) + " 次）" : "";
   if (status === 200 && payload && payload.reason === "rebuilt")
-    return '<span class="rnote ok">✅ 已重建（本进程第 ' + esc(payload.rebuild_count) + " 次）· 数字已更新</span>";
+    return '<span class="rnote ok">✅ 已重建' + count + " · 数字已更新</span>";
   if (status === 200 && payload && payload.reason === "debounced") {
     const wait = Number(payload.retry_after_seconds);
-    return '<span class="rnote warn">⏱ ' + esc(payload.debounce_ttl_seconds) + " 秒内已重建过，本次未重算" +
+    return '<span class="rnote warn">⏱ ' + esc(payload.debounce_ttl_seconds) + " 秒内已重建过" + count +
+      "，本次未重算" +
       (Number.isFinite(wait) && wait > 0 ? " · 约 " + Math.ceil(wait) + " 秒后可再试" : "") + "</span>";
   }
   if (status === 200 && payload && payload.reason === "in_progress")
-    return '<span class="rnote warn">⏳ 该库已有一次重建在跑，本次未重复启动</span>';
+    return '<span class="rnote warn">⏳ 该库已有一次重建在跑' + count + "，本次未重复启动</span>";
   let detail = "";
   if (payload && payload.detail)
     detail = typeof payload.detail === "string" ? payload.detail : (payload.detail.message || JSON.stringify(payload.detail));
   if (status === 0) return '<span class="rnote err">❌ 刷新失败（网络错误）：' + esc(detail || "连接失败") + "</span>";
   return '<span class="rnote err">❌ 刷新失败（HTTP ' + esc(status) + "）" + (detail ? "：" + esc(detail) : "") + "</span>";
 }
-// __PURE_RENDER_END__
 
 // ═══ 副作用壳: 只消费上面纯函数的返回值 ═══
-const state = {timer: null, lastOkAt: null};
+const state = {timer: null, lastOkAt: null, lastData: null, notes: {}, inflight: {}};
 const el = id => document.getElementById(id);
 function fmtClock(ms) {
   return new Intl.DateTimeFormat("zh-CN", {timeZone: "Asia/Shanghai", hour12: false,
@@ -331,6 +341,31 @@ function setConn(cls, text) {
   const c = el("conn");
   c.className = "conn " + cls;
   c.textContent = text;
+}
+function vaultButtons(vid) {
+  // getAttribute 比对而非把 vid 插进 CSS 选择器 — vid 是外部字符串,
+  // 进选择器会被当选择器语法解析 (引号/反斜杠注入面)
+  return Array.from(el("cards").querySelectorAll("[data-refresh-vault]"))
+    .filter(b => b.getAttribute("data-refresh-vault") === vid);
+}
+function applyNote(vid) {
+  const n = state.notes[vid];
+  if (!n) return false;
+  let patched = false;
+  for (const span of el("cards").querySelectorAll("[data-note-for]")) {
+    if (span.getAttribute("data-note-for") === vid) { span.innerHTML = n.html; patched = true; }
+  }
+  return patched;
+}
+function freshNotes(nowMs) {
+  const out = {};
+  for (const vid of Object.keys(state.notes)) {
+    if (nowMs - state.notes[vid].atMs < NOTE_TTL_MS) out[vid] = state.notes[vid].html;
+  }
+  return out;
+}
+function renderCards(nowMs) {
+  el("cards").innerHTML = renderPage(state.lastData, nowMs, freshNotes(nowMs), state.inflight);
 }
 function schedule(ms) {
   clearTimeout(state.timer);
@@ -346,7 +381,8 @@ async function poll() {
     if (!resp.ok) throw new Error("HTTP " + resp.status);
     const data = await resp.json();
     const nowMs = Date.now();
-    el("cards").innerHTML = renderPage(data, nowMs);
+    state.lastData = data;
+    renderCards(nowMs);
     el("banner").hidden = true;
     state.lastOkAt = nowMs;
     el("updated").textContent = "上次更新 " + fmtClock(nowMs);
@@ -366,26 +402,34 @@ document.addEventListener("visibilitychange", () => {
   if (act.pollNow) poll();
   else if (document.hidden) el("nextpoll").textContent = "已暂停（页面隐藏）";
 });
-el("cards").addEventListener("click", async ev => {
+async function onRefreshClick(ev) {
   const btn = ev.target.closest("[data-refresh-vault]");
   if (!btn) return;
   const vid = btn.getAttribute("data-refresh-vault");
-  const note = btn.parentElement.querySelector("[data-note]");
-  btn.disabled = true;
-  note.innerHTML = '<span class="rnote">⏳ 重建中…</span>';
+  if (state.inflight[vid]) return;  // 同库重建在飞, 不发第二个 POST
+  state.inflight[vid] = true;
+  state.notes[vid] = {html: '<span class="rnote">⏳ 重建中…</span>', atMs: Date.now()};
+  for (const b of vaultButtons(vid)) b.disabled = true;
+  applyNote(vid);
   try {
     // 手动按钮是唯一的 POST 路径 (默认裁决②: 自动轮询绝不 POST)
     const resp = await fetch(URLS.refresh, {method: "POST", body: new URLSearchParams({vault_id: vid})});
     let payload = null;
     try { payload = await resp.json(); } catch (_e) { payload = null; }
-    note.innerHTML = renderRefreshResult(resp.status, payload);
-    if (resp.ok && payload && payload.rebuilt) poll();  // 真重建 → 立即重拉总览
+    state.notes[vid] = {html: renderRefreshResult(resp.status, payload), atMs: Date.now()};
+    // 先就地补; 就地补不到 (反馈期间被轮询重绘换过 DOM) 且手上有数据 →
+    // 用持久状态重绘恢复 — 反馈从此不依赖「那个 span 还在不在」
+    if (!applyNote(vid) && state.lastData) renderCards(Date.now());
+    if (resp.ok && payload && payload.rebuilt) poll();  // 真重建 → 立即重拉 (反馈在 state.notes, 重绘不丢)
   } catch (e) {
-    note.innerHTML = renderRefreshResult(0, {detail: String((e && e.message) || e)});
+    state.notes[vid] = {html: renderRefreshResult(0, {detail: String((e && e.message) || e)}), atMs: Date.now()};
+    if (!applyNote(vid) && state.lastData) renderCards(Date.now());
   } finally {
-    btn.disabled = false;
+    delete state.inflight[vid];
+    for (const b of vaultButtons(vid)) b.disabled = false;
   }
-});
+}
+el("cards").addEventListener("click", onRefreshClick);
 poll();
 </script>
 </body>

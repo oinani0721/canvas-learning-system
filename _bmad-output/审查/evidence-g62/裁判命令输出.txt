@@ -1,0 +1,29 @@
+══ 裁判 1: 零外部 URL 探针 (卡文原样, 裸 TestClient 不起 lifespan) ══
+{"event": "cohere not installed. Cohere API reranking unavailable.", "logger": "agentic_rag.reranking", "level": "info", "timestamp": "2026-08-31T23:06:25.364846Z"}
+{"event": "Agentic RAG module loaded successfully. AGENTIC_RAG_AVAILABLE=True", "logger": "agentic_rag", "level": "info", "timestamp": "2026-08-31T23:06:25.391131Z"}
+{"event": "RAGService: LangGraph/Agentic RAG available. LANGGRAPH_AVAILABLE=True", "logger": "app.services.rag_service", "level": "info", "timestamp": "2026-08-31T23:06:25.391174Z"}
+{"event": "AgentService not available, canvas uses template questions only", "logger": "app.api.v1.endpoints.review", "level": "info", "timestamp": "2026-08-31T23:06:25.522807Z"}
+{"event": "src.rollback not available \u2014 rollback endpoints will return 503", "logger": "app.api.v1.endpoints.rollback", "level": "warning", "timestamp": "2026-08-31T23:06:25.530722Z"}
+{"event": "[MCP] Patched fastapi-mcp anyOf+type schema conflict (v0.4.0 bug)", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-08-31T23:06:25.717079Z"}
+{"event": "[P0-2] Registered 6 read-only MCP tool routes + 14 quarantined (410) stubs", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-08-31T23:06:25.724452Z"}
+{"event": "[MCP] Stripped spurious 'type' from 321 anyOf properties across 204 tools", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-08-31T23:06:26.062168Z"}
+{"event": "No auth config provided, skipping auth setup", "logger": "fastapi_mcp.server", "level": "info", "timestamp": "2026-08-31T23:06:26.062883Z"}
+{"event": "MCP HTTP server listening at /mcp", "logger": "fastapi_mcp.server", "level": "info", "timestamp": "2026-08-31T23:06:26.062911Z"}
+{"event": "[Story 3.2] MCP server mounted at /mcp (streamable HTTP) with canvas-learning tools", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-08-31T23:06:26.062930Z"}
+{"method": "GET", "path": "/api/v1/review/overview/app", "endpoint": "/api/v1/review/overview/app", "status": 200, "duration_ms": 1.0, "event": "request.completed", "request_id": "5209852624", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-08-31T23:06:26.067144Z"}
+external []
+
+══ 裁判 2: pytest 两文件全量 (round-1 整改后: 56 基线 + 24 新增) ══
+======================= 80 passed, 10 warnings in 6.23s ========================
+
+══ 裁判 3: 零 JS 页 <script 基线 ══
+grep -c '<script' review_overview.py = 1
+非 docstring 命中: 0
+
+══ 变异负验证 (HIGH-4 整改后判据: 1 failed + FAILED 指定节点) ══
+负验证 PASS: 35/35 条变异均被**指定的那道门**抓住; 还原后基线仍全绿
+EXIT=0
+
+══ ruff ══
+All checks passed!
+1 file would be reformatted, 1 file already formatted
