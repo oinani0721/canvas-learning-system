@@ -1,0 +1,66 @@
+# CARD-G4-3 · /review-suggestions 消费方证据（全部命令可直接粘贴复跑）
+# 生成: 2026-08-31 04:34:18  worktree: card-v4-apistatus  基线: 9cf0fb85
+# 口径: 用 git grep 限定 **tracked 文件**, 避免 node_modules/构建产物/未跟踪垃圾干扰。
+
+## A. 活跃前端/插件/sidecar 面（tracked，排除 _archive）
+$ git grep -n -E "review-suggestions|getReviewSuggestions|reviewSuggestions" -- "*.ts" "*.tsx" "*.js" "*.jsx" "*.vue" "*.svelte" "*.html" ":(exclude)_archive/**"
+(零命中)
+
+## B. frontend/ 与 canvas-vault/ 两棵活跃树（tracked，任意扩展名）
+$ git grep -n -E "review-suggestions|getReviewSuggestions" -- frontend/ canvas-vault/
+(零命中)
+
+## C. backend 活跃 Python 客户端/脚本（排除端点自身与服务层 docstring）
+$ git grep -n "review-suggestions" -- "backend/app/**/*.py" "backend/scripts/**/*.py" "scripts/**/*.py" | grep -v "endpoints/memory.py" | grep -v "services/memory_service.py"
+backend/app/models/memory_schemas.py:553:    """GET /review-suggestions 的信封响应 — CARD-G4-3 拍板项 1。
+
+## D. ⚠️ 归档面 _archive（tracked）—— 有真实消费方，如实登记
+$ git grep -n -E "review-suggestions|getReviewSuggestions" -- "_archive/**"
+_archive/canvas-progress-tracker/obsidian-plugin/src/api/ApiClient.ts:1404:   * GET /memory/review-suggestions
+_archive/canvas-progress-tracker/obsidian-plugin/src/api/ApiClient.ts:1413:  async getReviewSuggestions(
+_archive/canvas-progress-tracker/obsidian-plugin/src/api/ApiClient.ts:1425:        `/memory/review-suggestions?${params}`,
+_archive/canvas-progress-tracker/obsidian-plugin/src/api/ApiClient.ts:1430:      console.warn('[Story 30.18] getReviewSuggestions failed (graceful degradation):', e);
+_archive/canvas-progress-tracker/obsidian-plugin/src/api/types.ts:917: * Query parameters for getReviewSuggestions
+_archive/canvas-progress-tracker/obsidian-plugin/src/api/types.ts:918: * @source GET /api/v1/memory/review-suggestions query params
+_archive/canvas-progress-tracker/obsidian-plugin/src/api/types.ts:928: * @source GET /api/v1/memory/review-suggestions response
+
+### D 的性质判定
+_archive/canvas-progress-tracker/obsidian-plugin/src/api/ApiClient.ts:1413 是 git tracked 的真实 HTTP 客户端，
+签名 getReviewSuggestions(): Promise<MemoryReviewSuggestionItem[]> —— 期望**裸数组**。
+该插件属 Tauri 时期已淘汰产物（归档目录，不在活跃构建链，无运行时消费）。
+信封化会破坏它 —— 若将来复活，需同步改成读 items。
+
+## E. 全仓兜底（tracked 全体，仅排除文档与测试），看还有没有漏网面
+$ git grep -n "review-suggestions" -- . ":(exclude)*.md" ":(exclude)backend/tests/**" ":(exclude)tests/**" ":(exclude)_archive/**"
+.gdr/research-pack-graphiti-local-model-deploy.xml:7708:- AC-22.4.4: GET /api/v1/memory/review-suggestions - Get review suggestions
+.hypothesis/constants/4dd478a7e9d8a954:4:[100, 200, '/episodes', '/review-suggestions', 'agent_type', 'canvas_path', 'concept', 'concept_id', 'created', 'due_date', 'duration_seconds', 'episode_id', 'items', 'last_score', 'medium', 'node_id', 'page', 'page_size', 'pages', 'priority', 'review_count', 'score', 'timestamp', 'total', 'user_id', '开始日期', '最大返回数量', '查询学习历史', '查询概念学习历史', '查询用户的学习历史，支持分页和过滤', '概念过滤', '每页大小', '用户ID', '用户ID (optional)', '结束日期', '获取基于艾宾浩斯遗忘曲线的复习建议', '获取复习建议', '记录学习事件', '返回数量', '页码']
+backend/.hypothesis/constants/4dd478a7e9d8a954:4:[100, 200, '/episodes', '/review-suggestions', 'agent_type', 'canvas_path', 'concept', 'concept_id', 'created', 'due_date', 'duration_seconds', 'episode_id', 'items', 'last_score', 'medium', 'node_id', 'page', 'page_size', 'pages', 'priority', 'review_count', 'score', 'timestamp', 'total', 'user_id', '开始日期', '最大返回数量', '查询学习历史', '查询概念学习历史', '查询用户的学习历史，支持分页和过滤', '概念过滤', '每页大小', '用户ID', '用户ID (optional)', '结束日期', '获取基于艾宾浩斯遗忘曲线的复习建议', '获取复习建议', '记录学习事件', '返回数量', '页码']
+backend/app/api/v1/endpoints/memory.py:16:- GET /review-suggestions: Get review suggestions (AC-22.4.4)
+backend/app/api/v1/endpoints/memory.py:20:- GET /review-suggestions: Added subject query parameter (AC-30.8.3)
+backend/app/api/v1/endpoints/memory.py:331:# GET /review-suggestions - Get review suggestions (AC-22.4.4)
+backend/app/api/v1/endpoints/memory.py:337:    "/review-suggestions",
+backend/app/models/memory_schemas.py:553:    """GET /review-suggestions 的信封响应 — CARD-G4-3 拍板项 1。
+backend/app/services/memory_service.py:15:- AC-22.4.4: GET /api/v1/memory/review-suggestions - Get review suggestions
+backend/openapi.json:5282:    "/api/v1/memory/review-suggestions": {
+
+## E 组命中的逐条定性（共 **10** 条，不留"其余都是噪音"这种含糊话）
+
+| 命中 | 是不是消费方 | 理由 |
+|------|------------|------|
+| `backend/app/api/v1/endpoints/memory.py` ×4 | 否 | 端点自身的定义与 docstring |
+| `backend/app/models/memory_schemas.py:553` | 否 | 本卡新增信封模型的 docstring |
+| `backend/app/services/memory_service.py:15` | 否 | 服务层 docstring 里的路径注释 |
+| `backend/openapi.json:5282` | 否 | 生成快照（陈旧，验收单 §六 只登记不修） |
+| `.hypothesis/constants/…` ×2 | 否 | Hypothesis/schemathesis 跑过之后落下的**常量缓存**，不是代码 |
+| `.gdr/research-pack-graphiti-local-model-deploy.xml:7708` | 否 | 调研打包产物里嵌的 docstring 文本 |
+
+（上表 6 行合计 10 条命中：memory.py ×4 + memory_schemas ×1 + memory_service ×1
++ openapi.json ×1 + .hypothesis ×2 + .gdr ×1 = 10，与 E 组实数一致。）
+
+## 结论
+- **活跃生产源码消费方 = 0**：A/B 两组零命中；**C 组有 1 条命中**，是本卡新增
+  `ReviewSuggestionsResponse` 自己的 docstring（不是消费方）；E 组 10 条命中逐条定性后无一是消费方。
+  （Codex round-3 MEDIUM-3 指出前版结论写"A/B/C 三组零命中"与 C 组的实际输出自相矛盾，
+  且 E 组条数写成 9 而实为 10 —— 均已按实数更正。）
+- **归档面有 1 个**：D 组 `_archive/.../ApiClient.ts:1413`，tracked、期望裸数组、信封化会破坏它（已淘汰插件，无运行时消费）。
+- **仓外消费面 = UNVERIFIABLE**：Claude Code / Claudian / 用户本地脚本不在本仓 grep 射程内，本卡无从证明。

@@ -1,0 +1,2194 @@
+{
+  "schema": "census_worktree_assets/v1",
+  "out_dir_nested_in_target_but_gitignored": [
+    {
+      "target": "main",
+      "target_path": "/Users/Heishing/Desktop/canvas/canvas-learning-system",
+      "target_toplevel": "/Users/Heishing/Desktop/canvas/canvas-learning-system",
+      "out_dir": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v7-debt/_bmad-output/\u5ba1\u67e5"
+    }
+  ],
+  "card": "CARD-DEBT-13",
+  "batch": "BATCH-2026-08-31-\u7b2c\u4e03\u6279",
+  "generated_at_utc": "2026-08-31 03:19:42 UTC",
+  "generated_at_shanghai": "2026-08-31 11:19:42 +08:00",
+  "generator": "scripts/census_worktree_assets.py",
+  "argv": "--pin-sha main=a55db2ab --pin-sha feature=7f5095fd --baseline /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v7-debt/deb46e2f-b82a-47fa-a7ec-5e933d6998c2/scratchpad/baseline-0413.json --out-stem 2026-08-31-DEBT-13-\u590d\u8dd1diff --brief --rule-coverage --strict-rules",
+  "readonly_guarantees": {
+    "writes_into_targets": "\u4ec5\u9650 --out-dir \u4e0b\u7684\u4ea7\u51fa\u6587\u4ef6\uff1b\u672c\u6b21 out-dir \u7684\u5d4c\u5957\u60c5\u51b5\u89c1 out_dir_nested_in_target_but_gitignored\uff08\u4e3a\u7a7a\u8868\u793a\u4e0e\u6240\u6709\u76ee\u6807\u96f6\u4ea4\u96c6\uff09",
+    "porcelain_proof_scope": "readonly_porcelain_unchanged \u53ea\u6bd4\u8f83 git \u53ef\u89c1\u7684 porcelain\uff1b\u88ab gitignore \u6392\u9664\u7684\u5b50\u6811\u5199\u5165\u5929\u7136\u4e0d\u5728\u5176\u8bc1\u660e\u57df\u5185",
+    "threat_model": "\u9632\u8bef\u4f24\uff0c\u4e0d\u9632\u5e76\u53d1\u653b\u51fb\u8005\uff1a\u7236\u76ee\u5f55\u66ff\u6362 / bind-mount \u522b\u540d / \u5e76\u53d1 unlink \u4e09\u7c7b\u4ea4\u9519\u5728\u58f0\u660e\u7684\u8fb9\u754c\u4e4b\u5916\uff0c\u89c1 md \u6587\u9996\u300c\u5a01\u80c1\u6a21\u578b\u300d\u8282",
+    "git_invocations_hardened": [
+      "--no-optional-locks",
+      "--no-lazy-fetch",
+      "-c",
+      "core.quotepath=false",
+      "-c",
+      "core.fsmonitor=",
+      "-c",
+      "core.hooksPath=/nonexistent-census-readonly"
+    ],
+    "custom_filter_drivers": "asserted_absent",
+    "out_dir_and_final_sinks_checked_against_targets": true,
+    "porcelain_sha256_equal_before_after": "\u89c1\u5404 target \u7684 readonly_proof_ok",
+    "does_not_prove": [
+      "\u6587\u4ef6\u5185\u5bb9\u672a\u53d8",
+      "\u88ab gitignore \u7684\u6587\u4ef6\u672a\u53d8",
+      "refs / reflog / object DB \u672a\u53d8",
+      "git \u914d\u7f6e\u672a\u53d8",
+      "\u5199\u540e\u53c8\u6062\u590d\u6ca1\u6709\u53d1\u751f",
+      "\u53d8\u5316\u53ef\u5f52\u56e0\u4e8e\u672c\u811a\u672c\u800c\u975e\u5e76\u53d1\u8fdb\u7a0b"
+    ]
+  },
+  "categories": {
+    "\u7528\u6237\u8d44\u4ea7": "\u7528\u6237\u624b\u5199\u6216\u7cfb\u7edf\u4e3a\u7528\u6237\u4ea7\u51fa\u3001\u4e22\u5931\u5373\u4e0d\u53ef\u6062\u590d\u6216\u9700\u4eba\u5de5\u91cd\u5efa\u7684\u5185\u5bb9\uff08vault \u7b14\u8bb0\u4e0e\u6279\u6ce8\u3001\u6570\u636e\u5e93\u5907\u4efd\u3001live \u7ba1\u9053\u4ea7\u7269\u5feb\u7167\uff09",
+    "\u5ba1\u67e5\u4ea7\u7269": "\u5ba1\u67e5 / \u7814\u7a76 / \u9a8c\u6536 / \u8ba1\u5212\u8fc7\u7a0b\u6587\u6863\uff08`_bmad-output/`\u3001`.gdr/` \u7b49\uff09\uff0c\u9879\u76ee\u81ea\u8eab\u7684\u5de5\u4f5c\u8bb0\u5f55",
+    "\u5e94\u63d0\u4ea4\u4ee3\u7801": "\u6e90\u7801\u3001\u6d4b\u8bd5\u3001\u914d\u7f6e\u3001skill \u5b9a\u4e49\u3001\u9879\u76ee\u6587\u6863\u2014\u2014\u672c\u5e94\u53d7\u7248\u672c\u63a7\u5236\u7684\u4ed3\u5e93\u5185\u5bb9\u7269",
+    "\u4e34\u65f6\u7269": "\u7f13\u5b58\u3001\u8fd0\u884c\u65f6\u65e5\u5fd7\u3001\u7f16\u8f91\u5668\u4e0e\u5de5\u5177\u72b6\u6001\u3001\u53ef\u7531\u4ee3\u7801\u786e\u5b9a\u6027\u91cd\u5efa\u7684\u4ea7\u7269\uff08\u6ce8\u610f\uff1a`logs/audit/` \u4e0b\u7684\u5ba1\u8ba1\u4e8b\u4ef6\u4e0e\u62a5\u544a**\u4e0d\u5c5e\u6b64\u7c7b**\uff0c\u5b83\u4eec\u4e0d\u53ef\u786e\u5b9a\u6027\u91cd\u5efa\uff0c\u5f52\u5ba1\u67e5\u4ea7\u7269\uff09"
+  },
+  "rules": [
+    {
+      "id": "U10",
+      "category": "\u7528\u6237\u8d44\u4ea7",
+      "why": "hooks \u672c\u5730\u5f85\u53d1/\u6b7b\u4fe1\u961f\u5217\uff08\u672a\u9001\u8fbe\u7684\u7528\u6237\u5b66\u4e60\u4f1a\u8bdd\uff0c\u7981\u4e22\u7981\u63d0\u4ea4\uff09"
+    },
+    {
+      "id": "E1",
+      "category": "\u4e34\u65f6\u7269",
+      "why": "Python \u5b57\u8282\u7801\u7f13\u5b58"
+    },
+    {
+      "id": "E2",
+      "category": "\u4e34\u65f6\u7269",
+      "why": "\u865a\u62df\u73af\u5883 / \u4f9d\u8d56\u6811"
+    },
+    {
+      "id": "E3",
+      "category": "\u4e34\u65f6\u7269",
+      "why": "\u6d4b\u8bd5\u4e0e lint \u7f13\u5b58"
+    },
+    {
+      "id": "E4",
+      "category": "\u4e34\u65f6\u7269",
+      "why": "macOS Finder \u5143\u6570\u636e"
+    },
+    {
+      "id": "E5",
+      "category": "\u4e34\u65f6\u7269",
+      "why": "session \u63a5\u7ba1\u72b6\u6001\uff08\u8fdb\u7a0b\u7ea7\u4e34\u65f6\u6001\uff09"
+    },
+    {
+      "id": "U11",
+      "category": "\u7528\u6237\u8d44\u4ea7",
+      "why": "\u63d2\u4ef6\u7684\u7528\u6237\u8bbe\u7f6e\u4e0e\u8fc1\u79fb\u5907\u4efd\uff08data*.json / *backup*.json\uff0c\u4e22\u5931\u9700\u91cd\u914d\uff09"
+    },
+    {
+      "id": "C12",
+      "category": "\u5e94\u63d0\u4ea4\u4ee3\u7801",
+      "why": "`.gitignore` \u660e\u79f0\u9879\u76ee\u4ee3\u7801\u7684 vault \u6a21\u677f\u76ee\u5f55"
+    },
+    {
+      "id": "C11",
+      "category": "\u5e94\u63d0\u4ea4\u4ee3\u7801",
+      "why": "vault \u7ea7\u53d7\u63a7\u914d\u7f6e\uff1ahotkeys / community-plugins\uff08`.gitignore` keep-track \u660e\u5217\uff09+ plugins\u00b7themes \u7684\u76f4\u5c5e manifest\uff08\u540c\u7c7b\u5143\u6570\u636e\uff0c\u672c\u53f0\u8d26\u6309\u540c\u4e00\u53e3\u5f84\u5f52\u7c7b\u2014\u2014\u26a0\ufe0f `.gitignore` \u7684 keep-track \u6ce8\u91ca\u53ea\u70b9\u540d\u4e86\u524d\u4e24\u8005\uff0cthemes manifest \u5c5e\u672c\u53f0\u8d26\u7684\u5224\u65ad\uff09"
+    },
+    {
+      "id": "U9",
+      "category": "\u7528\u6237\u8d44\u4ea7",
+      "why": "\u8bbe\u5907\u7ea7\u5bc6\u94a5/\u51ed\u636e\uff08\u4e22\u5931\u9700\u91cd\u65b0\u751f\u6210\u5e76\u540c\u6b65\u914d\u7f6e\uff0c\u7981\u63d0\u4ea4\uff09"
+    },
+    {
+      "id": "E6",
+      "category": "\u4e34\u65f6\u7269",
+      "why": "Obsidian \u7f16\u8f91\u5668\u5de5\u4f5c\u533a\u72b6\u6001\u4e0e\u7f13\u5b58\uff08workspace/app/appearance/core-plugins \u7b49\uff09"
+    },
+    {
+      "id": "E7",
+      "category": "\u4e34\u65f6\u7269",
+      "why": "fixture vault \u7684\u7ba1\u9053\u4ea7\u7269\uff08\u53ef\u91cd\u8dd1\u91cd\u5efa\uff09"
+    },
+    {
+      "id": "U1",
+      "category": "\u7528\u6237\u8d44\u4ea7",
+      "why": "vault \u56de\u6536\u7ad9\u2014\u2014\u7528\u6237\u5220\u9664\u4f46\u672a\u6e05\u7a7a\u7684\u7b14\u8bb0"
+    },
+    {
+      "id": "U2",
+      "category": "\u7528\u6237\u8d44\u4ea7",
+      "why": "Claudian \u63d2\u4ef6\u7684\u7528\u6237\u4fa7\u72b6\u6001\u4e0e\u4ea7\u7269"
+    },
+    {
+      "id": "U8",
+      "category": "\u7528\u6237\u8d44\u4ea7",
+      "why": "skill \u7f13\u5b58\u533a\u91cc\u7684\u7528\u6237\u5185\u5bb9\u5907\u4efd\uff08*.bak / *backup* \u76ee\u5f55\uff0c\u4e22\u5931\u4e0d\u53ef\u91cd\u5efa\uff09"
+    },
+    {
+      "id": "E8",
+      "category": "\u4e34\u65f6\u7269",
+      "why": "skill \u7f13\u5b58\u533a\uff08\u53ef\u7531\u7ba1\u9053\u91cd\u5efa\uff09"
+    },
+    {
+      "id": "U3",
+      "category": "\u5e94\u63d0\u4ea4\u4ee3\u7801",
+      "why": "vault \u5185\u7684 skill / \u914d\u7f6e\u5b9a\u4e49\uff08\u53d7\u7248\u672c\u63a7\u5236\u7684\u4ee3\u7801\u9762\uff09"
+    },
+    {
+      "id": "U4",
+      "category": "\u7528\u6237\u8d44\u4ea7",
+      "why": "live \u7ba1\u9053\u4ea7\u7269\u5feb\u7167\uff08\u542b\u88ab\u7ef4\u62a4\u5361 B \u5f15\u4e3a\u8bed\u6599\u7684\u771f\u62a5\u544a\uff0c\u975e\u786e\u5b9a\u6027\u53ef\u91cd\u5efa\uff09"
+    },
+    {
+      "id": "U5",
+      "category": "\u7528\u6237\u8d44\u4ea7",
+      "why": "\u7528\u6237\u7b14\u8bb0\u6b63\u6587\uff08\u539f\u767d\u677f/\u68c0\u9a8c\u767d\u677f/\u8282\u70b9/\u8bfe\u7a0b\u6750\u6599\uff09"
+    },
+    {
+      "id": "U6",
+      "category": "\u7528\u6237\u8d44\u4ea7",
+      "why": "\u5907\u4efd\u533a\uff08Neo4j dump\u3001\u4e0a\u7ebf\u524d\u5feb\u7167\u3001\u4e8b\u4ef6\u8d26\u5907\u4efd\uff09"
+    },
+    {
+      "id": "U7",
+      "category": "\u7528\u6237\u8d44\u4ea7",
+      "why": "\u7528\u6237\u624b\u5199\u6279\u6ce8\u4e0e\u6279\u6ce8\u56de\u590d\uff08\u4e22\u5931\u5373\u4e0d\u53ef\u91cd\u5efa\uff09"
+    },
+    {
+      "id": "R1",
+      "category": "\u5ba1\u67e5\u4ea7\u7269",
+      "why": "BMAD \u8fc7\u7a0b\u6587\u6863\uff08\u5ba1\u67e5/\u7814\u7a76/\u9a8c\u6536\u5355/goal-cards/planning\uff09"
+    },
+    {
+      "id": "R2",
+      "category": "\u5ba1\u67e5\u4ea7\u7269",
+      "why": "deep-research \u6307\u4ee4\u4e0e\u7d20\u6750\u6e05\u5355"
+    },
+    {
+      "id": "C1",
+      "category": "\u5e94\u63d0\u4ea4\u4ee3\u7801",
+      "why": "\u540e\u7aef\u6e90\u7801 / \u6d4b\u8bd5 / \u811a\u672c"
+    },
+    {
+      "id": "C2",
+      "category": "\u5e94\u63d0\u4ea4\u4ee3\u7801",
+      "why": "\u524d\u7aef\u6e90\u7801\uff08\u542b Obsidian \u63d2\u4ef6\uff09"
+    },
+    {
+      "id": "C3",
+      "category": "\u5e94\u63d0\u4ea4\u4ee3\u7801",
+      "why": "\u4ed3\u5e93\u7ea7\u811a\u672c"
+    },
+    {
+      "id": "C4",
+      "category": "\u5e94\u63d0\u4ea4\u4ee3\u7801",
+      "why": "\u9879\u76ee\u6587\u6863\uff08\u67b6\u6784/gotchas/\u9879\u76ee\u72b6\u6001\uff09"
+    },
+    {
+      "id": "C5",
+      "category": "\u5e94\u63d0\u4ea4\u4ee3\u7801",
+      "why": "OpenSpec \u89c4\u683c"
+    },
+    {
+      "id": "C6",
+      "category": "\u5e94\u63d0\u4ea4\u4ee3\u7801",
+      "why": "CI \u5b9a\u4e49"
+    },
+    {
+      "id": "C7",
+      "category": "\u5e94\u63d0\u4ea4\u4ee3\u7801",
+      "why": "Claude Code \u914d\u7f6e / skill / rules"
+    },
+    {
+      "id": "C8",
+      "category": "\u5e94\u63d0\u4ea4\u4ee3\u7801",
+      "why": "\u51b3\u7b56\u8bb0\u5f55"
+    },
+    {
+      "id": "C9",
+      "category": "\u5e94\u63d0\u4ea4\u4ee3\u7801",
+      "why": "fixture vault \u9aa8\u67b6"
+    },
+    {
+      "id": "C10",
+      "category": "\u5e94\u63d0\u4ea4\u4ee3\u7801",
+      "why": "\u4ed3\u5e93\u6839\u7ea7\u914d\u7f6e\u4e0e\u8bf4\u660e\u6587\u4ef6"
+    },
+    {
+      "id": "U12",
+      "category": "\u7528\u6237\u8d44\u4ea7",
+      "why": "\u8fd0\u884c\u65f6\u6570\u636e\u76ee\u5f55\uff08LanceDB \u8868\u3001\u8c03\u7814\u4ea7\u51fa\u7b49\uff0c\u4e22\u5931\u9700\u91cd\u5efa\u7d22\u5f15\uff09"
+    },
+    {
+      "id": "E10",
+      "category": "\u4e34\u65f6\u7269",
+      "why": "\u8fd0\u884c\u65f6\u751f\u6210\u7684\u914d\u56fe\uff08`.gitignore` \u7684 `images/generated*`\uff09"
+    },
+    {
+      "id": "R4",
+      "category": "\u5ba1\u67e5\u4ea7\u7269",
+      "why": "\u5ba1\u8ba1\u4e8b\u4ef6\u4e0e\u62a5\u544a\uff08`logs/audit/` \u4e0e `logs/workflow-gate-audit*`\uff0c\u4e0d\u53ef\u786e\u5b9a\u6027\u91cd\u5efa\uff09"
+    },
+    {
+      "id": "E11",
+      "category": "\u4e34\u65f6\u7269",
+      "why": "\u8fd0\u884c\u65f6\u65e5\u5fd7\uff08`.gitignore` \u628a `logs/` \u6574\u4f53\u5217\u4e3a runtime\uff1b\u751f\u4ea7\u4ee3\u7801\u4f1a\u5f80\u8fd9\u91cc\u5199 alerts.log\uff09"
+    },
+    {
+      "id": "E9",
+      "category": "\u4e34\u65f6\u7269",
+      "why": "hypothesis / repomix \u7b49\u5de5\u5177\u7f13\u5b58"
+    },
+    {
+      "id": "R3",
+      "category": "\u5ba1\u67e5\u4ea7\u7269",
+      "why": "BMAD \u4e0e PRD \u8fc7\u7a0b\u6587\u6863\u6811\uff08_bmad / _bmad-archive / _archive / _prd-register / _plans / _reference / _verification\uff09"
+    },
+    {
+      "id": "C14",
+      "category": "\u5e94\u63d0\u4ea4\u4ee3\u7801",
+      "why": "\u6a21\u677f\u3001\u6587\u6863\u914d\u56fe\u4e0e\u540e\u53f0 shell \u6e05\u5355\uff08`images/generated*` \u9664\u5916\uff0c\u7531 E10 \u63a5\u8d70\uff09"
+    },
+    {
+      "id": "C13",
+      "category": "\u5e94\u63d0\u4ea4\u4ee3\u7801",
+      "why": "\u4ed3\u5e93\u7ea7\u6d4b\u8bd5 / \u914d\u7f6e / \u5de5\u5177 / \u89c4\u683c / \u5bb9\u5668\u4e0e\u90e8\u7f72\u5b9a\u4e49"
+    },
+    {
+      "id": "A1",
+      "category": "\u5e94\u63d0\u4ea4\u4ee3\u7801",
+      "why": "\u65e7 Tauri v0 \u6e90\u7801\u5f52\u6863\uff08\u672a\u53d7\u7248\u672c\u63a7\u5236\uff09"
+    },
+    {
+      "id": "A2",
+      "category": "\u5e94\u63d0\u4ea4\u4ee3\u7801",
+      "why": "\u5386\u53f2\u9879\u76ee\u6587\u6863\u5f52\u6863\uff08\u539f docs/ \u6811\u7684\u642c\u8fc1\u76ee\u7684\u5730\uff09"
+    },
+    {
+      "id": "A3",
+      "category": "\u5e94\u63d0\u4ea4\u4ee3\u7801",
+      "why": "\u5f52\u6863\u533a\u5176\u4f59\u5185\u5bb9\uff08\u672c\u5e94\u53d7\u7248\u672c\u63a7\u5236\u7684\u4ed3\u5e93\u5185\u5bb9\u7269\uff09"
+    },
+    {
+      "id": "Z1",
+      "category": "\u7528\u6237\u8d44\u4ea7",
+      "why": "\u65e0\u89c4\u5219\u547d\u4e2d\u2014\u2014\u4fdd\u5b88\u5f52\u5165\u6700\u53d7\u4fdd\u62a4\u7684\u7528\u6237\u8d44\u4ea7\u5e76\u5f3a\u5236\u4eba\u5de5\u88c1\u5b9a"
+    }
+  ],
+  "targets": [
+    {
+      "label": "main",
+      "path": "/Users/Heishing/Desktop/canvas/canvas-learning-system",
+      "note": "\u4e3b\u4ed3\uff08main \u5206\u652f\uff09\u2014\u2014Stop hook \u81ea\u52a8 stage+commit+push \u7684\u5c04\u7a0b\u5185",
+      "head_sha": "a55db2ab0c4324a73aaa2993d2404444756d1237",
+      "branch": "main",
+      "porcelain_sha256_before": "58a84013026f200a9b615c0a1d2cd9270689f27963ecd0780c11ff5499286776",
+      "porcelain_sha256_after": "58a84013026f200a9b615c0a1d2cd9270689f27963ecd0780c11ff5499286776",
+      "readonly_proof_ok": true,
+      "record_count": 2027,
+      "classified_count": 2027,
+      "roundtrip_ok": true,
+      "evidence_skipped_newline_paths": [],
+      "custom_filter_drivers": [],
+      "custom_filter_drivers_accepted_by_flag": false,
+      "feature_ref_resolvable": true,
+      "feature_ref_oid": "7f5095fd21b1075cd8c31ba69a4c841df8ece69d",
+      "rule_coverage_over_all_tracked": {
+        "tracked_total": 4325,
+        "catchall_hits": 0,
+        "sample": []
+      },
+      "unhashed_untracked_with_reason": {},
+      "assertions": {
+        "filter_drivers_absent_or_accepted": true,
+        "pin_sha_ok": true,
+        "parsed_count_matches_independent_count": true,
+        "orig_field_iff_rename_or_copy": true,
+        "xy_sequence_matches_independent_parse": true,
+        "roundtrip_bytes_identical": true,
+        "feature_ref_resolvable_or_declared": true,
+        "count_equals_porcelain_records": true,
+        "entries_preserve_record_identity": true,
+        "content_evidence_independently_recomputable": true,
+        "relocation_evidence_self_consistent": true,
+        "readonly_porcelain_unchanged": true
+      },
+      "category_counts": {
+        "\u7528\u6237\u8d44\u4ea7": 126,
+        "\u5ba1\u67e5\u4ea7\u7269": 42,
+        "\u5e94\u63d0\u4ea4\u4ee3\u7801": 1849,
+        "\u4e34\u65f6\u7269": 10
+      },
+      "state_counts": {
+        "tracked_modified": 19,
+        "tracked_deleted": 869,
+        "untracked": 1139
+      },
+      "entries_omitted": "--brief\uff1a\u9010\u6761\u6570\u7ec4\u89c1\u9996\u8dd1\u53f0\u8d26 json\uff0c\u590d\u8dd1\u8bc1\u636e\u53ea\u7559 diff \u4e0e\u65ad\u8a00"
+    },
+    {
+      "label": "feature",
+      "path": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev",
+      "note": "\u957f\u671f feature worktree\uff08worktree-feature-obsidian-hybrid-dev\uff09",
+      "head_sha": "7f5095fd21b1075cd8c31ba69a4c841df8ece69d",
+      "branch": "worktree-feature-obsidian-hybrid-dev",
+      "porcelain_sha256_before": "7d8aed4dec7c3fa3a5d998c55ebafb9010943f8c5160f7d5c527bcb9c9ef9612",
+      "porcelain_sha256_after": "7d8aed4dec7c3fa3a5d998c55ebafb9010943f8c5160f7d5c527bcb9c9ef9612",
+      "readonly_proof_ok": true,
+      "record_count": 106,
+      "classified_count": 106,
+      "roundtrip_ok": true,
+      "evidence_skipped_newline_paths": [],
+      "custom_filter_drivers": [],
+      "custom_filter_drivers_accepted_by_flag": false,
+      "feature_ref_resolvable": false,
+      "feature_ref_oid": null,
+      "rule_coverage_over_all_tracked": {
+        "tracked_total": 5423,
+        "catchall_hits": 0,
+        "sample": []
+      },
+      "unhashed_untracked_with_reason": {},
+      "assertions": {
+        "filter_drivers_absent_or_accepted": true,
+        "pin_sha_ok": true,
+        "parsed_count_matches_independent_count": true,
+        "orig_field_iff_rename_or_copy": true,
+        "xy_sequence_matches_independent_parse": true,
+        "roundtrip_bytes_identical": true,
+        "feature_ref_resolvable_or_declared": true,
+        "count_equals_porcelain_records": true,
+        "entries_preserve_record_identity": true,
+        "content_evidence_independently_recomputable": true,
+        "relocation_evidence_self_consistent": true,
+        "readonly_porcelain_unchanged": true
+      },
+      "category_counts": {
+        "\u7528\u6237\u8d44\u4ea7": 4,
+        "\u5ba1\u67e5\u4ea7\u7269": 97,
+        "\u5e94\u63d0\u4ea4\u4ee3\u7801": 4,
+        "\u4e34\u65f6\u7269": 1
+      },
+      "state_counts": {
+        "tracked_deleted": 5,
+        "tracked_modified": 8,
+        "untracked": 93
+      },
+      "entries_omitted": "--brief\uff1a\u9010\u6761\u6570\u7ec4\u89c1\u9996\u8dd1\u53f0\u8d26 json\uff0c\u590d\u8dd1\u8bc1\u636e\u53ea\u7559 diff \u4e0e\u65ad\u8a00"
+    }
+  ],
+  "baseline_diff": {
+    "baseline_file": "/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-v7-debt/deb46e2f-b82a-47fa-a7ec-5e933d6998c2/scratchpad/baseline-0413.json",
+    "baseline_sha256": "f8ee049256ed95853631a4cd7453dbc3df733fffe87ca9a4f621ea6d880b42d1",
+    "baseline_size_bytes": 2201641,
+    "baseline_generated_at_utc": "2026-08-30 20:13:14 UTC",
+    "targets": [
+      {
+        "label": "main",
+        "head_sha_baseline": "a55db2ab0c4324a73aaa2993d2404444756d1237",
+        "head_sha_now": "a55db2ab0c4324a73aaa2993d2404444756d1237",
+        "head_moved": false,
+        "porcelain_sha_baseline": "86f44f5a3e884b830db5e9854eff75b2a9099cd46556877e60cd5b17e127e896",
+        "porcelain_sha_now": "58a84013026f200a9b615c0a1d2cd9270689f27963ecd0780c11ff5499286776",
+        "record_count_baseline": 2027,
+        "record_count_now": 2027,
+        "added": [
+          "backups/neo4j/neo4j-20260831-043005.dump",
+          "backups/neo4j/system-20260831-043005.dump"
+        ],
+        "removed": [
+          "backups/neo4j/neo4j-20260824-043003.dump",
+          "backups/neo4j/system-20260824-043003.dump"
+        ],
+        "recategorized": [
+          {
+            "path": "canvas-vault/.obsidian/plugins/breadcrumbs/data-backup__no-directions-migration.json",
+            "from": "\u4e34\u65f6\u7269",
+            "to": "\u7528\u6237\u8d44\u4ea7"
+          }
+        ],
+        "entry_changed": [
+          {
+            "path": ".claude/skills/research-pack/references/agent-prompts.md",
+            "fields": [
+              "disposition"
+            ],
+            "from": {
+              "disposition": "\u65e0\u5185\u5bb9\u540c\u4e00\u526f\u672c\u7684\u771f\u5220\u9664\uff1a\u5220\u9664\u610f\u56fe\u672a\u63d0\u4ea4\u4e14\u4e0d\u53ef\u7531\u5f52\u6863\u533a\u8fd8\u539f\uff0c\u9700\u7528\u6237\u663e\u5f0f\u88c1\u5b9a"
+            },
+            "to": {
+              "disposition": "\u5728**\u672c\u6b21\u53ef\u89c1\u5019\u9009\u6c60**\uff08porcelain \u53ef\u89c1\u4e14\u975e ignored \u7684\u672a\u8ddf\u8e2a\u6587\u4ef6 + \u672c\u4ed3 HEAD \u7684\u5176\u4ed6\u8def\u5f84\uff09\u4e2d\u672a\u627e\u5230\u540c\u5185\u5bb9\u526f\u672c\uff1a\u5220\u9664\u610f\u56fe\u672a\u63d0\u4ea4\uff0c\u9700\u7528\u6237\u663e\u5f0f\u88c1\u5b9a\u3002\u26a0\ufe0f \u8fd9**\u4e0d\u7b49\u4e8e\u300c\u4e0d\u53ef\u8fd8\u539f\u300d**\u2014\u2014ignored \u5b50\u6811\u672a\u626b\u63cf\uff0c\u4e5f\u672a\u505a\u5168 ref \u53ef\u8fbe\u6027\u5206\u6790\uff0c\u540c\u5185\u5bb9\u5bf9\u8c61\u53ef\u80fd\u5b58\u5728\u4e8e\u522b\u7684\u5206\u652f\u6216\u88ab\u5ffd\u7565\u7684\u76ee\u5f55\u91cc"
+            }
+          },
+          {
+            "path": ".claude/skills/research-pack/references/keyword-guide.md",
+            "fields": [
+              "disposition"
+            ],
+            "from": {
+              "disposition": "\u65e0\u5185\u5bb9\u540c\u4e00\u526f\u672c\u7684\u771f\u5220\u9664\uff1a\u5220\u9664\u610f\u56fe\u672a\u63d0\u4ea4\u4e14\u4e0d\u53ef\u7531\u5f52\u6863\u533a\u8fd8\u539f\uff0c\u9700\u7528\u6237\u663e\u5f0f\u88c1\u5b9a"
+            },
+            "to": {
+              "disposition": "\u5728**\u672c\u6b21\u53ef\u89c1\u5019\u9009\u6c60**\uff08porcelain \u53ef\u89c1\u4e14\u975e ignored \u7684\u672a\u8ddf\u8e2a\u6587\u4ef6 + \u672c\u4ed3 HEAD \u7684\u5176\u4ed6\u8def\u5f84\uff09\u4e2d\u672a\u627e\u5230\u540c\u5185\u5bb9\u526f\u672c\uff1a\u5220\u9664\u610f\u56fe\u672a\u63d0\u4ea4\uff0c\u9700\u7528\u6237\u663e\u5f0f\u88c1\u5b9a\u3002\u26a0\ufe0f \u8fd9**\u4e0d\u7b49\u4e8e\u300c\u4e0d\u53ef\u8fd8\u539f\u300d**\u2014\u2014ignored \u5b50\u6811\u672a\u626b\u63cf\uff0c\u4e5f\u672a\u505a\u5168 ref \u53ef\u8fbe\u6027\u5206\u6790\uff0c\u540c\u5185\u5bb9\u5bf9\u8c61\u53ef\u80fd\u5b58\u5728\u4e8e\u522b\u7684\u5206\u652f\u6216\u88ab\u5ffd\u7565\u7684\u76ee\u5f55\u91cc"
+            }
+          },
+          {
+            "path": "_bmad-output/.claude/hooks/context-inject.js",
+            "fields": [
+              "feature_branch_state"
+            ],
+            "from": {
+              "feature_branch_state": null
+            },
+            "to": {
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "_bmad-output/.claude/hooks/pretool-guard.js",
+            "fields": [
+              "feature_branch_state"
+            ],
+            "from": {
+              "feature_branch_state": null
+            },
+            "to": {
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "_bmad-output/Story-1.16-\u6279\u6ce8-hotkey.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "_bmad-output/_status/next-steps-2026-04-30.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "_bmad-output/_status/vault-status-2026-04-29-v1.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "_bmad-output/_status/vault-status-2026-04-29-v2.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "_bmad-output/_status/vault-status-2026-04-30-v3.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "_bmad-output/implementation-artifacts/epic-1/1-18-dashboard-md-mvp.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "_bmad-output/research/chatgpt-deep-research-prompt-2026-05-11.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "_bmad-output/research/round-12-1-5-annotations-deep-dive-2026-04-21.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "_bmad-output/research/round-12-graphiti-karpathy-5-conjectures-audit-2026-04-21.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "_bmad-output/research/round-13-wikilink-vs-graphiti-five-questions-answer-2026-04-29.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "_bmad-output/research/round-14-story-2.1-ux-vs-tauri-deep-research.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "_bmad-output/review/epic-1-audit-2026-04-17.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "_bmad-output/review/epic-1-audit-response-2026-04-17.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "_bmad-output/review/epic-1-audit-response-round-2-2026-04-17.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "_bmad-output/review/epic-1-audit-response-round-3-2026-04-17.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "_bmad-output/review/epic-1-audit-response-round-4-2026-04-17.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "_bmad-output/review/epic-1-uat-guide-2026-04-17.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "_bmad-output/review/vault-switch-response-2026-04-17.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "_bmad-output/review/vault-switch-review-2026-04-17.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "_bmad-output/\u7814\u7a76/2026-07-05-\u68c0\u9a8c\u767d\u677fv1-\u771f\u673a\u8d28\u91cf\u8bc4\u4f30.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "_bmad-output/\u7814\u7a76/2026-07-23-ChatGPT\u71c3\u6599\u7b56\u7565\u5bf9\u8d26-\u6279\u6ce8\u76f4\u8fde\u65b9\u6848.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "_bmad-output/\u7814\u7a76/2026-07-24-ChatGPT\u7ec8\u9a8c\u5bf9\u8d26-\u7ea2\u65d7\u4fee\u590d\u4e0e\u4e03\u88c1\u51b3.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "_bmad-output/\u9a8c\u6536\u5355/Story-2.1-Phase1-\u6210\u719f\u5ea6\u5347\u7ea7-2026-05-03.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u26a0\ufe0f \u540c\u8def\u5f84\u5728 worktree-feature-obsidian-hybrid-dev \u4e5f\u53d7\u63a7\uff0c\u4f46**\u5185\u5bb9\u4e0d\u540c**\uff0c\u4e14\u4e24\u4e2a HEAD \u4e92\u4e0d\u4e3a\u7956\u5148\u2014\u2014\u8fd9\u4e0d\u662f\u300c\u4e3b\u4ed3\u843d\u540e\u300d\uff0c\u662f**\u53cc\u5411\u5206\u6b67**\uff1a\u7981\u6b62\u5355\u5411\u8986\u76d6\uff08`-X ours/theirs` \u4e00\u5f8b\u4e0d\u9002\u7528\uff09\uff0c\u987b\u9010 hunk \u4eba\u5ba1\uff0c\u5f52 DEBT-14",
+              "owner": "\u26a0\ufe0f \u4e0e worktree-feature-obsidian-hybrid-dev \u540c\u8def\u5f84\u4f46\u5185\u5bb9\u5206\u6b67 \u2192 DEBT-14 \u9010 hunk \u4eba\u5ba1",
+              "feature_branch_state": "diverged"
+            }
+          },
+          {
+            "path": "_bmad-output/\u9a8c\u6536\u5355/Story-2.1-ai-dialog-context-injection.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u26a0\ufe0f \u540c\u8def\u5f84\u5728 worktree-feature-obsidian-hybrid-dev \u4e5f\u53d7\u63a7\uff0c\u4f46**\u5185\u5bb9\u4e0d\u540c**\uff0c\u4e14\u4e24\u4e2a HEAD \u4e92\u4e0d\u4e3a\u7956\u5148\u2014\u2014\u8fd9\u4e0d\u662f\u300c\u4e3b\u4ed3\u843d\u540e\u300d\uff0c\u662f**\u53cc\u5411\u5206\u6b67**\uff1a\u7981\u6b62\u5355\u5411\u8986\u76d6\uff08`-X ours/theirs` \u4e00\u5f8b\u4e0d\u9002\u7528\uff09\uff0c\u987b\u9010 hunk \u4eba\u5ba1\uff0c\u5f52 DEBT-14",
+              "owner": "\u26a0\ufe0f \u4e0e worktree-feature-obsidian-hybrid-dev \u540c\u8def\u5f84\u4f46\u5185\u5bb9\u5206\u6b67 \u2192 DEBT-14 \u9010 hunk \u4eba\u5ba1",
+              "feature_branch_state": "diverged"
+            }
+          },
+          {
+            "path": "_bmad-output/\u9a8c\u6536\u5355/Story-MEM-FLYWHEEL-\u8bb0\u5fc6\u98de\u8f6e\u5168\u8ba1\u5212-UAT.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "_bmad-output/\u9a8c\u6536\u5355/UAT-\u6574\u5408Dashboard-2026-05-01.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "_bmad-output/\u9a8c\u6536\u5355/\u6279\u6ce8\u56de\u590d/Round-12-Graphiti-vs-Wikilink-\u53cc\u8f68\u68c0\u7d22.md",
+            "fields": [
+              "disposition"
+            ],
+            "from": {
+              "disposition": "\u65e0\u5185\u5bb9\u540c\u4e00\u526f\u672c\u7684\u771f\u5220\u9664\uff1a\u5220\u9664\u610f\u56fe\u672a\u63d0\u4ea4\u4e14\u4e0d\u53ef\u7531\u5f52\u6863\u533a\u8fd8\u539f\uff0c\u9700\u7528\u6237\u663e\u5f0f\u88c1\u5b9a"
+            },
+            "to": {
+              "disposition": "\u5728**\u672c\u6b21\u53ef\u89c1\u5019\u9009\u6c60**\uff08porcelain \u53ef\u89c1\u4e14\u975e ignored \u7684\u672a\u8ddf\u8e2a\u6587\u4ef6 + \u672c\u4ed3 HEAD \u7684\u5176\u4ed6\u8def\u5f84\uff09\u4e2d\u672a\u627e\u5230\u540c\u5185\u5bb9\u526f\u672c\uff1a\u5220\u9664\u610f\u56fe\u672a\u63d0\u4ea4\uff0c\u9700\u7528\u6237\u663e\u5f0f\u88c1\u5b9a\u3002\u26a0\ufe0f \u8fd9**\u4e0d\u7b49\u4e8e\u300c\u4e0d\u53ef\u8fd8\u539f\u300d**\u2014\u2014ignored \u5b50\u6811\u672a\u626b\u63cf\uff0c\u4e5f\u672a\u505a\u5168 ref \u53ef\u8fbe\u6027\u5206\u6790\uff0c\u540c\u5185\u5bb9\u5bf9\u8c61\u53ef\u80fd\u5b58\u5728\u4e8e\u522b\u7684\u5206\u652f\u6216\u88ab\u5ffd\u7565\u7684\u76ee\u5f55\u91cc"
+            }
+          },
+          {
+            "path": "archive/legacy-docs/prd/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md",
+            "fields": [
+              "relocation"
+            ],
+            "from": {
+              "relocation": {
+                "verdict": "relocation_destination",
+                "match_kind": "content_sha_multi_source",
+                "sources": [
+                  "docs/prd/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md",
+                  "docs/prd/sections/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md",
+                  "docs/prd/sharded/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md"
+                ],
+                "category_inherited_from_source": false
+              }
+            },
+            "to": {
+              "relocation": {
+                "verdict": "relocation_destination",
+                "match_kind": "content_sha_multi_source_low_entropy",
+                "sources": [
+                  "docs/prd/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md",
+                  "docs/prd/sections/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md",
+                  "docs/prd/sharded/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md"
+                ],
+                "category_inherited_from_source": false
+              }
+            }
+          },
+          {
+            "path": "archive/legacy-docs/prd/sections/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md",
+            "fields": [
+              "relocation"
+            ],
+            "from": {
+              "relocation": {
+                "verdict": "relocation_destination",
+                "match_kind": "content_sha_multi_source",
+                "sources": [
+                  "docs/prd/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md",
+                  "docs/prd/sections/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md",
+                  "docs/prd/sharded/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md"
+                ],
+                "category_inherited_from_source": false
+              }
+            },
+            "to": {
+              "relocation": {
+                "verdict": "relocation_destination",
+                "match_kind": "content_sha_multi_source_low_entropy",
+                "sources": [
+                  "docs/prd/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md",
+                  "docs/prd/sections/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md",
+                  "docs/prd/sharded/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md"
+                ],
+                "category_inherited_from_source": false
+              }
+            }
+          },
+          {
+            "path": "archive/legacy-docs/prd/sharded/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md",
+            "fields": [
+              "relocation"
+            ],
+            "from": {
+              "relocation": {
+                "verdict": "relocation_destination",
+                "match_kind": "content_sha_multi_source",
+                "sources": [
+                  "docs/prd/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md",
+                  "docs/prd/sections/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md",
+                  "docs/prd/sharded/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md"
+                ],
+                "category_inherited_from_source": false
+              }
+            },
+            "to": {
+              "relocation": {
+                "verdict": "relocation_destination",
+                "match_kind": "content_sha_multi_source_low_entropy",
+                "sources": [
+                  "docs/prd/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md",
+                  "docs/prd/sections/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md",
+                  "docs/prd/sharded/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md"
+                ],
+                "category_inherited_from_source": false
+              }
+            }
+          },
+          {
+            "path": "canvas-vault/.claude/mcp.json",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "canvas-vault/.claude/scripts/decay_beta.py",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "canvas-vault/.claude/scripts/fsrs_bridge.py",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "canvas-vault/.claude/scripts/sync_board_concepts.py",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "canvas-vault/.claude/settings.json",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "canvas-vault/.claude/skills/board-recap/SKILL.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u26a0\ufe0f \u540c\u8def\u5f84\u5728 worktree-feature-obsidian-hybrid-dev \u4e5f\u53d7\u63a7\uff0c\u4f46**\u5185\u5bb9\u4e0d\u540c**\uff0c\u4e14\u4e24\u4e2a HEAD \u4e92\u4e0d\u4e3a\u7956\u5148\u2014\u2014\u8fd9\u4e0d\u662f\u300c\u4e3b\u4ed3\u843d\u540e\u300d\uff0c\u662f**\u53cc\u5411\u5206\u6b67**\uff1a\u7981\u6b62\u5355\u5411\u8986\u76d6\uff08`-X ours/theirs` \u4e00\u5f8b\u4e0d\u9002\u7528\uff09\uff0c\u987b\u9010 hunk \u4eba\u5ba1\uff0c\u5f52 DEBT-14",
+              "owner": "\u26a0\ufe0f \u4e0e worktree-feature-obsidian-hybrid-dev \u540c\u8def\u5f84\u4f46\u5185\u5bb9\u5206\u6b67 \u2192 DEBT-14 \u9010 hunk \u4eba\u5ba1",
+              "feature_branch_state": "diverged"
+            }
+          },
+          {
+            "path": "canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u26a0\ufe0f \u540c\u8def\u5f84\u5728 worktree-feature-obsidian-hybrid-dev \u4e5f\u53d7\u63a7\uff0c\u4f46**\u5185\u5bb9\u4e0d\u540c**\uff0c\u4e14\u4e24\u4e2a HEAD \u4e92\u4e0d\u4e3a\u7956\u5148\u2014\u2014\u8fd9\u4e0d\u662f\u300c\u4e3b\u4ed3\u843d\u540e\u300d\uff0c\u662f**\u53cc\u5411\u5206\u6b67**\uff1a\u7981\u6b62\u5355\u5411\u8986\u76d6\uff08`-X ours/theirs` \u4e00\u5f8b\u4e0d\u9002\u7528\uff09\uff0c\u987b\u9010 hunk \u4eba\u5ba1\uff0c\u5f52 DEBT-14",
+              "owner": "\u26a0\ufe0f \u4e0e worktree-feature-obsidian-hybrid-dev \u540c\u8def\u5f84\u4f46\u5185\u5bb9\u5206\u6b67 \u2192 DEBT-14 \u9010 hunk \u4eba\u5ba1",
+              "feature_branch_state": "diverged"
+            }
+          },
+          {
+            "path": "canvas-vault/.claude/skills/chat-with-context/SKILL.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "canvas-vault/.claude/skills/exam-quick/SKILL.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "canvas-vault/.claude/skills/quiz-answer/SKILL.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u26a0\ufe0f \u540c\u8def\u5f84\u5728 worktree-feature-obsidian-hybrid-dev \u4e5f\u53d7\u63a7\uff0c\u4f46**\u5185\u5bb9\u4e0d\u540c**\uff0c\u4e14\u4e24\u4e2a HEAD \u4e92\u4e0d\u4e3a\u7956\u5148\u2014\u2014\u8fd9\u4e0d\u662f\u300c\u4e3b\u4ed3\u843d\u540e\u300d\uff0c\u662f**\u53cc\u5411\u5206\u6b67**\uff1a\u7981\u6b62\u5355\u5411\u8986\u76d6\uff08`-X ours/theirs` \u4e00\u5f8b\u4e0d\u9002\u7528\uff09\uff0c\u987b\u9010 hunk \u4eba\u5ba1\uff0c\u5f52 DEBT-14",
+              "owner": "\u26a0\ufe0f \u4e0e worktree-feature-obsidian-hybrid-dev \u540c\u8def\u5f84\u4f46\u5185\u5bb9\u5206\u6b67 \u2192 DEBT-14 \u9010 hunk \u4eba\u5ba1",
+              "feature_branch_state": "diverged"
+            }
+          },
+          {
+            "path": "canvas-vault/.claude/skills/start-exam-board/SKILL.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u26a0\ufe0f \u540c\u8def\u5f84\u5728 worktree-feature-obsidian-hybrid-dev \u4e5f\u53d7\u63a7\uff0c\u4f46**\u5185\u5bb9\u4e0d\u540c**\uff0c\u4e14\u4e24\u4e2a HEAD \u4e92\u4e0d\u4e3a\u7956\u5148\u2014\u2014\u8fd9\u4e0d\u662f\u300c\u4e3b\u4ed3\u843d\u540e\u300d\uff0c\u662f**\u53cc\u5411\u5206\u6b67**\uff1a\u7981\u6b62\u5355\u5411\u8986\u76d6\uff08`-X ours/theirs` \u4e00\u5f8b\u4e0d\u9002\u7528\uff09\uff0c\u987b\u9010 hunk \u4eba\u5ba1\uff0c\u5f52 DEBT-14",
+              "owner": "\u26a0\ufe0f \u4e0e worktree-feature-obsidian-hybrid-dev \u540c\u8def\u5f84\u4f46\u5185\u5bb9\u5206\u6b67 \u2192 DEBT-14 \u9010 hunk \u4eba\u5ba1",
+              "feature_branch_state": "diverged"
+            }
+          },
+          {
+            "path": "canvas-vault/.claude/skills/study-question/SKILL.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "canvas-vault/.claudian/claudian-settings.json",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "canvas-vault/.claudian/sessions/conv-1776676336319-sl0k3arzs.meta.json",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "canvas-vault/.claudian/sessions/conv-1776729466815-gzzd936ir.meta.json",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "canvas-vault/.claudian/sessions/conv-1777538503276-uhmk7u8ol.meta.json",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "canvas-vault/.claudian/sessions/conv-1777539396556-9t8uipa1q.meta.json",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "canvas-vault/.claudian/sessions/conv-1777544824333-47ssohh5w.meta.json",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "canvas-vault/.claudian/sessions/conv-1777612864902-v0pz027xr.meta.json",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "canvas-vault/.claudian/sessions/conv-1777615685409-37vsm7od4.meta.json",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "canvas-vault/.obsidian/community-plugins.json",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u26a0\ufe0f \u540c\u8def\u5f84\u5728 worktree-feature-obsidian-hybrid-dev \u4e5f\u53d7\u63a7\uff0c\u4f46**\u5185\u5bb9\u4e0d\u540c**\uff0c\u4e14\u4e24\u4e2a HEAD \u4e92\u4e0d\u4e3a\u7956\u5148\u2014\u2014\u8fd9\u4e0d\u662f\u300c\u4e3b\u4ed3\u843d\u540e\u300d\uff0c\u662f**\u53cc\u5411\u5206\u6b67**\uff1a\u7981\u6b62\u5355\u5411\u8986\u76d6\uff08`-X ours/theirs` \u4e00\u5f8b\u4e0d\u9002\u7528\uff09\uff0c\u987b\u9010 hunk \u4eba\u5ba1\uff0c\u5f52 DEBT-14",
+              "owner": "\u26a0\ufe0f \u4e0e worktree-feature-obsidian-hybrid-dev \u540c\u8def\u5f84\u4f46\u5185\u5bb9\u5206\u6b67 \u2192 DEBT-14 \u9010 hunk \u4eba\u5ba1",
+              "feature_branch_state": "diverged"
+            }
+          },
+          {
+            "path": "canvas-vault/.obsidian/graph.json",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "canvas-vault/.obsidian/hotkeys.json",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u26a0\ufe0f \u540c\u8def\u5f84\u5728 worktree-feature-obsidian-hybrid-dev \u4e5f\u53d7\u63a7\uff0c\u4f46**\u5185\u5bb9\u4e0d\u540c**\uff0c\u4e14\u4e24\u4e2a HEAD \u4e92\u4e0d\u4e3a\u7956\u5148\u2014\u2014\u8fd9\u4e0d\u662f\u300c\u4e3b\u4ed3\u843d\u540e\u300d\uff0c\u662f**\u53cc\u5411\u5206\u6b67**\uff1a\u7981\u6b62\u5355\u5411\u8986\u76d6\uff08`-X ours/theirs` \u4e00\u5f8b\u4e0d\u9002\u7528\uff09\uff0c\u987b\u9010 hunk \u4eba\u5ba1\uff0c\u5f52 DEBT-14",
+              "owner": "\u26a0\ufe0f \u4e0e worktree-feature-obsidian-hybrid-dev \u540c\u8def\u5f84\u4f46\u5185\u5bb9\u5206\u6b67 \u2192 DEBT-14 \u9010 hunk \u4eba\u5ba1",
+              "feature_branch_state": "diverged"
+            }
+          },
+          {
+            "path": "canvas-vault/.obsidian/plugins/breadcrumbs/data-backup__no-directions-migration.json",
+            "fields": [
+              "category",
+              "disposition",
+              "rule"
+            ],
+            "from": {
+              "category": "\u4e34\u65f6\u7269",
+              "rule": "E6",
+              "disposition": "\u4e34\u65f6\u7269\uff1a\u53ef\u5b89\u5168\u5ffd\u7565\uff1b\u672c\u5361\u4e0d\u6267\u884c\u6e05\u7406\uff08\u53ea\u767b\u8bb0\uff09"
+            },
+            "to": {
+              "category": "\u7528\u6237\u8d44\u4ea7",
+              "rule": "U11",
+              "disposition": "\u7528\u6237\u8d44\u4ea7\uff1a\u4fdd\u6301\u539f\u5730\uff0c\u7981\u5220\u9664\u7981\u79fb\u52a8\uff1b\u82e5\u9700\u7eb3\u7ba1\u7531\u7528\u6237\u663e\u5f0f\u88c1\u5b9a"
+            }
+          },
+          {
+            "path": "canvas-vault/.obsidian/plugins/canvas-learning-system/manifest.json",
+            "fields": [
+              "feature_branch_state"
+            ],
+            "from": {
+              "feature_branch_state": null
+            },
+            "to": {
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "canvas-vault/.obsidian/themes/Underwater/manifest.json",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "canvas-vault/.obsidian/themes/Underwater/theme.css",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "canvas-vault/.obsidian/types.json",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "canvas-vault/2111.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "canvas-vault/CLAUDE.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "canvas-vault/Dashboard.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u26a0\ufe0f \u540c\u8def\u5f84\u5728 worktree-feature-obsidian-hybrid-dev \u4e5f\u53d7\u63a7\uff0c\u4f46**\u5185\u5bb9\u4e0d\u540c**\uff0c\u4e14\u4e24\u4e2a HEAD \u4e92\u4e0d\u4e3a\u7956\u5148\u2014\u2014\u8fd9\u4e0d\u662f\u300c\u4e3b\u4ed3\u843d\u540e\u300d\uff0c\u662f**\u53cc\u5411\u5206\u6b67**\uff1a\u7981\u6b62\u5355\u5411\u8986\u76d6\uff08`-X ours/theirs` \u4e00\u5f8b\u4e0d\u9002\u7528\uff09\uff0c\u987b\u9010 hunk \u4eba\u5ba1\uff0c\u5f52 DEBT-14",
+              "owner": "\u26a0\ufe0f \u4e0e worktree-feature-obsidian-hybrid-dev \u540c\u8def\u5f84\u4f46\u5185\u5bb9\u5206\u6b67 \u2192 DEBT-14 \u9010 hunk \u4eba\u5ba1",
+              "feature_branch_state": "diverged"
+            }
+          },
+          {
+            "path": "canvas-vault/Untitled.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "canvas-vault/outputs/exam_boards/.gitkeep",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "canvas-vault/templates/exam-board.md",
+            "fields": [
+              "feature_branch_state"
+            ],
+            "from": {
+              "feature_branch_state": null
+            },
+            "to": {
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "canvas-vault/wiki/canvases/.gitkeep",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "canvas-vault/wiki/concepts/.gitkeep",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "canvas-vault/\u539f\u767d\u677f/\u7279\u5f81\u503c\u4e0e\u7279\u5f81\u5411\u91cf.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u26a0\ufe0f \u540c\u8def\u5f84\u5728 worktree-feature-obsidian-hybrid-dev \u4e5f\u53d7\u63a7\uff0c\u4f46**\u5185\u5bb9\u4e0d\u540c**\uff0c\u4e14\u4e24\u4e2a HEAD \u4e92\u4e0d\u4e3a\u7956\u5148\u2014\u2014\u8fd9\u4e0d\u662f\u300c\u4e3b\u4ed3\u843d\u540e\u300d\uff0c\u662f**\u53cc\u5411\u5206\u6b67**\uff1a\u7981\u6b62\u5355\u5411\u8986\u76d6\uff08`-X ours/theirs` \u4e00\u5f8b\u4e0d\u9002\u7528\uff09\uff0c\u987b\u9010 hunk \u4eba\u5ba1\uff0c\u5f52 DEBT-14",
+              "owner": "\u26a0\ufe0f \u4e0e worktree-feature-obsidian-hybrid-dev \u540c\u8def\u5f84\u4f46\u5185\u5bb9\u5206\u6b67 \u2192 DEBT-14 \u9010 hunk \u4eba\u5ba1",
+              "feature_branch_state": "diverged"
+            }
+          },
+          {
+            "path": "canvas-vault/\u539f\u767d\u677f/\u7ebf\u6027\u4ee3\u6570.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u26a0\ufe0f \u540c\u8def\u5f84\u5728 worktree-feature-obsidian-hybrid-dev \u4e5f\u53d7\u63a7\uff0c\u4f46**\u5185\u5bb9\u4e0d\u540c**\uff0c\u4e14\u4e24\u4e2a HEAD \u4e92\u4e0d\u4e3a\u7956\u5148\u2014\u2014\u8fd9\u4e0d\u662f\u300c\u4e3b\u4ed3\u843d\u540e\u300d\uff0c\u662f**\u53cc\u5411\u5206\u6b67**\uff1a\u7981\u6b62\u5355\u5411\u8986\u76d6\uff08`-X ours/theirs` \u4e00\u5f8b\u4e0d\u9002\u7528\uff09\uff0c\u987b\u9010 hunk \u4eba\u5ba1\uff0c\u5f52 DEBT-14",
+              "owner": "\u26a0\ufe0f \u4e0e worktree-feature-obsidian-hybrid-dev \u540c\u8def\u5f84\u4f46\u5185\u5bb9\u5206\u6b67 \u2192 DEBT-14 \u9010 hunk \u4eba\u5ba1",
+              "feature_branch_state": "diverged"
+            }
+          },
+          {
+            "path": "canvas-vault/\u539f\u767d\u677f/\u9012\u5f52\u4e0e\u5206\u6cbb (Recursion & Divide-Conquer).md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u26a0\ufe0f \u540c\u8def\u5f84\u5728 worktree-feature-obsidian-hybrid-dev \u4e5f\u53d7\u63a7\uff0c\u4f46**\u5185\u5bb9\u4e0d\u540c**\uff0c\u4e14\u4e24\u4e2a HEAD \u4e92\u4e0d\u4e3a\u7956\u5148\u2014\u2014\u8fd9\u4e0d\u662f\u300c\u4e3b\u4ed3\u843d\u540e\u300d\uff0c\u662f**\u53cc\u5411\u5206\u6b67**\uff1a\u7981\u6b62\u5355\u5411\u8986\u76d6\uff08`-X ours/theirs` \u4e00\u5f8b\u4e0d\u9002\u7528\uff09\uff0c\u987b\u9010 hunk \u4eba\u5ba1\uff0c\u5f52 DEBT-14",
+              "owner": "\u26a0\ufe0f \u4e0e worktree-feature-obsidian-hybrid-dev \u540c\u8def\u5f84\u4f46\u5185\u5bb9\u5206\u6b67 \u2192 DEBT-14 \u9010 hunk \u4eba\u5ba1",
+              "feature_branch_state": "diverged"
+            }
+          },
+          {
+            "path": "canvas-vault/\u672a\u547d\u540d.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "canvas-vault/\u68c0\u9a8c\u767d\u677f/\u7279\u5f81\u503c\u4e0e\u7279\u5f81\u5411\u91cf-2026-07-05-1815.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "canvas-vault/\u8282\u70b9/Characteristic-Equation-for-Eigenvalues.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u26a0\ufe0f \u540c\u8def\u5f84\u5728 worktree-feature-obsidian-hybrid-dev \u4e5f\u53d7\u63a7\uff0c\u4f46**\u5185\u5bb9\u4e0d\u540c**\uff0c\u4e14\u4e24\u4e2a HEAD \u4e92\u4e0d\u4e3a\u7956\u5148\u2014\u2014\u8fd9\u4e0d\u662f\u300c\u4e3b\u4ed3\u843d\u540e\u300d\uff0c\u662f**\u53cc\u5411\u5206\u6b67**\uff1a\u7981\u6b62\u5355\u5411\u8986\u76d6\uff08`-X ours/theirs` \u4e00\u5f8b\u4e0d\u9002\u7528\uff09\uff0c\u987b\u9010 hunk \u4eba\u5ba1\uff0c\u5f52 DEBT-14",
+              "owner": "\u26a0\ufe0f \u4e0e worktree-feature-obsidian-hybrid-dev \u540c\u8def\u5f84\u4f46\u5185\u5bb9\u5206\u6b67 \u2192 DEBT-14 \u9010 hunk \u4eba\u5ba1",
+              "feature_branch_state": "diverged"
+            }
+          },
+          {
+            "path": "canvas-vault/\u8282\u70b9/Eigenvalues-are-special-vectors-that-sat.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "canvas-vault/\u8282\u70b9/Fundamentals.md",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u26a0\ufe0f \u540c\u8def\u5f84\u5728 worktree-feature-obsidian-hybrid-dev \u4e5f\u53d7\u63a7\uff0c\u4f46**\u5185\u5bb9\u4e0d\u540c**\uff0c\u4e14\u4e24\u4e2a HEAD \u4e92\u4e0d\u4e3a\u7956\u5148\u2014\u2014\u8fd9\u4e0d\u662f\u300c\u4e3b\u4ed3\u843d\u540e\u300d\uff0c\u662f**\u53cc\u5411\u5206\u6b67**\uff1a\u7981\u6b62\u5355\u5411\u8986\u76d6\uff08`-X ours/theirs` \u4e00\u5f8b\u4e0d\u9002\u7528\uff09\uff0c\u987b\u9010 hunk \u4eba\u5ba1\uff0c\u5f52 DEBT-14",
+              "owner": "\u26a0\ufe0f \u4e0e worktree-feature-obsidian-hybrid-dev \u540c\u8def\u5f84\u4f46\u5185\u5bb9\u5206\u6b67 \u2192 DEBT-14 \u9010 hunk \u4eba\u5ba1",
+              "feature_branch_state": "diverged"
+            }
+          },
+          {
+            "path": "docs/prd/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md",
+            "fields": [
+              "relocation"
+            ],
+            "from": {
+              "relocation": {
+                "verdict": "moved_identical",
+                "match_kind": "content_sha_ambiguous",
+                "head_blob": "8f22b08ce0f1d456f5a56ff4284871f7bd306f3c",
+                "candidates": [
+                  "archive/legacy-docs/prd/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md",
+                  "archive/legacy-docs/prd/sections/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md",
+                  "archive/legacy-docs/prd/sharded/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md"
+                ]
+              }
+            },
+            "to": {
+              "relocation": {
+                "verdict": "moved_identical",
+                "match_kind": "content_sha_ambiguous_low_entropy",
+                "head_blob": "8f22b08ce0f1d456f5a56ff4284871f7bd306f3c",
+                "candidates": [
+                  "archive/legacy-docs/prd/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md",
+                  "archive/legacy-docs/prd/sections/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md",
+                  "archive/legacy-docs/prd/sharded/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md"
+                ]
+              }
+            }
+          },
+          {
+            "path": "docs/prd/sections/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md",
+            "fields": [
+              "relocation"
+            ],
+            "from": {
+              "relocation": {
+                "verdict": "moved_identical",
+                "match_kind": "content_sha_ambiguous",
+                "head_blob": "8f22b08ce0f1d456f5a56ff4284871f7bd306f3c",
+                "candidates": [
+                  "archive/legacy-docs/prd/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md",
+                  "archive/legacy-docs/prd/sections/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md",
+                  "archive/legacy-docs/prd/sharded/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md"
+                ]
+              }
+            },
+            "to": {
+              "relocation": {
+                "verdict": "moved_identical",
+                "match_kind": "content_sha_ambiguous_low_entropy",
+                "head_blob": "8f22b08ce0f1d456f5a56ff4284871f7bd306f3c",
+                "candidates": [
+                  "archive/legacy-docs/prd/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md",
+                  "archive/legacy-docs/prd/sections/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md",
+                  "archive/legacy-docs/prd/sharded/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md"
+                ]
+              }
+            }
+          },
+          {
+            "path": "docs/prd/sharded/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md",
+            "fields": [
+              "relocation"
+            ],
+            "from": {
+              "relocation": {
+                "verdict": "moved_identical",
+                "match_kind": "content_sha_ambiguous",
+                "head_blob": "8f22b08ce0f1d456f5a56ff4284871f7bd306f3c",
+                "candidates": [
+                  "archive/legacy-docs/prd/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md",
+                  "archive/legacy-docs/prd/sections/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md",
+                  "archive/legacy-docs/prd/sharded/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md"
+                ]
+              }
+            },
+            "to": {
+              "relocation": {
+                "verdict": "moved_identical",
+                "match_kind": "content_sha_ambiguous_low_entropy",
+                "head_blob": "8f22b08ce0f1d456f5a56ff4284871f7bd306f3c",
+                "candidates": [
+                  "archive/legacy-docs/prd/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md",
+                  "archive/legacy-docs/prd/sections/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md",
+                  "archive/legacy-docs/prd/sharded/section-1x-\u6280\u672f\u9a8c\u8bc1\u534f\u8bae.md"
+                ]
+              }
+            }
+          },
+          {
+            "path": "frontend/obsidian-plugin/esbuild.config.mjs",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u26a0\ufe0f \u540c\u8def\u5f84\u5728 worktree-feature-obsidian-hybrid-dev \u4e5f\u53d7\u63a7\uff0c\u4f46**\u5185\u5bb9\u4e0d\u540c**\uff0c\u4e14\u4e24\u4e2a HEAD \u4e92\u4e0d\u4e3a\u7956\u5148\u2014\u2014\u8fd9\u4e0d\u662f\u300c\u4e3b\u4ed3\u843d\u540e\u300d\uff0c\u662f**\u53cc\u5411\u5206\u6b67**\uff1a\u7981\u6b62\u5355\u5411\u8986\u76d6\uff08`-X ours/theirs` \u4e00\u5f8b\u4e0d\u9002\u7528\uff09\uff0c\u987b\u9010 hunk \u4eba\u5ba1\uff0c\u5f52 DEBT-14",
+              "owner": "\u26a0\ufe0f \u4e0e worktree-feature-obsidian-hybrid-dev \u540c\u8def\u5f84\u4f46\u5185\u5bb9\u5206\u6b67 \u2192 DEBT-14 \u9010 hunk \u4eba\u5ba1",
+              "feature_branch_state": "diverged"
+            }
+          },
+          {
+            "path": "frontend/obsidian-plugin/src/callout-sync.ts",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u26a0\ufe0f \u540c\u8def\u5f84\u5728 worktree-feature-obsidian-hybrid-dev \u4e5f\u53d7\u63a7\uff0c\u4f46**\u5185\u5bb9\u4e0d\u540c**\uff0c\u4e14\u4e24\u4e2a HEAD \u4e92\u4e0d\u4e3a\u7956\u5148\u2014\u2014\u8fd9\u4e0d\u662f\u300c\u4e3b\u4ed3\u843d\u540e\u300d\uff0c\u662f**\u53cc\u5411\u5206\u6b67**\uff1a\u7981\u6b62\u5355\u5411\u8986\u76d6\uff08`-X ours/theirs` \u4e00\u5f8b\u4e0d\u9002\u7528\uff09\uff0c\u987b\u9010 hunk \u4eba\u5ba1\uff0c\u5f52 DEBT-14",
+              "owner": "\u26a0\ufe0f \u4e0e worktree-feature-obsidian-hybrid-dev \u540c\u8def\u5f84\u4f46\u5185\u5bb9\u5206\u6b67 \u2192 DEBT-14 \u9010 hunk \u4eba\u5ba1",
+              "feature_branch_state": "diverged"
+            }
+          },
+          {
+            "path": "frontend/obsidian-plugin/src/configure-whiteboard.ts",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u26a0\ufe0f \u540c\u8def\u5f84\u5728 worktree-feature-obsidian-hybrid-dev \u4e5f\u53d7\u63a7\uff0c\u4f46**\u5185\u5bb9\u4e0d\u540c**\uff0c\u4e14\u4e24\u4e2a HEAD \u4e92\u4e0d\u4e3a\u7956\u5148\u2014\u2014\u8fd9\u4e0d\u662f\u300c\u4e3b\u4ed3\u843d\u540e\u300d\uff0c\u662f**\u53cc\u5411\u5206\u6b67**\uff1a\u7981\u6b62\u5355\u5411\u8986\u76d6\uff08`-X ours/theirs` \u4e00\u5f8b\u4e0d\u9002\u7528\uff09\uff0c\u987b\u9010 hunk \u4eba\u5ba1\uff0c\u5f52 DEBT-14",
+              "owner": "\u26a0\ufe0f \u4e0e worktree-feature-obsidian-hybrid-dev \u540c\u8def\u5f84\u4f46\u5185\u5bb9\u5206\u6b67 \u2192 DEBT-14 \u9010 hunk \u4eba\u5ba1",
+              "feature_branch_state": "diverged"
+            }
+          },
+          {
+            "path": "frontend/obsidian-plugin/src/frontmatter-tips-sync.ts",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u26a0\ufe0f \u540c\u8def\u5f84\u5728 worktree-feature-obsidian-hybrid-dev \u4e5f\u53d7\u63a7\uff0c\u4f46**\u5185\u5bb9\u4e0d\u540c**\uff0c\u4e14\u4e24\u4e2a HEAD \u4e92\u4e0d\u4e3a\u7956\u5148\u2014\u2014\u8fd9\u4e0d\u662f\u300c\u4e3b\u4ed3\u843d\u540e\u300d\uff0c\u662f**\u53cc\u5411\u5206\u6b67**\uff1a\u7981\u6b62\u5355\u5411\u8986\u76d6\uff08`-X ours/theirs` \u4e00\u5f8b\u4e0d\u9002\u7528\uff09\uff0c\u987b\u9010 hunk \u4eba\u5ba1\uff0c\u5f52 DEBT-14",
+              "owner": "\u26a0\ufe0f \u4e0e worktree-feature-obsidian-hybrid-dev \u540c\u8def\u5f84\u4f46\u5185\u5bb9\u5206\u6b67 \u2192 DEBT-14 \u9010 hunk \u4eba\u5ba1",
+              "feature_branch_state": "diverged"
+            }
+          },
+          {
+            "path": "frontend/obsidian-plugin/src/node-derivation.ts",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u26a0\ufe0f \u540c\u8def\u5f84\u5728 worktree-feature-obsidian-hybrid-dev \u4e5f\u53d7\u63a7\uff0c\u4f46**\u5185\u5bb9\u4e0d\u540c**\uff0c\u4e14\u4e24\u4e2a HEAD \u4e92\u4e0d\u4e3a\u7956\u5148\u2014\u2014\u8fd9\u4e0d\u662f\u300c\u4e3b\u4ed3\u843d\u540e\u300d\uff0c\u662f**\u53cc\u5411\u5206\u6b67**\uff1a\u7981\u6b62\u5355\u5411\u8986\u76d6\uff08`-X ours/theirs` \u4e00\u5f8b\u4e0d\u9002\u7528\uff09\uff0c\u987b\u9010 hunk \u4eba\u5ba1\uff0c\u5f52 DEBT-14",
+              "owner": "\u26a0\ufe0f \u4e0e worktree-feature-obsidian-hybrid-dev \u540c\u8def\u5f84\u4f46\u5185\u5bb9\u5206\u6b67 \u2192 DEBT-14 \u9010 hunk \u4eba\u5ba1",
+              "feature_branch_state": "diverged"
+            }
+          },
+          {
+            "path": "frontend/obsidian-plugin/tests/configure-whiteboard.test.ts",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u26a0\ufe0f \u540c\u8def\u5f84\u5728 worktree-feature-obsidian-hybrid-dev \u4e5f\u53d7\u63a7\uff0c\u4f46**\u5185\u5bb9\u4e0d\u540c**\uff0c\u4e14\u4e24\u4e2a HEAD \u4e92\u4e0d\u4e3a\u7956\u5148\u2014\u2014\u8fd9\u4e0d\u662f\u300c\u4e3b\u4ed3\u843d\u540e\u300d\uff0c\u662f**\u53cc\u5411\u5206\u6b67**\uff1a\u7981\u6b62\u5355\u5411\u8986\u76d6\uff08`-X ours/theirs` \u4e00\u5f8b\u4e0d\u9002\u7528\uff09\uff0c\u987b\u9010 hunk \u4eba\u5ba1\uff0c\u5f52 DEBT-14",
+              "owner": "\u26a0\ufe0f \u4e0e worktree-feature-obsidian-hybrid-dev \u540c\u8def\u5f84\u4f46\u5185\u5bb9\u5206\u6b67 \u2192 DEBT-14 \u9010 hunk \u4eba\u5ba1",
+              "feature_branch_state": "diverged"
+            }
+          },
+          {
+            "path": "frontend/obsidian-plugin/tests/node-derivation.test.ts",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          },
+          {
+            "path": "frontend/obsidian-plugin/tsconfig.json",
+            "fields": [
+              "disposition",
+              "feature_branch_state",
+              "owner"
+            ],
+            "from": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u5206\u652f\u53d7\u63a7\u2014\u2014\u4e3b\u4ed3\u843d\u540e\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5206\u652f\u5df2\u53d7\u63a7 \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": null
+            },
+            "to": {
+              "disposition": "\u540c\u8def\u5f84\u5df2\u5728 worktree-feature-obsidian-hybrid-dev \u53d7\u63a7**\u4e14 git blob \u8eab\u4efd\u76f8\u540c**\uff08\u5373 clean filter \u4e4b\u540e\u5185\u5bb9\u540c\u4e00\uff09\u2014\u2014\u4e3b\u4ed3\u8fd9\u4efd\u662f\u672a\u7eb3\u7ba1\u7684\u540c\u5185\u5bb9\u526f\u672c\uff0c\u5f52 DEBT-14 \u5408\u5e76\u7b56\u7565\u88c1\u5b9a\uff0c\u52ff\u5728\u4e3b\u4ed3\u5355\u72ec\u63d0\u4ea4",
+              "owner": "worktree-feature-obsidian-hybrid-dev \u5df2\u53d7\u63a7\u4e14\u5185\u5bb9\u76f8\u540c \u2192 DEBT-14 \u5408\u5e76\u7b56\u7565",
+              "feature_branch_state": "same_blob"
+            }
+          }
+        ],
+        "baseline_had_entries": true,
+        "assertions_baseline": {
+          "no_custom_filter_drivers": true,
+          "pin_sha_ok": true,
+          "parsed_count_matches_independent_count": true,
+          "orig_field_iff_rename_or_copy": true,
+          "xy_sequence_matches_independent_parse": true,
+          "roundtrip_bytes_identical": true,
+          "count_equals_porcelain_records": true,
+          "readonly_porcelain_unchanged": true
+        },
+        "assertions_now": {
+          "filter_drivers_absent_or_accepted": true,
+          "pin_sha_ok": true,
+          "parsed_count_matches_independent_count": true,
+          "orig_field_iff_rename_or_copy": true,
+          "xy_sequence_matches_independent_parse": true,
+          "roundtrip_bytes_identical": true,
+          "feature_ref_resolvable_or_declared": true,
+          "count_equals_porcelain_records": true,
+          "entries_preserve_record_identity": true,
+          "content_evidence_independently_recomputable": true,
+          "relocation_evidence_self_consistent": true,
+          "readonly_porcelain_unchanged": true
+        }
+      },
+      {
+        "label": "feature",
+        "head_sha_baseline": "7f5095fd21b1075cd8c31ba69a4c841df8ece69d",
+        "head_sha_now": "7f5095fd21b1075cd8c31ba69a4c841df8ece69d",
+        "head_moved": false,
+        "porcelain_sha_baseline": "7d8aed4dec7c3fa3a5d998c55ebafb9010943f8c5160f7d5c527bcb9c9ef9612",
+        "porcelain_sha_now": "7d8aed4dec7c3fa3a5d998c55ebafb9010943f8c5160f7d5c527bcb9c9ef9612",
+        "record_count_baseline": 106,
+        "record_count_now": 106,
+        "added": [],
+        "removed": [],
+        "recategorized": [
+          {
+            "path": "_bmad-output/.venv-freeze-2026-08-24.txt",
+            "from": "\u4e34\u65f6\u7269",
+            "to": "\u5ba1\u67e5\u4ea7\u7269"
+          }
+        ],
+        "entry_changed": [
+          {
+            "path": ".claude/skills/research-pack/SKILL.md",
+            "fields": [
+              "disposition"
+            ],
+            "from": {
+              "disposition": "\u65e0\u5185\u5bb9\u540c\u4e00\u526f\u672c\u7684\u771f\u5220\u9664\uff1a\u5220\u9664\u610f\u56fe\u672a\u63d0\u4ea4\u4e14\u4e0d\u53ef\u7531\u5f52\u6863\u533a\u8fd8\u539f\uff0c\u9700\u7528\u6237\u663e\u5f0f\u88c1\u5b9a"
+            },
+            "to": {
+              "disposition": "\u5728**\u672c\u6b21\u53ef\u89c1\u5019\u9009\u6c60**\uff08porcelain \u53ef\u89c1\u4e14\u975e ignored \u7684\u672a\u8ddf\u8e2a\u6587\u4ef6 + \u672c\u4ed3 HEAD \u7684\u5176\u4ed6\u8def\u5f84\uff09\u4e2d\u672a\u627e\u5230\u540c\u5185\u5bb9\u526f\u672c\uff1a\u5220\u9664\u610f\u56fe\u672a\u63d0\u4ea4\uff0c\u9700\u7528\u6237\u663e\u5f0f\u88c1\u5b9a\u3002\u26a0\ufe0f \u8fd9**\u4e0d\u7b49\u4e8e\u300c\u4e0d\u53ef\u8fd8\u539f\u300d**\u2014\u2014ignored \u5b50\u6811\u672a\u626b\u63cf\uff0c\u4e5f\u672a\u505a\u5168 ref \u53ef\u8fbe\u6027\u5206\u6790\uff0c\u540c\u5185\u5bb9\u5bf9\u8c61\u53ef\u80fd\u5b58\u5728\u4e8e\u522b\u7684\u5206\u652f\u6216\u88ab\u5ffd\u7565\u7684\u76ee\u5f55\u91cc"
+            }
+          },
+          {
+            "path": ".claude/skills/research-pack/references/agent-prompts.md",
+            "fields": [
+              "disposition"
+            ],
+            "from": {
+              "disposition": "\u65e0\u5185\u5bb9\u540c\u4e00\u526f\u672c\u7684\u771f\u5220\u9664\uff1a\u5220\u9664\u610f\u56fe\u672a\u63d0\u4ea4\u4e14\u4e0d\u53ef\u7531\u5f52\u6863\u533a\u8fd8\u539f\uff0c\u9700\u7528\u6237\u663e\u5f0f\u88c1\u5b9a"
+            },
+            "to": {
+              "disposition": "\u5728**\u672c\u6b21\u53ef\u89c1\u5019\u9009\u6c60**\uff08porcelain \u53ef\u89c1\u4e14\u975e ignored \u7684\u672a\u8ddf\u8e2a\u6587\u4ef6 + \u672c\u4ed3 HEAD \u7684\u5176\u4ed6\u8def\u5f84\uff09\u4e2d\u672a\u627e\u5230\u540c\u5185\u5bb9\u526f\u672c\uff1a\u5220\u9664\u610f\u56fe\u672a\u63d0\u4ea4\uff0c\u9700\u7528\u6237\u663e\u5f0f\u88c1\u5b9a\u3002\u26a0\ufe0f \u8fd9**\u4e0d\u7b49\u4e8e\u300c\u4e0d\u53ef\u8fd8\u539f\u300d**\u2014\u2014ignored \u5b50\u6811\u672a\u626b\u63cf\uff0c\u4e5f\u672a\u505a\u5168 ref \u53ef\u8fbe\u6027\u5206\u6790\uff0c\u540c\u5185\u5bb9\u5bf9\u8c61\u53ef\u80fd\u5b58\u5728\u4e8e\u522b\u7684\u5206\u652f\u6216\u88ab\u5ffd\u7565\u7684\u76ee\u5f55\u91cc"
+            }
+          },
+          {
+            "path": ".claude/skills/research-pack/references/keyword-guide.md",
+            "fields": [
+              "disposition"
+            ],
+            "from": {
+              "disposition": "\u65e0\u5185\u5bb9\u540c\u4e00\u526f\u672c\u7684\u771f\u5220\u9664\uff1a\u5220\u9664\u610f\u56fe\u672a\u63d0\u4ea4\u4e14\u4e0d\u53ef\u7531\u5f52\u6863\u533a\u8fd8\u539f\uff0c\u9700\u7528\u6237\u663e\u5f0f\u88c1\u5b9a"
+            },
+            "to": {
+              "disposition": "\u5728**\u672c\u6b21\u53ef\u89c1\u5019\u9009\u6c60**\uff08porcelain \u53ef\u89c1\u4e14\u975e ignored \u7684\u672a\u8ddf\u8e2a\u6587\u4ef6 + \u672c\u4ed3 HEAD \u7684\u5176\u4ed6\u8def\u5f84\uff09\u4e2d\u672a\u627e\u5230\u540c\u5185\u5bb9\u526f\u672c\uff1a\u5220\u9664\u610f\u56fe\u672a\u63d0\u4ea4\uff0c\u9700\u7528\u6237\u663e\u5f0f\u88c1\u5b9a\u3002\u26a0\ufe0f \u8fd9**\u4e0d\u7b49\u4e8e\u300c\u4e0d\u53ef\u8fd8\u539f\u300d**\u2014\u2014ignored \u5b50\u6811\u672a\u626b\u63cf\uff0c\u4e5f\u672a\u505a\u5168 ref \u53ef\u8fbe\u6027\u5206\u6790\uff0c\u540c\u5185\u5bb9\u5bf9\u8c61\u53ef\u80fd\u5b58\u5728\u4e8e\u522b\u7684\u5206\u652f\u6216\u88ab\u5ffd\u7565\u7684\u76ee\u5f55\u91cc"
+            }
+          },
+          {
+            "path": ".gdr/chatgpt-prompt-\u4e24\u767d\u677f\u751f\u4ea7\u529b-\u8d77\u624b.md",
+            "fields": [
+              "disposition"
+            ],
+            "from": {
+              "disposition": "\u65e0\u5185\u5bb9\u540c\u4e00\u526f\u672c\u7684\u771f\u5220\u9664\uff1a\u5220\u9664\u610f\u56fe\u672a\u63d0\u4ea4\u4e14\u4e0d\u53ef\u7531\u5f52\u6863\u533a\u8fd8\u539f\uff0c\u9700\u7528\u6237\u663e\u5f0f\u88c1\u5b9a"
+            },
+            "to": {
+              "disposition": "\u5728**\u672c\u6b21\u53ef\u89c1\u5019\u9009\u6c60**\uff08porcelain \u53ef\u89c1\u4e14\u975e ignored \u7684\u672a\u8ddf\u8e2a\u6587\u4ef6 + \u672c\u4ed3 HEAD \u7684\u5176\u4ed6\u8def\u5f84\uff09\u4e2d\u672a\u627e\u5230\u540c\u5185\u5bb9\u526f\u672c\uff1a\u5220\u9664\u610f\u56fe\u672a\u63d0\u4ea4\uff0c\u9700\u7528\u6237\u663e\u5f0f\u88c1\u5b9a\u3002\u26a0\ufe0f \u8fd9**\u4e0d\u7b49\u4e8e\u300c\u4e0d\u53ef\u8fd8\u539f\u300d**\u2014\u2014ignored \u5b50\u6811\u672a\u626b\u63cf\uff0c\u4e5f\u672a\u505a\u5168 ref \u53ef\u8fbe\u6027\u5206\u6790\uff0c\u540c\u5185\u5bb9\u5bf9\u8c61\u53ef\u80fd\u5b58\u5728\u4e8e\u522b\u7684\u5206\u652f\u6216\u88ab\u5ffd\u7565\u7684\u76ee\u5f55\u91cc"
+            }
+          },
+          {
+            "path": "_bmad-output/.venv-freeze-2026-08-24.txt",
+            "fields": [
+              "category",
+              "disposition",
+              "rule"
+            ],
+            "from": {
+              "category": "\u4e34\u65f6\u7269",
+              "rule": "E2",
+              "disposition": "\u4e34\u65f6\u7269\uff1a\u53ef\u5b89\u5168\u5ffd\u7565\uff1b\u672c\u5361\u4e0d\u6267\u884c\u6e05\u7406\uff08\u53ea\u767b\u8bb0\uff09"
+            },
+            "to": {
+              "category": "\u5ba1\u67e5\u4ea7\u7269",
+              "rule": "R1",
+              "disposition": "\u5ba1\u67e5\u4ea7\u7269\uff1a\u4fdd\u6301\u539f\u5730\uff1b\u662f\u5426\u5165\u5e93\u7531\u6240\u5c5e\u6279\u6b21\u6536\u5c3e\u65f6\u88c1\u5b9a"
+            }
+          },
+          {
+            "path": "_bmad-output/\u5ba1\u67e5/2026-05-27-\u4e24\u767d\u677f\u751f\u4ea7\u529b\u5ba1\u67e5-\u4efb\u52a1\u4e66-\u7ed9-ChatGPT.md",
+            "fields": [
+              "disposition"
+            ],
+            "from": {
+              "disposition": "\u65e0\u5185\u5bb9\u540c\u4e00\u526f\u672c\u7684\u771f\u5220\u9664\uff1a\u5220\u9664\u610f\u56fe\u672a\u63d0\u4ea4\u4e14\u4e0d\u53ef\u7531\u5f52\u6863\u533a\u8fd8\u539f\uff0c\u9700\u7528\u6237\u663e\u5f0f\u88c1\u5b9a"
+            },
+            "to": {
+              "disposition": "\u5728**\u672c\u6b21\u53ef\u89c1\u5019\u9009\u6c60**\uff08porcelain \u53ef\u89c1\u4e14\u975e ignored \u7684\u672a\u8ddf\u8e2a\u6587\u4ef6 + \u672c\u4ed3 HEAD \u7684\u5176\u4ed6\u8def\u5f84\uff09\u4e2d\u672a\u627e\u5230\u540c\u5185\u5bb9\u526f\u672c\uff1a\u5220\u9664\u610f\u56fe\u672a\u63d0\u4ea4\uff0c\u9700\u7528\u6237\u663e\u5f0f\u88c1\u5b9a\u3002\u26a0\ufe0f \u8fd9**\u4e0d\u7b49\u4e8e\u300c\u4e0d\u53ef\u8fd8\u539f\u300d**\u2014\u2014ignored \u5b50\u6811\u672a\u626b\u63cf\uff0c\u4e5f\u672a\u505a\u5168 ref \u53ef\u8fbe\u6027\u5206\u6790\uff0c\u540c\u5185\u5bb9\u5bf9\u8c61\u53ef\u80fd\u5b58\u5728\u4e8e\u522b\u7684\u5206\u652f\u6216\u88ab\u5ffd\u7565\u7684\u76ee\u5f55\u91cc"
+            }
+          }
+        ],
+        "baseline_had_entries": true,
+        "assertions_baseline": {
+          "no_custom_filter_drivers": true,
+          "pin_sha_ok": true,
+          "parsed_count_matches_independent_count": true,
+          "orig_field_iff_rename_or_copy": true,
+          "xy_sequence_matches_independent_parse": true,
+          "roundtrip_bytes_identical": true,
+          "count_equals_porcelain_records": true,
+          "readonly_porcelain_unchanged": true
+        },
+        "assertions_now": {
+          "filter_drivers_absent_or_accepted": true,
+          "pin_sha_ok": true,
+          "parsed_count_matches_independent_count": true,
+          "orig_field_iff_rename_or_copy": true,
+          "xy_sequence_matches_independent_parse": true,
+          "roundtrip_bytes_identical": true,
+          "feature_ref_resolvable_or_declared": true,
+          "count_equals_porcelain_records": true,
+          "entries_preserve_record_identity": true,
+          "content_evidence_independently_recomputable": true,
+          "relocation_evidence_self_consistent": true,
+          "readonly_porcelain_unchanged": true
+        }
+      }
+    ]
+  }
+}

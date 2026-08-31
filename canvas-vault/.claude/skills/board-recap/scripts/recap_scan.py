@@ -117,6 +117,37 @@ def _parse_dt(value) -> datetime | None:
     return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
 
 
+def unsafe_name_chars(name: str) -> list[str]:
+    """板名/节点名里的**不可接受字符**, 返回其 U+XXXX 码位 (去重保序, 空 = 合法)。
+
+    ⛔ M7 (CARD-M11M7, BATCH-2026-08-31-第七批) —— 原拒绝集只有 ``ord(c) < 32``
+    (C0), 漏掉 DEL 与 C1, 二者均已**实测复现**消费面损坏:
+      - ``U+007F`` (DEL): 板名会被 recap_exam_build 写进产物 frontmatter 的
+        ``source_board``, PyYAML 对它直接抛 ReaderError ⇒ board_manifest_service
+        记 ``file_parse_failed``, 整张检验白板从 exam_history 里消失;
+      - ``U+0085`` (NEL): YAML 规范把它当**行断**处理 ⇒ ``source_board`` 的值在
+        此处断裂 ⇒ ``exam_history.board_id`` 变成 ``null`` (板归属丢失, 且**不报**
+        parse error —— 静默错更难发现)。``U+0080``-``U+009F`` 整段 C1 同族同理。
+
+    ``U+2028``/``U+2029`` (行/段分隔符) **无实测症状** (当前 PyYAML 容忍) ——
+    列入是因为 Python ``str.splitlines()`` 会在它们处分行, 而本脚本的解析与
+    verifier 全是行级正则; 属预防性拒绝, 误伤面为零 (没有合法板名需要行分隔符)。
+    两类字符的证据等级不同, 此处如实分列, 不混称"均已实证"。
+
+    诚实边界: 本函数只管**字符集**, 不做 Unicode 归一化 (NFC/NFD 归一属
+    CARD-G5-3 的稳定 ID 面, 两者互不覆盖 —— 归一化解决"同一板名两种编码形式",
+    本函数解决"这个字符根本不能进 YAML/行级解析")。
+    """
+    bad: list[str] = []
+    for ch in name:
+        o = ord(ch)
+        if o < 0x20 or 0x7F <= o <= 0x9F or ch in ("\u2028", "\u2029"):
+            code = f"U+{o:04X}"
+            if code not in bad:
+                bad.append(code)
+    return bad
+
+
 def _contained_md(base: Path, name: str) -> Path | None:
     """路径 containment (B2): name 必须是纯文件名 stem, 解析后仍在 base 内。
 
@@ -131,7 +162,9 @@ def _contained_md(base: Path, name: str) -> Path | None:
         return None
     # shell 元字符与控制字符 (B2 补): 板名/节点名会出现在 Bash 单引号参数里,
     # 单引号本身会破坏引用; ` $ " 与控制字符没有任何合法板名需要 → 一律拒绝。
-    if any(c in "`$'\"" or ord(c) < 32 for c in name):
+    # M7: 控制字符判据抽成 unsafe_name_chars() —— 拒绝集扩到 DEL/C1/行分隔符,
+    # 且同一份判据可被调用方复用于**点名码位**的可读拒绝原因 (一处判定, 一处诊断)。
+    if any(c in "`$'\"" for c in name) or unsafe_name_chars(name):
         return None
     candidate = base / f"{name}.md"
     try:
@@ -1480,13 +1513,23 @@ def main() -> int:
 
     board_path = _contained_md(board_dir, args.board)
     if board_path is None or not board_path.is_file():
+        # M7 · Codex round-1 LOW: containment 拒绝有两个不同成因, 原文案一律说成
+        # "路径分隔符/父目录引用或越界" —— 板名含不可见控制字符时那句话是**错的**,
+        # 用户按它去查路径永远查不出问题。字符类拒绝改为点名码位 (与 recap_exam_build
+        # 的诊断同源, 同一个 unsafe_name_chars 判据)。
+        bad_chars = unsafe_name_chars(args.board)
         print(
             json.dumps(
                 {
                     "board_exists": False,
                     "board_stem": args.board,
                     "refusal_reason": (
-                        "板名含路径分隔符/父目录引用或越界 (containment 拒绝)"
+                        (
+                            f"板名含不可用于 YAML/行级解析的字符 {', '.join(bad_chars)} "
+                            "(containment 拒绝)"
+                            if bad_chars
+                            else "板名含路径分隔符/父目录引用或越界 (containment 拒绝)"
+                        )
                         if board_path is None
                         else "原白板文件不存在"
                     ),

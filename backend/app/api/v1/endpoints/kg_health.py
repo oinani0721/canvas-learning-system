@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from app.config import Settings, get_settings
+from app.utils.cypher_helpers import allow_cross_vault
 
 logger = structlog.get_logger(__name__)
 
@@ -29,6 +30,7 @@ class KGHealthResponse(BaseModel):
 
 
 @kg_health_router.get("/health")
+@allow_cross_vault(reason="system-wide KG health metrics / orphan sweep across all vaults")
 async def kg_health_check(
     settings: Settings = Depends(get_settings),  # noqa: B008
 ) -> dict:

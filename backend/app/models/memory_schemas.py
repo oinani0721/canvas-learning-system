@@ -19,6 +19,12 @@ from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+# CARD-G4-3 (BATCH-2026-08-31-第七批): API 面复用 G4-2 的统一四态枚举, 而不是
+# 在 schema 里另起一套字符串 —— 本卡的正事就是消灭词汇分裂, 自己再造一套是
+# 自相矛盾。用枚举而非裸 str 还有一个副作用是想要的: OpenAPI 里该字段会带上
+# 四个合法值的 enum 约束, 值域由 schema 强制而非靠约定。
+from app.models.service_status import ServiceStatus
+
 # =============================================================================
 # Learning Episode Schemas
 # [Source: docs/stories/22.4.story.md#Pydantic模型]
@@ -147,6 +153,22 @@ class LearningHistoryResponse(BaseModel):
     page_size: int = Field(..., description="每页大小")
     pages: int = Field(..., description="总页数")
 
+    # ── CARD-G4-3 加性四态字段 (可选带默认, 200 语义不变) ────────────────
+    # 默认 None 不是随手写的: 本模型在测试与旧调用点被直接构造, 若设成必填,
+    # 每一处旧构造点都会炸 —— 那就不是"加性"而是破坏。None 的语义是
+    # 「服务层这一次没给出状态」, 与 empty 严格区分。
+    retrieval_status: Optional[ServiceStatus] = Field(
+        None,
+        description=(
+            "检索四态 (G4-2 统一枚举): ok=有结果 / empty=真空 / "
+            "degraded=部分源失败仍有兜底 / unavailable=不可信。"
+            "null=本次未产出状态。空 items 配 unavailable ≠ 空 items 配 empty。"
+        ),
+    )
+    retrieval_status_reason: Optional[str] = Field(
+        None, description="故障说明 — degraded/unavailable 时非空, ok/empty 恒 null"
+    )
+
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
@@ -218,6 +240,16 @@ class ConceptHistoryResponse(BaseModel):
     timeline: List[ConceptHistoryTimeline] = Field(..., description="时间线数据")
     score_trend: ScoreTrend = Field(..., description="得分趋势")
     total_reviews: int = Field(..., description="总复习次数")
+
+    # ── CARD-G4-3 加性四态字段 ────────────────────────────────────────
+    # 本端点是四态最"值钱"的地方: 空 timeline 此前既可能是「这个概念真没学
+    # 过」也可能是「Neo4j 挂了」, 两者在 HTTP 面上完全同形。
+    retrieval_status: Optional[ServiceStatus] = Field(
+        None, description="检索四态 (G4-2 统一枚举); null=本次未产出状态"
+    )
+    retrieval_status_reason: Optional[str] = Field(
+        None, description="故障说明 — degraded/unavailable 时非空"
+    )
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -517,6 +549,65 @@ class ReviewSuggestionResponse(BaseModel):
     )
 
 
+class ReviewSuggestionsResponse(BaseModel):
+    """GET /review-suggestions 的信封响应 — CARD-G4-3 拍板项 1。
+
+    ⚠️ **这一处不是加性, 是破坏性契约变更, 如实登记**:
+
+    该端点原先返回**裸 JSON 数组** (``response_model=List[ReviewSuggestionResponse]``)。
+    JSON 顶层是数组时体内无处安放状态字段 —— 加性在这里物理上做不到, 只能
+    换信封。手册 §一 拍板项 1 判定"实测零消费方 → 推荐换", 本卡按推荐执行。
+
+    grep 实测 (证据全文: _bmad-output/审查/evidence-g43/01-*.txt):
+    - **活跃**生产源码消费方 = 0 —— 无前端 (.ts/.tsx)、无 Obsidian 插件 JS、
+      无 sidecar、无 Python HTTP 客户端调用本路径; ``LearningMemoryClient``
+      是**本地 JSON 文件存储**客户端 (只是恰好定义在 neo4j_edge_client.py 里),
+      无论如何不走 HTTP。
+    - ⚠️ **归档面有 1 个真实消费方**: ``_archive/canvas-progress-tracker/
+      obsidian-plugin/src/api/ApiClient.ts:1413`` 是 git tracked 的 HTTP 客户端,
+      签名期望**裸数组**; 该插件属已淘汰产物 (不在活跃构建链), 若复活需改读 items。
+    - **仓外**消费面 (Claude Code / Claudian / 用户脚本) = UNVERIFIABLE。
+    - **测试侧有 6 处结构断言依赖裸 list** (手册"零消费方"未涵盖), 已随本卡
+      同批改写并逐条记入验收单。
+
+    条目自身 (``ReviewSuggestionResponse``) 的字段契约**一个字未动** ——
+    信封化只动顶层容器。
+    """
+
+    items: List[ReviewSuggestionResponse] = Field(
+        default_factory=list, description="复习建议列表 (原裸数组的内容)"
+    )
+    retrieval_status: Optional[ServiceStatus] = Field(
+        None,
+        description=(
+            "检索四态 (G4-2 统一枚举)。unavailable 时 items 恒空且**不可信** —— "
+            "与 empty (真的没有待复习概念) 是两回事。"
+        ),
+    )
+    retrieval_status_reason: Optional[str] = Field(
+        None, description="故障说明 — degraded/unavailable 时非空"
+    )
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "items": [
+                    {
+                        "concept": "逆否命题",
+                        "concept_id": "concept-123",
+                        "last_score": 75,
+                        "review_count": 2,
+                        "due_date": "2025-12-12T00:00:00",
+                        "priority": "high",
+                    }
+                ],
+                "retrieval_status": "ok",
+                "retrieval_status_reason": None,
+            }
+        }
+    )
+
+
 # =============================================================================
 # Exported Models
 # =============================================================================
@@ -543,4 +634,5 @@ __all__ = [
     "BatchEpisodesResponse",
     "ReviewPriority",
     "ReviewSuggestionResponse",
+    "ReviewSuggestionsResponse",
 ]
