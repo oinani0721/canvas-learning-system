@@ -22,21 +22,40 @@ buckets 五桶 (new/learning_queue/due_now/due_today/future) 后, 本端点只�
 仍是权威计数 (生产器 S2「加标签不搬移」使这两条口径分毫未动)。桶内
 why_due 的节点级展示属 G6-5 地盘, 这里只门禁不渲染。旧投影 (无 buckets 键)
 保持 ok 且 bucket_counts=null — 不伪造分层数字, 也不倒逼迁移。
+
+CARD-G6-1 (BATCH-2026-08-31-第七批) 投影按需重建: 新增
+POST /api/v1/review/overview/refresh — 显式用户触发, subprocess 直调
+scripts/daily_review_pick.py --vault <该库> --write。GET 两个端点的**只读
+纯度不变** (本模块仍不含第二套到期算法, 重建一律委托生产器唯一裁判);
+写侧安全与 fail-closed 口径见 _rebuild_projection 的 docstring。
+
+CARD-G6-4 (同批) 节点级明细: 板行之下加一行 details/summary 折叠区, 展开逐
+节点显示 名称 / 桶位 / 到期人话 / why_due, 节点名是 obsidian://open 深链指向
+节点/<name>.md。**零 schema 改动** —— 全部字段都已在 due_nodes 行里, 本卡只
+是把此前只用于对账的 bucket/why_due 拿来渲染 (并因此给它们补了独立门禁:
+旧投影没有 buckets 顶层键时 _gate_buckets 不跑, 这两个字段此前完全没验形)。
 """
 
 from __future__ import annotations
 
+import hashlib
 import html
+import ipaddress
 import json
 import math
+import os
 import re
+import subprocess
+import sys
+import threading
+import time
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import quote
 
 import structlog
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Form, HTTPException, Request, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from app.config import get_settings
 
@@ -50,10 +69,14 @@ _PROJECTION_REL = ("outputs", "今日复习.json")
 #: 展示时区: 统一 Asia/Shanghai (CARD-D1 — live 容器跑 UTC, astimezone()
 #: 会显示 UTC 裸串差 8 小时)。容器缺 tzdata 时退化为固定 +8 (Asia/Shanghai
 #: 自 1991 年起无夏令时, 固定偏移语义等价)。
+#: 显示时区的名字 —— 读侧的 _TZ_SHANGHAI 与写侧子进程的 TZ 共用这一个字面量,
+#: 二者永不漂移 (CARD-G6-1 收官审计)
+_DISPLAY_TZ_NAME = "Asia/Shanghai"
+
 try:
     from zoneinfo import ZoneInfo
 
-    _TZ_SHANGHAI = ZoneInfo("Asia/Shanghai")
+    _TZ_SHANGHAI = ZoneInfo(_DISPLAY_TZ_NAME)
 except Exception:  # noqa: BLE001 — ZoneInfoNotFoundError / ImportError 同一退化
     _TZ_SHANGHAI = timezone(timedelta(hours=8))
 
@@ -148,6 +171,27 @@ def _gate_due_groups(due_nodes: list) -> dict[str, dict]:
         # 生产器构造律: scheduled ⟺ fsrs_due 非空 (new/malformed 均为空串)
         if (reason == "scheduled") != bool(ts):
             raise ValueError(f"due_nodes[{i}] due_reason={reason!r} 与 fsrs_due={ts!r} 不自洽")
+        # CARD-G6-4: bucket/why_due 从"只留底给 _gate_buckets 对账"升为"要渲染
+        # 到页面上", 所以必须自己验形 —— 旧投影 (无 buckets 顶层键) 下
+        # _gate_buckets 根本不跑, 这两个字段此前是**完全没门禁**的; 直接拿去
+        # 渲染就等于开了一条形状垃圾通道。缺省 (None) 是合法的旧投影形态,
+        # 有值就必须是生产器的合法取值。
+        bucket = row.get("bucket")
+        if bucket is not None:
+            # Codex-G6-4 round-1: 只校验"属于五桶之一"不够 —— due_nodes 的行
+            # **按构造只可能落三个到期桶** (生产器 S1: 到期三桶的成员恒等于
+            # due_nodes 明细; due_today/future 是非到期侧, 在 due_nodes 里没有
+            # 对手盘)。放行 bucket="future" 会让一个已逾期节点在页面上被标成
+            # 「未来」—— 比不标更坏, 那是主动误导。
+            if bucket not in _DUE_BUCKETS:
+                raise ValueError(f"due_nodes[{i}].bucket 非到期桶: {bucket!r} (due_nodes 行只可能落到期三桶)")
+            # 与 _gate_buckets ④ 同一条构造律的逆检查 —— 顶层无 buckets 键时
+            # 那个函数根本不跑, 这条自洽性此前无人把关
+            if (bucket == "new") != (reason == "new"):
+                raise ValueError(f"due_nodes[{i}] bucket={bucket!r} 与 due_reason={reason!r} 不自洽")
+        why = row.get("why_due")
+        if why is not None and (not isinstance(why, str) or not why):
+            raise ValueError(f"due_nodes[{i}].why_due 应为非空字符串或缺省, 实为 {why!r}")
         g = groups.setdefault(board, {"due": 0, "new": 0, "scheduled": 0, "earliest": "", "rows": {}})
         # CARD-G3-6a: 逐行留底 (节点身份 + 行内 bucket/why_due) 供 _gate_buckets
         # 做成员级跨源核对 —— 只留聚合计数会让"身份被替换但计数不变"的桶位
@@ -155,8 +199,8 @@ def _gate_due_groups(due_nodes: list) -> dict[str, dict]:
         g["rows"][node] = {
             "reason": reason,
             "fsrs_due": ts,
-            "bucket": row.get("bucket"),
-            "why_due": row.get("why_due"),
+            "bucket": bucket,
+            "why_due": why,
         }
         g["due"] += 1
         if reason == "new":
@@ -549,6 +593,17 @@ def _board_link(vault_id: str, board: str) -> str:
     return "obsidian://open?vault=" + quote(vault_id, safe="") + "&file=" + quote(f"原白板/{board}.md", safe="")
 
 
+def _node_link(vault_id: str, node: str) -> str:
+    """obsidian:// 节点深链 (CARD-G6-4) —— 节点名==扁平池文件 stem 约定。
+
+    与 _board_link 同一条编码纪律: `safe=""` 让路径分隔符 `/` 也被
+    percent-encode 成 `%2F` —— 节点名里出现 `/`(macOS 目录名里非法但 JSON
+    投影里可以有)、`&`、`#`、`?` 时, 不转义会把 query 参数截断成另一个链接。
+    库名与节点名分别编码, 不拼完再编。
+    """
+    return "obsidian://open?vault=" + quote(vault_id, safe="") + "&file=" + quote(f"节点/{node}.md", safe="")
+
+
 #: 状态 → (徽标文案, 徽标色) — 页面与 JSON status 同一枚举
 _STATUS_META = {
     "ok": ("今日投影", "#16a34a"),
@@ -641,7 +696,15 @@ def _summarize(payload: dict) -> dict:
             raise ValueError("buckets 在场但 boards 缺席 — 非生产器产物 (二者同版一起落盘)")
         bucket_counts = _gate_buckets(payload["buckets"], groups, stats, generated_at, future_map, up_gated)
     board_rows = [
-        {"board": b, "due": g["due"], "due_new": g["new"], "placeholder": ph_map.get(b), "earliest": g["earliest"]}
+        {
+            "board": b,
+            "due": g["due"],
+            "due_new": g["new"],
+            "placeholder": ph_map.get(b),
+            "earliest": g["earliest"],
+            # CARD-G6-4 加性: 板内到期节点明细 (纯消费既有 due_nodes 行, 零 schema 改动)
+            "nodes": _node_rows(g["rows"]),
+        }
         for b, g in groups.items()
     ]
     board_rows.sort(key=lambda r: (prio.get(r["board"], len(prio)), -r["due"], r["board"]))
@@ -654,6 +717,7 @@ def _summarize(payload: dict) -> dict:
                 "placeholder": ph_map.get(z["board"]),
                 # next_due 空串 = 无未来排期 (占位符专属板) → 无数据 "—"
                 "earliest": z["next_due"] or None,
+                "nodes": [],  # 零到期板没有到期节点可展开 (未来节点不在 due_nodes 里)
             }
             for z in rollup_zero
             if z["board"] not in groups  # 防御: 同板双列时到期行为准
@@ -661,7 +725,14 @@ def _summarize(payload: dict) -> dict:
         zero_rows.sort(key=lambda r: (r["earliest"] is None, r["earliest"] or "", r["board"]))
     else:
         zero_rows = [
-            {"board": u["board"], "due": 0, "due_new": 0, "placeholder": None, "earliest": u["next_due"]}
+            {
+                "board": u["board"],
+                "due": 0,
+                "due_new": 0,
+                "placeholder": None,
+                "earliest": u["next_due"],
+                "nodes": [],
+            }
             for u in up_gated
             if u["board"] not in groups  # 防御: 生产器不会让同板双列, 双列时到期行为准
         ]
@@ -705,6 +776,33 @@ def _summarize(payload: dict) -> dict:
         # CARD-G3-6a 加性: 五桶分层计数; 缺省 null = 旧投影无 buckets 键
         "bucket_counts": bucket_counts,
     }
+
+
+def _node_rows(rows: dict[str, dict]) -> list[dict]:
+    """板内到期节点明细 (CARD-G6-4) —— 纯消费 _gate_due_groups 已门禁过的行。
+
+    排序 = 紧迫度降序, 与既有板级 `earliest` 的口径**同一条规则**:
+    已排期的到期时刻恒在过去, 越早越紧迫, 所以先按非空时间戳升序; 新卡的
+    fsrs_due 是空串 (语义 = 现在), 排在已逾期节点之后 —— 字典序把 "" 当最小
+    会让"逾期 3 天"被"现在"盖掉, 那正是 D1 复核抓过的低估紧迫度缺陷, 这里
+    不许在明细里重犯一遍。同刻按节点名稳定排序 (防同分随机漂)。
+
+    bucket / why_due 可能为 None (G3-6a 之前的旧投影没有这两个字段) —— 渲染层
+    据此降级为"—", 不伪造分层标签。
+    """
+    return sorted(
+        (
+            {
+                "node": node,
+                "due_reason": meta["reason"],
+                "fsrs_due": meta["fsrs_due"],
+                "bucket": meta["bucket"],
+                "why_due": meta["why_due"],
+            }
+            for node, meta in rows.items()
+        ),
+        key=lambda r: (r["fsrs_due"] == "", r["fsrs_due"], r["node"]),
+    )
 
 
 def _reject_nonstandard_json(const: str):
@@ -765,7 +863,15 @@ def _vault_entry(vault_dir: Path, today: date) -> dict:
 
 def _collect() -> dict:
     s = get_settings()
-    vaults_root = Path(s.VAULTS_ROOT).resolve()
+    try:
+        vaults_root = Path(s.VAULTS_ROOT).resolve()
+    except OSError as e:
+        # 防御深度 (Codex round-3 提出; 本平台未复现 resolve 抛错, 如实登记):
+        # 本端点的全部错误路径都该是 503, 不许有一条能逃逸成 500
+        raise HTTPException(
+            status_code=503,
+            detail={"error": "vaults_root_invalid", "message": f"{type(e).__name__}: {str(e)[:200]}"},
+        )
     if not vaults_root.is_dir():
         raise HTTPException(
             status_code=500,
@@ -824,8 +930,61 @@ _TD = "padding:5px 8px;border-bottom:1px solid #f3f4f6"
 _TD_NUM = _TD + ";text-align:center;white-space:nowrap"
 
 
+#: 节点明细行样式 (CARD-G6-4) —— 全部相对单位 + 允许折行, 375px 窄窗不横溢
+_NODE_LI = "margin:0 0 6px;list-style:none;line-height:1.5;overflow-wrap:anywhere;word-break:break-word"
+#: 桶位小标签
+_NODE_TAG = (
+    "display:inline-block;background:#f3f4f6;color:#4b5563;border-radius:4px;"
+    "padding:0 6px;font-size:11px;margin-left:6px;white-space:nowrap"
+)
+
+
+def _node_detail_html(vault_id: str, nodes: list[dict], now_sh: datetime) -> str:
+    """板行下的节点级明细 (CARD-G6-4): 名称 + 桶位 + 到期人话 + why_due + 深链。
+
+    纯 `<details>/<summary>` 折叠, 零 JS。每个节点名是一条 obsidian:// 深链,
+    点了直接开那个节点 md。
+    bucket / why_due 缺省 (G3-6a 之前的旧投影) 时整块不出现 —— 不伪造分层标签,
+    与卡片汇总行"无 buckets 就不显示分层行"同一条纪律。
+    """
+    if not nodes:
+        return ""
+    items = []
+    for n in nodes:
+        name = html.escape(n["node"])
+        link = html.escape(_node_link(vault_id, n["node"]))
+        eta, eta_color = _humanize_due(n["fsrs_due"], now_sh)
+        tag = (
+            ""
+            if n.get("bucket") is None
+            else f'<span style="{_NODE_TAG}">{html.escape(_BUCKET_CN[n["bucket"]])}</span>'
+        )
+        why = (
+            ""
+            if not n.get("why_due")
+            else f'<div style="color:#6b7280;font-size:12px;margin-top:1px">{html.escape(n["why_due"])}</div>'
+        )
+        items.append(
+            f'<li style="{_NODE_LI}">'
+            f'<a href="{link}" style="color:#2563eb;text-decoration:none">{name}</a>'
+            f"{tag}"
+            f'<span style="color:{eta_color};font-size:12px;margin-left:6px">{html.escape(eta)}</span>'
+            f"{why}</li>"
+        )
+    return (
+        f'<details style="margin:2px 0 4px"><summary style="cursor:pointer;color:#6b7280;'
+        f'font-size:12px;padding:2px 0">展开 {len(nodes)} 个到期节点</summary>'
+        f'<ul style="margin:6px 0 2px;padding:0">{"".join(items)}</ul></details>'
+    )
+
+
 def _board_table_html(vault_id: str, boards: list[dict], now_sh: datetime) -> str:
-    """三级视图第二/三级: 板表格 白板名|到期|新卡|待剖析|最早到期。"""
+    """三级视图第二/三级: 板表格 白板名|到期|新卡|待剖析|最早到期。
+
+    CARD-G6-4: 有到期节点的板在数据行之下多一行 `colspan=5` 的折叠区
+    (`<details>`)。放在整宽的第二行而不是塞进"白板名"那一格 —— 塞进单元格
+    会把第一列撑宽、把其余四列挤扁, 375px 窄窗尤其难看。
+    """
     if not boards:
         return '<div style="color:#6b7280;margin:10px 0;font-size:13px">该库暂无到期或已排期的白板</div>'
     head = "".join(f'<th style="{_TH}">{c}</th>' for c in ("白板名", "到期", "新卡", "待剖析", "最早到期"))
@@ -845,6 +1004,9 @@ def _board_table_html(vault_id: str, boards: list[dict], now_sh: datetime) -> st
             f'<td style="{_TD};white-space:nowrap;color:{eta_color}">{html.escape(eta)}</td>'
             f"</tr>"
         )
+        detail = _node_detail_html(vault_id, r.get("nodes") or [], now_sh)
+        if detail:
+            rows_html.append(f'<tr><td colspan="5" style="{_TD};padding-top:0">{detail}</td></tr>')
     return (
         '<div style="overflow-x:auto;margin:10px 0 4px">'
         '<table style="border-collapse:collapse;width:100%;font-size:13px">'
@@ -852,8 +1014,29 @@ def _board_table_html(vault_id: str, boards: list[dict], now_sh: datetime) -> st
     )
 
 
-def _card_html(entry: dict, now_sh: datetime) -> str:
-    """三级视图第一级: vault 卡片 (名+四态徽标+汇总行) → 板表格。"""
+#: 刷新按钮样式 (CARD-G6-1) — 与页面既有配色同族, 无外部资源
+_BTN = (
+    "font-size:13px;color:#2563eb;background:#eff6ff;border:1px solid #bfdbfe;"
+    "border-radius:6px;padding:3px 10px;cursor:pointer;font-family:inherit"
+)
+
+
+def _refresh_form_html(vault_id: str, action: str) -> str:
+    """「刷新投影」表单按钮 — 纯 HTML form POST, 零 JS。
+
+    redirect=page 让端点以 303 回本页 (PRG): 浏览器刷新不会重复提交,
+    也就不会绕过 TTL 去抖反复起子进程。
+    """
+    return (
+        f'<form method="post" action="{html.escape(action)}" style="display:inline;margin:0">'
+        f'<input type="hidden" name="vault_id" value="{html.escape(vault_id)}">'
+        '<input type="hidden" name="redirect" value="page">'
+        f'<button type="submit" style="{_BTN}">🔄 刷新投影</button></form>'
+    )
+
+
+def _card_html(entry: dict, now_sh: datetime, refresh_action: str) -> str:
+    """三级视图第一级: vault 卡片 (名+四态徽标+汇总行) → 板表格 → 操作行。"""
     vid = html.escape(entry["vault_id"])
     label, color = _STATUS_META[entry["status"]]
     header = (
@@ -915,11 +1098,18 @@ def _card_html(entry: dict, now_sh: datetime) -> str:
             f'<div style="color:#dc2626;margin:12px 0">投影文件无法解析'
             f'<br><code style="font-size:11px">{err}</code></div>' + open_link
         )
+    # CARD-G6-1 操作行: 四态一律给刷新按钮 —— no_projection 恰恰是最需要它
+    # 的一态 (推送管道还没为该库跑过, 点一次就有了)
+    actions = (
+        '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:10px">'
+        + _refresh_form_html(entry["vault_id"], refresh_action)
+        + "</div>"
+    )
     return (
         '<div style="border:1px solid #e5e7eb;border-radius:12px;padding:16px 20px;'
         "flex:1 1 320px;min-width:0;max-width:520px;background:#fff;"
         'box-shadow:0 1px 3px rgba(0,0,0,.06)">'
-        f"{header}{body}</div>"
+        f"{header}{body}{actions}</div>"
     )
 
 
@@ -928,11 +1118,14 @@ def _card_html(entry: dict, now_sh: datetime) -> str:
     response_class=HTMLResponse,
     summary="跨 vault 复习总览页 (内联 HTML, 零外部 CDN / 零 JS)",
 )
-async def review_overview_page() -> HTMLResponse:
+async def review_overview_page(request: Request) -> HTMLResponse:
     data = _collect()
     # 同一次时钟读数贯穿页面 (generated_at 是 _collect 的上海本地 iso)
     now_sh = datetime.fromisoformat(data["generated_at"])
-    cards = "".join(_card_html(e, now_sh) for e in data["vaults"]) or (
+    # 表单 action 用 url_for 的 **path**: 前缀改了不会漂 (硬编码 /api/v1/…
+    # 会), 取 .path 而非绝对 URL 则不受反代改 host/scheme 影响
+    refresh_action = request.url_for("review_overview_refresh").path
+    cards = "".join(_card_html(e, now_sh, refresh_action) for e in data["vaults"]) or (
         '<div style="color:#6b7280">VAULTS_ROOT 下未发现任何 vault (需含 .obsidian/ 目录)</div>'
     )
     generated = html.escape(_fmt_local_dt(now_sh))
@@ -945,7 +1138,8 @@ async def review_overview_page() -> HTMLResponse:
         'margin:0;padding:24px">'
         '<h1 style="font-size:22px;margin:0 0 4px">📚 跨库复习总览</h1>'
         f'<div style="color:#6b7280;font-size:13px;margin-bottom:20px">'
-        f"页面生成于 {generated} · 只读聚合, 数据来自各库 outputs/今日复习.json</div>"
+        f"页面生成于 {generated} · 只读聚合, 数据来自各库 outputs/今日复习.json"
+        f" · 「刷新投影」按需重建该库投影（只写它自己的 outputs/今日复习.*）</div>"
         f'<div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start">{cards}</div>'
         '<div style="color:#9ca3af;font-size:12px;margin-top:24px">'
         "⚠ obsidian:// 跳转需在 Obsidian 打开过该库（未注册的库点击无响应）；"
@@ -953,3 +1147,749 @@ async def review_overview_page() -> HTMLResponse:
         "</body></html>"
     )
     return HTMLResponse(content=page)
+
+
+# ════════════════════════════════════════════════════════════════════
+# CARD-G6-1 投影按需重建 (BATCH-2026-08-31-第七批)
+# ════════════════════════════════════════════════════════════════════
+
+#: 去抖窗口 (秒): 窗口内的重复 refresh 直接复用上次重建结果, 不再起子进程。
+#: 单调钟计量 —— 系统时钟被回拨不会让窗口永久卡死或整体失效。
+_REFRESH_TTL_SECONDS = 10.0
+
+#: 子进程墙钟上限 (秒)。超时按 fail-closed 报 503, 不装成功。
+_REFRESH_TIMEOUT_SECONDS = 120.0
+
+#: 生产器脚本的显式指定口 (部署逃生阀 — 见 _pick_script_candidates)
+_PICK_SCRIPT_ENV = "DAILY_REVIEW_PICK"
+
+#: 仓库内生产器相对路径 (A2 唯一裁判; 本端点严禁实现第二套到期算法)
+_PICK_REL = ("scripts", "daily_review_pick.py")
+
+#: per-vault 去抖账与串行锁。key = **已解析的 vault 目录绝对路径** (不是
+#: vault_id): 不同 VAULTS_ROOT 下的同名库是两个库, 用名字做 key 会让它们
+#: 共享同一个去抖窗口与计数。
+_refresh_guard = threading.Lock()  # 只保护下面三个字典的惰性建键
+_refresh_locks: dict[str, threading.Lock] = {}
+_refresh_marks: dict[str, float] = {}
+_refresh_counts: dict[str, int] = {}
+
+
+def _pick_script_candidates(vaults_root: Path) -> list[Path]:
+    """生产器脚本候选路径, 按可信度降序。
+
+    1. 环境变量 _PICK_SCRIPT_ENV — 部署方显式指定, 无歧义;
+    2. 与**正在运行的后端代码同一份 checkout** 的 scripts/ (本文件在
+       backend/app/api/v1/endpoints/ → parents[5] = 仓库根)。语义最强:
+       脚本与端点同 commit。容器里 /app 是 backend/ 本身, parents[5] 退化
+       为 `/` → `/scripts/...` 不存在, 自然落空而非误命中;
+    3. VAULTS_ROOT/scripts/ — 卡文点名的路径耦合。⚠ 这条是纯路径巧合,
+       仅当 VAULTS_ROOT 恰好指向含 scripts/ 的仓库根时成立。
+
+    全部落空即 503 (见 _resolve_pick_script) —— 绝不退化成「本地重算一份
+    到期口径」, 那会立刻造出 A2 明令禁止的第二套裁判。
+    """
+    cands: list[Path] = []
+    env = os.environ.get(_PICK_SCRIPT_ENV)
+    if env:
+        cands.append(Path(env))
+    try:
+        cands.append(Path(__file__).resolve().parents[5].joinpath(*_PICK_REL))
+    except IndexError:
+        # 本文件被放到浅于 5 层的路径上 (打包/单文件部署): 这条候选不成立,
+        # 但不该把整个端点打成 500 —— 少一条候选而已, 其余照试
+        pass
+    cands.append(vaults_root.joinpath(*_PICK_REL))
+    seen: set[str] = set()
+    uniq: list[Path] = []
+    for c in cands:
+        k = str(c)
+        if k not in seen:
+            seen.add(k)
+            uniq.append(c)
+    return uniq
+
+
+def _resolve_pick_script(vaults_root: Path) -> Path:
+    """定位生产器脚本; 找不到 → 503 fail-closed (附已试路径便于诊断)。"""
+    tried: list[str] = []
+    for c in _pick_script_candidates(vaults_root):
+        tried.append(str(c))
+        try:
+            if c.is_file():
+                return c
+        except OSError:  # 路径过长 / 权限 / 断链 symlink: 当作未命中继续
+            continue
+    raise HTTPException(
+        status_code=503,
+        detail={
+            "error": "pick_script_not_found",
+            "message": (
+                "未找到 daily_review_pick.py — 投影重建委托生产器唯一裁判, "
+                f"脚本不可达时拒绝服务而非本地重算。可用环境变量 {_PICK_SCRIPT_ENV} 显式指定。"
+            ),
+            "tried": tried,
+        },
+    )
+
+
+#: 子进程环境白名单 —— 只透传这些, 其余一律不带 (见 _child_env)。
+#: ⛔ TZ **不在**白名单里: 它由 _child_env 强制设成 _DISPLAY_TZ_NAME, 不接受
+#: 父进程的值 (容器里父进程的 TZ 是空的, 空 = UTC = 错日期)
+_ENV_PASSTHROUGH = ("PATH", "HOME", "TMPDIR", "LANG", "LC_ALL", "LC_CTYPE", "SYSTEMROOT")
+
+
+def _child_env() -> dict[str, str]:
+    """生产器子进程的环境 —— 白名单, 不是 `dict(os.environ)`。
+
+    整份继承会把父进程环境变成一条注入面: `PYTHONPATH` 能让子进程
+    `import decay_beta` 解析到**库外**的另一个模块 (生产器用
+    sys.path.insert 把库内目录插到最前, 但 PYTHONPATH 的目录同样在
+    sys.path 上, 库内没有该文件时就轮到它), 那段代码在后端进程的权限下
+    执行、想写哪儿写哪儿 —— Codex 探针 INHERITED_ENV 实测成立。
+    `PYTHONSTARTUP` / `PYTHONHOME` / `PYTHONWARNINGS` 同族。
+
+    白名单只保留跑一个 stdlib 脚本真正需要的: 解释器路径查找 (PATH)、
+    临时目录、locale。
+
+    ⛔ TZ 是**强制**设成显示时区, 不是"有就透传": 生产器的
+    `payload["date"] = now.astimezone().date().isoformat()` 与由它派生的
+    md 标题 `# 今日复习 · <date>`、Bark 通知 id `canvas-review-<date>` 全都
+    走**进程本地时区**。而后端容器 `TZ` 为空、`/etc/localtime -> Etc/UTC`
+    (现网实测), 于是上海 00:00-08:00 这 8 小时里 refresh 产出的是**昨天**的
+    日期 —— 端点照样返回 rebuilt=true / status=ok, 页面上没有任何异常信号,
+    正是"静默产出错日期"。宿主 launchd runner 跑在 Asia/Shanghai 下产出的
+    是正确日期, 于是同一个库的两条生成路径会给出不同的 date, 取决于谁最后写。
+
+    这条坑本文件读侧早已点名并修掉 (stale 判定用 `astimezone(_TZ_SHANGHAI)`,
+    见 _vault_entry 的注释), 本卡新开的**写侧**必须同口径, 否则等于把它原样
+    搬了回来。用同一个 _DISPLAY_TZ_NAME 字面量, 读写两侧永不漂移。
+    (收官审计实测: TZ=Asia/Shanghai → date=2026-08-31, TZ=UTC → date=2026-08-30,
+     同一时刻同一个库。)
+
+    PYTHONDONTWRITEBYTECODE=1 不是可选项: 生产器的 load_decay() 会
+    `import decay_beta`, 该模块在 **vault 内** (<vault>/.claude/scripts/),
+    不禁字节码就会在库里落 __pycache__/ —— 直接打破「只写 outputs/今日
+    复习.*」的写面承诺, 且这类残渣会被 Obsidian 同步/备份链一路带走。
+    PYTHONNOUSERSITE=1 同理堵掉 ~/.local/lib 的用户级 site-packages。
+    """
+    env = {k: v for k in _ENV_PASSTHROUGH if (v := os.environ.get(k)) is not None}
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    env["PYTHONNOUSERSITE"] = "1"
+    # 强制, 不是透传 —— 见上面 docstring。父进程的 TZ 不参与决定 (容器里它是空的,
+    # 空就等于 UTC; 而"读侧显示用 Shanghai、写侧落盘用 UTC"是不能存在的组合)
+    env["TZ"] = _DISPLAY_TZ_NAME
+    return env
+
+
+def _run_pick(script: Path, vault_dir: Path) -> subprocess.CompletedProcess:
+    """跑 `python <script> --vault <vault> --write` (写面只有 outputs/今日复习.*)。"""
+    # stdout 丢弃 (Codex round-3): 生产器会把整份 payload 打到 stdout —— 大库
+    # 里那是几 MB 的无用副本, 我们只从盘上读产物。errors="replace": 子进程
+    # 若吐出非法字节, 严格解码会抛 UnicodeDecodeError 逃逸成 500, 而这里的
+    # 全部错误路径都该是 503。
+    return subprocess.run(  # noqa: S603 — argv 列表 + 服务端自解析路径, 无 shell
+        [sys.executable, str(script), "--vault", str(vault_dir), "--write"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+        errors="replace",
+        timeout=_REFRESH_TIMEOUT_SECONDS,
+        cwd=str(script.parent),
+        env=_child_env(),
+        check=False,
+    )
+
+
+#: 生产器对一个库的最低要求, (相对路径, 是否应为目录)。
+#: daily_review_pick.scan_nodes 扫 节点/; load_decay 从库内 .claude/scripts 导 decay_beta。
+#: ⚠ 收官审计: 这个常量一度成了**死常量** —— 定义在这里带着"最低要求"的注释,
+#: 而 _pick_failure_hint 里内联重写了同一对判据, 全仓零引用它。以后有人按注释
+#: 改这里, 提示文案不会跟着变且无人报警。现在由 _pick_failure_hint 唯一消费。
+_REVIEW_ENABLED_MARKERS = (("节点", True), (".claude/scripts/decay_beta.py", False))
+
+
+def _pick_failure_hint(vault_dir: Path) -> str | None:
+    """失败后的人话诊断 —— **只读检查, 不参与"要不要重建"的决策**。
+
+    刻意不做成 pre-flight 准入: 生产器在哪儿找 decay_beta 是它自己的约定
+    (load_decay), 在端点里复刻成准入条件就多出一个会漂的真相源 —— 漂了会
+    把本来能跑的库挡在门外。放在失败之后当提示, 漂了最多是提示没用。
+
+    最常见的真实场景: 一个只有 .obsidian/ 的库 (被库枚举捞进来但从没为
+    每日复习配过), 点刷新时生产器抛 ModuleNotFoundError: decay_beta ——
+    直接把 traceback 甩给用户等于没解释。
+    """
+    # Codex round-3: 原来用 .exists(), 一个普通文件叫「节点」或一个目录叫
+    # 「decay_beta.py」都会被判成"配置齐全"(实测确认) —— 按类型逐项判。
+    # (它同时断言 .exists() 会抛异常把 503 打成 500 —— 实测**不成立**:
+    #  Path.exists() 内部吞 OSError/ValueError, 软链自环下返回 False。这里
+    #  仍包一层 try 只是防御深度, 不宣称修掉了一个已复现的缺陷。)
+    try:
+        missing = [
+            rel
+            for rel, want_dir in _REVIEW_ENABLED_MARKERS
+            if not ((vault_dir / rel).is_dir() if want_dir else (vault_dir / rel).is_file())
+        ]
+    except OSError:
+        return None  # 提示是锦上添花, 探不出来就不提示, 绝不影响主判定
+    if not missing:
+        return None
+    return (
+        "该库还没为「每日复习」配置好: 缺 "
+        + " 与 ".join(missing)
+        + " —— 每日复习需要库内有 节点/ 池和 .claude/scripts/decay_beta.py"
+    )
+
+
+def _refresh_key(vault_dir: Path) -> str:
+    """去抖账 / 串行锁的 key = **物理路径**。
+
+    Codex round-1 (BLOCKER-2 附带): VAULTS_ROOT 下两个软链别名指向同一个
+    物理库时, 用字面路径做 key 会给它们两把锁、两本去抖账 —— 同一个物理
+    库能被两条别名并发重建。resolve 后同一物理库恒得同一把锁。
+    """
+    try:
+        return str(vault_dir.resolve())
+    except OSError as e:
+        # Codex round-3: 退回字面路径会重新把同一物理库的两条别名拆成两把锁 ——
+        # 那正是本函数要消灭的东西。解析不了就 fail-closed 拒绝重建。
+        raise HTTPException(
+            status_code=503,
+            detail={"error": "path_resolve_failed", "message": f"{type(e).__name__}: {str(e)[:200]}"},
+        )
+
+
+#: 投影产物相对路径 (生产器 --write 的全部写面)
+_PROJECTION_MD_REL = ("outputs", "今日复习.md")
+
+
+def _publish_fingerprint(path: Path) -> tuple[int, int, str] | None:
+    """(st_ino, st_mtime_ns, sha256) —— 证明「**这一次**真的发布了产物」。
+
+    Codex round-3 HIGH: 只看"盘上有一份可消费 JSON"证不了本次重建成功 ——
+    一个 rc=0 却什么都不写的生产器, 若盘上原本就有昨天的好投影, 会被算成
+    本次重建成功。生产器发布走 os.replace(新写的 tmp): 路径改指向一个新建
+    的 inode, 于是 inode 变、mtime 变; 内容变了 sha 也变。三者全没动 =
+    什么都没发布。
+
+    ⚠ 为什么必须三个信号一起用 (实测, 不是推测):
+    - **只用 sha 不成立**: generated_at 是**秒级**精度, 同一秒内的两次重建
+      产出**逐字节相同**的文件 (本机实测 5 次连点 sha 全等)。
+    - **只用 mtime 不成立**: mtime 粒度随文件系统而变 —— 容器 /tmp 的
+      overlayfs 上 6 次连续 os.replace 只得到 3 个不同 mtime (实测)。
+    - inode 在生产路径上是最强的那个: /vaults 的 VirtioFS 与宿主 APFS 都是
+      6/6 全不同 (实测)。
+
+    ⚠ 残余 (如实登记, 不假装堵住): 在**同时**具备 inode 复用与粗粒度 mtime
+    的文件系统上 (实测 /tmp overlayfs 就是: inode 在两个值间轮换),
+    "同一 tick 内内容无变化的重建" 仍可能三个信号全等而被判成「没发布」。
+    该误判方向是 **fail-closed** —— 用户看到 503 而不是假成功, 盘上数据仍
+    正确。且它在生产挂载上不可达 (上面两组实测)。VAULTS_ROOT 若被指到
+    这类文件系统, 现象是"刷新恒 503 projection_not_republished", 日志里有
+    明确哨兵可查。
+    """
+    try:
+        st = path.stat()
+        return (st.st_ino, st.st_mtime_ns, hashlib.sha256(path.read_bytes()).hexdigest())
+    except OSError:
+        return None
+
+
+def _read_entry(vault_dir: Path) -> dict:
+    """读回该库的聚合条目 —— 与 _collect 同一条终极防线, 绝不逃逸成 500。"""
+    try:
+        return _vault_entry(vault_dir, datetime.now(_TZ_SHANGHAI).date())
+    except Exception as e:  # noqa: BLE001
+        logger.exception("review_overview refresh 读回异常", vault=vault_dir.name)
+        return {
+            "vault_id": vault_dir.name,
+            "path": str(vault_dir),
+            "status": "corrupt",
+            "projection": None,
+            "error": f"{type(e).__name__}: {str(e)[:200]}",
+        }
+
+
+def _rebuild_projection(vault_dir: Path, script: Path) -> tuple[dict, dict | None]:
+    """per-vault 串行 + TTL 去抖地重建一次投影 (同步; 由 FastAPI 线程池承载)。
+
+    ── 写侧安全 (本函数的全部承诺) ──
+    ① 只写 outputs/今日复习.md + .json: 生产器 --write 的写面就是这两个文件
+       (加 outputs/ 目录本身的 mkdir), 配 PYTHONDONTWRITEBYTECODE 堵掉
+       vault 内 __pycache__ 这条隐藏写面;
+    ② 不走 runner、不写 runner state: 不传 --state (生产器对 state 本就
+       只读), 更不碰 backups/daily-review.*.state.json —— 结构性保证, 不
+       靠约定。**代价如实登记**: runner 的 board_last_recommended 记录不
+       参与本次 tie-break, 故同分并列的板在 refresh 与 launchd 跑批之间
+       可能排序不同 (取 board_last_recommended 需要 send_bark.vault_key
+       的命名规则, 那是本卡硬边界外的文件, 不为一个排序细节去耦合它);
+    ③ 落盘撕裂: 生产器侧 atomic_write 已改 tmp 唯一化 + os.replace, 与
+       宿主 launchd 跑批并发时最坏结果是「后写者覆盖先写者」而非拼接损坏;
+    ④ 去抖: 同一库 TTL 窗口内只有第一次真起子进程, 其余直接读盘返回。
+    ⑤ 同库已有重建在飞时**不排队**, 立刻以 in_progress 返回: sync 端点跑在
+       FastAPI 的共享线程池里 (默认 40 线程), 阻塞等锁会让连点把整池占满,
+       连只读的 /overview 都被拖住 —— 快速如实回话比排队更诚实也更安全。
+
+    失败一律抛 HTTPException(503) —— 拿不到重建结果时返回旧投影并宣称
+    成功, 就是卡文点名要堵的「静默假成功」。
+
+    ⚠ 已知残余 (如实登记, 不假装堵住): 子进程若在 write_text 与 os.replace
+    之间被超时 kill (SIGKILL 不走 except 分支), 会在 outputs/ 里留下一个
+    `今日复习.*.tmp` 残渣。不做"清扫陈旧 tmp"是刻意的 —— 清扫无法区分
+    "陈旧残渣"与"另一个写者正在用的 tmp", 误删后者会把并发写直接打断,
+    比留一个无害残渣糟得多。该残渣名仍在 `今日复习.*` 前缀内。
+    """
+    key = _refresh_key(vault_dir)
+    with _refresh_guard:
+        lock = _refresh_locks.setdefault(key, threading.Lock())
+    if not lock.acquire(blocking=False):
+        return {
+            "rebuilt": False,
+            "reason": "in_progress",
+            "duration_ms": None,
+            "retry_after_seconds": round(_REFRESH_TTL_SECONDS, 3),
+            "rebuild_count": _refresh_counts.get(key, 0),
+        }, None
+    try:
+        now = time.monotonic()
+        last = _refresh_marks.get(key)
+        if last is not None and (now - last) < _REFRESH_TTL_SECONDS:
+            return {
+                "rebuilt": False,
+                "reason": "debounced",
+                "duration_ms": None,
+                "retry_after_seconds": round(_REFRESH_TTL_SECONDS - (now - last), 3),
+                "rebuild_count": _refresh_counts.get(key, 0),
+            }, None
+        started = time.monotonic()
+        json_path = vault_dir.joinpath(*_PROJECTION_REL)
+        md_path = vault_dir.joinpath(*_PROJECTION_MD_REL)
+        before_fp = _publish_fingerprint(json_path)
+        try:
+            proc = _run_pick(script, vault_dir)
+        except subprocess.TimeoutExpired:
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "error": "pick_timeout",
+                    "message": f"生产器超过 {_REFRESH_TIMEOUT_SECONDS:g}s 未返回, 投影未重建",
+                },
+            )
+        except OSError as e:
+            raise HTTPException(
+                status_code=503,
+                detail={"error": "pick_spawn_failed", "message": f"{type(e).__name__}: {str(e)[:200]}"},
+            )
+        if proc.returncode != 0:
+            # stderr 尾部足以定位 (argparse 报错 / traceback 末行), 不回全文
+            detail = {
+                "error": "pick_failed",
+                "message": "生产器非零退出, 投影未重建",
+                "returncode": proc.returncode,
+                "stderr_tail": (proc.stderr or "")[-800:],
+            }
+            hint = _pick_failure_hint(vault_dir)
+            if hint:
+                detail["hint"] = hint
+            raise HTTPException(status_code=503, detail=detail)
+        elapsed_ms = round((time.monotonic() - started) * 1000, 1)
+        # rc=0 还不算重建成功 (Codex round-1 HIGH-1 + round-3 收紧)。
+        # 两道独立的证明, 缺一不可:
+        #   ① **发布证明** —— json 的 (mtime_ns, sha256) 相对本次调用前必须变过,
+        #      且 md 必须在位。只查"盘上有一份可消费 JSON"证不了本次重建成功:
+        #      一个 rc=0 却什么都不写的生产器, 在盘上原本就有昨天好投影的库上
+        #      会被算成成功 (round-3 实证)。生产器发布走 os.replace(新写的 tmp),
+        #      每次发布必得新 mtime, 所以"两者都没动"= 什么都没发布。
+        #   ② **可消费证明** —— 读回来必须过 schema v3 门禁。
+        # 任一不成立都不提交 TTL mark / 计数 —— 否则用户修好之前的每次点击
+        # 都被去抖吃掉, 永远修不回来。
+        after_fp = _publish_fingerprint(json_path)
+        if after_fp is None:
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "error": "projection_missing_after_rebuild",
+                    "message": "生产器退出码为 0, 但盘上仍没有 outputs/今日复习.json — 未视为重建成功",
+                    "stderr_tail": (proc.stderr or "")[-400:],
+                },
+            )
+        if after_fp == before_fp:
+            # 哨兵: 这条也可能是"文件系统 inode 复用 + 粗粒度 mtime"造成的误判
+            # (见 _publish_fingerprint 的残余登记) —— 把三元组打进日志, 现场可辨
+            logger.error(
+                "review_overview refresh 判定未发布",
+                vault=vault_dir.name,
+                fingerprint=str(after_fp),
+                hint="若该 vault 所在文件系统 inode 复用且 mtime 粗粒度, 这可能是误判",
+            )
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "error": "projection_not_republished",
+                    "message": (
+                        "生产器退出码为 0, 但 outputs/今日复习.json 的 inode/mtime/内容三者与调用前全等"
+                        " — 本次什么都没发布"
+                    ),
+                    "stderr_tail": (proc.stderr or "")[-400:],
+                },
+            )
+        if not md_path.is_file():
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "error": "projection_md_missing",
+                    "message": "生产器退出码为 0, 但 outputs/今日复习.md 不在位 — 产物不成对, 未视为重建成功",
+                    "stderr_tail": (proc.stderr or "")[-400:],
+                },
+            )
+        entry = _read_entry(vault_dir)
+        if entry["status"] == "corrupt":
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "error": "projection_corrupt_after_rebuild",
+                    "message": "生产器退出码为 0, 但产出的投影过不了 schema v3 门禁 — 未视为重建成功",
+                    "projection_error": entry.get("error"),
+                },
+            )
+        _refresh_marks[key] = time.monotonic()
+        _refresh_counts[key] = _refresh_counts.get(key, 0) + 1
+        return {
+            "rebuilt": True,
+            "reason": "rebuilt",
+            "duration_ms": elapsed_ms,
+            "retry_after_seconds": 0.0,
+            "rebuild_count": _refresh_counts[key],
+        }, entry
+    finally:
+        lock.release()
+
+
+def _assert_write_target_contained(vault_dir: Path, vaults_root: Path) -> None:
+    """写目标必须真的落在这个库里 —— 符号链接逃逸 fail-closed。
+
+    `_list_vault_dirs` 用 `is_dir()` 枚举, 它**跟随符号链接**: VAULTS_ROOT 下
+    一个指向任意目录的软链只要那边有 .obsidian/, 就会被当成一个库列出来,
+    然后 refresh 会往库外写 (Codex 探针 VAULT_SYMLINK 实测成立)。同理
+    `<vault>/outputs` 若是指向库外的软链, 生产器的两个产物就落在库外
+    (探针 OUTPUTS_SYMLINK 实测成立) —— 那时"只写 outputs/今日复习.*"
+    这句话字面还成立, 实际写面却已经出了库。
+
+    两条都按 realpath 归属判定, 不成立即 503 拒绝重建。
+
+    ⚠ 残余 (如实登记, 与本仓 C1 的 TOCTOU 记录同口径): 判定与子进程真正
+    open() 之间非原子 —— 在这中间把 outputs 换成软链仍可绕过。堵住的是
+    "已经存在的逃逸链", 不是"判定后现换链"。
+    """
+    try:
+        real_root = vaults_root.resolve()
+        real_vault = vault_dir.resolve()
+    except OSError as e:
+        raise HTTPException(
+            status_code=503,
+            detail={"error": "path_resolve_failed", "message": f"{type(e).__name__}: {str(e)[:200]}"},
+        )
+    if real_vault != real_root and real_root not in real_vault.parents:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "vault_outside_root",
+                "message": f"库 {vault_dir.name!r} 的真实路径在 VAULTS_ROOT 之外 (软链逃逸), 拒绝写入",
+                "real_path": str(real_vault),
+            },
+        )
+    out = vault_dir / "outputs"
+    if out.exists():
+        try:
+            real_out = out.resolve()
+        except OSError as e:
+            raise HTTPException(
+                status_code=503,
+                detail={"error": "path_resolve_failed", "message": f"{type(e).__name__}: {str(e)[:200]}"},
+            )
+        if real_out != real_vault and real_vault not in real_out.parents:
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "error": "outputs_outside_vault",
+                    "message": f"库 {vault_dir.name!r} 的 outputs/ 真实路径在库外 (软链逃逸), 拒绝写入",
+                    "real_path": str(real_out),
+                },
+            )
+
+
+def _refresh_target(vault_id: str) -> tuple[Path, Path]:
+    """(vault 目录, 生产器脚本) — 三道 fail-closed 门全过才返回。
+
+    vault_id 必须**命中枚举出来的真实目录名** (与 GET /overview 同一条
+    候选规则), 不是「拼路径再看存不存在」: 候选集本身就是枚举结果, 天然
+    没有 ../ 遍历与符号链接逃逸的入口。
+    """
+    s = get_settings()
+    vaults_root = Path(s.VAULTS_ROOT).resolve()
+    if not vaults_root.is_dir():
+        raise HTTPException(
+            status_code=503,
+            detail={"error": "vaults_root_invalid", "message": f"VAULTS_ROOT not a directory: {vaults_root}"},
+        )
+    try:
+        vault_dirs = _list_vault_dirs(vaults_root)
+    except OSError as e:
+        raise HTTPException(
+            status_code=503,
+            detail={"error": "vaults_root_scan_failed", "message": f"{type(e).__name__}: {str(e)[:200]}"},
+        )
+    match = next((d for d in vault_dirs if d.name == vault_id), None)
+    if match is None:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "vault_not_found",
+                "message": f"VAULTS_ROOT 下无名为 {vault_id!r} 的库 (需含 .obsidian/)",
+                "known": [d.name for d in vault_dirs],
+            },
+        )
+    _assert_write_target_contained(match, vaults_root)
+    return match, _resolve_pick_script(vaults_root)
+
+
+#: 额外放行的 Host (逗号分隔) —— 默认只放行 localhost 与 IP 字面量;
+#: 需要按主机名访问 (Tailscale MagicDNS / mDNS 名) 时由部署方显式列出
+_ALLOWED_HOSTS_ENV = "REVIEW_REFRESH_ALLOWED_HOSTS"
+
+
+def _extra_allowed_hosts() -> frozenset[str]:
+    """解析白名单并**归一到与 request.url.hostname 同一形态**。
+
+    收官审计: `request.url.hostname` 是 urlsplit 归一过的 —— **小写、不含端口、
+    IPv6 去方括号**。而白名单原来只 strip 后裸比, 于是用户照着地址栏里看到的
+    东西去配 (`My-Mac.local` 或 `my-mac.local:8011`) 会继续 403, 错误信息还
+    只说"逗号分隔列出", 没说必须小写、不带端口 —— 一个"照做了却还是不行"的坑。
+    这里替用户把大小写、端口、方括号都吃掉。
+    """
+    out = set()
+    for raw in os.environ.get(_ALLOWED_HOSTS_ENV, "").split(","):
+        h = raw.strip().lower()
+        if not h:
+            continue
+        if h.startswith("["):  # [::1]:8011 / [::1]
+            h = h[1:].split("]", 1)[0]
+        elif h.count(":") == 1:  # host:port (IPv6 裸串含多个冒号, 不在此列)
+            h = h.split(":", 1)[0]
+        if h:
+            out.add(h)
+    return frozenset(out)
+
+
+def _assert_same_origin(request: Request) -> None:
+    """状态变更请求的同源门 (纯 HTML 表单可用, 零 JS)。
+
+    ⚠ 事实更正 (收官审计): 本后端**并非**全站无鉴权 —— `app/security.py` 的
+    `require_internal_api_key` 是成体系的写侧约定 (sync / boards / memory /
+    exam_sessions / system 与 chat router 都挂了它, 现网 INTERNAL_API_KEY 已配)。
+    本端点没挂它, 是因为它读自定义请求头 `X-CLS-Internal-Key`, 而卡文硬要求的
+    "纯 HTML 表单、零 JS" 发不出自定义头 —— 二者不可兼得, 已上用户裁决点 D-7。
+    在那之前本端点对"能连到这个端口的人"是敞开的; 下面这道门只解决 CSRF。
+
+    这个端点会**写文件并起 Python
+    子进程** —— 用户在浏览器里打开的任意页面, 只要放一个跨站 <form
+    action="http://localhost:8011/...">, 浏览器就会替用户把这个 POST 发出去;
+    CORS 只挡"读响应", 挡不住副作用。这是本端点独有的新暴露面 (GET 侧只读,
+    没有这个问题), 所以门开在这里而不是全站。
+
+    判据用浏览器一定会带的两个头:
+      Sec-Fetch-Site — 跨站表单为 cross-site/same-site, 必须是 same-origin 或 none;
+      Origin         — 跨站表单必带且为对方站点, 必须与本请求同源。
+    两个头都没有 (curl / 本地脚本 / 验收脚本) 则放行 —— 非浏览器客户端本来
+    就不受 CSRF 摆布, 强制要求会把命令行调用全挡死。
+
+    ⚠ 这不是鉴权: 同机的任意进程仍能直接调它 (全站皆然)。堵住的是"用户
+    浏览器被别的网页当枪使"这一条, 不是"本机进程越权"。
+    """
+    # Codex round-3: 期望 Origin 是拿请求自身的 Host 拼的 —— DNS rebinding 下
+    # 攻击者的域名解析到 127.0.0.1, 于是 Host / Origin / Sec-Fetch-Site 三者
+    # 会同时"合法", 整道门被绕过。rebinding 必须依赖**域名**(IP 字面量没法
+    # 重新解析), 所以只放行 localhost 与 IP 字面量, 就把这条路堵死;
+    # IP 字面量一律放行。⚠ 如实说明: 当前端口只绑 127.0.0.1 (2026-07-31 P0-0,
+    # 实测局域网 IP 连不上), 所以局域网 IP 这一支现在走不到 —— 它是纵深防御,
+    # 将来若放开监听不必再回来改代码。
+    host = request.url.hostname or ""
+    if host != "localhost" and host not in _extra_allowed_hosts():
+        try:
+            ipaddress.ip_address(host)
+        except ValueError:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "host_not_allowed",
+                    "message": (
+                        f"只接受 localhost 或 IP 字面量访问 (实为 Host: {host}) — 防 DNS rebinding。"
+                        f"确需按主机名访问时, 用环境变量 {_ALLOWED_HOSTS_ENV} 逗号分隔列出"
+                    ),
+                },
+            )
+    site = request.headers.get("sec-fetch-site")
+    if site is not None and site not in ("same-origin", "none"):
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "cross_site_blocked",
+                "message": f"跨站请求被拒 (Sec-Fetch-Site: {site}) — 刷新只接受本页发起的提交",
+            },
+        )
+    origin = request.headers.get("origin")
+    if origin is not None and origin != f"{request.url.scheme}://{request.url.netloc}":
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "cross_site_blocked",
+                "message": f"跨站请求被拒 (Origin: {origin}) — 刷新只接受本页发起的提交",
+            },
+        )
+
+
+def _notice_page_html(title: str, body: str, back: str) -> str:
+    """中性提示页 (零 JS) —— 既不是成功也不是失败的那一类结果。"""
+    return (
+        '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        f"<title>{html.escape(title)}</title></head>"
+        '<body style="font-family:-apple-system,BlinkMacSystemFont,'
+        "'PingFang SC','Helvetica Neue',sans-serif;background:#f5f5f7;"
+        'margin:0;padding:24px"><div style="max-width:640px;background:#fff;border:1px solid #e5e7eb;'
+        'border-radius:12px;padding:20px 24px">'
+        f'<h1 style="font-size:20px;margin:0 0 8px">⏳ {html.escape(title)}</h1>'
+        f'<div style="font-size:14px;margin-bottom:14px">{html.escape(body)}</div>'
+        f'<a href="{html.escape(back)}" style="font-size:14px;color:#2563eb;'
+        'text-decoration:none">← 回到总览页</a></div></body></html>'
+    )
+
+
+def _error_page_html(status: int, vault_id: str, detail, back: str) -> str:
+    """表单路径的失败页 (零 JS, 与总览页同族配色)。
+
+    每一段都来自 detail 本身, 不编造原因; 原始 stderr 尾部原样放在
+    <pre> 里 (人话解释不了的现场, 也不许藏)。
+    """
+    d = detail if isinstance(detail, dict) else {"message": str(detail)}
+    parts = [
+        f'<h1 style="font-size:20px;margin:0 0 6px">刷新失败 · {html.escape(vault_id)}</h1>',
+        f'<div style="color:#6b7280;font-size:13px;margin-bottom:14px">HTTP {int(status)} · '
+        f"{html.escape(str(d.get('error') or 'error'))}</div>",
+        f'<div style="font-size:14px;margin-bottom:10px">{html.escape(str(d.get("message") or ""))}</div>',
+    ]
+    if d.get("hint"):
+        parts.append(
+            f'<div style="font-size:14px;background:#fffbeb;border:1px solid #fde68a;'
+            f'border-radius:8px;padding:10px 12px;margin-bottom:12px">💡 {html.escape(str(d["hint"]))}</div>'
+        )
+    for field, label in (("tried", "已试过的脚本路径"), ("known", "本机可用的库")):
+        if d.get(field):
+            items = "".join(f"<li><code>{html.escape(str(x))}</code></li>" for x in d[field])
+            parts.append(
+                f'<div style="font-size:13px;color:#374151;margin-bottom:10px">{label}:'
+                f'<ul style="margin:4px 0 0;padding-left:20px">{items}</ul></div>'
+            )
+    if d.get("stderr_tail"):
+        parts.append(
+            '<pre style="background:#f3f4f6;border-radius:8px;padding:10px;font-size:11px;'
+            f'overflow-x:auto;white-space:pre-wrap;word-break:break-all">{html.escape(str(d["stderr_tail"]))}</pre>'
+        )
+    parts.append(
+        f'<a href="{html.escape(back)}" style="font-size:14px;color:#2563eb;text-decoration:none">← 回到总览页</a>'
+    )
+    return (
+        '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        "<title>刷新失败</title></head>"
+        '<body style="font-family:-apple-system,BlinkMacSystemFont,'
+        "'PingFang SC','Helvetica Neue',sans-serif;background:#f5f5f7;"
+        'margin:0;padding:24px"><div style="max-width:640px;background:#fff;border:1px solid #e5e7eb;'
+        'border-radius:12px;padding:20px 24px">' + "".join(parts) + "</div></body></html>"
+    )
+
+
+@review_overview_router.post(
+    "/overview/refresh",
+    summary="按需重建单库今日复习投影 (CARD-G6-1; 显式用户触发)",
+)
+def review_overview_refresh(
+    request: Request,
+    vault_id: str = Form(..., description="要重建投影的 vault 目录名 (须命中 VAULTS_ROOT 下的真实库)"),
+    redirect: str | None = Form(None, description="传 page 则 303 回总览页 (纯 HTML 表单用, 零 JS)"),
+) -> Response:
+    """重建该库的 outputs/今日复习.{md,json}, 返回重建后的聚合条目。
+
+    同步 def: 由 FastAPI 丢进线程池, 既不堵事件循环, 也不让模块级锁绑定
+    到某个 event loop (TestClient 每请求换 loop, asyncio.Lock 会跨 loop 炸)。
+
+    响应字段:
+      rebuilt / reason      本次是否真起了子进程并**发布了新产物**。
+                            rebuilt=true 时三件事同时成立 (round-3 收紧):
+                            子进程 rc=0、json 的 (inode, mtime_ns, sha) 相对
+                            调用前变过、md 在位、且读回过 schema v3 门禁。
+                            任一不成立 → 503, 不会返回 rebuilt=true。
+                            ⚠ 本段曾写着"rebuilt=true 可与 entry.status=
+                            no_projection 并存" —— 那是 round-3 之前的语义,
+                            现在那种情形一律 503 (收官审计抓到的过期自述,
+                            且它会进 OpenAPI 误导 API 调用方)。
+                            reason ∈ rebuilt / debounced (落在 TTL 窗口内) /
+                            in_progress (同库另一次重建在飞, 本次不排队)
+      rebuild_count         该库自**本进程启动**以来的真实重建次数 (进程内计数,
+                            多 worker 或重启后归零 —— 它是去抖行为的证据, 不是
+                            持久化审计账)
+      debounce_ttl_seconds  当前去抖窗口
+      entry                 与 GET /overview 中该库条目同形 (四态 + projection)
+
+    表单路径 (redirect=page) 的失败呈现: 渲染一页人话错误页, **状态码仍是
+    原样的 4xx/5xx** —— 失败时跳回总览页会让人以为刷新成功了 (页面上什么
+    都没变), 那正是"静默假成功"的浏览器版本。
+    """
+    try:
+        _assert_same_origin(request)
+        vault_dir, script = _refresh_target(vault_id)
+        result, entry = _rebuild_projection(vault_dir, script)
+        if entry is None:  # debounced / in_progress 分支没读回, 这里补一次
+            entry = _read_entry(vault_dir)
+    except HTTPException as e:
+        if redirect != "page":
+            raise
+        return HTMLResponse(
+            content=_error_page_html(e.status_code, vault_id, e.detail, request.url_for("review_overview_page").path),
+            status_code=e.status_code,
+        )
+    if redirect == "page":
+        # ⛔ **凡是没真重建的分支, 都不许走那条与成功逐字节同形的 303**。
+        # round-3 只为 in_progress 做了这件事, 把 debounced 漏在原地 (收官审计
+        # 抓到, 复核员实测"实况比报告更坏: 连『生成于』时间没走这条线索都不存在"):
+        # 用户刚做完一道题 (写了 fsrs_due) 、10 秒内点刷新 → 拿到与成功一模一样
+        # 的 303 + 相同 Location + 空 body → 页面看着刷新了、数字却没动, 而他
+        # 没有任何办法知道"这次根本没重建"。
+        if not result["rebuilt"]:
+            wait = result.get("retry_after_seconds") or 0
+            title, body = (
+                (f"{vault_id} 正在重建中", "这个库已经有一次刷新在跑了，本次没有重复启动。等几秒回总览页看最新数字。")
+                if result["reason"] == "in_progress"
+                else (
+                    f"{vault_id} 刚刚才刷新过",
+                    f"{_REFRESH_TTL_SECONDS:g} 秒内已经重建过一次，本次**没有**重新计算，"
+                    f"页面上还是上一次的结果。若你刚改过节点，等约 {wait:.0f} 秒后再点一次。",
+                )
+            )
+            return HTMLResponse(
+                content=_notice_page_html(title, body, request.url_for("review_overview_page").path),
+                status_code=200,
+            )
+        # PRG: 303 回 GET, 浏览器刷新不会重复提交 —— 只有**真重建了**才走这里
+        return RedirectResponse(url=request.url_for("review_overview_page").path, status_code=303)
+    return JSONResponse(
+        {
+            "vault_id": vault_dir.name,
+            "vault_path": str(vault_dir),
+            "pick_script": str(script),
+            "debounce_ttl_seconds": _REFRESH_TTL_SECONDS,
+            **result,
+            "entry": entry,
+        }
+    )

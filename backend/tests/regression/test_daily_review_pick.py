@@ -6,10 +6,14 @@ CARD-G3-6a (BATCH-2026-08-29-第六批) 追加: 五桶划分律 (互斥+完备) 
 why_due 6 模板 / 加性纯度金样 (pop 新字段后与引入前字面量深度全等)。
 """
 
+import os
 import shutil
 import sys
+import types
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+import pytest
 
 WT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(WT / "scripts"))
@@ -898,3 +902,105 @@ def test_today_sh_three_tier_fallback_never_raises():
     assert picker._today_sh(low) == low.date(), "下界: 上海与 UTC 换算双溢出 → 退自身表示日"
     normal = datetime(2026, 7, 30, 1, 0, tzinfo=timezone.utc)
     assert picker._today_sh(normal).isoformat() == "2026-07-30", "常规值仍走上海日"
+
+
+# ════════════════════════════════════════════════════════════════════
+# CARD-G6-1 (BATCH-2026-08-31-第七批) atomic_write tmp 唯一化
+# ════════════════════════════════════════════════════════════════════
+
+
+def test_atomic_write_abandons_legacy_fixed_tmp_name(tmp_path):
+    """旧实现固定用 `<原名>.tmp`, 两个并发写者共享同一个 tmp —— 各按自己的
+    offset 落盘, 内容交错, 总长等于较长那份 (wc -c 看不出), 随后双方
+    os.replace 发布同一个拼接损坏物。
+
+    这里在那个固定名上放一个**目录**: 只要实现还在用它, write_text 必炸
+    (IsADirectoryError); 唯一化后的实现根本不碰它, 照常发布。确定性门,
+    不靠赛跑概率。
+    """
+    target = tmp_path / "今日复习.json"
+    legacy_tmp = tmp_path / "今日复习.json.tmp"  # 旧实现: with_suffix(".json.tmp")
+    legacy_tmp.mkdir()
+
+    picker.atomic_write(target, '{"schema_version": 3}\n')
+
+    assert target.read_text(encoding="utf-8") == '{"schema_version": 3}\n'
+    assert legacy_tmp.is_dir(), "旧固定名不该被碰"
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["今日复习.json", "今日复习.json.tmp"], (
+        "发布后不得残留任何 tmp"
+    )
+
+
+def _pin_tmp_name(monkeypatch, hex8: str = "deadbeef"):
+    """把 picker 内的 uuid 换成定值, 让 tmp 名可预测 —— 只替换 picker 模块里
+    的那个引用 (monkeypatch.setattr(picker, "uuid", ...)), 不动全局 uuid 模块。
+    返回给定 target 的确切 tmp 路径。"""
+    monkeypatch.setattr(picker, "uuid", types.SimpleNamespace(uuid4=lambda: types.SimpleNamespace(hex=hex8 + "0" * 24)))
+    return lambda target: target.with_name(f"{target.name}.{os.getpid()}.{hex8}.tmp")
+
+
+def test_atomic_write_refuses_to_reuse_an_existing_tmp(tmp_path, monkeypatch):
+    """O_EXCL: tmp 名万一撞上已存在的文件, 必须直接失败, **不能**打开它接着写
+    —— 那等于两个写者又共享了同一个 tmp, 正是本改动要消灭的东西。
+    且不许把别人的那个文件删掉或截断 (它不是我们建的)。
+
+    观测手段: 把 picker 内的 uuid 钉成定值让 tmp 名可预测 —— 不打桩
+    os.replace / os.open (patch 进程内共享的 os 属性会连 pathlib 内部一起拦)。
+    """
+    tmp_of = _pin_tmp_name(monkeypatch)
+    target = tmp_path / "今日复习.json"
+    squatter = tmp_of(target)
+    squatter.write_text("别人的在途内容\n", encoding="utf-8")
+
+    with pytest.raises(FileExistsError):
+        picker.atomic_write(target, '{"schema_version": 3}\n')
+
+    assert squatter.read_text(encoding="utf-8") == "别人的在途内容\n", "不许截断/删除别人的 tmp"
+    assert not target.exists(), "失败就不该发布任何东西"
+
+
+def test_atomic_write_does_not_follow_a_symlinked_tmp(tmp_path, monkeypatch):
+    """tmp 名被抢先建成一条指向库外的软链时, 必须直接失败, 不许把内容写到库外。
+
+    ⚠ 如实说明这条测试**实际证的是什么**（收官审计抓到, 原 docstring 名不副实）:
+    它证的是 `O_EXCL`, 不是 `O_NOFOLLOW`。实测: 对一个软链路径调
+    `os.open(p, O_WRONLY|O_CREAT|O_EXCL)` —— **不带** O_NOFOLLOW —— 同样抛
+    `FileExistsError(17)`, 因为 O_CREAT|O_EXCL 遇到任何已存在的名字（软链也算
+    一个名字）都失败。也就是说在本调用形态下 O_NOFOLLOW 被 O_EXCL 完全遮蔽,
+    是纵深防御而非承重件, 单独删掉它这条用例照样绿。
+    保留 O_NOFOLLOW 的理由: 若将来有人把 O_EXCL 去掉（比如为了"tmp 残留时能
+    覆盖"），O_NOFOLLOW 是仅剩的那道挡软链的门 —— 但届时必须补一条真能打红
+    它的用例, 不能沿用这一条。
+    """
+    tmp_of = _pin_tmp_name(monkeypatch)
+    target = tmp_path / "今日复习.json"
+    outside = tmp_path / "库外落点.txt"
+    tmp_of(target).symlink_to(outside)
+
+    with pytest.raises(OSError):
+        picker.atomic_write(target, "机密内容\n")
+
+    assert not outside.exists(), "内容不许顺着软链写到库外"
+    assert not target.exists()
+
+
+def test_atomic_write_publishes_and_leaves_no_residue(tmp_path):
+    """正常路径 (真随机 tmp 名): 两个不同 target 各自发布成功, 目录里不留残渣。"""
+    picker.atomic_write(tmp_path / "今日复习.json", "a\n")
+    picker.atomic_write(tmp_path / "今日复习.md", "b\n")
+    assert (tmp_path / "今日复习.json").read_text(encoding="utf-8") == "a\n"
+    assert (tmp_path / "今日复习.md").read_text(encoding="utf-8") == "b\n"
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["今日复习.json", "今日复习.md"]
+
+
+def test_atomic_write_cleans_tmp_when_publish_fails(tmp_path):
+    """发布失败必须清掉半截 tmp —— 留在 vault 里同样是写面污染 (且会被
+    Obsidian 同步 / 备份链一路带走)。target 是目录时 os.replace 必失败。"""
+    target = tmp_path / "今日复习.json"
+    target.mkdir()
+
+    with pytest.raises(OSError):
+        picker.atomic_write(target, "内容\n")
+
+    assert list(tmp_path.glob("今日复习.json.*.tmp")) == [], "失败路径必须清掉 tmp 残渣"
+    assert target.is_dir(), "失败不该把 target 改成别的东西"
