@@ -863,6 +863,15 @@ _SIGNAL_SPECS = (
     ("unsourced_conclusions", "无来源结论"),
     ("duplicate_accumulation", "重复堆积"),
 )
+# 维护卡 B · H-3: X/N 型信号行的**标准尾部文案**(SKILL Step 5 模板逐字规定)。
+# 有了它, 尾部校验从"先开放再排除"(黑名单) 转成整行正向允许式 —— 尾部只许是
+# 这三句之一, 夹带任何别的内容 (含「另有仨条」这类黑名单外的中文数量词) 一律 FAIL。
+# ⛔ 新增信号必须在此登记, 否则 verifier 会显式报"未登记标准尾部文案"而不是静默放行。
+_SIGNAL_TAILS = {
+    "source_coverage": "成员含来源锚点",
+    "unsourced_conclusions": "派生角色成员缺来源锚点",
+    "duplicate_accumulation": "条批注为重复条目",
+}
 # 年龄信号标准行: 最老 N 天（参与统计 D 条，p25/p50/p75 = a/b/c 天）
 _SIG_AGE_RE = re.compile(
     r"最老\s*(\d+)\s*天\s*[（(]\s*参与统计\s*(\d+)\s*条[，,]\s*"
@@ -981,18 +990,41 @@ def _strip_code_blocks(text: str) -> str:
       · **不再剥四空格缩进块** —— 合法的三级嵌套列表 (四空格缩进) 会被误删,
         实测导致"③段缺信号行"误报。缩进块里的信号行改由信号行自身的
         严格模板拒绝 (模板行首只允许 ``> ``/``- ``/空白, 不允许四空格缩进)。
+
+    ⛔ 维护卡 B · E1 (round-6 实证反例 `four-fence-short-close`): 原实现只存
+    ``bare[:3]`` 并用 ``startswith`` 判闭合 —— 四反引号开栏、三反引号"闭合"后,
+    后续内容被当成**块外正文**, 于是藏在 ``<pre><code>`` 里的信号行仍被 verifier
+    当成在场陈述 (实测 exit 0)。CommonMark 的规则是: 闭合围栏必须**同字符**且
+    **不短于**开栏。这里按规则记录开栏的完整标记再比长度。
     """
     out: list[str] = []
-    fence: str | None = None
+    fence: str | None = None  # 开栏的完整标记, 如 "````"
+    # ⛔ Codex round-1 BLOCKER-1: 只比字符与长度**仍不是** CommonMark ——
+    # 闭栏行在标记之后**只能有空白**(`` ````not-a-valid-close `` 不是闭栏),
+    # 且围栏行缩进最多三格 (四格起是缩进代码块)。少这两条时,
+    # ````text 后跟一个带 info string 的伪闭栏就能让后续信号行"看起来在块外",
+    # 而 CommonMark 渲染里它们全在 <pre><code> 内 —— 实测 exit 0。
+    open_re = re.compile(r"^(?P<ind> {0,3})(?P<fence>`{3,}|~{3,})")
+    close_re = re.compile(r"^ {0,3}(?P<fence>`{3,}|~{3,})[^\S\n]*$")
     for ln in text.splitlines():
         # 剥任意层引用前缀后再判围栏
         bare = re.sub(r"^[>\s]*", "", ln)
-        if fence is None and (bare.startswith("```") or bare.startswith("~~~")):
-            fence = bare[:3]
-            out.append("")
-            continue
-        if fence is not None:
-            if bare.startswith(fence):
+        if fence is None:
+            m = open_re.match(bare)
+            # 反引号围栏的 info string 不得含反引号 (CommonMark);
+            # 波浪线围栏无此限制。
+            if m and not (m.group("fence")[0] == "`" and "`" in bare[m.end() :]):
+                fence = m.group("fence")
+                out.append("")
+                continue
+        else:
+            mc = close_re.match(bare)
+            # 闭合: 同字符 + 长度 ≥ 开栏 + 其后只有空白
+            if (
+                mc
+                and mc.group("fence")[0] == fence[0]
+                and len(mc.group("fence")) >= len(fence)
+            ):
                 fence = None
             out.append("")
             continue
@@ -1093,9 +1125,23 @@ def _verify_signal_lines(text: str, signals: dict, problems: list[str]) -> None:
                     rf"/{pr.get('p75_days')}\s*天\s*[）)]"
                 )
             else:
+                # ⛔ 维护卡 B · H-3: 尾部原为 `(?P<tail>[^【】]*)` —— **先开放再排除**
+                # (排除数值字符与 `/` 形态)。复核者的判词是对的: 那"本质仍是黑名单",
+                # 实测「另有仨条」照样放行 (仨不在 _has_numeric 覆盖面且无 `/`)。
+                # 而尾部本来就是**固定文案** (SKILL Step 5 模板逐字规定), 所以改成
+                # 正向允许式: 只许这三句之一, 锚 `$`。字符层攻防到此结束 ——
+                # 「仨/皕/零」这类生僻写法不需要被逐个枚举, 它们进不来。
+                # 副作用 (期望中的): `_has_numeric` 不再参与信号行判定, round-5 起
+                # 「口径一致」被误判为夹带数值的**误伤随之消失**。
+                tail = _SIGNAL_TAILS.get(key)
+                if tail is None:  # 新增信号必须在 _SIGNAL_TAILS 里登记尾部文案
+                    problems.append(
+                        f"数字终核: 信号 {label} 未登记标准尾部文案 (verifier 无法整行校验)"
+                    )
+                    continue
                 body = (
                     rf"{re.escape(label)}[：:]\s*{sig['value']}\s*/\s*"
-                    rf"{sig['denominator']}\s*(?P<tail>[^【】]*)"
+                    rf"{sig['denominator']}\s*{re.escape(tail)}"
                 )
             # 行首前缀白名单: 引用符/列表符/单空格间隔 — ⛔ 不允许四空格以上
             # 缩进 (缩进代码块形态, round-5: 不再靠 _strip_code_blocks 剥它)
@@ -1106,16 +1152,11 @@ def _verify_signal_lines(text: str, signals: dict, problems: list[str]) -> None:
                     f"数字终核: 信号行 {label} 未整行匹配标准式 "
                     f"(数字/档位/尾随内容任一不符即 FAIL)"
                 )
-            # round-4 H3 → round-5: 尾部说明段禁**任何 Unicode 数值字符**
-            # (`九九/九九`、`٩٩/٩٩`、`⁹⁹/⁹⁹` 曾绕过字符类), 并额外禁**任何
-            # 斜线分数形态** — `仨/仨`、`零/零` 用的是黑名单外的字符, 但
-            # "X/N" 这个**结构**本身就是第二组计数的载体。
-            elif m.groupdict().get("tail") and (
-                _has_numeric(m.group("tail")) or "/" in m.group("tail")
-            ):
-                problems.append(
-                    f"数字终核: 信号行 {label} 尾部说明夹带第二组计数 (标准式之后禁数值与 X/N 形态)"
-                )
+            # ⛔ 维护卡 B · H-3: 这里原有一段"尾部禁数值字符 + 禁 X/N 形态"的**黑名单**
+            # 后置检查 (round-4→round-5 的字符表路线)。现已**整体删除** —— 尾部改成
+            # 正向允许式后, 任何非标准尾部在上面的整行 fullmatch 处就已经 FAIL,
+            # 这段检查恒不触发, 留着只会让人以为字符表还在承重。
+            # 删除它同时消灭了 `_has_numeric` 把「一」判成数值导致的「口径一致」误伤。
 
 
 def _SECTION_RE(section: str) -> str:
@@ -1144,6 +1185,360 @@ def _verify_signals_if_present(text: str, scan: dict, problems: list[str]) -> No
         _verify_signal_lines(text, signals, problems)
     else:
         problems.append("数字终核: scan JSON signals 键存在但形状损坏 (非对象)")
+
+
+# ⛔ Codex round-1 BLOCKER-3: 原式要求「批注 N 条」后**直接行尾**, 于是真实 manifest
+# 台账行 (`- cs-61b-csm — 批注 2 条；未派生…· mastery 0.3…`) 根本不匹配 → 被 continue
+# 跳过 → 把 2 改成 999 照样 exit 0。**门在真实语料上完全不生效**, 而放行门只证明了
+# "真报告 PASS", 没证明"真报告被篡改后 FAIL" —— 这正是假绿的经典形态。
+# 现在: 数字后允许 SKILL 明确允许的后续字段 (`；…` / `· …`), 只锚到分隔符。
+_SEED_LEDGER_LINE_RE = re.compile(
+    r"^[>\s]*-\s+(?P<node>\S.*?)\s+—\s+"
+    r"(?:批注\s*(?P<n>\d+)\s*条|(?P<none>无批注))"
+    r"(?P<rest>\s*[；;·].*)?\s*$"
+)
+
+# ── 维护卡 B · D2「有据叙述域」 ────────────────────────────────────────────
+# ⛔ Codex round-1 HIGH「D1 仍只是少量枚举，不是卡文声明的整域绑定」的整改:
+# 原实现是**点名两段**的允许式 (`("你现在可以做的", "三维审查")`) —— 于是
+# 规模 callout 的「1 次调用」、台账派生行、AI 侧对账段其余数字、新增的 `## 附录` 段
+# 全都在域外, 实测逐条 exit 0。那不是"域", 那是"几个段名 + 几条正则"。
+#
+# 现在倒转成**默认全域 + 显式例外**(default-deny): 报告正文的每一段都在 D2 里,
+# 只有下面这张表里的段落显式出域。新增段落 (附录/脚注/任何自造标题) 默认**进域**,
+# 这才符合治理域裁定"按位置划分"的本意 —— 加一个标题就能逃出治理, 才是漏。
+_D2_EXEMPT_SECTIONS = (
+    # 纯取数元信息: 哈希前缀 / mtime / manifest lag / 扫描时刻。这些值的形态自带
+    # 单位或由 E4 时间豁免覆盖, 且不是"报告对材料的陈述"。
+    "数据来源与新鲜度",
+)
+# 计数形态: 数字 + 中文量词。⛔ 只认**量词紧随**的数字, 不是"段内所有数字" ——
+# mastery 0.3 / 量表 1-4 / p25/p50/p75 这类带自己单位或形态的值不在其中,
+# 误伤面因此小得多。量词表按 live 真报告实际出现的形态扩充 (板/项/篇/道/张),
+# 每扩一个都由 live 放行门实测把关。
+# ⛔ 三处收紧, 全部由对抗审查实测驱动 (每条都在四份真报告上验过):
+#  ① **数字与量词之间的排版噪声**: 原式前瞻只容 `\s`, 于是加粗 `**987654** 个`、
+#     `<span>987654</span> 个`、`987654&nbsp;个` 一律漏检 —— 而加粗数字正是 LLM
+#     写报告的常见排版, 这既是绕过面也是静默漏检面。现在容忍 * _ ~ 反斜杠、
+#     HTML 标签、`&nbsp;`/`&#160;` 实体。
+#  ② **小数前缀**: `(?<![0-9.])` 的本意是不切开小数, 实际效果是"任何数字前面补一个
+#     `0.` 就退出治理"。改为只在**紧邻**数字时排除 (即真正的小数尾部), 且对
+#     `0.987654 个` 这种整体形态改由下面的 _D2_DECIMAL_RE 单独识别。
+#  ③ 量词表保持封闭 —— 这是**如实登记的边界**, 不假装"位置承担了一切":
+#     中文数字与表外量词仍不在覆盖面 (见验收单裁决点)。
+# 噪声集含反引号: `` `987654` 个 `` 里的收尾反引号也是"数字与量词之间的排版噪声"
+# （纯数字 code span 已由 _D2_INLINE_CODE_RE 有意保留下来交给这里判）。
+_D2_NOISE = r"(?:[*_~\\`]|<[^>\n]{1,20}>|&nbsp;|&#160;|[多余来几约近超]|\s)*"
+# ⛔ 量词表按对抗审查给的 21 个常用表外量词扩充 (原 11 字表实测被
+# 「名/位/台/件/册/组/批/轮/遍/趟/人/句/行/段/点/种/类/本/页/题/章」整域绕过)。
+# 这仍是**封闭表**——如实登记的边界, 不宣称"位置承担了一切"。
+_D2_QUANT = r"[个条块次份处板项篇道张名位台件册组批轮遍趟人句行段点种类本页题章]"
+_D2_COUNT_RE = re.compile(rf"(?<![0-9])([0-9]+)(?![0-9]){_D2_NOISE}(?={_D2_QUANT})")
+# D2 的**适用句式**: 只查明确自称"全板/整体规模"的断言。
+# 判据从"值在池里"(碰撞) 换成"句式 + 值"(绑定) —— 这类句子的数字必须来自 scan,
+# 而普通叙述 (引用原话 / 序数 / 自指 / 同义量词) 不再被牵连。
+_D2_CLAIM_RE = re.compile(
+    r"(?:本板|全板|该板|这块板|整体)[^。；\n]{0,12}?(?:共有|共|总共|合计|一共|有)"
+    r"|(?:共有|总计|合计)\s*[0-9]"
+)
+# 小数形态的计数 (`0.987654 个`): 整体取出, 小数点前后都不该成为免检通道。
+_D2_DECIMAL_RE = re.compile(rf"[0-9]+\.[0-9]+{_D2_NOISE}(?={_D2_QUANT})")
+# 时间形态豁免 (E4): 先把它们挖空, 免得 "2026-08-27" 里的片段被当计数。
+_D2_TIME_RE = re.compile(
+    r"\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)?"
+    r"|\b\d{1,2}:\d{2}(?::\d{2})?\b"
+)
+# ⛔ E2 收窄 (对抗审查实测): 原式挖空**任意**行内代码, 于是
+# `` 本板共有 `987654` 个子节点 `` 整段免检 —— 而它的渲染结果与裸写等价地在向读者
+# 断言一个计数。行内代码的正当豁免是"命令/路径/字段名示例", 那些**不是纯数字**。
+# 故只豁免不含裸计数的 code span; `` `987654` `` 这种纯数字跨度不再豁免。
+# ⚠️ 第一版把负前瞻写成"跨度**内部**不含量词"，但量词恰恰在跨度**外面**
+# （`` `987654` 个子节点 ``），于是它照样被挖空。判据应当是"跨度内容不是**纯数字**"。
+# ⛔ 再收一次 (对抗审查 MEDIUM): 把**量词**单独包进反引号 (``987654 `条` ``) 时,
+# 挖空量词会让前面的数字失去锚点而免检。故纯数字**与**纯量词的 code span 都不豁免。
+_D2_INLINE_CODE_RE = re.compile(
+    r"`(?![0-9]+`)(?![个条块次份处板项篇道张名位台件册组批轮遍趟人句行段点种类本页题章]+`)[^`\n]*`"
+)
+# ⛔ E3 同理: wikilink 的**别名显示文本**是读者看得见的正文
+# (`[[节点/x|本板共有 987654 个子节点]]` 渲染出来就是那句话)。只豁免**目标部分**,
+# 别名部分留给 D2 校验。
+_D2_WIKILINK_RE = re.compile(r"\[\[[^\]\n|]*(?=[|\]])")
+_D2_ORDERED_LIST_RE = re.compile(r"^(\s*)\d+\.(\s)", re.M)
+# E6b · SKILL 模板里**逐字规定的固定短语**, 其中的数字是模板常量而非从数据算出的计数。
+# ⛔ 实测发现: 域倒转成 default-deny 后, live「递归与分治」报告的
+# `- 最老 3 条原话：无（tips_total 为 0）` 被误判 —— 那个 3 来自 SKILL.md:255 的模板
+# 「最老 3 条原话（added_at = …）」, 板上只有 0 条 tips 时它当然在 scan 里找不到同值。
+# 正向允许式: 只豁免这张表里的**逐字**短语, 不是"凡是像模板的都放行"。
+_D2_TEMPLATE_CONSTANTS = ("最老 3 条原话",)
+_D2_RANGE_RE = re.compile(
+    r"[0-9]+\s*(?:[~\-—–]|到|至)\s*[0-9]+\s*[个条块次份处板项篇道张]"
+)
+
+
+def _scan_number_pool(obj, pool: set[int]) -> None:
+    """递归收集 scan JSON 里的**数值型**整数 —— D2 的「有出处」判据。
+
+    ⛔ Codex round-1 HIGH: 原实现**也从字符串里抽整数**, 于是池被哈希与用户原话
+    污染 —— 实测「544 个子节点」通过 (544 只来自 board_sha256 的片段)、
+    「111 个子节点」通过 (111 只来自用户作答原话)。池越脏, "有出处"越没意义。
+    现在只收 JSON 的**数值类型**; 字符串里真正该被绑定的量 (日期/哈希/原话)
+    要么由 E1-E6 豁免, 要么本来就不该被当成本报告的计数陈述。
+    """
+    if isinstance(obj, bool):
+        return
+    if isinstance(obj, int):
+        pool.add(obj)
+    elif isinstance(obj, float):
+        if obj.is_integer():
+            pool.add(int(obj))
+    elif isinstance(obj, dict):
+        for v in obj.values():
+            _scan_number_pool(v, pool)
+    elif isinstance(obj, list):
+        for v in obj:
+            _scan_number_pool(v, pool)
+
+
+_FULLWIDTH_DIGITS = str.maketrans("０１２３４５６７８９", "0123456789")
+_CJK_NUM = {
+    "零": 0,
+    "〇": 0,
+    "一": 1,
+    "二": 2,
+    "两": 2,
+    "三": 3,
+    "四": 4,
+    "五": 5,
+    "六": 6,
+    "七": 7,
+    "八": 8,
+    "九": 9,
+}
+_CJK_UNIT = {"十": 10, "百": 100, "千": 1000, "万": 10000, "亿": 100000000}
+_CJK_NUM_RE = re.compile(r"[零〇一二两三四五六七八九十百千万亿]{1,12}")
+
+
+def _cjk_to_int(s: str) -> int | None:
+    """中文数字串 → int; 无法确定地解析则 None (不猜)。
+
+    ⛔ 对抗审查 BLOCKER: D2 的数字原为 `[0-9]+`, 于是「本板共有九十八万个子节点」
+    这类**完全虚构**的规模自陈整域免检。scan 的计数都是 ASCII 整数, 报告换个写法
+    不该换来免检 —— 归一后照常比对。解析不了的 (生僻/歧义写法) 返回 None,
+    由调用方按"无法验证"处理, 不静默放行。
+    """
+    total, section, digit, seen = 0, 0, None, False
+    for ch in s:
+        if ch in _CJK_NUM:
+            digit = _CJK_NUM[ch]
+            seen = True
+        elif ch in _CJK_UNIT:
+            unit = _CJK_UNIT[ch]
+            if unit >= 10000:
+                section = (section + (digit or 0)) if (section or digit) else 1
+                total += section * unit
+                section, digit = 0, None
+            else:
+                section += (digit if digit is not None else 1) * unit
+                digit = None
+            seen = True
+        else:
+            return None
+    if not seen:
+        return None
+    return total + section + (digit or 0)
+
+
+def _verify_prose_counts(text: str, scan: dict, problems: list[str]) -> None:
+    """D2: 叙述段里的**计数**必须能在 scan JSON 找到同值来源。
+
+    ⛔ 维护卡 B 的原始命题 (卡名「裸数字绑定」): 报告正文写一句
+    「这块板有 99 个子节点」, 99 既不匹配规模行、也不在 frontmatter 与 tips 段,
+    于是**既没被绑定也没被禁止** → exit 0。这不是实现 bug 而是设计边界,
+    本函数把该边界推到「域内计数必须有出处」。
+
+    按治理域裁定 (卡文 §零) 的顺序: **先剥豁免跨度, 再判域**。剥的是
+    行内代码 / wikilink / 时间形态 / 有序列表序号 —— 全部按**结构**判定,
+    不维护"哪些字符算数值"的字符表 (那条路线在 round-5 已被证伪)。
+
+    诚实边界: 当前只覆盖「数字 + 中文量词」的**计数形态**, 不是段内全部数字
+    (mastery 0.3、量表 1-4、分位值等带自身形态的量不在内)。全量绑定是增量项,
+    如实登记在卡文与验收单, 不宣称"域内已全覆盖"。
+    """
+    # ⛔ 池必须排除**与板内容无关的源码常量**: scan JSON 的 scale_gate 里带着
+    # MEMBER_THRESHOLD=30 / ANNOTATION_THRESHOLD=100 / DETAIL_K=10 —— 任何板都有。
+    # 后果 (对抗审查实测, 四份真报告全中): 100−1=99 恒在池内, 于是卡文/goal 的
+    # **旗舰反例「99 个子节点」在四份真报告上全部放行**, 而验收单还写着"拦下"。
+    # 门槛常量不是"这块板的数据", 拿它当出处等于给池注水。
+    scan_for_pool = {k: v for k, v in scan.items() if k != "scale_gate"}
+    base: set[int] = set()
+    _scan_number_pool(scan_for_pool, base)
+    # ⛔ 「有出处」≠「字面出现」: live 报告实测有合法推算——
+    #   「7 个派生点中仅 2 个带 derived_at……其余 **5** 个无据」(5 = 7−2)。
+    # 分析段本来就会做算术, 要求字面相等等于禁止报告做减法, 是把语义误解了。
+    # 故池 = scan 的数值 ∪ 它们的**一阶差与和**（可由数据推出的量）。
+    # 代价如实记: 池变大 ⇒ 对小数值的拦截力进一步下降 (罕见大数仍拦得住)。
+    # 这条弱化必须写进卡文与验收单, 不得只在代码里悄悄放宽。
+    pool = set(base)
+    ordered = sorted(base)
+    for i, a in enumerate(ordered):
+        for b in ordered[i:]:
+            pool.add(a + b)
+            pool.add(abs(a - b))
+    # default-deny 切段: preamble (首个 `##` 之前, 含「规模自陈」callout) + 每个 `##` 段。
+    # ⛔ BLOCKER-2 的教训保留在这里: 段名匹配用**宽松**口径 (`## 三维审查（本轮）` 也算),
+    # 与报告别处的存在性检查同一套 —— 否则给标题加四个字就能逃出治理。
+    # ⛔ E1 必须**先**剥围栏 —— 卡文 §0.1 把「先剥豁免跨度」写在第一位, 而这里原先
+    # 从不调用 _strip_code_blocks。后果是双向的 (对抗审查实测):
+    #   · 误伤: 围栏里的字面文本被当成报告的陈述 (与 §0.1 的写死判据相反);
+    #   · 绕过: 围栏里的 `## 板级数据来源与新鲜度` 被下面的 heads 正则当成真标题,
+    #     从而凭空开出一个"出域段"—— 读者在 Obsidian 里看到的只是一段灰底代码。
+    text = _strip_code_blocks(text)
+    parts: list[tuple[str, str]] = []
+    # ⛔ 段首必须**恰好两个** `#`: 原式 `^##[^\n]*$` 连 `###`/`####` 一起命中,
+    # 于是一个三级标题就能开出新段 —— 配合下面的出域判定即可整段逃出治理。
+    heads = list(re.finditer(r"^##(?!#)[^\n]*$", text, re.M))
+    if heads:
+        parts.append(("（规模自陈等前置段）", text[: heads[0].start()]))
+        for i, h in enumerate(heads):
+            end = heads[i + 1].start() if i + 1 < len(heads) else len(text)
+            parts.append((h.group(0).lstrip("# ").strip(), text[h.end() : end]))
+    else:
+        parts.append(("（全文）", text))
+    for sec, body in parts:
+        # ⛔ 出域判定必须**前缀锚定**, 不能用子串 `ex in sec`:
+        # 子串匹配下 `## 附录（数据来源与新鲜度）` 也算出域 —— 把豁免段名塞进任意标题
+        # 的非开头位置就能整段免检, 而报告别处的重复段检查是前缀锚定的, 两者错位。
+        # 与 _SECTION_RE 同口径: 段名开头相符 + 其后只能是空白或全角括号补充说明。
+        if any(
+            re.match(rf"^{re.escape(ex)}(?:[\s（(]|$)", sec)
+            for ex in _D2_EXEMPT_SECTIONS
+        ):
+            continue
+        # E2/E3/E4/E5: 结构性跨度挖空 (等长替换, 保持行内偏移不乱)
+        for rx in (_D2_INLINE_CODE_RE, _D2_WIKILINK_RE, _D2_TIME_RE):
+            body = rx.sub(lambda mm: " " * len(mm.group(0)), body)
+        body = _D2_ORDERED_LIST_RE.sub(
+            lambda mm: mm.group(1) + "  " + mm.group(2), body
+        )
+        for line in body.splitlines():
+            # 全角数字归一 (等长, 偏移不变): `９８７６５４ 个` 与 `987654 个` 同义,
+            # 换个写法不该换来免检。
+            line = line.translate(_FULLWIDTH_DIGITS)
+            # ⛔ 对抗审查 HIGH: 千分位与前导零把量级洗掉 —— `999,016 个` 只会被切成
+            # 尾段 `016` 去比对, 于是①判决取决于该板恰好有没有 16, ②诊断报的数字是错的
+            # (报 016 而报告写的是 999,016)。归一掉分隔符与前导零, 让比对对准真实量级。
+            # ⚠️ 必须**删掉**分隔符而不是换成空格：换成空格会把 `999,016` 变成
+            #    `999 016`，而空白在噪声集里 ⇒ 仍然只取到尾段 016（第一版就这么错的）。
+            #    本行的等长约束到此为止——检查是逐行独立的，偏移不再被别处依赖。
+            line = re.sub(r"(?<=[0-9]),(?=[0-9]{3}(?![0-9]))", "", line)
+            line = re.sub(r"(?<![0-9])0+(?=[0-9])", "", line)
+
+            # E7 范围表达 (Codex round-1 HIGH): `2~3 个` 这类**区间**里的端点不是
+            # 独立计数, 逐个去池里找会让"合法与否取决于另一块板恰好有没有那个数"
+            # —— 复核者实测同一句话在 CS 61B 报告通过、在递归与分治报告 FAIL。
+            # 按结构豁免整段区间。
+            # ⛔ 对抗审查 MEDIUM: E7 原为**无条件**整段挖空 ⇒ `1-987654 个` 成了
+            # 洗钱通道 (写个 `1-` 前缀, 任意量级都不受检)。现在只有**两端都有出处**
+            # 才算合法区间; 否则不挖空, 交给下面的计数检查逐个判。
+            def _range_ok(mm):
+                ends = [int(x) for x in re.findall(r"[0-9]+", mm.group(0))]
+                return (
+                    " " * len(mm.group(0))
+                    if all(e in pool for e in ends)
+                    else mm.group(0)
+                )
+
+            line = _D2_RANGE_RE.sub(_range_ok, line)
+            # E6b: 逐字模板常量整段挖空 (等长, 保持偏移)
+            for const in _D2_TEMPLATE_CONSTANTS:
+                line = line.replace(const, " " * len(const))
+            # ⛔⛔ 适用范围收窄 (对抗审查 BLOCKER, 四板实测):
+            # 「值落在 scan 数值池里 = 有出处」是个**碰撞判据**, 不是绑定判据 ——
+            # 实测同一句合法叙述 (`你说「我做了 5 个练习」` / `第 4 条动作建议` /
+            # `有 5 处值得注意`) 在 CS 61B / 特征值 / CS188 上放行, 在「递归与分治」
+            # 上 FAIL, 只因后者的 scan 数值池小 (`[0,1]`)。**同一句话的对错取决于
+            # 另一组数据** —— 这在任何判据里都是致命的, 不是覆盖面问题。
+            # 反过来它也解释了拦截力为何弱: 能拦住的只有大到不可能碰撞的数。
+            # ⇒ D2 只对**明确自称全板规模**的句式生效 (「本板共有 N 个…」这类),
+            # 其余叙述交给 D1 的逐字段绑定与人工判读。宁可少管, 不可乱判。
+            if not _D2_CLAIM_RE.search(line):
+                continue
+            # 小数形态的计数一律 FAIL: scan JSON 的计数都是整数, 一个"0.987654 个"
+            # 不可能有出处; 放行它等于给任意数字留一个 `0.` 前缀的免检通道。
+            for dec in _D2_DECIMAL_RE.findall(line):
+                problems.append(
+                    f"数字终核: 『{sec}』段出现小数形态的计数 {dec.strip()} "
+                    f"(scan JSON 的计数均为整数, 小数不可能有出处): {line.strip()[:50]}"
+                )
+            # 中文数字写的计数 (`共有九十八万个子节点`): 归一成整数后同样比对。
+            for m_cjk in re.finditer(
+                rf"({_CJK_NUM_RE.pattern}){_D2_NOISE}(?={_D2_QUANT})", line
+            ):
+                val = _cjk_to_int(m_cjk.group(1))
+                if val is None:
+                    problems.append(
+                        f"数字终核: 『{sec}』段的中文数字计数 {m_cjk.group(1)} 无法解析 "
+                        f"(报告请用阿拉伯数字写计数): {line.strip()[:50]}"
+                    )
+                elif val not in pool:
+                    problems.append(
+                        f"数字终核: 『{sec}』段的计数 {m_cjk.group(1)}({val}) "
+                        f"在 scan JSON 里找不到同值来源: {line.strip()[:50]}"
+                    )
+            for tok in _D2_COUNT_RE.findall(line):
+                if int(tok) not in pool:
+                    problems.append(
+                        f"数字终核: 『{sec}』段的计数 {tok} 在 scan JSON 里找不到同值来源 "
+                        f"(域内数字必须有出处): {line.strip()[:50]}"
+                    )
+
+
+def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> None:
+    """台账『种子』行的批注数必须绑到 scan JSON 里**该节点的** tips_count。
+
+    ⛔ 维护卡 B · H-2 后半 (round-6 实证): 原实现只有整行**形状**白名单
+    (``- <节点> — 批注 N 条``), 不绑值 —— 把真实的「批注 2 条」改成
+    「批注 999 条」形状照样合法, 实测 exit 0。白名单管住了句式, 没管住数字的出处。
+
+    scan JSON 的 ``ledger`` 是**按角色分组的 dict** (seeds/derived/unknown) 而非扁平
+    列表 —— 我第一版直接迭代它, 拿到的是键字符串, verifier 当场抛 NameError/AttributeError,
+    stdout 全空 exit 1, 症状伪装成"报告不合规"。这里显式摊平并容两种形态。
+    """
+    mseed = re.search(r"^### 种子\s*$(.*?)(?=^#{2,3}[^\S\n]|\Z)", text, re.M | re.S)
+    if not mseed:
+        return
+    groups = scan.get("ledger")
+    rows: list[dict] = []
+    if isinstance(groups, dict):
+        for grp in groups.values():
+            if isinstance(grp, list):
+                rows.extend(x for x in grp if isinstance(x, dict))
+    elif isinstance(groups, list):
+        rows = [x for x in groups if isinstance(x, dict)]
+    if not rows:  # 无 ledger 可绑 = 无法终核, 不静默放行
+        problems.append("数字终核: scan JSON 无可用 ledger, 台账『种子』行无法绑定")
+        return
+    tips_by_node = {str(r.get("node_id")): r.get("tips_count") for r in rows}
+    for ln in mseed.group(1).splitlines():
+        if not ln.strip():
+            continue
+        ms = _SEED_LEDGER_LINE_RE.match(ln)
+        if not ms:
+            continue  # 形状问题由 _verify_report 的模板白名单报, 此处不重复
+        node = ms.group("node").strip()
+        if node not in tips_by_node:
+            problems.append(
+                f"数字终核: 台账『种子』行的节点 {node!r} 不在 scan JSON 的 ledger 里 "
+                "(台账不得列出未扫描到的节点)"
+            )
+            continue
+        want = tips_by_node[node]
+        got = 0 if ms.group("none") else int(ms.group("n"))
+        if got != want:
+            problems.append(
+                f"数字终核: 台账『种子』行 {node} 报批注 {got} 条, "
+                f"scan JSON 的 tips_count 是 {want} (形状对不等于数字有据)"
+            )
 
 
 def _verify_numbers(fm: str, text: str, report_path: Path, problems: list[str]) -> None:
@@ -1259,6 +1654,8 @@ def _verify_numbers(fm: str, text: str, report_path: Path, problems: list[str]) 
         for got in all_hits:  # 段外同形句同样绑定, 不留"第二处说法"
             if int(got) != want_v:
                 problems.append(f"数字终核: {name} {got} ≠ scan JSON {want_v}")
+    _verify_seed_ledger_counts(text, scan, problems)
+    _verify_prose_counts(text, scan, problems)
     _verify_signals_if_present(text, scan, problems)
 
 
@@ -1285,15 +1682,22 @@ def _verify_report(path: str) -> int:
     if "<!--" in fm or "-->" in fm:
         print("✗ frontmatter 块内含 HTML 注释标记")
         return 1
+    problems: list[str] = []
+    # ⛔ 顺序必须是**先检后剥** (对抗审查实测的 BLOCKER):
+    # 原实现先无条件 `re.sub` 剥掉闭合注释, 再用 `if "<!--" in text` 查残留 ——
+    # 两个标记都被吃掉了, 于是这道检查恒不触发。后果远不止 D2:
+    # 把标记包成 code span (`` `<!--` `` … `` `-->` ``), 在 Obsidian 里它渲染成
+    # **字面可见的正文**, 而 verifier 先把整段删掉 ⇒ 该段落对**全部**基于 text 的
+    # 检查隐身 —— 实测连 HARD-R4 禁词「偏离」都能这样藏进去并 VERIFY PASS。
+    # 报告本就禁写任何 HTML 注释 (F2 已有此口径), 所以在**原始文本**上一次判死,
+    # 不区分闭合与否、也不管标记是否落在代码跨度内。
+    if "<!--" in text_raw or "-->" in text_raw:
+        problems.append(
+            "正文含 HTML 注释标记 (渲染隐藏面/可见文本与校验文本分叉, 报告禁写注释)"
+        )
     # 六轮影子字段防御: 正文校验前剥 HTML 注释 — "注释里藏正确模板行、
     # 可见文本撒谎"的形态失效, 可见文本必须独立过全部校验。
     text = re.sub(r"<!--.*?-->", "", text_raw, flags=re.S)
-    problems: list[str] = []
-    # F2 (Codex G5-4 round-1): 剥完闭合注释后仍残留 "<!--" = 未闭合注释 —
-    # 渲染视图会把其后全部内容隐藏 (含信号行), 而正则校验照常看见并放行,
-    # 可见文本与校验文本分叉 → fail-closed。报告本就禁写任何 HTML 注释。
-    if "<!--" in text:
-        problems.append("正文含未闭合 HTML 注释标记 (渲染隐藏面, 报告禁写注释)")
     # round-4: 零宽/双向控制字符 — 渲染不可见但能改变正则匹配与阅读顺序,
     # 是"看起来合规、实际另一回事"的通用载体。合法报告没有理由出现它们。
     if re.search(r"[​-‏‪-‮⁠-⁤﻿]", text):
@@ -1352,9 +1756,16 @@ def _verify_report(path: str) -> int:
         # 不再判断它"是不是在说派生"。
         mseed = re.search(r"^### 种子\s*$(.*?)(?=^#{2,3}[^\S\n]|\Z)", text, re.M | re.S)
         if mseed:
+            # ⛔ 维护卡 B · H-2 后半: 原式只查**形状** (`批注 \d+ 条`), 不绑值 ——
+            # 实证「- SeedA — 批注 999 条」形状合法即 PASS。白名单管住了句式,
+            # 没管住数字的出处。现在捕获节点名与数字, 与 scan JSON 的 ledger 里
+            # **该节点的 tips_count** 全等比对: 形状 + 出处双绑。
             seed_line = re.compile(
-                r"^[>\s]*-\s+\S.*?\s+—\s+(?:批注\s*\d+\s*条|无批注)\s*$"
+                r"^[>\s]*-\s+(?P<node>\S.*?)\s+—\s+"
+                r"(?:批注\s*(?P<n>\d+)\s*条|(?P<none>无批注))\s*$"
             )
+            # ⚠️ 只查**形状**在这里做; 绑**值**在 _verify_numbers 里 (scan JSON 只在
+            # 那边加载)。职责切分: 本函数管措辞与模板, 数字出处统一归数字终核。
             for ln in mseed.group(1).splitlines():
                 if ln.strip() and not seed_line.match(ln):
                     problems.append(
@@ -1370,8 +1781,14 @@ def _verify_report(path: str) -> int:
         # 合法用法白名单 (逐条对应 scan JSON 里**有据**的字段):
         derive_ok = (
             # ① 规模自陈行 — counts.derived
+            # ⛔ 维护卡 B · H-2: 原式**缺 `$`**, 而 `p.match()` 只认前缀 —— 于是在
+            # 一条完全正确的规模行**尾部追加**任意文字 (实证:「，SeedA 的派生子女
+            # 共有仨个」) 仍然 match 成功、照样 PASS。复核者判"不是真正整行匹配"
+            # 完全成立。现按模板补全整行并锚 `$`: 五元组之后只许是
+            # `/ N 批注` 与可选的行尾 `/`。
             re.compile(
                 r"^[>\s]*\d+\s*成员（\d+\s*种子\s*\+\s*\d+\s*派生，\d+\s*占位）"
+                r"\s*/\s*\d+\s*批注\s*/?\s*$"
             ),
             # ② 任意层级的段落标题 (## 台账（种子/派生） / ### 派生)
             re.compile(r"^#{1,6}[^\S\n].*$"),

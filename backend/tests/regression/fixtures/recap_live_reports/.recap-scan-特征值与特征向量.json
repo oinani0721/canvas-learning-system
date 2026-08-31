@@ -1,0 +1,227 @@
+{
+ "board_exists": true,
+ "board_stem": "特征值与特征向量",
+ "board_name": "特征值与特征向量",
+ "recap_date": "2026-08-27",
+ "report_path": "outputs/回顾-特征值与特征向量-2026-08-27.md",
+ "data_mode": "manifest",
+ "manifest": {
+  "source": "live",
+  "source_status": "ok",
+  "degraded": false,
+  "degraded_reason": null,
+  "generated_at": "2026-08-26T22:12:55.936192+00:00",
+  "lag_seconds": 0.0,
+  "stale": false,
+  "orphans": [],
+  "orphans_count": 0,
+  "dual_source_gap": {
+   "concepts_only": [],
+   "frontmatter_only": []
+  },
+  "parse_errors_count": 0,
+  "exam_history": [
+   {
+    "exam_board_id": "特征值与特征向量-2026-07-05-1815",
+    "created_at": "2026-07-05T18:15:48Z",
+    "status": "in_progress",
+    "selected_node": "Fundamentals",
+    "question_count": 1
+   },
+   {
+    "exam_board_id": "特征值与特征向量-2026-07-16-0112",
+    "created_at": "2026-07-16T01:12:58Z",
+    "status": "done",
+    "selected_node": "Fundamentals",
+    "question_count": 1
+   },
+   {
+    "exam_board_id": "特征值与特征向量-2026-07-18-1741",
+    "created_at": "2026-07-18T17:41:41Z",
+    "status": "done",
+    "selected_node": "Fundamentals",
+    "question_count": 1
+   },
+   {
+    "exam_board_id": "特征值与特征向量-2026-07-23-1939",
+    "created_at": "2026-07-23T19:39:46Z",
+    "status": "done",
+    "selected_node": "Fundamentals",
+    "question_count": 1
+   },
+   {
+    "exam_board_id": "特征值与特征向量-2026-07-24-0405",
+    "created_at": "2026-07-24T04:05:27Z",
+    "status": "in_progress",
+    "selected_node": "Fundamentals",
+    "question_count": 1
+   },
+   {
+    "exam_board_id": "特征值与特征向量-2026-07-25-0233",
+    "created_at": "2026-07-25T02:33:51Z",
+    "status": "done",
+    "selected_node": "Fundamentals",
+    "question_count": 1
+   }
+  ],
+  "exam_history_count": 6
+ },
+ "source_revision": {
+  "board_sha256": "075989de871daff055cdd27e5263c47cec3030efa3a32d05d2df19879c18d751",
+  "board_mtime_utc": "2026-08-15T00:00:21Z",
+  "scan_at_utc": "2026-08-26T22:14:25Z",
+  "manifest_generated_at": "2026-08-26T22:12:55.936192+00:00",
+  "manifest_lag_seconds": 0.0,
+  "manifest_stale": false
+ },
+ "ledger": {
+  "seeds": [
+   {
+    "node_id": "Fundamentals",
+    "role": "seed",
+    "role_source": "manifest",
+    "is_stub": false,
+    "mastery_score": 0.01,
+    "mastery_source": "beta",
+    "attempt_count": 2,
+    "last_examined": "2026-07-25T02:53:46+00:00",
+    "created_at": null,
+    "created_from": "manual_repair_2026-05-01",
+    "pick_rank": 1,
+    "relation_type": null,
+    "relation_target": null,
+    "derived_at": null,
+    "derived_reason": null,
+    "tips": [
+     {
+      "text": "λ is the eigenvalue ✍️ 我的理解：λ 可以是 0 吗？",
+      "tag": "question",
+      "understanding": "fuzzy",
+      "added_at": "2026-07-25T08:25:03.871000+00:00"
+     },
+     {
+      "text": "我对这里的特征向量还是有点不太理解 AI 判断来源：你在回答『Fundamentals』的考题时提出。原因：题目要求说清特征向量的定义条件，你表示无法作答、仅记得与\"方向\"有关。",
+      "tag": "question",
+      "understanding": null,
+      "added_at": "2026-07-19T03:19:25.882000+00:00"
+     },
+     {
+      "text": "我不会这道题（此题弃答） AI 判断来源：你在回答『Fundamentals』的考题时弃答。原因：题目用剪切矩阵 A=[[1,1],[0,1]] 让你亲手算 Av、找出唯一不歪的方向并说清「特征向量特殊在哪」，你表示答不上来——特征向量的判定关系 Av=λv 仍是核心卡点。",
+      "tag": "question",
+      "understanding": null,
+      "added_at": "2026-07-25T02:54:34.598000+00:00"
+     }
+    ],
+    "tips_count": 3,
+    "tips_open": 3,
+    "error_candidates_pending": 1,
+    "derived_children": [
+     "Characteristic-Equation-for-Eigenvalues",
+     "Eigenvalues-are-special-vectors-that-sat"
+    ],
+    "derived_children_count": 2
+   }
+  ],
+  "derived": [
+   {
+    "node_id": "Characteristic-Equation-for-Eigenvalues",
+    "role": "derived",
+    "role_source": "manifest",
+    "is_stub": false,
+    "mastery_score": 0.3,
+    "mastery_source": "score_only",
+    "attempt_count": null,
+    "last_examined": null,
+    "created_at": "2026-04-30T11:34:43+00:00",
+    "created_from": "ai_linked_doc",
+    "pick_rank": 2,
+    "relation_type": "derived_from",
+    "relation_target": "Fundamentals",
+    "derived_at": null,
+    "derived_reason": null,
+    "tips": [],
+    "tips_count": 0,
+    "tips_open": 0,
+    "error_candidates_pending": 0
+   },
+   {
+    "node_id": "Eigenvalues-are-special-vectors-that-sat",
+    "role": "derived",
+    "role_source": "manifest",
+    "is_stub": true,
+    "mastery_score": 0.3,
+    "mastery_source": "score_only",
+    "attempt_count": null,
+    "last_examined": null,
+    "created_at": "2026-05-01T11:06:47.757000+00:00",
+    "created_from": "ai_linked_doc",
+    "pick_rank": null,
+    "relation_type": "extends",
+    "relation_target": "Fundamentals",
+    "derived_at": null,
+    "derived_reason": "测试",
+    "tips": [],
+    "tips_count": 0,
+    "tips_open": 0,
+    "error_candidates_pending": 0
+   }
+  ],
+  "unknown": []
+ },
+ "counts": {
+  "members": 3,
+  "seeds": 1,
+  "derived": 2,
+  "stubs": 1,
+  "never_examined": 2,
+  "tips_total": 3,
+  "tips_unanswered_upper_bound": 3,
+  "tips_understanding_open": 3,
+  "tips_undated": 0,
+  "body_callouts": 0,
+  "annotations": 3,
+  "relation_types": {
+   "derived_from": 1,
+   "extends": 1
+  },
+  "error_candidates_pending": 1
+ },
+ "tips_oldest3": [
+  {
+   "text": "我对这里的特征向量还是有点不太理解 AI 判断来源：你在回答『Fundamentals』的考题时提出。原因：题目要求说清特征向量的定义条件，你表示无法作答、仅记得与\"方向\"有关。",
+   "tag": "question",
+   "understanding": null,
+   "added_at": "2026-07-19T03:19:25.882000+00:00",
+   "node_id": "Fundamentals"
+  },
+  {
+   "text": "我不会这道题（此题弃答） AI 判断来源：你在回答『Fundamentals』的考题时弃答。原因：题目用剪切矩阵 A=[[1,1],[0,1]] 让你亲手算 Av、找出唯一不歪的方向并说清「特征向量特殊在哪」，你表示答不上来——特征向量的判定关系 Av=λv 仍是核心卡点。",
+   "tag": "question",
+   "understanding": null,
+   "added_at": "2026-07-25T02:54:34.598000+00:00",
+   "node_id": "Fundamentals"
+  },
+  {
+   "text": "λ is the eigenvalue ✍️ 我的理解：λ 可以是 0 吗？",
+   "tag": "question",
+   "understanding": "fuzzy",
+   "added_at": "2026-07-25T08:25:03.871000+00:00",
+   "node_id": "Fundamentals"
+  }
+ ],
+ "scale_gate": {
+  "member_threshold": 30,
+  "annotation_threshold": 100,
+  "over_threshold": false,
+  "detail_k": 10,
+  "detail_node_ids": null,
+  "tail_counts": null
+ },
+ "concepts_members": [
+  "Characteristic-Equation-for-Eigenvalues",
+  "Eigenvalues-are-special-vectors-that-sat",
+  "Fundamentals"
+ ],
+ "previous_recap": null,
+ "unsafe_write_targets": []
+}
