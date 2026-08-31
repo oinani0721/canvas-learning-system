@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>G6-2 交互复习壳 · UI 范式 Demo（DD-05）</title>
+<style>
+  /* 与零 JS 页 (review_overview /page) 同族配色 —— 交互壳不另起视觉体系 */
+  body { font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif;
+         background: #f5f5f7; margin: 0; padding: 24px; color: #111827; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: #6b7280; font-size: 13px; margin-bottom: 12px; }
+  .demo-note { background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px;
+               padding: 8px 14px; font-size: 13px; color: #92400e; margin-bottom: 20px; }
+  .statusbar { display: flex; gap: 14px; align-items: center; flex-wrap: wrap;
+               font-size: 13px; color: #6b7280; margin-bottom: 16px; }
+  .conn { border-radius: 999px; padding: 2px 10px; font-size: 12px; color: #fff; white-space: nowrap; }
+  .conn.ok { background: #16a34a; }
+  .conn.down { background: #dc2626; }
+  .banner { background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px;
+            padding: 10px 16px; font-size: 14px; color: #991b1b; margin-bottom: 16px; }
+  .cards { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+  .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px 20px;
+          flex: 1 1 320px; min-width: 0; max-width: 520px; background: #fff;
+          box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+  .card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .card-head b { font-size: 16px; }
+  .badge { border-radius: 999px; padding: 2px 10px; font-size: 12px; color: #fff; white-space: nowrap; }
+  .big { font-size: 26px; margin: 8px 0 0; }
+  .big small { font-size: 13px; color: #6b7280; font-weight: normal; }
+  .layers { font-size: 12px; color: #6b7280; margin: 2px 0 0; }
+  .tblwrap { overflow-x: auto; margin: 10px 0 4px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th { padding: 4px 8px; border-bottom: 1px solid #e5e7eb; color: #6b7280;
+       font-weight: 500; text-align: left; white-space: nowrap; font-size: 12px; }
+  td { padding: 5px 8px; border-bottom: 1px solid #f3f4f6; }
+  td.num { text-align: center; white-space: nowrap; }
+  a { color: #2563eb; text-decoration: none; }
+  .why { color: #6b7280; font-size: 12px; padding: 0 8px 6px; }
+  .estmin { display: inline-block; background: #eef2ff; color: #4338ca; border-radius: 4px;
+            padding: 0 6px; font-size: 11px; margin-left: 6px; white-space: nowrap; }
+  .manifest { color: #9ca3af; font-size: 11px; margin-top: 6px; }
+  .gen { color: #6b7280; font-size: 12px; margin: 4px 0 6px; }
+  .restday { color: #16a34a; font-size: 14px; margin: 14px 0; }
+  .degraded { color: #6b7280; margin: 12px 0; font-size: 13px; }
+  .corrupt-err { color: #dc2626; margin: 12px 0; }
+  .corrupt-err code { font-size: 11px; }
+  .actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
+  .btn { font-size: 13px; color: #2563eb; background: #eff6ff; border: 1px solid #bfdbfe;
+         border-radius: 6px; padding: 3px 10px; cursor: pointer; font-family: inherit; }
+  .refresh-note { font-size: 12px; color: #6b7280; }
+  .refresh-note.ok { color: #16a34a; }
+  .refresh-note.warn { color: #d97706; }
+  .refresh-note.err { color: #dc2626; }
+  .footer { color: #9ca3af; font-size: 12px; margin-top: 24px; }
+  .section-title { font-size: 15px; color: #374151; margin: 28px 0 10px; border-left: 3px solid #2563eb; padding-left: 8px; }
+</style>
+</head>
+<body>
+<h1>📚 跨库复习总览 <span style="font-size:13px;color:#2563eb">交互版</span></h1>
+<div class="sub">GET /api/v1/review/overview/app · 自动轮询（到点自动重新拉取投影聚合）· 与零 JS 只读页共存</div>
+<div class="demo-note">⚠ 这是 DD-05 UI 范式静态 demo（CARD-G6-2）：数据为内嵌 fixture，不连后端。
+下方渲染由与实装同一套纯渲染函数产出 —— 你确认的样子就是实装的样子。三个演示区：① 正常态（含 W6 新字段）② 四态与休息日 ③ 不可用横幅与刷新反馈。</div>
+
+<div class="section-title">① 顶栏状态条（常驻）：连接徽标 + 上次更新 + 下次自动刷新倒计时（页面隐藏时暂停）</div>
+<div class="statusbar">
+  <span class="conn ok">已连接</span>
+  <span>上次更新 14:32:05</span>
+  <span>下次自动刷新 6 秒后（跟随最近到期时刻，5–60 秒之间）</span>
+  <span style="color:#9ca3af">｜ 隐藏本页时暂停轮询，回来立即刷新</span>
+</div>
+
+<div class="section-title">② vault 卡片：四态徽标 / 休息日空状态 / W6 新字段（有则显示，缺省整块不出现）</div>
+<div class="cards" id="demo-cards"></div>
+
+<div class="section-title">③ 后端不可用（fetch 失败 / 非 200 / JSON 坏）：横幅 + 保留最后一次成功数据，不白屏</div>
+<div class="statusbar">
+  <span class="conn down">后端不可用</span>
+  <span>上次更新 14:32:05</span>
+  <span>自动重试中（每 10 秒）</span>
+</div>
+<div class="banner" id="demo-banner"></div>
+
+<div class="section-title">③b 手动刷新按钮的三种反馈（POST /overview/refresh 响应可见化）</div>
+<div class="cards">
+  <div class="card"><div class="actions"><button class="btn">🔄 刷新投影</button>
+    <span class="refresh-note ok">✅ 已重建（本进程第 3 次）· 数字已更新</span></div></div>
+  <div class="card"><div class="actions"><button class="btn">🔄 刷新投影</button>
+    <span class="refresh-note warn">⏱ 10 秒内已重建过，本次未重算 · 约 7 秒后可再试</span></div></div>
+  <div class="card"><div class="actions"><button class="btn">🔄 刷新投影</button>
+    <span class="refresh-note err">❌ 刷新失败（HTTP 503）：生产器脚本不可用</span></div></div>
+</div>
+
+<div class="footer">⚠ obsidian:// 跳转需在 Obsidian 打开过该库（未注册的库点击无响应）；存在同名库时可能跳到先注册的那个，以 Obsidian 侧库列表为准</div>
+
+<script>
+"use strict";
+// ═══ 以下渲染纯函数与实装（review_app.py 内联 JS）同一套 ═══
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+const STATUS_META = {
+  ok: ["今日投影", "#16a34a"],
+  stale: ["过期投影", "#d97706"],
+  no_projection: ["无投影", "#6b7280"],
+  corrupt: ["投影损坏", "#dc2626"],
+};
+const BUCKET_CN = {new:"新卡", learning_queue:"学习中", due_now:"到期", due_today:"今天晚些", future:"未来"};
+const BUCKET_ORDER = ["new","learning_queue","due_now","due_today","future"];
+
+function shDay(ms) { return new Intl.DateTimeFormat("en-CA", {timeZone:"Asia/Shanghai"}).format(new Date(ms)); }
+function parseDueMs(ts) {
+  if (typeof ts !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(ts)) return null;
+  const ms = Date.parse(ts);
+  return Number.isFinite(ms) ? ms : null;
+}
+function humanizeDue(ts, nowMs) {
+  // ⚠ 纯显示层格式化，不是 due 判定：谁到期/计数/排序全来自投影字段。
+  if (ts === null || ts === undefined) return {text:"—", color:"#6b7280"};
+  if (ts === "") return {text:"现在", color:"#d97706"};
+  const ms = parseDueMs(ts);
+  if (ms === null) return {text:"—", color:"#6b7280"};
+  const d1 = shDay(ms), d0 = shDay(nowMs);
+  const days = Math.round((Date.parse(d1) - Date.parse(d0)) / 86400000);
+  if (days < 0) return {text:"逾期" + (-days) + "天", color:"#dc2626"};
+  if (days === 0) return {text:"现在", color:"#d97706"};
+  if (days === 1) return {text:"明天", color:"#374151"};
+  if (days <= 7) return {text: days + "天后", color:"#374151"};
+  const [y, m, d] = d1.split("-").map(Number);
+  const y0 = Number(d0.split("-")[0]);
+  return {text: (y === y0 ? "" : y + "年") + m + "月" + d + "日", color:"#6b7280"};
+}
+function boardLink(vaultId, board) {
+  return "obsidian://open?vault=" + encodeURIComponent(vaultId) + "&file=" + encodeURIComponent("原白板/" + board + ".md");
+}
+function nodeLink(vaultId, node) {
+  return "obsidian://open?vault=" + encodeURIComponent(vaultId) + "&file=" + encodeURIComponent("节点/" + node + ".md");
+}
+function nodeDetailHtml(vaultId, nodes, nowMs) {
+  if (!Array.isArray(nodes) || !nodes.length) return "";
+  const items = nodes.map(n => {
+    const due = humanizeDue(n.fsrs_due, nowMs);
+    const tag = n.bucket == null ? "" :
+      '<span style="display:inline-block;background:#f3f4f6;color:#4b5563;border-radius:4px;padding:0 6px;font-size:11px;margin-left:6px;white-space:nowrap">' + esc(BUCKET_CN[n.bucket] || n.bucket) + "</span>";
+    const why = !n.why_due ? "" :
+      '<div style="color:#6b7280;font-size:12px;margin-top:1px">' + esc(n.why_due) + "</div>";
+    return '<li style="margin:0 0 6px;list-style:none;line-height:1.5;overflow-wrap:anywhere;word-break:break-word">' +
+      '<a href="' + esc(nodeLink(vaultId, n.node)) + '">' + esc(n.node) + "</a>" + tag +
+      '<span style="color:' + due.color + ';font-size:12px;margin-left:6px">' + esc(due.text) + "</span>" + why + "</li>";
+  });
+  return '<details style="margin:2px 0 4px"><summary style="cursor:pointer;color:#6b7280;font-size:12px">节点明细（' + nodes.length + '）</summary><ul style="margin:6px 0 0;padding:0 0 0 6px">' + items.join("") + "</ul></details>";
+}
+function boardTableHtml(vaultId, boards, nowMs) {
+  if (!Array.isArray(boards) || !boards.length) return "";
+  const head = ["白板名","到期","新卡","待剖析","最早到期"].map(c => "<th>" + c + "</th>").join("");
+  const rows = boards.map(r => {
+    const due = humanizeDue(r.earliest, nowMs);
+    const ph = r.placeholder == null ? "—" : String(r.placeholder);
+    // W6 加性字段（缺省整块不出现，沿 bucket_counts 缺省纪律）
+    const est = Number.isFinite(r.estimated_minutes) ?
+      '<span class="estmin">约 ' + r.estimated_minutes + " 分钟</span>" : "";
+    let out = "<tr><td><a href=\"" + esc(boardLink(vaultId, r.board)) + "\">" + esc(r.board) + "</a>" + est + "</td>" +
+      '<td class="num">' + (r.due ? "<b>" + r.due + "</b>" : '<span style="color:#9ca3af">0</span>') + "</td>" +
+      '<td class="num">' + r.due_new + "</td>" +
+      '<td class="num">' + esc(ph) + "</td>" +
+      '<td style="white-space:nowrap;color:' + due.color + '">' + esc(due.text) + "</td></tr>";
+    if (typeof r.why_this_board === "string" && r.why_this_board)
+      out += '<tr><td colspan="5" class="why">💡 ' + esc(r.why_this_board) + "</td></tr>";
+    const detail = nodeDetailHtml(vaultId, r.nodes, nowMs);
+    if (detail) out += '<tr><td colspan="5" style="padding-top:0">' + detail + "</td></tr>";
+    return out;
+  }).join("");
+  return '<div class="tblwrap"><table><thead><tr>' + head + "</tr></thead><tbody>" + rows + "</tbody></table></div>";
+}
+function restDayHtml(proj) {
+  // 休息日空状态（status ok 且 due_count===0）—— 文案对齐 daily_review_pick.py:599/:564
+  const nu = proj.next_upcoming;
+  const tail = nu ? '<div style="color:#6b7280;font-size:13px;margin-top:4px">按计划推进 · 最近到期 ' +
+    esc(nu.board) + " · " + esc(String(nu.next_due).slice(0, 10)) + "</div>" : "";
+  return '<div class="restday">✅ 今日无到期节点，休息一天。' + tail + "</div>";
+}
+function renderVaultCard(entry, nowMs) {
+  const meta = STATUS_META[entry.status] || [entry.status, "#6b7280"]; // 未知态防御：原字面灰徽标，不白屏
+  const vid = entry.vault_id;
+  let body = "";
+  const proj = entry.projection;
+  if (proj) {
+    if (entry.status === "ok" && proj.due_count === 0) {
+      body = restDayHtml(proj);
+    } else {
+      const layers = proj.bucket_counts == null ? "" :
+        '<div class="layers">分层 · ' + BUCKET_ORDER.map(b => esc(BUCKET_CN[b]) + " " + proj.bucket_counts[b]).join(" · ") + "</div>";
+      body = '<div class="big">到期 <b>' + proj.due_count + "</b><small> · 新卡 " + proj.due_new_count +
+        " · 待剖析 " + proj.placeholder_backlog + "</small></div>" + layers +
+        boardTableHtml(vid, proj.boards, nowMs);
+    }
+    body += '<div class="gen">生成于 ' + esc(String(proj.generated_at)) + "</div>" +
+      '<a href="obsidian://open?vault=' + esc(encodeURIComponent(vid)) + '">在 Obsidian 中打开 ↗</a>';
+    // W6 加性顶层 rank_manifest：在场才出现（不解析内部形状）
+    if (proj.rank_manifest != null) body += '<div class="manifest">📋 本次板序含排序依据（rank_manifest）</div>';
+  } else if (entry.status === "no_projection") {
+    body = '<div class="degraded">该库尚无今日复习投影 — 推送管道尚未为它跑过<br>深链已降级：需在 Obsidian 打开过该库后才提供跳转</div>';
+  } else {
+    body = '<div class="corrupt-err">投影文件无法解析<br><code>' + esc(String(entry.error || "")) + "</code></div>";
+  }
+  return '<div class="card"><div class="card-head"><b>' + esc(vid) + '</b>' +
+    '<span class="badge" style="background:' + meta[1] + '">' + esc(meta[0]) + "</span></div>" + body +
+    '<div class="actions"><button class="btn" data-refresh-vault="' + esc(vid) + '">🔄 刷新投影</button>' +
+    '<span class="refresh-note" data-refresh-note="' + esc(vid) + '"></span></div></div>';
+}
+function renderUnavailableBanner(detail, lastOkText) {
+  const keep = lastOkText ? "页面保留 " + esc(lastOkText) + " 的最后一次成功数据。" : "尚未成功获取过数据。";
+  return "<b>⚠ 后端离线/不可用</b> — " + esc(detail) + "。" + keep + "自动重试中…";
+}
+
+// ═══ demo fixture（覆盖：ok+W6 字段 / 休息日 / stale / no_projection / corrupt）═══
+const NOW = Date.parse("2026-09-01T06:32:05Z"); // 上海 14:32
+const FIX = [
+  { vault_id: "cs_61b", status: "ok", error: null, projection: {
+      due_count: 3, due_new_count: 1, placeholder_backlog: 2,
+      generated_at: "2026-09-01 09:05 (UTC+8)",
+      bucket_counts: {new:1, learning_queue:1, due_now:1, due_today:0, future:4},
+      rank_manifest: {version: 1},
+      next_upcoming: {board:"堆与优先队列", next_due:"2026-09-01T06:32:11Z", node:"二叉堆"},
+      boards: [
+        { board:"图论基础", due:2, due_new:1, placeholder:1, earliest:"2026-08-30T02:00:00Z",
+          why_this_board: "逾期最久 + 上次考察暴露『最短路径松弛』理解缺口",
+          estimated_minutes: 25,
+          nodes: [
+            {node:"Dijkstra算法", due_reason:"scheduled", fsrs_due:"2026-08-30T02:00:00Z", bucket:"due_now", why_due:"已逾期 2 天 · 上次评分 60"},
+            {node:"拓扑排序", due_reason:"new", fsrs_due:"", bucket:"new", why_due:"新卡首考"},
+          ]},
+        { board:"哈希表", due:1, due_new:0, placeholder:1, earliest:"2026-09-01T01:00:00Z",
+          why_this_board: "今天到期 1 节点", estimated_minutes: 10,
+          nodes: [{node:"开放寻址", due_reason:"scheduled", fsrs_due:"2026-09-01T01:00:00Z", bucket:"learning_queue", why_due:"学习队列第 2 步"}]},
+      ]}},
+  { vault_id: "数学", status: "ok", error: null, projection: {
+      due_count: 0, due_new_count: 0, placeholder_backlog: 0,
+      generated_at: "2026-09-01 09:06 (UTC+8)", bucket_counts: null, boards: [],
+      next_upcoming: {board:"线性代数", next_due:"2026-09-03T01:00:00Z", node:"特征值"} }},
+  { vault_id: "cs188", status: "stale", error: null, projection: {
+      due_count: 5, due_new_count: 0, placeholder_backlog: 0,
+      generated_at: "2026-08-29 09:05 (UTC+8)", bucket_counts: null,
+      next_upcoming: null,
+      boards: [{ board:"搜索", due:5, due_new:0, placeholder:null, earliest:"2026-08-29T01:00:00Z", nodes: [] }]}},
+  { vault_id: "test-vault", status: "no_projection", error: null, projection: null },
+  { vault_id: "旧库", status: "corrupt", error: "ValueError: 仅支持 schema_version 3, 实为 2", projection: null },
+];
+document.getElementById("demo-cards").innerHTML = FIX.map(e => renderVaultCard(e, NOW)).join("");
+document.getElementById("demo-banner").innerHTML = renderUnavailableBanner("fetch 失败: 连接被拒绝", "14:32:05");
+</script>
+</body>
+</html>
