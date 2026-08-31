@@ -76,11 +76,11 @@ C/D/E 是守卫三层（KEY_FILE 重定向 / osascript 打桩 / reload 自愈）
 
 ### 拒绝器不被吞的证明（行号为改后实况）
 
-`send_bark.py` 网络循环内仅有两个 except：`:138 except urllib.error.HTTPError`、`:140 except (urllib.error.URLError, TimeoutError, OSError)`。`AssertionError` 与它们无继承关系，必然穿透 `send()`；`daily_review_run.main()` 的 try 只包 `ensure_payload`（:224-229），`:250` 的 send 调用不在 try 内。负控 B 跑实证整行输出含 `AssertionError: Bark egress attempted in tests`。
+`send_bark.py` 网络重试循环内共三个 except：`:132 except (json.JSONDecodeError, UnicodeDecodeError)`（:130 内层响应解析 try）、`:138 except urllib.error.HTTPError`、`:140 except (urllib.error.URLError, TimeoutError, OSError)`。`AssertionError` 与三者均无继承关系，必然穿透 `send()`；`daily_review_run.main()` 的 try 只包 `ensure_payload`（:224-229），`:250` 的 send 调用不在 try 内。负控 B 跑实证整行输出含 `AssertionError: Bark egress attempted in tests`。
 
 ### (a) 缝的改动实况
 
-`git diff HEAD --numstat` → `scripts/send_bark.py` 为 **+5 / -1**（新增 3 行注释 + 1 行别名 + 1 行空行；删除 1 行旧调用点改写为 `_urlopen(req, timeout=TIMEOUT_S)`）。卡文 (a) 限「≤5 行」按增行计恰好合规。别名在 import 时与 `urllib.request.urlopen` 绑定同一函数对象，生产调用路径语义不变（如实边界：绑定后不再观察对 `urllib.request.urlopen` 的后续 rebind，如 tracing 注入——本仓无此用法）。
+`git diff HEAD --numstat` → `scripts/send_bark.py` 为 **+5 / -1**（新增 2 行注释 + 1 行别名 + 1 行空行；删除 1 行旧调用点改写为 `_urlopen(req, timeout=TIMEOUT_S)`）。卡文 (a) 限「≤5 行」按增行计恰好合规。别名在 import 时与 `urllib.request.urlopen` 绑定同一函数对象，生产调用路径语义不变（如实边界：绑定后不再观察对 `urllib.request.urlopen` 的后续 rebind，如 tracing 注入——本仓无此用法）。
 
 ### 同类扫描结果表（(d) 可复跑命令，cwd = LANE 仓根）
 
@@ -153,10 +153,10 @@ C/D/E 是守卫三层（KEY_FILE 重定向 / osascript 打桩 / reload 自愈）
 > 11. **假 key 的 server 钉死 loopback**（round-2 H1 整改）：假 key 内容是整段 URL `http://127.0.0.1:9/…`（本机 discard 端口）。语义：拒绝器仍是主防线；若哪条未知的 reload/逃逸路径让真 urlopen 回来，最坏后果 = 对本机发一个必被拒的连接——不出外网、不触真 key、不弹通知。
 > 12. **teardown 后 reload 受保护模块会被拒绝**（round-2 H2 整改）：布防结束后的测试代码若 reload send_bark/daily_review_run，会得到生产态模块（真实 key 在位 + 真 urlopen）并污染同进程后续测试——守卫对此 fail-closed（RuntimeError），不再「真 reload 放行」。语义变化：reload 这两个模块只允许在布防测试内做。
 > 13. **E 门（reload 自愈）锁双模块**（round-2 M3 整改）：对 send_bark 与 daily_review_run 各自 reload 后断言两侧桩都被重打——守卫若漏 rearm 任一侧，E 必红。
-> 14. **⛔ 待你裁决：终修未经第四轮 Codex 复审**。round-3 终判 FAIL 的 3 条 HIGH 已终修 + 客观裁判全绿（见上方显著声明），但 3 轮续轮预算已尽，终修本身没有再送审。你可选：(a) 接受此收尾，卡随 ② 合中间 commit；(b) 批一轮追加复审再合。
-> 15. **round-3 的 MEDIUM/LOW 处置**：5 处已修（冷启动 KEY_FILE 残留 / C 门锁 loopback 内容 / 注释与行号 / negctl 摘要正则 / 裁判 4 边界措辞），2 处结案登记（来源绑定是启发式非 frame 级 / from-import 别名不在 osascript 桩保护内）——明细见上方显著声明尾部。
+> 14. **⛔ 待你裁决：终修未经第四轮 Codex 复审**。round-3 终判 FAIL 的 3 条 HIGH 已终修 + 客观裁判全绿（终修明细见下方 [!error]+ 显著声明），但 3 轮续轮预算已尽，终修本身没有再送审。你可选：(a) 接受此收尾，卡随 ② 合中间 commit；(b) 批一轮追加复审再合。
+> 15. **round-3 的 MEDIUM/LOW 处置**：5 处已修（冷启动 KEY_FILE 残留 / C 门锁 loopback 内容 / 注释与行号 / negctl 摘要正则 / 裁判 4 边界措辞），2 处结案登记（来源绑定是启发式非 frame 级 / from-import 别名不在 osascript 桩保护内）——明细见下方显著声明之后的「round-3 其余发现的处置」段。
 >
-> **审查轨迹（如实）**：Codex round-1 判 FAIL（3H+2M+3L，全文 `codex-review-CARD-TEST-bark-autostub.md`）；并行 7 维度对抗审查产 22 条发现（其中「守卫层①抢先短路使拒绝器不可达」「负控只锁一层」与 Codex 重合互证，全程记录在案）；整改后 E 门自测又抓出一个我自己的 bug（reload 重打条件写错命名空间，见 9）；round-2 复审判 FAIL（3H+3M+4L，全文 `…-round2.md`）→ round-3 整改（偏差 11-13 + 前缀门 + 判据锚定）→ **round-3 终审判 FAIL（3H+5M+3L，全文 `…-round3.md`）**。
+> **审查轨迹（如实）**：Codex round-1 判 FAIL（3H+2M+**4L**——L 计数在 commit message 中误记为 3L，以本验收单与本审查文件为准，全文 `codex-review-CARD-TEST-bark-autostub.md`）；并行 7 维度对抗审查产 22 条发现（其中「守卫层①抢先短路使拒绝器不可达」「负控只锁一层」与 Codex 重合互证，全程记录在案）；整改后 E 门自测又抓出一个我自己的 bug（reload 重打条件写错命名空间，见 9）；round-2 复审判 FAIL（3H+3M+4L，全文 `…-round2.md`）→ round-3 整改（偏差 11-13 + 前缀门 + 判据锚定）→ **round-3 终审判 FAIL（3H+5M+3L，全文 `…-round3.md`）**。
 >
 > > [!error]+ ⚠️ 显著声明：终修未经第四轮 Codex 复审（3 轮续轮预算已尽，按卡文降级预案收尾）
 > > round-3 的 3 条 HIGH 终修如下（MEDIUM/LOW 处置见裁决 15）：
@@ -188,7 +188,7 @@ C/D/E 是守卫三层（KEY_FILE 重定向 / osascript 打桩 / reload 自愈）
   - `backend/tests/regression/test_daily_review_run.py`（`_capture_bark_request` 改 patch 缝）
   - `backend/tests/regression/bark_egress_probe.py`（(c) 探针 + C/D/E 自证门（E 锁双模块）+ 双墙断网，新增）
   - `backend/scripts/bark_autostub_negative_control.py`（(c) 八跑负控：判据含摘要唯一性 + 整行锚定 + 异常来源绑定，新增）
-- **Codex 对抗审查**：round-1 `_bmad-output/审查/codex-review-CARD-TEST-bark-autostub.md`（FAIL 3H+2M+3L → 全整改）；round-2 `codex-review-CARD-TEST-bark-autostub-round2.md`（FAIL 3H+3M+4L → round-3 全整改）；round-3 `codex-review-CARD-TEST-bark-autostub-round3.md`（终轮，回填）
+- **Codex 对抗审查**：round-1 `_bmad-output/审查/codex-review-CARD-TEST-bark-autostub.md`（FAIL 3H+2M+4L → 全整改；commit message 中误记 3L）；round-2 `codex-review-CARD-TEST-bark-autostub-round2.md`（FAIL 3H+3M+4L → round-3 全整改）；round-3 `codex-review-CARD-TEST-bark-autostub-round3.md`（终轮，回填）
 - **Git commit**：`e1dab3c5`（card/w4-micro，未 push）
 - **完成条件 → 落点**：
   - (a) → send_bark.py:38-41 + :128（+5/-1）
