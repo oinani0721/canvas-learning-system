@@ -2374,17 +2374,22 @@ def test_domain_block_multilevel_blockquote_fence(tmp_path, prefix):
 
 
 def test_domain_block_list_item_fence_hides_signals(tmp_path):
-    """round-2 线索门（Codex 被截断前的中途发现，本车道独立复现）: 列表项内围栏。
+    """round-2 线索门 + round-3 BLOCKER-1/2 修复门: 列表容器内的围栏。
 
-    `> - ``` … > - ``` `（列表项围栏）在 Obsidian 里渲染为**列表项内的代码块**
-    （读者看到灰底），但 `_strip_code_blocks` 原来只剥引用前缀不剥列表标记，
-    `- ``` ` 不被识别为开栏 ⇒ 藏在里面的信号行被当成在场陈述，整篇 VERIFY PASS。
-    开工前实测两种形态 exit 0（存档 `evidence-maintb-r2/` 同族的
-    `codex-hint-repro.txt`，先红证据）。
+    渲染语义（CommonMark，round-3 与 Codex 双向确认）:
+      · `- ``` ` 开栏 + **缩进 ≥ 内容列** 的内容行 → 内容渲染在代码块内（灰底），
+        verifier 必须剥 ⇒ 藏信号 = 缺行/代码块内信号名;
+      · `- ``` ` 开栏后 **marker 行**（缩进不足的同级 `- 内容`）→ 是**新的 sibling
+        列表项，渲染为可见正文** ⇒ verifier 必须保留 ⇒ 可见伪计数由 D2 拦
+        （round-3 BLOCKER-1: 无容器边界跟踪时它被误剥成代码内容，D2 漏拦）;
+      · **有序 marker** `1. ``` `（round-3 BLOCKER-2）与无序同语义。
 
-    **它证明什么**: 列表项围栏（缩进内容 / `- ` 内容两种形态）里的信号行不被当在场。
-    **它不证明什么**: 不证明所有 CommonMark 容器嵌套形态（引用内列表内列表等）
-    都被覆盖——按 round-5 以来的口径，以「模板允许的前缀形态」为封闭集。
+    先红证据: `evidence-maintb-r2/codex-hint-repro.txt`（round-2 形态）、
+    `round3-repro.txt`（BLOCKER-1 实测 exit 0）、`round3-v2-probe4.txt`（整改后 19 项行为矩阵）。
+
+    **它证明什么**: 上述三形态的「剥/留」判定与下游拦截各就各位。
+    **它不证明什么**: 不证明所有 CommonMark 容器嵌套（引用内列表内列表等）都覆盖
+    ——以「模板允许的前缀形态 + 常见列表容器」为封闭集。
     """
     vault = standard_vault(tmp_path)
     scan = collect_json(vault)
@@ -2396,67 +2401,115 @@ def test_domain_block_list_item_fence_hides_signals(tmp_path):
     idx = [i for i, ln in enumerate(lines) if any(lb in ln for lb in SIGNAL_LABELS)]
     start, end = idx[0], idx[-1]
 
-    for name, body in (
-        (
-            "indented_content",
-            ["> - ```"] + [">   " + re.sub(r"^[>\s]*-\s*", "", lines[i]) for i in range(start, end + 1)] + [">   ```"],
+    # ① 列表项围栏 + 缩进内容（真代码）→ 剥 → 拦
+    body = ["> - ```"] + [">   " + re.sub(r"^[>\s]*-\s*", "", lines[i]) for i in range(start, end + 1)] + [">   ```"]
+    out = lines[:start] + body + lines[end + 1 :]
+    report.write_text("\n".join(out) + "\n", encoding="utf-8")
+    r = run_verify(report)
+    assert r.returncode != 0, f"列表项围栏(缩进内容)仍被放行:\n{r.stdout}"
+    assert "代码块内出现信号名" in r.stdout or "缺信号行" in r.stdout, f"拦截理由与围栏无关:\n{r.stdout}"
+
+    # ② 有序列表围栏 + 缩进内容（round-3 BLOCKER-2）→ 剥 → 拦
+    body = ["1. ```"] + ["   " + re.sub(r"^[>\s]*-\s*", "", lines[i]) for i in range(start, end + 1)] + ["1. ```"]
+    out = lines[:start] + body + lines[end + 1 :]
+    report.write_text("\n".join(out) + "\n", encoding="utf-8")
+    r = run_verify(report)
+    assert r.returncode != 0, f"有序列表围栏仍被放行:\n{r.stdout}"
+    assert "代码块内出现信号名" in r.stdout or "缺信号行" in r.stdout, f"拦截理由与围栏无关:\n{r.stdout}"
+
+    # ③ sibling marker 行 = 可见正文（round-3 BLOCKER-1）→ 保留 → D2 拦伪计数
+    r = _mutate_report(
+        tmp_path / "sibling",
+        lambda t, s: t.replace(
+            "## 三维审查",
+            "## 三维审查\n\n- ```\n- 本板共有 987654 个子节点\n- ```\n",
+            1,
         ),
-        (
-            "dash_content",
-            ["> - ```"] + ["> - " + re.sub(r"^[>\s]*-\s*", "", lines[i]) for i in range(start, end + 1)] + ["> - ```"],
+    )
+    assert r.returncode != 0, f"sibling 列表项可见伪计数被放行:\n{r.stdout}"
+    assert "找不到同值来源" in r.stdout, f"拦截理由不是 D2:\n{r.stdout}"
+
+    # ④ sibling marker 行放合规信号 = 可见且合规 → 放行（渲染语义锁，防过剥）
+    r = _mutate_report(
+        tmp_path / "sibling_ok",
+        lambda t, s: t.replace(
+            "## 三维审查",
+            "## 三维审查\n\n- ```\n- 本报告信号与数据快照一致\n- ```\n",
+            1,
         ),
-    ):
-        out = lines[:start] + body + lines[end + 1 :]
-        report.write_text("\n".join(out) + "\n", encoding="utf-8")
-        r = run_verify(report)
-        assert r.returncode != 0, f"列表项围栏形态 {name} 仍被放行:\n{r.stdout}"
-        assert "代码块内出现信号名" in r.stdout or "缺信号行" in r.stdout, f"{name}: 拦截理由与围栏无关:\n{r.stdout}"
+    )
+    assert r.returncode == 0, f"sibling 列表项可见正文被误伤:\n{r.stdout}"
 
 
 def test_domain_strip_code_blocks_unit_contract():
     """c2 · S3 承重门②「`_strip_code_blocks` 单元契约门」: 直接调函数验双向行为。
 
-    行为门（c1）走整条 verifier，误伤面与拦截面都可能被别的规则掩盖；
-    这道单元门把契约钉在函数本身：**任意层引用前缀**下的围栏整块剥空，
-    而**合法的多层引用列表**与四空格三级列表一个字都不许动。
+    行为门（c1/列表围栏门）走整条 verifier，误伤面与拦截面都可能被别的规则掩盖；
+    这道单元门把契约钉在函数本身（round-3 重写为渲染语义三分类）:
+      · **剥空**（真代码内容，渲染为灰底）: 任意层引用围栏 / 列表项围栏 +
+        缩进达内容列的内容 / 有序列表围栏；
+      · **保留**（sibling marker 行 = 可见正文，round-3 BLOCKER-1 的语义反转）:
+        `- ``` ` 开栏后缩进不足的同级 `- 内容` 行——围栏行剥空但内容行原样；
+      · **零改动**: 合法列表 / thematic break / 无围栏结构。
 
-    **它证明什么**: 该函数对 2/3 层引用围栏整块置空、对两类合法结构零改动。
+    **它证明什么**: 上述三分类的逐形态行为。
     **它不证明什么**: 不证明调用方（`_verify_signal_lines` / `_verify_prose_counts`）
-    正确使用了它——那是 c1 与 D2 门的事。
+    正确使用了它——那是行为门的事；也不穷尽 CommonMark 容器嵌套。
     """
     rs = _load_recap_scan()
-    # 卡文点名的字面反例（S3 survivor 的逃逸形态）: `> > ``` 三行必须全部变空
-    literal = "> > ```\n> > x\n> > ```"
-    got = rs._strip_code_blocks(literal)
-    # ⚠️ 必须用 split("\n") 不能用 splitlines(): 三行全空时结果是 "\n\n",
-    # splitlines() 只给两项（末尾换行后无内容），断言会**因构造错误而红**
-    # ——第一次写就踩了，如实留注。
-    assert got.split("\n") == ["", "", ""], f"两层引用围栏未整块剥空: {got!r}"
-    # round-2 线索（列表项围栏）: `- ``` ` 开栏同样必须整块剥空
-    for src in (
-        "> - ```\n> - 未答问题年龄：无据（无带时间戳批注）\n> - ```",
-        "- ```\n- 未答问题年龄：无据（无带时间戳批注）\n- ```",
-        "> > - ```\n> > - x\n> > - ```",
+
+    def mid_kept(got: str, src: str) -> bool:
+        """围栏行剥空 + **内容行**（第 2 行）原样保留 = sibling 可见正文语义。"""
+        g, s = got.split("\n"), src.split("\n")
+        return len(g) == len(s) and g[1] == s[1] and not g[0].strip() and not g[2].strip()
+
+    # ── 剥空（真代码内容）──
+    for name, src in (
+        ("两层引用围栏", "> > ```\n> > x\n> > ```"),
+        (
+            "列表围栏+缩进内容",
+            "> - ```\n>   未答问题年龄：无据（无带时间戳批注）\n>   ```",
+        ),
+        (
+            "无引用列表围栏+缩进内容",
+            "- ```\n  未答问题年龄：无据（无带时间戳批注）\n- ```",
+        ),
+        (
+            "有序列表围栏+缩进内容",
+            "1. ```\n   > - 来源覆盖率：0/3 成员含来源锚点【实测】\n1. ```",
+        ),
+        ("普通围栏", "```\n本板共有 987654 个子节点\n```"),
     ):
         got = rs._strip_code_blocks(src)
-        assert got.split("\n") == ["", "", ""], f"列表项围栏未整块剥空: {src!r} → {got!r}"
-    # `---` 是 thematic break 不是列表围栏，不得被列表符剥离误判成围栏
-    assert rs._strip_code_blocks("---\n正文\n---").splitlines() == [
-        "---",
-        "正文",
-        "---",
-    ]
-    for depth in (3,):
-        p = "> " * depth
-        src = f"{p}```\n{p}藏起来的正文\n{p}```"
-        got = rs._strip_code_blocks(src)
-        assert got.split("\n") == ["", "", ""], f"{depth} 层引用围栏未整块剥空: {got!r}"
-    # 正向对照（误伤锁）: 合法结构一个字都不许动
-    for legit in (
-        "> > - 合法二级引用列表",
-        "- 一级\n  - 二级\n    - 三级列表（四空格缩进，合法 Markdown）",
+        # ⚠️ 必须用 split("\n") 不能用 splitlines(): 三行全空时结果是 "\n\n",
+        # splitlines() 只给两项——第一次写就踩了，如实留注。
+        assert all(not x.strip() for x in got.split("\n")), f"{name} 未整块剥空: {src!r} → {got!r}"
+
+    # ── 保留（sibling marker 行 = 可见正文）──
+    for name, src in (
+        (
+            "引用内 sibling",
+            "> - ```\n> - 未答问题年龄：无据（无带时间戳批注）\n> - ```",
+        ),
+        ("无引用 sibling", "- ```\n- 本板共有 987654 个子节点\n- ```"),
     ):
-        assert rs._strip_code_blocks(legit) == legit, f"合法结构被误剥: {legit!r}"
+        got = rs._strip_code_blocks(src)
+        assert mid_kept(got, src), f"{name}: 内容行应保留（可见正文）却被剥: {got!r}"
+
+    # ── 零改动 ──
+    for name, legit in (
+        ("thematic break", "---\n正文\n---"),
+        ("合法二级引用列表", "> > - 合法二级引用列表"),
+        (
+            "合法三级列表",
+            "- 一级\n  - 二级\n    - 三级列表（四空格缩进，合法 Markdown）",
+        ),
+    ):
+        assert rs._strip_code_blocks(legit) == legit, f"{name} 被误剥: {legit!r}"
+    # 三层引用围栏仍剥空
+    p = "> > > "
+    got = rs._strip_code_blocks(f"{p}```\n{p}藏起来的正文\n{p}```")
+    assert all(not x.strip() for x in got.split("\n")), f"三层引用围栏未剥空: {got!r}"
 
 
 def test_domain_block_fence_close_must_be_same_char(tmp_path):
@@ -2893,3 +2946,97 @@ def test_synthetic_signals_tamper_fails(tmp_path, old, new):
     rp.write_text(after, encoding="utf-8")
     r = run_verify(rp)
     assert r.returncode == 1, f"信号数字被改却仍 PASS: {old} → {new}\n{r.stdout}"
+
+
+# ── round-3 整改门（Codex round-3: BLOCKER-1/2 + HIGH-3/4/5/6；先红证据
+#    evidence-maintb-r2/round3-repro.txt 与 round3-v2-probe4.txt）──────────
+
+
+def test_domain_r3_eof_unclosed_fence_signal_caught(tmp_path):
+    """HIGH-3: EOF 未闭合围栏的伪信号行必须被「代码块内出现信号名」逮住。
+
+    原实现用 zip() 对齐原文/剥后文本——EOF 未闭合围栏把尾部剥空后 splitlines()
+    行数差让最后一行原文不参与比较，伪信号逃过检查（实测 exit 0）。
+    修复 = zip_longest 对齐。
+    """
+    r = _mutate_report(
+        tmp_path,
+        lambda t, s: t + "\n```\n> - 来源覆盖率：9/9 成员含来源锚点【实测】\n",
+    )
+    assert r.returncode != 0, f"EOF 未闭合围栏伪信号被放行:\n{r.stdout}"
+    assert "代码块内出现信号名" in r.stdout, f"拦截理由异常:\n{r.stdout}"
+
+
+def test_domain_r3_nodata_signal_line_only_in_section3(tmp_path):
+    """HIGH-4: 「无来源结论」信号行只许出现在③段（附录同形行必拦）。
+
+    fallback 措辞白名单 (#3/#4) 作用于全文——③段外的同形行不受信号绑定保护，
+    实测附录 `987654/2` 伪信号与矛盾无据行都 VERIFY PASS。
+    修复 = _verify_fallback_derive_numbers 限定 ③ 段。
+    """
+    for name, extra in (
+        (
+            "伪有数信号",
+            "\n## 附录\n\n- 无来源结论：987654/2 派生角色成员缺来源锚点【实测】\n",
+        ),
+        ("矛盾无据信号", "\n## 附录\n\n> - 无来源结论：无据（分母为零）\n"),
+    ):
+        r = _mutate_report(tmp_path / name, lambda t, s, e=extra: t + e)
+        assert r.returncode != 0, f"{name}: ③段外无来源结论行被放行:\n{r.stdout}"
+        assert "只许出现在③段" in r.stdout, f"{name}: 拦截理由异常:\n{r.stdout}"
+
+
+@pytest.mark.parametrize(
+    "name,inject",
+    [
+        ("fullwidth_tail", "2 个派生角色成员缺来源锚点，另有９８７６５４个。"),
+        ("cjk_tail", "2 个派生角色成员缺来源锚点，另有九十八万个。"),
+        ("arbitrary_prefix", "9 个派生角色成员缺来源锚点。"),
+    ],
+    ids=["fullwidth_tail", "cjk_tail", "arbitrary_prefix"],
+)
+def test_domain_r3_derive_clause_numbers_bound(tmp_path, name, inject):
+    """HIGH-5: 「派生角色成员缺来源锚点」句式的数字必须受控。
+
+    · 前置 N 必须全等 signals.unsourced_conclusions.value（standard_vault 真值 0）；
+    · 尾段数字禁令从 ASCII 扩到全角 + 中文数词（原 `[^。\\n0-9]*` 放行
+      `９８７６５４` / `九十八万`）。
+    """
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    assert scan["data_mode"] == "fallback_local"
+    assert scan["signals"]["unsourced_conclusions"]["value"] == 0, "fixture 真值变化，先改此门"
+    report = write_report(vault, scan)
+    lines = report.read_text(encoding="utf-8").splitlines()
+    idx = next(i for i, ln in enumerate(lines) if ln.startswith("### ③ "))
+    lines.insert(idx + 1, inject)
+    report.write_text("\n".join(lines), encoding="utf-8")
+    r = run_verify(report)
+    assert r.returncode == 1, f"{name}: 越界数字叙述被放行:\n{r.stdout}"
+    assert "派生角色成员" in r.stdout or "模板外的『派生』表述" in r.stdout, f"{name}: 拦截理由异常:\n{r.stdout}"
+
+
+def test_domain_r3_derive_allow_numbers_in_pool(tmp_path):
+    """HIGH-6: fallback 允许式放行的行，行内数字必须在 scan 数值池。
+
+    · `#### 派生子女 987654 个的说明`（四级标题，不截断③段）曾放行；
+    · `- 关系类型分布：无 987654` 曾放行。
+    反向: 无数字的合法标题/关系行、报告主标题年份不受牵连。
+    """
+    for name, inject, want in (
+        ("标题夹伪计数", "\n#### 派生子女 987654 个的说明\n", 1),
+        ("关系行夹伪计数", "\n- 关系类型分布：无 987654\n", 1),
+        ("合法关系行无数字", "\n- 关系类型分布：无\n", 0),
+    ):
+        r = _mutate_report(
+            tmp_path / name,
+            lambda t, s, e=inject: t.replace("方向叙述：", f"{e}\n方向叙述：", 1) if e else t,
+        )
+        if want == 1:
+            assert r.returncode != 0, f"{name}: 无出处数字被放行:\n{r.stdout}"
+            assert "无出处" in r.stdout, f"{name}: 拦截理由异常:\n{r.stdout}"
+        else:
+            assert r.returncode == 0, f"{name}: 合法行被误伤:\n{r.stdout}"
+    # 主标题年份不误伤（`# 回顾 · 板 · 2026-09-01` 不含「派生」，不在检查范围）
+    # ——由上面「合法关系行无数字」与全套件的放行门共同覆盖；不单列空变异 case
+    # （_mutate_report 的防空气断言会拒绝不改内容的变异）。

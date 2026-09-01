@@ -72,6 +72,7 @@ import math
 import re
 import sys
 from datetime import datetime, timezone
+from itertools import zip_longest
 from pathlib import Path
 
 MEMBER_THRESHOLD = 30  # 规模门: 成员数 (设计稿 v2 §七)
@@ -958,6 +959,27 @@ def _verify_signal_schema(key: str, sig, problems: list[str]) -> bool:
     return True
 
 
+def _quote_width(line: str) -> int:
+    """行首 blockquote 标记段的总宽: 逐段 `>` (+至多一个空白)。
+
+    `> > - x` → 4; `>  x` → 2 (`>`+1 空格, 多余空格算缩进不算引用标记)。
+    """
+    w = 0
+    pos = 0
+    while pos < len(line) and line[pos] == ">":
+        step = 2 if pos + 1 < len(line) and line[pos + 1] in " \t" else 1
+        w += step
+        pos += step
+    return w
+
+
+def _indent_after_quotes(line: str) -> int:
+    """剥掉引用标记段与空白后的剩余缩进 (相对引用内容系的列)。"""
+    w = _quote_width(line)
+    rest = line[w:]
+    return len(rest) - len(rest.lstrip(" \t"))
+
+
 def _strip_code_blocks(text: str) -> str:
     """剔除**围栏**代码块 (```/~~~), 含引用块内的围栏 (round-4 M3 → round-5)。
 
@@ -995,13 +1017,28 @@ def _strip_code_blocks(text: str) -> str:
         # 整篇 VERIFY PASS (实测 A/A2 两形态 exit 0)。剥列表符只影响**围栏判定**
         # (非围栏行 out.append 原样保留), 标记后须有空白 (`- ``` 是列表项围栏,
         # `---` 是 thematic break 不是列表)。
-        bare = re.sub(r"^[>\s]*(?:[-*+][^\S\n]+)?", "", ln)
+        # ⛔ CARD-维护B-R2 round-3: 无序 marker 之外**有序 marker** (`1. `) 与
+        # **多层 marker** (`- - `) 同样是列表容器 (渲染为列表项内围栏), 一并剥。
+        bare = re.sub(r"^(?:[>\s]|(?:[-*+]|\d{1,9}[.)])[^\S\n]+)*", "", ln)
         if fence is None:
             m = open_re.match(bare)
             # 反引号围栏的 info string 不得含反引号 (CommonMark);
             # 波浪线围栏无此限制。
             if m and not (m.group("fence")[0] == "`" and "`" in bare[m.end() :]):
                 fence = m.group("fence")
+                # ⛔ round-3 BLOCKER-1 (Codex 实证 + 车道独立复现): 列表项内围栏
+                # 的内容行**相对引用系的缩进必须 ≥ marker 内容列** —— 缩进不足的
+                # 非空行会结束容器, 围栏随之结束, 该行渲染为**可见正文** (三个
+                # sibling <li> 的中间项)。不跟踪这一点时, 可见伪计数被误当围栏
+                # 内容剥掉, D2 漏拦 (实测 `- ``` / - 本板共有 987654 个… / - ``` `
+                # exit 0)。内容列与行缩进都用「剥引用后」的相对口径:
+                # quote_w = `>` 段总宽 (`>` + 至多一个空白), col_rel = m.start() -
+                # quote_w(开栏行)。无列表容器 (纯引用/缩进) 时无边界, 行为不变。
+                fence_list_col = None
+                if re.search(r"(?:[-*+]|\d{1,9}[.)])[^\S\n]", ln):
+                    # ⛔ m.start() 是 bare 内偏移 (恒 0) —— 必须用「本行剥掉的
+                    # 前缀长度」；再减去引用标记宽得到相对引用系的内容列。
+                    fence_list_col = (len(ln) - len(bare)) - _quote_width(ln)
                 out.append("")
                 continue
         else:
@@ -1013,6 +1050,15 @@ def _strip_code_blocks(text: str) -> str:
                 and len(mc.group("fence")) >= len(fence)
             ):
                 fence = None
+                out.append("")
+                continue
+            if fence_list_col is not None and ln.strip():
+                # 缩进不足 (相对引用系) 的非空行 → 容器结束, 围栏随之结束:
+                # 该行按普通正文保留, 交回 D2/信号行校验。
+                if _indent_after_quotes(ln) < fence_list_col:
+                    fence = None
+                    out.append(ln)
+                    continue
             out.append("")
             continue
         out.append(ln)
@@ -1037,8 +1083,13 @@ def _verify_signal_lines(text: str, signals: dict, problems: list[str]) -> None:
     # 却放行"在合规行之外再往围栏里追加一组造假信号行"(围栏内容在 Obsidian
     # 里照常渲染为可见文本, 读者会看到与 scan JSON 冲突的第二组数字)。
     # 故: 被剔除的那部分文本里**不得出现任何信号 label**。
+    # ⛔ CARD-维护B-R2 round-3 HIGH-3: 原 zip() 在行数不等时静默截断 ——
+    # EOF 未闭合围栏把尾部行全部剥空后, splitlines() 行数差让**最后一行原文
+    # 不参与比较**, 藏在里面的伪信号逃过本检查。改 zip_longest 对齐。
     stripped_only = "\n".join(
-        a for a, b in zip(text.splitlines(), scan_text.splitlines()) if a != b
+        a
+        for a, b in zip_longest(text.splitlines(), scan_text.splitlines(), fillvalue="")
+        if a != b
     )
     for _, lb in _SIGNAL_SPECS:
         if lb in stripped_only:
@@ -1238,16 +1289,23 @@ _FALLBACK_DERIVE_ALLOW: tuple[tuple[re.Pattern[str], str], ...] = (
     #    (SKILL.md:267 信号行模板 / :203 叙述句式的语义锚), 且尾段禁裸数字。
     #    原式 `派生角色成员[^。\n]*` 的自由段放行过
     #    「派生角色成员的子女数为 987654 个。」(同族缺口, (a) 重放实证)。
+    #    ⛔ round-3 HIGH-5: 尾段数字禁令从 ASCII 扩到**全角 + 中文数词**
+    #    (`９８７６５４` / `九十八万` 实测曾放行); 前置 N 的**值绑定**在
+    #    _verify_fallback_derive_numbers (正则层管不到值)。
     #    live 4 份 fixture 实测**零命中**「派生角色成员」(全为 manifest 报告,
     #    本检查是 fallback 专属), 收紧无 live 正例可伤。
     (
-        re.compile(r"^[>\s]*(?:\d+\s*个)?派生角色成员缺来源锚点[^。\n0-9]*。?\s*$"),
+        re.compile(
+            r"^[>\s]*(?:\d+\s*个)?派生角色成员缺来源锚点[^。\n0-9０-９零〇一二两三四五六七八九十百千万亿]*。?\s*$"
+        ),
         "skill:③段固定句式",
     ),
-    # ⑧ 同句式「集中在」变体 — 与 ⑦ 同步收紧两侧尾段禁裸数字
+    # ⑧ 同句式「集中在」变体 — 与 ⑦ 同步收紧两侧尾段禁数字 (含全角/中文数词)
     #    (否则「优化集中在派生角色成员的 987654 个子女上」同型放行)
     (
-        re.compile(r"^[^。\n0-9]*集中在派生角色成员[^。\n0-9]*。?\s*$"),
+        re.compile(
+            r"^[^。\n0-9０-９零〇一二两三四五六七八九十百千万亿]*集中在派生角色成员[^。\n0-9０-９零〇一二两三四五六七八九十百千万亿]*。?\s*$"
+        ),
         "skill:③段固定句式",
     ),
 )
@@ -1354,6 +1412,29 @@ def _scan_number_pool(obj, pool: set[int]) -> None:
 
 
 _FULLWIDTH_DIGITS = str.maketrans("０１２３４５６７８９", "0123456789")
+
+
+def _derived_number_pool(scan: dict) -> set[int]:
+    """scan 数值池 (排除 scale_gate 常量, 含一阶和差) — D2 与 fallback
+    允许式数字绑定 (round-3 HIGH-6) 共用的「有出处」判据。
+
+    ⛔ 池必须排除**与板内容无关的源码常量** (scale_gate 的 30/100/10) 与
+    字符串污染; 「有出处」≠「字面出现」: 池含一阶和与差 (合法算术, 如
+    「7 个派生点中仅 2 个带 derived_at……其余 5 个无据」的 5=7−2)。
+    代价如实记: 池变大 ⇒ 对小数值拦截力下降 (罕见大数仍拦得住)。
+    """
+    scan_for_pool = {k: v for k, v in scan.items() if k != "scale_gate"}
+    base: set[int] = set()
+    _scan_number_pool(scan_for_pool, base)
+    pool = set(base)
+    ordered = sorted(base)
+    for i, a in enumerate(ordered):
+        for b in ordered[i:]:
+            pool.add(a + b)
+            pool.add(abs(a - b))
+    return pool
+
+
 _CJK_NUM = {
     "零": 0,
     "〇": 0,
@@ -1418,26 +1499,9 @@ def _verify_prose_counts(text: str, scan: dict, problems: list[str]) -> None:
     (mastery 0.3、量表 1-4、分位值等带自身形态的量不在内)。全量绑定是增量项,
     如实登记在卡文与验收单, 不宣称"域内已全覆盖"。
     """
-    # ⛔ 池必须排除**与板内容无关的源码常量**: scan JSON 的 scale_gate 里带着
-    # MEMBER_THRESHOLD=30 / ANNOTATION_THRESHOLD=100 / DETAIL_K=10 —— 任何板都有。
-    # 后果 (对抗审查实测, 四份真报告全中): 100−1=99 恒在池内, 于是卡文/goal 的
-    # **旗舰反例「99 个子节点」在四份真报告上全部放行**, 而验收单还写着"拦下"。
-    # 门槛常量不是"这块板的数据", 拿它当出处等于给池注水。
-    scan_for_pool = {k: v for k, v in scan.items() if k != "scale_gate"}
-    base: set[int] = set()
-    _scan_number_pool(scan_for_pool, base)
-    # ⛔ 「有出处」≠「字面出现」: live 报告实测有合法推算——
-    #   「7 个派生点中仅 2 个带 derived_at……其余 **5** 个无据」(5 = 7−2)。
-    # 分析段本来就会做算术, 要求字面相等等于禁止报告做减法, 是把语义误解了。
-    # 故池 = scan 的数值 ∪ 它们的**一阶差与和**（可由数据推出的量）。
-    # 代价如实记: 池变大 ⇒ 对小数值的拦截力进一步下降 (罕见大数仍拦得住)。
-    # 这条弱化必须写进卡文与验收单, 不得只在代码里悄悄放宽。
-    pool = set(base)
-    ordered = sorted(base)
-    for i, a in enumerate(ordered):
-        for b in ordered[i:]:
-            pool.add(a + b)
-            pool.add(abs(a - b))
+    # ⛔ 池必须排除**与板内容无关的源码常量**与字符串污染, 并含一阶和差
+    # (合法算术) —— 判据与构建细节见 _derived_number_pool (round-3 提取共用)。
+    pool = _derived_number_pool(scan)
     # default-deny 切段: preamble (首个 `##` 之前, 含「规模自陈」callout) + 每个 `##` 段。
     # ⛔ BLOCKER-2 的教训保留在这里: 段名匹配用**宽松**口径 (`## 三维审查（本轮）` 也算),
     # 与报告别处的存在性检查同一套 —— 否则给标题加四个字就能逃出治理。
@@ -1711,6 +1775,76 @@ def _verify_numbers(fm: str, text: str, report_path: Path, problems: list[str]) 
     _verify_seed_ledger_counts(text, scan, problems)
     _verify_prose_counts(text, scan, problems)
     _verify_signals_if_present(text, scan, problems)
+    _verify_fallback_derive_numbers(text, scan, problems)
+
+
+def _verify_fallback_derive_numbers(text: str, scan: dict, problems: list[str]) -> None:
+    """CARD-维护B-R2 round-3 (Codex HIGH-4/5b/6): fallback 允许式的**数字出处**绑定。
+
+    措辞白名单 ``_FALLBACK_DERIVE_ALLOW`` (在 _verify_report) 只管「这句话允许说」,
+    这里管「说出来的数字必须有据」——白名单匹配与值绑定分属两处, 缺一即漏:
+      · HIGH-4: 「无来源结论」信号行只许出现在**③段** —— ③段外 (附录/自造段)
+        的同形行不受信号绑定保护, 实测放行 `987654/2` 伪信号与矛盾无据行;
+      · HIGH-5b: ⑦『N 个派生角色成员缺来源锚点』的前置 N 必须全等
+        ``signals.unsourced_conclusions.value`` (无据档不容许前置 N);
+      · HIGH-6: 允许式 #2 (段落标题) 与 #5 (关系类型分布行) 行内出现的任何
+        数字都必须在 scan 数值池 —— `#### 派生子女 987654 个的说明` /
+        `- 关系类型分布：无 987654` 实测曾放行。
+    """
+    if scan.get("data_mode") != "fallback_local":
+        return
+    # HIGH-4: ③段外的「无来源结论」同形行
+    s3 = "\n".join(
+        re.findall(r"^### ③.*?(?=^#{2,3}(?:[^\S\n]|$)|\Z)", text, re.M | re.S)
+    )
+    rest = text.replace(s3, "", 1) if s3 else text
+    if "无来源结论" in rest:
+        problems.append(
+            "数字终核: 「无来源结论」信号行只许出现在③段 "
+            "(段外同形行不受信号绑定保护, 附录伪信号实测曾放行)"
+        )
+    # HIGH-5b: ⑦ 前置 N 与 signals.unsourced_conclusions.value 全等
+    sig = (scan.get("signals") or {}).get("unsourced_conclusions") or {}
+    m7 = re.compile(r"^[>\s]*(?:(?P<n>\d+)\s*个)?派生角色成员缺来源锚点")
+    for ln in text.splitlines():
+        mm = m7.match(ln)
+        if not mm:
+            continue
+        n = mm.group("n")
+        want = sig.get("value")
+        if sig.get("availability") == "无据" or want is None:
+            if n is not None:
+                problems.append(
+                    f"数字终核: 『派生角色成员』叙述前置 N={n}, 但 "
+                    "signals.unsourced_conclusions 无据 (不容许前置 N)"
+                )
+        elif n is not None and int(n) != int(want):
+            problems.append(
+                f"数字终核: 『派生角色成员』叙述前置 N={n} ≠ "
+                f"signals.unsourced_conclusions.value={want}"
+            )
+    # HIGH-6: 标题行与关系分布行内的数字必须有出处
+    pool = _derived_number_pool(scan)
+    heading_pat = next(p for p, b in _FALLBACK_DERIVE_ALLOW if b == "md:heading")
+    relation_pat = next(
+        p for p, b in _FALLBACK_DERIVE_ALLOW if b == "scan:counts.relation_types"
+    )
+    for ln in text.splitlines():
+        # ⚠️ 检查范围: 标题条目 = fallback 措辞白名单实际放行的行 (含「派生」)——
+        # 不过滤会误伤报告主标题的年份 (`# 回顾 · 板 · 2026-09-01` 首跑即中);
+        # 关系类型分布条目 = 该白名单自身匹配的行 (不含「派生」也要查)。
+        tags = []
+        if "派生" in ln and heading_pat.match(ln):
+            tags.append(("标题", heading_pat))
+        if relation_pat.match(ln):
+            tags.append(("关系类型分布", relation_pat))
+        for tag, pat in tags:
+            for num in re.findall(r"\d+", ln.translate(_FULLWIDTH_DIGITS)):
+                if int(num) not in pool:
+                    problems.append(
+                        f"数字终核: fallback 允许式({tag})行内数字 {num} 无出处 "
+                        f"(数字必须在 scan 数值池): {ln.strip()[:40]}"
+                    )
 
 
 def _verify_report(path: str) -> int:
