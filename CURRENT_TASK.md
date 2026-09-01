@@ -2,10 +2,10 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
-**本车道状态**（2026-09-01 · `card/w5-reviewapp` · CARD-G6-2 交互复习壳，4 commits 未 push 未合并）:
-- 🔴 **Codex 三轮到顶终态 FAIL（停轮规则触发，不合并）**：r1 4H→整改 / r2 4H+5M→整改 / r3 终裁 1 BLOCKER（DD-14 无 PLAN-NNN，goal-card 工作流冲突，移交裁定）+3 HIGH——**3 HIGH 已在 `7ca194ac` 整改（结算绑定 renderedVids / `</script` 前缀计数 / AST 重绑定+接收者门），但按停轮规则无第四轮复审**
-- ✅ 终版实测：89 passed（56+33，0 skip）· 变异 46/46 全红（rc==1 判据）· 裁判 1/3 全过 · pyright 0 错 · 走查 r4 两截图 + netlog 外部 0 + 投影 SHA 前后相同 · 写侧零（全程未点刷新）
-- 📋 终态裁决点 ⑦放行/⑧DD-14 等价性：`_bmad-output/验收单/UAT-CARD-G6-2-交互复习壳-2026-09-01.md` 顶部显著声明；已登台账 §一（`goal-cards/未合卡追踪台账.md`）
+**本车道状态**（2026-09-01 · `card/w5-reviewapp` · CARD-G6-2 交互复习壳，6 commits 未 push 未合并）:
+- 🟡 **审查状态：三轮常规（到顶 FAIL）+ 用户裁决的定向第四轮**。r4：HIGH-3 VERIFIED ✓；HIGH-1/HIGH-4b 抓出真实反例（旧 GET 穿越重建 / 失联库反馈蒸发 / 解构重绑定·alias 绕 AST 门）→ **已全部整改 `f2a9e5f3`（因果锚 startMs≥atMs + lostnote + 递归 Name/接收者重绑定禁令 + alias 禁令 + lookahead），无第五轮复审**
+- ✅ 终版实测（f2a9e5f3）：90 passed（56+34，0 skip）· 变异 50/50 全红（rc==1 判据）· 裁判 1/3 全过 · pyright 0 错 · 走查 r5 + netlog 外部 0 + 投影 SHA 前后相同 · 写侧零（全程未点刷新）
+- 📋 终态裁决点 ⑦放行（三选一：合并/第五轮/打回）⑧DD-14 等价性：`_bmad-output/验收单/UAT-CARD-G6-2-交互复习壳-2026-09-01.md` 顶部显著声明；台账 §一 已更新
 - 📌 车道 venv 多装 `pyright`（pre-commit 依赖）；合并序 W6 先合本卡后合；合并前 merge 主干复跑裁判 1
 
 **主干状态**（2026-08-31 · `worktree-feature-obsidian-hybrid-dev` · 第七批收官已 push `a920e15c`，排第八批中）:
