@@ -29,11 +29,15 @@
      2026-08-31 全树扫描实测: 这两个键在 app.openapi() 原生输出中**不存在**,
      只由本脚本 --write 写入, 故不存在「删掉了生产真值」的可能。
   2. dict 按 key 排序(JSON 对象成员无序, 排序只消除表示差异)。
-  3. 键名为 `required` 且值为**纯字符串数组** → sorted()。JSON Schema 的
-     required 是集合语义, 而 pydantic 按字段声明序生成它——2026-08-31 实测
-     281 个 required 数组中 144 个(51.2%)非字典序, 不排序会让一次无关的字段
-     重排把半数 schema 报成漂移(误红的门必然被 `|| true` 掉, 那正是本卡要修的病)。
+  3. 键名为 `required` 且值为**纯字符串数组**、且宿主 dict 含 properties 或 type
+     键(即长得像 Schema Object) → sorted()。JSON Schema 的 required 是集合语义,
+     而 pydantic 按字段声明序生成它——2026-08-31 实测 281 个 required 数组中
+     144 个(51.2%)非字典序, 不排序会让一次无关的字段重排把半数 schema 报成漂移
+     (误红的门必然被 `|| true` 掉, 那正是本卡要修的病)。
      用 sorted 而非 set: 重复项与数量差异仍会暴露, 不吞真漂移。
+     ⚠️ 宿主守卫(Codex round-1 BLOCKER-1): enum 值/示例里的普通对象若恰好带
+     required 键, 其数组是有序 enum 值的一部分, 不得当集合排序——守卫条件
+     (宿主含 properties/type)实测覆盖真实快照 281/281 个 required 数组, 零成本。
      ⚠️ 同名 key 的另一种用法 `required: true`(Parameter Object, 实测 373 处)
      是布尔标量, 走原样分支, 不受此规则影响。
   4. 其余数组一律**保序**。enum 尤其不排序: 取值顺序有语义(文档展示序、
@@ -116,13 +120,29 @@ def _tag_leaf(value):
     return ("raw", value)
 
 
-def _normalize(node, parent_key):
+def _normalize(node, key_in_parent=None, container=None):
+    """container = 拥有 key_in_parent 这个键的那个 dict(即 node 的宿主)。
+
+    required 排序只在「宿主 dict 长得像 Schema Object」(含 properties 或 type 键)时
+    生效 —— 否则 enum 值/示例里的普通对象若恰好带个 required 键, 其数组会被误当
+    集合排序, 吞掉真实契约变化(Codex round-1 BLOCKER-1 实证反例)。
+    2026-09-01 实测: 真实快照 281/281 个 required 数组的宿主都含 properties/type,
+    守卫零成本。
+    """
     if isinstance(node, dict):
-        return {key: _normalize(node[key], key) for key in sorted(node)}
+        normalized = {}
+        for key in sorted(node):
+            normalized[key] = _normalize(node[key], key, node)
+        return normalized
     if isinstance(node, list):
-        if parent_key == "required" and all(isinstance(item, str) for item in node):
+        if (
+            key_in_parent == "required"
+            and all(isinstance(item, str) for item in node)
+            and isinstance(container, dict)
+            and (("properties" in container) or ("type" in container))
+        ):
             return sorted(node)
-        return [_normalize(item, None) for item in node]
+        return [_normalize(item, None, None) for item in node]
     return _tag_leaf(node)
 
 
@@ -133,7 +153,7 @@ def canonicalize(spec: dict) -> dict:
     if isinstance(info, dict):
         for key in VOLATILE_INFO_KEYS:
             info.pop(key, None)
-    return _normalize(spec, parent_key=None)
+    return _normalize(spec)
 
 
 def _untag(node):
@@ -255,16 +275,24 @@ def check_drift(snapshot_path: Path) -> int:
 
 
 def write_snapshot(output_path: Path) -> int:
-    """归一化 + 易变键后落盘。恒写(见模块 docstring --write 段)。"""
+    """归一化 + 易变键后落盘。恒写(见模块 docstring --write 段)。
+
+    原子落盘(tmp + os.replace): lefthook 会以多条 glob 命中同一 commit 的形态
+    并行跑本脚本(见 lefthook.yml spec-sync* 三命令), 两个进程直写同一路径会
+    按各自 offset 交错落盘(总长=较长那份, wc 看不出损坏); 先写 tmp 再原子
+    rename 后, 并发退化为「最后 rename 者胜」, 内容各自完整。
+    """
     schema = _untag(canonicalize(load_live_schema()))
     info = dict(schema.get("info", {}))
     info["x-generated-at"] = datetime.now(timezone.utc).isoformat()
     info["x-generator"] = X_GENERATOR_NAME
     schema["info"] = {key: info[key] for key in sorted(info)}
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(
+    tmp_path = output_path.with_name(output_path.name + ".tmp")
+    tmp_path.write_text(
         json.dumps(schema, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
+    tmp_path.replace(output_path)
     paths = len(schema.get("paths", {}))
     schemas = len(schema.get("components", {}).get("schemas", {}))
     print(

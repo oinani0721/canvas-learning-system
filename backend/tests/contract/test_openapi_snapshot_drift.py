@@ -186,6 +186,35 @@ def test_required_boolean_form_untouched():
     assert any("required" in line for line in details), details
 
 
+def test_required_inside_enum_value_is_not_absorbed():
+    """Codex round-1 BLOCKER-1 反例: enum 值是普通对象且恰好带 required 键时,
+    该数组是**有序 enum 值的一部分**(实例必须与之精确相等), 不得当集合排序。
+
+    宿主守卫(含 properties/type 才排序)必须让此差异暴露为漂移。"""
+    other = _mutated(
+        lambda s: s["components"]["schemas"]["S"]["properties"]["alpha"].update(
+            {"enum": [{"required": ["second", "first"]}]}
+        )
+    )
+    base = _mutated(
+        lambda s: s["components"]["schemas"]["S"]["properties"]["alpha"].update(
+            {"enum": [{"required": ["first", "second"]}]}
+        )
+    )
+    clean, details = drift.compare(base, other)
+    assert not clean, "enum 内嵌对象的 required 数组反序必须报漂移(它是值不是集合)"
+    assert details, details
+
+
+def test_required_without_schema_context_order_is_drift():
+    """宿主守卫的另一面: 不含 properties/type 的裸对象上的 required 数组**不排序**,
+    顺序变化就是漂移(保守方向: 宁可误红不可吞真漂移)。"""
+    base = {"components": {"schemas": {"Bare": {"required": ["b", "a"]}}}}
+    other = {"components": {"schemas": {"Bare": {"required": ["a", "b"]}}}}
+    clean, _ = drift.compare(base, other)
+    assert not clean, "无 Schema Object 语境的 required 数组是有序数据, 反序必须报漂移"
+
+
 def test_enum_order_is_drift():
     """规则 4: enum 有序语义 — 顺序变化必须暴露, 不得当集合吞掉。"""
     other = _mutated(lambda s: s["components"]["schemas"]["S"]["properties"]["alpha"].update({"enum": ["a", "m", "z"]}))

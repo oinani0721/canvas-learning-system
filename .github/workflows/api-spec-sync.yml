@@ -23,6 +23,9 @@ on:
     paths:
       - 'backend/app/api/**'
       - 'backend/app/models/**'
+      - 'backend/app/mcp/**'
+      - 'backend/app/main.py'
+      - 'backend/app/config.py'
       - 'specs/api/**'
       - 'backend/openapi.json'
   push:
@@ -32,6 +35,14 @@ on:
     paths:
       - 'backend/app/api/**'
       - 'backend/app/models/**'
+      - 'backend/app/mcp/**'
+      - 'backend/app/main.py'
+      - 'backend/app/config.py'
+      - 'backend/openapi.json'
+# 触发面依据(Codex round-1 BLOCKER-3): OpenAPI 面不只由 api/models/schemas 决定 ——
+# main.py(路由挂载)、config.py(字段/前缀)、mcp/server.py(工具注册改写 schema)都在
+# 塑造 app.openapi()。历史反例 c44c48e8: 只改 mcp/server.py 却修复了 requestBody
+# 参数面丢失。快照自身入 push 触发, 防「只提交快照」的收官 commit 不跑门。
 
 env:
   PYTHON_VERSION: '3.11'
@@ -61,9 +72,17 @@ jobs:
           pip install -r requirements.txt
 
       # 产物与 committed 快照同构(同一脚本、同一归一化), 供下游 job 消费。
+      # env 配方依据: import app.main 在 import 阶段实例化 Settings; 非 local 环境
+      # 强制要求 INTERNAL_API_KEY(Codex round-1 BLOCKER-2: clean runner 上直接炸,
+      # 与 test.yml:111-121 记载的同一故障)。backend/.env 不入库, CI 必须显式给
+      # 等价测试态配置 —— 与 test.yml 配方逐字一致。
       - name: Export OpenAPI spec from FastAPI
         run: |
           python scripts/spec-tools/check-openapi-drift.py --write openapi-current.json
+        env:
+          DEBUG: 'true'
+          CORS_ORIGINS: 'http://localhost:3000,http://127.0.0.1:3000'
+          INTERNAL_API_KEY: 'ci-test-key-not-a-real-secret'
 
       - name: Upload OpenAPI spec
         uses: actions/upload-artifact@v4
@@ -73,13 +92,17 @@ jobs:
           retention-days: 7
 
       # ⛔ 漂移门: committed 快照与 app.openapi() 归一化后必须相等, 否则 job 红。
-      # 归一化只吸收 info.x-generated-at/x-generator、对象成员顺序、required 集合
-      # 内序; enum 顺序与其余一切差异照报(规则与依据见脚本模块 docstring)。
+      # 归一化只吸收 info.x-generated-at/x-generator、对象成员顺序、Schema Object
+      # 上 required 集合内序; enum 顺序与其余一切差异照报(见脚本模块 docstring)。
       # 修法(在仓库根跑, 禁手改快照):
       #   python scripts/spec-tools/check-openapi-drift.py --write backend/openapi.json
       - name: Snapshot drift gate
         run: |
           python scripts/spec-tools/check-openapi-drift.py --snapshot backend/openapi.json
+        env:
+          DEBUG: 'true'
+          CORS_ORIGINS: 'http://localhost:3000,http://127.0.0.1:3000'
+          INTERNAL_API_KEY: 'ci-test-key-not-a-real-secret'
 
   # ═══════════════════════════════════════════════════════════════════════════════
   # Phase 2: 验证 OpenAPI 规范格式
@@ -164,8 +187,11 @@ jobs:
       # 都不会被 oasdiff 判为 breaking, 门恒绿)。
       - name: Get base branch spec
         run: |
-          git show "origin/${{ github.base_ref }}:backend/openapi.json" > openapi-base.json 2>/dev/null \
-            || { echo "::warning::base 分支无 backend/openapi.json, breaking 检测基线退化为空对象"; echo '{}' > openapi-base.json; }
+          # 基线取值 fail-closed(Codex round-1 BLOCKER-4): base 分支的
+          # backend/openapi.json 是可证存在的(cat-file -e 实测 exit 0), 取不到
+          # 说明出真错了, 必须让 job 红, 而不是静默退化成 `{}` 把「检测不到变化」
+          # 伪装成「没有破坏性变更」。
+          git show "origin/${{ github.base_ref }}:backend/openapi.json" > openapi-base.json
 
       - name: Install oasdiff
         run: |
@@ -175,21 +201,29 @@ jobs:
       - name: Run oasdiff
         id: oasdiff
         run: |
-          # 检测破坏性变更
+          # 检测破坏性变更。oasdiff 的退出码同时编码「发现 breaking」与「出错」,
+          # 所以这里不用退出码判定, 而是看输出能否解析成 JSON(Codex round-1
+          # BLOCKER-4: 旧写法 `|| true` + 解析异常计 0, 把工具报错伪装成零变化)。
+          set +e
           oasdiff breaking openapi-base.json openapi-current.json \
-            --format json > breaking-changes.json 2>&1 || true
+            --format json > breaking-changes.json 2>oasdiff-err.txt
+          set -e
 
-          # 解析结果
+          # 解析结果: 解析失败 = 工具出错, 本步骤直接红(不再吞)
           BREAKING_COUNT=$(python3 -c "
-          import json
+          import json, sys
           try:
               with open('breaking-changes.json') as f:
                   data = json.load(f)
-              count = len(data) if isinstance(data, list) else 0
-              print(count)
-          except:
-              print(0)
+              print(len(data) if isinstance(data, list) else 0)
+          except Exception:
+              print('PARSE_ERROR')
           ")
+          if [ "$BREAKING_COUNT" = "PARSE_ERROR" ]; then
+            echo "::error::oasdiff 输出无法解析为 JSON —— 工具或输入出错, 不是「零破坏性变更」"
+            cat oasdiff-err.txt || true
+            exit 1
+          fi
 
           echo "breaking-count=$BREAKING_COUNT" >> $GITHUB_OUTPUT
 
@@ -276,9 +310,13 @@ jobs:
   #      success, Detect Breaking skipped)。
   #   2. 失败原因**已不可考**: GitHub 日志保留期已过, 拉取返回 410 Gone。
   #      在原因不明的前提下修它 = 猜, 所以本卡只停用不修。
-  #   3. 覆盖面并未因此丢失: schemathesis 在进程内做同类契约校验
-  #      (backend/tests/contract/test_openapi_contract.py, from_asgi 直接读 app),
-  #      不需要起 uvicorn + Neo4j service 容器。
+  #   3. 该 job 本身还带 continue-on-error + `|| true`(见下方步骤), 即使在跑也
+  #      从来不是真红门 —— 停用它没有让任何此前「绿」的保障变红。
+  #   覆盖面如实声明(Codex round-1 HIGH-6): 停用后**确实丢失**的是「真实 HTTP 栈上
+  #   按 example 回放 + dredd-hooks.js 流转」; schema 一致性主体由 schemathesis
+  #   进程内校验(test_openapi_contract.py, from_asgi)承担, 但该测试**未接入 CI
+  #   白名单**(test.yml 未列它)—— 这两笔债都记入 Dredd 独立候选卡, 不在本卡虚称
+  #   「已覆盖」。
   # 复活或退役由独立候选卡裁决(已登记, 第九批候补)。届时删掉 `if: false` 即可。
   contract-test:
     name: Contract Test (Dredd)
@@ -429,14 +467,19 @@ jobs:
             echo "| Validate Spec | :x: |" >> $GITHUB_STEP_SUMMARY
           fi
 
-          if [ "${{ needs.detect-breaking-changes.outputs.has-breaking }}" == "true" ]; then
-            echo "| Breaking Changes | :warning: ${{ needs.detect-breaking-changes.outputs.breaking-count }} found |" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ needs.detect-breaking-changes.result }}" == "success" ]; then
+            if [ "${{ needs.detect-breaking-changes.outputs.has-breaking }}" == "true" ]; then
+              echo "| Breaking Changes | :warning: ${{ needs.detect-breaking-changes.outputs.breaking-count }} found |" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "| Breaking Changes | :white_check_mark: None |" >> $GITHUB_STEP_SUMMARY
+            fi
           else
-            echo "| Breaking Changes | :white_check_mark: None |" >> $GITHUB_STEP_SUMMARY
+            # skipped(push 无 breaking 检测)/ failure(基线或工具出错)都不能显示成绿色 None
+            echo "| Breaking Changes | :heavy_minus_sign: ${{ needs.detect-breaking-changes.result }} (仅 PR 事件执行; push 时未检测) |" >> $GITHUB_STEP_SUMMARY
           fi
 
           if [ "${{ needs.contract-test.result }}" == "skipped" ]; then
-            echo "| Contract Tests (Dredd) | :heavy_minus_sign: 已停用 — 见 job 上方注释; 契约校验由 backend/tests/contract/test_openapi_contract.py (schemathesis) 承担 |" >> $GITHUB_STEP_SUMMARY
+            echo "| Contract Tests (Dredd) | :heavy_minus_sign: 已停用 — 见 job 上方注释; schema 一致性由 schemathesis 进程内测试承担(未接入 CI 白名单), HTTP 回放面已丢失 |" >> $GITHUB_STEP_SUMMARY
           elif [ "${{ needs.contract-test.result }}" == "success" ]; then
             echo "| Contract Tests (Dredd) | :white_check_mark: |" >> $GITHUB_STEP_SUMMARY
           else

@@ -1,6 +1,6 @@
 # CARD-DEBT-openapi-sync 验收单 — [BATCH-2026-09-01-第八批]
 
-> 车道: card-w4-micro (W4 第 ③ 卡) · 分支 card/w4-micro · 完成时间 2026-09-01 17:2x CST
+> 车道: card-w4-micro (W4 第 ③ 卡) · 分支 card/w4-micro · 首 commit 2fb779b3 (2026-09-01 17:27:11 +0800) + Codex round-1 整改 commit
 > 完整卡文: `feature-obsidian-hybrid-dev/_bmad-output/implementation-artifacts/goal-cards/第八批-goals/W4-3.md`
 
 ## 〇、一句话
@@ -21,7 +21,7 @@ lefthook spec-sync 死了 4 个月), 本卡把它们修活: 门真的能翻红�
 | `backend/scripts/openapi_drift_negative_control.py` | 新增 | 负控: 3 红变异(删 path/改 enum/删 required, 逐个点名) + 1 放行对照(只改时间戳) + 正本 sha 前后一致门 |
 | `_bmad-output/审查/prompts/codex-prompt-CARD-DEBT-openapi-sync.md` | 新增 | Codex 冻结审查提示词 |
 
-禁改核对(裁判 9): `git log --format= --name-only $(git merge-base HEAD worktree-feature-obsidian-hybrid-dev)..HEAD -- backend/app/ .github/workflows/test.yml plugin-ci.yml readme-claims.yml release-evidence.yml backend/tests/contract/test_openapi_contract.py .gitignore` → **0 行**; 对照组自证查询有效(send_bark.py / tests/support/lifespan.py 均命中, 防假空)。
+禁改核对(裁判 9): `git log --format= --name-only $(git merge-base HEAD worktree-feature-obsidian-hybrid-dev)..HEAD -- backend/app/ .github/workflows/test.yml .github/workflows/plugin-ci.yml .github/workflows/readme-claims.yml .github/workflows/release-evidence.yml backend/tests/contract/test_openapi_contract.py .gitignore` → **0 行**; 对照组自证查询有效(scripts/send_bark.py、backend/tests/support/lifespan.py 均命中, 防假空)。
 
 ## 4-A、裁判输出(全部 LANE 实跑, 2026-09-01)
 
@@ -106,13 +106,23 @@ commit 是全批最后一个合入; 批次收官时主 session 必须在最终�
 1. **workflow 修正未经 GitHub 实跑验证** — CI 翻红/翻绿只有 push 后可见; 本卡验证止于
    本地 YAML 解析(actionlint 本机未装) + 语义逐 job 复核 + 等价脚本本地实跑。首推后若红,
    修正属后续微调。
-2. **跨 Python 版本导出未实测** — 本机 3.14 三次导出连 key 序都逐字节相同; CI 用 3.11。
-   若 3.11 导出与快照不同, CI 漂移门会红——那是门在工作, 但首跑可能红得"意外"。
-3. **Dredd 失败根因不可考** — 日志 410, 只能证明"它一直红", 不能证明"修不好"; 处置取停用。
-4. **本卡快照为车道本地态** — 见裁判 8, 由主 session 收官重生成兜底。
-5. **socket 禁闭的观测副作用** — 禁闭拦下 LiteLLM 拉远程 model cost map(本机走代理
+2. **跨 Python 版本与跨依赖版本导出未实测** — 本机 3.14 三次导出连 key 序都逐字节相同;
+   CI 用 3.11。且 requirements.txt 对 fastapi/pydantic/fastapi-mcp 等只锁下限, CI 每次
+   fresh resolve 可能取到与本机不同的版本 → schema 可能不同 → CI 漂移门红——那是门在
+   工作, 但首跑可能红得"意外"(Codex round-1 HIGH-5)。requirements.txt 本批禁动(手册
+   §四.2 #5), 版本锁定移交独立卡。
+3. **schemathesis 契约测试未接入 CI 白名单** — test_openapi_contract.py 只在本机跑
+   (且 importorskip), test.yml 白名单没列它; Dredd 停用后 HTTP 回放面确实丢失、
+   schema 一致性主体只有本地保障(Codex round-1 HIGH-6, 已记入 Dredd 独立候选卡)。
+4. **Dredd 失败根因不可考** — 日志 410, 只能证明"它一直红", 不能证明"修不好"; 处置取停用。
+5. **本卡快照为车道本地态** — 见裁判 8, 由主 session 收官重生成兜底。
+6. **socket 禁闭的观测副作用** — 禁闭拦下 LiteLLM 拉远程 model cost map(本机走代理
    127.0.0.1:1082), 它自带本地 fallback、不进 schema; 已实测带/不带禁闭导出逐字节相同
    (sha 前 16 位同为 919d6b41fb870217)。
+7. **lefthook glob 引擎边界(本机 2.1.6 实测)** — 数组形态完全不工作、`**` 需跨至少
+   一级、花括号备选项必须是真实存在的路径; 因此 spec-sync 拆三条命令, 触发面以探针
+   逐条验证(mcp/server.py、config.py、api 端点文件各命中对应命令)。CI 的 ubuntu
+   lefthook 版本若不同, 行为可能不同——但 lefthook 只影响本地 hook, 不影响 CI 门。
 
 ## 四、每道门「证明什么 / 不证明什么」
 
@@ -138,7 +148,50 @@ commit 是全批最后一个合入; 批次收官时主 session 必须在最终�
 6. 未证明 openapi.json 作为 committed 产物在长期多人并行下的 merge conflict 负担可控
    (本批靠合并序协议化解, 日常并行的冲突解法=`git checkout --theirs` 后 `--write` 重生成)。
 
-## 六、Codex 审查与裁判 6 回填(本卡 commit 后回填)
+## 六、Codex 审查与裁判 6 回填
 
-- 裁判 6 输出: (待回填)
-- Codex 轮次与终裁: (待回填)
+**裁判 6**(commit 2fb779b3 后, 对已提交态执行):
+```
+$ printf '\n' >> backend/app/api/v1/endpoints/health.py && git add <同文件>
+$ lefthook run pre-commit --command spec-sync
+[Spec Sync] API changes detected, regenerating backend/openapi.json (via backend/.venv/bin/python)...
+WROTE: backend/openapi.json (paths=192 schemas=353, x-generated-at=2026-09-01T09:28:27.214028+00:00)
+[Spec Sync] + backend/openapi.json staged          ← hook 重生成并 stage, 6.29s, exit 0
+$ 还原(unstage + 内容还原)
+before=5360e9d6d6b24ef21fce52945e19269eba0f678449be0252f8ea5518b3702e50
+after =5360e9d6d6b24ef21fce52945e19269eba0f678449be0252f8ea5518b3702e50   ← 逐字节一致
+git status --short → (空) ; 无新 commit
+```
+环境备注: 本机 lefthook 2.1.6 的 `run` 子命令旗标是单数 `--command`(卡文字面
+`--commands` 报 "flag provided but not defined", 行为等价); guard-hook 对
+`git checkout --`/`git restore` 会以 "No stderr output" 异常拦截, 还原改用
+备份 cp + `git show HEAD:` 重定向(效果等同且逐字节可证)。
+
+**Codex 轮次与终裁**:
+
+- **Round 1**(gpt-5.6-sol ultra, 2026-09-01): 终裁 **FAIL — 4 BLOCKER + 2 HIGH**。
+  逐条溯源验证后**全部成立**(本地可复现: enum 内嵌 required 反序 compare()==clean、
+  clean-env import app.config 抛 pydantic ValidationError、c44c48e8 只改 mcp/server.py
+  却改契约面、`git cat-file -e 9af18b27:backend/openapi.json` exit 0 证明基线真实存在);
+  本地归一化守卫前提亦验证: 真实快照 281/281 个 required 数组的宿主 dict 均含
+  properties/type 键, 守卫零成本。
+- **Round 1 整改**(本 commit):
+  - B1 吞漂移: required 排序加 Schema Object 宿主守卫(含 properties/type 才排序);
+    新增 2 个反例测试(enum 内嵌 required 反序必须报漂移、无语境裸对象 required
+    顺序变化必须报漂移), 测试数 19→21 全绿; 守卫后 --write 重生成, 快照 diff
+    仅时间戳 1 行(内容零变化实证)。
+  - B2 clean CI 必炸: export 与 drift gate 两个步骤按 test.yml:119-121 同配方显式
+    注入 DEBUG/CORS_ORIGINS/INTERNAL_API_KEY。
+  - B3 触发面缺口: workflow paths 与 lefthook 都补 main.py/config.py/mcp/**;
+    lefthook 因 glob 引擎边界拆三条命令(spec-sync/spec-sync-flat/spec-sync-root),
+    三条探针各命中(mcp/server.py→flat, config.py→root, api 端点→主命令);
+    push 触发也纳入 backend/openapi.json 自身。
+  - B4 breaking 基线 fail-open: 删 `{}` 降级(git show 失败=job 红); oasdiff 输出
+    解析失败=步骤红(不再把工具错误伪装成零变化); summary 对 skipped/failure 的
+    breaking 检测不再显示绿色 None。
+  - H6 措辞: 删除「覆盖面并未丢失」的不实声明, 如实写「HTTP 回放面丢失 +
+    schemathesis 未接入 CI 白名单」(验收单 §三.3 同步)。
+  - MEDIUM(DETAIL_LINE_CAP 截断可掩盖点名行)与 LOW(验收单 pathspec 缩写/时间
+    模糊/文件计数)一并修正; MEDIUM 另一缓解: 差异头部恒打印 paths/schemas 增删
+    计数, 截断只作用于逐行明细。
+- **Round 2**: (待回填)
