@@ -1369,7 +1369,14 @@ _D2_JOIN_RE = re.compile(_D2_JOIN_ONE)
 
 
 def _join_free(s: str) -> str:
-    """剥掉数串内部的排版噪声/不可见字符, 还原读者**看到**的那个数。"""
+    """剥掉数串内部的排版噪声/不可见字符, 还原成**不被排版切断**的数串。
+
+    ⚠️ 措辞收窄 (Codex round-2 属实指出): 原写"还原读者**看到**的那个数"过宽 ——
+    连接集里未配对的 `*`/`_`/`~`、`<br>` 这类短标签、修饰字 `[多余来几约近超]`
+    渲染后是**可见**的, 拼起来并不等于读者看到的数 (`1*0个` 会被当成 10)。
+    但那是**安全向**的过度拼接: 查到的值 ⊇ 读者看到的数, 不构成虚构通道 ——
+    危险的是**欠拼接** (数串被切开、只按尾片查池)。故行为保留、措辞收窄。
+    """
     return _D2_JOIN_RE.sub("", s)
 
 
@@ -1384,11 +1391,10 @@ def _join_free(s: str) -> str:
 # 「名/位/台/件/册/组/批/轮/遍/趟/人/句/行/段/点/种/类/本/页/题/章」整域绕过)。
 # 这仍是**封闭表**——如实登记的边界, 不宣称"位置承担了一切"。
 _D2_QUANT = r"[个条块次份处板项篇道张名位台件册组批轮遍趟人句行段点种类本页题章]"
-# ⛔ R3 round-2: 数串跨连接字符整体抓取 (`980 005个` / `98765**4**个` 曾只查尾片)。
-_D2_COUNT_RE = re.compile(
-    rf"(?<![0-9])([0-9](?:{_D2_JOIN_ONE}*+[0-9])*)(?![0-9])"
-    rf"{_D2_JOIN_ONE}*(?={_D2_QUANT})"
-)
+# ⛔ R3 round-3: 原 `_D2_COUNT_RE`(ASCII 专用取数式) 与 `_CJK_NUM_RUN_*`(CJK 专用)
+# 已**合并**为 `_COUNT_BEFORE_QUANT_RE` / `_NUM_RUN_RE`(见 _NUM_RUN_PAT 处)——
+# 按字符类分成两条循环正是「跨类/表外字符成为断点」的成因。两者删除而非保留:
+# 只剩定义、无生产调用的常量就是死代码, 而死代码冒充防线是本卡在审的那种病。
 # D2 的**适用句式**: 只查明确自称"全板/整体规模"的断言。
 # 判据从"值在池里"(碰撞) 换成"句式 + 值"(绑定) —— 这类句子的数字必须来自 scan,
 # 而普通叙述 (引用原话 / 序数 / 自指 / 同义量词) 不再被牵连。
@@ -1505,8 +1511,49 @@ _CJK_NUM_CHARS = "".join(sorted(set(_CJK_NUM) | set(_CJK_UNIT)))
 # 单一来源: 两个消费点 (D2 叙述段 / fallback 允许式) 共用本模式。
 # `*+` possessive: 连接字符集与数词字集**不相交**, 贪婪吞完即可, 无需回溯 ——
 # 同时杜绝嵌套量词的病态回溯。
-_CJK_NUM_RUN_PAT = rf"[{_CJK_NUM_CHARS}](?:{_D2_JOIN_ONE}*+[{_CJK_NUM_CHARS}])*"
-_CJK_NUM_RUN_RE = re.compile(_CJK_NUM_RUN_PAT)
+# ⛔ R3 round-3 (Codex round-2 四条 HIGH, 车道逐条实测复现): 取数**不能按字符类
+# 分成两条循环**。原实现 CJK 一条、ASCII 一条, 于是**跨类**或**表外**的数词字
+# 成了断点, 匹配重锚到尾片:
+#   · `本板共有九十八万5个子节点`  → CJK run 停在 `万`, ASCII 只取 `5` ⇒ exit 0
+#   · `本板共有廿五个子节点`        → `廿` 表外, 从 `五` 重锚按 5 查池 ⇒ exit 0 (读者读 25)
+#   · `本板共有壹佰个子节点`        → 两字全表外, **一个 token 都抽不出** ⇒ exit 0
+#   · fallback `#### 派生子女 1 000 个` → `\d+` 拆成 [1, 000] 逐片碰池 ⇒ exit 0
+# ⇒ 合并为**一条规则**: 用「数词样字符」的**宽集合**取整串 → 剥连接字符 →
+#   只有「全 ASCII 数字」或「表内单字数词」才给值, 其余一律 fail-closed。
+#   宽集合只用于**定界**(判断哪些字符属于同一个数), 不赋任何值 —— 表外字符
+#   进来只会让整串变得"无法确定", 不会被猜成某个数。
+# 表外中文数词按常用面登记 (仍是**封闭表**, 与量词表同口径): 廿卅卌 + 大写金融
+# 数字 + 异体。加它们**只增加拒绝面**, 不增加放行面。
+_CJK_NUM_EXTRA = "廿卅卌壹贰貳叁參参肆伍陆陸柒捌玖拾佰仟萬亿億两兩"
+_NUMERAL_LIKE_CHARS = "".join(
+    sorted(set(_CJK_NUM_CHARS) | set(_CJK_NUM_EXTRA) | set("0123456789"))
+)
+_NUM_RUN_PAT = rf"[{_NUMERAL_LIKE_CHARS}](?:{_D2_JOIN_ONE}*+[{_NUMERAL_LIKE_CHARS}])*"
+_NUM_RUN_RE = re.compile(_NUM_RUN_PAT)
+# 量词前的计数: 整串 + 连接字符 + 量词前瞻。
+_COUNT_BEFORE_QUANT_RE = re.compile(rf"({_NUM_RUN_PAT}){_D2_JOIN_ONE}*(?={_D2_QUANT})")
+# ⛔ CJK 小数形态: `点` 在量词表里 (`3 点建议` 是合法量词用法), 于是
+# `五点五个` / `5点5个` 被拆成两个 5 分别碰池, 而读者看到的是 5.5 (实测 exit 0)。
+# ASCII 侧早有 _D2_DECIMAL_RE 把小数一律判 FAIL (scan 的计数都是整数),
+# 这里补上 CJK/混写形态: 数串 + `点`/`.` + 数串 + 量词 = 小数, 恒 FAIL。
+_CJK_DECIMAL_RE = re.compile(
+    rf"({_NUM_RUN_PAT}[.点]{_NUM_RUN_PAT}){_D2_JOIN_ONE}*(?={_D2_QUANT})"
+)
+
+
+def _count_token_value(token: str) -> int | None:
+    """剥过连接字符的计数 token → int; **无法确定就 None**(不猜)。
+
+    只两种情形给值:
+      · 全 ASCII 数字 —— `int()` 本就按十进制解析 (前导零无害);
+      · 表内**单字**中文数词 —— 值 = 映射, 绝对确定 (见 _cjk_single_to_int)。
+    其余 (多字中文数词 / 混写 / 含表外数词字) 一律 None, 调用方 fail-closed。
+    """
+    if not token:
+        return None
+    if token.isascii() and token.isdigit():
+        return int(token)
+    return _cjk_single_to_int(token)
 
 
 def _cjk_single_to_int(s: str) -> int | None:
@@ -1653,27 +1700,28 @@ def _verify_prose_counts(text: str, scan: dict, problems: list[str]) -> None:
             # 提取面必须**抓得到**多字串才能拒绝它 (只抓单字 = 多字落到检查面
             # 外, 那是漏拦不是 fail-closed), 且必须**跨排版噪声/不可见字符**整体
             # 抓 —— 否则 `九十八万**五**个` 只被按尾片 `五` 判 (R3 round-2 实测)。
-            for m_cjk in re.finditer(
-                rf"({_CJK_NUM_RUN_PAT}){_D2_JOIN_ONE}*(?={_D2_QUANT})", line
-            ):
-                token = _join_free(m_cjk.group(1))
-                val = _cjk_single_to_int(token)
+            # ⛔ R3 round-3: CJK 与 ASCII **合并为一条规则** (原双循环让跨类/
+            # 表外字符成为断点, 匹配重锚到尾片 —— 见 _NUM_RUN_PAT 处的四个实测)。
+            # CJK 小数形态先判 (`五点五个` / `5点5个`): 与 ASCII 小数同口径恒 FAIL。
+            for m_dec in _CJK_DECIMAL_RE.finditer(line):
+                problems.append(
+                    f"数字终核: 『{sec}』段出现小数形态的计数 "
+                    f"{_join_free(m_dec.group(1))} "
+                    f"(scan JSON 的计数均为整数, 小数不可能有出处): {line.strip()[:50]}"
+                )
+            for m_cnt in _COUNT_BEFORE_QUANT_RE.finditer(line):
+                token = _join_free(m_cnt.group(1))
+                val = _count_token_value(token)
                 if val is None:
                     problems.append(
-                        f"数字终核: 『{sec}』段的中文数字计数 {token} 无法解析 "
-                        f"(报告请用阿拉伯数字写计数): {line.strip()[:50]}"
+                        f"数字终核: 『{sec}』段的计数 {token} 无法解析 "
+                        f"(多字中文数词/混写/表外数词字都无法确定值, "
+                        f"报告请用阿拉伯数字写计数): {line.strip()[:50]}"
                     )
                 elif val not in pool:
                     problems.append(
                         f"数字终核: 『{sec}』段的计数 {token}({val}) "
                         f"在 scan JSON 里找不到同值来源: {line.strip()[:50]}"
-                    )
-            for m_num in _D2_COUNT_RE.finditer(line):
-                tok = _join_free(m_num.group(1))
-                if int(tok) not in pool:
-                    problems.append(
-                        f"数字终核: 『{sec}』段的计数 {tok} 在 scan JSON 里找不到同值来源 "
-                        f"(域内数字必须有出处): {line.strip()[:50]}"
                     )
 
 
@@ -1918,13 +1966,20 @@ def _verify_fallback_derive_numbers(text: str, scan: dict, problems: list[str]) 
             # 实现 —— 两处曾经分叉 (只修一处 = 另一处继续按局部值查池)。
             # ⛔ R3 round-2: 提取面同样跨连接字符整串抓 (`九**五**` 曾被拆成
             # 两个单字碎片, 逐片查池全部命中而整体虚构值放行)。
-            nums = [int(x) for x in re.findall(r"\d+", ln.translate(_FULLWIDTH_DIGITS))]
-            for cjk in (_join_free(x) for x in _CJK_NUM_RUN_RE.findall(ln)):
-                v = _cjk_single_to_int(cjk)
+            # ⛔ R3 round-3 (Codex round-2 HIGH): 这里的 ASCII 侧原先仍是
+            # `re.findall(r"\d+")` —— `1 000` / `9**5` 被拆成碎片逐片碰池,
+            # 「CJK 与 ASCII 同一口径」当时并不成立。现两类共用 _NUM_RUN_RE。
+            nums: list[int] = []
+            for tok in (
+                _join_free(x)
+                for x in _NUM_RUN_RE.findall(ln.translate(_FULLWIDTH_DIGITS))
+            ):
+                v = _count_token_value(tok)
                 if v is None:
                     problems.append(
-                        f"数字终核: fallback 允许式({tag})行内中文数字 {cjk!r} 无法验证 "
-                        f"(请改用阿拉伯数字): {ln.strip()[:40]}"
+                        f"数字终核: fallback 允许式({tag})行内数字 {tok!r} 无法验证 "
+                        f"(多字中文数词/混写/表外数词字都无法确定值, "
+                        f"请改用阿拉伯数字): {ln.strip()[:40]}"
                     )
                 else:
                     nums.append(v)

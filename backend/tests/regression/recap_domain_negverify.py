@@ -170,8 +170,8 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "survivor-12 (C) 提取面收窄成单字（「抓得到才拒得掉」全线：唯一提取模式被禁）",
         [
             (
-                '_CJK_NUM_RUN_PAT = rf"[{_CJK_NUM_CHARS}](?:{_D2_JOIN_ONE}*+[{_CJK_NUM_CHARS}])*"',
-                '_CJK_NUM_RUN_PAT = rf"[{_CJK_NUM_CHARS}]"',
+                '_NUM_RUN_PAT = rf"[{_NUMERAL_LIKE_CHARS}](?:{_D2_JOIN_ONE}*+[{_NUMERAL_LIKE_CHARS}])*"',
+                '_NUM_RUN_PAT = rf"[{_NUMERAL_LIKE_CHARS}]"',
             )
         ],
         "r5_cjk or r5_derive or r5_prose or r5_noise or r4_derive_allow_cjk",
@@ -181,12 +181,8 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "survivor-13 (C-2) 数串不再跨连接字符（CJK 与 ASCII 两侧提取面一起禁）",
         [
             (
-                '_CJK_NUM_RUN_PAT = rf"[{_CJK_NUM_CHARS}](?:{_D2_JOIN_ONE}*+[{_CJK_NUM_CHARS}])*"',
-                '_CJK_NUM_RUN_PAT = rf"[{_CJK_NUM_CHARS}]+"',
-            ),
-            (
-                'rf"(?<![0-9])([0-9](?:{_D2_JOIN_ONE}*+[0-9])*)(?![0-9])"',
-                'rf"(?<![0-9])([0-9]+)(?![0-9])"',
+                '_NUM_RUN_PAT = rf"[{_NUMERAL_LIKE_CHARS}](?:{_D2_JOIN_ONE}*+[{_NUMERAL_LIKE_CHARS}])*"',
+                '_NUM_RUN_PAT = rf"[{_NUMERAL_LIKE_CHARS}]+"',
             ),
         ],
         "r5_noise_split",
@@ -195,6 +191,37 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "survivor-14 (C-2) 剥噪声还原被禁（_join_free 变恒等：token 带着噪声去判/查池）",
         [('    return _D2_JOIN_RE.sub("", s)', "    return s")],
         "r5_noise_split or r5_prose_single_char or r5_cjk",
+    ),
+    # ── R3 round-3 (Codex round-2 四条 HIGH): 统一取数规则的三条承重变体 ──
+    (
+        "survivor-15 (C-3) 判值放宽为「取末位字」（表内单字判据被禁：廿五/一零 被赋值）",
+        [
+            (
+                "    return _cjk_single_to_int(token)",
+                "    return _CJK_NUM.get(token[-1])",
+            )
+        ],
+        "r6_cross_class or r5_prose or r5_derive",
+    ),
+    (
+        "survivor-16 (C-3) 定界集退回窄集合（表外数词字不进提取面 ⇒ 从尾片重锚）",
+        [
+            (
+                'sorted(set(_CJK_NUM_CHARS) | set(_CJK_NUM_EXTRA) | set("0123456789"))',
+                'sorted(set(_CJK_NUM_CHARS) | set("0123456789"))',
+            )
+        ],
+        "r6_cross_class",
+    ),
+    (
+        "survivor-17 (C-3) CJK 小数形态检查被摘除（五点五个 / 5点5个 拆成两个 5 碰池）",
+        [
+            (
+                "            for m_dec in _CJK_DECIMAL_RE.finditer(line):",
+                "            for m_dec in ():",
+            )
+        ],
+        "r6_cross_class",
     ),
 ]
 

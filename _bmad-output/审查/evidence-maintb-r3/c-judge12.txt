@@ -1,12 +1,14 @@
 === collect-only ===
--- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-========================= 255 tests collected in 0.19s =========================
-=== JUDGE-1 ===
--- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-====================== 255 passed, 14 warnings in 32.46s =======================
+========================= 256 tests collected in 0.19s =========================
 <sys>:0: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
-=== JUDGE-2 negverify (14 变体, 串行) ===
-基线: 双向门全绿 · 被测文件 sha256=9bf0c697af48…
+=== JUDGE-1 定向套件 ===
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+====================== 256 passed, 15 warnings in 34.10s =======================
+<sys>:0: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
+=== JUDGE-2 negverify (17 变体, 串行, 绑定最终字节) ===
+# ⚠️ TMPDIR 隔离: 真 /tmp 下有 Codex round-2 遗留的互斥锁, 其 rmdir 被本机 guard hook 拦下;
+#    ps 确认无并发 negverify 进程, 故用独立 TMPDIR 建新锁, 串行语义不变。
+基线: 双向门全绿 · 被测文件 sha256=25ae3ad84d0b…
 
 ✅ survivor-1 围栏闭合退回宽松判定（E1 全线：长度 + 尾随空白 两条一起禁）: 如期变红（2/2 失败）
 ✅ survivor-2 规模行允许式去掉行尾锚（H-2 前半全线）: 如期变红（1/1 失败）
@@ -22,9 +24,12 @@
 ✅ survivor-12 (C) 提取面收窄成单字（「抓得到才拒得掉」全线：唯一提取模式被禁）: 如期变红（7/7 失败）
 ✅ survivor-13 (C-2) 数串不再跨连接字符（CJK 与 ASCII 两侧提取面一起禁）: 如期变红（1/1 失败）
 ✅ survivor-14 (C-2) 剥噪声还原被禁（_join_free 变恒等：token 带着噪声去判/查池）: 如期变红（3/3 失败）
+✅ survivor-15 (C-3) 判值放宽为「取末位字」（表内单字判据被禁：廿五/一零 被赋值）: 如期变红（5/5 失败）
+✅ survivor-16 (C-3) 定界集退回窄集合（表外数词字不进提取面 ⇒ 从尾片重锚）: 如期变红（1/1 失败）
+✅ survivor-17 (C-3) CJK 小数形态检查被摘除（五点五个 / 5点5个 拆成两个 5 碰池）: 如期变红（1/1 失败）
 
-全部承重（共 14 条变体）
+全部承重（共 17 条变体）
 === 扩大回归 ===
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-================= 587 passed, 193 warnings in 60.23s (0:01:00) =================
+================= 588 passed, 194 warnings in 60.48s (0:01:00) =================
 <sys>:0: DeprecationWarning: builtin type swigvarlink has no __module__ attribute

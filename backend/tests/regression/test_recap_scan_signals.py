@@ -3162,7 +3162,18 @@ def test_domain_r5_cjk_single_char_only_unit_contract():
     # 提取面必须覆盖判据面: **抓得到才拒得掉**。提取面漏字 ⇒ 该字组成的串落到
     # 检查面之外 = 漏拦（不是 fail-closed）。
     assert set(rs._CJK_NUM_CHARS) == set(EXPECT) | set(UNITS)
-    m = rs._CJK_NUM_RUN_RE.match("九十八万")
+    # ⛔ R3 round-3: 取数用的是**宽集合**（数词样字符），它只用于**定界**、不赋值。
+    # 表外数词字（廿卅/大写金融数字）必须进得来——进不来 ⇒ `廿五个` 会从 `五`
+    # 重锚按 5 查池而放行（Codex round-2 HIGH，车道实测 rc=0）。
+    assert set("0123456789") <= set(rs._NUMERAL_LIKE_CHARS)
+    assert set(rs._CJK_NUM_CHARS) <= set(rs._NUMERAL_LIKE_CHARS)
+    assert set("廿卅壹贰叁肆伍陆柒捌玖拾佰仟") <= set(rs._NUMERAL_LIKE_CHARS)
+    # 宽集合只定界不赋值：表外字符进来只会让整串"无法确定"，不会被猜成某个数。
+    for s in ("廿五", "壹佰", "九十八万5", "五四", "一零"):
+        assert rs._count_token_value(s) is None, f"{s!r} 不得被赋值"
+    for s, want in (("980005", 980005), ("016", 16), ("五", 5), ("0", 0)):
+        assert rs._count_token_value(s) == want, f"{s!r} 取值错"
+    m = rs._NUM_RUN_RE.match("九十八万")
     assert m and m.group(0) == "九十八万", "提取面抓不到连续多字串 = 漏拦"
     # ⛔ 且必须**跨排版噪声/不可见字符**整体抓 —— 断开就只剩尾片，判据再「绝对
     # 确定」也没用（拿到的 token 不是那句话里的数）。这一条是 R3 round-2 的
@@ -3175,7 +3186,7 @@ def test_domain_r5_cjk_single_char_only_unit_contract():
         ("空标签", "九十八万<span></span>五"),
         ("HTML注释", "九十八万<!--x-->五"),
     ):
-        m = rs._CJK_NUM_RUN_RE.match(s)
+        m = rs._NUM_RUN_RE.match(s)
         assert m and m.group(0) == s, f"{name}切断: 提取面只抓到 {m and m.group(0)!r}"
         assert rs._join_free(m.group(0)) == "九十八万五", f"{name}: 剥噪声后不是原数"
         assert rs._cjk_single_to_int(rs._join_free(m.group(0))) is None
@@ -3293,9 +3304,13 @@ def test_domain_r5_noise_split_number_run_cli(tmp_path):
     `_cjk_single_to_int('五')==5` 且 5 在池内 ⇒ 纯虚构的 980005 **exit 0 放行**。
     ASCII 侧同形：`980 005个`（空格千分位）只查到 `005`。
 
-    **它证明什么**：CJK 与 ASCII 两侧、D2 与 fallback 两个消费面，数串都跨连接
-    字符（排版标记 / `&nbsp;` / 空白 / 短 HTML 标签与注释 / 零宽与双向控制）整体
-    抓取并剥噪声后再判；合法的单字/池内数值不受影响。
+    **它证明什么**：数串跨连接字符（排版标记 / `&nbsp;` / 空白 / 短 HTML 标签与
+    注释 / 零宽与双向控制）整体抓取并剥噪声后再判 —— D2 侧覆盖 CJK 与 ASCII，
+    fallback 侧本门只覆盖 CJK；合法的单字/池内数值不受影响。
+    ⚠️ 措辞收窄（Codex round-2 属实指出）：本门原写「CJK 与 ASCII × D2 与
+    fallback 全覆盖」，但矩阵里 fallback 只喂了 CJK——而当时 fallback 的 ASCII
+    侧**确实还是** `re.findall(r"\d+")` 的碎片取数。该缺口由
+    `test_domain_r6_cross_class_and_offtable_numeral_cli` 闭合并配门。
     **它不证明什么**：连接集是**封闭表**（与量词表同口径）。表外字符仍能切断数串
     （`九十八万x五个` / `九十八万、五个` / `[[x|]]` 的残留 `|]]`）——那些断点
     **渲染后可见**，读者不会读成一个连续的数；表外的**不可见**载体（如超长 HTML
@@ -3330,7 +3345,9 @@ def test_domain_r5_noise_split_number_run_cli(tmp_path):
     ):
         r = d2(name and line)
         assert r.returncode != 0, f"CJK {name}切断被放行:\n{r.stdout}"
-        assert "九十八万五" in r.stdout, f"CJK {name}: 诊断未还原成完整数串:\n{r.stdout}"
+        assert _one_problem_has(r.stdout, "无法解析", "九十八万五"), (
+            f"CJK {name}: 诊断类别与完整数串未绑在同一条 problem:\n{r.stdout}"
+        )
     for name, line, whole in (
         ("空格千分位", "- 本板共有980 005个子节点。【实测】", "980005"),
         ("粗体", "- 本板共有98765**4**个子节点。【实测】", "987654"),
@@ -3341,12 +3358,16 @@ def test_domain_r5_noise_split_number_run_cli(tmp_path):
     ):
         r = d2(line)
         assert r.returncode != 0, f"ASCII {name}切断被放行:\n{r.stdout}"
-        assert whole in r.stdout, f"ASCII {name}: 诊断未还原成完整数串:\n{r.stdout}"
+        assert _one_problem_has(r.stdout, "找不到同值来源", whole), (
+            f"ASCII {name}: 诊断类别与完整数串未绑在同一条 problem:\n{r.stdout}"
+        )
     # fallback 允许式侧同根（碎片逐片查池全部命中 ⇒ 整体虚构值放行）
     for tok, joined in (("九**五**", "九五"), ("九十八万**五**", "九十八万五")):
         r = verify("方向叙述：", f"\n#### 派生子女 {tok} 个 的说明\n\n方向叙述：")
         assert r.returncode != 0, f"fallback {tok} 碎片被放行:\n{r.stdout}"
-        assert joined in r.stdout, f"fallback {tok}: 诊断未还原成完整数串:\n{r.stdout}"
+        assert _one_problem_has(r.stdout, "无法验证", joined), (
+            f"fallback {tok}: 诊断类别与完整数串未绑在同一条 problem:\n{r.stdout}"
+        )
 
     # ── 放行面（同权重）：合法形态不得被这道收紧反噬 ──
     for name, line in (
@@ -3387,6 +3408,119 @@ def test_domain_r5_prose_single_char_value_enters_pool():
     assert probs("二") == [], "值在池的单字被误伤"
     for tok, joined in (("一零", "一零"), ("九十八万**五", "九十八万五")):
         got = probs(tok)
-        assert any("无法解析" in p for p in got), f"{tok}: 未 fail-closed: {got}"
-        assert any(joined in p for p in got), f"{tok}: 诊断未还原成完整数串: {got}"
+        assert any("无法解析" in p and joined in p for p in got), (
+            f"{tok}: 诊断类别与完整数串未绑在同一条 problem: {got}"
+        )
         assert not any("找不到同值来源" in p for p in got), f"{tok}: 仍按局部值查池: {got}"
+
+
+# ── R3 round-3：Codex round-2 报的 4 条 HIGH（车道逐条实测复现后闭合）──────────
+# 根因是同一个结构病：取数按字符类分成 CJK / ASCII 两条循环，于是**跨类**或
+# **表外**的数词字成了断点，匹配重锚到尾片。已合并为一条规则（宽集合定界 →
+# 剥连接字符 → 只有「全 ASCII 数字」或「表内单字」给值，其余 fail-closed）。
+# ⚠️ Codex 同轮还报了 `980,005个` 被切断——**实测不成立**（逗号归一化已覆盖，
+# 按 980005 查池），本卡如实驳回，见验收单 §五。
+
+
+def _one_problem_has(stdout: str, *needles: str) -> bool:
+    """同一条诊断行里同时出现全部 needle。
+
+    ⛔ Codex round-2 的测试批评（属实）：`assert "无法解析" in out` 与
+    `assert "九十八万五" in out` 两条独立 `any`，理论上可由**两条不同的**
+    problem 分别满足 —— 断言没有把「诊断类别」与「完整 token」绑在一起。
+    """
+    return any(all(n in ln for n in needles) for ln in stdout.splitlines())
+
+
+def test_domain_r6_cross_class_and_offtable_numeral_cli(tmp_path):
+    """R3 round-3 行为门：跨类 / 表外数词字 / CJK 小数都不得按尾片查池。
+
+    四条实测反例（修前全部 exit 0）：
+      · `本板共有九十八万5个子节点` —— CJK run 停在 `万`，ASCII 只取 `5`
+      · `本板共有廿五个子节点` —— `廿` 表外，从 `五` 重锚按 5 查池（读者读 25）
+      · `本板共有壹佰个子节点` —— 两字全表外，一个 token 都抽不出
+      · `本板共有五点五个 / 5点5个` —— `点` 在量词表里，被拆成两个 5 分别碰池
+      · fallback `#### 派生子女 1 000 个` —— `\\d+` 拆成碎片逐片碰池
+
+    **它证明什么**：D2 与 fallback、CJK 与 ASCII 走**同一条**取数规则；
+    诊断类别与还原后的完整 token 出现在**同一条** problem 里；
+    合法形态（含 `3点建议` 里 `点` 的正当量词用法）不被反噬。
+    **它不证明什么**：`_NUMERAL_LIKE_CHARS` 仍是**封闭表**（廿卅卌 + 大写金融
+    数字 + 异体），表外的其它数词写法仍可能重锚；量词表同样封闭。见 §五之三。
+    """
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    pool = _load_recap_scan()._derived_number_pool(scan)
+    assert {5, 3, 16, 22} <= pool, f"放行面前提失效: {sorted(pool)}"
+    report = write_report(vault, scan)
+    base_text = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+
+    def verify(anchor: str, injected: str):
+        text = base_text.replace(anchor, injected, 1)
+        assert text != base_text, "变异未命中：报告一字未改，这条门测的是空气"
+        report.write_text(text, encoding="utf-8")
+        return run_verify(report)
+
+    def d2(line: str):
+        return verify("## 三维审查", f"## 三维审查\n\n{line}")
+
+    def fb(tok: str):
+        return verify("方向叙述：", f"\n#### 派生子女 {tok} 个 的说明\n\n方向叙述：")
+
+    # 拦截面：诊断必须同时点名「无法解析」与**还原后的完整 token**
+    for name, line, token in (
+        ("跨类混写", "- 本板共有九十八万5个子节点。【实测】", "九十八万5"),
+        ("表外廿", "- 本板共有廿五个子节点。【实测】", "廿五"),
+        ("表外大写金融数字", "- 本板共有壹佰个子节点。【实测】", "壹佰"),
+        ("多字+切断", "- 本板共有九十八万**五**个子节点。【实测】", "九十八万五"),
+    ):
+        r = d2(line)
+        assert r.returncode != 0, f"D2 {name} 被放行:\n{r.stdout}"
+        assert _one_problem_has(r.stdout, "无法解析", token), (
+            f"D2 {name}: 诊断类别与完整 token 未绑在同一条 problem:\n{r.stdout}"
+        )
+    # CJK/混写小数：与 ASCII 小数同口径恒 FAIL
+    for name, line, token in (
+        ("CJK 小数", "- 本板共有五点五个子节点。【实测】", "五点五"),
+        ("混写小数", "- 本板共有5点5个子节点。【实测】", "5点5"),
+    ):
+        r = d2(line)
+        assert r.returncode != 0, f"D2 {name} 被放行:\n{r.stdout}"
+        assert _one_problem_has(r.stdout, "小数形态", token), f"D2 {name}: 未按小数形态点名:\n{r.stdout}"
+    # fallback 侧 ASCII 也必须整串取（round-2 只补了 CJK 侧，是本轮 HIGH 之一）
+    for name, tok, token in (
+        ("ASCII SI千分位", "1 000", "1000"),
+        ("ASCII 标记切断", "9**5", "95"),
+    ):
+        r = fb(tok)
+        assert r.returncode != 0, f"fallback {name} 被放行:\n{r.stdout}"
+        assert _one_problem_has(r.stdout, "无出处", token), f"fallback {name}: 未按整串值点名:\n{r.stdout}"
+    r = fb("廿五")
+    assert r.returncode != 0 and _one_problem_has(r.stdout, "无法验证", "廿五"), (
+        f"fallback 表外数词未 fail-closed:\n{r.stdout}"
+    )
+
+    # 放行面（同权重）
+    for name, line in (
+        ("单字在池", "- 本板共有五个子节点。【实测】"),
+        ("ASCII 在池", "- 本板共有3个子节点。【实测】"),
+        ("前导零 016=16", "- 本板共有016个子节点。【实测】"),
+        ("池内 22", "- 本板共有22个子节点。【实测】"),
+        ("`点` 的正当量词用法", "- 本板共有3点建议。【实测】"),
+        ("round-5 原始误伤 十分", "- 说明十分清楚。【实测】"),
+        ("round-5 原始误伤 一致", "- 统计口径尚未一致。【实测】"),
+    ):
+        r = d2(line)
+        assert r.returncode == 0, f"合法形态被误伤（{name}）:\n{r.stdout}"
+    for name, tok in (("fallback 单字在池", "五"), ("fallback ASCII 在池", "3")):
+        r = fb(tok)
+        assert r.returncode == 0, f"合法形态被误伤（{name}）:\n{r.stdout}"
+
+    # Codex round-2 报的第五条：`980,005个` 声称被逗号切断 —— **实测不成立**，
+    # 逗号归一化先于取数生效，按 980005 查池。这条门把「不成立」也钉住，
+    # 防止后人照抄该判词去"修"一个不存在的问题。
+    r = d2("- 本板共有980,005个子节点。【实测】")
+    assert r.returncode != 0 and _one_problem_has(r.stdout, "980005"), (
+        f"千分位逗号形态应按完整量级 980005 查池:\n{r.stdout}"
+    )

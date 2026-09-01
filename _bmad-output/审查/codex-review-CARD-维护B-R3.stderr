@@ -1,0 +1,1118 @@
+Reading additional input from stdin...
+OpenAI Codex v0.147.0
+--------
+workdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix
+model: gpt-5.6-sol
+provider: openai
+approval: on-request
+sandbox: read-only
+reasoning effort: ultra
+reasoning summaries: auto
+session id: 01a05ed3-89fb-7243-bf38-a8123796f682
+--------
+user
+# Codex 定向复核 · CARD-维护B-R3（只审中文数词与计数的取值口径）
+
+你是对抗复核者。历史：round-1 FAIL(3B/5H/3M)；round-2/round-4/本卡 R3 round-1
+三次被你侧内容过滤器截断、无终裁；round-3 FAIL(2B/4H) 已整改；round-5 判
+**A ✅PASS / B ✅PASS / C ⚠️HIGH**。本轮只复核 C。
+
+工作树: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix
+
+## ⛔ 硬限（三次被截断的教训，请严格遵守）
+
+1. **不要运行 `git diff` / `git show` / `git log -p`**。前一轮就是因为把整段改动
+   读进上下文而被中断。只**按下面给出的 file:line 静态阅读当前 HEAD 的文件内容**。
+2. **不要构造或运行任何探针 / 变异 / 临时脚本**。车道已提供全部实测数据。
+3. **不读 `fixtures/` 下任何 `.md`/`.json` 正文**。
+4. 只做两件事：**按行号读代码与测试** + **跑下面两条既有命令**。
+5. **报告第一行**：「BLOCKER/HIGH 清零：是/否（就 C 取值口径而言）」。
+
+## round-5 对 C 的判词（属实）
+
+> 提取字符集与映射表完全相同 ⇒「无法验证」分支静态不可达；连续数字字仅反复
+> 覆盖 `digit`，可能只保留末位并按**错误的小值**去数值池比对；若发生池碰撞，
+> 同类允许式仍可通过。
+
+## 车道两次整改（本轮被审对象）
+
+| # | 车道实测到的问题 | 整改 |
+|---|---|---|
+| 1 | `c754b043` 只改了 fallback 一侧；`_verify_prose_counts` 仍调多位解析器 `_cjk_to_int`，`本板共有一零个子节点。` 得 0（0 恒在池内，`abs(a-a)`）⇒ exit 0 | 删 `_cjk_to_int`；两处共用 `_cjk_single_to_int`（只认单字，值=映射）；提取字符类由 `_CJK_NUM ∪ _CJK_UNIT` 机械派生 |
+| 2 | 整改 1 之后仍有：`本板共有九十八万**五**个子节点。`（Markdown 粗体，渲染出来是「九十八万五个」）只取到尾片 `五`，5 在池内 ⇒ exit 0。ASCII 同形 `980 005个` 只取到 `005` | 数串**跨连接字符整体取出**再剥掉连接字符后判值；CJK 与 ASCII 同一口径；诊断打印还原后的完整数串 |
+| 3 | 整改 2 自带的新问题：行级「前导零归一化」与整体取出相冲，`1 000个`（渲染=1000）被剥成 `1 0` 拼成 `10` 落进池内 ⇒ exit 0 | 删除行级剥零，归一化下沉到 `int(token)` |
+
+⚠️ 车道如实声明：问题 2 在 `c754b043` 上**同样存在**，是存量、不是本卡引入；
+但本卡的门与 docstring 曾宣称「多字中文数词一律 fail-closed」，被一个 `**`
+击穿 = **声明比证据宽**，按本仓口径算真缺陷，故闭合。
+
+车道还删掉了一条**永不触发**的"左边界守卫"（能命中它的形态都先被整体取出吞掉），
+理由：死分支冒充防线正是 round-5 判过的病。
+
+## 请按行号阅读（`canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py`）
+
+- `:1355-1391` — `_D2_NOISE_ONE` / `_INVISIBLE_ONE` / `_D2_JOIN_ONE` / `_join_free`
+  / `_D2_COUNT_RE`（连接语义与 ASCII 取数口径）
+- `:1481-1536` — `_CJK_NUM` / `_CJK_UNIT` / `_CJK_NUM_CHARS` / `_CJK_NUM_RUN_PAT`
+  / `_cjk_single_to_int` **实现体**
+- `:1650-1685` — D2 叙述段的两个取数循环（CJK 与 ASCII）与前导零口径注释
+- `:1915-1935` — fallback 允许式的取数循环
+
+**请回答的三个问题**：
+1. 还有没有别的路径能让「进池比对的值」≠「读者在渲染后看到的数」？
+2. `_D2_JOIN_ONE`（连接集）、`_D2_QUANT`（量词表）、`_CJK_NUM`（数词表）三张封闭表
+   的边界，车道在下面「已登记残余」里写得诚实吗？有没有被低估的？
+3. possessive `*+` 是否改变了匹配语义（而不只是性能）？
+
+## 请按行号阅读（`backend/tests/regression/test_recap_scan_signals.py`）
+
+`:3124` 判据契约（注意：期望值已改为**独立写死**——原版
+`for ch, want in _CJK_NUM.items()` 是自抄期望，把映射改成 7 也全绿）、
+`:3184` 与 `:3364` 两道合成 scan 单元门、`:3216`、`:3251`、
+`:3288` 切断矩阵门（含放行面），以及既有 `:3088`。
+
+**请回答**：有无空洞断言（不改实现也恒真）？有无比实现宽的措辞？
+`assert "九十八万五" in r.stdout` 这类「诊断须还原完整数串」的断言够不够强？
+
+## 两条命令（只跑这两条）
+
+1. `cd backend && PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest
+   tests/regression/test_recap_scan_signals.py -q -p no:cacheprovider`
+   —— 开工基线 249，现应为 **255**。
+2. `cd backend && PYTHONDONTWRITEBYTECODE=1 .venv/bin/python
+   tests/regression/recap_domain_negverify.py` —— 应为 **14** 条变体全部如期变红。
+   其中 survivor-13（数串不再跨连接字符）只杀切断矩阵门 1 条。
+   **请判断**：survivor-13 / survivor-14 是否真的禁掉了该性质的全部防线，
+   还是被别处纵深兜住而误判承重？
+
+## 车道已登记的残余（请判断登记是否诚实）
+
+- 连接集是封闭表：`九十八万x五个`、`九十八万、五个`、`[[目标|]]` 残留的 `|]]`
+  仍会断开。车道判词：这些断点**渲染后可见**；>22 字符的 HTML 注释是真残余。
+- D2 只覆盖「数字**紧邻**量词」的计数形态：`共有节点九十八万，其中种子五个。`
+  中的 `九十八万` 无量词 ⇒ 不进检查面（ASCII 同形同样不进），docstring 早已声明。
+- 数词表封闭在 17 字：壹貳參、廿卅、仨俩 不在提取面内。
+- `:1311` 与 `:1319` 另有两份手抄的中文数词字符类，未随机械派生（当前字符集相同）。
+- 新代价：`本板共有一两个 / 三五个 / 十来个子节点` 现在硬 FAIL（旧实现分别得
+  2/5/10，多在池内而放行）。按卡文默认「无法确定语法的中文数词一律 fail-closed」。
+
+## 输出格式
+
+- 第一行：「BLOCKER/HIGH 清零：是/否（就 C 取值口径而言）」。
+- 逐项 ✅/⚠️/❌ + `file:line` 判词。**新问题不限于「本卡引入」**——存量未闭合的
+  也请报，并标注是哪一类。
+- 写出你实际跑出的两条命令结果，以及 `git rev-parse HEAD`（只跑这一条 git 命令）。
+- 报告一次给出；先写正文再补过程。
+2026-09-01T21:15:21.859143Z ERROR codex_models_manager::manager: failed to refresh available models: timeout waiting for child process to exit
+**Planning memory inspection with constraints**
+**Evaluating multi-agent delegation within constraints**
+**Determining precise test function boundaries**
+**Planning targeted code line inspection**
+**Assessing memory file search approach**
+**Planning targeted memory file search**
+codex
+我会严格把工作树读取限定在你列出的行号与两条既有测试命令；不读 fixture 正文、不看 diff/history、不造探针。并行只做静态复核，命令由我统一执行，最后先给终裁正文，再列过程与实际结果。
+exec
+/bin/zsh -lc 'rg -n "CARD|recap_scan|中文数词|计数取值|board-recap" /Users/Heishing/.codex/memories/MEMORY.md' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix
+ exited 1 in 0ms:
+**Planning audit steps**
+  → 按指定行号静态复核实现的取值、连接与封闭表边界
+  • 按指定锚点复核测试契约、断言强度与 survivor 承重
+  • 仅运行两条既有命令及 git rev-parse HEAD
+  • 汇总 C 口径终裁、残余与证据限制
+**Delegating static implementation and tests**
+**Implementing exact line range reading**
+exec
+/bin/zsh -lc "nl -ba canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py | sed -n -e '1306,1324p' -e '1355,1391p' -e '1481,1536p' -e '1650,1685p' -e '1915,1935p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix
+ succeeded in 0ms:
+  1306	    (
+  1307	        re.compile(
+  1308	            r"^[>\s]*(?:\d+\s*个)?派生角色成员缺来源锚点[^。\n0-9０-９零〇一二两三四五六七八九十百千万亿]*。?\s*$"
+  1309	        ),
+  1310	        "skill:③段固定句式",
+  1311	    ),
+  1312	    # ⑧ 同句式「集中在」变体 — 与 ⑦ 同步收紧两侧尾段禁数字 (含全角/中文数词)
+  1313	    #    (否则「优化集中在派生角色成员的 987654 个子女上」同型放行)
+  1314	    (
+  1315	        re.compile(
+  1316	            r"^[^。\n0-9０-９零〇一二两三四五六七八九十百千万亿]*集中在派生角色成员[^。\n0-9０-９零〇一二两三四五六七八九十百千万亿]*。?\s*$"
+  1317	        ),
+  1318	        "skill:③段固定句式",
+  1319	    ),
+  1320	)
+  1321	
+  1322	# ── 维护卡 B · D2「有据叙述域」 ────────────────────────────────────────────
+  1323	# ⛔ Codex round-1 HIGH「D1 仍只是少量枚举，不是卡文声明的整域绑定」的整改:
+  1324	# 原实现是**点名两段**的允许式 (`("你现在可以做的", "三维审查")`) —— 于是
+  1355	# 噪声**不只出现在数与量词之间, 也能被塞进数串内部**。原提取式只有右侧量词
+  1356	# 前瞻, 于是 `本板共有九十八万**五**个子节点` (Markdown 粗体, **渲染出来就是
+  1357	# 「九十八万五个」**) 的匹配重锚到尾片 `五`, `_cjk_single_to_int("五")==5` 且
+  1358	# 5 在池内 ⇒ 纯虚构的 980005 **exit 0 放行**。ASCII 侧同形: `980 005个`
+  1359	# (空格千分位) 只查到 `005`。round-5 的「按局部值查池」并没有被消除, 只是
+  1360	# 从**解析器**搬到了**提取器** —— 判据拿到的 token 不是那句话里的数。
+  1361	# ⇒ 数串必须**跨噪声整体抓取**, 剥掉噪声后再交判据 (见 _join_free)。
+  1362	# 不可见/零宽字符与排版标记同罪: 渲染后读者看不到, 却能在源码里切断数串。
+  1363	_INVISIBLE_ONE = r"[\u00ad\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u2064\ufeff]"
+  1364	_D2_JOIN_ONE = rf"(?:{_D2_NOISE_ONE}|{_INVISIBLE_ONE})"
+  1365	_D2_JOIN_RE = re.compile(_D2_JOIN_ONE)
+  1366	
+  1367	
+  1368	def _join_free(s: str) -> str:
+  1369	    """剥掉数串内部的排版噪声/不可见字符, 还原读者**看到**的那个数。"""
+  1370	    return _D2_JOIN_RE.sub("", s)
+  1371	
+  1372	
+  1373	# ⛔ 这里曾写过一个"左边界守卫"(匹配左侧跳过连接字符若仍有同类数字字则判无法
+  1374	# 确定)。**实测它永不触发**: 数串已跨连接字符整体抓取, 能被守卫命中的形态都
+  1375	# 先被 run 模式吞掉了; 而连接集**表外**字符 (`九十八万x五个`) 又不满足守卫条件。
+  1376	# 一个永不执行的分支正是 round-5 判过的病 (死代码冒充防线), 故删除而非保留。
+  1377	# 残余面如实登记: 连接集是**封闭表**(与量词表同口径), 表外字符仍能切断数串 ——
+  1378	# 但那类断点在**渲染后可见**, 读者不会读成一个连续的数; 表外的**不可见**
+  1379	# 字符 (如超长 HTML 注释) 是真残余, 记在验收单 §五之三。
+  1380	# ⛔ 量词表按对抗审查给的 21 个常用表外量词扩充 (原 11 字表实测被
+  1381	# 「名/位/台/件/册/组/批/轮/遍/趟/人/句/行/段/点/种/类/本/页/题/章」整域绕过)。
+  1382	# 这仍是**封闭表**——如实登记的边界, 不宣称"位置承担了一切"。
+  1383	_D2_QUANT = r"[个条块次份处板项篇道张名位台件册组批轮遍趟人句行段点种类本页题章]"
+  1384	# ⛔ R3 round-2: 数串跨连接字符整体抓取 (`980 005个` / `98765**4**个` 曾只查尾片)。
+  1385	_D2_COUNT_RE = re.compile(
+  1386	    rf"(?<![0-9])([0-9](?:{_D2_JOIN_ONE}*+[0-9])*)(?![0-9])"
+  1387	    rf"{_D2_JOIN_ONE}*(?={_D2_QUANT})"
+  1388	)
+  1389	# D2 的**适用句式**: 只查明确自称"全板/整体规模"的断言。
+  1390	# 判据从"值在池里"(碰撞) 换成"句式 + 值"(绑定) —— 这类句子的数字必须来自 scan,
+  1391	# 而普通叙述 (引用原话 / 序数 / 自指 / 同义量词) 不再被牵连。
+  1481	    "一": 1,
+  1482	    "二": 2,
+  1483	    "两": 2,
+  1484	    "三": 3,
+  1485	    "四": 4,
+  1486	    "五": 5,
+  1487	    "六": 6,
+  1488	    "七": 7,
+  1489	    "八": 8,
+  1490	    "九": 9,
+  1491	}
+  1492	_CJK_UNIT = {"十": 10, "百": 100, "千": 1000, "万": 10000, "亿": 100000000}
+  1493	# ⛔ R3: 提取字符类**由两张表机械派生**, 不再手抄字面量。
+  1494	# 判据 (`_cjk_single_to_int`) 只认 `_CJK_NUM` 单字; 提取面必须是
+  1495	# `_CJK_NUM ∪ _CJK_UNIT` 的**超集方向** —— 抓得到才拒得掉:
+  1496	# 提取面漏掉某个数词字, 该字组成的串会落到检查面**之外** = 漏拦 (不是
+  1497	# fail-closed)。两处消费点 (D2 叙述段 / fallback 允许式) 共用本常量,
+  1498	# 手抄两份字面量正是它们此前分叉的成因。
+  1499	_CJK_NUM_CHARS = "".join(sorted(set(_CJK_NUM) | set(_CJK_UNIT)))
+  1500	# ⛔ R3 round-2: 数串必须**跨连接字符**整体抓取 —— 原 `[...]+` / `[...]{1,12}`
+  1501	# 遇到 `九十八万**五` 会断开, 匹配重锚到尾片 `五` 并按 5 查池 (实测 exit 0)。
+  1502	# 单一来源: 两个消费点 (D2 叙述段 / fallback 允许式) 共用本模式。
+  1503	# `*+` possessive: 连接字符集与数词字集**不相交**, 贪婪吞完即可, 无需回溯 ——
+  1504	# 同时杜绝嵌套量词的病态回溯。
+  1505	_CJK_NUM_RUN_PAT = rf"[{_CJK_NUM_CHARS}](?:{_D2_JOIN_ONE}*+[{_CJK_NUM_CHARS}])*"
+  1506	_CJK_NUM_RUN_RE = re.compile(_CJK_NUM_RUN_PAT)
+  1507	
+  1508	
+  1509	def _cjk_single_to_int(s: str) -> int | None:
+  1510	    """中文数词 → int; **只认单字数词**, 其余一律 None (不猜)。
+  1511	
+  1512	    ⛔ 对抗审查 BLOCKER: D2 的数字原为 `[0-9]+`, 于是「本板共有九十八万个子节点」
+  1513	    这类**完全虚构**的规模自陈整域免检。scan 的计数都是 ASCII 整数, 报告换个写法
+  1514	    不该换来免检 —— 归一后照常比对。
+  1515	
+  1516	    ⛔ round-5 (Codex 定向复核 HIGH) + R3 收口: 原实现是**多位文法解析器**
+  1517	    `_cjk_to_int`, 两条毛病一体:
+  1518	      1. 提取正则 `[零〇一二两三四五六七八九十百千万亿]+` 与 `_CJK_NUM`/`_CJK_UNIT`
+  1519	         **完全同集** ⇒ 任何非空匹配必返回某个整数, 所谓「解析失败 fail-closed」
+  1520	         分支**静态不可达** (死代码冒充防线);
+  1521	      2. 连续数字字不校验文法, 只反复覆盖 `digit` ⇒ 「五四」得 4、「一零」得 0,
+  1522	         按**局部值**查池。而 0 恒在池内 (`abs(a-a)`), 于是
+  1523	         `本板共有一零个子节点。` 这句**纯虚构**自陈实测 exit 0 放行
+  1524	         (红证据 `_bmad-output/审查/evidence-maintb-r3/b-prefix-red-repro.txt`)。
+  1525	
+  1526	    终态口径 (R3 冻结, 不得再引入多位解析器): 值 = 单字映射, **绝对确定**才认;
+  1527	    多字 / 单字量词 (十百千万亿, 不在 `_CJK_NUM`) / 集合外字符一律 None,
+  1528	    由调用方按「无法验证 / 无法解析」fail-closed 处理, 不静默放行。
+  1529	    代价如实记: 合法的多字中文数词计数也会被拒 —— 诊断已提示「请改用阿拉伯
+  1530	    数字」, 且报告为机器渲染 (模板与合成语料无多字合法用例, 实测零误伤)。
+  1531	    """
+  1532	    return _CJK_NUM.get(s) if len(s) == 1 else None
+  1533	
+  1534	
+  1535	def _verify_prose_counts(text: str, scan: dict, problems: list[str]) -> None:
+  1536	    """D2: 叙述段里的**计数**必须能在 scan JSON 找到同值来源。
+  1650	            # 提取面必须**抓得到**多字串才能拒绝它 (只抓单字 = 多字落到检查面
+  1651	            # 外, 那是漏拦不是 fail-closed), 且必须**跨排版噪声/不可见字符**整体
+  1652	            # 抓 —— 否则 `九十八万**五**个` 只被按尾片 `五` 判 (R3 round-2 实测)。
+  1653	            for m_cjk in re.finditer(
+  1654	                rf"({_CJK_NUM_RUN_PAT}){_D2_JOIN_ONE}*(?={_D2_QUANT})", line
+  1655	            ):
+  1656	                token = _join_free(m_cjk.group(1))
+  1657	                val = _cjk_single_to_int(token)
+  1658	                if val is None:
+  1659	                    problems.append(
+  1660	                        f"数字终核: 『{sec}』段的中文数字计数 {token} 无法解析 "
+  1661	                        f"(报告请用阿拉伯数字写计数): {line.strip()[:50]}"
+  1662	                    )
+  1663	                elif val not in pool:
+  1664	                    problems.append(
+  1665	                        f"数字终核: 『{sec}』段的计数 {token}({val}) "
+  1666	                        f"在 scan JSON 里找不到同值来源: {line.strip()[:50]}"
+  1667	                    )
+  1668	            for m_num in _D2_COUNT_RE.finditer(line):
+  1669	                tok = _join_free(m_num.group(1))
+  1670	                if int(tok) not in pool:
+  1671	                    problems.append(
+  1672	                        f"数字终核: 『{sec}』段的计数 {tok} 在 scan JSON 里找不到同值来源 "
+  1673	                        f"(域内数字必须有出处): {line.strip()[:50]}"
+  1674	                    )
+  1675	
+  1676	
+  1677	def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> None:
+  1678	    """台账『种子』行的批注数必须绑到 scan JSON 里**该节点的** tips_count。
+  1679	
+  1680	    ⛔ 维护卡 B · H-2 后半 (round-6 实证): 原实现只有整行**形状**白名单
+  1681	    (``- <节点> — 批注 N 条``), 不绑值 —— 把真实的「批注 2 条」改成
+  1682	    「批注 999 条」形状照样合法, 实测 exit 0。白名单管住了句式, 没管住数字的出处。
+  1683	
+  1684	    scan JSON 的 ``ledger`` 是**按角色分组的 dict** (seeds/derived/unknown) 而非扁平
+  1685	    列表 —— 我第一版直接迭代它, 拿到的是键字符串, verifier 当场抛 NameError/AttributeError,
+  1915	            # 实现 —— 两处曾经分叉 (只修一处 = 另一处继续按局部值查池)。
+  1916	            # ⛔ R3 round-2: 提取面同样跨连接字符整串抓 (`九**五**` 曾被拆成
+  1917	            # 两个单字碎片, 逐片查池全部命中而整体虚构值放行)。
+  1918	            nums = [int(x) for x in re.findall(r"\d+", ln.translate(_FULLWIDTH_DIGITS))]
+  1919	            for cjk in (_join_free(x) for x in _CJK_NUM_RUN_RE.findall(ln)):
+  1920	                v = _cjk_single_to_int(cjk)
+  1921	                if v is None:
+  1922	                    problems.append(
+  1923	                        f"数字终核: fallback 允许式({tag})行内中文数字 {cjk!r} 无法验证 "
+  1924	                        f"(请改用阿拉伯数字): {ln.strip()[:40]}"
+  1925	                    )
+  1926	                else:
+  1927	                    nums.append(v)
+  1928	            for num in nums:
+  1929	                if num not in pool:
+  1930	                    problems.append(
+  1931	                        f"数字终核: fallback 允许式({tag})行内数字 {num} 无出处 "
+  1932	                        f"(数字必须在 scan 数值池): {ln.strip()[:40]}"
+  1933	                    )
+  1934	
+  1935	
+
+**Confirming missing definition line ranges**
+**Analyzing fallback ASCII digit extraction behavior**
+exec
+/bin/zsh -lc "nl -ba canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py | sed -n -e '1340,1355p' -e '1476,1483p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix
+ succeeded in 0ms:
+  1340	# ⛔ 三处收紧, 全部由对抗审查实测驱动 (每条都在四份真报告上验过):
+  1341	#  ① **数字与量词之间的排版噪声**: 原式前瞻只容 `\s`, 于是加粗 `**987654** 个`、
+  1342	#     `<span>987654</span> 个`、`987654&nbsp;个` 一律漏检 —— 而加粗数字正是 LLM
+  1343	#     写报告的常见排版, 这既是绕过面也是静默漏检面。现在容忍 * _ ~ 反斜杠、
+  1344	#     HTML 标签、`&nbsp;`/`&#160;` 实体。
+  1345	#  ② **小数前缀**: `(?<![0-9.])` 的本意是不切开小数, 实际效果是"任何数字前面补一个
+  1346	#     `0.` 就退出治理"。改为只在**紧邻**数字时排除 (即真正的小数尾部), 且对
+  1347	#     `0.987654 个` 这种整体形态改由下面的 _D2_DECIMAL_RE 单独识别。
+  1348	#  ③ 量词表保持封闭 —— 这是**如实登记的边界**, 不假装"位置承担了一切":
+  1349	#     中文数字与表外量词仍不在覆盖面 (见验收单裁决点)。
+  1350	# 噪声集含反引号: `` `987654` 个 `` 里的收尾反引号也是"数字与量词之间的排版噪声"
+  1351	# （纯数字 code span 已由 _D2_INLINE_CODE_RE 有意保留下来交给这里判）。
+  1352	_D2_NOISE_ONE = r"(?:[*_~\\`]|<[^>\n]{1,20}>|&nbsp;|&#160;|[多余来几约近超]|\s)"
+  1353	_D2_NOISE = rf"{_D2_NOISE_ONE}*"
+  1354	# ⛔ R3 round-2 (车道对抗审查 BLOCKER, 5 个镜头独立收敛 + 本地实测复现):
+  1355	# 噪声**不只出现在数与量词之间, 也能被塞进数串内部**。原提取式只有右侧量词
+  1476	
+  1477	
+  1478	_CJK_NUM = {
+  1479	    "零": 0,
+  1480	    "〇": 0,
+  1481	    "一": 1,
+  1482	    "二": 2,
+  1483	    "两": 2,
+
+**Investigating docstring and comment discrepancies**
+**Planning targeted code reading ranges**
+exec
+/bin/zsh -lc "nl -ba backend/tests/regression/test_recap_scan_signals.py | sed -n -e '3068,3158p' -e '3174,3328p' -e '3350,3405p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix
+ succeeded in 0ms:
+  3068	    assert "代码块内出现信号名" in r.stdout or "缺信号行" in r.stdout
+  3069	
+  3070	
+  3071	def test_domain_r4_manifest_appendix_signal_in_section3_only(tmp_path):
+  3072	    """round-4 B: 「无来源结论」限定③段对 **manifest 模式**同样生效。
+  3073	
+  3074	    HIGH-4 的限定原本只挂在 fallback 分支——manifest 报告的附录伪信号
+  3075	    `987654/2 派生角色成员缺来源锚点` 实测放行（Codex round-4 探针 B）。
+  3076	    """
+  3077	    vault = standard_vault(tmp_path)
+  3078	    scan = collect_json(vault, "--manifest", str(make_manifest(vault)))
+  3079	    assert scan["data_mode"] == "manifest"
+  3080	    report = write_report(vault, scan)
+  3081	    with report.open("a", encoding="utf-8") as f:
+  3082	        f.write("\n## 附录\n\n- 无来源结论：987654/2 派生角色成员缺来源锚点【实测】\n")
+  3083	    r = run_verify(report)
+  3084	    assert r.returncode != 0, f"manifest 附录伪信号被放行:\n{r.stdout}"
+  3085	    assert "只许出现在③段" in r.stdout
+  3086	
+  3087	
+  3088	def test_domain_r4_derive_allow_cjk_numbers_in_pool(tmp_path):
+  3089	    """round-4 C: 允许式行内的**中文数词**也必须入池比对。
+  3090	
+  3091	    `#### 派生子女 九十八万个 的说明`——`\\d+` 抓不到中文数字，实测放行
+  3092	    （Codex round-4 探针 C）。
+  3093	    ⛔ round-5 定向复核 HIGH 整改: 多字数词**不再交给 _cjk_to_int**——提取
+  3094	    字符集与映射表同集导致「解析失败」分支静态不可达，且连续数字字只留末位
+  3095	    （「五四」得 4）可能按错值查池。现只认**单字**数词（值=映射，绝对确定），
+  3096	    多字串一律「无法验证」fail-closed（模板/合成语料无多字合法用例，零误伤）。
+  3097	    """
+  3098	    # 多字数词 → 无法验证（round-5 HIGH 锁: 不许按错值查池后放行）
+  3099	    for name, inject in (
+  3100	        ("九十八万", "\n#### 派生子女 九十八万个 的说明\n"),
+  3101	        ("五四_末位陷阱", "\n#### 派生子女 五四 个 的说明\n"),
+  3102	    ):
+  3103	        r = _mutate_report(
+  3104	            tmp_path / name,
+  3105	            lambda t, s, e=inject: t.replace("方向叙述：", f"{e}\n方向叙述：", 1),
+  3106	        )
+  3107	        assert r.returncode != 0, f"{name}: 中文数词绕过被放行:\n{r.stdout}"
+  3108	        assert "无法验证" in r.stdout, f"{name}: 应走「无法验证」fail-closed（不许按解析值查池）:\n{r.stdout}"
+  3109	
+  3110	
+  3111	# ══════════ CARD-维护B-R3 · 中文数词终态冻结（BATCH-2026-09-01-第九批） ══════════
+  3112	# round-5 定向复核 HIGH（属实）: 「解析失败 fail-closed」分支**静态不可达**
+  3113	# （提取字符集 == `_CJK_NUM ∪ _CJK_UNIT`，任何非空匹配必返回某个整数），且连续
+  3114	# 数字字不校验文法、只反复覆盖 `digit` ⇒ 按**局部值**查池。
+  3115	# c754b043 只在 fallback 允许式一侧改成「只认单字」；**D2 叙述段仍在调**多位
+  3116	# 解析器 `_cjk_to_int` —— R3 开工在标准 fixture 上实测红证据:
+  3117	#   `- 本板共有一零个子节点。【实测】` → exit **0 放行**
+  3118	#   （`_cjk_to_int("一零") == 0`，而 0 恒在池内 `abs(a-a)`）⇒ 纯虚构的规模自陈
+  3119	#   整域免检。证据: _bmad-output/审查/evidence-maintb-r3/b-prefix-red-repro.txt
+  3120	# R3 终态（冻结，不得再引入多位解析器）: `_cjk_to_int` 整体退役，两处消费点共用
+  3121	# `_cjk_single_to_int`（只认单字，值 = 映射，绝对确定）。
+  3122	
+  3123	
+  3124	def test_domain_r5_cjk_single_char_only_unit_contract():
+  3125	    """R3 判据契约: 只认单字数词；多字 / 单字量词 / 集合外一律 None。
+  3126	
+  3127	    **它证明什么**: 判据函数本身的逐形态取值；提取字符类由 `_CJK_NUM ∪ _CJK_UNIT`
+  3128	    **机械派生**（手抄两份字面量正是 D2 与 fallback 两侧此前分叉的成因）；
+  3129	    多位解析器 `_cjk_to_int` 确已退役、不得复活。
+  3130	    **它不证明什么**: 不证明调用方正确使用了它——那是下面三道门的事。
+  3131	    """
+  3132	    rs = _load_recap_scan()
+  3133	
+  3134	    assert not hasattr(rs, "_cjk_to_int"), "多位中文数词解析器复活了——R3 冻结口径禁止重新引入（round-5 HIGH 的根因）"
+  3135	    # ⛔ 期望值必须有**独立来源**: 第一版写成 `for ch, want in rs._CJK_NUM.items()`
+  3136	    # ——期望值与被测值取自同一张表，把 `零/〇` 的映射改成 7 全套件照样 253 全绿
+  3137	    # （车道对抗审查实测）。自抄期望 = 自证恒真 = 假门。这里逐字写死。
+  3138	    EXPECT = {
+  3139	        "零": 0,
+  3140	        "〇": 0,
+  3141	        "一": 1,
+  3142	        "二": 2,
+  3143	        "两": 2,
+  3144	        "三": 3,
+  3145	        "四": 4,
+  3146	        "五": 5,
+  3147	        "六": 6,
+  3148	        "七": 7,
+  3149	        "八": 8,
+  3150	        "九": 9,
+  3151	    }
+  3152	    UNITS = {"十": 10, "百": 100, "千": 1000, "万": 10000, "亿": 100000000}
+  3153	    assert rs._CJK_NUM == EXPECT, f"单字数词表被改动: {rs._CJK_NUM}"
+  3154	    assert rs._CJK_UNIT == UNITS, f"量词表被改动: {rs._CJK_UNIT}"
+  3155	    for ch, want in EXPECT.items():
+  3156	        assert rs._cjk_single_to_int(ch) == want, f"单字数词 {ch} 取值错"
+  3157	    for ch in UNITS:  # 十百千万亿 不在 _CJK_NUM ⇒ 单字量词同样无法确定
+  3158	        assert rs._cjk_single_to_int(ch) is None, f"单字量词 {ch} 必须 fail-closed"
+  3174	        ("零宽", "九十八万\u200b五"),
+  3175	        ("空标签", "九十八万<span></span>五"),
+  3176	        ("HTML注释", "九十八万<!--x-->五"),
+  3177	    ):
+  3178	        m = rs._CJK_NUM_RUN_RE.match(s)
+  3179	        assert m and m.group(0) == s, f"{name}切断: 提取面只抓到 {m and m.group(0)!r}"
+  3180	        assert rs._join_free(m.group(0)) == "九十八万五", f"{name}: 剥噪声后不是原数"
+  3181	        assert rs._cjk_single_to_int(rs._join_free(m.group(0))) is None
+  3182	
+  3183	
+  3184	def test_domain_r5_derive_allow_single_char_value_enters_pool():
+  3185	    """R3 单元门: 单字数词必须**带着自己的值**进池比对；多字不得按局部值查池。
+  3186	
+  3187	    ⚠️ 为什么用合成 scan 而不是标准 fixture: 标准 fixture 的数值池是 `[0..16, 22]`，
+  3188	    **覆盖了 `_CJK_NUM` 的全部值（0-9）** ⇒ CLI 层根本构造不出「单字且值不在池」
+  3189	    的用例，只写 `五` 放行会退化成**空洞证明**（没查池也 rc=0）。合成 scan 把池
+  3190	    收窄到 `[0,1,2]`，`九` 才能证明 9 确实进了池比对。合成语料非 live 正文。
+  3191	
+  3192	    **它证明什么**: 单字 → 按自身值查池（九→`行内数字 9 无出处` / 二→放行）；
+  3193	    多字 → 走「无法验证」且**不产生任何按局部值的池诊断**（`一零` 的 0、
+  3194	    `五四` 的 4、`九十八万` 的 980000 都不得出现在诊断里）。
+  3195	    **它不证明什么**: 不证明整条 verifier 的段切分与白名单匹配——那是 CLI 门的事。
+  3196	    """
+  3197	    rs = _load_recap_scan()
+  3198	    synth = {"data_mode": "fallback_local", "counts": {"members": 1, "seeds": 1}}
+  3199	    pool = rs._derived_number_pool(synth)
+  3200	    assert pool == {0, 1, 2}, f"合成池漂移，判别前提失效: {sorted(pool)}"
+  3201	
+  3202	    def probs_for(tok: str) -> list[str]:
+  3203	        out: list[str] = []
+  3204	        rs._verify_fallback_derive_numbers(f"#### 派生子女 {tok} 个 的说明\n", synth, out)
+  3205	        return out
+  3206	
+  3207	    assert any("行内数字 9 无出处" in p for p in probs_for("九")), "单字未按自身值查池"
+  3208	    assert probs_for("二") == [], "值在池的单字被误伤"
+  3209	    for tok, leaked in (("一零", "0"), ("五四", "4"), ("九十八万", "980000")):
+  3210	        got = probs_for(tok)
+  3211	        assert any("无法验证" in p for p in got), f"{tok}: 多字未 fail-closed: {got}"
+  3212	        assert not any("无出处" in p for p in got), f"{tok}: 仍按局部值查池: {got}"
+  3213	        assert not any(leaked in p for p in got), f"{tok}: 诊断里泄出解析值 {leaked}: {got}"
+  3214	
+  3215	
+  3216	def test_domain_r5_derive_allow_cjk_pool_collision_cli(tmp_path):
+  3217	    """R3 行为门①: fallback 允许式行内多字数词一律 fail-closed，单字不误伤。
+  3218	
+  3219	    **它证明什么**: 走完整 CLI（`--verify`）时，`一零`/`五四`（局部值**实测在池**，
+  3220	    即碰撞前提成立）与 `九十八万`/`十` 全部 exit 1 且诊断为「无法验证」，
+  3221	    诊断里不出现任何池比对结论；值在池的单字 `五` 放行。
+  3222	    **它不证明什么**: 不证明「单字带自身值查池」——本 fixture 池覆盖 0-9，
+  3223	    该性质由 test_domain_r5_derive_allow_single_char_value_enters_pool 证明。
+  3224	    """
+  3225	    rs = _load_recap_scan()
+  3226	    vault = standard_vault(tmp_path)
+  3227	    scan = collect_json(vault)
+  3228	    pool = rs._derived_number_pool(scan)
+  3229	    # ⛔ 碰撞前提必须**实测**: 局部值真的在池里，这条门才是在测「按错值查池会放行」；
+  3230	    # 前提不成立时它只是在测别的东西（MEMORY `reference_gate_design_pitfalls`）。
+  3231	    assert {0, 4, 5} <= pool, f"碰撞前提失效（局部值不在池）: {sorted(pool)}"
+  3232	    report = write_report(vault, scan)
+  3233	    base_text = report.read_text(encoding="utf-8")
+  3234	    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+  3235	
+  3236	    def verify_with(tok: str):
+  3237	        text = base_text.replace("方向叙述：", f"\n#### 派生子女 {tok} 个 的说明\n\n方向叙述：", 1)
+  3238	        assert text != base_text, "变异未命中：报告一字未改，这条门测的是空气"
+  3239	        report.write_text(text, encoding="utf-8")
+  3240	        return run_verify(report)
+  3241	
+  3242	    for tok in ("一零", "五四", "九十八万", "十"):
+  3243	        r = verify_with(tok)
+  3244	        assert r.returncode != 0, f"{tok}: 中文数词绕过被放行:\n{r.stdout}"
+  3245	        assert "无法验证" in r.stdout, f"{tok}: 应走「无法验证」fail-closed:\n{r.stdout}"
+  3246	        assert "无出处" not in r.stdout, f"{tok}: 仍按局部/末位值查池:\n{r.stdout}"
+  3247	    r = verify_with("五")
+  3248	    assert r.returncode == 0, f"值在池的单字数词被误伤:\n{r.stdout}"
+  3249	
+  3250	
+  3251	def test_domain_r5_prose_cjk_multichar_fail_closed_cli(tmp_path):
+  3252	    """R3 行为门②: D2 叙述段的多字中文数词计数同样 fail-closed。
+  3253	
+  3254	    ⛔ 这是 R3 开工实测的**漏拦**（不是假想）: c754b043 只封了 fallback 一侧，
+  3255	    `- 本板共有一零个子节点。【实测】` 在开工 HEAD `c754b043` 上 **exit 0 放行**
+  3256	    （`_cjk_to_int("一零") == 0`，0 恒在池内）。红证据:
+  3257	    `_bmad-output/审查/evidence-maintb-r3/b-prefix-red-repro.txt`。
+  3258	
+  3259	    **它证明什么**: 该形态现在 exit 1、诊断为「无法解析」，且不再产生按局部值的
+  3260	    池比对结论；值在池的单字自陈（`共有五个`）不误伤。
+  3261	    **它不证明什么**: 不证明 D2 对**所有**数字形态的绑定力——池碰撞判据的固有
+  3262	    边界见 test_domain_block_bare_count_in_prose 的说明，本卡未改变它。
+  3263	    """
+  3264	
+  3265	    def prose_case(tok: str):
+  3266	        def m(text, scan):
+  3267	            return text.replace("## 三维审查", f"## 三维审查\n\n- 本板共有{tok}个子节点。【实测】", 1)
+  3268	
+  3269	        return m
+  3270	
+  3271	    for tok in ("一零", "五四", "九十八万", "十"):
+  3272	        r = _mutate_report(tmp_path / f"d2-{tok}", prose_case(tok))
+  3273	        assert r.returncode != 0, f"{tok}: D2 段多字数词自陈被放行:\n{r.stdout}"
+  3274	        assert "无法解析" in r.stdout, f"{tok}: 应走「无法解析」fail-closed:\n{r.stdout}"
+  3275	        assert "找不到同值来源" not in r.stdout, f"{tok}: 仍按局部值查池:\n{r.stdout}"
+  3276	    r = _mutate_report(tmp_path / "d2-五", prose_case("五"))
+  3277	    assert r.returncode == 0, f"值在池的单字自陈被误伤:\n{r.stdout}"
+  3278	
+  3279	
+  3280	# ── R3 round-2：车道对抗审查（5 镜头 17 agent）确认的 1 BLOCKER + 4 HIGH ──────
+  3281	# 全部同一根因：**提取面**在排版噪声/不可见字符处断开，匹配重锚到紧邻量词的尾片，
+  3282	# 于是「判据绝对确定」变得无关紧要——判据拿到的 token 不是那句话里的数。
+  3283	# ⛔ 归因如实：该性质在开工 HEAD `c754b043` 上**同样存在**（验证者用 git show 重放
+  3284	# 实证），**不是 R3 引入的回归**；但 R3 的门与 docstring 宣称「多字中文数词一律
+  3285	# fail-closed」，被一个 `**` 击穿 = 声明比证据宽，按本仓口径算真缺陷，必须闭合。
+  3286	
+  3287	
+  3288	def test_domain_r5_noise_split_number_run_cli(tmp_path):
+  3289	    """R3 round-2 行为门：排版噪声/不可见字符**不得**成为数串的断点。
+  3290	
+  3291	    `- 本板共有九十八万**五**个子节点。【实测】` 在 Obsidian 里渲染成
+  3292	    「本板共有九十八万五个子节点」（粗体的五），而验证器原先只抓到尾片 `五`，
+  3293	    `_cjk_single_to_int('五')==5` 且 5 在池内 ⇒ 纯虚构的 980005 **exit 0 放行**。
+  3294	    ASCII 侧同形：`980 005个`（空格千分位）只查到 `005`。
+  3295	
+  3296	    **它证明什么**：CJK 与 ASCII 两侧、D2 与 fallback 两个消费面，数串都跨连接
+  3297	    字符（排版标记 / `&nbsp;` / 空白 / 短 HTML 标签与注释 / 零宽与双向控制）整体
+  3298	    抓取并剥噪声后再判；合法的单字/池内数值不受影响。
+  3299	    **它不证明什么**：连接集是**封闭表**（与量词表同口径）。表外字符仍能切断数串
+  3300	    （`九十八万x五个` / `九十八万、五个` / `[[x|]]` 的残留 `|]]`）——那些断点
+  3301	    **渲染后可见**，读者不会读成一个连续的数；表外的**不可见**载体（如超长 HTML
+  3302	    注释）是真残余，登记在验收单 §五之三，本门不宣称覆盖。
+  3303	    """
+  3304	    vault = standard_vault(tmp_path)
+  3305	    scan = collect_json(vault)
+  3306	    pool = _load_recap_scan()._derived_number_pool(scan)
+  3307	    # 前提实测：尾片值必须真的在池里，这条门才是在测「按尾片查池会放行」。
+  3308	    assert {0, 4, 5} <= pool, f"前提失效（尾片值不在池）: {sorted(pool)}"
+  3309	    report = write_report(vault, scan)
+  3310	    base_text = report.read_text(encoding="utf-8")
+  3311	    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+  3312	
+  3313	    def verify(anchor: str, injected: str):
+  3314	        text = base_text.replace(anchor, injected, 1)
+  3315	        assert text != base_text, "变异未命中：报告一字未改，这条门测的是空气"
+  3316	        report.write_text(text, encoding="utf-8")
+  3317	        return run_verify(report)
+  3318	
+  3319	    def d2(line: str):
+  3320	        return verify("## 三维审查", f"## 三维审查\n\n{line}")
+  3321	
+  3322	    # ── 拦截面：渲染后连续、源码被切断 ──
+  3323	    for name, line in (
+  3324	        ("粗体", "- 本板共有九十八万**五**个子节点。【实测】"),
+  3325	        ("空白", "- 本板共有九十八万 五个子节点。【实测】"),
+  3326	        ("nbsp", "- 本板共有九十八万&nbsp;五个子节点。【实测】"),
+  3327	        ("空标签", "- 本板共有九十八万<span></span>五个子节点。【实测】"),
+  3328	        ("修饰字余", "- 本板共有九十八万余五个子节点。【实测】"),
+  3350	
+  3351	    # ── 放行面（同权重）：合法形态不得被这道收紧反噬 ──
+  3352	    for name, line in (
+  3353	        ("单字在池", "- 本板共有五个子节点。【实测】"),
+  3354	        ("ASCII 在池", "- 本板共有3个子节点。【实测】"),
+  3355	        ("ASCII 在池 22", "- 本板共有22个子节点。【实测】"),
+  3356	        ("前导零 016=16 在池", "- 本板共有016个子节点。【实测】"),
+  3357	        ("round-5 原始误伤 十分", "- 说明十分清楚。【实测】"),
+  3358	        ("round-5 原始误伤 一致", "- 统计口径尚未一致。【实测】"),
+  3359	    ):
+  3360	        r = d2(line)
+  3361	        assert r.returncode == 0, f"合法形态被误伤（{name}）:\n{r.stdout}"
+  3362	
+  3363	
+  3364	def test_domain_r5_prose_single_char_value_enters_pool():
+  3365	    """R3 round-2 单元门：D2 侧单字数词同样必须**带自身值**进池比对。
+  3366	
+  3367	    ⚠️ 与 fallback 侧同因：标准 fixture 池 `[0..16,22]` 覆盖 `_CJK_NUM` 全部值
+  3368	    （0-9），CLI 层构造不出「单字且值不在池」的用例，于是「值不在池」这条分支
+  3369	    在 D2 侧**零门覆盖**（车道对抗审查实测：摘掉该分支 253 用例仍全绿）。
+  3370	    合成 scan 把池收窄到 `[0,1,2]`，`九` 才能证明 9 确实进了池比对。
+  3371	
+  3372	    **它证明什么**：D2 段内单字 → 按自身值查池（九→找不到同值来源 / 二→放行）；
+  3373	    多字与被切断的数串 → 走「无法解析」，且诊断里出现的是**剥噪声后的完整数串**。
+  3374	    **它不证明什么**：不证明段切分、豁免跨度剥离与句式门——那是 CLI 门的事。
+  3375	    """
+  3376	    rs = _load_recap_scan()
+  3377	    synth = {"data_mode": "fallback_local", "counts": {"members": 1, "seeds": 1}}
+  3378	    assert rs._derived_number_pool(synth) == {0, 1, 2}, "合成池漂移，判别前提失效"
+  3379	
+  3380	    def probs(tok: str) -> list[str]:
+  3381	        out: list[str] = []
+  3382	        rs._verify_prose_counts(f"## 三维审查\n\n- 本板共有{tok}个子节点。【实测】\n", synth, out)
+  3383	        return out
+  3384	
+  3385	    got = probs("九")
+  3386	    assert any("九(9)" in p and "找不到同值来源" in p for p in got), f"单字未按自身值查池: {got}"
+  3387	    assert probs("二") == [], "值在池的单字被误伤"
+  3388	    for tok, joined in (("一零", "一零"), ("九十八万**五", "九十八万五")):
+  3389	        got = probs(tok)
+  3390	        assert any("无法解析" in p for p in got), f"{tok}: 未 fail-closed: {got}"
+  3391	        assert any(joined in p for p in got), f"{tok}: 诊断未还原成完整数串: {got}"
+  3392	        assert not any("找不到同值来源" in p for p in got), f"{tok}: 仍按局部值查池: {got}"
+
+**Reading omitted test lines**
+exec
+/bin/zsh -lc "nl -ba backend/tests/regression/test_recap_scan_signals.py | sed -n -e '3155,3183p' -e '3322,3352p' -e '3385,3400p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix
+ succeeded in 0ms:
+  3155	    for ch, want in EXPECT.items():
+  3156	        assert rs._cjk_single_to_int(ch) == want, f"单字数词 {ch} 取值错"
+  3157	    for ch in UNITS:  # 十百千万亿 不在 _CJK_NUM ⇒ 单字量词同样无法确定
+  3158	        assert rs._cjk_single_to_int(ch) is None, f"单字量词 {ch} 必须 fail-closed"
+  3159	    for s in ("一零", "五四", "九十八万", "零一", "十二", "两三", "", "甲", "五个"):
+  3160	        assert rs._cjk_single_to_int(s) is None, f"{s!r} 必须判「无法确定」（不猜）"
+  3161	
+  3162	    # 提取面必须覆盖判据面: **抓得到才拒得掉**。提取面漏字 ⇒ 该字组成的串落到
+  3163	    # 检查面之外 = 漏拦（不是 fail-closed）。
+  3164	    assert set(rs._CJK_NUM_CHARS) == set(EXPECT) | set(UNITS)
+  3165	    m = rs._CJK_NUM_RUN_RE.match("九十八万")
+  3166	    assert m and m.group(0) == "九十八万", "提取面抓不到连续多字串 = 漏拦"
+  3167	    # ⛔ 且必须**跨排版噪声/不可见字符**整体抓 —— 断开就只剩尾片，判据再「绝对
+  3168	    # 确定」也没用（拿到的 token 不是那句话里的数）。这一条是 R3 round-2 的
+  3169	    # BLOCKER：`九十八万**五**个` 渲染出来就是「九十八万五个」，实测曾 exit 0。
+  3170	    for name, s in (
+  3171	        ("粗体", "九十八万**五"),
+  3172	        ("空白", "九十八万 五"),
+  3173	        ("nbsp", "九十八万&nbsp;五"),
+  3174	        ("零宽", "九十八万\u200b五"),
+  3175	        ("空标签", "九十八万<span></span>五"),
+  3176	        ("HTML注释", "九十八万<!--x-->五"),
+  3177	    ):
+  3178	        m = rs._CJK_NUM_RUN_RE.match(s)
+  3179	        assert m and m.group(0) == s, f"{name}切断: 提取面只抓到 {m and m.group(0)!r}"
+  3180	        assert rs._join_free(m.group(0)) == "九十八万五", f"{name}: 剥噪声后不是原数"
+  3181	        assert rs._cjk_single_to_int(rs._join_free(m.group(0))) is None
+  3182	
+  3183	
+  3322	    # ── 拦截面：渲染后连续、源码被切断 ──
+  3323	    for name, line in (
+  3324	        ("粗体", "- 本板共有九十八万**五**个子节点。【实测】"),
+  3325	        ("空白", "- 本板共有九十八万 五个子节点。【实测】"),
+  3326	        ("nbsp", "- 本板共有九十八万&nbsp;五个子节点。【实测】"),
+  3327	        ("空标签", "- 本板共有九十八万<span></span>五个子节点。【实测】"),
+  3328	        ("修饰字余", "- 本板共有九十八万余五个子节点。【实测】"),
+  3329	        ("行内代码", "- 本板共有九十八万`x`五个子节点。【实测】"),
+  3330	    ):
+  3331	        r = d2(name and line)
+  3332	        assert r.returncode != 0, f"CJK {name}切断被放行:\n{r.stdout}"
+  3333	        assert "九十八万五" in r.stdout, f"CJK {name}: 诊断未还原成完整数串:\n{r.stdout}"
+  3334	    for name, line, whole in (
+  3335	        ("空格千分位", "- 本板共有980 005个子节点。【实测】", "980005"),
+  3336	        ("粗体", "- 本板共有98765**4**个子节点。【实测】", "987654"),
+  3337	        # ⛔ 与「前导零归一化」的交互：行级剥零会把 `1 000`(渲染=1000, SI 千分位)
+  3338	        # 先剥成 `1 0` 再拼成 `10` 落进池内 ⇒ 放行。归一化必须作用在拼接后的
+  3339	        # token 上（车道实测，本卡修复时自己踩出来的洞）。
+  3340	        ("SI千分位+前导零", "- 本板共有1 000个子节点。【实测】", "1000"),
+  3341	    ):
+  3342	        r = d2(line)
+  3343	        assert r.returncode != 0, f"ASCII {name}切断被放行:\n{r.stdout}"
+  3344	        assert whole in r.stdout, f"ASCII {name}: 诊断未还原成完整数串:\n{r.stdout}"
+  3345	    # fallback 允许式侧同根（碎片逐片查池全部命中 ⇒ 整体虚构值放行）
+  3346	    for tok, joined in (("九**五**", "九五"), ("九十八万**五**", "九十八万五")):
+  3347	        r = verify("方向叙述：", f"\n#### 派生子女 {tok} 个 的说明\n\n方向叙述：")
+  3348	        assert r.returncode != 0, f"fallback {tok} 碎片被放行:\n{r.stdout}"
+  3349	        assert joined in r.stdout, f"fallback {tok}: 诊断未还原成完整数串:\n{r.stdout}"
+  3350	
+  3351	    # ── 放行面（同权重）：合法形态不得被这道收紧反噬 ──
+  3352	    for name, line in (
+  3385	    got = probs("九")
+  3386	    assert any("九(9)" in p and "找不到同值来源" in p for p in got), f"单字未按自身值查池: {got}"
+  3387	    assert probs("二") == [], "值在池的单字被误伤"
+  3388	    for tok, joined in (("一零", "一零"), ("九十八万**五", "九十八万五")):
+  3389	        got = probs(tok)
+  3390	        assert any("无法解析" in p for p in got), f"{tok}: 未 fail-closed: {got}"
+  3391	        assert any(joined in p for p in got), f"{tok}: 诊断未还原成完整数串: {got}"
+  3392	        assert not any("找不到同值来源" in p for p in got), f"{tok}: 仍按局部值查池: {got}"
+
+**Analyzing fallback digit handling discrepancy**
+**Identifying fallback ASCII parsing inconsistencies**
+**Evaluating semantic noise impact on parsing**
+**Analyzing line processing and tag removal**
+**Evaluating tag impact on number rendering**
+**Assessing Markdown marker removal effects**
+**Analyzing Markdown delimiter behavior between numbers**
+**Assessing token joining risks in numeric parsing**
+**Evaluating angle-bracket removal effects**
+**Analyzing rendering and regex patterns**
+**Evaluating possessive quantifier effects**
+**Verifying iteration backtracking behavior**
+**Planning precise test execution**
+codex
+静态复核已经抓到一个需要重点核实的实现/门不一致：D2 的 ASCII 路径会跨连接符整体取数，但 fallback 的 ASCII 仍是逐段 `\d+`；现有切断矩阵在 fallback 侧只覆盖了 CJK。接下来我只跑指定两条命令，确认绿灯与 mutation 承重，但不会用绿灯替代这条静态证据。
+实现与测试锚点已读完；发现 fallback ASCII 取数与“CJK/ASCII、D2/fallback 全覆盖”措辞存在静态差异，进入既有门验证。
+  ✓ 按指定行号静态复核实现的取值、连接与封闭表边界
+  ✓ 按指定锚点复核测试契约、断言强度与 survivor 承重
+  → 仅运行两条既有命令及 git rev-parse HEAD
+  • 汇总 C 口径终裁、残余与证据限制
+2026-09-01T21:17:37.642704Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+**Running pytest with workdir backend**
+exec
+/bin/zsh -lc 'PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest tests/regression/test_recap_scan_signals.py -q -p no:cacheprovider' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend
+ exited 1 in 566ms:
+Traceback (most recent call last):
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/pytest", line 6, in <module>
+    sys.exit(console_main())
+             ~~~~~~~~~~~~^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 223, in console_main
+    code = main()
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 193, in main
+    config = _prepareconfig(new_args, plugins)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 361, in _prepareconfig
+    config: Config = pluginmanager.hook.pytest_cmdline_parse(
+                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        pluginmanager=pluginmanager, args=args
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/lib/python3.14/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/lib/python3.14/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/lib/python3.14/site-packages/pluggy/_callers.py", line 167, in _multicall
+    raise exception
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/lib/python3.14/site-packages/pluggy/_callers.py", line 139, in _multicall
+    teardown.throw(exception)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/lib/python3.14/site-packages/_pytest/helpconfig.py", line 124, in pytest_cmdline_parse
+    config = yield
+             ^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/lib/python3.14/site-packages/pluggy/_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 1186, in pytest_cmdline_parse
+    self.parse(args)
+    ~~~~~~~~~~^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 1556, in parse
+    self.hook.pytest_load_initial_conftests(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        early_config=self, args=args, parser=self._parser
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/lib/python3.14/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/lib/python3.14/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/lib/python3.14/site-packages/pluggy/_callers.py", line 167, in _multicall
+    raise exception
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/lib/python3.14/site-packages/pluggy/_callers.py", line 139, in _multicall
+    teardown.throw(exception)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/lib/python3.14/site-packages/_pytest/warnings.py", line 128, in pytest_load_initial_conftests
+    return (yield)
+            ^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/lib/python3.14/site-packages/pluggy/_callers.py", line 116, in _multicall
+    next(function_gen)  # first yield
+    ~~~~^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/lib/python3.14/site-packages/_pytest/capture.py", line 170, in pytest_load_initial_conftests
+    capman.start_global_capturing()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/lib/python3.14/site-packages/_pytest/capture.py", line 773, in start_global_capturing
+    self._global_capturing = _get_multicapture(self._method)
+                             ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/lib/python3.14/site-packages/_pytest/capture.py", line 714, in _get_multicapture
+    return MultiCapture(in_=FDCapture(0), out=FDCapture(1), err=FDCapture(2))
+                                              ~~~~~~~~~^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/lib/python3.14/site-packages/_pytest/capture.py", line 493, in __init__
+    TemporaryFile(buffering=0),
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tempfile.py", line 652, in TemporaryFile
+    prefix, suffix, dir, output_type = _sanitize_params(prefix, suffix, dir)
+                                       ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tempfile.py", line 127, in _sanitize_params
+    dir = gettempdir()
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tempfile.py", line 312, in gettempdir
+    return _os.fsdecode(_gettempdir())
+                        ~~~~~~~~~~~^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tempfile.py", line 305, in _gettempdir
+    tempdir = _get_default_tempdir()
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tempfile.py", line 222, in _get_default_tempdir
+    raise FileNotFoundError(_errno.ENOENT,
+                            "No usable temporary directory found in %s" %
+                            dirlist)
+FileNotFoundError: [Errno 2] No usable temporary directory found in ['/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/', '/tmp', '/var/tmp', '/usr/tmp', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend']
+
+2026-09-01T21:17:43.878921Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+**Planning escalated test run**
+exec
+/bin/zsh -lc 'PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest tests/regression/test_recap_scan_signals.py -q -p no:cacheprovider' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend
+2026-09-01T21:17:49.857075Z ERROR codex_models_manager::manager: failed to load models cache: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T21:17:54.891873Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+codex
+第一条命令在只读沙箱内第一次未进入测试收集（系统没有可写临时目录）；我已按原命令原参数在获准的正常临时目录环境中重跑，没有改变测试内容或增加探针。静态上，单元契约、合成门和 CLI 矩阵的承重范围也已分开核对。
+**Implementing session polling via write_stdin**
+ exited 1 in 44522ms:
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 255 items
+
+tests/regression/test_recap_scan_signals.py ............................ [ 10%]
+.............................FFFFF...................FFF................ [ 39%]
+.............................F.......................................... [ 67%]
+....................................................FFFFFF.............. [ 95%]
+...........                                                              [100%]
+
+=================================== FAILURES ===================================
+________________ test_verify_trailing_number_in_tail_text_fails ________________
+tests/regression/test_recap_scan_signals.py:1031: in test_verify_trailing_number_in_tail_text_fails
+    assert r.returncode == 1, "尾部说明段的第二组数字未被拦"
+E   AssertionError: 尾部说明段的第二组数字未被拦
+E   assert 0 == 1
+E    +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backe...erify_trailing_number_in0/vault/outputs/回顾-T板-2026-09-02.md'], returncode=0, stdout='VERIFY PASS — 可以发回执\n', stderr='').returncode
+____ test_verify_trailing_unicode_numerals_fail[\u4e5d\u4e5d/\u4e5d\u4e5d] _____
+tests/regression/test_recap_scan_signals.py:1055: in test_verify_trailing_unicode_numerals_fail
+    assert r.returncode == 1, f"尾部 {tail} 未被拦"
+E   AssertionError: 尾部 九九/九九 未被拦
+E   assert 0 == 1
+E    +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backe...erify_trailing_unicode_n0/vault/outputs/回顾-T板-2026-09-02.md'], returncode=0, stdout='VERIFY PASS — 可以发回执\n', stderr='').returncode
+____ test_verify_trailing_unicode_numerals_fail[\u0669\u0669/\u0669\u0669] _____
+tests/regression/test_recap_scan_signals.py:1055: in test_verify_trailing_unicode_numerals_fail
+    assert r.returncode == 1, f"尾部 {tail} 未被拦"
+E   AssertionError: 尾部 ٩٩/٩٩ 未被拦
+E   assert 0 == 1
+E    +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backe...erify_trailing_unicode_n1/vault/outputs/回顾-T板-2026-09-02.md'], returncode=0, stdout='VERIFY PASS — 可以发回执\n', stderr='').returncode
+____ test_verify_trailing_unicode_numerals_fail[\u2079\u2079/\u2079\u2079] _____
+tests/regression/test_recap_scan_signals.py:1055: in test_verify_trailing_unicode_numerals_fail
+    assert r.returncode == 1, f"尾部 {tail} 未被拦"
+E   AssertionError: 尾部 ⁹⁹/⁹⁹ 未被拦
+E   assert 0 == 1
+E    +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backe...erify_trailing_unicode_n2/vault/outputs/回顾-T板-2026-09-02.md'], returncode=0, stdout='VERIFY PASS — 可以发回执\n', stderr='').returncode
+_____ test_verify_trailing_unicode_numerals_fail[\u53e6\u6709\u58f9\u5904] _____
+tests/regression/test_recap_scan_signals.py:1055: in test_verify_trailing_unicode_numerals_fail
+    assert r.returncode == 1, f"尾部 {tail} 未被拦"
+E   AssertionError: 尾部 另有壹处 未被拦
+E   assert 0 == 1
+E    +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backe...erify_trailing_unicode_n3/vault/outputs/回顾-T板-2026-09-02.md'], returncode=0, stdout='VERIFY PASS — 可以发回执\n', stderr='').returncode
+_____________ test_verify_trailing_slash_pair_fails[\u4ee8/\u4ee8] _____________
+tests/regression/test_recap_scan_signals.py:1190: in test_verify_trailing_slash_pair_fails
+    assert r.returncode == 1, f"尾部 {tail} 未被拦"
+E   AssertionError: 尾部 仨/仨 未被拦
+E   assert 0 == 1
+E    +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backe...erify_trailing_slash_pai0/vault/outputs/回顾-T板-2026-09-02.md'], returncode=0, stdout='VERIFY PASS — 可以发回执\n', stderr='').returncode
+_____________ test_verify_trailing_slash_pair_fails[\u7695/\u7695] _____________
+tests/regression/test_recap_scan_signals.py:1190: in test_verify_trailing_slash_pair_fails
+    assert r.returncode == 1, f"尾部 {tail} 未被拦"
+E   AssertionError: 尾部 皕/皕 未被拦
+E   assert 0 == 1
+E    +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backe...erify_trailing_slash_pai1/vault/outputs/回顾-T板-2026-09-02.md'], returncode=0, stdout='VERIFY PASS — 可以发回执\n', stderr='').returncode
+_____________ test_verify_trailing_slash_pair_fails[\u96f6/\u96f6] _____________
+tests/regression/test_recap_scan_signals.py:1190: in test_verify_trailing_slash_pair_fails
+    assert r.returncode == 1, f"尾部 {tail} 未被拦"
+E   AssertionError: 尾部 零/零 未被拦
+E   assert 0 == 1
+E    +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backe...erify_trailing_slash_pai2/vault/outputs/回顾-T板-2026-09-02.md'], returncode=0, stdout='VERIFY PASS — 可以发回执\n', stderr='').returncode
+_____________________ test_domain_block_signal_tail_append _____________________
+tests/regression/test_recap_scan_signals.py:1650: in test_domain_block_signal_tail_append
+    assert r.returncode != 0, f"信号行尾部夹带未被拦:\n{r.stdout}"
+E   AssertionError: 信号行尾部夹带未被拦:
+E     VERIFY PASS — 可以发回执
+E     
+E   assert 0 != 0
+E    +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backe...omain_block_signal_tail_0/vault/outputs/回顾-T板-2026-09-02.md'], returncode=0, stdout='VERIFY PASS — 可以发回执\n', stderr='').returncode
+_____ test_domain_block_signal_tail_note_outside_table[note_then_smuggle] ______
+tests/regression/test_recap_scan_signals.py:2807: in test_domain_block_signal_tail_note_outside_table
+    assert r.returncode == 1, f"表外注记被放行: {note_form!r}\n{r.stdout}"
+E   AssertionError: 表外注记被放行: '口径一致另有仨条'
+E     VERIFY PASS — 可以发回执
+E     
+E   assert 0 == 1
+E    +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backe...omain_block_signal_tail_1/vault/outputs/回顾-T板-2026-09-02.md'], returncode=0, stdout='VERIFY PASS — 可以发回执\n', stderr='').returncode
+_____ test_domain_block_signal_tail_note_outside_table[smuggle_then_note] ______
+tests/regression/test_recap_scan_signals.py:2807: in test_domain_block_signal_tail_note_outside_table
+    assert r.returncode == 1, f"表外注记被放行: {note_form!r}\n{r.stdout}"
+E   AssertionError: 表外注记被放行: '另有仨条口径一致'
+E     VERIFY PASS — 可以发回执
+E     
+E   assert 0 == 1
+E    +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backe...omain_block_signal_tail_2/vault/outputs/回顾-T板-2026-09-02.md'], returncode=0, stdout='VERIFY PASS — 可以发回执\n', stderr='').returncode
+_______ test_domain_block_signal_tail_note_outside_table[note_then_pair] _______
+tests/regression/test_recap_scan_signals.py:2807: in test_domain_block_signal_tail_note_outside_table
+    assert r.returncode == 1, f"表外注记被放行: {note_form!r}\n{r.stdout}"
+E   AssertionError: 表外注记被放行: '口径一致 2/3'
+E     VERIFY PASS — 可以发回执
+E     
+E   assert 0 == 1
+E    +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backe...omain_block_signal_tail_3/vault/outputs/回顾-T板-2026-09-02.md'], returncode=0, stdout='VERIFY PASS — 可以发回执\n', stderr='').returncode
+______ test_domain_block_signal_tail_note_outside_table[note_then_slash] _______
+tests/regression/test_recap_scan_signals.py:2807: in test_domain_block_signal_tail_note_outside_table
+    assert r.returncode == 1, f"表外注记被放行: {note_form!r}\n{r.stdout}"
+E   AssertionError: 表外注记被放行: '口径一致/3'
+E     VERIFY PASS — 可以发回执
+E     
+E   assert 0 == 1
+E    +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backe...omain_block_signal_tail_4/vault/outputs/回顾-T板-2026-09-02.md'], returncode=0, stdout='VERIFY PASS — 可以发回执\n', stderr='').returncode
+_________ test_domain_block_signal_tail_note_outside_table[note_twice] _________
+tests/regression/test_recap_scan_signals.py:2807: in test_domain_block_signal_tail_note_outside_table
+    assert r.returncode == 1, f"表外注记被放行: {note_form!r}\n{r.stdout}"
+E   AssertionError: 表外注记被放行: '口径一致口径一致'
+E     VERIFY PASS — 可以发回执
+E     
+E   assert 0 == 1
+E    +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backe...omain_block_signal_tail_5/vault/outputs/回顾-T板-2026-09-02.md'], returncode=0, stdout='VERIFY PASS — 可以发回执\n', stderr='').returncode
+________ test_domain_block_signal_tail_note_outside_table[not_in_table] ________
+tests/regression/test_recap_scan_signals.py:2807: in test_domain_block_signal_tail_note_outside_table
+    assert r.returncode == 1, f"表外注记被放行: {note_form!r}\n{r.stdout}"
+E   AssertionError: 表外注记被放行: '口径不一致'
+E     VERIFY PASS — 可以发回执
+E     
+E   assert 0 == 1
+E    +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backe...omain_block_signal_tail_6/vault/outputs/回顾-T板-2026-09-02.md'], returncode=0, stdout='VERIFY PASS — 可以发回执\n', stderr='').returncode
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:805
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/app/api/v1/endpoints/chat.py:805: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:105
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/app/api/v1/endpoints/metadata.py:105: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:176
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/app/api/v1/endpoints/metadata.py:176: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+tests/regression/test_recap_scan_signals.py::test_cross_mode_signal_consistency_real_manifest
+tests/regression/test_recap_scan_signals.py::test_cross_mode_signal_consistency_real_manifest
+tests/regression/test_recap_scan_signals.py::test_cross_mode_signal_consistency_real_manifest
+tests/regression/test_recap_scan_signals.py::test_cross_mode_signal_consistency_real_manifest
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/lib/python3.14/site-packages/frontmatter/__init__.py:161: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with codecs.open(fd, "r", encoding) as f:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/regression/test_recap_scan_signals.py::test_verify_trailing_number_in_tail_text_fails
+FAILED tests/regression/test_recap_scan_signals.py::test_verify_trailing_unicode_numerals_fail[\u4e5d\u4e5d/\u4e5d\u4e5d]
+FAILED tests/regression/test_recap_scan_signals.py::test_verify_trailing_unicode_numerals_fail[\u0669\u0669/\u0669\u0669]
+FAILED tests/regression/test_recap_scan_signals.py::test_verify_trailing_unicode_numerals_fail[\u2079\u2079/\u2079\u2079]
+FAILED tests/regression/test_recap_scan_signals.py::test_verify_trailing_unicode_numerals_fail[\u53e6\u6709\u58f9\u5904]
+FAILED tests/regression/test_recap_scan_signals.py::test_verify_trailing_slash_pair_fails[\u4ee8/\u4ee8]
+FAILED tests/regression/test_recap_scan_signals.py::test_verify_trailing_slash_pair_fails[\u7695/\u7695]
+FAILED tests/regression/test_recap_scan_signals.py::test_verify_trailing_slash_pair_fails[\u96f6/\u96f6]
+FAILED tests/regression/test_recap_scan_signals.py::test_domain_block_signal_tail_append
+FAILED tests/regression/test_recap_scan_signals.py::test_domain_block_signal_tail_note_outside_table[note_then_smuggle]
+FAILED tests/regression/test_recap_scan_signals.py::test_domain_block_signal_tail_note_outside_table[smuggle_then_note]
+FAILED tests/regression/test_recap_scan_signals.py::test_domain_block_signal_tail_note_outside_table[note_then_pair]
+FAILED tests/regression/test_recap_scan_signals.py::test_domain_block_signal_tail_note_outside_table[note_then_slash]
+FAILED tests/regression/test_recap_scan_signals.py::test_domain_block_signal_tail_note_outside_table[note_twice]
+FAILED tests/regression/test_recap_scan_signals.py::test_domain_block_signal_tail_note_outside_table[not_in_table]
+================= 15 failed, 240 passed, 14 warnings in 32.48s =================
+<sys>:0: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
+
+**Analyzing unexpected test failures**
+**Deciding on escalation requirement**
+exec
+/bin/zsh -lc 'PYTHONDONTWRITEBYTECODE=1 .venv/bin/python tests/regression/recap_domain_negverify.py' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend
+ exited 2 in 0ms:
+⛔ 另一个负验证进程正在跑（锁: /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/recap-domain-negverify.lock.d）。变异脚本必须串行——见脚本 docstring。
+
+**Assessing lock conflict and retry strategy**
+**Deciding not to retry on lock failure**
+codex
+两条既有门都没有得到车道声明的结果：pytest 实收 255，但为 `240 passed / 15 failed`；负验证器则在执行变异前因已有串行锁退出码 2。按你要求的 fail-closed 口径，我不删除锁、不探查/干预别的进程，也不把“未运行”写成 14/14。现在只补 `git rev-parse HEAD`，随后给一次性终裁。
+exec
+/bin/zsh -lc 'git rev-parse HEAD' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix
+ succeeded in 0ms:
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+61d84d7523b0d3a9be7244beb0b696845118665d
+
+**Waiting for agent implementations**
+collab: Wait
+collab: Wait
+**Analyzing command results and survivor status**
+**Inferring survivor-14 behavior from test constraints**
+**Assessing external lock impact on command retry**
+**Assessing test session isolation and agent status**
+指定静态范围已复核；pytest 实际为 240/255，负验证器被既有串行锁阻断，HEAD 已取。已形成 fail-closed 终裁。
+  ✓ 按指定行号静态复核实现的取值、连接与封闭表边界
+  ✓ 按指定锚点复核测试契约、断言强度与 survivor 承重
+  ✓ 仅运行两条既有命令及 git rev-parse HEAD
+  ✓ 汇总 C 口径终裁、残余与证据限制
+**Designing clickable file-line report links**
+**Classifying test severity and issues**
+**Identifying unregistered numeric pattern mismatch**
+2026-09-01T21:22:50.402422Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+**Analyzing CJK numeral tail matching issues**
+**Evaluating numeric sign and decimal handling limits**
+**Analyzing token pool severity and CJK approximate counts**
+**Examining numeric quantifier ambiguities in CJK counts**
+**Reviewing quantifier matching limitations**
+**Verifying nuanced test string matching**
+**Assessing diagnostic assertion robustness**
+**Identifying test naming and scope inconsistencies**
+**Assessing regex possessive quantifier support**
+**Analyzing mutation test narrow failure scope**
+**Confirming mutant scope limitations from tests**
+**Analyzing test impact on normalization**
+**Assessing test failures and command results**
+**Tagging new residual test issues**
+**Locating absolute path line links**
+**Verifying complex CJK numeral regex cases**
+**Confirming CJK numeral pattern limitations**
+**Refining numeric value approximation criteria**
+**Evaluating numeric token edge cases**
+**Identifying Unicode normalization risks**
+**Assessing quantifier table closure honesty**
+**Clarifying table boundary honesty and residual details**
+**Analyzing invisible bidi isolate characters**
+**Evaluating true residual invisible character handling**
+**Confirming fallback mutation stability**
+**Confirming diagnostic adequacy**
+**Clarifying test limitations and command results**
+**Documenting extra memory scan disclosure**
+**Outlining Chinese text parsing issues**
+**Analyzing semantic join and quantifier ambiguities**
+**Categorizing test failures and verdicts**
+**Analyzing fallback number derivation logic**
+**Confirming CJK and ASCII digit handling**
+**Assessing CJK quantifier parsing nuances**
+**Summarizing test failure distribution and next steps**
+**Clarifying fallback and mapping contract nuances**
+**Refining survivor-14 mutation scope and test implications**
+**Confirming memory search results**
+codex
+BLOCKER/HIGH 清零：否（就 C 取值口径而言）。
+
+### 终裁正文
+
+- ❌ HIGH｜存量未闭合：fallback 的 ASCII 仍按碎片入池。D2 ASCII 会跨连接字符取数，但 fallback 仍使用 `re.findall(r"\d+")`；`1 000`、`9**5` 会分别成为 `[1,0]`、`[9,5]`，碎片均碰池即可放行。[recap_scan.py:1668](</Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:1668>)、[recap_scan.py:1918](</Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:1918>)。因此“CJK 与 ASCII、D2 与 fallback 同一口径”不成立。
+
+- ❌ HIGH｜表外字符导致尾片重锚，仍是 round-5 同型碰撞：
+
+  - `九十八万5个`：CJK run 不命中整体，ASCII 只取 `5`。
+  - `廿五个`：`廿`在表外，CJK 从 `五`重锚，按 5 入池；读者读 25。
+  - `980,005个`：逗号切断后只取 `005→5`；逗号虽可见，却是正常千分位，不能归入“读者不会读成连续数”。
+
+  证据见 [recap_scan.py:1383](</Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:1383>)、[recap_scan.py:1499](</Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:1499>)、[recap_scan.py:1653](</Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:1653>)。`:1526-1528` 的“集合外字符一律 None/fail-closed”比真实调用链宽。
+
+- ❌ HIGH｜连接表内也不全是“不可见排版噪声”。`[*_~\\\`]`允许未配对、渲染可见的 Markdown 字符；`[多余来几约近超]`会改变数量语义；任意短 `<...>`也可能包含 `<br>` 等可见布局。[recap_scan.py:1352](</Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:1352>)、[recap_scan.py:1368](</Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:1368>)。例如 `1*0个`会按 10 入池；`五来个`会按精确 5 入池。因此 `_join_free`“还原读者看到的那个数”的措辞过宽。
+
+- ❌ HIGH｜`_D2_QUANT` 还有词法歧义。表内含 `点`；`五点五个`或 `5点5个`会被拆成两个 5 分别碰池，而读者看到的是 5.5。[recap_scan.py:1383](</Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:1383>)。
+
+三张表的登记结论：
+
+- `_D2_JOIN_ONE`：承认“封闭表”属实，但“表外可见断点不会被读成连续数”被逗号反例推翻；表内可见/语义连接也未登记充分。
+- `_D2_QUANT`：封闭性有注明，但残余说明低估了有限量词检查面及 `点`的歧义。
+- `_CJK_NUM_CHARS`：17 字边界、`:1308/:1316` 当前手抄集合一致均属实；但“表外只是不进提取面”低估了尾片重锚碰撞。
+- ✅ possessive `*+`：在当前定义下不改变匹配语言。连接字符集与后继 ASCII/CJK 数字字符集不相交，回退不可能产生新的成功匹配；当前作用只是限制回溯。若以后两集合出现交集，结论需重审。[recap_scan.py:1386](</Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:1386>)、[recap_scan.py:1503](</Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:1503>)。
+
+### 测试复核
+
+- ✅ 未见现存“实现不改也恒真”的核心门。映射期望已独立写死；两道合成门用窄池证明单字确实携自身值入池。[test_recap_scan_signals.py:3138](</Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/test_recap_scan_signals.py:3138>)、[test_recap_scan_signals.py:3197](</Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/test_recap_scan_signals.py:3197>)、[test_recap_scan_signals.py:3376](</Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/test_recap_scan_signals.py:3376>)。
+- ❌ `:3296-3298` 宣称 CJK/ASCII × D2/fallback 全覆盖，但矩阵的 fallback 只测 CJK，未测 ASCII；与实现缺口一致。[test_recap_scan_signals.py:3296](</Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/test_recap_scan_signals.py:3296>)、[test_recap_scan_signals.py:3345](</Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/test_recap_scan_signals.py:3345>)。
+- ⚠️ `:3088-3096` 的名称/首句仍称“中文数词入池”，实际契约是多字直接 fail-closed；`:3217`、`:3252` 的“一律”也应限定为表内字符、命中允许式或紧邻登记量词。
+- ⚠️ `assert "九十八万五" in r.stdout`足以区分本次原始碎片 bug，因为原输入仍含连接符；但不足以冻结诊断契约——子串没有与同一条“无法解析”problem 绑定。`:3388-3392` 的两个独立 `any`也可理论上由两条不同问题分别满足。应要求同一 problem 同时包含诊断类别和完整 token。
+
+### Survivor 承重
+
+- ⚠️ survivor-13：若真的全局禁掉“跨连接提取”，`:3170-3181` 的正则契约、`:3288` CLI 矩阵和`:3388-3392` D2 合成门都应受影响。只杀矩阵一条，说明 mutant 只切了某一消费路径或负验证只选跑一门；不能据此宣称该门独自承载整项性质。CJK 路径有纵深，fallback ASCII 则根本未建立该防线。
+- ⚠️ survivor-14：若其正是题面所述“恢复拼接前行级剥零”，指定测试中只有`:3337-3344`的 `1 000→1000`区分新旧顺序；`:3356`连续 `016`不能区分。该性质目前确为单点承重，没有独立纵深。
+
+### 实际命令结果与过程
+
+- pytest：收集 255；实际 `240 passed, 15 failed`，退出码 1，不是预期 255。失败分布为`:1031` 1 条、`:1055` 4 条、`:1190` 3 条、`:1650` 1 条、`:2807` 6 条。
+- `recap_domain_negverify.py`：退出码 2；执行变异前发现已有串行锁，因此本轮没有得到“14 条全部变红”的结果，也不能把 survivor 实测写成通过。
+- `git rev-parse HEAD`：`61d84d7523b0d3a9be7244beb0b696845118665d`
+- pytest 首次在只读环境因无可写临时目录而未收集；随后以完全相同命令重跑，以上为真实测试结果。未运行 diff/show/log，未读 fixture 正文，未构造探针或临时脚本。
+tokens used
+75,616

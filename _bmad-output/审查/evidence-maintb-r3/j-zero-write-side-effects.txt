@@ -1,18 +1,44 @@
-# CARD-维护B-R3 · 车道零写侧副作用核验
-## 本 session 开工时刻（首个证据文件 mtime）
+# CARD-维护B-R3 · 车道零写侧副作用核验（⚠️ 结论已更正）
+
+## 开工时刻参照
 2026-09-02 03:56:54  _bmad-output/审查/evidence-maintb-r3/a-baseline-sha.txt
-## canvas-vault 下全部 .pyc 的 mtime（MEMORY: importlib 动态加载会写字节码进 vault）
+
+## canvas-vault 下全部 .pyc 的 mtime
 2026-08-31 02:56:04  canvas-vault/.claude/scripts/__pycache__/decay_beta.cpython-314.pyc
-2026-09-01 06:06:19  canvas-vault/.claude/skills/board-recap/scripts/__pycache__/recap_scan.cpython-314.pyc
 2026-08-31 02:55:48  canvas-vault/.claude/skills/board-split/scripts/__pycache__/split_preview.cpython-314.pyc
-⇒ 全部早于开工时刻 = 本卡所有探针/测试的 PYTHONDONTWRITEBYTECODE=1 生效，未新写字节码。
-（且 .gitignore:2 已忽略 __pycache__/，本卡未改 .gitignore）
+2026-09-02 04:41:09  canvas-vault/.claude/skills/board-recap/scripts/__pycache__/recap_scan.cpython-314.pyc
+
+## ⛔ 结论更正（原写「全部早于开工时刻 = 未新写字节码」，该结论已不成立）
+recap_scan.cpython-314.pyc 的 mtime = 2026-09-02 04:41:09，**晚于**开工
+（03:56:54），也早于 Codex round-1（05:13）与 round-2（05:29）。该时间落在车道
+**对抗自查工作流**运行期间 ⇒ 是我派出的某个审查子代理 import 了 recap_scan.py
+而未设 PYTHONDONTWRITEBYTECODE，把字节码写进了 vault。
+命中 MEMORY reference_importlib_pycache_writes_into_vault 的已知陷阱。
+
+## 影响评估（如实）
+- 该路径被 .gitignore:2 的 __pycache__/ 忽略 ⇒ **未进入任何 commit**；
+- 字节码不改变 verifier 行为，所有裁判结果不受影响；
+- 但「本卡对 vault 零写入」这一声明**不成立**，改为：
+  「本卡未写入 vault 的任何**受版本控制**文件；曾有一次由审查子代理产生的
+   __pycache__ 字节码写入（已 gitignore，未进 commit）」。
+
+## 本卡自己跑的命令均已设 PYTHONDONTWRITEBYTECODE=1（裁判 1/2/3 与全部探针）
+缺口在**派生的子代理**：给它们的提示词写了「禁止写入车道目录」，
+但 import 产生字节码是**副作用**，靠嘱咐挡不住 —— 应在子代理命令里强制该环境变量。
 
 ## git status（本卡改动面）
- M "_bmad-output/\351\252\214\346\224\266\345\215\225/UAT-CARD-\347\273\264\346\212\244B-\346\225\260\345\255\227\346\262\273\347\220\206\345\237\237-2026-08-31.md"
+ M "_bmad-output/\345\256\241\346\237\245/evidence-maintb-r3/c-judge12.txt"
+ M "_bmad-output/\345\256\241\346\237\245/evidence-maintb-r3/d-cli-probe.txt"
+ M "_bmad-output/\345\256\241\346\237\245/evidence-maintb-r3/j-zero-write-side-effects.txt"
+ M "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-\347\273\264\346\212\244B-R3.md"
+ M "_bmad-output/\351\252\214\346\224\266\345\215\225/UAT-CARD-\347\273\264\346\212\244B-R3-\344\270\255\346\226\207\346\225\260\350\257\215\347\273\210\346\200\201-2026-09-02.md"
  M backend/tests/regression/recap_domain_negverify.py
  M backend/tests/regression/test_recap_scan_signals.py
  M canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py
-?? "_bmad-output/\345\256\241\346\237\245/evidence-maintb-r3/"
-?? "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-\347\273\264\346\212\244B-R3.md"
-?? "_bmad-output/\351\252\214\346\224\266\345\215\225/UAT-CARD-\347\273\264\346\212\244B-R3-\344\270\255\346\226\207\346\225\260\350\257\215\347\273\210\346\200\201-2026-09-02.md"
+?? "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-\347\273\264\346\212\244B-R3-round1-empty.md"
+?? "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-\347\273\264\346\212\244B-R3-round1-filtered.stderr"
+?? "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-\347\273\264\346\212\244B-R3-round1-\346\210\252\346\226\255\345\255\230\346\241\243.md"
+?? "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-\347\273\264\346\212\244B-R3.md"
+?? "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-\347\273\264\346\212\244B-R3.stderr"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-maintb-r3/l-codex-round2-worktree-contamination.txt"
+?? "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-\347\273\264\346\212\244B-R3-round1.md"

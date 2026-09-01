@@ -1,0 +1,31 @@
+# CARD-维护B-R3 · Codex round-2 造成的工作树污染（如实取证）
+## 现象
+- 提交 HEAD: 61d84d7523b0d3a9be7244beb0b696845118665d（commit 时 clean）
+- Codex round-2 跑完后 recap_scan.py 工作树 sha256: 13d2ac43e5e1f3f04516cceb4e56360ea7d5844742477e99c9da07709aaf9602
+- HEAD 版 sha256: 9bf0c697af480fec7231435c5fc3870f25092910100cf1f5f5735f550abe7767
+- 残留变异锁: /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/recap-domain-negverify.lock.d
+
+## 成因（与 Codex 报告自述一致）
+Codex 跑了 recap_domain_negverify.py（该脚本会**原地改写被测源码再还原**），
+中途被打断 ⇒ 源码停在某条变异上 + 互斥锁未释放。它随后那次 pytest 测的是
+**被变异的文件**，故报 240 passed / 15 failed —— 该数字是污染产物，不是真回归。
+它第二次跑 negverify 撞上自己留下的锁，得 rc=2，故其 survivor 结论也无实测支撑。
+MEMORY reference_workflow_review_agents_needs_no_write 的同型事故（审查者越权写）。
+
+## 残留变异内容（git diff，还原前留证）
+diff --git a/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py b/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py
+index ba77c916..1dbb7770 100644
+--- a/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py
++++ b/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py
+@@ -1197,10 +1197,7 @@ def _verify_signal_lines(text: str, signals: dict, problems: list[str]) -> None:
+             # 取自 _SIGNAL_TAIL_NOTES（封闭表 alternation, 槽至多出现一次）,
+             # 可紧接或以 ·/，/,/、 与标准尾部分隔。四条信号行统一适用;
+             # 无据行不适用（其整行模板在上方, 未插槽）。
+-            note_slot = (
+-                rf"(?:\s*[·，,、]?\s*"
+-                rf"(?:{'|'.join(re.escape(x) for x in _SIGNAL_TAIL_NOTES)}))?"
+-            )
++            note_slot = r"(?:[^【】]*)"
+             strict = (
+                 rf"^(?! {{4}}|\t)[>\-*·\s]{{0,6}}{body}{note_slot}"
+                 rf"\s*【{re.escape(str(avail))}】\s*$"
