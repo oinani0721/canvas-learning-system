@@ -2,6 +2,12 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
+**本车道状态**（2026-09-01 · `card/w5-reviewapp` · CARD-G6-2 交互复习壳，4 commits 未 push 未合并）:
+- 🔴 **Codex 三轮到顶终态 FAIL（停轮规则触发，不合并）**：r1 4H→整改 / r2 4H+5M→整改 / r3 终裁 1 BLOCKER（DD-14 无 PLAN-NNN，goal-card 工作流冲突，移交裁定）+3 HIGH——**3 HIGH 已在 `7ca194ac` 整改（结算绑定 renderedVids / `</script` 前缀计数 / AST 重绑定+接收者门），但按停轮规则无第四轮复审**
+- ✅ 终版实测：89 passed（56+33，0 skip）· 变异 46/46 全红（rc==1 判据）· 裁判 1/3 全过 · pyright 0 错 · 走查 r4 两截图 + netlog 外部 0 + 投影 SHA 前后相同 · 写侧零（全程未点刷新）
+- 📋 终态裁决点 ⑦放行/⑧DD-14 等价性：`_bmad-output/验收单/UAT-CARD-G6-2-交互复习壳-2026-09-01.md` 顶部显著声明；已登台账 §一（`goal-cards/未合卡追踪台账.md`）
+- 📌 车道 venv 多装 `pyright`（pre-commit 依赖）；合并序 W6 先合本卡后合；合并前 merge 主干复跑裁判 1
+
 **主干状态**（2026-08-31 · `worktree-feature-obsidian-hybrid-dev` · 第七批收官已 push `a920e15c`，排第八批中）:
 - ✅ 第七批合 7 卡（G4-1b/M11M7/G6-1/G6-4/G4-3/DEBT-13/DEBT-16），回归 743 passed；CI 以 `gh run list --limit 3` 实查
 - ✅ G6-1/G6-4 已部署：compose 加 `DAILY_REVIEW_PICK`（用户 V3 标签页裁「甲」）+ 后端重启，总览页刷新/展开走查 OK
