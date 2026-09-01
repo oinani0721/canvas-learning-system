@@ -206,6 +206,12 @@ if not m:
 fm, body = m.group(1), m.group(2)
 
 eid = p.get("event_id", "")
+# 幂等键的字面即身份 (内部对抗审查 HIGH): `板X#q1` 与 `板X#q1 ` 会被当成两个
+# 事件 —— 账本双写、mastery 双吃、attempt 多加一次, 而 validator 看不出问题
+# (两个不同的 event_id 本来就合法)。⛔ 这里**拒绝**而不是静默 strip: strip 会
+# 把上游两个本来不同的 id 撞成一个, 那是替上游做主。带空白 = 上游 bug, 报给它。
+if isinstance(eid, str) and eid != eid.strip():
+    raise SystemExit(f"[quiz-answer] event_id 首尾含空白 ({eid!r}) — 幂等键的字面即身份, 带空白的写法会与不带的各算一遍 (双写账本 + 双吃 mastery), fail-closed 拒写 — 请上游修正后重跑")
 etype = "answer_abandoned" if p.get("abandoned") else "answer_scored"
 evid = "quiz:" + eid
 node_id = os.path.splitext(os.path.basename(NODE))[0]
@@ -327,22 +333,33 @@ def _fm_has_event(fm_text, ev_id):
 # 守卫读的正是最后一个字节, 两处判据必须同源。行切分同样严格按 LF (JSONL 定义)。
 _rows = []
 if os.path.exists(EV):
+    # ⛔ 按**字节**切行再逐行 decode, 不整文件 decode。三个理由:
+    # ① 文本模式 open(encoding=) 的 universal newlines 会把裸 \r 与 \r\n 都读成
+    #    \n, 「EOF 有没有 LF」这个字节判据在解析层就失真;
+    # ② 整文件 decode 一失败就全盘 fail-closed, 而**腰斩一个多字节字符**恰恰是
+    #    最典型的崩溃产物 —— 切口落在 ASCII 处能自愈、落在 CJK 字符中间就把工具
+    #    永久卡死, 同一种崩溃两种命运。逐行 decode 让自愈路径对两者都可达;
+    # ③ 首行可能带 BOM (别的编辑器存过)。BOM 是编码标记不是内容, 整文件 decode
+    #    会把它留在首行里让 json.loads 失败, 于是一条**完整合法**的事件行被当
+    #    截断跳过、那次评分静默丢失。utf-8-sig 只剥文件开头的 BOM。
     _raw_bytes = open(EV, "rb").read()
-    try:
-        _raw_text = _raw_bytes.decode("utf-8")
-    except UnicodeDecodeError as _ue:
-        # 未捕获会抛 traceback (零写但非 clean); 账本含非 UTF-8 字节 = 真实损坏
-        raise SystemExit(f"[quiz-answer] 账本含非 UTF-8 字节 ({_ue}), fail-closed 拒写 — 请人工修复 learning_events.jsonl")
-    _raw_lines = _raw_text.split("\n")
-    # ⛔ 判据是「**最后一个非空行**有没有终止 LF」, 不是「文件末尾有没有 LF」。
+    _byte_lines = _raw_bytes.split(b"\n")
+    # 判据是「**最后一个非空行**有没有终止 LF」, 不是「文件末尾有没有 LF」。
     # 反例 (Codex round-2 线索 "R7 blank bug", 实测复现): 账本以 `坏行\n   ` 结尾
     # (坏行后跟一个纯空白行、文件不以 LF 收尾) 时, 按文件末尾判会得出「无 LF ⇒
     # 截断」, 可那个坏行明明**后面还跟着东西**, 它是完整落盘后损坏的。
-    # split("\n") 后: 该行索引 < len-1 ⟺ 它后面还有片段 ⟺ 它有终止 LF。
-    _last_idx = max((i for i, x in enumerate(_raw_lines) if x.strip()), default=-1)
-    _ends_with_lf = _last_idx >= 0 and _last_idx < len(_raw_lines) - 1
-    _n_lines = len([x for x in _raw_lines if x.strip()])
-    for _ln, _line in enumerate((x for x in _raw_lines if x.strip()), 1):
+    # split 后: 该行索引 < len-1 ⟺ 它后面还有片段 ⟺ 它有终止 LF。
+    _last_idx = max((i for i, x in enumerate(_byte_lines) if x.strip()), default=-1)
+    _ends_with_lf = _last_idx >= 0 and _last_idx < len(_byte_lines) - 1
+    _n_lines = len([x for x in _byte_lines if x.strip()])
+    for _ln, _bline in enumerate((x for x in _byte_lines if x.strip()), 1):
+        try:
+            _line = _bline.decode("utf-8-sig" if _ln == 1 else "utf-8")
+        except UnicodeDecodeError as _ue:
+            if _ln == _n_lines and not _ends_with_lf:
+                print(f"[quiz-answer] 账本第 {_ln} 行为截断尾行 (崩溃产物: 半个多字节字符且无终止 LF) — 追加时 LF 守卫隔离, 不阻塞本次评分")
+                continue
+            raise SystemExit(f"[quiz-answer] 账本第 {_ln} 行含非 UTF-8 字节 ({_ue}), fail-closed 拒写 — 请人工修复 learning_events.jsonl")
         try:
             _rows.append((_ln, json.loads(_line.strip(), object_pairs_hook=_no_dup_keys)))
         except _DupKey as _dk:
@@ -411,7 +428,11 @@ def _apply_mastery(fm_text, biz_ts):
         except ValueError:
             days_idle = 0.0  # 时间戳损坏: 不折旧, 保守按连续考察处理
     a_, b_ = max(a_, 1e-4), max(b_, 1e-4)  # 手工编辑容错: a/b 被改成 0 时 effective 会拒 (Code-Review L7)
-    a_, b_ = update_after_idle(a_, b_, GN, days_idle)
+    # 用 GN2 而非 GN (内部对抗审查 MEDIUM): durable payload 锁的是 round(GN,2),
+    # 而 mastery 若用未舍入的 GN, 同一个 durable 事件在「首跑 gn=0.752」与
+    # 「恢复重试 gn=0.7549」两次下会算出不同的 mastery_a —— envelope 判它们
+    # 同一件事(两侧 GN2 都是 0.75), 产物却不同。业务量恒取账本锁住的那个值。
+    a_, b_ = update_after_idle(a_, b_, GN2, days_idle)
     return old, a_, b_, round(mu(a_, b_), 2)
 
 # ── G3-2 三态判别 (复用校验器 classify_card_state, schema §6.2)。
@@ -497,11 +518,35 @@ abandoned = bool(p.get("abandoned"))
 _applicable = []
 for _ln, _o in _rows:
     _pl = _o.get("payload") if isinstance(_o, dict) else None
+    # payload 必须是 object (§一: v2 才可改类型)。非 dict 时旧实现抛裸
+    # AttributeError traceback, 不是 clean fail-closed。
+    if isinstance(_o, dict) and "payload" in _o and not isinstance(_pl, dict):
+        raise SystemExit(f"[quiz-answer] 账本第 {_ln} 行的 payload 不是 object ({type(_pl).__name__}) — v1 冻结它为 object, fail-closed 拒写")
+    # ⛔ 路由信封 (schema §一「路由信封冻结」的**读方义务**, 逐字): 解析出的
+    # 记录若缺少可用的 node_id (任何版本), 一律视为**不可路由**并 fail-closed
+    # —— 不能因为「它看起来不属于本节点」就跳过, 因为恰恰无法判定归属。
+    if isinstance(_o, dict) and not isinstance(_o.get("node_id"), str):
+        raise SystemExit(f"[quiz-answer] 账本第 {_ln} 行缺少可用的 node_id ({_o.get('node_id')!r}) — 无法判定归属, 按 §一 路由信封条款 fail-closed 拒写")
     if not isinstance(_pl, dict) or _pl.get("schema_ext") != "review/1":
         continue
     if _o.get("node_id") != node_id:
         continue
+    # 未知 event_version 不得按 v1 应用 (§一 前向兼容: 跳过并告警, 不炸)。
+    # 但「跳过」只对**别的节点**成立 —— 本节点的未知版本行若被跳过, 那次评分
+    # 就静默漏算了, 所以这里 fail-closed。
+    if _o.get("event_version") != 1:
+        raise SystemExit(f"[quiz-answer] 账本第 {_ln} 行 event_version={_o.get('event_version')!r} 非 v1 — 本节点的未知版本行不能按 v1 语义应用, 也不能跳过(那会漏算), fail-closed 拒写")
     _ctx = f"账本第 {_ln} 行({_o.get('event_id')})"
+    # 挂载点与身份键必须与本次写入对齐 (内部对抗审查 HIGH): 只看 schema_ext +
+    # node_id 不够 —— 实测 event_type=session_archived / node_derived、
+    # concept_id 指向别节点、vault_id 指向别的 vault 的行都会被当成本节点的
+    # 一次复习**照常重放并推进 FSRS**。validator 事后判 FAIL 拦不回已推进的水位线。
+    if _o.get("event_type") not in ("answer_scored", "answer_abandoned"):
+        raise SystemExit(f"[quiz-answer] {_ctx} 带 review/1 扩展但 event_type={_o.get('event_type')!r} 不是评分事件 — 重放它等于把别的动作当成一次复习, fail-closed 拒写")
+    if _pl.get("concept_id") != node_id:
+        raise SystemExit(f"[quiz-answer] {_ctx} 的 payload.concept_id={_pl.get('concept_id')!r} 与 node_id={node_id!r} 不一致 (§6.1: node_id 承载 concept_id), fail-closed 拒写")
+    if _pl.get("vault_id") != _vid:
+        raise SystemExit(f"[quiz-answer] {_ctx} 的 payload.vault_id={_pl.get('vault_id')!r} 不属于本 vault ({_vid!r}) — 跨 vault 事件不得被本地重放, fail-closed 拒写")
     if "out_of_order" in _pl:
         # 形态门 (§6.2 三态语义 round-4 HIGH#3 冻结): 唯一合法值是布尔 true;
         # 写 false/"true"/其它形态既非「已标」也非「未标」, 排除条件产生歧义。
@@ -515,7 +560,29 @@ for _ln, _o in _rows:
         if W_inst is None or _oo_inst > W_inst:
             raise SystemExit(f"[quiz-answer] {_ctx} 标了 out_of_order 但 review_time={_pl.get('review_time')!r} 晚于水位线 W={W or '(无, 新卡)'} — 乱序的定义是 review_time ≤ W, 该行是被伪装成乱序的真实后继, fail-closed 拒写")
         continue
-    _applicable.append((_durable_instant(_pl.get("review_time"), _ctx), _ln, _o))
+    # 评分事实完整性 (内部对抗审查 BLOCKER): R5 只挡住了「显式 rating 与
+    # grade_norm 不自洽」, 却挡不住「rating 干脆没有」—— 缺 rating 时 bridge
+    # 回落到 rating_from_grade(grade_norm, abandoned) 推导, 而 grade_norm 也缺
+    # 时用默认 0.0 ⇒ 一次可能是「答对」的评分被当成 Rating.Again(完全忘记)
+    # 静默应用 (实测 rc=0, W 照常推进, validator 事后才判 FAIL)。
+    # 适用行既然要被重放, 它的评分事实就必须**完整且可证**, 不容推导补齐。
+    _rt_ = _pl.get("rating")
+    if isinstance(_rt_, bool) or not isinstance(_rt_, int) or _rt_ not in (1, 2, 3, 4):
+        raise SystemExit(f"[quiz-answer] {_ctx} 的 payload.rating 缺失或非法 ({_rt_!r}; §6.1 冻结为 int 1-4) — 重放时会回落到推导值, 等于替用户猜一个评分, fail-closed 拒写")
+    _gn_ = _pl.get("grade_norm")
+    if isinstance(_gn_, bool) or not isinstance(_gn_, (int, float)) or not (0.0 <= float(_gn_) <= 1.0):
+        raise SystemExit(f"[quiz-answer] {_ctx} 的 payload.grade_norm 缺失或越界 ({_gn_!r}; §6.1 要求 0-1 数值) — 越界值会被 rating_from_grade 静默钳制, fail-closed 拒写")
+    _n0_ = _pl.get("attempt_count")
+    if isinstance(_n0_, bool) or not isinstance(_n0_, int) or _n0_ < 1:
+        raise SystemExit(f"[quiz-answer] {_ctx} 的 payload.attempt_count 缺失或非法 ({_n0_!r}; 须为 ≥1 的整数) — 它是 ordinal 回推与恢复的权威值, 缺了就无法证明这是第几次评分, fail-closed 拒写")
+    _rt_inst_ = _durable_instant(_pl.get("review_time"), _ctx)
+    # effective_at 与 payload.review_time 必须是**同一绝对瞬间** (§6.2: 调用方
+    # 把 bridge 返回的 review_time 原样写进 payload, 与 effective_at 同源)。
+    # 两者脱钩的行在 dup 路径会被 envelope 拦, 但走 foreign pending 时没人管。
+    _ea_ = _o.get("effective_at")
+    if _durable_instant(_ea_, _ctx + " 的 effective_at") != _rt_inst_:
+        raise SystemExit(f"[quiz-answer] {_ctx} 的 effective_at={_ea_!r} 与 payload.review_time={_pl.get('review_time')!r} 不是同一瞬间, fail-closed 拒写")
+    _applicable.append((_rt_inst_, _ln, _o))
 _applicable.sort(key=lambda t: (t[0], t[1]))
 
 # ── G3-2 幂等分诊主流程 (Codex round-2 BLOCKER 重排)。
@@ -549,7 +616,10 @@ else:
     # 放行, 而 A2 的适用集把该行排除 ⇒ FSRS 永不应用, writer 仍 rc=0 写下
     # calibration/mastery, 节点 fsrs_* 全空。键集本身是等价面的一部分:
     # 多一键 / 少一键 / 值不同 一律冲突, 只放行明确排除的两个身份键。
-    _att = re.search(r'^attempt_count:\s*(\d+)', fm, re.M)
+    # 容引号 (内部对抗审查 MEDIUM): Obsidian Properties 面板会把数值写成 "3",
+     # 原正则不匹配 ⇒ 计数被当 0、序数倒退, 还把一个**已被占用的序数**写进
+     # append-only 账本。与同块 mastery_* 的容引号口径统一。
+    _att = re.search(r'^attempt_count:\s*"?(\d+)"?\s*$', fm, re.M)
     _att_now = int(_att.group(1)) if _att else 0
     # R3 (round-3 HIGH): attempt 序数从**账本边界**复算, 不拿当前 tip 当历史
     # durable 值。口径: frontmatter.attempt_count 与事件同一次原子发布 ⇒ 账本
@@ -616,10 +686,52 @@ for _inst, _ln, _o in pending:
         # 待 fsrs 恢复后重跑即可恢复。
         raise SystemExit(f"[quiz-answer] A2 pending 重放失败 (fsrs 不可用且存在未恢复事件), fail-closed 零写 — 待恢复后重跑: 账本第 {_ln} 行({_o.get('event_id')}): {_err}")
     fm = _apply_fsrs_block(fm, "\n" + _out["fm_block"])
+    # attempt_count 同步 (内部对抗审查 BLOCKER): 旧实现的 A2 重放**只补 FSRS**,
+    # 于是「每条适用行对应 frontmatter attempt 一次 +1」这个不变量被写点自己
+    # 破坏 —— E1 崩溃后先答 E2, 重放 E1 不推进 attempt, E2 便以同一个基数写出
+    # attempt=1, durable 变成 [1,1]; 此后原样重跑 E1, ordinal 回推算出 0 而
+    # durable 是 1 ⇒ 合法历史重放被误报 envelope 冲突 (实测复现)。
+    # ⚠️ attempt_count 与 mastery 不同: 它**有事件载荷**(在 durable payload 里),
+    # 所以能复放。权威值恒取 durable 行, 不再 +1 —— 「恢复」的定义就是复现
+    # 首次成功时写下的那个值。顺带修好一个用户可见的错: 崩溃恢复后「已考 N 次」
+    # 旧实现会少算一次。
+    _n_ = _pl.get("attempt_count")
+    if isinstance(_n_, int) and not isinstance(_n_, bool) and _n_ >= 0:
+        if re.search(r'^attempt_count:', fm, re.M):
+            fm = re.sub(r'^attempt_count:.*$', f"attempt_count: {_n_}", fm, count=1, flags=re.M)
+        else:
+            fm = re.sub(r'^(type:.*)$', lambda x: x.group(1) + f"\nattempt_count: {_n_}", fm, count=1, flags=re.M)
     print(f"[quiz-answer] A2 重放已应用: {_o.get('event_id')} @ {_pl['review_time']}")
 
-# ── G3-2 恢复路径 / 正常路径分叉 (A2 重放已完成: dup 与全部 pending 的 FSRS
-# 都已按序应用到内存 fm, 重放失败已在上方 fail-closed 退出)。
+# ── G3-2 恢复先落定, 再谈新写 (Codex round-3 BLOCKER)。
+# 旧实现在**同一次运行**里既重放 foreign pending、又追加本次事件, 两个后果:
+#   ① 被重放事件的 mastery/calibration 没有事件载荷可复放, 而本次 payload 又
+#      只属于本次评分 ⇒ 那次评分的评分链副作用永久丢失且 rc=0 (实测: 直接
+#      A→B 得 mastery 0.61/校准[A,B], 崩溃恢复后只剩 0.57/校准[B]);
+#   ② 「连续两次发布前崩溃」在**单进程**下就能攒出 2 条 pending (不必外部
+#      篡改), 此时 attempt 序数与 mastery 基线都不可证。
+# 现在改为: 只要重放过**非本次事件**的行, 就先把恢复结果原子发布下去, 然后
+# 以非零码退出要求重跑 —— 检验白板保持 scored_pending_node_update, 正是 Step
+# 4d 既有的续跑语义。下一次运行 pending 已空, 本次评分在干净基线上写入。
+_foreign_replayed = [t for t in pending if (t[2].get("event_id") if isinstance(t[2], dict) else None) != evid]
+if _foreign_replayed:
+    _f = open(NODE + ".quiz-tmp", "w", encoding="utf-8")
+    _f.write(f"---\n{fm}\n---\n{body}")
+    _f.flush()
+    os.fsync(_f.fileno())
+    _f.close()
+    os.replace(NODE + ".quiz-tmp", NODE)
+    _dfd = os.open(os.path.dirname(NODE) or ".", os.O_RDONLY)
+    try:
+        os.fsync(_dfd)
+    finally:
+        os.close(_dfd)
+    _ids = [t[2].get("event_id") for t in _foreign_replayed]
+    print(f"[quiz-answer] A2 已恢复 {len(_foreign_replayed)} 个未完成事件的 FSRS 并落盘: {_ids}")
+    print("[quiz-answer] ⚠️ 这些事件的 mastery/校准记录**无法从账本复放**(durable payload 不携带那部分载荷) — 它们的评分链副作用已永久丢失, 属已知缺口")
+    raise SystemExit(f"[quiz-answer] 恢复已落定, 本次评分未写入 — 请重跑 /quiz-answer 续跑 (检验白板保持 scored_pending_node_update)")
+
+# ── 恢复路径 / 正常路径分叉 (至此 pending 要么为空, 要么只含本次事件 dup)。
 if dup is not None:
     # ── 恢复路径。review_time 采纳 durable 行 (业务事实时刻), 全部副作用
     # (mastery/calibration/last_examined) 以它为基准 — 保证恢复产物与直接
@@ -637,8 +749,14 @@ if dup is not None:
     else:
         # 崩溃窗口① (f1=F): 评分链其余副作用全部未应用 → 全套补齐
         old, A, B, new = _apply_mastery(fm, review_time)
-        mo_att = re.search(r'^attempt_count:\s*(\d+)', fm, re.M)
-        n_att = (int(mo_att.group(1)) if mo_att else 0) + 1
+        # attempt 权威值取 durable 行本身 (dup 自己刚被 A2 重放写进 fm, 再 +1
+        # 会双加)。恢复 = 复现首次成功时写下的那个值, 不是「再记一次」。
+        _dup_att = _dpl.get("attempt_count")
+        if isinstance(_dup_att, int) and not isinstance(_dup_att, bool) and _dup_att >= 0:
+            n_att = _dup_att
+        else:
+            mo_att = re.search(r'^attempt_count:\s*"?(\d+)"?\s*$', fm, re.M)
+            n_att = (int(mo_att.group(1)) if mo_att else 0) + 1
         fm = re.sub(r'^(mastery_score|mastery|mastery_level|mastery_a|mastery_b|attempt_count|last_examined):.*\r?\n?', '', fm, flags=re.M)
         fm = re.sub(r'^(type:.*)$', lambda x: x.group(1) + f"\nmastery_score: {new}\nmastery_a: {round(A, 4)}\nmastery_b: {round(B, 4)}\nattempt_count: {n_att}\nlast_examined: " + json.dumps(review_time, ensure_ascii=False), fm, count=1, flags=re.M)
         fm = _append_calibration(fm, review_time)
@@ -702,7 +820,7 @@ else:
 # 两路径的 mastery_a/b 因此不同 (实测节点 SHA 不同) — A3 等时推进 (W+1s) 或
 # 小数秒截断使 review_time != p["ts"] 时必然触发。
 old, A, B, new = _apply_mastery(fm, review_time)
-mo_att = re.search(r'^attempt_count:\s*(\d+)', fm, re.M)
+mo_att = re.search(r'^attempt_count:\s*"?(\d+)"?\s*$', fm, re.M)
 n_att = (int(mo_att.group(1)) if mo_att else 0) + 1
 fm = re.sub(r'^(mastery_score|mastery|mastery_level|mastery_a|mastery_b|attempt_count|last_examined):.*\r?\n?', '', fm, flags=re.M)
 fm = re.sub(r'^(type:.*)$', lambda x: x.group(1) + f"\nmastery_score: {new}\nmastery_a: {round(A, 4)}\nmastery_b: {round(B, 4)}\nattempt_count: {n_att}\nlast_examined: " + json.dumps(review_time, ensure_ascii=False), fm, count=1, flags=re.M)

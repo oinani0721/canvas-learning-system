@@ -59,10 +59,10 @@ cd backend && PYTHONDONTWRITEBYTECODE=1 .venv/bin/python \
 | # | 判据 | 结果 | 证明了什么 / **不**证明什么 |
 |---|---|---|---|
 | 1 | **开工基线实收**（HEAD `02dbc426` 临时还原后 `--collect-only`） | `255 collected` / `254 passed, 1 skipped` | 基线是实收的，不是照抄历史数字。还原用备份 + `finally` 恢复，4 文件恢复后**逐字节相同** |
-| 2 | **裁判 1** 五文件回归 | `266 collected` / **`265 passed, 1 skipped`**（+11 门，零回归） | 新增 11 门全绿且原 254 门无一变红。**不**证明整仓其它测试 |
+| 2 | **裁判 1** 五文件回归 | `268 collected` / **`267 passed, 1 skipped`**（+13 门，零回归） | 新增 13 门全绿且原 254 门无一变红。**不**证明整仓其它测试 |
 | 3 | **裁判 2** 生产入口反例（`g32b_r1r7_counterexamples.py`） | **31/31 PASS** | 用逐字提取的生产 PYEOF 块跑真实反例，含 8 条**验伪对照**（合法输入必须仍然通过），故不是「恒拒」的假门。**不**证明并发 |
 | 4 | **裁判 3** validator 跑 fixture | `RESULT: PASS`，`rc=0` | fixture 由真实生产写点跑出（两次评分 E1/E2），非手写样例 |
-| 5 | **变异验证**（`g32b_mutation_gates.py`，串行） | **18/18 KILLED**，18 次还原全部**逐字节相同** | 每个变异把生产代码**精确退回旧实现形态**，判据是**指定的那道门**必须变红。**不**证明门集覆盖了未被想到的缺陷 |
+| 5 | **变异验证**（`g32b_mutation_gates.py`，串行） | **34/34 KILLED**，34 次还原全部**逐字节相同** | 每个变异把生产代码**精确退回旧实现形态**，判据是**指定的那道门**必须变红。**不**证明门集覆盖了未被想到的缺陷 |
 | 6 | **六格状态机逐格闭合**（门㉝） | 6 格全部断言终态通过 | round-3 判 3 格 FAIL + 1 格 PARTIAL，现逐格构造真实前置态并断言。**不**证明格间竞态（无锁） |
 | 7 | **写点普查门**（门⑪）+ 全仓 grep | PASS；账本写点仍是 4 处（`quiz-answer` / `start-exam-board` / `ai-linked-doc` / `learning_event_log.py`） | 本卡未新增第三套实现，未动其它 skill 写点 |
 | 8 | **live vault 零写** | 账本 `2a18023e…`（22 行），mtime `2026-08-29T06:11:47+0800` | mtime 远早于本 session（2026-09-02），**观测范围内**零写。**不**证明其它进程未写 |
@@ -174,9 +174,86 @@ Unicode 归一化差异必须冲突（⚠️ 首版探针用汉字做 NFD 变异
 payload 键顺序不得误报冲突、attempt 复算成负值须 fail-closed、
 同时刻两事件按行号稳定全序、整秒门宽松字面量语义等价。
 
-### round-3
+### 已核查并澄清为「非缺陷」的面（逐条实测，附结论）
 
-卡文上限是 3 轮。round-3 若仍拿不到正文，本卡**不合并**，如实留台账。
+这些是两轮 stderr 线索 + 我自查列出的可疑点，**实测后确认不是缺陷**。列在这里是为了让
+下一个人不用重跑一遍，也为了万一将来行为变了能对照：
+
+| 面 | 实测结论 |
+|---|---|
+| 删掉一个 fsrs 身份键 | envelope 放行（两键排除出等价面 = 有意的分层），**校验器拦下**并明确报「必须为非空字符串」。分层成立 |
+| 顶层多出未知键 | envelope 只比 5 个顶层键 ⇒ 写点放行，**校验器按「v1 冻结恰好 7 键」拦下**。分层成立 |
+| `recorded_at` 变化 | 两侧都放行 —— 契约 §6.2:183 **显式排除**它（重试时自然变化，不构成事实差异）。设计如此 |
+| payload 键顺序不同 | 不报冲突（canonical 用 `sort_keys`）。正确 |
+| Unicode 归一化差异 | **报冲突**。⚠️ 首版探针用汉字做 NFD 变异得出「放行」，那是假阴性——汉字没有分解形式，变异根本没改字节；换 `café笔记` 重测即冲突 |
+| 整秒门放行 `Z` / `+00:00` / `-00:00` / 小写 `t` / 空格分隔 | 5 种字面量**全部归一到同一个 UTC 整秒瞬间**，语义等价，放行无害 |
+| `grade_norm` 浮点跨档 | 0.00–1.00 的 **101 个两位小数值** JSON 往返后分档**无一改变**；边界 `gn=0.5` 稳定落 3。不会误伤旧版合法行 |
+| `node_id` 缺失/null/拼错、`schema_ext` 非法 | 写点放行（不越权管别的节点的行），**校验器 5/5 全部拦下**。分层成立 |
+| 未标 `out_of_order` 的迟到事件（`review_time ≤ W`） | 不推进 current state —— 契约 §6.2 三态语义明写「无论已应用还是迟到乱序，对 current state 的动作完全相同」。正确 |
+| `attempt_count` 复算成负值 | fail-closed（负数 ≠ durable 正整数 ⇒ 冲突）。方向安全 |
+| 同节点两事件 `review_time` 完全相同 | 按行号稳定全序，两条都被重放。正确 |
+| 同 `event_id` 两条不同内容 | 被**全文件唯一性检查**先拦（否则 A2 会双 apply）。正确 |
+| `event_id` 为空串 | 结构性 `f1=False` ⇒ 重跑落到「FSRS 已应用但缺校准记录」的人工裁定分支，`rc=1` 零写。方向安全（空 `event_id` 属上游 bug） |
+| R4 字节等价换 7 组参数 | 无 `last_examined` / 未来时间戳 / 损坏时间戳 / A3 只推 1 秒 / 走 `from_legacy` / `a,b` 为 0 的容错分支 / 带 callout —— **7/7 全部字节相同** |
+| degraded 落账 → fsrs 恢复后重试 | 只补 FSRS、不二次吃 EMA，再重试一次完全幂等 |
+| fixture 脚本被 symlink 劫持 | `resolve()` 不等于约定路径即拒跑，另有 marker 文件双重检查 |
+
+### 本卡发现但**不在本卡范围**的移交事项
+
+**校验器不强制迟到事件标 `out_of_order`**：契约 §6.2 说迟到/补录事件应「以原始 `review_time`
+入账 + 标 `payload.out_of_order = true`」，但校验器当前对**未标**的迟到行放行（实测 `rc=0`）。
+这是既存的契约-实现缺口，不是本卡引入。`validate_learning_events.py` 在本卡硬边界的禁改面上，
+故**只登记不代改**。门㊱②c 用一条「当前放行」的断言锁住了这个事实——它某天变红就说明校验器
+收紧了该面，届时应同步更新注释与本条移交记录。
+
+### round-3（绑定 commit `cba60fc3`）：**拿到正文了，判「需整改」**
+
+中性化措辞 + 收窄读取面（不让审查者读 UAT 与前身 round-3 报告，那两份术语最密集）之后，
+round-3 产出 **17993 字节正文**，绑定的主程序 SHA-256 `41ef618b…` 与当时工作区一致。
+结论：**需整改**，13 条规则里 7 条 FAIL，六格里 2 格 FAIL，共 **4 BLOCKER + 多条 HIGH**。
+
+它找到的四条 BLOCKER，两条与我的内部审查**独立撞车**（互为交叉验证）：
+
+| # | 级别 | 发现 | 处置 |
+|---|---|---|---|
+| ① | BLOCKER | **恢复与新写混在一次运行里**：A2 重放 foreign pending 只补 FSRS，那次评分的 mastery/校准无载荷可复放而**永久丢失**（实测：直接 A→B 得 `mastery=0.61`/校准 `[A,B]`，崩溃恢复后只剩 `0.57`/校准 `[B]`），`rc=0` 无信号 | **已改结构**：只要重放过非本次事件的行，就先把恢复结果**原子发布**下去，再以非零码退出要求重跑（正是 Step 4d 既有的续跑语义）。下一次运行 pending 已空，本次评分在干净基线上写入。mastery 丢失本身仍无解（durable payload 不带那部分载荷，属 §6.1 扩展，超本卡范围）——现在**如实打印告知**而不是静默 |
+| ② | BLOCKER | **多 pending 守卫只覆盖 duplicate 排列**：预置 A/B 两条 pending 后写新 C，`rc=0`、重放两条、账本 `[1,2,3]`，而「连续两次发布前崩溃」在**单进程**下就能攒出这个状态（不必外部篡改） | 同 ①：两阶段发布后，第一阶段把两条都恢复并落盘，第二阶段才写 C。门㊳⑤ 锁住 |
+| ③ | BLOCKER | **`attempt_count` 缺失/非法仍可消费**：删掉 `payload.attempt_count` 后 writer `rc=0`、validator 也 `rc=0`，账本 attempts=`[null,1]`——两次评分而笔记计数只有 1 | 加进适用集必填校验（≥1 的整数，拒 bool/字符串/0/负数）。门㊳③ |
+| ④ | BLOCKER | **同秒未标行漏算**：E1@10:00 应用后 W=10:00，外部追加同节点 E2@10:00 未标 `out_of_order`，validator `rc=0`，再写 E3 时 E2 不进 pending ⇒ 永久漏算 | **未修，登记为裁决点**。根因在契约 §6.2「`≤W` 的歧义对 exactly-once 无影响」这句被同秒反例推翻——修它要改**契约本身**的三态语义，且窄化方案（对 `review_time == W` 且不在校准记录里的行 fail-closed）会误伤旧写序遗留行。见「待你裁决」⑧ |
+
+HIGH 的处置：未知 `event_version` 不得按 v1 apply（门㊳①）、`effective_at` 与 `payload.review_time`
+必须同一瞬间（门㊳②）、`payload` 非 object 须 clean fail-closed（门㊳④）、**缺少可用 `node_id`
+必须 fail-closed**（schema §一「路由信封冻结」的读方义务明文要求，而我前一版的门㊱② 把这条违约
+**锁成了正确行为**——已反转，见门㊱②）。
+
+### 补跑的内部对抗审查（8 面并行 + 每条 3 票复现验证）
+
+两轮正文缺失期间补跑的：8 个核查面各自在隔离 tmp 下用逐字提取的生产写点找反例，
+每条发现再派 3 个独立怀疑者尝试证伪。119 个 agent、56 分钟。产出 37 条候选，
+其中 **7 条实测复现为真缺陷并已修**（门㊲）：
+
+| # | 级别 | 发现 | 修法 |
+|---|---|---|---|
+| B1 | BLOCKER | **R5 门被 `rating` 缺失整个绕过**：缺 rating 时 bridge 回落到推导，`grade_norm` 也缺时用默认 `0.0` ⇒ 一次可能是「答对」的评分被当成 `Rating.Again`（完全忘记）静默应用 | 适用行的评分事实必须**完整且可证**，rating/grade_norm 缺失或类型/范围非法一律 fail-closed |
+| B2 | BLOCKER | **A2 重放不同步 `attempt_count`**，写点自己破坏了 ordinal 回推赖以成立的「每条适用行 = +1」不变量 ⇒ 崩溃恢复后合法历史重放被误报冲突 | 重放时把 attempt 推到 durable 值（它**有事件载荷**，与 mastery 不同）。顺带修好一个用户可见的错：崩溃恢复后「已考 N 次」旧实现会少算一次 |
+| B3 | BLOCKER | **BOM 首行**让一条完整合法的事件行被当截断跳过；**整文件 decode** 让「腰斩多字节字符」这个最典型的崩溃产物反而无法自愈（切口落 ASCII 能自愈、落 CJK 中间就永久卡死） | 改按字节切行 + 逐行 decode（首行 `utf-8-sig`）。9 种行尾/编码组合全部符合预期 |
+| C1 | HIGH | **挂载点与身份键错位的行被当复习应用**：`event_type=session_archived`、`concept_id` 指向别节点、`vault_id` 指向别 vault 的行都会照常重放并推进 FSRS（validator 事后判 FAIL，拦不回已推进的水位线） | 适用集校验三者对齐 |
+| C2 | HIGH | **`event_id` 首尾空白 ⇒ 同一次评分双写双吃**（账本 2 行、mastery 双吃、attempt 多加一次），validator 看不出问题 | **拒绝**而不是静默 strip——strip 会把上游两个本来不同的 id 撞成一个 |
+| C3 | MEDIUM | `attempt_count` 读取正则不容引号，而 Obsidian Properties 会写 `"3"` ⇒ 计数被重置为 1，还把一个**已被占用的序数**写进 append-only 账本 | 三处正则统一容引号 |
+| C4 | MEDIUM | mastery 用**未舍入**的 `grade_norm`，而 durable 锁的是 `round(GN,2)` ⇒ 同一个 durable 事件在两次不同的未舍入输入下算出不同 mastery | 业务量恒取账本锁住的那个值 |
+
+### ⛔ 作业事故：变异残留差点被提交（如实记，这是本卡最重要的教训）
+
+我给变异脚本加的「变异窗口内文件被第三方改动就 `exit(3)` 别覆盖人家」防护，**方向是错的**：
+它 exit 时**不还原**，于是 `if False:  # MUTANT` 这一行在 `SKILL.md` 里活了整整一轮。
+
+- **所有门都照常通过**：26 个变异全 KILLED、265 个测试全绿、三个裁判全过——因为残留恰好落在一个
+  `if False:` 分支里，它让 `concept_id` 校验静默失效，而当时还没有门覆盖那条；
+- **抓住它的是 `grep MUTANT`**，不是任何一道门。MEMORY 里「commit 前必跑 diff 对账」这条今天兜住了；
+- **旁证**：内部审查的两个 agent 在报告里主动写了「作业期间被审文件被并行进程改动，我改用
+  `git show HEAD:` 的纯净版本重跑」——它们察觉到了，而我的脚本自检没有；
+- **已修**：防护改为「先把第三方内容存证到 tmp，再**无条件**还原」。变异体绝不能留在生产文件里，
+  第三方改动也不能无声蒸发。这条也进了 `g32b_mutation_gates.py` 的注释。
 
 ---
 
@@ -190,7 +267,8 @@ payload 键顺序不得误报冲突、attempt 复算成负值须 fail-closed、
 6. **A2 重放仍只恢复 FSRS**：mastery（衰减 Beta）与疑问 callout 没有事件载荷可复放。跨事件 pending（别的板的事件）恢复时其 mastery 副作用**永久丢失**，只有 FSRS 被补上——与前卡同，本卡未改变。
 7. **`learning_event_log.py` 本卡未改**：R7 修的是 `quiz-answer` 读账本的判据。backend 通用 `append_event()` 的坏行处理是「warning + 跳过该行」（查重不把坏行算作命中），它不做「截断容忍」声明，故不在 R7 射程内。如实登记，不代改（卡文限定只允许尾行/查重最小修正）。
 8. **N5 的窄化如实记**：多个 pending 并存时本卡选择 fail-closed 而非硬算。代价是——如果账本真被外部写成那样，你必须人工修账本才能继续评分。收益是：不在一个「attempt 序数无法从账本边界证明」的基线上继续写。
-9. **两轮审查的正文都缺失**：见上「Codex 审查处置」。N1-N5 与 R7-blank 都是**我按 stderr 推理标题线索自测**出来的，不是独立审查者给出的完整结论。**独立审查这一环到目前为止仍是空的**——线索来自独立审查者不假，但「哪些成立、哪些不成立、有没有漏的」全是自评。这是本卡最大的证据缺口。
+9. **三轮审查里只有第三轮拿到正文，而它判「需整改」**：round-3 报的 4 BLOCKER 我修了 3 条、登记 1 条为裁决点，但**这些修复本身没有再经过独立审查**（卡文上限 3 轮已用尽）。内部对抗审查（8 面 + 3 票验证）可以部分替代，但它和我共享同一个模型，不是真正的独立第三方。**这是本卡最大的证据缺口**。前两轮的正文缺失情况见上「Codex 审查处置」。
+9b. **旧表述（保留以便对照）**：两轮审查的正文都缺失：见上「Codex 审查处置」。N1-N5 与 R7-blank 都是**我按 stderr 推理标题线索自测**出来的，不是独立审查者给出的完整结论。**独立审查这一环到目前为止仍是空的**——线索来自独立审查者不假，但「哪些成立、哪些不成立、有没有漏的」全是自评。这是本卡最大的证据缺口。
 10. **门集不等于穷尽**：变异 10/10 只证明**这 10 个已知缺陷形态**会被指定门抓住，不证明没有第 11 类。三轮审查的历史（每轮修复都会长出新分支）说明这个方向上的清零在对抗范式下不可达。
 11. **未自动解锁下游**：本卡未改写 G3-7、G8-4 的总账依赖。
 12. **Obsidian 插件是既存第二写路径**：`frontend/obsidian-plugin/src/main.ts` 的 node_derived 直写不在本卡写点门 grep 范围，本卡未动它，沿用前卡登记。
@@ -207,7 +285,9 @@ payload 键顺序不得误报冲突、attempt 复算成负值须 fail-closed、
 | ④ | 是否部署到 live | **不部署**（手册 §四.1 第 2 条） | 你确认后另开部署动作 |
 | ⑤ | R2 的作用域窄化（边界声明 5） | **只施于本节点适用集** | 全账本所有 `review/1` 行（一条别节点的脏行会锁死整个 vault 的评分） |
 | ⑥ | 标了 `out_of_order` 但时刻晚于 W 的行（N1） | **写点侧 fail-closed 拒写**，等你人工裁定那行是补录还是真后继 | 照搬 proof 侧的「报违规但仍计入适用集」（会多应用一次 FSRS） |
-| ⑦ | 两轮审查正文都被内容过滤器拦下 | **不合并**；round-3 再试一次，若仍拿不到正文就如实留台账 | ① 以 stderr 线索 + 自测代替独立审查结论（手册 §四.2 明令禁止）；② 换审查通道（另一个模型/人工复核） |
+| ⑦ | 三轮审查用尽，round-3 判「需整改」 | **不合并**（手册 §四.2：B/H 未清零不进合并队列）。修复已做但未经第 4 轮独立审查 | ① 破例合并；② 另开一张卡专收 round-3 残留 + 跑新一轮审查 |
+| ⑧ | 同秒未标 `out_of_order` 的行被漏算（round-3 BLOCKER①，**未修**） | **登记不修**：根因是契约 §6.2「`≤W` 的歧义对 exactly-once 无影响」这句被同秒反例推翻，修它要动三态语义本身；窄化方案会误伤旧写序遗留行 | ① 改契约：同节点未标行按物理行序强制业务时刻严格递增，重复/回退即 fail-closed；② 维持现状并接受该漏算面 |
+| ⑨ | 存在 foreign pending 时改为「恢复先落定 + 要求重跑」 | **已改**（round-3 BLOCKER①②的修法）：多一次重跑，换来恢复结果独立持久化、新事件在干净基线上写入 | 维持旧的「一次运行内既恢复又追加」（会静默丢被恢复事件的 mastery/校准，且多 pending 时 attempt 不可证） |
 
 ---
 
@@ -219,11 +299,14 @@ payload 键顺序不得误报冲突、attempt 复算成负值须 fail-closed、
 | 前卡 UAT / round-3 | `_bmad-output/验收单/UAT-CARD-G3-2-复习事件账本write-ahead-2026-09-01.md`、`_bmad-output/审查/codex-review-CARD-G3-2-round3.md` |
 | 生产改动 | `canvas-vault/.claude/skills/quiz-answer/SKILL.md`、`canvas-vault/.claude/scripts/fsrs_bridge.py` |
 | 契约回写 | `docs/learning-events-schema-v1.md` §6.2（A4.5 duplicate 门 / A4.5 短写段 / A5） |
-| 行为门 | `backend/tests/regression/test_g3_2_review_ledger.py` 门㉖-㊱（㉖-㉜=R1-R7，㉝=六格状态机，㉞=N1-N5，㉟=自查覆盖缺口，㊱=round-2 线索复核） |
+| 行为门 | `backend/tests/regression/test_g3_2_review_ledger.py` 门㉖-㊳（㉖-㉜=R1-R7，㉝=六格状态机，㉞=N1-N5，㉟=自查覆盖缺口，㊱=round-2 线索复核，㊲=内部对抗审查 7 条，㊳=round-3 的 BLOCKER/HIGH） |
 | 反例复现脚本 | `backend/scripts/g32b_r1r7_counterexamples.py` |
 | fixture 生成脚本 | `backend/scripts/g32b_build_fixture.py`（`--check` 复算 sha） |
 | 变异脚本 | `backend/scripts/g32b_mutation_gates.py`（17 个变异，串行 + 逐字节还原） |
 | round-1 审查 | `_bmad-output/审查/codex-review-CARD-G3-2b.md`（**0 字节**，已入库作为「正文缺失」本身的证据） |
+| round-3 审查 | `_bmad-output/审查/codex-review-CARD-G3-2b-round3.md`（**17993 字节，唯一拿到正文的一轮**，判「需整改」）+ `.stderr` sha256 `1e093c12c70d0ee011c929e51c97cb8d4ca3245d21b989268809663daabfbb7e`（820 KB，同样不入库） |
+| round-3 提示词 | `_bmad-output/审查/prompts/codex-prompt-CARD-G3-2b-round3.md`（中性化措辞 + 收窄读取面） |
+| 内部对抗审查 | 8 核查面 × 3 票复现验证，119 agent / 56 分钟；产出 37 条候选，7 条实测复现为真缺陷（门㊲） |
 | round-2 审查 | `_bmad-output/审查/codex-review-CARD-G3-2b-round2.md`（**0 字节**）+ `.stderr`（337 KB，**同样不入库**：虽无配置值泄漏，但与 round-1 同类处理），sha256 `22d386315a9f7685bf6a3809acdf09897693f23ef5f9f2ec4bb45b11941e6df1` |
 | round-1 stderr | `_bmad-output/审查/codex-review-CARD-G3-2b.stderr`，sha256 `c223e825fdfc1ce823d614fb648c1fd5e83a8032e0aea0050a5fa9c8603df1da`（226 KB）——**故意不入库**：文件里含 `.env` 某配置值的截断前缀（正是它触发了内容过滤器），凭据片段不进版本库。保留在工作区 untracked，与前卡三个 stderr 同处理 |
 | round-2 提示词 | `_bmad-output/审查/prompts/codex-prompt-CARD-G3-2b-round2.md`（已写明用 `INTERNAL_API_KEY` 占位值跑 pytest，规避 round-1 的拦截成因） |

@@ -101,6 +101,19 @@ def run(vault: Path, **over):
     )
 
 
+def run_settled(vault: Path, **over):
+    """跑写点；若因「A2 恢复先落定」被要求重跑，就再跑一次并返回合并结果。
+
+    存在 foreign pending 时写点会先把恢复结果原子发布、再以非零码退出要求重跑
+    （Codex round-3 BLOCKER 的修法：恢复与新写不在同一次运行里混做）。
+    """
+    r = run(vault, **over)
+    if r.returncode != 0 and "恢复已落定" in r.stderr:
+        r2 = run(vault, **over)
+        return subprocess.CompletedProcess(r2.args, r2.returncode, r.stdout + r2.stdout, r.stderr + r2.stderr)
+    return r
+
+
 def rows(vault: Path):
     p = vault / "learning_events.jsonl"
     return [json.loads(x) for x in p.read_text(encoding="utf-8").splitlines() if x.strip()] if p.exists() else []
@@ -281,7 +294,7 @@ def r5():
             f"rc={r.returncode} 账本={len(rows(v))}行 零写={sha(v / NODE_REL) == s} | {last_line(r.stderr)}",
         )
     write_rows(v, _pending_row())
-    r = run(v, event_id="板B#q1", ts="2026-08-02T10:00:00Z")
+    r = run_settled(v, event_id="板B#q1", ts="2026-08-02T10:00:00Z")
     check("R5/验伪-契约值3 照常重放", r.returncode == 0 and len(rows(v)) == 2, f"rc={r.returncode}")
 
 

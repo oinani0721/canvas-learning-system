@@ -203,6 +203,21 @@ def _run_writer(vault: Path, payload: dict, env_extra: dict | None = None):
     )
 
 
+def _run_writer_settled(vault: Path, payload: dict, env_extra: dict | None = None):
+    """跑写点；若因「A2 恢复先落定」被要求重跑，就再跑一次并返回合并结果。
+
+    存在 foreign pending 时写点会先把恢复结果原子发布、再以非零码退出要求重跑
+    （Codex round-3 BLOCKER 的修法：恢复与新写不在同一次运行里混做，否则被恢复
+    事件的 mastery/校准会连同「多 pending 攒在一起」一起变得不可证）。
+    只关心「最终有没有写成」的门用这个；专门验证两阶段语义的门直接用 _run_writer。
+    """
+    r = _run_writer(vault, payload, env_extra)
+    if r.returncode != 0 and "恢复已落定" in r.stderr:
+        r2 = _run_writer(vault, payload, env_extra)
+        return subprocess.CompletedProcess(r2.args, r2.returncode, r.stdout + r2.stdout, r.stderr + r2.stderr)
+    return r
+
+
 def _ledger_lines(vault: Path) -> list[dict]:
     ledger = vault / "learning_events.jsonl"
     if not ledger.exists():
@@ -407,7 +422,9 @@ def test_envelope_conflict_rejected_and_same_envelope_noop(vault):
         ledger.write_text(json.dumps(tampered, ensure_ascii=False) + "\n", encoding="utf-8")
         rt = _run_writer(vault, _payload())
         assert rt.returncode != 0, f"篡改 {desc} 后恢复必须拒绝"
-        assert "envelope 冲突" in rt.stderr, rt.stderr
+        # event_version 篡改现被更早的**版本门**接管（未知版本不得按 v1 应用，
+        # 也不能跳过——跳过就漏算了）；payload 事实键仍走 envelope。
+        assert ("envelope 冲突" in rt.stderr) or ("非 v1" in rt.stderr), rt.stderr
     # 恢复正常 durable 行后 (原样回写), 同一续跑必须成功 (崩溃窗口①恢复)
     (vault / "learning_events.jsonl").write_text(json.dumps(base_event, ensure_ascii=False) + "\n", encoding="utf-8")
     r4 = _run_writer(vault, _payload())
@@ -610,9 +627,17 @@ def test_pending_foreign_event_replayed_before_new_write(vault):
         },
     }
     (vault / "learning_events.jsonl").write_text(json.dumps(event_a, ensure_ascii=False) + "\n", encoding="utf-8")
+    # 两阶段（Codex round-3 BLOCKER 的修法）：第一次跑只把 A 的恢复结果原子
+    # 发布下去并要求重跑；第二次跑 pending 已空，B 在干净基线上写入。
+    r0 = _run_writer(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z", exam_board="检验白板/板B.md"))
+    assert r0.returncode != 0, "存在 foreign pending 时不得在同一次运行里既恢复又追加"
+    assert "A2 重放已应用" in r0.stdout, "事件 A 必须被重放"
+    assert "恢复已落定" in r0.stderr, r0.stderr
+    assert "永久丢失" in r0.stdout, "被恢复事件的 mastery/校准无法复放，必须如实告知"
+    assert _fm_fields(vault)["fsrs_last_review"] == TS1, "恢复结果必须已落盘（W = A 的时刻）"
+    assert len(_ledger_lines(vault)) == 1, "第一阶段不得追加本次事件"
     r = _run_writer(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z", exam_board="检验白板/板B.md"))
     assert r.returncode == 0, r.stdout + r.stderr
-    assert "A2 重放已应用" in r.stdout, "事件 A 必须在本次写入前被重放"
     assert _fm_fields(vault)["fsrs_last_review"] == "2026-08-02T10:00:00Z", "W 反映 B"
     recs = _ledger_lines(vault)
     assert [x["event_id"] for x in recs] == ["quiz:板A#q1", "quiz:板B#q1"]
@@ -997,7 +1022,7 @@ def test_r2_non_whole_second_durable_review_time_fail_closed(vault):
     for rt_ok in ("2026-08-01T10:00:00Z", "2026-08-01T10:00:00+00:00"):
         (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
         _write_ledger(vault, _review_row(**{"payload.review_time": rt_ok, "effective_at": rt_ok}))
-        rok = _run_writer(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
+        rok = _run_writer_settled(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
         assert rok.returncode == 0, f"{rt_ok} 必须照常重放: " + rok.stdout + rok.stderr
         assert "A2 重放已应用" in rok.stdout
 
@@ -1073,7 +1098,7 @@ def test_r5_inconsistent_scored_rating_rejected_before_apply(vault):
         assert len(_ledger_lines(vault)) == 1, "零写账本 (不得追加下一事件)"
     # 验伪: 契约值 3 必须照常重放 (本门不是「恒拒」的假门)
     _write_ledger(vault, _review_row())
-    rok = _run_writer(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
+    rok = _run_writer_settled(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
     assert rok.returncode == 0, rok.stdout + rok.stderr
     assert len(_ledger_lines(vault)) == 2
 
@@ -1168,9 +1193,10 @@ def test_six_cell_state_machine_closed(vault):
     # ── 格1 dup=None, f1=F: 正常新写 (A2 先把 foreign pending 重放至空)
     foreign = _review_row(event_id="quiz:板A#q1")
     _write_ledger(vault, foreign)
-    r1 = _run_writer(vault, _payload(ts="2026-08-02T10:00:00Z"))
+    r1 = _run_writer_settled(vault, _payload(ts="2026-08-02T10:00:00Z"))
     assert r1.returncode == 0, r1.stdout + r1.stderr
     assert "A2 重放已应用" in r1.stdout, "格1: foreign pending 必须在新写前重放"
+    assert "恢复已落定" in r1.stderr, "格1: 恢复必须先独立落盘再要求重跑（两阶段）"
     assert len(_ledger_lines(vault)) == 2 and _fm_fields(vault)["fsrs_last_review"] == "2026-08-02T10:00:00Z"
 
     # ── 格2 dup=None, f1=T: 旧写序孤儿 (frontmatter 已应用而账本无该事件) → 整体 no-op
@@ -1405,7 +1431,7 @@ def test_self_audit_coverage_gaps(vault):
     a = _review_row(event_id="quiz:板A#q1", **{"payload.review_time": TS1})
     b = _review_row(event_id="quiz:板B#q1", **{"payload.review_time": TS1, "payload.attempt_count": 2})
     _write_ledger(v4, a, b)
-    r6 = _run_writer(v4, _payload(event_id="板C#q1", ts="2026-08-05T10:00:00Z"))
+    r6 = _run_writer_settled(v4, _payload(event_id="板C#q1", ts="2026-08-05T10:00:00Z"))
     assert r6.returncode == 0, r6.stdout + r6.stderr
     replayed = [ln for ln in r6.stdout.splitlines() if "A2 重放已应用" in ln]
     assert len(replayed) == 2, f"同时刻两事件都应被重放，实得 {len(replayed)}: {replayed}"
@@ -1479,14 +1505,30 @@ def test_round2_lead_followups(vault):
     # schema_ext 非法的 review 行**不会被任何节点重放**。写点放行它们是对的（不越权），
     # 但校验器必须全部拦下——否则这些行就成了无人认领的静默丢失面。
     (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
-    ORPHANS = [
+    # ⚠️ 分两类，别混（Codex round-3 HIGH 指出前一版把违约锁成了正确）：
+    #   - **缺少可用 node_id** ⇒ schema §一「路由信封冻结」的读方义务明文要求
+    #     **fail-closed**：不能因为「它看起来不属于本节点」就跳过，因为恰恰
+    #     无法判定归属；
+    #   - node_id 拼成**别的合法字符串** / schema_ext 非法 ⇒ 写点放行是对的
+    #     （不越权管别的节点的行），由校验器兜底。
+    for mut, desc in (
         (lambda r: r.pop("node_id"), "node_id 缺失"),
         (lambda r: r.__setitem__("node_id", None), "node_id 为 null"),
-        (lambda r: r.__setitem__("node_id", "不存在的节点"), "node_id 拼错"),
+        (lambda r: r.__setitem__("node_id", 123), "node_id 非字符串"),
+    ):
+        row = _review_row(event_id="quiz:孤儿", **{"payload.review_time": "2026-08-05T10:00:00Z"})
+        row["effective_at"] = "2026-08-05T10:00:00Z"
+        mut(row)
+        _write_ledger(vault, row)
+        rw = _run_writer(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
+        assert rw.returncode != 0, f"[{desc}] 不可路由的行必须 fail-closed（§一 路由信封读方义务）"
+        assert "不可路由" in rw.stderr or "路由信封" in rw.stderr, rw.stderr
+        assert not _fm_fields(vault), f"[{desc}] 零写"
+    for mut, desc in (
+        (lambda r: r.__setitem__("node_id", "不存在的节点"), "node_id 指向别的合法名"),
         (lambda r: r["payload"].__setitem__("schema_ext", "review/2"), "schema_ext=review/2"),
         (lambda r: r["payload"].__setitem__("schema_ext", "reviews/1"), "schema_ext=reviews/1"),
-    ]
-    for mut, desc in ORPHANS:
+    ):
         row = _review_row(event_id="quiz:孤儿", **{"payload.review_time": "2026-08-05T10:00:00Z"})
         row["effective_at"] = "2026-08-05T10:00:00Z"
         mut(row)
@@ -1496,6 +1538,50 @@ def test_round2_lead_followups(vault):
         v = _run_validator(vault)
         assert v.returncode != 0, f"[{desc}] 必须被校验器拦下 —— 否则是无人认领的静默丢失面"
         (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+
+    # ②b 分层成立：envelope 只比 5 个顶层键，多出来的顶层键不进比较 —— 写点放行，
+    # 校验器按「v1 冻结恰好 7 键」拦下。而 recorded_at 变化被 envelope **显式排除**
+    # （重试时自然变化，§6.2:183），两侧都放行，那是设计不是漏网。
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (vault / "learning_events.jsonl").unlink()
+    assert _run_writer(vault, _payload()).returncode == 0
+    base_top = _ledger_lines(vault)[0]
+    for key, value, validator_must_reject in (
+        ("extra_top", "外部注入", True),
+        ("recorded_at", "2099-01-01T00:00:00Z", False),
+    ):
+        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+        row = json.loads(json.dumps(base_top))
+        row[key] = value
+        _write_ledger(vault, row)
+        rw = _run_writer(vault, _payload())
+        assert rw.returncode == 0, f"顶层 {key}: envelope 只比 5 键，写点应放行: {rw.stderr}"
+        v = _run_validator(vault)
+        if validator_must_reject:
+            assert v.returncode != 0 and key in v.stdout, f"顶层 {key} 必须被校验器拦: {v.stdout[:200]}"
+        else:
+            assert v.returncode == 0, f"{key} 变化是设计内的（envelope 显式排除），不得误拦: {v.stdout[:200]}"
+
+    # ②c 契约行为（非缺陷）：未标 out_of_order 的「迟到」事件（review_time ≤ W）
+    # 一律不推进 current state —— §6.2 三态语义明写「无论它是已应用还是迟到的乱序
+    # 事件，对 current state 的动作完全相同」。
+    # ⚠️ 同时如实锁住一个**校验器宽松面**：契约说迟到事件应走补录通道并标
+    # out_of_order，但校验器当前**不强制**。validator 本卡禁改，登记为移交事项。
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (vault / "learning_events.jsonl").unlink()
+    assert _run_writer(vault, _payload()).returncode == 0
+    late = _review_row(event_id="quiz:迟到事件", **{"payload.review_time": "2026-07-01T10:00:00Z"})
+    late["effective_at"] = "2026-07-01T10:00:00Z"
+    _write_ledger(vault, _ledger_lines(vault)[0], late)
+    rl = _run_writer(vault, _payload(event_id="板C#q1", ts="2026-08-03T10:00:00Z"))
+    assert rl.returncode == 0, rl.stdout + rl.stderr
+    assert _fm_fields(vault)["fsrs_last_review"] == "2026-08-03T10:00:00Z", (
+        "迟到事件（review_time ≤ W）不得推进 current state"
+    )
+    assert _run_validator(vault).returncode == 0, (
+        "如实锁定：校验器当前不强制迟到事件标 out_of_order —— 本断言若某天变红，"
+        "说明校验器收紧了该面，届时应同步更新本注释与移交台账，而不是简单改断言"
+    )
 
     # ③ 分层成立（非缺陷，锁住）：rating 自洽门不会误拒任何**旧版合法写入**的行。
     # grade_norm 落盘的是 round(GN,2)，分档边界要 gn = 1/6、1/2、5/6，只有 1/2 是精确
@@ -1532,3 +1618,230 @@ def test_round2_lead_followups(vault):
         if probe.is_symlink():
             probe.unlink()
         subprocess.run(["rm", "-rf", str(victim)], check=True)
+
+
+# ── 门㊲ 内部对抗审查（8 个核查面并行探测 + 每条 3 票独立复现）找出的 7 条 ──
+# 两轮 Codex 正文都被内容过滤器拦下后补跑的内部审查。7 条全部实测复现过。
+
+
+def test_internal_audit_findings(vault):
+    import unicodedata
+
+    # ① BLOCKER：A2 重放的 pending 行必须**评分事实完整**。
+    # R5 只挡住「显式 rating 与 grade_norm 不自洽」，挡不住「rating 干脆没有」——
+    # 缺 rating 时 bridge 回落到推导，grade_norm 也缺时用默认 0.0 ⇒ 一次可能是
+    # 「答对」的评分被当成 Rating.Again（完全忘记）静默应用（实测 rc=0、W 照常推进）。
+    for bad, desc in (
+        ({"payload.rating": None}, "rating=null"),
+        ({"payload.rating": 3.0}, "rating 是 float"),
+        ({"payload.grade_norm": 1.5}, "grade_norm 越界"),
+        ({"payload.grade_norm": "0.75"}, "grade_norm 是字符串"),
+    ):
+        _write_ledger(vault, _review_row(event_id="quiz:板A#q1", **bad))
+        r = _run_writer(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
+        assert r.returncode != 0, f"[{desc}] 评分事实不完整的行不得被重放"
+        assert len(_ledger_lines(vault)) == 1, f"[{desc}] 零写"
+    # 缺键（而非 null）同样拒
+    row = _review_row(event_id="quiz:板A#q1")
+    row["payload"].pop("rating")
+    _write_ledger(vault, row)
+    assert _run_writer(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z")).returncode != 0
+    # 验伪：合法行照常重放
+    _write_ledger(vault, _review_row(event_id="quiz:板A#q1"))
+    rok = _run_writer_settled(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
+    assert rok.returncode == 0 and "A2 重放已应用" in rok.stdout, rok.stdout + rok.stderr
+
+    # ② BLOCKER：A2 重放必须同步 attempt_count，否则写点自己破坏 ordinal 回推的前提。
+    # E1 崩溃 → 先答 E2 → 重放 E1 不推进 attempt ⇒ E2 以同一基数写出 attempt=1，
+    # durable 变成 [1,1]；此后原样重跑 E1，ordinal 回推算出 0 而 durable 是 1 ⇒
+    # 合法历史重放被误报冲突（实测复现）。attempt 与 mastery 不同：它**有事件载荷**。
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (vault / "learning_events.jsonl").unlink()
+    assert _run_writer(vault, _payload()).returncode == 0
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")  # 崩溃窗口①
+    # 两阶段（恢复先落定 → 重跑写本次）；attempt 的不变量在**最终**状态上验。
+    r2 = _run_writer_settled(
+        vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z", exam_board="检验白板/板B.md")
+    )
+    assert r2.returncode == 0, r2.stdout + r2.stderr
+    assert "A2 重放已应用" in r2.stdout
+    assert [x["payload"]["attempt_count"] for x in _ledger_lines(vault)] == [1, 2], (
+        "A2 重放必须把 attempt 推到 durable 值，否则下一个事件会复用同一序数"
+    )
+    assert re.search(r'^attempt_count:\s*"?(\d+)"?\s*$', _fm(vault), re.M).group(1) == "2"
+
+    # ③ BLOCKER：账本按**字节**切行再逐行 decode。
+    # BOM 首行（别的编辑器存过）整文件 decode 时会让一条**完整合法**的事件行解析
+    # 失败、被当截断跳过、那次评分静默丢失；而腰斩一个多字节字符恰恰是最典型的
+    # 崩溃产物——整文件 decode 一失败就全盘拒，自愈路径反而对它不可达。
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    row = _review_row(event_id="quiz:板A#q1")
+    RJ = json.dumps(row, ensure_ascii=False).encode("utf-8")
+    good = _review_row(event_id="quiz:旧板", **{"payload.review_time": "2026-07-01T10:00:00Z"})
+    good["effective_at"] = "2026-07-01T10:00:00Z"
+    good["node_id"] = "别的节点"
+    G = json.dumps(good, ensure_ascii=False).encode("utf-8") + b"\n"
+    half_cjk = '{"event_id": "quiz:损'.encode("utf-8")[:-1]  # 腰斩「损」字
+    for content, expect, desc in (
+        (b"\xef\xbb\xbf" + RJ, "replay", "BOM + 完整合法行（无 LF）"),
+        (b"\xef\xbb\xbf" + RJ + b"\n", "replay", "BOM + 完整合法行（带 LF）"),
+        (G + half_cjk, "tolerate", "腰斩 CJK 的末行（无 LF）= 真截断"),
+        (G + half_cjk + b"\n", "reject", "腰斩 CJK 的末行（带 LF）= 完整损坏"),
+        (b"\xff\xfe bad\n" + RJ, "reject", "首行非 UTF-8 且不是末行"),
+    ):
+        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+        (vault / "learning_events.jsonl").write_bytes(content)
+        # 合法行会成为 foreign pending ⇒ 走「恢复先落定」两阶段，用 settled 取最终态
+        r = _run_writer_settled(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
+        if expect == "reject":
+            assert r.returncode != 0, f"[{desc}] 应 fail-closed"
+        else:
+            assert r.returncode == 0, f"[{desc}] 应放行: {r.stdout}{r.stderr}"
+            if expect == "replay":
+                assert "A2 重放已应用" in r.stdout, f"[{desc}] 合法行必须被重放，不得当截断跳过"
+            else:
+                assert "截断尾行" in r.stdout, f"[{desc}] 应按截断隔离: {r.stdout}"
+
+    # ④ HIGH：适用集必须校验挂载点与身份键。只看 schema_ext + node_id 不够——
+    # event_type=session_archived / node_derived、concept_id 指向别节点、
+    # vault_id 指向别的 vault 的行都会被当成本节点的一次复习照常重放并推进 FSRS
+    # （validator 事后判 FAIL，但拦不回已推进的水位线）。
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    for bad, desc in (
+        ({"event_type": "session_archived"}, "非评分事件类型"),
+        ({"event_type": "node_derived"}, "派生事件类型"),
+        ({"payload.concept_id": "别的节点"}, "concept_id 错位"),
+        ({"payload.vault_id": "别的_vault"}, "vault_id 错位"),
+    ):
+        _write_ledger(vault, _review_row(event_id="quiz:板A#q1", **bad))
+        r = _run_writer(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
+        assert r.returncode != 0, f"[{desc}] 不得被当成本节点的一次复习重放"
+        assert not _fm_fields(vault), f"[{desc}] 零写（尤其不得推进 W）"
+    # 验伪：合法的两种评分事件类型都必须照常重放
+    for etype, rating, gn in (("answer_scored", 3, 0.75), ("answer_abandoned", 1, 0.0)):
+        row = _review_row(event_id="quiz:板A#q1", **{"payload.rating": rating, "payload.grade_norm": gn})
+        row["event_type"] = etype
+        _write_ledger(vault, row)
+        rok = _run_writer_settled(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
+        assert rok.returncode == 0, f"[{etype}] 合法评分事件必须照常重放: {rok.stderr}"
+        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+
+    # ⑤ HIGH：event_id 首尾空白 ⇒ 同一次评分的两种写法各算一遍（双写账本 + 双吃
+    # mastery + attempt 多加一次），而 validator 看不出问题（两个不同的 id 本来合法）。
+    # ⛔ 拒绝而不是静默 strip —— strip 会把上游两个本来不同的 id 撞成一个。
+    (vault / "learning_events.jsonl").unlink()
+    assert _run_writer(vault, _payload(event_id="板X#q1")).returncode == 0
+    r5 = _run_writer(vault, _payload(event_id="板X#q1 ", ts="2026-08-02T10:00:00Z"))
+    assert r5.returncode != 0 and "首尾含空白" in r5.stderr, r5.stderr
+    assert len(_ledger_lines(vault)) == 1, "零写"
+
+    # ⑥ MEDIUM：attempt_count 读取正则须容引号。Obsidian Properties 面板会把数值
+    # 写成 "3"，原正则不匹配 ⇒ 计数被当 0、序数倒退，还把一个**已被占用的序数**
+    # 写进 append-only 账本。
+    (vault / NODE_REL).write_text(
+        NODE_V0.replace("mastery_score: 0.5\n", 'mastery_score: 0.5\nattempt_count: "3"\n'), encoding="utf-8"
+    )
+    (vault / "learning_events.jsonl").unlink()
+    r6 = _run_writer(vault, _payload(event_id="板Q#q1"))
+    assert r6.returncode == 0, r6.stdout + r6.stderr
+    assert _ledger_lines(vault)[0]["payload"]["attempt_count"] == 4, (
+        "引号形态的 attempt_count 必须被承接为 3 并写出 4，而不是重置为 1"
+    )
+
+    # ⑦ MEDIUM：mastery 的业务量必须取 durable 锁定的 round(GN,2)，不是未舍入的 GN。
+    # 否则「首跑 gn=0.752」与「恢复重试 gn=0.7549」被 envelope 判为同一件事
+    # （两侧 GN2 都是 0.75），产出的 mastery_a 却不同。
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (vault / "learning_events.jsonl").unlink()
+    assert _run_writer(vault, _payload(grade_norm=0.752)).returncode == 0
+    golden = (vault / NODE_REL).read_bytes()
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    r7 = _run_writer(vault, _payload(grade_norm=0.7549, ts="2026-09-01T10:00:00Z"))
+    assert r7.returncode == 0, r7.stdout + r7.stderr
+    assert (vault / NODE_REL).read_bytes() == golden, (
+        "同一 durable 事件（GN2 相同）在两次不同的未舍入输入下必须产出相同的 mastery"
+    )
+
+
+# ── 门㊳ Codex round-3（第一份拿到正文的独立审查）的 BLOCKER/HIGH 修复 ──
+# round-1/2 正文都被内容过滤器拦下；round-3 换中性化措辞后拿到 17993 字节正文，
+# 判「需整改」：4 BLOCKER + 多条 HIGH。以下逐条锁住修复。
+
+
+def test_round3_findings(vault):
+    # ① HIGH：未知 event_version 的行不得按 v1 语义 apply。
+    # §一 说 v2 出现前读方要「跳过并告警，不炸」——但那是对**别的节点**的行；
+    # 本节点的未知版本行若被跳过，那次评分就静默漏算了，所以这里 fail-closed。
+    row = _review_row(event_id="quiz:板A#q1")
+    row["event_version"] = 2
+    _write_ledger(vault, row)
+    r = _run_writer(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
+    assert r.returncode != 0 and "非 v1" in r.stderr, r.stderr
+    assert not _fm_fields(vault), "零写"
+
+    # ② HIGH：effective_at 与 payload.review_time 必须是同一绝对瞬间。
+    # 两者脱钩的行在 dup 路径会被 envelope 拦，但走 foreign pending 时没人管
+    # （实测 writer rc=0 而 validator rc=1，两侧口径分叉）。
+    bad = _review_row(event_id="quiz:板A#q1")
+    bad["effective_at"] = "2026-08-01T11:00:00Z"  # payload.review_time 仍是 10:00
+    _write_ledger(vault, bad)
+    r2 = _run_writer(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
+    assert r2.returncode != 0 and "不是同一瞬间" in r2.stderr, r2.stderr
+    # 验伪：同一瞬间的两种合法写法（Z / +00:00）不得误拒
+    ok = _review_row(event_id="quiz:板A#q1")
+    ok["effective_at"] = "2026-08-01T10:00:00+00:00"
+    _write_ledger(vault, ok)
+    rok = _run_writer_settled(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
+    assert rok.returncode == 0, "同一瞬间的不同合法字面量不得误拒: " + rok.stderr
+
+    # ③ BLOCKER：attempt_count 是 ordinal 回推与恢复的权威值，缺了/非法就无法
+    # 证明「这是第几次评分」。旧实现缺键时静默跳过同步（实测 writer rc=0、
+    # validator 也 rc=0，账本 attempts=[null,1]：两次评分而笔记计数只有 1）。
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    for bad_att, desc in ((None, "缺失"), (0, "为 0"), (-1, "负数"), (True, "bool 伪装"), ("2", "字符串")):
+        row = _review_row(event_id="quiz:板A#q1")
+        if bad_att is None:
+            row["payload"].pop("attempt_count")
+        else:
+            row["payload"]["attempt_count"] = bad_att
+        _write_ledger(vault, row)
+        r3 = _run_writer(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
+        assert r3.returncode != 0, f"[attempt_count {desc}] 必须 fail-closed"
+        assert "attempt_count 缺失或非法" in r3.stderr, r3.stderr
+
+    # ④ payload 不是 object 时必须 clean fail-closed，不是裸 AttributeError
+    for bad_pl in ("字符串 payload", 123, ["a"]):
+        row = _review_row(event_id="quiz:板A#q1")
+        row["payload"] = bad_pl
+        _write_ledger(vault, row)
+        r4 = _run_writer(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
+        assert r4.returncode != 0, f"payload={bad_pl!r} 必须拒"
+        assert "payload 不是 object" in r4.stderr, r4.stderr
+        assert "Traceback" not in r4.stderr, "必须是 clean fail-closed"
+
+    # ⑤ BLOCKER：恢复与新写必须分成两次原子发布。
+    # 旧实现在同一次运行里既重放 foreign pending 又追加本次事件，两个后果：
+    # 被重放事件的 mastery/校准无载荷可复放而永久丢失（rc=0 无信号）；
+    # 「连续两次发布前崩溃」在**单进程**下就能攒出 2 条 pending，此时 attempt
+    # 序数与 mastery 基线都不可证。
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    a = _review_row(event_id="quiz:板A#q1", **{"payload.review_time": "2026-08-03T10:00:00Z"})
+    a["effective_at"] = "2026-08-03T10:00:00Z"
+    b = _review_row(
+        event_id="quiz:板B#q1",
+        **{"payload.review_time": "2026-08-04T10:00:00Z", "payload.attempt_count": 2},
+    )
+    b["effective_at"] = "2026-08-04T10:00:00Z"
+    _write_ledger(vault, a, b)
+    r5 = _run_writer(vault, _payload(event_id="板C#q1", ts="2026-08-05T10:00:00Z"))
+    assert r5.returncode != 0, "两条 pending 时不得在同一次运行里既恢复又追加"
+    assert "恢复已落定" in r5.stderr, r5.stderr
+    assert len([ln for ln in r5.stdout.splitlines() if "A2 重放已应用" in ln]) == 2, "两条都要重放"
+    assert "永久丢失" in r5.stdout, "被恢复事件的评分链副作用无法复放，必须如实告知"
+    assert len(_ledger_lines(vault)) == 2, "第一阶段不得追加本次事件"
+    assert _fm_fields(vault)["fsrs_last_review"] == "2026-08-04T10:00:00Z", "恢复结果必须已落盘"
+    # 第二阶段：pending 已空，本次评分在干净基线上写入
+    r6 = _run_writer(vault, _payload(event_id="板C#q1", ts="2026-08-05T10:00:00Z"))
+    assert r6.returncode == 0, r6.stdout + r6.stderr
+    assert [x["payload"]["attempt_count"] for x in _ledger_lines(vault)] == [1, 2, 3]
+    assert _run_validator(vault).returncode == 0
