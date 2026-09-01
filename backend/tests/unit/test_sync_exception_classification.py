@@ -24,6 +24,7 @@ from neo4j.exceptions import AuthError, ServiceUnavailable
 
 from app.config import Settings, get_settings
 from app.main import app
+from tests.support.lifespan import no_lifespan
 
 
 SAMPLE_PAYLOAD = {
@@ -60,7 +61,7 @@ def _dev_settings() -> Settings:
 @pytest.fixture
 def client() -> Generator[TestClient, None, None]:
     """TestClient that cleans overrides between tests."""
-    with TestClient(app) as test_client:
+    with no_lifespan(app), TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
 

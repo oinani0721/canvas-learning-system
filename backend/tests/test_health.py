@@ -12,8 +12,37 @@ and adheres to the API specification.
 """
 
 from datetime import datetime
+from unittest.mock import MagicMock
 
+import pytest
 from fastapi.testclient import TestClient
+
+
+@pytest.fixture(autouse=True)
+def stub_lazy_service_dependencies():
+    """覆盖 agents/health 链路上会惰性初始化 MemoryService 的 DI 依赖。
+
+    CARD-TEST-isolate-lifespan: AgentServiceDep → CanvasService → MemoryService
+    在**请求期**惰性 initialize，首个请求会对 NEO4J_URI 真跑 driver health_check
+    （Codex round-1 HIGH：隔离运行 test_health_ai / root-client 用例时实测）。
+    本文件只断言 HTTP 状态与响应结构，不消费这些服务的行为 —— 覆盖为哑对象。
+    """
+    from app.dependencies import get_canvas_service
+    from app.main import app
+    from app.services.memory_service import get_memory_service
+
+    saved = {
+        get_canvas_service: app.dependency_overrides.get(get_canvas_service),
+        get_memory_service: app.dependency_overrides.get(get_memory_service),
+    }
+    app.dependency_overrides[get_canvas_service] = lambda: MagicMock()
+    app.dependency_overrides[get_memory_service] = lambda: MagicMock()
+    yield
+    for dep, original in saved.items():
+        if original is None:
+            app.dependency_overrides.pop(dep, None)
+        else:
+            app.dependency_overrides[dep] = original
 
 
 class TestHealthEndpoint:

@@ -20,6 +20,7 @@ import pytest
 from app.config import Settings, get_settings
 from app.main import app
 from fastapi.testclient import TestClient
+from tests.support.lifespan import no_lifespan
 
 
 def get_settings_override() -> Settings:
@@ -44,7 +45,7 @@ def override_settings():
 
 @pytest.fixture
 def client():
-    with TestClient(app) as c:
+    with no_lifespan(app), TestClient(app) as c:
         yield c
 
 
@@ -120,9 +121,7 @@ class TestFSRSStateEndpoint:
 
     def test_returns_reason_on_service_exception(self, client, mock_review_singleton):
         """AC-1: When service raises, endpoint returns error reason gracefully."""
-        mock_review_singleton.get_fsrs_state = AsyncMock(
-            side_effect=RuntimeError("db connection failed")
-        )
+        mock_review_singleton.get_fsrs_state = AsyncMock(side_effect=RuntimeError("db connection failed"))
 
         resp = client.get("/api/v1/review/fsrs-state/concept-err")
 
@@ -271,9 +270,7 @@ class TestFrontendContractDefaultScore:
             "so PriorityCalculatorService falls back to score=50"
         )
 
-    def test_auto_created_card_returns_non_null_fsrs_state(
-        self, client, mock_review_singleton
-    ):
+    def test_auto_created_card_returns_non_null_fsrs_state(self, client, mock_review_singleton):
         """
         [P1] AC-2 + AC-4: Auto-created card must return found=true with
         non-null fsrs_state, so frontend uses real FSRS data instead of
@@ -311,17 +308,13 @@ class TestFrontendContractDefaultScore:
         [P1] AC-2 Contract: Service error → found=false, fsrs_state=null.
         Frontend falls back to score=50.
         """
-        mock_review_singleton.get_fsrs_state = AsyncMock(
-            side_effect=RuntimeError("unexpected error")
-        )
+        mock_review_singleton.get_fsrs_state = AsyncMock(side_effect=RuntimeError("unexpected error"))
 
         resp = client.get("/api/v1/review/fsrs-state/error-concept")
 
         data = resp.json()
         assert data["found"] is False
-        assert data["fsrs_state"] is None, (
-            "Frontend contract: on error, fsrs_state=null → score=50"
-        )
+        assert data["fsrs_state"] is None, "Frontend contract: on error, fsrs_state=null → score=50"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -333,9 +326,7 @@ class TestPersistHonestyForwardingD3:
     """CARD-D3: service 层的持久化诚实信号需由端点原样转发, 不得在
     响应模型处再次丢弃。"""
 
-    def test_fsrs_state_forwards_persisted_and_reason(
-        self, client, mock_review_singleton
-    ):
+    def test_fsrs_state_forwards_persisted_and_reason(self, client, mock_review_singleton):
         """auto-create 写失败: found=True + persisted=False + reason 透传。"""
         mock_review_singleton.get_fsrs_state = AsyncMock(
             return_value={
@@ -360,9 +351,7 @@ class TestPersistHonestyForwardingD3:
         assert body["persisted"] is False
         assert body["reason"] == "auto_created_not_persisted"
 
-    def test_record_forwards_card_state_persisted(
-        self, client, mock_review_singleton
-    ):
+    def test_record_forwards_card_state_persisted(self, client, mock_review_singleton):
         """评分持久化失败: card_state_persisted=False + degraded_reason 透传,
         status 仍 200 (语义不变, 仅加性字段)。"""
         mock_review_singleton.record_review_result = AsyncMock(

@@ -9,10 +9,13 @@ Tests the /metrics and /metrics/summary endpoints with real Prometheus metrics.
 [Source: specs/api/canvas-api.openapi.yml:605-660]
 """
 
+import re
+
 import pytest
 from app.config import Settings, get_settings
 from app.main import app
 from fastapi.testclient import TestClient
+from tests.support.lifespan import no_lifespan
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Fixtures
@@ -35,7 +38,7 @@ def get_test_settings() -> Settings:
 def client() -> TestClient:
     """Create test client."""
     app.dependency_overrides[get_settings] = get_test_settings
-    with TestClient(app) as test_client:
+    with no_lifespan(app), TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
 
@@ -84,13 +87,30 @@ def test_metrics_endpoint_contains_memory_metrics(client):
 
 
 def test_metrics_endpoint_contains_resource_metrics(client):
-    """Test that /metrics contains resource usage metrics."""
+    """Test that /metrics exposes EXACTLY the values from a fresh collection.
+
+    CARD-TEST-isolate-lifespan: 旧写法 ``"canvas_resource" in content or "HELP"
+    in content"`` 是恒真——lifespan 关掉后后台采集不再启动，无样本的指标族也
+    会输出 HELP/TYPE；「带数值的正则」仍会被未采集时的默认 0.0 样本骗过
+    （Codex round-2 MEDIUM）。改为：显式同步采集一次，取 collect 返回的
+    真实数值，断言 exposition 文本里出现的是**同一个值**——采集没写 gauge
+    或端点没渲染，断言都会红。
+    """
+    from app.services.resource_monitor import get_default_monitor
+
+    metrics = get_default_monitor().collect_metrics()
+    cpu_percent = metrics["cpu"]["percent"]
+    mem_percent = metrics["memory"]["percent"]
+
     response = client.get("/api/v1/health/metrics")
     content = response.text
 
-    # Should contain resource-related metrics
-    # ✅ Verified from Story 17.2 AC-3: 资源使用监控
-    assert "canvas_resource" in content or "HELP" in content
+    assert f"canvas_resource_cpu_percent {cpu_percent}" in content, (
+        f"exposition 未出现刚采集的 cpu 值 {cpu_percent}（gauge 未被写入或端点未渲染实时值）"
+    )
+    assert f"canvas_resource_memory_percent {mem_percent}" in content, (
+        f"exposition 未出现刚采集的 memory 值 {mem_percent}"
+    )
 
 
 def test_metrics_endpoint_prometheus_format(client):

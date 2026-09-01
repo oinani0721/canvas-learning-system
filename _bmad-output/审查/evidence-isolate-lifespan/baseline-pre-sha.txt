@@ -1,0 +1,5 @@
+=== PRE-BASELINE runtime-file sha record ===
+timestamp: 2026-09-01 00:32:13 +0800
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/data/bug_log.jsonl
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/app/data/vault_index_pending.jsonl
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/data/outbox/events.jsonl
