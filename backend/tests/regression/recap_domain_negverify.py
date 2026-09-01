@@ -225,20 +225,28 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
     ),
     # ── R3 round-4 (Codex round-3 三条 HIGH): 区间端点与 fallback 前处理 ──
     (
-        "survivor-18 (C-4) 区间某端无出处时退回「保留原串交给后面逐个判」"
+        "survivor-18 (C-4) 区间端点不再逐个上报、无出处时保留原串交给后面「逐个判」"
         "（而后面的循环只取紧邻量词的一端 ⇒ 另一端免检）",
         [
             (
-                "                bad_ends.extend(e for e in ends if e not in pool)\n"
+                "                for raw in (mm.group(1), mm.group(2)):\n"
+                "                    tok = _join_free(raw)\n"
+                "                    val = _count_token_value(tok)\n"
+                "                    if val is None or val not in pool:\n"
+                "                        bad_ends.append(tok)\n"
                 '                return " " * len(mm.group(0))',
+                "                ends = [\n"
+                "                    _count_token_value(_join_free(x))\n"
+                "                    for x in (mm.group(1), mm.group(2))\n"
+                "                ]\n"
                 "                return (\n"
                 '                    " " * len(mm.group(0))\n'
-                "                    if all(e in pool for e in ends)\n"
+                "                    if all(e is not None and e in pool for e in ends)\n"
                 "                    else mm.group(0)\n"
                 "                )",
             )
         ],
-        "r7_range",
+        "r7_range or r8_entities",
     ),
     (
         "survivor-19 (C-4) fallback 的千分位归一与小数防线被摘除（退回对原行直接 findall 逐片入池）",
@@ -259,11 +267,60 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
                 '_DECIMAL_SEP = r"[.点]"',
             ),
             (
-                'return re.sub(r"(?<=[0-9])[,，](?=[0-9]{3}(?![0-9]))", "", line)',
-                'return re.sub(r"(?<=[0-9]),(?=[0-9]{3}(?![0-9]))", "", line)',
+                'rf"([0-9]){_D2_JOIN_ONE}*[,，]{_D2_JOIN_ONE}*(?=[0-9]{{3}}(?![0-9]))"',
+                'r"(?<=[0-9]),(?=[0-9]{3}(?![0-9]))"',
             ),
         ],
         "r7_range",
+    ),
+    # ── R3 round-5 (Codex round-4 七条 HIGH): 四条承重变体 ──
+    # ⛔ Codex 指出 survivor-19/20 各组合多个替换共用一个测试函数,
+    # 「变红」只能证明每个组合**至少一项**承重。下面四条**逐条单一性质**,
+    # 各自对应一个独立的 -k 关键字, 便于分辨。
+    (
+        "survivor-21 (C-5) 句式判定改回取自**挖空之后**的行（裸『总计』自陈失锚）",
+        [
+            (
+                "            is_claim = bool(_D2_CLAIM_RE.search(line))",
+                "            is_claim = False",
+            )
+        ],
+        "r8_entities",
+    ),
+    (
+        "survivor-22 (C-5) HTML 字符实体不再规范化（&#46; / &#20010; 重新免检）",
+        [("    line = html.unescape(line)", "    line = line")],
+        "r8_entities",
+    ),
+    (
+        "survivor-23 (C-5) 小数式左侧数串改回必需（`.5个` / `．五个` 重新免检）",
+        [
+            (
+                '_DECIMAL_ANY_RE = re.compile(rf"(?:{_NUM_RUN_PAT})?{_DECIMAL_SEP}{_NUM_RUN_PAT}")',
+                '_DECIMAL_ANY_RE = re.compile(rf"{_NUM_RUN_PAT}{_DECIMAL_SEP}{_NUM_RUN_PAT}")',
+            ),
+            (
+                'rf"((?:{_NUM_RUN_PAT})?{_DECIMAL_SEP}{_NUM_RUN_PAT}){_D2_JOIN_ONE}*(?={_D2_QUANT})"',
+                'rf"({_NUM_RUN_PAT}{_DECIMAL_SEP}{_NUM_RUN_PAT}){_D2_JOIN_ONE}*(?={_D2_QUANT})"',
+            ),
+        ],
+        "r8_entities",
+    ),
+    (
+        "survivor-24 (C-5) 区间端点改回裸 int() 且不共用数串式（中文/连接字符端点免检）",
+        [
+            (
+                "                for raw in (mm.group(1), mm.group(2)):\n"
+                "                    tok = _join_free(raw)\n"
+                "                    val = _count_token_value(tok)\n"
+                "                    if val is None or val not in pool:\n"
+                "                        bad_ends.append(tok)",
+                '                for raw in re.findall(r"[0-9]+", mm.group(0)):\n'
+                "                    if int(raw) not in pool:\n"
+                "                        bad_ends.append(raw)",
+            )
+        ],
+        "r8_entities",
     ),
 ]
 

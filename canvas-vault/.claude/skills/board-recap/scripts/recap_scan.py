@@ -67,6 +67,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import html
 import json
 import math
 import re
@@ -1390,7 +1391,10 @@ def _join_free(s: str) -> str:
 # ⛔ 量词表按对抗审查给的 21 个常用表外量词扩充 (原 11 字表实测被
 # 「名/位/台/件/册/组/批/轮/遍/趟/人/句/行/段/点/种/类/本/页/题/章」整域绕过)。
 # 这仍是**封闭表**——如实登记的边界, 不宣称"位置承担了一切"。
-_D2_QUANT = r"[个条块次份处板项篇道张名位台件册组批轮遍趟人句行段点种类本页题章]"
+# ⛔ R3 round-5 (Codex round-4 HIGH-7): 表漏 `层/节/列/枚/步/级/则/回/幕/维`
+# ⇒ `本板共有987654层关系` 整句**零校验**。补入常用计数量词。
+# 仍是**封闭表**(与定界集、数词表同口径, 如实登记, 不宣称覆盖全部量词)。
+_D2_QUANT = r"[个条块次份处板项篇道张名位台件册组批轮遍趟人句行段点种类本页题章层节列枚步级则回幕维]"
 # ⛔ R3 round-3: 原 `_D2_COUNT_RE`(ASCII 专用取数式) 与 `_CJK_NUM_RUN_*`(CJK 专用)
 # 已**合并**为 `_COUNT_BEFORE_QUANT_RE` / `_NUM_RUN_RE`(见 _NUM_RUN_PAT 处)——
 # 按字符类分成两条循环正是「跨类/表外字符成为断点」的成因。两者删除而非保留:
@@ -1433,7 +1437,10 @@ _D2_ORDERED_LIST_RE = re.compile(r"^(\s*)\d+\.(\s)", re.M)
 _D2_TEMPLATE_CONSTANTS = ("最老 3 条原话",)
 # ⛔ R3 round-4 (Codex round-3): 原式手抄了**旧的 11 字**量词表, 与已扩到 34 字的
 # _D2_QUANT 分叉 —— 表外量词的区间根本不被识别为区间。改为共用 _D2_QUANT。
-_D2_RANGE_RE = re.compile(rf"[0-9]+\s*(?:[~\-—–]|到|至)\s*[0-9]+\s*{_D2_QUANT}")
+# ⛔ R3 round-5 (Codex round-4 HIGH-2): 原式是**裸 ASCII 窄路径**, 不复用
+# 数串/连接字符 —— `本板共有987654<b>-</b>0个…` 渲染成同一个区间, 却整条不匹配,
+# 于是只按右端 `0` 入池; 中文/混写端点同理。改为共用 _NUM_RUN_PAT 与 _D2_JOIN_ONE。
+# ⚠️ 定义位置在 _NUM_RUN_PAT 之后(见文件下方), 故此处只留占位说明, 实体见 :RANGE。
 
 
 def _scan_number_pool(obj, pool: set[int]) -> None:
@@ -1524,7 +1531,10 @@ _CJK_NUM_CHARS = "".join(sorted(set(_CJK_NUM) | set(_CJK_UNIT)))
 #   进来只会让整串变得"无法确定", 不会被猜成某个数。
 # 表外中文数词按常用面登记 (仍是**封闭表**, 与量词表同口径): 廿卅卌 + 大写金融
 # 数字 + 异体。加它们**只增加拒绝面**, 不增加放行面。
-_CJK_NUM_EXTRA = "廿卅卌壹贰貳叁參参肆伍陆陸柒捌玖拾佰仟萬亿億两兩"
+# ⛔ R3 round-5 (Codex round-4 HIGH-6): 漏 `兆京垓秭穰` 等大数单位 ⇒
+# `九兆五个` 会从 `五` 重锚按 5 查池（与此前判 HIGH 的 `廿五` **同机制**）。
+# 定界集只定界不赋值, 加字符**只增加拒绝面**、不增加放行面。
+_CJK_NUM_EXTRA = "廿卅卌壹贰貳叁參参肆伍陆陸柒捌玖拾佰仟萬亿億两兩兆京垓秭穰"
 _NUMERAL_LIKE_CHARS = "".join(
     sorted(set(_CJK_NUM_CHARS) | set(_CJK_NUM_EXTRA) | set("0123456789"))
 )
@@ -1532,6 +1542,12 @@ _NUM_RUN_PAT = rf"[{_NUMERAL_LIKE_CHARS}](?:{_D2_JOIN_ONE}*+[{_NUMERAL_LIKE_CHAR
 _NUM_RUN_RE = re.compile(_NUM_RUN_PAT)
 # 量词前的计数: 整串 + 连接字符 + 量词前瞻。
 _COUNT_BEFORE_QUANT_RE = re.compile(rf"({_NUM_RUN_PAT}){_D2_JOIN_ONE}*(?={_D2_QUANT})")
+# :RANGE —— 区间式(E7)。端点用与普通计数**同一个** _NUM_RUN_PAT, 连字符两侧
+# 容连接字符, 量词共用 _D2_QUANT。端点判值走 _count_token_value(同一判据)。
+_D2_RANGE_RE = re.compile(
+    rf"({_NUM_RUN_PAT}){_D2_JOIN_ONE}*(?:[~\-—–]|到|至){_D2_JOIN_ONE}*"
+    rf"({_NUM_RUN_PAT}){_D2_JOIN_ONE}*(?={_D2_QUANT})"
+)
 # ⛔ CJK 小数形态: `点` 在量词表里 (`3 点建议` 是合法量词用法), 于是
 # `五点五个` / `5点5个` 被拆成两个 5 分别碰池, 而读者看到的是 5.5 (实测 exit 0)。
 # ASCII 侧早有 _D2_DECIMAL_RE 把小数一律判 FAIL (scan 的计数都是整数),
@@ -1541,9 +1557,12 @@ _COUNT_BEFORE_QUANT_RE = re.compile(rf"({_NUM_RUN_PAT}){_D2_JOIN_ONE}*(?={_D2_QU
 # 两道小数防线全不命中, 普通循环只按尾片 `0` 查池 (实测 exit 0)。
 # 小数分隔符同时认半角 `.`、全角 `．` 与中文 `点`。
 _DECIMAL_SEP = rf"{_D2_JOIN_ONE}*[.．点]{_D2_JOIN_ONE}*"
-_DECIMAL_ANY_RE = re.compile(rf"{_NUM_RUN_PAT}{_DECIMAL_SEP}{_NUM_RUN_PAT}")
+# ⛔ R3 round-5 (Codex round-4 HIGH-5): 原式要求分隔符**两侧都有数串**,
+# 于是 `.5个` / `．五个` 不命中小数式, 尾片 `5` 照常入池 —— 违反本域
+# 「小数计数恒 FAIL」的既有口径。左侧数串改为可选。
+_DECIMAL_ANY_RE = re.compile(rf"(?:{_NUM_RUN_PAT})?{_DECIMAL_SEP}{_NUM_RUN_PAT}")
 _CJK_DECIMAL_RE = re.compile(
-    rf"({_NUM_RUN_PAT}{_DECIMAL_SEP}{_NUM_RUN_PAT}){_D2_JOIN_ONE}*(?={_D2_QUANT})"
+    rf"((?:{_NUM_RUN_PAT})?{_DECIMAL_SEP}{_NUM_RUN_PAT}){_D2_JOIN_ONE}*(?={_D2_QUANT})"
 )
 
 
@@ -1556,7 +1575,19 @@ def _normalize_number_seps(line: str) -> str:
     ⚠️ 必须**删掉**分隔符而不是换成空格: 换成空格会让它落进连接集,
     虽然仍能拼回, 但诊断里会出现带空格的原串, 与"读者看到的数"错位。
     """
-    return re.sub(r"(?<=[0-9])[,，](?=[0-9]{3}(?![0-9]))", "", line)
+    # ⛔ R3 round-5 (Codex round-4 HIGH-4): 先解 HTML 字符实体 —— 只特判
+    # `&nbsp;`/`&#160;` 时, `987654&#46;0个` 渲染成小数却只查尾片 `0`,
+    # `987654&#20010;` 渲染成 `987654个` 却连量词锚点都没有。html.unescape 把
+    # 校验文本推向**渲染后文本**, 与本域"读者看到的数才算数"的口径一致。
+    # ⚠️ 此处已过等长约束区间(见调用点注释), 长度变化无害。
+    line = html.unescape(line)
+    # ⛔ R3 round-5 (Codex round-4 HIGH-3): 逗号两侧也可能夹连接字符 ——
+    # `987654<b>,</b>000个` 渲染成 `987654,000个`, 原式(要求逗号紧邻数字)不命中。
+    return re.sub(
+        rf"([0-9]){_D2_JOIN_ONE}*[,，]{_D2_JOIN_ONE}*(?=[0-9]{{3}}(?![0-9]))",
+        r"\1",
+        line,
+    )
 
 
 def _count_token_value(token: str) -> int | None:
@@ -1685,11 +1716,20 @@ def _verify_prose_counts(text: str, scan: dict, problems: list[str]) -> None:
             # ⇒ exit 0 放行 (实测)。既有门只测了反方向 `1-987654`(大数在右)。
             # 现改为: **两端都终核**, 无出处的端点逐个报, 并把整段挖空
             # (避免后面的循环再按单端重复判/漏判)。
-            bad_ends: list[int] = []
+            # ⛔ R3 round-5 (Codex round-4 HIGH-1): 句式判定必须取自**挖空之前**的行 ——
+            # `_D2_CLAIM_RE` 的「共有/总计 + 数字」分支依赖其后仍有数字, 而区间替换
+            # 先把整段挖空, 于是 `总计987654-0个…` 挖空后句式门直接 continue,
+            # 已收集的坏端点再也报不出来 (实测 exit 0)。
+            is_claim = bool(_D2_CLAIM_RE.search(line))
+            bad_ends: list[str] = []
 
             def _range_ok(mm):
-                ends = [int(x) for x in re.findall(r"[0-9]+", mm.group(0))]
-                bad_ends.extend(e for e in ends if e not in pool)
+                # 端点走**同一个**判值器: 中文/混写端点不再免检 (原为裸 int())。
+                for raw in (mm.group(1), mm.group(2)):
+                    tok = _join_free(raw)
+                    val = _count_token_value(tok)
+                    if val is None or val not in pool:
+                        bad_ends.append(tok)
                 return " " * len(mm.group(0))
 
             # ⚠️ 端点报错必须发在**句式门之后** —— 第一版发在这里, 于是
@@ -1708,12 +1748,13 @@ def _verify_prose_counts(text: str, scan: dict, problems: list[str]) -> None:
             # 反过来它也解释了拦截力为何弱: 能拦住的只有大到不可能碰撞的数。
             # ⇒ D2 只对**明确自称全板规模**的句式生效 (「本板共有 N 个…」这类),
             # 其余叙述交给 D1 的逐字段绑定与人工判读。宁可少管, 不可乱判。
-            if not _D2_CLAIM_RE.search(line):
+            if not (is_claim or _D2_CLAIM_RE.search(line)):
                 continue
             for _e in bad_ends:
                 problems.append(
                     f"数字终核: 『{sec}』段区间端点 {_e} 在 scan JSON 里找不到同值来源 "
-                    f"(区间两端都必须有出处): {line.strip()[:50]}"
+                    f"(区间两端都必须有出处, 无法解析的端点同样不算有出处): "
+                    f"{line.strip()[:50]}"
                 )
             # 小数形态的计数一律 FAIL: scan JSON 的计数都是整数, 一个"0.987654 个"
             # 不可能有出处; 放行它等于给任意数字留一个 `0.` 前缀的免检通道。
