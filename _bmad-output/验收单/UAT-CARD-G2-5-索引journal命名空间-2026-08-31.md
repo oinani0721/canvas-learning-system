@@ -434,3 +434,36 @@ stderr 214KB 含审查过程可抢救正文——记忆 `reference_codex_exec_go
 抢救正文无最终判决（被拦在报告输出前）；按卡文「缩小读取范围重发一次（计入
 轮次）」处置，重发版提示词限定读取范围并明示以文字描述绕过（不再构造可执行
 攻击脚本，降低再次触发过滤器的面）。
+
+### 9.7 round-4b 判决与 round-5 整改（最后一轮）
+
+**round-4b 判决**（`codex-review-CARD-G2-5-round4b.md`）：HIGH-3 竞态主路径
+**CONFIRMED-CLOSED**（残余降 MEDIUM）；e①②/d②③⑥ 全部 CONFIRMED-CLOSED；唯一
+残留 **HIGH = e③ 的方向性死门**——helper 未断言「没有周期反熵」存在，缺它时
+finditer 零次循环静默放行，且旧「缺另一短语」篡改门测的是缺第一短语的反方向。
+另列 MEDIUM×6 / LOW×1。
+
+**round-5 修复**：
+
+| 项 | 级别 | 修复 |
+|---|---|---|
+| e③ 缺第二短语零次循环放行 | **HIGH** | helper 加独立存在性断言「没有周期反熵 in text」+ 新增**反方向**篡改门（样本刻意满足引用-否定语境，唯一能拒它的是存在性断言——本地验证 REJECT 原因恰为「缺事实断言」） |
+| 锁内重读 OSError 被当空文件仍 rewrite/unlink | MEDIUM | fail-closed：读失败 → 不写不删 + 计数 + persist_failed=1 |
+| 并发 fresh 条目未计入返回 pending | MEDIUM | `pending = len(still_pending) + len(fresh)` |
+| d③ 缺混合成功/失败场景 | MEDIUM | 加混合锁：1 excluded + 1 persist_failed → 仍 503 + durable=False |
+| d⑥「逐键断言」文案不符（实际只比 canvas_name） | MEDIUM | 断言加强为完整 dict 相等 |
+| docstring 篡改门计数漂移（×4→×10） | LOW | 更正 |
+| 相同行 multiplicity（并发 append 与旧行逐字同） | MEDIUM | **登记不修**：正常写入含时间戳字节必不同；触发需「字节全同 + 特定时序」，且同内容条目幂等——真发生等价于同意图重复登记，损失为零差。登记 9.8 |
+| e① 扫描根/周期仍是源码+声明级绑定 | MEDIUM | **登记不修**：行为化需跑真 os.walk/长周期等待，成本远超风险（§9.5 已声明） |
+
+修复后 `test_g25_journal_namespace.py` → **27 passed**；format/lint 过。
+
+### 9.8 round-5 未证明什么（追加登记）
+
+- 相同行 multiplicity：`orig_lines` 集合化使「与旧快照逐字相同的新 append」被当残影。
+  真实写入恒带 ISO 时间戳 → 字节级重复要求毫秒内同 canvas 同 error 同内容，且该场景
+  语义上等价于同意图重复登记（幂等无害）。**接受为已披露残余**，不设防。
+- e① 行为探针证明「_scan_loop 周期调 reconcile」，未证明它使用**配置**周期
+  （`self._scan_interval` 的绑定属源码级）。
+- 篡改门 ×10 是已知误放形态的封闭集；正则/窗口法对任意 paraphrase 不可穷举，
+  口径的最终兜底是三段受控真实文本 + 人工复核（盘点文档 md 不进测试）。

@@ -615,6 +615,19 @@ def test_refresh_changed_endpoint_returns_503_when_journal_unwritable(tmp_path):
     assert ok.persist_failed == 0
     assert [r.status for r in ok.results] == ["accepted"] * len(paths)
 
+    # ⛔ round-4b Codex MEDIUM: 混合场景——部分路径 excluded 部分 persist_failed
+    # → 仍必须 503 (任何 durable 失败都不许被成功/排除路径稀释)
+    (tmp_path / "m").mkdir()
+    mixed_orch = _plain_orchestrator(d, _bad_state_dir(tmp_path / "m"))
+    mixed_resp = asyncio.run(_drive_refresh_changed(["节点/ok.md", "/abs/x.md"], mixed_orch))
+    # "/abs/x.md" 绝对路径 → enqueue 首道守卫直接 excluded (确定性, 不依赖黑名单);
+    # "节点/ok.md" 走 enqueue → persist_failed
+    assert mixed_resp.status_code == 503
+    mixed_body = json.loads(mixed_resp.body)
+    assert mixed_body["persist_failed"] == 1
+    assert mixed_body["durable"] is False
+    assert sorted(r["status"] for r in mixed_body["results"]) == ["excluded", "persist_failed"]
+
 
 def test_lance_persist_pending_returns_false_when_state_dir_is_a_file(tmp_path):
     """(d)④ Lance service 同型锁: _persist_pending 返回 False + 计数可见。"""
@@ -723,8 +736,9 @@ def test_lance_recover_pending_keeps_journal_when_rewrite_fails(tmp_path, monkey
     result2 = asyncio.run(svc2.recover_pending(str(tmp_path / "vault")))
     assert result2["persist_failed"] == 0
     kept = [json.loads(ln) for ln in journal2.read_text(encoding="utf-8").strip().splitlines() if ln.strip()]
-    assert [e["canvas_name"] for e in kept] == ["canvas-a"], (
-        f"真实重写必须把 journal 收缩为 still-pending 条目, 实际: {kept}"
+    # ⛔ round-4b Codex MEDIUM: 逐键断言 (旧版只比 canvas_name, 字段丢失/改变仍绿)
+    assert kept == [{"canvas_name": "canvas-a", "error": "e1"}], (
+        f"真实重写必须把 journal 收缩为 still-pending 条目 (内容逐键), 实际: {kept}"
     )
 
 
@@ -914,6 +928,10 @@ def _assert_convergence_wording(text: str) -> None:
     import re
 
     assert "只覆盖当前部署" in text, "缺作用域限定「只覆盖当前部署」"
+    # ⛔ round-4b Codex HIGH: 存在性断言必须独立于句级循环 —— 缺「没有周期反熵」
+    # 时 finditer 零次循环会静默放行 (旧版正是这个洞, 且旧篡改门测的是缺第一
+    # 短语的反方向)
+    assert "没有周期反熵" in text, "缺事实断言「没有周期反熵」"
 
     question_marks = ("？", "?", "吗", "呢", "是否", "有没有", "难道", "岂", "怎能", "怎么会")
     for m in re.finditer(r"没有周期反熵", text):
@@ -949,7 +967,7 @@ def _assert_convergence_wording(text: str) -> None:
 
 
 def test_convergence_wording_has_no_unqualified_60s_claim(tmp_path, caplog):
-    """(e)③ 文案门: 三段真实口径文本逐段过 helper; 四条篡改门必须 AssertionError。"""
+    """(e)③ 文案门: 三段真实口径文本逐段过 helper; 十条篡改门必须 AssertionError。"""
     import ast as _ast
     import logging
 
@@ -978,14 +996,22 @@ def test_convergence_wording_has_no_unqualified_60s_claim(tmp_path, caplog):
     assert "已隔离" in warnings_text, f"隔离 warning 必须发出, 实际: {warnings_text!r}"
     _assert_convergence_wording(warnings_text)
 
-    # 篡改门 ×4: 每道放行门配**专测那道半**的同语料篡改门 (round-3 Codex:
-    # 旧第一条同时缺两短语, 删掉 60s 检查它照样红 —— 没有专测 60s 半)
+    # 篡改门 ×10: 每道放行门配**专测那道半**的同语料篡改门 (round-3 Codex:
+    # 旧第一条同时缺两短语, 删掉 60s 检查它照样红 —— 没有专测 60s 半;
+    # round-4 抢救三绕过 + round-4b 缺第二短语反方向, 共 10 条)
     with pytest.raises(AssertionError):
         _assert_convergence_wording("旧 journal 在约 60 秒内必收敛, 无需处理。")  # 全缺
     with pytest.raises(AssertionError):
         _assert_convergence_wording("两个 journal 有没有周期反熵? 只覆盖当前部署的范围。")  # 疑问句
     with pytest.raises(AssertionError):
         _assert_convergence_wording("lancedb 侧没有周期反熵。")  # 缺另一短语
+    # ⛔ round-4b Codex HIGH 堵口: 反方向篡改——只缺「没有周期反熵」。样本刻意
+    # 满足引用-否定语境 (能过语境检查), 唯一能拒它的是第二短语存在性断言
+    # (旧版此处无测试, helper 对第二短语缺失零次循环静默放行)
+    with pytest.raises(AssertionError):
+        _assert_convergence_wording(
+            "orchestrator 侧只覆盖当前部署的这个 vault（旧文案曾经这么写），约 60 秒内必收敛，不成立。"
+        )
     # 专测 60s 语境半: 含两短语、收敛断言不带引用-否定 → 必须红
     with pytest.raises(AssertionError):
         _assert_convergence_wording(

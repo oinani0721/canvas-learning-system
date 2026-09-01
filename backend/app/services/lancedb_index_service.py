@@ -279,8 +279,20 @@ class LanceDBIndexService:
             fresh = []
             try:
                 cur_lines = self._pending_file.read_text(encoding="utf-8").strip().splitlines()
-            except (OSError, FileNotFoundError):
-                cur_lines = []
+            except (OSError, FileNotFoundError) as e:
+                # ⛔ round-4b Codex MEDIUM: 重读失败不得当作「空文件」继续
+                # rewrite/unlink —— 那会用旧快照覆盖未知内容。fail-closed:
+                # 不写不删, 计数 + persist_failed=1。
+                self._durable_write_failures += 1
+                self._last_durable_error = f"{type(e).__name__}: {e}"
+                logger.error(
+                    f"[Story 38.1] journal re-read FAILED ({e}) — keeping file as-is, {len(still_pending)} intent(s) preserved"
+                )
+                return {
+                    "recovered": recovered,
+                    "pending": len(still_pending),
+                    "persist_failed": 1,
+                }
             for ln in cur_lines:
                 if not ln.strip() or ln in orig_lines:
                     continue  # 旧快照残影 (含已消费/仍 pending 的行), 不参与合并
@@ -300,7 +312,9 @@ class LanceDBIndexService:
 
         return {
             "recovered": recovered,
-            "pending": len(still_pending),
+            # ⛔ round-4b Codex MEDIUM: 重放窗口内新 append 的条目 (fresh) 同样
+            # 仍待处理, 必须计入 pending (旧版只数 still_pending 会少报)。
+            "pending": len(still_pending) + len(fresh),
             # ⛔ CARD-G2-5 HIGH-3: 重写失败 = 崩溃后无法恢复这批意图, 必须可见。
             "persist_failed": 0 if rewrite_ok else 1,
         }
