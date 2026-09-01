@@ -7,18 +7,18 @@
 
 OpenAPI 漂移门此前是假门(CI 查一个全历史从不存在的仓库根文件、失败被 `|| true` 吞掉、
 lefthook spec-sync 死了 4 个月), 本卡把它们修活: 门真的能翻红、快照重生成(同时登记
-5 个月漂移)、三个 CI/CD 处置按默认落 commit 待用户逐项批。经 Codex 两轮对抗审查
-(4+2 BLOCKER 全数证实并整改), 现待第三轮终验。
+5 个月漂移)、三个 CI/CD 处置按默认落 commit 待用户逐项批。经 Codex 三轮对抗审查
+(累计 8 BLOCKER + 2 HIGH 全数证实并整改), 按卡文「最多 3 轮」停轮收口, 停轮声明见六。
 
 ## 一、改动面(首 commit 8 文件, 此后 Codex 整改 commit 增量; 生产代码 backend/app/** 零改动)
 
 | 文件 | 动作 | 说明 |
 |---|---|---|
 | `scripts/spec-tools/check-openapi-drift.py` | 新增 | 唯一合法快照写入口: --snapshot 只读比对 / --write 重生成; stdlib-only; import 期 socket 禁闭自证不起 lifespan |
-| `backend/openapi.json` | 重生成 | 只经 --write; 163→192 paths, 299→353 schemas; x-generated-at=2026-09-01T09:21:35Z(UTC/沪时均 ≥2026-09-01) |
+| `backend/openapi.json` | 重生成 | 只经 --write; 163→192 paths, 299→353 schemas; 终态 x-generated-at=2026-09-01T11:12:37Z(UTC/沪时均 ≥2026-09-01) |
 | `.github/workflows/api-spec-sync.yml` | 修改 | 路径全改 backend/openapi.json; 漂移=job 红; 删 update-spec 假门 job; Dredd if:false 停用; breaking 基线改 git show origin/<base>:backend/openapi.json |
-| `lefthook.yml` | 修改 | spec-sync 段重写: backend/.venv/bin/python + 失败 exit 1 出声 + git add backend/openapi.json |
-| `backend/tests/contract/test_openapi_snapshot_drift.py` | 新增 | 进程内门 19 测试: 生产形态(真实 app.openapi() vs committed 快照) + 合成形态(归一化五规则承重) |
+| `lefthook.yml` | 修改 | spec-sync 重写为 flat+root 双命令: backend/.venv/bin/python + 失败 exit 1 出声 + `git add \|\| exit 1` + pre-commit 串行(防 index.lock 争抢) |
+| `backend/tests/contract/test_openapi_snapshot_drift.py` | 新增 | 进程内门 23 测试: 生产形态(真实 app.openapi() vs committed 快照) + 合成形态(归一化规则承重, 含三轮审查的全部反例) |
 | `backend/scripts/openapi_drift_negative_control.py` | 新增 | 负控: 3 红变异(删 path/改 enum/删 required, 逐个点名) + 1 放行对照(只改时间戳) + 正本 sha 前后一致门 |
 | `_bmad-output/审查/prompts/codex-prompt-CARD-DEBT-openapi-sync.md` | 新增 | Codex 冻结审查提示词 |
 
@@ -45,7 +45,7 @@ NEGATIVE-CONTROL: PASS (3 mutants → exit 1 with named diff; timestamp-only →
 **裁判 3** `caffeinate -i .venv/bin/pytest tests/contract/test_openapi_snapshot_drift.py -q -p no:cacheprovider` → exit 0(在 W4② 的 socket 门下)
 ```
 NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
-19 passed, 10 warnings in 0.84s
+23 passed, 10 warnings in 0.84s
 ```
 
 **裁判 4** 根路径引用 grep → **0 行**; `grep -c "update-spec:"` → **0**。
@@ -53,7 +53,7 @@ NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
 **裁判 5** 快照内容:
 ```
 review-suggestions 200 → {"$ref": "#/components/schemas/ReviewSuggestionsResponse"}
-x-generated-at → 2026-09-01T09:21:35.844092+00:00
+x-generated-at → 2026-09-01T11:12:37.438358+00:00(终态)
 retrieval_status 计数 → 10 (≥4)
 ```
 
@@ -125,9 +125,10 @@ commit 是全批最后一个合入; 批次收官时主 session 必须在最终�
 6. **socket 禁闭的观测副作用** — 禁闭拦下 LiteLLM 拉远程 model cost map(本机走代理
    127.0.0.1:1082), 它自带本地 fallback、不进 schema; 已实测带/不带禁闭导出逐字节相同
    (sha 前 16 位同为 919d6b41fb870217)。
-7. **lefthook glob 引擎边界(本机 2.1.6 实测)** — 数组形态完全不工作、`**` 需跨至少
-   一级、花括号备选项必须是真实存在的路径; 因此 spec-sync 拆三条命令, 触发面以探针
-   逐条验证(mcp/server.py、config.py、api 端点文件各命中对应命令)。CI 的 ubuntu
+7. **lefthook glob 引擎边界(本机 2.1.6 实测, 5 文件×3 模式矩阵探针)** — 单 `*` 跨
+   目录层级、`**` 需跨至少一级(故 `{..}/**/*.py` 是 `{..}/*.py` 的真子集, 57⊂85);
+   spec-sync 终为 flat+root 两条零重叠命令(三探针: mcp/server.py→flat,
+   config.py→root, api 端点→flat), pre-commit 串行化后双触发零碰撞。CI 的 ubuntu
    lefthook 版本若不同, 行为可能不同——但 lefthook 只影响本地 hook, 不影响 CI 门。
 
 ## 四、每道门「证明什么 / 不证明什么」
