@@ -1,38 +1,57 @@
-# git diff --check 分类（CARD-维护B-R3）
+# git diff --check 分类（CARD-维护B-R3 终态）
 # merge-base(HEAD, CODE_BASE_SHA 928010b9) = 7aac588d8a1c341b47d22776dc0fdc59d06d8789
+# 判据行形态: <path>:<line>: <message>. ; diff 的 + 续行不计入（它们是被引用的原文）。
+# ⚠️ 本文件只记分类与计数、不抄原始告警行 —— 抄进来会让证据文件自己变成新的告警源。
 
-## A. HEAD 历史（MB..HEAD）按文件归类（只取文件名，不列逐行）
-   420  _bmad-output/审查/codex-review-CARD-维护B-round3.stderr  ← trailing whitespace.
-   369  _bmad-output/审查/codex-review-CARD-维护B-round4.stderr  ← trailing whitespace.
-   246  _bmad-output/审查/codex-review-CARD-维护B-round2.stderr  ← trailing whitespace.
-   100  _bmad-output/审查/codex-review-CARD-维护B-round5.stderr  ← trailing whitespace.
-    21  _bmad-output/审查/evidence-maintb-r2/replay-after-mutant-6.out  ← trailing whitespace.
-    12  _bmad-output/审查/evidence-maintb-r2/replay-after-mutant-2.out  ← trailing whitespace.
-     7  _bmad-output/审查/evidence-maintb-r2/replay-after-mutant-3.out  ← trailing whitespace.
-     6  _bmad-output/审查/evidence-maintb-r2/replay-after-mutant-5.out  ← trailing whitespace.
-     6  _bmad-output/审查/evidence-maintb-r2/replay-after-mutant-1.out  ← trailing whitespace.
-     5  _bmad-output/审查/evidence-maintb-r2/replay-after-mutant-7.out  ← trailing whitespace.
-     3  _bmad-output/审查/evidence-maintb-r2/replay-after-mutant-8.out  ← trailing whitespace.
-     3  _bmad-output/审查/evidence-maintb-r2/replay-after-mutant-4.out  ← trailing whitespace.
-     2  _bmad-output/审查/codex-review-CARD-维护B-round1.md  ← trailing whitespace.
-     1  _bmad-output/验收单/UAT-CARD-维护B-数字治理域-2026-08-31.md  ← trailing whitespace.
+## A. HEAD 历史（MB..HEAD）按 文件 x 告警类型 归类
+ 420 _bmad-output/审查/codex-review-CARD-维护B-round3.stderr  <- trailing whitespace.
+ 369 _bmad-output/审查/codex-review-CARD-维护B-round4.stderr  <- trailing whitespace.
+ 246 _bmad-output/审查/codex-review-CARD-维护B-round2.stderr  <- trailing whitespace.
+ 169 _bmad-output/审查/codex-review-CARD-维护B-R3-round1-filtered.stderr  <- trailing whitespace.
+ 100 _bmad-output/审查/codex-review-CARD-维护B-round5.stderr  <- trailing whitespace.
+  77 _bmad-output/审查/codex-review-CARD-维护B-R3.stderr  <- trailing whitespace.
+  21 _bmad-output/审查/evidence-maintb-r2/replay-after-mutant-6.out  <- trailing whitespace.
+  12 _bmad-output/审查/evidence-maintb-r2/replay-after-mutant-2.out  <- trailing whitespace.
+   7 _bmad-output/审查/evidence-maintb-r2/replay-after-mutant-3.out  <- trailing whitespace.
+   6 _bmad-output/审查/evidence-maintb-r2/replay-after-mutant-5.out  <- trailing whitespace.
+   6 _bmad-output/审查/evidence-maintb-r2/replay-after-mutant-1.out  <- trailing whitespace.
+   5 _bmad-output/审查/evidence-maintb-r2/replay-after-mutant-7.out  <- trailing whitespace.
+   3 _bmad-output/审查/evidence-maintb-r2/replay-after-mutant-8.out  <- trailing whitespace.
+   3 _bmad-output/审查/evidence-maintb-r2/replay-after-mutant-4.out  <- trailing whitespace.
+   2 _bmad-output/审查/codex-review-CARD-维护B-round1.md  <- trailing whitespace.
+   1 _bmad-output/验收单/UAT-CARD-维护B-数字治理域-2026-08-31.md  <- trailing whitespace.
+
+## 完整性对账
+告警行总数 = 1447 （上表逐条计入，无遗漏）
+
+## 命中路径全集（去重）
+_bmad-output/审查/codex-review-CARD-维护B-R3-round1-filtered.stderr
+_bmad-output/审查/codex-review-CARD-维护B-R3.stderr
+_bmad-output/审查/codex-review-CARD-维护B-round1.md
+_bmad-output/审查/codex-review-CARD-维护B-round2.stderr
+_bmad-output/审查/codex-review-CARD-维护B-round3.stderr
+_bmad-output/审查/codex-review-CARD-维护B-round4.stderr
+_bmad-output/审查/codex-review-CARD-维护B-round5.stderr
+_bmad-output/审查/evidence-maintb-r2/replay-after-mutant-1.out
+_bmad-output/审查/evidence-maintb-r2/replay-after-mutant-2.out
+_bmad-output/审查/evidence-maintb-r2/replay-after-mutant-3.out
+_bmad-output/审查/evidence-maintb-r2/replay-after-mutant-4.out
+_bmad-output/审查/evidence-maintb-r2/replay-after-mutant-5.out
+_bmad-output/审查/evidence-maintb-r2/replay-after-mutant-6.out
+_bmad-output/审查/evidence-maintb-r2/replay-after-mutant-7.out
+_bmad-output/审查/evidence-maintb-r2/replay-after-mutant-8.out
+_bmad-output/验收单/UAT-CARD-维护B-数字治理域-2026-08-31.md
 
 ## 分类结论
-全部命中均在 _bmad-output/审查/ 与 _bmad-output/验收单/ 下 = **历史 exact 审查存档与证据输出**
-（Codex 报告正文/stderr 原样落盘、变异重放 .out）。按第九批手册 §四.2:
-「不得篡改历史 exact review 以制造假绿」⇒ **不修**，如实分类登记。
-生产代码 / 测试代码 / skill 脚本命中数 = 0（下面 grep 验伪）:
+全部命中在 _bmad-output/ 下 = 历史 exact 审查存档（Codex 报告正文/stderr 原样落盘、
+变异重放 .out、前序验收单）。按第九批手册 §四.2「不得篡改历史 exact review 以制造
+假绿」=> 不修, 如实分类登记。
+生产/测试/skill 代码命中数 = 0
 0
-  0（grep 无匹配 = 零命中）
 
-## B. 本卡工作区未提交改动（= 本卡真正引入的字节）
-  ↑ 无输出 = 本卡改动零 whitespace 问题
-
-## C. 分类完整性对账（防「分类比总数少」的假绿）
-带 `file:line` 前缀的告警行总数 = 1203
-上表 trailing-whitespace 分类 = 1201
-余 2 条（另一种告警类型，补记如下，同属历史 exact 存档）:
-  1  _bmad-output/审查/codex-review-CARD-维护B-round3.md:111: new blank line at EOF.
-  1  _bmad-output/审查/codex-review-CARD-维护B-round5.md:24:  new blank line at EOF.
-⇒ 1201 + 2 = 1203，**逐条已分类，无遗漏**。全部为 Codex 报告/stderr/变异重放输出
-的原样落盘字节，按手册 §四.2 不得篡改。
+## B. 本卡工作区未提交改动（按文件）
+   4 _bmad-output/审查/codex-review-CARD-维护B-R3.md
+ 165 _bmad-output/审查/codex-review-CARD-维护B-R3.stderr
+  ^ 若只列出 codex-review-*.md/.stderr = 本轮新落盘的审查存档, 同样不修。
+  其中生产/测试/skill 代码命中数 = 0
+0

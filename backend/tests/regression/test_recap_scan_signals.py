@@ -3165,9 +3165,11 @@ def test_domain_r5_cjk_single_char_only_unit_contract():
     # ⛔ R3 round-3: 取数用的是**宽集合**（数词样字符），它只用于**定界**、不赋值。
     # 表外数词字（廿卅/大写金融数字）必须进得来——进不来 ⇒ `廿五个` 会从 `五`
     # 重锚按 5 查池而放行（Codex round-2 HIGH，车道实测 rc=0）。
-    assert set("0123456789") <= set(rs._NUMERAL_LIKE_CHARS)
-    assert set(rs._CJK_NUM_CHARS) <= set(rs._NUMERAL_LIKE_CHARS)
-    assert set("廿卅壹贰叁肆伍陆柒捌玖拾佰仟") <= set(rs._NUMERAL_LIKE_CHARS)
+    # ⛔ 精确相等而非子集包含（Codex round-3 属实指出：子集断言锁不住声明里的
+    # `卌` 与各种异体，表少一个字就意味着那类写法会从尾片重锚）。
+    assert set(rs._NUMERAL_LIKE_CHARS) == (
+        set(rs._CJK_NUM_CHARS) | set("0123456789") | set("廿卅卌壹贰貳叁參参肆伍陆陸柒捌玖拾佰仟萬亿億两兩")
+    ), f"定界集漂移: {rs._NUMERAL_LIKE_CHARS}"
     # 宽集合只定界不赋值：表外字符进来只会让整串"无法确定"，不会被猜成某个数。
     for s in ("廿五", "壹佰", "九十八万5", "五四", "一零"):
         assert rs._count_token_value(s) is None, f"{s!r} 不得被赋值"
@@ -3309,7 +3311,7 @@ def test_domain_r5_noise_split_number_run_cli(tmp_path):
     fallback 侧本门只覆盖 CJK；合法的单字/池内数值不受影响。
     ⚠️ 措辞收窄（Codex round-2 属实指出）：本门原写「CJK 与 ASCII × D2 与
     fallback 全覆盖」，但矩阵里 fallback 只喂了 CJK——而当时 fallback 的 ASCII
-    侧**确实还是** `re.findall(r"\d+")` 的碎片取数。该缺口由
+    侧**确实还是** ``re.findall(r"\\d+")`` 的碎片取数。该缺口由
     `test_domain_r6_cross_class_and_offtable_numeral_cli` 闭合并配门。
     **它不证明什么**：连接集是**封闭表**（与量词表同口径）。表外字符仍能切断数串
     （`九十八万x五个` / `九十八万、五个` / `[[x|]]` 的残留 `|]]`）——那些断点
@@ -3521,6 +3523,95 @@ def test_domain_r6_cross_class_and_offtable_numeral_cli(tmp_path):
     # 逗号归一化先于取数生效，按 980005 查池。这条门把「不成立」也钉住，
     # 防止后人照抄该判词去"修"一个不存在的问题。
     r = d2("- 本板共有980,005个子节点。【实测】")
-    assert r.returncode != 0 and _one_problem_has(r.stdout, "980005"), (
-        f"千分位逗号形态应按完整量级 980005 查池:\n{r.stdout}"
+    assert r.returncode != 0 and _one_problem_has(r.stdout, "找不到同值来源", "980005"), (
+        # ⛔ 必须同时绑「找不到同值来源」——只断言出现 980005 的话，
+        # 实现改成「无法解析 980005」这条门照样绿，就证不出"按 980005 **查池**"
+        # 这件事（Codex round-3 属实指出）。
+        f"千分位逗号形态应按完整量级 980005 **查池**:\n{r.stdout}"
     )
+
+
+# ── R3 round-4：Codex round-3 报的 3 条 HIGH（车道逐条实测复现后闭合）──────────
+# ⚠️ 轮次口径：round-1 被内容过滤器截断、**无终裁**（卡文判 UNVERIFIABLE），
+# 故产出终裁的是 round-2 / round-3 两轮，本轮整改后仍有一轮送审额度。
+
+
+def test_domain_r7_range_endpoints_and_fallback_seps_cli(tmp_path):
+    """R3 round-4 行为门：区间两端都终核；fallback 也有小数/千分位防线。
+
+    三条实测反例（修前全部 exit 0）：
+      · `本板共有987654-0个子节点` —— 某端无出处时区间不挖空，而后面的循环只取
+        **紧邻量词**的右端 `0`；任一非空池都由 `abs(a-a)` 生成 0 ⇒ 放行。
+        既有门只测了反方向 `1-987654`（大数在右）。
+      · fallback `#### 派生子女 0.0 个` / `零点零` / `1,005` —— 千分位归一与小数
+        防线原先**只在 D2 路径**，fallback 直接对原行 findall 逐片入池。
+      · `本板共有987654<b>.</b>0个子节点` —— 渲染成 `987654.0`，但小数式原要求
+        数串与 `.` 直接相邻，两道防线全不命中；`987654，000个` 的全角逗号同理。
+
+    **它证明什么**：区间两端都进池比对且**只在规模自陈句式内**报（非自陈句
+    `建议覆盖 2~3 个节点` 不受伤——第一版把报错放在句式门之前，当场误伤）；
+    千分位与小数防线在 D2 与 fallback **两侧都在**，且认全角逗号与被标签包住的
+    小数点。
+    **它不证明什么**：分隔符集合（`,`/`，`）与小数分隔符集合（`.`/`．`/`点`）
+    仍是**封闭表**；其它千分位写法（空格已由连接集覆盖，撇号 `'` 等未覆盖）
+    未验证。见验收单 §五之三。
+    """
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    pool = _load_recap_scan()._derived_number_pool(scan)
+    assert 0 in pool and 987654 not in pool, f"前提失效: {sorted(pool)}"
+    report = write_report(vault, scan)
+    base_text = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+
+    def verify(anchor: str, injected: str):
+        text = base_text.replace(anchor, injected, 1)
+        assert text != base_text, "变异未命中：报告一字未改，这条门测的是空气"
+        report.write_text(text, encoding="utf-8")
+        return run_verify(report)
+
+    def d2(line: str):
+        return verify("## 三维审查", f"## 三维审查\n\n{line}")
+
+    def fb(tok: str):
+        return verify("方向叙述：", f"\n#### 派生子女 {tok} 个 的说明\n\n方向叙述：")
+
+    # 区间：大数在左（本轮新反例）与在右（既有方向）都必须被点名
+    for name, line in (
+        ("大数在左", "- 本板共有987654-0个子节点。【实测】"),
+        ("大数在右", "- 本板共有0-987654个子节点。【实测】"),
+        ("到字式", "- 本板共有987654到0个子节点。【实测】"),
+    ):
+        r = d2(line)
+        assert r.returncode != 0, f"区间 {name} 被放行:\n{r.stdout}"
+        assert _one_problem_has(r.stdout, "区间端点", "987654"), f"区间 {name}: 未点名无出处的那一端:\n{r.stdout}"
+    # fallback 侧小数与千分位
+    for name, tok, needles in (
+        ("小数 ASCII", "0.0", ("小数形态", "0.0")),
+        ("小数 CJK", "零点零", ("小数形态", "零点零")),
+        ("千分位", "1,005", ("无出处", "1005")),
+    ):
+        r = fb(tok)
+        assert r.returncode != 0, f"fallback {name} 被放行:\n{r.stdout}"
+        assert _one_problem_has(r.stdout, *needles), f"fallback {name}: 诊断未绑定:\n{r.stdout}"
+    # D2 侧：标签包住小数点 / 全角逗号
+    r = d2("- 本板共有987654<b>.</b>0个子节点。【实测】")
+    assert r.returncode != 0 and _one_problem_has(r.stdout, "小数形态", "987654.0"), (
+        f"标签包住小数点未被识别为小数:\n{r.stdout}"
+    )
+    r = d2("- 本板共有987654，000个子节点。【实测】")
+    assert r.returncode != 0 and _one_problem_has(r.stdout, "找不到同值来源", "987654000"), (
+        f"全角逗号千分位未按完整量级查池:\n{r.stdout}"
+    )
+
+    # 放行面（同权重）
+    for name, line in (
+        ("合法区间两端在池", "- 建议覆盖 2~3 个节点。【实测】"),
+        ("单字在池", "- 本板共有五个子节点。【实测】"),
+        ("`点` 的正当量词用法", "- 本板共有3点建议。【实测】"),
+    ):
+        r = d2(line)
+        assert r.returncode == 0, f"合法形态被误伤（{name}）:\n{r.stdout}"
+    for name, tok in (("fallback 单字", "五"), ("fallback ASCII", "3")):
+        r = fb(tok)
+        assert r.returncode == 0, f"合法形态被误伤（{name}）:\n{r.stdout}"

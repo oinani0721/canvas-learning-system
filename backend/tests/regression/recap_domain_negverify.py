@@ -223,6 +223,48 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         ],
         "r6_cross_class",
     ),
+    # ── R3 round-4 (Codex round-3 三条 HIGH): 区间端点与 fallback 前处理 ──
+    (
+        "survivor-18 (C-4) 区间某端无出处时退回「保留原串交给后面逐个判」"
+        "（而后面的循环只取紧邻量词的一端 ⇒ 另一端免检）",
+        [
+            (
+                "                bad_ends.extend(e for e in ends if e not in pool)\n"
+                '                return " " * len(mm.group(0))',
+                "                return (\n"
+                '                    " " * len(mm.group(0))\n'
+                "                    if all(e in pool for e in ends)\n"
+                "                    else mm.group(0)\n"
+                "                )",
+            )
+        ],
+        "r7_range",
+    ),
+    (
+        "survivor-19 (C-4) fallback 的千分位归一与小数防线被摘除（退回对原行直接 findall 逐片入池）",
+        [
+            (
+                "            norm = _normalize_number_seps(ln.translate(_FULLWIDTH_DIGITS))\n"
+                "            for m_dec in _DECIMAL_ANY_RE.finditer(norm):",
+                "            norm = ln.translate(_FULLWIDTH_DIGITS)\n            for m_dec in ():",
+            )
+        ],
+        "r7_range",
+    ),
+    (
+        "survivor-20 (C-4) 小数分隔符两侧不再容连接字符 + 只认半角逗号（标签包住小数点 / 全角逗号千分位重新免检）",
+        [
+            (
+                '_DECIMAL_SEP = rf"{_D2_JOIN_ONE}*[.．点]{_D2_JOIN_ONE}*"',
+                '_DECIMAL_SEP = r"[.点]"',
+            ),
+            (
+                'return re.sub(r"(?<=[0-9])[,，](?=[0-9]{3}(?![0-9]))", "", line)',
+                'return re.sub(r"(?<=[0-9]),(?=[0-9]{3}(?![0-9]))", "", line)',
+            ),
+        ],
+        "r7_range",
+    ),
 ]
 
 

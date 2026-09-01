@@ -1,25 +1,7 @@
 # Codex 定向复核 · CARD-维护B-R3 round-3（末轮；只审计数取值口径）
 
-你是对抗复核者。本卡 round-3 你判「清零：否 · 0 BLOCKER / 3 HIGH」。
-车道对**三条都实跑复现属实**并已整改（见下）。本轮复核这些整改。
-
-⚠️ 上一轮你**遵守了「不要跑 negverify」**，pytest 得 256 与车道一致、无污染 ——
-请本轮继续遵守（该脚本会原地改写被测源码）。
-
-## round-3 三条 HIGH 的整改
-
-| 你的判词 | 整改 |
-|---|---|
-| 区间只终核右端（`987654-0个` 只按右端 `0` 查池，0 恒在池内） | 区间**两端都终核**，无出处端点逐个报并挖空整段。⚠️ 报错放在**句式门之后**——第一版放在之前，当场误伤非自陈句 `建议覆盖 2~3 个节点` |
-| fallback 无小数/千分位防线（`0.0个`/`零点零个`/`1,005个` 逐片碰池） | `_normalize_number_seps`（认半角与全角逗号）与 `_DECIMAL_ANY_RE` **下沉为 D2/fallback 共用** |
-| 小数/分隔符非渲染语义定界（`987654<b>.</b>0个`、`987654，000个`） | 小数分隔符两侧**容连接字符**，认 `.`／`．`／`点`；千分位同时认半角与全角逗号 |
-| （你另指出）区间正则手抄旧 11 字量词表，与 `_D2_QUANT` 分叉 | 改为共用 `_D2_QUANT` |
-| （你另指出）`980,005` 门未绑「找不到同值来源」；定界集断言只做子集包含 | 已分别补绑与改为**精确相等** |
-
-## 上一轮（round-2）五条 HIGH 的处置回顾（供你核对车道有没有改口）
-
-| round-2 判词 | 车道复核 | 处置 |
-|---|---|---|
+你是对抗复核者。上一轮（本卡 round-2）你给出了非空正文并判「BLOCKER/HIGH 清零：否」，
+报 5 条 HIGH。车道对**每一条都实跑复核**，结论如下（本轮请复核这些整改）：
 
 | 你的判词 | 车道复核 | 处置 |
 |---|---|---|
@@ -60,23 +42,22 @@
 ## 请按行号静态阅读
 
 `canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py`：
-- `:1352-1420` 连接语义（含 `_normalize_number_seps`）（`_D2_NOISE_ONE` / `_INVISIBLE_ONE` / `_D2_JOIN_ONE` /
+- `:1352-1392` 连接语义（`_D2_NOISE_ONE` / `_INVISIBLE_ONE` / `_D2_JOIN_ONE` /
   `_join_free`，含收窄后的 docstring）
-- `:1500-1600` `_CJK_NUM` / `_CJK_UNIT` / `_CJK_NUM_CHARS` / `_CJK_NUM_EXTRA` /
+- `:1478-1560` `_CJK_NUM` / `_CJK_UNIT` / `_CJK_NUM_CHARS` / `_CJK_NUM_EXTRA` /
   `_NUMERAL_LIKE_CHARS` / `_NUM_RUN_PAT` / `_COUNT_BEFORE_QUANT_RE` /
   `_CJK_DECIMAL_RE` / `_count_token_value` / `_cjk_single_to_int`
-- `:1690-1745` D2 叙述段：区间两端终核（**句式门之后**）、小数检查、唯一取数循环
-- `:1975-2010` fallback 允许式：千分位归一 + 小数检查 + 取数循环
+- `:1660-1700` D2 叙述段的小数检查与**唯一**取数循环
+- `:1930-1955` fallback 允许式的取数循环
 
 `backend/tests/regression/test_recap_scan_signals.py`：
 `:3124` 判据契约（期望值独立写死）、`:3184`/`:3364` 两道合成 scan 单元门、
 `:3216`、`:3251`、`:3288` 切断矩阵门（docstring 已按你的批评收窄）、
-`:3400` 起 `test_domain_r6_cross_class_and_offtable_numeral_cli` 与文件末尾的
-`test_domain_r7_range_endpoints_and_fallback_seps_cli`（本轮新增）、
+`:3400` 起 `test_domain_r6_cross_class_and_offtable_numeral_cli`（本轮新增）、
 以及 `_one_problem_has`（按你的批评，诊断类别与完整 token 须出现在**同一条** problem）。
 
 `backend/tests/regression/recap_domain_negverify.py`：**只读源码**，看
-survivor-15/16/17/18/19/20 六条新变体的替换内容是否真的禁掉了该性质的全部防线。
+survivor-15/16/17 三条新变体的替换内容是否真的禁掉了该性质的全部防线。
 
 ## 请回答
 
@@ -90,14 +71,14 @@ survivor-15/16/17/18/19/20 六条新变体的替换内容是否真的禁掉了�
 
 - `cd backend && PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest
   tests/regression/test_recap_scan_signals.py -q -p no:cacheprovider`
-  —— 开工基线 249，现应为 **257**。若你得到别的数字，请先检查工作树是否 clean
+  —— 开工基线 249，现应为 **256**。若你得到别的数字，请先检查工作树是否 clean
   （`git status --porcelain` 应为空）再下结论。
 - `git rev-parse HEAD`
 
-车道实测（供你核对，**不要**自己重跑变异）：negverify **20/20 全部如期变红**，
-被测文件 sha256 前缀 `f3257f209527`，运行前后逐字节一致；
-扩大回归 `tests/skills + 两个 regression 文件` = **589 passed**；
-真实 CLI 探针 46/46。
+车道实测（供你核对，**不要**自己重跑变异）：negverify **17/17 全部如期变红**，
+被测文件 sha256 前缀 `25ae3ad84d0b`，运行前后逐字节一致；
+扩大回归 `tests/skills + 两个 regression 文件` = **588 passed**；
+真实 CLI 探针 35/35。
 
 ## 输出格式
 

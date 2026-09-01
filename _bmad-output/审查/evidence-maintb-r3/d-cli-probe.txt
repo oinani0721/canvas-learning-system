@@ -1,10 +1,8 @@
-/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/test_recap_scan_signals.py:3517: SyntaxWarning: "\d" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\d"? A raw string is also an option.
-  侧**确实还是** `re.findall(r"\d+")` 的碎片取数。该缺口由
 # CARD-维护B-R3 · §5.3 真实 CLI 探针
 # 被测 CLI: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py
-# CLI sha256: 25ae3ad84d0b03f3dca723bb26d1c5efa6fdd7ccc2e97944051ab62ea928d461
+# CLI sha256: f3257f209527185e10683844ae20e17a6064dc84c94d1e5792837daea2a404a9
 # python: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python
-# tmp fixture: /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-fdj7ocpx/vault
+# tmp fixture: /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault
 # scan 数值池（碰撞前提实测）: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 22]
 # 旧多位解析器 _cjk_to_int 是否仍在: False
 
@@ -13,217 +11,284 @@
 ═══ 消费面: fallback 允许式(标题) ═══
 
 ### ①合法单字（值在池）  token='五'  旧解析器取值=5 —— 单字，映射绝对确定
-argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-fdj7ocpx/vault/outputs/回顾-T板-2026-09-02.md']
-input_sha256: c21bfe8cfdf8c77be549fddb1f33092ffe81a93e6e2fb15023edb34ffc9dd769
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: b4b4bc39eb6336009d65fbfdf6efdaee5f58b8810bdf7fefc9d80b9bbeae475b
 rc: 0  期望: 0 放行  判定: ✅
   <无数字终核诊断>
 
 ### ②多字拒绝（标准样例）  token='九十八万'  旧解析器取值=980000 —— 旧解析器可解析，池外
-argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-fdj7ocpx/vault/outputs/回顾-T板-2026-09-02.md']
-input_sha256: 031c66c85267ffd4797f7910d25207b57e52b644263aa7d98e716a9947a10410
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: 7311e541efb3f8d025a35342f965c8e6107f6b09fb9d2804a3697bcad6ba9a26
 rc: 1  期望: 非 0 fail-closed  判定: ✅
   ✗ 数字终核: fallback 允许式(标题)行内数字 '九十八万' 无法验证 (多字中文数词/混写/表外数词字都无法确定值, 请改用阿拉伯数字): #### 派生子女 九十八万 个 的说明
 
 ### ③非法连续数词  token='五四'  旧解析器取值=4 —— 旧解析器只留末位
-argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-fdj7ocpx/vault/outputs/回顾-T板-2026-09-02.md']
-input_sha256: 24789045b9e61aea22e014de3488b3fb64d089046bf505d75b5d4a344be354b8
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: a82af4c0358afb008ed40b308f4e19074967347268d79e156704878b90f63d50
 rc: 1  期望: 非 0 fail-closed  判定: ✅
   ✗ 数字终核: fallback 允许式(标题)行内数字 '五四' 无法验证 (多字中文数词/混写/表外数词字都无法确定值, 请改用阿拉伯数字): #### 派生子女 五四 个 的说明
 
 ### ④池碰撞（错误末位撞入允许池）  token='一零'  旧解析器取值=0 —— 旧解析器得 0，而 0 恒在池内
-argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-fdj7ocpx/vault/outputs/回顾-T板-2026-09-02.md']
-input_sha256: ed9f290b0f02fbc1a0656e75a5ad4c64d0ff17b225a5e4f7f2c07924b1ac6f79
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: 49112fa528b969a60ade185ea7fe4a661cb37e63d9f582cbd8253283a26a1655
 rc: 1  期望: 非 0 fail-closed  判定: ✅
   ✗ 数字终核: fallback 允许式(标题)行内数字 '一零' 无法验证 (多字中文数词/混写/表外数词字都无法确定值, 请改用阿拉伯数字): #### 派生子女 一零 个 的说明
 
 ### ⑤单字量词（不在 _CJK_NUM）  token='十'  旧解析器取值=10 —— 旧解析器可解析
-argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-fdj7ocpx/vault/outputs/回顾-T板-2026-09-02.md']
-input_sha256: b91af16b025896f4d92deb9d6ba6fa9af0d536a4cd20fcbabccb418163443acf
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: b07d4183dab01e0a39cd4849fdd6fd702524c33633b30fbf1965ec35a729c951
 rc: 1  期望: 非 0 fail-closed  判定: ✅
   ✗ 数字终核: fallback 允许式(标题)行内数字 '十' 无法验证 (多字中文数词/混写/表外数词字都无法确定值, 请改用阿拉伯数字): #### 派生子女 十 个 的说明
 
 ### ⑥切断·粗体（渲染=九十八万五）  token='九十八万**五**'  旧解析器取值=5 —— 只抓到尾片
-argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-fdj7ocpx/vault/outputs/回顾-T板-2026-09-02.md']
-input_sha256: d261a8ba349b6c824b584f497e8963571aade7555db938a1026b9fc8e7e8945e
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: e5db4d3b11bcca7ca96b4072e71e266fea526a8ef34497b794d337f7864d04ed
 rc: 1  期望: 非 0 fail-closed  判定: ✅
   ✗ 数字终核: fallback 允许式(标题)行内数字 '九十八万五' 无法验证 (多字中文数词/混写/表外数词字都无法确定值, 请改用阿拉伯数字): #### 派生子女 九十八万**五** 个 的说明
 
 ### ⑦切断·空白  token='九十八万 五'  旧解析器取值=5 —— 只抓到尾片
-argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-fdj7ocpx/vault/outputs/回顾-T板-2026-09-02.md']
-input_sha256: 4fdee9e947c6c0ed98c8d0b3d7d3a1a91861f7aef3086c95d60de51ee23b2c28
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: 24f49b2cdd9c6000edda0b963689d0e778802f1c325833ab41ac8b8590b1d4eb
 rc: 1  期望: 非 0 fail-closed  判定: ✅
   ✗ 数字终核: fallback 允许式(标题)行内数字 '九十八万五' 无法验证 (多字中文数词/混写/表外数词字都无法确定值, 请改用阿拉伯数字): #### 派生子女 九十八万 五 个 的说明
 
 ### ⑧切断·nbsp  token='九十八万&nbsp;五'  旧解析器取值=5 —— 只抓到尾片
-argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-fdj7ocpx/vault/outputs/回顾-T板-2026-09-02.md']
-input_sha256: a40997d3b81d23e2135a3a1ca19c00e03c9e8629ac216b58015f68296c552346
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: 4d35e2442b41a3377e188f28039ffe6ced5488592bfdff6dc6f8fd42303ceda2
 rc: 1  期望: 非 0 fail-closed  判定: ✅
   ✗ 数字终核: fallback 允许式(标题)行内数字 '九十八万五' 无法验证 (多字中文数词/混写/表外数词字都无法确定值, 请改用阿拉伯数字): #### 派生子女 九十八万&nbsp;五 个 的说明
 
 ### ⑨切断·零宽 U+200B  token='九十八万\u200b五'  旧解析器取值=5 —— 只抓到尾片
-argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-fdj7ocpx/vault/outputs/回顾-T板-2026-09-02.md']
-input_sha256: b3d4a5b851d5a3cbf10bc2ea679bc49a10704199623908c167bb432d704bb56c
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: 5312e460f12d6f7ed4a23242b58ac09f02e0dd705ba0ac2b8e2cb09f797b3c42
 rc: 1  期望: 非 0 fail-closed  判定: ✅
   ✗ 数字终核: fallback 允许式(标题)行内数字 '九十八万五' 无法验证 (多字中文数词/混写/表外数词字都无法确定值, 请改用阿拉伯数字): #### 派生子女 九十八万​五 个 的说明
 
 ### ⑩切断·空 HTML 标签  token='九十八万<span></span>五'  旧解析器取值=5 —— 只抓到尾片
-argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-fdj7ocpx/vault/outputs/回顾-T板-2026-09-02.md']
-input_sha256: 7aeb31cbfe3500b3411b48ecc874d1381e9ec02d6d650b35158aa40c633bb895
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: 43fca87f03a784960cb210000599c9624db429e31f6f6dacd943d9ccfc560f43
 rc: 1  期望: 非 0 fail-closed  判定: ✅
   ✗ 数字终核: fallback 允许式(标题)行内数字 '九十八万五' 无法验证 (多字中文数词/混写/表外数词字都无法确定值, 请改用阿拉伯数字): #### 派生子女 九十八万<span></span>五 个 的说明
 
 ### ⑪跨类混写  token='九十八万5'  旧解析器取值=5 —— CJK run 停在万，ASCII 只取 5
-argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-fdj7ocpx/vault/outputs/回顾-T板-2026-09-02.md']
-input_sha256: db47236e4149924e6d8df86945f0233daed46d42a37b0c49aa2b9470589e0605
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: bd82c2d4161e83891667cf091e05e3fea95d1d09b02e2580d8861b187b6e496e
 rc: 1  期望: 非 0 fail-closed  判定: ✅
   ✗ 数字终核: fallback 允许式(标题)行内数字 '九十八万5' 无法验证 (多字中文数词/混写/表外数词字都无法确定值, 请改用阿拉伯数字): #### 派生子女 九十八万5 个 的说明
 
 ### ⑫表外数词 廿  token='廿五'  旧解析器取值=5 —— 廿表外，从五重锚（读者读 25）
-argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-fdj7ocpx/vault/outputs/回顾-T板-2026-09-02.md']
-input_sha256: 66a705647cf968f91c53c130a817d00eaa1727b1313f645e9473a8983ecd3a6f
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: 84d9a95b5d17937ea4606dcba447b32d8475c800cb372350a7d528f70dfbb58f
 rc: 1  期望: 非 0 fail-closed  判定: ✅
   ✗ 数字终核: fallback 允许式(标题)行内数字 '廿五' 无法验证 (多字中文数词/混写/表外数词字都无法确定值, 请改用阿拉伯数字): #### 派生子女 廿五 个 的说明
 
 ### ⑬表外大写金融数字  token='壹佰'  旧解析器取值=无 —— 两字全表外，一个 token 都抽不出
-argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-fdj7ocpx/vault/outputs/回顾-T板-2026-09-02.md']
-input_sha256: 9e3f52d95ec46aeb789518677a0d5a1340ac29b9f19834f413bfda9d12b9f6df
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: cc9afcf2945f0a383bce7ac683a9a827e2076ced113b7b58679c05b3852d0d8f
 rc: 1  期望: 非 0 fail-closed  判定: ✅
   ✗ 数字终核: fallback 允许式(标题)行内数字 '壹佰' 无法验证 (多字中文数词/混写/表外数词字都无法确定值, 请改用阿拉伯数字): #### 派生子女 壹佰 个 的说明
+
+### ⑭fallback 小数 ASCII  token='0.0'  旧解析器取值=[0,0] —— 逐片碰池
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: b0132697204ca616fb621eaaa2e29dd2b7a952b5788b343b7a44a24ce9d397f3
+rc: 1  期望: 非 0 fail-closed  判定: ✅
+  ✗ 数字终核: fallback 允许式(标题)行内出现小数形态 0.0 (scan JSON 的计数均为整数, 小数不可能有出处): #### 派生子女 0.0 个 的说明
+
+### ⑮fallback 小数 CJK  token='零点零'  旧解析器取值=[0,0] —— 逐片碰池
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: 6e334bcdb6cd99ebdf32a143eef87a9b41f962b7ecfb2b4c0f3d7f5d32706947
+rc: 1  期望: 非 0 fail-closed  判定: ✅
+  ✗ 数字终核: fallback 允许式(标题)行内出现小数形态 零点零 (scan JSON 的计数均为整数, 小数不可能有出处): #### 派生子女 零点零 个 的说明
+
+### ⑯fallback 千分位  token='1,005'  旧解析器取值=[1,5] —— 逐片碰池
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: cb7c99c1cfd036c56186ad0952bd9843faa00dcfd550ca33e1a56f7219b7aee1
+rc: 1  期望: 非 0 fail-closed  判定: ✅
+  ✗ 数字终核: fallback 允许式(标题)行内数字 1005 无出处 (数字必须在 scan 数值池): #### 派生子女 1,005 个 的说明
 
 ═══ 消费面: D2 叙述段(规模自陈) ═══
 
 ### ①合法单字（值在池）  token='五'  旧解析器取值=5 —— 单字，映射绝对确定
-argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-fdj7ocpx/vault/outputs/回顾-T板-2026-09-02.md']
-input_sha256: 9d11eedd4259498dca048097823881872c81c1b0cd44489b16f0b117df54cb42
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: 9066be9f4ebd7a9675344432a5d80f033f60c68a062c905f0328c0c04f085d97
 rc: 0  期望: 0 放行  判定: ✅
   <无数字终核诊断>
 
 ### ②多字拒绝（标准样例）  token='九十八万'  旧解析器取值=980000 —— 旧解析器可解析，池外
-argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-fdj7ocpx/vault/outputs/回顾-T板-2026-09-02.md']
-input_sha256: 4a96bcb36b6b5193d5b8eb2a447e39e815965567c27b79fb80ab0447b508917d
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: c5ffb8320d69414a4cd2ce661e2578fe85518e6ef44e63b308100c268f98c0e7
 rc: 1  期望: 非 0 fail-closed  判定: ✅
   ✗ 数字终核: 『三维审查』段的计数 九十八万 无法解析 (多字中文数词/混写/表外数词字都无法确定值, 报告请用阿拉伯数字写计数): - 本板共有九十八万个子节点。【实测】
 
 ### ③非法连续数词  token='五四'  旧解析器取值=4 —— 旧解析器只留末位
-argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-fdj7ocpx/vault/outputs/回顾-T板-2026-09-02.md']
-input_sha256: 12ad571c7adcaa70959719e6abfd8a4b8cb285146e60f29485051e7295e98697
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: f600a6aa14240aa5c93c34d12d53af04baa641d087d0f7e1d373e71af11191d7
 rc: 1  期望: 非 0 fail-closed  判定: ✅
   ✗ 数字终核: 『三维审查』段的计数 五四 无法解析 (多字中文数词/混写/表外数词字都无法确定值, 报告请用阿拉伯数字写计数): - 本板共有五四个子节点。【实测】
 
 ### ④池碰撞（错误末位撞入允许池）  token='一零'  旧解析器取值=0 —— 旧解析器得 0，而 0 恒在池内
-argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-fdj7ocpx/vault/outputs/回顾-T板-2026-09-02.md']
-input_sha256: 15c786f319d209f73fa0a4647d9fe0e8e7d0e3d0bc8f909b7d2112c8751dc628
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: 60ca82cba72d8aec2ec936e0bc96ec839ce135cd5de471cae8124acb006e49d3
 rc: 1  期望: 非 0 fail-closed  判定: ✅
   ✗ 数字终核: 『三维审查』段的计数 一零 无法解析 (多字中文数词/混写/表外数词字都无法确定值, 报告请用阿拉伯数字写计数): - 本板共有一零个子节点。【实测】
 
 ### ⑤单字量词（不在 _CJK_NUM）  token='十'  旧解析器取值=10 —— 旧解析器可解析
-argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-fdj7ocpx/vault/outputs/回顾-T板-2026-09-02.md']
-input_sha256: dadebbd689db29d69b637f3bb4a737e8cc30d8ce2cc5b3d6cd6b34bb59897f4d
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: becffd5c358d2dd0457116d690fd1fb7e363c14df7d7a04306d441392e4f7ea1
 rc: 1  期望: 非 0 fail-closed  判定: ✅
   ✗ 数字终核: 『三维审查』段的计数 十 无法解析 (多字中文数词/混写/表外数词字都无法确定值, 报告请用阿拉伯数字写计数): - 本板共有十个子节点。【实测】
 
 ### ⑥切断·粗体（渲染=九十八万五）  token='九十八万**五**'  旧解析器取值=5 —— 只抓到尾片
-argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-fdj7ocpx/vault/outputs/回顾-T板-2026-09-02.md']
-input_sha256: e0f9f8fab3bd0b1b66deb7cb872aabd9040017b07f5040c49908c1de4e4a1253
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: 224dcc2dd17646b9057dc77f9c7291bc0f6eb720d42a2aeb2bd46f7c4ff0d519
 rc: 1  期望: 非 0 fail-closed  判定: ✅
   ✗ 数字终核: 『三维审查』段的计数 九十八万五 无法解析 (多字中文数词/混写/表外数词字都无法确定值, 报告请用阿拉伯数字写计数): - 本板共有九十八万**五**个子节点。【实测】
 
 ### ⑦切断·空白  token='九十八万 五'  旧解析器取值=5 —— 只抓到尾片
-argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-fdj7ocpx/vault/outputs/回顾-T板-2026-09-02.md']
-input_sha256: bd05ec10cec0ba95662dc5a15eb8aadc2570c031facbbdf0e2e31f7b2887a514
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: 947f78f943d2d6213fdd7fb2b8f24d23c4bb90f21f8edf2d3f6e0f2584aca2c9
 rc: 1  期望: 非 0 fail-closed  判定: ✅
   ✗ 数字终核: 『三维审查』段的计数 九十八万五 无法解析 (多字中文数词/混写/表外数词字都无法确定值, 报告请用阿拉伯数字写计数): - 本板共有九十八万 五个子节点。【实测】
 
 ### ⑧切断·nbsp  token='九十八万&nbsp;五'  旧解析器取值=5 —— 只抓到尾片
-argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-fdj7ocpx/vault/outputs/回顾-T板-2026-09-02.md']
-input_sha256: 8223633074811a6e3228b88f09d1cc18c38cb744b239689cd0e44ad2d4824502
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: 4fbcccbac5e149137c85e3600c8087d93aeb58dd7d1346f8dfca293aa90123f6
 rc: 1  期望: 非 0 fail-closed  判定: ✅
   ✗ 数字终核: 『三维审查』段的计数 九十八万五 无法解析 (多字中文数词/混写/表外数词字都无法确定值, 报告请用阿拉伯数字写计数): - 本板共有九十八万&nbsp;五个子节点。【实测】
 
 ### ⑨切断·零宽 U+200B  token='九十八万\u200b五'  旧解析器取值=5 —— 只抓到尾片
-argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-fdj7ocpx/vault/outputs/回顾-T板-2026-09-02.md']
-input_sha256: f7c6fd4631a7909e71f1c641bce21317fc1b7f71f804a82c8baa2fae88d5fb9e
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: 4c0db2be4c049a99573da867685f6ff65c8d57a6c6b5cb3eb9d6b14df5da8b74
 rc: 1  期望: 非 0 fail-closed  判定: ✅
   ✗ 数字终核: 『三维审查』段的计数 九十八万五 无法解析 (多字中文数词/混写/表外数词字都无法确定值, 报告请用阿拉伯数字写计数): - 本板共有九十八万​五个子节点。【实测】
 
 ### ⑩切断·空 HTML 标签  token='九十八万<span></span>五'  旧解析器取值=5 —— 只抓到尾片
-argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-fdj7ocpx/vault/outputs/回顾-T板-2026-09-02.md']
-input_sha256: b79ecc08b696639650df9fdbc4ddbb1de27bd23295d90c051866e4c80ff7d2e9
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: bdfcd9fd4be48dbd4adc02e404a3aa0fcbeb49f7bfe9561561fa9c74d1c791ae
 rc: 1  期望: 非 0 fail-closed  判定: ✅
   ✗ 数字终核: 『三维审查』段的计数 九十八万五 无法解析 (多字中文数词/混写/表外数词字都无法确定值, 报告请用阿拉伯数字写计数): - 本板共有九十八万<span></span>五个子节点。【实测】
 
 ### ⑪跨类混写  token='九十八万5'  旧解析器取值=5 —— CJK run 停在万，ASCII 只取 5
-argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-fdj7ocpx/vault/outputs/回顾-T板-2026-09-02.md']
-input_sha256: ed28136536bea99e145647c8eb342552de15006793f36083208a90b554342b2a
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: 0777973971bb7c372d87bf202befd7eb62ea36add838147677cc9a15743f5fb0
 rc: 1  期望: 非 0 fail-closed  判定: ✅
   ✗ 数字终核: 『三维审查』段的计数 九十八万5 无法解析 (多字中文数词/混写/表外数词字都无法确定值, 报告请用阿拉伯数字写计数): - 本板共有九十八万5个子节点。【实测】
 
 ### ⑫表外数词 廿  token='廿五'  旧解析器取值=5 —— 廿表外，从五重锚（读者读 25）
-argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-fdj7ocpx/vault/outputs/回顾-T板-2026-09-02.md']
-input_sha256: 924b2660e2d7b8437a6d43fc21cc305d9a92e826809fd058ac8e568385fcc351
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: 843bdd2fb5b076f5a3b564f825b392822b9aa13a145eebc40587c10b24cd30d5
 rc: 1  期望: 非 0 fail-closed  判定: ✅
   ✗ 数字终核: 『三维审查』段的计数 廿五 无法解析 (多字中文数词/混写/表外数词字都无法确定值, 报告请用阿拉伯数字写计数): - 本板共有廿五个子节点。【实测】
 
 ### ⑬表外大写金融数字  token='壹佰'  旧解析器取值=无 —— 两字全表外，一个 token 都抽不出
-argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-fdj7ocpx/vault/outputs/回顾-T板-2026-09-02.md']
-input_sha256: c04671952ce4d19da9fcd2860256af3defb10ea65109904aa9aad62c02ae0b7f
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: d18f712c567de87ddd1b7f7c90bc6dc891ead3d022846ab3805fd91c595688c8
 rc: 1  期望: 非 0 fail-closed  判定: ✅
   ✗ 数字终核: 『三维审查』段的计数 壹佰 无法解析 (多字中文数词/混写/表外数词字都无法确定值, 报告请用阿拉伯数字写计数): - 本板共有壹佰个子节点。【实测】
+
+### ⑭fallback 小数 ASCII  token='0.0'  旧解析器取值=[0,0] —— 逐片碰池
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: bd42091bb5a73da42b3a775efa19dbc6a2127bb953bb19f1a5c4bb00d5188d70
+rc: 1  期望: 非 0 fail-closed  判定: ✅
+  ✗ 数字终核: 『三维审查』段出现小数形态的计数 0.0 (scan JSON 的计数均为整数, 小数不可能有出处): - 本板共有0.0个子节点。【实测】
+  ✗ 数字终核: 『三维审查』段出现小数形态的计数 0.0 (scan JSON 的计数均为整数, 小数不可能有出处): - 本板共有0.0个子节点。【实测】
+
+### ⑮fallback 小数 CJK  token='零点零'  旧解析器取值=[0,0] —— 逐片碰池
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: 32271ebe3550825eb037da039ef87f13cf88fad12bc441064cb2e12836c06e45
+rc: 1  期望: 非 0 fail-closed  判定: ✅
+  ✗ 数字终核: 『三维审查』段出现小数形态的计数 零点零 (scan JSON 的计数均为整数, 小数不可能有出处): - 本板共有零点零个子节点。【实测】
+
+### ⑯fallback 千分位  token='1,005'  旧解析器取值=[1,5] —— 逐片碰池
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: 91e3cb9d5473dbf7fb5f3a085e8a71326f2241cefa958015b8bae92803ba5c5a
+rc: 1  期望: 非 0 fail-closed  判定: ✅
+  ✗ 数字终核: 『三维审查』段的计数 1005(1005) 在 scan JSON 里找不到同值来源: - 本板共有1005个子节点。【实测】
 
 ═══ 消费面: D2 叙述段 · ASCII 侧（同根，同一次修复覆盖）═══
 
 ### ASCII 空格千分位 980 005个
-argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-fdj7ocpx/vault/outputs/回顾-T板-2026-09-02.md']
-input_sha256: 3c47bbd91b61e443e681ca37a2d73093b99075f32d47b034c59f064988015784
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: 1cd9056ee92560de935b08e36338d2221a0c377421beeff97c5ea8a322bba61c
 rc: 1  期望: 非 0 fail-closed  判定: ✅
   ✗ 数字终核: 『三维审查』段的计数 980005(980005) 在 scan JSON 里找不到同值来源: - 本板共有980 005个子节点。【实测】
 
 ### ASCII 粗体 98765**4**个
-argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-fdj7ocpx/vault/outputs/回顾-T板-2026-09-02.md']
-input_sha256: cecaa39d6f66707cf8d425936f2969c7e4a508a4b5a4376c03da99892bbdbc19
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: 010d6bba5bca23ff6c521e85cced0e96c4aaa491c8cfd3ca305327085ab20534
 rc: 1  期望: 非 0 fail-closed  判定: ✅
   ✗ 数字终核: 『三维审查』段的计数 987654(987654) 在 scan JSON 里找不到同值来源: - 本板共有98765**4**个子节点。【实测】
 
 ### ASCII SI千分位 1 000个（与前导零归一化的交互）
-argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-fdj7ocpx/vault/outputs/回顾-T板-2026-09-02.md']
-input_sha256: 261093fc7a827f96fe30e9bc0bf0f114b5e431b99c98f30e89a8aa82401891b0
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: 2a5c6d1da83d0a2930afeb213d23fb624c3c1843175a992802c7ce96c525f828
 rc: 1  期望: 非 0 fail-closed  判定: ✅
   ✗ 数字终核: 『三维审查』段的计数 1000(1000) 在 scan JSON 里找不到同值来源: - 本板共有1 000个子节点。【实测】
 
 ### ASCII 合法在池 3个
-argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-fdj7ocpx/vault/outputs/回顾-T板-2026-09-02.md']
-input_sha256: 43285da6e15c36a5a36c82d2ab7a784c32132b317db597b1a18330e239684310
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: 8d826de458957b981c0fbdeb329c80962c3fb216fac7199aed3b2afa3a46b428
 rc: 0  期望: 0 放行  判定: ✅
   <无数字终核诊断>
 
 ### ASCII 前导零 016个（=16 在池）
-argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-fdj7ocpx/vault/outputs/回顾-T板-2026-09-02.md']
-input_sha256: 65ebd69a770a3a8ffb81286bae4ff05ac38e768723fdd9b9a0b9846be24b0513
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: 95cc6baea14c9111a5714bc5f1be2c25e040162072d05d9ffbaefd205ba6e24e
 rc: 0  期望: 0 放行  判定: ✅
   <无数字终核诊断>
 
 ### CJK 小数 五点五个
-argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-fdj7ocpx/vault/outputs/回顾-T板-2026-09-02.md']
-input_sha256: bf32756b18d8f3640e0d200901cd6da3e8f31750fdd8e4f703b97e4f3585266f
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: 2182e6fb6f5bff94eba6937b315598a95158d73862f21d70f1ab256fb2bd70e3
 rc: 1  期望: 非 0 fail-closed  判定: ✅
   ✗ 数字终核: 『三维审查』段出现小数形态的计数 五点五 (scan JSON 的计数均为整数, 小数不可能有出处): - 本板共有五点五个子节点。【实测】
 
 ### 混写小数 5点5个
-argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-fdj7ocpx/vault/outputs/回顾-T板-2026-09-02.md']
-input_sha256: c67c128a0f871e180f2c5abccbad065fa290c690c7176d71ede89a70fcb51d24
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: 5be4a78150ef88f0ef32e2c4db9ea5a02e395b54daf024e58b7a0090eb471000
 rc: 1  期望: 非 0 fail-closed  判定: ✅
   ✗ 数字终核: 『三维审查』段出现小数形态的计数 5点5 (scan JSON 的计数均为整数, 小数不可能有出处): - 本板共有5点5个子节点。【实测】
 
 ### `点` 正当量词 3点建议
-argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-fdj7ocpx/vault/outputs/回顾-T板-2026-09-02.md']
-input_sha256: e1e6b993888f65c946b0cd8c4c97fc54313d9b754c4369c764d4af6484bf87c9
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: f525a7d5e9062ed139c8fbbb977283b6a2536b8ee09121d4a18a3c85a856aa49
 rc: 0  期望: 0 放行  判定: ✅
   <无数字终核诊断>
 
-### 千分位逗号 980,005个（Codex 误报为切断，实为按 980005 查池）
-argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-fdj7ocpx/vault/outputs/回顾-T板-2026-09-02.md']
-input_sha256: 73b1c5d014df21e11bda02f3e9cebd0a5db1f095397c34ad202b4927cd1f0039
+### 千分位逗号 980,005个（Codex round-2 误报为切断，实为按 980005 查池）
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: 24c890336e0cd918d2c76a8e7e1af4cab95b1e9d16f84bb391cbda01ff4a8ce1
 rc: 1  期望: 非 0 fail-closed  判定: ✅
   ✗ 数字终核: 『三维审查』段的计数 980005(980005) 在 scan JSON 里找不到同值来源: - 本板共有980005个子节点。【实测】
+
+### 区间大数在左 987654-0个
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: 0023a2f5535550b5105610300d296485143d1576c82233bfbc052e1e38d015ce
+rc: 1  期望: 非 0 fail-closed  判定: ✅
+  ✗ 数字终核: 『三维审查』段区间端点 987654 在 scan JSON 里找不到同值来源 (区间两端都必须有出处): - 本板共有         子节点。【实测】
+
+### 区间大数在右 0-987654个
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: 4e1831ff400bdc6c6f8422ed995da93cdb4923dd637cbcd133cd2b8a2c02bc76
+rc: 1  期望: 非 0 fail-closed  判定: ✅
+  ✗ 数字终核: 『三维审查』段区间端点 987654 在 scan JSON 里找不到同值来源 (区间两端都必须有出处): - 本板共有         子节点。【实测】
+
+### 合法区间 2~3个（两端在池）
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: 195c4d1f6c0bbd4b724efedd798ec29f439fdf036a8e0e9e099198c3c341e025
+rc: 0  期望: 0 放行  判定: ✅
+  <无数字终核诊断>
+
+### 标签包住小数点 987654<b>.</b>0个
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: 3348127b69e4d1e99d97dcb4881ec0466b2a37e01632f477d3dcdc91743099f1
+rc: 1  期望: 非 0 fail-closed  判定: ✅
+  ✗ 数字终核: 『三维审查』段出现小数形态的计数 987654.0 (scan JSON 的计数均为整数, 小数不可能有出处): - 本板共有987654<b>.</b>0个子节点。【实测】
+
+### 全角逗号千分位 987654，000个
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/r3probe-cacjo_7c/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: 76d3df3a56a0d818dd6f632ca81d99be2ba0f8ecbd9d01a51484fb8d6a372489
+rc: 1  期望: 非 0 fail-closed  判定: ✅
+  ✗ 数字终核: 『三维审查』段的计数 987654000(987654000) 在 scan JSON 里找不到同值来源: - 本板共有987654000个子节点。【实测】
 
 ══ 结论: 全部符合预期 ══

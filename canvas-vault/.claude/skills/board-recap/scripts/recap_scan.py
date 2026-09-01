@@ -1431,9 +1431,9 @@ _D2_ORDERED_LIST_RE = re.compile(r"^(\s*)\d+\.(\s)", re.M)
 # 「最老 3 条原话（added_at = …）」, 板上只有 0 条 tips 时它当然在 scan 里找不到同值。
 # 正向允许式: 只豁免这张表里的**逐字**短语, 不是"凡是像模板的都放行"。
 _D2_TEMPLATE_CONSTANTS = ("最老 3 条原话",)
-_D2_RANGE_RE = re.compile(
-    r"[0-9]+\s*(?:[~\-—–]|到|至)\s*[0-9]+\s*[个条块次份处板项篇道张]"
-)
+# ⛔ R3 round-4 (Codex round-3): 原式手抄了**旧的 11 字**量词表, 与已扩到 34 字的
+# _D2_QUANT 分叉 —— 表外量词的区间根本不被识别为区间。改为共用 _D2_QUANT。
+_D2_RANGE_RE = re.compile(rf"[0-9]+\s*(?:[~\-—–]|到|至)\s*[0-9]+\s*{_D2_QUANT}")
 
 
 def _scan_number_pool(obj, pool: set[int]) -> None:
@@ -1536,9 +1536,27 @@ _COUNT_BEFORE_QUANT_RE = re.compile(rf"({_NUM_RUN_PAT}){_D2_JOIN_ONE}*(?={_D2_QU
 # `五点五个` / `5点5个` 被拆成两个 5 分别碰池, 而读者看到的是 5.5 (实测 exit 0)。
 # ASCII 侧早有 _D2_DECIMAL_RE 把小数一律判 FAIL (scan 的计数都是整数),
 # 这里补上 CJK/混写形态: 数串 + `点`/`.` + 数串 + 量词 = 小数, 恒 FAIL。
+# ⛔ R3 round-4 (Codex round-3 HIGH): 小数点两侧**也可能被连接字符包住** ——
+# `987654<b>.</b>0个` 渲染成 `987654.0`, 但原式要求数串与 `[.点]` 直接相邻,
+# 两道小数防线全不命中, 普通循环只按尾片 `0` 查池 (实测 exit 0)。
+# 小数分隔符同时认半角 `.`、全角 `．` 与中文 `点`。
+_DECIMAL_SEP = rf"{_D2_JOIN_ONE}*[.．点]{_D2_JOIN_ONE}*"
+_DECIMAL_ANY_RE = re.compile(rf"{_NUM_RUN_PAT}{_DECIMAL_SEP}{_NUM_RUN_PAT}")
 _CJK_DECIMAL_RE = re.compile(
-    rf"({_NUM_RUN_PAT}[.点]{_NUM_RUN_PAT}){_D2_JOIN_ONE}*(?={_D2_QUANT})"
+    rf"({_NUM_RUN_PAT}{_DECIMAL_SEP}{_NUM_RUN_PAT}){_D2_JOIN_ONE}*(?={_D2_QUANT})"
 )
+
+
+def _normalize_number_seps(line: str) -> str:
+    """千分位分隔符归一 —— **D2 与 fallback 共用**。
+
+    ⛔ R3 round-4: 原先只在 D2 路径做, 且只认半角 `,` ——
+    `987654，000个`(全角逗号) 在 D2 侧只被取到 `000`;
+    `#### 派生子女 1,005 个` 在 fallback 侧被拆成 [1, 5] 逐片碰池 (实测 exit 0)。
+    ⚠️ 必须**删掉**分隔符而不是换成空格: 换成空格会让它落进连接集,
+    虽然仍能拼回, 但诊断里会出现带空格的原串, 与"读者看到的数"错位。
+    """
+    return re.sub(r"(?<=[0-9])[,，](?=[0-9]{3}(?![0-9]))", "", line)
 
 
 def _count_token_value(token: str) -> int | None:
@@ -1647,7 +1665,7 @@ def _verify_prose_counts(text: str, scan: dict, problems: list[str]) -> None:
             # ⚠️ 必须**删掉**分隔符而不是换成空格：换成空格会把 `999,016` 变成
             #    `999 016`，而空白在噪声集里 ⇒ 仍然只取到尾段 016（第一版就这么错的）。
             #    本行的等长约束到此为止——检查是逐行独立的，偏移不再被别处依赖。
-            line = re.sub(r"(?<=[0-9]),(?=[0-9]{3}(?![0-9]))", "", line)
+            line = _normalize_number_seps(line)
             # ⛔ R3 round-2: 前导零**不能**在行级剥 —— 与「数串跨连接字符整体抓取」
             # 相冲: `本板共有1 000个子节点` (渲染 = 1000, SI 千分位) 会先被剥成
             # `1 0`, 再拼成 `10` 落进池内 ⇒ 放行 (车道实测)。归一化必须作用在
@@ -1661,14 +1679,22 @@ def _verify_prose_counts(text: str, scan: dict, problems: list[str]) -> None:
             # ⛔ 对抗审查 MEDIUM: E7 原为**无条件**整段挖空 ⇒ `1-987654 个` 成了
             # 洗钱通道 (写个 `1-` 前缀, 任意量级都不受检)。现在只有**两端都有出处**
             # 才算合法区间; 否则不挖空, 交给下面的计数检查逐个判。
+            # ⛔ R3 round-4 (Codex round-3 HIGH): 原实现在"某端无出处"时**保留原串**,
+            # 指望后面的循环"逐个判" —— 但那个循环只取**紧邻量词**的端点。于是
+            # `本板共有987654-0个…` 只按右端 `0` 查池, 而 0 恒在池内 (`abs(a-a)`)
+            # ⇒ exit 0 放行 (实测)。既有门只测了反方向 `1-987654`(大数在右)。
+            # 现改为: **两端都终核**, 无出处的端点逐个报, 并把整段挖空
+            # (避免后面的循环再按单端重复判/漏判)。
+            bad_ends: list[int] = []
+
             def _range_ok(mm):
                 ends = [int(x) for x in re.findall(r"[0-9]+", mm.group(0))]
-                return (
-                    " " * len(mm.group(0))
-                    if all(e in pool for e in ends)
-                    else mm.group(0)
-                )
+                bad_ends.extend(e for e in ends if e not in pool)
+                return " " * len(mm.group(0))
 
+            # ⚠️ 端点报错必须发在**句式门之后** —— 第一版发在这里, 于是
+            # `建议覆盖 2~3 个节点。`(非规模自陈句) 也被判, 而池小的板上 2 或 3
+            # 不在池 ⇒ 合法语料被误伤 (放行门 legit_range 当场变红)。
             line = _D2_RANGE_RE.sub(_range_ok, line)
             # E6b: 逐字模板常量整段挖空 (等长, 保持偏移)
             for const in _D2_TEMPLATE_CONSTANTS:
@@ -1684,6 +1710,11 @@ def _verify_prose_counts(text: str, scan: dict, problems: list[str]) -> None:
             # 其余叙述交给 D1 的逐字段绑定与人工判读。宁可少管, 不可乱判。
             if not _D2_CLAIM_RE.search(line):
                 continue
+            for _e in bad_ends:
+                problems.append(
+                    f"数字终核: 『{sec}』段区间端点 {_e} 在 scan JSON 里找不到同值来源 "
+                    f"(区间两端都必须有出处): {line.strip()[:50]}"
+                )
             # 小数形态的计数一律 FAIL: scan JSON 的计数都是整数, 一个"0.987654 个"
             # 不可能有出处; 放行它等于给任意数字留一个 `0.` 前缀的免检通道。
             for dec in _D2_DECIMAL_RE.findall(line):
@@ -1969,11 +2000,19 @@ def _verify_fallback_derive_numbers(text: str, scan: dict, problems: list[str]) 
             # ⛔ R3 round-3 (Codex round-2 HIGH): 这里的 ASCII 侧原先仍是
             # `re.findall(r"\d+")` —— `1 000` / `9**5` 被拆成碎片逐片碰池,
             # 「CJK 与 ASCII 同一口径」当时并不成立。现两类共用 _NUM_RUN_RE。
+            # ⛔ R3 round-4 (Codex round-3 HIGH): 千分位归一与小数防线原先**只在 D2
+            # 路径**存在, fallback 直接对原行 findall 并逐片入池 —— `0.0个` /
+            # `零点零个` 按 [0,0] 查池、`1,005个` 按 [1,5] 查池, 读者所见值与进池值
+            # 不同 (实测 exit 0)。两条前处理下沉为共用。
+            norm = _normalize_number_seps(ln.translate(_FULLWIDTH_DIGITS))
+            for m_dec in _DECIMAL_ANY_RE.finditer(norm):
+                problems.append(
+                    f"数字终核: fallback 允许式({tag})行内出现小数形态 "
+                    f"{_join_free(m_dec.group(0))} "
+                    f"(scan JSON 的计数均为整数, 小数不可能有出处): {ln.strip()[:40]}"
+                )
             nums: list[int] = []
-            for tok in (
-                _join_free(x)
-                for x in _NUM_RUN_RE.findall(ln.translate(_FULLWIDTH_DIGITS))
-            ):
+            for tok in (_join_free(x) for x in _NUM_RUN_RE.findall(norm)):
                 v = _count_token_value(tok)
                 if v is None:
                     problems.append(

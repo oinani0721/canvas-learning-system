@@ -1,14 +1,14 @@
 === collect-only ===
-========================= 256 tests collected in 0.19s =========================
-<sys>:0: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+========================= 257 tests collected in 0.30s =========================
 === JUDGE-1 定向套件 ===
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-====================== 256 passed, 15 warnings in 34.10s =======================
+====================== 257 passed, 14 warnings in 40.18s =======================
 <sys>:0: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
-=== JUDGE-2 negverify (17 变体, 串行, 绑定最终字节) ===
-# ⚠️ TMPDIR 隔离: 真 /tmp 下有 Codex round-2 遗留的互斥锁, 其 rmdir 被本机 guard hook 拦下;
-#    ps 确认无并发 negverify 进程, 故用独立 TMPDIR 建新锁, 串行语义不变。
-基线: 双向门全绿 · 被测文件 sha256=25ae3ad84d0b…
+=== JUDGE-2 negverify (20 变体, 串行, 绑定最终字节) ===
+# TMPDIR 隔离: 真 /tmp 有 Codex round-2 遗留互斥锁, rmdir 被本机 guard hook 拦;
+# ps 确认无并发 negverify 进程, 独立 TMPDIR 建新锁, 串行语义不变。
+基线: 双向门全绿 · 被测文件 sha256=f3257f209527…
 
 ✅ survivor-1 围栏闭合退回宽松判定（E1 全线：长度 + 尾随空白 两条一起禁）: 如期变红（2/2 失败）
 ✅ survivor-2 规模行允许式去掉行尾锚（H-2 前半全线）: 如期变红（1/1 失败）
@@ -27,9 +27,14 @@
 ✅ survivor-15 (C-3) 判值放宽为「取末位字」（表内单字判据被禁：廿五/一零 被赋值）: 如期变红（5/5 失败）
 ✅ survivor-16 (C-3) 定界集退回窄集合（表外数词字不进提取面 ⇒ 从尾片重锚）: 如期变红（1/1 失败）
 ✅ survivor-17 (C-3) CJK 小数形态检查被摘除（五点五个 / 5点5个 拆成两个 5 碰池）: 如期变红（1/1 失败）
+✅ survivor-18 (C-4) 区间某端无出处时退回「保留原串交给后面逐个判」（而后面的循环只取紧邻量词的一端 ⇒ 另一端免检）: 如期变红（1/1 失败）
+✅ survivor-19 (C-4) fallback 的千分位归一与小数防线被摘除（退回对原行直接 findall 逐片入池）: 如期变红（1/1 失败）
+✅ survivor-20 (C-4) 小数分隔符两侧不再容连接字符 + 只认半角逗号（标签包住小数点 / 全角逗号千分位重新免检）: 如期变红（1/1 失败）
 
-全部承重（共 17 条变体）
+全部承重（共 20 条变体）
 === 扩大回归 ===
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-================= 588 passed, 194 warnings in 60.48s (0:01:00) =================
+================= 589 passed, 193 warnings in 82.04s (0:01:22) =================
 <sys>:0: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
+=== 收尾 sha（须等于变异基线）===
+f3257f209527185e10683844ae20e17a6064dc84c94d1e5792837daea2a404a9  ../canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py
