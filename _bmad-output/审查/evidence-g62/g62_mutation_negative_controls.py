@@ -110,8 +110,9 @@ MUTATIONS: list[tuple[str, str, str, str, str]] = [
     # ── 四态与降级 (完成条件 b) ─────────────────────────────────────
     (
         "M10",
-        "去掉未知 status 的兜底 → 新增状态白屏/崩",
-        'const meta = STATUS_META[entry.status] || [entry.status, "#6b7280"];',
+        "去掉未知 status 的兜底 → 新增状态白屏/崩 (own-key 版锚点)",
+        'const meta = Object.prototype.hasOwnProperty.call(STATUS_META, entry.status)\n'
+        '    ? STATUS_META[entry.status] : [entry.status, "#6b7280"];',
         "const meta = STATUS_META[entry.status];",
         "test_js_renders_four_states_and_unknown_state_defense",
     ),
@@ -261,8 +262,9 @@ MUTATIONS: list[tuple[str, str, str, str, str]] = [
     ),
     (
         "M29",
-        "JS 里另抄一份徽标文案 → 两页文案将来各走各的",
-        "const meta = STATUS_META[entry.status] || [entry.status, \"#6b7280\"];",
+        "JS 里另抄一份徽标文案 → 两页文案将来各走各的 (own-key 版锚点)",
+        'const meta = Object.prototype.hasOwnProperty.call(STATUS_META, entry.status)\n'
+        '    ? STATUS_META[entry.status] : [entry.status, "#6b7280"];',
         'const LOCAL = {ok: ["今日投影", "#16a34a"]};\n'
         '  const meta = LOCAL[entry.status] || STATUS_META[entry.status] || [entry.status, "#6b7280"];',
         "test_status_meta_and_buckets_shared_not_copied",
@@ -298,8 +300,8 @@ MUTATIONS: list[tuple[str, str, str, str, str]] = [
     ),
     (
         "M34",
-        "rebuilt 后不立即重拉 → 数字停在旧投影",
-        "      poll();  // 真重建 → 立即重拉 (反馈在 state.notes, 重绘不丢)",
+        "rebuilt 后不立即重拉 → 数字停在旧投影 (round-3 LOW-2 后: 可见态才重拉)",
+        "      if (!document.hidden) poll();",
         ";",
         "test_js_refresh_wiring_note_survives_rerender_and_inflight_guard",
     ),
@@ -348,7 +350,7 @@ MUTATIONS: list[tuple[str, str, str, str, str]] = [
     (
         "M41",
         "GET 成功不结算 pendingSync → 『数字已更新』永不出现",
-        "    settlePendingSync(nowMs, true);",
+        "    settlePendingSync(nowMs, true, renderedVids);",
         ";",
         "test_js_rebuilt_sync_flow_never_claims_prematurely",
     ),
@@ -358,6 +360,35 @@ MUTATIONS: list[tuple[str, str, str, str, str]] = [
         '    if (!data || !Array.isArray(data.vaults)) throw new Error("响应形状坏 (vaults 缺失)");',
         ";",
         "test_js_malformed_200_keeps_last_data",
+    ),
+    # ── round-3 (Codex 终轮) findings 的门 ─────────────────────────
+    (
+        "M43",
+        "script 正文塞携带属性的结束标签 </script x=y> (round-3 HIGH-3 实证形态)",
+        "const POLL_MIN_MS = 5000;   // 轮询下限 (默认裁决②: clamp 5s)",
+        "</script x=y>\nconst POLL_MIN_MS = 5000;   // 轮询下限 (默认裁决②: clamp 5s)",
+        "test_real_page_extracted_script_is_well_formed",
+    ),
+    (
+        "M44",
+        "白名单名重绑定 list = open (round-3 HIGH-4b 实证绕过) → AST 重绑定禁令",
+        "    urls = {",
+        "    list = open\n    urls = {",
+        "test_review_app_module_imports_are_closed",
+    ),
+    (
+        "M45",
+        "错误接收者挂同名方法 [].items() → AST 接收者门",
+        "    urls = {",
+        '    urls = {"probe": [1].items(),',
+        "test_review_app_module_imports_are_closed",
+    ),
+    (
+        "M46",
+        "结算不绑定渲染证据 → corrupt/缺库也沾 GET 成功的光 (round-3 HIGH-1)",
+        "    const okThis = ok && renderedVids && renderedVids[vid] === true;",
+        "    const okThis = ok;",
+        "test_js_settle_binds_to_rendered_vault_evidence",
     ),
 ]
 

@@ -253,6 +253,9 @@ def test_review_app_module_imports_are_closed():
     }
     ALLOWED_CALL_NAMES = {"APIRouter", "list", "_js_json", "HTMLResponse"}
     ALLOWED_CALL_ATTRS = {"get", "replace", "url_for", "dumps", "items"}
+    #: Attribute 调用允许的接收者 (unparse 基名) — 只查尾部方法名不够,
+    #: 任意对象都能挂同名方法 (round-3 HIGH-4b 实证绕过面)
+    ALLOWED_RECEIVERS = {"json", "request", "review_app_router", "_STATUS_META", "_PAGE_TEMPLATE"}
     src = (_ENDPOINTS_DIR / "review_app.py").read_text(encoding="utf-8")
     tree = ast.parse(src)
     collected: set[str] = set()
@@ -265,12 +268,27 @@ def test_review_app_module_imports_are_closed():
     banned = collected - ALLOWED_IMPORTS
     assert not banned, f"出现白名单外的 import: {sorted(banned)} — 第二套管道的载体"
     for node in ast.walk(tree):
+        # 重绑定禁令 (round-3 HIGH-4b): 允许名被赋成别的东西后, 调用点的拼写
+        # 检查就全空转了 — `list = open; list("今日复习.json")` 拼写完全合法
+        if isinstance(node, (ast.Assign, ast.AugAssign, ast.AnnAssign)):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            for tgt in targets:
+                if isinstance(tgt, ast.Name) and tgt.id in ALLOWED_CALL_NAMES:
+                    pytest.fail(f"白名单名 {tgt.id!r} 被重绑定 — 调用点拼写检查会被架空")
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            for a in node.args.args + node.args.kwonlyargs:
+                if a.arg in ALLOWED_CALL_NAMES:
+                    pytest.fail(f"白名单名 {a.arg!r} 被参数遮蔽 — 调用点拼写检查会被架空")
         if isinstance(node, ast.Call):
             f = node.func
             if isinstance(f, ast.Name):
                 assert f.id in ALLOWED_CALL_NAMES, f"白名单外调用 {f.id}() — 模板注入之外的第二种行为"
             elif isinstance(f, ast.Attribute):
                 assert f.attr in ALLOWED_CALL_ATTRS, f"白名单外方法 .{f.attr}() — 模板注入之外的第二种行为"
+                recv_base = ast.unparse(f.value).split("(", 1)[0]
+                assert recv_base in ALLOWED_RECEIVERS or isinstance(f.value, ast.Call), (
+                    f"非白名单接收者 {recv_base}.{f.attr}() — 只查方法名挡不住任意对象挂同名方法"
+                )
             else:
                 pytest.fail(
                     f"非白名单调用形态: {type(f).__name__} — 动态派发/下标取内建/lambda "
@@ -375,10 +393,13 @@ def _extract_script(html: str) -> str:
     assert sep, "script 开标签未命中"
     # 结束符**总数**恰为 1 (大小写不敏感) — 正文任何位置多出结束符 (哪怕在
     # JS 注释里), 浏览器都会在那里提前终止脚本; maxsplit 截断式提取会把它
-    # 当切割点吞掉, 那道门就是死的 (round-3 自查), 数段数才漏不掉
-    parts = re.split(r"</script\s*>", rest, flags=re.I)
-    assert len(parts) == 2, f"script 结束符出现 {len(parts) - 1} 次 (应恰 1) — 浏览器会在正文处提前终止"
-    src = parts[0]
+    # 当切割点吞掉, 那道门就是死的 (round-3 自查), 数段数才漏不掉。
+    # round-3 HIGH-3: 浏览器结束标签语言还接受 solidus 分隔 (`</script/`) 与
+    # 携带属性 (`</script x=y>`) — `</script\s*>` 数不到这些形态。fail-closed
+    # 升级为数 `</script` 前缀总出现次数 (多一个即红, 不猜后续字符)
+    hits = re.findall(r"</script", rest, flags=re.I)
+    assert len(hits) == 1, f"script 结束前缀出现 {len(hits)} 次 (应恰 1) — 浏览器会在正文处提前终止"
+    src = re.split(r"</script", rest, maxsplit=1, flags=re.I)[0]
     # 正文分叉面: HTML 注释开合改变 tokenizer 状态 (script data escaped)
     assert "<!--" not in src and "-->" not in src, "script 正文含 HTML 注释开合 — tokenizer 状态分叉面"
     assert "__URLS_JSON__" not in src, "占位符没被替换 — 页面发出去的是模板本身"
@@ -860,8 +881,7 @@ test("③ TTL 过期后重绘, 反馈退场 (不永久占卡片)", async () => {
   await flush();
   const {btn, note} = attachButtonNote(b, "cs_61b");
   await b.handlers["cards::click"](clickEvent(btn));
-  assert.ok(b.api.freshNotes(Date.now() + 16000) !== undefined);
-  assert.deepEqual(b.api.freshNotes(Date.now() + 16000), {}, "15s TTL 后不得再有 note");
+  assert.equal(Object.keys(b.api.freshNotes(Date.now() + 16000)).length, 0, "15s TTL 后不得再有 note");
   assert.deepEqual(Object.keys(b.api.freshNotes(Date.now())), ["cs_61b"], "TTL 内必须还有 note");
   assert.ok(note.innerHTML.length > 0);
 });
@@ -1036,7 +1056,9 @@ def test_script_extraction_rejects_case_insensitive_terminator():
     """
     base = _PAGE_TEMPLATE.replace("__URLS_JSON__", "{}").replace("__STATUS_META_JSON__", "{}")
     base = base.replace("__BUCKET_CN_JSON__", "{}").replace("__BUCKET_ORDER_JSON__", "[]")
-    for needle in ("// </SCRIPT>", "</script >", "/* <!-- */"):
+    # 后两种是 round-3 HIGH-3 实证: 浏览器接受 solidus 分隔与携带属性的结束标签,
+    # `</script\s*>` 数不到 — 现按 `</script` 前缀计数, 全部必红
+    for needle in ("// </SCRIPT>", "</script >", "</script/", "</script x=y>", "/* <!-- */"):
         poisoned = base.replace("const POLL_MIN_MS", f"{needle}\nconst POLL_MIN_MS", 1)
         with pytest.raises(AssertionError):
             _extract_script(poisoned)
@@ -1255,6 +1277,133 @@ assert.ok(!h.includes("2026-09-02"), "UTC 字面日期不许漏出来");
 const bad = {vault_id: "x", status: "ok", error: null, projection: {...proj,
   next_upcoming: {board: "b", next_due: "20260902", node: "n"}}};
 assert.match(boot().api.renderVaultCard(bad, NOW), /20260902/, "畸形时间原样显示, 不炸");
+""",
+    )
+    _assert_node_green(proc)
+
+
+@pytest.mark.usefixtures("page_html")
+def test_js_settle_binds_to_rendered_vault_evidence(node_harness):
+    """round-3 HIGH-1 门: 成功结算必须绑定证据 — GET 里没有该库、或该库
+    projection 不可用 (corrupt/缺投影), 都不许说「数字已更新」。"""
+    proc = _run_node(
+        node_harness,
+        r"""
+import test from "node:test";
+import assert from "node:assert/strict";
+import {boot, flush, mkNode, matches} from "./boot.mjs";
+const vaultOf = (vid, proj) => ({vault_id: vid, status: proj ? "ok" : "corrupt",
+  error: proj ? null : "ValueError: 坏投影", projection: proj});
+function world(getJson) {
+  const b = boot({
+    getJson,
+    postJson: () => ({ok: true, status: 200, json: async () =>
+      ({rebuilt: true, reason: "rebuilt", rebuild_count: 7})}),
+  });
+  return b;
+}
+function attach(b, vid) {
+  const btn = mkNode("btn");
+  btn._attrs["data-refresh-vault"] = vid;
+  const note = mkNode("note");
+  note._attrs["data-note-for"] = vid;
+  b.els["cards"]._desc = [btn, note];
+  return {btn, note};
+}
+const click = btn => ({target: {closest: sel => (matches(btn, sel) ? btn : null)}});
+
+test("① 目标库投影 corrupt → 结算成同步失败, 不许说数字已更新", async () => {
+  const badProj = {vaults: [vaultOf("cs_61b", null)]};
+  const b = world(() => ({ok: true, status: 200, json: async () => badProj}));
+  await flush();
+  const {btn, note} = attach(b, "cs_61b");
+  await b.handlers["cards::click"](click(btn));
+  await flush();
+  assert.match(note.innerHTML, /同步失败/, "corrupt 投影不许沾 GET 成功的光");
+  assert.ok(!note.innerHTML.includes("数字已更新"));
+});
+test("② GET 里没有目标库 → 同样结算成同步失败", async () => {
+  const without = {vaults: [vaultOf("别的库", {due_count: 1, boards: [], bucket_counts: null,
+    generated_at: "g", due_new_count: 0, placeholder_backlog: 0})]};
+  const b = world(() => ({ok: true, status: 200, json: async () => without}));
+  await flush();
+  const {btn, note} = attach(b, "cs_61b");
+  await b.handlers["cards::click"](click(btn));
+  await flush();
+  assert.match(note.innerHTML, /同步失败/, "目标库从聚合里消失 = 没有更新证据");
+  assert.ok(!note.innerHTML.includes("数字已更新"));
+});
+test("③ 有证据 (渲染成功 + projection 在) → 才结算成数字已更新", async () => {
+  const okProj = {vaults: [vaultOf("cs_61b", {due_count: 9, boards: [], bucket_counts: null,
+    generated_at: "fresh", due_new_count: 0, placeholder_backlog: 0})]};
+  const b = world(() => ({ok: true, status: 200, json: async () => okProj}));
+  await flush();
+  const {btn, note} = attach(b, "cs_61b");
+  await b.handlers["cards::click"](click(btn));
+  await flush();
+  assert.match(note.innerHTML, /数字已更新/);
+  assert.match(b.els["cards"].innerHTML, /生成于 fresh/);
+});
+""",
+    )
+    _assert_node_green(proc)
+
+
+@pytest.mark.usefixtures("page_html")
+def test_js_hidden_rebuilt_defers_get_and_own_key_status_meta(node_harness):
+    """round-3 LOW-2/LOW-3 门: 隐藏时 rebuilt 不触发 GET (pending 留给回前台
+    的 poll 结算); "constructor" 这类继承键名走灰徽标兜底; freshNotes 返回
+    null-prototype 对象。"""
+    proc = _run_node(
+        node_harness,
+        r"""
+import test from "node:test";
+import assert from "node:assert/strict";
+import {boot, flush, mkNode, matches} from "./boot.mjs";
+const OK = {vaults: [{vault_id: "cs_61b", status: "ok", error: null,
+  projection: {due_count: 2, due_new_count: 0, placeholder_backlog: 0, bucket_counts: null,
+    generated_at: "g", next_upcoming: null, boards: []}}]};
+test("隐藏时 rebuilt → 不发 GET, pending 留给回前台结算", async () => {
+  const b = boot({
+    getJson: () => ({ok: true, status: 200, json: async () => OK}),
+    postJson: () => ({ok: true, status: 200, json: async () =>
+      ({rebuilt: true, reason: "rebuilt", rebuild_count: 2})}),
+    hidden: true,   // 隐藏态: 首轮 GET 照发 (LOW-3 已声明), 隐藏期间不排程
+  });
+  await flush();
+  const before = b.calls.get;
+  const btn = mkNode("btn");
+  btn._attrs["data-refresh-vault"] = "cs_61b";
+  const note = mkNode("note");
+  note._attrs["data-note-for"] = "cs_61b";
+  b.els["cards"]._desc = [btn, note];
+  await b.handlers["cards::click"]({target: {closest: sel => (matches(btn, sel) ? btn : null)}});
+  assert.equal(b.calls.get, before, "隐藏时 rebuilt 不得触发 GET (round-3 LOW-2)");
+  b.document.hidden = false;
+  b.handlers["document::visibilitychange"]();   // 回前台 → poll → 结算
+  await flush();
+  assert.match(note.innerHTML, /数字已更新/, "回前台后的 poll 完成结算");
+});
+test("freshNotes 返回 null-prototype 对象 (round-3 M1 补口)", async () => {
+  const b = boot({getJson: () => ({ok: true, status: 200, json: async () => OK})});
+  await flush();
+  const btn = mkNode("btn");
+  btn._attrs["data-refresh-vault"] = "cs_61b";
+  const note = mkNode("note");
+  note._attrs["data-note-for"] = "cs_61b";
+  b.els["cards"]._desc = [btn, note];
+  await b.handlers["cards::click"]({target: {closest: sel => (matches(btn, sel) ? btn : null)}});
+  const fn = b.api.freshNotes(Date.now());
+  assert.equal(Object.getPrototypeOf(fn), null, "freshNotes 产物不得带 Object.prototype");
+});
+test("status='constructor' → 走灰徽标兜底, 不命中继承属性", () => {
+  const b = boot();
+  const h = b.api.renderVaultCard({vault_id: "v", status: "constructor", error: null,
+    projection: null}, 0);
+  assert.match(h, /constructor/, "原字面灰徽标");
+  assert.match(h, /#6b7280/);
+  assert.ok(!h.includes("今日投影"));
+});
 """,
     )
     _assert_node_green(proc)

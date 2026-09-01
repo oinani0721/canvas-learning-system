@@ -269,8 +269,11 @@ function restDayHtml(proj, nowMs) {
   return '<div class="restday">✅ 今日无到期节点，休息一天。' + tail + "</div>";
 }
 function renderVaultCard(entry, nowMs, noteHtml, isInflight) {
-  // 未知 status 防御: 原字面灰徽标 (未来第五态不白屏)
-  const meta = STATUS_META[entry.status] || [entry.status, "#6b7280"];
+  // 未知 status 防御: 原字面灰徽标 (未来第五态不白屏)。
+  // own-key 访问 (round-3 LOW-3): "constructor"/"__proto__" 会命中继承属性,
+  // 必须显式判自有键才落灰兜底
+  const meta = Object.prototype.hasOwnProperty.call(STATUS_META, entry.status)
+    ? STATUS_META[entry.status] : [entry.status, "#6b7280"];
   const vid = entry.vault_id;
   let body = "";
   const proj = entry.projection;
@@ -367,7 +370,8 @@ function applyNote(vid) {
   return patched;
 }
 function freshNotes(nowMs) {
-  const out = {};
+  // null-prototype: 与 state.notes 同纪律 — 普通对象会被 "__proto__" 键污染 (round-3 M1)
+  const out = Object.create(null);
   for (const vid of Object.keys(state.notes)) {
     if (nowMs - state.notes[vid].atMs < NOTE_TTL_MS) out[vid] = state.notes[vid].html;
   }
@@ -376,13 +380,16 @@ function freshNotes(nowMs) {
 function renderCards(nowMs) {
   el("cards").innerHTML = renderPage(state.lastData, nowMs, freshNotes(nowMs), state.inflight);
 }
-function settlePendingSync(nowMs, ok) {
-  // rebuilt 只发"正在同步…"；数字是否真更新, 由 GET 成败结算 (round-2 HIGH-1:
-  // 旧版 GET 失败也挂着"数字已更新", 矛盾可以无限期留在屏上)
+function settlePendingSync(nowMs, ok, renderedVids) {
+  // rebuilt 只发"正在同步…"；数字是否真更新, 由 GET 成败结算 (round-2 HIGH-1)。
+  // round-3 HIGH-1 收紧: 成功结算必须**绑定证据** — renderedVids 里要有该库、
+  // 且该库条目带可用 projection (corrupt/缺投影的库不许说"数字已更新")；
+  // 不在 renderedVids 里的 pending 库按失败结算, 不许跟着最新 GET 沾光。
   for (const vid of Object.keys(state.pendingSync)) {
     const n = state.pendingSync[vid];
     delete state.pendingSync[vid];
-    state.notes[vid] = {html: ok
+    const okThis = ok && renderedVids && renderedVids[vid] === true;
+    state.notes[vid] = {html: okThis
       ? '<span class="rnote ok">✅ 已重建（本进程累计 ' + esc(n.count) + ' 次）· 数字已更新</span>'
       : '<span class="rnote warn">⚠ 已重建（本进程累计 ' + esc(n.count) +
         ' 次）· 数字同步失败，后端恢复后自动重试</span>', atMs: nowMs};
@@ -407,9 +414,19 @@ async function poll() {
     if (!data || !Array.isArray(data.vaults)) throw new Error("响应形状坏 (vaults 缺失)");
     if (gen !== state.pollGen) return;  // 过期响应: 不碰状态不排程
     const nowMs = Date.now();
+    // 先渲染候选数据当探针 (round-3 HIGH-1: 坏成员让 render 抛错时走 catch —
+    // lastData/结算/成功提示都不会被半截提交), 再结算, 再上最终帧
+    // (结算会更新 notes, 探针帧里是结算前的反馈, 不能直接用)
+    renderPage(data, nowMs, freshNotes(nowMs), state.inflight);
+    // 成功结算的绑定证据: 渲染成功, 且该库条目带可用 projection
+    // (损坏/缺投影的库不许沾最新 GET 的光说"数字已更新")
+    const renderedVids = Object.create(null);
+    for (const v of data.vaults) {
+      if (v && v.vault_id && v.projection) renderedVids[v.vault_id] = true;
+    }
     state.lastData = data;
-    settlePendingSync(nowMs, true);
-    renderCards(nowMs);
+    settlePendingSync(nowMs, true, renderedVids);
+    el("cards").innerHTML = renderPage(data, nowMs, freshNotes(nowMs), state.inflight);
     el("banner").hidden = true;
     state.lastOkAt = nowMs;
     el("updated").textContent = "上次更新 " + fmtClock(nowMs);
@@ -452,7 +469,9 @@ async function onRefreshClick(ev) {
     if (resp.ok && payload && payload.rebuilt) {
       // 数字是否真更新交给 GET 结算 (settlePendingSync) — 不在 POST 结局里预先声称
       state.pendingSync[vid] = {count: payload.rebuild_count, atMs: Date.now()};
-      poll();  // 真重建 → 立即重拉 (反馈在 state.notes, 重绘不丢)
+      // 隐藏时不触发 GET (round-3 LOW-2): pending 挂着, 回前台 visibilitychange
+      // 的 poll 会结算 — 不在用户看不见的时候起网络活动
+      if (!document.hidden) poll();
     }
   } catch (e) {
     state.notes[vid] = {html: renderRefreshResult(0, {detail: String((e && e.message) || e)}), atMs: Date.now()};
