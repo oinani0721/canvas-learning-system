@@ -1038,18 +1038,18 @@ def _strip_code_blocks(text: str) -> str:
             if m and not (m.group("fence")[0] == "`" and "`" in bare[m.end() :]):
                 fence = m.group("fence")
                 # ⛔ round-3 BLOCKER-1 (Codex 实证 + 车道独立复现): 列表项内围栏
-                # 的内容行**相对引用系的缩进必须 ≥ marker 内容列** —— 缩进不足的
-                # 非空行会结束容器, 围栏随之结束, 该行渲染为**可见正文** (三个
-                # sibling <li> 的中间项)。不跟踪这一点时, 可见伪计数被误当围栏
-                # 内容剥掉, D2 漏拦 (实测 `- ``` / - 本板共有 987654 个… / - ``` `
-                # exit 0)。内容列与行缩进都用「剥引用后」的相对口径:
-                # quote_w = `>` 段总宽 (`>` + 至多一个空白), col_rel = m.start() -
-                # quote_w(开栏行)。无列表容器 (纯引用/缩进) 时无边界, 行为不变。
+                # 的内容行**绝对内容列必须 ≥ 开栏行剥到围栏标记的绝对列** ——
+                # 缩进不足的非空行会结束容器, 围栏随之结束, 该行渲染为
+                # **可见正文** (三个 sibling <li> 的中间项)。不跟踪这一点时,
+                # 可见伪计数被误当围栏内容剥掉, D2 漏拦 (实测
+                # `- ``` / - 本板共有 987654 个… / - ``` ` exit 0)。
+                # ⛔ 口径 = **绝对列** (round-5 LOW 更正: 原注释写「相对口径」与
+                # 实现矛盾)——开栏列 = 本行剥掉的前缀长度; 内容行绝对列 =
+                # _quote_width + _indent_after_quotes (引用系前缀 + 其后缩进,
+                # 前导空白计入引用系)。无列表容器 (纯引用/缩进) 时无边界,
+                # 行为不变。
                 fence_list_col = None
                 if re.search(r"(?:[-*+]|\d{1,9}[.)])[^\S\n]", ln):
-                    # ⛔ m.start() 是 bare 内偏移 (恒 0) —— 必须用「本行剥掉的
-                    # 前缀长度」= 内容的**绝对列**；与内容行的绝对列
-                    # (_quote_width + _indent_after_quotes) 同口径比较。
                     fence_list_col = len(ln) - len(bare)
                 out.append("")
                 continue
@@ -1854,10 +1854,15 @@ def _verify_fallback_derive_numbers(text: str, scan: dict, problems: list[str]) 
         for tag, pat in tags:
             # ⛔ round-4 (Codex 抢救探针 C): 数字提取必须含**中文数词** ——
             # `#### 派生子女 九十八万个` 的 `九十八万` 用 `\d+` 抓不到, 实测放行。
-            # 可解析的入池比对; 解析不了的 (生僻写法) fail-closed 直接报。
+            # ⛔ round-5 (Codex 定向复核 HIGH): 原实现把多字串交给 _cjk_to_int 并
+            # 宣称"解析失败 fail-closed"——但提取字符集与 _CJK_NUM/_CJK_UNIT 完全
+            # 同集, 非空匹配必能返回**某个**整数 (「五四」只留末位得 4), 该分支
+            # 静态不可达且可能按错值查池。现改为**只认单字数词** (值=映射, 绝对
+            # 确定); 多字串一律「无法验证」fail-closed——模板与合成语料的允许式
+            # 行没有多字中文数词的合法用例, 误伤面为零。
             nums = [int(x) for x in re.findall(r"\d+", ln.translate(_FULLWIDTH_DIGITS))]
             for cjk in re.findall(r"[零〇一二两三四五六七八九十百千万亿]+", ln):
-                v = _cjk_to_int(cjk)
+                v = _CJK_NUM.get(cjk) if len(cjk) == 1 else None
                 if v is None:
                     problems.append(
                         f"数字终核: fallback 允许式({tag})行内中文数字 {cjk!r} 无法验证 "

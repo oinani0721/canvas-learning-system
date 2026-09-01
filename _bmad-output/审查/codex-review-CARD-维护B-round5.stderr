@@ -1,0 +1,1739 @@
+Reading additional input from stdin...
+OpenAI Codex v0.147.0
+--------
+workdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix
+model: gpt-5.6-sol
+provider: openai
+approval: on-request
+sandbox: read-only
+reasoning effort: ultra
+reasoning summaries: auto
+session id: 01a05c50-9124-7871-a901-c9cf695a0bd5
+--------
+user
+# Codex 定向复核 · CARD-维护B round-5（仅审 round-4 三缝隙整改）
+
+你是对抗复核者。历史：round-1 FAIL(3B/5H/3M)；round-2/round-4 两次被你侧 cyber
+过滤器截断无终裁；round-3 FAIL(2B/4H) 已全部整改并经你 round-3 报告点名。
+**本轮范围极窄**：只复核 round-4 从你 stderr 抢救出的三条缝隙（A/B/C）的整改。
+不要扩展到其它面——其它面 round-1~3 已覆盖并有存档。
+
+工作树: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix
+相关 commit: `ff946d8c`（round-4 整改）。
+
+## ⛔ 硬限（保证本轮不触发你侧过滤器）
+
+1. **不要构造、不要运行任何变异/探针命令**——车道已提供先红与整改后的完整实测
+   （见下），你只做**静态审读 + 跑既有套件**。
+2. 不读 `fixtures/` 下任何 `.md`/`.json` 正文。
+3. **报告第一行**：「BLOCKER/HIGH 清零：是/否（就 A/B/C 三缝隙及其整改而言）」。
+
+## 三条缝隙与整改（你 round-4 stderr 的探针实测 → 车道整改）
+
+| # | 你 round-4 的实测（stderr :4551-4554） | 整改（`ff946d8c`） | 整改后实测 |
+|---|---|---|---|
+| A | ` > - ``` `（引用标记前带前导空格）围栏藏信号 rc=0 | `_quote_width`/`_indent_after_quotes` 重写为**绝对内容列**口径（前导空白计入引用系；fence_list_col = 本行剥掉的前缀长度；容器终止判定 = `_quote_width(ln)+_indent_after_quotes(ln) < fence_list_col`） | rc=1 拦 |
+| B | manifest 模式附录伪无来源结论 rc=0 | `_verify_fallback_derive_numbers` 的③段限定移出 data_mode 条件（manifest 同样生效） | rc=1 拦 |
+| C | 允许式标题行中文数词（`九十八万`）rc=0 | 数字提取加 `[零〇一二两三四五六七八九十百千万亿]+` 序列，`_cjk_to_int` 可解析入池比对、解析失败 fail-closed 报「无法验证」 | rc=1 拦 |
+
+车道证据（`_bmad-output/审查/evidence-maintb-r2/`）：
+`round4-repro.txt`（先红，A/B/C 全 exit 0）、`round4-after3.txt`（整改后 A/B/C 全拦 +
+round-3 全矩阵 19/19 无回归）、`judge1-final5.txt`（套件 249 passed）、
+`judge3-final5.txt`（扩大 581 passed）、`negverify-final5.txt`（10/10 rc=0）、
+`f-collect-final5.txt`（live 8 份开工前 vs 收尾逐字相同）。
+
+## 你的复核动作（只有三步）
+
+1. **读代码**（`canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py`）：
+   - `_quote_width` / `_indent_after_quotes`（≈:1000-1030）与 `_strip_code_blocks`
+     内的容器终止判定（≈:1050-1075）——口径是否自洽（绝对列 vs 相对列混用即洞）；
+     `fence_list_col` 的设置条件（marker 检测）；
+   - `_verify_fallback_derive_numbers`（≈:1791 起）——③段限定位置（data_mode
+     return 之前）与 fallback 段的边界；
+   - HIGH-6 数字提取段（≈:1852 起）——中文数词提取与 `_cjk_to_int` 失败分支。
+2. **读测试**（`backend/tests/regression/test_recap_scan_signals.py`）：
+   `test_domain_r4_leading_space_blockquote_list_fence` /
+   `test_domain_r4_manifest_appendix_signal_in_section3_only` /
+   `test_domain_r4_derive_allow_cjk_numbers_in_pool` 三门的断言是否与实现一致、
+   `test_domain_strip_code_blocks_unit_contract` 的三分类用例是否被新口径推翻。
+3. **跑一遍套件核对 249**：`cd backend && .venv/bin/pytest
+   tests/regression/test_recap_scan_signals.py -q -p no:cacheprovider`。
+
+## 输出格式
+
+- **第一行**：「BLOCKER/HIGH 清零：是/否（就 A/B/C 三缝隙及其整改而言）」。
+- 三条逐条 ✅/⚠️/❌ + `file:line` 判词；发现的新问题按 severity 列出（仅限本轮
+  整改直接引入的）。
+- 报告一次给出；先写正文再补过程。
+2026-09-01T09:33:04.043615Z ERROR codex_models_manager::manager: failed to refresh available models: timeout waiting for child process to exit
+**Planning audit approach**
+**Verifying skill availability in memory**
+**Assigning audit subagents and tasks**
+codex
+我会严格锁定 A/B/C：先做轻量历史约束核对，再并行静态审读实现与测试；唯一执行动作是你指定的 249 项既有套件，不构造任何探针，也不读取 `fixtures/` 正文。
+**Planning sequential memory inspection**
+exec
+/bin/zsh -lc 'rg -n -i "card-v2|recap_scan|CARD-维护B|round-4|adversarial audit|canvas-adversarial-audit" /Users/Heishing/.codex/memories/MEMORY.md' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix
+ succeeded in 0ms:
+65:## Task 1: Full-project adversarial audit and productivity direction, partial
+229:## Task 2: P1-05b five-question adversarial audit, reproducible bypasses
+246:- Related skill: skills/canvas-adversarial-audit/SKILL.md. P1-05/P1-01/P1-08 remained STILL-OPEN; F-02 tombstone filtering and F-05 live resilience were closed. Rejected vault inputs must show zero open/hash/index/write. [Task 1][Task 2]
+
+**Editing lines 220-250 with sed**
+exec
+/bin/zsh -lc "sed -n '220,252p' /Users/Heishing/.codex/memories/MEMORY.md && wc -l /Users/Heishing/.codex/memories/skills/canvas-adversarial-audit/SKILL.md && sed -n '1,240p' /Users/Heishing/.codex/memories/skills/canvas-adversarial-audit/SKILL.md" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix
+ succeeded in 0ms:
+
+### rollout_summary_files
+
+- rollout_summaries/2026-08-17T01-56-07-ZNCd-agents_guide_and_p1_05c_adversarial_audit.md (cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output, rollout_path=/Users/Heishing/.codex/sessions/2026/08/17/rollout-2026-08-17T09-56-07-01a00d6e-ea40-70a1-a23c-d51342eeeacd.jsonl, updated_at=2026-08-19T17:56:56+00:00, thread_id=01a00d6e-ea40-70a1-a23c-d51342eeeacd, outcome=partial; final read-only verdict)
+
+### keywords
+
+- P1-05c, P1-05, P1-01, P1-08, check_vault_path, vault_index_orchestrator, LanceDB, Graphiti, DEFAULT_GROUP_ID, SnapshotV3, CURRENT_TASK.md
+
+## Task 2: P1-05b five-question adversarial audit, reproducible bypasses
+
+### rollout_summary_files
+
+- rollout_summaries/2026-08-19T14-44-08-upza-p1_05b_adversarial_review_finds_admission_quarantine_snapsho.md (cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output, rollout_path=/Users/Heishing/.codex/sessions/2026/08/19/rollout-2026-08-19T22-44-08-01a01a7a-c47f-70e2-8e5e-524e1591da78.jsonl, updated_at=2026-08-19T15:12:50+00:00, thread_id=01a01a7a-c47f-70e2-8e5e-524e1591da78, outcome=partial; detailed counterexamples)
+
+### keywords
+
+- P1-05b, symlink_escape, casefold, vault_backfill, lancedb_client, quarantine__p105b, search_nodes, read_node_tips, manifest-v3, NaN
+
+## User preferences
+
+- “启动并行 agent 进行对抗性审查” -> use independent evidence tracks and cross-check severity; every finding needs `file:line`, reproduction path/result, severity, conflict explanation, PASS/PARTIAL/FAIL, and limits. [Task 1][Task 2]
+- Respect read-only task-book boundaries, WT/MAIN labels, explicit `UNVERIFIABLE`, and no raw-vault access; do not fix code in the audit. [Task 1]
+
+## Reusable knowledge
+
+- Related skill: skills/canvas-adversarial-audit/SKILL.md. P1-05/P1-01/P1-08 remained STILL-OPEN; F-02 tombstone filtering and F-05 live resilience were closed. Rejected vault inputs must show zero open/hash/index/write. [Task 1][Task 2]
+- Reproduced: `vault/raw/escape.md -> /outside/secret.md` was counted by `backfill_vault(..., execute=False)`; case-sensitive `fnmatch` admitted `.CLAUDE/SKILL.md` and `raw/claude.md`. Edge filtering alone was insufficient because exact readers/node search could cross Graphiti groups. [Task 2]
+- SnapshotV3 needs invalid/future same-generation self-healing, extra-field, strict-type, huge finite mastery, and identity/length collision coverage. [Task 1][Task 2]
+
+## Failures and how to do differently
+
+- Green tests hitting source text, helpers, fake clients, `__new__`, or monkeypatches are not closure; pivot to production entrypoints and full stdout/trace. Test `search_nodes`, `read_node_tips`, `read_node_errors`, and `read_node_edge_reasons`. [Task 1][Task 2]
+      50 /Users/Heishing/.codex/memories/skills/canvas-adversarial-audit/SKILL.md
+---
+name: canvas-adversarial-audit
+description: Conduct a read-only, parallel, evidence-first adversarial audit of Canvas P1 closure claims, especially vault admission, Graphiti quarantine, and SnapshotV3.
+argument-hint: "[task-book path or P1 scope]"
+user-invocable: false
+allowed-tools: Read, Grep, Glob, Bash
+---
+
+# Canvas adversarial audit
+
+## When to use
+
+Use for a user-requested adversarial or closure audit in the Canvas Learning System worktree, particularly P1-05/P1-01/P1-08. Do not use to implement fixes, access prohibited raw-vault content, or declare a historical finding current without revalidation.
+
+## Inputs / context to gather
+
+1. Read the task book, `AGENTS.md`, worktree topology, allowed/prohibited paths, and reporting contract.
+2. Record checkout SHA, branch, WT/MAIN labels, current `CURRENT_TASK.md`, and requested P1 claims.
+3. Identify actual production entrypoints, not merely the tests that claim to cover them.
+
+## Procedure
+
+1. Split independent tracks: vault admission/indexing and tests; Graphiti quarantine/retrieval; SnapshotV3/recovery anchors. Keep the audit read-only.
+2. For each claim, build an evidence matrix: claim, `file:line`, adversarial input/state, actual entrypoint/path, observed result, severity, PASS/PARTIAL/FAIL, and limitations.
+3. Directly exercise real entrypoints with temporary fixtures where permitted. For path admission include symlink, directory symlink, blacklisted filename in an allowed directory, case variant, and nonexistent path. Assert rejected inputs perform zero open/hash/index/write.
+4. For quarantine, test ordinary edge search plus node search and exact-reader paths (`search_nodes`, `read_node_tips`, `read_node_errors`, `read_node_edge_reasons`). Use read-only Neo4j queries and `EXPLAIN` where allowed; distinguish observed metadata exposure from unproven fact-body leakage.
+5. For SnapshotV3, test same-generation invalid/future version self-healing, extra fields, strict typing, huge finite values that may produce NaN/Infinity, and identity/length collision boundaries.
+6. Compare recovery anchors with machine facts: current HEAD, Actions status, test counts, and unresolved findings. Separate targeted-test results from whole CI.
+7. Cross-check high-severity findings independently. Write the final matrix before closure language; explicitly retain `UNVERIFIABLE` items and failed counterexample attempts.
+
+## Efficiency plan
+
+- Start from task-book source handles and `rg` for real call sites; cache the entrypoint map for all tracks.
+- Parallelize independent tracks, then have the primary reviewer re-open only high-severity evidence.
+- Stop treating a test as evidence once it only hits source text, a helper, fake client, `__new__`, or monkeypatch; pivot to the real entrypoint.
+
+## Pitfalls and fixes
+
+- Green tests but unsafe closure -> tests do not reach production behavior. Add direct entrypoint fixtures and capture full stdout/trace before an assertion.
+- `session:` IDs used as provenance -> ID shape alone is not proof. Preserve provenance or report PARTIAL.
+- Quarantine count passes -> exact-reader/node-search surfaces may still cross groups. Test those surfaces specifically.
+- `CURRENT_TASK.md` says closed but anchors disagree -> rebuild anchors from current HEAD, Actions, and unresolved findings.
+
+## Verification checklist
+
+- Every finding has `file:line`, reproduction, severity, result, and claim-conflict explanation.
+- Final report labels WT/MAIN and all verification limits; no prohibited files or raw vault were read.
+- Production entrypoints, not only helpers, were tested for each security claim.
+- CI status is reported as whole-workflow status, not only passing targeted jobs.
+- P1 closure is withheld whenever a reproducible bypass or unverified critical surface remains.
+
+**Planning three-step update with memory skill**
+**Notifying user about memory skill usage**
+codex
+我会采用既有的 Canvas 对抗审计规范来约束证据写法（独立轨道、`file:line`、明确 PASS/FAIL 与局限），但用户本轮硬限优先：该规范中任何临时夹具或对抗输入步骤全部不执行，范围仍只有 A/B/C。Graphiti 搜索能力在当前工具集中不可用，因此不会伪称已完成该项。
+  → 静态审读 A 的引用/缩进绝对列口径与围栏容器终止逻辑
+  • 静态审读 B/C 的 fallback 边界、中文数词提取/失败关闭及四门回归测试
+  • 运行指定 regression 套件并核对 249，通过后汇总限域终裁
+mcp: sequential-thinking/sequentialthinking started
+mcp: sequential-thinking/sequentialthinking (completed)
+**Designing independent agent roles**
+**Planning precise code and test inspection**
+**Verifying commit relevance and limiting diff scope**
+**Planning parallel command execution**
+exec
+/bin/zsh -lc 'rg -n "def _quote_width|def _indent_after_quotes|def _strip_code_blocks|fence_list_col|def _verify_fallback_derive_numbers|def _cjk_to_int|无法验证|零〇一二两三四五六七八九十百千万亿|HIGH-6" canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix
+ succeeded in 0ms:
+962:def _quote_width(line: str) -> int:
+987:def _indent_after_quotes(line: str) -> int:
+994:def _strip_code_blocks(text: str) -> str:
+1048:                fence_list_col = None
+1053:                    fence_list_col = len(ln) - len(bare)
+1067:            if fence_list_col is not None and ln.strip():
+1070:                if _quote_width(ln) + _indent_after_quotes(ln) < fence_list_col:
+1311:            r"^[>\s]*(?:\d+\s*个)?派生角色成员缺来源锚点[^。\n0-9０-９零〇一二两三四五六七八九十百千万亿]*。?\s*$"
+1319:            r"^[^。\n0-9０-９零〇一二两三四五六七八九十百千万亿]*集中在派生角色成员[^。\n0-9０-９零〇一二两三四五六七八九十百千万亿]*。?\s*$"
+1431:    允许式数字绑定 (round-3 HIGH-6) 共用的「有出处」判据。
+1465:_CJK_NUM_RE = re.compile(r"[零〇一二两三四五六七八九十百千万亿]{1,12}")
+1468:def _cjk_to_int(s: str) -> int | None:
+1474:    由调用方按"无法验证"处理, 不静默放行。
+1793:def _verify_fallback_derive_numbers(text: str, scan: dict, problems: list[str]) -> None:
+1803:      · HIGH-6: 允许式 #2 (段落标题) 与 #5 (关系类型分布行) 行内出现的任何
+1839:    # HIGH-6: 标题行与关系分布行内的数字必须有出处
+1859:            for cjk in re.findall(r"[零〇一二两三四五六七八九十百千万亿]+", ln):
+1863:                        f"数字终核: fallback 允许式({tag})行内中文数字 {cjk!r} 无法验证 "
+
+exec
+/bin/zsh -lc 'rg -n "test_domain_r4_leading_space_blockquote_list_fence|test_domain_r4_manifest_appendix_signal_in_section3_only|test_domain_r4_derive_allow_cjk_numbers_in_pool|test_domain_strip_code_blocks_unit_contract" backend/tests/regression/test_recap_scan_signals.py' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix
+ succeeded in 0ms:
+2444:def test_domain_strip_code_blocks_unit_contract():
+3050:def test_domain_r4_leading_space_blockquote_list_fence(tmp_path):
+3071:def test_domain_r4_manifest_appendix_signal_in_section3_only(tmp_path):
+3088:def test_domain_r4_derive_allow_cjk_numbers_in_pool(tmp_path):
+
+exec
+/bin/zsh -lc 'git diff ff946d8c''^ ff946d8c -- canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py backend/tests/regression/test_recap_scan_signals.py' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix
+ succeeded in 0ms:
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+diff --git a/backend/tests/regression/test_recap_scan_signals.py b/backend/tests/regression/test_recap_scan_signals.py
+index f3aa0278..be39e1ab 100644
+--- a/backend/tests/regression/test_recap_scan_signals.py
++++ b/backend/tests/regression/test_recap_scan_signals.py
+@@ -3040,3 +3040,61 @@ def test_domain_r3_derive_allow_numbers_in_pool(tmp_path):
+     # 主标题年份不误伤（`# 回顾 · 板 · 2026-09-01` 不含「派生」，不在检查范围）
+     # ——由上面「合法关系行无数字」与全套件的放行门共同覆盖；不单列空变异 case
+     # （_mutate_report 的防空气断言会拒绝不改内容的变异）。
++
++
++# ── round-4 整改门（Codex round-4 被 cyber 过滤器截断，无终裁；其 stderr
++#    抢救探针 A/B/C 三缝隙由车道独立复现实锤后整改。先红证据
++#    evidence-maintb-r2/round4-repro.txt，整改后 round4-after2.txt）──────────
++
++
++def test_domain_r4_leading_space_blockquote_list_fence(tmp_path):
++    """round-4 A: 前导空格的引用内列表围栏（` > - ``` `）藏信号必须拦。
++
++    `_quote_width` 原来只从 `>` 起算——引用标记**前**的前导空白不计入时，
++    内容列被算大，` >   信号行` 被误判「缩进不足→容器结束→可见正文」而放行；
++    markdown-it 确认该形态渲染在 `<pre><code>` 内（Codex round-4 stderr 实证）。
++    """
++    vault = standard_vault(tmp_path)
++    scan = collect_json(vault)
++    report = write_report(vault, scan)
++    lines = report.read_text(encoding="utf-8").splitlines()
++    idx = [i for i, ln in enumerate(lines) if any(lb in ln for lb in SIGNAL_LABELS)]
++    core = [lines[i].lstrip("> ").lstrip("- ").strip() for i in range(idx[0], idx[-1] + 1)]
++    body = [" > - ```"] + [" >   " + x for x in core] + [" >   ```"]
++    out = lines[: idx[0]] + body + lines[idx[-1] + 1 :]
++    report.write_text("\n".join(out) + "\n", encoding="utf-8")
++    r = run_verify(report)
++    assert r.returncode != 0, f"前导空格引用内列表围栏藏信号被放行:\n{r.stdout}"
++    assert "代码块内出现信号名" in r.stdout or "缺信号行" in r.stdout
++
++
++def test_domain_r4_manifest_appendix_signal_in_section3_only(tmp_path):
++    """round-4 B: 「无来源结论」限定③段对 **manifest 模式**同样生效。
++
++    HIGH-4 的限定原本只挂在 fallback 分支——manifest 报告的附录伪信号
++    `987654/2 派生角色成员缺来源锚点` 实测放行（Codex round-4 探针 B）。
++    """
++    vault = standard_vault(tmp_path)
++    scan = collect_json(vault, "--manifest", str(make_manifest(vault)))
++    assert scan["data_mode"] == "manifest"
++    report = write_report(vault, scan)
++    with report.open("a", encoding="utf-8") as f:
++        f.write("\n## 附录\n\n- 无来源结论：987654/2 派生角色成员缺来源锚点【实测】\n")
++    r = run_verify(report)
++    assert r.returncode != 0, f"manifest 附录伪信号被放行:\n{r.stdout}"
++    assert "只许出现在③段" in r.stdout
++
++
++def test_domain_r4_derive_allow_cjk_numbers_in_pool(tmp_path):
++    """round-4 C: 允许式行内的**中文数词**也必须入池比对。
++
++    `#### 派生子女 九十八万个 的说明`——`\\d+` 抓不到中文数字，实测放行
++    （Codex round-4 探针 C）。可解析的入池比对（九十八万=980000 不在池）；
++    解析不了的生僻写法 fail-closed 直接报。
++    """
++    r = _mutate_report(
++        tmp_path,
++        lambda t, s: t.replace("方向叙述：", "\n#### 派生子女 九十八万个 的说明\n\n方向叙述：", 1),
++    )
++    assert r.returncode != 0, f"标题行中文数字绕过被放行:\n{r.stdout}"
++    assert "无出处" in r.stdout or "无法验证" in r.stdout
+diff --git a/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py b/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py
+index 7ce88b6e..08d84cc0 100644
+--- a/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py
++++ b/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py
+@@ -960,21 +960,32 @@ def _verify_signal_schema(key: str, sig, problems: list[str]) -> bool:
+ 
+ 
+ def _quote_width(line: str) -> int:
+-    """行首 blockquote 标记段的总宽: 逐段 `>` (+至多一个空白)。
++    """行首到引用内容起点的宽度: 前导空白 + 逐层 `>`(+至多一空白)。
+ 
+-    `> > - x` → 4; `>  x` → 2 (`>`+1 空格, 多余空格算缩进不算引用标记)。
++    `> > - x` → 4; ` > - x` → 3 (⛔ round-4 抢救探针 A: 引用标记**前**的
++    前导空白计入——它是引用层的一部分); 无引用 (`- x` / `    x`) → 0。
+     """
+-    w = 0
+-    pos = 0
+-    while pos < len(line) and line[pos] == ">":
+-        step = 2 if pos + 1 < len(line) and line[pos + 1] in " \t" else 1
+-        w += step
+-        pos += step
+-    return w
++    pos, n = 0, len(line)
++    while pos < n and line[pos] in " \t":
++        pos += 1
++    w = pos
++    saw = False
++    while pos < n:
++        ch = line[pos]
++        if ch == ">":
++            saw = True
++            pos += 2 if pos + 1 < n and line[pos + 1] in " \t" else 1
++            w = pos
++        elif ch in " \t" and pos + 1 < n and line[pos + 1] == ">":
++            pos += 1
++            w = pos
++        else:
++            break
++    return w if saw else 0
+ 
+ 
+ def _indent_after_quotes(line: str) -> int:
+-    """剥掉引用标记段与空白后的剩余缩进 (相对引用内容系的列)。"""
++    """引用系前缀之后的剩余缩进 (与 _quote_width 相加 = 内容的绝对列)。"""
+     w = _quote_width(line)
+     rest = line[w:]
+     return len(rest) - len(rest.lstrip(" \t"))
+@@ -1037,8 +1048,9 @@ def _strip_code_blocks(text: str) -> str:
+                 fence_list_col = None
+                 if re.search(r"(?:[-*+]|\d{1,9}[.)])[^\S\n]", ln):
+                     # ⛔ m.start() 是 bare 内偏移 (恒 0) —— 必须用「本行剥掉的
+-                    # 前缀长度」；再减去引用标记宽得到相对引用系的内容列。
+-                    fence_list_col = (len(ln) - len(bare)) - _quote_width(ln)
++                    # 前缀长度」= 内容的**绝对列**；与内容行的绝对列
++                    # (_quote_width + _indent_after_quotes) 同口径比较。
++                    fence_list_col = len(ln) - len(bare)
+                 out.append("")
+                 continue
+         else:
+@@ -1055,7 +1067,7 @@ def _strip_code_blocks(text: str) -> str:
+             if fence_list_col is not None and ln.strip():
+                 # 缩进不足 (相对引用系) 的非空行 → 容器结束, 围栏随之结束:
+                 # 该行按普通正文保留, 交回 D2/信号行校验。
+-                if _indent_after_quotes(ln) < fence_list_col:
++                if _quote_width(ln) + _indent_after_quotes(ln) < fence_list_col:
+                     fence = None
+                     out.append(ln)
+                     continue
+@@ -1783,17 +1795,16 @@ def _verify_fallback_derive_numbers(text: str, scan: dict, problems: list[str])
+ 
+     措辞白名单 ``_FALLBACK_DERIVE_ALLOW`` (在 _verify_report) 只管「这句话允许说」,
+     这里管「说出来的数字必须有据」——白名单匹配与值绑定分属两处, 缺一即漏:
+-      · HIGH-4: 「无来源结论」信号行只许出现在**③段** —— ③段外 (附录/自造段)
+-        的同形行不受信号绑定保护, 实测放行 `987654/2` 伪信号与矛盾无据行;
++      · HIGH-4 (round-4 补: ③段限定移出 data_mode 条件——manifest 报告的附录
++        伪信号实测同样放行): 「无来源结论」信号行只许出现在**③段** ——
++        ③段外 (附录/自造段) 的同形行不受信号绑定保护;
+       · HIGH-5b: ⑦『N 个派生角色成员缺来源锚点』的前置 N 必须全等
+         ``signals.unsourced_conclusions.value`` (无据档不容许前置 N);
+       · HIGH-6: 允许式 #2 (段落标题) 与 #5 (关系类型分布行) 行内出现的任何
+         数字都必须在 scan 数值池 —— `#### 派生子女 987654 个的说明` /
+         `- 关系类型分布：无 987654` 实测曾放行。
+     """
+-    if scan.get("data_mode") != "fallback_local":
+-        return
+-    # HIGH-4: ③段外的「无来源结论」同形行
++    # HIGH-4 (round-4: 对 manifest 模式同样生效)
+     s3 = "\n".join(
+         re.findall(r"^### ③.*?(?=^#{2,3}(?:[^\S\n]|$)|\Z)", text, re.M | re.S)
+     )
+@@ -1803,6 +1814,8 @@ def _verify_fallback_derive_numbers(text: str, scan: dict, problems: list[str])
+             "数字终核: 「无来源结论」信号行只许出现在③段 "
+             "(段外同形行不受信号绑定保护, 附录伪信号实测曾放行)"
+         )
++    if scan.get("data_mode") != "fallback_local":
++        return
+     # HIGH-5b: ⑦ 前置 N 与 signals.unsourced_conclusions.value 全等
+     sig = (scan.get("signals") or {}).get("unsourced_conclusions") or {}
+     m7 = re.compile(r"^[>\s]*(?:(?P<n>\d+)\s*个)?派生角色成员缺来源锚点")
+@@ -1839,8 +1852,21 @@ def _verify_fallback_derive_numbers(text: str, scan: dict, problems: list[str])
+         if relation_pat.match(ln):
+             tags.append(("关系类型分布", relation_pat))
+         for tag, pat in tags:
+-            for num in re.findall(r"\d+", ln.translate(_FULLWIDTH_DIGITS)):
+-                if int(num) not in pool:
++            # ⛔ round-4 (Codex 抢救探针 C): 数字提取必须含**中文数词** ——
++            # `#### 派生子女 九十八万个` 的 `九十八万` 用 `\d+` 抓不到, 实测放行。
++            # 可解析的入池比对; 解析不了的 (生僻写法) fail-closed 直接报。
++            nums = [int(x) for x in re.findall(r"\d+", ln.translate(_FULLWIDTH_DIGITS))]
++            for cjk in re.findall(r"[零〇一二两三四五六七八九十百千万亿]+", ln):
++                v = _cjk_to_int(cjk)
++                if v is None:
++                    problems.append(
++                        f"数字终核: fallback 允许式({tag})行内中文数字 {cjk!r} 无法验证 "
++                        f"(请改用阿拉伯数字): {ln.strip()[:40]}"
++                    )
++                else:
++                    nums.append(v)
++            for num in nums:
++                if num not in pool:
+                     problems.append(
+                         f"数字终核: fallback 允许式({tag})行内数字 {num} 无出处 "
+                         f"(数字必须在 scan 数值池): {ln.strip()[:40]}"
+
+2026-09-01T09:34:48.853456Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+**Inspecting _cjk_to_int function definition**
+exec
+/bin/zsh -lc "nl -ba canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py | sed -n '930,1095p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix
+exec
+/bin/zsh -lc "nl -ba backend/tests/regression/test_recap_scan_signals.py | sed -n '2400,2505p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix
+ succeeded in 0ms:
+  2400	    lines = text.splitlines()
+  2401	    idx = [i for i, ln in enumerate(lines) if any(lb in ln for lb in SIGNAL_LABELS)]
+  2402	    start, end = idx[0], idx[-1]
+  2403	
+  2404	    # ① 列表项围栏 + 缩进内容（真代码）→ 剥 → 拦
+  2405	    body = ["> - ```"] + [">   " + re.sub(r"^[>\s]*-\s*", "", lines[i]) for i in range(start, end + 1)] + [">   ```"]
+  2406	    out = lines[:start] + body + lines[end + 1 :]
+  2407	    report.write_text("\n".join(out) + "\n", encoding="utf-8")
+  2408	    r = run_verify(report)
+  2409	    assert r.returncode != 0, f"列表项围栏(缩进内容)仍被放行:\n{r.stdout}"
+  2410	    assert "代码块内出现信号名" in r.stdout or "缺信号行" in r.stdout, f"拦截理由与围栏无关:\n{r.stdout}"
+  2411	
+  2412	    # ② 有序列表围栏 + 缩进内容（round-3 BLOCKER-2）→ 剥 → 拦
+  2413	    body = ["1. ```"] + ["   " + re.sub(r"^[>\s]*-\s*", "", lines[i]) for i in range(start, end + 1)] + ["1. ```"]
+  2414	    out = lines[:start] + body + lines[end + 1 :]
+  2415	    report.write_text("\n".join(out) + "\n", encoding="utf-8")
+  2416	    r = run_verify(report)
+  2417	    assert r.returncode != 0, f"有序列表围栏仍被放行:\n{r.stdout}"
+  2418	    assert "代码块内出现信号名" in r.stdout or "缺信号行" in r.stdout, f"拦截理由与围栏无关:\n{r.stdout}"
+  2419	
+  2420	    # ③ sibling marker 行 = 可见正文（round-3 BLOCKER-1）→ 保留 → D2 拦伪计数
+  2421	    r = _mutate_report(
+  2422	        tmp_path / "sibling",
+  2423	        lambda t, s: t.replace(
+  2424	            "## 三维审查",
+  2425	            "## 三维审查\n\n- ```\n- 本板共有 987654 个子节点\n- ```\n",
+  2426	            1,
+  2427	        ),
+  2428	    )
+  2429	    assert r.returncode != 0, f"sibling 列表项可见伪计数被放行:\n{r.stdout}"
+  2430	    assert "找不到同值来源" in r.stdout, f"拦截理由不是 D2:\n{r.stdout}"
+  2431	
+  2432	    # ④ sibling marker 行放合规信号 = 可见且合规 → 放行（渲染语义锁，防过剥）
+  2433	    r = _mutate_report(
+  2434	        tmp_path / "sibling_ok",
+  2435	        lambda t, s: t.replace(
+  2436	            "## 三维审查",
+  2437	            "## 三维审查\n\n- ```\n- 本报告信号与数据快照一致\n- ```\n",
+  2438	            1,
+  2439	        ),
+  2440	    )
+  2441	    assert r.returncode == 0, f"sibling 列表项可见正文被误伤:\n{r.stdout}"
+  2442	
+  2443	
+  2444	def test_domain_strip_code_blocks_unit_contract():
+  2445	    """c2 · S3 承重门②「`_strip_code_blocks` 单元契约门」: 直接调函数验双向行为。
+  2446	
+  2447	    行为门（c1/列表围栏门）走整条 verifier，误伤面与拦截面都可能被别的规则掩盖；
+  2448	    这道单元门把契约钉在函数本身（round-3 重写为渲染语义三分类）:
+  2449	      · **剥空**（真代码内容，渲染为灰底）: 任意层引用围栏 / 列表项围栏 +
+  2450	        缩进达内容列的内容 / 有序列表围栏；
+  2451	      · **保留**（sibling marker 行 = 可见正文，round-3 BLOCKER-1 的语义反转）:
+  2452	        `- ``` ` 开栏后缩进不足的同级 `- 内容` 行——围栏行剥空但内容行原样；
+  2453	      · **零改动**: 合法列表 / thematic break / 无围栏结构。
+  2454	
+  2455	    **它证明什么**: 上述三分类的逐形态行为。
+  2456	    **它不证明什么**: 不证明调用方（`_verify_signal_lines` / `_verify_prose_counts`）
+  2457	    正确使用了它——那是行为门的事；也不穷尽 CommonMark 容器嵌套。
+  2458	    """
+  2459	    rs = _load_recap_scan()
+  2460	
+  2461	    def mid_kept(got: str, src: str) -> bool:
+  2462	        """围栏行剥空 + **内容行**（第 2 行）原样保留 = sibling 可见正文语义。"""
+  2463	        g, s = got.split("\n"), src.split("\n")
+  2464	        return len(g) == len(s) and g[1] == s[1] and not g[0].strip() and not g[2].strip()
+  2465	
+  2466	    # ── 剥空（真代码内容）──
+  2467	    for name, src in (
+  2468	        ("两层引用围栏", "> > ```\n> > x\n> > ```"),
+  2469	        (
+  2470	            "列表围栏+缩进内容",
+  2471	            "> - ```\n>   未答问题年龄：无据（无带时间戳批注）\n>   ```",
+  2472	        ),
+  2473	        (
+  2474	            "无引用列表围栏+缩进内容",
+  2475	            "- ```\n  未答问题年龄：无据（无带时间戳批注）\n- ```",
+  2476	        ),
+  2477	        (
+  2478	            "有序列表围栏+缩进内容",
+  2479	            "1. ```\n   > - 来源覆盖率：0/3 成员含来源锚点【实测】\n1. ```",
+  2480	        ),
+  2481	        ("普通围栏", "```\n本板共有 987654 个子节点\n```"),
+  2482	    ):
+  2483	        got = rs._strip_code_blocks(src)
+  2484	        # ⚠️ 必须用 split("\n") 不能用 splitlines(): 三行全空时结果是 "\n\n",
+  2485	        # splitlines() 只给两项——第一次写就踩了，如实留注。
+  2486	        assert all(not x.strip() for x in got.split("\n")), f"{name} 未整块剥空: {src!r} → {got!r}"
+  2487	
+  2488	    # ── 保留（sibling marker 行 = 可见正文）──
+  2489	    for name, src in (
+  2490	        (
+  2491	            "引用内 sibling",
+  2492	            "> - ```\n> - 未答问题年龄：无据（无带时间戳批注）\n> - ```",
+  2493	        ),
+  2494	        ("无引用 sibling", "- ```\n- 本板共有 987654 个子节点\n- ```"),
+  2495	    ):
+  2496	        got = rs._strip_code_blocks(src)
+  2497	        assert mid_kept(got, src), f"{name}: 内容行应保留（可见正文）却被剥: {got!r}"
+  2498	
+  2499	    # ── 零改动 ──
+  2500	    for name, legit in (
+  2501	        ("thematic break", "---\n正文\n---"),
+  2502	        ("合法二级引用列表", "> > - 合法二级引用列表"),
+  2503	        (
+  2504	            "合法三级列表",
+  2505	            "- 一级\n  - 二级\n    - 三级列表（四空格缩进，合法 Markdown）",
+
+ succeeded in 0ms:
+   930	        if sig.get("value") is not None or sig.get("denominator") != 0:
+   931	            problems.append(f"数字终核: signals.{key} 标无据却带数值 (契约违反)")
+   932	            return False
+   933	    else:
+   934	        # round-3 M2: Python 里 bool 是 int 子类 — `value: true` 配报告 "1/N"
+   935	        # 曾整条通过。显式排除 bool。
+   936	        for f in ("value", "denominator"):
+   937	            v = sig.get(f)
+   938	            if isinstance(v, bool) or not isinstance(v, int):
+   939	                problems.append(
+   940	                    f"数字终核: signals.{key}.{f} 非整数 ({type(v).__name__})"
+   941	                )
+   942	                return False
+   943	        # round-4 新增 FAIL: 年龄信号有数档时 percentile_ref 必须是含三个整数
+   944	        # 分位的对象 — 置 null 时报告渲染成 "None/None/None" 曾照样通过。
+   945	        if key == "unanswered_question_age":
+   946	            pr = sig.get("percentile_ref")
+   947	            if not isinstance(pr, dict):
+   948	                problems.append(
+   949	                    f"数字终核: signals.{key} 有数档但 percentile_ref 非对象"
+   950	                )
+   951	                return False
+   952	            for pk in ("p25_days", "p50_days", "p75_days"):
+   953	                pv = pr.get(pk)
+   954	                if isinstance(pv, bool) or not isinstance(pv, int):
+   955	                    problems.append(
+   956	                        f"数字终核: signals.{key}.percentile_ref.{pk} 非整数"
+   957	                    )
+   958	                    return False
+   959	    return True
+   960	
+   961	
+   962	def _quote_width(line: str) -> int:
+   963	    """行首到引用内容起点的宽度: 前导空白 + 逐层 `>`(+至多一空白)。
+   964	
+   965	    `> > - x` → 4; ` > - x` → 3 (⛔ round-4 抢救探针 A: 引用标记**前**的
+   966	    前导空白计入——它是引用层的一部分); 无引用 (`- x` / `    x`) → 0。
+   967	    """
+   968	    pos, n = 0, len(line)
+   969	    while pos < n and line[pos] in " \t":
+   970	        pos += 1
+   971	    w = pos
+   972	    saw = False
+   973	    while pos < n:
+   974	        ch = line[pos]
+   975	        if ch == ">":
+   976	            saw = True
+   977	            pos += 2 if pos + 1 < n and line[pos + 1] in " \t" else 1
+   978	            w = pos
+   979	        elif ch in " \t" and pos + 1 < n and line[pos + 1] == ">":
+   980	            pos += 1
+   981	            w = pos
+   982	        else:
+   983	            break
+   984	    return w if saw else 0
+   985	
+   986	
+   987	def _indent_after_quotes(line: str) -> int:
+   988	    """引用系前缀之后的剩余缩进 (与 _quote_width 相加 = 内容的绝对列)。"""
+   989	    w = _quote_width(line)
+   990	    rest = line[w:]
+   991	    return len(rest) - len(rest.lstrip(" \t"))
+   992	
+   993	
+   994	def _strip_code_blocks(text: str) -> str:
+   995	    """剔除**围栏**代码块 (```/~~~), 含引用块内的围栏 (round-4 M3 → round-5)。
+   996	
+   997	    代码块里的内容渲染为字面文本, 不是报告的陈述 —— 把信号行藏进去曾让
+   998	    verifier 认为"信号行在场"。行数保持不变 (整行替空), 以免影响其他基于
+   999	    行的校验。
+  1000	
+  1001	    round-5 两项修正:
+  1002	      · 引用前缀 (``> ``) 内的围栏此前不被识别 (``> ``` `` 逃逸) → 先剥
+  1003	        引用前缀再判围栏;
+  1004	      · **不再剥四空格缩进块** —— 合法的三级嵌套列表 (四空格缩进) 会被误删,
+  1005	        实测导致"③段缺信号行"误报。缩进块里的信号行改由信号行自身的
+  1006	        严格模板拒绝 (模板行首只允许 ``> ``/``- ``/空白, 不允许四空格缩进)。
+  1007	
+  1008	    ⛔ 维护卡 B · E1 (round-6 实证反例 `four-fence-short-close`): 原实现只存
+  1009	    ``bare[:3]`` 并用 ``startswith`` 判闭合 —— 四反引号开栏、三反引号"闭合"后,
+  1010	    后续内容被当成**块外正文**, 于是藏在 ``<pre><code>`` 里的信号行仍被 verifier
+  1011	    当成在场陈述 (实测 exit 0)。CommonMark 的规则是: 闭合围栏必须**同字符**且
+  1012	    **不短于**开栏。这里按规则记录开栏的完整标记再比长度。
+  1013	    """
+  1014	    out: list[str] = []
+  1015	    fence: str | None = None  # 开栏的完整标记, 如 "````"
+  1016	    # ⛔ Codex round-1 BLOCKER-1: 只比字符与长度**仍不是** CommonMark ——
+  1017	    # 闭栏行在标记之后**只能有空白**(`` ````not-a-valid-close `` 不是闭栏),
+  1018	    # 且围栏行缩进最多三格 (四格起是缩进代码块)。少这两条时,
+  1019	    # ````text 后跟一个带 info string 的伪闭栏就能让后续信号行"看起来在块外",
+  1020	    # 而 CommonMark 渲染里它们全在 <pre><code> 内 —— 实测 exit 0。
+  1021	    open_re = re.compile(r"^(?P<ind> {0,3})(?P<fence>`{3,}|~{3,})")
+  1022	    close_re = re.compile(r"^ {0,3}(?P<fence>`{3,}|~{3,})[^\S\n]*$")
+  1023	    for ln in text.splitlines():
+  1024	        # 剥任意层引用前缀后再判围栏。
+  1025	        # ⛔ CARD-维护B-R2 round-2 线索（Codex 被截断前的中途发现, 本车道独立复现）:
+  1026	        # 只剥 `>`/空白不剥**列表标记**时, `> - ``` ` (列表项内围栏, Obsidian 渲染为
+  1027	        # 列表项内的代码块) 不被识别为开栏 —— 藏进里面的信号行被当成在场陈述,
+  1028	        # 整篇 VERIFY PASS (实测 A/A2 两形态 exit 0)。剥列表符只影响**围栏判定**
+  1029	        # (非围栏行 out.append 原样保留), 标记后须有空白 (`- ``` 是列表项围栏,
+  1030	        # `---` 是 thematic break 不是列表)。
+  1031	        # ⛔ CARD-维护B-R2 round-3: 无序 marker 之外**有序 marker** (`1. `) 与
+  1032	        # **多层 marker** (`- - `) 同样是列表容器 (渲染为列表项内围栏), 一并剥。
+  1033	        bare = re.sub(r"^(?:[>\s]|(?:[-*+]|\d{1,9}[.)])[^\S\n]+)*", "", ln)
+  1034	        if fence is None:
+  1035	            m = open_re.match(bare)
+  1036	            # 反引号围栏的 info string 不得含反引号 (CommonMark);
+  1037	            # 波浪线围栏无此限制。
+  1038	            if m and not (m.group("fence")[0] == "`" and "`" in bare[m.end() :]):
+  1039	                fence = m.group("fence")
+  1040	                # ⛔ round-3 BLOCKER-1 (Codex 实证 + 车道独立复现): 列表项内围栏
+  1041	                # 的内容行**相对引用系的缩进必须 ≥ marker 内容列** —— 缩进不足的
+  1042	                # 非空行会结束容器, 围栏随之结束, 该行渲染为**可见正文** (三个
+  1043	                # sibling <li> 的中间项)。不跟踪这一点时, 可见伪计数被误当围栏
+  1044	                # 内容剥掉, D2 漏拦 (实测 `- ``` / - 本板共有 987654 个… / - ``` `
+  1045	                # exit 0)。内容列与行缩进都用「剥引用后」的相对口径:
+  1046	                # quote_w = `>` 段总宽 (`>` + 至多一个空白), col_rel = m.start() -
+  1047	                # quote_w(开栏行)。无列表容器 (纯引用/缩进) 时无边界, 行为不变。
+  1048	                fence_list_col = None
+  1049	                if re.search(r"(?:[-*+]|\d{1,9}[.)])[^\S\n]", ln):
+  1050	                    # ⛔ m.start() 是 bare 内偏移 (恒 0) —— 必须用「本行剥掉的
+  1051	                    # 前缀长度」= 内容的**绝对列**；与内容行的绝对列
+  1052	                    # (_quote_width + _indent_after_quotes) 同口径比较。
+  1053	                    fence_list_col = len(ln) - len(bare)
+  1054	                out.append("")
+  1055	                continue
+  1056	        else:
+  1057	            mc = close_re.match(bare)
+  1058	            # 闭合: 同字符 + 长度 ≥ 开栏 + 其后只有空白
+  1059	            if (
+  1060	                mc
+  1061	                and mc.group("fence")[0] == fence[0]
+  1062	                and len(mc.group("fence")) >= len(fence)
+  1063	            ):
+  1064	                fence = None
+  1065	                out.append("")
+  1066	                continue
+  1067	            if fence_list_col is not None and ln.strip():
+  1068	                # 缩进不足 (相对引用系) 的非空行 → 容器结束, 围栏随之结束:
+  1069	                # 该行按普通正文保留, 交回 D2/信号行校验。
+  1070	                if _quote_width(ln) + _indent_after_quotes(ln) < fence_list_col:
+  1071	                    fence = None
+  1072	                    out.append(ln)
+  1073	                    continue
+  1074	            out.append("")
+  1075	            continue
+  1076	        out.append(ln)
+  1077	    return "\n".join(out)
+  1078	
+  1079	
+  1080	def _verify_signal_lines(text: str, signals: dict, problems: list[str]) -> None:
+  1081	    """G5-4 信号绑定 (fail-closed): scan JSON 含 signals 键才进本函数。
+  1082	
+  1083	    ③段必须逐信号给**独占一行**的标准行, 行内数字与 availability 档与
+  1084	    signals.* 全等 — 篡改任一数字 / 档位 / 缺行 / 无据错标 / 合并行 → FAIL。
+  1085	    旧 scan JSON (无 signals 键) 由调用方跳过 (兼容)。同 label 行若出现
+  1086	    多条, 逐条全查 — 防"一条合规一条私货"的双行逃逸。
+  1087	    """
+  1088	    # M3 (round-2 → round-4): ③ 段止于下一个 ## / ###。历轮收紧:
+  1089	    #   round-2 只认 ###（"## 附录"可越界）→ round-3 认 tab 分隔（"##\t附录"）
+  1090	    #   → round-4 认**空标题** `##`（行尾即止，无标题文字也是合法标题）。
+  1091	    # 另: 信号行**不得藏在代码块里** — fenced (```/~~~) 与四空格缩进块在渲染
+  1092	    # 时是字面文本, 与"报告在说什么"分叉, 故校验前整体剔除。
+  1093	    scan_text = _strip_code_blocks(text)
+  1094	    # ⛔ round-6 终裁复核: 剔除代码块是**双向**的 — 它挡住"把必需行藏进围栏",
+  1095	    # 却放行"在合规行之外再往围栏里追加一组造假信号行"(围栏内容在 Obsidian
+
+exec
+/bin/zsh -lc "nl -ba backend/tests/regression/test_recap_scan_signals.py | sed -n '3025,3115p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix
+ succeeded in 0ms:
+  3025	    """
+  3026	    for name, inject, want in (
+  3027	        ("标题夹伪计数", "\n#### 派生子女 987654 个的说明\n", 1),
+  3028	        ("关系行夹伪计数", "\n- 关系类型分布：无 987654\n", 1),
+  3029	        ("合法关系行无数字", "\n- 关系类型分布：无\n", 0),
+  3030	    ):
+  3031	        r = _mutate_report(
+  3032	            tmp_path / name,
+  3033	            lambda t, s, e=inject: t.replace("方向叙述：", f"{e}\n方向叙述：", 1) if e else t,
+  3034	        )
+  3035	        if want == 1:
+  3036	            assert r.returncode != 0, f"{name}: 无出处数字被放行:\n{r.stdout}"
+  3037	            assert "无出处" in r.stdout, f"{name}: 拦截理由异常:\n{r.stdout}"
+  3038	        else:
+  3039	            assert r.returncode == 0, f"{name}: 合法行被误伤:\n{r.stdout}"
+  3040	    # 主标题年份不误伤（`# 回顾 · 板 · 2026-09-01` 不含「派生」，不在检查范围）
+  3041	    # ——由上面「合法关系行无数字」与全套件的放行门共同覆盖；不单列空变异 case
+  3042	    # （_mutate_report 的防空气断言会拒绝不改内容的变异）。
+  3043	
+  3044	
+  3045	# ── round-4 整改门（Codex round-4 被 cyber 过滤器截断，无终裁；其 stderr
+  3046	#    抢救探针 A/B/C 三缝隙由车道独立复现实锤后整改。先红证据
+  3047	#    evidence-maintb-r2/round4-repro.txt，整改后 round4-after2.txt）──────────
+  3048	
+  3049	
+  3050	def test_domain_r4_leading_space_blockquote_list_fence(tmp_path):
+  3051	    """round-4 A: 前导空格的引用内列表围栏（` > - ``` `）藏信号必须拦。
+  3052	
+  3053	    `_quote_width` 原来只从 `>` 起算——引用标记**前**的前导空白不计入时，
+  3054	    内容列被算大，` >   信号行` 被误判「缩进不足→容器结束→可见正文」而放行；
+  3055	    markdown-it 确认该形态渲染在 `<pre><code>` 内（Codex round-4 stderr 实证）。
+  3056	    """
+  3057	    vault = standard_vault(tmp_path)
+  3058	    scan = collect_json(vault)
+  3059	    report = write_report(vault, scan)
+  3060	    lines = report.read_text(encoding="utf-8").splitlines()
+  3061	    idx = [i for i, ln in enumerate(lines) if any(lb in ln for lb in SIGNAL_LABELS)]
+  3062	    core = [lines[i].lstrip("> ").lstrip("- ").strip() for i in range(idx[0], idx[-1] + 1)]
+  3063	    body = [" > - ```"] + [" >   " + x for x in core] + [" >   ```"]
+  3064	    out = lines[: idx[0]] + body + lines[idx[-1] + 1 :]
+  3065	    report.write_text("\n".join(out) + "\n", encoding="utf-8")
+  3066	    r = run_verify(report)
+  3067	    assert r.returncode != 0, f"前导空格引用内列表围栏藏信号被放行:\n{r.stdout}"
+  3068	    assert "代码块内出现信号名" in r.stdout or "缺信号行" in r.stdout
+  3069	
+  3070	
+  3071	def test_domain_r4_manifest_appendix_signal_in_section3_only(tmp_path):
+  3072	    """round-4 B: 「无来源结论」限定③段对 **manifest 模式**同样生效。
+  3073	
+  3074	    HIGH-4 的限定原本只挂在 fallback 分支——manifest 报告的附录伪信号
+  3075	    `987654/2 派生角色成员缺来源锚点` 实测放行（Codex round-4 探针 B）。
+  3076	    """
+  3077	    vault = standard_vault(tmp_path)
+  3078	    scan = collect_json(vault, "--manifest", str(make_manifest(vault)))
+  3079	    assert scan["data_mode"] == "manifest"
+  3080	    report = write_report(vault, scan)
+  3081	    with report.open("a", encoding="utf-8") as f:
+  3082	        f.write("\n## 附录\n\n- 无来源结论：987654/2 派生角色成员缺来源锚点【实测】\n")
+  3083	    r = run_verify(report)
+  3084	    assert r.returncode != 0, f"manifest 附录伪信号被放行:\n{r.stdout}"
+  3085	    assert "只许出现在③段" in r.stdout
+  3086	
+  3087	
+  3088	def test_domain_r4_derive_allow_cjk_numbers_in_pool(tmp_path):
+  3089	    """round-4 C: 允许式行内的**中文数词**也必须入池比对。
+  3090	
+  3091	    `#### 派生子女 九十八万个 的说明`——`\\d+` 抓不到中文数字，实测放行
+  3092	    （Codex round-4 探针 C）。可解析的入池比对（九十八万=980000 不在池）；
+  3093	    解析不了的生僻写法 fail-closed 直接报。
+  3094	    """
+  3095	    r = _mutate_report(
+  3096	        tmp_path,
+  3097	        lambda t, s: t.replace("方向叙述：", "\n#### 派生子女 九十八万个 的说明\n\n方向叙述：", 1),
+  3098	    )
+  3099	    assert r.returncode != 0, f"标题行中文数字绕过被放行:\n{r.stdout}"
+  3100	    assert "无出处" in r.stdout or "无法验证" in r.stdout
+
+exec
+/bin/zsh -lc "nl -ba canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py | sed -n '1400,1515p;1760,1895p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix
+ succeeded in 0ms:
+  1400	
+  1401	
+  1402	def _scan_number_pool(obj, pool: set[int]) -> None:
+  1403	    """递归收集 scan JSON 里的**数值型**整数 —— D2 的「有出处」判据。
+  1404	
+  1405	    ⛔ Codex round-1 HIGH: 原实现**也从字符串里抽整数**, 于是池被哈希与用户原话
+  1406	    污染 —— 实测「544 个子节点」通过 (544 只来自 board_sha256 的片段)、
+  1407	    「111 个子节点」通过 (111 只来自用户作答原话)。池越脏, "有出处"越没意义。
+  1408	    现在只收 JSON 的**数值类型**; 字符串里真正该被绑定的量 (日期/哈希/原话)
+  1409	    要么由 E1-E6 豁免, 要么本来就不该被当成本报告的计数陈述。
+  1410	    """
+  1411	    if isinstance(obj, bool):
+  1412	        return
+  1413	    if isinstance(obj, int):
+  1414	        pool.add(obj)
+  1415	    elif isinstance(obj, float):
+  1416	        if obj.is_integer():
+  1417	            pool.add(int(obj))
+  1418	    elif isinstance(obj, dict):
+  1419	        for v in obj.values():
+  1420	            _scan_number_pool(v, pool)
+  1421	    elif isinstance(obj, list):
+  1422	        for v in obj:
+  1423	            _scan_number_pool(v, pool)
+  1424	
+  1425	
+  1426	_FULLWIDTH_DIGITS = str.maketrans("０１２３４５６７８９", "0123456789")
+  1427	
+  1428	
+  1429	def _derived_number_pool(scan: dict) -> set[int]:
+  1430	    """scan 数值池 (排除 scale_gate 常量, 含一阶和差) — D2 与 fallback
+  1431	    允许式数字绑定 (round-3 HIGH-6) 共用的「有出处」判据。
+  1432	
+  1433	    ⛔ 池必须排除**与板内容无关的源码常量** (scale_gate 的 30/100/10) 与
+  1434	    字符串污染; 「有出处」≠「字面出现」: 池含一阶和与差 (合法算术, 如
+  1435	    「7 个派生点中仅 2 个带 derived_at……其余 5 个无据」的 5=7−2)。
+  1436	    代价如实记: 池变大 ⇒ 对小数值拦截力下降 (罕见大数仍拦得住)。
+  1437	    """
+  1438	    scan_for_pool = {k: v for k, v in scan.items() if k != "scale_gate"}
+  1439	    base: set[int] = set()
+  1440	    _scan_number_pool(scan_for_pool, base)
+  1441	    pool = set(base)
+  1442	    ordered = sorted(base)
+  1443	    for i, a in enumerate(ordered):
+  1444	        for b in ordered[i:]:
+  1445	            pool.add(a + b)
+  1446	            pool.add(abs(a - b))
+  1447	    return pool
+  1448	
+  1449	
+  1450	_CJK_NUM = {
+  1451	    "零": 0,
+  1452	    "〇": 0,
+  1453	    "一": 1,
+  1454	    "二": 2,
+  1455	    "两": 2,
+  1456	    "三": 3,
+  1457	    "四": 4,
+  1458	    "五": 5,
+  1459	    "六": 6,
+  1460	    "七": 7,
+  1461	    "八": 8,
+  1462	    "九": 9,
+  1463	}
+  1464	_CJK_UNIT = {"十": 10, "百": 100, "千": 1000, "万": 10000, "亿": 100000000}
+  1465	_CJK_NUM_RE = re.compile(r"[零〇一二两三四五六七八九十百千万亿]{1,12}")
+  1466	
+  1467	
+  1468	def _cjk_to_int(s: str) -> int | None:
+  1469	    """中文数字串 → int; 无法确定地解析则 None (不猜)。
+  1470	
+  1471	    ⛔ 对抗审查 BLOCKER: D2 的数字原为 `[0-9]+`, 于是「本板共有九十八万个子节点」
+  1472	    这类**完全虚构**的规模自陈整域免检。scan 的计数都是 ASCII 整数, 报告换个写法
+  1473	    不该换来免检 —— 归一后照常比对。解析不了的 (生僻/歧义写法) 返回 None,
+  1474	    由调用方按"无法验证"处理, 不静默放行。
+  1475	    """
+  1476	    total, section, digit, seen = 0, 0, None, False
+  1477	    for ch in s:
+  1478	        if ch in _CJK_NUM:
+  1479	            digit = _CJK_NUM[ch]
+  1480	            seen = True
+  1481	        elif ch in _CJK_UNIT:
+  1482	            unit = _CJK_UNIT[ch]
+  1483	            if unit >= 10000:
+  1484	                section = (section + (digit or 0)) if (section or digit) else 1
+  1485	                total += section * unit
+  1486	                section, digit = 0, None
+  1487	            else:
+  1488	                section += (digit if digit is not None else 1) * unit
+  1489	                digit = None
+  1490	            seen = True
+  1491	        else:
+  1492	            return None
+  1493	    if not seen:
+  1494	        return None
+  1495	    return total + section + (digit or 0)
+  1496	
+  1497	
+  1498	def _verify_prose_counts(text: str, scan: dict, problems: list[str]) -> None:
+  1499	    """D2: 叙述段里的**计数**必须能在 scan JSON 找到同值来源。
+  1500	
+  1501	    ⛔ 维护卡 B 的原始命题 (卡名「裸数字绑定」): 报告正文写一句
+  1502	    「这块板有 99 个子节点」, 99 既不匹配规模行、也不在 frontmatter 与 tips 段,
+  1503	    于是**既没被绑定也没被禁止** → exit 0。这不是实现 bug 而是设计边界,
+  1504	    本函数把该边界推到「域内计数必须有出处」。
+  1505	
+  1506	    按治理域裁定 (卡文 §零) 的顺序: **先剥豁免跨度, 再判域**。剥的是
+  1507	    行内代码 / wikilink / 时间形态 / 有序列表序号 —— 全部按**结构**判定,
+  1508	    不维护"哪些字符算数值"的字符表 (那条路线在 round-5 已被证伪)。
+  1509	
+  1510	    诚实边界: 当前只覆盖「数字 + 中文量词」的**计数形态**, 不是段内全部数字
+  1511	    (mastery 0.3、量表 1-4、分位值等带自身形态的量不在内)。全量绑定是增量项,
+  1512	    如实登记在卡文与验收单, 不宣称"域内已全覆盖"。
+  1513	    """
+  1514	    # ⛔ 池必须排除**与板内容无关的源码常量**与字符串污染, 并含一阶和差
+  1515	    # (合法算术) —— 判据与构建细节见 _derived_number_pool (round-3 提取共用)。
+  1760	    if not recon:
+  1761	        problems.append(
+  1762	            "数字终核: 未找到『## AI 侧对账』段 (标题须为段名本身或段名+（补充）) "
+  1763	            "— tips 两数无法绑定"
+  1764	        )
+  1765	        _verify_signals_if_present(text, scan, problems)
+  1766	        return
+  1767	    # 两行均为必需 (五轮 H5 残余: 缺行不许静默豁免 — 改写成非模板措辞
+  1768	    # 即逃逸绑定, 必须 fail-closed)。
+  1769	    # ⛔ round-6 终裁复核: 原用 re.search 只绑**首个**匹配, 段内第二条同形句
+  1770	    # 与段外同一句都不受检 → 改为**全文逐条**校验且段内必须各恰好一条。
+  1771	    for pat, ckey, name in (
+  1772	        (r"tips 批注共\s*(\d+)\s*条", "tips_total", "tips 总数"),
+  1773	        (r"其中理解度未闭环\s*(\d+)\s*条", "tips_understanding_open", "tips 未闭环"),
+  1774	    ):
+  1775	        in_sec = re.findall(pat, recon.group(1))
+  1776	        all_hits = re.findall(pat, text)
+  1777	        want_v = counts.get(ckey, -1)
+  1778	        if not in_sec:
+  1779	            problems.append(f"数字终核: AI 侧对账缺『{name}』标准计数行")
+  1780	        elif len(in_sec) > 1:
+  1781	            problems.append(
+  1782	                f"数字终核: AI 侧对账段内出现 {len(in_sec)} 条『{name}』(只许一条)"
+  1783	            )
+  1784	        for got in all_hits:  # 段外同形句同样绑定, 不留"第二处说法"
+  1785	            if int(got) != want_v:
+  1786	                problems.append(f"数字终核: {name} {got} ≠ scan JSON {want_v}")
+  1787	    _verify_seed_ledger_counts(text, scan, problems)
+  1788	    _verify_prose_counts(text, scan, problems)
+  1789	    _verify_signals_if_present(text, scan, problems)
+  1790	    _verify_fallback_derive_numbers(text, scan, problems)
+  1791	
+  1792	
+  1793	def _verify_fallback_derive_numbers(text: str, scan: dict, problems: list[str]) -> None:
+  1794	    """CARD-维护B-R2 round-3 (Codex HIGH-4/5b/6): fallback 允许式的**数字出处**绑定。
+  1795	
+  1796	    措辞白名单 ``_FALLBACK_DERIVE_ALLOW`` (在 _verify_report) 只管「这句话允许说」,
+  1797	    这里管「说出来的数字必须有据」——白名单匹配与值绑定分属两处, 缺一即漏:
+  1798	      · HIGH-4 (round-4 补: ③段限定移出 data_mode 条件——manifest 报告的附录
+  1799	        伪信号实测同样放行): 「无来源结论」信号行只许出现在**③段** ——
+  1800	        ③段外 (附录/自造段) 的同形行不受信号绑定保护;
+  1801	      · HIGH-5b: ⑦『N 个派生角色成员缺来源锚点』的前置 N 必须全等
+  1802	        ``signals.unsourced_conclusions.value`` (无据档不容许前置 N);
+  1803	      · HIGH-6: 允许式 #2 (段落标题) 与 #5 (关系类型分布行) 行内出现的任何
+  1804	        数字都必须在 scan 数值池 —— `#### 派生子女 987654 个的说明` /
+  1805	        `- 关系类型分布：无 987654` 实测曾放行。
+  1806	    """
+  1807	    # HIGH-4 (round-4: 对 manifest 模式同样生效)
+  1808	    s3 = "\n".join(
+  1809	        re.findall(r"^### ③.*?(?=^#{2,3}(?:[^\S\n]|$)|\Z)", text, re.M | re.S)
+  1810	    )
+  1811	    rest = text.replace(s3, "", 1) if s3 else text
+  1812	    if "无来源结论" in rest:
+  1813	        problems.append(
+  1814	            "数字终核: 「无来源结论」信号行只许出现在③段 "
+  1815	            "(段外同形行不受信号绑定保护, 附录伪信号实测曾放行)"
+  1816	        )
+  1817	    if scan.get("data_mode") != "fallback_local":
+  1818	        return
+  1819	    # HIGH-5b: ⑦ 前置 N 与 signals.unsourced_conclusions.value 全等
+  1820	    sig = (scan.get("signals") or {}).get("unsourced_conclusions") or {}
+  1821	    m7 = re.compile(r"^[>\s]*(?:(?P<n>\d+)\s*个)?派生角色成员缺来源锚点")
+  1822	    for ln in text.splitlines():
+  1823	        mm = m7.match(ln)
+  1824	        if not mm:
+  1825	            continue
+  1826	        n = mm.group("n")
+  1827	        want = sig.get("value")
+  1828	        if sig.get("availability") == "无据" or want is None:
+  1829	            if n is not None:
+  1830	                problems.append(
+  1831	                    f"数字终核: 『派生角色成员』叙述前置 N={n}, 但 "
+  1832	                    "signals.unsourced_conclusions 无据 (不容许前置 N)"
+  1833	                )
+  1834	        elif n is not None and int(n) != int(want):
+  1835	            problems.append(
+  1836	                f"数字终核: 『派生角色成员』叙述前置 N={n} ≠ "
+  1837	                f"signals.unsourced_conclusions.value={want}"
+  1838	            )
+  1839	    # HIGH-6: 标题行与关系分布行内的数字必须有出处
+  1840	    pool = _derived_number_pool(scan)
+  1841	    heading_pat = next(p for p, b in _FALLBACK_DERIVE_ALLOW if b == "md:heading")
+  1842	    relation_pat = next(
+  1843	        p for p, b in _FALLBACK_DERIVE_ALLOW if b == "scan:counts.relation_types"
+  1844	    )
+  1845	    for ln in text.splitlines():
+  1846	        # ⚠️ 检查范围: 标题条目 = fallback 措辞白名单实际放行的行 (含「派生」)——
+  1847	        # 不过滤会误伤报告主标题的年份 (`# 回顾 · 板 · 2026-09-01` 首跑即中);
+  1848	        # 关系类型分布条目 = 该白名单自身匹配的行 (不含「派生」也要查)。
+  1849	        tags = []
+  1850	        if "派生" in ln and heading_pat.match(ln):
+  1851	            tags.append(("标题", heading_pat))
+  1852	        if relation_pat.match(ln):
+  1853	            tags.append(("关系类型分布", relation_pat))
+  1854	        for tag, pat in tags:
+  1855	            # ⛔ round-4 (Codex 抢救探针 C): 数字提取必须含**中文数词** ——
+  1856	            # `#### 派生子女 九十八万个` 的 `九十八万` 用 `\d+` 抓不到, 实测放行。
+  1857	            # 可解析的入池比对; 解析不了的 (生僻写法) fail-closed 直接报。
+  1858	            nums = [int(x) for x in re.findall(r"\d+", ln.translate(_FULLWIDTH_DIGITS))]
+  1859	            for cjk in re.findall(r"[零〇一二两三四五六七八九十百千万亿]+", ln):
+  1860	                v = _cjk_to_int(cjk)
+  1861	                if v is None:
+  1862	                    problems.append(
+  1863	                        f"数字终核: fallback 允许式({tag})行内中文数字 {cjk!r} 无法验证 "
+  1864	                        f"(请改用阿拉伯数字): {ln.strip()[:40]}"
+  1865	                    )
+  1866	                else:
+  1867	                    nums.append(v)
+  1868	            for num in nums:
+  1869	                if num not in pool:
+  1870	                    problems.append(
+  1871	                        f"数字终核: fallback 允许式({tag})行内数字 {num} 无出处 "
+  1872	                        f"(数字必须在 scan 数值池): {ln.strip()[:40]}"
+  1873	                    )
+  1874	
+  1875	
+  1876	def _verify_report(path: str) -> int:
+  1877	    """Step 5.5 机械自检 (确定性 verifier — LLM 自检不可靠, 命令输出才算数)。
+  1878	
+  1879	    ✗ 任一条 → exit 1, skill 必须改写报告重跑本命令; 全 ✓ → exit 0 才许发回执。
+  1880	    """
+  1881	    try:
+  1882	        text_raw = Path(path).read_text(encoding="utf-8")
+  1883	    except (OSError, UnicodeDecodeError) as e:
+  1884	        print(f"✗ 报告不可读: {type(e).__name__}")
+  1885	        return 1
+  1886	    # 八轮顺序修正: 栅栏在**原始文本**上判定 — 先剥注释会把
+  1887	    # "---<!--x-->" 这类非法闭合行洗成合法 "---" (清洗旁路)。
+  1888	    # 闭合栅栏必须是整行 --- (行尾至多空白, 七轮), 无合法闭合 = 缺块。
+  1889	    fm_m = re.match(r"^﻿?---\r?\n(.*?)\r?\n---[ \t]*(?:\r?\n|$)", text_raw, re.S)
+  1890	    if not fm_m:
+  1891	        print("✗ 报告缺 frontmatter 块")
+  1892	        return 1
+  1893	    fm = fm_m.group(1)
+  1894	    # frontmatter 块内禁 HTML 注释标记 — 注释跨栅栏/贴栅栏正是清洗旁路的
+  1895	    # 载体, 合法报告的 frontmatter 里没有任何理由出现它。
+
+2026-09-01T09:34:49.753721Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+**Assessing unit test coverage beyond 2500**
+exec
+/bin/zsh -lc "nl -ba backend/tests/regression/test_recap_scan_signals.py | sed -n '2498,2535p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix
+ succeeded in 0ms:
+  2498	
+  2499	    # ── 零改动 ──
+  2500	    for name, legit in (
+  2501	        ("thematic break", "---\n正文\n---"),
+  2502	        ("合法二级引用列表", "> > - 合法二级引用列表"),
+  2503	        (
+  2504	            "合法三级列表",
+  2505	            "- 一级\n  - 二级\n    - 三级列表（四空格缩进，合法 Markdown）",
+  2506	        ),
+  2507	    ):
+  2508	        assert rs._strip_code_blocks(legit) == legit, f"{name} 被误剥: {legit!r}"
+  2509	    # 三层引用围栏仍剥空
+  2510	    p = "> > > "
+  2511	    got = rs._strip_code_blocks(f"{p}```\n{p}藏起来的正文\n{p}```")
+  2512	    assert all(not x.strip() for x in got.split("\n")), f"三层引用围栏未剥空: {got!r}"
+  2513	
+  2514	
+  2515	def test_domain_block_fence_close_must_be_same_char(tmp_path):
+  2516	    """old-1 承重门: 闭栏的「同字符」条件是承重的（`~~~` 不得关掉 ``` 开的围栏）。
+  2517	
+  2518	    ⛔ 本卡新发现（不在 goal 点名的三个 survivor 内）: (a) 重放实测，
+  2519	    单独删掉闭栏的「同字符」判据后全套件 196 passed 无新增红——**它也是 survivor**。
+  2520	    验收单原写「变异脚本的 survivor-1 已把 E1 两条判据一起禁，现如期变红 2/2」，
+  2521	    但那条变体是把**同字符 + 长度 + 尾随空白**三条一起禁；
+  2522	    只禁同字符这一条时套件全绿 ⇒ 那句话比证据宽。
+  2523	
+  2524	    **它证明什么**: 用 `~~~` 伪闭合一个 ``` 围栏时，其后的信号行仍被当作在块内。
+  2525	    **它不证明什么**: 不证明 CommonMark 围栏规则被完整实现（长度/缩进/info string
+  2526	    另有 `test_domain_block_four_fence_short_close` 等门）。
+  2527	    """
+  2528	    vault = standard_vault(tmp_path)
+  2529	    scan = collect_json(vault)
+  2530	    report = write_report(vault, scan)
+  2531	    base = run_verify(report)
+  2532	    assert base.returncode == 0, f"基线报告本身就不过 verifier:\n{base.stdout}"
+  2533	    before = report.read_text(encoding="utf-8")
+  2534	    first_sig = next(ln for ln in before.splitlines() if SIGNAL_LABELS[0] in ln)
+  2535	    after = before.replace(first_sig, "> ```\n> 无关正文\n> ~~~\n" + first_sig, 1)
+
+2026-09-01T09:34:55.124700Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:34:55.265109Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:34:57.106705Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:34:57.202818Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:35:00.807681Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:35:01.950288Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:35:09.956489Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:35:20.596926Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:35:25.121347Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:35:28.929455Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:35:32.320524Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:36:19.015579Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+**Assessing _quote_width function behavior**
+**Analyzing blockquote marker whitespace handling**
+**Verifying blockquote termination conditions**
+2026-09-01T09:36:34.616925Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:36:42.021837Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:36:48.329645Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:36:55.216255Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:37:00.219929Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:37:06.469627Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:37:11.439360Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+**Reviewing test rerun necessity**
+**Analyzing fence_list_col marker detection**
+**Evaluating code fence in blockquote**
+**Clarifying fenced code block continuation rules**
+**Analyzing fence indentation and marker detection flaw**
+**Assessing marker detection condition robustness**
+**Clarifying static counterexample approach**
+**Analyzing regex prefix stripping behavior**
+**Identifying false positives in marker detection**
+**Evaluating issue introduction timing**
+**Inspecting signal verification functions**
+exec
+/bin/zsh -lc "nl -ba canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py | sed -n '1088,1165p;1510,1595p;2030,2105p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix
+ succeeded in 0ms:
+  1088	    # M3 (round-2 → round-4): ③ 段止于下一个 ## / ###。历轮收紧:
+  1089	    #   round-2 只认 ###（"## 附录"可越界）→ round-3 认 tab 分隔（"##\t附录"）
+  1090	    #   → round-4 认**空标题** `##`（行尾即止，无标题文字也是合法标题）。
+  1091	    # 另: 信号行**不得藏在代码块里** — fenced (```/~~~) 与四空格缩进块在渲染
+  1092	    # 时是字面文本, 与"报告在说什么"分叉, 故校验前整体剔除。
+  1093	    scan_text = _strip_code_blocks(text)
+  1094	    # ⛔ round-6 终裁复核: 剔除代码块是**双向**的 — 它挡住"把必需行藏进围栏",
+  1095	    # 却放行"在合规行之外再往围栏里追加一组造假信号行"(围栏内容在 Obsidian
+  1096	    # 里照常渲染为可见文本, 读者会看到与 scan JSON 冲突的第二组数字)。
+  1097	    # 故: 被剔除的那部分文本里**不得出现任何信号 label**。
+  1098	    # ⛔ CARD-维护B-R2 round-3 HIGH-3: 原 zip() 在行数不等时静默截断 ——
+  1099	    # EOF 未闭合围栏把尾部行全部剥空后, splitlines() 行数差让**最后一行原文
+  1100	    # 不参与比较**, 藏在里面的伪信号逃过本检查。改 zip_longest 对齐。
+  1101	    stripped_only = "\n".join(
+  1102	        a
+  1103	        for a, b in zip_longest(text.splitlines(), scan_text.splitlines(), fillvalue="")
+  1104	        if a != b
+  1105	    )
+  1106	    for _, lb in _SIGNAL_SPECS:
+  1107	        if lb in stripped_only:
+  1108	            problems.append(
+  1109	                f"代码块内出现信号名 {lb} (围栏内容仍会渲染给读者, "
+  1110	                "不得放置第二组信号数字)"
+  1111	            )
+  1112	    s3 = "\n".join(
+  1113	        re.findall(r"^### ③.*?(?=^#{2,3}(?:[^\S\n]|$)|\Z)", scan_text, re.M | re.S)
+  1114	    )
+  1115	    if not s3:
+  1116	        problems.append("数字终核: scan JSON 含 signals 但报告缺 ③ 段可绑定信号行")
+  1117	        return
+  1118	    all_labels = [lb for _, lb in _SIGNAL_SPECS]
+  1119	    for key, label in _SIGNAL_SPECS:
+  1120	        sig = signals.get(key)
+  1121	        if not _verify_signal_schema(key, sig, problems):
+  1122	            continue
+  1123	        lines = re.findall(rf"^.*{label}.*$", s3, re.M)
+  1124	        if not lines:
+  1125	            problems.append(f"数字终核: ③段缺信号行 {label}")
+  1126	            continue
+  1127	        avail = sig.get("availability")
+  1128	        for line in lines:
+  1129	            # H3 (Codex round-2): 每行只许承载一个信号 — 四信号合并成一行时,
+  1130	            # "首个数字匹配 + 整行任意位置找档位" 会让档位互相借用而放行。
+  1131	            if sum(1 for lb in all_labels if lb in line) > 1:
+  1132	                problems.append(
+  1133	                    f"数字终核: 信号行合并了多个信号 (每信号必须独占一行): {label}"
+  1134	                )
+  1135	                continue
+  1136	            if avail == AVAIL_NODATA:
+  1137	                # H2 (round-2 → round-5 结构性终结): "禁数字字符" 是打不完的
+  1138	                # 长尾 (全角/汉字大小写/仨/皕/Arabic-Indic/上标/罗马/分数…),
+  1139	                # 且「零/零」这类还与自然表述冲突。改为**整行固定模板白名单**:
+  1140	                # 无据行必须整行等于 `- <信号名>：无据（<白名单原因>）`,
+  1141	                # 原因只能从 _NODATA_REASONS 里挑 —— 无从夹带任何数字。
+  1142	                strict_nodata = (
+  1143	                    rf"^[>\s\-*·]*{re.escape(label)}[：:]\s*无据\s*[（(]\s*"
+  1144	                    rf"(?:{'|'.join(re.escape(x) for x in _NODATA_REASONS)})"
+  1145	                    rf"\s*[）)]\s*$"
+  1146	                )
+  1147	                if not re.match(strict_nodata, line):
+  1148	                    problems.append(
+  1149	                        f"数字终核: 信号 {label} 无据行未整行匹配标准式 "
+  1150	                        f"(须为『无据（<固定原因>）』, 原因取自: {'/'.join(_NODATA_REASONS)})"
+  1151	                    )
+  1152	                continue
+  1153	            if "无据" in line:
+  1154	                problems.append(f"数字终核: 信号 {label} 有数, 报告行却标了无据")
+  1155	                continue
+  1156	            # H3 (round-3 收紧): **整行**必须严格等于本信号的标准式 —
+  1157	            # 原先"首个数字匹配 + 档位出现过"允许在正确串之后追加
+  1158	            # "99/99【实测】"这类第二组数字而照样 PASS。这里改为整行
+  1159	            # fullmatch: 行 = 前缀装饰 + 标准式 + 档位标注, 其后不许有任何
+  1160	            # 非空白残留 (词表竞赛就此打住, 结构说了算)。
+  1161	            pr = sig.get("percentile_ref") or {}
+  1162	            if key == "unanswered_question_age":
+  1163	                # round-4 新增 FAIL: percentile_ref 为 null 时原先会渲染成
+  1164	                # "p25/p50/p75 = None/None/None" 且照样匹配 → schema 侧已要求
+  1165	                # 有数档必须有 dict 分位, 这里再兜一层
+  1510	    诚实边界: 当前只覆盖「数字 + 中文量词」的**计数形态**, 不是段内全部数字
+  1511	    (mastery 0.3、量表 1-4、分位值等带自身形态的量不在内)。全量绑定是增量项,
+  1512	    如实登记在卡文与验收单, 不宣称"域内已全覆盖"。
+  1513	    """
+  1514	    # ⛔ 池必须排除**与板内容无关的源码常量**与字符串污染, 并含一阶和差
+  1515	    # (合法算术) —— 判据与构建细节见 _derived_number_pool (round-3 提取共用)。
+  1516	    pool = _derived_number_pool(scan)
+  1517	    # default-deny 切段: preamble (首个 `##` 之前, 含「规模自陈」callout) + 每个 `##` 段。
+  1518	    # ⛔ BLOCKER-2 的教训保留在这里: 段名匹配用**宽松**口径 (`## 三维审查（本轮）` 也算),
+  1519	    # 与报告别处的存在性检查同一套 —— 否则给标题加四个字就能逃出治理。
+  1520	    # ⛔ E1 必须**先**剥围栏 —— 卡文 §0.1 把「先剥豁免跨度」写在第一位, 而这里原先
+  1521	    # 从不调用 _strip_code_blocks。后果是双向的 (对抗审查实测):
+  1522	    #   · 误伤: 围栏里的字面文本被当成报告的陈述 (与 §0.1 的写死判据相反);
+  1523	    #   · 绕过: 围栏里的 `## 板级数据来源与新鲜度` 被下面的 heads 正则当成真标题,
+  1524	    #     从而凭空开出一个"出域段"—— 读者在 Obsidian 里看到的只是一段灰底代码。
+  1525	    text = _strip_code_blocks(text)
+  1526	    parts: list[tuple[str, str]] = []
+  1527	    # ⛔ 段首必须**恰好两个** `#`: 原式 `^##[^\n]*$` 连 `###`/`####` 一起命中,
+  1528	    # 于是一个三级标题就能开出新段 —— 配合下面的出域判定即可整段逃出治理。
+  1529	    heads = list(re.finditer(r"^##(?!#)[^\n]*$", text, re.M))
+  1530	    if heads:
+  1531	        parts.append(("（规模自陈等前置段）", text[: heads[0].start()]))
+  1532	        for i, h in enumerate(heads):
+  1533	            end = heads[i + 1].start() if i + 1 < len(heads) else len(text)
+  1534	            parts.append((h.group(0).lstrip("# ").strip(), text[h.end() : end]))
+  1535	    else:
+  1536	        parts.append(("（全文）", text))
+  1537	    for sec, body in parts:
+  1538	        # ⛔ 出域判定必须**前缀锚定**, 不能用子串 `ex in sec`:
+  1539	        # 子串匹配下 `## 附录（数据来源与新鲜度）` 也算出域 —— 把豁免段名塞进任意标题
+  1540	        # 的非开头位置就能整段免检, 而报告别处的重复段检查是前缀锚定的, 两者错位。
+  1541	        # 与 _SECTION_RE 同口径: 段名开头相符 + 其后只能是空白或全角括号补充说明。
+  1542	        if any(
+  1543	            re.match(rf"^{re.escape(ex)}(?:[\s（(]|$)", sec)
+  1544	            for ex in _D2_EXEMPT_SECTIONS
+  1545	        ):
+  1546	            continue
+  1547	        # E2/E3/E4/E5: 结构性跨度挖空 (等长替换, 保持行内偏移不乱)
+  1548	        for rx in (_D2_INLINE_CODE_RE, _D2_WIKILINK_RE, _D2_TIME_RE):
+  1549	            body = rx.sub(lambda mm: " " * len(mm.group(0)), body)
+  1550	        body = _D2_ORDERED_LIST_RE.sub(
+  1551	            lambda mm: mm.group(1) + "  " + mm.group(2), body
+  1552	        )
+  1553	        for line in body.splitlines():
+  1554	            # 全角数字归一 (等长, 偏移不变): `９８７６５４ 个` 与 `987654 个` 同义,
+  1555	            # 换个写法不该换来免检。
+  1556	            line = line.translate(_FULLWIDTH_DIGITS)
+  1557	            # ⛔ 对抗审查 HIGH: 千分位与前导零把量级洗掉 —— `999,016 个` 只会被切成
+  1558	            # 尾段 `016` 去比对, 于是①判决取决于该板恰好有没有 16, ②诊断报的数字是错的
+  1559	            # (报 016 而报告写的是 999,016)。归一掉分隔符与前导零, 让比对对准真实量级。
+  1560	            # ⚠️ 必须**删掉**分隔符而不是换成空格：换成空格会把 `999,016` 变成
+  1561	            #    `999 016`，而空白在噪声集里 ⇒ 仍然只取到尾段 016（第一版就这么错的）。
+  1562	            #    本行的等长约束到此为止——检查是逐行独立的，偏移不再被别处依赖。
+  1563	            line = re.sub(r"(?<=[0-9]),(?=[0-9]{3}(?![0-9]))", "", line)
+  1564	            line = re.sub(r"(?<![0-9])0+(?=[0-9])", "", line)
+  1565	
+  1566	            # E7 范围表达 (Codex round-1 HIGH): `2~3 个` 这类**区间**里的端点不是
+  1567	            # 独立计数, 逐个去池里找会让"合法与否取决于另一块板恰好有没有那个数"
+  1568	            # —— 复核者实测同一句话在 CS 61B 报告通过、在递归与分治报告 FAIL。
+  1569	            # 按结构豁免整段区间。
+  1570	            # ⛔ 对抗审查 MEDIUM: E7 原为**无条件**整段挖空 ⇒ `1-987654 个` 成了
+  1571	            # 洗钱通道 (写个 `1-` 前缀, 任意量级都不受检)。现在只有**两端都有出处**
+  1572	            # 才算合法区间; 否则不挖空, 交给下面的计数检查逐个判。
+  1573	            def _range_ok(mm):
+  1574	                ends = [int(x) for x in re.findall(r"[0-9]+", mm.group(0))]
+  1575	                return (
+  1576	                    " " * len(mm.group(0))
+  1577	                    if all(e in pool for e in ends)
+  1578	                    else mm.group(0)
+  1579	                )
+  1580	
+  1581	            line = _D2_RANGE_RE.sub(_range_ok, line)
+  1582	            # E6b: 逐字模板常量整段挖空 (等长, 保持偏移)
+  1583	            for const in _D2_TEMPLATE_CONSTANTS:
+  1584	                line = line.replace(const, " " * len(const))
+  1585	            # ⛔⛔ 适用范围收窄 (对抗审查 BLOCKER, 四板实测):
+  1586	            # 「值落在 scan 数值池里 = 有出处」是个**碰撞判据**, 不是绑定判据 ——
+  1587	            # 实测同一句合法叙述 (`你说「我做了 5 个练习」` / `第 4 条动作建议` /
+  1588	            # `有 5 处值得注意`) 在 CS 61B / 特征值 / CS188 上放行, 在「递归与分治」
+  1589	            # 上 FAIL, 只因后者的 scan 数值池小 (`[0,1]`)。**同一句话的对错取决于
+  1590	            # 另一组数据** —— 这在任何判据里都是致命的, 不是覆盖面问题。
+  1591	            # 反过来它也解释了拦截力为何弱: 能拦住的只有大到不可能碰撞的数。
+  1592	            # ⇒ D2 只对**明确自称全板规模**的句式生效 (「本板共有 N 个…」这类),
+  1593	            # 其余叙述交给 D1 的逐字段绑定与人工判读。宁可少管, 不可乱判。
+  1594	            if not _D2_CLAIM_RE.search(line):
+  1595	                continue
+  2030	        stray = [ln.strip() for ln in leftover.splitlines() if ln.strip()]
+  2031	        if stray:
+  2032	            problems.append(
+  2033	                f"动作段含编号项之外的正文行(移去对应段落): {stray[0][:40]}"
+  2034	            )
+  2035	    for p in problems:
+  2036	        print(f"✗ {p}")
+  2037	    if problems:
+  2038	        print(f"VERIFY FAIL ({len(problems)} 项) — 改写报告后重跑本命令")
+  2039	        return 1
+  2040	    print("VERIFY PASS — 可以发回执")
+  2041	    return 0
+  2042	
+  2043	
+  2044	def main() -> int:
+  2045	    ap = argparse.ArgumentParser(
+  2046	        description="board-recap 确定性收集器 + 报告 verifier (只读, 输出 JSON / 校验行)"
+  2047	    )
+  2048	    ap.add_argument("--vault", help="vault 根目录绝对路径 (收集模式必填)")
+  2049	    ap.add_argument(
+  2050	        "--board", help="原白板文件名 stem (非显示名; 禁路径分隔符; 收集模式必填)"
+  2051	    )
+  2052	    ap.add_argument(
+  2053	        "--manifest",
+  2054	        default=None,
+  2055	        help="get_board_manifest 返回体: '-' 从 stdin 读, 或 JSON 文件路径; 缺省 = fallback 本地扫描",
+  2056	    )
+  2057	    ap.add_argument(
+  2058	        "--date",
+  2059	        default=None,
+  2060	        help="回顾日期 YYYY-MM-DD (缺省 = 本机今日), 用于幂等检测与报告文件名",
+  2061	    )
+  2062	    ap.add_argument(
+  2063	        "--verify",
+  2064	        default=None,
+  2065	        metavar="REPORT_MD",
+  2066	        help="Step 5.5 机械自检: 校验已写好的报告, 全过 exit 0; 与收集模式互斥",
+  2067	    )
+  2068	    args = ap.parse_args()
+  2069	
+  2070	    if args.verify:
+  2071	        return _verify_report(args.verify)
+  2072	    if not args.vault or not args.board:
+  2073	        ap.error("收集模式需要 --vault 与 --board (或改用 --verify <report.md>)")
+  2074	
+  2075	    vault = Path(args.vault)
+  2076	    board_dir = vault / "原白板"
+  2077	    if not board_dir.is_dir():
+  2078	        print(
+  2079	            json.dumps(
+  2080	                {"error": f"vault 不可用: {board_dir} 不存在"}, ensure_ascii=False
+  2081	            )
+  2082	        )
+  2083	        return 2
+  2084	    # B2 二轮: 目录级 symlink 守卫 — 原白板/节点/outputs 任一被换成指向
+  2085	    # vault 外 (如 sibling vault) 的目录 symlink, 一切 containment 都会被
+  2086	    # 架空 → 环境不可用, 拒绝扫描。
+  2087	    vault_resolved = vault.resolve()
+  2088	    for sub in ("原白板", "节点", "outputs"):
+  2089	        d = vault / sub
+  2090	        if not d.exists():
+  2091	            continue
+  2092	        try:
+  2093	            escaped = not d.resolve().is_relative_to(vault_resolved)
+  2094	        except (OSError, ValueError):
+  2095	            escaped = True
+  2096	        if escaped:
+  2097	            print(
+  2098	                json.dumps(
+  2099	                    {
+  2100	                        "error": f"vault 不可用: {sub}/ 目录 resolve 到 vault 之外 (symlink 越界)"
+  2101	                    },
+  2102	                    ensure_ascii=False,
+  2103	                )
+  2104	            )
+  2105	            return 2
+
+**Analyzing quote indentation measurement**
+**Verifying fence_list_col initialization and marker detection**
+**Confirming manifest appendix rejection logic**
+**Inspecting fallback pattern impact**
+**Verifying fallback boundary robustness**
+**Confirming dead failure branch in CJK parsing**
+**Assessing CJK number parsing accuracy**
+**Verifying unreachable failure branch**
+exec
+/bin/zsh -lc "rg -n \"_CJK_NUM_RE|_cjk_to_int\\(\" canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py backend/tests/regression/test_recap_scan_signals.py" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix
+ succeeded in 0ms:
+canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:1465:_CJK_NUM_RE = re.compile(r"[零〇一二两三四五六七八九十百千万亿]{1,12}")
+canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:1468:def _cjk_to_int(s: str) -> int | None:
+canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:1605:                rf"({_CJK_NUM_RE.pattern}){_D2_NOISE}(?={_D2_QUANT})", line
+canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:1607:                val = _cjk_to_int(m_cjk.group(1))
+canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:1860:                v = _cjk_to_int(cjk)
+
+**Inspecting lines 1598-1615**
+exec
+/bin/zsh -lc "nl -ba canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py | sed -n '1595,1622p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix
+ succeeded in 0ms:
+  1595	                continue
+  1596	            # 小数形态的计数一律 FAIL: scan JSON 的计数都是整数, 一个"0.987654 个"
+  1597	            # 不可能有出处; 放行它等于给任意数字留一个 `0.` 前缀的免检通道。
+  1598	            for dec in _D2_DECIMAL_RE.findall(line):
+  1599	                problems.append(
+  1600	                    f"数字终核: 『{sec}』段出现小数形态的计数 {dec.strip()} "
+  1601	                    f"(scan JSON 的计数均为整数, 小数不可能有出处): {line.strip()[:50]}"
+  1602	                )
+  1603	            # 中文数字写的计数 (`共有九十八万个子节点`): 归一成整数后同样比对。
+  1604	            for m_cjk in re.finditer(
+  1605	                rf"({_CJK_NUM_RE.pattern}){_D2_NOISE}(?={_D2_QUANT})", line
+  1606	            ):
+  1607	                val = _cjk_to_int(m_cjk.group(1))
+  1608	                if val is None:
+  1609	                    problems.append(
+  1610	                        f"数字终核: 『{sec}』段的中文数字计数 {m_cjk.group(1)} 无法解析 "
+  1611	                        f"(报告请用阿拉伯数字写计数): {line.strip()[:50]}"
+  1612	                    )
+  1613	                elif val not in pool:
+  1614	                    problems.append(
+  1615	                        f"数字终核: 『{sec}』段的计数 {m_cjk.group(1)}({val}) "
+  1616	                        f"在 scan JSON 里找不到同值来源: {line.strip()[:50]}"
+  1617	                    )
+  1618	            for tok in _D2_COUNT_RE.findall(line):
+  1619	                if int(tok) not in pool:
+  1620	                    problems.append(
+  1621	                        f"数字终核: 『{sec}』段的计数 {tok} 在 scan JSON 里找不到同值来源 "
+  1622	                        f"(域内数字必须有出处): {line.strip()[:50]}"
+
+**Analyzing Chinese numeral parsing limits**
+**Identifying high-severity parser fail-closed flaw**
+**Confirming high-severity patch mismatch**
+**Inspecting _cjk_to_int tests for high blockers**
+exec
+/bin/zsh -lc 'rg -n "cjk|中文数|九十八|无法解析|无法验证|一二|万亿" backend/tests/regression/test_recap_scan_signals.py' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix
+ succeeded in 0ms:
+919:        "> - 重复堆积：无据（约七十七条）",  # 中文数字
+931:    原先只拦 ASCII X/N 与完整年龄式，括号数字/全角斜线/中文数字可绕过。"""
+1856:    ids=["tilde", "hyphen", "cjk"],
+2160:        ("本板共有九十八万个子节点。", "cjk_numeral"),
+2174:    - **全角与中文数字**（BLOCKER）：原来 D2 的数字是 `[0-9]+`，于是
+2175:      「本板共有九十八万个子节点」这种**完全虚构**的规模自陈整域免检。
+2193:        ("覆盖 4 个到 5 个节点。", "legit_range_cjk"),
+2195:        ("统计口径尚未一致。", "cjk_yi_in_prose"),
+2196:        ("说明十分清楚。", "cjk_shi_in_prose"),
+2204:    正是 round-5 那次翻车的原始误伤输入。中文数字解析器上线后必须重新验一遍：
+2205:    中文数字只有**紧跟量词**时才算计数，散落在正常中文里的数字字不算。
+2993:        ("cjk_tail", "2 个派生角色成员缺来源锚点，另有九十八万个。"),
+2996:    ids=["fullwidth_tail", "cjk_tail", "arbitrary_prefix"],
+3002:    · 尾段数字禁令从 ASCII 扩到全角 + 中文数词（原 `[^。\\n0-9]*` 放行
+3003:      `９８７６５４` / `九十八万`）。
+3088:def test_domain_r4_derive_allow_cjk_numbers_in_pool(tmp_path):
+3089:    """round-4 C: 允许式行内的**中文数词**也必须入池比对。
+3091:    `#### 派生子女 九十八万个 的说明`——`\\d+` 抓不到中文数字，实测放行
+3092:    （Codex round-4 探针 C）。可解析的入池比对（九十八万=980000 不在池）；
+3097:        lambda t, s: t.replace("方向叙述：", "\n#### 派生子女 九十八万个 的说明\n\n方向叙述：", 1),
+3099:    assert r.returncode != 0, f"标题行中文数字绕过被放行:\n{r.stdout}"
+3100:    assert "无出处" in r.stdout or "无法验证" in r.stdout
+
+**Inspecting D2 parser tests**
+exec
+/bin/zsh -lc "nl -ba backend/tests/regression/test_recap_scan_signals.py | sed -n '2135,2220p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix
+ succeeded in 0ms:
+  2135	    [
+  2136	        "本板共有 987654 个子节点。",
+  2137	        "这块板共有 99 个子节点。",
+  2138	        "全板总共 987654 条批注。",
+  2139	    ],
+  2140	    ids=["ben_ban", "zhe_kuai_ban", "quan_ban"],
+  2141	)
+  2142	def test_audit_scale_claims_blocked_on_every_board(tmp_path, prose):
+  2143	    """反向：**自称全板规模**的假计数，在四块板上必须一致地被拦下。
+  2144	
+  2145	    与上一条同权重——收窄不能收成"什么都不管"。
+  2146	    """
+  2147	    v = _verdicts_on_all_boards(tmp_path, prose)
+  2148	    assert all(v.values()), f"自称全板规模的假计数未被拦: {v}"
+  2149	
+  2150	
+  2151	# ── 对抗审查第 3/4 路（数字形态面 / 门覆盖面）整改门 ──
+  2152	# ⚠️ 工作流在 verify 阶段撞上周限额中断，**没有三视角证伪结果**——
+  2153	# 下列每条都是我自己在四份 live 真报告上逐条复现后才动手的，如实记录该证据缺口。
+  2154	
+  2155	
+  2156	@pytest.mark.parametrize(
+  2157	    "prose,ids",
+  2158	    [
+  2159	        ("本板共有 ９８７６５４ 个子节点。", "fullwidth"),
+  2160	        ("本板共有九十八万个子节点。", "cjk_numeral"),
+  2161	        ("本板共有 987654 名成员。", "quant_outside_table"),
+  2162	        ("本板共有 987654 组关系。", "quant_zu"),
+  2163	        ("本板共有 987654 多个子节点。", "modifier_duo"),
+  2164	        ("本板共有 987654 余条批注。", "modifier_yu"),
+  2165	        ("本板共有 1-987654 个子节点。", "range_laundering"),
+  2166	        ("本板共有 987654 `条` 批注。", "quant_in_code_span"),
+  2167	        ("本板共有 999,016 个子节点。", "thousands_sep"),
+  2168	    ],
+  2169	    ids=lambda v: v if isinstance(v, str) and "共有" not in v else None,
+  2170	)
+  2171	def test_audit_number_form_bypasses_are_closed(tmp_path, prose, ids):
+  2172	    """⛔ 数字/量词识别面的九条绕过，四板一致地拦下。
+  2173	
+  2174	    - **全角与中文数字**（BLOCKER）：原来 D2 的数字是 `[0-9]+`，于是
+  2175	      「本板共有九十八万个子节点」这种**完全虚构**的规模自陈整域免检。
+  2176	      scan 的计数都是 ASCII 整数，报告换个写法不该换来免检 ⇒ 归一后照常比对。
+  2177	    - **表外量词**：11 字封闭表被 21 个常用量词（名/位/台/件/组…）绕过 ⇒ 扩表。
+  2178	      ⚠️ 仍是封闭表——如实登记的边界，不宣称"位置承担了一切"。
+  2179	    - **修饰字**（多/余/来/几/约/近/超）：插一个字就断开数字与量词的紧邻关系。
+  2180	    - **E7 洗钱通道**：范围豁免原为**无条件**整段挖空 ⇒ 写个 `1-` 前缀，
+  2181	      任意量级都不受检。现在只有**两端都有出处**才算合法区间。
+  2182	    - **量词包进 code span**：挖空量词会让前面的数字失去锚点 ⇒ 纯量词跨度不再豁免。
+  2183	    """
+  2184	    v = _verdicts_on_all_boards(tmp_path, prose)
+  2185	    assert len(set(v.values())) == 1, f"{ids}: 四板判决不一致: {v}"
+  2186	    assert all(v.values()), f"{ids}: 未被拦下: {v}"
+  2187	
+  2188	
+  2189	@pytest.mark.parametrize(
+  2190	    "prose,ids",
+  2191	    [
+  2192	        ("建议覆盖 2~3 个节点。", "legit_range"),
+  2193	        ("覆盖 4 个到 5 个节点。", "legit_range_cjk"),
+  2194	        ("量表 `1-4 (1=最低)` 为数据字段自带的推定值。", "legit_scale_code"),
+  2195	        ("统计口径尚未一致。", "cjk_yi_in_prose"),
+  2196	        ("说明十分清楚。", "cjk_shi_in_prose"),
+  2197	    ],
+  2198	    ids=lambda v: v if isinstance(v, str) and "。" not in v else None,
+  2199	)
+  2200	def test_audit_number_form_fixes_do_not_overreach(tmp_path, prose, ids):
+  2201	    """放行门（同权重）：数字形态收紧不得反噬合法语料。
+  2202	
+  2203	    ⚠️ 特别是最后两条——`统计口径尚未一致` / `说明十分清楚` 含「一」「十」，
+  2204	    正是 round-5 那次翻车的原始误伤输入。中文数字解析器上线后必须重新验一遍：
+  2205	    中文数字只有**紧跟量词**时才算计数，散落在正常中文里的数字字不算。
+  2206	    """
+  2207	    v = _verdicts_on_all_boards(tmp_path, prose)
+  2208	    assert len(set(v.values())) == 1, f"{ids}: 四板判决不一致: {v}"
+  2209	    assert not any(v.values()), f"{ids}: 合法语料被误伤: {v}"
+  2210	
+  2211	
+  2212	# ══════════ CARD-维护B-R2 · survivor 承重门（BATCH-2026-09-01-第八批） ══════════
+  2213	# 第七批复核裁定 F-4: 在隔离拷贝上重放 round-6 的 survivor，S1/S3/S4 变异后
+  2214	# **全套件 passed/failed 集合与原版逐字相同** = 门没锁住；验收单「survivor 5 条
+  2215	# 全部如期变红」那一行不实（那 5 条锁的是别的性质）。
+  2216	# 本节为三个 survivor + 一个旧 survivor 各配**先红后绿**的承重门。
+  2217	# ⛔ 每道门写明「它证明什么、不证明什么」——不写比门宽的话。
+  2218	
+  2219	SIGNAL_LABELS = ("未答问题年龄", "来源覆盖率", "无来源结论", "重复堆积")
+  2220	SKILL_MD = SCRIPT.parent.parent / "SKILL.md"
+
+**Analyzing Chinese numeral extraction impact**
+exec
+/bin/zsh -lc "nl -ba canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py | sed -n '1240,1345p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix
+ succeeded in 0ms:
+  1240	    if "signals" not in scan:
+  1241	        return
+  1242	    signals = scan.get("signals")
+  1243	    if isinstance(signals, dict):
+  1244	        _verify_signal_lines(text, signals, problems)
+  1245	    else:
+  1246	        problems.append("数字终核: scan JSON signals 键存在但形状损坏 (非对象)")
+  1247	
+  1248	
+  1249	# ⛔ Codex round-1 BLOCKER-3: 原式要求「批注 N 条」后**直接行尾**, 于是真实 manifest
+  1250	# 台账行 (`- cs-61b-csm — 批注 2 条；未派生…· mastery 0.3…`) 根本不匹配 → 被 continue
+  1251	# 跳过 → 把 2 改成 999 照样 exit 0。**门在真实语料上完全不生效**, 而放行门只证明了
+  1252	# "真报告 PASS", 没证明"真报告被篡改后 FAIL" —— 这正是假绿的经典形态。
+  1253	# 现在: 数字后允许 SKILL 明确允许的后续字段 (`；…` / `· …`), 只锚到分隔符。
+  1254	_SEED_LEDGER_LINE_RE = re.compile(
+  1255	    r"^[>\s]*-\s+(?P<node>\S.*?)\s+—\s+"
+  1256	    r"(?:批注\s*(?P<n>\d+)\s*条|(?P<none>无批注))"
+  1257	    r"(?P<rest>\s*[；;·].*)?\s*$"
+  1258	)
+  1259	
+  1260	# ── CARD-维护B-R2 (d): fallback 派生允许式（从 _verify_report 局部提为模块级） ──
+  1261	# 行为与原局部 tuple 逐条等价（纯搬家）, 除 ⑦ 及其同句式 ⑧ 的 D3 收紧（见行内注）。
+  1262	# 每条附「依据」元数据, 由 d2 绑定结构门逐条验证——依据必须真实存在:
+  1263	#   scan:<路径>          collect 产物 JSON 里可解析到的真实字段
+  1264	#   md:heading           Markdown 标题结构（模式必须以 ^#{1,6} 起）
+  1265	#   skill:action-verb    SKILL HARD-CONSTRAINTS 白名单动词句（含 Cmd+Shift+D）
+  1266	#   skill:③段固定句式    SKILL.md ③段模板（:267 无来源结论信号行）与叙述句式
+  1267	#                        （:203「N 个派生成员缺来源锚点」——语义锚, 非逐字）
+  1268	# ⛔ 新增条目必须带上表内可验证的依据; 无依据可写的允许式（如「备注：…派生」
+  1269	# 自由叙述）会被 d2 结构门与 d1 行为门双向拒绝（S4 survivor 的承重防线）。
+  1270	_FALLBACK_DERIVE_ALLOW: tuple[tuple[re.Pattern[str], str], ...] = (
+  1271	    # ① 规模自陈行 — counts.derived
+  1272	    # ⛔ 维护卡 B · H-2: 原式**缺 `$`**, 而 `p.match()` 只认前缀 —— 于是在
+  1273	    # 一条完全正确的规模行**尾部追加**任意文字 (实证:「，SeedA 的派生子女
+  1274	    # 共有仨个」) 仍然 match 成功、照样 PASS。现按模板补全整行并锚 `$`:
+  1275	    # 五元组之后只许是 `/ N 批注` 与可选的行尾 `/`。
+  1276	    (
+  1277	        re.compile(
+  1278	            r"^[>\s]*\d+\s*成员（\d+\s*种子\s*\+\s*\d+\s*派生，\d+\s*占位）"
+  1279	            r"\s*/\s*\d+\s*批注\s*/?\s*$"
+  1280	        ),
+  1281	        "scan:counts.derived",
+  1282	    ),
+  1283	    # ② 任意层级的段落标题 (## 台账（种子/派生） / ### 派生)
+  1284	    (re.compile(r"^#{1,6}[^\S\n].*$"), "md:heading"),
+  1285	    # ③ 无来源结论信号行 — signals.unsourced_conclusions (分母=派生角色数)
+  1286	    (
+  1287	        re.compile(r"^[>\-*·\s]{0,6}无来源结论[：:].*【.+】\s*$"),
+  1288	        "scan:signals.unsourced_conclusions",
+  1289	    ),
+  1290	    # ④ 无来源结论**无据**行 — 白名单文案「本板无派生角色成员」含该词
+  1291	    (
+  1292	        re.compile(r"^[>\-*·\s]{0,6}无来源结论[：:]\s*无据\s*[（(][^\n]*[）)]\s*$"),
+  1293	        "scan:signals.unsourced_conclusions",
+  1294	    ),
+  1295	    # ⑤ 关系类型分布行 — counts.relation_types
+  1296	    (re.compile(r"^[>\-*·\s]{0,6}关系类型分布[：:].*$"), "scan:counts.relation_types"),
+  1297	    # ⑥ SKILL HARD-CONSTRAINTS #3 的白名单动作句 (含「Cmd+Shift+D 派生」)
+  1298	    #    ⛔ round-6 终裁复核: 漏掉它曾让**按 SKILL 逐字写的合法报告**FAIL
+  1299	    (re.compile(r"^\s*\d+\.\s.*Cmd\+Shift\+D.*派生.*$"), "skill:action-verb"),
+  1300	    # ⑦ ③段定量叙述 — CARD-维护B-R2 D3 收紧: 谓语绑定「缺来源锚点」
+  1301	    #    (SKILL.md:267 信号行模板 / :203 叙述句式的语义锚), 且尾段禁裸数字。
+  1302	    #    原式 `派生角色成员[^。\n]*` 的自由段放行过
+  1303	    #    「派生角色成员的子女数为 987654 个。」(同族缺口, (a) 重放实证)。
+  1304	    #    ⛔ round-3 HIGH-5: 尾段数字禁令从 ASCII 扩到**全角 + 中文数词**
+  1305	    #    (`９８７６５４` / `九十八万` 实测曾放行); 前置 N 的**值绑定**在
+  1306	    #    _verify_fallback_derive_numbers (正则层管不到值)。
+  1307	    #    live 4 份 fixture 实测**零命中**「派生角色成员」(全为 manifest 报告,
+  1308	    #    本检查是 fallback 专属), 收紧无 live 正例可伤。
+  1309	    (
+  1310	        re.compile(
+  1311	            r"^[>\s]*(?:\d+\s*个)?派生角色成员缺来源锚点[^。\n0-9０-９零〇一二两三四五六七八九十百千万亿]*。?\s*$"
+  1312	        ),
+  1313	        "skill:③段固定句式",
+  1314	    ),
+  1315	    # ⑧ 同句式「集中在」变体 — 与 ⑦ 同步收紧两侧尾段禁数字 (含全角/中文数词)
+  1316	    #    (否则「优化集中在派生角色成员的 987654 个子女上」同型放行)
+  1317	    (
+  1318	        re.compile(
+  1319	            r"^[^。\n0-9０-９零〇一二两三四五六七八九十百千万亿]*集中在派生角色成员[^。\n0-9０-９零〇一二两三四五六七八九十百千万亿]*。?\s*$"
+  1320	        ),
+  1321	        "skill:③段固定句式",
+  1322	    ),
+  1323	)
+  1324	
+  1325	# ── 维护卡 B · D2「有据叙述域」 ────────────────────────────────────────────
+  1326	# ⛔ Codex round-1 HIGH「D1 仍只是少量枚举，不是卡文声明的整域绑定」的整改:
+  1327	# 原实现是**点名两段**的允许式 (`("你现在可以做的", "三维审查")`) —— 于是
+  1328	# 规模 callout 的「1 次调用」、台账派生行、AI 侧对账段其余数字、新增的 `## 附录` 段
+  1329	# 全都在域外, 实测逐条 exit 0。那不是"域", 那是"几个段名 + 几条正则"。
+  1330	#
+  1331	# 现在倒转成**默认全域 + 显式例外**(default-deny): 报告正文的每一段都在 D2 里,
+  1332	# 只有下面这张表里的段落显式出域。新增段落 (附录/脚注/任何自造标题) 默认**进域**,
+  1333	# 这才符合治理域裁定"按位置划分"的本意 —— 加一个标题就能逃出治理, 才是漏。
+  1334	_D2_EXEMPT_SECTIONS = (
+  1335	    # 纯取数元信息: 哈希前缀 / mtime / manifest lag / 扫描时刻。这些值的形态自带
+  1336	    # 单位或由 E4 时间豁免覆盖, 且不是"报告对材料的陈述"。
+  1337	    "数据来源与新鲜度",
+  1338	)
+  1339	# 计数形态: 数字 + 中文量词。⛔ 只认**量词紧随**的数字, 不是"段内所有数字" ——
+  1340	# mastery 0.3 / 量表 1-4 / p25/p50/p75 这类带自己单位或形态的值不在其中,
+  1341	# 误伤面因此小得多。量词表按 live 真报告实际出现的形态扩充 (板/项/篇/道/张),
+  1342	# 每扩一个都由 live 放行门实测把关。
+  1343	# ⛔ 三处收紧, 全部由对抗审查实测驱动 (每条都在四份真报告上验过):
+  1344	#  ① **数字与量词之间的排版噪声**: 原式前瞻只容 `\s`, 于是加粗 `**987654** 个`、
+  1345	#     `<span>987654</span> 个`、`987654&nbsp;个` 一律漏检 —— 而加粗数字正是 LLM
+
+**Assessing Chinese numeral parsing in headings**
+**Evaluating false positives in numeral parsing**
+**Identifying numeric parsing bypass risk**
+2026-09-01T09:39:13.446913Z ERROR codex_models_manager::manager: failed to refresh available models: timeout waiting for child process to exit
+2026-09-01T09:39:30.693827Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+**Identifying documentation inconsistency**
+**Assessing numeric parsing ambiguity**
+**Analyzing noncanonical Chinese numeral parsing**
+**Identifying numeric parsing issues with CJK digits**
+**Highlighting CJK digit conversion flaw enabling bypass**
+**Considering label string stripping risk**
+**Assessing signal label test consistency**
+**Analyzing fence parsing in complex quotes**
+**Clarifying marker detection limitations**
+**Confirming test suite details and results**
+**Validating test completion and agent reporting**
+**Planning combined sequential tool calls**
+codex
+静态交叉核对已收敛：A 的绝对列换算和 B 的控制流位置成立；C 的标准样例会被拦，但“解析失败即 fail-closed”这一半声明出现了可达性问题，我正在按实现与测试门逐行定级。指定套件已得到 `249 passed`。
+mcp: sequential-thinking/sequentialthinking started
+mcp: sequential-thinking/sequentialthinking (completed)
+mcp: sequential-thinking/sequentialthinking started
+mcp: sequential-thinking/sequentialthinking (completed)
+三项限域复核与指定套件核对均已完成；C 发现一项直接关联整改的 HIGH，结论不能清零。
+  ✓ 静态审读 A 的引用/缩进绝对列口径与围栏容器终止逻辑
+  ✓ 静态审读 B/C 的 fallback 边界、中文数词提取/失败关闭及四门回归测试
+  ✓ 运行指定 regression 套件并核对 249，通过后汇总限域终裁
+**Drafting final Chinese status with severity details**
+**Analyzing digit handling and listing low direct issue**
+**Clarifying issue severity labeling and marker detection**
+**Confirming scope and static test environment results**
+**Verifying test suite execution aligns with user permissions**
+**Documenting Graphiti tool limitation**
+**Determining exact MEMORY.md citation lines**
+exec
+/bin/zsh -lc "nl -ba /Users/Heishing/.codex/memories/MEMORY.md | sed -n '239,248p'; nl -ba /Users/Heishing/.codex/memories/skills/canvas-adversarial-audit/SKILL.md | sed -n '18,28p;39,49p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix
+ succeeded in 0ms:
+   239	## User preferences
+   240	
+   241	- “启动并行 agent 进行对抗性审查” -> use independent evidence tracks and cross-check severity; every finding needs `file:line`, reproduction path/result, severity, conflict explanation, PASS/PARTIAL/FAIL, and limits. [Task 1][Task 2]
+   242	- Respect read-only task-book boundaries, WT/MAIN labels, explicit `UNVERIFIABLE`, and no raw-vault access; do not fix code in the audit. [Task 1]
+   243	
+   244	## Reusable knowledge
+   245	
+   246	- Related skill: skills/canvas-adversarial-audit/SKILL.md. P1-05/P1-01/P1-08 remained STILL-OPEN; F-02 tombstone filtering and F-05 live resilience were closed. Rejected vault inputs must show zero open/hash/index/write. [Task 1][Task 2]
+   247	- Reproduced: `vault/raw/escape.md -> /outside/secret.md` was counted by `backfill_vault(..., execute=False)`; case-sensitive `fnmatch` admitted `.CLAUDE/SKILL.md` and `raw/claude.md`. Edge filtering alone was insufficient because exact readers/node search could cross Graphiti groups. [Task 2]
+   248	- SnapshotV3 needs invalid/future same-generation self-healing, extra-field, strict-type, huge finite mastery, and identity/length collision coverage. [Task 1][Task 2]
+    18	2. Record checkout SHA, branch, WT/MAIN labels, current `CURRENT_TASK.md`, and requested P1 claims.
+    19	3. Identify actual production entrypoints, not merely the tests that claim to cover them.
+    20	
+    21	## Procedure
+    22	
+    23	1. Split independent tracks: vault admission/indexing and tests; Graphiti quarantine/retrieval; SnapshotV3/recovery anchors. Keep the audit read-only.
+    24	2. For each claim, build an evidence matrix: claim, `file:line`, adversarial input/state, actual entrypoint/path, observed result, severity, PASS/PARTIAL/FAIL, and limitations.
+    25	3. Directly exercise real entrypoints with temporary fixtures where permitted. For path admission include symlink, directory symlink, blacklisted filename in an allowed directory, case variant, and nonexistent path. Assert rejected inputs perform zero open/hash/index/write.
+    26	4. For quarantine, test ordinary edge search plus node search and exact-reader paths (`search_nodes`, `read_node_tips`, `read_node_errors`, `read_node_edge_reasons`). Use read-only Neo4j queries and `EXPLAIN` where allowed; distinguish observed metadata exposure from unproven fact-body leakage.
+    27	5. For SnapshotV3, test same-generation invalid/future version self-healing, extra fields, strict typing, huge finite values that may produce NaN/Infinity, and identity/length collision boundaries.
+    28	6. Compare recovery anchors with machine facts: current HEAD, Actions status, test counts, and unresolved findings. Separate targeted-test results from whole CI.
+    39	- Green tests but unsafe closure -> tests do not reach production behavior. Add direct entrypoint fixtures and capture full stdout/trace before an assertion.
+    40	- `session:` IDs used as provenance -> ID shape alone is not proof. Preserve provenance or report PARTIAL.
+    41	- Quarantine count passes -> exact-reader/node-search surfaces may still cross groups. Test those surfaces specifically.
+    42	- `CURRENT_TASK.md` says closed but anchors disagree -> rebuild anchors from current HEAD, Actions, and unresolved findings.
+    43	
+    44	## Verification checklist
+    45	
+    46	- Every finding has `file:line`, reproduction, severity, result, and claim-conflict explanation.
+    47	- Final report labels WT/MAIN and all verification limits; no prohibited files or raw vault were read.
+    48	- Production entrypoints, not only helpers, were tested for each security claim.
+    49	- CI status is reported as whole-workflow status, not only passing targeted jobs.
+
+**Citing rollout IDs with file links**
+**Formatting clickable file links with line targets**
+**Identifying high-severity parser flaws and test gaps**
+**Evaluating low-severity test limitations and suite coverage**
+**Assessing commit impact on parser severity claims**
+**Clarifying severity level and emoji output**
+**Deciding severity labeling and citation scope**
+**Adjusting MEMORY.md citation range**
+**Finalizing MEMORY.md formatting**
+**Assessing regex bypass implications**
+**Identifying parser bypass limitations**
+**Assessing Chinese numeral parsing limits**
+**Planning test suite process formatting**
+codex
+BLOCKER/HIGH 清零：否（就 A/B/C 三缝隙及其整改而言）
+
+- ✅ **A — PASS。** [`recap_scan.py:962-991`](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:962) 将引用前导空白和剩余缩进统一换算为绝对内容列；`:1053` 的 `fence_list_col` 与 `:1070` 的比较同属绝对列。目标形态中开栏前缀列与内容列均为 5，不会误判容器终止。`:1049` 能识别本案列表 marker。定向门 [`test_recap_scan_signals.py:3050-3068`](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/test_recap_scan_signals.py:3050) 与实现一致；三分类单元契约 [`test_recap_scan_signals.py:2444-2512`](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/test_recap_scan_signals.py:2444) 未被推翻。
+
+- ✅ **B — PASS。** [`recap_scan.py:1808-1818`](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:1808) 先执行③段外检查，之后才进行 `data_mode != fallback_local` 早退；manifest 因而受检。HIGH-5b/6 的 fallback 专属边界从 `:1819` 开始。定向门 [`test_recap_scan_signals.py:3071-3085`](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/test_recap_scan_signals.py:3071) 明确锁定 manifest、附录和专属诊断。
+
+- ⚠️ **C — PARTIAL / HIGH。** 标准样例“九十八万”会在 [`recap_scan.py:1858-1872`](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:1858) 正确得到 `980000` 并因池外而拦截；但整改宣称的“解析失败 fail-closed”并未成立。
+
+新增问题（仅计整改直接暴露/引入）：
+
+- **HIGH — C 的失败关闭分支静态不可达，并可能按错误值查池。** `:1859` 的提取字符集与 [`recap_scan.py:1450-1465`](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:1450) 的映射集合完全相同；任何非空匹配都会在 `:1477-1495` 返回整数，因此 `:1861-1865` 的 `v is None / 无法验证` 分支不可达，集合外写法则根本不会进入解析器。与此同时，`:1478-1480` 对连续数字字仅反复覆盖 `digit`，不验证中文数词文法，可能只保留末位并在 `:1868-1872` 对错误的小值查池；若发生池碰撞，同类允许式仍可通过。该解析器虽非本 commit 新建，但 `ff946d8c` 新增的 C 路径直接依赖并宣称了这一保证，故属于本轮整改问题。
+
+- **测试缺口伴随上述 HIGH。** [`test_recap_scan_signals.py:3088-3100`](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/test_recap_scan_signals.py:3088) 只覆盖一个可解析且池外的标准数词，并接受“无出处”或“无法验证”任一诊断；没有锁定解析值、解析失败分支或错误值与池碰撞路径。
+
+- **LOW — A 注释口径滞后。** [`recap_scan.py:1041-1047`](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:1041) 仍称使用“剥引用后的相对口径”，与 `:1050-1053`、`:1070` 的绝对列实现矛盾；不影响当前行为。
+
+过程与边界：
+
+- 指定套件结果：`249 passed, 14 warnings in 33.67s`，exit code `0`。
+- 首次受限沙箱运行在收集前因无可用临时目录退出；随后仅以相同命令在获准环境重跑并成功。
+- 未构造或执行额外探针，未读取 `fixtures/` 下 `.md/.json` 正文，未编辑文件。
+- `:1049` 的 marker 检测是整行搜索而非仅检查剥除前缀，但该条件在 `ff946d8c` 前已存在，按本轮“仅直接引入”规则不登记为新 finding。
+- 结果仅代表该定向套件，不代表全量 CI。当前工具集没有 Graphiti 查询能力，未伪称完成该协议步骤。
+
+
+tokens used
+101,676

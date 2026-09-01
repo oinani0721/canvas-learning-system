@@ -3089,12 +3089,20 @@ def test_domain_r4_derive_allow_cjk_numbers_in_pool(tmp_path):
     """round-4 C: 允许式行内的**中文数词**也必须入池比对。
 
     `#### 派生子女 九十八万个 的说明`——`\\d+` 抓不到中文数字，实测放行
-    （Codex round-4 探针 C）。可解析的入池比对（九十八万=980000 不在池）；
-    解析不了的生僻写法 fail-closed 直接报。
+    （Codex round-4 探针 C）。
+    ⛔ round-5 定向复核 HIGH 整改: 多字数词**不再交给 _cjk_to_int**——提取
+    字符集与映射表同集导致「解析失败」分支静态不可达，且连续数字字只留末位
+    （「五四」得 4）可能按错值查池。现只认**单字**数词（值=映射，绝对确定），
+    多字串一律「无法验证」fail-closed（模板/合成语料无多字合法用例，零误伤）。
     """
-    r = _mutate_report(
-        tmp_path,
-        lambda t, s: t.replace("方向叙述：", "\n#### 派生子女 九十八万个 的说明\n\n方向叙述：", 1),
-    )
-    assert r.returncode != 0, f"标题行中文数字绕过被放行:\n{r.stdout}"
-    assert "无出处" in r.stdout or "无法验证" in r.stdout
+    # 多字数词 → 无法验证（round-5 HIGH 锁: 不许按错值查池后放行）
+    for name, inject in (
+        ("九十八万", "\n#### 派生子女 九十八万个 的说明\n"),
+        ("五四_末位陷阱", "\n#### 派生子女 五四 个 的说明\n"),
+    ):
+        r = _mutate_report(
+            tmp_path / name,
+            lambda t, s, e=inject: t.replace("方向叙述：", f"{e}\n方向叙述：", 1),
+        )
+        assert r.returncode != 0, f"{name}: 中文数词绕过被放行:\n{r.stdout}"
+        assert "无法验证" in r.stdout, f"{name}: 应走「无法验证」fail-closed（不许按解析值查池）:\n{r.stdout}"
