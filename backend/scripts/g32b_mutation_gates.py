@@ -279,7 +279,7 @@ MUTATIONS += [
     (
         "M30-R3-drop-two-instant-consistency",
         SKILL,
-        '    if _durable_instant(_ea_, _ctx + " 的 effective_at") != _rt_inst_:\n',
+        '    if _instant_only(_ea_, _ctx + " 的 effective_at") != _rt_inst_:\n',
         "    if False:  # MUTANT\n",
         "test_round3_findings",
     ),
@@ -310,6 +310,18 @@ MUTATIONS += [
         '    if isinstance(_o, dict) and not isinstance(_o.get("node_id"), str):\n',
         "    if False:  # MUTANT\n",
         "test_round2_lead_followups",
+    ),
+]
+
+
+MUTATIONS += [
+    (
+        # effective_at 若套上 review_time 的严格字面门就比契约严一档
+        "M35-R3-effective-at-over-strict",
+        SKILL,
+        '    if _instant_only(_ea_, _ctx + " 的 effective_at") != _rt_inst_:\n',
+        '    if _durable_instant(_ea_, _ctx + " 的 effective_at") != _rt_inst_:  # MUTANT: 过严\n',
+        "test_round3_findings",
     ),
 ]
 

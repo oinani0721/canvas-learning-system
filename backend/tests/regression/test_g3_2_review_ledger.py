@@ -1787,12 +1787,30 @@ def test_round3_findings(vault):
     _write_ledger(vault, bad)
     r2 = _run_writer(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
     assert r2.returncode != 0 and "不是同一瞬间" in r2.stderr, r2.stderr
-    # 验伪：同一瞬间的两种合法写法（Z / +00:00）不得误拒
-    ok = _review_row(event_id="quiz:板A#q1")
-    ok["effective_at"] = "2026-08-01T10:00:00+00:00"
-    _write_ledger(vault, ok)
-    rok = _run_writer_settled(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
-    assert rok.returncode == 0, "同一瞬间的不同合法字面量不得误拒: " + rok.stderr
+    # 验伪 + **写点↔校验器口径对照**：契约 §6.1:106 对 effective_at 只要求「与
+    # review_time 同一瞬间（按绝对时刻比较——Z 与 +00:00 是同一瞬间的两种写法，
+    # **不按原字符串比**）」，整秒只约束 review_time。
+    # ⚠️ 自查抓到的错：这里原本套了 _durable_instant 的严格字面门，于是
+    # `+08:00`（同一瞬间但非 UTC 字面）会被写点拒而校验器放行 —— 又一次实现比
+    # 契约严的口径分叉（本卡第三次同类错，前两次是 R2 的整秒字面与 R6 的身份键）。
+    # 现改用 _instant_only（只比瞬间）。本断言锁的是**两侧结论必须一致**。
+    for ea, expect_ok in (
+        ("2026-08-01T10:00:00Z", True),
+        ("2026-08-01T10:00:00+00:00", True),
+        ("2026-08-01T18:00:00+08:00", True),  # 同一瞬间，非 UTC 字面
+        ("2026-08-01T11:00:00Z", False),  # 不同瞬间
+        ("2026-08-01T10:00:00", False),  # naive
+    ):
+        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+        ok = _review_row(event_id="quiz:板A#q1")
+        ok["effective_at"] = ea
+        _write_ledger(vault, ok)
+        rok = _run_writer_settled(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
+        writer_ok = rok.returncode == 0
+        assert writer_ok is expect_ok, f"effective_at={ea!r} 写点结论应为 {expect_ok}: {rok.stderr}"
+        # 只在写点放行时对照校验器（拒了就没有产物可校验）
+        if writer_ok:
+            assert _run_validator(vault).returncode == 0, f"effective_at={ea!r} 写点放行但校验器拒 —— 两侧口径分叉"
 
     # ③ BLOCKER：attempt_count 是 ordinal 回推与恢复的权威值，缺了/非法就无法
     # 证明「这是第几次评分」。旧实现缺键时静默跳过同步（实测 writer rc=0、

@@ -233,6 +233,27 @@ def _aware(s):
     dt = datetime.fromisoformat(str(s).replace("Z", "+00:00"))
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
+def _instant_only(s, ctx):
+    """tz-aware 解析 → UTC 瞬间。**不施加整秒/UTC 字面门** —— 用于只需要比较
+    「是不是同一个绝对时刻」的场合。
+
+    ⚠️ 别拿 _durable_instant 去当它用: 契约 §6.1:106 对 effective_at 的要求
+    只有「与 review_time **同一瞬间**（按绝对时刻比较——Z 与 +00:00 是同一瞬间
+    的两种写法, **不按原字符串比**）」, 整秒只约束 review_time。校验器也正是
+    这么实现的(_instant 比较)。用严格字面门去卡 effective_at 就比契约严一档,
+    `+08:00` 写法会被写点拒而校验器放行 —— 又一次实现与契约两个口径。
+    """
+    if not isinstance(s, str) or not s.strip():
+        raise SystemExit(f"[quiz-answer] {ctx} 非字符串时刻 ({s!r}), fail-closed 拒写")
+    try:
+        _d = datetime.fromisoformat(s.strip().replace("Z", "+00:00"))
+    except ValueError:
+        raise SystemExit(f"[quiz-answer] {ctx} 不可解析 ({s!r}), fail-closed 拒写")
+    if _d.tzinfo is None:
+        raise SystemExit(f"[quiz-answer] {ctx} 缺时区 ({s!r}; §三 要求 tz-aware), fail-closed 拒写")
+    return _d.astimezone(timezone.utc)
+
+
 def _durable_instant(rt, ctx):
     """durable 行的 review_time → UTC 整秒 aware datetime; 不合规即 fail-closed。
 
@@ -580,7 +601,7 @@ for _ln, _o in _rows:
     # 把 bridge 返回的 review_time 原样写进 payload, 与 effective_at 同源)。
     # 两者脱钩的行在 dup 路径会被 envelope 拦, 但走 foreign pending 时没人管。
     _ea_ = _o.get("effective_at")
-    if _durable_instant(_ea_, _ctx + " 的 effective_at") != _rt_inst_:
+    if _instant_only(_ea_, _ctx + " 的 effective_at") != _rt_inst_:
         raise SystemExit(f"[quiz-answer] {_ctx} 的 effective_at={_ea_!r} 与 payload.review_time={_pl.get('review_time')!r} 不是同一瞬间, fail-closed 拒写")
     _applicable.append((_rt_inst_, _ln, _o))
 _applicable.sort(key=lambda t: (t[0], t[1]))
