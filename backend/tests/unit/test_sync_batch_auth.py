@@ -19,7 +19,7 @@ Fail-closed matrix:
 from __future__ import annotations
 
 from typing import Generator
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -27,6 +27,7 @@ from fastapi.testclient import TestClient
 from app.config import Settings, get_settings
 from app.main import app
 from app.models.sync_models import SyncBatchResponse
+from tests.support.lifespan import no_lifespan
 
 
 # ---------------------------------------------------------------------------
@@ -81,15 +82,23 @@ def auth_client() -> Generator[TestClient, None, None]:
     active vault。409 fail-closed 生效后, 「请求 vault ≠ active vault」
     会在鉴权**之后**被拒 —— 本文件测的是鉴权矩阵, 不是 vault 隔离,
     不激活就会让每条 200 断言变成 409, 淹没真正的鉴权回归信号。
+
+    CARD-TEST-isolate-lifespan: schema_gate 一并打桩 —— /sync/batch 每次
+    请求都会真连 NEO4J_URI 做 SHOW CONSTRAINTS（verify 失败按「未知态」
+    放行），关掉 lifespan 拦不住这条请求期连接。桩的 block_reason 返回
+    None，与被拦时的实际放行行为逐字一致，不改变任何断言路径。
     """
+    gate = MagicMock()
+    gate.block_reason = AsyncMock(return_value=None)
     with (
         patch(
             "app.services.sync_service.SyncService.process_sync_batch",
             new=AsyncMock(return_value=EMPTY_OK_RESPONSE),
         ),
         patch("app.config.get_current_vault_id", return_value=SAMPLE_PAYLOAD["vault_id"]),
+        patch("app.services.schema_gate.get_canvas_schema_gate", return_value=gate),
     ):
-        with TestClient(app) as test_client:
+        with no_lifespan(app), TestClient(app) as test_client:
             yield test_client
     app.dependency_overrides.clear()
 

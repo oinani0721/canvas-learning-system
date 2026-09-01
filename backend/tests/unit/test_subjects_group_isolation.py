@@ -262,10 +262,12 @@ class TestEndpointPhysicalGroupInjection:
 
         from app.main import app
 
+        from tests.support.lifespan import no_lifespan
+
         stub = _StubNeo4jClient()
         _patch_client(monkeypatch, stub)
 
-        with TestClient(app) as client:
+        with no_lifespan(app), TestClient(app) as client:
             response = client.get("/api/v1/subjects/", params={"vault_id": "canvas_vault"})
 
         assert response.status_code == 200

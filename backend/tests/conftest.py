@@ -12,21 +12,32 @@ This module provides test fixtures and configuration for the test suite.
 import asyncio
 import json
 import logging
+import sys
 import tempfile
 from pathlib import Path
 from typing import Generator
 
 import pytest
 import structlog
-from app.config import Settings, get_settings
-from app.core.logging import configure_logging
-from app.main import app
+
+# CARD-TEST-isolate-lifespan: 门必须先于 `from app.main import app` 安装——
+# 否则 conftest 自身的 import 阶段（比任何 fixture 都早）存在一段不受保护的
+# 连接窗口（Codex round-1 LOW）。install() 含 uvloop 毒化，幂等。
+from tests.support import live_port_guard
+
+live_port_guard.install()
+
+from app.config import Settings, get_settings  # noqa: E402
+from app.core.logging import configure_logging  # noqa: E402
+from app.main import app  # noqa: E402
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: testing TestClient)
-from fastapi.testclient import TestClient
+from fastapi.testclient import TestClient  # noqa: E402
 
 # Hypothesis profiles for different execution contexts
-from hypothesis import settings as hypothesis_settings, HealthCheck
+from hypothesis import settings as hypothesis_settings, HealthCheck  # noqa: E402
+
+from tests.support.lifespan import no_lifespan  # noqa: E402
 
 hypothesis_settings.register_profile("ci", max_examples=200, deadline=5000)
 hypothesis_settings.register_profile("dev", max_examples=20, deadline=10000)
@@ -62,6 +73,120 @@ def _reset_structlog_contextvars():
     structlog.contextvars.clear_contextvars()
     yield
     structlog.contextvars.clear_contextvars()
+
+
+# ============================================================================
+# CARD-TEST-isolate-lifespan — 「测试进程运行时零连现网 Neo4j」硬门
+# ============================================================================
+
+
+def pytest_configure(config):
+    # 尽早装门（幂等——模块顶部已装过）。任何到 7691/7687 的 TCP connect 都在
+    # 建立前被拦（fail-closed，调用方拿到 RuntimeError）。
+    # ⚠️ 刻意**不**在 pytest_unconfigure 卸门：迟到线程在 unconfigure 之后、
+    # 进程退出之前仍可能连库，先恢复 socket 会留下无账窗口（Codex round-2
+    # HIGH 实测）。门随进程存活到退出——测试进程无需恢复现场。
+    live_port_guard.install()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _neo4j_live_port_guard(tmp_path_factory):
+    """session 级自证 + bug_tracker 别名替换（运行时文件重定向）。
+
+    - uvloop 复核：install() 已把 ``import uvloop`` 毒化成 ImportError，此处复核
+      毒化在位（被绕过即 fail，拒绝静默失效）；
+    - NEO4J_TEST_URI 指向受拦端口 = 配置事故，直接 fail（拒绝静默改门）；
+    - middleware 写 bug_log.jsonl 走的是 ``app.main`` 命名空间里的 ``bug_tracker``
+      别名（main.py:57 import、:721 使用）。把**别名**换成写到 session tmp 的临时
+      BugTracker 实例即可断掉这条真实写路径；不碰 ``app.core.bug_tracker`` 单例
+      本身——它的默认路径契约有自己的测试在锁（Codex round-1 MEDIUM：改单例的
+      ``log_path`` 会把那个测试打红）。
+    """
+    live_port_guard.assert_not_uvloop()
+    live_port_guard.assert_test_uri_not_blocked()
+    assert live_port_guard.STATE.installed, "socket 门未安装（pytest_configure 未跑？）"
+
+    import app.main as main_module
+    from app.core.bug_tracker import BugTracker
+
+    session_bug_dir = tmp_path_factory.mktemp("bug_log")
+    saved_tracker = main_module.bug_tracker
+    main_module.bug_tracker = BugTracker(log_path=str(session_bug_dir / "bug_log.jsonl"))
+
+    yield
+
+    main_module.bug_tracker = saved_tracker
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_protocol(item, nextitem):
+    """把连接尝试归属到用例；豁免用例（integration/e2e 路径与 marker）只记不拦。
+
+    归属写在 ContextVar 上（portal 线程带副本可见，裸线程默认 <unknown> 且永不
+    豁免 = fail-closed），见 tests/support/live_port_guard.py 的模块 docstring。
+    """
+    exempt, _why = live_port_guard.is_exempt(item, Path(__file__).parent)
+    live_port_guard.begin_item(item.nodeid, exempt)
+    try:
+        return (yield)
+    finally:
+        live_port_guard.end_item()
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_makereport(item, call):
+    """结账哨兵：把被 app/main.py 的 try/except 吞掉的拦截转成用例失败。
+
+    没有这一层，门拦住了连接却无人知晓——TestClient 照常进入、用例照常绿，
+    等于一门否定断言恒真的假门（2026-09-01 E3 机制实验实证）。
+    """
+    report = yield
+    if report.when in ("call", "teardown"):
+        records = live_port_guard.STATE.take(item.nodeid)
+        if records:
+            report.outcome = "failed"
+            # xfail 用例的 report 带 wasxfail：只改 outcome 时 pytest 不把它
+            # 计入失败，rc 仍为 0 —— 拦截记录就此从总账消失（Codex round-2
+            # HIGH 实测）。强制失败必须摘掉 wasxfail 标记。
+            if getattr(report, "wasxfail", None) is not None:
+                del report.wasxfail
+            detail = live_port_guard.format_sentinel(item.nodeid, records)
+            report.longrepr = f"{report.longrepr}\n\n{detail}" if report.longrepr else detail
+    return report
+
+
+def pytest_sessionfinish(session, exitstatus):
+    unaccounted = live_port_guard.STATE.unaccounted_blocked()
+    if unaccounted:
+        print(
+            f"\n*** {live_port_guard.BLOCK_REASON} —— {len(unaccounted)} 次拦截"
+            "无人结账（迟到线程 / collection 期 / 未知线程），进程将以退出码 3 失败 ***",
+            file=sys.stderr,
+        )
+        for rec in unaccounted:
+            print(f"    - {rec['address']} on thread {rec['thread']} (owner={rec['owner']})", file=sys.stderr)
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_cmdline_main(config):
+    """session 总账收口（Codex round-2 HIGH 两道）：
+
+    - 有无人买单的拦截（迟到线程 / collection 期 / 未知线程）→ 退出码 3；
+    - 兜底 belt：只要发生过非豁免拦截（blocked>0）而 pytest 却要返回 0
+      （例如哨兵翻红被 xfail 机制吃掉的任何残余形态），同样改 3 —— 非豁免
+      连接尝试绝不允许以「全绿」收场。豁免用例的 advisory 不在此列。
+    """
+    status = yield
+    state = live_port_guard.STATE
+    if state.unaccounted_blocked():
+        return 3
+    if state.blocked > 0 and status == 0:
+        return 3
+    return status
+
+
+def pytest_terminal_summary(terminalreporter, exitstatus, config):
+    terminalreporter.write_line(live_port_guard.STATE.summary_line())
 
 
 # ============================================================================
@@ -330,10 +455,12 @@ def get_settings_override() -> Settings:
 
 @pytest.fixture
 def client() -> Generator[TestClient, None, None]:
-    """
-    Create a test client with overridden settings.
+    """Create a lifespan-free test client with overridden settings.
 
-    ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: testing TestClient)
+    CARD-TEST-isolate-lifespan: 默认不跑 app.main 的 lifespan——否则每次起
+    client 都会连 NEO4J_URI 预热 + 跑 CREATE FULLTEXT INDEX DDL + 读 live
+    vault。需要启动副产物的测试用 tests/support/lifespan.py::lifespan_lite
+    自行装配进程内对象。
 
     Function-scoped (default) for proper test isolation.
     Previously module-scoped, which caused cross-test state leaks
@@ -345,7 +472,7 @@ def client() -> Generator[TestClient, None, None]:
     # Override the get_settings dependency
     app.dependency_overrides[get_settings] = get_settings_override
 
-    with TestClient(app) as test_client:
+    with no_lifespan(app), TestClient(app) as test_client:
         yield test_client
 
     # Clean up dependency overrides

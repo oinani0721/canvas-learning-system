@@ -17,7 +17,7 @@ Patch-target 注记: vault_scope 全部延迟 import — 必须 patch
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
@@ -165,11 +165,38 @@ class TestUnifiedReadGates(_ContextVarHygiene):
 def client():
     from app.main import app
     from app.security import require_internal_api_key
+    from app.services.memory_service import get_memory_service
 
+    from tests.support.lifespan import no_lifespan
+
+    # CARD-TEST-isolate-lifespan: 两类请求期连接在此一并打桩 —
+    # 1) schema_gate: /sync/batch 每次请求真连 NEO4J_URI 做 SHOW
+    #    CONSTRAINTS（verify 失败按「未知态」放行），桩返回恒放行，
+    #    与被拦时的实际行为一致，409 断言不受影响。
+    # 2) MemoryServiceDep: FastAPI 在 handler 体之前解析全部 Depends，
+    #    就连 memory/* 的 409 用例也会先触发 MemoryService 惰性
+    #    initialize（driver health_check 连 NEO4J_URI）。本模块的断言
+    #    只关心 vault 解析层，memory 服务本身不被消费 —— 覆盖为哑对象。
+    gate = MagicMock()
+    gate.block_reason = AsyncMock(return_value=None)
+
+    saved_overrides = {
+        require_internal_api_key: app.dependency_overrides.get(require_internal_api_key),
+        get_memory_service: app.dependency_overrides.get(get_memory_service),
+    }
     app.dependency_overrides[require_internal_api_key] = lambda: None
-    with TestClient(app, raise_server_exceptions=False) as c:
+    app.dependency_overrides[get_memory_service] = lambda: MagicMock()
+    with (
+        patch("app.services.schema_gate.get_canvas_schema_gate", return_value=gate),
+        no_lifespan(app),
+        TestClient(app, raise_server_exceptions=False) as c,
+    ):
         yield c
-    app.dependency_overrides.pop(require_internal_api_key, None)
+    for dep, original in saved_overrides.items():
+        if original is None:
+            app.dependency_overrides.pop(dep, None)
+        else:
+            app.dependency_overrides[dep] = original
 
 
 @pytest.fixture
@@ -307,9 +334,23 @@ class TestCodexRound1RectifiedEndpoints:
             "current_note_frontmatter": {},
             "vault_id": ACTIVE,
         }
-        with patch("app.config.get_current_vault_id", return_value=ACTIVE):
+        # CARD-TEST-isolate-lifespan: enrich_context 在函数体内直调
+        # get_memory_service()（不经 Depends，模块级 DI 覆盖拦不住），随后
+        # await search_error_memories(...) —— 裸 MagicMock 会让该行抛
+        # TypeError → 500，把「match 路径真的跑完」的用例打回假绿（Codex
+        # round-1 HIGH）。桩给接口完整的 AsyncMock，让成功路径真跑完。
+        mem_svc = MagicMock()
+        mem_svc.search_error_memories = AsyncMock(return_value=[])
+        with (
+            patch("app.config.get_current_vault_id", return_value=ACTIVE),
+            patch(
+                "app.api.v1.endpoints.chat.get_memory_service",
+                new=AsyncMock(return_value=mem_svc),
+            ),
+        ):
             resp = client.post("/api/v1/chat/enrich-context", json=payload)
-        # 200 或业务性 4xx/5xx 均可, 但绝不能是 NameError 引发的崩溃
+        # 桩齐后成功路径应真跑完；同时保留原始的 NameError 防线
+        assert resp.status_code == 200, resp.text
         assert "sanitized_vault_id" not in resp.text
         assert "NameError" not in resp.text
 
@@ -328,9 +369,7 @@ class TestCodexRound1RectifiedEndpoints:
     def test_tips_get_mismatch_409_not_empty_200(self, client):
         """BLOCKER-2: GET 曾把 409 吞成 200 + 空列表 (伪装成「没有批注」)."""
         with patch("app.config.get_current_vault_id", return_value=ACTIVE):
-            resp = client.get(
-                "/api/v1/tips", params={"node_id": "n1", "vault_id": OTHER}
-            )
+            resp = client.get("/api/v1/tips", params={"node_id": "n1", "vault_id": OTHER})
         assert resp.status_code == 409, resp.text
 
     def test_tips_save_mismatch_409_not_500(self, client):

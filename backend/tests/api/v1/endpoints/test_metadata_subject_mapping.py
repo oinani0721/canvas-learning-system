@@ -56,9 +56,11 @@ def client(test_resolver):
     from app.api.v1.endpoints.metadata import get_resolver
     from app.main import app
 
+    from tests.support.lifespan import no_lifespan
+
     app.dependency_overrides[get_resolver] = lambda: test_resolver
 
-    with TestClient(app) as c:
+    with no_lifespan(app), TestClient(app) as c:
         yield c
 
     app.dependency_overrides.pop(get_resolver, None)
@@ -160,9 +162,7 @@ class TestAddSubjectMapping:
         data = response.json()
 
         # Should still have same number of mappings (2, not 3)
-        math54_mappings = [
-            m for m in data["mappings"] if m["pattern"].lower() == "math 54/**"
-        ]
+        math54_mappings = [m for m in data["mappings"] if m["pattern"].lower() == "math 54/**"]
         assert len(math54_mappings) == 1
         assert math54_mappings[0]["subject"] == "math54-v2"
 
