@@ -5,7 +5,7 @@ status: "review"
 version: "1"
 date: "2026-09-02"
 developer: "Claude Code (Opus 5)"
-commit: "6518e5af"
+commit: "40ad0b97"
 batch: "BATCH-2026-09-01-第九批"
 ---
 
@@ -290,8 +290,12 @@ round-2 是本卡第一份有正式 verdict 的审查（round-1 正文被内容�
   - (e) → `bark_negctl_report_plugin.py` + `_judge_pytest`；变异 M9（双判据对照）
   - (f) → `bark_autostub_negative_control.py::CASES`（二十跑）
   - (g) → 本单 §🎯 / 4-B / 「未证明什么」段
-- **Git commit**：`<回填最终 HEAD>`（`card/w4-safety-r2`，未 push；本卡单 commit）
-- **Codex 冻结审查**：`_bmad-output/审查/codex-review-CARD-TEST-bark-autostub-R1.md`（回填）
+- **Git commit（代码终态）**：`40ad0b973512016e228c23caa44ef01530321323`（`card/w4-safety-r2`，未 push）。三轮 Codex 审查分别锚定：round-1 `d3fba4e0`（正文被过滤器拦下）、round-2 `919a9a48`、round-3 `773bf856`；**round-3 之后的整改落在 `40ad0b97`，未再送审**。
+- **Codex 冻结审查（三轮，全部随本卡提交）**
+  - round-1：`codex-review-CARD-TEST-bark-autostub-R1-round1.md`（**正文 0 字节**——被内容过滤器拦在最终输出；它实际跑完的复现结果在同名 `.stderr` 里，含击穿 held-opener 的那条）
+  - round-2：`codex-review-CARD-TEST-bark-autostub-R1-round2.md`（0B/3H/7M/2L，`VERDICT: FAIL`）
+  - round-3（终轮）：`codex-review-CARD-TEST-bark-autostub-R1-round3.md`（0B/3H/9M/1L，`VERDICT: FAIL`）
+  - 提示词三份在 `prompts/`（round-2 起改为防御性措辞以避开内容过滤器，实质检查项不变）
 
 ---
 
