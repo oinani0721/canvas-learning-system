@@ -3,10 +3,18 @@
 #
 # 触发条件: OpenAPI 规范或 API 代码变更时
 # 功能:
-#   1. 验证 OpenAPI 规范格式
-#   2. 检测破坏性变更 (oasdiff)
-#   3. 合约测试 (Dredd)
+#   1. 快照漂移门: committed backend/openapi.json 必须与 app.openapi() 一致(漂移=红)
+#   2. 验证 OpenAPI 规范格式
+#   3. 检测破坏性变更 (oasdiff)
 #   4. 生成差异报告
+#
+# ⚠️ CARD-DEBT-openapi-sync [BATCH-2026-09-01-第八批] 修正的假门:
+#   本文件此前三处 `if [ -f ... ]` 存在性判断查的是**仓库根**下的规范文件, 而
+#   仓库根从来没有这个文件(`git log --all` 对该路径为空) —— 三处恒走 else 分支,
+#   "spec changed" 恒为 true, breaking-change 基线恒退化为 `{}`。真实快照一直在
+#   `backend/openapi.json`。同时 update-spec job 用 `git push || true` 吞掉失败,
+#   job 恒绿却从未推上去任何东西(origin main 上该根级文件至今 404)。
+#   现改为: 全部路径指向 backend/openapi.json, 且漂移直接让 job 变红。
 
 name: API Specification Sync
 
@@ -16,7 +24,7 @@ on:
       - 'backend/app/api/**'
       - 'backend/app/models/**'
       - 'specs/api/**'
-      - 'openapi.json'
+      - 'backend/openapi.json'
   push:
     branches:
       - main
@@ -36,8 +44,6 @@ jobs:
   export-openapi:
     name: Export OpenAPI Spec
     runs-on: ubuntu-latest
-    outputs:
-      spec-changed: ${{ steps.check-diff.outputs.changed }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -54,20 +60,10 @@ jobs:
           cd backend
           pip install -r requirements.txt
 
+      # 产物与 committed 快照同构(同一脚本、同一归一化), 供下游 job 消费。
       - name: Export OpenAPI spec from FastAPI
         run: |
-          cd backend
-          python -c "
-          import json
-          from app.main import app
-
-          openapi_schema = app.openapi()
-          with open('../openapi-current.json', 'w', encoding='utf-8') as f:
-              json.dump(openapi_schema, f, indent=2, ensure_ascii=False)
-          print('OpenAPI spec exported successfully')
-          print(f'Paths: {len(openapi_schema.get(\"paths\", {}))}')
-          print(f'Schemas: {len(openapi_schema.get(\"components\", {}).get(\"schemas\", {}))}')
-          "
+          python scripts/spec-tools/check-openapi-drift.py --write openapi-current.json
 
       - name: Upload OpenAPI spec
         uses: actions/upload-artifact@v4
@@ -76,21 +72,14 @@ jobs:
           path: openapi-current.json
           retention-days: 7
 
-      - name: Check if spec changed
-        id: check-diff
+      # ⛔ 漂移门: committed 快照与 app.openapi() 归一化后必须相等, 否则 job 红。
+      # 归一化只吸收 info.x-generated-at/x-generator、对象成员顺序、required 集合
+      # 内序; enum 顺序与其余一切差异照报(规则与依据见脚本模块 docstring)。
+      # 修法(在仓库根跑, 禁手改快照):
+      #   python scripts/spec-tools/check-openapi-drift.py --write backend/openapi.json
+      - name: Snapshot drift gate
         run: |
-          if [ -f "openapi.json" ]; then
-            if diff -q openapi.json openapi-current.json > /dev/null 2>&1; then
-              echo "changed=false" >> $GITHUB_OUTPUT
-              echo "OpenAPI spec unchanged"
-            else
-              echo "changed=true" >> $GITHUB_OUTPUT
-              echo "OpenAPI spec has changes"
-            fi
-          else
-            echo "changed=true" >> $GITHUB_OUTPUT
-            echo "No existing openapi.json found"
-          fi
+          python scripts/spec-tools/check-openapi-drift.py --snapshot backend/openapi.json
 
   # ═══════════════════════════════════════════════════════════════════════════════
   # Phase 2: 验证 OpenAPI 规范格式
@@ -169,13 +158,14 @@ jobs:
         with:
           name: openapi-current
 
+      # `git show` 读 base 分支的 blob 到文件, 不动工作树 —— 旧写法用
+      # `git checkout <base> -- <根级规范文件>` 拉一个从不存在的路径, 恒失败后
+      # 再用 `git checkout <head> -- .` 试图还原, 基线因此恒为 `{}`(= 任何变更
+      # 都不会被 oasdiff 判为 breaking, 门恒绿)。
       - name: Get base branch spec
         run: |
-          git checkout origin/${{ github.base_ref }} -- openapi.json 2>/dev/null || echo "{}" > openapi-base.json
-          if [ -f "openapi.json" ]; then
-            mv openapi.json openapi-base.json
-          fi
-          git checkout ${{ github.head_ref }} -- . 2>/dev/null || true
+          git show "origin/${{ github.base_ref }}:backend/openapi.json" > openapi-base.json 2>/dev/null \
+            || { echo "::warning::base 分支无 backend/openapi.json, breaking 检测基线退化为空对象"; echo '{}' > openapi-base.json; }
 
       - name: Install oasdiff
         run: |
@@ -279,9 +269,21 @@ jobs:
   # ═══════════════════════════════════════════════════════════════════════════════
   # Phase 4: 合约测试 (Dredd)
   # ═══════════════════════════════════════════════════════════════════════════════
+  # ⛔ 停用 (CARD-DEBT-openapi-sync [BATCH-2026-09-01-第八批])
+  # 依据:
+  #   1. 本 workflow 在 GitHub 上 24/24 runs 全 failure(2026-04-17 → 2026-06-01),
+  #      最新一次 run 里唯一 failure 的 job 就是本 job(Export/Validate/Update 均
+  #      success, Detect Breaking skipped)。
+  #   2. 失败原因**已不可考**: GitHub 日志保留期已过, 拉取返回 410 Gone。
+  #      在原因不明的前提下修它 = 猜, 所以本卡只停用不修。
+  #   3. 覆盖面并未因此丢失: schemathesis 在进程内做同类契约校验
+  #      (backend/tests/contract/test_openapi_contract.py, from_asgi 直接读 app),
+  #      不需要起 uvicorn + Neo4j service 容器。
+  # 复活或退役由独立候选卡裁决(已登记, 第九批候补)。届时删掉 `if: false` 即可。
   contract-test:
     name: Contract Test (Dredd)
     runs-on: ubuntu-latest
+    if: false
     needs: [export-openapi, validate-spec]
     services:
       neo4j:
@@ -382,46 +384,21 @@ jobs:
             dredd-report.md
 
   # ═══════════════════════════════════════════════════════════════════════════════
-  # Phase 5: 更新 OpenAPI 规范文件
+  # Phase 5(已删除): 自动提交 OpenAPI 规范文件
   # ═══════════════════════════════════════════════════════════════════════════════
-  update-spec:
-    name: Update OpenAPI Spec
-    runs-on: ubuntu-latest
-    needs: [export-openapi, validate-spec]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Download current spec
-        uses: actions/download-artifact@v4
-        with:
-          name: openapi-current
-
-      - name: Check if update needed
-        id: check
-        run: |
-          if [ -f "openapi.json" ]; then
-            if diff -q openapi.json openapi-current.json > /dev/null 2>&1; then
-              echo "update-needed=false" >> $GITHUB_OUTPUT
-            else
-              echo "update-needed=true" >> $GITHUB_OUTPUT
-            fi
-          else
-            echo "update-needed=true" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Update OpenAPI spec
-        if: steps.check.outputs.update-needed == 'true'
-        run: |
-          mv openapi-current.json openapi.json
-
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add openapi.json
-          git commit -m "chore: update OpenAPI specification [skip ci]" || true
-          git push || true
+  # 原 update-spec job 已删除 (CARD-DEBT-openapi-sync [BATCH-2026-09-01-第八批])。
+  # 它做的是: push main 时把导出结果 `mv` 成**仓库根**的规范文件再
+  # `git commit || true; git push || true`。三重失效叠在一起:
+  #   - 写的是从不存在的根路径, 与真实快照 backend/openapi.json 无关;
+  #   - `|| true` 把 commit 与 push 的失败一并吞掉, job 恒 success;
+  #   - 结果就是"恒绿却从未推上去": origin main 至今没有那个根级文件
+  #     (gh api contents 404, commits?path 为空)。
+  # 快照现在由三处保证新鲜, 不再需要 CI 代写:
+  #   1. lefthook pre-commit 的 spec-sync —— 改 API 即重生成并 stage;
+  #   2. 本 workflow 的 Snapshot drift gate —— 漂移就红, 逼人本地重生成;
+  #   3. 批次收官时在最终主干统一 `--write` 并单独 governance commit。
+  # ⚠️ 删除自动提交 job 属 CI/CD 变更, 按默认在车道落 commit 但**不 push**,
+  #    合并前须用户逐项批(验收单「待你裁决」)。
 
   # ═══════════════════════════════════════════════════════════════════════════════
   # Summary Job
@@ -441,9 +418,9 @@ jobs:
           echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
 
           if [ "${{ needs.export-openapi.result }}" == "success" ]; then
-            echo "| Export OpenAPI | :white_check_mark: |" >> $GITHUB_STEP_SUMMARY
+            echo "| Export + Snapshot Drift Gate | :white_check_mark: |" >> $GITHUB_STEP_SUMMARY
           else
-            echo "| Export OpenAPI | :x: |" >> $GITHUB_STEP_SUMMARY
+            echo "| Export + Snapshot Drift Gate | :x: backend/openapi.json 已漂移或导出失败 |" >> $GITHUB_STEP_SUMMARY
           fi
 
           if [ "${{ needs.validate-spec.result }}" == "success" ]; then
@@ -458,8 +435,10 @@ jobs:
             echo "| Breaking Changes | :white_check_mark: None |" >> $GITHUB_STEP_SUMMARY
           fi
 
-          if [ "${{ needs.contract-test.result }}" == "success" ]; then
-            echo "| Contract Tests | :white_check_mark: |" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ needs.contract-test.result }}" == "skipped" ]; then
+            echo "| Contract Tests (Dredd) | :heavy_minus_sign: 已停用 — 见 job 上方注释; 契约校验由 backend/tests/contract/test_openapi_contract.py (schemathesis) 承担 |" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.contract-test.result }}" == "success" ]; then
+            echo "| Contract Tests (Dredd) | :white_check_mark: |" >> $GITHUB_STEP_SUMMARY
           else
-            echo "| Contract Tests | :warning: |" >> $GITHUB_STEP_SUMMARY
+            echo "| Contract Tests (Dredd) | :warning: |" >> $GITHUB_STEP_SUMMARY
           fi

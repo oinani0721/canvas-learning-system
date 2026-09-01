@@ -16,16 +16,29 @@
 pre-commit:
   parallel: true
   commands:
-    # --- Spec Sync: Export OpenAPI when backend API files change ---
+    # --- Spec Sync: Regenerate OpenAPI snapshot when backend API files change ---
+    # CARD-DEBT-openapi-sync [BATCH-2026-09-01-第八批] 把这个 hook 从"死了 4 个月
+    # 没人发现"改成"会出声"。原写法三处同时失效, 任何一处都足以让它静默空转:
+    #   1. 解析器是裸 `python` —— 本机与 CI 上都不是本仓 venv(甚至可能不存在),
+    #      对照同文件 readme-claims-lint 一直用 backend/.venv/bin/python;
+    #   2. `2>/dev/null` 把导出失败整个吞掉, 于是失败与成功外观完全相同;
+    #   3. 导出脚本默认落到 backend/openapi.json, 而这里 `[ -f openapi.json ]`
+    #      查的是**仓库根** —— 那个文件在本仓全部历史中都不存在, 所以永远
+    #      走不到 git add。快照 mtime 因此停在 5 月 3 日。
+    # 现在: venv 解析器 + 失败 exit 1 阻断 commit + 直接写并 stage backend 下的快照。
+    # 代价(已知): 每次改 backend/app/{api,models,schemas} 的 commit 会多花约 20s
+    # 导入 app.main 重生成快照, 且快照因 x-generated-at 恒变而必然出现在 diff 里。
     spec-sync:
       glob: "backend/app/{api,models,schemas}/**/*.py"
       run: |
-        echo "[Spec Sync] API changes detected, exporting OpenAPI..."
-        cd backend && python ../scripts/spec-tools/export-openapi.py 2>/dev/null && cd ..
-        if [ -f openapi.json ] && ! git diff --quiet openapi.json 2>/dev/null; then
-          git add openapi.json
-          echo "[Spec Sync] + openapi.json added to commit"
+        if [ -f "backend/.venv/bin/python" ]; then PY="backend/.venv/bin/python"; else PY="python3"; fi
+        echo "[Spec Sync] API changes detected, regenerating backend/openapi.json (via $PY)..."
+        if ! "$PY" scripts/spec-tools/check-openapi-drift.py --write backend/openapi.json; then
+          echo "[Spec Sync] FAILED — 快照未能重生成, 先修好再 commit(禁手改快照)。"
+          exit 1
         fi
+        git add backend/openapi.json
+        echo "[Spec Sync] + backend/openapi.json staged"
         if [ -d specs/data/generated ]; then
           for schema in specs/data/generated/*.schema.json; do
             if [ -f "$schema" ] && ! git diff --quiet "$schema" 2>/dev/null; then
