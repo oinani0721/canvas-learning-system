@@ -1,0 +1,4 @@
+cd1f2d7da130020e4b4e456604390d329ac6880bbf3805a5a91f5a3ba6d0b27c  canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py
+fc975adca90ade338b6c1140957b24d9f30187b716748cef0c9c80584be975ce  backend/tests/regression/test_recap_scan_signals.py
+5aee840f72e56772cb01f18efb5f3f39e81798bcbcc66eac7b220f62a9a92054  backend/tests/regression/recap_domain_negverify.py
+c9032a40ba974e9d4d25c825767cbd4527680ee4ca43aeb58bb4b452a86d19c9  _bmad-output/验收单/UAT-CARD-维护B-数字治理域-2026-08-31.md

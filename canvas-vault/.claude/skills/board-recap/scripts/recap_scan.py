@@ -1352,12 +1352,43 @@ _D2_EXEMPT_SECTIONS = (
 #     中文数字与表外量词仍不在覆盖面 (见验收单裁决点)。
 # 噪声集含反引号: `` `987654` 个 `` 里的收尾反引号也是"数字与量词之间的排版噪声"
 # （纯数字 code span 已由 _D2_INLINE_CODE_RE 有意保留下来交给这里判）。
-_D2_NOISE = r"(?:[*_~\\`]|<[^>\n]{1,20}>|&nbsp;|&#160;|[多余来几约近超]|\s)*"
+_D2_NOISE_ONE = r"(?:[*_~\\`]|<[^>\n]{1,20}>|&nbsp;|&#160;|[多余来几约近超]|\s)"
+_D2_NOISE = rf"{_D2_NOISE_ONE}*"
+# ⛔ R3 round-2 (车道对抗审查 BLOCKER, 5 个镜头独立收敛 + 本地实测复现):
+# 噪声**不只出现在数与量词之间, 也能被塞进数串内部**。原提取式只有右侧量词
+# 前瞻, 于是 `本板共有九十八万**五**个子节点` (Markdown 粗体, **渲染出来就是
+# 「九十八万五个」**) 的匹配重锚到尾片 `五`, `_cjk_single_to_int("五")==5` 且
+# 5 在池内 ⇒ 纯虚构的 980005 **exit 0 放行**。ASCII 侧同形: `980 005个`
+# (空格千分位) 只查到 `005`。round-5 的「按局部值查池」并没有被消除, 只是
+# 从**解析器**搬到了**提取器** —— 判据拿到的 token 不是那句话里的数。
+# ⇒ 数串必须**跨噪声整体抓取**, 剥掉噪声后再交判据 (见 _join_free)。
+# 不可见/零宽字符与排版标记同罪: 渲染后读者看不到, 却能在源码里切断数串。
+_INVISIBLE_ONE = r"[\u00ad\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u2064\ufeff]"
+_D2_JOIN_ONE = rf"(?:{_D2_NOISE_ONE}|{_INVISIBLE_ONE})"
+_D2_JOIN_RE = re.compile(_D2_JOIN_ONE)
+
+
+def _join_free(s: str) -> str:
+    """剥掉数串内部的排版噪声/不可见字符, 还原读者**看到**的那个数。"""
+    return _D2_JOIN_RE.sub("", s)
+
+
+# ⛔ 这里曾写过一个"左边界守卫"(匹配左侧跳过连接字符若仍有同类数字字则判无法
+# 确定)。**实测它永不触发**: 数串已跨连接字符整体抓取, 能被守卫命中的形态都
+# 先被 run 模式吞掉了; 而连接集**表外**字符 (`九十八万x五个`) 又不满足守卫条件。
+# 一个永不执行的分支正是 round-5 判过的病 (死代码冒充防线), 故删除而非保留。
+# 残余面如实登记: 连接集是**封闭表**(与量词表同口径), 表外字符仍能切断数串 ——
+# 但那类断点在**渲染后可见**, 读者不会读成一个连续的数; 表外的**不可见**
+# 字符 (如超长 HTML 注释) 是真残余, 记在验收单 §五之三。
 # ⛔ 量词表按对抗审查给的 21 个常用表外量词扩充 (原 11 字表实测被
 # 「名/位/台/件/册/组/批/轮/遍/趟/人/句/行/段/点/种/类/本/页/题/章」整域绕过)。
 # 这仍是**封闭表**——如实登记的边界, 不宣称"位置承担了一切"。
 _D2_QUANT = r"[个条块次份处板项篇道张名位台件册组批轮遍趟人句行段点种类本页题章]"
-_D2_COUNT_RE = re.compile(rf"(?<![0-9])([0-9]+)(?![0-9]){_D2_NOISE}(?={_D2_QUANT})")
+# ⛔ R3 round-2: 数串跨连接字符整体抓取 (`980 005个` / `98765**4**个` 曾只查尾片)。
+_D2_COUNT_RE = re.compile(
+    rf"(?<![0-9])([0-9](?:{_D2_JOIN_ONE}*+[0-9])*)(?![0-9])"
+    rf"{_D2_JOIN_ONE}*(?={_D2_QUANT})"
+)
 # D2 的**适用句式**: 只查明确自称"全板/整体规模"的断言。
 # 判据从"值在池里"(碰撞) 换成"句式 + 值"(绑定) —— 这类句子的数字必须来自 scan,
 # 而普通叙述 (引用原话 / 序数 / 自指 / 同义量词) 不再被牵连。
@@ -1462,37 +1493,46 @@ _CJK_NUM = {
     "九": 9,
 }
 _CJK_UNIT = {"十": 10, "百": 100, "千": 1000, "万": 10000, "亿": 100000000}
-_CJK_NUM_RE = re.compile(r"[零〇一二两三四五六七八九十百千万亿]{1,12}")
+# ⛔ R3: 提取字符类**由两张表机械派生**, 不再手抄字面量。
+# 判据 (`_cjk_single_to_int`) 只认 `_CJK_NUM` 单字; 提取面必须是
+# `_CJK_NUM ∪ _CJK_UNIT` 的**超集方向** —— 抓得到才拒得掉:
+# 提取面漏掉某个数词字, 该字组成的串会落到检查面**之外** = 漏拦 (不是
+# fail-closed)。两处消费点 (D2 叙述段 / fallback 允许式) 共用本常量,
+# 手抄两份字面量正是它们此前分叉的成因。
+_CJK_NUM_CHARS = "".join(sorted(set(_CJK_NUM) | set(_CJK_UNIT)))
+# ⛔ R3 round-2: 数串必须**跨连接字符**整体抓取 —— 原 `[...]+` / `[...]{1,12}`
+# 遇到 `九十八万**五` 会断开, 匹配重锚到尾片 `五` 并按 5 查池 (实测 exit 0)。
+# 单一来源: 两个消费点 (D2 叙述段 / fallback 允许式) 共用本模式。
+# `*+` possessive: 连接字符集与数词字集**不相交**, 贪婪吞完即可, 无需回溯 ——
+# 同时杜绝嵌套量词的病态回溯。
+_CJK_NUM_RUN_PAT = rf"[{_CJK_NUM_CHARS}](?:{_D2_JOIN_ONE}*+[{_CJK_NUM_CHARS}])*"
+_CJK_NUM_RUN_RE = re.compile(_CJK_NUM_RUN_PAT)
 
 
-def _cjk_to_int(s: str) -> int | None:
-    """中文数字串 → int; 无法确定地解析则 None (不猜)。
+def _cjk_single_to_int(s: str) -> int | None:
+    """中文数词 → int; **只认单字数词**, 其余一律 None (不猜)。
 
     ⛔ 对抗审查 BLOCKER: D2 的数字原为 `[0-9]+`, 于是「本板共有九十八万个子节点」
     这类**完全虚构**的规模自陈整域免检。scan 的计数都是 ASCII 整数, 报告换个写法
-    不该换来免检 —— 归一后照常比对。解析不了的 (生僻/歧义写法) 返回 None,
-    由调用方按"无法验证"处理, 不静默放行。
+    不该换来免检 —— 归一后照常比对。
+
+    ⛔ round-5 (Codex 定向复核 HIGH) + R3 收口: 原实现是**多位文法解析器**
+    `_cjk_to_int`, 两条毛病一体:
+      1. 提取正则 `[零〇一二两三四五六七八九十百千万亿]+` 与 `_CJK_NUM`/`_CJK_UNIT`
+         **完全同集** ⇒ 任何非空匹配必返回某个整数, 所谓「解析失败 fail-closed」
+         分支**静态不可达** (死代码冒充防线);
+      2. 连续数字字不校验文法, 只反复覆盖 `digit` ⇒ 「五四」得 4、「一零」得 0,
+         按**局部值**查池。而 0 恒在池内 (`abs(a-a)`), 于是
+         `本板共有一零个子节点。` 这句**纯虚构**自陈实测 exit 0 放行
+         (红证据 `_bmad-output/审查/evidence-maintb-r3/b-prefix-red-repro.txt`)。
+
+    终态口径 (R3 冻结, 不得再引入多位解析器): 值 = 单字映射, **绝对确定**才认;
+    多字 / 单字量词 (十百千万亿, 不在 `_CJK_NUM`) / 集合外字符一律 None,
+    由调用方按「无法验证 / 无法解析」fail-closed 处理, 不静默放行。
+    代价如实记: 合法的多字中文数词计数也会被拒 —— 诊断已提示「请改用阿拉伯
+    数字」, 且报告为机器渲染 (模板与合成语料无多字合法用例, 实测零误伤)。
     """
-    total, section, digit, seen = 0, 0, None, False
-    for ch in s:
-        if ch in _CJK_NUM:
-            digit = _CJK_NUM[ch]
-            seen = True
-        elif ch in _CJK_UNIT:
-            unit = _CJK_UNIT[ch]
-            if unit >= 10000:
-                section = (section + (digit or 0)) if (section or digit) else 1
-                total += section * unit
-                section, digit = 0, None
-            else:
-                section += (digit if digit is not None else 1) * unit
-                digit = None
-            seen = True
-        else:
-            return None
-    if not seen:
-        return None
-    return total + section + (digit or 0)
+    return _CJK_NUM.get(s) if len(s) == 1 else None
 
 
 def _verify_prose_counts(text: str, scan: dict, problems: list[str]) -> None:
@@ -1561,7 +1601,11 @@ def _verify_prose_counts(text: str, scan: dict, problems: list[str]) -> None:
             #    `999 016`，而空白在噪声集里 ⇒ 仍然只取到尾段 016（第一版就这么错的）。
             #    本行的等长约束到此为止——检查是逐行独立的，偏移不再被别处依赖。
             line = re.sub(r"(?<=[0-9]),(?=[0-9]{3}(?![0-9]))", "", line)
-            line = re.sub(r"(?<![0-9])0+(?=[0-9])", "", line)
+            # ⛔ R3 round-2: 前导零**不能**在行级剥 —— 与「数串跨连接字符整体抓取」
+            # 相冲: `本板共有1 000个子节点` (渲染 = 1000, SI 千分位) 会先被剥成
+            # `1 0`, 再拼成 `10` 落进池内 ⇒ 放行 (车道实测)。归一化必须作用在
+            # **拼接后的 token** 上, 而 `int("000123")` 本来就按十进制解析,
+            # 无需额外剥零 —— 故此处整条删除, 由下面的 int(tok) 承担。
 
             # E7 范围表达 (Codex round-1 HIGH): `2~3 个` 这类**区间**里的端点不是
             # 独立计数, 逐个去池里找会让"合法与否取决于另一块板恰好有没有那个数"
@@ -1601,21 +1645,31 @@ def _verify_prose_counts(text: str, scan: dict, problems: list[str]) -> None:
                     f"(scan JSON 的计数均为整数, 小数不可能有出处): {line.strip()[:50]}"
                 )
             # 中文数字写的计数 (`共有九十八万个子节点`): 归一成整数后同样比对。
+            # ⛔ R3 收口: 这里原来也调多位解析器 _cjk_to_int —— 与 fallback 侧
+            # 同一个不健全实现, c754b043 只封了那一处。实测红证据:
+            # `本板共有一零个子节点。` 得 _cjk_to_int("一零")==0, 而 0 恒在池内
+            # (`abs(a-a)`), 于是**纯虚构**的规模自陈 exit 0 放行。现两处共用
+            # _cjk_single_to_int (只认单字), 多字一律「无法解析」fail-closed。
+            # 提取面必须**抓得到**多字串才能拒绝它 (只抓单字 = 多字落到检查面
+            # 外, 那是漏拦不是 fail-closed), 且必须**跨排版噪声/不可见字符**整体
+            # 抓 —— 否则 `九十八万**五**个` 只被按尾片 `五` 判 (R3 round-2 实测)。
             for m_cjk in re.finditer(
-                rf"({_CJK_NUM_RE.pattern}){_D2_NOISE}(?={_D2_QUANT})", line
+                rf"({_CJK_NUM_RUN_PAT}){_D2_JOIN_ONE}*(?={_D2_QUANT})", line
             ):
-                val = _cjk_to_int(m_cjk.group(1))
+                token = _join_free(m_cjk.group(1))
+                val = _cjk_single_to_int(token)
                 if val is None:
                     problems.append(
-                        f"数字终核: 『{sec}』段的中文数字计数 {m_cjk.group(1)} 无法解析 "
+                        f"数字终核: 『{sec}』段的中文数字计数 {token} 无法解析 "
                         f"(报告请用阿拉伯数字写计数): {line.strip()[:50]}"
                     )
                 elif val not in pool:
                     problems.append(
-                        f"数字终核: 『{sec}』段的计数 {m_cjk.group(1)}({val}) "
+                        f"数字终核: 『{sec}』段的计数 {token}({val}) "
                         f"在 scan JSON 里找不到同值来源: {line.strip()[:50]}"
                     )
-            for tok in _D2_COUNT_RE.findall(line):
+            for m_num in _D2_COUNT_RE.finditer(line):
+                tok = _join_free(m_num.group(1))
                 if int(tok) not in pool:
                     problems.append(
                         f"数字终核: 『{sec}』段的计数 {tok} 在 scan JSON 里找不到同值来源 "
@@ -1860,9 +1914,13 @@ def _verify_fallback_derive_numbers(text: str, scan: dict, problems: list[str]) 
             # 静态不可达且可能按错值查池。现改为**只认单字数词** (值=映射, 绝对
             # 确定); 多字串一律「无法验证」fail-closed——模板与合成语料的允许式
             # 行没有多字中文数词的合法用例, 误伤面为零。
+            # ⛔ R3: 判据提为模块级 _cjk_single_to_int, 与 D2 叙述段**同一份**
+            # 实现 —— 两处曾经分叉 (只修一处 = 另一处继续按局部值查池)。
+            # ⛔ R3 round-2: 提取面同样跨连接字符整串抓 (`九**五**` 曾被拆成
+            # 两个单字碎片, 逐片查池全部命中而整体虚构值放行)。
             nums = [int(x) for x in re.findall(r"\d+", ln.translate(_FULLWIDTH_DIGITS))]
-            for cjk in re.findall(r"[零〇一二两三四五六七八九十百千万亿]+", ln):
-                v = _CJK_NUM.get(cjk) if len(cjk) == 1 else None
+            for cjk in (_join_free(x) for x in _CJK_NUM_RUN_RE.findall(ln)):
+                v = _cjk_single_to_int(cjk)
                 if v is None:
                     problems.append(
                         f"数字终核: fallback 允许式({tag})行内中文数字 {cjk!r} 无法验证 "

@@ -1,0 +1,22 @@
+# CARD-维护B-R3 · 整改前红证据（基线 HEAD c754b043）
+# 被测文件 sha256: cd1f2d7da130020e4b4e456604390d329ac6880bbf3805a5a91f5a3ba6d0b27c
+# 旧多位解析器 _cjk_to_int 取值: {'一零': 0, '五四': 4, '九十八万': 980000, '五': 5, '十': 10}
+# scan 数值池: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 22]
+
+## D2叙述段 本板共有一零个子节点
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/../canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmpmd3v4dl_/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: 33be791594113eee1e57c4639430bd1a9f755fa9b546b3ee4d239ffbd32438c8
+rc=0
+   ⛔ 放行（漏拦）
+
+## D2叙述段 本板共有九十八万个子节点
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/../canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmpmd3v4dl_/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: dd081066e4e5c970519145838068102a951c439854f4b6c451740b2aa4cc79fe
+rc=1
+    ✗ 数字终核: 『三维审查』段的计数 九十八万(980000) 在 scan JSON 里找不到同值来源: 本板共有九十八万个子节点。
+
+## fallback允许式 一零
+argv: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/../canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py', '--verify', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmpmd3v4dl_/vault/outputs/回顾-T板-2026-09-02.md']
+input_sha256: 0929671133a192451ab96f50e4cda4fb016a1c596a47c74b2831c6e571ec1968
+rc=1
+    ✗ 数字终核: fallback 允许式(标题)行内中文数字 '一零' 无法验证 (请改用阿拉伯数字): #### 派生子女 一零 个 的说明

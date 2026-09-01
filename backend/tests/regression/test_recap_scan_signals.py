@@ -3106,3 +3106,287 @@ def test_domain_r4_derive_allow_cjk_numbers_in_pool(tmp_path):
         )
         assert r.returncode != 0, f"{name}: 中文数词绕过被放行:\n{r.stdout}"
         assert "无法验证" in r.stdout, f"{name}: 应走「无法验证」fail-closed（不许按解析值查池）:\n{r.stdout}"
+
+
+# ══════════ CARD-维护B-R3 · 中文数词终态冻结（BATCH-2026-09-01-第九批） ══════════
+# round-5 定向复核 HIGH（属实）: 「解析失败 fail-closed」分支**静态不可达**
+# （提取字符集 == `_CJK_NUM ∪ _CJK_UNIT`，任何非空匹配必返回某个整数），且连续
+# 数字字不校验文法、只反复覆盖 `digit` ⇒ 按**局部值**查池。
+# c754b043 只在 fallback 允许式一侧改成「只认单字」；**D2 叙述段仍在调**多位
+# 解析器 `_cjk_to_int` —— R3 开工在标准 fixture 上实测红证据:
+#   `- 本板共有一零个子节点。【实测】` → exit **0 放行**
+#   （`_cjk_to_int("一零") == 0`，而 0 恒在池内 `abs(a-a)`）⇒ 纯虚构的规模自陈
+#   整域免检。证据: _bmad-output/审查/evidence-maintb-r3/b-prefix-red-repro.txt
+# R3 终态（冻结，不得再引入多位解析器）: `_cjk_to_int` 整体退役，两处消费点共用
+# `_cjk_single_to_int`（只认单字，值 = 映射，绝对确定）。
+
+
+def test_domain_r5_cjk_single_char_only_unit_contract():
+    """R3 判据契约: 只认单字数词；多字 / 单字量词 / 集合外一律 None。
+
+    **它证明什么**: 判据函数本身的逐形态取值；提取字符类由 `_CJK_NUM ∪ _CJK_UNIT`
+    **机械派生**（手抄两份字面量正是 D2 与 fallback 两侧此前分叉的成因）；
+    多位解析器 `_cjk_to_int` 确已退役、不得复活。
+    **它不证明什么**: 不证明调用方正确使用了它——那是下面三道门的事。
+    """
+    rs = _load_recap_scan()
+
+    assert not hasattr(rs, "_cjk_to_int"), "多位中文数词解析器复活了——R3 冻结口径禁止重新引入（round-5 HIGH 的根因）"
+    # ⛔ 期望值必须有**独立来源**: 第一版写成 `for ch, want in rs._CJK_NUM.items()`
+    # ——期望值与被测值取自同一张表，把 `零/〇` 的映射改成 7 全套件照样 253 全绿
+    # （车道对抗审查实测）。自抄期望 = 自证恒真 = 假门。这里逐字写死。
+    EXPECT = {
+        "零": 0,
+        "〇": 0,
+        "一": 1,
+        "二": 2,
+        "两": 2,
+        "三": 3,
+        "四": 4,
+        "五": 5,
+        "六": 6,
+        "七": 7,
+        "八": 8,
+        "九": 9,
+    }
+    UNITS = {"十": 10, "百": 100, "千": 1000, "万": 10000, "亿": 100000000}
+    assert rs._CJK_NUM == EXPECT, f"单字数词表被改动: {rs._CJK_NUM}"
+    assert rs._CJK_UNIT == UNITS, f"量词表被改动: {rs._CJK_UNIT}"
+    for ch, want in EXPECT.items():
+        assert rs._cjk_single_to_int(ch) == want, f"单字数词 {ch} 取值错"
+    for ch in UNITS:  # 十百千万亿 不在 _CJK_NUM ⇒ 单字量词同样无法确定
+        assert rs._cjk_single_to_int(ch) is None, f"单字量词 {ch} 必须 fail-closed"
+    for s in ("一零", "五四", "九十八万", "零一", "十二", "两三", "", "甲", "五个"):
+        assert rs._cjk_single_to_int(s) is None, f"{s!r} 必须判「无法确定」（不猜）"
+
+    # 提取面必须覆盖判据面: **抓得到才拒得掉**。提取面漏字 ⇒ 该字组成的串落到
+    # 检查面之外 = 漏拦（不是 fail-closed）。
+    assert set(rs._CJK_NUM_CHARS) == set(EXPECT) | set(UNITS)
+    m = rs._CJK_NUM_RUN_RE.match("九十八万")
+    assert m and m.group(0) == "九十八万", "提取面抓不到连续多字串 = 漏拦"
+    # ⛔ 且必须**跨排版噪声/不可见字符**整体抓 —— 断开就只剩尾片，判据再「绝对
+    # 确定」也没用（拿到的 token 不是那句话里的数）。这一条是 R3 round-2 的
+    # BLOCKER：`九十八万**五**个` 渲染出来就是「九十八万五个」，实测曾 exit 0。
+    for name, s in (
+        ("粗体", "九十八万**五"),
+        ("空白", "九十八万 五"),
+        ("nbsp", "九十八万&nbsp;五"),
+        ("零宽", "九十八万\u200b五"),
+        ("空标签", "九十八万<span></span>五"),
+        ("HTML注释", "九十八万<!--x-->五"),
+    ):
+        m = rs._CJK_NUM_RUN_RE.match(s)
+        assert m and m.group(0) == s, f"{name}切断: 提取面只抓到 {m and m.group(0)!r}"
+        assert rs._join_free(m.group(0)) == "九十八万五", f"{name}: 剥噪声后不是原数"
+        assert rs._cjk_single_to_int(rs._join_free(m.group(0))) is None
+
+
+def test_domain_r5_derive_allow_single_char_value_enters_pool():
+    """R3 单元门: 单字数词必须**带着自己的值**进池比对；多字不得按局部值查池。
+
+    ⚠️ 为什么用合成 scan 而不是标准 fixture: 标准 fixture 的数值池是 `[0..16, 22]`，
+    **覆盖了 `_CJK_NUM` 的全部值（0-9）** ⇒ CLI 层根本构造不出「单字且值不在池」
+    的用例，只写 `五` 放行会退化成**空洞证明**（没查池也 rc=0）。合成 scan 把池
+    收窄到 `[0,1,2]`，`九` 才能证明 9 确实进了池比对。合成语料非 live 正文。
+
+    **它证明什么**: 单字 → 按自身值查池（九→`行内数字 9 无出处` / 二→放行）；
+    多字 → 走「无法验证」且**不产生任何按局部值的池诊断**（`一零` 的 0、
+    `五四` 的 4、`九十八万` 的 980000 都不得出现在诊断里）。
+    **它不证明什么**: 不证明整条 verifier 的段切分与白名单匹配——那是 CLI 门的事。
+    """
+    rs = _load_recap_scan()
+    synth = {"data_mode": "fallback_local", "counts": {"members": 1, "seeds": 1}}
+    pool = rs._derived_number_pool(synth)
+    assert pool == {0, 1, 2}, f"合成池漂移，判别前提失效: {sorted(pool)}"
+
+    def probs_for(tok: str) -> list[str]:
+        out: list[str] = []
+        rs._verify_fallback_derive_numbers(f"#### 派生子女 {tok} 个 的说明\n", synth, out)
+        return out
+
+    assert any("行内数字 9 无出处" in p for p in probs_for("九")), "单字未按自身值查池"
+    assert probs_for("二") == [], "值在池的单字被误伤"
+    for tok, leaked in (("一零", "0"), ("五四", "4"), ("九十八万", "980000")):
+        got = probs_for(tok)
+        assert any("无法验证" in p for p in got), f"{tok}: 多字未 fail-closed: {got}"
+        assert not any("无出处" in p for p in got), f"{tok}: 仍按局部值查池: {got}"
+        assert not any(leaked in p for p in got), f"{tok}: 诊断里泄出解析值 {leaked}: {got}"
+
+
+def test_domain_r5_derive_allow_cjk_pool_collision_cli(tmp_path):
+    """R3 行为门①: fallback 允许式行内多字数词一律 fail-closed，单字不误伤。
+
+    **它证明什么**: 走完整 CLI（`--verify`）时，`一零`/`五四`（局部值**实测在池**，
+    即碰撞前提成立）与 `九十八万`/`十` 全部 exit 1 且诊断为「无法验证」，
+    诊断里不出现任何池比对结论；值在池的单字 `五` 放行。
+    **它不证明什么**: 不证明「单字带自身值查池」——本 fixture 池覆盖 0-9，
+    该性质由 test_domain_r5_derive_allow_single_char_value_enters_pool 证明。
+    """
+    rs = _load_recap_scan()
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    pool = rs._derived_number_pool(scan)
+    # ⛔ 碰撞前提必须**实测**: 局部值真的在池里，这条门才是在测「按错值查池会放行」；
+    # 前提不成立时它只是在测别的东西（MEMORY `reference_gate_design_pitfalls`）。
+    assert {0, 4, 5} <= pool, f"碰撞前提失效（局部值不在池）: {sorted(pool)}"
+    report = write_report(vault, scan)
+    base_text = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+
+    def verify_with(tok: str):
+        text = base_text.replace("方向叙述：", f"\n#### 派生子女 {tok} 个 的说明\n\n方向叙述：", 1)
+        assert text != base_text, "变异未命中：报告一字未改，这条门测的是空气"
+        report.write_text(text, encoding="utf-8")
+        return run_verify(report)
+
+    for tok in ("一零", "五四", "九十八万", "十"):
+        r = verify_with(tok)
+        assert r.returncode != 0, f"{tok}: 中文数词绕过被放行:\n{r.stdout}"
+        assert "无法验证" in r.stdout, f"{tok}: 应走「无法验证」fail-closed:\n{r.stdout}"
+        assert "无出处" not in r.stdout, f"{tok}: 仍按局部/末位值查池:\n{r.stdout}"
+    r = verify_with("五")
+    assert r.returncode == 0, f"值在池的单字数词被误伤:\n{r.stdout}"
+
+
+def test_domain_r5_prose_cjk_multichar_fail_closed_cli(tmp_path):
+    """R3 行为门②: D2 叙述段的多字中文数词计数同样 fail-closed。
+
+    ⛔ 这是 R3 开工实测的**漏拦**（不是假想）: c754b043 只封了 fallback 一侧，
+    `- 本板共有一零个子节点。【实测】` 在开工 HEAD `c754b043` 上 **exit 0 放行**
+    （`_cjk_to_int("一零") == 0`，0 恒在池内）。红证据:
+    `_bmad-output/审查/evidence-maintb-r3/b-prefix-red-repro.txt`。
+
+    **它证明什么**: 该形态现在 exit 1、诊断为「无法解析」，且不再产生按局部值的
+    池比对结论；值在池的单字自陈（`共有五个`）不误伤。
+    **它不证明什么**: 不证明 D2 对**所有**数字形态的绑定力——池碰撞判据的固有
+    边界见 test_domain_block_bare_count_in_prose 的说明，本卡未改变它。
+    """
+
+    def prose_case(tok: str):
+        def m(text, scan):
+            return text.replace("## 三维审查", f"## 三维审查\n\n- 本板共有{tok}个子节点。【实测】", 1)
+
+        return m
+
+    for tok in ("一零", "五四", "九十八万", "十"):
+        r = _mutate_report(tmp_path / f"d2-{tok}", prose_case(tok))
+        assert r.returncode != 0, f"{tok}: D2 段多字数词自陈被放行:\n{r.stdout}"
+        assert "无法解析" in r.stdout, f"{tok}: 应走「无法解析」fail-closed:\n{r.stdout}"
+        assert "找不到同值来源" not in r.stdout, f"{tok}: 仍按局部值查池:\n{r.stdout}"
+    r = _mutate_report(tmp_path / "d2-五", prose_case("五"))
+    assert r.returncode == 0, f"值在池的单字自陈被误伤:\n{r.stdout}"
+
+
+# ── R3 round-2：车道对抗审查（5 镜头 17 agent）确认的 1 BLOCKER + 4 HIGH ──────
+# 全部同一根因：**提取面**在排版噪声/不可见字符处断开，匹配重锚到紧邻量词的尾片，
+# 于是「判据绝对确定」变得无关紧要——判据拿到的 token 不是那句话里的数。
+# ⛔ 归因如实：该性质在开工 HEAD `c754b043` 上**同样存在**（验证者用 git show 重放
+# 实证），**不是 R3 引入的回归**；但 R3 的门与 docstring 宣称「多字中文数词一律
+# fail-closed」，被一个 `**` 击穿 = 声明比证据宽，按本仓口径算真缺陷，必须闭合。
+
+
+def test_domain_r5_noise_split_number_run_cli(tmp_path):
+    """R3 round-2 行为门：排版噪声/不可见字符**不得**成为数串的断点。
+
+    `- 本板共有九十八万**五**个子节点。【实测】` 在 Obsidian 里渲染成
+    「本板共有九十八万五个子节点」（粗体的五），而验证器原先只抓到尾片 `五`，
+    `_cjk_single_to_int('五')==5` 且 5 在池内 ⇒ 纯虚构的 980005 **exit 0 放行**。
+    ASCII 侧同形：`980 005个`（空格千分位）只查到 `005`。
+
+    **它证明什么**：CJK 与 ASCII 两侧、D2 与 fallback 两个消费面，数串都跨连接
+    字符（排版标记 / `&nbsp;` / 空白 / 短 HTML 标签与注释 / 零宽与双向控制）整体
+    抓取并剥噪声后再判；合法的单字/池内数值不受影响。
+    **它不证明什么**：连接集是**封闭表**（与量词表同口径）。表外字符仍能切断数串
+    （`九十八万x五个` / `九十八万、五个` / `[[x|]]` 的残留 `|]]`）——那些断点
+    **渲染后可见**，读者不会读成一个连续的数；表外的**不可见**载体（如超长 HTML
+    注释）是真残余，登记在验收单 §五之三，本门不宣称覆盖。
+    """
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    pool = _load_recap_scan()._derived_number_pool(scan)
+    # 前提实测：尾片值必须真的在池里，这条门才是在测「按尾片查池会放行」。
+    assert {0, 4, 5} <= pool, f"前提失效（尾片值不在池）: {sorted(pool)}"
+    report = write_report(vault, scan)
+    base_text = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+
+    def verify(anchor: str, injected: str):
+        text = base_text.replace(anchor, injected, 1)
+        assert text != base_text, "变异未命中：报告一字未改，这条门测的是空气"
+        report.write_text(text, encoding="utf-8")
+        return run_verify(report)
+
+    def d2(line: str):
+        return verify("## 三维审查", f"## 三维审查\n\n{line}")
+
+    # ── 拦截面：渲染后连续、源码被切断 ──
+    for name, line in (
+        ("粗体", "- 本板共有九十八万**五**个子节点。【实测】"),
+        ("空白", "- 本板共有九十八万 五个子节点。【实测】"),
+        ("nbsp", "- 本板共有九十八万&nbsp;五个子节点。【实测】"),
+        ("空标签", "- 本板共有九十八万<span></span>五个子节点。【实测】"),
+        ("修饰字余", "- 本板共有九十八万余五个子节点。【实测】"),
+        ("行内代码", "- 本板共有九十八万`x`五个子节点。【实测】"),
+    ):
+        r = d2(name and line)
+        assert r.returncode != 0, f"CJK {name}切断被放行:\n{r.stdout}"
+        assert "九十八万五" in r.stdout, f"CJK {name}: 诊断未还原成完整数串:\n{r.stdout}"
+    for name, line, whole in (
+        ("空格千分位", "- 本板共有980 005个子节点。【实测】", "980005"),
+        ("粗体", "- 本板共有98765**4**个子节点。【实测】", "987654"),
+        # ⛔ 与「前导零归一化」的交互：行级剥零会把 `1 000`(渲染=1000, SI 千分位)
+        # 先剥成 `1 0` 再拼成 `10` 落进池内 ⇒ 放行。归一化必须作用在拼接后的
+        # token 上（车道实测，本卡修复时自己踩出来的洞）。
+        ("SI千分位+前导零", "- 本板共有1 000个子节点。【实测】", "1000"),
+    ):
+        r = d2(line)
+        assert r.returncode != 0, f"ASCII {name}切断被放行:\n{r.stdout}"
+        assert whole in r.stdout, f"ASCII {name}: 诊断未还原成完整数串:\n{r.stdout}"
+    # fallback 允许式侧同根（碎片逐片查池全部命中 ⇒ 整体虚构值放行）
+    for tok, joined in (("九**五**", "九五"), ("九十八万**五**", "九十八万五")):
+        r = verify("方向叙述：", f"\n#### 派生子女 {tok} 个 的说明\n\n方向叙述：")
+        assert r.returncode != 0, f"fallback {tok} 碎片被放行:\n{r.stdout}"
+        assert joined in r.stdout, f"fallback {tok}: 诊断未还原成完整数串:\n{r.stdout}"
+
+    # ── 放行面（同权重）：合法形态不得被这道收紧反噬 ──
+    for name, line in (
+        ("单字在池", "- 本板共有五个子节点。【实测】"),
+        ("ASCII 在池", "- 本板共有3个子节点。【实测】"),
+        ("ASCII 在池 22", "- 本板共有22个子节点。【实测】"),
+        ("前导零 016=16 在池", "- 本板共有016个子节点。【实测】"),
+        ("round-5 原始误伤 十分", "- 说明十分清楚。【实测】"),
+        ("round-5 原始误伤 一致", "- 统计口径尚未一致。【实测】"),
+    ):
+        r = d2(line)
+        assert r.returncode == 0, f"合法形态被误伤（{name}）:\n{r.stdout}"
+
+
+def test_domain_r5_prose_single_char_value_enters_pool():
+    """R3 round-2 单元门：D2 侧单字数词同样必须**带自身值**进池比对。
+
+    ⚠️ 与 fallback 侧同因：标准 fixture 池 `[0..16,22]` 覆盖 `_CJK_NUM` 全部值
+    （0-9），CLI 层构造不出「单字且值不在池」的用例，于是「值不在池」这条分支
+    在 D2 侧**零门覆盖**（车道对抗审查实测：摘掉该分支 253 用例仍全绿）。
+    合成 scan 把池收窄到 `[0,1,2]`，`九` 才能证明 9 确实进了池比对。
+
+    **它证明什么**：D2 段内单字 → 按自身值查池（九→找不到同值来源 / 二→放行）；
+    多字与被切断的数串 → 走「无法解析」，且诊断里出现的是**剥噪声后的完整数串**。
+    **它不证明什么**：不证明段切分、豁免跨度剥离与句式门——那是 CLI 门的事。
+    """
+    rs = _load_recap_scan()
+    synth = {"data_mode": "fallback_local", "counts": {"members": 1, "seeds": 1}}
+    assert rs._derived_number_pool(synth) == {0, 1, 2}, "合成池漂移，判别前提失效"
+
+    def probs(tok: str) -> list[str]:
+        out: list[str] = []
+        rs._verify_prose_counts(f"## 三维审查\n\n- 本板共有{tok}个子节点。【实测】\n", synth, out)
+        return out
+
+    got = probs("九")
+    assert any("九(9)" in p and "找不到同值来源" in p for p in got), f"单字未按自身值查池: {got}"
+    assert probs("二") == [], "值在池的单字被误伤"
+    for tok, joined in (("一零", "一零"), ("九十八万**五", "九十八万五")):
+        got = probs(tok)
+        assert any("无法解析" in p for p in got), f"{tok}: 未 fail-closed: {got}"
+        assert any(joined in p for p in got), f"{tok}: 诊断未还原成完整数串: {got}"
+        assert not any("找不到同值来源" in p for p in got), f"{tok}: 仍按局部值查池: {got}"

@@ -132,6 +132,70 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         ],
         "skill_sync_signal_tail_notes_table",
     ),
+    # ── CARD-维护B-R3 (e): C「中文数词终态」的两条承重变体 ──
+    # round-5 HIGH 的两个可失效面各配一条: ①判据本身退回多位文法解析器;
+    # ②提取面收窄导致多字串根本不进检查面 (漏拦冒充 fail-closed)。
+    # D2 叙述段与 fallback 允许式**共用同一判据/同一提取常量**, 故每条变体
+    # 改一处即禁掉该性质的**全部**防线 (脚本铁律 2)。
+    (
+        "survivor-11 (C) 判据退回多位解析器（round-5 HIGH 全线：两侧共用判据，一处即全禁）",
+        [
+            (
+                "    return _CJK_NUM.get(s) if len(s) == 1 else None",
+                "    total, section, digit, seen = 0, 0, None, False\n"
+                "    for ch in s:\n"
+                "        if ch in _CJK_NUM:\n"
+                "            digit = _CJK_NUM[ch]\n"
+                "            seen = True\n"
+                "        elif ch in _CJK_UNIT:\n"
+                "            unit = _CJK_UNIT[ch]\n"
+                "            if unit >= 10000:\n"
+                "                section = (section + (digit or 0)) if (section or digit) else 1\n"
+                "                total += section * unit\n"
+                "                section, digit = 0, None\n"
+                "            else:\n"
+                "                section += (digit if digit is not None else 1) * unit\n"
+                "                digit = None\n"
+                "            seen = True\n"
+                "        else:\n"
+                "            return None\n"
+                "    if not seen:\n"
+                "        return None\n"
+                "    return total + section + (digit or 0)",
+            )
+        ],
+        "r5_cjk or r5_derive or r5_prose or r4_derive_allow_cjk",
+    ),
+    (
+        "survivor-12 (C) 提取面收窄成单字（「抓得到才拒得掉」全线：唯一提取模式被禁）",
+        [
+            (
+                '_CJK_NUM_RUN_PAT = rf"[{_CJK_NUM_CHARS}](?:{_D2_JOIN_ONE}*+[{_CJK_NUM_CHARS}])*"',
+                '_CJK_NUM_RUN_PAT = rf"[{_CJK_NUM_CHARS}]"',
+            )
+        ],
+        "r5_cjk or r5_derive or r5_prose or r5_noise or r4_derive_allow_cjk",
+    ),
+    # ── R3 round-2 (车道对抗审查 1B+4H): 连接语义的承重变体 ──
+    (
+        "survivor-13 (C-2) 数串不再跨连接字符（CJK 与 ASCII 两侧提取面一起禁）",
+        [
+            (
+                '_CJK_NUM_RUN_PAT = rf"[{_CJK_NUM_CHARS}](?:{_D2_JOIN_ONE}*+[{_CJK_NUM_CHARS}])*"',
+                '_CJK_NUM_RUN_PAT = rf"[{_CJK_NUM_CHARS}]+"',
+            ),
+            (
+                'rf"(?<![0-9])([0-9](?:{_D2_JOIN_ONE}*+[0-9])*)(?![0-9])"',
+                'rf"(?<![0-9])([0-9]+)(?![0-9])"',
+            ),
+        ],
+        "r5_noise_split",
+    ),
+    (
+        "survivor-14 (C-2) 剥噪声还原被禁（_join_free 变恒等：token 带着噪声去判/查池）",
+        [('    return _D2_JOIN_RE.sub("", s)', "    return s")],
+        "r5_noise_split or r5_prose_single_char or r5_cjk",
+    ),
 ]
 
 

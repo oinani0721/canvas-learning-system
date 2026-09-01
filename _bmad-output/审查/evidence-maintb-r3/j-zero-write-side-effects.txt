@@ -1,0 +1,18 @@
+# CARD-维护B-R3 · 车道零写侧副作用核验
+## 本 session 开工时刻（首个证据文件 mtime）
+2026-09-02 03:56:54  _bmad-output/审查/evidence-maintb-r3/a-baseline-sha.txt
+## canvas-vault 下全部 .pyc 的 mtime（MEMORY: importlib 动态加载会写字节码进 vault）
+2026-08-31 02:56:04  canvas-vault/.claude/scripts/__pycache__/decay_beta.cpython-314.pyc
+2026-09-01 06:06:19  canvas-vault/.claude/skills/board-recap/scripts/__pycache__/recap_scan.cpython-314.pyc
+2026-08-31 02:55:48  canvas-vault/.claude/skills/board-split/scripts/__pycache__/split_preview.cpython-314.pyc
+⇒ 全部早于开工时刻 = 本卡所有探针/测试的 PYTHONDONTWRITEBYTECODE=1 生效，未新写字节码。
+（且 .gitignore:2 已忽略 __pycache__/，本卡未改 .gitignore）
+
+## git status（本卡改动面）
+ M "_bmad-output/\351\252\214\346\224\266\345\215\225/UAT-CARD-\347\273\264\346\212\244B-\346\225\260\345\255\227\346\262\273\347\220\206\345\237\237-2026-08-31.md"
+ M backend/tests/regression/recap_domain_negverify.py
+ M backend/tests/regression/test_recap_scan_signals.py
+ M canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py
+?? "_bmad-output/\345\256\241\346\237\245/evidence-maintb-r3/"
+?? "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-\347\273\264\346\212\244B-R3.md"
+?? "_bmad-output/\351\252\214\346\224\266\345\215\225/UAT-CARD-\347\273\264\346\212\244B-R3-\344\270\255\346\226\207\346\225\260\350\257\215\347\273\210\346\200\201-2026-09-02.md"
