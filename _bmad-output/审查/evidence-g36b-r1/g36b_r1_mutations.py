@@ -16,10 +16,14 @@ MEMORY 铁律逐条落实：
   仍会留下变异字节，所以还原后的**逐字节比对**才是真正的判据，前两者只是让
   常见路径不出错 —— 不要把它们当成 shell EXIT trap 的等价物来引用。
 
-**运行环境依赖（R1 round-2 Codex LOW）**：本脚本跑的是 `backend/` 下的真实测试
-套件，而 `backend/.env` **未被 git 跟踪**。在一个 clean clone 里直接跑，阶段 0 会
-以 `rc=4` 失败（脚本会停在阶段 0 并打印诊断，不会把它误当成「门抓住了变异」）。
-复现本脚本需要一个已配置 `backend/.env` 的工作树。
+**运行环境前置（R1 round-2/3 Codex LOW）**——以下都**未被 git 跟踪**，clean clone
+里缺任何一个都跑不起来，所以「在别处直接跑失败」**不能唯一归因为缺 .env**：
+
+- `backend/.venv/`（脚本用 `<LANE>/backend/.venv/bin/pytest`）
+- `backend/.env`（conftest 读取）
+- 本地可用的 Python 与已安装依赖
+
+缺失时阶段 0 会以非零 rc 停住并打印诊断，**不会**把它误当成「门抓住了变异」。
 """
 from __future__ import annotations
 
@@ -29,7 +33,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-LANE = Path("/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w6-whyboard")
+# 车道从本文件位置反推（本文件在 <LANE>/_bmad-output/审查/evidence-g36b-r1/ 下），
+# 不硬编码路径 —— R1 round-3 Codex LOW: 原版写死原车道，换个地方跑会指错。
+LANE = Path(__file__).resolve().parents[3]
 PICK = LANE / "scripts" / "daily_review_pick.py"
 OVERVIEW = LANE / "backend" / "app" / "api" / "v1" / "endpoints" / "review_overview.py"
 PICK_TESTS = "tests/regression/test_daily_review_pick.py"
@@ -101,8 +107,17 @@ def sha(p: Path) -> str:
     return hashlib.sha256(p.read_bytes()).hexdigest()
 
 
-def run_gate(testfile: str, gate: str) -> tuple[int, str]:
-    """跑**精确 nodeid**（不是 -k 子串），返回 (rc, stdout+stderr 尾部)。"""
+ARCHIVE = Path(__file__).resolve().parent / "mutation-runs"
+
+
+def run_gate(testfile: str, gate: str, tag: str = "base") -> tuple[int, str]:
+    """跑**精确 nodeid**（不是 -k 子串），返回 (rc, 摘要尾部)。
+
+    R1 round-3 Codex LOW：只打印截断的 tail 等于没归档 —— 完整 stdout/stderr
+    分别落盘到 `mutation-runs/<tag>.{out,err}.txt`，供事后核对「红的是不是
+    预期那条断言」。
+    """
+    ARCHIVE.mkdir(exist_ok=True)
     nodeid = f"{testfile}::{gate}"
     r = subprocess.run(
         [".venv/bin/pytest", nodeid, "-q", "-p", "no:cacheprovider", "--no-header"],
@@ -110,6 +125,8 @@ def run_gate(testfile: str, gate: str) -> tuple[int, str]:
         env={"PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "PYTHONDONTWRITEBYTECODE": "1",
              "HOME": str(Path.home()), "LANG": "en_US.UTF-8"},
     )
+    (ARCHIVE / f"{tag}.out.txt").write_text(r.stdout or "", encoding="utf-8")
+    (ARCHIVE / f"{tag}.err.txt").write_text(r.stderr or "", encoding="utf-8")
     tail = ((r.stdout or "")[-400:] + " ||STDERR|| " + (r.stderr or "")[-300:])
     return r.returncode, tail.strip().replace("\n", " | ")
 
@@ -117,8 +134,8 @@ def run_gate(testfile: str, gate: str) -> tuple[int, str]:
 def _install_restore_handlers(originals: dict) -> None:
     """SIGINT/SIGTERM 时也还原（finally 覆盖不到信号中断）。
 
-    如实声明：SIGKILL / 解释器硬崩仍会留下变异字节 —— 这不是 EXIT trap 的
-    等价物，最终判据始终是脚本末尾的逐字节比对。
+    如实声明：SIGKILL / 解释器硬崩仍会留下变异字节。最终判据始终是脚本末尾的
+    逐字节比对，这个 handler 只是让常见的中断路径不留残渣。
     """
     def _restore(signum, _frame):
         for path, raw in originals.items():
@@ -143,7 +160,7 @@ def main() -> int:
     # 先确认每道指定门在未变异状态下是绿的（否则"红"证明不了是变异造成的）
     print("\n── 阶段 0：确认 8 道指定门在原样代码下全绿（红的来源必须可归因）──")
     for tag, _desc, _f, _o, _n, tf, gate in MUTATIONS:
-        rc, tail = run_gate(tf, gate)
+        rc, tail = run_gate(tf, gate, f"phase0-{tag}")
         status = "绿" if rc == 0 else f"⛔ rc={rc}"
         print(f"  {tag} {gate}: {status}")
         if rc != 0:
@@ -164,7 +181,7 @@ def main() -> int:
         try:
             target.write_text(src.replace(old, new, 1), encoding="utf-8")
             assert sha(target) != baseline[target], "变异未真正落盘"
-            rc, tail = run_gate(tf, gate)
+            rc, tail = run_gate(tf, gate, f"mutated-{tag}")
         finally:
             target.write_bytes(raw)  # EXIT trap 等价物：无条件还原
             restored = sha(target)
@@ -185,6 +202,7 @@ def main() -> int:
         print(f"        变异: {desc}")
         # 红/非红都归档 pytest 尾部：红时用来确认失败的是**预期的那条断言**
         print(f"        pytest: {tail[:360]}")
+        print(f"        完整输出已归档: mutation-runs/mutated-{tag}.{{out,err}}.txt")
 
     print("\n── 阶段 2：还原后逐字节校验 ──")
     ok_bytes = True

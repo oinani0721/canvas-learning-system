@@ -1,3 +1,4 @@
+车道 HEAD: ae7f67a4288729ad1bed2c611e2c0a7f364aacb9  (worktree 有未提交改动)
 复核对象: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-w6-whyboard/4308ac43-1bf4-4c2c-a775-52c26d9bf472/scratchpad/baseline_pick.py
 源码 sha256: ad1a38a55a26c1c07ba34f6986ac6f7888a90dac04d118ad810ffaf353044171
 manifest sha256: 1f9be8d5034cf5f8e83b2a894cb4b7aa5cf20b12c2f4e66c0c30704cd40bde22
@@ -36,16 +37,16 @@ manifest sha256: 1f9be8d5034cf5f8e83b2a894cb4b7aa5cf20b12c2f4e66c0c30704cd40bde2
         rank sha b3ff4b9998b6e336… → a7446b3b2b9a4852…；cfg.implementation_sha256 与裸值一致=True
 [PASS] (b)-附 loader 层：authoritative 分钟读出正确
         version=9 minutes={'per_due_node': 11, 'per_new_node': 13}
-[PASS] (b)-附 生产入口：build_payload 落盘的分钟真按 manifest 算（不是只读不用）
-        落盘 estimated_minutes=24（期望 24；due_total=2 due_new=1 用 11/13） rank_manifest.version=9
+[PASS] (b)-附 生产入口：**每一块板**落盘的分钟都按 manifest 算（三板多形态，逐行复算）
+        逐板 (板, 落盘, 期望)=[('丙板', 13, 13), ('乙板', 22, 22), ('甲板', 24, 24)] 不符=无 rank_manifest.version=9
 [PASS] (b)-附 落盘的 rank sha 与**实际生效的那组分钟**同源（不是默认分钟的摘要）
         payload.rank sha=02ddccd518c05f66… 用 11/13 复算=02ddccd518c05f66…（应相等） 用默认 3/5 复算=c90a1d93ebc9e06b…（应不等）
 [PASS] (b)-附 recorded 漂移 → 出声告警
         stderr="[pick] 系数清单 recorded.ranking_factors.order 与实际生效值不符 (登记=['board', 'priority_pick'] 实际=['priority_pick', 'board_last_recommended', 'min_last_"
 [PASS] (b)-附 recorded 漂移 → **行为**以实际为准（登记值没被拿去用）
         生效 limits={'top_boards': 3, 'upcoming': 3}（登记谎称 999） 生效 factors=['priority_pick', 'board_last_recommended', 'min_last_examined', 'board']（登记谎称 ['board','priority_pick']）
-[PASS] (b)-附 生产入口：仅 recorded 不同 → 整份 payload 逐字相同、榜长恒为 3
-        payload 相同=True 榜长=3（谎称 99） ranked 总数=4（四板全在，截断只作用于榜） 板序=['丁板', '丙板', '乙板']
+[PASS] (b)-附 生产入口：仅 recorded 不同 → payload 逐字相同，**两个榜**长度都恒为 3
+        payload 相同=True top_boards 榜长=3（登记谎称 99） upcoming 榜长=3（登记谎称 99；四个未来板截 3） ranked 总数=4（四个到期板全在，截断只作用于榜）
 
 ============================================================
 复核结果: 22/22 PASS

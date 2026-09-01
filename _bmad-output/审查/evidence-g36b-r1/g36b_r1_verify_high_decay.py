@@ -19,6 +19,14 @@ def load(path, name, extra_syspath=None):
 def node(board, name, a, b, last="2026-07-25T01:00:00Z"):
     return dict(board=board, node=name, mastery_a=a, mastery_b=b, last_examined=last)
 
+import subprocess as _sp
+_head = _sp.run(["git", "-C", str(LANE), "rev-parse", "HEAD"],
+                capture_output=True, text=True).stdout.strip()[:40] or "?"
+_dirty = _sp.run(["git", "-C", str(LANE), "status", "--porcelain"],
+                 capture_output=True, text=True).stdout.strip()
+print(f"车道 HEAD: {_head}{'  (worktree 有未提交改动)' if _dirty else '  (clean)'}")
+print(f"pick.py sha256: {__import__('hashlib').sha256(PICK.read_bytes()).hexdigest()}")
+
 with tempfile.TemporaryDirectory() as td:
     tmp = Path(td)
     # 两个 vault：一个原样 decay，一个只改函数体（六常量逐字不动）

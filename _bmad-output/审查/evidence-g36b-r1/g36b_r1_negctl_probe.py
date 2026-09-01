@@ -47,15 +47,29 @@ BREAKS = {
         '        "top_boards": ranked[:TOP_BOARDS_LIMIT],',
         '        "top_boards": ranked[:(recorded.get("limits", {}).get("top_boards") or TOP_BOARDS_LIMIT)],',
     ),
+    # (6) R1 round-3 Codex 的变异：只有**第一块板**用 manifest 分钟，后续板回落默认
+    #     → 单板 fixture / 只看 top_boards[0] 的断言完全抓不到
+    "分钟只对首板生效": (
+        '            "estimated_minutes": estimated_minutes(factors, minutes),',
+        '            "estimated_minutes": estimated_minutes(factors, minutes if not ranked else DEFAULT_MINUTES),',
+    ),
+    # (7) R1 round-3 Codex 的变异：recorded 改去控制 **upcoming** 榜的截断
+    #     → 到期板 fixture 里 upcoming 恒空，该分支完全没被覆盖
+    "recorded 控制 upcoming 截断": (
+        '        "upcoming": upcoming[:UPCOMING_LIMIT],',
+        '        "upcoming": upcoming[:(recorded.get("limits", {}).get("upcoming") or UPCOMING_LIMIT)],',
+    ),
 }
 
 # 每条变异必须让**这一条**探针断言变红（不是「某处红了」就算）
 EXPECT_FAIL_KEYWORD = {
     "回落值不精确": "回落值精确 + 告警点名",
     "impl_sha 固定为零": "接入最终 rank_manifest.sha256",
-    "payload 忽略 manifest 分钟": "落盘的分钟真按 manifest 算",
+    "payload 忽略 manifest 分钟": "每一块板**落盘的分钟",
     "摘要与实际分钟脱钩": "实际生效的那组分钟**同源",
     "recorded 反过来控制截断": "仅 recorded 不同",
+    "分钟只对首板生效": "每一块板**落盘的分钟",
+    "recorded 控制 upcoming 截断": "两个榜**长度都恒为 3",
 }
 
 def run(src: str, label: str, expect_kw: str | None) -> tuple[str, str]:
@@ -95,6 +109,25 @@ def run(src: str, label: str, expect_kw: str | None) -> tuple[str, str]:
 
 MARK = {"CAUGHT": "✅ 被抓", "MISSED": "⛔ 漏网", "INVALID": "⚠ INVALID"}
 
+# ── 阶段 -1：关键词防过期校验 ──
+# R1 round-3 实践教训：改了某条断言的文案后，这里的期望关键词会**静默过期**，
+# 于是「该条没红」被误报成漏网（本轮真实发生过一次）。所以先跑一次未变异探针，
+# 要求每个关键词都能在它的输出里找到对应断言 —— 找不到 = 关键词过期，立即停。
+print("═══ 阶段 -1：关键词防过期校验（关键词必须对得上现有断言）═══")
+_base = OUT / "baseline_probe.py"
+_base.write_text(SRC, encoding="utf-8")
+_r = subprocess.run([str(LANE / "backend" / ".venv" / "bin" / "python"), str(PROBE), str(_base)],
+                    capture_output=True, text=True, timeout=300,
+                    env={"PATH": "/usr/bin:/bin", "PYTHONDONTWRITEBYTECODE": "1",
+                         "HOME": str(Path.home()), "LANG": "en_US.UTF-8"})
+_stale = [f"{lbl} → {kw!r}" for lbl, kw in EXPECT_FAIL_KEYWORD.items() if kw not in _r.stdout]
+if _stale:
+    print("⛔ 关键词已过期（对不上任何现有断言），先修关键词表再跑负控:")
+    for item in _stale:
+        print(f"     {item}")
+    sys.exit(2)
+print(f"  ✅ {len(EXPECT_FAIL_KEYWORD)} 个关键词全部命中现有断言\n")
+
 print("═══ 逐项单独破坏（每条必须让**指定的那条**断言变红）═══")
 verdicts = []
 for label, (old, new) in BREAKS.items():
@@ -103,13 +136,30 @@ for label, (old, new) in BREAKS.items():
     verdicts.append((label, v))
     print(f"[{MARK[v]}] {label}\n        {detail}")
 
-print("\n═══ 全部叠加破坏 ═══")
+print("\n═══ 全部叠加破坏（要求**每一条**的指定断言都红，不是「有 FAIL 就算」）═══")
+# R1 round-3 Codex MEDIUM：原版给叠加项传 expect_kw=None，于是任意一条 [FAIL]
+# 都被记成 CAUGHT —— 用一个无关的失败即可骗过它。改为逐关键词核对。
 src = SRC
 for old, new in BREAKS.values():
     src = src.replace(old, new, 1)
-v, detail = run(src, "全部叠加", None)
-verdicts.append(("全部叠加", v))
-print(f"[{MARK[v]}] 全部叠加\n        {detail}")
+v_all, detail_all = run(src, "全部叠加", None)   # 先拿到 verdict/summary 形态
+missing_kw: list[str] = []
+if v_all == "CAUGHT":
+    f = OUT / f"broken_{abs(hash('全部叠加'))}.py"
+    r = subprocess.run([str(LANE / "backend" / ".venv" / "bin" / "python"), str(PROBE), str(f)],
+                       capture_output=True, text=True, timeout=300,
+                       env={"PATH": "/usr/bin:/bin", "PYTHONDONTWRITEBYTECODE": "1",
+                            "HOME": str(Path.home()), "LANG": "en_US.UTF-8"})
+    fail_text = "\n".join(l for l in r.stdout.splitlines() if l.startswith("[FAIL]"))
+    missing_kw = [kw for kw in EXPECT_FAIL_KEYWORD.values() if kw not in fail_text]
+    if missing_kw:
+        v_all = "MISSED"
+        detail_all = f"叠加下这些指定断言没红: {missing_kw}"
+    else:
+        detail_all = f"全部 {len(EXPECT_FAIL_KEYWORD)} 条指定断言均出现在 [FAIL] 中"
+verdicts.append(("全部叠加", v_all))
+print(f"[{MARK[v_all]}] 全部叠加\n        {detail_all}")
+v, detail = v_all, detail_all
 
 print("\n═══ 验伪锚：探针崩溃**不得**被记成「被抓」═══")
 v_crash, d_crash = run("# 空源码\n", "空源码崩溃", None)

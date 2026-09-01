@@ -292,9 +292,15 @@ def b6_manifest_authoritative_takes_effect(picker, tmp: Path):
     import contextlib
     import io
 
+    # R1 round-3 Codex MEDIUM：单板 fixture 有盲区 —— 让首板用 11/13、后续板回落
+    # 3/5 的变异下，只看 top_boards[0] 的断言照样全绿。改为**三板 + 各板 factors
+    # 形态不同**，并**逐板**复算，不只看第一行。
     vault = mk_min_vault(tmp, "prod_entry", {
-        "甲": md_node(board="甲板"),                                   # 新卡
+        "甲": md_node(board="甲板"),                                          # 纯新卡
         "乙": md_node(board="甲板", extra="fsrs_due: 2026-07-01T01:00:00Z\n"),  # 已排期到期
+        "丙": md_node(board="乙板", extra="fsrs_due: 2026-07-05T01:00:00Z\n"),  # 全已排期
+        "丁": md_node(board="乙板", extra="fsrs_due: 2026-07-06T01:00:00Z\n"),
+        "戊": md_node(board="丙板"),                                          # 全新卡
     })
     decay = picker.load_decay(vault)
 
@@ -313,15 +319,18 @@ def b6_manifest_authoritative_takes_effect(picker, tmp: Path):
 
     # ── 生产入口：build_payload 落盘的 estimated_minutes 必须按 manifest 算
     payload, _ranked = picker.build_payload(vault, NOW, {}, decay, manifest_path=mf)
-    tb = payload["top_boards"][0]
-    f = tb["factors"]
-    want = f["due_new"] * 13 + (f["due_total"] - f["due_new"]) * 11
+    # **逐板**复算（不是只看第一行）：任一板回落成默认分钟都必须被抓
+    rows = []
+    for b in payload["top_boards"]:
+        fb = b["factors"]
+        rows.append((b["board"], b["estimated_minutes"],
+                     fb["due_new"] * 13 + (fb["due_total"] - fb["due_new"]) * 11))
+    bad = [(bd, got, exp) for bd, got, exp in rows if got != exp]
     check(
-        "(b)-附 生产入口：build_payload 落盘的分钟真按 manifest 算（不是只读不用）",
-        tb["estimated_minutes"] == want and payload["rank_manifest"]["version"] == 9,
-        f"落盘 estimated_minutes={tb['estimated_minutes']}（期望 {want}；"
-        f"due_total={f['due_total']} due_new={f['due_new']} 用 11/13）"
-        f" rank_manifest.version={payload['rank_manifest']['version']}",
+        "(b)-附 生产入口：**每一块板**落盘的分钟都按 manifest 算（三板多形态，逐行复算）",
+        not bad and payload["rank_manifest"]["version"] == 9 and len(rows) == 3,
+        f"逐板 (板, 落盘, 期望)={rows}"
+        f" 不符={bad or '无'} rank_manifest.version={payload['rank_manifest']['version']}",
     )
 
     # R1 round-2 Codex MEDIUM：上一条只绑了「实际分钟」，没绑「摘要用的那组分钟」——
@@ -379,8 +388,13 @@ def b6_manifest_authoritative_takes_effect(picker, tmp: Path):
     # recorded.limits.top_boards 真去控制截断后，探针照样全绿而四板入口输出
     # top_boards=4（代码常量是 3）。修法：**仅 recorded 不同**的两份 manifest
     # 各走一次四板生产入口，要求整份 payload 逐字相同、榜长精确为 3。
+    # R1 round-3 Codex MEDIUM：原 fixture 四板全到期，**upcoming 分支为空** ——
+    # 让 recorded.limits.upcoming 控制截断的变异可以完全绕过。改为**四个到期板 +
+    # 四个未来板**，两个榜长都要锁死。
+    future = "fsrs_due: 2027-01-01T01:00:00Z\nlast_examined: 2026-07-25T01:00:00Z\n"
     v4 = mk_min_vault(tmp, "four_boards", {
-        f"n{i}": md_node(board=f"{ch}板") for i, ch in enumerate("甲乙丙丁")
+        **{f"due{i}": md_node(board=f"{ch}板") for i, ch in enumerate("甲乙丙丁")},
+        **{f"up{i}": md_node(board=f"未{ch}板", extra=future) for i, ch in enumerate("甲乙丙丁")},
     })
     d4 = picker.load_decay(v4)
     honest = tmp / "rec_honest.json"
@@ -400,19 +414,31 @@ def b6_manifest_authoritative_takes_effect(picker, tmp: Path):
         pay_h, rk_h = picker.build_payload(v4, NOW, {}, d4, manifest_path=honest)
         pay_l, rk_l = picker.build_payload(v4, NOW, {}, d4, manifest_path=lying)
     check(
-        "(b)-附 生产入口：仅 recorded 不同 → 整份 payload 逐字相同、榜长恒为 3",
+        "(b)-附 生产入口：仅 recorded 不同 → payload 逐字相同，**两个榜**长度都恒为 3",
         pay_h == pay_l
         and len(pay_h["top_boards"]) == picker.TOP_BOARDS_LIMIT == 3
+        and len(pay_h["upcoming"]) == picker.UPCOMING_LIMIT == 3
         and len(rk_h) == len(rk_l) == 4,
-        f"payload 相同={pay_h == pay_l} 榜长={len(pay_h['top_boards'])}（谎称 99）"
-        f" ranked 总数={len(rk_h)}（四板全在，截断只作用于榜）"
-        f" 板序={[b['board'] for b in pay_h['top_boards']]}",
+        f"payload 相同={pay_h == pay_l}"
+        f" top_boards 榜长={len(pay_h['top_boards'])}（登记谎称 99）"
+        f" upcoming 榜长={len(pay_h['upcoming'])}（登记谎称 99；四个未来板截 3）"
+        f" ranked 总数={len(rk_h)}（四个到期板全在，截断只作用于榜）",
     )
 
 
 def main() -> int:
     sys.path.insert(0, str(LANE / "scripts"))
     picker = load_from(PICK, "picker_under_test")
+    # R1 round-3 Codex MEDIUM: 每份输出都要能被独立绑定回一个 Git 状态
+    import subprocess as _sp
+    try:
+        _head = _sp.run(["git", "-C", str(LANE), "rev-parse", "HEAD"],
+                        capture_output=True, text=True).stdout.strip()[:40] or "?"
+        _dirty = _sp.run(["git", "-C", str(LANE), "status", "--porcelain"],
+                         capture_output=True, text=True).stdout.strip()
+    except OSError:
+        _head, _dirty = "?", "?"
+    print(f"车道 HEAD: {_head}{'  (worktree 有未提交改动)' if _dirty else '  (clean)'}")
     print(f"复核对象: {PICK}")
     print(f"源码 sha256: {hashlib.sha256(PICK.read_bytes()).hexdigest()}")
     print(f"manifest sha256: {hashlib.sha256(MANIFEST.read_bytes()).hexdigest()}\n")
