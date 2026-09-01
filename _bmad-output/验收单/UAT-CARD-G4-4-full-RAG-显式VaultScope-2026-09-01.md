@@ -36,7 +36,9 @@ A 库的问题查到 B 库的笔记。
 ## 2. 📖 你的视角
 
 作为学习者，**我想让 AI 找资料时永远只在我当前学习的库里找**，以便它
-不会把别的学科的笔记混进答案、也不把我没学过的内容当成本库的记忆。
+不会把**别的库**的笔记混进答案、也不把我没学过的内容当成本库的记忆。
+（⚠️ 范围如实声明：本卡证明的是**不跨库**；同库内跨学科的邻居扩展过滤
+是已登记的已知边界，见 §未证明 #3——本卡不承诺跨学科隔离。）
 
 ## 3. 🖥️ 交互流程（你的屏幕变化）
 
@@ -52,8 +54,8 @@ A 库的问题查到 B 库的笔记。
 
 | # | 判据 | 结果 | 证据 |
 |---|------|------|------|
-| 1 | 裁判1 四文件 pytest：开工基线实收 45（30+15，其中 3 条 lancedb 存量红）→ round-2 整改后 **76 passed + 1 xfailed（subject 邻居泄漏已知边界锁）+ 同样 3 条存量红**（79 collected，与 Codex 独立复跑一致）；新增 34 passed + 1 xfailed 全绿 | ✅ | `evidence-g44/final-judge1.txt`（aaecf696 后重跑归档） |
-| 2 | 裁判2 `pytest tests/api -k 'rag or agents' --deselect test_agents_dedup.py`：基线 77 passed → round-2 整改后 **99 passed 全绿**，comm **零新增失败**（排除并发 OBS 车道的 test_nothrow_logging_api.py——其在本卡裁判首跑时已被并发引入，基线不存在，非本卡回归） | ✅ | 三份 -rA 输出归档 |
+| 1 | 裁判1 四文件 pytest：开工基线实收 45（30+15，其中 3 条 lancedb 存量红）→ round-3 整改后 **76 passed + 1 xfailed（subject 邻居泄漏已知边界锁）+ 同样 3 条存量红**（80 collected；xfail 收紧 strict=True 后数字不变） | ✅ | `evidence-g44/final-judge1.txt`（aaecf696 后重跑归档） |
+| 2 | 裁判2 `pytest tests/api -k 'rag or agents' --deselect test_agents_dedup.py`：基线 77 passed → round-3 整改后原始 99 passed（**含并发 OBS 车道 4 条**），排除 OBS 后可比口径 **95 passed 全绿**，comm 零新增失败（排除并发 OBS 车道的 test_nothrow_logging_api.py——其在本卡裁判首跑时已被并发引入，基线不存在，非本卡回归） | ✅ | 三份 -rA 输出归档 |
 | 3 | 裁判3 grep 门：`DEFAULT_GROUP_ID\|get_current_vault_id` 在 rag.py / nodes.py / agents.py **0 命中**（豁免清单按卡文只含 exam_service.py / verification_service.py） | ✅ | rc=1 实测 |
 | 4 | 裁判4 禁改门：chat.py / note_search_tools.py / lancedb_client.py / supplementary_search_service.py / exam_service.py / verification_service.py / rag_service.py 在本卡分支零改动（rag_service.query 签名未动） | ✅ | git log --name-only 空 |
 | 5 | 裁判5 两新测试文件 `with TestClient(app` **0 命中**（无生命周期夹具，不连 7691） | ✅ | rc=1 实测 |
@@ -83,6 +85,25 @@ A 库的问题查到 B 库的笔记。
   round-1 整改记录」）；round-2 复审结论见审查存档。
 - 等你勾完 4-B + 对 §6 裁决点表态后，本卡才算通过。
 
+## 5.5 ⛔ Codex 三轮到顶声明（卡文停轮规则，必须显著）
+
+- round-1 REJECT（2 BLOCKER + 多 HIGH）→ round-2 REJECT（1 残留 HIGH +
+  1 新发现 HIGH + 声明类）→ round-3 REJECT（剩余项全为**声明宽于证据**
+  类 + 登记完整性，**无新的生产代码缺陷**；3 项 PASS 含 BLOCKER-1 活性
+  门与 8/8 变异独立复跑）。
+- **三轮上限已到，未清零。按卡文规则：本卡不合并、留台账。**
+- round-3 剩余项（全部已整改或登记，本轮 commit 收口）：
+  1. subject 邻居泄漏登记不完整 → xfail 收紧 strict=True + physics 行补
+     subject 列 + 请求作用域带二级（更贴生产形态）；台账 G4-4-R1 登记。
+  2. UAT §2 跨学科承诺与 §未证明 #3 自相矛盾 → §2 已加范围声明。
+  3. 收官裁判数字：80 collected（非 79）已更正；裁判 2 双口径（99 原始
+     含 OBS 4 条 / 95 排除）已注明。
+  4. 「邻居扩展与主链同源同表」过宽 → 收窄为「无 course_id 分支」；
+     course_id 分支脱节登记台账 G4-4-R1。
+- **决策建议**：剩余项均属「已知边界登记 + 声明精确化」，不是新的跨
+  vault 生产缺陷；BLOCKER 级（裸表旁路/空白 vault_id）已修并有变异门。
+  是否接受「带台账合并」由你裁决（§6-⑦）。
+
 ## 6. 📝 批注区
 
 [!question]+ 待你裁决（卡文默认裁决①-⑤ + round-1 新增，均为默认值非已批）
@@ -103,8 +124,14 @@ A 库的问题查到 B 库的笔记。
 - **⑤ 过渡期判据**：test_agents_dedup.py（真连 7691）deselect，待
   CARD-TEST-isolate-lifespan 合入主干后由主 session 补跑。
 - **⑥（round-1 新增）邻居扩展表源统一**：expand_neighbors 原查裸
-  vault_notes 表、与主链检索表（canvas_nodes 系）脱节，本卡统一为
-  主链同表——若你观察到「AI 引用的关联笔记」行为变化，回报这里。
+  vault_notes 表、与主链检索表（canvas_nodes 系）脱节，本卡在**无
+  course_id 分支**统一为主链同表；⚠️ 有 course_id 的分支主链查
+  vault_notes、扩展仍查 canvas_nodes 系（round-3 指出），该分支的
+  统一与 subject 过滤一并移交（台账 G4-4-R1）——若你观察到「AI 引用
+  的关联笔记」行为变化，回报这里。
+- **⑦（round-3 新增）三轮到顶带台账合并与否**：Codex 三轮终态
+  REJECT，剩余项为登记类（见 §5.5）。接受「带台账 G4-4-R1 合并」
+  还是要求 R1 收口后再合并？
 
 [!error]+ 历史追溯
 
@@ -177,10 +204,13 @@ A 库的问题查到 B 库的笔记。
    HIGH）：expand_neighbors 不传 subject，wiki-link 邻居按 canvas LIKE
    匹配整张 vault 表——math 请求可能经邻居扩展带入同 vault 内 physics
    板内容（Codex 真库反例实证）。收口需改 expand_neighbors 签名
-   （lancedb_client，V5 未合禁改面），**登记移交**；本卡以
-   `test_neighbor_expansion_respects_subject_boundary` xfail 锁住该已知
-   缺陷（收口后转正为门），并撤回任何「不混入别的学科笔记」级别的声明——
-   本卡证明的是**不跨 vault**，不是不跨学科。
+   （lancedb_client，V5 未合禁改面），**登记移交（台账 G4-4-R1）**；
+   本卡以 `test_neighbor_expansion_respects_subject_boundary` xfail
+   （**strict=True**）锁住该已知缺陷（收口后转正为门），并撤回任何
+   「不混入别的学科笔记」级别的声明——本卡证明的是**不跨 vault**，
+   不是不跨学科。另：有 course_id 的检索分支主链查 vault_notes、邻居
+   扩展查 canvas_nodes 系（round-3 指出的表源脱节残留），与 subject
+   过滤同批移交。
 4. **bge-m3 真实向量语义质量未测**：embed 打桩固定向量，隔离不依赖向量
    （B 笔记物理上不在 A 的候选集/表）。
 5. **LanceDB 读侧裸表回退（B0.7）仍在**（lancedb_client.py:732-759，

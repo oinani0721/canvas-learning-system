@@ -538,9 +538,10 @@ class TestDualVaultIsolationOnTmpLanceDB:
             "已知边界 (Codex round-2 新发现 HIGH): expand_neighbors 不传 "
             "subject, LIKE 匹配整张 vault 表 — 同 vault 内跨 subject 的 "
             "邻居过滤未做。收口在 expand_neighbors 签名 (lancedb_client, "
-            "V5 未合禁改面), 登记移交; 收口后本用例转正为门。"
+            "V5 未合禁改面), 登记移交 (未合卡追踪台账 G4-4-R1); 收口后 "
+            "转正为门。strict=True: 意外修复 (XPASS) 视为失败, 提醒转正。"
         ),
-        strict=False,
+        strict=True,
     )
     def test_neighbor_expansion_respects_subject_boundary(self, monkeypatch):
         """同 vault 跨 subject: math 请求的邻居不得带 physics 板内容。
@@ -553,6 +554,7 @@ class TestDualVaultIsolationOnTmpLanceDB:
             [
                 {
                     "doc_id": "physics_secret",
+                    "subject": "physics",
                     "content": "PHYSICS_SECRET 物理学机密内容",
                     "vector": _vec(0.30),
                     "content_tokenized": _jieba_tokens("PHYSICS_SECRET 物理学机密内容"),
@@ -592,7 +594,10 @@ class TestDualVaultIsolationOnTmpLanceDB:
             raising=True,
         )
 
-        token = _set_scope("vault:vault_a")
+        # 请求作用域带 subject 二级 (贴生产: resolve_vault_scope(subject_id)
+        # 注入 vault:<vid>:<subject>, 非基组 — Codex round-3 指出登记用例
+        # 原来只注入基组, 形态低于生产)
+        token = _set_scope("vault:vault_a:math")
         try:
             state = {
                 "messages": [{"role": "user", "content": "红黑树"}],
