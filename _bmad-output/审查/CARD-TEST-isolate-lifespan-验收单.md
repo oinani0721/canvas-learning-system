@@ -2,6 +2,7 @@
 
 [BATCH-2026-09-01-第八批 / CARD-TEST-isolate-lifespan]
 车道：`card/w4-micro`（card-w4-micro 工作树）· 日期：2026-09-01 · 裁判与证据全部来自本车道实测。
+**实施 commit 锚**：`cdd77274`（降级收口主体）；本 docs commit 为 SHA 回填与审查存档（M5/M7 闭环）。
 
 ---
 
