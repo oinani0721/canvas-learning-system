@@ -277,9 +277,12 @@ _WHY_BOARD_UNSAFE = re.compile(r"[^0-9一-鿿·（） ]")
 MANIFEST_FILENAME = "review_rank_manifest.json"
 
 #: S4 排序因子序 — 单一真相源 (Codex round-1 HIGH 整改): rank_boards 的 _tie
-#: 排序键由本元组逐键派生, sha 指纹摘的也是它。交换/增删此处顺序, 实际排序
-#: 与指纹**同变** —— 两份表达可以各自漂移的形态被构造性消灭 (原先常量与 _tie
-#: 字面元组互不相干, 内存里交换 _tie 因子而指纹纹丝不动, 版本化成了摆设)。
+#: 排序键由本元组逐键派生, sha 指纹摘的也是它 —— 两份表达可以各自漂移的形态
+#: 被构造性消灭 (原先常量与 _tie 字面元组互不相干, 内存里交换 _tie 因子而指纹
+#: 纹丝不动, 版本化成了摆设)。
+#: ⚠ R1 round-2 收窄措辞: 改本元组必变 sha (摘的就是它); 至于**排序**变不变要看
+#: 数据 —— 追加重复键就是「sha 变而排序不变」(round-2 LOW 实测)。故只宣称
+#: 「改它 ⟹ sha 变」这一向, 不宣称「⟺ 排序变」。
 TIE_FACTOR_KEYS = (
     "priority_pick",
     "board_last_recommended",
@@ -289,7 +292,9 @@ TIE_FACTOR_KEYS = (
 
 #: S4 priority_pick 的取整位数 — 因子「可执行取值规则」的一部分 (Codex
 #: round-2 HIGH): 精度收紧会让原本 8 位可分的近邻 pick 变同分而改排序,
-#: 故精度本身必须登记进指纹。改此常量 → 排序与 sha 同变。
+#: 故精度本身必须登记进指纹。改此常量必变 sha; **排序变不变取决于数据** ——
+#: 只有近邻到该精度级才可分的 pick 才会改序 (R1 round-2 收窄: 原写「排序与
+#: sha 同变」把一个数据相关的条件说成了无条件)。
 TIE_PICK_ROUND_DIGITS = 8
 
 #: S6 既有截断上限 (HEAD 起就是 3, 本卡零改动 —— 只登记并透出 truncated)
@@ -672,7 +677,7 @@ def effective_rank_config(decay, version, minutes: dict) -> dict:
     该变), 上限与因子序/取整精度取代码常量, 分钟取 manifest 生效值,
     implementation_sha256 摘本文件字节 (round-2 HIGH: 取值绑定无法全部
     数据化, 由实现指纹兜住「改**源文件**规则而指纹不动」—— 其单向性与
-    不覆盖运行时 .pyc 的边界见 _implementation_sha 的三条声明)。
+    不覆盖运行时 .pyc 的边界见 _implementation_sha 的四条声明)。
     """
     return {
         "version": version,

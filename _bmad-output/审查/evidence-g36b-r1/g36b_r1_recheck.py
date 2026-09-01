@@ -324,6 +324,26 @@ def b6_manifest_authoritative_takes_effect(picker, tmp: Path):
         f" rank_manifest.version={payload['rank_manifest']['version']}",
     )
 
+    # R1 round-2 Codex MEDIUM：上一条只绑了「实际分钟」，没绑「摘要用的那组分钟」——
+    # 把 build_payload 里喂给 build_rank_manifest 的 minutes 换成 DEFAULT_MINUTES 而
+    # 实际分钟仍用 11/13，探针照样全绿：payload 说 24 分钟，指纹却是 3/5 那份的。
+    # 修法：独立复算「用 11/13 的 effective_rank_config」的 sha，要求它 (a) 等于
+    # payload 落盘的 rank sha，(b) 不等于用默认分钟算出来的 sha。
+    def _sha_of_cfg(mins: dict) -> str:
+        cfg = picker.effective_rank_config(decay, 9, mins)
+        blob = json.dumps(cfg, sort_keys=True, ensure_ascii=False, allow_nan=False)
+        return hashlib.sha256(blob.encode("utf-8")).hexdigest()
+
+    sha_actual = _sha_of_cfg({"per_due_node": 11, "per_new_node": 13})
+    sha_default = _sha_of_cfg(dict(picker.DEFAULT_MINUTES))
+    check(
+        "(b)-附 落盘的 rank sha 与**实际生效的那组分钟**同源（不是默认分钟的摘要）",
+        payload["rank_manifest"]["sha256"] == sha_actual != sha_default,
+        f"payload.rank sha={payload['rank_manifest']['sha256'][:16]}… "
+        f"用 11/13 复算={sha_actual[:16]}…（应相等）"
+        f" 用默认 3/5 复算={sha_default[:16]}…（应不等）",
+    )
+
     # ── recorded 漂移：既要出声，更要**行为以实际为准**
     mf2 = tmp / "recorded_drift.json"
     mf2.write_text(json.dumps({
@@ -353,6 +373,40 @@ def b6_manifest_authoritative_takes_effect(picker, tmp: Path):
         behaviour_wins,
         f"生效 limits={cfg['limits']}（登记谎称 999）"
         f" 生效 factors={cfg['ranking_factors']}（登记谎称 ['board','priority_pick']）",
+    )
+
+    # R1 round-2 Codex MEDIUM：上一条只看不接收 recorded 的中间对象。让
+    # recorded.limits.top_boards 真去控制截断后，探针照样全绿而四板入口输出
+    # top_boards=4（代码常量是 3）。修法：**仅 recorded 不同**的两份 manifest
+    # 各走一次四板生产入口，要求整份 payload 逐字相同、榜长精确为 3。
+    v4 = mk_min_vault(tmp, "four_boards", {
+        f"n{i}": md_node(board=f"{ch}板") for i, ch in enumerate("甲乙丙丁")
+    })
+    d4 = picker.load_decay(v4)
+    honest = tmp / "rec_honest.json"
+    honest.write_text(json.dumps({
+        "version": 1,
+        "authoritative": {"estimated_minutes": {"per_due_node": 3, "per_new_node": 5}},
+        "recorded": {"limits": {"top_boards": 3, "upcoming": 3}},
+    }), encoding="utf-8")
+    lying = tmp / "rec_lying.json"
+    lying.write_text(json.dumps({
+        "version": 1,
+        "authoritative": {"estimated_minutes": {"per_due_node": 3, "per_new_node": 5}},
+        "recorded": {"limits": {"top_boards": 99, "upcoming": 99},
+                     "ranking_factors": {"order": ["board"]}},
+    }), encoding="utf-8")
+    with contextlib.redirect_stderr(io.StringIO()):
+        pay_h, rk_h = picker.build_payload(v4, NOW, {}, d4, manifest_path=honest)
+        pay_l, rk_l = picker.build_payload(v4, NOW, {}, d4, manifest_path=lying)
+    check(
+        "(b)-附 生产入口：仅 recorded 不同 → 整份 payload 逐字相同、榜长恒为 3",
+        pay_h == pay_l
+        and len(pay_h["top_boards"]) == picker.TOP_BOARDS_LIMIT == 3
+        and len(rk_h) == len(rk_l) == 4,
+        f"payload 相同={pay_h == pay_l} 榜长={len(pay_h['top_boards'])}（谎称 99）"
+        f" ranked 总数={len(rk_h)}（四板全在，截断只作用于榜）"
+        f" 板序={[b['board'] for b in pay_h['top_boards']]}",
     )
 
 

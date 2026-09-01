@@ -1691,8 +1691,11 @@ def test_g36b_future_recommend_date_is_not_disguised_as_today(tmp_path):
 
 
 def test_g36b_tie_keys_are_single_source(tmp_path, monkeypatch):
-    """Codex round-1 HIGH 整改门: TIE_FACTOR_KEYS 同时驱动实际排序与 sha 指纹
-    —— 交换/删除因子, 板序与指纹必须**同变**。
+    """Codex round-1 HIGH 整改门: TIE_FACTOR_KEYS 同时驱动实际排序与 sha 指纹。
+
+    本门断言的是**本 fixture 上**: 交换因子位置后板序与指纹同变 (R1 round-2
+    收窄: 原开头写「交换/删除因子, 板序与指纹必须**同变**」是无条件表述, 而
+    排序变不变取决于数据 —— 追加重复键即「sha 变而排序不变」)。
 
     Codex 的攻击场景: 因子序存在两份独立表达时, 内存里改 _tie 而 sha 纹丝
     不动, 版本化成摆设。本门锁定的是**本 fixture 上的单向观察**: 交换

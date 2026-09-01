@@ -12,9 +12,14 @@ MEMORY 铁律逐条落实：
   含该子串的其它测试，红的来源就不唯一了。
 - **保留 stderr**：判 INVALID 时要能看出是收集失败还是环境炸了。
 - 锚点断言：old 必须在源码中恰好可命中，否则该条判 INVALID（防死变异）
-- 还原用 `finally` + SIGINT/SIGTERM handler。**如实声明**：这不等价于 shell 的
-  EXIT trap —— SIGKILL 或解释器硬崩仍会留下变异字节，所以还原后的**逐字节
-  比对**才是真正的判据，`finally` 只是让常见路径不出错。
+- 还原用 `finally` + SIGINT/SIGTERM handler。**如实声明**：SIGKILL 或解释器硬崩
+  仍会留下变异字节，所以还原后的**逐字节比对**才是真正的判据，前两者只是让
+  常见路径不出错 —— 不要把它们当成 shell EXIT trap 的等价物来引用。
+
+**运行环境依赖（R1 round-2 Codex LOW）**：本脚本跑的是 `backend/` 下的真实测试
+套件，而 `backend/.env` **未被 git 跟踪**。在一个 clean clone 里直接跑，阶段 0 会
+以 `rc=4` 失败（脚本会停在阶段 0 并打印诊断，不会把它误当成「门抓住了变异」）。
+复现本脚本需要一个已配置 `backend/.env` 的工作树。
 """
 from __future__ import annotations
 
@@ -166,7 +171,9 @@ def main() -> int:
             assert restored == baseline[target], f"{tag} 还原后字节不一致！{restored}"
 
         if rc == 1:
-            verdict, note = "✅ 红", "rc=1（唯一能证明「测试断言失败」的退出码）"
+            # R1 round-2 收窄: rc=1 只证明「这个 nodeid 失败了」，**不能**单凭
+            # 退出码证明是哪条断言失败 —— 所以红时也把 failure tail 归档下来。
+            verdict, note = "✅ 红", "rc=1（该 nodeid 失败；具体断言见下方 tail）"
         elif rc == 0:
             verdict, note = "空转", "rc=0 指定门未变红 —— 门不承重"
         else:
@@ -176,8 +183,8 @@ def main() -> int:
         results.append((tag, verdict, note, desc))
         print(f"[{tag}] {verdict:6s} {gate}  ({note})")
         print(f"        变异: {desc}")
-        if verdict != "✅ 红":
-            print(f"        pytest: {tail}")
+        # 红/非红都归档 pytest 尾部：红时用来确认失败的是**预期的那条断言**
+        print(f"        pytest: {tail[:360]}")
 
     print("\n── 阶段 2：还原后逐字节校验 ──")
     ok_bytes = True
