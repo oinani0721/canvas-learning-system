@@ -1,0 +1,1 @@
+find /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault -type f -not -path '*/.git/*' -not -name '今日复习.*' -exec shasum -a 256 {} + | sort | shasum -a 256

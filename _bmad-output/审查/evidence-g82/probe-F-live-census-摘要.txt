@@ -1,0 +1,56 @@
+### measured | live vault 顶层结构与文件数已全量清点：节点/ 14 md（扁平无子目录）、原白板/ 6 md、检验白板/ 10 md、outputs/ 18 文件（8 md）、raw/ 148 md（其中 35 个在 node_modules 内、1 个在 .obsidian 内，真实语料 112）、templates/ 2 md、CS188/ 1、CS189/ 1、wiki/ 仅 2 个 .gitkeep（0 md）、验收单/ 与 multimodal/ 是空目录、.trash/ 5 文件、.quarantine/ 1 md。顶层散落 13 个文件（含 4 个 0 字节的空 md）。
+EV: `for d in $V/*/ $V/.*/; do nf=$(find "$d" -type f|wc -l); nm=$(find "$d" -type f -name '*.md'|wc -l); done` 输出：检验白板 files=10 md=10 / 验收单 files=0 md=0 / 原白板 files=6 md=6 / 节点 files=14 md=14 / CS188 1/1 / CS189 1/1 / multimodal 0/0 / outputs 18/8 / raw 149/148 / templates 2/2 / wiki 2/0 / .claude 30/9 / .claudian 31/0 / .obsidian 41/2 / .quarantine 1/1 / .trash 5/2。`find $V -maxdepth 1 -type f` 列出 13 个顶层文件。`ls -la` 显示 `未命名 1.md`/`UAT-2.5.X-test.md`/`UAT-Study-Question-Skill-2026-05-10.md`/`chatgpt
+IMPL: vault_lint 的扫描根必须显式排除 raw/**/node_modules/ 与 .obsidian/：`find $V -name '*.md'` 全量 214，排 node_modules 后 179，再排顶层点目录后 165。差值 49 个 md 全是第三方包 README/类型声明，任何按 md 计数的门若不排除会被稀释 23%。
+
+### measured | 节点/ 全部 14 个 md 的完整清单（少于 30 个，全列）。
+EV: `find $V/节点 -name '*.md' -type f | wc -l` → 14。清单：代理函数-(Agent-Function).md / 反射代理的局限性引出了规划代理-(Planning-Agents)-的需求.md / 理性代理-(Rational-Agent).md / 代理决策分析-0303().md / 规划的分类-1549().md / 规划代理的特点.md / 代理类型：反射与规划.md / Characteristic-Equation-for-Eigenvalues.md / cs-61b-csm.md / csm-tutoring-unit-credit.md / Eigenvalues-are-special-vectors-that-sat.md / Fundamentals.md / lecture 2.md / my-recursion-notes.md
+IMPL: 文件名含全角冒号（代理类型：反射与规划）、半角括号（代理决策分析-0303()、规划的分类-1549()）、空格（lecture 2）。测试 fixture 必须逐字复刻这三类字符——任何把 `(` `)` 当分隔符、或做全角→半角归一化的 wikilink 正则都会在这些名字上悄悄失配。
+
+### measured | 节点/ frontmatter 关键字段实测分布：source_board 14/14（100%）、type 13/14、source_note 9/14、derived-from 9/14、up 9/14。缺 source_note/derived-from/up 的是同一批 5 个非 ai_linked_doc 节点；缺 type 的只有 cs-61b-csm.md（它用的是 subject/mastery 旧 schema）。
+EV: census.py 输出：`type: 13/14  MISSING(1): ['cs-61b-csm.md']`；`source_board: 14/14  MISSING(0): []`；`source_note: 9/14  MISSING(5): ['Fundamentals.md','cs-61b-csm.md','csm-tutoring-unit-credit.md','lecture 2.md','my-recursion-notes.md']`；derived-from 与 up 的 MISSING 列表与 source_note **逐字相同**。cs-61b-csm.md frontmatter 首行是 `subject: cs-61b` / `mastery: 0.3`，无 type。
+IMPL: (a) source_board 100% 覆盖 ⇒ 任何「无 source_board」类规则在 live 上恒零命中，必须配合成变异/篡改门才有意义。(b) source_note/derived-from/up 三字段是**同生同灭**的（同一批 9 个 ai_linked_doc 节点才有），把它们当三条独立信号会产生完全相关的重复 finding。(c) cs-61b-csm.md 是唯
+
+### measured | source_board 的值形态是**带引号 + 带 `原白板/` 子路径**的 wikilink，全 vault 只有 4 个取值。
+EV: census.py `== distinct source_board values ==` 输出：`'"[[原白板/CS 61B]]"' x2` / `'"[[原白板/CS188 lecture 2]]"' x8` / `'"[[原白板/特征值与特征向量]]"' x3` / `'"[[原白板/递归与分治 (Recursion & Divide-Conquer)]]"' x1`。注意最后一个板名同时含空格、半角括号与 `&`。
+IMPL: 解析 source_board 必须依次剥离：外层双引号 → `[[ ]]` → `原白板/` 前缀。任何直接拿 raw YAML 字符串去和板文件名比对的实现都会失配（多了引号和路径前缀）。板名 `递归与分治 (Recursion & Divide-Conquer)` 是最毒的 fixture，必须收进测试。
+
+### measured | 三处入链源的 wikilink basename 集合：正文 union 29 个，frontmatter union 6 个，总 union 32 个。其中 14 个命中 节点/ 真实文件，10 个命中 vault 内其它 md，8 个指向不存在的文件。
+EV: census.py 输出：`原白板: body-distinct=21 fm-distinct=0` / `检验白板: body-distinct=0 fm-distinct=3` / `节点: body-distinct=19 fm-distinct=6`；`UNION body-distinct=29 UNION fm-distinct=6 UNION all=32`；分类 `node: 14, other-md: 10, BROKEN: 8`。BROKEN 清单：['${p.file.path}', 'An-eigenvalue-of-a-linear-transformation', 'affinity-tutoring-groups', 'berkeley-cs-support-resources', 'csm-registration', 'csm-tutoring-sections', 'lecture 2.mp4', 'wikilink']
+IMPL: 断链检查的分母是 32 个 distinct target，不是链接出现次数。8 个断链里只有 5 个是真的（见下条），若不做代码块剥离与二进制资产区分，断链 finding 会有 3/8 = 37.5% 假阳。
+
+### measured | 8 个断链里只有 5 个是真断链；另外 3 个是口径缺陷造成的假阳，且其中 1 个会把 1 个缺失资产放大成 144 条 finding。
+EV: (1) `[[wikilink]]` 出现在全部 6 个 原白板，且在**行内反引号代码段**里：`grep -n -B2 -A1 '\[\[wikilink\]\]'` → `原白板/CS 61B.md:18:> - Cmd+Click \`[[wikilink]]\` 仍可跳转到节点 md`。(2) `[[${p.file.path}|${p.file.name}]]` 在 `原白板/特征值与特征向量.md:82`，处于 42–113 行的 ```dataviewjs 围栏内（`grep -n '^```'` 显示 42 起 113 止）。(3) `lecture 2.mp4`：`grep -o '\[\[lecture 2\.mp4[^]]*\]\]' | wc -l` → **144** 次出现（其中 `!\[\[` 嵌入 1 次，其余 143 条是 `#t=NNN` 时间戳深链），distinct target 只有 1 个；`find $V -name 'lecture 2.mp4'` 与 `find $V \( -name '*.mp4' -o -name '*.mov'
+IMPL: 断链规则**必须**：(a) 先剥离围栏代码块和行内反引号——否则每块板固定 1 条假阳、共 6 条 + dataviewjs 1 条；(b) 按 distinct target 去重并单独归类二进制资产——否则 `lecture 2.mp4` 一个缺失文件产出 144 条 finding，直接把人话清单淹掉；(c) `.trash/` 里的文件扩展名被改成 `.md.cleanup-2026-0
+
+### measured | ⛔ 按默认口径（既无入链、又无 source_board）算出的孤儿清单是**空的**：0 个。换任何一种更宽松的口径也仍是 0 个。
+EV: census.py `== ORPHANS ==` 三行输出：`default (no body inlink AND no source_board): 0 []`；`body-inlink-only criterion: 0 []`；`any-inlink (incl FM) criterion: 0 []`。逐节点入链明细显示 14/14 全部至少有 1 条正文入链，且 14/14 全部有 source_board。最少的一档是 cs-61b-csm 与 csm-tutoring-unit-credit（各 1 条，来自 原白板/CS 61B.md），最多的是 lecture 2（8 条）。
+IMPL: 这是最关键的一条：**live 取证跑出来的孤儿清单会是空的，主 session 拿不到任何可供用户勾选真伪的条目**。「0 条 finding」不等于「规则正确」——按 reference_positive_gate_needs_tamper_test，必须给孤儿规则配一道同语料篡改门（例如在 fixture 副本里删掉某个节点的 source_board 并抹掉它的入链，断言它**必须**被报
+
+### measured | 孤儿口径的最大假阳风险不在数据而在**两种链接形态并存**：原白板→节点 一律用带路径的 `[[节点/X]]`，节点→节点 一律用裸 basename `[[Fundamentals]]` / `[[lecture 2]]`。只支持其中一种的实现会得出完全不同的答案。
+EV: links2.py 逐文件 dump：原白板/CS188 lecture 2.md BODY 全部是 `[[节点/代理函数-(Agent-Function)]]` `[[节点/规划的分类-1549()]]` 这种路径形态；而 节点/代理函数-(Agent-Function).md BODY 是 `[[lecture 2]]`、节点/Characteristic-Equation-for-Eigenvalues.md BODY 是 `[[Fundamentals]]`——裸 basename。节点/Fundamentals.md BODY 则**混用**：`[[节点/Eigenvalues-are-special-vectors-that-sat]]` 与 `[[检验白板/特征值与特征向量-2026-07-18-1741]]` 都是路径形态。
+IMPL: 入链解析必须做 Obsidian 式 basename 归一（剥 `|别名`、剥 `#heading`/`^block`、剥目录前缀、剥 `.md`）。若实现只认裸 basename 而不剥 `节点/` 前缀，则 12 个「只被原白板链接」的节点会全部变成假孤儿；若只认路径形态，Fundamentals 与 lecture 2 的节点间入链会被漏掉。我的普查脚本两种都归一后才得到 0，这个 0 是
+
+### measured | 检验白板/ 在 live 上对入链**零贡献**：10 个检验白板正文里一条 wikilink 都没有，唯一的链接是 frontmatter 里指回 原白板 的 source_board。所以「检验白板也算入链源」这条口径在 live 数据上不可验证。
+EV: census.py：`检验白板: body-distinct=0 fm-distinct=3`。links2.py 逐文件：10 个检验白板中 9 个只有 `FM (1): ['[[原白板/...]]']`，第 10 个 `考察-Fundamentals-2026-07-16.md` 显示 `(no wikilinks)`——一条都没有。且这 3 个 distinct FM 链接全部指向 原白板/，没有一个指向 节点/。
+IMPL: 若实现声明「入链源 = 原白板 + 检验白板 + 节点 三处」，live 取证无法证明检验白板那一支在工作（它贡献 0 个节点入链）。这正是 reference_claims_wider_than_evidence 的形态：声明比证据宽。要么在 fixture 里造一个检验白板正文链节点的用例，要么在文档里如实写明「检验白板支在现网无正样本」。
+
+### measured | raw/derived 混淆在 live 上三个方向都成立，其中最严重的是 `原白板/`（role=raw）几乎不含任何用户原始内容——6 块板里 5 块是 100% 机器生成，全目录只有 1 行用户手写。
+EV: `grep -rn '我的备注\|我的理解\|我的想法\|TODO\|待补' $V/原白板/` 全目录只返回 1 行：`原白板/CS 61B.md:35:> 我的备注：先补 asymptotics`。`grep -rln '✍️ 我的理解\|\*\*User[：:]\|\[!relation' $V/原白板/` 返回**空**。板结构（`grep -n '^#\{1,4\} \|^```' 原白板/CS188 lecture 2.md`）= frontmatter + 模板 blockquote + `## Concepts`（块内注释写明 `AUTO-GENERATED by .claude/scripts/sync_board_concepts.py … ⛔ 请勿手改`）+ `## 🔗 节点关系图` dataviewjs 围栏（42–113 行）+ `## Recent Activity` 自动日志（各板 1–9 条）。原白板/线性代数.md 与 原白板/CS.md 的 Concepts 块内容是 `_（暂无节点 …）_`，n=0。
+IMPL: role=raw 这个标签对 原白板/ 是名实不符——它是生成物容器，不是原始语料容器。真正的 raw 在 raw/ 和 节点/lecture 2.md。若 lint 有「raw 目录不应含自动生成块」类规则，它会在 6/6 块板上全部命中，产出 6 条技术上为真、但对用户毫无动作价值的 finding。建议这类规则在 live 上直接豁免 原白板/，或降为 informational。
+
+### measured | `节点/`（role=wiki）里有 2/14 是 raw 语料的副本，不是概念节点：`节点/lecture 2.md` 是 85KB 视频逐字稿，`节点/my-recursion-notes.md` 是 raw/my-recursion-notes.md 加了 5 行 frontmatter。
+EV: `wc -c 节点/lecture\ 2.md raw/CS188/videos/lectures/lecture\ 2/lecture\ 2.md` → 85172 vs 81419；`diff` 总行数仅 133 行，且 diff 头部显示差异是 `1,39d0`（前置的 39 行 frontmatter）加若干插入的 `[!relation/...]+` 派生 callout。该文件正文含 144 条 `lecture 2.mp4` 时间戳链。`wc -c 节点/my-recursion-notes.md raw/my-recursion-notes.md` → 284 vs 185；diff 只有 `1,5d0`（5 行 frontmatter）+ 1 行末尾换行差异。
+IMPL: 节点/ 的成员在体量上跨 3 个数量级（my-recursion-notes 284 字节 vs lecture 2 85KB）。任何按「节点应短小/应有定义段」的启发式规则都会在 lecture 2.md 上误报；反过来任何按行数/字节数做的抽样或截断会让 lecture 2.md 主导统计。另外 144 条 mp4 断链全部集中在这一个文件，做 per-file finding 上限（例如同一
+
+### measured | `outputs/`（role=derived）里**没有**用户手写原件，但有 6 个文件内嵌了用户批注的**逐字引用**——按标记 grep 判定「派生目录混入用户内容」会全是假阳。
+EV: `grep -rn '✍️ 我的理解\|\*\*User[：:]\|\[!question\]\|\[!error\]' $V/outputs/` 命中 6 个文件：回顾-特征值与特征向量-2026-08-27.md:52、回顾-CS188 lecture 2-2026-08-27.md:54/55/56、以及 .recap-manifest-CS188 lecture 2.json / .recap-scan-CS188 lecture 2.json / .recap-manifest-特征值与特征向量.json / .recap-scan-特征值与特征向量.json。命中形态均为被引号包住的引用，例：`3. [Fundamentals] \`λ is the eigenvalue ✍️ 我的理解：λ 可以是 0 吗？\`（2026-07-25T08:25:03.871000+00:00）`。`grep -rn '我的备注' $V/outputs/*.md` 零命中。所有 outputs md 的 frontmatter 都带 `generated_by: board-recap v
+IMPL: 判定「派生目录里有用户内容」不能靠批注标记 grep，要靠 frontmatter 的 generated_by/type 白名单（回顾类有 `type: recap` + `generated_by`，excalidraw 有 `excalidraw-plugin: parsed`）。另外实测出用户批注至少有 3 种形态：`✍️ 我的理解：`（节点正文 + outputs 引用）、`> 我的备注
+
+### measured | ⛔ 投影 freshness：`outputs/今日复习.json` 的 date=2026-08-31、generated_at=2026-08-31T09:05:05+08:00，按上海时区**是昨天**（现在 2026-09-01T00:48+0800）。live 取证此刻跑 freshness 检查一定报 stale，而且这不是缺陷，是每天固定复现的 9 小时结构性窗口。
+EV: `grep -o '"generated_at"[^,]*' 今日复习.json` → `"generated_at": "2026-08-31T09:05:05+08:00"`；`"date": "2026-08-31"`。`stat -f '%Sm'` 显示 json 与 md 的 mtime 同为 2026-08-31T09:05:05+0800（与 generated_at 逐秒一致）。`TZ=Asia/Shanghai date` → 2026-09-01T00:48:05+0800。launchd `~/Library/LaunchAgents/com.canvas.daily-review.plist`：`grep -c '<key>Hour</key>'` → 12，Hour 取值 `9 10 11 12 13 14 15 16 17 18 19 20`，Minute 恒为 5。故每天 00:00→09:05（9h05m ≈ 全天 38%）文件的 date 必然是昨天。
+IMPL: freshness 判据**不能**写成 `date == today(Asia/Shanghai)`——那样每天有 38% 的墙钟时间恒红，主 session 若在夜间取证会拿到一条必然出现的假 finding。应改为按 generated_at 的年龄阈值（需 > 10h 才不误伤跨夜窗口），或对齐「不早于 now 之前最近一个已排定 slot」。另外注意该文件被 launchd 每小时改写，
+
+### measured | vault 边界：canvas-vault 下**零 symlink**（文件与目录都没有），因此没有任何指向 vault 外的软链。G11 vault_escape 在 live 上零正样本。
+EV: `find /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault -type l -exec ls -ld {} \;` 无任何输出，rc=0；`find ... -type l | wc -l` → 0。
+IMPL: 与孤儿规则同病：vault_escape 在 live 上恒零命中，「跑完没报错」不能作为它工作的证据，必须在 fixture 里造一条指向 vault 外的 symlink 做正样本 + 一条 vault 内 symlink 做负样本。另外真实的边界风险不是 symlink 而是**嵌套 vault**：`raw/CS188/.obsidian/plugins/canvas-learning-u
+

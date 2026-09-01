@@ -1,0 +1,20 @@
+usage: vault_lint.py [-h] --vault VAULT [--json] [--now NOW]
+                     [--only {orphan_nodes,projection_freshness,raw_derived_confusion}]
+
+CARD-G8-2 统一 vault lint (live vault 只读, 三检查)
+
+options:
+  -h, --help            show this help message and exit
+  --vault VAULT         vault 根目录 (含 节点/ 原白板/ outputs/)
+  --json                以 JSON 输出 (stdout 纯 JSON, 与文本同源)
+  --now NOW             注入'现在' (ISO-8601); 缺省取当前 Asia/Shanghai 日
+  --only {orphan_nodes,projection_freshness,raw_derived_confusion}
+                        只跑指定检查 (可重复)。未选中的显式记为 skipped, 不算 ok
+
+检查项:
+  orphan_nodes            节点/ 下既无入链、又无 source_board 的 md
+  raw_derived_confusion   派生物混入 raw/wiki 区 (读 G8-1 台账) + 回顾-*.md 缺 recap frontmatter
+  projection_freshness    outputs/今日复习.json 的 generated_at 是否过期
+
+退出码:
+  0  全部检查 ok
