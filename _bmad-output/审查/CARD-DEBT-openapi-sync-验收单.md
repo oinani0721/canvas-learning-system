@@ -146,13 +146,15 @@ commit 是全批最后一个合入; 批次收官时主 session 必须在最终�
 ## 五、本卡未证明什么(必填)
 
 1. 未证明 push 后 GitHub 上 workflow 变绿(缺口三.1);
-2. 未证明 Python 3.11 与 3.14 导出一致(缺口三.2);
-3. 未证明 Dredd 的 HTTP 回放覆盖面被 schemathesis 完全等价替代——丢的是「真实 HTTP 栈上
-   按 example 回放 + dredd-hooks 自定义流转」这一层, schema 一致性主体仍在;
+2. 未证明 Python 3.11 与 3.14 导出一致、未锁依赖下 fresh resolve 一致(缺口三.2);
+3. 未证明 Dredd 的 HTTP 回放覆盖面被等价替代——HTTP/example 回放面丢失, schemathesis
+   仅本地可选且未进 CI 白名单(缺口三.3);
 4. 未证明本卡快照在全部 14 卡合入后仍无漂移(设计上必然漂移, 由裁判 8 的收官重生成兜底);
 5. 未证明 `--no-verify` 绕过 lefthook 的场景有兜底(CI 红门是唯一兜底, 且依赖 push);
 6. 未证明 openapi.json 作为 committed 产物在长期多人并行下的 merge conflict 负担可控
-   (本批靠合并序协议化解, 日常并行的冲突解法=`git checkout --theirs` 后 `--write` 重生成)。
+   (本批靠合并序协议化解, 日常并行的冲突解法=`git checkout --theirs` 后 `--write` 重生成);
+7. **⛔ round-3 整改未经第四轮 Codex 确认**(停轮声明, 见六)——移除 required 排序的
+   归一化策略差异与 CI/CD 三项处置一并待用户裁决。
 
 ## 六、Codex 审查与裁判 6 回填
 
@@ -255,3 +257,8 @@ git status --short → (空) ; 无新 commit
   CARD-G8-1「7 轮整改未跑第 8 轮确认」同型。整改的有效性以本地判据支撑:
   23 门测试全绿 + 负控 PASS + DRIFT: none + 四类反例全报漂移 + 双命令串行
   零碰撞。是否按此状态合并 = **待用户裁决**(与下方 CI/CD 三项一并)。
+- **终态裁判(66017721 后重跑)**: DRIFT: none (192/353) · 负控 PASS · 23 passed
+  · NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 · grep 0/0 · 双 YAML OK · 裁判 6 复验
+  (mcp/server.py 空白改动 → hook 重生成+stage, 还原逐字节一致, 树净无新 commit)。
+  本地不入库文件: codex-review-round2-*.stderr(原始日志, 隐私)仅存工作区,
+  其脱色摘录已入库。
