@@ -22,10 +22,10 @@
           }
         },
         "required": [
-          "ai_api_key_set",
-          "ai_base_url",
+          "ai_provider",
           "ai_model_name",
-          "ai_provider"
+          "ai_base_url",
+          "ai_api_key_set"
         ],
         "title": "AIConfigResponse",
         "type": "object"
@@ -115,11 +115,11 @@
           }
         },
         "required": [
-          "avg_latency_ms",
-          "error_rate",
-          "p95_latency_ms",
+          "requests_total",
           "requests_per_second",
-          "requests_total"
+          "avg_latency_ms",
+          "p95_latency_ms",
+          "error_rate"
         ],
         "title": "APIMetricsSummary",
         "type": "object"
@@ -221,11 +221,11 @@
         },
         "required": [
           "candidate_id",
-          "elapsed_ms",
           "error_id",
+          "status",
           "frontmatter_written",
           "graphiti_status",
-          "status"
+          "elapsed_ms"
         ],
         "title": "AcceptCandidateResult",
         "type": "object"
@@ -275,8 +275,8 @@
           }
         },
         "required": [
-          "checks",
           "status",
+          "checks",
           "timestamp"
         ],
         "title": "AgentHealthCheckResponse",
@@ -380,8 +380,8 @@
         },
         "required": [
           "agent_type",
-          "avg_execution_time_s",
-          "invocations"
+          "invocations",
+          "avg_execution_time_s"
         ],
         "title": "AgentTypeSummary",
         "type": "object"
@@ -486,9 +486,9 @@
         },
         "required": [
           "id",
-          "message",
           "name",
           "severity",
+          "message",
           "triggered_at"
         ],
         "title": "AlertResponse",
@@ -757,9 +757,9 @@
           }
         },
         "required": [
-          "failed",
-          "processed",
           "success",
+          "processed",
+          "failed",
           "timestamp"
         ],
         "title": "BatchEpisodesResponse",
@@ -780,8 +780,8 @@
           }
         },
         "required": [
-          "error",
-          "index"
+          "index",
+          "error"
         ],
         "title": "BatchErrorItem",
         "type": "object"
@@ -822,10 +822,10 @@
           }
         },
         "required": [
-          "canvas_path",
           "event_type",
-          "node_id",
-          "timestamp"
+          "timestamp",
+          "canvas_path",
+          "node_id"
         ],
         "title": "BatchEventItem",
         "type": "object"
@@ -1028,10 +1028,10 @@
           }
         },
         "required": [
-          "callouts",
+          "vault_id",
           "node_id",
-          "source_timestamp",
-          "vault_id"
+          "callouts",
+          "source_timestamp"
         ],
         "title": "BatchSyncRequest",
         "type": "object"
@@ -1062,10 +1062,10 @@
           }
         },
         "required": [
-          "failed",
+          "total_received",
           "new_synced",
           "skipped_duplicate",
-          "total_received"
+          "failed"
         ],
         "title": "BatchSyncResponse",
         "type": "object"
@@ -1362,8 +1362,8 @@
           }
         },
         "required": [
-          "actual_performance",
-          "self_confidence"
+          "self_confidence",
+          "actual_performance"
         ],
         "title": "CalibrationRequest",
         "type": "object"
@@ -1409,9 +1409,9 @@
           }
         },
         "required": [
+          "tag",
           "content",
-          "content_hash",
-          "tag"
+          "content_hash"
         ],
         "title": "CalloutBatchItem",
         "type": "object"
@@ -1462,11 +1462,11 @@
           }
         },
         "required": [
-          "added_at",
           "callout_id",
           "callout_type",
           "node_id",
           "text",
+          "added_at",
           "vault_id"
         ],
         "title": "CalloutDirectRequest",
@@ -1494,8 +1494,8 @@
           }
         },
         "required": [
-          "accepted",
           "callout_id",
+          "accepted",
           "lane"
         ],
         "title": "CalloutDirectResponse",
@@ -1525,8 +1525,8 @@
           }
         },
         "required": [
-          "message",
-          "success"
+          "success",
+          "message"
         ],
         "title": "CancelResponse",
         "type": "object"
@@ -1623,9 +1623,9 @@
           }
         },
         "required": [
-          "confidence",
           "content_type",
-          "recommended_mode"
+          "recommended_mode",
+          "confidence"
         ],
         "title": "CanvasAnalysisResponse",
         "type": "object"
@@ -1777,10 +1777,10 @@
         },
         "required": [
           "canvas_path",
-          "category",
-          "group_id",
+          "success",
           "subject",
-          "success"
+          "category",
+          "group_id"
         ],
         "title": "CanvasIndexResponse",
         "type": "object"
@@ -1889,10 +1889,10 @@
         },
         "required": [
           "canvas_path",
+          "subject",
           "category",
           "group_id",
-          "source",
-          "subject"
+          "source"
         ],
         "title": "CanvasMetadataResponse",
         "type": "object"
@@ -1923,9 +1923,9 @@
           }
         },
         "required": [
-          "edges",
           "name",
-          "nodes"
+          "nodes",
+          "edges"
         ],
         "title": "CanvasResponse",
         "type": "object"
@@ -1951,8 +1951,8 @@
           }
         },
         "required": [
-          "components",
-          "overall_status"
+          "overall_status",
+          "components"
         ],
         "title": "CheckHealthOutput",
         "type": "object"
@@ -2040,8 +2040,8 @@
         },
         "required": [
           "concept_id",
-          "score_trend",
           "timeline",
+          "score_trend",
           "total_reviews"
         ],
         "title": "ConceptHistoryResponse",
@@ -2229,8 +2229,8 @@
           }
         },
         "required": [
-          "content",
-          "role"
+          "role",
+          "content"
         ],
         "title": "ConversationMessage",
         "type": "object"
@@ -2365,8 +2365,8 @@
           }
         },
         "required": [
-          "created_nodes",
-          "questions"
+          "questions",
+          "created_nodes"
         ],
         "title": "DecomposeResponse",
         "type": "object"
@@ -2404,8 +2404,8 @@
           }
         },
         "required": [
-          "canvas_path",
           "snapshot_id",
+          "canvas_path",
           "timestamp"
         ],
         "title": "DiffResponse",
@@ -2444,9 +2444,9 @@
           }
         },
         "required": [
-          "depth",
           "node_id",
-          "source_node_id"
+          "source_node_id",
+          "depth"
         ],
         "title": "DiscoveredNode",
         "type": "object"
@@ -2526,9 +2526,9 @@
         },
         "required": [
           "candidate_id",
-          "elapsed_ms",
+          "status",
           "frontmatter_written",
-          "status"
+          "elapsed_ms"
         ],
         "title": "DismissCandidateResult",
         "type": "object"
@@ -2608,8 +2608,8 @@
         },
         "required": [
           "candidate_id",
-          "dispute_reason",
           "node_id",
+          "dispute_reason",
           "vault_id"
         ],
         "title": "DisputeCandidateRequest",
@@ -2630,8 +2630,8 @@
           }
         },
         "required": [
-          "content",
-          "role"
+          "role",
+          "content"
         ],
         "title": "DistillMessage",
         "type": "object"
@@ -2899,12 +2899,12 @@
           }
         },
         "required": [
-          "confidence",
           "edge_id",
-          "rationale_text",
-          "relation_type",
           "source_node_id",
-          "target_node_id"
+          "target_node_id",
+          "relation_type",
+          "rationale_text",
+          "confidence"
         ],
         "title": "EdgeRationaleCreate",
         "type": "object"
@@ -2942,11 +2942,11 @@
           }
         },
         "required": [
-          "edge_id",
-          "graphiti_status",
-          "lancedb_status",
           "record_id",
-          "relation_type"
+          "edge_id",
+          "relation_type",
+          "graphiti_status",
+          "lancedb_status"
         ],
         "title": "EdgeRationaleResponse",
         "type": "object"
@@ -3007,8 +3007,8 @@
           }
         },
         "required": [
-          "fromNode",
           "id",
+          "fromNode",
           "toNode"
         ],
         "title": "EdgeRead",
@@ -3140,8 +3140,8 @@
           }
         },
         "required": [
-          "current_note_content",
           "node_path",
+          "current_note_content",
           "vault_id"
         ],
         "title": "EnrichContextRequest",
@@ -3238,14 +3238,14 @@
           }
         },
         "required": [
-          "budget",
-          "degraded",
           "enriched_context",
-          "enrichment_elapsed_ms",
-          "neighbors_count",
-          "sections_included",
+          "used_tokens",
+          "budget",
           "truncated",
-          "used_tokens"
+          "sections_included",
+          "neighbors_count",
+          "degraded",
+          "enrichment_elapsed_ms"
         ],
         "title": "EnrichContextResponse",
         "type": "object"
@@ -3267,8 +3267,8 @@
           }
         },
         "required": [
-          "description",
-          "error_type"
+          "error_type",
+          "description"
         ],
         "title": "ErrorInfo",
         "type": "object"
@@ -3483,10 +3483,10 @@
           }
         },
         "required": [
+          "score",
           "feedback",
-          "graded_at",
           "mastery_delta",
-          "score"
+          "graded_at"
         ],
         "title": "ExamGradeResponse",
         "type": "object"
@@ -3680,9 +3680,9 @@
           }
         },
         "required": [
-          "id_stability",
           "source",
-          "source_status"
+          "source_status",
+          "id_stability"
         ],
         "title": "ExamManifestResponse",
         "type": "object"
@@ -3778,8 +3778,8 @@
           }
         },
         "required": [
-          "mastery",
-          "node_id"
+          "node_id",
+          "mastery"
         ],
         "title": "ExamNodeEntry",
         "type": "object"
@@ -3845,9 +3845,9 @@
         },
         "required": [
           "exam_id",
+          "source_canvas_id",
           "node_id",
           "node_text",
-          "source_canvas_id",
           "source_node_id"
         ],
         "title": "ExamNodeSyncRequest",
@@ -3949,10 +3949,10 @@
           }
         },
         "required": [
-          "generated_at",
           "question_id",
           "question_text",
-          "tip_count"
+          "tip_count",
+          "generated_at"
         ],
         "title": "ExamQuickResponse",
         "type": "object"
@@ -4348,8 +4348,8 @@
           }
         },
         "required": [
-          "created_node_id",
-          "explanation"
+          "explanation",
+          "created_node_id"
         ],
         "title": "ExplainResponse",
         "type": "object"
@@ -4416,8 +4416,8 @@
           }
         },
         "required": [
-          "messages",
-          "node_id"
+          "node_id",
+          "messages"
         ],
         "title": "ExtractConversationRequest",
         "type": "object"
@@ -4602,8 +4602,8 @@
           }
         },
         "required": [
-          "difficulty",
           "stability",
+          "difficulty",
           "state"
         ],
         "title": "FSRSStateResponse",
@@ -4656,8 +4656,8 @@
           }
         },
         "required": [
-          "exists",
-          "node_id"
+          "node_id",
+          "exists"
         ],
         "title": "GapEntryOut",
         "type": "object"
@@ -4809,8 +4809,8 @@
           }
         },
         "required": [
-          "node_count",
-          "verification_canvas_name"
+          "verification_canvas_name",
+          "node_count"
         ],
         "title": "GenerateReviewResponse",
         "type": "object"
@@ -4928,9 +4928,9 @@
           }
         },
         "required": [
+          "note_path",
           "count",
-          "neighbors",
-          "note_path"
+          "neighbors"
         ],
         "title": "GetNeighborsOutput",
         "type": "object"
@@ -5064,8 +5064,8 @@
           }
         },
         "required": [
-          "agent_type",
           "group_id",
+          "agent_type",
           "node_ids"
         ],
         "title": "GroupExecuteConfig",
@@ -5134,9 +5134,9 @@
           }
         },
         "required": [
-          "agent_type",
           "group_id",
           "status",
+          "agent_type",
           "total_nodes"
         ],
         "title": "GroupProgress",
@@ -5204,10 +5204,10 @@
           }
         },
         "required": [
-          "app_name",
           "status",
-          "timestamp",
-          "version"
+          "app_name",
+          "version",
+          "timestamp"
         ],
         "title": "HealthCheckResponse",
         "type": "object"
@@ -5255,8 +5255,8 @@
         },
         "required": [
           "exam_id",
-          "hint_level",
           "node_id",
+          "hint_level",
           "question_context"
         ],
         "title": "HintRequest",
@@ -5310,8 +5310,8 @@
           }
         },
         "required": [
-          "current_level",
           "hint_text",
+          "current_level",
           "remaining_levels"
         ],
         "title": "HintResponse",
@@ -5436,8 +5436,8 @@
           }
         },
         "required": [
-          "end",
-          "start"
+          "start",
+          "end"
         ],
         "title": "HistoryPeriod",
         "type": "object"
@@ -5527,9 +5527,9 @@
           }
         },
         "required": [
-          "canvas_path",
           "concept_id",
           "concept_name",
+          "canvas_path",
           "rating",
           "review_time"
         ],
@@ -5682,8 +5682,8 @@
           }
         },
         "required": [
-          "image_data",
-          "node_id"
+          "node_id",
+          "image_data"
         ],
         "title": "ImageIndexRequest",
         "type": "object"
@@ -5716,11 +5716,11 @@
           }
         },
         "required": [
-          "concepts",
           "node_id",
           "ocr_text",
-          "processing_time_ms",
-          "summary"
+          "summary",
+          "concepts",
+          "processing_time_ms"
         ],
         "title": "ImageIndexResponse",
         "type": "object"
@@ -5894,8 +5894,8 @@
         },
         "required": [
           "canvas_path",
-          "groups",
-          "total_nodes"
+          "total_nodes",
+          "groups"
         ],
         "title": "IntelligentParallelResponse",
         "type": "object"
@@ -6287,11 +6287,11 @@
           }
         },
         "required": [
-          "agent_type",
-          "canvas_path",
-          "concept",
-          "node_id",
           "user_id",
+          "canvas_path",
+          "node_id",
+          "concept",
+          "agent_type",
           "vault_id"
         ],
         "title": "LearningEpisodeCreate",
@@ -6386,13 +6386,13 @@
           }
         },
         "required": [
-          "agent_type",
-          "canvas_path",
-          "concept",
           "episode_id",
+          "user_id",
+          "canvas_path",
           "node_id",
-          "timestamp",
-          "user_id"
+          "concept",
+          "agent_type",
+          "timestamp"
         ],
         "title": "LearningHistoryItem",
         "type": "object"
@@ -6473,10 +6473,10 @@
         },
         "required": [
           "items",
+          "total",
           "page",
           "page_size",
-          "pages",
-          "total"
+          "pages"
         ],
         "title": "LearningHistoryResponse",
         "type": "object"
@@ -6703,9 +6703,9 @@
         },
         "required": [
           "id",
+          "type",
           "path",
-          "relevanceScore",
-          "type"
+          "relevanceScore"
         ],
         "title": "MediaItemResponse",
         "type": "object"
@@ -6748,8 +6748,8 @@
           }
         },
         "required": [
-          "layers",
           "status",
+          "layers",
           "timestamp"
         ],
         "title": "MemoryHealthResponse",
@@ -6819,8 +6819,8 @@
           }
         },
         "required": [
-          "avg_latency_ms",
-          "queries_total"
+          "queries_total",
+          "avg_latency_ms"
         ],
         "title": "MemoryLayerSummary",
         "type": "object"
@@ -6842,9 +6842,9 @@
           }
         },
         "required": [
+          "temporal",
           "graphiti",
-          "semantic",
-          "temporal"
+          "semantic"
         ],
         "title": "MemoryLayersStatus",
         "type": "object"
@@ -6873,8 +6873,8 @@
         },
         "required": [
           "log_file",
-          "logs",
-          "total_lines"
+          "total_lines",
+          "logs"
         ],
         "title": "MemoryLogsResponse",
         "type": "object"
@@ -6902,8 +6902,8 @@
           }
         },
         "required": [
-          "avg_latency_s",
-          "queries_total"
+          "queries_total",
+          "avg_latency_s"
         ],
         "title": "MemoryMetricsSummary",
         "type": "object"
@@ -6923,8 +6923,8 @@
         },
         "required": [
           "graphiti",
-          "semantic",
-          "temporal"
+          "temporal",
+          "semantic"
         ],
         "title": "MemorySystemSummary",
         "type": "object"
@@ -7123,12 +7123,12 @@
           }
         },
         "required": [
-          "agents",
-          "alerts",
+          "timestamp",
           "api",
+          "agents",
           "memory_system",
           "resources",
-          "timestamp"
+          "alerts"
         ],
         "title": "MetricsSummaryResponse",
         "type": "object"
@@ -7253,9 +7253,9 @@
           }
         },
         "required": [
+          "status",
           "lancedb_connected",
           "neo4j_connected",
-          "status",
           "storage_path_writable"
         ],
         "title": "MultimodalHealthResponse",
@@ -7563,11 +7563,11 @@
           }
         },
         "required": [
-          "created_at",
-          "file_path",
           "id",
           "media_type",
-          "related_concept_id"
+          "file_path",
+          "related_concept_id",
+          "created_at"
         ],
         "title": "MultimodalResponse",
         "type": "object"
@@ -7830,8 +7830,8 @@
           }
         },
         "required": [
-          "related_concept_id",
-          "url"
+          "url",
+          "related_concept_id"
         ],
         "title": "MultimodalUploadUrlRequest",
         "type": "object"
@@ -7887,9 +7887,9 @@
           }
         },
         "required": [
-          "hop_distance",
+          "title",
           "path",
-          "title"
+          "hop_distance"
         ],
         "title": "NeighborItem",
         "type": "object"
@@ -8042,8 +8042,8 @@
           }
         },
         "required": [
-          "checks",
           "status",
+          "checks",
           "timestamp"
         ],
         "title": "Neo4jHealthResponse",
@@ -8212,8 +8212,8 @@
           }
         },
         "required": [
-          "error_message",
-          "node_id"
+          "node_id",
+          "error_message"
         ],
         "title": "NodeError",
         "type": "object"
@@ -8597,13 +8597,13 @@
           }
         },
         "required": [
-          "accuracy",
-          "completeness",
-          "imagery",
-          "new_color",
           "node_id",
+          "accuracy",
+          "imagery",
+          "completeness",
           "originality",
-          "total"
+          "total",
+          "new_color"
         ],
         "title": "NodeScore",
         "type": "object"
@@ -9091,9 +9091,9 @@
         },
         "required": [
           "canvas_path",
+          "total",
           "limit",
-          "offset",
-          "total"
+          "offset"
         ],
         "title": "OperationHistoryResponse",
         "type": "object"
@@ -9195,10 +9195,10 @@
           }
         },
         "required": [
-          "canvas_path",
           "id",
-          "timestamp",
           "type",
+          "canvas_path",
+          "timestamp",
           "user_id"
         ],
         "title": "OperationResponse",
@@ -9327,9 +9327,9 @@
           }
         },
         "required": [
-          "has_more",
           "limit",
-          "offset"
+          "offset",
+          "has_more"
         ],
         "title": "PaginationInfo",
         "type": "object"
@@ -9374,12 +9374,12 @@
           }
         },
         "required": [
-          "has_next",
-          "has_prev",
+          "total",
           "page",
           "page_size",
-          "total",
-          "total_pages"
+          "total_pages",
+          "has_next",
+          "has_prev"
         ],
         "title": "PaginationMeta",
         "type": "object"
@@ -9452,8 +9452,8 @@
           }
         },
         "required": [
-          "error",
-          "path"
+          "path",
+          "error"
         ],
         "title": "ParseErrorOut",
         "type": "object"
@@ -9609,8 +9609,8 @@
         },
         "required": [
           "mu",
-          "pick_score",
-          "sigma"
+          "sigma",
+          "pick_score"
         ],
         "title": "PickHintOut",
         "type": "object"
@@ -9676,9 +9676,9 @@
           }
         },
         "required": [
-          "messages",
           "node_id",
           "session_id",
+          "messages",
           "vault_id"
         ],
         "title": "PostTurnExtractRequest",
@@ -9711,10 +9711,10 @@
           }
         },
         "required": [
-          "elapsed_ms",
-          "extracted_count",
           "node_id",
-          "session_id"
+          "session_id",
+          "extracted_count",
+          "elapsed_ms"
         ],
         "title": "PostTurnExtractResponse",
         "type": "object"
@@ -9770,14 +9770,14 @@
           }
         },
         "required": [
-          "confidence",
-          "description",
-          "frontmatter_written",
-          "graphiti_status",
-          "is_ambiguous",
+          "pedagogy_type",
           "legacy_type",
+          "description",
+          "confidence",
+          "is_ambiguous",
           "pedagogy_remedies",
-          "pedagogy_type"
+          "frontmatter_written",
+          "graphiti_status"
         ],
         "title": "PostTurnExtractedError",
         "type": "object"
@@ -9803,8 +9803,8 @@
           }
         },
         "required": [
-          "content",
-          "role"
+          "role",
+          "content"
         ],
         "title": "PostTurnMessage",
         "type": "object"
@@ -9885,11 +9885,11 @@
         },
         "required": [
           "concept_id",
-          "effective_proficiency",
-          "mastery_color",
-          "mastery_label",
-          "mastery_level",
           "name",
+          "mastery_level",
+          "mastery_label",
+          "mastery_color",
+          "effective_proficiency",
           "prescriptive_message"
         ],
         "title": "ProfileSummary",
@@ -10005,11 +10005,11 @@
           }
         },
         "required": [
-          "created_at",
           "session_id",
           "status",
           "total_groups",
-          "total_nodes"
+          "total_nodes",
+          "created_at"
         ],
         "title": "ProgressResponse",
         "type": "object"
@@ -10039,8 +10039,8 @@
           }
         },
         "required": [
-          "available",
-          "total"
+          "total",
+          "available"
         ],
         "title": "PromptTemplateCheck",
         "type": "object"
@@ -10550,9 +10550,9 @@
           }
         },
         "required": [
+          "path",
           "content",
-          "exists",
-          "path"
+          "exists"
         ],
         "title": "ReadNoteOutput",
         "type": "object"
@@ -10634,8 +10634,8 @@
           }
         },
         "required": [
-          "elapsed_ms",
-          "group_id"
+          "group_id",
+          "elapsed_ms"
         ],
         "title": "RebuildStats",
         "type": "object"
@@ -10720,9 +10720,9 @@
           }
         },
         "required": [
-          "canvas_name",
+          "score",
           "node_id",
-          "score"
+          "canvas_name"
         ],
         "title": "RecommendActionRequest",
         "type": "object"
@@ -10831,13 +10831,13 @@
           }
         },
         "required": [
-          "confidence",
-          "reason",
           "source_node_id",
           "source_node_title",
-          "suggested_label",
           "target_node_id",
-          "target_node_title"
+          "target_node_title",
+          "confidence",
+          "reason",
+          "suggested_label"
         ],
         "title": "Recommendation",
         "type": "object"
@@ -10863,8 +10863,8 @@
           }
         },
         "required": [
-          "canvas_id",
-          "recommendations"
+          "recommendations",
+          "canvas_id"
         ],
         "title": "RecommendationResponse",
         "type": "object"
@@ -11038,8 +11038,8 @@
           }
         },
         "required": [
-          "new_interval",
-          "next_review_date"
+          "next_review_date",
+          "new_interval"
         ],
         "title": "RecordReviewResponse",
         "type": "object"
@@ -11107,8 +11107,8 @@
           "accepted",
           "coalesced",
           "excluded",
-          "orchestrator_enabled",
-          "results"
+          "results",
+          "orchestrator_enabled"
         ],
         "title": "RefreshChangedResponse",
         "type": "object"
@@ -11281,8 +11281,8 @@
           }
         },
         "required": [
-          "new_content",
-          "source_content"
+          "source_content",
+          "new_content"
         ],
         "title": "RelationSuggestionRequest",
         "type": "object"
@@ -11315,9 +11315,9 @@
           }
         },
         "required": [
-          "confidence",
+          "relation_type",
           "relation_label",
-          "relation_type"
+          "confidence"
         ],
         "title": "RelationSuggestionResponse",
         "type": "object"
@@ -11392,8 +11392,8 @@
         },
         "required": [
           "cpu_usage_percent",
-          "disk_usage_percent",
-          "memory_usage_percent"
+          "memory_usage_percent",
+          "disk_usage_percent"
         ],
         "title": "ResourceMetricsSummary",
         "type": "object"
@@ -11419,8 +11419,8 @@
         },
         "required": [
           "cpu_usage_percent",
-          "disk_usage_percent",
-          "memory_usage_percent"
+          "memory_usage_percent",
+          "disk_usage_percent"
         ],
         "title": "ResourcesSummary",
         "type": "object"
@@ -11468,10 +11468,10 @@
           }
         },
         "required": [
-          "elapsed_ms",
-          "graph_version",
+          "seed",
           "max_hops",
-          "seed"
+          "graph_version",
+          "elapsed_ms"
         ],
         "title": "RetrievalTraceModel",
         "type": "object"
@@ -11520,12 +11520,12 @@
           }
         },
         "required": [
+          "review_canvas_path",
           "date",
           "mode",
           "pass_rate",
-          "passed_concepts",
-          "review_canvas_path",
-          "total_concepts"
+          "total_concepts",
+          "passed_concepts"
         ],
         "title": "ReviewEntry",
         "type": "object"
@@ -11591,9 +11591,9 @@
         "required": [
           "concept",
           "concept_id",
+          "review_count",
           "due_date",
-          "priority",
-          "review_count"
+          "priority"
         ],
         "title": "ReviewSuggestionResponse",
         "type": "object"
@@ -11783,9 +11783,9 @@
           }
         },
         "required": [
-          "canvas_path",
+          "success",
           "rollback_type",
-          "success"
+          "canvas_path"
         ],
         "title": "RollbackResult",
         "type": "object"
@@ -11839,9 +11839,9 @@
           }
         },
         "required": [
+          "vault_id",
           "source_node_id",
-          "target_node_id",
-          "vault_id"
+          "target_node_id"
         ],
         "title": "SaveRelationRequest",
         "type": "object"
@@ -11934,11 +11934,11 @@
           }
         },
         "required": [
+          "vault_id",
           "content",
-          "node_id",
-          "source_timestamp",
           "title",
-          "vault_id"
+          "node_id",
+          "source_timestamp"
         ],
         "title": "SaveTipRequest",
         "type": "object"
@@ -11966,8 +11966,8 @@
           }
         },
         "required": [
-          "saved",
-          "tip_id"
+          "tip_id",
+          "saved"
         ],
         "title": "SaveTipResponse",
         "type": "object"
@@ -12228,8 +12228,8 @@
           }
         },
         "required": [
-          "content",
           "doc_id",
+          "content",
           "score"
         ],
         "title": "SearchResultItem",
@@ -12325,9 +12325,9 @@
           }
         },
         "required": [
-          "messages",
           "session_id",
-          "vault_id"
+          "vault_id",
+          "messages"
         ],
         "title": "SessionArchiveRequest",
         "type": "object"
@@ -12401,9 +12401,9 @@
           }
         },
         "required": [
-          "message",
           "session_id",
-          "status"
+          "status",
+          "message"
         ],
         "title": "SessionPauseResumeResponse",
         "type": "object"
@@ -12527,15 +12527,15 @@
           }
         },
         "required": [
+          "session_id",
           "canvas_name",
+          "total_concepts",
           "completed_concepts",
           "current_concept",
           "current_concept_idx",
-          "mastery_percentage",
           "progress_percentage",
-          "session_id",
+          "mastery_percentage",
           "started_at",
-          "total_concepts",
           "updated_at"
         ],
         "title": "SessionProgressResponse",
@@ -12616,9 +12616,9 @@
           }
         },
         "required": [
-          "created_at",
           "session_id",
-          "total_groups"
+          "total_groups",
+          "created_at"
         ],
         "title": "SessionResponse",
         "type": "object"
@@ -12667,9 +12667,9 @@
           }
         },
         "required": [
+          "node_id",
           "agent_type",
-          "canvas_path",
-          "node_id"
+          "canvas_path"
         ],
         "title": "SingleAgentRequest",
         "type": "object"
@@ -12759,11 +12759,11 @@
           }
         },
         "required": [
-          "content",
+          "skill_id",
+          "name",
           "description",
           "icon",
-          "name",
-          "skill_id"
+          "content"
         ],
         "title": "SkillDetailResponse",
         "type": "object"
@@ -12794,9 +12794,9 @@
           }
         },
         "required": [
-          "description",
+          "skill_id",
           "name",
-          "skill_id"
+          "description"
         ],
         "title": "SkillListItem",
         "type": "object"
@@ -13045,8 +13045,8 @@
           }
         },
         "required": [
-          "canvas_path",
           "id",
+          "canvas_path",
           "timestamp",
           "type"
         ],
@@ -13162,10 +13162,10 @@
           }
         },
         "required": [
-          "current_concept",
-          "first_question",
           "session_id",
-          "total_concepts"
+          "total_concepts",
+          "first_question",
+          "current_concept"
         ],
         "title": "StartSessionResponse",
         "type": "object"
@@ -13287,10 +13287,10 @@
           }
         },
         "required": [
-          "cached",
-          "latency_metrics",
           "status",
           "storage_backends",
+          "latency_metrics",
+          "cached",
           "timestamp"
         ],
         "title": "StorageHealthResponse",
@@ -13421,9 +13421,9 @@
           }
         },
         "required": [
-          "id_stability",
           "source",
-          "source_status"
+          "source_status",
+          "id_stability"
         ],
         "title": "StudyManifestResponse",
         "type": "object"
@@ -13602,8 +13602,8 @@
           }
         },
         "required": [
-          "mastery",
-          "node_id"
+          "node_id",
+          "mastery"
         ],
         "title": "StudyNodeEntry",
         "type": "object"
@@ -13628,9 +13628,9 @@
           }
         },
         "required": [
-          "guidance",
           "text",
-          "type"
+          "type",
+          "guidance"
         ],
         "title": "SubQuestion",
         "type": "object"
@@ -13777,9 +13777,9 @@
           }
         },
         "required": [
-          "category",
           "pattern",
-          "subject"
+          "subject",
+          "category"
         ],
         "title": "SubjectMappingRule",
         "type": "object"
@@ -13829,9 +13829,9 @@
           }
         },
         "required": [
-          "created_at",
           "id",
-          "name"
+          "name",
+          "created_at"
         ],
         "title": "SubjectResponse",
         "type": "object"
@@ -14007,12 +14007,12 @@
           }
         },
         "required": [
+          "quality",
+          "score",
+          "degraded",
           "action",
           "current_concept",
-          "degraded",
-          "progress",
-          "quality",
-          "score"
+          "progress"
         ],
         "title": "SubmitAnswerResponse",
         "type": "object"
@@ -14069,8 +14069,8 @@
         },
         "required": [
           "canvas_id",
-          "operations",
-          "vault_id"
+          "vault_id",
+          "operations"
         ],
         "title": "SyncBatchRequest",
         "type": "object"
@@ -14098,9 +14098,9 @@
           }
         },
         "required": [
-          "failed_count",
           "results",
-          "synced_count"
+          "synced_count",
+          "failed_count"
         ],
         "title": "SyncBatchResponse",
         "type": "object"
@@ -14135,11 +14135,11 @@
         },
         "required": [
           "canvas_path",
+          "total_edges",
+          "synced_count",
           "failed_count",
           "skipped_count",
-          "sync_time_ms",
-          "synced_count",
-          "total_edges"
+          "sync_time_ms"
         ],
         "title": "SyncEdgesSummaryResponse",
         "type": "object"
@@ -14201,10 +14201,10 @@
           }
         },
         "required": [
-          "entity_id",
-          "entity_type",
-          "operation",
           "operation_id",
+          "entity_type",
+          "entity_id",
+          "operation",
           "timestamp"
         ],
         "title": "SyncOperation",
@@ -14304,8 +14304,8 @@
           }
         },
         "required": [
-          "relation_reason",
           "source_node",
+          "relation_reason",
           "text"
         ],
         "title": "TargetingMaterialItem",
@@ -14417,11 +14417,11 @@
           }
         },
         "required": [
-          "edge_reasons",
-          "errors",
-          "mastery",
           "node_name",
-          "tips"
+          "mastery",
+          "tips",
+          "errors",
+          "edge_reasons"
         ],
         "title": "Tier1Context",
         "type": "object"
@@ -14498,10 +14498,10 @@
           }
         },
         "required": [
-          "content",
-          "node_id",
           "tip_id",
-          "title"
+          "content",
+          "title",
+          "node_id"
         ],
         "title": "TipItem",
         "type": "object"
@@ -14594,8 +14594,8 @@
           }
         },
         "required": [
-          "hop",
           "path",
+          "hop",
           "reason"
         ],
         "title": "TraceItemModel",
@@ -14626,8 +14626,8 @@
           }
         },
         "required": [
-          "overall_progress",
-          "pass_rate_trend"
+          "pass_rate_trend",
+          "overall_progress"
         ],
         "title": "TrendAnalysis",
         "type": "object"
@@ -14750,9 +14750,9 @@
           }
         },
         "required": [
-          "vault_id",
-          "vault_name",
           "vault_path",
+          "vault_name",
+          "vault_id",
           "vaults_root"
         ],
         "title": "VaultCurrentResponse",
@@ -14778,10 +14778,10 @@
           }
         },
         "required": [
-          "is_active",
           "name",
           "path",
-          "vault_id"
+          "vault_id",
+          "is_active"
         ],
         "title": "VaultInfo",
         "type": "object"
@@ -14805,9 +14805,9 @@
           }
         },
         "required": [
+          "vaults_root",
           "active_vault",
-          "vaults",
-          "vaults_root"
+          "vaults"
         ],
         "title": "VaultListResponse",
         "type": "object"
@@ -14922,10 +14922,10 @@
           }
         },
         "required": [
-          "asked_at",
-          "canvas_name",
           "question_id",
-          "question_text"
+          "question_text",
+          "canvas_name",
+          "asked_at"
         ],
         "title": "VerificationHistoryItem",
         "type": "object"
@@ -14968,8 +14968,8 @@
         },
         "required": [
           "concept",
-          "items",
-          "total_count"
+          "total_count",
+          "items"
         ],
         "title": "VerificationHistoryResponse",
         "type": "object"
@@ -15016,11 +15016,11 @@
           }
         },
         "required": [
-          "difficulty",
+          "source_node_id",
           "question_text",
           "question_type",
-          "rationale",
-          "source_node_id"
+          "difficulty",
+          "rationale"
         ],
         "title": "VerificationQuestion",
         "type": "object"
@@ -15116,9 +15116,9 @@
           }
         },
         "required": [
+          "questions",
           "concept",
-          "generated_at",
-          "questions"
+          "generated_at"
         ],
         "title": "VerificationQuestionResponse",
         "type": "object"
@@ -15165,10 +15165,10 @@
           }
         },
         "required": [
-          "avg_rating",
           "concept_name",
+          "weakness_score",
           "failure_count",
-          "weakness_score"
+          "avg_rating"
         ],
         "title": "WeakConceptData",
         "type": "object"
@@ -15197,8 +15197,8 @@
         },
         "required": [
           "concept_name",
-          "current_status",
-          "improvement_rate"
+          "improvement_rate",
+          "current_status"
         ],
         "title": "WeakConceptImprovement",
         "type": "object"
@@ -15301,9 +15301,9 @@
           }
         },
         "required": [
-          "applied",
+          "weak_weight",
           "mastered_weight",
-          "weak_weight"
+          "applied"
         ],
         "title": "WeightConfig",
         "type": "object"
@@ -15354,8 +15354,8 @@
           }
         },
         "required": [
-          "model_name",
-          "provider"
+          "provider",
+          "model_name"
         ],
         "title": "_ModelTaskConfigRequest",
         "type": "object"
@@ -15494,8 +15494,8 @@
           }
         },
         "required": [
-          "avg_execution_time_s",
-          "invocations_total"
+          "invocations_total",
+          "avg_execution_time_s"
         ],
         "title": "AgentMetricsSummary",
         "type": "object"
@@ -15523,8 +15523,8 @@
           }
         },
         "required": [
-          "avg_execution_time_s",
-          "invocations_total"
+          "invocations_total",
+          "avg_execution_time_s"
         ],
         "title": "AgentMetricsSummary",
         "type": "object"
@@ -15661,7 +15661,7 @@
     "description": "Multi-agent learning system backend using Feynman method",
     "title": "Canvas Learning System API",
     "version": "1.0.0",
-    "x-generated-at": "2026-09-01T10:46:01.837554+00:00",
+    "x-generated-at": "2026-09-01T11:13:57.151677+00:00",
     "x-generator": "scripts/spec-tools/check-openapi-drift.py --write"
   },
   "openapi": "3.1.0",

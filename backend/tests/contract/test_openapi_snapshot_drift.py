@@ -5,7 +5,7 @@
 两类断言, 缺一不可:
   1. **生产形态**: 用真实 `app.openapi()` 比对 committed 快照, 断言无漂移。
      这条是本门的主判据 —— 合成 fixture 再多也证明不了「仓里那份快照是新的」。
-  2. **合成形态**: 用小 spec 逐条钉死归一化的五条规则(哪些差异该被吞、哪些必须
+  2. **合成形态**: 用小 spec 逐条钉死归一化规则的承重行为(哪些差异该被吞、哪些必须
      暴露)。没有这几条, 第 1 条绿了也可能是「比对函数把一切都判等」。
 
 不起 lifespan: 本文件只调 `check-openapi-drift.py` 的纯函数与 `load_live_schema()`,
@@ -100,7 +100,7 @@ def test_lockdown_actually_blocks():
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# 2. 合成形态: 归一化五条规则各自的承重行为
+# 2. 合成形态: 归一化规则各自的承重行为
 # ══════════════════════════════════════════════════════════════════════════
 
 BASE_SPEC = {
@@ -133,6 +133,7 @@ def _mutated(fn):
 
 def test_volatile_keys_are_absorbed():
     """规则 1: info.x-generated-at / x-generator 差异不算漂移(防门恒红)。"""
+
     other = _mutated(
         lambda s: s["info"].update({"x-generated-at": "1999-01-01T00:00:00+00:00", "x-generator": "whatever"})
     )
@@ -152,11 +153,15 @@ def test_dict_key_order_is_absorbed():
     assert clean, "仅 key 顺序不同不应报漂移"
 
 
-def test_required_order_is_absorbed():
-    """规则 3: required 是集合语义 — 顺序变化不算漂移。"""
+def test_required_order_is_drift():
+    """规则 3(三轮审查终局): 无任何数组排序 —— required 数组顺序变化必须报漂移。
+
+    卡文原设想按集合语义排序, 但三轮对抗审查证明一切按名/按形启发式双向不健全
+    (enum 实例/Schema 扩展/Link 字面值都是反例), 故移除排序、保序处理。误红由
+    门输出的 FIX 命令兜底。"""
     other = _mutated(lambda s: s["components"]["schemas"]["S"].update({"required": ["alpha", "beta"]}))
     clean, _ = drift.compare(other, BASE_SPEC)
-    assert clean, "required 顺序变化不应报漂移(pydantic 按字段声明序生成)"
+    assert not clean, "required 顺序变化必须报漂移(无排序规则, 宁误红不吞漂移)"
 
 
 def test_required_membership_change_is_drift():
@@ -235,17 +240,16 @@ def test_default_and_example_values_keep_required_order():
     assert not clean, "default 值内的 required 数组是有序数据"
 
 
-def test_required_without_schema_context_order_is_absorbed():
-    """Schema 语境下的裸对象(只有 required, 无 properties/type)仍是 Schema
-    —— required 是集合语义, 顺序变化不算漂移(语境切分替代旧的形状守卫)。"""
+def test_required_bare_schema_order_is_drift():
+    """裸 Schema 对象上的 required 数组顺序变化同样报漂移(无任何排序例外)。"""
     base = {"components": {"schemas": {"Bare": {"required": ["b", "a"]}}}}
     other = {"components": {"schemas": {"Bare": {"required": ["a", "b"]}}}}
     clean, _ = drift.compare(base, other)
-    assert clean, "Schema 语境的 required 是集合语义, 顺序变化不应报漂移"
+    assert not clean, "裸 Schema 的 required 顺序变化必须报漂移"
 
 
 def test_enum_order_is_drift():
-    """规则 4: enum 有序语义 — 顺序变化必须暴露, 不得当集合吞掉。"""
+    """enum 有序语义 — 顺序变化必须暴露, 不得当集合吞掉。"""
     other = _mutated(lambda s: s["components"]["schemas"]["S"]["properties"]["alpha"].update({"enum": ["a", "m", "z"]}))
     clean, details = drift.compare(other, BASE_SPEC)
     assert not clean, "enum 顺序变化必须报漂移(取值顺序有语义)"
@@ -276,7 +280,7 @@ def test_path_addition_is_drift_and_names_the_path():
 
 
 def test_description_change_is_drift():
-    """归一化四条之外的一切差异原样暴露 — 连文案都算。"""
+    """归一化规则之外的一切差异原样暴露 — 连文案都算。"""
     other = _mutated(lambda s: s["paths"]["/a"]["get"]["responses"]["200"].update({"description": "changed"}))
     clean, _ = drift.compare(other, BASE_SPEC)
     assert not clean, "description 变化必须报漂移"

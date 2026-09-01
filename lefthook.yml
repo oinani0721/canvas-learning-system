@@ -14,7 +14,12 @@
 # Pre-commit: Parallel checks on staged files
 # ============================================================
 pre-commit:
-  parallel: true
+  # ⛔ 串行(Codex round-3 BLOCKER): flat+root 两条 spec-sync 在一个 commit 同时
+  # 触及(如 config.py + 某端点)时会并发, 两条的 `git add backend/openapi.json`
+  # 争抢 .git/index.lock → 一方失败 → commit 被误阻断(实测 100/100 碰撞,
+  # lefthook 入口四轮 rc=1,1,0,1)。本 hook 各命令都很快(pyright 本机缺席即跳过),
+  # 串行的总耗时损失可忽略, 换取 git 写操作互斥。
+  parallel: false
   commands:
     # --- Spec Sync: Regenerate OpenAPI snapshot when backend API files change ---
     # CARD-DEBT-openapi-sync [BATCH-2026-09-01-第八批] 把这个 hook 从"死了 4 个月

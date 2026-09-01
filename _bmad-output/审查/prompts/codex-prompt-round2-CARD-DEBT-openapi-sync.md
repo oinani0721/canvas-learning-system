@@ -1,7 +1,7 @@
 # Codex 对抗性审查 Round-2 — CARD-DEBT-openapi-sync 整改验证 [BATCH-2026-09-01-第八批]
 
 你是独立对抗审查者, 本轮**只做一件事**: 验证 Round-1 的 4 BLOCKER + 2 HIGH 是否被
-真实修复, 以及修复是否引入新缺陷。车道: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro
+真实修复, 以及修复是否引入新缺陷。车道: ~/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro
 Round-1 报告: _bmad-output/审查/codex-review-CARD-DEBT-openapi-sync.md
 整改 commit: 6c81ebc9 (`git show 6c81ebc9` 看全 diff; 基线 2fb779b3)
 

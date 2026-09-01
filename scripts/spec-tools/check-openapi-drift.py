@@ -29,24 +29,17 @@
      2026-08-31 全树扫描实测: 这两个键在 app.openapi() 原生输出中**不存在**,
      只由本脚本 --write 写入, 故不存在「删掉了生产真值」的可能。
   2. dict 按 key 排序(JSON 对象成员无序, 排序只消除表示差异)。
-  3. 键名为 `required` 且值为**纯字符串数组**、且当前处于 **Schema 语境** →
-     sorted()。JSON Schema 的 required 是集合语义, 而 pydantic 按字段声明序
-     生成它——2026-08-31 实测 281 个 required 数组中 144 个(51.2%)非字典序,
-     不排序会让一次无关的字段重排把半数 schema 报成漂移(误红的门必然被
-     `|| true` 掉, 那正是本卡要修的病)。用 sorted 而非 set: 重复项与数量
-     差异仍会暴露, 不吞真漂移。
-     ⚠️ 语境切分(Codex round-1/2 两个 BLOCKER 的最终解): enum/const/default/
-     example/examples/value 这些键的**值是实例数据**, 实例必须与之精确相等,
-     其内部一切数组都是有序值 —— 进入这些键的子树后 required 一律保序。
-     实例数据里不可能再嵌 Schema(JSON Schema 封闭世界), 因此这是完备判据,
-     不依赖「宿主长什么样」的内容启发式(形状启发式已被
-     {"enum":[{"type":"tag","required":[...]}]} 类反例两次打穿)。
-     ⚠️ 同名 key 的另一种用法 `required: true`(Parameter Object, 实测 373 处)
-     是布尔标量, 走原样分支, 不受此规则影响。
-  4. 其余数组一律**保序**。enum 尤其不排序: 取值顺序有语义(文档展示序、
-     客户端代码生成器的枚举序), 实测 51 个 enum 中 42 个非字典序, 排了就是真吞漂移。
-     parameters / anyOf / tags / security 同理保序。
-  5. 标量按 JSON 类型严格比对: bool 与数字**不**相等(JSON 里 true 和 1 序列化
+  3. ⛔ **没有任何数组排序** —— 卡文原设想的「required 按集合语义排序」在三轮
+     Codex 审查后被证伪性移除(与卡文的显著差异, 见验收单): 区分「required 是
+     Schema 关键字」还是「required 是数据」需要完整 OpenAPI 结构解析, 一切
+     启发式(键名/宿主形状/语境切分)均被反例双向打穿:
+       round-1: {"enum":[{"required":[...]}]} —— enum 值里的 required 是数据;
+       round-2: enum 实例携带 type/properties 键 —— 形状守卫被打穿;
+       round-3: x-* 扩展与 Link Object requestBody 是 Schema 位置里的数据;
+                名叫 value/enum 的属性是数据位置里的 Schema(反向误红)。
+     保守终局: 一切数组保序。误红(pydmade 字段重排报漂移)由门输出里的 FIX
+     命令兜底, 重跑 --write 即消; 吞漂移则零可能。
+  4. 标量按 JSON 类型严格比对: bool 与数字**不**相等(JSON 里 true 和 1 序列化
      不同, 是真实契约变更; Python 的 True == 1 必须显式打破)。int 与 float
      **有意**归并为同一 number 类型(JSON 只有一个数字类型, 1 与 1.0 语义相同,
      吸收不算吞漂移)。字符串与 null 各自独立。
@@ -55,8 +48,8 @@
 本门不证明什么: 不验证 schema 语义正确性、不验证实现与 spec 一致(那是 schemathesis
   的 tests/contract/test_openapi_contract.py 在做)、不验证跨机器/跨 Python 版本的
   确定性(本机 3.14 三次连 key 序都逐字节相同, 但 CI 用 3.11, 未跨版本实测)。
-  上述五条归一化之外的任何差异(path/schema 增删、enum 取值与顺序、required 集合
-  内容、bool↔数字翻转、任意键值变化)都原样报为漂移。
+  上述归一化之外的任何差异(path/schema 增删、enum 取值与顺序、required 数组
+  顺序与内容、bool↔数字翻转、任意键值变化)都原样报为漂移。
 """
 
 import argparse
@@ -124,51 +117,20 @@ def _tag_leaf(value):
     return ("raw", value)
 
 
-VALUE_CONTEXT_KEYS = frozenset(
-    {"enum", "const", "default", "example", "examples", "value"}
-)
-"""这些键的**值是实例数据**, 不是 Schema —— JSON Schema 的封闭世界性质。
+def _normalize(node):
+    """归一化: dict 按 key 排序, 数组一律保序, 标量打类型标签。
 
-enum/const 的成员、default/example 的值、Example Object 的 value, 实例都必须与
-之**精确相等**, 其内部一切数组(含恰好叫 required 的)都是有序数据。实例数据里
-不可能再嵌 Schema(JSON Schema 规定 instance 与 schema 是两个不相交的世界),
-所以 value-context 一旦进入, 对整棵子树都成立, 不需要任何内容启发式。
-(Codex round-2 BLOCKER: 宿主含 type/properties 的形状启发式会被
-{"enum":[{"type":"tag","required":[...]}]} 这类把 type 当普通数据键的合法
-enum 实例打穿 —— 内容模仿是无底洞, 语境切分才是封闭世界里的完备判据。)
-"""
-
-
-def _normalize(node, key_in_parent=None, container=None, value_context=False):
-    """container = 拥有 key_in_parent 这个键的那个 dict(即 node 的宿主)。
-
-    required 排序只发生在 **Schema 语境**(value_context=False)下: 此时 required
-    是 JSON Schema 关键字, 集合语义(pydantic 按字段声明序生成, 实测 281 个中
-    144 个非字典序, 不排序会把无关字段重排报成漂移)。进入实例数据键的子树后
-    value_context 恒为 True, 一切数组保序 —— 顺序差异必须报为漂移。
+    ⛔ 刻意**不做任何 required 排序**(三轮 Codex 审查的终局结论): 按键名排序
+    required 数组需要可靠区分「Schema 关键字」与「数据」, 而三轮审查逐一证明
+    一切启发式双向不健全 —— 键名/形状守卫被 enum 实例打穿(round-1/2), 语境
+    切分被 Schema 扩展(x-*)与 Link Object 的字面 requestBody 打穿, 反向又把
+    名叫 value/enum 的合法属性误判为数据(round-3)。误红的代价 = 开发者跑一次
+    门输出里打印的 FIX 命令; 吞漂移的代价 = 假门。本项目宁取前者。
     """
     if isinstance(node, dict):
-        normalized = {}
-        for key in sorted(node):
-            normalized[key] = _normalize(
-                node[key],
-                key,
-                node,
-                value_context or key in VALUE_CONTEXT_KEYS,
-            )
-        return normalized
+        return {key: _normalize(node[key]) for key in sorted(node)}
     if isinstance(node, list):
-        if (
-            key_in_parent == "required"
-            and all(isinstance(item, str) for item in node)
-            and not value_context
-        ):
-            return sorted(node)
-        # value_context 必须穿透数组边界: enum 的成员列表本身是数组, 语境若在此
-        # 断掉, 成员对象内的 required 又会被当 Schema 关键字排序(Codex round-2
-        # 反例复现的根因就是这里)
-        return [_normalize(item, None, None, value_context) for item in node]
-        return [_normalize(item, None, None) for item in node]
+        return [_normalize(item) for item in node]
     return _tag_leaf(node)
 
 

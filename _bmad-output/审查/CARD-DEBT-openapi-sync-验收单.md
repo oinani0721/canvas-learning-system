@@ -89,6 +89,10 @@ commit 是全批最后一个合入; 批次收官时主 session 必须在最终�
 
 ## 二、「待你裁决」(均为建议默认、待裁决——已按默认在车道落 commit、未 push)
 
+0. **⛔ 按 round-3 后停轮状态合并与否** — Codex 三轮均 FAIL(未达 BLOCKER/HIGH
+   清零), round-3 整改未经第四轮确认(见六·停轮声明)。可选: (甲) 接受现状合并,
+   归一化策略差异(移除 required 排序)一并认账; (乙) 排第四轮确认后再合;
+   (丙) 走卡文降级预案只收 (a)(d)(e)+路径修正, Dredd/update-spec 处置留裁决。
 1. **删除 update-spec 自动提交 job** — 它写仓库根路径(文件全历史不存在)、`|| true` 吞掉
    commit 与 push 失败、job 恒绿却从未推上任何东西。删除后快照保鲜靠三层:
    lefthook(改 API 即重生成并 stage, 失败 exit 1 阻断 commit) + CI 漂移红门 + 批次收官
@@ -98,9 +102,10 @@ commit 是全批最后一个合入; 批次收官时主 session 必须在最终�
    in-process(`test_openapi_contract.py`, from_asgi)继续承担 schema 一致性校验。
    已登记独立候选卡(复活/退役由该卡裁决, 届时删 `if: false` 即可)。
 3. **lefthook spec-sync 出声化+改口径** — 失败从静默改为 exit 1 阻断 commit; 解析器从裸
-   `python` 改 `backend/.venv/bin/python`; 直接写并 stage `backend/openapi.json`。代价:
-   触及 backend/app/{api,models,schemas} 的 commit 多约 20s 导入耗时, 且快照因时间戳
-   恒变必然出现在这类 commit 的 diff 里(内容漂移由比对侧归一化吸收, 不会误红)。
+   `python` 改 `backend/.venv/bin/python`; 直接写并 stage `backend/openapi.json`;
+   pre-commit 改串行(双 spec-sync 命令 git add 互斥)。代价: 触及 backend/app 相关
+   文件的 commit 多约 20s 导入耗时, 且快照因时间戳恒变必然出现在这类 commit 的
+   diff 里(内容漂移由比对吸收, 不会误红)。
 
 ## 三、证据缺口与已知边界(如实声明)
 
@@ -224,4 +229,29 @@ git status --short → (空) ; 无新 commit
     stderr 文件(3 份共 ~3MB), 属其他卡产物, 本卡不动, 登记移交主 session。
   - LOW: 验收单「7 文件/19 测试」→ 实际首 commit 8 文件、现 23 测试; summary
     中 schemathesis 措辞再软化(「本地可选测试, 未进 CI」)。
-- **Round 3**(终轮): (待回填)
+- **Round 3**(gpt-5.6-sol ultra, 终轮): 终裁 **FAIL — 2 BLOCKER + 1 HIGH + 1 MEDIUM**。
+  复验确认 round-2 点名窄例已修(PID tmp 8 进程 0 失败、覆盖集 85∩2=∅、oasdiff/
+  隐私窄项 PASS), 但指出: (a) 语境切分被 Schema 位置的**数据**打穿(x-* 扩展、
+  Link Object 字面 requestBody, OpenAPI 3.1 允许); (b) 反向**误红** HIGH——名叫
+  value/enum 的合法属性会被误标为数据(快照 :474 已存在 properties.value, 暂未
+  触发); (c) flat+root 双命令并发 `git add` 仍争 index.lock(100/100 碰撞,
+  真实 lefthook 入口 rc=1,1,0,1) → 误阻断; (d) 16 处 home 路径未脱色 + 若干 LOW。
+- **Round-3 整改(终轮整改, 停轮后按卡文降级预案收口)**:
+  - **B1 终解 = 移除 required 排序本身**(与卡文 (a)「required 按集合语义排序」
+    的显著差异, 用户裁决时请特别注意): 三轮审查证明区分「required 是 Schema
+    关键字还是数据」需要完整 OpenAPI 结构解析, 键名/形状/语境启发式全部双向
+    不健全。移除后门只会**更严**(一切数组保序, 任何顺序差异都报)——吞漂移
+    零可能; 误红(pydantic 字段重排)由门输出内的 FIX 命令兜底, 且日常路径
+    (hook 自动重生成)根本不会见到该误红, 仅 hook 被绕过时出现、此时重生成
+    本就是正确动作。四类反例(含 round-3 的 x-*/Link)逐一验证全部报漂移;
+    真实快照重生成 diff 311 行 = 281 个 required 数组恢复声明序的一次性切换。
+  - **B3 终解 = pre-commit `parallel: false`**(index.lock 争抢根因是双命令
+    并发 git add; 串行实测双触发场景顺序执行、双 add 成功、exit 0)。代价:
+    本 hook 各命令本就秒级(pyright 本机缺席即跳过), 串行损失可忽略。
+  - 隐私: round-2 报告/提示词 16 处 home 路径脱色; 尾部空行清理(git diff --check)。
+  - LOW: 不可达旧 return 随重构移除。
+- **⛔ 停轮声明(卡文「最多 3 轮」已到)**: Codex 三轮终裁均为 FAIL, round-3 的
+  整改(上述)已完成但**未经第四轮 Codex 确认**——这是本卡唯一证据缺口, 与
+  CARD-G8-1「7 轮整改未跑第 8 轮确认」同型。整改的有效性以本地判据支撑:
+  23 门测试全绿 + 负控 PASS + DRIFT: none + 四类反例全报漂移 + 双命令串行
+  零碰撞。是否按此状态合并 = **待用户裁决**(与下方 CI/CD 三项一并)。
