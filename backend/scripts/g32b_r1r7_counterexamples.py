@@ -143,10 +143,19 @@ def r1():
     v = new_vault("r1")
     assert run(v).returncode == 0
     base = rows(v)[0]
-    for key, val, desc in (
-        ("out_of_order", True, "out_of_order (旧实现完整穿透链)"),
-        ("note", "外部注入", "任意未知键"),
-    ):
+    # ⚠️ `out_of_order` 现被更早的语义门接管 (见 n1_n5 的 N1) —— 只有**合法
+    # 乱序形态** (review_time ≤ W) 的该键才会走到 envelope 门。保 W 不回滚地
+    # 测它, R1 的原始穿透链仍被覆盖: 本次评分事实里没有这个键, 键集不等即冲突。
+    base_oo = json.loads(json.dumps(base))
+    base_oo["payload"]["out_of_order"] = True  # review_time == W ⇒ 合法乱序
+    write_rows(v, base_oo)
+    r_oo = run(v, ts="2026-09-01T07:00:00Z")
+    check(
+        "R1/out_of_order (合法乱序形态, 走 envelope 门)",
+        r_oo.returncode != 0 and "envelope 冲突" in r_oo.stderr and len(rows(v)) == 1,
+        f"rc={r_oo.returncode} 账本={len(rows(v))}行 | {last_line(r_oo.stderr)}",
+    )
+    for key, val, desc in (("note", "外部注入", "任意未知键"),):
         (v / NODE_REL).write_text(NODE_V0, encoding="utf-8")  # 崩溃窗口①
         t = json.loads(json.dumps(base))
         t["payload"][key] = val
@@ -325,6 +334,107 @@ def r7():
     )
 
 
+def n1_n5():
+    """round-1 后续：Codex 正文被内容过滤器拦下，按 stderr 保留的推理标题线索
+    逐条实测出的五个残留面（4 条复现为真缺陷 + 1 条诊断不精确）。"""
+    print("\n── N1 (BLOCKER) 标 out_of_order 但 review_time > W：被伪装成乱序的真实后继 ──")
+    v = new_vault("n1")
+    late = _pending_row(out_of_order=True, review_time="2026-08-05T10:00:00Z")
+    late["effective_at"] = "2026-08-05T10:00:00Z"
+    write_rows(v, late)
+    s = sha(v / NODE_REL)
+    r = run(v, event_id="板B#q1", ts="2026-08-02T10:00:00Z")
+    check(
+        "N1/伪装成乱序的后继",
+        r.returncode != 0 and "伪装成乱序的真实后继" in r.stderr and sha(v / NODE_REL) == s,
+        f"rc={r.returncode} 零写={sha(v / NODE_REL) == s} | {last_line(r.stderr)}",
+    )
+    for bad in (False, "true", 1):
+        write_rows(v, _pending_row(out_of_order=bad))
+        rb = run(v, event_id="板B#q1", ts="2026-08-02T10:00:00Z")
+        check(f"N1/形态 {bad!r} 非法", rb.returncode != 0 and "形态非法" in rb.stderr, f"rc={rb.returncode}")
+    (v / "learning_events.jsonl").unlink()
+    assert run(v).returncode == 0
+    early = _pending_row(out_of_order=True, review_time="2026-07-01T10:00:00Z")
+    early["effective_at"] = "2026-07-01T10:00:00Z"
+    early["event_id"] = "quiz:补录旧事件"
+    write_rows(v, rows(v)[0], early)
+    ro = run(v, event_id="板C#q1", ts="2026-08-03T10:00:00Z")
+    check(
+        "N1/验伪-合法乱序 (review_time ≤ W) 放行且不推进 W",
+        ro.returncode == 0 and fsrs_fields(v).get("fsrs_last_review") == "2026-08-03T10:00:00Z",
+        f"rc={ro.returncode} W={fsrs_fields(v).get('fsrs_last_review')}",
+    )
+
+    print("\n── N2 (HIGH) EOF 的 LF 判据必须落在字节上（文本模式会把裸 \\r 读成 \\n）──")
+    v = new_vault("n2")
+    good = _pending_row(review_time="2026-07-01T10:00:00Z")
+    good["event_id"] = "quiz:旧板"
+    good["effective_at"] = "2026-07-01T10:00:00Z"
+    good["node_id"] = "别的节点"
+    torn = '{"event_id": "quiz:损坏行", "event_ty'
+    head = (json.dumps(good, ensure_ascii=False) + "\n").encode("utf-8") + torn.encode("utf-8")
+    (v / "learning_events.jsonl").write_bytes(head + b"\r")
+    r = run(v)
+    check(
+        "N2/裸 \\r 结尾按字节算截断",
+        r.returncode == 0 and "截断尾行" in r.stdout,
+        f"rc={r.returncode} | {last_line(r.stdout)[:90]}",
+    )
+    (v / "learning_events.jsonl").write_bytes(head + b"\r\n")
+    rb = run(v, event_id="板D#q1", ts="2026-08-04T10:00:00Z")
+    check(
+        "N2/对照-真带 LF 仍 fail-closed",
+        rb.returncode != 0 and "完整写入的损坏行" in rb.stderr,
+        f"rc={rb.returncode}",
+    )
+
+    print("\n── N3 (MEDIUM) 账本行 JSON 重复键：loads 静默取最后一个 ──")
+    v = new_vault("n3")
+    row = _pending_row()
+    row["event_id"] = "quiz:" + EID
+    text = json.dumps(row, ensure_ascii=False)
+    dup = text.replace('"grade_norm": 0.75', '"grade_norm": 0.11, "grade_norm": 0.75', 1)
+    assert dup.count('"grade_norm"') == 2
+    (v / "learning_events.jsonl").write_text(dup + "\n", encoding="utf-8")
+    r = run(v)
+    check(
+        "N3/重复键歧义",
+        r.returncode != 0 and "重复键" in r.stderr and not fsrs_fields(v),
+        f"rc={r.returncode} | {last_line(r.stderr)}",
+    )
+
+    print("\n── N4 (MEDIUM) 非法 UTF-8 字节须 clean fail-closed，不是 traceback ──")
+    v = new_vault("n4")
+    (v / "learning_events.jsonl").write_bytes(b'{"event_id": "quiz:x"}\n\xff\xfe bad\n')
+    r = run(v)
+    check(
+        "N4/非 UTF-8 字节",
+        r.returncode != 0 and "非 UTF-8 字节" in r.stderr and "Traceback" not in r.stderr,
+        f"rc={r.returncode} clean={'Traceback' not in r.stderr} | {last_line(r.stderr)}",
+    )
+
+    print("\n── N5 (MEDIUM) 多 pending 并存 → attempt 序数不可从账本边界确证 ──")
+    v = new_vault("n5")
+    e1 = _pending_row(review_time="2026-08-03T10:00:00Z")
+    e1["event_id"] = "quiz:板A#q1"
+    e1["effective_at"] = "2026-08-03T10:00:00Z"
+    e2 = _pending_row(
+        review_time="2026-08-04T10:00:00Z",
+        attempt_count=2,
+        exam_board="检验白板/测试检验-2026-08-01-1000.md",
+    )
+    e2["event_id"] = "quiz:" + EID
+    e2["effective_at"] = "2026-08-04T10:00:00Z"
+    write_rows(v, e1, e2)
+    r = run(v)
+    check(
+        "N5/A2 不变量破坏时报真因",
+        r.returncode != 0 and "不变量已被破坏" in r.stderr and not fsrs_fields(v),
+        f"rc={r.returncode} | {last_line(r.stderr)}",
+    )
+
+
 def main() -> int:
     resolved = CE_ROOT.resolve() if CE_ROOT.exists() else CE_ROOT
     if not str(resolved).startswith(str(FIXTURE_ROOT)):
@@ -335,14 +445,14 @@ def main() -> int:
         shutil.rmtree(CE_ROOT)
     CE_ROOT.mkdir(parents=True)
     print(f"反例 fixture 根: {CE_ROOT}")
-    for fn in (r1, r2, r3, r4, r5, r6, r7):
+    for fn in (r1, r2, r3, r4, r5, r6, r7, n1_n5):
         fn()
     bad = [t for t, ok, _ in RESULTS if not ok]
     print(f"\n{'=' * 70}\n判据 {len(RESULTS) - len(bad)}/{len(RESULTS)} PASS")
     if bad:
         print("FAIL:", bad)
         return 1
-    print("R1-R7 全部 fail-closed / 幂等 — 裁判 2 PASS")
+    print("R1-R7 + round-1 后续 N1-N5 全部 fail-closed / 幂等 — 裁判 2 PASS")
     return 0
 
 

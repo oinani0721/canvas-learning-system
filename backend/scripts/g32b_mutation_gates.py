@@ -31,13 +31,6 @@ MUTATIONS = [
         "test_r1_unknown_durable_payload_key_conflicts",
     ),
     (
-        "M2a-R2-drop-subsecond-check",
-        SKILL,
-        "    if _dt.microsecond:\n",
-        "    if False and _dt.microsecond:\n",
-        "test_r2_non_whole_second_durable_review_time_fail_closed",
-    ),
-    (
         "M2b-R2-drop-utc-offset-check",
         SKILL,
         "    if _dt.tzinfo is None or _dt.utcoffset() != timedelta(0):\n",
@@ -101,6 +94,84 @@ MUTATIONS += [
         '    if f1:\n        print(f"[quiz-answer] {NODE}: event={eid} 已完整应用，幂等跳过（无任何改动）；账本无对应行',
         '    if False and f1:\n        print(f"[quiz-answer] {NODE}: event={eid} 已完整应用，幂等跳过（无任何改动）；账本无对应行',
         "test_six_cell_state_machine_closed",
+    ),
+]
+
+
+MUTATIONS += [
+    (
+        "M10-R2-value-not-literal",
+        SKILL,
+        "    if not _WHOLE_SECOND_RE.match(rt.strip()):\n",
+        "    if False and not _WHOLE_SECOND_RE.match(rt.strip()):  # MUTANT: 退回只看解析后的值\n",
+        "test_r2_non_whole_second_durable_review_time_fail_closed",
+    ),
+]
+
+
+# ── round-1 后续 N1-N5 的承重变异（每条精确退回修复前形态）
+MUTATIONS += [
+    (
+        "M11-N1-drop-out-of-order-semantic-gate",
+        SKILL,
+        "        if W_inst is None or _oo_inst > W_inst:\n",
+        "        if False and (W_inst is None or _oo_inst > W_inst):  # MUTANT\n",
+        "test_round1_followups_n1_to_n5",
+    ),
+    (
+        "M12-N1-drop-out-of-order-shape-gate",
+        SKILL,
+        '        if _pl["out_of_order"] is not True:\n',
+        '        if False and _pl["out_of_order"] is not True:  # MUTANT\n',
+        "test_round1_followups_n1_to_n5",
+    ),
+    (
+        # ⚠️ 首版 M13 打在 `endswith(b"\\n")` 上并**存活** —— 那不是承重点:
+        # bytes.decode() 不做 universal newlines, 只有文本模式 open(encoding=)
+        # 做。真正的承重点是「二进制读 vs 文本模式读」, 变异必须打在那一处。
+        "M13-N2-text-mode-read",
+        SKILL,
+        '    _raw_bytes = open(EV, "rb").read()\n'
+        "    try:\n"
+        '        _raw_text = _raw_bytes.decode("utf-8")\n'
+        "    except UnicodeDecodeError as _ue:\n",
+        '    _raw_text = open(EV, encoding="utf-8").read()  # MUTANT: 退回文本模式读\n'
+        "    if False:\n"
+        "        _ue = None\n"
+        "    elif False:\n",
+        "test_round1_followups_n1_to_n5",
+    ),
+    (
+        "M14-N3-drop-duplicate-key-hook",
+        SKILL,
+        "json.loads(_line.strip(), object_pairs_hook=_no_dup_keys)",
+        "json.loads(_line.strip())",
+        "test_round1_followups_n1_to_n5",
+    ),
+    (
+        "M15-N4-decode-with-replace",
+        SKILL,
+        '        _raw_text = _raw_bytes.decode("utf-8")\n',
+        '        _raw_text = _raw_bytes.decode("utf-8", errors="replace")  # MUTANT\n',
+        "test_round1_followups_n1_to_n5",
+    ),
+    (
+        "M16-N5-hard-compute-attempt-across-pending",
+        SKILL,
+        "        if _before_pending:\n",
+        "        if False and _before_pending:  # MUTANT: 退回硬算\n",
+        "test_round1_followups_n1_to_n5",
+    ),
+]
+
+
+MUTATIONS += [
+    (
+        "M17-N1-schema-drops-writer-side-clause",
+        SCHEMA,
+        "写点（在线 A2）侧同款语义门",
+        "写点侧不另作要求",
+        "test_r6_schema_declares_identity_key_integrity_owner",
     ),
 ]
 

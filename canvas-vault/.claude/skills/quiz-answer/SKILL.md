@@ -219,7 +219,7 @@ sys.path.insert(0, os.path.join(VAULT, ".claude", "scripts"))
 try:
     from fsrs_bridge import rating_from_grade, fields_from_frontmatter
     sys.path.insert(0, os.path.join(REPO, "backend", "scripts"))
-    from validate_learning_events import classify_card_state, _vault_id_of
+    from validate_learning_events import classify_card_state, _vault_id_of, _WHOLE_SECOND_RE
 except Exception as _e:
     raise SystemExit(f"[quiz-answer] G3-2 依赖不可达 (validate_learning_events/fsrs_bridge import 失败), fail-closed 拒写: {_e}")
 
@@ -240,15 +240,34 @@ def _durable_instant(rt, ctx):
     """
     if not isinstance(rt, str) or not rt.strip():
         raise SystemExit(f"[quiz-answer] {ctx} 的 review_time 非字符串 ({rt!r}), fail-closed 拒写")
+    # 整秒判据复用**校验器本体**的 _WHOLE_SECOND_RE (禁第三套, DD-03/DD-13):
+    # 判据必须是**字面**而非解析后的值 —— '10:00:00.000000Z' 的 microsecond
+    # 恰为 0, 只看值会放行它, 而校验器按字面判 FAIL ⇒ 写点放行、validator 拒,
+    # 实现与契约又成两个口径 (正是 R6 那类缺陷的重演)。同源即无分叉。
+    if not _WHOLE_SECOND_RE.match(rt.strip()):
+        raise SystemExit(f"[quiz-answer] {ctx} 的 review_time 非 canonical 整秒形态 ({rt!r}; §6.2 A5 要求 YYYY-MM-DDThh:mm:ss 加 Z 或 ±hh:mm, 无小数秒 — 含小数秒会让同一行二次推进 FSRS), fail-closed 拒写")
     try:
         _dt = datetime.fromisoformat(rt.strip().replace("Z", "+00:00"))
     except ValueError:
         raise SystemExit(f"[quiz-answer] {ctx} 的 review_time 不可解析 ({rt!r}), fail-closed 拒写")
+    # 字面门放行 ±hh:mm 任意偏移 (校验器口径); A2 消费面比校验器**严一档**,
+    # 只收 UTC (卡文 (b)) —— 本写点恒产出 Z, 非 UTC 行必为外部写入。
     if _dt.tzinfo is None or _dt.utcoffset() != timedelta(0):
         raise SystemExit(f"[quiz-answer] {ctx} 的 review_time 非 UTC ({rt!r}; §6.2 A6 要求 tz-aware UTC 时刻), fail-closed 拒写")
-    if _dt.microsecond:
-        raise SystemExit(f"[quiz-answer] {ctx} 的 review_time 含小数秒 ({rt!r}; §6.2 A5 要求整秒 — 消费时归一会让同一行二次推进 FSRS), fail-closed 拒写")
     return _dt
+
+class _DupKey(Exception):
+    """JSON 对象内出现重复键。**不继承 ValueError** —— 否则会被账本读取的
+    「坏行」分支当成解析失败吞掉, 末行还会被当截断容忍。"""
+
+
+def _no_dup_keys(pairs):
+    _seen = set()
+    for _k, _ in pairs:
+        if _k in _seen:
+            raise _DupKey(repr(_k))
+        _seen.add(_k)
+    return dict(pairs)
 
 # ── G3-2 frontmatter 重复键 fail-closed (schema §6.2 三态边界声明: 重复键
 # 信息在解析层即丢失, 责任在解析处; 本正则解析器不保留重复键 ⇒ 写/读的键
@@ -302,15 +321,30 @@ def _fm_has_event(fm_text, ev_id):
 # 提交), 不是被腰斩的半行 — 旧实现只看「最后一行解析失败」, 于是真实损坏被
 # 当截断容忍, writer 照常 rc=0 追加并推进节点。EOF 的 LF 状态是区分二者的
 # 唯一机械证据, 读取时必须保留。
+# ⛔ 必须二进制读: 文本模式的 universal newlines 会把裸 \r 与 \r\n 都读成 \n,
+# 于是「EOF 有没有 LF」这个**字节**判据在解析层就已失真 —— 以裸 \r 结尾的
+# 截断文件会被误判成「完整写入的损坏行」而 fail-closed (实测)。追加侧的 LF
+# 守卫读的正是最后一个字节, 两处判据必须同源。行切分同样严格按 LF (JSONL 定义)。
 _rows = []
 if os.path.exists(EV):
-    _raw_text = open(EV, encoding="utf-8").read()
-    _ends_with_lf = _raw_text.endswith("\n")
+    _raw_bytes = open(EV, "rb").read()
+    try:
+        _raw_text = _raw_bytes.decode("utf-8")
+    except UnicodeDecodeError as _ue:
+        # 未捕获会抛 traceback (零写但非 clean); 账本含非 UTF-8 字节 = 真实损坏
+        raise SystemExit(f"[quiz-answer] 账本含非 UTF-8 字节 ({_ue}), fail-closed 拒写 — 请人工修复 learning_events.jsonl")
+    _ends_with_lf = _raw_bytes.endswith(b"\n")
     _raw_lines = _raw_text.split("\n")
     _n_lines = len([x for x in _raw_lines if x.strip()])
     for _ln, _line in enumerate((x for x in _raw_lines if x.strip()), 1):
         try:
-            _rows.append((_ln, json.loads(_line.strip())))
+            _rows.append((_ln, json.loads(_line.strip(), object_pairs_hook=_no_dup_keys)))
+        except _DupKey as _dk:
+            # 与 frontmatter 重复键同一口径 (解析层信息丢失, 责任在解析处):
+            # json.loads 静默取最后一个值, 于是一行里的两个 grade_norm 只有后者
+            # 参与 envelope 比较 —— 前者是什么无从证明。_DupKey 不继承 ValueError,
+            # 故不会被下面的坏行分支吞掉。
+            raise SystemExit(f"[quiz-answer] 账本第 {_ln} 行 JSON 含重复键 {_dk} (解析层取最后一个值, 歧义不可证), fail-closed 拒写 — 请人工修复 learning_events.jsonl")
         except ValueError:
             if _ln == _n_lines and not _ends_with_lf:
                 print(f"[quiz-answer] 账本第 {_ln} 行为截断尾行 (崩溃产物: 非 JSON 且无终止 LF) — 追加时 LF 守卫隔离, 不阻塞本次评分")
@@ -459,9 +493,23 @@ for _ln, _o in _rows:
     _pl = _o.get("payload") if isinstance(_o, dict) else None
     if not isinstance(_pl, dict) or _pl.get("schema_ext") != "review/1":
         continue
-    if _o.get("node_id") != node_id or _pl.get("out_of_order") is True:
+    if _o.get("node_id") != node_id:
         continue
-    _applicable.append((_durable_instant(_pl.get("review_time"), f"账本第 {_ln} 行({_o.get('event_id')})"), _ln, _o))
+    _ctx = f"账本第 {_ln} 行({_o.get('event_id')})"
+    if "out_of_order" in _pl:
+        # 形态门 (§6.2 三态语义 round-4 HIGH#3 冻结): 唯一合法值是布尔 true;
+        # 写 false/"true"/其它形态既非「已标」也非「未标」, 排除条件产生歧义。
+        if _pl["out_of_order"] is not True:
+            raise SystemExit(f"[quiz-answer] {_ctx} 的 payload.out_of_order 形态非法 ({_pl['out_of_order']!r}; §6.2 冻结唯一合法值为布尔 true, 未标则不写该键), fail-closed 拒写")
+        # 语义门 (§6.2 三态语义 round-17 冻结, 本卡补进写点侧): 标记本身是把
+        # 事件移出适用集的手段 —— 若某行标了该键、其 review_time 却**晚于**水位线
+        # W, 它就是**被伪装成乱序的真实后继**, 排除它 = 该事件的 FSRS 永久丢失
+        # 且 writer 照常 rc=0 (实测)。乱序的定义就是 review_time ≤ W。
+        _oo_inst = _durable_instant(_pl.get("review_time"), _ctx)
+        if W_inst is None or _oo_inst > W_inst:
+            raise SystemExit(f"[quiz-answer] {_ctx} 标了 out_of_order 但 review_time={_pl.get('review_time')!r} 晚于水位线 W={W or '(无, 新卡)'} — 乱序的定义是 review_time ≤ W, 该行是被伪装成乱序的真实后继, fail-closed 拒写")
+        continue
+    _applicable.append((_durable_instant(_pl.get("review_time"), _ctx), _ln, _o))
 _applicable.sort(key=lambda t: (t[0], t[1]))
 
 # ── G3-2 幂等分诊主流程 (Codex round-2 BLOCKER 重排)。
@@ -512,7 +560,14 @@ else:
     if _fsrs_applied or f1:
         _att_expect = _att_now - _after_applied
     else:
-        _att_expect = _att_now + 1 + _before_pending
+        if _before_pending:
+            # A2 保证单写者下至多一个 pending (追加前重放至空), 故本行不可达于
+            # 正常路径。多个未应用事件并存 = 账本被外部改过, 此时 durable 行的
+            # attempt 究竟按哪个 frontmatter 值 +1 写出来**不可从账本边界证明**
+            # —— 硬算出来的期望值即使碰巧相等也只是巧合, 放行等于在不可证的
+            # 基线上继续。报真因, 不伪装成 envelope 冲突。
+            raise SystemExit(f"[quiz-answer] 账本存在 {_before_pending} 个早于 {evid} 且未应用的适用事件 (A2「追加前重放至空」不变量已被破坏) — attempt 序数不可从账本边界确证, fail-closed 拒写 — 请人工核对 learning_events.jsonl")
+        _att_expect = _att_now + 1
     _mine_env = {
         "event_version": 1, "event_type": etype, "node_id": node_id,
         "effective_at": _dup_rt,
