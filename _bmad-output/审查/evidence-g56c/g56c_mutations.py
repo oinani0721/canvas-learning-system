@@ -164,11 +164,10 @@ MUTATIONS: list[tuple[str, set[str], list[tuple[str, str]]]] = [
         {G_INVIS},
         [
             (
-                '    return "".join(\n'
-                "        repl if unicodedata.category(c) in _INVISIBLE_CATEGORIES else c for c in s\n"
-                "    )\n",
-                '    _old = "\\u200b\\u200c\\u200d\\u2060\\ufeff\\u00ad"\n'
-                '    return "".join(repl if c in _old else c for c in s)\n',
+                "            unicodedata.category(c) in _INVISIBLE_CATEGORIES\n"
+                '            or (c.isspace() and c not in " \\t")\n',
+                '            c in "\\u200b\\u200c\\u200d\\u2060\\ufeff\\u00ad"\n'
+                "            or False\n",
             )
         ],
     ),
