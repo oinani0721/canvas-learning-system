@@ -185,13 +185,19 @@ PYEOF
 
 ```bash
 python3 - <<'PYEOF'
-import json, re, os, sys
+import json, re, os, sys, subprocess
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 P = "/tmp/quiz-answer-payload.json"
 p = json.load(open(P, encoding="utf-8"))
 NODE = p["node"]; GN = float(p["grade_norm"])
 # F3 修复 (2026-07-12): grade_norm 钳制 [0,1] — LLM 把 1-4 分误当 grade_norm
 # 传入时 (如 3.5), 首评分支会把 mastery_score 直接写成 3.5 污染全链
 GN = max(0.0, min(1.0, GN))
+# G3-2: 舍入先行 — 事件 payload 的 grade_norm 与 FSRS 的 rating 同源自洽
+# (校验器按 payload 的 grade_norm 复算 rating; 若 FSRS 吃未舍入值而 payload
+# 存舍入值, 0.4999 这类档界值会两边分档)。mastery 仍用钳制原值, 行为不变。
+GN2 = round(GN, 2)
 
 s = open(NODE, encoding="utf-8").read()
 m = re.match(r'^﻿?---\r?\n(.*?)\r?\n---[ \t]*\r?\n?(.*)$', s, re.S)
@@ -199,13 +205,100 @@ if not m:
     raise SystemExit("frontmatter 解析失败：" + NODE)
 fm, body = m.group(1), m.group(2)
 
-# ⛔ 事件级幂等（放在一切改动之前）：本文件是单次原子写——event_id 已在 frontmatter
-# = 上次已完整成功（含 EMA），续跑必须整体 no-op，否则 EMA 会被重复应用。
 eid = p.get("event_id", "")
-if eid and json.dumps(eid, ensure_ascii=False) in fm:
-    print(f"[quiz-answer] {NODE}: event={eid} 已记录，幂等跳过（无任何改动）")
-    os.remove(P)
-    raise SystemExit(0)
+etype = "answer_abandoned" if p.get("abandoned") else "answer_scored"
+evid = "quiz:" + eid
+node_id = os.path.splitext(os.path.basename(NODE))[0]
+VAULT = os.path.dirname(os.path.dirname(os.path.abspath(NODE)))
+REPO = os.path.dirname(VAULT)
+EV = os.path.join(VAULT, "learning_events.jsonl")
+
+# ── G3-2 复用单一实现 (禁第三套, DD-03/DD-13): 三态判别用校验器本体,
+# rating/字段抽取用 bridge 本体, vault_id 绑定用校验器的 _vault_id_of。
+sys.path.insert(0, os.path.join(VAULT, ".claude", "scripts"))
+try:
+    from fsrs_bridge import rating_from_grade, fields_from_frontmatter
+    sys.path.insert(0, os.path.join(REPO, "backend", "scripts"))
+    from validate_learning_events import classify_card_state, _vault_id_of
+except Exception as _e:
+    raise SystemExit(f"[quiz-answer] G3-2 依赖不可达 (validate_learning_events/fsrs_bridge import 失败), fail-closed 拒写: {_e}")
+
+def _aware(s):
+    dt = datetime.fromisoformat(str(s).replace("Z", "+00:00"))
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+# ── G3-2 frontmatter 重复键 fail-closed (schema §6.2 三态边界声明: 重复键
+# 信息在解析层即丢失, 责任在解析处; 本正则解析器不保留重复键 ⇒ 写/读的键
+# 出现重复时停下, 不猜)。误报方向 fail-closed (顶格错位文本会被当键) 可接受。
+FSRS_KEYS = ("fsrs_due", "fsrs_state", "fsrs_step", "fsrs_stability", "fsrs_difficulty", "fsrs_last_review")
+_watched = ("type", "source_board", "mastery_score", "mastery", "mastery_level",
+            "mastery_a", "mastery_b", "attempt_count", "last_examined", "calibration_log") + FSRS_KEYS
+_keycount = {}
+for _mm in re.finditer(r'^([A-Za-z_][A-Za-z0-9_-]*):', fm, re.M):
+    _keycount[_mm.group(1)] = _keycount.get(_mm.group(1), 0) + 1
+_dupkeys = sorted(k for k, c in _keycount.items() if c > 1 and k in _watched)
+if _dupkeys:
+    raise SystemExit(f"[quiz-answer] frontmatter 重复键 {_dupkeys} (解析歧义不可证), fail-closed 拒写 — 请手工修复节点后重跑")
+
+# ── G3-2 幂等分诊前置判定。两个独立域:
+#   F1 = 本 event_id 已在 frontmatter calibration_log (解析层判定, 非子串 —
+#        live 实证 Obsidian 会把 yaml 引号规范化掉, json.dumps 子串恒不命中;
+#        双引号形态经 json.loads 与写侧 json.dumps 同源反解, 单引号/裸词剥引号)
+#   L1 = 账本已有 parsed event_id == evid 的行 (parsed-field equality, 禁子串)
+# ⛔ F1 单独不能证明 FSRS 已推进 (degraded 落账写过 calibration 但没写 W —
+# Codex round-2 BLOCKER): 「已应用」的机械判据是 W >= durable.review_time,
+# 分诊在下方主流程里做, 这里只放解析函数。
+def _fm_has_event(fm_text, ev_id):
+    mcal = re.search(r'^calibration_log:[ \t]*$', fm_text, re.M)
+    if not mcal:
+        return False
+    for ln in fm_text[mcal.end():].split("\n")[1:]:
+        if ln and not ln[0].isspace():
+            break
+        mm = re.match(r'^\s*-\s*event_id:\s*(.+?)\s*$', ln)
+        if mm:
+            v = mm.group(1).strip()
+            if v.startswith('"') and v.endswith('"') and len(v) >= 2:
+                try:
+                    v = json.loads(v)  # 双引号 scalar 与写侧 json.dumps 同源反解 (含 \" \\)
+                except ValueError:
+                    pass
+            elif len(v) >= 2 and v[0] == v[-1] and v[0] == "'":
+                v = v[1:-1]
+            if v == ev_id:
+                return True
+    return False
+
+# ── G3-2 账本读取 (parsed)。⚠️ 单写者前提 (G3-3 前无锁): 同一 vault 内不得
+# 并行运行任何两个 quiz-answer (账本 per-vault 共享文件, 与是否同节点无关,
+# schema §6.2 A4.5) — 本块无任何互斥, 并行会在「读-算-写」间隙双写/丢失。
+# 尾行截断 (崩溃产物, §二 截断自愈) → 跳过并留痕, 由追加前 LF 守卫隔离;
+# 中间坏行 = 真实损坏 → fail-closed 人工介入。
+_rows = []
+if os.path.exists(EV):
+    _raw_lines = open(EV, encoding="utf-8").read().split("\n")
+    _n_lines = len([x for x in _raw_lines if x.strip()])
+    for _ln, _line in enumerate((x for x in _raw_lines if x.strip()), 1):
+        try:
+            _rows.append((_ln, json.loads(_line.strip())))
+        except ValueError:
+            if _ln == _n_lines:
+                print(f"[quiz-answer] 账本第 {_ln} 行为截断尾行 (崩溃产物, 非 JSON) — 追加时 LF 守卫隔离, 不阻塞本次评分")
+            else:
+                raise SystemExit(f"[quiz-answer] 账本第 {_ln} 行损坏 (非 JSON), fail-closed 拒写 — 请人工修复 learning_events.jsonl")
+# 幂等键全文件唯一 (§三): 账本被外部工具写出重复 event_id 时, A2 会把两条
+# 同 id 行各重放一次 = 确定性二次 apply (Codex round-2 BLOCKER) → 拒写人工修复
+_seen_ids = {}
+for _, _o in _rows:
+    if isinstance(_o, dict):
+        _k = _o.get("event_id")
+        if isinstance(_k, str) and _k:
+            _seen_ids[_k] = _seen_ids.get(_k, 0) + 1
+_id_dupes = sorted(k for k, c in _seen_ids.items() if c > 1)
+if _id_dupes:
+    raise SystemExit(f"[quiz-answer] 账本 event_id 重复 {_id_dupes[:3]} (幂等键全文件唯一被破坏), fail-closed 拒写 — 请人工修复 learning_events.jsonl")
+dup = next((o for _, o in _rows if isinstance(o, dict) and o.get("event_id") == evid), None)
+f1 = bool(eid) and _fm_has_event(fm, eid)
 
 # 回填 type/source_board（Dashboard 可见性，缺才补）
 if not re.search(r'^type:', fm, re.M):
@@ -213,138 +306,360 @@ if not re.search(r'^type:', fm, re.M):
 if p.get("source_board") and not re.search(r'^source_board:', fm, re.M):
     fm = fm.rstrip() + '\nsource_board: ' + json.dumps(p["source_board"], ensure_ascii=False)
 
-# 衰减 Beta 后验（批次2' A1, MEM-FLYWHEEL-2026-07-22, 对账§2）:
-# 旧 EMA 恒权 α=0.5 不收敛（考100次和考3次精度一样）→ Beta(a,b) + γ=0.9
-# 打折, 越考越准且能跟随掌握状态跳变。状态量存 mastery_a/mastery_b,
-# mastery_score = μ 保持 Dashboard 兼容。算法单一真相源: .claude/scripts/decay_beta.py
-VAULT = os.path.dirname(os.path.dirname(os.path.abspath(NODE)))
+# ── G3-2 mastery 计算抽函数 (正常/恢复两路径共用)。biz_ts = 本次业务时刻:
+# 正常路径用 payload ts, 恢复路径用 durable 行 review_time — 保证恢复产物与
+# 直接应用逐字节对齐 (Codex round-2 HIGH: 卡文门②要求字节等值)。
 sys.path.insert(0, os.path.join(VAULT, ".claude", "scripts"))
 from decay_beta import PRIOR_A, PRIOR_B, from_legacy, mu, update_after_idle
 
-old = None
-for key in ("mastery_score", "mastery", "mastery_level"):
-    mo = re.search(rf'^{key}:\s*"?([0-9]*\.?[0-9]+)"?\s*$', fm, re.M)
-    if mo:
-        old = float(mo.group(1)); break
-ma = re.search(r'^mastery_a:\s*"?([0-9]*\.?[0-9]+)"?\s*$', fm, re.M)
-mb = re.search(r'^mastery_b:\s*"?([0-9]*\.?[0-9]+)"?\s*$', fm, re.M)
-if ma and mb:
-    A, B = float(ma.group(1)), float(mb.group(1))
-elif old is not None:
-    A, B = from_legacy(old)  # 旧 EMA 分迁移: 均值继承, 只给等效样本量3的低置信
-else:
-    A, B = PRIOR_A, PRIOR_B
-# 闲置感知评分 (终审 A2, DAILY-REVIEW-PUSH-2026-07-29): 先按闲置天数折旧旧证据
-# 再吸收本次成绩 — 否则闲置期抬高的 σ 会被旧 n 一次评分瞬间抹平
-# (置信度复活病理: 闲置一年答错, pick 反而 0.632→0.692 更不紧急)。
-from datetime import datetime, timezone
-def _aware(s):
-    dt = datetime.fromisoformat(str(s).replace("Z", "+00:00"))
-    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
-days_idle = 0.0
-mle = re.search(r'^last_examined:\s*"?([^"\n]+)"?\s*$', fm, re.M)
-if mle:
-    try:
-        days_idle = max(0.0, (_aware(p["ts"]) - _aware(mle.group(1))).total_seconds() / 86400.0)
-    except ValueError:
-        days_idle = 0.0  # 时间戳损坏: 不折旧, 保守按连续考察处理
-A, B = max(A, 1e-4), max(B, 1e-4)  # 手工编辑容错: a/b 被改成 0 时 effective 会拒 (Code-Review L7)
-A, B = update_after_idle(A, B, GN, days_idle)
-new = round(mu(A, B), 2)
+def _apply_mastery(fm_text, biz_ts):
+    """衰减 Beta 后验 (批次2' A1, MEM-FLYWHEEL-2026-07-22): Beta(a,b)+γ=0.9
+    打折 + 闲置折旧 (终审 A2)。返回 (old, A, B, new)。"""
+    old = None
+    for key in ("mastery_score", "mastery", "mastery_level"):
+        mo = re.search(rf'^{key}:\s*"?([0-9]*\.?[0-9]+)"?\s*$', fm_text, re.M)
+        if mo:
+            old = float(mo.group(1)); break
+    ma = re.search(r'^mastery_a:\s*"?([0-9]*\.?[0-9]+)"?\s*$', fm_text, re.M)
+    mb = re.search(r'^mastery_b:\s*"?([0-9]*\.?[0-9]+)"?\s*$', fm_text, re.M)
+    if ma and mb:
+        a_, b_ = float(ma.group(1)), float(mb.group(1))
+    elif old is not None:
+        a_, b_ = from_legacy(old)  # 旧 EMA 分迁移: 均值继承, 只给等效样本量3的低置信
+    else:
+        a_, b_ = PRIOR_A, PRIOR_B
+    # 闲置感知评分 (终审 A2, DAILY-REVIEW-PUSH-2026-07-29): 先按闲置天数折旧
+    # 旧证据再吸收本次成绩 — 否则闲置期抬高的 σ 会被旧 n 一次评分瞬间抹平。
+    days_idle = 0.0
+    mle = re.search(r'^last_examined:\s*"?([^"\n]+)"?\s*$', fm_text, re.M)
+    if mle:
+        try:
+            days_idle = max(0.0, (_aware(biz_ts) - _aware(mle.group(1))).total_seconds() / 86400.0)
+        except ValueError:
+            days_idle = 0.0  # 时间戳损坏: 不折旧, 保守按连续考察处理
+    a_, b_ = max(a_, 1e-4), max(b_, 1e-4)  # 手工编辑容错: a/b 被改成 0 时 effective 会拒 (Code-Review L7)
+    a_, b_ = update_after_idle(a_, b_, GN, days_idle)
+    return old, a_, b_, round(mu(a_, b_), 2)
 
-# FSRS WHEN 桥 (FSRS-V2-2026-07-30, [Decision-FSRS-1/2]): 评分即一次 FSRS
-# 复习, 产出 fsrs_due 等 6 字段供推送链读侧判「今天谁到期」。桥内部自动
-# re-exec backend venv python; 任何失败诚实降级 — 衰减 Beta 照常写, 只丢
-# WHEN 字段并在 stdout 明说 (不静默)。
-import subprocess
-fsrs_block = ""
-try:
-    _r = subprocess.run(
-        ["python3", os.path.join(VAULT, ".claude", "scripts", "fsrs_bridge.py")],
-        input=json.dumps({"fm": fm, "grade_norm": GN,
-                          "abandoned": bool(p.get("abandoned")), "ts": p["ts"]}),
-        capture_output=True, text=True, timeout=30)
+# ── G3-2 三态判别 (复用校验器 classify_card_state, schema §6.2)。
+# degraded(残缺卡) → fail-closed: 报错、零写节点、检验白板停在
+# scored_pending_node_update 续跑态 (裁决③)。
+_fields = fields_from_frontmatter(fm)
+_state, _reason = classify_card_state(_fields)
+if _state == "degraded":
+    raise SystemExit(f"[quiz-answer] 节点调度状态残缺 (classify_card_state: {_reason}), fail-closed 拒写 — 请人工修复 {NODE} 后重跑")
+W = _fields.get("fsrs_last_review")
+W_inst = _aware(W) if W else None
+
+# ── G3-2 vault_id 绑定 (与校验器同函数同链路; 绑不出 = 配置断裂, fail-closed)
+_vid = _vault_id_of(Path(EV))
+if not _vid:
+    raise SystemExit("[quiz-answer] vault 归属无法绑定 (.canvas-config.yaml 缺失/损坏或 backend 不可达), fail-closed 拒写事件")
+
+# ── G3-2 bridge 调用封装。exit 2 = 输入缺陷 (naive/越界) → fail-closed;
+# 其余失败 (exit 3 / 坏输出) = fsrs 环境不可用 → 调用方走 degraded 裁决②。
+def _bridge(fm_text, gn, ab, ts, rating=None):
+    payload_in = {"fm": fm_text, "grade_norm": gn, "abandoned": ab, "ts": ts}
+    if rating is not None:
+        payload_in["rating"] = rating
+    try:
+        _r = subprocess.run(
+            ["python3", os.path.join(VAULT, ".claude", "scripts", "fsrs_bridge.py")],
+            input=json.dumps(payload_in), capture_output=True, text=True, timeout=30)
+    except Exception as _e:
+        return None, str(_e)
     try:
         _out = json.loads(_r.stdout) if _r.stdout.strip() else {}
     except ValueError:
         _out = {}
-    fsrs_block = ("\n" + _out["fm_block"]) if _out.get("fm_block") else ""
-    if not fsrs_block:
-        # Code-Review M1: 无论退出码都先看 stdout 的诚实报错, 再退 stderr
-        print(f"[quiz-answer] FSRS 桥降级跳过(不影响评分): {_out.get('error') or _r.stdout[:120] or _r.stderr[:120]}")
-except Exception as _e:
-    print(f"[quiz-answer] FSRS 桥降级跳过(不影响评分): {_e}")
-# A4 (批次2'): 考察历史随节点走 — attempt_count 累加 + last_examined 时间戳,
-# 出题侧 (start-exam-board) 回读它们做题目去重与历史感知
+    if _r.returncode == 2:
+        raise SystemExit(f"[quiz-answer] bridge 拒绝输入 (fail-closed): {_out.get('error') or _r.stderr[:200]}")
+    if _r.returncode == 0 and _out.get("fm_block"):
+        return _out, None
+    _err = _out.get("error") or _r.stdout[:120] or _r.stderr[:120] or "fsrs-bridge-empty-output"
+    return None, _err
+
+def _apply_fsrs_block(fm_text, block):
+    fm_text = re.sub(r'^(fsrs_due|fsrs_state|fsrs_step|fsrs_stability|fsrs_difficulty|fsrs_last_review):.*\r?\n?', '', fm_text, flags=re.M)
+    return re.sub(r'^(type:.*)$', lambda x: x.group(1) + block, fm_text, count=1, flags=re.M)
+
+def _append_calibration(fm_text, ts_str):
+    """calibration_log 条目 (正常/恢复两路径共用)。ts_str = 业务生效时刻
+    (review_time — 与 effective_at 同源, 保证恢复产物与直接应用逐字节对齐)。"""
+    q_ = lambda v: json.dumps(v, ensure_ascii=False)
+    scn_ = p.get("self_confidence_norm")
+    entry_ = (f'  - event_id: {q_(eid)}\n'
+              f'    ts: {q_(ts_str)}\n'
+              f'    exam_board: {q_(p.get("exam_board",""))}\n'
+              f'    question_id: {q_(p.get("question_id","q1"))}\n'
+              f'    self_confidence_raw: {q_(p.get("self_confidence_raw") or "null")}\n'
+              f'    self_confidence_norm: {scn_ if scn_ is not None else "null"}\n'
+              f'    grade_norm: {GN2}\n'
+              f'    abandoned: {"true" if p.get("abandoned") else "false"}')
+    # F3 修复 (2026-07-12): 定位 calibration_log 块末尾插入 — 旧逻辑无条件追加
+    # 到 frontmatter 末尾, 当 calibration_log 非最后一个 key 时 (Obsidian
+    # Properties 面板默认在末尾新增属性, 极常见), 事件条目会被 YAML 静默
+    # 归档进相邻列表键 (如 aliases), 校准数据丢失且零报错。
+    mcal_ = re.search(r'^calibration_log:', fm_text, re.M)
+    if mcal_:
+        lines_ = fm_text.split("\n")
+        li_ = next(i for i, ln in enumerate(lines_) if re.match(r'^calibration_log:', ln))
+        j_ = li_ + 1
+        while j_ < len(lines_) and lines_[j_].startswith("  "):
+            j_ += 1
+        lines_[j_:j_] = entry_.split("\n")
+        return "\n".join(lines_)
+    return fm_text.rstrip() + "\ncalibration_log:\n" + entry_
+
+# ── G3-2 rating 同源: 显式算好传给 bridge (bridge 优先用显式 rating),
+# payload 存同一个值 — 事件内 rating/grade_norm 自洽是构造性保证。
+rating = rating_from_grade(GN2, bool(p.get("abandoned")))
+abandoned = bool(p.get("abandoned"))
+
+# ── G3-2 幂等分诊主流程 (Codex round-2 BLOCKER 重排)。
+# 「FSRS 已应用」的机械判据 = W >= durable.review_time。F1 (calibration 有无)
+# 单独不能当幂等凭据 — degraded 落账写过 calibration 却没写 W, F1 早退会
+# ①吞掉冲突事实 ②让 degraded pending 永不恢复。
+if dup is None:
+    if f1:
+        print(f"[quiz-answer] {NODE}: event={eid} 已完整应用，幂等跳过（无任何改动）；账本无对应行 — 旧写序(先 frontmatter 后事件)遗留，本次不补录，审计完整性请走账本补录通道")
+        os.remove(P)
+        raise SystemExit(0)
+else:
+    _dpl = dup.get("payload") or {}
+    if _dpl.get("schema_ext") != "review/1" or not isinstance(_dpl.get("review_time"), str):
+        raise SystemExit(f"[quiz-answer] 账本已有 {evid} 但缺 review/1 时刻 (旧写序行/损坏) — 状态不可证, fail-closed 拒写")
+    _dup_rt = _dpl["review_time"]
+    _fsrs_applied = W_inst is not None and W_inst >= _aware(_dup_rt)
+    # A4.5 canonical envelope 门 — 对「已应用 no-op」与「恢复」两态都生效,
+    # 冲突事实不得被 no-op 吞掉 (round-2 B-1①)。等价面取舍 (如实声明):
+    # fsrs_library_version/params_hash 两键**排除** — 它们是复算环境快照
+    # (库升级即变), 不是评分事实; durable 行的身份完整性由校验器的 golden
+    # manifest 绑定门承担 (篡改形状/真值都会被 validator 判 FAIL)。
+    # attempt_count 独立复算按态取基准 (round-2 B-2): 已应用/degraded 遗留态
+    # frontmatter 已是 durable 值, 崩溃窗口①态 frontmatter 还是前置值。
+    _att = re.search(r'^attempt_count:\s*(\d+)', fm, re.M)
+    _att_now = int(_att.group(1)) if _att else 0
+    if _fsrs_applied or f1:
+        _att_expect = _att_now
+    else:
+        _att_expect = _att_now + 1
+    _mine_env = {
+        "event_version": 1, "event_type": etype, "node_id": node_id,
+        "effective_at": _dup_rt,
+        "payload": {**{k: v for k, v in _dpl.items() if k not in ("fsrs_library_version", "fsrs_params_hash")},
+                    "schema_ext": "review/1", "vault_id": _vid, "concept_id": node_id,
+                    "rating": rating, "grade_norm": GN2, "review_time": _dup_rt,
+                    "exam_board": p.get("exam_board", ""),
+                    "attempt_count": _att_expect}}
+    _theirs_env = {"event_version": dup.get("event_version"), "event_type": dup.get("event_type"),
+                   "node_id": dup.get("node_id"), "effective_at": dup.get("effective_at"),
+                   "payload": {k: v for k, v in _dpl.items() if k not in ("fsrs_library_version", "fsrs_params_hash")}}
+    if json.dumps(_mine_env, sort_keys=True, ensure_ascii=False, separators=(",", ":")) != json.dumps(_theirs_env, sort_keys=True, ensure_ascii=False, separators=(",", ":")):
+        raise SystemExit(f"[quiz-answer] envelope 冲突: 账本 {evid} 与本次评分事实不一致 (canonical envelope), fail-closed 拒写")
+    if _fsrs_applied:
+        if f1:
+            print(f"[quiz-answer] {NODE}: event={eid} 已完整应用，幂等跳过（无任何改动）")
+            os.remove(P)
+            raise SystemExit(0)
+        # FSRS 已被本事件/后续事件吸收, 但校准/EMA/attempt 缺失 — 补齐会引入
+        # last_examined/attempt 的顺序错乱 (后跑事件时刻更晚), 无机械判据 →
+        # 停下人工裁定 (诚实方向, 不猜)
+        raise SystemExit(f"[quiz-answer] 事件 {evid} 的 FSRS 已应用但 frontmatter 缺校准记录 — 恢复会引入顺序错乱, fail-closed 请人工核对 {NODE} 与账本")
+    # FSRS 未应用 → 落入下方恢复路径: f1=T = degraded 遗留 (只补 FSRS,
+    # mastery/calibration 已应用防 EMA 双吃); f1=F = 崩溃窗口① (全套补)
+
+# ── G3-2 A2 恢复先于新写: 追加本次事件之前, 把本节点 pending 集合
+# (review/1、未标 out_of_order、review_time > W) 按 (时刻, 行序) 升序重放至空。
+# 重放只复算 FSRS (mastery/callout 无事件载荷可复放, 见验收单「未证明什么」)。
+W = _fields.get("fsrs_last_review")
+W_inst = _aware(W) if W else None
+pending = []
+for _ln, _o in _rows:
+    _pl = _o.get("payload") if isinstance(_o, dict) else None
+    if not isinstance(_pl, dict) or _pl.get("schema_ext") != "review/1":
+        continue
+    if _o.get("node_id") != node_id or _pl.get("out_of_order") is True:
+        continue
+    _rt = _pl.get("review_time")
+    if not isinstance(_rt, str):
+        continue
+    if W_inst is not None and _aware(_rt) <= W_inst:
+        continue
+    pending.append((_aware(_rt), _ln, _o))
+pending.sort(key=lambda t: (t[0], t[1]))
+replay_failed = None
+for _inst, _ln, _o in pending:
+    _pl = _o["payload"]
+    _out, _err = _bridge(fm, float(_pl.get("grade_norm", 0.0)),
+                         _o.get("event_type") == "answer_abandoned",
+                         _pl["review_time"], rating=_pl.get("rating"))
+    if _out is None:
+        # Codex round-1 BLOCKER: 存在 pending 且重放失败 → 一律 fail-closed
+        # 零写 (既不 degraded 落账、也不发布), A2 "追加前重放至空" 无例外;
+        # 待 fsrs 恢复后重跑即可恢复。
+        raise SystemExit(f"[quiz-answer] A2 pending 重放失败 (fsrs 不可用且存在未恢复事件), fail-closed 零写 — 待恢复后重跑: 账本第 {_ln} 行({_o.get('event_id')}): {_err}")
+    fm = _apply_fsrs_block(fm, "\n" + _out["fm_block"])
+    print(f"[quiz-answer] A2 重放已应用: {_o.get('event_id')} @ {_pl['review_time']}")
+
+# ── G3-2 恢复路径 / 正常路径分叉 (A2 重放已完成: dup 与全部 pending 的 FSRS
+# 都已按序应用到内存 fm, 重放失败已在上方 fail-closed 退出)。
+if dup is not None:
+    # ── 恢复路径。review_time 采纳 durable 行 (业务事实时刻), 全部副作用
+    # (mastery/calibration/last_examined) 以它为基准 — 保证恢复产物与直接
+    # 应用逐字节对齐 (卡文门②; round-2 HIGH)。
+    review_time = _dpl["review_time"]
+    fsrs_ok = True
+    if not re.search(r'^type:', fm, re.M):
+        fm = "type: concept\n" + fm.lstrip("\n")
+    if p.get("source_board") and not re.search(r'^source_board:', fm, re.M):
+        fm = fm.rstrip() + '\nsource_board: ' + json.dumps(p["source_board"], ensure_ascii=False)
+    if f1:
+        # degraded 遗留 (f1=T): mastery/calibration 已应用 — 只补 FSRS。
+        # 再算一次 EMA 会双吃成绩 (round-2 场景②: 首评 degraded 后重试)。
+        print(f"[quiz-answer] A2 恢复(degraded 遗留): 仅补 FSRS @ {review_time}, EMA/校准不重复应用")
+    else:
+        # 崩溃窗口① (f1=F): 评分链其余副作用全部未应用 → 全套补齐
+        old, A, B, new = _apply_mastery(fm, review_time)
+        mo_att = re.search(r'^attempt_count:\s*(\d+)', fm, re.M)
+        n_att = (int(mo_att.group(1)) if mo_att else 0) + 1
+        fm = re.sub(r'^(mastery_score|mastery|mastery_level|mastery_a|mastery_b|attempt_count|last_examined):.*\r?\n?', '', fm, flags=re.M)
+        fm = re.sub(r'^(type:.*)$', lambda x: x.group(1) + f"\nmastery_score: {new}\nmastery_a: {round(A, 4)}\nmastery_b: {round(B, 4)}\nattempt_count: {n_att}\nlast_examined: " + json.dumps(review_time, ensure_ascii=False), fm, count=1, flags=re.M)
+        fm = _append_calibration(fm, review_time)
+        cal = (p.get("callout") or "").strip()
+        if cal and cal not in body:
+            body = body.rstrip() + "\n\n" + cal + "\n"
+        print(f"[quiz-answer] A2 恢复(崩溃窗口①): mastery {old}->{new}; FSRS+EMA+校准全套补齐 @ {review_time}")
+    # ── A4.4 原子发布 (恢复路径)
+    _f = open(NODE + ".quiz-tmp", "w", encoding="utf-8")
+    _f.write(f"---\n{fm}\n---\n{body}")
+    _f.flush()
+    os.fsync(_f.fileno())
+    _f.close()
+    os.replace(NODE + ".quiz-tmp", NODE)
+    _dfd = os.open(os.path.dirname(NODE) or ".", os.O_RDONLY)
+    try:
+        os.fsync(_dfd)
+    finally:
+        os.close(_dfd)
+    os.remove(P)
+    raise SystemExit(0)
+
+# ── 正常路径 (dup=None): 计算本次 + durable append + apply + 发布。
+# 本次时刻 = bridge 整秒化结果; A3 等时 (≤W) 在 bridge 内推进 W+1s。
+_out, _err = _bridge(fm, GN2, abandoned, p["ts"], rating=rating)
+if _out is not None:
+    review_time = _out["review_time"]
+    rating = _out["rating"]
+    lib_ver = _out["fsrs_library_version"]
+    p_hash = _out["fsrs_params_hash"]
+    fsrs_ok = True
+    fm = _apply_fsrs_block(fm, "\n" + _out["fm_block"])
+else:
+    # 裁决② (pending 已空或重放成功时才可能到这里): fsrs 不可用时事件
+    # 仍先落账, 两键成对 degraded 哨兵, frontmatter 只写衰减 Beta 不写 W。
+    # 本地整秒 + A3 (≤W → W+1s), 基准取重放后的内存 W (防撞行)。
+    print(f"[quiz-answer] FSRS 桥降级跳过(不影响评分): {_err}")
+    _raw = str(p["ts"]).strip().replace("Z", "+00:00")
+    _dt = datetime.fromisoformat(_raw)
+    if _dt.tzinfo is None:
+        raise SystemExit(f"[quiz-answer] ts 缺时区, fail-closed 拒写: {p['ts']!r}")
+    _rt = _dt.astimezone(timezone.utc).replace(microsecond=0)
+    _W_now = fields_from_frontmatter(fm).get("fsrs_last_review")
+    _W_now_inst = _aware(_W_now) if _W_now else None
+    if _W_now_inst is not None and _rt <= _W_now_inst:
+        _rt = _W_now_inst + timedelta(seconds=1)  # A3: 等时推进, 防事件变孤儿行
+    if _rt >= datetime(9000, 1, 1, tzinfo=timezone.utc):
+        # A7 排他上界 (§6.2; 与 bridge._REVIEW_MAX / validator.REVIEW_INPUT_MAX
+        # 同值) — Codex round-1 HIGH: 本地推进缺此门会制造非法孤儿事件
+        raise SystemExit(f"[quiz-answer] degraded A3 推进越出 A7 review 域上界 (W={_W_now}), fail-closed 零写")
+    review_time = _rt.strftime("%Y-%m-%dT%H:%M:%SZ")
+    lib_ver = f"degraded:{(_err or 'unknown').strip() or 'unknown'}"
+    p_hash = f"degraded:{(_err or 'unknown').strip() or 'unknown'}"
+    fsrs_ok = False
+
+# ── G3-2 A4 (批次2') attempt_count/last_examined 重写。
+# last_examined 用 review_time (业务生效时刻) — 与恢复路径同源, 保证
+# 「先崩后恢复」与「直接成功」产物逐字节对齐 (round-2 HIGH)。
+old, A, B, new = _apply_mastery(fm, p["ts"])
 mo_att = re.search(r'^attempt_count:\s*(\d+)', fm, re.M)
 n_att = (int(mo_att.group(1)) if mo_att else 0) + 1
 fm = re.sub(r'^(mastery_score|mastery|mastery_level|mastery_a|mastery_b|attempt_count|last_examined):.*\r?\n?', '', fm, flags=re.M)
-# Code-Review H2: 只有桥成功产出新 fsrs 字段才删旧行 — 桥失败时保留节点
-# 已积累的调度状态 (否则一次临时故障 = 卡片退回 New, 间隔历史全灭)
-if fsrs_block:
-    fm = re.sub(r'^(fsrs_due|fsrs_state|fsrs_step|fsrs_stability|fsrs_difficulty|fsrs_last_review):.*\r?\n?', '', fm, flags=re.M)
-fm = re.sub(r'^(type:.*)$', lambda x: x.group(1) + f"\nmastery_score: {new}\nmastery_a: {round(A, 4)}\nmastery_b: {round(B, 4)}\nattempt_count: {n_att}\nlast_examined: " + json.dumps(p["ts"], ensure_ascii=False) + fsrs_block, fm, count=1, flags=re.M)
+fm = re.sub(r'^(type:.*)$', lambda x: x.group(1) + f"\nmastery_score: {new}\nmastery_a: {round(A, 4)}\nmastery_b: {round(B, 4)}\nattempt_count: {n_att}\nlast_examined: " + json.dumps(review_time, ensure_ascii=False), fm, count=1, flags=re.M)
 
-# calibration_log 结构化事件（开头的事件级幂等已保证本事件未记录过）
-q = lambda v: json.dumps(v, ensure_ascii=False)
-scn = p.get("self_confidence_norm")
-entry = (f'  - event_id: {q(eid)}\n'
-         f'    ts: {q(p["ts"])}\n'
-         f'    exam_board: {q(p.get("exam_board",""))}\n'
-         f'    question_id: {q(p.get("question_id","q1"))}\n'
-         f'    self_confidence_raw: {q(p.get("self_confidence_raw") or "null")}\n'
-         f'    self_confidence_norm: {scn if scn is not None else "null"}\n'
-         f'    grade_norm: {round(GN, 2)}\n'
-         f'    abandoned: {"true" if p.get("abandoned") else "false"}')
-# F3 修复 (2026-07-12): 定位 calibration_log 块末尾插入 — 旧逻辑无条件追加
-# 到 frontmatter 末尾, 当 calibration_log 非最后一个 key 时 (Obsidian
-# Properties 面板默认在末尾新增属性, 极常见), 事件条目会被 YAML 静默
-# 归档进相邻列表键 (如 aliases), 校准数据丢失且零报错。
-mcal = re.search(r'^calibration_log:', fm, re.M)
-if mcal:
-    lines = fm.split("\n")
-    li = next(i for i, ln in enumerate(lines) if re.match(r'^calibration_log:', ln))
-    j = li + 1
-    while j < len(lines) and lines[j].startswith("  "):
-        j += 1
-    lines[j:j] = entry.split("\n")
-    fm = "\n".join(lines)
-else:
-    fm = fm.rstrip() + "\ncalibration_log:\n" + entry
+# ── G3-2 A1 write-ahead: 先 durable append 事件, 再 apply/发布 frontmatter。
+# append = LF 守卫 + parsed 查重 + O_APPEND 单次 write + 字节数校验 + fsync
+# (首建加父目录 fsync) — A4.3/A4.5。失败即中止 (frontmatter 未动, 可安全重试)。
+if True:  # 正常路径 append (恢复路径已在上方 raise SystemExit(0) 结束)
+    rec = {"event_id": evid, "event_version": 1, "event_type": etype,
+           "node_id": node_id,
+           "recorded_at": p["ts"], "effective_at": review_time,
+           "payload": {"schema_ext": "review/1",
+                       "vault_id": _vid,
+                       "concept_id": node_id,
+                       "rating": rating,
+                       "grade_norm": GN2,
+                       "review_time": review_time,
+                       "fsrs_library_version": lib_ver,
+                       "fsrs_params_hash": p_hash,
+                       "exam_board": p.get("exam_board", ""),
+                       "attempt_count": n_att}}
+    # 防御性二次查重 (单写者下不可达 — _rows 快照在 dup 判定时已排除; 保留作
+    # 纵深防御, 与 A4.5 "查重紧贴写入" 同型)
+    _again = next((o for _, o in _rows if isinstance(o, dict) and o.get("event_id") == evid), None)
+    if _again is not None:
+        print(f"[quiz-answer] {evid} 已在账本 (防御性二次查重命中), 跳过 append")
+    else:
+        _created = not os.path.exists(EV)
+        if not _created and os.path.getsize(EV) > 0:
+            with open(EV, "rb") as _f:
+                _f.seek(-1, os.SEEK_END)
+                if _f.read(1) != b"\n":
+                    with open(EV, "a", encoding="utf-8") as _f2:
+                        _f2.write("\n")  # LF 守卫: 截断尾行自愈隔离
+        _line = (json.dumps(rec, ensure_ascii=False) + "\n").encode("utf-8")
+        _fd = os.open(EV, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
+        try:
+            _n = os.write(_fd, _line)
+            if _n != len(_line):
+                raise SystemExit(f"[quiz-answer] 账本短写 ({_n}/{len(_line)} 字节), fail-closed 中止 — frontmatter 未动, 可安全重跑")
+            os.fsync(_fd)
+        finally:
+            os.close(_fd)
+        if _created:
+            _dfd = os.open(VAULT, os.O_RDONLY)
+            try:
+                os.fsync(_dfd)
+            finally:
+                os.close(_dfd)
+        print(f"[quiz-answer] 事件已落日志(write-ahead): {etype} @ {review_time}")
+
+# calibration_log 结构化事件（开头的事件级幂等已保证本事件未记录过;
+# ts = review_time 业务生效时刻, 与恢复路径同源 — round-2 HIGH 字节对齐）
+fm = _append_calibration(fm, review_time)
 
 # 疑问归纳 callout（前置空行防并块；内容幂等：续跑不重复 append）
 cal = (p.get("callout") or "").strip()
 if cal and cal not in body:
     body = body.rstrip() + "\n\n" + cal + "\n"
 
-# F4 修复 (2026-07-12): 真原子写 — tmpfile + os.replace, 进程中断不再截断节点文件
+# ── G3-2 A4.4 原子发布: temp → flush → fsync → os.replace → fsync 父目录。
+# 六字段与 fsrs_last_review 在同一次替换中落盘 (半态会被三态判别判残缺 →
+# fail-closed, 是正确降级方向, 但不应由每次崩溃制造)。
 tmp = NODE + ".quiz-tmp"
-open(tmp, "w", encoding="utf-8").write(f"---\n{fm}\n---\n{body}")
+_f = open(tmp, "w", encoding="utf-8")
+_f.write(f"---\n{fm}\n---\n{body}")
+_f.flush()
+os.fsync(_f.fileno())
+_f.close()
 os.replace(tmp, NODE)
-os.remove(P)
-print(f"[quiz-answer] {NODE}: mastery {old}->{new}; event={eid}; callout={'yes' if cal else 'no'}")
-# 批次3' 2-4 (MEM-FLYWHEEL): 统一学习事件日志 — append-only + 幂等键,
-# frontmatter 仍是真相源, 日志供过程回放/图重建兜底。写失败不影响评分。
-EV = os.path.join(VAULT, "learning_events.jsonl")
-etype = "answer_abandoned" if p.get("abandoned") else "answer_scored"
-evid = "quiz:" + eid
+_dfd = os.open(os.path.dirname(NODE) or ".", os.O_RDONLY)
 try:
-    seen = False
-    if os.path.exists(EV):
-        with open(EV, encoding="utf-8") as _f:
-            seen = any(json.dumps(evid, ensure_ascii=False) in ln for ln in _f)
-    if not seen:
-        rec = {"event_id": evid, "event_version": 1, "event_type": etype,
-               "node_id": os.path.splitext(os.path.basename(NODE))[0],
-               "recorded_at": p["ts"], "effective_at": p["ts"],
-               "payload": {"grade_norm": round(GN, 2),
-                           "exam_board": p.get("exam_board", ""),
-                           "attempt_count": n_att}}
-        with open(EV, "a", encoding="utf-8") as _f:
-            _f.write(json.dumps(rec, ensure_ascii=False) + "\n")
-        print(f"[quiz-answer] 事件已落日志: {etype}")
-except Exception as _e:
-    print(f"[quiz-answer] 事件日志写入失败(不影响评分): {_e}")
+    os.fsync(_dfd)
+finally:
+    os.close(_dfd)
+os.remove(P)
+print(f"[quiz-answer] {NODE}: mastery {old}->{new}; event={eid}; fsrs={'applied @ ' + review_time if fsrs_ok else 'degraded (事件已入账, W 未推进)'}; ledger=append; callout={'yes' if cal else 'no'}")
 PYEOF
 ```
 
