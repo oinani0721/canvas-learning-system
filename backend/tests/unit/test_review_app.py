@@ -108,6 +108,13 @@ def test_no_external_resource_tags(page_html):
     # 内联样式表以外不得有 <link>; <script> 必须是内联的 (无 src 属性)
     assert page_html.count("<script>") == 1
     assert "<script " not in page_html
+    # round-2 M5 补口: 不含 "//" 的资源型 scheme (上一条的正则看不见)
+    for bad in ("data:text", "javascript:", "blob:", "file:"):
+        assert bad not in page_html, f"出现了非白名单资源协议: {bad}"
+    # 协议相对 <a href="//host/..."> (无 scheme 前缀, 上面两道都看不见)
+    assert not re.search(r'<a\s[^>]*href\s*=\s*["\']//', page_html), "协议相对链接"
+    # CSS url() 资源 — 本页内联样式表零外链, 出现即是回归
+    assert "url(" not in page_html, "样式表出现 url() 资源引用"
 
 
 def test_only_obsidian_scheme_and_relative_paths(page_html):
@@ -226,12 +233,13 @@ def test_no_second_due_pipeline_in_python_module():
 
 
 def test_review_app_module_imports_are_closed():
-    """AST 结构门 (Codex round-1 HIGH-4 后新增): 本模块只允许「模板注入」
-    这一种依赖形态 —— import 白名单 + 禁内建读盘/执行调用。
+    """AST 结构门 (round-1 HIGH-4 新增, round-2 HIGH-4 升级为正向合约):
+    本模块只允许「模板注入」这一种依赖形态。
 
-    字符串黑名单 (`"subprocess" not in src`) 可被 json.load(open(...)) /
-    Path.open() 等措辞绕过; AST 门直接枚举 import 与调用形态, 新增任何
-    依赖 = 红, 不存在换拼法绕过的问题。
+    反面黑名单可被换形绕过 (round-2 实证: `__builtins__["open"](...)` 不新增
+    import 也不命中任何名字/属性黑名单)。所以调用侧改成**正向合约**——
+    枚举全部允许的调用形态, 任何新调用 (含 getattr/下标取内建/lambda 包裹/
+    任何新函数) 都必须先有意识地改这份白名单, 代码评审必然看见。
     """
     ALLOWED_IMPORTS = {
         "__future__.annotations",
@@ -243,6 +251,8 @@ def test_review_app_module_imports_are_closed():
         "app.api.v1.endpoints.review_overview._BUCKET_ORDER",
         "app.api.v1.endpoints.review_overview._STATUS_META",
     }
+    ALLOWED_CALL_NAMES = {"APIRouter", "list", "_js_json", "HTMLResponse"}
+    ALLOWED_CALL_ATTRS = {"get", "replace", "url_for", "dumps", "items"}
     src = (_ENDPOINTS_DIR / "review_app.py").read_text(encoding="utf-8")
     tree = ast.parse(src)
     collected: set[str] = set()
@@ -257,10 +267,15 @@ def test_review_app_module_imports_are_closed():
     for node in ast.walk(tree):
         if isinstance(node, ast.Call):
             f = node.func
-            if isinstance(f, ast.Name) and f.id in {"open", "exec", "eval", "__import__"}:
-                pytest.fail(f"禁用内建调用 {f.id}() — 本模块只做模板注入, 不读盘不执行")
-            if isinstance(f, ast.Attribute) and f.attr in {"read_text", "read_bytes", "open"}:
-                pytest.fail(f"禁用读盘调用 .{f.attr}() — 本模块只做模板注入")
+            if isinstance(f, ast.Name):
+                assert f.id in ALLOWED_CALL_NAMES, f"白名单外调用 {f.id}() — 模板注入之外的第二种行为"
+            elif isinstance(f, ast.Attribute):
+                assert f.attr in ALLOWED_CALL_ATTRS, f"白名单外方法 .{f.attr}() — 模板注入之外的第二种行为"
+            else:
+                pytest.fail(
+                    f"非白名单调用形态: {type(f).__name__} — 动态派发/下标取内建/lambda "
+                    f"包裹都是第二套管道的载体 (round-2 HIGH-4 实证绕过面)"
+                )
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -346,11 +361,26 @@ def _group(pattern: str, text: str, flags: int = 0) -> str:
 
 
 def _extract_script(html: str) -> str:
-    """从实际响应体取出**整个** <script> 原文 (不是任何按标记的割取)。"""
-    assert html.count("<script>") == 1 and "<script " not in html, "script 标签形态变了, 提取契约失效"
-    m = re.search(r"<script>\n(.*?)</script>", html, re.S)
-    assert m is not None, "script 主体未命中"
-    src = m.group(1)
+    """从实际响应体取出**整个** <script> 原文 — 且必须与浏览器 tokenizer 同源。
+
+    HTML 解析对 script 结束符**大小写不敏感**、正文里出现注释开合也会改变
+    解析状态 (round-2 HIGH-3 实证: `// </SCRIPT>` 后的"好代码"能骗过大小写
+    敏感的正则, 但浏览器根本不会执行它)。所以除定位外, 还要拒绝一切会让
+    「正则提取的字节」与「浏览器执行的字节」分叉的序列。
+    """
+    # 开标签: 大小写不敏感地只允许一个, 且必须恰是字面 <script> (无属性)
+    openings = re.findall(r"<script\b[^>]*>", html, flags=re.I)
+    assert openings == ["<script>"], f"script 开标签形态变了: {openings!r}"
+    _prefix, sep, rest = html.partition("<script>")
+    assert sep, "script 开标签未命中"
+    # 结束符**总数**恰为 1 (大小写不敏感) — 正文任何位置多出结束符 (哪怕在
+    # JS 注释里), 浏览器都会在那里提前终止脚本; maxsplit 截断式提取会把它
+    # 当切割点吞掉, 那道门就是死的 (round-3 自查), 数段数才漏不掉
+    parts = re.split(r"</script\s*>", rest, flags=re.I)
+    assert len(parts) == 2, f"script 结束符出现 {len(parts) - 1} 次 (应恰 1) — 浏览器会在正文处提前终止"
+    src = parts[0]
+    # 正文分叉面: HTML 注释开合改变 tokenizer 状态 (script data escaped)
+    assert "<!--" not in src and "-->" not in src, "script 正文含 HTML 注释开合 — tokenizer 状态分叉面"
     assert "__URLS_JSON__" not in src, "占位符没被替换 — 页面发出去的是模板本身"
     return src
 
@@ -358,7 +388,7 @@ def _extract_script(html: str) -> str:
 @pytest.fixture
 def node_harness(tmp_path, page_html):
     """真实脚本 + 沙箱 boot 器写入 tmp; node 不可用时 fail-closed (不 skip)。"""
-    if _NODE is None:
+    if not _NODE:
         pytest.fail(
             "node 不可用 — 本文件 10+ 道 JS 门禁止静默 skip 假绿 (Codex round-1 "
             "HIGH-2 fail-closed); 本环境必须装 node, 或实现卡文默认裁决④的 "
@@ -990,3 +1020,241 @@ for (const c of CASES) {
 
 #: 固定时钟毫秒 (与 _FIX_JS 的 NOW 同源; 放在文件尾供上面的对拍测试引用)
 _NOW_MS = 1_788_000_000_000
+
+
+# ════════════════════════════════════════════════════════════════════
+# E. Codex round-2 整改门 (因果一致性 / 提取同源 / AST 正向合约)
+# ════════════════════════════════════════════════════════════════════
+
+
+def test_script_extraction_rejects_case_insensitive_terminator():
+    """HIGH-3 门: 正文里任何大小写形态的 </script / 注释开合都必须被拒绝。
+
+    变异 M38 (往正文塞 `// </SCRIPT>`) 的指定门是
+    test_real_page_extracted_script_is_well_formed (真实响应被毒化后提取器
+    必须拒绝); 本门用模板构造的毒样本锁定提取器本身的判据。
+    """
+    base = _PAGE_TEMPLATE.replace("__URLS_JSON__", "{}").replace("__STATUS_META_JSON__", "{}")
+    base = base.replace("__BUCKET_CN_JSON__", "{}").replace("__BUCKET_ORDER_JSON__", "[]")
+    for needle in ("// </SCRIPT>", "</script >", "/* <!-- */"):
+        poisoned = base.replace("const POLL_MIN_MS", f"{needle}\nconst POLL_MIN_MS", 1)
+        with pytest.raises(AssertionError):
+            _extract_script(poisoned)
+
+
+def test_real_page_extracted_script_is_well_formed(page_html):
+    """真实响应的 script 必须能被同源提取且完整 (M38 指定门)。
+
+    正文被塞入任何多出的结束符/注释开合时, _extract_script 会拒绝 —
+    那一刻「沙箱执行的字节 == 浏览器执行的字节」就破了, 本门立刻红。
+    """
+    src = _extract_script(page_html)
+    assert "POLL_MIN_MS" in src and "computePollDelayMs" in src, "提取产物被截断 — 不是完整脚本"
+
+
+def test_js_poll_out_of_order_discards_stale_response(node_harness):
+    """HIGH-1 因果门: 旧 GET 晚到必须整包丢弃, 不许把新数据盖回旧投影。"""
+    proc = _run_node(
+        node_harness,
+        r"""
+import test from "node:test";
+import assert from "node:assert/strict";
+import {boot, flush} from "./boot.mjs";
+const deferreds = [];
+function deferredGet(tag) {
+  let resolve;
+  const promise = new Promise(r => { resolve = r; });
+  deferreds.push({tag, resolve});
+  return {ok: true, status: 200, json: () => promise};
+}
+const dataOf = tag => ({vaults: [{vault_id: "v", status: "ok", error: null,
+  projection: {due_count: tag === "new" ? 2 : 1, due_new_count: 0, placeholder_backlog: 0,
+    bucket_counts: null, generated_at: tag, next_upcoming: null, boards: []}}]});
+const b = boot({getJson: u => deferredGet("old")});   // 首轮 poll 挂起 (gen 1)
+const d = deferreds.pop();
+b.handlers["document::visibilitychange"]();            // 回前台 → 第二轮 GET (gen 2)
+const d2 = deferreds.pop();
+d2.resolve(dataOf("new"));  // 新的先回 (deferred 桩的 resolve 喂 json() 的返回值 = 数据)
+await flush();
+assert.match(b.els["cards"].innerHTML, /生成于 new/, "新数据先落屏");
+d.resolve(dataOf("old"));   // 旧的晚到
+await flush();
+assert.match(b.els["cards"].innerHTML, /生成于 new/, "旧响应晚到必须被代际守卫整包丢弃");
+assert.ok(!b.els["cards"].innerHTML.includes("生成于 old"));
+assert.match(b.els["nextpoll"].textContent, /秒后/, "乱序丢弃后原有排程不被旧响应重置");
+""",
+    )
+    _assert_node_green(proc)
+
+
+@pytest.mark.usefixtures("page_html")
+def test_js_rebuilt_sync_flow_never_claims_prematurely(node_harness):
+    """HIGH-1 结算门: rebuilt 只说『正在同步』, GET 成功才说『数字已更新』,
+    GET 失败明说同步失败 — 旧版「同步失败也挂着数字已更新」不许回来。"""
+    proc = _run_node(
+        node_harness,
+        r"""
+import test from "node:test";
+import assert from "node:assert/strict";
+import {boot, flush, mkNode, matches} from "./boot.mjs";
+const OK = {vaults: [{vault_id: "cs_61b", status: "ok", error: null,
+  projection: {due_count: 3, due_new_count: 1, placeholder_backlog: 0, bucket_counts: null,
+    generated_at: "g", next_upcoming: null, boards: []}}]};
+function world(getJson) {
+  const b = boot({
+    getJson,
+    postJson: () => ({ok: true, status: 200, json: async () =>
+      ({rebuilt: true, reason: "rebuilt", rebuild_count: 4})}),
+  });
+  return b;
+}
+function attach(b) {
+  const btn = mkNode("btn");
+  btn._attrs["data-refresh-vault"] = "cs_61b";
+  const note = mkNode("note");
+  note._attrs["data-note-for"] = "cs_61b";
+  b.els["cards"]._desc = [btn, note];
+  return {btn, note};
+}
+const click = btn => ({target: {closest: sel => (matches(btn, sel) ? btn : null)}});
+
+test("① rebuilt → 先只说正在同步, 不许出现『数字已更新』", async () => {
+  // GET 用永不 resolve 的桩 — 「正在同步」态定格, 不与后续 GET 的失败结算赛跑
+  const b = world(() => new Promise(() => {}));
+  await flush();
+  const {btn, note} = attach(b);
+  await b.handlers["cards::click"](click(btn));
+  assert.match(note.innerHTML, /正在同步最新数字/);
+  assert.ok(!note.innerHTML.includes("数字已更新"), "POST 成功不等于数字已落屏");
+});
+test("② 后续 GET 成功 → 结算成『数字已更新』", async () => {
+  const b = world(() => ({ok: true, status: 200, json: async () => OK}));  // GET 一路成功
+  await flush();
+  assert.match(b.els["cards"].innerHTML, /生成于 g/, "首轮成功, 卡片在屏");
+  const {btn, note} = attach(b);
+  await b.handlers["cards::click"](click(btn));  // POST rebuilt → 正在同步 → 自动 GET
+  await flush();                                 // GET 成功 → settlePendingSync(true)
+  assert.match(note.innerHTML, /数字已更新/);
+  assert.ok(!note.innerHTML.includes("同步失败"));
+  assert.match(b.els["cards"].innerHTML, /数字已更新/, "结算反馈在重绘后仍在");
+});
+test("②b 同步失败 → 明说失败; 恢复后数据照常更新, 失败反馈按 TTL 退场", async () => {
+  let fail = true;
+  const b = world(() => fail ? {ok: false, status: 503, json: async () => null}
+                            : {ok: true, status: 200, json: async () => OK});
+  await flush();
+  const {btn, note} = attach(b);
+  await b.handlers["cards::click"](click(btn));
+  await flush();                              // handler 返回后 fired poll 的失败才结算
+  assert.match(note.innerHTML, /同步失败/);   // 第一轮 GET (503) 已把结局结算成失败
+  fail = false;
+  b.handlers["document::visibilitychange"]();  // 后端恢复 → 重拉成功
+  await flush();
+  assert.match(b.els["cards"].innerHTML, /生成于 g/, "恢复后数据照常更新");
+  assert.match(b.els["cards"].innerHTML, /同步失败/, "失败结算如实挂着 (15s TTL 内)");
+  assert.ok(!b.els["cards"].innerHTML.includes("数字已更新"), "失败结算不许被成功轮询洗成成功");
+});
+""",
+    )
+    _assert_node_green(proc)
+
+
+@pytest.mark.usefixtures("page_html")
+def test_js_malformed_200_keeps_last_data(node_harness):
+    """round-2 M2 门: HTTP 200 的坏形状在提交状态之前就被拒 —
+    旧数据不清、连接徽标翻红、横幅说话, 绝不清屏装『已连接』。"""
+    proc = _run_node(
+        node_harness,
+        r"""
+import test from "node:test";
+import assert from "node:assert/strict";
+import {boot, flush} from "./boot.mjs";
+const GOOD = {vaults: [{vault_id: "v", status: "ok", error: null,
+  projection: {due_count: 5, due_new_count: 0, placeholder_backlog: 0, bucket_counts: null,
+    generated_at: "good", next_upcoming: null, boards: []}}]};
+let payload = GOOD;
+const b = boot({getJson: () => ({ok: true, status: 200, json: async () => payload})});
+await flush();
+assert.match(b.els["cards"].innerHTML, /good/);
+assert.equal(b.els["conn"].className, "conn ok");
+payload = {vaults: "bad"};                 // HTTP 200 + 形状坏
+b.handlers["document::visibilitychange"]();
+await flush();
+assert.match(b.els["cards"].innerHTML, /good/, "坏形状不许清掉旧数据");
+assert.equal(b.els["conn"].className, "conn down", "不许装已连接");
+assert.equal(b.els["banner"].hidden, false);
+assert.match(b.els["banner"].innerHTML, /形状坏/);
+payload = {root: false};                    // 缺 vaults 键同理
+b.handlers["document::visibilitychange"]();
+await flush();
+assert.match(b.els["cards"].innerHTML, /good/);
+""",
+    )
+    _assert_node_green(proc)
+
+
+@pytest.mark.usefixtures("page_html")
+def test_js_proto_vault_id_and_inflight_disabled_render(node_harness):
+    """round-2 M1/M3 门: null-prototype 容器让 "__proto__" 这样的合法库目名
+    走正常点击流 (在飞防抖仍然成立); 在飞库的重绘必须渲染 disabled 按钮。"""
+    proc = _run_node(
+        node_harness,
+        r"""
+import test from "node:test";
+import assert from "node:assert/strict";
+import {boot, flush, mkNode, matches} from "./boot.mjs";
+const V = vid => ({vaults: [{vault_id: vid, status: "ok", error: null,
+  projection: {due_count: 1, due_new_count: 0, placeholder_backlog: 0, bucket_counts: null,
+    generated_at: "g", next_upcoming: null, boards: []}}]});
+test('"__proto__" 库目: 点击只发一个 POST, 反馈正常可见 (原型键不吞)', async () => {
+  const b = boot({
+    getJson: () => ({ok: true, status: 200, json: async () => V("__proto__")}),
+    postJson: () => ({ok: true, status: 200, json: async () =>
+      ({rebuilt: false, reason: "debounced", debounce_ttl_seconds: 10, rebuild_count: 1})}),
+  });
+  await flush();
+  const btn = mkNode("btn");
+  btn._attrs["data-refresh-vault"] = "__proto__";
+  const note = mkNode("note");
+  note._attrs["data-note-for"] = "__proto__";
+  b.els["cards"]._desc = [btn, note];
+  const ev = {target: {closest: sel => (matches(btn, sel) ? btn : null)}};
+  await Promise.all([b.handlers["cards::click"](ev), b.handlers["cards::click"](ev)]);
+  assert.equal(b.calls.post, 1, "在飞防抖对 __proto__ 库目同样生效");
+  assert.match(note.innerHTML, /未重算/);
+});
+test("在飞库重绘 → 按钮渲染 disabled (重绘不解锁成可双击)", () => {
+  const b = boot();
+  const h = b.api.renderPage(V("v"), 0, {}, {v: true});
+  assert.match(h, / disabled /, "inflight 库的按钮必须带 disabled 属性");
+  const h2 = b.api.renderPage(V("v"), 0, {}, {});
+  assert.ok(!h2.includes(" disabled "), "非在飞库不许误带 disabled");
+});
+""",
+    )
+    _assert_node_green(proc)
+
+
+@pytest.mark.usefixtures("page_html")
+def test_js_restday_next_due_uses_shanghai_date(node_harness):
+    """round-2 M4 门: 最近到期日期转上海本地日 —
+    2026-09-02T16:30:00Z 在上海已是 9 月 3 日, 不许显示 UTC 字面的 9 月 2 日。"""
+    proc = _run_node(
+        node_harness,
+        r"""
+import test from "node:test";
+import assert from "node:assert/strict";
+import {boot} from "./boot.mjs";
+const NOW = 1788000000000;
+const proj = {due_count: 0, boards: [], bucket_counts: null,
+  generated_at: "g", next_upcoming: {board: "线性代数", next_due: "2026-09-02T16:30:00Z", node: "特征值"}};
+const v = {vault_id: "数学", status: "ok", error: null, projection: proj};
+const h = boot().api.renderVaultCard(v, NOW);
+assert.match(h, /最近到期 线性代数 · 2026-09-03/, "上海本地日 (UTC 9/2 16:30 = 上海 9/3 0:30)");
+assert.ok(!h.includes("2026-09-02"), "UTC 字面日期不许漏出来");
+const bad = {vault_id: "x", status: "ok", error: null, projection: {...proj,
+  next_upcoming: {board: "b", next_due: "20260902", node: "n"}}};
+assert.match(boot().api.renderVaultCard(bad, NOW), /20260902/, "畸形时间原样显示, 不炸");
+""",
+    )
+    _assert_node_green(proc)

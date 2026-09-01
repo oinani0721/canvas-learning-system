@@ -1,79 +1,82 @@
-# Codex 对抗性审查 — CARD-G6-2 交互复习壳 [BATCH-2026-09-01-第八批] · round-2
+# Codex 对抗性审查 — CARD-G6-2 交互复习壳 [BATCH-2026-09-01-第八批] · round-3
 
 你是独立对抗性审查员。工作目录（cwd）已是本车道 worktree 根：
 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
 
-这是**第 2 轮**。round-1（../codex-review-CARD-G6-2.md）判 FAIL，提出 4 个 HIGH，
-本轮除常规复审外，必须逐条验证这 4 条的整改是否真实、有无引入新问题。
+这是**第 3 轮**。round-1 判 FAIL（4 HIGH，已整改）；round-2 判 FAIL（HIGH-1/HIGH-3/HIGH-4
+NOT VERIFIED + 1 个新 HIGH + 5 MEDIUM + 3 LOW）。本轮除常规复审外，必须逐条验证
+round-2 各条（含 MEDIUM/LOW 的处置声明）。
 
 ## 被审变更（只读这些文件，其余不碰）
 
-1. backend/app/api/v1/endpoints/review_app.py （新增 — 交互复习壳单文件 HTML）
-2. backend/app/api/v1/router.py （只加了 1 行 import + 1 行 include_router）
-3. backend/tests/unit/test_review_app.py （新增测试 + node --test 渲染断言）
-4. ../_bmad-output/审查/evidence-g62/g62_mutation_negative_controls.py （负验证脚本）
-5. 对照物（未改动，用于验证共存/不双实现）：backend/app/api/v1/endpoints/review_overview.py
+1. backend/app/api/v1/endpoints/review_app.py
+2. backend/app/api/v1/router.py （1 行 import + 1 行 include）
+3. backend/tests/unit/test_review_app.py
+4. ../_bmad-output/审查/evidence-g62/g62_mutation_negative_controls.py
+5. 对照物（未改动）：backend/app/api/v1/endpoints/review_overview.py
 
-本卡完整需求（卡文）在：
-/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/implementation-artifacts/goal-cards/第八批-goals/W5.md
-如需可读。默认裁决①-⑥ 与完成条件 (a)-(g) 以卡文为准。
+卡文：/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/implementation-artifacts/goal-cards/第八批-goals/W5.md
 
-## round-1 四个 HIGH 的整改声明（请逐条证伪）
+## round-2 各条的整改声明（请逐条证伪）
 
-- **HIGH-1 刷新反馈被重绘抹掉 / detached DOM / 缺 rebuild_count**：
-  整改为「持久状态 + 重绘恢复」——POST 结局写进 state.notes（vault_id → {html, atMs}，
-  15s TTL，常量 NOTE_TTL_MS）；renderVaultCard/renderPage 增加 notes/inflight 入参，
-  每次渲染都从状态恢复反馈；POST 完成先就地补（applyNote），就地补不到且有数据时
-  renderCards 重绘恢复；rebuilt 后 poll() 重拉也不会丢反馈；同库在飞时按钮禁用是
-  渲染态的一部分（重绘不会意外解锁）；debounced/in_progress/rebuilt 三个 JSON 分支
-  都显示 rebuild_count（「本进程累计 N 次」）。接线行为由
-  test_js_refresh_wiring_note_survives_rerender_and_inflight_guard 在沙箱里以假事件
-  驱动断言（6 个子场景）。
-- **HIGH-2 node 缺失时 10 门假绿 skip**：整改为 fail-closed——删除了全部
-  skipif/skip 机制；node_harness fixture 在 node 不可用时直接 pytest.fail；文件结构上
-  不存在任何 skip 路径；_assert_node_green 另有 skipped 非零即红的正则门。
-- **HIGH-3 marker 注释欺骗**：整改为「不割取」——不再有任何按注释标记提取代码的
-  通道；测试把响应里的**整个 <script> 原文**放进受控沙箱（stub document/fetch/
-  setTimeout/clearTimeout）用 new Function **直接执行**，纯函数从执行后的沙箱作用域
-  return 导出。注释里藏一份好代码骗提取器、浏览器执行另一份的攻击面不成立
-  （执行的就是浏览器执行的同一段字节）。
-- **HIGH-4 变异判据 returncode≠0 误认证 + M30 空转**：双重整改——
-  (a) 变红判据改为三重匹配：pytest 退出非零 **且** stdout 含 "1 failed" **且**
-  -rf short summary 里 FAILED 的是**指定的那个测试节点**（exit 4 / collected 0 /
-  collection error 不再能冒充变红）；35 条变异全部重跑。
-  (b) 旧 M30（`if False` 不读盘、只靠注释里的 "subprocess" 字样触发字符串黑名单）
-  删除，换成两条真变异：端点里 `import pathlib`（import 白名单）与
-  `open("今日复习.json").read()`（内建调用门）——由新增的
-  test_review_app_module_imports_are_closed（**AST 结构门**：import 白名单 + 禁
-  open/exec/eval/__import__/read_text 调用）承接，不再有「换拼法绕过字符串黑名单」的问题。
+**HIGH-1（刷新因果一致性）** → 整改为「pendingSync 两段式 + GET 代际守卫」：
+- POST rebuilt 不再声称「数字已更新」，只显示「正在同步最新数字…」，同时登记
+  state.pendingSync[vid]（null-prototype 容器）。
+- poll() 每次 `++state.pollGen` 取代际号；响应回来先过形状校验
+  （`Array.isArray(data.vaults)`），再验 `gen === state.pollGen` —— 乱序旧响应
+  （成功或失败）**整包丢弃**，不碰状态不排程；最新 GET 成功 → settlePendingSync(true)
+  → 「✅ 已重建（累计 N 次）· 数字已更新」；失败 → settlePendingSync(false) →
+  「⚠ 已重建（累计 N 次）· 数字同步失败，后端恢复后自动重试」。
+- 新门：test_js_poll_out_of_order_discards_stale_response（两条 GET 挂起、逆序 resolve、
+  断言旧响应不覆盖）+ test_js_rebuilt_sync_flow_never_claims_prematurely ①②②b
+  （正在同步/成功结算/失败结算+恢复后数据照常更新且失败反馈不被洗成成功）。
+  变异 M39/M40/M41 全部对准这些门。
 
-## 审查重点（按卡文，round-1 七项继续有效）
+**HIGH-3（大小写 </SCRIPT> 分叉）** → 整改为「结束符计数 + 注释开合拒绝」：
+- _extract_script 用大小写不敏感的正则数 `</script\s*>` 的**总出现次数**（恰为 1）；
+  正文任何位置多出结束符 → 红。不再用 maxsplit 截断（round-3 自查：截断式提取会把
+  注入的结束符当切割点吞掉，canary 恒不触发 = 死门）。
+- 正文出现 `<!--` / `-->` → 红（tokenizer script-data-escaped 状态分叉面）。
+- 开标签大小写不敏感地只允许一个且恰为字面 `<script>`。
+- 新门 test_script_extraction_rejects_case_insensitive_terminator 对三种毒化样本
+  （`// </SCRIPT>`、`</script >`、`/* <!-- */`）断言必抛。变异 M38 对准它。
 
-1. 零外部依赖与同源约束（url_for 注入 — test_api_paths_follow_mount_prefix_not_hardcoded
-   用换前缀挂载的行为门锁「注入 vs 硬编码了恰好相同的值」）。
-2. 轮询上下限与隐藏暂停；自动轮询绝不 POST refresh。
-3. 四态文案不伪装 ok（_STATUS_META import 注入不复制）；stale 且 due_count=0 不许说休息日。
-4. JS 内不得重算任何 due 逻辑（行为门：due_count 与明细刻意不一致的 fixture）。
-5. 与零 JS 页共存不双实现（review_overview.py 零改动 git 可证）。
-6. W6 三字段缺省渲染。
-7. 测试与门的真实性（沙箱执行是否真的无割取通道；负验证判据是否还有误认证空间；
-   NOTE_TTL/在飞防抖的接线门是否真能抓住 HIGH-1 类回归）。
-8. **本轮新增**：上述四条整改有没有「修了个寂寞」「引入新缺陷」「把 round-1 的问题
-   换个形态保留下来」。
+**HIGH-4a（变异判据）** → 「变红」收紧为 `returncode == 1`（pytest 测试失败专属码）
++ `1 failed` + `-rf` summary 里 FAILED 的正是指定节点。collection error(2)/内部错(3)/
+用法错(4)/未收集(5) 一律不算变红。
 
-## 已知边界（不算发现，已在验收单登记）
+**HIGH-4b（AST 门可换形绕过）** → 调用侧改成**正向合约**：枚举全部允许的调用形态
+（Name ∈ {APIRouter, list, _js_json, HTMLResponse}；Attribute ∈ {get, replace,
+url_for, dumps, items}），func 为任何其它形态（含 Subscript 下标取内建、lambda 包裹、
+getattr）一律红。import 侧维持白名单。变异 M35/M36/M37 三种形态（直呼 open /
+`__builtins__["open"]` / lambda 包 open）全部对准它。
 
-- 部署不在本卡；live 容器没有本卡路由，走查在本车道本地 server 上做。
-- docker-compose.yml:202 DAILY_REVIEW_PICK 按 V3「甲」部署，用户是否本人作答待确认。
-- G6-1 的 D-3（板序）/D-6（配对原子性）按卡文不吸收，只登记移交。
-- snooze / 完成反馈是 G6-6/G6-7 地盘，本卡不做。
-- Host 白名单/同源门（_assert_same_origin）在 refresh 端点上（G6-1 已有），本卡 JS
-  发的是同源 fetch，预期通过。
-- 本页无鉴权依赖 refresh 端点的既有同源门；GET 侧只读，无新暴露面。
+**MEDIUM**：M1 notes/inflight/pendingSync 改 Object.create(null)（"__proto__" 库目
+点击流有专项断言）；M2 poll 的 200 坏形状在提交状态前拒绝（旧数据不清、徽标翻红、
+横幅说话——test_js_malformed_200_keeps_last_data）；M3 renderPage 的 inflight→disabled
+渲染断言 + 在飞防抖对 __proto__ 生效断言；M4 restDayHtml 最近到期日期转上海本地日
+（2026-09-02T16:30:00Z → 显示 2026-09-03，专项断言）；M5 外链门补 data:/javascript:/
+blob:/file:、协议相对 a href、CSS url()。
+**LOW**：LOW-1 已修（`if not _NODE`）；LOW-2（TTL 是渲染时惰性过滤，DOM 提示可留到
+下一次重绘）与 LOW-3（隐藏态首轮 GET 照发）**有意保留**，已在验收单「本卡未证明什么 /
+语义声明」登记，不属缺陷。
+
+## 审查重点（前两轮七项继续有效 + 本轮第 8 项）
+
+1. 零外部依赖与同源约束；2. 轮询 clamp 与隐藏暂停、自动轮询绝不 POST；3. 四态不伪装
+ok；4. JS 不重算 due；5. 与零 JS 页共存；6. W6 三字段缺省渲染；7. 测试与门的真实性
+（沙箱执行无割取、负验证判据、接线门是否承重）；8. round-2 各条整改是否真实、
+「正在看管的东西」有没有新的绕过面（例如代际守卫与 schedule 的交互、settlePendingSync
+的时序、提取门的转义变体）。
+
+## 已知边界（不算发现）
+
+- 部署不在本卡；走查在本车道本地 server。V3 四答待用户确认。D-3/D-6 不吸收只登记。
+- snooze/完成反馈是 G6-6/G6-7 地盘。GET 侧无新暴露面；refresh 同源门为 G6-1 既有。
+- 刷新反馈 15s TTL 是渲染时惰性过滤（LOW-2 声明）；隐藏态首轮 GET 照发（LOW-3 声明）。
 
 ## 输出格式
 
-按严重度分级：BLOCKER / HIGH / MEDIUM / LOW。每条给出：文件:行号、问题、为什么是
-问题（具体失败场景）、建议修复。对四条整改逐条给出 VERIFIED / NOT VERIFIED + 理由。
-没有问题的维度明确说「未发现」。最后给一行总结论：PASS 或 FAIL（存在未清零
-BLOCKER/HIGH 即 FAIL）。
+BLOCKER / HIGH / MEDIUM / LOW 分级，每条给 文件:行号、问题、具体失败场景、建议修复。
+对 round-2 的 4 HIGH + 5 MEDIUM 逐条给 VERIFIED / NOT VERIFIED + 理由。没问题的维度
+明说「未发现」。最后一行总结论：PASS 或 FAIL（有未清零 BLOCKER/HIGH 即 FAIL）。

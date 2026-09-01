@@ -254,12 +254,18 @@ function boardTableHtml(vaultId, boards, nowMs) {
   }).join("");
   return '<div class="tblwrap"><table><thead><tr>' + head + "</tr></thead><tbody>" + rows + "</tbody></table></div>";
 }
-function restDayHtml(proj) {
+function restDayHtml(proj, nowMs) {
   // 休息日空状态 (status ok 且 due_count===0) — 文案对齐
   // daily_review_pick.py:599「今日无到期节点，休息一天」/ :564「按计划推进」
   const nu = proj.next_upcoming;
+  // 日期转上海本地日 (UTC 字面日期在上海已跨天时会骗人 — Codex round-2 M4)
+  let day = "";
+  if (nu) {
+    const ms = parseDueMs(nu.next_due);
+    day = ms === null ? String(nu.next_due).slice(0, 10) : shDay(ms);
+  }
   const tail = nu ? '<div style="color:#6b7280;font-size:13px;margin-top:4px">按计划推进 · 最近到期 ' +
-    esc(nu.board) + " · " + esc(String(nu.next_due).slice(0, 10)) + "</div>" : "";
+    esc(nu.board) + " · " + esc(day) + "</div>" : "";
   return '<div class="restday">✅ 今日无到期节点，休息一天。' + tail + "</div>";
 }
 function renderVaultCard(entry, nowMs, noteHtml, isInflight) {
@@ -270,7 +276,7 @@ function renderVaultCard(entry, nowMs, noteHtml, isInflight) {
   const proj = entry.projection;
   if (proj) {
     if (entry.status === "ok" && proj.due_count === 0) {
-      body = restDayHtml(proj);
+      body = restDayHtml(proj, nowMs);
     } else {
       const bc = proj.bucket_counts;
       const layers = bc == null ? "" :
@@ -314,7 +320,8 @@ function renderRefreshResult(status, payload) {
   const count = payload && payload.rebuild_count !== undefined && payload.rebuild_count !== null
     ? "（本进程累计 " + esc(payload.rebuild_count) + " 次）" : "";
   if (status === 200 && payload && payload.reason === "rebuilt")
-    return '<span class="rnote ok">✅ 已重建' + count + " · 数字已更新</span>";
+    // 不当场声称"数字已更新" — 数字要等受保护的 GET 成功落屏才算数 (round-2 HIGH-1)
+    return '<span class="rnote ok">✅ 已重建' + count + " · 正在同步最新数字…</span>";
   if (status === 200 && payload && payload.reason === "debounced") {
     const wait = Number(payload.retry_after_seconds);
     return '<span class="rnote warn">⏱ ' + esc(payload.debounce_ttl_seconds) + " 秒内已重建过" + count +
@@ -331,7 +338,9 @@ function renderRefreshResult(status, payload) {
 }
 
 // ═══ 副作用壳: 只消费上面纯函数的返回值 ═══
-const state = {timer: null, lastOkAt: null, lastData: null, notes: {}, inflight: {}};
+const state = {timer: null, lastOkAt: null, lastData: null, pollGen: 0,
+  // vault_id 是外部字符串 — Object.create(null) 防 "__proto__"/"constructor" 键注入原型 (round-2 M1)
+  notes: Object.create(null), inflight: Object.create(null), pendingSync: Object.create(null)};
 const el = id => document.getElementById(id);
 function fmtClock(ms) {
   return new Intl.DateTimeFormat("zh-CN", {timeZone: "Asia/Shanghai", hour12: false,
@@ -367,6 +376,19 @@ function freshNotes(nowMs) {
 function renderCards(nowMs) {
   el("cards").innerHTML = renderPage(state.lastData, nowMs, freshNotes(nowMs), state.inflight);
 }
+function settlePendingSync(nowMs, ok) {
+  // rebuilt 只发"正在同步…"；数字是否真更新, 由 GET 成败结算 (round-2 HIGH-1:
+  // 旧版 GET 失败也挂着"数字已更新", 矛盾可以无限期留在屏上)
+  for (const vid of Object.keys(state.pendingSync)) {
+    const n = state.pendingSync[vid];
+    delete state.pendingSync[vid];
+    state.notes[vid] = {html: ok
+      ? '<span class="rnote ok">✅ 已重建（本进程累计 ' + esc(n.count) + ' 次）· 数字已更新</span>'
+      : '<span class="rnote warn">⚠ 已重建（本进程累计 ' + esc(n.count) +
+        ' 次）· 数字同步失败，后端恢复后自动重试</span>', atMs: nowMs};
+    if (!applyNote(vid) && state.lastData) renderCards(nowMs);
+  }
+}
 function schedule(ms) {
   clearTimeout(state.timer);
   state.timer = null;
@@ -376,12 +398,17 @@ function schedule(ms) {
 }
 async function poll() {
   let delay = RETRY_DELAY_MS;
+  const gen = ++state.pollGen;  // 代际: 只有最新一次 GET 可以提交状态 (乱序旧响应整包丢弃)
   try {
     const resp = await fetch(URLS.overview, {cache: "no-store"});
     if (!resp.ok) throw new Error("HTTP " + resp.status);
     const data = await resp.json();
+    // 形状校验在提交状态之前 — HTTP 200 的坏形状不许清掉旧数据再装"已连接" (round-2 M2)
+    if (!data || !Array.isArray(data.vaults)) throw new Error("响应形状坏 (vaults 缺失)");
+    if (gen !== state.pollGen) return;  // 过期响应: 不碰状态不排程
     const nowMs = Date.now();
     state.lastData = data;
+    settlePendingSync(nowMs, true);
     renderCards(nowMs);
     el("banner").hidden = true;
     state.lastOkAt = nowMs;
@@ -389,6 +416,8 @@ async function poll() {
     setConn("ok", "已连接");
     delay = computePollDelayMs(data, nowMs);
   } catch (e) {
+    if (gen !== state.pollGen) return;  // 过期响应的失败同样不碰状态
+    settlePendingSync(Date.now(), false);
     el("banner").innerHTML = renderUnavailableBanner(String((e && e.message) || e),
       state.lastOkAt ? fmtClock(state.lastOkAt) : null);
     el("banner").hidden = false;
@@ -420,7 +449,11 @@ async function onRefreshClick(ev) {
     // 先就地补; 就地补不到 (反馈期间被轮询重绘换过 DOM) 且手上有数据 →
     // 用持久状态重绘恢复 — 反馈从此不依赖「那个 span 还在不在」
     if (!applyNote(vid) && state.lastData) renderCards(Date.now());
-    if (resp.ok && payload && payload.rebuilt) poll();  // 真重建 → 立即重拉 (反馈在 state.notes, 重绘不丢)
+    if (resp.ok && payload && payload.rebuilt) {
+      // 数字是否真更新交给 GET 结算 (settlePendingSync) — 不在 POST 结局里预先声称
+      state.pendingSync[vid] = {count: payload.rebuild_count, atMs: Date.now()};
+      poll();  // 真重建 → 立即重拉 (反馈在 state.notes, 重绘不丢)
+    }
   } catch (e) {
     state.notes[vid] = {html: renderRefreshResult(0, {detail: String((e && e.message) || e)}), atMs: Date.now()};
     if (!applyNote(vid) && state.lastData) renderCards(Date.now());

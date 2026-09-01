@@ -299,16 +299,65 @@ MUTATIONS: list[tuple[str, str, str, str, str]] = [
     (
         "M34",
         "rebuilt 后不立即重拉 → 数字停在旧投影",
-        "if (resp.ok && payload && payload.rebuilt) poll();  // 真重建 → 立即重拉 (反馈在 state.notes, 重绘不丢)",
+        "      poll();  // 真重建 → 立即重拉 (反馈在 state.notes, 重绘不丢)",
         ";",
         "test_js_refresh_wiring_note_survives_rerender_and_inflight_guard",
     ),
     (
         "M35",
-        "端点里内建 open() 读盘 → AST 调用门 (字符串黑名单的绕过面)",
+        "端点里内建 open() 读盘 → AST 正向合约 (白名单外 Name 调用)",
         "    urls = {",
         '    urls = {"probe": open("今日复习.json").read(),',
         "test_review_app_module_imports_are_closed",
+    ),
+    (
+        "M36",
+        "下标取内建 open (round-2 HIGH-4 的原始绕过形态) → 非 Name/Attribute 调用形态必红",
+        "    urls = {",
+        '    urls = {"probe": __builtins__["open"]("今日复习.json").read(),',
+        "test_review_app_module_imports_are_closed",
+    ),
+    (
+        "M37",
+        "lambda 包裹 open → 白名单外 Name 调用 (包在 lambda 里也一样)",
+        "    urls = {",
+        '    urls = {"probe": (lambda pth: open(pth).read())("今日复习.json"),',
+        "test_review_app_module_imports_are_closed",
+    ),
+    (
+        "M38",
+        "script 正文塞 // </SCRIPT> (大小写骗过提取) → 真实页面提取健全性门",
+        "const POLL_MIN_MS = 5000;   // 轮询下限 (默认裁决②: clamp 5s)",
+        "// </SCRIPT>\nconst POLL_MIN_MS = 5000;   // 轮询下限 (默认裁决②: clamp 5s)",
+        "test_real_page_extracted_script_is_well_formed",
+    ),
+    (
+        "M39",
+        "删成功路径代际守卫 → 乱序旧响应把新数据盖回旧投影 (round-2 HIGH-1)",
+        "    if (gen !== state.pollGen) return;  // 过期响应: 不碰状态不排程",
+        ";",
+        "test_js_poll_out_of_order_discards_stale_response",
+    ),
+    (
+        "M40",
+        "rebuilt 不登记 pendingSync → 数字未同步就永远不说/或乱说结局",
+        "      state.pendingSync[vid] = {count: payload.rebuild_count, atMs: Date.now()};",
+        ";",
+        "test_js_rebuilt_sync_flow_never_claims_prematurely",
+    ),
+    (
+        "M41",
+        "GET 成功不结算 pendingSync → 『数字已更新』永不出现",
+        "    settlePendingSync(nowMs, true);",
+        ";",
+        "test_js_rebuilt_sync_flow_never_claims_prematurely",
+    ),
+    (
+        "M42",
+        "删 200 坏形状校验 → 坏响应清掉旧数据还装已连接 (round-2 M2)",
+        '    if (!data || !Array.isArray(data.vaults)) throw new Error("响应形状坏 (vaults 缺失)");',
+        ";",
+        "test_js_malformed_200_keeps_last_data",
     ),
 ]
 
@@ -351,8 +400,11 @@ def main() -> int:
         try:
             proc = run_gate(gate)
             out = proc.stdout + proc.stderr
+            # returncode 必须 == 1 (pytest「测试失败」专属退出码): collection
+            # error=2 / 内部错误=3 / 用法错误(含 nodeid 不存在)=4 / 未收集=5
+            # 一律不许冒充变红 (round-2 HIGH-4: 构造的 ImportError 骗过了 !=0)
             red = (
-                proc.returncode != 0
+                proc.returncode == 1
                 and re.search(r"\b1 failed\b", out) is not None
                 and f"FAILED {TESTFILE}::{gate}" in out
             )
