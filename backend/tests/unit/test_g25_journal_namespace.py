@@ -915,23 +915,37 @@ def _assert_convergence_wording(text: str) -> None:
 
     assert "只覆盖当前部署" in text, "缺作用域限定「只覆盖当前部署」"
 
-    question_marks = ("？", "?", "吗", "呢", "是否", "有没有")
+    question_marks = ("？", "?", "吗", "呢", "是否", "有没有", "难道", "岂", "怎能", "怎么会")
     for m in re.finditer(r"没有周期反熵", text):
         start = text.rfind("。", 0, m.start())
         end = text.find("。", m.start())
         sentence = text[start + 1 : end if end != -1 else len(text)]
         hit = [q for q in question_marks if q in sentence]
-        assert not hit, f"「没有周期反熵」出现在疑问句中: {sentence!r} (疑问标记 {hit})"
+        assert not hit, f"「没有周期反熵」出现在疑问/反问句中: {sentence!r} (疑问标记 {hit})"
 
-    claim_re = r"(约|在)?\s*(60\s*(秒|s)|一分钟|1分钟)\s*内?\s*必(然)?收敛"
+    # 收敛断言的等价形态族 (round-4 Codex 绕过整改: 中文数字/「保证…一致」/
+    # 「必然收敛」均为同义改写)
+    claim_res = (
+        r"(约|在)?\s*(60|六十)\s*(秒|s)\s*(内|之内)?\s*必(然)?收敛",
+        r"(一分钟|1分钟)\s*(内|之内)?\s*必(然)?收敛",
+        r"(六十|60)\s*秒\s*(内|之内)?\s*(保证|确保|必然|一定)?\s*(达到一致|保持一致|一致)",
+    )
     quote_marks = ("旧文案", "原文案", "原文", "旧说法", "曾写", "原话")
     negation_marks = ("不成立", "是错的", "错误", "不对", "不实", "错的")
-    for m in re.finditer(claim_re, text):
-        window = text[max(0, m.start() - 24) : m.start()]
-        span = text[max(0, m.start() - 40) : m.end() + 16]
-        assert any(w in window for w in quote_marks) and any(n in span for n in negation_marks), (
-            f"收敛断言必须处于「引用旧文案并否定」语境, 前文: {window!r}"
-        )
+    # ⛔ 语境伪造标记 (round-4 Codex 绕过: 「旧文案错误已澄清；新结论：约60秒内
+    # 必然收敛」—— 引用与否定标记都被伪造成彩翼, 但「新结论」暴露这是活断言)
+    assertion_marks = ("新结论", "结论是", "因此", "所以", "本文结论", "现在可以确认")
+    for cre in claim_res:
+        for m in re.finditer(cre, text):
+            window = text[max(0, m.start() - 24) : m.start()]
+            span = text[max(0, m.start() - 40) : m.end() + 16]
+            near = text[max(0, m.start() - 30) : m.end() + 30]
+            assert not any(a in near for a in assertion_marks), (
+                f"收敛断言带活断言引导词 (新结论/因此…), 不得以引用语境放行: {near!r}"
+            )
+            assert any(w in window for w in quote_marks) and any(n in span for n in negation_marks), (
+                f"收敛断言必须处于「引用旧文案并否定」语境, 前文: {window!r}"
+            )
 
 
 def test_convergence_wording_has_no_unqualified_60s_claim(tmp_path, caplog):
@@ -983,3 +997,13 @@ def test_convergence_wording_has_no_unqualified_60s_claim(tmp_path, caplog):
     # 肯定性修辞误放堵口: 「不是偶尔, 而是…」的「不是」不得充当否定
     with pytest.raises(AssertionError):
         _assert_convergence_wording("只覆盖当前部署的范围; 没有周期反熵。不是偶尔, 而是约 60 秒内必收敛。")
+    # ⛔ round-4 Codex 三个新绕过 (stderr 抢救样本逐字固化): 反问句 / 中文数字
+    # 「保证…一致」变体 / 引用语境伪造 (「新结论」引导的活断言)
+    with pytest.raises(AssertionError):
+        _assert_convergence_wording("orchestrator 只覆盖当前部署；难道 lancedb 没有周期反熵。")
+    with pytest.raises(AssertionError):
+        _assert_convergence_wording("orchestrator 只覆盖当前部署；lancedb 没有周期反熵。最多六十秒保证达到一致。")
+    with pytest.raises(AssertionError):
+        _assert_convergence_wording(
+            "orchestrator 只覆盖当前部署；lancedb 没有周期反熵。旧文案错误已澄清；新结论：约60秒内必然收敛。"
+        )
