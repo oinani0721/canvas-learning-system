@@ -23,6 +23,11 @@ EXPECTED_HEX = {"NEW_HEADING": "23c2a06b6565700a"}
 
 for key, (name, body) in CASES.items():
     p = REPRO / key / "vault" / "_待处理" / name
+    # ⛔ round-2 审查 MEDIUM：原先只 write_bytes，在**全新目标目录**下必然
+    # FileNotFoundError —— 取证脚本只在我自己那次已经手工建好目录的环境里能跑，
+    # 复现者拿到手是坏的。取证包必须自足。
+    p.parent.mkdir(parents=True, exist_ok=True)
+    (REPRO / key / "out").mkdir(parents=True, exist_ok=True)
     raw = body.encode("utf-8")
     p.write_bytes(raw)
     print(f"{key:12s} {name:16s} {len(raw):3d} bytes  hex={raw.hex()}")

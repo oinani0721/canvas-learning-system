@@ -1,21 +1,46 @@
-源码基线 sha256 = cba6e46415879a451f8a6736441f26c3e8cd8c5876ab58ffa130d235e118c59e
+源码基线 sha256 = ebe09bc107e08a04a3964c05c40534dd88fe0abea63d63cffa9b857fce491eaa
 
-✅ M-NBSP  井号后分隔回退到 Unicode \s
-   目标门 test_nbsp_after_hash_is_not_an_atx_heading
-   rc=1 | ================== 1 failed, 81 passed, 10 warnings in 5.86s =================== | 指定门已被杀 | 连带红 1 门 | 还原 sha 一致
-   FAILED: ['test_nbsp_after_hash_is_not_an_atx_heading']
+✅ M-NBSP       井号后分隔回退到 Unicode \s
+   期望红: ['test_nbsp_after_hash_is_not_an_atx_heading', 'test_nbsp_heading_narrowing_locks_each_consumer']
+   实际红: ['test_nbsp_after_hash_is_not_an_atx_heading', 'test_nbsp_heading_narrowing_locks_each_consumer']
+   rc=1 | ================== 2 failed, 86 passed, 10 warnings in 6.03s =================== | 还原 sha 一致
 
-✅ M-AI    生成断言结构 + 生成器键两层全回退
-   目标门 test_model_version_generation_claim_is_undigested_signal
-   rc=1 | ================== 1 failed, 81 passed, 10 warnings in 5.83s =================== | 指定门已被杀 | 连带红 1 门 | 还原 sha 一致
-   FAILED: ['test_model_version_generation_claim_is_undigested_signal']
+✅ M-CLAIMBOUND 生成骨架加回长度上界 + 字面空格
+   期望红: ['test_long_model_name_and_punctuated_generation_claims_are_undigested']
+   实际红: ['test_long_model_name_and_punctuated_generation_claims_are_undigested']
+   rc=1 | ================== 1 failed, 87 passed, 10 warnings in 5.99s =================== | 还原 sha 一致
 
-✅ M-DOI   来源键名归一 + DOI 值形态两层全回退
-   目标门 test_doi_source_identifier_blocks_deletion
-   rc=1 | ================== 1 failed, 81 passed, 10 warnings in 5.87s =================== | 指定门已被杀 | 连带红 1 门 | 还原 sha 一致
-   FAILED: ['test_doi_source_identifier_blocks_deletion']
+✅ M-ZEROWIDTH  护栏归一退回旧归一（不剥零宽）
+   期望红: ['test_zero_width_split_marker_still_reads_as_ai_suspect']
+   实际红: ['test_zero_width_split_marker_still_reads_as_ai_suspect']
+   rc=1 | ================== 1 failed, 87 passed, 10 warnings in 6.01s =================== | 还原 sha 一致
 
-finally 还原后 sha256 = cba6e46415879a451f8a6736441f26c3e8cd8c5876ab58ffa130d235e118c59e (与基线逐字节相同)
+✅ M-GENSIGNAL  生成断言结构 + 生成器键两层全回退
+   期望红: ['test_long_model_name_and_punctuated_generation_claims_are_undigested', 'test_model_version_generation_claim_is_undigested_signal']
+   实际红: ['test_long_model_name_and_punctuated_generation_claims_are_undigested', 'test_model_version_generation_claim_is_undigested_signal']
+   rc=1 | ================== 2 failed, 86 passed, 10 warnings in 6.23s =================== | 还原 sha 一致
+
+✅ M-SRCALIAS   来源键名归一退回字面小写 source
+   期望红: ['test_doi_source_identifier_blocks_deletion']
+   实际红: ['test_doi_source_identifier_blocks_deletion']
+   rc=1 | ================== 1 failed, 87 passed, 10 warnings in 5.85s =================== | 还原 sha 一致
+
+✅ M-DOIVAL     DOI 值形态信号回退
+   期望红: ['test_doi_source_identifier_blocks_deletion', 'test_duplicate_frontmatter_key_does_not_mask_source']
+   实际红: ['test_doi_source_identifier_blocks_deletion', 'test_duplicate_frontmatter_key_does_not_mask_source']
+   rc=1 | ================== 2 failed, 86 passed, 10 warnings in 6.04s =================== | 还原 sha 一致
+
+✅ M-PAIRS      护栏扫描面退回折叠后的 map（重复键遮蔽复现）
+   期望红: ['test_duplicate_frontmatter_key_does_not_mask_source']
+   实际红: ['test_duplicate_frontmatter_key_does_not_mask_source']
+   rc=1 | ================== 1 failed, 87 passed, 10 warnings in 6.05s =================== | 还原 sha 一致
+
+✅ M-WHITELIST  白名单兜底信号回退（方向退回 fail-open）
+   期望红: ['test_unknown_nonempty_frontmatter_value_blocks_c3']
+   实际红: ['test_unknown_nonempty_frontmatter_value_blocks_c3']
+   rc=1 | ================== 1 failed, 87 passed, 10 warnings in 6.24s =================== | 还原 sha 一致
+
+finally 还原后 sha256 = ebe09bc107e08a04a3964c05c40534dd88fe0abea63d63cffa9b857fce491eaa (与基线逐字节相同)
 
 ======================================================================
-G56C_NEGATIVE_CONTROL: PASS （3/3 变异各由指定门杀死）
+G56C_NEGATIVE_CONTROL: PASS （8/8 变异的实际失败集合等于预先声明集合）
