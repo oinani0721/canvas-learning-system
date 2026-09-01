@@ -23,6 +23,7 @@ on:
     paths:
       - 'backend/app/api/**'
       - 'backend/app/models/**'
+      - 'backend/app/schemas/**'
       - 'backend/app/mcp/**'
       - 'backend/app/main.py'
       - 'backend/app/config.py'
@@ -35,6 +36,7 @@ on:
     paths:
       - 'backend/app/api/**'
       - 'backend/app/models/**'
+      - 'backend/app/schemas/**'
       - 'backend/app/mcp/**'
       - 'backend/app/main.py'
       - 'backend/app/config.py'
@@ -209,13 +211,17 @@ jobs:
             --format json > breaking-changes.json 2>oasdiff-err.txt
           set -e
 
-          # 解析结果: 解析失败 = 工具出错, 本步骤直接红(不再吞)
+          # 解析结果: 解析失败**或结构非裸数组** = 工具出错, 本步骤直接红(不再吞;
+          # Codex round-2 MEDIUM: 非数组 JSON 如 {} 计 0 会把异常输出伪装成零变化)
           BREAKING_COUNT=$(python3 -c "
           import json, sys
           try:
               with open('breaking-changes.json') as f:
                   data = json.load(f)
-              print(len(data) if isinstance(data, list) else 0)
+              if not isinstance(data, list):
+                  print('PARSE_ERROR')
+              else:
+                  print(len(data))
           except Exception:
               print('PARSE_ERROR')
           ")
@@ -479,7 +485,7 @@ jobs:
           fi
 
           if [ "${{ needs.contract-test.result }}" == "skipped" ]; then
-            echo "| Contract Tests (Dredd) | :heavy_minus_sign: 已停用 — 见 job 上方注释; schema 一致性由 schemathesis 进程内测试承担(未接入 CI 白名单), HTTP 回放面已丢失 |" >> $GITHUB_STEP_SUMMARY
+            echo "| Contract Tests (Dredd) | :heavy_minus_sign: 已停用 — 见 job 上方注释; schema 一致性现仅由本地可选的 schemathesis 测试覆盖(未进 CI 白名单), HTTP/example 回放面已丢失 |" >> $GITHUB_STEP_SUMMARY
           elif [ "${{ needs.contract-test.result }}" == "success" ]; then
             echo "| Contract Tests (Dredd) | :white_check_mark: |" >> $GITHUB_STEP_SUMMARY
           else

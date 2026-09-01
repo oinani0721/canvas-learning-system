@@ -28,19 +28,23 @@ pre-commit:
     # 现在: venv 解析器 + 失败 exit 1 阻断 commit + 直接写并 stage backend 下的快照。
     # 代价(已知): 每次改 backend/app/{api,models,schemas} 的 commit 会多花约 20s
     # 导入 app.main 重生成快照, 且快照因 x-generated-at 恒变而必然出现在 diff 里。
-    # spec-sync 三命令(Codex round-1 BLOCKER-3): app.openapi() 不只由
+    # spec-sync 双命令(Codex round-1/2 BLOCKER-3): app.openapi() 不只由
     # api/models/schemas 塑造 —— main.py(路由挂载)/config.py(设置与前缀)/
     # mcp/**(工具注册改写 schema)都在其中。历史反例 c44c48e8 只改 mcp/server.py
     # 却修复了 requestBody 参数面丢失。
-    # ⚠️ glob 引擎实测边界(本机 lefthook 2.1.6, 逐一探针验证):
-    #   1. YAML 数组形态完全不工作(花括号不展开、`**` 不匹配) → 必须单字符串;
-    #   2. `**` 要求至少跨一级目录(backend/app/mcp/**/*.py 匹配不到 mcp 直属文件)
-    #      → 直属文件要用单级 `*` 另立模式;
-    #   3. 花括号备选项必须是真实存在的路径(目录或文件), 带斜杠/** 的长备选项被丢弃。
-    # 故拆三条命令覆盖「多级目录/四目录直属文件/仓根文件」; 并行命中同一 commit 时
-    # 依靠 --write 的原子落盘(tmp+rename)避免两进程同写快照的交错损坏。
-    spec-sync:
-      glob: "backend/app/{api,models,schemas,mcp}/**/*.py"
+    # ⚠️ glob 引擎实测矩阵(本机 lefthook 2.1.6, 5 文件 × 3 模式逐项探针):
+    #   | staged 文件                | {..}/**/*.py | {..}/*.py | {main.py,config.py} |
+    #   | api/v1/endpoints/x.py(3级) | 命中          | 命中       | skip                |
+    #   | mcp/server.py(1级)         | skip          | 命中       | skip                |
+    #   | models/schemas.py(1级)     | skip          | 命中       | skip                |
+    #   | main.py / config.py(根)    | skip          | skip       | 命中                |
+    #   即: 单 `*` 跨目录层级, `**` 反而要求至少跨一级 → `{..}/**/*.py` 的覆盖集
+    #   是 `{..}/*.py` 的真子集(57/85), 单独保留只会造成同文件双命令并行写。
+    #   故只留 flat+root 两条**零重叠**命令; 即便如此, 一个 commit 同时触及两命令
+    #   的 glob 时仍会并行, 由 --write 的每进程独立 tmp + 原子 rename 兜底。
+    #   (round-2 曾用共享 tmp 名, Codex 实测 8 进程碰撞 child_failures=8。)
+    spec-sync-flat:
+      glob: "backend/app/{api,models,schemas,mcp}/*.py"
       run: |
         if [ -f "backend/.venv/bin/python" ]; then PY="backend/.venv/bin/python"; else PY="python3"; fi
         echo "[Spec Sync] API changes detected, regenerating backend/openapi.json (via $PY)..."
@@ -48,28 +52,8 @@ pre-commit:
           echo "[Spec Sync] FAILED — 快照未能重生成, 先修好再 commit(禁手改快照)。"
           exit 1
         fi
-        git add backend/openapi.json
+        git add backend/openapi.json || exit 1
         echo "[Spec Sync] + backend/openapi.json staged"
-        if [ -d specs/data/generated ]; then
-          for schema in specs/data/generated/*.schema.json; do
-            if [ -f "$schema" ] && ! git diff --quiet "$schema" 2>/dev/null; then
-              git add "$schema"
-              echo "[Spec Sync] + $(basename $schema) added to commit"
-            fi
-          done
-        fi
-        echo "[Spec Sync] Done."
-    spec-sync-flat:
-      glob: "backend/app/{api,models,schemas,mcp}/*.py"
-      run: |
-        if [ -f "backend/.venv/bin/python" ]; then PY="backend/.venv/bin/python"; else PY="python3"; fi
-        echo "[Spec Sync/flat] API changes detected, regenerating backend/openapi.json (via $PY)..."
-        if ! "$PY" scripts/spec-tools/check-openapi-drift.py --write backend/openapi.json; then
-          echo "[Spec Sync/flat] FAILED — 快照未能重生成, 先修好再 commit(禁手改快照)。"
-          exit 1
-        fi
-        git add backend/openapi.json
-        echo "[Spec Sync/flat] + backend/openapi.json staged"
     spec-sync-root:
       glob: "backend/app/{main.py,config.py}"
       run: |
@@ -79,7 +63,7 @@ pre-commit:
           echo "[Spec Sync/root] FAILED — 快照未能重生成, 先修好再 commit(禁手改快照)。"
           exit 1
         fi
-        git add backend/openapi.json
+        git add backend/openapi.json || exit 1
         echo "[Spec Sync/root] + backend/openapi.json staged"
 
     # --- Ghost Files: Detect untracked documentation ---

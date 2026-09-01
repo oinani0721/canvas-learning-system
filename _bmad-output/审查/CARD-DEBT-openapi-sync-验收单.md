@@ -7,9 +7,10 @@
 
 OpenAPI 漂移门此前是假门(CI 查一个全历史从不存在的仓库根文件、失败被 `|| true` 吞掉、
 lefthook spec-sync 死了 4 个月), 本卡把它们修活: 门真的能翻红、快照重生成(同时登记
-5 个月漂移)、三个 CI/CD 处置按默认落 commit 待用户逐项批。
+5 个月漂移)、三个 CI/CD 处置按默认落 commit 待用户逐项批。经 Codex 两轮对抗审查
+(4+2 BLOCKER 全数证实并整改), 现待第三轮终验。
 
-## 一、改动面(7 文件, 生产代码 backend/app/** 零改动)
+## 一、改动面(首 commit 8 文件, 此后 Codex 整改 commit 增量; 生产代码 backend/app/** 零改动)
 
 | 文件 | 动作 | 说明 |
 |---|---|---|
@@ -194,4 +195,33 @@ git status --short → (空) ; 无新 commit
   - MEDIUM(DETAIL_LINE_CAP 截断可掩盖点名行)与 LOW(验收单 pathspec 缩写/时间
     模糊/文件计数)一并修正; MEDIUM 另一缓解: 差异头部恒打印 paths/schemas 增删
     计数, 截断只作用于逐行明细。
-- **Round 2**: (待回填)
+- **Round 2**(gpt-5.6-sol ultra): 终裁 **FAIL — 2 BLOCKER 残留**(B1/B3 各一),
+  B2/B4/H5/H6 判 PASS。逐条溯源:
+  - B1 残口成立: 形状守卫(宿主含 type/properties)被
+    `{"enum":[{"type":"tag","required":[...]}]}` 打穿(enum 实例把 type 当普通
+    数据键), compare()==clean 本地复现。**正解 = 语境切分**: enum/const/default/
+    example(s)/value 的值是实例数据(JSON Schema 封闭世界: 实例里不可能再嵌
+    Schema), 进入这些键的子树后 required 一律保序, 不依赖任何内容启发式。
+    修复过程中还抓到我自己引入的第二层 bug: **语境在数组边界丢失**
+    (`_normalize(item, None, None)` 未透传 value_context)——用 round-2 反例
+    复现后才修掉, 教训=修复本身也要用原反例回归。四种反例形态(enum 裸对象/
+    带 type 键/default 值/深嵌套数组)全部验证报漂移; Schema 语境排序不回归;
+    真实快照 value-context 下 required 数组 = 0(归一化输出零变化)。
+  - B3 残口成立且我此前的 glob 结论有错: 5 文件 × 3 模式零成本矩阵探针
+    (run 块临时换 echo)定案 lefthook 2.1.6 语义 = 单 `*` **跨**目录层级、
+    `**` 要求至少跨一级 → `{..}/**/*.py`(57 文件)是 `{..}/*.py`(85 文件)的
+    **真子集**, 我 round-1 保留的三命令造成 57 文件双命令并行写。且我加的
+    "原子写"用了**共享 tmp 文件名**——Codex 实测 8 进程碰撞 child_failures=8
+    (先完成者 rename 后, 后者的 rename 目标已不存在 → 进程非零退出 → 误阻断
+    commit)。整改: 删 `**` 命令只留 flat+root **零重叠**双命令 + tmp 名含
+    pid + `git add || exit 1`(不再吞 index.lock 失败)。
+  - B4 残余 MEDIUM: oasdiff 非数组 JSON(如 {})计 0 → 现改为非数组即
+    PARSE_ERROR 步骤红。范围外既存风险(登记不修): oasdiff 安装 URL 返回 404
+    (blame 到旧提交 14f0412d, 非本卡引入), PR job 可能在安装步先失败。
+  - MEDIUM(隐私卫生): round-1 整改把 545KB 原始 codex stderr(含 226 处本机
+    绝对路径+会话 id)提交进了 6c81ebc9 → 本 commit 移出跟踪, 换脱色摘录
+    (*.stderr-redacted.txt, 尾部 80 行+路径替换)。同型问题存在于 ①② 的
+    stderr 文件(3 份共 ~3MB), 属其他卡产物, 本卡不动, 登记移交主 session。
+  - LOW: 验收单「7 文件/19 测试」→ 实际首 commit 8 文件、现 23 测试; summary
+    中 schemathesis 措辞再软化(「本地可选测试, 未进 CI」)。
+- **Round 3**(终轮): (待回填)

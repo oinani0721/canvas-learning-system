@@ -29,15 +29,18 @@
      2026-08-31 全树扫描实测: 这两个键在 app.openapi() 原生输出中**不存在**,
      只由本脚本 --write 写入, 故不存在「删掉了生产真值」的可能。
   2. dict 按 key 排序(JSON 对象成员无序, 排序只消除表示差异)。
-  3. 键名为 `required` 且值为**纯字符串数组**、且宿主 dict 含 properties 或 type
-     键(即长得像 Schema Object) → sorted()。JSON Schema 的 required 是集合语义,
-     而 pydantic 按字段声明序生成它——2026-08-31 实测 281 个 required 数组中
-     144 个(51.2%)非字典序, 不排序会让一次无关的字段重排把半数 schema 报成漂移
-     (误红的门必然被 `|| true` 掉, 那正是本卡要修的病)。
-     用 sorted 而非 set: 重复项与数量差异仍会暴露, 不吞真漂移。
-     ⚠️ 宿主守卫(Codex round-1 BLOCKER-1): enum 值/示例里的普通对象若恰好带
-     required 键, 其数组是有序 enum 值的一部分, 不得当集合排序——守卫条件
-     (宿主含 properties/type)实测覆盖真实快照 281/281 个 required 数组, 零成本。
+  3. 键名为 `required` 且值为**纯字符串数组**、且当前处于 **Schema 语境** →
+     sorted()。JSON Schema 的 required 是集合语义, 而 pydantic 按字段声明序
+     生成它——2026-08-31 实测 281 个 required 数组中 144 个(51.2%)非字典序,
+     不排序会让一次无关的字段重排把半数 schema 报成漂移(误红的门必然被
+     `|| true` 掉, 那正是本卡要修的病)。用 sorted 而非 set: 重复项与数量
+     差异仍会暴露, 不吞真漂移。
+     ⚠️ 语境切分(Codex round-1/2 两个 BLOCKER 的最终解): enum/const/default/
+     example/examples/value 这些键的**值是实例数据**, 实例必须与之精确相等,
+     其内部一切数组都是有序值 —— 进入这些键的子树后 required 一律保序。
+     实例数据里不可能再嵌 Schema(JSON Schema 封闭世界), 因此这是完备判据,
+     不依赖「宿主长什么样」的内容启发式(形状启发式已被
+     {"enum":[{"type":"tag","required":[...]}]} 类反例两次打穿)。
      ⚠️ 同名 key 的另一种用法 `required: true`(Parameter Object, 实测 373 处)
      是布尔标量, 走原样分支, 不受此规则影响。
   4. 其余数组一律**保序**。enum 尤其不排序: 取值顺序有语义(文档展示序、
@@ -60,6 +63,7 @@ import argparse
 import contextlib
 import copy
 import json
+import os
 import socket
 import sys
 from datetime import datetime, timezone
@@ -120,28 +124,50 @@ def _tag_leaf(value):
     return ("raw", value)
 
 
-def _normalize(node, key_in_parent=None, container=None):
+VALUE_CONTEXT_KEYS = frozenset(
+    {"enum", "const", "default", "example", "examples", "value"}
+)
+"""这些键的**值是实例数据**, 不是 Schema —— JSON Schema 的封闭世界性质。
+
+enum/const 的成员、default/example 的值、Example Object 的 value, 实例都必须与
+之**精确相等**, 其内部一切数组(含恰好叫 required 的)都是有序数据。实例数据里
+不可能再嵌 Schema(JSON Schema 规定 instance 与 schema 是两个不相交的世界),
+所以 value-context 一旦进入, 对整棵子树都成立, 不需要任何内容启发式。
+(Codex round-2 BLOCKER: 宿主含 type/properties 的形状启发式会被
+{"enum":[{"type":"tag","required":[...]}]} 这类把 type 当普通数据键的合法
+enum 实例打穿 —— 内容模仿是无底洞, 语境切分才是封闭世界里的完备判据。)
+"""
+
+
+def _normalize(node, key_in_parent=None, container=None, value_context=False):
     """container = 拥有 key_in_parent 这个键的那个 dict(即 node 的宿主)。
 
-    required 排序只在「宿主 dict 长得像 Schema Object」(含 properties 或 type 键)时
-    生效 —— 否则 enum 值/示例里的普通对象若恰好带个 required 键, 其数组会被误当
-    集合排序, 吞掉真实契约变化(Codex round-1 BLOCKER-1 实证反例)。
-    2026-09-01 实测: 真实快照 281/281 个 required 数组的宿主都含 properties/type,
-    守卫零成本。
+    required 排序只发生在 **Schema 语境**(value_context=False)下: 此时 required
+    是 JSON Schema 关键字, 集合语义(pydantic 按字段声明序生成, 实测 281 个中
+    144 个非字典序, 不排序会把无关字段重排报成漂移)。进入实例数据键的子树后
+    value_context 恒为 True, 一切数组保序 —— 顺序差异必须报为漂移。
     """
     if isinstance(node, dict):
         normalized = {}
         for key in sorted(node):
-            normalized[key] = _normalize(node[key], key, node)
+            normalized[key] = _normalize(
+                node[key],
+                key,
+                node,
+                value_context or key in VALUE_CONTEXT_KEYS,
+            )
         return normalized
     if isinstance(node, list):
         if (
             key_in_parent == "required"
             and all(isinstance(item, str) for item in node)
-            and isinstance(container, dict)
-            and (("properties" in container) or ("type" in container))
+            and not value_context
         ):
             return sorted(node)
+        # value_context 必须穿透数组边界: enum 的成员列表本身是数组, 语境若在此
+        # 断掉, 成员对象内的 required 又会被当 Schema 关键字排序(Codex round-2
+        # 反例复现的根因就是这里)
+        return [_normalize(item, None, None, value_context) for item in node]
         return [_normalize(item, None, None) for item in node]
     return _tag_leaf(node)
 
@@ -277,10 +303,11 @@ def check_drift(snapshot_path: Path) -> int:
 def write_snapshot(output_path: Path) -> int:
     """归一化 + 易变键后落盘。恒写(见模块 docstring --write 段)。
 
-    原子落盘(tmp + os.replace): lefthook 会以多条 glob 命中同一 commit 的形态
-    并行跑本脚本(见 lefthook.yml spec-sync* 三命令), 两个进程直写同一路径会
-    按各自 offset 交错落盘(总长=较长那份, wc 看不出损坏); 先写 tmp 再原子
-    rename 后, 并发退化为「最后 rename 者胜」, 内容各自完整。
+    原子落盘(每进程独立 tmp + os.replace): lefthook 的多条 spec-sync 命令可能
+    并行命中同一 commit。tmp 文件名**必须含 pid** —— 共享 tmp 名时, 先完成者
+    rename 走 tmp 后, 后完成者的 rename 目标已不存在(FileNotFoundError, 进程
+    以非零退出, 误阻断 commit); Codex round-2 实测 8 进程受控碰撞 child_failures=8。
+    独立 tmp 后并发退化为「最后 rename 者胜」, 内容各自完整。
     """
     schema = _untag(canonicalize(load_live_schema()))
     info = dict(schema.get("info", {}))
@@ -288,7 +315,7 @@ def write_snapshot(output_path: Path) -> int:
     info["x-generator"] = X_GENERATOR_NAME
     schema["info"] = {key: info[key] for key in sorted(info)}
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = output_path.with_name(output_path.name + ".tmp")
+    tmp_path = output_path.with_name(f"{output_path.name}.{os.getpid()}.tmp")
     tmp_path.write_text(
         json.dumps(schema, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
