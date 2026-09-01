@@ -1325,3 +1325,210 @@ def test_round1_followups_n1_to_n5(vault):
     assert r5.returncode != 0, "多 pending 并存时必须 fail-closed，不得硬算 attempt 期望值"
     assert "A2「追加前重放至空」不变量已被破坏" in r5.stderr, r5.stderr
     assert not _fm_fields(v2), "零写"
+
+
+# ── 门㉟ 自测覆盖缺口（round-2 等待期自查，6 条全部实测过）──
+# 这些不是新缺陷，是**已有门没覆盖到的面**。补成门，防止后续改动把它们打破。
+
+
+def test_self_audit_coverage_gaps(vault):
+    import subprocess
+    import unicodedata
+
+    # ① 分层防线的另一半：门㉕ 只测「篡改身份键的值」，没测「删掉整个键」。
+    # 删键后 envelope 照样放行（两键排除出等价面 = 有意），必须由 validator 兜住。
+    r = _run_writer(vault, _payload())
+    assert r.returncode == 0, r.stdout + r.stderr
+    base = _ledger_lines(vault)[0]
+    assert _run_validator(vault).returncode == 0, "基线：完整行必须过校验器"
+    for key in ("fsrs_library_version", "fsrs_params_hash"):
+        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+        dropped = json.loads(json.dumps(base))
+        dropped["payload"].pop(key)
+        _write_ledger(vault, dropped)
+        rw = _run_writer(vault, _payload())
+        assert rw.returncode == 0, f"删 {key} 后 envelope 应放行（身份键不在等价面）"
+        assert _fm_fields(vault), "放行则必须真的恢复了 FSRS"
+        v = _run_validator(vault)
+        assert v.returncode != 0, f"但删 {key} 必须被校验器拦下 —— 否则分层防线漏空"
+        assert key in v.stdout, v.stdout[:300]
+
+    # ② Unicode 归一化差异必须构成冲突。
+    # ⚠️ 首版探针用汉字节点名做 NFD 变异，结果「放行」——那是**假阴性**：
+    # 汉字没有分解形式，NFD(s) == s，变异根本没改字节。必须用有分解形式的字符。
+    assert unicodedata.normalize("NFD", "测试节点") == "测试节点", "汉字无分解形式（本断言防后人重蹈）"
+    nfc_name = "café笔记"
+    assert unicodedata.normalize("NFD", nfc_name) != nfc_name, "fixture 前提：该名字必须真有分解形式"
+    node2 = f"节点/{nfc_name}.md"
+    (vault / node2).write_text(NODE_V0, encoding="utf-8")
+    (vault / "learning_events.jsonl").unlink()
+    r2 = _run_writer(vault, _payload(node=node2, event_id="nfd#q1"))
+    assert r2.returncode == 0, r2.stdout + r2.stderr
+    base2 = _ledger_lines(vault)[0]
+    (vault / node2).write_text(NODE_V0, encoding="utf-8")  # 崩溃窗口①
+    nfd = json.loads(json.dumps(base2))
+    nfd["node_id"] = unicodedata.normalize("NFD", nfd["node_id"])
+    nfd["payload"]["concept_id"] = unicodedata.normalize("NFD", nfd["payload"]["concept_id"])
+    assert nfd["node_id"] != base2["node_id"], "变异必须真的改变了字节"
+    _write_ledger(vault, nfd)
+    r3 = _run_writer(vault, _payload(node=node2, event_id="nfd#q1"))
+    assert r3.returncode != 0 and "envelope 冲突" in r3.stderr, r3.stderr
+
+    # ③ payload 键顺序不同**不得**构成冲突（canonical 用 sort_keys，顺序不是事实差异）
+    (vault / node2).write_text(NODE_V0, encoding="utf-8")
+    reordered = json.loads(json.dumps(base2))
+    reordered["payload"] = dict(reversed(list(reordered["payload"].items())))
+    assert list(reordered["payload"]) != list(base2["payload"]), "fixture 前提：顺序必须真的变了"
+    _write_ledger(vault, reordered)
+    r4 = _run_writer(vault, _payload(node=node2, event_id="nfd#q1"))
+    assert r4.returncode == 0, "键顺序不是事实差异，不得误报冲突: " + r4.stderr
+
+    # ④ attempt 序数复算成负值时必须 fail-closed（f1=T 但 attempt_count 被人手删）
+    v3 = vault
+    (v3 / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (v3 / "learning_events.jsonl").unlink()
+    assert _run_writer(v3, _payload()).returncode == 0
+    assert (
+        _run_writer(v3, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z", exam_board="检验白板/板B.md")).returncode
+        == 0
+    )
+    text = (v3 / NODE_REL).read_text(encoding="utf-8")
+    (v3 / NODE_REL).write_text(re.sub(r"^attempt_count:.*\n", "", text, flags=re.M), encoding="utf-8")
+    sha_before = _sha(v3 / NODE_REL)
+    r5 = _run_writer(v3, _payload(ts="2026-09-01T12:00:00Z"))
+    assert r5.returncode != 0, "attempt 期望值算成负数时必须 fail-closed，不得放行"
+    assert _sha(v3 / NODE_REL) == sha_before, "零写"
+
+    # ⑤ 同节点两个适用事件 review_time 完全相同 → 按行号稳定全序，两条都重放
+    v4 = vault
+    (v4 / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    a = _review_row(event_id="quiz:板A#q1", **{"payload.review_time": TS1})
+    b = _review_row(event_id="quiz:板B#q1", **{"payload.review_time": TS1, "payload.attempt_count": 2})
+    _write_ledger(v4, a, b)
+    r6 = _run_writer(v4, _payload(event_id="板C#q1", ts="2026-08-05T10:00:00Z"))
+    assert r6.returncode == 0, r6.stdout + r6.stderr
+    replayed = [ln for ln in r6.stdout.splitlines() if "A2 重放已应用" in ln]
+    assert len(replayed) == 2, f"同时刻两事件都应被重放，实得 {len(replayed)}: {replayed}"
+    assert "板A" in replayed[0] and "板B" in replayed[1], f"全序必须按行号稳定: {replayed}"
+
+    # ⑥ 整秒门放行的宽松字面量必须都归一到**同一个** UTC 整秒瞬间
+    # （小写 t / 空格分隔 / -00:00 都是合法 ISO 写法，语义等价，放行无害）
+    sys.path.insert(0, str(WT / "backend" / "scripts"))
+    try:
+        from validate_learning_events import _WHOLE_SECOND_RE
+    finally:
+        sys.path.remove(str(WT / "backend" / "scripts"))
+    from datetime import datetime, timedelta, timezone
+
+    target = datetime(2026, 8, 1, 10, 0, 0, tzinfo=timezone.utc)
+    for lit in (
+        "2026-08-01T10:00:00Z",
+        "2026-08-01T10:00:00+00:00",
+        "2026-08-01T10:00:00-00:00",
+        "2026-08-01t10:00:00Z",
+        "2026-08-01 10:00:00Z",
+    ):
+        assert _WHOLE_SECOND_RE.match(lit.strip()), f"{lit!r} 应过字面门"
+        d = datetime.fromisoformat(lit.strip().replace("Z", "+00:00"))
+        assert d.utcoffset() == timedelta(0) and d.astimezone(timezone.utc) == target, (
+            f"{lit!r} 被放行但不是目标瞬间 —— 宽松字面量必须语义等价才无害"
+        )
+    for lit in ("2026-08-01T10:00:00.000000Z", "2026-08-01T10:00+00:00", "2026-08-01T10:00:00+00:00:00"):
+        assert not _WHOLE_SECOND_RE.match(lit.strip()), f"{lit!r} 不应过字面门"
+
+
+# ── 门㊱ round-2 线索复核（Codex round-2 正文同样被内容过滤器拦，按 stderr 保留的
+# 推理标题逐条实测）。1 条真缺陷（R7-blank）+ 3 条「分层成立」需锁住。
+
+
+def test_round2_lead_followups(vault):
+    import subprocess
+
+    # ① R7-blank（真缺陷，本卡修）：截断的判据是「**最后一个非空行**有没有终止 LF」，
+    # 不是「文件末尾有没有 LF」。反例：`坏行\n   `（坏行后跟一个纯空白行、文件不以
+    # LF 收尾）——旧判据看文件末尾说「无 LF ⇒ 截断」，可那个坏行后面明明还跟着东西。
+    good = _review_row(event_id="quiz:旧板", **{"payload.review_time": "2026-07-01T10:00:00Z"})
+    good["effective_at"] = "2026-07-01T10:00:00Z"
+    good["node_id"] = "别的节点"
+    G = (json.dumps(good, ensure_ascii=False) + "\n").encode("utf-8")
+    BAD = b'{"event_id": "quiz:x", "event_ty'
+    ledger = vault / "learning_events.jsonl"
+    CASES = [
+        (G + BAD, True, "坏行无 LF = 真截断"),
+        (G + BAD + b"\n", False, "坏行带 LF = 完整损坏"),
+        (G + BAD + b"\n   ", False, "坏行带 LF + 末尾空白行(无 LF) —— 旧判据在此失真"),
+        (G + BAD + b"\n   \n", False, "坏行带 LF + 末尾空白行(带 LF)"),
+        (G + BAD + b"\r\n", False, "坏行带 CRLF"),
+        (G + BAD + b"   ", True, "坏行无 LF 但有尾随空格 = 仍是截断"),
+        (BAD, True, "坏行是唯一行且无 LF"),
+        (BAD + b"\n", False, "坏行是唯一行但带 LF"),
+        (G + b"\n   \n" + BAD, True, "坏行无 LF，但它**前面**有空白行（不得误判）"),
+    ]
+    for i, (content, tolerate, desc) in enumerate(CASES):
+        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+        ledger.write_bytes(content)
+        r = _run_writer(vault, _payload(event_id=f"blank{i}#q1", ts=f"2026-08-0{i + 1}T10:00:00Z"))
+        if tolerate:
+            assert r.returncode == 0, f"[{desc}] 应按截断隔离: {r.stdout}{r.stderr}"
+            assert "截断尾行" in r.stdout, f"[{desc}] 应留痕: {r.stdout}"
+        else:
+            assert r.returncode != 0, f"[{desc}] 应 fail-closed（该行是完整落盘后损坏）"
+            assert "完整写入的损坏行" in r.stderr, f"[{desc}] {r.stderr}"
+
+    # ② 分层成立（非缺陷，锁住）：写点只重放 node_id 匹配的行，故 node_id 缺失/拼错、
+    # schema_ext 非法的 review 行**不会被任何节点重放**。写点放行它们是对的（不越权），
+    # 但校验器必须全部拦下——否则这些行就成了无人认领的静默丢失面。
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    ORPHANS = [
+        (lambda r: r.pop("node_id"), "node_id 缺失"),
+        (lambda r: r.__setitem__("node_id", None), "node_id 为 null"),
+        (lambda r: r.__setitem__("node_id", "不存在的节点"), "node_id 拼错"),
+        (lambda r: r["payload"].__setitem__("schema_ext", "review/2"), "schema_ext=review/2"),
+        (lambda r: r["payload"].__setitem__("schema_ext", "reviews/1"), "schema_ext=reviews/1"),
+    ]
+    for mut, desc in ORPHANS:
+        row = _review_row(event_id="quiz:孤儿", **{"payload.review_time": "2026-08-05T10:00:00Z"})
+        row["effective_at"] = "2026-08-05T10:00:00Z"
+        mut(row)
+        _write_ledger(vault, row)
+        rw = _run_writer(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
+        assert rw.returncode == 0, f"[{desc}] 写点不该越权拒别的节点的行: {rw.stderr}"
+        v = _run_validator(vault)
+        assert v.returncode != 0, f"[{desc}] 必须被校验器拦下 —— 否则是无人认领的静默丢失面"
+        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+
+    # ③ 分层成立（非缺陷，锁住）：rating 自洽门不会误拒任何**旧版合法写入**的行。
+    # grade_norm 落盘的是 round(GN,2)，分档边界要 gn = 1/6、1/2、5/6，只有 1/2 是精确
+    # 两位小数，而 1.0+3.0*0.5 == 2.5 走 `g < 2.5` 为 False ⇒ 稳定落在 3。
+    sys.path.insert(0, str(VAULT_SCRIPTS))
+    try:
+        import fsrs_bridge as fb
+
+        for cents in range(0, 101):
+            gn = cents / 100.0
+            direct = fb.rating_from_grade(gn, False)
+            roundtrip = fb.rating_from_grade(float(json.loads(json.dumps(gn))), False)
+            assert direct == roundtrip, f"grade_norm {gn} 经 JSON 往返后分档改变 {direct}->{roundtrip}"
+        assert fb.rating_from_grade(0.5, False) == 3, "边界 gn=0.5 必须稳定落 3"
+    finally:
+        sys.path.remove(str(VAULT_SCRIPTS))
+        sys.modules.pop("fsrs_bridge", None)
+
+    # ④ 分层成立（非缺陷，锁住）：fixture 脚本的写入面守卫不被 symlink 劫持。
+    guard_src = (WT / "backend" / "scripts" / "g32b_build_fixture.py").read_text(encoding="utf-8")
+    assert "resolve()" in guard_src and "MARKER" in guard_src, "守卫必须同时有 resolve 比对与 marker 检查"
+    probe = Path("/private/tmp/g32b-gate-toctou-probe")
+    victim = Path("/private/tmp/g32b-gate-toctou-victim")
+    for p in (probe, victim):
+        if p.is_symlink():
+            p.unlink()
+        elif p.exists():
+            subprocess.run(["rm", "-rf", str(p)], check=True)
+    victim.mkdir()
+    try:
+        probe.symlink_to(victim, target_is_directory=True)
+        assert str(probe.resolve()) != str(probe), "symlink 指向别处时 resolve() 必须不等于约定路径 —— 这正是守卫的判据"
+    finally:
+        if probe.is_symlink():
+            probe.unlink()
+        subprocess.run(["rm", "-rf", str(victim)], check=True)

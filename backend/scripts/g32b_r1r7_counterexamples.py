@@ -388,6 +388,24 @@ def n1_n5():
         rb.returncode != 0 and "完整写入的损坏行" in rb.stderr,
         f"rc={rb.returncode}",
     )
+    # R7-blank（Codex round-2 线索 "R7 blank bug"，实测复现）：判据必须落在
+    # 「**最后一个非空行**有没有终止 LF」上，不是「文件末尾有没有 LF」——
+    # 坏行后跟一个纯空白行、文件不以 LF 收尾时，旧判据说「截断」，可那行明明
+    # 后面还跟着东西。
+    (v / "learning_events.jsonl").write_bytes(head + b"\n   ")
+    rc2 = run(v, event_id="板E#q1", ts="2026-08-06T10:00:00Z")
+    check(
+        "N2/R7-blank：坏行带 LF + 末尾空白行 → 仍是完整损坏",
+        rc2.returncode != 0 and "完整写入的损坏行" in rc2.stderr,
+        f"rc={rc2.returncode} | {last_line(rc2.stderr)}",
+    )
+    (v / "learning_events.jsonl").write_bytes(head + b"   ")
+    rd = run(v, event_id="板F#q1", ts="2026-08-07T10:00:00Z")
+    check(
+        "N2/R7-blank 验伪：坏行无 LF 但有尾随空格 → 仍算截断",
+        rd.returncode == 0 and "截断尾行" in rd.stdout,
+        f"rc={rd.returncode}",
+    )
 
     print("\n── N3 (MEDIUM) 账本行 JSON 重复键：loads 静默取最后一个 ──")
     v = new_vault("n3")

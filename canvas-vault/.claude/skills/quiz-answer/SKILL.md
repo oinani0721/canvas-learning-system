@@ -333,8 +333,14 @@ if os.path.exists(EV):
     except UnicodeDecodeError as _ue:
         # 未捕获会抛 traceback (零写但非 clean); 账本含非 UTF-8 字节 = 真实损坏
         raise SystemExit(f"[quiz-answer] 账本含非 UTF-8 字节 ({_ue}), fail-closed 拒写 — 请人工修复 learning_events.jsonl")
-    _ends_with_lf = _raw_bytes.endswith(b"\n")
     _raw_lines = _raw_text.split("\n")
+    # ⛔ 判据是「**最后一个非空行**有没有终止 LF」, 不是「文件末尾有没有 LF」。
+    # 反例 (Codex round-2 线索 "R7 blank bug", 实测复现): 账本以 `坏行\n   ` 结尾
+    # (坏行后跟一个纯空白行、文件不以 LF 收尾) 时, 按文件末尾判会得出「无 LF ⇒
+    # 截断」, 可那个坏行明明**后面还跟着东西**, 它是完整落盘后损坏的。
+    # split("\n") 后: 该行索引 < len-1 ⟺ 它后面还有片段 ⟺ 它有终止 LF。
+    _last_idx = max((i for i, x in enumerate(_raw_lines) if x.strip()), default=-1)
+    _ends_with_lf = _last_idx >= 0 and _last_idx < len(_raw_lines) - 1
     _n_lines = len([x for x in _raw_lines if x.strip()])
     for _ln, _line in enumerate((x for x in _raw_lines if x.strip()), 1):
         try:

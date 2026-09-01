@@ -176,6 +176,19 @@ MUTATIONS += [
 ]
 
 
+MUTATIONS += [
+    (
+        # 判据退回「文件末尾有无 LF」——末尾多一个纯空白行就让它失真。
+        "M18-R7blank-judge-file-end-not-last-line",
+        SKILL,
+        "    _last_idx = max((i for i, x in enumerate(_raw_lines) if x.strip()), default=-1)\n"
+        "    _ends_with_lf = _last_idx >= 0 and _last_idx < len(_raw_lines) - 1\n",
+        '    _ends_with_lf = _raw_bytes.endswith(b"\\n")  # MUTANT: 退回文件末尾判据\n',
+        "test_round2_lead_followups",
+    ),
+]
+
+
 def sha(p):
     return hashlib.sha256(p.read_bytes()).hexdigest()
 

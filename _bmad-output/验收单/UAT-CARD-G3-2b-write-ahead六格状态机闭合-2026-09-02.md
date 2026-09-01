@@ -59,10 +59,10 @@ cd backend && PYTHONDONTWRITEBYTECODE=1 .venv/bin/python \
 | # | 判据 | 结果 | 证明了什么 / **不**证明什么 |
 |---|---|---|---|
 | 1 | **开工基线实收**（HEAD `02dbc426` 临时还原后 `--collect-only`） | `255 collected` / `254 passed, 1 skipped` | 基线是实收的，不是照抄历史数字。还原用备份 + `finally` 恢复，4 文件恢复后**逐字节相同** |
-| 2 | **裁判 1** 五文件回归 | `264 collected` / **`263 passed, 1 skipped`**（+9 门，零回归） | 新增 9 门全绿且原 254 门无一变红。**不**证明整仓其它测试 |
-| 3 | **裁判 2** R1-R7 + N1-N5 生产入口反例（`g32b_r1r7_counterexamples.py`） | **29/29 PASS** | 用逐字提取的生产 PYEOF 块跑真实反例，含 6 条**验伪对照**（合法输入必须仍然通过），故不是「恒拒」的假门。**不**证明并发 |
+| 2 | **裁判 1** 五文件回归 | `266 collected` / **`265 passed, 1 skipped`**（+11 门，零回归） | 新增 11 门全绿且原 254 门无一变红。**不**证明整仓其它测试 |
+| 3 | **裁判 2** 生产入口反例（`g32b_r1r7_counterexamples.py`） | **31/31 PASS** | 用逐字提取的生产 PYEOF 块跑真实反例，含 8 条**验伪对照**（合法输入必须仍然通过），故不是「恒拒」的假门。**不**证明并发 |
 | 4 | **裁判 3** validator 跑 fixture | `RESULT: PASS`，`rc=0` | fixture 由真实生产写点跑出（两次评分 E1/E2），非手写样例 |
-| 5 | **变异验证**（`g32b_mutation_gates.py`，串行） | **17/17 KILLED**，17 次还原全部**逐字节相同** | 每个变异把生产代码**精确退回旧实现形态**，判据是**指定的那道门**必须变红。**不**证明门集覆盖了未被想到的缺陷 |
+| 5 | **变异验证**（`g32b_mutation_gates.py`，串行） | **18/18 KILLED**，18 次还原全部**逐字节相同** | 每个变异把生产代码**精确退回旧实现形态**，判据是**指定的那道门**必须变红。**不**证明门集覆盖了未被想到的缺陷 |
 | 6 | **六格状态机逐格闭合**（门㉝） | 6 格全部断言终态通过 | round-3 判 3 格 FAIL + 1 格 PARTIAL，现逐格构造真实前置态并断言。**不**证明格间竞态（无锁） |
 | 7 | **写点普查门**（门⑪）+ 全仓 grep | PASS；账本写点仍是 4 处（`quiz-answer` / `start-exam-board` / `ai-linked-doc` / `learning_event_log.py`） | 本卡未新增第三套实现，未动其它 skill 写点 |
 | 8 | **live vault 零写** | 账本 `2a18023e…`（22 行），mtime `2026-08-29T06:11:47+0800` | mtime 远早于本 session（2026-09-02），**观测范围内**零写。**不**证明其它进程未写 |
@@ -129,10 +129,54 @@ codex 的 thinking 摘要标题逐条留在 stderr 里（`Identifying out_of_ord
 首版变异 M13 打在 `endswith(b"\n")` 上并 **SURVIVED**——因为 `bytes.decode()` 根本不做 universal newlines，
 真正的承重点是「二进制读 vs 文本模式读」。变异脚本当场把我对自己修复的错误归因照了出来，M13 已改打在那一处并 KILLED。
 
-### round-2
+### round-2（绑定 commit `cba60fc3`）：**同样被拦，正文仍是 0 字节**
 
-需要重跑，且必须避开 round-1 的拦截成因（跑 pytest 前显式给 `INTERNAL_API_KEY` 占位值，避免 `Settings`
-校验把 `.env` 的真实 key 打进错误文本）。**round-2 未完成前，本卡按手册 §四.2 不进合并队列。**
+规避措施生效了一半——这次 stderr 里**没有**任何配置值泄漏（`grep AIzaSy` = 0 命中），
+审查者顺利跑完了静态核对、写了探针、跑到裁判 2 的 fixture 构建，然后在**要写正文时**
+连续两次被同一个内容策略拦下。
+
+**推断的真因（如实，未经证实）**：不是某一条输出，而是**被审内容本身在上下文里累积**。
+审查者读了 SKILL.md、UAT、前身 round-3 报告——这几份文档里密集出现「篡改 / 绕过 / 穿透链 /
+打穿 / fail-closed 反例」这类措辞（它们是**这类工作的正常术语**，但对内容分类器不友好）。
+round-1 的 key 泄漏只是压垮它的最后一根稻草，不是唯一成因。
+
+### round-2 的线索同样没浪费
+
+stderr（337 KB）里保留了完整推理标题序列。我按其中每一条写探针实测：
+
+| 线索（stderr 原文标题） | 实测结论 |
+|---|---|
+| `Investigating R7 blank bug` | ⚠️ **真缺陷，已修**（见下） |
+| `Detecting orphan review event loss`、`Testing ledger validation with missing node_id`、`Identifying schema extension contract violation` | 分层成立：写点放行（不越权管别的节点），**校验器 5/5 全部拦下**（node_id 缺失/null/拼错、`schema_ext=review/2`、`reviews/1`）。已锁成门㊱② |
+| `Investigating floating-point threshold rounding divergence`、`Comparing rounding consistency between validator and bridge` | 无误拒风险：0.00–1.00 的 **101 个两位小数值** JSON 往返后分档**无一改变**；边界 `gn=0.5` 的 `1.0+3.0*0.5` 恰为 `2.5`，走 `g < 2.5` 为 False ⇒ 稳定落 3。已锁成门㊱③ |
+| `Identifying TOCTOU symlink vulnerability in CE_ROOT handling` | 守卫成立：symlink 指向别处时 `resolve()` 不等于约定路径 ⇒ 拒跑；且另有 marker 文件双重检查。已锁成门㊱④ |
+| `Assessing datetime offset and separator compliance` | 无害：整秒门放行的 5 种宽松字面量（`Z`/`+00:00`/`-00:00`/小写 `t`/空格分隔）**全部归一到同一个 UTC 整秒瞬间**。已锁成门㉟⑥ |
+| `Analyzing mastery loss in foreign pending replay` | 已声明边界（A2 重放只恢复 FSRS，mastery 无事件载荷可复放），见下方边界声明 6 |
+| `Verifying trailing whitespace JSONL handling`、`Assessing event_version validation` | 已被现有门覆盖，实测无异常 |
+
+#### R7-blank（round-2 找出的真缺陷，本卡已修）
+
+截断的判据落错了位置：写的是「**文件**末尾有没有 LF」，而截断的定义是
+「**最后一个非空行**有没有终止 LF」。反例：账本以 `坏行\n   ` 结尾（坏行后跟一个纯空白行、
+文件不以 LF 收尾）时，旧判据说「无 LF ⇒ 截断，容忍」——可那个坏行后面明明还跟着东西，
+它是**完整落盘之后损坏**的。实测 `rc=0`，写点照常追加并推进节点。
+
+修法：`_last_idx` 定位最后一个非空行，`_ends_with_lf = _last_idx < len(_raw_lines) - 1`。
+9 种行尾组合（真截断 / 带 LF / 带 CRLF / 末尾空白行两态 / 唯一行两态 / 尾随空格 / 前置空白行）
+全部符合预期，锁成门㊱①，承重变异 M18。
+
+### 我自己找到的 6 个覆盖缺口（门㉟）
+
+等待 round-2 期间自查补的，都不是缺陷，是**已有门没覆盖到的面**：
+删身份键（envelope 放行 + validator 拦，补强门㉕ 只测「篡改值」的分层声明）、
+Unicode 归一化差异必须冲突（⚠️ 首版探针用汉字做 NFD 变异得出「放行」，那是**假阴性**——
+汉字没有分解形式，变异根本没改字节；换 `café笔记` 重测即冲突）、
+payload 键顺序不得误报冲突、attempt 复算成负值须 fail-closed、
+同时刻两事件按行号稳定全序、整秒门宽松字面量语义等价。
+
+### round-3
+
+卡文上限是 3 轮。round-3 若仍拿不到正文，本卡**不合并**，如实留台账。
 
 ---
 
@@ -146,7 +190,7 @@ codex 的 thinking 摘要标题逐条留在 stderr 里（`Identifying out_of_ord
 6. **A2 重放仍只恢复 FSRS**：mastery（衰减 Beta）与疑问 callout 没有事件载荷可复放。跨事件 pending（别的板的事件）恢复时其 mastery 副作用**永久丢失**，只有 FSRS 被补上——与前卡同，本卡未改变。
 7. **`learning_event_log.py` 本卡未改**：R7 修的是 `quiz-answer` 读账本的判据。backend 通用 `append_event()` 的坏行处理是「warning + 跳过该行」（查重不把坏行算作命中），它不做「截断容忍」声明，故不在 R7 射程内。如实登记，不代改（卡文限定只允许尾行/查重最小修正）。
 8. **N5 的窄化如实记**：多个 pending 并存时本卡选择 fail-closed 而非硬算。代价是——如果账本真被外部写成那样，你必须人工修账本才能继续评分。收益是：不在一个「attempt 序数无法从账本边界证明」的基线上继续写。
-9. **round-1 的审查正文缺失**：见上「Codex 审查处置」。N1-N5 是**我按 stderr 线索自测**出来的，不是独立审查者给出的完整结论——独立审查这一环在 round-2 完成前仍是**空的**。
+9. **两轮审查的正文都缺失**：见上「Codex 审查处置」。N1-N5 与 R7-blank 都是**我按 stderr 推理标题线索自测**出来的，不是独立审查者给出的完整结论。**独立审查这一环到目前为止仍是空的**——线索来自独立审查者不假，但「哪些成立、哪些不成立、有没有漏的」全是自评。这是本卡最大的证据缺口。
 10. **门集不等于穷尽**：变异 10/10 只证明**这 10 个已知缺陷形态**会被指定门抓住，不证明没有第 11 类。三轮审查的历史（每轮修复都会长出新分支）说明这个方向上的清零在对抗范式下不可达。
 11. **未自动解锁下游**：本卡未改写 G3-7、G8-4 的总账依赖。
 12. **Obsidian 插件是既存第二写路径**：`frontend/obsidian-plugin/src/main.ts` 的 node_derived 直写不在本卡写点门 grep 范围，本卡未动它，沿用前卡登记。
@@ -163,7 +207,7 @@ codex 的 thinking 摘要标题逐条留在 stderr 里（`Identifying out_of_ord
 | ④ | 是否部署到 live | **不部署**（手册 §四.1 第 2 条） | 你确认后另开部署动作 |
 | ⑤ | R2 的作用域窄化（边界声明 5） | **只施于本节点适用集** | 全账本所有 `review/1` 行（一条别节点的脏行会锁死整个 vault 的评分） |
 | ⑥ | 标了 `out_of_order` 但时刻晚于 W 的行（N1） | **写点侧 fail-closed 拒写**，等你人工裁定那行是补录还是真后继 | 照搬 proof 侧的「报违规但仍计入适用集」（会多应用一次 FSRS） |
-| ⑦ | round-1 审查正文缺失 | **不合并，跑 round-2** | 以 stderr 线索 + 自测结果代替独立审查结论（手册 §四.2 明令禁止） |
+| ⑦ | 两轮审查正文都被内容过滤器拦下 | **不合并**；round-3 再试一次，若仍拿不到正文就如实留台账 | ① 以 stderr 线索 + 自测代替独立审查结论（手册 §四.2 明令禁止）；② 换审查通道（另一个模型/人工复核） |
 
 ---
 
@@ -175,11 +219,12 @@ codex 的 thinking 摘要标题逐条留在 stderr 里（`Identifying out_of_ord
 | 前卡 UAT / round-3 | `_bmad-output/验收单/UAT-CARD-G3-2-复习事件账本write-ahead-2026-09-01.md`、`_bmad-output/审查/codex-review-CARD-G3-2-round3.md` |
 | 生产改动 | `canvas-vault/.claude/skills/quiz-answer/SKILL.md`、`canvas-vault/.claude/scripts/fsrs_bridge.py` |
 | 契约回写 | `docs/learning-events-schema-v1.md` §6.2（A4.5 duplicate 门 / A4.5 短写段 / A5） |
-| 行为门 | `backend/tests/regression/test_g3_2_review_ledger.py` 门㉖-㉝ |
+| 行为门 | `backend/tests/regression/test_g3_2_review_ledger.py` 门㉖-㊱（㉖-㉜=R1-R7，㉝=六格状态机，㉞=N1-N5，㉟=自查覆盖缺口，㊱=round-2 线索复核） |
 | 反例复现脚本 | `backend/scripts/g32b_r1r7_counterexamples.py` |
 | fixture 生成脚本 | `backend/scripts/g32b_build_fixture.py`（`--check` 复算 sha） |
 | 变异脚本 | `backend/scripts/g32b_mutation_gates.py`（17 个变异，串行 + 逐字节还原） |
 | round-1 审查 | `_bmad-output/审查/codex-review-CARD-G3-2b.md`（**0 字节**，已入库作为「正文缺失」本身的证据） |
+| round-2 审查 | `_bmad-output/审查/codex-review-CARD-G3-2b-round2.md`（**0 字节**）+ `.stderr`（337 KB，**同样不入库**：虽无配置值泄漏，但与 round-1 同类处理），sha256 `22d386315a9f7685bf6a3809acdf09897693f23ef5f9f2ec4bb45b11941e6df1` |
 | round-1 stderr | `_bmad-output/审查/codex-review-CARD-G3-2b.stderr`，sha256 `c223e825fdfc1ce823d614fb648c1fd5e83a8032e0aea0050a5fa9c8603df1da`（226 KB）——**故意不入库**：文件里含 `.env` 某配置值的截断前缀（正是它触发了内容过滤器），凭据片段不进版本库。保留在工作区 untracked，与前卡三个 stderr 同处理 |
 | round-2 提示词 | `_bmad-output/审查/prompts/codex-prompt-CARD-G3-2b-round2.md`（已写明用 `INTERNAL_API_KEY` 占位值跑 pytest，规避 round-1 的拦截成因） |
 | 审查提示词 | `_bmad-output/审查/prompts/codex-prompt-CARD-G3-2b.md` |
