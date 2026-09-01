@@ -183,7 +183,9 @@ def review(fields: dict, grade_norm: float, abandoned: bool, ts: str, rating: in
       - 若当前 frontmatter 有 W (fsrs_last_review) 且本次时刻 ≤ W, 推进到
         W+1s 再写 (A3 等时唯一口径: 推进不拒绝);
       - rating 可显式指定 (A2 pending 重放按事件已断言的 rating 复算),
-        缺省按 grade_norm+abandoned 推导; abandoned 恒为 1 (弃答一票否决)。
+        缺省按 grade_norm+abandoned 推导; abandoned 恒为 1 (弃答一票否决);
+        显式值必须与 rating_from_grade(grade_norm, abandoned) **相等** —— 不
+        自洽的 pending 行在 apply 前拒绝, 不靠事后 validator 兜 (R5)。
     """
     from fsrs import Card, Rating, Scheduler, State
 
@@ -193,13 +195,21 @@ def review(fields: dict, grade_norm: float, abandoned: bool, ts: str, rating: in
     if rating is not None:
         # 严格 int (Codex round-1 MEDIUM): int(1.5)==1 会把非法 pending 行
         # 静默应用; §6.1 冻结 rating 为真 int 1-4, bool 伪装同样拒绝。
-        # abandoned 自洽 (round-2 HIGH): 显式 rating 无论 abandoned 与否都先
-        # 验证类型 — abandoned 分支不再绕过类型门; 弃答恒 1 (§6.1), 显式给
-        # 非 1 的 rating 与 abandoned=true 互斥。
         if isinstance(rating, bool) or not isinstance(rating, int) or rating not in (1, 2, 3, 4):
             raise ValueError(f"显式 rating 必须为 int 1-4, 实为 {rating!r}")
-        if abandoned and rating != 1:
-            raise ValueError(f"abandoned=true 时 rating 恒为 1 (弃答一票否决), 实为 {rating!r}")
+        # 评分事实自洽 (Codex round-3 HIGH R5; 含 round-2 HIGH 的 abandoned 分项):
+        # 类型/范围合法 ≠ 与本行的评分事实自洽。`answer_scored + grade_norm=0.75
+        # + rating=4` 三项单看都合法, 但 [Decision-FSRS-1] 下 0.75 的契约值是 3
+        # —— 旧实现照单全收并推进 FSRS, 事后才由 validator 判 FAIL (损坏基线上
+        # 已叠加一次调度)。rating 是 grade_norm/abandoned 的**纯函数**, 故在
+        # apply 前机械复算并要求相等; abandoned=true 由 rating_from_grade 一票
+        # 否决为 1, 弃答给非 1 的 rating 同样落在本门内。
+        _expect = rating_from_grade(grade_norm, abandoned)
+        if rating != _expect:
+            raise ValueError(
+                f"显式 rating {rating} 与评分事实不自洽 "
+                f"(grade_norm={grade_norm!r}, abandoned={abandoned!r} ⇒ 契约值 {_expect})"
+            )
     if abandoned:
         used_rating = 1
     elif rating is not None:

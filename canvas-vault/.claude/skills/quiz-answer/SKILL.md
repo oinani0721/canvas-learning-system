@@ -227,6 +227,29 @@ def _aware(s):
     dt = datetime.fromisoformat(str(s).replace("Z", "+00:00"))
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
+def _durable_instant(rt, ctx):
+    """durable 行的 review_time → UTC 整秒 aware datetime; 不合规即 fail-closed。
+
+    Codex round-3 BLOCKER (R2): A2 会把小数秒 durable review_time 交给 bridge,
+    bridge 入口 _whole_second 截成整秒写进 W ⇒ 「10:00:00.5 > 10:00:00」恒真,
+    同一账本行每次重跑都判 pending 并**再推进一次 FSRS** (§6.2 A5 禁止的二次
+    apply; 实测账本始终一行而 W 逐次 +1s)。
+    ⛔ 只验不改: 消费时顺手规范化 = 把损坏行洗成合法行, 缺陷从写入面挪进不可
+    见面。本写点的 _iso() 恒产出整秒 UTC, 校验器对 review/1 行也机械强制整秒 —
+    出现小数秒/非 UTC 即外部污染, 停下人工修, 不猜。
+    """
+    if not isinstance(rt, str) or not rt.strip():
+        raise SystemExit(f"[quiz-answer] {ctx} 的 review_time 非字符串 ({rt!r}), fail-closed 拒写")
+    try:
+        _dt = datetime.fromisoformat(rt.strip().replace("Z", "+00:00"))
+    except ValueError:
+        raise SystemExit(f"[quiz-answer] {ctx} 的 review_time 不可解析 ({rt!r}), fail-closed 拒写")
+    if _dt.tzinfo is None or _dt.utcoffset() != timedelta(0):
+        raise SystemExit(f"[quiz-answer] {ctx} 的 review_time 非 UTC ({rt!r}; §6.2 A6 要求 tz-aware UTC 时刻), fail-closed 拒写")
+    if _dt.microsecond:
+        raise SystemExit(f"[quiz-answer] {ctx} 的 review_time 含小数秒 ({rt!r}; §6.2 A5 要求整秒 — 消费时归一会让同一行二次推进 FSRS), fail-closed 拒写")
+    return _dt
+
 # ── G3-2 frontmatter 重复键 fail-closed (schema §6.2 三态边界声明: 重复键
 # 信息在解析层即丢失, 责任在解析处; 本正则解析器不保留重复键 ⇒ 写/读的键
 # 出现重复时停下, 不猜)。误报方向 fail-closed (顶格错位文本会被当键) 可接受。
@@ -274,18 +297,26 @@ def _fm_has_event(fm_text, ev_id):
 # schema §6.2 A4.5) — 本块无任何互斥, 并行会在「读-算-写」间隙双写/丢失。
 # 尾行截断 (崩溃产物, §二 截断自愈) → 跳过并留痕, 由追加前 LF 守卫隔离;
 # 中间坏行 = 真实损坏 → fail-closed 人工介入。
+# Codex round-3 MEDIUM (R7): 「可容忍的截断」必须同时满足 ①是最后一行 ②文件
+# **不以 LF 结尾**。带终止 LF 的坏末行是**完整写入后损坏**的行 (write 已整行
+# 提交), 不是被腰斩的半行 — 旧实现只看「最后一行解析失败」, 于是真实损坏被
+# 当截断容忍, writer 照常 rc=0 追加并推进节点。EOF 的 LF 状态是区分二者的
+# 唯一机械证据, 读取时必须保留。
 _rows = []
 if os.path.exists(EV):
-    _raw_lines = open(EV, encoding="utf-8").read().split("\n")
+    _raw_text = open(EV, encoding="utf-8").read()
+    _ends_with_lf = _raw_text.endswith("\n")
+    _raw_lines = _raw_text.split("\n")
     _n_lines = len([x for x in _raw_lines if x.strip()])
     for _ln, _line in enumerate((x for x in _raw_lines if x.strip()), 1):
         try:
             _rows.append((_ln, json.loads(_line.strip())))
         except ValueError:
-            if _ln == _n_lines:
-                print(f"[quiz-answer] 账本第 {_ln} 行为截断尾行 (崩溃产物, 非 JSON) — 追加时 LF 守卫隔离, 不阻塞本次评分")
+            if _ln == _n_lines and not _ends_with_lf:
+                print(f"[quiz-answer] 账本第 {_ln} 行为截断尾行 (崩溃产物: 非 JSON 且无终止 LF) — 追加时 LF 守卫隔离, 不阻塞本次评分")
             else:
-                raise SystemExit(f"[quiz-answer] 账本第 {_ln} 行损坏 (非 JSON), fail-closed 拒写 — 请人工修复 learning_events.jsonl")
+                _why = "该行有终止 LF ⇒ 完整写入的损坏行, 非截断" if _ln == _n_lines else "中间行"
+                raise SystemExit(f"[quiz-answer] 账本第 {_ln} 行损坏 (非 JSON; {_why}), fail-closed 拒写 — 请人工修复 learning_events.jsonl")
 # 幂等键全文件唯一 (§三): 账本被外部工具写出重复 event_id 时, A2 会把两条
 # 同 id 行各重放一次 = 确定性二次 apply (Codex round-2 BLOCKER) → 拒写人工修复
 _seen_ids = {}
@@ -297,7 +328,9 @@ for _, _o in _rows:
 _id_dupes = sorted(k for k, c in _seen_ids.items() if c > 1)
 if _id_dupes:
     raise SystemExit(f"[quiz-answer] 账本 event_id 重复 {_id_dupes[:3]} (幂等键全文件唯一被破坏), fail-closed 拒写 — 请人工修复 learning_events.jsonl")
-dup = next((o for _, o in _rows if isinstance(o, dict) and o.get("event_id") == evid), None)
+_dup_entry = next((( _ln, _o) for _ln, _o in _rows if isinstance(_o, dict) and _o.get("event_id") == evid), None)
+dup = _dup_entry[1] if _dup_entry is not None else None
+_dup_line = _dup_entry[0] if _dup_entry is not None else None  # R3: ordinal 复算的全序键之一
 f1 = bool(eid) and _fm_has_event(fm, eid)
 
 # 回填 type/source_board（Dashboard 可见性，缺才补）
@@ -416,6 +449,21 @@ def _append_calibration(fm_text, ts_str):
 rating = rating_from_grade(GN2, bool(p.get("abandoned")))
 abandoned = bool(p.get("abandoned"))
 
+# ── G3-2 适用事件集 (本节点 / schema_ext=review/1 / 未标 out_of_order),
+# 按 (业务时刻, 行序) 升序。A2 的 pending 与 envelope 门的 attempt ordinal
+# 复算**共用同一集合** — 两处若各扫一遍, 「进 pending 的行」与「参与 ordinal
+# 计数的行」会分叉。R2 (round-3 BLOCKER): 该集合每一行都参与 W 比较,
+# 故逐行机械强制 UTC 整秒 (小数秒行会让同一事件反复判 pending 二次推进)。
+_applicable = []
+for _ln, _o in _rows:
+    _pl = _o.get("payload") if isinstance(_o, dict) else None
+    if not isinstance(_pl, dict) or _pl.get("schema_ext") != "review/1":
+        continue
+    if _o.get("node_id") != node_id or _pl.get("out_of_order") is True:
+        continue
+    _applicable.append((_durable_instant(_pl.get("review_time"), f"账本第 {_ln} 行({_o.get('event_id')})"), _ln, _o))
+_applicable.sort(key=lambda t: (t[0], t[1]))
+
 # ── G3-2 幂等分诊主流程 (Codex round-2 BLOCKER 重排)。
 # 「FSRS 已应用」的机械判据 = W >= durable.review_time。F1 (calibration 有无)
 # 单独不能当幂等凭据 — degraded 落账写过 calibration 却没写 W, F1 早退会
@@ -427,28 +475,48 @@ if dup is None:
         raise SystemExit(0)
 else:
     _dpl = dup.get("payload") or {}
-    if _dpl.get("schema_ext") != "review/1" or not isinstance(_dpl.get("review_time"), str):
-        raise SystemExit(f"[quiz-answer] 账本已有 {evid} 但缺 review/1 时刻 (旧写序行/损坏) — 状态不可证, fail-closed 拒写")
+    if _dpl.get("schema_ext") != "review/1":
+        raise SystemExit(f"[quiz-answer] 账本已有 {evid} 但缺 review/1 扩展 (旧写序行/损坏) — 状态不可证, fail-closed 拒写")
+    # R2: durable 时刻必须 UTC 整秒才允许参与 W 比较与后续消费 (见 _durable_instant)
+    _dup_inst = _durable_instant(_dpl.get("review_time"), f"账本行 {evid}")
     _dup_rt = _dpl["review_time"]
-    _fsrs_applied = W_inst is not None and W_inst >= _aware(_dup_rt)
+    _fsrs_applied = W_inst is not None and W_inst >= _dup_inst
     # A4.5 canonical envelope 门 — 对「已应用 no-op」与「恢复」两态都生效,
     # 冲突事实不得被 no-op 吞掉 (round-2 B-1①)。等价面取舍 (如实声明):
     # fsrs_library_version/params_hash 两键**排除** — 它们是复算环境快照
     # (库升级即变), 不是评分事实; durable 行的身份完整性由校验器的 golden
-    # manifest 绑定门承担 (篡改形状/真值都会被 validator 判 FAIL)。
-    # attempt_count 独立复算按态取基准 (round-2 B-2): 已应用/degraded 遗留态
-    # frontmatter 已是 durable 值, 崩溃窗口①态 frontmatter 还是前置值。
+    # manifest 绑定门承担 (篡改形状/真值都会被 validator 判 FAIL)。分层裁决
+    # 已回写契约 §6.2 (round-3 MEDIUM R6)。
+    #
+    # ⛔ candidate 必须**独立字面构造** (Codex round-3 BLOCKER R1): 旧实现以
+    # durable payload 为底再覆盖已知键 (`{**_dpl, ...}`), 于是 durable 行的
+    # 任意**未知额外键**被原样抄进 candidate — 比较退化成「自己比自己」。
+    # 实测反例: 给崩溃窗口①的 durable 行加 payload.out_of_order=true, envelope
+    # 放行, 而 A2 的适用集把该行排除 ⇒ FSRS 永不应用, writer 仍 rc=0 写下
+    # calibration/mastery, 节点 fsrs_* 全空。键集本身是等价面的一部分:
+    # 多一键 / 少一键 / 值不同 一律冲突, 只放行明确排除的两个身份键。
     _att = re.search(r'^attempt_count:\s*(\d+)', fm, re.M)
     _att_now = int(_att.group(1)) if _att else 0
+    # R3 (round-3 HIGH): attempt 序数从**账本边界**复算, 不拿当前 tip 当历史
+    # durable 值。口径: frontmatter.attempt_count 与事件同一次原子发布 ⇒ 账本
+    # 中某事件的 attempt_count = 写它时的 frontmatter 值 + 1, 沿账本回推即得。
+    # f1 (calibration 域证据, 与 mastery/attempt 同一次原子写) 判「本事件的
+    # attempt 是否已计入当前 frontmatter」。旧实现在已应用态直接取当前值 ⇒
+    # E1→E2→重跑 E1 时把 E2 的计数当成 E1 的, 合法历史重放被误报冲突
+    # (§6.2:187 要求同 canonical envelope 必须 no-op)。
+    _dup_key = (_dup_inst, _dup_line)
+    _after_applied = sum(1 for _i, _l, _ in _applicable
+                         if (_i, _l) > _dup_key and W_inst is not None and _i <= W_inst)
+    _before_pending = sum(1 for _i, _l, _ in _applicable
+                          if (_i, _l) < _dup_key and (W_inst is None or _i > W_inst))
     if _fsrs_applied or f1:
-        _att_expect = _att_now
+        _att_expect = _att_now - _after_applied
     else:
-        _att_expect = _att_now + 1
+        _att_expect = _att_now + 1 + _before_pending
     _mine_env = {
         "event_version": 1, "event_type": etype, "node_id": node_id,
         "effective_at": _dup_rt,
-        "payload": {**{k: v for k, v in _dpl.items() if k not in ("fsrs_library_version", "fsrs_params_hash")},
-                    "schema_ext": "review/1", "vault_id": _vid, "concept_id": node_id,
+        "payload": {"schema_ext": "review/1", "vault_id": _vid, "concept_id": node_id,
                     "rating": rating, "grade_norm": GN2, "review_time": _dup_rt,
                     "exam_board": p.get("exam_board", ""),
                     "attempt_count": _att_expect}}
@@ -472,22 +540,9 @@ else:
 # ── G3-2 A2 恢复先于新写: 追加本次事件之前, 把本节点 pending 集合
 # (review/1、未标 out_of_order、review_time > W) 按 (时刻, 行序) 升序重放至空。
 # 重放只复算 FSRS (mastery/callout 无事件载荷可复放, 见验收单「未证明什么」)。
-W = _fields.get("fsrs_last_review")
-W_inst = _aware(W) if W else None
-pending = []
-for _ln, _o in _rows:
-    _pl = _o.get("payload") if isinstance(_o, dict) else None
-    if not isinstance(_pl, dict) or _pl.get("schema_ext") != "review/1":
-        continue
-    if _o.get("node_id") != node_id or _pl.get("out_of_order") is True:
-        continue
-    _rt = _pl.get("review_time")
-    if not isinstance(_rt, str):
-        continue
-    if W_inst is not None and _aware(_rt) <= W_inst:
-        continue
-    pending.append((_aware(_rt), _ln, _o))
-pending.sort(key=lambda t: (t[0], t[1]))
+# pending = 适用集里尚未被 W 吸收的行 (_applicable 已按 (时刻, 行序) 升序且
+# 已逐行强制 UTC 整秒 — 与 envelope 门的 ordinal 复算同源同集合)。
+pending = [t for t in _applicable if W_inst is None or t[0] > W_inst]
 replay_failed = None
 for _inst, _ln, _o in pending:
     _pl = _o["payload"]
@@ -579,9 +634,13 @@ else:
     fsrs_ok = False
 
 # ── G3-2 A4 (批次2') attempt_count/last_examined 重写。
-# last_examined 用 review_time (业务生效时刻) — 与恢复路径同源, 保证
-# 「先崩后恢复」与「直接成功」产物逐字节对齐 (round-2 HIGH)。
-old, A, B, new = _apply_mastery(fm, p["ts"])
+# last_examined 与 mastery 的闲置折旧基准**都**用 review_time (业务生效时刻)
+# — 与恢复路径同源, 保证「先崩后恢复」与「直接成功」产物逐字节对齐。
+# R4 (Codex round-3 HIGH): 旧实现此处传 p["ts"] (本次运行的重试时刻), 恢复
+# 路径传 durable review_time。含 last_examined 的卡上 days_idle 由该基准算出,
+# 两路径的 mastery_a/b 因此不同 (实测节点 SHA 不同) — A3 等时推进 (W+1s) 或
+# 小数秒截断使 review_time != p["ts"] 时必然触发。
+old, A, B, new = _apply_mastery(fm, review_time)
 mo_att = re.search(r'^attempt_count:\s*(\d+)', fm, re.M)
 n_att = (int(mo_att.group(1)) if mo_att else 0) + 1
 fm = re.sub(r'^(mastery_score|mastery|mastery_level|mastery_a|mastery_b|attempt_count|last_examined):.*\r?\n?', '', fm, flags=re.M)
