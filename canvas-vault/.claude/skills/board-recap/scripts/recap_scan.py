@@ -960,21 +960,32 @@ def _verify_signal_schema(key: str, sig, problems: list[str]) -> bool:
 
 
 def _quote_width(line: str) -> int:
-    """行首 blockquote 标记段的总宽: 逐段 `>` (+至多一个空白)。
+    """行首到引用内容起点的宽度: 前导空白 + 逐层 `>`(+至多一空白)。
 
-    `> > - x` → 4; `>  x` → 2 (`>`+1 空格, 多余空格算缩进不算引用标记)。
+    `> > - x` → 4; ` > - x` → 3 (⛔ round-4 抢救探针 A: 引用标记**前**的
+    前导空白计入——它是引用层的一部分); 无引用 (`- x` / `    x`) → 0。
     """
-    w = 0
-    pos = 0
-    while pos < len(line) and line[pos] == ">":
-        step = 2 if pos + 1 < len(line) and line[pos + 1] in " \t" else 1
-        w += step
-        pos += step
-    return w
+    pos, n = 0, len(line)
+    while pos < n and line[pos] in " \t":
+        pos += 1
+    w = pos
+    saw = False
+    while pos < n:
+        ch = line[pos]
+        if ch == ">":
+            saw = True
+            pos += 2 if pos + 1 < n and line[pos + 1] in " \t" else 1
+            w = pos
+        elif ch in " \t" and pos + 1 < n and line[pos + 1] == ">":
+            pos += 1
+            w = pos
+        else:
+            break
+    return w if saw else 0
 
 
 def _indent_after_quotes(line: str) -> int:
-    """剥掉引用标记段与空白后的剩余缩进 (相对引用内容系的列)。"""
+    """引用系前缀之后的剩余缩进 (与 _quote_width 相加 = 内容的绝对列)。"""
     w = _quote_width(line)
     rest = line[w:]
     return len(rest) - len(rest.lstrip(" \t"))
@@ -1037,8 +1048,9 @@ def _strip_code_blocks(text: str) -> str:
                 fence_list_col = None
                 if re.search(r"(?:[-*+]|\d{1,9}[.)])[^\S\n]", ln):
                     # ⛔ m.start() 是 bare 内偏移 (恒 0) —— 必须用「本行剥掉的
-                    # 前缀长度」；再减去引用标记宽得到相对引用系的内容列。
-                    fence_list_col = (len(ln) - len(bare)) - _quote_width(ln)
+                    # 前缀长度」= 内容的**绝对列**；与内容行的绝对列
+                    # (_quote_width + _indent_after_quotes) 同口径比较。
+                    fence_list_col = len(ln) - len(bare)
                 out.append("")
                 continue
         else:
@@ -1055,7 +1067,7 @@ def _strip_code_blocks(text: str) -> str:
             if fence_list_col is not None and ln.strip():
                 # 缩进不足 (相对引用系) 的非空行 → 容器结束, 围栏随之结束:
                 # 该行按普通正文保留, 交回 D2/信号行校验。
-                if _indent_after_quotes(ln) < fence_list_col:
+                if _quote_width(ln) + _indent_after_quotes(ln) < fence_list_col:
                     fence = None
                     out.append(ln)
                     continue
@@ -1783,17 +1795,16 @@ def _verify_fallback_derive_numbers(text: str, scan: dict, problems: list[str]) 
 
     措辞白名单 ``_FALLBACK_DERIVE_ALLOW`` (在 _verify_report) 只管「这句话允许说」,
     这里管「说出来的数字必须有据」——白名单匹配与值绑定分属两处, 缺一即漏:
-      · HIGH-4: 「无来源结论」信号行只许出现在**③段** —— ③段外 (附录/自造段)
-        的同形行不受信号绑定保护, 实测放行 `987654/2` 伪信号与矛盾无据行;
+      · HIGH-4 (round-4 补: ③段限定移出 data_mode 条件——manifest 报告的附录
+        伪信号实测同样放行): 「无来源结论」信号行只许出现在**③段** ——
+        ③段外 (附录/自造段) 的同形行不受信号绑定保护;
       · HIGH-5b: ⑦『N 个派生角色成员缺来源锚点』的前置 N 必须全等
         ``signals.unsourced_conclusions.value`` (无据档不容许前置 N);
       · HIGH-6: 允许式 #2 (段落标题) 与 #5 (关系类型分布行) 行内出现的任何
         数字都必须在 scan 数值池 —— `#### 派生子女 987654 个的说明` /
         `- 关系类型分布：无 987654` 实测曾放行。
     """
-    if scan.get("data_mode") != "fallback_local":
-        return
-    # HIGH-4: ③段外的「无来源结论」同形行
+    # HIGH-4 (round-4: 对 manifest 模式同样生效)
     s3 = "\n".join(
         re.findall(r"^### ③.*?(?=^#{2,3}(?:[^\S\n]|$)|\Z)", text, re.M | re.S)
     )
@@ -1803,6 +1814,8 @@ def _verify_fallback_derive_numbers(text: str, scan: dict, problems: list[str]) 
             "数字终核: 「无来源结论」信号行只许出现在③段 "
             "(段外同形行不受信号绑定保护, 附录伪信号实测曾放行)"
         )
+    if scan.get("data_mode") != "fallback_local":
+        return
     # HIGH-5b: ⑦ 前置 N 与 signals.unsourced_conclusions.value 全等
     sig = (scan.get("signals") or {}).get("unsourced_conclusions") or {}
     m7 = re.compile(r"^[>\s]*(?:(?P<n>\d+)\s*个)?派生角色成员缺来源锚点")
@@ -1839,8 +1852,21 @@ def _verify_fallback_derive_numbers(text: str, scan: dict, problems: list[str]) 
         if relation_pat.match(ln):
             tags.append(("关系类型分布", relation_pat))
         for tag, pat in tags:
-            for num in re.findall(r"\d+", ln.translate(_FULLWIDTH_DIGITS)):
-                if int(num) not in pool:
+            # ⛔ round-4 (Codex 抢救探针 C): 数字提取必须含**中文数词** ——
+            # `#### 派生子女 九十八万个` 的 `九十八万` 用 `\d+` 抓不到, 实测放行。
+            # 可解析的入池比对; 解析不了的 (生僻写法) fail-closed 直接报。
+            nums = [int(x) for x in re.findall(r"\d+", ln.translate(_FULLWIDTH_DIGITS))]
+            for cjk in re.findall(r"[零〇一二两三四五六七八九十百千万亿]+", ln):
+                v = _cjk_to_int(cjk)
+                if v is None:
+                    problems.append(
+                        f"数字终核: fallback 允许式({tag})行内中文数字 {cjk!r} 无法验证 "
+                        f"(请改用阿拉伯数字): {ln.strip()[:40]}"
+                    )
+                else:
+                    nums.append(v)
+            for num in nums:
+                if num not in pool:
                     problems.append(
                         f"数字终核: fallback 允许式({tag})行内数字 {num} 无出处 "
                         f"(数字必须在 scan 数值池): {ln.strip()[:40]}"

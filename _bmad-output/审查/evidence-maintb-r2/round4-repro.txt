@@ -1,0 +1,3 @@
+❌ A 前导空格引用内列表围栏藏信号: exit 0 (期望拦) · VERIFY PASS
+❌ B manifest 附录伪无来源结论: exit 0 (期望拦) · VERIFY PASS
+❌ C 标题行中文数字: exit 0 (期望拦) · VERIFY PASS

@@ -3040,3 +3040,61 @@ def test_domain_r3_derive_allow_numbers_in_pool(tmp_path):
     # 主标题年份不误伤（`# 回顾 · 板 · 2026-09-01` 不含「派生」，不在检查范围）
     # ——由上面「合法关系行无数字」与全套件的放行门共同覆盖；不单列空变异 case
     # （_mutate_report 的防空气断言会拒绝不改内容的变异）。
+
+
+# ── round-4 整改门（Codex round-4 被 cyber 过滤器截断，无终裁；其 stderr
+#    抢救探针 A/B/C 三缝隙由车道独立复现实锤后整改。先红证据
+#    evidence-maintb-r2/round4-repro.txt，整改后 round4-after2.txt）──────────
+
+
+def test_domain_r4_leading_space_blockquote_list_fence(tmp_path):
+    """round-4 A: 前导空格的引用内列表围栏（` > - ``` `）藏信号必须拦。
+
+    `_quote_width` 原来只从 `>` 起算——引用标记**前**的前导空白不计入时，
+    内容列被算大，` >   信号行` 被误判「缩进不足→容器结束→可见正文」而放行；
+    markdown-it 确认该形态渲染在 `<pre><code>` 内（Codex round-4 stderr 实证）。
+    """
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    report = write_report(vault, scan)
+    lines = report.read_text(encoding="utf-8").splitlines()
+    idx = [i for i, ln in enumerate(lines) if any(lb in ln for lb in SIGNAL_LABELS)]
+    core = [lines[i].lstrip("> ").lstrip("- ").strip() for i in range(idx[0], idx[-1] + 1)]
+    body = [" > - ```"] + [" >   " + x for x in core] + [" >   ```"]
+    out = lines[: idx[0]] + body + lines[idx[-1] + 1 :]
+    report.write_text("\n".join(out) + "\n", encoding="utf-8")
+    r = run_verify(report)
+    assert r.returncode != 0, f"前导空格引用内列表围栏藏信号被放行:\n{r.stdout}"
+    assert "代码块内出现信号名" in r.stdout or "缺信号行" in r.stdout
+
+
+def test_domain_r4_manifest_appendix_signal_in_section3_only(tmp_path):
+    """round-4 B: 「无来源结论」限定③段对 **manifest 模式**同样生效。
+
+    HIGH-4 的限定原本只挂在 fallback 分支——manifest 报告的附录伪信号
+    `987654/2 派生角色成员缺来源锚点` 实测放行（Codex round-4 探针 B）。
+    """
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault, "--manifest", str(make_manifest(vault)))
+    assert scan["data_mode"] == "manifest"
+    report = write_report(vault, scan)
+    with report.open("a", encoding="utf-8") as f:
+        f.write("\n## 附录\n\n- 无来源结论：987654/2 派生角色成员缺来源锚点【实测】\n")
+    r = run_verify(report)
+    assert r.returncode != 0, f"manifest 附录伪信号被放行:\n{r.stdout}"
+    assert "只许出现在③段" in r.stdout
+
+
+def test_domain_r4_derive_allow_cjk_numbers_in_pool(tmp_path):
+    """round-4 C: 允许式行内的**中文数词**也必须入池比对。
+
+    `#### 派生子女 九十八万个 的说明`——`\\d+` 抓不到中文数字，实测放行
+    （Codex round-4 探针 C）。可解析的入池比对（九十八万=980000 不在池）；
+    解析不了的生僻写法 fail-closed 直接报。
+    """
+    r = _mutate_report(
+        tmp_path,
+        lambda t, s: t.replace("方向叙述：", "\n#### 派生子女 九十八万个 的说明\n\n方向叙述：", 1),
+    )
+    assert r.returncode != 0, f"标题行中文数字绕过被放行:\n{r.stdout}"
+    assert "无出处" in r.stdout or "无法验证" in r.stdout
