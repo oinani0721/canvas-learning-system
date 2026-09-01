@@ -16,6 +16,20 @@ vault_id Field/Query 必填/推荐契约 + ContextVar 注入.
 
 from __future__ import annotations
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _no_real_index_orchestrator(monkeypatch):
+    """⛔ CARD-G2-5 round-3 隔离适配 (HIGH-2 同型): TestClient 触发 lifespan 会
+    构造**默认 state_dir** 的真单例并 start()/shutdown() —— 上一版它会 quarantine
+    真实 app/data 的 legacy journal 并写空 journal (测试污染真实数据)。
+    本文件只测端点的 vault_id 注入, 关掉 orchestrator 开关 (get_→None,
+    lifespan 跳过 start/shutdown), 不改变任何被测断言。
+    """
+    monkeypatch.setattr("app.config.settings.ENABLE_VAULT_INDEX_ORCHESTRATOR", False)
+
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest

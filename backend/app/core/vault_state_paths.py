@@ -155,10 +155,10 @@ def quarantine_legacy_state_file(
 
     - ``vault_index_orchestrator`` 的 journal: 它确实有周期反熵
       (``reconcile()`` 的指纹 diff + orphan sweep, ``VAULT_INDEX_SCAN_INTERVAL_S``
-      默认 60s, 且启动先跑一趟)。但那趟扫描只覆盖**当前部署的这个 vault**。
+      默认 60s, 且启动先跑一趟)。**但那趟扫描只覆盖当前部署的这个 vault**。
       所以准确说法是: **等那个 vault 自己再次运行且扫描健康之后**才收敛 ——
       如果隔离件属于一个你以后再没打开过的 vault, 它永远不会被补上。
-    - ``lancedb_index_service`` 的 journal: **根本没有周期反熵**。它的条目只记
+    - ``lancedb_index_service`` 的 journal: **没有周期反熵**。它的条目只记
       ``canvas_name``, 靠 canvas 再次变更才会重新入队。隔离之后若该 canvas 不再
       改动, 就没有任何入口把它索引回去 —— 需要 Ops 判定归属或对该 vault 做一次
       全量重建。
@@ -222,7 +222,8 @@ def quarantine_legacy_state_file(
     logger.warning(
         "[CARD-G2-5] %s: 发现旧的无 vault 维度状态文件, 已隔离为 %s 且**不加载**。"
         "它的条目无法判断属于哪个 vault, 按当前 vault 重放就是跨 vault 串台; "
-        "其中若含 delete 意图, 收敛条件见本函数 docstring (不是无条件 60s)。",
+        "其中若含 delete 意图: orchestrator 侧的反熵扫描只覆盖当前部署的这个 vault, "
+        "lancedb_index_service 侧没有周期反熵 —— 收敛条件见本函数 docstring (不是无条件 60s)。",
         context,
         target.name,
     )

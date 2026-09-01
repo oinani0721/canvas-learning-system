@@ -1,0 +1,20 @@
+BEFORE: {'vault_index_orchestrator.py': '06de84a38eec783a', 'lancedb_index_service.py': '720feacb748e5883', 'vault_state_paths.py': '3d4f2204b32f46fc'}
+=== 变异结果 ===
+M1 [预期红: ①②③]: ================ 3 failed, 23 deselected, 10 warnings in 0.68s =================
+    FAILED: test_orchestrator_enqueue_reports_persist_failed_when_state_dir_is_a_file
+    FAILED: test_orchestrator_coalesce_path_also_reports_persist_failed
+    FAILED: test_refresh_changed_endpoint_returns_503_when_journal_unwritable
+M2 [预期红: ①②③]: ================ 3 failed, 23 deselected, 10 warnings in 0.52s =================
+    FAILED: test_orchestrator_enqueue_reports_persist_failed_when_state_dir_is_a_file
+    FAILED: test_orchestrator_coalesce_path_also_reports_persist_failed
+    FAILED: test_refresh_changed_endpoint_returns_503_when_journal_unwritable
+M3 [预期红: ④⑤]: ================ 2 failed, 24 deselected, 10 warnings in 0.62s =================
+    FAILED: test_lance_persist_pending_returns_false_when_state_dir_is_a_file
+    FAILED: test_lance_debounced_index_logs_intent_lost_when_persist_fails
+M4 [预期红: ⑥]: ================ 1 failed, 25 deselected, 10 warnings in 0.69s =================
+    FAILED: test_lance_recover_pending_keeps_journal_when_rewrite_fails
+M5 [预期红: (e)①]: ================ 1 failed, 25 deselected, 10 warnings in 0.67s =================
+    FAILED: test_convergence_wording_facts_are_bound_to_code
+M6 [预期红: (e)③]: ================ 1 failed, 25 deselected, 10 warnings in 0.69s =================
+    FAILED: test_convergence_wording_has_no_unqualified_60s_claim
+RESTORE-IDENTICAL: True

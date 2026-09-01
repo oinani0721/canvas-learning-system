@@ -250,5 +250,6 @@ canvas-vault/.obsidian/cls-internal-key.txt
 backend/app/data/vault_index_pending*.jsonl
 backend/app/data/vault_index_pending*.jsonl.tmp
 backend/app/data/lancedb_pending_index*.jsonl
+backend/app/data/lancedb_pending_index*.jsonl.tmp
 backend/app/data/*.pre-g25.bak
 backend/app/data/*.pre-g25.bak.*

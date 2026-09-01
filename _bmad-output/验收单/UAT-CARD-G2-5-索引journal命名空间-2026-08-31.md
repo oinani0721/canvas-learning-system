@@ -202,3 +202,207 @@ Round 1 判 **FAIL**（0 BLOCKER / 4 HIGH / 6 MEDIUM / 2 LOW）。逐条**实证
 **这一轮我自己先发现、Codex 也独立发现的**：HIGH-2（等审查期间记在 scratchpad 的 SF-1）。
 **这一轮 Codex 发现而我完全没想到的**：HIGH-3（字节 vs 字符）、HIGH-1（同秒覆盖）、
 HIGH-4（我把两条 journal 的兜底混为一谈）、MEDIUM-10（把宿主目录当现网）。
+
+---
+
+## 八、第八批 round-3 整改（HIGH-3 / HIGH-4）[BATCH-2026-09-01-第八批 / CARD-G2-5]
+
+> round-2 存档（`_bmad-output/审查/codex-review-CARD-G2-4-G2-5-round2.md`）判 HIGH-3
+> （失败反馈半边未修：`_persist_sync` 吞异常仍返回 accepted / Lance 同型 + HIGH-4 回归锁
+> 为「—」）双 STILL-OPEN。本节为第八批收口记录；证据在 `_bmad-output/审查/evidence-g24/`。
+
+### 8.1 修法（卡文 (a)(b)(c)）
+
+- **orchestrator**（`vault_index_orchestrator.py`）：新增 `PendingPersistError(RuntimeError)`；
+  `_persist_sync()` 失败 = 计数 + `_last_durable_error` + ERROR + 抛类型化异常；
+  `enqueue` 捕获后**新条目弹回内存返回 `persist_failed` / 已有条目保留内存变更返回
+  `persist_failed`**（两种都置 `_durable_degraded` 且照常 `_wake.set()`——内存 worker
+  尽力而为，对外不报成功）；process_batch/reconcile/shutdown 三处批末调用捕获+计数，
+  worker 循环不死（process_batch 只包 persist 一行，FTS 重建照常）；watcher 事件路径
+  补 persist_failed WARNING（勘探发现的最后盲区）；`freshness()` 加性三键。
+- **API**（`endpoints/index.py`）：`PathRefreshStatus` 注释枚举加 `persist_failed`；
+  `RefreshChangedResponse` 加性 `persist_failed=0`/`durable=True`；任一路径失败 →
+  `JSONResponse(503, resp.model_dump())`（完整 body）；成功路径保持 pydantic 模型返回
+  （三个既有直调测试取 `.accepted` 属性——故意不改恒返 JSONResponse，防防回潮门
+  `not hasattr(resp,"scheduled")` 退化成恒真空转）。
+- **Lance service**（`lancedb_index_service.py`）：`_persist_pending()` 返回 bool（捕获面
+  维持 OSError/TypeError/ValueError 不加宽，异常逃逸洞如实登记见 8.6）；`_debounced_index`
+  False 时 ERROR「intent lost」含 canvas 名（与既有 WARNING 区分，ac2 的 any 断言不受影响）；
+  重写段抽 `_rewrite_journal(entries)->bool`（tmp+os.replace 原子化；**调用方持锁、helper
+  不再 acquire**——threading.Lock 非可重入自死锁防线写进 docstring；tmp 名 = `<journal>.tmp`
+  与字节预算后缀一致、与 `.pre-g25.bak[.N]` 命名空间逐字不同且隔离器无 glob）；失败时
+  原 journal 逐字节不动 + 清 tmp 残片；返回 dict 加性 `persist_failed: 0|1`；
+  新增只读 `durable_status()`（不接端点，移交）。
+- **`.gitignore`**：补 `backend/app/data/lancedb_pending_index*.jsonl.tmp`（本卡首次让
+  Lance 侧写 tmp，orchestrator 侧 :251 有而 Lance 侧缺——合同点归本车道，勘探实测缺口）。
+- **vault_state_paths.py 文案微调**（禁改面只动措辞，见 8.3 门③ 自洽所需）：
+  docstring 粗体位置前移使「只覆盖当前部署」逐字连续；warning 追加两短语
+  （orchestrator 侧「只覆盖当前部署的这个 vault」/ lancedb 侧「没有周期反熵」）——
+  warning 原文是指路型文案（「收敛条件见 docstring」），卡文 (e)③ 要求对 warning 全文
+  跑判据，故两短语必须在 warning 正文逐字存在。逻辑零改动。
+
+### 8.2 回归锁（(d) 七条 + (e) 三条，`test_g25_journal_namespace.py` 16→26）
+
+先红证据由 (f) 变异矩阵承担（M1-M6 每条变异杀指定门，见 8.4）；绿态
+`pytest tests/unit/test_g25_journal_namespace.py -q` → **26 passed**（基线 16 + 新增 10）。
+
+| # | 测试 | 锁什么 |
+|---|---|---|
+| ① | `test_orchestrator_enqueue_reports_persist_failed_when_state_dir_is_a_file` | 坏 state_dir → `persist_failed` + 弹回 + freshness 三键；正向对照好目录 accepted |
+| ② | `test_orchestrator_coalesce_path_also_reports_persist_failed` | coalesced 路径同样报失败 + 保留内存变更 |
+| ③ | `test_refresh_changed_endpoint_returns_503_when_journal_unwritable` | 真实 handler 直调（patch orchestrator 模块的 get_——端点内局部 import）→ 503 + 完整 body + durable=False；正向对照 200 语义模型 |
+| ④ | `test_lance_persist_pending_returns_false_when_state_dir_is_a_file` | `_persist_pending` False + `durable_status` 计数；正向对照 True |
+| ⑤ | `test_lance_debounced_index_logs_intent_lost_when_persist_fails` | ERROR「intent lost」含 canvas 名（替身抛 + 真实坏 state_dir） |
+| ⑥ | `test_lance_recover_pending_keeps_journal_when_rewrite_fails` | 两半门：helper 半（坏 state_dir 下 `_rewrite_journal` False + 无残片）+ 传递半（`_rewrite_journal` 强制 False 走完整 recover → `persist_failed=1` + 原 journal 逐字节不动）。⚠️ 卡文字面「坏 state_dir 下 recover 走到重写」不可达（坏路径下 `exists()` False → recover 早返回），两半各证一半，**合起来仍不证明端到端 OS 失败链** |
+| ⑦ | `test_long_cjk_key_accepted_through_real_orchestrator_enqueue` | 沿用既有 filename 锁场景，200 汉字 key 走**真实 orchestrator** enqueue → accepted + 文件真落盘 |
+| e① | `test_convergence_wording_facts_are_bound_to_code` | `reconcile`/`_scan_loop` 存在 + `Settings.model_fields["VAULT_INDEX_SCAN_INTERVAL_S"].default==60`（**只锁声明默认值，不锁运行期 env 覆盖**——docstring 声明）+ Lance `dir()` 无 `reconcile\|scan\|anti_entropy\|_loop` |
+| e② | `test_lance_quarantined_intent_has_no_automatic_reentry` | 隔离后事件循环跑 ≥3×debounce 替身调用恒 0；正向对照 schedule_index **恰 1 次**（`==1`，≥0 会把开关关闭的空转放行）；debounce 用**实例属性 patch**（`reload_settings` 对按值 import 的模块是静默 no-op——勘探实锤） |
+| e③ | `test_convergence_wording_has_no_unqualified_60s_claim` | helper 对三段真实文本（quarantine docstring / migrator 模块 docstring（ast 零副作用加载，不用 importlib——防 __pycache__ 写入）/ caplog 隔离 warning 全文）断言两短语 + 60s 正则否定词；**篡改门×3**：无否定 60s 段 / 「有没有周期反熵」疑问句段（lookbehind 排除——朴素 in 会被疑问句骗过，盘点文档 :48 即此形态）/ 缺另一短语段 必须 AssertionError |
+
+### 8.3 4-A Claude 已代验 —— 全部裁判输出
+
+```
+① 探针（裁判 #2，改码前 HEAD 输出 accepted False）:
+  $ o=VaultIndexOrchestrator(vault_path=d, state_dir=<普通文件>); print(o.enqueue("upsert","节点/a.md"), o._pending_file.exists())
+  → persist_failed False                                    （06:25 实跑）
+
+② (d)(e) 裁判: pytest tests/unit/test_g25_journal_namespace.py -q → 26 passed（≥25 ✓）
+
+③ (f) 变异 M1-M6（串行、还原逐字节比对；evidence-g24/g25-mutations.txt）:
+  M1 enqueue 两路径恢复无条件 accepted（保留抛异常）→ ①②③ 红（3 failed）✓
+     （首版只变异新条目路径 → ② 未红 —— 变异覆盖面也要对齐卡文，修正后重跑）
+  M2 _persist_sync 恢复吞异常            → ①②③ 红（3 failed）✓
+  M3 _persist_pending 恢复无返回值+调用点不判定（=改前原状）→ ④⑤ 红（2 failed）✓
+     （纯 None 形态下 ⑤ 不红——None falsy 仍误发 ERROR；取调用点不判定的改前原状）
+  M4 _rewrite_journal 恒 True           → ⑥ 红 ✓   M5 加空 reconcile → e① 红 ✓
+  M6 docstring 加「约 60 秒必收敛」        → e③ 红 ✓
+  RESTORE-IDENTICAL = True（三文件 sha256 前后逐字一致）
+
+④ (g) 存量: 六文件 66 collected = 60 passed + 6 failed（comm 双向差集 0）⚠️ 卡文
+  「66 全绿」在当前 HEAD 字面不可达——6 条失败为 HEAD 存量（逐条：review_fixes
+  TestDoIndexCoverage×2 = `await client.initialize()` 对 MagicMock 替身抛 TypeError
+  （远古 commit 14f0412d 引入 await 形态、测试替身未同步）；story_38_7_ac5×4 同文件
+  存量红）。非本批引入，未适配（不属断言适配可修复面），如实登记。
+  全 -k 套件（lancedb/supplementary/orchestrator/journal/g24/g25/index）:
+  HEAD 基线（detached worktree + 同 venv 实跑）19 failed/267 passed ↔ 改后
+  19 failed/277 passed（+10=新增锁），comm 新增 0 / 消失 0。
+  断言适配 4 处（ac3:46 + g25:178/198/254）：整 dict 精确相等 → 逐键断言
+  （persist_failed 加性键打红，卡文 (g) 允许适配断言；原语义逐键保留）。
+
+⑤ 裁判 #7 真实 journal 未被触碰 —— ⚠️ 本卡期间抓到并修复一个**既有测试污染面**：
+  全 -k 新口径第一次把 `test_vault_scope_409.py`（module 级 TestClient）拉进来，
+  lifespan 起真单例 → start()/recover() 把真实 `vault_index_pending.jsonl`（10435B
+  用户意图）隔离成 `.pre-g25.bak.1` + shutdown() 写出 0 字节命名空间 journal
+  （HIGH-2 同型：第七批只修了当时 -k 面内的文件）。当场取证（mtime/ctime/inode/
+  内容比对：_reserve_unique 无覆盖、零数据损失、artifact 移出至 scratchpad），
+  修复 = vault_scope_409 + wave5 两文件加 `_no_real_index_orchestrator` 隔离 fixture
+  （409 必须 module-scope——function-scope 的 patch 在 module 级 client 的 lifespan
+  之后才生效，第一次实装当场复现抓到）；修复后全集跑 data 目录前后一致
+  （2 文件不变，计数与开工基线一致），git status --short backend/app/data 为空。
+
+⑥ grep 判据: grep -rn "persist_failed" endpoints/index.py vault_index_orchestrator.py | wc -l → 18（≥4 ✓；round-4 整改后重计，8.3 初版的「6」为当时计数）
+```
+
+### 8.4 (f) 变异与 shasum
+
+见 8.3 ③。三文件 shasum 变异前=变异后（`g25-mutations.txt` 首尾段逐字相同）。
+
+### 8.5 4-B 你来验
+
+**索引失败不再假报成功** —— 你在软件里点「刷新索引」后，如果底层写不进记录，你会
+**明确看到失败提示**，而不是看到「成功」然后发现新内容其实没被记住。其余一切照旧。
+
+### 8.6 本卡未证明什么（必填，如实）
+
+- Lance 侧 `schedule_index` 是 fire-and-forget：失败只落 ERROR 日志 + `durable_status()`
+  计数，**没有接到 HTTP 状态面**（卡文明确的移交项）。
+- `_persist_pending` 捕获面维持三类异常：其它异常会逃逸到 fire-and-forget 任务边界
+  （Task exception 未检索日志），该洞如实保留、未静默加宽。
+- (d)⑥ 两半门各证一半（失败识别 / 返回值传递），合起来仍不证明端到端 OS 失败链
+  （卡文同款声明）。
+- fsync/断电窗口不在证明范围（round-2 已声明，维持）。
+- `durable_degraded`/`durable_write_failures` 目前只有 metadata 状态端点透传，无告警/UI
+  消费方——「可观测」止步于可查询，不等于有人会看（移交）。
+- e① 只锁 `VAULT_INDEX_SCAN_INTERVAL_S` 声明默认值；env/.env 覆盖后的运行期取值
+  不在门内。
+
+### 8.7 待你裁决（按第七批 §三 建议默认执行，均为默认值、**待你裁决**，未裁定）
+
+| # | 事项 | 建议默认 | 本轮执行 |
+|---|---|---|---|
+| D4 | `_bmad-output` 从库列表排除 | 延后（第七批 §三） | 未动 |
+| D5 | 刷新执行库内 decay_beta.py → 迁后端 | 延后（登记 CARD-G6-1b） | 未动 |
+| D6 | md/json 配对原子性 + 跨进程互斥 | 延后（LOW 排卡） | 未动 |
+| D7 | 懒隔离升级启动硬门 | 维持懒隔离（升级会重开 HIGH-2） | 维持 |
+| 新1 | `persist_failed` → HTTP 503 + 完整 body 契约 | 503（全仓无活消费方实查） | 按默认落地 |
+| 新2 | 内存回滚语义（新条目弹回 / 已有条目保留） | 按卡文 | 按默认落地 |
+| 新3 | Lance `durable_status()` 是否接状态端点 | 不接（移交） | 未接 |
+
+### 8.8 本节批次标记
+
+历史 commit（9c366d27/4da0116d/a94caa3d/b2bf2e52）的批次日期误写 08-29 已在 G2-4
+验收单 §8.5 登记；本卡 commit 使用正确标记 `[BATCH-2026-09-01-第八批 / CARD-G2-5]`。
+
+### 8.9 Codex round-3
+
+见 `_bmad-output/审查/codex-review-CARD-G2-5-round3.md`。
+
+---
+
+## 九、round-4 整改（Codex round-3 判决回应）[BATCH-2026-09-01-第八批 / CARD-G2-5]
+
+Codex round-3（`codex-review-CARD-G2-5-round3.md`）判**清零=否**：HIGH-3 抓到一条真
+**竞态**（recover 锁外重放期间并发 append 的意图被旧快照 rewrite/unlink 静默删除，
+`/tmp` 实测复现）+ HIGH-4 三道口径锁各给出全绿绕过 + (d)②③⑥ 三死门 + 2 MEDIUM；
+round-1/2 已 CLOSED 的 HIGH-1（隔离件不覆盖）/HIGH-2（真 data 不被测试碰）确认未重开。
+本节为 round-4 整改记录。
+
+### 9.1 竞态修复（HIGH-3 收口）
+
+`recover_pending()` 重写分支改为**锁内合并语义**：重读当前 journal，只取**不在旧快照
+行集合里**的行（= 重放窗口内新 append 的条目；旧行无论已消费与否都是残影，由
+still_pending/unlink 语义接管），与 still_pending 按 canvas_name 取 timestamp 最新者
+合并后再原子写。append 与 rewrite 同锁互斥、「重读→replace」是连续同步代码——竞态
+窗口消除。副作用已验证：全部恢复成功 + 无并发 append 时仍走 unlink（三条「journal
+应被删除」断言保持绿）；恢复失败条目 (still_pending) 照常保留。
+
+**新回归锁** `test_lance_recover_preserves_concurrent_appends`：替身在恢复 canvas-a
+时真实调 `_persist_pending("canvas-new")`（模拟窗口内并发 append 成功）→ 断言
+canvas-new 在终态 journal 中 + 已恢复条目被消费 + 失败条目保留。变异 B1（合并分支
+短路=恢复旧快照 rewrite）→ 该锁红（见 9.3）。
+
+### 9.2 口径门与死门堵口（HIGH-4 + (d)②③⑥）
+
+| Codex 绕过 | 堵口 | 验证变异 |
+|---|---|---|
+| e①：`_scan_loop` 空壳仍绿 | 加**行为探针**：真跑 `_scan_loop` 两个周期（interval patch 20ms、reconcile 替身计数）→ 必须 ≥2 次调用。首次用 `getsource` 检测被「return 短路+留死代码」变异骗过（自查发现）——getsource 只能抓删 body，抓不住死代码 | B4（空壳）红 ✓ |
+| e②：0.20s 延迟重入逃过 0.04s 窗口 | 观察窗延长 **1.0s**（覆盖默认 0.5s debounce 两个周期）+ 断言 `svc._pending_tasks == {}`（「无自动重入」的本质：隔离不得调度任何 task） | e② 断言即窗口本身；Codex round-4 复核 |
+| e③：lookbehind 可绕 / 60s 宽否定词误放 / 等价措辞漏判 | helper 重写：「没有周期反熵」改**所在句疑问标记检查**（？?吗呢是否有没有——旧 lookbehind 只挡「有没有」）；收敛断言正则扩 `一分钟/必然收敛`；语境判据收紧为**引用-否定**（旧文案/原文案/原文/旧说法/曾写/原话 + 不成立/是错的/错误/不对/不实/错的——裸「不是」可被「不是偶尔，而是…」误用）；篡改门 3→**6** 条（含专测 60s 语境半、等价措辞、肯定性修辞各一） | M6 红 ✓；篡改门内建 |
+| d②：失败回滚字段仍绿 | 第二次 enqueue 改用不同 op（upsert→delete）+ 断言失败后 `_pending[p].op=="delete"`（内存变更保留是卡文写死语义） | B2（回滚变异）红 ✓ |
+| d③：503 body 删四字段仍绿 | 断言 body 键集合**恰为七字段契约** + 四聚合值逐键 | B3（删字段变异）红 ✓ |
+| d⑥：好目录假 True 零写仍绿 | 加正向对照段：真实 `_rewrite_journal` 在好目录必须**真的写**——journal 收缩为 still-pending 条目（内容逐键断言） | B5（假 True 零写）红 ✓；M4（恒 True）红 ✓ |
+| MEDIUM：批处理末次写失败后 `durable_degraded` 仍 False | `_durable_degraded=True` 置位从 enqueue 移入 `_persist_sync` 统一（覆盖 enqueue/process_batch/reconcile/shutdown 全部路径） | M2 变异（吞异常）同时打掉计数与置位 → ①②③ 红 ✓ |
+| LOW：metadata.py 过期注释「前端走 refresh-changed」 | 就地更正（复核实查无活消费方） | — |
+
+### 9.3 round-5 变异矩阵（重绑定当前 bytes；`evidence-g24/g25-mutations-round5.txt`）
+
+M1-M6 重生成（Codex 指出旧摘要 720feac… 与格式化后 bytes 脱钩）+ B1-B5 五个绕过
+堵口验证，共 **11 个变异全部按指定门变红**，RESTORE-IDENTICAL=True（四文件 sha256
+前后逐字一致：orchestrator `c2fa7e62…` / lance `83b5ab37…` / index.py `3fcc78a3…` /
+vault_state_paths `3d4f2204…`——格式化前态，终态见 commit）。
+
+### 9.4 终态裁判
+
+- `test_g25_journal_namespace.py` → **27 passed**（26 + 竞态锁；format 后复跑）
+- 六文件 66 collected = 60 passed + 6 存量失败（与 8.3 相同清单），comm 双向 0
+- 全 -k 套件 19 failed（HEAD 存量）/ 278 passed（+1=竞态锁），与 HEAD 基线 comm 零新增
+- `backend/app/data/` 全程 2 文件不变（原件 + 第七批隔离件），git status 干净
+- grep 判据 18（≥4）
+
+### 9.5 本节未证明什么
+
+- 竞态修复的「重读→replace 锁内连续同步」论证依赖 CPython 单线程事件循环 +
+  threading.Lock 互斥——多进程并发写同一 journal（当前不存在此部署形态）不在证明范围。
+- e② 的 1.0s 窗口是经验窗（覆盖默认 debounce 两周期），不排除 >1s 延迟的假设性
+  重入路径；`_pending_tasks=={}` 断言才是本质约束。
+- 篡改门×6 是当前已知误放形态的封闭集，不是「任意误放文本必红」的全称证明。

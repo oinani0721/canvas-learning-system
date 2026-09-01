@@ -43,6 +43,16 @@ if _lib_path not in sys.path:
 _MAX_ATTEMPTS = 3
 
 
+class PendingPersistError(RuntimeError):
+    """durable pending journal 落盘失败 —— 调用方必须把它变成对外可见的失败状态。
+
+    ⛔ CARD-G2-5 round-2 HIGH-3: 旧实现把落盘异常吞成一行 logger.error,
+    enqueue() 照样返回 "accepted" —— 用户看到成功, 意图实际丢了。
+    本异常内含原始 OSError 文本; enqueue 捕获后返回 "persist_failed" 并回滚
+    内存状态, 其余调用点捕获后计数 + ERROR 日志（不让 worker 循环死掉）。
+    """
+
+
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -129,6 +139,10 @@ class VaultIndexOrchestrator:
         self._force_fts_once = False  # M5: set by recover(), cleared on rebuild
         self._excluded_count = 0  # OBS-4: blacklist exclusions since start
         self._excluded_logged: set = set()  # rate-limit: one log per path
+        # CARD-G2-5 round-2 HIGH-3: durable 写失败的对外可见计数。
+        self._durable_degraded = False
+        self._durable_write_failures = 0
+        self._last_durable_error: Optional[str] = None
 
         from app.config import settings
 
@@ -230,7 +244,7 @@ class VaultIndexOrchestrator:
         persist: bool = True,
     ) -> str:
         """Add an index intent. Returns structured status:
-        accepted | coalesced | excluded.
+        accepted | coalesced | excluded | persist_failed.
 
         Deletes are NEVER excluded by the blacklist — rows for a path may
         exist in the table from before that path was blacklisted, and
@@ -242,6 +256,13 @@ class VaultIndexOrchestrator:
         the backoff every scan (poison-file retry storm).
         persist: batch callers (reconcile) pass False and persist once at
         the end — per-call full-file rewrite is O(N²) during bursts (H4).
+        ⛔ CARD-G2-5 HIGH-3: persist=True 且落盘失败时返回 "persist_failed"
+        （不再假报成功）。新条目会从 _pending 弹回（既没 durable 也不算
+        accepted）；已有条目保留内存变更但同样报 persist_failed。两种都置
+        _durable_degraded 并照常 _wake.set()（内存 worker 尽力而为）。
+        ⚠️ reconcile 的四处 `in ("accepted","coalesced")` 计数依赖「它们全部
+        传 persist=False」这一前提 —— 若将来把某处翻成 True，必须把
+        "persist_failed" 纳入「非入队」判定，否则失败会被当成没入队而少算。
         """
         # Code-Review M3: path traversal guard — the old chain was inert so
         # "../../x.md" was harmless; this chain really writes the index.
@@ -273,7 +294,14 @@ class VaultIndexOrchestrator:
             if existing.state == "in_flight":
                 existing.dirty = True
             if persist:
-                self._persist_sync()
+                try:
+                    self._persist_sync()
+                except PendingPersistError:
+                    # 已有条目: 字段改写不可回滚 —— 保留内存变更（worker 仍会
+                    # 尽力索引它），但对外如实申报 durable 失败。
+                    self._durable_degraded = True
+                    self._wake.set()
+                    return "persist_failed"
             self._wake.set()
             return "coalesced"
 
@@ -284,7 +312,14 @@ class VaultIndexOrchestrator:
             force=force,
         )
         if persist:
-            self._persist_sync()
+            try:
+                self._persist_sync()
+            except PendingPersistError:
+                # 新条目: 既没落 durable 也不能报 accepted —— 弹回内存。
+                self._pending.pop(rel_path, None)
+                self._durable_degraded = True
+                self._wake.set()
+                return "persist_failed"
         self._wake.set()
         return "accepted"
 
@@ -293,6 +328,10 @@ class VaultIndexOrchestrator:
 
         The pending set is small (bounded by files changed between worker
         passes), so full rewrite is simpler and safer than append-compact.
+
+        ⛔ CARD-G2-5 HIGH-3: 失败不再静默 —— 计数 + ERROR 日志后抛
+        PendingPersistError，由调用方决定对外语义（enqueue→persist_failed；
+        批处理点→捕获计数，不让 worker 循环死掉）。
         """
         try:
             self._pending_file.parent.mkdir(parents=True, exist_ok=True)
@@ -302,7 +341,11 @@ class VaultIndexOrchestrator:
                     fh.write(json.dumps(entry.to_json(), ensure_ascii=False) + "\n")
             os.replace(tmp, self._pending_file)
         except Exception as e:
+            self._durable_degraded = True  # round-3 Codex MEDIUM: 批处理路径的失败同样置降级
+            self._durable_write_failures += 1
+            self._last_durable_error = f"{type(e).__name__}: {e}"
             logger.error(f"[RAG-S1] pending persist failed: {e}")
+            raise PendingPersistError(f"pending journal persist failed: {e}") from e
 
     @property
     def _legacy_pending_file(self) -> Path:
@@ -450,7 +493,12 @@ class VaultIndexOrchestrator:
         # H4: one persist per batch. Crash between entries only loses
         # "completed" markers — replaying completed entries is idempotent
         # (fingerprint hit = skip), so durability is preserved at O(N) cost.
-        self._persist_sync()
+        # CARD-G2-5 HIGH-3: 只包 persist 这一行 —— FTS 重建必须照常执行
+        # （行已写进 LanceDB，跳过重建 = 关键词检索静默假空）。
+        try:
+            self._persist_sync()
+        except PendingPersistError:
+            pass
 
         if rows_changed:
             client._rebuild_fts_index(table)
@@ -574,7 +622,12 @@ class VaultIndexOrchestrator:
             logger.warning(f"[RAG-S1] orphan sweep failed (non-fatal): {e}")
 
         if enqueued:
-            self._persist_sync()
+            # CARD-G2-5 HIGH-3: 失败已计数 + ERROR；不改 stale 语义
+            # （_last_reconcile_at 照常刷新，scan_overdue 判定不受影响）。
+            try:
+                self._persist_sync()
+            except PendingPersistError:
+                pass
 
         self._last_reconcile_at = _utcnow()
         result = {
@@ -683,6 +736,11 @@ class VaultIndexOrchestrator:
             "excluded_count": self._excluded_count,
             "lag_seconds": round(lag_seconds, 1),
             "stale": lag_seconds > self._stale_after or scan_overdue,
+            # CARD-G2-5 HIGH-3: durable 写失败的对外可见面（加性, 不改 stale 语义;
+            # 目前仅 metadata 状态端点透传, 无告警消费方 —— 移交登记）。
+            "durable_degraded": self._durable_degraded,
+            "durable_write_failures": self._durable_write_failures,
+            "last_durable_error": self._last_durable_error,
         }
 
     # ------------------------------------------------------------------
@@ -716,6 +774,13 @@ class VaultIndexOrchestrator:
                         self.enqueue("delete", rel, reset_backoff=True)
                     else:  # added | modified
                         status = self.enqueue("upsert", rel, reset_backoff=True)
+                        # CARD-G2-5 HIGH-3: 事件路径的 durable 失败也必须出声
+                        # （enqueue 已吞掉异常返回字面量, 这里补可观测性）。
+                        if status == "persist_failed":
+                            logger.warning(
+                                f"[RAG-S1] file save {rel!r} indexed in memory but durable journal write FAILED — "
+                                "intent may be lost on crash (see freshness.durable_write_failures)"
+                            )
                         # OBS-4 (2026-08-09): blacklist exclusion must leave a
                         # trace — a brand-new note named 未命名.md/Untitled.md
                         # hits DEFAULT_VAULT_SKIP_FILES and used to vanish in
@@ -795,7 +860,10 @@ class VaultIndexOrchestrator:
                 await task
             except (asyncio.CancelledError, Exception):
                 pass
-        self._persist_sync()
+        try:
+            self._persist_sync()
+        except PendingPersistError:
+            pass  # CARD-G2-5 HIGH-3: 关停路径不因持久化失败而炸 lifespan
         logger.info("[RAG-S1] orchestrator shut down (pending flushed)")
 
 
