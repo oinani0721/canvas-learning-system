@@ -1,6 +1,7 @@
 # UAT — CARD-G3-6b 板级 why_this_board 与系数版本化（rank_manifest）
 
 > 批次 [BATCH-2026-09-01-第八批 / CARD-G3-6b] · 车道 card/w6-whyboard · 基线 9af18b27
+> **复核轮 [BATCH-2026-09-01-第九批 / CARD-G3-6b-R1]（2026-09-02）**：冻结 `c2d2e590` 复核证据真实性 + 取非空终裁。本轮**不扩功能**，只做独立复核、边界收窄与证据当前化；R1 新增内容一律标注 `R1`。
 > 验收单按 `templates/uat-sheet-template.md` 七段双段（DoD-3：4-A 全部裁判真实输出 Claude 代验；4-B 零技术词只写你能感知的）。
 
 ## 一句话
@@ -40,6 +41,18 @@ $ cd backend && caffeinate -i .venv/bin/pytest tests/regression/test_daily_revie
 = 基线 37+56 全绿 + 新增 37 条（pick 32 + overview 5... 见用例清单）全绿。卡文要求新增 ≥8。
 （121 → 126 → 130：Codex round-1/round-2 整改逐步新增门，见「Codex 对抗审查」节。）
 
+**R1 复跑（2026-09-02，开工 `--collect-only` 实收，不照抄历史数字）**：
+
+```
+$ PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest … -q -p no:cacheprovider --collect-only
+========================= 130 tests collected in 0.06s =========================
+$ PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest … -q -p no:cacheprovider
+======================= 130 passed, 10 warnings in 4.23s =======================
+```
+
+收集数 = 通过数 = 130（pick 69 + overview 61），无 skip/xfail 掩盖。R1 的 docstring
+收窄改动落盘后复跑仍 130 passed —— 门全部是自洽/相对断言，不硬编码 sha 字面值。
+
 ### 裁判 2：live 只读探针（2026-09-01 实跑，PYTHONDONTWRITEBYTECODE=1、不带 --write；round-1 整改后复跑）
 
 ```
@@ -53,7 +66,29 @@ $ shasum -a 256 …/canvas-vault/outputs/今日复习.{json,md}   # 后置
 ```
 
 > sha 演进轨迹（每一跳都对应一次真实的配置/实现变化，指纹如实反映）：
-> `e3a6c062…`（round-1 版）→ `b0c77f5c…`（因子常量改名纳入）→ `b3ff4b99…`（实现校验和纳入，终版）。
+> `e3a6c062…`（round-1 版）→ `b0c77f5c…`（因子常量改名纳入）→ `b3ff4b99…`（实现校验和纳入）
+> → **`503fd4b6…`（R1：边界收窄的 docstring 纳入）**。
+
+**R1 复跑（2026-09-02 04:11 +0800，避开 launchd 推送档位 9–20 点；`PYTHONDONTWRITEBYTECODE=1`、不带 `--write`）**：
+
+```
+前置 sha  今日复习.json 27d4204c…  今日复习.md c6585d38…
+ok {'version': 1, 'sha256': '503fd4b6ac7d035c81df7892ae9e3801067c9c8cb05fd5e90e98559b5721f462'}
+truncated {'top_boards': True, 'upcoming': False}
+  CS 61B            |  8 分钟 | 2 个节点到期（其中 1 张新卡）· 最早的已逾期 22 天 · 最该考的已闲置 21 天 · 这块板从未被推荐过
+  特征值与特征向量  | 10 分钟 | 2 个节点到期（其中 2 张新卡）· 最该考的已闲置 38 天 · 这块板从未被推荐过
+  CS188 lecture 2   |  5 分钟 | 1 个节点到期（其中 1 张新卡）· 最该考的从未考察 · 这块板从未被推荐过
+后置 sha  今日复习.json 27d4204c…  今日复习.md c6585d38…   → 前后逐字相同（live vault 零写入）
+```
+
+两处差异都已归因，均非缺陷：
+
+1. **rank sha `b3ff4b99…` → `503fd4b6…`**：R1 只改了 `_implementation_sha` /
+   `effective_rank_config` 的 docstring（零行为改动），指纹随之变化 —— 这正是
+   「摘全文件字节、改一个注释也必变」这条声明的**活体验证**，而不是回归。
+2. **逾期天数 21 → 22 天**：探针日期从 09-01 变 09-02，数据随时间自然演进
+   （与「live 探针是单时刻快照」的既有声明一致）。板序、板名、分钟数、
+   `truncated` 全部与前一轮逐字相同。
 
 live 实际产出（现网 4 块到期板截 3，`truncated.top_boards=true` 如实透出）：
 
@@ -83,7 +118,7 @@ HEAD 板序: ['CS 61B', '特征值与特征向量', 'CS188 lecture 2']
 （同款门已固化为常态测试 test_g36b_top_boards_order_matches_head_baseline，走真实 subprocess CLI 链路）
 ```
 
-### 变异验证（8 条串行，MEMORY 铁律；还原逐字节一致，还原后 126 全绿）
+### 变异验证（8 条串行，MEMORY 铁律；还原逐字节一致，还原后 130 全绿）
 
 | # | 变异 | 指定门（必须红） | 结果 |
 |---|---|---|---|
@@ -100,6 +135,29 @@ HEAD 板序: ['CS 61B', '特征值与特征向量', 'CS188 lecture 2']
 > 原门只断言「解释行字样不在页面里」，而 M8 变异下单边渲染抛 TypeError 被全局中间件
 > 兜成 500 错误页——错误页恰好不含该字样，断言空转通过。修法：补 200 状态断言
 > （单边缺省的正确行为是「200 且整块不出现」，500 本身就该红），修后 M8 变红。
+
+**R1 复跑（2026-09-02，重建脚本独立跑，未沿用上一轮 scratchpad）**：8/8 各杀其指定门，
+还原后两个目标文件均**逐字节一致**。脚本按 MEMORY 铁律加了三道防假绿：
+
+- **阶段 0 前置**：先确认 8 道指定门在**未变异**代码下全绿 —— 否则「红」无法归因于变异
+  （`reference_gate_design_pitfalls`：不先证绿，红了也不知道是谁造成的）。8/8 全绿通过。
+- **锚点唯一性断言**：`old` 在源码中必须恰好命中 1 次，否则判 `INVALID` 而非静默跳过
+  （死变异伪装成通过）。8 条全部命中 1 次。
+- **`rc=5` 判 INVALID**：pytest 未收集到测试的退出码不算「红」
+  （`reference_mutation_script_catches_dead_gates`）。本轮无 rc=5。
+
+| # | 变异 | 指定门 | R1 结果 |
+|---|---|---|---|
+| M1 | 解耦 factors（why 不再由落盘 factors 复算） | `…why_this_board_recomputes_from_factors` | ✅ 红 rc=1 |
+| M2 | decay 常量退出摘要（sha 不随系数变） | `…sha_changes_for_every_single_coefficient` | ✅ 红 rc=1 |
+| M3 | 渲染层自算分钟（UI 再算） | `…page_renders_explain_row_and_escapes_hostile` | ✅ 红 rc=1 |
+| M4 | 排序倒序 | `…top_boards_order_matches_head_baseline` | ✅ 红 rc=1 |
+| M5 | 截断放松 `[:TOP_BOARDS_LIMIT]`→`[:99]` | `…truncated_flags` | ✅ 红 rc=1 |
+| M6 | 消费端门禁失明（分钟不验形） | `…garbage_explain_fields_degrade_corrupt_not_ok` | ✅ 红 rc=1 |
+| M7 | `_tie` 派生回退成硬编码 | `…tie_keys_are_single_source` | ✅ 红 rc=1 |
+| M8 | 渲染原子对回退（单边即渲染） | `…one_sided_explain_fields_render_nothing` | ✅ 红 rc=1 |
+
+还原完整性：`daily_review_pick.py` 与 `review_overview.py` 变异前后 sha256 逐字节一致。
 
 ### 格式门（先查 HEAD 基线再处置，零绕过）
 
@@ -167,11 +225,11 @@ HEAD 板序: ['CS 61B', '特征值与特征向量', 'CS188 lecture 2']
 | ① | suspended 第五桶 | 不做（归 G6-6 snooze），沿 G3-6a 五桶 | 认可归属？ |
 | ② | due_nodes 行结构化 idle_days | 加（G3-6a 移交 #2 按「加」执行，行尾追加 None=从未考察） | 认可？ |
 | ③ | manifest 落点与形态 | `scripts/review_rank_manifest.json` v1；authoritative（改了真生效：分钟常量）/ recorded（登记快照：因子序/上限/decay 六常量）两节分离；payload 只透 `{version, sha256}` | 认可「权威 vs 登记」边界？ |
-| **④** | **estimated_minutes 常量** | **到期节点 3 分钟/张、新卡 5 分钟/张——拍脑袋值，卡文明示请用户改。改法：编辑 manifest 的 authoritative.estimated_minutes，下一轮生成即生效（有测试锁定改了真生效）** | **按你的真实节奏给两个数** |
+| **④** | **estimated_minutes 常量** | **到期节点 3 分钟/张、新卡 5 分钟/张 = 建议默认，仍待你校准（非已批）**。改法：编辑 manifest 的 `authoritative.estimated_minutes`，下一轮生成即生效（R1 独立实测确认「改了真生效」：version=9 / minutes={11,13}）。⚠ **R1 明确：本卡至今未做真实跨日校准** —— 3/5 这两个数从未与「你实际复习一张卡花了几分钟」对过账，没有计时数据、没有跨日样本，它只是量级占位 | **按你的真实节奏给两个数**（给不出也没关系，默认值会一直用下去，但总览页的「预计 N 分钟」就一直只是量级参考） |
 | ⑤ | 上限 | 只登记+透出 truncated 布尔，截断行为零改动（仍 [:3]） | 认可？ |
 | ⑥ | 金样锁 | top_boards 排序与 9af18b27 逐字相同（改序另立卡） | 认可？ |
 | ⑦ | 一节点多板 | 不支持不发明。实测：YAML 数组写法→视同无归属进 unassigned 点名；逗号串写法→归到最后一个路径段（风险登记「未证明什么」） | 认可「不发明多板语义」？ |
-| **⑧** | **round-3 终裁缺失（Codex 内容过滤器两次拦截报告，验证记录已抢救）** | 证据链：round-3 五步验证全 ✓ + 唯一残余面（.pyc 字节码篡改）属「主动篡改运行时」威胁模型、超出本卡「防配置漂移」范围。**两个选项**：A) 接受证据链 + 残余面登记为已声明边界 → 本卡可合并；B) 不接受 → 本卡留台账 §一 不合并，残余面另立卡（运行时完整性属新机制） | **选 A 或 B**（我的建议：A——残余面无自然触发路径，且拦截是审查工具侧故障而非审查结论） |
+| **⑧** | **终裁状态（R1 更新）** | 第八批 round-3 报告被内容过滤器两次拦截 → 无正式裁定。R1 的处置：① 用独立探针把 round-2 五项整改**自己重测**（17/17 PASS，不依赖被拦报告的残片）；② 自查又发现两处并整改（R1-F1 声明过宽 / R1-F2 计数陈旧）；③ 重跑 Codex 取非空终裁 —— **本轮实际结果见「Round-R1」节末**。残余面（.pyc 字节码篡改）已作为**书面排除项**写进源码 docstring 与威胁模型，不再只是 UAT 里的一句话 | **待你裁决**：合并与否以 R1 轮 Codex 终裁为准；若终裁仍不可得，按卡文「到顶不合并」处理 |
 
 ## 🚦 验收结果
 
@@ -197,7 +255,7 @@ live 14 节点单值取值分布由开工 grep 实测（sort|uniq -c）。
 
 | # | 级别 | 发现 | 整改 |
 |---|---|---|---|
-| H2 | HIGH | 单源只统一了**因子名称序**，没统一**可执行取值规则**：`round(8)→round(7)` 精度收紧 → 近邻 pick 变同分 → 板序翻转而 sha 不变（实证 `879279ff…` 恒定）；取值绑定交换同理 | **双层修复**：a) 精度数据化——新常量 `TIE_PICK_ROUND_DIGITS=8` 进指纹（改精度 → 排序与 sha 同变）；b) **实现校验和兜底**——`effective_rank_config` 新增 `implementation_sha256 = sha256(pick.py 自身字节)`，取值绑定这类无法全部数据化的字面代码，任何改动都会反映到 sha（粒度从「系数」变「实现+系数」属预期内的保守取舍：宁可指纹变多，不可规则变更漏网） |
+| H2 | HIGH | 单源只统一了**因子名称序**，没统一**可执行取值规则**：`round(8)→round(7)` 精度收紧 → 近邻 pick 变同分 → 板序翻转而 sha 不变（实证 `879279ff…` 恒定）；取值绑定交换同理 | **双层修复**：a) 精度数据化——新常量 `TIE_PICK_ROUND_DIGITS=8` 进指纹（改精度 → 排序与 sha 同变）；b) **实现校验和兜底**——`effective_rank_config` 新增 `implementation_sha256 = sha256(pick.py 自身字节)`，取值绑定这类无法全部数据化的字面代码，对**源文件**的任何改动都会反映到 sha（粒度从「系数」变「实现+系数」属预期内的保守取舍：宁可指纹变多，不可规则变更漏网）。⚠ R1 收窄：该保证是**单向**的（规则变⟹sha变；反之不成立），且**不覆盖运行时 .pyc**——精确边界见 `_implementation_sha` docstring 三条声明 |
 | M5 | MEDIUM | authoritative 父节缺失（`{}`/无节/`null`）仍静默回落 | 三层（节/子节/叶键）缺失/null/形状不符全部点名；门覆盖三种形状 |
 | M6 | MEDIUM | pick 级金样不承重（低 pick 恰在字典序早的板，删首因子序不变——门空转） | 低 pick 移到字典序更晚的板 + 断言删首因子后翻转 |
 | L1 | LOW | 因子键无唯一性校验（重复键 = sha 变而排序不变） | 门锁定：键唯一 + board 恒末位 |
@@ -225,6 +283,77 @@ Round-3 两次运行均在完成全部验证步骤后、输出最终报告时被
 > ⚠️ **显著声明**：round-3 没有产出正式 PASS/FAIL 终裁 → 按卡文「到顶未清零」处理：
 > 本卡**不合并**，是否接受下述证据链改判，见「待你裁决」⑧。
 
+### R1 独立复核（CARD-G3-6b-R1，2026-09-02）：不抄自述，逐条重测
+
+卡文 (b) 要求复核 round-2 五项整改是否**真的**闭合。R1 写了一份独立探针，
+自己构造输入、自己读结果、自己判定，**不引用上一轮的结论**。结果 **17/17 PASS**。
+
+> **证据绑定的字节状态（两份，不混为一谈）** —— 探针跑了两次，每份输出各自归档：
+> - **A** `_bmad-output/审查/evidence-g36b-r1/recheck-A-on-c2d2e590-bytes.txt`：对
+>   `c2d2e590` **原样字节**（`pick.py` sha `ad1a38a5…`）跑 —— 这才是卡文 (b) 指定的
+>   复核对象，下表数字全部出自这一份。**17/17 PASS**。
+> - **B** `…/recheck-B-on-r1-narrowed-bytes.txt`：对 **R1 收窄后字节**
+>   （sha `2c8da36c…`）复跑，确认边界收窄的 docstring 改动没有破坏任何被复核的性质。
+>   **17/17 PASS**。
+>
+> 分两份是刻意的：R1-F2 批评的就是「证据数字与它绑定的对象对不上」，若把改动前后的
+> 数字混在一张表里，等于自己复刻同一个毛病。探针接受路径参数正是为此。
+
+
+
+| 复核项 | round-2 记录的原漏网 | R1 独立实测 |
+|---|---|---|
+| H2-a 精度数据化 | `round(8)→round(7)` 板序翻转而 sha 恒 `879279ff…` | 近邻 pick 差 1e-8 时：序 `[B,A]`→`[A,B]` **且** sha `b3ff4b99…`→`9ca6a0f8…` — 排序与指纹**同变** ✅ |
+| H2-b 取值绑定 | 交换 blr/min-last 绑定 → 规则变而 sha 不变 | 副本交换绑定：序 `[B,A]`→`[A,B]`，`implementation_sha256` `ad1a38a5…`→`7f534235…` 同变 ✅ |
+| M5 authoritative 三层 | `{"version":1}` / `{...,"authoritative":{}}` / `estimated_minutes:null` 均静默且 stderr 空 | **六种**形状（父节缺失/null、子节 null/错型 list、空 object、半份叶键）全部点名回落，stderr 均非空 ✅ |
+| M6 金样承重 | 低 pick 恰在字典序早的板 → 删首因子序不变（门空转） | 低 pick 在字典序**更晚**的 B 板：默认 `[B,A]`，删 `priority_pick` 后 `[A,B]` 翻转 ✅ |
+| L1 因子唯一性 | 追加重复末级 `board` → sha 变而排序不变 | 实测方向确认：序不变、sha 变 = **误报方向**（指纹过度敏感），非漏网方向；安全性质「规则变⟹sha变」不受影响 ✅ |
+
+附带复核（非 round-2 条目，R1 自行加测）：`authoritative` 分钟常量改了**真生效**
+（version=9 / minutes={11,13}）；`recorded` 与实际不符时逐项出声告警且以实际为准。
+
+#### R1 自己发现并整改的两处（不是抄来的）
+
+| # | 级别 | 发现 | 整改 |
+|---|---|---|---|
+| **R1-F1** | 声明面 > 证明面 | `_implementation_sha` docstring 写「任何排序规则改动 **必然** 变 sha」、`effective_rank_config` 与测试 docstring 写「兜住…的**整类**攻击」——而 round-3 已实测反例（改 `.pyc` 可让排序变而该 sha 不变）。UAT 侧（第 4 条）早已声明了这个边界，**源码侧没跟上**，同一事实两套说法，后人照抄源码就会把过宽声明复制到下一张卡 | 三处 docstring 收窄为**源文件字节层** + 显式三条声明：①摘的是 .py 字节（改注释也必变）②**单向**保证（规则变⟹sha变，逆命题已刻意放弃）③**不覆盖运行时 .pyc**、不宣称运行时完整性。测试 docstring 另加一句「断言措辞不得回退成『任何改动必变』」防回潮。UAT H2 整改栏同步收窄 |
+| **R1-F2** | 证据内部不一致（L2 同型复发） | 「复现命令」段仍写 `# 预期 126 passed` 与 `# 预期 6 条全红`，而正文是 130 与 8 条。round-2 的 L2 修了正文两处，**漏了复现命令段** | 三处当前预期值统一为实测值（130 / 8 条）。`121 → 126 → 130` 轨迹与 round-2 报告里的「126 回归」属**历史 exact evidence，原样保留不改**（纪律 §四.2：不得篡改历史证据制造假绿） |
+
+#### (c) pyc 面：明确写进威胁模型的「排除项」
+
+round-3 抢救出的残余面（篡改 `__pycache__/*.pyc` 并伪造 mtime 使 Python 取旧字节码 →
+排序翻转而 `implementation_sha256` 不变）在 R1 **确认为已知且明确排除**，处置是**书面声明**
+而非增加防护：
+
+- **本卡指纹的目标**是「善意的配置/代码演进不产生无痕漂移」——改 `.py` 必变 sha，此目标完备。
+- **pyc 面属另一套机制的地盘**（主动篡改运行时的完整性防护），需要本地文件系统写权限 +
+  主动伪造时间戳；launchd 生产链没有「改 .pyc 不改 .py」的自然触发路径。
+- R1 的动作是把这条边界从「只在 UAT 里说」补齐到**源码 docstring 里也说**（见 R1-F1），
+  并在此明确：**本卡不宣称运行时完整性**。要防这一面须另立卡。
+
+#### (e) runner 门：结构性 BLOCKED（如实登记，未做）
+
+卡文 (e) 要求「W4+W6 集成候选补跑 runner」。R1 实测前置**未满足**，本车道 session
+无权也无路径完成：
+
+```
+$ git branch --list card/w4-safety-r2   →  存在，但 HEAD = 2cacbb0c = 手册记的开工基线
+                                            （W4-① Bark 卡尚未产出任何 commit，整条 W4 远未清零）
+$ git branch --list batch9/integration  →  空（分支与 worktree 均不存在）
+```
+
+- 卡文 §0：runner 门「**只**在整条 W4 安全车道清零后，于 `batch9-integration` 的 W4+W6
+  candidate 上补跑」，且「**禁止**把 W4 整枝合进旧 W6 车道」。
+- 手册 §一.2：集成树由**主 session** 从 CODE_BASE 新建，任何实际 merge 仍等用户授权。
+
+**解锁前置**（三者 AND）：① W4-① Bark-R1 与 W4-② lifespan-R1 各自取得非空终审 B/H=0；
+② 主 session 从 `928010b9` 建 `batch9-integration` 并冻结 `W4_V5_CHECKPOINT`；
+③ 由该 checkpoint 建 W4+W6 一次性 candidate，在其中跑 `test_daily_review_run.py`
+（KEY_FILE/VAULT/外发全指 tmp，要求无真实 socket/osascript）。
+
+在此之前，runner 消费面零变化**只**由「diff 不含 `daily_review_run.py`」+ 禁改门证明，
+**未**由 runner 自身测试回归证明 —— 见「本卡未证明什么」第 8 条。
+
 ## 本卡未证明什么（必填）
 
 1. **分钟常量 3/5 是拍脑袋值**——没有实测「一张到期卡平均复习几分钟」。这正是 ④ 请你给数的原因；在你说出真实数字前，总览页的「预计分钟」只是量级参考。
@@ -234,8 +363,8 @@ Round-3 两次运行均在完成全部验证步骤后、输出最终报告时被
 5. **sha 指纹不覆盖 why 模板的中文文案**：改模板措辞（不改系数/代码）——由于 implementation_sha256 摘全文件，**任何 pick.py 改动（含注释）都会变指纹**，此条与 round-1 版声明相反且更严：指纹粒度是「实现+系数」，不能用它区分「改了什么」，只能证明「变了」。
 6. **部署后的真实观感**：130 条测试 + 结构断言不等于像素级好看——375px 窄窗下解释行折行效果需要你按第 1 步亲眼确认。
 7. **live 探针是单时刻快照**：2026-09-01 某时刻的数据形态（4 板截 3、句子内容）会随节点增删/复习推进而变，验收的是行为不是这批具体句子。
-8. **本卡不跑 `test_daily_review_run.py`**（卡文明令：W4① 合入前该套件会真发 Bark）。runner 消费面零变化由「diff 不含 daily_review_run.py」+ 禁改门证明，未由 runner 自身测试回归证明。
-9. **round-3 无正式终裁**（见 Codex 节显著声明）：「五项整改全部通过验证」的判断依据是抢救出的验证 checklist 而非 Codex 签名的 PASS 结论——证据强度低于 round-1/2 的正式报告。
+8. **runner 门至今未跑（R1 复核后仍 BLOCKED）**：本卡不跑 `test_daily_review_run.py`（卡文明令：W4① 合入前该套件会真发 Bark）。runner 消费面零变化只由「diff 不含 `daily_review_run.py`」+ 禁改门证明，**未**由 runner 自身测试回归证明。R1 实测前置仍未满足——`card/w4-safety-r2` HEAD 还停在开工基线 `2cacbb0c`，`batch9/integration` 分支不存在（解锁三前置见「(e) runner 门」节）。这不是「跑了没问题」，是**根本没跑**。
+9. **round-3 无正式终裁**（见 Codex 节显著声明）：「五项整改全部通过验证」的判断依据是抢救出的验证 checklist 而非 Codex 签名的 PASS 结论——证据强度低于 round-1/2 的正式报告。**R1 的改善与残余**：R1 用独立探针把这五项**自己重测了一遍**（17/17 PASS，见「R1 独立复核」节），所以「整改成立」不再只依赖被拦截报告的残片；但**独立复核 ≠ 第三方终裁**——它证明的是「这些性质在 R1 实测下成立」，不能替代 Codex 签名的对抗性结论。R1 轮终裁状态见本节末尾与「待你裁决」⑧。
 
 ## 📝 你的批注区
 
@@ -246,7 +375,7 @@ Round-3 两次运行均在完成全部验证步骤后、输出最终报告时被
 ```bash
 # 1) 裁判套件
 cd LANE/backend && caffeinate -i .venv/bin/pytest tests/regression/test_daily_review_pick.py \
-  tests/unit/test_review_overview.py -q -p no:cacheprovider     # 预期 126 passed
+  tests/unit/test_review_overview.py -q -p no:cacheprovider     # 预期 130 passed
 
 # 2) live 只读探针 (避开 launchd 推送时刻; 必带 PYTHONDONTWRITEBYTECODE=1, 不带 --write)
 shasum -a 256 /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/outputs/今日复习.{json,md}
@@ -258,5 +387,5 @@ cd LANE && PYTHONDONTWRITEBYTECODE=1 python3 scripts/daily_review_pick.py \
 shasum -a 256 …/今日复习.{json,md}   # 与前置逐字相同
 
 # 3) 变异串行
-python3 <scratchpad>/g36b_mutations.py   # 预期 6 条全红 + 还原逐字节一致
+python3 <scratchpad>/g36b_mutations.py   # 预期 8 条全红 + 还原逐字节一致
 ```

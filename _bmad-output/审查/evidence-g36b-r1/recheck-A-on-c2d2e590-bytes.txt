@@ -1,0 +1,41 @@
+复核对象: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-w6-whyboard/4308ac43-1bf4-4c2c-a775-52c26d9bf472/scratchpad/baseline_pick.py
+源码 sha256: ad1a38a55a26c1c07ba34f6986ac6f7888a90dac04d118ad810ffaf353044171
+manifest sha256: 1f9be8d5034cf5f8e83b2a894cb4b7aa5cf20b12c2f4e66c0c30704cd40bde22
+
+[PASS] (b)-1 精度收紧 → 排序变
+        digits=8 序=['B板', 'A板'] / digits=7 序=['A板', 'B板']（近邻 pick 0.2 vs 0.20000001）
+[PASS] (b)-1 精度收紧 → sha 同变（round-2 HIGH 的原漏网面）
+        sha8=b3ff4b9998b6e336… sha7=9ca6a0f859a2eb54…
+[PASS] (b)-1 精度常量已登记进被摘要对象
+        effective_rank_config.tie_pick_round_digits=8
+[PASS] (b)-2 父节整个缺失 → 点名回落（非静默）
+        stderr='[pick] authoritative 节缺失或形状不符(None), 分钟用内置默认' minutes={'per_due_node': 3, 'per_new_node': 5}
+[PASS] (b)-2 父节为空 object → 点名回落（非静默）
+        stderr='[pick] authoritative.estimated_minutes 缺失或形状不符(None), 分钟用内置默认\n[pick] estimated_minutes.per_due_node 缺失或非法(None), 用内置默认 3\n[pick] estimated_minutes.per_' minutes={'per_due_node': 3, 'per_new_node': 5}
+[PASS] (b)-2 父节为 null → 点名回落（非静默）
+        stderr='[pick] authoritative 节缺失或形状不符(None), 分钟用内置默认' minutes={'per_due_node': 3, 'per_new_node': 5}
+[PASS] (b)-2 子节为 null → 点名回落（非静默）
+        stderr='[pick] authoritative.estimated_minutes 缺失或形状不符(None), 分钟用内置默认\n[pick] estimated_minutes.per_due_node 缺失或非法(None), 用内置默认 3\n[pick] estimated_minutes.per_' minutes={'per_due_node': 3, 'per_new_node': 5}
+[PASS] (b)-2 子节错型(list) → 点名回落（非静默）
+        stderr='[pick] authoritative.estimated_minutes 缺失或形状不符([]), 分钟用内置默认\n[pick] estimated_minutes.per_due_node 缺失或非法(None), 用内置默认 3\n[pick] estimated_minutes.per_ne' minutes={'per_due_node': 3, 'per_new_node': 5}
+[PASS] (b)-2 半份叶键 → 点名回落（非静默）
+        stderr='[pick] estimated_minutes.per_new_node 缺失或非法(None), 用内置默认 5' minutes={'per_due_node': 7, 'per_new_node': 5}
+[PASS] (b)-3 pick 级承重：默认低 pick 先（B 板字典序更晚，排除板名碰巧决定）
+        默认序=['B板', 'A板']
+[PASS] (b)-3 pick 级承重：删首因子后按板名翻转（门不空转）
+        删 priority_pick 后序=['A板', 'B板']
+[PASS] (b)-4 重复键的实际方向 = sha 变而排序不变（误报方向，非漏网）
+        序 ['B板', 'A板']→['B板', 'A板']（不变=True） sha b3ff4b9998b6…→4e68a2c10938…（变=True）
+[PASS] (b)-4 现常量本身唯一且 board 恒末位
+        TIE_FACTOR_KEYS=('priority_pick', 'board_last_recommended', 'min_last_examined', 'board')
+[PASS] (b)-附 交换取值绑定 → 排序规则确实改变
+        原序=['B板', 'A板'] 交换后=['A板', 'B板']
+[PASS] (b)-附 交换取值绑定 → implementation_sha256 同变（兜住无法数据化的字面代码）
+        impl_sha ad1a38a55a26c1c0… → 7f534235ea78c760…
+[PASS] (b)-附 authoritative 分钟确实生效（可改）
+        version=9 minutes={'per_due_node': 11, 'per_new_node': 13}
+[PASS] (b)-附 recorded 漂移 → 出声告警且以实际为准
+        stderr="[pick] 系数清单 recorded.limits 与实际生效值不符 (登记={'top_boards': 999, 'upcoming': 999} 实际={'top_boards': 3, 'upcoming': 3}); 以实际为准"
+
+============================================================
+复核结果: 17/17 PASS

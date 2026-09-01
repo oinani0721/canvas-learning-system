@@ -1829,8 +1829,13 @@ def test_g36b_tie_keys_unique_and_anchored():
 
 
 def test_g36b_implementation_sha_is_registered_and_self_consistent(tmp_path):
-    """Codex round-2 HIGH: 实现指纹兜住「改 pick.py 排序规则而指纹不动」的
-    整类攻击 (取值绑定无法全部数据化)。门锁三件事: 在场 / 自洽 / 变内容必变。"""
+    """Codex round-2 HIGH: 实现指纹兜住「改 pick.py **源文件**排序规则而指纹
+    不动」(取值绑定无法全部数据化)。门锁三件事: 在场 / 自洽 / 变内容必变。
+
+    ⚠ CARD-G3-6b-R1 收窄证明边界: 本门只证**源文件字节层**, 不证运行时
+    完整性 —— 篡改 __pycache__/*.pyc 并伪造 mtime 可让排序变而本 sha 不变
+    (round-3 实测复现), 该面明确排除在本卡威胁模型外。断言措辞不得回退成
+    「任何改动必变」一类的绝对表述。"""
     cfg = picker.effective_rank_config(_fake_decay(), 1, dict(picker.DEFAULT_MINUTES))
     assert re.fullmatch(r"[0-9a-f]{64}", cfg["implementation_sha256"])
     assert cfg["implementation_sha256"] == picker._implementation_sha(), "与真文件自洽"

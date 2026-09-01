@@ -632,9 +632,22 @@ def _implementation_sha(path=None) -> str:
     """S5 本生成器源码的实现指纹 (Codex round-2 HIGH)。
 
     因子清单/精度常量只能覆盖「登记过的配置面」, 覆不完取值绑定这类字面
-    代码 —— 把 pick.py 自身字节也摘进指纹, 任何排序规则改动 (精度/绑定/
-    方向/新因子) 必然变 sha。粒度因此从「系数」变粗为「实现+系数」: 改
-    注释也会变指纹, 属预期内的保守取舍 (宁可指纹变多, 不可规则变更漏网)。
+    代码 —— 把 pick.py 自身字节也摘进指纹。
+
+    ⚠ 保证的精确边界 (CARD-G3-6b-R1 收窄: 原措辞"任何排序规则改动必然变
+    sha"宽于可证面, 与 round-3 实测反例冲突):
+
+    1. 摘的是**本 .py 源文件的字节**。改源文件 (精度/绑定/方向/新因子, 乃至
+       一个注释) 必变 sha —— 这正是本卡针对的「善意配置/代码演进无痕漂移」。
+       粒度因此从「系数」变粗为「实现+系数」, 属预期内的保守取舍。
+    2. **单向保证**: 排序规则变 ⟹ sha 变。逆命题不成立, 且是刻意放弃的 ——
+       摘全文件使指纹对注释也敏感; 追加重复因子键同样「sha 变而排序不变」
+       (Codex round-2 LOW 的实测方向)。不可拿 sha 变没变去推断「改了什么」,
+       它只证明「变了」。
+    3. **不覆盖运行时字节码**: 绕过 .py 直接执行被改的 __pycache__/*.pyc
+       (伪造 mtime 使 Python 取旧 pyc) 可让排序变而本 sha 不变 —— round-3
+       已实测复现。该面属主动篡改运行时的威胁模型, 明确排除在本卡之外;
+       本函数**不宣称运行时完整性** (见验收单「本卡未证明什么」第 4 条)。
     """
     p = Path(path) if path is not None else Path(__file__).resolve()
     return hashlib.sha256(p.read_bytes()).hexdigest()
@@ -648,7 +661,8 @@ def effective_rank_config(decay, version, minutes: dict) -> dict:
     摆设。decay 六常量一律从模块现场读 (getattr 缺失记 None —— 缺了指纹也
     该变), 上限与因子序/取整精度取代码常量, 分钟取 manifest 生效值,
     implementation_sha256 摘本文件字节 (round-2 HIGH: 取值绑定无法全部
-    数据化, 实现指纹兜住「改代码规则而指纹不动」的整类攻击)。
+    数据化, 由实现指纹兜住「改**源文件**规则而指纹不动」—— 其单向性与
+    不覆盖运行时 .pyc 的边界见 _implementation_sha 的三条声明)。
     """
     return {
         "version": version,
