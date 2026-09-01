@@ -228,7 +228,8 @@ git status --short → (空) ; 无新 commit
   - MEDIUM(隐私卫生): round-1 整改把 545KB 原始 codex stderr(含 226 处本机
     绝对路径+会话 id)提交进了 6c81ebc9 → 本 commit 移出跟踪, 换脱色摘录
     (*.stderr-redacted.txt, 尾部 80 行+路径替换)。同型问题存在于 ①② 的
-    stderr 文件(3 份共 ~3MB), 属其他卡产物, 本卡不动, 登记移交主 session。
+    stderr 文件(3 份共 ~4.3MB, 797 行含 /Users/Heishing 绝对路径+会话 id;
+    ② 车道实测口径), 属其他卡产物, 本卡不动, 登记移交主 session。
   - LOW: 验收单「7 文件/19 测试」→ 实际首 commit 8 文件、现 23 测试; summary
     中 schemathesis 措辞再软化(「本地可选测试, 未进 CI」)。
 - **Round 3**(gpt-5.6-sol ultra, 终轮): 终裁 **FAIL — 2 BLOCKER + 1 HIGH + 1 MEDIUM**。
