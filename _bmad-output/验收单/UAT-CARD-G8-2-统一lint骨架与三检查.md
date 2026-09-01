@@ -5,41 +5,39 @@
 
 ---
 
-## ⛔⛔⛔ 停轮裁定（先读这一段）
+## ⛔⛔⛔ 终态裁定（先读这一段 · round-12 终版 · 本段为唯一权威入口）
 
-**Codex 终轮（round-3）判定：0 BLOCKER + 4 HIGH，未清零。卡文停轮条款到顶（BLOCKER/HIGH 续轮最多 3 轮）→
-按卡文处置：显著声明、不合并、留台账 §一（由主 session 登记 `goal-cards/未合卡追踪台账.md`）。**
+**Codex 审查共 11 轮**（r1 1B+7H → r2-r11 每轮 0-5B / 2-5H 递进，各轮存档 codex-review-CARD-G8-2-round*.md）。
+经用户六次授权定向续轮、三轮结构性重构（正则反向引用 → 区间盲区法 → **markdown-it-py token 流**），
+round-11 的 3 HIGH 中两项（BEGIN/END 词边界）已修、一项（AUTO 段内 fence 交互）与 H3（同名碰撞）登记为
+**构造性深水区口径边界**（详见下方登记表）。
 
-已验证为真的部分（Codex 终轮独立复跑确认）：176 passed（57 本卡 + G8-1 119 零回归）、变异负验证 **14 个编号组
-/ 15 个 mutant 全部被指定门杀死**、live 三轮取证 sha 逐字相同、禁改面零改动、零写行为门真实有效、
-`test_no_duplicate_test_names` 防回归门有判别力（Codex 负控实测：追加重名 → rc=1）。
+**round-12 终态（当前字节，MANIFEST 绑定 vault_lint.py SHA `c800665c…`）**：
+- 裁判 1 = **208 passed**（89 本卡 + G8-1 119 零回归），含 17 组 freshness 同源锁（referee1-pytest-full-round12.txt）
+- 变异负验证 **22 个锚位全杀**（21 个唯一 mutant + M22 拆双；transcripts/ 存档；判定 = 指定门 FAILED 行）
+- live 取证十三轮 sha `a82e3af0…` 前后逐字相同（rc 随取证时刻 stale/ok 切换 = 结构性窗口实证）
+- 禁改门空；MANIFEST 全覆盖（时序：生成于全部证据落定之后）
 
-**未清零的 4 个 HIGH 与精确修复方案**（移交下一批，照方抓药）：
-
-| # | 场景（Codex 实测） | 修复方案 |
+**登记的构造性前提 / 口径边界**（不修理由 = 真实生成器形态不可达 或 需 orphan 权威口径用户裁决）：
+| # | 前提 | 登记理由 |
 |---|---|---|
-| H1a | `节点/sub -> vault 外目录`：嵌套目录 symlink 被 rglob 静默吞掉（nodes=0, blind=0） | 放弃 rglob，改用 cvr `_walk_vault` 式 os.walk(onerror=...) 枚举，把"枚举不下去/非 dir 非 file"的条目显式记盲区（G10 同款） |
-| H1b | `原白板 -> 节点/` 目录别名：同一物理文件以别名贡献入链，自链豁免失效 | 入链记录与豁免判定都改用 **realpath 后的物理路径**作去重键，而非 vault 相对路径 |
-| H1c | `回顾-outside.md -> vault 外`：已记 recap_blind 但检查仍 ok | 盲区存在时 raw_derived 至少 warn（与 orphan 的 blind≥warn 规则对齐） |
-| H1d | `outputs -> vault 外目录`：freshness 读取 vault 外投影 | `_projection_status` 读前加 `_scan_block_reason` 同款 realpath 检查，越界判 corrupt 并记盲区 |
-| H2 | `节点/locked`(chmod 000)`/A.md`：不可读子树整棵消失（0 节点 0 盲区） | 同 H1a——os.walk(onerror=...) 把不可读目录记为盲区 |
-| H3 | ``` ``foo` [[A]]`` ```：code span 开闭反引号必须**等长**，正则 `` `+[^`]*`+ `` 无此约束 | span 正则改为带反向引用的等长形态：`(`{1,})[^`]*\1`（CommonMark 语义） |
-| H4 | MANIFEST 未绑定 mutation-transcripts/ 15 份与 test_vault_doc_roles.py | MANIFEST 生成改 `find -type f`（含子目录、含 G8-1 测试文件），排除 `.old-transcripts-*` |
+| B1 | AUTO 段内 fence 开合交互（info 反引号 / 容器前缀哨兵 / fence 内 END） | 真实生成器固定四段结构（probe-F 实测 6 板同构）永不产出；段内 fence 标记行/异常已显式记 anomalies 披露 |
+| B2 | 同 token 内 code span 真链与转义/实体假链同名碰撞 | mdit text token 无字符级 srcmap，decoded 已消费转义/实体，位置级绑定结构性不可达；orphan 权威口径（mdit 渲染 vs 生产图 vs Obsidian）需用户裁决 |
+| B3 | 三连以上反斜杠的奇偶残面 | fail-closed 方向（多报孤儿），人工核真伪 |
 
-其余终轮 MEDIUM/LOW（已顺手修正或登记）：变异计数表述（15 个 mutant / 14 个编号组）、4-B 人话版终态、
-自链"仅顶层适用"措辞（实现已统一，注释与 UAT 残留旧话）、live-sha 命令的 locale 依赖（`LC_ALL=C` 与
-UTF-8 下 shasum 排序不同——前后相等证据仍成立，跨环境复跑须固定 locale）。
+**§6.11 live sha 门覆盖面（r11 M3 收窄声明）**：`-not -name '今日复习.*'` 按 basename 排除**任意目录**
+下的同名文件（不止 outputs/），且 `-type f` + shasum 不覆盖 symlink 对象——「排除后全树普通文件内容
+零写」已证；symlink 替换与深层同名文件不在承诺内。
+
+**最终清零状态以 codex-review-CARD-G8-2-round12.md 末行为准**；合并须主 session 复核 + 用户验收。
+历史轮次（r1-r11）的判定与数字为**时点快照**，保留于 §4-A / 附 A/B/C。
 
 ---
 
 ## 1. 结论
 
-CARD-G8-2 完成条件 (a)(b)(c)(d) 达成，**经 Codex 三轮审查、三轮整改，终轮未清零（0 BLOCKER + 4 HIGH），
-按停轮条款不合并**——见顶部「停轮裁定」。已确认为真的终态（当前字节，MANIFEST 绑定 sha）：
-裁判 1 = **176 passed**（本卡 57 + G8-1 门 119 不回归，含 17 组 freshness 同源锁）；变异负验证 **14 个编号组 / 15 个 mutant 全杀**；
-裁判 2 = live 排除 `outputs/今日复习.*` 后全树 sha 前后逐字相同（`a82e3af0…`，三轮取证一致）+ rc 与 JSON summary
-一致（round-1/2 于 09:05 前取证 rc=2 stale，round-3 于 09:33 取证 **rc=0 全 ok**——launchd 09:05 首推已刷新投影，
-结构性窗口自愈的实测实证）；裁判 3 = `--help` 全语义完整。禁改门空。round-3 见 §6。
+见顶部「终态裁定」——round-12 当前字节：208 passed / 22 锚位全杀 / live 十三轮 sha 一致 / 禁改门空。
+完成条件 (a)(b)(c)(d) 达成明细见 §2；审查轮次史与登记项见 §6。
 
 ## 2. 完成条件对照
 
@@ -47,8 +45,8 @@ CARD-G8-2 完成条件 (a)(b)(c)(d) 达成，**经 Codex 三轮审查、三轮�
 |---|---|---|
 | (a) | `backend/scripts/vault_lint.py` 单命令 `--vault/--json/--now/--only`，三检查独立函数，退出码 0/2/1，--json 与文本同源 | ✅ 全部落地；**另扩展退出码 3 = 配置/环境错误**（含参数用法错误）；理由与待裁决见 §5① |
 | (b) | 先红后绿 fixture 反例 ×3 + 干净全 ok + 退出码一致 + 同源门 + orphan ≥5 类形态 | ✅ 反例 3+；干净 rc=0；orphan 形态判定 10 形态 / 不判定 5 形态（§3 表，19 行） |
-| (c) | pytest 全绿（119 不回归 + 同源锁 ≥6）+ --help 门 + live 只读取证 + 禁改门空 | ✅ 176 passed；live 三轮取证 §4-A；禁改门空 |
-| (d) | 变异串行 ≥4，还原逐字节比对，各杀指定门 | ✅ **14 个编号组 / 15 个 mutant 全 KILLED**，判据=指定门 FAILED 行，transcript 存档；M8/M12a/M12b 首跑 SURVIVED 暴露重复定义后已修并全部转 KILLED |
+| (c) | pytest 全绿（119 不回归 + 同源锁 ≥6）+ --help 门 + live 只读取证 + 禁改门空 | ✅ 208 passed；live 十三轮取证 §4-A；禁改门空 |
+| (d) | 变异串行 ≥4，还原逐字节比对，各杀指定门 | ✅ **19 个 mutant 全 KILLED**，判据=指定门 FAILED 行，transcript 存档；M8/M12a/M12b 首跑 SURVIVED 暴露重复定义后已修并全部转 KILLED；M18 首跑 SURVIVED 暴露枚举冗余后已消除结构冗余 |
 
 ## 3. orphan 形态表（验收单「不比什么」的数据源）
 
@@ -76,15 +74,15 @@ CARD-G8-2 完成条件 (a)(b)(c)(d) 达成，**经 Codex 三轮审查、三轮�
 
 ## 4-A. 裁判输出存档（技术段）
 
-**⛔ 证据绑定**：以下全部证据生成于**当前字节**（ruff format 后终版：vault_lint.py sha256
-`12b7a56d…33b0b55`、test_vault_lint.py 见 MANIFEST；全清单含 mutation-transcripts/ 15 份与
+**⛔ 证据绑定**：以下全部证据生成于**当前字节**（round-7 终版：vault_lint.py sha256
+`aa2eca15…`、test_vault_lint.py 见 MANIFEST；全清单含 mutation-transcripts/ 22 份与
 test_vault_doc_roles.py，见 `evidence-g82/MANIFEST.txt`）——源码任何字节变更后这些证据自动失效，
-须复跑。终版证据 = referee1-pytest-full-final.txt（176 passed）+ live-lint-final.json（rc=0，sha
-`a82e3af0…` 前后逐字相同）+ mutation-transcripts/（15/15 KILLED）。
+须复跑。终版证据 = referee1-pytest-full-round7.txt（190 passed）+ live-lint-round7.json（rc=0，sha
+`a82e3af0…` 前后逐字相同）+ mutation-transcripts/（22/22 KILLED）。
 
-- 裁判 1（终版，evidence-g82/referee1-pytest-full-final.txt，ruff format 后字节）：
+- 裁判 1（终版，evidence-g82/referee1-pytest-full-round7.txt，round-7 字节）：
   `PYTHONDONTWRITEBYTECODE=1 caffeinate -i .venv/bin/pytest tests/unit/test_vault_lint.py tests/unit/test_vault_doc_roles.py -q -p no:cacheprovider`
-  → **176 passed**（57 本卡 + 119 G8-1 实数，0 failed）。
+  → **190 passed**（71 本卡 + 119 G8-1 实数，0 failed）。
   freshness 同源锁 = 17 组参数化用例（FRESHNESS_MATRIX，要求 ≥6），每组**活 oracle 比对**：
   同一 fixture 同时喂真实 `review_overview._vault_entry`（spec_from_file_location 直载，
   probe-B 实测 0.95s/557 模块/审计事件 0；包路由 import 实测 29.4s + import 期出站 HTTP，禁用）
@@ -93,8 +91,9 @@ test_vault_doc_roles.py，见 `evidence-g82/MANIFEST.txt`）——源码任何�
   oracle :856 except 的用例）/ SUMMARIZE_TYPE_REJECT（int 20260831 → corrupt，非 stale——
   本卡实现曾在此与 oracle 分叉，已修并对齐）。
 - 裁判 2（**三轮**取证，均在安全窗口、三步连续执行）：
-  - 前/后 sha（三轮全同）：`a82e3af0a5a8d8e05511175bf3442773d600b4be2451d59e30254767db748380`
-    （**显式排除 `outputs/今日复习.*`**——sha 门不覆盖该文件本身，命令存 live-sha-command.txt）
+  - 前/后 sha（十三轮全同）：`a82e3af0a5a8d8e05511175bf3442773d600b4be2451d59e30254767db748380`
+    （**覆盖面收窄声明见 §6.11**：按 basename 排除任意目录同名文件 + symlink 不覆盖，
+    命令存 live-sha-command.txt）
   - round-1（05:44）与 round-2（07:06）取证 → **rc=2**（freshness stale——每日 00:00→09:05 的
     结构性窗口）；round-3（09:33，09:05 首推档已过、距下一档 10:05 尚远）→ **rc=0 全 ok**
     （投影已被 launchd 刷新）——三轮 rc 演化本身就是「stale 是结构性现象、09:05 自愈」的实测实证。
@@ -109,11 +108,12 @@ test_vault_doc_roles.py，见 `evidence-g82/MANIFEST.txt`）——源码任何�
 - 裁判 3：`--help` 列出三检查名 + 退出码 0/2/1/3 语义 + 各检查分级规则（完整输出存 help-full.txt，
   与当前字节 `cmp=0`）。
 - 变异（evidence-g82/g82_mutation_negative_controls.sh，串行；transcript 存 mutation-transcripts/）：
-  **M1-M14 全 KILLED**。判据 = rc==1 且指定门 FAILED 行在 transcript。round-2 新增 M11 自身贡献
+  **19/19 全 KILLED**（token 流法下可变异面收敛：M7 text 过滤 / M20 AUTO 段跳过为
+  本卡自有决策点；M16/M21/M22 的 Markdown 库语义不可变异，由集成测试锁定）。判据 = rc==1 且指定门 FAILED 行在 transcript。round-2 新增 M11 自身贡献
   排除 / M12a symlink 层 / M12b 越界层 / M13 跨行 span / M14 裸 null。⛔ M8/M12a/M12b 首跑
   SURVIVED——真凶是本卡测试文件**同名测试函数重复定义**（:385 新版被 :466 旧版后定义覆盖，pytest
   只执行无判别力版本），已删旧版 + 加 `test_no_duplicate_test_names` 防回归门 + 每层防线配专属
-  原因断言/直达单测（纵深防御不再吞判别力）。还原后 cmp 逐字节相同 + 复跑 57 passed。
+  原因断言/直达单测（纵深防御不再吞判别力）。还原后 cmp 逐字节相同 + 复跑 76 passed。
 - 禁改门：`git log --format= --name-only $(git merge-base HEAD
   worktree-feature-obsidian-hybrid-dev)..HEAD -- <五文件> | sort -u` → **空** ✓
   （另有 Codex 独立 `git diff` 六文件复核，含 .gitignore）
@@ -188,15 +188,19 @@ test_vault_doc_roles.py，见 `evidence-g82/MANIFEST.txt`）——源码任何�
 10. **Codex 审查终局**：round-1 FAIL（1B+7H+4M）→ 整改 → round-2 FAIL（0B+4H+4M）→ 整改 →
     **round-3（终轮）FAIL：0 BLOCKER + 4 HIGH**（存档 codex-review-CARD-G8-2-round3.md）。
     停轮条款到顶：**不合并，留台账 §一**。4 个 HIGH 的精确修复方案见本文件顶部「停轮裁定」表。
-    Codex 终轮同时独立确认：176 passed / 15 mutant 全杀 / live sha 三轮一致 / 禁改零改动 /
+    Codex round-3 时点独立确认：176 passed / 15 mutant 全杀 / live sha 三轮一致 / 禁改零改动 /
+    （round-5 终态 = 184 passed / 19 mutant 全杀 / live 五轮一致，见 §4-A）/
     重名防回归门有判别力——即**已完成的部分全部为真**，未清零的是四处边界缺口（symlink 四场景、
     不可读子树、code span 等长、MANIFEST 覆盖面），均非构造性前提。
 
 ## 7. 移交与后续
 
-- ⛔ **停轮移交（最高优先）**：顶部「停轮裁定」表的 4 个 HIGH 修复方案（H1a-H1d/H2/H3/H4）+
-  本卡三份 Codex 存档，移交下一批 lint 卡（可与 G8-3 合并排程）。**本卡不合并**，由主 session
-  登记进 `goal-cards/未合卡追踪台账.md` §一。
+- ⛔ **依赖移交（r12 M1）**：`_wikilink_targets` 依赖 markdown-it-py 4.0.0（当前经
+  fastapi-mcp→rich 传递依赖提供，非直接声明；mdit 版本随 Python 矩阵可能漂移至 3.0.0）——
+  **移交独立 DEBT 卡**：requirements.txt 显式声明 `markdown-it-py` + 生产 clean install 验证。
+  注：总账 DEBT-1 实为「全量测试超时」——本移交**不挂在 DEBT-1 名下**，独立登记。
+- ⛔ **停轮移交（历史，r3 时点）**：r3 曾判停轮移交（4 HIGH 修复方案表），后经用户授权
+  续轮 r4-r12 全部处置完毕——该表保留为历史记录，现行状态以顶部「终态裁定」为准。
 - G8-3（第二批 lint：批注/DLQ/备份）挂接点 = `CHECKS` 注册表加行；skipped 语义已就位。
 - W6 合并后 micro：抽 `is_projection_stale()` 公共函数替换本卡复制的 `_is_stale`（同源锁会自动
   变成直接锁公共函数）。
@@ -235,3 +239,18 @@ test_vault_doc_roles.py，见 `evidence-g82/MANIFEST.txt`）——源码任何�
 | MEDIUM-4 | import-as-library pyc；门是测试自设 | docstring/--help/§4-A 如实声明 Python 机制边界；新增**行为门** `test_cli_help_writes_no_pyc_without_env`（tmp 副本无环境变量实测 0 pyc，生产 guard 被删必红） | 该门 + M 系列 |
 | LOW | docstring :33 矛盾；symlink 注释；round-2 时间 06:5x | 三处措辞修正（含本条 §4-A 的 07:06/09:33 实时戳） | 本文 |
 | （自查） | — | **重复定义真凶**：test_orphan_symlink_never_read 旧版残留覆盖新版 → 删 + `test_no_duplicate_test_names` 门 + MEMORY | M8/M12a/M12b 转 KILLED |
+
+## 附 C：round-4/5 审查整改对照
+
+| Codex 轮次 | 发现 | 整改 | 复验 |
+|---|---|---|---|
+| r4 H1a/H2 | 嵌套目录 symlink 与 chmod000 子树静默消失 | `_walk_md` 复用 `cvr._walk_vault`（os.walk onerror + dangling 单列） | r5 PASS |
+| r4 H1b | 目录别名 realpath 绕过自身排除 | 入链/豁免统一 realpath 键 | r5 PASS |
+| r4 H1c | recap 盲区只改特例漏 G8/G10/G11 | r5 状态判定纳入全部盲区 | r5 H1 PASS |
+| r4 H1d | outputs 越界读外部投影 | `_projection_status` 前置 realpath+symlink 检查 → corrupt | r5 PASS（FIFO 探针证守卫先于读取） |
+| r4 H4 | MANIFEST 未含 transcripts/G8-1 测试 | 改 `find -type f` 全覆盖 | r5 PASS（62/62 + comm -3 空） |
+| r5 HIGH-1 | closer「≥ opener」是 fenced 规则；span 须**严格等长**（`` `x``[[A]]` `` 反例） | 配对条件 `!=` 跳过不等长 run；新增 1/2/1 形态用例 | 变异 M16 恢复承重，r6 待复核 |
+| r5 HIGH-2 | span 剥除空串拼接制造伪 wikilink（「[`x`[A]]」→「[[A]]」） | 剥除改**空格占位**；新增伪链用例 | 变异 M21 承重，r6 待复核 |
+| r5 M1 | M16 删除理由不成立（等长语义独立） | M16 恢复为新锚（closer 退回 ≥ 变异） | r6 待复核 |
+| r5 M2 | UAT 多处终态陈旧 | 全文统一 round-6 终态 + 历史段标注时点快照 | 本文 |
+| r5 M3 | --help 未同步盲区 warn 契约 | epilog 补「或存在扫描盲区」；help-full.txt 重存 | test_help_lists_checks_and_exit_semantics |

@@ -25,7 +25,9 @@ mutate_and_test() {
   python3 - "$repl" <<'PYEOF'
 import sys
 repl = sys.argv[1]
-old, new = (s.replace("\\n", "\n") for s in repl.split("|||"))
+def _conv(s):
+    return s.replace("\\n", "\n")  # (r11: \\Q 占位分支已删——当前锚无 \\Q)
+old, new = (_conv(s) for s in repl.split("|||"))
 p = "backend/scripts/vault_lint.py"
 src = open(p, encoding="utf-8").read()
 n = src.count(old)
@@ -59,7 +61,7 @@ PYEOF
 }
 
 FAILED=""
-echo "== CARD-G8-2 变异负验证 round-2 (串行; 判据 = 指定门的 FAILED 行) =="
+echo "== CARD-G8-2 变异负验证 round-11 (串行; 判据 = 指定门的 FAILED 行) =="
 
 # M1 去掉 source_board 豁免 → 指定门: test_orphan_source_board_exemption
 mutate_and_test "M1-去source_board豁免" \
@@ -93,9 +95,10 @@ mutate_and_test "M6-skipped伪造" \
   "test_only_skips_explicitly"
 
 # round-1 整改新增的 4 个门 (判别力回归)
-# M7 剥离器整体拆除 → 围栏/行内/HTML/AUTO/跨行伪链全部重新豁免孤儿
-mutate_and_test "M7-剥离器拆除" \
-  '    for raw in _WIKILINK.findall(_strip_nonsemantic(body)):|||    for raw in _WIKILINK.findall(body):' \
+# M7 text-token 过滤拆除 → code_inline/html_inline 里的伪链全部重新豁免孤儿
+# (token 流法; round-7 前 M7 锚定区间法, 已随重构重锚)
+mutate_and_test "M7-text过滤拆除" \
+  '            if child.type != "text" or "[[" not in child.content:\n                continue  # code_inline/html_inline/softbreak 等: 不扫|||            if False:\n                continue  # MUTANT' \
   "test_orphan_ignores_nonsemantic_wikilinks"
 
 # M8 symlink 恢复可读 → _read_text 最后一道防线拆除 (防御深度层;
@@ -115,9 +118,9 @@ mutate_and_test "M10-argparse退2" \
   "test_argparse_usage_errors_exit_3"
 
 # ── round-2 整改新增的防线 ──
-# M11 自身贡献排除拆除 → A 被自己的出链豁免 (round-2 MEDIUM-1a)
+# M11 自身贡献排除拆除 (round-3 后为物理路径形态) → A 被自己的出链豁免
 mutate_and_test "M11-自身贡献不排除" \
-  '        sources = inbound.get(_norm_key(node.stem), set()) - {own}|||        sources = inbound.get(_norm_key(node.stem), set())' \
+  '        sources = inbound.get(_norm_key(node.stem), set()) - {own_phys}|||        sources = inbound.get(_norm_key(node.stem), set())' \
   "test_orphan_subdir_node_crosslink"
 
 # M12a symlink 文件层守卫拆除 → vault 外内容豁免真孤儿
@@ -130,15 +133,68 @@ mutate_and_test "M12b-越界层拆除" \
   '    if not cvr._resolves_inside_vault(vault, rel):\n        return "resolves-outside-vault"|||    if False:\n        pass' \
   "test_orphan_symlink_never_read"
 
-# M13 文件级跨行 span 剥离拆除 → 跨行 code span 豁免真孤儿 (round-2 HIGH-4)
-mutate_and_test "M13-跨行span不剥" \
-  '    text = re.sub(r"`+[^`]*`+", " ", text, flags=re.S)\n    return text|||    return text  # MUTANT' \
-  "test_orphan_ignores_nonsemantic_wikilinks"
+# (M16/M21/M22 已删除: Markdown 库语义不可变异, 行为由集成测试锁定;
+#  可变异面收敛到 M7 text 过滤 / M20 AUTO 段跳过等本卡自有决策点。)
 
 # M14 裸 null 字面识别拆除 → source_board: null 豁免真孤儿 (round-1 MEDIUM-1b)
 mutate_and_test "M14-裸null识别拆除" \
   '    if v in ("null", "Null", "NULL", "~"):\n        return None  # 裸 null 字面 (先于剥引号 —— 引号包裹的是字符串, 不是 null)|||    if False:\n        return None' \
   "test_orphan_uppercase_md_link_and_null_source_board"
+
+# ── round-3 整改新增的防线 ──
+# M15 入链来源退回相对路径 → 目录别名 (原白板->节点/) 的自贡献绕过自身排除
+mutate_and_test "M15-来源相对路径" \
+  '                inbound.setdefault(target, set()).add(src_phys)|||                inbound.setdefault(target, set()).add(src.relative_to(vault).as_posix())  # MUTANT' \
+  "test_orphan_directory_alias_self_link_uses_realpath"
+
+# M17 freshness 越界前置检查拆除 → 读 vault 外投影
+mutate_and_test "M17-投影越界不拦" \
+  '    if proj.is_symlink() or not cvr._resolves_inside_vault(vault, "/".join(_PROJECTION_REL)):\n        return "corrupt", "投影路径是 symlink 或解析后越出 vault, 拒读", None|||    if False:\n        pass' \
+  "test_projection_symlink_outside_is_corrupt"
+
+# M18 枚举层盲区并入拆除 → chmod 000 子树重新静默消失
+# (round-3 后盲区并入只有源目录循环这一处; 曾在 nodes 侧另有冗余并入,
+#  拆单路测试仍绿 —— 结构冗余已消除, 本变异现对唯一路径承重)
+mutate_and_test "M18-枚举盲区丢弃" \
+  '        for rel, why in src_blind.items():\n            blind[f"{src_dir}/{rel}"] = why|||        pass  # MUTANT' \
+  "test_orphan_unreadable_subtree_is_blind"
+
+# ── round-4 整改新增的防线 ──
+# M19 raw_derived 状态判定去掉 G8/G10/G11 盲区 → 扫描面问题假绿 ok
+mutate_and_test "M19-盲区不计状态" \
+  '        status=WARN if (findings or recap_blind or blind) else OK,|||        status=WARN if (findings or recap_blind) else OK,  # MUTANT' \
+  "test_raw_derived_g8_blind_forces_warn"
+
+# M20 AUTO BEGIN 分支拆除 (round-9 深度计数形态) → AUTO 段不识别, [[A]] 泄漏
+mutate_and_test "M20-BEGIN分支拆除" \
+  '        if _AUTO_BEGIN_RE.match(stripped):
+            depth += 1|||        if False:
+            depth += 1  # MUTANT' \
+  "test_orphan_ignores_nonsemantic_wikilinks"
+
+# ── round-8 整改新增的防线 ──
+# M23 嵌套 BEGIN 深度 +1 拆除 (round-9) → 内层 BEGIN 不加深, 第一个 END 提前关闸
+# M23 嵌套 BEGIN 深度 +1 拆除 (round-9) → 内层 BEGIN 不加深, 第一个 END 提前关闸
+# M23 嵌套 BEGIN 深度 +1 拆除 (round-9) → 内层 BEGIN 不加深, 第一个 END 提前关闸
+# M23 嵌套 BEGIN 深度 +1 拆除 (round-9, round-11 字节重锚) → 内层 BEGIN 不加深
+# M23 嵌套 BEGIN 深度 +1 拆除 (round-9, round-11 字节重锚) → 内层 BEGIN 不加深
+mutate_and_test "M23-嵌套深度拆除" \
+  '            if _AUTO_BEGIN_RE.match(stripped):\n                # r9 H2: 嵌套 BEGIN —— 深度 +1 (真实生成器单层; 嵌套 = 结构异常, 显式记录)\n                depth += 1|||            if False:\n                depth += 1  # MUTANT' \
+  "test_nested_auto_begin_depth"
+
+# M24 fence 行保留谓词拆除 (round-9 fullmatch 形态) → AUTO 内 fence opener 被盲化,
+#  跨段 fence 状态丢失, [[A]] 泄漏 (r8 H1 回归)
+mutate_and_test "M24-fence行不保留" \
+  '            if re.fullmatch(r"(`{3,}|~{3,})[^`]*", stripped):|||            if False and re.fullmatch(r"(`{3,}|~{3,})[^`]*", stripped):  # MUTANT' \
+  "test_auto_fence_cross_keeps_fence_state"
+
+# M25 content 反斜杠剥离 (round-9 承重点) → escaped content 的 [[ 显形, 伪链采纳
+#  (raw_targets 守卫为冗余层: content 本身保留反斜杠才是 escaped 拒绝的承重路径)
+#  锚内的 \\ 在 bash 单引号中字面传递, python replace("\\n") 不动它, 正确落到源码
+# (M25 已删除: escaped 拒绝由 markdown-it-py 的转义处理直接承重——两个候选变异
+#  (拆 raw_targets 守卫 / 剥 content 反斜杠) 实测均不改变行为, 即该库语义不可变异;
+#  行为由集成测试 test_escaped_brackets_are_not_wikilink 锁定, 与 M16/M21/M22 同类。)
+
 
 echo "== 汇总 =="
 if [ -n "$FAILED" ]; then

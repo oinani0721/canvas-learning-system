@@ -420,13 +420,14 @@ def test_orphan_symlink_never_read(tmp_path):
     assert res2.details["blind_detail"]["原白板/external2.md"] == "resolves-outside-vault"
 
     # 旁路丙: dangling symlink —— is_file()==False 不得静默消失
+    # (round-3 后由 _walk_md 枚举层先记, 原因带 cvr 的「既非目录也非普通文件」字样)
     root3 = tmp_path / "v3"
     _node(root3, "被链")
     (root3 / "原白板").mkdir()
     (root3 / "原白板" / "lost.md").symlink_to(tmp_path / "no-such-target.md")
     res3 = vl.check_orphan_nodes(root3)
     assert "节点/被链.md" in [f.subject for f in res3.findings]
-    assert res3.details["blind_detail"]["原白板/lost.md"] == "symlink"
+    assert "原白板/lost.md" in res3.details["blind_detail"], f"dangling 必须显式可见: {res3.details['blind_detail']}"
 
     # 段丁 (is_symlink 层专属判别): 指 vault **内**的文件 symlink —— 越界层放行,
     # 只有 is_symlink 层拦截; 断言拦截原因 == "symlink"
@@ -453,15 +454,15 @@ def test_read_text_rejects_symlink_direct(tmp_path):
 
 
 def test_recap_symlink_outside_not_read(tmp_path):
-    """Codex round-2 HIGH-1 第三旁路: 指向 vault 外的 回顾-* symlink 不得被
-    recap 子检查跟随读取 —— 记盲区不判, 不给外逃内容发 ok。"""
+    """Codex round-2 HIGH-1 第三旁路 + round-3 H1c: 指向 vault 外的 回顾-* symlink
+    不得被 recap 子检查跟随读取 —— 记盲区, 且盲区存在时检查 ≥ warn (「没查全」≠「没问题」)。"""
     outside = tmp_path / "outside-recap.md"
     outside.write_text("---\ntype: recap\n---\n外部内容\n", encoding="utf-8")
     root = tmp_path / "v"
     (root / "outputs").mkdir(parents=True)
     (root / "outputs" / "回顾-outside.md").symlink_to(outside)
     res = vl.check_raw_derived(root)
-    assert res.status == vl.OK  # 越界文件没读没判, 不因它翻红
+    assert res.status == vl.WARN, f"recap 盲区存在必须 warn, 实为 {res.status}"
     assert res.details["recap_blind"], f"recap 越界 symlink 必须记盲区: {res.details}"
 
 
@@ -836,6 +837,11 @@ def test_help_lists_checks_and_exit_semantics():
     assert "节点/" in out and "不存在" in out, "--help 缺 orphan 的 fail 分级规则"
     assert "corrupt" in out and "stale" in out, "--help 缺 freshness 的分级规则"
     assert "scan 盲区" in out or "盲区" in out, "--help 缺 orphan 盲区降 warn 的规则"
+    # Codex round-5 M3: raw_derived 的盲区触发 warn 须专属可见 (只查任意"盲区"会把
+    # orphan 的盲区句当替身 —— round-6 LOW 判别力修正)
+    assert re.search(r"raw_derived_confusion\s+\S[^\n]*\n\s+warn = [^\n]*\n\s+或存在扫描盲区 \(G8/G10/G11", out), (
+        "--help 缺 raw_derived 专属的 G8/G10/G11 盲区 warn 规则 (逐行锚定, 防 DOTALL 跨段替身)"
+    )
     assert "dont_write_bytecode" in out.lower(), "--help 缺零写兜底声明"
 
 
@@ -875,3 +881,526 @@ def test_no_duplicate_test_names():
     ]
     dupes = sorted({n for n in names if names.count(n) > 1})
     assert dupes == [], f"存在重名测试 (后定义静默覆盖前定义): {dupes}"
+
+
+# ---------------------------------------------------------------------------
+# 3c. round-3 整改 —— 枚举层盲区 / 物理路径去重 / freshness 越界 / span 等长
+# ---------------------------------------------------------------------------
+def test_orphan_nested_symlink_dir_recorded_not_silent(tmp_path):
+    """Codex round-3 H1a: `节点/sub -> vault 外目录` —— os.walk 不深入嵌套目录
+    symlink, 其后代整棵不在扫描面 → 必须显式记盲区 (rglob 时代是 0 盲区静默消失);
+    外部内容的 [[x]] 不得豁免 x。"""
+    outside_dir = tmp_path / "outside"
+    outside_dir.mkdir()
+    (outside_dir / "A.md").write_text(NODE_FM + "- [[x]]\n", encoding="utf-8")
+    root = tmp_path / "v"
+    _node(root, "x")
+    sub = root / "节点" / "sub"
+    sub.parent.mkdir(parents=True, exist_ok=True)
+    sub.symlink_to(outside_dir, target_is_directory=True)
+    res = vl.check_orphan_nodes(root)
+    subjects = [f.subject for f in res.findings]
+    assert "节点/x.md" in subjects, f"嵌套 symlink 目录后代豁免了真孤儿: {res.findings}"
+    assert any("sub" in rel for rel in res.details["blind_detail"]), (
+        f"嵌套 symlink 目录必须记盲区: {res.details['blind_detail']}"
+    )
+    assert res.status == vl.WARN
+
+
+def test_orphan_directory_alias_self_link_uses_realpath(tmp_path):
+    """Codex round-3 H1b: `原白板 -> 节点/` 目录别名 —— 同一物理文件以别名路径
+    贡献入链, 相对路径键会绕过自身排除。realpath 归并后 A 必须仍报孤儿。
+    变异对照: 入链键退回相对路径后本用例红。"""
+    outside_board = tmp_path / "real-board"
+    outside_board.mkdir()
+    root = tmp_path / "v"
+    (root / "节点").mkdir(parents=True)
+    (root / "节点" / "A.md").write_text(NODE_FM + "- [[A]]\n", encoding="utf-8")
+    (root / "原白板").symlink_to(root / "节点", target_is_directory=True)
+    res = vl.check_orphan_nodes(root)
+    subjects = [f.subject for f in res.findings]
+    assert "节点/A.md" in subjects, f"目录别名的自贡献豁免了 A (realpath 归并失效): {res.findings}"
+
+
+def test_orphan_unreadable_subtree_is_blind(tmp_path):
+    """Codex round-3 H2: `节点/locked`(chmod 000)`/A.md` —— 不可读子树整棵消失
+    时代已终结: os.walk(onerror) 必须把子树记为盲区, 且同目录其余节点照常判定。"""
+    if os.geteuid() == 0:
+        pytest.skip("root 用户不受 chmod 000 限制")
+    root = tmp_path / "v"
+    _node(root, "可见")
+    locked = root / "节点" / "locked"
+    locked.mkdir(parents=True)
+    (locked / "A.md").write_text(NODE_FM + "正文\n", encoding="utf-8")
+    locked.chmod(0o000)
+    try:
+        res = vl.check_orphan_nodes(root)
+    finally:
+        locked.chmod(0o755)  # 还原, 让 tmp_path 清理不炸
+    assert any("locked" in rel for rel in res.details["blind_detail"]), (
+        f"不可读子树必须记盲区: {res.details['blind_detail']}"
+    )
+    assert res.status == vl.WARN
+    subjects = [f.subject for f in res.findings]
+    assert "节点/locked/A.md" not in subjects  # 它不可读未判定, 不在 findings
+
+
+def test_projection_symlink_outside_is_corrupt(tmp_path):
+    """Codex round-3 H1d: `outputs -> vault 外目录` 且外部投影是当天 ——
+    freshness 不得读取 vault 外文件, 判 corrupt (fail)。"""
+    outside = tmp_path / "outside-outputs"
+    (outside / "outputs").mkdir(parents=True)
+    payload = {
+        "schema_version": 3,
+        "generated_at": "2026-08-31T09:05:05+08:00",
+        "stats": {"due_nodes": 0},
+        "top_boards": [],
+        "upcoming": [],
+        "due_nodes": [],
+        "ineligible": {"placeholder": []},
+    }
+    (outside / "outputs" / "今日复习.json").write_text(json.dumps(payload), encoding="utf-8")
+    root = tmp_path / "v"
+    root.mkdir()
+    (root / "outputs").symlink_to(outside / "outputs", target_is_directory=True)
+    status, error, _gen = vl._projection_status(root, TODAY)
+    assert status == "corrupt", f"越界投影必须 corrupt, 实为 {status} ({error})"
+    assert "越出 vault" in (error or "") or "symlink" in (error or "")
+    # ⛔ 如实登记: 越界面本实现比 oracle **严** (oracle 不查越界直接读) —— 同源锁只锁
+    #    合法 v3 投影 (§「不比什么」), 这一分叉方向 = 更安全, 不做伪装对齐。
+
+
+def test_code_span_equal_length_runs(tmp_path):
+    """Codex round-3 H3: code span 开闭反引号必须等长 —— `` ``foo` [[A]]`` ``
+    的单反引号不是双反引号 span 的 closer, [[A]] 在 span 内必须被剥。
+    变异对照: 退回 `(`+)[^`]*`+` 后本用例红。"""
+    root = tmp_path / "v"
+    _node(root, "A")
+    _board(root, "板", "``foo` [[A]]``\n")
+    res = vl.check_orphan_nodes(root)
+    subjects = [f.subject for f in res.findings]
+    assert subjects == ["节点/A.md"], f"不等长 closer 让 [[A]] 逃出 span: findings={subjects}"
+
+
+# ---------------------------------------------------------------------------
+# 3d. round-4 整改 —— G8/G10/G11 盲区计入 raw_derived 状态 / CommonMark maximal run
+# ---------------------------------------------------------------------------
+def test_raw_derived_g8_blind_forces_warn(tmp_path):
+    """Codex round-4 HIGH-1: G8/G10/G11 扫描面盲区 (不只 recap_blind) 必须让
+    raw_derived ≥ warn —— `节点/sub -> vault 外` 时 G8 在场, 不得假绿 ok。
+    CLI JSON 契约一并锁 (Codex round-4 M18-2: 只查内部 CheckResult 不够)。"""
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "A.md").write_text(NODE_FM + "正文\n", encoding="utf-8")
+    root = tmp_path / "v"
+    (root / "节点").mkdir(parents=True)
+    (root / "节点" / "sub").symlink_to(outside, target_is_directory=True)
+    res = vl.check_raw_derived(root)
+    assert res.status == vl.WARN, f"G8 盲区在场必须 warn, 实为 {res.status}"
+    assert res.details["blind_spots"] >= 1
+    # CLI JSON 契约: warn/blind_spots 必须透传到 --json 输出
+    r = _run_cli(root, "--only", "raw_derived_confusion", "--now", NOW_ARG, "--json")
+    payload = json.loads(r.stdout)
+    chk = payload["checks"][0]
+    assert chk["status"] == "warn" and chk["details"]["blind_spots"] >= 1, chk
+    assert r.returncode == 2
+
+
+def test_code_span_commonmark_maximal_run(tmp_path):
+    """Codex round-4 HIGH-2 (MarkdownIt 对照): `` ``[[A]] ` foo`` `` 整体是一个
+    双反引号 span —— (\\`+)[^\\`]*\\1 会回溯成空 span + 单反引号 span, [[A]] 逃出。
+    maximal run 配对算法下 [[A]] 必须被剥, A 报孤儿。"""
+    root = tmp_path / "v"
+    _node(root, "A")
+    _board(root, "板", "``[[A]] ` foo``\n")
+    res = vl.check_orphan_nodes(root)
+    subjects = [f.subject for f in res.findings]
+    assert subjects == ["节点/A.md"], f"maximal-run 语义缺失, [[A]] 逃出 span: {subjects}"
+
+
+def test_projection_outside_guard_precedes_read(tmp_path, monkeypatch):
+    """Codex round-4 M17: 越界守卫必须在**读取之前** —— 用注入「读取即炸」的
+    _read_text 锁顺序 (只断言结果时, 「先读再返回 corrupt」的精准变异不被抓)。"""
+    outside = tmp_path / "outside-outputs"
+    (outside / "outputs").mkdir(parents=True)
+    (outside / "outputs" / "今日复习.json").write_text("{}", encoding="utf-8")
+    root = tmp_path / "v"
+    root.mkdir()
+    (root / "outputs").symlink_to(outside / "outputs", target_is_directory=True)
+
+    def boom(_path: Path) -> None:
+        raise AssertionError("越界投影不得被读取 —— 守卫必须在 _read_text 之前")
+
+    monkeypatch.setattr(vl, "_read_text", boom)
+    status, _error, _gen = vl._projection_status(root, TODAY)
+    assert status == "corrupt"
+
+
+# ---------------------------------------------------------------------------
+# 3e. round-5 整改 —— code span closer 严格等长 / 剥除空格占位
+# ---------------------------------------------------------------------------
+def test_code_span_closer_must_equal_opener(tmp_path):
+    """Codex round-5 HIGH-1 (MarkdownIt 对照): `` `x``[[A]]` `` 的 opener/closer
+    均为单反引号 (content 含双反引号) —— "≥ opener" 是 fenced 的规则不是 span 的,
+    双反引号不得充当单反引号 span 的 closer; [[A]] 在 span 内必须被剥, A 报孤儿。
+    变异对照: M16 (closer 退回 >= 语义) 指定杀本用例。"""
+    root = tmp_path / "v"
+    _node(root, "A")
+    _board(root, "板", "`x``[[A]]`\n")
+    res = vl.check_orphan_nodes(root)
+    subjects = [f.subject for f in res.findings]
+    assert subjects == ["节点/A.md"], f"双反引号被误当 closer, [[A]] 逃出 span: {subjects}"
+
+
+def test_code_span_removal_leaves_placeholder_not_concatenation(tmp_path):
+    """Codex round-5 HIGH-2: 剥除 span 后必须**空格占位** —— 空串拼接会把
+    "[`x`[A]]" 拼成原文不存在的 "[[A]]" 伪入链, 反向隐藏真孤儿 A。"""
+    root = tmp_path / "v"
+    _node(root, "A")
+    _board(root, "板", "[`x`[A]]\n")
+    res = vl.check_orphan_nodes(root)
+    subjects = [f.subject for f in res.findings]
+    assert subjects == ["节点/A.md"], f"空串拼接制造伪入链 [[A]]: {subjects}"
+
+
+# ---------------------------------------------------------------------------
+# 3f. round-6 整改 —— 非语义形态不采纳 (r7 重构为 token 流后由 M7 text 过滤承重)
+# ---------------------------------------------------------------------------
+def test_code_span_inside_wikilink_does_not_create_link(tmp_path):
+    """Codex round-6 HIGH-1: `` [[A`x`]] `` 的 MarkdownIt 解析 = text("[[A") +
+    code_span("x") + text("]]") —— 原文没有指向 A 的链接 (target 是 "A`x`" 这个
+    不存在的文件)。区间法在原文上扫描, 不得把 span 剥除后的 "[[A ]]" 当成 A 的入链。"""
+    root = tmp_path / "v"
+    _node(root, "A")
+    _board(root, "板", "[[A`x`]]\n")
+    res = vl.check_orphan_nodes(root)
+    subjects = [f.subject for f in res.findings]
+    assert "节点/A.md" in subjects, f"span 剥除制造了 A 的伪入链: {res.findings}"
+
+
+def test_html_comment_inside_bracket_does_not_create_link(tmp_path):
+    """Codex round-6 HIGH-2: "[<!--x-->[A]]" 原文没有 [[..]] —— 注释空串删除后
+    拼接出的 "[[A]]" 是伪入链。区间法在原文上扫描, A 必须仍报孤儿。"""
+    root = tmp_path / "v"
+    _node(root, "A")
+    _board(root, "板", "[<!--x-->[A]]\n")
+    res = vl.check_orphan_nodes(root)
+    subjects = [f.subject for f in res.findings]
+    assert "节点/A.md" in subjects, f"注释删除拼接出伪入链 [[A]]: {res.findings}"
+
+
+def test_escaped_backtick_is_not_delimiter(tmp_path):
+    """Codex round-6 M1 (CommonMark backslash escapes): 反引号被转义后是普通文本 ——
+    [[A]] 是**真入链**, 不得被剥掉并把 A 误报成孤儿 (旧行为的 fail-open)。"""
+    root = tmp_path / "v"
+    _node(root, "A")
+    _board(root, "板", "\\`x [[A]]\\`\n")
+    res = vl.check_orphan_nodes(root)
+    assert res.findings == [], f"转义反引号后的真入链被剥掉, A 被误报: {res.findings}"
+
+
+def test_code_span_does_not_span_blank_line(tmp_path):
+    """Codex round-6 M2 (CommonMark: code span 不跨段落): "`x\\n\\n[[A]]`" 是两个
+    text block, [[A]] 是**真入链** —— 跨空行配对会把它剥掉并误报孤儿。"""
+    root = tmp_path / "v"
+    _node(root, "A")
+    _board(root, "板", "`x\n\n[[A]]`\n")
+    res = vl.check_orphan_nodes(root)
+    assert res.findings == [], f"span 跨空行配对剥掉了真入链, A 被误报: {res.findings}"
+
+
+# ---------------------------------------------------------------------------
+# 3g. round-8 整改 —— AUTO 盲化等行数改写 (保 fence 连续性) / map 回原文转义判定
+# ---------------------------------------------------------------------------
+def test_auto_fence_cross_keeps_fence_state(tmp_path):
+    """Codex round-8 H1: AUTO 段吞掉 fence opener 后, 跨段 fence 内的 [[A]] 不得
+    被当正文入链 (切分逐段解析时代的 false-green)。等行数盲化保留 fence 标记行,
+    整文解析 fence 状态连续 → A 报孤儿。"""
+    root = tmp_path / "v"
+    _node(root, "A")
+    board_body = (
+        "<!-- AUTO-GENERATED by .claude/scripts/sync_board_concepts.py · source\n"
+        "     note -->\n"
+        "~~~text\n"
+        "<!-- /AUTO-GENERATED -->\n"
+        "[[A]]\n"
+        "~~~\n"
+    )
+    _board(root, "板", board_body)
+    res = vl.check_orphan_nodes(root)
+    subjects = [f.subject for f in res.findings]
+    assert "节点/A.md" in subjects, f"跨段 fence 状态丢失, [[A]] 被当入链: {res.findings}"
+
+
+def test_unclosed_auto_segment_blinds_to_eof(tmp_path):
+    """Codex round-8 H2: 未闭合 AUTO 段到 EOF 不得降级成普通正文 —— 机器成员
+    [[A]] 必须保持盲, A 报孤儿。"""
+    root = tmp_path / "v"
+    _node(root, "A")
+    board_body = "<!-- AUTO-GENERATED by .claude/scripts/sync_board_concepts.py · source\n     note -->\n- [[A]]\n"
+    _board(root, "板", board_body)
+    res = vl.check_orphan_nodes(root)
+    subjects = [f.subject for f in res.findings]
+    assert "节点/A.md" in subjects, f"未闭合 AUTO 段降级, 机器成员豁免了 A: {res.findings}"
+
+
+def test_escaped_brackets_are_not_wikilink(tmp_path):
+    """Codex round-8 H3a (Obsidian 规则): `\\[\\[A\\]\\]` 转义方括号不生成链接 ——
+    不得采纳为 A 的入链 (真无链 baseline = A 报孤儿)。"""
+    root = tmp_path / "v"
+    _node(root, "A")
+    _board(root, "板", "\\[\\[A\\]\\]\n")
+    res = vl.check_orphan_nodes(root)
+    subjects = [f.subject for f in res.findings]
+    assert "节点/A.md" in subjects, f"转义方括号被当真链接: {res.findings}"
+
+
+def test_html_entity_brackets_fail_closed(tmp_path):
+    """Codex round-8 H3b: `&#91;&#91;A&#93;&#93;` 实体解码后的 [[ 在原文中无裸 [[ ——
+    不采纳 (fail-closed 多报孤儿方向); Obsidian 实体行为未定, 差异登记「不比什么」。"""
+    root = tmp_path / "v"
+    _node(root, "A")
+    _board(root, "板", "&#91;&#91;A&#93;&#93;\n")
+    res = vl.check_orphan_nodes(root)
+    subjects = [f.subject for f in res.findings]
+    assert "节点/A.md" in subjects, f"实体形式被当真链接: {res.findings}"
+
+
+def test_missing_markdown_it_is_config_error(tmp_path, monkeypatch):
+    """Codex round-8 M1: markdown_it 缺包 = 配置/环境错误 → LintConfigError (CLI rc=3),
+    不许裸 ModuleNotFoundError 崩成 rc=1。sys.modules[name]=None 触发 import 语义的
+    ImportError, 精准模拟缺包。"""
+    import builtins
+
+    real_import = builtins.__import__
+
+    def fake_import(name, *a, **k):
+        if name == "markdown_it" or name.startswith("markdown_it."):
+            raise ImportError("simulated missing markdown_it")
+        return real_import(name, *a, **k)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    setattr(vl, "_md", None)  # 重置 lazy 缓存
+    with pytest.raises(vl.LintConfigError):
+        vl._md_parser()
+    with pytest.raises(vl.LintConfigError):
+        vl.run_checks(_clean_vault(tmp_path / "v"), TODAY)  # run_checks 接线: 冒泡 → main 退 3
+        # (须含 orphan_nodes —— mdit 只在 _wikilink_targets; 空目录 fail-fast 走不到)
+    setattr(vl, "_md", None)  # 还原缓存, 防污染后续用例
+
+
+# ---------------------------------------------------------------------------
+# 3h. round-9 整改 —— AUTO 容器上下文 / 嵌套深度 / 逐 match 原文绑定
+# ---------------------------------------------------------------------------
+def test_auto_blinding_preserves_list_container(tmp_path):
+    """Codex round-9 H1: list 容器内的 AUTO 段 —— 盲化行必须保留原行前导空白
+    （列 0 注释会终止 list, fence 退化 code_block, [[A]] 泄漏为入链）。"""
+    root = tmp_path / "v"
+    _node(root, "A")
+    board_body = (
+        "- item\n"
+        "     <!-- AUTO-GENERATED by .claude/scripts/sync_board_concepts.py source\n"
+        "     note -->\n"
+        "     ~~~text\n"
+        "     <!-- /AUTO-GENERATED -->\n"
+        "   [[A]]\n"
+        "     ~~~\n"
+    )
+    _board(root, "板", board_body)
+    res = vl.check_orphan_nodes(root)
+    subjects = [f.subject for f in res.findings]
+    assert "节点/A.md" in subjects, f"盲化行破坏 list 容器, [[A]] 泄漏: {res.findings}"
+
+
+def test_auto_bad_info_string_not_fence(tmp_path):
+    """Codex round-9 H1b: AUTO 段内 `` ```bad` [[A]] `` 的 info string 含反引号 ——
+    按 CommonMark 不是 fence, 不得作为 fence 标记行原样保留; [[A]] 必须随行盲化。"""
+    root = tmp_path / "v"
+    _node(root, "A")
+    board_body = (
+        "<!-- AUTO-GENERATED by .claude/scripts/sync_board_concepts.py · source\n"
+        "```bad` [[A]]\n"
+        "<!-- /AUTO-GENERATED -->\n"
+    )
+    _board(root, "板", board_body)
+    res = vl.check_orphan_nodes(root)
+    subjects = [f.subject for f in res.findings]
+    assert subjects == ["节点/A.md"], f"坏 info string 行未随段盲化, [[A]] 泄漏为入链: {res.findings}"
+
+
+def test_nested_auto_begin_depth(tmp_path):
+    """Codex round-9 H2: 嵌套 BEGIN —— 外层未闭合时, 内层 BEGIN 的第一个 END 不得
+    提前关闸（布尔状态机 → 深度计数）。[[A]] 仍在嵌套段内, 必须盲, A 报孤儿。"""
+    root = tmp_path / "v"
+    _node(root, "A")
+    board_body = (
+        "<!-- AUTO-GENERATED by .claude/scripts/sync_board_concepts.py outer -->\n"
+        "<!-- AUTO-GENERATED by .claude/scripts/sync_board_concepts.py inner -->\n"
+        "<!-- /AUTO-GENERATED -->\n"
+        "[[A]]\n"
+    )
+    _board(root, "板", board_body)
+    res = vl.check_orphan_nodes(root)
+    subjects = [f.subject for f in res.findings]
+    assert "节点/A.md" in subjects, f"嵌套 BEGIN 提前关闸, [[A]] 泄漏: {res.findings}"
+
+
+def test_decoded_match_binds_to_raw_target(tmp_path):
+    """Codex round-9 H3 逐 match 绑定: 同一 inline token 内 [[B]]（真）与
+    \\[\\[A\\]\\]（转义假）并存时, 只有 B 采纳; A 的 decoded target 必须在原文
+    裸 target 集合中有对应, 否则拒绝 → A 报孤儿。"""
+    root = tmp_path / "v"
+    _node(root, "A")
+    _node(root, "B")
+    _board(root, "板", "[[B]] and \\[\\[A\\]\\]\n")
+    res = vl.check_orphan_nodes(root)
+    subjects = sorted(f.subject for f in res.findings)
+    assert subjects == ["节点/A.md"], f"逐 match 绑定失效 (A 应报 B 不应报): {subjects}"
+
+
+def test_wikilink_row_model_matches_mdit(tmp_path):
+    """Codex round-9 M5: 行模型统一 —— splitlines 会把 VT/FF 等当行界导致盲化行号与
+    token.map 错位; 统一按 \\n 分割后, VT 分隔的真链接必须被采纳（A 不报）。"""
+    root = tmp_path / "v"
+    _node(root, "A")
+    _board(root, "板", "前缀\x0b行\n[[A]]\n")
+    res = vl.check_orphan_nodes(root)
+    assert res.findings == [], f"VT 行模型错位导致真入链丢失: {res.findings}"
+
+
+def test_double_backslash_escape_is_real_link(tmp_path):
+    """Codex round-9 M7: 成对反斜杠（\\\\）后是真链接 —— 奇偶判定取代单字符负向断言;
+    escaped 用例（单反斜杠）仍拒绝。"""
+    root = tmp_path / "v"
+    _node(root, "A")
+    _board(root, "板", "\\\\[[A]]\n")  # 两个反斜杠 + [[A]] —— 成对反斜杠 = 字面反斜杠
+    res = vl.check_orphan_nodes(root)
+    assert res.findings == [], f"成对反斜杠后的真链接被误拒: {res.findings}"
+
+
+# ---------------------------------------------------------------------------
+# 3i. round-10 整改 —— fence 保留谓词收严 / 畸形 END 词边界 / 实体解码同基 / anomalies
+# ---------------------------------------------------------------------------
+def test_tilde_fence_info_with_backtick_kept(tmp_path):
+    """Codex round-10 H1 —— **已选口径 (AUTO 段优先)**: info 含反引号的 tilde 行
+    不是纯 fence 标记, 随段盲化 ([[A]] 采纳, A 不报); anomaly 披露盲化分支。
+    (mdit fence 语义下 A 报——两种口径分歧登记验收单裁决点。)"""
+    root = tmp_path / "v"
+    _node(root, "A")
+    board_body = (
+        "<!-- AUTO-GENERATED by .claude/scripts/sync_board_concepts.py source -->\n"
+        "~~~lang`\n"
+        "<!-- /AUTO-GENERATED -->\n"
+        "[[A]]\n"
+        "~~~\n"
+    )
+    _board(root, "板", board_body)
+    res = vl.check_orphan_nodes(root)
+    subjects = [f.subject for f in res.findings]
+    # ⛔ 已选口径 (r10, 裁决点): **AUTO 段优先** —— info 含反引号的行不是纯 fence
+    # 标记, 随段盲化 ([[A]] 采纳, A 不报)。mdit fence 语义会判该行为 fence
+    # ([[A]] 盲, A 报) —— 两种口径冲突, 本卡选 AUTO 优先 (段内是机器生成不受信),
+    # 分歧登记验收单裁决点。anomaly 披露该行走了盲化分支。
+    assert subjects == [], f"口径声明与实现不符 (期望 AUTO 优先盲化): {res.findings}"
+    assert any("fence 标记行" in n for n in res.notes), "结构异常未在 notes 披露"
+
+
+def test_malformed_end_does_not_close(tmp_path):
+    """Codex round-10 H2: `<!-- /AUTO-GENERATEDNESS -->` 前缀匹配 END 正则曾提前
+    关闸 —— 词边界限定后畸形 END 不减深度, [[A]] 仍盲, A 报孤儿。"""
+    root = tmp_path / "v"
+    _node(root, "A")
+    board_body = (
+        "<!-- AUTO-GENERATED by .claude/scripts/sync_board_concepts.py outer -->\n"
+        "<!-- AUTO-GENERATED by .claude/scripts/sync_board_concepts.py inner -->\n"
+        "<!-- /AUTO-GENERATEDNESS -->\n"
+        "<!-- /AUTO-GENERATED -->\n"
+        "[[A]]\n"
+    )
+    _board(root, "板", board_body)
+    res = vl.check_orphan_nodes(root)
+    subjects = [f.subject for f in res.findings]
+    assert "节点/A.md" in subjects, f"畸形 END 提前关闸, [[A]] 泄漏: {res.findings}"
+
+
+def test_entity_decoded_target_matches_unescaped_raw(tmp_path):
+    """Codex round-10 H3 实体截断 —— **已选口径 (fail-closed)**: target 剥离链的
+    `#` 截断（heading 锚点, 复制自 sync 原生语义）先于实体解码 —— `X&#65;` 的
+    target 截为 "X&", 与 mdit 解码的 "XA" 不同基 → fail-closed 拒采纳 → XA 报
+    孤儿。实体与 heading 锚的冲突登记「不比什么」（修复需上游 sync 语义变更）。"""
+    root = tmp_path / "v"
+    (root / "节点").mkdir(parents=True)
+    (root / "原白板").mkdir()
+    (root / "节点" / "XA.md").write_text("---\ntype: concept\n---\n正文\n", encoding="utf-8")
+    (root / "原白板" / "板.md").write_text("---\ntype: whiteboard\n---\n[[X&#65;]] \\[\\[X&\\]\\]\n", encoding="utf-8")
+    res = vl.check_orphan_nodes(root)
+    subjects = sorted(f.subject for f in res.findings)
+    assert subjects == ["节点/XA.md"], f"实体形态 target 应 fail-closed 拒采纳 (XA 报孤儿): {subjects}"
+
+
+def test_auto_structure_anomaly_is_disclosed(tmp_path):
+    """Codex round-10 收敛框架: AUTO 段结构异常 (生成器不产出的形态) 必须显式披露
+    为盲区信号, 不得静默 —— anomalies 记入 notes, 检查状态 ≥ warn。"""
+    root = tmp_path / "v"
+    _node(root, "A")
+    board_body = (
+        "<!-- AUTO-GENERATED by .claude/scripts/sync_board_concepts.py source -->\n"
+        "~~~text\n"
+        "<!-- /AUTO-GENERATED -->\n"
+        "[[A]]\n"
+        "~~~\n"
+    )
+    _board(root, "板", board_body)
+    res = vl.check_orphan_nodes(root)
+    # fence 标记行保留 = 结构异常 (生成器不产出), 必须在 notes 披露
+    assert any("fence 标记行" in n for n in res.notes), f"结构异常未披露: {res.notes}"
+    assert res.status == vl.WARN
+
+
+# ---------------------------------------------------------------------------
+# 3i-2. round-11 整改锁定 —— END/BEGIN 词边界 / anomaly key 唯一
+# ---------------------------------------------------------------------------
+def test_hyphen_suffix_end_does_not_close(tmp_path):
+    """Codex round-11 H2a: `/AUTO-GENERATED-NESS` 的连字符后缀不得匹配 END
+    (lookahead 去掉 `|-` 分支) —— 深度不关, [[A]] 仍盲, A 报孤儿。"""
+    root = tmp_path / "v"
+    _node(root, "A")
+    board_body = (
+        "<!-- AUTO-GENERATED by .claude/scripts/sync_board_concepts.py outer -->\n"
+        "<!-- /AUTO-GENERATED-NESS -->\n"
+        "[[A]]\n"
+    )
+    _board(root, "板", board_body)
+    res = vl.check_orphan_nodes(root)
+    subjects = [f.subject for f in res.findings]
+    assert "节点/A.md" in subjects, f"连字符后缀 END 提前关闸: {res.findings}"
+
+
+def test_evil_suffix_begin_does_not_open(tmp_path):
+    """Codex round-11 新发现: `sync_board_concepts.pyEVIL` 的 EVIL 后缀不得匹配
+    BEGIN —— 真实 [[A]] 不得被盲化（A 不报）。"""
+    root = tmp_path / "v"
+    _node(root, "A")
+    board_body = "<!-- AUTO-GENERATED by .claude/scripts/sync_board_concepts.pyEVIL -->\n[[A]]\n"
+    _board(root, "板", board_body)
+    res = vl.check_orphan_nodes(root)
+    assert res.findings == [], f"EVIL 后缀 BEGIN 误开, [[A]] 被盲化: {res.findings}"
+
+
+def test_auto_anomaly_keys_are_unique(tmp_path):
+    """Codex round-11 anomaly 披露: 同文件多条 anomaly 不得同 dict key
+    last-write-wins —— 每条独立可见（key 唯一化后逐条进 blind_detail）。"""
+    root = tmp_path / "v"
+    _node(root, "A")
+    board_body = (
+        "<!-- AUTO-GENERATED by .claude/scripts/sync_board_concepts.py outer -->\n"
+        "<!-- AUTO-GENERATED by .claude/scripts/sync_board_concepts.py inner -->\n"
+        "~~~text\n"
+        "<!-- /AUTO-GENERATED -->\n"
+        "[[A]]\n"
+        "~~~\n"
+    )
+    _board(root, "板", board_body)
+    res = vl.check_orphan_nodes(root)
+    anomaly_notes = [n for n in res.notes if "AUTO 段结构异常" in n or "嵌套" in n or "fence 标记行" in n]
+    assert anomaly_notes, f"结构异常未披露: {res.notes}"

@@ -16,7 +16,8 @@ options:
                             warn = 有孤儿或有扫描盲区 (symlink/不可读, 盲区里的文件未参与判定);
                             fail = `节点/` 目录不存在 (检查没查成, 不是零孤儿)
   raw_derived_confusion   派生物混入 raw/wiki 区 (读 G8-1 台账) + 回顾-*.md 缺 recap frontmatter
-                            warn = 有混淆 finding (G1/G2/G3/G4/G9 或 回顾-* 缺 type: recap);
+                            warn = 有混淆 finding (G1/G2/G3/G4/G9 或 回顾-* 缺 type: recap),
+                            或存在扫描盲区 (G8/G10/G11 / recap 越界拒读 —— "没查全" ≠ "没问题");
                             本检查无 fail 态
   projection_freshness    outputs/今日复习.json 的 generated_at 是否过期
                             warn = stale (今天还没跑推送) 或 no_projection;

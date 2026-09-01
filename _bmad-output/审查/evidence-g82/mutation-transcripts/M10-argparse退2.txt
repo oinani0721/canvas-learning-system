@@ -4,13 +4,13 @@ rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees
 configfile: pytest.ini
 plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
 asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
-collected 57 items / 56 deselected / 1 selected
+collected 89 items / 88 deselected / 1 selected
 
 tests/unit/test_vault_lint.py F                                          [100%]
 
 =================================== FAILURES ===================================
 ___________________ test_argparse_usage_errors_exit_3_not_2 ____________________
-tests/unit/test_vault_lint.py:765: in test_argparse_usage_errors_exit_3_not_2
+tests/unit/test_vault_lint.py:766: in test_argparse_usage_errors_exit_3_not_2
     assert bad.returncode == 3, f"缺 --vault 必须 rc=3 (用法错误), 实为 {bad.returncode}"
 E   AssertionError: 缺 --vault 必须 rc=3 (用法错误), 实为 2
 E   assert 2 == 3
@@ -69,4 +69,4 @@ app/api/v1/endpoints/metadata.py:176
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
 =========================== short test summary info ============================
 FAILED tests/unit/test_vault_lint.py::test_argparse_usage_errors_exit_3_not_2
-================ 1 failed, 56 deselected, 13 warnings in 0.54s =================
+================ 1 failed, 88 deselected, 13 warnings in 0.81s =================
