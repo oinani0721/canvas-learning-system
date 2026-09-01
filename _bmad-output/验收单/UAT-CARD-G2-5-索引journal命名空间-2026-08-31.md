@@ -467,3 +467,27 @@ finditer 零次循环静默放行，且旧「缺另一短语」篡改门测的�
   （`self._scan_interval` 的绑定属源码级）。
 - 篡改门 ×10 是已知误放形态的封闭集；正则/窗口法对任意 paraphrase 不可穷举，
   口径的最终兜底是三段受控真实文本 + 人工复核（盘点文档 md 不进测试）。
+
+### 9.9 round-5 判决（终轮）：BLOCKER/HIGH 清零 = 是
+
+`codex-review-CARD-G2-5-round5.md`（HEAD e86982b4）：
+
+- HIGH-4 e③ **CONFIRMED-CLOSED**（存在性断言位置 + 反方向样本专测性均核实的）；
+- HIGH-3 锁内重读 **CONFIRMED-CLOSED**（fail-closed 分支无自死锁、无语义回退）;
+- d⑥ 逐键 / LOW 计数 **CONFIRMED-CLOSED**；
+- 指定命令实跑 27 passed；**BLOCKER/HIGH 清零：是**。
+
+**新登记 MEDIUM×3（按卡文停轮规则登记结案，不再续轮）**：
+
+1. e③ 存在性断言只查精确子串、句级检查只排疑问标记——短语被外层否定或作被驳斥
+   引文时仍可能误放（极性问题，§9.8 闭集限制的具体化）；
+2. fresh 计入 pending 的实现已修但**回归门未落实**——竞态锁未断言
+   `result["pending"]==2`，退化回旧计数仍绿；
+3. d③ 混合场景只排序比较状态集合，未绑定具体 path→status 映射与 excluded 聚合值。
+
+**维持 MEDIUM×2（Codex 裁决）**：multiplicity（**Codex 推翻了本验收单 §9.8 的
+「幂等无害」论证**——相同载荷不等于同一时序事件，旧意图恢复成功后的新失败仍需
+保留；本验收单如实记录该推翻）；e① 源码级绑定（成本理由不能替代绑定证据）。
+
+**G2-5 终态**：两卡轮次 G2-5 = round-3(初审 FAIL)→round-4(首发 cyber 拦截+抢救
+堵口)→round-4b(唯一 HIGH 收窄)→round-5(清零=是)，符合手册 ≤3 续轮上限（不含初审）。
