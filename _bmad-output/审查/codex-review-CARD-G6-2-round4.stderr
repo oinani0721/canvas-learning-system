@@ -1,0 +1,3197 @@
+Reading additional input from stdin...
+OpenAI Codex v0.147.0
+--------
+workdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
+model: gpt-5.6-sol
+provider: openai
+approval: on-request
+sandbox: read-only
+reasoning effort: ultra
+reasoning summaries: auto
+session id: 01a05c51-9c8c-7e82-9183-0c5145a59289
+--------
+user
+# Codex 定向第四轮复审 — CARD-G6-2 交互复习壳 [BATCH-2026-09-01-第八批]
+
+你是独立对抗性审查员。工作目录（cwd）已是本车道 worktree 根：
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
+
+## 本轮性质与范围（定向，窄）
+
+用户对 round-3 终裁（FAIL：1 BLOCKER + 3 HIGH）的裁决是「定向第四轮」。round-3 的
+三条 HIGH 已在 commit `7ca194ac` 整改；**本轮只审这个整改提交**，不重开已 VERIFIED
+的旧账（round-2 已 VERIFIED 的 HIGH-2/HIGH-4a/M3/M4 不需要再证）。
+
+审三个文件：
+1. `git show 7ca194ac` 的 diff（整改本体）
+2. `backend/app/api/v1/endpoints/review_app.py`（终版全文）
+3. `backend/tests/unit/test_review_app.py` 的**结构与门名**（见读面限制）
+
+对照物（未改动）：`backend/app/api/v1/endpoints/review_overview.py`。
+卡文（如需）：`/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/implementation-artifacts/goal-cards/第八批-goals/W5.md`
+
+## ⚠️ 读面限制（防内容安全误拦，必须遵守）
+
+- **不要整读** `_bmad-output/审查/evidence-g62/g62_mutation_negative_controls.py` 与
+  `backend/tests/unit/test_review_app.py` 里的**攻击样本字面量**（XSS payload、
+  变异注入串）。用 grep 拿门名/断言主句即可。
+- 变异负验证证据以存档日志为准：`_bmad-output/审查/evidence-g62/mutation-run-final.log`
+  末行 `负验证 PASS: 46/46 ...`（判据 = returncode==1 + "1 failed" + FAILED 指定节点）。
+- 其它证据：`evidence-g62/裁判命令输出-r4.txt`（89 passed / external [] / 基线=1 /
+  pyright 0 错）。
+
+## 逐项验证清单（round-3 三 HIGH 的整改声明，请证伪）
+
+### HIGH-1 结算绑定证据 + 渲染探针先行
+声明：POST rebuilt 只显示「正在同步最新数字…」并登记 `state.pendingSync`；最新 GET
+（`pollGen` 代际守卫 + 形状校验前置）先做**渲染探针**（renderPage 抛错则整体走 catch，
+lastData/结算/横幅全不提交），然后按 `renderedVids`（渲染成功且 `projection` 可用的库）
+结算 pendingSync——目标库不在 renderedVids（corrupt/缺投影/从聚合消失）→ 结算为
+「同步失败」；在 → 「数字已更新」。最终帧在结算后另行渲染（含结算后的反馈）。
+门：test_js_settle_binds_to_rendered_vault_evidence（①corrupt ②目标库消失 ③有证据
+三场景）+ 乱序测试 + 同步结算三场景；变异 M46 对准。
+
+### HIGH-3 结束符语言
+声明：_extract_script 大小写不敏感地数 `</script` **前缀**总出现次数（恰 1）——覆盖
+`</script/`、`</script x=y>`、`</SCRIPT>`、`</script >` 全部浏览器合法形态；正文
+`<!--`/`-->` 拒绝；开标签只允许一个字面 `<script>`。门：
+test_script_extraction_rejects_case_insensitive_terminator（5 毒样本）+
+test_real_page_extracted_script_is_well_formed（真实响应；M38/M43 指定门）。
+
+### HIGH-4b AST 门收口
+声明：调用侧正向合约之外，新增**重绑定/参数遮蔽禁令**（Assign/AugAssign/AnnAssign
+目标与函数参数命中白名单名 → 红，封 `list = open; list(...)` 拼写合法绕过）与
+**接收者白名单**（Attribute 调用接收者 unparse 基名 ∈ {json, request,
+review_app_router, _STATUS_META, _PAGE_TEMPLATE} 或接收者本身是白名单 Call → 否则红，
+封任意对象挂同名方法）。import 白名单维持。变异 M44（`list = open`）/M45（`[1].items()`）
+对准。
+
+### 随行补口（低权重，一并看）
+M1 freshNotes 返回 Object.create(null)；LOW-2 隐藏时 rebuilt 不触发 GET（pending 留给
+回前台 visibilitychange 的 poll 结算）；LOW-3 STATUS_META own-key 访问（`constructor`
+不命中继承属性）。
+
+### BLOCKER（DD-14 无 PLAN-NNN）——**不在本轮代码审查范围**
+用户已知悉，裁决权在用户/主 session（goal-card `@spec:` 引用等价性）。你不需要审它，
+也不要因它改总结论的措辞口径——总结论只针对上述三个 HIGH 的整改与随行补口。
+
+## 输出格式
+
+- 三个 HIGH 各给 VERIFIED / NOT VERIFIED + 理由（发现新问题则给 文件:行号 + 具体失败
+  场景 + 严重度 BLOCKER/HIGH/MEDIUM/LOW）。
+- 随行补口若有问题一并列。
+- 最后一行：`总结论：PASS`（三条 HIGH 全 VERIFIED 且无新 BLOCKER/HIGH）或
+  `总结论：FAIL（...）`。
+2026-09-01T09:34:12.500244Z ERROR codex_models_manager::manager: failed to refresh available models: timeout waiting for child process to exit
+**Inspecting available adversarial skills**
+**Planning adversarial audit with memory guidance**
+**Preparing collaborative audit with state updates**
+codex
+我会按只读、定向复审执行：先复核 prior audit 约束与提交边界，再把 HIGH-1、HIGH-3、HIGH-4b 分成独立对抗轨并行核验；测试文件只提取门名与断言主句，绝不读取被禁止的攻击样本字面量。最终结论只覆盖本轮三条 HIGH 与随行补口，不纳入 DD-14。
+exec
+/bin/zsh -lc "rg -n -C 3 'P1 adversarial|canvas-adversarial-audit|CARD-G6-2|evidence-first|exact-object' /Users/Heishing/.codex/memories/MEMORY.md" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
+ succeeded in 0ms:
+145-- Freeze reviewer rejected the lab: missing reproducible full ordinal-9595 input, stdlib origin-byte hashes, exact freeze execution contract/argv/env/cwd enforcement, post-chmod mode proof, and final fsync/reopen/short-write proof. Do not run `freeze_package.py` until a new stable package independently addresses them. [Task 2]
+146-- Do not embed private transcript/session paths in public/minimal package artifacts. [Task 2]
+147-
+148:# Task Group: Canvas Learning System GOV01 exact-object and CACHE-PREP atomicity audit
+149:scope: Isolated, read-only verification of GOV01 bundle chains and static exact-object audit of CACHE-PREP-V1 ADOPT/live-cache atomicity.
+150-applies_to: cwd=/private/tmp/cls-gov01-a4-v1/planning-ro; reuse_rule=recompute every bundle, manifest, commit/tree/blob, source range, and authorization in an isolated inspection repo; do not run production/FETCH/ADOPT modes or access real cache/Vault/network.
+151-
+152-## Task 1: GOV01 A4 repair/micro chain audit, structurally verified but broader readiness partial
+--
+243-
+244-## Reusable knowledge
+245-
+246:- Related skill: skills/canvas-adversarial-audit/SKILL.md. P1-05/P1-01/P1-08 remained STILL-OPEN; F-02 tombstone filtering and F-05 live resilience were closed. Rejected vault inputs must show zero open/hash/index/write. [Task 1][Task 2]
+247-- Reproduced: `vault/raw/escape.md -> /outside/secret.md` was counted by `backfill_vault(..., execute=False)`; case-sensitive `fnmatch` admitted `.CLAUDE/SKILL.md` and `raw/claude.md`. Edge filtering alone was insufficient because exact readers/node search could cross Graphiti groups. [Task 2]
+248-- SnapshotV3 needs invalid/future same-generation self-healing, extra-field, strict-type, huge finite mastery, and identity/length collision coverage. [Task 1][Task 2]
+249-
+
+**Inspecting registry rollout path IDs**
+exec
+/bin/zsh -lc "sed -n '210,250p' /Users/Heishing/.codex/memories/MEMORY.md && wc -l /Users/Heishing/.codex/memories/skills/canvas-adversarial-audit/SKILL.md && sed -n '1,260p' /Users/Heishing/.codex/memories/skills/canvas-adversarial-audit/SKILL.md" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
+ succeeded in 0ms:
+
+## Failures and how to do differently
+
+- Expired `pending-user-confirmation` receipt/envelope is not authority. New exact envelope/digest/challenge is needed. The existing `scripts/bmad/scan_feedback.py` did not cover actual output; freeze a new scanner contract/no-write boundary before census. [Task 1]
+
+# Task Group: Canvas Learning System P1-05/P1-01/P1-08 adversarial security review
+scope: Read-only, parallel audit of vault admission/indexing, Graphiti quarantine isolation, SnapshotV3, and recovery-anchor closure claims.
+applies_to: cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output; reuse_rule=revalidate SHA, CI, actual call sites, and live Neo4j state in the target checkout.
+
+## Task 1: P1-05c/P1-01/P1-08 parallel adversarial review, closure rejected
+
+### rollout_summary_files
+
+- rollout_summaries/2026-08-17T01-56-07-ZNCd-agents_guide_and_p1_05c_adversarial_audit.md (cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output, rollout_path=/Users/Heishing/.codex/sessions/2026/08/17/rollout-2026-08-17T09-56-07-01a00d6e-ea40-70a1-a23c-d51342eeeacd.jsonl, updated_at=2026-08-19T17:56:56+00:00, thread_id=01a00d6e-ea40-70a1-a23c-d51342eeeacd, outcome=partial; final read-only verdict)
+
+### keywords
+
+- P1-05c, P1-05, P1-01, P1-08, check_vault_path, vault_index_orchestrator, LanceDB, Graphiti, DEFAULT_GROUP_ID, SnapshotV3, CURRENT_TASK.md
+
+## Task 2: P1-05b five-question adversarial audit, reproducible bypasses
+
+### rollout_summary_files
+
+- rollout_summaries/2026-08-19T14-44-08-upza-p1_05b_adversarial_review_finds_admission_quarantine_snapsho.md (cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output, rollout_path=/Users/Heishing/.codex/sessions/2026/08/19/rollout-2026-08-19T22-44-08-01a01a7a-c47f-70e2-8e5e-524e1591da78.jsonl, updated_at=2026-08-19T15:12:50+00:00, thread_id=01a01a7a-c47f-70e2-8e5e-524e1591da78, outcome=partial; detailed counterexamples)
+
+### keywords
+
+- P1-05b, symlink_escape, casefold, vault_backfill, lancedb_client, quarantine__p105b, search_nodes, read_node_tips, manifest-v3, NaN
+
+## User preferences
+
+- “启动并行 agent 进行对抗性审查” -> use independent evidence tracks and cross-check severity; every finding needs `file:line`, reproduction path/result, severity, conflict explanation, PASS/PARTIAL/FAIL, and limits. [Task 1][Task 2]
+- Respect read-only task-book boundaries, WT/MAIN labels, explicit `UNVERIFIABLE`, and no raw-vault access; do not fix code in the audit. [Task 1]
+
+## Reusable knowledge
+
+- Related skill: skills/canvas-adversarial-audit/SKILL.md. P1-05/P1-01/P1-08 remained STILL-OPEN; F-02 tombstone filtering and F-05 live resilience were closed. Rejected vault inputs must show zero open/hash/index/write. [Task 1][Task 2]
+- Reproduced: `vault/raw/escape.md -> /outside/secret.md` was counted by `backfill_vault(..., execute=False)`; case-sensitive `fnmatch` admitted `.CLAUDE/SKILL.md` and `raw/claude.md`. Edge filtering alone was insufficient because exact readers/node search could cross Graphiti groups. [Task 2]
+- SnapshotV3 needs invalid/future same-generation self-healing, extra-field, strict-type, huge finite mastery, and identity/length collision coverage. [Task 1][Task 2]
+
+## Failures and how to do differently
+      50 /Users/Heishing/.codex/memories/skills/canvas-adversarial-audit/SKILL.md
+---
+name: canvas-adversarial-audit
+description: Conduct a read-only, parallel, evidence-first adversarial audit of Canvas P1 closure claims, especially vault admission, Graphiti quarantine, and SnapshotV3.
+argument-hint: "[task-book path or P1 scope]"
+user-invocable: false
+allowed-tools: Read, Grep, Glob, Bash
+---
+
+# Canvas adversarial audit
+
+## When to use
+
+Use for a user-requested adversarial or closure audit in the Canvas Learning System worktree, particularly P1-05/P1-01/P1-08. Do not use to implement fixes, access prohibited raw-vault content, or declare a historical finding current without revalidation.
+
+## Inputs / context to gather
+
+1. Read the task book, `AGENTS.md`, worktree topology, allowed/prohibited paths, and reporting contract.
+2. Record checkout SHA, branch, WT/MAIN labels, current `CURRENT_TASK.md`, and requested P1 claims.
+3. Identify actual production entrypoints, not merely the tests that claim to cover them.
+
+## Procedure
+
+1. Split independent tracks: vault admission/indexing and tests; Graphiti quarantine/retrieval; SnapshotV3/recovery anchors. Keep the audit read-only.
+2. For each claim, build an evidence matrix: claim, `file:line`, adversarial input/state, actual entrypoint/path, observed result, severity, PASS/PARTIAL/FAIL, and limitations.
+3. Directly exercise real entrypoints with temporary fixtures where permitted. For path admission include symlink, directory symlink, blacklisted filename in an allowed directory, case variant, and nonexistent path. Assert rejected inputs perform zero open/hash/index/write.
+4. For quarantine, test ordinary edge search plus node search and exact-reader paths (`search_nodes`, `read_node_tips`, `read_node_errors`, `read_node_edge_reasons`). Use read-only Neo4j queries and `EXPLAIN` where allowed; distinguish observed metadata exposure from unproven fact-body leakage.
+5. For SnapshotV3, test same-generation invalid/future version self-healing, extra fields, strict typing, huge finite values that may produce NaN/Infinity, and identity/length collision boundaries.
+6. Compare recovery anchors with machine facts: current HEAD, Actions status, test counts, and unresolved findings. Separate targeted-test results from whole CI.
+7. Cross-check high-severity findings independently. Write the final matrix before closure language; explicitly retain `UNVERIFIABLE` items and failed counterexample attempts.
+
+## Efficiency plan
+
+- Start from task-book source handles and `rg` for real call sites; cache the entrypoint map for all tracks.
+- Parallelize independent tracks, then have the primary reviewer re-open only high-severity evidence.
+- Stop treating a test as evidence once it only hits source text, a helper, fake client, `__new__`, or monkeypatch; pivot to the real entrypoint.
+
+## Pitfalls and fixes
+
+- Green tests but unsafe closure -> tests do not reach production behavior. Add direct entrypoint fixtures and capture full stdout/trace before an assertion.
+- `session:` IDs used as provenance -> ID shape alone is not proof. Preserve provenance or report PARTIAL.
+- Quarantine count passes -> exact-reader/node-search surfaces may still cross groups. Test those surfaces specifically.
+- `CURRENT_TASK.md` says closed but anchors disagree -> rebuild anchors from current HEAD, Actions, and unresolved findings.
+
+## Verification checklist
+
+- Every finding has `file:line`, reproduction, severity, result, and claim-conflict explanation.
+- Final report labels WT/MAIN and all verification limits; no prohibited files or raw vault were read.
+- Production entrypoints, not only helpers, were tested for each security claim.
+- CI status is reported as whole-workflow status, not only passing targeted jobs.
+- P1 closure is withheld whenever a reproducible bypass or unverified critical surface remains.
+
+**Planning tool search and citation**
+codex
+我会沿用 Canvas 对抗审计的证据矩阵方法：每条声明都落到生产入口、具体行号、可复现反例/结果和限制；绿色门本身只作索引，不替代源码验证。现在先冻结 HEAD/提交对象/工作树状态，并定位 Graphiti 与顺序推理工具是否可用。
+2026-09-01T09:34:54.252851Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+**Planning four-step sequential approach**
+只读定向第四轮；三条 HIGH 独立并行，主审交叉复算证据与总结论。
+  → 冻结 HEAD、目标提交、diff 范围与允许读面
+  • 并行审 HIGH-1 / HIGH-3 / HIGH-4b 与对应门结构
+  • 主审复核终版全文、随行补口、存档日志与裁判输出
+  • 交叉核对行号、严重度、限制并给出定向终裁
+2026-09-01T09:35:01.539078Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+mcp: sequential-thinking/sequentialthinking started
+mcp: sequential-thinking/sequentialthinking (completed)
+2026-09-01T09:35:07.728370Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+**Inspecting git status and commit without risky test data**
+**Planning filtered git diff extraction for audit**
+exec
+/bin/zsh -lc "git status --short --branch && git rev-parse --show-toplevel && git rev-parse HEAD && git branch --show-current && git show --no-ext-diff --format='commit=%H%nparents=%P%nauthor_date=%aI%nsubject=%s' --no-renames --stat --name-status 7ca194ac && rg --files _bmad-output/审查/evidence-g62 backend/app/api/v1/endpoints | rg '(mutation-run-final\\.log|裁判命令输出-r4\\.txt|review_app\\.py|review_overview\\.py)"'$'"'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
+ succeeded in 0ms:
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+## card/w5-reviewapp
+ M "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-G6-2.md"
+?? "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G6-2-round4.md"
+?? "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G6-2-round4.stderr"
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+6661682d3fa7643e2478cfd2f785a032a7189a95
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+card/w5-reviewapp
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+commit=7ca194ac5083f0dd9749972f00075204fda9af97
+parents=24912aa6ac78612247b6398d3b736f5851318e24
+author_date=2026-09-01T16:41:59+08:00
+subject=fix(review): CARD-G6-2 round-3 终裁 findings 整改 [BATCH-2026-09-01-第八批 / CARD-G6-2]
+
+A	"_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G6-2-round3.md"
+A	"_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G6-2-round3.stderr"
+A	"_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G6-2-round3.stderr.cyber-blocked"
+A	"_bmad-output/\345\256\241\346\237\245/evidence-g62/g62-1-unavailable\344\270\215\347\231\275\345\261\217-r4.png"
+A	"_bmad-output/\345\256\241\346\237\245/evidence-g62/g62-2-\346\255\243\345\270\270-live\345\210\227\350\241\250-r4.png"
+M	"_bmad-output/\345\256\241\346\237\245/evidence-g62/g62_mutation_negative_controls.py"
+A	"_bmad-output/\345\256\241\346\237\245/evidence-g62/netlog-analysis-r4.txt"
+A	"_bmad-output/\345\256\241\346\237\245/evidence-g62/netlog-normal-full-r4.json"
+A	"_bmad-output/\345\256\241\346\237\245/evidence-g62/\350\243\201\345\210\244\345\221\275\344\273\244\350\276\223\345\207\272-r4.txt"
+A	"_bmad-output/\345\256\241\346\237\245/evidence-g62/\350\265\260\346\237\245\346\227\266\351\227\264\347\272\277-r4.txt"
+M	"_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-G6-2.md"
+M	backend/app/api/v1/endpoints/review_app.py
+M	backend/tests/unit/test_review_app.py
+backend/app/api/v1/endpoints/review_app.py
+backend/app/api/v1/endpoints/review_overview.py
+_bmad-output/审查/evidence-g62/裁判命令输出-r4.txt
+
+2026-09-01T09:35:23.351563Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+**Verifying commit ancestry and file changes**
+**Preparing to read key review files**
+exec
+/bin/zsh -lc 'git merge-base --is-ancestor 7ca194ac HEAD; git log --oneline --decorate --no-merges 24912aa6..HEAD; git diff --name-status 7ca194ac..HEAD -- backend/app/api/v1/endpoints/review_app.py backend/tests/unit/test_review_app.py; git diff --numstat 7ca194ac..HEAD -- backend/app/api/v1/endpoints/review_app.py backend/tests/unit/test_review_app.py; find _bmad-output/审查/evidence-g62 -maxdepth 1 -type f -print | sort' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
+ succeeded in 0ms:
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+6661682d (HEAD -> card/w5-reviewapp) docs(governance): CARD-G6-2 终态 FAIL 显著声明 + 台账/CURRENT_TASK [BATCH-2026-09-01-第八批 / CARD-G6-2]
+7ca194ac fix(review): CARD-G6-2 round-3 终裁 findings 整改 [BATCH-2026-09-01-第八批 / CARD-G6-2]
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+_bmad-output/审查/evidence-g62/demo-范式-上半区.jpg
+_bmad-output/审查/evidence-g62/demo-范式-下半区.jpg
+_bmad-output/审查/evidence-g62/g62-1-unavailable不白屏-r2.png
+_bmad-output/审查/evidence-g62/g62-1-unavailable不白屏-r3.png
+_bmad-output/审查/evidence-g62/g62-1-unavailable不白屏-r4.png
+_bmad-output/审查/evidence-g62/g62-1-unavailable不白屏.png
+_bmad-output/审查/evidence-g62/g62-2-正常-live列表-r2.png
+_bmad-output/审查/evidence-g62/g62-2-正常-live列表-r3.png
+_bmad-output/审查/evidence-g62/g62-2-正常-live列表-r4.png
+_bmad-output/审查/evidence-g62/g62-2-正常-live列表.png
+_bmad-output/审查/evidence-g62/g62-3-网络零外部请求-netlog同跑.png
+_bmad-output/审查/evidence-g62/g62_mutation_negative_controls.py
+_bmad-output/审查/evidence-g62/mutation-run-final.log
+_bmad-output/审查/evidence-g62/netlog-analysis-r2.txt
+_bmad-output/审查/evidence-g62/netlog-analysis-r3.txt
+_bmad-output/审查/evidence-g62/netlog-analysis-r4.txt
+_bmad-output/审查/evidence-g62/netlog-analysis.txt
+_bmad-output/审查/evidence-g62/netlog-normal-full-r2.json.gz
+_bmad-output/审查/evidence-g62/netlog-normal-full-r3.json
+_bmad-output/审查/evidence-g62/netlog-normal-full-r4.json
+_bmad-output/审查/evidence-g62/netlog-normal-full.json.gz
+_bmad-output/审查/evidence-g62/walkthrough-uvicorn.log
+_bmad-output/审查/evidence-g62/裁判命令输出-r3.txt
+_bmad-output/审查/evidence-g62/裁判命令输出-r4.txt
+_bmad-output/审查/evidence-g62/裁判命令输出.txt
+_bmad-output/审查/evidence-g62/走查时间线-r2.txt
+_bmad-output/审查/evidence-g62/走查时间线-r3.txt
+_bmad-output/审查/evidence-g62/走查时间线-r4.txt
+_bmad-output/审查/evidence-g62/走查时间线.txt
+
+2026-09-01T09:35:33.841407Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+**Planning agent assignments and inspections**
+**Evaluating safe test execution strategies**
+**Designing AST gate inspection delegation**
+codex
+边界已冻结：`7ca194ac` 是当前 HEAD 的直接祖先；之后的 `6661682d` 只改治理文档，目标生产文件与测试文件在 `7ca194ac..HEAD` 无差异。工作树另有审查输出/提示词变更，我会保持不碰。下面三条 HIGH 分轨核验，主审随后独立复算所有高风险点。
+**Planning git diff and show inspection**
+exec
+/bin/zsh -lc 'wc -l backend/app/api/v1/endpoints/review_app.py backend/app/api/v1/endpoints/review_overview.py backend/tests/unit/test_review_app.py; git diff --no-ext-diff --unified=80 7ca194ac''^ 7ca194ac -- backend/app/api/v1/endpoints/review_app.py; nl -ba backend/app/api/v1/endpoints/review_app.py' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
+ succeeded in 0ms:
+     513 backend/app/api/v1/endpoints/review_app.py
+    1895 backend/app/api/v1/endpoints/review_overview.py
+    1409 backend/tests/unit/test_review_app.py
+    3817 total
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+diff --git a/backend/app/api/v1/endpoints/review_app.py b/backend/app/api/v1/endpoints/review_app.py
+index 63336a43..97bd553f 100644
+--- a/backend/app/api/v1/endpoints/review_app.py
++++ b/backend/app/api/v1/endpoints/review_app.py
+@@ -192,303 +192,322 @@ function humanizeDue(ts, nowMs) {
+   if (days <= 7) return {text: days + "天后", color: "#374151"};
+   const parts = d1.split("-").map(Number);
+   const y0 = Number(d0.split("-")[0]);
+   return {text: (parts[0] === y0 ? "" : parts[0] + "年") + parts[1] + "月" + parts[2] + "日", color: "#6b7280"};
+ }
+ function computePollDelayMs(data, nowMs) {
+   // 轮询周期 = clamp(最近**未来** next_upcoming.next_due − now, 5s, 60s)。
+   // next_due 只定「下一次去问服务端」的节奏; 已过期的 next_due 意味着数据
+   // 要等生产器重跑才会变 → 回落上限 60s, 不空转。
+   let best = null;
+   const vaults = data && Array.isArray(data.vaults) ? data.vaults : [];
+   for (const v of vaults) {
+     const nu = v && v.projection && v.projection.next_upcoming;
+     const ms = nu ? parseDueMs(nu.next_due) : null;
+     if (ms !== null && ms > nowMs && (best === null || ms < best)) best = ms;
+   }
+   const raw = best === null ? POLL_MAX_MS : best - nowMs;
+   return Math.min(POLL_MAX_MS, Math.max(POLL_MIN_MS, raw));
+ }
+ function visibilityAction(hidden) {
+   // 页面隐藏 → 只取消排程; 回到前台 → 取消旧排程并立即拉一轮
+   return hidden ? {cancelTimer: true, pollNow: false} : {cancelTimer: true, pollNow: true};
+ }
+ function boardLink(vaultId, board) {
+   // encodeURIComponent 与服务端 quote(safe="") 同语义: "/" 也编码
+   return "obsidian://open?vault=" + encodeURIComponent(vaultId) + "&file=" + encodeURIComponent("原白板/" + board + ".md");
+ }
+ function nodeLink(vaultId, node) {
+   return "obsidian://open?vault=" + encodeURIComponent(vaultId) + "&file=" + encodeURIComponent("节点/" + node + ".md");
+ }
+ function nodeDetailHtml(vaultId, nodes, nowMs) {
+   if (!Array.isArray(nodes) || !nodes.length) return "";
+   const items = nodes.map(n => {
+     const due = humanizeDue(n.fsrs_due, nowMs);
+     const tag = n.bucket == null ? "" :
+       '<span class="nodetag">' + esc(BUCKET_CN[n.bucket] || n.bucket) + "</span>";
+     const why = !n.why_due ? "" : '<div class="whydue">' + esc(n.why_due) + "</div>";
+     return '<li class="nodeli"><a href="' + esc(nodeLink(vaultId, n.node)) + '">' + esc(n.node) + "</a>" + tag +
+       '<span style="color:' + due.color + ';font-size:12px;margin-left:6px">' + esc(due.text) + "</span>" + why + "</li>";
+   });
+   return '<details style="margin:2px 0 4px"><summary style="cursor:pointer;color:#6b7280;font-size:12px">节点明细（' +
+     nodes.length + '）</summary><ul style="margin:6px 0 0;padding:0 0 0 6px">' + items.join("") + "</ul></details>";
+ }
+ function boardTableHtml(vaultId, boards, nowMs) {
+   if (!Array.isArray(boards) || !boards.length) return "";
+   const head = ["白板名", "到期", "新卡", "待剖析", "最早到期"].map(c => "<th>" + c + "</th>").join("");
+   const rows = boards.map(r => {
+     const due = humanizeDue(r.earliest, nowMs);
+     const ph = r.placeholder == null ? "—" : String(r.placeholder);
+     // W6 加性字段: 缺省整块不出现 (沿 bucket_counts 缺省纪律)
+     const est = Number.isFinite(r.estimated_minutes) ?
+       '<span class="estmin">约 ' + r.estimated_minutes + " 分钟</span>" : "";
+     let out = '<tr><td><a href="' + esc(boardLink(vaultId, r.board)) + '">' + esc(r.board) + "</a>" + est + "</td>" +
+       '<td class="num">' + (r.due ? "<b>" + r.due + "</b>" : '<span style="color:#9ca3af">0</span>') + "</td>" +
+       '<td class="num">' + r.due_new + "</td>" +
+       '<td class="num">' + esc(ph) + "</td>" +
+       '<td style="white-space:nowrap;color:' + due.color + '">' + esc(due.text) + "</td></tr>";
+     if (typeof r.why_this_board === "string" && r.why_this_board)
+       out += '<tr><td colspan="5" class="why">💡 ' + esc(r.why_this_board) + "</td></tr>";
+     const detail = nodeDetailHtml(vaultId, r.nodes, nowMs);
+     if (detail) out += '<tr><td colspan="5" style="padding-top:0">' + detail + "</td></tr>";
+     return out;
+   }).join("");
+   return '<div class="tblwrap"><table><thead><tr>' + head + "</tr></thead><tbody>" + rows + "</tbody></table></div>";
+ }
+ function restDayHtml(proj, nowMs) {
+   // 休息日空状态 (status ok 且 due_count===0) — 文案对齐
+   // daily_review_pick.py:599「今日无到期节点，休息一天」/ :564「按计划推进」
+   const nu = proj.next_upcoming;
+   // 日期转上海本地日 (UTC 字面日期在上海已跨天时会骗人 — Codex round-2 M4)
+   let day = "";
+   if (nu) {
+     const ms = parseDueMs(nu.next_due);
+     day = ms === null ? String(nu.next_due).slice(0, 10) : shDay(ms);
+   }
+   const tail = nu ? '<div style="color:#6b7280;font-size:13px;margin-top:4px">按计划推进 · 最近到期 ' +
+     esc(nu.board) + " · " + esc(day) + "</div>" : "";
+   return '<div class="restday">✅ 今日无到期节点，休息一天。' + tail + "</div>";
+ }
+ function renderVaultCard(entry, nowMs, noteHtml, isInflight) {
+-  // 未知 status 防御: 原字面灰徽标 (未来第五态不白屏)
+-  const meta = STATUS_META[entry.status] || [entry.status, "#6b7280"];
++  // 未知 status 防御: 原字面灰徽标 (未来第五态不白屏)。
++  // own-key 访问 (round-3 LOW-3): "constructor"/"__proto__" 会命中继承属性,
++  // 必须显式判自有键才落灰兜底
++  const meta = Object.prototype.hasOwnProperty.call(STATUS_META, entry.status)
++    ? STATUS_META[entry.status] : [entry.status, "#6b7280"];
+   const vid = entry.vault_id;
+   let body = "";
+   const proj = entry.projection;
+   if (proj) {
+     if (entry.status === "ok" && proj.due_count === 0) {
+       body = restDayHtml(proj, nowMs);
+     } else {
+       const bc = proj.bucket_counts;
+       const layers = bc == null ? "" :
+         '<div class="layers">分层 · ' + BUCKET_ORDER.map(b => esc(BUCKET_CN[b]) + " " + bc[b]).join(" · ") + "</div>";
+       body = '<div class="big">到期 <b>' + proj.due_count + "</b><small> · 新卡 " + proj.due_new_count +
+         " · 待剖析 " + proj.placeholder_backlog + "</small></div>" + layers +
+         boardTableHtml(vid, proj.boards, nowMs);
+     }
+     body += '<div class="gen">生成于 ' + esc(String(proj.generated_at)) + "</div>" +
+       '<a href="obsidian://open?vault=' + esc(encodeURIComponent(vid)) + '">在 Obsidian 中打开 ↗</a>';
+     // W6 加性顶层 rank_manifest: 在场才出现, 不解析内部形状
+     if (proj.rank_manifest != null) body += '<div class="manifest">📋 本次板序含排序依据（rank_manifest）</div>';
+   } else if (entry.status === "no_projection") {
+     body = '<div class="degraded">该库尚无今日复习投影 — 推送管道尚未为它跑过<br>' +
+       "深链已降级：需在 Obsidian 打开过该库后才提供跳转</div>";
+   } else {
+     body = '<div class="corrupt-err">投影文件无法解析<br><code>' + esc(String(entry.error || "")) + "</code></div>";
+   }
+   // noteHtml 是 renderRefreshResult 的成品 HTML (内部已 esc), 由调用方从
+   // 持久状态传入 — 重绘后反馈得以恢复 (Codex round-1 HIGH-1)
+   return '<div class="card"><div class="card-head"><b>' + esc(vid) + "</b>" +
+     '<span class="badge" style="background:' + meta[1] + '">' + esc(meta[0]) + "</span></div>" + body +
+     '<div class="actions"><button class="btn"' + (isInflight ? " disabled" : "") +
+     ' data-refresh-vault="' + esc(vid) + '">🔄 刷新投影</button>' +
+     '<span class="rnote" data-note-for="' + esc(vid) + '">' + (noteHtml || "") + "</span></div></div>";
+ }
+ function renderPage(data, nowMs, notes, inflight) {
+   const vaults = data && Array.isArray(data.vaults) ? data.vaults : [];
+   if (!vaults.length) return '<div class="empty">VAULTS_ROOT 下未发现任何 vault (需含 .obsidian/ 目录)</div>';
+   return vaults.map(e => renderVaultCard(e, nowMs, (notes && notes[e.vault_id]) || "",
+     !!(inflight && inflight[e.vault_id]))).join("");
+ }
+ function renderUnavailableBanner(detail, lastOkText) {
+   const keep = lastOkText ? "页面保留 " + esc(lastOkText) + " 的最后一次成功数据。" : "尚未成功获取过数据。";
+   return "<b>⚠ 后端离线/不可用</b> — " + esc(detail) + "。" + keep + "自动重试中…";
+ }
+ function renderRefreshResult(status, payload) {
+   // POST /overview/refresh 响应可见化 — rebuilt/debounced/in_progress/失败
+   // 四种结局都尽量带上 rebuild_count (进程内累计); 去抖与失败绝不长得像成功
+   // (零 JS 页 round-3 修过的「与成功同形的 303」不许在交互壳还魂)
+   const count = payload && payload.rebuild_count !== undefined && payload.rebuild_count !== null
+     ? "（本进程累计 " + esc(payload.rebuild_count) + " 次）" : "";
+   if (status === 200 && payload && payload.reason === "rebuilt")
+     // 不当场声称"数字已更新" — 数字要等受保护的 GET 成功落屏才算数 (round-2 HIGH-1)
+     return '<span class="rnote ok">✅ 已重建' + count + " · 正在同步最新数字…</span>";
+   if (status === 200 && payload && payload.reason === "debounced") {
+     const wait = Number(payload.retry_after_seconds);
+     return '<span class="rnote warn">⏱ ' + esc(payload.debounce_ttl_seconds) + " 秒内已重建过" + count +
+       "，本次未重算" +
+       (Number.isFinite(wait) && wait > 0 ? " · 约 " + Math.ceil(wait) + " 秒后可再试" : "") + "</span>";
+   }
+   if (status === 200 && payload && payload.reason === "in_progress")
+     return '<span class="rnote warn">⏳ 该库已有一次重建在跑' + count + "，本次未重复启动</span>";
+   let detail = "";
+   if (payload && payload.detail)
+     detail = typeof payload.detail === "string" ? payload.detail : (payload.detail.message || JSON.stringify(payload.detail));
+   if (status === 0) return '<span class="rnote err">❌ 刷新失败（网络错误）：' + esc(detail || "连接失败") + "</span>";
+   return '<span class="rnote err">❌ 刷新失败（HTTP ' + esc(status) + "）" + (detail ? "：" + esc(detail) : "") + "</span>";
+ }
+ 
+ // ═══ 副作用壳: 只消费上面纯函数的返回值 ═══
+ const state = {timer: null, lastOkAt: null, lastData: null, pollGen: 0,
+   // vault_id 是外部字符串 — Object.create(null) 防 "__proto__"/"constructor" 键注入原型 (round-2 M1)
+   notes: Object.create(null), inflight: Object.create(null), pendingSync: Object.create(null)};
+ const el = id => document.getElementById(id);
+ function fmtClock(ms) {
+   return new Intl.DateTimeFormat("zh-CN", {timeZone: "Asia/Shanghai", hour12: false,
+     hour: "2-digit", minute: "2-digit", second: "2-digit"}).format(new Date(ms));
+ }
+ function setConn(cls, text) {
+   const c = el("conn");
+   c.className = "conn " + cls;
+   c.textContent = text;
+ }
+ function vaultButtons(vid) {
+   // getAttribute 比对而非把 vid 插进 CSS 选择器 — vid 是外部字符串,
+   // 进选择器会被当选择器语法解析 (引号/反斜杠注入面)
+   return Array.from(el("cards").querySelectorAll("[data-refresh-vault]"))
+     .filter(b => b.getAttribute("data-refresh-vault") === vid);
+ }
+ function applyNote(vid) {
+   const n = state.notes[vid];
+   if (!n) return false;
+   let patched = false;
+   for (const span of el("cards").querySelectorAll("[data-note-for]")) {
+     if (span.getAttribute("data-note-for") === vid) { span.innerHTML = n.html; patched = true; }
+   }
+   return patched;
+ }
+ function freshNotes(nowMs) {
+-  const out = {};
++  // null-prototype: 与 state.notes 同纪律 — 普通对象会被 "__proto__" 键污染 (round-3 M1)
++  const out = Object.create(null);
+   for (const vid of Object.keys(state.notes)) {
+     if (nowMs - state.notes[vid].atMs < NOTE_TTL_MS) out[vid] = state.notes[vid].html;
+   }
+   return out;
+ }
+ function renderCards(nowMs) {
+   el("cards").innerHTML = renderPage(state.lastData, nowMs, freshNotes(nowMs), state.inflight);
+ }
+-function settlePendingSync(nowMs, ok) {
+-  // rebuilt 只发"正在同步…"；数字是否真更新, 由 GET 成败结算 (round-2 HIGH-1:
+-  // 旧版 GET 失败也挂着"数字已更新", 矛盾可以无限期留在屏上)
++function settlePendingSync(nowMs, ok, renderedVids) {
++  // rebuilt 只发"正在同步…"；数字是否真更新, 由 GET 成败结算 (round-2 HIGH-1)。
++  // round-3 HIGH-1 收紧: 成功结算必须**绑定证据** — renderedVids 里要有该库、
++  // 且该库条目带可用 projection (corrupt/缺投影的库不许说"数字已更新")；
++  // 不在 renderedVids 里的 pending 库按失败结算, 不许跟着最新 GET 沾光。
+   for (const vid of Object.keys(state.pendingSync)) {
+     const n = state.pendingSync[vid];
+     delete state.pendingSync[vid];
+-    state.notes[vid] = {html: ok
++    const okThis = ok && renderedVids && renderedVids[vid] === true;
++    state.notes[vid] = {html: okThis
+       ? '<span class="rnote ok">✅ 已重建（本进程累计 ' + esc(n.count) + ' 次）· 数字已更新</span>'
+       : '<span class="rnote warn">⚠ 已重建（本进程累计 ' + esc(n.count) +
+         ' 次）· 数字同步失败，后端恢复后自动重试</span>', atMs: nowMs};
+     if (!applyNote(vid) && state.lastData) renderCards(nowMs);
+   }
+ }
+ function schedule(ms) {
+   clearTimeout(state.timer);
+   state.timer = null;
+   if (document.hidden) { el("nextpoll").textContent = "已暂停（页面隐藏）"; return; }
+   state.timer = setTimeout(poll, ms);
+   el("nextpoll").textContent = "下次自动刷新 ~" + Math.round(ms / 1000) + " 秒后";
+ }
+ async function poll() {
+   let delay = RETRY_DELAY_MS;
+   const gen = ++state.pollGen;  // 代际: 只有最新一次 GET 可以提交状态 (乱序旧响应整包丢弃)
+   try {
+     const resp = await fetch(URLS.overview, {cache: "no-store"});
+     if (!resp.ok) throw new Error("HTTP " + resp.status);
+     const data = await resp.json();
+     // 形状校验在提交状态之前 — HTTP 200 的坏形状不许清掉旧数据再装"已连接" (round-2 M2)
+     if (!data || !Array.isArray(data.vaults)) throw new Error("响应形状坏 (vaults 缺失)");
+     if (gen !== state.pollGen) return;  // 过期响应: 不碰状态不排程
+     const nowMs = Date.now();
++    // 先渲染候选数据当探针 (round-3 HIGH-1: 坏成员让 render 抛错时走 catch —
++    // lastData/结算/成功提示都不会被半截提交), 再结算, 再上最终帧
++    // (结算会更新 notes, 探针帧里是结算前的反馈, 不能直接用)
++    renderPage(data, nowMs, freshNotes(nowMs), state.inflight);
++    // 成功结算的绑定证据: 渲染成功, 且该库条目带可用 projection
++    // (损坏/缺投影的库不许沾最新 GET 的光说"数字已更新")
++    const renderedVids = Object.create(null);
++    for (const v of data.vaults) {
++      if (v && v.vault_id && v.projection) renderedVids[v.vault_id] = true;
++    }
+     state.lastData = data;
+-    settlePendingSync(nowMs, true);
+-    renderCards(nowMs);
++    settlePendingSync(nowMs, true, renderedVids);
++    el("cards").innerHTML = renderPage(data, nowMs, freshNotes(nowMs), state.inflight);
+     el("banner").hidden = true;
+     state.lastOkAt = nowMs;
+     el("updated").textContent = "上次更新 " + fmtClock(nowMs);
+     setConn("ok", "已连接");
+     delay = computePollDelayMs(data, nowMs);
+   } catch (e) {
+     if (gen !== state.pollGen) return;  // 过期响应的失败同样不碰状态
+     settlePendingSync(Date.now(), false);
+     el("banner").innerHTML = renderUnavailableBanner(String((e && e.message) || e),
+       state.lastOkAt ? fmtClock(state.lastOkAt) : null);
+     el("banner").hidden = false;
+     setConn("down", "后端不可用");
+   }
+   schedule(delay);
+ }
+ document.addEventListener("visibilitychange", () => {
+   const act = visibilityAction(document.hidden);
+   if (act.cancelTimer) { clearTimeout(state.timer); state.timer = null; }
+   if (act.pollNow) poll();
+   else if (document.hidden) el("nextpoll").textContent = "已暂停（页面隐藏）";
+ });
+ async function onRefreshClick(ev) {
+   const btn = ev.target.closest("[data-refresh-vault]");
+   if (!btn) return;
+   const vid = btn.getAttribute("data-refresh-vault");
+   if (state.inflight[vid]) return;  // 同库重建在飞, 不发第二个 POST
+   state.inflight[vid] = true;
+   state.notes[vid] = {html: '<span class="rnote">⏳ 重建中…</span>', atMs: Date.now()};
+   for (const b of vaultButtons(vid)) b.disabled = true;
+   applyNote(vid);
+   try {
+     // 手动按钮是唯一的 POST 路径 (默认裁决②: 自动轮询绝不 POST)
+     const resp = await fetch(URLS.refresh, {method: "POST", body: new URLSearchParams({vault_id: vid})});
+     let payload = null;
+     try { payload = await resp.json(); } catch (_e) { payload = null; }
+     state.notes[vid] = {html: renderRefreshResult(resp.status, payload), atMs: Date.now()};
+     // 先就地补; 就地补不到 (反馈期间被轮询重绘换过 DOM) 且手上有数据 →
+     // 用持久状态重绘恢复 — 反馈从此不依赖「那个 span 还在不在」
+     if (!applyNote(vid) && state.lastData) renderCards(Date.now());
+     if (resp.ok && payload && payload.rebuilt) {
+       // 数字是否真更新交给 GET 结算 (settlePendingSync) — 不在 POST 结局里预先声称
+       state.pendingSync[vid] = {count: payload.rebuild_count, atMs: Date.now()};
+-      poll();  // 真重建 → 立即重拉 (反馈在 state.notes, 重绘不丢)
++      // 隐藏时不触发 GET (round-3 LOW-2): pending 挂着, 回前台 visibilitychange
++      // 的 poll 会结算 — 不在用户看不见的时候起网络活动
++      if (!document.hidden) poll();
+     }
+   } catch (e) {
+     state.notes[vid] = {html: renderRefreshResult(0, {detail: String((e && e.message) || e)}), atMs: Date.now()};
+     if (!applyNote(vid) && state.lastData) renderCards(Date.now());
+   } finally {
+     delete state.inflight[vid];
+     for (const b of vaultButtons(vid)) b.disabled = false;
+   }
+ }
+ el("cards").addEventListener("click", onRefreshClick);
+ poll();
+ </script>
+ </body>
+ </html>
+ """
+ 
+ 
+ @review_app_router.get(
+     "/overview/app",
+     response_class=HTMLResponse,
+     summary="跨 vault 复习总览 · 交互版 (CARD-G6-2; 单文件内联 HTML, 零外部 URL)",
+ )
+ async def review_overview_app(request: Request) -> HTMLResponse:
+     """交互复习壳: 自动轮询 GET /overview, 手动按钮 POST /overview/refresh。
+ 
+     与零 JS 只读页 (/overview/page) 共存。API 路径按本次请求的路由表注入
+     (url_for), 不硬编码。
+     """
+     urls = {
+         "overview": request.url_for("review_overview").path,
+         "refresh": request.url_for("review_overview_refresh").path,
+     }
+     page = (
+         _PAGE_TEMPLATE.replace("__URLS_JSON__", _js_json(urls))
+         .replace("__STATUS_META_JSON__", _js_json({k: list(v) for k, v in _STATUS_META.items()}))
+         .replace("__BUCKET_CN_JSON__", _js_json(_BUCKET_CN))
+         .replace("__BUCKET_ORDER_JSON__", _js_json(list(_BUCKET_ORDER)))
+     )
+     return HTMLResponse(content=page)
+     1	"""交互复习壳 (CARD-G6-2, BATCH-2026-09-01-第八批)。
+     2	
+     3	GET /api/v1/review/overview/app — 单文件交互 HTML (内联 CSS/JS, 零 CDN、
+     4	零外部 URL, 只允许 obsidian:// 深链与本机相对路径), 与零 JS 只读页
+     5	(/overview/page, W6 车道独占) 共存 — 两页并立, 互不替代。
+     6	
+     7	职责边界 (与 review_overview.py 的分工, 防双实现):
+     8	- 本页 JS 是 GET /overview JSON 与 POST /overview/refresh 的**纯消费方**:
+     9	  不实现任何 due 算法 — 谁到期/计数/排序全部来自服务端投影摘要
+    10	  (_summarize 的 due_count 权威口径 / boards 行 / next_upcoming)。JS 只做
+    11	  两件事: ①展示层格式化 (把已给定的时间戳渲染成人话, 删掉它页面依然知道
+    12	  谁到期); ②轮询节奏 — 周期 = clamp(最近未来 next_upcoming.next_due − now,
+    13	  5s, 60s) (默认裁决②), next_due 只决定「下一次去问服务端的时刻」, 不据此
+    14	  改任何到期展示。
+    15	- 页面隐藏 (visibilitychange) 时暂停轮询, 回到前台立即拉一轮。
+    16	- 自动轮询**绝不** POST refresh — 只有手动「刷新投影」按钮才 POST
+    17	  (同库重建在飞期间按钮禁用, 不发第二个 POST)。
+    18	- 两个 API path 用 request.url_for 注入 (不硬编码) — prefix 改动不漂移。
+    19	- 四态徽标字面从 review_overview._STATUS_META **import 后注入** JS (共享
+    20	  不复制, W6 改文案本页自动跟随); 前端另有第五态 unavailable: fetch 失败/
+    21	  非 200/JSON 解析失败 → 顶部横幅 + 保留最后一次成功数据, 不白屏。
+    22	  卡文默认裁决⑥提及的 "unregistered" 在 review_overview 状态枚举中不存在
+    23	  (2026-09-01 grep 0 命中, 仅页脚有"未注册的库点击无响应"提示文案) — 本页
+    24	  对未知 status 值做防御渲染 (原字面灰徽标), 未来加态不白屏。
+    25	- 休息日空状态 (status ok 且 due_count==0): 文案对齐
+    26	  scripts/daily_review_pick.py:599「今日无到期节点，休息一天」/ :564
+    27	  「按计划推进 · 最近到期 …」 (只对齐字面, 不 import — scripts/ 不在
+    28	  app 包路径, 且判定本身用的是投影摘要的 due_count, 无第二套口径)。
+    29	- W6 (CARD-G3-6b) 加性三字段按「缺省整块不出现」渲染 (沿 bucket_counts
+    30	  缺省纪律): boards[].why_this_board (非空字符串→板行下说明行) /
+    31	  boards[].estimated_minutes (有限数→「约 N 分钟」标签) / projection 顶层
+    32	  rank_manifest (在场→底部小注, 不解析内部形状)。W6 先合、透传位置以合并
+    33	  后主干为准 — 缺省不出现的设计保证位置不符时页面不炸只是不显示。
+    34	- 刷新反馈进**持久状态** (state.notes, 15s TTL): 手动刷新的结局 (重建/
+    35	  去抖/在跑/失败, 均含 rebuild_count) 写进状态而非只写 DOM —— rebuilt 触发
+    36	  的立即重拉、或任何一轮轮询重绘, 都会从状态恢复反馈, 不会被下一帧抹掉
+    37	  (Codex round-1 HIGH-1); 在飞期间按钮禁用也是渲染态的一部分, 重绘不会
+    38	  意外解锁成可双击。
+    39	
+    40	JS 结构 (测试契约, Codex round-1 HIGH-3 后的形态): tests/unit/test_review_app.py
+    41	把响应里的**整个 <script> 原文**放进受控沙箱 (stub document/fetch/timer)
+    42	直接执行, 纯函数从执行后的沙箱作用域导出断言 —— 不存在任何「按注释标记
+    43	割取代码」的通道, 注释里藏一份好代码骗提取器的攻击面不成立; 副作用壳
+    44	(轮询/点击流程) 也在同一沙箱里以假事件驱动做接线断言。node 不可用时该
+    45	fixture fail-closed (pytest.fail), 禁止静默 skip 假绿 (Codex round-1 HIGH-2)。
+    46	"""
+    47	
+    48	from __future__ import annotations
+    49	
+    50	import json
+    51	
+    52	from fastapi import APIRouter, Request
+    53	from fastapi.responses import HTMLResponse
+    54	
+    55	from app.api.v1.endpoints.review_overview import _BUCKET_CN, _BUCKET_ORDER, _STATUS_META
+    56	
+    57	review_app_router = APIRouter()
+    58	
+    59	
+    60	def _js_json(value) -> str:
+    61	    """常量 → 可安全内嵌 <script> 的 JSON 字面量。
+    62	
+    63	    值全部来自服务端自有常量与 url_for 路径 (无用户输入), `<` 转义只是
+    64	    防御深度: 万一未来有人把含 "</script>" 的字面量塞进 _STATUS_META,
+    65	    页面不会在此处被截断。
+    66	    """
+    67	    return json.dumps(value, ensure_ascii=False).replace("<", "\\u003c")
+    68	
+    69	
+    70	# ── 页面模板 (r-string: JS 正则的反斜杠原样保留) ─────────────────────
+    71	# 占位符 __URLS_JSON__ / __STATUS_META_JSON__ / __BUCKET_CN_JSON__ /
+    72	# __BUCKET_ORDER_JSON__ 由端点函数按请求注入。
+    73	_PAGE_TEMPLATE = r"""<!DOCTYPE html>
+    74	<html lang="zh-CN">
+    75	<head>
+    76	<meta charset="utf-8">
+    77	<meta name="viewport" content="width=device-width, initial-scale=1">
+    78	<title>跨库复习总览 · 交互版</title>
+    79	<style>
+    80	  /* 与零 JS 页 (/overview/page) 同族配色 — 交互壳不另起视觉体系 */
+    81	  body { font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif;
+    82	         background: #f5f5f7; margin: 0; padding: 24px; color: #111827; }
+    83	  [hidden] { display: none !important; }
+    84	  h1 { font-size: 22px; margin: 0 0 4px; }
+    85	  .ver { font-size: 13px; color: #2563eb; font-weight: normal; }
+    86	  .sub { color: #6b7280; font-size: 13px; margin-bottom: 12px; }
+    87	  .statusbar { display: flex; gap: 14px; align-items: center; flex-wrap: wrap;
+    88	               font-size: 13px; color: #6b7280; margin-bottom: 16px; }
+    89	  .conn { border-radius: 999px; padding: 2px 10px; font-size: 12px; color: #fff; white-space: nowrap; }
+    90	  .conn.ok { background: #16a34a; }
+    91	  .conn.down { background: #dc2626; }
+    92	  .conn.idle { background: #9ca3af; }
+    93	  .banner { background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px;
+    94	            padding: 10px 16px; font-size: 14px; color: #991b1b; margin-bottom: 16px; }
+    95	  .cards { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+    96	  .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px 20px;
+    97	          flex: 1 1 320px; min-width: 0; max-width: 520px; background: #fff;
+    98	          box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+    99	  .card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+   100	  .card-head b { font-size: 16px; }
+   101	  .badge { border-radius: 999px; padding: 2px 10px; font-size: 12px; color: #fff; white-space: nowrap; }
+   102	  .big { font-size: 26px; margin: 8px 0 0; }
+   103	  .big small { font-size: 13px; color: #6b7280; font-weight: normal; }
+   104	  .layers { font-size: 12px; color: #6b7280; margin: 2px 0 0; }
+   105	  .tblwrap { overflow-x: auto; margin: 10px 0 4px; }
+   106	  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+   107	  th { padding: 4px 8px; border-bottom: 1px solid #e5e7eb; color: #6b7280;
+   108	       font-weight: 500; text-align: left; white-space: nowrap; font-size: 12px; }
+   109	  td { padding: 5px 8px; border-bottom: 1px solid #f3f4f6; }
+   110	  td.num { text-align: center; white-space: nowrap; }
+   111	  a { color: #2563eb; text-decoration: none; }
+   112	  .why { color: #6b7280; font-size: 12px; padding: 0 8px 6px; }
+   113	  .estmin { display: inline-block; background: #eef2ff; color: #4338ca; border-radius: 4px;
+   114	            padding: 0 6px; font-size: 11px; margin-left: 6px; white-space: nowrap; }
+   115	  .manifest { color: #9ca3af; font-size: 11px; margin-top: 6px; }
+   116	  .gen { color: #6b7280; font-size: 12px; margin: 4px 0 6px; }
+   117	  .restday { color: #16a34a; font-size: 14px; margin: 14px 0; }
+   118	  .degraded { color: #6b7280; margin: 12px 0; font-size: 13px; }
+   119	  .corrupt-err { color: #dc2626; margin: 12px 0; }
+   120	  .corrupt-err code { font-size: 11px; overflow-wrap: anywhere; }
+   121	  .actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
+   122	  .btn { font-size: 13px; color: #2563eb; background: #eff6ff; border: 1px solid #bfdbfe;
+   123	         border-radius: 6px; padding: 3px 10px; cursor: pointer; font-family: inherit; }
+   124	  .btn:disabled { opacity: .5; cursor: default; }
+   125	  .rnote { font-size: 12px; color: #6b7280; }
+   126	  .rnote.ok { color: #16a34a; }
+   127	  .rnote.warn { color: #d97706; }
+   128	  .rnote.err { color: #dc2626; }
+   129	  .nodetag { display: inline-block; background: #f3f4f6; color: #4b5563; border-radius: 4px;
+   130	             padding: 0 6px; font-size: 11px; margin-left: 6px; white-space: nowrap; }
+   131	  .nodeli { margin: 0 0 6px; list-style: none; line-height: 1.5;
+   132	            overflow-wrap: anywhere; word-break: break-word; }
+   133	  .whydue { color: #6b7280; font-size: 12px; margin-top: 1px; }
+   134	  .empty { color: #6b7280; }
+   135	  .footer { color: #9ca3af; font-size: 12px; margin-top: 24px; }
+   136	</style>
+   137	</head>
+   138	<body>
+   139	<h1>📚 跨库复习总览 <span class="ver">交互版</span></h1>
+   140	<div class="sub">自动轮询（到点自动重新拉取投影聚合）· 只读聚合，数据来自各库 outputs/今日复习.json
+   141	 · 「刷新投影」按需重建该库投影（只写它自己的 outputs/今日复习.*）</div>
+   142	<div class="statusbar">
+   143	  <span id="conn" class="conn idle">连接中…</span>
+   144	  <span id="updated"></span>
+   145	  <span id="nextpoll"></span>
+   146	</div>
+   147	<div id="banner" class="banner" hidden></div>
+   148	<div id="cards" class="cards"><span class="empty">加载中…</span></div>
+   149	<div class="footer">⚠ obsidian:// 跳转需在 Obsidian 打开过该库（未注册的库点击无响应）；
+   150	存在同名库时可能跳到先注册的那个，以 Obsidian 侧库列表为准</div>
+   151	<script>
+   152	"use strict";
+   153	// 服务端注入 (url_for 路径 + review_overview 共享字面 — 单一来源, 不复制)
+   154	const URLS = __URLS_JSON__;
+   155	const STATUS_META = __STATUS_META_JSON__;
+   156	const BUCKET_CN = __BUCKET_CN_JSON__;
+   157	const BUCKET_ORDER = __BUCKET_ORDER_JSON__;
+   158	const POLL_MIN_MS = 5000;   // 轮询下限 (默认裁决②: clamp 5s)
+   159	const POLL_MAX_MS = 60000;  // 轮询上限 (默认裁决②: clamp 60s)
+   160	const RETRY_DELAY_MS = 10000;  // unavailable 态的固定重试间隔 (在 clamp 区间内)
+   161	const NOTE_TTL_MS = 15000;  // 刷新反馈的可见窗: 足够活过 rebuilt 触发的立即重拉, 不永久占卡片
+   162	
+   163	// ═══ 纯渲染函数: 输入 JSON → 输出 HTML 字符串/数值。无 DOM、无 fetch、
+   164	// 无时钟读取 (nowMs 一律显式入参)。 ═══
+   165	function esc(s) {
+   166	  return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+   167	}
+   168	function shDay(ms) {
+   169	  // Asia/Shanghai 本地日 YYYY-MM-DD (en-CA locale 恰好输出 ISO 形态);
+   170	  // 与服务端 _humanize_due 的"上海本地日差"同一口径
+   171	  return new Intl.DateTimeFormat("en-CA", {timeZone: "Asia/Shanghai"}).format(new Date(ms));
+   172	}
+   173	function parseDueMs(ts) {
+   174	  // 生产器 UTC-Z 秒级形态; 非该形态返回 null (显示层容错, 绝不抛)
+   175	  if (typeof ts !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(ts)) return null;
+   176	  const ms = Date.parse(ts);
+   177	  return Number.isFinite(ms) ? ms : null;
+   178	}
+   179	function humanizeDue(ts, nowMs) {
+   180	  // ⚠ 纯显示层格式化 — 不是 due 判定: 谁到期/计数/排序全来自投影字段
+   181	  // (boards[].due / due_count), 删掉本函数页面依然知道谁到期。
+   182	  // 口径对齐服务端 _humanize_due (上海本地日差), 同源锁见 pytest 对拍测试。
+   183	  if (ts === null || ts === undefined) return {text: "—", color: "#6b7280"};
+   184	  if (ts === "") return {text: "现在", color: "#d97706"};
+   185	  const ms = parseDueMs(ts);
+   186	  if (ms === null) return {text: "—", color: "#6b7280"};
+   187	  const d1 = shDay(ms), d0 = shDay(nowMs);
+   188	  const days = Math.round((Date.parse(d1) - Date.parse(d0)) / 86400000);
+   189	  if (days < 0) return {text: "逾期" + (-days) + "天", color: "#dc2626"};
+   190	  if (days === 0) return {text: "现在", color: "#d97706"};
+   191	  if (days === 1) return {text: "明天", color: "#374151"};
+   192	  if (days <= 7) return {text: days + "天后", color: "#374151"};
+   193	  const parts = d1.split("-").map(Number);
+   194	  const y0 = Number(d0.split("-")[0]);
+   195	  return {text: (parts[0] === y0 ? "" : parts[0] + "年") + parts[1] + "月" + parts[2] + "日", color: "#6b7280"};
+   196	}
+   197	function computePollDelayMs(data, nowMs) {
+   198	  // 轮询周期 = clamp(最近**未来** next_upcoming.next_due − now, 5s, 60s)。
+   199	  // next_due 只定「下一次去问服务端」的节奏; 已过期的 next_due 意味着数据
+   200	  // 要等生产器重跑才会变 → 回落上限 60s, 不空转。
+   201	  let best = null;
+   202	  const vaults = data && Array.isArray(data.vaults) ? data.vaults : [];
+   203	  for (const v of vaults) {
+   204	    const nu = v && v.projection && v.projection.next_upcoming;
+   205	    const ms = nu ? parseDueMs(nu.next_due) : null;
+   206	    if (ms !== null && ms > nowMs && (best === null || ms < best)) best = ms;
+   207	  }
+   208	  const raw = best === null ? POLL_MAX_MS : best - nowMs;
+   209	  return Math.min(POLL_MAX_MS, Math.max(POLL_MIN_MS, raw));
+   210	}
+   211	function visibilityAction(hidden) {
+   212	  // 页面隐藏 → 只取消排程; 回到前台 → 取消旧排程并立即拉一轮
+   213	  return hidden ? {cancelTimer: true, pollNow: false} : {cancelTimer: true, pollNow: true};
+   214	}
+   215	function boardLink(vaultId, board) {
+   216	  // encodeURIComponent 与服务端 quote(safe="") 同语义: "/" 也编码
+   217	  return "obsidian://open?vault=" + encodeURIComponent(vaultId) + "&file=" + encodeURIComponent("原白板/" + board + ".md");
+   218	}
+   219	function nodeLink(vaultId, node) {
+   220	  return "obsidian://open?vault=" + encodeURIComponent(vaultId) + "&file=" + encodeURIComponent("节点/" + node + ".md");
+   221	}
+   222	function nodeDetailHtml(vaultId, nodes, nowMs) {
+   223	  if (!Array.isArray(nodes) || !nodes.length) return "";
+   224	  const items = nodes.map(n => {
+   225	    const due = humanizeDue(n.fsrs_due, nowMs);
+   226	    const tag = n.bucket == null ? "" :
+   227	      '<span class="nodetag">' + esc(BUCKET_CN[n.bucket] || n.bucket) + "</span>";
+   228	    const why = !n.why_due ? "" : '<div class="whydue">' + esc(n.why_due) + "</div>";
+   229	    return '<li class="nodeli"><a href="' + esc(nodeLink(vaultId, n.node)) + '">' + esc(n.node) + "</a>" + tag +
+   230	      '<span style="color:' + due.color + ';font-size:12px;margin-left:6px">' + esc(due.text) + "</span>" + why + "</li>";
+   231	  });
+   232	  return '<details style="margin:2px 0 4px"><summary style="cursor:pointer;color:#6b7280;font-size:12px">节点明细（' +
+   233	    nodes.length + '）</summary><ul style="margin:6px 0 0;padding:0 0 0 6px">' + items.join("") + "</ul></details>";
+   234	}
+   235	function boardTableHtml(vaultId, boards, nowMs) {
+   236	  if (!Array.isArray(boards) || !boards.length) return "";
+   237	  const head = ["白板名", "到期", "新卡", "待剖析", "最早到期"].map(c => "<th>" + c + "</th>").join("");
+   238	  const rows = boards.map(r => {
+   239	    const due = humanizeDue(r.earliest, nowMs);
+   240	    const ph = r.placeholder == null ? "—" : String(r.placeholder);
+   241	    // W6 加性字段: 缺省整块不出现 (沿 bucket_counts 缺省纪律)
+   242	    const est = Number.isFinite(r.estimated_minutes) ?
+   243	      '<span class="estmin">约 ' + r.estimated_minutes + " 分钟</span>" : "";
+   244	    let out = '<tr><td><a href="' + esc(boardLink(vaultId, r.board)) + '">' + esc(r.board) + "</a>" + est + "</td>" +
+   245	      '<td class="num">' + (r.due ? "<b>" + r.due + "</b>" : '<span style="color:#9ca3af">0</span>') + "</td>" +
+   246	      '<td class="num">' + r.due_new + "</td>" +
+   247	      '<td class="num">' + esc(ph) + "</td>" +
+   248	      '<td style="white-space:nowrap;color:' + due.color + '">' + esc(due.text) + "</td></tr>";
+   249	    if (typeof r.why_this_board === "string" && r.why_this_board)
+   250	      out += '<tr><td colspan="5" class="why">💡 ' + esc(r.why_this_board) + "</td></tr>";
+   251	    const detail = nodeDetailHtml(vaultId, r.nodes, nowMs);
+   252	    if (detail) out += '<tr><td colspan="5" style="padding-top:0">' + detail + "</td></tr>";
+   253	    return out;
+   254	  }).join("");
+   255	  return '<div class="tblwrap"><table><thead><tr>' + head + "</tr></thead><tbody>" + rows + "</tbody></table></div>";
+   256	}
+   257	function restDayHtml(proj, nowMs) {
+   258	  // 休息日空状态 (status ok 且 due_count===0) — 文案对齐
+   259	  // daily_review_pick.py:599「今日无到期节点，休息一天」/ :564「按计划推进」
+   260	  const nu = proj.next_upcoming;
+   261	  // 日期转上海本地日 (UTC 字面日期在上海已跨天时会骗人 — Codex round-2 M4)
+   262	  let day = "";
+   263	  if (nu) {
+   264	    const ms = parseDueMs(nu.next_due);
+   265	    day = ms === null ? String(nu.next_due).slice(0, 10) : shDay(ms);
+   266	  }
+   267	  const tail = nu ? '<div style="color:#6b7280;font-size:13px;margin-top:4px">按计划推进 · 最近到期 ' +
+   268	    esc(nu.board) + " · " + esc(day) + "</div>" : "";
+   269	  return '<div class="restday">✅ 今日无到期节点，休息一天。' + tail + "</div>";
+   270	}
+   271	function renderVaultCard(entry, nowMs, noteHtml, isInflight) {
+   272	  // 未知 status 防御: 原字面灰徽标 (未来第五态不白屏)。
+   273	  // own-key 访问 (round-3 LOW-3): "constructor"/"__proto__" 会命中继承属性,
+   274	  // 必须显式判自有键才落灰兜底
+   275	  const meta = Object.prototype.hasOwnProperty.call(STATUS_META, entry.status)
+   276	    ? STATUS_META[entry.status] : [entry.status, "#6b7280"];
+   277	  const vid = entry.vault_id;
+   278	  let body = "";
+   279	  const proj = entry.projection;
+   280	  if (proj) {
+   281	    if (entry.status === "ok" && proj.due_count === 0) {
+   282	      body = restDayHtml(proj, nowMs);
+   283	    } else {
+   284	      const bc = proj.bucket_counts;
+   285	      const layers = bc == null ? "" :
+   286	        '<div class="layers">分层 · ' + BUCKET_ORDER.map(b => esc(BUCKET_CN[b]) + " " + bc[b]).join(" · ") + "</div>";
+   287	      body = '<div class="big">到期 <b>' + proj.due_count + "</b><small> · 新卡 " + proj.due_new_count +
+   288	        " · 待剖析 " + proj.placeholder_backlog + "</small></div>" + layers +
+   289	        boardTableHtml(vid, proj.boards, nowMs);
+   290	    }
+   291	    body += '<div class="gen">生成于 ' + esc(String(proj.generated_at)) + "</div>" +
+   292	      '<a href="obsidian://open?vault=' + esc(encodeURIComponent(vid)) + '">在 Obsidian 中打开 ↗</a>';
+   293	    // W6 加性顶层 rank_manifest: 在场才出现, 不解析内部形状
+   294	    if (proj.rank_manifest != null) body += '<div class="manifest">📋 本次板序含排序依据（rank_manifest）</div>';
+   295	  } else if (entry.status === "no_projection") {
+   296	    body = '<div class="degraded">该库尚无今日复习投影 — 推送管道尚未为它跑过<br>' +
+   297	      "深链已降级：需在 Obsidian 打开过该库后才提供跳转</div>";
+   298	  } else {
+   299	    body = '<div class="corrupt-err">投影文件无法解析<br><code>' + esc(String(entry.error || "")) + "</code></div>";
+   300	  }
+   301	  // noteHtml 是 renderRefreshResult 的成品 HTML (内部已 esc), 由调用方从
+   302	  // 持久状态传入 — 重绘后反馈得以恢复 (Codex round-1 HIGH-1)
+   303	  return '<div class="card"><div class="card-head"><b>' + esc(vid) + "</b>" +
+   304	    '<span class="badge" style="background:' + meta[1] + '">' + esc(meta[0]) + "</span></div>" + body +
+   305	    '<div class="actions"><button class="btn"' + (isInflight ? " disabled" : "") +
+   306	    ' data-refresh-vault="' + esc(vid) + '">🔄 刷新投影</button>' +
+   307	    '<span class="rnote" data-note-for="' + esc(vid) + '">' + (noteHtml || "") + "</span></div></div>";
+   308	}
+   309	function renderPage(data, nowMs, notes, inflight) {
+   310	  const vaults = data && Array.isArray(data.vaults) ? data.vaults : [];
+   311	  if (!vaults.length) return '<div class="empty">VAULTS_ROOT 下未发现任何 vault (需含 .obsidian/ 目录)</div>';
+   312	  return vaults.map(e => renderVaultCard(e, nowMs, (notes && notes[e.vault_id]) || "",
+   313	    !!(inflight && inflight[e.vault_id]))).join("");
+   314	}
+   315	function renderUnavailableBanner(detail, lastOkText) {
+   316	  const keep = lastOkText ? "页面保留 " + esc(lastOkText) + " 的最后一次成功数据。" : "尚未成功获取过数据。";
+   317	  return "<b>⚠ 后端离线/不可用</b> — " + esc(detail) + "。" + keep + "自动重试中…";
+   318	}
+   319	function renderRefreshResult(status, payload) {
+   320	  // POST /overview/refresh 响应可见化 — rebuilt/debounced/in_progress/失败
+   321	  // 四种结局都尽量带上 rebuild_count (进程内累计); 去抖与失败绝不长得像成功
+   322	  // (零 JS 页 round-3 修过的「与成功同形的 303」不许在交互壳还魂)
+   323	  const count = payload && payload.rebuild_count !== undefined && payload.rebuild_count !== null
+   324	    ? "（本进程累计 " + esc(payload.rebuild_count) + " 次）" : "";
+   325	  if (status === 200 && payload && payload.reason === "rebuilt")
+   326	    // 不当场声称"数字已更新" — 数字要等受保护的 GET 成功落屏才算数 (round-2 HIGH-1)
+   327	    return '<span class="rnote ok">✅ 已重建' + count + " · 正在同步最新数字…</span>";
+   328	  if (status === 200 && payload && payload.reason === "debounced") {
+   329	    const wait = Number(payload.retry_after_seconds);
+   330	    return '<span class="rnote warn">⏱ ' + esc(payload.debounce_ttl_seconds) + " 秒内已重建过" + count +
+   331	      "，本次未重算" +
+   332	      (Number.isFinite(wait) && wait > 0 ? " · 约 " + Math.ceil(wait) + " 秒后可再试" : "") + "</span>";
+   333	  }
+   334	  if (status === 200 && payload && payload.reason === "in_progress")
+   335	    return '<span class="rnote warn">⏳ 该库已有一次重建在跑' + count + "，本次未重复启动</span>";
+   336	  let detail = "";
+   337	  if (payload && payload.detail)
+   338	    detail = typeof payload.detail === "string" ? payload.detail : (payload.detail.message || JSON.stringify(payload.detail));
+   339	  if (status === 0) return '<span class="rnote err">❌ 刷新失败（网络错误）：' + esc(detail || "连接失败") + "</span>";
+   340	  return '<span class="rnote err">❌ 刷新失败（HTTP ' + esc(status) + "）" + (detail ? "：" + esc(detail) : "") + "</span>";
+   341	}
+   342	
+   343	// ═══ 副作用壳: 只消费上面纯函数的返回值 ═══
+   344	const state = {timer: null, lastOkAt: null, lastData: null, pollGen: 0,
+   345	  // vault_id 是外部字符串 — Object.create(null) 防 "__proto__"/"constructor" 键注入原型 (round-2 M1)
+   346	  notes: Object.create(null), inflight: Object.create(null), pendingSync: Object.create(null)};
+   347	const el = id => document.getElementById(id);
+   348	function fmtClock(ms) {
+   349	  return new Intl.DateTimeFormat("zh-CN", {timeZone: "Asia/Shanghai", hour12: false,
+   350	    hour: "2-digit", minute: "2-digit", second: "2-digit"}).format(new Date(ms));
+   351	}
+   352	function setConn(cls, text) {
+   353	  const c = el("conn");
+   354	  c.className = "conn " + cls;
+   355	  c.textContent = text;
+   356	}
+   357	function vaultButtons(vid) {
+   358	  // getAttribute 比对而非把 vid 插进 CSS 选择器 — vid 是外部字符串,
+   359	  // 进选择器会被当选择器语法解析 (引号/反斜杠注入面)
+   360	  return Array.from(el("cards").querySelectorAll("[data-refresh-vault]"))
+   361	    .filter(b => b.getAttribute("data-refresh-vault") === vid);
+   362	}
+   363	function applyNote(vid) {
+   364	  const n = state.notes[vid];
+   365	  if (!n) return false;
+   366	  let patched = false;
+   367	  for (const span of el("cards").querySelectorAll("[data-note-for]")) {
+   368	    if (span.getAttribute("data-note-for") === vid) { span.innerHTML = n.html; patched = true; }
+   369	  }
+   370	  return patched;
+   371	}
+   372	function freshNotes(nowMs) {
+   373	  // null-prototype: 与 state.notes 同纪律 — 普通对象会被 "__proto__" 键污染 (round-3 M1)
+   374	  const out = Object.create(null);
+   375	  for (const vid of Object.keys(state.notes)) {
+   376	    if (nowMs - state.notes[vid].atMs < NOTE_TTL_MS) out[vid] = state.notes[vid].html;
+   377	  }
+   378	  return out;
+   379	}
+   380	function renderCards(nowMs) {
+   381	  el("cards").innerHTML = renderPage(state.lastData, nowMs, freshNotes(nowMs), state.inflight);
+   382	}
+   383	function settlePendingSync(nowMs, ok, renderedVids) {
+   384	  // rebuilt 只发"正在同步…"；数字是否真更新, 由 GET 成败结算 (round-2 HIGH-1)。
+   385	  // round-3 HIGH-1 收紧: 成功结算必须**绑定证据** — renderedVids 里要有该库、
+   386	  // 且该库条目带可用 projection (corrupt/缺投影的库不许说"数字已更新")；
+   387	  // 不在 renderedVids 里的 pending 库按失败结算, 不许跟着最新 GET 沾光。
+   388	  for (const vid of Object.keys(state.pendingSync)) {
+   389	    const n = state.pendingSync[vid];
+   390	    delete state.pendingSync[vid];
+   391	    const okThis = ok && renderedVids && renderedVids[vid] === true;
+   392	    state.notes[vid] = {html: okThis
+   393	      ? '<span class="rnote ok">✅ 已重建（本进程累计 ' + esc(n.count) + ' 次）· 数字已更新</span>'
+   394	      : '<span class="rnote warn">⚠ 已重建（本进程累计 ' + esc(n.count) +
+   395	        ' 次）· 数字同步失败，后端恢复后自动重试</span>', atMs: nowMs};
+   396	    if (!applyNote(vid) && state.lastData) renderCards(nowMs);
+   397	  }
+   398	}
+   399	function schedule(ms) {
+   400	  clearTimeout(state.timer);
+   401	  state.timer = null;
+   402	  if (document.hidden) { el("nextpoll").textContent = "已暂停（页面隐藏）"; return; }
+   403	  state.timer = setTimeout(poll, ms);
+   404	  el("nextpoll").textContent = "下次自动刷新 ~" + Math.round(ms / 1000) + " 秒后";
+   405	}
+   406	async function poll() {
+   407	  let delay = RETRY_DELAY_MS;
+   408	  const gen = ++state.pollGen;  // 代际: 只有最新一次 GET 可以提交状态 (乱序旧响应整包丢弃)
+   409	  try {
+   410	    const resp = await fetch(URLS.overview, {cache: "no-store"});
+   411	    if (!resp.ok) throw new Error("HTTP " + resp.status);
+   412	    const data = await resp.json();
+   413	    // 形状校验在提交状态之前 — HTTP 200 的坏形状不许清掉旧数据再装"已连接" (round-2 M2)
+   414	    if (!data || !Array.isArray(data.vaults)) throw new Error("响应形状坏 (vaults 缺失)");
+   415	    if (gen !== state.pollGen) return;  // 过期响应: 不碰状态不排程
+   416	    const nowMs = Date.now();
+   417	    // 先渲染候选数据当探针 (round-3 HIGH-1: 坏成员让 render 抛错时走 catch —
+   418	    // lastData/结算/成功提示都不会被半截提交), 再结算, 再上最终帧
+   419	    // (结算会更新 notes, 探针帧里是结算前的反馈, 不能直接用)
+   420	    renderPage(data, nowMs, freshNotes(nowMs), state.inflight);
+   421	    // 成功结算的绑定证据: 渲染成功, 且该库条目带可用 projection
+   422	    // (损坏/缺投影的库不许沾最新 GET 的光说"数字已更新")
+   423	    const renderedVids = Object.create(null);
+   424	    for (const v of data.vaults) {
+   425	      if (v && v.vault_id && v.projection) renderedVids[v.vault_id] = true;
+   426	    }
+   427	    state.lastData = data;
+   428	    settlePendingSync(nowMs, true, renderedVids);
+   429	    el("cards").innerHTML = renderPage(data, nowMs, freshNotes(nowMs), state.inflight);
+   430	    el("banner").hidden = true;
+   431	    state.lastOkAt = nowMs;
+   432	    el("updated").textContent = "上次更新 " + fmtClock(nowMs);
+   433	    setConn("ok", "已连接");
+   434	    delay = computePollDelayMs(data, nowMs);
+   435	  } catch (e) {
+   436	    if (gen !== state.pollGen) return;  // 过期响应的失败同样不碰状态
+   437	    settlePendingSync(Date.now(), false);
+   438	    el("banner").innerHTML = renderUnavailableBanner(String((e && e.message) || e),
+   439	      state.lastOkAt ? fmtClock(state.lastOkAt) : null);
+   440	    el("banner").hidden = false;
+   441	    setConn("down", "后端不可用");
+   442	  }
+   443	  schedule(delay);
+   444	}
+   445	document.addEventListener("visibilitychange", () => {
+   446	  const act = visibilityAction(document.hidden);
+   447	  if (act.cancelTimer) { clearTimeout(state.timer); state.timer = null; }
+   448	  if (act.pollNow) poll();
+   449	  else if (document.hidden) el("nextpoll").textContent = "已暂停（页面隐藏）";
+   450	});
+   451	async function onRefreshClick(ev) {
+   452	  const btn = ev.target.closest("[data-refresh-vault]");
+   453	  if (!btn) return;
+   454	  const vid = btn.getAttribute("data-refresh-vault");
+   455	  if (state.inflight[vid]) return;  // 同库重建在飞, 不发第二个 POST
+   456	  state.inflight[vid] = true;
+   457	  state.notes[vid] = {html: '<span class="rnote">⏳ 重建中…</span>', atMs: Date.now()};
+   458	  for (const b of vaultButtons(vid)) b.disabled = true;
+   459	  applyNote(vid);
+   460	  try {
+   461	    // 手动按钮是唯一的 POST 路径 (默认裁决②: 自动轮询绝不 POST)
+   462	    const resp = await fetch(URLS.refresh, {method: "POST", body: new URLSearchParams({vault_id: vid})});
+   463	    let payload = null;
+   464	    try { payload = await resp.json(); } catch (_e) { payload = null; }
+   465	    state.notes[vid] = {html: renderRefreshResult(resp.status, payload), atMs: Date.now()};
+   466	    // 先就地补; 就地补不到 (反馈期间被轮询重绘换过 DOM) 且手上有数据 →
+   467	    // 用持久状态重绘恢复 — 反馈从此不依赖「那个 span 还在不在」
+   468	    if (!applyNote(vid) && state.lastData) renderCards(Date.now());
+   469	    if (resp.ok && payload && payload.rebuilt) {
+   470	      // 数字是否真更新交给 GET 结算 (settlePendingSync) — 不在 POST 结局里预先声称
+   471	      state.pendingSync[vid] = {count: payload.rebuild_count, atMs: Date.now()};
+   472	      // 隐藏时不触发 GET (round-3 LOW-2): pending 挂着, 回前台 visibilitychange
+   473	      // 的 poll 会结算 — 不在用户看不见的时候起网络活动
+   474	      if (!document.hidden) poll();
+   475	    }
+   476	  } catch (e) {
+   477	    state.notes[vid] = {html: renderRefreshResult(0, {detail: String((e && e.message) || e)}), atMs: Date.now()};
+   478	    if (!applyNote(vid) && state.lastData) renderCards(Date.now());
+   479	  } finally {
+   480	    delete state.inflight[vid];
+   481	    for (const b of vaultButtons(vid)) b.disabled = false;
+   482	  }
+   483	}
+   484	el("cards").addEventListener("click", onRefreshClick);
+   485	poll();
+   486	</script>
+   487	</body>
+   488	</html>
+   489	"""
+   490	
+   491	
+   492	@review_app_router.get(
+   493	    "/overview/app",
+   494	    response_class=HTMLResponse,
+   495	    summary="跨 vault 复习总览 · 交互版 (CARD-G6-2; 单文件内联 HTML, 零外部 URL)",
+   496	)
+   497	async def review_overview_app(request: Request) -> HTMLResponse:
+   498	    """交互复习壳: 自动轮询 GET /overview, 手动按钮 POST /overview/refresh。
+   499	
+   500	    与零 JS 只读页 (/overview/page) 共存。API 路径按本次请求的路由表注入
+   501	    (url_for), 不硬编码。
+   502	    """
+   503	    urls = {
+   504	        "overview": request.url_for("review_overview").path,
+   505	        "refresh": request.url_for("review_overview_refresh").path,
+   506	    }
+   507	    page = (
+   508	        _PAGE_TEMPLATE.replace("__URLS_JSON__", _js_json(urls))
+   509	        .replace("__STATUS_META_JSON__", _js_json({k: list(v) for k, v in _STATUS_META.items()}))
+   510	        .replace("__BUCKET_CN_JSON__", _js_json(_BUCKET_CN))
+   511	        .replace("__BUCKET_ORDER_JSON__", _js_json(list(_BUCKET_ORDER)))
+   512	    )
+   513	    return HTMLResponse(content=page)
+
+2026-09-01T09:36:24.880242Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+**Extracting test function names**
+exec
+/bin/zsh -lc "sed -n '1,190p' backend/app/api/v1/endpoints/review_app.py; rg -n '"'^(def|async def|class) (test_|_extract_script|_assert|_validate|_run|_js|.*ast|.*source|.*script)'"' backend/tests/unit/test_review_app.py; rg -n '"'^'"\\s*(def|async def) ' backend/tests/unit/test_review_app.py" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
+ succeeded in 0ms:
+"""交互复习壳 (CARD-G6-2, BATCH-2026-09-01-第八批)。
+
+GET /api/v1/review/overview/app — 单文件交互 HTML (内联 CSS/JS, 零 CDN、
+零外部 URL, 只允许 obsidian:// 深链与本机相对路径), 与零 JS 只读页
+(/overview/page, W6 车道独占) 共存 — 两页并立, 互不替代。
+
+职责边界 (与 review_overview.py 的分工, 防双实现):
+- 本页 JS 是 GET /overview JSON 与 POST /overview/refresh 的**纯消费方**:
+  不实现任何 due 算法 — 谁到期/计数/排序全部来自服务端投影摘要
+  (_summarize 的 due_count 权威口径 / boards 行 / next_upcoming)。JS 只做
+  两件事: ①展示层格式化 (把已给定的时间戳渲染成人话, 删掉它页面依然知道
+  谁到期); ②轮询节奏 — 周期 = clamp(最近未来 next_upcoming.next_due − now,
+  5s, 60s) (默认裁决②), next_due 只决定「下一次去问服务端的时刻」, 不据此
+  改任何到期展示。
+- 页面隐藏 (visibilitychange) 时暂停轮询, 回到前台立即拉一轮。
+- 自动轮询**绝不** POST refresh — 只有手动「刷新投影」按钮才 POST
+  (同库重建在飞期间按钮禁用, 不发第二个 POST)。
+- 两个 API path 用 request.url_for 注入 (不硬编码) — prefix 改动不漂移。
+- 四态徽标字面从 review_overview._STATUS_META **import 后注入** JS (共享
+  不复制, W6 改文案本页自动跟随); 前端另有第五态 unavailable: fetch 失败/
+  非 200/JSON 解析失败 → 顶部横幅 + 保留最后一次成功数据, 不白屏。
+  卡文默认裁决⑥提及的 "unregistered" 在 review_overview 状态枚举中不存在
+  (2026-09-01 grep 0 命中, 仅页脚有"未注册的库点击无响应"提示文案) — 本页
+  对未知 status 值做防御渲染 (原字面灰徽标), 未来加态不白屏。
+- 休息日空状态 (status ok 且 due_count==0): 文案对齐
+  scripts/daily_review_pick.py:599「今日无到期节点，休息一天」/ :564
+  「按计划推进 · 最近到期 …」 (只对齐字面, 不 import — scripts/ 不在
+  app 包路径, 且判定本身用的是投影摘要的 due_count, 无第二套口径)。
+- W6 (CARD-G3-6b) 加性三字段按「缺省整块不出现」渲染 (沿 bucket_counts
+  缺省纪律): boards[].why_this_board (非空字符串→板行下说明行) /
+  boards[].estimated_minutes (有限数→「约 N 分钟」标签) / projection 顶层
+  rank_manifest (在场→底部小注, 不解析内部形状)。W6 先合、透传位置以合并
+  后主干为准 — 缺省不出现的设计保证位置不符时页面不炸只是不显示。
+- 刷新反馈进**持久状态** (state.notes, 15s TTL): 手动刷新的结局 (重建/
+  去抖/在跑/失败, 均含 rebuild_count) 写进状态而非只写 DOM —— rebuilt 触发
+  的立即重拉、或任何一轮轮询重绘, 都会从状态恢复反馈, 不会被下一帧抹掉
+  (Codex round-1 HIGH-1); 在飞期间按钮禁用也是渲染态的一部分, 重绘不会
+  意外解锁成可双击。
+
+JS 结构 (测试契约, Codex round-1 HIGH-3 后的形态): tests/unit/test_review_app.py
+把响应里的**整个 <script> 原文**放进受控沙箱 (stub document/fetch/timer)
+直接执行, 纯函数从执行后的沙箱作用域导出断言 —— 不存在任何「按注释标记
+割取代码」的通道, 注释里藏一份好代码骗提取器的攻击面不成立; 副作用壳
+(轮询/点击流程) 也在同一沙箱里以假事件驱动做接线断言。node 不可用时该
+fixture fail-closed (pytest.fail), 禁止静默 skip 假绿 (Codex round-1 HIGH-2)。
+"""
+
+from __future__ import annotations
+
+import json
+
+from fastapi import APIRouter, Request
+from fastapi.responses import HTMLResponse
+
+from app.api.v1.endpoints.review_overview import _BUCKET_CN, _BUCKET_ORDER, _STATUS_META
+
+review_app_router = APIRouter()
+
+
+def _js_json(value) -> str:
+    """常量 → 可安全内嵌 <script> 的 JSON 字面量。
+
+    值全部来自服务端自有常量与 url_for 路径 (无用户输入), `<` 转义只是
+    防御深度: 万一未来有人把含 "</script>" 的字面量塞进 _STATUS_META,
+    页面不会在此处被截断。
+    """
+    return json.dumps(value, ensure_ascii=False).replace("<", "\\u003c")
+
+
+# ── 页面模板 (r-string: JS 正则的反斜杠原样保留) ─────────────────────
+# 占位符 __URLS_JSON__ / __STATUS_META_JSON__ / __BUCKET_CN_JSON__ /
+# __BUCKET_ORDER_JSON__ 由端点函数按请求注入。
+_PAGE_TEMPLATE = r"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>跨库复习总览 · 交互版</title>
+<style>
+  /* 与零 JS 页 (/overview/page) 同族配色 — 交互壳不另起视觉体系 */
+  body { font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif;
+         background: #f5f5f7; margin: 0; padding: 24px; color: #111827; }
+  [hidden] { display: none !important; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .ver { font-size: 13px; color: #2563eb; font-weight: normal; }
+  .sub { color: #6b7280; font-size: 13px; margin-bottom: 12px; }
+  .statusbar { display: flex; gap: 14px; align-items: center; flex-wrap: wrap;
+               font-size: 13px; color: #6b7280; margin-bottom: 16px; }
+  .conn { border-radius: 999px; padding: 2px 10px; font-size: 12px; color: #fff; white-space: nowrap; }
+  .conn.ok { background: #16a34a; }
+  .conn.down { background: #dc2626; }
+  .conn.idle { background: #9ca3af; }
+  .banner { background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px;
+            padding: 10px 16px; font-size: 14px; color: #991b1b; margin-bottom: 16px; }
+  .cards { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+  .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px 20px;
+          flex: 1 1 320px; min-width: 0; max-width: 520px; background: #fff;
+          box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+  .card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .card-head b { font-size: 16px; }
+  .badge { border-radius: 999px; padding: 2px 10px; font-size: 12px; color: #fff; white-space: nowrap; }
+  .big { font-size: 26px; margin: 8px 0 0; }
+  .big small { font-size: 13px; color: #6b7280; font-weight: normal; }
+  .layers { font-size: 12px; color: #6b7280; margin: 2px 0 0; }
+  .tblwrap { overflow-x: auto; margin: 10px 0 4px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th { padding: 4px 8px; border-bottom: 1px solid #e5e7eb; color: #6b7280;
+       font-weight: 500; text-align: left; white-space: nowrap; font-size: 12px; }
+  td { padding: 5px 8px; border-bottom: 1px solid #f3f4f6; }
+  td.num { text-align: center; white-space: nowrap; }
+  a { color: #2563eb; text-decoration: none; }
+  .why { color: #6b7280; font-size: 12px; padding: 0 8px 6px; }
+  .estmin { display: inline-block; background: #eef2ff; color: #4338ca; border-radius: 4px;
+            padding: 0 6px; font-size: 11px; margin-left: 6px; white-space: nowrap; }
+  .manifest { color: #9ca3af; font-size: 11px; margin-top: 6px; }
+  .gen { color: #6b7280; font-size: 12px; margin: 4px 0 6px; }
+  .restday { color: #16a34a; font-size: 14px; margin: 14px 0; }
+  .degraded { color: #6b7280; margin: 12px 0; font-size: 13px; }
+  .corrupt-err { color: #dc2626; margin: 12px 0; }
+  .corrupt-err code { font-size: 11px; overflow-wrap: anywhere; }
+  .actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
+  .btn { font-size: 13px; color: #2563eb; background: #eff6ff; border: 1px solid #bfdbfe;
+         border-radius: 6px; padding: 3px 10px; cursor: pointer; font-family: inherit; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .rnote { font-size: 12px; color: #6b7280; }
+  .rnote.ok { color: #16a34a; }
+  .rnote.warn { color: #d97706; }
+  .rnote.err { color: #dc2626; }
+  .nodetag { display: inline-block; background: #f3f4f6; color: #4b5563; border-radius: 4px;
+             padding: 0 6px; font-size: 11px; margin-left: 6px; white-space: nowrap; }
+  .nodeli { margin: 0 0 6px; list-style: none; line-height: 1.5;
+            overflow-wrap: anywhere; word-break: break-word; }
+  .whydue { color: #6b7280; font-size: 12px; margin-top: 1px; }
+  .empty { color: #6b7280; }
+  .footer { color: #9ca3af; font-size: 12px; margin-top: 24px; }
+</style>
+</head>
+<body>
+<h1>📚 跨库复习总览 <span class="ver">交互版</span></h1>
+<div class="sub">自动轮询（到点自动重新拉取投影聚合）· 只读聚合，数据来自各库 outputs/今日复习.json
+ · 「刷新投影」按需重建该库投影（只写它自己的 outputs/今日复习.*）</div>
+<div class="statusbar">
+  <span id="conn" class="conn idle">连接中…</span>
+  <span id="updated"></span>
+  <span id="nextpoll"></span>
+</div>
+<div id="banner" class="banner" hidden></div>
+<div id="cards" class="cards"><span class="empty">加载中…</span></div>
+<div class="footer">⚠ obsidian:// 跳转需在 Obsidian 打开过该库（未注册的库点击无响应）；
+存在同名库时可能跳到先注册的那个，以 Obsidian 侧库列表为准</div>
+<script>
+"use strict";
+// 服务端注入 (url_for 路径 + review_overview 共享字面 — 单一来源, 不复制)
+const URLS = __URLS_JSON__;
+const STATUS_META = __STATUS_META_JSON__;
+const BUCKET_CN = __BUCKET_CN_JSON__;
+const BUCKET_ORDER = __BUCKET_ORDER_JSON__;
+const POLL_MIN_MS = 5000;   // 轮询下限 (默认裁决②: clamp 5s)
+const POLL_MAX_MS = 60000;  // 轮询上限 (默认裁决②: clamp 60s)
+const RETRY_DELAY_MS = 10000;  // unavailable 态的固定重试间隔 (在 clamp 区间内)
+const NOTE_TTL_MS = 15000;  // 刷新反馈的可见窗: 足够活过 rebuilt 触发的立即重拉, 不永久占卡片
+
+// ═══ 纯渲染函数: 输入 JSON → 输出 HTML 字符串/数值。无 DOM、无 fetch、
+// 无时钟读取 (nowMs 一律显式入参)。 ═══
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+function shDay(ms) {
+  // Asia/Shanghai 本地日 YYYY-MM-DD (en-CA locale 恰好输出 ISO 形态);
+  // 与服务端 _humanize_due 的"上海本地日差"同一口径
+  return new Intl.DateTimeFormat("en-CA", {timeZone: "Asia/Shanghai"}).format(new Date(ms));
+}
+function parseDueMs(ts) {
+  // 生产器 UTC-Z 秒级形态; 非该形态返回 null (显示层容错, 绝不抛)
+  if (typeof ts !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(ts)) return null;
+  const ms = Date.parse(ts);
+  return Number.isFinite(ms) ? ms : null;
+}
+function humanizeDue(ts, nowMs) {
+  // ⚠ 纯显示层格式化 — 不是 due 判定: 谁到期/计数/排序全来自投影字段
+  // (boards[].due / due_count), 删掉本函数页面依然知道谁到期。
+  // 口径对齐服务端 _humanize_due (上海本地日差), 同源锁见 pytest 对拍测试。
+  if (ts === null || ts === undefined) return {text: "—", color: "#6b7280"};
+  if (ts === "") return {text: "现在", color: "#d97706"};
+  const ms = parseDueMs(ts);
+  if (ms === null) return {text: "—", color: "#6b7280"};
+  const d1 = shDay(ms), d0 = shDay(nowMs);
+  const days = Math.round((Date.parse(d1) - Date.parse(d0)) / 86400000);
+  if (days < 0) return {text: "逾期" + (-days) + "天", color: "#dc2626"};
+  if (days === 0) return {text: "现在", color: "#d97706"};
+88:def test_app_page_returns_html_200(page_html):
+93:def test_zero_external_urls(page_html):
+98:def test_no_external_resource_tags(page_html):
+120:def test_only_obsidian_scheme_and_relative_paths(page_html):
+126:def test_api_paths_injected_from_url_for_not_hardcoded(client, page_html):
+143:def test_api_paths_follow_mount_prefix_not_hardcoded():
+171:def test_js_fetches_only_the_two_same_origin_endpoints(page_html):
+178:def test_auto_poll_never_posts_only_manual_button_does(page_html):
+199:def test_readonly_page_still_works_both_coexist(client):
+207:def test_zero_js_page_source_untouched():
+216:def test_status_meta_and_buckets_shared_not_copied(page_html):
+228:def test_no_second_due_pipeline_in_python_module():
+235:def test_review_app_module_imports_are_closed():
+381:def _extract_script(html: str) -> str:
+423:def _run_node(tmp_path: Path, test_src: str) -> subprocess.CompletedProcess:
+434:def _assert_node_green(proc: subprocess.CompletedProcess):
+486:def test_js_renders_four_states_and_unknown_state_defense(node_harness):
+527:def test_js_rest_day_empty_state_matches_pick_copy(node_harness):
+555:def test_js_unavailable_banner_never_blank_screen(node_harness):
+601:def test_js_w6_additive_fields_present_and_absent(node_harness):
+646:def test_js_poll_interval_clamped_and_visibility_pauses(node_harness):
+715:def test_js_new_due_card_appears_after_next_due_passes(node_harness):
+763:def test_js_refresh_result_visible_and_never_fakes_success(node_harness):
+824:def test_js_refresh_wiring_note_survives_rerender_and_inflight_guard(node_harness):
+927:def test_js_shows_authoritative_due_count_never_recomputes(node_harness):
+964:def test_js_escapes_hostile_names_and_encodes_deep_links(node_harness):
+999:def test_js_humanize_due_matches_server_side_wording(node_harness):
+1050:def test_script_extraction_rejects_case_insensitive_terminator():
+1067:def test_real_page_extracted_script_is_well_formed(page_html):
+1077:def test_js_poll_out_of_order_discards_stale_response(node_harness):
+1113:def test_js_rebuilt_sync_flow_never_claims_prematurely(node_harness):
+1185:def test_js_malformed_200_keeps_last_data(node_harness):
+1219:def test_js_proto_vault_id_and_inflight_disabled_render(node_harness):
+1261:def test_js_restday_next_due_uses_shanghai_date(node_harness):
+1286:def test_js_settle_binds_to_rendered_vault_evidence(node_harness):
+1353:def test_js_hidden_rebuilt_defers_get_and_own_key_status_meta(node_harness):
+60:def client():
+77:def page_html(client):
+88:def test_app_page_returns_html_200(page_html):
+93:def test_zero_external_urls(page_html):
+98:def test_no_external_resource_tags(page_html):
+120:def test_only_obsidian_scheme_and_relative_paths(page_html):
+126:def test_api_paths_injected_from_url_for_not_hardcoded(client, page_html):
+143:def test_api_paths_follow_mount_prefix_not_hardcoded():
+171:def test_js_fetches_only_the_two_same_origin_endpoints(page_html):
+178:def test_auto_poll_never_posts_only_manual_button_does(page_html):
+199:def test_readonly_page_still_works_both_coexist(client):
+207:def test_zero_js_page_source_untouched():
+216:def test_status_meta_and_buckets_shared_not_copied(page_html):
+228:def test_no_second_due_pipeline_in_python_module():
+235:def test_review_app_module_imports_are_closed():
+374:def _group(pattern: str, text: str, flags: int = 0) -> str:
+381:def _extract_script(html: str) -> str:
+410:def node_harness(tmp_path, page_html):
+423:def _run_node(tmp_path: Path, test_src: str) -> subprocess.CompletedProcess:
+434:def _assert_node_green(proc: subprocess.CompletedProcess):
+486:def test_js_renders_four_states_and_unknown_state_defense(node_harness):
+527:def test_js_rest_day_empty_state_matches_pick_copy(node_harness):
+555:def test_js_unavailable_banner_never_blank_screen(node_harness):
+601:def test_js_w6_additive_fields_present_and_absent(node_harness):
+646:def test_js_poll_interval_clamped_and_visibility_pauses(node_harness):
+715:def test_js_new_due_card_appears_after_next_due_passes(node_harness):
+763:def test_js_refresh_result_visible_and_never_fakes_success(node_harness):
+824:def test_js_refresh_wiring_note_survives_rerender_and_inflight_guard(node_harness):
+927:def test_js_shows_authoritative_due_count_never_recomputes(node_harness):
+964:def test_js_escapes_hostile_names_and_encodes_deep_links(node_harness):
+999:def test_js_humanize_due_matches_server_side_wording(node_harness):
+1050:def test_script_extraction_rejects_case_insensitive_terminator():
+1067:def test_real_page_extracted_script_is_well_formed(page_html):
+1077:def test_js_poll_out_of_order_discards_stale_response(node_harness):
+1113:def test_js_rebuilt_sync_flow_never_claims_prematurely(node_harness):
+1185:def test_js_malformed_200_keeps_last_data(node_harness):
+1219:def test_js_proto_vault_id_and_inflight_disabled_render(node_harness):
+1261:def test_js_restday_next_due_uses_shanghai_date(node_harness):
+1286:def test_js_settle_binds_to_rendered_vault_evidence(node_harness):
+1353:def test_js_hidden_rebuilt_defers_get_and_own_key_status_meta(node_harness):
+
+2026-09-01T09:36:25.233199Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:36:26.394021Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:36:30.387342Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+**Inspecting AST gate and policy lines**
+exec
+/bin/zsh -lc "nl -ba backend/tests/unit/test_review_app.py | sed -n '216,450p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
+ succeeded in 0ms:
+   216	def test_status_meta_and_buckets_shared_not_copied(page_html):
+   217	    """四态文案/桶位标签是 import 来的同一份 —— 不新造第二套词汇。"""
+   218	    injected_meta = json.loads(_group(r"const STATUS_META = (\{.*?\});", page_html))
+   219	    assert injected_meta == {k: list(v) for k, v in _STATUS_META.items()}
+   220	    assert json.loads(_group(r"const BUCKET_CN = (\{.*?\});", page_html)) == _BUCKET_CN
+   221	    assert json.loads(_group(r"const BUCKET_ORDER = (\[.*?\]);", page_html)) == list(_BUCKET_ORDER)
+   222	    # 篡改门: 上面三条只证明"注入值正确", 挡不住"JS 里另抄一份字面量"。
+   223	    # 模板本体不许出现任何徽标文案 —— 抄一份 = 本门立刻红。
+   224	    for label, _color in _STATUS_META.values():
+   225	        assert label not in _PAGE_TEMPLATE, f"徽标文案 {label!r} 被硬编码进模板 (应只从注入常量取)"
+   226	
+   227	
+   228	def test_no_second_due_pipeline_in_python_module():
+   229	    """字符串黑名单快门 (便宜的一层) + AST 结构门 (下一道, 不可被措辞绕过)。"""
+   230	    src = (_ENDPOINTS_DIR / "review_app.py").read_text(encoding="utf-8")
+   231	    for banned in ("subprocess", "read_text(", "_collect(", "_summarize("):
+   232	        assert banned not in src, f"review_app.py 出现了它不该有的 {banned!r}"
+   233	
+   234	
+   235	def test_review_app_module_imports_are_closed():
+   236	    """AST 结构门 (round-1 HIGH-4 新增, round-2 HIGH-4 升级为正向合约):
+   237	    本模块只允许「模板注入」这一种依赖形态。
+   238	
+   239	    反面黑名单可被换形绕过 (round-2 实证: `__builtins__["open"](...)` 不新增
+   240	    import 也不命中任何名字/属性黑名单)。所以调用侧改成**正向合约**——
+   241	    枚举全部允许的调用形态, 任何新调用 (含 getattr/下标取内建/lambda 包裹/
+   242	    任何新函数) 都必须先有意识地改这份白名单, 代码评审必然看见。
+   243	    """
+   244	    ALLOWED_IMPORTS = {
+   245	        "__future__.annotations",
+   246	        "json",
+   247	        "fastapi.APIRouter",
+   248	        "fastapi.Request",
+   249	        "fastapi.responses.HTMLResponse",
+   250	        "app.api.v1.endpoints.review_overview._BUCKET_CN",
+   251	        "app.api.v1.endpoints.review_overview._BUCKET_ORDER",
+   252	        "app.api.v1.endpoints.review_overview._STATUS_META",
+   253	    }
+   254	    ALLOWED_CALL_NAMES = {"APIRouter", "list", "_js_json", "HTMLResponse"}
+   255	    ALLOWED_CALL_ATTRS = {"get", "replace", "url_for", "dumps", "items"}
+   256	    #: Attribute 调用允许的接收者 (unparse 基名) — 只查尾部方法名不够,
+   257	    #: 任意对象都能挂同名方法 (round-3 HIGH-4b 实证绕过面)
+   258	    ALLOWED_RECEIVERS = {"json", "request", "review_app_router", "_STATUS_META", "_PAGE_TEMPLATE"}
+   259	    src = (_ENDPOINTS_DIR / "review_app.py").read_text(encoding="utf-8")
+   260	    tree = ast.parse(src)
+   261	    collected: set[str] = set()
+   262	    for node in ast.walk(tree):
+   263	        if isinstance(node, ast.Import):
+   264	            collected.update(a.name for a in node.names)
+   265	        elif isinstance(node, ast.ImportFrom):
+   266	            mod = node.module or ""
+   267	            collected.update(f"{mod}.{a.name}" if mod else a.name for a in node.names)
+   268	    banned = collected - ALLOWED_IMPORTS
+   269	    assert not banned, f"出现白名单外的 import: {sorted(banned)} — 第二套管道的载体"
+   270	    for node in ast.walk(tree):
+   271	        # 重绑定禁令 (round-3 HIGH-4b): 允许名被赋成别的东西后, 调用点的拼写
+   272	        # 检查就全空转了 — `list = open; list("今日复习.json")` 拼写完全合法
+   273	        if isinstance(node, (ast.Assign, ast.AugAssign, ast.AnnAssign)):
+   274	            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+   275	            for tgt in targets:
+   276	                if isinstance(tgt, ast.Name) and tgt.id in ALLOWED_CALL_NAMES:
+   277	                    pytest.fail(f"白名单名 {tgt.id!r} 被重绑定 — 调用点拼写检查会被架空")
+   278	        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+   279	            for a in node.args.args + node.args.kwonlyargs:
+   280	                if a.arg in ALLOWED_CALL_NAMES:
+   281	                    pytest.fail(f"白名单名 {a.arg!r} 被参数遮蔽 — 调用点拼写检查会被架空")
+   282	        if isinstance(node, ast.Call):
+   283	            f = node.func
+   284	            if isinstance(f, ast.Name):
+   285	                assert f.id in ALLOWED_CALL_NAMES, f"白名单外调用 {f.id}() — 模板注入之外的第二种行为"
+   286	            elif isinstance(f, ast.Attribute):
+   287	                assert f.attr in ALLOWED_CALL_ATTRS, f"白名单外方法 .{f.attr}() — 模板注入之外的第二种行为"
+   288	                recv_base = ast.unparse(f.value).split("(", 1)[0]
+   289	                assert recv_base in ALLOWED_RECEIVERS or isinstance(f.value, ast.Call), (
+   290	                    f"非白名单接收者 {recv_base}.{f.attr}() — 只查方法名挡不住任意对象挂同名方法"
+   291	                )
+   292	            else:
+   293	                pytest.fail(
+   294	                    f"非白名单调用形态: {type(f).__name__} — 动态派发/下标取内建/lambda "
+   295	                    f"包裹都是第二套管道的载体 (round-2 HIGH-4 实证绕过面)"
+   296	                )
+   297	
+   298	
+   299	# ════════════════════════════════════════════════════════════════════
+   300	# C/D. 沙箱执行真实 <script> + node --test 断言 (完成条件 b/c)
+   301	# ════════════════════════════════════════════════════════════════════
+   302	
+   303	#: 沙箱 boot 器: node_harness fixture 生成 boot.mjs, 测试文件导入它执行
+   304	#: page-script.js (响应里的真实 <script> 原文) 并导出沙箱作用域的函数。
+   305	_BOOT_MJS = r"""
+   306	import fs from "node:fs";
+   307	
+   308	const SRC = fs.readFileSync(new URL("./page-script.js", import.meta.url), "utf8");
+   309	
+   310	export function mkNode(id) {
+   311	  const node = {
+   312	    id, innerHTML: "", textContent: "", hidden: false, className: "", disabled: false,
+   313	    _attrs: {}, _desc: null, parentElement: null,
+   314	    setAttribute(k, v) { node._attrs[k] = String(v); },
+   315	    getAttribute(k) { return node._attrs[k] ?? null; },
+   316	    addEventListener() {},
+   317	    querySelector() { return null; },
+   318	    querySelectorAll() { return []; },
+   319	  };
+   320	  return node;
+   321	}
+   322	
+   323	export function matches(node, sel) {
+   324	  if (sel === "[data-refresh-vault]") return node._attrs["data-refresh-vault"] !== undefined;
+   325	  if (sel === "[data-note-for]") return node._attrs["data-note-for"] !== undefined;
+   326	  return false;
+   327	}
+   328	
+   329	export const flush = () => new Promise(r => setTimeout(r, 0));
+   330	
+   331	export function boot({getJson, postJson, hidden = false} = {}) {
+   332	  const els = {};
+   333	  const handlers = {};
+   334	  const timers = [];
+   335	  const calls = {get: 0, post: 0};
+   336	  function makeEl(id) {
+   337	    const node = mkNode(id);
+   338	    node.addEventListener = (t, fn) => { handlers[id + "::" + t] = fn; };
+   339	    node.querySelectorAll = sel => (node._desc || []).filter(n => matches(n, sel));
+   340	    return node;
+   341	  }
+   342	  const documentStub = {
+   343	    hidden,
+   344	    getElementById: id => (els[id] ??= makeEl(id)),
+   345	    addEventListener: (t, fn) => { handlers["document::" + t] = fn; },
+   346	  };
+   347	  const fetchStub = async (url, opts = {}) => {
+   348	    if (opts && opts.method === "POST") {
+   349	      calls.post += 1;
+   350	      const h = typeof postJson === "function" ? postJson(url, opts) : postJson;
+   351	      return h === undefined || h === null ? {ok: false, status: 0, json: async () => null} : h;
+   352	    }
+   353	    calls.get += 1;
+   354	    const h = typeof getJson === "function" ? getJson(url) : getJson;
+   355	    return h === undefined || h === null ? {ok: false, status: 0, json: async () => null} : h;
+   356	  };
+   357	  const sandbox = new Function(
+   358	    "document", "fetch", "setTimeout", "clearTimeout",
+   359	    SRC +
+   360	    "\n;return {esc, shDay, parseDueMs, humanizeDue, computePollDelayMs, visibilityAction," +
+   361	    " boardLink, nodeLink, nodeDetailHtml, boardTableHtml, restDayHtml, renderVaultCard," +
+   362	    " renderPage, renderUnavailableBanner, renderRefreshResult, freshNotes};"
+   363	  );
+   364	  const api = sandbox(
+   365	    documentStub, fetchStub,
+   366	    (fn, ms) => { timers.push({fn, ms}); return timers.length; },
+   367	    () => {},
+   368	  );
+   369	  return {api, els, handlers, timers, calls, document: documentStub};
+   370	}
+   371	"""
+   372	
+   373	
+   374	def _group(pattern: str, text: str, flags: int = 0) -> str:
+   375	    """re.search().group(1) 的非 None 断言版 — pyright 严格模式友好。"""
+   376	    m = re.search(pattern, text, flags)
+   377	    assert m is not None, f"模式未命中: {pattern!r}"
+   378	    return m.group(1)
+   379	
+   380	
+   381	def _extract_script(html: str) -> str:
+   382	    """从实际响应体取出**整个** <script> 原文 — 且必须与浏览器 tokenizer 同源。
+   383	
+   384	    HTML 解析对 script 结束符**大小写不敏感**、正文里出现注释开合也会改变
+   385	    解析状态 (round-2 HIGH-3 实证: `// </SCRIPT>` 后的"好代码"能骗过大小写
+   386	    敏感的正则, 但浏览器根本不会执行它)。所以除定位外, 还要拒绝一切会让
+   387	    「正则提取的字节」与「浏览器执行的字节」分叉的序列。
+   388	    """
+   389	    # 开标签: 大小写不敏感地只允许一个, 且必须恰是字面 <script> (无属性)
+   390	    openings = re.findall(r"<script\b[^>]*>", html, flags=re.I)
+   391	    assert openings == ["<script>"], f"script 开标签形态变了: {openings!r}"
+   392	    _prefix, sep, rest = html.partition("<script>")
+   393	    assert sep, "script 开标签未命中"
+   394	    # 结束符**总数**恰为 1 (大小写不敏感) — 正文任何位置多出结束符 (哪怕在
+   395	    # JS 注释里), 浏览器都会在那里提前终止脚本; maxsplit 截断式提取会把它
+   396	    # 当切割点吞掉, 那道门就是死的 (round-3 自查), 数段数才漏不掉。
+   397	    # round-3 HIGH-3: 浏览器结束标签语言还接受 solidus 分隔 (`</script/`) 与
+   398	    # 携带属性 (`</script x=y>`) — `</script\s*>` 数不到这些形态。fail-closed
+   399	    # 升级为数 `</script` 前缀总出现次数 (多一个即红, 不猜后续字符)
+   400	    hits = re.findall(r"</script", rest, flags=re.I)
+   401	    assert len(hits) == 1, f"script 结束前缀出现 {len(hits)} 次 (应恰 1) — 浏览器会在正文处提前终止"
+   402	    src = re.split(r"</script", rest, maxsplit=1, flags=re.I)[0]
+   403	    # 正文分叉面: HTML 注释开合改变 tokenizer 状态 (script data escaped)
+   404	    assert "<!--" not in src and "-->" not in src, "script 正文含 HTML 注释开合 — tokenizer 状态分叉面"
+   405	    assert "__URLS_JSON__" not in src, "占位符没被替换 — 页面发出去的是模板本身"
+   406	    return src
+   407	
+   408	
+   409	@pytest.fixture
+   410	def node_harness(tmp_path, page_html):
+   411	    """真实脚本 + 沙箱 boot 器写入 tmp; node 不可用时 fail-closed (不 skip)。"""
+   412	    if not _NODE:
+   413	        pytest.fail(
+   414	            "node 不可用 — 本文件 10+ 道 JS 门禁止静默 skip 假绿 (Codex round-1 "
+   415	            "HIGH-2 fail-closed); 本环境必须装 node, 或实现卡文默认裁决④的 "
+   416	            "Python 解析 fallback 后再改本门"
+   417	        )
+   418	    (tmp_path / "page-script.js").write_text(_extract_script(page_html), encoding="utf-8")
+   419	    (tmp_path / "boot.mjs").write_text(_BOOT_MJS, encoding="utf-8")
+   420	    return tmp_path
+   421	
+   422	
+   423	def _run_node(tmp_path: Path, test_src: str) -> subprocess.CompletedProcess:
+   424	    (tmp_path / "case.test.mjs").write_text(test_src, encoding="utf-8")
+   425	    return subprocess.run(
+   426	        [_NODE, "--test", "case.test.mjs"],
+   427	        cwd=tmp_path,
+   428	        capture_output=True,
+   429	        text=True,
+   430	        timeout=120,
+   431	    )
+   432	
+   433	
+   434	def _assert_node_green(proc: subprocess.CompletedProcess):
+   435	    assert proc.returncode == 0, f"node --test 失败:\n{proc.stdout}\n{proc.stderr}"
+   436	    # skipped 必须为 0 — 门不许被 conditional skip 悄悄掏空 (HIGH-2 配套);
+   437	    # 零计数 (`# skipped 0` / `skipped 0`) 放行, 非零即红
+   438	    assert not re.search(r"\bskipped?\s*[:=]?\s*[1-9]", proc.stdout), f"出现非零 skip:\n{proc.stdout}"
+   439	
+   440	
+   441	#: 测试公共 fixture JSON: 覆盖四态 + 休息日 + W6 三字段 (固定时钟, 不读真实时间)
+   442	_FIX_JS = r"""
+   443	const NOW = 1788000000000;
+   444	const OK_VAULT = {
+   445	  vault_id: "cs_61b", status: "ok", error: null,
+   446	  projection: {
+   447	    due_count: 3, due_new_count: 1, placeholder_backlog: 2,
+   448	    generated_at: "2026-08-29T09:05:00+08:00",
+   449	    bucket_counts: {new: 1, learning_queue: 1, due_now: 1, due_today: 0, future: 4},
+   450	    next_upcoming: {board: "堆", next_due: "2026-09-05T02:00:00Z", node: "二叉堆"},
+
+2026-09-01T09:36:30.830320Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:36:31.116119Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:36:39.395673Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:36:40.537525Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:36:41.038628Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:36:44.540128Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:36:48.384290Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:36:50.993918Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:36:52.066638Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:36:53.602737Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:36:58.809571Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:36:59.813123Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:37:04.638571Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+**Planning AST-based sanitizer utility**
+**Refining line extraction for assertions**
+**Planning quote sanitization in assertions**
+**Planning test function analysis**
+**Evaluating test execution constraints**
+**Assessing renderPage projection integrity**
+**Investigating renderCards error handling**
+**Analyzing settlement state commits on render failure**
+**Investigating banner data corruption and duplicate vault entries**
+**Assessing projection shape validation and corrupt response handling**
+**Planning backend response aggregation inspection**
+exec
+/bin/zsh -lc "rg -n 'def review_overview|def _summarize|vault_id|projection|status' backend/app/api/v1/endpoints/review_overview.py | head -n 140" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
+ succeeded in 0ms:
+7:任何文件。诚实四态: ok / stale / no_projection / corrupt 显式区分 — 缺投影
+30:写侧安全与 fail-closed 口径见 _rebuild_projection 的 docstring。
+577:def _fmt_projection_time(generated_at: str) -> str:
+591:def _board_link(vault_id: str, board: str) -> str:
+593:    return "obsidian://open?vault=" + quote(vault_id, safe="") + "&file=" + quote(f"原白板/{board}.md", safe="")
+596:def _node_link(vault_id: str, node: str) -> str:
+604:    return "obsidian://open?vault=" + quote(vault_id, safe="") + "&file=" + quote(f"节点/{node}.md", safe="")
+607:#: 状态 → (徽标文案, 徽标色) — 页面与 JSON status 同一枚举
+611:    "no_projection": ("无投影", "#6b7280"),
+628:def _summarize(payload: dict) -> dict:
+757:        "vault_id": _opt_str(payload.get("vault_id"), "vault_id"),  # C1a 加性; 旧投影缺 → null
+816:        "vault_id": vault_dir.name,
+818:        "status": "no_projection",
+819:        "projection": None,
+828:        entry["status"] = "corrupt"
+841:        entry["status"] = "corrupt"
+859:    entry["status"] = "stale" if stale else "ok"
+860:    entry["projection"] = summary
+872:            status_code=503,
+877:            status_code=500,
+888:            status_code=500,
+901:                    "vault_id": v.name,
+903:                    "status": "corrupt",
+904:                    "projection": None,
+920:async def review_overview() -> dict:
+942:def _node_detail_html(vault_id: str, nodes: list[dict], now_sh: datetime) -> str:
+955:        link = html.escape(_node_link(vault_id, n["node"]))
+981:def _board_table_html(vault_id: str, boards: list[dict], now_sh: datetime) -> str:
+994:        link = html.escape(_board_link(vault_id, r["board"]))
+1007:        detail = _node_detail_html(vault_id, r.get("nodes") or [], now_sh)
+1024:def _refresh_form_html(vault_id: str, action: str) -> str:
+1032:        f'<input type="hidden" name="vault_id" value="{html.escape(vault_id)}">'
+1040:    vid = html.escape(entry["vault_id"])
+1041:    label, color = _STATUS_META[entry["status"]]
+1048:    obsidian_url = html.escape("obsidian://open?vault=" + quote(entry["vault_id"], safe=""))
+1052:    proj = entry.get("projection")
+1081:        gen_disp = html.escape(_fmt_projection_time(str(proj.get("generated_at") or "—")))
+1085:            + _board_table_html(entry["vault_id"], proj["boards"], now_sh)
+1089:    elif entry["status"] == "no_projection":
+1101:    # CARD-G6-1 操作行: 四态一律给刷新按钮 —— no_projection 恰恰是最需要它
+1105:        + _refresh_form_html(entry["vault_id"], refresh_action)
+1121:async def review_overview_page(request: Request) -> HTMLResponse:
+1170:#: vault_id): 不同 VAULTS_ROOT 下的同名库是两个库, 用名字做 key 会让它们
+1224:        status_code=503,
+1260:    日期 —— 端点照样返回 rebuilt=true / status=ok, 页面上没有任何异常信号,
+1358:            status_code=503,
+1389:    这类文件系统, 现象是"刷新恒 503 projection_not_republished", 日志里有
+1406:            "vault_id": vault_dir.name,
+1408:            "status": "corrupt",
+1409:            "projection": None,
+1414:def _rebuild_projection(vault_dir: Path, script: Path) -> tuple[dict, dict | None]:
+1473:                status_code=503,
+1481:                status_code=503,
+1495:            raise HTTPException(status_code=503, detail=detail)
+1510:                status_code=503,
+1512:                    "error": "projection_missing_after_rebuild",
+1527:                status_code=503,
+1529:                    "error": "projection_not_republished",
+1539:                status_code=503,
+1541:                    "error": "projection_md_missing",
+1547:        if entry["status"] == "corrupt":
+1549:                status_code=503,
+1551:                    "error": "projection_corrupt_after_rebuild",
+1553:                    "projection_error": entry.get("error"),
+1590:            status_code=503,
+1595:            status_code=503,
+1608:                status_code=503,
+1613:                status_code=503,
+1622:def _refresh_target(vault_id: str) -> tuple[Path, Path]:
+1625:    vault_id 必须**命中枚举出来的真实目录名** (与 GET /overview 同一条
+1633:            status_code=503,
+1640:            status_code=503,
+1643:    match = next((d for d in vault_dirs if d.name == vault_id), None)
+1646:            status_code=404,
+1649:                "message": f"VAULTS_ROOT 下无名为 {vault_id!r} 的库 (需含 .obsidian/)",
+1723:                status_code=403,
+1735:            status_code=403,
+1744:            status_code=403,
+1769:def _error_page_html(status: int, vault_id: str, detail, back: str) -> str:
+1777:        f'<h1 style="font-size:20px;margin:0 0 6px">刷新失败 · {html.escape(vault_id)}</h1>',
+1778:        f'<div style="color:#6b7280;font-size:13px;margin-bottom:14px">HTTP {int(status)} · '
+1817:def review_overview_refresh(
+1819:    vault_id: str = Form(..., description="要重建投影的 vault 目录名 (须命中 VAULTS_ROOT 下的真实库)"),
+1833:                            ⚠ 本段曾写着"rebuilt=true 可与 entry.status=
+1834:                            no_projection 并存" —— 那是 round-3 之前的语义,
+1843:      entry                 与 GET /overview 中该库条目同形 (四态 + projection)
+1851:        vault_dir, script = _refresh_target(vault_id)
+1852:        result, entry = _rebuild_projection(vault_dir, script)
+1859:            content=_error_page_html(e.status_code, vault_id, e.detail, request.url_for("review_overview_page").path),
+1860:            status_code=e.status_code,
+1872:                (f"{vault_id} 正在重建中", "这个库已经有一次刷新在跑了，本次没有重复启动。等几秒回总览页看最新数字。")
+1875:                    f"{vault_id} 刚刚才刷新过",
+1882:                status_code=200,
+1885:        return RedirectResponse(url=request.url_for("review_overview_page").path, status_code=303)
+1888:            "vault_id": vault_dir.name,
+
+**Inspecting aggregator 628-930**
+exec
+/bin/zsh -lc "nl -ba backend/app/api/v1/endpoints/review_overview.py | sed -n '607,930p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
+ succeeded in 0ms:
+   607	#: 状态 → (徽标文案, 徽标色) — 页面与 JSON status 同一枚举
+   608	_STATUS_META = {
+   609	    "ok": ("今日投影", "#16a34a"),
+   610	    "stale": ("过期投影", "#d97706"),
+   611	    "no_projection": ("无投影", "#6b7280"),
+   612	    "corrupt": ("投影损坏", "#dc2626"),
+   613	}
+   614	
+   615	
+   616	def _list_vault_dirs(vaults_root: Path) -> list[Path]:
+   617	    """与 GET /vault/list 同一条候选规则: 非隐藏目录且含 .obsidian/。"""
+   618	    dirs: list[Path] = []
+   619	    for entry in sorted(vaults_root.iterdir()):
+   620	        if not entry.is_dir() or entry.name.startswith("."):
+   621	            continue
+   622	        if not (entry / ".obsidian").is_dir():
+   623	            continue
+   624	        dirs.append(entry)
+   625	    return dirs
+   626	
+   627	
+   628	def _summarize(payload: dict) -> dict:
+   629	    """严格 v3 形状门禁 + 摘要 (Codex-C2 B3): 本端点只消费冻结的 schema v3
+   630	    投影 — 版本/嵌套容器/计数类型任一不符即抛 ValueError → corrupt 降级,
+   631	    绝不给形状垃圾发 ok。只挑总览页要的字段, 不重算到期口径。"""
+   632	    if payload.get("schema_version") != 3 or type(payload.get("schema_version")) is not int:
+   633	        raise ValueError(f"仅支持 schema_version 3, 实为 {payload.get('schema_version')!r}")
+   634	    stats = payload.get("stats")
+   635	    if not isinstance(stats, dict):
+   636	        raise ValueError(f"stats 应为 object, 实为 {type(stats).__name__}")
+   637	    top_boards = payload.get("top_boards")
+   638	    upcoming = payload.get("upcoming")
+   639	    due_nodes = payload.get("due_nodes")
+   640	    ineligible = payload.get("ineligible")
+   641	    if not (
+   642	        isinstance(top_boards, list)
+   643	        and isinstance(upcoming, list)
+   644	        and isinstance(due_nodes, list)
+   645	        and isinstance(ineligible, dict)
+   646	    ):
+   647	        raise ValueError("top_boards/upcoming/due_nodes/ineligible 容器形状不符 v3")
+   648	    placeholder = ineligible.get("placeholder")
+   649	    if not isinstance(placeholder, list):
+   650	        raise ValueError(f"ineligible.placeholder 应为数组, 实为 {type(placeholder).__name__}")
+   651	    for j, p in enumerate(placeholder):
+   652	        if not isinstance(p, str):  # Codex-D1 H5: len() 消费也不给垃圾元素发 ok
+   653	            raise ValueError(f"ineligible.placeholder[{j}] 应为字符串, 实为 {type(p).__name__}")
+   654	    # top_boards 全量元素门禁 (CARD-D1: 行序依赖每个元素的 board) —
+   655	    # [0] 额外保留 top_node/pending 门禁 (汇总行消费)
+   656	    prio: dict[str, int] = {}
+   657	    for i, tb in enumerate(top_boards):
+   658	        if not isinstance(tb, dict):
+   659	            raise ValueError(f"top_boards[{i}] 应为 object, 实为 {type(tb).__name__}")
+   660	        b = tb.get("board")
+   661	        # round2: 空板名也是垃圾 (生产器 _board_name 恒非空) — 不再 _opt_str 放行
+   662	        if not isinstance(b, str) or not b:
+   663	            raise ValueError(f"top_boards[{i}].board 应为非空字符串, 实为 {b!r}")
+   664	        # Codex-D1 H5: 重复板会让后续板与非 top 板共享排序优先级
+   665	        if b in prio:
+   666	            raise ValueError(f"top_boards[{i}].board 重复: {b!r}")
+   667	        prio[b] = i
+   668	    top = top_boards[0] if top_boards else {}
+   669	    up_gated = _gate_upcoming(upcoming)
+   670	    # 不透传整对象 (round3: 内部字段未验的 dict 原样进响应仍是形状垃圾
+   671	    # 通道) — 只提取消费方要的三个字段并逐一门禁
+   672	    next_up = dict(up_gated[0]) if up_gated else None
+   673	
+   674	    # ── CARD-D1 板表格派生: 到期板 (due_nodes group-by, top_boards 优先级
+   675	    # 排序) → 零到期板 (按 next_due 升序)。P1 rollup 在场时提供板级
+   676	    # placeholder 归属 (待剖析列) 与零到期板全量; 缺省 (旧投影) 时待剖析
+   677	    # 为 null → 渲染 "—", 零到期板回落 upcoming[:3]。
+   678	    generated_at = payload.get("generated_at")
+   679	    if not isinstance(generated_at, str):
+   680	        raise ValueError(f"generated_at 应为字符串, 实为 {type(generated_at).__name__}")
+   681	    groups = _gate_due_groups(due_nodes)
+   682	    ph_map: dict[str, int] = {}
+   683	    rollup_zero: list[dict] | None = None
+   684	    future_map: dict[str, tuple[int, str]] | None = None
+   685	    # "boards" in payload 而非 .get(): 显式 null 不是"旧投影缺省", 是形状
+   686	    # 垃圾 (Codex-D1 H5) — 生产器恒产出数组
+   687	    if "boards" in payload:
+   688	        ph_map, rollup_zero, future_map = _gate_boards_rollup(payload["boards"], groups, len(placeholder))
+   689	    # CARD-G3-6a 加性: 五桶分层计数 (同 "boards" 口径 — 显式 null 不是"旧
+   690	    # 投影缺省", 是形状垃圾; 生产器恒产出五键 object)
+   691	    bucket_counts = None
+   692	    if "buckets" in payload:
+   693	        # Codex round-3: 二者由同一版生产器一起产出 —— "有 buckets 无 boards"
+   694	        # 不是任何历史形态, 放行它等于放弃非到期两桶的逐板对账
+   695	        if future_map is None:
+   696	            raise ValueError("buckets 在场但 boards 缺席 — 非生产器产物 (二者同版一起落盘)")
+   697	        bucket_counts = _gate_buckets(payload["buckets"], groups, stats, generated_at, future_map, up_gated)
+   698	    board_rows = [
+   699	        {
+   700	            "board": b,
+   701	            "due": g["due"],
+   702	            "due_new": g["new"],
+   703	            "placeholder": ph_map.get(b),
+   704	            "earliest": g["earliest"],
+   705	            # CARD-G6-4 加性: 板内到期节点明细 (纯消费既有 due_nodes 行, 零 schema 改动)
+   706	            "nodes": _node_rows(g["rows"]),
+   707	        }
+   708	        for b, g in groups.items()
+   709	    ]
+   710	    board_rows.sort(key=lambda r: (prio.get(r["board"], len(prio)), -r["due"], r["board"]))
+   711	    if rollup_zero is not None:
+   712	        zero_rows = [
+   713	            {
+   714	                "board": z["board"],
+   715	                "due": 0,
+   716	                "due_new": 0,
+   717	                "placeholder": ph_map.get(z["board"]),
+   718	                # next_due 空串 = 无未来排期 (占位符专属板) → 无数据 "—"
+   719	                "earliest": z["next_due"] or None,
+   720	                "nodes": [],  # 零到期板没有到期节点可展开 (未来节点不在 due_nodes 里)
+   721	            }
+   722	            for z in rollup_zero
+   723	            if z["board"] not in groups  # 防御: 同板双列时到期行为准
+   724	        ]
+   725	        zero_rows.sort(key=lambda r: (r["earliest"] is None, r["earliest"] or "", r["board"]))
+   726	    else:
+   727	        zero_rows = [
+   728	            {
+   729	                "board": u["board"],
+   730	                "due": 0,
+   731	                "due_new": 0,
+   732	                "placeholder": None,
+   733	                "earliest": u["next_due"],
+   734	                "nodes": [],
+   735	            }
+   736	            for u in up_gated
+   737	            if u["board"] not in groups  # 防御: 生产器不会让同板双列, 双列时到期行为准
+   738	        ]
+   739	        zero_rows.sort(key=lambda r: (r["earliest"], r["board"]))
+   740	    board_rows += zero_rows
+   741	
+   742	    # round2 (Codex-D1 H5 残留): date 是生产器 date().isoformat() 产物 —
+   743	    # 词形 + 日历双验, 垃圾值不发 ok (缺省 None 容旧投影)
+   744	    date_v = payload.get("date")
+   745	    if date_v is not None:
+   746	        if not isinstance(date_v, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_v):
+   747	            raise ValueError(f"date 非日历日期形态: {date_v!r}")
+   748	        try:
+   749	            datetime.strptime(date_v, "%Y-%m-%d")
+   750	        except ValueError:
+   751	            raise ValueError(f"date 日历非法: {date_v!r}")
+   752	    pending = top.get("pending")
+   753	    if pending is not None:
+   754	        pending = _strict_int(pending)
+   755	    return {
+   756	        "schema_version": 3,
+   757	        "vault_id": _opt_str(payload.get("vault_id"), "vault_id"),  # C1a 加性; 旧投影缺 → null
+   758	        "date": date_v,
+   759	        "generated_at": generated_at,
+   760	        # stats.due_nodes 是 v3 权威计数 (A2 构造保证与明细同源) — 不退
+   761	        # 明细重数, 类型不符即 corrupt
+   762	        "due_count": _strict_int(stats.get("due_nodes")),
+   763	        "placeholder_backlog": len(placeholder),
+   764	        "recommended_board": _opt_str(top.get("board"), "top_boards[0].board"),
+   765	        "top_node": _opt_str(top.get("top_node"), "top_boards[0].top_node"),
+   766	        "pending": pending,
+   767	        "next_upcoming": next_up,
+   768	        # CARD-D1 加性: 板表格行 (due 来自 due_nodes group-by; 正常投影下
+   769	        # 合计==due_count, A2 同源构造保证; 手工投影不一致时两数并陈)
+   770	        "boards": board_rows,
+   771	        "due_new_count": sum(r["due_new"] for r in board_rows),
+   772	        # round2 (Codex-D1 M1 残留): rollup 在场时的板级归属合计 — 渲染层
+   773	        # 据此算"未归板"差额; 不能从 board_rows 重加 (纯无主占位符时
+   774	        # boards 为空, 差额会被错误置零)。缺省 null = rollup 不在场
+   775	        "placeholder_attributed": sum(ph_map.values()) if rollup_zero is not None else None,
+   776	        # CARD-G3-6a 加性: 五桶分层计数; 缺省 null = 旧投影无 buckets 键
+   777	        "bucket_counts": bucket_counts,
+   778	    }
+   779	
+   780	
+   781	def _node_rows(rows: dict[str, dict]) -> list[dict]:
+   782	    """板内到期节点明细 (CARD-G6-4) —— 纯消费 _gate_due_groups 已门禁过的行。
+   783	
+   784	    排序 = 紧迫度降序, 与既有板级 `earliest` 的口径**同一条规则**:
+   785	    已排期的到期时刻恒在过去, 越早越紧迫, 所以先按非空时间戳升序; 新卡的
+   786	    fsrs_due 是空串 (语义 = 现在), 排在已逾期节点之后 —— 字典序把 "" 当最小
+   787	    会让"逾期 3 天"被"现在"盖掉, 那正是 D1 复核抓过的低估紧迫度缺陷, 这里
+   788	    不许在明细里重犯一遍。同刻按节点名稳定排序 (防同分随机漂)。
+   789	
+   790	    bucket / why_due 可能为 None (G3-6a 之前的旧投影没有这两个字段) —— 渲染层
+   791	    据此降级为"—", 不伪造分层标签。
+   792	    """
+   793	    return sorted(
+   794	        (
+   795	            {
+   796	                "node": node,
+   797	                "due_reason": meta["reason"],
+   798	                "fsrs_due": meta["fsrs_due"],
+   799	                "bucket": meta["bucket"],
+   800	                "why_due": meta["why_due"],
+   801	            }
+   802	            for node, meta in rows.items()
+   803	        ),
+   804	        key=lambda r: (r["fsrs_due"] == "", r["fsrs_due"], r["node"]),
+   805	    )
+   806	
+   807	
+   808	def _reject_nonstandard_json(const: str):
+   809	    # json.loads 默认放行 NaN/Infinity — 非标准 JSON 不是合法 v3 投影
+   810	    raise ValueError(f"非标准 JSON 常量 {const}")
+   811	
+   812	
+   813	def _vault_entry(vault_dir: Path, today: date) -> dict:
+   814	    """单 vault 聚合条目 — 诚实四态, 任何脏数据都不许把请求打成 500。"""
+   815	    entry: dict = {
+   816	        "vault_id": vault_dir.name,
+   817	        "path": str(vault_dir),
+   818	        "status": "no_projection",
+   819	        "projection": None,
+   820	        "error": None,
+   821	    }
+   822	    proj_path = vault_dir.joinpath(*_PROJECTION_REL)
+   823	    try:
+   824	        raw = proj_path.read_text(encoding="utf-8")
+   825	    except FileNotFoundError:
+   826	        return entry  # 显式"无投影"降级条目 (推送管道尚未跑过该库)
+   827	    except (OSError, UnicodeDecodeError) as e:
+   828	        entry["status"] = "corrupt"
+   829	        entry["error"] = f"{type(e).__name__}: {str(e)[:200]}"
+   830	        return entry
+   831	    try:
+   832	        payload = json.loads(raw, parse_constant=_reject_nonstandard_json, parse_float=_finite_float)
+   833	        if not isinstance(payload, dict):
+   834	            raise ValueError("投影根节点不是 JSON object")
+   835	        # Codex-D1 H2: JSON "\ud800" 转义会解出孤立 surrogate 字符串,
+   836	        # isinstance(str) 门禁放行, 到响应 UTF-8 序列化 / quote() 才炸成
+   837	        # 500 — 解析层就地折断 (UnicodeEncodeError ⊂ ValueError → corrupt)
+   838	        json.dumps(payload, ensure_ascii=False).encode("utf-8")
+   839	        summary = _summarize(payload)
+   840	    except Exception as e:  # noqa: BLE001 — 外部文件任意形状, 统一 corrupt 降级
+   841	        entry["status"] = "corrupt"
+   842	        entry["error"] = f"{type(e).__name__}: {str(e)[:200]}"
+   843	        return entry
+   844	
+   845	    # stale 判定: 只认 A2 生产器的确切形态 (带时区秒级) — 数字串/纯日期/
+   846	    # 无时区值不许冒充今日 (Codex-C2 B2); 解析中的任何异常 (含
+   847	    # fromisoformat 通过但 astimezone 溢出的 OverflowError, Codex-C2 B1)
+   848	    # 都按 stale 降级, 绝不逃逸成 500。
+   849	    stale = True
+   850	    try:
+   851	        if _GENERATED_AT_RE.fullmatch(summary["generated_at"]):
+   852	            gen = datetime.fromisoformat(summary["generated_at"].replace("Z", "+00:00"))
+   853	            # CARD-D1: 本地日统一 Asia/Shanghai (容器 UTC 下 astimezone()
+   854	            # 会用错误的"本地日"跨午夜误判)
+   855	            stale = gen.astimezone(_TZ_SHANGHAI).date() != today
+   856	    except Exception:  # noqa: BLE001 — 畸形时间按 stale, 不装新鲜也不炸
+   857	        stale = True
+   858	
+   859	    entry["status"] = "stale" if stale else "ok"
+   860	    entry["projection"] = summary
+   861	    return entry
+   862	
+   863	
+   864	def _collect() -> dict:
+   865	    s = get_settings()
+   866	    try:
+   867	        vaults_root = Path(s.VAULTS_ROOT).resolve()
+   868	    except OSError as e:
+   869	        # 防御深度 (Codex round-3 提出; 本平台未复现 resolve 抛错, 如实登记):
+   870	        # 本端点的全部错误路径都该是 503, 不许有一条能逃逸成 500
+   871	        raise HTTPException(
+   872	            status_code=503,
+   873	            detail={"error": "vaults_root_invalid", "message": f"{type(e).__name__}: {str(e)[:200]}"},
+   874	        )
+   875	    if not vaults_root.is_dir():
+   876	        raise HTTPException(
+   877	            status_code=500,
+   878	            detail={
+   879	                "error": "vaults_root_invalid",
+   880	                "message": f"VAULTS_ROOT not a directory: {vaults_root}",
+   881	            },
+   882	        )
+   883	    now = datetime.now(_TZ_SHANGHAI)  # CARD-D1: 全链路上海本地时区
+   884	    try:
+   885	        vault_dirs = _list_vault_dirs(vaults_root)
+   886	    except OSError as e:
+   887	        raise HTTPException(
+   888	            status_code=500,
+   889	            detail={"error": "vaults_root_scan_failed", "message": str(e)},
+   890	        )
+   891	    vaults = []
+   892	    for v in vault_dirs:
+   893	        try:
+   894	            vaults.append(_vault_entry(v, now.date()))
+   895	        except Exception as e:  # noqa: BLE001 — 终极防线 (Codex-C2 B1):
+   896	            # 单库任何未预期异常都不许把全局打成 500, 以 corrupt 条目呈现;
+   897	            # traceback 落服务端日志 (兜底不等于不可观测)
+   898	            logger.exception("review_overview 单库聚合异常", vault=v.name)
+   899	            vaults.append(
+   900	                {
+   901	                    "vault_id": v.name,
+   902	                    "path": str(v),
+   903	                    "status": "corrupt",
+   904	                    "projection": None,
+   905	                    "error": f"{type(e).__name__}: {str(e)[:200]}",
+   906	                }
+   907	            )
+   908	    return {
+   909	        "generated_at": now.isoformat(timespec="seconds"),
+   910	        "vaults_root": str(vaults_root),
+   911	        "active_vault": s.ACTIVE_VAULT,
+   912	        "vaults": vaults,
+   913	    }
+   914	
+   915	
+   916	@review_overview_router.get(
+   917	    "/overview",
+   918	    summary="跨 vault 复习总览聚合 (CARD-C2)",
+   919	)
+   920	async def review_overview() -> dict:
+   921	    """聚合各 vault 的今日复习投影 — 只读, 缺投影/损坏均显式降级。"""
+   922	    return _collect()
+   923	
+   924	
+   925	_TH = (
+   926	    "padding:4px 8px;border-bottom:1px solid #e5e7eb;color:#6b7280;"
+   927	    "font-weight:500;text-align:left;white-space:nowrap;font-size:12px"
+   928	)
+   929	_TD = "padding:5px 8px;border-bottom:1px solid #f3f4f6"
+   930	_TD_NUM = _TD + ";text-align:center;white-space:nowrap"
+
+2026-09-01T09:39:24.246883Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:39:25.341973Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:39:34.995072Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:39:40.712997Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:40:20.941344Z ERROR codex_models_manager::manager: failed to refresh available models: timeout waiting for child process to exit
+**Analyzing concurrency race conditions**
+**Verifying poll behavior and ID safety**
+**Identifying outdated GET response risk**
+**Scrutinizing _extract_script parsing logic**
+**Analyzing script tag edge case parsing**
+**Identifying script tag bypass risk**
+**Investigating script extraction accuracy**
+**Validating script closing tag vulnerability**
+**Planning independent code execution to verify HIGH-3**
+**Testing html5lib parsing with script suffix**
+**Evaluating script extraction method alternatives**
+**Assessing script end tag parsing rules**
+**Identifying tokenizer end tag edge cases**
+**Analyzing function parameter bypass in whitelist**
+**Evaluating endpoint function signature risks**
+**Identifying assignment rebinding bypass in AST checks**
+**Clarifying whitelist scope excludes parameter names**
+**Analyzing request reassignment risks**
+**Identifying receiver whitelist rebinding flaw**
+**Analyzing call attribute permissions and decorator AST**
+**Verifying method availability on allowed call results**
+**Assessing import alias risks**
+**Identifying call bypass via builtins assignment**
+**Analyzing Python introspection bypass via tuple assignment**
+**Planning in-memory AST mutation testing**
+**Detecting tuple-destructuring rebind bypass**
+**Designing AST-based allowlist tests**
+**Analyzing positional-only argument bypass risks**
+exec
+/bin/zsh -lc 'git diff --no-ext-diff --unified=0 7ca194ac''^ 7ca194ac -- backend/tests/unit/test_review_app.py | rg -n '"'"'^(diff|index|---|'"\\+\\+\\+|@@|\\+def test_|\\+\\s+ALLOWED_|\\+\\s+if isinstance\\(node|\\+\\s+recv_base|\\+\\s+assert .* in ALLOWED_|\\+\\s+pytest\\.fail|\\+\\s+_assert_node_green)'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
+ succeeded in 0ms:
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+1:diff --git a/backend/tests/unit/test_review_app.py b/backend/tests/unit/test_review_app.py
+2:index fd8ca98f..bcd44e09 100644
+3:--- a/backend/tests/unit/test_review_app.py
+4:+++ b/backend/tests/unit/test_review_app.py
+5:@@ -255,0 +256,3 @@ def test_review_app_module_imports_are_closed():
+8:+    ALLOWED_RECEIVERS = {"json", "request", "review_app_router", "_STATUS_META", "_PAGE_TEMPLATE"}
+9:@@ -267,0 +271,11 @@ def test_review_app_module_imports_are_closed():
+12:+        if isinstance(node, (ast.Assign, ast.AugAssign, ast.AnnAssign)):
+16:+                    pytest.fail(f"白名单名 {tgt.id!r} 被重绑定 — 调用点拼写检查会被架空")
+17:+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+20:+                    pytest.fail(f"白名单名 {a.arg!r} 被参数遮蔽 — 调用点拼写检查会被架空")
+21:@@ -273,0 +288,4 @@ def test_review_app_module_imports_are_closed():
+22:+                recv_base = ast.unparse(f.value).split("(", 1)[0]
+23:+                assert recv_base in ALLOWED_RECEIVERS or isinstance(f.value, ast.Call), (
+26:@@ -378,4 +396,7 @@ def _extract_script(html: str) -> str:
+38:@@ -863,2 +884 @@ test("③ TTL 过期后重绘, 反馈退场 (不永久占卡片)", async () => {
+42:@@ -1039 +1059,3 @@ def test_script_extraction_rejects_case_insensitive_terminator():
+47:@@ -1260,0 +1283,127 @@ assert.match(boot().api.renderVaultCard(bad, NOW), /20260902/, "畸形时间原
+51:+def test_js_settle_binds_to_rendered_vault_evidence(node_harness):
+114:+    _assert_node_green(proc)
+118:+def test_js_hidden_rebuilt_defers_get_and_own_key_status_meta(node_harness):
+174:+    _assert_node_green(proc)
+
+**Inspecting evidence logs and mutation**
+exec
+/bin/zsh -lc 'tail -n 1 _bmad-output/审查/evidence-g62/mutation-run-final.log; wc -l _bmad-output/审查/evidence-g62/裁判命令输出-r4.txt; nl -ba _bmad-output/审查/evidence-g62/裁判命令输出-r4.txt' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
+ succeeded in 0ms:
+EXIT=0
+      16 _bmad-output/审查/evidence-g62/裁判命令输出-r4.txt
+     1	══ 裁判 1: 零外部 URL 探针 (终版 HEAD 复跑) ══
+     2	external []
+     3	
+     4	══ 裁判 2: pytest 两文件全量 (终版: 56 基线 + 33 新增) ══
+     5	======================= 89 passed, 10 warnings in 4.96s ========================
+     6	
+     7	══ 裁判 3: 零 JS 页 <script 基线 ══
+     8	grep -c '<script' review_overview.py = 1
+     9	
+    10	══ 变异负验证 (46 条, rc==1 判据) ══
+    11	负验证 PASS: 46/46 条变异均被**指定的那道门**抓住; 还原后基线仍全绿
+    12	
+    13	══ pyright + ruff ══
+    14	0 errors, 0 warnings, 0 informations
+    15	All checks passed!
+    16	2 files already formatted
+
+**Inspecting final mutation log lines**
+codex
+证据存档出现一个需单独标注的锚点差异：`裁判命令输出-r4.txt` 记录 46/46，但 `mutation-run-final.log` 的物理末行实际是 `EXIT=0`，不是提示中所述的 PASS 行。我只会读取末尾少量汇总行核清该差异，不展开变异脚本或攻击样本。
+exec
+/bin/zsh -lc 'tail -n 8 _bmad-output/审查/evidence-g62/mutation-run-final.log; git hash-object _bmad-output/审查/evidence-g62/mutation-run-final.log _bmad-output/审查/evidence-g62/裁判命令输出-r4.txt; git status --short -- _bmad-output/审查/evidence-g62/mutation-run-final.log _bmad-output/审查/evidence-g62/裁判命令输出-r4.txt; git ls-files -s -- _bmad-output/审查/evidence-g62/mutation-run-final.log _bmad-output/审查/evidence-g62/裁判命令输出-r4.txt' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
+ succeeded in 0ms:
+[42/46] M42 ✓ 变红 · test_js_malformed_200_keeps_last_data · 删 200 坏形状校验 → 坏响应清掉旧数据还装已连接 (round-2 M2)
+[43/46] M43 ✓ 变红 · test_real_page_extracted_script_is_well_formed · script 正文塞携带属性的结束标签 </script x=y> (round-3 HIGH-3 实证形态)
+[44/46] M44 ✓ 变红 · test_review_app_module_imports_are_closed · 白名单名重绑定 list = open (round-3 HIGH-4b 实证绕过) → AST 重绑定禁令
+[45/46] M45 ✓ 变红 · test_review_app_module_imports_are_closed · 错误接收者挂同名方法 [].items() → AST 接收者门
+[46/46] M46 ✓ 变红 · test_js_settle_binds_to_rendered_vault_evidence · 结算不绑定渲染证据 → corrupt/缺库也沾 GET 成功的光 (round-3 HIGH-1)
+
+负验证 PASS: 46/46 条变异均被**指定的那道门**抓住; 还原后基线仍全绿
+EXIT=0
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+8a8892909e3523b8acff7438500ebe47f90d4b46
+eb3c348dc3a698691387b51c3c52d7305ade7216
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+100644 eb3c348dc3a698691387b51c3c52d7305ade7216 0	"_bmad-output/\345\256\241\346\237\245/evidence-g62/\350\243\201\345\210\244\345\221\275\344\273\244\350\276\223\345\207\272-r4.txt"
+
+**Verifying mutation log status discrepancy**
+**Confirming mutation log untracked status**
+exec
+/bin/zsh -lc "git check-ignore -v _bmad-output/审查/evidence-g62/mutation-run-final.log || true; git show 7ca194ac:_bmad-output/审查/evidence-g62/裁判命令输出-r4.txt | tail -n 8; git show 7ca194ac:_bmad-output/审查/evidence-g62/mutation-run-final.log >/dev/null 2>&1; printf '%s\\n' "'$?' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
+ succeeded in 0ms:
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+.gitignore:27:*.log	"_bmad-output/\345\256\241\346\237\245/evidence-g62/mutation-run-final.log"
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+
+══ 变异负验证 (46 条, rc==1 判据) ══
+负验证 PASS: 46/46 条变异均被**指定的那道门**抓住; 还原后基线仍全绿
+
+══ pyright + ruff ══
+0 errors, 0 warnings, 0 informations
+All checks passed!
+2 files already formatted
+128
+
+2026-09-01T09:41:48.512751Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:41:49.643187Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+**Planning diff and hash verification**
+exec
+/bin/zsh -lc 'git rev-parse 7ca194ac:backend/app/api/v1/endpoints/review_app.py; git hash-object backend/app/api/v1/endpoints/review_app.py; git rev-parse 7ca194ac:backend/tests/unit/test_review_app.py; git hash-object backend/tests/unit/test_review_app.py; git diff --check 7ca194ac''^ 7ca194ac -- backend/app/api/v1/endpoints/review_app.py backend/tests/unit/test_review_app.py' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
+ succeeded in 0ms:
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+97bd553f47aedbaa64c4420ea1c74c18b1110fa2
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+97bd553f47aedbaa64c4420ea1c74c18b1110fa2
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+bcd44e09f6615037d81e2a822cfea6a31fb3eb2f
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+bcd44e09f6615037d81e2a822cfea6a31fb3eb2f
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+
+**Checking html5lib availability**
+exec
+/bin/zsh -lc "python -c 'import html5lib; print(html5lib.__version__)'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
+ exited 1 in 0ms:
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    import html5lib; print(html5lib.__version__)
+    ^^^^^^^^^^^^^^^
+ModuleNotFoundError: No module named 'html5lib'
+
+**Verifying virtual environment path**
+**Checking .venv for html5lib**
+exec
+/bin/zsh -lc "if [ -x .venv/bin/python ]; then .venv/bin/python -c 'import html5lib; print(html5lib.__version__)'; else printf 'NO_VENV\\n'; fi" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
+ succeeded in 0ms:
+NO_VENV
+
+exec
+/bin/zsh -lc "find . -maxdepth 3 -type f -path '*/bin/python*' -print | head -n 20; command -v node; node --version; command -v chromium || true; command -v google-chrome || true; command -v playwright || true" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
+ succeeded in 0ms:
+/Users/Heishing/.nvm/versions/node/v24.16.0/bin/node
+v24.16.0
+
+**Investigating virtual environment detection**
+exec
+/bin/zsh -lc "find .. -maxdepth 4 -type d -name '.venv' -print | head -n 20; python -c 'from html.parser import HTMLParser; print(\"stdlib\")'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
+ succeeded in 1462ms:
+../card-b1-ci-e0/backend/.venv
+../card-l3-recap-skill/backend/.venv
+../card-v2-recapfix/backend/.venv
+../card-m2-honest/backend/.venv
+../card-v3-webui/backend/.venv
+../card-w5-reviewapp/backend/.venv
+../card-v4-apistatus/backend/.venv
+../card-a1-fsrs-none/backend/.venv
+../card-s4-venv/backend/.venv
+../card-w4-micro/backend/.venv
+../card-t6-buckets/backend/.venv
+../card-t5-stableid/backend/.venv
+../card-s6-recap/backend/.venv
+../card-t3-hooks/backend/.venv
+../card-s1-scope/backend/.venv
+../card-m1-anki/backend/.venv
+../feature-obsidian-hybrid-dev/.venv
+../card-t1-readleak/backend/.venv
+../card-m3-push/backend/.venv
+../card-s2-neo4j/backend/.venv
+stdlib
+
+**Correcting Python interpreter path**
+exec
+/bin/zsh -lc "backend/.venv/bin/python -c 'import html5lib; print(html5lib.__version__)'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
+ exited 1 in 0ms:
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    import html5lib; print(html5lib.__version__)
+    ^^^^^^^^^^^^^^^
+ModuleNotFoundError: No module named 'html5lib'
+
+2026-09-01T09:43:25.945861Z ERROR codex_models_manager::manager: failed to refresh available models: timeout waiting for child process to exit
+**Confirming lxml parser installation**
+exec
+/bin/zsh -lc "backend/.venv/bin/python -c 'import lxml; print(lxml.__version__)'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
+ succeeded in 0ms:
+6.0.2
+
+**Planning HTML parsing test with lxml**
+exec
+/bin/zsh -lc "backend/.venv/bin/python -c 'from lxml import html; s=\"<script>const marker=1;</scripture><p>AFTER</p>\"; root=html.fromstring(s); sc=root.xpath(\"//script\")[0]; print(\"script_text=\",repr(sc.text)); print(\"p_count=\",len(root.xpath(\"//p\")))'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
+ succeeded in 0ms:
+script_text= 'const marker=1;</scripture><p>AFTER</p>'
+p_count= 0
+
+2026-09-01T09:44:01.634795Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+**Testing _extract_script importability**
+**Verifying test module packaging**
+2026-09-01T09:44:09.276270Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:44:09.619782Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:44:18.085695Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:44:26.205886Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+**Analyzing missing target settlement failure**
+**Planning selective test assertion extraction**
+exec
+/bin/zsh -lc "sed -n '1286,1352p' backend/tests/unit/test_review_app.py | rg -n 'assert\\.(equal|strictEqual|deepEqual|ok|match|doesNotMatch)|_assert_node_green'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
+ succeeded in 0ms:
+37:  assert.match(note.innerHTML, /同步失败/, "corrupt 投影不许沾 GET 成功的光");
+38:  assert.ok(!note.innerHTML.includes("数字已更新"));
+48:  assert.match(note.innerHTML, /同步失败/, "目标库从聚合里消失 = 没有更新证据");
+49:  assert.ok(!note.innerHTML.includes("数字已更新"));
+59:  assert.match(note.innerHTML, /数字已更新/);
+60:  assert.match(b.els["cards"].innerHTML, /生成于 fresh/);
+64:    _assert_node_green(proc)
+
+2026-09-01T09:44:36.546396Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:44:49.008950Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:44:58.891292Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+**Identifying test blind spot in DOM update**
+**Analyzing renderPage behavior on missing target**
+**Confirming HIGH severity for invisible failure**
+**Inspecting test extraction assertions**
+exec
+/bin/zsh -lc "sed -n '1050,1076p' backend/tests/unit/test_review_app.py | rg -n '"'^(def test_|'"\\s+with pytest|\\s+assert |\\s+_assert|\\s+proc\\s*=|\\s+src\\s*=)'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
+ succeeded in 0ms:
+1:def test_script_extraction_rejects_case_insensitive_terminator():
+14:        with pytest.raises(AssertionError):
+18:def test_real_page_extracted_script_is_well_formed(page_html):
+24:    src = _extract_script(page_html)
+25:    assert "POLL_MIN_MS" in src and "computePollDelayMs" in src, "提取产物被截断 — 不是完整脚本"
+
+2026-09-01T09:45:11.217167Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:45:13.155294Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+**Inspecting missed subprocess lines**
+exec
+/bin/zsh -lc "sed -n '1067,1076p' backend/tests/unit/test_review_app.py | rg -n '(_NODE|subprocess|returncode|pytest\\.fail|POLL_MIN_MS|computePollDelayMs)'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
+ succeeded in 0ms:
+8:    assert "POLL_MIN_MS" in src and "computePollDelayMs" in src, "提取产物被截断 — 不是完整脚本"
+
+2026-09-01T09:45:21.294756Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:45:21.457733Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+**Verifying test compilation and scan results**
+exec
+/bin/zsh -lc "nl -ba backend/tests/unit/test_review_app.py | sed -n '1067,1076p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
+ succeeded in 0ms:
+  1067	def test_real_page_extracted_script_is_well_formed(page_html):
+  1068	    """真实响应的 script 必须能被同源提取且完整 (M38 指定门)。
+  1069	
+  1070	    正文被塞入任何多出的结束符/注释开合时, _extract_script 会拒绝 —
+  1071	    那一刻「沙箱执行的字节 == 浏览器执行的字节」就破了, 本门立刻红。
+  1072	    """
+  1073	    src = _extract_script(page_html)
+  1074	    assert "POLL_MIN_MS" in src and "computePollDelayMs" in src, "提取产物被截断 — 不是完整脚本"
+  1075	
+  1076	
+
+**Verifying script extraction behavior**
+**Testing script extraction without full imports**
+**Deciding against GUI-based DOM extraction**
+2026-09-01T09:46:30.951601Z ERROR codex_models_manager::manager: failed to refresh available models: timeout waiting for child process to exit
+ERROR: Reconnecting... 2/5
+**Deciding verification status for HIGH3**
+**Clarifying verification for HIGH3 and reviewing HIGH1 and HIGH4**
+**Mapping line numbers for assertion inspection**
+**Planning independent high severity reproduction**
+**Designing Python-Node AST extraction script**
+**Planning safe JS extraction with placeholders**
+**Planning in-memory AST policy evaluator**
+**Validating safe AST call patterns**
+**Preparing inline Python gate test**
+codex
+并行复核已抓到两个会改变终裁的真实缺口：目标库消失时，“同步失败”只写进已脱离页面的旧节点，最终帧看不到；AST 门仍可被解构重绑定和允许接收者重绑定绕过。主审正在用无害、内存内反例独立复算，避免把子审结论直接当证据。
+2026-09-01T09:49:35.959891Z ERROR codex_models_manager::manager: failed to refresh available models: timeout waiting for child process to exit
+**Planning rerun with escalated sandbox**
+exec
+/bin/zsh -lc "backend/.venv/bin/python - <<'PY'
+import ast
+
+ALLOWED_IMPORTS = {
+    '__future__.annotations', 'json', 'fastapi.APIRouter', 'fastapi.Request',
+    'fastapi.responses.HTMLResponse',
+    'app.api.v1.endpoints.review_overview._BUCKET_CN',
+    'app.api.v1.endpoints.review_overview._BUCKET_ORDER',
+    'app.api.v1.endpoints.review_overview._STATUS_META',
+}
+ALLOWED_CALL_NAMES = {'APIRouter', 'list', '_js_json', 'HTMLResponse'}
+ALLOWED_CALL_ATTRS = {'get', 'replace', 'url_for', 'dumps', 'items'}
+ALLOWED_RECEIVERS = {'json', 'request', 'review_app_router', '_STATUS_META', '_PAGE_TEMPLATE'}
+
+def gate(src):
+    tree = ast.parse(src)
+    collected = set()
+    errors = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            collected.update(a.name for a in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            mod = node.module or ''
+            collected.update(f'{mod}.{a.name}' if mod else a.name for a in node.names)
+    if collected - ALLOWED_IMPORTS:
+        errors.append('import')
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Assign, ast.AugAssign, ast.AnnAssign)):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            for tgt in targets:
+                if isinstance(tgt, ast.Name) and tgt.id in ALLOWED_CALL_NAMES:
+                    errors.append('rebind')
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            for arg in node.args.args + node.args.kwonlyargs:
+                if arg.arg in ALLOWED_CALL_NAMES:
+                    errors.append('shadow')
+        if isinstance(node, ast.Call):
+            f = node.func
+            if isinstance(f, ast.Name):
+                if f.id not in ALLOWED_CALL_NAMES:
+                    errors.append('call-name')
+            elif isinstance(f, ast.Attribute):
+                if f.attr not in ALLOWED_CALL_ATTRS:
+                    errors.append('call-attr')
+                recv_base = ast.unparse(f.value).split('(', 1)[0]
+                if not (recv_base in ALLOWED_RECEIVERS or isinstance(f.value, ast.Call)):
+                    errors.append('receiver')
+            else:
+                errors.append('call-shape')
+    return 'PASS' if not errors else 'REJECT:' + ','.join(errors)
+
+cases = {
+    'tuple_target_rebind': 'list, marker = (str, None)\\nlist(\"x\")',
+    'allowed_receiver_rebind': 'class Carrier:\\n    def items(self):\\n        return ()\\njson = Carrier\\njson.items(None)',
+    'allowed_import_alias': 'from fastapi import Request as list\\nlist({\"type\": \"http\"})',
+}
+for name, src in cases.items():
+    print(name, gate(src))
+PY" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
+ succeeded in 0ms:
+tuple_target_rebind PASS
+allowed_receiver_rebind PASS
+allowed_import_alias PASS
+
+**Preparing reproducible helper test snippet**
+**Planning complete review_app.py retrieval**
+exec
+/bin/zsh -lc "sed -n '190,350p' backend/app/api/v1/endpoints/review_app.py; sed -n '351,513p' backend/app/api/v1/endpoints/review_app.py" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
+ succeeded in 0ms:
+  if (days === 0) return {text: "现在", color: "#d97706"};
+  if (days === 1) return {text: "明天", color: "#374151"};
+  if (days <= 7) return {text: days + "天后", color: "#374151"};
+  const parts = d1.split("-").map(Number);
+  const y0 = Number(d0.split("-")[0]);
+  return {text: (parts[0] === y0 ? "" : parts[0] + "年") + parts[1] + "月" + parts[2] + "日", color: "#6b7280"};
+}
+function computePollDelayMs(data, nowMs) {
+  // 轮询周期 = clamp(最近**未来** next_upcoming.next_due − now, 5s, 60s)。
+  // next_due 只定「下一次去问服务端」的节奏; 已过期的 next_due 意味着数据
+  // 要等生产器重跑才会变 → 回落上限 60s, 不空转。
+  let best = null;
+  const vaults = data && Array.isArray(data.vaults) ? data.vaults : [];
+  for (const v of vaults) {
+    const nu = v && v.projection && v.projection.next_upcoming;
+    const ms = nu ? parseDueMs(nu.next_due) : null;
+    if (ms !== null && ms > nowMs && (best === null || ms < best)) best = ms;
+  }
+  const raw = best === null ? POLL_MAX_MS : best - nowMs;
+  return Math.min(POLL_MAX_MS, Math.max(POLL_MIN_MS, raw));
+}
+function visibilityAction(hidden) {
+  // 页面隐藏 → 只取消排程; 回到前台 → 取消旧排程并立即拉一轮
+  return hidden ? {cancelTimer: true, pollNow: false} : {cancelTimer: true, pollNow: true};
+}
+function boardLink(vaultId, board) {
+  // encodeURIComponent 与服务端 quote(safe="") 同语义: "/" 也编码
+  return "obsidian://open?vault=" + encodeURIComponent(vaultId) + "&file=" + encodeURIComponent("原白板/" + board + ".md");
+}
+function nodeLink(vaultId, node) {
+  return "obsidian://open?vault=" + encodeURIComponent(vaultId) + "&file=" + encodeURIComponent("节点/" + node + ".md");
+}
+function nodeDetailHtml(vaultId, nodes, nowMs) {
+  if (!Array.isArray(nodes) || !nodes.length) return "";
+  const items = nodes.map(n => {
+    const due = humanizeDue(n.fsrs_due, nowMs);
+    const tag = n.bucket == null ? "" :
+      '<span class="nodetag">' + esc(BUCKET_CN[n.bucket] || n.bucket) + "</span>";
+    const why = !n.why_due ? "" : '<div class="whydue">' + esc(n.why_due) + "</div>";
+    return '<li class="nodeli"><a href="' + esc(nodeLink(vaultId, n.node)) + '">' + esc(n.node) + "</a>" + tag +
+      '<span style="color:' + due.color + ';font-size:12px;margin-left:6px">' + esc(due.text) + "</span>" + why + "</li>";
+  });
+  return '<details style="margin:2px 0 4px"><summary style="cursor:pointer;color:#6b7280;font-size:12px">节点明细（' +
+    nodes.length + '）</summary><ul style="margin:6px 0 0;padding:0 0 0 6px">' + items.join("") + "</ul></details>";
+}
+function boardTableHtml(vaultId, boards, nowMs) {
+  if (!Array.isArray(boards) || !boards.length) return "";
+  const head = ["白板名", "到期", "新卡", "待剖析", "最早到期"].map(c => "<th>" + c + "</th>").join("");
+  const rows = boards.map(r => {
+    const due = humanizeDue(r.earliest, nowMs);
+    const ph = r.placeholder == null ? "—" : String(r.placeholder);
+    // W6 加性字段: 缺省整块不出现 (沿 bucket_counts 缺省纪律)
+    const est = Number.isFinite(r.estimated_minutes) ?
+      '<span class="estmin">约 ' + r.estimated_minutes + " 分钟</span>" : "";
+    let out = '<tr><td><a href="' + esc(boardLink(vaultId, r.board)) + '">' + esc(r.board) + "</a>" + est + "</td>" +
+      '<td class="num">' + (r.due ? "<b>" + r.due + "</b>" : '<span style="color:#9ca3af">0</span>') + "</td>" +
+      '<td class="num">' + r.due_new + "</td>" +
+      '<td class="num">' + esc(ph) + "</td>" +
+      '<td style="white-space:nowrap;color:' + due.color + '">' + esc(due.text) + "</td></tr>";
+    if (typeof r.why_this_board === "string" && r.why_this_board)
+      out += '<tr><td colspan="5" class="why">💡 ' + esc(r.why_this_board) + "</td></tr>";
+    const detail = nodeDetailHtml(vaultId, r.nodes, nowMs);
+    if (detail) out += '<tr><td colspan="5" style="padding-top:0">' + detail + "</td></tr>";
+    return out;
+  }).join("");
+  return '<div class="tblwrap"><table><thead><tr>' + head + "</tr></thead><tbody>" + rows + "</tbody></table></div>";
+}
+function restDayHtml(proj, nowMs) {
+  // 休息日空状态 (status ok 且 due_count===0) — 文案对齐
+  // daily_review_pick.py:599「今日无到期节点，休息一天」/ :564「按计划推进」
+  const nu = proj.next_upcoming;
+  // 日期转上海本地日 (UTC 字面日期在上海已跨天时会骗人 — Codex round-2 M4)
+  let day = "";
+  if (nu) {
+    const ms = parseDueMs(nu.next_due);
+    day = ms === null ? String(nu.next_due).slice(0, 10) : shDay(ms);
+  }
+  const tail = nu ? '<div style="color:#6b7280;font-size:13px;margin-top:4px">按计划推进 · 最近到期 ' +
+    esc(nu.board) + " · " + esc(day) + "</div>" : "";
+  return '<div class="restday">✅ 今日无到期节点，休息一天。' + tail + "</div>";
+}
+function renderVaultCard(entry, nowMs, noteHtml, isInflight) {
+  // 未知 status 防御: 原字面灰徽标 (未来第五态不白屏)。
+  // own-key 访问 (round-3 LOW-3): "constructor"/"__proto__" 会命中继承属性,
+  // 必须显式判自有键才落灰兜底
+  const meta = Object.prototype.hasOwnProperty.call(STATUS_META, entry.status)
+    ? STATUS_META[entry.status] : [entry.status, "#6b7280"];
+  const vid = entry.vault_id;
+  let body = "";
+  const proj = entry.projection;
+  if (proj) {
+    if (entry.status === "ok" && proj.due_count === 0) {
+      body = restDayHtml(proj, nowMs);
+    } else {
+      const bc = proj.bucket_counts;
+      const layers = bc == null ? "" :
+        '<div class="layers">分层 · ' + BUCKET_ORDER.map(b => esc(BUCKET_CN[b]) + " " + bc[b]).join(" · ") + "</div>";
+      body = '<div class="big">到期 <b>' + proj.due_count + "</b><small> · 新卡 " + proj.due_new_count +
+        " · 待剖析 " + proj.placeholder_backlog + "</small></div>" + layers +
+        boardTableHtml(vid, proj.boards, nowMs);
+    }
+    body += '<div class="gen">生成于 ' + esc(String(proj.generated_at)) + "</div>" +
+      '<a href="obsidian://open?vault=' + esc(encodeURIComponent(vid)) + '">在 Obsidian 中打开 ↗</a>';
+    // W6 加性顶层 rank_manifest: 在场才出现, 不解析内部形状
+    if (proj.rank_manifest != null) body += '<div class="manifest">📋 本次板序含排序依据（rank_manifest）</div>';
+  } else if (entry.status === "no_projection") {
+    body = '<div class="degraded">该库尚无今日复习投影 — 推送管道尚未为它跑过<br>' +
+      "深链已降级：需在 Obsidian 打开过该库后才提供跳转</div>";
+  } else {
+    body = '<div class="corrupt-err">投影文件无法解析<br><code>' + esc(String(entry.error || "")) + "</code></div>";
+  }
+  // noteHtml 是 renderRefreshResult 的成品 HTML (内部已 esc), 由调用方从
+  // 持久状态传入 — 重绘后反馈得以恢复 (Codex round-1 HIGH-1)
+  return '<div class="card"><div class="card-head"><b>' + esc(vid) + "</b>" +
+    '<span class="badge" style="background:' + meta[1] + '">' + esc(meta[0]) + "</span></div>" + body +
+    '<div class="actions"><button class="btn"' + (isInflight ? " disabled" : "") +
+    ' data-refresh-vault="' + esc(vid) + '">🔄 刷新投影</button>' +
+    '<span class="rnote" data-note-for="' + esc(vid) + '">' + (noteHtml || "") + "</span></div></div>";
+}
+function renderPage(data, nowMs, notes, inflight) {
+  const vaults = data && Array.isArray(data.vaults) ? data.vaults : [];
+  if (!vaults.length) return '<div class="empty">VAULTS_ROOT 下未发现任何 vault (需含 .obsidian/ 目录)</div>';
+  return vaults.map(e => renderVaultCard(e, nowMs, (notes && notes[e.vault_id]) || "",
+    !!(inflight && inflight[e.vault_id]))).join("");
+}
+function renderUnavailableBanner(detail, lastOkText) {
+  const keep = lastOkText ? "页面保留 " + esc(lastOkText) + " 的最后一次成功数据。" : "尚未成功获取过数据。";
+  return "<b>⚠ 后端离线/不可用</b> — " + esc(detail) + "。" + keep + "自动重试中…";
+}
+function renderRefreshResult(status, payload) {
+  // POST /overview/refresh 响应可见化 — rebuilt/debounced/in_progress/失败
+  // 四种结局都尽量带上 rebuild_count (进程内累计); 去抖与失败绝不长得像成功
+  // (零 JS 页 round-3 修过的「与成功同形的 303」不许在交互壳还魂)
+  const count = payload && payload.rebuild_count !== undefined && payload.rebuild_count !== null
+    ? "（本进程累计 " + esc(payload.rebuild_count) + " 次）" : "";
+  if (status === 200 && payload && payload.reason === "rebuilt")
+    // 不当场声称"数字已更新" — 数字要等受保护的 GET 成功落屏才算数 (round-2 HIGH-1)
+    return '<span class="rnote ok">✅ 已重建' + count + " · 正在同步最新数字…</span>";
+  if (status === 200 && payload && payload.reason === "debounced") {
+    const wait = Number(payload.retry_after_seconds);
+    return '<span class="rnote warn">⏱ ' + esc(payload.debounce_ttl_seconds) + " 秒内已重建过" + count +
+      "，本次未重算" +
+      (Number.isFinite(wait) && wait > 0 ? " · 约 " + Math.ceil(wait) + " 秒后可再试" : "") + "</span>";
+  }
+  if (status === 200 && payload && payload.reason === "in_progress")
+    return '<span class="rnote warn">⏳ 该库已有一次重建在跑' + count + "，本次未重复启动</span>";
+  let detail = "";
+  if (payload && payload.detail)
+    detail = typeof payload.detail === "string" ? payload.detail : (payload.detail.message || JSON.stringify(payload.detail));
+  if (status === 0) return '<span class="rnote err">❌ 刷新失败（网络错误）：' + esc(detail || "连接失败") + "</span>";
+  return '<span class="rnote err">❌ 刷新失败（HTTP ' + esc(status) + "）" + (detail ? "：" + esc(detail) : "") + "</span>";
+}
+
+// ═══ 副作用壳: 只消费上面纯函数的返回值 ═══
+const state = {timer: null, lastOkAt: null, lastData: null, pollGen: 0,
+  // vault_id 是外部字符串 — Object.create(null) 防 "__proto__"/"constructor" 键注入原型 (round-2 M1)
+  notes: Object.create(null), inflight: Object.create(null), pendingSync: Object.create(null)};
+const el = id => document.getElementById(id);
+function fmtClock(ms) {
+  return new Intl.DateTimeFormat("zh-CN", {timeZone: "Asia/Shanghai", hour12: false,
+    hour: "2-digit", minute: "2-digit", second: "2-digit"}).format(new Date(ms));
+}
+function setConn(cls, text) {
+  const c = el("conn");
+  c.className = "conn " + cls;
+  c.textContent = text;
+}
+function vaultButtons(vid) {
+  // getAttribute 比对而非把 vid 插进 CSS 选择器 — vid 是外部字符串,
+  // 进选择器会被当选择器语法解析 (引号/反斜杠注入面)
+  return Array.from(el("cards").querySelectorAll("[data-refresh-vault]"))
+    .filter(b => b.getAttribute("data-refresh-vault") === vid);
+}
+function applyNote(vid) {
+  const n = state.notes[vid];
+  if (!n) return false;
+  let patched = false;
+  for (const span of el("cards").querySelectorAll("[data-note-for]")) {
+    if (span.getAttribute("data-note-for") === vid) { span.innerHTML = n.html; patched = true; }
+  }
+  return patched;
+}
+function freshNotes(nowMs) {
+  // null-prototype: 与 state.notes 同纪律 — 普通对象会被 "__proto__" 键污染 (round-3 M1)
+  const out = Object.create(null);
+  for (const vid of Object.keys(state.notes)) {
+    if (nowMs - state.notes[vid].atMs < NOTE_TTL_MS) out[vid] = state.notes[vid].html;
+  }
+  return out;
+}
+function renderCards(nowMs) {
+  el("cards").innerHTML = renderPage(state.lastData, nowMs, freshNotes(nowMs), state.inflight);
+}
+function settlePendingSync(nowMs, ok, renderedVids) {
+  // rebuilt 只发"正在同步…"；数字是否真更新, 由 GET 成败结算 (round-2 HIGH-1)。
+  // round-3 HIGH-1 收紧: 成功结算必须**绑定证据** — renderedVids 里要有该库、
+  // 且该库条目带可用 projection (corrupt/缺投影的库不许说"数字已更新")；
+  // 不在 renderedVids 里的 pending 库按失败结算, 不许跟着最新 GET 沾光。
+  for (const vid of Object.keys(state.pendingSync)) {
+    const n = state.pendingSync[vid];
+    delete state.pendingSync[vid];
+    const okThis = ok && renderedVids && renderedVids[vid] === true;
+    state.notes[vid] = {html: okThis
+      ? '<span class="rnote ok">✅ 已重建（本进程累计 ' + esc(n.count) + ' 次）· 数字已更新</span>'
+      : '<span class="rnote warn">⚠ 已重建（本进程累计 ' + esc(n.count) +
+        ' 次）· 数字同步失败，后端恢复后自动重试</span>', atMs: nowMs};
+    if (!applyNote(vid) && state.lastData) renderCards(nowMs);
+  }
+}
+function schedule(ms) {
+  clearTimeout(state.timer);
+  state.timer = null;
+  if (document.hidden) { el("nextpoll").textContent = "已暂停（页面隐藏）"; return; }
+  state.timer = setTimeout(poll, ms);
+  el("nextpoll").textContent = "下次自动刷新 ~" + Math.round(ms / 1000) + " 秒后";
+}
+async function poll() {
+  let delay = RETRY_DELAY_MS;
+  const gen = ++state.pollGen;  // 代际: 只有最新一次 GET 可以提交状态 (乱序旧响应整包丢弃)
+  try {
+    const resp = await fetch(URLS.overview, {cache: "no-store"});
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const data = await resp.json();
+    // 形状校验在提交状态之前 — HTTP 200 的坏形状不许清掉旧数据再装"已连接" (round-2 M2)
+    if (!data || !Array.isArray(data.vaults)) throw new Error("响应形状坏 (vaults 缺失)");
+    if (gen !== state.pollGen) return;  // 过期响应: 不碰状态不排程
+    const nowMs = Date.now();
+    // 先渲染候选数据当探针 (round-3 HIGH-1: 坏成员让 render 抛错时走 catch —
+    // lastData/结算/成功提示都不会被半截提交), 再结算, 再上最终帧
+    // (结算会更新 notes, 探针帧里是结算前的反馈, 不能直接用)
+    renderPage(data, nowMs, freshNotes(nowMs), state.inflight);
+    // 成功结算的绑定证据: 渲染成功, 且该库条目带可用 projection
+    // (损坏/缺投影的库不许沾最新 GET 的光说"数字已更新")
+    const renderedVids = Object.create(null);
+    for (const v of data.vaults) {
+      if (v && v.vault_id && v.projection) renderedVids[v.vault_id] = true;
+    }
+    state.lastData = data;
+    settlePendingSync(nowMs, true, renderedVids);
+    el("cards").innerHTML = renderPage(data, nowMs, freshNotes(nowMs), state.inflight);
+    el("banner").hidden = true;
+    state.lastOkAt = nowMs;
+    el("updated").textContent = "上次更新 " + fmtClock(nowMs);
+    setConn("ok", "已连接");
+    delay = computePollDelayMs(data, nowMs);
+  } catch (e) {
+    if (gen !== state.pollGen) return;  // 过期响应的失败同样不碰状态
+    settlePendingSync(Date.now(), false);
+    el("banner").innerHTML = renderUnavailableBanner(String((e && e.message) || e),
+      state.lastOkAt ? fmtClock(state.lastOkAt) : null);
+    el("banner").hidden = false;
+    setConn("down", "后端不可用");
+  }
+  schedule(delay);
+}
+document.addEventListener("visibilitychange", () => {
+  const act = visibilityAction(document.hidden);
+  if (act.cancelTimer) { clearTimeout(state.timer); state.timer = null; }
+  if (act.pollNow) poll();
+  else if (document.hidden) el("nextpoll").textContent = "已暂停（页面隐藏）";
+});
+async function onRefreshClick(ev) {
+  const btn = ev.target.closest("[data-refresh-vault]");
+  if (!btn) return;
+  const vid = btn.getAttribute("data-refresh-vault");
+  if (state.inflight[vid]) return;  // 同库重建在飞, 不发第二个 POST
+  state.inflight[vid] = true;
+  state.notes[vid] = {html: '<span class="rnote">⏳ 重建中…</span>', atMs: Date.now()};
+  for (const b of vaultButtons(vid)) b.disabled = true;
+  applyNote(vid);
+  try {
+    // 手动按钮是唯一的 POST 路径 (默认裁决②: 自动轮询绝不 POST)
+    const resp = await fetch(URLS.refresh, {method: "POST", body: new URLSearchParams({vault_id: vid})});
+    let payload = null;
+    try { payload = await resp.json(); } catch (_e) { payload = null; }
+    state.notes[vid] = {html: renderRefreshResult(resp.status, payload), atMs: Date.now()};
+    // 先就地补; 就地补不到 (反馈期间被轮询重绘换过 DOM) 且手上有数据 →
+    // 用持久状态重绘恢复 — 反馈从此不依赖「那个 span 还在不在」
+    if (!applyNote(vid) && state.lastData) renderCards(Date.now());
+    if (resp.ok && payload && payload.rebuilt) {
+      // 数字是否真更新交给 GET 结算 (settlePendingSync) — 不在 POST 结局里预先声称
+      state.pendingSync[vid] = {count: payload.rebuild_count, atMs: Date.now()};
+      // 隐藏时不触发 GET (round-3 LOW-2): pending 挂着, 回前台 visibilitychange
+      // 的 poll 会结算 — 不在用户看不见的时候起网络活动
+      if (!document.hidden) poll();
+    }
+  } catch (e) {
+    state.notes[vid] = {html: renderRefreshResult(0, {detail: String((e && e.message) || e)}), atMs: Date.now()};
+    if (!applyNote(vid) && state.lastData) renderCards(Date.now());
+  } finally {
+    delete state.inflight[vid];
+    for (const b of vaultButtons(vid)) b.disabled = false;
+  }
+}
+el("cards").addEventListener("click", onRefreshClick);
+poll();
+</script>
+</body>
+</html>
+"""
+
+
+@review_app_router.get(
+    "/overview/app",
+    response_class=HTMLResponse,
+    summary="跨 vault 复习总览 · 交互版 (CARD-G6-2; 单文件内联 HTML, 零外部 URL)",
+)
+async def review_overview_app(request: Request) -> HTMLResponse:
+    """交互复习壳: 自动轮询 GET /overview, 手动按钮 POST /overview/refresh。
+
+    与零 JS 只读页 (/overview/page) 共存。API 路径按本次请求的路由表注入
+    (url_for), 不硬编码。
+    """
+    urls = {
+        "overview": request.url_for("review_overview").path,
+        "refresh": request.url_for("review_overview_refresh").path,
+    }
+    page = (
+        _PAGE_TEMPLATE.replace("__URLS_JSON__", _js_json(urls))
+        .replace("__STATUS_META_JSON__", _js_json({k: list(v) for k, v in _STATUS_META.items()}))
+        .replace("__BUCKET_CN_JSON__", _js_json(_BUCKET_CN))
+        .replace("__BUCKET_ORDER_JSON__", _js_json(list(_BUCKET_ORDER)))
+    )
+    return HTMLResponse(content=page)
+
+2026-09-01T09:50:18.950829Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+**Inspecting HIGH1 test line numbers**
+exec
+/bin/zsh -lc "rg -n '目标库从聚合里消失|corrupt 投影不许|生成于 fresh|cards.*innerHTML' backend/tests/unit/test_review_app.py | tail -n 20; rg -n 'Object\\.create\\(null\\)|document\\.hidden|hasOwnProperty\\.call|constructor' backend/tests/unit/test_review_app.py | tail -n 30" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
+ succeeded in 0ms:
+594:  assert.equal(b.els["cards"].innerHTML, "", "失败路径不得往卡片区塞任何假装成功的内容");
+876:  assert.match(b.els["cards"].innerHTML, /未重算/);
+877:  assert.match(b.els["cards"].innerHTML, /累计 3 次/);
+909:  assert.match(b.els["cards"].innerHTML, /已重建/);
+920:  assert.match(b.els["cards"].innerHTML, /未重算/);
+1101:assert.match(b.els["cards"].innerHTML, /生成于 new/, "新数据先落屏");
+1104:assert.match(b.els["cards"].innerHTML, /生成于 new/, "旧响应晚到必须被代际守卫整包丢弃");
+1105:assert.ok(!b.els["cards"].innerHTML.includes("生成于 old"));
+1155:  assert.match(b.els["cards"].innerHTML, /生成于 g/, "首轮成功, 卡片在屏");
+1161:  assert.match(b.els["cards"].innerHTML, /数字已更新/, "结算反馈在重绘后仍在");
+1175:  assert.match(b.els["cards"].innerHTML, /生成于 g/, "恢复后数据照常更新");
+1176:  assert.match(b.els["cards"].innerHTML, /同步失败/, "失败结算如实挂着 (15s TTL 内)");
+1177:  assert.ok(!b.els["cards"].innerHTML.includes("数字已更新"), "失败结算不许被成功轮询洗成成功");
+1200:assert.match(b.els["cards"].innerHTML, /good/);
+1205:assert.match(b.els["cards"].innerHTML, /good/, "坏形状不许清掉旧数据");
+1212:assert.match(b.els["cards"].innerHTML, /good/);
+1322:  assert.match(note.innerHTML, /同步失败/, "corrupt 投影不许沾 GET 成功的光");
+1333:  assert.match(note.innerHTML, /同步失败/, "目标库从聚合里消失 = 没有更新证据");
+1345:  assert.match(b.els["cards"].innerHTML, /生成于 fresh/);
+1355:    的 poll 结算); "constructor" 这类继承键名走灰徽标兜底; freshNotes 返回
+1382:  b.document.hidden = false;
+1399:test("status='constructor' → 走灰徽标兜底, 不命中继承属性", () => {
+1401:  const h = b.api.renderVaultCard({vault_id: "v", status: "constructor", error: null,
+1403:  assert.match(h, /constructor/, "原字面灰徽标");
+
+2026-09-01T09:50:28.348256Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+**Analyzing settlePendingSync behavior**
+**Identifying subtle causality bug with stale GET**
+**Diagnosing race condition in hidden state fetch**
+**Analyzing polling behavior with hidden document**
+**Identifying false success in hidden poll logic**
+**Assessing race condition between auto poll and user click**
+**Planning test simulation with deferred promise**
+exec
+/bin/zsh -lc "sed -n '1353,1410p' backend/tests/unit/test_review_app.py | rg -n '"'^(def test_|'"\\s*test\\(|\\s*assert\\.|\\s*_assert_node_green)|document\\.hidden|calls\\.get|handlers\\['" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
+ succeeded in 0ms:
+1:def test_js_hidden_rebuilt_defers_get_and_own_key_status_meta(node_harness):
+14:test("隐藏时 rebuilt → 不发 GET, pending 留给回前台结算", async () => {
+22:  const before = b.calls.get;
+28:  await b.handlers["cards::click"]({target: {closest: sel => (matches(btn, sel) ? btn : null)}});
+29:  assert.equal(b.calls.get, before, "隐藏时 rebuilt 不得触发 GET (round-3 LOW-2)");
+30:  b.document.hidden = false;
+31:  b.handlers["document::visibilitychange"]();   // 回前台 → poll → 结算
+33:  assert.match(note.innerHTML, /数字已更新/, "回前台后的 poll 完成结算");
+35:test("freshNotes 返回 null-prototype 对象 (round-3 M1 补口)", async () => {
+43:  await b.handlers["cards::click"]({target: {closest: sel => (matches(btn, sel) ? btn : null)}});
+45:  assert.equal(Object.getPrototypeOf(fn), null, "freshNotes 产物不得带 Object.prototype");
+47:test("status='constructor' → 走灰徽标兜底, 不命中继承属性", () => {
+51:  assert.match(h, /constructor/, "原字面灰徽标");
+52:  assert.match(h, /#6b7280/);
+53:  assert.ok(!h.includes("今日投影"));
+57:    _assert_node_green(proc)
+
+**Inspecting potential race condition**
+**Planning sequential test execution**
+**Planning safe targeted test runs**
+**Considering sandbox escalation request**
+**Reviewing test diff and commit details**
+**Verifying memory citation line numbers**
+exec
+/bin/zsh -lc "nl -ba /Users/Heishing/.codex/memories/MEMORY.md | sed -n '232,248p'; nl -ba /Users/Heishing/.codex/memories/skills/canvas-adversarial-audit/SKILL.md | sed -n '18,50p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
+ succeeded in 0ms:
+   232	
+   233	- rollout_summaries/2026-08-19T14-44-08-upza-p1_05b_adversarial_review_finds_admission_quarantine_snapsho.md (cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output, rollout_path=/Users/Heishing/.codex/sessions/2026/08/19/rollout-2026-08-19T22-44-08-01a01a7a-c47f-70e2-8e5e-524e1591da78.jsonl, updated_at=2026-08-19T15:12:50+00:00, thread_id=01a01a7a-c47f-70e2-8e5e-524e1591da78, outcome=partial; detailed counterexamples)
+   234	
+   235	### keywords
+   236	
+   237	- P1-05b, symlink_escape, casefold, vault_backfill, lancedb_client, quarantine__p105b, search_nodes, read_node_tips, manifest-v3, NaN
+   238	
+   239	## User preferences
+   240	
+   241	- “启动并行 agent 进行对抗性审查” -> use independent evidence tracks and cross-check severity; every finding needs `file:line`, reproduction path/result, severity, conflict explanation, PASS/PARTIAL/FAIL, and limits. [Task 1][Task 2]
+   242	- Respect read-only task-book boundaries, WT/MAIN labels, explicit `UNVERIFIABLE`, and no raw-vault access; do not fix code in the audit. [Task 1]
+   243	
+   244	## Reusable knowledge
+   245	
+   246	- Related skill: skills/canvas-adversarial-audit/SKILL.md. P1-05/P1-01/P1-08 remained STILL-OPEN; F-02 tombstone filtering and F-05 live resilience were closed. Rejected vault inputs must show zero open/hash/index/write. [Task 1][Task 2]
+   247	- Reproduced: `vault/raw/escape.md -> /outside/secret.md` was counted by `backfill_vault(..., execute=False)`; case-sensitive `fnmatch` admitted `.CLAUDE/SKILL.md` and `raw/claude.md`. Edge filtering alone was insufficient because exact readers/node search could cross Graphiti groups. [Task 2]
+   248	- SnapshotV3 needs invalid/future same-generation self-healing, extra-field, strict-type, huge finite mastery, and identity/length collision coverage. [Task 1][Task 2]
+    18	2. Record checkout SHA, branch, WT/MAIN labels, current `CURRENT_TASK.md`, and requested P1 claims.
+    19	3. Identify actual production entrypoints, not merely the tests that claim to cover them.
+    20	
+    21	## Procedure
+    22	
+    23	1. Split independent tracks: vault admission/indexing and tests; Graphiti quarantine/retrieval; SnapshotV3/recovery anchors. Keep the audit read-only.
+    24	2. For each claim, build an evidence matrix: claim, `file:line`, adversarial input/state, actual entrypoint/path, observed result, severity, PASS/PARTIAL/FAIL, and limitations.
+    25	3. Directly exercise real entrypoints with temporary fixtures where permitted. For path admission include symlink, directory symlink, blacklisted filename in an allowed directory, case variant, and nonexistent path. Assert rejected inputs perform zero open/hash/index/write.
+    26	4. For quarantine, test ordinary edge search plus node search and exact-reader paths (`search_nodes`, `read_node_tips`, `read_node_errors`, `read_node_edge_reasons`). Use read-only Neo4j queries and `EXPLAIN` where allowed; distinguish observed metadata exposure from unproven fact-body leakage.
+    27	5. For SnapshotV3, test same-generation invalid/future version self-healing, extra fields, strict typing, huge finite values that may produce NaN/Infinity, and identity/length collision boundaries.
+    28	6. Compare recovery anchors with machine facts: current HEAD, Actions status, test counts, and unresolved findings. Separate targeted-test results from whole CI.
+    29	7. Cross-check high-severity findings independently. Write the final matrix before closure language; explicitly retain `UNVERIFIABLE` items and failed counterexample attempts.
+    30	
+    31	## Efficiency plan
+    32	
+    33	- Start from task-book source handles and `rg` for real call sites; cache the entrypoint map for all tracks.
+    34	- Parallelize independent tracks, then have the primary reviewer re-open only high-severity evidence.
+    35	- Stop treating a test as evidence once it only hits source text, a helper, fake client, `__new__`, or monkeypatch; pivot to the real entrypoint.
+    36	
+    37	## Pitfalls and fixes
+    38	
+    39	- Green tests but unsafe closure -> tests do not reach production behavior. Add direct entrypoint fixtures and capture full stdout/trace before an assertion.
+    40	- `session:` IDs used as provenance -> ID shape alone is not proof. Preserve provenance or report PARTIAL.
+    41	- Quarantine count passes -> exact-reader/node-search surfaces may still cross groups. Test those surfaces specifically.
+    42	- `CURRENT_TASK.md` says closed but anchors disagree -> rebuild anchors from current HEAD, Actions, and unresolved findings.
+    43	
+    44	## Verification checklist
+    45	
+    46	- Every finding has `file:line`, reproduction, severity, result, and claim-conflict explanation.
+    47	- Final report labels WT/MAIN and all verification limits; no prohibited files or raw vault were read.
+    48	- Production entrypoints, not only helpers, were tested for each security claim.
+    49	- CI status is reported as whole-workflow status, not only passing targeted jobs.
+    50	- P1 closure is withheld whenever a reproducible bypass or unverified critical surface remains.
+
+**Consolidating rollout IDs for citation**
+**Validating mutation log evidence and noting limitation**
+**Confirming acceptable evidence logs**
+**Planning state simulation for race detection**
+**Confirming inclusion of critical High1 issues**
+**Resolving final line versus citation order conflict**
+**Updating report citation structure**
+目标提交与当前 blob 已精确对齐；三条 HIGH 子轨完成，主审已复核两个 HIGH 反例及 HIGH-3 的一个新测试门边界。
+  ✓ 冻结 HEAD、目标提交、diff 范围与允许读面
+  ✓ 并行审 HIGH-1 / HIGH-3 / HIGH-4b 与对应门结构
+  → 主审复核终版全文、随行补口、存档日志与裁判输出
+  • 交叉核对行号、严重度、限制并给出定向终裁
+2026-09-01T09:52:40.966353Z ERROR codex_models_manager::manager: failed to refresh available models: timeout waiting for child process to exit
+mcp: sequential-thinking/sequentialthinking started
+mcp: sequential-thinking/sequentialthinking (completed)
+collab: Wait
+2026-09-01T09:53:09.870986Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+**Inspecting code line race conditions**
+2026-09-01T09:53:15.751091Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:53:28.680640Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+**Verifying no post-command changes**
+**Preparing isolated AST gate test run**
+2026-09-01T09:53:29.683349Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+**Planning targeted AST analysis**
+exec
+/bin/zsh -lc 'PYTHONDONTWRITEBYTECODE=1 backend/.venv/bin/pytest -q --tb=no -p no:cacheprovider backend/tests/unit/test_review_app.py::test_review_app_module_imports_are_closed' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
+ exited 1 in 304ms:
+Traceback (most recent call last):
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/.venv/bin/pytest", line 6, in <module>
+    sys.exit(console_main())
+             ~~~~~~~~~~~~^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/.venv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 223, in console_main
+    code = main()
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/.venv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 193, in main
+    config = _prepareconfig(new_args, plugins)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/.venv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 361, in _prepareconfig
+    config: Config = pluginmanager.hook.pytest_cmdline_parse(
+                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        pluginmanager=pluginmanager, args=args
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/.venv/lib/python3.14/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/.venv/lib/python3.14/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/.venv/lib/python3.14/site-packages/pluggy/_callers.py", line 167, in _multicall
+    raise exception
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/.venv/lib/python3.14/site-packages/pluggy/_callers.py", line 139, in _multicall
+    teardown.throw(exception)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/.venv/lib/python3.14/site-packages/_pytest/helpconfig.py", line 124, in pytest_cmdline_parse
+    config = yield
+             ^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/.venv/lib/python3.14/site-packages/pluggy/_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/.venv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 1186, in pytest_cmdline_parse
+    self.parse(args)
+    ~~~~~~~~~~^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/.venv/lib/python3.14/site-packages/_pytest/config/__init__.py", line 1556, in parse
+    self.hook.pytest_load_initial_conftests(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        early_config=self, args=args, parser=self._parser
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/.venv/lib/python3.14/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/.venv/lib/python3.14/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/.venv/lib/python3.14/site-packages/pluggy/_callers.py", line 167, in _multicall
+    raise exception
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/.venv/lib/python3.14/site-packages/pluggy/_callers.py", line 139, in _multicall
+    teardown.throw(exception)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/.venv/lib/python3.14/site-packages/_pytest/warnings.py", line 128, in pytest_load_initial_conftests
+    return (yield)
+            ^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/.venv/lib/python3.14/site-packages/pluggy/_callers.py", line 116, in _multicall
+    next(function_gen)  # first yield
+    ~~~~^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/.venv/lib/python3.14/site-packages/_pytest/capture.py", line 170, in pytest_load_initial_conftests
+    capman.start_global_capturing()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/.venv/lib/python3.14/site-packages/_pytest/capture.py", line 773, in start_global_capturing
+    self._global_capturing = _get_multicapture(self._method)
+                             ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/.venv/lib/python3.14/site-packages/_pytest/capture.py", line 714, in _get_multicapture
+    return MultiCapture(in_=FDCapture(0), out=FDCapture(1), err=FDCapture(2))
+                                              ~~~~~~~~~^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/.venv/lib/python3.14/site-packages/_pytest/capture.py", line 493, in __init__
+    TemporaryFile(buffering=0),
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tempfile.py", line 652, in TemporaryFile
+    prefix, suffix, dir, output_type = _sanitize_params(prefix, suffix, dir)
+                                       ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tempfile.py", line 127, in _sanitize_params
+    dir = gettempdir()
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tempfile.py", line 312, in gettempdir
+    return _os.fsdecode(_gettempdir())
+                        ~~~~~~~~~~~^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tempfile.py", line 305, in _gettempdir
+    tempdir = _get_default_tempdir()
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tempfile.py", line 222, in _get_default_tempdir
+    raise FileNotFoundError(_errno.ENOENT,
+                            "No usable temporary directory found in %s" %
+                            dirlist)
+FileNotFoundError: [Errno 2] No usable temporary directory found in ['/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/', '/tmp', '/var/tmp', '/usr/tmp', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp']
+
+2026-09-01T09:53:38.105557Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+**Rerunning process with escalated privileges**
+exec
+/bin/zsh -lc 'PYTHONDONTWRITEBYTECODE=1 backend/.venv/bin/pytest -q --tb=no -p no:cacheprovider backend/tests/unit/test_review_app.py::test_review_app_module_imports_are_closed' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
+2026-09-01T09:53:44.833490Z ERROR codex_models_manager::manager: failed to load models cache: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T09:53:44.838482Z ERROR codex_models_manager::manager: failed to load models cache: missing field `supports_parallel_tool_calls` at line 97 column 5
+**Correcting exec to wait usage**
+ succeeded in 10247ms:
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 1 item
+
+backend/tests/unit/test_review_app.py .                                  [100%]
+
+=============================== warnings summary ===============================
+backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+backend/app/api/v1/endpoints/chat.py:805
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/app/api/v1/endpoints/chat.py:805: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+backend/app/api/v1/endpoints/metadata.py:105
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/app/api/v1/endpoints/metadata.py:105: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+backend/app/api/v1/endpoints/metadata.py:176
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/app/api/v1/endpoints/metadata.py:176: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 1 passed, 10 warnings in 0.36s ========================
+
+**Planning isolated dynamic reproduction**
+**Evaluating HIGH4 classification concerns**
+**Assessing HIGH3 script extraction risk**
+**Assessing script suffix verification**
+**Verifying test log consistency and workspace status**
+exec
+/bin/zsh -lc 'git status --short --branch; git diff --name-status 7ca194ac..HEAD -- backend/app/api/v1/endpoints/review_app.py backend/tests/unit/test_review_app.py; git diff --check' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
+ succeeded in 0ms:
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+## card/w5-reviewapp
+ M "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-G6-2.md"
+?? "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G6-2-round4.md"
+?? "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G6-2-round4.stderr"
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+
+mcp: sequential-thinking/sequentialthinking started
+mcp: sequential-thinking/sequentialthinking (completed)
+mcp: sequential-thinking/sequentialthinking started
+mcp: sequential-thinking/sequentialthinking (completed)
+**Finalizing update plan**
+**Updating verification plan**
+2026-09-01T09:55:26.420368Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+主审完成生产入口、测试门、存档锚点和高严重度反例交叉复核；未修改任何目标文件。
+  ✓ 冻结 HEAD、目标提交、diff 范围与允许读面
+  ✓ 并行审 HIGH-1 / HIGH-3 / HIGH-4b 与对应门结构
+  ✓ 主审复核终版全文、随行补口、存档日志与裁判输出
+  ✓ 交叉核对行号、严重度、限制并给出定向终裁
+2026-09-01T09:55:35.803430Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+**Preparing final verdict summary in Chinese**
+**Clarifying commit ancestry and evidence linking**
+**Confirming race condition risk**
+**Verifying render probe and fix status**
+**Confirming harmless probe scenarios**
+**Marking LOW-2 verification status**
+**Confirming LOW-2 not verified due to race condition**
+**Noting absence of CI and ignored mutation log**
+**Refining final summary syntax**
+**Confirming memory citation formatting**
+codex
+定向复审结论：`7ca194ac` 未闭环 HIGH-1 与 HIGH-4b。当前目标代码/测试 blob 与该提交一致，DD-14 未纳入裁决。
+
+### HIGH-1 — NOT VERIFIED
+
+发现两个生产路径 HIGH：
+
+- [review_app.py:406](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/app/api/v1/endpoints/review_app.py:406)：`pollGen` 只保证“最后启动的 GET”，不保证 GET 启动于 rebuild 之后。旧 GET 在飞 → POST rebuilt → 切后台 → [hidden 分支](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/app/api/v1/endpoints/review_app.py:469) 不启动新 poll → 旧 GET 仍通过代际守卫，并在 [420–428 行附近](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/app/api/v1/endpoints/review_app.py:420) 用重建前投影结算“数字已更新”。`pendingSync.atMs` 从未参与因果校验。无写盘执行当前模板复现 `claimedUpdated=true`；回前台的新 GET 即使失败，pending 已被删除，假成功仍保留。
+- [review_app.py:309](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/app/api/v1/endpoints/review_app.py:309)：目标库消失时，[settlePendingSync](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/app/api/v1/endpoints/review_app.py:383) 虽写入“同步失败”，最终帧却只渲染最新 `data.vaults`，随后隐藏横幅并显示已连接。因此目标卡和失败反馈一起消失。门只检查旧 `note` 节点引用（[test_review_app.py:1333](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/tests/unit/test_review_app.py:1333)），未检查最终 `cards.innerHTML`。
+
+corrupt 与有效投影两场景、渲染探针及一般乱序守卫本身成立，但不足以关闭以上反例。
+
+### HIGH-3 — VERIFIED
+
+[test_review_app.py:381](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/tests/unit/test_review_app.py:381) 已实现：
+
+- 唯一字面 `<script>` 开标签；
+- 大小写不敏感统计 `</script` 前缀且要求恰一次；
+- 拒绝正文 HTML 注释状态标记；
+- 当前真实页面使用规范闭标签，并经真实响应提取链及 Node 门覆盖。
+
+新 MEDIUM：[test_review_app.py:400](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/tests/unit/test_review_app.py:400) 没有验证唯一结束前缀后的 delimiter。若前缀后立即接 ASCII 字母，helper 会接受并截断，但浏览器不会闭合脚本，存在未来回归假绿。当前生产页闭标签规范，故不推翻本条 VERIFIED。
+
+### HIGH-4b — NOT VERIFIED
+
+新 HIGH：AST 门仍检查拼写，不完整检查绑定语义。
+
+- [test_review_app.py:273](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/tests/unit/test_review_app.py:273) 只检查直接 `ast.Name` 目标；解构重绑定不会递归检查。
+- [test_review_app.py:278](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/tests/unit/test_review_app.py:278) 漏掉 `posonlyargs`、`vararg`、`kwarg`。
+- 接收者白名单中的 `json`、`request` 等没有重绑定保护；任意对象重新绑定为 `json` 后调用白名单 `.items()` 仍通过。
+- import 收集忽略 `asname`，允许 import alias 遮蔽白名单调用名。
+
+三个无害内存探针——解构重绑定、允许接收者重绑定、允许 import alias——均被当前等价门判为 `PASS`；同时现有 AST pytest 为 `1 passed`，证明该绿色门确实未覆盖这些绕过。M44/M45 只验证两个指定变异。
+
+### 随行补口
+
+- M1：VERIFIED，[freshNotes](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/app/api/v1/endpoints/review_app.py:372) 返回 null-prototype。
+- LOW-2：NOT VERIFIED。hidden 分支自身不新发 GET，但不能保证 pending 留到回前台；上述旧 GET 竞态会提前结算。
+- LOW-3：VERIFIED，[own-key 检查](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp/backend/app/api/v1/endpoints/review_app.py:275) 正确。
+
+存档仍记录 89 passed、46/46、external `[]`、pyright 0；`mutation-run-final.log` 的 PASS 标记实际是倒数第二行，物理末行为 `EXIT=0`。未整读受限攻击样本或变异脚本，未修改工作树。
+
+总结论：FAIL（HIGH-1 与 HIGH-4b NOT VERIFIED，存在新 HIGH）
+
+
+tokens used
+162,484

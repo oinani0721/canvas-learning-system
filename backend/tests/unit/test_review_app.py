@@ -256,29 +256,85 @@ def test_review_app_module_imports_are_closed():
     #: Attribute 调用允许的接收者 (unparse 基名) — 只查尾部方法名不够,
     #: 任意对象都能挂同名方法 (round-3 HIGH-4b 实证绕过面)
     ALLOWED_RECEIVERS = {"json", "request", "review_app_router", "_STATUS_META", "_PAGE_TEMPLATE"}
+    #: 任何形态的重绑定/遮蔽都禁的名字 = 调用名 ∪ 接收者 ∪ 模块级单例
+    #: (round-4 HIGH-4b: 接收者名可被 `json = evil` 重绑定, 白名单就失效了)
+    BANNED_REBINDS = (
+        ALLOWED_CALL_NAMES
+        | ALLOWED_RECEIVERS
+        | {
+            "_BUCKET_CN",
+            "_BUCKET_ORDER",
+            "review_overview_router",
+        }
+    )
     src = (_ENDPOINTS_DIR / "review_app.py").read_text(encoding="utf-8")
     tree = ast.parse(src)
     collected: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
-            collected.update(a.name for a in node.names)
+            for a in node.names:
+                # alias 禁令 (round-4 HIGH-4b): `import x as list` 会把白名单调用名
+                # 绑到别的模块上, 拼写检查全部空转 — 本模块不允许任何 asname
+                if a.asname is not None:
+                    pytest.fail(f"import alias 禁止 (asname={a.asname!r}) — alias 可遮蔽白名单调用名")
+                collected.add(a.name)
         elif isinstance(node, ast.ImportFrom):
             mod = node.module or ""
-            collected.update(f"{mod}.{a.name}" if mod else a.name for a in node.names)
+            for a in node.names:
+                if a.asname is not None:
+                    pytest.fail(f"import alias 禁止 (asname={a.asname!r}) — alias 可遮蔽白名单调用名")
+                collected.add(f"{mod}.{a.name}" if mod else a.name)
     banned = collected - ALLOWED_IMPORTS
     assert not banned, f"出现白名单外的 import: {sorted(banned)} — 第二套管道的载体"
+
+    def _flag_rebind(name: str, where: str):
+        if name in BANNED_REBINDS:
+            pytest.fail(f"受保护名 {name!r} 被{where} — 调用点/接收者拼写检查会被架空 (round-4 HIGH-4b)")
+
+    # 函数体内的节点集合 — 保护名在函数体内被赋值 = 一律红 (参数遮蔽/局部重绑定);
+    # 模块级定义 (字面量 / 白名单调用) 才是合法形态
+    in_function: set[int] = set()
     for node in ast.walk(tree):
-        # 重绑定禁令 (round-3 HIGH-4b): 允许名被赋成别的东西后, 调用点的拼写
-        # 检查就全空转了 — `list = open; list("今日复习.json")` 拼写完全合法
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            for sub in ast.walk(node):
+                in_function.add(id(sub))
+    for node in ast.walk(tree):
+        # 重绑定禁令: 赋值目标里**递归**收集全部 Name (解构 `a, b = ...`、
+        # 星号解包都逃不掉 — round-4 HIGH-4b 实证直接 Name 检查不够)
         if isinstance(node, (ast.Assign, ast.AugAssign, ast.AnnAssign)):
             targets = node.targets if isinstance(node, ast.Assign) else [node.target]
-            for tgt in targets:
-                if isinstance(tgt, ast.Name) and tgt.id in ALLOWED_CALL_NAMES:
-                    pytest.fail(f"白名单名 {tgt.id!r} 被重绑定 — 调用点拼写检查会被架空")
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            for a in node.args.args + node.args.kwonlyargs:
-                if a.arg in ALLOWED_CALL_NAMES:
-                    pytest.fail(f"白名单名 {a.arg!r} 被参数遮蔽 — 调用点拼写检查会被架空")
+            # 模块级初始化豁免: 右侧是字面量 (模板字符串) 或白名单调用
+            # (`review_app_router = APIRouter()`) = 定义; 其它一律按重绑定处理
+            init = id(node) not in in_function and (
+                isinstance(node.value, ast.Constant)
+                or (
+                    isinstance(node.value, ast.Call)
+                    and isinstance(node.value.func, ast.Name)
+                    and node.value.func.id in ALLOWED_CALL_NAMES
+                )
+            )
+            if not init:
+                for tgt in targets:
+                    for sub in ast.walk(tgt):
+                        if isinstance(sub, ast.Name):
+                            _flag_rebind(sub.id, "重绑定")
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            if isinstance(node, ast.Lambda):
+                arg_sets = [node.args.args]
+            else:
+                a = node.args
+                arg_sets = [
+                    a.args + a.posonlyargs + a.kwonlyargs,
+                    [x for x in (a.vararg, a.kwarg) if x],
+                ]  # round-4: 补 *args/**kwargs
+            for group in arg_sets:
+                for arg in group:
+                    arg_name = getattr(arg, "arg", getattr(arg, "id", ""))
+                    # "request" 豁免: FastAPI 依赖注入的形参就是接收者本体
+                    # (request.url_for 的合法来源); 函数体内对它的重赋值仍会被
+                    # 上面的 Assign 检查抓住
+                    if arg_name != "request":
+                        _flag_rebind(arg_name, "参数遮蔽")
         if isinstance(node, ast.Call):
             f = node.func
             if isinstance(f, ast.Name):
@@ -395,11 +451,13 @@ def _extract_script(html: str) -> str:
     # JS 注释里), 浏览器都会在那里提前终止脚本; maxsplit 截断式提取会把它
     # 当切割点吞掉, 那道门就是死的 (round-3 自查), 数段数才漏不掉。
     # round-3 HIGH-3: 浏览器结束标签语言还接受 solidus 分隔 (`</script/`) 与
-    # 携带属性 (`</script x=y>`) — `</script\s*>` 数不到这些形态。fail-closed
-    # 升级为数 `</script` 前缀总出现次数 (多一个即红, 不猜后续字符)
-    hits = re.findall(r"</script", rest, flags=re.I)
-    assert len(hits) == 1, f"script 结束前缀出现 {len(hits)} 次 (应恰 1) — 浏览器会在正文处提前终止"
-    src = re.split(r"</script", rest, maxsplit=1, flags=re.I)[0]
+    # 携带属性 (`</script x=y>`) — `</script\s*>` 数不到这些形态。
+    # round-4 HIGH-3 补口: 前缀后紧跟 ASCII 字母 (`</scriptx`) 不是结束标签,
+    # 浏览器不在此闭合 — 计数与切割都带 lookahead 对齐 tokenizer, 否则合法
+    # 页面会被假截断, 截断后的字节与浏览器执行的字节分叉
+    hits = re.findall(r"</script(?=[\t\n\f\r />])", rest, flags=re.I)
+    assert len(hits) == 1, f"script 结束标签出现 {len(hits)} 次 (应恰 1) — 浏览器会在正文处提前终止"
+    src = re.split(r"</script(?=[\t\n\f\r />])", rest, maxsplit=1, flags=re.I)[0]
     # 正文分叉面: HTML 注释开合改变 tokenizer 状态 (script data escaped)
     assert "<!--" not in src and "-->" not in src, "script 正文含 HTML 注释开合 — tokenizer 状态分叉面"
     assert "__URLS_JSON__" not in src, "占位符没被替换 — 页面发出去的是模板本身"
@@ -1062,6 +1120,11 @@ def test_script_extraction_rejects_case_insensitive_terminator():
         poisoned = base.replace("const POLL_MIN_MS", f"{needle}\nconst POLL_MIN_MS", 1)
         with pytest.raises(AssertionError):
             _extract_script(poisoned)
+    # round-4 补口对齐: `</scriptx` (前缀后跟字母) 不是结束标签 — 浏览器不在此
+    # 闭合, 提取器也不许截断 (截断 = 沙箱漏执行尾段字节)
+    aligned = base.replace("const POLL_MIN_MS", "</scriptx\nconst POLL_MIN_MS", 1)
+    src = _extract_script(aligned)
+    assert "</scriptx" in src, "字母后缀的前缀不是结束符, 必须原样保留在正文中"
 
 
 def test_real_page_extracted_script_is_well_formed(page_html):
@@ -1175,6 +1238,28 @@ test("②b 同步失败 → 明说失败; 恢复后数据照常更新, 失败反
   assert.match(b.els["cards"].innerHTML, /生成于 g/, "恢复后数据照常更新");
   assert.match(b.els["cards"].innerHTML, /同步失败/, "失败结算如实挂着 (15s TTL 内)");
   assert.ok(!b.els["cards"].innerHTML.includes("数字已更新"), "失败结算不许被成功轮询洗成成功");
+});
+test("②c 目标库从聚合消失 → 失败反馈在最终帧可见 (lostnote)", async () => {
+  const without = {vaults: [{vault_id: "别的库", status: "ok", error: null,
+    projection: {due_count: 1, due_new_count: 0, placeholder_backlog: 0, bucket_counts: null,
+      generated_at: "x", next_upcoming: null, boards: []}}]};
+  const b = boot({
+    getJson: () => ({ok: true, status: 200, json: async () => without}),
+    postJson: () => ({ok: true, status: 200, json: async () =>
+      ({rebuilt: true, reason: "rebuilt", rebuild_count: 2})}),
+  });
+  await flush();
+  const btn = mkNode("btn");
+  btn._attrs["data-refresh-vault"] = "cs_61b";
+  const note = mkNode("note");
+  note._attrs["data-note-for"] = "cs_61b";
+  b.els["cards"]._desc = [btn, note];
+  await b.handlers["cards::click"](click(btn));
+  await flush();
+  // cs_61b 不在聚合里 → 它的卡消失, 但失败反馈必须在最终帧可见 (round-4 HIGH-1 反例二)
+  assert.match(b.els["cards"].innerHTML, /同步失败/);
+  assert.match(b.els["cards"].innerHTML, /该库已不在当前聚合中/);
+  assert.ok(!b.els["cards"].innerHTML.includes("数字已更新"));
 });
 """,
     )
@@ -1343,6 +1428,65 @@ test("③ 有证据 (渲染成功 + projection 在) → 才结算成数字已更
   await flush();
   assert.match(note.innerHTML, /数字已更新/);
   assert.match(b.els["cards"].innerHTML, /生成于 fresh/);
+});
+""",
+    )
+    _assert_node_green(proc)
+
+
+@pytest.mark.usefixtures("page_html")
+def test_js_stale_get_cannot_settle_rebuild(node_harness):
+    """round-4 HIGH-1 因果锚门: GET 启动早于重建完成时, 哪怕它是最新代际、
+    哪怕响应合法, 也无权结算「数字已更新」——重建后切后台导致没有新 GET 的
+    场景下, 重建前投影不许冒充重建后状态。"""
+    proc = _run_node(
+        node_harness,
+        r"""
+import test from "node:test";
+import assert from "node:assert/strict";
+import {boot, flush, mkNode, matches} from "./boot.mjs";
+const OK = {vaults: [{vault_id: "cs_61b", status: "ok", error: null,
+  projection: {due_count: 3, due_new_count: 0, placeholder_backlog: 0, bucket_counts: null,
+    generated_at: "pre-rebuild", next_upcoming: null, boards: []}}]};
+const deferreds = [];
+function deferredGet() {
+  let resolve;
+  const promise = new Promise(r => { resolve = r; });
+  deferreds.push({resolve});
+  return {ok: true, status: 200, json: () => promise};
+}
+// 隐藏态启动: 首轮 GET (gen 1) 照发且挂起 — 这就是那条「启动早于重建」的旧 GET
+const b = boot({
+  getJson: deferredGet,
+  postJson: () => ({ok: true, status: 200, json: async () =>
+    ({rebuilt: true, reason: "rebuilt", rebuild_count: 9})}),
+  hidden: true,
+});
+const btn = mkNode("btn");
+btn._attrs["data-refresh-vault"] = "cs_61b";
+const note = mkNode("note");
+note._attrs["data-note-for"] = "cs_61b";
+b.els["cards"]._desc = [btn, note];
+const click = {target: {closest: sel => (matches(btn, sel) ? btn : null)}};
+
+test("① 旧 GET 在飞时完成 rebuild → 不许结算成功 (因果锚)", async () => {
+  await b.handlers["cards::click"](click);   // hidden → rebuilt 不触发新 GET (LOW-2)
+  assert.equal(b.calls.get, 1, "隐藏时 rebuilt 不得触发新 GET");
+  const stale = deferreds.pop();
+  stale.resolve(OK);                          // 旧 GET 此刻才返回重建前投影
+  await flush();
+  assert.match(note.innerHTML, /正在同步最新数字/, "旧 GET 无权结算 — pending 留着");
+  assert.ok(!note.innerHTML.includes("数字已更新"), "重建前投影不许冒充重建后状态");
+  assert.ok(!b.els["cards"].innerHTML.includes("数字已更新"));
+});
+test("② 回前台 → 新 GET (启动晚于重建) 正常结算", async () => {
+  b.document.hidden = false;
+  b.handlers["document::visibilitychange"]();
+  const d2 = deferreds.pop();
+  d2.resolve(OK);
+  await flush();
+  assert.match(b.els["cards"].innerHTML, /数字已更新/, "因果合法的 GET 完成结算");
+  assert.ok(!b.els["cards"].innerHTML.includes("正在同步"));
 });
 """,
     )

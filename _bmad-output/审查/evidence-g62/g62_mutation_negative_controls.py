@@ -350,7 +350,7 @@ MUTATIONS: list[tuple[str, str, str, str, str]] = [
     (
         "M41",
         "GET 成功不结算 pendingSync → 『数字已更新』永不出现",
-        "    settlePendingSync(nowMs, true, renderedVids);",
+        "    settlePendingSync(nowMs, true, renderedVids, startMs);",
         ";",
         "test_js_rebuilt_sync_flow_never_claims_prematurely",
     ),
@@ -389,6 +389,35 @@ MUTATIONS: list[tuple[str, str, str, str, str]] = [
         "    const okThis = ok && renderedVids && renderedVids[vid] === true;",
         "    const okThis = ok;",
         "test_js_settle_binds_to_rendered_vault_evidence",
+    ),
+    # ── round-4 (定向复审) findings 的门 ───────────────────────────
+    (
+        "M47",
+        "解构重绑定 (list, _q) = (open, 0) → AST 递归 Name 检查 (round-4 HIGH-4b)",
+        "    urls = {",
+        "    (list, _q) = (open, 0)\n    urls = {",
+        "test_review_app_module_imports_are_closed",
+    ),
+    (
+        "M48",
+        "import alias 遮蔽白名单调用名 → alias 禁令 (round-4 HIGH-4b)",
+        "from app.api.v1.endpoints.review_overview import _BUCKET_CN, _BUCKET_ORDER, _STATUS_META",
+        "from app.api.v1.endpoints.review_overview import _BUCKET_CN as list, _BUCKET_ORDER, _STATUS_META",
+        "test_review_app_module_imports_are_closed",
+    ),
+    (
+        "M49",
+        "删结算因果锚 (startMs < atMs 跳过) → 旧 GET 用重建前投影冒充已更新 (round-4 HIGH-1)",
+        "    if (startMs !== undefined && n.atMs !== undefined && startMs < n.atMs) continue;",
+        ";",
+        "test_js_stale_get_cannot_settle_rebuild",
+    ),
+    (
+        "M50",
+        "删失联库失败通知 → 目标卡消失时失败反馈跟着蒸发 (round-4 HIGH-1 反例二)",
+        "renderPage(data, nowMs, freshNotes(nowMs), state.inflight) +\n      lostSyncNotesHtml(data, nowMs);",
+        "renderPage(data, nowMs, freshNotes(nowMs), state.inflight);",
+        "test_js_rebuilt_sync_flow_never_claims_prematurely",
     ),
 ]
 

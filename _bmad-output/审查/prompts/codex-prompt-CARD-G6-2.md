@@ -1,66 +1,71 @@
-# Codex 对抗性审查 — CARD-G6-2 交互复习壳 [BATCH-2026-09-01-第八批] · round-3（重试）
+# Codex 定向第四轮复审 — CARD-G6-2 交互复习壳 [BATCH-2026-09-01-第八批]
 
 你是独立对抗性审查员。工作目录（cwd）已是本车道 worktree 根：
 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w5-reviewapp
 
-这是第 3 轮的**重试**：上一轮执行被内容安全分类器误拦（见 codex-review-CARD-G6-2-round3.stderr
-末尾的 cyber flag），未产出裁决。为避免再次误拦，本轮**读面收窄**（见下），
-不影响你对抗性怀疑的权利——你依然可以否证任何一条整改声明。
+## 本轮性质与范围（定向，窄）
 
-## ⚠️ 本轮读面限制（防误拦，必须遵守）
+用户对 round-3 终裁（FAIL：1 BLOCKER + 3 HIGH）的裁决是「定向第四轮」。round-3 的
+三条 HIGH 已在 commit `7ca194ac` 整改；**本轮只审这个整改提交**，不重开已 VERIFIED
+的旧账（round-2 已 VERIFIED 的 HIGH-2/HIGH-4a/M3/M4 不需要再证）。
 
-- **不要整读** `_bmad-output/审查/evidence-g62/g62_mutation_negative_controls.py`
-  与 `backend/tests/unit/test_review_app.py` 中的**攻击样本正文**（XSS payload、
-  变异注入串等对抗性载荷内容会被分类器拦截）。
-- 变异负验证的证据以存档日志为准：`_bmad-output/审查/evidence-g62/mutation-run-final.log`
-  末行 `负验证 PASS: 42/42 条变异均被指定的那道门抓住; 还原后基线仍全绿`（判据 =
-  pytest returncode==1 + "1 failed" + `-rf` summary 里 FAILED 正是指定节点）。
-  你可以抽查该 log 的行与列，不需要打开变异脚本本体。
-- 允许读：review_app.py、router.py、test_review_app.py 的**结构与门名**（grep 函数名/
-  docstring/断言主句即可，跳过以 `//` 或 `'` 开头内嵌的 payload 字面量段落）、
-  review_overview.py（对照物）、mutation-run-final.log、两轮历史审查存档、UAT 验收单。
+审三个文件：
+1. `git show 7ca194ac` 的 diff（整改本体）
+2. `backend/app/api/v1/endpoints/review_app.py`（终版全文）
+3. `backend/tests/unit/test_review_app.py` 的**结构与门名**（见读面限制）
 
-## 被审变更
+对照物（未改动）：`backend/app/api/v1/endpoints/review_overview.py`。
+卡文（如需）：`/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/implementation-artifacts/goal-cards/第八批-goals/W5.md`
 
-1. backend/app/api/v1/endpoints/review_app.py （交互复习壳单文件 HTML）
-2. backend/app/api/v1/router.py （1 行 import + 1 行 include）
-3. backend/tests/unit/test_review_app.py （56 基线外 31 条新增门）
-4. 对照物（未改动）：backend/app/api/v1/endpoints/review_overview.py
+## ⚠️ 读面限制（防内容安全误拦，必须遵守）
 
-卡文：/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/implementation-artifacts/goal-cards/第八批-goals/W5.md
+- **不要整读** `_bmad-output/审查/evidence-g62/g62_mutation_negative_controls.py` 与
+  `backend/tests/unit/test_review_app.py` 里的**攻击样本字面量**（XSS payload、
+  变异注入串）。用 grep 拿门名/断言主句即可。
+- 变异负验证证据以存档日志为准：`_bmad-output/审查/evidence-g62/mutation-run-final.log`
+  末行 `负验证 PASS: 46/46 ...`（判据 = returncode==1 + "1 failed" + FAILED 指定节点）。
+- 其它证据：`evidence-g62/裁判命令输出-r4.txt`（89 passed / external [] / 基线=1 /
+  pyright 0 错）。
 
-## round-2 各条的整改声明（请逐条证伪；读面按上面的限制）
+## 逐项验证清单（round-3 三 HIGH 的整改声明，请证伪）
 
-- **HIGH-1 因果一致性**：POST rebuilt 不再声称「数字已更新」，改「正在同步最新数字…」
-  并登记 state.pendingSync；poll() 以 `++state.pollGen` 代际号守卫——响应先过形状校验
-  （Array.isArray(data.vaults)）再验 gen，乱序旧响应（成功或失败）整包丢弃不碰状态；
-  最新 GET 成功 → 「数字已更新」，失败 → 「同步失败」。门：乱序逆序 resolve 测试 +
-  同步结算三场景测试；变异 M39/M40/M41 对准（42/42 全红日志为证）。
-- **HIGH-3 提取同源**：_extract_script 大小写不敏感地数 `</script\s*>` 总数（恰 1），
-  正文 `<!--`/`-->` 拒绝；指定门 test_real_page_extracted_script_is_well_formed
-  （真实响应被毒化即红）；变异 M38 对准。
-- **HIGH-4a 变异判据**：变红 = returncode==1（pytest 测试失败专属码；collection error=2/
-  用法错=4 等不再冒充）+ "1 failed" + FAILED 指定节点。
-- **HIGH-4b AST 门**：调用侧正向合约——Name 白名单 {APIRouter, list, _js_json,
-  HTMLResponse}，Attribute 白名单 {get, replace, url_for, dumps, items}，其余形态
-  （Subscript 下标取内建 / lambda / getattr）一律红；import 白名单维持。变异
-  M35/M36/M37 三形态对准。
-- **MEDIUM**：M1 null-prototype 容器（__proto__ 库目点击流专项断言）；M2 200 坏形状
-  在提交状态前拒绝（坏响应不清旧数据、徽标翻红）；M3 inflight→disabled 渲染断言；
-  M4 休息日最近到期转上海本地日（09-02T16:30Z→显示 09-03）；M5 外链门补
-  data:/javascript:/blob:/file:、协议相对 a href、CSS url()。
-- **LOW**：LOW-1 已修（`if not _NODE`）；LOW-2（TTL 渲染时惰性过滤）与 LOW-3（隐藏态
-  首轮 GET 照发）**有意保留**，验收单已声明，不算缺陷。
+### HIGH-1 结算绑定证据 + 渲染探针先行
+声明：POST rebuilt 只显示「正在同步最新数字…」并登记 `state.pendingSync`；最新 GET
+（`pollGen` 代际守卫 + 形状校验前置）先做**渲染探针**（renderPage 抛错则整体走 catch，
+lastData/结算/横幅全不提交），然后按 `renderedVids`（渲染成功且 `projection` 可用的库）
+结算 pendingSync——目标库不在 renderedVids（corrupt/缺投影/从聚合消失）→ 结算为
+「同步失败」；在 → 「数字已更新」。最终帧在结算后另行渲染（含结算后的反馈）。
+门：test_js_settle_binds_to_rendered_vault_evidence（①corrupt ②目标库消失 ③有证据
+三场景）+ 乱序测试 + 同步结算三场景；变异 M46 对准。
 
-## 审查重点
+### HIGH-3 结束符语言
+声明：_extract_script 大小写不敏感地数 `</script` **前缀**总出现次数（恰 1）——覆盖
+`</script/`、`</script x=y>`、`</SCRIPT>`、`</script >` 全部浏览器合法形态；正文
+`<!--`/`-->` 拒绝；开标签只允许一个字面 `<script>`。门：
+test_script_extraction_rejects_case_insensitive_terminator（5 毒样本）+
+test_real_page_extracted_script_is_well_formed（真实响应；M38/M43 指定门）。
 
-1. 零外部依赖与同源约束；2. 轮询 clamp 与隐藏暂停、自动轮询绝不 POST；3. 四态不伪装
-ok；4. JS 不重算 due；5. 与零 JS 页共存；6. W6 三字段缺省渲染；7. 门与测试的真实性
-（按门名/断言主句抽查即可）；8. 上述整改是否真实、代际守卫与 schedule 交互、
-settlePendingSync 时序、提取门转义变体等有没有新绕过面。
+### HIGH-4b AST 门收口
+声明：调用侧正向合约之外，新增**重绑定/参数遮蔽禁令**（Assign/AugAssign/AnnAssign
+目标与函数参数命中白名单名 → 红，封 `list = open; list(...)` 拼写合法绕过）与
+**接收者白名单**（Attribute 调用接收者 unparse 基名 ∈ {json, request,
+review_app_router, _STATUS_META, _PAGE_TEMPLATE} 或接收者本身是白名单 Call → 否则红，
+封任意对象挂同名方法）。import 白名单维持。变异 M44（`list = open`）/M45（`[1].items()`）
+对准。
+
+### 随行补口（低权重，一并看）
+M1 freshNotes 返回 Object.create(null)；LOW-2 隐藏时 rebuilt 不触发 GET（pending 留给
+回前台 visibilitychange 的 poll 结算）；LOW-3 STATUS_META own-key 访问（`constructor`
+不命中继承属性）。
+
+### BLOCKER（DD-14 无 PLAN-NNN）——**不在本轮代码审查范围**
+用户已知悉，裁决权在用户/主 session（goal-card `@spec:` 引用等价性）。你不需要审它，
+也不要因它改总结论的措辞口径——总结论只针对上述三个 HIGH 的整改与随行补口。
 
 ## 输出格式
 
-BLOCKER / HIGH / MEDIUM / LOW 分级，每条给 文件:行号、问题、具体失败场景、建议修复。
-对 round-2 的 4 HIGH + 5 MEDIUM 逐条 VERIFIED / NOT VERIFIED + 理由。没问题的维度明说
-「未发现」。最后一行总结论：PASS 或 FAIL（有未清零 BLOCKER/HIGH 即 FAIL）。
+- 三个 HIGH 各给 VERIFIED / NOT VERIFIED + 理由（发现新问题则给 文件:行号 + 具体失败
+  场景 + 严重度 BLOCKER/HIGH/MEDIUM/LOW）。
+- 随行补口若有问题一并列。
+- 最后一行：`总结论：PASS`（三条 HIGH 全 VERIFIED 且无新 BLOCKER/HIGH）或
+  `总结论：FAIL（...）`。

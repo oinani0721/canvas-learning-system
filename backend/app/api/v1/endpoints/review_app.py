@@ -132,6 +132,7 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
             overflow-wrap: anywhere; word-break: break-word; }
   .whydue { color: #6b7280; font-size: 12px; margin-top: 1px; }
   .empty { color: #6b7280; }
+  .lostnote { flex: 1 1 100%; color: #d97706; font-size: 12px; margin: 4px 0 0; }
   .footer { color: #9ca3af; font-size: 12px; margin-top: 24px; }
 </style>
 </head>
@@ -380,21 +381,43 @@ function freshNotes(nowMs) {
 function renderCards(nowMs) {
   el("cards").innerHTML = renderPage(state.lastData, nowMs, freshNotes(nowMs), state.inflight);
 }
-function settlePendingSync(nowMs, ok, renderedVids) {
+function settlePendingSync(nowMs, ok, renderedVids, startMs) {
   // rebuilt 只发"正在同步…"；数字是否真更新, 由 GET 成败结算 (round-2 HIGH-1)。
-  // round-3 HIGH-1 收紧: 成功结算必须**绑定证据** — renderedVids 里要有该库、
-  // 且该库条目带可用 projection (corrupt/缺投影的库不许说"数字已更新")；
-  // 不在 renderedVids 里的 pending 库按失败结算, 不许跟着最新 GET 沾光。
+  // round-3 HIGH-1: 成功结算绑定 renderedVids 证据 (渲染成功 + projection 可用)。
+  // round-4 HIGH-1: 结算还要过**因果锚** — 本次 GET 必须启动于该库重建完成
+  // (atMs) 之后; 启动更早的 GET (rebuilt 后切后台导致没有新 GET 时, 旧 GET
+  // 仍是最新代际) 看到的是重建前投影, 无权结算 — 跳过并把 pending 留给
+  // 下一轮启动更晚的 GET。
   for (const vid of Object.keys(state.pendingSync)) {
     const n = state.pendingSync[vid];
+    if (startMs !== undefined && n.atMs !== undefined && startMs < n.atMs) continue;
     delete state.pendingSync[vid];
     const okThis = ok && renderedVids && renderedVids[vid] === true;
+    const text = okThis ? "已重建（本进程累计 " + n.count + " 次）· 数字已更新"
+      : "已重建（本进程累计 " + n.count + " 次）· 数字同步失败，后端恢复后自动重试";
     state.notes[vid] = {html: okThis
-      ? '<span class="rnote ok">✅ 已重建（本进程累计 ' + esc(n.count) + ' 次）· 数字已更新</span>'
-      : '<span class="rnote warn">⚠ 已重建（本进程累计 ' + esc(n.count) +
-        ' 次）· 数字同步失败，后端恢复后自动重试</span>', atMs: nowMs};
+      ? '<span class="rnote ok">✅ ' + esc(text) + "</span>"
+      : '<span class="rnote warn">⚠ ' + esc(text) + "</span>", text: text, atMs: nowMs};
     if (!applyNote(vid) && state.lastData) renderCards(nowMs);
   }
+}
+function lostSyncNotesHtml(data, nowMs) {
+  // 结算失败的库若已不在最新聚合里 (目标卡随之消失), 失败反馈不许跟着蒸发 —
+  // 在卡片区尾部补一条纯文本失联通知 (round-4 HIGH-1 反例二)
+  const present = Object.create(null);
+  const vaults = data && Array.isArray(data.vaults) ? data.vaults : [];
+  for (const v of vaults) {
+    if (v && v.vault_id) present[v.vault_id] = true;
+  }
+  const parts = [];
+  for (const vid of Object.keys(state.notes)) {
+    const n = state.notes[vid];
+    if (present[vid] || !n || nowMs - n.atMs >= NOTE_TTL_MS) continue;
+    if (String(n.text || "").indexOf("同步失败") !== -1) {
+      parts.push('<div class="lostnote">⚠ ' + esc(vid) + "：" + esc(n.text) + "（该库已不在当前聚合中）</div>");
+    }
+  }
+  return parts.join("");
 }
 function schedule(ms) {
   clearTimeout(state.timer);
@@ -406,6 +429,7 @@ function schedule(ms) {
 async function poll() {
   let delay = RETRY_DELAY_MS;
   const gen = ++state.pollGen;  // 代际: 只有最新一次 GET 可以提交状态 (乱序旧响应整包丢弃)
+  const startMs = Date.now();   // 启动时刻 — 结算的因果锚 (round-4 HIGH-1)
   try {
     const resp = await fetch(URLS.overview, {cache: "no-store"});
     if (!resp.ok) throw new Error("HTTP " + resp.status);
@@ -425,8 +449,9 @@ async function poll() {
       if (v && v.vault_id && v.projection) renderedVids[v.vault_id] = true;
     }
     state.lastData = data;
-    settlePendingSync(nowMs, true, renderedVids);
-    el("cards").innerHTML = renderPage(data, nowMs, freshNotes(nowMs), state.inflight);
+    settlePendingSync(nowMs, true, renderedVids, startMs);
+    el("cards").innerHTML = renderPage(data, nowMs, freshNotes(nowMs), state.inflight) +
+      lostSyncNotesHtml(data, nowMs);
     el("banner").hidden = true;
     state.lastOkAt = nowMs;
     el("updated").textContent = "上次更新 " + fmtClock(nowMs);
@@ -434,7 +459,7 @@ async function poll() {
     delay = computePollDelayMs(data, nowMs);
   } catch (e) {
     if (gen !== state.pollGen) return;  // 过期响应的失败同样不碰状态
-    settlePendingSync(Date.now(), false);
+    settlePendingSync(Date.now(), false, null, startMs);
     el("banner").innerHTML = renderUnavailableBanner(String((e && e.message) || e),
       state.lastOkAt ? fmtClock(state.lastOkAt) : null);
     el("banner").hidden = false;
