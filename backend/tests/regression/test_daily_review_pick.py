@@ -1626,9 +1626,10 @@ def test_g36b_top_boards_order_matches_head_baseline(tmp_path):
 
     走真实 CLI 链路 (subprocess 双跑, 不 import 复刻): 导出基线版 pick.py,
     与工作区版用同一 vault/同一 --now/同一 --state 各跑一次, 对比 stdout
-    JSON。tie-break 全级在场 (同分 + blr 记录 + 板名) — 排序逻辑任何一处
-    变化都会在此翻车。live 现网对比另由验收单探针承担, 本测试是 fixture 级
-    常态门。"""
+    JSON。本 fixture 让 tie-break 全级在场 (同分 + blr 记录 + 板名), 因此
+    落在这几级上的排序改动会在此翻车 —— **不宣称**覆盖全部排序改动 (R1 轮
+    HIGH: 改 decay_beta 函数体不经本文件, 见 _implementation_sha 边界第 2 条)。
+    live 现网对比另由验收单探针承担, 本测试是 fixture 级常态门。"""
     show = subprocess.run(
         ["git", "-C", str(WT), "show", f"{_BASELINE_SHA}:scripts/daily_review_pick.py"], capture_output=True, text=True
     )
@@ -1694,8 +1695,12 @@ def test_g36b_tie_keys_are_single_source(tmp_path, monkeypatch):
     —— 交换/删除因子, 板序与指纹必须**同变**。
 
     Codex 的攻击场景: 因子序存在两份独立表达时, 内存里改 _tie 而 sha 纹丝
-    不动, 版本化成摆设。本门在性质层面锁定单源: 任何让排序变化的常量改动
-    都必然改变 sha, 反之亦然。
+    不动, 版本化成摆设。本门锁定的是**本 fixture 上的单向观察**: 交换
+    TIE_FACTOR_KEYS 位置后, 板序与 sha **同变**。
+
+    ⚠ R1 收窄, 三处都不宣称 (原措辞"任何…必然…反之亦然"过宽):
+    逆命题不成立 (追加重复 `board` 键 = sha 变而排序不变, round-2 LOW 实测);
+    也不覆盖全部排序改动 (decay_beta 函数体不经本文件)。
 
     fixture 设计 (与 pick 级的数学耦合): pick 平要求 top 同参同 idle ⟹ top 的
     last 相同 ⟹ min_last 级在此 fixture 恒平 (两板各单节点, min_last 皆同);
@@ -1790,7 +1795,13 @@ def test_g36b_tie_pick_level_decides(tmp_path, monkeypatch):
 def test_g36b_tie_precision_is_versioned(tmp_path, monkeypatch):
     """Codex round-2 HIGH 补强: priority_pick 的取整精度是「可执行取值规则」
     的一部分 —— 收紧精度会让 8 位可分的近邻 pick 变同分而改排序, 故精度本身
-    必须登记进指纹。改精度常量 → 排序与 sha 同变。"""
+    必须登记进指纹。
+
+    本门断言两件事 (R1 补强: 原版只验了 sha 侧, **没有调用过排序**, 于是
+    "改精度 → 排序变"这半句是空口 —— Codex R1 轮 MEDIUM 指出):
+    a) 精度常量登记进被摘要对象, 改它 sha 变;
+    b) **改它排序真的变** —— 近邻 pick 差 1e-8 时, 8 位可分而 7 位同分,
+       同分后退到 blr 级先决, 板序翻转。"""
     vault = _mk_min_vault(
         tmp_path,
         "tie_prec",
@@ -1818,6 +1829,34 @@ def test_g36b_tie_precision_is_versioned(tmp_path, monkeypatch):
         json.dumps(cfg7, sort_keys=True, ensure_ascii=False, allow_nan=False).encode("utf-8")
     ).hexdigest()
     assert sha7 != sha8, "精度变了指纹必须变"
+
+    # (b) 排序侧承重 (R1 补强 — Codex R1 轮 MEDIUM: 原版从头到尾没调用过
+    # rank_boards, 「改精度会改排序」只存在于 docstring 里, 没有可执行形态)。
+    # 近邻 pick 差 1e-8: round(_,8) 可分, round(_,7) 双双落到 0.2 而同分,
+    # 同分后退到 blr 级先决 → 板序翻转。差值取 5e-8 不成立 (7 位下仍分成
+    # 0.2000001 vs 0.2), 这是 fixture 的算术门槛, 不是被测性质。
+    def _near(board: str, pick: float) -> dict:
+        return {
+            "board": board,
+            "node": board[0],
+            "pick": pick,
+            "due_now": True,
+            "idle_days": None,
+            "difficulty": "",
+            "fsrs_due": "",
+            "due_fail_open": False,
+            "last_examined": "2026-07-25T01:00:00Z",
+        }
+
+    near = [_near("A板", 0.20000001), _near("B板", 0.20000000)]
+    blr = {"B板": "2026-07-28"}  # B 有推荐记录排后; A 空串排最前 —— 同分时 A 先
+    monkeypatch.setattr(picker, "TIE_PICK_ROUND_DIGITS", 8)
+    order8 = [r["board"] for r in picker.rank_boards(near, blr, NOW)[0]]
+    monkeypatch.setattr(picker, "TIE_PICK_ROUND_DIGITS", 7)
+    order7 = [r["board"] for r in picker.rank_boards(near, blr, NOW)[0]]
+    assert order8 == ["B板", "A板"], f"8 位可分 → pick 更小的 B 先, 实得 {order8}"
+    assert order7 == ["A板", "B板"], f"7 位同分 → 退 blr 级, 无记录的 A 先, 实得 {order7}"
+    assert order8 != order7, "改精度必须真的改变排序 —— 否则本门空转"
 
 
 def test_g36b_tie_keys_unique_and_anchored():

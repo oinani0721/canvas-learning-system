@@ -1,0 +1,6 @@
+六常量是否逐字相同: True   ({'BETA_EXPLORE': 1.0, 'FLOOR': 0.05, 'GAMMA': 0.9, 'GAMMA_DAILY': 0.99, 'PRIOR_A': 0.9, 'PRIOR_B': 2.1})
+pick 值   base=[0.421913, 0.146447]  mutated=[0.578087, 0.853553]
+板序      base=['B板', 'A板']  mutated=['A板', 'B板']   → 排序改变: True
+rank sha  base=eb6b6710582803ef…  mutated=eb6b6710582803ef…  → sha 不变: True
+
+HIGH 复现: ✅ 成立 — 纯源码演进下排序变而指纹不变

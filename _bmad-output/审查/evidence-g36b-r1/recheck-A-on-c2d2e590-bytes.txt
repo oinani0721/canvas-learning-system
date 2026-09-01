@@ -8,18 +8,18 @@ manifest sha256: 1f9be8d5034cf5f8e83b2a894cb4b7aa5cf20b12c2f4e66c0c30704cd40bde2
         sha8=b3ff4b9998b6e336… sha7=9ca6a0f859a2eb54…
 [PASS] (b)-1 精度常量已登记进被摘要对象
         effective_rank_config.tie_pick_round_digits=8
-[PASS] (b)-2 父节整个缺失 → 点名回落（非静默）
-        stderr='[pick] authoritative 节缺失或形状不符(None), 分钟用内置默认' minutes={'per_due_node': 3, 'per_new_node': 5}
-[PASS] (b)-2 父节为空 object → 点名回落（非静默）
-        stderr='[pick] authoritative.estimated_minutes 缺失或形状不符(None), 分钟用内置默认\n[pick] estimated_minutes.per_due_node 缺失或非法(None), 用内置默认 3\n[pick] estimated_minutes.per_' minutes={'per_due_node': 3, 'per_new_node': 5}
-[PASS] (b)-2 父节为 null → 点名回落（非静默）
-        stderr='[pick] authoritative 节缺失或形状不符(None), 分钟用内置默认' minutes={'per_due_node': 3, 'per_new_node': 5}
-[PASS] (b)-2 子节为 null → 点名回落（非静默）
-        stderr='[pick] authoritative.estimated_minutes 缺失或形状不符(None), 分钟用内置默认\n[pick] estimated_minutes.per_due_node 缺失或非法(None), 用内置默认 3\n[pick] estimated_minutes.per_' minutes={'per_due_node': 3, 'per_new_node': 5}
-[PASS] (b)-2 子节错型(list) → 点名回落（非静默）
-        stderr='[pick] authoritative.estimated_minutes 缺失或形状不符([]), 分钟用内置默认\n[pick] estimated_minutes.per_due_node 缺失或非法(None), 用内置默认 3\n[pick] estimated_minutes.per_ne' minutes={'per_due_node': 3, 'per_new_node': 5}
-[PASS] (b)-2 半份叶键 → 点名回落（非静默）
-        stderr='[pick] estimated_minutes.per_new_node 缺失或非法(None), 用内置默认 5' minutes={'per_due_node': 7, 'per_new_node': 5}
+[PASS] (b)-2 父节整个缺失 → 回落值精确 + 告警点名
+        minutes={'per_due_node': 3, 'per_new_node': 5}（期望 {'per_due_node': 3, 'per_new_node': 5}）version=1 告警缺词=无 stderr='[pick] authoritative 节缺失或形状不符(None), 分钟用内置默认'
+[PASS] (b)-2 父节为空 object → 回落值精确 + 告警点名
+        minutes={'per_due_node': 3, 'per_new_node': 5}（期望 {'per_due_node': 3, 'per_new_node': 5}）version=1 告警缺词=无 stderr='[pick] authoritative.estimated_minutes 缺失或形状不符(None), 分钟用内置默认\n[pick] estimated_minutes.per_due_node 缺失或非法(None'
+[PASS] (b)-2 父节为 null → 回落值精确 + 告警点名
+        minutes={'per_due_node': 3, 'per_new_node': 5}（期望 {'per_due_node': 3, 'per_new_node': 5}）version=1 告警缺词=无 stderr='[pick] authoritative 节缺失或形状不符(None), 分钟用内置默认'
+[PASS] (b)-2 子节为 null → 回落值精确 + 告警点名
+        minutes={'per_due_node': 3, 'per_new_node': 5}（期望 {'per_due_node': 3, 'per_new_node': 5}）version=1 告警缺词=无 stderr='[pick] authoritative.estimated_minutes 缺失或形状不符(None), 分钟用内置默认\n[pick] estimated_minutes.per_due_node 缺失或非法(None'
+[PASS] (b)-2 子节错型(list) → 回落值精确 + 告警点名
+        minutes={'per_due_node': 3, 'per_new_node': 5}（期望 {'per_due_node': 3, 'per_new_node': 5}）version=1 告警缺词=无 stderr='[pick] authoritative.estimated_minutes 缺失或形状不符([]), 分钟用内置默认\n[pick] estimated_minutes.per_due_node 缺失或非法(None),'
+[PASS] (b)-2 半份叶键 → 回落值精确 + 告警点名
+        minutes={'per_due_node': 7, 'per_new_node': 5}（期望 {'per_due_node': 7, 'per_new_node': 5}）version=1 告警缺词=无 stderr='[pick] estimated_minutes.per_new_node 缺失或非法(None), 用内置默认 5'
 [PASS] (b)-3 pick 级承重：默认低 pick 先（B 板字典序更晚，排除板名碰巧决定）
         默认序=['B板', 'A板']
 [PASS] (b)-3 pick 级承重：删首因子后按板名翻转（门不空转）
@@ -30,12 +30,18 @@ manifest sha256: 1f9be8d5034cf5f8e83b2a894cb4b7aa5cf20b12c2f4e66c0c30704cd40bde2
         TIE_FACTOR_KEYS=('priority_pick', 'board_last_recommended', 'min_last_examined', 'board')
 [PASS] (b)-附 交换取值绑定 → 排序规则确实改变
         原序=['B板', 'A板'] 交换后=['A板', 'B板']
-[PASS] (b)-附 交换取值绑定 → implementation_sha256 同变（兜住无法数据化的字面代码）
+[PASS] (b)-附 交换取值绑定 → 裸 implementation_sha256 同变
         impl_sha ad1a38a55a26c1c0… → 7f534235ea78c760…
-[PASS] (b)-附 authoritative 分钟确实生效（可改）
+[PASS] (b)-附 impl_sha 真的接入最终 rank_manifest.sha256（不只是算了不用）
+        rank sha b3ff4b9998b6e336… → a7446b3b2b9a4852…；cfg.implementation_sha256 与裸值一致=True
+[PASS] (b)-附 loader 层：authoritative 分钟读出正确
         version=9 minutes={'per_due_node': 11, 'per_new_node': 13}
-[PASS] (b)-附 recorded 漂移 → 出声告警且以实际为准
-        stderr="[pick] 系数清单 recorded.limits 与实际生效值不符 (登记={'top_boards': 999, 'upcoming': 999} 实际={'top_boards': 3, 'upcoming': 3}); 以实际为准"
+[PASS] (b)-附 生产入口：build_payload 落盘的分钟真按 manifest 算（不是只读不用）
+        落盘 estimated_minutes=24（期望 24；due_total=2 due_new=1 用 11/13） rank_manifest.version=9
+[PASS] (b)-附 recorded 漂移 → 出声告警
+        stderr="[pick] 系数清单 recorded.ranking_factors.order 与实际生效值不符 (登记=['board', 'priority_pick'] 实际=['priority_pick', 'board_last_recommended', 'min_last_"
+[PASS] (b)-附 recorded 漂移 → **行为**以实际为准（登记值没被拿去用）
+        生效 limits={'top_boards': 3, 'upcoming': 3}（登记谎称 999） 生效 factors=['priority_pick', 'board_last_recommended', 'min_last_examined', 'board']（登记谎称 ['board','priority_pick']）
 
 ============================================================
-复核结果: 17/17 PASS
+复核结果: 20/20 PASS

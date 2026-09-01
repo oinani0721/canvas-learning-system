@@ -115,26 +115,37 @@ def b2_authoritative_three_layers(picker, tmp: Path):
     import contextlib
     import io
 
+    D = dict(picker.DEFAULT_MINUTES)
+    # (label, 文档, 期望的**精确**回落值, 告警里必须点名的关键词)
+    # R1 轮 Codex MEDIUM：原版只断言「stderr 非空」，把回落值和告警内容都放过了
+    # —— 实现即便回落成错误的数字、或打一条不点名的告警，探针照样 PASS。
     cases = [
-        ("父节整个缺失", {"version": 1}),
-        ("父节为空 object", {"version": 1, "authoritative": {}}),
-        ("父节为 null", {"version": 1, "authoritative": None}),
-        ("子节为 null", {"version": 1, "authoritative": {"estimated_minutes": None}}),
-        ("子节错型(list)", {"version": 1, "authoritative": {"estimated_minutes": []}}),
-        ("半份叶键", {"version": 1, "authoritative": {"estimated_minutes": {"per_due_node": 7}}}),
+        ("父节整个缺失", {"version": 1}, D, ["authoritative", "内置默认"]),
+        ("父节为空 object", {"version": 1, "authoritative": {}}, D,
+         ["estimated_minutes", "内置默认"]),
+        ("父节为 null", {"version": 1, "authoritative": None}, D,
+         ["authoritative", "内置默认"]),
+        ("子节为 null", {"version": 1, "authoritative": {"estimated_minutes": None}}, D,
+         ["estimated_minutes", "内置默认"]),
+        ("子节错型(list)", {"version": 1, "authoritative": {"estimated_minutes": []}}, D,
+         ["estimated_minutes", "内置默认"]),
+        ("半份叶键", {"version": 1, "authoritative": {"estimated_minutes": {"per_due_node": 7}}},
+         {"per_due_node": 7, "per_new_node": D["per_new_node"]}, ["per_new_node"]),
     ]
-    for label, doc in cases:
-        p = tmp / f"m_{abs(hash(label))}.json"
-        p.write_text(json.dumps(doc), encoding="utf-8")
+    for label, doc, want_minutes, want_words in cases:
+        f = tmp / f"m_{abs(hash(label))}.json"
+        f.write_text(json.dumps(doc), encoding="utf-8")
         buf = io.StringIO()
         with contextlib.redirect_stderr(buf):
-            version, minutes, _ = picker.load_rank_manifest(p)
+            version, minutes, _ = picker.load_rank_manifest(f)
         err = buf.getvalue()
-        named = bool(err.strip())
+        missing = [w for w in want_words if w not in err]
+        ok = (minutes == want_minutes) and (version == 1) and not missing
         check(
-            f"(b)-2 {label} → 点名回落（非静默）",
-            named,
-            f"stderr={err.strip()[:150]!r} minutes={minutes}",
+            f"(b)-2 {label} → 回落值精确 + 告警点名",
+            ok,
+            f"minutes={minutes}（期望 {want_minutes}）version={version!r} "
+            f"告警缺词={missing or '无'} stderr={err.strip()[:110]!r}",
         )
 
 
@@ -227,53 +238,121 @@ def b5_value_binding_swap_is_caught(picker, tmp: Path):
     blr = {"A板": "2026-07-29"}  # A 有记录（排后），B 无记录（空串排前）
     o_base = order_of(picker, nodes, blr)
     o_swap = order_of(swapped, nodes, blr)
-    s_base = picker._implementation_sha()
-    s_swap = swapped._implementation_sha()
+    # R1 轮 Codex MEDIUM：原版只比裸 _implementation_sha()，没证明它真的接进了
+    # 最终对外的 rank_manifest.sha256 —— 实现即便把 impl_sha 算出来却不放进
+    # 摘要对象（或放进去后被覆盖成常量），原探针照样 PASS。
+    s_base_impl, s_swap_impl = picker._implementation_sha(), swapped._implementation_sha()
+    s_base_rank, s_swap_rank = sha_of(picker), sha_of(swapped)
+    cfg_base = picker.effective_rank_config(FAKE_DECAY, 1, dict(picker.DEFAULT_MINUTES))
     check(
         "(b)-附 交换取值绑定 → 排序规则确实改变",
         o_base != o_swap,
         f"原序={o_base} 交换后={o_swap}",
     )
     check(
-        "(b)-附 交换取值绑定 → implementation_sha256 同变（兜住无法数据化的字面代码）",
-        s_base != s_swap,
-        f"impl_sha {s_base[:16]}… → {s_swap[:16]}…",
+        "(b)-附 交换取值绑定 → 裸 implementation_sha256 同变",
+        s_base_impl != s_swap_impl,
+        f"impl_sha {s_base_impl[:16]}… → {s_swap_impl[:16]}…",
+    )
+    check(
+        "(b)-附 impl_sha 真的接入最终 rank_manifest.sha256（不只是算了不用）",
+        s_base_rank != s_swap_rank
+        and cfg_base.get("implementation_sha256") == s_base_impl,
+        f"rank sha {s_base_rank[:16]}… → {s_swap_rank[:16]}…；"
+        f"cfg.implementation_sha256 与裸值一致="
+        f"{cfg_base.get('implementation_sha256') == s_base_impl}",
     )
 
 
+def mk_min_vault(tmp: Path, name: str, nodes: dict) -> Path:
+    """带 decay_beta 的最小 vault —— 与生产 scan_nodes 读的是同一种目录形态。"""
+    import shutil
+
+    vault = tmp / name
+    (vault / ".claude" / "scripts").mkdir(parents=True)
+    (vault / "节点").mkdir()
+    shutil.copy(LANE / "canvas-vault" / ".claude" / "scripts" / "decay_beta.py",
+                vault / ".claude" / "scripts")
+    for stem, content in nodes.items():
+        (vault / "节点" / f"{stem}.md").write_text(content, encoding="utf-8")
+    return vault
+
+
+def md_node(board="普通板", extra="") -> str:
+    return f'---\ntype: concept\nsource_board: "[[原白板/{board}]]"\n{extra}---\n真实内容。\n'
+
+
 def b6_manifest_authoritative_takes_effect(picker, tmp: Path):
-    """(b)-附 authoritative 分钟常量是「可改生效」，recorded 是「只登记告警」。"""
+    """(b)-附 authoritative「可改生效」/ recorded「只登记告警」——走生产入口。
+
+    R1 轮 Codex MEDIUM：原版两条都只验了中间层（loader 的返回值、告警文字），
+    没有走 build_payload —— 实现即便把 minutes 读出来却不往 payload 里传，
+    或者 recorded 打完告警就用登记值覆盖实际值，原探针照样 PASS。
+    """
     import contextlib
     import io
 
-    p = tmp / "auth_effective.json"
-    p.write_text(json.dumps({
+    vault = mk_min_vault(tmp, "prod_entry", {
+        "甲": md_node(board="甲板"),                                   # 新卡
+        "乙": md_node(board="甲板", extra="fsrs_due: 2026-07-01T01:00:00Z\n"),  # 已排期到期
+    })
+    decay = picker.load_decay(vault)
+
+    mf = tmp / "auth_effective.json"
+    mf.write_text(json.dumps({
         "version": 9,
         "authoritative": {"estimated_minutes": {"per_due_node": 11, "per_new_node": 13}},
     }), encoding="utf-8")
-    version, minutes, recorded = picker.load_rank_manifest(p)
+
+    version, minutes, _ = picker.load_rank_manifest(mf)
     check(
-        "(b)-附 authoritative 分钟确实生效（可改）",
+        "(b)-附 loader 层：authoritative 分钟读出正确",
         version == 9 and minutes == {"per_due_node": 11, "per_new_node": 13},
         f"version={version} minutes={minutes}",
     )
 
-    # recorded 与实际不符 → 逐项告警，且以实际为准
-    p2 = tmp / "recorded_drift.json"
-    p2.write_text(json.dumps({
+    # ── 生产入口：build_payload 落盘的 estimated_minutes 必须按 manifest 算
+    payload, _ranked = picker.build_payload(vault, NOW, {}, decay, manifest_path=mf)
+    tb = payload["top_boards"][0]
+    f = tb["factors"]
+    want = f["due_new"] * 13 + (f["due_total"] - f["due_new"]) * 11
+    check(
+        "(b)-附 生产入口：build_payload 落盘的分钟真按 manifest 算（不是只读不用）",
+        tb["estimated_minutes"] == want and payload["rank_manifest"]["version"] == 9,
+        f"落盘 estimated_minutes={tb['estimated_minutes']}（期望 {want}；"
+        f"due_total={f['due_total']} due_new={f['due_new']} 用 11/13）"
+        f" rank_manifest.version={payload['rank_manifest']['version']}",
+    )
+
+    # ── recorded 漂移：既要出声，更要**行为以实际为准**
+    mf2 = tmp / "recorded_drift.json"
+    mf2.write_text(json.dumps({
         "version": 1,
         "authoritative": {"estimated_minutes": {"per_due_node": 3, "per_new_node": 5}},
-        "recorded": {"limits": {"top_boards": 999, "upcoming": 999}},
+        "recorded": {"limits": {"top_boards": 999, "upcoming": 999},
+                     "ranking_factors": {"order": ["board", "priority_pick"]}},
     }), encoding="utf-8")
-    _, m2, rec2 = picker.load_rank_manifest(p2)
+    _, m2, rec2 = picker.load_rank_manifest(mf2)
     buf = io.StringIO()
     with contextlib.redirect_stderr(buf):
-        man = picker.build_rank_manifest(FAKE_DECAY, 1, m2, rec2)
+        cfg = picker.effective_rank_config(decay, 1, m2)
+        picker.build_rank_manifest(decay, 1, m2, rec2)
     err = buf.getvalue()
+    behaviour_wins = (
+        cfg["limits"] == {"top_boards": picker.TOP_BOARDS_LIMIT,
+                          "upcoming": picker.UPCOMING_LIMIT}
+        and cfg["ranking_factors"] == list(picker.TIE_FACTOR_KEYS)
+    )
     check(
-        "(b)-附 recorded 漂移 → 出声告警且以实际为准",
+        "(b)-附 recorded 漂移 → 出声告警",
         "recorded.limits" in err and "999" in err,
-        f"stderr={err.strip()[:160]!r}",
+        f"stderr={err.strip()[:140]!r}",
+    )
+    check(
+        "(b)-附 recorded 漂移 → **行为**以实际为准（登记值没被拿去用）",
+        behaviour_wins,
+        f"生效 limits={cfg['limits']}（登记谎称 999）"
+        f" 生效 factors={cfg['ranking_factors']}（登记谎称 ['board','priority_pick']）",
     )
 
 

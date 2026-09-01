@@ -5,12 +5,21 @@ MEMORY 铁律逐条落实：
 - 串行：绝不并发（原地变异并发跑互踩，reference_mutation_script_serial_only）
 - EXIT trap：finally 无条件还原，且还原后 **逐字节** 比对（sha256）
 - **指定的那道门**必须变红，不是「某处有失败」（reference_gate_design_pitfalls）
-- rc=5（未收集到测试）判 INVALID 不判红（变异打空的典型伪装）
+- **只有 rc=1 算红**：pytest 的 rc=2(中断)/3(内部错)/4(用法错)/5(未收集到) 一律
+  判 INVALID —— 它们都能让「测试没通过」看起来像「门抓住了变异」，而实际上门
+  可能根本没跑。（Codex R1 轮 MEDIUM：原版把 rc!=0 一概算红，是同一类假绿。）
+- **精确 nodeid**（`file::testname`）而非 `-k` 子串匹配：`-k` 会连带选中名字里
+  含该子串的其它测试，红的来源就不唯一了。
+- **保留 stderr**：判 INVALID 时要能看出是收集失败还是环境炸了。
 - 锚点断言：old 必须在源码中恰好可命中，否则该条判 INVALID（防死变异）
+- 还原用 `finally` + SIGINT/SIGTERM handler。**如实声明**：这不等价于 shell 的
+  EXIT trap —— SIGKILL 或解释器硬崩仍会留下变异字节，所以还原后的**逐字节
+  比对**才是真正的判据，`finally` 只是让常见路径不出错。
 """
 from __future__ import annotations
 
 import hashlib
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -88,16 +97,39 @@ def sha(p: Path) -> str:
 
 
 def run_gate(testfile: str, gate: str) -> tuple[int, str]:
+    """跑**精确 nodeid**（不是 -k 子串），返回 (rc, stdout+stderr 尾部)。"""
+    nodeid = f"{testfile}::{gate}"
     r = subprocess.run(
-        [".venv/bin/pytest", testfile, "-k", gate, "-q", "-p", "no:cacheprovider", "--no-header"],
+        [".venv/bin/pytest", nodeid, "-q", "-p", "no:cacheprovider", "--no-header"],
         cwd=LANE / "backend", capture_output=True, text=True,
         env={"PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "PYTHONDONTWRITEBYTECODE": "1",
              "HOME": str(Path.home()), "LANG": "en_US.UTF-8"},
     )
-    return r.returncode, (r.stdout or "")[-400:].strip().replace("\n", " | ")
+    tail = ((r.stdout or "")[-400:] + " ||STDERR|| " + (r.stderr or "")[-300:])
+    return r.returncode, tail.strip().replace("\n", " | ")
+
+
+def _install_restore_handlers(originals: dict) -> None:
+    """SIGINT/SIGTERM 时也还原（finally 覆盖不到信号中断）。
+
+    如实声明：SIGKILL / 解释器硬崩仍会留下变异字节 —— 这不是 EXIT trap 的
+    等价物，最终判据始终是脚本末尾的逐字节比对。
+    """
+    def _restore(signum, _frame):
+        for path, raw in originals.items():
+            try:
+                path.write_bytes(raw)
+            except OSError:
+                pass
+        print(f"\n⚠ 收到信号 {signum}，已尝试还原全部目标文件", file=sys.stderr)
+        sys.exit(130)
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(sig, _restore)
 
 
 def main() -> int:
+    _install_restore_handlers({PICK: PICK.read_bytes(), OVERVIEW: OVERVIEW.read_bytes()})
     baseline = {PICK: sha(PICK), OVERVIEW: sha(OVERVIEW)}
     print("变异前基线 sha256:")
     for p, s in baseline.items():
@@ -133,12 +165,14 @@ def main() -> int:
             restored = sha(target)
             assert restored == baseline[target], f"{tag} 还原后字节不一致！{restored}"
 
-        if rc == 5:
-            verdict, note = "INVALID", "rc=5 未收集到测试（变异打空的伪装）"
+        if rc == 1:
+            verdict, note = "✅ 红", "rc=1（唯一能证明「测试断言失败」的退出码）"
         elif rc == 0:
-            verdict, note = "空转", "指定门未变红 —— 门不承重"
+            verdict, note = "空转", "rc=0 指定门未变红 —— 门不承重"
         else:
-            verdict, note = "✅ 红", f"rc={rc}"
+            verdict, note = "INVALID", (
+                f"rc={rc} —— pytest 2=中断/3=内部错/4=用法错/5=未收集到，"
+                "都不是「门抓住了变异」")
         results.append((tag, verdict, note, desc))
         print(f"[{tag}] {verdict:6s} {gate}  ({note})")
         print(f"        变异: {desc}")
