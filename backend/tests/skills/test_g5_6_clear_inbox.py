@@ -1770,6 +1770,78 @@ def test_backtick_info_string_is_not_a_fence_open(tmp_path):
     assert normal["criterion"] != "C3_empty_or_skeleton", "合法围栏不得误伤"
 
 
+def test_cjk_adjacent_ai_is_undigested_signal(tmp_path):
+    """⛔ round-7 BLOCKER-1: CJK 邻接的 AI 字样没有 Unicode 词边界 ——
+    `由AI系统生成` 曾穿透 \\bAI\\b 信号与有限表。词判定改「左右非 ASCII 字母」。"""
+    vault, out = base_vault(tmp_path)
+    mk(
+        vault / "_待处理" / "CJK邻接AI.md",
+        "---\ngenerator: 本报告由AI系统生成\n---\n",
+        age_days=6,
+    )
+    # 正向对照: 无 AI 字样纯空骨架 → 仍 C3
+    mk(vault / "_待处理" / "纯空骨架.md", "---\ntitle: t\n---\n\n# 只有标题\n", age_days=5)
+
+    assert run_cli(vault, out).returncode == 0
+    data = load_json(out)
+    it = item_by_name(data, "CJK邻接AI.md")
+    assert it["verdict"] != "建议删", f"CJK 邻接 AI 被建议删了: {it['basis']}"
+    assert it["criterion"] == "C6_undecided"
+    assert "AI" in (it["uncertain_reason"] or ""), it["uncertain_reason"]
+    skeleton = item_by_name(data, "纯空骨架.md")
+    assert skeleton["criterion"] == "C3_empty_or_skeleton"
+    assert skeleton["verdict"] == "建议删"
+
+
+def test_tab_and_nbsp_indented_heading_is_content(tmp_path):
+    """⛔ round-7 BLOCKER-2: ATX 标题缩进必须限字面空格 —— `\\t# keep` 是缩进
+    代码、`\\xa0# keep` 是普通正文, 都曾被 `^\\s{0,3}` 当标题剥掉 → 空骨架
+    建议删 (与 B3-4 围栏缩进同族的教训)。"""
+    vault, out = base_vault(tmp_path)
+    inbox = vault / "_待处理"
+    mk(inbox / "tab缩进标题.md", "\t# keep\n", age_days=6)
+    mk(inbox / "nbsp缩进标题.md", "\xa0# keep\n", age_days=5)
+    # 正向对照: 顶格标题 + 无正文 → 仍 C3 建议删
+    mk(inbox / "顶格标题.md", "# 标题\n\n## 小节\n", age_days=4)
+
+    assert run_cli(vault, out).returncode == 0
+    data = load_json(out)
+    for name in ("tab缩进标题.md", "nbsp缩进标题.md"):
+        it = item_by_name(data, name)
+        assert it["verdict"] != "建议删", f"{name} 被建议删了: {it['basis']}"
+        assert it["criterion"] != "C3_empty_or_skeleton", name
+    heading = item_by_name(data, "顶格标题.md")
+    assert heading["criterion"] == "C3_empty_or_skeleton"
+    assert heading["verdict"] == "建议删"
+
+
+def test_wrapped_url_values_are_undigested_signals(tmp_path):
+    """⛔ round-7 BLOCKER-3: 来源值判定必须 substring 级 —— YAML 标签
+    (`!!str https://…`) 与引号包 Markdown 链接 (`"[来源](https://…)") 曾因
+    前缀判定穿透。值内任意位置含 http(s):// 即算来源声明。"""
+    vault, out = base_vault(tmp_path)
+    inbox = vault / "_待处理"
+    mk(inbox / "yaml标签URL.md", "---\nURL: !!str https://example.test/x\n---\n", age_days=6)
+    mk(
+        inbox / "md链接URL.md",
+        '---\nURL: "[来源](https://example.test/x)"\n---\n',
+        age_days=5,
+    )
+    # 正向对照: 值不含 http(s):// 的键 → 纯空骨架仍 C3
+    mk(inbox / "纯空骨架.md", "---\ntitle: t\n---\n\n# 只有标题\n", age_days=4)
+
+    assert run_cli(vault, out).returncode == 0
+    data = load_json(out)
+    for name in ("yaml标签URL.md", "md链接URL.md"):
+        it = item_by_name(data, name)
+        assert it["verdict"] != "建议删", f"{name} 被建议删了: {it['basis']}"
+        assert it["criterion"] == "C6_undecided", name
+        assert "example.test" in (it["uncertain_reason"] or ""), it["uncertain_reason"]
+    skeleton = item_by_name(data, "纯空骨架.md")
+    assert skeleton["criterion"] == "C3_empty_or_skeleton"
+    assert skeleton["verdict"] == "建议删"
+
+
 def test_frontmatter_map_value_fidelity():
     """⛔ round-3 自审 GATE-1/H3-3: _FM_KEY_RE 的**值提取**半边此前无任何门锁 ——
     回退旧正则 63 条照样全绿。本门锁三个行为: 值含冒号的键完整保留 /
