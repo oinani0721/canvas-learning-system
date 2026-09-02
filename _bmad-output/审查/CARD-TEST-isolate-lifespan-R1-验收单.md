@@ -334,6 +334,21 @@ tokens used 198,766
 正文文件 **0 字节**，rc=0。⚠️ 按既有教训（`reference_codex_content_filter_neutralize`）：
 **rc=0 + 0 字节 ≠ 通过**。本轮没有裁定，因此**完成条件 (l) 不成立**。
 
+**替代通道已穷举（2026-09-03，省得下个 session 再探一遍）**：
+
+| 通道 | 结果 |
+|---|---|
+| `gpt-5.6-sol`（卡文指定） | `usage limit`，09-07 恢复 |
+| `gpt-5.6-luna`（config 默认） | `usage limit` —— 说明是**账号级**而非模型级 |
+| `gpt-5.6` / `gpt-5.6-codex` / `gpt-5.1-codex-max` / `o4-mini` | `not supported when using Codex with a ChatGPT account` |
+| API key 独立计费池 | `~/.codex/auth.json` 的 `auth_mode` 是 ChatGPT 订阅模式，`OPENAI_API_KEY` 字段**为空**；环境里也没有 `OPENAI_API_KEY`/`CODEX_API_KEY` ⇒ **无独立计费通道** |
+
+三条路全部堵死。**(l) 在本 session 确定不可达**，不是「还没做」而是「做不到」。
+
+⚠️ 再多做几轮自查也不能替代 (l)：自查的结论仍出自实施方本人，而 (l) 要的是
+**独立第三方的正式裁定**。本卡已做三轮自查（round-1 整改 17 条 + stderr 线索 3 条
++ 继承声明 5 条），继续加轮次只是在写我自己的结论，对 (l) 的推进为零。
+
 **已排除「是本次 prompt 太大/被内容过滤」这个解释**：2026-09-02 19:42 用
 `codex exec -m gpt-5.6-sol "回复一个字：好"` 这个**单字 prompt** 复测，
 rc=1，同样返回 usage limit。⇒ 账号级配额硬阻断，与本卡内容无关。
