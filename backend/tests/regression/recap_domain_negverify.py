@@ -282,8 +282,8 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "现改为保留捕获组、只收窄字符集，代码仍可运行。",
         [
             (
-                'rf"([0-9]){_D2_JOIN_ONE}*[,，\'’]{_D2_JOIN_ONE}*(?=[0-9]{{3}}(?![0-9]))"',
-                'r"([0-9]),(?=[0-9]{3}(?![0-9]))"',
+                'rf"([0-9]){_D2_JOIN_ONE}*[,，\'’]{_D2_JOIN_ONE}*(?=[0-9])"',
+                'r"([0-9]),(?=[0-9])"',
             ),
         ],
         "r7_range",
@@ -778,6 +778,16 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         ],
         "r28_tips_binding",
     ),
+    (
+        "survivor-66 (C-39) 分隔符归一退回「恰好三位分组」前瞻（制造第三态：既不删也不断 ⇒ 硬断点，匹配重锚到尾片）",
+        [
+            (
+                'rf"([0-9]){_D2_JOIN_ONE}*[,，\'’]{_D2_JOIN_ONE}*(?=[0-9])"',
+                'rf"([0-9]){_D2_JOIN_ONE}*[,，\'’]{_D2_JOIN_ONE}*(?=[0-9]{{3}}(?![0-9]))"',
+            )
+        ],
+        "r29_separator_third_state",
+    ),
 ]
 
 
@@ -911,7 +921,7 @@ def run_suite(keyword: str) -> tuple[int, str, int, int, bool]:
     return r.returncode, out[-400:], passed + failed, failed, crash
 
 
-MUTANT_COUNT_EXPECTED = 65
+MUTANT_COUNT_EXPECTED = 66
 """变体数的**独立**期望值。
 
 ⛔ 冻结审查 v6：脚本原先只在结尾动态打印「共 N 条」—— 误删一个变体仍会成功退出。

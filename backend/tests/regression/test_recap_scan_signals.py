@@ -5356,3 +5356,61 @@ def test_domain_r28_tips_binding_visible_space_cli(tmp_path):
         encoding="utf-8",
     )
     assert run_verify(report).returncode == 0, "渲染等价的合规 tips 行被误判"
+
+
+def test_domain_r29_separator_third_state_cli(tmp_path):
+    """R3 round-35（2026-09-03 内部多维复核 BLOCKER）：分隔符的**第三态**。
+
+    ⛔ `_normalize_number_seps` 原式带 `(?=[0-9]{3}(?![0-9]))`「恰好三位分组」前瞻，
+    于是 `,，'’` 在同一个函数里有**两种互斥语义**，并制造出**第三态**：
+    分隔符既**不被删**（不满足前瞻）也**不算连接字符**（不在 `_D2_JOIN_ONE` 里）
+    ⇒ 成为**硬断点**，`_NUM_RUN_PAT` 从它之后重锚到尾片。
+
+    实测四条（修前全部 exit 0）：
+      · `987654,0`  —— 只看到 `0`，而 0 因 `abs(a-a)` **恒在池内**
+      · `987654，0` —— 全角逗号
+      · `987654'0`  —— Swiss 撇号，**本函数自己声明**的分隔符
+      · `1,05`      —— 读者读 105，校验器读 5
+    对照 `987654,000` 修前即拦下 —— **只差「分组是否恰好三位」**。
+
+    这与 round-2 的「九十八万**五** / 980 005」是**同一个尾片重锚病**，
+    只是断点字符换成了本函数自己声明为「数串内部分隔符」的那几个。
+
+    **它证明什么**：分隔符一律按数串内噪声删除（与 `_D2_JOIN_ONE` 同级），
+    不再有「不删也不断」的第三态；合法千分位不受影响。
+    **它不证明什么**：不覆盖非数字上下文里的逗号（两侧仍要求数字）；
+    也不改变 D2「碰撞判据非字段绑定」这个设计层性质（见接手清单 A1/A2）。
+    """
+    rs = _load_recap_scan()
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    pool = rs._derived_number_pool(scan)
+    assert 987654 not in pool, "前提：987654 必须在池外"
+    assert 0 in pool, "前提：0 因 abs(a-a) 恒在池内 —— 这正是尾片重锚危险的原因"
+
+    report = write_report(vault, scan)
+    base = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+
+    def inject(line: str):
+        text = base.replace("## 三维审查", f"## 三维审查\n\n{line}", 1)
+        assert text != base, "注入未命中：报告一字未改，这条门测的是空气"
+        report.write_text(text, encoding="utf-8")
+        return run_verify(report)
+
+    for line, why in (
+        ("- 本板共有987654,0个子节点。【实测】", "半角逗号 + 非三位尾段"),
+        ("- 本板共有987654，0个子节点。【实测】", "全角逗号"),
+        ("- 本板共有987654'0个子节点。【实测】", "Swiss 撇号（本函数自己声明的分隔符）"),
+        ("- 本板共有1,05个子节点。【实测】", "读者读 105，校验器曾只读 5"),
+        ("- 本板共有987654,000个子节点。【实测】", "对照：恰好三位分组（修前即拦）"),
+    ):
+        r = inject(line)
+        assert r.returncode != 0, f"{why}：分隔符第三态放行 —— {line!r}"
+
+    # 归一行为本身：一律删，不看位数
+    assert rs._normalize_number_seps("987654,0") == "9876540"
+    assert rs._normalize_number_seps("1,05") == "105"
+    assert rs._normalize_number_seps("987654,000") == "987654000"
+    # 非数字上下文不受影响
+    assert rs._normalize_number_seps("见 1,と") == "见 1,と"
