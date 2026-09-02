@@ -4487,10 +4487,10 @@ def test_domain_r16_clause7_n_binding_is_visible_text_cli(tmp_path):
     #    原措辞过宽）。段外路径由 `_verify_signals_if_present` 的 rest 判定负责，
     #    本门不覆盖 —— 如实登记。
     for line, why in (
-        ("> - 无来源结论：99/2 派生角色成员缺来源锚点【推定】", "段外裸信号名"),
-        ("> - 无**来源**结论：99/2 派生角色成员缺来源锚点【推定】", "段外信号名被切开"),
+        ("> - 无来源结论：99/2 派生角色成员缺来源锚点【推定】", "③段内裸伪信号行"),
+        ("> - 无**来源**结论：99/2 派生角色成员缺来源锚点【推定】", "③段内伪信号行被切开"),
     ):
-        assert inject(line).returncode != 0, f"{why}：段外伪信号行被放行 —— {line!r}"
+        assert inject(line).returncode != 0, f"{why}：伪信号行被放行 —— {line!r}"
 
 
 def test_domain_r17_freeze_v2_bounded_highs_cli(tmp_path):
@@ -4564,10 +4564,14 @@ def test_domain_r17_freeze_v2_bounded_highs_cli(tmp_path):
         )
 
     # ④ 字符域必须与区间主表同源（漂移即被抓）
-    for ch in "~～〜到至":
+    # ⛔ round-23：此前只枚举 5 个，漏掉六种横线；且区间正则当时**手抄了第二份表**，
+    #    所谓「同源」并不成立。现从 `_D2_RANGE_SEPS` 逐字符双向锁：两个消费面都必须覆盖。
+    assert len(rs._D2_RANGE_SEPS) >= 11, f"分隔表被缩水: {rs._D2_RANGE_SEPS!r}"
+    for ch in rs._D2_RANGE_SEPS:
         assert rs._codespan_is_visible_count(f"2{ch}3个"), (
             f"区间分隔符 {ch!r} 不在 code span 字符域里 ⇒ 可见区间被整段豁免"
         )
+        assert rs._D2_RANGE_RE.search(f"2{ch}3个"), f"区间分隔符 {ch!r} 不被区间正则识别 ⇒ 两侧分隔表已分叉"
     for ch in ("\u00a0", "\u3000"):
         assert rs._codespan_is_visible_count(f"999{ch}个"), (
             f"空白 U+{ord(ch):04X} 不被接受 ⇒ 整段被豁免（主连接集用 \\s）"
@@ -4584,7 +4588,9 @@ def test_domain_r18_crash_judge_indent_and_child_stderr():
       · 内层 CLI 以 `capture_output=True` 执行、断言只带 `r.stdout` ⇒
         子进程 traceback 若只在 stderr，**外层两路输出里根本不会出现**。
 
-    **它证明什么**：缩进上界 3 格 + 紧跟冒号两条件同时成立才判异常；
+    **它证明什么**：缩进上界（`E` + 1-3 格）+ `assert`/`AssertionError` 白名单判异常 ——
+    「紧跟冒号」这个条件已在 round-20 二修**删除**（它既多余又漏掉无消息异常）；
+    此处文案 round-23 才更正，此前与实现矛盾；
     `run_verify` 已把子进程 stderr 打到测试 stdout（pytest 失败时展示）。
     **它不证明什么**：这套解析**不是可靠二分**（round-21 如实收回该说法）——
     pytest 的缩进随 tb 风格而变，本仓 `backend/pytest.ini` 的 addopts 强制
@@ -4663,9 +4669,11 @@ def test_domain_r19_child_stderr_transport_is_real(capsys, monkeypatch, tmp_path
     vault = standard_vault(tmp_path)
     scan = collect_json(vault)
     report = write_report(vault, scan)
-    run_verify(report)
+    returned = run_verify(report)
     assert len(called) == 1, "run_verify 未调用 _surface_child_stderr（接线断了）"
-    assert isinstance(called[0], _sp.CompletedProcess), "哨兵拿到的不是子进程结果"
+    # ⚠️ round-23：必须断言**同一个对象**。原先只验「是某个 CompletedProcess」，
+    #    那不能排除接线接到了另一次调用的结果上（措辞比证据宽）。
+    assert called[0] is returned, "哨兵拿到的不是 run_verify 返回的那个子进程结果"
     monkeypatch.undo()
 
     # ② 函数本体：空 stderr 不出声；有 traceback 时打确定性标记
@@ -4745,3 +4753,71 @@ def test_domain_r20_seed_ledger_visible_in_manifest_cli(tmp_path):
     rs = _load_recap_scan()
     assert callable(getattr(rs, "_visible_block", None)), "共用 helper 不存在 ⇒ 又会各自 join 一遍"
     assert rs._visible_block("a**b**\n<c>d</c>") == "ab\nd", "helper 行为不符（行数/顺序必须不变）"
+    # ⚠️ round-23：上一版这句「四处消费方都走 helper」**当时不成立**（③段信号行
+    #    还在逐行 `_visible_text`）。生产已统一，这里按**调用点计数**锁住，
+    #    漂移（有人又写回内联 join）即被抓。
+    _src = pathlib.Path(rs.__file__).read_text(encoding="utf-8")
+    assert _src.count("_visible_block(") >= 5, "_visible_block 的消费方少于预期（定义 1 + 消费 4）⇒ 有人写回了内联 join"
+    # ⚠️ 判据必须**计数**，不能靠「删掉函数名再查子串」—— 删名字不删函数体，
+    #    helper 自己的那行 join 照样命中（第一版就这么错的，门当场变红）。
+    #    恰好 1 处 = 只存在于 `_visible_block` 的定义里。
+    assert _src.count('"\\n".join(_visible_text(ln)') == 1, "生产里出现了第二处内联的逐行 join —— 单一应用点被绕开"
+
+
+def test_domain_r21_seed_node_identity_same_space():
+    """R3 round-23（冻结审查 v4）：种子行的**节点身份**必须在同一文本空间比较。
+
+    ⛔ 这是我 round-22 修复时**自己引入**的语义范围泄漏（审查方在我请它专门
+    留意"范围超出意图的改动"后抓到）：把整个小节交给 `_visible_block` 之后，
+    行里取到的节点名已是**归一后**的，却仍拿去对 **raw** `node_id` ——
+    而 `_visible_text` 无条件删 `_` / `*`，节点名规则并不禁它们。
+
+    实测 `Seed_A` 归一成 `SeedA`，两个后果，**第二个更坏**：
+      ① 合法报告被误拒（报「节点不在 ledger 里」）；
+      ② **值绑定被整条跳过** —— 写错的批注数反而不再报数字错。
+
+    **它证明什么**：先精确匹配 raw id，不中再退到归一空间；归一后**撞车**
+    （两个不同 raw id 归一成同一个）时 fail-closed 不猜；诊断报 **raw** 名。
+    **它不证明什么**：不证明 `_visible_text` 的归一集合与节点名字符规则不再有
+    任何交集 —— 那是两张表的关系，本门只锁"身份比较必须同空间"。
+    """
+    rs = _load_recap_scan()
+
+    def run(node_id: str, line_node: str, tips_count: int, n_in_line: int):
+        text = f"## 台账\n\n### 种子\n\n- {line_node} — 批注 {n_in_line} 条\n\n## 下一段\n"
+        scan = {"ledger": {"seeds": [{"node_id": node_id, "tips_count": tips_count}]}}
+        problems: list[str] = []
+        rs._verify_seed_ledger_counts(text, scan, problems)
+        return problems
+
+    # 前提：归一确实会吃掉下划线（否则本门测的是空气）
+    assert rs._visible_text("Seed_A") == "SeedA", "前提不成立：_visible_text 不再删下划线"
+
+    for nid, n_line, why in (
+        ("SeedA", 2, "对照：普通名 + 数字一致"),
+        ("Seed_A", 2, "下划线名 + 数字一致 —— 不得误拒"),
+    ):
+        assert run(nid, nid, 2, n_line) == [], f"{why}：合法报告被拒"
+
+    for nid, why in (("SeedA", "对照：普通名"), ("Seed_A", "下划线名")):
+        ps = run(nid, nid, 2, 999)
+        assert ps, f"{why}：数字写错却没报"
+        joined = " ".join(ps)
+        assert "不在 scan JSON" not in joined, f"{why}：报成了「不在 ledger」而不是数字不符"
+        assert "999" in joined and nid in joined, f"{why}：诊断必须报**raw** 节点名与写错的数：{ps!r}"
+
+    # 归一撞车 ⇒ fail-closed，不猜
+    text = "## 台账\n\n### 种子\n\n- SeedA — 批注 999 条\n\n## 下一段\n"
+    scan = {
+        "ledger": {
+            "seeds": [
+                {"node_id": "Seed_A", "tips_count": 2},
+                {"node_id": "Se_edA", "tips_count": 7},
+            ]
+        }
+    }
+    problems: list[str] = []
+    rs._verify_seed_ledger_counts(text, scan, problems)
+    assert any("无法确定" in p for p in problems), (
+        f"两个 raw id 归一撞车时必须 fail-closed，不得随便绑一个：{problems!r}"
+    )

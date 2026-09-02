@@ -1128,7 +1128,7 @@ def _verify_signal_lines(text: str, signals: dict, problems: list[str]) -> None:
         # 零宽切开的形态被全文零宽门拦下, 但排版标记/HTML 标签没有那道门。
         # ⇒ 选行与后续校验全部改在 _visible_text() 上: **读者看到的那一行**
         #   才是判据对象 —— 与 D2/fallback 两条主链同一个文本空间。
-        lines = [v for v in (_visible_text(ln) for ln in s3.splitlines()) if label in v]
+        lines = [v for v in _visible_block(s3).splitlines() if label in v]
         if not lines:
             problems.append(f"数字终核: ③段缺信号行 {label}")
             continue
@@ -1649,8 +1649,13 @@ _COUNT_BEFORE_QUANT_RE = re.compile(rf"({_NUM_RUN_PAT}){_D2_JOIN_ONE}*(?={_D2_QU
 # ⛔ R3 round-6 (Codex round-5 HIGH-5): 分隔表补 `～〜−‑－`(全角波浪/减号/
 # 非断连字符/全角连字符) —— `987654～0个` 原不算区间, 于是只核右端 0。
 # 仍是**封闭表**, 如实登记。
+# ⛔ R3 round-23（冻结审查 v4）：这里原先**手抄了第二份**分隔表 —— 我 round-20
+# 声称"分隔符与区间主表同源"，实际只是 code span 那侧引用了 `_D2_RANGE_SEPS`，
+# 区间正则自己仍写死 `[~～〜\-－−‑—–]|到|至`。**声明比证据宽**，第 N 次。
+# 现从同一常量机械生成：改一处即两处同步。
+_D2_RANGE_SEP_PAT = "(?:" + "|".join(re.escape(c) for c in _D2_RANGE_SEPS) + ")"
 _D2_RANGE_RE = re.compile(
-    rf"({_NUM_RUN_PAT}){_D2_JOIN_ONE}*(?:[~～〜\-－−‑—–]|到|至){_D2_JOIN_ONE}*"
+    rf"({_NUM_RUN_PAT}){_D2_JOIN_ONE}*{_D2_RANGE_SEP_PAT}{_D2_JOIN_ONE}*"
     rf"({_NUM_RUN_PAT}){_D2_JOIN_ONE}*(?={_D2_QUANT})"
 )
 # ⛔ CJK 小数形态: `点` 在量词表里 (`3 点建议` 是合法量词用法), 于是
@@ -2078,6 +2083,17 @@ def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> No
         problems.append("数字终核: scan JSON 无可用 ledger, 台账『种子』行无法绑定")
         return
     tips_by_node = {str(r.get("node_id")): r.get("tips_count") for r in rows}
+    # ⛔ R3 round-23（冻结审查 v4，本轮引入的**语义范围泄漏**）：round-22 把整个
+    #    小节交给 `_visible_block` 之后，行里取到的节点名已是**归一后**的，却仍拿去
+    #    对 **raw** `node_id` —— 而 `_visible_text` 无条件删 `_` / `*`，节点名规则
+    #    并不禁它们。实测 `Seed_A` 归一成 `SeedA` ⇒ 两个后果，第二个更坏：
+    #      ① 合法报告被误拒（报"节点不在 ledger 里"）；
+    #      ② **值绑定被整条跳过** —— 写错的批注数反而不再报数字错。
+    #    ⇒ 身份必须在**同一空间**比较：先精确匹配 raw id；不中则退到归一空间；
+    #      归一后**撞车**（两个不同 raw id 归一成同一个）时 fail-closed，不猜。
+    vis_index: dict[str, list[str]] = {}
+    for _raw_id in tips_by_node:
+        vis_index.setdefault(_visible_text(_raw_id), []).append(_raw_id)
     for ln in mseed.group(1).splitlines():
         if not ln.strip():
             continue
@@ -2085,17 +2101,28 @@ def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> No
         if not ms:
             continue  # 形状问题由 _verify_report 的模板白名单报, 此处不重复
         node = ms.group("node").strip()
-        if node not in tips_by_node:
-            problems.append(
-                f"数字终核: 台账『种子』行的节点 {node!r} 不在 scan JSON 的 ledger 里 "
-                "(台账不得列出未扫描到的节点)"
-            )
-            continue
-        want = tips_by_node[node]
+        if node in tips_by_node:
+            key = node
+        else:
+            cands = vis_index.get(node) or []
+            if len(cands) > 1:
+                problems.append(
+                    f"数字终核: 台账『种子』行的节点 {node!r} 归一后同时对应 "
+                    f"{sorted(cands)!r} —— 无法确定是哪一个, 不猜 (fail-closed)"
+                )
+                continue
+            if not cands:
+                problems.append(
+                    f"数字终核: 台账『种子』行的节点 {node!r} 不在 scan JSON 的 ledger 里 "
+                    "(台账不得列出未扫描到的节点)"
+                )
+                continue
+            key = cands[0]
+        want = tips_by_node[key]
         got = 0 if ms.group("none") else int(ms.group("n"))
         if got != want:
             problems.append(
-                f"数字终核: 台账『种子』行 {node} 报批注 {got} 条, "
+                f"数字终核: 台账『种子』行 {key} 报批注 {got} 条, "
                 f"scan JSON 的 tips_count 是 {want} (形状对不等于数字有据)"
             )
 

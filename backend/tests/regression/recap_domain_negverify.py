@@ -543,7 +543,7 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "survivor-45 (C-18) ③段信号行退回 raw 选行（label 被 `**`/`<b>` 切开的冲突行整条逃逸「逐条全查」）",
         [
             (
-                "        lines = [v for v in (_visible_text(ln) for ln in s3.splitlines()) if label in v]",
+                "        lines = [v for v in _visible_block(s3).splitlines() if label in v]",
                 '        lines = re.findall(rf"^.*{label}.*$", s3, re.M)',
             )
         ],
@@ -607,6 +607,16 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
             )
         ],
         "r20_seed_ledger",
+    ),
+    (
+        "survivor-52 (C-25) 种子节点身份退回「归一名对 raw node_id」（`Seed_A` 归一成 `SeedA` ⇒ 误拒 + 值绑定被跳过）",
+        [
+            (
+                "            cands = vis_index.get(node) or []",
+                "            cands = []",
+            )
+        ],
+        "r21_seed_node_identity",
     ),
 ]
 
@@ -766,8 +776,16 @@ def main() -> int:
                 text = text.replace(old, new, 1)
             if text is None:
                 continue
-            TARGET.write_text(text, encoding="utf-8")
+            # ⛔ R3 round-23（冻结审查 v4）：写入原先在 `try` **之前** —— 写到一半抛异常
+            #    （磁盘满 / 权限 / 编码）就落不进 finally，变异体留在生产文件里。
+            #    把写入挪进 try：从"文件可能已被改动"的第一刻起就有还原兜底。
+            #    ⚠️ 如实声明**兜底不到**的情况：SIGKILL / 解释器崩溃 / 断电 ——
+            #    Python 层的 finally 对它们无能为力，前后 hash 自检也覆盖不了
+            #    （进程都没了）。真正的根治是"改副本不改原件"，属重做设计，未做。
+            #    残留检测靠外部锚点：见 MEMORY `reference_mutation_restore_must_be_unconditional`
+            #    （grep MUTANT + sha 对比），本脚本自身证明不了这件事。
             try:
+                TARGET.write_text(text, encoding="utf-8")
                 rc, out, n, f, crash = run_suite(keyword)
             finally:
                 TARGET.write_bytes(original)  # 立刻还原，异常也还原
