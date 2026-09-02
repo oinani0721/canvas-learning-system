@@ -2257,7 +2257,10 @@ def _verify_report(path: str) -> int:
     text = re.sub(r"<!--.*?-->", "", text_raw, flags=re.S)
     # round-4: 零宽/双向控制字符 — 渲染不可见但能改变正则匹配与阅读顺序,
     # 是"看起来合规、实际另一回事"的通用载体。合法报告没有理由出现它们。
-    if re.search(r"[​-‏‪-‮⁠-⁤﻿]", text):
+    # ⛔ R3 round-15 (冻结审查): 这里原先**手抄**了一份不可见字符集, 只到 U+2064,
+    #    而 _INVISIBLE_ONE 覆盖到 U+2069 ⇒ bidi isolate U+2065-2069 能过全局门。
+    #    又一处「同一原则两处定义」。改为共用 _INVISIBLE_ONE。
+    if re.search(_INVISIBLE_ONE, text):
         problems.append("正文含零宽/双向控制字符 (不可见字符, 报告禁用)")
     _verify_numbers(fm, text, Path(path), problems)
     if not re.search(r"^type:\s*recap\s*$", fm, re.M):
