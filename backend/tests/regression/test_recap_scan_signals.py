@@ -4689,3 +4689,59 @@ def test_domain_r19_child_stderr_transport_is_real(capsys, monkeypatch, tmp_path
     out2 = capsys.readouterr().out
     assert CHILD_CRASH_MARK not in out2, "普通 stderr 被误标成崩溃"
     assert "[child stderr]" in out2
+
+
+def test_domain_r20_seed_ledger_visible_in_manifest_cli(tmp_path):
+    """R3 round-22（冻结审查 v3）：台账种子行的 raw/visible 夹缝 —— **manifest 模式**。
+
+    ⛔ 这条推翻了我 round-19 的「实测不成立」。当时我在 **fallback** 模式下测，
+    冲突行会撞上那里的整行形状门 ⇒ 看起来 fail-closed。审查方指出
+    **manifest 模式没有那层门** —— 实测两条 exit 0 放行：
+
+      · `- SeedA — 批**注** 999 条`
+      · `- SeedA — 批<b>注</b> 999 条`
+
+    形态与 ③段信号行、五元组的双行逃逸**完全相同**（留一条正确行 + 加一条渲染
+    等价但源码不命中的冲突行）。这是同一形态在本卡的**第三次**命中。
+
+    **它证明什么**：种子行的段抓取与行匹配都在渲染文本上做；两个消费方
+    （`_verify_seed_ledger_counts` 的值绑定 + fallback 的整行形状门）同口径。
+    **它不证明什么**：`_visible_block` 仍不是完整 renderer；③标题与 tips 的
+    同型攻击在两种模式下都未复现（**未复现 ≠ 安全**，如实登记）。
+    """
+    vault = standard_vault(tmp_path)
+    mpath = make_manifest(vault)
+    scan = collect_json(vault, "--manifest", str(mpath))
+    assert scan.get("data_mode") == "manifest", "前提：本门测的是 manifest 路径"
+
+    report = write_report(vault, scan)
+    base = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+
+    ms = re.search(r"^### 种子\s*$(.*?)(?=^#{2,3}[^\S\n]|\Z)", base, re.M | re.S)
+    assert ms, "前提：报告必须含『### 种子』小节"
+    seed = [ln for ln in ms.group(1).splitlines() if ln.strip() and "批注" in ln]
+    assert seed, "前提：种子小节必须含带批注数的行"
+    good = seed[0]
+    n = re.search(r"批注\s*(\d+)\s*条", good)
+    assert n, f"前提：种子行必须含批注数: {good!r}"
+
+    def with_conflict(broken: str):
+        conflict = good.replace("批注", broken, 1).replace(f"{n.group(1)} 条", "999 条")
+        text = base.replace(good, good + "\n" + conflict, 1)
+        assert text != base, "注入未命中：报告一字未改，这条门测的是空气"
+        report.write_text(text, encoding="utf-8")
+        return run_verify(report), conflict
+
+    for broken, why in (("批**注**", "强调标记切开"), ("批<b>注</b>", "HTML 标签切开")):
+        r, conflict = with_conflict(broken)
+        assert r.returncode != 0, f"种子行双行逃逸（{why}）被放行 —— {conflict!r}"
+
+    # 不得误伤：把**正确行本身**写成渲染等价的强调形态，仍须通过
+    report.write_text(base.replace(good, good.replace("批注", "批**注**", 1), 1), encoding="utf-8")
+    assert run_verify(report).returncode == 0, "渲染等价的合规种子行被误判"
+
+    # 单一应用点：四处消费方必须都走 _visible_block（漂移即被抓）
+    rs = _load_recap_scan()
+    assert callable(getattr(rs, "_visible_block", None)), "共用 helper 不存在 ⇒ 又会各自 join 一遍"
+    assert rs._visible_block("a**b**\n<c>d</c>") == "ab\nd", "helper 行为不符（行数/顺序必须不变）"

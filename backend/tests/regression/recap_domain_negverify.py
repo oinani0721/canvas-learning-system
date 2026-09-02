@@ -591,13 +591,22 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "survivor-50 (C-23) 五元组退回 raw 全文 findall（双行逃逸：正确行 + 渲染等价冲突行）",
         [
             (
-                "    scale_hits = scale_pat.findall(\n"
-                '        "\\n".join(_visible_text(ln) for ln in text.splitlines())\n'
-                "    )",
+                "    scale_hits = scale_pat.findall(_visible_block(text))",
                 "    scale_hits = scale_pat.findall(text)",
             )
         ],
         "r17_freeze",
+    ),
+    (
+        "survivor-51 (C-24) 台账种子行的值绑定退回 raw 文本（manifest 模式下「留正确行 + 加渲染等价冲突行」逃逸）",
+        [
+            (
+                "    text = _visible_block(text)\n"
+                '    mseed = re.search(r"^### 种子\\s*$(.*?)(?=^#{2,3}[^\\S\\n]|\\Z)", text, re.M | re.S)',
+                '    mseed = re.search(r"^### 种子\\s*$(.*?)(?=^#{2,3}[^\\S\\n]|\\Z)", text, re.M | re.S)',
+            )
+        ],
+        "r20_seed_ledger",
     ),
 ]
 

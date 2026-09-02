@@ -1765,6 +1765,19 @@ def _visible_text(line: str) -> str:
     return _VIS_EMPHASIS_RE.sub("", line)
 
 
+def _visible_block(text: str) -> str:
+    """整块文本的**渲染后**形态：逐行过 `_visible_text` 再拼回去。
+
+    ⛔ 这个模式在本卡出现了**四次**（③段信号行选行 / 五元组 / 台账种子行的
+    值绑定与形状门），每次都是"某处判据还在源码文本上做，而同一条内容的另一道
+    检查已经在渲染文本上做"。⇒ 提为**单一应用点**，新增消费方直接用它。
+
+    ⚠️ 逐行归一后拼接，**行数与顺序不变** —— 依赖 `^...$` 多行锚点的正则
+    （段落抓取、整行 fullmatch）可以直接换用它而不改语义。
+    """
+    return "\n".join(_visible_text(ln) for ln in text.splitlines())
+
+
 def _normalize_number_seps(line: str) -> str:
     """千分位分隔符归一 —— **D2 与 fallback 共用**。
 
@@ -2043,6 +2056,13 @@ def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> No
     列表 —— 我第一版直接迭代它, 拿到的是键字符串, verifier 当场抛 NameError/AttributeError,
     stdout 全空 exit 1, 症状伪装成"报告不合规"。这里显式摊平并容两种形态。
     """
+    # ⛔ R3 round-22（冻结审查 v3）：段抓取与行匹配原先都在 **raw** 文本上做 ——
+    #    留一条正确的种子行、再加一条**渲染等价但源码不命中**的冲突行
+    #    （`- SeedA — 批**注** 999 条` / `批<b>注</b>`），后者匹配不上就静默
+    #    continue，绑定被跳过。**fallback 模式**下有形状门兜底（这正是我上一轮
+    #    『未复现』的原因），但 **manifest 模式没有那层门** —— 两条实测 exit 0。
+    #    与③段信号行、五元组的双行逃逸完全同型，第三次。
+    text = _visible_block(text)
     mseed = re.search(r"^### 种子\s*$(.*?)(?=^#{2,3}[^\S\n]|\Z)", text, re.M | re.S)
     if not mseed:
         return
@@ -2142,9 +2162,7 @@ def _verify_numbers(fm: str, text: str, report_path: Path, problems: list[str]) 
     #    与 ③段信号行的双行逃逸**同型**; 我上一轮只测了「改坏那条唯一正确行」
     #    (形状一坏就 fail-closed), 没把「留一条好的 + 加一条冲突的」这个形态
     #    迁移过来, 于是误判为「实测不成立」。⇒ 逐行归一后再匹配。
-    scale_hits = scale_pat.findall(
-        "\n".join(_visible_text(ln) for ln in text.splitlines())
-    )
+    scale_hits = scale_pat.findall(_visible_block(text))
     want = tuple(
         counts.get(k, -1)
         for k in ("members", "seeds", "derived", "stubs", "annotations")
@@ -2437,7 +2455,16 @@ def _verify_report(path: str) -> int:
         #   `- <node_id> — 批注 N 条`  /  `- <node_id> — 无批注`
         # 模板 (数字由 ledger 的 tips_count 支持)。任何自由叙述一律 FAIL,
         # 不再判断它"是不是在说派生"。
-        mseed = re.search(r"^### 种子\s*$(.*?)(?=^#{2,3}[^\S\n]|\Z)", text, re.M | re.S)
+        # ⛔ round-22：形状门同样要在渲染文本上做，否则「源码不命中 ⇒
+        #    整行白名单也不管」，两道门一起被同一条冲突行绕过。
+        # ⚠️ 必须用**局部变量**，不能重绑 `text` —— 第一版写成 `text = _visible_block(text)`,
+        #    它落在 `_verify_report` 的函数体作用域里, 于是**其后所有检查**（含全文
+        #    『派生』门）都吃到了归一文本: 一次范围远超意图的改动。症状是
+        #    survivor-35 变成**空变异**（那道门自己的 `_visible_text(ln)` 成了冗余）。
+        seed_vis = _visible_block(text)
+        mseed = re.search(
+            r"^### 种子\s*$(.*?)(?=^#{2,3}[^\S\n]|\Z)", seed_vis, re.M | re.S
+        )
         if mseed:
             # ⛔ 维护卡 B · H-2 后半: 原式只查**形状** (`批注 \d+ 条`), 不绑值 ——
             # 实证「- SeedA — 批注 999 条」形状合法即 PASS。白名单管住了句式,
