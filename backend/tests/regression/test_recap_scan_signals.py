@@ -4966,15 +4966,24 @@ def test_domain_r23_seed_scope_fence_and_tail_render_cli(tmp_path):
         #    口径**的产物。`_SECTION_RE` 是段落标题的唯一口径，它**不接受** ATX 闭合井号；
         #    两侧一致地不接受才没有「算在场却定位不到」的缝隙。整体仍 fail-closed：
         #    这样写的报告会被**必需段门**判 FAIL（下面 CLI 面另有断言）。
-        ("## 台账\n\n### 种子 ###\n\n- SeedA — 批注 999 条\n\n## 末\n", None, "`### 种子 ###` 与全局口径一致地不接受"),
-        ("## 台账\n\n###种子\n\n- SeedA — 批注 999 条\n\n## 末\n", None, "`###种子` 非法 ATX 不得命中"),
+        # ⛔ round-30（冻结审查 v11）：上一版期望 `[]` —— 那是把「静默不检查」编码成
+        #    正确行为（H2 有全局必需段门兜底，**H3 没有**）。现改为 fail-closed。
+        (
+            "## 台账\n\n### 种子 ###\n\n- SeedA — 批注 999 条\n\n## 末\n",
+            "找不到可绑定",
+            "`### 种子 ###` 不合口径 ⇒ fail-closed",
+        ),
+        # ⛔ round-30：`###种子` 非法 ATX（Obsidian 不渲染成标题）同样不合口径 ⇒
+        #    也走 fail-closed —— 台账在场却无可绑定的种子小节，本就该报。
+        ("## 台账\n\n###种子\n\n- SeedA — 批注 999 条\n\n## 末\n", "找不到可绑定", "`###种子` 非法 ATX ⇒ fail-closed"),
         # ④ 角色收窄
         (L("- DerivedX — 批注 5 条"), "不在 scan JSON", "派生节点混进种子小节须报"),
         # ⑤ 审查方点名的门缺口：fenced-seed（整个种子小节在围栏内）
         (
             "## 台账\n\n```\n### 种子\n\n- SeedA — 批注 999 条\n```\n\n## 末\n",
-            None,
-            "整段在围栏内的种子小节不得被当成台账（本门此前只测了 `## 附录`，文案比实测宽）",
+            "找不到可绑定",
+            "整段在围栏内的种子小节：不被当台账行强判（`999` 不报数字错），"
+            "但台账段在场却无可绑定小节 ⇒ round-30 起 fail-closed",
         ),
     ):
         ps = run(text)
@@ -5040,10 +5049,11 @@ def test_domain_r24_fence_closer_atx_and_tail_prefix():
             "缩进 ATX 标题与全局口径一致地不接受（整体由必需段门 fail-closed）",
             None,
         ),
+        # ⛔ round-30：同上，H3 不合口径不再静默跳过。
         (
             "## 台账\n\n### 种子###\n\n- SeedA — 批注 999 条\n\n## 末\n",
-            None,
-            "`### 种子###`（闭合井号前无空白）不是标题『种子』",
+            "找不到可绑定",
+            "`### 种子###` 不合口径 ⇒ fail-closed（H3 无全局门兜底）",
             None,
         ),
         (
@@ -5109,11 +5119,17 @@ def test_domain_r25_section_criterion_unified_cli(tmp_path):
     assert any("999" in p for p in ps), f"围栏内假标题截断了小节：{ps!r}"
 
     # ③ 一致地不接受（两侧同口径）
-    for text, why in (
-        ("   ## 台账\n\n   ### 种子\n\n- SeedA — 批注 999 条\n\n## 末\n", "缩进 ATX 标题"),
-        ("## 台账\n\n### 种子 ###\n\n- SeedA — 批注 999 条\n\n## 末\n", "ATX 闭合井号"),
+    for text, why, want in (
+        ("   ## 台账\n\n   ### 种子\n\n- SeedA — 批注 999 条\n\n## 末\n", "缩进 ATX 标题", None),
+        ("## 台账\n\n### 种子 ###\n\n- SeedA — 批注 999 条\n\n## 末\n", "ATX 闭合井号", "找不到可绑定"),
     ):
-        assert run(text) == [], f"{why}：与全局口径不一致地被接受了"
+        # ⛔ round-30：H2 不合口径 ⇒ 不扫描（由全局必需段门兜底，见第 ④ 段）；
+        #    H3 不合口径 ⇒ **本函数自己 fail-closed**（H3 没有全局门）。
+        ps = run(text)
+        if want is None:
+            assert ps == [], f"{why}：与全局口径不一致地被接受了"
+        else:
+            assert any(want in p for p in ps), f"{why}：H3 不合口径未 fail-closed —— {ps!r}"
 
     # ④ 端到端：不接受 ≠ 漏网 —— 必需段门必须把这种报告判 FAIL
     vault = standard_vault(tmp_path)

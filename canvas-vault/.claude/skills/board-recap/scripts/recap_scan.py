@@ -2171,7 +2171,11 @@ def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> No
     #      · `## 台账（x`（未闭合括号）—— 必需段门认在场，我的式子不认 ⇒
     #        种子校验器拿到零个 section 直接返回，`999` 完全不绑定；
     #      · 反向，我新接受的 `   ## 台账` / `## 台账 ###` 又会被必需段门拒绝。
-    #    ⇒ **改回共用 `_SECTION_RE`**。缩进标题与 ATX 闭合井号两侧**一致地不接受**：
+    #    ⇒ **改回共用 `_SECTION_RE`**。缩进标题与**裸的** ATX 闭合井号两侧一致地不接受。
+    #    ⚠️ 措辞更正（v11）：「不接受所有 ATX 闭合井号」这句**过宽** ——
+    #      `_SECTION_RE` 的括号分支是 `（[^\n]*$`，会吞下括号后的任意尾巴，
+    #      所以 `## 台账（x ###` 是**被接受**的。如实登记，不吹。
+    #    两侧一致地不接受的部分：
     #      写成那样的报告会被必需段门直接判 FAIL，整体仍是 fail-closed。
     #      要放宽就得改 `_SECTION_RE` 本体，让两侧同时动 —— 不在本轮范围。
     _H2_LEDGER_RE = re.compile(_SECTION_RE("## 台账"))
@@ -2199,6 +2203,17 @@ def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> No
         else:
             _i += 1
     if not sections:
+        # ⛔ R3 round-30（冻结审查 v11）：H2 有全局必需段门兜底，**H3 没有** ——
+        #    于是「与统一口径一致地不接受」对 H3 就成了**静默洞**：
+        #    `### 种子 ###` 这类写法既不被本函数扫描、也没有任何别处会报，
+        #    整块台账行不受绑定。上一轮我把这种「静默不检查」写进门当成期望，
+        #    等于把缺陷编码成了正确行为（审查方点名的目标无关假绿）。
+        #    ⇒ 台账段在场却找不到可扫描的『种子』小节 = fail-closed。
+        if re.search(_SECTION_RE("## 台账"), text, re.M):
+            problems.append(
+                "数字终核: 报告有『## 台账』段却找不到可绑定的『### 种子』小节 "
+                "(标题须与统一口径 _SECTION_RE 一致: 段名后只能是行尾或全角括号补充)"
+            )
         return
     groups = scan.get("ledger")
     rows: list[dict] = []

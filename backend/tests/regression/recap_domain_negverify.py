@@ -654,12 +654,25 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "r23_seed_scope",
     ),
     (
-        "survivor-56 (C-29) 种子绑定索引退回摊平全部角色（派生节点混进种子小节即通过）",
+        "survivor-56 (C-29) 种子绑定索引退回摊平全部角色（派生节点混进种子小节即通过）"
+        "⚠️ round-30 归因更正：上一版只把 seeds 置 None，生产随即报「缺 seeds」并返回，"
+        "**完全没有摊平**——红来自 fail-closed 而非名称所称的行为。现改为**两步替换**："
+        "先把 fail-closed 分支换回摊平，再置 None，才真正复现该行为",
         [
+            (
+                "            problems.append(\n"
+                '                "数字终核: scan JSON 的 ledger 是分组形态但缺少可用的 seeds 列表, "\n'
+                '                "台账『种子』行无法绑定 (不回落到其它角色, 避免派生节点冒充种子)"\n'
+                "            )\n"
+                "            return",
+                "            for grp in groups.values():\n"
+                "                if isinstance(grp, list):\n"
+                "                    rows.extend(x for x in grp if isinstance(x, dict))",
+            ),
             (
                 '        seeds = groups.get("seeds")',
                 "        seeds = None",
-            )
+            ),
         ],
         "r23_seed_scope",
     ),
@@ -702,6 +715,17 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
             (
                 '                not _in_fence[_j] and re.match(r"^#{2,3}[^\\S\\n]", vis_lines[_j])',
                 '                re.match(r"^#{2,3}[^\\S\\n]", vis_lines[_j])',
+            )
+        ],
+        "r25_section_criterion",
+    ),
+    (
+        "survivor-61 (C-34) H3 找不到种子小节时退回静默 return"
+        "（H2 有全局必需段门兜底，H3 没有 ⇒ 不合口径的 `### 种子 ###` 整块不受绑定）",
+        [
+            (
+                '        if re.search(_SECTION_RE("## 台账"), text, re.M):\n            problems.append(',
+                "        if False:\n            problems.append(",
             )
         ],
         "r25_section_criterion",
@@ -839,7 +863,7 @@ def run_suite(keyword: str) -> tuple[int, str, int, int, bool]:
     return r.returncode, out[-400:], passed + failed, failed, crash
 
 
-MUTANT_COUNT_EXPECTED = 60
+MUTANT_COUNT_EXPECTED = 61
 """变体数的**独立**期望值。
 
 ⛔ 冻结审查 v6：脚本原先只在结尾动态打印「共 N 条」—— 误删一个变体仍会成功退出。
