@@ -4,9 +4,37 @@
 仓库根：`/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2`
 （只读；不要修改任何文件）。
 
-审查对象绑定：分支 `card/w4-safety-r2`，实现 commit **`86329c49`**
-（`git show --stat 86329c49` 可看全部改动面；`git diff 4a25578e..86329c49` 是完整 diff）。
-工作树在该 commit 上是 clean 的。
+审查对象绑定：分支 `card/w4-safety-r2`，实现 commit **`4e099b95`**（round-2）。
+`git diff 4a25578e..4e099b95` 是完整 diff；`git diff 86329c49..4e099b95` 只看本轮整改。
+
+## ⛔ 这是第 2 轮：round-1 的 17 条已全部整改
+
+你在 round-1 给出 FAIL（1 BLOCKER / 11 HIGH / 3 MEDIUM / 2 LOW）。**17 条全部逐条
+整改，无一条以「已声明边界」推掉**。摘要（细节见 `_bmad-output/审查/CARD-TEST-isolate-lifespan-R1-验收单.md` §5）：
+
+1. BLOCKER `NEO4J_TEST_URI` 子串判断 → 改为正面判据：解析 URI、端口必须存在且不在受拦集合。
+2. 「所有 atexit 之后」不成立 → 最终结算进入即置**不可逆** `_FINALIZING`，此后命中就地 `os._exit(3)`；文档撤回该表述。
+3. 自证不穿过阻断路径 → 改为**发一次真的 `socket.connect` 审计事件**，走完 `extract_port` → 受拦判定 → 抛，只在最后按哨兵主机名分流。
+4. uvloop 毒化可删 → 承重换成 audit `import` 事件拦截；毒化检查改为「key 必须存在且为 None」；policy 复核并入边界自证。
+5. shell 控制流劫持 → `env -u BASH_ENV -u ENV -u BASH_FUNC_*` 重新 exec（判据用 `case` 不用 `[`）+ `unalias -a`/`trap -`/函数表复核/builtin 身份复核/控制流自证。
+6+7. `unlink` 误删 与 变异前无 CAS → **变异改到 tmp 隔离副本上做**，真实 tracked 文件与运行时文件全程不写。
+8. `with client:` / `enter_context` 漏检 → 新增 TestClient **实例**来源追踪，覆盖三种形态。
+9. 「最后一次绑定」不是控制流 → 改为「**所有**先于使用点的绑定必须一致」。
+10. 工厂「存在一条 return 安全」→ 改为「**每一条** return 都解析为局部 app」。
+11. `self.make()` 跨类污染 → 工厂身份按 `类名.方法名` 限定。
+12. 正控只查 rc=0 → 正控出 junitxml，三条 exact nodeid **各一次且全 passed**。
+13. 外层隔离/关键字/属性链误报 → 支配性外层 `with`、`app=` 关键字、属性链递归解析。
+14. BDD `components` 不断言 → 改为必须存在、是 dict、且非空。
+15. preflight 只核对 URI → 结构化输出 + 逐项精确比对七个解析值。
+16. `ctypes` 绕过 → 承诺收窄进 docstring：「只覆盖 CPython 的 socket API」。
+17. `__index__` TOCTOU → `port_is_trustworthy()`：端口不是**精确 int** 一律按受拦处理。
+
+**本轮请重点做两件事**：
+(1) 逐条复核上面 17 条是否**真的**关闭了（尤其 2/3/5/6/9 —— 这几条最容易「改了措辞没改行为」）；
+(2) 找**整改本身引入的新缺陷**（更严的判据是否产生误拒？隔离副本是否引入了新的不一致面？
+    `os._exit(3)` 是否会掩盖别的信息？`case` 判据是否还有别的劫持面？）。
+
+当前门规模：探针 **26**、AST 负控 **17 绕过 / 9 验伪锚**、guard 契约单测 **35**。
 
 ## 0. 这是什么，为什么存在
 

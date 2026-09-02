@@ -18,12 +18,13 @@
   [PASS] late-connection-rc                 rc=3 (期望 3)
   [PASS] late-connection-negctl             rc=0 (期望 0)
   [PASS] ledger-written                     rc=3 (期望 3)
+  [PASS] isolated-copy-no-data              rc=0 (期望 0)
   [PASS] shell-selftest-load-bearing        rc=1 (期望 1)
   [PASS] shell-can-report-changed           rc=1 (期望 1)
   [PASS] shell-fake-dirname                 rc=0 (期望 0)
   [PASS] shell-fake-printf                  rc=0 (期望 0)
   [PASS] shell-bash-env                     rc=0 (期望 0)
   [PASS] shell-readonly-func                rc=0 (期望 0)
-  [PASS] shell-alias-test-hijack            rc=2 (期望 非 0 或不输出 unchanged)
-  [PASS] shell-exit-trap-hijack             rc=2 (期望 非 0 或不输出 unchanged)
-GUARD-PROBES: PASS — 26/26 条全部 fail-closed
+  [PASS] shell-alias-test-hijack            rc=2 (期望 2(用法) 或 1(GATE-BROKEN))
+  [PASS] shell-exit-trap-hijack             rc=2 (期望 2(用法) 或 1(GATE-BROKEN))
+GUARD-PROBES: PASS — 27/27 条全部 fail-closed

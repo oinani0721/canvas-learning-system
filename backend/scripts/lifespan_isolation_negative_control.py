@@ -1253,19 +1253,39 @@ def make_isolated_backend(tmp_root: Path) -> Path:
       重定向不了）落在**副本**里，随 tmp 目录一起消失；真实树下的同名文件本脚本
       **永远不删**。
 
-    复制的是**工作树当前内容**（不是 HEAD），因为负控要验的就是此刻这份代码。
-    跳过 ``.venv`` / ``__pycache__`` 等重目录；``.env`` 用软链而不是拷贝，
-    避免把凭据复制进 tmp。
+    **只复制 git tracked 的文件**（内容取自工作树，所以未提交的改动照样进副本 ——
+    负控要验的就是此刻这份代码）。这一条不是为了省空间，是为了不把数据带出去：
+    ``backend/data/`` 下有 ``llm_call_logs.db`` / ``neo4j_memory.json`` /
+    ``learning_memories.json`` 这类**运行时数据**，它们全是 git-ignored 的，
+    整目录 ``copytree`` 会把它们原样搬进 ``/tmp``（2026-09-03 实测搬了 12 个文件，
+    含一个 36KB 的 sqlite）。tracked-only 的复制把这一面直接消掉。
+
+    ``.env`` 是 git-ignored 但副本必须能读到它（``Settings`` 依赖），所以用**软链**
+    而不是拷贝 —— 凭据一个字节都不落到 tmp。
     """
     iso = tmp_root / "iso-backend"
-    shutil.copytree(BACKEND_DIR, iso, ignore=_COPY_IGNORE, symlinks=True, dirs_exist_ok=False)
-    env_file = iso / ".env"
+    iso.mkdir(parents=True)
+    listing = subprocess.run(
+        ["git", "ls-files", "-z", "--", "."],
+        cwd=BACKEND_DIR,
+        capture_output=True,
+        check=True,
+        timeout=120,
+    )
+    names = [n for n in listing.stdout.decode("utf-8").split("\0") if n]
+    if len(names) < 500:
+        raise RuntimeError(f"git ls-files 只列出 {len(names)} 个文件，副本会不完整，拒绝继续")
+    for name in names:
+        src = BACKEND_DIR / name
+        if not src.exists():  # 已删除但还在 index 里
+            continue
+        dst = iso / name
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dst, follow_symlinks=False)
     real_env = BACKEND_DIR / ".env"
-    if env_file.exists() or env_file.is_symlink():
-        env_file.unlink()
     if real_env.exists():
-        env_file.symlink_to(real_env)
-    # 副本里的运行时残留清掉，保证「变异态确实写了」这条判据从 absent 起步
+        (iso / ".env").symlink_to(real_env)
+    # 副本里不应有任何运行时残留（tracked-only 复制本来就不会带，这里做个断言式清理）
     for p in runtime_files(iso):
         if p.exists():
             p.unlink()
@@ -1308,10 +1328,15 @@ def restore_absent_runtime_files(before: dict[Path, str]) -> tuple[list[str], li
     return removed, unresolved
 
 
-def _parse_junit(path: Path, target_rel: str) -> dict[str, dict]:
-    """junitxml → {nodeid: {"outcome": passed|failed|error|skipped, "text": ...}}。"""
+def _parse_junit(path: Path, target_rel: str) -> list[tuple[str, dict]]:
+    """junitxml → ``[(nodeid, {"outcome": ..., "text": ...}), ...]``，**保留重复项**。
+
+    刻意返回列表而不是 dict：同一个 nodeid 可能出现多次（参数化、重复传参、
+    插件重跑），dict 会把它们悄悄合并成一条，于是「三条各跑一次」这句判据就变成了
+    「三个不同的名字出现过」——数量对不上也看不出来。
+    """
     module_dotted = target_rel[:-3].replace("/", ".")
-    out: dict[str, dict] = {}
+    out: list[tuple[str, dict]] = []
     for case in ET.parse(path).getroot().iter("testcase"):
         classname = case.get("classname", "")
         name = case.get("name", "")
@@ -1331,7 +1356,7 @@ def _parse_junit(path: Path, target_rel: str) -> dict[str, dict]:
             outcome, text = "skipped", (skipped.get("message") or "")
         else:
             outcome, text = "passed", ""
-        out[nid] = {"outcome": outcome, "text": text}
+        out.append((nid, {"outcome": outcome, "text": text}))
     return out
 
 
@@ -1505,16 +1530,17 @@ def main() -> int:
         timeout=PYTEST_TIMEOUT_S,
     )
     pos_summary = _parse_summary(pos.stdout)
-    pos_cases = _parse_junit(pos_junit, TARGET_REL) if pos_junit.exists() else {}
-    pos_outcomes = {nid: c["outcome"] for nid, c in pos_cases.items()}
+    pos_cases = _parse_junit(pos_junit, TARGET_REL) if pos_junit.exists() else []
+    pos_outcomes = [(nid, c["outcome"]) for nid, c in pos_cases]
     positive_runtime_ok = "\n".join(f"{sha_of(p)}  {p}" for p in runtime_files(iso)) == iso_runtime_before
     print(f"[1b] 正控 rc={pos.returncode} 门汇总={pos_summary} outcomes={pos_outcomes}")
     pos_problem = None
     if pos.returncode != 0:
         pos_problem = f"正控 rc={pos.returncode} ≠ 0"
-    elif set(pos_outcomes) != set(FIXED_TARGET_NODEIDS):
-        pos_problem = f"正控 junit 里的 nodeid 集合与钉死集不全等：{sorted(pos_outcomes)}"
-    elif sorted(pos_outcomes.values()) != ["passed"] * len(FIXED_TARGET_NODEIDS):
+    elif sorted(nid for nid, _ in pos_outcomes) != sorted(FIXED_TARGET_NODEIDS):
+        # **多重集**比较：三条各恰好一次。用集合比会把重复项吞掉。
+        pos_problem = f"正控 junit 的 nodeid 多重集与钉死集不等（要求各恰好一次）：{pos_outcomes}"
+    elif any(outcome != "passed" for _, outcome in pos_outcomes):
         pos_problem = f"正控三条不是全 passed：{pos_outcomes}（skip/error 也不算绿）"
     elif not isinstance(pos_summary, tuple):
         pos_problem = f"正控门汇总行解析失败：{pos_summary}"
@@ -1589,14 +1615,13 @@ def main() -> int:
     if not neg_junit.exists():
         print("NEGATIVE-CONTROL: FAIL — junitxml 未生成")
         return 1
-    for nid, case in _parse_junit(neg_junit, TARGET_REL).items():
+    red_list: list[str] = []
+    for nid, case in _parse_junit(neg_junit, TARGET_REL):
         total += 1
-        if case["outcome"] == "passed":
-            green.append(nid)
-            continue
-        if case["outcome"] == "skipped":
+        if case["outcome"] in ("passed", "skipped"):
             green.append(nid)  # skip 不是红
             continue
+        red_list.append(nid)
         red_nodeids.add(nid)
         if EXPECTED_REASON in case["text"]:
             reason_verified.add(nid)
@@ -1640,11 +1665,9 @@ def main() -> int:
         problems.append(f"用例总数 {total} ≠ 预采集 {len(expected_nodeids)} — 解析或收集缩水")
     if green:
         problems.append(f"{len(green)} 个用例在 no_lifespan 摘除后没红（哨兵没接住）")
-    if red_nodeids != expected_nodeids:
-        problems.append(
-            f"红集与预采集全集不严格相等（缺红 {len(expected_nodeids - red_nodeids)} / "
-            f"多红 {len(red_nodeids - expected_nodeids)}）"
-        )
+    if sorted(red_list) != sorted(FIXED_TARGET_NODEIDS):
+        # 多重集比较：三条各恰好红一次（集合比会把重复项吞掉）
+        problems.append(f"红集多重集与钉死 nodeid 不等（要求各恰好一次）：{sorted(red_list)}")
     if red_for_wrong_reason:
         problems.append(f"{len(red_for_wrong_reason)} 个用例红了但原因不对（不是 live port connect）")
     if reason_verified != red_nodeids:

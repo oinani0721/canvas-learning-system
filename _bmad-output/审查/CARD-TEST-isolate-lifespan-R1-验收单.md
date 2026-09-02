@@ -31,7 +31,7 @@
 | (i) | BDD 只承诺 route-availability | ✅ | Given 改为 route-availability 且**实际断言路由已挂载**；`components` 从「有才断言」改为「必须存在且非空 dict」 |
 | (j) | 负控 runner 用 sys.executable，正控先绿 | ✅ | `sys.executable -m pytest`；正控出 junit，要求三条 exact nodeid **各一次且全 passed**（skip 不算绿）+ 门账全零 + 运行时零写 |
 | (k) | 覆盖 `__index__`、门前窗口与 nodeid | ✅ | `operator.index()` + `port_is_trustworthy()` 双层；guard_plugin **import 期**装门；三条**完整 nodeid** 集合全等 |
-| (l) | 全门与新终审 B/H=0 | ⏳ | 见 §5 Codex 处置表 |
+| (l) | 全门与新终审 B/H=0 | ⛔ **不成立** | 全门 ✅；但 round-2 终审因 **Codex 用量上限**未产出裁定（正文 0 字节，配额 09-07 恢复）。按「正文为空不合并」处置，见 §6 裁决点 ① |
 
 ---
 
@@ -93,10 +93,11 @@ NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
 `4a25578e`** 上各跑一次，把 `FAILED` + `ERROR` 的 nodeid 取集合比对：
 
 ```
-基线: 218 failed, 4481 passed, 1 skipped, 38 errors   → 失败/错误集 256 条
-本卡: 218 failed, 4508 passed, 1 skipped, 38 errors   → 失败/错误集 256 条
-comm: 基线独有 0 条 / 新增 0 条
-passed 差值 +27 = 本卡新增的 tests/unit/test_live_port_guard_contract.py
+基线 4a25578e : 218 failed, 4481 passed, 1 skipped, 38 errors  → 失败/错误集 256 条
+本卡 round-1  : 218 failed, 4508 passed, 1 skipped, 38 errors  → 失败/错误集 256 条
+本卡 round-2  : 218 failed, 4516 passed, 1 skipped, 38 errors  → 失败/错误集 256 条
+comm（两轮都跑）: 基线独有 0 条 / 新增 0 条
+passed 差值 +27 → +35 = 本卡新增的 tests/unit/test_live_port_guard_contract.py 条数
 ```
 
 即：**零新增红、零修好红**，passed 的增量全部来自本卡新增的单测。这一轮跑同样在
@@ -110,7 +111,7 @@ runtime SHA 门包裹下，`RUNTIME-FILES: unchanged`。
 
 ### A.3 裁判 3 — 底层旁路探针（`scripts/lifespan_isolation_guard_probes.py`）
 
-**26/26** 全部 fail-closed（round-1 之后从 19 条扩到 26 条）。每条核对
+**27/27** 全部 fail-closed（19 → round-1 后 26 → round-2 自查后 27）。每条核对
 **rc + 唯一裁定行**两项：
 
 round-1 新增的 7 条（对应处置表 #2/#3/#4/#5/#17）：
@@ -124,6 +125,12 @@ round-1 新增的 7 条（对应处置表 #2/#3/#4/#5/#17）：
 | `shell-readonly-func` | 0 | `readonly -f` 的注入函数被 re-exec 甩掉 |
 | `shell-alias-test-hijack` | 2 | alias 令 `[` 恒假后，门**拒绝空跑**而不是输出 unchanged |
 | `shell-exit-trap-hijack` | 2 | EXIT trap 注入后同上 |
+
+round-2 自查新增的 1 条：
+
+| 探针 | rc | 证明什么 |
+|---|---|---|
+| `isolated-copy-no-data` | 0 | 隔离副本**只含 git tracked 文件**、`.env` 是软链、且副本完整（验伪锚：缺 `app/main.py`/`tests/conftest.py` 即判失败，防「什么都没复制所以恰好没泄漏」） |
 
 原有 19 条：
 
@@ -308,6 +315,83 @@ guard 契约单测 27 → **35** 条。
 
 ---
 
+### round-2（2026-09-03，绑定 commit `4e099b95`）：⛔ **未能取得裁定 —— Codex 用量上限**
+
+```
+ERROR: You've hit your usage limit. Visit https://chatgpt.com/codex/settings/usage
+       to purchase more credits or try again at Sep 7th, 2026 11:47 AM.
+tokens used 198,766
+```
+
+正文文件 **0 字节**，rc=0。⚠️ 按既有教训（`reference_codex_content_filter_neutralize`）：
+**rc=0 + 0 字节 ≠ 通过**。本轮没有裁定，因此**完成条件 (l) 不成立**。
+
+**从 stderr 抢救出的线索（未成正式 finding，但我逐条自查并当场证实/整改了两条）**：
+
+推理标题里出现了 `Identifying .env copy privacy flaw` /
+`Detecting backend data copy with secrets exposure` / `Investigating duplicate nodeid execution` /
+`Inspecting shell probe logic for false negatives` 等。我按这些线索自查：
+
+| 线索 | 自查结果 | 处置 |
+|---|---|---|
+| 隔离副本把数据带出去 | **证实**：整目录 `copytree` 把 `backend/data/` 下 **12 个 git-ignored 运行时文件**搬进 `/tmp`，含 `llm_call_logs.db`(36KB)、`neo4j_memory.json`、`learning_memories.json`；`.env` 虽最终被换成软链，但拷贝过程中曾落盘 | 改为**只复制 git tracked 文件**（内容取自工作树）+ `.env` 全程软链；新增探针 `isolated-copy-no-data` 把这一面钉成门（含「副本必须完整」的验伪锚，防「什么都没复制所以恰好没泄漏」） |
+| junit 重复 nodeid 被合并 | **证实形态**：`_parse_junit` 返回 dict，同名 nodeid 出现两次会被悄悄合并，「三条各跑一次」实际只验到「三个名字出现过」 | 改为返回**列表**，正控与红集判据都改成**多重集**比较（各恰好一次） |
+| shell 控制流探针假阴 | **证实形态**：判据只是「没出现假绿」，门因**别的原因**崩掉也算过 | 收紧为「必须是门自己认得出来的拒绝」：rc=2 且 stderr 含用法文案，或 rc=1 且含 `GATE-BROKEN` |
+
+其余线索（`Analyzing false positives in no_lifespan wrappers`、
+`Identifying false accept and reject patterns in client context tracking`、
+`Consolidating documentation contradictions`）**只有标题、没有正文**，无法据此定位具体缺陷，
+如实登记为**未处置线索**，留给下一轮。
+
+**门规模（round-2 自查后）**：探针 26 → **27** 条；其余不变。
+
+---
+
 ## 6. 待你裁决
 
-（待填）
+### ⛔ 裁决点 ①（阻断合并）：完成条件 (l) 无法在本 session 满足
+
+卡文 (l) 要求「全部安全/语义门与**新独立终审 B/H=0**」。现状：
+
+- round-1 终审拿到了正式裁定（FAIL，17 条），**已全部整改**；
+- round-2 终审**没有产出裁定** —— Codex 侧返回
+  `You've hit your usage limit ... try again at Sep 7th, 2026 11:47 AM`，
+  正文 0 字节。这是**外部配额限制**，不是内容被拒，也不是我这边的失败。
+
+按手册 §四.2「新审查绑定最终 committed HEAD，正文非空，BLOCKER/HIGH=0」——
+**正文为空 ⇒ 不合并**。我不把「没有裁定」当作「裁定通过」。
+
+**三个可选出口，请你选**：
+
+| 选项 | 含义 | 代价 |
+|---|---|---|
+| **A（默认建议）** | 保持当前状态**不合并**，等 09-07 配额恢复后**只跑 round-2 终审**（代码已冻在 `4ad?????`，不再改动），拿到 B/H=0 再进合并队列 | 等 4 天；期间 W4 安全车道不进干净集成树 |
+| **B** | 换一个审查方（如另一账号/另一模型）跑 round-2 | 换审查方会改变「独立终审」的口径，历史几轮都是 gpt-5.6-sol |
+| **C** | 你人工复核 round-1 的 17 条整改后直接授权合并 | 少一道独立终审；本卡的历史是「每一轮都抓出真缺陷」，跳过这道的风险不低 |
+
+### 裁决点 ②：round-2 stderr 里的三条未处置线索
+
+`no_lifespan wrapper 误报` / `client 实例追踪的 false accept/reject` /
+`文档自相矛盾` —— 只有推理标题、没有正文，我无法据此定位具体缺陷。
+**建议**：并入 round-2 重跑时一并解决，不单独立卡。
+
+### 裁决点 ③：`tests/unit` 全量的写入面未收敛（登记移交）
+
+本卡只主张卡文列明的 `tests/api` + `tests/unit/test_vault_scope_409.py` 集合对
+`backend/data` / `backend/app/data` **全目录零写入**（已实测）。但 `tests/unit` 全量
+运行**确实会写** 5 个 git-ignored 的运行时文件（见 §4.2）。
+**建议**：另立卡收敛，不塞进本卡。
+
+### 裁决点 ④：`tests/contract` 完全未纳入任何门与对账
+
+schemathesis 属性测试，单跑 >15 分钟、遍历调用全部端点、外发副作用面未评估。
+本卡未碰。**建议**：单独评估其外发面之后再决定是否纳入 AST 射程与对账集。
+
+### 裁决点 ⑤：本卡新增的两处「更严可能误拒」的判据
+
+1. `port_is_trustworthy()`：端口不是**精确 int** 一律按受拦处理 —— 会连带拦掉
+   「用 numpy 整数等对象连**非受拦**端口」的写法（本仓库零例）。
+2. AST 解析改成「所有先前绑定必须一致」—— 会把「先赋 A 后无条件覆盖成 B」也判
+   unknown（本仓库 371 文件零例）。
+
+两处都是**朝更严的方向**误拒，且当前零误报。**建议**：保留，出现真实误拒时再放宽。

@@ -1,4 +1,4 @@
-=== RUNTIME-FILES before (2026-09-03 02:07:04 +0800) ===
+=== RUNTIME-FILES before (2026-09-03 03:23:00 +0800) ===
 absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/data/bug_log.jsonl
 absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/app/data/vault_index_pending.jsonl
 absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/data/outbox/events.jsonl
@@ -10,7 +10,7 @@ rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees
 configfile: pytest.ini
 plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
 asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
-collected 4765 items
+collected 4773 items
 
 tests/api/v1/endpoints/test_agents_dedup.py ...............              [  0%]
 tests/api/v1/endpoints/test_agents_encoding.py ................          [  0%]
@@ -111,7 +111,7 @@ tests/unit/test_error_extractor.py ............                          [ 31%]
 tests/unit/test_error_rebuild_service.py .............                   [ 31%]
 tests/unit/test_error_writer.py .................                        [ 32%]
 tests/unit/test_event_bus.py ..........FF...................             [ 32%]
-tests/unit/test_exam_sync_node_group_isolation.py .....                  [ 33%]
+tests/unit/test_exam_sync_node_group_isolation.py .....                  [ 32%]
 tests/unit/test_extraction_validator.py ............                     [ 33%]
 tests/unit/test_failure_observability.py ...............FFF...........   [ 33%]
 tests/unit/test_faithfulness_check.py ..............                     [ 34%]
@@ -145,7 +145,8 @@ tests/unit/test_l1_llm_router.py ...............                         [ 42%]
 tests/unit/test_lancedb_isolation_assertions.py .............            [ 42%]
 tests/unit/test_lancedb_vault_isolation.py .....FF.......F               [ 42%]
 tests/unit/test_langgraph_async_conditional_edge_smoke.py ..             [ 42%]
-tests/unit/test_live_port_guard_contract.py ...........................  [ 43%]
+tests/unit/test_live_port_guard_contract.py ............................ [ 43%]
+.......                                                                  [ 43%]
 tests/unit/test_llm_call_logger.py ..............................        [ 44%]
 tests/unit/test_markdown_image_extractor.py ............................ [ 44%]
 ....                                                                     [ 44%]
@@ -170,7 +171,7 @@ tests/unit/test_migrate_neo4j_data.py ...............................    [ 51%]
 tests/unit/test_mock_degradation_transparency.py F...................... [ 52%]
 .......                                                                  [ 52%]
 tests/unit/test_multimodal_fixes.py ......................               [ 52%]
-tests/unit/test_multimodal_path_security.py ..F.............             [ 52%]
+tests/unit/test_multimodal_path_security.py ..F.............             [ 53%]
 tests/unit/test_neo4j_client.py ........................................ [ 53%]
 ....................                                                     [ 54%]
 tests/unit/test_neo4j_field_consistency.py .......                       [ 54%]
@@ -186,7 +187,7 @@ tests/unit/test_prompt_injection_guard.py .............................. [ 56%]
 tests/unit/test_prompt_registry.py .................................     [ 57%]
 tests/unit/test_pydantic_contracts.py ....................               [ 57%]
 tests/unit/test_qa_38_4_dual_write_extra.py ........F.                   [ 57%]
-tests/unit/test_qa_38_5_fallback_extra.py .......                        [ 57%]
+tests/unit/test_qa_38_5_fallback_extra.py .......                        [ 58%]
 tests/unit/test_qa_38_6_scoring_reliability_extra.py ........F.FFFF      [ 58%]
 tests/unit/test_question_generator_mastery_data.py ...............       [ 58%]
 tests/unit/test_question_registry.py ........                            [ 58%]
@@ -223,7 +224,7 @@ tests/unit/test_sharpness_report.py ......                               [ 68%]
 tests/unit/test_source_description_contract.py ................          [ 69%]
 tests/unit/test_startup_health_check.py FFFFFF                           [ 69%]
 tests/unit/test_state_graph_l1_routing.py ........                       [ 69%]
-tests/unit/test_storage_health.py .......................                [ 69%]
+tests/unit/test_storage_health.py .......................                [ 70%]
 tests/unit/test_story_1_7_env_config.py ........F....                    [ 70%]
 tests/unit/test_story_2_3_error_reminders.py ..............F.FF.FF       [ 70%]
 tests/unit/test_story_30_10_idempotency.py ...F...FEEEEEEEEE             [ 71%]
@@ -234,7 +235,7 @@ tests/unit/test_story_30_22_agent_trigger_deep.py ...................... [ 72%]
 ...............................................                          [ 73%]
 tests/unit/test_story_30_24_boundary.py ................F..............F [ 73%]
 FFFF                                                                     [ 73%]
-tests/unit/test_story_30_6_color_change.py ......                        [ 73%]
+tests/unit/test_story_30_6_color_change.py ......                        [ 74%]
 tests/unit/test_story_30_7_plugin_init.py ........                       [ 74%]
 tests/unit/test_story_31a2_ac1_neo4j_priority.py .......                 [ 74%]
 tests/unit/test_story_31a2_ac2_client_method.py ..........               [ 74%]
@@ -245,7 +246,7 @@ tests/unit/test_story_33_10_runtime_defects.py ..............            [ 75%]
 tests/unit/test_story_38_1_ac1_auto_trigger.py .........                 [ 75%]
 tests/unit/test_story_38_1_ac2_failure_handling.py ....                  [ 75%]
 tests/unit/test_story_38_1_ac3_startup_recovery.py ........              [ 75%]
-tests/unit/test_story_38_1_review_fixes.py .FF...                        [ 75%]
+tests/unit/test_story_38_1_review_fixes.py .FF...                        [ 76%]
 tests/unit/test_story_38_2_episode_recovery.py ................          [ 76%]
 tests/unit/test_story_38_2_qa_supplement.py .................            [ 76%]
 tests/unit/test_story_38_3_edge_cases.py ...........                     [ 76%]
@@ -262,7 +263,7 @@ tests/unit/test_subject_resolver.py F...F...........................FFF. [ 80%]
 ...                                                                      [ 80%]
 tests/unit/test_subjects_group_isolation.py ........                     [ 80%]
 tests/unit/test_supplementary_reranker.py .............................. [ 81%]
-............FF...F.FFFF.FF                                               [ 81%]
+............FF...F.FFFF.FF                                               [ 82%]
 tests/unit/test_supplementary_search_service.py ........................ [ 82%]
 ...............................                                          [ 83%]
 tests/unit/test_sync_batch_auth.py F......                               [ 83%]
@@ -425,8 +426,8 @@ tests/unit/test_review_mode_support.py::TestReviewModeFallback::test_targeted_mo
     days_since = (datetime.utcnow() - last_review).days
 
 tests/unit/test_review_overview.py::test_refresh_and_generator_interleaved_never_yield_unparsable_projection
-  /opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/threading.py:301: RuntimeWarning: coroutine 'fan_out_retrieval' was never awaited
-    if hasattr(lock, '_release_save'):
+  /opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/_strptime.py:521: RuntimeWarning: coroutine 'fan_out_retrieval' was never awaited
+    for index, arg in enumerate([data_string, format]):
   Enable tracemalloc to get traceback where the object was allocated.
   See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
 
@@ -704,8 +705,8 @@ ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPerformance::te
 ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_partial_failure_recovery
 ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_event_ordering_preserved
 ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_neo4j_unavailable_fallback
-= 218 failed, 4508 passed, 1 skipped, 104 warnings, 38 errors in 244.45s (0:04:04) =
-=== RUNTIME-FILES after (2026-09-03 02:11:23 +0800) ===
+= 218 failed, 4516 passed, 1 skipped, 104 warnings, 38 errors in 231.81s (0:03:51) =
+=== RUNTIME-FILES after (2026-09-03 03:27:03 +0800) ===
 absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/data/bug_log.jsonl
 absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/app/data/vault_index_pending.jsonl
 absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/data/outbox/events.jsonl

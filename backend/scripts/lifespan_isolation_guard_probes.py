@@ -468,6 +468,64 @@ def _sh_direct(argv: list[str], env_extra: dict | None = None) -> subprocess.Com
     return subprocess.run(argv, cwd=BACKEND_DIR, env=env, capture_output=True, text=True, timeout=180)
 
 
+def probe_isolated_copy_carries_no_data() -> dict:
+    """隔离副本**不得**把运行时数据带进 tmp（.env 必须是软链，不是拷贝）。
+
+    2026-09-03 实测：整目录 `copytree` 会把 `backend/data/` 下 12 个 git-ignored 的
+    运行时文件搬进 `/tmp`，含 `llm_call_logs.db`(36KB) / `neo4j_memory.json` /
+    `learning_memories.json`。改成 tracked-only 复制之后这一面消失，本探针把它钉成门。
+    """
+    import importlib.util
+    import tempfile as _tf
+
+    spec = importlib.util.spec_from_file_location(
+        "negctl_probe", BACKEND_DIR / "scripts/lifespan_isolation_negative_control.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    tmp = Path(_tf.mkdtemp(prefix="w4-isocheck-"))
+    problems: list[str] = []
+    try:
+        iso = mod.make_isolated_backend(tmp)
+        if not (iso / ".env").is_symlink():
+            problems.append(".env 不是软链（凭据被拷进 tmp）")
+        tracked = {
+            n
+            for n in subprocess.run(
+                ["git", "ls-files", "-z", "--", "."],
+                cwd=BACKEND_DIR,
+                capture_output=True,
+                check=True,
+                timeout=120,
+            )
+            .stdout.decode("utf-8")
+            .split("\0")
+            if n
+        }
+        for p in iso.rglob("*"):
+            if not p.is_file() or p.is_symlink():
+                continue
+            rel = str(p.relative_to(iso))
+            if rel not in tracked:
+                problems.append(f"副本含未跟踪文件: {rel}")
+        # 副本必须真的完整（不能因为「什么都没复制」而恰好没泄漏）
+        if not (iso / "app/main.py").exists() or not (iso / "tests/conftest.py").exists():
+            problems.append("副本不完整（缺 app/main.py 或 tests/conftest.py）")
+    except Exception as exc:  # noqa: BLE001
+        problems.append(f"副本构造失败: {exc!r}")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    return {
+        "name": "isolated-copy-no-data",
+        "ok": not problems,
+        "rc": 0,
+        "expect_rc": 0,
+        "verdict": "副本只含 tracked 文件且 .env 为软链" if not problems else "副本把数据带出去了",
+        "reason": "" if not problems else "; ".join(problems[:6]),
+        "stderr_tail": "",
+    }
+
+
 def probe_shell_injections() -> list[dict]:
     """shell 劫持后，门要么给出**真实**结论，要么明确拒绝 —— 绝不能假绿。
 
@@ -548,16 +606,25 @@ def probe_shell_injections() -> list[dict]:
     for name, env_extra in control_cases:
         # 直接起门进程（见 _sh_direct 的说明）；故意不给 `--` 与命令
         proc = _sh_direct(["bash", str(GATE)], env_extra)
-        fake_green = proc.returncode == 0 and "RUNTIME-FILES: unchanged" in proc.stdout
-        ok = not fake_green
+        fake_green = "RUNTIME-FILES: unchanged" in proc.stdout
+        # 判据不能只是「没假绿」——那样「门因为别的原因崩了」也算过。必须是
+        # **门自己认得出来的拒绝**：用法错误(2) 或 GATE-BROKEN(1)，且带对应文案。
+        refused = (proc.returncode == 2 and "用法" in proc.stderr) or (
+            proc.returncode == 1 and "GATE-BROKEN" in proc.stderr
+        )
+        ok = refused and not fake_green
         results.append(
             {
                 "name": name,
                 "ok": ok,
                 "rc": proc.returncode,
-                "expect_rc": "非 0 或不输出 unchanged",
-                "verdict": "空跑被拒绝" if ok else "空跑却输出 unchanged（假绿）",
-                "reason": "" if ok else f"rc=0 且输出 unchanged: {proc.stdout[-300:]}",
+                "expect_rc": "2(用法) 或 1(GATE-BROKEN)",
+                "verdict": "空跑被门自己识别并拒绝"
+                if ok
+                else ("空跑却输出 unchanged（假绿）" if fake_green else "非门自身的拒绝"),
+                "reason": ""
+                if ok
+                else f"rc={proc.returncode} fake_green={fake_green} stdout={proc.stdout[-200:]} stderr={proc.stderr[-200:]}",
                 "stderr_tail": proc.stderr[-300:],
             }
         )
@@ -640,6 +707,7 @@ def main() -> int:
         probe_late_connection_forces_rc(),
         probe_late_connection_negative_control(),
         probe_ledger_written(),
+        probe_isolated_copy_carries_no_data(),
         probe_shell_selftest_is_load_bearing(),
         probe_shell_can_report_changed(),
     ]
