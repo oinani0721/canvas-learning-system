@@ -6,7 +6,11 @@
   [PASS] lowlevel-connect_ex                rc=3 (期望 3)
   [PASS] lowlevel-__index__-port            rc=3 (期望 3)
   [PASS] real-7691                          rc=3 (期望 3)
+  [PASS] toctou-index-port                  rc=3 (期望 3)
   [PASS] drift-reinstall                    rc=0 (期望 0)
+  [PASS] extract-port-mutation              rc=0 (期望 0)
+  [PASS] uvloop-reimport                    rc=0 (期望 0)
+  [PASS] late-after-finalizing              rc=3 (期望 3)
   [PASS] plugin-import-installs             rc=0 (期望 0)
   [PASS] audit-liveness-control             rc=0 (期望 0)
   [PASS] require-blocked-target             rc=0 (期望 0)
@@ -19,4 +23,7 @@
   [PASS] shell-fake-dirname                 rc=0 (期望 0)
   [PASS] shell-fake-printf                  rc=0 (期望 0)
   [PASS] shell-bash-env                     rc=0 (期望 0)
-GUARD-PROBES: PASS — 19/19 条全部 fail-closed
+  [PASS] shell-readonly-func                rc=0 (期望 0)
+  [PASS] shell-alias-test-hijack            rc=2 (期望 非 0 或不输出 unchanged)
+  [PASS] shell-exit-trap-hijack             rc=2 (期望 非 0 或不输出 unchanged)
+GUARD-PROBES: PASS — 26/26 条全部 fail-closed

@@ -99,11 +99,21 @@ MUTATED = "with TestClient(app) as c:"
 EXPECTED_REASON = "live Neo4j port connect attempted"
 
 #: 与 backend/scripts/lifespan_isolation_runtime_sha.sh 的监视清单保持一致。
-RUNTIME_FILES = [
-    BACKEND_DIR / "data/bug_log.jsonl",
-    BACKEND_DIR / "app/data/vault_index_pending.jsonl",
-    BACKEND_DIR / "data/outbox/events.jsonl",
+RUNTIME_FILE_RELPATHS = [
+    "data/bug_log.jsonl",
+    "app/data/vault_index_pending.jsonl",
+    "data/outbox/events.jsonl",
 ]
+
+
+def runtime_files(backend_dir: Path) -> list[Path]:
+    return [backend_dir / rel for rel in RUNTIME_FILE_RELPATHS]
+
+
+RUNTIME_FILES = runtime_files(BACKEND_DIR)
+
+#: 复制隔离副本时跳过的目录（体积大且与本门无关）。
+_COPY_IGNORE = shutil.ignore_patterns(".venv", "__pycache__", "node_modules", ".pytest_cache", ".ruff_cache")
 
 #: 钉死的**完整 nodeid**（第八批 Codex MEDIUM：此前用 ``-k`` 子串过滤 + 名字
 #: substring 判定，三个名字加任意后缀仍能满足「身份钉死」）。这里直接把完整
@@ -146,6 +156,10 @@ AST_ROOT = "tests"
 #: 同一 with 语句里允许充当隔离基元的名字（必须真的 import 自 tests.support.lifespan）。
 ISOLATION_HELPER_NAMES = {"no_lifespan", "lifespan_lite"}
 
+#: 会触发 ``__enter__`` 的方法名（``ExitStack`` / ``AsyncExitStack``）。
+#: 走这条路进入的 TestClient 同样会跑真实 lifespan（R1 Codex HIGH-8）。
+_ENTER_CONTEXT_ATTRS = {"enter_context", "enter_async_context"}
+
 #: TestClient 的合法来源模块。
 TESTCLIENT_MODULES = {"fastapi.testclient", "starlette.testclient"}
 #: FastAPI 类的合法来源模块。
@@ -159,6 +173,11 @@ O_FASTAPI_MODULE = "fastapi:module"  # fastapi 模块对象（供 fastapi.FastAP
 O_LOCAL_APP = "local:FastAPI()"  # 由**可证的** FastAPI 类构造出来的局部 app
 O_TESTCLIENT_CLASS = "testclient:TestClient"
 O_TESTCLIENT_MODULE = "testclient:module"
+#: 由 app.main 的 app 构造出来的 TestClient **实例**（还没进 with，所以还没跑
+#: lifespan；一旦进了 with / enter_context 就会跑）。R1 Codex HIGH-8。
+O_TESTCLIENT_INSTANCE_MAIN = "testclient:instance(app.main)"
+#: 由局部 FastAPI() 构造出来的 TestClient 实例 —— 进 with 也无害。
+O_TESTCLIENT_INSTANCE_LOCAL = "testclient:instance(local)"
 O_HELPER = "tests.support.lifespan:helper"
 #: 本模块 ``def`` 出来的函数名（``localfunc:<name>``）。有了它，「这个名字此刻
 #: 还是不是本模块那个 def」可证 —— 被赋值重绑定后解析结果就变了。
@@ -235,6 +254,11 @@ class _ModuleIndex:
     def _rebuild(self, tree: ast.Module) -> None:
         self.module_scope = _Scope(tree, None, "module")
         self.scope_of = {}
+        # 父链：用来找「支配本 with 的外层 with」（R1 Codex MEDIUM-13）
+        self.parents: dict[int, ast.AST] = {}
+        for node in ast.walk(tree):
+            for child in ast.iter_child_nodes(node):
+                self.parents[id(child)] = node
         self._build_scope(tree.body, self.module_scope)
 
     # ── 作用域构建 ──────────────────────────────────────────────────────
@@ -322,7 +346,11 @@ class _ModuleIndex:
                         origin = O_TESTCLIENT_MODULE
                     elif alias.name == "fastapi":
                         origin = O_FASTAPI_MODULE
-                elif alias.name == "fastapi":
+                elif bound == "fastapi":
+                    # `import fastapi` 与 `import fastapi.testclient` 绑定的都是
+                    # **顶层 fastapi 模块**这同一个对象，来源相同。若这里只认前者，
+                    # 两条 import 并存时「全部绑定必须一致」会把 fastapi 判成 unknown，
+                    # 于是 `fastapi.testclient.TestClient(...)` 整条链解析失败（误报）。
                     origin = O_FASTAPI_MODULE
                 # `import app.main`（无 asname）绑定的是包 `app` —— 保持 unknown；
                 # `app.main.app` 这种链式属性由 _attribute_origin 的专门分支解析。
@@ -374,6 +402,14 @@ class _ModuleIndex:
                 return O_LOCAL_APP
             if self._is_local_app_factory_call(value.func, stmt, scope):
                 return O_LOCAL_APP
+            # TestClient(...) 的**实例**：记下它包的是哪种 app，供
+            # `with client:` / `enter_context(client)` 追踪（R1 Codex HIGH-8）
+            if self.is_testclient_call(value, stmt, scope):
+                app_arg = self.testclient_app_arg(value)
+                if app_arg is None:
+                    return O_TESTCLIENT_INSTANCE_MAIN  # 无参/取不到 ⇒ fail-closed
+                origin = self.resolve_arg(app_arg, stmt, scope)
+                return O_TESTCLIENT_INSTANCE_LOCAL if origin == O_LOCAL_APP else O_TESTCLIENT_INSTANCE_MAIN
             return O_UNKNOWN
         if isinstance(value, ast.Name):
             return self.resolve_name(value.id, _pos(stmt), scope)
@@ -393,12 +429,16 @@ class _ModuleIndex:
         只要有个同名方法就能冒充局部工厂 —— 那是把 fail-closed 拆掉。
         """
         if isinstance(func, ast.Name):
-            if func.id not in self.fastapi_returning_funcs:
+            if f"<module>.{func.id}" not in self.fastapi_returning_funcs:
                 return False
             # 名字此刻必须仍绑定到本模块那个 def（重绑定后不再算数）
             return self.resolve_name(func.id, _pos(node), scope) == f"{O_LOCAL_FUNC_PREFIX}{func.id}"
         if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
-            return func.value.id in ("self", "cls") and func.attr in self.fastapi_returning_funcs
+            if func.value.id not in ("self", "cls"):
+                return False
+            # 按**调用点所在的那个类**限定（R1 Codex HIGH-11：同名方法跨类污染）
+            owner = self._enclosing_class_name(node)
+            return f"{owner}.{func.attr}" in self.fastapi_returning_funcs
         return False
 
     def _callable_origin(self, func: ast.expr, node: ast.AST, scope: _Scope) -> str:
@@ -409,8 +449,14 @@ class _ModuleIndex:
         return O_UNKNOWN
 
     def _attribute_origin(self, attr: ast.Attribute, node: ast.AST, scope: _Scope) -> str:
+        """属性访问的来源。**递归**解析 base，从而支持完整属性链。
+
+        R1 Codex MEDIUM-13：``fastapi.testclient.TestClient(...)`` 是
+        ``Attribute(Attribute(Name('fastapi'), 'testclient'), 'TestClient')``，
+        旧实现只认 base 是 ``Name`` 的一层，整条链解析不出来 → 误判。
+        """
         base = attr.value
-        # app.main.app（`import app.main` 之后）
+        # app.main.app（`import app.main` 之后绑定的是顶层包 `app`）
         if (
             isinstance(base, ast.Attribute)
             and isinstance(base.value, ast.Name)
@@ -421,14 +467,18 @@ class _ModuleIndex:
             return O_MAIN_APP
         if isinstance(base, ast.Name):
             base_origin = self.resolve_name(base.id, _pos(node), scope)
-            if base_origin == O_MAIN_MODULE and attr.attr == "app":
-                return O_MAIN_APP
-            if base_origin == O_TESTCLIENT_MODULE and attr.attr == "TestClient":
-                return O_TESTCLIENT_CLASS
-            if base_origin == O_FASTAPI_MODULE and attr.attr == "FastAPI":
-                return O_FASTAPI_CLASS
-            if base_origin == O_FASTAPI_MODULE and attr.attr == "testclient":
-                return O_TESTCLIENT_MODULE
+        elif isinstance(base, ast.Attribute):
+            base_origin = self._attribute_origin(base, node, scope)
+        else:
+            return O_UNKNOWN
+        if base_origin == O_MAIN_MODULE and attr.attr == "app":
+            return O_MAIN_APP
+        if base_origin == O_TESTCLIENT_MODULE and attr.attr == "TestClient":
+            return O_TESTCLIENT_CLASS
+        if base_origin == O_FASTAPI_MODULE and attr.attr == "FastAPI":
+            return O_FASTAPI_CLASS
+        if base_origin == O_FASTAPI_MODULE and attr.attr == "testclient":
+            return O_TESTCLIENT_MODULE
         return O_UNKNOWN
 
     # ── FastAPI-returning helper 识别 ───────────────────────────────────
@@ -440,6 +490,21 @@ class _ModuleIndex:
                     self._mark_fastapi_returning(node)
 
     def _mark_fastapi_returning(self, fd) -> None:
+        """判定「本函数的**每一条**可达 return 都返回可证的局部 app」。
+
+        R1 Codex HIGH-10 打回的旧判据是「**存在**一条 return 返回局部 app」，于是
+
+            a = FastAPI()
+            a = production_app
+            return a
+
+        被标成安全，调用方裸启生产 lifespan。现在改成：
+
+        * 每一条 return 都在**它自己的位置**上按 :meth:`resolve_name` 解析
+          （「全部先前绑定必须一致」的口径，见该方法），必须解析为 ``O_LOCAL_APP``；
+        * 函数里**必须至少有一条** return（没有 return 的函数不算工厂）；
+        * 任何一条不合格 ⇒ 整个函数不算工厂。
+        """
         own = self.scope_of.get(id(fd.body[0])) if fd.body else None
         if own is None:
             return
@@ -447,36 +512,104 @@ class _ModuleIndex:
         # 不能算到外层函数头上（否则 `def outer(): def inner(): return FastAPI()`
         # 会把 outer 误标成返回局部 app）。
         own_stmts = [s for s in ast.walk(fd) if self.scope_of.get(id(s)) is own]
-        local_app_names: set[str] = set()
-        for stmt in own_stmts:
-            if isinstance(stmt, (ast.Assign, ast.AnnAssign)) and getattr(stmt, "value", None) is not None:
-                if self._value_origin(stmt.value, stmt, own) == O_LOCAL_APP:
-                    targets = stmt.targets if isinstance(stmt, ast.Assign) else [stmt.target]
-                    for t in targets:
-                        if isinstance(t, ast.Name):
-                            local_app_names.add(t.id)
-        for stmt in own_stmts:
-            if isinstance(stmt, ast.Return) and stmt.value is not None:
-                candidates = stmt.value.elts if isinstance(stmt.value, ast.Tuple) else [stmt.value]
-                for c in candidates:
-                    if isinstance(c, ast.Name) and c.id in local_app_names:
-                        self.fastapi_returning_funcs.add(fd.name)
-                        return
-                    if isinstance(c, ast.Call) and self._callable_origin(c.func, stmt, own) == O_FASTAPI_CLASS:
-                        self.fastapi_returning_funcs.add(fd.name)
-                        return
+        returns = [s for s in own_stmts if isinstance(s, ast.Return) and s.value is not None]
+        if not returns:
+            return
+        for stmt in returns:
+            candidates = stmt.value.elts if isinstance(stmt.value, ast.Tuple) else [stmt.value]
+            if not any(self._value_origin(c, stmt, own) == O_LOCAL_APP for c in candidates):
+                return  # 这条 return 拿不出可证的局部 app ⇒ 整个函数不算工厂
+        key = self._factory_key(fd)
+        self.fastapi_returning_funcs.add(key)
+
+    def _factory_key(self, fd) -> str:
+        """工厂身份 = 「(类名或 <module>) . 方法名」。
+
+        R1 Codex HIGH-11：旧实现只按**方法名**记，于是 A 类的 ``make`` 返回局部 app
+        会让 B 类同名、返回生产 app 的 ``make`` 也被判安全。按类限定之后，
+        ``self.make()`` 只能命中**它自己那个类**里的定义。
+        """
+        enclosing = self.scope_of.get(id(fd))
+        while enclosing is not None and enclosing.kind != "class":
+            enclosing = enclosing.parent
+        owner = getattr(enclosing.node, "name", "<anon>") if enclosing is not None else "<module>"
+        return f"{owner}.{fd.name}"
+
+    def _enclosing_class_name(self, node: ast.AST) -> str:
+        scope = self.scope_of.get(id(node))
+        while scope is not None and scope.kind != "class":
+            scope = scope.parent
+        return getattr(scope.node, "name", "<anon>") if scope is not None else "<module>"
+
+    # ── TestClient 识别 ─────────────────────────────────────────────────
+    def is_testclient_call(self, call: ast.expr, node: ast.AST, scope: _Scope) -> bool:
+        """这次调用是不是在构造 TestClient。
+
+        两条路，取并集（检测面要宽，判定面才敢严）：
+          * **词法**叫 ``TestClient``（哪怕被本地遮蔽——那种情况另有一条违规）；
+          * **解析**到真正 import 自 fastapi/starlette 的 TestClient 类
+            （覆盖 ``as TC`` 别名与 ``fastapi.testclient.TestClient`` 全链）。
+        """
+        if not isinstance(call, ast.Call):
+            return False
+        return _syntactic_call_name(call) == "TestClient" or self._callable_origin(call.func, node, scope) == (
+            O_TESTCLIENT_CLASS
+        )
+
+    @staticmethod
+    def testclient_app_arg(call: ast.Call) -> ast.expr | None:
+        """取 TestClient(...) 的 app 实参：第一个位置参数，或 ``app=`` 关键字。
+
+        R1 Codex MEDIUM-13：只看位置参数会漏掉 ``TestClient(app=app)``。
+        """
+        if call.args:
+            return call.args[0]
+        for kw in call.keywords:
+            if kw.arg == "app":
+                return kw.value
+        return None
 
     # ── 解析 ────────────────────────────────────────────────────────────
     def scope_for(self, node: ast.AST) -> _Scope:
-        return self.scope_of.get(id(node), self.module_scope)
+        """节点所属作用域。
+
+        ``scope_of`` 只对**语句**建了索引，所以表达式节点（比如
+        ``stack.enter_context(client)`` 这个 Call）要沿父链往上找到它所在的语句。
+        直接 fallback 到 module_scope 会让函数内的局部名字整片解析不出来。
+        """
+        cur: ast.AST | None = node
+        while cur is not None:
+            scope = self.scope_of.get(id(cur))
+            if scope is not None:
+                return scope
+            cur = self.parents.get(id(cur))
+        return self.module_scope
+
+    def parent_of(self, node: ast.AST) -> ast.AST | None:
+        return self.parents.get(id(node))
 
     def resolve_name(self, name: str, pos: tuple[int, int], scope: _Scope) -> str:
         """在 ``scope`` 处、位置 ``pos`` 上，名字 ``name`` 的来源。
 
-        * **本作用域**：取 ``pos`` **之前**最后一次绑定；只在 ``pos`` 之后才绑定
-          ⇒ unknown（Python 语义下那是 UnboundLocalError，静态上也不可证）。
-        * **外层作用域**：函数调用时刻不确定，因此要求该名字在外层的**全部**绑定
-          来源一致；有分歧 ⇒ unknown（fail-closed）。
+        判据（R1 Codex HIGH-9 整改后）：**所有**位于 ``pos`` 之前的绑定必须来源
+        一致，才给出那个来源；有任何分歧一律 unknown（= 违规，fail-closed）。
+
+        为什么不能只取「最后一次绑定」：那是**词法**上的最后一次，不是**控制流**
+        上的。Codex 的反例——
+
+            app = production_app
+            if use_local:
+                app = FastAPI()
+            with TestClient(app): ...
+
+        ——「最后一次绑定」是 ``FastAPI()``，于是判安全；而 ``use_local`` 为假时
+        跑的是生产 app 的真实 lifespan。做完整的 reaching-definition 需要 CFG；
+        这里用「全部先前绑定必须一致」这个**更保守**的近似：它对上面这种分支写法
+        必然判 unknown，代价是「先赋 A 后无条件覆盖成 B」的写法也会被判 unknown
+        （本仓库 371 个文件实测 0 例，见 AST 门输出）。
+
+        * **本作用域**：只看 ``pos`` 之前的绑定；一个都没有 ⇒ unknown。
+        * **外层作用域**：函数调用时刻不确定，要求该名字在外层的**全部**绑定一致。
         * 类作用域对内层函数不可见（Python 语义），查找链跳过它。
         """
         cur: _Scope | None = scope
@@ -486,11 +619,11 @@ class _ModuleIndex:
             if not skip and name in cur.bindings:
                 bindings = cur.sorted_bindings(name)
                 if first:
-                    before = [o for p, o in bindings if p < pos]
-                    if before:
-                        return before[-1]
-                    return O_UNKNOWN
-                origins = {o for _, o in bindings}
+                    origins = {o for p, o in bindings if p < pos}
+                    if not origins:
+                        return O_UNKNOWN
+                else:
+                    origins = {o for _, o in bindings}
                 return origins.pop() if len(origins) == 1 else O_UNKNOWN
             cur = cur.parent
             first = False
@@ -517,8 +650,72 @@ def _syntactic_call_name(node: ast.expr) -> str | None:
     return None
 
 
+def _isolation_sibling_covers(index: "_ModuleIndex", with_node, upto_pos: int, app_arg, scope) -> bool:
+    """同一个 ``with`` 语句里，位置**在前**的兄弟项是否对同一个 app 做了隔离。"""
+    if not isinstance(app_arg, ast.Name):
+        return False
+    for hpos, hitem in enumerate(with_node.items):
+        if hpos >= upto_pos:
+            break
+        hctx = hitem.context_expr
+        if not isinstance(hctx, ast.Call):
+            continue
+        if index._callable_origin(hctx.func, with_node, scope) != O_HELPER:
+            continue
+        hargs = hctx.args
+        if hargs and isinstance(hargs[0], ast.Name) and hargs[0].id == app_arg.id:
+            return True
+    return False
+
+
+def _isolation_enclosing_covers(index: "_ModuleIndex", node, app_arg) -> bool:
+    """**外层**的 ``with no_lifespan(app):`` 是否支配本节点（R1 Codex MEDIUM-13）。
+
+    外层隔离块内的一切都在 no-op lifespan 生效期间执行，真实 startup 不会跑，
+    所以那是安全写法，旧实现却报违规。这里沿父链往上找 With，逐个看它是不是对
+    **同一个名字**做了隔离。
+    """
+    if not isinstance(app_arg, ast.Name):
+        return False
+    cur = index.parent_of(node)
+    while cur is not None:
+        if isinstance(cur, (ast.With, ast.AsyncWith)):
+            scope = index.scope_for(cur)
+            for hitem in cur.items:
+                hctx = hitem.context_expr
+                if not isinstance(hctx, ast.Call):
+                    continue
+                if index._callable_origin(hctx.func, cur, scope) != O_HELPER:
+                    continue
+                hargs = hctx.args
+                if hargs and isinstance(hargs[0], ast.Name) and hargs[0].id == app_arg.id:
+                    return True
+        cur = index.parent_of(cur)
+    return False
+
+
+def _describe(expr) -> str:
+    if isinstance(expr, ast.Name):
+        return expr.id
+    if isinstance(expr, ast.Attribute):
+        return f"<...>.{expr.attr}"
+    return "<expr>"
+
+
 def analyze_source(source: str, rel: str) -> list[str]:
-    """对一份源码跑 AST 门，返回违规明细（空 = 合规）。"""
+    """对一份源码跑 AST 门，返回违规明细（空 = 合规）。
+
+    三类被检面（R1 Codex HIGH-8 之后）：
+
+    1. ``with TestClient(<app>) ...`` —— 直接进 with 的构造；
+    2. ``client = TestClient(<app>)`` 之后 ``with client:`` —— 实例被追踪进 with；
+    3. ``stack.enter_context(TestClient(<app>))`` / ``enter_context(client)``
+       —— ExitStack 同样会触发 ``__enter__``。
+
+    ⚠️ **不带 with 的裸 ``TestClient(app)`` 不算违规**：Starlette 只在
+    ``__enter__`` 里跑 lifespan，构造本身没有启动副作用（本仓库 7 个文件用这种
+    写法，全部无害）。
+    """
     violations: list[str] = []
     try:
         tree = ast.parse(source)
@@ -526,65 +723,83 @@ def analyze_source(source: str, rel: str) -> list[str]:
         return [f"{rel}: SyntaxError {e}"]
     index = _ModuleIndex(tree)
 
+    def flag_client_construction(call, node, scope, pos_in_with=None, with_node=None, how=""):
+        """判定一次「会触发 lifespan 的 TestClient 构造」是否合规。"""
+        app_arg = index.testclient_app_arg(call)
+        if app_arg is None:
+            violations.append(f"{rel}:{node.lineno}: TestClient() 取不到 app 实参 —— 人工复核{how}")
+            return
+        origin = index.resolve_arg(app_arg, node, scope)
+        if origin == O_LOCAL_APP:
+            return
+        desc = _describe(app_arg)
+        if origin != O_MAIN_APP:
+            violations.append(
+                f"{rel}:{node.lineno}: TestClient({desc}) —— app 来源无法静态证明"
+                f"（解析结果={origin}，按违规处理，人工复核）{how}"
+            )
+            return
+        covered = with_node is not None and _isolation_sibling_covers(index, with_node, pos_in_with, app_arg, scope)
+        if not covered:
+            covered = _isolation_enclosing_covers(index, node, app_arg)
+        if not covered:
+            violations.append(
+                f"{rel}:{node.lineno}: TestClient({desc}) —— app 来自 app.main 且没有"
+                "生效中的 no_lifespan/lifespan_lite（同 with 语句里排在前面的兄弟项，"
+                f"或支配本处的外层 with 块）{how}"
+            )
+
     for node in ast.walk(tree):
-        if not isinstance(node, (ast.With, ast.AsyncWith)):
-            continue
         scope = index.scope_for(node)
-        for pos_i, item in enumerate(node.items):
-            ctx = item.context_expr
-            if not isinstance(ctx, ast.Call):
-                continue
-            syn = _syntactic_call_name(ctx)
-            callee_origin = index._callable_origin(ctx.func, node, scope)
-            # 判为 TestClient 调用的两条路：词法叫 TestClient（哪怕被遮蔽），
-            # 或者解析到真正 import 来的 TestClient 类（覆盖 `as TC` 别名）。
-            if syn != "TestClient" and callee_origin != O_TESTCLIENT_CLASS:
-                continue
-            if syn == "TestClient" and callee_origin != O_TESTCLIENT_CLASS:
-                violations.append(
-                    f"{rel}:{node.lineno}: with TestClient(...) —— TestClient 这个名字"
-                    f"解析不到 {sorted(TESTCLIENT_MODULES)} 的真实 import（当前来源"
-                    f"={callee_origin}），无法证明它是被隔离约束覆盖的那个 TestClient"
-                )
-                continue
-            if not ctx.args:
-                violations.append(f"{rel}:{node.lineno}: TestClient() 无参 —— 人工复核")
-                continue
-            arg = ctx.args[0]
-            origin = index.resolve_arg(arg, node, scope)
-            if origin == O_LOCAL_APP:
-                continue  # 局部 FastAPI() 正例（且 FastAPI 类来源可证）
-            arg_desc = arg.id if isinstance(arg, ast.Name) else "<expr>"
-            if origin != O_MAIN_APP:
-                # unknown：来源无法静态证明 —— 按违规处理（fail-closed）。
-                violations.append(
-                    f"{rel}:{node.lineno}: with TestClient({arg_desc}) —— app 来源"
-                    f"无法静态证明（解析结果={origin}，按违规处理，人工复核）"
-                )
-                continue
-            # app 来自 app.main：必须有**排在前面的**隔离兄弟项、操作同一个 app、
-            # 且该 helper 名在**该使用点**确实解析为 tests.support.lifespan 的 import
-            # （重绑定 / 本地同名 no-op 一律失效）。
-            ok = False
-            for hpos, hitem in enumerate(node.items):
-                if hpos >= pos_i:
-                    break
-                hctx = hitem.context_expr
-                if not isinstance(hctx, ast.Call):
+
+        # ── 面 1/2：with 语句 ────────────────────────────────────────────
+        if isinstance(node, (ast.With, ast.AsyncWith)):
+            for pos_i, item in enumerate(node.items):
+                ctx = item.context_expr
+                # 1) with TestClient(...)
+                if isinstance(ctx, ast.Call):
+                    syn = _syntactic_call_name(ctx)
+                    callee_origin = index._callable_origin(ctx.func, node, scope)
+                    if syn == "TestClient" and callee_origin != O_TESTCLIENT_CLASS:
+                        violations.append(
+                            f"{rel}:{node.lineno}: with TestClient(...) —— TestClient 这个名字"
+                            f"解析不到 {sorted(TESTCLIENT_MODULES)} 的真实 import"
+                            f"（当前来源={callee_origin}），无法证明它是被隔离约束覆盖的那个 TestClient"
+                        )
+                        continue
+                    if index.is_testclient_call(ctx, node, scope):
+                        flag_client_construction(ctx, node, scope, pos_in_with=pos_i, with_node=node)
                     continue
-                if index._callable_origin(hctx.func, node, scope) != O_HELPER:
-                    continue
-                hargs = hctx.args
-                if hargs and isinstance(arg, ast.Name) and isinstance(hargs[0], ast.Name) and hargs[0].id == arg.id:
-                    ok = True
-                    break
-            if not ok:
-                violations.append(
-                    f"{rel}:{node.lineno}: with TestClient({arg_desc}) —— app 来自"
-                    " app.main 且缺少**在前**的 no_lifespan/lifespan_lite 兄弟项"
-                    "（顺序不符、参数不同名，或 helper 名在该点已被重绑定/并非"
-                    " import 自 tests.support.lifespan，同样算违规）"
-                )
+                # 2) with client:（client 是先前构造的 TestClient 实例）
+                if isinstance(ctx, ast.Name):
+                    inst = index.resolve_name(ctx.id, _pos(node), scope)
+                    if inst == O_TESTCLIENT_INSTANCE_MAIN and not _isolation_enclosing_covers(index, node, ctx):
+                        violations.append(
+                            f"{rel}:{node.lineno}: with {ctx.id}: —— {ctx.id} 是用 app.main 的 app"
+                            " 构造的 TestClient 实例，进 with 会跑真实 lifespan"
+                            "（构造点没有隔离，本处也没有支配的外层隔离块）"
+                        )
+            continue
+
+        # ── 面 3：ExitStack.enter_context(...) ──────────────────────────
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr in _ENTER_CONTEXT_ATTRS
+        ):
+            if not node.args:
+                continue
+            target = node.args[0]
+            stmt = node
+            if isinstance(target, ast.Call) and index.is_testclient_call(target, stmt, scope):
+                flag_client_construction(target, node, scope, how="（经 enter_context）")
+            elif isinstance(target, ast.Name):
+                inst = index.resolve_name(target.id, _pos(node), scope)
+                if inst == O_TESTCLIENT_INSTANCE_MAIN and not _isolation_enclosing_covers(index, node, target):
+                    violations.append(
+                        f"{rel}:{node.lineno}: {node.func.attr}({target.id}) —— {target.id} 是用"
+                        " app.main 的 app 构造的 TestClient 实例，enter_context 会跑真实 lifespan"
+                    )
     return violations
 
 
@@ -713,6 +928,85 @@ _AST_MUST_FLAG: list[tuple[str, str]] = [
         "        pass\n",
     ),
     (
+        "R1-8a：client = TestClient(app) 之后 with client:",
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "def t():\n"
+        "    client = TestClient(app)\n"
+        "    with client:\n"
+        "        pass\n",
+    ),
+    (
+        "R1-8b：ExitStack.enter_context(TestClient(app))",
+        "import contextlib\n"
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "def t():\n"
+        "    with contextlib.ExitStack() as stack:\n"
+        "        c = stack.enter_context(TestClient(app))\n",
+    ),
+    (
+        "R1-8c：enter_context(先前构造的实例)",
+        "import contextlib\n"
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "def t():\n"
+        "    client = TestClient(app)\n"
+        "    stack = contextlib.ExitStack()\n"
+        "    stack.enter_context(client)\n",
+    ),
+    (
+        "R1-9：分支里才赋局部 app（控制流不是词法顺序）",
+        "from app.main import app as production_app\n"
+        "from fastapi import FastAPI\n"
+        "from fastapi.testclient import TestClient\n"
+        "def t(use_local):\n"
+        "    app = production_app\n"
+        "    if use_local:\n"
+        "        app = FastAPI()\n"
+        "    with TestClient(app) as c:\n"
+        "        pass\n",
+    ),
+    (
+        "R1-10：工厂里 a=FastAPI() 之后被覆盖成生产 app",
+        "from app.main import app as production_app\n"
+        "from fastapi import FastAPI\n"
+        "from fastapi.testclient import TestClient\n"
+        "def make():\n"
+        "    a = FastAPI()\n"
+        "    a = production_app\n"
+        "    return a\n"
+        "def t():\n"
+        "    app = make()\n"
+        "    with TestClient(app) as c:\n"
+        "        pass\n",
+    ),
+    (
+        "R1-11：同名方法跨类污染（A.make 安全不代表 B.make 安全）",
+        "from app.main import app as production_app\n"
+        "from fastapi import FastAPI\n"
+        "from fastapi.testclient import TestClient\n"
+        "class A:\n"
+        "    def make(self):\n"
+        "        a = FastAPI()\n"
+        "        return a\n"
+        "class B:\n"
+        "    def make(self):\n"
+        "        return production_app\n"
+        "    def test_x(self):\n"
+        "        app = self.make()\n"
+        "        with TestClient(app) as c:\n"
+        "            pass\n",
+    ),
+    (
+        "R1-13c：TestClient(app=...) 关键字形态",
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "def t():\n"
+        "    with TestClient(app=app) as c:\n"
+        "        pass\n",
+    ),
+    (
         "工厂名被重绑定后仍冒充局部 app 工厂",
         "from fastapi import FastAPI\n"
         "from fastapi.testclient import TestClient\n"
@@ -766,6 +1060,44 @@ _AST_MUST_PASS: list[tuple[str, str]] = [
         "def t():\n"
         "    app, n = make()\n"
         "    with TestClient(app) as c:\n"
+        "        pass\n",
+    ),
+    (
+        "验伪锚 6：外层 with no_lifespan(app) 支配内层 with TestClient(app)",
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "from tests.support.lifespan import no_lifespan\n"
+        "def t():\n"
+        "    with no_lifespan(app):\n"
+        "        with TestClient(app) as c:\n"
+        "            pass\n",
+    ),
+    (
+        "验伪锚 7：完整属性链 fastapi.testclient.TestClient + 局部 app",
+        "import fastapi\n"
+        "import fastapi.testclient\n"
+        "from fastapi import FastAPI\n"
+        "def t():\n"
+        "    app = FastAPI()\n"
+        "    with fastapi.testclient.TestClient(app) as c:\n"
+        "        pass\n",
+    ),
+    (
+        "验伪锚 8：裸 TestClient(app) 不进 with —— 不跑 lifespan，不算违规",
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "def t():\n"
+        "    client = TestClient(app)\n"
+        "    return client.get('/x')\n",
+    ),
+    (
+        "验伪锚 9：局部 app 构造的实例进 with —— 无害",
+        "from fastapi import FastAPI\n"
+        "from fastapi.testclient import TestClient\n"
+        "def t():\n"
+        "    app = FastAPI()\n"
+        "    client = TestClient(app)\n"
+        "    with client:\n"
         "        pass\n",
     ),
     (
@@ -823,8 +1155,13 @@ PINNED_NEO4J_USER = "w4-negctl-invalid-user"
 PINNED_NEO4J_PASSWORD = "w4-negctl-invalid-password"
 
 
-def _child_env(vault_tmp: Path, lance_tmp: Path, ledger: Path | None) -> dict[str, str]:
-    """构造子进程环境：清 Neo4j 面 → 钉死受拦目标 → 关豁免 → 隔离写路径。"""
+def _child_env(vault_tmp: Path, lance_tmp: Path, ledger: Path | None, backend_dir: Path) -> dict[str, str]:
+    """构造子进程环境：清 Neo4j 面 → 钉死受拦目标 → 关豁免 → 隔离写路径。
+
+    ``backend_dir`` 是子进程的 backend 根（负控里恒为**隔离副本**），
+    ``PYTHONPATH`` 必须指向它，否则 ``-p tests.support.guard_plugin`` 会加载到
+    真实树里的那一份，验的就不是副本的代码了。
+    """
     env = os.environ.copy()
     # 1) 清掉调用者带进来的**全部** Neo4j 相关变量（含 NEO4J_URI/USER/PASSWORD/
     #    TEST_URI/AUTH/DATABASE… 无论叫什么，只要以 NEO4J 开头）。
@@ -861,7 +1198,9 @@ def _child_env(vault_tmp: Path, lance_tmp: Path, ledger: Path | None) -> dict[st
     #    guard_plugin 的 **import 期装门** 收敛（见该模块 docstring）。
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     # -p 插件加载早于 pytest 把 rootdir 塞进 sys.path —— 必须显式给 PYTHONPATH。
-    env["PYTHONPATH"] = str(BACKEND_DIR) + os.pathsep + env.get("PYTHONPATH", "")
+    # ⚠️ 只放隔离副本，**不**追加调用者原有的 PYTHONPATH：否则真实树可能排在前面，
+    # 子进程会去 import 真实树的 tests.support.*，验的就不是副本了。
+    env["PYTHONPATH"] = str(backend_dir)
     if ledger is not None:
         env["W4_GUARD_LEDGER"] = str(ledger)
     else:
@@ -901,6 +1240,38 @@ def _parse_summary(stdout: str) -> tuple[int, int, int, int] | str:
 # ═══════════════════════════════════════════════════════════════════════════
 
 
+def make_isolated_backend(tmp_root: Path) -> Path:
+    """把当前工作树的 ``backend/`` 复制一份到 tmp，变异只在副本上做。
+
+    R1 Codex HIGH-6/HIGH-7 的结构性收口：
+
+    * **HIGH-7（变异前无 CAS）**：真实的 tracked 测试文件从头到尾**一个字节都不
+      被写**，所以「读原文 → 期间别人编辑 → 用旧变异体覆盖」这条链根本不存在，
+      不需要靠 CAS 去追一个本来就不该发生的写。
+    * **HIGH-6（`absent → exists` 就 unlink 可能删掉别人的数据）**：变异运行产生的
+      运行时文件（``app/data/vault_index_pending.jsonl`` 的路径是硬编码的，
+      重定向不了）落在**副本**里，随 tmp 目录一起消失；真实树下的同名文件本脚本
+      **永远不删**。
+
+    复制的是**工作树当前内容**（不是 HEAD），因为负控要验的就是此刻这份代码。
+    跳过 ``.venv`` / ``__pycache__`` 等重目录；``.env`` 用软链而不是拷贝，
+    避免把凭据复制进 tmp。
+    """
+    iso = tmp_root / "iso-backend"
+    shutil.copytree(BACKEND_DIR, iso, ignore=_COPY_IGNORE, symlinks=True, dirs_exist_ok=False)
+    env_file = iso / ".env"
+    real_env = BACKEND_DIR / ".env"
+    if env_file.exists() or env_file.is_symlink():
+        env_file.unlink()
+    if real_env.exists():
+        env_file.symlink_to(real_env)
+    # 副本里的运行时残留清掉，保证「变异态确实写了」这条判据从 absent 起步
+    for p in runtime_files(iso):
+        if p.exists():
+            p.unlink()
+    return iso
+
+
 def sha_of(path: Path) -> str:
     if not path.exists():
         return "absent"
@@ -937,6 +1308,33 @@ def restore_absent_runtime_files(before: dict[Path, str]) -> tuple[list[str], li
     return removed, unresolved
 
 
+def _parse_junit(path: Path, target_rel: str) -> dict[str, dict]:
+    """junitxml → {nodeid: {"outcome": passed|failed|error|skipped, "text": ...}}。"""
+    module_dotted = target_rel[:-3].replace("/", ".")
+    out: dict[str, dict] = {}
+    for case in ET.parse(path).getroot().iter("testcase"):
+        classname = case.get("classname", "")
+        name = case.get("name", "")
+        if classname.startswith(module_dotted):
+            chain = classname[len(module_dotted) :].lstrip(".")
+            nid = f"{target_rel}::" + (f"{chain.replace('.', '::')}::{name}" if chain else name)
+        else:
+            nid = f"{classname.replace('.', '/')}::{name}"
+        failure = case.find("failure")
+        error = case.find("error")
+        skipped = case.find("skipped")
+        node = failure if failure is not None else (error if error is not None else None)
+        if node is not None:
+            outcome = "failed" if failure is not None else "error"
+            text = " ".join(filter(None, [(node.get("message") or ""), (node.text or "")]))
+        elif skipped is not None:
+            outcome, text = "skipped", (skipped.get("message") or "")
+        else:
+            outcome, text = "passed", ""
+        out[nid] = {"outcome": outcome, "text": text}
+    return out
+
+
 def main() -> int:
     print("=== lifespan isolation NEGATIVE CONTROL ===")
     print(f"    interpreter: {sys.executable}")
@@ -953,7 +1351,7 @@ def main() -> int:
         )
         return 1
 
-    # -- 0b. AST 门（裁判 6）+ 其负控 ---------------------------------------
+    # -- 0b. AST 门（裁判 6）------------------------------------------------
     n_violations, violation_lines, n_files = run_ast_gate()
     print(f"[0] AST gate: {n_violations} violations across {n_files} files")
     for v in violation_lines:
@@ -966,108 +1364,99 @@ def main() -> int:
         return 0
 
     tmp_root = Path(tempfile.mkdtemp(prefix="lifespan-negctl-"))
-    junit_xml = tmp_root / "negctl-junit.xml"
+    cleaned = False
+
+    def _cleanup(*_a) -> None:
+        nonlocal cleaned
+        if cleaned:
+            return
+        cleaned = True
+        shutil.rmtree(tmp_root, ignore_errors=True)
+
+    atexit.register(_cleanup)
+    for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP, signal.SIGQUIT):
+        signal.signal(sig, lambda *_: (_cleanup(), sys.exit(130)))
+
     vault_tmp = tmp_root / "vault"
     lance_tmp = tmp_root / "lancedb"
     vault_tmp.mkdir()
     lance_tmp.mkdir()
+    pos_junit = tmp_root / "positive-junit.xml"
+    neg_junit = tmp_root / "negctl-junit.xml"
     pos_ledger = tmp_root / "ledger-positive.json"
     neg_ledger = tmp_root / "ledger-negative.json"
 
-    # -- 0c. 前置：证明**应用侧**解析出来的 NEO4J_URI 也是那个受拦地址 --------
-    #    环境变量好看不等于 Settings 解析结果好看（.env 覆盖、别名字段…）。
-    preflight_env = _child_env(vault_tmp, lance_tmp, None)
+    # -- 0c. 隔离副本：变异只在这里做，真实 tracked 文件一个字节都不写 --------
+    iso = make_isolated_backend(tmp_root)
+    iso_target = iso / TARGET_REL
+    print(f"[0b] 隔离副本: {iso}")
+
+    # 真实树的运行时文件在整个脚本期间必须纹丝不动（本脚本从不写、也从不删它们）
+    real_before = "\n".join(f"{sha_of(p)}  {p}" for p in RUNTIME_FILES)
+
+    # -- 0d. 前置：逐项精确核对**应用侧解析出来的**隔离环境 -------------------
+    preflight_env = _child_env(vault_tmp, lance_tmp, None, iso)
     preflight = subprocess.run(
         [
             sys.executable,
             "-c",
-            "import sys;"
+            "import json, os, sys;"
             "sys.path.insert(0, 'lib');"
             "from app.config import get_settings;"
             "from agentic_rag.config import _resolve_lancedb_db_path;"
-            "s=get_settings();"
-            "print('RESOLVED_NEO4J_URI=%s' % s.NEO4J_URI);"
-            "print('RESOLVED_LANCEDB=%s' % _resolve_lancedb_db_path())",
+            "s = get_settings();"
+            "print('W4_PREFLIGHT=' + json.dumps({"
+            "'neo4j_uri': s.NEO4J_URI,"
+            "'neo4j_user': getattr(s, 'NEO4J_USER', None),"
+            "'neo4j_password': getattr(s, 'NEO4J_PASSWORD', None),"
+            "'canvas_base_path': str(s.canvas_base_path),"
+            "'lancedb_resolved': _resolve_lancedb_db_path(),"
+            "'lancedb_data_path_env': os.environ.get('LANCEDB_DATA_PATH'),"
+            "'lancedb_path_env': os.environ.get('LANCEDB_PATH'),"
+            "}))",
         ],
-        cwd=BACKEND_DIR,
+        cwd=iso,
         env=preflight_env,
         capture_output=True,
         text=True,
         timeout=180,
     )
-    resolved = ""
-    resolved_lance = ""
+    resolved: dict = {}
     for line in preflight.stdout.splitlines():
-        if line.startswith("RESOLVED_NEO4J_URI="):
-            resolved = line.split("=", 1)[1].strip()
-        elif line.startswith("RESOLVED_LANCEDB="):
-            resolved_lance = line.split("=", 1)[1].strip()
-    print(f"[0c] Settings 解析出的 NEO4J_URI = {resolved!r} LanceDB = {resolved_lance!r} (rc={preflight.returncode})")
-    # LanceDB resolver 在 canonical/legacy 两个变量不同值时抛 RuntimeError，而
-    # app/main.py 是无守护直调 —— 那会让 lifespan 在**到达 Neo4j 之前**就 abort，
-    # 负门得到 blocked=0 却看起来像「哨兵没接住」。这里提前把它变成一条明话。
-    if preflight.returncode == 0 and not resolved_lance:
-        print(
-            "NEGATIVE-CONTROL: FAIL — LanceDB 路径未能解析（canonical/legacy 冲突？），lifespan 会在到达 Neo4j 前 abort"
-        )
-        print(preflight.stdout[-800:])
-        print(preflight.stderr[-800:])
-        shutil.rmtree(tmp_root, ignore_errors=True)
-        return 1
-    if preflight.returncode != 0 or resolved != PINNED_NEO4J_URI:
-        print(
-            "NEGATIVE-CONTROL: FAIL — 应用侧解析出的 NEO4J_URI 不是钉死的受拦地址；"
-            f"期望 {PINNED_NEO4J_URI!r}，实得 {resolved!r}。"
-            "在此之前**不得**摘掉隔离运行（否则会真连一个门射程之外的库）。"
-        )
+        if line.startswith("W4_PREFLIGHT="):
+            resolved = json.loads(line.split("=", 1)[1])
+    print(f"[0c] Settings 解析（rc={preflight.returncode}）: {json.dumps(resolved, ensure_ascii=False)}")
+    # R1 Codex MEDIUM-15：旧版只精确核对 NEO4J_URI，LanceDB 只要求非空、
+    # canvas 路径完全不查 —— 解析漂移到现网 LanceDB 或真实 vault 时前置检查照样通过。
+    expected_preflight = {
+        "neo4j_uri": PINNED_NEO4J_URI,
+        "neo4j_user": PINNED_NEO4J_USER,
+        "neo4j_password": PINNED_NEO4J_PASSWORD,
+        "canvas_base_path": str(vault_tmp),
+        "lancedb_resolved": str(lance_tmp),
+        "lancedb_data_path_env": str(lance_tmp),
+        "lancedb_path_env": str(lance_tmp),
+    }
+    mismatch = {k: (v, resolved.get(k)) for k, v in expected_preflight.items() if resolved.get(k) != v}
+    if preflight.returncode != 0 or mismatch:
+        print("NEGATIVE-CONTROL: FAIL — 应用侧解析出的隔离环境与钉死值不符（期望, 实得）:")
+        for k, (want, got) in mismatch.items():
+            print(f"    {k}: {want!r} != {got!r}")
+        print("--- preflight stdout tail ---")
+        print(preflight.stdout[-1200:])
         print("--- preflight stderr tail ---")
         print(preflight.stderr[-1200:])
-        shutil.rmtree(tmp_root, ignore_errors=True)
         return 1
 
-    original = TARGET.read_bytes()
+    original = iso_target.read_bytes()
     original_sha = hashlib.sha256(original).hexdigest()
     mutated_bytes = original.decode("utf-8").replace(ANCHOR, MUTATED).encode("utf-8")
-    mutated = False
-    conflict_note: str | None = None
 
-    def _restore(*_a) -> None:
-        """CAS 后写回原始字节（幂等）。变异标志先置位，保证任何路径都会走到这里。
+    # 副本内容必须与真实工作树逐字节一致，否则本门验的不是这份代码
+    if hashlib.sha256(TARGET.read_bytes()).hexdigest() != original_sha:
+        print("NEGATIVE-CONTROL: FAIL — 隔离副本里的目标文件与工作树不一致（复制期间被改？）")
+        return 1
 
-        CAS：当前盘上的字节必须是「本脚本写下的变异体」或「原文」二者之一。
-        既不是 ⇒ 期间有并发编辑 —— **不覆盖**，双方各存一份并留下 conflict 记录
-        （第八批 Codex MEDIUM：无条件写回会静默吞掉别人的合法编辑）。
-        """
-        nonlocal mutated, conflict_note
-        if not mutated:
-            return
-        current = TARGET.read_bytes()
-        if current not in (mutated_bytes, original):
-            stamp = time.strftime("%Y%m%d-%H%M%S")
-            theirs = TARGET.with_suffix(TARGET.suffix + f".negctl-conflict-theirs.{stamp}")
-            ours = TARGET.with_suffix(TARGET.suffix + f".negctl-conflict-original.{stamp}")
-            theirs.write_bytes(current)
-            ours.write_bytes(original)
-            conflict_note = (
-                f"并发编辑冲突：{TARGET_REL} 在变异期间被第三方修改。"
-                f"未覆盖；对方版本保存在 {theirs.name}，本脚本持有的原文保存在 {ours.name}。"
-            )
-            print(f"*** {conflict_note} ***", file=sys.stderr)
-            mutated = False
-            return
-        TARGET.write_bytes(original)
-        mutated = False
-
-    atexit.register(_restore)
-    for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP, signal.SIGQUIT):
-        signal.signal(sig, lambda *_: (_restore(), sys.exit(130)))
-
-    before_runtime = runtime_snapshot()
-    before_runtime_map = {p: sha_of(p) for p in RUNTIME_FILES}
-    positive_runtime_ok = False
-    mutated_runtime_delta = ""
-    runtime_removed: list[str] = []
-    runtime_unresolved: list[str] = []
     pytest_rc: int | None = None
     total = 0
     green: list[str] = []
@@ -1077,243 +1466,206 @@ def main() -> int:
     expected_nodeids: set[str] = set()
     summary: tuple[int, int, int, int] | str = "未运行"
     ledger_problem: str | None = None
-    pos_problem: str | None = None
     child_stdout = ""
     child_stderr = ""
-    try:
-        # -- 1. 预采集 nodeid（变异前）：必须与钉死的完整 nodeid 集全等 -------
-        env = _child_env(vault_tmp, lance_tmp, None)
-        collect = subprocess.run(
-            _base_cmd() + [*FIXED_TARGET_NODEIDS, "--collect-only", "-q"],
-            cwd=BACKEND_DIR,
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=PYTEST_TIMEOUT_S,
-        )
-        expected_nodeids = {ln.strip() for ln in collect.stdout.splitlines() if "::" in ln}
-        if expected_nodeids != set(FIXED_TARGET_NODEIDS):
-            print(
-                "NEGATIVE-CONTROL: FAIL — 预采集集与钉死 nodeid **全等**判定不成立："
-                f"缺 {sorted(set(FIXED_TARGET_NODEIDS) - expected_nodeids)}，"
-                f"多 {sorted(expected_nodeids - set(FIXED_TARGET_NODEIDS))}"
-            )
-            print("--- collect stdout tail ---")
-            print(collect.stdout[-1500:])
-            return 1
-        print(f"[1] 预采集 nodeid: {len(expected_nodeids)} 条（与钉死完整 nodeid 全等）")
+    iso_runtime_before = "\n".join(f"{sha_of(p)}  {p}" for p in runtime_files(iso))
+    positive_runtime_ok = False
+    mutated_runtime_delta = ""
 
-        # -- 1b. 正控：同环境、未变异，三条必须全绿且门账为零 ----------------
-        #     第八批 Codex MEDIUM：不先证明「原样是绿的」，就无法区分
-        #     「变异让它红了」和「它本来就红」。
-        pos = subprocess.run(
-            _base_cmd() + [*FIXED_TARGET_NODEIDS, "-q", "--tb=short", "-rA"],
-            cwd=BACKEND_DIR,
-            env=_child_env(vault_tmp, lance_tmp, pos_ledger),
-            capture_output=True,
-            text=True,
-            timeout=PYTEST_TIMEOUT_S,
-        )
-        pos_summary = _parse_summary(pos.stdout)
-        print(f"[1b] 正控 rc={pos.returncode} 门汇总={pos_summary}")
-        if pos.returncode != 0:
-            pos_problem = f"正控 rc={pos.returncode} ≠ 0（未变异的三条用例本来就不绿）"
-        elif not isinstance(pos_summary, tuple):
-            pos_problem = f"正控门汇总行解析失败：{pos_summary}"
-        elif pos_summary != (0, 0, 0, 0):
-            pos_problem = f"正控门账非零：{pos_summary}（隔离态不应有任何连接尝试）"
-        # 隔离态**必须**没动任何运行时文件 —— 这是本卡真正要证的那句话。
-        positive_runtime_ok = runtime_snapshot() == before_runtime
-        if not positive_runtime_ok and not pos_problem:
-            pos_problem = "正控（隔离态）动了运行时文件 —— no_lifespan 没挡住启动副作用"
-        if pos_problem:
-            print(f"NEGATIVE-CONTROL: FAIL — {pos_problem}")
-            print("--- 正控 stdout tail ---")
-            print(pos.stdout[-2000:])
-            return 1
-        print("[1c] 正控运行时文件: unchanged（隔离态零副作用）")
-
-        # -- 2. 原地摘掉 no_lifespan ----------------------------------------
-        count = original.decode("utf-8").count(ANCHOR)
-        if count != 1:
-            print(
-                f"NEGATIVE-CONTROL: FAIL — 隔离锚点出现 {count} 次（期望恰好 1 次），"
-                f"文件形态与本脚本假设不符，拒绝盲改: {TARGET_REL}"
-            )
-            return 1
-        mutated = True  # 先置位再写盘：任何崩溃路径都会走 _restore
-        TARGET.write_bytes(mutated_bytes)
-        print(f"[2] 已摘掉 no_lifespan: {TARGET_REL}")
-
-        # -- 3. 变异运行 ----------------------------------------------------
-        cmd = _base_cmd() + [*FIXED_TARGET_NODEIDS, "-q", "--tb=no", "-rA", f"--junitxml={junit_xml}"]
-        print("[3] pytest 子进程（串行）:", " ".join(cmd))
-        try:
-            proc = subprocess.run(
-                cmd,
-                cwd=BACKEND_DIR,
-                env=_child_env(vault_tmp, lance_tmp, neg_ledger),
-                capture_output=True,
-                text=True,
-                timeout=PYTEST_TIMEOUT_S,
-            )
-        except subprocess.TimeoutExpired as e:
-            print("NEGATIVE-CONTROL: FAIL — 变异运行超时；faulthandler dump（stderr）如下")
-            print((e.stderr or "")[-5000:])
-            print("--- stdout tail ---")
-            print((e.stdout or "")[-1000:])
-            return 1
-        pytest_rc = proc.returncode
-        child_stdout = proc.stdout
-        child_stderr = proc.stderr
-        print(f"    pytest exit={pytest_rc}")
-
-        # -- 3b. 正证据：total == blocked > 0 且 advisory == unaccounted == 0 --
-        summary = _parse_summary(proc.stdout)
-        if not isinstance(summary, tuple):
-            print(f"NEGATIVE-CONTROL: FAIL — {summary}（guard_plugin 未加载？）")
-            print("--- child stdout tail ---")
-            print(proc.stdout[-1500:])
-            return 1
-        s_total, s_blocked, s_advisory, s_unacct = summary
-        print(f"[3b] 子进程门汇总: total={s_total} blocked={s_blocked} advisory={s_advisory} unaccounted={s_unacct}")
-
-        # -- 3c. 父进程独立复核账本（不只信子进程 stdout）--------------------
-        if not neg_ledger.exists():
-            ledger_problem = "子进程未落账本（最终总账 atexit 未跑？）"
-        else:
-            led = json.loads(neg_ledger.read_text(encoding="utf-8"))
-            print(
-                f"[3c] 账本: {json.dumps({k: v for k, v in led.items() if k != 'unaccounted_records'}, ensure_ascii=False)}"
-            )
-            if (led["total"], led["blocked"], led["advisory"], led["unaccounted"]) != summary:
-                ledger_problem = f"账本 {led} 与 stdout 汇总 {summary} 不一致"
-            elif not led.get("exempt_disabled"):
-                ledger_problem = "账本显示豁免未被禁用（W4_GUARD_NO_EXEMPT 未生效）"
-
-        # -- 4. 解析 junitxml：红因判定必须吃完整 failure 正文 ---------------
-        if not junit_xml.exists():
-            print("NEGATIVE-CONTROL: FAIL — junitxml 未生成")
-            return 1
-        module_dotted = TARGET_REL[:-3].replace("/", ".")
-        for case in ET.parse(junit_xml).getroot().iter("testcase"):
-            classname = case.get("classname", "")
-            name = case.get("name", "")
-            if classname.startswith(module_dotted):
-                class_chain = classname[len(module_dotted) :].lstrip(".")
-                nid = f"{TARGET_REL}::" + (f"{class_chain.replace('.', '::')}::{name}" if class_chain else name)
-            else:
-                nid = f"{classname.replace('.', '/')}::{name}"
-            total += 1
-            # ``<error>`` 与 ``<failure>`` 都算红：setup/teardown 阶段炸掉时 pytest
-            # 写的是 ``<error>``，只找 ``<failure>`` 会把它当成绿（fail-open）。
-            failure = case.find("failure")
-            if failure is None:
-                failure = case.find("error")
-            if failure is None:
-                green.append(nid)
-                continue
-            red_nodeids.add(nid)
-            text = " ".join(filter(None, [(failure.get("message") or ""), (failure.text or "")]))
-            if EXPECTED_REASON in text:
-                reason_verified.add(nid)
-            else:
-                red_for_wrong_reason.append(f"{nid} :: {text[:160] or '<failure 无正文 — 红因不明>'}")
-
+    # -- 1. 预采集 nodeid（变异前）：必须与钉死的完整 nodeid 集全等 -------
+    collect = subprocess.run(
+        _base_cmd() + [*FIXED_TARGET_NODEIDS, "--collect-only", "-q"],
+        cwd=iso,
+        env=_child_env(vault_tmp, lance_tmp, None, iso),
+        capture_output=True,
+        text=True,
+        timeout=PYTEST_TIMEOUT_S,
+    )
+    expected_nodeids = {ln.strip() for ln in collect.stdout.splitlines() if "::" in ln}
+    if collect.returncode != 0 or expected_nodeids != set(FIXED_TARGET_NODEIDS):
         print(
-            f"[4] junitxml: total={total} red={len(red_nodeids)} "
-            f"green={len(green)} red-wrong-reason={len(red_for_wrong_reason)}"
+            f"NEGATIVE-CONTROL: FAIL — 预采集失败或与钉死 nodeid 不全等（collect rc={collect.returncode}）："
+            f"缺 {sorted(set(FIXED_TARGET_NODEIDS) - expected_nodeids)}，"
+            f"多 {sorted(expected_nodeids - set(FIXED_TARGET_NODEIDS))}"
         )
-        for g in green:
-            print(f"    GREEN (不应绿): {g}")
-        for w in red_for_wrong_reason:
-            print(f"    RED-WRONG-REASON: {w}")
-    finally:
-        # -- 5. CAS + 逐字节还原（无论上面死在哪一步；atexit/信号再兜底）-----
-        _restore()
-        restored_identical = sha_of(TARGET) == original_sha
-        after_runtime = runtime_snapshot()
-        mutated_runtime_delta = "" if after_runtime == before_runtime else after_runtime
-        # 摘掉隔离之后运行时文件**被写了**，这不是失败，是本卡要证明的那件事：
-        # socket 门只管连接，挡不住文件写；挡住文件写的是 no_lifespan。
-        # `app/services/vault_index_orchestrator.py:101` 的 pending 文件路径是
-        # **硬编码**的（`app/data/vault_index_pending.jsonl`，不读任何 env），
-        # 所以变异态无法把它重定向到 tmp —— 只能事后把本脚本造出来的新增删掉。
-        runtime_removed, runtime_unresolved = restore_absent_runtime_files(before_runtime_map)
-        runtime_unchanged = runtime_snapshot() == before_runtime
+        print(collect.stdout[-1500:])
+        return 1
+    print(f"[1] 预采集 nodeid: {len(expected_nodeids)} 条（与钉死完整 nodeid 全等，collect rc=0）")
 
-    print(f"[5] 还原完成; byte-identical={restored_identical}; 运行时现场已复原={runtime_unchanged}")
+    # -- 1b. 正控：三条必须**各跑一次且全 passed**，门账全零，运行时零写 -----
+    #     R1 Codex HIGH-12：只查 rc=0 证明不了「三条全绿」—— 在 client fixture
+    #     yield 之后 `pytest.skip()` 同样是 rc=0/零门账，而变异态照旧按预期红，
+    #     于是整条负门变成假 PASS。所以正控也出 junit，逐条核对 outcome。
+    pos = subprocess.run(
+        _base_cmd() + [*FIXED_TARGET_NODEIDS, "-q", "--tb=short", "-rA", f"--junitxml={pos_junit}"],
+        cwd=iso,
+        env=_child_env(vault_tmp, lance_tmp, pos_ledger, iso),
+        capture_output=True,
+        text=True,
+        timeout=PYTEST_TIMEOUT_S,
+    )
+    pos_summary = _parse_summary(pos.stdout)
+    pos_cases = _parse_junit(pos_junit, TARGET_REL) if pos_junit.exists() else {}
+    pos_outcomes = {nid: c["outcome"] for nid, c in pos_cases.items()}
+    positive_runtime_ok = "\n".join(f"{sha_of(p)}  {p}" for p in runtime_files(iso)) == iso_runtime_before
+    print(f"[1b] 正控 rc={pos.returncode} 门汇总={pos_summary} outcomes={pos_outcomes}")
+    pos_problem = None
+    if pos.returncode != 0:
+        pos_problem = f"正控 rc={pos.returncode} ≠ 0"
+    elif set(pos_outcomes) != set(FIXED_TARGET_NODEIDS):
+        pos_problem = f"正控 junit 里的 nodeid 集合与钉死集不全等：{sorted(pos_outcomes)}"
+    elif sorted(pos_outcomes.values()) != ["passed"] * len(FIXED_TARGET_NODEIDS):
+        pos_problem = f"正控三条不是全 passed：{pos_outcomes}（skip/error 也不算绿）"
+    elif not isinstance(pos_summary, tuple):
+        pos_problem = f"正控门汇总行解析失败：{pos_summary}"
+    elif pos_summary != (0, 0, 0, 0):
+        pos_problem = f"正控门账非零：{pos_summary}（隔离态不应有任何连接尝试）"
+    elif not positive_runtime_ok:
+        pos_problem = "正控（隔离态）动了运行时文件 —— no_lifespan 没挡住启动副作用"
+    if pos_problem:
+        print(f"NEGATIVE-CONTROL: FAIL — {pos_problem}")
+        print("--- 正控 stdout tail ---")
+        print(pos.stdout[-2000:])
+        return 1
+    print("[1c] 正控：三条全 passed、门账全零、运行时文件 unchanged")
+
+    # -- 2. 在**副本**里摘掉 no_lifespan（真实文件不动）--------------------
+    count = original.decode("utf-8").count(ANCHOR)
+    if count != 1:
+        print(
+            f"NEGATIVE-CONTROL: FAIL — 隔离锚点出现 {count} 次（期望恰好 1 次），"
+            f"文件形态与本脚本假设不符，拒绝盲改: {TARGET_REL}"
+        )
+        return 1
+    iso_target.write_bytes(mutated_bytes)
+    print(f"[2] 已在副本里摘掉 no_lifespan: {iso_target}")
+
+    # -- 3. 变异运行 ----------------------------------------------------
+    cmd = _base_cmd() + [*FIXED_TARGET_NODEIDS, "-q", "--tb=no", "-rA", f"--junitxml={neg_junit}"]
+    print("[3] pytest 子进程（串行，cwd=隔离副本）:", " ".join(cmd))
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=iso,
+            env=_child_env(vault_tmp, lance_tmp, neg_ledger, iso),
+            capture_output=True,
+            text=True,
+            timeout=PYTEST_TIMEOUT_S,
+        )
+    except subprocess.TimeoutExpired as e:
+        print("NEGATIVE-CONTROL: FAIL — 变异运行超时；faulthandler dump（stderr）如下")
+        print((e.stderr or "")[-5000:])
+        print("--- stdout tail ---")
+        print((e.stdout or "")[-1000:])
+        return 1
+    pytest_rc = proc.returncode
+    child_stdout = proc.stdout
+    child_stderr = proc.stderr
+    print(f"    pytest exit={pytest_rc}")
+
+    # -- 3b. 正证据：total == blocked > 0 且 advisory == unaccounted == 0 --
+    summary = _parse_summary(proc.stdout)
+    if not isinstance(summary, tuple):
+        print(f"NEGATIVE-CONTROL: FAIL — {summary}（guard_plugin 未加载？）")
+        print(proc.stdout[-1500:])
+        return 1
+    s_total, s_blocked, s_advisory, s_unacct = summary
+    print(f"[3b] 子进程门汇总: total={s_total} blocked={s_blocked} advisory={s_advisory} unaccounted={s_unacct}")
+
+    # -- 3c. 父进程独立复核账本 -----------------------------------------
+    if not neg_ledger.exists():
+        ledger_problem = "子进程未落账本（最终结算 atexit 未跑？）"
+    else:
+        led = json.loads(neg_ledger.read_text(encoding="utf-8"))
+        print(
+            f"[3c] 账本: {json.dumps({k: v for k, v in led.items() if k != 'unaccounted_records'}, ensure_ascii=False)}"
+        )
+        if (led["total"], led["blocked"], led["advisory"], led["unaccounted"]) != summary:
+            ledger_problem = f"账本 {led} 与 stdout 汇总 {summary} 不一致"
+        elif not led.get("exempt_disabled"):
+            ledger_problem = "账本显示豁免未被禁用（W4_GUARD_NO_EXEMPT 未生效）"
+
+    # -- 4. 解析 junitxml：红因判定必须吃完整 failure/error 正文 ---------
+    if not neg_junit.exists():
+        print("NEGATIVE-CONTROL: FAIL — junitxml 未生成")
+        return 1
+    for nid, case in _parse_junit(neg_junit, TARGET_REL).items():
+        total += 1
+        if case["outcome"] == "passed":
+            green.append(nid)
+            continue
+        if case["outcome"] == "skipped":
+            green.append(nid)  # skip 不是红
+            continue
+        red_nodeids.add(nid)
+        if EXPECTED_REASON in case["text"]:
+            reason_verified.add(nid)
+        else:
+            red_for_wrong_reason.append(f"{nid} :: {case['text'][:160] or '<无正文 — 红因不明>'}")
+
+    print(
+        f"[4] junitxml: total={total} red={len(red_nodeids)} "
+        f"green={len(green)} red-wrong-reason={len(red_for_wrong_reason)}"
+    )
+    for g in green:
+        print(f"    GREEN (不应绿): {g}")
+    for w in red_for_wrong_reason:
+        print(f"    RED-WRONG-REASON: {w}")
+
+    # -- 5. 运行时文件：副本必须被写（隔离承重的正证据）；真实树必须纹丝不动 --
+    iso_runtime_after = "\n".join(f"{sha_of(p)}  {p}" for p in runtime_files(iso))
+    mutated_runtime_delta = "" if iso_runtime_after == iso_runtime_before else iso_runtime_after
+    real_after = "\n".join(f"{sha_of(p)}  {p}" for p in RUNTIME_FILES)
+    real_untouched = real_after == real_before
+    target_untouched = hashlib.sha256(TARGET.read_bytes()).hexdigest() == original_sha
+    print(f"[5] 真实树运行时文件 untouched={real_untouched}; 真实目标文件 untouched={target_untouched}")
     if mutated_runtime_delta:
-        print("[5b] 变异态确实写了运行时文件（= 隔离在承重的正证据）:")
+        print("[5b] 副本里变异态确实写了运行时文件（= 隔离在承重的正证据）:")
         for line in mutated_runtime_delta.splitlines():
             print(f"      {line}")
-    if runtime_removed:
-        print(f"[5c] 已删除本脚本造成的新增运行时文件（跑前 absent）: {runtime_removed}")
-    if conflict_note:
-        print(f"NEGATIVE-CONTROL: FAIL — {conflict_note}")
-        return 1
-    if not restored_identical:
-        print("NEGATIVE-CONTROL: FAIL — 源文件未能逐字节还原（这是事故，请人工检查 git diff）")
-        return 1
 
     # -- 6. 裁定 --------------------------------------------------------------
     problems: list[str] = []
-    if pytest_rc is None:
-        problems.append("pytest 未运行")
     if pytest_rc != 1:
         problems.append(f"pytest 退出码 {pytest_rc} ≠ 1（期望恰为 tests-failed）")
-    if isinstance(summary, tuple):
-        s_total, s_blocked, s_advisory, s_unacct = summary
-        if not (s_total == s_blocked > 0):
-            problems.append(f"门账 total({s_total}) == blocked({s_blocked}) > 0 不成立")
-        if s_advisory != 0:
-            problems.append(f"advisory={s_advisory} ≠ 0（有连接以豁免名义真的发出去了）")
-        if s_unacct != 0:
-            problems.append(f"unaccounted={s_unacct} ≠ 0（有拦截无人结账）")
-    else:
-        problems.append(f"门汇总解析失败：{summary}")
+    if not (s_total == s_blocked > 0):
+        problems.append(f"门账 total({s_total}) == blocked({s_blocked}) > 0 不成立")
+    if s_advisory != 0:
+        problems.append(f"advisory={s_advisory} ≠ 0（有连接以豁免名义真的发出去了）")
+    if s_unacct != 0:
+        problems.append(f"unaccounted={s_unacct} ≠ 0（有拦截无人结账）")
     if ledger_problem:
         problems.append(ledger_problem)
     if total != len(expected_nodeids):
         problems.append(f"用例总数 {total} ≠ 预采集 {len(expected_nodeids)} — 解析或收集缩水")
     if green:
-        problems.append(f"{len(green)} 个用例在 no_lifespan 摘除后仍然绿（哨兵没接住）")
+        problems.append(f"{len(green)} 个用例在 no_lifespan 摘除后没红（哨兵没接住）")
     if red_nodeids != expected_nodeids:
-        missing = expected_nodeids - red_nodeids
-        extra = red_nodeids - expected_nodeids
-        problems.append(f"红集与预采集全集不严格相等（缺红 {len(missing)} / 多红 {len(extra)}）")
+        problems.append(
+            f"红集与预采集全集不严格相等（缺红 {len(expected_nodeids - red_nodeids)} / "
+            f"多红 {len(red_nodeids - expected_nodeids)}）"
+        )
     if red_for_wrong_reason:
         problems.append(f"{len(red_for_wrong_reason)} 个用例红了但原因不对（不是 live port connect）")
     if reason_verified != red_nodeids:
-        problems.append(
-            f"红因可验证集 {len(reason_verified)} ≠ 红集 {len(red_nodeids)}"
-            " —— 存在红因不明的 FAILED 行（截断或缺 reason），fail-closed"
-        )
-    if not positive_runtime_ok:
-        problems.append("正控（隔离态）动了运行时文件")
-    if runtime_unresolved:
-        problems.append(
-            f"运行时文件跑前就存在且内容变了，本脚本**不覆盖**（可能混有并发写入），需人工核对: {runtime_unresolved}"
-        )
-    if not runtime_unchanged:
-        problems.append("运行时现场未能复原到跑前状态")
+        problems.append(f"红因可验证集 {len(reason_verified)} ≠ 红集 {len(red_nodeids)} —— 红因不明，fail-closed")
     if not mutated_runtime_delta:
         problems.append(
             "变异态**没有**写任何运行时文件 —— 说明 lifespan 没跑到写路径就 abort 了，"
             "这条负门此刻在测别的东西（历史教训：LanceDB canonical/legacy 冲突会让它"
             "在到达 Neo4j 之前就退出）"
         )
+    if not real_untouched:
+        problems.append(f"真实树的运行时文件被动过（本脚本从不写它们）：\n{real_before}\n---\n{real_after}")
+    if not target_untouched:
+        problems.append("真实树的目标测试文件被动过（本脚本只改副本）")
     if n_violations:
         problems.append(f"AST 门 {n_violations} 处违规（见上方 VIOLATION 清单）")
-
-    shutil.rmtree(tmp_root, ignore_errors=True)
 
     if problems:
         print("NEGATIVE-CONTROL: FAIL")
         for p in problems:
             print(f"  - {p}")
-        # 门自己失败时必须把证据摊开——否则「负门红了」和「负门为什么红」之间
-        # 隔着一次重跑，而重跑要再做一遍原地变异（MEMORY：门要能说出自己的理由）。
         print("--- 变异运行 child stdout tail ---")
         print(child_stdout[-4000:])
         if child_stderr.strip():
@@ -1323,9 +1675,9 @@ def main() -> int:
 
     print(
         f"NEGATIVE-CONTROL: PASS ({len(reason_verified)} nodeids red for expected reason; "
-        f"summary={summary}; positive control green with zero attempts and zero runtime writes; "
-        f"mutated run did touch runtime files (isolation is load-bearing) and the scene was restored; "
-        f"target restored byte-identical; AST-GATE: PASS 0/{n_files} files)"
+        f"summary={summary}; positive control: 3/3 passed, zero attempts, zero runtime writes; "
+        f"mutated run in an isolated copy did touch runtime files (isolation is load-bearing); "
+        f"real tree untouched; AST-GATE: PASS 0/{n_files} files)"
     )
     return 0
 

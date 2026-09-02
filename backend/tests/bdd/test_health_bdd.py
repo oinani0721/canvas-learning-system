@@ -61,6 +61,16 @@ def check_health_status(response, expected_status):
 
 @then("the response contains component status")
 def check_components(response):
+    """字段必须**存在**且是个非空字典。
+
+    R1 Codex MEDIUM：旧实现是 ``if "components" in data: assert isinstance(...)``
+    —— 字段整个消失时这条 then 一个断言都不执行，场景照样绿，与它自称的
+    「响应契约」不符（一个从不失败的断言不是契约）。
+    2026-09-03 实测端点返回的 components 键为
+    ``batch_orchestrator / batch_sessions / fsrs / neo4j``。
+    """
     data = response.json()
-    if "components" in data:
-        assert isinstance(data["components"], dict)
+    assert "components" in data, f"响应缺少 components 字段；实得键={sorted(data.keys())}"
+    components = data["components"]
+    assert isinstance(components, dict), f"components 不是 dict，而是 {type(components).__name__}"
+    assert components, "components 是空字典 —— 契约要求它至少报告一个组件"

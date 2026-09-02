@@ -38,12 +38,15 @@ venv（CPython 3.14.4）实测，这条防线有一个结构性缺口：
    代码吞掉的拦截转成该用例 ``FAILED``；
 3. **session 总账**（conftest 的 ``pytest_cmdline_main`` 收口）—— 任何「到死都没
    被哨兵结账」的拦截把退出码改成 3；
-4. **最终总账**（:func:`register_final_accounting` 注册的 ``atexit``）——
+4. **最终结算**（:func:`register_final_accounting` 注册的 ``atexit``）——
    ``pytest_cmdline_main`` 返回之后仍有 cleanup / ``atexit`` / 迟到线程的窗口
-   （第八批 Codex HIGH 实测：那段窗口里的拦截被记账、进程却仍 exit 0）。本层在
-   **所有** ``atexit`` 之后执行（``atexit`` 是 LIFO，本层在 :func:`install` 里
-   最早注册 ⇒ 最后执行），发现未结账的拦截就 ``os._exit(3)``，把「迟到尝试」
-   变成非零 rc。同时把账本落到 ``W4_GUARD_LEDGER`` 指定的文件，供父进程独立复核。
+   （第八批 Codex HIGH 实测：那段窗口里的拦截被记账、进程却仍 exit 0）。本层发现
+   未结账的拦截就 ``os._exit(3)``，并把账本落到 ``W4_GUARD_LEDGER`` 指定的文件
+   供父进程独立复核。
+   ⚠️ 本层**不是**「在所有 atexit 之后」跑（R1 Codex HIGH 打回的过宽表述）：
+   ``atexit`` 是 LIFO，本模块 import **之前**就注册的回调排在本层**后面**。
+   所以本层进入时立刻置不可逆的 :data:`_FINALIZING`，此后 audit hook 命中受拦
+   端口就**就地** ``os._exit(3)`` —— 不再依赖任何后续结账机会。
 
 ## 归属模型（线程安全 + 未知来源 fail-closed）
 
@@ -75,9 +78,13 @@ fail-closed。
   （例如有人改了 compose 端口映射）本门不拦 —— 这正是负控必须**钉死**
   ``NEO4J_URI`` 指向受拦端口的原因（见 :func:`assert_neo4j_target_blocked`）。
 * uvloop 走 libuv 自己的 connect。libuv 的连接**不经过** CPython 的
-  ``socket.connect`` 审计事件，本门在 :func:`install` 时把
-  ``sys.modules["uvloop"]`` 毒化为 ``None``（此后任何 ``import uvloop`` 直接
-  ``ImportError``），并在 session fixture 与每个用例边界复核。
+  ``socket.connect`` 审计事件。承重的关门方式是 audit 的 ``import`` 事件——
+  ``import uvloop`` 直接抛（摘不掉）；``sys.modules`` 毒化只是让错误更早更清楚
+  （R1 Codex HIGH：毒化条目可以被 ``del`` 掉再 import，所以它不能当承重）。
+* **本门只覆盖 CPython 的 socket API**。绕过 CPython 直接调 libc 的路径
+  （``ctypes.CDLL(None).connect(...)`` 或原生扩展自己发 syscall）不触发审计事件，
+  本门看不见。当前 neo4j 驱动走的是 CPython socket，故按「防手滑」的威胁模型
+  这条属于已声明边界；要覆盖它必须下沉到 OS 层出站约束。
 * 「最终总账」之后（解释器 finalization 期间）发起的连接仍会被 audit hook 拦下，
   但已无人能把它变成非零 rc —— 这段窗口无法在进程内闭合，如实登记。
 """
@@ -127,11 +134,6 @@ BLOCK_REASON = "live Neo4j port connect attempted"
 _SUMMARY_PREFIX = "NEO4J_LIVE_PORT_CONNECT_ATTEMPTS"
 
 _UNKNOWN_OWNER = "<unknown>"
-
-#: 私有审计事件：:func:`assert_guard_live` 用它把一枚一次性 token 送进 audit
-#: 子系统再取回，从而**行为上**证明「本模块的 hook 仍挂在链上且正在执行」。
-#: 这不是「读一个布尔值」——token 没回来就说明 hook 已经不在了。
-_SELFTEST_EVENT = "w4.live_port_guard.selftest"
 
 #: 负控用：置为 "1" 时**彻底禁用豁免**（integration/e2e 也照拦）。
 #: 只会让门更严，不会更松 —— 不存在「设个环境变量把门打开」的方向。
@@ -321,6 +323,23 @@ def extract_port(address) -> int | None:
     return None
 
 
+def port_is_trustworthy(address) -> bool:
+    """端口值能否被**二次求值**信任。
+
+    R1 Codex LOW-17 实测的 TOCTOU：一个有状态的 ``__index__``（第一次返回受拦
+    端口给 CPython 构造 sockaddr，第二次返回 1 给本 hook）能让连接建立而账本为零。
+    审计事件拿到的是**同一个对象**，我们的 ``operator.index()`` 是**第二次**求值。
+
+    因此凡端口不是**真正的 int**（``type(port) is int``；``bool`` 也不算，它虽是
+    int 子类但当端口毫无意义）一律视为不可信 —— 调用方按受拦处理（fail-closed）。
+    这会连带拦掉「用奇怪端口对象连非受拦端口」的写法；那种写法在本仓库不存在，
+    宁可误拦也不给 TOCTOU 留口子。
+    """
+    if not (isinstance(address, tuple) and len(address) >= 2):
+        return True  # 非元组地址（AF_UNIX 等）不在射程，不谈可信不可信
+    return type(address[1]) is int  # noqa: E721 —— 必须是精确 int，子类不算
+
+
 def _block_message(address) -> str:
     return (
         f"{BLOCK_REASON}: {address!r}. "
@@ -331,10 +350,23 @@ def _block_message(address) -> str:
     )
 
 
-#: :func:`assert_guard_live` 与 audit hook 之间的一次性 token 信箱。
-_SELFTEST_INBOX: list[object] = []
-_selftest_counter = 0
-_selftest_lock = threading.Lock()
+class _SelfTestBlocked(RuntimeError):
+    """自证探针被承重路径拦下时抛出的私有异常（不进账本）。"""
+
+
+#: 自证专用的哨兵主机名。含 NUL 字节，**不可能**是任何真实 connect 的目标
+#: （CPython 的 socket 会对含 NUL 的主机名报错），所以它不会与真实流量混淆。
+_SELFTEST_HOST = "\x00w4-live-port-guard-selftest"
+
+#: 「已进入最终结算」的不可逆标志。置位后，任何命中受拦端口的连接直接
+#: ``os._exit(3)`` —— 因为此刻已经没有任何一层能把它变成非零 rc 了
+#: （R1 Codex HIGH-2：本模块 import **之前**注册的 atexit 回调会排在最终结算
+#: **之后**执行，那段窗口里的拦截原来只被记账、进程照样 exit 0）。
+_FINALIZING = False
+
+
+def _is_selftest_address(address) -> bool:
+    return isinstance(address, tuple) and len(address) >= 1 and address[0] == _SELFTEST_HOST
 
 
 def _audit_hook(event: str, args) -> None:
@@ -343,14 +375,40 @@ def _audit_hook(event: str, args) -> None:
     对 ``socket.socket`` / ``_socket.socket`` / ``socket.SocketType`` /
     ``connect_ex`` 四条路径一律触发；hook 抛出的异常会原样传给调用方，
     因此「抛 = 连接没发生」。
+
+    ``import`` 事件用来关死 uvloop：毒化 ``sys.modules`` 会被「del 掉再 import」
+    绕过（R1 Codex HIGH-4 实测），而 audit hook 摘不掉。
     """
     if event == "socket.connect":
         address = args[1] if len(args) > 1 else None
-        if extract_port(address) in BLOCKED_PORTS:
+        port = extract_port(address)
+        # 端口对象不可信（有状态 __index__）⇒ 按受拦处理，见 port_is_trustworthy
+        if port in BLOCKED_PORTS or not port_is_trustworthy(address):
+            # 自证探针：走完整的「取端口 → 判受拦 → 抛」路径，只跳过记账。
+            # 判定在**端口判断之后**，所以把 extract_port 改坏、把受拦集合清空、
+            # 或把 hook 摘掉，自证都会失败（这正是 R1 Codex HIGH-3 要求的）。
+            if _is_selftest_address(address):
+                raise _SelfTestBlocked("selftest reached the blocking path")
+            if _FINALIZING:
+                # 最终结算之后的迟到连接：已无人能改 rc，只能就地把进程打成非零。
+                print(
+                    f"\n*** {BLOCK_REASON}（最终结算之后）: {address!r} —— "
+                    f"进程被强制以退出码 {FINAL_EXIT_CODE} 结束 ***",
+                    file=sys.stderr,
+                )
+                try:
+                    sys.stdout.flush()
+                    sys.stderr.flush()
+                except Exception:  # noqa: BLE001
+                    pass
+                os._exit(FINAL_EXIT_CODE)
             if STATE.record(address):
                 raise RuntimeError(_block_message(address))
-    elif event == _SELFTEST_EVENT:
-        _SELFTEST_INBOX.append(args[0])
+    elif event == "import" and args and args[0] == "uvloop":
+        raise RuntimeError(
+            "uvloop 的 import 被本门拦下：uvloop 走 libuv，不触发 socket.connect "
+            "审计事件，门会静默失效。若确需 uvloop，必须连本门一起重新设计。"
+        )
 
 
 #: audit hook 只能装一次（CPython 无 removeaudithook）；重复装会导致双计。
@@ -470,21 +528,30 @@ def uninstall() -> None:
 
 
 def audit_hook_alive() -> bool:
-    """行为级验证：把一枚一次性 token 送进 audit 子系统，看它是否回到本模块。
+    """行为级验证：让一个合成地址**走完整条阻断路径**，看它是不是真的被拦。
 
-    这不是读布尔值——token 没回来就说明 :func:`_audit_hook` 已不在 hook 链上
-    （或被替换成了别的对象）。CPython 不提供枚举 audit hook 的 API，
-    round-trip 是唯一能**证明**而不是**声明**在位的方式。
+    做法是自己发一次 ``socket.connect`` 审计事件，地址为
+    ``(_SELFTEST_HOST, <受拦端口>)``。这条探针会依次经过：
+    audit 分发 → :func:`extract_port` → :data:`BLOCKED_PORTS` 判定 → 抛异常。
+    只有在**最后一步之后**才按哨兵主机名分流成 :class:`_SelfTestBlocked`，
+    所以链条上任何一环被改坏（hook 摘掉 / ``extract_port`` 恒返 None /
+    受拦集合被清空 / 判定条件被改写）都会让本函数返回 ``False``。
+
+    R1 Codex HIGH-3 打回的旧实现用的是一个**独立的私有事件**，只证明「hook 对象
+    还在链上」，把 ``extract_port`` 改成恒返 ``None`` 之后自证照样通过、真实
+    loopback 连接照样成功、账本照样全零。「自证」必须穿过被自证的那条路径。
+
+    ⚠️ 本函数会向进程内**所有** audit hook 发一次 ``socket.connect`` 事件；
+    地址主机名含 NUL 字节，不可能是真实目标，但第三方 hook 会看见它。
     """
-    global _selftest_counter
-    with _selftest_lock:
-        _selftest_counter += 1
-        token = f"w4-selftest-{os.getpid()}-{_selftest_counter}"
-    _SELFTEST_INBOX.clear()
-    sys.audit(_SELFTEST_EVENT, token)
-    seen = token in _SELFTEST_INBOX
-    _SELFTEST_INBOX.clear()
-    return seen
+    probe_port = next(iter(sorted(REQUIRED_BLOCKED_PORTS)))
+    try:
+        sys.audit("socket.connect", None, (_SELFTEST_HOST, probe_port))
+    except _SelfTestBlocked:
+        return True
+    except Exception:  # noqa: BLE001 —— 被别的东西拦下 ≠ 被本门拦下
+        return False
+    return False
 
 
 def assert_guard_live(context: str = "") -> None:
@@ -498,8 +565,9 @@ def assert_guard_live(context: str = "") -> None:
         raise GuardDrift(f"承重 audit hook 从未安装{where}")
     if not audit_hook_alive():
         raise GuardDrift(
-            f"承重 audit hook 已不在链上{where}：selftest token 未回到本模块。"
-            "CPython 无 removeaudithook，出现本错误说明 sys.audit 被替换或本模块被重载。"
+            f"承重阻断路径自证失败{where}：合成的受拦地址没有被拦下。"
+            "链条上有一环被改坏了（hook 摘掉 / extract_port 恒返 None / "
+            "受拦集合被清空 / 判定条件被改写），门此刻不承重。"
         )
     if not REQUIRED_BLOCKED_PORTS <= set(BLOCKED_PORTS):
         raise GuardDrift(
@@ -518,45 +586,63 @@ def assert_guard_live(context: str = "") -> None:
         raise GuardDrift(
             f"socket.socket.connect_ex 身份漂移{where}：当前是 {base.connect_ex!r}，期望 {_guarded_connect_ex!r}。"
         )
-    # 只查毒化这条**承重**证据：本函数会在每个用例边界跑，不适合每次都去动
-    # warnings 的全局过滤器（``assert_not_uvloop`` 里的 policy 复核会）。完整的
-    # policy 复核由 session fixture 单独调 :func:`assert_not_uvloop` 承担。
-    if sys.modules.get("uvloop") is not None:
-        raise GuardDrift(f"uvloop 毒化被绕过{where}：uvloop 走 libuv，不触发 socket.connect 审计事件。")
+    _assert_uvloop_closed(GuardDrift, where)
 
 
-def assert_not_uvloop() -> None:
-    """session 级复核：uvloop 已被 :func:`poison_uvloop` 关死。
+def _assert_uvloop_closed(exc_type, where: str = "") -> None:
+    """uvloop 必须**既**被 import 拦死、**又**没有实际生效的 policy。
 
-    import 失败毒化 + policy 复核双保险；policy 拿不到时不算证据失败
-    （3.14 起 get_event_loop_policy 已 deprecated），毒化才是承重防线。
+    R1 Codex HIGH-4 打回的旧检查是 ``sys.modules.get("uvloop") is not None``：
+    ``del sys.modules["uvloop"]`` 之后这个表达式为 ``None is not None`` = False，
+    检查通过 —— 而此时 uvloop 已经可以被重新 import。所以这里要求 key **存在
+    且为 None**。真正的承重是 audit ``import`` 事件（摘不掉），毒化只是让错误
+    信息更早、更清楚。
     """
-    if sys.modules.get("uvloop") is not None:
-        raise RuntimeError(
-            "uvloop 已在本进程被导入：uvloop 走 libuv，不触发 CPython 的 "
-            "socket.connect 审计事件，门会静默失效。install() 应当已把 uvloop "
-            "毒化——出现本错误说明毒化被人绕过（例如 install 前已被 import）。"
+    if "uvloop" not in sys.modules:
+        raise exc_type(
+            f"uvloop 毒化条目被删除{where}：sys.modules 里已经没有 'uvloop' 键，"
+            "此刻可以重新 import。（承重的 import 审计拦截仍在，但毒化被动过说明有人在拆门。）"
         )
+    if sys.modules["uvloop"] is not None:
+        raise exc_type(f"uvloop 已在本进程被真实导入{where}：它走 libuv，不触发 socket.connect 审计事件。")
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
             policy_module = type(asyncio.get_event_loop_policy()).__module__ or ""
-    except Exception:  # noqa: BLE001 —— 拿不到 policy 不算证据，靠 sys.modules 那条
+    except Exception:  # noqa: BLE001 —— 拿不到 policy 不算证据，靠上面两条
         return
     if "uvloop" in policy_module:
-        raise RuntimeError(f"event loop policy 来自 uvloop（{policy_module}）：本门会静默失效。")
+        raise exc_type(f"event loop policy 来自 uvloop（{policy_module}）{where}：本门会静默失效。")
+
+
+def assert_not_uvloop() -> None:
+    """session 级复核（与用例边界同一套判据，异常类型不同）。"""
+    _assert_uvloop_closed(RuntimeError, "（session 复核）")
 
 
 def assert_test_uri_not_blocked() -> None:
-    """NEO4J_TEST_URI 指向受拦端口 = 配置事故，直接 fail 而不是悄悄放行。
+    """``NEO4J_TEST_URI`` 必须**显式**指向一个可证安全的测试端口。
 
-    刻意**不**做「把 NEO4J_TEST_URI 的端口从受拦集合里摘掉」——那会给出一条
-    「改个环境变量就能把门打开」的静默旁路。
+    R1 Codex BLOCKER：旧实现是 ``f":{port}" in uri`` 的子串判断，
+    ``bolt://127.0.0.1``（**不写端口**）能通过 —— 而 neo4j 驱动对缺省端口的解析
+    结果是 **7687**，正是现网默认端口。于是在有意 advisory 的
+    integration/e2e/real_neo4j 用例里，门会「按 advisory 放行」一条打向开发库的连接。
+
+    现在的判据是正面的：解析出端口 → 端口必须存在 → 且必须不在受拦集合里。
+    解析不出端口（含「压根没写端口」）一律拒绝，不再靠「没看见受拦端口的字样」
+    来推断安全。
     """
-    uri = os.environ.get("NEO4J_TEST_URI") or ""
-    for port in BLOCKED_PORTS:
-        if f":{port}" in uri:
-            raise RuntimeError(f"NEO4J_TEST_URI={uri!r} 指向受拦端口 {port}（现网库）。测试容器应当是 7692。")
+    uri = os.environ.get("NEO4J_TEST_URI")
+    if not uri:
+        return  # 没配测试容器 URI —— 不是本函数要管的事
+    port = _port_of_uri(uri)
+    if port is None:
+        raise RuntimeError(
+            f"NEO4J_TEST_URI={uri!r} 没有显式端口：驱动会用默认端口 7687，"
+            f"而 7687 正是受拦的现网默认端口。测试容器请写全，例如 bolt://127.0.0.1:7692。"
+        )
+    if port in BLOCKED_PORTS:
+        raise RuntimeError(f"NEO4J_TEST_URI={uri!r} 指向受拦端口 {port}（现网库）。测试容器应当是 7692。")
 
 
 def assert_neo4j_target_blocked() -> None:
@@ -616,8 +702,16 @@ _FINAL_REGISTERED = False
 
 
 def register_final_accounting() -> None:
-    """注册最终总账。``atexit`` 是 LIFO —— 本函数在 :func:`install` 里最早调用，
-    所以本处理器**最后**执行，位于 pytest 的全部清理与其它 ``atexit`` 之后。
+    """注册最终总账。
+
+    ⚠️ **不能**声称「在所有 atexit 之后执行」（R1 Codex HIGH-2 打回的过宽表述）。
+    ``atexit`` 是 LIFO：本处理器排在**本模块 import 之后**注册的回调后面，却排在
+    **本模块 import 之前**就已注册的回调**前面**。Codex 实测复现：先注册一个会发起
+    连接的 atexit 回调、再 import 本门 —— 最终总账先跑、看见零账、返回，随后那个旧
+    回调发起的连接被 audit 拦下，而进程仍然 ``exit 0``。
+
+    所以本处理器**进入时立刻置 :data:`_FINALIZING`**（不可逆）：此后 audit hook
+    一旦命中受拦端口，就地 ``os._exit(3)``，不再依赖任何后续的结账机会。
     """
     global _FINAL_REGISTERED
     if _FINAL_REGISTERED:
@@ -639,7 +733,14 @@ def _final_accounting() -> None:
     第八批 Codex HIGH：``pytest_cmdline_main`` 返回之后还有 pytest 自身的清理、
     其它 ``atexit`` 处理器和迟到线程 —— 那段窗口里被拦下的连接会被记账，进程
     却仍然 ``exit 0``，于是「任何未结账尝试都令测试失败」这句承诺不成立。
+
+    R1 Codex HIGH-2：本处理器**之后**仍可能有更早注册的 atexit 回调在跑
+    （见 :func:`register_final_accounting`）。所以第一件事是置不可逆的
+    :data:`_FINALIZING`：从这一刻起，audit hook 命中受拦端口就直接
+    ``os._exit(3)``，不再指望任何后续结账。
     """
+    global _FINALIZING
+    _FINALIZING = True
     ledger = STATE.ledger()
     path = os.environ.get(ENV_LEDGER)
     if path:

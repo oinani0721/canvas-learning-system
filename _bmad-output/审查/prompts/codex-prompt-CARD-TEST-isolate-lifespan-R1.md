@@ -4,6 +4,10 @@
 仓库根：`/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2`
 （只读；不要修改任何文件）。
 
+审查对象绑定：分支 `card/w4-safety-r2`，实现 commit **`86329c49`**
+（`git show --stat 86329c49` 可看全部改动面；`git diff 4a25578e..86329c49` 是完整 diff）。
+工作树在该 commit 上是 clean 的。
+
 ## 0. 这是什么，为什么存在
 
 这是一套**测试侧的安全护栏**，目标只有一个：让本机跑 pytest 时**不会连上开发者

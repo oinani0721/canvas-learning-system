@@ -56,21 +56,79 @@
 
 set -uo pipefail
 
-# ── 地基清理：顺序不能换 ────────────────────────────────────────────────
-# BASH_ENV 指定的文件在本行之前就已经被 source 了；清掉它只防后续 bash 子进程，
-# 真正拔掉其副作用靠下面的「unset 全部函数」。
+# ── 地基清理第一步：换一个干净解释器重新起（R1 Codex HIGH-5）──────────────
+#
+# 上一版只清了函数。实测仍可绕过：`BASH_ENV` 里 `shopt -s expand_aliases` +
+# `alias [=...`（别名在函数之前展开，且 unset -f 管不着）、`readonly -f` 的函数
+# （unset -f 直接失败）、以及 `trap ... EXIT`，都能篡改**控制流**而不是数据管道
+# —— 摘要自证只覆盖后者。实测形态：让 `[` 恒假 ⇒ 连 `-- 之后没有命令` 这道
+# 用法检查都通过，脚本空跑并输出 `RUNTIME-FILES: unchanged`、exit 0。
+#
+# 干净的解法不是继续往清单里加名字（那是「枚举白名单」式的必输游戏），而是
+# **用 env -i 重新 exec 自己**：新解释器没有 BASH_ENV、没有导出函数、没有别名、
+# 没有 trap、没有 readonly 变量。调用者的 PATH 用一个显式变量带过去，只给被包裹
+# 命令用。W4_SHA_GATE_REEXEC 是「已经重启过」的标记，防止无限递归。
+#
+# ⚠️ 刻意**不**用 `env -i`：被包裹命令（通常是 pytest）需要调用者的环境
+# （HOME / TMPDIR / locale / 项目自己的变量）。只摘注入面：`BASH_ENV`、`ENV`
+# 和全部 `BASH_FUNC_*`（导出函数就藏在这些变量里，`readonly -f` 的也一样）。
+# 判据用 `case` 而不是 `[` —— `[` 可以被 alias 劫持，而 `case` 是 shell 语法，
+# 劫持不了（这正是 R1 Codex HIGH-5 的攻击面）。
+case "${W4_SHA_GATE_REEXEC:-}" in
+  1) ;;
+  *)
+    W4_SHA_GATE_REEXEC=1
+    W4_SHA_GATE_CALLER_PATH="${PATH:-}"
+    export W4_SHA_GATE_REEXEC W4_SHA_GATE_CALLER_PATH
+    __unset_args=""
+    for __v in $(builtin compgen -e 2>/dev/null); do
+      case "$__v" in
+        BASH_FUNC_*) __unset_args="${__unset_args} -u ${__v}" ;;
+      esac
+    done
+    # shellcheck disable=SC2086 —— __unset_args 由 compgen 产出的变量名组成，需要分词
+    exec /usr/bin/env -u BASH_ENV -u ENV ${__unset_args} /bin/bash --noprofile --norc "$0" "$@"
+    ;;
+esac
+
+# ── 地基清理第二步：纵深防御（即使上面的 exec 被人绕过也照做一遍）──────────
 unset BASH_ENV ENV CDPATH
+builtin shopt -u expand_aliases 2>/dev/null || true
+builtin unalias -a 2>/dev/null || true
+builtin trap - EXIT HUP INT QUIT TERM ERR DEBUG RETURN 2>/dev/null || true
 # 枚举并清掉**全部** shell 函数（含 BASH_FUNC_* 导出进来的）。compgen 是 builtin。
 for __fn in $(builtin compgen -A function 2>/dev/null); do
   builtin unset -f "$__fn" 2>/dev/null || true
 done
 unset __fn
+# readonly 的函数 unset 不掉 —— 清完之后必须复核函数表是否真的空了。
+__leftover="$(builtin compgen -A function 2>/dev/null | /usr/bin/tr '\n' ' ')"
+if [ -n "${__leftover// /}" ]; then
+  builtin printf 'RUNTIME-FILES: GATE-BROKEN — 清不掉的 shell 函数仍在: %s\n' "$__leftover" >&2
+  exit 1
+fi
+unset __leftover
 # 恢复可能被 `enable -n` 关掉的 builtin —— 否则 printf/echo 会落到 PATH 上。
-builtin enable printf echo test [ read 2>/dev/null || true
+builtin enable printf echo test [ read cd pwd 2>/dev/null || true
 # 门自身的工具解析锁死在系统目录；被包裹命令另行恢复调用者 PATH（见下）。
-CALLER_PATH="${PATH:-}"
+CALLER_PATH="${W4_SHA_GATE_CALLER_PATH:-${PATH:-}}"
 PATH=/usr/bin:/bin:/usr/sbin:/sbin
 export PATH
+
+# ── 控制流自证：在信任任何条件判断之前，先证明条件判断本身没被改写 ──────────
+# 摘要自证（见下）只覆盖**数据管道**；这一段覆盖**控制流**。
+if [ "x" = "y" ] || ! [ "x" != "y" ] || [ -f "/nonexistent/w4-gate-probe" ]; then
+  builtin printf 'RUNTIME-FILES: GATE-BROKEN — 条件判断被改写（test/[ 不可信），本门的每一道判据都失效\n' >&2
+  exit 1
+fi
+for __b in printf echo test read cd pwd; do
+  if [ "$(builtin type -t "$__b" 2>/dev/null)" != "builtin" ]; then
+    builtin printf 'RUNTIME-FILES: GATE-BROKEN — %s 不是 builtin（当前是 %s）\n' \
+      "$__b" "$(builtin type -t "$__b" 2>/dev/null)" >&2
+    exit 1
+  fi
+done
+unset __b
 
 # ── 外部命令：绝对路径 + 存在性校验（不用 dirname/awk/grep）──────────────
 SHA_CANDIDATES=(/usr/bin/shasum /usr/bin/sha256sum /bin/sha256sum)

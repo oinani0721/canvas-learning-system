@@ -101,6 +101,45 @@ class TestBlockedPortsContract:
         monkeypatch.setenv("NEO4J_TEST_URI", "bolt://127.0.0.1:7692")
         guard.assert_test_uri_not_blocked()
 
+    def test_test_uri_without_explicit_port_is_rejected(self, monkeypatch):
+        """R1 Codex BLOCKER：不写端口 = 驱动用默认 7687 = 现网默认端口。
+
+        旧实现是 ``f":{port}" in uri`` 的子串判断，``bolt://127.0.0.1`` 通过检查，
+        于是 advisory 用例会把连接放给开发库。判据必须是正面的：端口必须存在。
+        """
+        monkeypatch.setenv("NEO4J_TEST_URI", "bolt://127.0.0.1")
+        with pytest.raises(RuntimeError, match="没有显式端口"):
+            guard.assert_test_uri_not_blocked()
+
+    def test_test_uri_unset_is_not_our_business(self, monkeypatch):
+        monkeypatch.delenv("NEO4J_TEST_URI", raising=False)
+        guard.assert_test_uri_not_blocked()
+
+
+class TestPortTrustworthiness:
+    """R1 Codex LOW：有状态的 ``__index__`` 会被求值两次（TOCTOU）。"""
+
+    def test_exact_int_is_trustworthy(self):
+        assert guard.port_is_trustworthy(("127.0.0.1", 7692)) is True
+
+    def test_index_object_is_not_trustworthy(self):
+        class Flaky:
+            def __init__(self):
+                self.n = 0
+
+            def __index__(self) -> int:
+                self.n += 1
+                return 7691 if self.n == 1 else 1
+
+        assert guard.port_is_trustworthy(("127.0.0.1", Flaky())) is False
+
+    def test_bool_is_not_an_exact_int(self):
+        # bool 是 int 子类，但当端口毫无意义；不给它「可信」的待遇
+        assert guard.port_is_trustworthy(("127.0.0.1", True)) is False
+
+    def test_non_tuple_address_is_out_of_scope(self):
+        assert guard.port_is_trustworthy("/tmp/sock") is True
+
 
 class TestExemption:
     def test_marker_exempts(self, tmp_path):
@@ -144,7 +183,31 @@ class TestGuardLiveness:
     def test_uvloop_is_poisoned(self):
         import sys
 
-        assert sys.modules.get("uvloop") is None, "uvloop 走 libuv，不触发 socket.connect 审计事件"
+        # key 必须**存在且为 None**：只判 `.get(...) is None` 的话，
+        # `del sys.modules["uvloop"]` 之后表达式恒成立，检查形同虚设
+        # （R1 Codex HIGH）。
+        assert "uvloop" in sys.modules, "毒化条目被删除 = 可以重新 import"
+        assert sys.modules["uvloop"] is None
+
+    def test_uvloop_key_removal_is_detected(self, monkeypatch):
+        """把毒化条目删掉，边界自证必须当场翻红（而不是「None is not None → 通过」）。"""
+        import sys
+
+        monkeypatch.delitem(sys.modules, "uvloop", raising=False)
+        with pytest.raises(guard.GuardDrift, match="毒化条目被删除"):
+            guard.assert_guard_live("unit test: uvloop key removed")
+
+    def test_uvloop_import_is_blocked_by_audit(self):
+        """承重的关门方式是 audit ``import`` 事件（摘不掉），不是 sys.modules 毒化。"""
+        import sys
+
+        saved = sys.modules.pop("uvloop", None)
+        try:
+            with pytest.raises(RuntimeError, match="uvloop 的 import 被本门拦下"):
+                sys.audit("import", "uvloop", None, None, None, None)
+        finally:
+            if saved is not None or "uvloop" not in sys.modules:
+                sys.modules["uvloop"] = saved
 
     def test_ledger_shape(self):
         led = guard.STATE.ledger()

@@ -236,6 +236,104 @@ def probe_audit_liveness_control() -> dict:
     return _run("audit-liveness-control", body, expect_rc=0)
 
 
+def probe_extract_port_mutation_detected() -> dict:
+    """R1 Codex HIGH-3：把 ``extract_port`` 改成恒返 None，自证必须当场翻红。
+
+    旧自证走的是一个**独立私有事件**，只证明「hook 对象还在链上」——
+    改坏端口解析之后自证照样通过、真实 loopback 连接照样成功、账本照样全零。
+    """
+    body = """
+    from tests.support import live_port_guard as g
+    srv, port = listener()
+    g.BLOCKED_PORTS = frozenset(g.BLOCKED_PORTS | {port})
+    g.install()
+    g.extract_port = lambda address: None      # 把端口解析打断
+    try:
+        g.assert_guard_live("probe")
+        verdict(False, "extract-port-mutation", "extract_port 被打断，自证却通过了")
+    except g.GuardDrift:
+        verdict(True, "extract-port-mutation")
+    finally:
+        srv.close()
+    """
+    return _run("extract-port-mutation", body, expect_rc=0)
+
+
+def probe_toctou_index_port() -> dict:
+    """R1 Codex LOW-17：有状态的 ``__index__``（第一次给受拦端口、第二次给 1）。"""
+    body = """
+    from tests.support import live_port_guard as g
+    srv, port = listener()
+    g.BLOCKED_PORTS = frozenset(g.BLOCKED_PORTS | {port})
+    g.install()
+    class Flaky:
+        def __init__(self): self.n = 0
+        def __index__(self):
+            self.n += 1
+            return port if self.n == 1 else 1
+    s = socket.socket()
+    try:
+        s.connect(("127.0.0.1", Flaky()))
+        verdict(False, "toctou-index-port", "二次求值端口对象连上了 —— TOCTOU 未关闭")
+    except RuntimeError as e:
+        if g.BLOCK_REASON in str(e):
+            verdict(True, "toctou-index-port")
+        else:
+            verdict(False, "toctou-index-port", "抛了但不是本门的原因: " + repr(e)[:120])
+    finally:
+        s.close(); srv.close()
+    """
+    return _run("toctou-index-port", body, expect_rc=3)
+
+
+def probe_uvloop_reimport_blocked() -> dict:
+    """R1 Codex HIGH-4：删掉毒化条目后重新 import uvloop，必须被 audit 拦下。"""
+    body = """
+    from tests.support import live_port_guard as g
+    g.install()
+    del sys.modules["uvloop"]                  # 把毒化条目摘掉
+    try:
+        import uvloop                          # noqa: F401
+        verdict(False, "uvloop-reimport", "毒化被摘掉后 uvloop 成功导入")
+    except RuntimeError as e:
+        if "uvloop 的 import 被本门拦下" in str(e):
+            verdict(True, "uvloop-reimport")
+        else:
+            verdict(False, "uvloop-reimport", "抛了但不是本门的原因: " + repr(e)[:120])
+    except ImportError:
+        verdict(False, "uvloop-reimport", "落到 ImportError —— 说明拦的是「装没装」而不是「不许装」")
+    """
+    return _run("uvloop-reimport", body, expect_rc=0)
+
+
+def probe_late_after_finalizing() -> dict:
+    """R1 Codex HIGH-2：在 import 本门**之前**注册的 atexit 回调里发起连接。
+
+    ``atexit`` 是 LIFO，那个回调排在最终结算**之后**执行 —— 旧实现下它被记账、
+    进程却仍 ``exit 0``（Codex 实测 ``LATE_BLOCKED_AFTER_FINAL True``）。
+    现在最终结算进入即置不可逆标志，此后命中受拦端口就地 ``os._exit(3)``。
+    """
+    body = """
+    srv, port = listener()
+    def very_late():
+        s = socket.socket()
+        try:
+            s.connect(("127.0.0.1", port))
+        except Exception:
+            pass
+        finally:
+            s.close()
+    atexit.register(very_late)                 # 先注册 ⇒ 最后执行（在最终结算之后）
+    from tests.support import live_port_guard as g
+    g.BLOCKED_PORTS = frozenset(g.BLOCKED_PORTS | {port})
+    g.install()
+    g.STATE.reported_status = 0                # 模拟 pytest 已返回 0
+    verdict(True, "late-after-finalizing")
+    sys.exit(0)
+    """
+    return _run("late-after-finalizing", body, expect_rc=3)
+
+
 def probe_require_blocked_target() -> dict:
     """``W4_GUARD_REQUIRE_BLOCKED_TARGET=1`` 且目标不在射程内 ⇒ 拒绝装门。"""
     body = """
@@ -357,18 +455,60 @@ def _sh(script: str, env_extra: dict | None = None) -> subprocess.CompletedProce
     return subprocess.run(["bash", "-c", script], cwd=BACKEND_DIR, env=env, capture_output=True, text=True, timeout=180)
 
 
+def _sh_direct(argv: list[str], env_extra: dict | None = None) -> subprocess.CompletedProcess:
+    """直接起门进程，**不**套一层 ``bash -c``。
+
+    控制流类注入必须这样测：``BASH_ENV`` 会被**每一个**非交互 bash 读取，套一层
+    ``bash -c`` 的话注入同时污染了外层包装 —— 外层的 EXIT trap 打印什么都跟门无关，
+    那是「把自己的 shell 装了炸弹」，不是门的缺陷。这里让门自己就是那个进程。
+    """
+    env = os.environ.copy()
+    if env_extra:
+        env.update(env_extra)
+    return subprocess.run(argv, cwd=BACKEND_DIR, env=env, capture_output=True, text=True, timeout=180)
+
+
 def probe_shell_injections() -> list[dict]:
-    """三类 shell 劫持后，门监视的仍必须是**真实**的 backend 路径。"""
+    """shell 劫持后，门要么给出**真实**结论，要么明确拒绝 —— 绝不能假绿。
+
+    分两类判据（R1 Codex HIGH-5 新增后三条）：
+
+    * **数据管道类**（假 dirname / 假 printf）：门应当照常工作，且输出里必须出现
+      **真实**的受监视路径 —— 说明劫持没改变它在看什么。期望 rc=0。
+    * **控制流类**（alias 令 ``[`` 恒假 / readonly 函数 / EXIT trap）：这些能让门
+      「跳过判据直接说 unchanged」。判据是**不得出现假绿**：要么正常工作，要么
+      带非零 rc 拒绝；绝不允许「没给命令却输出 unchanged 且 rc=0」。
+    """
     results: list[dict] = []
-    inject_file = Path(tempfile.mkdtemp(prefix="w4-bashenv-")) / "inject.sh"
-    inject_file.write_text(
+    tmp = Path(tempfile.mkdtemp(prefix="w4-bashenv-"))
+    fn_inject = tmp / "fn.sh"
+    fn_inject.write_text(
         "printf() { builtin printf '%s' '0000000000000000000000000000000000000000000000000000000000000000'; }\n"
         "export -f printf\n"
         "dirname() { builtin printf '%s' '///data/nonexistent'; }\n"
         "export -f dirname\n",
         encoding="utf-8",
     )
-    cases = [
+    alias_inject = tmp / "alias.sh"
+    alias_inject.write_text(
+        "shopt -s expand_aliases\nalias [='builtin test x = y ; builtin test'\n",
+        encoding="utf-8",
+    )
+    ro_inject = tmp / "readonly.sh"
+    ro_inject.write_text(
+        "dirname() { builtin printf '%s' '///data/nonexistent'; }\nreadonly -f dirname\nexport -f dirname\n",
+        encoding="utf-8",
+    )
+    trap_inject = tmp / "trap.sh"
+    trap_inject.write_text(
+        "trap 'builtin printf \"RUNTIME-FILES: unchanged\\n\"; builtin exit 0' EXIT\n",
+        encoding="utf-8",
+    )
+
+    expected_marker = str(BACKEND_DIR / "data/bug_log.jsonl")
+
+    # ── 数据管道类：必须照常工作且看的是真实路径 ──────────────────────────
+    pipeline_cases = [
         (
             "shell-fake-dirname",
             f"dirname() {{ builtin printf '%s' '///data/nonexistent'; }}; export -f dirname; "
@@ -382,10 +522,10 @@ def probe_shell_injections() -> list[dict]:
             f"bash {GATE} -- /usr/bin/true",
             None,
         ),
-        ("shell-bash-env", f"bash {GATE} -- /usr/bin/true", {"BASH_ENV": str(inject_file)}),
+        ("shell-bash-env", f"bash {GATE} -- /usr/bin/true", {"BASH_ENV": str(fn_inject)}),
+        ("shell-readonly-func", f"bash {GATE} -- /usr/bin/true", {"BASH_ENV": str(ro_inject)}),
     ]
-    expected_marker = str(BACKEND_DIR / "data/bug_log.jsonl")
-    for name, script, env_extra in cases:
+    for name, script, env_extra in pipeline_cases:
         proc = _sh(script, env_extra)
         ok = proc.returncode == 0 and expected_marker in proc.stdout and "RUNTIME-FILES: unchanged" in proc.stdout
         results.append(
@@ -399,7 +539,30 @@ def probe_shell_injections() -> list[dict]:
                 "stderr_tail": proc.stderr[-300:],
             }
         )
-    shutil.rmtree(inject_file.parent, ignore_errors=True)
+
+    # ── 控制流类：**不给命令**，门必须拒绝而不是空跑出 unchanged ────────────
+    control_cases = [
+        ("shell-alias-test-hijack", {"BASH_ENV": str(alias_inject)}),
+        ("shell-exit-trap-hijack", {"BASH_ENV": str(trap_inject)}),
+    ]
+    for name, env_extra in control_cases:
+        # 直接起门进程（见 _sh_direct 的说明）；故意不给 `--` 与命令
+        proc = _sh_direct(["bash", str(GATE)], env_extra)
+        fake_green = proc.returncode == 0 and "RUNTIME-FILES: unchanged" in proc.stdout
+        ok = not fake_green
+        results.append(
+            {
+                "name": name,
+                "ok": ok,
+                "rc": proc.returncode,
+                "expect_rc": "非 0 或不输出 unchanged",
+                "verdict": "空跑被拒绝" if ok else "空跑却输出 unchanged（假绿）",
+                "reason": "" if ok else f"rc=0 且输出 unchanged: {proc.stdout[-300:]}",
+                "stderr_tail": proc.stderr[-300:],
+            }
+        )
+
+    shutil.rmtree(tmp, ignore_errors=True)
     return results
 
 
@@ -465,7 +628,11 @@ def main() -> int:
         probe_lowlevel("connect_ex", "lowlevel-connect_ex"),
         probe_lowlevel("index", "lowlevel-__index__-port"),
         probe_real_blocked_port(),
+        probe_toctou_index_port(),
         probe_drift_reinstall(),
+        probe_extract_port_mutation_detected(),
+        probe_uvloop_reimport_blocked(),
+        probe_late_after_finalizing(),
         probe_plugin_import_installs(),
         probe_audit_liveness_control(),
         probe_require_blocked_target(),

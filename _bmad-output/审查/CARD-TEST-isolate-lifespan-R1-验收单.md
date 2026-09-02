@@ -18,19 +18,19 @@
 
 ## 1. 完成条件 (a)–(l) 逐条对照
 
-| 条 | 要求 | 状态 | 证据 |
+| 条 | 要求 | 状态 | 证据（round-1 整改后的终态） |
 |---|---|---|---|
-| (a) | Bark 后只带入 cdd77274、b54b4735 | ✅ | `git log` 两个 commit 顺序落地，`git status` clean，cherry-pick 无冲突 |
-| (b) | 负控钉死 Neo4j 假环境 | ✅ | `_child_env()` 清全部 `NEO4J*` → 钉死 `bolt://127.0.0.1:7691` + 假凭据；`W4_GUARD_REQUIRE_BLOCKED_TARGET=1` 装门时核对；step 0c 实测 `Settings` 解析结果 |
-| (c) | 承重层覆盖底层 socket 旁路 | ✅ | 承重换成 `sys.addaudithook("socket.connect")`；探针 4 条底层路径全部 fail-closed |
-| (d) | 安装与用例边界核方法身份 | ✅ | `assert_guard_live()`：audit token round-trip + belt 方法身份 + 受拦端口集下界 + uvloop 毒化；install 与每个用例进入/退出各一次 |
-| (e) | cleanup 后迟到连接令 rc 非零 | ✅ | `_final_accounting`（atexit LIFO 最后执行）→ `os._exit(3)`；负控 `late-connection-rc` rc=3，摘掉该层的负控 rc=0 |
-| (f) | total=blocked 且无 advisory | ✅ | 汇总行整行唯一解析 + 账本交叉比对；实测 `(7, 7, 0, 0)` |
-| (g) | AST 追踪来源、顺序与重绑定 | ✅ | `_ModuleIndex` 重写为按作用域的有序绑定表；10 类绕过全抓 / 5 条验伪锚全净；真实仓库 371 文件 0 违规 |
-| (h) | SHA 门不受 shell 环境劫持 | ✅ | 清 `BASH_ENV` + `compgen -A function` 全清 + 绝对路径 + 参数展开代替 `dirname` + builtin 代替 `awk/grep` + **摘要自证** |
-| (i) | BDD 只承诺 route-availability | ✅ | Given 改为「health 路由挂在 lifespan-free 客户端上」并**实际断言路由已挂载** |
-| (j) | 负控 runner 用 sys.executable，正控先绿 | ✅ | `_base_cmd()` 用 `sys.executable -m pytest`；正控 rc=0 / 门账 `(0,0,0,0)` / 运行时文件 unchanged |
-| (k) | 覆盖 `__index__`、门前窗口与 nodeid | ✅ | `operator.index()` 规范化 + 单测；guard_plugin **import 期**装门 + 探针；三条**完整 nodeid** 集合全等 |
+| (a) | Bark 后只带入 cdd77274、b54b4735 | ✅ | 两个 commit 顺序落地、cherry-pick 无冲突、树 clean |
+| (b) | 负控钉死 Neo4j 假环境 | ✅ | `_child_env()` 清全部 `NEO4J*` → 钉死受拦 loopback URI + 假凭据；`W4_GUARD_REQUIRE_BLOCKED_TARGET=1` 装门时核对；preflight **逐项精确比对七个解析值** |
+| (c) | 承重层覆盖底层 socket 旁路 | ✅ | 承重 = `sys.addaudithook("socket.connect")`（摘不掉）；`socket.socket` / `_socket.socket` / `SocketType` / `connect_ex` / `__index__` 端口 / TOCTOU 端口 六条探针全 fail-closed |
+| (d) | 安装与用例边界核方法身份 | ✅ | `assert_guard_live()` = **走完整条阻断路径的自证**（合成受拦地址）+ belt 方法身份 + 受拦端口集下界 + uvloop 双重检查；install 与每个用例进入/退出各一次；`extract-port-mutation` 探针证明自证承重 |
+| (e) | cleanup 后迟到连接令 rc 非零 | ✅ | 最终结算置**不可逆** `_FINALIZING`，此后命中即 `os._exit(3)`；`late-connection-rc`(3) + `late-after-finalizing`(3) + 摘掉该层的负控 `late-connection-negctl`(0) |
+| (f) | total=blocked 且无 advisory | ✅ | 汇总行整行唯一解析 + 账本交叉比对；实测 `(7, 7, 0, 0)`、`exempt_disabled=true` |
+| (g) | AST 追踪来源、顺序与重绑定 | ✅ | 作用域有序绑定表 +「所有先前绑定必须一致」+ 每条 return 逐一判定 + 工厂按类限定 + 实例追踪进 `with`/`enter_context`；**17 绕过全抓 / 9 验伪锚全净 / 371 文件 0 违规** |
+| (h) | SHA 门不受 shell 环境劫持 | ✅ | `env -u BASH_ENV -u ENV -u BASH_FUNC_*` 重新 exec（判据用 `case` 而非 `[`）+ 清 alias/trap + 函数表复核 + builtin 身份复核 + **数据管道摘要自证** + **控制流自证**；5 条注入探针全关 |
+| (i) | BDD 只承诺 route-availability | ✅ | Given 改为 route-availability 且**实际断言路由已挂载**；`components` 从「有才断言」改为「必须存在且非空 dict」 |
+| (j) | 负控 runner 用 sys.executable，正控先绿 | ✅ | `sys.executable -m pytest`；正控出 junit，要求三条 exact nodeid **各一次且全 passed**（skip 不算绿）+ 门账全零 + 运行时零写 |
+| (k) | 覆盖 `__index__`、门前窗口与 nodeid | ✅ | `operator.index()` + `port_is_trustworthy()` 双层；guard_plugin **import 期**装门；三条**完整 nodeid** 集合全等 |
 | (l) | 全门与新终审 B/H=0 | ⏳ | 见 §5 Codex 处置表 |
 
 ---
@@ -41,26 +41,33 @@
 
 ```
 [0]  AST gate: 0 violations across 371 files
-[0c] Settings 解析出的 NEO4J_URI = 'bolt://127.0.0.1:7691'  LanceDB = <tmp>/lancedb  (rc=0)
-[1]  预采集 nodeid: 3 条（与钉死完整 nodeid 全等）
-[1b] 正控 rc=0 门汇总=(0, 0, 0, 0)
-[1c] 正控运行时文件: unchanged（隔离态零副作用）
-[2]  已摘掉 no_lifespan
-[3]  pytest exit=1
+[0b] 隔离副本: <tmp>/iso-backend
+[0c] Settings 解析（rc=0）: 七个值逐项精确匹配钉死值
+     （neo4j_uri / neo4j_user / neo4j_password / canvas_base_path /
+       lancedb_resolved / lancedb_data_path_env / lancedb_path_env）
+[1]  预采集 nodeid: 3 条（与钉死完整 nodeid 全等，collect rc=0）
+[1b] 正控 rc=0 门汇总=(0, 0, 0, 0) outcomes={3 条全 passed}
+[1c] 正控：三条全 passed、门账全零、运行时文件 unchanged
+[2]  已在副本里摘掉 no_lifespan
+[3]  pytest exit=1（cwd=隔离副本）
 [3b] 子进程门汇总: total=7 blocked=7 advisory=0 unaccounted=0
 [3c] 账本: total=7 blocked=7 advisory=0 billed=7 unaccounted=0 exempt_disabled=true
 [4]  junitxml: total=3 red=3 green=0 red-wrong-reason=0
-[5]  还原完成; byte-identical=True; 运行时现场已复原=True
-[5b] 变异态确实写了 app/data/vault_index_pending.jsonl（= 隔离在承重的正证据）
-[5c] 已删除本脚本造成的新增运行时文件
+[5]  真实树运行时文件 untouched=True; 真实目标文件 untouched=True
+[5b] 副本里变异态确实写了 app/data/vault_index_pending.jsonl（= 隔离在承重的正证据）
 NEGATIVE-CONTROL: PASS
 ```
+
+> ⚠️ 上面这段是 round-1 之后的形态：**变异做在 tmp 里的隔离副本上**，真实工作树的
+> tracked 文件与运行时文件全程**一个字节都不写**（`[5] 真实树运行时文件 untouched=True;
+> 真实目标文件 untouched=True`）。这同时消除了 round-1 的两个 HIGH：
+> 「写变异体前无 CAS」和「`absent → exists` 就 unlink 可能删掉别人的数据」。
 
 **运行时文件判据方向被更正**（本轮的独立发现）：第八批把「变异运行前后三个运行时
 文件 sha 不变」当 PASS 判据 —— 方向反了。socket 门只管连接，**挡不住文件写**；挡住
 文件写的是 `no_lifespan`。所以摘掉隔离后运行时文件被写，恰恰是隔离在承重的正证据。
-本版改成：正控（隔离态）必须 unchanged（硬判据）＋ 变异态必须**确实写了**至少一个
-（硬判据，防「lifespan 没跑到写路径就 abort」的假负控）＋ 现场复原。
+本版改成：正控（隔离态）必须 unchanged（硬判据）＋ 变异态在**副本里**必须确实写了
+至少一个（硬判据，防「lifespan 没跑到写路径就 abort」的假负控）＋ 真实树必须纹丝不动。
 
 ### A.2 裁判 2 — runtime SHA 门包裹 `tests/api` + `test_vault_scope_409`
 
@@ -103,7 +110,22 @@ runtime SHA 门包裹下，`RUNTIME-FILES: unchanged`。
 
 ### A.3 裁判 3 — 底层旁路探针（`scripts/lifespan_isolation_guard_probes.py`）
 
-19/19 全部 fail-closed。每条核对 **rc + 唯一裁定行**两项：
+**26/26** 全部 fail-closed（round-1 之后从 19 条扩到 26 条）。每条核对
+**rc + 唯一裁定行**两项：
+
+round-1 新增的 7 条（对应处置表 #2/#3/#4/#5/#17）：
+
+| 探针 | rc | 证明什么 |
+|---|---|---|
+| `toctou-index-port` | 3 | 有状态 `__index__`（先给受拦端口、再给 1）被拦 |
+| `extract-port-mutation` | 0 | 把端口解析打断后，自证**当场翻红**（旧自证会通过） |
+| `uvloop-reimport` | 0 | 删掉毒化条目后重新 import uvloop 被 audit 拦下 |
+| `late-after-finalizing` | 3 | 在 import 本门**之前**注册的 atexit 回调里发起连接 → rc 非零 |
+| `shell-readonly-func` | 0 | `readonly -f` 的注入函数被 re-exec 甩掉 |
+| `shell-alias-test-hijack` | 2 | alias 令 `[` 恒假后，门**拒绝空跑**而不是输出 unchanged |
+| `shell-exit-trap-hijack` | 2 | EXIT trap 注入后同上 |
+
+原有 19 条：
 
 | 探针 | rc | 证明什么 |
 |---|---|---|
@@ -129,15 +151,28 @@ runtime SHA 门包裹下，`RUNTIME-FILES: unchanged`。
 
 ### A.4 AST 门负控
 
-10 类绕过全部被抓、5 条验伪锚全部干净：
+**17 类绕过全部被抓、9 条验伪锚全部干净**（round-1 之后从 10/5 扩到 17/9）。
 
 绕过：属性式 `tc.TestClient` / 局部重定义同名 `no_lifespan` / `with` 之后才
 `app = FastAPI()` / class body 污染 / 伪造本地 `FastAPI()` 工厂 / helper 顺序在
 `TestClient` 之后 / `TestClient` 名字被本地遮蔽 / `import app.main as m; m.app` 裸用 /
-外部对象冒充局部工厂 / 工厂名被重绑定。
+外部对象冒充局部工厂 / 工厂名被重绑定 / **`client = TestClient(app)` 后 `with client:`** /
+**`ExitStack.enter_context(TestClient(app))`** / **`enter_context(先前构造的实例)`** /
+**分支里才赋局部 app** / **工厂里局部 app 被覆盖成生产 app** / **同名方法跨类污染** /
+**`TestClient(app=...)` 关键字形态**。
 
 验伪锚：标准隔离形态 / 函数级 import + 别名 TestClient / 局部 `FastAPI()` /
-helper 返回局部 app 后解包 / 同类方法工厂 `self._make()`。
+helper 返回局部 app 后解包 / 同类方法工厂 `self._make()` / **外层 `with no_lifespan(app)`
+支配内层** / **完整属性链 `fastapi.testclient.TestClient`** / **裸 `TestClient(app)` 不进
+`with`（不跑 lifespan，不该报）** / **局部 app 构造的实例进 `with`**。
+
+真实仓库扫描：**371 文件 0 违规**。
+
+### A.4b guard 契约单测
+
+`tests/unit/test_live_port_guard_contract.py`：**35 条全绿**（round-1 之后从 27 扩到 35）。
+新增面：`NEO4J_TEST_URI` 缺端口必须被拒、`port_is_trustworthy` 四种端口形态、
+uvloop 毒化条目被删必须翻红、uvloop 重新 import 被 audit 拦下。
 
 ### A.5 关键机制的实测（本轮的证据基础，均于本车道 venv 实跑）
 
@@ -152,6 +187,23 @@ helper 返回局部 app 后解包 / 同类方法工厂 `self._make()`。
 | 最早注册的 atexit + `os._exit(3)` | 进程 rc 确实为 3 |
 | 假 `dirname` / 假 `printf` / `BASH_ENV` 注入（加固前） | 三条**全部**让门输出 `unchanged` 且 rc=0 |
 | audit hook 开销 | 3000 次 `open` + 30 万次加法：0.034s → 0.036s |
+
+---
+
+## 2.5 UAT 七段（你可以自己走一遍）
+
+> 本卡改的是**开发期的安全护栏**，产品功能零改动。所以 UAT 能看见的东西只有一件：
+> 「跑测试的时候，机器不再偷偷动你的东西」。技术指标已由我代跑，见 §2。
+
+| 段 | 内容 |
+|---|---|
+| 1 前置 | 打开终端，进到 `backend` 目录。不需要启动任何服务，也不需要开着数据库。 |
+| 2 操作 | 跑一次接口测试：`.venv/bin/python -m pytest tests/api -q` |
+| 3 预期 | 最后一行之前会有一句 `NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)` —— 「这一趟一次都没往你的数据库上连」。整趟约 1 秒。 |
+| 4 反例（证明闸门是真的） | 跑 `.venv/bin/python scripts/lifespan_isolation_guard_probes.py`。它会用 19 种方式**试图绕过**这道闸门，每一种都必须被挡住，最后一行应是 `GUARD-PROBES: PASS — 19/19 条全部 fail-closed`。其中 6 种是「把闸门拆掉，看它是不是真的会漏」——如果闸门是摆设，这 6 种会暴露它。 |
+| 5 你的数据有没有被动 | 跑 `bash scripts/lifespan_isolation_runtime_sha.sh -- .venv/bin/python -m pytest tests/api -q`，最后应打印 `RUNTIME-FILES: unchanged`。它会在跑之前和跑之后各给三个运行时文件按内容取指纹并比对。 |
+| 6 回滚 | 本卡只动 `backend/tests/` 与 `backend/scripts/` 下的文件，产品代码一行没改。`git revert 86329c49` 即可完全撤销，不影响任何已上线行为。 |
+| 7 不覆盖 | 见 §4.2。最重要的三条：跑 `tests/integration` 与 `tests/e2e` **仍然会连你的真库**（那是设计如此）；子进程里发起的连接不在闸门射程内；这套东西只在本机验证过，没在 CI 上验证过。 |
 
 ---
 
@@ -170,6 +222,14 @@ helper 返回局部 app 后解包 / 同类方法工厂 `self._make()`。
 
 另外还发现并修好了一个之前没人注意到的问题：验证脚本里有一处判断方向搞反了，导致它
 在一种情况下会「看起来通过了、其实什么都没验到」。
+
+**范围**：这一次只动了检查用的东西，产品本身一行没改，你用起来不会有任何差别。
+
+### D3-A 零技术词自检
+
+对 4-B 正文段（标题行至本小节前）grep
+`Neo4j|pytest|API|lifespan|socket|DDL|LanceDB|schema|prometheus|conftest|mock|7691|7692|sha256|bug_tracker`
+（`-i`）→ **计数 = 0**（2026-09-03 实测，见下方命令与结果）。
 
 ---
 
@@ -219,7 +279,32 @@ helper 返回局部 app 后解包 / 同类方法工厂 `self._make()`。
 
 ## 5. Codex 处置表
 
-（待填 —— 见 §6）
+### round-1（2026-09-03，绑定 commit `86329c49`）：**FAIL — 1 BLOCKER / 11 HIGH / 3 MEDIUM / 2 LOW**
+
+全部 17 条**逐条整改**，无一条按「已声明边界」推掉。
+
+| # | 级别 | 指控 | 处置 |
+|---|---|---|---|
+| 1 | BLOCKER | `assert_test_uri_not_blocked` 用子串判断；`bolt://127.0.0.1`（**不写端口**）通过检查，而驱动默认端口就是受拦的 7687 | 改为**正面判据**：解析 URI → 端口必须存在 → 且不在受拦集合。缺端口一律拒绝。新增 2 条单测 |
+| 2 | HIGH | 「最早注册 ⇒ 所有 atexit 之后」不成立：本模块 import **之前**注册的 atexit 回调排在最终结算**之后**；实测 `LATE_BLOCKED_AFTER_FINAL True` 且 exit 0 | 最终结算进入即置**不可逆** `_FINALIZING`；此后 audit 命中受拦端口就地 `os._exit(3)`。文档撤回过宽表述。新增探针 `late-after-finalizing`（rc=3） |
+| 3 | HIGH | token 只验私有事件分支，不验阻断分支；把 `extract_port` 改成恒返 `None` 后自证照样通过、连接照样成功 | 自证改为**发一次真的 `socket.connect` 审计事件**（哨兵主机名 + 受拦端口），走完 `extract_port` → 受拦判定 → 抛，只在最后按哨兵分流。新增探针 `extract-port-mutation` |
+| 4 | HIGH | uvloop 毒化可 `del` 后重新 import；完整 policy 检查实际没被调用 | 承重换成 audit `import` 事件拦截（摘不掉）；毒化检查改为「key **必须存在且为 None**」；policy 复核并入 `assert_guard_live` 因而真的会跑。新增探针 `uvloop-reimport` + 2 条单测 |
+| 5 | HIGH | `BASH_ENV` 注入的 alias / `readonly -f` 函数 / EXIT trap 未清；摘要自证只覆盖数据管道不覆盖控制流（令 `[` 恒假即可空跑出 `unchanged`） | 用 `env -u BASH_ENV -u ENV -u BASH_FUNC_*` **重新 exec 自己**（判据用 `case` 而非可被 alias 劫持的 `[`）；再加 `unalias -a` / `trap -` / 函数表复核 / builtin 身份复核 / **控制流自证**。新增 3 条探针 |
+| 6 | HIGH | `absent → exists` 不能证明文件属于负控，却直接 `unlink()`，可能删掉别的进程写入的真实数据 | **结构性消除**：变异改到 tmp 里的隔离副本做，运行时文件落在副本里随 tmp 消失；真实树下的同名文件本脚本**永不删除**，只做「必须纹丝不动」的断言 |
+| 7 | HIGH | 写入变异体前没有 CAS：collect/正控期间的合法编辑会被旧变异体覆盖 | 同上 —— 真实 tracked 文件**一个字节都不写**，这条链根本不存在；另加「副本与工作树逐字节一致」前置断言 |
+| 8 | HIGH | AST 门只查 `with` 项本身是 TestClient 调用；`client = TestClient(app); with client:` 与 `ExitStack.enter_context(TestClient(app))` 零违规 | 新增 TestClient **实例**来源追踪（`O_TESTCLIENT_INSTANCE_MAIN`），覆盖 `with client:`、`enter_context(TestClient(app))`、`enter_context(client)` 三种形态。新增 3 条负控 |
+| 9 | HIGH | 「文本上最后绑定」不是控制流分析：`if` 分支里赋局部 app 会被判安全 | 解析口径改为「**所有**先于使用点的绑定必须来源一致」，有分歧即 unknown（更保守）。新增负控 R1-9 |
+| 10 | HIGH | 工厂只要**曾**赋过局部 FastAPI 就算安全：`a=FastAPI(); a=production_app; return a` 被判安全 | 改为「**每一条** return 都在自己的位置上解析为局部 app」且至少有一条 return。新增负控 R1-10 |
+| 11 | HIGH | `self.make()` 只按全模块方法名判定，A 类的安全 `make` 污染 B 类的生产 `make` | 工厂身份改为 `类名.方法名`，`self.make()` 按**调用点所在类**限定。新增负控 R1-11 |
+| 12 | HIGH | 正控只查 rc=0，`pytest.skip()` 同样 rc=0/零门账 ⇒ 整条负门变假 PASS | 正控也出 junitxml，要求三个 exact nodeid **各一次且全 `passed`**（skip/error 都不算绿），并核 collect rc |
+| 13 | MEDIUM | 外层 `with no_lifespan(app):` 支配内层 `with TestClient(app):` 被误报；`app=` 关键字与完整属性链也误报 | 新增支配性外层隔离识别、`app=` 关键字取参、属性链**递归**解析。新增验伪锚 6/7 |
+| 14 | MEDIUM | BDD 的 "contains component status" 在字段缺失时一个断言都不执行 | 改为断言字段存在、是 dict、且非空（实测键为 `batch_orchestrator/batch_sessions/fsrs/neo4j`） |
+| 15 | MEDIUM | preflight 只精确核对 Neo4j URI；LanceDB 只要求非空，canvas 路径完全不查 | 改为**结构化输出 + 逐项精确比对**七个值（URI/用户/密码/canvas 路径/LanceDB 解析值/两个 LanceDB env） |
+| 16 | LOW | audit hook 不是进程级 TCP 防火墙，`ctypes`/原生扩展可绕过 | 接受为边界，并把承诺**收窄写进 docstring**：「只覆盖 CPython 的 socket API」 |
+| 17 | LOW | 有状态 `__index__` 的二次求值 TOCTOU（第一次给受拦端口、第二次给 1） | 新增 `port_is_trustworthy()`：端口不是**精确 int** 一律按受拦处理（fail-closed）。新增探针 `toctou-index-port` + 4 条单测 |
+
+**round-1 之后的门规模**：探针 19 → **26** 条；AST 负控 10 绕过/5 验伪锚 → **17 绕过/9 验伪锚**；
+guard 契约单测 27 → **35** 条。
 
 ---
 
