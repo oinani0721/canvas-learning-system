@@ -1394,7 +1394,7 @@ def _join_free(s: str) -> str:
 # ⛔ R3 round-5 (Codex round-4 HIGH-7): 表漏 `层/节/列/枚/步/级/则/回/幕/维`
 # ⇒ `本板共有987654层关系` 整句**零校验**。补入常用计数量词。
 # 仍是**封闭表**(与定界集、数词表同口径, 如实登记, 不宣称覆盖全部量词)。
-_D2_QUANT = r"[个条块次份处板项篇道张名位台件册组批轮遍趟人句行段点种类本页题章层节列枚步级则回幕维]"
+_D2_QUANT = r"[个条块次份处板项篇道张名位台件册组批轮遍趟人句行段点种类本页题章层节列枚步级则回幕维门套对场部只支株棵]"
 # ⛔ R3 round-3: 原 `_D2_COUNT_RE`(ASCII 专用取数式) 与 `_CJK_NUM_RUN_*`(CJK 专用)
 # 已**合并**为 `_COUNT_BEFORE_QUANT_RE` / `_NUM_RUN_RE`(见 _NUM_RUN_PAT 处)——
 # 按字符类分成两条循环正是「跨类/表外字符成为断点」的成因。两者删除而非保留:
@@ -1402,10 +1402,6 @@ _D2_QUANT = r"[个条块次份处板项篇道张名位台件册组批轮遍趟�
 # D2 的**适用句式**: 只查明确自称"全板/整体规模"的断言。
 # 判据从"值在池里"(碰撞) 换成"句式 + 值"(绑定) —— 这类句子的数字必须来自 scan,
 # 而普通叙述 (引用原话 / 序数 / 自指 / 同义量词) 不再被牵连。
-_D2_CLAIM_RE = re.compile(
-    r"(?:本板|全板|该板|这块板|整体)[^。；\n]{0,12}?(?:共有|共|总共|合计|一共|有)"
-    r"|(?:共有|总计|合计)\s*[0-9]"
-)
 # 小数形态的计数 (`0.987654 个`): 整体取出, 小数点前后都不该成为免检通道。
 _D2_DECIMAL_RE = re.compile(rf"[0-9]+\.[0-9]+{_D2_NOISE}(?={_D2_QUANT})")
 # 时间形态豁免 (E4): 先把它们挖空, 免得 "2026-08-27" 里的片段被当计数。
@@ -1427,7 +1423,10 @@ _D2_INLINE_CODE_RE = re.compile(
 # ⛔ E3 同理: wikilink 的**别名显示文本**是读者看得见的正文
 # (`[[节点/x|本板共有 987654 个子节点]]` 渲染出来就是那句话)。只豁免**目标部分**,
 # 别名部分留给 D2 校验。
-_D2_WIKILINK_RE = re.compile(r"\[\[[^\]\n|]*(?=[|\]])")
+# ⛔ R3 round-6 (Codex round-5 HIGH-8): 只在**有别名**时挖空目标 ——
+# 无别名的 `[[987654]]` 里, 目标本身就是读者看到的显示文本, 挖掉它等于把
+# 可见计数藏起来。无别名形态交给 _visible_text() 还原成显示文本。
+_D2_WIKILINK_RE = re.compile(r"\[\[[^\]\n|]*(?=\|)")
 _D2_ORDERED_LIST_RE = re.compile(r"^(\s*)\d+\.(\s)", re.M)
 # E6b · SKILL 模板里**逐字规定的固定短语**, 其中的数字是模板常量而非从数据算出的计数。
 # ⛔ 实测发现: 域倒转成 default-deny 后, live「递归与分治」报告的
@@ -1540,12 +1539,25 @@ _NUMERAL_LIKE_CHARS = "".join(
 )
 _NUM_RUN_PAT = rf"[{_NUMERAL_LIKE_CHARS}](?:{_D2_JOIN_ONE}*+[{_NUMERAL_LIKE_CHARS}])*"
 _NUM_RUN_RE = re.compile(_NUM_RUN_PAT)
+
+# ⛔ R3 round-6: 定义下移至此 —— 句式门现在引用 _NUMERAL_LIKE_CHARS（定界集），
+# 与取数**同源**；原位置在定界集之前，会前向引用。
+_D2_CLAIM_RE = re.compile(
+    r"(?:本板|全板|该板|这块板|整体)[^。；\n]{0,12}?(?:共有|共|总共|合计|一共|有)"
+    # ⛔ R3 round-6 (Codex round-5 HIGH-2): 原式只接受「空白 + ASCII 数字」,
+    # 于是 `总计五个子节点` / `总计：987654个` 渲染后是明确自陈却 is_claim=False。
+    # 放宽为: 冒号/空白任意, 其后是**任一数词样字符**(定界集, 与取数同源)。
+    rf"|(?:共有|总计|合计)[\s：:]*[{_NUMERAL_LIKE_CHARS}]"
+)
 # 量词前的计数: 整串 + 连接字符 + 量词前瞻。
 _COUNT_BEFORE_QUANT_RE = re.compile(rf"({_NUM_RUN_PAT}){_D2_JOIN_ONE}*(?={_D2_QUANT})")
 # :RANGE —— 区间式(E7)。端点用与普通计数**同一个** _NUM_RUN_PAT, 连字符两侧
 # 容连接字符, 量词共用 _D2_QUANT。端点判值走 _count_token_value(同一判据)。
+# ⛔ R3 round-6 (Codex round-5 HIGH-5): 分隔表补 `～〜−‑－`(全角波浪/减号/
+# 非断连字符/全角连字符) —— `987654～0个` 原不算区间, 于是只核右端 0。
+# 仍是**封闭表**, 如实登记。
 _D2_RANGE_RE = re.compile(
-    rf"({_NUM_RUN_PAT}){_D2_JOIN_ONE}*(?:[~\-—–]|到|至){_D2_JOIN_ONE}*"
+    rf"({_NUM_RUN_PAT}){_D2_JOIN_ONE}*(?:[~～〜\-－−‑—–]|到|至){_D2_JOIN_ONE}*"
     rf"({_NUM_RUN_PAT}){_D2_JOIN_ONE}*(?={_D2_QUANT})"
 )
 # ⛔ CJK 小数形态: `点` 在量词表里 (`3 点建议` 是合法量词用法), 于是
@@ -1566,6 +1578,48 @@ _CJK_DECIMAL_RE = re.compile(
 )
 
 
+# ⛔⛔ R3 round-6 —— 本卡五轮的**共同根因**收口。
+# 前五轮每一条 finding 都是同一句话的不同实例: **校验器工作在「源码文本」上, 而
+# 威胁定义在「渲染后读者看到的数」上**。`**` / `&nbsp;` / `<b>` / `&#46;` /
+# `&#xff19;` / 全角标点 / HTML 实体 / 无别名 wikilink / 长标签……源码到渲染的
+# 映射面是**开放集**, 逐个补归一化每轮都会冒出新代表 (HIGH 走势 5→3→7→10)。
+# ⇒ 不再逐个补, 改为在**最前面**跑一次 _visible_text(), 把源码推成读者看到的文本,
+#    此后所有判据都在**同一个文本空间**里工作。
+# 诚实边界: 这不是完整的 markdown 渲染器, 是**针对本域已知构造**的收敛器;
+# 仍是封闭集, 但收敛点从"每个判据各自防"变成"一处统一"。
+_VIS_TAG_RE = re.compile(r"<[^>\n]*>")
+_VIS_WIKILINK_ALIAS_RE = re.compile(r"\[\[[^\]\n|]*\|([^\]\n]*)\]\]")
+_VIS_WIKILINK_PLAIN_RE = re.compile(r"\[\[([^\]\n|]*)\]\]")
+_VIS_INVISIBLE_RE = re.compile(_INVISIBLE_ONE)
+_VIS_EMPHASIS_RE = re.compile(r"[*_~]")
+
+
+def _visible_text(line: str) -> str:
+    """源码行 → **读者在 Obsidian 里看到的文本**（本域收敛器，非完整渲染器）。
+
+    顺序有讲究（每一步都对应前几轮的一条实测 HIGH）：
+      1. **先解 HTML 实体**再做全角转换 —— 反过来会让 `&#xff19;` 解出 `９`
+         之后再没有机会转成 ASCII（round-5 HIGH-3 实测）;
+      2. 剥 HTML 标签 —— `<b>` 长度不限, 原先只有 ≤22 字符的短标签算连接字符;
+      3. wikilink 取**显示文本** —— 有别名取别名, 无别名取目标本身
+         （原实现把无别名链接的目标挖空, 而那正是读者看到的字, round-5 HIGH-8）;
+      4. 去零宽/双向控制字符;
+      5. 去强调标记 `*_~` —— 未配对时渲染可见, 这里一并去掉是**安全向**的过度
+         归一（查到的值 ⊇ 读者看到的数, 不构成虚构通道）。
+
+    ⚠️ **不碰 inline code**: `` `…` `` 的内容在本域是**有意豁免**的字段值
+    （E2, 见 _D2_INLINE_CODE_RE），不是"被隐藏的计数"。这是**声明过的设计选择**,
+    不是遗漏 —— 如实登记在验收单, 不在这里悄悄改语义。
+    """
+    line = html.unescape(line)
+    line = line.translate(_FULLWIDTH_DIGITS)
+    line = _VIS_TAG_RE.sub("", line)
+    line = _VIS_WIKILINK_ALIAS_RE.sub(r"\1", line)
+    line = _VIS_WIKILINK_PLAIN_RE.sub(r"\1", line)
+    line = _VIS_INVISIBLE_RE.sub("", line)
+    return _VIS_EMPHASIS_RE.sub("", line)
+
+
 def _normalize_number_seps(line: str) -> str:
     """千分位分隔符归一 —— **D2 与 fallback 共用**。
 
@@ -1575,12 +1629,9 @@ def _normalize_number_seps(line: str) -> str:
     ⚠️ 必须**删掉**分隔符而不是换成空格: 换成空格会让它落进连接集,
     虽然仍能拼回, 但诊断里会出现带空格的原串, 与"读者看到的数"错位。
     """
-    # ⛔ R3 round-5 (Codex round-4 HIGH-4): 先解 HTML 字符实体 —— 只特判
-    # `&nbsp;`/`&#160;` 时, `987654&#46;0个` 渲染成小数却只查尾片 `0`,
-    # `987654&#20010;` 渲染成 `987654个` 却连量词锚点都没有。html.unescape 把
-    # 校验文本推向**渲染后文本**, 与本域"读者看到的数才算数"的口径一致。
-    # ⚠️ 此处已过等长约束区间(见调用点注释), 长度变化无害。
-    line = html.unescape(line)
+    # ⛔ R3 round-6: 解 HTML 实体已上移到 _visible_text() —— 两个消费点都在最前面
+    # 跑它, 此处再解一次是**冗余**（且 `&amp;#46;` 会被双重解码成 `.`, 反而错）。
+    # 一个性质只应有一个实现位置; 留在这里就是死代码。
     # ⛔ R3 round-5 (Codex round-4 HIGH-3): 逗号两侧也可能夹连接字符 ——
     # `987654<b>,</b>000个` 渲染成 `987654,000个`, 原式(要求逗号紧邻数字)不命中。
     return re.sub(
@@ -1687,9 +1738,10 @@ def _verify_prose_counts(text: str, scan: dict, problems: list[str]) -> None:
             lambda mm: mm.group(1) + "  " + mm.group(2), body
         )
         for line in body.splitlines():
-            # 全角数字归一 (等长, 偏移不变): `９８７６５４ 个` 与 `987654 个` 同义,
-            # 换个写法不该换来免检。
-            line = line.translate(_FULLWIDTH_DIGITS)
+            # ⛔⛔ R3 round-6: **一次性**把源码行推成读者看到的文本(实体/标签/
+            # wikilink 显示文本/零宽/强调标记/全角数字), 此后所有判据都在同一个
+            # 文本空间里工作 —— 前五轮"逐个补归一化"的路线已被证明发散(见 _visible_text)。
+            line = _visible_text(line)
             # ⛔ 对抗审查 HIGH: 千分位与前导零把量级洗掉 —— `999,016 个` 只会被切成
             # 尾段 `016` 去比对, 于是①判决取决于该板恰好有没有 16, ②诊断报的数字是错的
             # (报 016 而报告写的是 999,016)。归一掉分隔符与前导零, 让比对对准真实量级。
@@ -1782,6 +1834,17 @@ def _verify_prose_counts(text: str, scan: dict, problems: list[str]) -> None:
                     f"(scan JSON 的计数均为整数, 小数不可能有出处): {line.strip()[:50]}"
                 )
             for m_cnt in _COUNT_BEFORE_QUANT_RE.finditer(line):
+                # ⛔ R3 round-6 (Codex round-5 HIGH-6): 负号不属于数串, 于是
+                # `本板共有-5个` 按 **+5** 比对 —— 进池值 ≠ 读者看到的数。
+                # scan 的计数都是非负整数, 负计数**不可能有出处** ⇒ 恒 FAIL。
+                if re.search(rf"[-−－‑]{_D2_JOIN_ONE}*$", line[: m_cnt.start(1)]):
+                    problems.append(
+                        f"数字终核: 『{sec}』段出现负数形态的计数 "
+                        f"-{_join_free(m_cnt.group(1))} "
+                        f"(scan JSON 的计数均为非负整数, 负数不可能有出处): "
+                        f"{line.strip()[:50]}"
+                    )
+                    continue
                 token = _join_free(m_cnt.group(1))
                 val = _count_token_value(token)
                 if val is None:
@@ -2045,7 +2108,8 @@ def _verify_fallback_derive_numbers(text: str, scan: dict, problems: list[str]) 
             # 路径**存在, fallback 直接对原行 findall 并逐片入池 —— `0.0个` /
             # `零点零个` 按 [0,0] 查池、`1,005个` 按 [1,5] 查池, 读者所见值与进池值
             # 不同 (实测 exit 0)。两条前处理下沉为共用。
-            norm = _normalize_number_seps(ln.translate(_FULLWIDTH_DIGITS))
+            # ⛔⛔ R3 round-6: 与 D2 侧**同一个**归一器, 同一个文本空间。
+            norm = _normalize_number_seps(_visible_text(ln))
             for m_dec in _DECIMAL_ANY_RE.finditer(norm):
                 problems.append(
                     f"数字终核: fallback 允许式({tag})行内出现小数形态 "

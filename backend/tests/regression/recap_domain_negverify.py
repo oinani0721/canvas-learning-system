@@ -8,6 +8,15 @@
   2. **变体必须禁掉该性质的全部防线**（MEMORY `reference_mutation_must_disable_all_layers`）：
      只退化一层时纵深防御会让测试仍绿，从而误判「门非承重」去改本来正确的测试。
   3. **还原后必须与备份逐字节相同**——这道自检本身抓出过"还原不干净"。
+  4. ⛔ **锚点匹配得上 ≠ 变异还禁得掉东西**（CARD-维护B-R3 两次踩中）：
+     · survivor-18：改锚点时改成了"保留原串"，但端点早已在 `_range_ok` **内部**
+       收集完毕，保留与否不影响上报 ⇒ **空变异**；
+     · survivor-22：round-6 把 `html.unescape` 从 `_normalize_number_seps` 移进
+       `_visible_text`，原变异锚点仍能匹配，但那一处已成冗余 ⇒ **空变异**。
+     两次都是脚本报「变异后仍全绿 = 该门不承重」才暴露的 —— 若脚本当时选择
+     静默跳过，它们会以「✅ 如期变红」的形式混进证据。
+     **规则：每当一个性质的实现位置移动，所有指向旧位置的变异都必须重新审视；
+     改锚点时不能只对齐文本形态，必须重新问一句「它现在还禁得掉什么」。**
 
 用法: python recap_domain_negverify.py   （无参数；退出码 0 = 全部如期变红）
 """
@@ -252,9 +261,9 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "survivor-19 (C-4) fallback 的千分位归一与小数防线被摘除（退回对原行直接 findall 逐片入池）",
         [
             (
-                "            norm = _normalize_number_seps(ln.translate(_FULLWIDTH_DIGITS))\n"
+                "            norm = _normalize_number_seps(_visible_text(ln))\n"
                 "            for m_dec in _DECIMAL_ANY_RE.finditer(norm):",
-                "            norm = ln.translate(_FULLWIDTH_DIGITS)\n            for m_dec in ():",
+                "            norm = _visible_text(ln)\n            for m_dec in ():",
             )
         ],
         "r7_range",
@@ -288,9 +297,16 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "r8_entities",
     ),
     (
-        "survivor-22 (C-5) HTML 字符实体不再规范化（&#46; / &#20010; 重新免检）",
-        [("    line = html.unescape(line)", "    line = line")],
-        "r8_entities",
+        "survivor-22 (C-5→6) HTML 字符实体不再规范化（&#46; / &#20010; / &#xff19; 重新免检）"
+        "；⚠️ round-6 把该性质从 _normalize_number_seps 移进了 _visible_text，"
+        "原变异随之变成**空变异**（锚点仍在但已禁不掉任何东西），锚点已重指",
+        [
+            (
+                "    line = html.unescape(line)\n    line = line.translate(_FULLWIDTH_DIGITS)",
+                "    line = line.translate(_FULLWIDTH_DIGITS)",
+            )
+        ],
+        "r8_entities or r9_visible",
     ),
     (
         "survivor-23 (C-5) 小数式左侧数串改回必需（`.5个` / `．五个` 重新免检）",
@@ -321,6 +337,57 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
             )
         ],
         "r8_entities",
+    ),
+    # ── R3 round-6 (Codex round-5 八条实现 HIGH): 五条**逐条单一性质**的变体 ──
+    (
+        "survivor-25 (C-6) 渲染归一整体停用（_visible_text 变恒等：实体/标签/wikilink/零宽全部复活）",
+        [
+            (
+                "    line = html.unescape(line)\n    line = line.translate(_FULLWIDTH_DIGITS)",
+                "    return line",
+            )
+        ],
+        "r9_visible",
+    ),
+    (
+        "survivor-26 (C-6) 解实体晚于全角转换（&#xff19; 停在全角 ９，永远转不成 ASCII）",
+        [
+            (
+                "    line = html.unescape(line)\n    line = line.translate(_FULLWIDTH_DIGITS)",
+                "    line = line.translate(_FULLWIDTH_DIGITS)\n    line = html.unescape(line)",
+            )
+        ],
+        "r9_visible",
+    ),
+    (
+        "survivor-27 (C-6) 句式门退回只认 ASCII 数字（裸『总计五个/总计：N』整句不进检查面）",
+        [
+            (
+                'rf"|(?:共有|总计|合计)[\\s：:]*[{_NUMERAL_LIKE_CHARS}]"',
+                'r"|(?:共有|总计|合计)\\s*[0-9]"',
+            )
+        ],
+        "r9_visible",
+    ),
+    (
+        "survivor-28 (C-6) 负数计数检查被摘除（`-5个` 按 +5 入池）",
+        [
+            (
+                '                if re.search(rf"[-−－‑]{_D2_JOIN_ONE}*$", line[: m_cnt.start(1)]):',
+                "                if False:",
+            )
+        ],
+        "r9_visible",
+    ),
+    (
+        "survivor-29 (C-6) wikilink 退回「无别名也挖空目标」（可见计数被藏起来）",
+        [
+            (
+                '_D2_WIKILINK_RE = re.compile(r"\\[\\[[^\\]\\n|]*(?=\\|)")',
+                '_D2_WIKILINK_RE = re.compile(r"\\[\\[[^\\]\\n|]*(?=[|\\]])")',
+            )
+        ],
+        "r9_visible",
     ),
 ]
 
@@ -353,7 +420,9 @@ def main() -> int:
     try:
         LOCK.mkdir()  # 原子互斥: 已存在即抛
     except FileExistsError:
-        print(f"⛔ 另一个负验证进程正在跑（锁: {LOCK}）。变异脚本必须串行——见脚本 docstring。")
+        print(
+            f"⛔ 另一个负验证进程正在跑（锁: {LOCK}）。变异脚本必须串行——见脚本 docstring。"
+        )
         return 2
     try:
         original = TARGET.read_bytes()
@@ -383,10 +452,14 @@ def main() -> int:
             finally:
                 TARGET.write_bytes(original)  # 立刻还原，异常也还原
             got = hashlib.sha256(TARGET.read_bytes()).hexdigest()
-            assert got == backup_sha, f"还原后字节与备份不同！{got[:12]} != {backup_sha[:12]}"
+            assert got == backup_sha, (
+                f"还原后字节与备份不同！{got[:12]} != {backup_sha[:12]}"
+            )
             # ⛔ 必须是"收集到用例 且 确实有失败"，不能只看 rc != 0
             if n == 0:
-                print(f"❌ {name}: `-k {keyword}` 一个用例都没匹配到（rc={rc}）——这不是变红")
+                print(
+                    f"❌ {name}: `-k {keyword}` 一个用例都没匹配到（rc={rc}）——这不是变红"
+                )
                 failures += 1
             elif f == 0:
                 print(f"❌ {name}: 变异后 {n} 个用例仍全绿 = 该门不承重\n{out}")
@@ -394,7 +467,9 @@ def main() -> int:
             else:
                 print(f"✅ {name}: 如期变红（{f}/{n} 失败）")
 
-        print(f"\n{'全部承重' if not failures else f'{failures} 条未承重'}（共 {len(MUTANTS)} 条变体）")
+        print(
+            f"\n{'全部承重' if not failures else f'{failures} 条未承重'}（共 {len(MUTANTS)} 条变体）"
+        )
         return 1 if failures else 0
     finally:
         LOCK.rmdir()

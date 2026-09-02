@@ -3953,3 +3953,117 @@ def test_domain_r8_entities_ranges_and_table_gaps_cli(tmp_path):
     for name, tok in (("fallback 单字", "五"), ("fallback ASCII", "3")):
         r = fb(tok)
         assert r.returncode == 0, f"合法形态被误伤（{name}）:\n{r.stdout}"
+
+
+# ── R3 round-6：Codex round-5 八条实现 HIGH 的整改 + **一次假设检验** ──────────
+# ⛔ 本轮最重要的产出不是修了 8 条，而是**证伪了车道自己的中心断言**。
+# 车道在 round-5 收口时写下：「五轮全部 finding 在『先渲染再核数』的设计下会
+# **同时消失**，因为它们共享『源码与渲染不一致』这一个前提」。
+# round-6 把 `_visible_text()` 真正实现出来并实测：**10 条里只闭合 3 条**
+# （标记/实体/千分位），其余 7 条与渲染无关——是**封闭表**（量词 `门`、区间
+# 分隔符 `～`）、**判据正则过窄**（`总计五个` / `总计：`）、**负号**、
+# **有意豁免**（inline-code）、**顺序问题**（wikilink 在归一前已被挖空）。
+# ⇒ 那句「同时消失」是**未经检验就写进结论的断言**，已按实测更正为 3/10。
+
+
+def test_domain_r9_visible_text_and_round5_closures_cli(tmp_path):
+    """R3 round-6：渲染归一 + 六处非渲染缺口，逐条锁住。
+
+    **它证明什么**：
+      · `_visible_text()` 把 HTML 实体（含 `&#xff19;` 这类全角实体，**先解实体
+        再转全角**，顺序反了就永远转不成 ASCII）、HTML 标签、无别名 wikilink 的
+        显示文本、零宽字符、强调标记统一归一到"读者看到的文本"；
+      · 句式门 `总计/合计/共有` 其后接**任一数词样字符**（原只认 ASCII 数字，
+        `总计五个` / `总计：987654个` 整句不进检查面）；
+      · 区间分隔符含全角波浪等变体；负数计数恒 FAIL；量词表补常用字。
+    **它不证明什么**：三张表（数词/量词/分隔符）**仍是封闭表**；
+    `_visible_text` **不是完整 markdown 渲染器**，是针对本域已知构造的收敛器；
+    inline code 内容是**有意豁免**的字段值（E2 设计选择），本门不覆盖。
+    """
+    rs = _load_recap_scan()
+    # 归一器单元契约：顺序错了 `&#xff19;` 就会停在全角 `９`（round-5 HIGH-3）
+    assert rs._visible_text("&#xff19;&#xff18;") == "98", "解实体必须早于全角转换"
+    assert rs._visible_text("987654<b>-</b>0") == "987654-0"
+    assert rs._visible_text("[[987654]]") == "987654", (
+        "无别名 wikilink 的目标就是显示文本"
+    )
+    assert rs._visible_text("[[节点/A|五]]") == "五", "有别名时显示的是别名"
+    assert rs._visible_text("98​7") == "987", "零宽字符不得切断数串"
+
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    pool = _load_recap_scan()._derived_number_pool(scan)
+    assert 5 in pool and 987654 not in pool, f"前提失效: {sorted(pool)}"
+    report = write_report(vault, scan)
+    base_text = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+
+    def d2(line: str):
+        text = base_text.replace("## 三维审查", f"## 三维审查\n\n{line}", 1)
+        assert text != base_text, "变异未命中：报告一字未改，这条门测的是空气"
+        report.write_text(text, encoding="utf-8")
+        return run_verify(report)
+
+    for name, line, needles in (
+        (
+            "实体全角数字",
+            "- 本板共有&#xff19;&#xff18;&#xff17;&#xff16;&#xff15;&#xff14;个子节点。【实测】",
+            ("找不到同值来源", "987654"),
+        ),
+        (
+            "千分位后三位内部再切",
+            "- 本板共有987654,0<b>0</b>0个子节点。【实测】",
+            ("找不到同值来源", "987654000"),
+        ),
+        (
+            "标记切断的裸『总计』",
+            "- 总计**987654**个子节点。【实测】",
+            ("找不到同值来源", "987654"),
+        ),
+        (
+            "冒号式裸『总计』",
+            "- 总计：987654个子节点。【实测】",
+            ("找不到同值来源", "987654"),
+        ),
+        (
+            "无别名 wikilink",
+            "- 本板共有[[987654]]个子节点。【实测】",
+            ("找不到同值来源", "987654"),
+        ),
+        (
+            "全角波浪区间",
+            "- 本板共有987654～0个子节点。【实测】",
+            ("区间端点", "987654"),
+        ),
+        ("负数计数", "- 本板共有-5个子节点。【实测】", ("负数形态", "-5")),
+        (
+            "量词表补『门』",
+            "- 本板共有987654门课程。【实测】",
+            ("找不到同值来源", "987654"),
+        ),
+        # 句式门真的进了检查面（而非恰好放行）——多字/表外都必须 fail-closed
+        (
+            "裸『总计』+多字数词",
+            "- 总计九十八万个子节点。【实测】",
+            ("无法解析", "九十八万"),
+        ),
+        ("裸『合计』+表外数词", "- 合计：廿五个子节点。【实测】", ("无法解析", "廿五")),
+    ):
+        r = d2(line)
+        assert r.returncode != 0, f"{name} 被放行:\n{r.stdout}"
+        assert _one_problem_has(r.stdout, *needles), (
+            f"{name}: 诊断未绑定 {needles}:\n{r.stdout}"
+        )
+
+    # 放行面（同权重）：收紧不得反噬
+    for name, line in (
+        ("裸『总计』+值在池的单字", "- 总计五个子节点。【实测】"),
+        ("单字在池", "- 本板共有五个子节点。【实测】"),
+        ("ASCII 在池", "- 本板共有3个子节点。【实测】"),
+        ("合法区间", "- 建议覆盖 2~3 个节点。【实测】"),
+        ("`点` 的正当量词用法", "- 本板共有3点建议。【实测】"),
+        ("round-5 原始误伤 十分", "- 说明十分清楚。【实测】"),
+        ("round-5 原始误伤 一致", "- 统计口径尚未一致。【实测】"),
+    ):
+        r = d2(line)
+        assert r.returncode == 0, f"合法形态被误伤（{name}）:\n{r.stdout}"
