@@ -2486,11 +2486,21 @@ def test_source_inside_closed_html_comment_blocks_deletion(tmp_path):
         # ⛔ 第五轮终审 HIGH：frontmatter 里的 YAML 注释被 `startswith("#")` 跳过，
         # 既不进 unparsed_fm 也不进 map，唯一来源写在那儿照样被确定删除。
         ("fm里YAML注释.md", "---\n# source: https://fm-comment.example/p\ntitle:\n---\n"),
+        # ⛔ 第六轮终审 HIGH（R6-H1）：**行尾** YAML 注释同样被剥掉且没人收。
+        # 与整行注释、跨行 HTML 注释是同一件事：引擎剥掉了内容就该说出来。
+        ("fm行尾注释.md", '---\ntitle: "" # source: https://inline.example/only\n---\n'),
         ("注释里的URL重复件.md", "<!-- source: https://only-here.test/p -->\n" + body),
     ):
         mk(inbox / name, text, age_days=6)
-    # ⛔ 正向对照(验伪锚): 没有注释的骨架 → 仍 C3 确定删除
+    # ⛔ 正向对照(验伪锚): 没有注释的空骨架 → 仍 C3 确定删除
     mk(inbox / "无注释骨架.md", "# \n\n## \n", age_days=3)
+    # ⛔ 正向对照: 合法 source + 行尾注释 → 仍 C1。判据排在信号之前,
+    # 信号⑩ 扩到行尾注释后不得把它抢走(既有门 yaml_inline_comment 的语义)。
+    mk(
+        inbox / "C1带行尾注释.md",
+        '---\nsource: "https://ok.test/x" # 官方来源\n---\n',
+        age_days=2,
+    )
 
     assert run_cli(vault, out).returncode == 0
     data = load_json(out)
@@ -2503,6 +2513,7 @@ def test_source_inside_closed_html_comment_blocks_deletion(tmp_path):
         "注释里的URL重复件.md",
         "多行注释来源.md",
         "fm里YAML注释.md",
+        "fm行尾注释.md",
     ):
         it = item_by_name(data, name)
         assert it["verdict"] != "建议删", f"{name} 被确定删除了: {it['basis']}"
@@ -2514,6 +2525,9 @@ def test_source_inside_closed_html_comment_blocks_deletion(tmp_path):
     ctrl = item_by_name(data, "无注释骨架.md")
     assert ctrl["criterion"] == "C3_empty_or_skeleton", ctrl["basis"]
     assert ctrl["verdict"] == "建议删"
+    c1 = item_by_name(data, "C1带行尾注释.md")
+    assert c1["criterion"] == "C1_source_url", f"信号⑩ 不得抢在判据前面: {c1['basis']}"
+    assert "官方来源" not in c1["basis"], c1["basis"]
 
 
 def test_invisible_chars_are_detected_by_category_not_enumeration(tmp_path):

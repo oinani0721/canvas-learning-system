@@ -1281,8 +1281,19 @@ def nominate(
     # 被上面的 `startswith("#")` 当注释跳过，既不进 unparsed_fm 也不进 map ——
     # 唯一来源写在那儿的文件照样被判空骨架确定删除。与信号⑩同源（引擎剥掉了
     # 内容就该说出来），故并入同一条信号，不新开一条。
+    # ⛔ 第六轮终审 HIGH（R6-H1）：**行尾** YAML 注释同样被剥掉且没人收 ——
+    # `title: "" # source: https://…` 的唯一来源静默消失，C3/C4 双出口全穿。
+    # 与整行注释、跨行 HTML 注释是同一件事：**引擎剥掉了内容就该说出来**。
+    # 剥注释的口径与 `_clean_fm_value` 逐字同源（`\s+#` —— 要求 `#` 前有空白，
+    # 免得把值里的 `#` 当注释），两处不同判就会又出现一个「看写法决定保护」的缝。
     fm_comment_lines = [
         ln.strip() for ln in fm_lines if ln.strip().startswith("#") and ln.strip("# \t")
+    ] + [
+        m.group(1).strip()
+        for ln in fm_lines
+        if not ln.strip().startswith("#")
+        and (m := re.search(r"\s+#\s*(.+?)\s*$", ln))
+        and m.group(1).strip()
     ]
     # 未消化信号之四：边界规则拒掉的 AI 自述嫌疑（裸子串在场即算，见 raw_ai_marker）。
     ai_suspect = raw_ai_marker(text)
