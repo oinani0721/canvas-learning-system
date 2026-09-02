@@ -2164,15 +2164,18 @@ def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> No
         and not (_stripped[_n] if _n < len(_stripped) else "").strip()
         for _n in range(len(raw_lines))
     ]
-    # ⛔ R3 round-28（冻结审查 v9）：round-27 的两式还差两处 ——
-    #    · **合法的 0-3 格前导缩进** ATX 标题不识别（`   ## 台账` 能逃出绑定面）；
-    #    · `\s*#*` 会误认 `### 种子###` —— ATX 闭合序列前**必须有空白**，
-    #      否则那几个井号是标题文本的一部分，读者看到的标题并非精确「种子」。
-    _ATX_CLOSE = r"(?:[^\S\n]+#+)?[^\S\n]*$"
-    _H2_LEDGER_RE = re.compile(
-        r"^ {0,3}##[^\S\n]+台账[^\S\n]*(?:[（(][^）)]*[）)])?" + _ATX_CLOSE
-    )
-    _H3_SEED_RE = re.compile(r"^ {0,3}###[^\S\n]+种子" + _ATX_CLOSE)
+    # ⛔ R3 round-29（冻结审查 v10）：round-28 我在这里**自己写了两式**
+    #    （`^ {0,3}##\s+台账…`、闭合井号…），而 `_SECTION_RE` 的 docstring 里
+    #    **明写着**「存在性检查与下游定位**必须共用本函数** —— 两处口径一旦不同，
+    #    就会出现『算在场却定位不到』的缝隙」。我正好犯了它警告的那件事：
+    #      · `## 台账（x`（未闭合括号）—— 必需段门认在场，我的式子不认 ⇒
+    #        种子校验器拿到零个 section 直接返回，`999` 完全不绑定；
+    #      · 反向，我新接受的 `   ## 台账` / `## 台账 ###` 又会被必需段门拒绝。
+    #    ⇒ **改回共用 `_SECTION_RE`**。缩进标题与 ATX 闭合井号两侧**一致地不接受**：
+    #      写成那样的报告会被必需段门直接判 FAIL，整体仍是 fail-closed。
+    #      要放宽就得改 `_SECTION_RE` 本体，让两侧同时动 —— 不在本轮范围。
+    _H2_LEDGER_RE = re.compile(_SECTION_RE("## 台账"))
+    _H3_SEED_RE = re.compile(_SECTION_RE("### 种子"))
     _under_ledger = False
     sections: list[tuple[int, int]] = []
     _i = 0
@@ -2180,12 +2183,15 @@ def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> No
         if _in_fence[_i]:
             _i += 1
             continue
-        if re.match(r"^ {0,3}##[^\S\n]", vis_lines[_i]):
+        if re.match(r"^##[^\S\n]", vis_lines[_i]):
             _under_ledger = bool(_H2_LEDGER_RE.match(vis_lines[_i]))
         if _under_ledger and _H3_SEED_RE.match(vis_lines[_i]):
             _j = _i + 1
-            while _j < len(vis_lines) and not re.match(
-                r"^ {0,3}#{2,3}[^\S\n]", vis_lines[_j]
+            # ⛔ round-29（冻结审查 v10）：终点扫描原先**不判围栏** ⇒ 围栏内的
+            #    `## 假标题` 会提前截断小节，真闭栏之后的可见冲突行完全不再遍历。
+            #    「小节内跳过围栏」上一轮只保护了消费行，没保护小节**终点**。
+            while _j < len(vis_lines) and not (
+                not _in_fence[_j] and re.match(r"^#{2,3}[^\S\n]", vis_lines[_j])
             ):
                 _j += 1
             sections.append((_i + 1, _j))

@@ -4962,7 +4962,11 @@ def test_domain_r23_seed_scope_fence_and_tail_render_cli(tmp_path):
         ),
         # ③ 父级 H2 与 H3 标题判定
         ("## 非台账示例\n\n### 种子\n\n自由叙述。\n\n## 末\n", None, "`## 非台账示例` 下的同名小节不得被套模板"),
-        ("## 台账\n\n### 种子 ###\n\n- SeedA — 批注 999 条\n\n## 末\n", "999", "`### 种子 ###` 合法 ATX 闭合须识别"),
+        # ⛔ round-29（冻结审查 v10）：这条原写「须识别」—— 那是 round-27 我**自造第二套
+        #    口径**的产物。`_SECTION_RE` 是段落标题的唯一口径，它**不接受** ATX 闭合井号；
+        #    两侧一致地不接受才没有「算在场却定位不到」的缝隙。整体仍 fail-closed：
+        #    这样写的报告会被**必需段门**判 FAIL（下面 CLI 面另有断言）。
+        ("## 台账\n\n### 种子 ###\n\n- SeedA — 批注 999 条\n\n## 末\n", None, "`### 种子 ###` 与全局口径一致地不接受"),
         ("## 台账\n\n###种子\n\n- SeedA — 批注 999 条\n\n## 末\n", None, "`###种子` 非法 ATX 不得命中"),
         # ④ 角色收窄
         (L("- DerivedX — 批注 5 条"), "不在 scan JSON", "派生节点混进种子小节须报"),
@@ -5029,10 +5033,11 @@ def test_domain_r24_fence_closer_atx_and_tail_prefix():
         (L("- SeedA — 批注 2 条（共批注 999 条）"), "尾巴里又出现", "尾巴 `共批注`", None),
         (L("- SeedA — 批注 2 条（已批注 999 条）"), "尾巴里又出现", "尾巴 `已批注`", None),
         (L("- SeedA — 批注 2 条（未批注 999 条）"), None, "反向：`未批注` 不得误伤", None),
+        # ⛔ round-29：同上 —— `_SECTION_RE` 不接受前导缩进，两侧一致地不接受。
         (
             "   ## 台账\n\n   ### 种子\n\n- SeedA — 批注 999 条\n\n## 末\n",
-            "999",
-            "合法 0-3 格缩进 ATX 标题须识别",
+            None,
+            "缩进 ATX 标题与全局口径一致地不接受（整体由必需段门 fail-closed）",
             None,
         ),
         (
@@ -5060,3 +5065,63 @@ def test_domain_r24_fence_closer_atx_and_tail_prefix():
         else:
             assert ps, f"{why}：应报错却放行"
             assert any(want in p for p in ps), f"{why}：诊断未含 {want!r} —— {ps!r}"
+
+
+def test_domain_r25_section_criterion_unified_cli(tmp_path):
+    """R3 round-29（冻结审查 v10）：段落标题**唯一口径** + 围栏内假标题不截断小节。
+
+    ⛔ `_SECTION_RE` 的 docstring 明写：「存在性检查与下游定位**必须共用本函数** ——
+    两处口径一旦不同，就会出现『算在场却定位不到』的缝隙」。round-28 我在种子扫描里
+    **自己写了两式**，正好犯了它警告的那件事：
+
+      · `## 台账（x`（未闭合括号）—— 必需段门认在场，我的式子不认 ⇒ 种子校验器
+        拿到零个 section 直接返回，`999` **完全不绑定**；
+      · 反向，我新接受的 `   ## 台账` / `## 台账 ###` 又会被必需段门拒绝。
+
+    ⇒ 改回共用 `_SECTION_RE`。缩进标题与 ATX 闭合井号两侧**一致地不接受**：
+    写成那样的报告会被必需段门直接判 FAIL（本门第 ④ 段端到端验证），整体 fail-closed。
+    要放宽就得改 `_SECTION_RE` 本体让两侧同时动 —— 不在本轮范围。
+
+    **它证明什么**：口径分叉的两个方向都堵上；围栏内假标题不再截断小节；
+    「不接受缩进标题」在 CLI 全链路上是 fail-closed 而非漏网。
+    **它不证明什么**：不证明 `_SECTION_RE` 的接受集与 CommonMark 一致
+    （它**不**接受合法的 0-3 格缩进与 ATX 闭合序列）—— 那是**声明过的统一口径**，
+    要改需连同全部消费方一起改，如实登记。
+    """
+    rs = _load_recap_scan()
+    S = {"ledger": {"seeds": [{"node_id": "SeedA", "tips_count": 2}]}}
+
+    def run(text: str) -> list[str]:
+        ps: list[str] = []
+        rs._verify_seed_ledger_counts(text, S, ps)
+        return ps
+
+    # ① 口径分叉的正向：必需段门认在场的形态，种子绑定也必须认
+    ps = run("## 台账（x\n### 种子\n- SeedA — 批注 999 条\n\n## 末\n")
+    assert any("999" in p for p in ps), f"`## 台账（x` 下的冲突行未绑定：{ps!r}"
+    # 与全局口径同源（漂移即被抓）
+    import re as _re
+
+    assert _re.match(rs._SECTION_RE("## 台账"), "## 台账（x"), "前提：必需段门确实接受该形态"
+
+    # ② 围栏内的假标题不得截断小节
+    ps = run("## 台账\n\n### 种子\n\n```\n## 假标题\n```\n\n- SeedA — 批注 999 条\n\n## 末\n")
+    assert any("999" in p for p in ps), f"围栏内假标题截断了小节：{ps!r}"
+
+    # ③ 一致地不接受（两侧同口径）
+    for text, why in (
+        ("   ## 台账\n\n   ### 种子\n\n- SeedA — 批注 999 条\n\n## 末\n", "缩进 ATX 标题"),
+        ("## 台账\n\n### 种子 ###\n\n- SeedA — 批注 999 条\n\n## 末\n", "ATX 闭合井号"),
+    ):
+        assert run(text) == [], f"{why}：与全局口径不一致地被接受了"
+
+    # ④ 端到端：不接受 ≠ 漏网 —— 必需段门必须把这种报告判 FAIL
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    report = write_report(vault, scan)
+    base = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+    mt = re.search(r"^## 台账.*$", base, re.M)
+    assert mt, "前提：报告必须含『## 台账』段"
+    report.write_text(base.replace(mt.group(0), "   " + mt.group(0), 1), encoding="utf-8")
+    assert run_verify(report).returncode != 0, "缩进 `## 台账` 的报告未被必需段门拒 —— 那样「不接受」就成了漏网"

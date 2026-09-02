@@ -686,6 +686,26 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         ],
         "r24_fence_closer",
     ),
+    (
+        "survivor-59 (C-32) 种子小节的段落标题口径退回自造式（与 _SECTION_RE 分叉）",
+        [
+            (
+                '    _H2_LEDGER_RE = re.compile(_SECTION_RE("## 台账"))',
+                '    _H2_LEDGER_RE = re.compile(r"^ {0,3}##[^\\S\\n]+台账[^\\S\\n]*$")',
+            )
+        ],
+        "r25_section_criterion",
+    ),
+    (
+        "survivor-60 (C-33) 小节终点扫描不再判围栏（围栏内假标题提前截断小节）",
+        [
+            (
+                '                not _in_fence[_j] and re.match(r"^#{2,3}[^\\S\\n]", vis_lines[_j])',
+                '                re.match(r"^#{2,3}[^\\S\\n]", vis_lines[_j])',
+            )
+        ],
+        "r25_section_criterion",
+    ),
 ]
 
 
@@ -819,7 +839,7 @@ def run_suite(keyword: str) -> tuple[int, str, int, int, bool]:
     return r.returncode, out[-400:], passed + failed, failed, crash
 
 
-MUTANT_COUNT_EXPECTED = 58
+MUTANT_COUNT_EXPECTED = 60
 """变体数的**独立**期望值。
 
 ⛔ 冻结审查 v6：脚本原先只在结尾动态打印「共 N 条」—— 误删一个变体仍会成功退出。
