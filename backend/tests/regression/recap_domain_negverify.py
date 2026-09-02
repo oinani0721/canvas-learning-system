@@ -306,8 +306,8 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "原变异随之变成**空变异**（锚点仍在但已禁不掉任何东西），锚点已重指",
         [
             (
-                "    line = html.unescape(line)\n    line = line.translate(_FULLWIDTH_DIGITS)",
-                "    line = line.translate(_FULLWIDTH_DIGITS)",
+                "    line = html.unescape(line)",
+                "    line = line  # MUTANT-22: 不解实体",
             )
         ],
         "r8_entities or r9_visible",
@@ -347,7 +347,7 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "survivor-25 (C-6) 渲染归一整体停用（_visible_text 变恒等：实体/标签/wikilink/零宽全部复活）",
         [
             (
-                "    line = html.unescape(line)\n    line = line.translate(_FULLWIDTH_DIGITS)",
+                "    line = html.unescape(line)",
                 "    return line",
             )
         ],
@@ -357,9 +357,13 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "survivor-26 (C-6) 解实体晚于全角转换（&#xff19; 停在全角 ９，永远转不成 ASCII）",
         [
             (
-                "    line = html.unescape(line)\n    line = line.translate(_FULLWIDTH_DIGITS)",
+                "    line = html.unescape(line)",
+                "    line = line  # MUTANT-26",
+            ),
+            (
+                "    line = line.translate(_FULLWIDTH_DIGITS)",
                 "    line = line.translate(_FULLWIDTH_DIGITS)\n    line = html.unescape(line)",
-            )
+            ),
         ],
         "r9_visible",
     ),
@@ -601,8 +605,8 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "survivor-51 (C-24) 台账种子行的值绑定退回 raw 文本（manifest 模式下「留正确行 + 加渲染等价冲突行」逃逸）",
         [
             (
-                "    vis_text = _visible_block(text)",
-                "    vis_text = text",
+                "    vis_lines = [_visible_text(_ln) for _ln in raw_lines]",
+                "    vis_lines = raw_lines",
             )
         ],
         "r20_seed_ledger",
@@ -747,6 +751,46 @@ def run_suite(keyword: str) -> tuple[int, str, int, int]:
     return r.returncode, out[-400:], passed + failed, failed, crash
 
 
+MUTANT_COUNT_EXPECTED = 52
+"""变体数的**独立**期望值。
+
+⛔ 冻结审查 v6：脚本原先只在结尾动态打印「共 N 条」—— 误删一个变体仍会成功退出。
+期望值必须来自**另一个来源**才能验伪（本卡反复吃过"期望抄自被测物"的亏）。
+改这个数 = 明确声明"我知道自己在增删变体"。
+"""
+
+
+def preflight() -> list[str]:
+    """开跑前的**锚点预检**（秒级）—— 失败即停，不进 40 分钟长流程。
+
+    ⛔ 「性质一搬家、旧锚点静默失效」在本卡发生了 **6 次**，每次代价固定：
+    改实现 → 跑满一轮 → 跑到那一条才报「未命中」→ 重锚 → 再跑一轮。
+    **发现成本远高于修复成本，且发现得越晚越贵。**
+
+    ⚠️ 能力边界（round-25 如实声明，冻结审查 v6 指出）：
+      · 「恰好命中一次」只证明**文本定位唯一**；
+      · **不**证明该位置可达、替换非空、或确实禁掉了目标防线 ——
+        「锚点仍命中但变异已为空」在本卡真实发生过（见 铁律 4 / 铁律 5）。
+      · 它是**必要非充分**条件：能挡住漂移，挡不住空变异。
+    """
+    bad: list[str] = []
+    if len(MUTANTS) != MUTANT_COUNT_EXPECTED:
+        bad.append(f"变体数 {len(MUTANTS)} ≠ 期望 {MUTANT_COUNT_EXPECTED}（增删变体须同步改期望值）")
+    ids = [n.split()[0] for n, _s, _k in MUTANTS]
+    if len(set(ids)) != len(ids):
+        dup = sorted({i for i in ids if ids.count(i) > 1})
+        bad.append(f"变体 ID 重复: {dup}")
+    src = TARGET.read_text(encoding="utf-8")
+    for name, subs, _kw in MUTANTS:
+        for old, new in subs:
+            hits = src.count(old)
+            if hits != 1:
+                bad.append(f"{ids[[n for n, _s, _k in MUTANTS].index(name)]}: 锚点命中 {hits} 次（须恰好 1）")
+            elif old == new:
+                bad.append(f"{ids[[n for n, _s, _k in MUTANTS].index(name)]}: 替换前后相同 = 空变异")
+    return bad
+
+
 def main() -> int:
     try:
         LOCK.mkdir()  # 原子互斥: 已存在即抛
@@ -754,6 +798,13 @@ def main() -> int:
         print(f"⛔ 另一个负验证进程正在跑（锁: {LOCK}）。变异脚本必须串行——见脚本 docstring。")
         return 2
     try:
+        _bad = preflight()
+        if _bad:
+            print("⛔ 锚点预检失败（不跑长流程）：")
+            for _b in _bad:
+                print("   -", _b)
+            return 2
+        print(f"✅ 锚点预检通过：{len(MUTANTS)} 条变体，锚点均恰好命中一次且替换非空\n")
         original = TARGET.read_bytes()
         backup_sha = hashlib.sha256(original).hexdigest()
 

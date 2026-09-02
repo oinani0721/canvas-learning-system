@@ -4566,7 +4566,11 @@ def test_domain_r17_freeze_v2_bounded_highs_cli(tmp_path):
     # ④ 字符域必须与区间主表同源（漂移即被抓）
     # ⛔ round-23：此前只枚举 5 个，漏掉六种横线；且区间正则当时**手抄了第二份表**，
     #    所谓「同源」并不成立。现从 `_D2_RANGE_SEPS` 逐字符双向锁：两个消费面都必须覆盖。
-    assert len(rs._D2_RANGE_SEPS) >= 11, f"分隔表被缩水: {rs._D2_RANGE_SEPS!r}"
+    # ⛔ round-25：`len >= 11` 不锁**互异**，11 个重复字符也能过（冻结审查 v6）。
+    assert len(set(rs._D2_RANGE_SEPS)) >= 11, f"分隔表互异字符不足: {rs._D2_RANGE_SEPS!r}"
+    assert len(set(rs._D2_RANGE_SEPS)) == len(rs._D2_RANGE_SEPS), (
+        f"分隔表有重复字符（多半是手抄漏了）: {rs._D2_RANGE_SEPS!r}"
+    )
     for ch in rs._D2_RANGE_SEPS:
         assert rs._codespan_is_visible_count(f"2{ch}3个"), (
             f"区间分隔符 {ch!r} 不在 code span 字符域里 ⇒ 可见区间被整段豁免"
@@ -4757,7 +4761,18 @@ def test_domain_r20_seed_ledger_visible_in_manifest_cli(tmp_path):
     #    还在逐行 `_visible_text`）。生产已统一，这里按**调用点计数**锁住，
     #    漂移（有人又写回内联 join）即被抓。
     _src = pathlib.Path(rs.__file__).read_text(encoding="utf-8")
-    assert _src.count("_visible_block(") >= 5, "_visible_block 的消费方少于预期（定义 1 + 消费 4）⇒ 有人写回了内联 join"
+    # ⛔ round-25（冻结审查 v6）：原判据 `>=5` 会假绿 —— 文本共出现 6 次
+    #    （定义 1 + 真实调用 4 + 注释 1），删掉任一真实调用仍剩 5，门继续绿。
+    #    改为**按调用形态计数**：排除定义行与注释行后，真实调用须恰好 4 处。
+    _call_lines = [
+        _l
+        for _l in _src.splitlines()
+        if "_visible_block(" in _l and not _l.lstrip().startswith("#") and not _l.lstrip().startswith("def ")
+    ]
+    # ⚠️ round-25：seed 的值绑定改用**逐行数组**（比整块 join 更强：下标即同源行），
+    #    于是它不再调 `_visible_block` ⇒ 真实调用点由 4 降为 3（③段/五元组/形状门）。
+    #    期望值随实现改，但必须是**确切数**，不能写 `>=`（那正是上一版假绿的原因）。
+    assert len(_call_lines) == 3, f"_visible_block 真实调用点应为 3 处，实得 {len(_call_lines)}：{_call_lines!r}"
     # ⚠️ 判据必须**计数**，不能靠「删掉函数名再查子串」—— 删名字不删函数体，
     #    helper 自己的那行 join 照样命中（第一版就这么错的，门当场变红）。
     #    恰好 1 处 = 只存在于 `_visible_block` 的定义里。
@@ -4801,8 +4816,18 @@ def test_domain_r21_seed_node_identity_same_space():
         ("- Seed_A — 批注 2 条", A_AND_UA, None, "遮蔽碰撞：精确身份 + 数字对 ⇒ 放行"),
         ("- Seed_A — 批注 999 条", A_AND_UA, "999", "遮蔽碰撞：数字错 ⇒ 必须报数字不符，不得错绑到 SeedA"),
         ("- Seed_A — 批注 2 条", TWO_UA, None, "误伤面：精确身份不得被归一撞车拒掉"),
-        ("- Seed**A** — 批注 999 条", TWO_UA, "不在 scan JSON", "节点名被切开但 raw 仍可解析 ⇒ 身份不在 ledger"),
-        ("- SeedA — 批注 2 条\n- Seed**A** — 批注 999 条", ONLY_A, "不在 scan JSON", "双行逃逸（节点名被切开）"),
+        (
+            "- Seed**A** — 批注 999 条",
+            TWO_UA,
+            "无法确定",
+            "节点名被切开：raw 精确未命中后**继续**走归一候选，撞车 ⇒ fail-closed",
+        ),
+        (
+            "- SeedA — 批注 2 条\n- Seed**A** — 批注 999 条",
+            ONLY_A,
+            "999",
+            "双行逃逸（节点名被切开）⇒ 退归一候选后报数字不符",
+        ),
         ("- SeedA — 批注 2 条\n- SeedA — 批**注** 999 条", ONLY_A, "999", "双行逃逸（谓语被切开 ⇒ 走归一路径）"),
         ("- SeedA — 批**注** 999 条", TWO_UA, "无法确定", "真归一撞车 ⇒ fail-closed 不猜"),
     ):

@@ -1262,7 +1262,13 @@ def _verify_signals_if_present(text: str, scan: dict, problems: list[str]) -> No
 _SEED_LEDGER_LINE_RE = re.compile(
     r"^[>\s]*-\s+(?P<node>\S.*?)\s+—\s+"
     r"(?:批注\s*(?P<n>\d+)\s*条|(?P<none>无批注))"
-    r"(?P<rest>\s*[；;·].*)?\s*$"
+    # ⛔ R3 round-25（冻结审查 v6 + 真实报告实测）：`rest` 原先只接受以
+    #   `；/;/·` 开头的尾巴，而**线上真实报告**的尾巴是 `（理解度未闭环 3 条）；…`
+    #   —— 以全角括号开头 ⇒ 整条不匹配 ⇒ 走 `continue` **静默跳过、从未绑值**。
+    #   也就是说这道"绑值"检查在真实数据上一直没生效。放宽 rest 的起始字符集，
+    #   让它们真正进入绑定（覆盖面**扩大**，不是放松）。
+    #   ⚠️ rest 内部仍是 `.*`，尾巴里再写一个数不受本绑定管 —— 如实登记。
+    r"(?P<rest>\s*[（(【\[；;·].*)?\s*$"
 )
 
 # ── CARD-维护B-R2 (d): fallback 派生允许式（从 _verify_report 局部提为模块级） ──
@@ -1758,6 +1764,12 @@ def _visible_text(line: str) -> str:
     不是遗漏 —— 如实登记在验收单, 不在这里悄悄改语义。
     """
     line = html.unescape(line)
+    # ⛔ R3 round-25（冻结审查 v6）：`html.unescape` 会把 `&#10;` / `&#13;` /
+    #    `&NewLine;` 解成**真换行** ⇒ 一行变多行，`_visible_block` 号称的
+    #    「行数与顺序不变」当场失效，而 seed 的 raw/visible **按下标配对**
+    #    正依赖这个不变式。⇒ 行内解出的换行一律折成空格：单行的渲染结果
+    #    仍是单行，不变式才是真的。
+    line = line.replace("\r\n", " ").replace("\n", " ").replace("\r", " ")
     line = line.translate(_FULLWIDTH_DIGITS)
     line = _VIS_TAG_RE.sub("", line)
     line = _VIS_WIKILINK_ALIAS_RE.sub(r"\1", line)
@@ -2067,23 +2079,29 @@ def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> No
     #    continue，绑定被跳过。**fallback 模式**下有形状门兜底（这正是我上一轮
     #    『未复现』的原因），但 **manifest 模式没有那层门** —— 两条实测 exit 0。
     #    与③段信号行、五元组的双行逃逸完全同型，第三次。
-    # ⛔ R3 round-24（冻结审查 v5）：round-23 的「先精确匹配 raw id」是个**自相矛盾
-    #    的前提** —— `node` 取自已归一的行, 对含 `_`/`*` 的名字**永远不可能**命中
-    #    raw 表。审查方给出两个后果, 一漏一误伤:
-    #      · ledger 同时有 `SeedA` 与 `Seed_A` 时, 报告里的 raw `Seed_A` 归一成
-    #        `SeedA` ⇒ **直接错绑到另一个节点**, 撞车检查被跳过, 错的批注数放行;
-    #      · ledger 有 `Seed_A` 与 `Se_edA` 时, 报告里**精确正确**的 `Seed_A`
-    #        归一后撞车 ⇒ 合法身份被拒。
-    #    ⇒ 正解: **身份取自还能解析的最原始形态**。raw 与 visible 逐行并列
-    #      (`_visible_block` 保证行数与顺序不变), 先用 raw 行解析; raw 行解析得出
-    #      = 身份精确, 直接用; 只有 raw 行解析不出(被排版切开的冲突行)才退到归一行,
-    #      那时才谈归一撞车。
-    seed_raw = re.search(r"^### 种子\s*$(.*?)(?=^#{2,3}[^\S\n]|\Z)", text, re.M | re.S)
-    vis_text = _visible_block(text)
-    mseed = re.search(r"^### 种子\s*$(.*?)(?=^#{2,3}[^\S\n]|\Z)", vis_text, re.M | re.S)
-    if not mseed:
+    # ⛔ R3 round-25（冻结审查 v6）：round-24 用**两次独立 re.search** 分别在 raw
+    #    与 visible 上取段，再按下标配对 —— 未验证两边选中的是**同一小节**；且
+    #    `_visible_block` 的拼接依赖「行数不变」这个当时**并不成立**的不变式
+    #    （`&#10;` 解出换行）。另外只处理**首个** `### 种子`，一个正确的诱饵小节
+    #    就能遮住后面的冲突小节。
+    #    ⇒ 改为：**一次切行**，raw 与 visible 是同一份 list 的逐行映射（下标即同源
+    #      行，不可能错配）；小节按 visible 标题识别（兼容被排版切开的标题）并
+    #      **逐个**处理，不再只取第一个。
+    raw_lines = text.splitlines()
+    vis_lines = [_visible_text(_ln) for _ln in raw_lines]
+    sections: list[tuple[int, int]] = []
+    _i = 0
+    while _i < len(vis_lines):
+        if re.match(r"^###\s*种子\s*$", vis_lines[_i]):
+            _j = _i + 1
+            while _j < len(vis_lines) and not re.match(r"^#{2,3}\s", vis_lines[_j]):
+                _j += 1
+            sections.append((_i + 1, _j))
+            _i = _j
+        else:
+            _i += 1
+    if not sections:
         return
-    raw_lines = seed_raw.group(1).splitlines() if seed_raw else []
     groups = scan.get("ledger")
     rows: list[dict] = []
     if isinstance(groups, dict):
@@ -2096,68 +2114,69 @@ def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> No
         problems.append("数字终核: scan JSON 无可用 ledger, 台账『种子』行无法绑定")
         return
     tips_by_node = {str(r.get("node_id")): r.get("tips_count") for r in rows}
-    # ⛔ R3 round-23（冻结审查 v4，本轮引入的**语义范围泄漏**）：round-22 把整个
-    #    小节交给 `_visible_block` 之后，行里取到的节点名已是**归一后**的，却仍拿去
-    #    对 **raw** `node_id` —— 而 `_visible_text` 无条件删 `_` / `*`，节点名规则
-    #    并不禁它们。实测 `Seed_A` 归一成 `SeedA` ⇒ 两个后果，第二个更坏：
-    #      ① 合法报告被误拒（报"节点不在 ledger 里"）；
-    #      ② **值绑定被整条跳过** —— 写错的批注数反而不再报数字错。
-    #    ⇒ 身份必须在**同一空间**比较：先精确匹配 raw id；不中则退到归一空间；
-    #      归一后**撞车**（两个不同 raw id 归一成同一个）时 fail-closed，不猜。
+    # 归一空间的候选索引：只在 raw 行解析不出时才用（round-25）
     vis_index: dict[str, list[str]] = {}
     for _raw_id in tips_by_node:
         vis_index.setdefault(_visible_text(_raw_id), []).append(_raw_id)
-    vis_lines = mseed.group(1).splitlines()
-    for _i, ln in enumerate(vis_lines):
-        if not ln.strip():
-            continue
-        # 身份优先取自 **raw 行**（同下标；raw 段可能缺失或行数不齐时安全退化）
-        raw_ln = raw_lines[_i] if _i < len(raw_lines) else ""
-        raw_ms = _SEED_LEDGER_LINE_RE.match(raw_ln)
-        ms = _SEED_LEDGER_LINE_RE.match(ln)
-        if not ms:
-            continue  # 形状问题由 _verify_report 的模板白名单报, 此处不重复
-        if raw_ms:
-            # raw 行本身就解析得出 ⇒ 身份精确，不进归一空间（也就不会被归一撞车误伤）
-            node = raw_ms.group("node").strip()
-            if node in tips_by_node:
-                key = node
-                want = tips_by_node[key]
-                got = 0 if raw_ms.group("none") else int(raw_ms.group("n"))
-                if got != want:
-                    problems.append(
-                        f"数字终核: 台账『种子』行 {key} 报批注 {got} 条, "
-                        f"scan JSON 的 tips_count 是 {want} (形状对不等于数字有据)"
-                    )
+    for _lo, _hi in sections:
+        for _k in range(_lo, _hi):
+            ln = vis_lines[_k]
+            if not ln.strip():
                 continue
-            problems.append(
-                f"数字终核: 台账『种子』行的节点 {node!r} 不在 scan JSON 的 ledger 里 "
-                "(台账不得列出未扫描到的节点)"
-            )
-            continue
-        # 走到这里 = raw 行解析不出（被排版切开的行）⇒ 只能在归一空间找身份
-        node = ms.group("node").strip()
-        cands = vis_index.get(node) or []
-        if len(cands) > 1:
-            problems.append(
-                f"数字终核: 台账『种子』行的节点 {node!r} 归一后同时对应 "
-                f"{sorted(cands)!r} —— 无法确定是哪一个, 不猜 (fail-closed)"
-            )
-            continue
-        if not cands:
-            problems.append(
-                f"数字终核: 台账『种子』行的节点 {node!r} 不在 scan JSON 的 ledger 里 "
-                "(台账不得列出未扫描到的节点)"
-            )
-            continue
-        key = cands[0]
-        want = tips_by_node[key]
-        got = 0 if ms.group("none") else int(ms.group("n"))
-        if got != want:
-            problems.append(
-                f"数字终核: 台账『种子』行 {key} 报批注 {got} 条, "
-                f"scan JSON 的 tips_count 是 {want} (形状对不等于数字有据)"
-            )
+            raw_ln = raw_lines[_k]  # 同一下标 = 同一源行（一次切行保证）
+            raw_ms = _SEED_LEDGER_LINE_RE.match(raw_ln)
+            ms = _SEED_LEDGER_LINE_RE.match(ln)
+            if not ms and not raw_ms:
+                # ⛔ R3 round-25（冻结审查 v6）：原先静默 `continue`，理由是"形状问题
+                #    由 _verify_report 的模板白名单报" —— 但那道白名单**只在 fallback
+                #    路径**上跑，**manifest 模式没有兜底**，于是种子小节里任何不匹配
+                #    模板的行（含 `批注 999 条&#10;x` 这种尾巴）整条免检。
+                #    ⇒ 本函数自己 fail-closed：小节内的非空行必须是标准模板行。
+                problems.append(
+                    f"数字终核: 台账『种子』小节出现非模板行 (每行须为 "
+                    f"`- <节点> — 批注 N 条` 或 `- <节点> — 无批注`): {ln.strip()[:60]}"
+                )
+                continue
+            if not ms:
+                ms = raw_ms
+            if raw_ms:
+                node = raw_ms.group("node").strip()
+                if node in tips_by_node:
+                    key = node
+                    got = 0 if raw_ms.group("none") else int(raw_ms.group("n"))
+                    want = tips_by_node[key]
+                    if got != want:
+                        problems.append(
+                            f"数字终核: 台账『种子』行 {key} 报批注 {got} 条, "
+                            f"scan JSON 的 tips_count 是 {want} (形状对不等于数字有据)"
+                        )
+                    continue
+                # ⛔ round-25: raw 精确未命中**不等于**身份非法 —— ledger id 为 `A&B`
+                #    而报告合法写成 `A&amp;B` 时，读者看到的是同一个名字。原实现
+                #    在这里直接报错，不再尝试唯一的归一候选 ⇒ 合法用法误伤。
+                #    改为**继续往下**走归一候选（唯一才绑，撞车仍 fail-closed）。
+            node = ms.group("node").strip()
+            cands = vis_index.get(node) or []
+            if len(cands) > 1:
+                problems.append(
+                    f"数字终核: 台账『种子』行的节点 {node!r} 归一后同时对应 "
+                    f"{sorted(cands)!r} —— 无法确定是哪一个, 不猜 (fail-closed)"
+                )
+                continue
+            if not cands:
+                problems.append(
+                    f"数字终核: 台账『种子』行的节点 {node!r} 不在 scan JSON 的 ledger 里 "
+                    "(台账不得列出未扫描到的节点)"
+                )
+                continue
+            key = cands[0]
+            want = tips_by_node[key]
+            got = 0 if ms.group("none") else int(ms.group("n"))
+            if got != want:
+                problems.append(
+                    f"数字终核: 台账『种子』行 {key} 报批注 {got} 条, "
+                    f"scan JSON 的 tips_count 是 {want} (形状对不等于数字有据)"
+                )
 
 
 def _verify_numbers(fm: str, text: str, report_path: Path, problems: list[str]) -> None:
