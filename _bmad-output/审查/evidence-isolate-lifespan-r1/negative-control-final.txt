@@ -1,20 +1,20 @@
 === lifespan isolation NEGATIVE CONTROL ===
     interpreter: /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/.venv/bin/python
 [0] AST gate: 0 violations across 371 files
-[0b] 隔离副本: /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/lifespan-negctl-qq4ej7g2/iso-backend
-[0c] Settings 解析（rc=0）: {"neo4j_uri": "bolt://127.0.0.1:7691", "neo4j_user": "w4-negctl-invalid-user", "neo4j_password": "w4-negctl-invalid-password", "canvas_base_path": "/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/lifespan-negctl-qq4ej7g2/vault", "lancedb_resolved": "/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/lifespan-negctl-qq4ej7g2/lancedb", "lancedb_data_path_env": "/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/lifespan-negctl-qq4ej7g2/lancedb", "lancedb_path_env": "/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/lifespan-negctl-qq4ej7g2/lancedb"}
+[0b] 隔离副本: /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/lifespan-negctl-66zldiem/iso-backend
+[0c] Settings 解析（rc=0）: {"neo4j_uri": "bolt://127.0.0.1:7691", "neo4j_user": "w4-negctl-invalid-user", "neo4j_password": "w4-negctl-invalid-password", "canvas_base_path": "/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/lifespan-negctl-66zldiem/vault", "lancedb_resolved": "/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/lifespan-negctl-66zldiem/lancedb", "lancedb_data_path_env": "/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/lifespan-negctl-66zldiem/lancedb", "lancedb_path_env": "/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/lifespan-negctl-66zldiem/lancedb"}
 [1] 预采集 nodeid: 3 条（与钉死完整 nodeid 全等，collect rc=0）
 [1b] 正控 rc=0 门汇总=(0, 0, 0, 0) outcomes=[('tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetSubjectMapping::test_get_returns_200', 'passed'), ('tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestAddSubjectMapping::test_add_returns_200', 'passed'), ('tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestRemoveSubjectMapping::test_remove_nonexistent_returns_404', 'passed')]
 [1c] 正控：三条全 passed、门账全零、运行时文件 unchanged
-[2] 已在副本里摘掉 no_lifespan: /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/lifespan-negctl-qq4ej7g2/iso-backend/tests/api/v1/endpoints/test_metadata_subject_mapping.py
-[3] pytest 子进程（串行，cwd=隔离副本）: /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/.venv/bin/python -m pytest -p tests.support.guard_plugin -p no:cacheprovider --override-ini=addopts= tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetSubjectMapping::test_get_returns_200 tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestAddSubjectMapping::test_add_returns_200 tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestRemoveSubjectMapping::test_remove_nonexistent_returns_404 -q --tb=no -rA --junitxml=/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/lifespan-negctl-qq4ej7g2/negctl-junit.xml
+[2] 已在副本里摘掉 no_lifespan: /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/lifespan-negctl-66zldiem/iso-backend/tests/api/v1/endpoints/test_metadata_subject_mapping.py
+[3] pytest 子进程（串行，cwd=隔离副本）: /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/.venv/bin/python -m pytest -p tests.support.guard_plugin -p no:cacheprovider --override-ini=addopts= tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetSubjectMapping::test_get_returns_200 tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestAddSubjectMapping::test_add_returns_200 tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestRemoveSubjectMapping::test_remove_nonexistent_returns_404 -q --tb=no -rA --junitxml=/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/lifespan-negctl-66zldiem/negctl-junit.xml
     pytest exit=1
 [3b] 子进程门汇总: total=7 blocked=7 advisory=0 unaccounted=0
 [3c] 账本: {"total": 7, "blocked": 7, "advisory": 0, "billed": 7, "unaccounted": 0, "reported_status": 1, "installed": true, "blocked_ports": [7687, 7691], "exempt_disabled": true}
 [4] junitxml: total=3 red=3 green=0 red-wrong-reason=0
 [5] 真实树运行时文件 untouched=True; 真实目标文件 untouched=True
 [5b] 副本里变异态确实写了运行时文件（= 隔离在承重的正证据）:
-      absent  /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/lifespan-negctl-qq4ej7g2/iso-backend/data/bug_log.jsonl
-      e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/lifespan-negctl-qq4ej7g2/iso-backend/app/data/vault_index_pending.jsonl
-      absent  /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/lifespan-negctl-qq4ej7g2/iso-backend/data/outbox/events.jsonl
+      absent  /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/lifespan-negctl-66zldiem/iso-backend/data/bug_log.jsonl
+      e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/lifespan-negctl-66zldiem/iso-backend/app/data/vault_index_pending.jsonl
+      absent  /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/lifespan-negctl-66zldiem/iso-backend/data/outbox/events.jsonl
 NEGATIVE-CONTROL: PASS (3 nodeids red for expected reason; summary=(7, 7, 0, 0); positive control: 3/3 passed, zero attempts, zero runtime writes; mutated run in an isolated copy did touch runtime files (isolation is load-bearing); real tree untouched; AST-GATE: PASS 0/371 files)

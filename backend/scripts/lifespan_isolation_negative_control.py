@@ -3,10 +3,10 @@
 
 [BATCH-2026-09-01-第九批 / CARD-TEST-isolate-lifespan-R1]
 
-方法：把 ``tests/api/v1/endpoints/test_metadata_subject_mapping.py`` 里的
-``no_lifespan`` **原地摘掉**，跑其中三条钉死的 nodeid。此时 client fixture 会重新
-触发 ``app.main`` 的真实 lifespan，向 ``NEO4J_URI`` 指向的库发起连接。防线的行为
-应当是：
+方法：在 tmp 里建一份**只含 git tracked 文件**的 backend 副本，在**副本**的
+``tests/api/v1/endpoints/test_metadata_subject_mapping.py`` 里把 ``no_lifespan``
+摘掉，跑其中三条钉死的 nodeid。此时 client fixture 会重新触发 ``app.main`` 的
+真实 lifespan，向 ``NEO4J_URI`` 指向的库发起连接。防线的行为应当是：
 
 1. socket 门（audit hook 承重）在 connect 前拦下 —— 进程**永不真连**；
 2. 连接处抛出的异常会被 ``app/main.py`` 的 try/except 吞掉 —— 所以根 conftest 的
@@ -49,7 +49,7 @@ socket 门只管连接，**挡不住文件写**；挡住文件写的是 ``no_lif
 
 ## 这道负门不比什么
 
-* 只对**一个**代表文件做原地变异，且只跑其中 **3 条钉死的 nodeid**（覆盖
+* 只对**一个**代表文件做变异（在副本上），且只跑其中 **3 条钉死的 nodeid**（覆盖
   GET 成功 / POST 写 / 404 三种请求形态）——变异态每用例要完整跑一遍真实
   lifespan（被拦的连接各自带驱动级重试/超时），全 19 条 ≈ 35 分钟。它证明的是
   「防线 + lifespan 摘除」的组合在该形态上红得符合预期；不证明其余用例与其它
@@ -58,16 +58,28 @@ socket 门只管连接，**挡不住文件写**；挡住文件写的是 ``no_lif
   本脚本也不构造子进程连接场景。
 * AST 门是**静态**分析：它证明的是「源码里没有裸 TestClient(app.main 的 app)」，
   不证明「运行时真的没连」。运行时证明由变异运行承担。
+* AST 门**追不动容器与跨函数的实例传递**（2026-09-03 自查实测的已知盲区）：
+  ``clients = [TestClient(app)]`` 之后 ``with clients[0]:``、以及把实例作为普通
+  返回值/参数在函数间传递后再进 ``with``，都不会被抓。能追的三条是：绑到局部名字
+  （``client = TestClient(app)`` → ``with client:``）、存到 ``self.<attr>``、
+  以及**每条 return 都是 main 实例**的本模块工厂（``with make():``）。
+  要覆盖容器需要元素级别名分析，本卡不做。
 * 底层 socket / atexit / shell 注入等旁路由
   ``backend/scripts/lifespan_isolation_guard_probes.py`` 单独证明，不在本脚本内。
 
-## 原地变异的还原纪律（MEMORY reference_temp_file_swap_needs_exit_trap）
+## 为什么不再原地变异（R1 Codex HIGH-6/HIGH-7 的结构性收口）
 
-变异标志在写盘**之前**置位；``finally`` 写回原始字节；``atexit`` 与
-SIGTERM/SIGINT 处理器兜底。**还原前先 CAS**：读回当前字节，若既不是本脚本写下的
-变异体、也不是原文，说明期间有并发编辑——此时**不覆盖**，把双方各存一份到
-``*.negctl-conflict.*`` 并判失败（第八批 Codex MEDIUM）。已知残余窗口：
-``SIGKILL`` / 断电无法兜底。
+第八批到第九批 round-1 都是**原地**改真实文件再还原，于是要靠「写盘前置标志 +
+finally 写回 + atexit/信号兜底 + 还原前 CAS」一整套纪律去追一个本来就不该发生的写。
+Codex 指出两个洞：并发编辑会在 collect/正控期间落到目标文件上而 CAS 看不出来；
+变异运行造出的运行时文件用「跑前 absent、跑后存在」判归属并 ``unlink``，可能删掉
+别的进程刚写的真实数据。
+
+现在改成在 tmp 副本上变异 —— **真实工作树的 tracked 文件与运行时文件全程一个字节
+都不写**，上面那两条链条从源头消失，也就不需要 CAS 与还原纪律了。脚本仍会断言
+「真实树 untouched」，把这句话变成每次运行都要过的门，而不是一句声明。
+残余：副本是**复制那一刻**的快照，复制期间的并发编辑不在射程（脚本会比对副本与
+工作树里目标文件的 sha，不一致即停）。
 """
 
 from __future__ import annotations
@@ -111,9 +123,6 @@ def runtime_files(backend_dir: Path) -> list[Path]:
 
 
 RUNTIME_FILES = runtime_files(BACKEND_DIR)
-
-#: 复制隔离副本时跳过的目录（体积大且与本门无关）。
-_COPY_IGNORE = shutil.ignore_patterns(".venv", "__pycache__", "node_modules", ".pytest_cache", ".ruff_cache")
 
 #: 钉死的**完整 nodeid**（第八批 Codex MEDIUM：此前用 ``-k`` 子串过滤 + 名字
 #: substring 判定，三个名字加任意后缀仍能满足「身份钉死」）。这里直接把完整
@@ -175,7 +184,27 @@ O_TESTCLIENT_CLASS = "testclient:TestClient"
 O_TESTCLIENT_MODULE = "testclient:module"
 #: 由 app.main 的 app 构造出来的 TestClient **实例**（还没进 with，所以还没跑
 #: lifespan；一旦进了 with / enter_context 就会跑）。R1 Codex HIGH-8。
+#: 后面拼上**它包的那个 app 名**（`testclient:instance(app.main):app`）——
+#: 检查「外层 with no_lifespan(X)」时要比对的是 X 而不是客户端变量名。
 O_TESTCLIENT_INSTANCE_MAIN = "testclient:instance(app.main)"
+
+
+def _instance_main(app_name: str | None) -> str:
+    return f"{O_TESTCLIENT_INSTANCE_MAIN}:{app_name or '?'}"
+
+
+def _instance_app_name(origin: str) -> str | None:
+    """从实例来源里取回它包的 app 名；不是 main 实例则 None。"""
+    if not origin.startswith(O_TESTCLIENT_INSTANCE_MAIN + ":"):
+        return None
+    name = origin[len(O_TESTCLIENT_INSTANCE_MAIN) + 1 :]
+    return None if name == "?" else name
+
+
+def _is_instance_main(origin: str) -> bool:
+    return origin.startswith(O_TESTCLIENT_INSTANCE_MAIN)
+
+
 #: 由局部 FastAPI() 构造出来的 TestClient 实例 —— 进 with 也无害。
 O_TESTCLIENT_INSTANCE_LOCAL = "testclient:instance(local)"
 O_HELPER = "tests.support.lifespan:helper"
@@ -238,6 +267,15 @@ class _ModuleIndex:
         #: 误判成 unknown 违规。近似是**单向放宽**且要求「函数体内确有由可证
         #: FastAPI 类构造的赋值 + return 同一个名字」，冒用面极窄。
         self.fastapi_returning_funcs: set[str] = set()
+        #: 「每一条 return 都返回 app.main 的 TestClient 实例」的函数（`类名.方法名`
+        #: 或 `<module>.函数名`）—— `with make():` 会跑真实 lifespan（L2-d）。
+        self.main_client_funcs: set[str] = set()
+        #: `self.<attr> = TestClient(app.main 的 app)` —— 记 `类名.attr`，
+        #: 让 `with self.<attr>:` 也能被抓（L2-b）。
+        self.main_client_attrs: set[str] = set()
+        #: 本模块里**自建的隔离包装器**：`<owner>.<name>` → 被隔离的那个形参下标。
+        #: 形态必须窄到可证（见 :meth:`_mark_isolation_wrappers`）。
+        self.isolation_wrappers: dict[str, int] = {}
         self.module_scope = _Scope(tree, None, "module")
         self.scope_of: dict[int, _Scope] = {}
         # 建表与「哪些函数返回局部 app」互为输入 —— 迭代到不动点，最后再建一次表，
@@ -245,9 +283,21 @@ class _ModuleIndex:
         # `app, n = make()` 会被建表期的空知识判成 unknown）。
         for _ in range(4):
             self._rebuild(tree)
-            before = set(self.fastapi_returning_funcs)
+            before = (
+                set(self.fastapi_returning_funcs),
+                set(self.main_client_funcs),
+                set(self.main_client_attrs),
+                dict(self.isolation_wrappers),
+            )
             self._mark_all_fastapi_returning(tree)
-            if self.fastapi_returning_funcs == before:
+            self._mark_main_client_sources(tree)
+            self._mark_isolation_wrappers(tree)
+            if (
+                self.fastapi_returning_funcs,
+                self.main_client_funcs,
+                self.main_client_attrs,
+                self.isolation_wrappers,
+            ) == before:
                 break
         self._rebuild(tree)
 
@@ -407,9 +457,15 @@ class _ModuleIndex:
             if self.is_testclient_call(value, stmt, scope):
                 app_arg = self.testclient_app_arg(value)
                 if app_arg is None:
-                    return O_TESTCLIENT_INSTANCE_MAIN  # 无参/取不到 ⇒ fail-closed
+                    return _instance_main(None)  # 无参/取不到 ⇒ fail-closed
                 origin = self.resolve_arg(app_arg, stmt, scope)
-                return O_TESTCLIENT_INSTANCE_LOCAL if origin == O_LOCAL_APP else O_TESTCLIENT_INSTANCE_MAIN
+                if origin == O_LOCAL_APP:
+                    return O_TESTCLIENT_INSTANCE_LOCAL
+                return _instance_main(app_arg.id if isinstance(app_arg, ast.Name) else None)
+            # 本模块里「每一条 return 都返回 app.main 实例」的工厂：`with make():`
+            # 同样会跑 lifespan（L2-d）。
+            if self._is_main_client_factory_call(value.func, stmt, scope):
+                return _instance_main(None)
             return O_UNKNOWN
         if isinstance(value, ast.Name):
             return self.resolve_name(value.id, _pos(stmt), scope)
@@ -521,6 +577,125 @@ class _ModuleIndex:
                 return  # 这条 return 拿不出可证的局部 app ⇒ 整个函数不算工厂
         key = self._factory_key(fd)
         self.fastapi_returning_funcs.add(key)
+
+    def _mark_main_client_sources(self, tree: ast.Module) -> None:
+        """收敛两类「会把 app.main 的 TestClient 实例递出来」的源。
+
+        * ``main_client_funcs``：函数的**每一条** return 都解析为 main 实例
+          （与 FastAPI 工厂同口径：存在一条安全的不算数，必须条条都是）；
+        * ``main_client_attrs``：``self.<attr> = TestClient(<app.main 的 app>)``。
+
+        ⚠️ **不覆盖容器**：``clients = [TestClient(app)]`` 之后 ``with clients[0]:``
+        静态上追不动（要做容器元素级别的别名分析），如实登记为已知盲区，
+        见模块 docstring「这道负门不比什么」。
+        """
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                own = self.scope_of.get(id(node.body[0])) if node.body else None
+                if own is None:
+                    continue
+                own_stmts = [s for s in ast.walk(node) if self.scope_of.get(id(s)) is own]
+                returns = [s for s in own_stmts if isinstance(s, ast.Return) and s.value is not None]
+                if returns and all(_is_instance_main(self._value_origin(r.value, r, own)) for r in returns):
+                    self.main_client_funcs.add(self._factory_key(node))
+            elif isinstance(node, (ast.Assign, ast.AnnAssign)) and getattr(node, "value", None) is not None:
+                targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+                attrs = [
+                    tgt
+                    for tgt in targets
+                    if isinstance(tgt, ast.Attribute) and isinstance(tgt.value, ast.Name) and tgt.value.id == "self"
+                ]
+                if not attrs:
+                    continue
+                scope = self.scope_for(node)
+                if _is_instance_main(self._value_origin(node.value, node, scope)):
+                    owner = self._enclosing_class_name(node)
+                    for tgt in attrs:
+                        self.main_client_attrs.add(f"{owner}.{tgt.attr}")
+
+    def _mark_isolation_wrappers(self, tree: ast.Module) -> None:
+        """识别**自建的隔离包装器**，避免把合法写法误判成违规。
+
+        ``@contextlib.contextmanager`` 包一层 ``no_lifespan`` 是很自然的写法::
+
+            @contextlib.contextmanager
+            def isolated(a):
+                with no_lifespan(a):
+                    yield a
+
+            with isolated(app), TestClient(app) as c: ...
+
+        这段是**安全**的，但按「helper 必须直接 import 自 tests.support.lifespan」
+        的口径会被判违规（实测确认，属 R1 Codex 归类的「误判为违规 = MEDIUM」）。
+
+        识别条件收得很窄，三条**全部**满足才算：
+
+        1. 函数体里有一个 ``with``，其某个 item 解析为 :data:`O_HELPER`
+           （真的是 import 来的 ``no_lifespan``/``lifespan_lite``）；
+        2. 该 helper 调用的实参是本函数**自己的某个位置形参**；
+        3. 那个 ``with`` 的**体内**有 ``yield`` —— 即隔离确实覆盖了让出控制权的
+           那一刻。只在 with 外面 yield 的包装器不算数（隔离没盖住调用方的代码）。
+
+        记下被隔离的**形参下标**，调用点按同一下标的实参名比对；换个参数传就不算。
+        """
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            own = self.scope_of.get(id(node.body[0])) if node.body else None
+            if own is None:
+                continue
+            params = [a.arg for a in (node.args.posonlyargs + node.args.args)]
+            if not params:
+                continue
+            for stmt in ast.walk(node):
+                if not isinstance(stmt, (ast.With, ast.AsyncWith)):
+                    continue
+                if self.scope_of.get(id(stmt)) is not own:
+                    continue
+                has_yield = any(isinstance(x, (ast.Yield, ast.YieldFrom)) for b in stmt.body for x in ast.walk(b))
+                if not has_yield:
+                    continue
+                for item in stmt.items:
+                    ctx = item.context_expr
+                    if not isinstance(ctx, ast.Call):
+                        continue
+                    if self._callable_origin(ctx.func, stmt, own) != O_HELPER:
+                        continue
+                    if ctx.args and isinstance(ctx.args[0], ast.Name) and ctx.args[0].id in params:
+                        self.isolation_wrappers[self._factory_key(node)] = params.index(ctx.args[0].id)
+
+    def isolation_wrapper_param(self, func: ast.expr, node: ast.AST, scope: _Scope) -> int | None:
+        """这次调用是不是自建隔离包装器；是则返回被隔离的形参下标。"""
+        if isinstance(func, ast.Name):
+            key = f"<module>.{func.id}"
+            if key not in self.isolation_wrappers:
+                return None
+            if self.resolve_name(func.id, _pos(node), scope) != f"{O_LOCAL_FUNC_PREFIX}{func.id}":
+                return None
+            return self.isolation_wrappers[key]
+        if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name) and func.value.id in ("self", "cls"):
+            return self.isolation_wrappers.get(f"{self._enclosing_class_name(node)}.{func.attr}")
+        return None
+
+    def _is_main_client_factory_call(self, func: ast.expr, node: ast.AST, scope: _Scope) -> bool:
+        """调用形态与 :meth:`_is_local_app_factory_call` 同口径，只是查另一张表。"""
+        if isinstance(func, ast.Name):
+            if f"<module>.{func.id}" not in self.main_client_funcs:
+                return False
+            return self.resolve_name(func.id, _pos(node), scope) == f"{O_LOCAL_FUNC_PREFIX}{func.id}"
+        if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
+            if func.value.id not in ("self", "cls"):
+                return False
+            return f"{self._enclosing_class_name(node)}.{func.attr}" in self.main_client_funcs
+        return False
+
+    def is_main_client_attr(self, expr: ast.expr, node: ast.AST) -> bool:
+        """``self.<attr>`` 是否是本类里存下来的 app.main TestClient 实例。"""
+        if not (isinstance(expr, ast.Attribute) and isinstance(expr.value, ast.Name)):
+            return False
+        if expr.value.id not in ("self", "cls"):
+            return False
+        return f"{self._enclosing_class_name(node)}.{expr.attr}" in self.main_client_attrs
 
     def _factory_key(self, fd) -> str:
         """工厂身份 = 「(类名或 <module>) . 方法名」。
@@ -650,6 +825,24 @@ def _syntactic_call_name(node: ast.expr) -> str | None:
     return None
 
 
+def _item_isolates(index: "_ModuleIndex", ctx, host_node, scope, app_name: str) -> bool:
+    """一个 ``with`` item 是否对名为 ``app_name`` 的 app 施加了隔离。
+
+    两条路：直接调 import 来的 ``no_lifespan``/``lifespan_lite``；
+    或调本模块**自建的隔离包装器**（窄定义见 `_mark_isolation_wrappers`），
+    此时比对的是**被隔离的那个形参下标**上的实参。
+    """
+    if not isinstance(ctx, ast.Call):
+        return False
+    if index._callable_origin(ctx.func, host_node, scope) == O_HELPER:
+        return bool(ctx.args) and isinstance(ctx.args[0], ast.Name) and ctx.args[0].id == app_name
+    idx = index.isolation_wrapper_param(ctx.func, host_node, scope)
+    if idx is None or idx >= len(ctx.args):
+        return False
+    arg = ctx.args[idx]
+    return isinstance(arg, ast.Name) and arg.id == app_name
+
+
 def _isolation_sibling_covers(index: "_ModuleIndex", with_node, upto_pos: int, app_arg, scope) -> bool:
     """同一个 ``with`` 语句里，位置**在前**的兄弟项是否对同一个 app 做了隔离。"""
     if not isinstance(app_arg, ast.Name):
@@ -657,14 +850,21 @@ def _isolation_sibling_covers(index: "_ModuleIndex", with_node, upto_pos: int, a
     for hpos, hitem in enumerate(with_node.items):
         if hpos >= upto_pos:
             break
-        hctx = hitem.context_expr
-        if not isinstance(hctx, ast.Call):
-            continue
-        if index._callable_origin(hctx.func, with_node, scope) != O_HELPER:
-            continue
-        hargs = hctx.args
-        if hargs and isinstance(hargs[0], ast.Name) and hargs[0].id == app_arg.id:
+        if _item_isolates(index, hitem.context_expr, with_node, scope, app_arg.id):
             return True
+    return False
+
+
+def _isolation_enclosing_covers_name(index: "_ModuleIndex", node, app_name: str) -> bool:
+    """按**名字**找支配本节点的外层 ``with no_lifespan(<app_name>):``。"""
+    cur = index.parent_of(node)
+    while cur is not None:
+        if isinstance(cur, (ast.With, ast.AsyncWith)):
+            scope = index.scope_for(cur)
+            for hitem in cur.items:
+                if _item_isolates(index, hitem.context_expr, cur, scope, app_name):
+                    return True
+        cur = index.parent_of(cur)
     return False
 
 
@@ -677,21 +877,7 @@ def _isolation_enclosing_covers(index: "_ModuleIndex", node, app_arg) -> bool:
     """
     if not isinstance(app_arg, ast.Name):
         return False
-    cur = index.parent_of(node)
-    while cur is not None:
-        if isinstance(cur, (ast.With, ast.AsyncWith)):
-            scope = index.scope_for(cur)
-            for hitem in cur.items:
-                hctx = hitem.context_expr
-                if not isinstance(hctx, ast.Call):
-                    continue
-                if index._callable_origin(hctx.func, cur, scope) != O_HELPER:
-                    continue
-                hargs = hctx.args
-                if hargs and isinstance(hargs[0], ast.Name) and hargs[0].id == app_arg.id:
-                    return True
-        cur = index.parent_of(cur)
-    return False
+    return _isolation_enclosing_covers_name(index, node, app_arg.id)
 
 
 def _describe(expr) -> str:
@@ -700,6 +886,36 @@ def _describe(expr) -> str:
     if isinstance(expr, ast.Attribute):
         return f"<...>.{expr.attr}"
     return "<expr>"
+
+
+def _flag_instance_context(violations, index, rel, node, scope, expr, how: str) -> None:
+    """判定「把一个已构造好的 TestClient 实例送进 ``__enter__``」是否合规。
+
+    覆盖 ``with client:``、``with self.client:``、``enter_context(client)``。
+    关键修正（我自己在 round-2 自查时抓到的）：外层隔离要比对的是**这个实例包着的
+    那个 app 名**，不是客户端变量名 —— 之前拿 ``client`` 去找 ``no_lifespan(client)``，
+    于是合法的 `with no_lifespan(app): with client:` 被误报。
+    """
+    origin = None
+    desc = _describe(expr)
+    if isinstance(expr, ast.Name):
+        origin = index.resolve_name(expr.id, _pos(node), scope)
+    elif index.is_main_client_attr(expr, node):
+        origin = _instance_main(None)
+    elif isinstance(expr, ast.Call) and index._is_main_client_factory_call(expr.func, node, scope):
+        # `with make():` —— 工厂的每一条 return 都是 app.main 实例（L2-d）
+        origin = _instance_main(None)
+        desc = f"{_describe(expr.func)}()"
+    if origin is None or not _is_instance_main(origin):
+        return
+    app_name = _instance_app_name(origin)
+    if app_name is not None and _isolation_enclosing_covers_name(index, node, app_name):
+        return
+    hint = f"（它包的是 {app_name}）" if app_name else "（包的 app 名静态不可知，fail-closed）"
+    violations.append(
+        f"{rel}:{node.lineno}: {how} {desc} —— 它是用 app.main 的 app 构造的 TestClient 实例，"
+        f"进入上下文会跑真实 lifespan{hint}；构造点没有隔离，本处也没有支配的外层隔离块"
+    )
 
 
 def analyze_source(source: str, rel: str) -> list[str]:
@@ -769,16 +985,12 @@ def analyze_source(source: str, rel: str) -> list[str]:
                         continue
                     if index.is_testclient_call(ctx, node, scope):
                         flag_client_construction(ctx, node, scope, pos_in_with=pos_i, with_node=node)
+                    else:
+                        # `with make():` —— 返回 app.main 实例的工厂调用（L2-d）
+                        _flag_instance_context(violations, index, rel, node, scope, ctx, "with")
                     continue
-                # 2) with client:（client 是先前构造的 TestClient 实例）
-                if isinstance(ctx, ast.Name):
-                    inst = index.resolve_name(ctx.id, _pos(node), scope)
-                    if inst == O_TESTCLIENT_INSTANCE_MAIN and not _isolation_enclosing_covers(index, node, ctx):
-                        violations.append(
-                            f"{rel}:{node.lineno}: with {ctx.id}: —— {ctx.id} 是用 app.main 的 app"
-                            " 构造的 TestClient 实例，进 with 会跑真实 lifespan"
-                            "（构造点没有隔离，本处也没有支配的外层隔离块）"
-                        )
+                # 2) with client: / with self.client:（先前构造的 TestClient 实例）
+                _flag_instance_context(violations, index, rel, node, scope, ctx, "with")
             continue
 
         # ── 面 3：ExitStack.enter_context(...) ──────────────────────────
@@ -793,13 +1005,8 @@ def analyze_source(source: str, rel: str) -> list[str]:
             stmt = node
             if isinstance(target, ast.Call) and index.is_testclient_call(target, stmt, scope):
                 flag_client_construction(target, node, scope, how="（经 enter_context）")
-            elif isinstance(target, ast.Name):
-                inst = index.resolve_name(target.id, _pos(node), scope)
-                if inst == O_TESTCLIENT_INSTANCE_MAIN and not _isolation_enclosing_covers(index, node, target):
-                    violations.append(
-                        f"{rel}:{node.lineno}: {node.func.attr}({target.id}) —— {target.id} 是用"
-                        " app.main 的 app 构造的 TestClient 实例，enter_context 会跑真实 lifespan"
-                    )
+            else:
+                _flag_instance_context(violations, index, rel, node, scope, target, node.func.attr)
     return violations
 
 
@@ -1007,6 +1214,70 @@ _AST_MUST_FLAG: list[tuple[str, str]] = [
         "        pass\n",
     ),
     (
+        "L2-b：TestClient 实例存进 self 再在别处 with",
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "class T:\n"
+        "    def setup(self):\n"
+        "        self.c = TestClient(app)\n"
+        "    def test_x(self):\n"
+        "        with self.c:\n"
+        "            pass\n",
+    ),
+    (
+        "L2-d：工厂函数返回 TestClient(app) 后直接 with make()",
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "def make():\n"
+        "    return TestClient(app)\n"
+        "def t():\n"
+        "    with make():\n"
+        "        pass\n",
+    ),
+    (
+        "L1-c：包装器没有真的调 no_lifespan",
+        "import contextlib\n"
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "@contextlib.contextmanager\n"
+        "def isolated(a):\n"
+        "    yield a\n"
+        "def t():\n"
+        "    with isolated(app), TestClient(app) as c:\n"
+        "        pass\n",
+    ),
+    (
+        "L1-d：包装器在 with 之外 yield（隔离没盖住让出控制权那一刻）",
+        "import contextlib\n"
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "from tests.support.lifespan import no_lifespan\n"
+        "@contextlib.contextmanager\n"
+        "def isolated(a):\n"
+        "    with no_lifespan(a):\n"
+        "        pass\n"
+        "    yield a\n"
+        "def t():\n"
+        "    with isolated(app), TestClient(app) as c:\n"
+        "        pass\n",
+    ),
+    (
+        "L1-e：包装器隔离的是**另一个**形参",
+        "import contextlib\n"
+        "from app.main import app\n"
+        "from fastapi import FastAPI\n"
+        "from fastapi.testclient import TestClient\n"
+        "from tests.support.lifespan import no_lifespan\n"
+        "@contextlib.contextmanager\n"
+        "def isolated(other, a):\n"
+        "    with no_lifespan(other):\n"
+        "        yield a\n"
+        "def t():\n"
+        "    spare = FastAPI()\n"
+        "    with isolated(spare, app), TestClient(app) as c:\n"
+        "        pass\n",
+    ),
+    (
         "工厂名被重绑定后仍冒充局部 app 工厂",
         "from fastapi import FastAPI\n"
         "from fastapi.testclient import TestClient\n"
@@ -1099,6 +1370,31 @@ _AST_MUST_PASS: list[tuple[str, str]] = [
         "    client = TestClient(app)\n"
         "    with client:\n"
         "        pass\n",
+    ),
+    (
+        "验伪锚 10：自建 contextmanager 包 no_lifespan（合法，不该报）",
+        "import contextlib\n"
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "from tests.support.lifespan import no_lifespan\n"
+        "@contextlib.contextmanager\n"
+        "def isolated(a):\n"
+        "    with no_lifespan(a):\n"
+        "        yield a\n"
+        "def t():\n"
+        "    with isolated(app), TestClient(app) as c:\n"
+        "        pass\n",
+    ),
+    (
+        "验伪锚 11：外层 no_lifespan(app) 支配 with client:（合法，不该报）",
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "from tests.support.lifespan import no_lifespan\n"
+        "def t():\n"
+        "    client = TestClient(app)\n"
+        "    with no_lifespan(app):\n"
+        "        with client:\n"
+        "            pass\n",
     ),
     (
         "验伪锚 5：同类方法工厂 self._make()（test_rag_four_state_api 的真实形态）",
@@ -1300,32 +1596,6 @@ def sha_of(path: Path) -> str:
 
 def runtime_snapshot() -> str:
     return "\n".join(f"{sha_of(p)}  {p}" for p in RUNTIME_FILES)
-
-
-def restore_absent_runtime_files(before: dict[Path, str]) -> tuple[list[str], list[str]]:
-    """把变异运行创建出来的运行时文件删掉，恢复到跑之前的状态。
-
-    只处理「跑之前 absent、跑之后存在」这一种情况 —— 那是**本脚本引起的**新增，
-    删掉即回到原状。对「跑之前就有、内容变了」的文件**刻意不覆盖**：那可能混进了
-    并发进程追加的真实数据，盲写回去会静默吞掉别人的记录（与变异体的 CAS 同口径）。
-    这种情况返回到 ``unresolved``，由调用方判失败并交人工。
-
-    Returns:
-        (removed, unresolved) 两个路径描述列表。
-    """
-    removed: list[str] = []
-    unresolved: list[str] = []
-    for path in RUNTIME_FILES:
-        was = before.get(path, "absent")
-        now = sha_of(path)
-        if was == now:
-            continue
-        if was == "absent" and path.exists():
-            path.unlink()
-            removed.append(str(path))
-        else:
-            unresolved.append(f"{path}: {was} → {now}")
-    return removed, unresolved
 
 
 def _parse_junit(path: Path, target_rel: str) -> list[tuple[str, dict]]:

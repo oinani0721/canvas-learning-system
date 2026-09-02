@@ -1,4 +1,4 @@
-=== RUNTIME-FILES before (2026-09-03 03:23:00 +0800) ===
+=== RUNTIME-FILES before (2026-09-03 04:02:19 +0800) ===
 absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/data/bug_log.jsonl
 absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/app/data/vault_index_pending.jsonl
 absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/data/outbox/events.jsonl
@@ -705,8 +705,8 @@ ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPerformance::te
 ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_partial_failure_recovery
 ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_event_ordering_preserved
 ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_neo4j_unavailable_fallback
-= 218 failed, 4516 passed, 1 skipped, 104 warnings, 38 errors in 231.81s (0:03:51) =
-=== RUNTIME-FILES after (2026-09-03 03:27:03 +0800) ===
+= 218 failed, 4516 passed, 1 skipped, 104 warnings, 38 errors in 224.61s (0:03:44) =
+=== RUNTIME-FILES after (2026-09-03 04:06:14 +0800) ===
 absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/data/bug_log.jsonl
 absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/app/data/vault_index_pending.jsonl
 absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/data/outbox/events.jsonl

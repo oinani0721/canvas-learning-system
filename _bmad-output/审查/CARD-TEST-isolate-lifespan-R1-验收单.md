@@ -359,6 +359,27 @@ rc=1，同样返回 usage limit。⇒ 账号级配额硬阻断，与本卡内容
 
 ---
 
+### round-2 补轮：把 3 条「只有标题」的线索自己做完（2026-09-03）
+
+配额确认为**账号级**耗尽（`gpt-5.6-sol` 与 `gpt-5.6-luna` 都报 usage limit，
+其余模型该账号不可用），(l) 只能等。于是我**自己承担对抗审查**，把 round-2 stderr
+里那三条未处置线索逐条做成可复现用例——**三条全部成立**：
+
+| 线索 | 实测结果 | 处置 |
+|---|---|---|
+| `Consolidating documentation contradictions and revert risks` | **成立**：负控模块 docstring 仍整段写着「原地变异 + finally 写回 + atexit 兜底 + 还原前 CAS」，而代码早已改成隔离副本；`restore_absent_runtime_files()` 与 `_COPY_IGNORE` 已成**死代码**（无调用方） | docstring 改写为「为什么不再原地变异」并如实写出残余（副本是复制那一刻的快照）；死代码删除 |
+| `Identifying false accept and reject patterns in client context tracking` | **成立，双向都有**：① **误拒** —— 合法的 `with no_lifespan(app): with client:` 被判违规（我拿**客户端变量名**去找 `no_lifespan(client)`，应该比对的是 app 名）；② **漏网** —— 实例存进 `self.<attr>`、由工厂 `make()` 返回、放进容器后再进 `with`，三种全部零违规 | 实例来源里带上「它包的是哪个 app 名」；新增 `self.<attr>` 追踪与「每条 return 都是 main 实例」的工厂追踪；容器一路**追不动**，如实登记为盲区并写进 docstring |
+| `Analyzing false positives in no_lifespan wrappers` | **成立**：自建 `@contextlib.contextmanager def isolated(a): with no_lifespan(a): yield a` 是合法写法，却被判违规 | 新增**窄定义**的包装器识别（三条同时满足：item 解析为真 helper、实参是本函数形参、`yield` 在该 `with` 体内），并记下被隔离的**形参下标**；调用点按同一下标比对 |
+
+新增放行面自己也被钉住：`L1-c`（包装器没真调 helper）、`L1-d`（在 `with` 外 yield）、
+`L1-e`（隔离的是另一个形参）三条**必须仍被抓**。
+
+**门规模（补轮后）**：AST 负控 17 绕过/9 验伪锚 → **22 绕过 / 11 验伪锚**；
+探针 27 不变；真实仓库仍 **371 文件 0 违规**；宽集 **218 failed / 4516 passed**
+与基线 failure-set 全等。
+
+---
+
 ## 6. 待你裁决
 
 ### ⛔ 裁决点 ①（阻断合并）：完成条件 (l) 无法在本 session 满足
