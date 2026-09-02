@@ -6,6 +6,14 @@
 - 定点带入：`cdd77274`（实现）、`b54b4735`（验收单回填），二者均**无冲突**
 - 工具链：`/Users/Heishing/Desktop/canvas/canvas-learning-system/backend/.venv/bin/python`
   → `Python 3.14.4 (main, Apr  7 2026, 13:13:20) [Clang 21.0.0 (clang-2100.0.123.102)]`
+- 本卡 commit 链（**未 push**）：
+  | SHA | 内容 |
+  |---|---|
+  | `86329c49` | 首版：audit 承重 + 身份自证 + 负控钉死环境 |
+  | `4e099b95` | 整改 Codex round-1 的 17 条 |
+  | `b64a9c44` | round-2 自查整改 3 条 + 记录终审未出裁定 —— **实现面冻结于此** |
+  | `71ebeed8` | 只改审查 prompt（无代码改动） |
+  | *(本 commit)* | 只改本验收单（无代码改动）—— 刻意不写自己的 SHA：文档内容决定 hash、hash 又要写进文档，是个不动点悖论；本卡的最终 SHA 记在 MEMORY.md 索引里 |
 
 ---
 
