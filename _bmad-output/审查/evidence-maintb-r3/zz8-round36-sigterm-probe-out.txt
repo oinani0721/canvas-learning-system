@@ -1,0 +1,13 @@
+✅ 探针已修
+
+=== 负控：禁掉 handler（应当残留，证明这道防线确实承重）===
+  [no-guard] SIGTERM 后 sha=13ec8fd23d646d95 → ⛔ 变异体残留 | 锁残留 ⛔
+  [no-guard] 已手工还原
+
+=== 正例：handler 在位（应当还原）===
+  [guarded] 清掉上一例遗留的锁
+  [guarded] SIGTERM 后 sha=19684158deab5fbf → 已还原 ✅ | 锁已清 ✅
+
+判定: 负控残留=True / 正例还原=True → ✅ 防线承重
+
+[exited with code 0]

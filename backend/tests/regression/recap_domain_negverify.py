@@ -29,6 +29,7 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import signal
 import subprocess
 import sys
 import tempfile
@@ -867,8 +868,12 @@ def _looks_like_crash(out: str) -> bool:
     )
 
 
-def run_suite(keyword: str) -> tuple[int, str, int, int, bool]:
+def run_suite(targets: list[str], keyword: str | None = None) -> tuple[int, str, int, int, bool]:
     """跑目标用例，返回 (rc, 输出尾部, 收集到的用例数, 失败数, 是否崩溃)。
+
+    ⛔ round-36：`targets` 是**精确 nodeid 列表**（基线态传套件路径 + keyword）。
+    原先靠 `-k` 选门，12 条变体的 keyword 一选就是好几个用例，
+    「有失败」证明不了「**指定**门死了」——见 `DESIGNATED` 的说明。
 
     ⛔ round-27（冻结审查 v8）：注解与 docstring 原写**四元组**，实际返回五元组
     （`crash` 是 round-10 加的）—— 又一处「说的与做的不符」。
@@ -881,7 +886,7 @@ def run_suite(keyword: str) -> tuple[int, str, int, int, bool]:
     要求"确实收集到用例"且"确实有失败"才算变红。
     """
     r = subprocess.run(
-        [str(PYTEST), SUITE, "-q", "-p", "no:cacheprovider", "-k", keyword],
+        [str(PYTEST), *targets, "-q", "-p", "no:cacheprovider"] + (["-k", keyword] if keyword else []),
         cwd=ROOT / "backend",
         capture_output=True,
         text=True,
@@ -920,6 +925,113 @@ def run_suite(keyword: str) -> tuple[int, str, int, int, bool]:
     crash = _looks_like_crash(both)
     return r.returncode, out[-400:], passed + failed, failed, crash
 
+
+DESIGNATED: dict[str, list[str]] = {
+    "survivor-1": [
+        "test_domain_block_four_fence_short_close",
+        "test_domain_block_fence_close_needs_trailing_blank_only",
+    ],
+    "survivor-2": ["test_domain_block_scale_line_tail_append"],
+    "survivor-3": ["test_domain_block_seed_ledger_fake_count"],
+    "survivor-4": ["test_domain_block_signal_tail_append"],
+    "survivor-5": ["test_domain_block_bare_count_in_prose"],
+    "survivor-6": [
+        "test_domain_skill_sync_nodata_reasons_table",
+        "test_domain_block_nodata_reason_outside_table[renyi]",
+    ],
+    "survivor-7": [
+        "test_domain_block_multilevel_blockquote_fence[depth2]",
+        "test_domain_block_multilevel_blockquote_fence[depth3]",
+        "test_domain_block_multilevel_blockquote_fence[no_space]",
+    ],
+    "survivor-8": [
+        "test_domain_derive_allow_entries_are_grounded",
+        "test_domain_block_freeform_derivation_note[beizhu]",
+    ],
+    "survivor-9": [
+        "test_domain_block_signal_tail_note_outside_table[note_then_smuggle]",
+        "test_domain_block_signal_tail_note_outside_table[smuggle_then_note]",
+    ],
+    "survivor-10": ["test_domain_skill_sync_signal_tail_notes_table"],
+    "survivor-11": [
+        "test_domain_r5_cjk_single_char_only_unit_contract",
+        "test_domain_r5_prose_cjk_multichar_fail_closed_cli",
+    ],
+    "survivor-12": ["test_domain_r5_prose_cjk_multichar_fail_closed_cli"],
+    "survivor-13": ["test_domain_r5_noise_split_number_run_cli"],
+    "survivor-14": ["test_domain_r5_noise_split_number_run_cli"],
+    "survivor-15": ["test_domain_r6_cross_class_and_offtable_numeral_cli"],
+    "survivor-16": ["test_domain_r6_cross_class_and_offtable_numeral_cli"],
+    "survivor-17": ["test_domain_r6_cross_class_and_offtable_numeral_cli"],
+    "survivor-18": ["test_domain_r7_range_endpoints_and_fallback_seps_cli"],
+    "survivor-19": ["test_domain_r7_range_endpoints_and_fallback_seps_cli"],
+    "survivor-20": ["test_domain_r7_range_endpoints_and_fallback_seps_cli"],
+    "survivor-21": ["test_domain_r8_entities_ranges_and_table_gaps_cli"],
+    "survivor-22": ["test_domain_r8_entities_ranges_and_table_gaps_cli"],
+    "survivor-23": ["test_domain_r8_entities_ranges_and_table_gaps_cli"],
+    "survivor-24": ["test_domain_r8_entities_ranges_and_table_gaps_cli"],
+    "survivor-25": ["test_domain_r9_visible_text_and_round5_closures_cli"],
+    "survivor-26": ["test_domain_r9_visible_text_and_round5_closures_cli"],
+    "survivor-27": ["test_domain_r9_visible_text_and_round5_closures_cli"],
+    "survivor-28": ["test_domain_r9_visible_text_and_round5_closures_cli"],
+    "survivor-29": ["test_domain_r9_visible_text_and_round5_closures_cli"],
+    "survivor-30": ["test_domain_r9_visible_text_and_round5_closures_cli"],
+    "survivor-31": ["test_domain_r10_ordering_and_render_closure_cli"],
+    "survivor-32": ["test_domain_r10_ordering_and_render_closure_cli"],
+    "survivor-33": ["test_domain_r10_ordering_and_render_closure_cli"],
+    "survivor-34": ["test_domain_r10_ordering_and_render_closure_cli"],
+    "survivor-35": ["test_domain_r11_fulltext_gate_and_visible_numerals_cli"],
+    "survivor-36": ["test_domain_r11_fulltext_gate_and_visible_numerals_cli"],
+    "survivor-37": ["test_domain_r11_fulltext_gate_and_visible_numerals_cli"],
+    "survivor-40": ["test_domain_r12_no_silent_table_copies"],
+    "survivor-41": ["test_domain_r12_no_silent_table_copies"],
+    "survivor-39": ["test_domain_r10_ordering_and_render_closure_cli"],
+    "survivor-38": ["test_domain_r8_entities_ranges_and_table_gaps_cli"],
+    "survivor-42": ["test_domain_r13_shortcut_link_and_crash_classifier"],
+    "survivor-43": ["test_domain_r14_range_left_edge_and_codespan_order_cli"],
+    "survivor-44": ["test_domain_r14_range_left_edge_and_codespan_order_cli"],
+    "survivor-45": ["test_domain_r15_signal_line_selection_is_visible_text_cli"],
+    "survivor-46": ["test_domain_r16_clause7_n_binding_is_visible_text_cli"],
+    "survivor-47": ["test_domain_r17_freeze_v2_bounded_highs_cli"],
+    "survivor-48": ["test_domain_r17_freeze_v2_bounded_highs_cli"],
+    "survivor-49": ["test_domain_r17_freeze_v2_bounded_highs_cli"],
+    "survivor-50": ["test_domain_r17_freeze_v2_bounded_highs_cli"],
+    "survivor-51": ["test_domain_r20_seed_ledger_visible_in_manifest_cli"],
+    "survivor-52": ["test_domain_r21_seed_node_identity_same_space"],
+    "survivor-53": ["test_domain_r22_fence_indent_and_seed_scope_cli"],
+    "survivor-54": ["test_domain_r22_fence_indent_and_seed_scope_cli"],
+    "survivor-55": ["test_domain_r23_seed_scope_fence_and_tail_render"],
+    "survivor-56": ["test_domain_r23_seed_scope_fence_and_tail_render"],
+    "survivor-57": ["test_domain_r24_fence_closer_atx_and_tail_prefix"],
+    "survivor-58": ["test_domain_r24_fence_closer_atx_and_tail_prefix"],
+    "survivor-59": ["test_domain_r25_section_criterion_unified_cli"],
+    "survivor-60": ["test_domain_r25_section_criterion_unified_cli"],
+    "survivor-61": ["test_domain_r25_section_criterion_unified_cli"],
+    "survivor-62": ["test_domain_r26_zero_seed_board_not_false_positive"],
+    "survivor-63": ["test_domain_r27_seedish_h3_and_corrupt_seeds"],
+    "survivor-64": ["test_domain_r27_seedish_h3_and_corrupt_seeds"],
+    "survivor-65": ["test_domain_r28_tips_binding_visible_space_cli"],
+    "survivor-66": ["test_domain_r29_separator_third_state_cli"],
+}
+"""每条变体**指定要杀死的门**（卡文完成条件 (e)）。
+
+⛔ round-36 更正一处**从头错到尾的自评**：本脚本原先用 `-k <keyword>` 选门，
+判据是「收集到用例 且 有失败」。实测 66 条里 **12 条**的 keyword 解析到 **2-9 个**
+用例（最多 `survivor-8` 的 9 个）—— 对这 12 条，「集合里有失败」**不能证明
+「指定的那道门死了」**。而 (e) 的字面要求就是「杀死**指定**门」。
+
+⇒ 判据改为：跑**恰好这些 nodeid**，要求 `collected == len(指名)` 且
+`failed == len(指名)`（**每一个**指名的门都必须死），不再有"集合里有失败"的余地。
+
+**指名来源（两类，都不是从行为反推）**：
+· 54 条 —— 原 keyword 本就唯一解析到一个 nodeid，机械解析即得；
+· 12 条 —— 读变体自述禁掉的**性质**，选名字对应该性质的门（人工，见 git 记录）。
+  反推（"跑一遍看谁红了就指名谁"）会让判据自证，是本卡反复抓的
+  「自抄期望」同型，禁用。
+
+预检对本表做 fail-closed 校验：键集必须与 MUTANTS 的 id 集**完全相等**，
+且每个 nodeid 必须真实存在于套件收集结果里（防指名腐烂）。
+"""
 
 MUTANT_COUNT_EXPECTED = 66
 """变体数的**独立**期望值。
@@ -974,10 +1086,64 @@ def preflight() -> list[str]:
             mutated = mutated.replace(old, new, 1)
         if mutated is not None and mutated == src:
             bad.append(f"{sid}: 整组替换后源码与原文逐字节相同 = 空变异")
+
+    # ⛔ round-36：指名表 fail-closed 校验（防「指名腐烂」）。
+    # 键集必须与变体 id 集**完全相等** —— 少一个 = 有变体没指名（判据无从谈起），
+    # 多一个 = 指名指向已删除的变体（陈旧声明冒充在场）。
+    missing = sorted(set(ids) - set(DESIGNATED))
+    extra = sorted(set(DESIGNATED) - set(ids))
+    if missing:
+        bad.append(f"DESIGNATED 缺少指名: {missing}")
+    if extra:
+        bad.append(f"DESIGNATED 有多余键（变体已删？）: {extra}")
+    # 每个指名的 nodeid 必须真实存在于套件收集结果里。
+    # ⚠️ 不存在的 nodeid 会让 pytest 直接 rc=4，判据看到的是「实收 0」而非
+    # 「门没死」—— 两者症状不同但都不是承重，在这里提前说清是哪一种。
+    r = subprocess.run(
+        [str(PYTEST), SUITE, "--collect-only", "-q", "-p", "no:cacheprovider", "-o", "addopts="],
+        cwd=ROOT / "backend",
+        capture_output=True,
+        text=True,
+        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+        timeout=300,
+    )
+    collected = {ln.strip().split("::")[-1] for ln in r.stdout.splitlines() if "::" in ln}
+    if not collected:
+        bad.append("套件收集为空，无法校验指名（pytest --collect-only 没输出 nodeid）")
+    else:
+        for sid, nds in DESIGNATED.items():
+            if not nds:
+                bad.append(f"{sid}: 指名为空 = 没有指定门")
+            for nd in nds:
+                if nd not in collected:
+                    bad.append(f"{sid}: 指名的门不存在于套件: {nd}")
     return bad
 
 
+def _die_on_signal(signum: int, _frame: object) -> None:
+    """把 SIGTERM/SIGINT 转成异常，让 `finally` 的还原真的跑得到。
+
+    ⛔ round-36 实战事故：这一轮我把脚本挂在 2 分钟超时的前台跑，超时后
+    harness 发 SIGTERM —— **默认处置是当场终止，不做栈展开**，于是
+    `finally: TARGET.write_bytes(original)` 一行都没执行，
+    **变异体留在生产文件里**（实测 sha `67dbd23f` ≠ HEAD `19684158`，
+    靠 `git status` 发现，脚本自身零信号）。
+
+    脚本 docstring 早就写着「SIGKILL / 解释器崩溃 / 断电兜底不到」——
+    但 **SIGTERM 不在那个不可挡清单里，它是可挡的**，只是没挡。
+    "已知不可挡"的邻居里混进了一个"本可挡而没挡"的，且它才是**日常最常发生的那个**
+    （任何超时、任何 Ctrl-C、任何 CI 取消）。
+    """
+    raise KeyboardInterrupt(f"收到信号 {signum}，中止并还原")
+
+
 def main() -> int:
+    # 先装信号处置，再开始任何可能改文件的动作。
+    # `NEGVERIFY_NO_SIGNAL_GUARD=1` 只给**负控探针**用：禁掉这道防线以证明它承重
+    # （不禁掉就无从分辨"还原成功"是这道防线的功劳还是别的原因）。
+    if os.environ.get("NEGVERIFY_NO_SIGNAL_GUARD") != "1":
+        for _sig in (signal.SIGTERM, signal.SIGINT):
+            signal.signal(_sig, _die_on_signal)
     try:
         LOCK.mkdir()  # 原子互斥: 已存在即抛
     except FileExistsError:
@@ -991,13 +1157,14 @@ def main() -> int:
                 print("   -", _b)
             return 2
         print(
-            f"✅ 锚点预检通过：{len(MUTANTS)} 条变体 —— 锚点均恰好命中一次，"
+            f"✅ 锚点预检通过：{len(MUTANTS)} 条变体 / "
+            f"{sum(len(v) for v in DESIGNATED.values())} 个指定门 —— 锚点均恰好命中一次，"
             "整组替换后源码确实变化（**不**证明该处可达或真禁掉了目标防线）\n"
         )
         original = TARGET.read_bytes()
         backup_sha = hashlib.sha256(original).hexdigest()
 
-        rc0, out0, n0, f0, _c0 = run_suite("domain_")
+        rc0, out0, n0, f0, _c0 = run_suite([SUITE], keyword="domain_")
         if rc0 != 0 or f0 or n0 == 0:
             print(f"⛔ 基线不可信（rc={rc0} 收集={n0} 失败={f0}）:\n{out0}")
             return 2
@@ -1005,6 +1172,7 @@ def main() -> int:
 
         failures = 0
         for name, subs, keyword in MUTANTS:
+            designated = DESIGNATED[name.split()[0]]
             text = original.decode("utf-8")
             for old, new in subs:
                 if old not in text:
@@ -1025,14 +1193,18 @@ def main() -> int:
             #    （grep MUTANT + sha 对比），本脚本自身证明不了这件事。
             try:
                 TARGET.write_text(text, encoding="utf-8")
-                rc, out, n, f, crash = run_suite(keyword)
+                rc, out, n, f, crash = run_suite([f"{SUITE}::{nd}" for nd in designated])
             finally:
                 TARGET.write_bytes(original)  # 立刻还原，异常也还原
             got = hashlib.sha256(TARGET.read_bytes()).hexdigest()
             assert got == backup_sha, f"还原后字节与备份不同！{got[:12]} != {backup_sha[:12]}"
             # ⛔ 必须是"收集到用例 且 确实有失败"，不能只看 rc != 0
-            if n == 0:
-                print(f"❌ {name}: `-k {keyword}` 一个用例都没匹配到（rc={rc}）——这不是变红")
+            want = len(designated)
+            if n != want:
+                print(
+                    f"❌ {name}: 应跑**恰好** {want} 个指定门，实收 {n} 个（rc={rc}）"
+                    f"——指名与实收不符，不算变红\n  指名: {designated}"
+                )
                 failures += 1
             elif rc != 1:
                 # ⛔ R3 round-16 (冻结审查 HIGH): 上一版只要「收集到 且 有失败」就算承重,
@@ -1047,11 +1219,15 @@ def main() -> int:
                     f"——这是**因崩溃变红**, 不是因漏拦变红, 不算承重\n{out}"
                 )
                 failures += 1
-            elif f == 0:
-                print(f"❌ {name}: 变异后 {n} 个用例仍全绿 = 该门不承重\n{out}")
+            elif f != want:
+                # ⛔ round-36 (e)：不是「集合里有失败」，是**每一个指名的门都要死**。
+                # f < want ⇒ 有指名门没被杀死（变异对它不承重，或指名指错了）。
+                print(
+                    f"❌ {name}: 指名 {want} 个门，只死了 {f} 个 —— 未杀死全部**指定**门\n  指名: {designated}\n{out}"
+                )
                 failures += 1
             else:
-                print(f"✅ {name}: 如期变红（{f}/{n} 失败）")
+                print(f"✅ {name}: 指定门全数杀死（{f}/{want}）")
 
         print(f"\n{'全部承重' if not failures else f'{failures} 条未承重'}（共 {len(MUTANTS)} 条变体）")
         return 1 if failures else 0

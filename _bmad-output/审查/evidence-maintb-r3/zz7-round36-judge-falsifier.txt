@@ -1,0 +1,56 @@
+# round-36 (e) 判据验伪：nodeid 绑定判据必须分辨得出「指定门没死」
+# 同一变异体 survivor-66，三态：
+#   ① 指名对的门        → 期望 ✅ 承重
+#   ② 指名不相干的门    → 期望 ❌（判据若绿=没在看「指定」）
+#   ③ 指名 2 个只死 1 个 → 期望 ❌（12 条多指名变体真正依赖的分支）
+
+✅ 锚点预检通过：3 条变体 / 4 个指定门 —— 锚点均恰好命中一次，整组替换后源码确实变化（**不**证明该处可达或真禁掉了目标防线）
+
+基线: 双向门全绿 · 被测文件 sha256=19684158deab…
+
+✅ survivor-66 (C-39) 分隔符归一退回「恰好三位分组」前瞻（制造第三态：既不删也不断 ⇒ 硬断点，匹配重锚到尾片）: 指定门全数杀死（1/1）
+❌ survivor-WRONG 判据验伪锚：同一变异体，指名一个不相干的门: rc=0（只有 rc=1 才是「测试失败」）——不算变红
+❌ survivor-HALF 判据验伪锚：指名 2 个门，其中 1 个与变异无关: 指名 2 个门，只死了 1 个 —— 未杀死全部**指定**门
+  指名: ['test_domain_r29_separator_third_state_cli', 'test_domain_block_four_fence_short_close']
+ in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/regression/test_recap_scan_signals.py::test_domain_r29_separator_third_state_cli
+=================== 1 failed, 1 passed, 10 warnings in 0.96s ===================
+
+
+2 条未承重（共 3 条变体）
+
+# 验伪副本（除追加块外与原件逐字相同；⚠️ 路径必须钉死——副本按 __file__ 推 ROOT 会整体飘走）
+# ── 判据验伪锚（只在这份副本里生效，原件不动）──────────────────────
+# 问题：nodeid 绑定判据全绿，可它**分辨得出「指定门没死」吗**？
+# 做法：同一个变异体 survivor-66（分隔符第三态），跑两次：
+#   · 指名对的门（r29 分隔符门）        → 期望 ✅ 承重
+#   · 指名一个八竿子打不着的门（围栏门）→ 期望 ❌ 「只死了 0 个」
+# 两态若都绿，说明判据没在看"指定"这件事，(e) 依然不成立。
+# ⛔ 副本按 `__file__` 推 ROOT ⇒ 换个目录跑，TARGET/PYTEST 会**整体飘走**
+# （第一次实测 TARGET 指到 /private/tmp/claude-501/canvas-vault/…，FileNotFoundError）。
+# 拷贝重放的"新鲜度校验"只比了内容，比不出**自解析路径**这种随位置变的东西。
+ROOT = Path("/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix")
+TARGET = ROOT / "canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py"
+PYTEST = ROOT / "backend/.venv/bin/pytest"
+assert TARGET.exists() and PYTEST.exists(), "路径钉死后仍指不到真文件"
+
+_by_id = {m[0].split()[0]: m for m in MUTANTS}
+_correct = _by_id["survivor-66"]
+_wrong = ("survivor-WRONG 判据验伪锚：同一变异体，指名一个不相干的门", _correct[1], _correct[2])
+# 第三态：**多指名但只死一半** —— 12 条多指名变体真正依赖的就是这条分支
+# （`f != want`）。前两例都只有 1 个指名，走不到它。
+_half = ("survivor-HALF 判据验伪锚：指名 2 个门，其中 1 个与变异无关", _correct[1], _correct[2])
+MUTANTS = [_correct, _wrong, _half]
+MUTANT_COUNT_EXPECTED = 3
+DESIGNATED = {
+    "survivor-66": ["test_domain_r29_separator_third_state_cli"],
+    "survivor-WRONG": ["test_domain_block_four_fence_short_close"],
+    "survivor-HALF": [
+        "test_domain_r29_separator_third_state_cli",       # 会死
+        "test_domain_block_four_fence_short_close",        # 不会死
+    ],
+}
