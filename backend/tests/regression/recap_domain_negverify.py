@@ -767,6 +767,17 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         ],
         "r27_seedish_h3",
     ),
+    (
+        "survivor-65 (C-38) tips 两数的绑定退回 raw 文本（保留正确行 + 追加渲染等价冲突行 ⇒ 绑定器看不到）",
+        [
+            (
+                "        in_sec = re.findall(pat, _visible_block(recon.group(1)))\n"
+                "        all_hits = re.findall(pat, _visible_block(text))",
+                "        in_sec = re.findall(pat, recon.group(1))\n        all_hits = re.findall(pat, text)",
+            )
+        ],
+        "r28_tips_binding",
+    ),
 ]
 
 
@@ -900,7 +911,7 @@ def run_suite(keyword: str) -> tuple[int, str, int, int, bool]:
     return r.returncode, out[-400:], passed + failed, failed, crash
 
 
-MUTANT_COUNT_EXPECTED = 64
+MUTANT_COUNT_EXPECTED = 65
 """变体数的**独立**期望值。
 
 ⛔ 冻结审查 v6：脚本原先只在结尾动态打印「共 N 条」—— 误删一个变体仍会成功退出。

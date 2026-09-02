@@ -2519,8 +2519,15 @@ def _verify_numbers(fm: str, text: str, report_path: Path, problems: list[str]) 
         (r"tips 批注共\s*(\d+)\s*条", "tips_total", "tips 总数"),
         (r"其中理解度未闭环\s*(\d+)\s*条", "tips_understanding_open", "tips 未闭环"),
     ):
-        in_sec = re.findall(pat, recon.group(1))
-        all_hits = re.findall(pat, text)
+        # ⛔ R3 round-34（冻结审查 v9~v14 连续七轮点名，B1）：这两处原先都在
+        #    **raw** 文本上 findall ⇒ 保留正确行、再追加一条**渲染等价但源码不命中**
+        #    的冲突行（`- tips 批**注**共 999 条` / `批<b>注</b>共` /
+        #    `其中理解度未**闭**环 999 条`），读者看到同一句式，绑定器却看不到。
+        #    三条实测 exit 0。⇒ 与已修的**种子小节 / 五元组 / ③段信号行**
+        #    逐字同型：先归一再匹配（`_visible_block` 保持行数与顺序）。
+        #    ⚠️ 段抓取本身也要归一，否则被排版切开的段标题会让整段落空。
+        in_sec = re.findall(pat, _visible_block(recon.group(1)))
+        all_hits = re.findall(pat, _visible_block(text))
         want_v = counts.get(ckey, -1)
         if not in_sec:
             problems.append(f"数字终核: AI 侧对账缺『{name}』标准计数行")

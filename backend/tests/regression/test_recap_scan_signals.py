@@ -4772,7 +4772,9 @@ def test_domain_r20_seed_ledger_visible_in_manifest_cli(tmp_path):
     # ⚠️ round-25：seed 的值绑定改用**逐行数组**（比整块 join 更强：下标即同源行），
     #    于是它不再调 `_visible_block` ⇒ 真实调用点由 4 降为 3（③段/五元组/形状门）。
     #    期望值随实现改，但必须是**确切数**，不能写 `>=`（那正是上一版假绿的原因）。
-    assert len(_call_lines) == 3, f"_visible_block 真实调用点应为 3 处，实得 {len(_call_lines)}：{_call_lines!r}"
+    # ⚠️ round-34：tips 两数（B1，审查方连续七轮点名）也改用 helper ⇒ 调用点 3→5。
+    #    期望值随实现改，但必须是**确切数** —— 写 `>=` 正是它上一版假绿的成因。
+    assert len(_call_lines) == 5, f"_visible_block 真实调用点应为 5 处，实得 {len(_call_lines)}：{_call_lines!r}"
     # ⚠️ 判据必须**计数**，不能靠「删掉函数名再查子串」—— 删名字不删函数体，
     #    helper 自己的那行 join 照样命中（第一版就这么错的，门当场变红）。
     #    恰好 1 处 = 只存在于 `_visible_block` 的定义里。
@@ -5299,3 +5301,58 @@ def test_domain_r27_seedish_h3_and_corrupt_seeds():
             assert ps == [], f"{why}：误伤 —— {ps!r}"
         else:
             assert any(want in x for x in ps), f"{why}：未报出目标诊断 {want!r} —— {ps!r}"
+
+
+def test_domain_r28_tips_binding_visible_space_cli(tmp_path):
+    """R3 round-34（B1，冻结审查 v9~v14 **连续七轮**点名）：tips 两数的渲染空间绑定。
+
+    ⛔ 这是本卡**最老、最明确、修法最现成**的一条未闭合项 —— 每轮我都登记「未改」，
+    而修法从 round-18 起就已存在（`_visible_block`，与种子小节 / 五元组 /
+    ③段信号行**逐字同型**，那三处都已被审查判 ✅）。
+    它一直排在队尾，不是被遗忘，是**优先级的结构性偏差**：新问题天然显得更紧急，
+    而「已经登记过 N 轮」在心理上会被当成「已经处理过」。
+
+    实测三条（修前 exit 0）：保留正确行 + 追加**渲染等价但源码不命中**的冲突行
+      · `- tips 批**注**共 999 条`
+      · `- tips 批<b>注</b>共 999 条`
+      · `- 其中理解度未**闭**环 999 条`
+
+    ⚠️ **复现方法本身有个坑**：第一版载荷把整行复制过去（含 `其中理解度未闭环 4 条`），
+    结果被**相邻**那条模式的唯一性检查拦下 —— 典型的**纵深遮蔽**，差点让我误判
+    「不可复现」。干净载荷必须只含被切断的那**一个**模式。
+
+    **它证明什么**：段抓取与两条模式的 in_sec/all_hits 都在渲染空间比对。
+    **它不证明什么**：不改变 tips 绑定的**语义**（仍是「段内恰一条 + 全文逐条等值」）；
+    也不覆盖中文数词 / 带圈数字等非 `Nd` 形态（见接手清单 B3）。
+    """
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    report = write_report(vault, scan)
+    base = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+
+    tips = next((ln for ln in base.splitlines() if re.search(r"tips 批注共\s*\d+\s*条", ln)), None)
+    assert tips, "前提：报告必须含 tips 标准计数行"
+
+    def with_conflict(conflict: str):
+        text = base.replace(tips, tips + "\n" + conflict, 1)
+        assert text != base, "注入未命中：报告一字未改，这条门测的是空气"
+        report.write_text(text, encoding="utf-8")
+        return run_verify(report)
+
+    for conflict, why in (
+        ("- tips 批**注**共 999 条", "第一条模式被强调标记切开"),
+        ("- tips 批<b>注</b>共 999 条", "第一条模式被 HTML 标签切开"),
+        ("- 其中理解度未**闭**环 999 条", "第二条模式被强调标记切开"),
+        ("- tips 批注共 999 条", "对照：裸冲突行"),
+    ):
+        r = with_conflict(conflict)
+        assert r.returncode != 0, f"{why}：冲突行被放行 —— {conflict!r}"
+        assert _one_problem_has(r.stdout, "999"), f"{why}：诊断未指向冲突值 999\n{r.stdout}"
+
+    # 不得误伤：把**正确行本身**写成渲染等价的强调形态，仍须通过
+    report.write_text(
+        base.replace(tips, tips.replace("tips 批注共", "tips 批**注**共", 1), 1),
+        encoding="utf-8",
+    )
+    assert run_verify(report).returncode == 0, "渲染等价的合规 tips 行被误判"
