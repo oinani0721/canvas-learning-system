@@ -1031,7 +1031,15 @@ def _strip_code_blocks(text: str) -> str:
         # `---` 是 thematic break 不是列表)。
         # ⛔ CARD-维护B-R2 round-3: 无序 marker 之外**有序 marker** (`1. `) 与
         # **多层 marker** (`- - `) 同样是列表容器 (渲染为列表项内围栏), 一并剥。
-        bare = re.sub(r"^(?:[>\s]|(?:[-*+]|\d{1,9}[.)])[^\S\n]+)*", "", ln)
+        # ⛔ R3 round-26（冻结审查 v7）：原式的 `[>\s]` 会**吃掉任意前导空白**，
+        #    于是 open_re 的 ` {0,3}` 形同虚设 —— 顶层缩进四格的 ``` 被当成开栏
+        #    （CommonMark 里那是 indented code block，不是围栏），其后用户
+        #    **看得见**的「本板共有 N 个…」会被当成围栏内内容整段免检。
+        #    ⇒ 只剥**容器前缀**（引用 `>` / 列表 marker，各自最多 3 格缩进），
+        #      无 marker 时**不动**前导空白，让 ` {0,3}` 真正生效。
+        bare = re.sub(
+            r"^(?: {0,3}(?:>|(?:[-*+]|\d{1,9}[.)])[^\S\n]+)[^\S\n]*)*", "", ln
+        )
         if fence is None:
             m = open_re.match(bare)
             # 反引号围栏的 info string 不得含反引号 (CommonMark);
@@ -2062,6 +2070,26 @@ def _verify_prose_counts(text: str, scan: dict, problems: list[str]) -> None:
                     )
 
 
+def _tail_conflict(mm: "re.Match[str]", key: str, problems: list[str]) -> None:
+    """种子行尾巴里若再出现**同一字段**的计数，与已绑定的首数矛盾 ⇒ fail-closed。
+
+    ⛔ R3 round-26（冻结审查 v7 直接回答了我提的问题）：round-25 放宽尾巴起始
+    字符集，让真实报告的 `（理解度未闭环 3 条）；…` 进入首数绑定 —— 这是**覆盖
+    扩大**；但相对于同轮新增的 fail-closed 形状门，它**也确实放松了接受集**。
+    审查方判词是「两者兼有」，我原来只说了扩大那一半 —— 措辞比证据宽。
+
+    ⚠️ 能力边界：尾巴里的**其它**字段（`理解度未闭环 N 条` / `已派生 N 点`）
+    在 scan JSON 里没有对应的逐节点字段可绑，**本函数不管**，如实登记。
+    这里只堵一种明确矛盾：尾巴里又写了一个 `批注 N 条`。
+    """
+    rest = mm.groupdict().get("rest") or ""
+    for _n in re.findall(r"批注\s*(\d+)\s*条", rest):
+        problems.append(
+            f"数字终核: 台账『种子』行 {key} 的尾巴里又出现『批注 {_n} 条』——"
+            "同一字段两处计数, 无法确定以哪个为准 (fail-closed)"
+        )
+
+
 def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> None:
     """台账『种子』行的批注数必须绑到 scan JSON 里**该节点的** tips_count。
 
@@ -2089,10 +2117,31 @@ def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> No
     #      **逐个**处理，不再只取第一个。
     raw_lines = text.splitlines()
     vis_lines = [_visible_text(_ln) for _ln in raw_lines]
+    # ⛔ R3 round-26（冻结审查 v7）：round-25 的「逐个处理全部小节」**范围超出意图** ——
+    #    它搜全篇所有 `### 种子`，未限定父级 `## 台账`、也未排除围栏内，于是附录或
+    #    示例里的同名小节会被强制套台账模板（本轮误伤面）。现收窄为：只认**当前
+    #    父级 H2 是「台账」**且**不在围栏内**的 `### 种子`。
+    _in_fence = False
+    _under_ledger = False
     sections: list[tuple[int, int]] = []
     _i = 0
     while _i < len(vis_lines):
-        if re.match(r"^###\s*种子\s*$", vis_lines[_i]):
+        _bare = re.sub(
+            r"^(?: {0,3}(?:>|(?:[-*+]|\d{1,9}[.)])[^\S\n]+)[^\S\n]*)*",
+            "",
+            vis_lines[_i],
+        )
+        if re.match(r"^ {0,3}(?:`{3,}|~{3,})", _bare):
+            _in_fence = not _in_fence
+            _i += 1
+            continue
+        if _in_fence:
+            _i += 1
+            continue
+        _h2 = re.match(r"^##\s+(.*)$", vis_lines[_i])
+        if _h2:
+            _under_ledger = "台账" in _h2.group(1)
+        if _under_ledger and re.match(r"^###\s*种子\s*$", vis_lines[_i]):
             _j = _i + 1
             while _j < len(vis_lines) and not re.match(r"^#{2,3}\s", vis_lines[_j]):
                 _j += 1
@@ -2150,6 +2199,7 @@ def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> No
                             f"数字终核: 台账『种子』行 {key} 报批注 {got} 条, "
                             f"scan JSON 的 tips_count 是 {want} (形状对不等于数字有据)"
                         )
+                    _tail_conflict(raw_ms, key, problems)
                     continue
                 # ⛔ round-25: raw 精确未命中**不等于**身份非法 —— ledger id 为 `A&B`
                 #    而报告合法写成 `A&amp;B` 时，读者看到的是同一个名字。原实现
@@ -2177,6 +2227,7 @@ def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> No
                     f"数字终核: 台账『种子』行 {key} 报批注 {got} 条, "
                     f"scan JSON 的 tips_count 是 {want} (形状对不等于数字有据)"
                 )
+            _tail_conflict(ms, key, problems)
 
 
 def _verify_numbers(fm: str, text: str, report_path: Path, problems: list[str]) -> None:

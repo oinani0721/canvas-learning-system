@@ -104,8 +104,10 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
                 # ⛔ CARD-维护B-R2 round-3 锚点更新: bare 现为「引用+无序/有序/多层
                 # 列表 marker」交替剥法 + 列表容器边界跟踪。变异性质不变——退回
                 # "只剥一层引用"形态时, c1/c2/列表项围栏/r3 门都应变红。
-                'bare = re.sub(r"^(?:[>\\s]|(?:[-*+]|\\d{1,9}[.)])[^\\S\\n]+)*", "", ln)',
-                'bare = re.sub(r"^>?[^\\S\\n]*", "", ln)',
+                "        bare = re.sub(\n"
+                '            r"^(?: {0,3}(?:>|(?:[-*+]|\\d{1,9}[.)])[^\\S\\n]+)[^\\S\\n]*)*", "", ln\n'
+                "        )",
+                '        bare = re.sub(r"^>?[^\\S\\n]*", "", ln)',
             )
         ],
         "multilevel_blockquote_fence or strip_code_blocks_unit_contract or list_item_fence",
@@ -621,6 +623,21 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         ],
         "r21_seed_node_identity",
     ),
+    (
+        "survivor-53 (C-26) 围栏前缀剥离退回吃掉任意缩进（四空格伪围栏 ⇒ 其后可见计数整段免检）",
+        [
+            (
+                '            r"^(?: {0,3}(?:>|(?:[-*+]|\\d{1,9}[.)])[^\\S\\n]+)[^\\S\\n]*)*", "", ln',
+                '            r"^(?:[>\\s]|(?:[-*+]|\\d{1,9}[.)])[^\\S\\n]+)*", "", ln',
+            )
+        ],
+        "r22_fence_indent",
+    ),
+    (
+        "survivor-54 (C-27) 种子小节不再限定在『台账』之下（附录同名小节被强制套模板）",
+        [("        if _under_ledger and re.match(", "        if True and re.match(")],
+        "r22_fence_indent",
+    ),
 ]
 
 
@@ -751,7 +768,7 @@ def run_suite(keyword: str) -> tuple[int, str, int, int]:
     return r.returncode, out[-400:], passed + failed, failed, crash
 
 
-MUTANT_COUNT_EXPECTED = 52
+MUTANT_COUNT_EXPECTED = 54
 """变体数的**独立**期望值。
 
 ⛔ 冻结审查 v6：脚本原先只在结尾动态打印「共 N 条」—— 误删一个变体仍会成功退出。
@@ -767,8 +784,10 @@ def preflight() -> list[str]:
     改实现 → 跑满一轮 → 跑到那一条才报「未命中」→ 重锚 → 再跑一轮。
     **发现成本远高于修复成本，且发现得越晚越贵。**
 
-    ⚠️ 能力边界（round-25 如实声明，冻结审查 v6 指出）：
+    ⚠️ 能力边界（round-25 声明，round-26 按冻结审查 v7 收紧措辞）：
       · 「恰好命中一次」只证明**文本定位唯一**；
+      · 「整组替换后源码确实变化」证明**替换非空**（round-26 新增，此前只比
+        `old != new`，而成功消息却宣布了"替换非空" —— 措辞比证据宽）；
       · **不**证明该位置可达、替换非空、或确实禁掉了目标防线 ——
         「锚点仍命中但变异已为空」在本卡真实发生过（见 铁律 4 / 铁律 5）。
       · 它是**必要非充分**条件：能挡住漂移，挡不住空变异。
@@ -781,13 +800,24 @@ def preflight() -> list[str]:
         dup = sorted({i for i in ids if ids.count(i) > 1})
         bad.append(f"变体 ID 重复: {dup}")
     src = TARGET.read_text(encoding="utf-8")
-    for name, subs, _kw in MUTANTS:
+    for idx, (name, subs, _kw) in enumerate(MUTANTS):
+        sid = ids[idx]
+        if not subs:
+            bad.append(f"{sid}: subs 为空 = 什么都不改")
+            continue
+        # ⛔ round-26（冻结审查 v7）：原先逐条只比 `old != new`，成功消息却宣布
+        #    「替换非空」—— **措辞比证据宽**。改为**按真实顺序模拟整组替换**，
+        #    要求最终源码确实变化：这才配得上那句话。
+        mutated = src
         for old, new in subs:
-            hits = src.count(old)
+            hits = mutated.count(old)
             if hits != 1:
-                bad.append(f"{ids[[n for n, _s, _k in MUTANTS].index(name)]}: 锚点命中 {hits} 次（须恰好 1）")
-            elif old == new:
-                bad.append(f"{ids[[n for n, _s, _k in MUTANTS].index(name)]}: 替换前后相同 = 空变异")
+                bad.append(f"{sid}: 锚点命中 {hits} 次（须恰好 1）")
+                mutated = None
+                break
+            mutated = mutated.replace(old, new, 1)
+        if mutated is not None and mutated == src:
+            bad.append(f"{sid}: 整组替换后源码与原文逐字节相同 = 空变异")
     return bad
 
 
@@ -804,7 +834,10 @@ def main() -> int:
             for _b in _bad:
                 print("   -", _b)
             return 2
-        print(f"✅ 锚点预检通过：{len(MUTANTS)} 条变体，锚点均恰好命中一次且替换非空\n")
+        print(
+            f"✅ 锚点预检通过：{len(MUTANTS)} 条变体 —— 锚点均恰好命中一次，"
+            "整组替换后源码确实变化（**不**证明该处可达或真禁掉了目标防线）\n"
+        )
         original = TARGET.read_bytes()
         backup_sha = hashlib.sha256(original).hexdigest()
 

@@ -1,0 +1,16 @@
+# round-26 复现（冻结审查 v7）
+## 四空格伪围栏 + 三条对照
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/test_recap_scan_signals.py:4847: SyntaxWarning: "\s" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\s"? A raw string is also an option.
+  原实现先用 `[>\s]` 吃掉**任意**前导空白，`open_re` 的 ` {0,3}` 形同虚设
+--- 四空格缩进的 ``` 不是围栏（CommonMark），其后的自陈句必须受检 ---
+✅ 拦截 四空格伪围栏藏计数
+--- 对照：真围栏（0-3 格）内的内容仍豁免 ---
+❌ 放行(漏) 顶层真围栏
+❌ 放行(漏) 三格缩进真围栏
+--- 对照：列表项内围栏仍识别（round-2 修过的形态）---
+❌ 放行(漏) 列表项内围栏
+
+## 节点身份七形态（回归）
+7
+## manifest 双行逃逸（回归）
+5

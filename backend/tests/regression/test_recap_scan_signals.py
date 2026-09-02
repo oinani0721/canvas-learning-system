@@ -4837,3 +4837,77 @@ def test_domain_r21_seed_node_identity_same_space():
         else:
             assert ps, f"{why}：应报错却放行了"
             assert any(want in x for x in ps), f"{why}：诊断未含 {want!r} —— {ps!r}"
+
+
+def test_domain_r22_fence_indent_and_seed_scope_cli(tmp_path):
+    """R3 round-26（冻结审查 v7）：四空格伪围栏 + 种子小节范围 + 尾巴同名字段。
+
+    三条实测：
+      · **四空格缩进的 ``` 不是围栏**（CommonMark 里那是 indented code block）。
+        原实现先用 `[>\s]` 吃掉**任意**前导空白，`open_re` 的 ` {0,3}` 形同虚设
+        ⇒ 顶层 `    ```` 被当成开栏，其后读者**看得见**的自陈句整段免检（实测放行）；
+      · round-25 的「逐个处理全部种子小节」**范围超出意图** —— 搜全篇任意
+        `### 种子`，未限定父级 `## 台账`、未排除围栏 ⇒ 附录里的同名小节被强制
+        套台账模板（本轮误伤面，审查方指出）；
+      · 尾巴里再写一个**同名字段**的计数（`批注 N 条`）与已绑定的首数矛盾。
+
+    **它证明什么**：容器前缀（引用/列表）仍被正确剥离，但无 marker 时不动缩进；
+    种子小节只在「台账」H2 之下且不在围栏内才生效；同字段两处计数 fail-closed。
+    **它不证明什么**：尾巴里**其它**字段（`理解度未闭环 N 条`/`已派生 N 点`）
+    在 scan JSON 无逐节点对应字段，**不绑定**，如实登记。
+    """
+    rs = _load_recap_scan()
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    report = write_report(vault, scan)
+    base = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+
+    def in3(block: str):
+        text = base.replace("## 三维审查", f"## 三维审查\n\n{block}", 1)
+        assert text != base, "注入未命中：报告一字未改，这条门测的是空气"
+        report.write_text(text, encoding="utf-8")
+        return run_verify(report)
+
+    HIDE = "- 本板共有987654个子节点。【实测】"
+    assert 987654 not in rs._derived_number_pool(scan), "前提：987654 必须在池外"
+
+    # ① 四空格不是围栏 ⇒ 藏在里面的可见计数必须受检
+    r = in3(f"    ```\n{HIDE}\n    ```")
+    assert r.returncode != 0, "四空格伪围栏让可见计数整段免检"
+    assert _one_problem_has(r.stdout, "987654"), f"诊断未指向 987654:\n{r.stdout}"
+
+    # ② 对照：真围栏（0-3 格）与列表项内围栏仍豁免（否则是误伤）
+    for block, why in (
+        (f"```\n{HIDE}\n```", "顶层真围栏"),
+        (f"   ```\n{HIDE}\n   ```", "三格缩进真围栏"),
+        (f"- ```\n  {HIDE}\n- ```", "列表项内围栏（round-2 修过的形态）"),
+    ):
+        assert in3(block).returncode == 0, f"{why}被误判为非围栏"
+
+    # ③ 种子小节范围：`## 台账` 之外的同名小节不得被强制套模板
+    text = base.replace(
+        "## 三维审查",
+        "## 附录\n\n### 种子\n\n这里是自由叙述，不是台账行。\n\n## 三维审查",
+        1,
+    )
+    assert text != base, "注入未命中"
+    report.write_text(text, encoding="utf-8")
+    assert run_verify(report).returncode == 0, "非『台账』下的同名小节被强制套台账模板 —— 范围超出意图"
+
+    # ④ 尾巴里同名字段的第二个数 ⇒ fail-closed（函数级，最小可控）
+    problems: list[str] = []
+    rs._verify_seed_ledger_counts(
+        "## 台账\n\n### 种子\n\n- SeedA — 批注 2 条（批注 999 条）\n\n## 末\n",
+        {"ledger": {"seeds": [{"node_id": "SeedA", "tips_count": 2}]}},
+        problems,
+    )
+    assert any("尾巴里又出现" in p for p in problems), f"同字段两处计数未 fail-closed：{problems!r}"
+    # 反面：真实报告的尾巴（其它字段）不得误伤
+    problems2: list[str] = []
+    rs._verify_seed_ledger_counts(
+        "## 台账\n\n### 种子\n\n- SeedA — 批注 2 条（理解度未闭环 2 条）；已派生 3 点\n\n## 末\n",
+        {"ledger": {"seeds": [{"node_id": "SeedA", "tips_count": 2}]}},
+        problems2,
+    )
+    assert problems2 == [], f"真实报告的尾巴被误伤：{problems2!r}"
