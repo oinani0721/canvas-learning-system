@@ -1,0 +1,9 @@
+# round-21 验伪：恒真断言（冻结审查 v3 §行为门 HIGH）
+## round-20 版本：assert "_surface_child_stderr(r)" in <本文件源码>
+   要找的串就在断言那一行里 ⇒ 恒真。实测删掉真正调用点后：2 passed（门没变红）
+## round-21 版本：monkeypatch 哨兵
+   实测删掉真正调用点后：1 failed（门变红）
+
+## 判据事实更正
+21:    --tb=short
+   ⇒ 我此前注释写的「-q 默认 tb」是事实错误，已更正

@@ -565,9 +565,16 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "r17_freeze",
     ),
     (
-        "survivor-48 (C-21) code span 字符域去掉区间分隔符"
+        "survivor-48 (C-21) code span 字符域去掉**全部**区间分隔面"
+        "（含 _D2_COUNTISH_EXTRA 自带的横线 —— 只清 _D2_RANGE_SEPS 时它们仍在，"
+        "变异名比实际范围宽，round-21 冻结审查 v3 指出）"
         "（`` `999~999个` `` 被当字段值整段挖空，区间门与数字门都不可达）",
-        [('_D2_RANGE_SEPS = "~～〜-－−‑—–到至"', '_D2_RANGE_SEPS = ""')],
+        [
+            (
+                '_D2_RANGE_SEPS = "~～〜-－−‑—–到至"\n_D2_COUNTISH_EXTRA = "-−－‑﹣负.．,，\'’" + _D2_RANGE_SEPS',
+                '_D2_RANGE_SEPS = ""\n_D2_COUNTISH_EXTRA = "﹣负.．,，\'’" + _D2_RANGE_SEPS',
+            )
+        ],
         "r17_freeze",
     ),
     (
@@ -609,6 +616,14 @@ def _looks_like_crash(out: str) -> bool:
 
     提成纯函数是为了能被 `test_recap_scan_signals.py` 逐形态单测 ——
     藏在 `run_suite` 里就只能靠肉眼，而崩溃伪红**唯一的症状就是显示 ✅**。
+
+    ⚠️ **能力边界（round-21 如实声明，不再自称可靠二分）**：
+      · **确定性**的那一半：子进程崩溃由测试侧在源头打 `[[CHILD-CRASH]]` 标记，
+        标记出现即判崩溃 —— 不依赖任何渲染格式；
+      · **启发式**的那一半：解析外层 pytest 渲染（缩进上界 + assert 白名单），
+        绑定 `backend/pytest.ini` 当前的 `--tb=short`。它**会**漏（内层无
+        traceback 的崩溃、致命信号）**也会**误报（正文偶然含 traceback 字样）。
+        它只是补充，不是判据的主干。
     """
     # ⛔ R3 round-17 (冻结审查 §一.4): 上一版号称「从名单改形态」, 其实只是把名单
     # 从**全名**换成了**后缀** —— `(?:[Ee]rror|Exception)` 仍是一张我手写的闭表,
@@ -624,6 +639,20 @@ def _looks_like_crash(out: str) -> bool:
     # 真实输出语法。实测语法: 异常行是 `E   <类名>: <消息>` —— 标识符后**紧跟冒号**;
     # 断言是 `E   assert …` 或 `E   AssertionError: …`; 续行则是缩进的自由文本。
     # ⇒ 加上"紧跟冒号"这一条, 两个方向同时收敛(负控见 r13 门的 16 条形态)。
+    # ⛔ round-21（冻结审查 v3）：上一版号称"可靠二分"，**那个说法不成立**，如实收回。
+    #    审查方点名的三条都对：
+    #      · 内层 CLI 的无 traceback 崩溃（`SyntaxError` / 致命信号）在外层只剩
+    #        一个 `AssertionError` ⇒ 假阴；
+    #      · 正文偶然含 `Traceback…` / `N error(s)` ⇒ 假阳；
+    #      · 缩进上界是**当前 formatter 的启发式** —— 而且我此前注释说"跑的是
+    #        `-q` 默认 tb"是**事实错误**：`backend/pytest.ini` 的 addopts 强制
+    #        `--tb=short`。实测的 3 格是**那个配置下**的形态，不是普适规律。
+    #    ⇒ 结构调整：**子进程崩溃改由源头打确定性标记**（见 test 侧
+    #      `CHILD_CRASH_MARK`），标记出现即权威判定；下面这套解析 pytest 渲染的
+    #      规则**降级为补充启发式**，只用于捕捉外层自身抛出的异常。
+    CHILD_CRASH_MARK = "[[CHILD-CRASH]]"
+    if CHILD_CRASH_MARK in out:
+        return True
     LEGIT_RED = {"assert", "AssertionError"}
     # ⛔ round-20 (冻结审查 v2 §四.4): 只要"紧跟冒号"仍会假阳 —— 断言消息的
     #    续行 `E       Expected: …` 同样是"标识符+冒号"。实测 pytest 语法:

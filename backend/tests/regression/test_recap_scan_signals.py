@@ -101,6 +101,11 @@ def run_collect(vault: Path, board: str = BOARD, *extra: str) -> subprocess.Comp
     )
 
 
+# 子进程崩溃的确定性标记（见 _surface_child_stderr / negverify._looks_like_crash）。
+# 刻意选一个不会在正常报告或诊断里出现的串。
+CHILD_CRASH_MARK = "[[CHILD-CRASH]]"
+
+
 def _surface_child_stderr(r: subprocess.CompletedProcess) -> None:
     """把**被测 CLI 子进程**的 stderr 抬到测试自己的 stdout 上。
 
@@ -110,8 +115,15 @@ def _surface_child_stderr(r: subprocess.CompletedProcess) -> None:
     `recap_domain_negverify` 的崩溃识别就永远看不见内层崩溃。
     pytest 会在失败时展示 "Captured stdout call"，所以 print 到这里即接通。
     """
-    if r.stderr and r.stderr.strip():
-        print(f"[child stderr]\n{r.stderr}")
+    if not (r.stderr and r.stderr.strip()):
+        return
+    # ⛔ round-21（冻结审查 v3）：外层判据原先只能**解析 pytest 的渲染**去猜
+    # "这次红是崩溃还是判错"，那是随 formatter 变的启发式。这里改为在源头打一个
+    # **确定性标记**：子进程 stderr 里出现 traceback = 被测 CLI 崩了，事实明确，
+    # 不需要下游再猜。标记串刻意选得不会在正常输出里出现。
+    if "Traceback (most recent call last):" in r.stderr:
+        print(f"{CHILD_CRASH_MARK} rc={r.returncode}")
+    print(f"[child stderr]\n{r.stderr}")
 
 
 def run_verify(report: Path) -> subprocess.CompletedProcess:
@@ -4470,7 +4482,10 @@ def test_domain_r16_clause7_n_binding_is_visible_text_cli(tmp_path):
     ):
         assert inject(line).returncode != 0, f"{why}：前置 N 未被绑定 —— {line!r}"
 
-    # 段外伪信号行的两种形态都必须拦（对照，确认这条老防线未被本次改动动摇）
+    # ⚠️ round-21 更正：下面注入的锚点 `方向叙述：` **仍在③段内**，所以这两条
+    #    测的是「③段内的伪信号行」，**不是**真正的段外路径（冻结审查 v3 指出
+    #    原措辞过宽）。段外路径由 `_verify_signals_if_present` 的 rest 判定负责，
+    #    本门不覆盖 —— 如实登记。
     for line, why in (
         ("> - 无来源结论：99/2 派生角色成员缺来源锚点【推定】", "段外裸信号名"),
         ("> - 无**来源**结论：99/2 派生角色成员缺来源锚点【推定】", "段外信号名被切开"),
@@ -4571,8 +4586,11 @@ def test_domain_r18_crash_judge_indent_and_child_stderr():
 
     **它证明什么**：缩进上界 3 格 + 紧跟冒号两条件同时成立才判异常；
     `run_verify` 已把子进程 stderr 打到测试 stdout（pytest 失败时展示）。
-    **它不证明什么**：pytest 的缩进约定随 tb 风格而变；本判据绑定的是
-    **本套件实际使用的那条命令**（`-q` 默认 tb）的实测输出。
+    **它不证明什么**：这套解析**不是可靠二分**（round-21 如实收回该说法）——
+    pytest 的缩进随 tb 风格而变，本仓 `backend/pytest.ini` 的 addopts 强制
+    `--tb=short`（我此前注释写的『-q 默认 tb』是**事实错误**）。内层无
+    traceback 的崩溃仍会假阴、正文偶含 traceback 字样仍会假阳。
+    确定性的那一半由 `[[CHILD-CRASH]]` 标记承担，解析只是补充。
     """
     import importlib.util as _ilu
 
@@ -4600,6 +4618,13 @@ def test_domain_r18_crash_judge_indent_and_child_stderr():
         ("E   Exception: boom", True, "裸 Exception"),
         ("E   Failed: 夹具坏", True, "pytest.fail = 夹具坏了"),
         ("E   RecursionError", True, "无消息异常：没有冒号，靠缩进上界识别"),
+        # 缩进上界实现接受 1-3 格；实测形态是 3 格（本仓 pytest.ini 强制 --tb=short）。
+        # 1/2 格没有实测样本，但判为异常是**保守方向**，这里显式锁住行为。
+        ("E ValueError: x", True, "1 格缩进（无实测样本，保守判为异常）"),
+        ("E  KeyError: x", True, "2 格缩进（同上）"),
+        # 确定性标记优先于一切启发式
+        ("[[CHILD-CRASH]] rc=1", True, "子进程崩溃的确定性标记"),
+        ("1 passed", False, "对照：没有标记也没有异常行"),
         ("  Traceback (most recent call last):", True, "任意位置的 traceback"),
         ("INTERNALERROR> x", True, "pytest 内部错"),
         ("1 error, 260 passed", True, "收集期 error"),
@@ -4607,33 +4632,43 @@ def test_domain_r18_crash_judge_indent_and_child_stderr():
     ):
         assert _nv._looks_like_crash(out) is want, f"崩溃判据判错: {why} | {out!r}"
 
-    # transport：内层 CLI 的 stderr 必须被抬到测试 stdout（否则外层永远看不到）
-    src = pathlib.Path(__file__).read_text(encoding="utf-8")
-    assert "_surface_child_stderr(r)" in src, "run_verify 未接线子进程 stderr"
+    # transport：外层 stderr 不得被丢弃（合成输入，只测 helper 本身）
     assert _nv._looks_like_crash(_nv._crash_text("1 failed, 260 passed", "Traceback (most recent call last):")), (
         "外层 stderr 仍被丢弃"
     )
+    # ⛔ 真实接线由 r19 用 monkeypatch 哨兵验证 —— 这里**不再**读自己的源码查字符串。
+    #    那种写法是恒真的（要找的串就在断言那一行里），round-21 实测：删掉
+    #    run_verify 里真正的调用点，门仍 2 passed。本卡第三次踩同款。
 
 
-def test_domain_r19_child_stderr_transport_is_real(capsys):
-    """R3 round-20：`_surface_child_stderr` 必须**真的**把子进程 stderr 打出来。
+def test_domain_r19_child_stderr_transport_is_real(capsys, monkeypatch, tmp_path):
+    """R3 round-21：`run_verify` 必须**真的**调用 `_surface_child_stderr`。
 
-    ⛔ 冻结审查 v2 的 ⚠️ 判词：「stderr 行为门只是把合成 traceback 手工传给
-    helper，没有验证真实接线」—— 那条批评成立。这里补上：直接调用接线函数，
-    用 capsys 断言它**确实**写到了测试自己的 stdout（pytest 失败时展示它，
-    外层的崩溃识别才看得见内层 traceback）。
+    ⛔ round-20 这里写的是 `assert "_surface_child_stderr(r)" in <本文件源码>` ——
+    **恒真**：要找的字符串就在断言那一行里。round-21 实测验伪：把 `run_verify`
+    里真正的调用点删掉，门仍 **2 passed**。这是本卡**第三次**踩同一款
+    （#23 自抄期望 / round-15 自比常量 / 本条自读源码）。
+    ⇒ 改为 monkeypatch 哨兵：替换掉接线函数本体，跑一次真实 `run_verify`，
+    断言哨兵**被调用过**且拿到的是那个 CompletedProcess。删掉调用点 = 门变红。
 
-    另有一次**端到端实测**（不放在门里，因为它要临时改生产文件）：给
-    `_visible_text` 注入 `RecursionError` 后跑 r14 门，外层 stdout 里出现了
-    `[child stderr]` 与 `Traceback (most recent call last):`；修复前这两样都不会
-    出现，外层只剩一个 `AssertionError` ⇒ 生产崩溃被当成正常判错变红。
-    证据：`_bmad-output/审查/evidence-maintb-r3/x-crash-transport-measured.txt`。
-
-    **它证明什么**：接线函数本身有效，且只在 stderr 非空时才输出。
-    **它不证明什么**：不证明每一条门都会触发它（那取决于被测 CLI 是否真的崩）。
+    **它证明什么**：接线真实存在；且 stderr 非空时会打出 `[child stderr]`，
+    出现 traceback 时额外打确定性标记 `[[CHILD-CRASH]]`。
+    **它不证明什么**：不证明每条门都会触发它（取决于被测 CLI 是否真的崩）。
     """
     import subprocess as _sp
 
+    # ① 接线：run_verify 必须调用它（哨兵，不是读源码字符串）
+    called: list = []
+    monkeypatch.setattr(sys.modules[__name__], "_surface_child_stderr", lambda r: called.append(r))
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    report = write_report(vault, scan)
+    run_verify(report)
+    assert len(called) == 1, "run_verify 未调用 _surface_child_stderr（接线断了）"
+    assert isinstance(called[0], _sp.CompletedProcess), "哨兵拿到的不是子进程结果"
+    monkeypatch.undo()
+
+    # ② 函数本体：空 stderr 不出声；有 traceback 时打确定性标记
     _surface_child_stderr(_sp.CompletedProcess(args=["x"], returncode=1, stdout="", stderr=""))
     assert capsys.readouterr().out == "", "stderr 为空时不得产生噪声"
 
@@ -4646,5 +4681,11 @@ def test_domain_r19_child_stderr_transport_is_real(capsys):
         )
     )
     out = capsys.readouterr().out
+    assert CHILD_CRASH_MARK in out, "子进程崩溃未打确定性标记 ⇒ 下游只能靠解析渲染猜"
     assert "[child stderr]" in out, "子进程 stderr 未被抬到测试 stdout"
-    assert "Traceback (most recent call last):" in out, "traceback 内容丢失"
+
+    # ③ 无 traceback 的 stderr（如告警）不得误打崩溃标记
+    _surface_child_stderr(_sp.CompletedProcess(args=["x"], returncode=0, stdout="", stderr="DeprecationWarning: x\n"))
+    out2 = capsys.readouterr().out
+    assert CHILD_CRASH_MARK not in out2, "普通 stderr 被误标成崩溃"
+    assert "[child stderr]" in out2
