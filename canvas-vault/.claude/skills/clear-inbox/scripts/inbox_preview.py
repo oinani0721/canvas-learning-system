@@ -443,7 +443,24 @@ _HEADING_RE = re.compile(r"^ {0,3}#{1,6}(?:[ \t]|$)")
 _LIST_PREFIX_RE = re.compile(r"^\s*(?:[-*+]\s+|\d{1,3}[.)]\s+|>\s?)+")
 #: 纯结构行（分隔线 / 表格分隔 / 空列表符）。⛔ 不含 `~`：`~~~` 是代码围栏标记，
 #: 由 `_classify_lines` 的状态机处理；把它当"结构"曾让整段围栏代码凭空消失。
+#: ⛔ 第七轮终审 HIGH（R7-H2）：原表含 `=`/`|`/`:`，于是 `:=`、`=>`、`||` 这类
+#: **有语义的运算符**被当纯结构忽略，3 字节文件被判空骨架确定删除。
+#: 收窄口径：一行只有在**全部由同一种结构字符（加空白）构成**时才算结构行 ——
+#: `---`/`***`/`|||`/`>>>` 是结构，`:=`/`=>`/`||=` 是内容。
+#: ⚠️ `||` 仍算结构（同字符重复），`:=`/`=>` 不算 —— 这条线画在「混合了不同
+#: 结构字符」上，不是「有没有出现结构字符」。
 _ONLY_STRUCT_RE = re.compile(r"^[\s\-=*_|:#>]*$")
+_STRUCT_CHARS = "-=*_|:#>"
+
+
+def _is_structural_line(t: str) -> bool:
+    """纯结构行判定（分隔线 / 表格分隔 / 空列表符）。"""
+    if not _ONLY_STRUCT_RE.match(t):
+        return False
+    kinds = {c for c in t if c in _STRUCT_CHARS}
+    return len(kinds) <= 1
+
+
 #: 代码围栏（``` 或 ~~~，允许**最多 3 个空格**缩进 —— ⛔ 必须是字面空格：
 #: `\s{0,3}` 会放行制表符，而 CommonMark 里制表符缩进 ≥4 列是缩进代码块，
 #: `\t```` 既能开也能**关**围栏，会让围栏提前闭合、其后的标题被剥（round-3 自审 B3-4）。
@@ -666,6 +683,13 @@ def _classify_lines_typed(text: str) -> tuple[list[tuple[str, str]], bool, list[
             # 的 info string 允许反引号，不受此限。
             if not in_fence and not (tok[0] == "`" and "`" in ln[m.end() :]):
                 in_fence, fence_char, fence_len = True, tok[0], len(tok)
+                # ⛔ 第七轮终审 HIGH（R7-H1）：围栏开启行的 **info string**
+                # （`~~~ {source=https://…}`）整行被标成 "fence" 后不进正文，
+                # 写在那儿的来源静默消失。这是「来源被引擎剥掉」的**第四种写法**
+                # （前三种：跨行 HTML 注释 / fm 整行 YAML 注释 / fm 行尾注释）。
+                info = ln[m.end() :].strip()
+                if info:
+                    stripped_comments.append(info)
                 rows.append((ln, "fence"))
                 continue
             # ⛔ 关闭围栏 = 同字符 **且长度 ≥ 开启长度、围栏后仅 ASCII 空白**
@@ -791,7 +815,7 @@ def has_substantive_content(text: str) -> bool:
                 return True
             continue
         t = _LIST_PREFIX_RE.sub("", ln).strip()
-        if t and not _ONLY_STRUCT_RE.match(t):
+        if t and not _is_structural_line(t):
             return True
     return False
 

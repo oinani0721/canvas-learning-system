@@ -2645,3 +2645,49 @@ def test_heading_with_text_counts_as_substantive_content(tmp_path):
         assert ctrl["criterion"] == "C3_empty_or_skeleton", f"{name}: {ctrl['basis']}"
         assert ctrl["verdict"] == "建议删", name
         assert ctrl["confident"] is True, name
+
+
+def test_fence_info_string_and_semantic_operators_are_not_skeleton(tmp_path):
+    """⛔ 第七轮终审两条 HIGH。
+
+    R7-H1 围栏开启行的 **info string**（`~~~ {source=https://…}`）整行被标成
+    "fence" 后不进正文，写在那儿的来源静默消失 —— 这是「来源被引擎剥掉」的
+    **第四种写法**（前三种：跨行 HTML 注释 / fm 整行 YAML 注释 / fm 行尾注释）。
+    ⚠️ 四种写法各暴露一次这件事本身就是结论：**能放文本的位置是开放集合**，
+    逐个补写法追不上，取证 README §10.3 把这条记为本卡的结构性边界。
+
+    R7-H2 `_ONLY_STRUCT_RE` 的字符表含 `=`/`|`/`:`，于是 `:=`、`=>` 这类**有语义
+    的运算符**被当纯结构忽略，3 字节文件判空骨架确定删除。收窄为「一行只有全部
+    由**同一种**结构字符构成时才算结构行」。
+    """
+    mod = load_module()
+    assert mod._is_structural_line("---") is True
+    assert mod._is_structural_line("***") is True
+    assert mod._is_structural_line("||") is True, "同字符重复仍是结构（表格分隔）"
+    assert mod._is_structural_line(":=") is False, "定义符是内容"
+    assert mod._is_structural_line("=>") is False, "推导符是内容"
+    assert mod._is_structural_line("|:-|") is False, "混合结构字符 → 按内容处理"
+
+    vault, out = base_vault(tmp_path)
+    inbox = vault / "_待处理"
+    mk(inbox / "info里的来源.md", "~~~ {source=https://fence.example/p}\n~~~\n", age_days=7)
+    mk(inbox / "info里的注释.md", "~~~ <!-- source: https://c.example/p -->\n~~~\n", age_days=6)
+    mk(inbox / "定义符.md", ":=\n", age_days=5)
+    mk(inbox / "箭头符.md", "=>\n", age_days=4)
+    # ⛔ 正向对照（验伪锚）：真结构行仍算骨架，否则 C3 就被这条修法废掉了
+    mk(inbox / "对照分隔线.md", "---\n\n***\n", age_days=3)
+    mk(inbox / "对照空列表.md", "- \n- \n", age_days=2)
+    mk(inbox / "对照逻辑或.md", "||\n", age_days=1)
+
+    assert run_cli(vault, out).returncode == 0
+    data = load_json(out)
+    assert data["items"], "items 为空则本门恒真 = 假绿"
+    for name in ("info里的来源.md", "info里的注释.md", "定义符.md", "箭头符.md"):
+        it = item_by_name(data, name)
+        assert it["verdict"] != "建议删", f"{name} 被确定删除了: {it['basis']}"
+        assert it["criterion"] == "C6_undecided", name
+        assert it["confident"] is False, name
+    for name in ("对照分隔线.md", "对照空列表.md", "对照逻辑或.md"):
+        ctrl = item_by_name(data, name)
+        assert ctrl["criterion"] == "C3_empty_or_skeleton", f"{name}: {ctrl['basis']}"
+        assert ctrl["verdict"] == "建议删", name

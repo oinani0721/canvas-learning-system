@@ -46,6 +46,7 @@ G_COMMENT = "test_source_inside_closed_html_comment_blocks_deletion"
 G_COMMENT2 = "test_unclosed_html_comment_never_suggested_for_deletion"
 G_INVIS = "test_invisible_chars_are_detected_by_category_not_enumeration"
 G_HEADCONTENT = "test_heading_with_text_counts_as_substantive_content"
+G_R7 = "test_fence_info_string_and_semantic_operators_are_not_skeleton"
 G_ZW = "test_zero_width_split_marker_still_reads_as_ai_suspect"
 
 # ── (名字, 期望 FAILED 集合, [(old, new), ...]) ──
@@ -174,8 +175,11 @@ MUTATIONS: list[tuple[str, set[str], list[tuple[str, str]]]] = [
     ),
     (
         # round-3 HIGH：闭合注释信号⑩回退（唯一来源写在注释里的文件重新被删）
+        # ⚠️ 期望含 G_R7：第七轮把围栏 info string 也并进了信号⑩，那道门的
+        # info 反例同样靠它承重。这是本 runner 第四次抓到我把期望写窄 ——
+        # 每次给信号扩覆盖面，都要回头问一遍「哪些门现在也依赖它了」。
         "M-COMMENT    闭合注释未消化信号⑩回退",
-        {G_COMMENT, G_COMMENT2},
+        {G_COMMENT, G_COMMENT2, G_R7},
         [
             (
                 "    commented_out = [ln for ln in stripped_comments if ln.strip()] + fm_comment_lines\n",
@@ -195,6 +199,12 @@ MUTATIONS: list[tuple[str, set[str], list[tuple[str, str]]]] = [
                 "            if False:\n                return True\n",
             )
         ],
+    ),
+    (
+        # 第七轮 HIGH：结构行判定退回「出现过结构字符就算结构」
+        "M-STRUCT     结构行判定退回字符集匹配",
+        {G_R7},
+        [("    return len(kinds) <= 1\n", "    return True\n")],
     ),
 ]
 
