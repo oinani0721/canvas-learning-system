@@ -5,13 +5,13 @@
 >
 > **终态**：卡文 (a)–(f) 达成（B1 已于 round-34 停轮后补闭），**(g) 未达成且 09-07 前外部不可达**，**不合并**。
 > 最后一份有效终裁 = `codex-review-CARD-维护B-R3-v14-03b60b86.md`（判 FAIL）。
-> **round-33 的 `e93cc6c1` 及之后的 commit 没有任何审查绑定。**
+> **`e93cc6c1` 及之后的 5 个 commit（含 round-34 的 B1 修复）没有任何审查绑定。**
 
 ## 第一步（09-07 之后）
 
 1. `codex exec --sandbox read-only -m gpt-5.6-sol -c model_reasoning_effort=ultra`
    跑 `_bmad-output/审查/prompts/codex-prompt-CARD-维护B-R3.md`
-   —— 该提示词**已绑定 `e93cc6c1`**，内容是给 v15 用的，直接可发。
+   —— 该提示词**已绑定 `689c15d07a7a`**（round-34 终态），内容是给 v15 用的，**直接可发**。
 2. ⛔ **需用户手动清一个残留锁目录**（Claude 侧被 guard hook 拦，删不了）：
    路径 `/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/recap-domain-negverify.lock.d`。
    它是 Codex round-2 跑 negverify 被打断留下的；**不清掉的话任何 negverify 会
