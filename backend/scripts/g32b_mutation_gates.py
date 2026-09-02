@@ -51,13 +51,13 @@ LAYER3_ALSO = (
 
 MUTATIONS = [
     (
+        # ⚠️ round-8 重绑: candidate 的 payload 已不含时刻键（时刻面移到顶层
+        # scored_at）。变异仍打「candidate 从 durable spread」这个原缺陷形态。
         "M1-R1-candidate-spread",
         SKILL,
-        '        "payload": {"schema_ext": "review/1", "vault_id": _vid, "concept_id": node_id,\n'
-        '                    "rating": rating, "grade_norm": GN2, "review_time": _biz_rt,\n',
-        '        "payload": {**{k: v for k, v in _dpl.items() if k not in ("fsrs_library_version", "fsrs_params_hash")},\n'
-        '                    "schema_ext": "review/1", "vault_id": _vid, "concept_id": node_id,\n'
-        '                    "rating": rating, "grade_norm": GN2, "review_time": _biz_rt,\n',
+        '        "payload": {"schema_ext": "review/1", "vault_id": _vid, "concept_id": node_id,\n',
+        '        "payload": {**{k: v for k, v in _dpl.items() if k not in ("fsrs_library_version", "fsrs_params_hash", "review_time", "scored_at")},\n'
+        '                    "schema_ext": "review/1", "vault_id": _vid, "concept_id": node_id,\n',
         "test_r1_unknown_durable_payload_key_conflicts",
     ),
     (
@@ -757,21 +757,14 @@ MUTATIONS += [
     ),
     (
         # candidate 抄 durable 的业务时刻 ⇒ 同 ID 换时刻看不出
-        # ⚠️ candidate 的业务时刻有**两处**（effective_at 与 payload.review_time）,
-        # 只改一处不够 —— envelope 比的是整体, 另一处仍是新值就能识别出差异。
-        # 「变异要精确退回旧实现形态」在这里意味着两处一起退。
+        # ⚠️ round-8 重绑: 时刻面已统一到顶层 scored_at（此前分散在 effective_at
+        # 与 payload.review_time 两处）。变异打「candidate 抄 durable 时刻」这个
+        # 原缺陷形态 —— 抄了就无法识别「同 ID 换了业务时刻」。
         "M74-candidate-copies-durable-rt",
         SKILL,
-        '        "effective_at": _biz_rt,\n',
-        '        "effective_at": _dup_rt,  # MUTANT\n',
+        '        "scored_at": _SCORED_AT,\n        "payload": {"schema_ext"',
+        '        "scored_at": _their_scored,  # MUTANT\n        "payload": {"schema_ext"',
         "test_round7_findings",
-        (
-            (
-                SKILL,
-                '"grade_norm": GN2, "review_time": _biz_rt,',
-                '"grade_norm": GN2, "review_time": _dup_rt,  # MUTANT',
-            ),
-        ),
     ),
     (
         # W 兜底回来 ⇒ calibration 判据形同虚设
@@ -806,6 +799,69 @@ MUTATIONS += [
         "                _prov = (_l3, _n3 - _gap)\n",
         "                _prov = (_l3, _n3)  # MUTANT: 不折算 gap\n",
         "test_round7_ordinal_gap_and_self_node_id",
+    ),
+]
+
+
+# ── round-8 修复的承重变异
+MUTATIONS += [
+    (
+        # ⚠️ 这条变异**打不出缺陷**（第五种成因: 变异没把缺陷完整放回来）。
+        # round-8 把 scored_at 独立记录、envelope 比它之后，「首写传哪个时刻给
+        # bridge」只影响 **A3 采用值**，恢复能力不再依赖它 —— 实测变异后崩溃
+        # 续跑仍 rc=0。要复现原缺陷必须**同时**让 scored_at 也退回 p["ts"]。
+        "M78-first-write-uses-run-ts",
+        SKILL,
+        "_out, _err = _bridge(fm, GN2, abandoned, _SCORED_AT, rating=rating)\n",
+        '_out, _err = _bridge(fm, GN2, abandoned, p["ts"], rating=rating)  # MUTANT\n',
+        "test_round8_stable_scored_at",
+        (
+            (
+                SKILL,
+                '                       "scored_at": _SCORED_AT,\n',
+                '                       "scored_at": p["ts"],  # MUTANT: 同时退回运行时刻\n',
+            ),
+        ),
+    ),
+    (
+        # 缺稳定时刻回抄 durable ⇒ 整条修复被架空
+        "M79-missing-scored-at-falls-back",
+        SKILL,
+        "if not isinstance(_SCORED_AT, str) or not _TS_RE.fullmatch(_SCORED_AT):\n",
+        "if False:  # MUTANT: 缺稳定时刻不拦\n",
+        "test_round8_stable_scored_at",
+    ),
+    (
+        # envelope 比 A3 采用值而非原始时刻 ⇒ A3 生效时续跑必冲突
+        "M80-envelope-compares-adopted-rt",
+        SKILL,
+        '        "scored_at": _SCORED_AT,\n        "payload": {"schema_ext": "review/1", "vault_id": _vid,',
+        '        "scored_at": _dpl.get("review_time"),  # MUTANT: 比 A3 采用值\n        "payload": {"schema_ext": "review/1", "vault_id": _vid,',
+        "test_round8_stable_scored_at",
+    ),
+    (
+        # 无 marker 历史行的 out_of_order 被赋予契约语义 ⇒ 序数正反颠倒
+        "M81-legacy-out-of-order-honored",
+        SKILL,
+        '            if _pl3.get("schema_ext") == "review/1" and _pl3.get("out_of_order") is True:\n',
+        '            if _pl3.get("out_of_order") is True:  # MUTANT\n',
+        "test_round8_high_findings",
+    ),
+    (
+        # 校准 header 正则不容尾注释 ⇒ F1 假阴性、两阶段永久停住
+        "M82-calibration-header-no-comment",
+        SKILL,
+        "    mcal = re.search(r'^calibration_log:[ \\t]*(?:#[^\\n]*)?$', fm_text, re.M)\n",
+        "    mcal = re.search(r'^calibration_log:[ \\t]*$', fm_text, re.M)  # MUTANT\n",
+        "test_round8_high_findings",
+    ),
+    (
+        # 空白 id 门退回全账 ⇒ 别节点的合法存量行阻塞整个 vault
+        "M83-whitespace-id-gate-global",
+        SKILL,
+        '                  and _r.get("node_id") == node_id\n',
+        "                  and True  # MUTANT: 退回全账\n",
+        "test_round8_high_findings",
     ),
 ]
 

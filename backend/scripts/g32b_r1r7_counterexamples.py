@@ -79,6 +79,9 @@ def run(vault: Path, **over):
         "node": NODE_REL,
         "grade_norm": 0.752,
         "ts": TS1,
+        # 稳定业务时刻（检验白板 Step 3 的 scored_at）。默认与 ts 同值；
+        # 只改 ts 表示「同一次评分的续跑」，同时给 event_id 表示「另一次评分」。
+        "review_time": TS1,
         "event_id": EID,
         "exam_board": "检验白板/测试检验-2026-08-01-1000.md",
         "question_id": "q1",
@@ -88,6 +91,8 @@ def run(vault: Path, **over):
         "abandoned": False,
         "callout": "",
     }
+    if "ts" in over and "review_time" not in over and "event_id" in over:
+        payload["review_time"] = over["ts"]
     payload.update(over)
     pfile = vault.parent / "payload.json"
     pfile.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")

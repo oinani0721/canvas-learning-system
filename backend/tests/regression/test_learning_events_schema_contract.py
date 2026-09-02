@@ -1064,6 +1064,10 @@ def test_real_producer_quiz_answer_writer(tmp_path):
             "node": str(node),
             "grade_norm": 0.752,
             "ts": "2026-08-01T10:00:00Z",
+            # 稳定业务时刻（检验白板 Step 3 的 questions[0].scored_at）——
+            # round-8 起写点要求它必填：它是「同一次评分」的唯一身份依据，
+            # 缺了就无法区分「续跑」与「同 ID 换了业务时刻」。
+            "review_time": "2026-08-01T10:00:00Z",
             "event_id": eid,
             "exam_board": "检验白板/x-检验.md",
             "question_id": "q1",

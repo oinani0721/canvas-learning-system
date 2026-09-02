@@ -239,6 +239,17 @@ try:
 except Exception as _e:
     raise SystemExit(f"[quiz-answer] G3-2 依赖不可达 (validate_learning_events/fsrs_bridge import 失败), fail-closed 拒写: {_e}")
 
+#: 这次评分的**稳定业务时刻** (检验白板 Step 3 的 questions[0].scored_at)。
+#: ⛔ 缺失即 fail-closed, **不回抄 durable 值** (Codex round-8 BLOCKER):
+#: round-7 我给它留了「缺值就用 durable 行的时刻」的兼容兜底 —— 那让整条修复
+#: 被架空: 实测同 ID、同分数、仍无稳定值但 ts 从 8 月换成 12 月, 照样 rc=0
+#: 「已完整应用, 幂等跳过」, 账本仍 1 行、时刻仍是 8 月, **12 月那次评分消失**。
+#: 这是同一张卡里第三次栽在「留兜底 = 没修」上 (前两次: 校准 id 只改一条路径、
+#: 序数判据留 W 作或分支)。旧白板走显式迁移, 不靠消费侧猜。
+_SCORED_AT = p.get("review_time")
+if not isinstance(_SCORED_AT, str) or not _TS_RE.fullmatch(_SCORED_AT):
+    raise SystemExit(f"[quiz-answer] payload 缺稳定业务时刻 review_time ({_SCORED_AT!r}) — 它是「同一次评分」的唯一身份依据, 缺了就无法区分「续跑」与「同 ID 换了业务时刻」; ⛔ 不回抄 durable 值(那会让修复失效), fail-closed 拒写 — 请按 Step 3 在检验白板写 questions[0].scored_at 后重跑")
+
 #: FSRS 算法身份的 golden 真值。传给 validate_record_full 才会真正执行身份键
 #: 绑定校验 —— 不传等于**没做**这一层 (Codex round-5 HIGH: 实测伪造
 #: fsrs_library_version="999.999" + 全零 hash 时校验器 CLI rc=1 而写点放行)。
@@ -409,7 +420,11 @@ def _fm_has_event_compat(fm_text, ev_id, all_ledger_ids=()):
 
 
 def _fm_has_event(fm_text, ev_id):
-    mcal = re.search(r'^calibration_log:[ \t]*$', fm_text, re.M)
+    # ⛔ 容 YAML 尾注释 (Codex round-8 HIGH): `calibration_log: # keep` 是**合法
+    # YAML**, 而原正则要求行尾必须干净 ⇒ 找不到 header ⇒ F1 假阴性 ⇒ 同 ID 重跑
+    # 报「FSRS 已应用但缺校准记录」, 两阶段续跑**永久停住**(实测账本仍 1 行、
+    # 节点不再变化)。
+    mcal = re.search(r'^calibration_log:[ \t]*(?:#[^\n]*)?$', fm_text, re.M)
     if not mcal:
         return False
     for ln in fm_text[mcal.end():].split("\n")[1:]:
@@ -523,8 +538,14 @@ for _, _o in _rows:
 # `same#q1`, 两个字面 id 各算一遍 —— 实测 attempt 1→2、校准两条、W 再推进,
 # 而校验器 rc=0 (两个不同的 event_id 本来就合法)。判据与入口同款: 字面即身份,
 # 拒而不 strip (strip 会把上游两个本来不同的 id 撞成一个)。
+# ⛔ 收窄为**本节点**的行 (Codex round-8 HIGH): 现行规格 §2:26 只定义字面相等、
+# §3:40 只要求非空, 并未禁止首尾空白 —— 全账拒绝等于**单边收紧规格**, 会让一条
+# 合法的**别节点** §6.3 存量行阻塞整个 vault 的评分 (实测 validator rc=0 而
+# writer rc=1)。本节点的行仍必须拒: 那两个字面 id 会被各算一遍。
+# 若产品决定全局禁止空白, 须先同步升级规格 + validator + 全部写点 —— 那是另一张卡。
 _ws_ids = sorted({str(_r.get("event_id")) for _, _r in _rows
                   if isinstance(_r, dict) and isinstance(_r.get("event_id"), str)
+                  and _r.get("node_id") == node_id
                   and _r["event_id"] != _r["event_id"].strip()})
 if _ws_ids:
     raise SystemExit(f"[quiz-answer] 账本存在首尾含空白的 event_id {_ws_ids[:3]!r} — 幂等键的字面即身份, 带空白的写法会与不带的各算一遍 (同一次评分被重放两遍: attempt 多加、校准多一条、水位线再推进), 而校验器看不出问题; fail-closed 拒写 — 请人工修正账本里这些 id")
@@ -642,7 +663,12 @@ def _normalize_inline_calibration(fm_text):
     缩进列表) —— 实测首次评分 rc=0 且 attempt/W/账本都已推进, 同事件重跑却报
     「FSRS 已应用但缺校准记录」⇒ 两阶段流程**永久不收敛** (Codex round-6 HIGH)。
     """
-    return re.sub(r"^calibration_log:[ \t]*\[[ \t]*\][ \t]*$", "calibration_log:", fm_text, count=1, flags=re.M)
+    # 同样容尾注释: `calibration_log: [] # comment` 若不规范化会被写成非法 YAML
+    return re.sub(
+        r"^calibration_log:[ \t]*\[[ \t]*\][ \t]*(#[^\n]*)?$",
+        lambda m: "calibration_log:" + (" " + m.group(1) if m.group(1) else ""),
+        fm_text, count=1, flags=re.M,
+    )
 
 
 def _append_calibration(fm_text, ts_str, ev=None):
@@ -891,12 +917,6 @@ else:
     # ⚠️ 也不能直接用本次的 `ts` —— 它每次续跑都重新取 (Step 4a 的 date -u),
     # 那样**真实续跑**也会冲突。稳定业务时刻的来源是检验白板 Step 3 记的
     # `questions[0].scored_at`, 经 payload 的 `review_time` 传进来。
-    _biz_rt = p.get("review_time")
-    if not isinstance(_biz_rt, str) or not _TS_RE.fullmatch(_biz_rt):
-        # 回落: 旧流程的 payload 没有这个键。如实告警 —— 回落期间「同 ID 换业务
-        # 时刻」仍无法识别 (与修复前同), 但不改变其它行为。
-        print(f"[quiz-answer] ⚠️ payload 缺稳定业务时刻 review_time (旧流程) — 回落到 durable 行的值; 此模式下「同一 ID 承载另一业务时刻」无法被 envelope 识别, 请按 Step 3 补写检验白板的 questions[0].scored_at")
-        _biz_rt = _dup_rt
     _fsrs_applied = W_inst is not None and W_inst >= _dup_inst
     # A4.5 canonical envelope 门 — 对「已应用 no-op」与「恢复」两态都生效,
     # 冲突事实不得被 no-op 吞掉 (round-2 B-1①)。等价面取舍 (如实声明):
@@ -985,7 +1005,12 @@ else:
         _gap = 0
         for _l3, _o3 in _after_rows:
             _pl3 = _o3.get("payload") or {}
-            if _pl3.get("out_of_order") is True:
+            # ⛔ 只有**带 review/1 marker** 的行, 它的 out_of_order 才有契约语义
+            # (Codex round-8 HIGH)。无 marker 的历史行上出现同名键只是普通数据 ——
+            # 把它当「补录通道」会让序数判据**正反颠倒**: 实测 E1(1) → 历史 L2
+            # (无 count 但带 out_of_order:true) → 历史 L3(3) 时, 正确的 E1=1 被拒
+            # 而错误的 E1=2 反被接受。
+            if _pl3.get("schema_ext") == "review/1" and _pl3.get("out_of_order") is True:
                 continue          # 补录通道的行不推进 attempt
             _n3 = _pl3.get("attempt_count")
             if isinstance(_n3, int) and not isinstance(_n3, bool) and _n3 >= 1:
@@ -1024,16 +1049,26 @@ else:
                 f"两条都做不了时请保留现场求助 —— 在此之前本次评分不会写入任何东西 (节点与账本零改动)。"
             )
         _att_expect = _att_now + 1
+    # ⛔ 两侧都用**原始稳定时刻**做时刻面 (Codex round-8 BLOCKER):
+    # 账本落库的 effective_at / payload.review_time 是 **A3 采用后**的值 (≤W 时被
+    # 推成 W+1s), 拿它比会让「同一次评分的续跑」在 A3 生效时必然冲突。
+    # candidate 用本次的 _SCORED_AT; durable 侧取它自己的 payload.scored_at ——
+    # 缺该键的是 round-8 之前写的旧行, 回落到它的 review_time(那些行没有
+    # A3 前后之分, 语义一致)。⚠️ A3 采用值本身不进等价面, 它由 A3 规则决定,
+    # 不是评分事实。
+    _their_scored = _dpl.get("scored_at", _dpl.get("review_time"))
     _mine_env = {
         "event_version": 1, "event_type": etype, "node_id": node_id,
-        "effective_at": _biz_rt,
+        "scored_at": _SCORED_AT,
         "payload": {"schema_ext": "review/1", "vault_id": _vid, "concept_id": node_id,
-                    "rating": rating, "grade_norm": GN2, "review_time": _biz_rt,
+                    "rating": rating, "grade_norm": GN2,
                     "exam_board": p.get("exam_board", ""),
                     "attempt_count": _att_expect}}
     _theirs_env = {"event_version": dup.get("event_version"), "event_type": dup.get("event_type"),
-                   "node_id": dup.get("node_id"), "effective_at": dup.get("effective_at"),
-                   "payload": {k: v for k, v in _dpl.items() if k not in ("fsrs_library_version", "fsrs_params_hash")}}
+                   "node_id": dup.get("node_id"), "scored_at": _their_scored,
+                   "payload": {k: v for k, v in _dpl.items()
+                               if k not in ("fsrs_library_version", "fsrs_params_hash",
+                                            "review_time", "scored_at")}}
     if json.dumps(_mine_env, sort_keys=True, ensure_ascii=False, separators=(",", ":")) != json.dumps(_theirs_env, sort_keys=True, ensure_ascii=False, separators=(",", ":")):
         raise SystemExit(f"[quiz-answer] envelope 冲突: 账本 {evid} 与本次评分事实不一致 (canonical envelope), fail-closed 拒写")
     if _fsrs_applied:
@@ -1236,7 +1271,12 @@ if dup is not None:
 
 # ── 正常路径 (dup=None): 计算本次 + durable append + apply + 发布。
 # 本次时刻 = bridge 整秒化结果; A3 等时 (≤W) 在 bridge 内推进 W+1s。
-_out, _err = _bridge(fm, GN2, abandoned, p["ts"], rating=rating)
+# ⛔ 首写也用**稳定业务时刻**, 不是本次运行时刻 (Codex round-8 BLOCKER):
+# round-7 我只把**重试**路径的 candidate 改成了稳定值, 首写仍传 p["ts"] ——
+# 两条路径用了不同的时刻。实测: 稳定 10:00 而 ts 10:05 时首写落库 10:05,
+# 崩溃后以稳定 10:00 重跑必然 envelope 冲突, **永久无法恢复**。
+# 这是「修一半」的第三次: 一个量有两条产生路径, 只改其中一条。
+_out, _err = _bridge(fm, GN2, abandoned, _SCORED_AT, rating=rating)
 if _out is not None:
     review_time = _out["review_time"]
     rating = _out["rating"]
@@ -1286,6 +1326,13 @@ fm = re.sub(r'^(type:.*)$', lambda x: x.group(1) + f"\nmastery_score: {new}\nmas
 if True:  # 正常路径 append (恢复路径已在上方 raise SystemExit(0) 结束)
     rec = {"event_id": evid, "event_version": 1, "event_type": etype,
            "node_id": node_id,
+           # ⛔ 三个时刻各答一个问题 (Codex round-8 BLOCKER):
+           #   recorded_at = 这条日志行**何时写的**(每次续跑都变, 这是对的);
+           #   review_time = **A3 采用后**的业务时刻(≤W 时被推成 W+1s);
+           #   payload.scored_at = **原始**稳定业务时刻(评分那一刻记一次, 续跑不变)。
+           # envelope 比 scored_at 而非 review_time —— 后者被 A3 改过, 拿它比会
+           # 让「同一次评分的续跑」在 A3 生效时必然冲突(实测: 稳定 10:00 落库
+           # 10:00:01, 崩溃后重跑必报 envelope 冲突, **永久无法恢复**)。
            "recorded_at": p["ts"], "effective_at": review_time,
            "payload": {"schema_ext": "review/1",
                        "vault_id": _vid,
@@ -1293,6 +1340,7 @@ if True:  # 正常路径 append (恢复路径已在上方 raise SystemExit(0) �
                        "rating": rating,
                        "grade_norm": GN2,
                        "review_time": review_time,
+                       "scored_at": _SCORED_AT,
                        "fsrs_library_version": lib_ver,
                        "fsrs_params_hash": p_hash,
                        "exam_board": p.get("exam_board", ""),
