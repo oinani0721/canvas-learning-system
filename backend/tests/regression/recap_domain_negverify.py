@@ -601,9 +601,8 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "survivor-51 (C-24) 台账种子行的值绑定退回 raw 文本（manifest 模式下「留正确行 + 加渲染等价冲突行」逃逸）",
         [
             (
-                "    text = _visible_block(text)\n"
-                '    mseed = re.search(r"^### 种子\\s*$(.*?)(?=^#{2,3}[^\\S\\n]|\\Z)", text, re.M | re.S)',
-                '    mseed = re.search(r"^### 种子\\s*$(.*?)(?=^#{2,3}[^\\S\\n]|\\Z)", text, re.M | re.S)',
+                "    vis_text = _visible_block(text)",
+                "    vis_text = text",
             )
         ],
         "r20_seed_ledger",
@@ -612,8 +611,8 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "survivor-52 (C-25) 种子节点身份退回「归一名对 raw node_id」（`Seed_A` 归一成 `SeedA` ⇒ 误拒 + 值绑定被跳过）",
         [
             (
-                "            cands = vis_index.get(node) or []",
-                "            cands = []",
+                "        raw_ms = _SEED_LEDGER_LINE_RE.match(raw_ln)",
+                "        raw_ms = None",
             )
         ],
         "r21_seed_node_identity",

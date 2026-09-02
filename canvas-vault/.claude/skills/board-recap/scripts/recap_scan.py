@@ -2067,10 +2067,23 @@ def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> No
     #    continue，绑定被跳过。**fallback 模式**下有形状门兜底（这正是我上一轮
     #    『未复现』的原因），但 **manifest 模式没有那层门** —— 两条实测 exit 0。
     #    与③段信号行、五元组的双行逃逸完全同型，第三次。
-    text = _visible_block(text)
-    mseed = re.search(r"^### 种子\s*$(.*?)(?=^#{2,3}[^\S\n]|\Z)", text, re.M | re.S)
+    # ⛔ R3 round-24（冻结审查 v5）：round-23 的「先精确匹配 raw id」是个**自相矛盾
+    #    的前提** —— `node` 取自已归一的行, 对含 `_`/`*` 的名字**永远不可能**命中
+    #    raw 表。审查方给出两个后果, 一漏一误伤:
+    #      · ledger 同时有 `SeedA` 与 `Seed_A` 时, 报告里的 raw `Seed_A` 归一成
+    #        `SeedA` ⇒ **直接错绑到另一个节点**, 撞车检查被跳过, 错的批注数放行;
+    #      · ledger 有 `Seed_A` 与 `Se_edA` 时, 报告里**精确正确**的 `Seed_A`
+    #        归一后撞车 ⇒ 合法身份被拒。
+    #    ⇒ 正解: **身份取自还能解析的最原始形态**。raw 与 visible 逐行并列
+    #      (`_visible_block` 保证行数与顺序不变), 先用 raw 行解析; raw 行解析得出
+    #      = 身份精确, 直接用; 只有 raw 行解析不出(被排版切开的冲突行)才退到归一行,
+    #      那时才谈归一撞车。
+    seed_raw = re.search(r"^### 种子\s*$(.*?)(?=^#{2,3}[^\S\n]|\Z)", text, re.M | re.S)
+    vis_text = _visible_block(text)
+    mseed = re.search(r"^### 种子\s*$(.*?)(?=^#{2,3}[^\S\n]|\Z)", vis_text, re.M | re.S)
     if not mseed:
         return
+    raw_lines = seed_raw.group(1).splitlines() if seed_raw else []
     groups = scan.get("ledger")
     rows: list[dict] = []
     if isinstance(groups, dict):
@@ -2094,30 +2107,50 @@ def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> No
     vis_index: dict[str, list[str]] = {}
     for _raw_id in tips_by_node:
         vis_index.setdefault(_visible_text(_raw_id), []).append(_raw_id)
-    for ln in mseed.group(1).splitlines():
+    vis_lines = mseed.group(1).splitlines()
+    for _i, ln in enumerate(vis_lines):
         if not ln.strip():
             continue
+        # 身份优先取自 **raw 行**（同下标；raw 段可能缺失或行数不齐时安全退化）
+        raw_ln = raw_lines[_i] if _i < len(raw_lines) else ""
+        raw_ms = _SEED_LEDGER_LINE_RE.match(raw_ln)
         ms = _SEED_LEDGER_LINE_RE.match(ln)
         if not ms:
             continue  # 形状问题由 _verify_report 的模板白名单报, 此处不重复
+        if raw_ms:
+            # raw 行本身就解析得出 ⇒ 身份精确，不进归一空间（也就不会被归一撞车误伤）
+            node = raw_ms.group("node").strip()
+            if node in tips_by_node:
+                key = node
+                want = tips_by_node[key]
+                got = 0 if raw_ms.group("none") else int(raw_ms.group("n"))
+                if got != want:
+                    problems.append(
+                        f"数字终核: 台账『种子』行 {key} 报批注 {got} 条, "
+                        f"scan JSON 的 tips_count 是 {want} (形状对不等于数字有据)"
+                    )
+                continue
+            problems.append(
+                f"数字终核: 台账『种子』行的节点 {node!r} 不在 scan JSON 的 ledger 里 "
+                "(台账不得列出未扫描到的节点)"
+            )
+            continue
+        # 走到这里 = raw 行解析不出（被排版切开的行）⇒ 只能在归一空间找身份
         node = ms.group("node").strip()
-        if node in tips_by_node:
-            key = node
-        else:
-            cands = vis_index.get(node) or []
-            if len(cands) > 1:
-                problems.append(
-                    f"数字终核: 台账『种子』行的节点 {node!r} 归一后同时对应 "
-                    f"{sorted(cands)!r} —— 无法确定是哪一个, 不猜 (fail-closed)"
-                )
-                continue
-            if not cands:
-                problems.append(
-                    f"数字终核: 台账『种子』行的节点 {node!r} 不在 scan JSON 的 ledger 里 "
-                    "(台账不得列出未扫描到的节点)"
-                )
-                continue
-            key = cands[0]
+        cands = vis_index.get(node) or []
+        if len(cands) > 1:
+            problems.append(
+                f"数字终核: 台账『种子』行的节点 {node!r} 归一后同时对应 "
+                f"{sorted(cands)!r} —— 无法确定是哪一个, 不猜 (fail-closed)"
+            )
+            continue
+        if not cands:
+            problems.append(
+                f"数字终核: 台账『种子』行的节点 {node!r} 不在 scan JSON 的 ledger 里 "
+                "(台账不得列出未扫描到的节点)"
+            )
+            continue
+        key = cands[0]
         want = tips_by_node[key]
         got = 0 if ms.group("none") else int(ms.group("n"))
         if got != want:

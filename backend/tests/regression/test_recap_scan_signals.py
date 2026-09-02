@@ -4765,59 +4765,50 @@ def test_domain_r20_seed_ledger_visible_in_manifest_cli(tmp_path):
 
 
 def test_domain_r21_seed_node_identity_same_space():
-    """R3 round-23（冻结审查 v4）：种子行的**节点身份**必须在同一文本空间比较。
+    """R3 round-24（冻结审查 v5）：种子行身份取自**还能解析的最原始形态**。
 
-    ⛔ 这是我 round-22 修复时**自己引入**的语义范围泄漏（审查方在我请它专门
-    留意"范围超出意图的改动"后抓到）：把整个小节交给 `_visible_block` 之后，
-    行里取到的节点名已是**归一后**的，却仍拿去对 **raw** `node_id` ——
-    而 `_visible_text` 无条件删 `_` / `*`，节点名规则并不禁它们。
+    ⛔ 三轮演化，两次都是我错、审查方对：
+      · round-22：把整个小节交给 `_visible_block` ⇒ 节点名归一成 `SeedA`，
+        却仍去对 raw `node_id` `Seed_A` ⇒ 误拒 + **值绑定被整条跳过**；
+      · round-23：我加了「先精确匹配 raw id」—— 但 `node` 本身**已经是归一后的**，
+        这一段对含 `_` 的名字**永远不可能命中**，是个自相矛盾的前提。后果一漏一伤：
+          - ledger 同时有 `SeedA` 与 `Seed_A` 时，报告里的 raw `Seed_A` 归一成
+            `SeedA` ⇒ **错绑到另一个节点**，撞车检查被跳过，错的数放行；
+          - ledger 有 `Seed_A` 与 `Se_edA` 时，报告里**精确正确**的 `Seed_A`
+            归一后撞车 ⇒ 合法身份被拒。
+      · round-24（本轮）：raw 与 visible **逐行并列**（`_visible_block` 保证行数
+        与顺序不变）。raw 行解析得出 = 身份精确，直接用，不进归一空间；只有 raw
+        行解析不出（被排版切开的冲突行）才退到归一行，那时才谈撞车。
 
-    实测 `Seed_A` 归一成 `SeedA`，两个后果，**第二个更坏**：
-      ① 合法报告被误拒（报「节点不在 ledger 里」）；
-      ② **值绑定被整条跳过** —— 写错的批注数反而不再报数字错。
-
-    **它证明什么**：先精确匹配 raw id，不中再退到归一空间；归一后**撞车**
-    （两个不同 raw id 归一成同一个）时 fail-closed 不猜；诊断报 **raw** 名。
-    **它不证明什么**：不证明 `_visible_text` 的归一集合与节点名字符规则不再有
-    任何交集 —— 那是两张表的关系，本门只锁"身份比较必须同空间"。
+    **它证明什么**：七种形态的行为（见下），含两种碰撞、两种双行逃逸。
+    **它不证明什么**：不证明 `_visible_text` 的归一集合与节点名字符规则无交集；
+    也不覆盖 raw 段与 visible 段行数不齐的极端情形（代码里按下标越界安全退化）。
     """
     rs = _load_recap_scan()
-
-    def run(node_id: str, line_node: str, tips_count: int, n_in_line: int):
-        text = f"## 台账\n\n### 种子\n\n- {line_node} — 批注 {n_in_line} 条\n\n## 下一段\n"
-        scan = {"ledger": {"seeds": [{"node_id": node_id, "tips_count": tips_count}]}}
-        problems: list[str] = []
-        rs._verify_seed_ledger_counts(text, scan, problems)
-        return problems
-
-    # 前提：归一确实会吃掉下划线（否则本门测的是空气）
     assert rs._visible_text("Seed_A") == "SeedA", "前提不成立：_visible_text 不再删下划线"
 
-    for nid, n_line, why in (
-        ("SeedA", 2, "对照：普通名 + 数字一致"),
-        ("Seed_A", 2, "下划线名 + 数字一致 —— 不得误拒"),
+    def run(lines: str, ledger: list[dict]) -> list[str]:
+        text = f"## 台账\n\n### 种子\n\n{lines}\n\n## 下一段\n"
+        problems: list[str] = []
+        rs._verify_seed_ledger_counts(text, {"ledger": {"seeds": ledger}}, problems)
+        return problems
+
+    A_AND_UA = [{"node_id": "SeedA", "tips_count": 9}, {"node_id": "Seed_A", "tips_count": 2}]
+    TWO_UA = [{"node_id": "Seed_A", "tips_count": 2}, {"node_id": "Se_edA", "tips_count": 7}]
+    ONLY_A = [{"node_id": "SeedA", "tips_count": 2}]
+
+    for lines, ledger, want, why in (
+        ("- Seed_A — 批注 2 条", A_AND_UA, None, "遮蔽碰撞：精确身份 + 数字对 ⇒ 放行"),
+        ("- Seed_A — 批注 999 条", A_AND_UA, "999", "遮蔽碰撞：数字错 ⇒ 必须报数字不符，不得错绑到 SeedA"),
+        ("- Seed_A — 批注 2 条", TWO_UA, None, "误伤面：精确身份不得被归一撞车拒掉"),
+        ("- Seed**A** — 批注 999 条", TWO_UA, "不在 scan JSON", "节点名被切开但 raw 仍可解析 ⇒ 身份不在 ledger"),
+        ("- SeedA — 批注 2 条\n- Seed**A** — 批注 999 条", ONLY_A, "不在 scan JSON", "双行逃逸（节点名被切开）"),
+        ("- SeedA — 批注 2 条\n- SeedA — 批**注** 999 条", ONLY_A, "999", "双行逃逸（谓语被切开 ⇒ 走归一路径）"),
+        ("- SeedA — 批**注** 999 条", TWO_UA, "无法确定", "真归一撞车 ⇒ fail-closed 不猜"),
     ):
-        assert run(nid, nid, 2, n_line) == [], f"{why}：合法报告被拒"
-
-    for nid, why in (("SeedA", "对照：普通名"), ("Seed_A", "下划线名")):
-        ps = run(nid, nid, 2, 999)
-        assert ps, f"{why}：数字写错却没报"
-        joined = " ".join(ps)
-        assert "不在 scan JSON" not in joined, f"{why}：报成了「不在 ledger」而不是数字不符"
-        assert "999" in joined and nid in joined, f"{why}：诊断必须报**raw** 节点名与写错的数：{ps!r}"
-
-    # 归一撞车 ⇒ fail-closed，不猜
-    text = "## 台账\n\n### 种子\n\n- SeedA — 批注 999 条\n\n## 下一段\n"
-    scan = {
-        "ledger": {
-            "seeds": [
-                {"node_id": "Seed_A", "tips_count": 2},
-                {"node_id": "Se_edA", "tips_count": 7},
-            ]
-        }
-    }
-    problems: list[str] = []
-    rs._verify_seed_ledger_counts(text, scan, problems)
-    assert any("无法确定" in p for p in problems), (
-        f"两个 raw id 归一撞车时必须 fail-closed，不得随便绑一个：{problems!r}"
-    )
+        ps = run(lines, ledger)
+        if want is None:
+            assert ps == [], f"{why}：合法输入被拒 —— {ps!r}"
+        else:
+            assert ps, f"{why}：应报错却放行了"
+            assert any(want in x for x in ps), f"{why}：诊断未含 {want!r} —— {ps!r}"
