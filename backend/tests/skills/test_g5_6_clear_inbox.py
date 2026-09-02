@@ -2663,7 +2663,11 @@ def test_fence_info_string_and_semantic_operators_are_not_skeleton(tmp_path):
     mod = load_module()
     assert mod._is_structural_line("---") is True
     assert mod._is_structural_line("***") is True
-    assert mod._is_structural_line("||") is True, "同字符重复仍是结构（表格分隔）"
+    # ⛔ 第八轮 HIGH：上一版把线画在「同字符重复」上，`||`（逻辑或）因此被删。
+    # 真正的分界是「这行是不是 Markdown 的结构记号」——分隔线要 ≥3 个。
+    assert mod._is_structural_line("||") is False, "两个竖线是正文，不是表格分隔"
+    assert mod._is_structural_line("|||") is True, "≥3 个才是结构记号"
+    assert mod._is_structural_line("--") is False, "两个连字符不构成分隔线"
     assert mod._is_structural_line(":=") is False, "定义符是内容"
     assert mod._is_structural_line("=>") is False, "推导符是内容"
     assert mod._is_structural_line("|:-|") is False, "混合结构字符 → 按内容处理"
@@ -2677,7 +2681,7 @@ def test_fence_info_string_and_semantic_operators_are_not_skeleton(tmp_path):
     # ⛔ 正向对照（验伪锚）：真结构行仍算骨架，否则 C3 就被这条修法废掉了
     mk(inbox / "对照分隔线.md", "---\n\n***\n", age_days=3)
     mk(inbox / "对照空列表.md", "- \n- \n", age_days=2)
-    mk(inbox / "对照逻辑或.md", "||\n", age_days=1)
+    mk(inbox / "对照三竖线.md", "|||\n", age_days=1)
 
     assert run_cli(vault, out).returncode == 0
     data = load_json(out)
@@ -2687,7 +2691,37 @@ def test_fence_info_string_and_semantic_operators_are_not_skeleton(tmp_path):
         assert it["verdict"] != "建议删", f"{name} 被确定删除了: {it['basis']}"
         assert it["criterion"] == "C6_undecided", name
         assert it["confident"] is False, name
-    for name in ("对照分隔线.md", "对照空列表.md", "对照逻辑或.md"):
+    for name in ("对照分隔线.md", "对照空列表.md", "对照三竖线.md"):
+        ctrl = item_by_name(data, name)
+        assert ctrl["criterion"] == "C3_empty_or_skeleton", f"{name}: {ctrl['basis']}"
+        assert ctrl["verdict"] == "建议删", name
+
+
+def test_information_in_key_name_blocks_deletion(tmp_path):
+    """⛔ 第八轮 HIGH：信号⑨ 只看**值**，把信息写进**键名**就整条穿透。
+
+    `ISBN_978-7-111-54742-6:`（值为空）是唯一的出处标识，却因为「值为空」不触发
+    兜底，被判空骨架确定删除。⚠️ 信息在键名还是在值里，对「引擎没消费它」这件事
+    毫无区别 —— 这是本卡第 N 次同型：**我按自己消费数据的方式定义了「有信息」，
+    而不是按用户写下东西的方式。**
+    """
+    vault, out = base_vault(tmp_path)
+    inbox = vault / "_待处理"
+    mk(inbox / "ISBN键名.md", "---\nISBN_978-7-111-54742-6:\n---\n", age_days=7)
+    mk(inbox / "馆藏键名.md", "---\nTP311-13-K92-3:\n---\n", age_days=6)
+    # ⛔ 正向对照：引擎**已知**的键即使空值也不触发（否则 C3 会被空 title 废掉）
+    mk(inbox / "空值已知键.md", "---\ntitle:\ntags:\n---\n\n# \n", age_days=5)
+    mk(inbox / "零字节.md", "", age_days=4)
+
+    assert run_cli(vault, out).returncode == 0
+    data = load_json(out)
+    assert data["items"], "items 为空则本门恒真 = 假绿"
+    for name, frag in (("ISBN键名.md", "ISBN_978"), ("馆藏键名.md", "TP311")):
+        it = item_by_name(data, name)
+        assert it["verdict"] != "建议删", f"{name} 被确定删除了: {it['basis']}"
+        assert it["criterion"] == "C6_undecided", name
+        assert frag in (it["uncertain_reason"] or ""), it["uncertain_reason"]
+    for name in ("空值已知键.md", "零字节.md"):
         ctrl = item_by_name(data, name)
         assert ctrl["criterion"] == "C3_empty_or_skeleton", f"{name}: {ctrl['basis']}"
         assert ctrl["verdict"] == "建议删", name

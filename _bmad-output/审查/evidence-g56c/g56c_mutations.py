@@ -47,6 +47,7 @@ G_COMMENT2 = "test_unclosed_html_comment_never_suggested_for_deletion"
 G_INVIS = "test_invisible_chars_are_detected_by_category_not_enumeration"
 G_HEADCONTENT = "test_heading_with_text_counts_as_substantive_content"
 G_R7 = "test_fence_info_string_and_semantic_operators_are_not_skeleton"
+G_KEYNAME = "test_information_in_key_name_blocks_deletion"
 G_ZW = "test_zero_width_split_marker_still_reads_as_ai_suspect"
 
 # ── (名字, 期望 FAILED 集合, [(old, new), ...]) ──
@@ -155,8 +156,8 @@ MUTATIONS: list[tuple[str, set[str], list[tuple[str, str]]]] = [
         {G_UNKNOWN, G_UNPARSED},
         [
             (
-                "    unknown_value_pairs = [(k, v) for k, v in fm_pairs if v]\n",
-                "    unknown_value_pairs = []\n",
+                "    unknown_value_pairs = [(k, v) for k, v in fm_pairs if v] + [\n",
+                "    unknown_value_pairs = [] + [\n",
             )
         ],
     ),
@@ -204,7 +205,27 @@ MUTATIONS: list[tuple[str, set[str], list[tuple[str, str]]]] = [
         # 第七轮 HIGH：结构行判定退回「出现过结构字符就算结构」
         "M-STRUCT     结构行判定退回字符集匹配",
         {G_R7},
-        [("    return len(kinds) <= 1\n", "    return True\n")],
+        [
+            (
+                '    if ch in "-=*_" and len(core) >= 3:\n'
+                "        return True\n"
+                '    return ch in ">#:|" and set(core) <= {ch} and len(core) >= 3\n',
+                "    return True\n",
+            )
+        ],
+    ),
+    (
+        # 第八轮 HIGH：兜底只看值，信息写进键名就穿透
+        "M-KEYNAME    兜底信号⑨ 退回只看值",
+        {G_KEYNAME},
+        [
+            (
+                '        (k, "（值为空，信息在键名里）")\n'
+                "        for k, v in fm_pairs\n"
+                "        if not v and _norm_fm_key(k) not in _KNOWN_FM_KEYS\n",
+                '        (k, "x")\n        for k, v in fm_pairs\n        if False\n',
+            )
+        ],
     ),
 ]
 
