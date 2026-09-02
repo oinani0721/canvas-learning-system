@@ -3,9 +3,9 @@
 ========================= 261 tests collected in 0.20s =========================
 === JUDGE-1 定向套件 ===
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-====================== 261 passed, 14 warnings in 39.45s =======================
+====================== 261 passed, 14 warnings in 42.96s =======================
 <sys>:0: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
-=== JUDGE-2 negverify (37 变体, 串行, 全量输出) ===
+=== JUDGE-2 negverify (38 变体, 串行, 含崩溃红识别) ===
 基线: 双向门全绿 · 被测文件 sha256=71d9739956de…
 
 ✅ survivor-1 围栏闭合退回宽松判定（E1 全线：长度 + 尾随空白 两条一起禁）: 如期变红（2/2 失败）
@@ -27,7 +27,7 @@
 ✅ survivor-17 (C-3) CJK 小数形态检查被摘除（五点五个 / 5点5个 拆成两个 5 碰池）: 如期变红（1/1 失败）
 ✅ survivor-18 (C-4) 区间端点不再逐个上报、无出处时保留原串交给后面「逐个判」（而后面的循环只取紧邻量词的一端 ⇒ 另一端免检）: 如期变红（2/2 失败）
 ✅ survivor-19 (C-4) fallback 的千分位归一与小数防线被摘除（退回对原行直接 findall 逐片入池）: 如期变红（1/1 失败）
-✅ survivor-20 (C-4) 小数分隔符两侧不再容连接字符 + 只认半角逗号（标签包住小数点 / 全角逗号千分位重新免检）: 如期变红（1/1 失败）
+✅ survivor-20 (C-4→8) 千分位只认半角逗号且两侧不容连接字符；⚠️ 原版把 pattern 换成**无捕获组** lookaround 却保留生产的 `r"\1"` replacement ⇒ 调用即 `re.error: invalid group reference`，「变红」是**因崩溃**而非因漏拦（Codex round-8 HIGH-7，车道复现属实）。**异常伪红比不变红更坏**：它会以「✅ 如期变红」混进证据。现改为保留捕获组、只收窄字符集，代码仍可运行。: 如期变红（1/1 失败）
 ✅ survivor-21 (C-5) 句式判定改回取自**挖空之后**的行（裸『总计』自陈失锚）: 如期变红（1/1 失败）
 ✅ survivor-22 (C-5→6) HTML 字符实体不再规范化（&#46; / &#20010; / &#xff19; 重新免检）；⚠️ round-6 把该性质从 _normalize_number_seps 移进了 _visible_text，原变异随之变成**空变异**（锚点仍在但已禁不掉任何东西），锚点已重指: 如期变红（2/2 失败）
 ✅ survivor-23 (C-5) 小数式左侧数串改回必需（`.5个` / `．五个` 重新免检）: 如期变红（1/1 失败）
@@ -45,11 +45,12 @@
 ✅ survivor-35 (C-9) 全文『派生』门退回在**源码行**上判（`派**生**` 整行绕过全文门）: 如期变红（1/1 失败）
 ✅ survivor-36 (C-9) 定界集去掉可见数字（带圈/苏州码 ⇒ 一个 token 都抽不出、整句零校验）: 如期变红（1/1 失败）
 ✅ survivor-37 (C-9) 负号守卫去掉中文『负』（`负五个` 按 +5 入池）: 如期变红（1/1 失败）
+✅ survivor-38 (C-8) 小数分隔符两侧不再容连接字符（原与千分位混成组合变异，现拆开单测）: 如期变红（1/1 失败）
 
-全部承重（共 37 条变体）
+全部承重（共 38 条变体）
 === 扩大回归 ===
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-================= 593 passed, 193 warnings in 69.08s (0:01:09) =================
+================= 593 passed, 193 warnings in 66.47s (0:01:06) =================
 <sys>:0: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
 === 收尾 sha ===
 71d9739956de2ad575f4c50da1461085303814da2c3e7854beb05baa8fe80aac  ../canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py

@@ -17,6 +17,9 @@
      静默跳过，它们会以「✅ 如期变红」的形式混进证据。
      **规则：每当一个性质的实现位置移动，所有指向旧位置的变异都必须重新审视；
      改锚点时不能只对齐文本形态，必须重新问一句「它现在还禁得掉什么」。**
+  5. ⛔ **变异必须让被测物"判错"，不能让它"崩溃"**（round-10 新增，见 run_suite）：
+     survivor-20 曾把正则换成无捕获组却保留 `r"\1"` replacement ⇒ `re.error`。
+     测试红了，但那是**因崩溃红**。脚本现在显式识别并按失败计。
 
 用法: python recap_domain_negverify.py   （无参数；退出码 0 = 全部如期变红）
 """
@@ -269,15 +272,16 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "r7_range",
     ),
     (
-        "survivor-20 (C-4) 小数分隔符两侧不再容连接字符 + 只认半角逗号（标签包住小数点 / 全角逗号千分位重新免检）",
+        "survivor-20 (C-4→8) 千分位只认半角逗号且两侧不容连接字符"
+        '；⚠️ 原版把 pattern 换成**无捕获组** lookaround 却保留生产的 `r"\\1"` '
+        "replacement ⇒ 调用即 `re.error: invalid group reference`，"
+        "「变红」是**因崩溃**而非因漏拦（Codex round-8 HIGH-7，车道复现属实）。"
+        "**异常伪红比不变红更坏**：它会以「✅ 如期变红」混进证据。"
+        "现改为保留捕获组、只收窄字符集，代码仍可运行。",
         [
             (
-                '_DECIMAL_SEP = rf"{_D2_JOIN_ONE}*[.．点]{_D2_JOIN_ONE}*"',
-                '_DECIMAL_SEP = r"[.点]"',
-            ),
-            (
                 'rf"([0-9]){_D2_JOIN_ONE}*[,，\'’]{_D2_JOIN_ONE}*(?=[0-9]{{3}}(?![0-9]))"',
-                'r"(?<=[0-9]),(?=[0-9]{3}(?![0-9]))"',
+                'r"([0-9]),(?=[0-9]{3}(?![0-9]))"',
             ),
         ],
         "r7_range",
@@ -472,6 +476,11 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         ],
         "r11_fulltext",
     ),
+    (
+        "survivor-38 (C-8) 小数分隔符两侧不再容连接字符（原与千分位混成组合变异，现拆开单测）",
+        [('_DECIMAL_SEP = rf"{_D2_JOIN_ONE}*[.．点]{_D2_JOIN_ONE}*"', '_DECIMAL_SEP = r"[.．点]"')],
+        "r8_entities",
+    ),
 ]
 
 
@@ -496,7 +505,16 @@ def run_suite(keyword: str) -> tuple[int, str, int, int]:
     out = r.stdout
     failed = sum(int(m) for m in re.findall(r"(\d+) failed", out))
     passed = sum(int(m) for m in re.findall(r"(\d+) passed", out))
-    return r.returncode, out[-400:], passed + failed, failed
+    # ⛔ 铁律 5 (CARD-维护B-R3 round-10, Codex round-8 HIGH-7 实证):
+    # 变异必须让被测物**产生错误的判断**, 而不是让它**崩溃**。
+    # survivor-20 原版把千分位 pattern 换成无捕获组 lookaround, 却保留生产代码的
+    # `r"\1"` replacement ⇒ 一调用就 `re.error: invalid group reference`。
+    # 测试确实变红了 —— 但那是**因崩溃变红**, 不是因漏拦变红, 而脚本把任何
+    # failure 都记成"承重"。**异常伪红比不变红更坏**: 它会以「✅ 如期变红」
+    # 的形式混进证据, 且永远不会有人去查。
+    # ⇒ 这里显式识别"变异让生产代码抛异常"的形态并单独报出。
+    crash = bool(re.search(r"\b(re\.error|SyntaxError|NameError|AttributeError|TypeError)\b", out))
+    return r.returncode, out[-400:], passed + failed, failed, crash
 
 
 def main() -> int:
@@ -509,7 +527,7 @@ def main() -> int:
         original = TARGET.read_bytes()
         backup_sha = hashlib.sha256(original).hexdigest()
 
-        rc0, out0, n0, f0 = run_suite("domain_")
+        rc0, out0, n0, f0, _c0 = run_suite("domain_")
         if rc0 != 0 or f0 or n0 == 0:
             print(f"⛔ 基线不可信（rc={rc0} 收集={n0} 失败={f0}）:\n{out0}")
             return 2
@@ -529,7 +547,7 @@ def main() -> int:
                 continue
             TARGET.write_text(text, encoding="utf-8")
             try:
-                rc, out, n, f = run_suite(keyword)
+                rc, out, n, f, crash = run_suite(keyword)
             finally:
                 TARGET.write_bytes(original)  # 立刻还原，异常也还原
             got = hashlib.sha256(TARGET.read_bytes()).hexdigest()
@@ -537,6 +555,12 @@ def main() -> int:
             # ⛔ 必须是"收集到用例 且 确实有失败"，不能只看 rc != 0
             if n == 0:
                 print(f"❌ {name}: `-k {keyword}` 一个用例都没匹配到（rc={rc}）——这不是变红")
+                failures += 1
+            elif crash:
+                print(
+                    f"❌ {name}: 变异让生产代码**抛异常**（输出含 re.error/NameError 等）"
+                    f"——这是**因崩溃变红**, 不是因漏拦变红, 不算承重\n{out}"
+                )
                 failures += 1
             elif f == 0:
                 print(f"❌ {name}: 变异后 {n} 个用例仍全绿 = 该门不承重\n{out}")
