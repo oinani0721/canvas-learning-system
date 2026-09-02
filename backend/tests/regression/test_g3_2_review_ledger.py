@@ -937,8 +937,14 @@ def test_identity_tampering_caught_by_validator_not_envelope(vault):
     tampered["payload"]["fsrs_library_version"] = "tampered-library"
     (vault / "learning_events.jsonl").write_text(json.dumps(tampered, ensure_ascii=False) + "\n", encoding="utf-8")
     r2 = _run_writer(vault, _payload())
-    assert r2.returncode == 0, "身份键不在 envelope 等价面 (恢复照常)"
-    assert _run_validator(vault).returncode == 1, "但被篡改的身份必须被校验器拦下"
+    # ⚠️ 分层的准确表述（round-4 后收紧）：`fsrs_library_version` / `fsrs_params_hash`
+    # 仍**不在 envelope 等价面**里（等价面只管评分事实，库升级不该让历史重放变冲突）；
+    # 但消费前会复用校验器本体的 `validate_record_full` 做完整 v1 记录校验，
+    # 而它绑定 golden manifest —— 所以被篡改的身份**在写点侧就被拦下**，不再等到
+    # 事后跑校验器。两句话都成立，别把「不在等价面」读成「写点不管它」。
+    assert r2.returncode != 0, "被篡改的身份键必须在消费前就被拦下"
+    assert "未通过校验器的 v1 记录校验" in r2.stderr, r2.stderr
+    assert _run_validator(vault).returncode == 1, "校验器同样拦下（两侧同口径）"
 
 
 # ══ CARD-G3-2b: Codex round-3 残留 R1-R7 的生产入口反例门 (㉖-㉜) ══
@@ -1012,13 +1018,18 @@ def test_r2_non_whole_second_durable_review_time_fail_closed(vault):
     # 判据必须落在**字面**上, 不是解析后的值 (自查补): '.000000Z' 的
     # microsecond 恰为 0, 只看值会放行它, 而校验器的 _WHOLE_SECOND_RE 按字面
     # 判 FAIL ⇒ 写点放行、validator 拒, 实现与契约又成两个口径。
+    # ⚠️ 按**拦截层**分组, 而不是笼统断言「随便哪层拒都行」——后者会让
+    # 「整秒门被删、靠校验器语法门兜住」这种回归无声通过 (round-4 后消费前
+    # 复用 validate_record_full, 语法畸形会先被它拦, 理由串与整秒门不同)。
     for rt_bad, why in (
+        # 第一组: §三 受理语法合法, 被**写点自己的整秒/UTC 门**拦
         ("2026-08-01T10:00:00.500Z", "小数秒"),
         ("2026-08-01T10:00:00.000000Z", "小数秒"),  # 零值小数秒字面: 值合规、字面不合规
         ("2026-08-01T10:00:00.0Z", "小数秒"),
-        ("2026-08-01T10:00:00+00:00:00", "小数秒"),  # 非 canonical 偏移字面
-        ("2026-08-01T10:00+00:00", "小数秒"),  # 省略秒段 (§6.2 round-4 HIGH#1)
         ("2026-08-01T18:00:00+08:00", "非 UTC"),  # 字面合规但偏移非零
+        # 第二组: 连 §三 受理语法都不合法, 被**校验器本体**先拦 (两侧同口径)
+        ("2026-08-01T10:00:00+00:00:00", "未通过校验器的 v1 记录校验"),  # 非 canonical 偏移
+        ("2026-08-01T10:00+00:00", "未通过校验器的 v1 记录校验"),  # 省略秒段 (§6.2 round-4 HIGH#1)
     ):
         (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
         _write_ledger(vault, _review_row(**{"payload.review_time": rt_bad, "effective_at": rt_bad}))
@@ -1172,6 +1183,18 @@ def test_r6_schema_declares_identity_key_integrity_owner():
     assert "A2 消费侧同样机械强制" in a5 and "禁止消费时顺手归一化" in a5, a5[:400]
     # A4.5 短写段必须写明「截断 vs 完整损坏」的 LF 判据 (R7 的契约面)
     assert "可容忍的截断 vs 完整损坏" in doc and "不以 LF 结尾" in doc
+    # round-4 HIGH 的契约面: A8 必须写明「先过校验器本体、再叠加更严的」,
+    # 否则「比校验器严」那句会被读成「消费侧可以另起一套判据」——本卡正是
+    # 这么读的, 于是手写的第二套判据在 4 个形态上比校验器**松**。
+    a8 = doc[doc.index("**A8 消费侧准入") : doc.index("**A9 恢复先落定")]
+    for needle in (
+        "validate_record_full",
+        "先过校验器本体",
+        "顶层必须是 JSON object",
+        "归属判断必须排在",
+        "不得越权阻塞",
+    ):
+        assert needle in a8, f"§6.2 A8 段缺「{needle}」— round-4 裁决未回写契约"
     # 三态语义段必须写明 out_of_order 的**写点侧** fail-closed 口径 (N1 的契约面)
     # —— proof 侧是「报违规仍计入」, 在线写路径不能照搬, 两个口径必须分开写清楚。
     oo = doc[doc.index("**`out_of_order` 字段冻结") : doc.index("**迟到事件的入账通道**")]
@@ -1391,10 +1414,12 @@ def test_self_audit_coverage_gaps(vault):
         dropped["payload"].pop(key)
         _write_ledger(vault, dropped)
         rw = _run_writer(vault, _payload())
-        assert rw.returncode == 0, f"删 {key} 后 envelope 应放行（身份键不在等价面）"
-        assert _fm_fields(vault), "放行则必须真的恢复了 FSRS"
+        # round-4 后：消费前复用校验器本体做完整 v1 校验，所以缺键在**写点侧**
+        # 就被拦，两侧同口径（此前是「写点放行 + 校验器兜底」的分层）。
+        assert rw.returncode != 0, f"删 {key} 后必须在消费前拒"
+        assert "未通过校验器的 v1 记录校验" in rw.stderr, rw.stderr
         v = _run_validator(vault)
-        assert v.returncode != 0, f"但删 {key} 必须被校验器拦下 —— 否则分层防线漏空"
+        assert v.returncode != 0, f"校验器同样拦下 {key}（两侧同口径）"
         assert key in v.stdout, v.stdout[:300]
 
     # ② Unicode 归一化差异必须构成冲突。
@@ -1576,12 +1601,15 @@ def test_round2_lead_followups(vault):
         row[key] = value
         _write_ledger(vault, row)
         rw = _run_writer(vault, _payload())
-        assert rw.returncode == 0, f"顶层 {key}: envelope 只比 5 键，写点应放行: {rw.stderr}"
-        v = _run_validator(vault)
         if validator_must_reject:
-            assert v.returncode != 0 and key in v.stdout, f"顶层 {key} 必须被校验器拦: {v.stdout[:200]}"
+            # round-4 后：消费前完整 v1 校验 ⇒ 未知顶层键在写点侧就被拦（两侧同口径）
+            assert rw.returncode != 0, f"顶层 {key} 必须在消费前拒: {rw.stderr}"
+            assert "未通过校验器的 v1 记录校验" in rw.stderr, rw.stderr
+            assert _run_validator(vault).returncode != 0, f"校验器同样拦 {key}"
         else:
-            assert v.returncode == 0, f"{key} 变化是设计内的（envelope 显式排除），不得误拦: {v.stdout[:200]}"
+            # recorded_at 变化被 envelope 显式排除，且它是合法 v1 字段 ⇒ 两侧都放行
+            assert rw.returncode == 0, f"{key} 变化是设计内的，不得误拒: {rw.stderr}"
+            assert _run_validator(vault).returncode == 0, f"{key} 不得被误拦"
 
     # ②c **未标 out_of_order 的迟到/同秒行必须 fail-closed**（Codex round-3
     # BLOCKER①，本卡最后一条）。契约 §6.2 三态语义说「review_time ≤ W 的事件
@@ -2030,18 +2058,98 @@ def test_round3_findings(vault):
     )
     assert _run_validator(va).returncode == 0
 
-    # ⑧ attempt 同步必须**单调不减**：绝不把笔记里更大的计数改小。
-    # 这是 ② 那条 attempt 同步修复**自己引入**的缺陷：笔记 attempt_count=99 而
-    # 账本只有一条 attempt=1 的行时，无条件同步把 99 覆盖成 1（实测 99 → 2），
-    # 用户的「已考 99 次」当场蒸发。账本缺历史行是 §6.3 明确容许的常态。
+    # ⑧ attempt 同步的期望值必须**可证**，不能用 max() 抹平差异。
+    # 我先写成 max(durable, current)（"单调不减，绝不把更大的计数改小"）——
+    # 审查一句话推翻：「不要以 max() 修复事实」。max 会把**非法低序数**伪装成
+    # 单调不减而放过去：实测笔记 99 + durable 序数 1，两次评分后笔记只到 100、
+    # 账本 [1,100]，中间漏加了一次。
+    # 正确判据按「这个事件的副作用应用过没有」分两档：没应用过 ⇒ durable 应恰为
+    # 笔记值 + 1（它被写出来时的定义）；应用过 ⇒ 笔记里已经是 durable 值本身
+    # （degraded 落账那一档）。两档都不满足 = 序数关系不可证 ⇒ 停下。
     (va / NODE_REL).write_text(
         NODE_V0.replace("mastery_score: 0.5\n", "mastery_score: 0.5\nattempt_count: 99\n"), encoding="utf-8"
     )
     _write_ledger(va, _review_row(event_id="quiz:板A#q1"))
-    r8 = _run_writer_settled(va, _payload(event_id="板Z#q1", ts="2026-08-05T10:00:00Z"))
-    assert r8.returncode == 0, r8.stdout + r8.stderr
-    att_now = int(re.search(r'^attempt_count:\s*["\']?(\d+)["\']?\s*$', _fm(va), re.M).group(1))
-    assert att_now == 100, f"笔记的 99 不得被账本的 1 覆盖，应承接为 100，实为 {att_now}"
+    face8 = _write_face(va)
+    r8 = _run_writer(va, _payload(event_id="板Z#q1", ts="2026-08-05T10:00:00Z"))
+    assert r8.returncode != 0, "durable 序数与笔记对不上时必须停下，不得用 max() 抹平"
+    assert "序数关系不可证" in r8.stderr, r8.stderr
+    assert _write_face(va) == face8, "零写（节点 + 账本）"
+    # 验伪：序数**对得上**时必须照常重放（本门不是「凡有 pending 就拒」的假门）
+    (va / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (va / "learning_events.jsonl").unlink()
+    assert _run_writer(va, _payload(event_id="正常A#q1")).returncode == 0
+    ok_bytes = (va / NODE_REL).read_bytes()
+    (va / NODE_REL).write_text(NODE_V0, encoding="utf-8")  # 崩溃窗口①：durable=1、笔记=0
+    r8b = _run_writer(va, _payload(event_id="正常A#q1", ts="2026-09-01T10:00:00Z"))
+    assert r8b.returncode == 0, "序数对得上时必须照常恢复: " + r8b.stderr
+    assert (va / NODE_REL).read_bytes() == ok_bytes
+
+    # ⑧b **变异照出的死门补强**：⑧ 的场景（durable 1 < 期望 100）在 max() 变异下
+    # 仍然会拒，所以杀不掉那个变异。真正只有 max() 才放过的是**反方向**：
+    # durable **大于**期望值时 `_n_ != max(_n_, _exp_n_)` 恒假 ⇒ 静默放行。
+    (va / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (va / "learning_events.jsonl").unlink()
+    _write_ledger(va, _review_row(event_id="quiz:超前#q1", **{"payload.attempt_count": 5}))
+    face8b = _write_face(va)
+    r8b2 = _run_writer(va, _payload(event_id="板Y#q1", ts="2026-08-05T10:00:00Z"))
+    assert r8b2.returncode != 0, "durable 序数**大于**期望值时同样不可证，必须停下（max() 会放过它）"
+    assert "序数关系不可证" in r8b2.stderr, r8b2.stderr
+    assert _write_face(va) == face8b, "零写"
+
+    # ⑪b **marker 被整个抹掉、只留扩展键**必须拒（复用校验器的 _looks_like_review_ext）。
+    # ⚠️ 我一度把这条登记成「两侧都放过、属契约缺口、移交不修」——那个判断是错的：
+    # 校验器一直在拒（"复习事件 payload 含扩展键但缺 schema_ext 标记"），落后的是
+    # 写点。而我手写的键集（含 grade_norm/attempt_count）还误伤过合法历史行；
+    # 校验器的 REVIEW_EXT_KEYS 不含那三个键，对 §6.3 存量零误报。
+    (va / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    row_nm = _review_row(event_id="quiz:抹掉marker#q1")
+    row_nm["payload"].pop("schema_ext")
+    _write_ledger(va, row_nm)
+    face11b = _write_face(va)
+    r11b = _run_writer(va, _payload(event_id="板W#q1", ts="2026-08-05T10:00:00Z"))
+    assert r11b.returncode != 0, "抹掉 marker 但留扩展键 = 把完整评分伪装成历史行，必须拒"
+    assert "降级绕过" in r11b.stderr or "扩展键" in r11b.stderr, r11b.stderr
+    assert _write_face(va) == face11b, "零写"
+
+    # ⑫ **本次事件与别人的事件同处待恢复队列**必须停（两阶段无法同时正确处理两者）。
+    # 实测（current 在前、foreign 在后）：第一轮发布后水位线与校准只反映 foreign，
+    # 第二轮起本次事件恒落进「FSRS 已应用但缺校准记录」的人工裁定 —— **永久不收敛**。
+    # dup 行必须是**真实的** durable 行（否则先被 envelope 门拦下，走不到这道门）：
+    # 正常写一次 → 回滚节点造崩溃窗口① → 再追加一条别人的未完成事件。
+    (va / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (va / "learning_events.jsonl").unlink()
+    assert _run_writer(va, _payload()).returncode == 0
+    cur = _ledger_lines(va)[0]
+    (va / NODE_REL).write_text(NODE_V0, encoding="utf-8")  # 崩溃窗口①：dup 变 pending
+    frn = _review_row(
+        event_id="quiz:板F#q1", **{"payload.review_time": "2026-08-02T10:00:00Z", "payload.attempt_count": 2}
+    )
+    frn["effective_at"] = "2026-08-02T10:00:00Z"
+    _write_ledger(va, cur, frn)
+    face12 = _write_face(va)
+    r12 = _run_writer(va, _payload())
+    assert r12.returncode != 0, "本次事件与 foreign 同处待恢复队列时必须停下"
+    assert "同处待恢复队列" in r12.stderr, r12.stderr
+    assert _write_face(va) == face12, "零写"
+
+    # ⑬ **YAML 单引号标量的 '' 转义**必须还原（Obsidian 规范化后的形态）。
+    # 不还原就把 'O''Brien#q1' 读成 O''Brien#q1，F1 假阴性 ⇒ 同一次评分的
+    # mastery/校准被算第二遍。
+    (va / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (va / "learning_events.jsonl").unlink()
+    eid_q = "O'Brien#q1"
+    assert _run_writer(va, _payload(event_id=eid_q)).returncode == 0
+    # 模拟 Obsidian 把双引号标量规范化成单引号标量（'' 表示一个字面单引号）
+    text_q = (va / NODE_REL).read_text(encoding="utf-8")
+    assert f'- event_id: "{eid_q}"' in text_q, "fixture 前提：写点落盘应为双引号形态"
+    (va / NODE_REL).write_text(text_q.replace(f'- event_id: "{eid_q}"', "- event_id: 'O''Brien#q1'"), encoding="utf-8")
+    sha_q = _sha(va / NODE_REL)
+    rq = _run_writer(va, _payload(event_id=eid_q, ts="2026-09-01T10:00:00Z"))
+    assert rq.returncode == 0 and "幂等跳过" in rq.stdout, (
+        "YAML 单引号 '' 转义形态下 F1 必须命中，否则副作用被算第二遍: " + rq.stdout + rq.stderr
+    )
+    assert _sha(va / NODE_REL) == sha_q, "幂等跳过不得改动节点"
 
     # ⑨ attempt 读取正则必须容 YAML 的单引号标量（Obsidian Properties 会写引号）
     for lit, expect in (('"7"', 8), ("'7'", 8), ("7", 8)):
@@ -2127,3 +2235,74 @@ def test_round3_findings(vault):
     rl2 = _run_writer(va, _payload(event_id="历史B#q1", ts="2026-08-02T10:00:00Z"))
     assert rl2.returncode == 0, "真·历史行（§6.3）必须照常跳过: " + rl2.stderr
     assert len(_ledger_lines(va)) == 2
+
+
+# ── 门㊴ round-4 HIGH/MEDIUM: 消费侧与校验器的**结论对照**（不是单侧断言）──
+
+
+def test_round4_writer_validator_verdict_parity(vault):
+    """同一条账本行, 写点与校验器必须给出**相同结论**。
+
+    单侧断言（「写点应该拒 X」）只能证明「我按我想的做了」; 两侧对照才能抓出
+    口径分叉——round-4 报的 HIGH「消费侧 v1 准入不完整」与 MEDIUM「词法接收集
+    分叉」都是这类: 顶层 `[]` / 缺 payload / `event_version: true`
+    (`True == 1` 在 Python 里成立) / 时刻首尾带空白, 四种形态**写点 rc=0 而
+    校验器 rc=1**, 全是**漏网**方向。
+
+    修法是消费前复用校验器本体的 `validate_record_full`, 而不是在写点里手写
+    第二套判据 (DD-03/DD-13 同一条理由; 见 §6.2 A8)。
+
+    ⚠️ 对照的**适用范围是本节点的行**: 写点只对自己要消费的行负责, 别的节点
+    的不合规行由校验器兜底, 写点不得越权阻塞 (末尾两条验伪守着这条边界)。
+
+    ⚠️ **这道门的鉴别力边界**(如实写明, 免得后人高估它): 它证明的是「两侧结论
+    一致」, 不是「写点自己那几道手写门有用」。写点里排在 validate_record_full
+    **之前**的几道手写准入 (顶层是 object / event_version 非 bool / 归属判断
+    位置) 与校验器**功能重合** —— 单独删掉其中一道, 校验器仍拦住, 本门照样绿。
+    实测: M49/M50 两条变异在只删手写门时 SURVIVED, 挂上「同时禁掉校验器那层」
+    后才 KILLED。**门的鉴别力要靠变异去量, 不能靠读断言想当然。**
+    """
+    base = _review_row()
+
+    def _mutate(fn):
+        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+        row = json.loads(json.dumps(base))
+        raw = fn(row)
+        if raw is None:
+            _write_ledger(vault, row)
+        else:
+            (vault / "learning_events.jsonl").write_text(raw, encoding="utf-8")
+        # 合法行会触发两阶段发布（恢复先落定 + 要求重跑）——那是设计内的续跑
+        # 信号, 不是拒绝, 所以用会自动续跑的 settled 版本判"最终写成没有"。
+        w = _run_writer_settled(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
+        return w.returncode == 0, _run_validator(vault).returncode == 0, w
+
+    CASES = (
+        ("顶层是 JSON 数组", lambda r: "[]\n"),
+        ("顶层是 JSON 数字", lambda r: "12345\n"),
+        ("本节点行缺 payload", lambda r: r.pop("payload") and None),
+        ("event_version 为 true", lambda r: r.__setitem__("event_version", True)),
+        ("review_time 首尾空白", lambda r: r["payload"].__setitem__("review_time", " 2026-08-01T10:00:00Z ")),
+        ("未知顶层字段", lambda r: r.__setitem__("未知顶层", 1)),
+        ("缺 fsrs_library_version", lambda r: r["payload"].pop("fsrs_library_version") and None),
+        ("rating 越界为 9", lambda r: r["payload"].__setitem__("rating", 9)),
+    )
+    for desc, fn in CASES:
+        wok, vok, w = _mutate(fn)
+        assert wok == vok, f"[{desc}] 写点 ok={wok} 校验器 ok={vok} — 口径分叉: {w.stderr[:200]}"
+        assert not wok, f"[{desc}] 两侧应当都拒（本例是不合规输入）"
+
+    # 验伪①: 完全合法的行两侧都必须放行 —— 否则「写点恒拒」也能骗过上面的对照
+    wok, vok, w = _mutate(lambda r: None)
+    assert wok and vok, f"合法行两侧都必须放行: writer={w.stderr[:200]}"
+
+    # 验伪②: **别节点**的不合规行不得阻塞本次写入（写点只管自己消费的行）
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    other = json.loads(json.dumps(base))
+    other["node_id"] = "别的节点"
+    other["event_id"] = "quiz:别节点坏行"
+    del other["payload"]
+    _write_ledger(vault, other)
+    r2 = _run_writer_settled(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
+    assert r2.returncode == 0, f"别节点的坏行不得越权阻塞本节点写入: {r2.stderr[:300]}"
+    assert _run_validator(vault).returncode != 0, "但它仍应被校验器兜住（分层边界成立）"

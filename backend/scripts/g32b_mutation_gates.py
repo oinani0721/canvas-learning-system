@@ -19,6 +19,20 @@ BRIDGE = ROOT / "canvas-vault/.claude/scripts/fsrs_bridge.py"
 SCHEMA = ROOT / "docs/learning-events-schema-v1.md"
 TESTF = "tests/regression/test_g3_2_review_ledger.py"
 
+# 第二层防线: 消费前复用校验器本体。与写点手写的 8 条准入判据**完全重合**
+# (2026-09-02 逐形态实测: rating 自洽 / 整秒字面 / rating 与 grade_norm 完整性 /
+# event_type / concept_id / vault_id / 两时刻同瞬间 —— 校验器全部都拦)。
+# 只删手写那一层, 校验器仍拦住 ⇒ 门不变红 ⇒ 会被误判成「假门」。
+# 挂上它, 变异才是「**两层都没了**」, 门重新有鉴别力。
+# 见 MEMORY: reference_mutation_must_disable_all_layers。
+LAYER2_ALSO = (
+    (
+        SKILL,
+        "    _vio_, _warn_ = validate_record_full(_o, vault_id=_vid)\n",
+        "    _vio_, _warn_ = [], []  # MUTANT: 同时禁掉校验器那层\n",
+    ),
+)
+
 MUTATIONS = [
     (
         "M1-R1-candidate-spread",
@@ -63,6 +77,7 @@ MUTATIONS = [
         "        if abandoned and rating != 1:\n"
         '            raise ValueError(f"abandoned=true 时 rating 恒为 1 (弃答一票否决), 实为 {rating!r}")\n',
         "test_r5_inconsistent_scored_rating_rejected_before_apply",
+        LAYER2_ALSO,
     ),
     (
         "M7-R6-schema-drops-owner-clause",
@@ -98,6 +113,7 @@ MUTATIONS += [
         "    if not _WHOLE_SECOND_RE.match(rt.strip()):\n",
         "    if False and not _WHOLE_SECOND_RE.match(rt.strip()):  # MUTANT: 退回只看解析后的值\n",
         "test_r2_non_whole_second_durable_review_time_fail_closed",
+        LAYER2_ALSO,
     ),
 ]
 
@@ -157,6 +173,7 @@ MUTATIONS += [
         "    if isinstance(_rt_, bool) or not isinstance(_rt_, int) or _rt_ not in (1, 2, 3, 4):\n",
         "    if False:  # MUTANT\n",
         "test_internal_audit_findings",
+        LAYER2_ALSO,
     ),
     (
         "M20-B1-drop-gradenorm-completeness",
@@ -164,6 +181,7 @@ MUTATIONS += [
         "    if isinstance(_gn_, bool) or not isinstance(_gn_, (int, float)) or not (0.0 <= float(_gn_) <= 1.0):\n",
         "    if False:  # MUTANT\n",
         "test_internal_audit_findings",
+        LAYER2_ALSO,
     ),
     (
         "M21-B2-drop-attempt-sync-on-replay",
@@ -185,6 +203,7 @@ MUTATIONS += [
         '    if _o.get("event_type") not in ("answer_scored", "answer_abandoned"):\n',
         "    if False:  # MUTANT\n",
         "test_internal_audit_findings",
+        LAYER2_ALSO,
     ),
     (
         "M24-C1-drop-concept-id-gate",
@@ -192,6 +211,7 @@ MUTATIONS += [
         '    if _pl.get("concept_id") != node_id:\n',
         "    if False:  # MUTANT\n",
         "test_internal_audit_findings",
+        LAYER2_ALSO,
     ),
     (
         "M25-C1-drop-vault-id-gate",
@@ -199,6 +219,7 @@ MUTATIONS += [
         '    if _pl.get("vault_id") != _vid:\n',
         "    if False:  # MUTANT\n",
         "test_internal_audit_findings",
+        LAYER2_ALSO,
     ),
     (
         "M26-C2-drop-eid-whitespace-gate",
@@ -264,7 +285,7 @@ MUTATIONS += [
     (
         "M29-R3-drop-event-version-gate",
         SKILL,
-        '    if _o.get("event_version") != 1:\n',
+        '    if isinstance(_o.get("event_version"), bool) or _o.get("event_version") != 1:\n',
         "    if False:  # MUTANT\n",
         "test_round3_findings",
     ),
@@ -274,6 +295,7 @@ MUTATIONS += [
         '    if _instant_only(_ea_, _ctx + " 的 effective_at") != _rt_inst_:\n',
         "    if False:  # MUTANT\n",
         "test_round3_findings",
+        LAYER2_ALSO,
     ),
     (
         "M31-R3-drop-attempt-required",
@@ -321,34 +343,47 @@ MUTATIONS += [
 # ── 「复放评分链副作用」与 attempt 单调性的承重变异
 MUTATIONS += [
     (
-        "M36-replay-drops-mastery",
+        # 用 max() 抹平差异 ⇒ 非法低序数被伪装成「单调不减」放过去
+        "M38b-attempt-expectation-masked-by-max",
         SKILL,
-        '    if _o.get("event_id") != evid and not _fm_has_event(fm, _rid_bare_):\n        _o2_, _A2_, _B2_, _n2_ = _apply_mastery',
-        "    if False:  # MUTANT: 不复放 mastery\n        _o2_, _A2_, _B2_, _n2_ = _apply_mastery",
+        "        if _n_ != _exp_n_:\n",
+        "        if _n_ != max(_n_, _exp_n_):  # MUTANT: 用 max 抹平\n",
         "test_round3_findings",
     ),
     (
-        # 复放不跳过 dup ⇒ degraded 遗留态下 dup 的 EMA 被吃第二遍
-        "M37b-replay-includes-dup-double-eats-ema",
+        # F1 在复放 calibration **之后**求值 ⇒ 恒为真 ⇒ attempt 期望值选错档
+        "M43-f1-evaluated-after-calibration-replay",
         SKILL,
-        '    if _o.get("event_id") != evid and not _fm_has_event(fm, _rid_bare_):\n',
-        "    if True:  # MUTANT: 复放也算上 dup 自己\n",
-        "test_degraded_legacy_retry_restores_fsrs_without_double_ema",
-    ),
-    (
-        # 去掉「这个事件的副作用是否已应用过」这一半判据 ⇒ degraded 落账过的
-        # foreign 事件被重放时吃第二遍（账本与校准日志看上去完全正常）
-        "M40-replay-ignores-already-applied",
-        SKILL,
-        '    if _o.get("event_id") != evid and not _fm_has_event(fm, _rid_bare_):\n',
-        '    if _o.get("event_id") != evid:  # MUTANT: 不看是否已应用过\n',
+        "    _already_ = _fm_has_event(fm, _rid_bare_)\n",
+        "    _already_ = True  # MUTANT: 恒当作已应用\n",
         "test_round3_findings",
     ),
     (
-        "M38-attempt-sync-not-monotonic",
+        # 抹掉 marker 的降级行被当历史行跳过（复用 validator 判定被摘掉）
+        "M44-drop-looks-like-review-ext",
         SKILL,
-        "        _n_ = max(_n_, int(_cur_.group(1)) if _cur_ else 0)\n",
-        "        pass  # MUTANT: 无条件同步，可把更大的计数改小\n",
+        '        if "schema_ext" in _pl or _looks_like_review_ext(_pl):\n',
+        '        if "schema_ext" in _pl:  # MUTANT: 只看 marker 在不在\n',
+        "test_round3_findings",
+    ),
+    (
+        # current dup 与 foreign 同处 pending ⇒ 两阶段永久不收敛
+        "M45-allow-dup-and-foreign-same-round",
+        SKILL,
+        "if _foreign_replayed and len(_foreign_replayed) != len(pending):\n",
+        "if False:  # MUTANT: 允许 dup 与 foreign 同轮\n",
+        "test_round3_findings",
+    ),
+    (
+        # YAML 单引号标量的 '' 转义不还原 ⇒ F1 假阴性 ⇒ 副作用重复
+        "M46-yaml-single-quote-escape",
+        SKILL,
+        '                v = v[1:-1].replace("\'\'", "\'")\n',
+        "                v = v[1:-1]  # MUTANT: 不还原 '' 转义\n",
+        # ⚠️ 绑错门的实例: 原绑 test_f1_detection_survives_obsidian_renormalization,
+        # 但那道门用的是**裸词**形态 (event_id: xxx 无引号), 走不到单引号分支,
+        # 变异当然杀不动 —— SURVIVED 是「门与变异不匹配」, 不是「门是假的」。
+        # 测 '' 转义的是 test_round3_findings 的子场景⑬。
         "test_round3_findings",
     ),
     (
@@ -362,16 +397,7 @@ MUTATIONS += [
 ]
 
 
-MUTATIONS += [
-    (
-        # 本节点的 marker 降级行被当历史行静默跳过 ⇒ 一次真实复习永久漏算
-        "M41-marker-downgrade-silently-skipped",
-        SKILL,
-        '        if "schema_ext" in _pl:\n',
-        "        if False:  # MUTANT: 降级行照旧静默跳过\n",
-        "test_round3_findings",
-    ),
-]
+MUTATIONS += []
 
 
 MUTATIONS += [
@@ -382,6 +408,25 @@ MUTATIONS += [
         '    if W_inst is None or _inst_ > W_inst or _o_.get("event_id") == evid:\n',
         "    if True:  # MUTANT: 迟到行一律放过\n",
         "test_round2_lead_followups",
+    ),
+]
+
+
+# ── 重构后重新锚定（_already_ 抽出、判据合并）
+MUTATIONS += [
+    (
+        "M36b-replay-drops-mastery",
+        SKILL,
+        '    if _o.get("event_id") != evid and not _already_:\n        _o2_, _A2_, _B2_, _n2_ = _apply_mastery',
+        "    if False:  # MUTANT: 不复放 mastery\n        _o2_, _A2_, _B2_, _n2_ = _apply_mastery",
+        "test_round3_findings",
+    ),
+    (
+        "M37c-replay-includes-dup-double-eats-ema",
+        SKILL,
+        '    if _o.get("event_id") != evid and not _already_:\n',
+        "    if True:  # MUTANT: 复放也算上 dup 自己\n",
+        "test_degraded_legacy_retry_restores_fsrs_without_double_ema",
     ),
 ]
 
@@ -418,55 +463,150 @@ def is_killed(proc, gate):
     return True, summary[:80]
 
 
-failures = []
-for tag, path, old, new, gate in MUTATIONS:
-    original = path.read_bytes()
-    sha_before = hashlib.sha256(original).hexdigest()
-    text = original.decode("utf-8")
-    n = text.count(old)
-    if n != 1:
-        failures.append(f"{tag}: 变异锚点命中 {n} 次 (须恰 1) — 未变异, 跳过")
-        print(f"[{tag}] ✗ 锚点命中 {n} 次, 跳过")
+# ── round-4 HIGH/MEDIUM 修复的承重变异（消费前复用校验器本体）
+MUTATIONS += [
+    (
+        # 不复用校验器本体 ⇒ 「缺 payload」「event_version: true」「时刻带空白」
+        # 等形态写点放行而校验器拒 —— round-4 报的漏网方向原样复现
+        "M47-skip-validator-record-check",
+        SKILL,
+        "    _vio_, _warn_ = validate_record_full(_o, vault_id=_vid)\n",
+        "    _vio_, _warn_ = [], []  # MUTANT: 不复用校验器本体\n",
+        "test_round4_writer_validator_verdict_parity",
+    ),
+    (
+        # 归属判断退回「缺 payload 就跳过」之后 ⇒ 本节点缺 payload 的行被静默漏算
+        "M48-attribution-check-after-payload-skip",
+        SKILL,
+        """    if _o.get("node_id") != node_id:
         continue
-    mutated = text.replace(old, new, 1).encode("utf-8")
-    try:
-        path.write_bytes(mutated)
-        r = run_gate(gate)
-        killed, why = is_killed(r, gate)
-    finally:
-        # 并发编辑防护: 还原写的是**读时快照**, 若变异窗口内有人改了这个文件,
-        # 无条件写回会**静默丢掉他的改动**, 而「还原后字节相同」自检比的是自己
-        # 的快照, 恒相同、看不见这件事。窗口最长 900s × 多条变异, 不是理论风险。
-        now = path.read_bytes()
-        third_party = now != mutated
-        if third_party:
-            # ⛔ 首版这里 sys.exit(3) 且**不还原** —— 那是致命的方向错误: 变异体
-            # 会被留在生产文件里。实测代价: 一次触发后 `if False:  # MUTANT` 在
-            # SKILL.md 里活了整整一轮, 差点被 commit(靠 grep MUTANT 才抓到)。
-            # 正确顺序是「先把第三方内容存证, 再无条件还原」—— 变异体绝不能留,
-            # 而第三方改动也不能无声蒸发。
-            stash = pathlib.Path(f"/private/tmp/g32b-mutation-thirdparty-{tag}.bak")
-            stash.write_bytes(now)
-            print(
-                f"[{tag}] ⚠️ 变异窗口内 {path.name} 被第三方改动 — 其内容已存证到 {stash}; "
-                f"仍按快照还原(变异体不得留在生产文件里), 请人工核对是否需要合并回去"
-            )
-        path.write_bytes(original)  # 逐字节还原 (finally 无条件执行 = EXIT trap 等价)
-    sha_after = sha(path)
-    if sha_after != sha_before:
-        print(f"[{tag}] ✗✗ 还原后字节不同 ({sha_before[:12]} → {sha_after[:12]}) — 立即停")
-        sys.exit(2)
-    status = f"KILLED ({why})" if killed else f"SURVIVED ⇒ 假门 ({why})"
-    print(f"[{tag}] {gate} → {status}  [还原字节相同 {sha_after[:12]}]")
-    if not killed:
-        failures.append(f"{tag}: 门 {gate} 未抓住变异 (SURVIVED)")
-        print("    ---- 门输出尾部 ----")
-        print("    " + "\n    ".join(r.stdout.strip().split("\n")[-6:]))
+    if not isinstance(_pl, dict):
+        raise SystemExit""",
+        """    if not isinstance(_pl, dict):
+        continue  # MUTANT: 归属判断退回其后
+    if _o.get("node_id") != node_id:
+        continue
+    if False:
+        raise SystemExit""",
+        "test_round4_writer_validator_verdict_parity",
+    ),
+    (
+        # 不排除 bool ⇒ `event_version: true` 因 `True == 1` 被当成 v1 消费
+        "M49-event-version-accepts-bool",
+        SKILL,
+        '    if isinstance(_o.get("event_version"), bool) or _o.get("event_version") != 1:\n',
+        '    if _o.get("event_version") != 1:  # MUTANT: 不排除 bool\n',
+        "test_round4_writer_validator_verdict_parity",
+        LAYER2_ALSO,
+    ),
+    (
+        # 顶层非 object 的行退回静默跳过 ⇒ 写点 rc=0 而校验器 rc=1
+        "M50-non-object-line-silently-skipped",
+        SKILL,
+        """    if not isinstance(_o, dict):
+        raise SystemExit(f"[quiz-answer] 账本第 {_ln} 行的顶层不是 JSON object""",
+        """    if False:  # MUTANT: 顶层非 object 静默跳过
+        raise SystemExit(f"[quiz-answer] 账本第 {_ln} 行的顶层不是 JSON object""",
+        "test_round4_writer_validator_verdict_parity",
+        LAYER2_ALSO,
+    ),
+]
 
-print()
-if failures:
-    print("变异验证 FAIL:")
-    for f in failures:
-        print("  -", f)
-    sys.exit(1)
-print(f"变异验证 PASS: {len(MUTATIONS)}/{len(MUTATIONS)} 全部被指定门杀死, 全部逐字节还原。")
+
+# ⛔ 执行块必须包在 main() 里 (2026-09-02 事故):
+# 此前它是**模块顶层**代码, 于是任何 `import g32b_mutation_gates`
+# (探针脚本 / 锚点体检脚本想复用 MUTATIONS 表时都会这么做) 都会**立刻跑全套
+# 变异并改写生产文件**。实测代价: 两个 import 各触发一次全套变异, 与前台那次
+# **并行**跑, 三方交错互相把对方的变异体当「第三方改动」存证再还原到自己的快照
+# ⇒ SKILL.md 留下 M42 的变异体、契约文件留下 M7 的变异体, 而每条变异各自的
+# 「还原后字节相同」自检**全部显示通过**(它比的是自己的快照)。
+# 见 MEMORY: reference_mutation_script_serial_only / reference_parallel_session_file_collision。
+def main():
+    failures = []
+    for _m in MUTATIONS:
+        # 第 6 元素 (可选): [(old, new), ...] —— **同时**施加的其它防线变异。
+        # ⛔ 为什么需要它 (MEMORY reference_mutation_must_disable_all_layers):
+        # 本卡消费前复用了校验器本体 validate_record_full(), 它与写点手写的 8 条
+        # 准入判据**完全重合** (2026-09-02 逐形态实测: rating 自洽 / 整秒字面 /
+        # rating 与 grade_norm 完整性 / event_type / concept_id / vault_id /
+        # 两时刻同瞬间, 校验器**全部都拦**)。只删手写那一层, 校验器仍拦住 ⇒ 门不
+        # 变红 ⇒ 被误判成「假门」。真正要证的是「**两层都没了**才会漏」。
+        tag, path, old, new, gate = _m[:5]
+        # 第 6 元素的每项是 (target_path, old, new) —— **跨文件**, 因为第二层防线
+        # (SKILL.md 里的 validate_record_full 调用) 未必与主变异同一个文件
+        # (如 M5 的主变异在 fsrs_bridge.py)。
+        also = _m[5] if len(_m) > 5 else ()
+        edits = [(path, old, new)] + [tuple(x) for x in also]
+        originals = {}
+        for _p, _, _ in edits:
+            if _p not in originals:
+                originals[_p] = _p.read_bytes()
+        texts = {p: b.decode("utf-8") for p, b in originals.items()}
+        _anchor_bad = False
+        for _p, _o, _n in edits:
+            c = texts[_p].count(_o)
+            if c != 1:
+                which = "变异" if (_p, _o, _n) == edits[0] else "同层"
+                failures.append(f"{tag}: {which}锚点在 {_p.name} 命中 {c} 次 (须恰 1) — 未变异, 跳过")
+                print(f"[{tag}] ✗ {which}锚点在 {_p.name} 命中 {c} 次, 跳过")
+                _anchor_bad = True
+                break
+            texts[_p] = texts[_p].replace(_o, _n, 1)
+        if _anchor_bad:
+            continue
+        mutated = {p: t.encode("utf-8") for p, t in texts.items()}
+        try:
+            for _p, _b in mutated.items():
+                _p.write_bytes(_b)
+            r = run_gate(gate)
+            killed, why = is_killed(r, gate)
+        finally:
+            # 并发编辑防护: 还原写的是**读时快照**, 若变异窗口内有人改了这个文件,
+            # 无条件写回会**静默丢掉他的改动**, 而「还原后字节相同」自检比的是自己
+            # 的快照, 恒相同、看不见这件事。窗口最长 900s × 多条变异, 不是理论风险。
+            # ⚠️ 并行下这道自检**是自证** —— 2026-09-02 三个变异进程交错跑, 每条各自
+            # 都显示「还原成功」, 却在生产文件里留下了别人的变异体。外部锚点
+            # (grep MUTANT + 与已知良好 sha 比对) 才是证据。见 MEMORY:
+            # reference_mutation_script_module_level_side_effects。
+            for _p, _b in mutated.items():
+                now = _p.read_bytes()
+                if now != _b:
+                    # ⛔ 首版这里 sys.exit(3) 且**不还原** —— 那是致命的方向错误: 变异体
+                    # 会被留在生产文件里。实测代价: 一次触发后 `if False:  # MUTANT` 在
+                    # SKILL.md 里活了整整一轮, 差点被 commit(靠 grep MUTANT 才抓到)。
+                    # 正确顺序是「先把第三方内容存证, 再无条件还原」—— 变异体绝不能留,
+                    # 而第三方改动也不能无声蒸发。
+                    stash = pathlib.Path(f"/private/tmp/g32b-mutation-thirdparty-{tag}-{_p.name}.bak")
+                    stash.write_bytes(now)
+                    print(
+                        f"[{tag}] ⚠️ 变异窗口内 {_p.name} 被第三方改动 — 其内容已存证到 {stash}; "
+                        f"仍按快照还原(变异体不得留在生产文件里), 请人工核对是否需要合并回去"
+                    )
+                _p.write_bytes(originals[_p])  # 逐字节还原 (finally 无条件 = EXIT trap 等价)
+        _drift = [
+            _p.name
+            for _p in originals
+            if hashlib.sha256(_p.read_bytes()).hexdigest() != hashlib.sha256(originals[_p]).hexdigest()
+        ]
+        if _drift:
+            print(f"[{tag}] ✗✗ 还原后字节不同: {', '.join(_drift)} — 立即停")
+            sys.exit(2)
+        sha_after = sha(path)
+        status = f"KILLED ({why})" if killed else f"SURVIVED ⇒ 假门 ({why})"
+        print(f"[{tag}] {gate} → {status}  [还原字节相同 {sha_after[:12]}]")
+        if not killed:
+            failures.append(f"{tag}: 门 {gate} 未抓住变异 (SURVIVED)")
+            print("    ---- 门输出尾部 ----")
+            print("    " + "\n    ".join(r.stdout.strip().split("\n")[-6:]))
+
+    print()
+    if failures:
+        print("变异验证 FAIL:")
+        for f in failures:
+            print("  -", f)
+        sys.exit(1)
+    print(f"变异验证 PASS: {len(MUTATIONS)}/{len(MUTATIONS)} 全部被指定门杀死, 全部逐字节还原。")
+
+
+if __name__ == "__main__":
+    main()

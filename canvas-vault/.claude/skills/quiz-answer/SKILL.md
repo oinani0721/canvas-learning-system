@@ -225,7 +225,7 @@ sys.path.insert(0, os.path.join(VAULT, ".claude", "scripts"))
 try:
     from fsrs_bridge import rating_from_grade, fields_from_frontmatter
     sys.path.insert(0, os.path.join(REPO, "backend", "scripts"))
-    from validate_learning_events import classify_card_state, _vault_id_of, _WHOLE_SECOND_RE
+    from validate_learning_events import classify_card_state, _vault_id_of, _WHOLE_SECOND_RE, _looks_like_review_ext, validate_record_full
 except Exception as _e:
     raise SystemExit(f"[quiz-answer] G3-2 依赖不可达 (validate_learning_events/fsrs_bridge import 失败), fail-closed 拒写: {_e}")
 
@@ -338,7 +338,10 @@ def _fm_has_event(fm_text, ev_id):
                 except ValueError:
                     pass
             elif len(v) >= 2 and v[0] == v[-1] and v[0] == "'":
-                v = v[1:-1]
+                # YAML 单引号标量里 '' 表示一个字面单引号 —— 不还原就把
+                # 'O''Brien#q1' 读成 O''Brien#q1, F1 判定假阴性 ⇒ 同一次评分的
+                # mastery/校准被算第二遍 (Codex round-4 BLOCKER)。
+                v = v[1:-1].replace("''", "'")
             if v == ev_id:
                 return True
     return False
@@ -566,6 +569,11 @@ for _ln, _o in _rows:
     _pl = _o.get("payload") if isinstance(_o, dict) else None
     # payload 必须是 object (§一: v2 才可改类型)。非 dict 时旧实现抛裸
     # AttributeError traceback, 不是 clean fail-closed。
+    # 顶层不是 JSON object 的行 (如 `[]` / `12345`) 此前被账本读取层收下、
+    # 适用集又因 `isinstance(_o, dict)` 为假而静默跳过 —— 写点 rc=0 而校验器
+    # rc=1「顶层必须是 JSON object」(Codex round-4 HIGH)。
+    if not isinstance(_o, dict):
+        raise SystemExit(f"[quiz-answer] 账本第 {_ln} 行的顶层不是 JSON object ({type(_o).__name__}) — 与校验器同口径 fail-closed 拒写")
     if isinstance(_o, dict) and "payload" in _o and not isinstance(_pl, dict):
         raise SystemExit(f"[quiz-answer] 账本第 {_ln} 行的 payload 不是 object ({type(_pl).__name__}) — v1 冻结它为 object, fail-closed 拒写")
     # ⛔ 路由信封 (schema §一「路由信封冻结」的**读方义务**, 逐字): 解析出的
@@ -573,10 +581,13 @@ for _ln, _o in _rows:
     # —— 不能因为「它看起来不属于本节点」就跳过, 因为恰恰无法判定归属。
     if isinstance(_o, dict) and not isinstance(_o.get("node_id"), str):
         raise SystemExit(f"[quiz-answer] 账本第 {_ln} 行缺少可用的 node_id ({_o.get('node_id')!r}) — 无法判定归属, 按 §一 路由信封条款 fail-closed 拒写")
-    if not isinstance(_pl, dict):
-        continue
+    # ⚠️ 归属判断必须排在「缺 payload 就跳过」**之前**: 本节点的行缺 payload
+    # 时它仍可能是一次真实评分, 静默跳过就是漏算 (Codex round-4 HIGH: 写点
+    # rc=0 而校验器 rc=1)。别的节点的行才轮得到「跳过」。
     if _o.get("node_id") != node_id:
         continue
+    if not isinstance(_pl, dict):
+        raise SystemExit(f"[quiz-answer] 账本第 {_ln} 行 (本节点) 缺 payload 或其类型不是 object — 无法判定它是不是一次评分, 静默跳过等于漏算, fail-closed 拒写")
     if _pl.get("schema_ext") != "review/1":
         # ⛔ 降级绕过封堵 (§6.1, 与校验器同口径): 本节点的行只有在**既没有
         # schema_ext、也没有任何扩展键**时才是真·历史行 (§6.3, 旧写点产物,
@@ -586,21 +597,22 @@ for _ln, _o in _rows:
         # 两行, 但那次复习完全消失 (fsrs_state 1 而非 2, due 差一周);
         # 同一种坏行带**本次** id 会被 dup 分支拦下, 带别人的 id 就静默丢 ——
         # 同一份数据两种命运, 正是 §6.1 要封的那个口子。
-        # ⚠️ 判据只看「marker 在不在」，**不看 payload 带了哪些键** —— 与校验器
-        # 逐字同源。§6.3 的历史行本来就可能带 grade_norm / attempt_count /
-        # exam_board（旧写点产物），校验器对无 marker 行**不判** payload 键集；
-        # 我第一版按「带扩展键就算降级」写，当场误伤了门⑭ 的合法历史行 fixture
-        # —— 这是本卡第四次「实现比契约严」，判据必须收回到契约那条线上。
-        # 📌 如实登记的缺口：把 marker **整个抹掉**、只留扩展键的行，两侧（写点与
-        #    校验器）都会当历史行放过。要堵它得先改契约 §6.3 的键集豁免，
-        #    单侧收紧只会再造一次口径分叉 ⇒ 移交，不在本卡修。
-        if "schema_ext" in _pl:
-            raise SystemExit(f"[quiz-answer] 账本第 {_ln} 行 (本节点) 的 schema_ext={_pl.get('schema_ext')!r} 不是 'review/1' — §6.1 禁止以未知 marker 降级绕过扩展校验; 静默把它当历史行跳过等于漏算一次真实复习, fail-closed 拒写")
+        # 判据复用校验器本体的 _looks_like_review_ext（禁第三套）：它的
+        # REVIEW_EXT_KEYS = {vault_id, concept_id, rating, review_time,
+        # fsrs_library_version, fsrs_params_hash} —— **不含** grade_norm /
+        # exam_board / attempt_count，所以对 §6.3 历史行零误报。
+        # ⚠️ 我曾手写过一份键集（把 grade_norm/attempt_count 也算进去），当场
+        # 误伤门⑭ 的合法历史行；随后又据此登记「marker 整个抹掉两侧都放过、
+        # 属契约缺口、移交不修」—— **那个判断也是错的**：校验器一直在拒
+        # （"复习事件 payload 含扩展键但缺 schema_ext 标记"），规格与校验器都
+        # 正确，落后的是这里的实现。两次都栽在「自己写一套判据」上。
+        if "schema_ext" in _pl or _looks_like_review_ext(_pl):
+            raise SystemExit(f"[quiz-answer] 账本第 {_ln} 行 (本节点) 的 schema_ext={_pl.get('schema_ext')!r} 不是 'review/1', 却带着复习扩展键 — §6.1 禁止以未知 marker(或抹掉 marker)降级绕过扩展校验; 静默把它当历史行跳过等于漏算一次真实复习, fail-closed 拒写")
         continue
     # 未知 event_version 不得按 v1 应用 (§一 前向兼容: 跳过并告警, 不炸)。
     # 但「跳过」只对**别的节点**成立 —— 本节点的未知版本行若被跳过, 那次评分
     # 就静默漏算了, 所以这里 fail-closed。
-    if _o.get("event_version") != 1:
+    if isinstance(_o.get("event_version"), bool) or _o.get("event_version") != 1:
         raise SystemExit(f"[quiz-answer] 账本第 {_ln} 行 event_version={_o.get('event_version')!r} 非 v1 — 本节点的未知版本行不能按 v1 语义应用, 也不能跳过(那会漏算), fail-closed 拒写")
     _ctx = f"账本第 {_ln} 行({_o.get('event_id')})"
     # 挂载点与身份键必须与本次写入对齐 (内部对抗审查 HIGH): 只看 schema_ext +
@@ -638,6 +650,15 @@ for _ln, _o in _rows:
     _gn_ = _pl.get("grade_norm")
     if isinstance(_gn_, bool) or not isinstance(_gn_, (int, float)) or not (0.0 <= float(_gn_) <= 1.0):
         raise SystemExit(f"[quiz-answer] {_ctx} 的 payload.grade_norm 缺失或越界 ({_gn_!r}; §6.1 要求 0-1 数值) — 越界值会被 rating_from_grade 静默钳制, fail-closed 拒写")
+    # ⛔ 消费前复用**校验器本体**做完整 v1 记录校验 (禁第三套, Codex round-4
+    # HIGH)。此前写点只挑了几个字段自查, 于是「缺 payload」「event_version 为
+    # true (True == 1 在 Python 里成立)」「时刻首尾带空白」这类行写点 rc=0 而
+    # 校验器 rc=1 —— 全是**漏网**方向的口径分叉。
+    # 这一步同时消掉 MEDIUM「词法接收集分叉」的绝大部分: 校验器按字面判时刻,
+    # 不做 .strip() 洗值。
+    _vio_, _warn_ = validate_record_full(_o, vault_id=_vid)
+    if _vio_:
+        raise SystemExit(f"[quiz-answer] 账本第 {_ln} 行({_o.get('event_id')}) 未通过校验器的 v1 记录校验: {'; '.join(_vio_[:3])} — 消费侧与校验器同口径 fail-closed 拒写")
     _n0_ = _pl.get("attempt_count")
     if isinstance(_n0_, bool) or not isinstance(_n0_, int) or _n0_ < 1:
         raise SystemExit(f"[quiz-answer] {_ctx} 的 payload.attempt_count 缺失或非法 ({_n0_!r}; 须为 ≥1 的整数) — 它是 ordinal 回推与恢复的权威值, 缺了就无法证明这是第几次评分, fail-closed 拒写")
@@ -797,7 +818,11 @@ for _inst, _ln, _o in pending:
     # 与 mastery 同一次原子写 —— 所以两者共用这一个判据, 不能只给 calibration 用。
     _rid_ = str(_o.get("event_id") or "")
     _rid_bare_ = _rid_[5:] if _rid_.startswith("quiz:") else _rid_
-    if _o.get("event_id") != evid and not _fm_has_event(fm, _rid_bare_):
+    # ⛔ F1 必须在**复放 calibration 之前**求值 —— 复放会把该 event_id 写进
+    # calibration_log, 之后再问「它应用过吗」就恒为真了。这个值同时决定
+    # 下面 attempt 的期望：应用过 ⇒ 笔记里已是 durable 值; 没应用过 ⇒ 差一。
+    _already_ = _fm_has_event(fm, _rid_bare_)
+    if _o.get("event_id") != evid and not _already_:
         _o2_, _A2_, _B2_, _n2_ = _apply_mastery(fm, _pl["review_time"], _pl.get("grade_norm"))
         fm = re.sub(r'^(mastery_score|mastery|mastery_level|mastery_a|mastery_b|last_examined):.*\r?\n?', '', fm, flags=re.M)
         fm = re.sub(r'^(type:.*)$', lambda x: x.group(1) + f"\nmastery_score: {_n2_}\nmastery_a: {round(_A2_, 4)}\nmastery_b: {round(_B2_, 4)}\nlast_examined: " + json.dumps(_pl["review_time"], ensure_ascii=False), fm, count=1, flags=re.M)
@@ -809,8 +834,21 @@ for _inst, _ln, _o in pending:
         # 时, 无条件同步会把 99 覆盖成 1 (实测 99 → 2)。账本缺历史行是 §6.3 明确
         # 容许的常态 (旧写点产出的行没有 review/1 扩展), 不该由恢复动作去「纠正」
         # 笔记 —— 恢复的职责是把漏掉的那一次补上, 不是让计数向账本看齐。
+        # ⛔ 严格 +1，不用 max() 抹平差异 (Codex round-4 BLOCKER)：
+        # durable 行的 attempt 必须**恰好**等于「重放前笔记里的值 + 1」——
+        # 那是它被写出来时的定义。用 max() 会把非法低序数伪装成「单调不减」
+        # 而放过去：实测笔记 99 + pending 序数 1，两次评分后笔记只到 100、
+        # 账本 [1,100]，中间漏加了一次。不相等 = 账本与笔记的序数关系不可证，
+        # 停下比猜一个值安全。
         _cur_ = re.search(_ATT_RE, fm, re.M)
-        _n_ = max(_n_, int(_cur_.group(1)) if _cur_ else 0)
+        _cur_n_ = int(_cur_.group(1)) if _cur_ else 0
+        # 期望值按「这个事件的副作用应用过没有」分两档:
+        #   没应用过 ⇒ durable 应恰为 笔记值 + 1 (它被写出来时的定义);
+        #   应用过   ⇒ 笔记里已经是 durable 值本身 (degraded 落账那一档:
+        #              EMA/校准/attempt 都写了, 只差水位线)。
+        _exp_n_ = _cur_n_ if _already_ else _cur_n_ + 1
+        if _n_ != _exp_n_:
+            raise SystemExit(f"[quiz-answer] 账本第 {_ln} 行({_o.get('event_id')}) 的 attempt_count={_n_} 不等于期望值 {_exp_n_} (重放前笔记里是 {_cur_n_}, 该事件{'已' if _already_ else '未'}应用过) — 账本与笔记的序数关系不可证, fail-closed 拒写 — 请人工核对")
         if re.search(r'^attempt_count:', fm, re.M):
             fm = re.sub(r'^attempt_count:.*$', f"attempt_count: {_n_}", fm, count=1, flags=re.M)
         else:
@@ -828,6 +866,14 @@ for _inst, _ln, _o in pending:
 # 以非零码退出要求重跑 —— 检验白板保持 scored_pending_node_update, 正是 Step
 # 4d 既有的续跑语义。下一次运行 pending 已空, 本次评分在干净基线上写入。
 _foreign_replayed = [t for t in pending if (t[2].get("event_id") if isinstance(t[2], dict) else None) != evid]
+# ⛔ 本次事件与别人的事件同处 pending ⇒ 停 (Codex round-4 BLOCKER)。
+# 两阶段只发布「别人的」恢复结果，本次事件的评分链副作用要按**本次 payload**
+# 走恢复路径 —— 两者在一次运行里无法同时正确处理。实测 current 在前、foreign
+# 在后时会**永久不收敛**：第一轮发布后 W 推到 foreign 的时刻、attempt 与校准
+# 只反映 foreign，第二轮起本次事件恒落进「FSRS 已应用但缺校准记录」的人工裁定，
+# 每次都 rc=1，而它的 mastery/校准永远补不上。
+if _foreign_replayed and len(_foreign_replayed) != len(pending):
+    raise SystemExit(f"[quiz-answer] 本次事件 {evid} 与另外 {len(_foreign_replayed)} 个未完成事件同处待恢复队列 — 两者的评分链副作用取自不同来源(本次取 payload、别人的取账本), 一次运行里无法同时正确处理, fail-closed 拒写 — 请先单独重跑那几张检验白板把它们落定")
 if _foreign_replayed:
     _f = open(NODE + ".quiz-tmp", "w", encoding="utf-8")
     _f.write(f"---\n{fm}\n---\n{body}")
