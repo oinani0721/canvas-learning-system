@@ -1,0 +1,41 @@
+=== 0. collect-only ===
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+========================= 263 tests collected in 0.20s =========================
+=== 1. 裁判1 定向 ===
+====================== 263 passed, 14 warnings in 42.96s =======================
+<sys>:0: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
+=== 2. 裁判2 负变异 42 ===
+✅ survivor-37 (C-9) 负号守卫去掉中文『负』（`负五个` 按 +5 入池）: 如期变红（1/1 失败）
+✅ survivor-40 (C-14) inline-code 守卫的数字部分退回手写 `[0-9]+`（`九十八万个`/`987654 个` 等完整可见计数写进 code span 即整域免检）: 如期变红（1/1 失败）
+✅ survivor-41 (C-15) 全文零宽门退回手抄集合（只到 U+2064 ⇒ bidi isolate U+2065-2069 过门）: 如期变红（1/1 失败）
+✅ survivor-39 (C-12) reference-style link 不再取显示文本（`总[计][r]N个` 句式门失锚）: 如期变红（1/1 失败）
+✅ survivor-38 (C-8) 小数分隔符两侧不再容连接字符（原与千分位混成组合变异，现拆开单测）: 如期变红（1/1 失败）
+✅ survivor-42 (C-13) shortcut reference link 不再取显示文本（`总[计]N个` 句式门失锚）: 如期变红（1/1 失败）
+
+全部承重（共 42 条变体）
+=== 3. 手工变异：崩溃判据退回枚举名单 → r13 必须变红 ===
+已注入枚举名单变体
+=========================== short test summary info ============================
+FAILED tests/regression/test_recap_scan_signals.py::test_domain_r13_shortcut_link_and_crash_classifier
+================ 1 failed, 262 deselected, 10 warnings in 0.83s ================
+还原 ✅ 逐字节一致
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================ 1 passed, 262 deselected, 10 warnings in 0.72s ================
+=== 4. 扩大回归 ===
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+============================= 10 warnings in 0.01s =============================
+=== 5. 终态 sha ===
+69a752cb1a551ddd785298bfcdaeda6cf0f1388a51e05ffacb222cc4498bcd88  canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py
+[trap] negverify 已逐字节还原
+
+=== ⛔ 4' 更正：上面「=== 4. 扩大回归 ===」那一栏是**空跑**，不是通过 ===
+症状：`10 warnings in 0.01s`，没有任何 passed 计数。
+真因：脚本里写的 `tests/regression/test_recap_exam_build.py` **不存在**
+      （本上下文窗口重写脚本时把文件名记错，真名是 test_board_manifest_contracts.py）
+      ⇒ pytest `ERROR: file or directory not found` + `collected 0 items` + rc=4，
+      而脚本的 `tail -2` 恰好把 ERROR 行截在视野外。
+形态：与本轮刚硬化掉的 negverify 崩溃判据**同一类**——把「没有发生」当成「验证通过」。
+      讽刺的是它发生在同一个 session、同一小时里。
+处置：改用正确路径重跑（下方），并在判据里改看 `collected/passed` 而不是 tail 尾行。
+collected 595 items
+================= 595 passed, 193 warnings in 64.63s (0:01:04) =================

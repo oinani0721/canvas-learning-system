@@ -4182,3 +4182,84 @@ def test_domain_r12_no_silent_table_copies():
         f"⑦⑧的手抄数词禁集与定界集已分叉，未禁: {''.join(sorted(missing))}\n"
         "⇒ 这些字符写进③段固定句式的尾段可绕过数字禁令"
     )
+
+
+def test_domain_r13_shortcut_link_and_crash_classifier(tmp_path):
+    """R3 round-16（冻结审查 HIGH ×2）：shortcut link 渲染面 + 崩溃判据的假阴面。
+
+    两条实测反例（修前）：
+      · `总[计]987654个子节点` —— link 三形态只覆盖了 inline `[t](url)` 与
+        reference `[t][r]`/`[t][]`，**shortcut** `[t]` 未覆盖；渲染后读者看到
+        `总计987654个`，源码里 `总`/`计` 被方括号隔开，句式门失锚 ⇒ exit 0；
+      · negverify 的崩溃判据**枚举**五个异常名、且只扫外层 pytest stdout ⇒
+        `ValueError`/`KeyError` 崩溃、以及 **CLI 子进程**里的 traceback 全部
+        记成「✅ 如期变红」。崩溃伪红是四种假绿里**唯一伪装成成功**的一种。
+
+    **它证明什么**：shortcut link 的显示文本进入受检面且不误伤 callout/脚注；
+    崩溃判据按**形态**（`E <Exc>` 非 AssertionError / traceback / INTERNALERROR /
+    收集期 error）而非**名单**识别，两个已知假阴面各有一条正例。
+    **它不证明什么**：`_visible_text` 仍不是完整 renderer（highlight/math/脚注
+    未覆盖）；崩溃判据取的是「宁可误报不漏报」方向，可能把**故意**断言 traceback
+    文本的门误判为崩溃（当前目标套件无此形态）。
+    """
+    rs = _load_recap_scan()
+
+    # ① 渲染面：shortcut 取显示文本，且不吃掉 callout / 脚注
+    assert rs._visible_text("总[计]987654个") == "总计987654个"
+    assert rs._visible_text("总[计](http://x)987654个") == "总计987654个", (
+        "inline 形态必须先于 shortcut 剥，否则只剩裸 url"
+    )
+    assert rs._visible_text("总[计][r]987654个") == "总计987654个"
+    assert rs._visible_text("> [!question]+ 提问") == "> [!question]+ 提问", (
+        "Obsidian callout 头不是链接语法，剥掉会改变段落语义"
+    )
+    assert rs._visible_text("脚注[^1]在此") == "脚注[^1]在此"
+
+    # ② CLI：shortcut link 藏起来的可见计数必须被拦
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    assert 987654 not in rs._derived_number_pool(scan)
+    report = write_report(vault, scan)
+    base_text = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+    text = base_text.replace(
+        "## 三维审查",
+        "## 三维审查\n\n- 本板总[计]987654个子节点。【实测】",
+        1,
+    )
+    assert text != base_text, "变异未命中：报告一字未改，这条门测的是空气"
+    report.write_text(text, encoding="utf-8")
+    r = run_verify(report)
+    assert r.returncode != 0, "shortcut link 藏起来的可见计数被放行"
+    assert _one_problem_has(r.stdout, "987654"), f"诊断未指向完整数串 987654:\n{r.stdout}"
+
+    # ③ 崩溃判据：两个已知假阴面各一条正例 + 断言失败不得误判
+    import importlib.util as _ilu
+
+    _prev = sys.dont_write_bytecode
+    sys.dont_write_bytecode = True
+    try:
+        _spec = _ilu.spec_from_file_location(
+            "negverify_ut", pathlib.Path(__file__).with_name("recap_domain_negverify.py")
+        )
+        _nv = _ilu.module_from_spec(_spec)
+        _spec.loader.exec_module(_nv)
+    finally:
+        sys.dont_write_bytecode = _prev
+
+    for out, want, why in (
+        ("E       AssertionError: 期望 FAIL", False, "断言失败=判错，正是我们要的红"),
+        ("E       assert 0 == 1", False, "裸 assert 同上"),
+        ("1 failed, 260 passed", False, "纯失败摘要"),
+        ("E       re.error: invalid group reference", True, "round-10 原案"),
+        ("E       ValueError: too many values", True, "旧版枚举之外 ⇒ 假阴"),
+        ("E       KeyError: 3", True, "旧版枚举之外 ⇒ 假阴"),
+        (
+            "  Traceback (most recent call last):\n    File 'x'",
+            True,
+            "CLI 子进程崩溃，外层无异常名 ⇒ 旧版假阴",
+        ),
+        ("INTERNALERROR> boom", True, "pytest 内部错"),
+        ("1 error, 260 passed", True, "收集期 error"),
+    ):
+        assert _nv._looks_like_crash(out) is want, f"崩溃判据判错: {why} | {out!r}"

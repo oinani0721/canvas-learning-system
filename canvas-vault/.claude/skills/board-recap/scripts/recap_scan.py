@@ -1631,6 +1631,13 @@ _VIS_MDLINK_RE = re.compile(r"\[([^\]\n]*)\]\([^)\n]*\)")
 # ⚠️ 如实声明: `_visible_text` **仍不是完整 renderer**(Obsidian highlight `==x==`、
 # math `$x$`、脚注 `[^1]` 等未覆盖), 这是**又补一个已知构造**, 不是闭包。
 _VIS_REFLINK_RE = re.compile(r"\[([^\]\n]*)\]\[[^\]\n]*\]")
+# ⛔ R3 round-16 (冻结审查 HIGH): 上面两式覆盖 `[t](url)` 与 `[t][r]`/`[t][]`,
+# 但 **shortcut** 形态 `[t]`(定义写在别处) 渲染同样是 `t` —— `总[计]987654个`
+# 读者看到 `总计987654个`, 而源码里 `总` 与 `计` 被方括号隔开, 句式门失锚。
+# 逐字符方向如实说明: 即使**没有**对应定义, `[3]` 里的 `3` 读者也照样看得见,
+# 所以剥掉方括号是**更贴近读者所见**, 不是放宽 —— 它让更多文本进入受检面。
+# 排除 `[!callout]` 与 `[^footnote]`: 这两个前缀在 Obsidian 里不是链接语法。
+_VIS_SHORTCUT_LINK_RE = re.compile(r"\[(?![!^])([^\[\]\n]*)\]")
 _VIS_INVISIBLE_RE = re.compile(_INVISIBLE_ONE)
 # ⛔ R3 round-6 自查回归 (Codex round-6 HIGH-1, 车道实测确认并含**误伤**):
 # 第一版写成 `[*_~]` 无条件剥 —— 但 `~` 在中文里是**常用区间号**, 而
@@ -1660,6 +1667,8 @@ def _visible_text(line: str) -> str:
       2. 剥 HTML 标签 —— `<b>` 长度不限, 原先只有 ≤22 字符的短标签算连接字符;
       3. wikilink 取**显示文本** —— 有别名取别名, 无别名取目标本身
          （原实现把无别名链接的目标挖空, 而那正是读者看到的字, round-5 HIGH-8）;
+      3b. link 三形态按 **inline → reference → shortcut** 顺序剥 —— shortcut 式
+         方括号最宽, 放最后才不会把 inline/reference 的显示文本先吃掉留下裸 url;
       4. 去零宽/双向控制字符;
       5. 去强调标记 `*_` 与成对 `~~` —— ⚠️ 未配对时渲染**可见**, 去掉它们是一个
          **已知 fail-open 面**而非安全边界（`1\\*5个` 按 15 入池，池含 15 并不能
@@ -1677,6 +1686,7 @@ def _visible_text(line: str) -> str:
     line = _VIS_WIKILINK_PLAIN_RE.sub(r"\1", line)
     line = _VIS_MDLINK_RE.sub(r"\1", line)
     line = _VIS_REFLINK_RE.sub(r"\1", line)
+    line = _VIS_SHORTCUT_LINK_RE.sub(r"\1", line)
     line = _VIS_INVISIBLE_RE.sub("", line)
     line = _VIS_STRIKE_RE.sub("", line)
     return _VIS_EMPHASIS_RE.sub("", line)

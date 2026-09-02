@@ -510,7 +510,28 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         ],
         "r8_entities",
     ),
+    (
+        "survivor-42 (C-13) shortcut reference link 不再取显示文本（`总[计]N个` 句式门失锚）",
+        [('    line = _VIS_SHORTCUT_LINK_RE.sub(r"\\1", line)\n', "")],
+        "r13_shortcut",
+    ),
 ]
+
+
+def _looks_like_crash(out: str) -> bool:
+    """pytest 输出 → 这次「变红」是不是**崩溃**造成的（而非判错）。
+
+    提成纯函数是为了能被 `test_recap_scan_signals.py` 逐形态单测 ——
+    藏在 `run_suite` 里就只能靠肉眼，而崩溃伪红**唯一的症状就是显示 ✅**。
+    """
+    exc_lines = re.findall(r"^E\s+([A-Za-z_][\w.]*(?:[Ee]rror|Exception))\b", out, re.M)
+    errors = sum(int(m) for m in re.findall(r"(\d+) error(?:s)?\b", out))
+    return bool(
+        any(e != "AssertionError" for e in exc_lines)
+        or "Traceback (most recent call last):" in out
+        or "INTERNALERROR" in out
+        or errors > 0
+    )
 
 
 def run_suite(keyword: str) -> tuple[int, str, int, int]:
@@ -542,11 +563,20 @@ def run_suite(keyword: str) -> tuple[int, str, int, int]:
     # failure 都记成"承重"。**异常伪红比不变红更坏**: 它会以「✅ 如期变红」
     # 的形式混进证据, 且永远不会有人去查。
     # ⇒ 这里显式识别"变异让生产代码抛异常"的形态并单独报出。
-    crash = bool(
-        re.search(
-            r"\b(re\.error|SyntaxError|NameError|AttributeError|TypeError)\b", out
-        )
-    )
+    # ⛔ R3 round-16 (冻结审查 HIGH: 「崩溃假阴存在」): 上一版**枚举**五个异常名,
+    # 且只扫**外层 pytest** 的 stdout —— 两个假阴面:
+    #   ① 枚举之外的异常 (ValueError / KeyError / IndexError / RecursionError …)
+    #      让生产代码崩溃时, 脚本照旧记「✅ 如期变红」;
+    #   ② 本域大量门是**跑 CLI 子进程**再核 stdout 的, 子进程里的 traceback
+    #      被捕获进断言详情, 外层不出现任何异常名 ⇒ 崩溃完全隐形。
+    # ⇒ 改为按**形态**识别, 不再枚举名字:
+    #   · pytest 失败详情行 `E   <Exc>: …` —— 除 AssertionError 外一律算崩溃
+    #     (断言失败才是「判错」, 其余异常都是「崩坏」);
+    #   · 任何位置出现 `Traceback (most recent call last):` —— 覆盖子进程崩溃;
+    #   · pytest 自身的 INTERNALERROR / 收集期 error 计数。
+    # 假阳边界如实声明: 若某条门**故意**断言输出里含 traceback 文本, 会被误判为
+    # 崩溃 —— 那是「宁可误报也不漏报」的方向选择, 且当前目标套件无此形态。
+    crash = _looks_like_crash(out)
     return r.returncode, out[-400:], passed + failed, failed, crash
 
 
@@ -554,9 +584,7 @@ def main() -> int:
     try:
         LOCK.mkdir()  # 原子互斥: 已存在即抛
     except FileExistsError:
-        print(
-            f"⛔ 另一个负验证进程正在跑（锁: {LOCK}）。变异脚本必须串行——见脚本 docstring。"
-        )
+        print(f"⛔ 另一个负验证进程正在跑（锁: {LOCK}）。变异脚本必须串行——见脚本 docstring。")
         return 2
     try:
         original = TARGET.read_bytes()
@@ -586,14 +614,17 @@ def main() -> int:
             finally:
                 TARGET.write_bytes(original)  # 立刻还原，异常也还原
             got = hashlib.sha256(TARGET.read_bytes()).hexdigest()
-            assert got == backup_sha, (
-                f"还原后字节与备份不同！{got[:12]} != {backup_sha[:12]}"
-            )
+            assert got == backup_sha, f"还原后字节与备份不同！{got[:12]} != {backup_sha[:12]}"
             # ⛔ 必须是"收集到用例 且 确实有失败"，不能只看 rc != 0
             if n == 0:
-                print(
-                    f"❌ {name}: `-k {keyword}` 一个用例都没匹配到（rc={rc}）——这不是变红"
-                )
+                print(f"❌ {name}: `-k {keyword}` 一个用例都没匹配到（rc={rc}）——这不是变红")
+                failures += 1
+            elif rc != 1:
+                # ⛔ R3 round-16 (冻结审查 HIGH): 上一版只要「收集到 且 有失败」就算承重,
+                # **不看 rc**。pytest 只有 rc=1 才是「测试失败」; 2=中断 3=内部错
+                # 4=用法错 5=没收集到。收集到用例的同时 rc=2/3 (如中途 KeyboardInterrupt
+                # 或插件炸) 会让一次**残缺运行**冒充「如期变红」。
+                print(f"❌ {name}: rc={rc}（只有 rc=1 才是「测试失败」）——不算变红")
                 failures += 1
             elif crash:
                 print(
@@ -607,9 +638,7 @@ def main() -> int:
             else:
                 print(f"✅ {name}: 如期变红（{f}/{n} 失败）")
 
-        print(
-            f"\n{'全部承重' if not failures else f'{failures} 条未承重'}（共 {len(MUTANTS)} 条变体）"
-        )
+        print(f"\n{'全部承重' if not failures else f'{failures} 条未承重'}（共 {len(MUTANTS)} 条变体）")
         return 1 if failures else 0
     finally:
         LOCK.rmdir()

@@ -4,20 +4,20 @@ rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees
 configfile: pytest.ini
 plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
 asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
-collected 585 items
+collected 595 items
 
 tests/skills/test_g5_9_recap_exam.py ................................... [  5%]
-........................................................................ [ 18%]
-.................                                                        [ 21%]
-tests/skills/test_split_preview.py ..................................    [ 27%]
+........................................................................ [ 17%]
+.................                                                        [ 20%]
+tests/skills/test_split_preview.py ..................................    [ 26%]
 tests/skills/test_split_stable_id.py ................................... [ 32%]
-........................................................................ [ 45%]
+........................................................................ [ 44%]
 ...                                                                      [ 45%]
-tests/regression/test_recap_scan_signals.py ............................ [ 50%]
-........................................................................ [ 62%]
-........................................................................ [ 75%]
-........................................................................ [ 87%]
-.........                                                                [ 89%]
+tests/regression/test_recap_scan_signals.py ............................ [ 49%]
+........................................................................ [ 61%]
+........................................................................ [ 73%]
+........................................................................ [ 86%]
+...................                                                      [ 89%]
 tests/regression/test_board_manifest_contracts.py ...................... [ 92%]
 ..........................................                               [100%]
 
@@ -67,5 +67,5 @@ tests/regression/test_board_manifest_contracts.py: 167 warnings
     with codecs.open(fd, "r", encoding) as f:
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-====================== 585 passed, 193 warnings in 58.80s ======================
+================= 595 passed, 193 warnings in 64.63s (0:01:04) =================
 <sys>:0: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
