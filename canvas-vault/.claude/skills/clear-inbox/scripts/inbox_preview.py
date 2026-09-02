@@ -747,6 +747,19 @@ def has_substantive_content(text: str) -> bool:
         if kind == "fence":
             continue
         if _HEADING_RE.match(ln):
+            # ⛔ 用户裁决（2026-09-02）：**标题里写了字就算实质正文**。
+            # 起因是量化取样时发现，`# 微积分基本定理的两种证法` 这种「只写了
+            # 标题、正文还没动笔」的日常笔记，在旧口径下是 `建议删 +
+            # confident=true` —— 那不是对抗构造，是真实使用场景。
+            # 论证与本卡「取消 frontmatter 白名单」逐字同构：标题可能是随手一个
+            # 字，也可能是这份材料唯一写下来的东西，引擎分不出，分不出就不该
+            # 替用户决定。它顺带关闭了 U+3164/U+2800 那条未闭合的 BLOCKER ——
+            # 隐形字符伪装成正常标题时，标题里仍然「有字」。
+            # ⚠️ 代价如实：C3 的可确定删除面明显收窄（10 件取样从 10 → 5）。
+            # 仍可确定删除的是「一个字都没写」的五种：0 字节 / 纯空行 /
+            # 纯分隔线 / 空标题模板（`# ` 后无内容）/ 只有引用符。
+            if ln.lstrip(" \t#").strip():
+                return True
             continue
         t = _LIST_PREFIX_RE.sub("", ln).strip()
         if t and not _ONLY_STRUCT_RE.match(t):

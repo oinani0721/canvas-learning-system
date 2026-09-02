@@ -45,6 +45,7 @@ G_UNPARSED = "test_unparsed_source_with_duplicate_body_is_not_suggested_for_dele
 G_COMMENT = "test_source_inside_closed_html_comment_blocks_deletion"
 G_COMMENT2 = "test_unclosed_html_comment_never_suggested_for_deletion"
 G_INVIS = "test_invisible_chars_are_detected_by_category_not_enumeration"
+G_HEADCONTENT = "test_heading_with_text_counts_as_substantive_content"
 G_ZW = "test_zero_width_split_marker_still_reads_as_ai_suspect"
 
 # ── (名字, 期望 FAILED 集合, [(old, new), ...]) ──
@@ -179,6 +180,19 @@ MUTATIONS: list[tuple[str, set[str], list[tuple[str, str]]]] = [
             (
                 "    commented_out = [ln for ln in stripped_comments if ln.strip()]\n",
                 "    commented_out = []\n",
+            )
+        ],
+    ),
+    (
+        # 用户裁决（2026-09-02）：标题里写了字算实质正文。回退后
+        # 「只写了标题的笔记」与「隐形字符伪装的标题」重新被确定删除。
+        "M-HEADING    标题不算实质正文（回退用户裁决）",
+        {G_HEADCONTENT},
+        [
+            (
+                '            if ln.lstrip(" \\t#").strip():\n'
+                "                return True\n",
+                "            if False:\n                return True\n",
             )
         ],
     ),
