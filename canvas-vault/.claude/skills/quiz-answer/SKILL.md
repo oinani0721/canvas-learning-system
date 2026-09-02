@@ -378,6 +378,110 @@ if _dupkeys:
 # ⛔ F1 单独不能证明 FSRS 已推进 (degraded 落账写过 calibration 但没写 W —
 # Codex round-2 BLOCKER): 「已应用」的机械判据是 W >= durable.review_time,
 # 分诊在下方主流程里做, 这里只放解析函数。
+def _cands_and_sources(fm_text, ev_id, all_ledger_ids=()):
+    """校准 token 的候选集 + 来源反查 —— **唯一实现**, 两个调用点共用。
+
+    ⛔ 为什么必须抽出来 (变异 M53/M72 存活暴露): round-11 把 receipt 验证统一到
+    `_resolve_receipt` 时, 这段「候选 + 反查」在 `_fm_has_event_compat` 里**还留着
+    一份副本**, 而且两份的成功条件**已经分叉** ——
+      · `_resolve_receipt`:      `_sources != {ev_id}` ⇒ 拒 (空集也不可证, B②)
+      · `_fm_has_event_compat`:  `if _sources and ...` ⇒ **空集放行**
+    也就是说 round-11 那条 BLOCKER 只修了一份。这正是它自己要根治的「修一半」:
+    抽了函数却没让所有调用点都用, 下次改判据仍要改两处。
+
+    返回 (候选 token 列表, 来源 id 集合)。**不**做放行/拒绝裁决 —— 两个调用点的
+    严格度差异是**有意的**(见各自 docstring), 由它们各自声明, 而不是靠这里分叉。
+    """
+    _cands = []
+    if _fm_has_event(fm_text, ev_id):
+        _cands.append(ev_id)
+    _bare = ev_id[5:] if ev_id.startswith("quiz:") else None
+    if _bare is not None and _fm_has_event(fm_text, _bare):
+        _cands.append(_bare)
+    # 反查: 每个账本 id 贡献「完整」token; 带 `quiz:` 前缀的再贡献「历史裸」token。
+    _sources = set()
+    for _tok in _cands:
+        for _lid in all_ledger_ids:
+            if _lid == _tok or (_lid.startswith("quiz:") and _lid[5:] == _tok):
+                _sources.add(_lid)
+    _sources.discard("")
+    return (_cands, _sources)
+
+
+def _resolve_receipt(fm_text, ev_id, all_ledger_ids=(), row=None, facts=None, require_source=True):
+    """**唯一**的 receipt 解析 + 事实校验入口 (Codex round-11 BLOCKER/HIGH)。
+
+    ⛔ 为什么必须统一: 此前 receipt 验证散落在**六处**、严格度各不相同 ——
+    dup 路径比六项、F1-only 比两项、foreign replay 只看「ID 在不在」(布尔)。
+    于是同一份 receipt 在不同分支得到不同结论: 实测把 durable 的采用时刻改掉
+    (保留 scored_at 与 receipt), foreign replay 照常「恢复」E1 ⇒ **state 1→2、
+    stability 2.31→7.32、同一次评分被算了两遍**; 把 receipt 的 attempt 改成 999
+    也照样称「事实一致」。
+    这正是 round-10「修一半」那条教训的下一层: **抽出统一函数, 让分歧不可能存在**。
+
+    返回 (receipt, 唯一来源 id)。任何不可证的情形一律 raise SystemExit。
+
+    facts: 要逐项核对的事实字典; None 表示只解析不校验事实(仍做来源唯一性证明)。
+    row:   对应的账本行; 给出时额外强制「三方同瞬间」(ledger effective_at /
+           payload.review_time / receipt ts)。
+    """
+    _cands, _sources = _cands_and_sources(fm_text, ev_id, all_ledger_ids)
+    if not _cands:
+        return (None, None)          # 没有 receipt —— 由调用方决定这是否可接受
+    # ⛔ 成功条件是 `_sources == {ev_id}` —— **空集同样不可证** (round-11 BLOCKER):
+    # 账本缺失时来源集合为空, 上一版把它当「唯一」放行 ⇒ 实测另一个完整 id 的评分
+    # 被静默吞掉 (rc=0、账本 0 字节、attempt 不变)。
+    # ⚠️ `require_source=False` 用于**账本行本就丢失**的分支 (F1-only): 那里
+    # 来源集合必然为空, 强制它等于 {ev_id} 就是「要求证明一个前提上不存在的
+    # 东西」。⛔ 统一函数不等于所有调用点参数相同 —— 共用逻辑的同时, 每个
+    # 调用点要声明它能提供什么证据。
+    if require_source and _sources != {ev_id}:
+        raise SystemExit(
+            f"[quiz-answer] 校准记录里命中 {ev_id!r} 的条目, 但它的来源集合是 "
+            f"{sorted(_sources)!r} 而非恰好 {{{ev_id!r}}} — "
+            f"{'账本缺失, 历史裸形态的来源无从证明' if not _sources else '完整形态与历史裸形态无法区分'}; "
+            f"猜一个就会让另一次评分静默不入账, fail-closed 拒写 — 请人工统一这些 id"
+        )
+    _rcpt = None
+    for _tok in _cands:
+        _rcpt = _receipt_of(fm_text, _tok)
+        if _rcpt is not None:
+            break
+    if not isinstance(_rcpt, dict):
+        raise SystemExit(f"[quiz-answer] {ev_id} 在 calibration_log 里命中却读不出条目 — receipt 不可解析, fail-closed 拒写 — 请人工核对 {NODE}")
+
+    if facts:
+        _mis = []
+        for _k, (_want, _ok) in facts.items():
+            _got = _rcpt.get(_k)
+            if _got is None:
+                _mis.append(f"receipt 缺 {_k}")
+            elif not _ok(_got):
+                _mis.append(f"receipt 的 {_k} 类型非法 ({_got!r})")
+            elif _got != _want:
+                _mis.append(f"{_k} {_got!r} != 期望 {_want!r}")
+        if _mis:
+            raise SystemExit(f"[quiz-answer] {ev_id} 的 receipt 与评分事实不一致 ({'; '.join(_mis)}) — 同一个 event_id 承载了两次不同的评分, fail-closed 拒写 — 请人工核对后修正 event_id 或账本")
+
+    if row is not None:
+        # ⛔ 三方同瞬间 (round-11 BLOCKER): ledger 的 effective_at / payload
+        # 的 review_time / receipt 的 ts 记的是同一个「调度采用时刻」。
+        # 只比 scored_at 时, 改掉采用时刻就能让同一次评分二次推进 FSRS。
+        _rts = _rcpt.get("ts")
+        if not isinstance(_rts, str) or not _rts or _rts != _rts.strip():
+            raise SystemExit(f"[quiz-answer] {ev_id} 的 receipt 缺可用的 ts (采用时刻) 或首尾含空白 ({_rts!r}) — 无法绑定账本的调度时刻; ⛔ 不做 strip(那会把两个不同的字面撞成一个), fail-closed 拒写")
+        _rp = row.get("payload") or {}
+        try:
+            _a = _instant_only(_rp.get("review_time"), f"{ev_id} 的 payload.review_time")
+            _b = _instant_only(row.get("effective_at"), f"{ev_id} 的 effective_at")
+            _c = _instant_only(_rts, f"{ev_id} 的 receipt ts")
+        except SystemExit:
+            raise SystemExit(f"[quiz-answer] {ev_id} 的三个采用时刻里有不可解析的值 (review_time={_rp.get('review_time')!r} / effective_at={row.get('effective_at')!r} / receipt ts={_rts!r}), fail-closed 拒写")
+        if not (_a == _b == _c):
+            raise SystemExit(f"[quiz-answer] {ev_id} 的账本采用时刻 (effective_at={row.get('effective_at')!r} / review_time={_rp.get('review_time')!r}) 与 receipt 的 ts={_rts!r} 不是同一瞬间 — 同一次评分的调度时刻被改过, 放行会二次推进 FSRS, fail-closed 拒写 — 请人工核对账本与 {os.path.basename(NODE)}")
+    return (_rcpt, ev_id)
+
+
 def _fm_has_event_compat(fm_text, ev_id, all_ledger_ids=()):
     """F1 判定: 按**完整** event_id 查; 裸键回落**仅在映射可证唯一时**才做。
 
@@ -401,21 +505,14 @@ def _fm_has_event_compat(fm_text, ev_id, all_ledger_ids=()):
     # 正确做法: 一个校准 token 可能来自两种来源 —— 某个账本 id 的**完整**形态,
     # 或某个带 `quiz:` 前缀的账本 id 的**历史裸**形态。先把命中的 token 反查回
     # **所有可能的来源 id**, 再要求那个集合**恰为**当前这一个 id。
-    _cands = []
-    if _fm_has_event(fm_text, ev_id):
-        _cands.append(ev_id)
-    _bare = ev_id[5:] if ev_id.startswith("quiz:") else None
-    if _bare is not None and _fm_has_event(fm_text, _bare):
-        _cands.append(_bare)
+    _cands, _sources = _cands_and_sources(fm_text, ev_id, all_ledger_ids)
     if not _cands:
         return False
-    # 反查: 每个账本 id 贡献「完整」token; 带前缀的再贡献「历史裸」token。
-    _sources = set()
-    for _tok in _cands:
-        for _lid in all_ledger_ids:
-            if _lid == _tok or (_lid.startswith("quiz:") and _lid[5:] == _tok):
-                _sources.add(_lid)
-    _sources.discard("")
+    # ⚠️ 与 `_resolve_receipt` 的**有意差异**(不是分叉遗漏, 见 `_cands_and_sources`):
+    # 这里空来源集合**放行**。因为本函数只回答「校准里有没有这条」, 而
+    # 「账本行本就丢失」正是 F1-only 分支的前提 —— 在那里强制来源非空, 等于要求
+    # 证明一个前提上不存在的东西。来源为空时的**证明责任**由 F1-only 分支的
+    # `_resolve_receipt(..., require_source=False, facts=...)` 用六项事实承担。
     if _sources and _sources != {ev_id}:
         raise SystemExit(
             f"[quiz-answer] 校准记录里的条目可能来自账本里的多个 event_id "
@@ -795,31 +892,29 @@ def _append_calibration(fm_text, ts_str, ev=None):
                 raise SystemExit(f"[quiz-answer] frontmatter 的 calibration_log 不是列表 ({type(_cur).__name__}) — 无法安全追加校准条目, fail-closed 拒写 — 请人工修复 {NODE}")
             # 非 block 形态(inline / 缺失 / null) ⇒ 把这一个键重写成 block list,
             # 其余键原样保留。⚠️ 已有条目用 json.dumps 逐条重排, 不经 YAML 类型推断。
-            # ⚠️ 「header 行干净」只是 block 的**必要**条件, 不充分: indentless
-            # list (`calibration_log:` 后跟顶格的 `- ...`) 同样满足它, 却不能用
-            # 「插入 2 格缩进条目」的方式追加 —— 实测产物非法且**已先落账**。
-            # 判据要落在**条目本身的缩进**上: 只有既是干净 header、又确实以
-            # `  - ` 开头(或本来就没有条目)时, 才是可直接插入的 block 形态。
-            _hdr = re.search(r'^calibration_log:[ \t]*(?:#[^\n]*)?$', _body, re.M)
-            _is_block = False
-            if _hdr:
-                _rest = _body[_hdr.end():].lstrip("\n")
-                _first = _rest.split("\n")[0] if _rest else ""
-                _is_block = (not _first.strip()) or _first.startswith("  ") or (not _first.startswith("-"))
-            if not _is_block:
-                _rebuilt = ["calibration_log:"]
-                for _e in (_cur or []):
-                    _ks = list(_e.keys()) if isinstance(_e, dict) else []
-                    for _n, _k in enumerate(_ks):
-                        _pfx = "  - " if _n == 0 else "    "
-                        _rebuilt.append(f"{_pfx}{_k}: {json.dumps(_e[_k], ensure_ascii=False, default=str)}")
-                _rebuilt.append(entry_)
-                _new_body = re.sub(r"^calibration_log:.*?(?=^\S|\Z)", "\n".join(_rebuilt) + "\n",
-                                   _body, count=1, flags=re.M | re.S)
-                if _new_body == _body:      # 原本没有这个键 ⇒ 追加到末尾
-                    _new_body = _body.rstrip("\n") + "\n" + "\n".join(_rebuilt) + "\n"
-                _y.safe_load(_new_body)     # 落盘前自证可解析
-                return (_fm_m.group(1) + _new_body.rstrip("\n") + _fm_m.group(3)) if _fm_m else _new_body
+            # ⛔ **只要解析出 list 就结构化重建** (Codex round-11 HIGH):
+            # 上一版用「header 行干净 + 条目以两空格开头」的正则猜结构, 认不出
+            # 两种**合法**形态 —— ①一空格缩进的列表(PyYAML 照样解析成 list)
+            # ②quoted key `"calibration_log": []`。实测前者**账本已增行才把节点
+            # 写坏**, 后者产出两个语义相同的键。
+            # ⛔ 不再用缩进前缀或裸键正则判断结构: 解析器说它是 list, 就按 list 重建。
+            _rebuilt = ["calibration_log:"]
+            for _e in (_cur or []):
+                _ks = list(_e.keys()) if isinstance(_e, dict) else []
+                for _n, _k in enumerate(_ks):
+                    _pfx = "  - " if _n == 0 else "    "
+                    _rebuilt.append(f"{_pfx}{_k}: {json.dumps(_e[_k], ensure_ascii=False, default=str)}")
+            _rebuilt.append(entry_)
+            # 删掉原有的那一段(裸键或 quoted 键皆可), 再插入重建结果
+            _cut = re.sub(r'^(?:"calibration_log"|calibration_log):.*?(?=^\S|\Z)', "",
+                          _body, count=1, flags=re.M | re.S)
+            _new_body = _cut.rstrip("\n") + "\n" + "\n".join(_rebuilt) + "\n"
+            _reparsed = _y.safe_load(_new_body)      # 落盘前自证可解析
+            if not isinstance(_reparsed, dict) or not isinstance(_reparsed.get("calibration_log"), list):
+                raise SystemExit(f"[quiz-answer] 校准写回后的 frontmatter 形态不对 (calibration_log 不是列表) — 拒绝落盘, fail-closed")
+            if len(_reparsed["calibration_log"]) != len(_cur or []) + 1:
+                raise SystemExit(f"[quiz-answer] 校准写回后条目数不对 (期望 {len(_cur or []) + 1}, 实为 {len(_reparsed['calibration_log'])}) — 可能有重复键或结构错位, 拒绝落盘, fail-closed")
+            return (_fm_m.group(1) + _new_body.rstrip("\n") + _fm_m.group(3)) if _fm_m else _new_body
     except SystemExit:
         raise
     except ImportError:
@@ -1037,39 +1132,36 @@ if dup is None:
         # 只剩 frontmatter 时, 必须拿 receipt 证明「这就是同一次评分」。
         # 实测漏账链: 8 月 grade=.75 应用后删掉日志行, 再用同 ID、12 月、
         # grade=.11 提交 ⇒ writer rc=0 当旧写序 no-op, **12 月那次评分静默消失**。
-        _rcpt = _receipt_of(fm, evid) or _receipt_of(fm, eid)
+        # ⛔ **走统一 resolver** (Codex round-11): 此前这里有一份**手写的**六事实
+        # 校验, 与 dup 路径那份并存 —— 两份逻辑必然分歧(实测 dup 侧已绑定采用
+        # 时刻而这里还没有)。抽了函数却没让所有调用点都用它, 是「修一半」的
+        # 又一变体: 下次改判据仍要改两处。
+        # ⚠️ 本分支没有账本行可比(账本行丢失正是它的前提), 故不传 row=;
+        # 采用时刻的绑定由下面的「W 覆盖」判据承担。
+        _att_m = re.search(_ATT_RE, fm, re.M)
+        _att_cur = int(_att_m.group(1)) if _att_m else None
+        _rc_gn_ok = lambda v: isinstance(v, (int, float)) and not isinstance(v, bool)
+        _rcpt, _ = _resolve_receipt(
+            fm, evid, _EARLY_LEDGER_IDS, require_source=False,
+            facts={
+                "scored_at": (_SCORED_AT, lambda v: isinstance(v, str) and bool(v) and v == v.strip()),
+                "event_id": (evid, lambda v: isinstance(v, str) and bool(v)),
+                "abandoned": (bool(p.get("abandoned")), lambda v: isinstance(v, bool)),
+                "grade_norm": (GN2, _rc_gn_ok),
+                "attempt_count": (_att_cur, lambda v: isinstance(v, int) and not isinstance(v, bool) and v >= 1),
+                # ⚠️ `ts` 不进 facts: 它是 A3 **采用**时刻, 没有固定期望值(取决于
+                # 当时的水位线), 只能校验形态 —— 放进 facts 会拿 None 做相等比较。
+            } if _att_cur is not None else None,
+        )
         if _rcpt is None:
             raise SystemExit(f"[quiz-answer] {evid} 在 calibration_log 里命中却读不出条目 — receipt 不可解析, 无法证明是同一次评分, fail-closed 拒写 — 请人工核对 {NODE}")
-        # ⛔ **六类事实逐项严格校验** (Codex round-10 BLOCKER): 上一版声称
-        # 「四项可证事实」, 实际只比了 scored_at 与 grade_norm —— **声明比实现宽**。
-        # 实测漏网: 同 ID/同 scored_at/同 grade 但 `abandoned` 从 false 改成 true,
-        # 照样 rc=0 称「receipt 事实一致」; receipt 的 attempt=999、grade 为字符串
-        # 或缺失也一律放行。⚠️ 每一项都要求**存在 + 类型正确 + 相等**, 缺一即停 ——
-        # 「有就比、没有就跳过」等于给伪造留了后门。
-        _mis = []
-        def _need(_k, _got, _want, _ok):
-            if _got is None:
-                _mis.append(f"receipt 缺 {_k}")
-            elif not _ok(_got):
-                _mis.append(f"receipt 的 {_k} 类型非法 ({_got!r})")
-            elif _got != _want:
-                _mis.append(f"{_k} {_got!r} != 本次 {_want!r}")
-        _need("scored_at", _rcpt.get("scored_at"), _SCORED_AT, lambda v: isinstance(v, str) and bool(v))
-        _need("event_id", _rcpt.get("event_id"), evid, lambda v: isinstance(v, str) and bool(v))
-        _need("abandoned", _rcpt.get("abandoned"), bool(p.get("abandoned")), lambda v: isinstance(v, bool))
-        _rc_gn = _rcpt.get("grade_norm")
-        _need("grade_norm", None if _rc_gn is None else round(float(_rc_gn), 2) if isinstance(_rc_gn, (int, float)) and not isinstance(_rc_gn, bool) else _rc_gn,
-              GN2, lambda v: isinstance(v, (int, float)) and not isinstance(v, bool))
-        _rc_att = _rcpt.get("attempt_count")
-        if _rc_att is None:
-            _mis.append("receipt 缺 attempt_count")
-        elif isinstance(_rc_att, bool) or not isinstance(_rc_att, int) or _rc_att < 1:
-            _mis.append(f"receipt 的 attempt_count 非法 ({_rc_att!r})")
+        if _att_cur is None:
+            raise SystemExit(f"[quiz-answer] 笔记缺 attempt_count — 无法证明 receipt 的序数, fail-closed 拒写 — 请人工核对 {NODE}")
+        # `ts` 的期望值不是定值(它是 A3 采用时刻), 只校验形态; 其余五项已比过。
         _rc_ts = _rcpt.get("ts")
-        if not isinstance(_rc_ts, str) or not _rc_ts:
-            _mis.append(f"receipt 缺可用的 ts (A3 采用时刻) ({_rc_ts!r})")
-        if _mis:
-            raise SystemExit(f"[quiz-answer] {evid} 已在 calibration_log 里, 但 receipt 与本次评分事实不一致 ({'; '.join(_mis)}) — 同一个 event_id 承载了两次不同的评分, 账本又没有对应行可作裁定依据, fail-closed 拒写 — 请人工核对后修正 event_id 或账本")
+        if not isinstance(_rc_ts, str) or not _rc_ts or _rc_ts != _rc_ts.strip():
+            raise SystemExit(f"[quiz-answer] {evid} 的 receipt 缺可用的 ts 或首尾含空白 ({_rc_ts!r}) — 字面即身份, 不做 strip, fail-closed 拒写")
+
         # ⛔ 还要证明**调度确实已应用** (Codex round-10 BLOCKER): degraded 落账
         # 会写 receipt 与 attempt 却**不写 W**, 之后账本丢失 ⇒ receipt 对得上但
         # FSRS 从未推进过 —— 实测 rc=0 且 stdout 称「已完整应用」, 而 W 始终为空,
@@ -1264,17 +1356,8 @@ else:
     # 就能让同一次评分**二次推进 FSRS** —— 实测 state 1→2、stability 2.31→7.32、
     # W 08-01→08-02 而 attempt 仍为 1, validator rc=0 全程无感。
     # receipt 的 `ts` 记的正是那次的 adopted 时刻: 有 receipt 时三者必须一致。
-    _rcpt_dup = _receipt_of(fm, evid)
-    if isinstance(_rcpt_dup, dict) and isinstance(_rcpt_dup.get("ts"), str) and _rcpt_dup["ts"]:
-        _adopted = str(_dpl.get("review_time") or "")
-        _eff = str(dup.get("effective_at") or "")
-        try:
-            _same = (_instant_only(_adopted, "durable review_time") == _instant_only(_rcpt_dup["ts"], "receipt ts")
-                     and _instant_only(_eff, "durable effective_at") == _instant_only(_rcpt_dup["ts"], "receipt ts"))
-        except SystemExit:
-            _same = False
-        if not _same:
-            raise SystemExit(f"[quiz-answer] {evid} 的账本采用时刻 (effective_at={_eff!r} / review_time={_adopted!r}) 与 receipt 记录的 ts={_rcpt_dup['ts']!r} 不一致 — 同一次评分的调度时刻被改过, 放行会二次推进 FSRS, fail-closed 拒写 — 请人工核对账本与 {os.path.basename(NODE)}")
+    # 走**统一 resolver**: 来源唯一性 + 三方同瞬间一次做完 (round-11)
+    _resolve_receipt(fm, evid, _ALL_LEDGER_IDS, row=dup)
     _their_scored = _dpl.get("scored_at", _dpl.get("review_time"))
     _mine_env = {
         "event_version": 1, "event_type": etype, "node_id": node_id,
@@ -1359,7 +1442,22 @@ for _inst, _ln, _o in pending:
     # ⛔ F1 必须在**复放 calibration 之前**求值 —— 复放会把该 event_id 写进
     # calibration_log, 之后再问「它应用过吗」就恒为真了。这个值同时决定
     # 下面 attempt 的期望：应用过 ⇒ 笔记里已是 durable 值; 没应用过 ⇒ 差一。
-    _already_ = _fm_has_event_compat(fm, _rid_, _ALL_LEDGER_IDS)
+    # ⛔ 不再用布尔 presence (Codex round-11 HIGH): 只看「ID 在不在」时, 把
+    # 账本行的 grade 改掉照样按新值恢复调度, 而 mastery/receipt 仍是旧值 ——
+    # 拼出一个**自相矛盾**的状态 (实测 stability .212/due +1min 而 receipt .75)。
+    # 统一 resolver 会逐项核对该行的事实并强制三方同瞬间。
+    _rc_pl_ = _o.get("payload") or {}
+    _rcpt_fg, _ = _resolve_receipt(
+        fm, _rid_, _ALL_LEDGER_IDS, row=_o,
+        facts={
+            "scored_at": (str(_rc_pl_.get("scored_at") or _rc_pl_.get("review_time") or ""),
+                          lambda v: isinstance(v, str) and bool(v)),
+            "grade_norm": (round(float(_rc_pl_.get("grade_norm", 0.0)), 2),
+                           lambda v: isinstance(v, (int, float)) and not isinstance(v, bool)),
+            "abandoned": (_o.get("event_type") == "answer_abandoned", lambda v: isinstance(v, bool)),
+        },
+    ) if _fm_has_event(fm, _rid_) or _fm_has_event(fm, _rid_[5:] if _rid_.startswith("quiz:") else _rid_) else (None, None)
+    _already_ = _rcpt_fg is not None
     if _o.get("event_id") != evid and not _already_:
         _o2_, _A2_, _B2_, _n2_ = _apply_mastery(fm, _pl["review_time"], _pl.get("grade_norm"))
         fm = re.sub(r'^(mastery_score|mastery|mastery_level|mastery_a|mastery_b|last_examined):.*\r?\n?', '', fm, flags=re.M)

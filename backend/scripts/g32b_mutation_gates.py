@@ -8,8 +8,10 @@
   - 还原后必须与变异前**逐字节相同**, 否则立即停。
 """
 
+import collections
 import hashlib
 import pathlib
+import re
 import subprocess
 import sys
 
@@ -207,20 +209,18 @@ MUTATIONS += [
         "    if False:  # MUTANT: A2 重放不同步 attempt\n",
         "test_internal_audit_findings",
     ),
-    (
-        "M22-B3-whole-file-decode",
-        SKILL,
-        '            _line = _bline.decode("utf-8-sig" if _ln == 1 else "utf-8")\n',
-        '            _line = _bline.decode("utf-8")  # MUTANT: 不剥 BOM\n',
-        "test_internal_audit_findings",
-        LAYER3_ALSO,
-    ),
+    # ⛔ M22-B3-whole-file-decode 已**退役**（round-11b, 如实记录而非静默删除）:
+    # 变异体是「per-line decode 不剥 BOM」。三态诊断实测**变异体单独跑门全绿** ——
+    # 因为 round-6 起写点有一道**显式 BOM 门**(与校验器同口径拒收), 它排在解析之前,
+    # BOM 输入根本走不到 decode 那一步。也就是说 `utf-8-sig` 那层已是**被取代的
+    # 死纵深**, 不可能承重。原先它挂的两层(BOM 门 + 空行门)拆的正是被测防线本身,
+    # 只加层门就红 ⇒ 假杀。BOM 行为由 M68/M69 与门㊳的 BOM 场景直接守着。
     (
         "M23-C1-drop-event-type-gate",
         SKILL,
         '    if _o.get("event_type") not in ("answer_scored", "answer_abandoned"):\n',
         "    if False:  # MUTANT\n",
-        "test_internal_audit_findings",
+        "test_round11b_c1_event_type_narrow",  # round-11b: 由粗门改绑窄门, 让击杀可独立归因
         LAYER2_ALSO,
     ),
     (
@@ -228,7 +228,7 @@ MUTATIONS += [
         SKILL,
         '    if _nkey(_pl.get("concept_id")) != _NODE_KEY:\n',
         "    if False:  # MUTANT\n",
-        "test_internal_audit_findings",
+        "test_round11b_c1_concept_id_narrow",  # round-11b: 由粗门改绑窄门, 让击杀可独立归因
         LAYER2_ALSO,
     ),
     (
@@ -236,7 +236,7 @@ MUTATIONS += [
         SKILL,
         '    if _pl.get("vault_id") != _vid:\n',
         "    if False:  # MUTANT\n",
-        "test_internal_audit_findings",
+        "test_round11b_c1_vault_id_narrow",  # round-11b: 由粗门改绑窄门, 让击杀可独立归因
         LAYER2_ALSO,
     ),
     (
@@ -376,7 +376,8 @@ MUTATIONS += [
         # F1 在复放 calibration **之后**求值 ⇒ 恒为真 ⇒ attempt 期望值选错档
         "M43-f1-evaluated-after-calibration-replay",
         SKILL,
-        "    _already_ = _fm_has_event_compat(fm, _rid_, _ALL_LEDGER_IDS)\n",
+        # ⚠️ round-11 重绑: _already_ 现由统一 resolver 决定（不再是布尔 presence）
+        "    _already_ = _rcpt_fg is not None\n",
         "    _already_ = True  # MUTANT: 恒当作已应用\n",
         "test_round3_findings",
     ),
@@ -470,7 +471,7 @@ def sha(p):
 
 def run_gate(name):
     return subprocess.run(
-        [str(ROOT / "backend/.venv/bin/pytest"), f"{TESTF}::{name}", "-q", "-p", "no:cacheprovider", "--tb=no"],
+        [str(ROOT / "backend/.venv/bin/pytest"), f"{TESTF}::{name}", "-q", "-p", "no:cacheprovider", "--tb=line"],
         cwd=str(ROOT / "backend"),
         capture_output=True,
         text=True,
@@ -524,18 +525,22 @@ MUTATIONS += [
         SKILL,
         '    if isinstance(_o.get("event_version"), bool) or _o.get("event_version") != 1:\n',
         '    if _o.get("event_version") != 1:  # MUTANT: 不排除 bool\n',
-        "test_round4_writer_validator_verdict_parity",
+        "test_round11b_parity_event_version_bool_narrow",  # round-11b: 粗门→窄门, 击杀可独立归因
         LAYER2_ALSO,
     ),
     (
         # 顶层非 object 的行退回静默跳过 ⇒ 写点 rc=0 而校验器 rc=1
         "M50-non-object-line-silently-skipped",
         SKILL,
+        # ⚠️ 忠实形态是 **continue**（原缺陷正是「适用集静默跳过」），不是 `if False:` ——
+        # 后者会让 `[]` 落到下面的 `_o.get(...)`, 在 list 上抛 AttributeError, 写点
+        # 照样非零退出 ⇒ 缺陷根本没被放回来（成因⑤ 覆盖不完整），门当然抓不到。
         """    if not isinstance(_o, dict):
         raise SystemExit(f"[quiz-answer] 账本第 {_ln} 行的顶层不是 JSON object""",
-        """    if False:  # MUTANT: 顶层非 object 静默跳过
+        """    if not isinstance(_o, dict):
+        continue  # MUTANT: 顶层非 object 静默跳过
         raise SystemExit(f"[quiz-answer] 账本第 {_ln} 行的顶层不是 JSON object""",
-        "test_round4_writer_validator_verdict_parity",
+        "test_round11b_parity_toplevel_non_object_narrow",  # round-11b: 粗门→窄门, 击杀可独立归因
         LAYER2_ALSO,
     ),
 ]
@@ -551,7 +556,8 @@ MUTATIONS += [
         "            _rows.append((_ln, json.loads(_line.strip(), object_pairs_hook=_no_dup_keys,\n"
         "                                          parse_constant=_reject_json_constant)))  # MUTANT\n",
         "test_round4_writer_validator_verdict_parity",
-        LAYER2_ALSO,
+        # ⚠️ 原挂 LAYER2_ALSO（禁校验器）—— 三态诊断实测**变异体单独即可杀**,
+        # 且失败身份与只加层时相同 ⇒ 层是多余的, 挂着只会把击杀归因搅浑。
     ),
 ]
 
@@ -570,9 +576,15 @@ MUTATIONS += [
         # F1 查询退回「只查剥前缀形态」⇒ 同一个碰撞从查询侧复现
         "M53-f1-query-strips-prefix-only",
         SKILL,
-        "    if _fm_has_event(fm_text, ev_id):\n        _cands.append(ev_id)\n",
-        "    if _fm_has_event(fm_text, ev_id[5:] if ev_id.startswith('quiz:') else ev_id):  # MUTANT\n        _cands.append(ev_id)\n",
+        # ⚠️ round-11b: 该片段原先在 resolver 与 compat 里**各有一份**(本条变异
+        # 存活正是发现者 —— 打了 resolver 那份, 而门的场景走 compat 那份)。
+        # 统一到 `_cands_and_sources` 后, 锚点跟着搬到唯一实现上。
+        "    _cands = []\n    if _fm_has_event(fm_text, ev_id):\n        _cands.append(ev_id)",
+        "    _cands = []\n    if _fm_has_event(fm_text, ev_id[5:] if ev_id.startswith('quiz:') else ev_id):  # MUTANT\n        _cands.append(ev_id)",
         "test_round5_calibration_key_prefix_collision",
+        # ⚠️ 原挂两层（禁 facts + 拆 compat 歧义证明）—— 后者**正是本门要测的那道
+        # 防线**, 拆了它门必红, 于是变成假杀。三态诊断实测: 变异体单独即可杀
+        # (败在验伪断言「正常场景回归」—— 漏放的那次复习正是原缺陷的表现)。
     ),
 ]
 
@@ -587,12 +599,22 @@ MUTATIONS += [
         "f1 = bool(eid) and _fm_has_event(fm, eid)  # MUTANT\n",
         "test_round5_calibration_key_prefix_collision",
         (
+            # ⛔ 补齐**同一条防线的其余站点**(不是拆别的防线): 「按完整 id 查、
+            # 裸键仅在映射可证唯一时回落」这条判据有**三个**调用点。只打 f1 那个时,
+            # 迟到扫描与 pending 计数那两个仍在用 compat, 缺陷被它们兜住 ⇒ 门不红。
+            # 原先挂的「拆 compat 歧义证明」是**错的层**: 那正是本门要测的防线。
             (
                 SKILL,
-                "    if _sources and _sources != {ev_id}:\n",
-                "    if False:  # MUTANT: 同时禁掉唯一性证明那层\n",
+                "    if not _fm_has_event_compat(fm, _rid2_, _ALL_LEDGER_IDS):\n",
+                "    if not _fm_has_event(fm, _rid2_):  # MUTANT: 第二站点同样退回裸查\n",
+            ),
+            (
+                SKILL,
+                '        and _fm_has_event_compat(fm, str(_o4.get("event_id") or ""), _ALL_LEDGER_IDS)\n',
+                '        and _fm_has_event(fm, str(_o4.get("event_id") or ""))  # MUTANT: 第三站点\n',
             ),
         ),
+        "complete",
     ),
     (
         # 裸键回落不证唯一性 ⇒ 歧义时猜一个, 另一个静默不入账
@@ -771,11 +793,15 @@ MUTATIONS += [
 # ── round-7 修复的承重变异
 MUTATIONS += [
     (
-        # exact 命中直接返回 ⇒ 绕过歧义检查
+        # ⛔ 忠实复原 round-7 原缺陷: compat 侧 exact 命中**直接 return True**,
+        # 绕过来源反查 ⇒ 历史裸形态与完整形态别名成一个, 另一次评分静默不入账。
+        # ⚠️ 本条原先打的是 resolver 的 `if not _cands: return (None, None)` ——
+        # 那是**死变异**: 该行唯一可达的调用点 (dup 路径 L1360) **丢弃返回值**,
+        # 变异前后行为逐字相同, 门永远抓不到。死变异不是「门非承重」, 是变异选错行。
         "M72-exact-hit-bypasses-ambiguity",
         SKILL,
-        "    _cands = []\n    if _fm_has_event(fm_text, ev_id):\n        _cands.append(ev_id)\n",
-        "    _cands = []\n    if _fm_has_event(fm_text, ev_id):\n        return True  # MUTANT\n",
+        "    _cands, _sources = _cands_and_sources(fm_text, ev_id, all_ledger_ids)\n    if not _cands:\n        return False\n",
+        "    if _fm_has_event(fm_text, ev_id):  # MUTANT: exact 命中直接放行\n        return True\n    _cands, _sources = _cands_and_sources(fm_text, ev_id, all_ledger_ids)\n    if not _cands:\n        return False\n",
         "test_round7_findings",
     ),
     (
@@ -806,7 +832,10 @@ MUTATIONS += [
         SKILL,
         '        and _fm_has_event_compat(fm, str(_o4.get("event_id") or ""), _ALL_LEDGER_IDS)\n',
         '        and (_fm_has_event_compat(fm, str(_o4.get("event_id") or ""), _ALL_LEDGER_IDS)\n             or (W_inst is not None and _i <= W_inst))  # MUTANT\n',
-        "test_round7_findings",
+        # round-11b: 原绑**粗门** ⇒ 同层(禁全账迟到扫描)会在该门靠前的 B② 就把门
+        # 弄红, M① 这段执行不到 ⇒ 假杀。改绑只跑 M① 的窄门; **层保留** ——
+        # 迟到扫描是另一道会先拦住同一场景的独立防线, 属正当纵深(见上方注释)。
+        "test_round11b_no_w_fallback_narrow",
         (
             (
                 SKILL,
@@ -845,14 +874,13 @@ MUTATIONS += [
         SKILL,
         "_out, _err = _bridge(fm, GN2, abandoned, _SCORED_AT, rating=rating)\n",
         '_out, _err = _bridge(fm, GN2, abandoned, p["ts"], rating=rating)  # MUTANT\n',
-        "test_round8_stable_scored_at",
-        (
-            (
-                SKILL,
-                '                       "scored_at": _SCORED_AT,\n',
-                '                       "scored_at": p["ts"],  # MUTANT: 同时退回运行时刻\n',
-            ),
-        ),
+        # round-11b: 改绑只看「FSRS 落在哪个时刻」的窄门（原粗门里同层拆的正是
+        # 该门 B① 断言的 `scored_at`，那是假杀）。
+        # ⚠️ 二次修订: 曾把落账侧 scored_at 作为 "complete" 第二站点挂上, 但对照
+        # 实测**变异体单独即可杀**（在这道窄门上）⇒ 层是多余的, 撤掉。上面 docstring
+        # 里「必须同时让 scored_at 退回」那句是**旧粗门下的推断**, 换窄门后不成立。
+        # ⛔「变异体单独够不够」只能实测, 不能照抄旧结论。
+        "test_round11b_fsrs_uses_stable_business_time",
     ),
     (
         # 缺稳定时刻回抄 durable ⇒ 整条修复被架空
@@ -886,6 +914,11 @@ MUTATIONS += [
         "    mcal = re.search(r'^calibration_log:[ \\t]*$', fm_text, re.M)  # MUTANT\n",
         "test_round8_high_findings",
         (
+            (
+                SKILL,
+                "        import yaml as _y\n",
+                "        raise ImportError('MUTANT: 同时禁掉写回侧 YAML')\n",
+            ),
             (
                 SKILL,
                 "        import yaml  # F1 判定\n",
@@ -975,8 +1008,9 @@ MUTATIONS += [
         # F1-only 退回无条件 no-op ⇒ 同 ID 的另一次评分静默消失
         "M91-f1-only-unconditional-noop",
         SKILL,
-        "        _rcpt = _receipt_of(fm, evid) or _receipt_of(fm, eid)\n",
-        "        _rcpt = {'scored_at': _SCORED_AT, 'grade_norm': GN2}  # MUTANT\n",
+        # ⚠️ round-11 重绑: F1-only 改走统一 resolver
+        "        _rcpt, _ = _resolve_receipt(\n",
+        "        _rcpt, _ = ({'scored_at': _SCORED_AT, 'grade_norm': GN2, 'ts': 'x'}, evid) and (lambda *a, **k: ({'scored_at': _SCORED_AT, 'grade_norm': GN2, 'ts': 'x', 'attempt_count': 1, 'event_id': evid, 'abandoned': bool(p.get('abandoned'))}, evid))(\n",
         "test_round9_structured_receipt",
     ),
     (
@@ -1004,15 +1038,17 @@ MUTATIONS += [
         # receipt 不比 abandoned ⇒ 另一次评分被当作一致
         "M95-receipt-skips-abandoned",
         SKILL,
-        '        _need("abandoned", _rcpt.get("abandoned"), bool(p.get("abandoned")), lambda v: isinstance(v, bool))\n',
-        "        pass  # MUTANT: 不比 abandoned\n",
+        # ⚠️ round-11 重绑: abandoned 现在是 facts 字典的一项
+        '                "abandoned": (bool(p.get("abandoned")), lambda v: isinstance(v, bool)),\n',
+        "                # MUTANT: 不比 abandoned\n",
         "test_round10_findings",
     ),
     (
         # adopted time 不绑定 ⇒ 同一次评分可二次推进 FSRS
         "M96-adopted-time-unbound",
         SKILL,
-        "        if not _same:\n",
+        # ⚠️ round-11 重绑: adopted 绑定已并入统一 resolver 的 row= 分支
+        "        if not (_a == _b == _c):\n",
         "        if False:  # MUTANT: 不绑定 adopted\n",
         "test_round10_findings",
     ),
@@ -1035,6 +1071,76 @@ MUTATIONS += [
 ]
 
 
+# ── round-11 修复的承重变异
+MUTATIONS += [
+    (
+        # ⛔ 本条原先打的是 `_sources != {ev_id}` 那行（空集当唯一）——**空变异对照
+        # 实测证明那是「制造性击杀」**: 只禁 facts 层、不打变异体, 门就已经红了。
+        # 而且可达性探针实测: 跑完全 56 门 + 31 反例, `require_source=True 且
+        # _sources 为空` **零命中** —— 那行守卫在当前调用点上不可达
+        # (两个 require_source=True 的调用点都传入必含该 id 的账本集合)。
+        # 真正拦住 round-11 B② 的是 **F1-only 分支的六项 facts 核对**, 本条改打它。
+        "M99-f1only-skips-fact-check",
+        SKILL,
+        "            } if _att_cur is not None else None,\n",
+        "            } if False else None,  # MUTANT: 账本缺失时不核对事实就放行\n",
+        "test_round11_unified_resolver",
+    ),
+    (
+        # dup 路径不做三方同瞬间 ⇒ 改采用时刻可二次推进 FSRS
+        "M100-no-tri-instant-binding",
+        SKILL,
+        "    _resolve_receipt(fm, evid, _ALL_LEDGER_IDS, row=dup)\n",
+        "    pass  # MUTANT: 不绑定采用时刻\n",
+        "test_round11_unified_resolver",
+        (
+            # ⛔ 这不是「拆另一条防线」, 是**补齐同一条防线的第二站点**: 三方同瞬间
+            # 绑定有**两个**调用点(dup 路径 + foreign replay)。只打前者时探针实测拒因
+            # 仍是三方绑定那条消息, 只是来自后者 ⇒ 缺陷根本没放回来(成因⑤ 覆盖不完整)。
+            # 原挂的「禁 facts」是**错的层**: 它拆的是另一道被测防线, 只加它门就红。
+            (
+                SKILL,
+                "        fm, _rid_, _ALL_LEDGER_IDS, row=_o,\n",
+                "        fm, _rid_, _ALL_LEDGER_IDS, row=None,  # MUTANT: 第二站点同样不绑定\n",
+            ),
+        ),
+        "complete",
+    ),
+    # ⛔ M101-foreign-replay-bool-presence 已**退役**（round-11b, 如实记录）:
+    # 它是**等价变异体** —— `_already_ = _rcpt_fg is not None` 与
+    # `_fm_has_event_compat(fm, _rid_, _ALL_LEDGER_IDS)` 在**所有可达输入上取值相同**:
+    # 两者都由同一组候选(`_cands_and_sources`)决定, 候选空则双双为假, 候选非空则
+    # `_resolve_receipt` 必返回 dict(或抛), compat 也返回 True(或在同样的歧义上抛)。
+    # 等价变异体不可能被任何门抓住 —— 保留它只会逼出一个「拆掉被测防线」的假层。
+    # 它原本要守的性质(foreign replay 必须逐项核对事实)由门
+    # `test_round11b_foreign_replay_checks_facts_narrow` 直接守着。
+    (
+        # receipt 的 attempt 只查类型不比值 ⇒ 999 也放行
+        "M102-receipt-attempt-type-only",
+        SKILL,
+        '                "attempt_count": (_att_cur, lambda v: isinstance(v, int) and not isinstance(v, bool) and v >= 1),\n',
+        "                # MUTANT: 不比 attempt 值\n",
+        "test_round11_unified_resolver",
+    ),
+    (
+        # receipt 的 ts 不做字面门 ⇒ 带空白的值被 strip 洗掉
+        "M103-receipt-ts-no-literal-gate",
+        SKILL,
+        "        if not isinstance(_rc_ts, str) or not _rc_ts or _rc_ts != _rc_ts.strip():\n",
+        "        if False:  # MUTANT: ts 不做字面门\n",
+        "test_round11_unified_resolver",
+    ),
+    (
+        # 写回退回「按文本外观猜结构」⇒ 一空格列表/quoted key 被写坏
+        "M104-writeback-guess-by-text",
+        SKILL,
+        '            _cut = re.sub(r\'^(?:"calibration_log"|calibration_log):.*?(?=^\\S|\\Z)\', "",\n',
+        "            _cut = re.sub(r'^calibration_log:.*?(?=^\\S|\\Z)', \"\",  # MUTANT: 只认裸键\n",
+        "test_round11_writeback_by_parse_result",
+    ),
+]
+
+
 # ⛔ 执行块必须包在 main() 里 (2026-09-02 事故):
 # 此前它是**模块顶层**代码, 于是任何 `import g32b_mutation_gates`
 # (探针脚本 / 锚点体检脚本想复用 MUTATIONS 表时都会这么做) 都会**立刻跑全套
@@ -1043,8 +1149,89 @@ MUTATIONS += [
 # ⇒ SKILL.md 留下 M42 的变异体、契约文件留下 M7 的变异体, 而每条变异各自的
 # 「还原后字节相同」自检**全部显示通过**(它比的是自己的快照)。
 # 见 MEMORY: reference_mutation_script_serial_only / reference_parallel_session_file_collision。
+
+# ── round-11b 修复的承重变异（判据逻辑只许一份）
+MUTATIONS += [
+    (
+        # compat 侧重新内联一份副本 ⇒ 判据又变成两份, 下次改判据必漏一处
+        "M110-reinline-duplicate-lookup",
+        SKILL,
+        "    _cands, _sources = _cands_and_sources(fm_text, ev_id, all_ledger_ids)\n    if not _cands:\n        return False\n",
+        '    _cands = []  # MUTANT: 重新内联副本\n    if _fm_has_event(fm_text, ev_id):\n        _cands.append(ev_id)\n    _bare = ev_id[5:] if ev_id.startswith("quiz:") else None\n    if _bare is not None and _fm_has_event(fm_text, _bare):\n        _cands.append(_bare)\n    _sources = set()\n    for _tok in _cands:\n        for _lid in all_ledger_ids:\n            if _lid == _tok or (_lid.startswith("quiz:") and _lid[5:] == _tok):\n                _sources.add(_lid)\n    _sources.discard("")\n    if not _cands:\n        return False\n',
+        "test_round11b_single_source_lookup",
+    ),
+    (
+        # 唯一实现被改名 ⇒ 复用关系断掉（结构门的验伪锚: 只剩一份也可能是删没了）
+        "M111-shared-impl-not-reused",
+        SKILL,
+        "def _cands_and_sources(fm_text, ev_id, all_ledger_ids=()):\n",
+        "def _cands_and_sources_renamed(fm_text, ev_id, all_ledger_ids=()):  # MUTANT\n",
+        "test_round11b_single_source_lookup",
+    ),
+    (
+        # compat 侧把「空来源放行」改成「空来源也拒」⇒ 账本行丢失时无法恢复
+        "M112-compat-empty-source-rejects",
+        SKILL,
+        "    if _sources and _sources != {ev_id}:\n",
+        "    if _sources != {ev_id}:  # MUTANT: 空集也拒\n",
+        "test_round11b_both_paths_still_behave",
+    ),
+]
+
+
+def first_fail(out):
+    """门输出里的第一条失败**身份**（`文件:行号: 错误`），用于比较两次跑败在不败在同一处。
+
+    ⛔ 兜底绝不能是**固定哨兵**: 首版返回 "(未定位失败点)" —— 当时 run_gate 带
+    `--tb=no`, 输出里根本没有断言行, 于是两次都取到同一个哨兵、被判成「同一失败点」,
+    **17 条变异被误报成假杀**。判据修好不等于缺陷消失: 提取器一断, 判据就退化成恒真。
+    所以定位不到时返回**输出指纹**, 两个不同的输出永远不会相等。
+    """
+    for ln in out.split("\n"):
+        t = ln.strip()
+        # --tb=line 形态: /path/test_x.py:123: AssertionError: msg
+        if re.match(r"^.*\.py:\d+: \w*(Error|Exception)", t):
+            # ⚠️ 去掉绝对路径前缀: 它有 ~110 字符, 截断后两条不同的失败**看起来一样**,
+            # 而真正的区分信息(行号 + 消息)恰好被截掉。身份要留信息密度高的那一半。
+            return t.rsplit("/", 1)[-1][:220]
+    for ln in out.split("\n"):
+        t = ln.strip()
+        if t.startswith("E ") or "AssertionError" in t:
+            return t[:220]
+    body = "\n".join(l for l in out.split("\n") if l.strip() and "warning" not in l.lower())
+    return "digest:" + hashlib.sha256(body.encode("utf-8")).hexdigest()[:24]
+
+
 def main():
     failures = []
+    kill_fail = {}
+    # ⛔ 全文件基线核对（round-11b 新增，起因是一次真实污染）:
+    # 更早一轮的探针往 `fsrs_bridge.py` 末尾追加了两段 `_s.exit(9)` 且**没有还原**。
+    # 三裁判全绿、101 条变异全 KILLED、`grep -c MUTANT` 返回 0 —— 全都没抓到它,
+    # 因为**那个变异体的文本里没有 "MUTANT" 字样**。锚点依赖变异体自己老实留标记,
+    # 而变异体是「敌方」, 不能指望它配合。
+    # 正确的外部锚点 = 对**每一个**会被变异的文件比对全文件 sha, 与标记无关。
+    # ⛔ 编号唯一性静态门（round-11b 新增）: `M102-receipt-attempt-type-only` 与
+    # `M102-reinline-duplicate-lookup` 曾并存 —— 全名不同, 所以「重名检查」不报,
+    # 但**按前缀选择**的探针(`startswith("M102-")`)会静默选错另一条, 于是三态诊断
+    # 诊断的是别的变异。判据要落在**实际被用来选择的那个键**上。
+    _nums = collections.Counter(re.match(r"M(\d+[a-z]?)", m[0]).group(1) for m in MUTATIONS)
+    _dup_nums = {k: v for k, v in _nums.items() if v > 1}
+    if _dup_nums:
+        print(f"✗✗ 变异编号碰撞 {_dup_nums} — 前缀选择会选错, 立即停")
+        sys.exit(2)
+    _testf_src = (ROOT / "backend" / TESTF).read_text(encoding="utf-8")
+    _gates_missing = [m[0] for m in MUTATIONS if f"def {m[4]}(" not in _testf_src]
+    if _gates_missing:
+        print(f"✗✗ 绑定的门不存在: {_gates_missing} — rc=4 会被粗判据当成 KILLED, 立即停")
+        sys.exit(2)
+    _touched = sorted(
+        {m[1] for m in MUTATIONS} | {x[0] for m in MUTATIONS if len(m) > 5 for x in m[5]}, key=lambda p: str(p)
+    )
+    _baseline = {p: hashlib.sha256(p.read_bytes()).hexdigest() for p in _touched}
+    print("── 基线（跑前）──")
+    for p, h in _baseline.items():
+        print(f"   {h[:16]}  {p.name}")
     for _m in MUTATIONS:
         # 第 6 元素 (可选): [(old, new), ...] —— **同时**施加的其它防线变异。
         # ⛔ 为什么需要它 (MEMORY reference_mutation_must_disable_all_layers):
@@ -1114,6 +1301,8 @@ def main():
             print(f"[{tag}] ✗✗ 还原后字节不同: {', '.join(_drift)} — 立即停")
             sys.exit(2)
         sha_after = sha(path)
+        if killed:
+            kill_fail[tag] = first_fail(r.stdout)
         status = f"KILLED ({why})" if killed else f"SURVIVED ⇒ 假门 ({why})"
         print(f"[{tag}] {gate} → {status}  [还原字节相同 {sha_after[:12]}]")
         if not killed:
@@ -1121,13 +1310,119 @@ def main():
             print("    ---- 门输出尾部 ----")
             print("    " + "\n    ".join(r.stdout.strip().split("\n")[-6:]))
 
+    # ── 阶段 2: 空变异对照 (只施加同层, 不打变异体)
+    # ⛔ 为什么必须有 (2026-09-02 实测): M99 挂了「禁 facts」层后报 KILLED,
+    # 但只禁那一层、**不打变异体**, 门就已经红了 —— 击杀完全由层贡献, 变异体
+    # 本身毫无鉴别力。这是「假绿」的镜像: **假杀**。带层的变异若不做这道对照,
+    # 「KILLED」这个字样什么也不证明。
+    # 判据: 只施加层时门必须**仍绿**; 变红 = 该条的击杀是制造出来的。
+    # ⛔ 层有**两种**, 判据完全不同(round-11b 实测才分清):
+    #   depth    —— 拆掉**别的**防线, 让被测那道成为唯一屏障。只加层必须**绿**,
+    #               红了就说明拆错了(拆到被测防线本身)或粗门早退 ⇒ 假杀。
+    #   complete —— 补齐**同一缺陷的其它站点**(如三方绑定有两个调用点)。
+    #               只加层**本就可能红** —— 那是缺陷的一半, 不是假杀。
+    #               它要证的是「变异体单独不够」: body-only 必须绿。
+    # 这个区别是语义的, 机器判不出来, 只能由变异自己声明(第 7 元素, 默认 depth)。
+    layered = [m for m in MUTATIONS if len(m) > 5 and m[5]]
+    print(f"\n── 空变异对照 ({len(layered)} 条带同层) ──")
+    for _m in layered:
+        tag, gate, also = _m[0], _m[4], _m[5]
+        kind = _m[6] if len(_m) > 6 else "depth"
+        originals, texts = {}, {}
+        for _p, _o, _n in also:
+            if _p not in originals:
+                originals[_p] = _p.read_bytes()
+                texts[_p] = originals[_p].decode("utf-8")
+        bad = False
+        for _p, _o, _n in also:
+            if texts[_p].count(_o) != 1:
+                print(f"[{tag}] ✗ 对照锚点异常, 跳过")
+                bad = True
+                break
+            texts[_p] = texts[_p].replace(_o, _n, 1)
+        if bad:
+            failures.append(f"{tag}: 空变异对照锚点异常")
+            continue
+        try:
+            for _p, _t in texts.items():
+                _p.write_bytes(_t.encode("utf-8"))
+            r0 = run_gate(gate)
+            red0 = r0.returncode == 1 and "1 failed" in r0.stdout
+        finally:
+            for _p, _b in originals.items():
+                _p.write_bytes(_b)  # 无条件还原
+        drift = [
+            p.name
+            for p in originals
+            if hashlib.sha256(p.read_bytes()).hexdigest() != hashlib.sha256(originals[p]).hexdigest()
+        ]
+        if drift:
+            print(f"[{tag}] ✗✗ 对照还原后字节不同: {drift} — 立即停")
+            sys.exit(2)
+        # ⛔ 判据不是「对照红就算假杀」—— 那条判据**太粗**, 而且是我 2026-09-02 在
+        # 这道对照里亲手犯的同一个错(与 `rc != 0` 混进续跑信号同型)。粗门(如
+        # test_internal_audit_findings)捆了多个子场景, 层可能弄红**另一个**子场景。
+        # 实测 M23: 只加层败在「不得被当成一次复习重放」, 层+变异体败在「零写」——
+        # **不同断言** ⇒ 变异体确实改变了行为, 不是假杀。
+        # 正确判据: 只有两次败在**同一条**断言上, 才说明变异体毫无贡献。
+        fa = first_fail(r0.stdout) if red0 else None
+        fb = kill_fail.get(tag)
+        if kind == "complete":
+            # 这类层的合格判据不是「只加层要绿」, 而是「变异体单独不够」。
+            _bp, _bo, _bn = _m[1], _m[2], _m[3]
+            _bsnap = _bp.read_bytes()
+            _btxt = _bsnap.decode("utf-8")
+            if _btxt.count(_bo) != 1:
+                failures.append(f"{tag}: complete 对照的变异体锚点异常")
+                print(f"[{tag}] ✗ complete 对照锚点异常")
+                continue
+            try:
+                _bp.write_bytes(_btxt.replace(_bo, _bn, 1).encode("utf-8"))
+                rb = run_gate(gate)
+                b_only = rb.returncode == 1 and "1 failed" in rb.stdout
+            finally:
+                _bp.write_bytes(_bsnap)  # 无条件还原 (EXIT trap 等价)
+            if hashlib.sha256(_bp.read_bytes()).hexdigest() != hashlib.sha256(_bsnap).hexdigest():
+                print(f"[{tag}] ✗✗ complete 对照还原后字节不同 — 立即停")
+                sys.exit(2)
+            if b_only:
+                failures.append(f"{tag}: 声明为 complete 但变异体单独即可杀 ⇒ 层是多余的")
+                print(f"[{tag}] ✗ complete 但变异体单独即可杀 ⇒ 撤层")
+            else:
+                print(f"[{tag}] ✓ complete: 变异体单独不够(门绿), 补齐站点后才红 ⇒ 层必要")
+        elif not red0:
+            print(f"[{tag}] ✓ 对照绿 (rc={r0.returncode}) ⇒ 击杀干净归因于变异体")
+        elif fb is not None and fa == fb:
+            failures.append(f"{tag}: 只加层与层+变异体败在同一条断言 ⇒ 击杀由层贡献 (假杀): {fa[:90]}")
+            print(f"[{tag}] ✗ 假杀 — 两次同一失败点: {fa[:90]}")
+        else:
+            print(f"[{tag}] ✓ 对照红但失败点不同 ⇒ 变异体有可观测效果 (门较粗, 隔离不干净)")
+            print(f"       只加层: {(fa or '')[:88]}")
+            print(f"       +变异体: {(fb or '')[:88]}")
+
+    # ── 收尾: 全文件基线复核（与「每条变异各自的快照」无关 —— 那是自证）
+    print("── 基线复核（跑后）──")
+    _drifted = []
+    for p, h0 in _baseline.items():
+        h1 = hashlib.sha256(p.read_bytes()).hexdigest()
+        ok = h1 == h0
+        print(f"   {'✓' if ok else '✗'} {h1[:16]}  {p.name}")
+        if not ok:
+            _drifted.append(f"{p.name}: {h0[:16]} → {h1[:16]}")
+    if _drifted:
+        failures.append("全文件基线漂移（有变异体没还原）: " + "; ".join(_drifted))
+        print("   ⛔ 基线漂移 —— 生产文件里可能残留变异体, 立即人工核对")
+
     print()
     if failures:
         print("变异验证 FAIL:")
         for f in failures:
             print("  -", f)
         sys.exit(1)
-    print(f"变异验证 PASS: {len(MUTATIONS)}/{len(MUTATIONS)} 全部被指定门杀死, 全部逐字节还原。")
+    print(
+        f"变异验证 PASS: {len(MUTATIONS)}/{len(MUTATIONS)} 全部被指定门杀死; "
+        f"{len(layered)} 条带层变异全部通过空变异对照(击杀非层贡献); 全部逐字节还原。"
+    )
 
 
 if __name__ == "__main__":
