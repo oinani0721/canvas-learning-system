@@ -66,6 +66,46 @@
 | 7 | **写点普查门**（门⑪）+ 全仓 grep | PASS；账本写点仍是 4 处（`quiz-answer` / `start-exam-board` / `ai-linked-doc` / `learning_event_log.py`） | 本卡未新增第三套实现，未动其它 skill 写点 |
 | 8 | **live vault 零写** | 账本 `2a18023e…`（22 行），mtime `2026-08-29T06:11:47+0800` | mtime 远早于本 session（2026-09-02），**观测范围内**零写。**不**证明其它进程未写 |
 
+### 卡文完成条件 (a)-(i) 逐条核验（实测，非声称）
+
+| 条 | 要求 | 实测 | 承重 |
+|---|---|---|---|
+| (a) | 未知 durable payload 键一律冲突 | ✅ `test_r1_unknown_durable_payload_key_conflicts` PASS | 门㉖ / M1 |
+| (b) | A2 只接受 UTC 整秒时刻 | ✅ `test_r2_non_whole_second_...` PASS | 门㉗ / M2b·M10 |
+| (c) | 历史 attempt 按账本 ordinal 复算 | ✅ `test_r3_historical_event_replay_is_noop_not_conflict` PASS | 门㉘ / M3 |
+| (d) | 正常与恢复节点字节相同 | ✅ `test_r4_recovery_byte_identical_...` PASS | 门㉙ / M4 |
+| (e) | rating 在 apply 前与分数自洽 | ✅ `test_r5_inconsistent_scored_rating_...` PASS | 门㉚ / M5 |
+| (f) | schema 明确身份键完整性归属 | ✅ `test_r6_schema_declares_identity_key_...` PASS | 门㉜ / M7·M17 |
+| (g) | 仅 EOF 无 LF 坏尾行可短写 | ✅ `test_r7_corrupt_tail_with_lf_is_not_truncation` PASS | 门㉛ / M6 |
+| (h) | 七个生产反例与变异承重 | ✅ 裁判 2 **31/31**；变异 **56/56 KILLED**（含 8 条 R1-R7 承重） | — |
+| **(i)** | 五文件、validator 与**终审**全绿 | ⚠️ **前两项达成**（272 collected / 271 passed / 1 skipped；validator rc=0）；**「终审全绿」未达成** | 见下 |
+
+**(i) 为何未达成 —— 如实说明，不是搪塞**：三轮有结论的审查（round-3/4/5）都判「需整改」，
+它们报的问题**已全部修完并各自补了承重门与变异**；但「终审全绿」指的是**某一轮审查的
+结论本身**，那是已发生的历史事实，无法追溯改变。要让它变绿，只能**再跑一轮**看修复后
+的代码能否拿到「通过」——而卡文把轮次锁死在 3 轮。
+
+⚠️ **这不是卡文自相矛盾**：卡文预设了两种结局，「到顶不合并」本身就是其中一种合法终局。
+(i) 未满足 = 本卡按完整完成条件衡量**未完成**，这是如实结论。
+
+**你有两条路**（裁决点⑦ 的实质）：
+1. **维持现状** —— 按「到顶不合并」收口，本卡的修复留在分支上不进主线；
+2. **授权第 4 轮** —— 我已备好提示词（`_bmad-output/审查/prompts/codex-prompt-CARD-G3-2b-round6.md`），
+   你说一句就跑。若它判「通过」，(i) 达成、可进合并队列；若仍判「需整改」，回到路 1。
+
+⛔ 我不会自行跑第 4 轮：突破卡文写死的轮次上限是你的裁决权，不是我的。
+
+### 硬边界核验（自开工 HEAD `02dbc426` 起）
+
+| 边界 | 实测 |
+|---|---|
+| `validate_learning_events.py` 禁改 | ✅ `git diff` 空集 |
+| `.gitignore` 禁改 | ✅ 空集 |
+| review_service / daily picker / 其它 skill 写点 禁改 | ✅ 空集 |
+| live vault 只读 | ✅ 账本 mtime `2026-08-29T06:11:47+0800`（远早于本 session）、sha `2a18023e…` 未变 |
+| 开工登记的 3 个 stderr | ✅ 仍 untracked、未删除（禁止删除/reset/clean 已遵守）|
+| 不 push | ✅ 11 个 commit 全部留在本地分支 |
+
 ### 复现命令（我已跑完；留档给以后的 Claude / 独立审查者，你不必跑）
 
 ```bash
