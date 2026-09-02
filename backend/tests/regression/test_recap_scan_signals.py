@@ -4913,8 +4913,11 @@ def test_domain_r22_fence_indent_and_seed_scope_cli(tmp_path):
     assert problems2 == [], f"真实报告的尾巴被误伤：{problems2!r}"
 
 
-def test_domain_r23_seed_scope_fence_and_tail_render_cli(tmp_path):
+def test_domain_r23_seed_scope_fence_and_tail_render():
     """R3 round-27（冻结审查 v8）：围栏状态机复用本体 + 标题/角色收窄 + 尾巴渲染面。
+
+    ⚠️ round-32 更正：本门原名带 `_cli` 后缀，但它**只直接调用 helper**、
+    不跑 CLI 子进程，`tmp_path` 也没用上 —— 名实不符，已改名并去掉参数。
 
     ⛔ round-26 我在种子扫描里**手抄了第二份围栏状态机**（遇任意三反引号就布尔
     翻转），比 `_strip_code_blocks` 本体弱得多：四反引号开栏 → 块内三反引号
@@ -5045,8 +5048,9 @@ def test_domain_r24_fence_closer_atx_and_tail_prefix():
         # ⛔ round-29：同上 —— `_SECTION_RE` 不接受前导缩进，两侧一致地不接受。
         (
             "   ## 台账\n\n   ### 种子\n\n- SeedA — 批注 999 条\n\n## 末\n",
-            None,
-            "缩进 ATX 标题与全局口径一致地不接受（整体由必需段门 fail-closed）",
+            "形似『### 种子』但不合统一口径",
+            "⛔ round-32：缩进的种子 H3 从「静默跳过」改为**自己 fail-closed**"
+            "（否则那一块永不受审——冻结审查 v13 的第六形态）",
             None,
         ),
         # ⛔ round-30：同上，H3 不合口径不再静默跳过。
@@ -5120,7 +5124,11 @@ def test_domain_r25_section_criterion_unified_cli(tmp_path):
 
     # ③ 一致地不接受（两侧同口径）
     for text, why, want in (
-        ("   ## 台账\n\n   ### 种子\n\n- SeedA — 批注 999 条\n\n## 末\n", "缩进 ATX 标题", None),
+        (
+            "   ## 台账\n\n   ### 种子\n\n- SeedA — 批注 999 条\n\n## 末\n",
+            "缩进 ATX 标题",
+            "形似『### 种子』但不合统一口径",
+        ),
         ("## 台账\n\n### 种子 ###\n\n- SeedA — 批注 999 条\n\n## 末\n", "ATX 闭合井号", "找不到可绑定"),
     ):
         # ⛔ round-30：H2 不合口径 ⇒ 不扫描（由全局必需段门兜底，见第 ④ 段）；
@@ -5188,7 +5196,8 @@ def test_domain_r26_zero_seed_board_not_false_positive():
         ),
         (
             True,
-            "真的没有 ledger ⇒ 仍 fail-closed",
+            "无 ledger **且有认可的 H3** ⇒ fail-closed"
+            "（⚠️ round-32 收窄措辞：无 ledger 且**无**认可 H3 的情形本门不覆盖）",
             "## 台账\n\n### 种子\n\n- S — 批注 2 条\n\n## 末\n",
             None,
         ),
@@ -5199,3 +5208,70 @@ def test_domain_r26_zero_seed_board_not_false_positive():
             assert ps, f"{why}：应报错却放行"
         else:
             assert ps == [], f"{why}：合法输入被误伤 —— {ps!r}"
+
+
+def test_domain_r27_seedish_h3_and_corrupt_seeds():
+    """R3 round-32（冻结审查 v13 的第六形态）：不被口径认可的种子 H3 必须自己报。
+
+    ⛔ 只收集**认可的**小节，等于把「不合口径的种子 H3」整块**排除在审计面之外**：
+      · `seeds=[]` + `### 种子 ###` + `- Ghost — 批注 9 条` ⇒ 零 section 且零种子，
+        函数直接返回，Ghost 行**永不受审**；
+      · 更强：先放一个**认可的空** `### 种子`，再放第二个**不认可**的 H3 + Ghost 行
+        ⇒ 第二块永不审，**非零种子板同样可绕**。
+
+    同批：损坏的 `seeds=[None]` 会被过滤成空 rows，再因**原值仍是 list** 被当成
+    合法零种子 ⇒ 损坏数据静默通过。现改为 fail-closed。
+
+    **它证明什么**：六种形态各自正确（三报三放行），含围栏内形似标题不误报。
+    **它不证明什么**：不覆盖 `ledger` 为扁平 list 的损坏形态；
+    也不改变 `_SECTION_RE` 的接受集本身（放宽须改本体让两侧同动）。
+    """
+    rs = _load_recap_scan()
+
+    # ⛔ round-33：原先只断言「有报错」，于是 survivor-64 变异后靠**另一条**
+    #    诊断（「不在 ledger」）就能让门保持绿 —— 实测未承重。
+    #    ⇒ 每条都**绑定诊断关键词**，报错内容必须是这一条。
+    for want, why, text, ledger in (
+        (
+            "不合统一口径",
+            "第六形态 a：seeds=[] + 不认可 H3 + Ghost 行",
+            "## 台账\n\n### 种子 ###\n\n- Ghost — 批注 9 条\n\n## 末\n",
+            {"seeds": []},
+        ),
+        (
+            "不合统一口径",
+            "第六形态 b：认可的空小节 + 第二个不认可 H3 + Ghost（非零种子板）",
+            "## 台账\n\n### 种子\n\n\n\n### 种子 ###\n\n- Ghost — 批注 9 条\n\n## 末\n",
+            {"seeds": [{"node_id": "S", "tips_count": 2}]},
+        ),
+        (
+            "含非对象条目",
+            "损坏 seeds=[None] 不得被当成合法零种子",
+            "## 台账\n\n### 种子\n\n- X — 批注 1 条\n\n## 末\n",
+            {"seeds": [None]},
+        ),
+        (
+            None,
+            "对照：合法零种子且无种子小节",
+            "## 台账\n\n### 派生\n\n- X — 批注 1 条\n\n## 末\n",
+            {"seeds": [], "derived": [{"node_id": "X", "tips_count": 1}]},
+        ),
+        (
+            None,
+            "对照：合法认可小节 + 数字对",
+            "## 台账\n\n### 种子\n\n- S — 批注 2 条\n\n## 末\n",
+            {"seeds": [{"node_id": "S", "tips_count": 2}]},
+        ),
+        (
+            None,
+            "对照：**围栏内**的形似标题不得误报",
+            "## 台账\n\n### 种子\n\n\n\n```\n### 种子 ###\n```\n\n## 末\n",
+            {"seeds": []},
+        ),
+    ):
+        ps: list[str] = []
+        rs._verify_seed_ledger_counts(text, {"ledger": ledger}, ps)
+        if want is None:
+            assert ps == [], f"{why}：误伤 —— {ps!r}"
+        else:
+            assert any(want in x for x in ps), f"{why}：未报出目标诊断 {want!r} —— {ps!r}"

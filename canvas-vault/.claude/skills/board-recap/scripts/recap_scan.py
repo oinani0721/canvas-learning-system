@@ -2180,6 +2180,15 @@ def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> No
     #      要放宽就得改 `_SECTION_RE` 本体，让两侧同时动 —— 不在本轮范围。
     _H2_LEDGER_RE = re.compile(_SECTION_RE("## 台账"))
     _H3_SEED_RE = re.compile(_SECTION_RE("### 种子"))
+    # ⛔ R3 round-32（冻结审查 v13 的第六形态）：只收集**认可的**小节，等于把
+    #    「不被 `_SECTION_RE` 认可的种子 H3」整块**排除在审计面之外** ——
+    #      · `seeds=[]` + `### 种子 ###` + `- Ghost — 批注 9 条` ⇒ 零 section 且
+    #        零种子，函数直接返回，Ghost 行永不受审；
+    #      · 更强：先放一个**认可的空** `### 种子`，再放第二个**不认可**的 H3 +
+    #        Ghost 行 ⇒ 第二块永不审，非零种子板同样可绕。
+    #    ⇒ 凡是「H3 且可见文本以『种子』开头」却不被 `_H3_SEED_RE` 认可的行，
+    #      自己报出来（fail-closed），不再静默跳过。
+    _H3_SEEDISH_RE = re.compile(r"^[^\S\n]*###[^\S\n]*种子")
     _under_ledger = False
     sections: list[tuple[int, int]] = []
     _i = 0
@@ -2189,6 +2198,16 @@ def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> No
             continue
         if re.match(r"^##[^\S\n]", vis_lines[_i]):
             _under_ledger = bool(_H2_LEDGER_RE.match(vis_lines[_i]))
+        if (
+            _H3_SEEDISH_RE.match(vis_lines[_i])
+            and not _H3_SEED_RE.match(vis_lines[_i])
+            and not _in_fence[_i]
+        ):
+            problems.append(
+                "数字终核: 出现形似『### 种子』但不合统一口径的小节标题 "
+                f"({vis_lines[_i].strip()[:40]!r}) —— 该块不会进入台账绑定面, "
+                "标题须为 `### 种子` 或 `### 种子（补充）` (统一口径 _SECTION_RE)"
+            )
         if _under_ledger and _H3_SEED_RE.match(vis_lines[_i]):
             _j = _i + 1
             # ⛔ round-29（冻结审查 v10）：终点扫描原先**不判围栏** ⇒ 围栏内的
@@ -2250,6 +2269,17 @@ def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> No
         #    与「scan JSON 根本没有 ledger」不是一回事。前者放行（没有种子可绑，
         #    小节里也不该有台账行——真有行会在下面按「不在 ledger 里」报）；
         #    后者仍 fail-closed。
+        _raw_seeds = groups.get("seeds") if isinstance(groups, dict) else None
+        if isinstance(_raw_seeds, list) and any(
+            not isinstance(x, dict) for x in _raw_seeds
+        ):
+            # ⛔ round-32（冻结审查 v13）：`seeds=[None]` 会被过滤成空 rows，
+            #    随后因**原值仍是 list** 被当成合法零种子 ⇒ 损坏数据静默通过。
+            problems.append(
+                "数字终核: scan JSON 的 ledger.seeds 含非对象条目 (损坏), "
+                "台账『种子』行无法绑定"
+            )
+            return
         if not (isinstance(groups, dict) and isinstance(groups.get("seeds"), list)):
             problems.append("数字终核: scan JSON 无可用 ledger, 台账『种子』行无法绑定")
             return

@@ -746,6 +746,26 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         ],
         "r26_zero_seed",
     ),
+    (
+        "survivor-63 (C-36) 不合口径的种子 H3 不再自己报（那一块整段排除在审计面外）",
+        [
+            (
+                "            _H3_SEEDISH_RE.match(vis_lines[_i])",
+                "            False and _H3_SEEDISH_RE.match(vis_lines[_i])",
+            )
+        ],
+        "r27_seedish_h3",
+    ),
+    (
+        "survivor-64 (C-37) 损坏的 ledger.seeds（含非对象条目）退回被当合法零种子",
+        [
+            (
+                "        if isinstance(_raw_seeds, list) and any(",
+                "        if False and isinstance(_raw_seeds, list) and any(",
+            )
+        ],
+        "r27_seedish_h3",
+    ),
 ]
 
 
@@ -879,7 +899,7 @@ def run_suite(keyword: str) -> tuple[int, str, int, int, bool]:
     return r.returncode, out[-400:], passed + failed, failed, crash
 
 
-MUTANT_COUNT_EXPECTED = 62
+MUTANT_COUNT_EXPECTED = 64
 """变体数的**独立**期望值。
 
 ⛔ 冻结审查 v6：脚本原先只在结尾动态打印「共 N 条」—— 误删一个变体仍会成功退出。
