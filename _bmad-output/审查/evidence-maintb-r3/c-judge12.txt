@@ -1,12 +1,12 @@
 === collect-only ===
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-========================= 261 tests collected in 0.20s =========================
+========================= 262 tests collected in 0.19s =========================
 === JUDGE-1 定向套件 ===
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-====================== 261 passed, 14 warnings in 42.96s =======================
+====================== 262 passed, 14 warnings in 41.58s =======================
 <sys>:0: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
 === JUDGE-2 negverify (38 变体, 串行, 含崩溃红识别) ===
-基线: 双向门全绿 · 被测文件 sha256=71d9739956de…
+基线: 双向门全绿 · 被测文件 sha256=9d95a183d962…
 
 ✅ survivor-1 围栏闭合退回宽松判定（E1 全线：长度 + 尾随空白 两条一起禁）: 如期变红（2/2 失败）
 ✅ survivor-2 规模行允许式去掉行尾锚（H-2 前半全线）: 如期变红（1/1 失败）
@@ -50,7 +50,7 @@
 全部承重（共 38 条变体）
 === 扩大回归 ===
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-================= 593 passed, 193 warnings in 66.47s (0:01:06) =================
+================= 594 passed, 193 warnings in 66.43s (0:01:06) =================
 <sys>:0: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
 === 收尾 sha ===
-71d9739956de2ad575f4c50da1461085303814da2c3e7854beb05baa8fe80aac  ../canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py
+9d95a183d962a54e4fe23ef14846db1fadb3d2116484d64011904be7b2696eb3  ../canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py
