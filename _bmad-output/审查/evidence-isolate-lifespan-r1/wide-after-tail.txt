@@ -1,0 +1,713 @@
+=== RUNTIME-FILES before (2026-09-03 02:07:04 +0800) ===
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/data/bug_log.jsonl
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/app/data/vault_index_pending.jsonl
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/data/outbox/events.jsonl
+=== 执行被包裹命令 ===
+$ /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/.venv/bin/python -m pytest tests/api tests/unit tests/bdd tests/smoke -q -p no:cacheprovider --tb=no
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 4765 items
+
+tests/api/v1/endpoints/test_agents_dedup.py ...............              [  0%]
+tests/api/v1/endpoints/test_agents_encoding.py ................          [  0%]
+tests/api/v1/endpoints/test_agents_health.py ............                [  0%]
+tests/api/v1/endpoints/test_agents_learning_event.py ................... [  1%]
+                                                                         [  1%]
+tests/api/v1/endpoints/test_fsrs_state_api.py ..............             [  1%]
+tests/api/v1/endpoints/test_memory_four_state_api.py ................... [  1%]
+..............................                                           [  2%]
+tests/api/v1/endpoints/test_metadata_subject_mapping.py ................ [  2%]
+..F                                                                      [  3%]
+tests/api/v1/endpoints/test_multimodal.py .............                  [  3%]
+tests/api/v1/endpoints/test_ping.py ..                                   [  3%]
+tests/api/v1/endpoints/test_rag_four_state_api.py ...................... [  3%]
+........                                                                 [  3%]
+tests/api/v1/endpoints/test_recommend_action.py ........................ [  4%]
+F...............                                                         [  4%]
+tests/unit/grouping/test_analyze_canvas.py ....FF.                       [  4%]
+tests/unit/grouping/test_factory_and_constants.py .............          [  5%]
+tests/unit/grouping/test_helpers.py .............                        [  5%]
+tests/unit/grouping/test_perform_clustering.py ...........               [  5%]
+tests/unit/test_a7_honest_failure.py ........                            [  5%]
+tests/unit/test_acp_prompt_externalization.py ...........                [  6%]
+tests/unit/test_agent_context_injection.py FFFF                          [  6%]
+tests/unit/test_agent_memory_injection.py ......F....                    [  6%]
+tests/unit/test_agent_memory_trigger.py .F.............................. [  7%]
+..........                                                               [  7%]
+tests/unit/test_agent_routing_engine.py ................................ [  7%]
+..........................                                               [  8%]
+tests/unit/test_agent_service_comparison.py .........FFFFFF              [  8%]
+tests/unit/test_agent_service_extraction.py ............................ [  9%]
+.EEF.                                                                    [  9%]
+tests/unit/test_agent_service_neo4j_memory.py ...F.F........FF..F....    [ 10%]
+tests/unit/test_agent_service_user_understanding.py ...........          [ 10%]
+tests/unit/test_agent_templates_smoke.py ..F.....FFF..FF.F.............. [ 10%]
+......FF......                                                           [ 11%]
+tests/unit/test_agents_multimodal.py ....................                [ 11%]
+tests/unit/test_audit_guardian.py ...........                            [ 11%]
+tests/unit/test_background_task_manager.py ...                           [ 11%]
+tests/unit/test_batch_orchestrator.py .................................  [ 12%]
+tests/unit/test_belief_version_chain.py .........                        [ 12%]
+tests/unit/test_bug_tracker.py ......................                    [ 13%]
+tests/unit/test_cache_configuration.py .F....FF...F.F.                   [ 13%]
+tests/unit/test_calibration_tracker.py .......................FF.......  [ 14%]
+tests/unit/test_candidate_callout.py ............                        [ 14%]
+tests/unit/test_candidate_expiry_service.py ....................         [ 14%]
+tests/unit/test_candidate_service.py ..............                      [ 15%]
+tests/unit/test_candidate_state_machine.py ............................. [ 15%]
+............                                                             [ 16%]
+tests/unit/test_candidate_writer.py ................                     [ 16%]
+tests/unit/test_canvas_edge_bulk_sync.py .........                       [ 16%]
+tests/unit/test_canvas_edge_sync.py .........                            [ 16%]
+tests/unit/test_canvas_episode_v1.py ...................                 [ 17%]
+tests/unit/test_canvas_memory_trigger.py ........F..........             [ 17%]
+tests/unit/test_canvas_projection_sync.py .............                  [ 17%]
+tests/unit/test_canvas_service_concurrency.py ................           [ 18%]
+tests/unit/test_canvas_validation.py ................                    [ 18%]
+tests/unit/test_card_state_concurrent_write.py ...                       [ 18%]
+tests/unit/test_chat_context_assembler.py .............................. [ 19%]
+....................                                                     [ 19%]
+tests/unit/test_chat_endpoint.py FFFFFFFFFFFFFFFF                        [ 19%]
+tests/unit/test_check_readme_claims.py ................................. [ 20%]
+........................................................................ [ 22%]
+...............                                                          [ 22%]
+tests/unit/test_circuit_breaker.py ............                          [ 22%]
+tests/unit/test_config_drift.py .........                                [ 22%]
+tests/unit/test_config_neo4j.py FFFFFFFFF                                [ 23%]
+tests/unit/test_context_cache_key.py ....                                [ 23%]
+tests/unit/test_context_enrichment_2hop.py ...............FF             [ 23%]
+tests/unit/test_context_enrichment_get_node_content.py ................. [ 23%]
+...                                                                      [ 23%]
+tests/unit/test_cost_tracker.py .....                                    [ 24%]
+tests/unit/test_create_fsrs_manager.py ..........                        [ 24%]
+tests/unit/test_cross_canvas_failsoft.py ...                             [ 24%]
+tests/unit/test_cross_canvas_removal.py .......                          [ 24%]
+tests/unit/test_cross_subject_bridge_group_isolation.py ..........       [ 24%]
+tests/unit/test_cypher_helpers.py ....................                   [ 25%]
+tests/unit/test_dashboard_statistics.py ...................              [ 25%]
+tests/unit/test_deep_research_fallback.py ........................       [ 26%]
+tests/unit/test_degraded_flag_propagation.py ....F                       [ 26%]
+tests/unit/test_difficulty_adaptive.py ................................. [ 26%]
+.........................                                                [ 27%]
+tests/unit/test_difficulty_canvas_integration.py .F...............FF.... [ 27%]
+                                                                         [ 27%]
+tests/unit/test_difficulty_matcher.py ............F......                [ 28%]
+tests/unit/test_docker_compose_config.py ............                    [ 28%]
+tests/unit/test_edge_rationale_fallback.py ............                  [ 28%]
+tests/unit/test_embedder_factory.py .......                              [ 28%]
+tests/unit/test_enrich_context_vault_isolation.py FFFFF.FF               [ 29%]
+tests/unit/test_epic30_memory_pipeline.py ..............F............... [ 29%]
+..........                                                               [ 29%]
+tests/unit/test_epic32_p0_fixes.py .............                         [ 30%]
+tests/unit/test_epic36_gap_coverage.py ....F............                 [ 30%]
+tests/unit/test_error_aggregator.py ..................                   [ 30%]
+tests/unit/test_error_classification_mapping.py ........................ [ 31%]
+                                                                         [ 31%]
+tests/unit/test_error_extractor.py ............                          [ 31%]
+tests/unit/test_error_rebuild_service.py .............                   [ 31%]
+tests/unit/test_error_writer.py .................                        [ 32%]
+tests/unit/test_event_bus.py ..........FF...................             [ 32%]
+tests/unit/test_exam_sync_node_group_isolation.py .....                  [ 33%]
+tests/unit/test_extraction_validator.py ............                     [ 33%]
+tests/unit/test_failure_observability.py ...............FFF...........   [ 33%]
+tests/unit/test_faithfulness_check.py ..............                     [ 34%]
+tests/unit/test_faithfulness_check_boundary.py .........                 [ 34%]
+tests/unit/test_four_state_injection.py ................................ [ 35%]
+.........                                                                [ 35%]
+tests/unit/test_frontmatter_signals.py ......                            [ 35%]
+tests/unit/test_fsrs_manager.py .....................................    [ 36%]
+tests/unit/test_fsrs_state_query.py ................                     [ 36%]
+tests/unit/test_fusion_report.py .........                               [ 36%]
+tests/unit/test_fusion_strategy_override.py ........                     [ 36%]
+tests/unit/test_graphiti_client.py ......................                [ 37%]
+tests/unit/test_graphiti_client_mock_performance.py .....                [ 37%]
+tests/unit/test_graphiti_client_unification.py ....                      [ 37%]
+tests/unit/test_graphiti_json_dual_write.py F.F..FFFFFF                  [ 37%]
+tests/unit/test_graphiti_memory_reader.py ......                         [ 37%]
+tests/unit/test_graphiti_neo4j_calls.py ......                           [ 37%]
+tests/unit/test_graphiti_structured_writer.py ....................       [ 38%]
+tests/unit/test_group_id_compat.py ...........................           [ 38%]
+tests/unit/test_group_id_dynamic_binding.py .....................        [ 39%]
+tests/unit/test_group_id_migration.py ................                   [ 39%]
+tests/unit/test_health_detailed.py FFF...                                [ 39%]
+tests/unit/test_hybrid_search_activation.py .......................      [ 40%]
+tests/unit/test_identity_registry.py .......                             [ 40%]
+tests/unit/test_intelligent_parallel_endpoints.py .........FFF...F...... [ 40%]
+......                                                                   [ 41%]
+tests/unit/test_internal_api_key_p0_2_hardening.py .............         [ 41%]
+tests/unit/test_kg_health.py ....F                                       [ 41%]
+tests/unit/test_kg_relevance_weighted.py ........................        [ 41%]
+tests/unit/test_l1_llm_router.py ...............                         [ 42%]
+tests/unit/test_lancedb_isolation_assertions.py .............            [ 42%]
+tests/unit/test_lancedb_vault_isolation.py .....FF.......F               [ 42%]
+tests/unit/test_langgraph_async_conditional_edge_smoke.py ..             [ 42%]
+tests/unit/test_live_port_guard_contract.py ...........................  [ 43%]
+tests/unit/test_llm_call_logger.py ..............................        [ 44%]
+tests/unit/test_markdown_image_extractor.py ............................ [ 44%]
+....                                                                     [ 44%]
+tests/unit/test_mastery_api.py ...........................               [ 45%]
+tests/unit/test_mastery_engine_bkt.py .......................            [ 45%]
+tests/unit/test_mastery_engine_effective.py ............                 [ 46%]
+tests/unit/test_mastery_engine_fsrs.py ..................                [ 46%]
+tests/unit/test_mastery_engine_level.py ..................               [ 46%]
+tests/unit/test_mastery_engine_misc.py ...............................   [ 47%]
+tests/unit/test_mastery_fusion.py ....................F.....             [ 48%]
+tests/unit/test_mastery_injection_memory_contract.py ............        [ 48%]
+tests/unit/test_mastery_property.py .......                              [ 48%]
+tests/unit/test_mastery_state.py ..............................          [ 49%]
+tests/unit/test_mastery_store.py .................                       [ 49%]
+tests/unit/test_memory_read_scope_g41a.py ........                       [ 49%]
+tests/unit/test_memory_service_batch.py EEEEEE                           [ 49%]
+tests/unit/test_memory_service_contextvar_leak.py ........               [ 49%]
+tests/unit/test_memory_service_structured_routing.py .........           [ 50%]
+tests/unit/test_memory_service_write_retry.py FFFFFFFFFFFFFFFFFF         [ 50%]
+tests/unit/test_migrate_canvas_group_isolation.py ....................   [ 50%]
+tests/unit/test_migrate_neo4j_data.py ...............................    [ 51%]
+tests/unit/test_mock_degradation_transparency.py F...................... [ 52%]
+.......                                                                  [ 52%]
+tests/unit/test_multimodal_fixes.py ......................               [ 52%]
+tests/unit/test_multimodal_path_security.py ..F.............             [ 52%]
+tests/unit/test_neo4j_client.py ........................................ [ 53%]
+....................                                                     [ 54%]
+tests/unit/test_neo4j_field_consistency.py .......                       [ 54%]
+tests/unit/test_neo4j_fulltext_index.py ...F...                          [ 54%]
+tests/unit/test_neo4j_health.py .....F....                               [ 54%]
+tests/unit/test_nfr_cache_bounds.py ..............                       [ 55%]
+tests/unit/test_observer_token_fail_closed.py ............               [ 55%]
+tests/unit/test_post_turn_request_vault_id.py .......                    [ 55%]
+tests/unit/test_profile_source_ids.py ...............                    [ 55%]
+tests/unit/test_prompt_injection_context.py ......s                      [ 55%]
+tests/unit/test_prompt_injection_guard.py .............................. [ 56%]
+                                                                         [ 56%]
+tests/unit/test_prompt_registry.py .................................     [ 57%]
+tests/unit/test_pydantic_contracts.py ....................               [ 57%]
+tests/unit/test_qa_38_4_dual_write_extra.py ........F.                   [ 57%]
+tests/unit/test_qa_38_5_fallback_extra.py .......                        [ 57%]
+tests/unit/test_qa_38_6_scoring_reliability_extra.py ........F.FFFF      [ 58%]
+tests/unit/test_question_generator_mastery_data.py ...............       [ 58%]
+tests/unit/test_question_registry.py ........                            [ 58%]
+tests/unit/test_rag_multimodal_integration.py ..................FFF.F..  [ 59%]
+tests/unit/test_rag_p0_doc_type_filter.py ..........F......              [ 59%]
+tests/unit/test_react_agent.py ...                                       [ 59%]
+tests/unit/test_read_scope_callers_g41a.py ...............               [ 60%]
+tests/unit/test_recommendation_group_filter.py ..........                [ 60%]
+tests/unit/test_record_learning_memory_docstring.py .....                [ 60%]
+tests/unit/test_remediation_strategy.py ......................           [ 60%]
+tests/unit/test_rerank_service.py ..................                     [ 61%]
+tests/unit/test_retrieval_regression_metric_guard.py ..........          [ 61%]
+tests/unit/test_review_difficulty_adaptation.py .................        [ 61%]
+tests/unit/test_review_enrichment_signal.py ....                         [ 61%]
+tests/unit/test_review_history_pagination.py .................           [ 62%]
+tests/unit/test_review_mode_support.py F..............                   [ 62%]
+tests/unit/test_review_overview.py ..................................... [ 63%]
+...................                                                      [ 63%]
+tests/unit/test_review_service_error_handling.py ..........              [ 63%]
+tests/unit/test_review_service_fsrs.py ................................. [ 64%]
+.................                                                        [ 64%]
+tests/unit/test_s02_entity_types.py ....................F.......         [ 65%]
+tests/unit/test_s02_search_upgrade.py ....F...............               [ 65%]
+tests/unit/test_safety_meta_rule_in_prompt.py ....                       [ 66%]
+tests/unit/test_schema_gate.py ....                                      [ 66%]
+tests/unit/test_scoring_faithfulness_not_applicable.py ..........        [ 66%]
+tests/unit/test_scoring_scale_fix.py ..................................  [ 67%]
+tests/unit/test_security_p0_vulnerabilities.py ........                  [ 67%]
+tests/unit/test_service_status_contract.py ............................  [ 67%]
+tests/unit/test_session_manager.py ..................................... [ 68%]
+                                                                         [ 68%]
+tests/unit/test_session_progress.py ..........                           [ 68%]
+tests/unit/test_sharpness_report.py ......                               [ 68%]
+tests/unit/test_source_description_contract.py ................          [ 69%]
+tests/unit/test_startup_health_check.py FFFFFF                           [ 69%]
+tests/unit/test_state_graph_l1_routing.py ........                       [ 69%]
+tests/unit/test_storage_health.py .......................                [ 69%]
+tests/unit/test_story_1_7_env_config.py ........F....                    [ 70%]
+tests/unit/test_story_2_3_error_reminders.py ..............F.FF.FF       [ 70%]
+tests/unit/test_story_30_10_idempotency.py ...F...FEEEEEEEEE             [ 71%]
+tests/unit/test_story_30_11_batch_parallel.py EEEEEEEEEE.                [ 71%]
+tests/unit/test_story_30_12_agent_trigger.py .......                     [ 71%]
+tests/unit/test_story_30_13_batch_idempotency.py EEEEEEEEEEE             [ 71%]
+tests/unit/test_story_30_22_agent_trigger_deep.py ...................... [ 72%]
+...............................................                          [ 73%]
+tests/unit/test_story_30_24_boundary.py ................F..............F [ 73%]
+FFFF                                                                     [ 73%]
+tests/unit/test_story_30_6_color_change.py ......                        [ 73%]
+tests/unit/test_story_30_7_plugin_init.py ........                       [ 74%]
+tests/unit/test_story_31a2_ac1_neo4j_priority.py .......                 [ 74%]
+tests/unit/test_story_31a2_ac2_client_method.py ..........               [ 74%]
+tests/unit/test_story_31a2_ac3_persistence.py ...                        [ 74%]
+tests/unit/test_story_31a2_ac4_pagination.py ................            [ 74%]
+tests/unit/test_story_31a2_ac5_api_injection.py .........                [ 75%]
+tests/unit/test_story_33_10_runtime_defects.py ..............            [ 75%]
+tests/unit/test_story_38_1_ac1_auto_trigger.py .........                 [ 75%]
+tests/unit/test_story_38_1_ac2_failure_handling.py ....                  [ 75%]
+tests/unit/test_story_38_1_ac3_startup_recovery.py ........              [ 75%]
+tests/unit/test_story_38_1_review_fixes.py .FF...                        [ 75%]
+tests/unit/test_story_38_2_episode_recovery.py ................          [ 76%]
+tests/unit/test_story_38_2_qa_supplement.py .................            [ 76%]
+tests/unit/test_story_38_3_edge_cases.py ...........                     [ 76%]
+tests/unit/test_story_38_3_fsrs_init_guarantee.py .....................  [ 77%]
+tests/unit/test_story_38_4_dual_write_default.py FFF.FFF                 [ 77%]
+tests/unit/test_story_38_5_canvas_crud_degradation.py .........          [ 77%]
+tests/unit/test_story_38_6_scoring_reliability.py .FF.F....FFF..F...     [ 78%]
+tests/unit/test_story_38_8_fallback_sync.py .....................F...... [ 78%]
+..                                                                       [ 78%]
+tests/unit/test_study_question_deep_mode.py FFFFFFFF                     [ 78%]
+tests/unit/test_subject_config_vault.py .....................            [ 79%]
+tests/unit/test_subject_isolation.py .....F....................          [ 79%]
+tests/unit/test_subject_resolver.py F...F...........................FFF. [ 80%]
+...                                                                      [ 80%]
+tests/unit/test_subjects_group_isolation.py ........                     [ 80%]
+tests/unit/test_supplementary_reranker.py .............................. [ 81%]
+............FF...F.FFFF.FF                                               [ 81%]
+tests/unit/test_supplementary_search_service.py ........................ [ 82%]
+...............................                                          [ 83%]
+tests/unit/test_sync_batch_auth.py F......                               [ 83%]
+tests/unit/test_sync_exception_classification.py FFFFFF                  [ 83%]
+tests/unit/test_sync_group_isolation.py .............                    [ 83%]
+tests/unit/test_sync_payload_validation.py ...........                   [ 83%]
+tests/unit/test_sync_segment_commit.py ..................                [ 84%]
+tests/unit/test_system_endpoint_auth.py F....F....                       [ 84%]
+tests/unit/test_textbook_removal.py .............                        [ 84%]
+tests/unit/test_ttlcache_transparency.py ...........                     [ 85%]
+tests/unit/test_validate_release_manifest.py ........................... [ 85%]
+........................................................................ [ 87%]
+.....................................................................    [ 88%]
+tests/unit/test_vault_admission.py ..............                        [ 88%]
+tests/unit/test_vault_backfill.py ...........                            [ 89%]
+tests/unit/test_vault_doc_roles.py ..................................... [ 89%]
+........................................................................ [ 91%]
+..........                                                               [ 91%]
+tests/unit/test_vault_identity_registry.py ........                      [ 91%]
+tests/unit/test_vault_init_service.py ........                           [ 91%]
+tests/unit/test_vault_notes_group_filter.py .FFF.F                       [ 92%]
+tests/unit/test_vault_scope_409.py ..................................... [ 92%]
+.                                                                        [ 92%]
+tests/unit/test_vault_scope_read_g41a.py ............................... [ 93%]
+......                                                                   [ 93%]
+tests/unit/test_vault_switch.py ...................F......               [ 94%]
+tests/unit/test_vault_switch_coordinator.py .......                      [ 94%]
+tests/unit/test_vault_templates.py ...............                       [ 94%]
+tests/unit/test_verification_dedup.py FF.............                    [ 94%]
+tests/unit/test_verification_group_filter.py ..........                  [ 95%]
+tests/unit/test_verification_service_activation.py ...............       [ 95%]
+tests/unit/test_verification_service_injection.py ..F..                  [ 95%]
+tests/unit/test_wave5_stageb_continued_vault_id_injection.py ........... [ 95%]
+.........................                                                [ 96%]
+tests/unit/test_wave5_stageb_vault_id_injection.py ..................... [ 96%]
+.......                                                                  [ 96%]
+tests/unit/test_websocket_endpoints.py .............................F... [ 97%]
+....                                                                     [ 97%]
+tests/unit/test_wikilink_context_service.py ............................ [ 98%]
+................                                                         [ 98%]
+tests/unit/test_wikilink_graph_service.py .............................. [ 99%]
+.....                                                                    [ 99%]
+tests/unit/test_wikilink_parser.py ........................              [ 99%]
+tests/bdd/test_health_bdd.py ..                                          [ 99%]
+tests/smoke/test_health_smoke.py ......                                  [100%]
+
+=============================== warnings summary ===============================
+../../../../backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../../../backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../../../backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../../../backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:805
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/app/api/v1/endpoints/chat.py:805: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:105
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/app/api/v1/endpoints/metadata.py:105: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:176
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/app/api/v1/endpoints/metadata.py:176: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../../../backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+tests/api/v1/endpoints/test_agents_dedup.py::TestDedupEndpointResponses::test_duplicate_request_returns_409
+tests/api/v1/endpoints/test_agents_dedup.py::TestDedupEndpointResponses::test_409_response_detail_format
+tests/api/v1/endpoints/test_agents_learning_event.py::TestEndpointIntegration::test_explain_oral_triggers_recording
+tests/api/v1/endpoints/test_agents_learning_event.py::TestAllExplainEndpointsRecording::test_explain_endpoint_records_event[explain_oral-explain_oral]
+tests/api/v1/endpoints/test_agents_learning_event.py::TestAllExplainEndpointsRecording::test_explain_endpoint_records_event[explain_clarification-explain_clarification]
+tests/api/v1/endpoints/test_agents_learning_event.py::TestAllExplainEndpointsRecording::test_explain_endpoint_records_event[explain_comparison-explain_comparison]
+tests/api/v1/endpoints/test_agents_learning_event.py::TestAllExplainEndpointsRecording::test_explain_endpoint_records_event[explain_memory-explain_memory]
+tests/api/v1/endpoints/test_agents_learning_event.py::TestAllExplainEndpointsRecording::test_explain_endpoint_records_event[explain_four_level-explain_four-level]
+tests/api/v1/endpoints/test_agents_learning_event.py::TestAllExplainEndpointsRecording::test_explain_endpoint_records_event[explain_example-explain_example]
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/app/api/v1/endpoints/agents.py:1168: DeprecationWarning: deprecated
+    legacy_group_id=request.group_id,
+
+tests/api/v1/endpoints/test_agents_learning_event.py::TestEndpointIntegration::test_decompose_basic_triggers_recording
+tests/api/v1/endpoints/test_agents_learning_event.py::TestEndpointIntegration::test_learning_event_failure_does_not_block_response
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/app/api/v1/endpoints/agents.py:787: DeprecationWarning: deprecated
+    legacy_group_id=request.group_id,
+
+tests/api/v1/endpoints/test_agents_learning_event.py::TestEndpointIntegration::test_decompose_deep_triggers_recording
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/app/api/v1/endpoints/agents.py:900: DeprecationWarning: deprecated
+    legacy_group_id=request.group_id,
+
+tests/api/v1/endpoints/test_agents_learning_event.py::TestEndpointIntegration::test_score_understanding_triggers_recording
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/app/api/v1/endpoints/agents.py:1019: DeprecationWarning: deprecated
+    legacy_group_id=request.group_id,
+
+tests/api/v1/endpoints/test_recommend_action.py: 13 warnings
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/app/api/v1/endpoints/agents.py:2042: DeprecationWarning: deprecated
+    legacy_group_id=request.group_id,
+
+tests/unit/test_batch_orchestrator.py::TestProgressBroadcasting::test_broadcast_calls_sync_callback
+tests/unit/test_batch_orchestrator.py::TestProgressBroadcasting::test_broadcast_calls_async_callback
+tests/unit/test_batch_orchestrator.py::TestProgressBroadcasting::test_broadcast_handles_callback_error
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/app/services/batch_orchestrator.py:961: DeprecationWarning: 'asyncio.iscoroutinefunction' is deprecated and slated for removal in Python 3.16; use inspect.iscoroutinefunction() instead
+    if asyncio.iscoroutinefunction(self.progress_callback):
+
+tests/unit/test_canvas_memory_trigger.py: 2 warnings
+tests/unit/test_recommendation_group_filter.py: 11 warnings
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/.venv/lib/python3.14/site-packages/pydantic/main.py:250: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+
+tests/unit/test_canvas_projection_sync.py: 6 warnings
+tests/unit/test_frontmatter_signals.py: 6 warnings
+tests/unit/test_vault_backfill.py: 4 warnings
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/.venv/lib/python3.14/site-packages/frontmatter/__init__.py:161: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with codecs.open(fd, "r", encoding) as f:
+
+tests/unit/test_edge_rationale_fallback.py::test_both_writes_succeed_returns_200
+tests/unit/test_edge_rationale_fallback.py::test_graphiti_ok_lancedb_fail_returns_207
+tests/unit/test_edge_rationale_fallback.py::test_lancedb_ok_graphiti_fail_returns_207
+tests/unit/test_edge_rationale_fallback.py::test_both_writes_fail_returns_500
+tests/unit/test_edge_rationale_fallback.py::test_graphiti_exception_does_not_block_lancedb
+tests/unit/test_edge_rationale_fallback.py::test_lancedb_exception_does_not_block_graphiti
+tests/unit/test_edge_rationale_fallback.py::test_partial_failure_includes_error_details
+tests/unit/test_edge_rationale_fallback.py::test_strategy_fields_accepted
+tests/unit/test_edge_rationale_fallback.py::test_strategy_fields_defaults
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/app/api/v1/endpoints/edges.py:297: DeprecationWarning: deprecated
+    legacy_group_id=rationale.group_id,
+
+tests/unit/test_edge_rationale_fallback.py: 12 warnings
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/app/models/edge_rationale.py:115: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    default_factory=lambda: datetime.utcnow().isoformat(),
+
+tests/unit/test_intelligent_parallel_endpoints.py::TestAnalyzeEndpoint::test_analyze_invalid_color
+tests/unit/test_intelligent_parallel_endpoints.py::TestConfirmEndpoint::test_confirm_timeout_validation
+  /opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/asyncio/events.py:94: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY' is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.
+    self._context.run(self._callback, *self._args)
+
+tests/unit/test_review_mode_support.py::TestReviewModeSupport::test_targeted_mode_queries_graphiti
+tests/unit/test_review_mode_support.py::TestReviewModeSupport::test_targeted_mode_queries_graphiti
+tests/unit/test_review_mode_support.py::TestReviewModeSupport::test_targeted_mode_weight_distribution
+tests/unit/test_review_mode_support.py::TestReviewModeSupport::test_targeted_mode_weight_distribution
+tests/unit/test_review_mode_support.py::TestReviewModeSupport::test_custom_weights_applied
+tests/unit/test_review_mode_support.py::TestReviewModeFallback::test_targeted_mode_no_fallback_with_history
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/app/services/weight_calculator.py:182: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    days_since = (datetime.utcnow() - last_review).days
+
+tests/unit/test_review_overview.py::test_refresh_and_generator_interleaved_never_yield_unparsable_projection
+  /opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/threading.py:301: RuntimeWarning: coroutine 'fan_out_retrieval' was never awaited
+    if hasattr(lock, '_release_save'):
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_correct_key_grants_access
+tests/unit/test_sync_batch_auth.py::TestHeaderParsing::test_canonical_header_name
+tests/unit/test_sync_group_isolation.py::TestEndpointPhysicalGroupInjection::test_vault_id_reaches_cypher_as_physical_group
+tests/unit/test_vault_scope_409.py::TestEndpointConflict409::test_sync_batch_mismatch_409
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/app/api/v1/endpoints/sync.py:117: DeprecationWarning: deprecated
+    legacy_group_id=request.group_id,
+
+tests/unit/test_vault_scope_409.py::TestCodexRound1RectifiedEndpoints::test_inheritance_distill_mismatch_409
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/app/api/v1/endpoints/inheritance.py:83: DeprecationWarning: deprecated
+    request.vault_id, legacy_group_id=request.group_id
+
+tests/unit/test_wave5_stageb_continued_vault_id_injection.py::TestSyncBatchRequestVaultId::test_sync_batch_has_deprecated_group_id
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/tests/unit/test_wave5_stageb_continued_vault_id_injection.py:206: DeprecationWarning: deprecated
+    assert req.group_id == "cs188"
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=12 (blocked=12, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetMetadata::test_metadata_group_id_format
+FAILED tests/api/v1/endpoints/test_recommend_action.py::TestRecommendActionEndpoint::test_history_query_failure_graceful_degradation
+FAILED tests/unit/grouping/test_analyze_canvas.py::TestSubjectIsolation::test_group_id_extraction_chinese
+FAILED tests/unit/grouping/test_analyze_canvas.py::TestSubjectIsolation::test_group_id_with_skip_directories
+FAILED tests/unit/test_agent_context_injection.py::TestGraphitiSearchDelegation::test_search_calls_graphiti_service
+FAILED tests/unit/test_agent_context_injection.py::TestGraphitiSearchDelegation::test_search_returns_empty_without_graphiti_service
+FAILED tests/unit/test_agent_context_injection.py::TestRelevanceSorting::test_search_limits_to_top_5
+FAILED tests/unit/test_agent_context_injection.py::TestRelevanceSorting::test_search_graceful_on_exception
+FAILED tests/unit/test_agent_memory_injection.py::TestMemoryInjection::test_graceful_degradation_on_exception
+FAILED tests/unit/test_agent_memory_trigger.py::TestAgentMemoryMapping::test_all_14_agents_are_mapped
+FAILED tests/unit/test_agent_service_comparison.py::TestCallExplanationComparisonFormat::test_comparison_table_receives_concepts_array
+FAILED tests/unit/test_agent_service_comparison.py::TestCallExplanationComparisonFormat::test_oral_agent_receives_concept_string
+FAILED tests/unit/test_agent_service_comparison.py::TestCallExplanationComparisonFormat::test_clarification_agent_receives_concept_string
+FAILED tests/unit/test_agent_service_comparison.py::TestCallExplanationComparisonFormat::test_memory_agent_receives_concept_string
+FAILED tests/unit/test_agent_service_comparison.py::TestCallExplanationComparisonFormat::test_four_level_agent_receives_concept_string
+FAILED tests/unit/test_agent_service_comparison.py::TestCallExplanationComparisonFormat::test_example_agent_receives_concept_string
+FAILED tests/unit/test_agent_service_extraction.py::TestDebugAgentResponseLogging::test_config_has_debug_agent_response_field
+FAILED tests/unit/test_agent_service_neo4j_memory.py::TestAC2Neo4jQuery::test_cypher_query_structure
+FAILED tests/unit/test_agent_service_neo4j_memory.py::TestAC3RelevanceSorting::test_cypher_query_has_order_by_relevance
+FAILED tests/unit/test_agent_service_neo4j_memory.py::TestMemoryFormatting::test_format_single_memory
+FAILED tests/unit/test_agent_service_neo4j_memory.py::TestMemoryFormatting::test_format_memory_with_none_score
+FAILED tests/unit/test_agent_service_neo4j_memory.py::TestEdgeCases::test_neo4j_query_error_returns_empty
+FAILED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[canvas-orchestrator.md]
+FAILED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[graphiti-memory-agent.md]
+FAILED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[hint-generation.md]
+FAILED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[iteration-validator.md]
+FAILED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[parallel-dev-orchestrator.md]
+FAILED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[planning-orchestrator.md]
+FAILED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[review-board-agent-selector.md]
+FAILED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_minimum_template_count
+FAILED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_hint_generation_template_exists
+FAILED tests/unit/test_cache_configuration.py::TestMemoryRetryDelayFromSettings::test_retry_delay_reads_settings
+FAILED tests/unit/test_cache_configuration.py::TestEnrichmentCacheFromSettings::test_cache_uses_custom_maxsize
+FAILED tests/unit/test_cache_configuration.py::TestEnrichmentCacheFromSettings::test_cache_default_maxsize
+FAILED tests/unit/test_cache_configuration.py::TestDefaultValuesBackwardCompatible::test_enrichment_extreme_maxsize_1
+FAILED tests/unit/test_cache_configuration.py::TestDIPathPropagation::test_enrichment_service_di_passes_cache_config
+FAILED tests/unit/test_calibration_tracker.py::TestCalibrationRating::test_over_confident_boundary
+FAILED tests/unit/test_calibration_tracker.py::TestCalibrationRating::test_under_confident_boundary
+FAILED tests/unit/test_canvas_memory_trigger.py::TestAddEdgeMemoryTrigger::test_add_edge_triggers_memory_event
+FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_happy_path - ass...
+FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_degraded_appends_notice
+FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_empty_node_path_rejected
+FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_max_hops_validation
+FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_default_frontmatter
+FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_response_includes_elapsed_ms
+FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_returns_retrieval_trace
+FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_trace_includes_degradation_when_graph_unbuilt
+FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_assembler_budget_field
+FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_accepts_user_question_and_mode_answer
+FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_rejects_invalid_mode
+FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_answer_mode_uses_lazy_init_path
+FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_preload_mode_skips_supplementary
+FAILED tests/unit/test_chat_endpoint.py::test_rag_enrich_hook_uses_lazy_init
+FAILED tests/unit/test_chat_endpoint.py::test_rag_enrich_hook_short_prompt_skips_lazy_init
+FAILED tests/unit/test_chat_endpoint.py::test_rag_enrich_hook_lazy_init_returns_none_injects_degraded_marker
+FAILED tests/unit/test_config_neo4j.py::TestNeo4jSettingsDefaults::test_neo4j_enabled_default_true
+FAILED tests/unit/test_config_neo4j.py::TestNeo4jSettingsDefaults::test_neo4j_uri_default
+FAILED tests/unit/test_config_neo4j.py::TestNeo4jSettingsDefaults::test_neo4j_user_default
+FAILED tests/unit/test_config_neo4j.py::TestNeo4jSettingsDefaults::test_neo4j_database_default
+FAILED tests/unit/test_config_neo4j.py::TestNeo4jSettingsDefaults::test_neo4j_password_empty_default
+FAILED tests/unit/test_config_neo4j.py::TestNeo4jSettingsFromEnv::test_neo4j_settings_from_env
+FAILED tests/unit/test_config_neo4j.py::TestNeo4jSettingsFromEnv::test_neo4j_enabled_false_from_env
+FAILED tests/unit/test_config_neo4j.py::TestNeo4jSettingsFromEnv::test_neo4j_enabled_case_insensitive
+FAILED tests/unit/test_config_neo4j.py::TestNeo4jSettingsFromEnv::test_neo4j_uri_with_different_port
+FAILED tests/unit/test_context_enrichment_2hop.py::TestEnrichWithAdjacentNodes2Hop::test_enrich_with_2hop_adjacent_nodes
+FAILED tests/unit/test_context_enrichment_2hop.py::TestEnrichWithAdjacentNodes2Hop::test_enriched_context_contains_2hop_labels
+FAILED tests/unit/test_degraded_flag_propagation.py::TestDegradedResponseFormat::test_degraded_score_is_reasonable
+FAILED tests/unit/test_difficulty_canvas_integration.py::TestGetDifficultyData::test_memory_service_unavailable_returns_none
+FAILED tests/unit/test_difficulty_canvas_integration.py::TestAIQuestionDifficultyInjection::test_difficulty_context_in_prompt
+FAILED tests/unit/test_difficulty_canvas_integration.py::TestAIQuestionDifficultyInjection::test_no_difficulty_map_no_extra_fields
+FAILED tests/unit/test_difficulty_matcher.py::TestSlidingWindowStats::test_empty_window_stats
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_missing_rejected_422
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_empty_string_rejected_422
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_provided_triggers_context_var_injection
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_chinese_vault_id_not_collapsed_to_default
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_subject_id_optional_backward_compat
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_with_special_chars_sanitized
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_emoji_stripped
+FAILED tests/unit/test_epic30_memory_pipeline.py::TestRecordTemporalEventLifecycle::test_p0_neo4j_write_failure_degrades_silently
+FAILED tests/unit/test_epic36_gap_coverage.py::TestGetRelatedMemoriesReturnStructure::test_query_exception_returns_empty
+FAILED tests/unit/test_event_bus.py::TestTier2Important::test_tier2_retry_then_success
+FAILED tests/unit/test_event_bus.py::TestTier2Important::test_tier2_all_retries_exhausted_writes_outbox
+FAILED tests/unit/test_failure_observability.py::TestMemoryServiceDualWriteFailure::test_dual_write_timeout_increments_counter
+FAILED tests/unit/test_failure_observability.py::TestMemoryServiceDualWriteFailure::test_dual_write_exception_increments_counter
+FAILED tests/unit/test_failure_observability.py::TestMemoryServiceDualWriteFailure::test_dual_write_retry_failure_writes_dead_letter
+FAILED tests/unit/test_graphiti_json_dual_write.py::TestGraphitiJsonDualWrite::test_dual_write_called_after_neo4j_success
+FAILED tests/unit/test_graphiti_json_dual_write.py::TestGraphitiJsonDualWrite::test_json_write_failure_doesnt_affect_main_flow
+FAILED tests/unit/test_graphiti_json_dual_write.py::TestGraphitiJsonDualWrite::test_config_flag_enables_dual_write
+FAILED tests/unit/test_graphiti_json_dual_write.py::TestGraphitiJsonDualWrite::test_write_to_graphiti_json_success_logging
+FAILED tests/unit/test_graphiti_json_dual_write.py::TestGraphitiJsonDualWrite::test_write_to_graphiti_json_timeout_logging
+FAILED tests/unit/test_graphiti_json_dual_write.py::TestGraphitiJsonDualWrite::test_write_to_graphiti_json_failure_logging
+FAILED tests/unit/test_graphiti_json_dual_write.py::TestGraphitiJsonDualWrite::test_record_temporal_event_dual_write
+FAILED tests/unit/test_graphiti_json_dual_write.py::TestGraphitiJsonDualWrite::test_learning_memory_dataclass_creation
+FAILED tests/unit/test_health_detailed.py::TestDetailedHealthEndpoint::test_returns_components
+FAILED tests/unit/test_health_detailed.py::TestDetailedHealthEndpoint::test_component_has_required_fields
+FAILED tests/unit/test_health_detailed.py::TestDetailedHealthEndpoint::test_unavailable_core_returns_503
+FAILED tests/unit/test_intelligent_parallel_endpoints.py::TestProgressEndpoint::test_progress_invalid_session_404
+FAILED tests/unit/test_intelligent_parallel_endpoints.py::TestCancelEndpoint::test_cancel_running_session
+FAILED tests/unit/test_intelligent_parallel_endpoints.py::TestCancelEndpoint::test_cancel_nonexistent_session_404
+FAILED tests/unit/test_intelligent_parallel_endpoints.py::TestErrorResponses::test_404_error_format
+FAILED tests/unit/test_kg_health.py::TestKGHealthEndpoint::test_endpoint_returns_200
+FAILED tests/unit/test_lancedb_vault_isolation.py::TestVaultIdFromConfig::test_dynamic_vault_id_follows_config
+FAILED tests/unit/test_lancedb_vault_isolation.py::TestSubjectResolverVaultId::test_group_id_has_vault_prefix
+FAILED tests/unit/test_lancedb_vault_isolation.py::TestActiveVaultIdNarrowExceptionAndFallbackWarning::test_active_vault_id_level2_runtime_error_falls_through
+FAILED tests/unit/test_mastery_fusion.py::TestPearsonCorrelation::test_no_correlation
+FAILED tests/unit/test_memory_service_write_retry.py::TestWriteToGraphitiJsonWithRetry::test_write_succeeds_first_attempt
+FAILED tests/unit/test_memory_service_write_retry.py::TestWriteToGraphitiJsonWithRetry::test_write_succeeds_after_one_retry
+FAILED tests/unit/test_memory_service_write_retry.py::TestWriteToGraphitiJsonWithRetry::test_write_succeeds_after_two_retries
+FAILED tests/unit/test_memory_service_write_retry.py::TestWriteToGraphitiJsonWithRetry::test_write_fails_after_all_retries_timeout
+FAILED tests/unit/test_memory_service_write_retry.py::TestWriteToGraphitiJsonWithRetry::test_exception_triggers_retry
+FAILED tests/unit/test_memory_service_write_retry.py::TestWriteToGraphitiJsonWithRetry::test_write_fails_after_all_retries_exception
+FAILED tests/unit/test_memory_service_write_retry.py::TestWriteToGraphitiJsonWithRetry::test_retry_success_logging
+FAILED tests/unit/test_memory_service_write_retry.py::TestWriteToGraphitiJsonWithRetry::test_all_retries_failed_warning_logging
+FAILED tests/unit/test_memory_service_write_retry.py::TestWriteToGraphitiJsonWithRetry::test_first_success_debug_logging
+FAILED tests/unit/test_memory_service_write_retry.py::TestWriteToGraphitiJsonWithRetry::test_with_all_optional_params
+FAILED tests/unit/test_memory_service_write_retry.py::TestWriteToGraphitiJsonWithRetry::test_zero_retries_single_attempt
+FAILED tests/unit/test_memory_service_write_retry.py::TestWriteRetryStrictQA::test_exponential_backoff_delays
+FAILED tests/unit/test_memory_service_write_retry.py::TestWriteRetryStrictQA::test_exponential_backoff_all_failures
+FAILED tests/unit/test_memory_service_write_retry.py::TestWriteRetryStrictQA::test_mixed_timeout_then_exception_then_success
+FAILED tests/unit/test_memory_service_write_retry.py::TestWriteRetryStrictQA::test_exception_failure_warning_includes_error_message
+FAILED tests/unit/test_memory_service_write_retry.py::TestWriteRetryStrictQA::test_timeout_failure_warning_includes_timeout_suffix
+FAILED tests/unit/test_memory_service_write_retry.py::TestWriteRetryStrictQA::test_record_temporal_event_uses_retry_method
+FAILED tests/unit/test_memory_service_write_retry.py::TestWriteRetryStrictQA::test_retry_creates_new_timestamp_each_attempt
+FAILED tests/unit/test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning
+FAILED tests/unit/test_multimodal_path_security.py::TestValidateSafePath::test_path_traversal_windows_style
+FAILED tests/unit/test_neo4j_fulltext_index.py::TestEnsureFulltextIndex::test_ensure_fulltext_index_idempotent
+FAILED tests/unit/test_neo4j_health.py::TestNeo4jHealthEndpoint::test_neo4j_connection_timeout
+FAILED tests/unit/test_qa_38_4_dual_write_extra.py::TestQAGetAttrDefenseInDepth::test_memory_service_getattr_fallback_is_false
+FAILED tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestMergedViewEdgeCases::test_merged_view_sort_newest_first
+FAILED tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestFullCycleIntegration::test_full_cycle_fail_record_recover_merge
+FAILED tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestFullCycleIntegration::test_full_cycle_recovery_fails_then_merge
+FAILED tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestStartupIntegration::test_main_imports_fallback_sync
+FAILED tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestStartupIntegration::test_fallback_sync_called_in_lifespan
+FAILED tests/unit/test_rag_multimodal_integration.py::TestRRFMultimodalFusion::test_rrf_fusion_with_multimodal_results
+FAILED tests/unit/test_rag_multimodal_integration.py::TestRRFMultimodalFusion::test_rrf_multimodal_score_contribution
+FAILED tests/unit/test_rag_multimodal_integration.py::TestRRFMultimodalFusion::test_weighted_fusion_with_multimodal
+FAILED tests/unit/test_rag_multimodal_integration.py::TestStateGraphMultimodalIntegration::test_fan_out_retrieval_includes_multimodal
+FAILED tests/unit/test_rag_p0_doc_type_filter.py::test_strip_whiteboard_removes_admonition_callouts
+FAILED tests/unit/test_review_mode_support.py::TestReviewModeSupport::test_fresh_mode_parameter_accepted
+FAILED tests/unit/test_s02_entity_types.py::TestProcessEpisodeForwarding::test_forwards_entity_and_edge_types
+FAILED tests/unit/test_s02_search_upgrade.py::test_search_recipes_all_5_mapped
+FAILED tests/unit/test_startup_health_check.py::TestStartupCheck::test_endpoint_exists
+FAILED tests/unit/test_startup_health_check.py::TestStartupCheck::test_returns_structured_response
+FAILED tests/unit/test_startup_health_check.py::TestStartupCheck::test_each_check_has_required_fields
+FAILED tests/unit/test_startup_health_check.py::TestStartupCheck::test_checks_neo4j_ollama_fastapi_mcp
+FAILED tests/unit/test_startup_health_check.py::TestSetupWizard::test_endpoint_exists
+FAILED tests/unit/test_startup_health_check.py::TestSetupWizard::test_returns_structured_report
+FAILED tests/unit/test_story_1_7_env_config.py::TestDockerComposeVariableization::test_no_hardcoded_user_paths
+FAILED tests/unit/test_story_2_3_error_reminders.py::test_search_error_memories_sorts_by_timestamp_desc
+FAILED tests/unit/test_story_2_3_error_reminders.py::test_search_error_memories_normalizes_schema
+FAILED tests/unit/test_story_2_3_error_reminders.py::test_search_error_memories_passes_node_id_filter_to_search_memories
+FAILED tests/unit/test_story_2_3_error_reminders.py::test_search_memories_node_id_filter_post_merge
+FAILED tests/unit/test_story_2_3_error_reminders.py::test_search_memories_node_id_none_is_no_filter
+FAILED tests/unit/test_story_30_10_idempotency.py::TestDeterministicEpisodeId::test_id_format
+FAILED tests/unit/test_story_30_10_idempotency.py::TestBatchDeterministicEpisodeId::test_batch_id_format
+FAILED tests/unit/test_story_30_24_boundary.py::TestSpecialCharacterGroupId::test_neo4j_parameterized_query_with_special_chars
+FAILED tests/unit/test_story_30_24_boundary.py::TestVaultVerifyExitCode::test_verify_script_exists
+FAILED tests/unit/test_story_30_24_boundary.py::TestVaultVerifyExitCode::test_verify_script_exits_nonzero_when_file_not_found
+FAILED tests/unit/test_story_30_24_boundary.py::TestVaultVerifyExitCode::test_verify_script_exits_nonzero_when_stale
+FAILED tests/unit/test_story_30_24_boundary.py::TestVaultVerifyExitCode::test_verify_script_exits_zero_when_fresh
+FAILED tests/unit/test_story_30_24_boundary.py::TestVaultVerifyExitCode::test_package_json_verify_command_correct
+FAILED tests/unit/test_story_38_1_review_fixes.py::TestDoIndexCoverage::test_do_index_reads_canvas_and_calls_index
+FAILED tests/unit/test_story_38_1_review_fixes.py::TestDoIndexCoverage::test_do_index_raises_file_not_found
+FAILED tests/unit/test_story_38_4_dual_write_default.py::TestAC1SafeDefault::test_settings_field_default_is_true
+FAILED tests/unit/test_story_38_4_dual_write_default.py::TestAC1SafeDefault::test_lowercase_alias_returns_true_by_default
+FAILED tests/unit/test_story_38_4_dual_write_default.py::TestAC1SafeDefault::test_startup_log_dual_write_enabled_default
+FAILED tests/unit/test_story_38_4_dual_write_default.py::TestAC2ExplicitDisable::test_startup_log_dual_write_disabled_explicit
+FAILED tests/unit/test_story_38_4_dual_write_default.py::TestAC2ExplicitDisable::test_warning_log_data_loss_risk_when_disabled
+FAILED tests/unit/test_story_38_4_dual_write_default.py::TestAC3MissingEnvVar::test_missing_env_var_defaults_to_true
+FAILED tests/unit/test_story_38_6_scoring_reliability.py::TestAC1TimeoutRetryAlignment::test_inner_per_attempt_timeout_increased
+FAILED tests/unit/test_story_38_6_scoring_reliability.py::TestAC1TimeoutRetryAlignment::test_retry_backoff_base_is_1_second
+FAILED tests/unit/test_story_38_6_scoring_reliability.py::TestAC1TimeoutRetryAlignment::test_backoff_progression
+FAILED tests/unit/test_story_38_6_scoring_reliability.py::TestAC3StartupRecovery::test_recover_successful_replay
+FAILED tests/unit/test_story_38_6_scoring_reliability.py::TestAC3StartupRecovery::test_recover_partial_failure
+FAILED tests/unit/test_story_38_6_scoring_reliability.py::TestAC3StartupRecovery::test_recover_malformed_entries_preserved
+FAILED tests/unit/test_story_38_6_scoring_reliability.py::TestAC4MergedView::test_get_learning_history_merges_failed_scores
+FAILED tests/unit/test_story_38_8_fallback_sync.py::TestAC5FileRotation::test_pending_entries_rewritten
+FAILED tests/unit/test_study_question_deep_mode.py::test_mode_deep_accepted_by_request_model
+FAILED tests/unit/test_study_question_deep_mode.py::test_mode_invalid_rejected_by_pydantic
+FAILED tests/unit/test_study_question_deep_mode.py::test_mode_default_is_preload
+FAILED tests/unit/test_study_question_deep_mode.py::test_mode_deep_uses_top_k_30_and_hard_cap_20
+FAILED tests/unit/test_study_question_deep_mode.py::test_mode_answer_keeps_top_k_20_and_hard_cap_15
+FAILED tests/unit/test_study_question_deep_mode.py::test_mode_deep_without_user_question_skips_search
+FAILED tests/unit/test_study_question_deep_mode.py::test_mode_deep_empty_user_question_skips_search
+FAILED tests/unit/test_study_question_deep_mode.py::test_mode_preload_with_user_question_still_skips_search
+FAILED tests/unit/test_subject_isolation.py::TestExtractSubjectFromCanvasPath::test_extract_subject_empty_path
+FAILED tests/unit/test_subject_resolver.py::TestPriorityResolution::test_manual_override_highest_priority
+FAILED tests/unit/test_subject_resolver.py::TestPriorityResolution::test_manual_requires_both_subject_and_category
+FAILED tests/unit/test_subject_resolver.py::TestGroupIdFormat::test_group_id_format_config
+FAILED tests/unit/test_subject_resolver.py::TestGroupIdFormat::test_group_id_format_manual
+FAILED tests/unit/test_subject_resolver.py::TestGroupIdFormat::test_group_id_format_default
+FAILED tests/unit/test_supplementary_reranker.py::TestTypeWeightsIndexerTransition::test_indexer_note_mapped_to_canonical
+FAILED tests/unit/test_supplementary_reranker.py::TestTypeWeightsIndexerTransition::test_indexer_video_transcript_mapped_to_canonical
+FAILED tests/unit/test_supplementary_reranker.py::TestFilterFloor::test_floor_triggered_marks_first_material
+FAILED tests/unit/test_supplementary_reranker.py::TestFilterFloor::test_min_keep_zero_disables_floor
+FAILED tests/unit/test_supplementary_reranker.py::TestFilterFloor::test_floor_triggered_when_kill_ratio_high
+FAILED tests/unit/test_supplementary_reranker.py::TestFilterFloor::test_floor_still_respects_top_k
+FAILED tests/unit/test_supplementary_reranker.py::TestFilterFloorTaintExclusion::test_min_keep_floor_excludes_review_taint
+FAILED tests/unit/test_supplementary_reranker.py::TestFilterFloorTaintExclusion::test_floor_no_taint_field_treated_as_clean
+FAILED tests/unit/test_supplementary_reranker.py::TestFilterFloorTaintExclusion::test_floor_all_review_returns_empty_list
+FAILED tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_no_key_configured_fails_closed_503
+FAILED tests/unit/test_sync_exception_classification.py::TestInfrastructureErrors::test_service_unavailable_returns_503
+FAILED tests/unit/test_sync_exception_classification.py::TestInfrastructureErrors::test_auth_error_returns_503
+FAILED tests/unit/test_sync_exception_classification.py::TestInfrastructureErrors::test_connection_error_returns_503
+FAILED tests/unit/test_sync_exception_classification.py::TestLogicErrors::test_value_error_returns_500
+FAILED tests/unit/test_sync_exception_classification.py::TestLogicErrors::test_type_error_returns_500
+FAILED tests/unit/test_sync_exception_classification.py::TestLogicErrors::test_generic_exception_returns_500
+FAILED tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_no_key_configured_503
+FAILED tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_no_key_configured_503
+FAILED tests/unit/test_vault_notes_group_filter.py::test_group_id_physics_filters_to_physics_only
+FAILED tests/unit/test_vault_notes_group_filter.py::test_group_id_with_no_explicit_match_returns_only_common_notes
+FAILED tests/unit/test_vault_notes_group_filter.py::test_group_id_with_no_common_and_no_match_returns_empty
+FAILED tests/unit/test_vault_notes_group_filter.py::test_group_id_honors_nested_metadata_json_subject
+FAILED tests/unit/test_vault_switch.py::TestReloadSettings::test_vault_id_changes_after_reload
+FAILED tests/unit/test_verification_dedup.py::TestVerificationDedup::test_no_history_generates_standard_question
+FAILED tests/unit/test_verification_dedup.py::TestVerificationDedup::test_with_history_generates_alternative_question
+FAILED tests/unit/test_verification_service_injection.py::TestDependenciesInjection::test_get_verification_service_injects_graphiti_client
+FAILED tests/unit/test_websocket_endpoints.py::TestWebSocketEndpoint::test_validate_session_handles_validator_error
+ERROR tests/unit/test_agent_service_extraction.py::TestDebugAgentResponseLogging::test_extract_with_debug_logging_enabled
+ERROR tests/unit/test_agent_service_extraction.py::TestDebugAgentResponseLogging::test_extract_without_debug_logging
+ERROR tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_concept_field_used_when_present
+ERROR tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_concept_fallback_to_node_text
+ERROR tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_concept_fallback_to_unknown
+ERROR tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_color_removed_event_type
+ERROR tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_node_removed_event_type
+ERROR tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_neo4j_disconnected_still_stores_in_memory
+ERROR tests/unit/test_story_30_10_idempotency.py::TestEpisodesDedup::test_duplicate_event_single_episode
+ERROR tests/unit/test_story_30_10_idempotency.py::TestEpisodesDedup::test_different_events_both_stored
+ERROR tests/unit/test_story_30_10_idempotency.py::TestEpisodesDedup::test_skip_existing_episode_on_dup
+ERROR tests/unit/test_story_30_10_idempotency.py::TestBatchEpisodesDedup::test_batch_duplicate_submission_dedup
+ERROR tests/unit/test_story_30_10_idempotency.py::TestBatchEpisodesDedup::test_batch_deterministic_ids
+ERROR tests/unit/test_story_30_10_idempotency.py::TestGraphitiJsonWriteDedup::test_skips_write_when_exists
+ERROR tests/unit/test_story_30_10_idempotency.py::TestGraphitiJsonWriteDedup::test_writes_when_not_exists
+ERROR tests/unit/test_story_30_10_idempotency.py::TestGraphitiJsonWriteDedup::test_degrades_gracefully_on_search_error
+ERROR tests/unit/test_story_30_10_idempotency.py::TestGraphitiJsonWriteDedup::test_degrades_when_learning_memory_uninitialized
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchParallelExecution::test_50_events_all_processed
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchParallelExecution::test_neo4j_called_for_each_event
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchParallelExecution::test_parallel_faster_than_sequential
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchParallelExecution::test_performance_stats_recorded
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchPartialFailure::test_neo4j_failure_does_not_block_processing
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchPartialFailure::test_validation_failure_isolated
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchPartialFailure::test_episode_ids_only_for_successful
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchSemaphore::test_concurrency_limited_by_semaphore
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchNeo4jDegradation::test_neo4j_unavailable_still_processes_to_memory
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchIdempotencyCompat::test_duplicate_batch_no_duplicates
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchIdempotency::test_duplicate_event_detection
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchIdempotency::test_idempotent_writes_across_retries
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchIdempotency::test_large_batch_idempotency
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchIdempotency::test_different_events_not_deduplicated
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPerformance::test_batch_50_events_under_500ms
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPerformance::test_batch_1000_events_completion
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPerformance::test_batch_memory_metrics
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPerformance::test_concurrent_batch_requests
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_partial_failure_recovery
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_event_ordering_preserved
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_neo4j_unavailable_fallback
+= 218 failed, 4508 passed, 1 skipped, 104 warnings, 38 errors in 244.45s (0:04:04) =
+=== RUNTIME-FILES after (2026-09-03 02:11:23 +0800) ===
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/data/bug_log.jsonl
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/app/data/vault_index_pending.jsonl
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/data/outbox/events.jsonl
+WRAPPED-COMMAND-EXIT: 1
+RUNTIME-FILES: unchanged

@@ -102,9 +102,8 @@ def _neo4j_live_port_guard(tmp_path_factory):
       本身——它的默认路径契约有自己的测试在锁（Codex round-1 MEDIUM：改单例的
       ``log_path`` 会把那个测试打红）。
     """
-    live_port_guard.assert_not_uvloop()
+    live_port_guard.assert_guard_live("session fixture")
     live_port_guard.assert_test_uri_not_blocked()
-    assert live_port_guard.STATE.installed, "socket 门未安装（pytest_configure 未跑？）"
 
     import app.main as main_module
     from app.core.bug_tracker import BugTracker
@@ -124,13 +123,19 @@ def pytest_runtest_protocol(item, nextitem):
 
     归属写在 ContextVar 上（portal 线程带副本可见，裸线程默认 <unknown> 且永不
     豁免 = fail-closed），见 tests/support/live_port_guard.py 的模块 docstring。
+
+    **每个用例边界都复核门的真实身份**（第八批 Codex HIGH：只信 ``STATE.installed``
+    会把被拆掉的门当成在位）。进入前与退出后各一次——退出侧的检查跑在 teardown
+    之后，所以用 monkeypatch 临时替换 socket 的用例不会误报，而**没还原**的会。
     """
+    live_port_guard.assert_guard_live(f"用例进入前 {item.nodeid}")
     exempt, _why = live_port_guard.is_exempt(item, Path(__file__).parent)
     live_port_guard.begin_item(item.nodeid, exempt)
     try:
         return (yield)
     finally:
         live_port_guard.end_item()
+        live_port_guard.assert_guard_live(f"用例退出后 {item.nodeid}")
 
 
 @pytest.hookimpl(wrapper=True)
@@ -175,13 +180,20 @@ def pytest_cmdline_main(config):
     - 兜底 belt：只要发生过非豁免拦截（blocked>0）而 pytest 却要返回 0
       （例如哨兵翻红被 xfail 机制吃掉的任何残余形态），同样改 3 —— 非豁免
       连接尝试绝不允许以「全绿」收场。豁免用例的 advisory 不在此列。
+
+    ⚠️ 本层**不是最后一道**：pytest 在本 hook 返回之后还有自身清理、其它
+    ``atexit`` 处理器与迟到线程（第八批 Codex HIGH 实测：那段窗口里的拦截被
+    记账、进程却仍 exit 0）。最终收口在 ``live_port_guard._final_accounting``
+    （``atexit`` LIFO 最后执行，必要时 ``os._exit(3)``）。这里把最终裁定用的
+    退出码回填给它。
     """
     status = yield
     state = live_port_guard.STATE
     if state.unaccounted_blocked():
-        return 3
-    if state.blocked > 0 and status == 0:
-        return 3
+        status = 3
+    elif state.blocked > 0 and status == 0:
+        status = 3
+    state.reported_status = status
     return status
 
 

@@ -1,0 +1,29 @@
+=== lifespan isolation NEGATIVE CONTROL ===
+    interpreter: /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/.venv/bin/python
+=== AST GATE NEGATIVE CONTROL ===
+  [must-flag] CAUGHT: 属性式 TestClient（import fastapi.testclient as tc）
+              → <negctl:属性式 TestClient（import fastapi.testclient as tc）>:4: with TestClient(app) —— app 来自 app.main 且缺少**在前**的 no_lifespan/lifespan_lite 兄弟项（顺序不符、参数不同名，或 helper 名在该点已被重绑定/并非 import 自 tests.support.lifespan，同样算违规）
+  [must-flag] CAUGHT: 局部重定义同名 no_lifespan（import provenance 必须失效）
+              → <negctl:局部重定义同名 no_lifespan（import provenance 必须失效）>:9: with TestClient(app) —— app 来自 app.main 且缺少**在前**的 no_lifespan/lifespan_lite 兄弟项（顺序不符、参数不同名，或 helper 名在该点已被重绑定/并非 import 自 tests.support.lifespan，同样算违规）
+  [must-flag] CAUGHT: with 之后才 app = FastAPI()（语句顺序）
+              → <negctl:with 之后才 app = FastAPI()（语句顺序）>:4: with TestClient(app) —— app 来源无法静态证明（解析结果=unknown，按违规处理，人工复核）
+  [must-flag] CAUGHT: class body 污染冒充局部 app
+              → <negctl:class body 污染冒充局部 app>:6: with TestClient(app) —— app 来源无法静态证明（解析结果=unknown，按违规处理，人工复核）
+  [must-flag] CAUGHT: 伪造本地 FastAPI() 工厂
+              → <negctl:伪造本地 FastAPI() 工厂>:6: with TestClient(app) —— app 来源无法静态证明（解析结果=unknown，按违规处理，人工复核）
+  [must-flag] CAUGHT: helper 顺序在 TestClient 之后
+              → <negctl:helper 顺序在 TestClient 之后>:5: with TestClient(app) —— app 来自 app.main 且缺少**在前**的 no_lifespan/lifespan_lite 兄弟项（顺序不符、参数不同名，或 helper 名在该点已被重绑定/并非 import 自 tests.support.lifespan，同样算违规）
+  [must-flag] CAUGHT: TestClient 名字被本地遮蔽（无法证明是真 TestClient）
+              → <negctl:TestClient 名字被本地遮蔽（无法证明是真 TestClient）>:6: with TestClient(...) —— TestClient 这个名字解析不到 ['fastapi.testclient', 'starlette.testclient'] 的真实 import（当前来源=localfunc:TestClient），无法证明它是被隔离约束覆盖的那个 TestClient
+  [must-flag] CAUGHT: import app.main as m; m.app 裸用
+              → <negctl:import app.main as m; m.app 裸用>:4: with TestClient(<expr>) —— app 来自 app.main 且缺少**在前**的 no_lifespan/lifespan_lite 兄弟项（顺序不符、参数不同名，或 helper 名在该点已被重绑定/并非 import 自 tests.support.lifespan，同样算违规）
+  [must-flag] CAUGHT: 外部对象冒充局部 app 工厂（other.make() 不是 self.make()）
+              → <negctl:外部对象冒充局部 app 工厂（other.make() 不是 self.make()）>:8: with TestClient(app) —— app 来源无法静态证明（解析结果=unknown，按违规处理，人工复核）
+  [must-flag] CAUGHT: 工厂名被重绑定后仍冒充局部 app 工厂
+              → <negctl:工厂名被重绑定后仍冒充局部 app 工厂>:10: with TestClient(app) —— app 来源无法静态证明（解析结果=unknown，按违规处理，人工复核）
+  [must-pass] CLEAN: 验伪锚 1：标准隔离形态
+  [must-pass] CLEAN: 验伪锚 2：函数级 import + 别名 TestClient
+  [must-pass] CLEAN: 验伪锚 3：局部 FastAPI()（来源可证）
+  [must-pass] CLEAN: 验伪锚 4：helper 返回局部 FastAPI() 后解包
+  [must-pass] CLEAN: 验伪锚 5：同类方法工厂 self._make()（test_rag_four_state_api 的真实形态）
+AST-NEGATIVE-CONTROL: PASS (10 绕过全抓 / 5 正例全净)
