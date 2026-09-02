@@ -3236,3 +3236,127 @@ def test_round9_structured_receipt(vault):
     assert rl.returncode == 0, f"存量行（无 scored_at）必须豁免，否则旧账本全不可用: {rl.stderr[:250]}"
     assert "缺 payload.scored_at" in rl.stdout, f"必须如实告警而不是静默: {rl.stdout[:250]}"
     assert "已移交" in rl.stdout, "告警须点明完整闭环需 validator 侧同步（卡文禁改面）"
+
+
+# ── 门(52) round-10: 统一 node-key / receipt 六事实 / adopted 绑定 / 写回结构化 ──
+
+
+def test_round10_findings(vault):
+    """round-10 的 5 BLOCKER + 1 HIGH。多条是我自己引入或没做完的：
+
+    · B③ 是「修一半」的**第五次** —— round-9 加 NFC 归一化只改了 dup owner 一处，
+      适用集路由、concept_id、空白扫描、序数回推四处仍是 raw compare。
+    · B⑤ 是「**声明比实现宽**」—— 声称四项可证事实，实际只比了 scored_at 与 grade_norm。
+    · B④ 是我 round-5 加的 `_EARLY_LEDGER_IDS + (evid,)` —— 把「本次要判定的 id」
+      自己当成了唯一性证据。
+    """
+    import unicodedata
+    import yaml
+
+    LED = vault / "learning_events.jsonl"
+
+    def _fresh():
+        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+        LED.unlink(missing_ok=True)
+
+    # ── B③ 统一 node-key：NFC 文件名 + NFD 账本行，E1 必须落进适用集
+    nfc = "café笔记"
+    assert unicodedata.normalize("NFD", nfc) != nfc, "fixture 前提：该名字须有分解形式"
+    node2 = f"节点/{nfc}.md"
+    (vault / node2).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    row = _review_row(**{"payload.review_time": TS1, "effective_at": TS1})
+    row["event_id"] = "quiz:E1#q1"
+    row["node_id"] = unicodedata.normalize("NFD", nfc)
+    row["payload"]["concept_id"] = unicodedata.normalize("NFD", nfc)
+    row["payload"]["scored_at"] = TS1
+    _write_ledger(vault, row)
+    assert _run_validator(vault).returncode == 0, "NFD 形态本身合法"
+    r = _run_writer_settled(
+        vault, _payload(node=node2, event_id="E2#q1", ts="2026-08-02T10:00:00Z", review_time="2026-08-02T10:00:00Z")
+    )
+    assert r.returncode == 0, r.stderr[:300]
+    atts = [x["payload"].get("attempt_count") for x in _ledger_lines(vault)]
+    assert atts == [1, 2], f"E1 必须落进适用集（否则 attempts 会是 [1,1]，E1 永久漏算）: {atts}"
+    fm = (vault / node2).read_text(encoding="utf-8")
+    cals = re.findall(r"^  - event_id: (.+)$", fm, re.M)
+    assert len(cals) == 2, f"两条 receipt 都要在: {cals}"
+
+    # ── B⑤ receipt 六事实：同 ID/同 scored_at/同 grade 但 abandoned 翻转必须拒
+    _fresh()
+    assert (
+        _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1, grade_norm=0.75)).returncode
+        == 0
+    )
+    LED.write_text("", encoding="utf-8")
+    face = _write_face(vault)
+    rb = _run_writer(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1, grade_norm=0.75, abandoned=True))
+    assert rb.returncode != 0, "abandoned 翻转是另一次评分，不得当作一致"
+    assert "abandoned" in rb.stderr, rb.stderr[:250]
+    assert _write_face(vault) == face, "零写"
+
+    # ── B④ 裸 id 来源不可证：账本缺失时不得拿 candidate 自证
+    _fresh()
+    assert _run_writer_settled(vault, _payload(event_id="quiz:K", ts=TS1, review_time=TS1)).returncode == 0
+    t = (vault / NODE_REL).read_text(encoding="utf-8")
+    hist = t.replace('- event_id: "quiz:quiz:K"', '- event_id: "quiz:K"')
+    assert hist != t, "预置必须真的改成历史裸形态"
+    (vault / NODE_REL).write_text(hist, encoding="utf-8")
+    LED.write_text("", encoding="utf-8")
+    rk = _run_writer(vault, _payload(event_id="K", ts="2026-08-02T10:00:00Z", review_time="2026-08-02T10:00:00Z"))
+    assert rk.returncode != 0, "账本缺失时裸形态来源不可证，不得静默吞掉这次评分"
+
+    # ── B① adopted time 绑定：只改 durable 的采用时刻（保留 scored_at）必须拒
+    _fresh()
+    assert _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1)).returncode == 0
+    rows = list(_ledger_lines(vault))
+    rows[0]["effective_at"] = "2026-08-02T10:00:00Z"
+    rows[0]["payload"]["review_time"] = "2026-08-02T10:00:00Z"
+    LED.write_text(json.dumps(rows[0], ensure_ascii=False) + "\n", encoding="utf-8")
+    assert _run_validator(vault).returncode == 0, "该行本身合规（两者仍同一瞬间）"
+    st_before = _fm_fields(vault).get("fsrs_state")
+    ra = _run_writer(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1))
+    assert ra.returncode != 0, "篡改采用时刻会让同一次评分二次推进 FSRS"
+    assert "与 receipt 记录的 ts" in ra.stderr, ra.stderr[:250]
+    assert _fm_fields(vault).get("fsrs_state") == st_before, "零写（state 不得被推进）"
+
+    # ── H① 写回结构化：inline flow list 能安全追加且**不改写时刻字面**
+    _fresh()
+    assert _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1)).returncode == 0
+    t = (vault / NODE_REL).read_text(encoding="utf-8")
+    m = re.match(r"^---\n(.*?)\n---(.*)$", t, re.S)
+    doc = yaml.safe_load(m.group(1))
+    cal = doc.pop("calibration_log")
+    body = yaml.safe_dump(doc, allow_unicode=True, sort_keys=False, default_flow_style=False)
+    inline = "calibration_log: " + json.dumps(cal, ensure_ascii=False)
+    (vault / NODE_REL).write_text(f"---\n{body}{inline}\n---{m.group(2)}", encoding="utf-8")
+    n0 = len(_ledger_lines(vault))
+    rh = _run_writer_settled(
+        vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z", review_time="2026-08-02T10:00:00Z")
+    )
+    after = (vault / NODE_REL).read_text(encoding="utf-8")
+    d2 = yaml.safe_load(re.match(r"^---\n(.*?)\n---", after, re.S).group(1))
+    assert isinstance(d2, dict), f"产物必须是合法 YAML（此前先落账后损坏）: {after[:300]}"
+    assert len(d2["calibration_log"]) == 2, f"条目必须正确追加: {d2['calibration_log']}"
+    # ⚠️ 时刻字面不得被 YAML 的隐式类型转换改写（整份 load/dump 会把
+    # `2026-08-01T10:00:00Z` 变成 `2026-08-01 10:00:00+00:00`）
+    W = re.search(r"^fsrs_last_review:\s*\"?([^\"\n]+)", after, re.M)
+    assert W and W.group(1).endswith("Z"), f"时刻字面必须保持 canonical: {W.group(1) if W else None}"
+
+    # H① 验伪：indentless list 无法安全重写 ⇒ **零写**拒绝（不得先落账后损坏）
+    _fresh()
+    assert _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1)).returncode == 0
+    t = (vault / NODE_REL).read_text(encoding="utf-8")
+    m = re.match(r"^---\n(.*?)\n---(.*)$", t, re.S)
+    doc = yaml.safe_load(m.group(1))
+    cal = doc.pop("calibration_log")
+    body = yaml.safe_dump(doc, allow_unicode=True, sort_keys=False, default_flow_style=False)
+    indentless = "calibration_log:\n" + "\n".join("- " + json.dumps(e, ensure_ascii=False) for e in cal)
+    (vault / NODE_REL).write_text(f"---\n{body}{indentless}\n---{m.group(2)}", encoding="utf-8")
+    n_before = len(_ledger_lines(vault))
+    ri = _run_writer_settled(
+        vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z", review_time="2026-08-02T10:00:00Z")
+    )
+    assert ri.returncode != 0, "无法安全重写的形态必须拒"
+    assert len(_ledger_lines(vault)) == n_before, "⛔ 必须**零写**拒绝 —— 先落账后损坏笔记是最糟的中间态"
+    yaml.safe_load(re.match(r"^---\n(.*?)\n---", (vault / NODE_REL).read_text(encoding="utf-8"), re.S).group(1))

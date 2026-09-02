@@ -58,10 +58,10 @@
 | # | 判据 | 结果 | 证明了什么 / **不**证明什么 |
 |---|---|---|---|
 | 1 | **开工基线实收**（HEAD `02dbc426` 临时还原后 `--collect-only`） | `255 collected` / `254 passed, 1 skipped` | 基线是实收的，不是照抄历史数字。还原用备份 + `finally` 恢复，4 文件恢复后**逐字节相同** |
-| 2 | **裁判 1** 五文件回归 | `281 collected` / **`280 passed, 1 skipped`**（+26 门，零回归） | 新增 26 门全绿且原 254 门无一变红。**不**证明整仓其它测试（整个 `tests/regression/` 另有 5 处存量红，与本卡零交集——`git diff 02dbc426` 对 `backend/app/`、validator、那两个失败文件均为空集） |
+| 2 | **裁判 1** 五文件回归 | `282 collected` / **`281 passed, 1 skipped`**（+27 门，零回归） | 新增 27 门全绿且原 254 门无一变红。**不**证明整仓其它测试（整个 `tests/regression/` 另有 5 处存量红，与本卡零交集——`git diff 02dbc426` 对 `backend/app/`、validator、那两个失败文件均为空集） |
 | 3 | **裁判 2** 生产入口反例（`g32b_r1r7_counterexamples.py`） | **31/31 PASS** | 用逐字提取的生产 PYEOF 块跑真实反例，含 8 条**验伪对照**（合法输入必须仍然通过），故不是「恒拒」的假门。**不**证明并发 |
 | 4 | **裁判 3** validator 跑 fixture | `RESULT: PASS`，`rc=0` | fixture 由真实生产写点跑出（两次评分 E1/E2），非手写样例 |
-| 5 | **变异验证**（`g32b_mutation_gates.py`，串行） | **89/89 KILLED**，89 次还原全部**逐字节相同**；外部锚点核对 `grep MUTANT`=0 且 sha 等于本轮已知良好值 | 每个变异把生产代码**精确退回旧实现形态**，判据是**指定的那道门**必须变红（`rc==1` 且摘要含 `1 failed`；rc=4 是门名写错、rc=5 是零收集，都不算杀死）。其中 **14 条**挂了「**同时禁掉校验器那层**」——它们与校验器功能重合，只删手写那层杀不动（见「发现三」）。⚠️ round-5 的路由重排一次让 **19 条变异失效**（13 条锚点漂移 + 3 条被新层兜住 + 2 条的目标代码被删）——「锚点命中 0 次」是**静默跳过**，不跑也不报错，只在汇总里出现一行。不看汇总就当「变异全过」= 把整层验证悄悄关掉。round-6 又暴露 6 条 SURVIVED，逐条查清后归入四类成因：**判据太粗**（`rc != 0` 把「恢复已落定，请重跑」这个**续跑信号**当成了拒绝，M65/M68/M69）、**纵深兜住**（被 round-6 新增的 BOM 门/空行门先拦，M22/M18b）、**门与变异不匹配**（M46：fixture 的 `str.replace` 用裸 id，改存完整 id 后**静默不生效**，单引号形态压根没构造出来）。**不**证明门集覆盖了未被想到的缺陷 |
+| 5 | **变异验证**（`g32b_mutation_gates.py`，串行） | **94/94 KILLED**，94 次还原全部**逐字节相同**；外部锚点核对 `grep MUTANT`=0 且 sha 等于本轮已知良好值 | 每个变异把生产代码**精确退回旧实现形态**，判据是**指定的那道门**必须变红（`rc==1` 且摘要含 `1 failed`；rc=4 是门名写错、rc=5 是零收集，都不算杀死）。其中 **14 条**挂了「**同时禁掉校验器那层**」——它们与校验器功能重合，只删手写那层杀不动（见「发现三」）。⚠️ round-5 的路由重排一次让 **19 条变异失效**（13 条锚点漂移 + 3 条被新层兜住 + 2 条的目标代码被删）——「锚点命中 0 次」是**静默跳过**，不跑也不报错，只在汇总里出现一行。不看汇总就当「变异全过」= 把整层验证悄悄关掉。round-6 又暴露 6 条 SURVIVED，逐条查清后归入四类成因：**判据太粗**（`rc != 0` 把「恢复已落定，请重跑」这个**续跑信号**当成了拒绝，M65/M68/M69）、**纵深兜住**（被 round-6 新增的 BOM 门/空行门先拦，M22/M18b）、**门与变异不匹配**（M46：fixture 的 `str.replace` 用裸 id，改存完整 id 后**静默不生效**，单引号形态压根没构造出来）。**不**证明门集覆盖了未被想到的缺陷 |
 | 6 | **六格状态机逐格闭合**（门㉝） | 6 格全部断言终态通过 | round-3 判 3 格 FAIL + 1 格 PARTIAL，现逐格构造真实前置态并断言。**不**证明格间竞态（无锁） |
 | 7 | **写点普查门**（门⑪）+ 全仓 grep | PASS；账本写点仍是 4 处（`quiz-answer` / `start-exam-board` / `ai-linked-doc` / `learning_event_log.py`） | 本卡未新增第三套实现，未动其它 skill 写点 |
 | 8 | **live vault 零写** | 账本 `2a18023e…`（22 行），mtime `2026-08-29T06:11:47+0800` | mtime 远早于本 session（2026-09-02），**观测范围内**零写。**不**证明其它进程未写 |
@@ -717,6 +717,30 @@ round-5 的正文尚未输出，但 stderr 里的推理标题序列可读。按 
 ⚠️ **修复越彻底，针对旧缺陷的变异越难打中**。一条变异需要禁掉几层才生效，
 就是那个缺陷面**纵深深度的量化**——变异表跟着实现演化不是维护负担，是这个指标本身。
 
+### round-10（验证轮，绑定 commit `fa545dca`）：**5 B + 1 H 全修**
+
+⛔ **多条是我自己引入或没做完的**：
+
+| # | 级别 | 我的问题 | 修法 | 承重 |
+|---|---|---|---|---|
+| B③ | **BLOCKER** | **「修一半」第五次** —— round-9 加 NFC 归一化只改了 dup owner **1/6 处**，适用集路由、concept_id、空白扫描、序数回推(×2)仍是 raw compare。实测 NFC 文件名 + NFD 账本行 ⇒ attempts `[1,1]`、receipt 只有 E2、**E1 永久漏算**且 validator rc=0 | 抽出统一的 `_nkey()`，全部归属比较走它；改完 `grep` 确认零残留 | 门(52) / M94 |
+| B⑤ | **BLOCKER** | **「声明比实现宽」** —— 声称「四项可证事实」，实际只比 `scored_at` 与 `grade_norm`。实测 `abandoned` 从 false 翻成 true 照样称「事实一致」；receipt 的 attempt=999、grade 为字符串也放行 | **六类事实**逐项校验：存在 + 类型正确 + 相等，缺一即停 | 门(52) / M95 |
+| B④ | **BLOCKER** | 我 round-5 加的 `_EARLY_LEDGER_IDS + (evid,)` —— 把**本次要判定的 id** 自己当成唯一性证据 | 删掉 candidate 注入；账本缺失时裸形态来源不可证，停 | 门(52) |
+| B① | **BLOCKER** | envelope 只比 `scored_at` ⇒ 改掉 durable 的 `effective_at`/`review_time`（保留 scored_at）就能让同一次评分**二次推进 FSRS**（实测 state 1→2、stability 2.31→7.32，validator rc=0 全程无感）| receipt 的 `ts` 绑定 adopted 时刻，三者不一致即停 | 门(52) / M96 |
+| B② | **BLOCKER** | F1-only 仅凭 receipt no-op ⇒ degraded 落账（写 receipt 不写 W）后账本丢失时，谎称「已完整应用」 | 还要证明 W 已覆盖 receipt 的 adopted 时刻。⚠️ **如实**：实际首拦发生在更早的三态门（degraded 不写 W ⇒ 节点缺字段），我这道是**第二道**，变异会验明它是否承重 | 门(52) |
+| H① | HIGH | 读侧改用 YAML 解析器，**写侧仍假定 block list** —— 又一次「只做了一半」。实测合法的 inline flow list 被追加缩进条目后变非法，且**账本已从 1 行涨到 2 行才损坏**（先落账后损坏）| 结构化写回 + **落账前预演**：产不出合法 frontmatter 就零写退出 | 门(52) / M97·M98 |
+
+⚠️ **两个过程中的教训**：
+
+1. **PyYAML 的隐式类型转换差点造成范围远超预期的破坏**：整份 frontmatter 走
+   `safe_load`→`safe_dump`，所有 ISO 时刻从 `2026-08-01T10:00:00Z` 变成
+   `2026-08-01 10:00:00+00:00`，**五道既有门当场变红**。最终方案是只用解析器
+   **判断形态**，重写只碰 `calibration_log` 那一段，其余字节原样不动。
+   ⛔ **引入更强的工具时，它的「便利」可能正是要防的东西。**
+2. **门(52) 的验伪抓到「拒绝发生在 append 之后」**：indentless 形态虽被拒，但账本
+   已增行、笔记已损坏 —— write-ahead 里最糟的中间态（下次进不来）。
+   ⛔ **先记账的前提是后续步骤确定能完成**，否则记账本身就制造了不一致。
+
 ---
 
 ## 如实边界声明（本卡未证明什么）
@@ -766,10 +790,10 @@ round-5 的正文尚未输出，但 stderr 里的推理标题序列可读。按 
 | 前卡 UAT / round-3 | `_bmad-output/验收单/UAT-CARD-G3-2-复习事件账本write-ahead-2026-09-01.md`、`_bmad-output/审查/codex-review-CARD-G3-2-round3.md` |
 | 生产改动 | `canvas-vault/.claude/skills/quiz-answer/SKILL.md`、`canvas-vault/.claude/scripts/fsrs_bridge.py` |
 | 契约回写 | `docs/learning-events-schema-v1.md` §6.2（A4.5 duplicate 门 / A4.5 短写段 / A5） |
-| 行为门 | `backend/tests/regression/test_g3_2_review_ledger.py` 门㉖-(51) 共 26 道（㉖-㉜=R1-R7，㉝=六格状态机，㉞=N1-N5，㉟=自查覆盖缺口，㊱=round-2 线索复核，㊲=内部对抗审查 7 条，㊳=round-3 的 BLOCKER/HIGH + 修复面 13 个子场景，㊴=round-4 的**写点↔校验器结论对照**，㊵=round-5 校准键别名，㊶=round-5 路由顺序与输入字面校验，㊷=round-5 §6.3 历史行序数不可证，㊸=round-6 的 3 BLOCKER + 4 HIGH + 1 MEDIUM，㊹=round-6 后续的 H⑤ 序数判据 + M③ 账本可证序数，㊺=round-7 的 3 BLOCKER + 1 MEDIUM，㊻=round-7 的 2 HIGH，㊼=round-8 的稳定业务时刻三分离，㊽=round-8 的 3 HIGH，㊾=round-9 的全局幂等键与产出侧自检，㊿=round-9 的 YAML 结构化解析，(51)=round-9 的结构化 receipt 与 F1-only 可证性） |
+| 行为门 | `backend/tests/regression/test_g3_2_review_ledger.py` 门㉖-(52) 共 27 道（㉖-㉜=R1-R7，㉝=六格状态机，㉞=N1-N5，㉟=自查覆盖缺口，㊱=round-2 线索复核，㊲=内部对抗审查 7 条，㊳=round-3 的 BLOCKER/HIGH + 修复面 13 个子场景，㊴=round-4 的**写点↔校验器结论对照**，㊵=round-5 校准键别名，㊶=round-5 路由顺序与输入字面校验，㊷=round-5 §6.3 历史行序数不可证，㊸=round-6 的 3 BLOCKER + 4 HIGH + 1 MEDIUM，㊹=round-6 后续的 H⑤ 序数判据 + M③ 账本可证序数，㊺=round-7 的 3 BLOCKER + 1 MEDIUM，㊻=round-7 的 2 HIGH，㊼=round-8 的稳定业务时刻三分离，㊽=round-8 的 3 HIGH，㊾=round-9 的全局幂等键与产出侧自检，㊿=round-9 的 YAML 结构化解析，(51)=round-9 的结构化 receipt 与 F1-only 可证性，(52)=round-10 的统一 node-key/receipt 六事实/adopted 绑定/写回结构化） |
 | 反例复现脚本 | `backend/scripts/g32b_r1r7_counterexamples.py` |
 | fixture 生成脚本 | `backend/scripts/g32b_build_fixture.py`（`--check` 复算 sha） |
-| 变异脚本 | `backend/scripts/g32b_mutation_gates.py`（**89** 个变异，串行 + 逐字节还原；KILLED 判据 = `rc==1` 且摘要含 `1 failed`；其中 **21 条挂多层**（最深三层：BOM 门 + 空行门 + YAML 回落）（校验器层 / round-6 新增的 BOM 门与空行门）） |
+| 变异脚本 | `backend/scripts/g32b_mutation_gates.py`（**94** 个变异，串行 + 逐字节还原；KILLED 判据 = `rc==1` 且摘要含 `1 failed`；其中 **21 条挂多层**（最深三层：BOM 门 + 空行门 + YAML 回落）（校验器层 / round-6 新增的 BOM 门与空行门）） |
 | round-1 审查 | `_bmad-output/审查/codex-review-CARD-G3-2b.md`（**0 字节**，已入库作为「正文缺失」本身的证据） |
 | round-3 审查 | `_bmad-output/审查/codex-review-CARD-G3-2b-round3.md`（**17993 字节，唯一拿到正文的一轮**，判「需整改」）+ `.stderr` sha256 `1e093c12c70d0ee011c929e51c97cb8d4ca3245d21b989268809663daabfbb7e`（820 KB，同样不入库） |
 | round-3 提示词 | `_bmad-output/审查/prompts/codex-prompt-CARD-G3-2b-round3.md`（中性化措辞 + 收窄读取面） |

@@ -218,6 +218,13 @@ if isinstance(eid, str) and eid != eid.strip():
 etype = "answer_abandoned" if p.get("abandoned") else "answer_scored"
 evid = "quiz:" + eid
 node_id = os.path.splitext(os.path.basename(NODE))[0]
+# ⛔ 归属比较**一律**走这个 key (Codex round-10 BLOCKER): round-9 我只在
+# dup owner 检查里做了 NFC 归一化, **适用集路由仍是 raw compare** ——
+# 「修一半」的第五次。实测: 文件名是 NFC 而账本行是等价 NFD 时, E1 落不进
+# 适用集 ⇒ 终态 attempts=[1,1]、receipt 只有 E2、**E1 永久漏算**且 validator rc=0。
+# ⚠️ 加完后必须 grep 全文确认**没有残留的 raw compare** —— 这正是上一轮漏掉的。
+_nkey = lambda v: unicodedata.normalize("NFC", str(v or ""))
+_NODE_KEY = _nkey(node_id)
 # ⛔ 本次事件**自己**派生出的 node_id 同样要过「可用」门 (Codex round-7 HIGH):
 # 账本里别人的行有这道门, 自己的却没有 —— 实测节点路径 `节点/ .md` 时首跑
 # rc=0 并写出 node_id=' ', 回滚节点后重跑 rc=1、账本仍 1 行、节点无 W,
@@ -569,7 +576,7 @@ for _, _o in _rows:
 # 若产品决定全局禁止空白, 须先同步升级规格 + validator + 全部写点 —— 那是另一张卡。
 _ws_ids = sorted({str(_r.get("event_id")) for _, _r in _rows
                   if isinstance(_r, dict) and isinstance(_r.get("event_id"), str)
-                  and _r.get("node_id") == node_id
+                  and _nkey(_r.get("node_id")) == _NODE_KEY
                   and _r["event_id"] != _r["event_id"].strip()})
 if _ws_ids:
     raise SystemExit(f"[quiz-answer] 账本存在首尾含空白的 event_id {_ws_ids[:3]!r} — 幂等键的字面即身份, 带空白的写法会与不带的各算一遍 (同一次评分被重放两遍: attempt 多加、校准多一条、水位线再推进), 而校验器看不出问题; fail-closed 拒写 — 请人工修正账本里这些 id")
@@ -580,7 +587,12 @@ if _id_dupes:
 #: 但 f1 在适用集构造**之前**求值, 所以这里先取一份。
 _EARLY_LEDGER_IDS = tuple(
     str(_r.get("event_id") or "") for _, _r in _rows if isinstance(_r, dict)
-) + (evid,)
+)
+# ⛔ **不注入 candidate** (Codex round-10 BLOCKER): 上一版在这里 `+ (evid,)`,
+# 于是「本次要判定的 id」自己成了唯一性证据 —— 实测: 先用完整 id `K` 应用并
+# 形成 receipt `K`, 删掉账本, 再提交本地 id `K`(完整 id 实为 `quiz:K`),
+# writer rc=0、账本仍 0 字节、attempt 不变, **那次评分被静默吞掉**。
+# 账本缺失时裸形态的来源本就不可证, 该停而不是拿自己作证。
 _dup_entry = next((( _ln, _o) for _ln, _o in _rows if isinstance(_o, dict) and _o.get("event_id") == evid), None)
 dup = _dup_entry[1] if _dup_entry is not None else None
 _dup_line = _dup_entry[0] if _dup_entry is not None else None  # R3: ordinal 复算的全序键之一
@@ -762,6 +774,59 @@ def _append_calibration(fm_text, ts_str, ev=None):
               f'    self_confidence_norm: {scn_ if scn_ is not None else "null"}\n'
               f'    grade_norm: {_e_gn}\n'
               f'    abandoned: {"true" if _e_ab else "false"}')
+    # ⛔ **结构化写回** (Codex round-10 HIGH): 读侧已改用 YAML 解析器, 写侧却仍
+    # 假定 block list —— 一份**合法**的 inline flow list frontmatter 被追加缩进
+    # 条目后变成非法 YAML。实测: 账本已从 1 行涨到 2 行**才**损坏笔记
+    # (先落账后损坏), 之后该节点的所有评分连锁失败。
+    #
+    # ⚠️ 但**不能整份 load/dump**: PyYAML 会把 ISO 8601 字符串隐式转成 datetime,
+    # dump 回去就成了 `2026-08-01 10:00:00+00:00` —— 契约要的是 `...Z` canonical
+    # 形式, 整份走一遍会**改写所有时刻字段的字面**(实测门㉗㉙ 立刻变红)。
+    # 所以只做两件事: ①用解析器**判断** calibration_log 的形态; ②只重写它那一段,
+    # 其余字节原样不动。
+    try:
+        import yaml as _y
+        _fm_m = re.match(r"^(---\n)(.*?)(\n---)", fm_text, re.S)
+        _body = _fm_m.group(2) if _fm_m else fm_text
+        _doc = _y.safe_load(_body)
+        if isinstance(_doc, dict):
+            _cur = _doc.get("calibration_log")
+            if _cur is not None and not isinstance(_cur, list):
+                raise SystemExit(f"[quiz-answer] frontmatter 的 calibration_log 不是列表 ({type(_cur).__name__}) — 无法安全追加校准条目, fail-closed 拒写 — 请人工修复 {NODE}")
+            # 非 block 形态(inline / 缺失 / null) ⇒ 把这一个键重写成 block list,
+            # 其余键原样保留。⚠️ 已有条目用 json.dumps 逐条重排, 不经 YAML 类型推断。
+            # ⚠️ 「header 行干净」只是 block 的**必要**条件, 不充分: indentless
+            # list (`calibration_log:` 后跟顶格的 `- ...`) 同样满足它, 却不能用
+            # 「插入 2 格缩进条目」的方式追加 —— 实测产物非法且**已先落账**。
+            # 判据要落在**条目本身的缩进**上: 只有既是干净 header、又确实以
+            # `  - ` 开头(或本来就没有条目)时, 才是可直接插入的 block 形态。
+            _hdr = re.search(r'^calibration_log:[ \t]*(?:#[^\n]*)?$', _body, re.M)
+            _is_block = False
+            if _hdr:
+                _rest = _body[_hdr.end():].lstrip("\n")
+                _first = _rest.split("\n")[0] if _rest else ""
+                _is_block = (not _first.strip()) or _first.startswith("  ") or (not _first.startswith("-"))
+            if not _is_block:
+                _rebuilt = ["calibration_log:"]
+                for _e in (_cur or []):
+                    _ks = list(_e.keys()) if isinstance(_e, dict) else []
+                    for _n, _k in enumerate(_ks):
+                        _pfx = "  - " if _n == 0 else "    "
+                        _rebuilt.append(f"{_pfx}{_k}: {json.dumps(_e[_k], ensure_ascii=False, default=str)}")
+                _rebuilt.append(entry_)
+                _new_body = re.sub(r"^calibration_log:.*?(?=^\S|\Z)", "\n".join(_rebuilt) + "\n",
+                                   _body, count=1, flags=re.M | re.S)
+                if _new_body == _body:      # 原本没有这个键 ⇒ 追加到末尾
+                    _new_body = _body.rstrip("\n") + "\n" + "\n".join(_rebuilt) + "\n"
+                _y.safe_load(_new_body)     # 落盘前自证可解析
+                return (_fm_m.group(1) + _new_body.rstrip("\n") + _fm_m.group(3)) if _fm_m else _new_body
+    except SystemExit:
+        raise
+    except ImportError:
+        print("[quiz-answer] ⚠️ PyYAML 不可用 — 校准写回退回正则插入, 只在 block list 形态下正确")
+    except Exception as _we:
+        raise SystemExit(f"[quiz-answer] 校准条目写回时 frontmatter 不可解析 ({_we}) — 拒绝产出非法 YAML, fail-closed 拒写 — 请人工修复 {NODE}")
+    # 以下为 PyYAML 不可用时的回落 (非等价: 只认 block list 形态)。
     # F3 修复 (2026-07-12): 定位 calibration_log 块末尾插入 — 旧逻辑无条件追加
     # 到 frontmatter 末尾, 当 calibration_log 非最后一个 key 时 (Obsidian
     # Properties 面板默认在末尾新增属性, 极常见), 事件条目会被 YAML 静默
@@ -810,7 +875,7 @@ for _ln, _o in _rows:
     # ⚠️ 归属判断必须排在「缺 payload 就跳过」**之前**: 本节点的行缺 payload
     # 时它仍可能是一次真实评分, 静默跳过就是漏算 (Codex round-4 HIGH: 写点
     # rc=0 而校验器 rc=1)。别的节点的行才轮得到「跳过」。
-    if _o.get("node_id") != node_id:
+    if _nkey(_o.get("node_id")) != _NODE_KEY:
         continue
     # ⛔ 路由顺序 (Codex round-5 MEDIUM): 版本与事件类型必须排在**任何 v1 形态
     # 校验之前**。此前 payload 类型门排在归属判断之前, 于是一条合法的**别节点
@@ -869,7 +934,7 @@ for _ln, _o in _rows:
     # node_id 不够 —— 实测 event_type=session_archived / node_derived、
     # concept_id 指向别节点、vault_id 指向别的 vault 的行都会被当成本节点的
     # 一次复习**照常重放并推进 FSRS**。validator 事后判 FAIL 拦不回已推进的水位线。
-    if _pl.get("concept_id") != node_id:
+    if _nkey(_pl.get("concept_id")) != _NODE_KEY:
         raise SystemExit(f"[quiz-answer] {_ctx} 的 payload.concept_id={_pl.get('concept_id')!r} 与 node_id={node_id!r} 不一致 (§6.1: node_id 承载 concept_id), fail-closed 拒写")
     if _pl.get("vault_id") != _vid:
         raise SystemExit(f"[quiz-answer] {_ctx} 的 payload.vault_id={_pl.get('vault_id')!r} 不属于本 vault ({_vid!r}) — 跨 vault 事件不得被本地重放, fail-closed 拒写")
@@ -975,18 +1040,49 @@ if dup is None:
         _rcpt = _receipt_of(fm, evid) or _receipt_of(fm, eid)
         if _rcpt is None:
             raise SystemExit(f"[quiz-answer] {evid} 在 calibration_log 里命中却读不出条目 — receipt 不可解析, 无法证明是同一次评分, fail-closed 拒写 — 请人工核对 {NODE}")
-        _rc_sa = str(_rcpt.get("scored_at") or "")
-        _rc_gn = _rcpt.get("grade_norm")
-        if not _rc_sa:
-            raise SystemExit(f"[quiz-answer] {evid} 的 receipt 缺 scored_at (round-9 之前写的旧条目) — 无法证明本次与它是同一次评分; 账本里又没有对应行可比, fail-closed 拒写 — 请人工核对 {NODE} 与账本后决定补录还是重评")
+        # ⛔ **六类事实逐项严格校验** (Codex round-10 BLOCKER): 上一版声称
+        # 「四项可证事实」, 实际只比了 scored_at 与 grade_norm —— **声明比实现宽**。
+        # 实测漏网: 同 ID/同 scored_at/同 grade 但 `abandoned` 从 false 改成 true,
+        # 照样 rc=0 称「receipt 事实一致」; receipt 的 attempt=999、grade 为字符串
+        # 或缺失也一律放行。⚠️ 每一项都要求**存在 + 类型正确 + 相等**, 缺一即停 ——
+        # 「有就比、没有就跳过」等于给伪造留了后门。
         _mis = []
-        if _rc_sa != _SCORED_AT:
-            _mis.append(f"scored_at {_rc_sa!r} != 本次 {_SCORED_AT!r}")
-        if isinstance(_rc_gn, (int, float)) and round(float(_rc_gn), 2) != GN2:
-            _mis.append(f"grade_norm {_rc_gn!r} != 本次 {GN2!r}")
+        def _need(_k, _got, _want, _ok):
+            if _got is None:
+                _mis.append(f"receipt 缺 {_k}")
+            elif not _ok(_got):
+                _mis.append(f"receipt 的 {_k} 类型非法 ({_got!r})")
+            elif _got != _want:
+                _mis.append(f"{_k} {_got!r} != 本次 {_want!r}")
+        _need("scored_at", _rcpt.get("scored_at"), _SCORED_AT, lambda v: isinstance(v, str) and bool(v))
+        _need("event_id", _rcpt.get("event_id"), evid, lambda v: isinstance(v, str) and bool(v))
+        _need("abandoned", _rcpt.get("abandoned"), bool(p.get("abandoned")), lambda v: isinstance(v, bool))
+        _rc_gn = _rcpt.get("grade_norm")
+        _need("grade_norm", None if _rc_gn is None else round(float(_rc_gn), 2) if isinstance(_rc_gn, (int, float)) and not isinstance(_rc_gn, bool) else _rc_gn,
+              GN2, lambda v: isinstance(v, (int, float)) and not isinstance(v, bool))
+        _rc_att = _rcpt.get("attempt_count")
+        if _rc_att is None:
+            _mis.append("receipt 缺 attempt_count")
+        elif isinstance(_rc_att, bool) or not isinstance(_rc_att, int) or _rc_att < 1:
+            _mis.append(f"receipt 的 attempt_count 非法 ({_rc_att!r})")
+        _rc_ts = _rcpt.get("ts")
+        if not isinstance(_rc_ts, str) or not _rc_ts:
+            _mis.append(f"receipt 缺可用的 ts (A3 采用时刻) ({_rc_ts!r})")
         if _mis:
             raise SystemExit(f"[quiz-answer] {evid} 已在 calibration_log 里, 但 receipt 与本次评分事实不一致 ({'; '.join(_mis)}) — 同一个 event_id 承载了两次不同的评分, 账本又没有对应行可作裁定依据, fail-closed 拒写 — 请人工核对后修正 event_id 或账本")
-        print(f"[quiz-answer] {NODE}: event={eid} 已完整应用（receipt 与本次评分事实一致），幂等跳过（无任何改动）；账本无对应行 — 旧写序(先 frontmatter 后事件)遗留，本次不补录，审计完整性请走账本补录通道")
+        # ⛔ 还要证明**调度确实已应用** (Codex round-10 BLOCKER): degraded 落账
+        # 会写 receipt 与 attempt 却**不写 W**, 之后账本丢失 ⇒ receipt 对得上但
+        # FSRS 从未推进过 —— 实测 rc=0 且 stdout 称「已完整应用」, 而 W 始终为空,
+        # 那次评分的调度**永久没生效**。receipt 一致只证明「算过分」, 不证明
+        # 「调度落地过」。
+        _w_now = fields_from_frontmatter(fm).get("fsrs_last_review")
+        try:
+            _sched_ok = bool(_w_now) and _instant_only(_w_now, "W") >= _instant_only(_rcpt["ts"], "receipt ts")
+        except SystemExit:
+            _sched_ok = False
+        if not _sched_ok:
+            raise SystemExit(f"[quiz-answer] {evid} 的 receipt 与本次一致, 但 fsrs_last_review={_w_now!r} 未覆盖 receipt 的采用时刻 {_rcpt.get('ts')!r} — 说明当时走了降级路径(写了校准却没推进调度), 而账本行又已丢失, 无法证明这次复习的调度已生效; fail-closed 拒写 — 请人工核对后决定补录还是重评")
+        print(f"[quiz-answer] {NODE}: event={eid} 已完整应用（receipt 事实一致且调度已覆盖），幂等跳过（无任何改动）；账本无对应行 — 旧写序(先 frontmatter 后事件)遗留，本次不补录，审计完整性请走账本补录通道")
         os.remove(P)
         raise SystemExit(0)
 else:
@@ -999,7 +1095,7 @@ else:
     # 语义相同。规范化后仍不同才是「真的别的节点」—— 否则会抢在 envelope 判定
     # 之前把「同一节点的不同字节形式」误报成同键异主 (门㉟ 锁的正是「NFD 差异
     # 应报 envelope 冲突」)。
-    if unicodedata.normalize("NFC", str(dup.get("node_id") or "")) != unicodedata.normalize("NFC", node_id):
+    if _nkey(dup.get("node_id")) != _NODE_KEY:
         raise SystemExit(f"[quiz-answer] 账本里 {evid} 属于**别的节点** ({dup.get('node_id')!r} != {node_id!r}) — event_id 是全局幂等键, 同键异主说明上游把两次不同的评分写成了同一个 id; 跳过它会让本次评分零次应用, fail-closed 拒写 — 请人工修正账本或上游的 event_id 生成")
     if dup.get("event_type") not in ("answer_scored", "answer_abandoned"):
         raise SystemExit(f"[quiz-answer] 账本里 {evid} 的 event_type={dup.get('event_type')!r} 不是评分事件 — 同键异型同样说明 id 被占用, fail-closed 拒写")
@@ -1078,7 +1174,7 @@ else:
     # 而不是硬算一个数再以 envelope 冲突的名义拒绝。
     _legacy_after = [
         (_l2, _o2) for _l2, _o2 in _rows
-        if isinstance(_o2, dict) and _o2.get("node_id") == node_id
+        if isinstance(_o2, dict) and _nkey(_o2.get("node_id")) == _NODE_KEY
         and isinstance(_o2.get("payload"), dict)
         and _o2["payload"].get("schema_ext") != "review/1"
         and not _looks_like_review_ext(_o2["payload"])
@@ -1096,7 +1192,7 @@ else:
     if _legacy_after:
         _after_rows = sorted(
             [(_l2, _o2) for _l2, _o2 in _rows
-             if isinstance(_o2, dict) and _o2.get("node_id") == node_id
+             if isinstance(_o2, dict) and _nkey(_o2.get("node_id")) == _NODE_KEY
              and isinstance(_o2.get("payload"), dict)
              and _o2.get("event_type") in ("answer_scored", "answer_abandoned")
              and _l2 > (_dup_line if _dup_line is not None else 0)],
@@ -1163,6 +1259,22 @@ else:
     # 缺该键的是 round-8 之前写的旧行, 回落到它的 review_time(那些行没有
     # A3 前后之分, 语义一致)。⚠️ A3 采用值本身不进等价面, 它由 A3 规则决定,
     # 不是评分事实。
+    # ⛔ **adopted time 也要绑定** (Codex round-10 BLOCKER): envelope 只比
+    # scored_at 时, 把 durable 的 effective_at/review_time 改掉 (保留 scored_at)
+    # 就能让同一次评分**二次推进 FSRS** —— 实测 state 1→2、stability 2.31→7.32、
+    # W 08-01→08-02 而 attempt 仍为 1, validator rc=0 全程无感。
+    # receipt 的 `ts` 记的正是那次的 adopted 时刻: 有 receipt 时三者必须一致。
+    _rcpt_dup = _receipt_of(fm, evid)
+    if isinstance(_rcpt_dup, dict) and isinstance(_rcpt_dup.get("ts"), str) and _rcpt_dup["ts"]:
+        _adopted = str(_dpl.get("review_time") or "")
+        _eff = str(dup.get("effective_at") or "")
+        try:
+            _same = (_instant_only(_adopted, "durable review_time") == _instant_only(_rcpt_dup["ts"], "receipt ts")
+                     and _instant_only(_eff, "durable effective_at") == _instant_only(_rcpt_dup["ts"], "receipt ts"))
+        except SystemExit:
+            _same = False
+        if not _same:
+            raise SystemExit(f"[quiz-answer] {evid} 的账本采用时刻 (effective_at={_eff!r} / review_time={_adopted!r}) 与 receipt 记录的 ts={_rcpt_dup['ts']!r} 不一致 — 同一次评分的调度时刻被改过, 放行会二次推进 FSRS, fail-closed 拒写 — 请人工核对账本与 {os.path.basename(NODE)}")
     _their_scored = _dpl.get("scored_at", _dpl.get("review_time"))
     _mine_env = {
         "event_version": 1, "event_type": etype, "node_id": node_id,
@@ -1455,6 +1567,17 @@ if True:  # 正常路径 append (恢复路径已在上方 raise SystemExit(0) �
                        "fsrs_params_hash": p_hash,
                        "exam_board": p.get("exam_board", ""),
                        "attempt_count": n_att}}
+    # ⛔ **落账前预演 calibration 写回** (Codex round-10 HIGH): 写回失败此前发生在
+    # append **之后** —— 账本已增行而笔记写坏, 那是最糟的中间态(下次进不来)。
+    # 这里先干跑一次: 产不出合法 frontmatter 就零写退出, 账本一个字节都不动。
+    # ⚠️ 只是预演, 真正的写回仍在下面按原顺序做(此处结果丢弃)。
+    try:
+        _append_calibration(fm, review_time)
+    except SystemExit:
+        raise
+    except Exception as _pre:
+        raise SystemExit(f"[quiz-answer] 落账前预演校准写回失败 ({_pre}) — 拒绝在账本已增行后才发现笔记写不回去, fail-closed 零写退出 — 请人工修复 {NODE} 的 calibration_log 形态")
+
     # 防御性二次查重 (单写者下不可达 — _rows 快照在 dup 判定时已排除; 保留作
     # 纵深防御, 与 A4.5 "查重紧贴写入" 同型)
     _again = next((o for _, o in _rows if isinstance(o, dict) and o.get("event_id") == evid), None)

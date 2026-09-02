@@ -115,8 +115,8 @@ MUTATIONS += [
     (
         "M9-6cell-cell2-drop-orphan-noop",
         SKILL,
-        '        print(f"[quiz-answer] {NODE}: event={eid} 已完整应用（receipt 与本次评分事实一致），幂等跳过（无任何改动）；账本无对应行',
-        '        _ = (f"[quiz-answer] {NODE}: event={eid} 已完整应用（receipt 与本次评分事实一致），幂等跳过（无任何改动）；账本无对应行',
+        '        print(f"[quiz-answer] {NODE}: event={eid} 已完整应用（receipt 事实一致且调度已覆盖），幂等跳过（无任何改动）；账本无对应行',
+        '        _ = (f"[quiz-answer] {NODE}: event={eid} 已完整应用（receipt 事实一致且调度已覆盖），幂等跳过（无任何改动）；账本无对应行',
         "test_six_cell_state_machine_closed",
     ),
 ]
@@ -226,7 +226,7 @@ MUTATIONS += [
     (
         "M24-C1-drop-concept-id-gate",
         SKILL,
-        '    if _pl.get("concept_id") != node_id:\n',
+        '    if _nkey(_pl.get("concept_id")) != _NODE_KEY:\n',
         "    if False:  # MUTANT\n",
         "test_internal_audit_findings",
         LAYER2_ALSO,
@@ -514,7 +514,7 @@ MUTATIONS += [
         # ⚠️ round-5 重绑: 归属与 payload 检查之间现在隔着版本门与事件类型门,
         # 原来的连续两行锚点不再相邻。变异改为让归属判断**失效**(恒不跳过),
         # 等价复现「别节点的行也被当本节点消费」的旧缺陷面。
-        '    if _o.get("node_id") != node_id:\n        continue\n',
+        '    if _nkey(_o.get("node_id")) != _NODE_KEY:\n        continue\n',
         "    if False:  # MUTANT: 归属判断失效\n        continue\n",
         "test_round4_writer_validator_verdict_parity",
     ),
@@ -713,11 +713,21 @@ MUTATIONS += [
     ),
     (
         # inline 空列表不规范化 ⇒ 产出非法 YAML 且永久不收敛
+        # ⚠️ round-10 挂第二层: **结构化写回**(PyYAML)已接管这条路径 —— 即使不
+        # 规范化 inline 空列表, 结构化分支也能正确追加。要证这道规范化仍承重,
+        # 必须同时强制走正则回落。(第五种成因: 缺陷面被修复消除)
         "M67-inline-calibration-not-normalized",
         SKILL,
         "    fm_text = _normalize_inline_calibration(fm_text)\n",
         "    pass  # MUTANT: 不规范化 inline 空列表\n",
         "test_round6_findings",
+        (
+            (
+                SKILL,
+                "        import yaml as _y\n",
+                "        raise ImportError('MUTANT: 同时强制走正则写回')\n",
+            ),
+        ),
     ),
     (
         # 空行不拒 ⇒ 与校验器分叉
@@ -887,7 +897,7 @@ MUTATIONS += [
         # 空白 id 门退回全账 ⇒ 别节点的合法存量行阻塞整个 vault
         "M83-whitespace-id-gate-global",
         SKILL,
-        '                  and _r.get("node_id") == node_id\n',
+        '                  and _nkey(_r.get("node_id")) == _NODE_KEY\n',
         "                  and True  # MUTANT: 退回全账\n",
         "test_round8_high_findings",
     ),
@@ -900,7 +910,7 @@ MUTATIONS += [
         # 同 event_id 的别节点行不进冲突域 ⇒ 本次评分零次应用
         "M84-cross-node-id-collision-ignored",
         SKILL,
-        '    if unicodedata.normalize("NFC", str(dup.get("node_id") or "")) != unicodedata.normalize("NFC", node_id):\n',
+        '    if _nkey(dup.get("node_id")) != _NODE_KEY:\n',
         "    if False:  # MUTANT: 同键异主不拦\n",
         "test_round9_identity_and_self_check",
     ),
@@ -976,6 +986,51 @@ MUTATIONS += [
         '        print(f"[quiz-answer] ⚠️ {_ctx} 缺 payload.scored_at',
         '        _ = (f"[quiz-answer] ⚠️ {_ctx} 缺 payload.scored_at',
         "test_round9_structured_receipt",
+    ),
+]
+
+
+# ── round-10 修复的承重变异
+MUTATIONS += [
+    (
+        # 适用集路由退回 raw compare ⇒ NFD 行落不进适用集，永久漏算
+        "M94-routing-raw-compare",
+        SKILL,
+        '    if _nkey(_o.get("node_id")) != _NODE_KEY:\n',
+        '    if _o.get("node_id") != node_id:  # MUTANT\n',
+        "test_round10_findings",
+    ),
+    (
+        # receipt 不比 abandoned ⇒ 另一次评分被当作一致
+        "M95-receipt-skips-abandoned",
+        SKILL,
+        '        _need("abandoned", _rcpt.get("abandoned"), bool(p.get("abandoned")), lambda v: isinstance(v, bool))\n',
+        "        pass  # MUTANT: 不比 abandoned\n",
+        "test_round10_findings",
+    ),
+    (
+        # adopted time 不绑定 ⇒ 同一次评分可二次推进 FSRS
+        "M96-adopted-time-unbound",
+        SKILL,
+        "        if not _same:\n",
+        "        if False:  # MUTANT: 不绑定 adopted\n",
+        "test_round10_findings",
+    ),
+    (
+        # 写回退回正则插入 ⇒ inline 形态被写成非法 YAML
+        "M97-writeback-regex-only",
+        SKILL,
+        "        import yaml as _y\n",
+        "        raise ImportError('MUTANT: 强制走正则写回')\n",
+        "test_round10_findings",
+    ),
+    (
+        # 落账前不预演 ⇒ 先落账后损坏笔记
+        "M98-no-pre-append-dry-run",
+        SKILL,
+        "        _append_calibration(fm, review_time)\n    except SystemExit:\n",
+        "        pass  # MUTANT: 不预演\n    except SystemExit:\n",
+        "test_round10_findings",
     ),
 ]
 
