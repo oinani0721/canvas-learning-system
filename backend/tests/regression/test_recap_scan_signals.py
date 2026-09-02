@@ -4355,3 +4355,49 @@ def test_domain_r14_range_left_edge_and_codespan_order_cli(tmp_path):
         ("- 建议覆盖2~3个节点。", "合法区间不受伤"),
     ):
         assert verify(line).returncode == 0, f"误伤：{why} —— {line!r}"
+
+
+def test_domain_r15_signal_line_selection_is_visible_text_cli(tmp_path):
+    """R3 round-18（冻结审查 §一.3）：③段信号行的**选行**必须在渲染后文本上做。
+
+    实测反例（修前 exit 0）：保留一条合规信号行，再加一条**渲染等价但 label 被
+    切开**的冲突行 —— `来源**覆盖**率：99/3…` / `来源<b>覆盖</b>率：99/3…`。
+    原实现用 `re.findall(rf"^.*{label}.*$", s3)` 在 **raw** 行上选行，这两条
+    根本进不了「逐条全查」，于是"一条合规一条私货"的双行逃逸成立。
+
+    **它证明什么**：选行与后续整行 fullmatch 都在 `_visible_text()` 上做，
+    与 D2 / fallback 两条主链同一个文本空间；零宽形态另有全文门兜底。
+    **它不证明什么**：`_visible_text` 仍不是完整 renderer；seed ledger / 五元组 /
+    tips / fallback ⑦ 四处 raw 专用绑定**本轮未修**（见验收单 §五之五）。
+    """
+    m = sys.modules[__name__]
+    rs = _load_recap_scan()
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    report = write_report(vault, scan)
+    base = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+
+    good = "> - 来源覆盖率：2/3 成员含来源锚点【文件】"
+    assert good in base, "前提：标准报告必须含这条合规信号行"
+
+    def with_extra(extra: str):
+        text = base.replace(good, good + "\n" + extra, 1)
+        assert text != base, "注入未命中：报告一字未改，这条门测的是空气"
+        report.write_text(text, encoding="utf-8")
+        return run_verify(report)
+
+    for extra, why in (
+        ("> - 来源覆盖率：99/3 成员含来源锚点【文件】", "对照：裸 label 冲突行"),
+        ("> - 来源**覆盖**率：99/3 成员含来源锚点【文件】", "label 被强调标记切开"),
+        ("> - 来源<b>覆盖</b>率：99/3 成员含来源锚点【文件】", "label 被 HTML 标签切开"),
+        ("> - 来源\u200b覆盖率：99/3 成员含来源锚点【文件】", "label 被零宽切开（全文门兜底）"),
+    ):
+        assert with_extra(extra).returncode != 0, f"{why}：冲突信号行被放行 —— {extra!r}"
+
+    # 不得误伤：把合规行本身写成渲染等价的强调形态，仍须通过
+    report.write_text(
+        base.replace(good, "> - 来源**覆盖**率：2/3 成员含来源锚点【文件】", 1),
+        encoding="utf-8",
+    )
+    assert run_verify(report).returncode == 0, "渲染等价的合规行被误判"

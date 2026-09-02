@@ -1121,7 +1121,14 @@ def _verify_signal_lines(text: str, signals: dict, problems: list[str]) -> None:
         sig = signals.get(key)
         if not _verify_signal_schema(key, sig, problems):
             continue
-        lines = re.findall(rf"^.*{label}.*$", s3, re.M)
+        # ⛔ R3 round-18 (冻结审查 §一.3 raw 专用绑定): 原实现在 **raw** 行上
+        # 找 label 选行 ⇒ 保留一条合规行, 再加一条**渲染等价但 label 被
+        # 切开**的冲突行 (`来源**覆盖**率：99/3…` / `来源<b>覆盖</b>率：99/3…`),
+        # 后者根本进不了「逐条全查」—— 两条实测 exit 0 放行。
+        # 零宽切开的形态被全文零宽门拦下, 但排版标记/HTML 标签没有那道门。
+        # ⇒ 选行与后续校验全部改在 _visible_text() 上: **读者看到的那一行**
+        #   才是判据对象 —— 与 D2/fallback 两条主链同一个文本空间。
+        lines = [v for v in (_visible_text(ln) for ln in s3.splitlines()) if label in v]
         if not lines:
             problems.append(f"数字终核: ③段缺信号行 {label}")
             continue

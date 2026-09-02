@@ -539,6 +539,16 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         ],
         "r14_range_left",
     ),
+    (
+        "survivor-45 (C-18) ③段信号行退回 raw 选行（label 被 `**`/`<b>` 切开的冲突行整条逃逸「逐条全查」）",
+        [
+            (
+                "        lines = [v for v in (_visible_text(ln) for ln in s3.splitlines()) if label in v]",
+                '        lines = re.findall(rf"^.*{label}.*$", s3, re.M)',
+            )
+        ],
+        "r15_signal_line",
+    ),
 ]
 
 
