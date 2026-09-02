@@ -4401,3 +4401,55 @@ def test_domain_r15_signal_line_selection_is_visible_text_cli(tmp_path):
         encoding="utf-8",
     )
     assert run_verify(report).returncode == 0, "渲染等价的合规行被误判"
+
+
+def test_domain_r16_clause7_n_binding_is_visible_text_cli(tmp_path):
+    """R3 round-19（冻结审查 §一.3）：⑦『派生角色成员』前置 N 的绑定口径分叉。
+
+    实测反例（修前 exit 0，三条）：措辞白名单（`_FALLBACK_DERIVE_ALLOW`，:2437）
+    早已改在 `_visible_text` 上判，而同一条叙述的 **N 绑定** 仍在 **raw** 行上
+    `m7.match(ln)` ⇒ 出现「白名单放行、N 绑定跳过」的夹缝：
+
+      · `999 个派**生**角色成员缺来源锚点。`
+      · `999 个派<b>生</b>角色成员缺来源锚点。`
+      · `999<b></b> 个派生角色成员缺来源锚点。`
+
+    渲染后都是明确的 `999 个…`，而 `signals.unsourced_conclusions.value == 0`。
+
+    **它证明什么**：同一条叙述的**白名单**与**值绑定**必须同口径（都在渲染后
+    文本上）——口径分叉本身就是漏洞，不需要任何一侧写错。
+    **它不证明什么**：`_visible_text` 仍不是完整 renderer；台账种子行仍是 raw
+    绑定（实测其形状偏离会撞模板白名单，四条攻击均 fail-closed，故本轮不改）。
+    """
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    assert scan.get("data_mode") == "fallback_local", "前提：本门测 fallback 路径"
+    sig = (scan.get("signals") or {}).get("unsourced_conclusions") or {}
+    assert sig.get("value") == 0, f"前提：value 必须是 0，否则 999 的对照没有意义: {sig}"
+
+    report = write_report(vault, scan)
+    base = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+    anchor = "方向叙述："
+    assert anchor in base, "前提：模板必须含方向叙述锚点"
+
+    def inject(line: str):
+        text = base.replace(anchor, f"\n{line}\n\n{anchor}", 1)
+        assert text != base, "注入未命中：报告一字未改，这条门测的是空气"
+        report.write_text(text, encoding="utf-8")
+        return run_verify(report)
+
+    for line, why in (
+        ("999 个派生角色成员缺来源锚点。", "对照：裸前置 N"),
+        ("999 个派**生**角色成员缺来源锚点。", "谓语被强调标记切开"),
+        ("999 个派<b>生</b>角色成员缺来源锚点。", "谓语被 HTML 标签切开"),
+        ("999<b></b> 个派生角色成员缺来源锚点。", "N 与量词之间插空标签"),
+    ):
+        assert inject(line).returncode != 0, f"{why}：前置 N 未被绑定 —— {line!r}"
+
+    # 段外伪信号行的两种形态都必须拦（对照，确认这条老防线未被本次改动动摇）
+    for line, why in (
+        ("> - 无来源结论：99/2 派生角色成员缺来源锚点【推定】", "段外裸信号名"),
+        ("> - 无**来源**结论：99/2 派生角色成员缺来源锚点【推定】", "段外信号名被切开"),
+    ):
+        assert inject(line).returncode != 0, f"{why}：段外伪信号行被放行 —— {line!r}"

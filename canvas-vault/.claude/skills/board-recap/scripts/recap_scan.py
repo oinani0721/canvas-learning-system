@@ -2212,7 +2212,15 @@ def _verify_fallback_derive_numbers(text: str, scan: dict, problems: list[str]) 
     sig = (scan.get("signals") or {}).get("unsourced_conclusions") or {}
     m7 = re.compile(r"^[>\s]*(?:(?P<n>\d+)\s*个)?派生角色成员缺来源锚点")
     for ln in text.splitlines():
-        mm = m7.match(ln)
+        # ⛔ R3 round-19 (冻结审查 §一.3): 这里原先在 **raw** 行上匹配, 而同一条
+        # 叙述的措辞白名单 (:2437) 早已改在 _visible_text 上判 —— 两侧口径分叉 ⇒
+        # 「白名单放行、N 绑定跳过」的夹缝: 三条实测 exit 0
+        #   · `999 个派**生**角色成员缺来源锚点。`
+        #   · `999 个派<b>生</b>角色成员缺来源锚点。`
+        #   · `999<b></b> 个派生角色成员缺来源锚点。`
+        # 渲染后都是明确的 `999 个…`, 而 signals.value=0 ⇒ 本该 FAIL。
+        # ⇒ 与白名单同口径, 一律在渲染后文本上匹配。
+        mm = m7.match(_visible_text(ln))
         if not mm:
             continue
         n = mm.group("n")

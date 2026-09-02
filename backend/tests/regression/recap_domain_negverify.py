@@ -549,6 +549,11 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         ],
         "r15_signal_line",
     ),
+    (
+        "survivor-46 (C-19) ⑦前置 N 绑定退回 raw 行（白名单在渲染文本上放行、N 绑定在源码行上跳过 ⇒ 夹缝）",
+        [("        mm = m7.match(_visible_text(ln))", "        mm = m7.match(ln)")],
+        "r16_clause7",
+    ),
 ]
 
 
