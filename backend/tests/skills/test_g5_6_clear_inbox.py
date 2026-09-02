@@ -2725,3 +2725,42 @@ def test_information_in_key_name_blocks_deletion(tmp_path):
         ctrl = item_by_name(data, name)
         assert ctrl["criterion"] == "C3_empty_or_skeleton", f"{name}: {ctrl['basis']}"
         assert ctrl["verdict"] == "建议删", name
+
+
+def test_atx_heading_text_is_parsed_structurally(tmp_path):
+    """⛔ 第九轮审查 HIGH（R9-H3）：标题内容判断此前用 `lstrip(" \\t#")` 一把撸掉
+    所有井号，于是 `# # #` 的**中间那个 `#`**（可见的标题内容）被当 opening 剥掉，
+    整行判空标题 → 文件确定删除；`#######`（7 个，超过 ATX H6 上限）本是普通
+    文本，也被结构行判定当成空标题模板。
+
+    ATX 的结构是 `opening(1-6 个 #) + 空白 + content + 可选 closing`，
+    分离得按这个结构走，不能靠字符集剥离 —— 这是对用户 C3 裁决的**实现偏差**，
+    不是要推翻裁决。
+    """
+    mod = load_module()
+    assert mod._atx_heading_text("# # #") == "#", "中间的井号是可见内容"
+    assert mod._atx_heading_text("## 标题 ##") == "标题", "收尾序列要去掉"
+    assert mod._atx_heading_text("# 标题") == "标题"
+    assert mod._atx_heading_text("# ") == "", "空标题就是空"
+    assert mod._atx_heading_text("###") == ""
+    assert mod._atx_heading_text("#######") == "", "超过 H6 不是标题，无标题文字"
+    assert mod._is_structural_line("#######") is False, "7 个井号是普通文本"
+    assert mod._is_structural_line("######") is True, "6 个仍是空标题模板"
+
+    vault, out = base_vault(tmp_path)
+    inbox = vault / "_待处理"
+    mk(inbox / "井号是内容.md", "# # #\n", age_days=5)
+    mk(inbox / "七个井号.md", "#######\n", age_days=4)
+    # ⛔ 正向对照：真正的空标题模板仍 C3
+    mk(inbox / "空标题模板.md", "# \n\n## \n\n###\n", age_days=3)
+
+    assert run_cli(vault, out).returncode == 0
+    data = load_json(out)
+    assert data["items"], "items 为空则本门恒真 = 假绿"
+    for name in ("井号是内容.md", "七个井号.md"):
+        it = item_by_name(data, name)
+        assert it["verdict"] != "建议删", f"{name} 被确定删除了: {it['basis']}"
+        assert it["criterion"] == "C6_undecided", name
+    ctrl = item_by_name(data, "空标题模板.md")
+    assert ctrl["criterion"] == "C3_empty_or_skeleton", ctrl["basis"]
+    assert ctrl["verdict"] == "建议删"

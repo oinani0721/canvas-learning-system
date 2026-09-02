@@ -455,6 +455,26 @@ _ONLY_STRUCT_RE = re.compile(r"^[\s\-=*_|:#>]*$")
 _STRUCT_CHARS = "-=*_|:#>"
 
 
+def _atx_heading_text(ln: str) -> str:
+    """ATX 标题行里**真正的标题文字**（去掉 opening 与可选的 closing 序列）。
+
+    ⛔ 第九轮审查 HIGH（R9-H3）：此前用 `ln.lstrip(" \t#")` 一把撸掉所有井号，
+    于是 `# # #` 的**中间那个 `#`**（它是可见的标题内容）被当成 opening 的一部分
+    剥掉，整行判成空标题 → 文件被确定删除。ATX 的结构是
+    `opening(1-6 个 #) + 空白 + content + 可选 closing(全 # 且前有空白)`，
+    分离得按这个结构走，不能靠字符集剥离。
+    """
+    m = re.match(r"^ {0,3}(#{1,6})(?:[ \t]+|$)", ln)
+    if not m:
+        return ""
+    rest = ln[m.end() :].strip()
+    # 可选的收尾序列：必须整段是 #，且与内容之间有空白（CommonMark §4.2）
+    closing = re.search(r"(?:^|\s)(#+)$", rest)
+    if closing and set(closing.group(1)) == {"#"}:
+        rest = rest[: closing.start()].strip()
+    return rest
+
+
 def _is_structural_line(t: str) -> bool:
     """纯结构行判定（分隔线 / 表格分隔 / 空列表符）。"""
     if not _ONLY_STRUCT_RE.match(t):
@@ -469,7 +489,11 @@ def _is_structural_line(t: str) -> bool:
     # 分隔线（CommonMark 要求 ≥3 个）/ 引用与标题记号 / 表格分隔（含 `-`）
     if ch in "-=*_" and len(core) >= 3:
         return True
-    return ch in ">#:|" and set(core) <= {ch} and len(core) >= 3
+    if ch == "#":
+        # ⛔ 第九轮 HIGH（R9-H3）：ATX 最多六级，`#######`（7 个）**不是**空标题
+        # 模板而是普通文本。此前 `set(core) <= {ch}` 把任意个数都当结构。
+        return len(core) <= 6
+    return ch in ">:|" and set(core) <= {ch} and len(core) >= 3
 
 
 #: 代码围栏（``` 或 ~~~，允许**最多 3 个空格**缩进 —— ⛔ 必须是字面空格：
@@ -826,7 +850,7 @@ def has_substantive_content(text: str) -> bool:
             # 不由我列举的完整度决定，列举永远会漏。
             # 准确的说法是性质：`has_substantive_content` 找不到任何一个
             # 「剥掉结构记号后还剩字符」的行时，才判空骨架。
-            if ln.lstrip(" \t#").strip():
+            if _atx_heading_text(ln):
                 return True
             continue
         t = _LIST_PREFIX_RE.sub("", ln).strip()

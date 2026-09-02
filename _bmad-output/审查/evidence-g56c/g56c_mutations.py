@@ -48,6 +48,7 @@ G_INVIS = "test_invisible_chars_are_detected_by_category_not_enumeration"
 G_HEADCONTENT = "test_heading_with_text_counts_as_substantive_content"
 G_R7 = "test_fence_info_string_and_semantic_operators_are_not_skeleton"
 G_KEYNAME = "test_information_in_key_name_blocks_deletion"
+G_ATX = "test_atx_heading_text_is_parsed_structurally"
 G_ZW = "test_zero_width_split_marker_still_reads_as_ai_suspect"
 
 # ── (名字, 期望 FAILED 集合, [(old, new), ...]) ──
@@ -192,25 +193,27 @@ MUTATIONS: list[tuple[str, set[str], list[tuple[str, str]]]] = [
         # 用户裁决（2026-09-02）：标题里写了字算实质正文。回退后
         # 「只写了标题的笔记」与「隐形字符伪装的标题」重新被确定删除。
         "M-HEADING    标题不算实质正文（回退用户裁决）",
-        {G_HEADCONTENT},
+        # ⚠️ 期望含 G_ATX：第九轮新加的 ATX 门端到端半边同样依赖「标题里写了字算
+        # 实质正文」这条裁决。这是 runner 第五次抓到我把期望写窄 —— 每次给判据扩
+        # 覆盖面，都要回头问一遍「哪些门现在也依赖它了」。
+        {G_HEADCONTENT, G_ATX},
         [
             (
-                '            if ln.lstrip(" \\t#").strip():\n'
-                "                return True\n",
+                "            if _atx_heading_text(ln):\n                return True\n",
                 "            if False:\n                return True\n",
             )
         ],
     ),
     (
         # 第七轮 HIGH：结构行判定退回「出现过结构字符就算结构」
+        # ⚠️ 期望含 G_ATX：第九轮的 ATX 门里 `#######` 那条断言同样走结构行判定。
+        # runner 第六次抓到期望写窄 —— 这条判据被两道门共同覆盖，是真实覆盖面。
         "M-STRUCT     结构行判定退回字符集匹配",
-        {G_R7},
+        {G_R7, G_ATX},
         [
             (
-                '    if ch in "-=*_" and len(core) >= 3:\n'
-                "        return True\n"
-                '    return ch in ">#:|" and set(core) <= {ch} and len(core) >= 3\n',
-                "    return True\n",
+                '    if ch == "#":\n',
+                "    if True:\n        return True\n    if False:\n",
             )
         ],
     ),
@@ -224,6 +227,17 @@ MUTATIONS: list[tuple[str, set[str], list[tuple[str, str]]]] = [
                 "        for k, v in fm_pairs\n"
                 "        if not v and _norm_fm_key(k) not in _KNOWN_FM_KEYS\n",
                 '        (k, "x")\n        for k, v in fm_pairs\n        if False\n',
+            )
+        ],
+    ),
+    (
+        # 第九轮 HIGH：ATX 标题文字改回字符集剥离
+        "M-ATX        标题文字解析退回 lstrip 剥井号",
+        {G_ATX},
+        [
+            (
+                "            if _atx_heading_text(ln):\n",
+                '            if ln.lstrip(" \\t#").strip():\n',
             )
         ],
     ),
