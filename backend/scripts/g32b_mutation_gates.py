@@ -70,8 +70,8 @@ MUTATIONS = [
     (
         "M3-R3-attempt-uses-tip",
         SKILL,
-        "    if _fsrs_applied or f1:\n        _att_expect = _att_now - _after_applied\n",
-        "    if _fsrs_applied or f1:\n        _att_expect = _att_now\n",
+        "    elif _fsrs_applied or f1:\n        _att_expect = _att_now - _after_applied\n",
+        "    elif _fsrs_applied or f1:\n        _att_expect = _att_now  # MUTANT\n",
         "test_r3_historical_event_replay_is_noop_not_conflict",
     ),
     (
@@ -713,6 +713,27 @@ MUTATIONS += [
         '    if _raw_bytes.startswith(b"\\xef\\xbb\\xbf"):\n',
         "    if False:  # MUTANT: BOM 放行\n",
         "test_round6_findings",
+    ),
+]
+
+
+MUTATIONS += [
+    (
+        # 序数退回只按 W 判 ⇒ degraded 落账的后继事件不算，误拒合法历史重试
+        "M70-ordinal-w-only-not-calibration",
+        SKILL,
+        """        and (_fm_has_event_compat(fm, str(_o4.get("event_id") or ""), _ALL_LEDGER_IDS)
+             or (W_inst is not None and _i <= W_inst))""",
+        """        and (W_inst is not None and _i <= W_inst)  # MUTANT: 只按 W 判""",
+        "test_round6_ordinal_evidence",
+    ),
+    (
+        # 不用账本可证的序数 ⇒ 带合法 attempt_count 的历史行也被无条件拒
+        "M71-ignore-provable-legacy-ordinal",
+        SKILL,
+        "    if _prov is not None:\n",
+        "    if False:  # MUTANT: 不用账本可证序数\n",
+        "test_round6_ordinal_evidence",
     ),
 ]
 

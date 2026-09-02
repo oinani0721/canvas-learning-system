@@ -2544,7 +2544,10 @@ def test_round5_legacy_scored_rows_break_ordinal_proof(vault):
     # 「不以 envelope 冲突的名义拒绝」这句话，那样断言恒假。要判的是它没有被
     # **报成** envelope 冲突，即那条错误诊断的原句不出现。
     assert "与本次评分事实不一致" not in r.stderr, f"不得把序数不可证伪装成评分事实不一致: {r.stderr[:300]}"
-    assert "请人工" in r.stderr, "拒因必须给出可执行的处置方式"
+    # round-6 后拒因更具体了：直接指名**哪几行**要补**什么字段**，
+    # 而不是笼统的「请人工核对」。判据跟着收紧，不退回宽松匹配。
+    assert "补上 attempt_count" in r.stderr, f"拒因必须指名要补的字段: {r.stderr[:300]}"
+    assert re.search(r"第 \[\d+", r.stderr), f"拒因必须指名具体行号: {r.stderr[:300]}"
     assert _write_face(vault) == face, "零写（节点 + 账本）"
 
     # 验伪：没有历史行时，正常的幂等重跑不得被这条新分支误伤
@@ -2689,3 +2692,66 @@ def test_round6_findings(vault):
         assert ("是空行" in rm.stderr) or ("BOM" in rm.stderr), f"[{desc}] 拒因须点名该形态: {rm.stderr[:200]}"
         assert _write_face(vault) == face, f"[{desc}] 零写（节点 + 账本）"
         assert _run_validator(vault).returncode != 0, f"[{desc}] 校验器确实拒（口径来源）"
+
+
+# ── 门㊹ round-6 后续: H⑤ 序数判据 + M③ 账本可证序数 ──
+
+
+def test_round6_ordinal_evidence(vault):
+    """⛔ 这两条我一度登记为「不处置」，理由是「改判据整个维度风险高于收益」——
+    **那是判断不是事实**，而且审查者给了具体修法。险些又犯「拿错误声明当不修
+    理由」那个错。
+
+    H⑤：序数把 `review_time <= W` 当成「后续事件已贡献 attempt」的证明。
+        但 **degraded 落账写 attempt + 校准却不写 W**，两者会分道 ——
+        重跑前一个事件时被误报「envelope 冲突」，而它是合法的历史重试。
+        判据改用 **calibration 证据**（与 attempt/mastery 同一次原子写）。
+
+    M③：历史行明明**带着合法 attempt_count**（validator rc=0），拒因却写死
+        「无 attempt_count」——拒因本身是错的。改为先用账本自身能证明的序数回推。
+    """
+    LED = vault / "learning_events.jsonl"
+
+    # ── H⑤：W 停在 E1，而 E2 已贡献 attempt + 校准 ⇒ 重跑 E1 必须幂等
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    for eid, ts in (("E1#q1", TS1), ("E2#q1", "2026-08-01T11:00:00Z")):
+        assert _run_writer_settled(vault, _payload(event_id=eid, ts=ts)).returncode == 0
+    node = (vault / NODE_REL).read_text(encoding="utf-8")
+    rolled = re.sub(r"^fsrs_last_review:.*$", f'fsrs_last_review: "{TS1}"', node, count=1, flags=re.M)
+    assert rolled != node, "预置必须真的把 W 回退（str 替换失败会静默返回原串）"
+    (vault / NODE_REL).write_text(rolled, encoding="utf-8")
+    assert _run_validator(vault).returncode == 0, "该状态本身合规（degraded 落账的产物形态）"
+    sha = _sha(vault / NODE_REL)
+    r = _run_writer(vault, _payload(event_id="E1#q1", ts=TS1))
+    assert r.returncode == 0, f"E2 已贡献 attempt（校准里有它），重跑 E1 必须幂等: {r.stderr[:300]}"
+    assert "幂等跳过" in r.stdout, r.stdout[:200]
+    assert _sha(vault / NODE_REL) == sha, "幂等必须零写"
+
+    # H⑤ 验伪：**真**的 envelope 冲突（改了分数）仍必须拒
+    r2 = _run_writer(vault, _payload(event_id="E1#q1", ts=TS1, grade_norm=0.11))
+    assert r2.returncode != 0, "评分事实真不一致时仍须拒 —— 否则这条修复把冲突门也放宽了"
+    assert "envelope 冲突" in r2.stderr, r2.stderr[:200]
+
+    # ── M③：历史行带合法 attempt_count ⇒ 账本可证，放行
+    def _with_legacy(payload):
+        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+        LED.unlink(missing_ok=True)
+        for eid, ts in (("E1#q1", TS1), ("L#q1", "2026-08-01T11:00:00Z")):
+            assert _run_writer_settled(vault, _payload(event_id=eid, ts=ts)).returncode == 0
+        rows = list(_ledger_lines(vault))
+        rows[1]["payload"] = payload
+        LED.write_text("\n".join(json.dumps(x, ensure_ascii=False) for x in rows) + "\n", encoding="utf-8")
+        assert _run_validator(vault).returncode == 0, "改造后的账本本身必须合规"
+        return _run_writer(vault, _payload(event_id="E1#q1", ts=TS1))
+
+    rp = _with_legacy({"exam_board": "旧板", "note": "旧写点产物", "attempt_count": 2})
+    assert rp.returncode == 0, f"历史行带合法 attempt_count ⇒ 账本可证，必须放行: {rp.stderr[:300]}"
+
+    # M③ 验伪：历史行**不带** attempt_count ⇒ 不可证，停下且拒因指名行号与字段
+    rn = _with_legacy({"exam_board": "旧板", "note": "旧写点产物"})
+    assert rn.returncode != 0, "不可证时必须停下（不得伪造期望值）"
+    assert "都没有可用的 attempt_count" in rn.stderr, rn.stderr[:300]
+    assert "补上 attempt_count" in rn.stderr and re.search(r"第 \[\d+", rn.stderr), (
+        f"拒因必须指名哪几行要补什么: {rn.stderr[:300]}"
+    )

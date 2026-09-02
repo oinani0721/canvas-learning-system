@@ -871,8 +871,18 @@ else:
     # E1→E2→重跑 E1 时把 E2 的计数当成 E1 的, 合法历史重放被误报冲突
     # (§6.2:187 要求同 canonical envelope 必须 no-op)。
     _dup_key = (_dup_inst, _dup_line)
-    _after_applied = sum(1 for _i, _l, _ in _applicable
-                         if (_i, _l) > _dup_key and W_inst is not None and _i <= W_inst)
+    # ⛔ 判据是「**它有没有贡献过 attempt**」, 不是「它的时刻过没过 W」
+    # (Codex round-6 HIGH)。calibration_log 与 attempt/mastery 同一次原子写, 是
+    # 「已应用」的凭据; `review_time <= W` 只说明**水位线**推进过它。
+    # 两者在 degraded 落账下会分道: 那条路径写 attempt + 校准却**不写 W**,
+    # 于是后继事件已贡献 attempt 而 W 仍停在前一个 —— 实测重跑前一个事件被
+    # 误报「envelope 冲突」(validator rc=0、节点未改), 而它是合法的历史重试。
+    _after_applied = sum(
+        1 for _i, _l, _o4 in _applicable
+        if (_i, _l) > _dup_key
+        and (_fm_has_event_compat(fm, str(_o4.get("event_id") or ""), _ALL_LEDGER_IDS)
+             or (W_inst is not None and _i <= W_inst))
+    )
     _before_pending = sum(1 for _i, _l, _ in _applicable
                           if (_i, _l) < _dup_key and (W_inst is None or _i > W_inst))
     # ⛔ §6.3 历史行也推进过 attempt, 但它**没有 attempt_count 可证**
@@ -882,18 +892,43 @@ else:
     # 评分事实并无不一致, 不一致的是我算出的期望序数。
     # 处置按「不伪造期望值」: 存在同节点历史评分行时序数不可证, 报真因停下,
     # 而不是硬算一个数再以 envelope 冲突的名义拒绝。
-    _legacy_after = sum(
-        1 for _l2, _o2 in _rows
+    _legacy_after = [
+        (_l2, _o2) for _l2, _o2 in _rows
         if isinstance(_o2, dict) and _o2.get("node_id") == node_id
         and isinstance(_o2.get("payload"), dict)
         and _o2["payload"].get("schema_ext") != "review/1"
         and not _looks_like_review_ext(_o2["payload"])
         and _o2.get("event_type") in ("answer_scored", "answer_abandoned")
         and _l2 > (_dup_line if _dup_line is not None else 0)
-    )
+    ]
+    # ⛔ 先用**账本自身能证明的**序数回推, 证不出来才停 (Codex round-6 MEDIUM)。
+    # 上一版无条件拒, 拒因还写死「无 attempt_count」—— 而实测那些历史行**带着
+    # 合法 attempt_count**(validator rc=0), 拒因本身就是错的。
+    # 可证判据: 账本是 append-only, 行号即写序; 某行的 attempt_count = 写它时的
+    # frontmatter 值 + 1。于是 dup **之后最早**那条带合法 attempt_count 的本节点
+    # 评分行(历史行或适用行皆可), 其 attempt_count - 1 就是 dup 应用后的
+    # frontmatter 值, 也就是 dup 自己的 attempt_count。比数个数更直接、更可证。
+    _prov = None
     if _legacy_after:
-        raise SystemExit(f"[quiz-answer] 账本里 {evid} 之后还有 {_legacy_after} 条本节点的 §6.3 历史评分行 (旧写点产物, 无 attempt_count) — 它们同样推进过 attempt 却无法证明推进了几次, 本次的期望序数不可从账本边界确证; ⛔ 不伪造期望值也不以 envelope 冲突的名义拒绝, fail-closed 拒写 — 请人工为这些历史行补 attempt_count, 或确认笔记的 attempt_count 后重跑")
-    if _fsrs_applied or f1:
+        _after_rows = sorted(
+            [(_l2, _o2) for _l2, _o2 in _rows
+             if isinstance(_o2, dict) and _o2.get("node_id") == node_id
+             and isinstance(_o2.get("payload"), dict)
+             and _o2.get("event_type") in ("answer_scored", "answer_abandoned")
+             and _l2 > (_dup_line if _dup_line is not None else 0)],
+            key=lambda t: t[0],
+        )
+        for _l3, _o3 in _after_rows:
+            _n3 = _o3["payload"].get("attempt_count")
+            if isinstance(_n3, int) and not isinstance(_n3, bool) and _n3 >= 1:
+                _prov = (_l3, _n3)
+                break
+        if _prov is None:
+            raise SystemExit(f"[quiz-answer] 账本里 {evid} 之后有 {len(_legacy_after)} 条本节点的 §6.3 历史评分行, 且**它们都没有可用的 attempt_count** — 历史行同样推进过 attempt 却无法证明推进了几次, 本次的期望序数不可从账本边界确证; ⛔ 不伪造期望值也不以 envelope 冲突的名义拒绝, fail-closed 拒写 — 请为账本里第 {[l for l, _ in _legacy_after][:3]} 行补上 attempt_count(写它时笔记的 attempt_count + 1) 后重跑")
+    if _prov is not None:
+        # 账本可证: 用最近后继行的序数直接回推, 不再依赖 _after_applied 计数。
+        _att_expect = _prov[1] - 1
+    elif _fsrs_applied or f1:
         _att_expect = _att_now - _after_applied
     else:
         if _before_pending:
