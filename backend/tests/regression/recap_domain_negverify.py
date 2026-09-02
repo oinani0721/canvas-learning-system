@@ -747,11 +747,12 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "r26_zero_seed",
     ),
     (
-        "survivor-63 (C-36) 不合口径的种子 H3 不再自己报（那一块整段排除在审计面外）",
+        "survivor-63 (C-36) 台账段内『认可小节之外的台账形状行』不再报"
+        "（第六/第七形态：不合规 H3 底下装台账行，整块排除在审计面外）",
         [
             (
-                "            _H3_SEEDISH_RE.match(vis_lines[_i])",
-                "            False and _H3_SEEDISH_RE.match(vis_lines[_i])",
+                "            if _k in _covered or _in_fence[_k] or not _bad_h3[_k]:",
+                "            if True:",
             )
         ],
         "r27_seedish_h3",

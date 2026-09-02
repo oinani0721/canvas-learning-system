@@ -5048,9 +5048,9 @@ def test_domain_r24_fence_closer_atx_and_tail_prefix():
         # ⛔ round-29：同上 —— `_SECTION_RE` 不接受前导缩进，两侧一致地不接受。
         (
             "   ## 台账\n\n   ### 种子\n\n- SeedA — 批注 999 条\n\n## 末\n",
-            "形似『### 种子』但不合统一口径",
-            "⛔ round-32：缩进的种子 H3 从「静默跳过」改为**自己 fail-closed**"
-            "（否则那一块永不受审——冻结审查 v13 的第六形态）",
+            None,
+            "⛔ round-33：缩进 `## 台账` ⇒ 取不到台账段 ⇒ helper 静默；"
+            "整体由**必需段门**判 FAIL（R25 第 ④ 段端到端验证）",
             None,
         ),
         # ⛔ round-30：同上，H3 不合口径不再静默跳过。
@@ -5127,7 +5127,7 @@ def test_domain_r25_section_criterion_unified_cli(tmp_path):
         (
             "   ## 台账\n\n   ### 种子\n\n- SeedA — 批注 999 条\n\n## 末\n",
             "缩进 ATX 标题",
-            "形似『### 种子』但不合统一口径",
+            None,  # ⛔ round-33：缩进 `## 台账` ⇒ 取不到台账段 ⇒ helper 静默（CLI 由必需段门 fail-closed）
         ),
         ("## 台账\n\n### 种子 ###\n\n- SeedA — 批注 999 条\n\n## 末\n", "ATX 闭合井号", "找不到可绑定"),
     ):
@@ -5233,13 +5233,13 @@ def test_domain_r27_seedish_h3_and_corrupt_seeds():
     #    ⇒ 每条都**绑定诊断关键词**，报错内容必须是这一条。
     for want, why, text, ledger in (
         (
-            "不合统一口径",
+            "小节之外",
             "第六形态 a：seeds=[] + 不认可 H3 + Ghost 行",
             "## 台账\n\n### 种子 ###\n\n- Ghost — 批注 9 条\n\n## 末\n",
             {"seeds": []},
         ),
         (
-            "不合统一口径",
+            "小节之外",
             "第六形态 b：认可的空小节 + 第二个不认可 H3 + Ghost（非零种子板）",
             "## 台账\n\n### 种子\n\n\n\n### 种子 ###\n\n- Ghost — 批注 9 条\n\n## 末\n",
             {"seeds": [{"node_id": "S", "tips_count": 2}]},
@@ -5260,6 +5260,30 @@ def test_domain_r27_seedish_h3_and_corrupt_seeds():
             None,
             "对照：合法认可小节 + 数字对",
             "## 台账\n\n### 种子\n\n- S — 批注 2 条\n\n## 末\n",
+            {"seeds": [{"node_id": "S", "tips_count": 2}]},
+        ),
+        (
+            "小节之外",
+            "⭐第七形态：inline code 标题（`_visible_text` 不归一 inline code）",
+            "## 台账\n\n### 种子\n\n\n\n### `种子` ###\n\n- Ghost — 批注 9 条\n\n## 末\n",
+            {"seeds": [{"node_id": "S", "tips_count": 2}]},
+        ),
+        (
+            "小节之外",
+            "⭐第七形态：highlight 标题（源码已声明 highlight 未覆盖）",
+            "## 台账\n\n### 种子\n\n\n\n### ==种子== ###\n\n- Ghost — 批注 9 条\n\n## 末\n",
+            {"seeds": [{"node_id": "S", "tips_count": 2}]},
+        ),
+        (
+            None,
+            "⭐误伤面：`### 派生` 小节里的同形行（台账下合法 H3，不得被当漏网）",
+            "## 台账\n\n### 派生\n\n- X — 批注 1 条\n\n## 末\n",
+            {"seeds": [], "derived": [{"node_id": "X", "tips_count": 1}]},
+        ),
+        (
+            None,
+            "⭐误伤面：正文里的 `### 种子相关说明`（我预判、审查方确认的误伤）",
+            "## 附录\n\n### 种子相关说明\n\n自由叙述。\n\n## 末\n",
             {"seeds": [{"node_id": "S", "tips_count": 2}]},
         ),
         (

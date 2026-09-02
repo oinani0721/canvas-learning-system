@@ -2188,7 +2188,20 @@ def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> No
     #        Ghost 行 ⇒ 第二块永不审，非零种子板同样可绕。
     #    ⇒ 凡是「H3 且可见文本以『种子』开头」却不被 `_H3_SEED_RE` 认可的行，
     #      自己报出来（fail-closed），不再静默跳过。
-    _H3_SEEDISH_RE = re.compile(r"^[^\S\n]*###[^\S\n]*种子")
+    # ⛔ R3 round-33（冻结审查 v14）：round-32 用「标题像不像种子」来报，
+    #    两头都错：
+    #      · **误伤**（我自己预判、审查方确认）：没有 `_under_ledger` 约束，
+    #        正文/附录里合法的 `### 种子相关说明` 会直接报错；
+    #      · **漏**（第七形态）：`### \`种子\` ###`（inline code）/ `### ==种子== ###`
+    #        （highlight）都不被 `_visible_text` 归一 ⇒ 既不匹配认可标题、也不匹配
+    #        「种子」前缀，Ghost 行不进任何 section；更一般地把第二节改成
+    #        `### 其他` 再装台账形状行，同样不受绑定。
+    #    ⇒ 换判据：**不猜标题，直接查内容** —— 台账段内、**认可小节之外**出现
+    #      台账形状的行（`- <节点> — 批注 N 条`）即 fail-closed。
+    #      这一条闭合第六/第七形态（**标题本身不合规**的 H3），且不误伤
+    #      `### 派生` 这类合规小节里的同形行。
+    #    ⚠️ 未覆盖：**合规但非预期**的 H3（如 `### 其他`）里装台账形状行 ——
+    #      要覆盖它得枚举台账下允许的段名，那又是一张闭表。如实登记。
     _under_ledger = False
     sections: list[tuple[int, int]] = []
     _i = 0
@@ -2198,16 +2211,6 @@ def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> No
             continue
         if re.match(r"^##[^\S\n]", vis_lines[_i]):
             _under_ledger = bool(_H2_LEDGER_RE.match(vis_lines[_i]))
-        if (
-            _H3_SEEDISH_RE.match(vis_lines[_i])
-            and not _H3_SEED_RE.match(vis_lines[_i])
-            and not _in_fence[_i]
-        ):
-            problems.append(
-                "数字终核: 出现形似『### 种子』但不合统一口径的小节标题 "
-                f"({vis_lines[_i].strip()[:40]!r}) —— 该块不会进入台账绑定面, "
-                "标题须为 `### 种子` 或 `### 种子（补充）` (统一口径 _SECTION_RE)"
-            )
         if _under_ledger and _H3_SEED_RE.match(vis_lines[_i]):
             _j = _i + 1
             # ⛔ round-29（冻结审查 v10）：终点扫描原先**不判围栏** ⇒ 围栏内的
@@ -2221,6 +2224,55 @@ def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> No
             _i = _j
         else:
             _i += 1
+    # 台账段的行范围（H2『台账』→ 下一个 H2），用于下面的「漏网行」扫描
+    _ledger_spans: list[tuple[int, int]] = []
+    _i = 0
+    while _i < len(vis_lines):
+        if not _in_fence[_i] and _H2_LEDGER_RE.match(vis_lines[_i]):
+            _j = _i + 1
+            while _j < len(vis_lines) and not (
+                not _in_fence[_j] and re.match(r"^##[^\S\n]", vis_lines[_j])
+            ):
+                _j += 1
+            _ledger_spans.append((_i + 1, _j))
+            _i = _j
+        else:
+            _i += 1
+    _covered = {k for lo, hi in sections for k in range(lo, hi)}
+
+    def _h3_wellformed(v: str) -> bool:
+        """H3 标题本身是否合规（与 `_SECTION_RE` 同精神：段名后只允许行尾或全角括号）。
+
+        ⚠️ 这里只判**形状**，不判段名 —— 台账下合法的 H3 至少有 `种子` / `派生`，
+        把它们逐个枚举又会造出一张闭表（本卡反复消掉的那种）。
+        """
+        return bool(re.match(r"^###[^\S\n]+[^\s#][^\n]*$", v)) and not re.search(
+            r"[^\S\n]#+[^\S\n]*$", v
+        )
+
+    # 「当前所处的 H3 标题是否合规」——不合规的 H3 底下的台账形状行才算漏网
+    _bad_h3 = [False] * len(vis_lines)
+    for _lo, _hi in _ledger_spans:
+        _cur_bad = False
+        for _k in range(_lo, _hi):
+            if _in_fence[_k]:
+                continue
+            if re.match(r"^###[^\S\n]", vis_lines[_k]):
+                _cur_bad = not _h3_wellformed(vis_lines[_k])
+            _bad_h3[_k] = _cur_bad
+    for _lo, _hi in _ledger_spans:
+        for _k in range(_lo, _hi):
+            if _k in _covered or _in_fence[_k] or not _bad_h3[_k]:
+                continue
+            if _SEED_LEDGER_LINE_RE.match(vis_lines[_k]) or _SEED_LEDGER_LINE_RE.match(
+                raw_lines[_k]
+            ):
+                problems.append(
+                    "数字终核: 台账段内、**认可的『种子』小节之外**出现台账形状行 "
+                    f"({vis_lines[_k].strip()[:50]!r}) —— 它不会进入任何绑定面; "
+                    "台账行必须写在 `### 种子` 小节内 (统一口径 _SECTION_RE)"
+                )
+
     if not sections:
         # ⛔ R3 round-30（冻结审查 v11）：H2 有全局必需段门兜底，**H3 没有** ——
         #    于是「与统一口径一致地不接受」对 H3 就成了**静默洞**：
