@@ -2480,6 +2480,12 @@ def test_source_inside_closed_html_comment_blocks_deletion(tmp_path):
         ("注释里的DOI.md", "# \n\n<!-- DOI:10.1000/hidden -->\n"),
         ("注释里的ISBN.md", "# \n\n<!-- citation: ISBN 978-7-111-54742-6 -->\n"),
         ("注释里的生成声明.md", "# \n\n<!-- generated with GPT-4 -->\n"),
+        # ⛔ 第五轮终审 HIGH：跨行注释的**中间整行**此前没被收集（只收闭合那行），
+        # 来源整条丢掉；单行注释反而受保护 —— 保护面不该取决于换不换行。
+        ("多行注释来源.md", "# \n\n<!--\nsource: https://multi.example/p\n-->\n"),
+        # ⛔ 第五轮终审 HIGH：frontmatter 里的 YAML 注释被 `startswith("#")` 跳过，
+        # 既不进 unparsed_fm 也不进 map，唯一来源写在那儿照样被确定删除。
+        ("fm里YAML注释.md", "---\n# source: https://fm-comment.example/p\ntitle:\n---\n"),
         ("注释里的URL重复件.md", "<!-- source: https://only-here.test/p -->\n" + body),
     ):
         mk(inbox / name, text, age_days=6)
@@ -2495,6 +2501,8 @@ def test_source_inside_closed_html_comment_blocks_deletion(tmp_path):
         "注释里的ISBN.md",
         "注释里的生成声明.md",
         "注释里的URL重复件.md",
+        "多行注释来源.md",
+        "fm里YAML注释.md",
     ):
         it = item_by_name(data, name)
         assert it["verdict"] != "建议删", f"{name} 被确定删除了: {it['basis']}"

@@ -178,7 +178,7 @@ MUTATIONS: list[tuple[str, set[str], list[tuple[str, str]]]] = [
         {G_COMMENT, G_COMMENT2},
         [
             (
-                "    commented_out = [ln for ln in stripped_comments if ln.strip()]\n",
+                "    commented_out = [ln for ln in stripped_comments if ln.strip()] + fm_comment_lines\n",
                 "    commented_out = []\n",
             )
         ],

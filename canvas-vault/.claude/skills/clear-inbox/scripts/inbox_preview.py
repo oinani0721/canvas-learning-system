@@ -692,6 +692,13 @@ def _classify_lines_typed(text: str) -> tuple[list[tuple[str, str]], bool, list[
             if in_comment:
                 i = rem.find("-->")
                 if i < 0:
+                    # ⛔ 第五轮终审 HIGH：跨行注释里**中间那些整行**此前没被收集
+                    # （只收了闭合那一行的 `rem[:i]`），于是
+                    #   <!--
+                    #   source: https://…
+                    #   -->
+                    # 的来源整条丢掉，文件被判空骨架确定删除。单行注释反而受保护。
+                    stripped_comments.append(rem)
                     break
                 # ⛔ round-4 验证 MEDIUM：收集的必须是**注释内部的内容**。
                 # 先前记的是「被剥掉的原文片段」，于是 `<!---->` 这种空注释也
@@ -1270,6 +1277,13 @@ def nominate(
         for ln in fm_lines
         if ln.strip() and not ln.strip().startswith("#") and not _FM_KEY_RE.match(ln)
     ]
+    # ⛔ 第五轮终审 HIGH：frontmatter 里的 YAML 注释行（`# source: https://…`）
+    # 被上面的 `startswith("#")` 当注释跳过，既不进 unparsed_fm 也不进 map ——
+    # 唯一来源写在那儿的文件照样被判空骨架确定删除。与信号⑩同源（引擎剥掉了
+    # 内容就该说出来），故并入同一条信号，不新开一条。
+    fm_comment_lines = [
+        ln.strip() for ln in fm_lines if ln.strip().startswith("#") and ln.strip("# \t")
+    ]
     # 未消化信号之四：边界规则拒掉的 AI 自述嫌疑（裸子串在场即算，见 raw_ai_marker）。
     ai_suspect = raw_ai_marker(text)
     # 未消化信号之六（round-6 BLOCKER-1）：独立词「AI」结构性信号 —— 不依赖
@@ -1401,7 +1415,7 @@ def nominate(
     # ⚠️ 与①（未闭合注释）对称：①保护的是「不知道被吞了什么」，⑩保护的是
     # 「知道被吞了什么，但引擎没消费它」。此前只有①有保护，于是把唯一来源
     # 写在闭合注释里的文件 C3/C4 双出口全穿。只收**注释里有非空内容**的行。
-    commented_out = [ln for ln in stripped_comments if ln.strip()]
+    commented_out = [ln for ln in stripped_comments if ln.strip()] + fm_comment_lines
 
     def undigested_reason() -> str | None:
         """⛔ 「未消化信号」统一护栏（显式偏差 15）：C3/C4 是仅有的两个产出
