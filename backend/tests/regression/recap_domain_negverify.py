@@ -374,12 +374,10 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "r9_visible",
     ),
     (
-        "survivor-28 (C-6) 负数计数检查被摘除（`-5个` 按 +5 入池）",
+        "survivor-28 (C-6→14) 负数计数检查被摘除（`-5个` 按 +5 入池）",
         [
             (
-                "                if re.search(\n"
-                '                    rf"(?:[-−－‑﹣]|负){_D2_JOIN_ONE}*$", line[: m_cnt.start(1)]\n'
-                "                ):",
+                '                if re.search(rf"{_NEG_SIGN}{_D2_JOIN_ONE}*$", line[: m_cnt.start(1)]):',
                 "                if False:",
             )
         ],
@@ -424,11 +422,11 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "r10_ordering",
     ),
     (
-        "survivor-33 (C-8) fallback 负数守卫被摘除（`-5` 按 +5 入池，D2 侧仍在 ⇒ 只测 D2 的门抓不到）",
+        "survivor-33 (C-8→14) fallback 负数守卫被摘除（`-5` 按 +5 入池，D2 侧仍在）",
         [
             (
                 "            for m_neg in re.finditer(\n"
-                '                rf"(?:[-−－‑﹣]|负){_D2_JOIN_ONE}*({_NUM_RUN_PAT})", norm\n'
+                '                rf"{_NEG_SIGN}{_D2_JOIN_ONE}*({_NUM_RUN_PAT})", norm\n'
                 "            ):",
                 "            for m_neg in ():",
             )
@@ -470,11 +468,22 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "survivor-37 (C-9) 负号守卫去掉中文『负』（`负五个` 按 +5 入池）",
         [
             (
-                'rf"(?:[-−－‑﹣]|负){_D2_JOIN_ONE}*$"',
-                'rf"[-−－‑﹣]{_D2_JOIN_ONE}*$"',
+                '_NEG_SIGN = r"(?:[-−－‑﹣]|负)"',
+                '_NEG_SIGN = r"[-−－‑﹣]"',
             )
         ],
         "r11_fulltext",
+    ),
+    (
+        "survivor-40 (C-14) inline-code 守卫的数字部分退回手写 `[0-9]+`"
+        "（`九十八万个`/`987654 个` 等完整可见计数写进 code span 即整域免检）",
+        [
+            (
+                'rf"`(?![{re.escape(_D2_COUNTISH_CHARS)}\\s]+`)[^`\\n]*`"',
+                'rf"`(?![0-9]+`)(?!{_D2_QUANT}+`)[^`\\n]*`"',
+            )
+        ],
+        "r12_no_silent",
     ),
     (
         "survivor-39 (C-12) reference-style link 不再取显示文本（`总[计][r]N个` 句式门失锚）",
@@ -523,11 +532,7 @@ def run_suite(keyword: str) -> tuple[int, str, int, int]:
     # failure 都记成"承重"。**异常伪红比不变红更坏**: 它会以「✅ 如期变红」
     # 的形式混进证据, 且永远不会有人去查。
     # ⇒ 这里显式识别"变异让生产代码抛异常"的形态并单独报出。
-    crash = bool(
-        re.search(
-            r"\b(re\.error|SyntaxError|NameError|AttributeError|TypeError)\b", out
-        )
-    )
+    crash = bool(re.search(r"\b(re\.error|SyntaxError|NameError|AttributeError|TypeError)\b", out))
     return r.returncode, out[-400:], passed + failed, failed, crash
 
 
@@ -535,9 +540,7 @@ def main() -> int:
     try:
         LOCK.mkdir()  # 原子互斥: 已存在即抛
     except FileExistsError:
-        print(
-            f"⛔ 另一个负验证进程正在跑（锁: {LOCK}）。变异脚本必须串行——见脚本 docstring。"
-        )
+        print(f"⛔ 另一个负验证进程正在跑（锁: {LOCK}）。变异脚本必须串行——见脚本 docstring。")
         return 2
     try:
         original = TARGET.read_bytes()
@@ -567,14 +570,10 @@ def main() -> int:
             finally:
                 TARGET.write_bytes(original)  # 立刻还原，异常也还原
             got = hashlib.sha256(TARGET.read_bytes()).hexdigest()
-            assert got == backup_sha, (
-                f"还原后字节与备份不同！{got[:12]} != {backup_sha[:12]}"
-            )
+            assert got == backup_sha, f"还原后字节与备份不同！{got[:12]} != {backup_sha[:12]}"
             # ⛔ 必须是"收集到用例 且 确实有失败"，不能只看 rc != 0
             if n == 0:
-                print(
-                    f"❌ {name}: `-k {keyword}` 一个用例都没匹配到（rc={rc}）——这不是变红"
-                )
+                print(f"❌ {name}: `-k {keyword}` 一个用例都没匹配到（rc={rc}）——这不是变红")
                 failures += 1
             elif crash:
                 print(
@@ -588,9 +587,7 @@ def main() -> int:
             else:
                 print(f"✅ {name}: 如期变红（{f}/{n} 失败）")
 
-        print(
-            f"\n{'全部承重' if not failures else f'{failures} 条未承重'}（共 {len(MUTANTS)} 条变体）"
-        )
+        print(f"\n{'全部承重' if not failures else f'{failures} 条未承重'}（共 {len(MUTANTS)} 条变体）")
         return 1 if failures else 0
     finally:
         LOCK.rmdir()

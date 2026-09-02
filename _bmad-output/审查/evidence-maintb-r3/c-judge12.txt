@@ -1,22 +1,24 @@
 === collect-only ===
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-========================= 262 tests collected in 0.21s =========================
+========================= 262 tests collected in 0.20s =========================
 === JUDGE-1 ===
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-====================== 262 passed, 14 warnings in 42.41s =======================
+====================== 262 passed, 14 warnings in 40.21s =======================
 <sys>:0: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
-=== JUDGE-2 negverify (39 变体) ===
+=== JUDGE-2 negverify (40 变体) ===
+✅ survivor-33 (C-8→14) fallback 负数守卫被摘除（`-5` 按 +5 入池，D2 侧仍在）: 如期变红（1/1 失败）
 ✅ survivor-34 (C-8) Markdown link 不再取显示文本（`总[计](u)N个` 句式门失锚）: 如期变红（1/1 失败）
 ✅ survivor-35 (C-9) 全文『派生』门退回在**源码行**上判（`派**生**` 整行绕过全文门）: 如期变红（1/1 失败）
 ✅ survivor-36 (C-9) 定界集去掉可见数字（带圈/苏州码 ⇒ 一个 token 都抽不出、整句零校验）: 如期变红（1/1 失败）
 ✅ survivor-37 (C-9) 负号守卫去掉中文『负』（`负五个` 按 +5 入池）: 如期变红（1/1 失败）
+✅ survivor-40 (C-14) inline-code 守卫的数字部分退回手写 `[0-9]+`（`九十八万个`/`987654 个` 等完整可见计数写进 code span 即整域免检）: 如期变红（1/1 失败）
 ✅ survivor-39 (C-12) reference-style link 不再取显示文本（`总[计][r]N个` 句式门失锚）: 如期变红（1/1 失败）
 ✅ survivor-38 (C-8) 小数分隔符两侧不再容连接字符（原与千分位混成组合变异，现拆开单测）: 如期变红（1/1 失败）
 
-全部承重（共 39 条变体）
+全部承重（共 40 条变体）
 === 扩大回归 ===
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-================= 594 passed, 193 warnings in 65.37s (0:01:05) =================
+================= 594 passed, 193 warnings in 65.50s (0:01:05) =================
 <sys>:0: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
 === 收尾 sha ===
-07af733706dd5fbbeef27ae09a59b9c61fbc7da2581fde2a39aeedcaf79bbc83  ../canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py
+1ee846c930b2b895ecb359c156ed3a77e1dcb7b176cc2740f095770ea58dfae0  ../canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py

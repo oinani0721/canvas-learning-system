@@ -1489,7 +1489,14 @@ _D2_TIME_RE = re.compile(
 # `章` —— 主表 _D2_QUANT 后来扩到 63 字, 副本没跟, 于是把 `例` 单独写成 code span
 # 就能把量词锚点挖空。**改为从 _D2_QUANT 机械派生**: 一个原则只有一个应用点,
 # 这正是本卡反复证明的那条 (判据分叉/双循环/顺序耦合都是同一个病).
-_D2_INLINE_CODE_RE = re.compile(rf"`(?![0-9]+`)(?!{_D2_QUANT}+`)[^`\n]*`")
+# ⛔ R3 round-14 (冻结审查): 数字部分原先仍手写 `[0-9]+` —— 我上一轮只派生了
+# **量词**部分, 「副本已消除」只对了一半。于是 `` `九十八万个` ``、`` `987654 个` ``
+# 这类**完整可见计数**写进 code span 会被整体挖空、整域免检。
+# 数字部分改为派生自 _NUMERAL_LIKE_CHARS(定界集), 与取数同源。
+# 「纯计数」= 只由数词样字符 / 量词 / 空白组成 —— 这类 code span 是**可见计数**,
+# 不该按「字段值」豁免掉。合并成一个否定前瞻。
+_D2_COUNTISH_CHARS = _NUMERAL_LIKE_CHARS + _D2_QUANT.strip("[]")
+_D2_INLINE_CODE_RE = re.compile(rf"`(?![{re.escape(_D2_COUNTISH_CHARS)}\s]+`)[^`\n]*`")
 # ⛔ E3 同理: wikilink 的**别名显示文本**是读者看得见的正文
 # (`[[节点/x|本板共有 987654 个子节点]]` 渲染出来就是那句话)。只豁免**目标部分**,
 # 别名部分留给 D2 校验。
@@ -1631,8 +1638,15 @@ _VIS_INVISIBLE_RE = re.compile(_INVISIBLE_ONE)
 #   · 合法区间(两端在池) 被拼成池外的一个数 ⇒ **误伤**(实测 rc=1);
 #   · `9~5个` 的区间分支同时失效(round-5 刚补的 `~` 白补)。
 # ⇒ 只剥**成对**的删除线 `~~`; 单个 `~` 保留给区间正则。
-# `*`/`_` 未配对时渲染可见, 剥掉是**安全向**的过度归一(查到的值 ⊇ 读者
-# 看到的数); `~` 不同 —— 剥它会**改变数的边界**, 方向相反。
+# ⛔ 「安全向」的说法**已被证伪**(见 _join_free docstring): `1\\*5个` 渲染可见
+# `1*5`, 实现却按 **15** 查池且 15 在池内 ⇒ 放行。查到的值与读者看到的数之间
+# **没有包含关系**。剥 `*`/`_` 是一个**已知 fail-open 面**, 不是安全边界。
+# round-13 试过「成对剥离 + 落单移出连接集」, 实测只是把 fail-open 从「拼错的数」
+# 挪到「尾片」, 还打破 3 道门 ⇒ 已回退, 如实登记在验收单 §五之三。
+# `~` 另论: 剥它会**改变数的边界**(区间号), 故只剥成对的 `~~`。
+# ⛔ R3 round-14 (冻结审查): 负号集原先在 D2(:1891) 与 fallback(:2179) **手抄两次**
+# —— 又一处副本(本卡反复证明: 一个原则只应有一个应用点)。提为单一常量。
+_NEG_SIGN = r"(?:[-−－‑﹣]|负)"
 _VIS_STRIKE_RE = re.compile(r"~~")
 _VIS_EMPHASIS_RE = re.compile(r"[*_]")
 
@@ -1647,8 +1661,10 @@ def _visible_text(line: str) -> str:
       3. wikilink 取**显示文本** —— 有别名取别名, 无别名取目标本身
          （原实现把无别名链接的目标挖空, 而那正是读者看到的字, round-5 HIGH-8）;
       4. 去零宽/双向控制字符;
-      5. 去强调标记 `*_~` —— 未配对时渲染可见, 这里一并去掉是**安全向**的过度
-         归一（查到的值 ⊇ 读者看到的数, 不构成虚构通道）。
+      5. 去强调标记 `*_` 与成对 `~~` —— ⚠️ 未配对时渲染**可见**, 去掉它们是一个
+         **已知 fail-open 面**而非安全边界（`1\\*5个` 按 15 入池，池含 15 并不能
+         证明读者看到的 `1*5` 有出处）。此前写的「安全向、不构成虚构通道」**已被
+         证伪**，round-13 的试修亦实测无收益并已回退。如实登记，不再声称安全。
 
     ⚠️ **不碰 inline code**: `` `…` `` 的内容在本域是**有意豁免**的字段值
     （E2, 见 _D2_INLINE_CODE_RE），不是"被隐藏的计数"。这是**声明过的设计选择**,
@@ -1887,9 +1903,7 @@ def _verify_prose_counts(text: str, scan: dict, problems: list[str]) -> None:
                 # ⛔ R3 round-6 (Codex round-5 HIGH-6): 负号不属于数串, 于是
                 # `本板共有-5个` 按 **+5** 比对 —— 进池值 ≠ 读者看到的数。
                 # scan 的计数都是非负整数, 负计数**不可能有出处** ⇒ 恒 FAIL。
-                if re.search(
-                    rf"(?:[-−－‑﹣]|负){_D2_JOIN_ONE}*$", line[: m_cnt.start(1)]
-                ):
+                if re.search(rf"{_NEG_SIGN}{_D2_JOIN_ONE}*$", line[: m_cnt.start(1)]):
                     problems.append(
                         f"数字终核: 『{sec}』段出现负数形态的计数 "
                         f"-{_join_free(m_cnt.group(1))} "
@@ -2176,7 +2190,7 @@ def _verify_fallback_derive_numbers(text: str, scan: dict, problems: list[str]) 
             # ⛔ R3 round-8 (Codex round-6 HIGH-4): 负数守卫原先**只在 D2 侧** ——
             # fallback 的 `-5` 按 +5 入池。两侧同口径: scan 计数均非负, 负数恒 FAIL。
             for m_neg in re.finditer(
-                rf"(?:[-−－‑﹣]|负){_D2_JOIN_ONE}*({_NUM_RUN_PAT})", norm
+                rf"{_NEG_SIGN}{_D2_JOIN_ONE}*({_NUM_RUN_PAT})", norm
             ):
                 problems.append(
                     f"数字终核: fallback 允许式({tag})行内出现负数形态 "
