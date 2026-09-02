@@ -4844,7 +4844,7 @@ def test_domain_r22_fence_indent_and_seed_scope_cli(tmp_path):
 
     三条实测：
       · **四空格缩进的 ``` 不是围栏**（CommonMark 里那是 indented code block）。
-        原实现先用 `[>\s]` 吃掉**任意**前导空白，`open_re` 的 ` {0,3}` 形同虚设
+        原实现先用 `[>\\s]` 吃掉**任意**前导空白，`open_re` 的 ` {0,3}` 形同虚设
         ⇒ 顶层 `    ```` 被当成开栏，其后读者**看得见**的自陈句整段免检（实测放行）；
       · round-25 的「逐个处理全部种子小节」**范围超出意图** —— 搜全篇任意
         `### 种子`，未限定父级 `## 台账`、未排除围栏 ⇒ 附录里的同名小节被强制
@@ -4974,6 +4974,87 @@ def test_domain_r23_seed_scope_fence_and_tail_render_cli(tmp_path):
         ),
     ):
         ps = run(text)
+        if want is None:
+            assert ps == [], f"{why}：误伤 —— {ps!r}"
+        else:
+            assert ps, f"{why}：应报错却放行"
+            assert any(want in p for p in ps), f"{why}：诊断未含 {want!r} —— {ps!r}"
+
+
+def test_domain_r24_fence_closer_atx_and_tail_prefix():
+    """R3 round-28（冻结审查 v9）：顶层围栏闭合 / ATX 缩进与闭合序列 / 尾巴前缀。
+
+    审查方给的反例与我的处置：
+      · **顶层**围栏内的 `- ``` ` 被当成闭栏、下一行重新开栏 ⇒ 用户可见正文被剥到
+        EOF。CommonMark 里闭栏必须在**同一容器**内。⇒ 判闭栏时引用前缀恒剥，
+        **列表 marker 只在开栏本身就在列表项内时才剥**。
+        ⚠️ 第一版我不分容器一律禁列表 marker，当场打红 `strip_code_blocks` 单元
+        契约门（列表项内围栏本来就由下一个 `- ``` ` 闭合）；
+      · round-27 的 `(?<![\u4e00-\u9fff])批注` 排除了**所有**汉字前缀 ⇒
+        `累计/共/已批注 999 条` 全部放过。⇒ 只排除**否定前缀**「未」；
+      · ATX 标题的合法 0-3 格缩进不识别；`### 种子###`（闭合井号前无空白）误认；
+      · `seeds` 缺失/非 list 时**静默回落**到摊平全部角色 —— 那正是本轮要堵的洞。
+
+    **它证明什么**：八种形态的行为（含三种前缀、两种标题、fail-closed、小节内围栏）。
+    **它不证明什么**：**列表 continuation 未建模**（`- item` 之后的相对内容列），
+    审查方判为需重做设计；`_strip_code_blocks` 的行数前提准确表述是
+    **索引映射保持、尾项由越界兜底补偿**（末尾空项会丢），不是无条件行数恒等。
+    """
+    rs = _load_recap_scan()
+
+    # 顶层围栏内的列表 marker 行不是闭栏 ⇒ 其后的可见正文必须留下
+    assert "本板共有987654个子节点" in rs._strip_code_blocks("```\n- ```\n```\n本板共有987654个子节点"), (
+        "顶层围栏内的 `- ```` 被误当闭栏，可见正文被剥到 EOF"
+    )
+    # 列表项内围栏仍由下一个 `- ```` 闭合（round-2 固化形态，不得回归）
+    assert rs._strip_code_blocks("- ```\n  x：无据\n- ```").strip() == "", "列表项内围栏未整块剥空"
+
+    SEEDS = {
+        "ledger": {
+            "seeds": [{"node_id": "SeedA", "tips_count": 2}],
+            "derived": [{"node_id": "DerivedX", "tips_count": 5}],
+        }
+    }
+
+    def run(text: str, scan=None) -> list[str]:
+        ps: list[str] = []
+        rs._verify_seed_ledger_counts(text, scan or SEEDS, ps)
+        return ps
+
+    def L(row: str) -> str:
+        return f"## 台账\n\n### 种子\n\n{row}\n\n## 末\n"
+
+    for text, want, why, scan in (
+        (L("- SeedA — 批注 2 条（累计批注 999 条）"), "尾巴里又出现", "尾巴 `累计批注`", None),
+        (L("- SeedA — 批注 2 条（共批注 999 条）"), "尾巴里又出现", "尾巴 `共批注`", None),
+        (L("- SeedA — 批注 2 条（已批注 999 条）"), "尾巴里又出现", "尾巴 `已批注`", None),
+        (L("- SeedA — 批注 2 条（未批注 999 条）"), None, "反向：`未批注` 不得误伤", None),
+        (
+            "   ## 台账\n\n   ### 种子\n\n- SeedA — 批注 999 条\n\n## 末\n",
+            "999",
+            "合法 0-3 格缩进 ATX 标题须识别",
+            None,
+        ),
+        (
+            "## 台账\n\n### 种子###\n\n- SeedA — 批注 999 条\n\n## 末\n",
+            None,
+            "`### 种子###`（闭合井号前无空白）不是标题『种子』",
+            None,
+        ),
+        (
+            L("- DerivedX — 批注 5 条"),
+            "缺少可用的 seeds",
+            "分组 ledger 缺 seeds ⇒ fail-closed，不回落到其它角色",
+            {"ledger": {"derived": [{"node_id": "DerivedX", "tips_count": 5}]}},
+        ),
+        (
+            "## 台账\n\n### 种子\n\n- SeedA — 批注 2 条\n\n```\n- SeedA — 批注 999 条\n```\n\n## 末\n",
+            None,
+            "小节内围栏中的字面行不得被当台账行",
+            None,
+        ),
+    ):
+        ps = run(text, scan)
         if want is None:
             assert ps == [], f"{why}：误伤 —— {ps!r}"
         else:

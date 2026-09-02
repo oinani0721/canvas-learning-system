@@ -1069,7 +1069,21 @@ def _strip_code_blocks(text: str) -> str:
                 out.append("")
                 continue
         else:
-            mc = close_re.match(bare)
+            # ⛔ R3 round-28（冻结审查 v9 反例）：围栏打开后仍对内容逐行剥
+            #    **列表** marker，于是块内的 `- ``` ` 被当成闭栏、下一行重新
+            #    开栏，最终把用户可见的正文剥到 EOF。CommonMark 里闭栏必须在
+            #    **同一容器**内 —— 带列表 marker 的行是新列表项，不可能是闭栏。
+            #    ⇒ 判闭栏时只剥引用前缀，不剥列表 marker。
+            #    ⚠️ 完整的容器状态（列表 continuation 的相对内容列）仍未建模，
+            #      审查方判为需重做设计，如实登记。
+            #   剥引用前缀恒做；**列表 marker 只在开栏本身就在列表项内时才剥** ——
+            #   顶层围栏里的 `- ``` ` 是字面内容（审查方反例），列表项内围栏
+            #   则本来就由下一个 `- ``` ` 闭合（round-2 固化形态）。
+            if fence_list_col is None:
+                bare_close = re.sub(r"^(?: {0,3}>[^\S\n]?)*", "", ln)
+            else:
+                bare_close = bare
+            mc = close_re.match(bare_close)
             # 闭合: 同字符 + 长度 ≥ 开栏 + 其后只有空白
             if (
                 mc
@@ -2092,7 +2106,11 @@ def _tail_conflict(mm: "re.Match[str]", key: str, problems: list[str]) -> None:
     #    `批<b>注</b> 999 条` / 全角数字全部漏；且 `未批注 999 条` 会因**子串**命中
     #    被误当同名字段。⇒ 先归一再判，并加**词边界**（前一个字不能是汉字）。
     rest = _visible_text(mm.groupdict().get("rest") or "")
-    for _n in re.findall(r"(?<![\u4e00-\u9fff])批注\s*(\d+)\s*条", rest):
+    # ⛔ round-28（冻结审查 v9）：round-27 用 `(?<![\u4e00-\u9fff])` 排除了
+    #    **所有**汉字前缀 —— `未批注` 修好了，但 `累计批注 999 条` /
+    #    `共批注 999 条` / `已批注 999 条` 也一并放过，它们仍是读者看得见的
+    #    第二个同字段数字。⇒ 只排除**否定前缀**「未」这一个字。
+    for _n in re.findall(r"(?<!未)批注\s*(\d+)\s*条", rest):
         problems.append(
             f"数字终核: 台账『种子』行 {key} 的尾巴里又出现『批注 {_n} 条』——"
             "同一字段两处计数, 无法确定以哪个为准 (fail-closed)"
@@ -2130,7 +2148,10 @@ def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> No
     #    「遇到任意三反引号就布尔翻转」，比 `_strip_code_blocks` 本体弱得多：
     #    四反引号开栏 → 块内三反引号伪闭栏 → 四反引号真闭栏，状态会 True→False→True，
     #    于是真闭栏之后的可见冲突小节被整段跳过。**同一原则两处定义**，第 N 次。
-    #    ⇒ 复用本体：`_strip_code_blocks` 把围栏行与围栏内容都置空且**行数不变**，
+    #    ⇒ 复用本体：`_strip_code_blocks` 把围栏行与围栏内容都置空。
+    #    ⚠️ 措辞更正（v9）：并非无条件「行数恒等」—— 返回字符串再 splitlines 时
+    #      **末尾空项会丢**（既有测试已记录三空行只得两项）。准确说法是
+    #      **索引映射保持、尾项由越界兜底补偿**（下面按空串处理）。
     #      「原行非空而剥后为空」即「在围栏内（或本身是围栏标记）」。
     # ⛔ 同轮收紧两处判定（审查方逐条点名）：
     #    · 父级 H2 原用 `"台账" in heading` ⇒ `## 非台账示例` 也算 —— 改整行匹配
@@ -2143,8 +2164,15 @@ def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> No
         and not (_stripped[_n] if _n < len(_stripped) else "").strip()
         for _n in range(len(raw_lines))
     ]
-    _H2_LEDGER_RE = re.compile(r"^##\s+台账\s*(?:[（(][^）)]*[）)])?\s*#*\s*$")
-    _H3_SEED_RE = re.compile(r"^###\s+种子\s*#*\s*$")
+    # ⛔ R3 round-28（冻结审查 v9）：round-27 的两式还差两处 ——
+    #    · **合法的 0-3 格前导缩进** ATX 标题不识别（`   ## 台账` 能逃出绑定面）；
+    #    · `\s*#*` 会误认 `### 种子###` —— ATX 闭合序列前**必须有空白**，
+    #      否则那几个井号是标题文本的一部分，读者看到的标题并非精确「种子」。
+    _ATX_CLOSE = r"(?:[^\S\n]+#+)?[^\S\n]*$"
+    _H2_LEDGER_RE = re.compile(
+        r"^ {0,3}##[^\S\n]+台账[^\S\n]*(?:[（(][^）)]*[）)])?" + _ATX_CLOSE
+    )
+    _H3_SEED_RE = re.compile(r"^ {0,3}###[^\S\n]+种子" + _ATX_CLOSE)
     _under_ledger = False
     sections: list[tuple[int, int]] = []
     _i = 0
@@ -2152,11 +2180,13 @@ def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> No
         if _in_fence[_i]:
             _i += 1
             continue
-        if re.match(r"^##\s", vis_lines[_i]):
+        if re.match(r"^ {0,3}##[^\S\n]", vis_lines[_i]):
             _under_ledger = bool(_H2_LEDGER_RE.match(vis_lines[_i]))
         if _under_ledger and _H3_SEED_RE.match(vis_lines[_i]):
             _j = _i + 1
-            while _j < len(vis_lines) and not re.match(r"^#{2,3}\s", vis_lines[_j]):
+            while _j < len(vis_lines) and not re.match(
+                r"^ {0,3}#{2,3}[^\S\n]", vis_lines[_j]
+            ):
                 _j += 1
             sections.append((_i + 1, _j))
             _i = _j
@@ -2176,9 +2206,14 @@ def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> No
         if isinstance(seeds, list):
             rows = [x for x in seeds if isinstance(x, dict)]
         else:
-            for grp in groups.values():
-                if isinstance(grp, list):
-                    rows.extend(x for x in grp if isinstance(x, dict))
+            # ⛔ round-28（冻结审查 v9）：round-27 在 `seeds` 缺失/非 list 时**静默
+            #    回落到摊平全部角色** —— 那正是本轮要堵的洞（派生节点混进种子小节）。
+            #    分组形态却没有 seeds = scan 侧异常，**fail-closed**，不猜。
+            problems.append(
+                "数字终核: scan JSON 的 ledger 是分组形态但缺少可用的 seeds 列表, "
+                "台账『种子』行无法绑定 (不回落到其它角色, 避免派生节点冒充种子)"
+            )
+            return
     elif isinstance(groups, list):
         rows = [x for x in groups if isinstance(x, dict)]
     if not rows:  # 无 ledger 可绑 = 无法终核, 不静默放行
@@ -2193,6 +2228,11 @@ def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> No
         for _k in range(_lo, _hi):
             ln = vis_lines[_k]
             if not ln.strip():
+                continue
+            # ⛔ round-28（冻结审查 v9）：`_in_fence` 原先只用于**找标题**，
+            #    进了小节之后逐行检查不再判围栏 ⇒ 小节里放一段代码块，
+            #    块内的字面行会被当成台账行强判。
+            if _in_fence[_k]:
                 continue
             raw_ln = raw_lines[_k]  # 同一下标 = 同一源行（一次切行保证）
             raw_ms = _SEED_LEDGER_LINE_RE.match(raw_ln)

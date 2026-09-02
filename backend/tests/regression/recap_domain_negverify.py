@@ -663,6 +663,29 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         ],
         "r23_seed_scope",
     ),
+    (
+        "survivor-57 (C-30) 顶层围栏闭合重新允许列表 marker（块内 `- ``` ` 误当闭栏 ⇒ 其后可见正文被剥到 EOF）",
+        [
+            (
+                "            if fence_list_col is None:\n"
+                '                bare_close = re.sub(r"^(?: {0,3}>[^\\S\\n]?)*", "", ln)\n'
+                "            else:\n"
+                "                bare_close = bare",
+                "            bare_close = bare",
+            )
+        ],
+        "r24_fence_closer",
+    ),
+    (
+        "survivor-58 (C-31) 尾巴同名字段重新排除全部汉字前缀（`累计/共/已批注 N 条` 放过）",
+        [
+            (
+                'for _n in re.findall(r"(?<!未)批注\\s*(\\d+)\\s*条", rest):',
+                'for _n in re.findall(r"(?<![\\u4e00-\\u9fff])批注\\s*(\\d+)\\s*条", rest):',
+            )
+        ],
+        "r24_fence_closer",
+    ),
 ]
 
 
@@ -796,7 +819,7 @@ def run_suite(keyword: str) -> tuple[int, str, int, int, bool]:
     return r.returncode, out[-400:], passed + failed, failed, crash
 
 
-MUTANT_COUNT_EXPECTED = 56
+MUTANT_COUNT_EXPECTED = 58
 """变体数的**独立**期望值。
 
 ⛔ 冻结审查 v6：脚本原先只在结尾动态打印「共 N 条」—— 误删一个变体仍会成功退出。

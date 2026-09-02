@@ -1,95 +1,88 @@
 BLOCKER/HIGH 清零：否
 
-有效基线为 `272 passed, 15 warnings in 44.97s`，但源码静态反例表明仍有多处“校验文本 ≠ Obsidian 用户所见文本”的 HIGH。
+未发现新的 BLOCKER，但仍有可让“用户可见数字”逃出校验的 HIGH。
 
-### 本轮四组改动
+### 运行锚点
 
-- ❌ HIGH｜围栏前缀只修对了一半。[recap_scan.py:1040–1083](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:1040)
+- ✅ `git rev-parse HEAD`：`636b09a421fbe13ae7551e8ba10d376cdec32fbb`
+- ✅ 指定 pytest：`273 passed, 15 warnings in 42.58s`
+- ⚠️ 首次因只读沙箱无可写临时目录，在收集前失败；获准以同一命令重跑后得到上述通过结果。警告包含 [test_recap_scan_signals.py:4847](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/test_recap_scan_signals.py:4847) 的无效转义 `\s`。
 
-  无 marker 的四格缩进现在确实会保留；`>```、> > ```、- ```、- - ```、1. ```、1) ```` 也能识别。
+### 主要结论
 
-  但 marker 后的 `[^\S\n]*` 会吞任意空白。例如 `>` 后 5 格再跟三反引号，会被剥成顶层 fence；CommonMark 中其中至多 1 格属于引用 padding，余下 4 格使其成为 indented code，不应开栏。由于纯引用没有 `fence_list_col`，其后的可见正文会被错误剥掉。
+- ❌ FAIL/HIGH（存量，本轮继续继承）[recap_scan.py:1046](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:1046)：围栏打开后，仍对围栏内容逐行剥列表/引用前缀，再在 [recap_scan.py:1072](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:1072) 用剥后的文本判断闭栏。静态可达路径为：
 
-  列表 continuation 也未建模：`- item` 后缩进 2 格的 fence 会开栏，却不记录列表边界，之后已经出列表容器的可见正文仍可能被吞；`10. item` 后相对内容列合法的 4 格 fence 又会被当作顶层四格而拒识。继续补单条 regex 无法闭合这一面。
+  ````markdown
+  ```
+  - ```
+  ```
+  本板共有987654个子节点
+  ````
 
-- ❌ HIGH｜`_tail_conflict()` 的狭义裸文本路径正确，但渲染边界未堵住。[recap_scan.py:2073–2090](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:2073)、[recap_scan.py:2191–2203](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:2191)
+  渲染器把第二行当代码字面、第三行才是真闭栏；校验器却在第二行误闭栏、第三行重新开栏，最终把用户可见的第四行剥到 EOF。代码块兜底 [recap_scan.py:1121](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:1121) 只查信号 label，不查普通规模计数。需要容器状态设计重做。
 
-  裸 `批注 2 条（批注 999 条）` 会 fail-closed，且其它已声明不绑定字段会放行，这部分正确。
+- ❌ FAIL/HIGH（本轮新正则未闭合）[recap_scan.py:1022](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:1022)、[recap_scan.py:1046](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:1046)：引用 `>` 后五格现在会正确留下四格并拒绝开栏；但列表 marker 后五至七格会先被 `{1,4}` 吃四格，剩余一至三格又被 `open_re` 接受，仍被误认成围栏。R22 只测了 `- ` 后一格和顶层 0/3/4 格，[test_recap_scan_signals.py:4880](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/test_recap_scan_signals.py:4880) 没锁 1–5 格边界。
 
-  但 raw 节点精确命中后只检查 `raw_ms` 并立即 `continue`。因此尾巴写成 `批**注** 999 条`、`批<b>注</b> 999 条` 或全角数字时，用户看到第二个同名字段，检查却漏掉。反向边界也不准：`未批注 999 条` 会因 substring 命中而被当成同名字段。
+- ❌ FAIL/HIGH（本轮引入）[recap_scan.py:2094](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:2094)：`(?<![\u4e00-\u9fff])批注` 修好了 `未批注`，却把所有汉字前缀一并排除。尾巴里的 `累计批注 999 条`、`共批注 999 条`、`已批注 999 条` 都不会报错，仍是用户可见的第二个同字段数字。R23 只测裸 `批注` 与 `未批注`，[test_recap_scan_signals.py:4953](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/test_recap_scan_signals.py:4953) 未覆盖这些正向限定词。
 
-- ❌ HIGH｜种子小节范围仍未收口。[recap_scan.py:2124–2148](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:2124)
+- ❌ FAIL/HIGH（本轮标题修复不完整）[recap_scan.py:2146](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:2146)：
 
-  围栏状态仅遇到任何三反引号/波浪线就布尔翻转，不校验同字符、长度、合法闭栏尾巴或 info string。四反引号开栏、块内三反引号伪闭栏、四反引号真闭栏，会使状态依次变成 `True → False → True`，从而跳过真闭栏后的可见冲突小节。
+  - `## 非台账示例`、`### 种子 ###`、`###种子` 三个指定案例处理正确。
+  - 合法的 1–3 格前导缩进 ATX 标题仍不识别；在合规报告后追加 `   ## 台账` / `   ### 种子` 和错误行，可逃出绑定面。
+  - `\s*#*` 又会误认 `### 种子###`；无前置空格的尾部井号不是合法 ATX closing sequence，用户看到的标题并非精确“种子”。
 
-  父级又用 `"台账" in heading`，[recap_scan.py:2141](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:2141) 会把 `## 非台账示例` 纳入。`### 种子 ###` 这种渲染等价的合法 ATX 标题不被识别，而非合法标题 `###种子` 反而会命中。[recap_scan.py:2144](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:2144)
+- ⚠️ PARTIAL [recap_scan.py:2175](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:2175)：正常 grouped ledger 的确只取 `seeds`，派生节点反例修对。但 `seeds` 缺失或不是 list 时，[recap_scan.py:2179](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:2179) 仍摊平所有角色。这超出了“只有顶层扁平 list 保持兼容”的登记范围；损坏的 grouped JSON 没有 fail-closed。
 
-  另外绑定索引摊平了 ledger 的所有角色，不只 `seeds`；派生节点可被放进“种子”小节并按其 `tips_count` 通过。[recap_scan.py:2154–2165](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:2154)
+### `_strip_code_blocks` 行数前提
 
-- ✅/⚠️｜preflight 的实现增强正确，说明仍矛盾。[recap_domain_negverify.py:803–820](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/recap_domain_negverify.py:803)
+- ✅ [recap_scan.py:1024](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:1024) 到返回前，每个输入物理行的所有分支都恰好 `append` 一项，索引顺序成立。
+- ⚠️ “返回字符串再 `.splitlines()` 后行数不变”不成立：末尾空项会丢失；既有测试自己也在 [test_recap_scan_signals.py:2522](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/test_recap_scan_signals.py:2522) 记录三空行只得到两项。
+- ✅ 当前 seed 消费方 [recap_scan.py:2141](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:2141) 对越界项按空串处理，因此尾部丢项目前不会错位。结论应表述为“索引映射保持、尾项由兜底补偿”，不能写成无条件行数恒等。
+- ⚠️ `_in_fence` 只在寻找标题时使用；已进入种子小节后，区间终止与逐行检查 [recap_scan.py:2159](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:2159)、[recap_scan.py:2193](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:2193) 不再跳过 fenced 行。因此 R23 的“不在围栏内才生效”仍比实际范围宽。
 
-  它现在确实按真实顺序模拟整组替换、要求每个锚点唯一，并要求最终源码变化；成功消息也已注明不证明语义承重。
+### “未改三处”
 
-  但 docstring 先说能证明“替换非空”，下一条又说“不证明替换非空”。后者应改成“不证明行为非空/目标防线确被禁掉”。[recap_domain_negverify.py:787–793](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/recap_domain_negverify.py:787)
+判断成立，且都是存量未闭合：
 
-  当前代码中，失效的 survivor-7 锚点会由 `hits != 1` 抓到，而不是由最终 `mutated == src` 检查抓到；所以“survivor-7 证明了新增最终变化门”这一归因过宽。
+- ❌ HIGH：tips 两数仍在 raw `recon.group(1)` / raw `text` 上查，[recap_scan.py:2363](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:2363)。保留正确行，再追加 `tips 批**注**共 999 条`，后者不进入绑定。
+- ❌ HIGH：③段仍以 raw `^### ③` 定位，[recap_scan.py:1127](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:1127)、[recap_scan.py:2589](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:2589)。额外的渲染等价 `### **③**` 冲突段不会按第二个③段全查。
+- ❌ HIGH：D2 把正文从 `h.end()` 开始切，[recap_scan.py:1908](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:1908)，H2 标题本行的 `## 本板共有 987654 个子节点` 不进入计数循环。
+- ⚠️ 设计边界仍在：[recap_scan.py:1706](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:1706) 已承认 `_visible_text` 不是完整 renderer；未配对强调符的错误拼接甚至被明确登记为 fail-open，[recap_scan.py:1735](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:1735)。
 
 ### 行为门与变异证据
 
-- ⚠️ 没发现新增门存在字面恒真断言；R19 的 monkeypatch 哨兵确实替代了此前恒真的源码自读检查。[test_recap_scan_signals.py:4654–4680](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/test_recap_scan_signals.py:4654)
+- ✅ R23 没有恒真断言；九个 case 都调用真实函数并核对 `problems`。
+- ⚠️ 它名为 `_cli`，实际只直接调用私有函数，`tmp_path` 未使用，[test_recap_scan_signals.py:4916](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/test_recap_scan_signals.py:4916)、[test_recap_scan_signals.py:4936](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/test_recap_scan_signals.py:4936)。本轮四反引号、角色、标题、尾巴案例没有走真实 CLI。
+- ⚠️ [test_recap_scan_signals.py:4932](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/test_recap_scan_signals.py:4932) 写“八种”，实际是九种；九例又塞在一个普通 `for` 的单一 pytest item 中，因此变异下只能证明“至少一个断言红”，不能逐性质归因。
+- ❌ survivor-55 错归因：[recap_domain_negverify.py:647](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/recap_domain_negverify.py:647) 声称退回旧布尔状态机，实际替换成 `_stripped = text.splitlines()`，即彻底关闭围栏排除。4/3/4 冲突案仍会按预期报 999；真正变红的是 fenced-seed 合法负控被误拒。
+- ❌ survivor-51 已陈旧：[recap_domain_negverify.py:607](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/recap_domain_negverify.py:607) 改回 raw 后，冲突行会被当前非模板门拒绝；R20 变红来自合法强调行 [test_recap_scan_signals.py:4752](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/test_recap_scan_signals.py:4752) 被误伤，不证明“双行逃逸复活”。
+- ⚠️ survivor-53 会复活旧任意缩进缺陷，但同时混入新 padding 性质，不能给列表 1–4 格修复记功；54 能证明父 H2 条件承重，但不专门模拟 `"台账" in heading`；56 对正常 grouped ledger 的角色收窄有效。
+- ✅ preflight 现在准确只承诺“唯一文本锚点＋最终字节变化”，并明确不证明行为非空，[recap_domain_negverify.py:815](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/recap_domain_negverify.py:815)。`run_suite` 的五元组注解也已正确，[recap_domain_negverify.py:745](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/recap_domain_negverify.py:745)。
 
-- ⚠️ R22 四格拒绝门不是完整的“诊断原因绑定”：它只要求非零并在某条输出行看到 `987654`，没有同时绑定“找不到同值来源/围栏误判”类别。[test_recap_scan_signals.py:4875–4878](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/test_recap_scan_signals.py:4875)
+### 崩溃二分
 
-- ❌ R22 文案声称证明“种子小节不在围栏内才生效”，实际只测了 `## 附录`，没有 fenced-seed 用例。[test_recap_scan_signals.py:4842–4896](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/test_recap_scan_signals.py:4842)
+- ⚠️ PARTIAL：[recap_domain_negverify.py:735](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/recap_domain_negverify.py:735) 对本仓当前 `--tb=short` 已观测的三格顶层、四格以上续行样例有效，但不是可靠二分。
+- ❌ 具体反例：门把 `E   Failed:` 固定判成 crash，[test_recap_scan_signals.py:4629](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/test_recap_scan_signals.py:4629)；同一套件却会用 `pytest.fail(...)` 表达真正的契约失败，[test_recap_scan_signals.py:2702](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/test_recap_scan_signals.py:2702)。这不是生产崩溃。
+- 反向仍会漏：生产代码自身抛 `AssertionError` 会被白名单当正常判错；断言正文偶含 `Traceback`、`N errors` 或三格标识符行又会假阳。源码已在 [recap_domain_negverify.py:684](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/recap_domain_negverify.py:684) 如实承认其启发式性质。
 
-- ❌ `survivor-51` 的归因已经失真。[recap_domain_negverify.py:607–614](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/recap_domain_negverify.py:607)
+### 收口分类
 
-  把 visible 行退回 raw 后，格式化冲突行仍会撞上“非模板行”防线；真正变红的是“格式化但数值正确的行应 PASS”正控。[test_recap_scan_signals.py:4748–4754](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/test_recap_scan_signals.py:4748) 因此它证明的是双向兼容性承重，不是名称所称的“双行冲突逃逸”。
+一次改动内可闭合：
 
-- ⚠️ survivor-53/54 的替换各自落在活路径，方向正确；但 54 个 mutant 中没有 `_tail_conflict` 或 fenced-seed 状态机变体。`-k A or B` 加“只需至少一个失败”的策略，也仍只能证明集合中至少一道门承重。[recap_domain_negverify.py:101–114](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/recap_domain_negverify.py:101)、[recap_domain_negverify.py:877–898](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/recap_domain_negverify.py:877)
-
-### 崩溃识别
-
-- ✅ 对测试列出的当前 `--tb=short` 形态，分类结果正确。
-- ⚠️ 实现已经不是“有冒号类名 vs 缩进续行”，而是 `^E {1,3}<标识符>` 加 `assert/AssertionError` 白名单。[recap_domain_negverify.py:692–716](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/recap_domain_negverify.py:692)
-- ❌ 它不是可靠二分：1–3 格的自由续行可能假阳；4 格以上异常、Unicode 异常类名、子进程无 traceback 的 `SyntaxError`/致命信号可能假阴；正文偶含 traceback 或 `N error(s)` 又可能假阳。
-- ⚠️ `[[CHILD-CRASH]]` 也只是字符串标记：测试 helper 仅凭 stderr 含 traceback 打标，甚至未结合 return code。[test_recap_scan_signals.py:109–126](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/test_recap_scan_signals.py:109)
-- ⚠️ `run_suite` 注解/docstring写四元组，实际返回五元组。[recap_domain_negverify.py:720–768](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/recap_domain_negverify.py:720)
-
-### 存量判断
-
-你列出的未改项均成立：
-
-- ❌ tips 两数仍从 raw `text` 提取。[recap_scan.py:2321–2352](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:2321)
-- ❌ ③段标题仍先在 raw 文本定位。[recap_scan.py:1121](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:1121)、[recap_scan.py:2374](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:2374)
-- ❌ D2 每段从 `h.end()` 开始，H2 标题行自身的可见数字不受检。[recap_scan.py:1899–1905](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:1899)
-- ⚠️ `_visible_text` 明确不是完整 renderer；highlight、转义后 HTML、math、脚注及未配对强调字符仍有偏差。[recap_scan.py:1693–1713](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:1693)
-- ⚠️ `_join_free` 的过度拼接和封闭 numeral/量词表仍在。[recap_scan.py:1455–1470](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:1455)
-- ✅ 在当前封闭语法内，code-span 判定、区间两端终核、单字中文/ASCII 判值以及 fallback m7 的 visible N 绑定均为活分支，局部逻辑正确。[recap_scan.py:1539](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:1539)、[recap_scan.py:1966](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:1966)、[recap_scan.py:2387](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py:2387)
-
-### 闭合分类
-
-一次改动内可以闭合：
-
-- tail 始终在同源 visible 行上查第二字段，并补格式化、全角、近邻负控及对应 mutant。
-- 父级 H2 改为精确“台账/台账（补充）”，统一合法 ATX 语法；只索引 `ledger.seeds`。
-- tips/③段改为同源 visible 定位；D2 纳入非豁免 H2 标题。
-- R22 绑定诊断类别；补 fenced-seed 门。
-- 修 survivor-51 名称或变异内容、preflight 文案、五元组注解及测试 docstring 的 `\s` SyntaxWarning。
+- 列表 padding 必须消费完整空白 run，并补 1–5/7 格、有序列表和嵌套引用矩阵。
+- 修正 ATX 的 0–3 格前导、空格/tab 分隔、closing `#` 前必有空白。
+- tail 只排除确切否定语境，避免排除“累计/已/共批注”；同时避免 visible 尾巴二次归一。
+- grouped ledger 的 `seeds` 缺失/坏形状直接 fail-closed。
+- tips、③标题、H2 标题计数改到同一可见文本面。
+- R23 参数化、改名或补真实 CLI；修正“九种”及 mutants 51/55 的目标与期望方向。
 
 需要重做设计：
 
-- `_strip_code_blocks` 与 seed 围栏扫描合并为一个真正维护 blockquote/list 容器、相对列、tab 与 fence 开闭规则的解析器。
-- 要求“与 Obsidian 渲染后相同”时，应复用实际 Markdown 解析结果或定义受支持语法白名单，不能继续扩张 `_visible_text` 正则。
-- 崩溃/断言失败改用结构化执行结果，不解析 pytest 的渲染文本。
-- 变异验证拆成单性质、单门，并逐门验证失败原因。
+- 用真实 Markdown 块/container 状态取代围栏前缀 regex；列表 continuation、tab 列宽、容器退出及围栏内字面 marker 必须一起建模。
+- 用解析器/渲染 token 面取代 `_visible_text` 的封闭替换表。
+- 用 pytest report hook、JSON 结果或确定性结构化标记取代人类可读 traceback 文本二分。
+- 变异元数据绑定 exact nodeid/参数 case/预期失败方向，并在隔离副本运行，而不是只聚合 `-k` 下“至少一例红”。
 
-### 实际运行
-
-- `git rev-parse HEAD`：`8fa72b2fd4ab8e4cf534a8aa7c0aef335873b2dd`
-- 指定 pytest：`272 passed, 15 warnings in 44.97s`
-- 首次在只读沙箱内启动时因无可写临时目录而在收集前失败；同一命令获准在可写临时目录边界重跑后得到上述有效结果。
-
-验证限制：未运行 `recap_domain_negverify.py`，未独立确认自报的 `54/54` 或 `604 passed`；未读 fixtures 的 `.md/.json` 正文；未运行 `git diff/show/log`；未构造探针或临时文件。项目要求的 Graphiti 工具本轮不可用，因此没有伪称完成该查询。
+验证限制：未运行 `recap_domain_negverify.py`、605 扩大回归或任何探针；未读 fixtures 的 `.md/.json` 正文；未运行 `git diff/show/log -p`。当前会话未提供 Graphiti 与 Sequential Thinking 接口，故无法执行这两项协议。
 
 
