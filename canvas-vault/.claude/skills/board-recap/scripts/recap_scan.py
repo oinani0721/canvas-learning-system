@@ -1618,6 +1618,12 @@ _VIS_WIKILINK_PLAIN_RE = re.compile(r"\[\[([^\]\n|]*)\]\]")
 # 读者看到的字 —— `总[计](http://x)987654个` 渲染成 `总计987654个`, 是明确
 # 自陈句, 而源码里 `总` 与 `计` 被 `[](...)` 隔开, 句式门当场失锚。
 _VIS_MDLINK_RE = re.compile(r"\[([^\]\n]*)\]\([^)\n]*\)")
+# ⛔ R3 round-12 (Codex round-6 HIGH-4 / round-7 HIGH-4, 三轮点名): 还有
+# **reference-style** link —— `总[计][r]987654个` 渲染同样是 `总计987654个`,
+# 而源码里 `总` 与 `计` 被 `[][]` 隔开, 句式门失锚。与 inline link 同处理。
+# ⚠️ 如实声明: `_visible_text` **仍不是完整 renderer**(Obsidian highlight `==x==`、
+# math `$x$`、脚注 `[^1]` 等未覆盖), 这是**又补一个已知构造**, 不是闭包。
+_VIS_REFLINK_RE = re.compile(r"\[([^\]\n]*)\]\[[^\]\n]*\]")
 _VIS_INVISIBLE_RE = re.compile(_INVISIBLE_ONE)
 # ⛔ R3 round-6 自查回归 (Codex round-6 HIGH-1, 车道实测确认并含**误伤**):
 # 第一版写成 `[*_~]` 无条件剥 —— 但 `~` 在中文里是**常用区间号**, 而
@@ -1654,6 +1660,7 @@ def _visible_text(line: str) -> str:
     line = _VIS_WIKILINK_ALIAS_RE.sub(r"\1", line)
     line = _VIS_WIKILINK_PLAIN_RE.sub(r"\1", line)
     line = _VIS_MDLINK_RE.sub(r"\1", line)
+    line = _VIS_REFLINK_RE.sub(r"\1", line)
     line = _VIS_INVISIBLE_RE.sub("", line)
     line = _VIS_STRIKE_RE.sub("", line)
     return _VIS_EMPHASIS_RE.sub("", line)
