@@ -210,8 +210,8 @@ MUTATIONS += [
     (
         "M28-C4-mastery-uses-unrounded-gn",
         SKILL,
-        "    a_, b_ = update_after_idle(a_, b_, GN2, days_idle)\n",
-        "    a_, b_ = update_after_idle(a_, b_, GN, days_idle)  # MUTANT\n",
+        "    a_, b_ = update_after_idle(a_, b_, GN2 if gn is None else float(gn), days_idle)\n",
+        "    a_, b_ = update_after_idle(a_, b_, GN if gn is None else float(gn), days_idle)  # MUTANT\n",
         "test_internal_audit_findings",
     ),
 ]
@@ -255,14 +255,6 @@ MUTATIONS += [
         "    _ends_with_lf = _last_idx >= 0 and _last_idx < len(_byte_lines) - 1\n",
         '    _ends_with_lf = _raw_bytes.endswith(b"\\n")  # MUTANT: 退回文件末尾判据\n',
         "test_round2_lead_followups",
-    ),
-    (
-        # C3：attempt 正则容引号 —— 打**正常路径**那一处（门㊲⑥ 走的正是它）
-        "M27b-C3-attempt-regex-rejects-quotes",
-        SKILL,
-        "\nmo_att = re.search(r'^attempt_count:\\s*\"?(\\d+)\"?\\s*$', fm, re.M)\n",
-        "\nmo_att = re.search(r'^attempt_count:\\s*(\\d+)', fm, re.M)  # MUTANT\n",
-        "test_internal_audit_findings",
     ),
 ]
 
@@ -321,6 +313,62 @@ MUTATIONS += [
         SKILL,
         '    if _instant_only(_ea_, _ctx + " 的 effective_at") != _rt_inst_:\n',
         '    if _durable_instant(_ea_, _ctx + " 的 effective_at") != _rt_inst_:  # MUTANT: 过严\n',
+        "test_round3_findings",
+    ),
+]
+
+
+# ── 「复放评分链副作用」与 attempt 单调性的承重变异
+MUTATIONS += [
+    (
+        "M36-replay-drops-mastery",
+        SKILL,
+        '    if _o.get("event_id") != evid and not _fm_has_event(fm, _rid_bare_):\n        _o2_, _A2_, _B2_, _n2_ = _apply_mastery',
+        "    if False:  # MUTANT: 不复放 mastery\n        _o2_, _A2_, _B2_, _n2_ = _apply_mastery",
+        "test_round3_findings",
+    ),
+    (
+        # 复放不跳过 dup ⇒ degraded 遗留态下 dup 的 EMA 被吃第二遍
+        "M37b-replay-includes-dup-double-eats-ema",
+        SKILL,
+        '    if _o.get("event_id") != evid and not _fm_has_event(fm, _rid_bare_):\n',
+        "    if True:  # MUTANT: 复放也算上 dup 自己\n",
+        "test_degraded_legacy_retry_restores_fsrs_without_double_ema",
+    ),
+    (
+        # 去掉「这个事件的副作用是否已应用过」这一半判据 ⇒ degraded 落账过的
+        # foreign 事件被重放时吃第二遍（账本与校准日志看上去完全正常）
+        "M40-replay-ignores-already-applied",
+        SKILL,
+        '    if _o.get("event_id") != evid and not _fm_has_event(fm, _rid_bare_):\n',
+        '    if _o.get("event_id") != evid:  # MUTANT: 不看是否已应用过\n',
+        "test_round3_findings",
+    ),
+    (
+        "M38-attempt-sync-not-monotonic",
+        SKILL,
+        "        _n_ = max(_n_, int(_cur_.group(1)) if _cur_ else 0)\n",
+        "        pass  # MUTANT: 无条件同步，可把更大的计数改小\n",
+        "test_round3_findings",
+    ),
+    (
+        # 不容单引号 —— YAML 单引号标量是合法形态，Obsidian Properties 会写它
+        "M39-attempt-regex-rejects-single-quote",
+        SKILL,
+        "_ATT_RE = r'^attempt_count:\\s*[\\'\"]?(\\d+)[\\'\"]?\\s*$'\n",
+        "_ATT_RE = r'^attempt_count:\\s*\"?(\\d+)\"?\\s*$'  # MUTANT\n",
+        "test_round3_findings",
+    ),
+]
+
+
+MUTATIONS += [
+    (
+        # 本节点的 marker 降级行被当历史行静默跳过 ⇒ 一次真实复习永久漏算
+        "M41-marker-downgrade-silently-skipped",
+        SKILL,
+        '        if "schema_ext" in _pl:\n',
+        "        if False:  # MUTANT: 降级行照旧静默跳过\n",
         "test_round3_findings",
     ),
 ]

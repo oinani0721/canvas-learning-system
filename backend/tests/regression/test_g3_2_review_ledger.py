@@ -203,6 +203,22 @@ def _run_writer(vault: Path, payload: dict, env_extra: dict | None = None):
     )
 
 
+def _sha(p: Path) -> str:
+    import hashlib
+
+    return hashlib.sha256(p.read_bytes()).hexdigest()
+
+
+def _write_face(vault: Path):
+    """整个写入面的快照：节点 + 账本。零写断言比这个。
+
+    只比节点 sha 对「账本被追加」失明；只比账本行数对「行内容被改」失明。
+    审查实测：在 fail-closed 分支里插一行账本追加，只比节点 sha 的门全绿。
+    """
+    lp = vault / "learning_events.jsonl"
+    return (_sha(vault / NODE_REL), _sha(lp) if lp.exists() else None)
+
+
 def _run_writer_settled(vault: Path, payload: dict, env_extra: dict | None = None):
     """跑写点；若因「A2 恢复先落定」被要求重跑，就再跑一次并返回合并结果。
 
@@ -252,12 +268,6 @@ def _run_validator(vault: Path):
     )
 
 
-def _sha(p: Path) -> str:
-    import hashlib
-
-    return hashlib.sha256(p.read_bytes()).hexdigest()
-
-
 # ── 门① 同 event_id 重放两次 → frontmatter 不二次推进、账本一行 ──
 
 
@@ -302,10 +312,10 @@ def test_crash_window_ledger_without_frontmatter_recovers(vault):
 def test_fail_before_append_keeps_ledger_and_node_consistent(vault):
     """bridge exit 2 (naive ts) 在 append 之前 fail-closed — 系统保持评分前
     一致态, 重跑即可 (scored_pending_node_update 续跑语义)。"""
-    sha_node, sha_ledger_before = _sha(vault / NODE_REL), None
+    _face_node = _write_face(vault)
     r = _run_writer(vault, _payload(ts="2026-08-01T10:00:00"))
     assert r.returncode != 0, "naive ts 必须拒绝"
-    assert _sha(vault / NODE_REL) == sha_node, "fail-closed 必须零写节点"
+    assert _write_face(vault) == _face_node, "fail-closed 必须零写（节点 + 账本）"
     assert not (vault / "learning_events.jsonl").exists(), "fail-closed 必须零写账本"
 
 
@@ -344,11 +354,12 @@ def test_degraded_card_fail_closed_zero_write(vault):
         "mastery_score: 0.5\nfsrs_last_review: 2026-08-01T10:00:00Z\n",
     )  # 只有 W 缺 due/state → classify degraded
     (vault / NODE_REL).write_text(broken, encoding="utf-8")
+    _face_deg = _write_face(vault)
     sha = _sha(vault / NODE_REL)
     r = _run_writer(vault, _payload())
     assert r.returncode != 0, "残缺卡必须 fail-closed"
     assert "残缺" in r.stderr or "fail-closed" in r.stderr, r.stderr
-    assert _sha(vault / NODE_REL) == sha, "残缺卡必须零写节点"
+    assert _write_face(vault) == _face_deg, "残缺卡必须零写（节点 + 账本）"
     assert not (vault / "learning_events.jsonl").exists(), "残缺卡必须零写账本"
 
 
@@ -400,11 +411,12 @@ def test_envelope_conflict_rejected_and_same_envelope_noop(vault):
     assert _sha(vault / NODE_REL) == sha, "同 id 同 envelope 重放不得二次 apply"
     # ②同 id 不同事实 (abandoned 翻转 event_type) → fail-closed 拒写
     (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")  # 回到崩溃窗口①前置态
+    _sha_pre_conflict = _sha(vault / NODE_REL)
     r3 = _run_writer(vault, _payload(abandoned=True))
     assert r3.returncode != 0, "同 id 不同 event_type 必须 envelope 冲突拒绝"
     assert "envelope 冲突" in r3.stderr, r3.stderr
     assert len(_ledger_lines(vault)) == 1, "冲突拒绝不得追加"
-    assert not _fm_fields(vault), "冲突拒绝不得推进 frontmatter"
+    assert _sha(vault / NODE_REL) == _sha_pre_conflict, "冲突拒绝必须整节点零写（不只是 fsrs 字段）"
     # ③Codex round-1 BLOCKER: 五字段局部比对抓不到的篡改 — durable 行被
     # 改动 payload 事实键 (exam_board) / 顶层 event_version 后, 恢复必须拒。
     base_event = _ledger_lines(vault)[0]
@@ -633,7 +645,10 @@ def test_pending_foreign_event_replayed_before_new_write(vault):
     assert r0.returncode != 0, "存在 foreign pending 时不得在同一次运行里既恢复又追加"
     assert "A2 重放已应用" in r0.stdout, "事件 A 必须被重放"
     assert "恢复已落定" in r0.stderr, r0.stderr
-    assert "永久丢失" in r0.stdout, "被恢复事件的 mastery/校准无法复放，必须如实告知"
+    # ⚠️ 此处原断言是「必须如实告知**永久丢失**」—— 门锁住了那句错误声明。
+    # 载荷其实都在 payload 里，现在逐项复放，提示也随之改成「已复放」。
+    assert "已按各自的账本载荷复放" in r0.stdout, "被恢复事件的评分链副作用必须逐项复放"
+    assert "question_id 与理解自评" in r0.stdout, "唯一补不回的两项要如实说明"
     assert _fm_fields(vault)["fsrs_last_review"] == TS1, "恢复结果必须已落盘（W = A 的时刻）"
     assert len(_ledger_lines(vault)) == 1, "第一阶段不得追加本次事件"
     r = _run_writer(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z", exam_board="检验白板/板B.md"))
@@ -960,13 +975,14 @@ def test_r1_unknown_durable_payload_key_conflicts(vault):
         ({"vault_id": "canvas_vault_测试", "extra_nested": {"a": 1}}, "未知嵌套键"),
     ):
         (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")  # 回到崩溃窗口①前置态
+        _sha_v0 = _sha(vault / NODE_REL)
         tampered = json.loads(json.dumps(base))
         tampered["payload"].update(tweak)
         _write_ledger(vault, tampered)
         rt = _run_writer(vault, _payload())
         assert rt.returncode != 0, f"{desc}: 必须 envelope 冲突 (旧实现 rc=0 且 fsrs_* 全空)"
         assert "envelope 冲突" in rt.stderr, rt.stderr
-        assert not _fm_fields(vault), f"{desc}: 冲突拒绝不得推进 frontmatter"
+        assert _sha(vault / NODE_REL) == _sha_v0, f"{desc}: 冲突拒绝必须整节点零写"
         assert len(_ledger_lines(vault)) == 1, f"{desc}: 冲突拒绝不得追加"
     # 反向: durable 行**缺**一个固定生产键 — 旧实现会被 candidate 的覆盖补回,
     # 同样穿透。少键必须与多键同等冲突。
@@ -1319,10 +1335,11 @@ def test_round1_followups_n1_to_n5(vault):
     dup_text = text.replace('"grade_norm": 0.75', '"grade_norm": 0.11, "grade_norm": 0.75', 1)
     assert dup_text.count('"grade_norm"') == 2, "fixture 前提：必须真有两个同名键"
     (v2 / "learning_events.jsonl").write_text(dup_text + "\n", encoding="utf-8")
+    _face_n3 = _write_face(v2)
     r3 = _run_writer(v2, _payload())
     assert r3.returncode != 0, "含重复键的账本行必须 fail-closed"
     assert "重复键" in r3.stderr, r3.stderr
-    assert not _fm_fields(v2), "零写"
+    assert _write_face(v2) == _face_n3, "零写（节点 + 账本）"
 
     # ── N4 (MEDIUM) 非法 UTF-8 字节：必须 clean fail-closed，不是 traceback
     (v2 / "learning_events.jsonl").write_bytes(b'{"event_id": "quiz:x"}\n\xff\xfe bad\n')
@@ -1347,10 +1364,11 @@ def test_round1_followups_n1_to_n5(vault):
     )
     e2["effective_at"] = "2026-08-04T10:00:00Z"
     _write_ledger(v2, e1, e2)
+    _face_n5 = _write_face(v2)
     r5 = _run_writer(v2, _payload())
     assert r5.returncode != 0, "多 pending 并存时必须 fail-closed，不得硬算 attempt 期望值"
     assert "A2「追加前重放至空」不变量已被破坏" in r5.stderr, r5.stderr
-    assert not _fm_fields(v2), "零写"
+    assert _write_face(v2) == _face_n5, "零写（节点 + 账本）"
 
 
 # ── 门㉟ 自测覆盖缺口（round-2 等待期自查，6 条全部实测过）──
@@ -1420,10 +1438,10 @@ def test_self_audit_coverage_gaps(vault):
     )
     text = (v3 / NODE_REL).read_text(encoding="utf-8")
     (v3 / NODE_REL).write_text(re.sub(r"^attempt_count:.*\n", "", text, flags=re.M), encoding="utf-8")
-    sha_before = _sha(v3 / NODE_REL)
+    _face_neg = _write_face(v3)
     r5 = _run_writer(v3, _payload(ts="2026-09-01T12:00:00Z"))
     assert r5.returncode != 0, "attempt 期望值算成负数时必须 fail-closed，不得放行"
-    assert _sha(v3 / NODE_REL) == sha_before, "零写"
+    assert _write_face(v3) == _face_neg, "零写（节点 + 账本）"
 
     # ⑤ 同节点两个适用事件 review_time 完全相同 → 按行号稳定全序，两条都重放
     v4 = vault
@@ -1520,14 +1538,17 @@ def test_round2_lead_followups(vault):
         row["effective_at"] = "2026-08-05T10:00:00Z"
         mut(row)
         _write_ledger(vault, row)
+        _face_route = _write_face(vault)
         rw = _run_writer(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
         assert rw.returncode != 0, f"[{desc}] 不可路由的行必须 fail-closed（§一 路由信封读方义务）"
         assert "不可路由" in rw.stderr or "路由信封" in rw.stderr, rw.stderr
-        assert not _fm_fields(vault), f"[{desc}] 零写"
+        assert _write_face(vault) == _face_route, f"[{desc}] 零写（节点 + 账本）"
     for mut, desc in (
+        # ⚠️ schema_ext 非法的两条已移出本组：它们是**本节点**的行，现在由写点
+        # 在适用集构造时直接 fail-closed（§6.1 降级绕过封堵），不再是「写点放行 +
+        # 校验器兜底」。见门㊳⑪。本组只留「指向别的节点」这一条 —— 那确实不该
+        # 由写点越权管。
         (lambda r: r.__setitem__("node_id", "不存在的节点"), "node_id 指向别的合法名"),
-        (lambda r: r["payload"].__setitem__("schema_ext", "review/2"), "schema_ext=review/2"),
-        (lambda r: r["payload"].__setitem__("schema_ext", "reviews/1"), "schema_ext=reviews/1"),
     ):
         row = _review_row(event_id="quiz:孤儿", **{"payload.review_time": "2026-08-05T10:00:00Z"})
         row["effective_at"] = "2026-08-05T10:00:00Z"
@@ -1590,19 +1611,35 @@ def test_round2_lead_followups(vault):
     try:
         import fsrs_bridge as fb
 
-        for cents in range(0, 101):
+        # ⚠️ 原写法是「同一函数对 json 往返前后的同一个值给出相同结果」——
+        # CPython 的 float repr 是最短往返, 两侧实参**逐比特相同**, 于是该断言
+        # 恒真: 把 rating_from_grade 换成「恒返回 1」或「二值化」都照样绿
+        # (实测三个实现全通过)。期望值必须有**独立来源**: 这里直接写 §6.1
+        # [Decision-FSRS-1] 的分档契约值 (g = 1 + 3·gn, 按 1.5/2.5/3.5 落四档)。
+        for gn, expect in ((0.0, 1), (0.16, 1), (0.17, 2), (0.49, 2), (0.5, 3), (0.83, 3), (0.84, 4), (1.0, 4)):
+            got = fb.rating_from_grade(gn, False)
+            assert got == expect, f"grade_norm {gn} 的契约档位是 {expect}, 实为 {got}"
+        assert fb.rating_from_grade(0.5, False) == 3, "边界 gn=0.5 必须稳定落 3（1+3*0.5 恰为 2.5，走 g<2.5 为假）"
+        # 往返稳定性单独验一次（这一条本身不承担分档正确性）
+        for cents in (0, 17, 50, 84, 100):
             gn = cents / 100.0
-            direct = fb.rating_from_grade(gn, False)
-            roundtrip = fb.rating_from_grade(float(json.loads(json.dumps(gn))), False)
-            assert direct == roundtrip, f"grade_norm {gn} 经 JSON 往返后分档改变 {direct}->{roundtrip}"
-        assert fb.rating_from_grade(0.5, False) == 3, "边界 gn=0.5 必须稳定落 3"
+            assert float(json.loads(json.dumps(gn))) == gn, f"{gn} JSON 往返不精确"
     finally:
         sys.path.remove(str(VAULT_SCRIPTS))
         sys.modules.pop("fsrs_bridge", None)
 
     # ④ 分层成立（非缺陷，锁住）：fixture 脚本的写入面守卫不被 symlink 劫持。
-    guard_src = (WT / "backend" / "scripts" / "g32b_build_fixture.py").read_text(encoding="utf-8")
-    assert "resolve()" in guard_src and "MARKER" in guard_src, "守卫必须同时有 resolve 比对与 marker 检查"
+    # ⚠️ 原写法是「源码里有 resolve() 和 MARKER 这两个词」—— 审查实测：把
+    # _guard_target() 函数体整体挖空、连调用点一起删掉，两条断言**仍全真**
+    # （resolve() 在该文件另有无关出现：WT = Path(__file__).resolve()...）。
+    # 断言必须绑定被审对象本身：直接**调用守卫**，看它在两种攻击形态下是否拒。
+    import importlib.util as _ilu
+
+    _spec = _ilu.spec_from_file_location(
+        "g32b_build_fixture_gate", WT / "backend" / "scripts" / "g32b_build_fixture.py"
+    )
+    _mod = _ilu.module_from_spec(_spec)
+    _spec.loader.exec_module(_mod)
     probe = Path("/private/tmp/g32b-gate-toctou-probe")
     victim = Path("/private/tmp/g32b-gate-toctou-victim")
     for p in (probe, victim):
@@ -1611,12 +1648,32 @@ def test_round2_lead_followups(vault):
         elif p.exists():
             subprocess.run(["rm", "-rf", str(p)], check=True)
     victim.mkdir()
+    _orig_root = _mod.FIXTURE_ROOT
     try:
+        # ① symlink 劫持：目标是指向别处的软链 ⇒ 守卫必须拒
         probe.symlink_to(victim, target_is_directory=True)
-        assert str(probe.resolve()) != str(probe), "symlink 指向别处时 resolve() 必须不等于约定路径 —— 这正是守卫的判据"
+        _mod.FIXTURE_ROOT = probe
+        with pytest.raises(SystemExit) as ei:
+            _mod._guard_target()
+        assert "resolve" in str(ei.value) or "拒跑" in str(ei.value), str(ei.value)
+        probe.unlink()
+        # ② 陌生目录（无 marker）⇒ 守卫必须拒，绝不 rmtree 别人的目录
+        probe.mkdir()
+        (probe / "别人的重要文件.txt").write_text("不该被删", encoding="utf-8")
+        _mod.FIXTURE_ROOT = probe
+        with pytest.raises(SystemExit) as ei2:
+            _mod._guard_target()
+        assert "标记文件" in str(ei2.value) or "拒绝删除" in str(ei2.value), str(ei2.value)
+        assert (probe / "别人的重要文件.txt").exists(), "守卫拒跑时不得动目标目录"
+        # ③ 验伪：带 marker 的自己的目录必须放行（否则这门是「恒拒」的假门）
+        (probe / _mod.MARKER).write_text("x", encoding="utf-8")
+        _mod._guard_target()
     finally:
+        _mod.FIXTURE_ROOT = _orig_root
         if probe.is_symlink():
             probe.unlink()
+        else:
+            subprocess.run(["rm", "-rf", str(probe)], check=True)
         subprocess.run(["rm", "-rf", str(victim)], check=True)
 
 
@@ -1714,9 +1771,10 @@ def test_internal_audit_findings(vault):
         ({"payload.vault_id": "别的_vault"}, "vault_id 错位"),
     ):
         _write_ledger(vault, _review_row(event_id="quiz:板A#q1", **bad))
+        _face_mount = _write_face(vault)
         r = _run_writer(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
         assert r.returncode != 0, f"[{desc}] 不得被当成本节点的一次复习重放"
-        assert not _fm_fields(vault), f"[{desc}] 零写（尤其不得推进 W）"
+        assert _write_face(vault) == _face_mount, f"[{desc}] 零写（节点 + 账本，尤其不得推进 W）"
     # 验伪：合法的两种评分事件类型都必须照常重放
     for etype, rating, gn in (("answer_scored", 3, 0.75), ("answer_abandoned", 1, 0.0)):
         row = _review_row(event_id="quiz:板A#q1", **{"payload.rating": rating, "payload.grade_norm": gn})
@@ -1775,9 +1833,10 @@ def test_round3_findings(vault):
     row = _review_row(event_id="quiz:板A#q1")
     row["event_version"] = 2
     _write_ledger(vault, row)
+    _face_ver = _write_face(vault)
     r = _run_writer(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
     assert r.returncode != 0 and "非 v1" in r.stderr, r.stderr
-    assert not _fm_fields(vault), "零写"
+    assert _write_face(vault) == _face_ver, "零写（节点 + 账本）"
 
     # ② HIGH：effective_at 与 payload.review_time 必须是同一绝对瞬间。
     # 两者脱钩的行在 dup 路径会被 envelope 拦，但走 foreign pending 时没人管
@@ -1855,7 +1914,7 @@ def test_round3_findings(vault):
     assert r5.returncode != 0, "两条 pending 时不得在同一次运行里既恢复又追加"
     assert "恢复已落定" in r5.stderr, r5.stderr
     assert len([ln for ln in r5.stdout.splitlines() if "A2 重放已应用" in ln]) == 2, "两条都要重放"
-    assert "永久丢失" in r5.stdout, "被恢复事件的评分链副作用无法复放，必须如实告知"
+    assert "已按各自的账本载荷复放" in r5.stdout, "两条被恢复事件的评分链副作用都要复放"
     assert len(_ledger_lines(vault)) == 2, "第一阶段不得追加本次事件"
     assert _fm_fields(vault)["fsrs_last_review"] == "2026-08-04T10:00:00Z", "恢复结果必须已落盘"
     # 第二阶段：pending 已空，本次评分在干净基线上写入
@@ -1863,3 +1922,186 @@ def test_round3_findings(vault):
     assert r6.returncode == 0, r6.stdout + r6.stderr
     assert [x["payload"]["attempt_count"] for x in _ledger_lines(vault)] == [1, 2, 3]
     assert _run_validator(vault).returncode == 0
+
+    # ⑥ 两阶段必须在 2 轮内收敛，且 payload 临时文件要留着让用户能重跑。
+    # 「先恢复、再要求重跑」这个结构最大的风险是**不收敛**——每跑一次都说
+    # 「恢复已落定请重跑」却永远跑不完。三种时刻关系都要验：被恢复事件的时刻
+    # 晚于 / 等于 / 早于本次评分（晚于那档尤其要紧：第二轮里 A3 得把本次时刻
+    # 推到 W+1s 才写得进去）。
+    for i, (pending_rt, desc) in enumerate(
+        (
+            ("2026-08-10T10:00:00Z", "被恢复事件晚于本次评分"),
+            ("2026-08-02T10:00:00Z", "被恢复事件与本次评分同刻"),
+            ("2026-08-01T10:00:00Z", "被恢复事件早于本次评分"),
+        )
+    ):
+        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+        row = _review_row(event_id="quiz:板A#q1", **{"payload.review_time": pending_rt})
+        row["effective_at"] = pending_rt
+        _write_ledger(vault, row)
+        rounds, last = 0, None
+        for _ in range(5):
+            rounds += 1
+            last = _run_writer(vault, _payload(event_id=f"收敛{i}#q1", ts="2026-08-02T10:00:00Z"))
+            if not (last.returncode != 0 and "恢复已落定" in last.stderr):
+                break
+        assert rounds == 2, f"[{desc}] 必须恰好 2 轮收敛，实为 {rounds}: {last.stderr}"
+        assert last.returncode == 0, f"[{desc}] 第二轮必须写成: {last.stdout}{last.stderr}"
+        assert len(_ledger_lines(vault)) == 2, f"[{desc}] 最终账本 2 行"
+    # payload 临时文件必须在第一阶段退出时保留 —— 删了用户就无法重跑，两阶段
+    # 结构会把人卡死在中间态。
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    _write_ledger(vault, _review_row(event_id="quiz:板A#q1"))
+    rp = _run_writer(vault, _payload(event_id="板P#q1", ts="2026-08-02T10:00:00Z"))
+    assert rp.returncode != 0 and "恢复已落定" in rp.stderr
+    assert (vault.parent / "payload.json").exists(), "第一阶段退出必须保留 payload，否则无法重跑"
+
+    # ⑦ 复放后必须追平基准（「载荷都在 payload 里」的正面证据）。
+    # 我曾反复声明「被恢复事件的 mastery/校准没有事件载荷可复放」并据此不修 ——
+    # 那是错的：grade_norm 与 review_time 都在 payload 里，_apply_mastery 要的
+    # 正是这两个。实测掌握度：没崩溃连答三次 = 0.59；崩溃后先答下一题，复放前
+    # 0.65、复放后 0.59。本门锁住「两条路径的最终掌握度一致」。
+    E = [
+        (0.75, "2026-08-01T10:00:00Z", "板1"),
+        (0.31, "2026-08-02T10:00:00Z", "板2"),
+        (0.9, "2026-08-03T10:00:00Z", "板3"),
+    ]
+
+    def _mastery(v):
+        return re.search(r'^mastery_score:\s*"?([0-9.]+)"?\s*$', _fm(v), re.M).group(1)
+
+    va = vault
+    (va / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (va / "learning_events.jsonl").unlink()
+    for gn, ts, b in E:
+        assert (
+            _run_writer(
+                va, _payload(grade_norm=gn, ts=ts, event_id=b + "#q1", exam_board=f"检验白板/{b}.md")
+            ).returncode
+            == 0
+        )
+    baseline = _mastery(va)
+
+    (va / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (va / "learning_events.jsonl").unlink()
+    assert (
+        _run_writer(
+            va, _payload(grade_norm=E[0][0], ts=E[0][1], event_id="板1#q1", exam_board="检验白板/板1.md")
+        ).returncode
+        == 0
+    )
+    after1 = (va / NODE_REL).read_bytes()
+    assert (
+        _run_writer(
+            va, _payload(grade_norm=E[1][0], ts=E[1][1], event_id="板2#q1", exam_board="检验白板/板2.md")
+        ).returncode
+        == 0
+    )
+    (va / NODE_REL).write_bytes(after1)  # 第 2 次「写完日志但改笔记前退出」
+    r7 = _run_writer_settled(
+        va, _payload(grade_norm=E[2][0], ts=E[2][1], event_id="板3#q1", exam_board="检验白板/板3.md")
+    )
+    assert r7.returncode == 0, r7.stdout + r7.stderr
+    assert _mastery(va) == baseline, (
+        f"复放后掌握度必须追平基准：崩溃路径 {_mastery(va)} vs 基准 {baseline}"
+        "（不一致说明第 2 次评分的 mastery 没被复放）"
+    )
+    assert _run_validator(va).returncode == 0
+
+    # ⑧ attempt 同步必须**单调不减**：绝不把笔记里更大的计数改小。
+    # 这是 ② 那条 attempt 同步修复**自己引入**的缺陷：笔记 attempt_count=99 而
+    # 账本只有一条 attempt=1 的行时，无条件同步把 99 覆盖成 1（实测 99 → 2），
+    # 用户的「已考 99 次」当场蒸发。账本缺历史行是 §6.3 明确容许的常态。
+    (va / NODE_REL).write_text(
+        NODE_V0.replace("mastery_score: 0.5\n", "mastery_score: 0.5\nattempt_count: 99\n"), encoding="utf-8"
+    )
+    _write_ledger(va, _review_row(event_id="quiz:板A#q1"))
+    r8 = _run_writer_settled(va, _payload(event_id="板Z#q1", ts="2026-08-05T10:00:00Z"))
+    assert r8.returncode == 0, r8.stdout + r8.stderr
+    att_now = int(re.search(r'^attempt_count:\s*["\']?(\d+)["\']?\s*$', _fm(va), re.M).group(1))
+    assert att_now == 100, f"笔记的 99 不得被账本的 1 覆盖，应承接为 100，实为 {att_now}"
+
+    # ⑨ attempt 读取正则必须容 YAML 的单引号标量（Obsidian Properties 会写引号）
+    for lit, expect in (('"7"', 8), ("'7'", 8), ("7", 8)):
+        (va / NODE_REL).write_text(
+            NODE_V0.replace("mastery_score: 0.5\n", f"mastery_score: 0.5\nattempt_count: {lit}\n"),
+            encoding="utf-8",
+        )
+        (va / "learning_events.jsonl").unlink()
+        r9 = _run_writer(va, _payload(event_id=f"引号{lit.strip(chr(34)).strip(chr(39))}#q1"))
+        assert r9.returncode == 0, r9.stderr
+        got = _ledger_lines(va)[0]["payload"]["attempt_count"]
+        assert got == expect, f"attempt_count: {lit} 应承接为 {expect}，实为 {got}"
+
+    # ⑩ **degraded 落账过的 foreign 事件被重放时不得双吃 EMA**（复放修复自己
+    # 引入的 BLOCKER）。裁决② 下 fsrs 不可用时事件仍落账，且 mastery/校准
+    # **已经写过**，只是没写 W。此后它作为 foreign pending 被重放，若无条件
+    # 重算 mastery 就是吃第二遍 —— 而账本与校准日志看上去完全正常，缺陷不可见。
+    # 判据：「A 在 degraded 下落账 → 评 B」的最终掌握度，必须等于
+    #       「A 正常落账 → 评 B」的最终掌握度。
+    def _run_pair(degraded_first):
+        (va / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+        lp = va / "learning_events.jsonl"
+        if lp.exists():
+            lp.unlink()
+        env = {"FSRS_BRIDGE_REEXEC": "1"} if degraded_first else None
+        assert (
+            _run_writer(
+                va, _payload(grade_norm=0.75, ts=TS1, event_id="双吃A#q1", exam_board="检验白板/A.md"), env_extra=env
+            ).returncode
+            == 0
+        )
+        r = _run_writer_settled(
+            va, _payload(grade_norm=0.31, ts="2026-08-02T10:00:00Z", event_id="双吃B#q1", exam_board="检验白板/B.md")
+        )
+        assert r.returncode == 0, r.stdout + r.stderr
+        return re.search(r'^mastery_score:\s*"?([0-9.]+)"?\s*$', _fm(va), re.M).group(1)
+
+    normal_path = _run_pair(degraded_first=False)
+    degraded_path = _run_pair(degraded_first=True)
+    assert degraded_path == normal_path, (
+        f"degraded 落账过的事件被重放时不得再吃一次 EMA：degraded 路径 {degraded_path} vs 正常路径 {normal_path}"
+    )
+
+    # ⑪ **marker 降级绕过**（§6.1「降级绕过封堵」，写点侧此前缺这道门）。
+    # 本节点的行只有在既没有 schema_ext、也没有任何扩展键时才是真·历史行
+    # （§6.3，旧写点产物）。marker 拼错或被抹掉却带着扩展键 —— 那是一次真实
+    # 复习被伪装成历史行，静默跳过它就是永久漏算。实测：把 schema_ext 改成
+    # "review/01"，writer 照常 rc=0、账本两行，而那次复习完全消失
+    # （fsrs_state 1 而非 2，due 差一周）；同一种坏行带**本次** id 会被 dup
+    # 分支拦下，带别人的 id 就静默丢 —— 同一份数据两种命运。
+    for bad_marker, desc in (
+        ("review/01", "marker 拼错"),
+        ("review/2", "未来版本 marker"),
+        (1, "marker 非字符串"),
+        # ⚠️ 不含「marker 被抹掉」：只留扩展键、marker 整个消失的行，写点与校验器
+        # **两侧都**当历史行放过（§6.3 对无 marker 行不判 payload 键集）。要堵它
+        # 得先改契约，单侧收紧就是又一次口径分叉 —— 已登记移交，不在本卡修。
+    ):
+        (va / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+        row = _review_row(event_id="quiz:降级#q1")
+        if bad_marker is None:
+            row["payload"].pop("schema_ext")
+        else:
+            row["payload"]["schema_ext"] = bad_marker
+        _write_ledger(va, row)
+        face = _write_face(va)
+        rd = _run_writer(va, _payload(event_id="降级B#q1", ts="2026-08-02T10:00:00Z"))
+        assert rd.returncode != 0, f"[{desc}] 带扩展键却 marker 不合规的本节点行不得被当历史行跳过"
+        assert "降级绕过" in rd.stderr or "schema_ext" in rd.stderr, rd.stderr
+        assert _write_face(va) == face, f"[{desc}] 零写（节点 + 账本）"
+    # 验伪：**真·历史行**（无 marker 也无任何扩展键，§6.3）必须照常跳过而不报错
+    (va / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    legacy = {
+        "event_id": "quiz:真历史行",
+        "event_version": 1,
+        "event_type": "answer_scored",
+        "node_id": "测试节点",
+        "recorded_at": "2026-07-01T10:00:00Z",
+        "effective_at": "2026-07-01T10:00:00Z",
+        "payload": {"exam_board": "旧板", "note": "旧写点产物"},
+    }
+    _write_ledger(va, legacy)
+    rl2 = _run_writer(va, _payload(event_id="历史B#q1", ts="2026-08-02T10:00:00Z"))
+    assert rl2.returncode == 0, "真·历史行（§6.3）必须照常跳过: " + rl2.stderr
+    assert len(_ledger_lines(va)) == 2

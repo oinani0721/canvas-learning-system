@@ -229,6 +229,11 @@ try:
 except Exception as _e:
     raise SystemExit(f"[quiz-answer] G3-2 依赖不可达 (validate_learning_events/fsrs_bridge import 失败), fail-closed 拒写: {_e}")
 
+#: attempt_count 的读取模式 —— 容双引号与单引号 (Obsidian Properties 会把数值
+#: 写成引号标量), 与 _fm_has_event 对 calibration 条目的容引号口径一致。
+_ATT_RE = r'^attempt_count:\s*[\'"]?(\d+)[\'"]?\s*$'
+
+
 def _aware(s):
     dt = datetime.fromisoformat(str(s).replace("Z", "+00:00"))
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
@@ -423,7 +428,7 @@ if p.get("source_board") and not re.search(r'^source_board:', fm, re.M):
 sys.path.insert(0, os.path.join(VAULT, ".claude", "scripts"))
 from decay_beta import PRIOR_A, PRIOR_B, from_legacy, mu, update_after_idle
 
-def _apply_mastery(fm_text, biz_ts):
+def _apply_mastery(fm_text, biz_ts, gn=None):
     """衰减 Beta 后验 (批次2' A1, MEM-FLYWHEEL-2026-07-22): Beta(a,b)+γ=0.9
     打折 + 闲置折旧 (终审 A2)。返回 (old, A, B, new)。"""
     old = None
@@ -453,7 +458,8 @@ def _apply_mastery(fm_text, biz_ts):
     # 而 mastery 若用未舍入的 GN, 同一个 durable 事件在「首跑 gn=0.752」与
     # 「恢复重试 gn=0.7549」两次下会算出不同的 mastery_a —— envelope 判它们
     # 同一件事(两侧 GN2 都是 0.75), 产物却不同。业务量恒取账本锁住的那个值。
-    a_, b_ = update_after_idle(a_, b_, GN2, days_idle)
+    # gn=None ⇒ 用本次评分的 GN2; A2 重放别人的事件时传那行 durable 的 grade_norm。
+    a_, b_ = update_after_idle(a_, b_, GN2 if gn is None else float(gn), days_idle)
     return old, a_, b_, round(mu(a_, b_), 2)
 
 # ── G3-2 三态判别 (复用校验器 classify_card_state, schema §6.2)。
@@ -498,19 +504,38 @@ def _apply_fsrs_block(fm_text, block):
     fm_text = re.sub(r'^(fsrs_due|fsrs_state|fsrs_step|fsrs_stability|fsrs_difficulty|fsrs_last_review):.*\r?\n?', '', fm_text, flags=re.M)
     return re.sub(r'^(type:.*)$', lambda x: x.group(1) + block, fm_text, count=1, flags=re.M)
 
-def _append_calibration(fm_text, ts_str):
-    """calibration_log 条目 (正常/恢复两路径共用)。ts_str = 业务生效时刻
-    (review_time — 与 effective_at 同源, 保证恢复产物与直接应用逐字节对齐)。"""
+def _append_calibration(fm_text, ts_str, ev=None):
+    """calibration_log 条目 (正常 / 恢复 / A2 重放三路径共用)。ts_str = 业务生效
+    时刻 (review_time — 与 effective_at 同源, 保证恢复产物与直接应用逐字节对齐)。
+
+    ev=None ⇒ 记本次评分, 字段取本次 payload。
+    ev=某条 durable 行 ⇒ **复放**那次评分的校准条目, 字段取该行 payload;
+      question_id / self_confidence_* 不在事件载荷里, 记 null。
+      ⚠️ 但 event_id / ts / exam_board / grade_norm / abandoned 都在, 够让 F1
+      判定命中 —— 于是被恢复的那张检验白板重跑时能走「已完整应用, 幂等跳过」,
+      而不是撞上「FSRS 已应用但缺校准记录」的人工裁定 (审查实测: 缺了这一步,
+      那张白板**永久卡在** scored_pending_node_update)。
+    """
     q_ = lambda v: json.dumps(v, ensure_ascii=False)
-    scn_ = p.get("self_confidence_norm")
-    entry_ = (f'  - event_id: {q_(eid)}\n'
+    if ev is None:
+        _e_id, _e_pl = eid, p
+        _e_ab, _e_gn = bool(p.get("abandoned")), GN2
+        _e_qid = q_(p.get("question_id", "q1"))
+        _e_scr, scn_ = q_(p.get("self_confidence_raw") or "null"), p.get("self_confidence_norm")
+    else:
+        _e_pl = ev.get("payload") or {}
+        _raw_id = str(ev.get("event_id") or "")
+        _e_id = _raw_id[5:] if _raw_id.startswith("quiz:") else _raw_id
+        _e_ab, _e_gn = ev.get("event_type") == "answer_abandoned", _e_pl.get("grade_norm")
+        _e_qid, _e_scr, scn_ = "null", "null", None
+    entry_ = (f'  - event_id: {q_(_e_id)}\n'
               f'    ts: {q_(ts_str)}\n'
-              f'    exam_board: {q_(p.get("exam_board",""))}\n'
-              f'    question_id: {q_(p.get("question_id","q1"))}\n'
-              f'    self_confidence_raw: {q_(p.get("self_confidence_raw") or "null")}\n'
+              f'    exam_board: {q_(_e_pl.get("exam_board",""))}\n'
+              f'    question_id: {_e_qid}\n'
+              f'    self_confidence_raw: {_e_scr}\n'
               f'    self_confidence_norm: {scn_ if scn_ is not None else "null"}\n'
-              f'    grade_norm: {GN2}\n'
-              f'    abandoned: {"true" if p.get("abandoned") else "false"}')
+              f'    grade_norm: {_e_gn}\n'
+              f'    abandoned: {"true" if _e_ab else "false"}')
     # F3 修复 (2026-07-12): 定位 calibration_log 块末尾插入 — 旧逻辑无条件追加
     # 到 frontmatter 末尾, 当 calibration_log 非最后一个 key 时 (Obsidian
     # Properties 面板默认在末尾新增属性, 极常见), 事件条目会被 YAML 静默
@@ -548,9 +573,29 @@ for _ln, _o in _rows:
     # —— 不能因为「它看起来不属于本节点」就跳过, 因为恰恰无法判定归属。
     if isinstance(_o, dict) and not isinstance(_o.get("node_id"), str):
         raise SystemExit(f"[quiz-answer] 账本第 {_ln} 行缺少可用的 node_id ({_o.get('node_id')!r}) — 无法判定归属, 按 §一 路由信封条款 fail-closed 拒写")
-    if not isinstance(_pl, dict) or _pl.get("schema_ext") != "review/1":
+    if not isinstance(_pl, dict):
         continue
     if _o.get("node_id") != node_id:
+        continue
+    if _pl.get("schema_ext") != "review/1":
+        # ⛔ 降级绕过封堵 (§6.1, 与校验器同口径): 本节点的行只有在**既没有
+        # schema_ext、也没有任何扩展键**时才是真·历史行 (§6.3, 旧写点产物,
+        # 不进 pending)。marker 拼错或被抹掉却带着扩展键 —— 那是一次真实复习
+        # 被伪装成历史行, 静默跳过它就是永久漏算。
+        # 实测反例: 把 schema_ext 改成 "review/01", writer 照常 rc=0 且账本
+        # 两行, 但那次复习完全消失 (fsrs_state 1 而非 2, due 差一周);
+        # 同一种坏行带**本次** id 会被 dup 分支拦下, 带别人的 id 就静默丢 ——
+        # 同一份数据两种命运, 正是 §6.1 要封的那个口子。
+        # ⚠️ 判据只看「marker 在不在」，**不看 payload 带了哪些键** —— 与校验器
+        # 逐字同源。§6.3 的历史行本来就可能带 grade_norm / attempt_count /
+        # exam_board（旧写点产物），校验器对无 marker 行**不判** payload 键集；
+        # 我第一版按「带扩展键就算降级」写，当场误伤了门⑭ 的合法历史行 fixture
+        # —— 这是本卡第四次「实现比契约严」，判据必须收回到契约那条线上。
+        # 📌 如实登记的缺口：把 marker **整个抹掉**、只留扩展键的行，两侧（写点与
+        #    校验器）都会当历史行放过。要堵它得先改契约 §6.3 的键集豁免，
+        #    单侧收紧只会再造一次口径分叉 ⇒ 移交，不在本卡修。
+        if "schema_ext" in _pl:
+            raise SystemExit(f"[quiz-answer] 账本第 {_ln} 行 (本节点) 的 schema_ext={_pl.get('schema_ext')!r} 不是 'review/1' — §6.1 禁止以未知 marker 降级绕过扩展校验; 静默把它当历史行跳过等于漏算一次真实复习, fail-closed 拒写")
         continue
     # 未知 event_version 不得按 v1 应用 (§一 前向兼容: 跳过并告警, 不炸)。
     # 但「跳过」只对**别的节点**成立 —— 本节点的未知版本行若被跳过, 那次评分
@@ -640,7 +685,7 @@ else:
     # 容引号 (内部对抗审查 MEDIUM): Obsidian Properties 面板会把数值写成 "3",
      # 原正则不匹配 ⇒ 计数被当 0、序数倒退, 还把一个**已被占用的序数**写进
      # append-only 账本。与同块 mastery_* 的容引号口径统一。
-    _att = re.search(r'^attempt_count:\s*"?(\d+)"?\s*$', fm, re.M)
+    _att = re.search(_ATT_RE, fm, re.M)
     _att_now = int(_att.group(1)) if _att else 0
     # R3 (round-3 HIGH): attempt 序数从**账本边界**复算, 不拿当前 tip 当历史
     # durable 值。口径: frontmatter.attempt_count 与事件同一次原子发布 ⇒ 账本
@@ -716,8 +761,38 @@ for _inst, _ln, _o in pending:
     # 所以能复放。权威值恒取 durable 行, 不再 +1 —— 「恢复」的定义就是复现
     # 首次成功时写下的那个值。顺带修好一个用户可见的错: 崩溃恢复后「已考 N 次」
     # 旧实现会少算一次。
+    # 复放评分链的其余副作用 (审查 BLOCKER): 载荷**在** payload 里 —— grade_norm
+    # 与 review_time 都在, _apply_mastery 要的正是这两个。⛔ 我此前反复声明的
+    # 「没有事件载荷可复放」是**错的**, 而且拿它当过不修的理由。只补 attempt 会造出
+    # 自相矛盾的中间态 (已考 +1, 掌握度与 last_examined 却停在上一次, 于是
+    # last_examined < fsrs_last_review), 并让最终掌握度取决于用户的操作顺序而非
+    # 账本 (实测: 崩溃后先答下一题得 0.65, 没崩溃是 0.59; 复放后两者一致)。
+    # ⛔ 只复放**别人**的事件: dup(本次事件)自己也在 pending 里, 它的副作用由下面
+    # 的恢复路径按本次 payload 处理, 在这里再算一次就是**双吃 EMA**(degraded 遗留
+    # 态下 mastery 首评已应用过 —— 那正是门㉑ 盯的事)。
+    # ⛔ 判据必须是「这个事件的评分链副作用是否**已经**应用过」, 而不只是
+    # 「它是不是 dup」。反例 (审查实测): 事件 A 在 fsrs 不可用时落账 —— 裁决②
+    # 下 degraded 路径**已经写过** EMA 与校准, 只是没写 W。之后评 B 时 A 作为
+    # foreign pending 被重放, 若无条件重算 mastery 就是**吃第二遍**, 而账本与
+    # 校准日志看上去完全正常, 缺陷不可见。
+    # calibration_log 里有没有该 event_id (F1 语义) 正是「已完整应用过」的凭据,
+    # 与 mastery 同一次原子写 —— 所以两者共用这一个判据, 不能只给 calibration 用。
+    _rid_ = str(_o.get("event_id") or "")
+    _rid_bare_ = _rid_[5:] if _rid_.startswith("quiz:") else _rid_
+    if _o.get("event_id") != evid and not _fm_has_event(fm, _rid_bare_):
+        _o2_, _A2_, _B2_, _n2_ = _apply_mastery(fm, _pl["review_time"], _pl.get("grade_norm"))
+        fm = re.sub(r'^(mastery_score|mastery|mastery_level|mastery_a|mastery_b|last_examined):.*\r?\n?', '', fm, flags=re.M)
+        fm = re.sub(r'^(type:.*)$', lambda x: x.group(1) + f"\nmastery_score: {_n2_}\nmastery_a: {round(_A2_, 4)}\nmastery_b: {round(_B2_, 4)}\nlast_examined: " + json.dumps(_pl["review_time"], ensure_ascii=False), fm, count=1, flags=re.M)
+        fm = _append_calibration(fm, _pl["review_time"], ev=_o)
     _n_ = _pl.get("attempt_count")
     if isinstance(_n_, int) and not isinstance(_n_, bool) and _n_ >= 0:
+        # 单调不减: 绝不把笔记里**更大**的计数改小。自查抓到的、attempt 同步修复
+        # **自己引入**的缺陷: 笔记 attempt_count=99 而账本只有一条 attempt=1 的行
+        # 时, 无条件同步会把 99 覆盖成 1 (实测 99 → 2)。账本缺历史行是 §6.3 明确
+        # 容许的常态 (旧写点产出的行没有 review/1 扩展), 不该由恢复动作去「纠正」
+        # 笔记 —— 恢复的职责是把漏掉的那一次补上, 不是让计数向账本看齐。
+        _cur_ = re.search(_ATT_RE, fm, re.M)
+        _n_ = max(_n_, int(_cur_.group(1)) if _cur_ else 0)
         if re.search(r'^attempt_count:', fm, re.M):
             fm = re.sub(r'^attempt_count:.*$', f"attempt_count: {_n_}", fm, count=1, flags=re.M)
         else:
@@ -748,8 +823,19 @@ if _foreign_replayed:
     finally:
         os.close(_dfd)
     _ids = [t[2].get("event_id") for t in _foreign_replayed]
-    print(f"[quiz-answer] A2 已恢复 {len(_foreign_replayed)} 个未完成事件的 FSRS 并落盘: {_ids}")
-    print("[quiz-answer] ⚠️ 这些事件的 mastery/校准记录**无法从账本复放**(durable payload 不携带那部分载荷) — 它们的评分链副作用已永久丢失, 属已知缺口")
+    print(f"[quiz-answer] A2 已恢复 {len(_foreign_replayed)} 个未完成事件的 FSRS 与 attempt 并落盘: {_ids}")
+    # ⚠️ 把「重跑哪张板」直接说出来 —— mastery 丢失**可以避免**, 但只有用户去重跑
+    # 那一次评分才行 (端到端实测: 重跑那次 ⇒ 与没崩溃逐字节相同; 不重跑而直接答
+    # 下一题 ⇒ FSRS/已考/下次复习全对, 只有掌握度偏高)。只说「请重跑」会被理解成
+    # 重跑**本次**, 那救不回那一次的掌握度。
+    _boards = []
+    for _t in _foreign_replayed:
+        _bp = (_t[2].get("payload") or {}).get("exam_board") or "(未记板名)"
+        if _bp not in _boards:
+            _boards.append(_bp)
+    print(f"[quiz-answer] 已按各自的账本载荷复放: 调度状态 / 掌握度 / 已考次数 / 校准记录")
+    print(f"[quiz-answer]    涉及的检验白板: {_boards} (它们的 status 现在可以正常落定了)")
+    print("[quiz-answer] ℹ️ 唯一补不回的是 question_id 与理解自评 —— 那两项不在事件载荷里, 复放时记为 null")
     raise SystemExit(f"[quiz-answer] 恢复已落定, 本次评分未写入 — 请重跑 /quiz-answer 续跑 (检验白板保持 scored_pending_node_update)")
 
 # ── 恢复路径 / 正常路径分叉 (至此 pending 要么为空, 要么只含本次事件 dup)。
@@ -776,7 +862,7 @@ if dup is not None:
         if isinstance(_dup_att, int) and not isinstance(_dup_att, bool) and _dup_att >= 0:
             n_att = _dup_att
         else:
-            mo_att = re.search(r'^attempt_count:\s*"?(\d+)"?\s*$', fm, re.M)
+            mo_att = re.search(_ATT_RE, fm, re.M)
             n_att = (int(mo_att.group(1)) if mo_att else 0) + 1
         fm = re.sub(r'^(mastery_score|mastery|mastery_level|mastery_a|mastery_b|attempt_count|last_examined):.*\r?\n?', '', fm, flags=re.M)
         fm = re.sub(r'^(type:.*)$', lambda x: x.group(1) + f"\nmastery_score: {new}\nmastery_a: {round(A, 4)}\nmastery_b: {round(B, 4)}\nattempt_count: {n_att}\nlast_examined: " + json.dumps(review_time, ensure_ascii=False), fm, count=1, flags=re.M)
@@ -841,7 +927,7 @@ else:
 # 两路径的 mastery_a/b 因此不同 (实测节点 SHA 不同) — A3 等时推进 (W+1s) 或
 # 小数秒截断使 review_time != p["ts"] 时必然触发。
 old, A, B, new = _apply_mastery(fm, review_time)
-mo_att = re.search(r'^attempt_count:\s*"?(\d+)"?\s*$', fm, re.M)
+mo_att = re.search(_ATT_RE, fm, re.M)
 n_att = (int(mo_att.group(1)) if mo_att else 0) + 1
 fm = re.sub(r'^(mastery_score|mastery|mastery_level|mastery_a|mastery_b|attempt_count|last_examined):.*\r?\n?', '', fm, flags=re.M)
 fm = re.sub(r'^(type:.*)$', lambda x: x.group(1) + f"\nmastery_score: {new}\nmastery_a: {round(A, 4)}\nmastery_b: {round(B, 4)}\nattempt_count: {n_att}\nlast_examined: " + json.dumps(review_time, ensure_ascii=False), fm, count=1, flags=re.M)
@@ -949,7 +1035,13 @@ python3 .claude/scripts/sync_board_concepts.py --board "<被考节点的 source_
 
 python 成功（exit 0）后，`Edit` 检验白板 frontmatter：
 - **`status: done`** + `node_update_at: <ts>`
-- python 失败 → **保持 `scored_pending_node_update`**，回执告知"分数已保存,节点更新失败,重跑 /quiz-answer 会自动续跑"。
+- **exit≠0 且 stderr 含「恢复已落定」** → **第三态，不是失败**：上一次中断的评分已被补写进节点
+  并落盘，本次评分尚未写入。本板**保持 `scored_pending_node_update`**，回执告知
+  "上次中断的评分已补好，这次的还没写，请再跑一次 /quiz-answer"。
+  另外把 stdout 那行「涉及的检验白板: [...]」里列出的板逐张提示用户重跑一次 —— 它们现在
+  能正常落定了（重跑会走「已完整应用，幂等跳过」）。
+  ⛔ 这一态**不要**说"节点更新失败"——节点这次恰恰被更新了，只是更新的是别的事件。
+- 其余 exit≠0 → **保持 `scored_pending_node_update`**，回执告知"分数已保存,节点更新失败,重跑 /quiz-answer 会自动续跑"。
 
 **重量疑问** → 回执引导：在检验白板里选中疑问文字按 `Cmd+Shift+D` 派生独立疑问节点（自动归属原白板、关联被考节点）。
 
@@ -1000,6 +1092,7 @@ python 成功（exit 0）后，`Edit` 检验白板 frontmatter：
 | 节点缺 type/source_board（旧节点） | python 回填 → Dashboard 可见 |
 | 节点正文有基础事实错误 | 领域常识为准评分 + needs_content_review + 回执提醒 |
 | python 失败 | 保持 pending，重跑续跑，calibration/callout 幂等不双写 |
+| stderr 含「恢复已落定」 | **不是失败**：上次中断的评分已补好落盘，本次未写；保持 pending，再跑一次即可；并提示用户去重跑 stdout 列出的那几张板使其落定 |
 
 ---
 
