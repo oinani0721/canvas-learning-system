@@ -334,6 +334,60 @@ def probe_late_after_finalizing() -> dict:
     return _run("late-after-finalizing", body, expect_rc=3)
 
 
+def probe_ownership_model() -> dict:
+    """归属模型的四条声明 —— 本轮之前只是从上一张卡继承来的文字，没被验过。
+
+    A 主线程连接归当前用例；B 裸线程归 ``<unknown>``；
+    C 携带 context 副本的线程（anyio portal 的形态）归**发起用例**；
+    D **豁免期复制走的 context 在用例结束后必须作废** —— 这条最容易假：
+    如果代次机制不生效，一个在豁免用例里复制的 context 就能把「只记不拦」的
+    特权无限期带出去，`advisory` 会悄悄涨而没人拦。
+    """
+    body = """
+    import contextvars
+    from tests.support import live_port_guard as g
+    srv, port = listener()
+    g.BLOCKED_PORTS = frozenset(g.BLOCKED_PORTS | {port})
+    g.install()
+    def attempt():
+        s = socket.socket()
+        try:
+            s.connect(("127.0.0.1", port))
+        except RuntimeError:
+            pass
+        finally:
+            s.close()
+    problems = []
+    g.begin_item("nodeid::A", exempt=False)
+    attempt()
+    if g.STATE.records[-1]["owner"] != "nodeid::A":
+        problems.append("A 主线程归属错: " + g.STATE.records[-1]["owner"])
+    t = threading.Thread(target=attempt); t.start(); t.join()
+    if g.STATE.records[-1]["owner"] != "<unknown>":
+        problems.append("B 裸线程未归 unknown: " + g.STATE.records[-1]["owner"])
+    ctx = contextvars.copy_context()
+    t2 = threading.Thread(target=lambda: ctx.run(attempt)); t2.start(); t2.join()
+    if g.STATE.records[-1]["owner"] != "nodeid::A":
+        problems.append("C 带上下文线程归属错: " + g.STATE.records[-1]["owner"])
+    g.end_item()
+    g.begin_item("nodeid::B", exempt=True)
+    stale = contextvars.copy_context()
+    g.end_item()
+    adv_before = g.STATE.advisory
+    t3 = threading.Thread(target=lambda: stale.run(attempt)); t3.start(); t3.join()
+    rec = g.STATE.records[-1]
+    if rec["exempt"] or rec["owner"] != "<unknown>" or g.STATE.advisory != adv_before:
+        problems.append("D 过期豁免票没作废: " + repr(rec) + " advisory+" + str(g.STATE.advisory - adv_before))
+    srv.close()
+    if problems:
+        verdict(False, "ownership-model", "; ".join(problems)[:200])
+    else:
+        verdict(True, "ownership-model")
+    """
+    # 四次拦截全部无人结账 ⇒ 最终结算强制 rc=3
+    return _run("ownership-model", body, expect_rc=3)
+
+
 def probe_require_blocked_target() -> dict:
     """``W4_GUARD_REQUIRE_BLOCKED_TARGET=1`` 且目标不在射程内 ⇒ 拒绝装门。"""
     body = """
@@ -466,6 +520,84 @@ def _sh_direct(argv: list[str], env_extra: dict | None = None) -> subprocess.Com
     if env_extra:
         env.update(env_extra)
     return subprocess.run(argv, cwd=BACKEND_DIR, env=env, capture_output=True, text=True, timeout=180)
+
+
+def _load_negctl():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "negctl_probe", BACKEND_DIR / "scripts/lifespan_isolation_negative_control.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def probe_drift_in_test_fails_the_session() -> dict:
+    """用例里把 belt 拆掉且**不还原** ⇒ 整个 pytest 进程必须 fail-closed。
+
+    这条验的是「每个用例边界都复核身份」这句承诺的**端到端**效果，而不只是
+    `assert_guard_live()` 单独调用会抛。在隔离副本里跑（真实树不写）。
+
+    判据是两项而不是一项：rc 非零 **且** 输出里点名了 `GuardDrift` 与那条用例 ——
+    只看 rc 的话，「因为别的原因崩了」也会算过。
+    """
+    import tempfile as _tf
+
+    mod = _load_negctl()
+    tmp = Path(_tf.mkdtemp(prefix="w4-drift-"))
+    try:
+        iso = mod.make_isolated_backend(tmp)
+        target = iso / "tests/test_w4_drift_probe.py"
+        target.write_text(
+            '"""探针用例：拆掉 belt 且不还原。"""\n'
+            "import socket\n"
+            "from tests.support import live_port_guard as g\n\n\n"
+            "def test_removes_the_guard_and_does_not_restore():\n"
+            "    socket.socket.connect = g.STATE._orig_connect\n"
+            "    assert True\n",
+            encoding="utf-8",
+        )
+        env = os.environ.copy()
+        env["PYTHONDONTWRITEBYTECODE"] = "1"
+        env["PYTHONPATH"] = str(iso)
+        proc = subprocess.run(
+            [
+                PY,
+                "-m",
+                "pytest",
+                "tests/test_w4_drift_probe.py",
+                "-q",
+                "-p",
+                "no:cacheprovider",
+                "--override-ini=addopts=",
+            ],
+            cwd=iso,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+        blob = proc.stdout + proc.stderr
+        ok = proc.returncode != 0 and "GuardDrift" in blob and "test_removes_the_guard_and_does_not_restore" in blob
+        reason = (
+            ""
+            if ok
+            else f"rc={proc.returncode} GuardDrift={'GuardDrift' in blob} 点名用例={'test_removes' in blob}: {blob[-300:]}"
+        )
+    except Exception as exc:  # noqa: BLE001
+        ok, proc, reason = False, None, f"探针自身失败: {exc!r}"
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    return {
+        "name": "drift-in-test-fails-session",
+        "ok": ok,
+        "rc": proc.returncode if proc is not None else -1,
+        "expect_rc": "非 0 且点名 GuardDrift",
+        "verdict": "用例内拆门让整个会话 fail-closed" if ok else "拆门后会话没有 fail-closed",
+        "reason": reason,
+        "stderr_tail": "",
+    }
 
 
 def probe_isolated_copy_carries_no_data() -> dict:
@@ -702,6 +834,8 @@ def main() -> int:
         probe_late_after_finalizing(),
         probe_plugin_import_installs(),
         probe_audit_liveness_control(),
+        probe_ownership_model(),
+        probe_drift_in_test_fails_the_session(),
         probe_require_blocked_target(),
         probe_require_blocked_target_positive(),
         probe_late_connection_forces_rc(),

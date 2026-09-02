@@ -119,7 +119,7 @@ runtime SHA 门包裹下，`RUNTIME-FILES: unchanged`。
 
 ### A.3 裁判 3 — 底层旁路探针（`scripts/lifespan_isolation_guard_probes.py`）
 
-**27/27** 全部 fail-closed（19 → round-1 后 26 → round-2 自查后 27）。每条核对
+**29/29** 全部 fail-closed（19 → round-1 后 26 → 自查后 27 → 验证继承声明后 **29**）。每条核对
 **rc + 唯一裁定行**两项：
 
 round-1 新增的 7 条（对应处置表 #2/#3/#4/#5/#17）：
@@ -377,6 +377,27 @@ rc=1，同样返回 usage limit。⇒ 账号级配额硬阻断，与本卡内容
 **门规模（补轮后）**：AST 负控 17 绕过/9 验伪锚 → **22 绕过 / 11 验伪锚**；
 探针 27 不变；真实仓库仍 **371 文件 0 违规**；宽集 **218 failed / 4516 passed**
 与基线 failure-set 全等。
+
+---
+
+### round-2 补轮之二：把「继承来的声明」亲自验一遍（2026-09-03）
+
+模块 docstring 里有几条归属模型的断言，日期标的是 **2026-09-01（上一张卡）**——
+本轮**从未亲自验证过**，属于「照抄的声明」。按 `reference_claims_wider_than_evidence`
+的教训，照抄的声明和自己造的声明一样会错。逐条实跑：
+
+| 声明 | 实测 | 结论 |
+|---|---|---|
+| 用例期内主线程连接归当前 nodeid | owner = `nodeid::A` | ✅ 成立 |
+| 裸线程（`threading.Thread` 直启）归 `<unknown>` | owner = `<unknown>` | ✅ 成立 |
+| 携带 context 副本的线程（anyio portal 形态）归**发起用例** | owner = `nodeid::A` | ✅ 成立 |
+| **豁免期复制走的 context 在用例结束后作废** | owner=`<unknown>`、exempt=`False`、advisory 增量 **0** | ✅ 成立（这条最容易假：代次机制若失效，豁免特权会被无限期带出去） |
+| 用例内拆掉 belt 且不还原 ⇒ 整个 pytest 会话 fail-closed | rc=**3**，输出点名 `GuardDrift` 与**那条用例名** | ✅ 成立 |
+
+五条全部成立，且**都已固化成常设探针**（`ownership-model`、
+`drift-in-test-fails-session`），不再是一次性测量。
+
+**门规模（补轮之二后）**：探针 27 → **29** 条。
 
 ---
 

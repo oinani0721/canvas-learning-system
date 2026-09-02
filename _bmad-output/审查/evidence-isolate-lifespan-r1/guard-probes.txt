@@ -13,6 +13,8 @@
   [PASS] late-after-finalizing              rc=3 (期望 3)
   [PASS] plugin-import-installs             rc=0 (期望 0)
   [PASS] audit-liveness-control             rc=0 (期望 0)
+  [PASS] ownership-model                    rc=3 (期望 3)
+  [PASS] drift-in-test-fails-session        rc=3 (期望 非 0 且点名 GuardDrift)
   [PASS] require-blocked-target             rc=0 (期望 0)
   [PASS] require-blocked-target-positive    rc=0 (期望 0)
   [PASS] late-connection-rc                 rc=3 (期望 3)
@@ -27,4 +29,4 @@
   [PASS] shell-readonly-func                rc=0 (期望 0)
   [PASS] shell-alias-test-hijack            rc=2 (期望 2(用法) 或 1(GATE-BROKEN))
   [PASS] shell-exit-trap-hijack             rc=2 (期望 2(用法) 或 1(GATE-BROKEN))
-GUARD-PROBES: PASS — 27/27 条全部 fail-closed
+GUARD-PROBES: PASS — 29/29 条全部 fail-closed
