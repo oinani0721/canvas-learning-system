@@ -4119,7 +4119,7 @@ def test_domain_r11_fulltext_gate_and_visible_numerals_cli(tmp_path):
 # ⛔ Codex 连续三轮点名「隐藏的手抄闭表」。本卡反复证明的那条原则是：
 # **一个原则只有一个应用点**（判据分叉 / 双循环分类 / 预处理顺序耦合，
 # 全是同一个病的不同实例）。所以这里不是再补一次表，而是：
-#   · `_D2_INLINE_CODE_RE` 的量词副本 → **从 `_D2_QUANT` 机械派生**（副本消失）；
+#   · inline-code 守卫的量词副本 → **从 `_D2_QUANT` 机械派生**（副本消失）；
 #   · ⑦⑧允许式的数词禁集在**定界集定义之前**，移动代码风险大 ⇒ 保留副本，
 #     但加一道**漂移检测门**：它必须覆盖 `_NUMERAL_LIKE_CHARS` 的每一个字符。
 #     ⚠️ 这不等于消除副本，只是**把静默分叉变成会被抓住的分叉**——如实登记。
@@ -4139,14 +4139,26 @@ def test_domain_r12_no_silent_table_copies():
 
     # ① inline-code 守卫必须与主量词表同步（派生 ⇒ 逐字覆盖）
     for ch in sorted(quant):
-        assert not rs._D2_INLINE_CODE_RE.fullmatch(f"`{ch}`"), (
+        assert rs._codespan_is_visible_count(ch), (
             f"量词 {ch!r} 单独写成 code span 时被挖空 ⇒ 前面的数字失去锚点；inline-code 守卫与 _D2_QUANT 已分叉"
         )
     # ⛔ round-14（冻结审查）：数字部分原先仍手写 `[0-9]+` ——「副本已消除」只对了
     # 一半，于是 `` `九十八万个` ``/`` `987654 个` `` 这类**完整可见计数**写进
     # code span 会被整体挖空、整域免检。现数字部分也派生自定界集。
-    for span in ("`987654 个`", "`九十八万个`", "`987654`", "`廿五个`"):
-        assert not rs._D2_INLINE_CODE_RE.fullmatch(span), f"纯计数 code span {span} 被当字段值挖空 ⇒ 可见计数整域免检"
+    for span in ("987654 个", "九十八万个", "987654", "廿五个"):
+        assert rs._codespan_is_visible_count(span), f"纯计数 code span `{span}` 被当字段值挖空 ⇒ 可见计数整域免检"
+    # ⛔ round-17（冻结审查 §一.2）：判据从 raw 正则前瞻改为**先归一再判**的函数，
+    # 符号/小数点/千分位/全角数字不再让守卫失效。
+    for span in ("-5", "5.5个", "1,005个", "５５个"):
+        assert rs._codespan_is_visible_count(span), f"可见计数 `{span}` 仍被当字段值挖空"
+    for span in ("-", ".", " "):
+        assert not rs._codespan_is_visible_count(span), f"纯符号 `{span}` 不该算计数（白丢 E2 豁免）"
+    # 可见计数 span **只挖反引号**：反引号不在连接集里，原样留下会让量词锚失效。
+    assert rs._D2_CODE_SPAN_RE.sub(rs._blank_inline_code, "共有`-5`个") == "共有 -5 个"
+    # 字段值 span 整段挖空，且**等长**（行内偏移不能乱）——期望值算出来，不手数空格
+    assert (
+        rs._D2_CODE_SPAN_RE.sub(rs._blank_inline_code, "项 `mastery` 已改") == "项 " + " " * len("`mastery`") + " 已改"
+    )
     # 负号集必须是**单一常量**（原先 D2/fallback 手抄两次）
     assert hasattr(rs, "_NEG_SIGN"), "负号集应提为单一常量，避免第三处副本"
     # ⛔ round-15（冻结审查）：全文零宽门原先**手抄**一份只到 U+2064 的集合，
@@ -4163,7 +4175,7 @@ def test_domain_r12_no_silent_table_copies():
     for _cp in (0x2065, 0x2066, 0x2067, 0x2068, 0x2069):
         assert _inv.match(chr(_cp)), f"U+{_cp:04X} (bidi isolate) 不在不可见集内 —— 它能切断数串却过全局门"
     # 反面：非量词的 code span 仍应被挖空（否则豁免整个失效）
-    assert rs._D2_INLINE_CODE_RE.fullmatch("`abc`"), "普通 code span 应仍被豁免"
+    assert not rs._codespan_is_visible_count("abc"), "普通 code span 应仍被豁免（字段值）"
 
     # ② ⑦⑧允许式的手抄数词禁集必须覆盖定界集全集（漂移即被抓）
     # ⚠️ 必须**按行为**检测，不能拿字符去子串匹配 pattern 源码 ——
@@ -4261,5 +4273,85 @@ def test_domain_r13_shortcut_link_and_crash_classifier(tmp_path):
         ),
         ("INTERNALERROR> boom", True, "pytest 内部错"),
         ("1 error, 260 passed", True, "收集期 error"),
+        # ⛔ round-17（冻结审查 §一.4）：上一版号称"从名单改形态"，其实只是把名单
+        # 从**全名**换成了**后缀** `(?:[Ee]rror|Exception)` —— 仍是我手写的闭表。
+        # 下面三个都不以 Error/Exception 结尾，旧判据全部漏掉。
+        ("E       SystemExit: 2", True, "不以 Error/Exception 结尾 ⇒ 旧后缀表假阴"),
+        ("E       subprocess.TimeoutExpired: t", True, "同上，且是点分名"),
+        ("E       RecursionError: deep", True, "枚举五名单之外"),
+        ("E       Failed: 被测脚本不存在", True, "pytest.fail = 夹具坏了，不是判错"),
+        # ⛔ round-17 二修（实测 39/44 假阳）：第一版把判据放宽成「行首是个标识符」，
+        # 但 pytest 给失败详情的**每一行**都加 `E ` 前缀 ⇒ 断言消息的**续行**被
+        # 当成异常类型。**修严引入松、修松引入严** —— 两个方向必须同时锁。
+        ("E     VERIFY FAIL (1 项) — 改写报告后重跑本命令", False, "断言消息续行，不是异常"),
+        ("E     VERIFY PASS — 可以发回执", False, "同上"),
+        ("E    +  where 0 = CompletedProcess(args=[...])", False, "assert 重写的 where 行"),
+        ("E   AssertionError: 四反引号短闭合仍被放行:", False, "消息自己以冒号结尾，仍是断言"),
+        ("E     E1 围栏闭合: 少一个反引号", False, "续行首词恰好像类名 ⇒ 必须靠缩进外的冒号规则排除"),
     ):
         assert _nv._looks_like_crash(out) is want, f"崩溃判据判错: {why} | {out!r}"
+
+    # ④ transport：崩溃分析必须同时看 stderr。本域大量门跑 CLI 子进程，
+    #    子进程 traceback 只落 stderr 时，外层只剩一个 AssertionError。
+    assert not _nv._looks_like_crash("1 failed, 260 passed"), "前提：单看 stdout 不算崩溃"
+    assert _nv._looks_like_crash(_nv._crash_text("1 failed, 260 passed", "Traceback (most recent call last):")), (
+        "stderr 里的 traceback 被丢弃 ⇒ 生产崩溃会被当成正常判错变红"
+    )
+    assert _nv._crash_text("a", None) == "a\n", "stderr 为 None 时不得抛"
+
+
+def test_domain_r14_range_left_edge_and_codespan_order_cli(tmp_path):
+    """R3 round-17（冻结审查 §一.1/§一.2）：两处**顺序耦合**，六条实测反例。
+
+    修前全部 exit 0：
+      · `-2~3个` —— 区间端点用的 `_NUM_RUN_PAT` **不含符号**，匹配从负号之后
+        重新起锚成 `2~3`；两端都在池 ⇒ 整段挖空，负号守卫再也看不到它；
+      · `2.2~3个` —— 同理从小数点之后起锚；
+      · `` `-5`个 `` / `` `5.5个` `` / `` `1,005个` `` / `` `５５个` `` ——
+        inline-code 的「纯计数」豁免判据作用在 **raw** span 上，而它跑在
+        `_visible_text` / `_normalize_number_seps` **之前**，于是符号/小数点/
+        千分位/全角数字都不在 `_D2_COUNTISH_CHARS` 里 ⇒ 前瞻失败 ⇒ 整段按
+        「字段值」挖空，后续所有数值门都看不见。
+
+    **它证明什么**：区间首端紧邻负号/小数点时 fail-closed；code span 的豁免
+    判据看的是**渲染后**内容，且可见计数只挖反引号（保住量词锚）。
+    **它不证明什么**：`_D2_RANGE_RE` 的分隔符仍是**闭表**；「可见计数」判据
+    仍依赖 `_D2_COUNTISH_CHARS` 这张闭表 —— 两者都如实登记在验收单 §五之三。
+    """
+    rs = _load_recap_scan()
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    pool = rs._derived_number_pool(scan)
+    assert {2, 3, 5} <= pool, "前提：2/3/5 必须在池内，否则下面测的是别的东西"
+    assert 55 not in pool and 1005 not in pool, "前提：55/1005 必须在池外"
+
+    report = write_report(vault, scan)
+    base_text = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+
+    def verify(injected: str):
+        text = base_text.replace("## 三维审查", f"## 三维审查\n\n{injected}", 1)
+        assert text != base_text, "变异未命中：报告一字未改，这条门测的是空气"
+        report.write_text(text, encoding="utf-8")
+        return run_verify(report)
+
+    # ① 必须拦：六条实测反例
+    for line, needle, why in (
+        ("- 本板共有-2~3个子节点。【实测】", "-2~3", "区间首端负号"),
+        ("- 本板共有2.2~3个子节点。【实测】", "2.2~3", "区间首端小数"),
+        ("- 本板共有`-5`个子节点。【实测】", "5", "负号在 code span 外"),
+        ("- 本板共有`5.5个`子节点。【实测】", "5.5", "小数整体在 code span"),
+        ("- 本板共有`1,005个`子节点。【实测】", "1005", "千分位整体在 code span"),
+        ("- 本板共有`５５个`子节点。【实测】", "55", "全角数字在 code span（池外 55）"),
+    ):
+        r = verify(line)
+        assert r.returncode != 0, f"{why}：放行了 —— {line!r}"
+        assert _one_problem_has(r.stdout, needle), f"{why}：诊断未指向完整数串 {needle}\n{r.stdout}"
+
+    # ② 不得误伤：E2 字段值豁免仍在，池内值与合法区间照常放行
+    for line, why in (
+        ("- 配置项 `mastery_score` 已更新。【实测】", "普通字段值 code span 仍豁免"),
+        ("- 本板共有`５个`子节点。【实测】", "全角 ５=5 在池内，应放行"),
+        ("- 建议覆盖2~3个节点。", "合法区间不受伤"),
+    ):
+        assert verify(line).returncode == 0, f"误伤：{why} —— {line!r}"

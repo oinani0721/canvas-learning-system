@@ -401,8 +401,9 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "survivor-31 (C-8) wikilink 挖空退回豁免链（跑在 _visible_text 之前 ⇒ 有别名链接只剩 `|N]]`）",
         [
             (
-                "        for rx in (_D2_INLINE_CODE_RE, _D2_TIME_RE):",
-                '        for rx in (_D2_INLINE_CODE_RE, re.compile(r"\\[\\[[^\\]\\n|]*(?=\\|)"), _D2_TIME_RE):',
+                "        body = _D2_CODE_SPAN_RE.sub(_blank_inline_code, body)\n",
+                "        body = _D2_CODE_SPAN_RE.sub(_blank_inline_code, body)\n"
+                '        body = re.compile(r"\\[\\[[^\\]\\n|]*(?=\\|)").sub(lambda mm: " " * len(mm.group(0)), body)\n',
             )
         ],
         "r10_ordering",
@@ -479,8 +480,8 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "（`九十八万个`/`987654 个` 等完整可见计数写进 code span 即整域免检）",
         [
             (
-                'rf"`(?![{re.escape(_D2_COUNTISH_CHARS)}\\s]+`)[^`\\n]*`"',
-                'rf"`(?![0-9]+`)(?!{_D2_QUANT}+`)[^`\\n]*`"',
+                '_D2_COUNTISH_CHARS = _NUMERAL_LIKE_CHARS + _D2_QUANT.strip("[]")',
+                '_D2_COUNTISH_CHARS = "0123456789" + _D2_QUANT.strip("[]")',
             )
         ],
         "r12_no_silent",
@@ -515,7 +516,39 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         [('    line = _VIS_SHORTCUT_LINK_RE.sub(r"\\1", line)\n', "")],
         "r13_shortcut",
     ),
+    (
+        "survivor-43 (C-16) 区间首端守卫去掉（`-2~3个`/`2.2~3个` 从符号后重新起锚，整段挖空后负号与小数门再也看不到）",
+        [
+            (
+                "                _pre = _RANGE_LEFT_BAD_RE.search(line[: mm.start(1)])\n"
+                "                if _pre:\n"
+                "                    bad_range_ctx.append(_pre.group(0) + mm.group(0))\n"
+                '                    return " " * len(mm.group(0))\n',
+                "",
+            )
+        ],
+        "r14_range_left",
+    ),
+    (
+        "survivor-44 (C-17) inline-code 豁免退回 raw 判据（不先归一 ⇒ 符号/小数/千分位/全角写进 code span 即整域免检）",
+        [
+            (
+                '    if _codespan_is_visible_count(span[1:-1]):\n        return " " + span[1:-1] + " "\n',
+                "",
+            )
+        ],
+        "r14_range_left",
+    ),
 ]
+
+
+def _crash_text(stdout: str, stderr: str | None) -> str:
+    """崩溃分析的**输入面**: stdout + stderr 一起看。
+
+    提成纯函数是为了让"有没有把 stderr 丢掉"能被行为门直接测 ——
+    藏在 run_suite 里就只能靠读源码, 而 transport 缺失**不会**让任何测试变红。
+    """
+    return stdout + "\n" + (stderr or "")
 
 
 def _looks_like_crash(out: str) -> bool:
@@ -524,10 +557,26 @@ def _looks_like_crash(out: str) -> bool:
     提成纯函数是为了能被 `test_recap_scan_signals.py` 逐形态单测 ——
     藏在 `run_suite` 里就只能靠肉眼，而崩溃伪红**唯一的症状就是显示 ✅**。
     """
-    exc_lines = re.findall(r"^E\s+([A-Za-z_][\w.]*(?:[Ee]rror|Exception))\b", out, re.M)
+    # ⛔ R3 round-17 (冻结审查 §一.4): 上一版号称「从名单改形态」, 其实只是把名单
+    # 从**全名**换成了**后缀** —— `(?:[Ee]rror|Exception)` 仍是一张我手写的闭表,
+    # 漏掉 `SystemExit` / `subprocess.TimeoutExpired` / 裸 `Exception` 以外的一切
+    # 不以 Error/Exception 结尾的异常。这是本项目记账过的「枚举 vs 结构」第四次。
+    # ⇒ 判据反过来写: 枚举的不是**异常空间**(开放), 而是 **pytest 自己的"判错"
+    #   词汇表**(封闭, 由 pytest API 定义): 断言失败只会以 `assert` / `AssertionError`
+    #   开头。除此之外任何出现在 `E ` 详情行首的标识符都是"崩坏"。
+    # ⛔ R3 round-17 二修（实测 39/44 假阳）: 上一版写成 `^E\s+<标识符>`, 以为那是
+    # 「异常行」—— 其实 pytest 给失败详情的**每一行**都加 `E ` 前缀, 于是断言消息
+    # 的续行 `E     VERIFY FAIL (1 项) …` 被当成异常 `VERIFY`, 44 条变体里 39 条
+    # 被误判成崩溃。**修严引入松、修松引入严**, 两次的病根都是没去读 pytest 的
+    # 真实输出语法。实测语法: 异常行是 `E   <类名>: <消息>` —— 标识符后**紧跟冒号**;
+    # 断言是 `E   assert …` 或 `E   AssertionError: …`; 续行则是缩进的自由文本。
+    # ⇒ 加上"紧跟冒号"这一条, 两个方向同时收敛(负控见 r13 门的 16 条形态)。
+    LEGIT_RED = {"assert", "AssertionError"}
+    exc_names = re.findall(r"^E\s+([A-Za-z_][\w.]*):", out, re.M)
+    exc_names += re.findall(r"^E\s+(assert)\b", out, re.M)
     errors = sum(int(m) for m in re.findall(r"(\d+) error(?:s)?\b", out))
     return bool(
-        any(e != "AssertionError" for e in exc_lines)
+        any(name not in LEGIT_RED for name in exc_names)
         or "Traceback (most recent call last):" in out
         or "INTERNALERROR" in out
         or errors > 0
@@ -555,6 +604,11 @@ def run_suite(keyword: str) -> tuple[int, str, int, int]:
     out = r.stdout
     failed = sum(int(m) for m in re.findall(r"(\d+) failed", out))
     passed = sum(int(m) for m in re.findall(r"(\d+) passed", out))
+    # ⛔ R3 round-17 (冻结审查 §一.4): 崩溃分析必须看 **stdout + stderr**。
+    # 上一版只分析 stdout ⇒ 本域大量门是**跑 CLI 子进程**再核输出的, 子进程的
+    # traceback 若只落在 stderr, 外层就只剩一个 AssertionError,
+    # 生产崩溃被当成正常"判错变红"。计数仍只从 stdout 取(摘要行在那儿)。
+    both = _crash_text(out, r.stderr)
     # ⛔ 铁律 5 (CARD-维护B-R3 round-10, Codex round-8 HIGH-7 实证):
     # 变异必须让被测物**产生错误的判断**, 而不是让它**崩溃**。
     # survivor-20 原版把千分位 pattern 换成无捕获组 lookaround, 却保留生产代码的
@@ -576,7 +630,7 @@ def run_suite(keyword: str) -> tuple[int, str, int, int]:
     #   · pytest 自身的 INTERNALERROR / 收集期 error 计数。
     # 假阳边界如实声明: 若某条门**故意**断言输出里含 traceback 文本, 会被误判为
     # 崩溃 —— 那是「宁可误报也不漏报」的方向选择, 且当前目标套件无此形态。
-    crash = _looks_like_crash(out)
+    crash = _looks_like_crash(both)
     return r.returncode, out[-400:], passed + failed, failed, crash
 
 

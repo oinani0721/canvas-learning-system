@@ -1412,7 +1412,7 @@ _D2_EXEMPT_SECTIONS = (
 #  ③ 量词表保持封闭 —— 这是**如实登记的边界**, 不假装"位置承担了一切":
 #     中文数字与表外量词仍不在覆盖面 (见验收单裁决点)。
 # 噪声集含反引号: `` `987654` 个 `` 里的收尾反引号也是"数字与量词之间的排版噪声"
-# （纯数字 code span 已由 _D2_INLINE_CODE_RE 有意保留下来交给这里判）。
+# （可见计数 code span 已由 _blank_inline_code 有意保留下来交给这里判）。
 _D2_NOISE_ONE = r"(?:[*_~\\`]|<[^>\n]{1,20}>|&nbsp;|&#160;|[多余来几约近超]|\s)"
 _D2_NOISE = rf"{_D2_NOISE_ONE}*"
 # ⛔ R3 round-2 (车道对抗审查 BLOCKER, 5 个镜头独立收敛 + 本地实测复现):
@@ -1496,7 +1496,49 @@ _D2_TIME_RE = re.compile(
 # 「纯计数」= 只由数词样字符 / 量词 / 空白组成 —— 这类 code span 是**可见计数**,
 # 不该按「字段值」豁免掉。合并成一个否定前瞻。
 _D2_COUNTISH_CHARS = _NUMERAL_LIKE_CHARS + _D2_QUANT.strip("[]")
-_D2_INLINE_CODE_RE = re.compile(rf"`(?![{re.escape(_D2_COUNTISH_CHARS)}\s]+`)[^`\n]*`")
+# ⛔ R3 round-17 (冻结审查 §一.2): 上一版是**正则否定前瞻**, 判据作用在 **raw**
+# code span 上 —— 而它跑在 `_visible_text` / `_normalize_number_seps` **之前**。
+# 于是 `` `-5` 个``、`` `5.5个` ``、`` `1,005个` ``、`` `５个` `` 里的符号/小数点/
+# 千分位/全角数字都不在 _D2_COUNTISH_CHARS 里 ⇒ 前瞻失败 ⇒ 整段按"字段值"挖空,
+# 后续所有数值门都看不见它们（四条实测放行）。这是**又一处顺序耦合**, 与本卡
+# 已修的三处同型（wikilink 挖空早于归一 / fallback 白名单判在源码行 / 千分位）。
+# ⇒ 改为**先归一再判**的函数式替换: 判据看的是读者渲染后看到的内容。
+_D2_CODE_SPAN_RE = re.compile(r"`[^`\n]*`")
+# 计数里可以合法出现、但不属于"数词样字符"的附属符号（符号/小数点/分隔符）。
+_D2_COUNTISH_EXTRA = "-−－‑﹣负.．,，'’ \t"
+
+
+def _codespan_is_visible_count(inner: str) -> bool:
+    """code span 的**渲染后**内容是不是一串可见计数（而非字段值）。
+
+    要求至少含一个数词样字符 —— 否则 `` `-` `` / `` `.` `` 这种纯符号 span
+    会被当成计数, 白白失去 E2 豁免。
+    """
+    norm = _normalize_number_seps(_visible_text(inner)).strip()
+    if not norm:
+        return False
+    if not all(ch in _D2_COUNTISH_CHARS or ch in _D2_COUNTISH_EXTRA for ch in norm):
+        return False
+    # ⚠️ 至少要有一个"数词样字符或量词" —— 纯符号 span（`` `-` `` / `` `.` ``）
+    #    不是计数, 白白失去 E2 豁免。但**纯量词**（`` `个` ``）必须算:
+    #    挖掉单独成 span 的量词会让它前面的数字失锚（round-11 修过的缺陷,
+    #    第一版这里写成"至少一个 _NUMERAL_LIKE_CHARS"当场把它重新引入, 被 r12 门抓住）。
+    return any(ch in _D2_COUNTISH_CHARS for ch in norm)
+
+
+def _blank_inline_code(mm: "re.Match[str]") -> str:
+    """字段值 span 整段挖空; 可见计数 span **只挖掉反引号**, 内容留给数值门。
+
+    ⚠️ 只挖反引号（而不是原样保留）是必须的: 反引号不在连接字符集里,
+    `` `-5`个 `` 原样留下时 `5` 与量词 `个` 被反引号隔开, 量词锚失效。
+    等长替换, 行内偏移不变。
+    """
+    span = mm.group(0)
+    if _codespan_is_visible_count(span[1:-1]):
+        return " " + span[1:-1] + " "
+    return " " * len(span)
+
+
 # ⛔ E3 同理: wikilink 的**别名显示文本**是读者看得见的正文
 # (`[[节点/x|本板共有 987654 个子节点]]` 渲染出来就是那句话)。只豁免**目标部分**,
 # 别名部分留给 D2 校验。
@@ -1654,6 +1696,13 @@ _VIS_INVISIBLE_RE = re.compile(_INVISIBLE_ONE)
 # ⛔ R3 round-14 (冻结审查): 负号集原先在 D2(:1891) 与 fallback(:2179) **手抄两次**
 # —— 又一处副本(本卡反复证明: 一个原则只应有一个应用点)。提为单一常量。
 _NEG_SIGN = r"(?:[-−－‑﹣]|负)"
+# ⚠️ 必须定义在 _NEG_SIGN **之后**（它是模块级 compile，第一版放在
+#    _D2_RANGE_RE 旁边，import 当场 NameError）。
+# 区间首端左侧的"危险前文": 负号, 或"数词样字符 + 小数点"。命中即说明这个区间
+# 是从符号/小数点之后**重新起锚**的碎片, 不是一个完整的数 (round-17)。
+_RANGE_LEFT_BAD_RE = re.compile(
+    rf"(?:{_NEG_SIGN}|[{_NUMERAL_LIKE_CHARS}]{_D2_JOIN_ONE}*[.．点]){_D2_JOIN_ONE}*$"
+)
 _VIS_STRIKE_RE = re.compile(r"~~")
 _VIS_EMPHASIS_RE = re.compile(r"[*_]")
 
@@ -1676,7 +1725,7 @@ def _visible_text(line: str) -> str:
          证伪**，round-13 的试修亦实测无收益并已回退。如实登记，不再声称安全。
 
     ⚠️ **不碰 inline code**: `` `…` `` 的内容在本域是**有意豁免**的字段值
-    （E2, 见 _D2_INLINE_CODE_RE），不是"被隐藏的计数"。这是**声明过的设计选择**,
+    （E2, 见 _blank_inline_code），不是"被隐藏的计数"。这是**声明过的设计选择**,
     不是遗漏 —— 如实登记在验收单, 不在这里悄悄改语义。
     """
     line = html.unescape(line)
@@ -1808,8 +1857,8 @@ def _verify_prose_counts(text: str, scan: dict, problems: list[str]) -> None:
         # 它把 `[[目标` 挖空**跑在 _visible_text 之前**, 于是 `[[x|987654]]个`
         # 只剩 `|987654]]个`, 量词锚失效。wikilink 的两种形态(有/无别名)现在
         # 都由 _visible_text 取**显示文本**, 语义更准且不再有顺序耦合。
-        for rx in (_D2_INLINE_CODE_RE, _D2_TIME_RE):
-            body = rx.sub(lambda mm: " " * len(mm.group(0)), body)
+        body = _D2_CODE_SPAN_RE.sub(_blank_inline_code, body)
+        body = _D2_TIME_RE.sub(lambda mm: " " * len(mm.group(0)), body)
         body = _D2_ORDERED_LIST_RE.sub(
             lambda mm: mm.group(1) + "  " + mm.group(2), body
         )
@@ -1850,8 +1899,24 @@ def _verify_prose_counts(text: str, scan: dict, problems: list[str]) -> None:
             # 已收集的坏端点再也报不出来 (实测 exit 0)。
             is_claim = bool(_D2_CLAIM_RE.search(line))
             bad_ends: list[str] = []
+            bad_range_ctx: list[str] = []
 
             def _range_ok(mm):
+                # ⛔ R3 round-17 (冻结审查 §一.1): 区间端点用的 _NUM_RUN_PAT **不含
+                # 符号与小数点**, 于是匹配能从负号或小数点**之后**重新起锚:
+                #   · `-2~3个`  → 按 `2~3` 终核, 两端都在池 ⇒ 整段挖空
+                #   · `2.2~3个` → 从小数尾片起锚 `2~3`, 同样挖空
+                # 挖空发生在负号守卫与小数门**之前**, 两道防线再也看不到它们
+                # (两条实测放行)。⇒ 首端左边紧邻负号或"数字+小数点"时, 这个区间
+                # **无法确定是不是一个完整的数**, 按卡文默认 fail-closed 报错。
+                # ⚠️ 诊断必须报**读者看到的完整串**（含那个危险前缀），不能报
+                #    _join_free 之后的形态 —— `~` 在噪声集里，`_join_free("2~3")`
+                #    == "23"，第一版就报成了「区间 23」，把"这是个区间"本身抹掉了。
+                #    （本卡已因"诊断报尾片"被打回过一次，这是同一个病。）
+                _pre = _RANGE_LEFT_BAD_RE.search(line[: mm.start(1)])
+                if _pre:
+                    bad_range_ctx.append(_pre.group(0) + mm.group(0))
+                    return " " * len(mm.group(0))
                 # 端点走**同一个**判值器: 中文/混写端点不再免检 (原为裸 int())。
                 for raw in (mm.group(1), mm.group(2)):
                     tok = _join_free(raw)
@@ -1878,6 +1943,13 @@ def _verify_prose_counts(text: str, scan: dict, problems: list[str]) -> None:
             # 其余叙述交给 D1 的逐字段绑定与人工判读。宁可少管, 不可乱判。
             if not (is_claim or _D2_CLAIM_RE.search(line)):
                 continue
+            for _r in bad_range_ctx:
+                problems.append(
+                    f"数字终核: 『{sec}』段区间 {_r} 的首端紧邻负号或小数点, "
+                    f"无法确定它是不是一个完整的数 (区间端点不含符号/小数, "
+                    f"按此匹配会跳过负数与小数检查) ⇒ fail-closed: "
+                    f"{line.strip()[:50]}"
+                )
             for _e in bad_ends:
                 problems.append(
                     f"数字终核: 『{sec}』段区间端点 {_e} 在 scan JSON 里找不到同值来源 "

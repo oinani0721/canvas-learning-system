@@ -108,13 +108,13 @@ survivor-15…39 二十五条新变体的替换内容是否真的禁掉了该性
 
 - `cd backend && PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest
   tests/regression/test_recap_scan_signals.py -q -p no:cacheprovider`
-  —— 开工基线 249，现应为 **263**。若你得到别的数字，请先检查工作树是否 clean
+  —— 开工基线 249，现应为 **263**。终态 commit 应为 `26253a7d2d10`。若你得到别的数字，请先检查工作树是否 clean
   （`git status --porcelain` 应为空）再下结论。
 - `git rev-parse HEAD`
 
-车道实测（供你核对，**不要**自己重跑变异）：negverify **42/42 全部如期变红**（**崩溃识别已按形态重写**），
+车道实测（供你核对，**不要**自己重跑变异）：negverify **42/42 全部如期变红** + 一条手工变异（崩溃判据退回枚举名单 → r13 如期变红、还原后复绿）（**崩溃识别已按形态重写**），
 被测文件 sha256 见报告附的终态 sha，运行前后逐字节一致；
-扩大回归 `tests/skills + 两个 regression 文件` = **594 passed**；
+扩大回归 `tests/skills + test_recap_scan_signals + test_board_manifest_contracts` = **595 passed**；
 真实 CLI 探针 84/84。
 
 ## 输出格式
