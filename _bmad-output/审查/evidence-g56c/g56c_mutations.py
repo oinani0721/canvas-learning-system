@@ -51,6 +51,8 @@ G_KEYNAME = "test_information_in_key_name_blocks_deletion"
 G_ATX = "test_atx_heading_text_is_parsed_structurally"
 G_SEMWS = "test_c4_comparison_keeps_semantic_whitespace"
 G_FNAME = "test_source_identifier_in_filename_blocks_deletion"
+G_ASCIIWS = "test_ascii_whitespace_semantics_are_not_unicode"
+G_PREFIX = "test_prefixed_url_filename_is_a_source_signal"
 G_ZW = "test_zero_width_split_marker_still_reads_as_ai_suspect"
 
 # ── (名字, 期望 FAILED 集合, [(old, new), ...]) ──
@@ -202,7 +204,8 @@ MUTATIONS: list[tuple[str, set[str], list[tuple[str, str]]]] = [
         # ⚠️ 期望含 G_ATX：第九轮新加的 ATX 门端到端半边同样依赖「标题里写了字算
         # 实质正文」这条裁决。这是 runner 第五次抓到我把期望写窄 —— 每次给判据扩
         # 覆盖面，都要回头问一遍「哪些门现在也依赖它了」。
-        {G_HEADCONTENT, G_ATX},
+        # ⚠️ 再加 G_ASCIIWS：第十轮的 ASCII 空白门端到端半边也依赖标题裁决。
+        {G_HEADCONTENT, G_ATX, G_ASCIIWS},
         [
             (
                 "            if _atx_heading_text(ln):\n                return True\n",
@@ -264,9 +267,45 @@ MUTATIONS: list[tuple[str, set[str], list[tuple[str, str]]]] = [
     ),
     (
         # 第九轮 HIGH：护栏不看文件名
+        # ⚠️ 期望含 G_PREFIX：第十轮的带前缀 URL 文件名门同样靠这条信号。
         "M-FNAME      文件名来源信号回退",
-        {G_FNAME},
+        {G_FNAME, G_PREFIX},
         [("    name_signal = next(\n", "    name_signal = None\n    _unused = (\n")],
+    ),
+    (
+        # 第十轮 HIGH：dup_body 的空白判定退回 Unicode 口径
+        # ⚠️ 期望只有 G_ASCIIWS：承重断言（「NBSP 版会与无硬换行的正本相撞」）
+        # 写在那道门里，G_SEMWS 门里的断言在变异后**两边仍然不等**，测不到这一层。
+        # 首跑写成 {G_ASCIIWS, G_SEMWS} → 实测「少红」，手工复现证明红的是前者。
+        # ⛔ 写断言时要问：**变异之后，这条断言的两边会不会仍然不等？**
+        "M-ASCIIWS    dup_body 空白判定退回 Unicode",
+        {G_ASCIIWS},
+        [
+            ('        t = ln.rstrip(" \\t")\n', "        t = ln.rstrip()\n"),
+        ],
+    ),
+    (
+        # 第十轮 HIGH：ATX closing 判定退回 Unicode 空白
+        "M-ATXWS      ATX closing 分隔符退回 Unicode",
+        {G_ASCIIWS},
+        [
+            (
+                '    closing = re.search(r"(?:^|[ \\t])(#+)$", rest)\n',
+                '    closing = re.search(r"(?:^|\\s)(#+)$", rest)\n',
+            ),
+        ],
+    ),
+    (
+        # 第十轮 HIGH：文件名 URL 判定退回锚定正则
+        "M-FNAMEURL   文件名 URL 判定退回锚定匹配",
+        {G_PREFIX},
+        [
+            (
+                '                "http://" in probe.casefold()\n'
+                '                or "https://" in probe.casefold()\n',
+                "                _URL_RE.match(probe)\n",
+            ),
+        ],
     ),
 ]
 

@@ -2852,3 +2852,78 @@ def test_source_identifier_in_filename_blocks_deletion(tmp_path):
     ctrl = item_by_name(data, "普通笔记.md")
     assert ctrl["criterion"] == "C4_exact_duplicate", ctrl["basis"]
     assert ctrl["verdict"] == "建议删"
+
+
+def test_ascii_whitespace_semantics_are_not_unicode(tmp_path):
+    """⛔ 第十轮审查三条 HIGH，根因是**同一个**：该用 ASCII 空白口径的地方用了
+    Unicode 口径（Python 的 `.strip()` 与 `\\s` 默认就是 Unicode 语义）。
+
+    · R10-H1 `dup_body()` 的 `rstrip()` 剥掉 NBSP，两个 U+00A0 还被改写成两个
+      ASCII 空格 —— 判据仍在做有损投影；
+    · R10-H3 `_atx_heading_text()` 用 Unicode `\\s` 判 closing，于是 `# <NBSP>#`
+      末尾那个**可见的** `#` 被当收尾序列剥掉 → 空标题 → 确定删除。
+      CommonMark §4.2 的 closing 必须由 space/tab 与内容分开。
+
+    ⚠️ 这与本卡开篇那条 NBSP（`#{1,6}` 后写 `(?:\\s|$)`）是**同一个陷阱**，
+    在同一张卡里踩了两次。凡是「按 Markdown 规范判空白」的地方都得写死 ASCII。
+    """
+    mod = load_module()
+    nb = "\u00a0"
+    # ⛔ 承重点在这里：回退成 Unicode `rstrip()` 后，NBSP 会被**整个剥掉**，
+    # `alpha<NBSP><NBSP>\nbeta` 就与**没有硬换行的**正本 `alpha\nbeta` 相等
+    # 并被确定删除。只断言「NBSP 版 ≠ ASCII 版」测不到这一层（两版在回退后
+    # 仍然不等）—— 变异 M-ASCIIWS 首跑「少红」正是这么暴露出来的。
+    assert mod.dup_body(f"alpha{nb}{nb}\nbeta\n") != mod.dup_body("alpha\nbeta\n"), (
+        "NBSP 不是可剥的行尾空白：剥掉它就会与无硬换行的正本相撞"
+    )
+    assert mod.dup_body(f"alpha{nb}{nb}\nbeta\n") != mod.dup_body("alpha  \nbeta\n")
+    assert mod.dup_body(f"x{nb}\ny\n") != mod.dup_body("x\ny\n")
+    assert mod._atx_heading_text(f"# {nb}#") == f"{nb}#", "NBSP 前的 # 是标题内容"
+    assert mod._atx_heading_text("# 标题 ##") == "标题", "ASCII 空格分隔的 closing 仍剥"
+    assert mod.dup_body("alpha  \nbeta\n") == mod.dup_body("alpha  \nbeta\n")
+
+    vault, out = base_vault(tmp_path)
+    inbox = vault / "_待处理"
+    mk(vault / "节点" / "canon.md", "alpha  \nbeta\n", age_days=40)
+    mk(inbox / "nbsp硬换行.md", f"alpha{nb}{nb}\nbeta\n", age_days=5)
+    mk(inbox / "nbsp在井号前.md", f"# {nb}#\n", age_days=4)
+    mk(inbox / "真重复.md", "alpha  \nbeta\n", age_days=3)
+
+    assert run_cli(vault, out).returncode == 0
+    data = load_json(out)
+    assert data["items"], "items 为空则本门恒真 = 假绿"
+    for name in ("nbsp硬换行.md", "nbsp在井号前.md"):
+        it = item_by_name(data, name)
+        assert it["verdict"] != "建议删", f"{name} 被确定删除了: {it['basis']}"
+        assert it["criterion"] == "C6_undecided", name
+    dup = item_by_name(data, "真重复.md")
+    assert dup["criterion"] == "C4_exact_duplicate", dup["basis"]
+
+
+def test_prefixed_url_filename_is_a_source_signal(tmp_path):
+    """⛔ 第十轮审查 HIGH（R10-H2）：文件名护栏用**锚定**的 URL 正则，于是
+    `source_https_example.test_article.md` 这类带前缀的文件名整条穿透。
+    文件名是自由拼出来的，判定必须是 substring 级；且文件名里一个 `_` 常代表
+    整个 `://`，需显式还原 scheme。
+
+    ⚠️ 还原正则不能写 `\\b(https?)` —— `_` 是词字符，`source_https` 里 `https`
+    前后都没有词边界，那条正则一次也匹配不上（本轮实测踩到）。
+    """
+    vault, out = base_vault(tmp_path)
+    inbox = vault / "_待处理"
+    body = "通用一。\n通用二。\n"
+    mk(vault / "节点" / "generic.md", body, age_days=40)
+    mk(inbox / "source_https_example.test_article.md", body, age_days=6)
+    mk(inbox / "ref_http_a.test_p.md", body, age_days=5)
+    mk(inbox / "普通笔记.md", body, age_days=4)
+
+    assert run_cli(vault, out).returncode == 0
+    data = load_json(out)
+    assert data["items"], "items 为空则本门恒真 = 假绿"
+    for name in ("source_https_example.test_article.md", "ref_http_a.test_p.md"):
+        it = item_by_name(data, name)
+        assert it["verdict"] != "建议删", f"{name} 被确定删除了: {it['basis']}"
+        assert it["criterion"] == "C6_undecided", name
+        assert "文件名" in (it["uncertain_reason"] or ""), it["uncertain_reason"]
+    ctrl = item_by_name(data, "普通笔记.md")
+    assert ctrl["criterion"] == "C4_exact_duplicate", ctrl["basis"]

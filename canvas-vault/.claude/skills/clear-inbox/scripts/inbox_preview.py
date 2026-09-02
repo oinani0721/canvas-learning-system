@@ -467,11 +467,16 @@ def _atx_heading_text(ln: str) -> str:
     m = re.match(r"^ {0,3}(#{1,6})(?:[ \t]+|$)", ln)
     if not m:
         return ""
-    rest = ln[m.end() :].strip()
-    # 可选的收尾序列：必须整段是 #，且与内容之间有空白（CommonMark §4.2）
-    closing = re.search(r"(?:^|\s)(#+)$", rest)
-    if closing and set(closing.group(1)) == {"#"}:
-        rest = rest[: closing.start()].strip()
+    # ⛔ 第十轮 HIGH（R10-H3）：这里的空白**只能是 ASCII space/tab**。
+    # Python 的 `.strip()` 与 `\s` 默认是 Unicode 语义，于是 `# <NBSP>#` 里那个
+    # NBSP 被当成 closing 前的分隔符，末尾可见的 `#` 被当收尾序列剥掉 → 空标题
+    # → 确定删除。CommonMark §4.2 的 closing 必须由 space/tab 与内容分开。
+    # ⚠️ 这与本卡开篇那条 NBSP 是**同一个陷阱**：该用 ASCII 口径的地方用了
+    # Unicode 口径。同一个坑在这张卡里踩了两次。
+    rest = ln[m.end() :].strip(" \t")
+    closing = re.search(r"(?:^|[ \t])(#+)$", rest)
+    if closing:
+        rest = rest[: closing.start()].strip(" \t")
     return rest
 
 
@@ -810,12 +815,15 @@ def dup_body(text: str) -> str:
             # 围栏内一律逐字保真（含空行与行尾空格）
             parts.append(nfc(ln))
             continue
-        t = ln.rstrip()
-        if not t:
+        # ⛔ 第十轮 HIGH（R10-H1）：`rstrip()` / `strip()` 是 Unicode 语义，
+        # 会把 NBSP 等**有语义的**空白也剥掉，两个 U+00A0 还被改写成两个 ASCII
+        # 空格 —— 判据仍在做有损投影。行尾空白只按 ASCII space/tab 处理。
+        t = ln.rstrip(" \t")
+        if not t.strip(" \t"):
             parts.append("")  # 段落边界是语义，不能丢
             continue
-        if len(ln) - len(t) >= 2 and not ln[len(t) :].strip():
-            t += "  "  # 行尾 ≥2 空格 = 硬换行，保留其语义
+        if len(ln) - len(t) >= 2 and not ln[len(t) :].strip(" \t"):
+            t += "  "  # 行尾 ≥2 个 ASCII 空格 = 硬换行，保留其语义
         parts.append(nfc(t))
     return "\n".join(parts)
 
@@ -1576,9 +1584,20 @@ def nominate(
                 _stem.replace("_", ":"),
                 _stem.replace("_", "/"),
                 _stem.replace("_", ":", 1).replace("_", "/"),
+                # ⛔ 第十轮 HIGH（R10-H2）：文件名里一个 `_` 常代表整个 `://`
+                # （`source_https_example.test_article.md`）。上面几种还原都还不出
+                # `https://`，故显式补一条 scheme 还原。
+                # ⚠️ 不能写 `\b(https?)` —— `_` 是词字符，`source_https` 里
+                # `https` 前后都没有词边界，那条正则一次也匹配不上（实测）。
+                re.sub(r"(?i)(?<![a-z])(https?)[_:]+[/]*", r"\1://", _stem),
             )
+            # ⛔ 第十轮 HIGH（R10-H2）：此前用**锚定**的 `_URL_RE.match`，于是
+            # `source_https_example.test_article.md` 这类带前缀的文件名，四个
+            # probe 都不以 http 开头，整条穿透。文件名是自由拼出来的，判定必须
+            # 是 substring 级 —— 与 `_looks_like_source_value` 同口径。
             if (
-                _URL_RE.match(probe)
+                "http://" in probe.casefold()
+                or "https://" in probe.casefold()
                 or _looks_like_doi_value(probe)
                 or _looks_like_isbn_value(probe)
             )
