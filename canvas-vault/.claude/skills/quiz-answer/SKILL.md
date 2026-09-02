@@ -241,7 +241,10 @@ _GOLDEN_MF = _golden_manifest()
 # 紧接着校验器 rc=1。**写点自己产出了不合规的行**, 比消费侧漏网更糟。
 # 判据复用校验器本体的 §三 受理正则 (_TS_RE), 不另写第二套。
 _ts_in = p.get("ts")
-if not isinstance(_ts_in, str) or not _TS_RE.match(_ts_in):
+# ⛔ fullmatch 而非 match (Codex round-6 HIGH): `match` 只锚定开头,
+# "2026-08-02T10:00:00Z\n" 能穿透它, 于是换行原样落进 recorded_at,
+# 写点 rc=0 而校验器 rc=1 —— 又一次**程序自己产出不合规的行**。
+if not isinstance(_ts_in, str) or not _TS_RE.fullmatch(_ts_in):
     raise SystemExit(f"[quiz-answer] 本次输入 ts={_ts_in!r} 不符 §三 受理语法 (YYYY-MM-DD[T ]HH:MM[:SS[.f]](Z|±HH:MM)) — 它会原样落进账本 recorded_at, 带空白/畸形会让账本立刻不合规; ⛔ 这里拒而不 strip: 洗值等于替上游做主, fail-closed 拒写 — 请上游修正后重跑")
 
 #: attempt_count 的读取模式 —— 容双引号与单引号 (Obsidian Properties 会把数值
@@ -302,6 +305,16 @@ def _durable_instant(rt, ctx):
     if _dt.tzinfo is None or _dt.utcoffset() != timedelta(0):
         raise SystemExit(f"[quiz-answer] {ctx} 的 review_time 非 UTC ({rt!r}; §6.2 A6 要求 tz-aware UTC 时刻), fail-closed 拒写")
     return _dt
+
+def _reject_json_constant(name):
+    """与校验器 (validate_learning_events.py) 同口径拒收 NaN / Infinity /
+    -Infinity —— RFC 8259 禁止, 跨语言读方会炸。默认 json.loads 会**接受**它们。"""
+    raise _NonStandardConst(name)
+
+
+class _NonStandardConst(Exception):
+    pass
+
 
 class _DupKey(Exception):
     """JSON 对象内出现重复键。**不继承 ValueError** —— 否则会被账本读取的
@@ -424,6 +437,17 @@ if os.path.exists(EV):
     # (坏行后跟一个纯空白行、文件不以 LF 收尾) 时, 按文件末尾判会得出「无 LF ⇒
     # 截断」, 可那个坏行明明**后面还跟着东西**, 它是完整落盘后损坏的。
     # split 后: 该行索引 < len-1 ⟺ 它后面还有片段 ⟺ 它有终止 LF。
+    # ⛔ 空行与校验器同口径拒收 (Codex round-6 MEDIUM): 校验器
+    # (VALIDATOR:737/:1571) 判「append-only JSONL 不应出现空行」, 写点此前静默
+    # 忽略并保留 ⇒ 写点 rc=0 而校验器 rc=1。末尾那个由 LF 产生的空片段不算。
+    _blank_at = [i + 1 for i, x in enumerate(_byte_lines[:-1] if _byte_lines and not _byte_lines[-1] else _byte_lines)
+                 if not x.strip()]
+    if _blank_at:
+        raise SystemExit(f"[quiz-answer] 账本第 {_blank_at[:3]} 行是空行 — append-only JSONL 不应出现 (与校验器同口径), fail-closed 拒写 — 请人工删除这些空行")
+    # ⛔ BOM 同理: 校验器对 BOM 无特例 (即拒), 写点此前用 utf-8-sig 剥掉首行 BOM
+    # 静默放行 ⇒ 又一处分叉。写点恒不产出 BOM, 出现即外部写入。
+    if _raw_bytes.startswith(b"\xef\xbb\xbf"):
+        raise SystemExit("[quiz-answer] 账本以 UTF-8 BOM 开头 — 校验器对 BOM 无特例 (判整个文件不合规), 本写点恒不产出 BOM, 出现即外部写入; fail-closed 拒写 — 请人工去掉 BOM")
     _last_idx = max((i for i, x in enumerate(_byte_lines) if x.strip()), default=-1)
     _ends_with_lf = _last_idx >= 0 and _last_idx < len(_byte_lines) - 1
     _n_lines = len([x for x in _byte_lines if x.strip()])
@@ -441,7 +465,12 @@ if os.path.exists(EV):
             # (RFC 8259 只认 space/tab/CR/LF)。strip 掉它后 json.loads 成功,
             # 而校验器不 strip、直接判 `Extra data` ⇒ 写点 rc=0 / 校验器 rc=1,
             # 又是**漏网**方向。JSON 自己允许的空白 json.loads 会处理, 不需要我们代劳。
-            _rows.append((_ln, json.loads(_line, object_pairs_hook=_no_dup_keys)))
+            # ⛔ parse_constant 与校验器同口径 (Codex round-6 HIGH): 默认
+            # json.loads **接受** NaN/Infinity, 而校验器 (VALIDATOR:124-127)
+            # 明确拒收。缺了它, 账本里的 `payload.note: NaN` 会被照常重放并推进
+            # attempt, 而校验器判整个文件不合规。
+            _rows.append((_ln, json.loads(_line, object_pairs_hook=_no_dup_keys,
+                                          parse_constant=_reject_json_constant)))
         except _DupKey as _dk:
             # 与 frontmatter 重复键同一口径 (解析层信息丢失, 责任在解析处):
             # json.loads 静默取最后一个值, 于是一行里的两个 grade_norm 只有后者
@@ -462,6 +491,16 @@ for _, _o in _rows:
         _k = _o.get("event_id")
         if isinstance(_k, str) and _k:
             _seen_ids[_k] = _seen_ids.get(_k, 0) + 1
+# ⛔ durable event_id 的首尾空白必须**全账本扫描** (Codex round-6 BLOCKER):
+# 入口那道门只管本次输入。账本里预置 " quiz:same#q1 " 后再跑 canonical
+# `same#q1`, 两个字面 id 各算一遍 —— 实测 attempt 1→2、校准两条、W 再推进,
+# 而校验器 rc=0 (两个不同的 event_id 本来就合法)。判据与入口同款: 字面即身份,
+# 拒而不 strip (strip 会把上游两个本来不同的 id 撞成一个)。
+_ws_ids = sorted({str(_r.get("event_id")) for _, _r in _rows
+                  if isinstance(_r, dict) and isinstance(_r.get("event_id"), str)
+                  and _r["event_id"] != _r["event_id"].strip()})
+if _ws_ids:
+    raise SystemExit(f"[quiz-answer] 账本存在首尾含空白的 event_id {_ws_ids[:3]!r} — 幂等键的字面即身份, 带空白的写法会与不带的各算一遍 (同一次评分被重放两遍: attempt 多加、校准多一条、水位线再推进), 而校验器看不出问题; fail-closed 拒写 — 请人工修正账本里这些 id")
 _id_dupes = sorted(k for k, c in _seen_ids.items() if c > 1)
 if _id_dupes:
     raise SystemExit(f"[quiz-answer] 账本 event_id 重复 {_id_dupes[:3]} (幂等键全文件唯一被破坏), fail-closed 拒写 — 请人工修复 learning_events.jsonl")
@@ -570,7 +609,17 @@ def _apply_fsrs_block(fm_text, block):
     fm_text = re.sub(r'^(fsrs_due|fsrs_state|fsrs_step|fsrs_stability|fsrs_difficulty|fsrs_last_review):.*\r?\n?', '', fm_text, flags=re.M)
     return re.sub(r'^(type:.*)$', lambda x: x.group(1) + block, fm_text, count=1, flags=re.M)
 
+def _normalize_inline_calibration(fm_text):
+    """`calibration_log: []` (inline 空列表) 必须先原子改写成 block 形态, 否则
+    后面直接在它下面插缩进条目会产出**非法 YAML** (`calibration_log: []` 后跟
+    缩进列表) —— 实测首次评分 rc=0 且 attempt/W/账本都已推进, 同事件重跑却报
+    「FSRS 已应用但缺校准记录」⇒ 两阶段流程**永久不收敛** (Codex round-6 HIGH)。
+    """
+    return re.sub(r"^calibration_log:[ \t]*\[[ \t]*\][ \t]*$", "calibration_log:", fm_text, count=1, flags=re.M)
+
+
 def _append_calibration(fm_text, ts_str, ev=None):
+    fm_text = _normalize_inline_calibration(fm_text)
     """calibration_log 条目 (正常 / 恢复 / A2 重放三路径共用)。ts_str = 业务生效
     时刻 (review_time — 与 effective_at 同源, 保证恢复产物与直接应用逐字节对齐)。
 
@@ -584,7 +633,14 @@ def _append_calibration(fm_text, ts_str, ev=None):
     """
     q_ = lambda v: json.dumps(v, ensure_ascii=False)
     if ev is None:
-        _e_id, _e_pl = eid, p
+        # ⛔ 正常路径也必须存**完整**账本 event_id (Codex round-6 BLOCKER):
+        # round-5 我只把 foreign 分支改成存完整 id, 正常分支仍存裸 `eid` ——
+        # 两条路径写进 calibration_log 的键**不是同一个东西**。实测漏算链:
+        # 先提交 event_id="quiz:K" ⇒ 账本行是 `quiz:quiz:K` 而校准记的是 `quiz:K`;
+        # 再提交另一个事件 `K`(完整 id 也是 `quiz:K`) ⇒ F1 命中那条校准、判「已完整
+        # 应用」而幂等跳过, **那次评分静默不入账**(rc=0, attempt 停在 1)。
+        # 修一半比不修更危险: 它把不一致藏进了「已经修过」的地方。
+        _e_id, _e_pl = evid, p
         _e_ab, _e_gn = bool(p.get("abandoned")), GN2
         _e_qid = q_(p.get("question_id", "q1"))
         _e_scr, scn_ = q_(p.get("self_confidence_raw") or "null"), p.get("self_confidence_norm")
@@ -644,8 +700,13 @@ for _ln, _o in _rows:
     # ⛔ 路由信封 (schema §一「路由信封冻结」的**读方义务**, 逐字): 解析出的
     # 记录若缺少可用的 node_id (任何版本), 一律视为**不可路由**并 fail-closed
     # —— 不能因为「它看起来不属于本节点」就跳过, 因为恰恰无法判定归属。
-    if isinstance(_o, dict) and not isinstance(_o.get("node_id"), str):
-        raise SystemExit(f"[quiz-answer] 账本第 {_ln} 行缺少可用的 node_id ({_o.get('node_id')!r}) — 无法判定归属, 按 §一 路由信封条款 fail-closed 拒写")
+    # ⛔「可用」= 非空字符串且无首尾空白 (Codex round-6 BLOCKER)。此前只判类型,
+    # 于是 node_id="" / "   " 的行在归属比较时**不等于**本节点 ⇒ 被当别节点静默
+    # 跳过, 而它的 payload 明明指向本概念 —— 实测写点 rc=0、账本照常增行、W 照常
+    # 推进, 校验器 rc=1。「无法路由」和「属于别人」是两件事, 前者必须停下。
+    _nid_ = _o.get("node_id") if isinstance(_o, dict) else None
+    if isinstance(_o, dict) and (not isinstance(_nid_, str) or not _nid_.strip() or _nid_ != _nid_.strip()):
+        raise SystemExit(f"[quiz-answer] 账本第 {_ln} 行的 node_id 不可用 ({_nid_!r}; 须为非空且无首尾空白的字符串) — 「无法路由」不等于「属于别人」, 静默跳过等于漏算, 按 §一 路由信封条款 fail-closed 拒写")
     # ⚠️ 归属判断必须排在「缺 payload 就跳过」**之前**: 本节点的行缺 payload
     # 时它仍可能是一次真实评分, 静默跳过就是漏算 (Codex round-4 HIGH: 写点
     # rc=0 而校验器 rc=1)。别的节点的行才轮得到「跳过」。
@@ -769,7 +830,16 @@ if dup is None:
 else:
     _dpl = dup.get("payload") or {}
     if _dpl.get("schema_ext") != "review/1":
-        raise SystemExit(f"[quiz-answer] 账本已有 {evid} 但缺 review/1 扩展 (旧写序行/损坏) — 状态不可证, fail-closed 拒写")
+        # ⛔ 合法的 §6.3 历史行按 A4.5 **幂等 no-op**, 不是拒 (Codex round-6 HIGH):
+        # 规格 (:188/:300) 要求同 ID 重跑无副作用。此前无条件当「损坏」拒写 ——
+        # 实测把已应用事件转成合法历史 payload 后校验器 rc=0 而写点 rc=1。
+        # 「无 marker 且无任何 review 扩展键」= 真·历史行(§6.3, 旧写点产物);
+        # 「无 marker 却带着扩展键」才是被伪装的复习, 那个仍要停。
+        if isinstance(_dpl, dict) and not _looks_like_review_ext(_dpl):
+            print(f"[quiz-answer] {NODE}: event={eid} 在账本里是 §6.3 历史行 (旧写点产物, 无 review/1 扩展) — 按 A4.5 幂等跳过, 无任何改动")
+            os.remove(P)
+            raise SystemExit(0)
+        raise SystemExit(f"[quiz-answer] 账本已有 {evid} 但缺 review/1 标记却带着复习扩展键 (§6.1 禁止降级绕过) — 状态不可证, fail-closed 拒写")
     # R2: durable 时刻必须 UTC 整秒才允许参与 W 比较与后续消费 (见 _durable_instant)
     _dup_inst = _durable_instant(_dpl.get("review_time"), f"账本行 {evid}")
     _dup_rt = _dpl["review_time"]
@@ -1142,7 +1212,14 @@ if True:  # 正常路径 append (恢复路径已在上方 raise SystemExit(0) �
                 if _f.read(1) != b"\n":
                     with open(EV, "a", encoding="utf-8") as _f2:
                         _f2.write("\n")  # LF 守卫: 截断尾行自愈隔离
-        _line = (json.dumps(rec, ensure_ascii=False) + "\n").encode("utf-8")
+        # ⛔ allow_nan=False (Codex round-6 HIGH): 默认 json.dumps 会把 NaN /
+        # Infinity 原样写成字面量, 而校验器用 parse_constant 明确拒收
+        # (RFC 8259 禁止, 跨语言读方会炸)。实测 exam_board=NaN 输入时写点 rc=0
+        # 并落库 `NaN`, 校验器 rc=1 —— **程序自己产出了不合规的行**。
+        try:
+            _line = (json.dumps(rec, ensure_ascii=False, allow_nan=False) + "\n").encode("utf-8")
+        except ValueError as _nan_e:
+            raise SystemExit(f"[quiz-answer] 本次事件含非有限浮点数 (NaN/Infinity: {_nan_e}) — RFC 8259 禁止, 校验器会拒收整个账本; fail-closed 拒写 — 请上游修正输入后重跑")
         _fd = os.open(EV, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
         try:
             _n = os.write(_fd, _line)

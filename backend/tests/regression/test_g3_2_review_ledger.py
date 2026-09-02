@@ -798,8 +798,12 @@ def test_f1_detection_survives_obsidian_renormalization(vault):
     assert r.returncode == 0, r.stdout + r.stderr
     # 模拟 Obsidian 规范化: 引号值 → 裸词
     text = (vault / NODE_REL).read_text(encoding="utf-8")
-    normalized = text.replace('event_id: "测试检验-2026-08-01-1000#q1"', "event_id: 测试检验-2026-08-01-1000#q1")
-    assert normalized != text, "fixture 预置必须与规范化形态可区分"
+    # round-6 后校准存**完整**账本 event_id（带 `quiz:` 前缀）—— 正常路径与
+    # foreign 路径此前写的键不是同一个东西，那是 round-6 的 BLOCKER。
+    normalized = text.replace(
+        'event_id: "quiz:测试检验-2026-08-01-1000#q1"', "event_id: quiz:测试检验-2026-08-01-1000#q1"
+    )
+    assert normalized != text, f"fixture 预置必须与规范化形态可区分: {text[:400]}"
     (vault / NODE_REL).write_text(normalized, encoding="utf-8")
     sha = _sha(vault / NODE_REL)
     r2 = _run_writer(vault, _payload(ts="2026-09-01T07:00:00Z"))
@@ -1523,29 +1527,45 @@ def test_round2_lead_followups(vault):
     good["effective_at"] = "2026-07-01T10:00:00Z"
     good["node_id"] = "别的节点"
     G = (json.dumps(good, ensure_ascii=False) + "\n").encode("utf-8")
+    good2 = dict(good, event_id="quiz:旧板2")
+    G2 = (json.dumps(good2, ensure_ascii=False) + "\n").encode("utf-8")
     BAD = b'{"event_id": "quiz:x", "event_ty'
     ledger = vault / "learning_events.jsonl"
     CASES = [
         (G + BAD, True, "坏行无 LF = 真截断"),
         (G + BAD + b"\n", False, "坏行带 LF = 完整损坏"),
-        (G + BAD + b"\n   ", False, "坏行带 LF + 末尾空白行(无 LF) —— 旧判据在此失真"),
+        # ⚠️ round-6 口径变更: 空行现在与校验器同口径**拒收**（校验器
+        # VALIDATOR:737/:1571 判「append-only JSONL 不应出现空行」，写点此前静默
+        # 忽略 ⇒ 写点 rc=0 而校验器 rc=1）。所以这一例的拒因从「坏行带 LF」变成
+        # 「第 3 行是空行」—— 两者都是 fail-closed，本门只判必须拒。
+        (G + BAD + b"\n   ", False, "坏行带 LF + 末尾空白行 —— 空行门先拦（round-6 口径）"),
         (G + BAD + b"\n   \n", False, "坏行带 LF + 末尾空白行(带 LF)"),
         (G + BAD + b"\r\n", False, "坏行带 CRLF"),
         (G + BAD + b"   ", True, "坏行无 LF 但有尾随空格 = 仍是截断"),
         (BAD, True, "坏行是唯一行且无 LF"),
         (BAD + b"\n", False, "坏行是唯一行但带 LF"),
-        (G + b"\n   \n" + BAD, True, "坏行无 LF，但它**前面**有空白行（不得误判）"),
+        # ⚠️ round-6 起空行与校验器同口径拒收，本例的构造本身含空白行 ⇒ 改判为拒。
+        (G + b"\n   \n" + BAD, False, "坏行前有空白行 —— round-6 起空行门先拦"),
+        # 但原本要验的性质（**前置内容不得让末行的截断判据失真**）不能丢，
+        # 用不含空行的等价构造补回来：两条**不同 id** 的合法行 + 无 LF 的坏末行，
+        # 仍须按截断隔离。（两条相同的 G 会撞 event_id 全文件唯一门，那是另一回事。）
+        (G + G2 + BAD, True, "坏行无 LF，前面有多条合法行（截断判据不得失真）"),
     ]
     for i, (content, tolerate, desc) in enumerate(CASES):
         (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
         ledger.write_bytes(content)
-        r = _run_writer(vault, _payload(event_id=f"blank{i}#q1", ts=f"2026-08-0{i + 1}T10:00:00Z"))
+        # ⚠️ 用例数超过 9 后 f"2026-08-0{i+1}" 会生成 `2026-08-010` 这种非法日期
+        # —— 那是**测试自己的** bug，被 round-6 新加的输入 ts 字面门当场抓住。
+        # 用 02d 补零，日期恒合法。
+        r = _run_writer(vault, _payload(event_id=f"blank{i}#q1", ts=f"2026-08-{i + 1:02d}T10:00:00Z"))
         if tolerate:
             assert r.returncode == 0, f"[{desc}] 应按截断隔离: {r.stdout}{r.stderr}"
             assert "截断尾行" in r.stdout, f"[{desc}] 应留痕: {r.stdout}"
         else:
             assert r.returncode != 0, f"[{desc}] 应 fail-closed（该行是完整落盘后损坏）"
-            assert "完整写入的损坏行" in r.stderr, f"[{desc}] {r.stderr}"
+            # round-6 起空行与校验器同口径拒收，含空白行的用例会先撞空行门。
+            # 两种拒因都算达标，但必须点名是这两者之一 —— 不退化成「随便拒了都行」。
+            assert ("完整写入的损坏行" in r.stderr) or ("是空行" in r.stderr), f"[{desc}] {r.stderr}"
 
     # ② 分层成立（非缺陷，锁住）：写点只重放 node_id 匹配的行，故 node_id 缺失/拼错、
     # schema_ext 非法的 review 行**不会被任何节点重放**。写点放行它们是对的（不越权），
@@ -1793,8 +1813,12 @@ def test_internal_audit_findings(vault):
     G = json.dumps(good, ensure_ascii=False).encode("utf-8") + b"\n"
     half_cjk = '{"event_id": "quiz:损'.encode("utf-8")[:-1]  # 腰斩「损」字
     for content, expect, desc in (
-        (b"\xef\xbb\xbf" + RJ, "replay", "BOM + 完整合法行（无 LF）"),
-        (b"\xef\xbb\xbf" + RJ + b"\n", "replay", "BOM + 完整合法行（带 LF）"),
+        # ⚠️ round-6 口径变更: BOM 现在与校验器同口径**拒收**。实测校验器对
+        # BOM 无特例（"Unexpected UTF-8 BOM" 判整个文件不合规），而写点此前用
+        # utf-8-sig 剥掉首行 BOM 静默放行 —— 又一处「写点比校验器宽容」的分叉。
+        # 写点恒不产出 BOM，出现即外部写入。
+        (b"\xef\xbb\xbf" + RJ, "reject", "BOM + 完整合法行（round-6 起与校验器同口径拒收）"),
+        (b"\xef\xbb\xbf" + RJ + b"\n", "reject", "BOM + 完整合法行（带 LF）—— 同上，round-6 起拒收"),
         (G + half_cjk, "tolerate", "腰斩 CJK 的末行（无 LF）= 真截断"),
         (G + half_cjk + b"\n", "reject", "腰斩 CJK 的末行（带 LF）= 完整损坏"),
         (b"\xff\xfe bad\n" + RJ, "reject", "首行非 UTF-8 且不是末行"),
@@ -2176,8 +2200,14 @@ def test_round3_findings(vault):
     assert _run_writer(va, _payload(event_id=eid_q)).returncode == 0
     # 模拟 Obsidian 把双引号标量规范化成单引号标量（'' 表示一个字面单引号）
     text_q = (va / NODE_REL).read_text(encoding="utf-8")
-    assert f'- event_id: "{eid_q}"' in text_q, "fixture 前提：写点落盘应为双引号形态"
-    (va / NODE_REL).write_text(text_q.replace(f'- event_id: "{eid_q}"', "- event_id: 'O''Brien#q1'"), encoding="utf-8")
+    # round-6 后落盘的是完整 id（`quiz:` + 本地 id）
+    assert f'- event_id: "quiz:{eid_q}"' in text_q, f"fixture 前提：写点落盘应为双引号形态: {text_q[:400]}"
+    # ⚠️ 替换的源串必须是**落盘的完整 id**（`quiz:` 前缀）。round-6 改存完整 id 后
+    # 这里仍用裸 eid_q，替换**静默不生效** ⇒ 单引号形态根本没构造出来，
+    # 门也就走不到被测的那条分支（M46 SURVIVED 的真因：门与变异不匹配）。
+    _norm_q = text_q.replace(f'- event_id: "quiz:{eid_q}"', "- event_id: 'quiz:O''Brien#q1'")
+    assert _norm_q != text_q, f"fixture 预置必须真的换成单引号形态: {text_q[:300]}"
+    (va / NODE_REL).write_text(_norm_q, encoding="utf-8")
     sha_q = _sha(va / NODE_REL)
     rq = _run_writer(va, _payload(event_id=eid_q, ts="2026-09-01T10:00:00Z"))
     assert rq.returncode == 0 and "幂等跳过" in rq.stdout, (
@@ -2528,3 +2558,134 @@ def test_round5_legacy_scored_rows_break_ordinal_proof(vault):
     assert rg.returncode == 0, f"无历史行时幂等重跑不得被误拒: {rg.stderr[:250]}"
     assert "幂等跳过" in rg.stdout, rg.stdout[:200]
     assert _sha(vault / NODE_REL) == sha, "幂等重跑必须零写"
+
+
+# ── 门㊸ round-6: 3 BLOCKER + 4 HIGH + 1 MEDIUM ──
+
+
+def test_round6_findings(vault):
+    """round-6 的问题逐条锁住。
+
+    ⛔ **B①是我 round-5 修复引入的**：我只把 foreign 分支改成存完整 event_id，
+       正常分支仍存裸 `eid` —— 两条路径写进 calibration_log 的键**不是同一个
+       东西**。修一半比不修更危险：它把不一致藏进了「已经修过」的地方。
+    """
+    LED = vault / "learning_events.jsonl"
+
+    # B① 正常路径也必须存完整 evid（否则 quiz:K 与 K 互相别名）
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    assert _run_writer_settled(vault, _payload(event_id="quiz:K", ts=TS1)).returncode == 0
+    fm = (vault / NODE_REL).read_text(encoding="utf-8")
+    assert '- event_id: "quiz:quiz:K"' in fm, f"正常路径必须存完整账本 id: {fm[:400]}"
+    r2 = _run_writer_settled(vault, _payload(event_id="K", ts="2026-08-02T10:00:00Z"))
+    assert r2.returncode == 0, r2.stderr[:300]
+    assert len(_ledger_lines(vault)) == 2, "两次不同评分必须各自入账"
+    assert len(re.findall(r"^  - event_id: ", (vault / NODE_REL).read_text(encoding="utf-8"), re.M)) == 2
+
+    # B② durable event_id 首尾空白必须全账本扫描（不只本次输入）
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    row = _review_row()
+    row["event_id"] = " quiz:same#q1 "
+    _write_ledger(vault, row)
+    face = _write_face(vault)
+    rb = _run_writer(vault, _payload(event_id="same#q1", ts="2026-08-02T10:00:00Z"))
+    assert rb.returncode != 0, "带空白的 durable id 会与不带的各算一遍，必须拒"
+    assert "首尾含空白的 event_id" in rb.stderr, rb.stderr
+    assert _write_face(vault) == face, "零写"
+
+    # B③ 空串 / 纯空白 node_id 是「无法路由」，不是「属于别人」
+    for nid in ("", "   "):
+        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+        row = _review_row()
+        row["node_id"] = nid
+        row["event_id"] = "quiz:空路由"
+        _write_ledger(vault, row)
+        face = _write_face(vault)
+        rn = _run_writer(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
+        assert rn.returncode != 0, f"node_id={nid!r} 无法路由，静默跳过等于漏算"
+        assert "不可用" in rn.stderr, rn.stderr
+        assert _write_face(vault) == face, "零写"
+    # 验伪：合法的别节点行不得被这条门误伤
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    row = _review_row()
+    row["node_id"] = "别的节点"
+    row["event_id"] = "quiz:别节点"
+    _write_ledger(vault, row)
+    assert _run_writer_settled(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z")).returncode == 0
+
+    # H① 输入 ts 用 fullmatch（末尾换行不得穿透）
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    rt = _run_writer(vault, _payload(event_id="板A#q1", ts="2026-08-02T10:00:00Z\n"))
+    assert rt.returncode != 0, "末尾换行能穿透 match()，必须用 fullmatch"
+    assert not LED.exists() or not _ledger_lines(vault), "不得产出任何账本行"
+
+    # H② NaN/Infinity：输入侧与读取侧都要与严格校验器同口径
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    rn2 = _run_writer(vault, _payload(event_id="板A#q1", ts=TS1, exam_board=float("nan")))
+    assert rn2.returncode != 0, "NaN 会被 json.dumps 原样写成字面量，而校验器拒收"
+    assert not LED.exists() or "NaN" not in LED.read_text(encoding="utf-8"), "不得落库 NaN"
+
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    _write_ledger(vault, _review_row())
+    raw = LED.read_text(encoding="utf-8")
+    LED.write_text(re.sub(r'"grade_norm":\s*[0-9.]+', '"grade_norm": NaN', raw), encoding="utf-8")
+    face_nan = _write_face(vault)
+    rn3 = _run_writer_settled(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
+    assert rn3.returncode != 0, "账本里的 NaN 必须被 strict loader 拒（默认 json.loads 会接受）"
+    # 同上：点名拒因 + 零写，否则「恢复已落定」的续跑信号会让门抓不住变异
+    assert ("NaN" in rn3.stderr) or ("非标准" in rn3.stderr) or ("解析" in rn3.stderr), rn3.stderr[:250]
+    assert _write_face(vault) == face_nan, "零写（节点 + 账本）"
+    assert _run_validator(vault).returncode != 0, "校验器同样拒（两侧同口径）"
+
+    # H③ 同 ID 的合法 §6.3 历史行按 A4.5 幂等 no-op，不是拒
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    assert _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1)).returncode == 0
+    rows = list(_ledger_lines(vault))
+    rows[0]["payload"] = {"exam_board": "旧板", "note": "旧写点产物"}
+    LED.write_text(json.dumps(rows[0], ensure_ascii=False) + "\n", encoding="utf-8")
+    assert _run_validator(vault).returncode == 0, "该形态本身是 §6.3 允许的"
+    sha = _sha(vault / NODE_REL)
+    rh = _run_writer(vault, _payload(event_id="板A#q1", ts=TS1))
+    assert rh.returncode == 0, f"同 ID 的合法历史行必须幂等 no-op（A4.5）: {rh.stderr[:250]}"
+    assert _sha(vault / NODE_REL) == sha, "幂等必须零写"
+    # 验伪：无 marker 却带着 review 扩展键的行仍必须拒（那是被伪装的复习）
+    rows[0]["payload"] = {"vault_id": "canvas_vault_测试", "rating": 3, "review_time": TS1}
+    LED.write_text(json.dumps(rows[0], ensure_ascii=False) + "\n", encoding="utf-8")
+    assert _run_writer(vault, _payload(event_id="板A#q1", ts=TS1)).returncode != 0
+
+    # H④ inline `calibration_log: []` 必须先规范成 block，否则产出非法 YAML 且不收敛
+    (vault / NODE_REL).write_text(
+        NODE_V0.replace("mastery_score:", "calibration_log: []\nmastery_score:", 1), encoding="utf-8"
+    )
+    LED.unlink(missing_ok=True)
+    ri = _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1))
+    assert ri.returncode == 0, ri.stderr[:300]
+    after = (vault / NODE_REL).read_text(encoding="utf-8")
+    assert not ("calibration_log: []" in after and "  - event_id:" in after), f"产出了非法 YAML: {after[:400]}"
+    ri2 = _run_writer(vault, _payload(event_id="板A#q1", ts=TS1))
+    assert ri2.returncode == 0, f"同事件重跑必须收敛（此前永久卡在「已应用但缺校准」）: {ri2.stderr[:250]}"
+
+    # M① 空行与 BOM 与校验器同口径拒收
+    # ⚠️ BOM 用 \ufeff 转义写，不直接敲 —— 不可见字符会被工具链静默改掉
+    #    (MEMORY: reference_invisible_chars_must_be_escaped_in_source)
+    for desc, mk in (
+        ("物理空行", lambda b: b.rstrip("\n") + "\n\n"),
+        ("首行 BOM", lambda b: "\ufeff" + b),
+    ):
+        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+        _write_ledger(vault, _review_row())
+        LED.write_text(mk(LED.read_text(encoding="utf-8")), encoding="utf-8")
+        # ⚠️ 必须用 settled + 点名拒因：`_run_writer` 的 rc!=0 里混着
+        # 「恢复已落定，请重跑」这个**续跑信号**——它不是拒绝。实测禁掉空行/BOM
+        # 门后，写点走的正是那条续跑分支、rc 同样非 0，于是单看 rc 的门**抓不住
+        # 变异**（M68/M69 SURVIVED 的真因）。判据落在「最终写入没有」+ 拒因串上。
+        face = _write_face(vault)
+        rm = _run_writer_settled(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
+        assert rm.returncode != 0, f"[{desc}] 校验器拒，写点也必须拒"
+        assert ("是空行" in rm.stderr) or ("BOM" in rm.stderr), f"[{desc}] 拒因须点名该形态: {rm.stderr[:200]}"
+        assert _write_face(vault) == face, f"[{desc}] 零写（节点 + 账本）"
+        assert _run_validator(vault).returncode != 0, f"[{desc}] 校验器确实拒（口径来源）"

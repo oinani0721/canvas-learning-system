@@ -33,6 +33,22 @@ LAYER2_ALSO = (
     ),
 )
 
+
+#: round-6 新增的两道前置门（BOM / 空行）排在账本解码与尾行判据**之前**，
+#: 会把针对它们的变异先兜住。要证「那两道旧门仍承重」，必须同时禁掉这两道。
+LAYER3_ALSO = (
+    (
+        SKILL,
+        '    if _raw_bytes.startswith(b"\\xef\\xbb\\xbf"):\n',
+        "    if False:  # MUTANT: 同时禁掉 BOM 门\n",
+    ),
+    (
+        SKILL,
+        "    if _blank_at:\n",
+        "    if False:  # MUTANT: 同时禁掉空行门\n",
+    ),
+)
+
 MUTATIONS = [
     (
         "M1-R1-candidate-spread",
@@ -138,7 +154,7 @@ MUTATIONS += [
     (
         "M14-N3-drop-duplicate-key-hook",
         SKILL,
-        "json.loads(_line, object_pairs_hook=_no_dup_keys)",
+        "json.loads(_line, object_pairs_hook=_no_dup_keys,\n                                          parse_constant=_reject_json_constant)",
         "json.loads(_line)",
         "test_round1_followups_n1_to_n5",
     ),
@@ -197,6 +213,7 @@ MUTATIONS += [
         '            _line = _bline.decode("utf-8-sig" if _ln == 1 else "utf-8")\n',
         '            _line = _bline.decode("utf-8")  # MUTANT: 不剥 BOM\n',
         "test_internal_audit_findings",
+        LAYER3_ALSO,
     ),
     (
         "M23-C1-drop-event-type-gate",
@@ -277,6 +294,7 @@ MUTATIONS += [
         "    _ends_with_lf = _last_idx >= 0 and _last_idx < len(_byte_lines) - 1\n",
         '    _ends_with_lf = _raw_bytes.endswith(b"\\n")  # MUTANT: 退回文件末尾判据\n',
         "test_round2_lead_followups",
+        LAYER3_ALSO,
     ),
 ]
 
@@ -325,7 +343,7 @@ MUTATIONS += [
     (
         "M34-R3-drop-routing-envelope-gate",
         SKILL,
-        '    if isinstance(_o, dict) and not isinstance(_o.get("node_id"), str):\n',
+        "    if isinstance(_o, dict) and (not isinstance(_nid_, str) or not _nid_.strip() or _nid_ != _nid_.strip()):\n",
         "    if False:  # MUTANT\n",
         "test_round2_lead_followups",
     ),
@@ -390,6 +408,7 @@ MUTATIONS += [
         # 变异当然杀不动 —— SURVIVED 是「门与变异不匹配」, 不是「门是假的」。
         # 测 '' 转义的是 test_round3_findings 的子场景⑬。
         "test_round3_findings",
+        LAYER3_ALSO,
     ),
     (
         # 不容单引号 —— YAML 单引号标量是合法形态，Obsidian Properties 会写它
@@ -518,8 +537,10 @@ MUTATIONS += [
         # 行级 .strip() 洗值 ⇒ `\x0c` 被当空白吃掉, 写点放行而校验器判 Extra data
         "M51-line-strip-washes-nonjson-whitespace",
         SKILL,
-        "            _rows.append((_ln, json.loads(_line, object_pairs_hook=_no_dup_keys)))\n",
-        "            _rows.append((_ln, json.loads(_line.strip(), object_pairs_hook=_no_dup_keys)))  # MUTANT\n",
+        "            _rows.append((_ln, json.loads(_line, object_pairs_hook=_no_dup_keys,\n"
+        "                                          parse_constant=_reject_json_constant)))\n",
+        "            _rows.append((_ln, json.loads(_line.strip(), object_pairs_hook=_no_dup_keys,\n"
+        "                                          parse_constant=_reject_json_constant)))  # MUTANT\n",
         "test_round4_writer_validator_verdict_parity",
         LAYER2_ALSO,
     ),
@@ -592,7 +613,7 @@ MUTATIONS += [
         # 输入 ts 不做字面校验 ⇒ 写点自己产出不合规的账本行
         "M58-input-ts-not-literally-checked",
         SKILL,
-        "if not isinstance(_ts_in, str) or not _TS_RE.match(_ts_in):\n",
+        "if not isinstance(_ts_in, str) or not _TS_RE.fullmatch(_ts_in):\n",
         "if False:  # MUTANT: 输入 ts 不校验\n",
         "test_round5_routing_order_and_input_literal",
     ),
@@ -607,6 +628,91 @@ MUTATIONS += [
         "    if _legacy_after:\n",
         "    if False:  # MUTANT: 漏计历史行\n",
         "test_round5_legacy_scored_rows_break_ordinal_proof",
+    ),
+]
+
+
+# ── round-6 修复的承重变异
+MUTATIONS += [
+    (
+        # ⛔ 正常路径退回存裸 eid ⇒ 与 foreign 路径写的键不是同一个东西
+        "M60-normal-path-stores-bare-eid",
+        SKILL,
+        "        _e_id, _e_pl = evid, p\n",
+        "        _e_id, _e_pl = eid, p  # MUTANT\n",
+        "test_round6_findings",
+    ),
+    (
+        # durable event_id 首尾空白不做全账本扫描 ⇒ 同一次评分算两遍
+        "M61-durable-eid-whitespace-not-scanned",
+        SKILL,
+        "if _ws_ids:\n",
+        "if False:  # MUTANT: 不扫 durable eid 空白\n",
+        "test_round6_findings",
+    ),
+    (
+        # node_id 只判类型 ⇒ 空串/纯空白被当别节点静默跳过
+        "M62-node-id-type-only",
+        SKILL,
+        "if isinstance(_o, dict) and (not isinstance(_nid_, str) or not _nid_.strip() or _nid_ != _nid_.strip()):\n",
+        "if isinstance(_o, dict) and not isinstance(_nid_, str):  # MUTANT\n",
+        "test_round6_findings",
+    ),
+    (
+        # match 而非 fullmatch ⇒ 末尾换行穿透
+        "M63-ts-match-not-fullmatch",
+        SKILL,
+        "if not isinstance(_ts_in, str) or not _TS_RE.fullmatch(_ts_in):\n",
+        "if not isinstance(_ts_in, str) or not _TS_RE.match(_ts_in):  # MUTANT\n",
+        "test_round6_findings",
+    ),
+    (
+        # 输出侧不禁 NaN ⇒ 程序自己产出不合规的行
+        "M64-dumps-allows-nan",
+        SKILL,
+        "json.dumps(rec, ensure_ascii=False, allow_nan=False)",
+        "json.dumps(rec, ensure_ascii=False)  # MUTANT",
+        "test_round6_findings",
+    ),
+    (
+        # 读取侧不禁 NaN ⇒ 与严格校验器分叉
+        "M65-loads-allows-nan",
+        SKILL,
+        "                                          parse_constant=_reject_json_constant)))\n",
+        "                                          )))  # MUTANT: 读取侧不禁 NaN\n",
+        "test_round6_findings",
+    ),
+    (
+        # 同 ID 的合法 §6.3 历史行退回无条件拒 ⇒ 违反 A4.5 幂等
+        "M66-legacy-same-id-rejected",
+        SKILL,
+        "        if isinstance(_dpl, dict) and not _looks_like_review_ext(_dpl):\n",
+        "        if False:  # MUTANT: 同 ID 历史行无条件拒\n",
+        "test_round6_findings",
+    ),
+    (
+        # inline 空列表不规范化 ⇒ 产出非法 YAML 且永久不收敛
+        "M67-inline-calibration-not-normalized",
+        SKILL,
+        "    fm_text = _normalize_inline_calibration(fm_text)\n",
+        "    pass  # MUTANT: 不规范化 inline 空列表\n",
+        "test_round6_findings",
+    ),
+    (
+        # 空行不拒 ⇒ 与校验器分叉
+        "M68-blank-lines-tolerated",
+        SKILL,
+        "    if _blank_at:\n",
+        "    if False:  # MUTANT: 空行放行\n",
+        "test_round6_findings",
+    ),
+    (
+        # BOM 不拒 ⇒ 与校验器分叉
+        "M69-bom-tolerated",
+        SKILL,
+        '    if _raw_bytes.startswith(b"\\xef\\xbb\\xbf"):\n',
+        "    if False:  # MUTANT: BOM 放行\n",
+        "test_round6_findings",
     ),
 ]
 

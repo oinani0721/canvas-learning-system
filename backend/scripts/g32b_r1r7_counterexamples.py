@@ -411,9 +411,14 @@ def n1_n5():
     # 后面还跟着东西。
     (v / "learning_events.jsonl").write_bytes(head + b"\n   ")
     rc2 = run(v, event_id="板E#q1", ts="2026-08-06T10:00:00Z")
+    # ⚠️ round-6 口径变更: 空行现在与校验器同口径**拒收** (校验器 VALIDATOR:737/:1571
+    # 判「append-only JSONL 不应出现空行」, 写点此前静默忽略 ⇒ 写点 rc=0 而校验器
+    # rc=1)。本例的构造含纯空白行 ⇒ 空行门先拦。两种拒因都是 fail-closed, 但必须
+    # 点名是这两者之一 —— 不能退化成「随便什么理由拒了都行」。
+    _why2 = ("完整写入的损坏行" in rc2.stderr) or ("是空行" in rc2.stderr)
     check(
-        "N2/R7-blank：坏行带 LF + 末尾空白行 → 仍是完整损坏",
-        rc2.returncode != 0 and "完整写入的损坏行" in rc2.stderr,
+        "N2/R7-blank：坏行带 LF + 末尾空白行 → 仍 fail-closed（round-6 起空行门先拦）",
+        rc2.returncode != 0 and _why2,
         f"rc={rc2.returncode} | {last_line(rc2.stderr)}",
     )
     (v / "learning_events.jsonl").write_bytes(head + b"   ")
