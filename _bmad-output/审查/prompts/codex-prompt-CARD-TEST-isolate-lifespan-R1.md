@@ -4,8 +4,8 @@
 仓库根：`/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2`
 （只读；不要修改任何文件）。
 
-审查对象绑定：分支 `card/w4-safety-r2`，实现 commit **`4e099b95`**（round-2）。
-`git diff 4a25578e..4e099b95` 是完整 diff；`git diff 86329c49..4e099b95` 只看本轮整改。
+审查对象绑定：分支 `card/w4-safety-r2`，实现 commit **`b64a9c44`**（最终态）。
+`git diff 4a25578e..b64a9c44` 是完整 diff；`git diff 86329c49..b64a9c44` 只看 round-1 之后的整改。
 
 ## ⛔ 这是第 2 轮：round-1 的 17 条已全部整改
 
@@ -34,7 +34,7 @@
 (2) 找**整改本身引入的新缺陷**（更严的判据是否产生误拒？隔离副本是否引入了新的不一致面？
     `os._exit(3)` 是否会掩盖别的信息？`case` 判据是否还有别的劫持面？）。
 
-当前门规模：探针 **26**、AST 负控 **17 绕过 / 9 验伪锚**、guard 契约单测 **35**。
+当前门规模：探针 **27**、AST 负控 **17 绕过 / 9 验伪锚**、guard 契约单测 **35**。
 
 ## 0. 这是什么，为什么存在
 
@@ -85,21 +85,26 @@
     `socket.socket` / `_socket.socket` / `socket.SocketType` / `connect_ex`。
     `socket.socket.connect` 上的包装**降级为身份锚点**（不拦截、不记账，只委托），
     文档已明确声明它不承重。
-(d) 每次 `install()` 与**每个用例边界**都验证门的真实身份：audit hook 用一次性
-    token 走 round-trip（不是读布尔值）、belt 方法身份逐个比对、受拦端口集只许加
-    不许减、uvloop 毒化在位。任一漂移抛 `GuardDrift`。
-(e) `atexit`（最早注册⇒最后执行）里有一道最终总账：`pytest_cmdline_main` 返回之后
-    的迟到连接会让进程 `os._exit(3)`；账本同时落盘供父进程复核。
+(d) 每次 `install()` 与**每个用例边界**都验证门的真实身份：**发一次真的
+    `socket.connect` 审计事件走完整条阻断路径**（不是读布尔值、也不是独立私有事件）、
+    belt 方法身份逐个比对、受拦端口集只许加不许减、uvloop「key 必须存在且为 None」
+    + policy 复核。任一漂移抛 `GuardDrift`。
+(e) 最终结算（`atexit`）进入即置**不可逆** `_FINALIZING`，此后 audit 命中受拦端口
+    就地 `os._exit(3)` —— **不**声称「在所有 atexit 之后执行」（LIFO 下更早注册的
+    回调排在它后面）。账本同时落盘供父进程复核。
 (f) 负控判据改为「门汇总行**整行唯一**匹配，且 `total == blocked > 0`、
     `advisory == 0`、`unaccounted == 0`」，并与子进程落盘的账本交叉比对。
 (g) 静态门重写为按作用域、按语句位置的绑定表：追踪真实 import 来源、语句顺序、
     重绑定；类体是独立作用域；属性式 `tc.TestClient(app)` 进入扫描。
-(h) shell 门清掉 `BASH_ENV`/全部函数、恢复 builtin、外部命令走绝对路径、用参数
-    展开代替 `dirname`、用 builtin 代替 `awk`/`grep`，并对常量串做**摘要自证**。
+(h) shell 门用 `env -u BASH_ENV -u ENV -u BASH_FUNC_*` **重新 exec 自己**（判据用
+    `case` 而非可被 alias 劫持的 `[`），再叠 `unalias -a` / `trap -` / 函数表复核 /
+    builtin 身份复核；外部命令走绝对路径、用参数展开代替 `dirname`、用 builtin 代替
+    `awk`/`grep`；并有**数据管道摘要自证**与**控制流自证**两道。
 (i) BDD 的 Given 从 "the API server is running" 改为 route-availability 契约，并在
     步骤里实际断言路由已挂载。
-(j) 负控子进程用 `sys.executable -m pytest`；变异前先跑同环境正控，要求三条全绿、
-    rc=0、门账全零。
+(j) 负控子进程用 `sys.executable -m pytest`，**变异做在 tmp 里的 git-tracked-only
+    隔离副本上**（真实树全程不写）；变异前先跑同环境正控，用 junit 要求三条 exact
+    nodeid **各恰好一次且全 passed**、rc=0、门账全零、运行时零写。
 (k) 覆盖 `__index__` 端口对象、插件 import 期装门（门前窗口）、精确完整 nodeid 集合全等。
 (l) 见下方证据清单。
 
@@ -113,8 +118,8 @@ PYTHONDONTWRITEBYTECODE=1 <python> scripts/lifespan_isolation_guard_probes.py
 bash scripts/lifespan_isolation_runtime_sha.sh -- <python> -m pytest tests/api tests/unit/test_vault_scope_409.py -q -p no:cacheprovider
 ```
 
-⚠️ 完整负控（不带 `--ast-only`）会**原地修改**一个 tracked 测试文件再还原。
-你处于只读沙箱，请**不要**运行它；本仓库已附带它的完整输出。
+⚠️ 完整负控（不带 `--ast-only`）会在 tmp 里建一份 git-tracked-only 的 backend 副本并在
+**副本**上做变异（真实树不写）。你处于只读沙箱，仍请**不要**运行它；本仓库已附带完整输出。
 
 ## 4. 我特别希望你攻击的点
 

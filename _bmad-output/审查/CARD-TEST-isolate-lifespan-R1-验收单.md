@@ -326,6 +326,10 @@ tokens used 198,766
 正文文件 **0 字节**，rc=0。⚠️ 按既有教训（`reference_codex_content_filter_neutralize`）：
 **rc=0 + 0 字节 ≠ 通过**。本轮没有裁定，因此**完成条件 (l) 不成立**。
 
+**已排除「是本次 prompt 太大/被内容过滤」这个解释**：2026-09-02 19:42 用
+`codex exec -m gpt-5.6-sol "回复一个字：好"` 这个**单字 prompt** 复测，
+rc=1，同样返回 usage limit。⇒ 账号级配额硬阻断，与本卡内容无关。
+
 **从 stderr 抢救出的线索（未成正式 finding，但我逐条自查并当场证实/整改了两条）**：
 
 推理标题里出现了 `Identifying .env copy privacy flaw` /
