@@ -1,12 +1,12 @@
 === collect-only ===
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-========================= 260 tests collected in 0.19s =========================
+========================= 261 tests collected in 0.20s =========================
 === JUDGE-1 定向套件 ===
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-====================== 260 passed, 14 warnings in 38.52s =======================
+====================== 261 passed, 14 warnings in 39.45s =======================
 <sys>:0: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
-=== JUDGE-2 negverify (34 变体, 串行, 全量输出) ===
-基线: 双向门全绿 · 被测文件 sha256=8ab27fb6ba82…
+=== JUDGE-2 negverify (37 变体, 串行, 全量输出) ===
+基线: 双向门全绿 · 被测文件 sha256=71d9739956de…
 
 ✅ survivor-1 围栏闭合退回宽松判定（E1 全线：长度 + 尾随空白 两条一起禁）: 如期变红（2/2 失败）
 ✅ survivor-2 规模行允许式去掉行尾锚（H-2 前半全线）: 如期变红（1/1 失败）
@@ -42,11 +42,14 @@
 ✅ survivor-32 (C-8) fallback 退回在**源码行**上选行（`派**生**` 整行不进检查面）: 如期变红（1/1 失败）
 ✅ survivor-33 (C-8) fallback 负数守卫被摘除（`-5` 按 +5 入池，D2 侧仍在 ⇒ 只测 D2 的门抓不到）: 如期变红（1/1 失败）
 ✅ survivor-34 (C-8) Markdown link 不再取显示文本（`总[计](u)N个` 句式门失锚）: 如期变红（1/1 失败）
+✅ survivor-35 (C-9) 全文『派生』门退回在**源码行**上判（`派**生**` 整行绕过全文门）: 如期变红（1/1 失败）
+✅ survivor-36 (C-9) 定界集去掉可见数字（带圈/苏州码 ⇒ 一个 token 都抽不出、整句零校验）: 如期变红（1/1 失败）
+✅ survivor-37 (C-9) 负号守卫去掉中文『负』（`负五个` 按 +5 入池）: 如期变红（1/1 失败）
 
-全部承重（共 34 条变体）
+全部承重（共 37 条变体）
 === 扩大回归 ===
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-================= 592 passed, 193 warnings in 63.60s (0:01:03) =================
+================= 593 passed, 193 warnings in 69.08s (0:01:09) =================
 <sys>:0: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
 === 收尾 sha ===
-8ab27fb6ba82add53e2ff898e569b84dab15f114cac06b5c0c8ec735bf158a28  ../canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py
+71d9739956de2ad575f4c50da1461085303814da2c3e7854beb05baa8fe80aac  ../canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py

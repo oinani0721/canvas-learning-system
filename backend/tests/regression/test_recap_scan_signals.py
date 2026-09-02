@@ -32,7 +32,15 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-SCRIPT = REPO_ROOT / "canvas-vault" / ".claude" / "skills" / "board-recap" / "scripts" / "recap_scan.py"
+SCRIPT = (
+    REPO_ROOT
+    / "canvas-vault"
+    / ".claude"
+    / "skills"
+    / "board-recap"
+    / "scripts"
+    / "recap_scan.py"
+)
 
 BOARD = "T板"
 
@@ -86,10 +94,14 @@ SIGNAL_REQUIRED_FIELDS = {
 
 def _ts(days: int) -> str:
     """N 天 + 2h 前的 ISO 时间戳 → collect 时 floor 年龄恰 N 天。"""
-    return (datetime.now(timezone.utc) - timedelta(days=days, hours=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return (datetime.now(timezone.utc) - timedelta(days=days, hours=2)).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
 
 
-def run_collect(vault: Path, board: str = BOARD, *extra: str) -> subprocess.CompletedProcess:
+def run_collect(
+    vault: Path, board: str = BOARD, *extra: str
+) -> subprocess.CompletedProcess:
     if not SCRIPT.exists():  # 防「脚本不存在 → 非零退出 → 拒绝类断言假绿」
         pytest.fail(f"被测脚本不存在: {SCRIPT}")
     return subprocess.run(
@@ -139,7 +151,9 @@ def write_node(
     fm.append("---")
     body = f"# {name}\n\n## 核心概念\n\n"
     body += "（你的 1-2 句精准定义。）\n" if stub else "已有正文。\n"
-    (vault / "节点" / f"{name}.md").write_text("\n".join(fm) + "\n" + body, encoding="utf-8")
+    (vault / "节点" / f"{name}.md").write_text(
+        "\n".join(fm) + "\n" + body, encoding="utf-8"
+    )
 
 
 def build_vault(tmp_path: Path, members: list[str]) -> Path:
@@ -273,7 +287,9 @@ def test_v1_keys_regression_and_signals_shape(tmp_path):
         assert not missing, f"signals.{key} 缺必备字段: {missing}"
         assert sig[key]["asof"] == scan["source_revision"]["scan_at_utc"]
     # ledger 行加性 source_note (fallback 从 frontmatter 抄录并归一 stem)
-    rows = {r["node_id"]: r for r in scan["ledger"]["seeds"] + scan["ledger"]["derived"]}
+    rows = {
+        r["node_id"]: r for r in scan["ledger"]["seeds"] + scan["ledger"]["derived"]
+    }
     assert rows["DerivedB"]["source_note"] == "SeedA"  # [[节点/SeedA|别名]] → stem
     assert rows["SeedA"]["source_note"] is None
     assert rows["DerivedC"]["source_note"] is None
@@ -298,7 +314,9 @@ def test_zero_threshold_no_judgement_keys(tmp_path):
         if isinstance(obj, dict):
             for k, v in obj.items():
                 if k != "policy":  # policy 值声明 zero_threshold, 键名本身中性
-                    assert not any(b in k.lower() for b in banned), f"判定类键: {path}.{k}"
+                    assert not any(b in k.lower() for b in banned), (
+                        f"判定类键: {path}.{k}"
+                    )
                 walk(v, f"{path}.{k}")
         elif isinstance(obj, list):
             for i, v in enumerate(obj):
@@ -338,7 +356,9 @@ def test_age_signal_nodata_when_no_dated_tips(tmp_path):
 
 def test_age_future_added_at_clamped_zero(tmp_path):
     vault = build_vault(tmp_path, ["SeedA"])
-    future = (datetime.now(timezone.utc) + timedelta(days=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    future = (datetime.now(timezone.utc) + timedelta(days=3)).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
     write_node(vault, "SeedA", tips=[{"text": "q", "added_at": future}])
     sig = collect_json(vault)["signals"]["unanswered_question_age"]
     assert sig["value"] == 0  # 未来时间戳按 0 天计, 不产出负年龄
@@ -415,11 +435,16 @@ def test_role_and_anchor_accept_both_spellings(tmp_path, key):
         encoding="utf-8",
     )
     scan = collect_json(vault)
-    rows = {r["node_id"]: r for r in scan["ledger"]["seeds"] + scan["ledger"]["derived"]}
+    rows = {
+        r["node_id"]: r for r in scan["ledger"]["seeds"] + scan["ledger"]["derived"]
+    }
     assert rows["D"]["role"] == "derived", f"{key} 拼写未被识别为派生"
     assert rows["D"]["relation_target"] == "SeedA"
     # 恒等式: relation_types 聚合数不得超过 derived 计数
-    assert scan["counts"]["relation_types"].get("derived_from", 0) <= scan["counts"]["derived"]
+    assert (
+        scan["counts"]["relation_types"].get("derived_from", 0)
+        <= scan["counts"]["derived"]
+    )
 
 
 def test_empty_key_does_not_fabricate_anchor(tmp_path):
@@ -455,7 +480,9 @@ def test_role_not_flipped_by_frontmatter_text_mention(tmp_path):
         encoding="utf-8",
     )
     scan = collect_json(vault)
-    rows = {r["node_id"]: r for r in scan["ledger"]["seeds"] + scan["ledger"]["derived"]}
+    rows = {
+        r["node_id"]: r for r in scan["ledger"]["seeds"] + scan["ledger"]["derived"]
+    }
     assert rows["T"]["role"] == "seed", "正文提及关键词导致角色误判"
     uns = scan["signals"]["unsourced_conclusions"]
     assert uns["availability"] == "无据" and uns["node_ids"] == []
@@ -480,11 +507,17 @@ def test_role_matches_backend_node_role_exactly(tmp_path, fm_extra):
 
     vault = build_vault(tmp_path, ["N"])
     fm_text = f'type: concept\nsource_board: "[[原白板/{BOARD}]]"\n{fm_extra}'
-    (vault / "节点" / "N.md").write_text(f"---\n{fm_text}---\n# N\n正文。\n", encoding="utf-8")
+    (vault / "节点" / "N.md").write_text(
+        f"---\n{fm_text}---\n# N\n正文。\n", encoding="utf-8"
+    )
     scan = collect_json(vault)
-    rows = {r["node_id"]: r for r in scan["ledger"]["seeds"] + scan["ledger"]["derived"]}
+    rows = {
+        r["node_id"]: r for r in scan["ledger"]["seeds"] + scan["ledger"]["derived"]
+    }
     backend_role = _node_role(yaml.safe_load(fm_text))
-    assert rows["N"]["role"] == backend_role, f"fallback role={rows['N']['role']} 与后端 _node_role={backend_role} 分叉"
+    assert rows["N"]["role"] == backend_role, (
+        f"fallback role={rows['N']['role']} 与后端 _node_role={backend_role} 分叉"
+    )
 
 
 def test_manifest_note_normalization_is_idempotent(tmp_path):
@@ -533,7 +566,11 @@ def test_strip_note_ref_idempotent_on_wikilinked_null_name(tmp_path):
         f'---\ntype: concept\nsource_board: "[[原白板/{BOARD}]]"\nsource_note: null\n---\n# B\n正文。\n',
         encoding="utf-8",
     )
-    rows = {r["node_id"]: r for r in collect_json(vault)["ledger"]["seeds"] + collect_json(vault)["ledger"]["derived"]}
+    rows = {
+        r["node_id"]: r
+        for r in collect_json(vault)["ledger"]["seeds"]
+        + collect_json(vault)["ledger"]["derived"]
+    }
     assert rows["A"]["source_note"] == "null", "合法 wikilink 节点名被当 YAML null 清除"
     assert rows["B"]["source_note"] is None, "裸 null 字面量被当成锚点"
 
@@ -552,10 +589,14 @@ def test_null_literal_provenance_not_counted(tmp_path):
         encoding="utf-8",
     )
     scan = collect_json(vault)
-    rows = {r["node_id"]: r for r in scan["ledger"]["seeds"] + scan["ledger"]["derived"]}
+    rows = {
+        r["node_id"]: r for r in scan["ledger"]["seeds"] + scan["ledger"]["derived"]
+    }
     assert rows["DerivedNull"]["source_note"] is None, "null 字面量被算成 source_note"
     assert rows["DerivedNull"]["relation_target"] is None
-    assert rows["DerivedNull"]["role"] == "seed", "null 派生键被当派生痕迹（与后端分叉）"
+    assert rows["DerivedNull"]["role"] == "seed", (
+        "null 派生键被当派生痕迹（与后端分叉）"
+    )
     # 全板无派生角色成员 → 无来源结论如实无据（零编造）
     uns = scan["signals"]["unsourced_conclusions"]
     assert (uns["value"], uns["denominator"]) == (None, 0)
@@ -648,7 +689,9 @@ def signal_lines(sig: dict) -> str:
         if s["availability"] == "无据":
             lines.append(f"> - {label}：无据（分母为零）")
         else:
-            lines.append(f"> - {label}：{s['value']}/{s['denominator']} {tail}【{s['availability']}】")
+            lines.append(
+                f"> - {label}：{s['value']}/{s['denominator']} {tail}【{s['availability']}】"
+            )
     return "\n".join(lines)
 
 
@@ -673,7 +716,8 @@ def render_report(scan: dict) -> str:
     # 「形状合法、数字无据」的行。新增的种子行绑值门第一次跑就把它抓了出来
     # （这正是本卡要的效果：形状对不等于数字有据）。改为按 scan 的 ledger 渲染。
     ledger_seed = "\n".join(
-        f"- {r['node_id']} — " + (f"批注 {r['tips_count']} 条" if r.get("tips_count") else "无批注")
+        f"- {r['node_id']} — "
+        + (f"批注 {r['tips_count']} 条" if r.get("tips_count") else "无批注")
         for r in (scan.get("ledger") or {}).get("seeds", [])
     )
     ledger_derived = "- DerivedB — 占位 · mastery 未记录 · tips 未闭环 2 条\n- DerivedC — 已剖析 · mastery 未记录"
@@ -729,7 +773,9 @@ generated_by: board-recap v1.1-signals
 
 def write_report(vault: Path, scan: dict) -> Path:
     outputs = vault / "outputs"
-    (outputs / f".recap-scan-{BOARD}.json").write_text(json.dumps(scan, ensure_ascii=False), encoding="utf-8")
+    (outputs / f".recap-scan-{BOARD}.json").write_text(
+        json.dumps(scan, ensure_ascii=False), encoding="utf-8"
+    )
     report = outputs / f"回顾-{BOARD}-{scan['recap_date']}.md"
     report.write_text(render_report(scan), encoding="utf-8")
     return report
@@ -792,7 +838,9 @@ def test_verify_availability_tag_tamper_fails(tmp_path):
     report = write_report(vault, collect_json(vault))
     text = report.read_text(encoding="utf-8")
     line = next(ln for ln in text.splitlines() if "无来源结论" in ln)
-    report.write_text(text.replace(line, line.replace("【推定】", "【实测】")), encoding="utf-8")
+    report.write_text(
+        text.replace(line, line.replace("【推定】", "【实测】")), encoding="utf-8"
+    )
     r = run_verify(report)
     assert r.returncode == 1
     assert "未整行匹配标准式" in r.stdout
@@ -806,7 +854,9 @@ def test_verify_nodata_mismatch_fails_both_ways(tmp_path):
     # 有数 → 报无据 (隐瞒)
     text = report.read_text(encoding="utf-8")
     line = next(ln for ln in text.splitlines() if "来源覆盖率" in ln)
-    report.write_text(text.replace(line, "> - 来源覆盖率：无据（数据被隐瞒）"), encoding="utf-8")
+    report.write_text(
+        text.replace(line, "> - 来源覆盖率：无据（数据被隐瞒）"), encoding="utf-8"
+    )
     r = run_verify(report)
     assert r.returncode == 1
     assert "报告行却标了无据" in r.stdout
@@ -951,7 +1001,13 @@ def test_verify_merged_signal_line_fails(tmp_path):
     report = write_report(vault, scan)
     text = report.read_text(encoding="utf-8")
     lines = text.splitlines()
-    sig_lines = [ln for ln in lines if any(lb in ln for lb in ("未答问题年龄", "来源覆盖率", "无来源结论", "重复堆积"))]
+    sig_lines = [
+        ln
+        for ln in lines
+        if any(
+            lb in ln for lb in ("未答问题年龄", "来源覆盖率", "无来源结论", "重复堆积")
+        )
+    ]
     merged = "> " + " · ".join(ln.lstrip("> -").strip() for ln in sig_lines)
     out = [ln for ln in lines if ln not in sig_lines]
     idx = out.index(next(ln for ln in out if ln.startswith("### ③"))) + 1
@@ -969,7 +1025,13 @@ def test_verify_signal_lines_outside_section3_fail(tmp_path):
     scan = collect_json(vault)
     report = write_report(vault, scan)
     lines = report.read_text(encoding="utf-8").splitlines()
-    sig_lines = [ln for ln in lines if any(lb in ln for lb in ("未答问题年龄", "来源覆盖率", "无来源结论", "重复堆积"))]
+    sig_lines = [
+        ln
+        for ln in lines
+        if any(
+            lb in ln for lb in ("未答问题年龄", "来源覆盖率", "无来源结论", "重复堆积")
+        )
+    ]
     out = [ln for ln in lines if ln not in sig_lines]
     out += ["", "## 附录", ""] + sig_lines
     report.write_text("\n".join(out), encoding="utf-8")
@@ -982,7 +1044,9 @@ def test_verify_signal_lines_outside_section3_fail(tmp_path):
     "mutate",
     [
         pytest.param(lambda s: {"availability": "无据"}, id="仅剩availability"),
-        pytest.param(lambda s: {**s, "availability": "神谕"}, id="availability非法枚举"),
+        pytest.param(
+            lambda s: {**s, "availability": "神谕"}, id="availability非法枚举"
+        ),
         pytest.param(lambda s: {**s, "availability": "无据"}, id="标无据却带数值"),
         pytest.param(
             lambda s: {k: v for k, v in s.items() if k != "denominator"},
@@ -997,7 +1061,9 @@ def test_verify_signal_subobject_schema_fail_closed(tmp_path, mutate):
     scan = collect_json(vault)
     bad = json.loads(json.dumps(scan))
     bad["signals"]["source_coverage"] = mutate(bad["signals"]["source_coverage"])
-    (vault / "outputs" / f".recap-scan-{BOARD}.json").write_text(json.dumps(bad, ensure_ascii=False), encoding="utf-8")
+    (vault / "outputs" / f".recap-scan-{BOARD}.json").write_text(
+        json.dumps(bad, ensure_ascii=False), encoding="utf-8"
+    )
     report = vault / "outputs" / f"回顾-{BOARD}-{scan['recap_date']}.md"
     report.write_text(render_report(scan), encoding="utf-8")
     r = run_verify(report)
@@ -1088,7 +1154,13 @@ def test_verify_section3_boundary_variants(tmp_path, heading):
     scan = collect_json(vault)
     report = write_report(vault, scan)
     lines = report.read_text(encoding="utf-8").splitlines()
-    sig = [ln for ln in lines if any(lb in ln for lb in ("未答问题年龄", "来源覆盖率", "无来源结论", "重复堆积"))]
+    sig = [
+        ln
+        for ln in lines
+        if any(
+            lb in ln for lb in ("未答问题年龄", "来源覆盖率", "无来源结论", "重复堆积")
+        )
+    ]
     out = [ln for ln in lines if ln not in sig] + ["", heading, ""] + sig
     report.write_text("\n".join(out), encoding="utf-8")
     r = run_verify(report)
@@ -1103,7 +1175,13 @@ def test_verify_signal_lines_in_code_block_fail(tmp_path):
     scan = collect_json(vault)
     report = write_report(vault, scan)
     lines = report.read_text(encoding="utf-8").splitlines()
-    sig = [ln for ln in lines if any(lb in ln for lb in ("未答问题年龄", "来源覆盖率", "无来源结论", "重复堆积"))]
+    sig = [
+        ln
+        for ln in lines
+        if any(
+            lb in ln for lb in ("未答问题年龄", "来源覆盖率", "无来源结论", "重复堆积")
+        )
+    ]
     idx = lines.index(sig[0])
     out = lines[:idx] + ["```"] + sig + ["```"] + lines[idx + len(sig) :]
     report.write_text("\n".join(out), encoding="utf-8")
@@ -1119,7 +1197,9 @@ def test_verify_percentile_ref_null_rejected(tmp_path):
     scan = collect_json(vault)
     bad = json.loads(json.dumps(scan))
     bad["signals"]["unanswered_question_age"]["percentile_ref"] = None
-    (vault / "outputs" / f".recap-scan-{BOARD}.json").write_text(json.dumps(bad, ensure_ascii=False), encoding="utf-8")
+    (vault / "outputs" / f".recap-scan-{BOARD}.json").write_text(
+        json.dumps(bad, ensure_ascii=False), encoding="utf-8"
+    )
     report = vault / "outputs" / f"回顾-{BOARD}-{scan['recap_date']}.md"
     report.write_text(render_report(scan), encoding="utf-8")
     r = run_verify(report)
@@ -1137,10 +1217,16 @@ def test_falsy_derived_from_matches_backend(tmp_path, falsy):
     import yaml
 
     vault = build_vault(tmp_path, ["N"])
-    fm_text = f'type: concept\nsource_board: "[[原白板/{BOARD}]]"\nderived-from: {falsy}\n'
-    (vault / "节点" / "N.md").write_text(f"---\n{fm_text}---\n# N\n正文。\n", encoding="utf-8")
+    fm_text = (
+        f'type: concept\nsource_board: "[[原白板/{BOARD}]]"\nderived-from: {falsy}\n'
+    )
+    (vault / "节点" / "N.md").write_text(
+        f"---\n{fm_text}---\n# N\n正文。\n", encoding="utf-8"
+    )
     scan = collect_json(vault)
-    rows = {r["node_id"]: r for r in scan["ledger"]["seeds"] + scan["ledger"]["derived"]}
+    rows = {
+        r["node_id"]: r for r in scan["ledger"]["seeds"] + scan["ledger"]["derived"]
+    }
     backend_role = _node_role(yaml.safe_load(fm_text))
     assert rows["N"]["role"] == backend_role, (
         f"derived-from: {falsy} → fallback={rows['N']['role']} ≠ 后端={backend_role}"
@@ -1228,7 +1314,13 @@ def test_verify_blockquote_fence_hides_nothing(tmp_path):
     scan = collect_json(vault)
     report = write_report(vault, scan)
     lines = report.read_text(encoding="utf-8").splitlines()
-    sig = [ln for ln in lines if any(lb in ln for lb in ("未答问题年龄", "来源覆盖率", "无来源结论", "重复堆积"))]
+    sig = [
+        ln
+        for ln in lines
+        if any(
+            lb in ln for lb in ("未答问题年龄", "来源覆盖率", "无来源结论", "重复堆积")
+        )
+    ]
     idx = lines.index(sig[0])
     out = lines[:idx] + ["> ```"] + sig + ["> ```"] + lines[idx + len(sig) :]
     report.write_text("\n".join(out), encoding="utf-8")
@@ -1284,9 +1376,13 @@ def test_relationships_truthiness_matches_backend(tmp_path, rel_block, expect_de
 
     vault = build_vault(tmp_path, ["N"])
     fm_text = f'type: concept\nsource_board: "[[原白板/{BOARD}]]"\n{rel_block}'
-    (vault / "节点" / "N.md").write_text(f"---\n{fm_text}---\n# N\n正文。\n", encoding="utf-8")
+    (vault / "节点" / "N.md").write_text(
+        f"---\n{fm_text}---\n# N\n正文。\n", encoding="utf-8"
+    )
     scan = collect_json(vault)
-    rows = {r["node_id"]: r for r in scan["ledger"]["seeds"] + scan["ledger"]["derived"]}
+    rows = {
+        r["node_id"]: r for r in scan["ledger"]["seeds"] + scan["ledger"]["derived"]
+    }
     backend_role = _node_role(yaml.safe_load(fm_text))
     assert backend_role == ("derived" if expect_derived else "seed")
     assert rows["N"]["role"] == backend_role, (
@@ -1301,7 +1397,13 @@ def test_verify_tab_heading_section3_boundary(tmp_path):
     scan = collect_json(vault)
     report = write_report(vault, scan)
     lines = report.read_text(encoding="utf-8").splitlines()
-    sig_lines = [ln for ln in lines if any(lb in ln for lb in ("未答问题年龄", "来源覆盖率", "无来源结论", "重复堆积"))]
+    sig_lines = [
+        ln
+        for ln in lines
+        if any(
+            lb in ln for lb in ("未答问题年龄", "来源覆盖率", "无来源结论", "重复堆积")
+        )
+    ]
     out = [ln for ln in lines if ln not in sig_lines] + ["", "##\t附录", ""] + sig_lines
     report.write_text("\n".join(out), encoding="utf-8")
     r = run_verify(report)
@@ -1316,7 +1418,9 @@ def test_verify_bool_value_rejected(tmp_path):
     scan = collect_json(vault)
     bad = json.loads(json.dumps(scan))
     bad["signals"]["source_coverage"]["value"] = True
-    (vault / "outputs" / f".recap-scan-{BOARD}.json").write_text(json.dumps(bad, ensure_ascii=False), encoding="utf-8")
+    (vault / "outputs" / f".recap-scan-{BOARD}.json").write_text(
+        json.dumps(bad, ensure_ascii=False), encoding="utf-8"
+    )
     report = vault / "outputs" / f"回顾-{BOARD}-{scan['recap_date']}.md"
     report.write_text(render_report(scan), encoding="utf-8")
     r = run_verify(report)
@@ -1367,7 +1471,9 @@ def test_verify_signals_key_wrong_shape_fails(tmp_path):
     scan = collect_json(vault)
     bad = json.loads(json.dumps(scan))
     bad["signals"] = []
-    (vault / "outputs" / f".recap-scan-{BOARD}.json").write_text(json.dumps(bad, ensure_ascii=False), encoding="utf-8")
+    (vault / "outputs" / f".recap-scan-{BOARD}.json").write_text(
+        json.dumps(bad, ensure_ascii=False), encoding="utf-8"
+    )
     report = vault / "outputs" / f"回顾-{BOARD}-{scan['recap_date']}.md"
     report.write_text(render_report(scan), encoding="utf-8")
     r = run_verify(report)
@@ -1396,7 +1502,9 @@ def test_verify_section_heading_suffix_cannot_disable_bindings(tmp_path, suffix)
     text = "\n".join(
         ln
         for ln in text.splitlines()
-        if not any(lb in ln for lb in ("未答问题年龄", "来源覆盖率", "无来源结论", "重复堆积"))
+        if not any(
+            lb in ln for lb in ("未答问题年龄", "来源覆盖率", "无来源结论", "重复堆积")
+        )
     )
     text = re.sub(r"tips 批注共 \d+ 条", "tips 批注共 999 条", text)
     report.write_text(text, encoding="utf-8")
@@ -1429,9 +1537,7 @@ def test_verify_scale_decoy_line_rejected(tmp_path):
     c = scan["counts"]
     report = write_report(vault, scan)
     text = report.read_text(encoding="utf-8")
-    honest = (
-        f"{c['members']} 成员（{c['seeds']} 种子 + {c['derived']} 派生，{c['stubs']} 占位）/ {c['annotations']} 批注"
-    )
+    honest = f"{c['members']} 成员（{c['seeds']} 种子 + {c['derived']} 派生，{c['stubs']} 占位）/ {c['annotations']} 批注"
     lie = "120 成员（80 种子 + 40 派生，0 占位）/ 350 批注"
     # 诱饵放在标题后（更早），可见 callout 改成假数字
     lines = text.splitlines()
@@ -1493,7 +1599,9 @@ def test_m7_unsafe_name_chars_boundaries(ch, expected, why):
     """拒绝集的正反双向边界锁 — 每个「拒」的紧邻位都配了一个「放」。"""
     rs = _load_recap_scan()
     got = bool(rs.unsafe_name_chars(f"板{ch}名"))
-    assert got is expected, f"{why}: 期望{'拒绝' if expected else '放行'}, 实际{'拒绝' if got else '放行'}"
+    assert got is expected, (
+        f"{why}: 期望{'拒绝' if expected else '放行'}, 实际{'拒绝' if got else '放行'}"
+    )
 
 
 def test_m7_unsafe_name_chars_reports_all_codepoints_deduped():
@@ -1527,12 +1635,18 @@ def test_m7_collect_refuses_control_char_board(tmp_path):
     r = run_collect(vault, bad)
     assert r.returncode == 0, r.stderr
     out = json.loads(r.stdout)
-    assert out["board_exists"] is False, f"控制字符板名被当成正常板扫描: {out.get('board_stem')!r}"
+    assert out["board_exists"] is False, (
+        f"控制字符板名被当成正常板扫描: {out.get('board_stem')!r}"
+    )
     assert "containment" in out["refusal_reason"], out["refusal_reason"]
     # Codex round-1 LOW: 原文案一律说"路径分隔符/父目录引用或越界" —— 对控制字符
     # 板名而言那句话是**错的**，用户按它去查路径永远查不出问题。必须点名码位。
-    assert "U+0085" in out["refusal_reason"], f"字符类拒绝被误述为路径问题: {out['refusal_reason']!r}"
-    assert "路径分隔符" not in out["refusal_reason"], f"字符类拒绝仍在说路径: {out['refusal_reason']!r}"
+    assert "U+0085" in out["refusal_reason"], (
+        f"字符类拒绝被误述为路径问题: {out['refusal_reason']!r}"
+    )
+    assert "路径分隔符" not in out["refusal_reason"], (
+        f"字符类拒绝仍在说路径: {out['refusal_reason']!r}"
+    )
 
 
 def test_m7_collect_path_traversal_still_says_path(tmp_path):
@@ -1634,7 +1748,9 @@ def test_domain_block_scale_line_tail_append(tmp_path):
 
     r = _mutate_report(tmp_path, m)
     assert r.returncode != 0, f"规模行尾部追加未被拦:\n{r.stdout}"
-    assert "模板外的『派生』表述" in r.stdout, f"应由『行尾锚失效 ⇒ 白名单不再匹配』拦下，而不是别的防线:\n{r.stdout}"
+    assert "模板外的『派生』表述" in r.stdout, (
+        f"应由『行尾锚失效 ⇒ 白名单不再匹配』拦下，而不是别的防线:\n{r.stdout}"
+    )
 
 
 def test_domain_block_seed_ledger_fake_count(tmp_path):
@@ -1673,7 +1789,9 @@ def test_domain_block_bare_count_in_prose(tmp_path):
     """
 
     def m(text, scan):
-        return text.replace("## 三维审查", "## 三维审查\n\n- 本板共有 987654 个子节点。【实测】", 1)
+        return text.replace(
+            "## 三维审查", "## 三维审查\n\n- 本板共有 987654 个子节点。【实测】", 1
+        )
 
     r = _mutate_report(tmp_path, m)
     assert r.returncode != 0, f"域内裸计数未被拦:\n{r.stdout}"
@@ -1697,7 +1815,9 @@ def test_domain_allow_legit_prose(tmp_path, prose):
     """放行门: 合法叙述不得被收紧误伤（五类合法语料各一组）。"""
     r = _mutate_report(
         tmp_path,
-        lambda text, scan: text.replace("## 三维审查", f"## 三维审查\n\n- {prose}【实测】", 1),
+        lambda text, scan: text.replace(
+            "## 三维审查", f"## 三维审查\n\n- {prose}【实测】", 1
+        ),
     )
     assert r.returncode == 0, f"合法语料被误伤 ({prose}):\n{r.stdout}"
 
@@ -1724,7 +1844,9 @@ def test_domain_allow_legit_nested_list(tmp_path):
     """放行门: 合法三级列表（四空格缩进）不得被当缩进代码块删掉致误报缺信号行。"""
     r = _mutate_report(
         tmp_path,
-        lambda text, scan: text.replace("## 三维审查", "## 三维审查\n\n- 一级\n  - 二级\n    - 三级缩进项\n", 1),
+        lambda text, scan: text.replace(
+            "## 三维审查", "## 三维审查\n\n- 一级\n  - 二级\n    - 三级缩进项\n", 1
+        ),
     )
     assert r.returncode == 0, f"合法三级列表被误伤:\n{r.stdout}"
 
@@ -1761,7 +1883,9 @@ def test_live_fixtures_are_byte_identical_to_source():
     否则放行门就成了自证——用一份为了通过而修饰过的语料去证明"没有误伤"。
     live 侧只读：本用例只算哈希，不写 live vault。
     """
-    live_dir = Path("/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/outputs")
+    live_dir = Path(
+        "/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/outputs"
+    )
     if not live_dir.is_dir():
         pytest.skip("live vault 不在本机此路径（CI/他机）")
     checked = 0
@@ -1769,9 +1893,10 @@ def test_live_fixtures_are_byte_identical_to_source():
         src = live_dir / fx.name
         if not src.is_file():
             pytest.fail(f"fixture 在 live 侧找不到同名原件: {fx.name}")
-        assert hashlib.sha256(fx.read_bytes()).hexdigest() == hashlib.sha256(src.read_bytes()).hexdigest(), (
-            f"fixture 与 live 原件不逐字节相同: {fx.name}"
-        )
+        assert (
+            hashlib.sha256(fx.read_bytes()).hexdigest()
+            == hashlib.sha256(src.read_bytes()).hexdigest()
+        ), f"fixture 与 live 原件不逐字节相同: {fx.name}"
         checked += 1
     assert checked == 8, f"应有 4 报告 + 4 scan JSON，实际 {checked}"
 
@@ -1779,7 +1904,9 @@ def test_live_fixtures_are_byte_identical_to_source():
 # ── Codex round-1 整改：门覆盖缺口（每一条都对应一个实测 survivor/BLOCKER） ──
 
 
-@pytest.mark.parametrize("section", ["你现在可以做的", "三维审查"], ids=["actions", "review3"])
+@pytest.mark.parametrize(
+    "section", ["你现在可以做的", "三维审查"], ids=["actions", "review3"]
+)
 def test_domain_block_bare_count_in_each_d2_section(tmp_path, section):
     """D2 的**每个段**都要有自己的门。
 
@@ -1874,7 +2001,9 @@ def test_domain_allow_range_expression(tmp_path, prose):
     """
     r = _mutate_report(
         tmp_path,
-        lambda text, scan: text.replace("## 三维审查", f"## 三维审查\n\n- {prose}【实测】", 1),
+        lambda text, scan: text.replace(
+            "## 三维审查", f"## 三维审查\n\n- {prose}【实测】", 1
+        ),
     )
     assert r.returncode == 0, f"范围表达被误伤 ({prose}):\n{r.stdout}"
 
@@ -1889,7 +2018,9 @@ def test_domain_number_pool_excludes_string_derived_digits(tmp_path):
     vault = standard_vault(tmp_path)
     scan = collect_json(vault)
     sha = scan["source_revision"]["board_sha256"]
-    frag = next((sha[i : i + 4] for i in range(len(sha) - 3) if sha[i : i + 4].isdigit()), None)
+    frag = next(
+        (sha[i : i + 4] for i in range(len(sha) - 3) if sha[i : i + 4].isdigit()), None
+    )
     if frag is None:
         pytest.skip("本次 fixture 的 sha 里没有 4 位纯数字片段")
     report = write_report(vault, scan)
@@ -1903,7 +2034,9 @@ def test_domain_number_pool_excludes_string_derived_digits(tmp_path):
         encoding="utf-8",
     )
     r = run_verify(report)
-    assert r.returncode != 0, f"来自 SHA 字符串的数字 {int(frag)} 被当成了「有出处」:\n{r.stdout}"
+    assert r.returncode != 0, (
+        f"来自 SHA 字符串的数字 {int(frag)} 被当成了「有出处」:\n{r.stdout}"
+    )
 
 
 # ── Codex round-1 HIGH「D1 仍只是少量枚举」整改：域倒转为 default-deny 后的逐条门 ──
@@ -1937,7 +2070,9 @@ def test_domain_default_deny_covers_every_section(tmp_path, anchor, inject):
         if inject is None:  # 规模 callout：改模板里那个「1 次调用」
             return text.replace("manifest（1 次调用）", "manifest（987654 次调用）", 1)
         return (
-            text.replace(anchor, anchor + "\n" + inject if anchor.startswith("##") else anchor, 1)
+            text.replace(
+                anchor, anchor + "\n" + inject if anchor.startswith("##") else anchor, 1
+            )
             if anchor.startswith("###") is False and inject.startswith("##")
             else text.replace(anchor, anchor + "\n" + inject, 1)
         )
@@ -1953,13 +2088,20 @@ def test_domain_exempt_section_is_explicit_not_accidental(tmp_path):
     这条会提醒他：出域是一个需要写下来的决定，不是实现细节。
     """
     mod_src = (
-        Path(__file__).resolve().parents[3] / "canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py"
+        Path(__file__).resolve().parents[3]
+        / "canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py"
     ).read_text(encoding="utf-8")
     assert "_D2_EXEMPT_SECTIONS = (" in mod_src
     exempt_block = mod_src.split("_D2_EXEMPT_SECTIONS = (", 1)[1].split("\n)", 1)[0]
     # ⚠️ 只数**非注释行**的条目——第一版直接 count('"') 把注释里的引号也数进去了（4 != 2）。
-    entries = [ln.strip() for ln in exempt_block.splitlines() if ln.strip() and not ln.strip().startswith("#")]
-    assert entries == ['"数据来源与新鲜度",'], f"例外表变了却没人复核——出域必须是显式决定，不是实现细节: {entries}"
+    entries = [
+        ln.strip()
+        for ln in exempt_block.splitlines()
+        if ln.strip() and not ln.strip().startswith("#")
+    ]
+    assert entries == ['"数据来源与新鲜度",'], (
+        f"例外表变了却没人复核——出域必须是显式决定，不是实现细节: {entries}"
+    )
 
 
 def test_domain_covers_scale_callout_preamble(tmp_path):
@@ -1970,7 +2112,9 @@ def test_domain_covers_scale_callout_preamble(tmp_path):
     """
     vault = standard_vault(tmp_path)
     scan = collect_json(vault, "--manifest", str(make_manifest(vault)))
-    assert scan["data_mode"] == "manifest", "前提失效：需要 manifest 模式才有那句 callout"
+    assert scan["data_mode"] == "manifest", (
+        "前提失效：需要 manifest 模式才有那句 callout"
+    )
     report = write_report(vault, scan)
     assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
     text = report.read_text(encoding="utf-8")
@@ -2012,9 +2156,13 @@ def test_audit_code_span_html_comment_cannot_hide_content(tmp_path):
     在 Obsidian 里 `` `<!--` `` 渲染成字面文本，读者看得见那段字，verifier 却先把它删了。
     影响面远不止 D2：探针实测连 HARD-R4 禁词「偏离」都能这样藏进去并 VERIFY PASS。
     """
-    r = _live_probe(tmp_path, "\n- 注释语法 `<!--` 起，本板共有 987654 个子节点，`-->` 止。\n")
+    r = _live_probe(
+        tmp_path, "\n- 注释语法 `<!--` 起，本板共有 987654 个子节点，`-->` 止。\n"
+    )
     assert r.returncode != 0, f"code-span 包裹的注释标记让计数隐身:\n{r.stdout}"
-    r2 = _live_probe(tmp_path / "b", "\n- 语法 `<!--` 起，你的理解偏离了材料主线，`-->` 止。\n")
+    r2 = _live_probe(
+        tmp_path / "b", "\n- 语法 `<!--` 起，你的理解偏离了材料主线，`-->` 止。\n"
+    )
     assert r2.returncode != 0, f"同一构造还能藏 HARD-R4 禁词:\n{r2.stdout}"
 
 
@@ -2047,7 +2195,9 @@ def test_audit_number_pool_excludes_scale_gate_constants(tmp_path):
     拿它当出处等于给池注水。
     """
     r = _live_probe(tmp_path, "\n- 本板共有 99 个子节点。【实测】\n")
-    assert r.returncode != 0, f"99 仍被当成「有出处」（池里还有 scale_gate 常量？）:\n{r.stdout}"
+    assert r.returncode != 0, (
+        f"99 仍被当成「有出处」（池里还有 scale_gate 常量？）:\n{r.stdout}"
+    )
 
 
 @pytest.mark.parametrize(
@@ -2105,7 +2255,9 @@ def _verdicts_on_all_boards(tmp_path: Path, prose: str) -> dict:
         for src in LIVE_FIXTURES.iterdir():
             shutil.copy2(src, work / src.name)
         rp = work / name
-        rp.write_text(rp.read_text(encoding="utf-8") + f"\n- {prose}【实测】\n", encoding="utf-8")
+        rp.write_text(
+            rp.read_text(encoding="utf-8") + f"\n- {prose}【实测】\n", encoding="utf-8"
+        )
         out[name[:12]] = run_verify(rp).returncode
     return out
 
@@ -2351,7 +2503,9 @@ def _wrap_signals_in_fence(text: str, prefix: str) -> str:
     return "\n".join(out)
 
 
-@pytest.mark.parametrize("prefix", ["> > ", "> > > ", ">>"], ids=["depth2", "depth3", "no_space"])
+@pytest.mark.parametrize(
+    "prefix", ["> > ", "> > > ", ">>"], ids=["depth2", "depth3", "no_space"]
+)
 def test_domain_block_multilevel_blockquote_fence(tmp_path, prefix):
     """c1 · S3 承重门①「多层引用围栏行为门」: 任意层引用前缀下的围栏都必须识别。
 
@@ -2412,20 +2566,32 @@ def test_domain_block_list_item_fence_hides_signals(tmp_path):
     start, end = idx[0], idx[-1]
 
     # ① 列表项围栏 + 缩进内容（真代码）→ 剥 → 拦
-    body = ["> - ```"] + [">   " + re.sub(r"^[>\s]*-\s*", "", lines[i]) for i in range(start, end + 1)] + [">   ```"]
+    body = (
+        ["> - ```"]
+        + [">   " + re.sub(r"^[>\s]*-\s*", "", lines[i]) for i in range(start, end + 1)]
+        + [">   ```"]
+    )
     out = lines[:start] + body + lines[end + 1 :]
     report.write_text("\n".join(out) + "\n", encoding="utf-8")
     r = run_verify(report)
     assert r.returncode != 0, f"列表项围栏(缩进内容)仍被放行:\n{r.stdout}"
-    assert "代码块内出现信号名" in r.stdout or "缺信号行" in r.stdout, f"拦截理由与围栏无关:\n{r.stdout}"
+    assert "代码块内出现信号名" in r.stdout or "缺信号行" in r.stdout, (
+        f"拦截理由与围栏无关:\n{r.stdout}"
+    )
 
     # ② 有序列表围栏 + 缩进内容（round-3 BLOCKER-2）→ 剥 → 拦
-    body = ["1. ```"] + ["   " + re.sub(r"^[>\s]*-\s*", "", lines[i]) for i in range(start, end + 1)] + ["1. ```"]
+    body = (
+        ["1. ```"]
+        + ["   " + re.sub(r"^[>\s]*-\s*", "", lines[i]) for i in range(start, end + 1)]
+        + ["1. ```"]
+    )
     out = lines[:start] + body + lines[end + 1 :]
     report.write_text("\n".join(out) + "\n", encoding="utf-8")
     r = run_verify(report)
     assert r.returncode != 0, f"有序列表围栏仍被放行:\n{r.stdout}"
-    assert "代码块内出现信号名" in r.stdout or "缺信号行" in r.stdout, f"拦截理由与围栏无关:\n{r.stdout}"
+    assert "代码块内出现信号名" in r.stdout or "缺信号行" in r.stdout, (
+        f"拦截理由与围栏无关:\n{r.stdout}"
+    )
 
     # ③ sibling marker 行 = 可见正文（round-3 BLOCKER-1）→ 保留 → D2 拦伪计数
     r = _mutate_report(
@@ -2471,7 +2637,9 @@ def test_domain_strip_code_blocks_unit_contract():
     def mid_kept(got: str, src: str) -> bool:
         """围栏行剥空 + **内容行**（第 2 行）原样保留 = sibling 可见正文语义。"""
         g, s = got.split("\n"), src.split("\n")
-        return len(g) == len(s) and g[1] == s[1] and not g[0].strip() and not g[2].strip()
+        return (
+            len(g) == len(s) and g[1] == s[1] and not g[0].strip() and not g[2].strip()
+        )
 
     # ── 剥空（真代码内容）──
     for name, src in (
@@ -2493,7 +2661,9 @@ def test_domain_strip_code_blocks_unit_contract():
         got = rs._strip_code_blocks(src)
         # ⚠️ 必须用 split("\n") 不能用 splitlines(): 三行全空时结果是 "\n\n",
         # splitlines() 只给两项——第一次写就踩了，如实留注。
-        assert all(not x.strip() for x in got.split("\n")), f"{name} 未整块剥空: {src!r} → {got!r}"
+        assert all(not x.strip() for x in got.split("\n")), (
+            f"{name} 未整块剥空: {src!r} → {got!r}"
+        )
 
     # ── 保留（sibling marker 行 = 可见正文）──
     for name, src in (
@@ -2547,7 +2717,9 @@ def test_domain_block_fence_close_must_be_same_char(tmp_path):
     report.write_text(after, encoding="utf-8")
     r = run_verify(report)
     assert r.returncode != 0, f"`~~~` 伪闭合了 ``` 围栏，信号行被当成在场:\n{r.stdout}"
-    assert "代码块内出现信号名" in r.stdout or "缺信号行" in r.stdout, f"拦截理由与围栏无关:\n{r.stdout}"
+    assert "代码块内出现信号名" in r.stdout or "缺信号行" in r.stdout, (
+        f"拦截理由与围栏无关:\n{r.stdout}"
+    )
 
 
 # ── (d) S4: fallback「派生」允许式加一条自由叙述即放宽 ────────────────
@@ -2659,11 +2831,16 @@ def test_domain_derive_allow_entries_are_grounded(tmp_path):
                 )
                 node = node[part]
         elif basis == "md:heading":
-            assert pattern.pattern.startswith("^#{1,6}"), f"依据声明为标题结构，模式却不是标题锚定: {pattern.pattern!r}"
+            assert pattern.pattern.startswith("^#{1,6}"), (
+                f"依据声明为标题结构，模式却不是标题锚定: {pattern.pattern!r}"
+            )
         elif basis == "skill:action-verb":
             # ⚠️ 白名单动词在模式里是**正则转义**过的（`Cmd\+Shift\+D`），
             # 裸子串比对会恒假 —— 这条断言第一次写就因此变红，如实留注。
-            assert any(v in pattern.pattern or re.escape(v) in pattern.pattern for v in rs._VERIFY_ACTION_VERBS), (
+            assert any(
+                v in pattern.pattern or re.escape(v) in pattern.pattern
+                for v in rs._VERIFY_ACTION_VERBS
+            ), (
                 f"依据声明为 SKILL 白名单动词，模式里却没有任何白名单动词: {pattern.pattern!r}"
             )
         elif basis == "skill:③段固定句式":
@@ -2676,7 +2853,9 @@ def test_domain_derive_allow_entries_are_grounded(tmp_path):
             f"允许式 {pattern.pattern!r} 匹配不到任何 SKILL 模板正例（它在放行什么？）"
         )
         for neg in D1_NEGATIVES:
-            assert not pattern.match(neg), f"允许式 {pattern.pattern!r}（依据 {basis}）放行了越界语料: {neg!r}"
+            assert not pattern.match(neg), (
+                f"允许式 {pattern.pattern!r}（依据 {basis}）放行了越界语料: {neg!r}"
+            )
 
 
 def test_domain_derive_allow_covers_every_skill_positive(tmp_path):
@@ -2849,7 +3028,9 @@ def test_domain_skill_sync_signal_tail_notes_table():
         f"代码与 SKILL.md 的附注表不同步:\n  代码 = {rs._SIGNAL_TAIL_NOTES}\n  SKILL = {tuple(parsed)}"
     )
     note_line = next(
-        ln for ln in skill_text[skill_text.find("附注只许") :].splitlines()[1:] if re.findall(r"`([^`\n]+)`", ln)
+        ln
+        for ln in skill_text[skill_text.find("附注只许") :].splitlines()[1:]
+        if re.findall(r"`([^`\n]+)`", ln)
     )
     for name, bad_line in {
         "多一项": note_line.replace("`口径一致`", "`口径一致` / `另有仨条`", 1),
@@ -2869,7 +3050,9 @@ def test_domain_allow_note_as_independent_line(tmp_path):
     """
     r = _mutate_report(
         tmp_path,
-        lambda text, scan: text.replace("\n方向叙述：", "\n\n口径一致。\n\n方向叙述：", 1),
+        lambda text, scan: text.replace(
+            "\n方向叙述：", "\n\n口径一致。\n\n方向叙述：", 1
+        ),
     )
     assert r.returncode == 0, f"独立叙述行形态被误伤:\n{r.stdout}"
 
@@ -3015,7 +3198,9 @@ def test_domain_r3_derive_clause_numbers_bound(tmp_path, name, inject):
     vault = standard_vault(tmp_path)
     scan = collect_json(vault)
     assert scan["data_mode"] == "fallback_local"
-    assert scan["signals"]["unsourced_conclusions"]["value"] == 0, "fixture 真值变化，先改此门"
+    assert scan["signals"]["unsourced_conclusions"]["value"] == 0, (
+        "fixture 真值变化，先改此门"
+    )
     report = write_report(vault, scan)
     lines = report.read_text(encoding="utf-8").splitlines()
     idx = next(i for i, ln in enumerate(lines) if ln.startswith("### ③ "))
@@ -3023,7 +3208,9 @@ def test_domain_r3_derive_clause_numbers_bound(tmp_path, name, inject):
     report.write_text("\n".join(lines), encoding="utf-8")
     r = run_verify(report)
     assert r.returncode == 1, f"{name}: 越界数字叙述被放行:\n{r.stdout}"
-    assert "派生角色成员" in r.stdout or "模板外的『派生』表述" in r.stdout, f"{name}: 拦截理由异常:\n{r.stdout}"
+    assert "派生角色成员" in r.stdout or "模板外的『派生』表述" in r.stdout, (
+        f"{name}: 拦截理由异常:\n{r.stdout}"
+    )
 
 
 def test_domain_r3_derive_allow_numbers_in_pool(tmp_path):
@@ -3040,7 +3227,9 @@ def test_domain_r3_derive_allow_numbers_in_pool(tmp_path):
     ):
         r = _mutate_report(
             tmp_path / name,
-            lambda t, s, e=inject: t.replace("方向叙述：", f"{e}\n方向叙述：", 1) if e else t,
+            lambda t, s, e=inject: (
+                t.replace("方向叙述：", f"{e}\n方向叙述：", 1) if e else t
+            ),
         )
         if want == 1:
             assert r.returncode != 0, f"{name}: 无出处数字被放行:\n{r.stdout}"
@@ -3069,7 +3258,9 @@ def test_domain_r4_leading_space_blockquote_list_fence(tmp_path):
     report = write_report(vault, scan)
     lines = report.read_text(encoding="utf-8").splitlines()
     idx = [i for i, ln in enumerate(lines) if any(lb in ln for lb in SIGNAL_LABELS)]
-    core = [lines[i].lstrip("> ").lstrip("- ").strip() for i in range(idx[0], idx[-1] + 1)]
+    core = [
+        lines[i].lstrip("> ").lstrip("- ").strip() for i in range(idx[0], idx[-1] + 1)
+    ]
     body = [" > - ```"] + [" >   " + x for x in core] + [" >   ```"]
     out = lines[: idx[0]] + body + lines[idx[-1] + 1 :]
     report.write_text("\n".join(out) + "\n", encoding="utf-8")
@@ -3115,7 +3306,9 @@ def test_domain_r4_derive_allow_cjk_numbers_in_pool(tmp_path):
             lambda t, s, e=inject: t.replace("方向叙述：", f"{e}\n方向叙述：", 1),
         )
         assert r.returncode != 0, f"{name}: 中文数词绕过被放行:\n{r.stdout}"
-        assert "无法验证" in r.stdout, f"{name}: 应走「无法验证」fail-closed（不许按解析值查池）:\n{r.stdout}"
+        assert "无法验证" in r.stdout, (
+            f"{name}: 应走「无法验证」fail-closed（不许按解析值查池）:\n{r.stdout}"
+        )
 
 
 # ══════════ CARD-维护B-R3 · 中文数词终态冻结（BATCH-2026-09-01-第九批） ══════════
@@ -3141,7 +3334,9 @@ def test_domain_r5_cjk_single_char_only_unit_contract():
     """
     rs = _load_recap_scan()
 
-    assert not hasattr(rs, "_cjk_to_int"), "多位中文数词解析器复活了——R3 冻结口径禁止重新引入（round-5 HIGH 的根因）"
+    assert not hasattr(rs, "_cjk_to_int"), (
+        "多位中文数词解析器复活了——R3 冻结口径禁止重新引入（round-5 HIGH 的根因）"
+    )
     # ⛔ 期望值必须有**独立来源**: 第一版写成 `for ch, want in rs._CJK_NUM.items()`
     # ——期望值与被测值取自同一张表，把 `零/〇` 的映射改成 7 全套件照样 253 全绿
     # （车道对抗审查实测）。自抄期望 = 自证恒真 = 假门。这里逐字写死。
@@ -3180,7 +3375,9 @@ def test_domain_r5_cjk_single_char_only_unit_contract():
     assert set(rs._NUMERAL_LIKE_CHARS) == (
         set(rs._CJK_NUM_CHARS)
         | set("0123456789")
-        | set("廿卅卌壹贰貳叁參参肆伍陆陸柒捌玖拾佰仟萬亿億两兩兆京垓秭穰仨俩")
+        | set(
+            "廿卅卌壹贰貳叁參参肆伍陆陸柒捌玖拾佰仟萬亿億两兩兆京垓秭穰仨俩①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳〡〢〣〤〥〦〧〨〩〸〹〺"
+        )
     ), f"定界集漂移: {rs._NUMERAL_LIKE_CHARS}"
     # 宽集合只定界不赋值：表外字符进来只会让整串"无法确定"，不会被猜成某个数。
     for s in ("廿五", "壹佰", "九十八万5", "五四", "一零"):
@@ -3226,7 +3423,9 @@ def test_domain_r5_derive_allow_single_char_value_enters_pool():
 
     def probs_for(tok: str) -> list[str]:
         out: list[str] = []
-        rs._verify_fallback_derive_numbers(f"#### 派生子女 {tok} 个 的说明\n", synth, out)
+        rs._verify_fallback_derive_numbers(
+            f"#### 派生子女 {tok} 个 的说明\n", synth, out
+        )
         return out
 
     assert any("行内数字 9 无出处" in p for p in probs_for("九")), "单字未按自身值查池"
@@ -3235,7 +3434,9 @@ def test_domain_r5_derive_allow_single_char_value_enters_pool():
         got = probs_for(tok)
         assert any("无法验证" in p for p in got), f"{tok}: 多字未 fail-closed: {got}"
         assert not any("无出处" in p for p in got), f"{tok}: 仍按局部值查池: {got}"
-        assert not any(leaked in p for p in got), f"{tok}: 诊断里泄出解析值 {leaked}: {got}"
+        assert not any(leaked in p for p in got), (
+            f"{tok}: 诊断里泄出解析值 {leaked}: {got}"
+        )
 
 
 def test_domain_r5_derive_allow_cjk_pool_collision_cli(tmp_path):
@@ -3259,7 +3460,9 @@ def test_domain_r5_derive_allow_cjk_pool_collision_cli(tmp_path):
     assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
 
     def verify_with(tok: str):
-        text = base_text.replace("方向叙述：", f"\n#### 派生子女 {tok} 个 的说明\n\n方向叙述：", 1)
+        text = base_text.replace(
+            "方向叙述：", f"\n#### 派生子女 {tok} 个 的说明\n\n方向叙述：", 1
+        )
         assert text != base_text, "变异未命中：报告一字未改，这条门测的是空气"
         report.write_text(text, encoding="utf-8")
         return run_verify(report)
@@ -3267,7 +3470,9 @@ def test_domain_r5_derive_allow_cjk_pool_collision_cli(tmp_path):
     for tok in ("一零", "五四", "九十八万", "十"):
         r = verify_with(tok)
         assert r.returncode != 0, f"{tok}: 中文数词绕过被放行:\n{r.stdout}"
-        assert "无法验证" in r.stdout, f"{tok}: 应走「无法验证」fail-closed:\n{r.stdout}"
+        assert "无法验证" in r.stdout, (
+            f"{tok}: 应走「无法验证」fail-closed:\n{r.stdout}"
+        )
         assert "无出处" not in r.stdout, f"{tok}: 仍按局部/末位值查池:\n{r.stdout}"
     r = verify_with("五")
     assert r.returncode == 0, f"值在池的单字数词被误伤:\n{r.stdout}"
@@ -3289,14 +3494,18 @@ def test_domain_r5_prose_cjk_multichar_fail_closed_cli(tmp_path):
 
     def prose_case(tok: str):
         def m(text, scan):
-            return text.replace("## 三维审查", f"## 三维审查\n\n- 本板共有{tok}个子节点。【实测】", 1)
+            return text.replace(
+                "## 三维审查", f"## 三维审查\n\n- 本板共有{tok}个子节点。【实测】", 1
+            )
 
         return m
 
     for tok in ("一零", "五四", "九十八万", "十"):
         r = _mutate_report(tmp_path / f"d2-{tok}", prose_case(tok))
         assert r.returncode != 0, f"{tok}: D2 段多字数词自陈被放行:\n{r.stdout}"
-        assert "无法解析" in r.stdout, f"{tok}: 应走「无法解析」fail-closed:\n{r.stdout}"
+        assert "无法解析" in r.stdout, (
+            f"{tok}: 应走「无法解析」fail-closed:\n{r.stdout}"
+        )
         assert "找不到同值来源" not in r.stdout, f"{tok}: 仍按局部值查池:\n{r.stdout}"
     r = _mutate_report(tmp_path / "d2-五", prose_case("五"))
     assert r.returncode == 0, f"值在池的单字自陈被误伤:\n{r.stdout}"
@@ -3414,18 +3623,24 @@ def test_domain_r5_prose_single_char_value_enters_pool():
 
     def probs(tok: str) -> list[str]:
         out: list[str] = []
-        rs._verify_prose_counts(f"## 三维审查\n\n- 本板共有{tok}个子节点。【实测】\n", synth, out)
+        rs._verify_prose_counts(
+            f"## 三维审查\n\n- 本板共有{tok}个子节点。【实测】\n", synth, out
+        )
         return out
 
     got = probs("九")
-    assert any("九(9)" in p and "找不到同值来源" in p for p in got), f"单字未按自身值查池: {got}"
+    assert any("九(9)" in p and "找不到同值来源" in p for p in got), (
+        f"单字未按自身值查池: {got}"
+    )
     assert probs("二") == [], "值在池的单字被误伤"
     for tok, joined in (("一零", "一零"), ("九十八万**五", "九十八万五")):
         got = probs(tok)
         assert any("无法解析" in p and joined in p for p in got), (
             f"{tok}: 诊断类别与完整数串未绑在同一条 problem: {got}"
         )
-        assert not any("找不到同值来源" in p for p in got), f"{tok}: 仍按局部值查池: {got}"
+        assert not any("找不到同值来源" in p for p in got), (
+            f"{tok}: 仍按局部值查池: {got}"
+        )
 
 
 # ── R3 round-3：Codex round-2 报的 4 条 HIGH（车道逐条实测复现后闭合）──────────
@@ -3501,7 +3716,9 @@ def test_domain_r6_cross_class_and_offtable_numeral_cli(tmp_path):
     ):
         r = d2(line)
         assert r.returncode != 0, f"D2 {name} 被放行:\n{r.stdout}"
-        assert _one_problem_has(r.stdout, "小数形态", token), f"D2 {name}: 未按小数形态点名:\n{r.stdout}"
+        assert _one_problem_has(r.stdout, "小数形态", token), (
+            f"D2 {name}: 未按小数形态点名:\n{r.stdout}"
+        )
     # fallback 侧 ASCII 也必须整串取（round-2 只补了 CJK 侧，是本轮 HIGH 之一）
     for name, tok, token in (
         ("ASCII SI千分位", "1 000", "1000"),
@@ -3509,7 +3726,9 @@ def test_domain_r6_cross_class_and_offtable_numeral_cli(tmp_path):
     ):
         r = fb(tok)
         assert r.returncode != 0, f"fallback {name} 被放行:\n{r.stdout}"
-        assert _one_problem_has(r.stdout, "无出处", token), f"fallback {name}: 未按整串值点名:\n{r.stdout}"
+        assert _one_problem_has(r.stdout, "无出处", token), (
+            f"fallback {name}: 未按整串值点名:\n{r.stdout}"
+        )
     r = fb("廿五")
     assert r.returncode != 0 and _one_problem_has(r.stdout, "无法验证", "廿五"), (
         f"fallback 表外数词未 fail-closed:\n{r.stdout}"
@@ -3535,7 +3754,9 @@ def test_domain_r6_cross_class_and_offtable_numeral_cli(tmp_path):
     # 逗号归一化先于取数生效，按 980005 查池。这条门把「不成立」也钉住，
     # 防止后人照抄该判词去"修"一个不存在的问题。
     r = d2("- 本板共有980,005个子节点。【实测】")
-    assert r.returncode != 0 and _one_problem_has(r.stdout, "找不到同值来源", "980005"), (
+    assert r.returncode != 0 and _one_problem_has(
+        r.stdout, "找不到同值来源", "980005"
+    ), (
         # ⛔ 必须同时绑「找不到同值来源」——只断言出现 980005 的话，
         # 实现改成「无法解析 980005」这条门照样绿，就证不出"按 980005 **查池**"
         # 这件事（Codex round-3 属实指出）。
@@ -3596,7 +3817,9 @@ def test_domain_r7_range_endpoints_and_fallback_seps_cli(tmp_path):
     ):
         r = d2(line)
         assert r.returncode != 0, f"区间 {name} 被放行:\n{r.stdout}"
-        assert _one_problem_has(r.stdout, "区间端点", "987654"), f"区间 {name}: 未点名无出处的那一端:\n{r.stdout}"
+        assert _one_problem_has(r.stdout, "区间端点", "987654"), (
+            f"区间 {name}: 未点名无出处的那一端:\n{r.stdout}"
+        )
     # fallback 侧小数与千分位
     for name, tok, needles in (
         ("小数 ASCII", "0.0", ("小数形态", "0.0")),
@@ -3605,16 +3828,18 @@ def test_domain_r7_range_endpoints_and_fallback_seps_cli(tmp_path):
     ):
         r = fb(tok)
         assert r.returncode != 0, f"fallback {name} 被放行:\n{r.stdout}"
-        assert _one_problem_has(r.stdout, *needles), f"fallback {name}: 诊断未绑定:\n{r.stdout}"
+        assert _one_problem_has(r.stdout, *needles), (
+            f"fallback {name}: 诊断未绑定:\n{r.stdout}"
+        )
     # D2 侧：标签包住小数点 / 全角逗号
     r = d2("- 本板共有987654<b>.</b>0个子节点。【实测】")
     assert r.returncode != 0 and _one_problem_has(r.stdout, "小数形态", "987654.0"), (
         f"标签包住小数点未被识别为小数:\n{r.stdout}"
     )
     r = d2("- 本板共有987654，000个子节点。【实测】")
-    assert r.returncode != 0 and _one_problem_has(r.stdout, "找不到同值来源", "987654000"), (
-        f"全角逗号千分位未按完整量级查池:\n{r.stdout}"
-    )
+    assert r.returncode != 0 and _one_problem_has(
+        r.stdout, "找不到同值来源", "987654000"
+    ), f"全角逗号千分位未按完整量级查池:\n{r.stdout}"
 
     # 放行面（同权重）
     for name, line in (
@@ -3685,13 +3910,15 @@ def test_domain_r8_entities_ranges_and_table_gaps_cli(tmp_path):
         r = d2(line)
         assert r.returncode != 0, f"区间 {name} 被放行:\n{r.stdout}"
         for tok in tokens:
-            assert _one_problem_has(r.stdout, "区间端点", tok), f"区间 {name}: 未逐个点名端点 {tok}:\n{r.stdout}"
+            assert _one_problem_has(r.stdout, "区间端点", tok), (
+                f"区间 {name}: 未逐个点名端点 {tok}:\n{r.stdout}"
+            )
 
     # 3：千分位跨连接字符（两个消费面）
     r = d2("- 本板共有987654<b>,</b>000个子节点。【实测】")
-    assert r.returncode != 0 and _one_problem_has(r.stdout, "找不到同值来源", "987654000"), (
-        f"D2 千分位跨连接字符未按完整量级查池:\n{r.stdout}"
-    )
+    assert r.returncode != 0 and _one_problem_has(
+        r.stdout, "找不到同值来源", "987654000"
+    ), f"D2 千分位跨连接字符未按完整量级查池:\n{r.stdout}"
     r = fb("1<b>,</b>005")
     assert r.returncode != 0 and _one_problem_has(r.stdout, "无出处", "1005"), (
         f"fallback 千分位跨连接字符未按完整量级查池:\n{r.stdout}"
@@ -3699,11 +3926,13 @@ def test_domain_r8_entities_ranges_and_table_gaps_cli(tmp_path):
 
     # 4：HTML 字符实体
     r = d2("- 本板共有987654&#46;0个子节点。【实测】")
-    assert r.returncode != 0 and _one_problem_has(r.stdout, "小数形态", "987654.0"), f"实体小数点未被识别:\n{r.stdout}"
-    r = d2("- 本板共有987654&#20010;子节点。【实测】")
-    assert r.returncode != 0 and _one_problem_has(r.stdout, "找不到同值来源", "987654"), (
-        f"实体量词未还原出锚点:\n{r.stdout}"
+    assert r.returncode != 0 and _one_problem_has(r.stdout, "小数形态", "987654.0"), (
+        f"实体小数点未被识别:\n{r.stdout}"
     )
+    r = d2("- 本板共有987654&#20010;子节点。【实测】")
+    assert r.returncode != 0 and _one_problem_has(
+        r.stdout, "找不到同值来源", "987654"
+    ), f"实体量词未还原出锚点:\n{r.stdout}"
 
     # 5：小数左侧可缺（含全角小数点——Codex 指出此前无输入门）
     for name, line, tok in (
@@ -3711,7 +3940,9 @@ def test_domain_r8_entities_ranges_and_table_gaps_cli(tmp_path):
         ("全角左缺", "- 本板共有．五个子节点。【实测】", "．五"),
     ):
         r = d2(line)
-        assert r.returncode != 0 and _one_problem_has(r.stdout, "小数形态", tok), f"{name} 小数未被识别:\n{r.stdout}"
+        assert r.returncode != 0 and _one_problem_has(r.stdout, "小数形态", tok), (
+            f"{name} 小数未被识别:\n{r.stdout}"
+        )
 
     # 6/7：两张封闭表补漏
     r = d2("- 本板共有九兆五个子节点。【实测】")
@@ -3719,9 +3950,9 @@ def test_domain_r8_entities_ranges_and_table_gaps_cli(tmp_path):
         f"定界集漏『兆』导致尾片重锚:\n{r.stdout}"
     )
     r = d2("- 本板共有987654层关系。【实测】")
-    assert r.returncode != 0 and _one_problem_has(r.stdout, "找不到同值来源", "987654"), (
-        f"量词表漏『层』导致整句零校验:\n{r.stdout}"
-    )
+    assert r.returncode != 0 and _one_problem_has(
+        r.stdout, "找不到同值来源", "987654"
+    ), f"量词表漏『层』导致整句零校验:\n{r.stdout}"
 
     # 放行面（同权重）
     for name, line in (
@@ -3767,7 +3998,9 @@ def test_domain_r9_visible_text_and_round5_closures_cli(tmp_path):
     # 归一器单元契约：顺序错了 `&#xff19;` 就会停在全角 `９`（round-5 HIGH-3）
     assert rs._visible_text("&#xff19;&#xff18;") == "98", "解实体必须早于全角转换"
     assert rs._visible_text("987654<b>-</b>0") == "987654-0"
-    assert rs._visible_text("[[987654]]") == "987654", "无别名 wikilink 的目标就是显示文本"
+    assert rs._visible_text("[[987654]]") == "987654", (
+        "无别名 wikilink 的目标就是显示文本"
+    )
     assert rs._visible_text("[[节点/A|五]]") == "五", "有别名时显示的是别名"
     assert rs._visible_text("98​7") == "987", "零宽字符不得切断数串"
     # ⛔ round-6 自查回归（Codex round-6 HIGH-1，车道实测确认并含**误伤**）：
@@ -3849,7 +4082,9 @@ def test_domain_r9_visible_text_and_round5_closures_cli(tmp_path):
     ):
         r = d2(line)
         assert r.returncode != 0, f"{name} 被放行:\n{r.stdout}"
-        assert _one_problem_has(r.stdout, *needles), f"{name}: 诊断未绑定 {needles}:\n{r.stdout}"
+        assert _one_problem_has(r.stdout, *needles), (
+            f"{name}: 诊断未绑定 {needles}:\n{r.stdout}"
+        )
 
     # 放行面（同权重）：收紧不得反噬
     for name, line in (
@@ -3867,11 +4102,14 @@ def test_domain_r9_visible_text_and_round5_closures_cli(tmp_path):
         assert r.returncode == 0, f"合法形态被误伤（{name}）:\n{r.stdout}"
 
 
-# ── R3 round-8：Codex round-6 的 7 条实现 HIGH（除自引回归已在 round-7 修）──────
+# ── R3 round-8：Codex round-6 八条中的其余七条（**5 实现 + 2 自证**，非全部实现）──
 # ⛔ 本轮同时是一次**速率测量**：round-6 那一刀在闭合 3 条的同时自引 1 条回归，
 # 车道据此判「修复速率 ≈ 引入速率、应停止」。但那只是**一个数据点**，而"再修会
-# 引入更多"本身就是未经验证的断言。本轮修完 8 条后实测：拦截面 8/8 闭合、
-# 放行面 10/10 无回归、全套件零回归 ⇒ **该断言在本轮不成立**，已按实测更正。
+# 引入更多"本身就是未经验证的断言。
+# 实测（⚠️ 措辞按 Codex round-7 HIGH-8 收窄）：round-7 修 1 条（自引回归）、
+# round-8 修 7 条；本轮拦截面 8/8 闭合，**已列举的 10 个放行样例**与**已运行的
+# 全套件**未发现回归。⇒ 「再修必然引入回归」这一断言在本轮**未被支持**。
+# ⚠️ 这**不等于**「零回归」——未被门覆盖的行为面没有被测，不能据此声称。
 
 
 def test_domain_r10_ordering_and_render_closure_cli(tmp_path):
@@ -3955,6 +4193,96 @@ def test_domain_r10_ordering_and_render_closure_cli(tmp_path):
         ("单字在池", "- 本板共有五个子节点。【实测】"),
         ("ASCII 在池", "- 本板共有3个子节点。【实测】"),
         ("自陈句内合法 ASCII 区间", "- 本板共有2~3个子节点。【实测】"),
+        ("非自陈句区间", "- 建议覆盖 2~3 个节点。【实测】"),
+        ("`点` 的正当量词用法", "- 本板共有3点建议。【实测】"),
+        ("前导零 016=16", "- 本板共有016个子节点。【实测】"),
+        ("round-5 原始误伤 十分", "- 说明十分清楚。【实测】"),
+        ("round-5 原始误伤 一致", "- 统计口径尚未一致。【实测】"),
+    ):
+        r = d2(line)
+        assert r.returncode == 0, f"合法形态被误伤（{name}）:\n{r.stdout}"
+    for name, raw in (
+        ("fallback 单字", "#### 派生子女 五 个 的说明"),
+        ("fallback ASCII", "#### 派生子女 3 个 的说明"),
+    ):
+        r = fb_raw(raw)
+        assert r.returncode == 0, f"合法形态被误伤（{name}）:\n{r.stdout}"
+
+
+# ── R3 round-9：Codex round-7 的实现侧真缺陷（逐条实测复现后闭合）────────────
+# ⚠️ Codex round-7 报 5 实现 HIGH，车道逐条实测：**H1/H3/H4/H5 属实**，
+# 而 H2 的两个具体例子（inline-code 藏 `笔`、⑦⑧手抄数词禁集）**不成立**
+# ——它们分别被「`支` 已在量词表」与「信号行整行格式检查」拦下。机制或许仍在，
+# 但**给出的反例不可复现**，如实驳回，不按它去改一个测不出来的东西。
+# H4（reference-style link）与 H5（过度拼接不保值）**未修**，登记在 §五之三。
+
+
+def test_domain_r11_fulltext_gate_and_visible_numerals_cli(tmp_path):
+    """R3 round-9：全文『派生』门先归一 + 可见数字/量词/中文负号的闭表补漏。
+
+    四条实测反例（修前 exit 0）：
+      · `- 派**生**出 987654 个新节点` —— **全文**白名单门仍在**源码行**上判
+        「含派生」；round-8 只把**局部**数字函数改成先归一，这道门漏了 ⇒ 整行
+        既不进局部循环、也绕过全文门（**同一个顺序耦合，修了一处漏了另一处**）；
+      · `本板共有⑤个子节点` —— 带圈数字不在定界集 ⇒ **一个 token 都抽不出**，
+        整句零校验（比尾片重锚更彻底）；
+      · `本板共有987654例记录` —— `例` 不在量词表 ⇒ 整句零校验；
+      · `本板共有负五个子节点` —— 符号守卫只认五个西文符号，漏中文「负」。
+
+    **它证明什么**：两道 fallback 门（全文/局部）**同口径**先归一；可见数字与
+    常用量词进表后对应形态被拦；中文负号与西文负号同等对待。
+    **它不证明什么**：三张表**仍是封闭表**——本轮补的是"已知可见形态"，不是全集。
+    Unicode 里还有大量可渲染成数字的字符未纳入，见 §五之三。
+    """
+    rs = _load_recap_scan()
+    assert rs._count_token_value("⑤") is None, "带圈数字应进定界面但**不赋值**"
+    assert "⑤" in rs._NUMERAL_LIKE_CHARS and "〡" in rs._NUMERAL_LIKE_CHARS
+
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    assert 987654 not in rs._derived_number_pool(scan)
+    report = write_report(vault, scan)
+    base_text = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+
+    def verify(anchor: str, injected: str):
+        text = base_text.replace(anchor, injected, 1)
+        assert text != base_text, "变异未命中：报告一字未改，这条门测的是空气"
+        report.write_text(text, encoding="utf-8")
+        return run_verify(report)
+
+    def d2(line: str):
+        return verify("## 三维审查", f"## 三维审查\n\n{line}")
+
+    def fb_raw(raw: str):
+        return verify("方向叙述：", f"\n{raw}\n\n方向叙述：")
+
+    # 全文『派生』门：必须由**模板外派生表述**拦下（不是被别的防线顺手接住）
+    r = fb_raw("- 派**生**出 987654 个新节点")
+    assert r.returncode != 0, f"全文门在源码行上判 ⇒ 整行逃出:\n{r.stdout}"
+    assert "模板外的『派生』表述" in r.stdout, (
+        f"应由全文『派生』白名单门拦下:\n{r.stdout}"
+    )
+
+    for name, line, needles in (
+        ("带圈数字（可见但表外）", "- 本板共有⑤个子节点。【实测】", ("无法解析", "⑤")),
+        (
+            "表外量词『例』",
+            "- 本板共有987654例记录。【实测】",
+            ("找不到同值来源", "987654"),
+        ),
+        ("中文负号", "- 本板共有负五个子节点。【实测】", ("负数形态", "-五")),
+    ):
+        r = d2(line)
+        assert r.returncode != 0, f"{name} 被放行:\n{r.stdout}"
+        assert _one_problem_has(r.stdout, *needles), f"{name}: 诊断未绑定:\n{r.stdout}"
+
+    # 放行面（同权重）——本轮的回归探测面
+    for name, line in (
+        ("单字在池", "- 本板共有五个子节点。【实测】"),
+        ("ASCII 在池", "- 本板共有3个子节点。【实测】"),
+        ("池内 22", "- 本板共有22个子节点。【实测】"),
+        ("自陈句内合法区间", "- 本板共有2~3个子节点。【实测】"),
         ("非自陈句区间", "- 建议覆盖 2~3 个节点。【实测】"),
         ("`点` 的正当量词用法", "- 本板共有3点建议。【实测】"),
         ("前导零 016=16", "- 本板共有016个子节点。【实测】"),

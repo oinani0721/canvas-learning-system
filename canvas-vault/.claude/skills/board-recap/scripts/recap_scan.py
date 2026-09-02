@@ -1377,8 +1377,14 @@ def _join_free(s: str) -> str:
     ⚠️ 措辞收窄 (Codex round-2 属实指出): 原写"还原读者**看到**的那个数"过宽 ——
     连接集里未配对的 `*`/`_`/`~`、`<br>` 这类短标签、修饰字 `[多余来几约近超]`
     渲染后是**可见**的, 拼起来并不等于读者看到的数 (`1*0个` 会被当成 10)。
-    但那是**安全向**的过度拼接: 查到的值 ⊇ 读者看到的数, 不构成虚构通道 ——
-    危险的是**欠拼接** (数串被切开、只按尾片查池)。故行为保留、措辞收窄。
+    ⛔⛔ **这里曾写「那是安全向的过度拼接: 查到的值 ⊇ 读者看到的数」—— 已被
+    Codex round-7 证伪, 车道实测确认**: `本板共有1\\*5个子节点` 渲染出来是可见的
+    `1*5个`, 而实现先删 `*`、再把反斜线当连接字符剥掉, 最终把 **15** 送进池;
+    15 恰好在池内 ⇒ **放行**。池含 15 并不能证明读者看到的 `1*5` 或其中任何一个
+    数有出处。同理 `5多个` 是近似计数, 却按**精确 5** 入池。
+    ⇒ 过度拼接**不是保值关系**, 它是一个**已知的 fail-open 面**, 不是安全边界。
+    本卡未改变该行为(改成 fail-closed 会波及大量当前合法形态, 需单独裁决),
+    **但不再声称它安全** —— 如实登记在验收单 §五之三。
     """
     return _D2_JOIN_RE.sub("", s)
 
@@ -1396,7 +1402,7 @@ def _join_free(s: str) -> str:
 # ⛔ R3 round-5 (Codex round-4 HIGH-7): 表漏 `层/节/列/枚/步/级/则/回/幕/维`
 # ⇒ `本板共有987654层关系` 整句**零校验**。补入常用计数量词。
 # 仍是**封闭表**(与定界集、数词表同口径, 如实登记, 不宣称覆盖全部量词)。
-_D2_QUANT = r"[个条块次份处板项篇道张名位台件册组批轮遍趟人句行段点种类本页题章层节列枚步级则回幕维门套对场部只支株棵笔封片卷格轮次]"
+_D2_QUANT = r"[个条块次份处板项篇道张名位台件册组批轮遍趟人句行段点种类本页题章层节列枚步级则回幕维门套对场部只支株棵笔封片卷格轮次例束艘架间]"
 # ⛔ R3 round-3: 原 `_D2_COUNT_RE`(ASCII 专用取数式) 与 `_CJK_NUM_RUN_*`(CJK 专用)
 # 已**合并**为 `_COUNT_BEFORE_QUANT_RE` / `_NUM_RUN_RE`(见 _NUM_RUN_PAT 处)——
 # 按字符类分成两条循环正是「跨类/表外字符成为断点」的成因。两者删除而非保留:
@@ -1536,7 +1542,14 @@ _CJK_NUM_CHARS = "".join(sorted(set(_CJK_NUM) | set(_CJK_UNIT)))
 # ⛔ R3 round-5 (Codex round-4 HIGH-6): 漏 `兆京垓秭穰` 等大数单位 ⇒
 # `九兆五个` 会从 `五` 重锚按 5 查池（与此前判 HIGH 的 `廿五` **同机制**）。
 # 定界集只定界不赋值, 加字符**只增加拒绝面**、不增加放行面。
-_CJK_NUM_EXTRA = "廿卅卌壹贰貳叁參参肆伍陆陸柒捌玖拾佰仟萬亿億两兩兆京垓秭穰仨俩"
+# ⛔ R3 round-9 (Codex round-7 HIGH-3): 补带圈数字 ①-⑳ / 全角旧式 〡〢〣 等
+# **可见数字**字符 —— 它们不在定界集时 D2 与 fallback **一个 token 都抽不出**,
+# 整句零校验(比尾片重锚更彻底)。仍是**封闭表**, 如实登记。
+_CJK_NUM_EXTRA = (
+    "廿卅卌壹贰貳叁參参肆伍陆陸柒捌玖拾佰仟萬亿億两兩兆京垓秭穰仨俩"
+    "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳"
+    "〡〢〣〤〥〦〧〨〩〸〹〺"
+)
 _NUMERAL_LIKE_CHARS = "".join(
     sorted(set(_CJK_NUM_CHARS) | set(_CJK_NUM_EXTRA) | set("0123456789"))
 )
@@ -1859,7 +1872,9 @@ def _verify_prose_counts(text: str, scan: dict, problems: list[str]) -> None:
                 # ⛔ R3 round-6 (Codex round-5 HIGH-6): 负号不属于数串, 于是
                 # `本板共有-5个` 按 **+5** 比对 —— 进池值 ≠ 读者看到的数。
                 # scan 的计数都是非负整数, 负计数**不可能有出处** ⇒ 恒 FAIL。
-                if re.search(rf"[-−－‑﹣]{_D2_JOIN_ONE}*$", line[: m_cnt.start(1)]):
+                if re.search(
+                    rf"(?:[-−－‑﹣]|负){_D2_JOIN_ONE}*$", line[: m_cnt.start(1)]
+                ):
                     problems.append(
                         f"数字终核: 『{sec}』段出现负数形态的计数 "
                         f"-{_join_free(m_cnt.group(1))} "
@@ -2146,7 +2161,7 @@ def _verify_fallback_derive_numbers(text: str, scan: dict, problems: list[str]) 
             # ⛔ R3 round-8 (Codex round-6 HIGH-4): 负数守卫原先**只在 D2 侧** ——
             # fallback 的 `-5` 按 +5 入池。两侧同口径: scan 计数均非负, 负数恒 FAIL。
             for m_neg in re.finditer(
-                rf"[-−－‑﹣]{_D2_JOIN_ONE}*({_NUM_RUN_PAT})", norm
+                rf"(?:[-−－‑﹣]|负){_D2_JOIN_ONE}*({_NUM_RUN_PAT})", norm
             ):
                 problems.append(
                     f"数字终核: fallback 允许式({tag})行内出现负数形态 "
@@ -2292,7 +2307,14 @@ def _verify_report(path: str) -> int:
         # 依据见模块级常量, CARD-维护B-R2 (d) 纯搬家)。其余一律违规,
         # 不再问它"是不是在断言子女数"。
         for ln in text.splitlines():
-            if "派生" in ln and not any(p.match(ln) for p, _ in _FALLBACK_DERIVE_ALLOW):
+            # ⛔ R3 round-9 (Codex round-7 HIGH-1): 这道**全文门**原先也在**源码行**
+            # 上判「含派生」与白名单匹配 —— round-8 只把局部数字函数改成先归一,
+            # 这里没改, 于是 `- 派**生**出 987654 个新节点` 渲染后是派生断言,
+            # 却既不进局部数字循环、也绕过本门(实测 exit 0)。两处同口径。
+            vis_ln = _visible_text(ln)
+            if "派生" in vis_ln and not any(
+                p.match(vis_ln) for p, _ in _FALLBACK_DERIVE_ALLOW
+            ):
                 problems.append(
                     "fallback 报告出现模板外的『派生』表述 "
                     "(子女数在 fallback 恒无据; 允许的只有规模自陈行/段落标题/"

@@ -373,7 +373,9 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "survivor-28 (C-6) 负数计数检查被摘除（`-5个` 按 +5 入池）",
         [
             (
-                '                if re.search(rf"[-−－‑﹣]{_D2_JOIN_ONE}*$", line[: m_cnt.start(1)]):',
+                "                if re.search(\n"
+                '                    rf"(?:[-−－‑﹣]|负){_D2_JOIN_ONE}*$", line[: m_cnt.start(1)]\n'
+                "                ):",
                 "                if False:",
             )
         ],
@@ -422,7 +424,7 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         [
             (
                 "            for m_neg in re.finditer(\n"
-                '                rf"[-−－‑﹣]{_D2_JOIN_ONE}*({_NUM_RUN_PAT})", norm\n'
+                '                rf"(?:[-−－‑﹣]|负){_D2_JOIN_ONE}*({_NUM_RUN_PAT})", norm\n'
                 "            ):",
                 "            for m_neg in ():",
             )
@@ -433,6 +435,42 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "survivor-34 (C-8) Markdown link 不再取显示文本（`总[计](u)N个` 句式门失锚）",
         [('    line = _VIS_MDLINK_RE.sub(r"\\1", line)\n', "")],
         "r10_ordering",
+    ),
+    # ── R3 round-9 (Codex round-7 实现侧): 三条逐条单一性质 ──
+    (
+        "survivor-35 (C-9) 全文『派生』门退回在**源码行**上判（`派**生**` 整行绕过全文门）",
+        [
+            (
+                "            vis_ln = _visible_text(ln)\n"
+                '            if "派生" in vis_ln and not any(\n'
+                "                p.match(vis_ln) for p, _ in _FALLBACK_DERIVE_ALLOW\n"
+                "            ):",
+                '            if "派生" in ln and not any(\n'
+                "                p.match(ln) for p, _ in _FALLBACK_DERIVE_ALLOW\n"
+                "            ):",
+            )
+        ],
+        "r11_fulltext",
+    ),
+    (
+        "survivor-36 (C-9) 定界集去掉可见数字（带圈/苏州码 ⇒ 一个 token 都抽不出、整句零校验）",
+        [
+            (
+                '    "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳"\n    "〡〢〣〤〥〦〧〨〩〸〹〺"\n',
+                "",
+            )
+        ],
+        "r11_fulltext",
+    ),
+    (
+        "survivor-37 (C-9) 负号守卫去掉中文『负』（`负五个` 按 +5 入池）",
+        [
+            (
+                'rf"(?:[-−－‑﹣]|负){_D2_JOIN_ONE}*$"',
+                'rf"[-−－‑﹣]{_D2_JOIN_ONE}*$"',
+            )
+        ],
+        "r11_fulltext",
     ),
 ]
 
@@ -465,9 +503,7 @@ def main() -> int:
     try:
         LOCK.mkdir()  # 原子互斥: 已存在即抛
     except FileExistsError:
-        print(
-            f"⛔ 另一个负验证进程正在跑（锁: {LOCK}）。变异脚本必须串行——见脚本 docstring。"
-        )
+        print(f"⛔ 另一个负验证进程正在跑（锁: {LOCK}）。变异脚本必须串行——见脚本 docstring。")
         return 2
     try:
         original = TARGET.read_bytes()
@@ -497,14 +533,10 @@ def main() -> int:
             finally:
                 TARGET.write_bytes(original)  # 立刻还原，异常也还原
             got = hashlib.sha256(TARGET.read_bytes()).hexdigest()
-            assert got == backup_sha, (
-                f"还原后字节与备份不同！{got[:12]} != {backup_sha[:12]}"
-            )
+            assert got == backup_sha, f"还原后字节与备份不同！{got[:12]} != {backup_sha[:12]}"
             # ⛔ 必须是"收集到用例 且 确实有失败"，不能只看 rc != 0
             if n == 0:
-                print(
-                    f"❌ {name}: `-k {keyword}` 一个用例都没匹配到（rc={rc}）——这不是变红"
-                )
+                print(f"❌ {name}: `-k {keyword}` 一个用例都没匹配到（rc={rc}）——这不是变红")
                 failures += 1
             elif f == 0:
                 print(f"❌ {name}: 变异后 {n} 个用例仍全绿 = 该门不承重\n{out}")
@@ -512,9 +544,7 @@ def main() -> int:
             else:
                 print(f"✅ {name}: 如期变红（{f}/{n} 失败）")
 
-        print(
-            f"\n{'全部承重' if not failures else f'{failures} 条未承重'}（共 {len(MUTANTS)} 条变体）"
-        )
+        print(f"\n{'全部承重' if not failures else f'{failures} 条未承重'}（共 {len(MUTANTS)} 条变体）")
         return 1 if failures else 0
     finally:
         LOCK.rmdir()
