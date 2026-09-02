@@ -2927,3 +2927,57 @@ def test_prefixed_url_filename_is_a_source_signal(tmp_path):
         assert "文件名" in (it["uncertain_reason"] or ""), it["uncertain_reason"]
     ctrl = item_by_name(data, "普通笔记.md")
     assert ctrl["criterion"] == "C4_exact_duplicate", ctrl["basis"]
+
+
+def test_markdown_line_and_block_boundaries_are_not_unicode(tmp_path):
+    """⛔ 第十一轮四条 HIGH，仍是同一族：**按 Markdown 规范判结构却用了 Unicode
+    语义**。这已经是本卡第三次踩（开篇 NBSP → 第十轮三处 → 本轮四处），所以这
+    一轮不再逐条补，而是把这一类**系统清一遍**：
+
+    · R11-H1 `str.splitlines()` 把 U+001C-1E/U+0085/U+2028/U+2029 当行界，
+      围栏里的 U+001D 被改写成换行 → `a<U+001D>b` 与 `a\\nb` 判等 → 确定删除。
+      **分行是最底层的一步，漏了它上面全白做。** 改 `md_splitlines()`（只认
+      \\n / \\r\\n / \\r）。
+    · R11-H3 `_LIST_PREFIX_RE` / `_ONLY_STRUCT_RE` 的 `\\s` 与两处 `.strip()`
+      同族，一并改 ASCII。
+    · R11-H2 分类器没有 **raw HTML block** 状态，`<pre>` 里的 `# source: …`
+      被当 ATX 标题丢弃（CommonMark §4.6：HTML block 里没有 Markdown 结构）。
+    · R11-H4 文件名护栏只试有限解码，percent-encoded 全穿 → 改用标准 `unquote`。
+      ⚠️ 用标准解码而不是再加替换规则 —— percent 编码**有标准**，这是本卡
+      「开放集合不能枚举、有结构的可以正面解」的又一次应用。
+    """
+    mod = load_module()
+    # 行界只认 Markdown 的三种
+    assert mod.md_splitlines("a\x1db\n") == ["a\x1db"], "U+001D 不是行界"
+    assert mod.md_splitlines("a b\n") == ["a b"], "U+2028 不是行界"
+    assert mod.md_splitlines("a\r\nb\n") == ["a", "b"]
+    assert mod.md_splitlines("a\rb\n") == ["a", "b"]
+    # 结构判定只认 ASCII 空白
+    assert mod._is_structural_line(" ") is False, "只有 NBSP 的行是正文"
+    assert mod.has_substantive_content(" - x\n") is True
+
+    vault, out = base_vault(tmp_path)
+    inbox = vault / "_待处理"
+    mk(vault / "节点" / "canon-fence.md", "```\na\nb\n```\n", age_days=40)
+    mk(vault / "节点" / "canon-html.md", "<pre>\n</pre>\nalpha\n", age_days=40)
+    mk(vault / "节点" / "generic.md", "通用一。\n通用二。\n", age_days=40)
+    mk(inbox / "围栏内行分隔符.md", "```\na\x1db\n```\n", age_days=7)
+    mk(inbox / "html内来源.md", "<pre>\n# source: https://only.test/p\n</pre>\nalpha\n", age_days=6)
+    mk(inbox / "percent编码文件名.md", "通用一。\n通用二。\n", age_days=5)
+    (inbox / "percent编码文件名.md").rename(inbox / "source_https%3A%2F%2Fexample.test_article.md")
+    # ⛔ 正向对照：真逐字重复仍 C4
+    mk(inbox / "真重复.md", "```\na\nb\n```\n", age_days=3)
+
+    assert run_cli(vault, out).returncode == 0
+    data = load_json(out)
+    assert data["items"], "items 为空则本门恒真 = 假绿"
+    for name in (
+        "围栏内行分隔符.md",
+        "html内来源.md",
+        "source_https%3A%2F%2Fexample.test_article.md",
+    ):
+        it = item_by_name(data, name)
+        assert it["verdict"] != "建议删", f"{name} 被确定删除了: {it['basis']}"
+        assert it["criterion"] == "C6_undecided", name
+    dup = item_by_name(data, "真重复.md")
+    assert dup["criterion"] == "C4_exact_duplicate", dup["basis"]

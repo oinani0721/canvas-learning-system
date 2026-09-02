@@ -53,6 +53,7 @@ G_SEMWS = "test_c4_comparison_keeps_semantic_whitespace"
 G_FNAME = "test_source_identifier_in_filename_blocks_deletion"
 G_ASCIIWS = "test_ascii_whitespace_semantics_are_not_unicode"
 G_PREFIX = "test_prefixed_url_filename_is_a_source_signal"
+G_MDLINE = "test_markdown_line_and_block_boundaries_are_not_unicode"
 G_ZW = "test_zero_width_split_marker_still_reads_as_ai_suspect"
 
 # ── (名字, 期望 FAILED 集合, [(old, new), ...]) ──
@@ -268,8 +269,10 @@ MUTATIONS: list[tuple[str, set[str], list[tuple[str, str]]]] = [
     (
         # 第九轮 HIGH：护栏不看文件名
         # ⚠️ 期望含 G_PREFIX：第十轮的带前缀 URL 文件名门同样靠这条信号。
+        # ⚠️ 再加 G_MDLINE：第十一轮门里的 percent-encoded 文件名反例同样靠
+        # 这条信号。runner 第七次抓到期望写窄。
         "M-FNAME      文件名来源信号回退",
-        {G_FNAME, G_PREFIX},
+        {G_FNAME, G_PREFIX, G_MDLINE},
         [("    name_signal = next(\n", "    name_signal = None\n    _unused = (\n")],
     ),
     (
@@ -298,13 +301,35 @@ MUTATIONS: list[tuple[str, set[str], list[tuple[str, str]]]] = [
     (
         # 第十轮 HIGH：文件名 URL 判定退回锚定正则
         "M-FNAMEURL   文件名 URL 判定退回锚定匹配",
-        {G_PREFIX},
+        {G_PREFIX, G_MDLINE},
         [
             (
                 '                "http://" in probe.casefold()\n'
                 '                or "https://" in probe.casefold()\n',
                 "                _URL_RE.match(probe)\n",
             ),
+        ],
+    ),
+    (
+        # 第十一轮 HIGH：分行退回 str.splitlines()（Unicode 行界）
+        "M-MDLINE     分行退回 str.splitlines()",
+        {G_MDLINE},
+        [
+            (
+                "    parts = _MD_LINE_SPLIT_RE.split(text)\n",
+                "    parts = text.splitlines()\n",
+            )
+        ],
+    ),
+    (
+        # 第十一轮 HIGH：分类器去掉 raw HTML block 状态
+        "M-HTMLBLOCK  raw HTML block 状态回退",
+        {G_MDLINE},
+        [
+            (
+                "        if not in_html and re.match(\n",
+                "        if False and re.match(\n",
+            )
         ],
     ),
 ]

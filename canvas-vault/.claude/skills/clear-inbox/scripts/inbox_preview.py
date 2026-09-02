@@ -252,7 +252,7 @@ import sys
 import unicodedata
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, unquote
 
 # ───────────────────── 复用来源装载（fail-closed，不做降级副本） ─────────────────────
 
@@ -440,7 +440,9 @@ _TZ_SHANGHAI = timezone(timedelta(hours=8))
 #: 这类井号后无实质内容者）经 `_ONLY_STRUCT_RE` 归入「纯结构行」，与普通空格
 #: 版本同桶 —— 那是既有的结构行口径，不是本条收窄出来的新差异。
 _HEADING_RE = re.compile(r"^ {0,3}#{1,6}(?:[ \t]|$)")
-_LIST_PREFIX_RE = re.compile(r"^\s*(?:[-*+]\s+|\d{1,3}[.)]\s+|>\s?)+")
+#: ⛔ 第十一轮 HIGH（R11-H3）：列表/引用前缀是 **Markdown 结构**，判定只能用
+#: ASCII 空格与制表符 —— `\s` 会把 NBSP 当缩进，把「NBSP 开头的正文」剥成空。
+_LIST_PREFIX_RE = re.compile(r"^[ \t]*(?:[-*+][ \t]+|\d{1,3}[.)][ \t]+|>[ \t]?)+")
 #: 纯结构行（分隔线 / 表格分隔 / 空列表符）。⛔ 不含 `~`：`~~~` 是代码围栏标记，
 #: 由 `_classify_lines` 的状态机处理；把它当"结构"曾让整段围栏代码凭空消失。
 #: ⛔ 第七轮终审 HIGH（R7-H2）：原表含 `=`/`|`/`:`，于是 `:=`、`=>`、`||` 这类
@@ -451,7 +453,9 @@ _LIST_PREFIX_RE = re.compile(r"^\s*(?:[-*+]\s+|\d{1,3}[.)]\s+|>\s?)+")
 #: 而删除。真正的分界是**这行是不是 Markdown 的结构记号**：分隔线要 ≥3 个
 #: （CommonMark `---`/`***`/`___`），表格分隔要含 `-`，引用/标题记号是 `>`/`#`。
 #: `||` 两个竖线既不是分隔线也不是表格分隔，它就是正文。
-_ONLY_STRUCT_RE = re.compile(r"^[\s\-=*_|:#>]*$")
+#: ⛔ 同上：纯结构行判定里的空白也只认 ASCII（`\s` 会让「只有 NBSP」的行
+#: 被当成空结构行删掉）。
+_ONLY_STRUCT_RE = re.compile(r"^[ \t\-=*_|:#>]*$")
 _STRUCT_CHARS = "-=*_|:#>"
 
 
@@ -487,7 +491,7 @@ def _is_structural_line(t: str) -> bool:
     kinds = {c for c in t if c in _STRUCT_CHARS}
     if len(kinds) > 1:
         return False
-    core = t.strip()
+    core = t.strip(" \t")
     if not core:
         return True
     ch = core[0]
@@ -634,7 +638,7 @@ def frontmatter_span(lines: list[str]) -> int:
 
 def split_frontmatter(text: str) -> tuple[list[str], list[str]]:
     """→ (frontmatter 行, 其余行)。只认文件头的 `---` 对；缺闭合视为无 frontmatter。"""
-    lines = text.splitlines()
+    lines = md_splitlines(text)
     n = frontmatter_span(lines)
     return (lines[1 : n - 1] if n else []), lines[n:]
 
@@ -688,6 +692,22 @@ def frontmatter_map(fm_lines: list[str]) -> dict:
     return out
 
 
+#: ⛔ 第十一轮 HIGH（R11-H1）：`str.splitlines()` 把 U+001C-1E/U+0085/U+2028/
+#: U+2029 也当行界，于是围栏内的 U+001D 被改写成换行，`a<U+001D>b` 与 `a\nb`
+#: 的 dup_body 相等 → 确定删除。Markdown 的行界只有 \n / \r\n / \r。
+#: ⚠️ 这是「按 Markdown 规范判结构却用了 Unicode 语义」的**第三处**，
+#: 与开篇 NBSP、第十轮三条同源。分行是最底层的一步，漏了它上面全白做。
+_MD_LINE_SPLIT_RE = re.compile(r"\r\n|\r|\n")
+
+
+def md_splitlines(text: str) -> list[str]:
+    """按 **Markdown 行界**分行（只认 \n / \r\n / \r），不用 `str.splitlines()`。"""
+    parts = _MD_LINE_SPLIT_RE.split(text)
+    if parts and parts[-1] == "":
+        parts.pop()  # 末尾换行不产生空行，与 splitlines 语义一致
+    return parts
+
+
 def _classify_lines_typed(text: str) -> tuple[list[tuple[str, str]], bool, list[str]]:
     """→ [((行, 种类), …), 是否结束于未闭合的 HTML 注释, 被注释剥掉过的原文行]。
 
@@ -709,6 +729,11 @@ def _classify_lines_typed(text: str) -> tuple[list[tuple[str, str]], bool, list[
     _, rest = split_frontmatter(text)
     rows: list[tuple[str, str]] = []
     stripped_comments: list[str] = []
+    # ⛔ 第十一轮 HIGH（R11-H2）：分类器此前只有 fence/comment 状态，没有
+    # **raw HTML block**。于是 `<pre>` 里的 `# source: https://…` 被当成 ATX
+    # 标题丢弃，正文一撞库就确定删除、来源零留痕。CommonMark §4.6 的 HTML block
+    # 里没有 Markdown 结构，那些行是字面内容。
+    in_html = False
     in_fence = False
     fence_char = ""
     fence_len = 0
@@ -750,6 +775,17 @@ def _classify_lines_typed(text: str) -> tuple[list[tuple[str, str]], bool, list[
                 continue
         if in_fence:
             rows.append((ln, "code"))
+            continue
+        # HTML block：`<pre|script|style|textarea>` 起、对应闭合标签止
+        # （CommonMark §4.6 type 1 —— 最保守的一种，只认这四个标签）。
+        if not in_html and re.match(
+            r"^ {0,3}<(?:pre|script|style|textarea)(?:[ \t>]|$)", ln, re.IGNORECASE
+        ):
+            in_html = True
+        if in_html:
+            rows.append((ln, "code"))  # 与围栏同待遇：字面内容，不套 Markdown 结构
+            if re.search(r"</(?:pre|script|style|textarea)>", ln, re.IGNORECASE):
+                in_html = False
             continue
         kept, rem = "", ln
         while rem:
@@ -873,7 +909,7 @@ def has_substantive_content(text: str) -> bool:
             if _atx_heading_text(ln):
                 return True
             continue
-        t = _LIST_PREFIX_RE.sub("", ln).strip()
+        t = _LIST_PREFIX_RE.sub("", ln).strip(" \t")
         if t and not _is_structural_line(t):
             return True
     return False
@@ -903,7 +939,7 @@ def skeleton_note(text: str, size: int) -> str:
 
 def head_window(text: str) -> list[tuple[int, str]]:
     """C2 扫描窗口：frontmatter 行 + 其后前 HEAD_SCAN_LINES 行；返回 (1-based 行号, 原文)。"""
-    lines = text.splitlines()
+    lines = md_splitlines(text)
     n = frontmatter_span(lines)
     win: list[tuple[int, str]] = [(i + 1, lines[i]) for i in range(min(n, len(lines)))]
     for j, ln in enumerate(lines[n : n + HEAD_SCAN_LINES]):
@@ -1590,6 +1626,13 @@ def nominate(
                 # ⚠️ 不能写 `\b(https?)` —— `_` 是词字符，`source_https` 里
                 # `https` 前后都没有词边界，那条正则一次也匹配不上（实测）。
                 re.sub(r"(?i)(?<![a-z])(https?)[_:]+[/]*", r"\1://", _stem),
+                # ⛔ 第十一轮 HIGH（R11-H4）：percent-encoded 的文件名
+                # （`source_https%3A%2F%2Fexample.test_article.md`）此前全穿。
+                # ⚠️ 用 unquote 而不是再加一条替换规则 —— percent 编码是**有标准**
+                # 的，标准解码比枚举替换可靠，这是本卡「开放集合不能枚举、
+                # 有结构的可以正面解」的又一次应用。
+                unquote(_stem),
+                unquote(_stem).replace("_", ":", 1),
             )
             # ⛔ 第十轮 HIGH（R10-H2）：此前用**锚定**的 `_URL_RE.match`，于是
             # `source_https_example.test_article.md` 这类带前缀的文件名，四个
