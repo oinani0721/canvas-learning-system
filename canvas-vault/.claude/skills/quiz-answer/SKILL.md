@@ -739,6 +739,24 @@ else:
 # 重放只复算 FSRS (mastery/callout 无事件载荷可复放, 见验收单「未证明什么」)。
 # pending = 适用集里尚未被 W 吸收的行 (_applicable 已按 (时刻, 行序) 升序且
 # 已逐行强制 UTC 整秒 — 与 envelope 门的 ordinal 复算同源同集合)。
+# ⛔ 同秒/迟到且**没标 out_of_order** 的行不得被静默放过 (Codex round-3
+# BLOCKER①)。契约 §6.2 三态语义说「review_time ≤ W 的事件一律不推进 current
+# state」—— 那句话的前提是它**要么已应用、要么已标 out_of_order 走补录通道**。
+# 既没标、校准记录里又找不到它, 就无法判定它是「已应用」还是「被漏掉的真实
+# 复习」, 而两者对用户的意义完全相反。
+# 实测漏算链: E1@10:00 正常写入 (W=10:00) → 外部追加同节点 E2@**同一秒**未标
+# out_of_order (validator rc=0 放行) → 再写 E3 时 E2 既不进 pending 也无人过问,
+# 账本 attempts 变成 [1,2,2] (E3 复用了 E2 的序数), E2 那次复习永久消失。
+# 判据用 F1 (calibration_log 里有没有它) —— 它与 mastery/attempt 同一次原子写,
+# 是「已应用」的凭据; 「≤ W」只说明不该推进 W, 不说明已经算过。
+# dup(本次事件)不在此列: 它的状态由下面的分诊主流程按 W/F1 两域单独裁定。
+for _inst_, _ln_, _o_ in _applicable:
+    if W_inst is None or _inst_ > W_inst or _o_.get("event_id") == evid:
+        continue
+    _rid2_ = str(_o_.get("event_id") or "")
+    if not _fm_has_event(fm, _rid2_[5:] if _rid2_.startswith("quiz:") else _rid2_):
+        raise SystemExit(f"[quiz-answer] 账本第 {_ln_} 行({_o_.get('event_id')}) 的 review_time={_o_['payload'].get('review_time')!r} 不晚于水位线 W={W}, 却既没标 out_of_order 也不在校准记录里 — 无法判定它是已应用还是被漏掉的真实复习 (§6.2: 迟到事件应走补录通道并标 out_of_order), fail-closed 拒写 — 请人工核对后给它补标或修正时刻")
+
 pending = [t for t in _applicable if W_inst is None or t[0] > W_inst]
 replay_failed = None
 for _inst, _ln, _o in pending:

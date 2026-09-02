@@ -1583,26 +1583,48 @@ def test_round2_lead_followups(vault):
         else:
             assert v.returncode == 0, f"{key} 变化是设计内的（envelope 显式排除），不得误拦: {v.stdout[:200]}"
 
-    # ②c 契约行为（非缺陷）：未标 out_of_order 的「迟到」事件（review_time ≤ W）
-    # 一律不推进 current state —— §6.2 三态语义明写「无论它是已应用还是迟到的乱序
-    # 事件，对 current state 的动作完全相同」。
-    # ⚠️ 同时如实锁住一个**校验器宽松面**：契约说迟到事件应走补录通道并标
-    # out_of_order，但校验器当前**不强制**。validator 本卡禁改，登记为移交事项。
+    # ②c **未标 out_of_order 的迟到/同秒行必须 fail-closed**（Codex round-3
+    # BLOCKER①，本卡最后一条）。契约 §6.2 三态语义说「review_time ≤ W 的事件
+    # 一律不推进 current state」——那句话的前提是它**要么已应用、要么已标
+    # out_of_order 走补录通道**。既没标、校准记录里又找不到它，就无法判定它是
+    # 「已应用」还是「被漏掉的真实复习」，而两者对用户的意义完全相反。
+    # 实测漏算链：E1@10:00 正常写入（W=10:00）→ 外部追加同节点 E2@**同一秒**
+    # 未标 out_of_order（validator rc=0 放行）→ 再写 E3 时 E2 既不进 pending 也
+    # 无人过问，账本 attempts 变成 [1,2,2]（E3 复用了 E2 的序数），E2 那次复习
+    # 永久消失。判据用 F1（校准记录有无）：它与 mastery/attempt 同一次原子写，
+    # 是「已应用」的凭据；「≤ W」只说明不该推进 W，不说明已经算过。
     (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
     (vault / "learning_events.jsonl").unlink()
-    assert _run_writer(vault, _payload()).returncode == 0
-    late = _review_row(event_id="quiz:迟到事件", **{"payload.review_time": "2026-07-01T10:00:00Z"})
-    late["effective_at"] = "2026-07-01T10:00:00Z"
-    _write_ledger(vault, _ledger_lines(vault)[0], late)
-    rl = _run_writer(vault, _payload(event_id="板C#q1", ts="2026-08-03T10:00:00Z"))
-    assert rl.returncode == 0, rl.stdout + rl.stderr
-    assert _fm_fields(vault)["fsrs_last_review"] == "2026-08-03T10:00:00Z", (
-        "迟到事件（review_time ≤ W）不得推进 current state"
+    assert _run_writer(vault, _payload(event_id="E1#q1")).returncode == 0
+    _w = _fm_fields(vault)["fsrs_last_review"]
+    for rt_late, desc in ((_w, "同秒"), ("2026-07-01T10:00:00Z", "更早")):
+        late = _review_row(event_id="quiz:迟到事件", **{"payload.review_time": rt_late})
+        late["effective_at"] = rt_late
+        _write_ledger(vault, _ledger_lines(vault)[0], late)
+        face = _write_face(vault)
+        rl = _run_writer(vault, _payload(event_id="E3#q1", ts="2026-08-03T10:00:00Z"))
+        assert rl.returncode != 0, f"[{desc}] 未标 out_of_order 的迟到行不得被静默放过"
+        assert "既没标 out_of_order 也不在校准记录里" in rl.stderr, rl.stderr
+        assert _write_face(vault) == face, f"[{desc}] 零写（节点 + 账本）"
+        _write_ledger(vault, _ledger_lines(vault)[0])  # 复原为只剩 E1
+    # 验伪①：**标了** out_of_order 的合法补录行必须放行，且不推进 W
+    oo = _review_row(
+        event_id="quiz:补录#q1",
+        **{"payload.review_time": "2026-07-01T10:00:00Z", "payload.out_of_order": True, "payload.attempt_count": 1},
     )
-    assert _run_validator(vault).returncode == 0, (
-        "如实锁定：校验器当前不强制迟到事件标 out_of_order —— 本断言若某天变红，"
-        "说明校验器收紧了该面，届时应同步更新本注释与移交台账，而不是简单改断言"
-    )
+    oo["effective_at"] = "2026-07-01T10:00:00Z"
+    _write_ledger(vault, _ledger_lines(vault)[0], oo)
+    ro = _run_writer(vault, _payload(event_id="E3#q1", ts="2026-08-03T10:00:00Z"))
+    assert ro.returncode == 0, "标了 out_of_order 的补录行必须放行: " + ro.stderr
+    assert _fm_fields(vault)["fsrs_last_review"] == "2026-08-03T10:00:00Z", "补录行不得推进 W 到 07-01"
+    # 验伪②：**已应用**的历史行（校准记录在 frontmatter）必须放行
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (vault / "learning_events.jsonl").unlink()
+    assert _run_writer(vault, _payload(event_id="E1#q1")).returncode == 0
+    assert _run_writer(vault, _payload(event_id="E2#q1", ts="2026-08-02T10:00:00Z")).returncode == 0
+    r_ok = _run_writer(vault, _payload(event_id="E3#q1", ts="2026-08-03T10:00:00Z"))
+    assert r_ok.returncode == 0, "已应用的历史行必须放行: " + r_ok.stderr
+    assert len(_ledger_lines(vault)) == 3
 
     # ③ 分层成立（非缺陷，锁住）：rating 自洽门不会误拒任何**旧版合法写入**的行。
     # grade_norm 落盘的是 round(GN,2)，分档边界要 gn = 1/6、1/2、5/6，只有 1/2 是精确

@@ -374,6 +374,18 @@ MUTATIONS += [
 ]
 
 
+MUTATIONS += [
+    (
+        # 未标 out_of_order 的迟到/同秒行被静默放过 ⇒ 那次复习永久漏算
+        "M42-late-unmarked-row-silently-skipped",
+        SKILL,
+        '    if W_inst is None or _inst_ > W_inst or _o_.get("event_id") == evid:\n',
+        "    if True:  # MUTANT: 迟到行一律放过\n",
+        "test_round2_lead_followups",
+    ),
+]
+
+
 def sha(p):
     return hashlib.sha256(p.read_bytes()).hexdigest()
 
