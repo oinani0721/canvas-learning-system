@@ -2209,7 +2209,15 @@ def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> No
         #    整块台账行不受绑定。上一轮我把这种「静默不检查」写进门当成期望，
         #    等于把缺陷编码成了正确行为（审查方点名的目标无关假绿）。
         #    ⇒ 台账段在场却找不到可扫描的『种子』小节 = fail-closed。
-        if re.search(_SECTION_RE("## 台账"), text, re.M):
+        # ⛔ R3 round-31（冻结审查 v12）：round-30 这道 fail-closed **误伤了合法的
+        #    零种子报告** —— 生成侧允许 `ledger.seeds == []` / `counts.seeds == 0`，
+        #    那种板本来就没有种子小节。⇒ 只有在**确有种子可绑**时才要求小节在场。
+        _seed_rows = (
+            (scan.get("ledger") or {}).get("seeds")
+            if isinstance(scan.get("ledger"), dict)
+            else None
+        )
+        if _seed_rows and re.search(_SECTION_RE("## 台账"), text, re.M):
             problems.append(
                 "数字终核: 报告有『## 台账』段却找不到可绑定的『### 种子』小节 "
                 "(标题须与统一口径 _SECTION_RE 一致: 段名后只能是行尾或全角括号补充)"
@@ -2237,9 +2245,17 @@ def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> No
             return
     elif isinstance(groups, list):
         rows = [x for x in groups if isinstance(x, dict)]
-    if not rows:  # 无 ledger 可绑 = 无法终核, 不静默放行
-        problems.append("数字终核: scan JSON 无可用 ledger, 台账『种子』行无法绑定")
-        return
+    if not rows:
+        # ⛔ round-31（冻结审查 v12）：`seeds == []` 是**合法**的零种子板，
+        #    与「scan JSON 根本没有 ledger」不是一回事。前者放行（没有种子可绑，
+        #    小节里也不该有台账行——真有行会在下面按「不在 ledger 里」报）；
+        #    后者仍 fail-closed。
+        if not (isinstance(groups, dict) and isinstance(groups.get("seeds"), list)):
+            problems.append("数字终核: scan JSON 无可用 ledger, 台账『种子』行无法绑定")
+            return
+        # ⚠️ `seeds == []` 时**不能提前 return** —— 那样零种子板里写的任何台账行
+        #    都会被静默放行（我第一版就是这么写的，当场实测漏）。
+        #    继续往下走：绑定面为空 ⇒ 每一行都会按「不在 ledger 里」报。
     tips_by_node = {str(r.get("node_id")): r.get("tips_count") for r in rows}
     # 归一空间的候选索引：只在 raw 行解析不出时才用（round-25）
     vis_index: dict[str, list[str]] = {}

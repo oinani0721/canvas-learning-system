@@ -604,7 +604,11 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "r17_freeze",
     ),
     (
-        "survivor-51 (C-24) 台账种子行的值绑定退回 raw 文本（manifest 模式下「留正确行 + 加渲染等价冲突行」逃逸）",
+        "survivor-51 (C-24) 种子小节的逐行归一退回 raw（vis_lines = raw_lines）"
+        "⚠️ round-31 归因更正（冻结审查 v11/v12 两轮点名）：它变红的**实际原因**是"
+        "「合法的渲染等价行被非模板门误拒」（误伤面），**不是**「冲突行逃逸」——"
+        "恶意行在退回 raw 后仍会被非模板 fail-closed 门拦下。"
+        "所以它证明的是：渲染空间比对这一步是活的",
         [
             (
                 "    vis_lines = [_visible_text(_ln) for _ln in raw_lines]",
@@ -644,7 +648,9 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "r22_fence_indent",
     ),
     (
-        "survivor-55 (C-28) 种子小节的围栏判定退回手抄布尔翻转（四反引号块内伪闭栏 ⇒ 真闭栏后的冲突小节被跳过）",
+        "survivor-55 (C-28) 种子小节的围栏判定整体失效（_in_fence 恒 False）"
+        "⚠️ round-31 归因更正：替换是 `_stripped = text.splitlines()`，效果是**所有行都不算在围栏内**，"
+        "**不是**「退回手抄布尔翻转」；它变红来自 fenced-seed 被误当台账行（误伤面）",
         [
             (
                 "    _stripped = _strip_code_blocks(text).splitlines()",
@@ -724,11 +730,21 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "（H2 有全局必需段门兜底，H3 没有 ⇒ 不合口径的 `### 种子 ###` 整块不受绑定）",
         [
             (
-                '        if re.search(_SECTION_RE("## 台账"), text, re.M):\n            problems.append(',
+                '        if _seed_rows and re.search(_SECTION_RE("## 台账"), text, re.M):\n            problems.append(',
                 "        if False:\n            problems.append(",
             )
         ],
         "r25_section_criterion",
+    ),
+    (
+        "survivor-62 (C-35) 零种子板的空绑定面提前 return（板里写的台账行被静默放行）",
+        [
+            (
+                "        # ⚠️ `seeds == []` 时**不能提前 return**",
+                "        return\n        # ⚠️ `seeds == []` 时**不能提前 return**",
+            )
+        ],
+        "r26_zero_seed",
     ),
 ]
 
@@ -863,7 +879,7 @@ def run_suite(keyword: str) -> tuple[int, str, int, int, bool]:
     return r.returncode, out[-400:], passed + failed, failed, crash
 
 
-MUTANT_COUNT_EXPECTED = 61
+MUTANT_COUNT_EXPECTED = 62
 """变体数的**独立**期望值。
 
 ⛔ 冻结审查 v6：脚本原先只在结尾动态打印「共 N 条」—— 误删一个变体仍会成功退出。

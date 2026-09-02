@@ -5141,3 +5141,61 @@ def test_domain_r25_section_criterion_unified_cli(tmp_path):
     assert mt, "前提：报告必须含『## 台账』段"
     report.write_text(base.replace(mt.group(0), "   " + mt.group(0), 1), encoding="utf-8")
     assert run_verify(report).returncode != 0, "缩进 `## 台账` 的报告未被必需段门拒 —— 那样「不接受」就成了漏网"
+
+
+def test_domain_r26_zero_seed_board_not_false_positive():
+    """R3 round-31（冻结审查 v12）：round-30 的 H3 fail-closed **误伤了合法零种子板**。
+
+    ⛔ 生成侧允许 `ledger.seeds == []` / `counts.seeds == 0` —— 那种板本来就没有
+    种子小节。round-30 我加的「台账段在场却找不到种子小节即报」对它是**误伤**；
+    另一条「无可用 ledger」也把 `seeds == []` 与「根本没有 ledger」混为一谈。
+
+    ⚠️ 修的过程中我自己又开了一个洞：第一版对 `seeds == []` **提前 return**，
+    于是零种子板里写的任何台账行都被**静默放行**（实测漏）。⇒ 不提前返回，
+    让绑定面为空自然走「不在 ledger 里」。
+
+    **它证明什么**：五种形态各自正确（两放行三拦截），且「合法零种子」与
+    「绑定面为空就放行」被区分开。
+    **它不证明什么**：不覆盖 `ledger` 为扁平 list 的零种子形态（无角色信息，
+    本函数维持原样，如实登记）。
+    """
+    rs = _load_recap_scan()
+
+    for want_problem, why, text, ledger in (
+        (
+            False,
+            "合法零种子：seeds=[] 且报告无种子小节",
+            "## 台账\n\n### 派生\n\n- X — 批注 1 条\n\n## 末\n",
+            {"seeds": [], "derived": [{"node_id": "X", "tips_count": 1}]},
+        ),
+        (
+            False,
+            "合法零种子：种子小节为真正的空",
+            "## 台账\n\n### 种子\n\n\n\n## 末\n",
+            {"seeds": []},
+        ),
+        (
+            True,
+            "确有种子却找不到小节 ⇒ fail-closed",
+            "## 台账\n\n### 派生\n\n- X — 批注 1 条\n\n## 末\n",
+            {"seeds": [{"node_id": "S", "tips_count": 2}]},
+        ),
+        (
+            True,
+            "零种子板却写了台账行 ⇒ 报『不在 ledger』（不得因空绑定面而静默放行）",
+            "## 台账\n\n### 种子\n\n- Ghost — 批注 9 条\n\n## 末\n",
+            {"seeds": []},
+        ),
+        (
+            True,
+            "真的没有 ledger ⇒ 仍 fail-closed",
+            "## 台账\n\n### 种子\n\n- S — 批注 2 条\n\n## 末\n",
+            None,
+        ),
+    ):
+        ps: list[str] = []
+        rs._verify_seed_ledger_counts(text, {"ledger": ledger} if ledger is not None else {}, ps)
+        if want_problem:
+            assert ps, f"{why}：应报错却放行"
+        else:
+            assert ps == [], f"{why}：合法输入被误伤 —— {ps!r}"
