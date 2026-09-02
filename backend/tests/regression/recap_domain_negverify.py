@@ -389,6 +389,12 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         ],
         "r9_visible",
     ),
+    (
+        "survivor-30 (C-6) 归一器无条件剥 `~`（合法区间 `2~3个` 被拼成 23 ⇒ **误伤**; "
+        "`987654~0个` 的区间分支同时失效）—— 车道 round-6 自己引入过的回归",
+        [('_VIS_STRIKE_RE = re.compile(r"~~")', '_VIS_STRIKE_RE = re.compile(r"~")')],
+        "r9_visible",
+    ),
 ]
 
 
@@ -420,9 +426,7 @@ def main() -> int:
     try:
         LOCK.mkdir()  # 原子互斥: 已存在即抛
     except FileExistsError:
-        print(
-            f"⛔ 另一个负验证进程正在跑（锁: {LOCK}）。变异脚本必须串行——见脚本 docstring。"
-        )
+        print(f"⛔ 另一个负验证进程正在跑（锁: {LOCK}）。变异脚本必须串行——见脚本 docstring。")
         return 2
     try:
         original = TARGET.read_bytes()
@@ -452,14 +456,10 @@ def main() -> int:
             finally:
                 TARGET.write_bytes(original)  # 立刻还原，异常也还原
             got = hashlib.sha256(TARGET.read_bytes()).hexdigest()
-            assert got == backup_sha, (
-                f"还原后字节与备份不同！{got[:12]} != {backup_sha[:12]}"
-            )
+            assert got == backup_sha, f"还原后字节与备份不同！{got[:12]} != {backup_sha[:12]}"
             # ⛔ 必须是"收集到用例 且 确实有失败"，不能只看 rc != 0
             if n == 0:
-                print(
-                    f"❌ {name}: `-k {keyword}` 一个用例都没匹配到（rc={rc}）——这不是变红"
-                )
+                print(f"❌ {name}: `-k {keyword}` 一个用例都没匹配到（rc={rc}）——这不是变红")
                 failures += 1
             elif f == 0:
                 print(f"❌ {name}: 变异后 {n} 个用例仍全绿 = 该门不承重\n{out}")
@@ -467,9 +467,7 @@ def main() -> int:
             else:
                 print(f"✅ {name}: 如期变红（{f}/{n} 失败）")
 
-        print(
-            f"\n{'全部承重' if not failures else f'{failures} 条未承重'}（共 {len(MUTANTS)} 条变体）"
-        )
+        print(f"\n{'全部承重' if not failures else f'{failures} 条未承重'}（共 {len(MUTANTS)} 条变体）")
         return 1 if failures else 0
     finally:
         LOCK.rmdir()

@@ -1591,7 +1591,16 @@ _VIS_TAG_RE = re.compile(r"<[^>\n]*>")
 _VIS_WIKILINK_ALIAS_RE = re.compile(r"\[\[[^\]\n|]*\|([^\]\n]*)\]\]")
 _VIS_WIKILINK_PLAIN_RE = re.compile(r"\[\[([^\]\n|]*)\]\]")
 _VIS_INVISIBLE_RE = re.compile(_INVISIBLE_ONE)
-_VIS_EMPHASIS_RE = re.compile(r"[*_~]")
+# ⛔ R3 round-6 自查回归 (Codex round-6 HIGH-1, 车道实测确认并含**误伤**):
+# 第一版写成 `[*_~]` 无条件剥 —— 但 `~` 在中文里是**常用区间号**, 而
+# _visible_text() 跑在 _D2_RANGE_RE **之前**, 于是 `2~3个` 被拼成 `23`:
+#   · 合法区间(两端在池) 被拼成池外的一个数 ⇒ **误伤**(实测 rc=1);
+#   · `9~5个` 的区间分支同时失效(round-5 刚补的 `~` 白补)。
+# ⇒ 只剥**成对**的删除线 `~~`; 单个 `~` 保留给区间正则。
+# `*`/`_` 未配对时渲染可见, 剥掉是**安全向**的过度归一(查到的值 ⊇ 读者
+# 看到的数); `~` 不同 —— 剥它会**改变数的边界**, 方向相反。
+_VIS_STRIKE_RE = re.compile(r"~~")
+_VIS_EMPHASIS_RE = re.compile(r"[*_]")
 
 
 def _visible_text(line: str) -> str:
@@ -1617,6 +1626,7 @@ def _visible_text(line: str) -> str:
     line = _VIS_WIKILINK_ALIAS_RE.sub(r"\1", line)
     line = _VIS_WIKILINK_PLAIN_RE.sub(r"\1", line)
     line = _VIS_INVISIBLE_RE.sub("", line)
+    line = _VIS_STRIKE_RE.sub("", line)
     return _VIS_EMPHASIS_RE.sub("", line)
 
 

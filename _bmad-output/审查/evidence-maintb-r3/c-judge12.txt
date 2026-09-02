@@ -3,10 +3,10 @@
 ========================= 259 tests collected in 0.20s =========================
 === JUDGE-1 定向套件 ===
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-====================== 259 passed, 14 warnings in 40.32s =======================
+====================== 259 passed, 14 warnings in 45.57s =======================
 <sys>:0: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
-=== JUDGE-2 negverify (29 变体, 串行, 绑定最终字节) ===
-基线: 双向门全绿 · 被测文件 sha256=fe8459f4bc76…
+=== JUDGE-2 negverify (30 变体, 串行, 绑定最终字节) ===
+基线: 双向门全绿 · 被测文件 sha256=f4f87a5902f9…
 
 ✅ survivor-1 围栏闭合退回宽松判定（E1 全线：长度 + 尾随空白 两条一起禁）: 如期变红（2/2 失败）
 ✅ survivor-2 规模行允许式去掉行尾锚（H-2 前半全线）: 如期变红（1/1 失败）
@@ -37,11 +37,12 @@
 ✅ survivor-27 (C-6) 句式门退回只认 ASCII 数字（裸『总计五个/总计：N』整句不进检查面）: 如期变红（1/1 失败）
 ✅ survivor-28 (C-6) 负数计数检查被摘除（`-5个` 按 +5 入池）: 如期变红（1/1 失败）
 ✅ survivor-29 (C-6) wikilink 退回「无别名也挖空目标」（可见计数被藏起来）: 如期变红（1/1 失败）
+✅ survivor-30 (C-6) 归一器无条件剥 `~`（合法区间 `2~3个` 被拼成 23 ⇒ **误伤**; `987654~0个` 的区间分支同时失效）—— 车道 round-6 自己引入过的回归: 如期变红（1/1 失败）
 
-全部承重（共 29 条变体）
+全部承重（共 30 条变体）
 === 扩大回归 ===
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-================= 591 passed, 193 warnings in 69.74s (0:01:09) =================
+================= 591 passed, 193 warnings in 73.03s (0:01:13) =================
 <sys>:0: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
 === 收尾 sha ===
-fe8459f4bc76a1296c3914a7b1126193fab51107075d34dbde8dcb4016abfa34  ../canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py
+f4f87a5902f98807b316657a513d405ba370c706aafc1c1caa4dd5b5b27b891b  ../canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py
