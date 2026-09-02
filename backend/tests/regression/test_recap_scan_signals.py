@@ -1617,14 +1617,24 @@ def test_domain_block_blockquote_indented_code(tmp_path):
 
 
 def test_domain_block_scale_line_tail_append(tmp_path):
-    """H-2 前半: 正确规模行**尾部追加**任意文字 —— 原式缺 `$`，match() 只认前缀。"""
+    """H-2 前半: 正确规模行**尾部追加**任意文字 —— 原式缺 `$`，match() 只认前缀。
+
+    ⛔ R3 round-8 追加文本更换（负验证实测暴露）：原用「，SeedA 的派生子女共有仨个」，
+    但 round-8 把 `仨` 加进定界集、并放宽了句式门之后，这句话会**先被数字绑定**
+    独立拦下（`仨` → 无法解析）⇒ 去掉行尾锚 `$` 不再产生泄漏，`survivor-2`
+    当场变成不承重。那不是门坏了，是**同一场景多了一道独立防线**。
+    按 negverify 铁律「变体必须禁掉该性质的**全部**防线」，正确修法是让这道门
+    **只测一个性质**：追加文本改为**不含任何数词**，于是唯一能拦它的就是
+    「模板外『派生』表述」——也就是行尾锚 `$` 真正守的那条。
+    """
 
     def m(text, scan):
         line = next(ln for ln in text.splitlines() if "成员（" in ln)
-        return text.replace(line, line + "，SeedA 的派生子女共有仨个", 1)
+        return text.replace(line, line + "，SeedA 的派生子女如上", 1)
 
     r = _mutate_report(tmp_path, m)
     assert r.returncode != 0, f"规模行尾部追加未被拦:\n{r.stdout}"
+    assert "模板外的『派生』表述" in r.stdout, f"应由『行尾锚失效 ⇒ 白名单不再匹配』拦下，而不是别的防线:\n{r.stdout}"
 
 
 def test_domain_block_seed_ledger_fake_count(tmp_path):
@@ -3168,7 +3178,9 @@ def test_domain_r5_cjk_single_char_only_unit_contract():
     # ⛔ 精确相等而非子集包含（Codex round-3 属实指出：子集断言锁不住声明里的
     # `卌` 与各种异体，表少一个字就意味着那类写法会从尾片重锚）。
     assert set(rs._NUMERAL_LIKE_CHARS) == (
-        set(rs._CJK_NUM_CHARS) | set("0123456789") | set("廿卅卌壹贰貳叁參参肆伍陆陸柒捌玖拾佰仟萬亿億两兩兆京垓秭穰")
+        set(rs._CJK_NUM_CHARS)
+        | set("0123456789")
+        | set("廿卅卌壹贰貳叁參参肆伍陆陸柒捌玖拾佰仟萬亿億两兩兆京垓秭穰仨俩")
     ), f"定界集漂移: {rs._NUMERAL_LIKE_CHARS}"
     # 宽集合只定界不赋值：表外字符进来只会让整串"无法确定"，不会被猜成某个数。
     for s in ("廿五", "壹佰", "九十八万5", "五四", "一零"):
@@ -3852,4 +3864,108 @@ def test_domain_r9_visible_text_and_round5_closures_cli(tmp_path):
         ("round-5 原始误伤 一致", "- 统计口径尚未一致。【实测】"),
     ):
         r = d2(line)
+        assert r.returncode == 0, f"合法形态被误伤（{name}）:\n{r.stdout}"
+
+
+# ── R3 round-8：Codex round-6 的 7 条实现 HIGH（除自引回归已在 round-7 修）──────
+# ⛔ 本轮同时是一次**速率测量**：round-6 那一刀在闭合 3 条的同时自引 1 条回归，
+# 车道据此判「修复速率 ≈ 引入速率、应停止」。但那只是**一个数据点**，而"再修会
+# 引入更多"本身就是未经验证的断言。本轮修完 8 条后实测：拦截面 8/8 闭合、
+# 放行面 10/10 无回归、全套件零回归 ⇒ **该断言在本轮不成立**，已按实测更正。
+
+
+def test_domain_r10_ordering_and_render_closure_cli(tmp_path):
+    """R3 round-8：三处**顺序耦合** + 渲染闭包缺口 + 三张闭表的便宜面。
+
+    七条实测反例（修前全部 exit 0）：
+      · `[[节点/A|987654]]个` —— D2 把 `[[目标` 挖空**跑在 `_visible_text` 之前**，
+        只剩 `|987654]]个`，量词锚失效（顺序耦合）；
+      · fallback `#### 派**生**子女 987654 个` —— 在**源码行**上判「含派生」与
+        白名单匹配，`**` 隔开 `派`/`生` 整行不进检查面（顺序耦合）；
+      · fallback `-5` —— 负数守卫原先**只在 D2 侧**（覆盖不全）；
+      · `总[计](http://x)987654个` —— 标准 Markdown link 未取显示文本；
+      · `98⁦⁩7654个` —— U+2066-2069 bidi isolate 不在不可见集；
+      · `1'005个` / `987654笔` / `仨五个` —— 三张闭表的常见缺口。
+
+    **它证明什么**：归一必须跑在**筛选与豁免挖空之前**（三处顺序已改）；
+    `_visible_text` 覆盖 Markdown link 与 bidi isolate；负数守卫两侧同口径。
+    **它不证明什么**：`_visible_text` **仍不是完整 renderer**，三张表**仍是闭表**
+    —— 见验收单 §五之五 的分类（四类都**没有**被证明有限）。
+    """
+    rs = _load_recap_scan()
+    assert rs._visible_text("总[计](http://x)987654个") == "总计987654个"
+    assert rs._visible_text("98⁦⁩7") == "987", "bidi isolate 不得切断数串"
+    assert rs._normalize_number_seps("1'005") == "1005", "撇号千分位"
+
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    assert 987654 not in _load_recap_scan()._derived_number_pool(scan)
+    report = write_report(vault, scan)
+    base_text = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+
+    def verify(anchor: str, injected: str):
+        text = base_text.replace(anchor, injected, 1)
+        assert text != base_text, "变异未命中：报告一字未改，这条门测的是空气"
+        report.write_text(text, encoding="utf-8")
+        return run_verify(report)
+
+    def d2(line: str):
+        return verify("## 三维审查", f"## 三维审查\n\n{line}")
+
+    def fb_raw(raw: str):
+        return verify("方向叙述：", f"\n{raw}\n\n方向叙述：")
+
+    for name, line, needles in (
+        (
+            "有别名 wikilink（顺序耦合）",
+            "- 本板共有[[节点/A|987654]]个子节点。【实测】",
+            ("找不到同值来源", "987654"),
+        ),
+        (
+            "Markdown link 显示文本",
+            "- 总[计](http://x)987654个子节点。【实测】",
+            ("找不到同值来源", "987654"),
+        ),
+        ("bidi isolate", "- 本板共有98⁦⁩七654个子节点。【实测】", ("无法解析",)),
+        ("撇号千分位", "- 本板共有1'005个子节点。【实测】", ("找不到同值来源", "1005")),
+        (
+            "量词表『笔』",
+            "- 本板共有987654笔支出。【实测】",
+            ("找不到同值来源", "987654"),
+        ),
+        ("数词表『仨』", "- 本板共有仨五个子节点。【实测】", ("无法解析", "仨五")),
+    ):
+        r = d2(line)
+        assert r.returncode != 0, f"{name} 被放行:\n{r.stdout}"
+        assert _one_problem_has(r.stdout, *needles), f"{name}: 诊断未绑定:\n{r.stdout}"
+
+    # fallback 侧：选行顺序 + 负数守卫
+    r = fb_raw("#### 派**生**子女 987654 个 的说明")
+    assert r.returncode != 0 and _one_problem_has(r.stdout, "无出处", "987654"), (
+        f"fallback 在源码行上选行 ⇒ 整行不进检查面:\n{r.stdout}"
+    )
+    r = fb_raw("#### 派生子女 -5 个 的说明")
+    assert r.returncode != 0 and _one_problem_has(r.stdout, "负数形态", "-5"), (
+        f"fallback 负数未 fail-closed:\n{r.stdout}"
+    )
+
+    # 放行面（同权重）——本轮的**回归探测面**
+    for name, line in (
+        ("单字在池", "- 本板共有五个子节点。【实测】"),
+        ("ASCII 在池", "- 本板共有3个子节点。【实测】"),
+        ("自陈句内合法 ASCII 区间", "- 本板共有2~3个子节点。【实测】"),
+        ("非自陈句区间", "- 建议覆盖 2~3 个节点。【实测】"),
+        ("`点` 的正当量词用法", "- 本板共有3点建议。【实测】"),
+        ("前导零 016=16", "- 本板共有016个子节点。【实测】"),
+        ("round-5 原始误伤 十分", "- 说明十分清楚。【实测】"),
+        ("round-5 原始误伤 一致", "- 统计口径尚未一致。【实测】"),
+    ):
+        r = d2(line)
+        assert r.returncode == 0, f"合法形态被误伤（{name}）:\n{r.stdout}"
+    for name, raw in (
+        ("fallback 单字", "#### 派生子女 五 个 的说明"),
+        ("fallback ASCII", "#### 派生子女 3 个 的说明"),
+    ):
+        r = fb_raw(raw)
         assert r.returncode == 0, f"合法形态被误伤（{name}）:\n{r.stdout}"

@@ -276,7 +276,7 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
                 '_DECIMAL_SEP = r"[.点]"',
             ),
             (
-                'rf"([0-9]){_D2_JOIN_ONE}*[,，]{_D2_JOIN_ONE}*(?=[0-9]{{3}}(?![0-9]))"',
+                'rf"([0-9]){_D2_JOIN_ONE}*[,，\'’]{_D2_JOIN_ONE}*(?=[0-9]{{3}}(?![0-9]))"',
                 'r"(?<=[0-9]),(?=[0-9]{3}(?![0-9]))"',
             ),
         ],
@@ -373,27 +373,66 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "survivor-28 (C-6) 负数计数检查被摘除（`-5个` 按 +5 入池）",
         [
             (
-                '                if re.search(rf"[-−－‑]{_D2_JOIN_ONE}*$", line[: m_cnt.start(1)]):',
+                '                if re.search(rf"[-−－‑﹣]{_D2_JOIN_ONE}*$", line[: m_cnt.start(1)]):',
                 "                if False:",
             )
         ],
         "r9_visible",
     ),
     (
-        "survivor-29 (C-6) wikilink 退回「无别名也挖空目标」（可见计数被藏起来）",
-        [
-            (
-                '_D2_WIKILINK_RE = re.compile(r"\\[\\[[^\\]\\n|]*(?=\\|)")',
-                '_D2_WIKILINK_RE = re.compile(r"\\[\\[[^\\]\\n|]*(?=[|\\]])")',
-            )
-        ],
-        "r9_visible",
+        "survivor-29 (C-6→8) 无别名 wikilink 不再取显示文本（`[[987654]]个` 的可见计数被藏起来）"
+        "；⚠️ round-8 把 wikilink 处理整个移进 _visible_text 并删掉了旧常量，"
+        "原变异随之变成**空变异**（第三次同型），锚点已重指到活实现",
+        [('    line = _VIS_WIKILINK_PLAIN_RE.sub(r"\\1", line)\n', "")],
+        "r9_visible or r10_ordering",
     ),
     (
         "survivor-30 (C-6) 归一器无条件剥 `~`（合法区间 `2~3个` 被拼成 23 ⇒ **误伤**; "
         "`987654~0个` 的区间分支同时失效）—— 车道 round-6 自己引入过的回归",
         [('_VIS_STRIKE_RE = re.compile(r"~~")', '_VIS_STRIKE_RE = re.compile(r"~")')],
         "r9_visible",
+    ),
+    # ── R3 round-8 (Codex round-6 七条实现 HIGH): 逐条单一性质 ──
+    (
+        "survivor-31 (C-8) wikilink 挖空退回豁免链（跑在 _visible_text 之前 ⇒ 有别名链接只剩 `|N]]`）",
+        [
+            (
+                "        for rx in (_D2_INLINE_CODE_RE, _D2_TIME_RE):",
+                '        for rx in (_D2_INLINE_CODE_RE, re.compile(r"\\[\\[[^\\]\\n|]*(?=\\|)"), _D2_TIME_RE):',
+            )
+        ],
+        "r10_ordering",
+    ),
+    (
+        "survivor-32 (C-8) fallback 退回在**源码行**上选行（`派**生**` 整行不进检查面）",
+        [
+            (
+                '        if "派生" in vis and heading_pat.match(vis):\n'
+                '            tags.append(("标题", heading_pat))\n'
+                "        if relation_pat.match(vis):",
+                '        if "派生" in ln and heading_pat.match(ln):\n'
+                '            tags.append(("标题", heading_pat))\n'
+                "        if relation_pat.match(ln):",
+            )
+        ],
+        "r10_ordering",
+    ),
+    (
+        "survivor-33 (C-8) fallback 负数守卫被摘除（`-5` 按 +5 入池，D2 侧仍在 ⇒ 只测 D2 的门抓不到）",
+        [
+            (
+                "            for m_neg in re.finditer(\n"
+                '                rf"[-−－‑﹣]{_D2_JOIN_ONE}*({_NUM_RUN_PAT})", norm\n'
+                "            ):",
+                "            for m_neg in ():",
+            )
+        ],
+        "r10_ordering",
+    ),
+    (
+        "survivor-34 (C-8) Markdown link 不再取显示文本（`总[计](u)N个` 句式门失锚）",
+        [('    line = _VIS_MDLINK_RE.sub(r"\\1", line)\n', "")],
+        "r10_ordering",
     ),
 ]
 
@@ -426,7 +465,9 @@ def main() -> int:
     try:
         LOCK.mkdir()  # 原子互斥: 已存在即抛
     except FileExistsError:
-        print(f"⛔ 另一个负验证进程正在跑（锁: {LOCK}）。变异脚本必须串行——见脚本 docstring。")
+        print(
+            f"⛔ 另一个负验证进程正在跑（锁: {LOCK}）。变异脚本必须串行——见脚本 docstring。"
+        )
         return 2
     try:
         original = TARGET.read_bytes()
@@ -456,10 +497,14 @@ def main() -> int:
             finally:
                 TARGET.write_bytes(original)  # 立刻还原，异常也还原
             got = hashlib.sha256(TARGET.read_bytes()).hexdigest()
-            assert got == backup_sha, f"还原后字节与备份不同！{got[:12]} != {backup_sha[:12]}"
+            assert got == backup_sha, (
+                f"还原后字节与备份不同！{got[:12]} != {backup_sha[:12]}"
+            )
             # ⛔ 必须是"收集到用例 且 确实有失败"，不能只看 rc != 0
             if n == 0:
-                print(f"❌ {name}: `-k {keyword}` 一个用例都没匹配到（rc={rc}）——这不是变红")
+                print(
+                    f"❌ {name}: `-k {keyword}` 一个用例都没匹配到（rc={rc}）——这不是变红"
+                )
                 failures += 1
             elif f == 0:
                 print(f"❌ {name}: 变异后 {n} 个用例仍全绿 = 该门不承重\n{out}")
@@ -467,7 +512,9 @@ def main() -> int:
             else:
                 print(f"✅ {name}: 如期变红（{f}/{n} 失败）")
 
-        print(f"\n{'全部承重' if not failures else f'{failures} 条未承重'}（共 {len(MUTANTS)} 条变体）")
+        print(
+            f"\n{'全部承重' if not failures else f'{failures} 条未承重'}（共 {len(MUTANTS)} 条变体）"
+        )
         return 1 if failures else 0
     finally:
         LOCK.rmdir()

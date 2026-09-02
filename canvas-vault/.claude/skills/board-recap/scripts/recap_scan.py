@@ -1364,7 +1364,9 @@ _D2_NOISE = rf"{_D2_NOISE_ONE}*"
 # 从**解析器**搬到了**提取器** —— 判据拿到的 token 不是那句话里的数。
 # ⇒ 数串必须**跨噪声整体抓取**, 剥掉噪声后再交判据 (见 _join_free)。
 # 不可见/零宽字符与排版标记同罪: 渲染后读者看不到, 却能在源码里切断数串。
-_INVISIBLE_ONE = r"[\u00ad\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u2064\ufeff]"
+# ⛔ R3 round-8 (Codex round-6 HIGH-5): 补 U+2066-2069 bidi isolate ——
+# 与 U+202A-202E 同族, 渲染不可见却能改变阅读顺序/切断数串。
+_INVISIBLE_ONE = r"[\u00ad\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u2069\ufeff]"
 _D2_JOIN_ONE = rf"(?:{_D2_NOISE_ONE}|{_INVISIBLE_ONE})"
 _D2_JOIN_RE = re.compile(_D2_JOIN_ONE)
 
@@ -1394,7 +1396,7 @@ def _join_free(s: str) -> str:
 # ⛔ R3 round-5 (Codex round-4 HIGH-7): 表漏 `层/节/列/枚/步/级/则/回/幕/维`
 # ⇒ `本板共有987654层关系` 整句**零校验**。补入常用计数量词。
 # 仍是**封闭表**(与定界集、数词表同口径, 如实登记, 不宣称覆盖全部量词)。
-_D2_QUANT = r"[个条块次份处板项篇道张名位台件册组批轮遍趟人句行段点种类本页题章层节列枚步级则回幕维门套对场部只支株棵]"
+_D2_QUANT = r"[个条块次份处板项篇道张名位台件册组批轮遍趟人句行段点种类本页题章层节列枚步级则回幕维门套对场部只支株棵笔封片卷格轮次]"
 # ⛔ R3 round-3: 原 `_D2_COUNT_RE`(ASCII 专用取数式) 与 `_CJK_NUM_RUN_*`(CJK 专用)
 # 已**合并**为 `_COUNT_BEFORE_QUANT_RE` / `_NUM_RUN_RE`(见 _NUM_RUN_PAT 处)——
 # 按字符类分成两条循环正是「跨类/表外字符成为断点」的成因。两者删除而非保留:
@@ -1426,7 +1428,8 @@ _D2_INLINE_CODE_RE = re.compile(
 # ⛔ R3 round-6 (Codex round-5 HIGH-8): 只在**有别名**时挖空目标 ——
 # 无别名的 `[[987654]]` 里, 目标本身就是读者看到的显示文本, 挖掉它等于把
 # 可见计数藏起来。无别名形态交给 _visible_text() 还原成显示文本。
-_D2_WIKILINK_RE = re.compile(r"\[\[[^\]\n|]*(?=\|)")
+# ⛔ R3 round-8: _D2_WIKILINK_RE 已删除 —— 移出豁免链后只剩定义、无生产调用,
+# 就是死代码; wikilink 两种形态现由 _visible_text() 取显示文本。
 _D2_ORDERED_LIST_RE = re.compile(r"^(\s*)\d+\.(\s)", re.M)
 # E6b · SKILL 模板里**逐字规定的固定短语**, 其中的数字是模板常量而非从数据算出的计数。
 # ⛔ 实测发现: 域倒转成 default-deny 后, live「递归与分治」报告的
@@ -1533,7 +1536,7 @@ _CJK_NUM_CHARS = "".join(sorted(set(_CJK_NUM) | set(_CJK_UNIT)))
 # ⛔ R3 round-5 (Codex round-4 HIGH-6): 漏 `兆京垓秭穰` 等大数单位 ⇒
 # `九兆五个` 会从 `五` 重锚按 5 查池（与此前判 HIGH 的 `廿五` **同机制**）。
 # 定界集只定界不赋值, 加字符**只增加拒绝面**、不增加放行面。
-_CJK_NUM_EXTRA = "廿卅卌壹贰貳叁參参肆伍陆陸柒捌玖拾佰仟萬亿億两兩兆京垓秭穰"
+_CJK_NUM_EXTRA = "廿卅卌壹贰貳叁參参肆伍陆陸柒捌玖拾佰仟萬亿億两兩兆京垓秭穰仨俩"
 _NUMERAL_LIKE_CHARS = "".join(
     sorted(set(_CJK_NUM_CHARS) | set(_CJK_NUM_EXTRA) | set("0123456789"))
 )
@@ -1590,6 +1593,10 @@ _CJK_DECIMAL_RE = re.compile(
 _VIS_TAG_RE = re.compile(r"<[^>\n]*>")
 _VIS_WIKILINK_ALIAS_RE = re.compile(r"\[\[[^\]\n|]*\|([^\]\n]*)\]\]")
 _VIS_WIKILINK_PLAIN_RE = re.compile(r"\[\[([^\]\n|]*)\]\]")
+# ⛔ R3 round-8 (Codex round-6 HIGH-5): 标准 Markdown link 的**显示文本**才是
+# 读者看到的字 —— `总[计](http://x)987654个` 渲染成 `总计987654个`, 是明确
+# 自陈句, 而源码里 `总` 与 `计` 被 `[](...)` 隔开, 句式门当场失锚。
+_VIS_MDLINK_RE = re.compile(r"\[([^\]\n]*)\]\([^)\n]*\)")
 _VIS_INVISIBLE_RE = re.compile(_INVISIBLE_ONE)
 # ⛔ R3 round-6 自查回归 (Codex round-6 HIGH-1, 车道实测确认并含**误伤**):
 # 第一版写成 `[*_~]` 无条件剥 —— 但 `~` 在中文里是**常用区间号**, 而
@@ -1625,6 +1632,7 @@ def _visible_text(line: str) -> str:
     line = _VIS_TAG_RE.sub("", line)
     line = _VIS_WIKILINK_ALIAS_RE.sub(r"\1", line)
     line = _VIS_WIKILINK_PLAIN_RE.sub(r"\1", line)
+    line = _VIS_MDLINK_RE.sub(r"\1", line)
     line = _VIS_INVISIBLE_RE.sub("", line)
     line = _VIS_STRIKE_RE.sub("", line)
     return _VIS_EMPHASIS_RE.sub("", line)
@@ -1645,7 +1653,7 @@ def _normalize_number_seps(line: str) -> str:
     # ⛔ R3 round-5 (Codex round-4 HIGH-3): 逗号两侧也可能夹连接字符 ——
     # `987654<b>,</b>000个` 渲染成 `987654,000个`, 原式(要求逗号紧邻数字)不命中。
     return re.sub(
-        rf"([0-9]){_D2_JOIN_ONE}*[,，]{_D2_JOIN_ONE}*(?=[0-9]{{3}}(?![0-9]))",
+        rf"([0-9]){_D2_JOIN_ONE}*[,，'’]{_D2_JOIN_ONE}*(?=[0-9]{{3}}(?![0-9]))",
         r"\1",
         line,
     )
@@ -1742,7 +1750,11 @@ def _verify_prose_counts(text: str, scan: dict, problems: list[str]) -> None:
         ):
             continue
         # E2/E3/E4/E5: 结构性跨度挖空 (等长替换, 保持行内偏移不乱)
-        for rx in (_D2_INLINE_CODE_RE, _D2_WIKILINK_RE, _D2_TIME_RE):
+        # ⛔ R3 round-8 (Codex round-6 HIGH-2): _D2_WIKILINK_RE 移出豁免链 ——
+        # 它把 `[[目标` 挖空**跑在 _visible_text 之前**, 于是 `[[x|987654]]个`
+        # 只剩 `|987654]]个`, 量词锚失效。wikilink 的两种形态(有/无别名)现在
+        # 都由 _visible_text 取**显示文本**, 语义更准且不再有顺序耦合。
+        for rx in (_D2_INLINE_CODE_RE, _D2_TIME_RE):
             body = rx.sub(lambda mm: " " * len(mm.group(0)), body)
         body = _D2_ORDERED_LIST_RE.sub(
             lambda mm: mm.group(1) + "  " + mm.group(2), body
@@ -1847,7 +1859,7 @@ def _verify_prose_counts(text: str, scan: dict, problems: list[str]) -> None:
                 # ⛔ R3 round-6 (Codex round-5 HIGH-6): 负号不属于数串, 于是
                 # `本板共有-5个` 按 **+5** 比对 —— 进池值 ≠ 读者看到的数。
                 # scan 的计数都是非负整数, 负计数**不可能有出处** ⇒ 恒 FAIL。
-                if re.search(rf"[-−－‑]{_D2_JOIN_ONE}*$", line[: m_cnt.start(1)]):
+                if re.search(rf"[-−－‑﹣]{_D2_JOIN_ONE}*$", line[: m_cnt.start(1)]):
                     problems.append(
                         f"数字终核: 『{sec}』段出现负数形态的计数 "
                         f"-{_join_free(m_cnt.group(1))} "
@@ -2093,10 +2105,15 @@ def _verify_fallback_derive_numbers(text: str, scan: dict, problems: list[str]) 
         # ⚠️ 检查范围: 标题条目 = fallback 措辞白名单实际放行的行 (含「派生」)——
         # 不过滤会误伤报告主标题的年份 (`# 回顾 · 板 · 2026-09-01` 首跑即中);
         # 关系类型分布条目 = 该白名单自身匹配的行 (不含「派生」也要查)。
+        # ⛔ R3 round-8 (Codex round-6 HIGH-3): **先归一再选行** ——
+        # 原实现在**源码行**上判「含派生」与白名单匹配, 于是
+        # `#### 派**生**子女 987654 个` 渲染后是明确计数, 却因源码里 `派` 与 `生`
+        # 被 `**` 隔开而整行不进检查面(实测 exit 0)。
+        vis = _visible_text(ln)
         tags = []
-        if "派生" in ln and heading_pat.match(ln):
+        if "派生" in vis and heading_pat.match(vis):
             tags.append(("标题", heading_pat))
-        if relation_pat.match(ln):
+        if relation_pat.match(vis):
             tags.append(("关系类型分布", relation_pat))
         for tag, pat in tags:
             # ⛔ round-4 (Codex 抢救探针 C): 数字提取必须含**中文数词** ——
@@ -2125,6 +2142,16 @@ def _verify_fallback_derive_numbers(text: str, scan: dict, problems: list[str]) 
                     f"数字终核: fallback 允许式({tag})行内出现小数形态 "
                     f"{_join_free(m_dec.group(0))} "
                     f"(scan JSON 的计数均为整数, 小数不可能有出处): {ln.strip()[:40]}"
+                )
+            # ⛔ R3 round-8 (Codex round-6 HIGH-4): 负数守卫原先**只在 D2 侧** ——
+            # fallback 的 `-5` 按 +5 入池。两侧同口径: scan 计数均非负, 负数恒 FAIL。
+            for m_neg in re.finditer(
+                rf"[-−－‑﹣]{_D2_JOIN_ONE}*({_NUM_RUN_PAT})", norm
+            ):
+                problems.append(
+                    f"数字终核: fallback 允许式({tag})行内出现负数形态 "
+                    f"-{_join_free(m_neg.group(1))} "
+                    f"(scan JSON 的计数均为非负整数, 负数不可能有出处): {ln.strip()[:40]}"
                 )
             nums: list[int] = []
             for tok in (_join_free(x) for x in _NUM_RUN_RE.findall(norm)):
