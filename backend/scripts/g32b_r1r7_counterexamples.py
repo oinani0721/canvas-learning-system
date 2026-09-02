@@ -365,7 +365,11 @@ def n1_n5():
     for bad in (False, "true", 1):
         write_rows(v, _pending_row(out_of_order=bad))
         rb = run(v, event_id="板B#q1", ts="2026-08-02T10:00:00Z")
-        check(f"N1/形态 {bad!r} 非法", rb.returncode != 0 and "形态非法" in rb.stderr, f"rc={rb.returncode}")
+        # round-5 后完整校验前移到乱序分流之前 ⇒ 坏形态先被**校验器本体**拦
+        # (两侧同口径), 写点自己的形态门成了其后的第二道。两种拒因都算达标,
+        # 但必须点名是这两者之一 —— 不能退化成「随便什么理由拒了都行」。
+        _why_ok = ("形态非法" in rb.stderr) or ("out_of_order 唯一合法值" in rb.stderr)
+        check(f"N1/形态 {bad!r} 非法", rb.returncode != 0 and _why_ok, f"rc={rb.returncode} | {last_line(rb.stderr)}")
     (v / "learning_events.jsonl").unlink()
     assert run(v).returncode == 0
     early = _pending_row(out_of_order=True, review_time="2026-07-01T10:00:00Z")

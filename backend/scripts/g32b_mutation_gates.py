@@ -28,7 +28,7 @@ TESTF = "tests/regression/test_g3_2_review_ledger.py"
 LAYER2_ALSO = (
     (
         SKILL,
-        "    _vio_, _warn_ = validate_record_full(_o, vault_id=_vid)\n",
+        "    _vio_, _warn_ = validate_record_full(_o, vault_id=_vid, manifest=_GOLDEN_MF)\n",
         "    _vio_, _warn_ = [], []  # MUTANT: 同时禁掉校验器那层\n",
     ),
 )
@@ -133,12 +133,13 @@ MUTATIONS += [
         '        if _pl["out_of_order"] is not True:\n',
         '        if False and _pl["out_of_order"] is not True:  # MUTANT\n',
         "test_round1_followups_n1_to_n5",
+        LAYER2_ALSO,
     ),
     (
         "M14-N3-drop-duplicate-key-hook",
         SKILL,
-        "json.loads(_line.strip(), object_pairs_hook=_no_dup_keys)",
-        "json.loads(_line.strip())",
+        "json.loads(_line, object_pairs_hook=_no_dup_keys)",
+        "json.loads(_line)",
         "test_round1_followups_n1_to_n5",
     ),
     (
@@ -305,10 +306,13 @@ MUTATIONS += [
         "test_round3_findings",
     ),
     (
+        # ⚠️ round-5 重绑: 原锚点「payload 类型门排在归属判断之前」那一行已被
+        # 删除 —— 它正是误拒合法别节点 v2 记录的根因。新结构里等价的门是归属
+        # 之后的「本节点缺 payload 即拒」。
         "M32-R3-drop-payload-object-gate",
         SKILL,
-        '    if isinstance(_o, dict) and "payload" in _o and not isinstance(_pl, dict):\n',
-        "    if False:  # MUTANT\n",
+        '    if not isinstance(_pl, dict):\n        raise SystemExit(f"[quiz-answer] 账本第 {_ln} 行 (本节点) 缺 payload',
+        '    if False:  # MUTANT\n        raise SystemExit(f"[quiz-answer] 账本第 {_ln} 行 (本节点) 缺 payload',
         "test_round3_findings",
     ),
     (
@@ -354,7 +358,7 @@ MUTATIONS += [
         # F1 在复放 calibration **之后**求值 ⇒ 恒为真 ⇒ attempt 期望值选错档
         "M43-f1-evaluated-after-calibration-replay",
         SKILL,
-        "    _already_ = _fm_has_event(fm, _rid_bare_)\n",
+        "    _already_ = _fm_has_event_compat(fm, _rid_, _ALL_LEDGER_IDS)\n",
         "    _already_ = True  # MUTANT: 恒当作已应用\n",
         "test_round3_findings",
     ),
@@ -365,6 +369,7 @@ MUTATIONS += [
         '        if "schema_ext" in _pl or _looks_like_review_ext(_pl):\n',
         '        if "schema_ext" in _pl:  # MUTANT: 只看 marker 在不在\n',
         "test_round3_findings",
+        LAYER2_ALSO,
     ),
     (
         # current dup 与 foreign 同处 pending ⇒ 两阶段永久不收敛
@@ -470,7 +475,7 @@ MUTATIONS += [
         # 等形态写点放行而校验器拒 —— round-4 报的漏网方向原样复现
         "M47-skip-validator-record-check",
         SKILL,
-        "    _vio_, _warn_ = validate_record_full(_o, vault_id=_vid)\n",
+        "    _vio_, _warn_ = validate_record_full(_o, vault_id=_vid, manifest=_GOLDEN_MF)\n",
         "    _vio_, _warn_ = [], []  # MUTANT: 不复用校验器本体\n",
         "test_round4_writer_validator_verdict_parity",
     ),
@@ -478,16 +483,11 @@ MUTATIONS += [
         # 归属判断退回「缺 payload 就跳过」之后 ⇒ 本节点缺 payload 的行被静默漏算
         "M48-attribution-check-after-payload-skip",
         SKILL,
-        """    if _o.get("node_id") != node_id:
-        continue
-    if not isinstance(_pl, dict):
-        raise SystemExit""",
-        """    if not isinstance(_pl, dict):
-        continue  # MUTANT: 归属判断退回其后
-    if _o.get("node_id") != node_id:
-        continue
-    if False:
-        raise SystemExit""",
+        # ⚠️ round-5 重绑: 归属与 payload 检查之间现在隔着版本门与事件类型门,
+        # 原来的连续两行锚点不再相邻。变异改为让归属判断**失效**(恒不跳过),
+        # 等价复现「别节点的行也被当本节点消费」的旧缺陷面。
+        '    if _o.get("node_id") != node_id:\n        continue\n',
+        "    if False:  # MUTANT: 归属判断失效\n        continue\n",
         "test_round4_writer_validator_verdict_parity",
     ),
     (
@@ -509,6 +509,104 @@ MUTATIONS += [
         raise SystemExit(f"[quiz-answer] 账本第 {_ln} 行的顶层不是 JSON object""",
         "test_round4_writer_validator_verdict_parity",
         LAYER2_ALSO,
+    ),
+]
+
+
+MUTATIONS += [
+    (
+        # 行级 .strip() 洗值 ⇒ `\x0c` 被当空白吃掉, 写点放行而校验器判 Extra data
+        "M51-line-strip-washes-nonjson-whitespace",
+        SKILL,
+        "            _rows.append((_ln, json.loads(_line, object_pairs_hook=_no_dup_keys)))\n",
+        "            _rows.append((_ln, json.loads(_line.strip(), object_pairs_hook=_no_dup_keys)))  # MUTANT\n",
+        "test_round4_writer_validator_verdict_parity",
+        LAYER2_ALSO,
+    ),
+]
+
+
+MUTATIONS += [
+    (
+        # 校准写入退回剥前缀 ⇒ `quiz:K` 与 `K` 撞成同一个键 ⇒ 一次复习静默消失
+        "M52-calibration-strips-quiz-prefix",
+        SKILL,
+        '        _e_id = str(ev.get("event_id") or "")\n',
+        '        _raw_id = str(ev.get("event_id") or "")  # MUTANT\n'
+        '        _e_id = _raw_id[5:] if _raw_id.startswith("quiz:") else _raw_id\n',
+        "test_round5_calibration_key_prefix_collision",
+    ),
+    (
+        # F1 查询退回「只查剥前缀形态」⇒ 同一个碰撞从查询侧复现
+        "M53-f1-query-strips-prefix-only",
+        SKILL,
+        "    if _fm_has_event(fm_text, ev_id):\n        return True\n",
+        "    if _fm_has_event(fm_text, ev_id[5:] if ev_id.startswith('quiz:') else ev_id):  # MUTANT\n        return True\n",
+        "test_round5_calibration_key_prefix_collision",
+    ),
+]
+
+
+# ── round-5 修复的承重变异
+MUTATIONS += [
+    (
+        # f1 退回按裸 eid 判 ⇒ 本次 quiz:K 撞上别的事件写下的裸键 K 条目
+        "M54-f1-uses-bare-eid",
+        SKILL,
+        "f1 = bool(eid) and _fm_has_event_compat(fm, evid, _EARLY_LEDGER_IDS)\n",
+        "f1 = bool(eid) and _fm_has_event(fm, eid)  # MUTANT\n",
+        "test_round5_calibration_key_prefix_collision",
+        (
+            (
+                SKILL,
+                "    if len(_aliases) > 1:\n",
+                "    if False:  # MUTANT: 同时禁掉唯一性证明那层\n",
+            ),
+        ),
+    ),
+    (
+        # 裸键回落不证唯一性 ⇒ 歧义时猜一个, 另一个静默不入账
+        "M55-fallback-without-uniqueness-proof",
+        SKILL,
+        "    if len(_aliases) > 1:\n",
+        "    if False:  # MUTANT: 不证唯一性\n",
+        "test_round5_calibration_key_prefix_collision",
+    ),
+    (
+        # 完整校验退回 marker/乱序分流之后 ⇒ 「先放行再校验」
+        "M56-full-validation-after-branching",
+        SKILL,
+        "    _vio_, _warn_ = validate_record_full(_o, vault_id=_vid, manifest=_GOLDEN_MF)\n",
+        "    _vio_, _warn_ = [], []  # MUTANT: 分流前不校验\n",
+        "test_round5_routing_order_and_input_literal",
+    ),
+    (
+        # 不传 manifest ⇒ 算法身份真值绑定没执行
+        "M57-validate-without-golden-manifest",
+        SKILL,
+        "manifest=_GOLDEN_MF)\n",
+        "manifest=None)  # MUTANT\n",
+        "test_round5_routing_order_and_input_literal",
+    ),
+    (
+        # 输入 ts 不做字面校验 ⇒ 写点自己产出不合规的账本行
+        "M58-input-ts-not-literally-checked",
+        SKILL,
+        "if not isinstance(_ts_in, str) or not _TS_RE.match(_ts_in):\n",
+        "if False:  # MUTANT: 输入 ts 不校验\n",
+        "test_round5_routing_order_and_input_literal",
+    ),
+]
+
+
+MUTATIONS += [
+    (
+        # 序数回推漏计 §6.3 历史行 ⇒ 算出错的期望值并伪装成 envelope 冲突
+        "M59-ordinal-ignores-legacy-scored-rows",
+        SKILL,
+        "    if _legacy_after:\n",
+        "    if False:  # MUTANT: 漏计历史行\n",
+        "test_round5_legacy_scored_rows_break_ordinal_proof",
     ),
 ]
 

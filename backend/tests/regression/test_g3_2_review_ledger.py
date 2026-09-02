@@ -1315,7 +1315,10 @@ def test_round1_followups_n1_to_n5(vault):
         _write_ledger(vault, _review_row(**{"payload.out_of_order": bad_shape}))
         rb = _run_writer(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
         assert rb.returncode != 0, f"out_of_order={bad_shape!r} 形态非法必须拒"
-        assert "形态非法" in rb.stderr, rb.stderr
+        # round-5 后完整校验前移到乱序分流之前 ⇒ 坏形态先被**校验器本体**拦
+        # （两侧同口径），写点自己的形态门成了其后的第二道。两种拒因都算达标，
+        # 但必须点名是这两者之一 —— 不能退化成「随便什么理由拒了都行」。
+        assert ("形态非法" in rb.stderr) or ("out_of_order 唯一合法值" in rb.stderr), rb.stderr
     # N1 验伪：合法乱序（review_time ≤ W）必须放行且不进 pending
     (vault / "learning_events.jsonl").unlink()  # 清掉上面留下的坏形态行
     assert _run_writer(vault, _payload()).returncode == 0  # 先把 W 推到 TS1
@@ -1823,9 +1826,37 @@ def test_internal_audit_findings(vault):
         _write_ledger(vault, _review_row(event_id="quiz:板A#q1", **bad))
         _face_mount = _write_face(vault)
         r = _run_writer(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
+        # 这些 fixture 都**带着 `schema_ext=review/1`**，所以三种坏行都必须拒：
+        # 带 review marker 的非评分事件正是校验器要拦的（"marker 只许挂在评分
+        # 事件上"），身份错位同理。两侧同口径。
         assert r.returncode != 0, f"[{desc}] 不得被当成本节点的一次复习重放"
+        assert _run_validator(vault).returncode != 0, f"[{desc}] 校验器同样拒（两侧同口径）"
         assert _write_face(vault) == _face_mount, f"[{desc}] 零写（节点 + 账本，尤其不得推进 W）"
+    # ⚠️ round-5 MEDIUM 的真实形态：**纯**非评分事件（无任何 review 扩展键）
+    # 是合法记录，正确处置是**跳过**。此前 `_looks_like_review_ext()` 对它们也
+    # 生效，把「归档了一次会话」误判成「一次被降级绕过的复习」而拒写 ——
+    # 校验器 rc=0 而写点 rc=1，误拒方向。
+    for etype in ("session_archived", "node_derived"):
+        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+        _write_ledger(
+            vault,
+            {
+                "event_id": f"quiz:纯{etype}",
+                "event_version": 1,
+                "event_type": etype,
+                "node_id": "测试节点",
+                "recorded_at": TS1,
+                "effective_at": TS1,
+                "payload": {"vault_id": "canvas_vault_测试"},  # 与 _review_row 同源
+            },
+        )
+        rp = _run_writer_settled(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
+        assert rp.returncode == 0, f"纯 {etype} 是合法记录，必须跳过而不是拒: {rp.stderr[:250]}"
+        assert _run_validator(vault).returncode == 0, f"纯 {etype} 校验器也放行（两侧同口径）"
+
     # 验伪：合法的两种评分事件类型都必须照常重放
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (vault / "learning_events.jsonl").unlink(missing_ok=True)
     for etype, rating, gn in (("answer_scored", 3, 0.75), ("answer_abandoned", 1, 0.0)):
         row = _review_row(event_id="quiz:板A#q1", **{"payload.rating": rating, "payload.grade_norm": gn})
         row["event_type"] = etype
@@ -1943,7 +1974,10 @@ def test_round3_findings(vault):
         _write_ledger(vault, row)
         r4 = _run_writer(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
         assert r4.returncode != 0, f"payload={bad_pl!r} 必须拒"
-        assert "payload 不是 object" in r4.stderr, r4.stderr
+        # round-5 后 payload 类型门移到**归属判断之后**（此前排在前面，会误拒
+        # 合法的别节点 v2 记录 —— v2 允许 payload 是别的类型）。本节点的行走
+        # 「缺 payload 或类型不对」这一支，拒因串因此不同、语义一致。
+        assert ("payload 不是 object" in r4.stderr) or ("缺 payload 或其类型不是 object" in r4.stderr), r4.stderr
         assert "Traceback" not in r4.stderr, "必须是 clean fail-closed"
 
     # ⑤ BLOCKER：恢复与新写必须分成两次原子发布。
@@ -2278,6 +2312,12 @@ def test_round4_writer_validator_verdict_parity(vault):
         return w.returncode == 0, _run_validator(vault).returncode == 0, w
 
     CASES = (
+        # round-5 线索: `\x0c`(换页) 是 **Python** 眼里的空白但**不是 JSON 空白**
+        # (RFC 8259 只认 space/tab/CR/LF)。写点曾用 `_line.strip()` 洗掉它再解析 ⇒
+        # 解析成功、放行; 校验器不 strip、判 `Extra data` ⇒ 拒。又一次「洗值」分叉,
+        # 与 MEDIUM「时刻首尾空白」同源 —— 我修了字段级的 strip, 漏了**行级**的。
+        ("行尾裸换页 \\x0c", lambda r: json.dumps(r) + "\x0c\n"),
+        ("行尾裸垂直制表 \\x0b", lambda r: json.dumps(r) + "\x0b\n"),
         ("顶层是 JSON 数组", lambda r: "[]\n"),
         ("顶层是 JSON 数字", lambda r: "12345\n"),
         ("本节点行缺 payload", lambda r: r.pop("payload") and None),
@@ -2296,6 +2336,11 @@ def test_round4_writer_validator_verdict_parity(vault):
     wok, vok, w = _mutate(lambda r: None)
     assert wok and vok, f"合法行两侧都必须放行: writer={w.stderr[:200]}"
 
+    # 验伪①b: **JSON 自己允许的空白**(CR) 不得被误拒 —— 去掉 .strip() 的修法
+    # 若改成「任何尾随字节都拒」就会误伤 CRLF 账本, 那是从漏网翻到误拒的另一侧。
+    wok, vok, w = _mutate(lambda r: json.dumps(r) + "\r\n")
+    assert wok and vok, f"尾随 CR 是 RFC 8259 允许的空白, 两侧都必须放行: {w.stderr[:200]}"
+
     # 验伪②: **别节点**的不合规行不得阻塞本次写入（写点只管自己消费的行）
     (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
     other = json.loads(json.dumps(base))
@@ -2306,3 +2351,180 @@ def test_round4_writer_validator_verdict_parity(vault):
     r2 = _run_writer_settled(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
     assert r2.returncode == 0, f"别节点的坏行不得越权阻塞本节点写入: {r2.stderr[:300]}"
     assert _run_validator(vault).returncode != 0, "但它仍应被校验器兜住（分层边界成立）"
+
+
+# ── 门㊵ round-5 BLOCKER: 校准键剥前缀导致 ID 碰撞 ⇒ 一次复习静默消失 ──
+
+
+def test_round5_calibration_key_prefix_collision(vault):
+    """校准记录曾存**剥掉 `quiz:` 前缀**的 event_id, 于是账本里的 `quiz:K` 与
+    `K` 落到同一个键上, F1 判定无法区分。
+
+    ⚠️ 实测漏算链: 账本 3 次评分 (`quiz:K` / `K` / 本次), 第二条因剥前缀后与第一条
+    同名而被误判「已应用」⇒ 跳过复放 ⇒ 校准只记 2 条、attempt 停在 2,
+    **那次复习永久消失且 rc=0 无任何提示**。
+
+    ⚠️ 另两种 attempt 排列恰好被序数门顶住而 fail-closed —— 那是**巧合不是设计**。
+    「被别的门兜住」不等于缺陷不存在: 只要换一个排列 (第二行 attempt 恰等于误判
+    分支算出的期望值) 就穿过去了。这正是本门要锁住的那一个排列。
+
+    修法: 写入存**完整** event_id; F1 查询完整形态优先, 剥前缀形态**仅作历史
+    兼容回落** (回落不能反向做 —— 拿剥前缀的键去撞完整记录正是碰撞的来源)。
+    """
+
+    def _three_scored(id1, id2, n2):
+        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+        rows = []
+        for eid, rt, n in ((id1, TS1, 1), (id2, "2026-08-01T10:00:01Z", n2)):
+            row = _review_row(**{"payload.review_time": rt, "effective_at": rt})
+            row["event_id"] = eid
+            row["payload"]["attempt_count"] = n
+            rows.append(row)
+        _write_ledger(vault, *rows)
+        r = _run_writer_settled(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
+        fm = (vault / NODE_REL).read_text(encoding="utf-8")
+        # _fm_fields 只抽 fsrs_*，attempt_count 直接读（容 YAML 引号标量）
+        _m = re.search(r"^attempt_count:\s*[\"']?(\d+)[\"']?\s*$", fm, re.M)
+        return r, re.findall(r"^  - event_id: (.+)$", fm, re.M), (int(_m.group(1)) if _m else None)
+
+    # ① 碰撞 + attempt 恰好对上误判期望 —— 修复前正是这个排列穿过了序数门
+    r, cal, att = _three_scored("quiz:K", "K", 1)
+    assert not (r.returncode == 0 and len(cal) < 3), (
+        f"碰撞键不得静默漏算: rc={r.returncode} 校准{len(cal)}条 attempt={att}"
+    )
+    # ② 碰撞 + 序数自洽 ⇒ **歧义即停**（round-5 修订的口径）。
+    # ⚠️ 我一度把期望写成「都能正常复放」——那是错的：历史校准条目存的是**剥前缀**
+    # 形态，遇到 `K` 与 `quiz:K` 并存时，一条裸键条目到底对应哪一个**无法证明**。
+    # 猜一个就会让另一个静默不入账（正是本门开头那条漏算链）。可证的处置只有停下。
+    r, cal, att = _three_scored("quiz:K", "K", 2)
+    assert r.returncode != 0, f"裸形态相同的两个 event_id 并存时必须 fail-closed: {cal}"
+    assert "裸形态相同的多个 event_id" in r.stderr, r.stderr
+    assert "请人工统一这些 id" in r.stderr, "拒因必须给出可执行的处置方式"
+
+    # 验伪①: 不碰撞的正常场景不得回归
+    r, cal, att = _three_scored("quiz:甲", "quiz:乙", 2)
+    assert r.returncode == 0 and len(cal) == 3 and att == 3, f"正常场景回归: {cal} {att}"
+
+    # 验伪②: **历史**剥前缀形态的校准记录必须仍被认出（否则旧笔记会被重复复放）
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    row = _review_row()
+    row["event_id"] = "quiz:老键"
+    _write_ledger(vault, row)
+    assert _run_writer_settled(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z")).returncode == 0
+    t = (vault / NODE_REL).read_text(encoding="utf-8")
+    t2 = t.replace('event_id: "quiz:老键"', 'event_id: "老键"')
+    assert t2 != t, "预置必须与旧形态可区分"
+    (vault / NODE_REL).write_text(t2, encoding="utf-8")
+    r2 = _run_writer_settled(vault, _payload(event_id="板C#q1", ts="2026-08-03T10:00:00Z"))
+    assert r2.returncode == 0, r2.stderr[:300]
+    t3 = (vault / NODE_REL).read_text(encoding="utf-8")
+    assert t3.count('event_id: "quiz:老键"') + t3.count('event_id: "老键"') == 1, (
+        "历史剥前缀形态的校准记录必须被回落命中，否则旧笔记会被重复复放（双吃 EMA）"
+    )
+
+
+# ── 门㊶ round-5: 路由顺序 + 输入字面校验 ──
+
+
+def test_round5_routing_order_and_input_literal(vault):
+    """round-5 的路由顺序与输入校验三条，逐条锁住。
+
+    ① **完整校验必须排在 marker/乱序分流之前**：那两条分支都以 `continue` 结束，
+       排在校验后面等于「先放行再校验」——实测一条标了 `out_of_order`、时刻带
+       首尾空白的行，校验器 rc=1 而写点 rc=0 并照常写入下一次评分。
+    ② **必须传 golden manifest**：不传等于**没执行**算法身份真值绑定——实测
+       `fsrs_library_version="999.999"` + 全零 hash 时校验器 CLI rc=1 而写点放行。
+    ③ **本次输入 ts 按字面校验且拒而不洗**：它会**原样**写进账本 `recorded_at`，
+       而 bridge 入口的 `.strip()` 只洗自己那份拷贝 ⇒ 写点 rc=0 而账本落库带空白、
+       校验器 rc=1。**写点自己产出了不合规的行**，比消费侧漏网更糟。
+    """
+    # ① 乱序分流之前必须已完整校验
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    _write_ledger(vault, _review_row())
+    assert _run_writer_settled(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z")).returncode == 0
+    bad = _review_row(**{"payload.review_time": " 2026-07-01T10:00:00Z ", "effective_at": " 2026-07-01T10:00:00Z "})
+    bad["event_id"] = "quiz:乱序空白"
+    bad["payload"]["out_of_order"] = True
+    with (vault / "learning_events.jsonl").open("a", encoding="utf-8") as f:
+        f.write(json.dumps(bad, ensure_ascii=False) + "\n")
+    face = _write_face(vault)
+    r = _run_writer_settled(vault, _payload(event_id="板C#q1", ts="2026-08-03T10:00:00Z"))
+    assert r.returncode != 0, "标了 out_of_order 但时刻带空白的行必须在分流前被校验拦下"
+    assert _run_validator(vault).returncode != 0, "校验器同样拒（两侧同口径）"
+    assert _write_face(vault) == face, "零写（节点 + 账本）"
+
+    # ② golden manifest 必须真正传进去
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    forged = _review_row(**{"payload.fsrs_library_version": "999.999", "payload.fsrs_params_hash": "0" * 64})
+    _write_ledger(vault, forged)
+    r2 = _run_writer_settled(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
+    assert r2.returncode != 0, "伪造的 fsrs 身份键必须被 manifest 绑定门拦下"
+    assert _run_validator(vault).returncode != 0, "校验器同样拒（两侧同口径）"
+
+    # ③ 输入 ts 字面校验：拒而不洗
+    for bad_ts, why in ((" 2026-08-02T10:00:00Z ", "首尾空白"), ("2026-08-02T10:00:00+00:00:00", "畸形偏移")):
+        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+        (vault / "learning_events.jsonl").unlink(missing_ok=True)
+        r3 = _run_writer_settled(vault, _payload(event_id="板A#q1", ts=bad_ts))
+        assert r3.returncode != 0, f"输入 ts {why} 必须拒: {r3.stderr[:200]}"
+        assert "不符 §三 受理语法" in r3.stderr, r3.stderr
+        assert not (vault / "learning_events.jsonl").exists() or not _ledger_lines(vault), (
+            f"{why} 的输入不得产出任何账本行"
+        )
+    # 验伪：两种合法写法（Z 与 +08:00 偏移）都不得被误拒
+    for good_ts in ("2026-08-02T10:00:00Z", "2026-08-02T18:00:00+08:00"):
+        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+        (vault / "learning_events.jsonl").unlink(missing_ok=True)
+        rg = _run_writer_settled(vault, _payload(event_id="板A#q1", ts=good_ts))
+        assert rg.returncode == 0, f"合法 ts {good_ts} 不得被误拒: {rg.stderr[:200]}"
+        assert _run_validator(vault).returncode == 0, f"{good_ts} 产出的账本必须合规"
+
+
+# ── 门㊷ round-5 HIGH: §6.3 历史评分行被序数回推漏计 ──
+
+
+def test_round5_legacy_scored_rows_break_ordinal_proof(vault):
+    """§6.3 历史评分行（旧写点产物，**没有 attempt_count**）同样推进过 attempt，
+    但它们不在适用集里，序数回推把它们漏计。
+
+    ⚠️ 实测：正常写 E1、L 两次评分后，把 L 转成合法的历史形态（去 marker 与全部
+    review 扩展键，validator `rc=0`），原样重跑 E1 被报「**envelope 冲突**」。
+    那个诊断是**错的** —— 评分事实并无不一致，不一致的是算出的期望序数。
+
+    处置按审查者口径「不伪造期望值」：报真因停下，而不是硬算一个数再以 envelope
+    冲突的名义拒绝。⛔ 本门锁的是**诊断的正确性**，不只是"拒了就行"——
+    一个错的拒因会把用户引去查根本没错的地方。
+    """
+    for eid, ts in (("E1#q1", TS1), ("L#q1", "2026-08-01T11:00:00Z")):
+        assert _run_writer_settled(vault, _payload(event_id=eid, ts=ts)).returncode == 0
+    rows = list(_ledger_lines(vault))  # 已是解析好的 dict
+    assert len(rows) == 2
+    # 把第二条转成合法 §6.3 历史行（无 marker、无任何 review 扩展键）
+    rows[1]["payload"] = {"exam_board": "旧板", "note": "旧写点产物"}
+    (vault / "learning_events.jsonl").write_text(
+        "\n".join(json.dumps(r, ensure_ascii=False) for r in rows) + "\n", encoding="utf-8"
+    )
+    assert _run_validator(vault).returncode == 0, "改造后的账本本身必须合规（§6.3 允许该形态）"
+
+    face = _write_face(vault)
+    r = _run_writer(vault, _payload(event_id="E1#q1", ts=TS1))
+    assert r.returncode != 0, "序数不可证时必须停下"
+    assert "§6.3 历史评分行" in r.stderr, f"拒因必须点名真因，而不是 envelope 冲突: {r.stderr[:300]}"
+    # ⚠️ 不能写成 `"envelope 冲突" not in r.stderr` —— 修复后的拒因文案里**自带**
+    # 「不以 envelope 冲突的名义拒绝」这句话，那样断言恒假。要判的是它没有被
+    # **报成** envelope 冲突，即那条错误诊断的原句不出现。
+    assert "与本次评分事实不一致" not in r.stderr, f"不得把序数不可证伪装成评分事实不一致: {r.stderr[:300]}"
+    assert "请人工" in r.stderr, "拒因必须给出可执行的处置方式"
+    assert _write_face(vault) == face, "零写（节点 + 账本）"
+
+    # 验伪：没有历史行时，正常的幂等重跑不得被这条新分支误伤
+    v2 = vault / "_"  # 同一 fixture 内重置
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (vault / "learning_events.jsonl").unlink(missing_ok=True)
+    for eid, ts in (("E1#q1", TS1), ("E2#q1", "2026-08-01T11:00:00Z")):
+        assert _run_writer_settled(vault, _payload(event_id=eid, ts=ts)).returncode == 0
+    sha = _sha(vault / NODE_REL)
+    rg = _run_writer(vault, _payload(event_id="E1#q1", ts=TS1))
+    assert rg.returncode == 0, f"无历史行时幂等重跑不得被误拒: {rg.stderr[:250]}"
+    assert "幂等跳过" in rg.stdout, rg.stdout[:200]
+    assert _sha(vault / NODE_REL) == sha, "幂等重跑必须零写"
