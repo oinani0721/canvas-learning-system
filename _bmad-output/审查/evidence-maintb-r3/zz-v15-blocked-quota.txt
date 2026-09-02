@@ -1,0 +1,18 @@
+# ⛔ 冻结审查 v15 未能取得：Codex 额度耗尽（外部硬阻断）
+
+时间：2026-09-02T19:55Z（本机 09-03）
+绑定意图：e93cc6c175e2cc257eb059f737f1553772f53e7f（round-33，本卡第 35 个 commit）
+结果：正文 0 字节，**未取得任何终裁**。
+
+## 原始错误（stderr 尾）
+xit
+ERROR: You've hit your usage limit. Visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at Sep 7th, 2026 11:47 AM.
+ERROR: You've hit your usage limit. Visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at Sep 7th, 2026 11:47 AM.
+
+## 影响
+· 卡文条件 (g)「新 Codex 正文非空且 B/H=0」在 **2026-09-07 11:47** 之前**无法再尝试**；
+· 最后一份有效终裁是 **v14**（绑 03b60b86，判 FAIL），round-33 的 e93cc6c1 **没有任何审查绑定**；
+· 失败的那次运行把 codex-review-CARD-维护B-R3.md 截成 0 字节，已从 v14 存档恢复（证据链未断）。
+
+## 处置
+停止开新轮。没有可用的独立复核者时，继续改动只会堆高未审改动 —— 那正是 R2 被打回、催生本卡的失败模式。
