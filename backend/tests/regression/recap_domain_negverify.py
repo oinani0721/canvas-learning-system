@@ -554,6 +554,44 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         [("        mm = m7.match(_visible_text(ln))", "        mm = m7.match(ln)")],
         "r16_clause7",
     ),
+    (
+        "survivor-47 (C-20) 区间首端守卫要求小数点前必须有数词（`.2~3个`/`．二~三个`/`点二~三个` 从小数点后重锚）",
+        [
+            (
+                'rf"(?:{_NEG_SIGN}|[{_NUMERAL_LIKE_CHARS}]?{_D2_JOIN_ONE}*[.．点]){_D2_JOIN_ONE}*$"',
+                'rf"(?:{_NEG_SIGN}|[{_NUMERAL_LIKE_CHARS}]{_D2_JOIN_ONE}*[.．点]){_D2_JOIN_ONE}*$"',
+            )
+        ],
+        "r17_freeze",
+    ),
+    (
+        "survivor-48 (C-21) code span 字符域去掉区间分隔符"
+        "（`` `999~999个` `` 被当字段值整段挖空，区间门与数字门都不可达）",
+        [('_D2_RANGE_SEPS = "~～〜-－−‑—–到至"', '_D2_RANGE_SEPS = ""')],
+        "r17_freeze",
+    ),
+    (
+        "survivor-49 (C-22) code span 空白域退回字面空格+tab（NBSP 让整段被豁免）",
+        [
+            (
+                "        ch in _D2_COUNTISH_CHARS or ch in _D2_COUNTISH_EXTRA or ch.isspace()",
+                '        ch in _D2_COUNTISH_CHARS or ch in _D2_COUNTISH_EXTRA or ch in " \\t"',
+            )
+        ],
+        "r17_freeze",
+    ),
+    (
+        "survivor-50 (C-23) 五元组退回 raw 全文 findall（双行逃逸：正确行 + 渲染等价冲突行）",
+        [
+            (
+                "    scale_hits = scale_pat.findall(\n"
+                '        "\\n".join(_visible_text(ln) for ln in text.splitlines())\n'
+                "    )",
+                "    scale_hits = scale_pat.findall(text)",
+            )
+        ],
+        "r17_freeze",
+    ),
 ]
 
 
@@ -587,8 +625,21 @@ def _looks_like_crash(out: str) -> bool:
     # 断言是 `E   assert …` 或 `E   AssertionError: …`; 续行则是缩进的自由文本。
     # ⇒ 加上"紧跟冒号"这一条, 两个方向同时收敛(负控见 r13 门的 16 条形态)。
     LEGIT_RED = {"assert", "AssertionError"}
-    exc_names = re.findall(r"^E\s+([A-Za-z_][\w.]*):", out, re.M)
-    exc_names += re.findall(r"^E\s+(assert)\b", out, re.M)
+    # ⛔ round-20 (冻结审查 v2 §四.4): 只要"紧跟冒号"仍会假阳 —— 断言消息的
+    #    续行 `E       Expected: …` 同样是"标识符+冒号"。实测 pytest 语法:
+    #    顶层行是 `E` + **3 个空格** + 内容(异常行与 `assert` 行都是),
+    #    续行则缩进**更深**(`E     VERIFY…` 5 格 / `E    +  where` 4 格)。
+    #    ⇒ 缩进上界 3 格 + 紧跟冒号, 两个条件一起才是异常行。
+    #    这条规则的规格书是 pytest 的真实输出, 不是我对它的印象 —— 本判据
+    #    已在这个方向上错过两次(枚举后缀=假阴, 任意标识符=假阳 39/44)。
+    # ⛔ round-20 二修（变异 C 存活 + 冻结审查 v2 的第三条判词）:
+    #    加了缩进上界之后, "紧跟冒号"这个条件**既多余又有害** ——
+    #    · 多余: 续行缩进 ≥4 格, 上界已经把它们排除, 冒号不再承担区分职责
+    #      (实测: 去掉冒号后 mutC 不再让任何门变红 ⇒ 那条变异已不承重);
+    #    · 有害: **无消息异常**打出来是 `E   RecursionError`(没有冒号),
+    #      要求冒号 = 漏掉整整一类崩溃(假阴)。
+    #    ⇒ 只留缩进上界 + LEGIT_RED 白名单。判据的两个条件里, 承重的是缩进。
+    exc_names = re.findall(r"^E {1,3}([A-Za-z_][\w.]*)\b", out, re.M)
     errors = sum(int(m) for m in re.findall(r"(\d+) error(?:s)?\b", out))
     return bool(
         any(name not in LEGIT_RED for name in exc_names)

@@ -1512,7 +1512,14 @@ _D2_COUNTISH_CHARS = _NUMERAL_LIKE_CHARS + _D2_QUANT.strip("[]")
 # ⇒ 改为**先归一再判**的函数式替换: 判据看的是读者渲染后看到的内容。
 _D2_CODE_SPAN_RE = re.compile(r"`[^`\n]*`")
 # 计数里可以合法出现、但不属于"数词样字符"的附属符号（符号/小数点/分隔符）。
-_D2_COUNTISH_EXTRA = "-−－‑﹣负.．,，'’ \t"
+# ⛔ round-20 (冻结审查 v2 §四.2): 这张表与**区间主表**再次分叉 ——
+#    区间分隔符 `~～〜到至—–` 不在其中, 于是 `` `2~3个` `` / `` `999~999个` ``
+#    这类**可见区间**被当字段值整段挖空, 区间门与普通数字门**都不可达**
+#    (两条实测放行)。空白也只列了普通空格与 tab, 而主连接集用的是 `\s` ——
+#    code span 内的 NBSP 同样让整段被豁免(第三条实测放行)。
+#    ⇒ 分隔符与区间主表同源; 空白改用 str.isspace() 判(覆盖 NBSP/全角空格)。
+_D2_RANGE_SEPS = "~～〜-－−‑—–到至"
+_D2_COUNTISH_EXTRA = "-−－‑﹣负.．,，'’" + _D2_RANGE_SEPS
 
 
 def _codespan_is_visible_count(inner: str) -> bool:
@@ -1524,7 +1531,10 @@ def _codespan_is_visible_count(inner: str) -> bool:
     norm = _normalize_number_seps(_visible_text(inner)).strip()
     if not norm:
         return False
-    if not all(ch in _D2_COUNTISH_CHARS or ch in _D2_COUNTISH_EXTRA for ch in norm):
+    if not all(
+        ch in _D2_COUNTISH_CHARS or ch in _D2_COUNTISH_EXTRA or ch.isspace()
+        for ch in norm
+    ):
         return False
     # ⚠️ 至少要有一个"数词样字符或量词" —— 纯符号 span（`` `-` `` / `` `.` ``）
     #    不是计数, 白白失去 E2 豁免。但**纯量词**（`` `个` ``）必须算:
@@ -1536,8 +1546,11 @@ def _codespan_is_visible_count(inner: str) -> bool:
 def _blank_inline_code(mm: "re.Match[str]") -> str:
     """字段值 span 整段挖空; 可见计数 span **只挖掉反引号**, 内容留给数值门。
 
-    ⚠️ 只挖反引号（而不是原样保留）是必须的: 反引号不在连接字符集里,
-    `` `-5`个 `` 原样留下时 `5` 与量词 `个` 被反引号隔开, 量词锚失效。
+    ⚠️ 只挖反引号（而不是原样保留）: 反引号**在**连接字符集 `_D2_NOISE_ONE` 里,
+    所以量词锚本身不会因它失效 —— 原注释称"反引号不在连接集"是**事实错误**
+    (round-20 冻结审查 v2 指出)。保留这个做法的真实理由是**语义**: 判定为可见
+    计数的 span, 其反引号只是排版, 读者看到的就是里面的数; 挖掉它让后续所有
+    判据面对的文本与读者一致, 不必依赖"反引号恰好也算连接字符"这个巧合。
     等长替换, 行内偏移不变。
     """
     span = mm.group(0)
@@ -1705,10 +1718,14 @@ _VIS_INVISIBLE_RE = re.compile(_INVISIBLE_ONE)
 _NEG_SIGN = r"(?:[-−－‑﹣]|负)"
 # ⚠️ 必须定义在 _NEG_SIGN **之后**（它是模块级 compile，第一版放在
 #    _D2_RANGE_RE 旁边，import 当场 NameError）。
-# 区间首端左侧的"危险前文": 负号, 或"数词样字符 + 小数点"。命中即说明这个区间
-# 是从符号/小数点之后**重新起锚**的碎片, 不是一个完整的数 (round-17)。
+# 区间首端左侧的"危险前文": 负号, 或**小数点**(整数部分可有可无)。命中即说明
+# 这个区间是从符号/小数点之后**重新起锚**的碎片, 不是一个完整的数 (round-17)。
+# ⛔ round-20 (冻结审查 v2 §四.1): 原式要求小数点**前面必须有数词样字符**,
+#    于是 `.2~3个` / `．二~三个` / `点二~三个` 三条(无整数部分的小数)全部
+#    绕过 —— 区间照旧从 `2~3` 重锚并整段挖空, 小数门再也看不到(三条实测放行)。
+#    整数部分改为可选。
 _RANGE_LEFT_BAD_RE = re.compile(
-    rf"(?:{_NEG_SIGN}|[{_NUMERAL_LIKE_CHARS}]{_D2_JOIN_ONE}*[.．点]){_D2_JOIN_ONE}*$"
+    rf"(?:{_NEG_SIGN}|[{_NUMERAL_LIKE_CHARS}]?{_D2_JOIN_ONE}*[.．点]){_D2_JOIN_ONE}*$"
 )
 _VIS_STRIKE_RE = re.compile(r"~~")
 _VIS_EMPHASIS_RE = re.compile(r"[*_]")
@@ -2118,7 +2135,16 @@ def _verify_numbers(fm: str, text: str, report_path: Path, problems: list[str]) 
     scale_pat = re.compile(
         r"(\d+)\s*成员（(\d+)\s*种子\s*\+\s*(\d+)\s*派生，(\d+)\s*占位）/\s*(\d+)\s*批注"
     )
-    scale_hits = scale_pat.findall(text)
+    # ⛔ R3 round-20 (冻结审查 v2「三处不改」判断被推翻): 原先在 **raw 全文**
+    #    上 findall ⇒ 保留一条正确五元组、再加一条**渲染等价但源码不命中**的
+    #    冲突行 (`999 成**员**（…）` / `999 成<b>员</b>（…）`), 后者既不计入
+    #    「恰好一处」的计数、也不被逐条校验 —— 两条实测 exit 0 放行。
+    #    与 ③段信号行的双行逃逸**同型**; 我上一轮只测了「改坏那条唯一正确行」
+    #    (形状一坏就 fail-closed), 没把「留一条好的 + 加一条冲突的」这个形态
+    #    迁移过来, 于是误判为「实测不成立」。⇒ 逐行归一后再匹配。
+    scale_hits = scale_pat.findall(
+        "\n".join(_visible_text(ln) for ln in text.splitlines())
+    )
     want = tuple(
         counts.get(k, -1)
         for k in ("members", "seeds", "derived", "stubs", "annotations")

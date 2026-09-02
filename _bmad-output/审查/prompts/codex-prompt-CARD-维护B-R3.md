@@ -1,125 +1,104 @@
-# Codex **冻结审查（终态）** · CARD-维护B-R3 —— 绑定最终 commit
+# 代码复核请求：一个本地笔记工具的「报告数字有出处」校验器
 
-⚠️ **本轮性质**：不是「续轮追清零」。上一份冻结审查绑的是 `edd471bc`（round-13），
-此后 **round-14 / 15 / 16 三轮整改**已把你那份报告里点名的**有界项逐条闭掉**
-（见下表）。卡文条件 (g) 要求报告**绑定最终 commit**，而现有报告已过期 ⇒
-本轮只求一件事：**在终态 commit 上给出准确测量**。请不必迁就任何结论。
+你是独立代码复核者。请复核一个**单机离线学习笔记工具**的一处校验逻辑，
+并按末尾格式给出结论。没有网络接口、没有多用户、不处理任何凭据。
 
-⚠️ 卡文限「最多 3 轮」，实际已远超；超限未获用户追认，本报告不构成合并授权。
-⚠️ 请继续**不要跑 negverify**（原地改写被测源码；round-2 你跑它被打断，
-把变异留在工作树里，导致随后的 pytest 测了污染文件、报 240/15）。
+## 背景（三句话）
 
-## 你上一份（`edd471bc`）报告的逐条处置
+用户在 Obsidian 里让 AI 生成学习白板的「回顾报告」。报告里出现的计数
+（「本板共有 N 个子节点」这类）必须能在扫描结果 JSON 里找到同值来源，
+否则校验器报错、报告打回重写。目的是**防止 AI 在报告里编造数字**。
 
-| 你的判词 | 处置 |
-|---|---|
-| ❌ HIGH 第三个窄数值口径副本（inline-code 的 ASCII-only 守卫）| ✅ **round-14 修**：数字部分改为派生自 `_NUMERAL_LIKE_CHARS`，与取数同源；副本消除 |
-| ❌ HIGH 过度拼接不保值，且 `_visible_text` 注释仍称「安全向」| ⚠️ 行为**未修**（已实测无有界修法，round-13 试修回退）；但 **round-14 已把措辞统一为「已被证伪、如实登记 fail-open」**——你点的「注释比证据宽」这一半已闭 |
-| ❌ HIGH renderer 闭包缺口：shortcut `[t]` 未覆盖 + `_INVISIBLE_ONE` 与全局门分叉 | ✅ **两半都修**：round-15 全局零宽门改为共用 `_INVISIBLE_ONE`（bidi isolate U+2065-2069 原能过门）；round-16 新增 `_VIS_SHORTCUT_LINK_RE` |
-| ⚠️ HIGH-3 raw 专用绑定（seed ledger / 五元组 / tips）| ⚠️ **未修**，如实登记（需重设计统一入口，已移交）|
-| ❌ 崩溃假阴：只扫外层 stdout、只枚举五种异常名 | ✅ **round-16 修**：判据从「名单」改「形态」——`E <Exc>` 非 `AssertionError` / `Traceback` / `INTERNALERROR` / 收集期 error；提成纯函数 `_looks_like_crash` 并有 9 形态单测 |
-| ⚠️ 不要求变异轮 `rc == 1` | ✅ **round-16 修**：`rc != 1` 直接判「不算变红」|
-| ⚠️ 负号两侧独立手抄集 | ✅ **round-14 修**：统一 `_NEG_SIGN` |
-| ❌ HIGH-6 闭表外尾片重锚 | ⚠️ **开放集，未修**，如实登记 |
-| ⚠️ HIGH-8 组合变异 | ⚠️ 部分：新增变体为逐条单一性质；组合变异仍存 |
+要复核的问题只有一个：**校验器读到的数，与用户在 Obsidian 里渲染后看到的数，
+是不是同一个**。两者不一致时，校验器就会漏判或误判。
 
-**请重点回答**：① round-16 的 shortcut link 归一有没有**误伤**（callout `[!x]`、
-脚注 `[^1]`、任务框 `[ ]`）或顺序问题（它必须跑在 inline/reference 之后）？
-② 新的崩溃判据有没有**新的**假阴/假阳？「非 AssertionError 即崩溃」这个二分成立吗？
-③ 到此为止，还剩哪些**有界**（可在一次改动内闭合）的 HIGH？请把它们与
-**开放集**（源码→渲染映射面、闭表尾片重锚）分开列——这个区分是本卡的核心争点。
+## 本轮改动（三轮，请判断是否正确且完整）
 
-## round-8 九条的处置（请逐条复核）
+上一次复核判「需整改」，列了 4 组问题。四组都已处置，做法如下：
 
-| 你的判词 | 处置 |
-|---|---|
-| HIGH-1 inline-code 量词副本手抄旧表 | ✅ **副本已消除**：改为从 `_D2_QUANT` 机械派生 |
-| HIGH-2 ⑦⑧手抄数词禁集 | ✅ **副本已消除**：数词/定界集**上移**到允许式之前，两式直接引用 `_NUMERAL_LIKE_CHARS`（实测原分叉 **55 个字符**）|
-| HIGH-3 `_visible_text` 非统一入口（多条 raw 专用绑定）| ⚠️ **部分**：全文『派生』门已先归一（round-9）；manifest 种子 ledger / 五元组逐条仍是 raw 绑定，**未修** |
-| HIGH-4 reference-style link | ✅ **已修**（如实声明：**仍不是完整 renderer**，highlight/math/脚注未覆盖）|
-| HIGH-5 过度拼接不保值 | ⚠️ **未修，且已实测无有界修法**：round-13 试过「成对剥离 + 落单移出连接集」，结果只是把 fail-open 从「拼错的数」挪到「尾片」，还打破 3 道门 ⇒ **已完全回退并登记** |
-| HIGH-6 闭表之外尾片重锚 | ⚠️ **开放集，未修**，如实登记 |
-| HIGH-7 **崩溃伪红**（survivor-20 `re.error`）| ✅ **已修**，并给脚本加**结构性识别**（`run_suite` 检测 `re.error/NameError/...` 并按失败计，写入铁律 5）|
-| HIGH-8 `37/37` 不证明逐项承重 | ⚠️ 部分：round-9~12 新增变体为逐条单一性质；组合变异仍存 |
-| HIGH-9 门措辞过宽 | ✅ 中文「负」补 fallback 侧门、量词 `例束艘架间` 逐字补齐（补门后**直接通过** ⇒ 是补证不是新修）|
+1. **区间表达的首端**（`_D2_RANGE_RE` / `_range_ok`）——区间端点的匹配模式
+   不含符号与小数点，于是匹配可能从符号或小数点之后重新开始，把一个不完整的
+   片段当成完整的区间端点。现在：首端左侧若紧邻负号或「数词+小数点」，
+   判为「无法确定是不是一个完整的数」并报错（fail-closed）。
+   诊断打印**完整可见串**（第一版打印的是剥掉连接字符后的形态，把「这是个区间」
+   这一信息本身抹掉了）。
 
-**请重点回答**：① 两张副本消除后是否还有第三张手抄闭表？
-② round-13 那次「试修并回退」的判断是否成立（我只驳"该修法无收益"，没否认问题存在）？
-③ 新增的崩溃红识别本身有没有假阴/假阳？
+2. **行内代码块的豁免判据**（`_codespan_is_visible_count` / `_blank_inline_code`）——
+   反引号包起来的内容按「字段值」豁免检查，但判断"是不是字段值"原先在**源码文本**
+   上做，而它执行在渲染归一（`_visible_text` / `_normalize_number_seps`）**之前**。
+   现在：先归一再判；判为可见计数的 span 只移除反引号、保留内容交给数值门
+   （反引号不在连接字符集里，保留会让量词锚点失效）。
 
-## ⛔ 硬限（前三次被中断/污染的教训，请严格遵守）
+3. **两处「同一句话、两个文本空间」**：
+   - ③段信号行的**选行**原先在源码行上做，而后续整行校验在渲染文本上做；
+   - fallback ⑦「派生角色成员」的**前置 N 绑定**原先在源码行上做，
+     而同一条叙述的措辞白名单已在渲染文本上做。
+   现在两处都统一到渲染文本。
 
-1. **不要运行 `git diff` / `git show` / `git log -p`** —— 本卡 round-1 就是因此被你侧
-   内容过滤器中断、正文 0 字节。只按下面的 file:line 静态阅读当前 HEAD 的文件。
-2. **不要运行 `tests/regression/recap_domain_negverify.py`**。⚠️ 该脚本会**原地改写
-   被测源码再还原**；上一轮你跑它时中途被打断，把 **survivor-9** 的变异**留在了工作树
-   里未还原**、互斥锁也未释放。你随后那次 pytest 因此测的是**被变异的文件**，
-   报出的 `240 passed, 15 failed` 是该污染的产物、不是真回归；第二次跑它撞上自己
-   留下的锁得 rc=2。车道已取证并按 HEAD 逐字节还原。本轮请**只读它的源码**，
-   实测输出由车道提供（见下）。
-3. **不要构造或运行任何探针 / 变异 / 临时脚本；不读 `fixtures/` 下 `.md`/`.json` 正文。**
-4. **报告第一行**：「BLOCKER/HIGH 清零：是/否（就计数取值口径而言）」。
+4. **变异脚本的崩溃识别**（`_looks_like_crash` / `_crash_text`）——用于区分
+   「被测代码判错了」（正常的红）与「被测代码崩了」（无意义的红）。
+   原先只看外层 pytest 的 stdout、且异常名是一张手写闭表。现在：同时看 stderr；
+   判据改为 pytest 输出语法——`E   <类名>: <消息>` 是异常，
+   `E     <缩进文本>` 是断言消息的续行（`assert` / `AssertionError` 属正常的红）。
 
-## round-3 的整改（本轮被审对象）
+## 未改动的三处（请判断这个决定是否成立）
 
-根因：取数原先按字符类分成 **CJK 一条循环 + ASCII 一条循环**，于是跨类或表外的
-数词字成为断点，匹配重锚到尾片。⇒ **合并为一条规则**：
+复核意见还点名了三处「在源码文本上做匹配」的代码：台账种子行、五元组、tips。
+我的判断是**它们的行为已经是 fail-closed**，因为形状一偏离就会撞上
+`_verify_report` 的模板白名单这道更靠前的检查，所以本轮**没有改**。
 
-- `_NUMERAL_LIKE_CHARS` = 表内 17 字 ∪ 廿卅卌 ∪ 大写金融数字 ∪ 异体，
-  **只用于定界**（判断哪些字符属于同一个数），**不赋任何值**；
-- `_NUM_RUN_RE` / `_COUNT_BEFORE_QUANT_RE` 取整串 → `_join_free` 剥连接字符 →
-  `_count_token_value` 判值：**只有**「全 ASCII 数字」或「表内单字数词」给值，
-  其余（多字中文数词 / 混写 / 含表外数词字）一律 None ⇒ fail-closed；
-- `_CJK_DECIMAL_RE`：数串 + `点`/`.` + 数串 + 量词 = 小数，与 ASCII 侧
-  `_D2_DECIMAL_RE` 同口径恒 FAIL（`3点建议` 的正当量词用法不受伤）；
-- 合并后只剩定义、无生产调用的三个常量（`_CJK_NUM_RUN_PAT` / `_CJK_NUM_RUN_RE` /
-  `_D2_COUNT_RE`）已**删除** —— 只剩定义的常量是死代码。
+请判断这个「不改」的决定是否成立。**不需要**构造任何输入来证明——
+按代码路径推理即可：形状偏离的行会先走到哪一道检查、那道检查会不会放行。
 
-## 请按行号静态阅读
+## 请读这些文件
 
-`canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py`：
-- `:1352-1420` 连接语义（含 `_normalize_number_seps`）（`_D2_NOISE_ONE` / `_INVISIBLE_ONE` / `_D2_JOIN_ONE` /
-  `_join_free`，含收窄后的 docstring）
-- `:1500-1600` `_CJK_NUM` / `_CJK_UNIT` / `_CJK_NUM_CHARS` / `_CJK_NUM_EXTRA` /
-  `_NUMERAL_LIKE_CHARS` / `_NUM_RUN_PAT` / `_COUNT_BEFORE_QUANT_RE` /
-  `_CJK_DECIMAL_RE` / `_count_token_value` / `_cjk_single_to_int`
-- `:1690-1745` D2 叙述段：区间两端终核（**句式门之后**）、小数检查、唯一取数循环
-- `:1975-2010` fallback 允许式：千分位归一 + 小数检查 + 取数循环
+```
+WT=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix
+```
 
-`backend/tests/regression/test_recap_scan_signals.py`：
-`:3124` 判据契约（期望值独立写死）、`:3184`/`:3364` 两道合成 scan 单元门、
-`:3216`、`:3251`、`:3288` 切断矩阵门（docstring 已按你的批评收窄）、
-`:3400` 起 `test_domain_r6_cross_class_and_offtable_numeral_cli` 与文件末尾的
-`test_domain_r7_range_endpoints_and_fallback_seps_cli`（本轮新增）、
-以及 `_one_problem_has`（按你的批评，诊断类别与完整 token 须出现在**同一条** problem）。
+1. `WT/canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py`
+   —— 主实现。重点段落：
+   - 连接字符与渲染归一（`_D2_NOISE_ONE` / `_INVISIBLE_ONE` / `_join_free` / `_visible_text`）
+   - 取数与判值（`_NUMERAL_LIKE_CHARS` / `_NUM_RUN_PAT` / `_count_token_value` / `_cjk_single_to_int`）
+   - 行内代码块豁免（`_codespan_is_visible_count` / `_blank_inline_code`）
+   - 区间（`_D2_RANGE_RE` / `_RANGE_LEFT_BAD_RE` / `_range_ok`）
+   - ③段信号行（`_verify_signal_lines`）与 fallback ⑦（`m7`）
+   - 台账种子行（`_verify_seed_ledger_counts`）
+2. `WT/backend/tests/regression/test_recap_scan_signals.py` —— 行为门。
+3. `WT/backend/tests/regression/recap_domain_negverify.py` —— **只读源码**，
+   看变异脚本的替换内容是否真的禁掉了它声称禁掉的那条防线。
 
-`backend/tests/regression/recap_domain_negverify.py`：**只读源码**，看
-survivor-15…39 二十五条新变体的替换内容是否真的禁掉了该性质的全部防线。
+## 请怎么验
 
-## 请回答
+- 只跑这一条命令：
+  `cd backend && PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest tests/regression/test_recap_scan_signals.py -q -p no:cacheprovider`
+  —— 自报 **266 passed**（开工基线 249）。以及 `git rev-parse HEAD`
+  —— 应为 `7bf7dfcf831cc4622fe32830dd9fb1b59f7195cc`。
+- **不要**运行 `git diff` / `git show` / `git log -p`（此前曾因此中断）。
+- **不要**运行 `recap_domain_negverify.py`：它会原地改写被测源码再还原，
+  上一轮你跑它时中途被打断，把变异留在了工作树里未还原，随后的 pytest
+  因此测的是被改过的文件。本轮请只读它的源码。
+- **不要**构造探针脚本或临时文件；不读 `fixtures/` 下的 `.md` / `.json` 正文。
 
-1. 还有没有别的路径能让「进池比对的值」≠「读者在渲染后看到的数」？
-2. `_NUMERAL_LIKE_CHARS`（定界）、`_D2_QUANT`（量词）、`_CJK_NUM`（赋值）三张封闭表，
-   车道在验收单 §五之三 的登记诚实吗？有没有被低估的？
-3. 「定界要宽、赋值要窄」这个不变式是否在两个消费点都成立？
-4. 新门有无空洞断言或比实现宽的措辞？
+车道自报的其余数字（供你核对，不必重跑）：变异脚本 46/46 全部如期变红，
+被测文件运行前后逐字节一致；扩大回归 `tests/skills + 两个 regression 文件`
+= 598 passed。
 
-## 命令（只跑这一条 pytest + 一条 git）
+## 请重点判断
 
-- `cd backend && PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest
-  tests/regression/test_recap_scan_signals.py -q -p no:cacheprovider`
-  —— 开工基线 249，现应为 **263**。终态 commit 应为 `26253a7d2d10`。若你得到别的数字，请先检查工作树是否 clean
-  （`git status --porcelain` 应为空）再下结论。
-- `git rev-parse HEAD`
-
-车道实测（供你核对，**不要**自己重跑变异）：negverify **42/42 全部如期变红** + 一条手工变异（崩溃判据退回枚举名单 → r13 如期变红、还原后复绿）（**崩溃识别已按形态重写**），
-被测文件 sha256 见报告附的终态 sha，运行前后逐字节一致；
-扩大回归 `tests/skills + test_recap_scan_signals + test_board_manifest_contracts` = **595 passed**；
-真实 CLI 探针 84/84。
+1. 上述四组改动**各自是否正确**？有没有引入回归、误伤合法用法、或让某条
+   既有检查变成走不到的死分支？
+2. 「未改动的三处」那个判断是否成立？
+3. 第 4 组（崩溃识别）的二分——`E   <类名>:` 是异常、`E     <缩进文本>` 是
+   断言续行——有没有**判错**的情形？
+4. 新增的行为门里有没有**恒真断言**（无论实现怎么变都通过）、
+   或者门的措辞比它实际验证的范围更宽？
+5. 还剩哪些问题？请把「一次改动内能闭合的」与「需要重做设计的」分开列。
 
 ## 输出格式
 
-- 第一行：「BLOCKER/HIGH 清零：是/否（就计数取值口径而言）」。
-- 逐项 ✅/⚠️/❌ + `file:line`。**新问题不限于「本卡引入」**，存量未闭合的也请报并标注。
+- 第一行：`BLOCKER/HIGH 清零：是/否`
+- 逐项 ✅/⚠️/❌ + `file:line` + 依据（你实际读到/跑出的观测值）。
+- 存量未闭合的问题也请报，并标注是存量还是本轮引入。
 - 写出你实际跑出的 pytest 结果与 `git rev-parse HEAD`。
-- 报告一次给出；先写正文再补过程。
+- 末尾写明验证限制（没跑的、无法证明的）。

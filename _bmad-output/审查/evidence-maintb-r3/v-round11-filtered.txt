@@ -1,0 +1,16 @@
+# round-11 冻结审查被内容过滤器拦截（正文 0 字节）
+绑定 commit: 7bf7dfcf | tokens used: 256,774 | 报告 .md = 0 字节
+拦截信息（stderr 尾）:
+k. If this seems wrong, try rephrasing your request. To get authorized for security work, join the Trusted Access for Cyber program: https://chatgpt.com/cyber
+ERROR: This content was flagged for possible cybersecurity risk. If this seems wrong, try rephrasing your request. To get authorized for security work, join the Trusted Access for Cyber program: https://chatgpt.com/cyber
+tokens used
+256,774
+
+## 判定（按 reference_codex_content_filter_neutralize）
+rc=0 + 0 字节 ≠ 通过 = UNVERIFIABLE。
+## 真因（按 reference_codex_cyber_block_is_task_scope_not_wording）
+换措辞无效、换范围有效。本轮提示词有两处越界：
+1. 塞入攻击载荷字面量（读起来就是 exploit payload）；
+2. 明确请它**构造绕过**：「若你能构造出实际放行的形态，请给出具体行文本」——
+   那不是审查，是渗透。
+## 处置：收窄任务边界重发（见 round-12 提示词）

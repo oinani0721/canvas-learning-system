@@ -1,0 +1,9 @@
+rc = 1
+--- 所有 ^E 行（显示前导空格数）---
+  空格= 3  'AssertionError: 基线报告本身就不过 verifier'
+  空格= 3  'assert 1 == 0'
+  空格= 4  "+  where 1 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-lea"
+  空格= 4  "+    where CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learn"
+--- stdout 里有 traceback 吗: True
+--- stderr 里有 traceback 吗: False
+--- child stderr 被抬上来了吗: True

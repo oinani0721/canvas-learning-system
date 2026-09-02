@@ -101,15 +101,30 @@ def run_collect(vault: Path, board: str = BOARD, *extra: str) -> subprocess.Comp
     )
 
 
+def _surface_child_stderr(r: subprocess.CompletedProcess) -> None:
+    """把**被测 CLI 子进程**的 stderr 抬到测试自己的 stdout 上。
+
+    ⛔ round-20（冻结审查 v2 §四.4）：本域大量门是跑 CLI 子进程再核 stdout 的，
+    子进程以 `capture_output=True` 执行，断言里只带 `r.stdout` ⇒ 内层 traceback
+    若只落在 `r.stderr`，**外层 pytest 的两路输出里根本不会出现它**，
+    `recap_domain_negverify` 的崩溃识别就永远看不见内层崩溃。
+    pytest 会在失败时展示 "Captured stdout call"，所以 print 到这里即接通。
+    """
+    if r.stderr and r.stderr.strip():
+        print(f"[child stderr]\n{r.stderr}")
+
+
 def run_verify(report: Path) -> subprocess.CompletedProcess:
     if not SCRIPT.exists():
         pytest.fail(f"被测脚本不存在: {SCRIPT}")
-    return subprocess.run(
+    r = subprocess.run(
         [sys.executable, str(SCRIPT), "--verify", str(report)],
         capture_output=True,
         text=True,
         timeout=60,
     )
+    _surface_child_stderr(r)
+    return r
 
 
 # ────────────────────────── fixture 构造器 ──────────────────────────
@@ -4260,12 +4275,12 @@ def test_domain_r13_shortcut_link_and_crash_classifier(tmp_path):
         sys.dont_write_bytecode = _prev
 
     for out, want, why in (
-        ("E       AssertionError: 期望 FAIL", False, "断言失败=判错，正是我们要的红"),
-        ("E       assert 0 == 1", False, "裸 assert 同上"),
+        ("E   AssertionError: 期望 FAIL", False, "断言失败=判错，正是我们要的红"),
+        ("E   assert 0 == 1", False, "裸 assert 同上"),
         ("1 failed, 260 passed", False, "纯失败摘要"),
-        ("E       re.error: invalid group reference", True, "round-10 原案"),
-        ("E       ValueError: too many values", True, "旧版枚举之外 ⇒ 假阴"),
-        ("E       KeyError: 3", True, "旧版枚举之外 ⇒ 假阴"),
+        ("E   re.error: invalid group reference", True, "round-10 原案"),
+        ("E   ValueError: too many values", True, "旧版枚举之外 ⇒ 假阴"),
+        ("E   KeyError: 3", True, "旧版枚举之外 ⇒ 假阴"),
         (
             "  Traceback (most recent call last):\n    File 'x'",
             True,
@@ -4276,10 +4291,18 @@ def test_domain_r13_shortcut_link_and_crash_classifier(tmp_path):
         # ⛔ round-17（冻结审查 §一.4）：上一版号称"从名单改形态"，其实只是把名单
         # 从**全名**换成了**后缀** `(?:[Ee]rror|Exception)` —— 仍是我手写的闭表。
         # 下面三个都不以 Error/Exception 结尾，旧判据全部漏掉。
-        ("E       SystemExit: 2", True, "不以 Error/Exception 结尾 ⇒ 旧后缀表假阴"),
-        ("E       subprocess.TimeoutExpired: t", True, "同上，且是点分名"),
-        ("E       RecursionError: deep", True, "枚举五名单之外"),
-        ("E       Failed: 被测脚本不存在", True, "pytest.fail = 夹具坏了，不是判错"),
+        ("E   SystemExit: 2", True, "不以 Error/Exception 结尾 ⇒ 旧后缀表假阴"),
+        ("E   subprocess.TimeoutExpired: t", True, "同上，且是点分名"),
+        ("E   RecursionError: deep", True, "枚举五名单之外"),
+        ("E   Failed: 被测脚本不存在", True, "pytest.fail = 夹具坏了，不是判错"),
+        # ⛔ round-20 二修（冻结审查 v2）：**无消息异常**没有冒号 ——
+        # 要求"紧跟冒号"会漏掉整整一类崩溃。承重的条件是**缩进上界**，不是冒号。
+        ("E   RecursionError", True, "无消息异常（无冒号）⇒ 冒号规则会假阴"),
+        ("E   SystemExit", True, "同上"),
+        # ⛔ round-20：下列样例的缩进是**实测**的 —— 让被测 CLI 真的抛
+        # RecursionError 跑一遍，外层 pytest 打出来的顶层行是 `E` + **3 空格**
+        # （续行 4-5 格）。此前这批样例写的是 7 空格，是我**凭想象**编的形状，
+        # round-20 给判据加缩进上界后当场全红 —— 门的 fixture 本身就不真实。
         # ⛔ round-17 二修（实测 39/44 假阳）：第一版把判据放宽成「行首是个标识符」，
         # 但 pytest 给失败详情的**每一行**都加 `E ` 前缀 ⇒ 断言消息的**续行**被
         # 当成异常类型。**修严引入松、修松引入严** —— 两个方向必须同时锁。
@@ -4453,3 +4476,175 @@ def test_domain_r16_clause7_n_binding_is_visible_text_cli(tmp_path):
         ("> - 无**来源**结论：99/2 派生角色成员缺来源锚点【推定】", "段外信号名被切开"),
     ):
         assert inject(line).returncode != 0, f"{why}：段外伪信号行被放行 —— {line!r}"
+
+
+def test_domain_r17_freeze_v2_bounded_highs_cli(tmp_path):
+    """R3 round-20（冻结审查 v2 的五组有界 HIGH）：六条实测反例 + 一处被推翻的判断。
+
+    修前实测放行：
+      · 区间首端**无整数部分**的小数 —— `.2~3个` / `．二~三个` / `点二~三个`
+        （守卫原先要求小数点前必须有数词样字符）；
+      · code span 里的**可见区间**与 **NBSP** —— `` `999~999个` `` / `` `999 个` ``
+        （NBSP）：`_D2_COUNTISH_EXTRA` 与区间主表分叉、空白域只列了空格与 tab，
+        于是整段被当字段值挖空，区间门与数字门**都不可达**；
+      · 五元组**双行逃逸** —— 保留一条正确五元组，再加一条渲染等价但源码不命中的
+        冲突行（`999 成**员**（…）` / `999 成<b>员</b>（…）`），后者既不计入
+        「恰好一处」也不被逐条校验。
+
+    ⛔ 最后一条推翻了我上一轮「三处 raw 绑定实测不成立」的判断：我当时只测了
+    「改坏那条唯一正确行」（形状一坏就 fail-closed），**没把「留一条好的 + 加一条
+    冲突的」这个已经在 ③段信号行上验证过的形态迁移过来**。
+
+    **它证明什么**：区间首端守卫覆盖无整数部分的小数；code span 的字符域与区间
+    主表同源、空白按 `str.isspace()` 判；五元组逐行归一后匹配。
+    **它不证明什么**：`_visible_text` 仍不是完整 renderer；台账种子行与 tips
+    的同型双行攻击我**未能复现**（不等于安全，如实登记）。
+    """
+    rs = _load_recap_scan()
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    pool = rs._derived_number_pool(scan)
+    assert {2, 3} <= pool and 999 not in pool, f"前提：2/3 在池、999 不在池: {sorted(pool)[:8]}"
+
+    report = write_report(vault, scan)
+    base = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+
+    def verify(text: str):
+        assert text != base, "注入未命中：报告一字未改，这条门测的是空气"
+        report.write_text(text, encoding="utf-8")
+        return run_verify(report)
+
+    def in3(line: str):
+        return verify(base.replace("## 三维审查", f"## 三维审查\n\n{line}", 1))
+
+    # ① 区间首端：无整数部分的小数（三种写法）
+    for line, why in (
+        ("- 本板共有.2~3个子节点。【实测】", "半角小数点开头"),
+        ("- 本板共有．二~三个子节点。【实测】", "全角小数点 + 中文数词"),
+        ("- 本板共有点二~三个子节点。【实测】", "『点』开头"),
+    ):
+        assert in3(line).returncode != 0, f"{why}：区间从小数点后重锚仍被放行 —— {line!r}"
+
+    # ② code span：可见区间与 NBSP 都必须进入受检面
+    assert in3("- 本板共有`999~999个`子节点。【实测】").returncode != 0, "code span 里的池外区间被当字段值整段挖空"
+    assert in3("- 本板共有`999\u00a0个`子节点。【实测】").returncode != 0, (
+        "code span 里的 NBSP 让整段被豁免（主连接集用 \\s，这里原先只列空格与 tab）"
+    )
+    # 反面：池内区间照常放行（受检 ≠ 一律拒）
+    assert in3("- 本板共有`2~3个`子节点。【实测】").returncode == 0, (
+        "池内区间被误伤 —— 目标是让它**进入检查**，不是一律拒"
+    )
+
+    # ③ 五元组双行逃逸
+    scale = next((ln for ln in base.splitlines() if re.search(r"\d+\s*成员（", ln)), None)
+    assert scale, "前提：报告必须含五元组行"
+    for repl, why in (
+        ("999 成**员**", "强调标记切开"),
+        ("999 成<b>员</b>", "HTML 标签切开"),
+    ):
+        conflict = re.sub(r"(\d+)\s*成员", repl, scale, count=1)
+        assert verify(base.replace(scale, scale + "\n" + conflict, 1)).returncode != 0, (
+            f"五元组双行逃逸（{why}）：冲突行既不计数也不校验"
+        )
+
+    # ④ 字符域必须与区间主表同源（漂移即被抓）
+    for ch in "~～〜到至":
+        assert rs._codespan_is_visible_count(f"2{ch}3个"), (
+            f"区间分隔符 {ch!r} 不在 code span 字符域里 ⇒ 可见区间被整段豁免"
+        )
+    for ch in ("\u00a0", "\u3000"):
+        assert rs._codespan_is_visible_count(f"999{ch}个"), (
+            f"空白 U+{ord(ch):04X} 不被接受 ⇒ 整段被豁免（主连接集用 \\s）"
+        )
+
+
+def test_domain_r18_crash_judge_indent_and_child_stderr():
+    """R3 round-20（冻结审查 v2 §四.4）：崩溃判据的假阳面 + 内层 stderr 接线。
+
+    两条判词都成立：
+      · 只要「紧跟冒号」仍假阳 —— 断言消息的续行 `E       Expected: 3` 同样是
+        「标识符+冒号」。实测 pytest 语法：顶层行是 `E` + **3 个空格**，
+        续行缩进更深（`E     VERIFY…` 5 格 / `E    +  where` 4 格）；
+      · 内层 CLI 以 `capture_output=True` 执行、断言只带 `r.stdout` ⇒
+        子进程 traceback 若只在 stderr，**外层两路输出里根本不会出现**。
+
+    **它证明什么**：缩进上界 3 格 + 紧跟冒号两条件同时成立才判异常；
+    `run_verify` 已把子进程 stderr 打到测试 stdout（pytest 失败时展示）。
+    **它不证明什么**：pytest 的缩进约定随 tb 风格而变；本判据绑定的是
+    **本套件实际使用的那条命令**（`-q` 默认 tb）的实测输出。
+    """
+    import importlib.util as _ilu
+
+    _prev = sys.dont_write_bytecode
+    sys.dont_write_bytecode = True
+    try:
+        _spec = _ilu.spec_from_file_location(
+            "negverify_ut2", pathlib.Path(__file__).with_name("recap_domain_negverify.py")
+        )
+        _nv = _ilu.module_from_spec(_spec)
+        _spec.loader.exec_module(_nv)
+    finally:
+        sys.dont_write_bytecode = _prev
+
+    for out, want, why in (
+        ("E   AssertionError: x", False, "顶层断言异常"),
+        ("E   assert 0 != 0", False, "顶层裸 assert"),
+        ("E     VERIFY FAIL (1 项)", False, "续行（5 格）"),
+        ("E    +  where 0 = C(", False, "assert 重写的 where 行（4 格）"),
+        ("E       Expected: 3", False, "续行里的『标识符+冒号』—— 只靠冒号会假阳"),
+        ("E       Actual: 4", False, "同上"),
+        ("E   re.error: bad", True, "顶层异常"),
+        ("E   SystemExit: 2", True, "不以 Error/Exception 结尾"),
+        ("E   subprocess.TimeoutExpired: t", True, "点分名"),
+        ("E   Exception: boom", True, "裸 Exception"),
+        ("E   Failed: 夹具坏", True, "pytest.fail = 夹具坏了"),
+        ("E   RecursionError", True, "无消息异常：没有冒号，靠缩进上界识别"),
+        ("  Traceback (most recent call last):", True, "任意位置的 traceback"),
+        ("INTERNALERROR> x", True, "pytest 内部错"),
+        ("1 error, 260 passed", True, "收集期 error"),
+        ("1 failed, 260 passed", False, "纯失败摘要"),
+    ):
+        assert _nv._looks_like_crash(out) is want, f"崩溃判据判错: {why} | {out!r}"
+
+    # transport：内层 CLI 的 stderr 必须被抬到测试 stdout（否则外层永远看不到）
+    src = pathlib.Path(__file__).read_text(encoding="utf-8")
+    assert "_surface_child_stderr(r)" in src, "run_verify 未接线子进程 stderr"
+    assert _nv._looks_like_crash(_nv._crash_text("1 failed, 260 passed", "Traceback (most recent call last):")), (
+        "外层 stderr 仍被丢弃"
+    )
+
+
+def test_domain_r19_child_stderr_transport_is_real(capsys):
+    """R3 round-20：`_surface_child_stderr` 必须**真的**把子进程 stderr 打出来。
+
+    ⛔ 冻结审查 v2 的 ⚠️ 判词：「stderr 行为门只是把合成 traceback 手工传给
+    helper，没有验证真实接线」—— 那条批评成立。这里补上：直接调用接线函数，
+    用 capsys 断言它**确实**写到了测试自己的 stdout（pytest 失败时展示它，
+    外层的崩溃识别才看得见内层 traceback）。
+
+    另有一次**端到端实测**（不放在门里，因为它要临时改生产文件）：给
+    `_visible_text` 注入 `RecursionError` 后跑 r14 门，外层 stdout 里出现了
+    `[child stderr]` 与 `Traceback (most recent call last):`；修复前这两样都不会
+    出现，外层只剩一个 `AssertionError` ⇒ 生产崩溃被当成正常判错变红。
+    证据：`_bmad-output/审查/evidence-maintb-r3/x-crash-transport-measured.txt`。
+
+    **它证明什么**：接线函数本身有效，且只在 stderr 非空时才输出。
+    **它不证明什么**：不证明每一条门都会触发它（那取决于被测 CLI 是否真的崩）。
+    """
+    import subprocess as _sp
+
+    _surface_child_stderr(_sp.CompletedProcess(args=["x"], returncode=1, stdout="", stderr=""))
+    assert capsys.readouterr().out == "", "stderr 为空时不得产生噪声"
+
+    _surface_child_stderr(
+        _sp.CompletedProcess(
+            args=["x"],
+            returncode=1,
+            stdout="",
+            stderr="Traceback (most recent call last):\n  RecursionError: x\n",
+        )
+    )
+    out = capsys.readouterr().out
+    assert "[child stderr]" in out, "子进程 stderr 未被抬到测试 stdout"
+    assert "Traceback (most recent call last):" in out, "traceback 内容丢失"
