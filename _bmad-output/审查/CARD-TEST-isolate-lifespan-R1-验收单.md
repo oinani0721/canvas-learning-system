@@ -416,9 +416,52 @@ rc=1，同样返回 usage limit。⇒ 账号级配额硬阻断，与本卡内容
 
 ---
 
-## 6. 待你裁决
+## 6. 用户裁决（2026-09-03 已答）
 
-### ⛔ 裁决点 ①（阻断合并）：完成条件 (l) 无法在本 session 满足
+> ### ✅ 出口：**选 A —— 等 09-07 配额恢复后重跑 round-2 终审**
+>
+> 代码**冻结于 `0684e0fa`**，在拿到终审裁定之前**不再改动**。
+> 期间本卡**不合并、不 push**，W4 安全车道不进干净集成树。
+>
+> ### ✅ 次要裁决点：**留到重跑终审时一并处理**（下方 ②–⑤ 全部挂起，不阻断当前收口）
+
+### 📌 09-07 之后的操作清单（下个 session 照此执行即可）
+
+```bash
+cd /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2
+# 0. 确认树 clean 且 HEAD 未被改动过
+git status --porcelain && git log --oneline -1
+
+# 1. 先把审查 prompt 绑定的 commit 更新为 0684e0fa（当前写的是 b64a9c44）
+#    位置：_bmad-output/审查/prompts/codex-prompt-CARD-TEST-isolate-lifespan-R1.md 第 7-8 行
+#    原因：b64a9c44 之后 8380adac 改了 AST 门、0684e0fa 加了两条探针
+
+# 2. 复跑三道裁判确认代码没被别的 session 动过
+cd backend
+PYTHONDONTWRITEBYTECODE=1 <venv>/python scripts/lifespan_isolation_negative_control.py      # 期望 PASS
+PYTHONDONTWRITEBYTECODE=1 <venv>/python scripts/lifespan_isolation_guard_probes.py          # 期望 29/29
+bash scripts/lifespan_isolation_runtime_sha.sh -- <venv>/python -m pytest tests/api tests/unit/test_vault_scope_409.py -q -p no:cacheprovider   # 期望 unchanged
+
+# 3. 跑终审（唯一剩下的事）
+cd ..
+codex exec --sandbox read-only -m gpt-5.6-sol -c model_reasoning_effort="ultra" \
+  "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-TEST-isolate-lifespan-R1.md)" \
+  > _bmad-output/审查/codex-review-CARD-TEST-isolate-lifespan-R1-round2.md \
+  2> _bmad-output/审查/codex-review-CARD-TEST-isolate-lifespan-R1-round2.stderr </dev/null
+# ⚠️ rc=0 + 0 字节 ≠ 通过：先 wc -c 确认正文非空
+```
+
+**停轮规则**：本卡已用掉 round-1（正式裁定 FAIL，17 条已整改）。重跑的这一轮是
+**round-2**，卡文允许最多 3 轮。若 round-2 仍有 BLOCKER/HIGH，可再续 round-3；
+round-3 之后仍不清零则「到顶不合并」。
+
+### 挂起的裁决点（重跑终审时一并处理）
+
+---
+
+## 6b. 裁决点明细（②–⑤ 已挂起）
+
+### 裁决点 ①（**已答：选 A**）：完成条件 (l) 无法在本 session 满足
 
 卡文 (l) 要求「全部安全/语义门与**新独立终审 B/H=0**」。现状：
 
