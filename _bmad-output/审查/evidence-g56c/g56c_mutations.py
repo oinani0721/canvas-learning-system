@@ -49,6 +49,8 @@ G_HEADCONTENT = "test_heading_with_text_counts_as_substantive_content"
 G_R7 = "test_fence_info_string_and_semantic_operators_are_not_skeleton"
 G_KEYNAME = "test_information_in_key_name_blocks_deletion"
 G_ATX = "test_atx_heading_text_is_parsed_structurally"
+G_SEMWS = "test_c4_comparison_keeps_semantic_whitespace"
+G_FNAME = "test_source_identifier_in_filename_blocks_deletion"
 G_ZW = "test_zero_width_split_marker_still_reads_as_ai_suspect"
 
 # ── (名字, 期望 FAILED 集合, [(old, new), ...]) ──
@@ -127,11 +129,15 @@ MUTATIONS: list[tuple[str, set[str], list[tuple[str, str]]]] = [
         ],
     ),
     (
-        "M-DOIVAL     DOI 值形态信号回退",
+        "M-DOIVAL     DOI/ISBN 值形态信号回退",
         {G_DOI, G_DUPKEY},
         [
             (
-                "    doi_bearing_pairs = [(k, v) for k, v in fm_pairs if _looks_like_doi_value(v)]\n",
+                "    doi_bearing_pairs = [\n"
+                "        (k, v)\n"
+                "        for k, v in fm_pairs\n"
+                "        if _looks_like_doi_value(v) or _looks_like_isbn_value(v)\n"
+                "    ]\n",
                 "    doi_bearing_pairs = []\n",
             )
         ],
@@ -240,6 +246,27 @@ MUTATIONS: list[tuple[str, set[str], list[tuple[str, str]]]] = [
                 '            if ln.lstrip(" \\t#").strip():\n',
             )
         ],
+    ),
+    (
+        # 第九轮 HIGH：C4 比较形态退回有损投影（抹掉硬换行/段落边界/围栏空白）
+        "M-SEMWS      dup_body 退回无条件 rstrip + 丢空行",
+        {G_SEMWS},
+        [
+            (
+                "        if is_code:\n",
+                "        if False:\n",
+            ),
+            (
+                '            parts.append("")  # 段落边界是语义，不能丢\n',
+                "            continue\n",
+            ),
+        ],
+    ),
+    (
+        # 第九轮 HIGH：护栏不看文件名
+        "M-FNAME      文件名来源信号回退",
+        {G_FNAME},
+        [("    name_signal = next(\n", "    name_signal = None\n    _unused = (\n")],
     ),
 ]
 

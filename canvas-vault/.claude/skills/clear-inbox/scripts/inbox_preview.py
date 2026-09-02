@@ -801,9 +801,21 @@ def dup_body(text: str) -> str:
     for ln, is_code in _classify_lines(text):
         if not is_code and _HEADING_RE.match(ln):
             continue
+        # ⛔ 第九轮 HIGH（R9-H1）：此前无条件 `rstrip()` + 丢空行，把**有语义的
+        # 空白**一起抹了 —— Markdown 行尾双空格是硬换行、空行是段落边界、围栏
+        # 里的空格与空行更是字面内容。于是 `alpha  \nbeta` 与 `alpha\nbeta`
+        # 被判「逐字相等」并确定删除。⚠️ 判据名叫「精确重复」，比较形态却是
+        # 有损投影 —— 名实不符本身就是缺陷。
+        if is_code:
+            # 围栏内一律逐字保真（含空行与行尾空格）
+            parts.append(nfc(ln))
+            continue
         t = ln.rstrip()
         if not t:
+            parts.append("")  # 段落边界是语义，不能丢
             continue
+        if len(ln) - len(t) >= 2 and not ln[len(t) :].strip():
+            t += "  "  # 行尾 ≥2 空格 = 硬换行，保留其语义
         parts.append(nfc(t))
     return "\n".join(parts)
 
@@ -1078,6 +1090,26 @@ def _norm_fm_key(k: str) -> str:
     是有后果的提名，扩它必须是明写的决定而不是归一化的副作用。
     """
     return k.casefold().replace("-", "_")
+
+
+#: ISBN-10 / ISBN-13：`ISBN` 前缀（可选）+ 9-13 位数字/连字符，末位可为 X。
+#: ⛔ 与 DOI 同源的**正面形态**判定，不是枚举关键词：ISBN 有固定位数与校验位，
+#: 这是它「像个标识符」的结构证据。用于文件名与值两处来源信号。
+_ISBN_RE = re.compile(
+    r"(?<![0-9A-Za-z])(?:ISBN[-\s_:]*)?(?=[\d-]{9,17}[\dXx](?![\d-]))[\d-]{9,17}[\dXx]",
+    re.IGNORECASE,
+)
+
+
+def _looks_like_isbn_value(v: str) -> bool:
+    """值/文件名里含 ISBN 形态的标识符（非空才算）。"""
+    if not v:
+        return False
+    m = _ISBN_RE.search(v)
+    if not m:
+        return False
+    digits = [c for c in m.group(0) if c.isdigit() or c in "Xx"]
+    return len(digits) in (10, 13)
 
 
 def _looks_like_doi_value(v: str) -> bool:
@@ -1478,7 +1510,11 @@ def nominate(
     ]
     # 信号③c（round-8 HIGH）：值是 DOI 形态的来源标识（`identifier:` 之类
     # 不在别名表的键名靠它接住）。DOI 不是 URL —— 文案分列，不冒充。
-    doi_bearing_pairs = [(k, v) for k, v in fm_pairs if _looks_like_doi_value(v)]
+    doi_bearing_pairs = [
+        (k, v)
+        for k, v in fm_pairs
+        if _looks_like_doi_value(v) or _looks_like_isbn_value(v)
+    ]
     slept_pairs = [(k, v) for k, v in fm_pairs if _norm_fm_key(k) == "slept_at"]
     # 兜底信号⑨（round-2 方向反转 → round-3 取消白名单，见上方常量段的两轮记录）：
     # frontmatter 里**任何非空值**都算引擎没消化的独有信息。`citation: ISBN …`、
@@ -1524,6 +1560,31 @@ def nominate(
     # 「知道被吞了什么，但引擎没消费它」。此前只有①有保护，于是把唯一来源
     # 写在闭合注释里的文件 C3/C4 双出口全穿。只收**注释里有非空内容**的行。
     commented_out = [ln for ln in stripped_comments if ln.strip()] + fm_comment_lines
+    # ⛔ 第九轮 HIGH（R9-H2）：文件名进了 item，但护栏一条都不看它 —— 于是
+    # `ISBN_978-7-111-54742-6.md`、`DOI_10.1000_xyz.md` 这类**唯一来源写在文件名
+    # 里**的材料，正文一撞上库内某份就被确定删除，文件名里的标识零留痕。
+    # 判据与既有来源信号同源（URL / DOI 形态），只是扫描面加上文件名。
+    # ⚠️ 用模块级判据，不用 judge() 内那个同名闭包 —— 它定义在本行之后。
+    # 文件名里的分隔符常被换成 `_`（`DOI_10.1000_xyz.md`、
+    # `source_https_example.test_article.md`），故把 `_` 还原成 `:` 与 `/` 各试一遍。
+    _stem = name[:-3] if name.endswith(".md") else name
+    name_signal = next(
+        (
+            _stem
+            for probe in (
+                _stem,
+                _stem.replace("_", ":"),
+                _stem.replace("_", "/"),
+                _stem.replace("_", ":", 1).replace("_", "/"),
+            )
+            if (
+                _URL_RE.match(probe)
+                or _looks_like_doi_value(probe)
+                or _looks_like_isbn_value(probe)
+            )
+        ),
+        None,
+    )
 
     def undigested_reason() -> str | None:
         """⛔ 「未消化信号」统一护栏（显式偏差 15）：C3/C4 是仅有的两个产出
@@ -1591,6 +1652,11 @@ def nominate(
                 "生成来源（`generator: gpt-4` 之类）。⚠️ 引擎不判断它在这份材料里"
                 "到底是不是这个意思（`model: 线性回归` 这样的学习笔记同样会命中），"
                 "所以不下结论、只降拿不准"
+            )
+        if name_signal:
+            return (
+                f"文件名本身像一条来源标识（{name_signal!r}）—— 引擎没有消费过"
+                "文件名里的信息，删掉这份材料，那个标识就没有别的地方留着了"
             )
         if commented_out:
             return (

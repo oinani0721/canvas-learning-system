@@ -291,12 +291,17 @@ def test_c3_empty_and_skeleton_positive_and_negative(tmp_path):
 
 def test_c4_exact_duplicate_gives_canonical_path(tmp_path):
     """C4 正例: 归一化正文逐字相等 → 建议删 + 正本相对路径。
-    归一化须吸收行尾空白 / 空行 / NFD-NFC 差异 (三者同时施加)。"""
+
+    ⛔ 第九轮审查 HIGH（R9-H1）后**语义收窄**：归一化只吸收 NFD/NFC 与标题差异。
+    行尾双空格（Markdown 硬换行）与空行（段落边界）**有语义，不再被吸收** ——
+    判据名叫「精确重复」，比较形态却是有损投影，那是名实不符。
+    本门的 fixture 相应改为只差 NFD/NFC 与标题。
+    """
     vault, out = base_vault(tmp_path)
     body = "转学政策原文第一段。\n第二段内容 café。\n"
     mk(vault / "节点" / "政策正本.md", "# 正本\n\n" + body, age_days=40)
-    # 收件箱副本: 行尾空白 + 多余空行 + NFD 形态
-    dup = unicodedata.normalize("NFD", "转学政策原文第一段。   \n\n\n第二段内容 café。  \n")
+    # 收件箱副本: 只差 NFD 形态与标题（行尾空白/空行现在是语义，不能再当噪声）
+    dup = unicodedata.normalize("NFD", body)
     mk(vault / "_待处理" / "政策粘贴-重复.md", "# 抄来的\n\n" + dup, age_days=2)
 
     assert run_cli(vault, out).returncode == 0
@@ -400,7 +405,9 @@ def test_criteria_order_is_frozen_and_earlier_wins(tmp_path):
     mk(vault / "节点" / "已有正本.md", body, age_days=40)
     mk(
         vault / "_待处理" / "剪藏且重复.md",
-        "---\nsource: https://example.com/a\n---\n\n" + body,
+        # ⚠️ frontmatter 紧接正文：R9-H1 之后空行是段落边界（有语义），
+        # 中间多一个空行正文就不再与库内那份逐字相等，重复证据也就挂不上了。
+        "---\nsource: https://example.com/a\n---\n" + body,
         age_days=2,
     )
     assert run_cli(vault, out).returncode == 0
@@ -2489,7 +2496,9 @@ def test_source_inside_closed_html_comment_blocks_deletion(tmp_path):
         # ⛔ 第六轮终审 HIGH（R6-H1）：**行尾** YAML 注释同样被剥掉且没人收。
         # 与整行注释、跨行 HTML 注释是同一件事：引擎剥掉了内容就该说出来。
         ("fm行尾注释.md", '---\ntitle: "" # source: https://inline.example/only\n---\n'),
-        ("注释里的URL重复件.md", "<!-- source: https://only-here.test/p -->\n" + body),
+        # ⚠️ 注释与正文同行：R9-H1 之后空行是段落边界（有语义），注释独占一行
+        # 会在正文里留下一个空行，正文就不再与库内那份逐字相等了。
+        ("注释里的URL重复件.md", "<!-- source: https://only-here.test/p -->" + body),
     ):
         mk(inbox / name, text, age_days=6)
     # ⛔ 正向对照(验伪锚): 没有注释的空骨架 → 仍 C3 确定删除
@@ -2763,4 +2772,83 @@ def test_atx_heading_text_is_parsed_structurally(tmp_path):
         assert it["criterion"] == "C6_undecided", name
     ctrl = item_by_name(data, "空标题模板.md")
     assert ctrl["criterion"] == "C3_empty_or_skeleton", ctrl["basis"]
+    assert ctrl["verdict"] == "建议删"
+
+
+def test_c4_comparison_keeps_semantic_whitespace(tmp_path):
+    """⛔ 第九轮审查 HIGH（R9-H1）：`dup_body()` 无条件 rstrip + 丢空行，把**有语义
+    的空白**一起抹了 —— Markdown 行尾双空格是硬换行、空行是段落边界、围栏里的
+    空格与空行更是字面内容。于是 `alpha  \\nbeta` 与 `alpha\\nbeta` 被判「逐字
+    相等」并确定删除。
+
+    ⚠️ 判据名叫「精确重复」，比较形态却是**有损投影** —— 名实不符本身就是缺陷。
+    这与「C4 不看标题」（用户裁决保留）是两回事：那是明确选择，这是实现有损。
+    """
+    mod = load_module()
+    assert mod.dup_body("alpha  \nbeta\n") != mod.dup_body("alpha\nbeta\n"), "硬换行有语义"
+    assert mod.dup_body("a\n\nb\n") != mod.dup_body("a\nb\n"), "空行是段落边界"
+    assert mod.dup_body("```\nk  \n```\n") != mod.dup_body("```\nk\n```\n"), "围栏内逐字"
+    # NFD/NFC 与标题差异仍被吸收（既有语义不得连坐）
+    import unicodedata as _ud
+
+    assert mod.dup_body(_ud.normalize("NFD", "café\n")) == mod.dup_body("café\n")
+    assert mod.dup_body("# A\n\nx\n") == mod.dup_body("# B\n\nx\n"), "标题仍不进比对"
+
+    vault, out = base_vault(tmp_path)
+    inbox = vault / "_待处理"
+    mk(vault / "节点" / "canon-hb.md", "alpha\nbeta\n", age_days=40)
+    mk(vault / "节点" / "canon-fence.md", "```\nkey\n```\n", age_days=40)
+    mk(inbox / "硬换行.md", "alpha  \nbeta\n", age_days=6)
+    mk(inbox / "段落边界.md", "alpha\n\nbeta\n", age_days=5)
+    mk(inbox / "围栏行尾空格.md", "```\nkey  \n```\n", age_days=4)
+    # ⛔ 正向对照：真正逐字相同仍 C4，否则这条修法就把 C4 废了
+    mk(inbox / "真重复.md", "alpha\nbeta\n", age_days=3)
+
+    assert run_cli(vault, out).returncode == 0
+    data = load_json(out)
+    assert data["items"], "items 为空则本门恒真 = 假绿"
+    for name in ("硬换行.md", "段落边界.md", "围栏行尾空格.md"):
+        it = item_by_name(data, name)
+        assert it["verdict"] != "建议删", f"{name} 被确定删除了: {it['basis']}"
+        assert it["criterion"] != "C4_exact_duplicate", name
+    dup = item_by_name(data, "真重复.md")
+    assert dup["criterion"] == "C4_exact_duplicate", dup["basis"]
+    assert dup["verdict"] == "建议删"
+
+
+def test_source_identifier_in_filename_blocks_deletion(tmp_path):
+    """⛔ 第九轮审查 HIGH（R9-H2）：文件名进了 item，但护栏一条都不看它。
+    `ISBN_978-7-111-54742-6.md`、`DOI_10.1000_xyz.md` 这类**唯一来源写在文件名
+    里**的材料，正文一撞上库内某份就被确定删除，文件名里的标识零留痕。
+
+    判据与既有来源信号同源（URL / DOI / ISBN 的**正面形态**），只是扫描面加上
+    文件名；文件名里的分隔符常被换成 `_`，故还原成 `:` 与 `/` 各试一遍。
+    """
+    mod = load_module()
+    assert mod._looks_like_isbn_value("ISBN 978-7-111-54742-6") is True
+    assert mod._looks_like_isbn_value("978-7-111-54742-6") is True
+    assert mod._looks_like_isbn_value("7-111-54742-X") is True, "ISBN-10 末位 X"
+    assert mod._looks_like_isbn_value("2026-09-02") is False, "日期不是 ISBN"
+    assert mod._looks_like_isbn_value("12345") is False, "位数不够"
+
+    vault, out = base_vault(tmp_path)
+    inbox = vault / "_待处理"
+    body = "通用正文一。\n通用正文二。\n"
+    mk(vault / "节点" / "generic.md", body, age_days=40)
+    mk(inbox / "ISBN_978-7-111-54742-6.md", body, age_days=6)
+    mk(inbox / "DOI_10.1000_xyz.md", body, age_days=5)
+    # ⛔ 正向对照：普通文件名的真重复件仍 C4
+    mk(inbox / "普通笔记.md", body, age_days=4)
+
+    assert run_cli(vault, out).returncode == 0
+    data = load_json(out)
+    assert data["items"], "items 为空则本门恒真 = 假绿"
+    for name in ("ISBN_978-7-111-54742-6.md", "DOI_10.1000_xyz.md"):
+        it = item_by_name(data, name)
+        assert it["verdict"] != "建议删", f"{name} 被确定删除了: {it['basis']}"
+        assert it["criterion"] == "C6_undecided", name
+        assert "文件名" in (it["uncertain_reason"] or ""), it["uncertain_reason"]
+        assert it["exact_duplicate_of"] == "节点/generic.md", "重复证据仍须留痕"
+    ctrl = item_by_name(data, "普通笔记.md")
+    assert ctrl["criterion"] == "C4_exact_duplicate", ctrl["basis"]
     assert ctrl["verdict"] == "建议删"
