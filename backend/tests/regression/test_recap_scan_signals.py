@@ -4911,3 +4911,71 @@ def test_domain_r22_fence_indent_and_seed_scope_cli(tmp_path):
         problems2,
     )
     assert problems2 == [], f"真实报告的尾巴被误伤：{problems2!r}"
+
+
+def test_domain_r23_seed_scope_fence_and_tail_render_cli(tmp_path):
+    """R3 round-27（冻结审查 v8）：围栏状态机复用本体 + 标题/角色收窄 + 尾巴渲染面。
+
+    ⛔ round-26 我在种子扫描里**手抄了第二份围栏状态机**（遇任意三反引号就布尔
+    翻转），比 `_strip_code_blocks` 本体弱得多：四反引号开栏 → 块内三反引号
+    **伪闭栏** → 四反引号真闭栏，状态 True→False→True，真闭栏后的冲突小节被整段
+    跳过。**同一原则两处定义**，本卡第 N 次。⇒ 复用本体（行数不变，
+    「原行非空而剥后为空」= 在围栏内）。
+
+    审查方同批点名并已修的四条：
+      · 父级 H2 原用 `"台账" in heading` ⇒ `## 非台账示例` 也算 —— 改整行匹配；
+      · `### 种子 ###`（合法 ATX 闭合序列）原不识别，`###种子`（非法 ATX）反而命中；
+      · 绑定索引原**摊平全部角色** ⇒ 派生节点写进种子小节即可按其 tips_count 通过；
+      · `_tail_conflict` 原只在 **raw** 尾巴上找 ⇒ `批**注** 999 条` 漏，
+        且 `未批注 999 条` 因**子串**命中被误判。
+
+    **它证明什么**：八种形态的行为（见下）。
+    **它不证明什么**：**列表 continuation 未建模**（`- item` 之后的相对内容列）——
+    审查方指出继续补单条 regex 无法闭合这一面，属重做设计，如实登记。
+    """
+    rs = _load_recap_scan()
+    SEEDS = {
+        "ledger": {
+            "seeds": [{"node_id": "SeedA", "tips_count": 2}],
+            "derived": [{"node_id": "DerivedX", "tips_count": 5}],
+        }
+    }
+
+    def run(text: str) -> list[str]:
+        ps: list[str] = []
+        rs._verify_seed_ledger_counts(text, SEEDS, ps)
+        return ps
+
+    def L(row: str) -> str:
+        return f"## 台账\n\n### 种子\n\n{row}\n\n## 末\n"
+
+    for text, want, why in (
+        # ① 尾巴同名字段的**渲染**形态
+        (L("- SeedA — 批注 2 条（批**注** 999 条）"), "尾巴里又出现", "尾巴同名字段被强调标记切开"),
+        (L("- SeedA — 批注 2 条（批<b>注</b> 999 条）"), "尾巴里又出现", "尾巴同名字段被 HTML 标签切开"),
+        (L("- SeedA — 批注 2 条（未批注 999 条）"), None, "反向：`未批注` 不是同名字段，不得误伤"),
+        # ② 围栏状态机：四反引号 + 块内伪闭栏 + 真闭栏
+        (
+            "## 台账\n\n````\n### 种子\n```\n````\n\n### 种子\n\n- SeedA — 批注 999 条\n\n## 末\n",
+            "999",
+            "四反引号块内伪闭栏后，真闭栏之后的冲突小节必须受检",
+        ),
+        # ③ 父级 H2 与 H3 标题判定
+        ("## 非台账示例\n\n### 种子\n\n自由叙述。\n\n## 末\n", None, "`## 非台账示例` 下的同名小节不得被套模板"),
+        ("## 台账\n\n### 种子 ###\n\n- SeedA — 批注 999 条\n\n## 末\n", "999", "`### 种子 ###` 合法 ATX 闭合须识别"),
+        ("## 台账\n\n###种子\n\n- SeedA — 批注 999 条\n\n## 末\n", None, "`###种子` 非法 ATX 不得命中"),
+        # ④ 角色收窄
+        (L("- DerivedX — 批注 5 条"), "不在 scan JSON", "派生节点混进种子小节须报"),
+        # ⑤ 审查方点名的门缺口：fenced-seed（整个种子小节在围栏内）
+        (
+            "## 台账\n\n```\n### 种子\n\n- SeedA — 批注 999 条\n```\n\n## 末\n",
+            None,
+            "整段在围栏内的种子小节不得被当成台账（本门此前只测了 `## 附录`，文案比实测宽）",
+        ),
+    ):
+        ps = run(text)
+        if want is None:
+            assert ps == [], f"{why}：误伤 —— {ps!r}"
+        else:
+            assert ps, f"{why}：应报错却放行"
+            assert any(want in p for p in ps), f"{why}：诊断未含 {want!r} —— {ps!r}"

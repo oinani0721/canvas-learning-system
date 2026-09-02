@@ -1,0 +1,25 @@
+# round-27 复现（冻结审查 v8，八形态）
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v2-recapfix/backend/tests/regression/test_recap_scan_signals.py:4847: SyntaxWarning: "\s" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\s"? A raw string is also an option.
+  原实现先用 `[>\s]` 吃掉**任意**前导空白，`open_re` 的 ` {0,3}` 形同虚设
+--- ① 尾巴同名字段的渲染形态 ---
+✅ 尾巴 `批**注** 999 条`（渲染等价）
+      → 数字终核: 台账『种子』行 SeedA 的尾巴里又出现『批注 999 条』——同一字段两处计数, 无法确定以哪个为准 (fail-closed)
+✅ 尾巴 `批<b>注</b> 999 条`
+      → 数字终核: 台账『种子』行 SeedA 的尾巴里又出现『批注 999 条』——同一字段两处计数, 无法确定以哪个为准 (fail-closed)
+✅ 反向：`未批注 999 条` 不是同名字段，不得误伤
+--- ② 围栏状态机：四反引号 + 块内伪闭栏 ---
+✅ 四反引号块内伪闭栏后，真闭栏之后的冲突小节必须受检
+      → 数字终核: 台账『种子』行 SeedA 报批注 999 条, scan JSON 的 tips_count 是 2 (形状对不等于数字有据)
+--- ③ 父级 H2 与 H3 标题判定 ---
+✅ `## 非台账示例` 下的同名小节不得被套模板
+✅ `### 种子 ###`（合法 ATX 闭合）必须识别
+      → 数字终核: 台账『种子』行 SeedA 报批注 999 条, scan JSON 的 tips_count 是 2 (形状对不等于数字有据)
+✅ `###种子`（非法 ATX，不渲染成标题）不得命中
+--- ④ 角色收窄：派生节点混进种子小节 ---
+✅ 派生节点写进种子小节 ⇒ 不在 seeds 里，必须报
+      → 数字终核: 台账『种子』行的节点 'DerivedX' 不在 scan JSON 的 ledger 里 (台账不得列出未扫描到的节点)
+
+# 回归：四空格伪围栏 / 身份七形态 / manifest 双行逃逸
+1
+7
+5

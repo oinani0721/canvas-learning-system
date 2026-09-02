@@ -105,7 +105,7 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
                 # 列表 marker」交替剥法 + 列表容器边界跟踪。变异性质不变——退回
                 # "只剥一层引用"形态时, c1/c2/列表项围栏/r3 门都应变红。
                 "        bare = re.sub(\n"
-                '            r"^(?: {0,3}(?:>|(?:[-*+]|\\d{1,9}[.)])[^\\S\\n]+)[^\\S\\n]*)*", "", ln\n'
+                '            r"^(?: {0,3}(?:>[^\\S\\n]?|(?:[-*+]|\\d{1,9}[.)])[^\\S\\n]{1,4}))*", "", ln\n'
                 "        )",
                 '        bare = re.sub(r"^>?[^\\S\\n]*", "", ln)',
             )
@@ -627,7 +627,7 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "survivor-53 (C-26) 围栏前缀剥离退回吃掉任意缩进（四空格伪围栏 ⇒ 其后可见计数整段免检）",
         [
             (
-                '            r"^(?: {0,3}(?:>|(?:[-*+]|\\d{1,9}[.)])[^\\S\\n]+)[^\\S\\n]*)*", "", ln',
+                '            r"^(?: {0,3}(?:>[^\\S\\n]?|(?:[-*+]|\\d{1,9}[.)])[^\\S\\n]{1,4}))*", "", ln',
                 '            r"^(?:[>\\s]|(?:[-*+]|\\d{1,9}[.)])[^\\S\\n]+)*", "", ln',
             )
         ],
@@ -635,8 +635,33 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
     ),
     (
         "survivor-54 (C-27) 种子小节不再限定在『台账』之下（附录同名小节被强制套模板）",
-        [("        if _under_ledger and re.match(", "        if True and re.match(")],
+        [
+            (
+                "        if _under_ledger and _H3_SEED_RE.match(vis_lines[_i]):",
+                "        if _H3_SEED_RE.match(vis_lines[_i]):",
+            )
+        ],
         "r22_fence_indent",
+    ),
+    (
+        "survivor-55 (C-28) 种子小节的围栏判定退回手抄布尔翻转（四反引号块内伪闭栏 ⇒ 真闭栏后的冲突小节被跳过）",
+        [
+            (
+                "    _stripped = _strip_code_blocks(text).splitlines()",
+                "    _stripped = text.splitlines()",
+            )
+        ],
+        "r23_seed_scope",
+    ),
+    (
+        "survivor-56 (C-29) 种子绑定索引退回摊平全部角色（派生节点混进种子小节即通过）",
+        [
+            (
+                '        seeds = groups.get("seeds")',
+                "        seeds = None",
+            )
+        ],
+        "r23_seed_scope",
     ),
 ]
 
@@ -717,8 +742,11 @@ def _looks_like_crash(out: str) -> bool:
     )
 
 
-def run_suite(keyword: str) -> tuple[int, str, int, int]:
-    """跑目标用例，返回 (rc, 输出尾部, 收集到的用例数, 失败数)。
+def run_suite(keyword: str) -> tuple[int, str, int, int, bool]:
+    """跑目标用例，返回 (rc, 输出尾部, 收集到的用例数, 失败数, 是否崩溃)。
+
+    ⛔ round-27（冻结审查 v8）：注解与 docstring 原写**四元组**，实际返回五元组
+    （`crash` 是 round-10 加的）—— 又一处「说的与做的不符」。
 
     ⛔ Codex round-1 HIGH: 原实现只看 `rc != 0` 就判「如期变红」——
     pytest 的 rc=5 是**一个用例都没匹配到**（`-k` 写错就会这样），
@@ -768,7 +796,7 @@ def run_suite(keyword: str) -> tuple[int, str, int, int]:
     return r.returncode, out[-400:], passed + failed, failed, crash
 
 
-MUTANT_COUNT_EXPECTED = 54
+MUTANT_COUNT_EXPECTED = 56
 """变体数的**独立**期望值。
 
 ⛔ 冻结审查 v6：脚本原先只在结尾动态打印「共 N 条」—— 误删一个变体仍会成功退出。
@@ -788,9 +816,12 @@ def preflight() -> list[str]:
       · 「恰好命中一次」只证明**文本定位唯一**；
       · 「整组替换后源码确实变化」证明**替换非空**（round-26 新增，此前只比
         `old != new`，而成功消息却宣布了"替换非空" —— 措辞比证据宽）；
-      · **不**证明该位置可达、替换非空、或确实禁掉了目标防线 ——
+      · **不**证明该位置**可达**、或确实**禁掉了目标防线**（行为非空）——
         「锚点仍命中但变异已为空」在本卡真实发生过（见 铁律 4 / 铁律 5）。
-      · 它是**必要非充分**条件：能挡住漂移，挡不住空变异。
+      · 它是**必要非充分**条件：能挡住**锚点漂移**与**文本级**空变异，
+        挡不住**行为级**空变异（改到了活代码，却没禁掉那条防线）。
+      ⚠️ 归因edge：`survivor-7` 那次是被 `hits != 1` 抓到的，**不是**被新增的
+        「整组替换后源码确实变化」抓到的 —— 我此前把功劳记给了后者，过宽。
     """
     bad: list[str] = []
     if len(MUTANTS) != MUTANT_COUNT_EXPECTED:
