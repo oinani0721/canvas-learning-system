@@ -115,8 +115,8 @@ MUTATIONS += [
     (
         "M9-6cell-cell2-drop-orphan-noop",
         SKILL,
-        '    if f1:\n        print(f"[quiz-answer] {NODE}: event={eid} 已完整应用，幂等跳过（无任何改动）；账本无对应行',
-        '    if False and f1:\n        print(f"[quiz-answer] {NODE}: event={eid} 已完整应用，幂等跳过（无任何改动）；账本无对应行',
+        '        print(f"[quiz-answer] {NODE}: event={eid} 已完整应用（receipt 与本次评分事实一致），幂等跳过（无任何改动）；账本无对应行',
+        '        _ = (f"[quiz-answer] {NODE}: event={eid} 已完整应用（receipt 与本次评分事实一致），幂等跳过（无任何改动）；账本无对应行',
         "test_six_cell_state_machine_closed",
     ),
 ]
@@ -414,7 +414,7 @@ MUTATIONS += [
         + (
             (
                 SKILL,
-                "        import yaml\n",
+                "        import yaml  # F1 判定\n",
                 "        raise ImportError('MUTANT: 同时强制走正则回落')\n",
             ),
         ),
@@ -878,7 +878,7 @@ MUTATIONS += [
         (
             (
                 SKILL,
-                "        import yaml\n",
+                "        import yaml  # F1 判定\n",
                 "        raise ImportError('MUTANT: 同时强制走正则回落')\n",
             ),
         ),
@@ -916,7 +916,7 @@ MUTATIONS += [
         # F1 退回正则解析 ⇒ 合法 YAML 形态假阴性
         "M86-f1-regex-not-yaml",
         SKILL,
-        "        import yaml\n",
+        "        import yaml  # F1 判定\n",
         "        raise ImportError('MUTANT: 强制走正则回落')\n",
         "test_round9_yaml_calibration_forms",
     ),
@@ -939,6 +939,43 @@ MUTATIONS += [
         '_SCORED_AT = p.get("review_time")\n',
         '_SCORED_AT = p.get("ts")  # MUTANT: 稳定时刻退回运行时刻\n',
         "test_round8_stable_scored_at",
+    ),
+]
+
+
+# ── round-9 B①B②B④（结构化 receipt）的承重变异
+MUTATIONS += [
+    (
+        # receipt 不带 scored_at ⇒ F1-only 无法证明是同一次评分
+        "M89-receipt-drops-scored-at",
+        SKILL,
+        "              f'    scored_at: {q_(_e_sa)}\\n'\n",
+        "              f''\n",
+        "test_round9_structured_receipt",
+    ),
+    (
+        # receipt 不带 attempt_count
+        "M90-receipt-drops-attempt",
+        SKILL,
+        "              f'    attempt_count: {_e_att}\\n'\n",
+        "              f''\n",
+        "test_round9_structured_receipt",
+    ),
+    (
+        # F1-only 退回无条件 no-op ⇒ 同 ID 的另一次评分静默消失
+        "M91-f1-only-unconditional-noop",
+        SKILL,
+        "        _rcpt = _receipt_of(fm, evid) or _receipt_of(fm, eid)\n",
+        "        _rcpt = {'scored_at': _SCORED_AT, 'grade_norm': GN2}  # MUTANT\n",
+        "test_round9_structured_receipt",
+    ),
+    (
+        # 存量行缺 scored_at 时静默吞掉告警 ⇒ 用户不知道自己在降级模式里
+        "M92-legacy-row-warning-silenced",
+        SKILL,
+        '        print(f"[quiz-answer] ⚠️ {_ctx} 缺 payload.scored_at',
+        '        _ = (f"[quiz-answer] ⚠️ {_ctx} 缺 payload.scored_at',
+        "test_round9_structured_receipt",
     ),
 ]
 

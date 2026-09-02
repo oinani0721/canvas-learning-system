@@ -1265,7 +1265,10 @@ def test_six_cell_state_machine_closed(vault):
     # ── 格2 dup=None, f1=T: 旧写序孤儿 (frontmatter 已应用而账本无该事件) → 整体 no-op
     _write_ledger(vault, foreign)  # 抹掉本次事件行, calibration 仍在 frontmatter
     sha_before = _sha(vault / NODE_REL)
-    r2 = _run_writer(vault, _payload(ts="2026-09-01T08:00:00Z"))
+    # 同一次评分的**续跑**（同 event_id 的旧写序孤儿）：ts 变而稳定业务时刻不变。
+    # round-9 后 F1-only 会拿 receipt 与本次逐项比对 —— 若这里让 review_time
+    # 跟着 ts 走，那就成了「同 ID 承载另一次评分」，会被正确拒绝。
+    r2 = _run_writer(vault, _payload(ts="2026-09-01T08:00:00Z", review_time="2026-08-02T10:00:00Z"))
     assert r2.returncode == 0, r2.stdout + r2.stderr
     assert "旧写序" in r2.stdout and "不补录" in r2.stdout, r2.stdout
     assert _sha(vault / NODE_REL) == sha_before and len(_ledger_lines(vault)) == 1, "格2: 必须零改动"
@@ -3161,3 +3164,75 @@ def test_round9_yaml_calibration_forms(vault):
     rbad = _run_writer(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1))
     assert rbad.returncode != 0, "非法 YAML 下 F1 不可证，必须停下而不是当成「没有条目」"
     assert "不是合法 YAML" in rbad.stderr, rbad.stderr[:250]
+
+
+# ── 门(51) round-9 B①B②B④: 结构化 receipt 与 F1-only 的可证性 ──
+
+
+def test_round9_structured_receipt(vault):
+    """⛔ 我一度把 B①/B④ 判成「撞卡文禁改面」而登记不修 —— **那是判断错误**。
+    `calibration_log` 在**节点 frontmatter** 里，validator 全文对它**零引用**
+    （只校验账本文件）。真正需要 validator 配合的只有 `scored_at`（在账本
+    payload 里）。一个不修的理由无论听起来多确定，都必须先查证
+    （`grep -c calibration_log validate_learning_events.py` 一条命令的事）。
+    """
+    import yaml
+
+    LED = vault / "learning_events.jsonl"
+
+    def _fresh():
+        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+        LED.unlink(missing_ok=True)
+
+    def _receipts():
+        t = (vault / NODE_REL).read_text(encoding="utf-8")
+        doc = yaml.safe_load(re.match(r"^---\n(.*?)\n---", t, re.S).group(1))
+        return doc.get("calibration_log") or []
+
+    # ── B① receipt 必须绑定「同一次评分」的四项可证事实
+    _fresh()
+    for eid, ts in (("板A#q1", TS1), ("板B#q1", "2026-08-02T10:00:00Z")):
+        assert _run_writer_settled(vault, _payload(event_id=eid, ts=ts, review_time=ts)).returncode == 0
+    rs = _receipts()
+    assert len(rs) == 2, rs
+    for i, r in enumerate(rs):
+        for k in ("event_id", "scored_at", "attempt_count", "grade_norm"):
+            assert r.get(k) is not None, f"receipt[{i}] 缺 {k}（B① 要求的绑定项）: {r}"
+        assert r["event_id"].startswith("quiz:"), f"receipt 存**完整**账本 id: {r}"
+    assert [r["attempt_count"] for r in rs] == [1, 2], f"attempt 序数须逐次递增: {rs}"
+
+    # ── B④ F1-only（账本行丢失）不得**无条件** no-op
+    _fresh()
+    assert (
+        _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1, grade_norm=0.75)).returncode
+        == 0
+    )
+    LED.write_text("", encoding="utf-8")  # 日志行丢失，只剩 frontmatter
+    face = _write_face(vault)
+    rx = _run_writer(
+        vault,
+        _payload(event_id="板A#q1", ts="2026-12-31T10:00:00Z", review_time="2026-12-31T10:00:00Z", grade_norm=0.11),
+    )
+    assert rx.returncode != 0, "同 ID 承载另一次评分（时刻与分数都不同）不得静默 no-op"
+    assert "receipt 与本次评分事实不一致" in rx.stderr, rx.stderr[:250]
+    assert _write_face(vault) == face, "零写"
+
+    # 验伪：**真的**旧写序孤儿（同一次评分）必须仍 no-op
+    rok = _run_writer(vault, _payload(event_id="板A#q1", ts="2026-09-01T08:00:00Z", review_time=TS1, grade_norm=0.75))
+    assert rok.returncode == 0, f"同一次评分的续跑必须仍 no-op: {rok.stderr[:250]}"
+    assert "旧写序" in rok.stdout, rok.stdout[:200]
+
+    # ── B② 消费侧那一半：**存量行必须豁免并如实告警**
+    # ⚠️ 我一度把判据挂在 `review_time != effective_at`（A3 痕迹）上 —— 那是
+    # **恒假**的：§6.1 要求这两者必须是同一瞬间，validator 会拒不同的行。
+    # 挂错维度的判据形同虚设（本卡第二次犯：上次是把「已应用」挂在 ≤W 上）。
+    _fresh()
+    row = _review_row()
+    row["payload"].pop("scored_at", None)
+    _write_ledger(vault, row)
+    rl = _run_writer_settled(
+        vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z", review_time="2026-08-02T10:00:00Z")
+    )
+    assert rl.returncode == 0, f"存量行（无 scored_at）必须豁免，否则旧账本全不可用: {rl.stderr[:250]}"
+    assert "缺 payload.scored_at" in rl.stdout, f"必须如实告警而不是静默: {rl.stdout[:250]}"
+    assert "已移交" in rl.stdout, "告警须点明完整闭环需 validator 侧同步（卡文禁改面）"

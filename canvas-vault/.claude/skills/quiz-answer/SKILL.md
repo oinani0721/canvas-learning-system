@@ -433,7 +433,7 @@ def _fm_has_event(fm_text, ev_id):
     是「有总比没有强」的降级, 出现即告警。
     """
     try:
-        import yaml
+        import yaml  # F1 判定
         _m = re.match(r"^---\n(.*?)\n---", fm_text, re.S)
         _doc = yaml.safe_load(_m.group(1) if _m else fm_text)
         if isinstance(_doc, dict):
@@ -721,6 +721,10 @@ def _append_calibration(fm_text, ts_str, ev=None):
         # 应用」而幂等跳过, **那次评分静默不入账**(rc=0, attempt 停在 1)。
         # 修一半比不修更危险: 它把不一致藏进了「已经修过」的地方。
         _e_id, _e_pl = evid, p
+        _e_sa = _SCORED_AT                 # 本次评分的原始稳定业务时刻
+        # `n_att` 在正常路径 append 时才算出 —— _append_calibration 定义在它之前,
+        # 故用 globals() 延迟取值（调用发生在 n_att 已存在之后）。
+        _e_att = globals().get("n_att", "null")
         _e_ab, _e_gn = bool(p.get("abandoned")), GN2
         _e_qid = q_(p.get("question_id", "q1"))
         _e_scr, scn_ = q_(p.get("self_confidence_raw") or "null"), p.get("self_confidence_norm")
@@ -732,10 +736,26 @@ def _append_calibration(fm_text, ts_str, ev=None):
         # (另两种 attempt 排列恰好被序数门兜住而 fail-closed —— 那是巧合不是设计,
         #  「被别的门兜住」不等于缺陷不存在。)
         _e_id = str(ev.get("event_id") or "")
+        # 复放别人的事件: 两个字段都取**那一行**的值 (缺 scored_at 的是 round-8
+        # 之前写的旧行, 回落它的 review_time —— 那些行没有 A3 前后之分)。
+        _e_sa = str(_e_pl.get("scored_at") or _e_pl.get("review_time") or "")
+        _e_att = _e_pl.get("attempt_count") if isinstance(_e_pl.get("attempt_count"), int) else "null"
         _e_ab, _e_gn = ev.get("event_type") == "answer_abandoned", _e_pl.get("grade_norm")
         _e_qid, _e_scr, scn_ = "null", "null", None
+    # ⛔ receipt 必须绑定「同一次评分」的可证事实 (Codex round-9 BLOCKER B①/B④):
+    # 此前条目只有 event_id/ts/grade_norm —— 而 `ts` 是 **A3 采用后**的业务时刻,
+    # 于是 F1-only 状态 (账本行丢失、只剩 frontmatter) 无法证明「这就是同一次
+    # 评分」: 实测 8 月 grade=.75 应用后删掉日志行, 再用同 ID、12 月、grade=.11
+    # 提交, writer rc=0 当作旧写序 no-op, 那次 12 月的评分**静默消失**。
+    # 补两个字段后, F1-only 分支可以拿它们与本次输入逐项比对。
+    # ⚠️ calibration_log 在**节点 frontmatter**, validator 只校验账本文件
+    # (全文对 calibration_log 零引用) —— 改它的格式**不触碰卡文禁改面**。
+    # 我一度把 B①/B④ 判成「撞 validator 禁改」而登记不修, 那是**判断错误**:
+    # 需要 validator 配合的只有 `scored_at`(在账本 payload 里), 不是 receipt。
     entry_ = (f'  - event_id: {q_(_e_id)}\n'
               f'    ts: {q_(ts_str)}\n'
+              f'    scored_at: {q_(_e_sa)}\n'
+              f'    attempt_count: {_e_att}\n'
               f'    exam_board: {q_(_e_pl.get("exam_board",""))}\n'
               f'    question_id: {_e_qid}\n'
               f'    self_confidence_raw: {_e_scr}\n'
@@ -878,6 +898,22 @@ for _ln, _o in _rows:
     _gn_ = _pl.get("grade_norm")
     if isinstance(_gn_, bool) or not isinstance(_gn_, (int, float)) or not (0.0 <= float(_gn_) <= 1.0):
         raise SystemExit(f"[quiz-answer] {_ctx} 的 payload.grade_norm 缺失或越界 ({_gn_!r}; §6.1 要求 0-1 数值) — 越界值会被 rating_from_grade 静默钳制, fail-closed 拒写")
+    # ⛔ 本节点的 v1 适用行必须带 scored_at (Codex round-9 BLOCKER B② 的**消费侧
+    # 那一半**)。审查者要求「规格 + 校验器 + 消费侧」三方闭环 —— 校验器那一环
+    # 撞卡文禁改面(实测删掉 scored_at 后 validator 放行), 但**消费侧不依赖它**:
+    # 我要重放这一行, 就得能证明「它是哪一次评分」, 缺了就停。
+    # ⚠️ 如实声明: 这不等于闭环。别的写点仍可能产出没有 scored_at 的行, 那些行
+    # 会在这里被拒而不是在写入时被拒 —— 完整闭环需要 validator 侧同步, 移交。
+    # ⚠️ **存量行豁免**: round-8 之前写的行本就没有 scored_at, 一刀切全拒等于让
+    # 所有旧账本不可用 —— 那是把「加严」做成「误伤」(本卡已犯过三次)。
+    # ⛔ 判据不能挂在 `review_time != effective_at` 上: §6.1 要求这两者**必须是
+    # 同一瞬间**(validator 会拒不同的行), 所以那个差异**恒为假** —— 挂错维度的
+    # 判据形同虚设(本卡第二次犯: 上次是把「已应用」挂在 ≤W 上)。
+    # A3 的痕迹在于「采用值被推后了」, 而**没有 scored_at 就无从知道推没推**。
+    # 可证的处置: 缺该字段时只能按存量行处理(回落 review_time), 并如实告警 ——
+    # 真正的闭环要 validator 把它列为必填, 那一环撞卡文禁改面, 已登记移交。
+    if not isinstance(_pl.get("scored_at"), str) or not _pl["scored_at"]:
+        print(f"[quiz-answer] ⚠️ {_ctx} 缺 payload.scored_at (round-8 之前的存量行) — 按存量行回落到 review_time; 此模式下无法区分「同一次评分的续跑」与「同 ID 换了业务时刻」, 完整闭环需 validator 侧同步(已移交)")
     _n0_ = _pl.get("attempt_count")
     if isinstance(_n0_, bool) or not isinstance(_n0_, int) or _n0_ < 1:
         raise SystemExit(f"[quiz-answer] {_ctx} 的 payload.attempt_count 缺失或非法 ({_n0_!r}; 须为 ≥1 的整数) — 它是 ordinal 回推与恢复的权威值, 缺了就无法证明这是第几次评分, fail-closed 拒写")
@@ -916,9 +952,41 @@ for _inst_, _ln_, _o_ in _applicable:
 # 「FSRS 已应用」的机械判据 = W >= durable.review_time。F1 (calibration 有无)
 # 单独不能当幂等凭据 — degraded 落账写过 calibration 却没写 W, F1 早退会
 # ①吞掉冲突事实 ②让 degraded pending 永不恢复。
+def _receipt_of(fm_text, ev_id):
+    """从 calibration_log 取出该 event_id 的条目 (结构化读, 与 F1 同源)。"""
+    try:
+        import yaml  # receipt 读取
+        _m = re.match(r"^---\n(.*?)\n---", fm_text, re.S)
+        _doc = yaml.safe_load(_m.group(1) if _m else fm_text)
+        if isinstance(_doc, dict) and isinstance(_doc.get("calibration_log"), list):
+            for _e in _doc["calibration_log"]:
+                if isinstance(_e, dict) and str(_e.get("event_id", "")) == ev_id:
+                    return _e
+    except Exception:
+        pass
+    return None
+
 if dup is None:
     if f1:
-        print(f"[quiz-answer] {NODE}: event={eid} 已完整应用，幂等跳过（无任何改动）；账本无对应行 — 旧写序(先 frontmatter 后事件)遗留，本次不补录，审计完整性请走账本补录通道")
+        # ⛔ F1-only 不得**无条件** no-op (Codex round-9 BLOCKER B④): 账本行丢了、
+        # 只剩 frontmatter 时, 必须拿 receipt 证明「这就是同一次评分」。
+        # 实测漏账链: 8 月 grade=.75 应用后删掉日志行, 再用同 ID、12 月、
+        # grade=.11 提交 ⇒ writer rc=0 当旧写序 no-op, **12 月那次评分静默消失**。
+        _rcpt = _receipt_of(fm, evid) or _receipt_of(fm, eid)
+        if _rcpt is None:
+            raise SystemExit(f"[quiz-answer] {evid} 在 calibration_log 里命中却读不出条目 — receipt 不可解析, 无法证明是同一次评分, fail-closed 拒写 — 请人工核对 {NODE}")
+        _rc_sa = str(_rcpt.get("scored_at") or "")
+        _rc_gn = _rcpt.get("grade_norm")
+        if not _rc_sa:
+            raise SystemExit(f"[quiz-answer] {evid} 的 receipt 缺 scored_at (round-9 之前写的旧条目) — 无法证明本次与它是同一次评分; 账本里又没有对应行可比, fail-closed 拒写 — 请人工核对 {NODE} 与账本后决定补录还是重评")
+        _mis = []
+        if _rc_sa != _SCORED_AT:
+            _mis.append(f"scored_at {_rc_sa!r} != 本次 {_SCORED_AT!r}")
+        if isinstance(_rc_gn, (int, float)) and round(float(_rc_gn), 2) != GN2:
+            _mis.append(f"grade_norm {_rc_gn!r} != 本次 {GN2!r}")
+        if _mis:
+            raise SystemExit(f"[quiz-answer] {evid} 已在 calibration_log 里, 但 receipt 与本次评分事实不一致 ({'; '.join(_mis)}) — 同一个 event_id 承载了两次不同的评分, 账本又没有对应行可作裁定依据, fail-closed 拒写 — 请人工核对后修正 event_id 或账本")
+        print(f"[quiz-answer] {NODE}: event={eid} 已完整应用（receipt 与本次评分事实一致），幂等跳过（无任何改动）；账本无对应行 — 旧写序(先 frontmatter 后事件)遗留，本次不补录，审计完整性请走账本补录通道")
         os.remove(P)
         raise SystemExit(0)
 else:
