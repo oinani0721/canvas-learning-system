@@ -58,10 +58,10 @@
 | # | 判据 | 结果 | 证明了什么 / **不**证明什么 |
 |---|---|---|---|
 | 1 | **开工基线实收**（HEAD `02dbc426` 临时还原后 `--collect-only`） | `255 collected` / `254 passed, 1 skipped` | 基线是实收的，不是照抄历史数字。还原用备份 + `finally` 恢复，4 文件恢复后**逐字节相同** |
-| 2 | **裁判 1** 五文件回归 | `274 collected` / **`273 passed, 1 skipped`**（+19 门，零回归） | 新增 19 门全绿且原 254 门无一变红。**不**证明整仓其它测试（整个 `tests/regression/` 另有 5 处存量红，与本卡零交集——`git diff 02dbc426` 对 `backend/app/`、validator、那两个失败文件均为空集） |
+| 2 | **裁判 1** 五文件回归 | `276 collected` / **`275 passed, 1 skipped`**（+21 门，零回归） | 新增 21 门全绿且原 254 门无一变红。**不**证明整仓其它测试（整个 `tests/regression/` 另有 5 处存量红，与本卡零交集——`git diff 02dbc426` 对 `backend/app/`、validator、那两个失败文件均为空集） |
 | 3 | **裁判 2** 生产入口反例（`g32b_r1r7_counterexamples.py`） | **31/31 PASS** | 用逐字提取的生产 PYEOF 块跑真实反例，含 8 条**验伪对照**（合法输入必须仍然通过），故不是「恒拒」的假门。**不**证明并发 |
 | 4 | **裁判 3** validator 跑 fixture | `RESULT: PASS`，`rc=0` | fixture 由真实生产写点跑出（两次评分 E1/E2），非手写样例 |
-| 5 | **变异验证**（`g32b_mutation_gates.py`，串行） | **68/68 KILLED**，68 次还原全部**逐字节相同**；外部锚点核对 `grep MUTANT`=0 且 sha 等于本轮已知良好值 | 每个变异把生产代码**精确退回旧实现形态**，判据是**指定的那道门**必须变红（`rc==1` 且摘要含 `1 failed`；rc=4 是门名写错、rc=5 是零收集，都不算杀死）。其中 **14 条**挂了「**同时禁掉校验器那层**」——它们与校验器功能重合，只删手写那层杀不动（见「发现三」）。⚠️ round-5 的路由重排一次让 **19 条变异失效**（13 条锚点漂移 + 3 条被新层兜住 + 2 条的目标代码被删）——「锚点命中 0 次」是**静默跳过**，不跑也不报错，只在汇总里出现一行。不看汇总就当「变异全过」= 把整层验证悄悄关掉。round-6 又暴露 6 条 SURVIVED，逐条查清后归入四类成因：**判据太粗**（`rc != 0` 把「恢复已落定，请重跑」这个**续跑信号**当成了拒绝，M65/M68/M69）、**纵深兜住**（被 round-6 新增的 BOM 门/空行门先拦，M22/M18b）、**门与变异不匹配**（M46：fixture 的 `str.replace` 用裸 id，改存完整 id 后**静默不生效**，单引号形态压根没构造出来）。**不**证明门集覆盖了未被想到的缺陷 |
+| 5 | **变异验证**（`g32b_mutation_gates.py`，串行） | **74/74 KILLED**，74 次还原全部**逐字节相同**；外部锚点核对 `grep MUTANT`=0 且 sha 等于本轮已知良好值 | 每个变异把生产代码**精确退回旧实现形态**，判据是**指定的那道门**必须变红（`rc==1` 且摘要含 `1 failed`；rc=4 是门名写错、rc=5 是零收集，都不算杀死）。其中 **14 条**挂了「**同时禁掉校验器那层**」——它们与校验器功能重合，只删手写那层杀不动（见「发现三」）。⚠️ round-5 的路由重排一次让 **19 条变异失效**（13 条锚点漂移 + 3 条被新层兜住 + 2 条的目标代码被删）——「锚点命中 0 次」是**静默跳过**，不跑也不报错，只在汇总里出现一行。不看汇总就当「变异全过」= 把整层验证悄悄关掉。round-6 又暴露 6 条 SURVIVED，逐条查清后归入四类成因：**判据太粗**（`rc != 0` 把「恢复已落定，请重跑」这个**续跑信号**当成了拒绝，M65/M68/M69）、**纵深兜住**（被 round-6 新增的 BOM 门/空行门先拦，M22/M18b）、**门与变异不匹配**（M46：fixture 的 `str.replace` 用裸 id，改存完整 id 后**静默不生效**，单引号形态压根没构造出来）。**不**证明门集覆盖了未被想到的缺陷 |
 | 6 | **六格状态机逐格闭合**（门㉝） | 6 格全部断言终态通过 | round-3 判 3 格 FAIL + 1 格 PARTIAL，现逐格构造真实前置态并断言。**不**证明格间竞态（无锁） |
 | 7 | **写点普查门**（门⑪）+ 全仓 grep | PASS；账本写点仍是 4 处（`quiz-answer` / `start-exam-board` / `ai-linked-doc` / `learning_event_log.py`） | 本卡未新增第三套实现，未动其它 skill 写点 |
 | 8 | **live vault 零写** | 账本 `2a18023e…`（22 行），mtime `2026-08-29T06:11:47+0800` | mtime 远早于本 session（2026-09-02），**观测范围内**零写。**不**证明其它进程未写 |
@@ -598,6 +598,26 @@ round-5 的正文尚未输出，但 stderr 里的推理标题序列可读。按 
   「可证的多个 foreign pending 按序恢复并独立发布，本轮不追加；**本次事件与 foreign
   pending 混合**时才拒绝」。
 
+### round-7（验证轮，绑定 commit `57bf4473`）：**判「需整改」，3 B + 2 H + 1 M 已修，3 L 为措辞**
+
+| # | 级别 | 复验 | 修法 | 承重 |
+|---|---|---|---|---|
+| B① | **BLOCKER** | 成立。`_fm_has_event_compat` 第一行 **exact 命中就直接返回**，绕过了歧义检查。实测：首次提交 `quiz:K`（账本行 `quiz:quiz:K`）→ 把校准改成历史形态 `quiz:K` → 再提交**新** id `K` ⇒ 判「已完整应用」幂等跳过，**账本/attempt/校准都没增加** | 校准 token **反查所有来源**（每个账本 id 贡献完整 token，带前缀的再贡献历史裸 token），命中后的来源集合**必须恰为**当前 id | 门㊺B① / M72 |
+| B② | **BLOCKER** | 成立。规则 16 的全账迟到扫描排在**所有早退之后**（dup 幂等 / 历史行 / F1 三处 `SystemExit(0)`）= 先放行再检查。实测追加一条早于 W、未标 out_of_order、无校准的 LATE 行后重跑 E2 得 rc=0，**那次复习永久漏算** | 扫描前移到分诊主流程之前 | 门㊺B② / M73 |
+| B③ | **BLOCKER** | 成立。candidate 的业务时刻直接抄 durable 行 ⇒ 同一 ID 承载**另一个**业务时刻时 envelope 看不出。实测 8 月成功后回滚节点、同 ID 用 12 月重跑，写点只恢复旧事件、账本时刻仍是 8 月 | ⚠️ **不能直接改用本次 `ts`**（它每次续跑都 `date -u` 重取，那样真实续跑也会冲突）。引入**稳定业务时刻**：Step 3 记 `questions[0].scored_at`，payload 传 `review_time`，`ts` 保留为「日志行何时写的」 | 门㊺B③ + 续跑验伪 / M74 |
+| H① | HIGH | 成立。账本里**别人**的行有 node_id 可用性门，**自己**派生的没有。实测节点路径 `节点/ .md` 首跑 rc=0 并写出 `node_id=' '`，回滚后重跑 rc=1、账本仍 1 行，**崩溃后无法自动恢复** | 派生处补同款门 | 门㊻H① / M76 |
+| H② | HIGH | 成立。序数证明跨过「缺 attempt_count」的行却**固定减 1**。实测 E1(1)→L2(无)→L3(3) 时算出 E1=2 ⇒ **错值被接受、真值被拒**（正好反了） | 按 gap 折算；链上有不可证间隙则停 | 门㊻H② / M77 |
+| M① | MEDIUM | 成立，**且是我 round-6 引入的**：我保留了 `or (W_inst ...)` 作「兜底」，而它让 calibration 判据**没有真正生效**（删掉后继事件的校准但保留 W，它仍被算作已贡献） | 删掉 W 兜底 —— 前移的全账扫描已保证「≤W 的适用行要么有校准要么已标 out_of_order」 | 门㊺M① / M75 |
+| L①L②L③ | LOW | 均为**措辞**（已改）：规则 11 说窄了实现、规则 9 把「拒 BOM」写成「剥 BOM」、A8「再叠加更严的」不能准确描述同口径重复检查 | 按建议改表述（审查者明确说 L③「不是当前 exactly-once 实现缺陷」，建议改为「再做同口径防御性复核及消费侧加严」）| — |
+
+⛔ **M① 的教训**：「保留兜底更安全」是直觉，实际它**让修复没落地**。上一轮我把
+`review_time <= W` 换成 calibration 判据时留了 W 作或分支 —— 于是新判据永远只是
+「或」的一半，旧行为原样还在。**换判据时留旧的作兜底，等于没换。**
+
+⚠️ **变异排查见到 SURVIVED 的第五种成因**：M74 只退回了 candidate 两处业务时刻中的
+**一处**，而 envelope 比的是整体，另一处仍是新值就足以识别差异 —— 不是纵深兜住，
+是**变异本身没把缺陷完整放回来**。改为两处同退后即被杀。
+
 ---
 
 ## 如实边界声明（本卡未证明什么）
@@ -647,10 +667,10 @@ round-5 的正文尚未输出，但 stderr 里的推理标题序列可读。按 
 | 前卡 UAT / round-3 | `_bmad-output/验收单/UAT-CARD-G3-2-复习事件账本write-ahead-2026-09-01.md`、`_bmad-output/审查/codex-review-CARD-G3-2-round3.md` |
 | 生产改动 | `canvas-vault/.claude/skills/quiz-answer/SKILL.md`、`canvas-vault/.claude/scripts/fsrs_bridge.py` |
 | 契约回写 | `docs/learning-events-schema-v1.md` §6.2（A4.5 duplicate 门 / A4.5 短写段 / A5） |
-| 行为门 | `backend/tests/regression/test_g3_2_review_ledger.py` 门㉖-㊹ 共 19 道（㉖-㉜=R1-R7，㉝=六格状态机，㉞=N1-N5，㉟=自查覆盖缺口，㊱=round-2 线索复核，㊲=内部对抗审查 7 条，㊳=round-3 的 BLOCKER/HIGH + 修复面 13 个子场景，㊴=round-4 的**写点↔校验器结论对照**，㊵=round-5 校准键别名，㊶=round-5 路由顺序与输入字面校验，㊷=round-5 §6.3 历史行序数不可证，㊸=round-6 的 3 BLOCKER + 4 HIGH + 1 MEDIUM，㊹=round-6 后续的 H⑤ 序数判据 + M③ 账本可证序数） |
+| 行为门 | `backend/tests/regression/test_g3_2_review_ledger.py` 门㉖-㊻ 共 21 道（㉖-㉜=R1-R7，㉝=六格状态机，㉞=N1-N5，㉟=自查覆盖缺口，㊱=round-2 线索复核，㊲=内部对抗审查 7 条，㊳=round-3 的 BLOCKER/HIGH + 修复面 13 个子场景，㊴=round-4 的**写点↔校验器结论对照**，㊵=round-5 校准键别名，㊶=round-5 路由顺序与输入字面校验，㊷=round-5 §6.3 历史行序数不可证，㊸=round-6 的 3 BLOCKER + 4 HIGH + 1 MEDIUM，㊹=round-6 后续的 H⑤ 序数判据 + M③ 账本可证序数，㊺=round-7 的 3 BLOCKER + 1 MEDIUM，㊻=round-7 的 2 HIGH） |
 | 反例复现脚本 | `backend/scripts/g32b_r1r7_counterexamples.py` |
 | fixture 生成脚本 | `backend/scripts/g32b_build_fixture.py`（`--check` 复算 sha） |
-| 变异脚本 | `backend/scripts/g32b_mutation_gates.py`（**68** 个变异，串行 + 逐字节还原；KILLED 判据 = `rc==1` 且摘要含 `1 failed`；其中 **17 条挂多层**（校验器层 / round-6 新增的 BOM 门与空行门）） |
+| 变异脚本 | `backend/scripts/g32b_mutation_gates.py`（**74** 个变异，串行 + 逐字节还原；KILLED 判据 = `rc==1` 且摘要含 `1 failed`；其中 **19 条挂多层**（校验器层 / round-6 新增的 BOM 门与空行门）） |
 | round-1 审查 | `_bmad-output/审查/codex-review-CARD-G3-2b.md`（**0 字节**，已入库作为「正文缺失」本身的证据） |
 | round-3 审查 | `_bmad-output/审查/codex-review-CARD-G3-2b-round3.md`（**17993 字节，唯一拿到正文的一轮**，判「需整改」）+ `.stderr` sha256 `1e093c12c70d0ee011c929e51c97cb8d4ca3245d21b989268809663daabfbb7e`（820 KB，同样不入库） |
 | round-3 提示词 | `_bmad-output/审查/prompts/codex-prompt-CARD-G3-2b-round3.md`（中性化措辞 + 收窄读取面） |

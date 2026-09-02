@@ -54,10 +54,10 @@ MUTATIONS = [
         "M1-R1-candidate-spread",
         SKILL,
         '        "payload": {"schema_ext": "review/1", "vault_id": _vid, "concept_id": node_id,\n'
-        '                    "rating": rating, "grade_norm": GN2, "review_time": _dup_rt,\n',
+        '                    "rating": rating, "grade_norm": GN2, "review_time": _biz_rt,\n',
         '        "payload": {**{k: v for k, v in _dpl.items() if k not in ("fsrs_library_version", "fsrs_params_hash")},\n'
         '                    "schema_ext": "review/1", "vault_id": _vid, "concept_id": node_id,\n'
-        '                    "rating": rating, "grade_norm": GN2, "review_time": _dup_rt,\n',
+        '                    "rating": rating, "grade_norm": GN2, "review_time": _biz_rt,\n',
         "test_r1_unknown_durable_payload_key_conflicts",
     ),
     (
@@ -561,8 +561,8 @@ MUTATIONS += [
         # F1 查询退回「只查剥前缀形态」⇒ 同一个碰撞从查询侧复现
         "M53-f1-query-strips-prefix-only",
         SKILL,
-        "    if _fm_has_event(fm_text, ev_id):\n        return True\n",
-        "    if _fm_has_event(fm_text, ev_id[5:] if ev_id.startswith('quiz:') else ev_id):  # MUTANT\n        return True\n",
+        "    if _fm_has_event(fm_text, ev_id):\n        _cands.append(ev_id)\n",
+        "    if _fm_has_event(fm_text, ev_id[5:] if ev_id.startswith('quiz:') else ev_id):  # MUTANT\n        _cands.append(ev_id)\n",
         "test_round5_calibration_key_prefix_collision",
     ),
 ]
@@ -580,7 +580,7 @@ MUTATIONS += [
         (
             (
                 SKILL,
-                "    if len(_aliases) > 1:\n",
+                "    if _sources and _sources != {ev_id}:\n",
                 "    if False:  # MUTANT: 同时禁掉唯一性证明那层\n",
             ),
         ),
@@ -589,7 +589,7 @@ MUTATIONS += [
         # 裸键回落不证唯一性 ⇒ 歧义时猜一个, 另一个静默不入账
         "M55-fallback-without-uniqueness-proof",
         SKILL,
-        "    if len(_aliases) > 1:\n",
+        "    if _sources and _sources != {ev_id}:\n",
         "    if False:  # MUTANT: 不证唯一性\n",
         "test_round5_calibration_key_prefix_collision",
     ),
@@ -722,9 +722,8 @@ MUTATIONS += [
         # 序数退回只按 W 判 ⇒ degraded 落账的后继事件不算，误拒合法历史重试
         "M70-ordinal-w-only-not-calibration",
         SKILL,
-        """        and (_fm_has_event_compat(fm, str(_o4.get("event_id") or ""), _ALL_LEDGER_IDS)
-             or (W_inst is not None and _i <= W_inst))""",
-        """        and (W_inst is not None and _i <= W_inst)  # MUTANT: 只按 W 判""",
+        '        and _fm_has_event_compat(fm, str(_o4.get("event_id") or ""), _ALL_LEDGER_IDS)\n',
+        "        and (W_inst is not None and _i <= W_inst)  # MUTANT: 只按 W 判\n",
         "test_round6_ordinal_evidence",
     ),
     (
@@ -734,6 +733,79 @@ MUTATIONS += [
         "    if _prov is not None:\n",
         "    if False:  # MUTANT: 不用账本可证序数\n",
         "test_round6_ordinal_evidence",
+    ),
+]
+
+
+# ── round-7 修复的承重变异
+MUTATIONS += [
+    (
+        # exact 命中直接返回 ⇒ 绕过歧义检查
+        "M72-exact-hit-bypasses-ambiguity",
+        SKILL,
+        "    _cands = []\n    if _fm_has_event(fm_text, ev_id):\n        _cands.append(ev_id)\n",
+        "    _cands = []\n    if _fm_has_event(fm_text, ev_id):\n        return True  # MUTANT\n",
+        "test_round7_findings",
+    ),
+    (
+        # 全账迟到扫描退回分诊之后 ⇒ 幂等早退绕过它
+        "M73-late-scan-after-early-exit",
+        SKILL,
+        'for _inst_, _ln_, _o_ in _applicable:\n    if W_inst is None or _inst_ > W_inst or _o_.get("event_id") == evid:\n        continue\n',
+        'for _inst_, _ln_, _o_ in []:  # MUTANT: 扫描失效\n    if W_inst is None or _inst_ > W_inst or _o_.get("event_id") == evid:\n        continue\n',
+        "test_round7_findings",
+    ),
+    (
+        # candidate 抄 durable 的业务时刻 ⇒ 同 ID 换时刻看不出
+        # ⚠️ candidate 的业务时刻有**两处**（effective_at 与 payload.review_time）,
+        # 只改一处不够 —— envelope 比的是整体, 另一处仍是新值就能识别出差异。
+        # 「变异要精确退回旧实现形态」在这里意味着两处一起退。
+        "M74-candidate-copies-durable-rt",
+        SKILL,
+        '        "effective_at": _biz_rt,\n',
+        '        "effective_at": _dup_rt,  # MUTANT\n',
+        "test_round7_findings",
+        (
+            (
+                SKILL,
+                '"grade_norm": GN2, "review_time": _biz_rt,',
+                '"grade_norm": GN2, "review_time": _dup_rt,  # MUTANT',
+            ),
+        ),
+    ),
+    (
+        # W 兜底回来 ⇒ calibration 判据形同虚设
+        # ⚠️ 挂第二层: 删掉后继事件的校准条目后, **前移的全账迟到扫描**(B② 的
+        # 修复)会先拦下来 —— 那是纵深, 不是「W 兜底没用」。要证 W 兜底确实会
+        # 掩盖 calibration 判据, 必须同时禁掉那道扫描。
+        "M75-w-fallback-restored",
+        SKILL,
+        '        and _fm_has_event_compat(fm, str(_o4.get("event_id") or ""), _ALL_LEDGER_IDS)\n',
+        '        and (_fm_has_event_compat(fm, str(_o4.get("event_id") or ""), _ALL_LEDGER_IDS)\n             or (W_inst is not None and _i <= W_inst))  # MUTANT\n',
+        "test_round7_findings",
+        (
+            (
+                SKILL,
+                'for _inst_, _ln_, _o_ in _applicable:\n    if W_inst is None or _inst_ > W_inst or _o_.get("event_id") == evid:\n        continue\n',
+                'for _inst_, _ln_, _o_ in []:  # MUTANT: 同时禁掉全账迟到扫描\n    if W_inst is None or _inst_ > W_inst or _o_.get("event_id") == evid:\n        continue\n',
+            ),
+        ),
+    ),
+    (
+        # 本次事件自身的 node_id 门失效
+        "M76-self-node-id-gate-dropped",
+        SKILL,
+        "if not isinstance(node_id, str) or not node_id.strip() or node_id != node_id.strip():\n",
+        "if False:  # MUTANT: 自身 node_id 不校验\n",
+        "test_round7_ordinal_gap_and_self_node_id",
+    ),
+    (
+        # 序数证明固定减 1，不按 gap 折算
+        "M77-ordinal-fixed-minus-one",
+        SKILL,
+        "                _prov = (_l3, _n3 - _gap)\n",
+        "                _prov = (_l3, _n3)  # MUTANT: 不折算 gap\n",
+        "test_round7_ordinal_gap_and_self_node_id",
     ),
 ]
 

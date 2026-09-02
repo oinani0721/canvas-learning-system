@@ -153,13 +153,15 @@ PYEOF
 - `questions[0].score` = grade（2 位）；`questions[0].score_dims` = 4 维 + `rubric_version: "v1.1"`；**必写 `score_scale: "1-4 (1=最低)"`**（2026-07-24：1.00 是最低档而非满分，量纲必须随数据走，防人与下游工具误读）
 - `questions[0].self_confidence` = 理解自评 raw
 - 若触发基准门禁 → `needs_content_review: true`
+- **`questions[0].scored_at`** = `date -u +"%Y-%m-%dT%H:%M:%SZ"`（⛔ **只在此步取一次**，之后续跑一律**读这个值**，不重新取时间）——它是这次评分的**稳定业务时刻**。缺了它，同一 ID 承载另一业务时刻时无人能识别（Codex round-7 BLOCKER：首次 8 月评分成功后回滚节点、同 ID 用 12 月重跑，写点只恢复旧事件、账本时刻仍停在 8 月）
 - **`status: scored_pending_node_update`**（⛔ 此步**不写 done**——节点更新成功前，检验白板停在可续跑态）
 
 ## Step 4 · 节点原子写（JSON payload + 静态 python，injection-proof）
 
 **4a · 先由你（Claude）备料**：
 1. `Grep` 检验白板答题区疑问批注（`^>\s*\[!question\]\+` / `^>\s*\[!error\]\+` / `\*\*User[：:][^*]+\*\*`）。有则拼 callout 归纳块（含 AI 判断原因，一句话忠实不编造）；无则空串。**低分兜底（2026-07-24，UAT 实操缺口）**：若 `grade_norm = 0` 且上述 Grep 无任何新疑问（用户答了内容但全空泛，如「我就是不够理解」——超过弃答词长度、又没写成疑问 callout）→ 必须构造一条疑问 callout（引用用户作答原话 + 题目 hook，AI 判断原因写「0 分作答暴露的概念缺口」）——本轮暴露的薄弱信号不得空手而归。⛔ P7（2026-07-16）：**跳过内容只剩占位符「✍️ 我的疑问：」的空疑问 callout**（「插入新疑问」命令插入后弃置未填）——空占位不是疑问，归纳它是纯噪音。
-2. `Bash: date -u +"%Y-%m-%dT%H:%M:%SZ"` → ts。
+2. `Bash: date -u +"%Y-%m-%dT%H:%M:%SZ"` → ts（**本次运行**的时刻，落进 `recorded_at`；每次续跑都会变，这是对的）。
+3. `Read` 检验白板 frontmatter 的 `questions[0].scored_at` → **review_time**（这次评分的**稳定业务时刻**，续跑时**不重新取**）。⛔ 两者职责不同：`ts` 回答「这条日志行是什么时候写的」，`review_time` 回答「这次复习发生在什么时候」。混用会让「同一次评分的续跑」与「同一 ID 换了业务时刻」这两件事无法区分。
 
 **4b · 用 `Write` 工具写 payload 到 `/tmp/quiz-answer-payload.json`**（⛔ 用 Write 工具写 JSON，不经 shell——引号/换行/反斜杠天然安全）：
 
@@ -168,6 +170,7 @@ PYEOF
   "node": "节点/<concept>.md",
   "grade_norm": 0.67,
   "ts": "<ISO>",
+  "review_time": "<检验白板 questions[0].scored_at；缺省则回落 ts，见下>",
   "event_id": "<检验白板文件名（不含.md）>#q1",
   "exam_board": "检验白板/<文件名>.md",
   "question_id": "q1",
@@ -215,6 +218,13 @@ if isinstance(eid, str) and eid != eid.strip():
 etype = "answer_abandoned" if p.get("abandoned") else "answer_scored"
 evid = "quiz:" + eid
 node_id = os.path.splitext(os.path.basename(NODE))[0]
+# ⛔ 本次事件**自己**派生出的 node_id 同样要过「可用」门 (Codex round-7 HIGH):
+# 账本里别人的行有这道门, 自己的却没有 —— 实测节点路径 `节点/ .md` 时首跑
+# rc=0 并写出 node_id=' ', 回滚节点后重跑 rc=1、账本仍 1 行、节点无 W,
+# **崩溃后无法自动恢复**(那一行永远路由不到任何节点)。
+# 判据与账本侧逐字同款: 非空字符串且无首尾空白。
+if not isinstance(node_id, str) or not node_id.strip() or node_id != node_id.strip():
+    raise SystemExit(f"[quiz-answer] 从节点路径派生出的 node_id 不可用 ({node_id!r}; 须为非空且无首尾空白) — 写出去的事件将永远路由不到任何节点, 崩溃后无法自动恢复; fail-closed 拒写 — 请修正节点文件名 {NODE}")
 VAULT = os.path.dirname(os.path.dirname(os.path.abspath(NODE)))
 REPO = os.path.dirname(VAULT)
 EV = os.path.join(VAULT, "learning_events.jsonl")
@@ -364,21 +374,38 @@ def _fm_has_event_compat(fm_text, ev_id, all_ledger_ids=()):
     所以回落前必须**先证明映射唯一**: 账本里若同时存在 `K` 与 `quiz:K`
     (裸形态相同的两个不同完整 id), 歧义不可消解 —— **停下**, 而不是猜一个。
     """
+    # ⛔ **exact 命中也不得绕过歧义检查** (Codex round-7 BLOCKER)。
+    # 上一版第一行就是 `if _fm_has_event(fm_text, ev_id): return True` ——
+    # 实测漏账链: 首次提交 event_id='quiz:K' ⇒ 账本行 `quiz:quiz:K`; 把校准改成
+    # 历史形态 `quiz:K`; 再提交**新** id `K`(完整 id 也是 `quiz:K`) ⇒ exact 命中
+    # 那条历史条目、判「已完整应用」而幂等跳过, **账本/attempt/校准都没增加**。
+    #
+    # 正确做法: 一个校准 token 可能来自两种来源 —— 某个账本 id 的**完整**形态,
+    # 或某个带 `quiz:` 前缀的账本 id 的**历史裸**形态。先把命中的 token 反查回
+    # **所有可能的来源 id**, 再要求那个集合**恰为**当前这一个 id。
+    _cands = []
     if _fm_has_event(fm_text, ev_id):
-        return True
-    if not ev_id.startswith("quiz:"):
+        _cands.append(ev_id)
+    _bare = ev_id[5:] if ev_id.startswith("quiz:") else None
+    if _bare is not None and _fm_has_event(fm_text, _bare):
+        _cands.append(_bare)
+    if not _cands:
         return False
-    _bare = ev_id[5:]
-    # 唯一性证明: 账本里裸形态同为 _bare 的完整 id 只能有一个 (就是 ev_id 自己)
-    _aliases = {i for i in all_ledger_ids
-                if (i[5:] if i.startswith("quiz:") else i) == _bare}
-    if len(_aliases) > 1:
+    # 反查: 每个账本 id 贡献「完整」token; 带前缀的再贡献「历史裸」token。
+    _sources = set()
+    for _tok in _cands:
+        for _lid in all_ledger_ids:
+            if _lid == _tok or (_lid.startswith("quiz:") and _lid[5:] == _tok):
+                _sources.add(_lid)
+    _sources.discard("")
+    if _sources and _sources != {ev_id}:
         raise SystemExit(
-            f"[quiz-answer] 账本里存在裸形态相同的多个 event_id {sorted(_aliases)!r} — "
-            f"历史校准条目存的是剥前缀形态, 无法证明它对应其中哪一个; "
-            f"猜一个就会让另一个静默不入账, fail-closed 拒写 — 请人工统一这些 id"
+            f"[quiz-answer] 校准记录里的条目可能来自账本里的多个 event_id "
+            f"{sorted(_sources)!r} (完整形态与历史裸形态无法区分), 而本次要判定的是 "
+            f"{ev_id!r} — 猜一个就会让另一个静默不入账, fail-closed 拒写 — "
+            f"请人工统一这些 id (去掉裸形态或补上 `quiz:` 前缀)"
         )
-    return _fm_has_event(fm_text, _bare)
+    return True
 
 
 def _fm_has_event(fm_text, ev_id):
@@ -818,6 +845,20 @@ _ALL_LEDGER_IDS = tuple(
     str(_r.get("event_id") or "") for _, _r in _rows if isinstance(_r, dict)
 )
 
+# 是「已应用」的凭据; 「≤ W」只说明不该推进 W, 不说明已经算过。
+# ⛔ 这段全账扫描必须排在**所有早退之前** (Codex round-7 BLOCKER): 分诊主流程
+# 里的 dup 幂等早退、历史行早退、F1 早退都会 `raise SystemExit(0)` —— 扫描排在
+# 它们后面就等于「先放行再检查」。实测: 正常写 E1/E2 后外部追加一条早于 W、
+# 未标 out_of_order、无校准的 LATE 行 (validator rc=0), 重跑 E2 得 rc=0、
+# 账本含 LATE 而节点始终没有它的校准 —— **那次复习永久漏算**。
+# dup(本次事件)不在此列: 它的状态由下面的分诊主流程按 W/F1 两域单独裁定。
+for _inst_, _ln_, _o_ in _applicable:
+    if W_inst is None or _inst_ > W_inst or _o_.get("event_id") == evid:
+        continue
+    _rid2_ = str(_o_.get("event_id") or "")
+    if not _fm_has_event_compat(fm, _rid2_, _ALL_LEDGER_IDS):
+        raise SystemExit(f"[quiz-answer] 账本第 {_ln_} 行({_o_.get('event_id')}) 的 review_time={_o_['payload'].get('review_time')!r} 不晚于水位线 W={W}, 却既没标 out_of_order 也不在校准记录里 — 无法判定它是已应用还是被漏掉的真实复习 (§6.2: 迟到事件应走补录通道并标 out_of_order), fail-closed 拒写 — 请人工核对后给它补标或修正时刻")
+
 # ── G3-2 幂等分诊主流程 (Codex round-2 BLOCKER 重排)。
 # 「FSRS 已应用」的机械判据 = W >= durable.review_time。F1 (calibration 有无)
 # 单独不能当幂等凭据 — degraded 落账写过 calibration 却没写 W, F1 早退会
@@ -843,6 +884,19 @@ else:
     # R2: durable 时刻必须 UTC 整秒才允许参与 W 比较与后续消费 (见 _durable_instant)
     _dup_inst = _durable_instant(_dpl.get("review_time"), f"账本行 {evid}")
     _dup_rt = _dpl["review_time"]
+    # ⛔ candidate 的业务时刻必须**独立于 durable 行**构造 (Codex round-7 BLOCKER):
+    # 抄 durable 值 ⇒ 同一 ID 承载**另一个**业务时刻时 envelope 看不出差别 ——
+    # 实测首次 2026-08-01 成功后回滚节点、同 ID 用 2026-12-31 重跑, 写点只恢复
+    # 旧事件, 账本仍 1 行且时刻仍是 8 月, 那次 12 月的评分**静默消失**。
+    # ⚠️ 也不能直接用本次的 `ts` —— 它每次续跑都重新取 (Step 4a 的 date -u),
+    # 那样**真实续跑**也会冲突。稳定业务时刻的来源是检验白板 Step 3 记的
+    # `questions[0].scored_at`, 经 payload 的 `review_time` 传进来。
+    _biz_rt = p.get("review_time")
+    if not isinstance(_biz_rt, str) or not _TS_RE.fullmatch(_biz_rt):
+        # 回落: 旧流程的 payload 没有这个键。如实告警 —— 回落期间「同 ID 换业务
+        # 时刻」仍无法识别 (与修复前同), 但不改变其它行为。
+        print(f"[quiz-answer] ⚠️ payload 缺稳定业务时刻 review_time (旧流程) — 回落到 durable 行的值; 此模式下「同一 ID 承载另一业务时刻」无法被 envelope 识别, 请按 Step 3 补写检验白板的 questions[0].scored_at")
+        _biz_rt = _dup_rt
     _fsrs_applied = W_inst is not None and W_inst >= _dup_inst
     # A4.5 canonical envelope 门 — 对「已应用 no-op」与「恢复」两态都生效,
     # 冲突事实不得被 no-op 吞掉 (round-2 B-1①)。等价面取舍 (如实声明):
@@ -877,11 +931,14 @@ else:
     # 两者在 degraded 落账下会分道: 那条路径写 attempt + 校准却**不写 W**,
     # 于是后继事件已贡献 attempt 而 W 仍停在前一个 —— 实测重跑前一个事件被
     # 误报「envelope 冲突」(validator rc=0、节点未改), 而它是合法的历史重试。
+    # ⛔ 只按 calibration 判, **不留 W 兜底** (Codex round-7 MEDIUM: 留着兜底
+    # 等于修复没落地 —— 实测删掉后继事件的校准条目但保留 W, 它仍被算作「已贡献
+    # attempt」)。上面的全账扫描已保证: 任何 ≤W 的适用行要么有校准、要么已标
+    # out_of_order, 否则早就停了 —— 所以 W 分支只会掩盖 calibration 判据。
     _after_applied = sum(
         1 for _i, _l, _o4 in _applicable
         if (_i, _l) > _dup_key
-        and (_fm_has_event_compat(fm, str(_o4.get("event_id") or ""), _ALL_LEDGER_IDS)
-             or (W_inst is not None and _i <= W_inst))
+        and _fm_has_event_compat(fm, str(_o4.get("event_id") or ""), _ALL_LEDGER_IDS)
     )
     _before_pending = sum(1 for _i, _l, _ in _applicable
                           if (_i, _l) < _dup_key and (W_inst is None or _i > W_inst))
@@ -918,16 +975,30 @@ else:
              and _l2 > (_dup_line if _dup_line is not None else 0)],
             key=lambda t: t[0],
         )
+        # ⛔ 证明行**之前**每有一条会贡献 attempt 的评分行, 就要多减一 (Codex
+        # round-7 HIGH)。上一版固定减 1 —— 实测 E1(1) → 合法历史 L2(**无 count**)
+        # → 合法历史 L3(3) 时算出 E1=2 而真值是 1, 于是原样重跑 E1 被误报冲突,
+        # 反倒是**错的** E1=2 被接受。
+        # ⚠️ 中间那条「无法证明它贡献了几次」的行 (缺 attempt_count) 让整条链
+        # **不可证** —— 此时不猜, 停下。标了 out_of_order 的行不贡献 attempt,
+        # 不计入 gap。
+        _gap = 0
         for _l3, _o3 in _after_rows:
-            _n3 = _o3["payload"].get("attempt_count")
+            _pl3 = _o3.get("payload") or {}
+            if _pl3.get("out_of_order") is True:
+                continue          # 补录通道的行不推进 attempt
+            _n3 = _pl3.get("attempt_count")
             if isinstance(_n3, int) and not isinstance(_n3, bool) and _n3 >= 1:
-                _prov = (_l3, _n3)
+                _prov = (_l3, _n3 - _gap)
                 break
+            _gap += 1             # 这条会贡献 attempt 但证不出贡献了几次
+        if _prov is None and _gap:
+            _prov = None          # 链上有不可证的间隙 ⇒ 落到下面的 fail-closed
         if _prov is None:
             raise SystemExit(f"[quiz-answer] 账本里 {evid} 之后有 {len(_legacy_after)} 条本节点的 §6.3 历史评分行, 且**它们都没有可用的 attempt_count** — 历史行同样推进过 attempt 却无法证明推进了几次, 本次的期望序数不可从账本边界确证; ⛔ 不伪造期望值也不以 envelope 冲突的名义拒绝, fail-closed 拒写 — 请为账本里第 {[l for l, _ in _legacy_after][:3]} 行补上 attempt_count(写它时笔记的 attempt_count + 1) 后重跑")
     if _prov is not None:
         # 账本可证: 用最近后继行的序数直接回推, 不再依赖 _after_applied 计数。
-        _att_expect = _prov[1] - 1
+        _att_expect = _prov[1] - 1  # 证明行的 attempt 已按 gap 折算
     elif _fsrs_applied or f1:
         _att_expect = _att_now - _after_applied
     else:
@@ -955,9 +1026,9 @@ else:
         _att_expect = _att_now + 1
     _mine_env = {
         "event_version": 1, "event_type": etype, "node_id": node_id,
-        "effective_at": _dup_rt,
+        "effective_at": _biz_rt,
         "payload": {"schema_ext": "review/1", "vault_id": _vid, "concept_id": node_id,
-                    "rating": rating, "grade_norm": GN2, "review_time": _dup_rt,
+                    "rating": rating, "grade_norm": GN2, "review_time": _biz_rt,
                     "exam_board": p.get("exam_board", ""),
                     "attempt_count": _att_expect}}
     _theirs_env = {"event_version": dup.get("event_version"), "event_type": dup.get("event_type"),
@@ -991,14 +1062,6 @@ else:
 # out_of_order (validator rc=0 放行) → 再写 E3 时 E2 既不进 pending 也无人过问,
 # 账本 attempts 变成 [1,2,2] (E3 复用了 E2 的序数), E2 那次复习永久消失。
 # 判据用 F1 (calibration_log 里有没有它) —— 它与 mastery/attempt 同一次原子写,
-# 是「已应用」的凭据; 「≤ W」只说明不该推进 W, 不说明已经算过。
-# dup(本次事件)不在此列: 它的状态由下面的分诊主流程按 W/F1 两域单独裁定。
-for _inst_, _ln_, _o_ in _applicable:
-    if W_inst is None or _inst_ > W_inst or _o_.get("event_id") == evid:
-        continue
-    _rid2_ = str(_o_.get("event_id") or "")
-    if not _fm_has_event_compat(fm, _rid2_, _ALL_LEDGER_IDS):
-        raise SystemExit(f"[quiz-answer] 账本第 {_ln_} 行({_o_.get('event_id')}) 的 review_time={_o_['payload'].get('review_time')!r} 不晚于水位线 W={W}, 却既没标 out_of_order 也不在校准记录里 — 无法判定它是已应用还是被漏掉的真实复习 (§6.2: 迟到事件应走补录通道并标 out_of_order), fail-closed 拒写 — 请人工核对后给它补标或修正时刻")
 
 pending = [t for t in _applicable if W_inst is None or t[0] > W_inst]
 replay_failed = None

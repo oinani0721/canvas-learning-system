@@ -2426,9 +2426,13 @@ def test_round5_calibration_key_prefix_collision(vault):
     # ⚠️ 我一度把期望写成「都能正常复放」——那是错的：历史校准条目存的是**剥前缀**
     # 形态，遇到 `K` 与 `quiz:K` 并存时，一条裸键条目到底对应哪一个**无法证明**。
     # 猜一个就会让另一个静默不入账（正是本门开头那条漏算链）。可证的处置只有停下。
+    # ⚠️ round-7 后判定改为「校准 token **反查所有来源**，来源集合必须恰为当前 id」
+    # （此前 exact 命中会**绕过**歧义检查，那是 round-7 的 BLOCKER）。拒因措辞
+    # 因此从「裸形态相同的多个 event_id」变成「可能来自账本里的多个 event_id」。
+    # 两种都算达标，但必须点名是这两者之一 —— 不退化成「随便什么理由拒了都行」。
     r, cal, att = _three_scored("quiz:K", "K", 2)
     assert r.returncode != 0, f"裸形态相同的两个 event_id 并存时必须 fail-closed: {cal}"
-    assert "裸形态相同的多个 event_id" in r.stderr, r.stderr
+    assert ("裸形态相同的多个 event_id" in r.stderr) or ("可能来自账本里的多个 event_id" in r.stderr), r.stderr
     assert "请人工统一这些 id" in r.stderr, "拒因必须给出可执行的处置方式"
 
     # 验伪①: 不碰撞的正常场景不得回归
@@ -2755,3 +2759,112 @@ def test_round6_ordinal_evidence(vault):
     assert "补上 attempt_count" in rn.stderr and re.search(r"第 \[\d+", rn.stderr), (
         f"拒因必须指名哪几行要补什么: {rn.stderr[:300]}"
     )
+
+
+# ── 门㊺ round-7: 3 BLOCKER + 2 HIGH + 1 MEDIUM ──
+
+
+def test_round7_findings(vault):
+    """round-7 的问题逐条锁住。其中 M① 是我 round-6「保留 W 兜底」引入的 ——
+    「更安全的兜底」让 calibration 判据**没有真正生效**。
+    """
+    LED = vault / "learning_events.jsonl"
+
+    def _fresh():
+        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+        LED.unlink(missing_ok=True)
+
+    # ── B① 校准 token 必须反查所有来源；exact 命中也不得绕过歧义检查
+    _fresh()
+    assert _run_writer_settled(vault, _payload(event_id="quiz:K", ts=TS1)).returncode == 0
+    node = (vault / NODE_REL).read_text(encoding="utf-8")
+    assert '- event_id: "quiz:quiz:K"' in node, node[:300]
+    hist = node.replace('- event_id: "quiz:quiz:K"', '- event_id: "quiz:K"')
+    assert hist != node, "预置必须真的改成历史形态"
+    (vault / NODE_REL).write_text(hist, encoding="utf-8")
+    n_before = len(_ledger_lines(vault))
+    rb = _run_writer_settled(vault, _payload(event_id="K", ts="2026-08-02T10:00:00Z"))
+    # 修复前：exact 命中 ⇒ 判「已完整应用」幂等跳过 ⇒ 账本/attempt/校准都不增加
+    assert not (rb.returncode == 0 and len(_ledger_lines(vault)) == n_before), "不同评分不得因 token 来源歧义而静默漏账"
+    assert "可能来自账本里的多个 event_id" in rb.stderr, rb.stderr[:300]
+
+    # ── B② 全账迟到未校准扫描必须排在所有早退之前
+    _fresh()
+    for eid, ts in (("E1#q1", TS1), ("E2#q1", "2026-08-01T11:00:00Z")):
+        assert _run_writer_settled(vault, _payload(event_id=eid, ts=ts, review_time=ts)).returncode == 0
+    late = _review_row(**{"payload.review_time": "2026-08-01T10:30:00Z", "effective_at": "2026-08-01T10:30:00Z"})
+    late["event_id"] = "quiz:LATE"
+    late["payload"]["attempt_count"] = 2
+    with LED.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(late, ensure_ascii=False) + "\n")
+    assert _run_validator(vault).returncode == 0, "该账本本身合规（校验器不管迟到未标行）"
+    face = _write_face(vault)
+    rl = _run_writer(vault, _payload(event_id="E2#q1", ts="2026-08-01T11:00:00Z", review_time="2026-08-01T11:00:00Z"))
+    assert rl.returncode != 0, "幂等早退不得绕过全账迟到扫描（那次复习会永久漏算）"
+    assert "既没标 out_of_order 也不在校准记录里" in rl.stderr, rl.stderr[:300]
+    assert _write_face(vault) == face, "零写"
+
+    # ── B③ candidate 的业务时刻必须独立构造（同 ID 换业务时刻要能识别）
+    _fresh()
+    v0 = (vault / NODE_REL).read_text(encoding="utf-8")
+    assert _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1)).returncode == 0
+    (vault / NODE_REL).write_text(v0, encoding="utf-8")
+    rc3 = _run_writer_settled(
+        vault, _payload(event_id="板A#q1", ts="2026-12-31T10:00:00Z", review_time="2026-12-31T10:00:00Z")
+    )
+    assert rc3.returncode != 0, "同 ID 承载另一业务时刻必须被 envelope 识别"
+    assert "envelope 冲突" in rc3.stderr, rc3.stderr[:250]
+    # 验伪：**真实续跑**（同一次评分、review_time 稳定、ts 变化）必须仍幂等 ——
+    # 这正是「直接改用本次 ts」会踩的坑：那样连正常续跑都会冲突。
+    _fresh()
+    w0 = (vault / NODE_REL).read_text(encoding="utf-8")
+    assert _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1)).returncode == 0
+    (vault / NODE_REL).write_text(w0, encoding="utf-8")
+    rr = _run_writer_settled(vault, _payload(event_id="板A#q1", ts="2026-08-01T10:05:00Z", review_time=TS1))
+    assert rr.returncode == 0, f"真实续跑必须恢复而不冲突: {rr.stderr[:250]}"
+    assert len(_ledger_lines(vault)) == 1, "续跑不得新增账本行"
+
+    # ── M① W 兜底必须删掉，否则 calibration 判据形同虚设
+    _fresh()
+    for eid, ts in (("E1#q1", TS1), ("E2#q1", "2026-08-01T11:00:00Z")):
+        assert _run_writer_settled(vault, _payload(event_id=eid, ts=ts, review_time=ts)).returncode == 0
+    node2 = (vault / NODE_REL).read_text(encoding="utf-8")
+    stripped = re.sub(r'\n  - event_id: "quiz:E2#q1"(?:\n    [^\n]*)*', "", node2, count=1)
+    assert stripped != node2, "预置必须真的删掉 E2 的校准条目"
+    (vault / NODE_REL).write_text(stripped, encoding="utf-8")
+    rw = _run_writer(vault, _payload(event_id="E1#q1", ts=TS1, review_time=TS1))
+    assert rw.returncode != 0, "删了后继事件的校准却保留 W，不得再算它「已贡献 attempt」"
+
+
+def test_round7_ordinal_gap_and_self_node_id(vault):
+    """H① 本次事件自身的 node_id 门；H② 序数证明跨越缺字段行时按 gap 折算。"""
+    LED = vault / "learning_events.jsonl"
+
+    # H① 从节点路径派生的 node_id 也要过「非空且无首尾空白」
+    blank = vault / "节点" / " .md"
+    blank.write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    rb = _run_writer(vault, _payload(node="节点/ .md", event_id="板A#q1", ts=TS1, review_time=TS1))
+    assert rb.returncode != 0, "写出去的事件将永远路由不到任何节点"
+    assert "派生出的 node_id 不可用" in rb.stderr, rb.stderr[:250]
+    assert not LED.exists() or not _ledger_lines(vault), "不得先落账"
+
+    # H② E1(真值 1) → 历史 L2(无 count) → 历史 L3(3)
+    def _chain(e1_count):
+        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+        LED.unlink(missing_ok=True)
+        for eid, ts in (("E1#q1", TS1), ("L2#q1", "2026-08-01T11:00:00Z"), ("L3#q1", "2026-08-01T12:00:00Z")):
+            assert _run_writer_settled(vault, _payload(event_id=eid, ts=ts, review_time=ts)).returncode == 0
+        rows = list(_ledger_lines(vault))
+        rows[0]["payload"]["attempt_count"] = e1_count
+        rows[1]["payload"] = {"exam_board": "旧板", "note": "无 count"}
+        rows[2]["payload"] = {"exam_board": "旧板", "note": "有 count", "attempt_count": 3}
+        LED.write_text("\n".join(json.dumps(x, ensure_ascii=False) for x in rows) + "\n", encoding="utf-8")
+        assert _run_validator(vault).returncode == 0, "该账本本身合规"
+        return _run_writer(vault, _payload(event_id="E1#q1", ts=TS1, review_time=TS1))
+
+    # 修复前是**反的**：错值 2 被接受、真值 1 被报冲突。
+    assert _chain(1).returncode == 0, "真值必须放行"
+    r_wrong = _chain(2)
+    assert r_wrong.returncode != 0, "错值必须拒 —— 固定减 1 会把它当成对的"
+    assert "envelope 冲突" in r_wrong.stderr, r_wrong.stderr[:250]
