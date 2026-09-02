@@ -303,9 +303,13 @@ def test_proxy_first_hop_stays_loopback(monkeypatch):
     host 会两形态同值 = 假门。
     建连在 socket.create_connection 层被拦并抛 OSError, 布防/卸甲两形态
     都不会真建连、不出机 (63128 也不监听)。
-    三段各自承重不同的层: 第一段 (模块全局 _opener) 承重 ⑤d, 第二段 (现场
-    新建 opener) 承重 ⑤a/⑤b/⑤c, 第三段 (别处握持的 opener 对象) 承重 ⑤e
-    —— 变异任一层, 本门都会红在对应那一段。"""
+    三段各自覆盖**不同的 opener 来路**, 但**不是**一段对应一层: 层⑤ 的五件套
+    在 darwin 上互相兜底 (⑤c 把 proxy settings 换成「一切主机都绕过代理」之后,
+    单独撤 ⑤e 或单独撤 ⑤c, 三段首跳都仍是 127.0.0.1:9 —— R1 round-3/round-4
+    两轮实测)。所以承重判定只能按「同一向量的全部防线成组拆」做:
+    变异 M2 整层⑤ 全拆 → 第一段红; M4 拆 ⑤a+⑤b+⑤c+⑤e → 第二段红;
+    M15 翻转 ⑤c 的 settings 语义 → R 门 (预绑定 reload 之后的握持 opener) 红。
+    ⑤b/⑤d/⑤e 各自没有独立证伪门, 已在验收单「未证明什么」#3 如实登记。"""
     hops = []
 
     def _intercept(address, *a, **kw):
