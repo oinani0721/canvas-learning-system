@@ -408,7 +408,16 @@ MUTATIONS += [
         # 变异当然杀不动 —— SURVIVED 是「门与变异不匹配」, 不是「门是假的」。
         # 测 '' 转义的是 test_round3_findings 的子场景⑬。
         "test_round3_findings",
-        LAYER3_ALSO,
+        # ⚠️ 三层: BOM 门 + 空行门（LAYER3）+ **YAML 回落**。改用 PyYAML 后，
+        # 正则里的 '' 转义分支**根本走不到** —— 不强制回落就打不中这个缺陷面。
+        LAYER3_ALSO
+        + (
+            (
+                SKILL,
+                "        import yaml\n",
+                "        raise ImportError('MUTANT: 同时强制走正则回落')\n",
+            ),
+        ),
     ),
     (
         # 不容单引号 —— YAML 单引号标量是合法形态，Obsidian Properties 会写它
@@ -605,17 +614,29 @@ MUTATIONS += [
         # 不传 manifest ⇒ 算法身份真值绑定没执行
         "M57-validate-without-golden-manifest",
         SKILL,
-        "manifest=_GOLDEN_MF)\n",
-        "manifest=None)  # MUTANT\n",
+        # ⚠️ round-9 收窄: `manifest=_GOLDEN_MF)` 现在有两处（消费侧校验 + 产出侧
+        # 自检）。锚点带上消费侧的上下文，避免命中 2 次而被静默跳过。
+        "    _vio_, _warn_ = validate_record_full(_o, vault_id=_vid, manifest=_GOLDEN_MF)\n",
+        "    _vio_, _warn_ = validate_record_full(_o, vault_id=_vid, manifest=None)  # MUTANT\n",
         "test_round5_routing_order_and_input_literal",
     ),
     (
         # 输入 ts 不做字面校验 ⇒ 写点自己产出不合规的账本行
         "M58-input-ts-not-literally-checked",
         SKILL,
+        # ⚠️ round-9 挂第二层: 新加的**产出侧自检**（append 前跑 validate_record_full）
+        # 会接管入口 ts 门的职责 —— 禁掉入口门后，带空白的 ts 被自检以
+        # 「recorded_at 不符 §三 受理语法」拦下。要证入口门仍承重，须同时禁掉自检。
         "if not isinstance(_ts_in, str) or not _TS_RE.fullmatch(_ts_in):\n",
         "if False:  # MUTANT: 输入 ts 不校验\n",
         "test_round5_routing_order_and_input_literal",
+        (
+            (
+                SKILL,
+                "        _self_vio, _ = validate_record_full(rec, vault_id=_vid, manifest=_GOLDEN_MF)\n",
+                "        _self_vio = []  # MUTANT: 同时禁掉产出侧自检\n",
+            ),
+        ),
     ),
 ]
 
@@ -854,6 +875,13 @@ MUTATIONS += [
         "    mcal = re.search(r'^calibration_log:[ \\t]*(?:#[^\\n]*)?$', fm_text, re.M)\n",
         "    mcal = re.search(r'^calibration_log:[ \\t]*$', fm_text, re.M)  # MUTANT\n",
         "test_round8_high_findings",
+        (
+            (
+                SKILL,
+                "        import yaml\n",
+                "        raise ImportError('MUTANT: 同时强制走正则回落')\n",
+            ),
+        ),
     ),
     (
         # 空白 id 门退回全账 ⇒ 别节点的合法存量行阻塞整个 vault
@@ -862,6 +890,55 @@ MUTATIONS += [
         '                  and _r.get("node_id") == node_id\n',
         "                  and True  # MUTANT: 退回全账\n",
         "test_round8_high_findings",
+    ),
+]
+
+
+# ── round-9 修复的承重变异
+MUTATIONS += [
+    (
+        # 同 event_id 的别节点行不进冲突域 ⇒ 本次评分零次应用
+        "M84-cross-node-id-collision-ignored",
+        SKILL,
+        '    if unicodedata.normalize("NFC", str(dup.get("node_id") or "")) != unicodedata.normalize("NFC", node_id):\n',
+        "    if False:  # MUTANT: 同键异主不拦\n",
+        "test_round9_identity_and_self_check",
+    ),
+    (
+        # append 前不做校验器自检 ⇒ 写点自产 validator 拒的行
+        "M85-no-producer-self-check",
+        SKILL,
+        "        _self_vio, _ = validate_record_full(rec, vault_id=_vid, manifest=_GOLDEN_MF)\n",
+        "        _self_vio = []  # MUTANT: 产出侧不自检\n",
+        "test_round9_identity_and_self_check",
+    ),
+    (
+        # F1 退回正则解析 ⇒ 合法 YAML 形态假阴性
+        "M86-f1-regex-not-yaml",
+        SKILL,
+        "        import yaml\n",
+        "        raise ImportError('MUTANT: 强制走正则回落')\n",
+        "test_round9_yaml_calibration_forms",
+    ),
+    (
+        # null/~ 不规范化 ⇒ 首写产出非法 YAML
+        "M87-null-calibration-not-normalized",
+        SKILL,
+        'r"^calibration_log:[ \\t]*(?:\\[[ \\t]*\\]|null|Null|NULL|~)?[ \\t]*(#[^\\n]*)?$"',
+        'r"^calibration_log:[ \\t]*(?:\\[[ \\t]*\\])?[ \\t]*(#[^\\n]*)?$"  # MUTANT',
+        "test_round9_yaml_calibration_forms",
+    ),
+    (
+        # degraded 路径退回运行时刻 ⇒ 与正常路径产物不同
+        # ⚠️ 这条变异**打不中**（第五种成因）: degraded 分支现在整体从 _SCORED_AT
+        # 取值，只改 `_raw` 影响不到 last_examined/W。要复现原缺陷须让稳定时刻
+        # 本身退回运行时刻 —— 那等价于 M79（缺稳定时刻回抄），已被它覆盖。
+        # 保留本条并改绑到能真正观察到差异的门。
+        "M88-degraded-uses-run-ts",
+        SKILL,
+        '_SCORED_AT = p.get("review_time")\n',
+        '_SCORED_AT = p.get("ts")  # MUTANT: 稳定时刻退回运行时刻\n',
+        "test_round8_stable_scored_at",
     ),
 ]
 

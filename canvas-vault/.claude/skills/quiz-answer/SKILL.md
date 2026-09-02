@@ -188,7 +188,7 @@ PYEOF
 
 ```bash
 python3 - <<'PYEOF'
-import json, re, os, sys, subprocess
+import json, re, os, sys, subprocess, unicodedata
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 P = "/tmp/quiz-answer-payload.json"
@@ -420,10 +420,34 @@ def _fm_has_event_compat(fm_text, ev_id, all_ledger_ids=()):
 
 
 def _fm_has_event(fm_text, ev_id):
-    # ⛔ 容 YAML 尾注释 (Codex round-8 HIGH): `calibration_log: # keep` 是**合法
-    # YAML**, 而原正则要求行尾必须干净 ⇒ 找不到 header ⇒ F1 假阴性 ⇒ 同 ID 重跑
-    # 报「FSRS 已应用但缺校准记录」, 两阶段续跑**永久停住**(实测账本仍 1 行、
-    # 节点不再变化)。
+    """F1 判定: calibration_log 里有没有这个 event_id。
+
+    ⛔ **用真正的 YAML 解析器** (Codex round-9 HIGH): 手写正则永远追不上 YAML 的
+    合法形态 —— 本卡已被三种合法写法各打穿一次: 尾注释 (`calibration_log: # keep`)、
+    inline 空列表 (`[]`)、**mapping 键顺序**(`- ts:` 在 `event_id:` 之前)。
+    每次都是「F1 假阴性 ⇒ 同 ID 重跑报『缺校准记录』⇒ 两阶段续跑永久停住」。
+    正则解析这条路已经证明走不通, 换 PyYAML 一次解决整类问题。
+
+    ⚠️ 回落分支如实声明: PyYAML 不可达时退回正则扫描 —— 它**只认** block list +
+    `- event_id:` 开头的条目, 上面那三种形态会重新假阴性。这不是等价实现,
+    是「有总比没有强」的降级, 出现即告警。
+    """
+    try:
+        import yaml
+        _m = re.match(r"^---\n(.*?)\n---", fm_text, re.S)
+        _doc = yaml.safe_load(_m.group(1) if _m else fm_text)
+        if isinstance(_doc, dict):
+            _cal = _doc.get("calibration_log")
+            if isinstance(_cal, list):
+                return any(
+                    isinstance(_e, dict) and str(_e.get("event_id", "")) == ev_id
+                    for _e in _cal
+                )
+            return False        # null / 标量 / 缺失 ⇒ 没有任何条目
+    except ImportError:
+        print("[quiz-answer] ⚠️ PyYAML 不可用 — F1 判定退回正则扫描, 只认 block list + `- event_id:` 开头的条目; 尾注释/inline/键顺序变体会假阴性")
+    except Exception as _ye:
+        raise SystemExit(f"[quiz-answer] frontmatter 的 calibration_log 不是合法 YAML ({_ye}) — F1 判定不可证, fail-closed 拒写 — 请人工修复 {NODE}")
     mcal = re.search(r'^calibration_log:[ \t]*(?:#[^\n]*)?$', fm_text, re.M)
     if not mcal:
         return False
@@ -663,9 +687,12 @@ def _normalize_inline_calibration(fm_text):
     缩进列表) —— 实测首次评分 rc=0 且 attempt/W/账本都已推进, 同事件重跑却报
     「FSRS 已应用但缺校准记录」⇒ 两阶段流程**永久不收敛** (Codex round-6 HIGH)。
     """
-    # 同样容尾注释: `calibration_log: [] # comment` 若不规范化会被写成非法 YAML
+    # 同样容尾注释: `calibration_log: [] # comment` 若不规范化会被写成非法 YAML。
+    # ⛔ `null` / `~` 也必须规范化 (Codex round-9 HIGH): 它们同样是**合法 YAML**,
+    # 直接在其下插缩进条目会产出 `mapping values are not allowed here` 的非法
+    # 文档 —— 首跑 rc=0 但节点从此不可解析, 后续所有评分连锁失败。
     return re.sub(
-        r"^calibration_log:[ \t]*\[[ \t]*\][ \t]*(#[^\n]*)?$",
+        r"^calibration_log:[ \t]*(?:\[[ \t]*\]|null|Null|NULL|~)?[ \t]*(#[^\n]*)?$",
         lambda m: "calibration_log:" + (" " + m.group(1) if m.group(1) else ""),
         fm_text, count=1, flags=re.M,
     )
@@ -896,6 +923,18 @@ if dup is None:
         raise SystemExit(0)
 else:
     _dpl = dup.get("payload") or {}
+    # ⛔ 同 event_id 的行**无论属于哪个节点**都进身份冲突域 (Codex round-9
+    # BLOCKER): `event_id` 是**全局**幂等键 (全文件唯一)。此前 dup 命中后只看
+    # payload 形态, 于是一条**别节点**的合法 §6.3 历史行占用了本次的键 ⇒ 走
+    # 「历史行幂等跳过」, 账本仍 1 行、W 为空, **本次评分零次应用**且 rc=0。
+    # ⚠️ 按 **NFC 规范化后**比归属: `café笔记` 有 NFC/NFD 两种字节形式, 视觉与
+    # 语义相同。规范化后仍不同才是「真的别的节点」—— 否则会抢在 envelope 判定
+    # 之前把「同一节点的不同字节形式」误报成同键异主 (门㉟ 锁的正是「NFD 差异
+    # 应报 envelope 冲突」)。
+    if unicodedata.normalize("NFC", str(dup.get("node_id") or "")) != unicodedata.normalize("NFC", node_id):
+        raise SystemExit(f"[quiz-answer] 账本里 {evid} 属于**别的节点** ({dup.get('node_id')!r} != {node_id!r}) — event_id 是全局幂等键, 同键异主说明上游把两次不同的评分写成了同一个 id; 跳过它会让本次评分零次应用, fail-closed 拒写 — 请人工修正账本或上游的 event_id 生成")
+    if dup.get("event_type") not in ("answer_scored", "answer_abandoned"):
+        raise SystemExit(f"[quiz-answer] 账本里 {evid} 的 event_type={dup.get('event_type')!r} 不是评分事件 — 同键异型同样说明 id 被占用, fail-closed 拒写")
     if _dpl.get("schema_ext") != "review/1":
         # ⛔ 合法的 §6.3 历史行按 A4.5 **幂等 no-op**, 不是拒 (Codex round-6 HIGH):
         # 规格 (:188/:300) 要求同 ID 重跑无副作用。此前无条件当「损坏」拒写 ——
@@ -1289,7 +1328,10 @@ else:
     # 仍先落账, 两键成对 degraded 哨兵, frontmatter 只写衰减 Beta 不写 W。
     # 本地整秒 + A3 (≤W → W+1s), 基准取重放后的内存 W (防撞行)。
     print(f"[quiz-answer] FSRS 桥降级跳过(不影响评分): {_err}")
-    _raw = str(p["ts"]).strip().replace("Z", "+00:00")
+    # ⛔ degraded 路径同样用**稳定业务时刻** (Codex round-9 HIGH): 此前用
+    # p["ts"] ⇒ 正常路径与降级路径产出不同的节点字节 (实测 stable=10:00/ts=10:05
+    # 时正常路径 W=10:00、degraded 恢复成 10:05)。p["ts"] 只该进 recorded_at。
+    _raw = str(_SCORED_AT).replace("Z", "+00:00")
     _dt = datetime.fromisoformat(_raw)
     if _dt.tzinfo is None:
         raise SystemExit(f"[quiz-answer] ts 缺时区, fail-closed 拒写: {p['ts']!r}")
@@ -1362,6 +1404,14 @@ if True:  # 正常路径 append (恢复路径已在上方 raise SystemExit(0) �
         # Infinity 原样写成字面量, 而校验器用 parse_constant 明确拒收
         # (RFC 8259 禁止, 跨语言读方会炸)。实测 exam_board=NaN 输入时写点 rc=0
         # 并落库 `NaN`, 校验器 rc=1 —— **程序自己产出了不合规的行**。
+        # ⛔ append 前对**新构造的整条记录**跑完整校验 (Codex round-9 HIGH):
+        # 入口的 _TS_RE 只是**词法**门 —— `2026-02-30T10:00:00Z` 形状合法但日期
+        # 不存在, 实测写点 rc=0 原样落库而 validator rc=1, **下一次合法评分也被
+        # 这行阻塞**。消费侧早就复用校验器本体了, 产出侧却没有 —— 又一处「只做
+        # 了一半」。⚠️ 只验不改: 不做任何归一化。
+        _self_vio, _ = validate_record_full(rec, vault_id=_vid, manifest=_GOLDEN_MF)
+        if _self_vio:
+            raise SystemExit(f"[quiz-answer] 本次构造的事件未通过校验器自检: {'; '.join(_self_vio[:3])} — 写点不得产出 validator 会拒的行(它会阻塞后续所有评分), fail-closed 拒写 — 请修正输入后重跑")
         try:
             _line = (json.dumps(rec, ensure_ascii=False, allow_nan=False) + "\n").encode("utf-8")
         except ValueError as _nan_e:

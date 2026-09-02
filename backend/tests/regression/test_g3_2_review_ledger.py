@@ -3040,3 +3040,124 @@ def test_round8_high_findings(vault):
     rm = _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1))
     assert rm.returncode != 0, "本节点的带空白 id 仍必须拒"
     assert "首尾含空白的 event_id" in rm.stderr, rm.stderr[:250]
+
+
+# ── 门㊾ round-9: 全局幂等键 + 产出侧自检 + 稳定时刻贯穿降级路径 ──
+
+
+def test_round9_identity_and_self_check(vault):
+    """round-9 中**卡文约束内可修**的四条。
+
+    ⚠️ 其余几条触及 validator（卡文明确禁改）或需要把 calibration 改成结构化
+    receipt（数据格式变更 + 需 validator 配合），如实登记为移交，不在本卡修。
+    """
+    LED = vault / "learning_events.jsonl"
+
+    def _fresh():
+        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+        LED.unlink(missing_ok=True)
+
+    # ── B③ 同 event_id 的行**无论属于哪个节点**都进身份冲突域
+    _fresh()
+    _write_ledger(
+        vault,
+        {
+            "event_id": "quiz:板A#q1",
+            "event_version": 1,
+            "event_type": "answer_scored",
+            "node_id": "别的节点",
+            "recorded_at": "2026-07-01T10:00:00Z",
+            "effective_at": "2026-07-01T10:00:00Z",
+            "payload": {"exam_board": "旧板", "note": "§6.3 历史行"},
+        },
+    )
+    assert _run_validator(vault).returncode == 0, "该行本身合法（校验器不管跨节点撞键）"
+    face = _write_face(vault)
+    rb = _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1))
+    assert rb.returncode != 0, "别节点占用本次幂等键会让本次评分**零次应用**，必须拒"
+    assert "属于**别的节点**" in rb.stderr, rb.stderr[:250]
+    assert _write_face(vault) == face, "零写"
+
+    # ── H④ append 前对新构造的整条记录做校验器自检（写点不得自产 validator 拒的行）
+    _fresh()
+    rt = _run_writer(vault, _payload(event_id="板A#q1", ts="2026-02-30T10:00:00Z", review_time=TS1))
+    assert rt.returncode != 0, "2026-02-30 形状合法但日期不存在 —— 词法门放行，自检必须拦"
+    assert "校验器自检" in rt.stderr, rt.stderr[:250]
+    assert not LED.exists() or not _ledger_lines(vault), "不得落库（否则阻塞后续所有评分）"
+
+    # 验伪：合法输入不得被自检误拦
+    _fresh()
+    rg = _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1))
+    assert rg.returncode == 0, f"合法输入不得被自检误拦: {rg.stderr[:250]}"
+    assert _run_validator(vault).returncode == 0
+
+    # ── NFC 归属：同一节点的 NFD 形式**不得**被误判成「别的节点」
+    # （门㉟ 锁的是「NFD 差异应报 envelope 冲突」——新门不得抢在它之前）
+    import unicodedata
+
+    nfc_name = "café笔记"
+    assert unicodedata.normalize("NFD", nfc_name) != nfc_name, "fixture 前提：该名字须有分解形式"
+    node2 = f"节点/{nfc_name}.md"
+    (vault / node2).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    assert _run_writer(vault, _payload(node=node2, event_id="nfd#q1", ts=TS1, review_time=TS1)).returncode == 0
+    base2 = _ledger_lines(vault)[0]
+    (vault / node2).write_text(NODE_V0, encoding="utf-8")
+    nfd = json.loads(json.dumps(base2))
+    nfd["node_id"] = unicodedata.normalize("NFD", nfd["node_id"])
+    assert nfd["node_id"] != base2["node_id"], "变异必须真的改变了字节"
+    _write_ledger(vault, nfd)
+    rn = _run_writer(vault, _payload(node=node2, event_id="nfd#q1", ts=TS1, review_time=TS1))
+    assert "属于**别的节点**" not in rn.stderr, (
+        f"NFC/NFD 是同一节点的两种字节形式，不得误判成同键异主: {rn.stderr[:250]}"
+    )
+
+
+def test_round9_yaml_calibration_forms(vault):
+    """F1 判定改用**真正的 YAML 解析器**（round-9 HIGH）。
+
+    ⛔ 手写正则在这张卡里被合法 YAML 写法打穿了**三次**：尾注释、inline 空列表、
+    mapping 键顺序。每次补一个正则分支，下一轮就出现第四种 ——
+    **一类缺陷反复以不同面貌出现，说明方法本身选错了**。
+    """
+    import yaml
+
+    LED = vault / "learning_events.jsonl"
+
+    # ① 四种「空」形态都必须产出合法 YAML 且同 ID 重跑收敛
+    for form in ("null", "~", "[]", "# only comment"):
+        base = NODE_V0.replace("mastery_score:", f"calibration_log: {form}\nmastery_score:", 1)
+        assert base != NODE_V0, "预置必须真的插入 header"
+        (vault / NODE_REL).write_text(base, encoding="utf-8")
+        LED.unlink(missing_ok=True)
+        r1 = _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1))
+        assert r1.returncode == 0, f"[{form}] 首跑: {r1.stderr[:250]}"
+        after = (vault / NODE_REL).read_text(encoding="utf-8")
+        m = re.match(r"^---\n(.*?)\n---", after, re.S)
+        assert m, f"[{form}] frontmatter 结构损坏"
+        yaml.safe_load(m.group(1))  # 非法 YAML 会抛 —— 那正是修复前的行为
+        r2 = _run_writer(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1))
+        assert r2.returncode == 0, f"[{form}] 同 ID 重跑必须收敛: {r2.stderr[:250]}"
+
+    # ② mapping **键顺序**变化不得造成 F1 假阴性（用 YAML 库做合法重排）
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    assert _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1)).returncode == 0
+    t = (vault / NODE_REL).read_text(encoding="utf-8")
+    m = re.match(r"^---\n(.*?)\n---(.*)$", t, re.S)
+    doc = yaml.safe_load(m.group(1))
+    doc["calibration_log"] = [{k: e[k] for k in reversed(list(e))} for e in doc["calibration_log"]]
+    new_fm = yaml.safe_dump(doc, allow_unicode=True, sort_keys=False, default_flow_style=False)
+    (vault / NODE_REL).write_text(f"---\n{new_fm}---{m.group(2)}", encoding="utf-8")
+    rk = _run_writer(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1))
+    assert rk.returncode == 0, f"键顺序不是事实差异，F1 必须仍命中: {rk.stderr[:250]}"
+
+    # ③ 验伪：calibration_log 是**非法 YAML** 时必须 fail-closed（不得当作「没有条目」）
+    (vault / NODE_REL).write_text(
+        NODE_V0.replace("mastery_score:", "calibration_log:\n  - event_id: [unclosed\nmastery_score:", 1),
+        encoding="utf-8",
+    )
+    LED.unlink(missing_ok=True)
+    rbad = _run_writer(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1))
+    assert rbad.returncode != 0, "非法 YAML 下 F1 不可证，必须停下而不是当成「没有条目」"
+    assert "不是合法 YAML" in rbad.stderr, rbad.stderr[:250]
