@@ -599,14 +599,24 @@ MUTATIONS += [
         "f1 = bool(eid) and _fm_has_event(fm, eid)  # MUTANT\n",
         "test_round5_calibration_key_prefix_collision",
         (
+            # ⚠️ round-12 depth 层: `≤W` 全账扫描现在也走 resolver + 完整事实,
+            # 它会先于本站点拦住同类缺陷 ⇒ 变异体单独杀不动。拆掉**那一道**(不是
+            # 被测的这一道), 让 compat 侧成为唯一屏障。
+            (
+                SKILL,
+                'for _inst_, _ln_, _o_ in _applicable:\n    if W_inst is None or _inst_ > W_inst or _o_.get("event_id") == evid:\n        continue\n',
+                'for _inst_, _ln_, _o_ in []:  # MUTANT: 拆掉 ≤W 扫描这道纵深\n    if W_inst is None or _inst_ > W_inst or _o_.get("event_id") == evid:\n        continue\n',
+            ),
             # ⛔ 补齐**同一条防线的其余站点**(不是拆别的防线): 「按完整 id 查、
             # 裸键仅在映射可证唯一时回落」这条判据有**三个**调用点。只打 f1 那个时,
             # 迟到扫描与 pending 计数那两个仍在用 compat, 缺陷被它们兜住 ⇒ 门不红。
             # 原先挂的「拆 compat 歧义证明」是**错的层**: 那正是本门要测的防线。
             (
                 SKILL,
-                "    if not _fm_has_event_compat(fm, _rid2_, _ALL_LEDGER_IDS):\n",
-                "    if not _fm_has_event(fm, _rid2_):  # MUTANT: 第二站点同样退回裸查\n",
+                # ⚠️ round-12 重绑: `≤W` 扫描已改走 resolver, 原来那个 compat 调用点消失。
+                # 同防线的仍存在站点是崩溃窗采用时刻证明里的这一处。
+                "    if W_inst is None and not _fm_has_event_compat(fm, evid, _ALL_LEDGER_IDS):\n",
+                "    if W_inst is None and not _fm_has_event(fm, evid):  # MUTANT: 第二站点同样退回裸查\n",
             ),
             (
                 SKILL,
@@ -616,14 +626,14 @@ MUTATIONS += [
         ),
         "complete",
     ),
-    (
-        # 裸键回落不证唯一性 ⇒ 歧义时猜一个, 另一个静默不入账
-        "M55-fallback-without-uniqueness-proof",
-        SKILL,
-        "    if _sources and _sources != {ev_id}:\n",
-        "    if False:  # MUTANT: 不证唯一性\n",
-        "test_round5_calibration_key_prefix_collision",
-    ),
+    # ⛔ M55-fallback-without-uniqueness-proof 已**退役**（round-12, 如实记录）:
+    # 变异体打的是 compat 侧的歧义证明 `if _sources and _sources != {ev_id}`。
+    # round-12 把 `≤W` 全账扫描也改走统一 resolver + 完整事实之后, **那道扫描在
+    # 所有可构造的场景里都先于 compat 拦住同一类歧义** —— 三态诊断实测: 变异体
+    # 单独跑门全绿; 而挂上「拆掉 ≤W 扫描」这层之后, **只加层门就已经红**
+    # (空变异对照判定为假杀) ⇒ 击杀完全由层贡献。
+    # 与 M22 同类: **被取代的纵深**。守卫本身保留(便宜且无害), 但它不可能承重,
+    # 保留变异只会逼出一个假杀。该性质现由 `≤W` 扫描侧的 M115 与门(67) 直接守着。
     (
         # 完整校验退回 marker/乱序分流之后 ⇒ 「先放行再校验」
         "M56-full-validation-after-branching",
@@ -1039,9 +1049,12 @@ MUTATIONS += [
         "M95-receipt-skips-abandoned",
         SKILL,
         # ⚠️ round-11 重绑: abandoned 现在是 facts 字典的一项
-        '                "abandoned": (bool(p.get("abandoned")), lambda v: isinstance(v, bool)),\n',
+        # ⚠️ round-12 重绑: 事实清单已抽进构造器。
+        '        "abandoned": (bool(_ab), _ok_bool),\n',
         "                # MUTANT: 不比 abandoned\n",
-        "test_round10_findings",
+        # round-12 改绑窄门: 原门里 grade 的差异会替 abandoned 把门弄红,
+        # 于是这条变异测不出 abandoned 是否承重。窄门把两者隔离(都是 0.0)。
+        "test_round12_abandoned_isolated_from_grade",
     ),
     (
         # adopted time 不绑定 ⇒ 同一次评分可二次推进 FSRS
@@ -1082,15 +1095,17 @@ MUTATIONS += [
         # 真正拦住 round-11 B② 的是 **F1-only 分支的六项 facts 核对**, 本条改打它。
         "M99-f1only-skips-fact-check",
         SKILL,
-        "            } if _att_cur is not None else None,\n",
-        "            } if False else None,  # MUTANT: 账本缺失时不核对事实就放行\n",
+        # ⚠️ round-12 重绑: F1-only 的 facts 改由构造器产出。
+        "            ) if _att_cur is not None else None,\n",
+        "            ) if False else None,  # MUTANT: 账本缺失时不核对事实就放行\n",
         "test_round11_unified_resolver",
     ),
     (
         # dup 路径不做三方同瞬间 ⇒ 改采用时刻可二次推进 FSRS
         "M100-no-tri-instant-binding",
         SKILL,
-        "    _resolve_receipt(fm, evid, _ALL_LEDGER_IDS, row=dup)\n",
+        # ⚠️ round-12 重绑: dup 调用点已带上完整事实。
+        "    _resolve_receipt(fm, evid, _ALL_LEDGER_IDS, row=dup, facts=_facts_of_row(dup))\n",
         "    pass  # MUTANT: 不绑定采用时刻\n",
         "test_round11_unified_resolver",
         (
@@ -1100,8 +1115,8 @@ MUTATIONS += [
             # 原挂的「禁 facts」是**错的层**: 它拆的是另一道被测防线, 只加它门就红。
             (
                 SKILL,
-                "        fm, _rid_, _ALL_LEDGER_IDS, row=_o,\n",
-                "        fm, _rid_, _ALL_LEDGER_IDS, row=None,  # MUTANT: 第二站点同样不绑定\n",
+                "        fm, _rid_, _ALL_LEDGER_IDS, row=_o, facts=_facts_of_row(_o),\n",
+                "        fm, _rid_, _ALL_LEDGER_IDS, row=None, facts=_facts_of_row(_o),  # MUTANT: 第二站点同样不绑定\n",
             ),
         ),
         "complete",
@@ -1118,8 +1133,9 @@ MUTATIONS += [
         # receipt 的 attempt 只查类型不比值 ⇒ 999 也放行
         "M102-receipt-attempt-type-only",
         SKILL,
-        '                "attempt_count": (_att_cur, lambda v: isinstance(v, int) and not isinstance(v, bool) and v >= 1),\n',
-        "                # MUTANT: 不比 attempt 值\n",
+        # ⚠️ round-12 重绑: 事实清单已抽进构造器。
+        '        "attempt_count": (_att, _ok_att),\n',
+        "        # MUTANT: 不比 attempt 值\n",
         "test_round11_unified_resolver",
     ),
     (
@@ -1175,6 +1191,75 @@ MUTATIONS += [
         "    if _sources and _sources != {ev_id}:\n",
         "    if _sources != {ev_id}:  # MUTANT: 空集也拒\n",
         "test_round11b_both_paths_still_behave",
+    ),
+]
+
+
+# ── round-12 修复的承重变异（3 BLOCKER + 4 HIGH 的共同根因是事实清单分叉）
+MUTATIONS += [
+    (
+        # 事实清单退回可缺项 ⇒ 四个站点又能各传各的
+        "M113-facts-list-not-frozen",
+        SKILL,
+        "        if set(facts) != set(_FACT_KEYS):\n",
+        "        if False:  # MUTANT: 允许缺项清单\n",
+        "test_round12_facts_list_is_frozen",
+    ),
+    (
+        # F1-only 漏 exam_board ⇒ 同 ID 换白板的另一次评分被吞
+        "M114-f1only-drops-exam-board",
+        SKILL,
+        '        "exam_board": (str(_board or ""), _ok_board),\n',
+        "        # MUTANT: F1-only 不比白板\n",
+        "test_round12_b2_exam_board_in_facts",
+    ),
+    (
+        # ≤W 扫描退回「只查 ID 在不在」⇒ validator-valid 的事实污染永久漏算
+        "M115-late-scan-presence-only",
+        SKILL,
+        "    _rc2_, _ = _resolve_receipt(fm, _rid2_, _ALL_LEDGER_IDS, row=_o_, facts=_facts_of_row(_o_))\n    if _rc2_ is None:\n",
+        "    if not _fm_has_event_compat(fm, _rid2_, _ALL_LEDGER_IDS):  # MUTANT: 只查 presence\n",
+        "test_round12_b3_late_scan_checks_facts",
+    ),
+    (
+        # 新 receipt 不带 provenance ⇒ 空来源时两个世界不可区分
+        "M116-receipt-no-provenance",
+        SKILL,
+        "              f'    id_form: full\\n'\n",
+        "              # MUTANT: 不写形态标记\n",
+        "test_round12_b1_receipt_provenance",
+    ),
+    (
+        # 空来源时不要求 provenance ⇒ 历史裸形态被当成完整形态
+        "M117-empty-source-skips-provenance",
+        SKILL,
+        '        if not (isinstance(_probe, dict) and _probe.get("id_form") == "full"):\n',
+        "        if False:  # MUTANT: 空来源不查形态标记\n",
+        "test_round12_b1_receipt_provenance",
+    ),
+    (
+        # 空 eid 不在入口拒 ⇒ 首跑写入、重跑永远认不出
+        "M118-empty-eid-allowed",
+        SKILL,
+        "if not (isinstance(eid, str) and eid.strip()):\n",
+        "if False:  # MUTANT: 空 eid 放行\n",
+        "test_round12_empty_eid_rejected_at_entry",
+    ),
+    (
+        # 崩溃窗不证明采用时刻 ⇒ W 被恢复成篡改值
+        "M119-crash-window-adopted-time-unproven",
+        SKILL,
+        "    if W_inst is None and not _fm_has_event_compat(fm, evid, _ALL_LEDGER_IDS):\n",
+        "    if False:  # MUTANT: 崩溃窗不证明采用时刻\n",
+        "test_round12_high2_adopted_time_in_crash_window",
+    ),
+    (
+        # 旧行缺 scored_at 时退回笼统拒因 ⇒ 用户无路可走
+        "M120-legacy-row-generic-reason",
+        SKILL,
+        '        if "scored_at" not in _dpl:\n',
+        "        if False:  # MUTANT: 不给可执行迁移指引\n",
+        "test_round12_high3_legacy_row_missing_scored_at_is_actionable",
     ),
 ]
 

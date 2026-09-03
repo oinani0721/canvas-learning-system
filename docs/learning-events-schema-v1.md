@@ -37,7 +37,7 @@
 
 | 字段 | 类型 | 约束 | 语义 |
 |---|---|---|---|
-| `event_id` | string | 非空；全文件唯一（幂等键）；调用方构造稳定值 | 幂等键。构造规则见 §四逐类契约（`前缀:业务id` 惯例） |
+| `event_id` | string | 非空**且无首尾空白**；全文件唯一（幂等键）；调用方构造稳定值 | 幂等键。构造规则见 §四逐类契约（`前缀:业务id` 惯例）。⚠️ **首尾空白禁令（round-12 MEDIUM① 回写）**：幂等键的**字面即身份**，`板X#q1` 与 `板X#q1 ` 会被当成两个事件（账本双写 + mastery 双吃 + attempt 多加一次），而两个不同的 `event_id` 本来就合法，校验器看不出问题。写点对**本节点**的行拒而不 strip（strip 会把上游两个本来不同的 id 撞成一个，那是替上游做主）。⛔ **校验器侧尚未同步**——此刻写点严于校验器（同形态写点 rc=1 / 校验器 rc=0），本卡禁改 validator，故**如实登记为移交项**，不在本卡消解。 |
 | `event_version` | int | 恒为 `1`（本契约冻结版本） | schema 版本 |
 | `event_type` | string | 必须 ∈ EVENT_TYPES 白名单（9 类，见 §四）；未知类型写入侧直接拒绝 | 事件类别 |
 | `node_id` | string | 可为空串（如 skill 写点缺节点语境时）；通常为节点名（文件 basename 去扩展名） | 事件关联的知识节点。**复习域语境下 node_id 即 concept_id**（见 §六） |
@@ -181,7 +181,13 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
     - **查重必须是 parsed-field equality（round-6 BLOCKER 分项）**：逐行 `json.loads` 后比较 `record["event_id"]` 字段是否相等；**禁止子串匹配**。既有 `append_event` 用的是子串查重（`learning_event_log.py:86-88`，§二已如实登记）——当任一历史行的 payload 文本里恰好含有新 `event_id` 的 JSON 串形时，新事件会被**误判 duplicate 而零次落账**（丢一次真实评分）。⚠️ 澄清：这**不是改变幂等语义**（幂等键仍是 `event_id` 唯一，不触发 §一的 v2 升版条款），而是**修正查重实现的正确性**——子串匹配从来就不是"字段相等"的正确实现。既有实现的偏离登记在 §九，随 G3-2 修正。
     - **写入必须验证完整落盘（round-6 BLOCKER 分项）**：`O_APPEND` 对**普通文件**不提供 `PIPE_BUF` 级原子性保证（该保证只对管道成立），普通文件 `write` 仍可能**短写**。因此：单行须一次 `write` 提交，并**检查返回字节数等于期望长度**；短写时按 §二"截断自愈"处理（下次追加前 LF 守卫），并在重启恢复流程中把不可解析的尾行如实报为损坏行（校验器已实现该判定）。
       ⚠️ **可容忍的截断 vs 完整损坏（Codex round-3 MEDIUM，CARD-G3-2b 冻结）**：读取账本时**必须保留 EOF 是否以 LF 结尾的状态**。只有「最后一行解析失败 **且** 文件不以 LF 结尾」才是截断（`write` 被腰斩的半行），可跳过留痕并由追加前 LF 守卫隔离；**最后一行解析失败但带终止 LF** = 整行已完整落盘之后损坏，必须与中间坏行**同等 fail-closed**。只看「最后一行解析失败」会把真实损坏当截断容忍——实测：预置带终止 LF 的坏 JSON 末行，写点仍 `rc=0` 自称「截断尾行」并继续追加、推进节点。
-    - **duplicate 命中后的状态推进门（round-6 BLOCKER 分项，round-7 扩等价面）**：查重命中同一 `event_id` 时，按**语义 envelope 的 canonical 形式**分流。envelope = `{event_version, event_type, node_id, effective_at, payload}` 的 `json.dumps(..., sort_keys=True, separators=(",",":"))`——**显式排除 `recorded_at`**（重试时自然变化，不构成事实差异）。
+    - **duplicate 命中后的状态推进门（round-6 BLOCKER 分项，round-7 扩等价面）**：查重命中同一 `event_id` 时，按**语义 envelope 的 canonical 形式**分流。envelope = `{event_version, event_type, node_id, scored_at, payload}` 的 `json.dumps(..., sort_keys=True, separators=(",",":"))`——**显式排除 `recorded_at`**（重试时自然变化，不构成事实差异）。
+      ⚠️ **三个时刻各司其职（round-8 分离，round-12 回写契约）**：本条此前写的是 `effective_at`，与实现已分叉（Codex round-12 HIGH②）。正确口径：
+      - `recorded_at` —— 这一行**日志何时被写下**（重试即变，不进 envelope）；
+      - `payload.review_time` / `effective_at` —— A3 **采用**的调度时刻（`≤W` 时被推到 `W+1s`），两者同一瞬间；
+      - `payload.scored_at` —— **原始稳定业务时刻**，评分那一步记一次，续跑只读不重取。
+      envelope 比 `scored_at`：比采用时刻会让**真实续跑**（A3 推移过）被误判冲突；只比原始时刻则**采用时刻可被篡改**——后者由下面两道证明兜住。
+      ⚠️ **采用时刻的两道证明（round-12）**：①有校准记录时，`effective_at` / `payload.review_time` / receipt 的 `ts` **三方同一瞬间**；②崩溃窗内（append 后、frontmatter 未推进，**没有 receipt**）——此时水位线为空，而 A3 只在水位线**非空**时才推移，故该行 `review_time` **必等于** `scored_at`，不等即拒。实测反例：同步把两者改到 12-01（`scored_at` 保持 08-01），旧实现 writer rc=0、validator 全程 rc=0，水位线被恢复成 12-01。
       ⚠️ round-7 反例：只比 `payload` 时，两条同 `event_id`、同 payload、`event_type` 分别为 `answer_scored`/`answer_abandoned` 的记录会被误判 no-op（两者是**相反的事实**：答对 vs 弃答）。
       ⚠️ **身份键的等价面归属（Codex round-3 MEDIUM，CARD-G3-2b 回写——此前只活在实现与门㉕里，契约原文只排除 `recorded_at`，两处不同口径）**：`review/1` 行的 `payload.fsrs_library_version` 与 `payload.fsrs_params_hash` 两键**排除出 envelope 等价面**——它们是**复算环境快照**（py-fsrs 升级或参数改动即变），不是评分事实；留在等价面里会让一次合法的库升级把所有历史事件的重放变成“冲突”。二者的**完整性另有归属，不是无人认领**：由校验器 `backend/scripts/validate_learning_events.py` 的**golden manifest 绑定门**承担（算法身份与同仓 G3-4 manifest 逐字比对，篡改形状或真值一律判 FAIL）。分层的代价如实记：envelope 放行被篡改身份键的 durable 行，恢复照常发生，**该次污染要到下一次跑校验器时才被发现**。
       ⚠️ **candidate 必须独立字面构造（Codex round-3 BLOCKER，CARD-G3-2b 冻结）**：参与比较的 candidate envelope 必须由**本次输入 + 该写路径的固定生产键集**字面构造，**禁止以 durable 行的 payload 为底再覆盖已知键**（`{**durable_payload, ...}`）——那会把 durable 行的**未知额外键**原样抄进 candidate，比较退化成“自己比自己”。实测反例：给崩溃窗口①的 durable 行加 `payload.out_of_order=true`，envelope 放行，而 A2 的适用集按定义排除标了 `out_of_order` 的行 ⇒ FSRS 永不应用，writer 仍 `rc=0` 写下 calibration/mastery，节点 `fsrs_*` 全空、账本仍一行。因此**键集本身是等价面的一部分**：durable payload 相对固定生产键集**多一键、少一键或值不同，一律判 ② 冲突**；唯一放行的差异是上面明确排除的两个身份键。
