@@ -5500,6 +5500,71 @@ def _assert_rejected(r, keyword: str, why: str) -> None:
     assert keyword in out, f"{why}：报错了但不是 {keyword!r} 报的 —— {out[-300:]!r}"
 
 
+def test_domain_r32_indent_h3_and_zero_token_claim(tmp_path):
+    """R3 round-40（Codex 末轮两条 BLOCKER，**都是我上一轮引入的**）。
+
+    ⛔ 第十形态：round-39 修第九形态时，安全态改成「把缩进 H3 **去缩进后**判段名」，
+    而小节收集器 `_H3_SEED_RE`（= `_SECTION_RE("### 种子")`）只认**顶格**。
+    两处口径一分叉，`   ### 种子` 就落进「收集器不收、安全态却判安全」的夹缝：
+    它下面的台账行既不进绑定面，也不进漏网扫描。
+    ⚠️ 复现要点：缩进 H3 必须落在**任何 section span 之外**（先用顶格 H3 结束
+    前一个小节），否则它会被前一小节的 span 罩住、由小节内的模板门抓走 ——
+    我头两次复现都因为这个而"看起来没问题"。
+
+    ⛔ 零 token 兜底：同轮把 num-run 收窄成「首尾都必须是数字字符」（为堵
+    「顿号自成 token」的误伤），却在**量词之前**造出新硬断点 ——
+    `本板共有987654，个子节点` 句式命中、token 也抓到了，但量词前那个分隔符
+    不在 `_D2_JOIN_ONE` 里 ⇒ 量词前正则零命中 ⇒ 整个计数循环一次不跑，**无声通过**。
+    ⇒ 「有 claim 却一个数都没查」本身就该 fail-closed，与具体断点字符无关。
+
+    **它证明什么**：两条各自闭合，且合法形态不误伤。
+    **它不证明什么**：不覆盖 A1（软换行）与本域开放集 —— 见接手清单。
+    """
+    rs = _load_recap_scan()
+    KEY = "不受任何认可小节覆盖"
+
+    def ledger(h3: str) -> list[str]:
+        ps: list[str] = []
+        rs._verify_seed_ledger_counts(
+            "## 台账\n\n### 种子\n\n- S — 批注 2 条\n\n### 派生\n\n- D — 批注 1 条\n\n"
+            f"{h3}\n\n- Ghost — 批注 999 条\n\n## 末\n",
+            {"ledger": {"seeds": [{"node_id": "S", "tips_count": 2}]}},
+            ps,
+        )
+        return ps
+
+    for h3, want in (("   ### 种子", True), ("   ### 派生", True), ("### 派生", False)):
+        ps = ledger(h3)
+        hit = any(KEY in x for x in ps)
+        assert hit is want, f"{h3!r}: 漏网门命中={hit}（期望 {want}）—— {ps!r}"
+
+    # ── 零 token 兜底：走真实 CLI ──
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    report = write_report(vault, scan)
+    base = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+
+    def inject(line: str):
+        text = base.replace("## 三维审查", f"## 三维审查\n\n{line}", 1)
+        assert text != base, "注入未命中：报告一字未改，这条门测的是空气"
+        report.write_text(text, encoding="utf-8")
+        return run_verify(report)
+
+    for line, why in (
+        ("- 本板共有987654，个子节点。【实测】", "全角逗号在量词前"),
+        ("- 本板共有987654,个子节点。【实测】", "半角逗号在量词前"),
+        ("- 本板共有987654'个子节点。【实测】", "撇号在量词前"),
+    ):
+        _assert_rejected(inject(line), "提取不到任何", why)
+
+    # 对照：合法区间不得被兜底误伤（区间路径会**挖空**整段，兜底判据必须取
+    # 挖空**之前**的快照 —— 第一版没这么做，当场打红四条既有门）
+    report.write_text(base, encoding="utf-8")
+    r = inject("- 建议覆盖 2~3 个节点。【实测】")
+    assert r.returncode == 0, f"合法区间被零 token 兜底误伤：{(r.stdout or '')[-300:]!r}"
+
+
 def test_domain_r30_obsidian_comment_hidden_break_cli(tmp_path):
     """R3 round-37（Codex 冻结审查 BLOCKER）：Obsidian 自己的注释 `%%…%%`。
 

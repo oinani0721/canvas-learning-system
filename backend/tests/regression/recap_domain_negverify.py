@@ -825,14 +825,24 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "r29_separator_third_state",
     ),
     (
-        "survivor-73 (C-46) H3 安全态退回「任意形状合规标题」（第九形态复活：`### 其他` 底下的台账行重新无人看管）",
+        "survivor-73 (C-46→40) H3 安全态退回「任意形状合规标题」（第九/第十形态复活：`### 其他` 与缩进 H3 底下的台账行重新无人看管）",
         [
             (
-                '                _cur_bad = not any(\n                    re.match(_SECTION_RE(f"### {_nm}"), _h3) for _nm in ("种子", "派生")\n                )',
-                '                _cur_bad = not re.match(r"^### [^\\s#][^\\n]*$", _h3)',
+                '                _cur_bad = not any(\n                    re.match(_SECTION_RE(f"### {_nm}"), vis_lines[_k])\n                    for _nm in ("种子", "派生")\n                )',
+                '                _cur_bad = not re.match(r"^ {0,3}### [^\\s#][^\\n]*$", vis_lines[_k])',
             )
         ],
-        "r27_seedish_h3",
+        "r32_indent_h3",
+    ),
+    (
+        "survivor-74 (C-47) 「claim 命中却零 token」兜底被摘除（量词前分隔符 ⇒ 计数循环一次不跑，规模自陈无声通过）",
+        [
+            (
+                "                is_claim\n                and not _COUNT_BEFORE_QUANT_RE.search(line)",
+                "                False\n                and not _COUNT_BEFORE_QUANT_RE.search(line)",
+            )
+        ],
+        "r32_indent_h3",
     ),
 ]
 
@@ -1066,7 +1076,8 @@ DESIGNATED: dict[str, list[str]] = {
     "survivor-70": ["test_domain_r31_tail_fields_bound_to_scan"],
     "survivor-71": ["test_domain_r29_separator_third_state_cli"],
     "survivor-72": ["test_domain_r29_separator_third_state_cli"],
-    "survivor-73": ["test_domain_r27_seedish_h3_and_corrupt_seeds"],
+    "survivor-73": ["test_domain_r32_indent_h3_and_zero_token_claim"],
+    "survivor-74": ["test_domain_r32_indent_h3_and_zero_token_claim"],
 }
 """每条变体**指定要杀死的门**（卡文完成条件 (e)）。
 
@@ -1088,8 +1099,8 @@ DESIGNATED: dict[str, list[str]] = {
 且每个 nodeid 必须真实存在于套件收集结果里（防指名腐烂）。
 """
 
-MUTANT_COUNT_EXPECTED = 72
-DESIGNATED_COUNT_EXPECTED = 79
+MUTANT_COUNT_EXPECTED = 73
+DESIGNATED_COUNT_EXPECTED = 80
 """指定门总数的**独立**期望值（Codex round-37 HIGH）。
 
 原先只冻结了变体数 66，指定门总数 73 是**从 DESIGNATED 动态求和后打印**的 ——

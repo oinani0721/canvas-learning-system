@@ -2032,6 +2032,13 @@ def _verify_prose_counts(text: str, scan: dict, problems: list[str]) -> None:
             # 先把整段挖空, 于是 `总计987654-0个…` 挖空后句式门直接 continue,
             # 已收集的坏端点再也报不出来 (实测 exit 0)。
             is_claim = bool(_D2_CLAIM_RE.search(line))
+            # ⛔ R3 round-40：同上一条注释的道理 —— 区间/小数是否**在场**也必须取自
+            #    挖空之前。区间路径会把整段替换成空格，等下面的「claim 却零 token」
+            #    兜底跑时 `_D2_RANGE_RE` 早就不命中了，兜底于是把
+            #    `本板共有 2~3 个子节点` 误判成「提取不到计数」（第一版实测打红四条门）。
+            _had_range_or_decimal = bool(
+                _D2_RANGE_RE.search(line) or _CJK_DECIMAL_RE.search(line)
+            )
             bad_ends: list[str] = []
             bad_range_ctx: list[str] = []
 
@@ -2114,6 +2121,28 @@ def _verify_prose_counts(text: str, scan: dict, problems: list[str]) -> None:
                     f"数字终核: 『{sec}』段出现小数形态的计数 "
                     f"{_join_free(m_dec.group(1))} "
                     f"(scan JSON 的计数均为整数, 小数不可能有出处): {line.strip()[:50]}"
+                )
+            # ⛔ R3 round-40（Codex 末轮 BLOCKER）：round-39 把 num-run 收窄成
+            #    「首尾都必须是数字字符」（为堵「顿号自成 token」的误伤），
+            #    却在**量词之前**造出新的硬断点：`本板共有987654，个子节点`
+            #    句式命中、token 也抓到了 `987654`，但量词前那个分隔符不在
+            #    `_D2_JOIN_ONE` 里 ⇒ `_COUNT_BEFORE_QUANT_RE` **零命中** ⇒
+            #    整个计数循环一次不跑，规模自陈**无声通过**。
+            #    「有 claim 却一个数都没查」本身就该是 fail-closed，与具体断点
+            #    字符无关 —— 补这个兜底，才不必追着每一种新断点字符跑。
+            #    ⚠️ 必须排除**已由别的路径覆盖**的形态，否则会误伤：合法区间
+            #       （`建议覆盖 2~3 个节点`）走 `_D2_RANGE_RE`、CJK 小数走
+            #       `_CJK_DECIMAL_RE`，两者都不经量词前正则 —— 第一版没排除，
+            #       当场打红四条既有门（合法区间被判「提取不到计数」）。
+            if (
+                is_claim
+                and not _COUNT_BEFORE_QUANT_RE.search(line)
+                and not _had_range_or_decimal
+            ):
+                problems.append(
+                    f"数字终核: 『{sec}』段出现规模自陈句式, 却提取不到任何"
+                    f"「计数+量词」(量词前可能夹了分隔符等非连接字符, "
+                    f"读者看到的数无法被终核): {line.strip()[:50]}"
                 )
             for m_cnt in _COUNT_BEFORE_QUANT_RE.finditer(line):
                 # ⛔ R3 round-6 (Codex round-5 HIGH-6): 负号不属于数串, 于是
@@ -2344,9 +2373,18 @@ def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> No
             #    与 round-33 要避免的「伪装面开放集闭表」不是一回事：
             #    那边枚举的是**攻击形态**（开放），这边枚举的是**模板自己的段名**（封闭）。
             if re.match(r"^ {0,3}###[^\S\n]", vis_lines[_k]):
-                _h3 = vis_lines[_k].lstrip(" ")
+                # ⛔ R3 round-40（Codex 末轮 BLOCKER「第十形态」）：上一版把缩进
+                #    H3 **去缩进后**再判段名 —— 而小节收集器 `_H3_SEED_RE`
+                #    （= `_SECTION_RE("### 种子")`）只认**顶格**。两处口径一分叉，
+                #    `   ### 种子` 就成了「收集器不收、安全态却判安全」的夹缝：
+                #    它下面的台账行既不进绑定面，也不进漏网扫描。
+                #    ⚠️ 这是我上一轮**修第九形态时新造的**分叉 —— 修一处口径不齐时
+                #    顺手补了缩进，却只补在两处中的一处。
+                # ⇒ 安全态与收集器**同口径**：只有顶格且段名匹配才算认可小节；
+                #    缩进 H3 仍**更新状态**（否则继承前一个安全态），但判为不认可。
                 _cur_bad = not any(
-                    re.match(_SECTION_RE(f"### {_nm}"), _h3) for _nm in ("种子", "派生")
+                    re.match(_SECTION_RE(f"### {_nm}"), vis_lines[_k])
+                    for _nm in ("种子", "派生")
                 )
             _bad_h3[_k] = _cur_bad
     for _lo, _hi in _ledger_spans:
