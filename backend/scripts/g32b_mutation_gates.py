@@ -1465,18 +1465,35 @@ MUTATIONS += [
         '    if False:  # MUTANT: 去掉裸形态碰撞的独立判据\n        _bare_of = lambda x: x[5:] if x.startswith("quiz:") else x\n',
         "test_round15_bare_collision_has_own_judge",
     ),
-    # ── M141-rolling-baseline-from-durable：退役（等价变异体，round-16 证明）
-    # 变异体是 `_w_after = None` ⇒ `_w_roll` 从「bridge 实际写下的 W」退回
-    # `_w_durable = _aware(_pl["review_time"])`（账本行自己声明的采用时刻）。
-    # ⛔ 这两支**在能被使用的每条路径上取值恒等**：同一轮迭代里，`_w_roll` 赋值
-    # 之后紧接着 `_append_calibration(..., actual_ts=_w_after)`，而它的 `_aa_diff`
-    # 哨兵一旦发现 `actual_ts != ts_str`（按**瞬间**比）就 raise。于是「两支不同」
-    # 的唯一前提（bridge 写下的 W ≠ 行里声明的 W）必然在下一条 pending 用到
-    # `_w_roll` 之前把进程打死。⇒ 无论拆不拆哨兵，都造不出可观测差异。
-    # ⚠️ 它**曾经**承重：round-15 靠 `adopted_actual` 字段可观测。round-16 移除该
-    # 字段并把分叉升为硬错误后，承重面被取代——这是「口径收紧使旧变异失效」，
-    # 不是「门变弱了」。两次改绑（round16 门 → round14 门）实测均 SURVIVED，
-    # 与本推证一致。
+    # ── M141-rolling-baseline-from-durable：退役（等价变异体）
+    #
+    # ⛔⛔ round-16 我给的退役推证是**错的**，round-17 独立审查证伪。原话是：
+    #   「`_w_roll` 赋值之后紧接着 `_append_calibration(..., actual_ts=_w_after)`，
+    #     其 `_aa_diff` 哨兵一旦发现两值不同瞬间就 raise，于是差异必然在被观测前
+    #     把进程打死」。
+    # 两处都不成立：
+    #   ① 那次调用在 `if _o.get("event_id") != evid and not _already_:` **之内** ——
+    #      pending 行是本次事件(dup) 或已带可解析 receipt 时整个被跳过，哨兵看不到分叉；
+    #   ② 变异体里 `_w_after = None` ⇒ `if actual_ts is not None` 恒假 ⇒ `_aa_diff`
+    #      恒 False，哨兵**结构性失效**，更不可能「把进程打死」。
+    # ⚠️ 错误的形状值得记住：「赋值之后**紧接着**」是**文本相邻**，不是**控制流必达**。
+    #    中间隔着一个 `if`，我读代码时把它读成了直线。
+    #
+    # ✅ 真正的退役理由（round-17 独立复核实测，与结论无关地更强）：
+    #    差异**可观测**（一支零写、一支把违反 A3/A6 的状态原子发布），但制造差异所需的
+    #    输入在 schema 不变量下**不可达**，需要两处生产产不出的手术：
+    #      · 把一条无 receipt 的行**插到已有行之前**（违反 schema §一 append-only）；
+    #      · 节点保留 `calibration_log` 却同时删掉 `fsrs_*` 与 `attempt_count`
+    #        （节点是 tmp+fsync+os.replace 原子发布，崩溃只给整份旧或整份新；
+    #         唯一可达的「有 receipt 无 W」是 degraded 遗留，而它**保留** attempt_count）。
+    #    在**可达**形态上实测两支逐字相同（崩溃窗预置、append-only 真实产生顺序两组，
+    #    ORIG 与 MUT 均 rc=1 zero-write=True，输出逐字一致）。
+    #    ⇒ 保留它只会逼出一道预置违反 schema 不变量的门（本卡明令禁止的「fixture 形态
+    #      ≠ 生产形态」），故退役。
+    #
+    # ⚠️ 连带如实记：`_aa_diff` 哨兵在全部门下**从未被触发**（拆成 `if False:` 全绿）。
+    #    所以它是一道**当前不可达的纵深**，不能作为 round-16 H④「分叉升为硬错误」的
+    #    执行归因 —— 真正拦住 H④ 那个形态的是 `_adopted_ok` 的收紧。归因已就地更正。
 ]
 
 
@@ -1616,6 +1633,54 @@ MUTATIONS += [
         "                    if _amb_f1:\n",
         "                    if False:  # MUTANT: 不证明就硬算\n",
         "test_round16_legacy_receipt_without_anchor_says_unprovable",
+    ),
+]
+
+
+# ── round-17（对抗预审确认项）的承重变异
+MUTATIONS += [
+    (
+        # receipt 编码退回裸 ensure_ascii=False ⇒ 字符轴自产自拒（YAML 折叠/拒收）
+        "M154-q-bare-ensure-ascii-false",
+        SKILL,
+        "        _lit = json.dumps(v, ensure_ascii=False)\n",
+        "        _lit = json.dumps(v, ensure_ascii=False)\n        return _lit  # MUTANT: 跳过往返自证\n",
+        "test_round17_receipt_survives_yaml_hostile_chars",
+    ),
+    (
+        # 无视 board_form 标记恒 json.loads ⇒ 旧条目读不出来（向后兼容契约无承重面）
+        "M155-board-form-ignored",
+        SKILL,
+        '                    if _e.get("board_form") == "json":\n',
+        "                    if True:  # MUTANT: 无视标记恒解码\n",
+        "test_round17_legacy_receipt_without_board_form_still_read",
+    ),
+    (
+        # 锚点命中 0 条即判死 ⇒ 把 F1-only 自己的前提（账本行丢失）变成死路
+        "M156-anchor-miss-is-hard-error",
+        SKILL,
+        "                        if len(_hit_f1) > 1:\n",
+        "                        if len(_hit_f1) != 1:  # MUTANT: 锚点成唯一证据\n",
+        "test_round17_anchor_is_preferred_not_sole_evidence",
+    ),
+    (
+        # 不校验锚点方向 ⇒ 指向后继即可让被篡改的 attempt_count 通过序数复算
+        "M157-anchor-direction-unchecked",
+        SKILL,
+        "                            if _ib_a is not None and _ib_a > _rc_inst_f1:\n",
+        "                            if False:  # MUTANT: 不校验方向\n",
+        "test_round17_anchor_direction_is_verified",
+        (
+            # ⚠️ 「方向校验」在生产里有**两个站点**（时刻 / 序数）—— 它们是同一道
+            # 防御的两半, 不是纵深。只拆一半时另一半照样抓住篡改 ⇒ 缺陷根本没被
+            # 放回来（实测 SURVIVED）。属「变异覆盖不完整」, 处置是补齐同缺陷的其它站点。
+            (
+                SKILL,
+                "                                and _na_a >= _nr_a\n",
+                "                                and False  # MUTANT: 不校验方向(序数)\n",
+            ),
+        ),
+        "complete",
     ),
 ]
 

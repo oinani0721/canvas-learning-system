@@ -1134,7 +1134,35 @@ def _append_calibration(fm_text, ts_str, ev=None, applied=None, actual_ts=None):
       而不是撞上「FSRS 已应用但缺校准记录」的人工裁定 (审查实测: 缺了这一步,
       那张白板**永久卡在** scored_pending_node_update)。
     """
-    q_ = lambda v: json.dumps(v, ensure_ascii=False)
+    def q_(v):
+        """产出一个**能原样读回**的 YAML 双引号标量（JSON 字面）。
+
+        ⛔ round-17 HIGH: 上一版是 `json.dumps(v, ensure_ascii=False)` —— 非 ASCII
+        字符**原样裸嵌**在 YAML 双引号标量里, 而 YAML 1.1 对 U+0085(NEL)/U+2028/
+        U+2029 走**换行折叠**、对 C1 控制符与代理对拒收。于是 round-16「类型往返由
+        JSON 自己保证」只修好了**类型轴**, **字符轴**的自产自拒原样存活: 板名含
+        U+0085 时首写 rc=0(账本已落行、节点已写), 读回变成空格 ⇒ 事实比较判「同一个
+        event_id 承载了两次不同的评分」而永久拒写 —— 那张检验白板就此砖化。
+        同一个板名同时进 `event_id`, 所以两个载体是同一个根因, 一处修好两处。
+
+        ⚠️ 判据是**正面证明往返**, 不是枚举危险字符: 危险集合是开放的(YAML 版本与
+        解析器实现都会变), 黑名单漏一个就等于没有。这里让 YAML 自己解析一遍来证明,
+        证不成立才回落到纯 ASCII 转义(`ensure_ascii=True` 对双引号标量无歧义)。
+        常见的中文/ASCII 值走第一条, 可读性不变; 只有真会出问题的值才变成转义形态。
+        """
+        _lit = json.dumps(v, ensure_ascii=False)
+        try:
+            import yaml as _y_rt          # receipt 写侧往返自证
+            # ⚠️ safe_load 返回的是 **映射** {"v": ...}, 不是标量 ——
+            # 直接与 v 比会恒不等, 于是**永远**回落到全转义形态(自证脚本里
+            # 「普通中文」「空串」这两个必过样本一起 BAD 才暴露出来: 判据自己
+            # 也需要验伪锚, 只放危险样本时全 BAD 看起来像「helper 正在工作」)。
+            _doc_rt = _y_rt.safe_load("v: " + _lit)
+            if isinstance(_doc_rt, dict) and _doc_rt.get("v") == v:
+                return _lit
+        except Exception:
+            pass
+        return json.dumps(v, ensure_ascii=True)
     if ev is None:
         # ⛔ 正常路径也必须存**完整**账本 event_id (Codex round-6 BLOCKER):
         # round-5 我只把 foreign 分支改成存完整 id, 正常分支仍存裸 `eid` ——
@@ -1254,6 +1282,14 @@ def _append_calibration(fm_text, ts_str, ev=None, applied=None, actual_ts=None):
     # `2026-08-01T10:00:00+00:00` 与 `…Z` 是同一瞬间，字符串比较会判不等 ——
     # 移除 `adopted_actual` 后这个差异直接变成硬错误，被 R2 门当场抓住。
     # 「字面 vs 值」在本卡的第七次。⚠️ 审查意见里的**附带项也是意见**。
+    # ⛔ round-17 如实更正归因：这道哨兵在**全部门下从未被触发**（拆成 `if False:`
+    # 全绿），且它所在的 `_append_calibration` 调用位于
+    # `if _o.get("event_id") != evid and not _already_:` 之内 —— pending 行是本次事件
+    # 或已带可解析 receipt 时整个被跳过。所以它是一道**当前不可达的纵深**：
+    # 可以保留作防御深度，但**不能**当作 round-16 H④「把 durable 与实际 W 的分叉升为
+    # 硬错误」的执行归因 —— 真正拦住那个形态的是 `_adopted_ok` 收紧到 A3 唯一值。
+    # ⚠️ 我 round-16 曾据它写过一条「差异必然在被观测前把进程打死」的推证并用来退役
+    # 一条变异 —— 那条推证把「文本上紧接着」当成了「控制流必达」，已更正。
     _aa_diff = False
     if actual_ts is not None:
         try:
@@ -1609,26 +1645,81 @@ if dup is None:
                     if isinstance(_ob, dict) and _nkey(_ob.get("node_id")) == _NODE_KEY
                     and _ob.get("event_type") in ("answer_scored", "answer_abandoned")
                 ]
+                # ⛔ round-17 HIGH: 锚点是**优先证据, 不是唯一证据**。
+                # 上一版「命中数 != 1 就 SystemExit」把本分支**自己的前提**变成了死路:
+                # F1-only 的前提就是「账本行丢了、只剩 frontmatter」, 丢失范围一旦覆盖到
+                # 前驱行, 锚点必然命中 0 条。实测回归: 三次评分后只留最后一行、原样重跑
+                # 中间那次 ⇒ 新码 rc=1「原写序不可证明」而 round-16 之前 rc=0 幂等跳过;
+                # 而序数在那个状态下**本来可证**(幸存后继 attempt=3, gap 折算得 2)——
+                # 那条回落路径至今还在下面, 只是锚点存在时永远走不到。
+                # ⛔ round-17 MEDIUM: 锚点是**可变的 frontmatter 内容**, 必须自洽校验。
+                # 它此前是唯一不受校验的 receipt 字段: 把它改指一个**后继**, 真后继就被
+                # 排除出 `_after_f1`, 期望序数被抬高 ⇒ 被篡改的 attempt_count 反而通过
+                # (实测: 同一份被改过的 frontmatter, 没有 pred_id 时拒、有 pred_id 时放行
+                #  —— 新锚点比它替换掉的东西防御更弱)。
+                # `_pred_of` 在生产上恒取「严格在先的最后一条」, 所以「锚点行不得晚于
+                # 本次」是现成的可证不变量。方向证不出来(锚点行没有可用 review_time)时
+                # 按「锚点不可用」回落, 而不是新增一条硬错误 —— 回落路径自带歧义证明。
+                _anchor_ok_f1 = False
                 if isinstance(_rc_probe_f1, dict) and "pred_id" in _rc_probe_f1:
                     _pid_f1 = _rc_probe_f1.get("pred_id")
                     if _pid_f1 is None:
                         _base_line_f1 = 0          # 本节点的第一次评分, 前面没有行
+                        _anchor_ok_f1 = True
                     elif isinstance(_pid_f1, str) and _pid_f1:
-                        _hit_f1 = [_lb for _lb, _ob in _rows_node_f1
+                        _hit_f1 = [(_lb, _ob) for _lb, _ob in _rows_node_f1
                                    if _ob.get("event_id") == _pid_f1]
-                        if len(_hit_f1) != 1:
+                        if len(_hit_f1) > 1:
                             raise SystemExit(
                                 f"[quiz-answer] {evid} 的 receipt 写序锚 pred_id={_pid_f1!r} "
-                                f"在账本里命中 {len(_hit_f1)} 条(应恰好 1) — 原写序不可证明, "
-                                f"fail-closed 拒写 — 请人工核对 learning_events.jsonl 是否被删改"
+                                f"在账本里命中 {len(_hit_f1)} 条(应恰好 1) — 账本自身的 "
+                                f"event_id 唯一性已被破坏, 原写序不可证明, fail-closed 拒写"
                             )
-                        _base_line_f1 = _hit_f1[0]
+                        if len(_hit_f1) == 1:
+                            _lb_a, _ob_a = _hit_f1[0]
+                            _ib_a = _durable_instant_safe(
+                                (_ob_a.get("payload") or {}).get("review_time")
+                            )
+                            if _ib_a is not None and _ib_a > _rc_inst_f1:
+                                raise SystemExit(
+                                    f"[quiz-answer] {evid} 的 receipt 写序锚 pred_id={_pid_f1!r} "
+                                    f"指向的账本行(第 {_lb_a} 行, review_time="
+                                    f"{(_ob_a.get('payload') or {}).get('review_time')!r})**晚于**本次的 "
+                                    f"receipt ts={_rc_ts_f1!r} —— 锚点按定义只能指向在先的行, "
+                                    f"两者自相矛盾: 要么 frontmatter 的锚被改过, 要么账本被重排。"
+                                    f"⛔ 不按这个锚算序数(往后指会把真后继排除掉、把期望序数抬高, "
+                                    f"于是被篡改的 attempt_count 反而能通过), fail-closed 拒写"
+                                )
+                            # ⛔ §6.3 历史行**没有** review_time —— 而「锚点指向 §6.3 前驱」
+                            # 正是本锚点被引入要解决的场景。此时不能回落(回落的歧义证明
+                            # 会因为「有行没有 review_time」当场拒掉, 把修好的场景又弄坏
+                            # —— 实测门 test_round16_f1_only_... 因此变红)。
+                            # 这类行**按时刻也证不出是后继**, 所以「时刻」这条判据对它
+                            # 本就无话可说; 改用它自己带的 `attempt_count` 判方向:
+                            # 前驱的序数必须**严格小于**本次。两条都拿不到证据时接受锚点
+                            # —— 它是此刻唯一的排序信息, 拒绝等于把 §6.3 前驱一律判死。
+                            _na_a = (_ob_a.get("payload") or {}).get("attempt_count")
+                            _nr_a = _rc_probe_f1.get("attempt_count")
+                            if (
+                                isinstance(_na_a, int) and not isinstance(_na_a, bool)
+                                and isinstance(_nr_a, int) and not isinstance(_nr_a, bool)
+                                and _na_a >= _nr_a
+                            ):
+                                raise SystemExit(
+                                    f"[quiz-answer] {evid} 的 receipt 写序锚 pred_id={_pid_f1!r} "
+                                    f"指向的账本行序数 attempt_count={_na_a} 不小于本次的 "
+                                    f"{_nr_a} —— 锚点按定义只能指向在先的行, 两者自相矛盾, "
+                                    f"fail-closed 拒写"
+                                )
+                            _base_line_f1 = _lb_a
+                            _anchor_ok_f1 = True
+                        # len == 0 ⇒ 前驱行也丢了(本分支的前提) ⇒ 回落, 不是错误
                     else:
                         raise SystemExit(
                             f"[quiz-answer] {evid} 的 receipt 写序锚 pred_id={_pid_f1!r} "
                             f"类型非法(应为字符串或 null) — 原写序不可证明, fail-closed 拒写"
                         )
-                else:
+                if not _anchor_ok_f1:
                     # 旧 receipt 无锚: 时刻 cursor 只在**无歧义**时可用。
                     _amb_f1 = []
                     for _lb, _ob in _rows_node_f1:

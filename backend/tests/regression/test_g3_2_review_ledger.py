@@ -267,7 +267,13 @@ def _ledger_lines(vault: Path) -> list[dict]:
     ledger = vault / "learning_events.jsonl"
     if not ledger.exists():
         return []
-    return [json.loads(ln) for ln in ledger.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    # ⛔ round-17: 必须按 b"\n" 切分，**不能**用 splitlines() —— 后者还会在
+    # U+0085 / U+2028 / U+2029 / \v / \f 处断行，账本行里裸嵌这些字符时会把
+    # 一行 JSONL 撕成两半（实测 JSONDecodeError: Unterminated string）。
+    # 生产写点（SKILL.md:468）与校验器（validate_learning_events.py:473）都是
+    # 按 b"\n" 切的；helper 用 splitlines() 等于**测试自己**比两侧都严，
+    # 会把合法账本判成损坏。三处口径必须逐字一致。
+    return [json.loads(ln.decode("utf-8")) for ln in ledger.read_bytes().split(b"\n") if ln.strip()]
 
 
 def _fm(vault: Path) -> str:
@@ -5039,5 +5045,146 @@ def test_round16_legacy_receipt_without_anchor_says_unprovable(vault):
     assert r.returncode != 0, "⛔ 无锚 + 无 review_time 的行 ⇒ 顺序不可证明, 必须停"
     assert "原写序不可证明" in (r.stderr or ""), (
         f"拒因须点名「顺序不可证明」, 不能报一个算错的期望序数: {(r.stderr or '')[-300:]}"
+    )
+    assert _write_face(vault) == face, "零写"
+
+
+# ── round-17（对抗预审确认的 6 条）的门 ──
+
+#: ⛔ 不可见字符一律用 chr() 构造 —— 源码里写字面量会被工具链静默替换掉。
+_NEL, _LS, _PS, _C1, _DEL = chr(0x85), chr(0x2028), chr(0x2029), chr(0x90), chr(0x7F)
+
+
+def test_round17_receipt_survives_yaml_hostile_chars(vault):
+    """receipt 里的字符串必须**能原样读回** —— 字符轴的自产自拒。
+
+    ⛔ round-16 只修好了**类型轴**（存 canonical JSON 字符串）。内层 `ensure_ascii=False`
+    让非 ASCII 字符**原样裸嵌**在 YAML 双引号标量里，而 YAML 1.1 对 U+0085(NEL)/
+    U+2028/U+2029 走换行折叠、对 C1 控制符拒收。实测：板名含 U+0085 时首写 rc=0
+    （账本已落行、节点已写），读回变成空格 ⇒ 事实比较判「同一个 event_id 承载了两次
+    不同的评分」而永久拒写 —— 那张检验白板就此砖化。
+    ⚠️ 同一个板名同时进 `event_id`，两个载体是同一个根因，所以两个都要测。
+    """
+    LED = vault / "learning_events.jsonl"
+    for _tag, _ch in (("NEL", _NEL), ("LS", _LS), ("PS", _PS), ("C1", _C1), ("DEL", _DEL)):
+        # ① exam_board 载体
+        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+        LED.unlink(missing_ok=True)
+        pl = _payload(event_id="板X#q1", ts=TS1, review_time=TS1, exam_board=f"检验白板/板{_ch}A.md")
+        assert _run_writer_settled(vault, pl).returncode == 0, f"[{_tag}/board] 首写应放行"
+        n0, face = len(_ledger_lines(vault)), _write_face(vault)
+        r = _run_writer_settled(vault, dict(pl))
+        assert r.returncode == 0, f"⛔ [{_tag}/board] 自产自拒: 写得出却认不回 —— {r.stderr[:300]}"
+        assert len(_ledger_lines(vault)) == n0 and _write_face(vault) == face, "幂等 ⇒ 零写"
+        # ② event_id 载体（生产里 event_id = 检验白板文件名 + #q1）
+        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+        LED.unlink(missing_ok=True)
+        pl2 = _payload(event_id=f"板{_ch}B#q1", ts=TS1, review_time=TS1)
+        assert _run_writer_settled(vault, pl2).returncode == 0, f"[{_tag}/evid] 首写应放行"
+        n1, face1 = len(_ledger_lines(vault)), _write_face(vault)
+        r2 = _run_writer_settled(vault, dict(pl2))
+        assert r2.returncode == 0, f"⛔ [{_tag}/evid] 自产自拒 —— {r2.stderr[:300]}"
+        assert len(_ledger_lines(vault)) == n1 and _write_face(vault) == face1, "幂等 ⇒ 零写"
+
+
+def test_round17_legacy_receipt_without_board_form_still_read(vault):
+    """无 `board_form` 标记的**旧** receipt 必须按原语义读（H⑥ 声明的向后兼容）。
+
+    ⛔ round-16 写下了这条契约（"board_form 缺失的旧条目仍按原语义读"），但 96 道门里
+    **没有任何一道**构造过 legacy receipt —— 把守门的条件判断整个抽掉（恒 json.loads）
+    全套门依旧全绿。声明了却没有承重面 = 没有实现过。
+    """
+    LED = vault / "learning_events.jsonl"
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    pl = _payload(event_id="板A#q1", ts=TS1, review_time=TS1)
+    assert _run_writer_settled(vault, pl).returncode == 0
+    nd = (vault / NODE_REL).read_text(encoding="utf-8")
+    board = _payload()["exam_board"]
+    # 退回本卡之前的旧形态: 删 board_form 行 + exam_board 存**裸值**（非双编码）
+    nd2 = re.sub(r"^    board_form: .*\n", "", nd, count=1, flags=re.M)
+    nd2 = re.sub(
+        r"^    exam_board: .*$", f"    exam_board: {json.dumps(board, ensure_ascii=False)}", nd2, count=1, flags=re.M
+    )
+    assert "board_form" not in nd2 and nd2 != nd, "预置必须真的退回旧形态"
+    (vault / NODE_REL).write_text(nd2, encoding="utf-8")
+    n0, face = len(_ledger_lines(vault)), _write_face(vault)
+    r = _run_writer_settled(vault, dict(pl))
+    assert r.returncode == 0, f"⛔ 旧条目必须按原语义读得出来: {r.stderr[:300]}"
+    assert len(_ledger_lines(vault)) == n0 and _write_face(vault) == face, "幂等 ⇒ 零写"
+
+
+def _seed_three(vault):
+    """三次真实评分（写点自产），返回账本行。"""
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (vault / "learning_events.jsonl").unlink(missing_ok=True)
+    for i, (b, t) in enumerate(
+        (("板A", "2026-08-01T10:00:00Z"), ("板B", "2026-08-01T11:00:00Z"), ("板C", "2026-08-01T12:00:00Z"))
+    ):
+        r = _run_writer_settled(vault, _payload(event_id=f"{b}#q1", ts=t, review_time=t, exam_board=f"检验白板/{b}.md"))
+        assert r.returncode == 0, f"seed {b}: {r.stderr[:200]}"
+    return _ledger_lines(vault)
+
+
+def test_round17_anchor_is_preferred_not_sole_evidence(vault):
+    """写序锚是**优先证据**，不是**唯一证据**。
+
+    ⛔ 上一版「锚点命中数 != 1 就 SystemExit」把 F1-only 分支**自己的前提**变成死路：
+    该分支的前提就是「账本行丢了、只剩 frontmatter」，丢失范围一旦覆盖到前驱行，
+    锚点必然命中 0 条。实测回归：三次评分后只留最后一行、原样重跑中间那次 ⇒
+    rc 由 0 变 1；而序数在那个状态下**本来可证**（幸存后继 attempt=3，gap 折算得 2）。
+    """
+    LED = vault / "learning_events.jsonl"
+    rows = _seed_three(vault)
+    keep = [x for x in rows if x.get("event_id") == "quiz:板C#q1"]
+    assert len(keep) == 1 and len(rows) == 3, rows
+    LED.write_text("".join(json.dumps(x, ensure_ascii=False) + "\n" for x in keep), encoding="utf-8")
+    face = _write_face(vault)
+    r = _run_writer_settled(
+        vault,
+        _payload(
+            event_id="板B#q1",
+            ts="2026-08-01T11:00:00Z",
+            review_time="2026-08-01T11:00:00Z",
+            exam_board="检验白板/板B.md",
+        ),
+    )
+    assert r.returncode == 0, f"⛔ 前驱行也丢了时必须回落到可证的路径, 而不是判死: {r.stderr[:400]}"
+    assert _write_face(vault) == face, "幂等 ⇒ 零写"
+
+
+def test_round17_anchor_direction_is_verified(vault):
+    """写序锚必须**自洽校验方向** —— 它是唯一一个能改结论、却不受校验的 receipt 字段。
+
+    ⛔ 把锚改指一个**后继**，真后继就被排除出 `_after_f1`，期望序数被抬高 ⇒ 被篡改的
+    `attempt_count` 反而通过。实测（round-16 版）：同一份被改过的 frontmatter，
+    **没有** pred_id 时拒、**有** pred_id 时放行 —— 新锚点比它替换掉的东西防御更弱。
+    """
+    LED = vault / "learning_events.jsonl"
+    rows = _seed_three(vault)
+    keep = [x for x in rows if x.get("event_id") != "quiz:板A#q1"]
+    LED.write_text("".join(json.dumps(x, ensure_ascii=False) + "\n" for x in keep), encoding="utf-8")
+    nd = (vault / NODE_REL).read_text(encoding="utf-8")
+    # 篡改 A 的 receipt: attempt 1→2 且把锚改指后继 板B
+    seg = nd[nd.index('- event_id: "quiz:板A#q1"') :]
+    seg_end = seg.index('- event_id: "quiz:板B#q1"')
+    old_seg, new_seg = seg[:seg_end], seg[:seg_end]
+    new_seg = re.sub(r"^    pred_id: .*$", '    pred_id: "quiz:板B#q1"', new_seg, count=1, flags=re.M)
+    new_seg = re.sub(r"^    attempt_count: 1$", "    attempt_count: 2", new_seg, count=1, flags=re.M)
+    assert new_seg != old_seg and '"quiz:板B#q1"' in new_seg, "预置必须真的把锚改指后继"
+    (vault / NODE_REL).write_text(nd.replace(old_seg, new_seg, 1), encoding="utf-8")
+    face = _write_face(vault)
+    r = _run_writer_settled(
+        vault,
+        _payload(
+            event_id="板A#q1",
+            ts="2026-08-01T10:00:00Z",
+            review_time="2026-08-01T10:00:00Z",
+            exam_board="检验白板/板A.md",
+        ),
+    )
+    assert r.returncode != 0, "⛔ 锚点指向后继 ⇒ 与账本自相矛盾, 必须停"
+    assert "自相矛盾" in (r.stderr or ""), (
+        f"拒因须点名锚点方向自相矛盾（不退化成「随便什么理由拒了都算」）: {(r.stderr or '')[-300:]}"
     )
     assert _write_face(vault) == face, "零写"
