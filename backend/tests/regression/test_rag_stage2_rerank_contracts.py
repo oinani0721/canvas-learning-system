@@ -262,16 +262,20 @@ def test_dedup_keeps_first_highest_and_order():
 
 
 def test_dedup_merges_taint_fail_closed():
-    """被合并 chunk 的 quarantine/风险分/legacy 旗帜不得被洗掉。"""
+    """被合并 chunk 的 quarantine/风险分不得被洗掉。
+
+    CARD-G2-4: 原断言还包含 ``is_legacy_fallback`` 旗帜继承 —— 该旗帜的唯一
+    生产者 (tier-2 裸表回退) 已随本卡删除, 继承逻辑一并移除, 故断言同步删。
+    taint / injection_risk 的 fail-closed 合并语义不变。
+    """
     mats = [
         _mat("节点/A.md", 0.9, taint="clean", risk=0.1),
-        _mat("节点/A.md", 0.8, taint="quarantine", risk=0.7, is_legacy_fallback=True),
+        _mat("节点/A.md", 0.8, taint="quarantine", risk=0.7),
     ]
     out = svc._dedup_by_source(mats)
     assert len(out) == 1
     assert out[0]["taint"] == "quarantine"
     assert out[0]["injection_risk"] == 0.7
-    assert out[0]["is_legacy_fallback"] is True
 
 
 def test_dedup_no_source_path_not_merged():
@@ -304,10 +308,10 @@ def wired(monkeypatch):
     source_priority 恒等 (加权重排不进本契约)。"""
     rows = []
 
-    async def fake_two_tier(client, query, num_results):
+    async def fake_vault_scoped(client, query, num_results):
         return list(rows)
 
-    monkeypatch.setattr(svc, "_two_tier_search", fake_two_tier)
+    monkeypatch.setattr(svc, "_vault_scoped_search", fake_vault_scoped)
     monkeypatch.setattr(svc, "_is_real_vault_file", lambda path: True)
 
     import app.core.reference_config as ref

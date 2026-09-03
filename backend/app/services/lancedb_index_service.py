@@ -17,6 +17,7 @@ import asyncio
 import contextvars
 import json
 import logging
+import os
 import threading
 
 import structlog
@@ -51,15 +52,35 @@ class LanceDBIndexService:
     - Lazy LanceDB client initialization
     """
 
-    def __init__(self) -> None:
+    def __init__(self, state_dir: Optional[str] = None) -> None:
+        """``state_dir``: journal 落盘目录 (默认 ``backend/app/data``)。
+
+        ⛔ Codex round-1 HIGH-2: legacy 路径改由 ``_pending_file.parent`` 派生,
+        免得"测试只搬 _pending_file"时隔离动作打到真实 data 目录。
+        """
         self._lancedb_client = None
         self._client_unavailable = False  # [Review H1/M2] skip retries when module missing
         self._pending_tasks: Dict[str, asyncio.Task] = {}
         self._indexing_canvases: set[str] = set()  # [Review M1] track active indexing
         self._file_lock = threading.Lock()  # [Review H2] protect JSONL concurrent writes
-        self._pending_file: Path = Path(__file__).parent.parent / "data" / "lancedb_pending_index.jsonl"
+        # CARD-G2-5: pending journal 按 vault 命名空间 (旧的无维度路径只在
+        # recover_pending() 里被隔离, 不加载)。key 取部署期 settings.vault_id,
+        # 不读 per-request ContextVar —— 见 app/core/vault_state_paths.py。
+        from app.core.vault_state_paths import (
+            deployment_vault_key,
+            namespaced_state_path,
+        )
+
+        _data_dir = Path(state_dir) if state_dir else Path(__file__).parent.parent / "data"
+        self._state_dir: Path = _data_dir
+        self._journal_stem: str = "lancedb_pending_index"
+        self._vault_key: str = deployment_vault_key()
+        self._pending_file: Path = namespaced_state_path(_data_dir, self._journal_stem, vault_key=self._vault_key)
         self._debounce_seconds: float = settings.LANCEDB_INDEX_DEBOUNCE_MS / 1000.0
         self._index_timeout: float = settings.LANCEDB_INDEX_TIMEOUT
+        # CARD-G2-5 round-2 HIGH-3: durable 写失败的对外可见计数。
+        self._durable_write_failures: int = 0
+        self._last_durable_error: Optional[str] = None
 
     # ─────────────────────────────────────────────────────────────────────────
     # Public API
@@ -179,6 +200,13 @@ class LanceDBIndexService:
         finally:
             self._indexing_canvases.discard(key)
 
+    @property
+    def _legacy_pending_file(self) -> Path:
+        """G2-5 之前的无维度 journal —— 由当前 journal 的目录派生 (见 __init__)。"""
+        from app.core.vault_state_paths import legacy_state_path
+
+        return legacy_state_path(self._pending_file.parent, self._journal_stem)
+
     async def recover_pending(self, canvas_base_path: str) -> Dict[str, int]:
         """
         Recover and retry pending index operations from JSONL file.
@@ -190,21 +218,31 @@ class LanceDBIndexService:
 
         Returns:
             Dict with 'recovered' and 'pending' counts
+
+        CARD-G2-5: 只加载**本 vault** 的 journal; G2-5 之前的无维度旧文件在这里
+        被改名隔离并跳过 (条目无从判断 vault 归属, 按当前 vault 重放 = 串台)。
         """
+        from app.core.vault_state_paths import quarantine_legacy_state_file
+
+        quarantine_legacy_state_file(
+            self._legacy_pending_file, context="lancedb_index_service", active_path=self._pending_file
+        )
+
         if not self._pending_file.exists():
-            return {"recovered": 0, "pending": 0}
+            return {"recovered": 0, "pending": 0, "persist_failed": 0}
 
         try:
             lines = self._pending_file.read_text(encoding="utf-8").strip().splitlines()
         except (OSError, FileNotFoundError) as e:
             logger.warning(f"[Story 38.1] Failed to read pending file: {e}")
-            return {"recovered": 0, "pending": 0}
+            return {"recovered": 0, "pending": 0, "persist_failed": 0}
 
         if not lines:
-            return {"recovered": 0, "pending": 0}
+            return {"recovered": 0, "pending": 0, "persist_failed": 0}
 
         # Deduplicate: keep latest entry per canvas_name
         unique: Dict[str, Dict[str, Any]] = {}
+        orig_lines = set(lines)  # round-3 竞态修复: 锁内重读时区分「旧残影」与「并发新 append」
         for line in lines:
             try:
                 entry = json.loads(line)
@@ -228,21 +266,105 @@ class LanceDBIndexService:
                 still_pending.append(entry)
 
         # [Review H2] Lock protects against concurrent _persist_pending() appends
+        rewrite_ok = True
         with self._file_lock:
-            # Rewrite file with only still-pending entries
-            if still_pending:
-                self._pending_file.write_text(
-                    "\n".join(json.dumps(e, ensure_ascii=False) for e in still_pending) + "\n",
-                    encoding="utf-8",
+            # ⛔ CARD-G2-5 round-3 Codex HIGH（recover 竞态）: 重放发生在锁外,
+            # 期间 `_persist_pending()` 可以成功 append 新意图 —— 若用旧快照
+            # rewrite/unlink, 成功落盘的新意图会被静默删除且对外报成功。
+            # 修复: 锁内重读当前 journal, 只取**不在旧快照行集合里**的行
+            # (= 重放窗口内新 append 的条目; 旧快照行无论已消费与否都是残影,
+            # 由 still_pending/unlink 语义接管), 与 still_pending 合并。
+            # append 与 rewrite 同锁互斥, 「重读→replace」之间是连续同步代码,
+            # 竞态窗口消除。
+            fresh = []
+            try:
+                cur_lines = self._pending_file.read_text(encoding="utf-8").strip().splitlines()
+            except (OSError, FileNotFoundError) as e:
+                # ⛔ round-4b Codex MEDIUM: 重读失败不得当作「空文件」继续
+                # rewrite/unlink —— 那会用旧快照覆盖未知内容。fail-closed:
+                # 不写不删, 计数 + persist_failed=1。
+                self._durable_write_failures += 1
+                self._last_durable_error = f"{type(e).__name__}: {e}"
+                logger.error(
+                    f"[Story 38.1] journal re-read FAILED ({e}) — keeping file as-is, {len(still_pending)} intent(s) preserved"
                 )
+                return {
+                    "recovered": recovered,
+                    "pending": len(still_pending),
+                    "persist_failed": 1,
+                }
+            for ln in cur_lines:
+                if not ln.strip() or ln in orig_lines:
+                    continue  # 旧快照残影 (含已消费/仍 pending 的行), 不参与合并
+                try:
+                    fresh.append(json.loads(ln))
+                except json.JSONDecodeError:
+                    continue
+            merged = self._merge_journal_entries(fresh, still_pending)
+            if merged:
+                rewrite_ok = self._rewrite_journal(merged)
             else:
-                # All recovered — remove file
+                # All recovered — remove file（空删语义留在这里: helper 只管写）
                 try:
                     self._pending_file.unlink()
                 except OSError:
                     pass
 
-        return {"recovered": recovered, "pending": len(still_pending)}
+        return {
+            "recovered": recovered,
+            # ⛔ round-4b Codex MEDIUM: 重放窗口内新 append 的条目 (fresh) 同样
+            # 仍待处理, 必须计入 pending (旧版只数 still_pending 会少报)。
+            "pending": len(still_pending) + len(fresh),
+            # ⛔ CARD-G2-5 HIGH-3: 重写失败 = 崩溃后无法恢复这批意图, 必须可见。
+            "persist_failed": 0 if rewrite_ok else 1,
+        }
+
+    @staticmethod
+    def _merge_journal_entries(
+        fresh: list[Dict[str, Any]], still_pending: list[Dict[str, Any]]
+    ) -> list[Dict[str, Any]]:
+        """按 canvas_name 去重合并, timestamp 最新者胜（平局取 still_pending——刚失败的那次更可信）。"""
+        by_canvas: Dict[str, Dict[str, Any]] = {}
+        for e in sorted(
+            list(fresh) + list(still_pending),
+            key=lambda x: (str(x.get("timestamp", "")), x in still_pending),
+        ):
+            name = e.get("canvas_name")
+            if name:
+                by_canvas[str(name)] = e
+        return list(by_canvas.values())
+
+    def _rewrite_journal(self, entries: list[Dict[str, Any]]) -> bool:
+        """原子重写 journal（tmp + os.replace），只含 still-pending 条目。
+
+        ⛔ 调用方必须已持有 ``self._file_lock``（threading.Lock 非可重入, 本方法
+        内不再 acquire —— 自己再 acquire 会同线程自死锁, 表现为事件循环挂死）。
+        返回 False 时**不动原 journal**（意图不丢）并清理 tmp 残片。
+
+        tmp 名 = ``<journal>.tmp``（即 ``<stem>__<key>.jsonl.tmp``）: 与
+        vault_index_orchestrator 的 tmp 形态一致, 字节预算正是按这个后缀预留的
+        （``vault_state_paths.namespaced_state_path``）; 与隔离件命名空间
+        ``<stem>.jsonl.pre-g25.bak[.N]`` 逐字不同（隔离器只对精确路径做
+        ``exists()``, 无任何 glob —— 不会误吞 tmp）。
+        """
+        tmp = self._pending_file.with_name(self._pending_file.name + ".tmp")
+        try:
+            with open(tmp, "w", encoding="utf-8") as fh:
+                for e in entries:
+                    fh.write(json.dumps(e, ensure_ascii=False) + "\n")
+            os.replace(tmp, self._pending_file)
+            return True
+        except (OSError, TypeError, ValueError) as e:
+            self._durable_write_failures += 1
+            self._last_durable_error = f"{type(e).__name__}: {e}"
+            logger.error(
+                f"[Story 38.1] journal rewrite FAILED ({e}) — original journal kept, {len(entries)} intent(s) preserved"
+            )
+            try:
+                tmp.unlink()  # 清残片, 不留垃圾
+            except OSError:
+                pass
+            return False
 
     async def cleanup(self) -> None:
         """Cancel all pending debounce tasks. Called during shutdown."""
@@ -289,7 +411,14 @@ class LanceDBIndexService:
             logger.warning(
                 f"[Story 38.1] LanceDB index update failed for canvas {canvas_name}{node_ctx}, queued for retry: {e}"
             )
-            self._persist_pending(canvas_name, str(e), trigger_node_id)
+            if not self._persist_pending(canvas_name, str(e), trigger_node_id):
+                # ⛔ CARD-G2-5 HIGH-3: durable journal 也写失败了 —— 这条重试
+                # 意图真的丢了（崩溃后无法恢复），与上面的 WARNING（还有
+                # journal 兜底）语义不同，必须用 ERROR 区分。
+                logger.error(
+                    f"[Story 38.1] intent lost: durable journal write FAILED for canvas {canvas_name} "
+                    f"(state_dir={self._state_dir}) — this retry intent will NOT survive a crash"
+                )
         finally:
             self._indexing_canvases.discard(canvas_name)
 
@@ -379,8 +508,14 @@ class LanceDBIndexService:
         canvas_name: str,
         error: str,
         trigger_node_id: Optional[str] = None,
-    ) -> None:
-        """Persist a failed index operation to JSONL for startup recovery (AC-3)."""
+    ) -> bool:
+        """Persist a failed index operation to JSONL for startup recovery (AC-3).
+
+        ⛔ CARD-G2-5 HIGH-3: 返回 False = durable 写失败（调用方必须让失败可见,
+        不得假报成功）。捕获面维持 (OSError, TypeError, ValueError) —— 其它异常
+        会向上逃逸到 _debounced_index 的 fire-and-forget 任务边界（如实登记,
+        不静默加宽捕获面）。
+        """
         try:
             entry = {
                 "canvas_name": canvas_name,
@@ -394,8 +529,22 @@ class LanceDBIndexService:
             with self._file_lock:
                 with open(self._pending_file, "a", encoding="utf-8") as f:
                     f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+            return True
         except (OSError, TypeError, ValueError) as e:
+            self._durable_write_failures += 1
+            self._last_durable_error = f"{type(e).__name__}: {e}"
             logger.error(f"[Story 38.1] Failed to persist pending index: {e}")
+            return False
+
+    def durable_status(self) -> Dict[str, Any]:
+        """只读: durable 写失败计数与最近错误。
+
+        CARD-G2-5 HIGH-3 供后续状态面消费（本卡不接端点, 登记移交）。
+        """
+        return {
+            "failures": self._durable_write_failures,
+            "last_error": self._last_durable_error,
+        }
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

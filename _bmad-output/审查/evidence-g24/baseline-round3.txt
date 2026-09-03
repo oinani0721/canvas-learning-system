@@ -1,0 +1,666 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 4542 items / 4245 deselected / 297 selected
+
+tests/unit/test_archive_legacy_lance_tables_g24.py ...............       [  5%]
+tests/unit/test_chat_endpoint.py F                                       [  5%]
+tests/unit/test_edge_rationale_fallback.py ....                          [  6%]
+tests/unit/test_g24_lance_legacy_table_removal.py ..........             [ 10%]
+tests/unit/test_hybrid_search_activation.py ..                           [ 10%]
+tests/unit/test_lancedb_isolation_assertions.py .............            [ 15%]
+tests/unit/test_lancedb_vault_isolation.py .....FF.......F               [ 20%]
+tests/unit/test_story_38_1_ac1_auto_trigger.py ....                      [ 21%]
+tests/unit/test_story_38_1_ac3_startup_recovery.py ..                    [ 22%]
+tests/unit/test_story_38_1_review_fixes.py .                             [ 22%]
+tests/unit/test_supplementary_reranker.py .............................. [ 32%]
+............FF...F.FFFF.FF                                               [ 41%]
+tests/unit/test_supplementary_search_service.py ........................ [ 49%]
+...............................                                          [ 59%]
+tests/unit/test_vault_doc_roles.py ..................................... [ 72%]
+........................................................................ [ 96%]
+..........                                                               [100%]
+
+=================================== FAILURES ===================================
+_____________ test_enrich_context_preload_mode_skips_supplementary _____________
+tests/unit/test_chat_endpoint.py:368: in test_enrich_context_preload_mode_skips_supplementary
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5541036448", "logger": "app.security", "level": "error", "timestamp": "2026-08-31T16:24:57.890434Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 503, "duration_ms": 71.22, "event": "request.completed", "request_id": "5541036448", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-08-31T16:24:57.890765Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 503, 'duration_ms': 71.22, 'event': 'request.completed', 'request_id': '5541036448', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-08-31T16:24:57.890765Z'}
+__________ TestVaultIdFromConfig.test_dynamic_vault_id_follows_config __________
+tests/unit/test_lancedb_vault_isolation.py:55: in test_dynamic_vault_id_follows_config
+    assert client.resolve_table_name("vault_notes") == "cs_61b_vault_notes"
+E   AssertionError: assert 'canvas_vault_vault_notes' == 'cs_61b_vault_notes'
+E     
+E     - cs_61b_vault_notes
+E     + canvas_vault_vault_notes
+__________ TestSubjectResolverVaultId.test_group_id_has_vault_prefix ___________
+tests/unit/test_lancedb_vault_isolation.py:72: in test_group_id_has_vault_prefix
+    assert info.group_id.startswith("cs61b:")
+E   AssertionError: assert False
+E    +  where False = <built-in method startswith of str object at 0x14a51cda0>('cs61b:')
+E    +    where <built-in method startswith of str object at 0x14a51cda0> = 'vault:canvas_vault:math:test_canvas'.startswith
+E    +      where 'vault:canvas_vault:math:test_canvas' = SubjectInfo(subject='math', category='math', group_id='vault:canvas_vault:math:test_canvas', source=<MetadataSource.MANUAL: 'manual'>).group_id
+----------------------------- Captured stdout call -----------------------------
+{"event": "SubjectResolver config loaded: 7 mappings, 2 category rules", "logger": "app.services.subject_resolver", "level": "info", "timestamp": "2026-08-31T16:24:58.014868Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.subject_resolver:subject_resolver.py:146 {'event': 'SubjectResolver config loaded: 7 mappings, 2 category rules', 'logger': 'app.services.subject_resolver', 'level': 'info', 'timestamp': '2026-08-31T16:24:58.014868Z'}
+_ TestActiveVaultIdNarrowExceptionAndFallbackWarning.test_active_vault_id_level2_runtime_error_falls_through _
+tests/unit/test_lancedb_vault_isolation.py:345: in test_active_vault_id_level2_runtime_error_falls_through
+    assert client.active_vault_id == "level3_target"
+E   AssertionError: assert 'canvas_vault' == 'level3_target'
+E     
+E     - level3_target
+E     + canvas_vault
+____ TestTypeWeightsIndexerTransition.test_indexer_note_mapped_to_canonical ____
+tests/unit/test_supplementary_reranker.py:587: in test_indexer_note_mapped_to_canonical
+    assert w == 0.7
+E   assert 1.0 == 0.7
+_ TestTypeWeightsIndexerTransition.test_indexer_video_transcript_mapped_to_canonical _
+tests/unit/test_supplementary_reranker.py:594: in test_indexer_video_transcript_mapped_to_canonical
+    assert get_type_weight("video_transcript") == 0.9
+E   AssertionError: assert 0.75 == 0.9
+E    +  where 0.75 = <function get_type_weight at 0x13c3eacf0>('video_transcript')
+__________ TestFilterFloor.test_floor_triggered_marks_first_material ___________
+tests/unit/test_supplementary_reranker.py:653: in test_floor_triggered_marks_first_material
+    assert result[0].get("filter_floor_triggered") is True
+E   AssertionError: assert None is True
+E    +  where None = <built-in method get of dict object at 0x149c0db40>('filter_floor_triggered')
+E    +    where <built-in method get of dict object at 0x149c0db40> = {'hub_penalty': 0.0, 'query_overlap': 0.0, 'rerank_score': 0.5, 'score': 0.5, ...}.get
+______________ TestFilterFloor.test_min_keep_zero_disables_floor _______________
+tests/unit/test_supplementary_reranker.py:684: in test_min_keep_zero_disables_floor
+    assert len(result) == 0
+E   AssertionError: assert 5 == 0
+E    +  where 5 = len([{'hub_penalty': 0.0, 'query_overlap': 0.0, 'rerank_score': 0.5, 'score': 0.5, ...}, {'hub_penalty': 0.0, 'query_overl...nk_score': 0.5, 'score': 0.5, ...}, {'hub_penalty': 0.0, 'query_overlap': 0.0, 'rerank_score': 0.5, 'score': 0.5, ...}])
+__________ TestFilterFloor.test_floor_triggered_when_kill_ratio_high ___________
+tests/unit/test_supplementary_reranker.py:698: in test_floor_triggered_when_kill_ratio_high
+    assert result[0].get("filter_floor_triggered") is True
+E   AssertionError: assert None is True
+E    +  where None = <built-in method get of dict object at 0x149c2c840>('filter_floor_triggered')
+E    +    where <built-in method get of dict object at 0x149c2c840> = {'hub_penalty': 0.0, 'query_overlap': 0.0, 'rerank_score': 0.5, 'score': 0.5, ...}.get
+_______________ TestFilterFloor.test_floor_still_respects_top_k ________________
+tests/unit/test_supplementary_reranker.py:710: in test_floor_still_respects_top_k
+    assert result[0].get("filter_floor_triggered") is True
+E   AssertionError: assert None is True
+E    +  where None = <built-in method get of dict object at 0x149c117c0>('filter_floor_triggered')
+E    +    where <built-in method get of dict object at 0x149c117c0> = {'hub_penalty': 0.0, 'query_overlap': 0.0, 'rerank_score': 0.5, 'score': 0.5, ...}.get
+___ TestFilterFloorTaintExclusion.test_min_keep_floor_excludes_review_taint ____
+tests/unit/test_supplementary_reranker.py:752: in test_min_keep_floor_excludes_review_taint
+    assert len(result) == 2
+E   AssertionError: assert 3 == 2
+E    +  where 3 = len([{'hub_penalty': 0.0, 'query_overlap': 0.0, 'rerank_score': 0.5, 'score': 0.5, ...}, {'hub_penalty': 0.0, 'query_overl... 0.5, 'score': 0.5, ...}, {'hub_penalty': 0.0, 'injection_risk': 0.55, 'query_overlap': 0.0, 'rerank_score': 0.5, ...}])
+___ TestFilterFloorTaintExclusion.test_floor_no_taint_field_treated_as_clean ___
+tests/unit/test_supplementary_reranker.py:795: in test_floor_no_taint_field_treated_as_clean
+    assert result[0].get("filter_floor_triggered") is True
+E   AssertionError: assert None is True
+E    +  where None = <built-in method get of dict object at 0x149c78200>('filter_floor_triggered')
+E    +    where <built-in method get of dict object at 0x149c78200> = {'hub_penalty': 0.0, 'query_overlap': 0.0, 'rerank_score': 0.5, 'score': 0.5, ...}.get
+____ TestFilterFloorTaintExclusion.test_floor_all_review_returns_empty_list ____
+tests/unit/test_supplementary_reranker.py:813: in test_floor_all_review_returns_empty_list
+    assert len(result) == 0
+E   AssertionError: assert 5 == 0
+E    +  where 5 = len([{'hub_penalty': 0.0, 'injection_risk': 0.6, 'query_overlap': 0.0, 'rerank_score': 0.5, ...}, {'hub_penalty': 0.0, 'in...'rerank_score': 0.5, ...}, {'hub_penalty': 0.0, 'injection_risk': 0.6, 'query_overlap': 0.0, 'rerank_score': 0.5, ...}])
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:805
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/app/api/v1/endpoints/chat.py:805: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:105
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/app/api/v1/endpoints/metadata.py:105: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:176
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/app/api/v1/endpoints/metadata.py:176: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+tests/unit/test_archive_legacy_lance_tables_g24.py::test_archive_survives_client_schema_repair
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/lib/agentic_rag/clients/lancedb_client.py:955: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    table_names = self._db.table_names()
+
+tests/unit/test_archive_legacy_lance_tables_g24.py: 3 warnings
+tests/unit/test_g24_lance_legacy_table_removal.py: 18 warnings
+  /opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/asyncio/events.py:94: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    self._context.run(self._callback, *self._args)
+
+tests/unit/test_archive_legacy_lance_tables_g24.py::test_archive_survives_client_schema_repair
+tests/unit/test_archive_legacy_lance_tables_g24.py::test_archive_survives_client_schema_repair
+tests/unit/test_g24_lance_legacy_table_removal.py::test_default_vault_write_still_targets_bare_table
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/lib/agentic_rag/clients/lancedb_client.py:3627: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    if table_name not in self._db.table_names():
+
+tests/unit/test_edge_rationale_fallback.py::test_graphiti_ok_lancedb_fail_returns_207
+tests/unit/test_edge_rationale_fallback.py::test_lancedb_ok_graphiti_fail_returns_207
+tests/unit/test_edge_rationale_fallback.py::test_graphiti_exception_does_not_block_lancedb
+tests/unit/test_edge_rationale_fallback.py::test_lancedb_exception_does_not_block_graphiti
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/app/api/v1/endpoints/edges.py:297: DeprecationWarning: deprecated
+    legacy_group_id=rationale.group_id,
+
+tests/unit/test_edge_rationale_fallback.py::test_graphiti_ok_lancedb_fail_returns_207
+tests/unit/test_edge_rationale_fallback.py::test_lancedb_ok_graphiti_fail_returns_207
+tests/unit/test_edge_rationale_fallback.py::test_graphiti_exception_does_not_block_lancedb
+tests/unit/test_edge_rationale_fallback.py::test_lancedb_exception_does_not_block_graphiti
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/app/models/edge_rationale.py:115: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    default_factory=lambda: datetime.utcnow().isoformat(),
+
+tests/unit/test_g24_lance_legacy_table_removal.py::test_bare_table_really_holds_other_vault_rows
+tests/unit/test_g24_lance_legacy_table_removal.py::test_default_vault_still_maps_to_bare_table
+tests/unit/test_g24_lance_legacy_table_removal.py::test_prefixed_missing_no_longer_falls_back_to_bare
+tests/unit/test_g24_lance_legacy_table_removal.py::test_search_raises_table_missing_and_never_opens_bare_table
+tests/unit/test_g24_lance_legacy_table_removal.py::test_table_missing_penetrates_enable_fallback_swallow_gate
+tests/unit/test_g24_lance_legacy_table_removal.py::test_search_supplementary_surfaces_unavailable
+tests/unit/test_g24_lance_legacy_table_removal.py::test_write_creates_prefixed_table_and_leaves_bare_byte_identical
+tests/unit/test_g24_lance_legacy_table_removal.py::test_is_table_absent_distinguishes_missing_from_unopenable
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/tests/unit/test_g24_lance_legacy_table_removal.py:69: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert set(db.table_names()) == {"vault_notes"}
+
+tests/unit/test_g24_lance_legacy_table_removal.py::test_prefixed_missing_no_longer_falls_back_to_bare
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/tests/unit/test_g24_lance_legacy_table_removal.py:122: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert "xvault_vault_notes" not in client._db.table_names()
+
+tests/unit/test_g24_lance_legacy_table_removal.py::test_prefixed_missing_no_longer_falls_back_to_bare
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/tests/unit/test_g24_lance_legacy_table_removal.py:123: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert "vault_notes" in client._db.table_names()
+
+tests/unit/test_g24_lance_legacy_table_removal.py::test_write_creates_prefixed_table_and_leaves_bare_byte_identical
+tests/unit/test_g24_lance_legacy_table_removal.py::test_default_vault_write_still_targets_bare_table
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/lib/agentic_rag/clients/lancedb_client.py:3744: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    if data and table_name in self._db.table_names():
+
+tests/unit/test_g24_lance_legacy_table_removal.py::test_write_creates_prefixed_table_and_leaves_bare_byte_identical
+tests/unit/test_g24_lance_legacy_table_removal.py::test_default_vault_write_still_targets_bare_table
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/lib/agentic_rag/clients/lancedb_client.py:3753: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    if table_name in self._db.table_names():
+
+tests/unit/test_g24_lance_legacy_table_removal.py::test_write_creates_prefixed_table_and_leaves_bare_byte_identical
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/tests/unit/test_g24_lance_legacy_table_removal.py:215: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert "xvault_vault_notes" in db.table_names(), "新 vault 的数据必须落进自己的表"
+
+tests/unit/test_g24_lance_legacy_table_removal.py::test_default_vault_write_still_targets_bare_table
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/tests/unit/test_g24_lance_legacy_table_removal.py:246: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert db2.table_names() == ["vault_notes"], "default vault 不得凭空造 prefixed 表"
+
+tests/unit/test_g24_lance_legacy_table_removal.py::test_is_table_absent_sees_past_default_pagination
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/tests/unit/test_g24_lance_legacy_table_removal.py:285: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert len(list(db.table_names())) == 10, "lancedb 默认分页行为变了, 本锁需重新校准"
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+__________________ test_graphiti_ok_lancedb_fail_returns_207 ___________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)", "logger": "app.core.vault_scope", "level": "warning", "timestamp": "2026-08-31T16:24:57.923713Z"}
+{"event": "Recording edge rationale: edge=edge-test-001, Concept A --[is prerequisite for]--> Concept B (confidence=0.85)", "logger": "app.api.v1.endpoints.edges", "level": "info", "timestamp": "2026-08-31T16:24:57.923846Z"}
+{"event": "Partial dual-write for edge edge-test-001: neo4j=True, lancedb=False", "logger": "app.api.v1.endpoints.edges", "level": "warning", "timestamp": "2026-08-31T16:24:57.924004Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.core.vault_scope:vault_scope.py:195 vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)
+INFO     app.api.v1.endpoints.edges:edges.py:300 Recording edge rationale: edge=edge-test-001, Concept A --[is prerequisite for]--> Concept B (confidence=0.85)
+WARNING  app.api.v1.endpoints.edges:edges.py:329 Partial dual-write for edge edge-test-001: neo4j=True, lancedb=False
+__________________ test_lancedb_ok_graphiti_fail_returns_207 ___________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)", "logger": "app.core.vault_scope", "level": "warning", "timestamp": "2026-08-31T16:24:57.926445Z"}
+{"event": "Recording edge rationale: edge=edge-test-001, Concept A --[is prerequisite for]--> Concept B (confidence=0.85)", "logger": "app.api.v1.endpoints.edges", "level": "info", "timestamp": "2026-08-31T16:24:57.926516Z"}
+{"event": "Partial dual-write for edge edge-test-001: neo4j=False, lancedb=True", "logger": "app.api.v1.endpoints.edges", "level": "warning", "timestamp": "2026-08-31T16:24:57.926636Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.core.vault_scope:vault_scope.py:195 vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)
+INFO     app.api.v1.endpoints.edges:edges.py:300 Recording edge rationale: edge=edge-test-001, Concept A --[is prerequisite for]--> Concept B (confidence=0.85)
+WARNING  app.api.v1.endpoints.edges:edges.py:329 Partial dual-write for edge edge-test-001: neo4j=False, lancedb=True
+________________ test_graphiti_exception_does_not_block_lancedb ________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)", "logger": "app.core.vault_scope", "level": "warning", "timestamp": "2026-08-31T16:24:57.928709Z"}
+{"event": "Recording edge rationale: edge=edge-test-001, Concept A --[is prerequisite for]--> Concept B (confidence=0.85)", "logger": "app.api.v1.endpoints.edges", "level": "info", "timestamp": "2026-08-31T16:24:57.928781Z"}
+{"event": "Partial dual-write for edge edge-test-001: neo4j=False, lancedb=True", "logger": "app.api.v1.endpoints.edges", "level": "warning", "timestamp": "2026-08-31T16:24:57.928910Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.core.vault_scope:vault_scope.py:195 vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)
+INFO     app.api.v1.endpoints.edges:edges.py:300 Recording edge rationale: edge=edge-test-001, Concept A --[is prerequisite for]--> Concept B (confidence=0.85)
+WARNING  app.api.v1.endpoints.edges:edges.py:329 Partial dual-write for edge edge-test-001: neo4j=False, lancedb=True
+________________ test_lancedb_exception_does_not_block_graphiti ________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)", "logger": "app.core.vault_scope", "level": "warning", "timestamp": "2026-08-31T16:24:57.930879Z"}
+{"event": "Recording edge rationale: edge=edge-test-001, Concept A --[is prerequisite for]--> Concept B (confidence=0.85)", "logger": "app.api.v1.endpoints.edges", "level": "info", "timestamp": "2026-08-31T16:24:57.930935Z"}
+{"event": "Partial dual-write for edge edge-test-001: neo4j=True, lancedb=False", "logger": "app.api.v1.endpoints.edges", "level": "warning", "timestamp": "2026-08-31T16:24:57.931050Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.core.vault_scope:vault_scope.py:195 vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)
+INFO     app.api.v1.endpoints.edges:edges.py:300 Recording edge rationale: edge=edge-test-001, Concept A --[is prerequisite for]--> Concept B (confidence=0.85)
+WARNING  app.api.v1.endpoints.edges:edges.py:329 Partial dual-write for edge edge-test-001: neo4j=True, lancedb=False
+________________ test_search_supplementary_surfaces_unavailable ________________
+----------------------------- Captured stdout call -----------------------------
+{"table": "xvault_vault_notes", "query": "\u79c1\u6709\u5185\u5bb9", "event": "[SupplementarySearch] vault \u4e13\u5c5e\u8868\u4e0d\u5b58\u5728 \u2014 fail-closed, \u4e0d\u56de\u9000\u88f8\u8868", "logger": "app.services.supplementary_search_service", "level": "warning", "timestamp": "2026-08-31T16:24:57.957822Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.supplementary_search_service:supplementary_search_service.py:158 {'table': 'xvault_vault_notes', 'query': '私有内容', 'event': '[SupplementarySearch] vault 专属表不存在 — fail-closed, 不回退裸表', 'logger': 'app.services.supplementary_search_service', 'level': 'warning', 'timestamp': '2026-08-31T16:24:57.957822Z'}
+_ TestActiveVaultIdNarrowExceptionAndFallbackWarning.test_active_vault_id_default_fallback_logs_warning _
+----------------------------- Captured stdout call -----------------------------
+{"event": "[LanceDB vault wiring] active_vault_id fell back to 'default' \u2014 both subject_config ContextVar and app.config unavailable (last error: RuntimeError: subject_config accessor wiring outage); possible cross-vault leak", "logger": "agentic_rag.clients.lancedb_client", "level": "warning", "timestamp": "2026-08-31T16:24:58.020051Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  agentic_rag.clients.lancedb_client:lancedb_client.py:753 [LanceDB vault wiring] active_vault_id fell back to 'default' — both subject_config ContextVar and app.config unavailable (last error: RuntimeError: subject_config accessor wiring outage); possible cross-vault leak
+_______ TestAC1AutoTrigger.test_canvas_service_add_node_triggers_lancedb _______
+----------------------------- Captured stdout call -----------------------------
+{"event": "decision_recorded", "logger": "app.core.decision_tracker", "level": "info", "timestamp": "2026-08-31T16:24:58.031624Z"}
+{"event": "Memory client unavailable, skipping event trigger", "logger": "app.services.canvas_service", "level": "warning", "timestamp": "2026-08-31T16:24:58.031664Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.core.decision_tracker:decision_tracker.py:68 decision_recorded
+WARNING  app.services.canvas_service:canvas_service.py:271 {'event': 'Memory client unavailable, skipping event trigger', 'logger': 'app.services.canvas_service', 'level': 'warning', 'timestamp': '2026-08-31T16:24:58.031664Z'}
+_____ TestAC1AutoTrigger.test_canvas_service_update_node_triggers_lancedb ______
+----------------------------- Captured stdout call -----------------------------
+{"event": "Memory client unavailable, skipping event trigger", "logger": "app.services.canvas_service", "level": "warning", "timestamp": "2026-08-31T16:24:58.033665Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.canvas_service:canvas_service.py:271 {'event': 'Memory client unavailable, skipping event trigger', 'logger': 'app.services.canvas_service', 'level': 'warning', 'timestamp': '2026-08-31T16:24:58.033665Z'}
+_______ TestAC1AutoTrigger.test_trigger_lancedb_index_catches_exceptions _______
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.1] Failed to schedule LanceDB index for test_canvas: boom", "logger": "app.services.canvas_service", "level": "warning", "timestamp": "2026-08-31T16:24:58.034642Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.canvas_service:canvas_service.py:387 {'event': '[Story 38.1] Failed to schedule LanceDB index for test_canvas: boom', 'logger': 'app.services.canvas_service', 'level': 'warning', 'timestamp': '2026-08-31T16:24:58.034642Z'}
+_ TestFilterFloorTaintExclusion.test_min_keep_floor_excludes_quarantine_taint __
+----------------------------- Captured stdout call -----------------------------
+{"pre": 2, "post": 2, "threshold": 0.42, "min_keep": 3, "event": "[Rerank] filter_floor_triggered", "logger": "app.services.supplementary_reranker", "level": "warning", "timestamp": "2026-08-31T16:24:58.078008Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.supplementary_reranker:supplementary_reranker.py:219 {'pre': 2, 'post': 2, 'threshold': 0.42, 'min_keep': 3, 'event': '[Rerank] filter_floor_triggered', 'logger': 'app.services.supplementary_reranker', 'level': 'warning', 'timestamp': '2026-08-31T16:24:58.078008Z'}
+__________ TestClassifySnippetTaint.test_quarantine_english_injection __________
+----------------------------- Captured stdout call -----------------------------
+{"check_type": "prompt_injection", "risk_score": 0.95, "is_blocked": true, "matched_patterns": ["role_override:ignore_previous"], "input_length": 77, "input_sha256": "ad7af64c17a9fe32154a135cd5e5cdfe8b9e29d3d3a06441a451958e23bfcc0b", "latency_ms": 0.02, "event": "injection_detection", "logger": "prompt_injection_guard", "level": "warning", "timestamp": "2026-08-31T16:24:58.086859Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  prompt_injection_guard:prompt_injection_guard.py:469 {'check_type': 'prompt_injection', 'risk_score': 0.95, 'is_blocked': True, 'matched_patterns': ['role_override:ignore_previous'], 'input_length': 77, 'input_sha256': 'ad7af64c17a9fe32154a135cd5e5cdfe8b9e29d3d3a06441a451958e23bfcc0b', 'latency_ms': 0.02, 'event': 'injection_detection', 'logger': 'prompt_injection_guard', 'level': 'warning', 'timestamp': '2026-08-31T16:24:58.086859Z'}
+__________ TestClassifySnippetTaint.test_quarantine_chinese_injection __________
+----------------------------- Captured stdout call -----------------------------
+{"check_type": "prompt_injection", "risk_score": 0.85, "is_blocked": true, "matched_patterns": ["output_manipulation:chinese_reveal_prompt"], "input_length": 23, "input_sha256": "aab8ac7fff3b02bea6e1ad4614e546952df8b82417e0dc61cb022743574dd097", "latency_ms": 0.01, "event": "injection_detection", "logger": "prompt_injection_guard", "level": "warning", "timestamp": "2026-08-31T16:24:58.087291Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  prompt_injection_guard:prompt_injection_guard.py:469 {'check_type': 'prompt_injection', 'risk_score': 0.85, 'is_blocked': True, 'matched_patterns': ['output_manipulation:chinese_reveal_prompt'], 'input_length': 23, 'input_sha256': 'aab8ac7fff3b02bea6e1ad4614e546952df8b82417e0dc61cb022743574dd097', 'latency_ms': 0.01, 'event': 'injection_detection', 'logger': 'prompt_injection_guard', 'level': 'warning', 'timestamp': '2026-08-31T16:24:58.087291Z'}
+_______ TestClassifySnippetTaint.test_quarantine_base64_encoding_bypass ________
+----------------------------- Captured stdout call -----------------------------
+{"check_type": "prompt_injection", "risk_score": 0.95, "is_blocked": true, "matched_patterns": ["encoding_bypass:base64:role_override:ignore_previous"], "input_length": 44, "input_sha256": "bcd1056f132cfb82d2145d9e47f0d0a5c7a059a92f2be4cf5b1172ca4ffaf570", "latency_ms": 0.02, "event": "injection_detection", "logger": "prompt_injection_guard", "level": "warning", "timestamp": "2026-08-31T16:24:58.087661Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  prompt_injection_guard:prompt_injection_guard.py:469 {'check_type': 'prompt_injection', 'risk_score': 0.95, 'is_blocked': True, 'matched_patterns': ['encoding_bypass:base64:role_override:ignore_previous'], 'input_length': 44, 'input_sha256': 'bcd1056f132cfb82d2145d9e47f0d0a5c7a059a92f2be4cf5b1172ca4ffaf570', 'latency_ms': 0.02, 'event': 'injection_detection', 'logger': 'prompt_injection_guard', 'level': 'warning', 'timestamp': '2026-08-31T16:24:58.087661Z'}
+___________ TestApplySourcePriority.test_lecture_path_neutral_weight ___________
+----------------------------- Captured stdout call -----------------------------
+{"event": "Loaded reference priority config: 10 rules", "logger": "app.core.reference_config", "level": "info", "timestamp": "2026-08-31T16:24:58.092393Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.core.reference_config:reference_config.py:60 Loaded reference priority config: 10 rules
+_ TestClassifySnippetTaintFailClosed.test_runtime_error_returns_review_fail_closed _
+----------------------------- Captured stdout call -----------------------------
+{"error": "guard backend down", "event": "[SupplementarySearch] prompt_injection_guard \u8fd0\u884c\u65f6\u6545\u969c, fail-closed", "logger": "app.services.supplementary_search_service", "level": "warning", "timestamp": "2026-08-31T16:24:58.094606Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.supplementary_search_service:supplementary_search_service.py:604 {'error': 'guard backend down', 'event': '[SupplementarySearch] prompt_injection_guard 运行时故障, fail-closed', 'logger': 'app.services.supplementary_search_service', 'level': 'warning', 'timestamp': '2026-08-31T16:24:58.094606Z'}
+_ TestLegacyFallbackDegradedPathRemoved.test_table_missing_is_unavailable_with_reason _
+----------------------------- Captured stdout call -----------------------------
+{"table": "myvault_vault_notes", "query": "q", "event": "[SupplementarySearch] vault \u4e13\u5c5e\u8868\u4e0d\u5b58\u5728 \u2014 fail-closed, \u4e0d\u56de\u9000\u88f8\u8868", "logger": "app.services.supplementary_search_service", "level": "warning", "timestamp": "2026-08-31T16:24:58.096686Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.supplementary_search_service:supplementary_search_service.py:158 {'table': 'myvault_vault_notes', 'query': 'q', 'event': '[SupplementarySearch] vault 专属表不存在 — fail-closed, 不回退裸表', 'logger': 'app.services.supplementary_search_service', 'level': 'warning', 'timestamp': '2026-08-31T16:24:58.096686Z'}
+_ TestLegacyFallbackDegradedPathRemoved.test_table_missing_reason_is_distinguishable_from_search_failed _
+----------------------------- Captured stdout call -----------------------------
+{"error": "index corrupted", "query": "q", "event": "[SupplementarySearch] \u641c\u7d22\u5931\u8d25", "logger": "app.services.supplementary_search_service", "level": "warning", "timestamp": "2026-08-31T16:24:58.097195Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.supplementary_search_service:supplementary_search_service.py:175 {'error': 'index corrupted', 'query': 'q', 'event': '[SupplementarySearch] 搜索失败', 'logger': 'app.services.supplementary_search_service', 'level': 'warning', 'timestamp': '2026-08-31T16:24:58.097195Z'}
+_ TestClassifyMaterialTaintMultiField.test_metadata_taint_scan_title_injection _
+----------------------------- Captured stdout call -----------------------------
+{"check_type": "prompt_injection", "risk_score": 0.95, "is_blocked": true, "matched_patterns": ["role_override:ignore_previous"], "input_length": 55, "input_sha256": "a6f433f62f6af7e35139bf2840d23a268c7bef2df4168450d67edd9f1a8550db", "latency_ms": 0.01, "event": "injection_detection", "logger": "prompt_injection_guard", "level": "warning", "timestamp": "2026-08-31T16:24:58.100425Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  prompt_injection_guard:prompt_injection_guard.py:469 {'check_type': 'prompt_injection', 'risk_score': 0.95, 'is_blocked': True, 'matched_patterns': ['role_override:ignore_previous'], 'input_length': 55, 'input_sha256': 'a6f433f62f6af7e35139bf2840d23a268c7bef2df4168450d67edd9f1a8550db', 'latency_ms': 0.01, 'event': 'injection_detection', 'logger': 'prompt_injection_guard', 'level': 'warning', 'timestamp': '2026-08-31T16:24:58.100425Z'}
+_ TestClassifyMaterialTaintMultiField.test_metadata_taint_scan_source_path_injection _
+----------------------------- Captured stdout call -----------------------------
+{"check_type": "prompt_injection", "risk_score": 0.95, "is_blocked": true, "matched_patterns": ["role_override:ignore_previous"], "input_length": 52, "input_sha256": "4616acab97da311ab53778f01debcbcf479d4d16497a1c07e99408cb0879f4c2", "latency_ms": 0.01, "event": "injection_detection", "logger": "prompt_injection_guard", "level": "warning", "timestamp": "2026-08-31T16:24:58.100822Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  prompt_injection_guard:prompt_injection_guard.py:469 {'check_type': 'prompt_injection', 'risk_score': 0.95, 'is_blocked': True, 'matched_patterns': ['role_override:ignore_previous'], 'input_length': 52, 'input_sha256': '4616acab97da311ab53778f01debcbcf479d4d16497a1c07e99408cb0879f4c2', 'latency_ms': 0.01, 'event': 'injection_detection', 'logger': 'prompt_injection_guard', 'level': 'warning', 'timestamp': '2026-08-31T16:24:58.100822Z'}
+_ TestClassifyMaterialTaintMultiField.test_metadata_taint_scan_wikilink_injection _
+----------------------------- Captured stdout call -----------------------------
+{"check_type": "prompt_injection", "risk_score": 0.95, "is_blocked": true, "matched_patterns": ["role_override:ignore_previous"], "input_length": 61, "input_sha256": "5054282e41fa5d7b7e070160e8b03e933799369a92fd97c3c34d820478b710a9", "latency_ms": 0.02, "event": "injection_detection", "logger": "prompt_injection_guard", "level": "warning", "timestamp": "2026-08-31T16:24:58.101195Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  prompt_injection_guard:prompt_injection_guard.py:469 {'check_type': 'prompt_injection', 'risk_score': 0.95, 'is_blocked': True, 'matched_patterns': ['role_override:ignore_previous'], 'input_length': 61, 'input_sha256': '5054282e41fa5d7b7e070160e8b03e933799369a92fd97c3c34d820478b710a9', 'latency_ms': 0.02, 'event': 'injection_detection', 'logger': 'prompt_injection_guard', 'level': 'warning', 'timestamp': '2026-08-31T16:24:58.101195Z'}
+_ TestClassifyMaterialTaintMultiField.test_worst_takes_all_picks_highest_severity _
+----------------------------- Captured stdout call -----------------------------
+{"check_type": "prompt_injection", "risk_score": 0.95, "is_blocked": true, "matched_patterns": ["role_override:ignore_previous"], "input_length": 57, "input_sha256": "babaeb35857b4770ddc7ed6b91e5a317c1afaa70c1eacda697815610636a6347", "latency_ms": 0.01, "event": "injection_detection", "logger": "prompt_injection_guard", "level": "warning", "timestamp": "2026-08-31T16:24:58.101879Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  prompt_injection_guard:prompt_injection_guard.py:469 {'check_type': 'prompt_injection', 'risk_score': 0.95, 'is_blocked': True, 'matched_patterns': ['role_override:ignore_previous'], 'input_length': 57, 'input_sha256': 'babaeb35857b4770ddc7ed6b91e5a317c1afaa70c1eacda697815610636a6347', 'latency_ms': 0.01, 'event': 'injection_detection', 'logger': 'prompt_injection_guard', 'level': 'warning', 'timestamp': '2026-08-31T16:24:58.101879Z'}
+_ TestFormatSupplementaryXmlMetadataRedaction.test_partial_field_clean_others_tainted _
+----------------------------- Captured stdout call -----------------------------
+{"check_type": "prompt_injection", "risk_score": 0.95, "is_blocked": true, "matched_patterns": ["role_override:ignore_previous"], "input_length": 55, "input_sha256": "a6f433f62f6af7e35139bf2840d23a268c7bef2df4168450d67edd9f1a8550db", "latency_ms": 0.01, "event": "injection_detection", "logger": "prompt_injection_guard", "level": "warning", "timestamp": "2026-08-31T16:24:58.103552Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  prompt_injection_guard:prompt_injection_guard.py:469 {'check_type': 'prompt_injection', 'risk_score': 0.95, 'is_blocked': True, 'matched_patterns': ['role_override:ignore_previous'], 'input_length': 55, 'input_sha256': 'a6f433f62f6af7e35139bf2840d23a268c7bef2df4168450d67edd9f1a8550db', 'latency_ms': 0.01, 'event': 'injection_detection', 'logger': 'prompt_injection_guard', 'level': 'warning', 'timestamp': '2026-08-31T16:24:58.103552Z'}
+____ TestTier2BranchRemoved.test_hybrid_failure_still_falls_back_to_vector _____
+----------------------------- Captured stdout call -----------------------------
+{"error": "hybrid index broken", "event": "[SupplementarySearch] hybrid \u5931\u8d25\uff0c\u56de\u9000\u5230 vector-only", "logger": "app.services.supplementary_search_service", "level": "warning", "timestamp": "2026-08-31T16:24:58.105877Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.supplementary_search_service:supplementary_search_service.py:874 {'error': 'hybrid index broken', 'event': '[SupplementarySearch] hybrid 失败，回退到 vector-only', 'logger': 'app.services.supplementary_search_service', 'level': 'warning', 'timestamp': '2026-08-31T16:24:58.105877Z'}
+_ test_frontmatter_reader_matches_writer[---\ntype: [unclosed\n---\nx\n-(none)] _
+----------------------------- Captured stdout call -----------------------------
+{"event": "[frontmatter] Failed to parse YAML frontmatter, skipping metadata extraction", "logger": "agentic_rag.clients.lancedb_client", "level": "warning", "timestamp": "2026-08-31T16:25:52.250293Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  agentic_rag.clients.lancedb_client:lancedb_client.py:2250 [frontmatter] Failed to parse YAML frontmatter, skipping metadata extraction
+__________ test_frontmatter_reader_is_equivalent_to_writer[bad-yaml] ___________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[frontmatter] Failed to parse YAML frontmatter, skipping metadata extraction", "logger": "agentic_rag.clients.lancedb_client", "level": "warning", "timestamp": "2026-08-31T16:26:09.892317Z"}
+{"event": "[frontmatter] Failed to parse YAML frontmatter, skipping metadata extraction", "logger": "agentic_rag.clients.lancedb_client", "level": "warning", "timestamp": "2026-08-31T16:26:09.892532Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  agentic_rag.clients.lancedb_client:lancedb_client.py:2250 [frontmatter] Failed to parse YAML frontmatter, skipping metadata extraction
+WARNING  agentic_rag.clients.lancedb_client:lancedb_client.py:2250 [frontmatter] Failed to parse YAML frontmatter, skipping metadata extraction
+=========================== short test summary info ============================
+PASSED tests/unit/test_archive_legacy_lance_tables_g24.py::test_classify_table_is_decidable
+PASSED tests/unit/test_archive_legacy_lance_tables_g24.py::test_unknown_bare_table_is_pending_not_clean
+PASSED tests/unit/test_archive_legacy_lance_tables_g24.py::test_digest_is_type_sensitive
+PASSED tests/unit/test_archive_legacy_lance_tables_g24.py::test_capitalized_default_is_single_vault
+PASSED tests/unit/test_archive_legacy_lance_tables_g24.py::test_uri_db_path_is_refused
+PASSED tests/unit/test_archive_legacy_lance_tables_g24.py::test_apply_refuses_live_store
+PASSED tests/unit/test_archive_legacy_lance_tables_g24.py::test_targets_live_store_is_not_substring_match
+PASSED tests/unit/test_archive_legacy_lance_tables_g24.py::test_out_inside_db_tree_is_refused
+PASSED tests/unit/test_archive_legacy_lance_tables_g24.py::test_archive_dir_inside_db_tree_is_refused
+PASSED tests/unit/test_archive_legacy_lance_tables_g24.py::test_dry_run_flags_bare_table_and_writes_nothing
+PASSED tests/unit/test_archive_legacy_lance_tables_g24.py::test_dry_run_exit_zero_when_no_bare_table
+PASSED tests/unit/test_archive_legacy_lance_tables_g24.py::test_live_shaped_fixture_flags_bare_fingerprints
+PASSED tests/unit/test_archive_legacy_lance_tables_g24.py::test_apply_exports_parquet_outside_db_then_drops
+PASSED tests/unit/test_archive_legacy_lance_tables_g24.py::test_archive_survives_client_schema_repair
+PASSED tests/unit/test_archive_legacy_lance_tables_g24.py::test_apply_aborts_without_dropping_when_reconciliation_fails
+PASSED tests/unit/test_edge_rationale_fallback.py::test_graphiti_ok_lancedb_fail_returns_207
+PASSED tests/unit/test_edge_rationale_fallback.py::test_lancedb_ok_graphiti_fail_returns_207
+PASSED tests/unit/test_edge_rationale_fallback.py::test_graphiti_exception_does_not_block_lancedb
+PASSED tests/unit/test_edge_rationale_fallback.py::test_lancedb_exception_does_not_block_graphiti
+PASSED tests/unit/test_g24_lance_legacy_table_removal.py::test_bare_table_really_holds_other_vault_rows
+PASSED tests/unit/test_g24_lance_legacy_table_removal.py::test_default_vault_still_maps_to_bare_table
+PASSED tests/unit/test_g24_lance_legacy_table_removal.py::test_prefixed_missing_no_longer_falls_back_to_bare
+PASSED tests/unit/test_g24_lance_legacy_table_removal.py::test_search_raises_table_missing_and_never_opens_bare_table
+PASSED tests/unit/test_g24_lance_legacy_table_removal.py::test_table_missing_penetrates_enable_fallback_swallow_gate
+PASSED tests/unit/test_g24_lance_legacy_table_removal.py::test_search_supplementary_surfaces_unavailable
+PASSED tests/unit/test_g24_lance_legacy_table_removal.py::test_write_creates_prefixed_table_and_leaves_bare_byte_identical
+PASSED tests/unit/test_g24_lance_legacy_table_removal.py::test_default_vault_write_still_targets_bare_table
+PASSED tests/unit/test_g24_lance_legacy_table_removal.py::test_is_table_absent_distinguishes_missing_from_unopenable
+PASSED tests/unit/test_g24_lance_legacy_table_removal.py::test_is_table_absent_sees_past_default_pagination
+PASSED tests/unit/test_hybrid_search_activation.py::TestDefaultSearchModeIsHybrid::test_lancedb_client_search_default_query_type_is_hybrid
+PASSED tests/unit/test_hybrid_search_activation.py::TestDefaultSearchModeIsHybrid::test_lancedb_client_search_internal_default_query_type_is_hybrid
+PASSED tests/unit/test_lancedb_isolation_assertions.py::test_lancedb_vault_id_prefix_isolation_design
+PASSED tests/unit/test_lancedb_isolation_assertions.py::test_lancedb_vault_id_with_special_chars_sanitized
+PASSED tests/unit/test_lancedb_isolation_assertions.py::test_build_vault_group_id_output_works_with_cypher_helper
+PASSED tests/unit/test_lancedb_isolation_assertions.py::test_assert_group_id_required_accepts_vault_format
+PASSED tests/unit/test_lancedb_isolation_assertions.py::test_default_subject_id_should_not_pass_strict_assert
+PASSED tests/unit/test_lancedb_isolation_assertions.py::test_different_vault_ids_yield_different_group_ids[cs_61b-\u6570\u5b66-True]
+PASSED tests/unit/test_lancedb_isolation_assertions.py::test_different_vault_ids_yield_different_group_ids[cs_61b-ml-True]
+PASSED tests/unit/test_lancedb_isolation_assertions.py::test_different_vault_ids_yield_different_group_ids[\u6570\u5b66-\u7269\u7406-True]
+PASSED tests/unit/test_lancedb_isolation_assertions.py::test_different_vault_ids_yield_different_group_ids[CS 61B-cs 61b-False]
+PASSED tests/unit/test_lancedb_isolation_assertions.py::test_subject_canvas_path_subdivision_not_collide_with_other_vault
+PASSED tests/unit/test_lancedb_isolation_assertions.py::test_cypher_query_without_group_id_rejected
+PASSED tests/unit/test_lancedb_isolation_assertions.py::test_cypher_query_uses_parameterized_binding
+PASSED tests/unit/test_lancedb_isolation_assertions.py::test_known_limitation_cross_canvas_retriever_placeholder
+PASSED tests/unit/test_lancedb_vault_isolation.py::TestResolveTableName::test_prefixes_with_vault_id
+PASSED tests/unit/test_lancedb_vault_isolation.py::TestResolveTableName::test_default_vault_no_prefix
+PASSED tests/unit/test_lancedb_vault_isolation.py::TestResolveTableName::test_no_double_prefix
+PASSED tests/unit/test_lancedb_vault_isolation.py::TestResolveTableName::test_empty_vault_id_no_prefix
+PASSED tests/unit/test_lancedb_vault_isolation.py::TestResolveTableName::test_active_vault_id_property
+PASSED tests/unit/test_lancedb_vault_isolation.py::TestActiveVaultIdReadsSubjectContextVar::test_active_vault_id_reads_subject_contextvar
+PASSED tests/unit/test_lancedb_vault_isolation.py::TestActiveVaultIdReadsSubjectContextVar::test_active_vault_id_strips_subject_suffix
+PASSED tests/unit/test_lancedb_vault_isolation.py::TestActiveVaultIdReadsSubjectContextVar::test_active_vault_id_resolve_table_name_uses_contextvar
+PASSED tests/unit/test_lancedb_vault_isolation.py::TestActiveVaultIdReadsSubjectContextVar::test_active_vault_id_override_wins_over_contextvar
+PASSED tests/unit/test_lancedb_vault_isolation.py::TestActiveVaultIdFallbackWhenNoContextVar::test_active_vault_id_fallback_when_no_contextvar
+PASSED tests/unit/test_lancedb_vault_isolation.py::TestActiveVaultIdNarrowExceptionAndFallbackWarning::test_active_vault_id_default_fallback_logs_warning
+PASSED tests/unit/test_lancedb_vault_isolation.py::TestActiveVaultIdNarrowExceptionAndFallbackWarning::test_active_vault_id_level2_exception_specific_only
+PASSED tests/unit/test_story_38_1_ac1_auto_trigger.py::TestAC1AutoTrigger::test_config_enable_lancedb_auto_index_default_true
+PASSED tests/unit/test_story_38_1_ac1_auto_trigger.py::TestAC1AutoTrigger::test_canvas_service_add_node_triggers_lancedb
+PASSED tests/unit/test_story_38_1_ac1_auto_trigger.py::TestAC1AutoTrigger::test_canvas_service_update_node_triggers_lancedb
+PASSED tests/unit/test_story_38_1_ac1_auto_trigger.py::TestAC1AutoTrigger::test_trigger_lancedb_index_catches_exceptions
+PASSED tests/unit/test_story_38_1_ac3_startup_recovery.py::TestSingletonAndCleanup::test_get_lancedb_index_service_returns_singleton
+PASSED tests/unit/test_story_38_1_ac3_startup_recovery.py::TestSingletonAndCleanup::test_get_lancedb_index_service_returns_none_when_disabled
+PASSED tests/unit/test_story_38_1_review_fixes.py::TestReviewM4DeleteNodeTrigger::test_delete_node_triggers_lancedb_index
+PASSED tests/unit/test_supplementary_reranker.py::TestTypeWeights::test_six_canonical_types_present_and_descending
+PASSED tests/unit/test_supplementary_reranker.py::TestTypeWeights::test_default_below_all_canonical
+PASSED tests/unit/test_supplementary_reranker.py::TestGetTypeWeight::test_known_type_returns_table_value
+PASSED tests/unit/test_supplementary_reranker.py::TestGetTypeWeight::test_none_returns_default
+PASSED tests/unit/test_supplementary_reranker.py::TestGetTypeWeight::test_empty_string_returns_default
+PASSED tests/unit/test_supplementary_reranker.py::TestGetTypeWeight::test_unknown_type_returns_default
+PASSED tests/unit/test_supplementary_reranker.py::TestRerank::test_empty_input_returns_empty
+PASSED tests/unit/test_supplementary_reranker.py::TestRerank::test_higher_type_weight_wins_when_relevance_tied
+PASSED tests/unit/test_supplementary_reranker.py::TestRerank::test_relevance_can_overcome_type_weight
+PASSED tests/unit/test_supplementary_reranker.py::TestRerank::test_full_tie_fallback_to_title_lexicographic
+PASSED tests/unit/test_supplementary_reranker.py::TestRerank::test_each_material_gets_rerank_score_and_type_weight_field
+PASSED tests/unit/test_supplementary_reranker.py::TestRerank::test_unknown_source_type_uses_default_weight
+PASSED tests/unit/test_supplementary_reranker.py::TestRerank::test_missing_source_type_field_uses_default
+PASSED tests/unit/test_supplementary_reranker.py::TestRerank::test_missing_score_treated_as_zero
+PASSED tests/unit/test_supplementary_reranker.py::TestRerank::test_top_k_truncates
+PASSED tests/unit/test_supplementary_reranker.py::TestRerank::test_top_k_none_returns_all
+PASSED tests/unit/test_supplementary_reranker.py::TestRerank::test_custom_type_weights_override
+PASSED tests/unit/test_supplementary_reranker.py::TestRerank::test_mixed_canonical_and_unknown_ordering
+PASSED tests/unit/test_supplementary_reranker.py::TestRerankQueryOverlap::test_query_overlap_field_zero_when_no_query
+PASSED tests/unit/test_supplementary_reranker.py::TestRerankQueryOverlap::test_query_overlap_field_zero_when_empty_query
+PASSED tests/unit/test_supplementary_reranker.py::TestRerankQueryOverlap::test_query_match_boosts_score
+PASSED tests/unit/test_supplementary_reranker.py::TestRerankQueryOverlap::test_query_overlap_normalized_to_unit_range
+PASSED tests/unit/test_supplementary_reranker.py::TestRerankQueryOverlap::test_explicit_zero_overlap_weight_disables_query_influence
+PASSED tests/unit/test_supplementary_reranker.py::TestRerankQueryOverlap::test_chinese_query_match
+PASSED tests/unit/test_supplementary_reranker.py::TestRerankQueryOverlap::test_no_match_query_overlap_zero
+PASSED tests/unit/test_supplementary_reranker.py::TestRerankQueryOverlap::test_query_overlap_combined_with_type_weight
+PASSED tests/unit/test_supplementary_reranker.py::TestHubPenalty::test_zero_degree_no_penalty
+PASSED tests/unit/test_supplementary_reranker.py::TestHubPenalty::test_zero_median_no_penalty
+PASSED tests/unit/test_supplementary_reranker.py::TestHubPenalty::test_negative_degree_clamped_to_zero
+PASSED tests/unit/test_supplementary_reranker.py::TestHubPenalty::test_degree_equal_median_yields_ln_2
+PASSED tests/unit/test_supplementary_reranker.py::TestHubPenalty::test_higher_degree_higher_penalty
+PASSED tests/unit/test_supplementary_reranker.py::TestHubPenalty::test_rerank_hub_penalty_field_present
+PASSED tests/unit/test_supplementary_reranker.py::TestHubPenalty::test_rerank_default_median_no_penalty
+PASSED tests/unit/test_supplementary_reranker.py::TestHubPenalty::test_hub_penalty_demotes_high_degree_node
+PASSED tests/unit/test_supplementary_reranker.py::TestHubPenalty::test_no_degree_field_means_no_penalty
+PASSED tests/unit/test_supplementary_reranker.py::TestHubPenalty::test_all_four_dimensions_combined
+PASSED tests/unit/test_supplementary_reranker.py::TestFilterThreshold::test_get_filter_threshold_default
+PASSED tests/unit/test_supplementary_reranker.py::TestFilterThreshold::test_get_filter_threshold_custom_ratio
+PASSED tests/unit/test_supplementary_reranker.py::TestFilterThreshold::test_rerank_min_score_threshold_filters_below
+PASSED tests/unit/test_supplementary_reranker.py::TestFilterThreshold::test_rerank_no_threshold_keeps_all
+PASSED tests/unit/test_supplementary_reranker.py::TestFilterThreshold::test_filter_before_truncate_preserves_quality
+PASSED tests/unit/test_supplementary_reranker.py::TestFilterThreshold::test_top_k_applied_after_filter
+PASSED tests/unit/test_supplementary_reranker.py::TestTypeWeightsIndexerTransition::test_indexer_image_ocr_mapped_to_low_canonical
+PASSED tests/unit/test_supplementary_reranker.py::TestTypeWeightsIndexerTransition::test_prd_six_categories_still_present
+PASSED tests/unit/test_supplementary_reranker.py::TestTypeWeightsIndexerTransition::test_real_indexer_data_clears_default_filter
+PASSED tests/unit/test_supplementary_reranker.py::TestFilterFloor::test_floor_not_triggered_when_enough_pass
+PASSED tests/unit/test_supplementary_reranker.py::TestFilterFloorTaintExclusion::test_min_keep_floor_excludes_quarantine_taint
+PASSED tests/unit/test_supplementary_search_service.py::TestClassifySnippetTaint::test_clean_normal_snippet
+PASSED tests/unit/test_supplementary_search_service.py::TestClassifySnippetTaint::test_clean_chinese_concept
+PASSED tests/unit/test_supplementary_search_service.py::TestClassifySnippetTaint::test_quarantine_english_injection
+PASSED tests/unit/test_supplementary_search_service.py::TestClassifySnippetTaint::test_quarantine_chinese_injection
+PASSED tests/unit/test_supplementary_search_service.py::TestClassifySnippetTaint::test_quarantine_base64_encoding_bypass
+PASSED tests/unit/test_supplementary_search_service.py::TestClassifySnippetTaint::test_empty_snippet_clean
+PASSED tests/unit/test_supplementary_search_service.py::TestClassifySnippetTaint::test_classify_returns_dict_with_required_keys
+PASSED tests/unit/test_supplementary_search_service.py::TestFormatSupplementaryXmlTaintAware::test_clean_material_outputs_full_snippet
+PASSED tests/unit/test_supplementary_search_service.py::TestFormatSupplementaryXmlTaintAware::test_quarantine_material_blocks_snippet_content
+PASSED tests/unit/test_supplementary_search_service.py::TestFormatSupplementaryXmlTaintAware::test_review_material_truncates_to_240_chars
+PASSED tests/unit/test_supplementary_search_service.py::TestFormatSupplementaryXmlTaintAware::test_degraded_returns_self_closing_tag
+PASSED tests/unit/test_supplementary_search_service.py::TestFormatSupplementaryXmlRerankFields::test_rerank_fields_rendered_when_present
+PASSED tests/unit/test_supplementary_search_service.py::TestFormatSupplementaryXmlRerankFields::test_rerank_fields_absent_when_not_reranked
+PASSED tests/unit/test_supplementary_search_service.py::TestFormatSupplementaryXmlRerankFields::test_partial_rerank_fields_renders_what_exists
+PASSED tests/unit/test_supplementary_search_service.py::TestElbowScoreFloor::test_empty_materials_no_floor
+PASSED tests/unit/test_supplementary_search_service.py::TestElbowScoreFloor::test_uniform_scores_no_floor
+PASSED tests/unit/test_supplementary_search_service.py::TestElbowScoreFloor::test_significant_drop_sets_floor_at_cliff_bottom
+PASSED tests/unit/test_supplementary_search_service.py::TestElbowScoreFloor::test_hard_cap_enforced_in_pipeline
+PASSED tests/unit/test_supplementary_search_service.py::TestApplySourcePriority::test_lecture_path_neutral_weight
+PASSED tests/unit/test_supplementary_search_service.py::TestApplySourcePriority::test_explanation_path_gets_demote
+PASSED tests/unit/test_supplementary_search_service.py::TestApplySourcePriority::test_whiteboard_path_gets_demote
+PASSED tests/unit/test_supplementary_search_service.py::TestApplySourcePriority::test_node_path_gets_boost
+PASSED tests/unit/test_supplementary_search_service.py::TestApplySourcePriority::test_unmatched_path_keeps_score
+PASSED tests/unit/test_supplementary_search_service.py::TestApplySourcePriority::test_results_resorted_by_score_desc
+PASSED tests/unit/test_supplementary_search_service.py::TestClassifySnippetTaintFailClosed::test_runtime_error_returns_review_fail_closed
+PASSED tests/unit/test_supplementary_search_service.py::TestClassifySnippetTaintFailClosed::test_import_error_still_returns_clean
+PASSED tests/unit/test_supplementary_search_service.py::TestLegacyFallbackDegradedPathRemoved::test_row_carrying_legacy_flag_no_longer_degrades_top_level
+PASSED tests/unit/test_supplementary_search_service.py::TestLegacyFallbackDegradedPathRemoved::test_normal_hit_is_ok_status
+PASSED tests/unit/test_supplementary_search_service.py::TestLegacyFallbackDegradedPathRemoved::test_table_missing_is_unavailable_with_reason
+PASSED tests/unit/test_supplementary_search_service.py::TestLegacyFallbackDegradedPathRemoved::test_table_missing_reason_is_distinguishable_from_search_failed
+PASSED tests/unit/test_supplementary_search_service.py::TestIsLinkListChunk::test_pure_link_list_returns_true
+PASSED tests/unit/test_supplementary_search_service.py::TestIsLinkListChunk::test_prose_with_one_link_returns_false
+PASSED tests/unit/test_supplementary_search_service.py::TestIsLinkListChunk::test_zero_links_returns_false
+PASSED tests/unit/test_supplementary_search_service.py::TestIsLinkListChunk::test_empty_content_returns_false
+PASSED tests/unit/test_supplementary_search_service.py::TestIsLinkListChunk::test_link_list_with_some_prose_still_true_at_high_threshold
+PASSED tests/unit/test_supplementary_search_service.py::TestIsLinkListChunk::test_threshold_parameter_tunable
+PASSED tests/unit/test_supplementary_search_service.py::TestFormatSupplementaryXmlLinkListAttr::test_renders_is_link_list_attr_when_true
+PASSED tests/unit/test_supplementary_search_service.py::TestFormatSupplementaryXmlLinkListAttr::test_no_attr_when_false_or_absent
+PASSED tests/unit/test_supplementary_search_service.py::TestReviewTaintFailClosedPlaceholder::test_review_taint_outputs_placeholder_not_truncated_snippet
+PASSED tests/unit/test_supplementary_search_service.py::TestReviewTaintFailClosedPlaceholder::test_review_taint_placeholder_format_stable
+PASSED tests/unit/test_supplementary_search_service.py::TestClassifyMaterialTaintMultiField::test_metadata_taint_scan_title_injection
+PASSED tests/unit/test_supplementary_search_service.py::TestClassifyMaterialTaintMultiField::test_metadata_taint_scan_source_path_injection
+PASSED tests/unit/test_supplementary_search_service.py::TestClassifyMaterialTaintMultiField::test_metadata_taint_scan_wikilink_injection
+PASSED tests/unit/test_supplementary_search_service.py::TestClassifyMaterialTaintMultiField::test_all_clean_fields_returns_clean
+PASSED tests/unit/test_supplementary_search_service.py::TestClassifyMaterialTaintMultiField::test_worst_takes_all_picks_highest_severity
+PASSED tests/unit/test_supplementary_search_service.py::TestClassifyMaterialTaintMultiField::test_returns_dict_with_required_keys
+PASSED tests/unit/test_supplementary_search_service.py::TestFormatSupplementaryXmlMetadataRedaction::test_review_taint_redacts_title_wikilink_source_path
+PASSED tests/unit/test_supplementary_search_service.py::TestFormatSupplementaryXmlMetadataRedaction::test_quarantine_taint_redacts_all_metadata
+PASSED tests/unit/test_supplementary_search_service.py::TestFormatSupplementaryXmlMetadataRedaction::test_clean_taint_keeps_metadata_unredacted
+PASSED tests/unit/test_supplementary_search_service.py::TestFormatSupplementaryXmlMetadataRedaction::test_partial_field_clean_others_tainted
+PASSED tests/unit/test_supplementary_search_service.py::TestTier2BranchRemoved::test_env_gate_helper_is_gone
+PASSED tests/unit/test_supplementary_search_service.py::TestTier2BranchRemoved::test_two_tier_name_replaced_by_vault_scoped
+PASSED tests/unit/test_supplementary_search_service.py::TestTier2BranchRemoved::test_env_var_is_inert_no_bare_table_access
+PASSED tests/unit/test_supplementary_search_service.py::TestTier2BranchRemoved::test_table_missing_propagates_not_swallowed
+PASSED tests/unit/test_supplementary_search_service.py::TestTier2BranchRemoved::test_hybrid_failure_still_falls_back_to_vector
+PASSED tests/unit/test_vault_doc_roles.py::test_schema_completeness
+PASSED tests/unit/test_vault_doc_roles.py::test_dual_columns_required
+PASSED tests/unit/test_vault_doc_roles.py::test_divergence_rows_require_reason
+PASSED tests/unit/test_vault_doc_roles.py::test_fingerprint_contract
+PASSED tests/unit/test_vault_doc_roles.py::test_unregistered_types_detected
+PASSED tests/unit/test_vault_doc_roles.py::test_doc_type_whitelist_aligns_with_g4_16
+PASSED tests/unit/test_vault_doc_roles.py::test_anti_softening_gates
+PASSED tests/unit/test_vault_doc_roles.py::test_checker_is_read_only
+PASSED tests/unit/test_vault_doc_roles.py::test_live_vault_enforce_clean
+PASSED tests/unit/test_vault_doc_roles.py::test_registered_divergence_class_is_not_reported_as_bug
+PASSED tests/unit/test_vault_doc_roles.py::test_new_divergence_class_is_reported
+PASSED tests/unit/test_vault_doc_roles.py::test_derived_surface_and_repo_docs_are_judged
+PASSED tests/unit/test_vault_doc_roles.py::test_frontmatter_type_lists_are_tight
+PASSED tests/unit/test_vault_doc_roles.py::test_degraded_gate_cannot_masquerade_as_full_pass
+PASSED tests/unit/test_vault_doc_roles.py::test_catch_all_detection_is_semantic[**-True]
+PASSED tests/unit/test_vault_doc_roles.py::test_catch_all_detection_is_semantic[**/*-True]
+PASSED tests/unit/test_vault_doc_roles.py::test_catch_all_detection_is_semantic[*/**-True]
+PASSED tests/unit/test_vault_doc_roles.py::test_catch_all_detection_is_semantic[/**-True]
+PASSED tests/unit/test_vault_doc_roles.py::test_catch_all_detection_is_semantic[**/**-True]
+PASSED tests/unit/test_vault_doc_roles.py::test_catch_all_detection_is_semantic[**/?*-True]
+PASSED tests/unit/test_vault_doc_roles.py::test_catch_all_detection_is_semantic[*-True]
+PASSED tests/unit/test_vault_doc_roles.py::test_catch_all_detection_is_semantic[?*-True]
+PASSED tests/unit/test_vault_doc_roles.py::test_catch_all_detection_is_semantic[\u8282\u70b9/**-False]
+PASSED tests/unit/test_vault_doc_roles.py::test_catch_all_detection_is_semantic[raw/**-False]
+PASSED tests/unit/test_vault_doc_roles.py::test_catch_all_detection_is_semantic[**/chunks/**-False]
+PASSED tests/unit/test_vault_doc_roles.py::test_catch_all_detection_is_semantic[**/.obsidian/**-False]
+PASSED tests/unit/test_vault_doc_roles.py::test_catch_all_detection_is_semantic[*.md-False]
+PASSED tests/unit/test_vault_doc_roles.py::test_catch_all_detection_is_semantic[**/*.M[Dd]-False]
+PASSED tests/unit/test_vault_doc_roles.py::test_catch_all_detection_is_semantic[outputs/\u56de\u987e-*.md-False]
+PASSED tests/unit/test_vault_doc_roles.py::test_catch_all_detection_is_semantic[[a-z]*-False]
+PASSED tests/unit/test_vault_doc_roles.py::test_catch_all_detection_is_semantic[?-False]
+PASSED tests/unit/test_vault_doc_roles.py::test_frontmatter_reader_matches_writer[---\ntype: concept\n---\nx\n-concept]
+PASSED tests/unit/test_vault_doc_roles.py::test_frontmatter_reader_matches_writer[---\ntype : rogue\n---\nx\n-rogue]
+PASSED tests/unit/test_vault_doc_roles.py::test_frontmatter_reader_matches_writer[---\n"type": rogue2\n---\nx\n-rogue2]
+PASSED tests/unit/test_vault_doc_roles.py::test_frontmatter_reader_matches_writer[---\ntype:   rogue3   \n---\nx\n-rogue3]
+PASSED tests/unit/test_vault_doc_roles.py::test_frontmatter_reader_matches_writer[---\ntype: Concept\n---\nx\n-concept]
+PASSED tests/unit/test_vault_doc_roles.py::test_frontmatter_reader_matches_writer[---\nTYPE: rogue4\n---\nx\n-(none)]
+PASSED tests/unit/test_vault_doc_roles.py::test_frontmatter_reader_matches_writer[no frontmatter\n-(none)]
+PASSED tests/unit/test_vault_doc_roles.py::test_frontmatter_reader_matches_writer[---\n---\nx\n-(none)]
+PASSED tests/unit/test_vault_doc_roles.py::test_frontmatter_reader_matches_writer[---\ntype: [unclosed\n---\nx\n-(none)]
+PASSED tests/unit/test_vault_doc_roles.py::test_rogue_type_variant_is_caught_by_scan
+PASSED tests/unit/test_vault_doc_roles.py::test_cross_role_symlink_is_not_covered_by_registered_divergence
+PASSED tests/unit/test_vault_doc_roles.py::test_resolution_stability_helper
+PASSED tests/unit/test_vault_doc_roles.py::test_contract_validates_structure_not_truthiness
+PASSED tests/unit/test_vault_doc_roles.py::test_any_level_rows_declare_governance_scope
+PASSED tests/unit/test_vault_doc_roles.py::test_frontmatter_reader_is_equivalent_to_writer[plain]
+PASSED tests/unit/test_vault_doc_roles.py::test_frontmatter_reader_is_equivalent_to_writer[space-before-colon]
+PASSED tests/unit/test_vault_doc_roles.py::test_frontmatter_reader_is_equivalent_to_writer[quoted-key]
+PASSED tests/unit/test_vault_doc_roles.py::test_frontmatter_reader_is_equivalent_to_writer[value-case]
+PASSED tests/unit/test_vault_doc_roles.py::test_frontmatter_reader_is_equivalent_to_writer[upper-key]
+PASSED tests/unit/test_vault_doc_roles.py::test_frontmatter_reader_is_equivalent_to_writer[bad-yaml]
+PASSED tests/unit/test_vault_doc_roles.py::test_frontmatter_reader_is_equivalent_to_writer[crlf]
+PASSED tests/unit/test_vault_doc_roles.py::test_frontmatter_reader_is_equivalent_to_writer[open-trailing-space]
+PASSED tests/unit/test_vault_doc_roles.py::test_frontmatter_reader_is_equivalent_to_writer[close-trailing-space]
+PASSED tests/unit/test_vault_doc_roles.py::test_frontmatter_reader_is_equivalent_to_writer[dots-terminator]
+PASSED tests/unit/test_vault_doc_roles.py::test_frontmatter_reader_is_equivalent_to_writer[no-closing-marker]
+PASSED tests/unit/test_vault_doc_roles.py::test_frontmatter_reader_is_equivalent_to_writer[beyond-400-lines]
+PASSED tests/unit/test_vault_doc_roles.py::test_symlinked_directory_blindspot_is_reported
+PASSED tests/unit/test_vault_doc_roles.py::test_root_fallback_requires_per_instance_registration
+PASSED tests/unit/test_vault_doc_roles.py::test_union_catch_all_detection[pats0-True]
+PASSED tests/unit/test_vault_doc_roles.py::test_union_catch_all_detection[pats1-True]
+PASSED tests/unit/test_vault_doc_roles.py::test_union_catch_all_detection[pats2-True]
+PASSED tests/unit/test_vault_doc_roles.py::test_union_catch_all_detection[pats3-False]
+PASSED tests/unit/test_vault_doc_roles.py::test_union_catch_all_detection[pats4-False]
+PASSED tests/unit/test_vault_doc_roles.py::test_union_catch_all_detection[pats5-False]
+PASSED tests/unit/test_vault_doc_roles.py::test_union_catch_all_is_rejected_by_contract
+PASSED tests/unit/test_vault_doc_roles.py::test_empty_structures_are_rejected
+PASSED tests/unit/test_vault_doc_roles.py::test_every_glob_must_name_something[**/.*-False]
+PASSED tests/unit/test_vault_doc_roles.py::test_every_glob_must_name_something[**/[!.]*-False]
+PASSED tests/unit/test_vault_doc_roles.py::test_every_glob_must_name_something[[!x]*-False]
+PASSED tests/unit/test_vault_doc_roles.py::test_every_glob_must_name_something[.*-False]
+PASSED tests/unit/test_vault_doc_roles.py::test_every_glob_must_name_something[*-False]
+PASSED tests/unit/test_vault_doc_roles.py::test_every_glob_must_name_something[**/*-False]
+PASSED tests/unit/test_vault_doc_roles.py::test_every_glob_must_name_something[\u8282\u70b9/**-True]
+PASSED tests/unit/test_vault_doc_roles.py::test_every_glob_must_name_something[*.md-True]
+PASSED tests/unit/test_vault_doc_roles.py::test_every_glob_must_name_something[**/*.M[Dd]-True]
+PASSED tests/unit/test_vault_doc_roles.py::test_every_glob_must_name_something[**/_misc-True]
+PASSED tests/unit/test_vault_doc_roles.py::test_every_glob_must_name_something[**/chunks/**-True]
+PASSED tests/unit/test_vault_doc_roles.py::test_every_glob_must_name_something[.claudian/sessions/**-True]
+PASSED tests/unit/test_vault_doc_roles.py::test_every_glob_must_name_something[outputs/\u56de\u987e-*.md-True]
+PASSED tests/unit/test_vault_doc_roles.py::test_ledger_globs_all_name_something
+PASSED tests/unit/test_vault_doc_roles.py::test_dangling_symlink_is_reported_as_blind_spot
+PASSED tests/unit/test_vault_doc_roles.py::test_external_symlink_is_reported_and_not_read
+PASSED tests/unit/test_vault_doc_roles.py::test_escape_is_reported_even_in_unregistered_dir
+PASSED tests/unit/test_vault_doc_roles.py::test_resolves_inside_vault_helper
+PASSED tests/unit/test_vault_doc_roles.py::test_strict_utf8_matches_writer_skip
+PASSED tests/unit/test_vault_doc_roles.py::test_known_instances_must_be_a_list
+PASSED tests/unit/test_vault_doc_roles.py::test_contract_enforces_what_the_header_claims
+PASSED tests/unit/test_vault_doc_roles.py::test_ledger_ids_are_unique_and_kebab
+PASSED tests/unit/test_vault_doc_roles.py::test_conditional_retrieval_requires_note
+PASSED tests/unit/test_vault_doc_roles.py::test_json_checks_run_reflects_reality
+PASSED tests/unit/test_vault_doc_roles.py::test_contract_rejects_stringified_empties
+PASSED tests/unit/test_vault_doc_roles.py::test_untyped_and_indexed_entries_must_be_conditional
+PASSED tests/unit/test_vault_doc_roles.py::test_id_namespace_covers_repo_docs_and_kebab_is_strict
+PASSED tests/unit/test_vault_doc_roles.py::test_glob_must_be_list_of_nonempty_strings
+PASSED tests/unit/test_vault_doc_roles.py::test_plain_row_cannot_self_declare_surface
+PASSED tests/unit/test_vault_doc_roles.py::test_malformed_config_raises_config_error_not_traceback
+PASSED tests/unit/test_vault_doc_roles.py::test_root_files_scope_enum
+PASSED tests/unit/test_vault_doc_roles.py::test_round8_bypass_paths_are_closed
+PASSED tests/unit/test_vault_doc_roles.py::test_exam_board_registered_by_is_complete
+PASSED tests/unit/test_vault_doc_roles.py::test_non_utf8_ledger_is_config_error
+PASSED tests/unit/test_vault_doc_roles.py::test_glob_engine[\u8282\u70b9-\u8282\u70b9-True]
+PASSED tests/unit/test_vault_doc_roles.py::test_glob_engine[\u8282\u70b9/sub-\u8282\u70b9/**-True]
+PASSED tests/unit/test_vault_doc_roles.py::test_glob_engine[\u8282\u70b9-\u8282\u70b9/**-True]
+PASSED tests/unit/test_vault_doc_roles.py::test_glob_engine[\u8282\u70b9X-\u8282\u70b9/**-False]
+PASSED tests/unit/test_vault_doc_roles.py::test_glob_engine[\u8282\u70b9/FOO.MD-**/*.[Mm][Dd]-True]
+PASSED tests/unit/test_vault_doc_roles.py::test_glob_engine[\u8282\u70b9/foo.md-**/*.[Mm][Dd]-True]
+PASSED tests/unit/test_vault_doc_roles.py::test_glob_engine[\u8282\u70b9/foo.txt-**/*.[Mm][Dd]-False]
+PASSED tests/unit/test_vault_doc_roles.py::test_glob_engine[\u539f\u767d\u677f-\u8282\u70b9-False]
+PASSED tests/unit/test_vault_doc_roles.py::test_glob_engine[.obsidian-**/.obsidian-True]
+PASSED tests/unit/test_vault_doc_roles.py::test_glob_engine[raw/CS188/.obsidian-**/.obsidian-True]
+PASSED tests/unit/test_vault_doc_roles.py::test_glob_engine[raw/CS188/.obsidian/plugins-**/.obsidian/**-True]
+PASSED tests/unit/test_vault_doc_roles.py::test_glob_engine[a/b/chunks-**/chunks-True]
+PASSED tests/unit/test_vault_doc_roles.py::test_glob_engine[chunks-**/chunks-True]
+PASSED tests/unit/test_vault_doc_roles.py::test_glob_engine[Dashboard.md-*.md-True]
+PASSED tests/unit/test_vault_doc_roles.py::test_glob_engine[sub/Dashboard.md-*.md-False]
+PASSED tests/unit/test_vault_doc_roles.py::test_glob_engine[raw/CS 188-explanations-**/*-explanations-True]
+PASSED tests/unit/test_vault_doc_roles.py::test_declared_divergence_matches_by_class_not_instance
+PASSED tests/unit/test_vault_doc_roles.py::test_root_files_order_contract
+FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_preload_mode_skips_supplementary
+FAILED tests/unit/test_lancedb_vault_isolation.py::TestVaultIdFromConfig::test_dynamic_vault_id_follows_config
+FAILED tests/unit/test_lancedb_vault_isolation.py::TestSubjectResolverVaultId::test_group_id_has_vault_prefix
+FAILED tests/unit/test_lancedb_vault_isolation.py::TestActiveVaultIdNarrowExceptionAndFallbackWarning::test_active_vault_id_level2_runtime_error_falls_through
+FAILED tests/unit/test_supplementary_reranker.py::TestTypeWeightsIndexerTransition::test_indexer_note_mapped_to_canonical
+FAILED tests/unit/test_supplementary_reranker.py::TestTypeWeightsIndexerTransition::test_indexer_video_transcript_mapped_to_canonical
+FAILED tests/unit/test_supplementary_reranker.py::TestFilterFloor::test_floor_triggered_marks_first_material
+FAILED tests/unit/test_supplementary_reranker.py::TestFilterFloor::test_min_keep_zero_disables_floor
+FAILED tests/unit/test_supplementary_reranker.py::TestFilterFloor::test_floor_triggered_when_kill_ratio_high
+FAILED tests/unit/test_supplementary_reranker.py::TestFilterFloor::test_floor_still_respects_top_k
+FAILED tests/unit/test_supplementary_reranker.py::TestFilterFloorTaintExclusion::test_min_keep_floor_excludes_review_taint
+FAILED tests/unit/test_supplementary_reranker.py::TestFilterFloorTaintExclusion::test_floor_no_taint_field_treated_as_clean
+FAILED tests/unit/test_supplementary_reranker.py::TestFilterFloorTaintExclusion::test_floor_all_review_returns_empty_list
+=== 13 failed, 284 passed, 4245 deselected, 60 warnings in 101.82s (0:01:41) ===

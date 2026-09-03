@@ -1,0 +1,6 @@
+=== 变异结果（最后行 = pass/fail 汇总） ===
+M-A-key-blind [预期红: ④]: ================ 1 failed, 21 deselected, 10 warnings in 0.41s =================
+M-B-no-recursive [预期红: ⑦+④]: ================ 2 failed, 20 deselected, 10 warnings in 0.50s =================
+M-C-no-metadata [预期红: ①②④⑦⑧]: =========== 5 failed, 2 passed, 15 deselected, 10 warnings in 0.46s ============
+M-D-no-elem-label [预期红: ⑧]: ================ 1 failed, 21 deselected, 10 warnings in 0.43s =================
+restore-identical: True (sha256 cc5b098806bcf809)

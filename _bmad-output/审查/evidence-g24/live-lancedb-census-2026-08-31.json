@@ -1,0 +1,84 @@
+{
+  "active_vault_raw": "canvas-vault",
+  "active_vault_canonical": "canvas_vault",
+  "single_vault": false,
+  "tables": [
+    {
+      "name": "canvas_vault_file_fingerprints",
+      "kind": "vault_scoped",
+      "rows": 64,
+      "columns": [
+        "file_path",
+        "content_hash",
+        "last_indexed",
+        "chunk_count"
+      ],
+      "schema_repr": "file_path:string:null|content_hash:string:null|last_indexed:string:null|chunk_count:int64:null",
+      "schema_sha16": "300da38aff830385",
+      "content_sha256": "eaa60df9acc99b2643e93c7edf52ad8bf2a81a3778341c802ba44844343fefa3"
+    },
+    {
+      "name": "canvas_vault_vault_notes",
+      "kind": "vault_scoped",
+      "rows": 2203,
+      "columns": [
+        "doc_id",
+        "content",
+        "content_tokenized",
+        "vector",
+        "canvas_file",
+        "timestamp",
+        "node_id",
+        "node_type",
+        "color",
+        "x",
+        "y",
+        "subject",
+        "course",
+        "tags_str",
+        "category",
+        "doc_type",
+        "metadata_json"
+      ],
+      "schema_repr": "doc_id:string:null|content:string:null|content_tokenized:string:null|vector:fixed_size_list<elem: float>[1024]:null|canvas_file:string:null|timestamp:string:null|node_id:string:null|node_type:string:null|color:string:null|x:int64:null|y:int64:null|subject:string:null|course:string:null|tags_str:string:null|category:string:null|doc_type:string:null|metadata_json:string:null",
+      "schema_sha16": "89d4206c604702f9",
+      "content_sha256": "544dfb7a2b69006a32f7180792b8542e2d6f2913cb137f26258404d2be8a27c9"
+    },
+    {
+      "name": "file_fingerprints",
+      "kind": "bare_legacy",
+      "rows": 77,
+      "columns": [
+        "file_path",
+        "content_hash",
+        "last_indexed",
+        "chunk_count"
+      ],
+      "schema_repr": "file_path:string:null|content_hash:string:null|last_indexed:string:null|chunk_count:int64:null",
+      "schema_sha16": "300da38aff830385",
+      "content_sha256": "3437bca2a1a3298342edafe356a84d6b1e317648eb9bc7896075086003baa12e"
+    }
+  ],
+  "db_path": "/lancedb",
+  "archive_dir": "/g24-lance-archive",
+  "targets_live_store": true,
+  "generated_at": "2026-08-30T19:45:45.896919+00:00",
+  "mode": "dry-run",
+  "pending": [
+    {
+      "name": "file_fingerprints",
+      "kind": "bare_legacy",
+      "rows": 77,
+      "columns": [
+        "file_path",
+        "content_hash",
+        "last_indexed",
+        "chunk_count"
+      ],
+      "schema_repr": "file_path:string:null|content_hash:string:null|last_indexed:string:null|chunk_count:int64:null",
+      "schema_sha16": "300da38aff830385",
+      "content_sha256": "3437bca2a1a3298342edafe356a84d6b1e317648eb9bc7896075086003baa12e"
+    }
+  ],
+  "pending_count": 1
+}

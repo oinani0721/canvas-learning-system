@@ -243,6 +243,13 @@ canvas-docs/
 canvas-vault/.obsidian/cls-internal-key.txt
 
 # RAG-S1 (2026-08-03): orchestrator 运行时状态 — durable pending 意图日志
-backend/app/data/vault_index_pending.jsonl
-backend/app/data/vault_index_pending.jsonl.tmp
-backend/app/data/lancedb_pending_index.jsonl
+# CARD-G2-5 (2026-08-31): 文件名改成按 vault 命名空间
+# (vault_index_pending__<vault_key>.jsonl), 字面量规则会漏掉新名字 ——
+# 漏掉的后果不是"多一个文件", 而是运行期状态被 git add 带进仓库。
+# 这里用 glob 覆盖: 无维度旧名 / 新的命名空间名 / .tmp / .pre-g25.bak 隔离件。
+backend/app/data/vault_index_pending*.jsonl
+backend/app/data/vault_index_pending*.jsonl.tmp
+backend/app/data/lancedb_pending_index*.jsonl
+backend/app/data/lancedb_pending_index*.jsonl.tmp
+backend/app/data/*.pre-g25.bak
+backend/app/data/*.pre-g25.bak.*

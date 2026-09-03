@@ -8,7 +8,8 @@ Phase A 范围（最小可用）：
 - source priority 复用 (apply_source_priority)
 - explanation files filter（与 react_agent.search_vault_notes 一致）
 - 阈值过滤 min_relevance >= 0.70
-- 三档降级语义：lancedb_unavailable / search_failed / empty_index
+- 四档降级语义：lancedb_unavailable / lancedb_table_missing / search_failed / empty_index
+  （CARD-G2-4 新增 lancedb_table_missing：vault 专属表不存在 = 故障, 不是空索引）
 
 Phase A 不做（留给 Phase B/C）：
 - 类型权重精排（lecture_notes 1.0 / discussion 0.9 / ...）→ Phase B supplementary_reranker
@@ -20,12 +21,12 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import re
 from typing import Any
 
 import structlog
 
+from app.models.service_status import ServiceStatus
 from app.services import retrieval_reranker
 
 logger = structlog.get_logger(__name__)
@@ -57,29 +58,26 @@ _CE_DELIVERY_FLOOR = 0.02
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Wave-5 Stage C P1-9 (ChatGPT v4): LanceDB Tier-2 unprefixed fallback gate
+# CARD-G2-4 (BATCH-2026-08-29-第七批): Tier-2 裸表直开分支已删除
 # ═══════════════════════════════════════════════════════════════════════════════
 #
-# Bug: Tier-2 fallback reads unprefixed ``vault_notes`` table (Story 1.9 legacy
-# index). If legacy vault data exists in residual unprefixed table, vault A's
-# query can pick up legacy mixed-content rows via fallback path → cross-vault
-# leak in multi-vault deployments.
+# 旧形态 (Wave-5 Stage C P1-9): tier-1 (vault 前缀表) 空 → tier-2 直开裸
+# ``vault_notes``, 由一个**默认关闭**的 env 开关控制 (开关名与逐条移除依据见
+# CARD-G2-4 验收单 —— 刻意不在活代码里复写该名字, 好让 grep 门能以"活代码
+# 零命中"作判据; 见 backend/scripts/g24_grep_gate.sh)。
 #
-# Fix: env-var gated. Default ``"false"`` (production-safe, multi-vault). Dev /
-# single-vault legacy can opt-in with ``ENABLE_LANCEDB_TIER2_FALLBACK=true``.
-
-
-def _enable_tier2_fallback() -> bool:
-    """Return True only if ENABLE_LANCEDB_TIER2_FALLBACK env var is truthy.
-
-    Production default: ``False`` (skip tier-2 unprefixed fallback to prevent
-    cross-vault leakage in multi-vault deployments). Single-vault legacy dev
-    can opt-in with ``ENABLE_LANCEDB_TIER2_FALLBACK=true``.
-    """
-    val = os.environ.get("ENABLE_LANCEDB_TIER2_FALLBACK", "false").strip().lower()
-    return val in ("1", "true", "yes", "on")
-
-
+# 为什么"默认关"仍不够 (本卡删除它的理由):
+# 1. 开关是**运行期**防线 —— 任何一次误设 env 就恢复跨 vault 泄漏面, 而泄漏
+#    发生时没有任何结构性阻挡 (G4-16 FU-5 另记: tier-2 直开还绕过
+#    doc_type 排除, 连检验白板信息隔离一并打穿)。
+# 2. 关着的分支照样是**读侧第二真相源**: 同一句 query 在两台配置不同的机器
+#    上返回不同结果集, 且下游只能靠 ``is_legacy_fallback`` 旗帜事后辨认。
+# 3. 裸表的存在本身要靠显式迁移/归档收敛, 不该由检索路径顺手兜底 ——
+#    归档器见 ``backend/scripts/archive_legacy_lance_tables_g24.py``。
+#
+# 现形态: 只有 vault 前缀表这一条读路径。表不存在 → ``TableMissingError``
+# 沿链上抛 → ``search_supplementary`` 透出 unavailable + 非空 reason。
+#
 # ═══════════════════════════════════════════════════════════════════════════════
 # Public API
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -117,14 +115,28 @@ async def search_supplementary(
             "materials": list[dict],   # 动态长度（不固定 5），含 title/snippet/wikilink/score/source_path
             "degraded": bool,
             "reason": str | None,
+            "status": str,             # CARD-G2-4: ServiceStatus 四态值 (ok/empty/degraded/unavailable)
             "confidence": dict,        # RAG-S2 T5: {level, signals} 查询级检索置信度
         }
     """
     if lancedb_client is None:
-        return _empty_result("lancedb_unavailable", degraded=True)
+        return _empty_result("lancedb_unavailable", degraded=True, status=ServiceStatus.UNAVAILABLE)
 
     if not query or not query.strip():
-        return _empty_result("empty_query", degraded=False)
+        return _empty_result("empty_query", degraded=False, status=ServiceStatus.EMPTY)
+
+    # CARD-G2-4: 表缺失需要与 generic search_failed 区分 —— 前者是"这个 vault
+    # 的索引根本没建", 后者是"索引在但这次查询炸了", 给用户的下一步动作不同
+    # (前者=跑一次 index/vault, 后者=看后端日志)。
+    #
+    # 函数内导入沿用 app/services 惯例 (agent_service / lancedb_index_service)。
+    # 为什么不必给它加 ImportError 兜底: ``agentic_rag`` 不在 PYTHONPATH 里
+    # (docker-compose:162 = /app:/app/src), 靠 rag_service / note_search_tools /
+    # vault_index_orchestrator 在 import 期插 backend/lib。而本行只在
+    # ``lancedb_client is not None`` 时才会执行 —— 能拿到一个活的 LanceDB client,
+    # 就意味着那条 sys.path 插入已经发生过。给它套 try/except ImportError 反而会
+    # 造出一条"静默退回旧行为"的暗路 (表缺失重新塌缩成 search_failed)。
+    from agentic_rag.clients.lancedb_client import TableMissingError
 
     try:
         if hasattr(lancedb_client, "_initialized") and not lancedb_client._initialized:
@@ -132,29 +144,43 @@ async def search_supplementary(
 
         # 大召回：top_k_max + 50% buffer 给 source_priority 重排和空文档过滤留空间
         results = await asyncio.wait_for(
-            _two_tier_search(
+            _vault_scoped_search(
                 lancedb_client,
                 query=query,
                 num_results=int(top_k_max * 1.5),
             ),
             timeout=10.0,
         )
+    except TableMissingError as e:
+        # ⛔ 必须排在 (RuntimeError, ...) 之前 —— TableMissingError 继承
+        # RuntimeError, 顺序颠倒会让它被 generic 分支吃掉, 表缺失重新退化成
+        # 一条无差别的 search_failed (本卡要消灭的正是这种信息塌缩)。
+        logger.warning(
+            "[SupplementarySearch] vault 专属表不存在 — fail-closed, 不回退裸表",
+            table=e.table_name,
+            query=query[:80],
+        )
+        return _empty_result(
+            f"lancedb_table_missing: {e.table_name}",
+            degraded=True,
+            status=ServiceStatus.UNAVAILABLE,
+        )
     except asyncio.TimeoutError:
         logger.warning(
             "[SupplementarySearch] 超时降级（首次 model cold-start 可能 60s+）",
             query=query[:80],
         )
-        return _empty_result("timeout", degraded=True)
+        return _empty_result("timeout", degraded=True, status=ServiceStatus.UNAVAILABLE)
     except (RuntimeError, ConnectionError, ValueError) as e:
         logger.warning(
             "[SupplementarySearch] 搜索失败",
             error=str(e)[:120],
             query=query[:80],
         )
-        return _empty_result(f"search_failed: {str(e)[:80]}", degraded=True)
+        return _empty_result(f"search_failed: {str(e)[:80]}", degraded=True, status=ServiceStatus.UNAVAILABLE)
 
     if not results:
-        return _empty_result("empty_index", degraded=False)
+        return _empty_result("empty_index", degraded=False, status=ServiceStatus.EMPTY)
 
     try:
         from app.core.reference_config import apply_source_priority
@@ -231,13 +257,6 @@ async def search_supplementary(
         normalized["_ce_text"] = raw_content_for_check[:2000]
         normalized["_filter_score"] = score
 
-        # P0-D (2026-05-12 hotfix): tier-2 legacy fallback flag 必须从 raw
-        # 透传到 normalized, 否则下面 any(...is_legacy_fallback) 永不命中.
-        # raw['is_legacy_fallback'] 由 _two_tier_search tier-2 路径设置 (top-level
-        # 也保留以备 metadata 嵌套不一致).
-        if raw.get("is_legacy_fallback") or (raw.get("metadata") or {}).get("is_legacy_fallback"):
-            normalized["is_legacy_fallback"] = True
-
         materials.append(normalized)
         # 审查 HIGH (2026-08-10): 放宽地板 (0.30) 的行不得占 top_k_max 配额 —
         # 否则低分行挤占名额把 raw>=min_relevance 的正解挤出池, 回落重过滤后
@@ -269,10 +288,11 @@ async def search_supplementary(
 
     # CE 门只在 min_relevance>0 (生产交付) 时激活 — 金集 Tier R
     # (min_relevance=0) 要全量排序, 不设门也不花 CE 预算。
-    # tier-2 legacy 材料带人造 rank-decay 分 (0.31-0.50), CE 打分会
-    # 掩盖 degraded 信号 — 同样跳过。
+    # CARD-G2-4: 原此处还有"tier-2 legacy 人造 rank-decay 分跳过 CE"条件 —
+    # tier-2 已删, 唯一的 is_legacy_fallback 生产者随之消失, 该条件恒真,
+    # 留着只会让维护者以为还有第二种材料来源。一并删。
     gated = False
-    if rerank_enabled and min_relevance > 0 and materials and not any(m.get("is_legacy_fallback") for m in materials):
+    if rerank_enabled and min_relevance > 0 and materials:
         try:
             gated = await _apply_ce_gate(query, materials)
         except Exception as e:
@@ -322,33 +342,11 @@ async def search_supplementary(
         m.pop("_ce_text", None)
         m.pop("_filter_score", None)
 
-    # P0-D (2026-05-12 hotfix): tier-2 legacy fallback 命中时, 行级
-    # is_legacy_fallback=True 但顶层 dict 仍 degraded=False, 下游观测拿不到旗帜.
-    # 这里检测任一 material 是 legacy fallback, 顶层 degraded=True + reason
-    # set + logger.warning 通知 Ops 重建索引.
-    #
-    # Wave-2 P0-2 漏修-2 (2026-05-12): 移除 ``prior_reason = None if materials
-    # else "all_filtered_below_threshold"`` 死分支 (信息丢失 bug).
-    # legacy_hit = any(materials...) 已隐含 materials 非空, 三元 else 分支永不触发,
-    # prior_reason 始终为 None, merged_reason 始终为 "tier2_legacy_unprefixed".
-    # 这是死代码且会让维护者误以为有"prior reason 保留"行为.
-    # 上游 _two_tier_search 返回 list (无 reason 字段) — 直接写单一标志.
-    legacy_hit = any(m.get("is_legacy_fallback") for m in materials)
-    if legacy_hit:
-        merged_reason = "tier2_legacy_unprefixed"
-        logger.warning(
-            "[SupplementarySearch] degraded 顶层标志: tier-2 legacy fallback 命中",
-            materials=len(materials),
-            query=query[:60],
-        )
-        return {
-            "materials": materials,
-            "degraded": True,
-            "reason": merged_reason,
-            # T5: legacy 人造 rank-decay 分无真实背书 → level=none (degraded)
-            "confidence": _build_retrieval_confidence(materials, gated=gated, degraded=True, reason=merged_reason),
-        }
-
+    # CARD-G2-4: 原此处的 P0-D 顶层 legacy 降级分支 (tier-2 命中 →
+    # degraded=True + reason="tier2_legacy_unprefixed") 随 tier-2 一并删除。
+    # 该分支的判据 any(m["is_legacy_fallback"]) 在生产者消失后恒为 False,
+    # 留着等于挂一条永不执行的降级通道 —— 观测面上比没有更糟 (看代码以为
+    # 有 legacy 告警能力, 实际永远不响)。
     if materials:
         empty_reason = None
     elif gate_killed_all:
@@ -360,6 +358,9 @@ async def search_supplementary(
         "materials": materials,
         "degraded": False,
         "reason": empty_reason,
+        # CARD-G2-4: 与早退路径同一个 status 字段, 否则消费方拿到的 key 集合
+        # 随分支变化 — 半有半无的字段比没有更难消费。
+        "status": (ServiceStatus.OK if materials else ServiceStatus.EMPTY).value,
         "confidence": _build_retrieval_confidence(
             materials,
             gated=gated,
@@ -388,7 +389,7 @@ def _build_retrieval_confidence(
       high   — CE 门放行 且 top1 双通道确认 (fts_confirmed) 且 ce_score>=0.5
       medium — 过了 CE 门 (每条幸存者都有 CE 背书), 或 top1 fts_confirmed
       low    — CE 回落/熔断/未启用: 只有加权分背书
-      none   — 空交付或 degraded (含 tier2 legacy 人造 rank-decay 分)
+      none   — 空交付或 degraded
 
     ⛔ fts_confirmed 只作遥测信号, 不进交付门 (T5 探针实锤不可分):
     zh 常用词 (节点/删除/平衡) 让垃圾 query 也大面积 FTS 命中 (n01 5 条 /
@@ -421,12 +422,37 @@ def _build_retrieval_confidence(
     }
 
 
-def _empty_result(reason: str | None, *, degraded: bool) -> dict[str, Any]:
-    """空交付/降级的统一返回体 (T5: 每条早退路径都必须带 confidence)。"""
+def _empty_result(
+    reason: str | None,
+    *,
+    degraded: bool,
+    status: ServiceStatus,
+) -> dict[str, Any]:
+    """空交付/降级的统一返回体 (T5: 每条早退路径都必须带 confidence)。
+
+    CARD-G2-4 增加 ``status`` (**刻意无默认值**): 复用 ``app.models.service_status.ServiceStatus``
+    四态词汇 (**不新造**第五态), 让消费方能区分「服务挂了/表没建」与
+    「查了但真没命中」—— 旧的 ``degraded: bool`` 把 unavailable 与 degraded
+    压成同一个真值, 这正是 G4-2 要拆开的信息塌缩。``degraded`` 保留不动,
+    旧消费方 (chat.py / note_search_tools / hook 面) 零改动。
+
+    不给 ``status`` 默认值是刻意的: 任何新增的早退路径都必须**显式**表态自己是
+    empty 还是 unavailable。若给个 ``EMPTY`` 默认值, 下一个加降级分支的人会拿到
+    一个 ``degraded=True`` 却 ``status="empty"`` 的自相矛盾返回体, 且没有任何东西
+    会报错 —— 那正是本卡在消灭的那种沉默。
+
+    ⚠️ 与 ``StatusedResult`` 的差异 (如实声明, 免得被当成同一个契约):
+    ``StatusedResult`` 禁止 ok/empty 携带 reason; 本 dict 的 ``reason`` 在
+    empty 态下承载的是**空交付的诊断**(``empty_query`` / ``empty_index`` /
+    ``all_filtered_below_threshold``)而非故障说明, 是本服务早于 G4-2 就有的
+    字段语义, 不改。所以这里只借 ``ServiceStatus`` 的**值域**, 不构造
+    ``StatusedResult`` 对象 (构造会因 empty+reason 直接 ValueError)。
+    """
     return {
         "materials": [],
         "degraded": degraded,
         "reason": reason,
+        "status": ServiceStatus(status).value,
         "confidence": _build_retrieval_confidence([], gated=False, degraded=degraded, reason=reason),
     }
 
@@ -771,8 +797,6 @@ def _dedup_by_source(materials: list[dict[str, Any]]) -> list[dict[str, Any]]:
             float(keeper.get("injection_risk", 0.0) or 0.0),
             float(m.get("injection_risk", 0.0) or 0.0),
         )
-        if m.get("is_legacy_fallback"):
-            keeper["is_legacy_fallback"] = True
         # T5: 词法确认按文件粒度继承 (a01 实证: 咖啡段藏在低分 chunk, 其
         # FTS 命中不继承则文件级 fts_confirmed 失真)。只作 confidence
         # 遥测信号, 不进交付门 (探针实锤不可分, 见 _build_retrieval_confidence)。
@@ -805,25 +829,35 @@ async def _apply_ce_gate(query: str, materials: list[dict[str, Any]]) -> bool:
     return True
 
 
-async def _two_tier_search(
+async def _vault_scoped_search(
     client: Any,
     query: str,
     num_results: int,
 ) -> list[dict[str, Any]]:
-    """先查 vault_id 隔离的 prefix 表（Story 1.9 主路径），空则 fallback 到 unprefixed 老索引。
+    """只查 vault_id 隔离的前缀表 —— CARD-G2-4 起这是**唯一**读路径。
 
-    Tier 1: client.search() 含 resolve_table_name 把 'vault_notes' 加 vault_id 前缀
-            （如 'canvas_vault_vault_notes'）。多 vault 切换时各自隔离，正确的主路径。
-    Tier 2: 直接 _db.open_table('vault_notes')（unprefixed），FTS 优先 + vector fallback。
-            兼容 Story 1.9 vault_id 隔离机制 land 前建立的老索引。
-            tier-2 命中时记 logger.warning 提醒 Ops 重建索引。
+    ``client.search()`` 内部经 ``resolve_table_name`` 把 ``vault_notes`` 解析成
+    ``{vault_id}_vault_notes``（Story 1.9 隔离主路径）。CARD-G2-4 同时删掉了
+    client 侧的 B0.7 裸表回退与本函数原有的 tier-2 裸表直开分支, 于是:
+
+    - 前缀表**存在**: 正常 hybrid 检索; hybrid 本身报错 → vector-only 重试
+      (RAG-S2 T5 HIGH-1 既有行为, 原样保留)。
+    - 前缀表**不存在**: ``client.search()`` 抛 ``TableMissingError``, 本函数
+      **原样上抛** —— 不做 vector-only 重试, 因为重试同一张不存在的表既拿不到
+      结果, 又会把"表缺失"这个精确诊断埋进一个 generic 的失败里。由
+      ``search_supplementary`` 转成 unavailable + 非空 reason。
+
+    ⛔ 名实一致 (DD-13): 原名 ``_two_tier_search`` 在 tier-2 删除后即名不符实,
+    随本卡改名。旧名不保留别名 —— 留个 alias 会让"还有两层"的错觉继续传播。
     """
-    # ── Tier 1 ── prefix-resolved（Story 1.9 主路径，多 vault 隔离）
+    # 函数内导入: 与 app/services 既有惯例一致 (agent_service:1487 /
+    # lancedb_index_service:363), 避免 app 层在 import 期硬拉 lancedb/jieba。
+    from agentic_rag.clients.lancedb_client import TableMissingError
+
     # RAG-P0 A3 (2026-05-10): default exclude whiteboard. MOC/index whiteboards
     # carry mostly dataviewjs/callout boilerplate that pollutes solving queries.
-    results: list[dict[str, Any]] = []
     try:
-        results = await client.search(
+        return await client.search(
             query=query,
             table_name="vault_notes",
             num_results=num_results,
@@ -833,131 +867,44 @@ async def _two_tier_search(
             # 也在查询层拦住, 信息隔离 (d=1.50) 不再靠单点
             exclude_doc_types=["whiteboard", "exam_board"],
         )
-    except Exception as e:  # noqa: BLE001  T5 审查 HIGH-1: 任何异常都走 vector 回退
+    except TableMissingError:
+        # CARD-G2-4: 表缺失 fail-closed 上抛, 不降级成 vector-only 重试。
+        raise
+    except Exception as e:  # noqa: BLE001  T5 审查 HIGH-1: 其余异常都走 vector 回退
         logger.warning(
-            "[SupplementarySearch] tier-1 hybrid 失败，回退到 vector-only",
+            "[SupplementarySearch] hybrid 失败，回退到 vector-only",
             error=str(e)[:120],
         )
-        try:
-            results = await client.search(
-                query=query,
-                table_name="vault_notes",
-                num_results=num_results,
-                # RAG-S2 T5 (2026-08-10): 回退分支此前漏排 exam_board — hybrid
-                # 异常时 vector-only 路径成了考题隔离 (HARD-ISO) 的旁路, 与
-                # Tier-1 口径对齐。
-                exclude_doc_types=["whiteboard", "exam_board"],
-            )
-        except Exception as e2:  # noqa: BLE001
-            # T5 审查 HIGH-1: 两级都异常 = 基础设施故障, 不得吞成 [] —
-            # 旧行为会让上层判成 empty_index (degraded=False), MCP 面报
-            # ok_empty、hook 面标「检索正常但无材料」, 阶段 0 契约 3
-            # (健康空 ≠ 故障) 被打穿。包成 RuntimeError 走 search_failed
-            # 降级通道 (search_supplementary 只捕 RuntimeError/Connection/
-            # ValueError, 裸 re-raise 会逃逸破坏"内部全降级不外抛"契约)。
-            raise RuntimeError(f"tier-1 search failed (hybrid+vector): {str(e2)[:80]}") from e2
 
-    if results:
-        return results
-
-    # Wave-5 Stage C P1-9 (ChatGPT v4) — Tier-2 fallback gated by env var.
-    # Default production: skip tier-2 to prevent cross-vault leak via legacy
-    # unprefixed table (residual Story 1.9 升级前老索引). Dev / single-vault
-    # legacy can opt-in with ENABLE_LANCEDB_TIER2_FALLBACK=true.
-    if not _enable_tier2_fallback():
-        return []
-
-    # Tier-2 enabled — emit warning so Ops sees we're running in legacy mode.
     try:
-        _active_vault_id = ""
-        try:
-            from app.config import get_settings as _gs
-
-            _active_vault_id = getattr(_gs(), "vault_id", "") or ""
-        except Exception:  # noqa: BLE001  config 缺失时不阻断 fallback
-            _active_vault_id = ""
-        logger.warning(
-            "[SupplementarySearch] tier-2 fallback enabled — single-vault legacy mode "
-            "(ENABLE_LANCEDB_TIER2_FALLBACK=true); cross-vault leak risk if residual "
-            "unprefixed vault_notes carries other vaults' data",
-            vault_id=_active_vault_id,
-            query=query[:60],
+        return await client.search(
+            query=query,
+            table_name="vault_notes",
+            num_results=num_results,
+            # ⛔ CARD-G2-4 (Codex round-1 MEDIUM-2 实证修复): 这里**必须显式**传
+            # query_type="vector"。``LanceDBClient.search`` 的签名默认是
+            # ``query_type="hybrid"``, 所以旧代码这条"vector-only 回退"其实是把
+            # 同一次 hybrid 又跑了一遍 —— 名字说 vector, 行为是 hybrid, 而且
+            # hybrid 刚刚才失败过, 重跑几乎必然同样失败。名实不符 (DD-13) 且
+            # 回退等于没有。
+            query_type="vector",
+            # RAG-S2 T5 (2026-08-10): 回退分支此前漏排 exam_board — hybrid
+            # 异常时 vector-only 路径成了考题隔离 (HARD-ISO) 的旁路, 与
+            # 主分支口径对齐。
+            exclude_doc_types=["whiteboard", "exam_board"],
         )
-    except Exception:  # noqa: BLE001  日志失败不阻断
-        pass
-
-    # ── Tier 2 ── unprefixed legacy table（兼容老索引；Story 1.9 升级前的数据）
-    try:
-        if not (hasattr(client, "_db") and client._db is not None):
-            return []
-        list_tables_fn = (
-            client._db.list_tables if hasattr(client._db, "list_tables") else getattr(client._db, "table_names", None)
-        )
-        if list_tables_fn is None:
-            return []
-        tables_raw = list_tables_fn()
-        # LanceDB ≥ 0.x 返回 ListTablesResponse(tables=[...], page_token=None)
-        # 旧版 / table_names() 返回 plain list — 兼容两者
-        if hasattr(tables_raw, "tables"):
-            tables_list = list(tables_raw.tables)
-        elif hasattr(tables_raw, "__iter__") and not isinstance(tables_raw, str):
-            tables_list = list(tables_raw)
-        else:
-            tables_list = []
-        if "vault_notes" not in tables_list:
-            return []
-        # 仅当 Story 1.9 prefix !=unprefixed 时 tier-2 才有意义（避免重查 tier-1 同一表）
-        if hasattr(client, "resolve_table_name"):
-            resolved = client.resolve_table_name("vault_notes")
-            if resolved == "vault_notes":
-                return []
-        tbl = client._db.open_table("vault_notes")
-        # FTS 优先（已验证可用：BM25 score Top-1 ~11，覆盖中英文 jieba 分词）
-        try:
-            df = tbl.search(query, query_type="fts").limit(num_results).to_pandas()
-        except Exception:  # noqa: BLE001  fallback 到 vector
-            df = tbl.search(query).limit(num_results).to_pandas()
-        if df is None or df.empty:
-            return []
-        logger.warning(
-            "[SupplementarySearch] tier-2 fallback 命中 unprefixed vault_notes "
-            "(Story 1.9 升级前老索引；建议 Ops 跑 POST /api/v1/metadata/index/vault rebuild)",
-            rows=len(df),
-        )
-        # Phase A0 修复 I (Round-3 ChatGPT V2 + cross-check confirmed FATAL bug):
-        # 旧逻辑硬编码 score=0.85 绕过 min_relevance=0.30 + 绕过 elbow_cut(0.05)
-        # 旧 BM25 与 cosine [0,1] 不可比的简化 trade-off 代价过大 — 让 tier-2 与真实 hybrid 命中
-        # 在下游过滤逻辑上完全等同对待。
-        # 新逻辑: rank-decay score [0.31, 0.50] (恰好 > min_relevance=0.30 但远低于真实 hybrid)
-        #        + degraded=True 顶层标志（下游可观测/过滤）
-        # Phase B 必须接 supplementary_reranker 做真实 cross-encoder 精排（解决 BM25/cosine 不可比）
-        normalized: list[dict[str, Any]] = []
-        df_size = max(len(df), 1)
-        for idx, (_, row) in enumerate(df.iterrows()):
-            raw_canvas_file = str(row.get("canvas_file", "") or "")
-            # rank 0 → 0.50, rank N-1 → 0.31（保留 FTS BM25 排序信号但不绕过 min_relevance）
-            rank_score = 0.50 - 0.19 * (idx / max(df_size - 1, 1)) if df_size > 1 else 0.50
-            normalized.append(
-                {
-                    "score": rank_score,
-                    "content": str(row.get("content", "") or ""),
-                    "doc_id": str(row.get("doc_id", "") or ""),
-                    "metadata": {
-                        "canvas_file": raw_canvas_file,
-                        "is_legacy_fallback": True,
-                    },
-                    "canvas_file": raw_canvas_file,
-                    "is_legacy_fallback": True,  # 顶层标志，方便下游 filter
-                    "degraded": True,
-                }
-            )
-        return normalized
-    except Exception as e:  # noqa: BLE001  tier-2 失败也不抛，让上层走 empty_index 降级
-        logger.warning(
-            "[SupplementarySearch] tier-2 fallback 失败",
-            error=str(e)[:120],
-        )
-        return []
+    except TableMissingError:
+        # 同上 —— vector 分支若也撞上表缺失 (例如 hybrid 报的是别的错、
+        # 期间表被 drop), 仍按表缺失诚实上抛。
+        raise
+    except Exception as e2:  # noqa: BLE001
+        # T5 审查 HIGH-1: 两级都异常 = 基础设施故障, 不得吞成 [] —
+        # 旧行为会让上层判成 empty_index (degraded=False), MCP 面报
+        # ok_empty、hook 面标「检索正常但无材料」, 阶段 0 契约 3
+        # (健康空 ≠ 故障) 被打穿。包成 RuntimeError 走 search_failed
+        # 降级通道 (search_supplementary 只捕 RuntimeError/Connection/
+        # ValueError, 裸 re-raise 会逃逸破坏"内部全降级不外抛"契约)。
+        raise RuntimeError(f"vault-scoped search failed (hybrid+vector): {str(e2)[:80]}") from e2
 
 
 def _normalize_material(raw: dict[str, Any]) -> dict[str, Any]:
@@ -980,7 +927,7 @@ def _normalize_material(raw: dict[str, Any]) -> dict[str, Any]:
     # (vector 亦命中) = 真·双通道确认。仍只做 confidence 遥测, 不进交付门。
     fts_confirmed = bool(metadata.get("_fts_hit")) and not metadata.get("_fts_only")
 
-    # 优先 metadata.canvas_file（新 schema），fallback 到顶层 canvas_file（老 schema / tier-2）
+    # 优先 metadata.canvas_file（新 schema），fallback 到顶层 canvas_file（老 schema）
     canvas_file = metadata.get("canvas_file", "") or raw.get("canvas_file", "") or ""
     heading = ""
     source_type = "note"
