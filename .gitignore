@@ -257,3 +257,5 @@ backend/app/data/*.pre-g25.bak.*
 # BATCH-2026-09-01-第八批 收官：Codex reviewer stderr 转储永不入库（凭据片段/环境噪声，19MB）
 _bmad-output/审查/*.stderr
 _bmad-output/审查/**/*.stderr
+_bmad-output/审查/*.stderr*
+_bmad-output/审查/**/*.stderr*
