@@ -4090,3 +4090,159 @@ def test_round12_abandoned_isolated_from_grade(vault):
         vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1, grade_norm=0.0, abandoned=True)
     )
     assert r2.returncode == 0, f"同为弃答的续跑必须恢复: {r2.stderr[:250]}"
+
+
+# ── 门(74)-(77) round-13: 四条误拒 + 两条漏网
+
+
+def test_round13_consumer_must_not_reshape_values(vault):
+    """消费侧**不得单方面改值**：舍入 grade、`str()` 强转 board 都会拒掉合法状态。
+
+    ⛔ round-12 我在事实构造器里 `round(...,2)` 且 `str()` 强转 —— 而 receipt 存的是
+    **原值**，于是合法的 `grade_norm=0.752`（validator rc=0）比出 `0.752 != 期望 0.75`，
+    整数板名 `123` 比出「类型非法」，**两阶段永久不收敛**。
+
+    ⚠️ 场景必须**直接构造账本行**：写点在入口就把输入 `round(...,2)`，
+    走正常入口根本产不出三位小数的账本行 —— 那样这道门测不到任何东西
+    （M121 此前正是这样活下来的）。合法的三位小数行来自外部写入/旧版本。
+    """
+    LED = vault / "learning_events.jsonl"
+
+    # ① 三位小数分数走 **foreign replay**：另一个事件的合法行带 0.752
+    # ⚠️ 不能用 dup 路径 —— 那条路的 envelope 会拿**本次输入**比，而写点在入口
+    # 就把输入 round 成两位，于是必然冲突，测不到消费侧的舍入。
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    assert _run_writer_settled(vault, _payload(event_id="E1#q1", ts=TS1, review_time=TS1)).returncode == 0
+    rows = list(_ledger_lines(vault))
+    rows[0]["payload"]["grade_norm"] = 0.752  # 合法的三位小数（外部/旧版本写入）
+    LED.write_text(json.dumps(rows[0], ensure_ascii=False) + "\n", encoding="utf-8")
+    assert _run_validator(vault).returncode == 0, "三位小数分数本身合规（正是它难抓的原因）"
+    # 让 E1 回到「已入账未应用」= pending，随后提交 E2 触发对它的复放
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    r = _run_writer_settled(
+        vault, _payload(event_id="E2#q1", ts="2026-08-01T11:00:00Z", review_time="2026-08-01T11:00:00Z")
+    )
+    assert r.returncode == 0, f"⛔ 消费侧舍入会把合法的三位小数行永久拒掉: {r.stderr[:300]}"
+    _rc_gn = re.search(
+        r'- event_id: "quiz:E1#q1"\n(?:    [^\n]*\n)*?    grade_norm: ([\d.]+)',
+        (vault / NODE_REL).read_text(encoding="utf-8"),
+    )
+    assert _rc_gn and _rc_gn.group(1) == "0.752", f"复放写下的 receipt 必须保留原值: {_rc_gn and _rc_gn.group(1)}"
+
+    # ② 整数板名：走正常入口就能产出（写点不改它的类型）
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    r1 = _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1, exam_board=123))
+    assert r1.returncode == 0, f"[整数板名] 首跑应放行: {r1.stderr[:250]}"
+    assert _run_validator(vault).returncode == 0, "[整数板名] 产物必须合规"
+    LED.write_text("", encoding="utf-8")  # 账本行丢失 ⇒ 走 F1-only
+    r2 = _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1, exam_board=123))
+    assert r2.returncode == 0, f"⛔ 消费侧强转会拒掉 writer 自己产出的状态: {r2.stderr[:300]}"
+
+
+def test_round13_adopted_time_recomputed_not_compared_literally(vault):
+    """崩溃窗的采用时刻靠**复算**，不靠字面相等；且 W 非空时同样要证。
+
+    ⛔ round-12 两处都错了：① 判据落在「W 为空 ⇒ review_time == scored_at」的**字面
+    相等**上——而采用值是**算出来的**（UTC 化 + 截整秒），合法的 `10:00:00.731Z`
+    会产出两者**合法不等**，于是正常评分被永久拒掉（「字面 vs 值」的第六次）；
+    ② 只在 `W_inst is None` 时检查，W 非空的崩溃窗照样可篡改。
+    """
+    LED = vault / "learning_events.jsonl"
+    # ① 小数秒的合法输入不得被误拒
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    SUB = "2026-08-01T10:00:00.731Z"
+    assert _run_writer_settled(vault, _payload(event_id="板A#q1", ts=SUB, review_time=SUB)).returncode == 0
+    row = list(_ledger_lines(vault))[0]["payload"]
+    assert row["review_time"] != row["scored_at"], "本例必须真的产生「两者不等」的合法行"
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")  # 崩溃窗
+    r = _run_writer_settled(vault, _payload(event_id="板A#q1", ts=SUB, review_time=SUB))
+    assert r.returncode == 0, f"⛔ 字面比较会把合法的小数秒输入永久拒掉: {r.stderr[:300]}"
+
+    # ② W 非空的崩溃窗内篡改必须被拒
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    assert _run_writer_settled(vault, _payload(event_id="E0#q1", ts=TS1, review_time=TS1)).returncode == 0
+    node_after_e0 = (vault / NODE_REL).read_text(encoding="utf-8")
+    assert (
+        _run_writer_settled(
+            vault, _payload(event_id="E1#q1", ts="2026-08-01T11:00:00Z", review_time="2026-08-01T11:00:00Z")
+        ).returncode
+        == 0
+    )
+    rows = list(_ledger_lines(vault))
+    rows[-1]["effective_at"] = "2026-12-01T10:00:00Z"
+    rows[-1]["payload"]["review_time"] = "2026-12-01T10:00:00Z"
+    LED.write_text("\n".join(json.dumps(x, ensure_ascii=False) for x in rows) + "\n", encoding="utf-8")
+    (vault / NODE_REL).write_text(node_after_e0, encoding="utf-8")  # 回到只应用了 E0
+    assert _run_validator(vault).returncode == 0, "被篡改的行本身仍合规"
+    r2 = _run_writer_settled(
+        vault, _payload(event_id="E1#q1", ts="2026-08-01T11:00:00Z", review_time="2026-08-01T11:00:00Z")
+    )
+    assert r2.returncode != 0, "W 非空的崩溃窗同样不得放行篡改"
+    assert not (_fm_fields(vault).get("fsrs_last_review") or "").startswith("2026-12"), "水位线不得被恢复成篡改值"
+
+
+def test_round13_id_form_only_proves_exact_hit(vault):
+    """`id_form: full` 只证明 **exact 命中**；裸形态回落时它证明不了什么。
+
+    ⛔ 实测别名链：本地 id `K` 写出 receipt `quiz:K, id_form:full`；清空账本后提交
+    本地 id `quiz:K`（完整 id 是 `quiz:quiz:K`）⇒ 裸形态回落命中那条、标记满足，
+    旧实现判「已应用」幂等跳过，**第二次评分零次入账**。
+    """
+    LED = vault / "learning_events.jsonl"
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    assert _run_writer_settled(vault, _payload(event_id="K", ts=TS1, review_time=TS1)).returncode == 0
+    node = (vault / NODE_REL).read_text(encoding="utf-8")
+    assert '- event_id: "quiz:K"' in node and "id_form: full" in node, node[:300]
+    LED.write_text("", encoding="utf-8")
+    face = _write_face(vault)
+    r = _run_writer(vault, _payload(event_id="quiz:K", ts="2026-08-02T10:00:00Z", review_time="2026-08-02T10:00:00Z"))
+    assert r.returncode != 0, "两个不同的完整 id 不得别名成同一次评分"
+    assert "历史裸形态回落" in r.stderr, r.stderr[:300]
+    assert _write_face(vault) == face, "零写"
+    # 验伪：合法的 exact 恢复不受影响
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    assert _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1)).returncode == 0
+    LED.write_text("", encoding="utf-8")
+    r2 = _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1))
+    assert r2.returncode == 0, f"exact 命中 + 标记必须仍能恢复: {r2.stderr[:250]}"
+
+
+def test_round13_f1only_ordinal_discounts_successors(vault):
+    """F1-only 的序数期望要**折算后继贡献**，不能直接拿当前 tip 比。
+
+    ⛔ 实测误拒：E1/E2 都完成（tip=2），只丢 E1 的账本行 ⇒ 旧实现报
+    `attempt_count 1 != 期望 2`、节点零写，**合法的非-tip 续跑永久走不下去**。
+    dup 分支早有 `_att_now - _after_applied` 的折算，F1-only 没有——「修一半」的又一处。
+    """
+    LED = vault / "learning_events.jsonl"
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    assert _run_writer_settled(vault, _payload(event_id="E1#q1", ts=TS1, review_time=TS1)).returncode == 0
+    assert (
+        _run_writer_settled(
+            vault, _payload(event_id="E2#q1", ts="2026-08-01T11:00:00Z", review_time="2026-08-01T11:00:00Z")
+        ).returncode
+        == 0
+    )
+    rows = list(_ledger_lines(vault))
+    LED.write_text(json.dumps(rows[1], ensure_ascii=False) + "\n", encoding="utf-8")  # 只留 E2
+    assert _run_validator(vault).returncode == 0
+    r = _run_writer_settled(vault, _payload(event_id="E1#q1", ts=TS1, review_time=TS1))
+    assert r.returncode == 0, f"⛔ 非-tip 的合法续跑不得被误拒: {r.stderr[:300]}"
+    # 验伪：真正的序数不符仍必须拒（不得为了不误拒而改成放行）
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    assert _run_writer_settled(vault, _payload(event_id="E1#q1", ts=TS1, review_time=TS1)).returncode == 0
+    nd = (vault / NODE_REL).read_text(encoding="utf-8")
+    nd2 = re.sub(r'(- event_id: "quiz:E1#q1"\n(?:    [^\n]*\n)*?    attempt_count: )\d+', r"\g<1>9", nd, count=1)
+    assert nd2 != nd, "预置必须真的改了 receipt 序数"
+    (vault / NODE_REL).write_text(nd2, encoding="utf-8")
+    LED.write_text("", encoding="utf-8")
+    r2 = _run_writer(vault, _payload(event_id="E1#q1", ts=TS1, review_time=TS1))
+    assert r2.returncode != 0, "真正的序数不符仍必须拒"

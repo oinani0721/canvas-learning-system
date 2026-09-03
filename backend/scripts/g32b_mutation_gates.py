@@ -615,8 +615,9 @@ MUTATIONS += [
                 SKILL,
                 # ⚠️ round-12 重绑: `≤W` 扫描已改走 resolver, 原来那个 compat 调用点消失。
                 # 同防线的仍存在站点是崩溃窗采用时刻证明里的这一处。
-                "    if W_inst is None and not _fm_has_event_compat(fm, evid, _ALL_LEDGER_IDS):\n",
-                "    if W_inst is None and not _fm_has_event(fm, evid):  # MUTANT: 第二站点同样退回裸查\n",
+                # ⚠️ round-13 重绑: 崩溃窗条件行已改（去掉 W_inst is None 限制）。
+                "    if (not _fm_has_event_compat(fm, evid, _ALL_LEDGER_IDS)\n",
+                "    if (not _fm_has_event(fm, evid)  # MUTANT: 第二站点同样退回裸查\n",
             ),
             (
                 SKILL,
@@ -1209,7 +1210,8 @@ MUTATIONS += [
         # F1-only 漏 exam_board ⇒ 同 ID 换白板的另一次评分被吞
         "M114-f1only-drops-exam-board",
         SKILL,
-        '        "exam_board": (str(_board or ""), _ok_board),\n',
+        # ⚠️ round-13 重绑: 已改走共用的 `_norm_board`。
+        '        "exam_board": (_norm_board(_board), _ok_board),\n',
         "        # MUTANT: F1-only 不比白板\n",
         "test_round12_b2_exam_board_in_facts",
     ),
@@ -1233,7 +1235,8 @@ MUTATIONS += [
         # 空来源时不要求 provenance ⇒ 历史裸形态被当成完整形态
         "M117-empty-source-skips-provenance",
         SKILL,
-        '        if not (isinstance(_probe, dict) and _probe.get("id_form") == "full"):\n',
+        # ⚠️ round-13 重绑: 判据已拆成 `_exact_hit and _marked`。
+        "        if not (_exact_hit and _marked):\n",
         "        if False:  # MUTANT: 空来源不查形态标记\n",
         "test_round12_b1_receipt_provenance",
     ),
@@ -1249,8 +1252,9 @@ MUTATIONS += [
         # 崩溃窗不证明采用时刻 ⇒ W 被恢复成篡改值
         "M119-crash-window-adopted-time-unproven",
         SKILL,
-        "    if W_inst is None and not _fm_has_event_compat(fm, evid, _ALL_LEDGER_IDS):\n",
-        "    if False:  # MUTANT: 崩溃窗不证明采用时刻\n",
+        # ⚠️ round-13 重绑: 条件行已改。
+        '        _dup_sa = _dpl.get("scored_at")\n',
+        "        _dup_sa = None  # MUTANT: 崩溃窗不证明采用时刻\n",
         "test_round12_high2_adopted_time_in_crash_window",
     ),
     (
@@ -1260,6 +1264,59 @@ MUTATIONS += [
         '        if "scored_at" not in _dpl:\n',
         "        if False:  # MUTANT: 不给可执行迁移指引\n",
         "test_round12_high3_legacy_row_missing_scored_at_is_actionable",
+    ),
+]
+
+
+# ── round-13 修复的承重变异（四条误拒 + 两条漏网）
+MUTATIONS += [
+    (
+        # 消费侧又开始舍入 ⇒ 合法三位小数分数被拒
+        "M121-consumer-rounds-grade",
+        SKILL,
+        "_norm_gn = lambda v: v                                    # 不舍入: receipt 存的是原值\n",
+        "_norm_gn = lambda v: round(float(v or 0.0), 2)  # MUTANT: 消费侧舍入\n",
+        "test_round13_consumer_must_not_reshape_values",
+    ),
+    (
+        # 消费侧又开始强转 ⇒ writer 自己产出的整数板名被判类型非法
+        "M122-consumer-coerces-board",
+        SKILL,
+        '_norm_board = lambda v: v if v is not None else ""       # 不强转类型: 按原始 JSON 值比\n',
+        '_norm_board = lambda v: str(v or "")  # MUTANT: 消费侧强转\n',
+        "test_round13_consumer_must_not_reshape_values",
+    ),
+    (
+        # 采用时刻退回字面比较 ⇒ 合法小数秒输入被永久拒
+        "M123-adopted-time-literal-compare",
+        SKILL,
+        "    _i = _i.astimezone(timezone.utc).replace(microsecond=0)\n",
+        "    pass  # MUTANT: 不截整秒, 退回字面语义\n",
+        "test_round13_adopted_time_recomputed_not_compared_literally",
+    ),
+    (
+        # 崩溃窗证明只在 W 为空时做 ⇒ W 非空的篡改照常放行
+        "M124-crash-window-only-when-w-empty",
+        SKILL,
+        "            and _dup_rt_inst is not None and (W_inst is None or _dup_rt_inst > W_inst)):\n",
+        "            and _dup_rt_inst is not None and W_inst is None):  # MUTANT: 只管 W 空\n",
+        "test_round13_adopted_time_recomputed_not_compared_literally",
+    ),
+    (
+        # id_form 标记对裸形态回落也放行 ⇒ 两个完整 id 别名
+        "M125-id-form-authorizes-bare-fallback",
+        SKILL,
+        "        if not (_exact_hit and _marked):\n",
+        "        if not _marked:  # MUTANT: 裸形态回落也认标记\n",
+        "test_round13_id_form_only_proves_exact_hit",
+    ),
+    (
+        # F1-only 不折算后继 ⇒ 合法非-tip 续跑被误拒
+        "M126-f1only-no-successor-discount",
+        SKILL,
+        "        _att_cur = (_att_now_f1 - _succ_f1) if _att_now_f1 is not None else None\n",
+        "        _att_cur = _att_now_f1  # MUTANT: 直接拿当前 tip 比\n",
+        "test_round13_f1only_ordinal_discounts_successors",
     ),
 ]
 

@@ -293,6 +293,23 @@ def _aware(s):
     dt = datetime.fromisoformat(str(s).replace("Z", "+00:00"))
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
+
+def _adopted_from(_sa, _w_inst):
+    """由**原始时刻**与**当时的水位线**复算唯一的 A3 采用时刻（纯函数）。
+
+    ⛔ 这是 A3 的定义本身, 不是启发式: 先 UTC 化、截整秒(bridge 侧同款), 若结果
+    不晚于水位线则取 `W+1s`。round-13 之前这里比的是**字面相等**, 于是带小数秒的
+    合法输入(`10:00:00.731Z`)被判成「采用时刻被改过」—— 采用值是算出来的, 不是抄的。
+    """
+    try:
+        _i = _aware(_sa)
+    except Exception:
+        return None
+    _i = _i.astimezone(timezone.utc).replace(microsecond=0)
+    if _w_inst is not None and _i <= _w_inst:
+        _i = _w_inst + timedelta(seconds=1)
+    return _i
+
 def _instant_only(s, ctx):
     """tz-aware 解析 → UTC 瞬间。**不施加整秒/UTC 字面门** —— 用于只需要比较
     「是不是同一个绝对时刻」的场合。
@@ -454,7 +471,18 @@ _ok_str = lambda v: isinstance(v, str) and bool(v) and v == v.strip()
 _ok_gn = lambda v: isinstance(v, (int, float)) and not isinstance(v, bool)
 _ok_att = lambda v: isinstance(v, int) and not isinstance(v, bool) and v >= 1
 _ok_bool = lambda v: isinstance(v, bool)
-_ok_board = lambda v: isinstance(v, str)          # 空板名合法(旧行可能没记)
+# ⛔ round-13: 不做 string-only 收窄 —— schema 未冻结该字段类型, writer 自己
+# 就会产出整数板名。校验只保证「不是 None/bool」, 相等比较承担实际鉴别。
+_ok_board = lambda v: v is not None and not isinstance(v, bool)
+
+
+# ⛔ 两个构造器共用的**归一化规则**（round-13 抽出）: 只要 `_facts_of_row` 与
+# `_facts_of_current` 各写各的取值方式, 就还有「半」可修 —— 实测: round-13 修
+# 「消费侧不得改值」时我只改了 row 那份, current 那份的 `str()` 强转还在,
+# 于是整数板名仍比出 `123 != '123'`。**并列实现是「修一半」的温床**;
+# 把「值怎么取、默认是什么」抽到这里, 两个构造器只负责「从哪儿取」。
+_norm_board = lambda v: v if v is not None else ""       # 不强转类型: 按原始 JSON 值比
+_norm_gn = lambda v: v                                    # 不舍入: receipt 存的是原值
 
 
 def _facts_of_row(_o):
@@ -463,9 +491,17 @@ def _facts_of_row(_o):
     return {
         "scored_at": (str(_pl.get("scored_at") or _pl.get("review_time") or ""), _ok_str),
         "attempt_count": (_pl.get("attempt_count"), _ok_att),
-        "grade_norm": (round(float(_pl.get("grade_norm", 0.0)), 2), _ok_gn),
+        # ⛔ round-13 HIGH: **消费侧不得单方面改值**。此前这里 `round(..., 2)` 而
+        # receipt 存的是原值 ⇒ 合法的 `grade_norm=0.752`(validator rc=0) 与 receipt
+        # 的 0.752 比出 `0.752 != 期望 0.75`, **两阶段永久不收敛**。
+        # 要强制两位小数就得同时改 schema + validator + 所有生产者, 不能只在比较侧 round。
+        "grade_norm": (_norm_gn(_pl.get("grade_norm")), _ok_gn),
         "abandoned": (_o.get("event_type") == "answer_abandoned", _ok_bool),
-        "exam_board": (str(_pl.get("exam_board") or ""), _ok_board),
+        # ⛔ 同上: `str()` 强转 + string-only 校验会拒掉 writer **自己产出**的
+        # validator-valid 状态(实测 `exam_board=123` 首跑 rc=0、账本与 receipt 都存
+        # 整数 123, 紧接着同输入重跑 rc=1「类型非法」)。按原始 JSON 值比较;
+        # 默认值与 receipt 写侧逐字同款(`.get("exam_board", "")`), 否则缺字段时两边错位。
+        "exam_board": (_norm_board(_pl.get("exam_board", "")), _ok_board),
     }
 
 
@@ -474,9 +510,9 @@ def _facts_of_current(_sa, _att, _gn, _ab, _board):
     return {
         "scored_at": (_sa, _ok_str),
         "attempt_count": (_att, _ok_att),
-        "grade_norm": (_gn, _ok_gn),
+        "grade_norm": (_norm_gn(_gn), _ok_gn),
         "abandoned": (bool(_ab), _ok_bool),
-        "exam_board": (str(_board or ""), _ok_board),
+        "exam_board": (_norm_board(_board), _ok_board),
     }
 
 
@@ -511,17 +547,35 @@ def _resolve_receipt(fm_text, ev_id, all_ledger_ids=(), row=None, facts=None, re
     # **字节上不可区分**。此时唯一可证的凭据是条目自带的 `id_form: full` 标记 ——
     # 没有它就无从证明这条 receipt 存的是完整 id, 猜一个就会让另一次评分静默消失。
     if not _sources:
-        _probe = None
+        _probe, _hit_tok = None, None
         for _tok in _cands:
             _probe = _receipt_of(fm_text, _tok)
             if _probe is not None:
+                _hit_tok = _tok
                 break
-        if not (isinstance(_probe, dict) and _probe.get("id_form") == "full"):
+        # ⛔ round-13 BLOCKER①: `id_form: full` 只证明「这条 receipt 存的是**某个**完整
+        # id」, **不证明它就是本次的完整 id**。裸形态回落命中时, 那个标记恰恰是
+        # **另一个事件**留下的 —— 实测别名链: 本地 id `K` 写出 receipt
+        # `quiz:K, id_form:full`; 清空账本后提交本地 id `quiz:K`(完整 id 是
+        # `quiz:quiz:K`) ⇒ 裸形态回落命中那条, 标记满足, 判「已应用」幂等跳过,
+        # **第二次评分零次入账**(rc=0、账本 0 字节、attempt 停在 1)。
+        # 正确口径: 标记只对 **exact 命中**(token == ev_id)有效; 裸形态回落在来源
+        # 不可证时一律停 —— 那正是「两个世界字节相同」的场景。
+        _exact_hit = _hit_tok == ev_id
+        _marked = isinstance(_probe, dict) and _probe.get("id_form") == "full"
+        if not (_exact_hit and _marked):
             raise SystemExit(
-                f"[quiz-answer] 账本里找不到 {ev_id!r} 的来源行, 而校准记录里那条 receipt "
-                f"没有 `id_form: full` 标记 — 无法区分它存的是**完整 id** 还是**历史裸形态**"
-                f"(两种情形下这条记录字节完全相同, 评分事实也相同), 猜一个就会让另一次评分"
-                f"静默消失, fail-closed 拒写 — 请人工确认后给该条目补上 `id_form: full`"
+                f"[quiz-answer] 账本里找不到 {ev_id!r} 的来源行, 而校准记录里命中的是 "
+                f"{_hit_tok!r} — "
+                + (
+                    f"它是**历史裸形态回落**命中(不是 {ev_id!r} 本身), 此时条目上的 "
+                    f"`id_form` 标记只能证明它存的是**某个**完整 id, 不能证明就是本次这个; "
+                    f"猜一个就会让另一次评分静默消失"
+                    if _hit_tok is not None and not _exact_hit else
+                    f"该条目没有 `id_form: full` 标记, 无法区分它存的是**完整 id** 还是"
+                    f"**历史裸形态**(两种情形下这条记录字节完全相同, 评分事实也相同)"
+                )
+                + f", fail-closed 拒写 — 请人工统一这些 id 或给该条目补上 `id_form: full`"
             )
     if require_source and _sources != {ev_id}:
         raise SystemExit(
@@ -1236,7 +1290,31 @@ if dup is None:
         # ⚠️ 本分支没有账本行可比(账本行丢失正是它的前提), 故不传 row=;
         # 采用时刻的绑定由下面的「W 覆盖」判据承担。
         _att_m = re.search(_ATT_RE, fm, re.M)
-        _att_cur = int(_att_m.group(1)) if _att_m else None
+        _att_now_f1 = int(_att_m.group(1)) if _att_m else None
+        # ⛔ round-13 HIGH: 此前这里直接拿**当前 tip** 去比 receipt 的序数 —— 于是
+        # 「E1/E2 都已完成(tip=2), 只丢了 E1 的账本行」这种**合法**的非-tip 续跑
+        # 被永久误拒(实测 rc=1「attempt_count 1 != 期望 2」、节点零写)。
+        # dup 分支早有 `_att_now - _after_applied` 的后继折算, F1-only 没有 ——
+        # 「修一半」的又一处。这里按同语义补上: 目标 receipt 的序数 **加上可证明的
+        # 后继贡献** 应等于当前 tip; 后继 = 采用时刻晚于本 receipt 且**校准里有它**
+        # 的适用行(有校准才说明它真的推进过 attempt)。
+        _rc_probe_f1 = _receipt_of(fm, evid)
+        if _rc_probe_f1 is None and evid.startswith("quiz:"):
+            _rc_probe_f1 = _receipt_of(fm, evid[5:])
+        _rc_ts_f1 = _rc_probe_f1.get("ts") if isinstance(_rc_probe_f1, dict) else None
+        _succ_f1 = 0
+        if isinstance(_rc_ts_f1, str) and _rc_ts_f1:
+            try:
+                _rc_inst_f1 = _aware(_rc_ts_f1)
+            except Exception:
+                _rc_inst_f1 = None
+            if _rc_inst_f1 is not None:
+                _succ_f1 = sum(
+                    1 for _i5, _l5, _o5 in _applicable
+                    if _i5 > _rc_inst_f1
+                    and _fm_has_event_compat(fm, str(_o5.get("event_id") or ""), _ALL_LEDGER_IDS)
+                )
+        _att_cur = (_att_now_f1 - _succ_f1) if _att_now_f1 is not None else None
         _rc_gn_ok = lambda v: isinstance(v, (int, float)) and not isinstance(v, bool)
         _rcpt, _ = _resolve_receipt(
             fm, evid, _EARLY_LEDGER_IDS, require_source=False,
@@ -1250,7 +1328,7 @@ if dup is None:
         )
         if _rcpt is None:
             raise SystemExit(f"[quiz-answer] {evid} 在 calibration_log 里命中却读不出条目 — receipt 不可解析, 无法证明是同一次评分, fail-closed 拒写 — 请人工核对 {NODE}")
-        if _att_cur is None:
+        if _att_now_f1 is None:
             raise SystemExit(f"[quiz-answer] 笔记缺 attempt_count — 无法证明 receipt 的序数, fail-closed 拒写 — 请人工核对 {NODE}")
         # `ts` 的期望值不是定值(它是 A3 采用时刻), 只校验形态; 其余五项已比过。
         _rc_ts = _rcpt.get("ts")
@@ -1456,25 +1534,47 @@ else:
     # 把账本同 ID 行的 grade 改成 validator-valid 的另一个值再重跑, 会判「幂等跳过」,
     # 于是账本是 .0 而节点与 receipt 仍是 .75, 拼出自相矛盾的状态。
     _resolve_receipt(fm, evid, _ALL_LEDGER_IDS, row=dup, facts=_facts_of_row(dup))
-    # ⛔ 无 receipt 的崩溃窗内也要证明采用时刻 (Codex round-12 HIGH②)。
+    # ⛔ 无 receipt 的崩溃窗内也要证明采用时刻 (round-12 HIGH② → round-13 重写)。
     # 实测漏算链: append 之后、frontmatter 尚未推进时崩溃(此时**没有 receipt**),
-    # 把 durable 的 effective_at 与 payload.review_time **同步**改到 12-01
-    # (scored_at 保持 08-01) ⇒ writer rc=0、validator 全程 rc=0, 而水位线被恢复成
-    # 12-01 —— 从此所有早于 12 月的真实复习都被当成「已过水位线」而漏算。
-    # 三方绑定在这里帮不上忙: receipt 不存在, 没有第三个瞬间可比。
+    # 把 durable 的 effective_at 与 payload.review_time **同步**改掉(scored_at 保持)
+    # ⇒ writer rc=0、validator 全程 rc=0, 而水位线被恢复成篡改值 —— 从此所有早于
+    # 它的真实复习都被当成「已过水位线」而漏算。三方绑定在这里帮不上忙: 没有 receipt。
     #
-    # 可判别的约束来自 **A3 语义本身**: A3 只在水位线**非空**时才把采用时刻推到 W+1s。
-    # 所以「节点水位线为空」⇒ 该行的 review_time **必等于** scored_at (实测: 首写
-    # 两者相等; A3 生效那次的水位线非空)。这不是启发式, 是 A3 的定义。
-    if W_inst is None and not _fm_has_event_compat(fm, evid, _ALL_LEDGER_IDS):
-        _dup_rt, _dup_sa = _dpl.get("review_time"), _dpl.get("scored_at")
-        if isinstance(_dup_sa, str) and _dup_sa and _dup_rt != _dup_sa:
-            raise SystemExit(
-                f"[quiz-answer] 账本行 {evid} 的采用时刻 review_time={_dup_rt!r} 与原始时刻 "
-                f"scored_at={_dup_sa!r} 不同, 但本节点水位线为空且没有校准记录 — A3 只在水位线"
-                f"非空时才推移采用时刻, 故此形态不可能由本写点产生(采用时刻被改过), "
-                f"放行会把水位线恢复成篡改值并让之前所有真实复习被当成已过线, fail-closed 拒写"
-            )
+    # ⛔ **round-12 的写法错了两处, round-13 实测打穿**:
+    #   ① 判据落在**字面相等**上(「W 为空 ⇒ review_time == scored_at」)。可是 A3 的
+    #      采用值是**算出来的**: 先 UTC 化再截整秒。合法输入 `10:00:00.731Z` 会产出
+    #      `review_time=...00Z` 而 `scored_at=...00.731Z` —— 两者**合法地不等**,
+    #      于是这道门把正常评分永久拒掉。「字面 vs 值」在本卡的第六次。
+    #   ② 只在 `W_inst is None` 时检查。W 非空且无 receipt 的崩溃窗**同样可篡改**
+    #      (实测: E0 已应用、E1 append 后恢复节点, 把 E1 的两个时刻改到 12 月,
+    #       writer rc=0 且水位线真被恢复成 12 月)。「修一半」的又一次。
+    #
+    # 正确形态: 由 `scored_at` 与**当时的水位线**复算出**唯一**的采用值, 再与 durable
+    # 记的采用时刻比**瞬间**(不是比字符串)。复算规则就是 A3 本身, 不是启发式。
+    # ⚠️ 适用面必须限定在**真正的崩溃窗**: 「dup 存在 + 无 receipt + durable 的采用
+    # 时刻**晚于**当前水位线」—— 即那一行已入账但**尚未被应用**。
+    # ⛔ 少了这个条件就会误拒: 若该行**已经应用过**(review_time ≤ W), 当前 W 恰恰是
+    # 它自己造成的, 拿它去复算等于要求「W 在自己之后」, 六格状态机的门当场变红。
+    # 已应用却缺 receipt 是**另一个**状态, 由既有的「FSRS 已应用但缺校准记录」承接。
+    _dup_rt_inst = _aware(_dpl["review_time"]) if isinstance(_dpl.get("review_time"), str) else None
+    if (not _fm_has_event_compat(fm, evid, _ALL_LEDGER_IDS)
+            and _dup_rt_inst is not None and (W_inst is None or _dup_rt_inst > W_inst)):
+        _dup_sa = _dpl.get("scored_at")
+        if isinstance(_dup_sa, str) and _dup_sa:
+            try:
+                _exp_inst = _adopted_from(_dup_sa, W_inst)
+                _got_rt = _instant_only(_dpl.get("review_time"), "durable review_time")
+                _got_ea = _instant_only(dup.get("effective_at"), "durable effective_at")
+            except SystemExit:
+                raise SystemExit(f"[quiz-answer] 账本行 {evid} 的时刻不可解析 (scored_at={_dup_sa!r} / review_time={_dpl.get('review_time')!r} / effective_at={dup.get('effective_at')!r}), fail-closed 拒写")
+            if _exp_inst is None or _got_rt != _exp_inst or _got_ea != _exp_inst:
+                raise SystemExit(
+                    f"[quiz-answer] 账本行 {evid} 没有校准记录(崩溃窗), 于是由 scored_at={_dup_sa!r} "
+                    f"与当时的水位线 W={W!r} **复算**采用时刻 = {_exp_inst.isoformat().replace('+00:00','Z') if _exp_inst else None!r}, "
+                    f"但账本记的是 review_time={_dpl.get('review_time')!r} / effective_at={dup.get('effective_at')!r} — "
+                    f"对不上说明采用时刻被改过; 放行会把水位线恢复成篡改值, 让此前所有真实复习被当成已过线, "
+                    f"fail-closed 拒写 — 请人工核对账本"
+                )
     _their_scored = _dpl.get("scored_at", _dpl.get("review_time"))
     _mine_env = {
         "event_version": 1, "event_type": etype, "node_id": node_id,
