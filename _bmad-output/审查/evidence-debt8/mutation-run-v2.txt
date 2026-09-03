@@ -1,0 +1,28 @@
+[baseline] tests/regression/test_debt8_fsrs_fallback_honest.py 全绿 ✓
+
+[M1-schedule-algorithm-恒fsrs45] test_fallback_schedule_review_reports_honest_algorithm → KILLED(门变红✓)
+[M2-schedule-去degraded_reason键] test_fallback_schedule_review_reports_honest_algorithm → KILLED(门变红✓)
+[M3-record-algorithm-恒fsrs45] test_fallback_record_review_result_reports_honest_algorithm → KILLED(门变红✓)
+[M4-record-去degraded_reason拼接] test_fallback_record_review_result_reports_honest_algorithm → KILLED(门变红✓)
+[M5-record-degraded覆盖而非拼接（丢D3信号）] test_fallback_record_review_result_keeps_persistence_signal → KILLED(门变红✓)
+[M6-get_fsrs_state-去加性块] test_fallback_get_fsrs_state_reports_honest_algorithm → KILLED(门变红✓)
+[M7-_fsrs_library_ok-恒True（谎报复活）] test_fallback_record_review_result_reports_honest_algorithm → KILLED(门变红✓)
+[M8-_fsrs_library_ok-恒False（反向：污染真实库路径）] test_real_library_responses_unchanged → KILLED(门变红✓)
+[M9-manager实例属性-恒True（底层说谎）] test_fallback_get_fsrs_state_reports_honest_algorithm → KILLED(门变红✓)
+[M10-log_decision-reason恒FSRS-4.5（决策日志说谎）] test_fallback_schedule_review_reports_honest_algorithm → KILLED(门变红✓)
+
+============================================================
+变异总数 10 / 杀掉 10
+  M1-schedule-algorithm-恒fsrs45: KILLED(门变红✓)
+  M2-schedule-去degraded_reason键: KILLED(门变红✓)
+  M3-record-algorithm-恒fsrs45: KILLED(门变红✓)
+  M4-record-去degraded_reason拼接: KILLED(门变红✓)
+  M5-record-degraded覆盖而非拼接（丢D3信号）: KILLED(门变红✓)
+  M6-get_fsrs_state-去加性块: KILLED(门变红✓)
+  M7-_fsrs_library_ok-恒True（谎报复活）: KILLED(门变红✓)
+  M8-_fsrs_library_ok-恒False（反向：污染真实库路径）: KILLED(门变红✓)
+  M9-manager实例属性-恒True（底层说谎）: KILLED(门变红✓)
+  M10-log_decision-reason恒FSRS-4.5（决策日志说谎）: KILLED(门变红✓)
+
+还原复核 review_service.py sha256 = 8f695146f6e4719d7cd034a224bb914b1439c826660aaf5ddf8ef7af586812d8
+还原复核 fsrs_manager.py   sha256 = c2d533dd7a61ae724788d3798cae7bd8b3c2bddb89cc4fcfa1a4b349a29cfa9d
