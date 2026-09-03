@@ -310,6 +310,22 @@ def _adopted_from(_sa, _w_inst):
         _i = _w_inst + timedelta(seconds=1)
     return _i
 
+
+def _adopted_ok(_sa, _w_inst, _got):
+    """采用时刻 `_got` 是否**可解释**。
+
+    ⛔ 可证的不变量不是「等于 A3 推后的值」—— **外部写入方未必实施 A3**（validator
+    也不要求）。可解释的只有两个值: ①`scored_at` 截整秒后的原值（没推过）;
+    ②A3 从它推后的值。两者都合法, 别的都无法解释(那正是篡改的样子)。
+    ⚠️ round-14 我第一版只认②, 于是把「两条 pending 同一瞬间」这类**外部写入的
+    合法行**误拒了 —— 收紧到比审查要求更严, 又一次「加严不等于更安全」。
+    """
+    if _got is None:
+        return False
+    _pushed = _adopted_from(_sa, _w_inst)
+    _plain = _adopted_from(_sa, None)
+    return _got == _pushed or _got == _plain
+
 def _instant_only(s, ctx):
     """tz-aware 解析 → UTC 瞬间。**不施加整秒/UTC 字面门** —— 用于只需要比较
     「是不是同一个绝对时刻」的场合。
@@ -441,7 +457,17 @@ def _cands_and_sources(fm_text, ev_id, all_ledger_ids=()):
         _cands.append(ev_id)
     _bare = ev_id[5:] if ev_id.startswith("quiz:") else None
     if _bare is not None and _fm_has_event(fm_text, _bare):
-        _cands.append(_bare)
+        # ⛔ round-14 BLOCKER①: 形态标记必须在**候选解释阶段**生效, 不能等到后面
+        # 才补判。一条标了 `id_form: full` 的条目, 其 event_id **就是某个完整 id**;
+        # 拿它当「本次完整 id 的历史裸形态」是自相矛盾的解释。
+        # 实测别名链(来源集合**非空**, 所以 round-13 那道空来源判据够不着):
+        # 正常写本地 `K` ⇒ receipt `quiz:K, id_form:full`; 外部只把账本 id 改成
+        # `quiz:quiz:K`(validator rc=0); 再提交新的本地 id `quiz:K` ⇒ 裸回落命中
+        # 那条 full 条目, writer rc=0「已完整应用, 幂等跳过」, **新评分零次入账**。
+        # 只有**无标记的 legacy 条目**才允许裸回落 —— 它才可能是历史裸形态。
+        _bare_e = _receipt_of(fm_text, _bare)
+        if not (isinstance(_bare_e, dict) and _bare_e.get("id_form") == "full"):
+            _cands.append(_bare)
     # 反查: 每个账本 id 贡献「完整」token; 带 `quiz:` 前缀的再贡献「历史裸」token。
     _sources = set()
     for _tok in _cands:
@@ -481,6 +507,23 @@ _ok_board = lambda v: v is not None and not isinstance(v, bool)
 # 「消费侧不得改值」时我只改了 row 那份, current 那份的 `str()` 强转还在,
 # 于是整数板名仍比出 `123 != '123'`。**并列实现是「修一半」的温床**;
 # 把「值怎么取、默认是什么」抽到这里, 两个构造器只负责「从哪儿取」。
+_FACT_MISSING = object()          # 区分「键缺失」与「显式 null」
+
+
+def _canon_fact(v):
+    """事实的 canonical 形式：**类型敏感**的 JSON 文本。
+
+    ⛔ 直接用 `==` 会让 `1 == True`、`0 == False` 成立, 于是两次事实不同的评分
+    被判成同一次(round-14 BLOCKER③ 实测)。不可 JSON 化的值退回带类型名的表示,
+    仍然类型敏感。
+    """
+    try:
+        return "j:" + json.dumps(v, sort_keys=True, ensure_ascii=False,
+                                 separators=(",", ":"), allow_nan=False)
+    except (TypeError, ValueError):
+        return f"r:{type(v).__name__}:{v!r}"
+
+
 _norm_board = lambda v: v if v is not None else ""       # 不强转类型: 按原始 JSON 值比
 _norm_gn = lambda v: v                                    # 不舍入: receipt 存的是原值
 
@@ -601,14 +644,22 @@ def _resolve_receipt(fm_text, ev_id, all_ledger_ids=(), row=None, facts=None, re
                 f"(给了 {sorted(facts)}, 冻结键集是 {sorted(_FACT_KEYS)}) — "
                 f"缺项比较等于放行, fail-closed 拒写"
             )
+        # ⛔ round-14 BLOCKER③: 事实比较必须**类型敏感**且区分「键缺失」与「显式 null」。
+        # Python 的 `==` 把 `1 == True`、`0 == False` 判为相等 ⇒ 实测
+        # `exam_board={"k":1}` 与 `{"k":true}` 被当成同一次评分(rc=0 幂等 no-op、
+        # 账本 0 字节、attempt 停在 1), 另一次评分静默消失。
+        # 而 `.get(_k)` 把「没这个键」和「值是 null」混成同一个 None。
+        # ⚠️ 这是我 round-13 修误拒时**放松**出来的洞: 把 `_ok_board` 从 string-only
+        # 放宽后, 值域变宽而比较语义没跟上。修法不是再收紧类型(那会重新误拒),
+        # 是换掉**比较语义** —— canonical JSON 逐字比, 严/松不再是一个可调旋钮。
         _mis = []
         for _k, (_want, _ok) in facts.items():
-            _got = _rcpt.get(_k)
-            if _got is None:
+            _got = _rcpt.get(_k, _FACT_MISSING)
+            if _got is _FACT_MISSING:
                 _mis.append(f"receipt 缺 {_k}")
             elif not _ok(_got):
                 _mis.append(f"receipt 的 {_k} 类型非法 ({_got!r})")
-            elif _got != _want:
+            elif _canon_fact(_got) != _canon_fact(_want):
                 _mis.append(f"{_k} {_got!r} != 期望 {_want!r}")
         if _mis:
             raise SystemExit(f"[quiz-answer] {ev_id} 的 receipt 与评分事实不一致 ({'; '.join(_mis)}) — 同一个 event_id 承载了两次不同的评分, fail-closed 拒写 — 请人工核对后修正 event_id 或账本")
@@ -1020,8 +1071,13 @@ def _append_calibration(fm_text, ts_str, ev=None):
     # 历史裸 `quiz:K` 并清空日志; 再提交**另一个**本地 id `K`(完整 id 也是 `quiz:K`)
     # ⇒ rc=0「旧写序幂等跳过」, 账本 0 字节、attempt 停在 1, **那次评分静默消失**。
     # 唯一的解法是给新条目**标明形态**: 有 `id_form: full` 才可证它存的是完整 id。
+    # ⚠️ 用 q_() 与其它字段同源: 结构化写回(YAML 重建)会把已有条目重新序列化成
+    # **带引号**的 `id_form: "full"`, 而这里若写裸词就产生**两种字面**。读侧走 YAML
+    # 解析不受影响, 但任何**文本级**处理(门的预置、迁移脚本、grep)都会踩 ——
+    # round-14 实测: 门的预置按裸词删, 结果删错了条目(把别人的删掉、目标的留着)。
+    # 同一字段只许有一种字面。
     entry_ = (f'  - event_id: {q_(_e_id)}\n'
-              f'    id_form: full\n'
+              f'    id_form: {q_("full")}\n'
               f'    ts: {q_(ts_str)}\n'
               f'    scored_at: {q_(_e_sa)}\n'
               f'    attempt_count: {_e_att}\n'
@@ -1232,8 +1288,22 @@ for _ln, _o in _rows:
     # A3 的痕迹在于「采用值被推后了」, 而**没有 scored_at 就无从知道推没推**。
     # 可证的处置: 缺该字段时只能按存量行处理(回落 review_time), 并如实告警 ——
     # 真正的闭环要 validator 把它列为必填, 那一环撞卡文禁改面, 已登记移交。
+    # ⛔ round-14 BLOCKER②: 「告警后回落 review_time」**不是可证的处置** —— 回落值是
+    # A3 **采用后**的时刻, 于是两个**不同原始时刻**的评分被别名成同一次。
+    # 实测漏算链: E0@10:00 应用后, E1 原始也是 10:00 但 A3 采用 10:00:01; 删掉 E1 的
+    # payload.scored_at 并把节点回滚到 E0(validator rc=0); 再以同 ID、原始时刻
+    # **10:00:01** 重跑 ⇒ writer rc=0、账本仍 2 行、attempt=2, **新的评分事实未入账**。
+    # 消费 `review/1` 行时缺 scored_at 一律停, 旧行走明确迁移(与 HIGH③ 同一条出路)。
     if not isinstance(_pl.get("scored_at"), str) or not _pl["scored_at"]:
-        print(f"[quiz-answer] ⚠️ {_ctx} 缺 payload.scored_at (round-8 之前的存量行) — 按存量行回落到 review_time; 此模式下无法区分「同一次评分的续跑」与「同 ID 换了业务时刻」, 完整闭环需 validator 侧同步(已移交)")
+        raise SystemExit(
+            f"[quiz-answer] {_ctx} 缺 payload.scored_at（round-8 之前的存量行）— "
+            f"没有它就无从知道 A3 有没有推过采用时刻, 回落 review_time 会把**两个不同原始时刻**"
+            f"的评分别名成同一次(实测: 新的评分事实静默不入账), fail-closed 拒写。\n"
+            f"处置: 在 learning_events.jsonl 里给该行的 payload 补上 \"scored_at\""
+            f"（若 review_time={_pl.get('review_time')!r} 确实就是当时的原始评分时刻就填它,"
+            f"否则填真实的原始时刻), 再重跑。⚠️ 该字段的必填门在 validator 侧尚未同步"
+            f"（撞本卡禁改面, 已登记移交）—— 这里先在消费侧堵住。"
+        )
     _n0_ = _pl.get("attempt_count")
     if isinstance(_n0_, bool) or not isinstance(_n0_, int) or _n0_ < 1:
         raise SystemExit(f"[quiz-answer] {_ctx} 的 payload.attempt_count 缺失或非法 ({_n0_!r}; 须为 ≥1 的整数) — 它是 ordinal 回推与恢复的权威值, 缺了就无法证明这是第几次评分, fail-closed 拒写")
@@ -1314,6 +1384,29 @@ if dup is None:
                     if _i5 > _rc_inst_f1
                     and _fm_has_event_compat(fm, str(_o5.get("event_id") or ""), _ALL_LEDGER_IDS)
                 )
+                # ⛔ round-14 HIGH①: 折算只数了**适用集**里的后继, 而 §6.3 历史行
+                # (无 schema_ext、无任何 review 扩展键) **不在适用集里却照样推进过
+                # attempt**。实测误拒: 用真实旧写点产出 E2 历史行后只删 E1 的账本行,
+                # 原样重跑 E1 得「attempt_count 1 != 期望 2」、节点账本零写。
+                # ⚠️ 处置与 dup 分支同款「不伪造期望值」: 这类行的贡献**不可证**
+                # (它们没有可比的 attempt_count 语义), 报真因停下 —— 不按贡献 0 算,
+                # 那正是上面那条误拒的来源。
+                _legacy_succ_f1 = [
+                    _l6 for _l6, _o6 in _rows
+                    if isinstance(_o6, dict) and _nkey(_o6.get("node_id")) == _NODE_KEY
+                    and isinstance(_o6.get("payload"), dict)
+                    and _o6["payload"].get("schema_ext") != "review/1"
+                    and not _looks_like_review_ext(_o6["payload"])
+                    and _o6.get("event_type") in ("answer_scored", "answer_abandoned")
+                ]
+                if _legacy_succ_f1:
+                    raise SystemExit(
+                        f"[quiz-answer] 账本行丢失、只能靠校准记录证明 {evid} 的序数, 但本节点还有 "
+                        f"{len(_legacy_succ_f1)} 条 §6.3 历史评分行(第 {_legacy_succ_f1} 行) —— "
+                        f"它们同样推进过 attempt 却**没有可比的 attempt_count 语义**, "
+                        f"于是这次评分是第几次**不可证**。不按贡献 0 硬算(那会把合法续跑误拒), "
+                        f"fail-closed 拒写 — 请人工核对账本与笔记的 attempt_count 后重跑"
+                    )
         _att_cur = (_att_now_f1 - _succ_f1) if _att_now_f1 is not None else None
         _rc_gn_ok = lambda v: isinstance(v, (int, float)) and not isinstance(v, bool)
         _rcpt, _ = _resolve_receipt(
@@ -1567,7 +1660,7 @@ else:
                 _got_ea = _instant_only(dup.get("effective_at"), "durable effective_at")
             except SystemExit:
                 raise SystemExit(f"[quiz-answer] 账本行 {evid} 的时刻不可解析 (scored_at={_dup_sa!r} / review_time={_dpl.get('review_time')!r} / effective_at={dup.get('effective_at')!r}), fail-closed 拒写")
-            if _exp_inst is None or _got_rt != _exp_inst or _got_ea != _exp_inst:
+            if not (_adopted_ok(_dup_sa, W_inst, _got_rt) and _adopted_ok(_dup_sa, W_inst, _got_ea) and _got_rt == _got_ea):
                 raise SystemExit(
                     f"[quiz-answer] 账本行 {evid} 没有校准记录(崩溃窗), 于是由 scored_at={_dup_sa!r} "
                     f"与当时的水位线 W={W!r} **复算**采用时刻 = {_exp_inst.isoformat().replace('+00:00','Z') if _exp_inst else None!r}, "
@@ -1580,7 +1673,16 @@ else:
         "event_version": 1, "event_type": etype, "node_id": node_id,
         "scored_at": _SCORED_AT,
         "payload": {"schema_ext": "review/1", "vault_id": _vid, "concept_id": node_id,
-                    "rating": rating, "grade_norm": GN2,
+                    # ⛔ round-14 HIGH②: 本写点只产出**两位小数**, 而账本里可能有
+                    # 外部/旧版本写入的多位小数行(validator 允许)。envelope 拿 GN2
+                    # 去比原精度 durable 值 ⇒ 那行能被 foreign replay 恢复, 却**永远
+                    # 无法由原白板重跑落定**(实测 rc=1 canonical envelope 冲突、零写)。
+                    # 版本化身份规则: durable 是**本写点产不出的形态**时, 要求用户这次
+                    # 给的**原始输入**与它精确相等, 并用该原值构造 candidate ——
+                    # 与「消费侧不改值」同一条原则。GN 是未舍入的本次输入。
+                    "rating": rating,
+                    "grade_norm": (GN if (_dgn := (_dpl.get("grade_norm")))
+                                   is not None and _dgn != GN2 and _dgn == GN else GN2),
                     "exam_board": p.get("exam_board", ""),
                     "attempt_count": _att_expect}}
     _theirs_env = {"event_version": dup.get("event_version"), "event_type": dup.get("event_type"),
@@ -1640,8 +1742,33 @@ else:
 
 pending = [t for t in _applicable if W_inst is None or t[0] > W_inst]
 replay_failed = None
+# ⛔ round-14 HIGH③: 无-receipt 的采用时刻证明此前**只覆盖当前 dup** —— foreign
+# pending 可以携带任意采用时刻被重放。实测: 新节点放一条 foreign pending
+# (`scored_at=08-01` 而 `review_time/effective_at=12-01`, validator rc=0), 提交
+# 08-02 的当前事件后 rc=0、attempts=[1,2]、**W 被推进到 2026-12-01T10:00:01Z** ——
+# 此后所有早于 12 月的真实复习都被当成「已过水位线」而漏算。
+# 修法: **每条** pending 在调 bridge 之前, 用**当时内存里的 W** 与该行 scored_at
+# 复算唯一采用值再比瞬间; 逐行应用后 W 滚动更新(下一行的基线是上一行的结果)。
+_w_roll = W_inst
 for _inst, _ln, _o in pending:
     _pl = _o["payload"]
+    if not _fm_has_event_compat(fm, str(_o.get("event_id") or ""), _ALL_LEDGER_IDS):
+        _p_sa = _pl.get("scored_at")
+        _p_exp = _adopted_from(_p_sa, _w_roll) if isinstance(_p_sa, str) and _p_sa else None
+        try:
+            _p_rt = _instant_only(_pl.get("review_time"), f"账本第 {_ln} 行的 review_time")
+            _p_ea = _instant_only(_o.get("effective_at"), f"账本第 {_ln} 行的 effective_at")
+        except SystemExit:
+            raise
+        if not (_adopted_ok(_p_sa, _w_roll, _p_rt) and _adopted_ok(_p_sa, _w_roll, _p_ea) and _p_rt == _p_ea):
+            raise SystemExit(
+                f"[quiz-answer] 账本第 {_ln} 行({_o.get('event_id')}) 没有校准记录, 于是由 "
+                f"scored_at={_p_sa!r} 与当时的水位线复算采用时刻 = "
+                f"{_p_exp.isoformat().replace('+00:00','Z') if _p_exp else None!r}, 但账本记的是 "
+                f"review_time={_pl.get('review_time')!r} / effective_at={_o.get('effective_at')!r} — "
+                f"对不上说明采用时刻被改过; 复放它会把水位线推到篡改值, 让此前所有真实复习被当成"
+                f"已过线而漏算, fail-closed 拒写 — 请人工核对账本"
+            )
     _out, _err = _bridge(fm, float(_pl.get("grade_norm", 0.0)),
                          _o.get("event_type") == "answer_abandoned",
                          _pl["review_time"], rating=_pl.get("rating"))
@@ -1651,6 +1778,11 @@ for _inst, _ln, _o in pending:
         # 待 fsrs 恢复后重跑即可恢复。
         raise SystemExit(f"[quiz-answer] A2 pending 重放失败 (fsrs 不可用且存在未恢复事件), fail-closed 零写 — 待恢复后重跑: 账本第 {_ln} 行({_o.get('event_id')}): {_err}")
     fm = _apply_fsrs_block(fm, "\n" + _out["fm_block"])
+    # ⚠️ 滚动基线: 下一条 pending 的 A3 复算要用**本行应用之后**的水位线。
+    try:
+        _w_roll = _aware(_pl["review_time"])
+    except Exception:
+        pass
     # attempt_count 同步 (内部对抗审查 BLOCKER): 旧实现的 A2 重放**只补 FSRS**,
     # 于是「每条适用行对应 frontmatter attempt 一次 +1」这个不变量被写点自己
     # 破坏 —— E1 崩溃后先答 E2, 重放 E1 不推进 attempt, E2 便以同一个基数写出

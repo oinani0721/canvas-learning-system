@@ -276,6 +276,10 @@ def _pending_row(**over):
             "rating": 3,
             "grade_norm": 0.75,
             "review_time": TS1,
+            # ⚠️ round-14: 消费侧对 `review/1` 行缺 `scored_at` 已改 fail-closed
+            # （BLOCKER②：回落 review_time 会把两个不同原始时刻的评分别名成同一次）。
+            # 写点自己产出的行一直都带；构造**存量行**的反例自己 pop 掉它。
+            "scored_at": TS1,
             "fsrs_library_version": "degraded:historic-run",
             "fsrs_params_hash": "degraded:historic-run",
             "exam_board": "检验白板/板A.md",

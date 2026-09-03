@@ -114,12 +114,24 @@ def _review_row(**over):
             "rating": 3,
             "grade_norm": 0.75,
             "review_time": TS1,
+            # ⚠️ round-14: 本 fixture 此前**不带** `scored_at`，即 round-8 之前的存量形态。
+            # 消费侧现在对 `review/1` 行缺该字段一律 fail-closed（BLOCKER②：回落
+            # review_time 会把两个不同原始时刻的评分别名成同一次），所以默认补上它 ——
+            # 写点自己产出的行一直都带。需要构造**存量行**的门自己 `del` 掉它。
+            "scored_at": TS1,
             "fsrs_library_version": "degraded:historic-run",
             "fsrs_params_hash": "degraded:historic-run",
             "exam_board": "检验白板/板A.md",
             "attempt_count": 1,
         },
     }
+    # ⚠️ round-14: 覆写 `payload.review_time` 时**镜像** `scored_at` —— 写点产出的行
+    # 里两者要么相等（没触发 A3）、要么 scored_at 是 A3 推移前的原值。只改 review_time
+    # 会造出一个**写点产不出的形态**，被采用时刻证明正确地拒掉（门为 fixture 不真实而红）。
+    # 需要构造「采用时刻被改过」的门自己显式设 scored_at。
+    if "payload.review_time" in over and "payload.scored_at" not in over:
+        over = dict(over)
+        over["payload.scored_at"] = over["payload.review_time"]
     for k, v in over.items():
         if k.startswith("payload."):
             row["payload"][k.split(".", 1)[1]] = v
@@ -654,6 +666,8 @@ def test_pending_foreign_event_replayed_before_new_write(vault):
             "fsrs_params_hash": "degraded:historic-run",
             "exam_board": "检验白板/板A.md",
             "attempt_count": 1,
+            # ⚠️ round-14: 消费侧对 `review/1` 行缺 `scored_at` 已改 fail-closed。
+            "scored_at": TS1,
         },
     }
     (vault / "learning_events.jsonl").write_text(json.dumps(event_a, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -751,6 +765,8 @@ def test_pending_replay_failure_blocks_everything(vault):
             "fsrs_params_hash": "degraded:historic-run",
             "exam_board": "检验白板/板A.md",
             "attempt_count": 1,
+            # ⚠️ round-14: 消费侧对 `review/1` 行缺 `scored_at` 已改 fail-closed。
+            "scored_at": TS1,
         },
     }
     (vault / "learning_events.jsonl").write_text(json.dumps(event_a, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -2479,6 +2495,11 @@ def test_round5_calibration_key_prefix_collision(vault):
     assert _run_writer_settled(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z")).returncode == 0
     t = (vault / NODE_REL).read_text(encoding="utf-8")
     t2 = t.replace('event_id: "quiz:老键"', 'event_id: "老键"')
+    # ⚠️ round-14: 真实的 legacy 条目**不可能带** `id_form: full`(那是本卡新增的标记)。
+    # 只改 event_id 而留着标记, 预置出的是一个**不存在的形态**; 而 marker 现在在
+    # 候选阶段生效(标了 full 的条目不得当作别人的历史裸形态), 于是这条预置会被
+    # 正确地排除, 门为**预置不真实**而红。
+    t2 = t2.replace('    id_form: "full"\n', "", 1)
     assert t2 != t, "预置必须与旧形态可区分"
     (vault / NODE_REL).write_text(t2, encoding="utf-8")
     r2 = _run_writer_settled(vault, _payload(event_id="板C#q1", ts="2026-08-03T10:00:00Z"))
@@ -3255,9 +3276,16 @@ def test_round9_structured_receipt(vault):
     rl = _run_writer_settled(
         vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z", review_time="2026-08-02T10:00:00Z")
     )
-    assert rl.returncode == 0, f"存量行（无 scored_at）必须豁免，否则旧账本全不可用: {rl.stderr[:250]}"
-    assert "缺 payload.scored_at" in rl.stdout, f"必须如实告警而不是静默: {rl.stdout[:250]}"
-    assert "已移交" in rl.stdout, "告警须点明完整闭环需 validator 侧同步（卡文禁改面）"
+    # ⛔ round-14 反转了这条期望（原文是「存量行必须豁免，否则旧账本全不可用」）。
+    # 反转的依据是审查给的实测别名链：E0@10:00 应用后，E1 原始也是 10:00 但 A3 采用
+    # 10:00:01；删掉 E1 的 scored_at 并回滚节点（validator rc=0），再以同 ID、原始时刻
+    # **10:00:01** 重跑 ⇒ rc=0、账本仍 2 行、attempt=2，**新的评分事实静默不入账**。
+    # 「告警后回落 review_time」证明不了任何东西 —— 回落值是 A3 采用后的时刻。
+    # ⚠️ **代价如实记**：pre-round-8 的旧账本必须先人工补 `scored_at` 才能继续评分。
+    # 静默丢一次评分 vs 要求一次性迁移，取后者；这是产品取舍，已登记为裁决点。
+    assert rl.returncode != 0, f"存量行缺 scored_at 必须 fail-closed（round-14 反转）: {rl.stdout[:250]}"
+    assert "缺 payload.scored_at" in rl.stderr, f"拒因须点名缺的是哪个字段: {rl.stderr[:250]}"
+    assert "已登记移交" in rl.stderr, "须点明 validator 侧必填门尚未同步（卡文禁改面）"
 
 
 # ── 门(52) round-10: 统一 node-key / receipt 六事实 / adopted 绑定 / 写回结构化 ──
@@ -3867,9 +3895,9 @@ def test_round12_b1_receipt_provenance(vault):
     assert _run_writer_settled(vault, _payload(event_id="quiz:K", ts=TS1, review_time=TS1)).returncode == 0
     node = (vault / NODE_REL).read_text(encoding="utf-8")
     assert '- event_id: "quiz:quiz:K"' in node, node[:300]
-    assert "id_form: full" in node, "新写入必须带形态标记"
+    assert 'id_form: "full"' in node, "新写入必须带形态标记"
     # 改成历史裸形态并去掉标记（= 旧笔记的样子），再清空账本
-    hist = node.replace('- event_id: "quiz:quiz:K"', '- event_id: "quiz:K"').replace("    id_form: full\n", "", 1)
+    hist = node.replace('- event_id: "quiz:quiz:K"', '- event_id: "quiz:K"').replace('    id_form: "full"\n', "", 1)
     assert hist != node
     (vault / NODE_REL).write_text(hist, encoding="utf-8")
     LED.write_text("", encoding="utf-8")
@@ -3929,7 +3957,7 @@ def test_round12_seventh_state_ledger_missing_f1_w_uncovered(vault):
     LED.unlink(missing_ok=True)
     assert _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1)).returncode == 0
     node = (vault / NODE_REL).read_text(encoding="utf-8")
-    assert "id_form: full" in node
+    assert 'id_form: "full"' in node
     # 把 W（fsrs_last_review）退回到早于本次业务时刻 ⇒ 水位线不覆盖 receipt 的 ts
     node2 = re.sub(r"^fsrs_last_review:.*$", 'fsrs_last_review: "2026-07-01T10:00:00Z"', node, count=1, flags=re.M)
     assert node2 != node, "预置必须真的把水位线退回"
@@ -4033,9 +4061,11 @@ def test_round12_high3_legacy_row_missing_scored_at_is_actionable(vault):
     face2 = _write_face(vault)
     r2 = _run_writer(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1))
     assert r2.returncode != 0
-    assert "没有 scored_at" in r2.stderr, f"拒因必须点名旧行缺字段: {r2.stderr[:300]}"
-    assert "永远不会自行收敛" in r2.stderr, "必须告诉用户重跑无用"
-    assert "另一个问题" in r2.stderr, "⛔ 指引不得承诺补一处就一定通过（实测补完会转到缺校准记录那条）"
+    # ⚠️ round-14: 缺 scored_at 现在在**更早**的消费准入处就 fail-closed（BLOCKER②），
+    # 于是拒因来自那一道而不是 envelope 那一道。两者点名的都是「缺 scored_at」，
+    # 但措辞不同 —— 门跟着实际拒因走，不硬凑旧措辞。
+    assert "缺 payload.scored_at" in r2.stderr, f"拒因必须点名旧行缺字段: {r2.stderr[:300]}"
+    assert '"scored_at"' in r2.stderr, "必须给出可执行的补法"
     assert _write_face(vault) == face2, "零写"
 
     # ── 验伪：**不缺** scored_at 的真实事实冲突不得被说成「需要迁移」
@@ -4197,13 +4227,21 @@ def test_round13_id_form_only_proves_exact_hit(vault):
     LED.unlink(missing_ok=True)
     assert _run_writer_settled(vault, _payload(event_id="K", ts=TS1, review_time=TS1)).returncode == 0
     node = (vault / NODE_REL).read_text(encoding="utf-8")
-    assert '- event_id: "quiz:K"' in node and "id_form: full" in node, node[:300]
+    assert '- event_id: "quiz:K"' in node and 'id_form: "full"' in node, node[:300]
     LED.write_text("", encoding="utf-8")
     face = _write_face(vault)
-    r = _run_writer(vault, _payload(event_id="quiz:K", ts="2026-08-02T10:00:00Z", review_time="2026-08-02T10:00:00Z"))
-    assert r.returncode != 0, "两个不同的完整 id 不得别名成同一次评分"
-    assert "历史裸形态回落" in r.stderr, r.stderr[:300]
-    assert _write_face(vault) == face, "零写"
+    n0 = len(_ledger_lines(vault))
+    r = _run_writer_settled(
+        vault, _payload(event_id="quiz:K", ts="2026-08-02T10:00:00Z", review_time="2026-08-02T10:00:00Z")
+    )
+    # ⚠️ round-14 修订期望: marker 提到**候选阶段**之后, 一条标了 `id_form: full` 的
+    # 条目不再被解释成「别人的历史裸形态」⇒ 本次是**另一个事件**, 正确处置是
+    # **照常入账**, 而不是「不可证 ⇒ 停」。round-13 我写的是后者 —— 那是在
+    # marker 只在空来源分支生效时的权宜期望, 现在能证明了就该放行。
+    # ⛔ 关键是**不得静默跳过**（原缺陷: rc=0 但账本 0 字节、attempt 停在 1）。
+    assert r.returncode == 0, f"另一个完整 id 的评分应当入账: {r.stderr[:300]}"
+    assert len(_ledger_lines(vault)) == n0 + 1, "第二次评分必须真的入账（原缺陷是静默跳过）"
+    assert _write_face(vault) != face, "节点必须推进"
     # 验伪：合法的 exact 恢复不受影响
     (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
     LED.unlink(missing_ok=True)
@@ -4246,3 +4284,153 @@ def test_round13_f1only_ordinal_discounts_successors(vault):
     LED.write_text("", encoding="utf-8")
     r2 = _run_writer(vault, _payload(event_id="E1#q1", ts=TS1, review_time=TS1))
     assert r2.returncode != 0, "真正的序数不符仍必须拒"
+
+
+# ── 门(78)-(82) round-14: 三条漏网 + 三条误拒
+
+
+def test_round14_facts_compare_is_type_sensitive(vault):
+    """事实比较必须**类型敏感**：`{"k":1}` 与 `{"k":true}` 不是同一次评分。
+
+    ⛔ Python 的 `==` 让 `1 == True` 成立 —— 这是我 round-13 把 `_ok_board` 放宽后
+    留下的洞（值域变宽而比较语义没跟上）。修法不是再收紧类型（那会重新误拒），
+    是换掉**比较语义**：canonical JSON 逐字比，严/松不再是一个可调旋钮。
+    """
+    LED = vault / "learning_events.jsonl"
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    assert (
+        _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1, exam_board={"k": 1})).returncode
+        == 0
+    )
+    LED.write_text("", encoding="utf-8")
+    face = _write_face(vault)
+    r = _run_writer(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1, exam_board={"k": True}))
+    assert r.returncode != 0, "1 与 true 是不同的 JSON 事实，不得判成同一次评分"
+    assert "exam_board" in r.stderr, r.stderr[:250]
+    assert _write_face(vault) == face, "零写"
+
+
+def test_round14_id_form_checked_at_candidate_stage(vault):
+    """形态标记必须在**候选解释阶段**生效——来源集合非空时也不能被当作别人的裸形态。
+
+    ⛔ round-13 只在空来源分支判标记，于是来源非空的这条链漏网：正常写本地 `K`
+    ⇒ receipt `quiz:K, id_form:"full"`；外部只把账本 id 改成 `quiz:quiz:K`
+    （validator rc=0）；再提交本地 `quiz:K` ⇒ 裸回落命中那条 full 条目，
+    旧实现 rc=0「已完整应用，幂等跳过」，**新评分零次入账**。
+    """
+    LED = vault / "learning_events.jsonl"
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    assert _run_writer_settled(vault, _payload(event_id="K", ts=TS1, review_time=TS1)).returncode == 0
+    rows = list(_ledger_lines(vault))
+    rows[0]["event_id"] = "quiz:quiz:K"  # 来源集合非空
+    LED.write_text(json.dumps(rows[0], ensure_ascii=False) + "\n", encoding="utf-8")
+    assert _run_validator(vault).returncode == 0
+    n0, face = len(_ledger_lines(vault)), _write_face(vault)
+    # ⚠️ 必须用**与原行相同的时刻/分数**提交：换了时刻会先撞 envelope 冲突,
+    # 变异前后都拒 ⇒ 场景不判别（M128 此前正是这样活下来的）。
+    # 同时刻时唯一起作用的就是「候选阶段是否查形态标记」。
+    r = _run_writer(vault, _payload(event_id="quiz:K", ts=TS1, review_time=TS1))
+    # ⛔ 原缺陷是 rc=0「已完整应用，幂等跳过」+ 账本/attempt 全不动（静默丢一次评分）。
+    # 修好后 receipt 不再被当作本次的历史裸形态 ⇒ F1 为假 ⇒ 撞上「FSRS 已应用但缺
+    # 校准记录」的人工裁定。判据点名「不得静默跳过」这件事本身。
+    assert not (r.returncode == 0 and len(_ledger_lines(vault)) == n0 and _write_face(vault) == face), (
+        f"⛔ 不得静默跳过（原缺陷：rc=0 而账本与 attempt 全不动）: rc={r.returncode}"
+    )
+    assert r.returncode != 0, f"该状态不可证，应 fail-closed: {r.stdout[:200]}"
+    assert "缺校准记录" in r.stderr, r.stderr[:250]
+
+
+def test_round14_missing_scored_at_is_fail_closed(vault):
+    """消费 `review/1` 行缺 `scored_at` 一律 fail-closed。
+
+    ⛔ 这**反转了早先轮次的决定**（原门断言「存量行必须豁免，否则旧账本全不可用」）。
+    反转依据是实测别名链：E0@10:00 应用后，E1 原始也是 10:00 但 A3 采用 10:00:01；
+    删掉 E1 的 scored_at 并回滚节点（validator rc=0），再以同 ID、原始时刻
+    **10:00:01** 重跑 ⇒ 旧实现 rc=0、账本仍 2 行、attempt=2，**新评分事实静默不入账**。
+    ⚠️ 代价如实记：pre-round-8 的旧账本必须先人工补 `scored_at`。
+    静默丢一次评分 vs 一次性迁移，取后者 —— 这是产品取舍，已登记为裁决点。
+    """
+    LED = vault / "learning_events.jsonl"
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    row = _review_row()
+    row["payload"].pop("scored_at", None)
+    _write_ledger(vault, row)
+    assert _run_validator(vault).returncode == 0, "存量行本身合规（正是它难抓的原因）"
+    face = _write_face(vault)
+    r = _run_writer(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z", review_time="2026-08-02T10:00:00Z"))
+    assert r.returncode != 0, "缺 scored_at 必须停"
+    assert "缺 payload.scored_at" in r.stderr, r.stderr[:250]
+    assert '"scored_at"' in r.stderr, "必须给出可执行的补法"
+    assert _write_face(vault) == face, "零写"
+
+
+def test_round14_every_pending_proves_adopted_time(vault):
+    """**每条** pending 都要在调 bridge 前证明采用时刻，且基线随复放滚动。
+
+    ⛔ round-13 的证明只覆盖当前 dup，foreign pending 可携带任意采用时刻被重放
+    （实测 W 被推进到 2026-12-01，此后所有早于 12 月的真实复习都被当成已过线）。
+    """
+    LED = vault / "learning_events.jsonl"
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    row = _review_row(event_id="quiz:板A#q1")
+    row["payload"]["scored_at"] = TS1
+    row["payload"]["review_time"] = "2026-12-01T10:00:00Z"
+    row["effective_at"] = "2026-12-01T10:00:00Z"
+    _write_ledger(vault, row)
+    assert _run_validator(vault).returncode == 0, "被篡改的行本身仍合规"
+    r = _run_writer_settled(
+        vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z", review_time="2026-08-02T10:00:00Z")
+    )
+    assert r.returncode != 0, "foreign pending 的采用时刻同样要证"
+    assert not (_fm_fields(vault).get("fsrs_last_review") or "").startswith("2026-12"), "W 不得被推到篡改值"
+    # 验伪：**未实施 A3 的外部合法行**不得被误拒。
+    # ⚠️ 场景必须让「A3 推后值」与「截整秒原值」**真的不同** —— 单条 pending 时
+    # 两者恒等（W 为空或行晚于 W），验伪落空（M131 此前正是这样活下来的）。
+    # 两条同瞬间的 pending 才行：复放第一条后基线滚到 TS1，第二条的推后值是 TS1+1s，
+    # 而它记的是 TS1（外部写入方没实施 A3）—— 只有「两个可解释值」的口径才放行。
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    a = _review_row(event_id="quiz:板A#q1")
+    b = _review_row(event_id="quiz:板B#q1", **{"payload.attempt_count": 2})
+    _write_ledger(vault, a, b)
+    assert _run_validator(vault).returncode == 0, "两条同瞬间的行本身合规"
+    r2 = _run_writer_settled(
+        vault, _payload(event_id="板C#q1", ts="2026-08-05T10:00:00Z", review_time="2026-08-05T10:00:00Z")
+    )
+    assert r2.returncode == 0, f"⛔ 外部写入方未必实施 A3，两个可解释值都合法: {r2.stderr[:300]}"
+
+
+def test_round14_legacy_precision_identity(vault):
+    """本写点产不出的**多位小数** durable 值：要求用户这次给的原始输入精确匹配。
+
+    ⛔ 旧实现拿 `GN2`（两位）比原精度 durable 值 ⇒ 那行能被 foreign replay 恢复，
+    却**永远无法由原白板重跑落定**（rc=1 canonical envelope 冲突、零写）。
+    """
+    LED = vault / "learning_events.jsonl"
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    assert _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1)).returncode == 0
+    rows = list(_ledger_lines(vault))
+    rows[0]["payload"]["grade_norm"] = 0.752
+    LED.write_text(json.dumps(rows[0], ensure_ascii=False) + "\n", encoding="utf-8")
+    nd = (vault / NODE_REL).read_text(encoding="utf-8")
+    (vault / NODE_REL).write_text(
+        re.sub(r"^    grade_norm: .*$", "    grade_norm: 0.752", nd, count=1, flags=re.M), encoding="utf-8"
+    )
+    assert _run_validator(vault).returncode == 0
+    r = _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1, grade_norm=0.752))
+    assert r.returncode == 0, f"⛔ 给出原值时必须能落定: {r.stderr[:300]}"
+    # 验伪：真正不同的分数仍必须拒
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    assert _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1)).returncode == 0
+    rows2 = list(_ledger_lines(vault))
+    rows2[0]["payload"]["grade_norm"] = 0.752
+    LED.write_text(json.dumps(rows2[0], ensure_ascii=False) + "\n", encoding="utf-8")
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    r2 = _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1, grade_norm=0.31))
+    assert r2.returncode != 0, "真正不同的分数仍必须拒"

@@ -1024,14 +1024,11 @@ MUTATIONS += [
         "        _rcpt, _ = ({'scored_at': _SCORED_AT, 'grade_norm': GN2, 'ts': 'x'}, evid) and (lambda *a, **k: ({'scored_at': _SCORED_AT, 'grade_norm': GN2, 'ts': 'x', 'attempt_count': 1, 'event_id': evid, 'abandoned': bool(p.get('abandoned'))}, evid))(\n",
         "test_round9_structured_receipt",
     ),
-    (
-        # 存量行缺 scored_at 时静默吞掉告警 ⇒ 用户不知道自己在降级模式里
-        "M92-legacy-row-warning-silenced",
-        SKILL,
-        '        print(f"[quiz-answer] ⚠️ {_ctx} 缺 payload.scored_at',
-        '        _ = (f"[quiz-answer] ⚠️ {_ctx} 缺 payload.scored_at',
-        "test_round9_structured_receipt",
-    ),
+    # ⛔ M92-legacy-row-warning-silenced 已**退役**（round-14, 如实记录）:
+    # 它打的是「缺 scored_at 的告警被静默」。round-14 BLOCKER② 把那条**告警升成了
+    # fail-closed**（告警后回落 review_time 会把两个不同原始时刻的评分别名成同一次,
+    # 实测新评分静默不入账）—— 于是「告警在不在」不再是要守的性质,
+    # 「缺 scored_at 停不停」才是, 由 M129 与门(80) 直接守着。
 ]
 
 
@@ -1227,7 +1224,8 @@ MUTATIONS += [
         # 新 receipt 不带 provenance ⇒ 空来源时两个世界不可区分
         "M116-receipt-no-provenance",
         SKILL,
-        "              f'    id_form: full\\n'\n",
+        # ⚠️ round-14 重绑: 字面已统一为带引号（与结构化写回同源）。
+        "              f'    id_form: {q_(\"full\")}\\n'\n",
         "              # MUTANT: 不写形态标记\n",
         "test_round12_b1_receipt_provenance",
     ),
@@ -1256,6 +1254,15 @@ MUTATIONS += [
         '        _dup_sa = _dpl.get("scored_at")\n',
         "        _dup_sa = None  # MUTANT: 崩溃窗不证明采用时刻\n",
         "test_round12_high2_adopted_time_in_crash_window",
+        (
+            # ⚠️ round-14 depth 层: pending 复放循环里新增的采用时刻证明会先于本站点
+            # 拦住同类缺陷 ⇒ 变异体单独杀不动。拆掉**那一道**（不是被测的这一道）。
+            (
+                SKILL,
+                '    if not _fm_has_event_compat(fm, str(_o.get("event_id") or ""), _ALL_LEDGER_IDS):\n        _p_sa = _pl.get("scored_at")\n',
+                '    if False:  # MUTANT: 拆掉 pending 侧的采用时刻证明\n        _p_sa = _pl.get("scored_at")\n',
+            ),
+        ),
     ),
     (
         # 旧行缺 scored_at 时退回笼统拒因 ⇒ 用户无路可走
@@ -1264,6 +1271,15 @@ MUTATIONS += [
         '        if "scored_at" not in _dpl:\n',
         "        if False:  # MUTANT: 不给可执行迁移指引\n",
         "test_round12_high3_legacy_row_missing_scored_at_is_actionable",
+        (
+            # ⚠️ round-14 depth 层: 「缺 scored_at 一律 fail-closed」会先拦住 ⇒
+            # 拆掉它, 让被测的那道成为唯一屏障。
+            (
+                SKILL,
+                '    if not isinstance(_pl.get("scored_at"), str) or not _pl["scored_at"]:\n        raise SystemExit(\n',
+                "    if False:  # MUTANT: 拆掉「缺 scored_at 即停」这道纵深\n        raise SystemExit(\n",
+            ),
+        ),
     ),
 ]
 
@@ -1301,6 +1317,15 @@ MUTATIONS += [
         "            and _dup_rt_inst is not None and (W_inst is None or _dup_rt_inst > W_inst)):\n",
         "            and _dup_rt_inst is not None and W_inst is None):  # MUTANT: 只管 W 空\n",
         "test_round13_adopted_time_recomputed_not_compared_literally",
+        (
+            # ⚠️ round-14 depth 层: pending 复放循环里新增的采用时刻证明会先于本站点
+            # 拦住同类缺陷 ⇒ 变异体单独杀不动。拆掉**那一道**（不是被测的这一道）。
+            (
+                SKILL,
+                '    if not _fm_has_event_compat(fm, str(_o.get("event_id") or ""), _ALL_LEDGER_IDS):\n        _p_sa = _pl.get("scored_at")\n',
+                '    if False:  # MUTANT: 拆掉 pending 侧的采用时刻证明\n        _p_sa = _pl.get("scored_at")\n',
+            ),
+        ),
     ),
     (
         # id_form 标记对裸形态回落也放行 ⇒ 两个完整 id 别名
@@ -1309,6 +1334,14 @@ MUTATIONS += [
         "        if not (_exact_hit and _marked):\n",
         "        if not _marked:  # MUTANT: 裸形态回落也认标记\n",
         "test_round13_id_form_only_proves_exact_hit",
+        (
+            # ⚠️ round-14 depth 层: 候选阶段的形态判定会先拦住 ⇒ 拆掉它。
+            (
+                SKILL,
+                '        if not (isinstance(_bare_e, dict) and _bare_e.get("id_form") == "full"):\n            _cands.append(_bare)\n',
+                "        _cands.append(_bare)  # MUTANT: 拆掉候选阶段的形态判定\n",
+            ),
+        ),
     ),
     (
         # F1-only 不折算后继 ⇒ 合法非-tip 续跑被误拒
@@ -1317,6 +1350,59 @@ MUTATIONS += [
         "        _att_cur = (_att_now_f1 - _succ_f1) if _att_now_f1 is not None else None\n",
         "        _att_cur = _att_now_f1  # MUTANT: 直接拿当前 tip 比\n",
         "test_round13_f1only_ordinal_discounts_successors",
+    ),
+]
+
+
+# ── round-14 修复的承重变异（3 漏网 + 3 误拒）
+MUTATIONS += [
+    (
+        # 事实比较退回 Python == ⇒ 1 与 true 被判相等
+        "M127-facts-python-equality",
+        SKILL,
+        "            elif _canon_fact(_got) != _canon_fact(_want):\n",
+        "            elif _got != _want:  # MUTANT: 退回 Python ==\n",
+        "test_round14_facts_compare_is_type_sensitive",
+    ),
+    (
+        # 形态标记不在候选阶段生效 ⇒ 来源非空时仍被当作别人的裸形态
+        "M128-id-form-not-at-candidate-stage",
+        SKILL,
+        '        if not (isinstance(_bare_e, dict) and _bare_e.get("id_form") == "full"):\n            _cands.append(_bare)\n',
+        "        _cands.append(_bare)  # MUTANT: 候选阶段不查形态标记\n",
+        "test_round14_id_form_checked_at_candidate_stage",
+    ),
+    (
+        # 缺 scored_at 退回「告警后回落」⇒ 两个原始时刻被别名
+        "M129-missing-scored-at-warn-only",
+        SKILL,
+        '    if not isinstance(_pl.get("scored_at"), str) or not _pl["scored_at"]:\n        raise SystemExit(\n',
+        "    if False:  # MUTANT: 缺 scored_at 只告警不停\n        raise SystemExit(\n",
+        "test_round14_missing_scored_at_is_fail_closed",
+    ),
+    (
+        # pending 复放不证明采用时刻 ⇒ foreign pending 可携带任意时刻
+        "M130-pending-adopted-time-unproven",
+        SKILL,
+        '    if not _fm_has_event_compat(fm, str(_o.get("event_id") or ""), _ALL_LEDGER_IDS):\n        _p_sa = _pl.get("scored_at")\n',
+        '    if False:  # MUTANT: pending 不证明采用时刻\n        _p_sa = _pl.get("scored_at")\n',
+        "test_round14_every_pending_proves_adopted_time",
+    ),
+    (
+        # 复算只认 A3 推后值 ⇒ 未实施 A3 的外部合法行被误拒
+        "M131-adopted-only-pushed-value",
+        SKILL,
+        "    return _got == _pushed or _got == _plain\n",
+        "    return _got == _pushed  # MUTANT: 只认推后值\n",
+        "test_round14_every_pending_proves_adopted_time",
+    ),
+    (
+        # candidate 恒用 GN2 ⇒ 多位小数 durable 行永远无法由原白板落定
+        "M132-candidate-always-rounded",
+        SKILL,
+        '                    "grade_norm": (GN if (_dgn := (_dpl.get("grade_norm")))\n                                   is not None and _dgn != GN2 and _dgn == GN else GN2),\n',
+        '                    "grade_norm": GN2,  # MUTANT: 恒用两位小数\n',
+        "test_round14_legacy_precision_identity",
     ),
 ]
 
