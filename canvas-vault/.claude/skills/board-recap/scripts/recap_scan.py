@@ -1673,8 +1673,16 @@ def _derived_number_pool(scan: dict) -> set[int]:
 # `_count_token_value` 见到含分隔符的 token 返回 None ⇒ fail-closed。
 # 合法千分位分组由 `_normalize_number_seps` 在这之前就已删除分隔符，不受影响。
 _NUM_SEP_CHARS = ",，'’"
-_NUM_RUN_CHARS = _NUMERAL_LIKE_CHARS + _NUM_SEP_CHARS
-_NUM_RUN_PAT = rf"[{_NUM_RUN_CHARS}](?:{_D2_JOIN_ONE}*+[{_NUM_RUN_CHARS}])*"
+# ⛔ round-38（Codex 冻结审查）：round-37 把分隔符并进**首尾都可**出现的字符集，
+# 于是 `，` 自己就能成一个 token —— fallback 的 `#### 派生，说明` 里那个普通顿号
+# 被报成「无法验证的数字」。**修一处误伤时开了另一处**（本卡第 N 次）。
+# ⇒ 分隔符只允许出现在**两个数字字符之间**：run 的首尾都必须是数字字符。
+#   `987654,0` 仍是一个 token（不重锚到尾片）；`，说明` 不再产生 token；
+#   `共有5，其中…` 的尾随顿号也不再被吃进 token（否则同样 fail-closed 误伤）。
+_NUM_RUN_PAT = (
+    rf"[{_NUMERAL_LIKE_CHARS}]"
+    rf"(?:(?:{_D2_JOIN_ONE}|[{_NUM_SEP_CHARS}])*[{_NUMERAL_LIKE_CHARS}])*"
+)
 _NUM_RUN_RE = re.compile(_NUM_RUN_PAT)
 
 # ⛔ R3 round-6: 定义下移至此 —— 句式门现在引用 _NUMERAL_LIKE_CHARS（定界集），
@@ -1838,9 +1846,12 @@ def _visible_block(text: str) -> str:
 # （⚠️ 我 round-37 第一版把首段也限成 1-3 位，当场打红那条门：
 #   收窄判据时把一条**既有契约**一起收掉了，靠跑门才发现）。
 # 分隔符两侧仍容连接字符（`987654<b>,</b>000` 渲染成 `987654,000`）。
-_GROUPED_NUM_RE = re.compile(
-    rf"[0-9](?:{_D2_JOIN_ONE}*[{_NUM_SEP_CHARS}]{_D2_JOIN_ONE}*[0-9]{{3}})+(?![0-9])"
-)
+# ⛔ round-38（Codex 冻结审查）：分组内**不再**容 `_D2_JOIN_ONE` ——
+# 它含空白与「多余来几约近超」等**可见字**，于是 `1, 002` / `1,约002` 会先被
+# 归成 `1002` 再赋值，读者看见的却不是那个数。标签/零宽在此之前已由
+# `_visible_text` 剥掉（实测 `_visible_text("987654<b>,</b>000") == "987654,000"`），
+# 所以分组内不需要这个容忍度。
+_GROUPED_NUM_RE = re.compile(rf"[0-9](?:[{_NUM_SEP_CHARS}][0-9]{{3}})+(?![0-9])")
 
 
 def _normalize_number_seps(line: str) -> str:
@@ -2305,36 +2316,12 @@ def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> No
             _i += 1
     _covered = {k for lo, hi in sections for k in range(lo, hi)}
 
-    def _h3_wellformed(v: str) -> bool:
-        """H3 标题是否被**统一口径 `_SECTION_RE` 认得出**。
-
-        ⚠️ 这里只判**形状**，不判段名 —— 台账下合法的 H3 至少有 `种子` / `派生`，
-        把它们逐个枚举又会造出一张闭表（本卡反复消掉的那种）。
-
-        ⛔ R3 round-37（Codex 冻结审查 HIGH「第八形态」）：原式的标题体是
-        `[^\n]*`（**什么都收**），于是一批「渲染后看着就是 `### 种子`、
-        却匹配不上 `_H3_SEED_RE`」的写法被判为**合规**，其下的台账行随即
-        `_cur_bad=False` 被跳过 —— 既不进绑定面、也不进漏网扫描：
-
-          · `### \u0060种子\u0060`（inline code）· `### ==种子==`（highlight）
-          · `###  种子`（两个空格）· `###\t种子`（制表符）
-
-        本函数的 docstring 一直写着「与 `_SECTION_RE` 同精神」，而 `_SECTION_RE`
-        要求的是 `^### 种子` —— **恰好一个空格、段名后直接行尾或全角括号**。
-        说的与做的不符，这是本卡第 N 次。现按它自己声称的口径收紧：
-          ① `###` 后**恰好一个空格**（对齐 `re.escape("### 种子")`）；
-          ② 标题体不含 Markdown 标记字符 —— 带标记的标题「渲染后看着像 X」
-             但**不是** X，属本域反复抓的「可见文本与校验文本分叉」；
-          ③ 仍禁尾随闭合井号。
-
-        **代价如实声明**：`### 派生 ###` 是合法的 ATX 闭合写法，本域不接受 ——
-        其下的台账形状行会被报「H3 标题写法不被统一口径认可」。这是
-        **有意的窄化**（统一口径只认一种写法），不是漏判；诊断措辞已相应改写，
-        不再说成「必须写在种子小节内」。
-        """
-        return bool(
-            re.match(r"^### [^\s#`=*~\[\]<>][^\n`=*~\[\]<>]*$", v)
-        ) and not re.search(r"[^\S\n]#+[^\S\n]*$", v)
+    # ⛔ R3 round-39：原先这里有个 `_h3_wellformed` 助手 —— round-38 把安全态改由
+    # `_SECTION_RE` 段名匹配判定后，它就**定义了但无人调用**，是上一轮改动留下的孤儿。
+    # 是**负变异**发现的：打它标题体的那条变体**未承重**（改的那处已不影响任何行为）
+    # = 本卡分类学里的**空变异**（性质搬了家）。
+    # 它守的性质（第八形态：双空格/tab/inline-code/highlight 标题）现由段名匹配
+    # 一并覆盖，由 `survivor-73` 锁住。
 
     # 「当前所处的 H3 标题是否合规」——不合规的 H3 底下的台账形状行才算漏网
     _bad_h3 = [False] * len(vis_lines)
@@ -2346,8 +2333,21 @@ def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> No
         for _k in range(_lo, _hi):
             if _in_fence[_k]:
                 continue
-            if re.match(r"^###[^\S\n]", vis_lines[_k]):
-                _cur_bad = not _h3_wellformed(vis_lines[_k])
+            # ⛔ round-38（Codex 冻结审查 HIGH「第九形态」）：原先
+            #    ① 只有**顶格** `###` 才更新状态 —— CommonMark 允许 1-3 空格缩进，
+            #       缩进的 H3 不更新状态，其下的行**继承前一个合规 H3 的安全态**；
+            #    ② 「合规」只判**形状**不判段名 —— `### 其他` / `### 种子 (说明)` /
+            #       `### 种子 ^id` 形状都合规，却都不是受绑定的种子小节，
+            #       于是 `_cur_bad=False`，其下台账行照旧无人看管。
+            # ⇒ 安全态收窄为「**统一口径 `_SECTION_RE` 认得出的台账小节**」。
+            #    这是一张**只有两项**的表（模板里台账下就这两个 H3），
+            #    与 round-33 要避免的「伪装面开放集闭表」不是一回事：
+            #    那边枚举的是**攻击形态**（开放），这边枚举的是**模板自己的段名**（封闭）。
+            if re.match(r"^ {0,3}###[^\S\n]", vis_lines[_k]):
+                _h3 = vis_lines[_k].lstrip(" ")
+                _cur_bad = not any(
+                    re.match(_SECTION_RE(f"### {_nm}"), _h3) for _nm in ("种子", "派生")
+                )
             _bad_h3[_k] = _cur_bad
     for _lo, _hi in _ledger_spans:
         for _k in range(_lo, _hi):

@@ -4855,8 +4855,12 @@ def test_domain_r22_fence_indent_and_seed_scope_cli(tmp_path):
 
     **它证明什么**：容器前缀（引用/列表）仍被正确剥离，但无 marker 时不动缩进；
     种子小节只在「台账」H2 之下且不在围栏内才生效；同字段两处计数 fail-closed。
-    **它不证明什么**：尾巴里**其它**字段（`理解度未闭环 N 条`/`已派生 N 点`）
-    在 scan JSON 无逐节点对应字段，**不绑定**，如实登记。
+    ⛔ round-38 更正：这里原写「尾巴里其它字段在 scan JSON 无逐节点对应字段，
+    不绑定」—— **假声明**，且生产侧同款假声明已在 round-37 删除，测试侧却留着，
+    与同批新增的 `r31` 自相矛盾（审查方点名）。`tips_open` 与
+    `derived_children_count` 一直都在，round-37 已补绑定，见 `r31`。
+
+    **它不证明什么**：本门不覆盖那两个字段的绑定（那是 `r31` 的职责）。
     """
     rs = _load_recap_scan()
     vault = standard_vault(tmp_path)
@@ -5235,7 +5239,18 @@ def test_domain_r27_seedish_h3_and_corrupt_seeds():
     同批：台账 H2 之后、**第一个 H3 之前**的台账形状行原先 `_cur_bad` 初值 `False`
     ⇒ 是一段完全无人看管的区间，现改为默认「不在任何认可小节内」。
 
-    **它证明什么**：十五种形态各自正确（九报六放行），含围栏内形似标题不误报。
+    ⛔ round-38（Codex 冻结审查 HIGH「第九形态」）：`_h3_wellformed` 只判**形状**
+    不判**段名** ⇒ `### 其他` / `### 种子 (说明)`（ASCII 括号）/ `### 种子 ^id`（块 id）
+    形状都合规，却都不是受绑定的种子小节，其下台账行照旧无人看管。
+    另：只有**顶格** `###` 更新状态，而 CommonMark 允许 1-3 空格缩进。
+    ⇒ 安全态收窄为「统一口径 `_SECTION_RE` 认得出的台账小节」（`种子`/`派生` 两项）。
+    ⚠️ 这张表是**封闭**的（模板自己的段名），与 round-33 要避开的
+    「伪装面开放集闭表」不是一回事 —— 那边枚举的是攻击形态。
+
+    ⚠️ 上一版这里写「十五种形态（九报六放行）」—— **数错了**，实数是
+    十报五放（审查方点名）。⇒ 本轮不再手写汇总数，改为在循环后**按实际表算**并断言。
+
+    **它证明什么**：表内每种形态各自正确，含围栏内形似标题不误报。
     **它不证明什么**：不覆盖 `ledger` 为扁平 list 的损坏形态；
     也不改变 `_SECTION_RE` 的接受集本身（放宽须改本体让两侧同动）。
     """
@@ -5244,6 +5259,7 @@ def test_domain_r27_seedish_h3_and_corrupt_seeds():
     # ⛔ round-33：原先只断言「有报错」，于是 survivor-64 变异后靠**另一条**
     #    诊断（「不在 ledger」）就能让门保持绿 —— 实测未承重。
     #    ⇒ 每条都**绑定诊断关键词**，报错内容必须是这一条。
+    _seen: list[str | None] = []
     for want, why, text, ledger in (
         (
             "不受任何认可小节覆盖",
@@ -5330,6 +5346,30 @@ def test_domain_r27_seedish_h3_and_corrupt_seeds():
             {"seeds": [{"node_id": "S", "tips_count": 2}]},
         ),
         (
+            "不受任何认可小节覆盖",
+            "⭐第九形态 a：`### 其他`（形状合规、非模板段名）",
+            "## 台账\n\n### 种子\n\n\n\n### 其他\n\n- Ghost — 批注 9 条\n\n## 末\n",
+            {"seeds": [{"node_id": "S", "tips_count": 2}]},
+        ),
+        (
+            "不受任何认可小节覆盖",
+            "⭐第九形态 b：`### 种子 (说明)` —— ASCII 括号（`_SECTION_RE` 只认全角）",
+            "## 台账\n\n### 种子\n\n\n\n### 种子 (说明)\n\n- Ghost — 批注 9 条\n\n## 末\n",
+            {"seeds": [{"node_id": "S", "tips_count": 2}]},
+        ),
+        (
+            "不受任何认可小节覆盖",
+            "⭐第九形态 c：`### 种子 ^id` —— Obsidian 块 id 后缀",
+            "## 台账\n\n### 种子\n\n\n\n### 种子 ^id\n\n- Ghost — 批注 9 条\n\n## 末\n",
+            {"seeds": [{"node_id": "S", "tips_count": 2}]},
+        ),
+        (
+            None,
+            "对照：`### 种子（补充）` 全角括号后缀是 `_SECTION_RE` 认可的写法",
+            "## 台账\n\n### 种子（补充）\n\n- S — 批注 2 条\n\n## 末\n",
+            {"seeds": [{"node_id": "S", "tips_count": 2}]},
+        ),
+        (
             None,
             "对照：**围栏内**的形似标题不得误报",
             "## 台账\n\n### 种子\n\n\n\n```\n### 种子 ###\n```\n\n## 末\n",
@@ -5338,10 +5378,18 @@ def test_domain_r27_seedish_h3_and_corrupt_seeds():
     ):
         ps: list[str] = []
         rs._verify_seed_ledger_counts(text, {"ledger": ledger}, ps)
+        _seen.append(want)
         if want is None:
             assert ps == [], f"{why}：误伤 —— {ps!r}"
         else:
             assert any(want in x for x in ps), f"{why}：未报出目标诊断 {want!r} —— {ps!r}"
+
+    # ⛔ round-38：汇总数**按实际表算**，不再手写 —— 上一版手写「九报六放」而实数
+    # 是「十报五放」，docstring 里的数字自己没有任何东西在核对它。
+    assert len(_seen) == 19, f"表长变了（{len(_seen)}）——请同步 docstring 的描述"
+    assert (sum(1 for w in _seen if w), sum(1 for w in _seen if not w)) == (13, 6), (
+        f"报/放比例变了：{(sum(1 for w in _seen if w), sum(1 for w in _seen if not w))}"
+    )
 
 
 def test_domain_r28_tips_binding_visible_space_cli(tmp_path):
@@ -5437,6 +5485,21 @@ def test_domain_r31_tail_fields_bound_to_scan():
             assert any(want in x for x in ps), f"{why}：未报出目标诊断 {want!r} —— {ps!r}"
 
 
+def _assert_rejected(r, keyword: str, why: str) -> None:
+    """「被拦下」的统一判据（round-38，Codex 冻结审查）。
+
+    三件事一起判，缺一条就还是假绿：
+      ① `rc == 1` —— 本域「报告不合规」的退出码。`rc != 0` 会把**崩溃**（rc=2/异常）
+         算成拦截，而崩溃不是拦截，是坏了；
+      ② 输出不含 traceback —— 同上，崩溃伪装成拦截的第二个入口；
+      ③ 诊断含指定关键词 —— 否则换个理由报错这门照样绿（目标无关假绿）。
+    """
+    out = (r.stdout or "") + (r.stderr or "")
+    assert "Traceback (most recent call last)" not in out, f"{why}：verifier **崩溃**了，不是拦下了 —— {out[-400:]!r}"
+    assert r.returncode == 1, f"{why}：rc={r.returncode}（只有 1 是「报告不合规」）—— {out[-300:]!r}"
+    assert keyword in out, f"{why}：报错了但不是 {keyword!r} 报的 —— {out[-300:]!r}"
+
+
 def test_domain_r30_obsidian_comment_hidden_break_cli(tmp_path):
     """R3 round-37（Codex 冻结审查 BLOCKER）：Obsidian 自己的注释 `%%…%%`。
 
@@ -5479,10 +5542,7 @@ def test_domain_r30_obsidian_comment_hidden_break_cli(tmp_path):
         ("- 正常一句话 %%只是个注释%%。【实测】", "无数字也判死（与 HTML 注释同口径）"),
         ("- 本板共有 `%%` 个子节点。【实测】", "code span 内同样判死（同 HTML 注释口径）"),
     ):
-        r = inject(line)
-        assert r.returncode != 0, f"{why}：%% 注释放行 —— {line!r}"
-        out = (r.stdout or "") + (r.stderr or "")
-        assert "Obsidian 注释标记" in out, f"{why}：报错了但不是这条报的 —— {out[-300:]!r}"
+        _assert_rejected(inject(line), "Obsidian 注释标记", why)
 
     # 对照：单个 `%` 不受影响（百分数是正常写法）
     report.write_text(base, encoding="utf-8")
@@ -5508,8 +5568,13 @@ def test_domain_r29_separator_third_state_cli(tmp_path):
     这与 round-2 的「九十八万**五** / 980 005」是**同一个尾片重锚病**，
     只是断点字符换成了本函数自己声明为「数串内部分隔符」的那几个。
 
-    **它证明什么**：分隔符一律按数串内噪声删除（与 `_D2_JOIN_ONE` 同级），
-    不再有「不删也不断」的第三态；合法千分位不受影响。
+    ⛔ round-37/38 更正：上一版这里写「分隔符一律按数串内噪声删除」——
+    那个做法本身被证伪（它把 `1, 2个` 合成 `12个`）。现在的口径是
+    **定界要宽、赋值要窄**：分隔符参与划 token（不再制造硬断点），但不参与赋值，
+    只有**合法千分位分组**（分隔符后每段恰好三位）才归一成完整量级。
+
+    **它证明什么**：含糊分隔一律 fail-closed；合法千分位归一后可赋值；
+    分组内**不吞**连接字符（`1, 002` / `1,约002` 不得被归成 `1002`）。
     **它不证明什么**：不覆盖非数字上下文里的逗号（两侧仍要求数字）；
     也不改变 D2「碰撞判据非字段绑定」这个设计层性质（见接手清单 A1/A2）。
     """
@@ -5538,17 +5603,23 @@ def test_domain_r29_separator_third_state_cli(tmp_path):
         ("- 本板共有987654,000个子节点。【实测】", "对照：恰好三位分组（修前即拦）"),
     ):
         r = inject(line)
-        assert r.returncode != 0, f"{why}：分隔符第三态放行 —— {line!r}"
-        # ⛔ round-37（Codex 冻结审查）：原先只断言 `rc != 0` —— **目标无关假绿**：
-        # 换个理由报错（模板不合规、别的字段对不上）这门照样绿。绑定诊断关键词。
-        out = (r.stdout or "") + (r.stderr or "")
-        assert "数字终核" in out, f"{why}：报错了但不是数字终核报的 —— {out[-300:]!r}"
+        # ⛔ round-37：原先只断言 `rc != 0` —— **目标无关假绿**（换个理由报错照样绿）。
+        # ⛔ round-38（Codex 冻结审查）：`rc != 0` 还把**崩溃**算成拦截 ——
+        #    verifier 抛异常时 rc 也非 0，而那不是「拦下了」，是「炸了」。
+        #    收紧为 `rc == 1`（本域的「报告不合规」退出码）且输出不含 traceback。
+        _assert_rejected(r, "数字终核", why)
 
     # ⛔ round-37：这里原先断言的是**实现手法**（「一律删，不看位数」），
     # 而 round-35 那个手法本身被证明有害：它把 `1, 2个`（读者看见两个数）
     # 合成 `12个`。改为断言**安全性质**：
     #   · 合法千分位分组 → 归一成完整量级（可赋值）
     #   · 含糊/非法分隔   → 划进同一 token 且**判不出值**（调用方 fail-closed）
+    # ⛔ round-38：分组内不得吞连接字符（`_D2_JOIN_ONE` 含空白与「约」等**可见字**）
+    for glued in ("1, 002", "1,约002"):
+        assert rs._normalize_number_seps(glued) == glued, f"{glued!r} 被当成合法分组归一 —— 读者看见的不是那个数"
+    # ⛔ round-38：分隔符不得**单独**成 token（否则普通顿号被报成「无法验证的数字」）
+    for prose in ("派生，说明", "本板，共有"):
+        assert rs._NUM_RUN_RE.findall(prose) == [], f"{prose!r} 里的顿号自成 token = 误伤"
     for legal, want in (("1,005", 1005), ("987654,000", 987654000), ("1,234,567", 1234567)):
         assert rs._count_token_value(rs._join_free(rs._normalize_number_seps(legal))) == want, legal
     for ambiguous in ("987654,0", "987654，0", "987654'0", "1,05", "1, 2"):

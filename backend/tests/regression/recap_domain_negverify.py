@@ -185,8 +185,8 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "survivor-12 (C) 提取面收窄成单字（「抓得到才拒得掉」全线：唯一提取模式被禁）",
         [
             (
-                '_NUM_RUN_PAT = rf"[{_NUM_RUN_CHARS}](?:{_D2_JOIN_ONE}*+[{_NUM_RUN_CHARS}])*"',
-                '_NUM_RUN_PAT = rf"[{_NUMERAL_LIKE_CHARS}]"',
+                'rf"(?:(?:{_D2_JOIN_ONE}|[{_NUM_SEP_CHARS}])*[{_NUMERAL_LIKE_CHARS}])*"',
+                'rf""',
             )
         ],
         "r5_cjk or r5_derive or r5_prose or r5_noise or r4_derive_allow_cjk",
@@ -196,8 +196,8 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "survivor-13 (C-2) 数串不再跨连接字符（CJK 与 ASCII 两侧提取面一起禁）",
         [
             (
-                '_NUM_RUN_PAT = rf"[{_NUM_RUN_CHARS}](?:{_D2_JOIN_ONE}*+[{_NUM_RUN_CHARS}])*"',
-                '_NUM_RUN_PAT = rf"[{_NUMERAL_LIKE_CHARS}]+"',
+                'rf"(?:(?:{_D2_JOIN_ONE}|[{_NUM_SEP_CHARS}])*[{_NUMERAL_LIKE_CHARS}])*"',
+                'rf"(?:[{_NUMERAL_LIKE_CHARS}])*"',
             ),
         ],
         "r5_noise_split",
@@ -283,7 +283,7 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "现改为保留捕获组、只收窄字符集，代码仍可运行。",
         [
             (
-                'rf"[0-9](?:{_D2_JOIN_ONE}*[{_NUM_SEP_CHARS}]{_D2_JOIN_ONE}*[0-9]{{3}})+(?![0-9])"',
+                'rf"[0-9](?:[{_NUM_SEP_CHARS}][0-9]{{3}})+(?![0-9])"',
                 'r"([0-9]),(?=[0-9])"',
             ),
         ],
@@ -783,8 +783,8 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "survivor-66 (C-39→37) 分隔符退出**定界集**（第三态复活：既不删也不算连接字符 ⇒ 硬断点，匹配重锚到尾片）",
         [
             (
-                "_NUM_RUN_CHARS = _NUMERAL_LIKE_CHARS + _NUM_SEP_CHARS",
-                "_NUM_RUN_CHARS = _NUMERAL_LIKE_CHARS",
+                'rf"(?:(?:{_D2_JOIN_ONE}|[{_NUM_SEP_CHARS}])*[{_NUMERAL_LIKE_CHARS}])*"',
+                'rf"(?:(?:{_D2_JOIN_ONE})*[{_NUMERAL_LIKE_CHARS}])*"',
             )
         ],
         "r29_separator_third_state",
@@ -793,16 +793,6 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "survivor-67 (C-40) Obsidian `%%` 注释全局禁用被摘除（渲染隐藏面重开）",
         [('    if "%%" in text_raw:', "    if False:")],
         "r30_obsidian_comment",
-    ),
-    (
-        "survivor-68 (C-41) `_h3_wellformed` 标题体退回「什么都收」（第八形态复活）",
-        [
-            (
-                'r"^### [^\\s#`=*~\\[\\]<>][^\\n`=*~\\[\\]<>]*$"',
-                'r"^###[^\\S\\n]+[^\\s#][^\\n]*$"',
-            )
-        ],
-        "r27_seedish_h3",
     ),
     (
         "survivor-69 (C-42) 台账段首个 H3 之前的区间退回「默认已覆盖」（无人看管区复活）",
@@ -815,14 +805,34 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "r31_tail_fields_bound",
     ),
     (
-        "survivor-71 (C-44) 合法分组判据放宽为「分隔符后 1 位即可」（回到 round-35 的无条件剥除：`1, 2个` 被合成 `12个`）",
+        "survivor-71 (C-44→38) 合法分组重新容连接字符（`1, 002`/`1,约002` 被归成 `1002`，读者看见的不是那个数）",
         [
             (
-                "[0-9]{{3}})+(?![0-9])",
-                "[0-9]{{1}})+(?![0-9])",
+                'rf"[0-9](?:[{_NUM_SEP_CHARS}][0-9]{{3}})+(?![0-9])"',
+                'rf"[0-9](?:{_D2_JOIN_ONE}*[{_NUM_SEP_CHARS}]{_D2_JOIN_ONE}*[0-9]{{3}})+(?![0-9])"',
             )
         ],
         "r29_separator_third_state",
+    ),
+    (
+        "survivor-72 (C-45) num-run 首尾重新允许分隔符（`，说明` 里的顿号自成 token ⇒ 普通顿号被报成「无法验证的数字」）",
+        [
+            (
+                'rf"[{_NUMERAL_LIKE_CHARS}]"\n    rf"(?:(?:{_D2_JOIN_ONE}|[{_NUM_SEP_CHARS}])*[{_NUMERAL_LIKE_CHARS}])*"',
+                'rf"[{_NUMERAL_LIKE_CHARS}{_NUM_SEP_CHARS}]"\n    rf"(?:(?:{_D2_JOIN_ONE}|[{_NUM_SEP_CHARS}])*[{_NUMERAL_LIKE_CHARS}{_NUM_SEP_CHARS}])*"',
+            )
+        ],
+        "r29_separator_third_state",
+    ),
+    (
+        "survivor-73 (C-46) H3 安全态退回「任意形状合规标题」（第九形态复活：`### 其他` 底下的台账行重新无人看管）",
+        [
+            (
+                '                _cur_bad = not any(\n                    re.match(_SECTION_RE(f"### {_nm}"), _h3) for _nm in ("种子", "派生")\n                )',
+                '                _cur_bad = not re.match(r"^### [^\\s#][^\\n]*$", _h3)',
+            )
+        ],
+        "r27_seedish_h3",
     ),
 ]
 
@@ -1052,10 +1062,11 @@ DESIGNATED: dict[str, list[str]] = {
     "survivor-65": ["test_domain_r28_tips_binding_visible_space_cli"],
     "survivor-66": ["test_domain_r29_separator_third_state_cli"],
     "survivor-67": ["test_domain_r30_obsidian_comment_hidden_break_cli"],
-    "survivor-68": ["test_domain_r27_seedish_h3_and_corrupt_seeds"],
     "survivor-69": ["test_domain_r27_seedish_h3_and_corrupt_seeds"],
     "survivor-70": ["test_domain_r31_tail_fields_bound_to_scan"],
     "survivor-71": ["test_domain_r29_separator_third_state_cli"],
+    "survivor-72": ["test_domain_r29_separator_third_state_cli"],
+    "survivor-73": ["test_domain_r27_seedish_h3_and_corrupt_seeds"],
 }
 """每条变体**指定要杀死的门**（卡文完成条件 (e)）。
 
@@ -1077,8 +1088,8 @@ DESIGNATED: dict[str, list[str]] = {
 且每个 nodeid 必须真实存在于套件收集结果里（防指名腐烂）。
 """
 
-MUTANT_COUNT_EXPECTED = 71
-DESIGNATED_COUNT_EXPECTED = 78
+MUTANT_COUNT_EXPECTED = 72
+DESIGNATED_COUNT_EXPECTED = 79
 """指定门总数的**独立**期望值（Codex round-37 HIGH）。
 
 原先只冻结了变体数 66，指定门总数 73 是**从 DESIGNATED 动态求和后打印**的 ——
@@ -1158,7 +1169,16 @@ def preflight() -> list[str]:
     # ⚠️ 不存在的 nodeid 会让 pytest 直接 rc=4，判据看到的是「实收 0」而非
     # 「门没死」—— 两者症状不同但都不是承重，在这里提前说清是哪一种。
     r = subprocess.run(
-        [str(PYTEST), SUITE, "--collect-only", "-q", "-p", "no:cacheprovider", "-o", "addopts="],
+        [
+            str(PYTEST),
+            SUITE,
+            "--collect-only",
+            "-q",
+            "-p",
+            "no:cacheprovider",
+            "-o",
+            "addopts=",
+        ],
         cwd=ROOT / "backend",
         capture_output=True,
         text=True,
