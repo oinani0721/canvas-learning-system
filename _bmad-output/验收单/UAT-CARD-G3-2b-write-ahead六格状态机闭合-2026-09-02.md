@@ -1172,6 +1172,27 @@ round-14 排除带标记的裸候选后它只剩间接路径；round-15 我改�
 
 ---
 
+### round-16（绑定 commit 待定）：**3 BLOCKER 全修 + 1/4 HIGH 已修**，3 HIGH + 3 MEDIUM 见下
+
+| # | 级别 | 位置 | 缺陷 | 处置 |
+|---|------|------|------|------|
+| ① | BLOCKER | SKILL.md:1599 | `fsrs_applied` 只在 F1-only 生效，dup/pending/`≤W` 三条分支能绕过事件级凭据 | ✅ 提升为事件级凭据：`_append_calibration(..., applied=)` 写、dup 分支查、降级恢复后 false→true |
+| ② | BLOCKER | SKILL.md:552 | `Decimal` 修法仍把两份不同事实压成同一 canonical（context 精度 28 位；`§dec:` 标签与用户字符串撞命名空间） | ✅ 换 `_canon_tree`：每个 JSON 类型独立标签，数值用 `as_tuple()` 精确三元组，不经 context 舍入 |
+| ③ | BLOCKER | SKILL.md:449 | 无 `id_form` 的 exact receipt 有两种合法历史解释，可借用他人 receipt 静默吞评分 | ✅ `id_form` 检查移到**候选解释**阶段；未标记的 exact 同时枚举两种来源解释 ⇒ 歧义即拒 |
+| ④ | HIGH | SKILL.md:322 | 选项③ `adopted_actual` 把「durable 调度时刻 ≠ 实际 W」变成合法状态，违反规格 A3/A6 | ✅ **口径反转**：删除该字段，`_adopted_ok` 收紧为只认 `_adopted_from` 唯一值；分叉升为硬错误。⛔ 我 round-15 的依据（「validator 不查 A3 ⇒ 同瞬间行合法」）是**错的**——卡文写明判定以 schema 为准，校验器缺口不是许可 |
+| ⑤ | HIGH | SKILL.md:1529 | F1-only 在目标行已丢失后，靠 receipt 时刻 + 现存最大行号**猜不出**原写序 | ⏳ 未修（见下「未闭合」） |
+| ⑥ | HIGH | SKILL.md:1188 | `exam_board` 任意类型用 JSON 字面裸嵌 YAML，`1e300` 写出后 PyYAML 读回成字符串 ⇒ **自产自拒** | ⏳ 未修 |
+| ⑦ | HIGH | SKILL.md:983 | 全账来源集合把别节点非法非字符串 `event_id` 强转为字符串 ⇒ 别节点坏行阻塞本节点 | ⏳ 未修 |
+| ⑧ | MEDIUM | SKILL.md:1355 | `scored_at` 消费门未写进规格与 validator，属 writer 单边收紧 | ⏳ 规格侧可改、validator 禁改 ⇒ 拟半修 + 移交 |
+| ⑨ | MEDIUM | validator:1417 | 超大整数先 `float()` ⇒ `OverflowError` traceback 而非按行 violation | ⛔ validator 在硬边界内（禁改）⇒ 只能移交 |
+| ⑩ | MEDIUM | schema:192 | 「排除算法环境键以支持合法库升级」与「用单一 golden manifest 淘汰历史行」自相矛盾 | ⏳ 未修（schema 在可改面） |
+
+**变异侧本轮的三条教训**（都不是「改代码」，是「怎么判定门有没有承重」）：
+
+1. **M148**：判据写成 `rc != 0` 时，两种实现都拒、只是**拒的理由不同** ⇒ 测不到差异。修法是把断言落到拒因串上。⛔ 定位真实拒因的最快路径不是读源码猜链路，而是**故意让断言写错一个串**，让失败输出把真拒因印出来——我前面猜了三轮，一次失败输出就给了答案。
+2. **M141 退役（等价变异体，附推证）**：`_w_after = None` 让 `_w_roll` 从「bridge 实际写下的 W」退回 `_w_durable = _aware(_pl["review_time"])`。这两支**在能被使用的每条路径上恒等**——同一轮迭代里 `_w_roll` 赋值后紧接着 `_append_calibration(..., actual_ts=_w_after)`，其 `_aa_diff` 哨兵一旦发现两者不同瞬间就 raise，于是「两支不同」的唯一前提必然在下一条 pending 用到 `_w_roll` 之前把进程打死。两次改绑（round16 门 → round14 门）实测均 SURVIVED，与推证一致。⚠️ 它**曾经**承重（round-15 靠 `adopted_actual` 可观测）——是 ④ 的口径收紧使它失效，不是门变弱。
+3. **排查顺序**：M148 用掉四次尝试，本可更短。**先算清楚行为差异在哪（跑一段最小仿真），再动手改场景**——「改一版跑一版」每次要 1-20 分钟。
+
 ## 如实边界声明（本卡未证明什么）
 
 1. **并发面仍不成立**（最重要，与前卡同）：本卡**没有实现任何锁**，G3-3 的 per-node sidecar 锁 / fencing epoch / per-vault 账本锁一项未做。单写者（同一 vault 内不并行跑任何两个 `quiz-answer`）是本卡正确性的前提。两个 writer 同时跑，本卡的所有 fail-closed 判据都可能在「读—算—写」的间隙被绕过。

@@ -152,6 +152,31 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
 **A6 调度器入参必须是 UTC（round-5 HIGH#1，端到端条款）**：传给 fsrs `Scheduler.review_card()` 的 `review_datetime` **必须 tz-aware 且 tzinfo 恰为 UTC**——库对此硬校验（`scheduler.py:256-260` 抛 `ValueError: datetime must be timezone-aware and set to UTC`）。因此 G3-2 写路径必须满足：**事件 `payload.review_time`、传入调度器的时刻、写出的 `W` 三者是同一瞬间，且入库/入调度器前统一 `astimezone(UTC)`**。
 > ⚠️ **移交（bridge 实现缺陷，本卡不改生产代码）**：`fsrs_bridge.py:50 _aware()` 只补 tzinfo 不做 `astimezone(UTC)`——把校验器判定合法的 `12:00:00+08:00` 传给真实库会**抛 ValueError**（round-5 只读复算实测）；该函数同时把 naive 串静默当 UTC、并在 `_iso()` 截掉小数秒。三项均属 bridge 侧修复，随 **G3-2** 接入时一并处置（登记于 §九）。
 
+**⚠️ A3 的适用面与外部写入方（round-16 回写）**：A3 约束的是**任何**向该账本追加
+`review/1` 行的写入方，不只是 quiz-answer 本身——因为 A6 要求「事件 `review_time`、
+传入调度器的时刻、写出的 `W` 三者是同一瞬间」，而消费侧要靠这条不变量复算采用时刻。
+- 校验器**当前不校验 A3**（它逐行校验，看不到同节点的先后关系）。⛔ 这是**校验器的
+  缺口，不是许可**：判定以本规格为准。校验器侧补 A3 跨行校验 = 移交项。
+- 消费侧（`quiz-answer`）对每条 pending 复算 `_adopted_from(scored_at, 当时的 W)`
+  并与账本记的采用时刻比对，不符即 fail-closed。已落盘的同瞬间两行的处置：按 A3 把
+  第二行的采用时刻改成 `W+1s`（原始时刻保留在 `scored_at`），或走 `out_of_order` 补录通道。
+
+**receipt（节点 frontmatter 的 `calibration_log`）字段契约（round-16 回写）**：
+校验器不校验该结构（它只校验账本文件），但消费侧依赖它做幂等与恢复判定，故在此定契约。
+- `event_id` —— **完整**账本 id（含 `quiz:` 前缀）；
+- `id_form: "full"` —— 形态标记。**只对 exact 命中有效**：它证明该条目存的是完整 id，
+  不能证明它是别人的历史裸形态。无此标记的条目按历史裸形态兼容处理；
+- `fsrs_applied: true|false` —— **事件级**调度凭据，与 frontmatter 同一次原子写。
+  降级路径写 `false`、正常路径与复放写 `true`。⛔ 全局水位线 `W ≥ receipt.ts`
+  **不能**替代它：后继事件会把 W 推过去制造**假覆盖**。旧条目缺该键 ⇒ 不可证、fail-closed；
+- `ts` —— 与账本 `effective_at` / `payload.review_time` **同一瞬间**（三方绑定）；
+- `scored_at` —— 原始稳定业务时刻，与账本 `payload.scored_at` 相等。
+
+**`payload.scored_at` 的归属（round-16 回写）**：它是 round-8 起新增的**新写点独有键**，
+§6.3 历史行不可能带它。消费侧把它计入「复习扩展键」（带它却无 `schema_ext: review/1`
+的行一律 fail-closed，防止损坏行伪装成历史行）。⛔ 校验器的 `REVIEW_EXT_KEYS` 与
+§6.1 必填集尚未同步——撞本卡禁改面，**登记为移交项**。
+
 **pending 集合**：账本中该节点全部满足以下全部条件的事件：`schema_ext == "review/1"`、**未标 `out_of_order`**、且 `payload.review_time > W`（按绝对瞬间比较）；按 `(review_time, 账本行序)` 升序。
 
 五条硬约束，G3-2 必须同时实现（缺一则 exactly-once 不成立）：

@@ -1514,11 +1514,21 @@ def test_self_audit_coverage_gaps(vault):
     assert r5.returncode != 0, "attempt 期望值算成负数时必须 fail-closed，不得放行"
     assert _write_face(v3) == _face_neg, "零写（节点 + 账本）"
 
-    # ⑤ 同节点两个适用事件 review_time 完全相同 → 按行号稳定全序，两条都重放
+    # ⑤ 同节点两个适用事件 → 按 (采用时刻, 行号) 稳定全序，两条都重放
+    # ⚠️ round-16 修订：原场景用「review_time **完全相同**」的两行来触发「按行号
+    # 定序」，而规格 A3 要求写侧在 ≤W 时推进到 W+1s —— **同瞬间两行本就不该存在**，
+    # 现在会被 fail-closed 拒。改用合规的两行（时刻已按 A3 分开，原始时刻保留在
+    # `scored_at`）：全序仍被覆盖，只是「同时刻并列」这一子情形按规格不可达。
+    # ⛔ 如实记：不为了让门绿而放宽 A3 —— 那正是上一轮「门反而锁定分叉」的错。
     v4 = vault
     (v4 / NODE_REL).write_text(NODE_V0, encoding="utf-8")
     a = _review_row(event_id="quiz:板A#q1", **{"payload.review_time": TS1})
-    b = _review_row(event_id="quiz:板B#q1", **{"payload.review_time": TS1, "payload.attempt_count": 2})
+    b = _review_row(
+        event_id="quiz:板B#q1",
+        **{"payload.review_time": "2026-08-01T10:00:01Z", "payload.attempt_count": 2},
+    )
+    b["effective_at"] = "2026-08-01T10:00:01Z"
+    b["payload"]["scored_at"] = TS1
     _write_ledger(v4, a, b)
     r6 = _run_writer_settled(v4, _payload(event_id="板C#q1", ts="2026-08-05T10:00:00Z"))
     assert r6.returncode == 0, r6.stdout + r6.stderr
@@ -4398,21 +4408,25 @@ def test_round14_every_pending_proves_adopted_time(vault):
     )
     assert r.returncode != 0, "foreign pending 的采用时刻同样要证"
     assert not (_fm_fields(vault).get("fsrs_last_review") or "").startswith("2026-12"), "W 不得被推到篡改值"
-    # 验伪：**未实施 A3 的外部合法行**不得被误拒。
-    # ⚠️ 场景必须让「A3 推后值」与「截整秒原值」**真的不同** —— 单条 pending 时
-    # 两者恒等（W 为空或行晚于 W），验伪落空（M131 此前正是这样活下来的）。
-    # 两条同瞬间的 pending 才行：复放第一条后基线滚到 TS1，第二条的推后值是 TS1+1s，
-    # 而它记的是 TS1（外部写入方没实施 A3）—— 只有「两个可解释值」的口径才放行。
+    # 验伪：**合规的** pending（采用时刻恰是 A3 复算值）不得被误拒。
+    # ⚠️ round-16 修订：上一版这里用「两条同瞬间的 pending」当合法样例，依据是
+    # 「外部写入方未必实施 A3」—— 那个依据**错了**（规格 A3/A6 要求写前推进，
+    # validator 不查只是校验器缺口）。同瞬间两行现在按规格被拒，见门 round16。
     (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
     LED.unlink(missing_ok=True)
     a = _review_row(event_id="quiz:板A#q1")
-    b = _review_row(event_id="quiz:板B#q1", **{"payload.attempt_count": 2})
+    b = _review_row(
+        event_id="quiz:板B#q1",
+        **{"payload.review_time": "2026-08-01T10:00:01Z", "payload.attempt_count": 2},
+    )
+    b["effective_at"] = "2026-08-01T10:00:01Z"
+    b["payload"]["scored_at"] = TS1
     _write_ledger(vault, a, b)
-    assert _run_validator(vault).returncode == 0, "两条同瞬间的行本身合规"
+    assert _run_validator(vault).returncode == 0
     r2 = _run_writer_settled(
         vault, _payload(event_id="板C#q1", ts="2026-08-05T10:00:00Z", review_time="2026-08-05T10:00:00Z")
     )
-    assert r2.returncode == 0, f"⛔ 外部写入方未必实施 A3，两个可解释值都合法: {r2.stderr[:300]}"
+    assert r2.returncode == 0, f"⛔ 按 A3 推进过的合规 pending 不得被误拒: {r2.stderr[:300]}"
 
 
 def test_round14_legacy_precision_identity(vault):
@@ -4638,47 +4652,259 @@ def test_round15_bare_collision_has_own_judge(vault):
 # ── 门(89) round-15: 复放的 A3 推进必须可审计
 
 
-def test_round15_replay_a3_advance_is_auditable(vault):
-    """复放时 A3 若把采用时刻推进过，必须**留下审计痕迹**并告警。
+def test_round16_same_instant_rows_rejected_per_a3(vault):
+    """规格 A3/A6 下，账本里**不该存在**同瞬间两行 —— 遇到必须 fail-closed。
 
-    ⛔ 审查指出的不一致（W 与 durable/receipt 采用时刻分叉）真实存在。三个处置
-    实测比较过：
-      ① 收紧「只认 A3 推后值」⇒ 拒掉**外部写入的同瞬间两行**（validator 允许），
-         全门实测红 2 道 —— 是误拒；
-      ② 回头改写 durable 让它一致 ⇒ 违反 schema §一「append-only，只追加不改写」；
-      ③ **如实暴露**：不拒不改，把实际水位线记进 `adopted_actual` 并告警。
-    取③ —— 账本是**共享事件流**（validator 不校验 A3），A3 是本写点的规则而不是
-    账本的不变量；但分叉必须**可见可审计**，不能静默。
+    ⛔ 这道门**推翻了我上一轮写的 `test_round15_replay_a3_advance_is_auditable`**。
+    那一版按「如实暴露」放行并把分叉记进 `adopted_actual`，审查判 FAIL 且理由成立：
+    规格 `docs:152` 明写「事件 review_time、传入调度器的时刻、写出的 W 三者是同一
+    瞬间」，`docs:163-164` 明写「计算值 ≤W 时推进到 W+1s **后再写**」。
+    我那道门**反而把违反规格的分叉锁死了**（审查原话：测试反而锁定了该分叉）。
 
-    ⚠️ `ts` **必须与 durable 的采用时刻同源**（三方同瞬间的定义），实际水位线只能
-    记进另一个字段 —— 把 `ts` 改成实际值会让下一轮续跑**永远不收敛**（实测）。
+    ⛔ 我当时放宽的依据是「validator 不校验 A3，所以外部同瞬间两行合法」——
+    **依据错了**：卡文写明「判定一律以 schema 为准」，validator 不查 A3 是
+    **校验器的缺口**，不是许可。⚠️ 用证据表达分歧是对的，但证据要指向正确的判据。
+
+    代价如实记：已落盘的同瞬间两行会被拒；处置是按 A3 把第二行改成 `W+1s`
+    （原始时刻保留在 `scored_at`），或走 `out_of_order` 补录通道。
     """
     (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
     (vault / "learning_events.jsonl").unlink(missing_ok=True)
     a = _review_row(event_id="quiz:板A#q1")
     b = _review_row(event_id="quiz:板B#q1", **{"payload.attempt_count": 2})
     _write_ledger(vault, a, b)
-    assert _run_validator(vault).returncode == 0, "两条同瞬间的行本身合规"
+    assert _run_validator(vault).returncode == 0, "单行校验器看不出问题（正是它难抓的原因）"
+    face = _write_face(vault)
     r = _run_writer_settled(
         vault, _payload(event_id="板Z#q1", ts="2026-08-05T10:00:00Z", review_time="2026-08-05T10:00:00Z")
     )
-    assert r.returncode == 0, f"外部写入的同瞬间两行不得被拒: {r.stderr[:300]}"
-    nd = (vault / NODE_REL).read_text(encoding="utf-8")
-    actual = re.findall(r'adopted_actual: "([^"]+)"', nd)
-    assert actual == ["2026-08-01T10:00:01Z"], (
-        f"⛔ A3 把第二条推到 W+1s，必须留下审计痕迹（基线取 durable 值就不会推进）: {actual}"
-    )
-    assert "实际写下的水位线" in r.stdout, "分叉必须告警而不是静默"
-    # ⛔ `ts` 仍须与 durable 同源，否则续跑不收敛
-    assert re.findall(r'^    ts: "([^"]+)"', nd, re.M)[:2] == [TS1, TS1], "receipt 的 ts 必须与 durable 同源"
-    # 验伪：没有 A3 推进时不得凭空出现审计字段
+    assert r.returncode != 0, "同瞬间两行违反 A3，必须 fail-closed"
+    assert _write_face(vault) == face, "零写"
+    # 验伪：按 A3 修好（第二行推到 W+1s）之后必须能落定
     (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
     (vault / "learning_events.jsonl").unlink(missing_ok=True)
-    _write_ledger(vault, _review_row(event_id="quiz:板A#q1"))
+    b2 = _review_row(
+        event_id="quiz:板B#q1",
+        **{"payload.review_time": "2026-08-01T10:00:01Z", "payload.attempt_count": 2},
+    )
+    b2["effective_at"] = "2026-08-01T10:00:01Z"
+    b2["payload"]["scored_at"] = TS1  # 原始时刻保留
+    _write_ledger(vault, a, b2)
     r2 = _run_writer_settled(
         vault, _payload(event_id="板Z#q1", ts="2026-08-05T10:00:00Z", review_time="2026-08-05T10:00:00Z")
     )
-    assert r2.returncode == 0, r2.stderr[:250]
-    assert "adopted_actual" not in (vault / NODE_REL).read_text(encoding="utf-8"), (
-        "单条 pending 没有 A3 推进，不得凭空写审计字段"
+    assert r2.returncode == 0, f"⛔ 按 A3 推进过的两行必须能正常复放: {r2.stderr[:300]}"
+
+
+# ── 门(90) round-16: 事件级凭据贯穿所有分支
+
+
+def test_round16_fsrs_applied_across_all_branches(vault):
+    """`fsrs_applied` 必须贯穿 **dup / pending / ≤W** 所有分支，不只 F1-only。
+
+    ⛔ round-15 我只在 F1-only 用上这个新凭据 —— 「修一半」的第十次。
+    审查给的状态机（本门逐格覆盖）：
+      receipt 缺该键        ⇒ 旧条目，不可证，**停**（不回落全局 W 猜）
+      `false` + 未覆盖      ⇒ 视为未应用，走恢复；成功后**原子升 true**
+      `false` + W 已覆盖    ⇒ **状态矛盾，停** —— 后来的事件在「这次从未应用」
+                              的基线上推进了调度，FSRS 是有状态序列算法，无法补
+      `true`                ⇒ 已应用
+    """
+    LED = vault / "learning_events.jsonl"
+
+    # ① 缺键（旧条目）⇒ 停
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    assert _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1)).returncode == 0
+    nd = (vault / NODE_REL).read_text(encoding="utf-8")
+    nd2 = re.sub(r"^    fsrs_applied: .*\n", "", nd, count=1, flags=re.M)
+    assert nd2 != nd, "预置必须真的删掉该键"
+    (vault / NODE_REL).write_text(nd2, encoding="utf-8")
+    face = _write_face(vault)
+    r1 = _run_writer(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1))
+    assert r1.returncode != 0, "旧条目缺事件级凭据 ⇒ 不可证，必须停"
+    assert "fsrs_applied" in r1.stderr, r1.stderr[:200]
+    assert _write_face(vault) == face, "零写"
+
+    # ② false + 未覆盖 ⇒ 走恢复，且成功后**升 true**
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    assert (
+        _run_writer_settled(
+            vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1), env_extra={"FSRS_BRIDGE_REEXEC": "1"}
+        ).returncode
+        == 0
+    )
+    assert "fsrs_applied: false" in (vault / NODE_REL).read_text(encoding="utf-8"), "降级必须记 false"
+    r2 = _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1))
+    assert r2.returncode == 0, f"降级遗留必须能恢复: {r2.stderr[:250]}"
+    assert "fsrs_applied: false" not in (vault / NODE_REL).read_text(encoding="utf-8"), (
+        "⛔ 恢复成功后必须把该条目升为 true —— 否则每次重跑都再走一遍恢复，且「这次到底应用过没有」永远停在 false"
+    )
+
+    # ③ false + W 已覆盖 ⇒ 状态矛盾，停
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    assert (
+        _run_writer_settled(
+            vault, _payload(event_id="E1#q1", ts=TS1, review_time=TS1), env_extra={"FSRS_BRIDGE_REEXEC": "1"}
+        ).returncode
+        == 0
+    )
+    e1 = list(_ledger_lines(vault))[0]
+    LED.write_text("", encoding="utf-8")  # 删掉 E1 的账本行
+    assert (
+        _run_writer_settled(
+            vault, _payload(event_id="E2#q1", ts="2026-08-01T11:00:00Z", review_time="2026-08-01T11:00:00Z")
+        ).returncode
+        == 0
+    )  # E2 在残缺账本上推进 W
+    rows = list(_ledger_lines(vault))
+    LED.write_text("\n".join(json.dumps(x, ensure_ascii=False) for x in [e1] + rows) + "\n", encoding="utf-8")
+    st_before = _fm_fields(vault)
+    r3 = _run_writer(vault, _payload(event_id="E1#q1", ts=TS1, review_time=TS1))
+    assert r3.returncode != 0, "⛔ 不得宣称「已完整应用」—— 那次的调度贡献其实永久错位了"
+    assert "状态" in r3.stderr or "fsrs_applied" in r3.stderr, r3.stderr[:250]
+    assert _fm_fields(vault) == st_before, "零写"
+
+    # ④ `true` + W **未**覆盖 ⇒ 走到 `_fsrs_applied` 的计算本身。
+    # ⚠️ 前三格都在它之前就 raise 了，测不到「计算取谁」——M142 此前正是这样活下来的：
+    # 施加「退回全局 W」的变异后门**仍绿**（不是被别的判据拒，是门根本没走到那段）。
+    # ⛔ 「施加变异后门仍绿」与「被别的判据拒」是两回事：前者是门**测不到**，
+    # 后者是纵深**兜住了**。判别靠看它到底红没红，而不是看拒因。
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    assert _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1)).returncode == 0
+    assert "fsrs_applied: true" in (vault / NODE_REL).read_text(encoding="utf-8")
+    nd4 = (vault / NODE_REL).read_text(encoding="utf-8")
+    # 把 W 退回到早于本次采用时刻 ⇒ 全局 W 说「未应用」，而事件级凭据说「已应用」
+    nd4b = re.sub(r"^fsrs_last_review:.*$", 'fsrs_last_review: "2026-07-01T10:00:00Z"', nd4, count=1, flags=re.M)
+    assert nd4b != nd4, "预置必须真的把水位线退回"
+    (vault / NODE_REL).write_text(nd4b, encoding="utf-8")
+    r4 = _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1))
+    assert r4.returncode == 0, f"事件级凭据为 true ⇒ 已应用，不得再走一遍恢复: {r4.stderr[:250]}"
+    assert len(_ledger_lines(vault)) == 1, "不得新增账本行"
+    # ⛔ 判据必须落在**水位线**上：`_fsrs_applied` 取事件级凭据时 W 保持退回值；
+    # 退回全局 W 判定则会重跑一遍恢复、把 W 推回 08-01。
+    # ⚠️ 只断言 rc 与账本行数**测不到这个差异**（两种实现都 rc=0、账本 1 行）——
+    # M142 此前正是这样活下来的。**行为差异在哪，判据就要落在哪。**
+    assert _fm_fields(vault).get("fsrs_last_review") == "2026-07-01T10:00:00Z", (
+        "事件级凭据为 true ⇒ 不得再推进水位线（退回全局 W 判定会把它推回 08-01）"
+    )
+
+
+# ── 门(91) round-16: 判等用类型保真的规范树，不借用序列化
+
+
+def test_round16_canonical_tree_type_faithful(vault):
+    """判等需要**自己的编码**，不能借用 JSON 序列化。
+
+    ⛔ round-15 我用 `json.dumps` + `default=lambda o: f"§dec:{o}"`，两个洞都是
+    「借用通用序列化」的必然后果：
+      ① `Decimal` 默认 context 精度 **28 位** ⇒ `10**30` 与 `10**30+1` 压成同值;
+      ② 标签 `§dec:` 占用**用户字符串的命名空间** ⇒ 用户串 `"§dec:1"` 与数值 `1` 碰撞。
+    `json.dumps` 的设计目标是产出 JSON，不是产出「可判等的规范形式」——
+    用它做等价判定就得靠 `default=` 打补丁，而补丁必然侵入用户值域。
+    """
+    LED = vault / "learning_events.jsonl"
+    for label, first, second in (
+        ("大整数精度", 10**30, 10**30 + 1),
+        ("标签碰撞", 1, "§dec:1"),
+    ):
+        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+        LED.unlink(missing_ok=True)
+        assert (
+            _run_writer_settled(
+                vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1, exam_board=first)
+            ).returncode
+            == 0
+        ), f"[{label}] 首写应放行"
+        LED.write_text("", encoding="utf-8")
+        face = _write_face(vault)
+        r = _run_writer(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1, exam_board=second))
+        assert r.returncode != 0, f"⛔ [{label}] 两份不同事实不得判等"
+        assert _write_face(vault) == face, f"[{label}] 零写"
+
+    # ③ **字符串 vs 数值**：类型标签必须区分二者
+    # ⚠️ 前两格都不涉及跨类型比较（大整数那格两边都是数值，`§dec:1` 那格两边都是
+    # 字符串）—— M147 此前正是这样活下来的：把 `("str", v)` 改成 `("num", v)` 后
+    # 门仍绿，因为**没有一格让字符串与数值相遇**。
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    assert (
+        _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1, exam_board=7)).returncode == 0
+    )
+    LED.write_text("", encoding="utf-8")
+    face3 = _write_face(vault)
+    r3 = _run_writer(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1, exam_board="7"))
+    assert r3.returncode != 0, '⛔ 数值 7 与字符串 "7" 是不同类型的事实，不得判等'
+    assert _write_face(vault) == face3, "零写"
+
+    # 验伪：同一数值的不同书写仍必须判等（不能为了防碰撞把等价面也收掉）
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    assert (
+        _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1, exam_board=1.0)).returncode == 0
+    )
+    raw = LED.read_text(encoding="utf-8")
+    raw2 = raw.replace('"exam_board": 1.0', '"exam_board": 1')
+    assert raw2 != raw, "预置必须真的改成 int 形态"
+    LED.write_text(raw2, encoding="utf-8")
+    nd = (vault / NODE_REL).read_text(encoding="utf-8")
+    (vault / NODE_REL).write_text(
+        re.sub(r"^    exam_board: .*$", "    exam_board: 1", nd, count=1, flags=re.M), encoding="utf-8"
+    )
+    r2 = _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1, exam_board=1.0))
+    assert r2.returncode == 0, f"⛔ `1` 与 `1.0` 是同一数值，不得误拒: {r2.stderr[:300]}"
+
+
+# ── 门(92) round-16: 无标记 exact receipt 不得被借用
+
+
+def test_round16_unmarked_exact_enumerates_both_sources(vault):
+    """一条**无标记**的 exact 命中同样有两种合法解释，不唯一即停。
+
+    ⛔ round-15 我只管住了「标了 full 的不得当别人的裸形态」，**反向没管**：
+    无标记的 exact token `quiz:K` 既可能是事件 `quiz:K` 自己的完整 id，
+    也可能是事件 `quiz:quiz:K` 的**历史裸形态**。
+    实测借用链：先写本地 `quiz:K`（完整 id `quiz:quiz:K`）；把 receipt 变成
+    legacy token `quiz:K` 并去掉 `id_form`；删旧日志行；再放入一条合法的新事件
+    `event_id=quiz:K` ⇒ 重跑本地 `K` 得 rc=0「已完整应用，幂等跳过」，**新行未应用**。
+
+    ⚠️ 「两个方向」的第三种表现：不只是实现要覆盖两个方向，**门也要分别覆盖** ——
+    正向（round-15 那道）与反向（本门）是两个不同的场景，不能复用同一道门。
+    """
+    LED = vault / "learning_events.jsonl"
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    assert _run_writer_settled(vault, _payload(event_id="quiz:K", ts=TS1, review_time=TS1)).returncode == 0
+    nd = (vault / NODE_REL).read_text(encoding="utf-8")
+    nd2 = nd.replace('- event_id: "quiz:quiz:K"', '- event_id: "quiz:K"').replace('    id_form: "full"\n', "", 1)
+    assert nd2 != nd, "预置必须真的改成无标记的 legacy 形态"
+    (vault / NODE_REL).write_text(nd2, encoding="utf-8")
+    # ⛔ **保留**原来那条 `quiz:quiz:K` 账本行 —— 只有它在场，`quiz:K` 这个 token
+    # 才真的有两种来源解释（自身完整 id / `quiz:quiz:K` 的历史裸形态），
+    # bare 分支才会被执行到。删掉它则 sources 恒为 `{ev_id}`，**变异打不出差异**
+    # （M148 此前正是这样活下来的）。
+    old_row = list(_ledger_lines(vault))[0]
+    assert old_row["event_id"] == "quiz:quiz:K", old_row["event_id"]
+    # ⚠️ 新事件的**事实必须与 receipt 一致** —— 否则 facts 核对会在更早处拦下，
+    # 判定永远走不到 sources 唯一性那一步。差异**在 sources 上**：原实现两个来源
+    # ⇒ 拒；变异后一个 ⇒ 放行。**门的场景要让所有更早的判据都通过，只在目标判定处分道。**
+    # ⛔ 排查这条用了四次尝试，本可以更短：**先算清楚差异在哪，再动手改场景**，
+    # 而不是「改一版跑一版」——每次跑要 1-20 分钟。
+    row = _review_row(event_id="quiz:K")  # 与首写同事实（同时刻/分数/板名）
+    _write_ledger(vault, old_row, row)
+    assert _run_validator(vault).returncode == 0, "新事件本身合规"
+    n0, face = len(_ledger_lines(vault)), _write_face(vault)
+    r = _run_writer_settled(vault, _payload(event_id="K", ts=TS1, review_time=TS1))
+    assert not (r.returncode == 0 and len(_ledger_lines(vault)) == n0 and _write_face(vault) == face), (
+        "⛔ 不得借用他人的 receipt 而让新行静默不应用"
+    )
+    assert r.returncode != 0, f"来源不唯一 ⇒ 必须停: {r.stdout[:200]}"
+    # ⛔ 判据必须落在**差异点**上：本变异的行为差异是 sources 从两个塌成一个
+    # （原实现 {quiz:K, quiz:quiz:K} ⇒ 歧义拒；变异后只剩 {quiz:K} ⇒ 放行到下一关）。
+    # ⚠️ 只断言 rc != 0 测不到它 —— 两种实现都会拒，只是**拒的理由不同**。
+    assert "多个 event_id" in (r.stderr or ""), (
+        f"拒因须点名「来源可能是多个 event_id」（不退化成「随便什么理由拒了都算数」）: {(r.stderr or '')[-300:]}"
     )

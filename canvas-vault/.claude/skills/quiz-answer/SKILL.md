@@ -330,9 +330,17 @@ def _adopted_ok(_sa, _w_inst, _got):
     """
     if _got is None:
         return False
-    _pushed = _adopted_from(_sa, _w_inst)
-    _plain = _adopted_from(_sa, None)
-    return _got == _pushed or _got == _plain
+    # ⛔ round-16: **收紧回 A3 唯一值**。我 round-14 放宽成「两个可解释值」的依据是
+    # 「validator 不校验 A3, 所以外部写入的同瞬间两行合法」—— 那个依据**是错的**:
+    # 卡文写明「判定一律以 schema 为准」, validator 不查 A3 是**校验器的缺口**,
+    # 不是许可。规格 §6.2 A3 明写「写侧必须保证新事件 review_time 严格大于 W,
+    # 计算值 ≤W 时推进到 W+1s **后再写**」, A6 明写「事件 review_time、传入调度器的
+    # 时刻、写出的 W 三者是同一瞬间」。同瞬间两行本就不该存在于账本。
+    # ⚠️ 代价如实记: 外部写入方若已经落盘了同瞬间两行, 会被 fail-closed 拒 ——
+    # 处置是按 A3 把第二行改成 W+1s(原始时刻保留在 scored_at), 或走 out_of_order
+    # 补录通道。这比「记个审计字段就放行」诚实: 后者让违反规格的状态**永久合法化**,
+    # 而我上一轮写的门反而把这个分叉**锁死**了(审查原话: 测试反而锁定了该分叉)。
+    return _got == _adopted_from(_sa, _w_inst)
 
 def _instant_only(s, ctx):
     """tz-aware 解析 → UTC 瞬间。**不施加整秒/UTC 字面门** —— 用于只需要比较
@@ -486,14 +494,26 @@ def _cands_and_sources(fm_text, ev_id, all_ledger_ids=()):
     # 正确口径: **exact 候选只贡献自身 exact 来源**（尤其它标了 full 时 ——
     # 那证明它存的就是完整 id, 不可能是别人的裸形态）; 只有**无标记的 bare 候选**
     # 才允许按「某个带前缀 id 的历史裸形态」反推。
+    # ⛔ round-16 BLOCKER③: 只把「标了 full 的不得当别人的裸形态」管住了, **反向没管** ——
+    # 一条**无标记**的 exact 命中 token `quiz:K` 同样有两种合法解释:
+    #   ①事件 `quiz:K` 自己的完整 id;  ②事件 `quiz:quiz:K` 的**历史裸形态**。
+    # 实测借用链: 先写本地 `quiz:K`(完整 id `quiz:quiz:K`), 把 receipt 变成 legacy
+    # token `quiz:K` 并去掉 `id_form`, 删掉旧日志行, 再放入一条合法的新事件
+    # `event_id=quiz:K`; 重跑本地 `K` ⇒ rc=0「已完整应用, 幂等跳过」, **新行未应用**。
+    # 口径: 只有 `id_form: full` 才允许 exact-only 解释; 无标记的 exact 必须**同时
+    # 枚举两种来源**, 不唯一即由下游 fail-closed。「两个方向」在本卡的又一次 ——
+    # 修一个方向时, 反方向的对称情形通常也要同样处理。
     _sources = set()
     for _tok in _cands:
         _is_exact = _tok == ev_id
+        _tok_e = _receipt_of(fm_text, _tok)
+        _tok_marked = isinstance(_tok_e, dict) and _tok_e.get("id_form") == "full"
         for _lid in all_ledger_ids:
             if _lid == _tok:
                 _sources.add(_lid)                 # 完整形态: 任何候选都可贡献
-            elif not _is_exact and _lid.startswith("quiz:") and _lid[5:] == _tok:
-                _sources.add(_lid)                 # 历史裸形态: 只有 bare 候选可贡献
+            elif _lid.startswith("quiz:") and _lid[5:] == _tok and not (_is_exact and _tok_marked):
+                # 历史裸形态: bare 候选恒可贡献; exact 候选**只有带 full 标记时**才豁免
+                _sources.add(_lid)
     # ⛔ **账本侧的裸形态碰撞**要单独查, 与 receipt 的形态无关 (round-15 修
     # 来源反查时一度把它弄丢): 账本里若同时存在裸形态相同的两个不同 id
     # (如 `quiz:K` 与 `K`), 那条 receipt 到底对应哪一个**无法证明** ——
@@ -549,73 +569,53 @@ _ok_board = lambda v: True
 _FACT_MISSING = object()          # 区分「键缺失」与「显式 null」
 
 
-def _num_norm(v):
-    """递归地把数值统一成 float（**bool 除外**），供 envelope 与逐字段比较共用。
+def _canon_tree(v):
+    """把任意 JSON 值编码成**类型保真**的规范树（供逐字段与 envelope 共用）。
 
-    ⛔ round-15 自查: `1` 与 `1.0` 是同一数值的两种合法 JSON 书写（外部写入方可能
-    用 int，validator rc=0），而写侧 `round(float(x),2)` 恒产出 float ⇒ 用户以
-    `1.0` 重跑被 envelope 冲突**误拒**（实测可达）。
-    ⚠️ `True/False` 必须与 1/0 区分（round-14 BLOCKER③），所以 bool 先判、原样保留。
-    ⚠️ envelope 走整体 `json.dumps`、逐字段走 `_canon_fact`，是**两种比较机制**，
-    「抽成一份实现」在这里不适用 —— 共用的是**规则**（这个函数），不是实现。
+    ⛔ round-16 BLOCKER: 我 round-15 的实现有两个独立缺陷，都是「把内部标签塞进
+    用户字符串域」和「借用带精度上限的 API」造成的：
+      ① `Decimal` 默认 context 精度 **28 位**，`normalize()` 把 `10**30` 与
+         `10**30+1` 都压成 `1E+30` ⇒ 两份不同事实判等（实测 rc=0 幂等跳过）;
+      ② 序列化用 `default=lambda o: f"§dec:{o}"` ⇒ 用户字符串 `"§dec:1"` 与
+         数值 `1` **碰撞**（实测同样 rc=0）。
+    解法：每个 JSON 类型有**独立的节点标签**，标签与用户值不共享命名空间；
+    数值用 `Decimal.as_tuple()` 的精确三元组（不经 context 舍入），并显式统一
+    `1/1.0`（去尾零）与 `-0.0/0`（零归正）。
+
+    ⚠️ `bool` 必须先于数值判 —— `True/1` 是不同类型的语义（round-14 BLOCKER③）。
     """
+    if v is None:
+        return ("null",)
     if isinstance(v, bool):
-        return v
+        return ("bool", v)
     if isinstance(v, (int, float)):
-        # ⛔ round-15 审查独立指出: 不能递归 `float()` —— 它会把
-        # 9007199254740992 与 ...93 塌成同一个值（超出 float 尾数精度）。
-        # `Decimal` 同时满足四条: 大整数不塌缩 / `1 == 1.0` / `0.75 == 0.750` / `-0.0 == 0`。
-        # ⚠️ 这个精度 bug 是我上一小时自己引入的 —— 自查发现了缺陷方向，
-        # 却在修法里带进了新的丢精度面。**修复本身同样需要被审查。**
         try:
             _d = decimal.Decimal(v if isinstance(v, int) else repr(v))
-            if not _d.is_finite():
-                return f"nf:{v!r}"
-            _d = _d.normalize()
-            # ⚠️ `-0.0` 与 `0` 是同一个数值, 但 Decimal 保留符号 ⇒ normalize 后
-            # 字符串仍是 `-0`。显式归零(逐条构造反例才发现, 只测顶层标量会漏)。
-            return decimal.Decimal(0) if _d == 0 else _d
         except (ArithmeticError, ValueError, TypeError):
-            return f"nf:{v!r}"
+            return ("num-unparsable", repr(v))
+        if not _d.is_finite():
+            return ("num-nonfinite", repr(v))
+        _sign, _digits, _exp = _d.as_tuple()
+        # 去尾零：1.0 → (1,) e0；1.00 → 同；使 1 / 1.0 / 1.00 同树
+        _digits = list(_digits)
+        while len(_digits) > 1 and _digits[-1] == 0:
+            _digits.pop()
+            _exp += 1
+        if _digits == [0]:
+            _sign, _exp = 0, 0          # -0.0 与 0 归一
+        return ("num", _sign, tuple(_digits), _exp)
+    if isinstance(v, str):
+        return ("str", v)
     if isinstance(v, dict):
-        return {k: _num_norm(x) for k, x in v.items()}
-    if isinstance(v, list):
-        return [_num_norm(x) for x in v]
-    return v
-
-
-def _raise_te(o):
-    raise TypeError(type(o).__name__)
+        return ("obj", tuple(sorted((str(k), _canon_tree(x)) for k, x in v.items())))
+    if isinstance(v, (list, tuple)):
+        return ("arr", tuple(_canon_tree(x) for x in v))
+    return ("other", type(v).__name__, repr(v))
 
 
 def _canon_fact(v):
-    """事实的 canonical 形式：**类型敏感**的 JSON 文本。
-
-    ⛔ 直接用 `==` 会让 `1 == True`、`0 == False` 成立, 于是两次事实不同的评分
-    被判成同一次(round-14 BLOCKER③ 实测)。不可 JSON 化的值退回带类型名的表示,
-    仍然类型敏感。
-    """
-    # ⛔ 数值按**数值语义**比, 不按 JSON 书写比 (round-15 自查发现的交界洞):
-    # `1` 与 `1.0` 是同一个数值的两种合法 JSON 书写(外部写入方可能用 int,
-    # validator rc=0), 而写侧 `round(float(x),2)` 恒产出 float ⇒ 用户以 1.0 重跑
-    # 被 envelope 冲突误拒。实测可达。
-    # ⚠️ 但 `True/False` **必须**与 1/0 区分 —— 那是不同类型的语义(布尔 vs 数值),
-    # 正是 round-14 BLOCKER③ 要拦的。所以 bool 先于数值判, 走 canonical 那支。
-    # ⛔ 这个洞落在两条修复的**交界处**: B③ 要类型敏感(顺带把 1/1.0 判不等),
-    # H② 的版本化身份规则只在 `_dgn != GN2` 时生效(而 1 == 1.0 在 Python 里成立,
-    # 条件不触发)。两条各自正确, 交界处出洞 —— 单条审查意见指不出这类洞。
-    v = _num_norm(v)
-    if isinstance(v, decimal.Decimal):
-        return f"n:{v}"                       # 数值语义: 1 == 1.0 == 1.00
-    # ⛔ **容器里的**数值同样归一成 Decimal, `json.dumps` 不认识它 —— 只在顶层判
-    # Decimal 是「修一半」: `[1, 2.0]` 与 `[1.0, 2]` 会走到 except 分支比 repr 而判不等。
-    # 实测由「嵌套数值」那条反例当场抓出（只测顶层标量会漏）。
-    try:
-        return "j:" + json.dumps(v, sort_keys=True, ensure_ascii=False,
-                                 separators=(",", ":"), allow_nan=False,
-                                 default=lambda o: f"§dec:{o}" if isinstance(o, decimal.Decimal) else _raise_te(o))
-    except (TypeError, ValueError):
-        return f"r:{type(v).__name__}:{v!r}"
+    """事实的规范形式 = 类型保真的规范树（见 `_canon_tree`）。"""
+    return _canon_tree(v)
 
 
 # ⚠️ 保留**显式 null**（不再折成 ""）—— 与 receipt 写侧同源:
@@ -1200,8 +1200,26 @@ def _append_calibration(fm_text, ts_str, ev=None, applied=None, actual_ts=None):
     # ⚠️ 追加在拼接链**之后** —— f-string 隐式拼接链中间插 `+ (...)` 是语法错误
     # （实测当场 SyntaxError；靠 ast.parse 自检拦住，没写进跑集）。
     # 复放时 A3 若把采用时刻推进过，留下审计痕迹（账本 append-only，不改写原行）。
-    if actual_ts is not None and actual_ts != ts_str:
-        entry_ += f'\n    adopted_actual: {q_(actual_ts)}'   # 仅审计, 不参与身份判定
+    # ⚠️ round-16: `adopted_actual` 已移除。它是 round-15「如实暴露分叉」方案的产物,
+    # 而那个方案被判 FAIL —— 规格 A3/A6 要求三者同一瞬间, 分叉本就不该落地。
+    # 收紧 `_adopted_ok` 后该分叉在消费侧即被拒, 这个字段没有产生的场景;
+    # 留着它等于给「违反规格的状态」保留一条合法通道。
+    # ⛔ 比**瞬间**不比字面（审查在 HIGH 的附带项里点过，我当时只处理了主体）:
+    # `2026-08-01T10:00:00+00:00` 与 `…Z` 是同一瞬间，字符串比较会判不等 ——
+    # 移除 `adopted_actual` 后这个差异直接变成硬错误，被 R2 门当场抓住。
+    # 「字面 vs 值」在本卡的第七次。⚠️ 审查意见里的**附带项也是意见**。
+    _aa_diff = False
+    if actual_ts is not None:
+        try:
+            _aa_diff = _aware(actual_ts) != _aware(ts_str)
+        except Exception:
+            _aa_diff = str(actual_ts) != str(ts_str)
+    if _aa_diff:
+        raise SystemExit(
+            f"[quiz-answer] 内部错误: 复放时实际水位线 {actual_ts!r} 与账本记的采用时刻 "
+            f"{ts_str!r} 不同 —— 规格 A3/A6 要求两者同一瞬间, 该状态应在更早的 "
+            f"`_adopted_ok` 判据处就被拒。请报告此不一致"
+        )
     # ⛔ **结构化写回** (Codex round-10 HIGH): 读侧已改用 YAML 解析器, 写侧却仍
     # 假定 block list —— 一份**合法**的 inline flow list frontmatter 被追加缩进
     # 条目后变成非法 YAML。实测: 账本已从 1 行涨到 2 行**才**损坏笔记
@@ -1657,7 +1675,52 @@ else:
     # ⚠️ 也不能直接用本次的 `ts` —— 它每次续跑都重新取 (Step 4a 的 date -u),
     # 那样**真实续跑**也会冲突。稳定业务时刻的来源是检验白板 Step 3 记的
     # `questions[0].scored_at`, 经 payload 的 `review_time` 传进来。
-    _fsrs_applied = W_inst is not None and W_inst >= _dup_inst
+    # ⛔ round-16 BLOCKER①: 「已应用」不能只看**全局水位线** —— 后继事件会把 W
+    # 推过本行, 制造**假覆盖**(实测: E1 降级后删日志、E2 正常落账把 W 推到 11:00,
+    # 再把 E1 行放回并重跑 ⇒ rc=0「已完整应用」而 E1 的调度贡献永久漏掉;
+    # 损坏链 state=1/due=11:10, 正常对照 state=2/due=08-03T11:00)。
+    # 事件级凭据 `fsrs_applied` 此前**只在 F1-only 分支生效** —— 「修一半」的第十次。
+    # 状态机（按审查给的口径，全分支统一）:
+    #   receipt 缺该键          ⇒ 旧条目, 不可证, 停（不回落 W 猜）
+    #   fsrs_applied=false      ⇒ 那次只落了账没推调度 ⇒ 视为**未应用**, 走恢复
+    #   fsrs_applied=true       ⇒ 已应用; 此时才允许 W 覆盖参与判定
+    _rc_dup = _receipt_of(fm, evid)
+    if _rc_dup is None and evid.startswith("quiz:"):
+        _rc_dup = _receipt_of(fm, evid[5:])
+    _rc_dup_applied = _rc_dup.get("fsrs_applied") if isinstance(_rc_dup, dict) else None
+    if _rc_dup is not None and _rc_dup_applied is None:
+        raise SystemExit(
+            f"[quiz-answer] {evid} 的校准条目没有 `fsrs_applied` 事件级凭据（本卡之前写的"
+            f"旧条目）—— 全局水位线 `W >= review_time` **不能**证明这一次的调度已生效"
+            f"（后继事件会把 W 推过去制造假覆盖），fail-closed 拒写 — "
+            f"请人工确认那次评分是否真的推进过 FSRS 后，给该条目补上 `fsrs_applied`"
+        )
+    # 有凭据时以它为准；没有 receipt（F1 为假）时仍按 W 判 —— 那一支由下面的
+    # 「已应用但缺校准记录」人工裁定承接，不是靠 W 冒充凭据。
+    # ⛔ `false + W 已覆盖` 是**状态矛盾**, 必须停 —— 不是 no-op, 也不是「仅补 FSRS」。
+    # 实测损失链: E1 降级(receipt=false、W 未推进) → 删掉 E1 日志行 → E2 在
+    # 「E1 从未应用」的基线上正常落账并把 W 推到 11:00 → 把 E1 行放回重跑。
+    # 此时 E1 的 review_time(10:00) 已 ≤ W(11:00) ⇒ 不进 pending, 「仅补 FSRS」
+    # 补的是**当前**状态而不重算历史链 ⇒ state 停在 1(正常对照是 2)。
+    # ⚠️ 损失发生在**删日志的那一刻**: E2 已在残缺账本上推进了 W, 而 FSRS 是
+    # **有状态的序列算法**, 中间少一次不是「补一条」能还原的。
+    # 所以正确处置是**发现矛盾并停下**, 而不是让恢复更聪明。
+    if _rc_dup is not None and _rc_dup_applied is False and W_inst is not None and W_inst >= _dup_inst:
+        raise SystemExit(
+            f"[quiz-answer] {evid} 的校准条目记着 `fsrs_applied: false`（那次只落了账、"
+            f"没推进调度），但节点水位线 W={W!r} 已越过它的采用时刻 —— 说明**后来的事件**"
+            f"在「这次从未应用」的基线上推进了调度。FSRS 是有状态的序列算法，中间少算一次"
+            f"**无法靠补一条还原**，继续下去会让这次复习的调度贡献永久错位。fail-closed 拒写。\n"
+            f"可行的处置（二选一，都在 {os.path.basename(EV)} 与 {os.path.basename(NODE)} 上手工完成）:\n"
+            f"  ① 若你接受丢掉这一次的调度贡献 —— 把该条目的 `fsrs_applied` 改成 true"
+            f"（承认它不会再被应用），再重跑;\n"
+            f"  ② 若要还原正确调度 —— 需要按账本顺序从头重算该节点的 fsrs_* 字段"
+            f"（本卡不提供该工具，属 recovery-only 路径，已登记裁决点）。"
+        )
+    _fsrs_applied = (
+        bool(_rc_dup_applied) if _rc_dup is not None
+        else (W_inst is not None and W_inst >= _dup_inst)
+    )
     # A4.5 canonical envelope 门 — 对「已应用 no-op」与「恢复」两态都生效,
     # 冲突事实不得被 no-op 吞掉 (round-2 B-1①)。等价面取舍 (如实声明):
     # fsrs_library_version/params_hash 两键**排除** — 它们是复算环境快照
@@ -1869,9 +1932,10 @@ else:
                    "payload": {k: v for k, v in _dpl.items()
                                if k not in ("fsrs_library_version", "fsrs_params_hash",
                                             "review_time", "scored_at")}}
-    # ⚠️ 序列化**之前**先做数值归一 —— 否则 `1` 与 `1.0` 比出不等（见 `_num_norm`）。
-    _envd = lambda o: f"§dec:{o}" if isinstance(o, decimal.Decimal) else _raise_te(o)
-    if json.dumps(_num_norm(_mine_env), sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=_envd) != json.dumps(_num_norm(_theirs_env), sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=_envd):
+    # ⚠️ 类型保真的规范树比较（见 `_canon_tree`）—— 逐字段与 envelope 同一条规则。
+    # ⚠️ envelope 与逐字段共用**同一棵规范树** —— 不再走 json.dumps + default 标签
+    # （那条路会让用户字符串与内部标签碰撞，见 `_canon_tree`）。
+    if _canon_tree(_mine_env) != _canon_tree(_theirs_env):
         # ⛔ 旧行缺 scored_at 时要给**可执行的出路** (Codex round-12 HIGH③)。
         # 实测死循环: round-8 之前写的行没有 scored_at, envelope 只好回落到
         # payload.review_time —— 而那是 A3 **采用后**的时刻(10:00:01), 与白板保存的
@@ -2130,6 +2194,25 @@ if dup is not None:
         # degraded 遗留 (f1=T): mastery/calibration 已应用 — 只补 FSRS。
         # 再算一次 EMA 会双吃成绩 (round-2 场景②: 首评 degraded 后重试)。
         print(f"[quiz-answer] A2 恢复(degraded 遗留): 仅补 FSRS @ {review_time}, EMA/校准不重复应用")
+        # ⛔ round-16 BLOCKER①: 恢复成功后必须把该条目的 `fsrs_applied` **升为 true**
+        # (与 frontmatter 同一次原子写)。此前只补 FSRS 不升标记 ⇒ 每次重跑都再走一遍
+        # 恢复(幂等但重复), 且「这次到底应用过没有」永远停在 false —— 事件级凭据失去意义。
+        # ⚠️ 只改**本事件**那一条; 用逐字定位而不是整份 YAML 往返(那会把 ISO 时刻
+        # 隐式转成 datetime, 见 round-10 的教训)。
+        _fa_pat = re.compile(
+            r'(^  - event_id: "' + re.escape(evid) + r'"\n(?:    [^\n]*\n)*?    fsrs_applied: )false',
+            re.M,
+        )
+        _fm_before = fm
+        fm = _fa_pat.sub(lambda m: m.group(1) + "true", fm, count=1)
+        if fm == _fm_before:
+            # 裸形态历史条目: 同样只改本事件那一条
+            _bare_evid = evid[5:] if evid.startswith("quiz:") else evid
+            _fa_pat2 = re.compile(
+                r'(^  - event_id: "' + re.escape(_bare_evid) + r'"\n(?:    [^\n]*\n)*?    fsrs_applied: )false',
+                re.M,
+            )
+            fm = _fa_pat2.sub(lambda m: m.group(1) + "true", fm, count=1)
     else:
         # 崩溃窗口① (f1=F): 评分链其余副作用全部未应用 → 全套补齐
         old, A, B, new = _apply_mastery(fm, review_time)

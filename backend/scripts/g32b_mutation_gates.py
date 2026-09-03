@@ -1390,14 +1390,10 @@ MUTATIONS += [
         '    if False:  # MUTANT: pending 不证明采用时刻\n        _p_sa = _pl.get("scored_at")\n',
         "test_round14_every_pending_proves_adopted_time",
     ),
-    (
-        # 复算只认 A3 推后值 ⇒ 未实施 A3 的外部合法行被误拒
-        "M131-adopted-only-pushed-value",
-        SKILL,
-        "    return _got == _pushed or _got == _plain\n",
-        "    return _got == _pushed  # MUTANT: 只认推后值\n",
-        "test_round14_every_pending_proves_adopted_time",
-    ),
+    # ⛔ M131 已**退役**（round-16）: 它的变异体「只认 pushed」现在**恰是生产实现**
+    # —— round-16 按规格 A3 收紧回去了。同一条性质的反向变异由 M149 覆盖。
+    # ⚠️ 变异表不只会因锚点漂移失效, 也会因**口径反转**失效: 被测性质本身翻转时,
+    # 正反两面只需保留一条。
     (
         # candidate 恒用 GN2 ⇒ 多位小数 durable 行永远无法由原白板落定
         "M132-candidate-always-rounded",
@@ -1411,24 +1407,10 @@ MUTATIONS += [
 
 # ── round-15 自查修复的承重变异
 MUTATIONS += [
-    (
-        # envelope 不做数值归一 ⇒ int/float 书写差异被判成两次不同的评分
-        "M133-envelope-no-numeric-norm",
-        SKILL,
-        # ⚠️ round-15 重绑: 已加 default= 以序列化 Decimal。
-        '    if json.dumps(_num_norm(_mine_env), sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=_envd) != json.dumps(_num_norm(_theirs_env), sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=_envd):\n',
-        '    if json.dumps(_mine_env, sort_keys=True, ensure_ascii=False, separators=(",", ":")) != json.dumps(_theirs_env, sort_keys=True, ensure_ascii=False, separators=(",", ":")):  # MUTANT\n',
-        "test_round15_numeric_semantics_not_json_spelling",
-    ),
-    (
-        # 数值归一把 bool 也吞掉 ⇒ 1 与 true 不再区分（round-14 BLOCKER③ 复发）
-        "M134-numeric-norm-eats-bool",
-        SKILL,
-        # ⚠️ round-15 重绑: 数值归一已改用 Decimal。
-        "    if isinstance(v, bool):\n        return v\n",
-        "    if False:  # MUTANT: bool 也被归一\n        return v\n",
-        "test_round15_numeric_semantics_not_json_spelling",
-    ),
+    # ⛔ M133 已**退役**（round-16）: envelope 已改用类型保真的规范树 `_canon_tree`,
+    # 不再走 `json.dumps + _num_norm`。该性质由 M146/M147 与门(91) 直接守着。
+    # ⛔ M134 已**退役**（round-16）: `_num_norm` 已被 `_canon_tree` 取代,
+    # 「bool 与数值必须分型」由 M147 与门(91) 的等价面断言守着。
 ]
 
 
@@ -1470,7 +1452,8 @@ MUTATIONS += [
         # 来源反查两头试 ⇒ exact full receipt 被当成别人的 bare 来源
         "M139-source-lookup-both-ways",
         SKILL,
-        '            elif not _is_exact and _lid.startswith("quiz:") and _lid[5:] == _tok:\n',
+        # ⚠️ round-16 重绑: 条件已加上「exact 且带 full 标记才豁免」。
+        '            elif _lid.startswith("quiz:") and _lid[5:] == _tok and not (_is_exact and _tok_marked):\n',
         '            elif _lid.startswith("quiz:") and _lid[5:] == _tok:  # MUTANT: 不分解释类型\n',
         "test_round15_source_lookup_respects_candidate_kind",
     ),
@@ -1482,15 +1465,97 @@ MUTATIONS += [
         '    if False:  # MUTANT: 去掉裸形态碰撞的独立判据\n        _bare_of = lambda x: x[5:] if x.startswith("quiz:") else x\n',
         "test_round15_bare_collision_has_own_judge",
     ),
+    # ── M141-rolling-baseline-from-durable：退役（等价变异体，round-16 证明）
+    # 变异体是 `_w_after = None` ⇒ `_w_roll` 从「bridge 实际写下的 W」退回
+    # `_w_durable = _aware(_pl["review_time"])`（账本行自己声明的采用时刻）。
+    # ⛔ 这两支**在能被使用的每条路径上取值恒等**：同一轮迭代里，`_w_roll` 赋值
+    # 之后紧接着 `_append_calibration(..., actual_ts=_w_after)`，而它的 `_aa_diff`
+    # 哨兵一旦发现 `actual_ts != ts_str`（按**瞬间**比）就 raise。于是「两支不同」
+    # 的唯一前提（bridge 写下的 W ≠ 行里声明的 W）必然在下一条 pending 用到
+    # `_w_roll` 之前把进程打死。⇒ 无论拆不拆哨兵，都造不出可观测差异。
+    # ⚠️ 它**曾经**承重：round-15 靠 `adopted_actual` 字段可观测。round-16 移除该
+    # 字段并把分叉升为硬错误后，承重面被取代——这是「口径收紧使旧变异失效」，
+    # 不是「门变弱了」。两次改绑（round16 门 → round14 门）实测均 SURVIVED，
+    # 与本推证一致。
+]
+
+
+# ── round-16 修复的承重变异
+MUTATIONS += [
     (
-        # 滚动基线退回 durable 值 ⇒ 基线比实际水位线早
-        "M141-rolling-baseline-from-durable",
+        # dup 分支退回全局 W 判「已应用」⇒ 后继事件制造假覆盖
+        "M142-dup-uses-global-w",
         SKILL,
-        '    _w_after = (_out or {}).get("fsrs_last_review")\n',
-        "    _w_after = None  # MUTANT: 基线退回 durable 值\n",
-        # round-15 改绑: 该性质现由 `adopted_actual` 可观测（原门只比 FSRS 字段，
-        # 两种基线产物逐字段相同 ⇒ 天然不可区分）。
-        "test_round15_replay_a3_advance_is_auditable",
+        "    _fsrs_applied = (\n        bool(_rc_dup_applied) if _rc_dup is not None\n        else (W_inst is not None and W_inst >= _dup_inst)\n    )\n",
+        "    _fsrs_applied = W_inst is not None and W_inst >= _dup_inst  # MUTANT\n",
+        "test_round16_fsrs_applied_across_all_branches",
+    ),
+    (
+        # 旧条目缺凭据时不拒 ⇒ 回落 W 猜
+        "M143-missing-applied-flag-tolerated",
+        SKILL,
+        "    if _rc_dup is not None and _rc_dup_applied is None:\n",
+        "    if False:  # MUTANT: 缺凭据不拒\n",
+        "test_round16_fsrs_applied_across_all_branches",
+    ),
+    (
+        # false + W 覆盖不判状态矛盾 ⇒ 宣称「已完整应用」
+        "M144-false-plus-w-not-contradiction",
+        SKILL,
+        "    if _rc_dup is not None and _rc_dup_applied is False and W_inst is not None and W_inst >= _dup_inst:\n",
+        "    if False:  # MUTANT: 不判状态矛盾\n",
+        "test_round16_fsrs_applied_across_all_branches",
+    ),
+    (
+        # 恢复成功后不升 true ⇒ 凭据生命周期断裂
+        "M145-recovery-does-not-promote-flag",
+        SKILL,
+        '        fm = _fa_pat.sub(lambda m: m.group(1) + "true", fm, count=1)\n',
+        "        pass  # MUTANT: 恢复后不升 true\n",
+        "test_round16_fsrs_applied_across_all_branches",
+    ),
+    (
+        # ⛔ 直接复原审查抓到的**压平缺陷**：`Decimal.normalize()` 受默认 context
+        # 精度 28 位限制，`10**30` 与 `10**30+1` 都变成 `1E+30`。
+        # ⚠️ 我先前两版变异都无效，各错在一处：
+        #   ① 在**新实现**上改单个类型标签 —— 规范树的**结构**（元组长度+内容）
+        #      已提供类型区分，改标签打不出行为差异;
+        #   ② 把「退回旧数值编码」的代码插进**字符串分支** —— 而数值分支在它**之前**
+        #      就 return 了，插入位置在控制流上**不可达**。
+        # ⛔ 变异和门一样要问：**这段代码会被执行到吗**。
+        "M146-canon-num-precision-loss",
+        SKILL,
+        "        _sign, _digits, _exp = _d.as_tuple()\n",
+        "        _sign, _digits, _exp = _d.normalize().as_tuple()  # MUTANT: 受 context 精度限制\n",
+        "test_round16_canonical_tree_type_faithful",
+    ),
+    # ⛔ M147 已并入 M146（同一缺陷载体：整套旧编码），单改标签打不出行为差异。
+    (
+        # 无标记 exact 不枚举历史裸来源 ⇒ 借用他人 receipt
+        "M148-unmarked-exact-single-source",
+        SKILL,
+        '            elif _lid.startswith("quiz:") and _lid[5:] == _tok and not (_is_exact and _tok_marked):\n',
+        '            elif _lid.startswith("quiz:") and _lid[5:] == _tok and not _is_exact:  # MUTANT\n',
+        # round-16 改绑: 原门测的是**反向**性质（exact full 不被当别人的 bare 来源），
+        # 本变异打的是正向（无标记 exact 不枚举历史裸来源）—— 两个不同的场景。
+        "test_round16_unmarked_exact_enumerates_both_sources",
+    ),
+    (
+        # A3 判据退回「两个可解释值」⇒ 同瞬间两行被放行
+        "M149-adopted-two-values",
+        SKILL,
+        "    return _got == _adopted_from(_sa, _w_inst)\n",
+        "    return _got == _adopted_from(_sa, _w_inst) or _got == _adopted_from(_sa, None)  # MUTANT\n",
+        "test_round16_same_instant_rows_rejected_per_a3",
+        (
+            # ⚠️ depth 层: round-16 加的「不该到达的状态」哨兵会独立拦住同一个坏状态
+            # （它不是被测对象，是另一道防线）。拆掉它，让 A3 判据成为唯一屏障。
+            (
+                SKILL,
+                "    if _aa_diff:\n",
+                "    if False:  # MUTANT: 拆掉兜底哨兵\n",
+            ),
+        ),
     ),
 ]
 

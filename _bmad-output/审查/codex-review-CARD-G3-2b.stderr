@@ -1,0 +1,2162 @@
+Reading additional input from stdin...
+2026-09-01T20:45:39.637608Z ERROR codex_models_manager::manager: failed to load models cache: missing field `supports_parallel_tool_calls` at line 97 column 5
+OpenAI Codex v0.147.0
+--------
+workdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w7-ledger
+model: gpt-5.6-sol
+provider: openai
+approval: on-request
+sandbox: read-only
+reasoning effort: ultra
+reasoning summaries: auto
+session id: 01a05eb8-7d5d-7cd0-911c-3229171b08a1
+--------
+user
+# CARD-G3-2b 对抗性审查 round-1（第九批 W7 · 清除 R1-R7 并闭合 write-ahead 六格状态机）
+
+你是独立对抗审查者，审的是一个**本地单机学习工具**的数据完整性实现：一份 append-only 的学习事件账本（JSONL）与笔记 frontmatter 之间的 write-ahead 一致性。没有网络面、没有多租户、没有凭据；关心的全部是「崩溃/重试/账本被外部工具写坏时，会不会静默丢一次评分或重复推进一次调度」。
+
+被审工作已 commit 在这个 git worktree（**未合并主干、未 push**）：
+
+    WT=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w7-ledger
+    分支 card/w7-ledger，最终 commit 91aaa11a（开工基线 02dbc426）
+
+## 前情：本卡要收什么
+
+前身 CARD-G3-2（第八批）经三轮审查到顶停轮。**round-3 报告**（必读：`WT/_bmad-output/审查/codex-review-CARD-G3-2-round3.md`，重点 1-45 行）在 25 门全绿的情况下，用真实生产 PYEOF 入口打穿 **2 BLOCKER + 3 HIGH + 2 MEDIUM**，记为 R1-R7。本卡只收这 7 条 + 六格状态机闭合。
+
+| # | 级别 | round-3 原始发现 | 本卡修法 |
+|---|---|---|---|
+| R1 | BLOCKER | `_mine_env` 从 durable payload 自抄任意额外键，可绕 envelope 并跳过 FSRS 恢复 | candidate 改为**独立字面构造**成固定生产键集；键集本身进等价面（多一键/少一键/值不同一律冲突），只放行明确排除的两个 fsrs 身份键 |
+| R2 | BLOCKER | A2 归一并消费带小数秒的 durable `review_time`，同一行二次推进 FSRS | 新增 `_durable_instant()`，在**适用集构造时逐行**强制 tz-aware + UTC 偏移 0 + 无小数秒，**只验不改** |
+| R3 | HIGH | applied 态用当前 tip 的 `attempt_count` 校验历史事件，`E1→E2→重跑E1` 被误报冲突 | 沿账本回推 ordinal：已计入态 `A_now − 其后已应用数`；未计入态 `A_now + 1 + 其前 pending 数` |
+| R4 | HIGH | 正常路径 mastery 用 `p["ts"]`、恢复路径用 durable `review_time`，两路径产物字节不等 | 正常路径同样传 `review_time` |
+| R5 | HIGH | A2 会应用 scored rating 与 `grade_norm` 不自洽的 pending 行 | bridge 在 apply 前机械复算 `rating_from_grade(grade_norm, abandoned)` 并要求相等 |
+| R6 | MEDIUM | 身份键排除策略未同步到冻结 schema | §6.2 回写四条（身份键归属 / candidate 独立构造禁令 / A5 消费侧强制 / A4.5 截断判据） |
+| R7 | MEDIUM | 尾行容错丢失 EOF 的 LF 状态，带 LF 的损坏末行被当截断 | 读取时保留 EOF 的 LF 状态；只有「最后一行 **且** 文件不以 LF 结尾」才算截断 |
+
+## 你只读以下文件
+
+1. `WT/canvas-vault/.claude/skills/quiz-answer/SKILL.md` — **主写点**（Step 4c 的主 PYEOF 块，即 `P = "/tmp/quiz-answer-payload.json"` 那个块）
+2. `WT/canvas-vault/.claude/scripts/fsrs_bridge.py`
+3. `WT/backend/app/services/learning_event_log.py`（本卡**未改**，如实核对是否该改）
+4. `WT/backend/tests/regression/test_g3_2_review_ledger.py` — 现 33 门（门㉖-㉝ 为本卡新增）
+5. `WT/backend/scripts/g32b_r1r7_counterexamples.py` / `g32b_mutation_gates.py` / `g32b_build_fixture.py`
+6. `WT/docs/learning-events-schema-v1.md` §6.1-§6.3（**契约判据唯一真相源**）
+7. `WT/_bmad-output/验收单/UAT-CARD-G3-2b-write-ahead六格状态机闭合-2026-09-02.md`
+8. 卡文（只读，不在本车道）：`/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/implementation-artifacts/goal-cards/第九批-goals/W7.md`
+
+## ⛔ 你必须亲跑生产入口，不得用绿门自述代替
+
+round-3 的价值正在于：**25 门全绿仍被真实入口打穿**。所以：
+
+- **不要**只读测试文件然后相信断言；
+- **必须**自己用逐字提取的主 PYEOF 块（`test_g3_2_review_ledger.py` 顶部的 `_MAIN_BLOCKS` 提取法，或直接跑 `g32b_r1r7_counterexamples.py`）在隔离临时目录里构造账本/节点反例，观察真实 `rc`、真实 frontmatter、真实账本行数；
+- 特别要试**本卡没想到的形态**：R1-R7 之外的键、时刻、态组合。
+
+**已知环境点**（round-3 踩过）：只读沙箱下 pytest 若无可写 tempdir 会在收集前失败。可设 `TMPDIR` 到一个可写目录，或对 pytest 加 `--basetemp=<可写目录>`；本卡的 `g32b_*.py` 三个脚本默认写 `/private/tmp/card-g3-2b-fixture`。如果你的沙箱**任何**位置都不可写，请**如实写进「验证限制」**，不要用「门是绿的」代替实测结论。
+
+## 建议的验证顺序
+
+```bash
+WT=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w7-ledger
+
+# 裁判 1（五文件回归；本卡自报 263 collected / 262 passed, 1 skipped）
+cd $WT/backend && PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest \
+  tests/regression/test_learning_events_schema_contract.py \
+  tests/regression/test_fsrs_bridge.py \
+  tests/regression/test_learning_event_log.py \
+  tests/regression/test_g3_2_review_ledger.py \
+  tests/regression/test_fsrs_golden_vectors.py -q -p no:cacheprovider
+
+# 裁判 2（R1-R7 生产入口反例；本卡自报 19/19 PASS）
+PYTHONDONTWRITEBYTECODE=1 $WT/backend/.venv/bin/python $WT/backend/scripts/g32b_build_fixture.py
+PYTHONDONTWRITEBYTECODE=1 $WT/backend/.venv/bin/python $WT/backend/scripts/g32b_r1r7_counterexamples.py
+
+# 裁判 3（validator）
+cd $WT/backend && PYTHONDONTWRITEBYTECODE=1 .venv/bin/python \
+  scripts/validate_learning_events.py /private/tmp/card-g3-2b-fixture/learning_events.jsonl
+
+# 变异（串行，自带逐字节还原；本卡自报 10/10 KILLED）
+PYTHONDONTWRITEBYTECODE=1 $WT/backend/.venv/bin/python $WT/backend/scripts/g32b_mutation_gates.py
+```
+
+⚠️ 变异脚本会**临时修改**被审源文件后立刻还原（`finally` + 逐字节 sha 比对）。若你不愿让被审文件被临时改动，跳过这一条并在报告里说明；若你跑了，请在报告末尾确认这三个文件的 sha256 与你开始审查时一致。
+
+## 请重点攻击这些面
+
+1. **R1 的等价面是否真的闭合**：candidate 现在是固定 8 键字面构造。durable 行还有什么形态能让 `json.dumps(..., sort_keys=True)` 两侧相等却语义不同？（键顺序、数值类型 `3` vs `3.0`、`true` vs `1`、Unicode 归一化、`ensure_ascii` 差异、`effective_at` 与 `payload.review_time` 不一致……）
+2. **R2 的作用域窄化是否漏网**：只对「本节点 + `schema_ext=review/1` + 未标 `out_of_order`」的行强制整秒。标了 `out_of_order` 的行、别的节点的行、`schema_ext` 拼错的行会走哪条路？`_durable_instant` 用 `datetime.fromisoformat` + `replace("Z","+00:00")` 解析，有哪些字面量能骗过它（`+00:00:00`？`-00:00`？`Z` 出现在非结尾？）
+3. **R3 的 ordinal 回推是否在所有态自洽**：多个 pending 并存、账本中同节点事件时刻相同（`(rt, line)` 全序）、`attempt_count` 在 frontmatter 缺失（按 0 起算）、`out_of_order` 行插在中间、历史行（无 `review/1` 扩展）夹杂其中——这些组合下 `_att_expect` 会不会算错并造成**误拒**（体验破损）或**误放行**（真冲突被吞）？
+4. **R4 的字节等价是否只在门的 fixture 上成立**：换别的 `last_examined` / A3 bump 幅度 / `mastery_a,b` 初值，两路径还字节相同吗？degraded 路径（`fsrs_ok=False`）下 `review_time` 与恢复路径同源吗？
+5. **R5 是否引入新的误拒**：`grade_norm` 是浮点，`rating_from_grade` 用 `1.0 + 3.0*gn` 分档。账本里合法写入的 `grade_norm` 与本次复算是否可能因浮点表示或 `round(GN,2)` 的时机差异跨档？历史上由**旧版本**写入的合法行会不会因此永久无法重放？
+6. **R7 是否把合法情形误判**：账本以 `\r\n` 结尾、末行是空白行、文件恰好只有一个坏行且无 LF、坏行同时是唯一行——分别走哪条分支？
+7. **六格状态机（门㉝）是否真的覆盖六格**：每格的前置态是否真是它宣称的那格（尤其格4 的 `_strip_calibration` 是否真的只删了 calibration 而没顺手改变别的判据）。
+8. **本卡新增的三个 `g32b_*.py` 脚本自身**：安全边界断言是否可绕（`FIXTURE_ROOT` 的 resolve/symlink、marker 文件检查）；反例脚本的判据是否有「自证」成分（用被审代码的输出当期望值）。
+
+## 输出格式
+
+严格按下面结构，中文：
+
+```
+结论：<通过 | 需整改>
+
+### R1-R7 逐条复核
+| 项目 | 结论 | 当前证据（file:line + 你亲跑的观测） |
+
+### 六格状态机
+（逐格给 PASS/FAIL 与依据）
+
+### Findings
+[BLOCKER|HIGH|MEDIUM|LOW] <file:line> — <一句话>
+依据: <你亲自跑出来的最小复现与观测值>
+建议: <具体修法>
+
+### 回归与裁判复核
+（三个裁判 + 变异脚本的实跑结果；与本卡自报数字不符处必须点名）
+
+### 验证限制
+（沙箱可写性、未跑的东西、无法证明的东西）
+
+VERDICT: <通过 | 需整改>
+```
+
+判据一律以 `docs/learning-events-schema-v1.md` §6.1-§6.3 为准；实现与契约冲突时，指出是哪一侧该改。**不要**把「本卡未实现并发锁」当作 BLOCKER——那是 G3-3 的移交范围，卡文与 UAT 均已如实声明；但如果你发现**单写者前提下**仍能丢事件或二次 apply，那就是 BLOCKER。
+**Planning adversarial review using memory skill**
+**Clarifying read and execution permissions**
+**Listing tools and planning multi-agent audit**
+codex
+我会按“契约静态核对、六格/测试真实性、脚本安全边界、生产入口反例”四条轨道并行审查；全程只读，不修改被审文件。先固定 commit/工作树与源文件哈希，再从主 PYEOF 真实入口亲跑，并把任何沙箱限制与自报数字偏差单列。
+2026-09-01T20:46:03.012298Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+**Planning sequential tool execution**
+  → 固定审查基线、哈希并读取契约与 round-3 原始发现
+  • 静态复核 R1-R7、六格状态机及三个辅助脚本
+  • 亲跑三个裁判、生产入口反例与可接受的变异测试
+  • 设计并执行 R1-R7 之外的敌手反例
+  • 汇总 file:line 证据、复现实测与最终 verdict
+exec
+/bin/zsh -lc 'rg -n -i "CARD-G3-2|G3-2|write-ahead|ledger|adversarial audit|对抗" /Users/Heishing/.codex/memories/MEMORY.md' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w7-ledger
+ succeeded in 0ms:
+65:## Task 1: Full-project adversarial audit and productivity direction, partial
+87:- When asking for “对抗性审查并且修复” and “使用并行 agent workflow”, expect independent evidence tracks with gaps, priorities, and exit gates; distinguish decisions, implementation, tests, and user acceptance. [Task 1]
+200:- GOV-01-VERIFIED, Phase-0A, A01, A02, A03, annotation-truth-ledger-v2, AtomicAnnotation, boundary receipt, scanner, [HANDOFF:CODEX-PHASE0A-READY]
+229:## Task 2: P1-05b five-question adversarial audit, reproducible bypasses
+241:- “启动并行 agent 进行对抗性审查” -> use independent evidence tracks and cross-check severity; every finding needs `file:line`, reproduction path/result, severity, conflict explanation, PASS/PARTIAL/FAIL, and limits. [Task 1][Task 2]
+
+2026-09-01T20:46:10.980003Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+**Retrieving relevant code lines around 229-245**
+exec
+/bin/zsh -lc "sed -n '220,250p' /Users/Heishing/.codex/memories/MEMORY.md" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w7-ledger
+ succeeded in 0ms:
+
+### rollout_summary_files
+
+- rollout_summaries/2026-08-17T01-56-07-ZNCd-agents_guide_and_p1_05c_adversarial_audit.md (cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output, rollout_path=/Users/Heishing/.codex/sessions/2026/08/17/rollout-2026-08-17T09-56-07-01a00d6e-ea40-70a1-a23c-d51342eeeacd.jsonl, updated_at=2026-08-19T17:56:56+00:00, thread_id=01a00d6e-ea40-70a1-a23c-d51342eeeacd, outcome=partial; final read-only verdict)
+
+### keywords
+
+- P1-05c, P1-05, P1-01, P1-08, check_vault_path, vault_index_orchestrator, LanceDB, Graphiti, DEFAULT_GROUP_ID, SnapshotV3, CURRENT_TASK.md
+
+## Task 2: P1-05b five-question adversarial audit, reproducible bypasses
+
+### rollout_summary_files
+
+- rollout_summaries/2026-08-19T14-44-08-upza-p1_05b_adversarial_review_finds_admission_quarantine_snapsho.md (cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output, rollout_path=/Users/Heishing/.codex/sessions/2026/08/19/rollout-2026-08-19T22-44-08-01a01a7a-c47f-70e2-8e5e-524e1591da78.jsonl, updated_at=2026-08-19T15:12:50+00:00, thread_id=01a01a7a-c47f-70e2-8e5e-524e1591da78, outcome=partial; detailed counterexamples)
+
+### keywords
+
+- P1-05b, symlink_escape, casefold, vault_backfill, lancedb_client, quarantine__p105b, search_nodes, read_node_tips, manifest-v3, NaN
+
+## User preferences
+
+- “启动并行 agent 进行对抗性审查” -> use independent evidence tracks and cross-check severity; every finding needs `file:line`, reproduction path/result, severity, conflict explanation, PASS/PARTIAL/FAIL, and limits. [Task 1][Task 2]
+- Respect read-only task-book boundaries, WT/MAIN labels, explicit `UNVERIFIABLE`, and no raw-vault access; do not fix code in the audit. [Task 1]
+
+## Reusable knowledge
+
+- Related skill: skills/canvas-adversarial-audit/SKILL.md. P1-05/P1-01/P1-08 remained STILL-OPEN; F-02 tombstone filtering and F-05 live resilience were closed. Rejected vault inputs must show zero open/hash/index/write. [Task 1][Task 2]
+- Reproduced: `vault/raw/escape.md -> /outside/secret.md` was counted by `backfill_vault(..., execute=False)`; case-sensitive `fnmatch` admitted `.CLAUDE/SKILL.md` and `raw/claude.md`. Edge filtering alone was insufficient because exact readers/node search could cross Graphiti groups. [Task 2]
+- SnapshotV3 needs invalid/future same-generation self-healing, extra-field, strict-type, huge finite mastery, and identity/length collision coverage. [Task 1][Task 2]
+
+## Failures and how to do differently
+
+**Clarifying skill usage and tool calling strategy**
+**Identifying sequential thinking tool name**
+codex
+这次会沿用记忆库中的 Canvas 对抗审查规程，因为它要求独立证据轨、真实生产入口、`file:line` 与可复现结果，正好对应本次交付格式；它只影响审查方法，不会扩大读取或修改范围。当前环境没有暴露 `graphiti-canvas`，因此无法执行项目约定的 Graphiti 检索，我会把这一点作为验证限制记录。
+exec
+/bin/zsh -lc "wc -l /Users/Heishing/.codex/memories/skills/canvas-adversarial-audit/SKILL.md && sed -n '1,260p' /Users/Heishing/.codex/memories/skills/canvas-adversarial-audit/SKILL.md" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w7-ledger
+ succeeded in 0ms:
+      50 /Users/Heishing/.codex/memories/skills/canvas-adversarial-audit/SKILL.md
+---
+name: canvas-adversarial-audit
+description: Conduct a read-only, parallel, evidence-first adversarial audit of Canvas P1 closure claims, especially vault admission, Graphiti quarantine, and SnapshotV3.
+argument-hint: "[task-book path or P1 scope]"
+user-invocable: false
+allowed-tools: Read, Grep, Glob, Bash
+---
+
+# Canvas adversarial audit
+
+## When to use
+
+Use for a user-requested adversarial or closure audit in the Canvas Learning System worktree, particularly P1-05/P1-01/P1-08. Do not use to implement fixes, access prohibited raw-vault content, or declare a historical finding current without revalidation.
+
+## Inputs / context to gather
+
+1. Read the task book, `AGENTS.md`, worktree topology, allowed/prohibited paths, and reporting contract.
+2. Record checkout SHA, branch, WT/MAIN labels, current `CURRENT_TASK.md`, and requested P1 claims.
+3. Identify actual production entrypoints, not merely the tests that claim to cover them.
+
+## Procedure
+
+1. Split independent tracks: vault admission/indexing and tests; Graphiti quarantine/retrieval; SnapshotV3/recovery anchors. Keep the audit read-only.
+2. For each claim, build an evidence matrix: claim, `file:line`, adversarial input/state, actual entrypoint/path, observed result, severity, PASS/PARTIAL/FAIL, and limitations.
+3. Directly exercise real entrypoints with temporary fixtures where permitted. For path admission include symlink, directory symlink, blacklisted filename in an allowed directory, case variant, and nonexistent path. Assert rejected inputs perform zero open/hash/index/write.
+4. For quarantine, test ordinary edge search plus node search and exact-reader paths (`search_nodes`, `read_node_tips`, `read_node_errors`, `read_node_edge_reasons`). Use read-only Neo4j queries and `EXPLAIN` where allowed; distinguish observed metadata exposure from unproven fact-body leakage.
+5. For SnapshotV3, test same-generation invalid/future version self-healing, extra fields, strict typing, huge finite values that may produce NaN/Infinity, and identity/length collision boundaries.
+6. Compare recovery anchors with machine facts: current HEAD, Actions status, test counts, and unresolved findings. Separate targeted-test results from whole CI.
+7. Cross-check high-severity findings independently. Write the final matrix before closure language; explicitly retain `UNVERIFIABLE` items and failed counterexample attempts.
+
+## Efficiency plan
+
+- Start from task-book source handles and `rg` for real call sites; cache the entrypoint map for all tracks.
+- Parallelize independent tracks, then have the primary reviewer re-open only high-severity evidence.
+- Stop treating a test as evidence once it only hits source text, a helper, fake client, `__new__`, or monkeypatch; pivot to the real entrypoint.
+
+## Pitfalls and fixes
+
+- Green tests but unsafe closure -> tests do not reach production behavior. Add direct entrypoint fixtures and capture full stdout/trace before an assertion.
+- `session:` IDs used as provenance -> ID shape alone is not proof. Preserve provenance or report PARTIAL.
+- Quarantine count passes -> exact-reader/node-search surfaces may still cross groups. Test those surfaces specifically.
+- `CURRENT_TASK.md` says closed but anchors disagree -> rebuild anchors from current HEAD, Actions, and unresolved findings.
+
+## Verification checklist
+
+- Every finding has `file:line`, reproduction, severity, result, and claim-conflict explanation.
+- Final report labels WT/MAIN and all verification limits; no prohibited files or raw vault were read.
+- Production entrypoints, not only helpers, were tested for each security claim.
+- CI status is reported as whole-workflow status, not only passing targeted jobs.
+- P1 closure is withheld whenever a reproducible bypass or unverified critical surface remains.
+
+**Identifying need for sequential tool**
+mcp: sequential-thinking/sequentialthinking started
+mcp: sequential-thinking/sequentialthinking (completed)
+**Planning subagent roles and restrictions**
+**Gathering git status and hashes**
+**Parallelizing git checks and hashing**
+exec
+/bin/zsh -lc 'shasum -a 256 canvas-vault/.claude/skills/quiz-answer/SKILL.md canvas-vault/.claude/scripts/fsrs_bridge.py backend/app/services/learning_event_log.py backend/tests/regression/test_g3_2_review_ledger.py backend/scripts/g32b_r1r7_counterexamples.py backend/scripts/g32b_mutation_gates.py backend/scripts/g32b_build_fixture.py docs/learning-events-schema-v1.md' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w7-ledger
+ succeeded in 0ms:
+387ffe8d2a0611d7b1a6dc1ac1ce149cc2ee16acbf80450199ed9469c63498c9  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+80679678ebf56d53bcbf5f6b5b2b0dbc51e66ea7f8c66977ff2f8d8e7615b35d  canvas-vault/.claude/scripts/fsrs_bridge.py
+9db2d458d3c695493779e9e93e1a9c671f991cf7615273376b433486f00008c7  backend/app/services/learning_event_log.py
+d39fd4b3b6610900562d042ed25d6e2b286969f3bd634d7af995bee63609b8b9  backend/tests/regression/test_g3_2_review_ledger.py
+7fc668caf20b2ccd42875985e9570d91a113e5b2ec8d76a4c9528e12daa1efa1  backend/scripts/g32b_r1r7_counterexamples.py
+c5fcd6d5629fb1c8919a28f2f59e82e3a351be93bf2faaffddec9b696c0a1b6b  backend/scripts/g32b_mutation_gates.py
+4e4da5a86f35dcf22759871b162f85d9bcc47efd419a4fbb110cc7492bb1c322  backend/scripts/g32b_build_fixture.py
+046cf0b0a57bd9ddc2456c3db38af7a356e4db4f9e03138803d755178bb676d7  docs/learning-events-schema-v1.md
+
+exec
+/bin/zsh -lc 'git diff --name-status 02dbc426..91aaa11a' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w7-ledger
+exec
+/bin/zsh -lc 'git rev-parse HEAD 02dbc426 91aaa11a && git branch --show-current' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w7-ledger
+ succeeded in 0ms:
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+A	"_bmad-output/\351\252\214\346\224\266\345\215\225/UAT-CARD-G3-2b-write-ahead\345\205\255\346\240\274\347\212\266\346\200\201\346\234\272\351\227\255\345\220\210-2026-09-02.md"
+A	backend/scripts/g32b_build_fixture.py
+A	backend/scripts/g32b_mutation_gates.py
+A	backend/scripts/g32b_r1r7_counterexamples.py
+M	backend/tests/regression/test_g3_2_review_ledger.py
+M	canvas-vault/.claude/scripts/fsrs_bridge.py
+M	canvas-vault/.claude/skills/quiz-answer/SKILL.md
+M	docs/learning-events-schema-v1.md
+
+ succeeded in 0ms:
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+91aaa11ae4f1b03c0171b40d241fc8e1f49da66f
+02dbc426fb22018eb14cfda46d098c1b02126dab
+91aaa11ae4f1b03c0171b40d241fc8e1f49da66f
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+card/w7-ledger
+
+exec
+/bin/zsh -lc 'git status --short --branch' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w7-ledger
+ succeeded in 0ms:
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+## card/w7-ledger
+?? "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G3-2-round1.stderr"
+?? "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G3-2-round2.stderr"
+?? "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G3-2-round3.stderr"
+?? "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G3-2b.md"
+?? "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G3-2b.stderr"
+?? "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-G3-2b.md"
+
+**Deciding to preserve untracked reports**
+**Planning mutation with escalation for testing**
+**Extracting line counts and headings**
+exec
+/bin/zsh -lc 'wc -l _bmad-output/审查/codex-review-CARD-G3-2-round3.md canvas-vault/.claude/skills/quiz-answer/SKILL.md canvas-vault/.claude/scripts/fsrs_bridge.py backend/app/services/learning_event_log.py backend/tests/regression/test_g3_2_review_ledger.py backend/scripts/g32b_r1r7_counterexamples.py backend/scripts/g32b_mutation_gates.py backend/scripts/g32b_build_fixture.py docs/learning-events-schema-v1.md _bmad-output/验收单/UAT-CARD-G3-2b-write-ahead六格状态机闭合-2026-09-02.md' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w7-ledger
+ succeeded in 0ms:
+      76 _bmad-output/审查/codex-review-CARD-G3-2-round3.md
+     817 canvas-vault/.claude/skills/quiz-answer/SKILL.md
+     314 canvas-vault/.claude/scripts/fsrs_bridge.py
+     131 backend/app/services/learning_event_log.py
+    1203 backend/tests/regression/test_g3_2_review_ledger.py
+     350 backend/scripts/g32b_r1r7_counterexamples.py
+     156 backend/scripts/g32b_mutation_gates.py
+     171 backend/scripts/g32b_build_fixture.py
+     311 docs/learning-events-schema-v1.md
+     143 _bmad-output/验收单/UAT-CARD-G3-2b-write-ahead六格状态机闭合-2026-09-02.md
+    3672 total
+
+exec
+/bin/zsh -lc 'rg -n "六格|格[1-6]|strip_calibration|㉝|26|27|28|29|30|31|32|33|state" backend/tests/regression/test_g3_2_review_ledger.py _bmad-output/验收单/UAT-CARD-G3-2b-write-ahead六格状态机闭合-2026-09-02.md' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w7-ledger
+ succeeded in 0ms:
+_bmad-output/验收单/UAT-CARD-G3-2b-write-ahead六格状态机闭合-2026-09-02.md:1:# UAT · CARD-G3-2b — 清除 R1-R7 并闭合 write-ahead 六格状态机
+_bmad-output/验收单/UAT-CARD-G3-2b-write-ahead六格状态机闭合-2026-09-02.md:3:> `[BATCH-2026-09-01-第九批 / CARD-G3-2b]`
+_bmad-output/验收单/UAT-CARD-G3-2b-write-ahead六格状态机闭合-2026-09-02.md:4:> 车道 `card/w7-ledger`，开工 HEAD `02dbc426fb22018eb14cfda46d098c1b02126dab`。
+_bmad-output/验收单/UAT-CARD-G3-2b-write-ahead六格状态机闭合-2026-09-02.md:34:PYTHONDONTWRITEBYTECODE=1 backend/.venv/bin/python backend/scripts/g32b_r1r7_counterexamples.py
+_bmad-output/验收单/UAT-CARD-G3-2b-write-ahead六格状态机闭合-2026-09-02.md:52:**要重建 fixture**（第二步的文件被删了）：`PYTHONDONTWRITEBYTECODE=1 backend/.venv/bin/python backend/scripts/g32b_build_fixture.py`。
+_bmad-output/验收单/UAT-CARD-G3-2b-write-ahead六格状态机闭合-2026-09-02.md:60:| 1 | **开工基线实收**（HEAD `02dbc426` 临时还原后 `--collect-only`） | `255 collected` / `254 passed, 1 skipped` | 基线是实收的，不是照抄历史数字。还原用备份 + `finally` 恢复，4 文件恢复后**逐字节相同** |
+_bmad-output/验收单/UAT-CARD-G3-2b-write-ahead六格状态机闭合-2026-09-02.md:61:| 2 | **裁判 1** 五文件回归 | `263 collected` / **`262 passed, 1 skipped`**（+8 门，零回归） | 新增 8 门全绿且原 254 门无一变红。**不**证明整仓其它测试 |
+_bmad-output/验收单/UAT-CARD-G3-2b-write-ahead六格状态机闭合-2026-09-02.md:62:| 3 | **裁判 2** R1-R7 生产入口反例（`g32b_r1r7_counterexamples.py`） | **19/19 PASS** | 用逐字提取的生产 PYEOF 块跑真实反例，含 4 条**验伪对照**（合法输入必须仍然通过），故不是「恒拒」的假门。**不**证明并发 |
+_bmad-output/验收单/UAT-CARD-G3-2b-write-ahead六格状态机闭合-2026-09-02.md:64:| 5 | **变异验证**（`g32b_mutation_gates.py`，串行） | **10/10 KILLED**，10 次还原全部**逐字节相同** | 每个变异把生产代码**精确退回旧实现形态**，判据是**指定的那道门**必须变红。**不**证明门集覆盖了未被想到的缺陷 |
+_bmad-output/验收单/UAT-CARD-G3-2b-write-ahead六格状态机闭合-2026-09-02.md:65:| 6 | **六格状态机逐格闭合**（门㉝） | 6 格全部断言终态通过 | round-3 判 3 格 FAIL + 1 格 PARTIAL，现逐格构造真实前置态并断言。**不**证明格间竞态（无锁） |
+_bmad-output/验收单/UAT-CARD-G3-2b-write-ahead六格状态机闭合-2026-09-02.md:67:| 8 | **live vault 零写** | 账本 `2a18023e…`（22 行），mtime `2026-08-29T06:11:47+0800` | mtime 远早于本 session（2026-09-02），**观测范围内**零写。**不**证明其它进程未写 |
+_bmad-output/验收单/UAT-CARD-G3-2b-write-ahead六格状态机闭合-2026-09-02.md:81:### 六格状态机终态（对照 round-3 §六格状态机）
+_bmad-output/验收单/UAT-CARD-G3-2b-write-ahead六格状态机闭合-2026-09-02.md:85:| `dup=None, f1=F` | PARTIAL（foreign pending 输入门不完整） | **PASS** | R2 + R5 补齐 foreign pending 的时刻门与 rating 自洽门；门㉝格1 / 门㉗② / 门㉚ |
+_bmad-output/验收单/UAT-CARD-G3-2b-write-ahead六格状态机闭合-2026-09-02.md:86:| `dup=None, f1=T` | PASS | **PASS** | 旧写序孤儿整体 no-op；门㉝格2 / M9 |
+_bmad-output/验收单/UAT-CARD-G3-2b-write-ahead六格状态机闭合-2026-09-02.md:87:| `dup有, f1=T, applied=T` | FAIL（历史 attempt 误拒） | **PASS** | R3 ordinal 回推；门㉝格3 / 门㉘ / M3 |
+_bmad-output/验收单/UAT-CARD-G3-2b-write-ahead六格状态机闭合-2026-09-02.md:88:| `dup有, f1=F, applied=T` | PASS | **PASS** | 顺序错乱无机械判据 → 人工裁定 fail-closed；门㉝格4 / M8 |
+_bmad-output/验收单/UAT-CARD-G3-2b-write-ahead六格状态机闭合-2026-09-02.md:89:| `dup有, f1=T, applied=F` | FAIL（小数秒可重复推进） | **PASS** | R2 只验不改；门㉝格5 / 门㉗ / M2a |
+_bmad-output/验收单/UAT-CARD-G3-2b-write-ahead六格状态机闭合-2026-09-02.md:90:| `dup有, f1=F, applied=F` | FAIL（额外键跳过 A2 且字节不等） | **PASS** | R1 + R4；门㉝格6 / 门㉖ / 门㉙ |
+_bmad-output/验收单/UAT-CARD-G3-2b-write-ahead六格状态机闭合-2026-09-02.md:134:| 卡文（只读） | `…/feature-obsidian-hybrid-dev/_bmad-output/implementation-artifacts/goal-cards/第九批-goals/W7.md`（SHA256 `5accbca8…3eb287f8`） |
+_bmad-output/验收单/UAT-CARD-G3-2b-write-ahead六格状态机闭合-2026-09-02.md:135:| 前卡 UAT / round-3 | `_bmad-output/验收单/UAT-CARD-G3-2-复习事件账本write-ahead-2026-09-01.md`、`_bmad-output/审查/codex-review-CARD-G3-2-round3.md` |
+_bmad-output/验收单/UAT-CARD-G3-2b-write-ahead六格状态机闭合-2026-09-02.md:138:| 行为门 | `backend/tests/regression/test_g3_2_review_ledger.py` 门㉖-㉝ |
+_bmad-output/验收单/UAT-CARD-G3-2b-write-ahead六格状态机闭合-2026-09-02.md:139:| 反例复现脚本 | `backend/scripts/g32b_r1r7_counterexamples.py` |
+_bmad-output/验收单/UAT-CARD-G3-2b-write-ahead六格状态机闭合-2026-09-02.md:140:| fixture 生成脚本 | `backend/scripts/g32b_build_fixture.py`（`--check` 复算 sha） |
+_bmad-output/验收单/UAT-CARD-G3-2b-write-ahead六格状态机闭合-2026-09-02.md:141:| 变异脚本 | `backend/scripts/g32b_mutation_gates.py` |
+_bmad-output/验收单/UAT-CARD-G3-2b-write-ahead六格状态机闭合-2026-09-02.md:142:| fixture sha256 | `learning_events.jsonl` `8838ce3a5859213d68bc0ac0fa06dd2536d940aac81ac75b46503291df0872c7`；`.canvas-config.yaml` `6444cad8deb0cd6c0224076f375176a57635056cd7188085ace169ee07f02ddd` |
+backend/tests/regression/test_g3_2_review_ledger.py:3:[BATCH-2026-09-01-第八批 / CARD-G3-2]
+backend/tests/regression/test_g3_2_review_ledger.py:25:    会丢 pyvenv.cfg 探测 (2026-09-01 实测) → fsrs_unavailable 假降级。
+backend/tests/regression/test_g3_2_review_ledger.py:56:EID = "测试检验-2026-08-01-1000#q1"
+backend/tests/regression/test_g3_2_review_ledger.py:57:TS1 = "2026-08-01T10:00:00Z"
+backend/tests/regression/test_g3_2_review_ledger.py:63:#: canonical Review 态 (classify_card_state → normal), W = 10:00:00Z
+backend/tests/regression/test_g3_2_review_ledger.py:68:    "fsrs_due: 2026-08-11T13:56:58Z\n"
+backend/tests/regression/test_g3_2_review_ledger.py:69:    "fsrs_state: 2\n"
+backend/tests/regression/test_g3_2_review_ledger.py:72:    "fsrs_last_review: 2026-08-01T10:00:00Z\n"
+backend/tests/regression/test_g3_2_review_ledger.py:89:    'last_examined: "2026-07-01T00:00:00Z"\n'
+backend/tests/regression/test_g3_2_review_ledger.py:90:    "fsrs_due: 2026-12-11T13:56:58Z\n"
+backend/tests/regression/test_g3_2_review_ledger.py:91:    "fsrs_state: 2\n"
+backend/tests/regression/test_g3_2_review_ledger.py:94:    "fsrs_last_review: 2026-12-01T10:00:00Z\n"
+backend/tests/regression/test_g3_2_review_ledger.py:144:        "exam_board": "检验白板/测试检验-2026-08-01-1000.md",
+backend/tests/regression/test_g3_2_review_ledger.py:224:    for key in ("fsrs_due", "fsrs_state", "fsrs_step", "fsrs_stability", "fsrs_difficulty", "fsrs_last_review"):
+backend/tests/regression/test_g3_2_review_ledger.py:256:    r2 = _run_writer(vault, _payload(ts="2026-09-01T09:00:00Z"))
+backend/tests/regression/test_g3_2_review_ledger.py:275:    r2 = _run_writer(vault, _payload(ts="2026-09-01T09:30:00Z"))
+backend/tests/regression/test_g3_2_review_ledger.py:291:    r = _run_writer(vault, _payload(ts="2026-08-01T10:00:00"))
+backend/tests/regression/test_g3_2_review_ledger.py:302:    r = _run_writer(vault, _payload(ts="2026-08-01T10:00:00Z"))
+backend/tests/regression/test_g3_2_review_ledger.py:305:    assert rec["payload"]["review_time"] == "2026-08-01T10:00:01Z", "等时必须推进 W+1s"
+backend/tests/regression/test_g3_2_review_ledger.py:306:    assert _fm_fields(vault)["fsrs_last_review"] == "2026-08-01T10:00:01Z"
+backend/tests/regression/test_g3_2_review_ledger.py:315:    r = _run_writer(vault, _payload(ts="2026-08-01T10:00:00.731Z"))
+backend/tests/regression/test_g3_2_review_ledger.py:318:    assert rec["payload"]["review_time"] == "2026-08-01T10:00:00Z", "小数秒必须入口截断"
+backend/tests/regression/test_g3_2_review_ledger.py:319:    assert _fm_fields(vault)["fsrs_last_review"] == "2026-08-01T10:00:00Z"
+backend/tests/regression/test_g3_2_review_ledger.py:329:        "mastery_score: 0.5\nfsrs_last_review: 2026-08-01T10:00:00Z\n",
+backend/tests/regression/test_g3_2_review_ledger.py:330:    )  # 只有 W 缺 due/state → classify degraded
+backend/tests/regression/test_g3_2_review_ledger.py:383:    r2 = _run_writer(vault, _payload(ts="2026-09-01T08:00:00Z"))
+backend/tests/regression/test_g3_2_review_ledger.py:570:            "recorded_at": "2026-07-01T10:00:00Z",
+backend/tests/regression/test_g3_2_review_ledger.py:571:            "effective_at": "2026-07-01T10:00:00Z",
+backend/tests/regression/test_g3_2_review_ledger.py:577:    r = _run_writer(vault, _payload(ts="2026-08-02T10:00:00Z"))
+backend/tests/regression/test_g3_2_review_ledger.py:580:    # W 恰为新事件时刻 — 若旧行被误重放 W 会先落到 2026-07-01
+backend/tests/regression/test_g3_2_review_ledger.py:581:    assert _fm_fields(vault)["fsrs_last_review"] == "2026-08-02T10:00:00Z"
+backend/tests/regression/test_g3_2_review_ledger.py:613:    r = _run_writer(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z", exam_board="检验白板/板B.md"))
+backend/tests/regression/test_g3_2_review_ledger.py:616:    assert _fm_fields(vault)["fsrs_last_review"] == "2026-08-02T10:00:00Z", "W 反映 B"
+backend/tests/regression/test_g3_2_review_ledger.py:628:        expect2 = fb.review({k: v for k, v in base.items() if k != "fm_block"}, 0.75, False, "2026-08-02T10:00:00Z")
+backend/tests/regression/test_g3_2_review_ledger.py:701:        vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"), env_extra={"FSRS_BRIDGE_REEXEC": "1"}
+backend/tests/regression/test_g3_2_review_ledger.py:711:    r2 = _run_writer(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
+backend/tests/regression/test_g3_2_review_ledger.py:719:    r3 = _run_writer(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
+backend/tests/regression/test_g3_2_review_ledger.py:725:    r4 = _run_writer(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
+backend/tests/regression/test_g3_2_review_ledger.py:734:    """W=8999-12-31T23:59:59Z + fsrs 不可用 + 同秒评分: 本地 W+1s 会推出
+backend/tests/regression/test_g3_2_review_ledger.py:738:        "mastery_score: 0.5\nfsrs_due: 8999-12-31T23:59:59Z\nfsrs_state: 2\n"
+backend/tests/regression/test_g3_2_review_ledger.py:739:        "fsrs_stability: 10.0\nfsrs_difficulty: 5.0\nfsrs_last_review: 8999-12-31T23:59:59Z\n",
+backend/tests/regression/test_g3_2_review_ledger.py:743:    r = _run_writer(vault, _payload(ts="8999-12-31T23:59:59Z"), env_extra={"FSRS_BRIDGE_REEXEC": "1"})
+backend/tests/regression/test_g3_2_review_ledger.py:761:    normalized = text.replace('event_id: "测试检验-2026-08-01-1000#q1"', "event_id: 测试检验-2026-08-01-1000#q1")
+backend/tests/regression/test_g3_2_review_ledger.py:765:    r2 = _run_writer(vault, _payload(ts="2026-09-01T07:00:00Z"))
+backend/tests/regression/test_g3_2_review_ledger.py:808:    r2 = _run_writer(vault, _payload(ts="2026-09-01T06:00:00Z"))
+backend/tests/regression/test_g3_2_review_ledger.py:811:    assert _fm_fields(vault)["fsrs_last_review"] == "2026-08-01T10:00:00Z", "FSRS 必须补齐推进"
+backend/tests/regression/test_g3_2_review_ledger.py:863:    r = _run_writer(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
+backend/tests/regression/test_g3_2_review_ledger.py:880:    r2 = _run_writer(vault, _payload(event_id=eid_quoted, ts="2026-09-01T05:00:00Z"))
+backend/tests/regression/test_g3_2_review_ledger.py:962:        ("2026-08-01T10:00:00.500Z", "小数秒"),
+backend/tests/regression/test_g3_2_review_ledger.py:963:        ("2026-08-01T18:00:00+08:00", "非 UTC"),
+backend/tests/regression/test_g3_2_review_ledger.py:974:        r2 = _run_writer(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
+backend/tests/regression/test_g3_2_review_ledger.py:981:    rok = _run_writer(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
+backend/tests/regression/test_g3_2_review_ledger.py:996:    r2 = _run_writer(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z", exam_board="检验白板/板B.md"))
+backend/tests/regression/test_g3_2_review_ledger.py:1003:    r3 = _run_writer(vault, _payload(ts="2026-09-01T12:00:00Z"))
+backend/tests/regression/test_g3_2_review_ledger.py:1009:    r4 = _run_writer(vault, _payload(ts="2026-09-01T12:00:00Z", abandoned=True))
+backend/tests/regression/test_g3_2_review_ledger.py:1019:    出差异。本门的节点 W=2026-12-01 远晚于评分时刻 2026-08-01 ⇒ A3 把
+backend/tests/regression/test_g3_2_review_ledger.py:1027:    assert rec["payload"]["review_time"] == "2026-12-01T10:00:01Z", (
+backend/tests/regression/test_g3_2_review_ledger.py:1033:    r2 = _run_writer(vault, _payload(ts="2026-09-15T09:30:00Z"))
+backend/tests/regression/test_g3_2_review_ledger.py:1050:        r = _run_writer(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
+backend/tests/regression/test_g3_2_review_ledger.py:1057:    rok = _run_writer(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
+backend/tests/regression/test_g3_2_review_ledger.py:1069:    good = _review_row(event_id="quiz:旧板", **{"payload.review_time": "2026-07-01T10:00:00Z"})
+backend/tests/regression/test_g3_2_review_ledger.py:1070:    good["effective_at"] = "2026-07-01T10:00:00Z"
+backend/tests/regression/test_g3_2_review_ledger.py:1117:# ── 门㉝ write-ahead 六格状态机逐格闭合 (卡文标题判据) ──
+backend/tests/regression/test_g3_2_review_ledger.py:1119:# 时有定义 ⇒ 2 + 4 = 6 格 (Codex round-3 §六格状态机)。round-3 判定 3 格 FAIL
+backend/tests/regression/test_g3_2_review_ledger.py:1124:def _strip_calibration(vault: Path) -> None:
+backend/tests/regression/test_g3_2_review_ledger.py:1143:def test_six_cell_state_machine_closed(vault):
+backend/tests/regression/test_g3_2_review_ledger.py:1144:    # ── 格1 dup=None, f1=F: 正常新写 (A2 先把 foreign pending 重放至空)
+backend/tests/regression/test_g3_2_review_ledger.py:1147:    r1 = _run_writer(vault, _payload(ts="2026-08-02T10:00:00Z"))
+backend/tests/regression/test_g3_2_review_ledger.py:1149:    assert "A2 重放已应用" in r1.stdout, "格1: foreign pending 必须在新写前重放"
+backend/tests/regression/test_g3_2_review_ledger.py:1150:    assert len(_ledger_lines(vault)) == 2 and _fm_fields(vault)["fsrs_last_review"] == "2026-08-02T10:00:00Z"
+backend/tests/regression/test_g3_2_review_ledger.py:1152:    # ── 格2 dup=None, f1=T: 旧写序孤儿 (frontmatter 已应用而账本无该事件) → 整体 no-op
+backend/tests/regression/test_g3_2_review_ledger.py:1155:    r2 = _run_writer(vault, _payload(ts="2026-09-01T08:00:00Z"))
+backend/tests/regression/test_g3_2_review_ledger.py:1158:    assert _sha(vault / NODE_REL) == sha_before and len(_ledger_lines(vault)) == 1, "格2: 必须零改动"
+backend/tests/regression/test_g3_2_review_ledger.py:1160:    # ── 格3 dup=有, f1=T, applied=T: 完整成功后重放 → envelope 通过 + no-op
+backend/tests/regression/test_g3_2_review_ledger.py:1165:    r3 = _run_writer(vault, _payload(ts="2026-09-01T08:30:00Z"))
+backend/tests/regression/test_g3_2_review_ledger.py:1169:    # ── 格4 dup=有, f1=F, applied=T: FSRS 已被吸收但校准缺失 → 停下人工裁定
+backend/tests/regression/test_g3_2_review_ledger.py:1170:    _strip_calibration(vault)
+backend/tests/regression/test_g3_2_review_ledger.py:1172:    r4 = _run_writer(vault, _payload(ts="2026-09-01T09:00:00Z"))
+backend/tests/regression/test_g3_2_review_ledger.py:1173:    assert r4.returncode != 0, "格4: 顺序错乱无机械判据, 必须 fail-closed"
+backend/tests/regression/test_g3_2_review_ledger.py:1175:    assert _sha(vault / NODE_REL) == sha_stripped and len(_ledger_lines(vault)) == 1, "格4: 零写"
+backend/tests/regression/test_g3_2_review_ledger.py:1177:    # ── 格5 dup=有, f1=T, applied=F: degraded 遗留 → 只补 FSRS, 不再吃 EMA
+backend/tests/regression/test_g3_2_review_ledger.py:1181:    assert not _fm_fields(vault), "格5 前置: degraded 后 W 未推进"
+backend/tests/regression/test_g3_2_review_ledger.py:1186:    r5 = _run_writer(vault, _payload(ts="2026-09-01T09:30:00Z"))
+backend/tests/regression/test_g3_2_review_ledger.py:1188:    assert _fm_fields(vault)["fsrs_last_review"] == TS1, "格5: FSRS 必须补齐"
+backend/tests/regression/test_g3_2_review_ledger.py:1190:        assert re.search(rf"^{k}:.*", _fm(vault), re.M).group(0) == v, f"格5: {k} 不得二次吸收"
+backend/tests/regression/test_g3_2_review_ledger.py:1193:    # ── 格6 dup=有, f1=F, applied=F: 崩溃窗口① → 全套补齐且与直接应用字节相同
+backend/tests/regression/test_g3_2_review_ledger.py:1199:    r6 = _run_writer(vault, _payload(ts="2026-09-01T10:00:00Z"))
+backend/tests/regression/test_g3_2_review_ledger.py:1201:    assert (vault / NODE_REL).read_bytes() == golden, "格6: 恢复产物必须与直接应用逐字节相同"
+backend/tests/regression/test_g3_2_review_ledger.py:1203:    assert _run_validator(vault).returncode == 0, "六格走完后账本仍须过校验器"
+
+exec
+/bin/zsh -lc "nl -ba _bmad-output/审查/codex-review-CARD-G3-2-round3.md | sed -n '1,70p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w7-ledger
+exec
+/bin/zsh -lc 'rg -n "''^## 6'"\\.|"'^### 6'"\\.|_durable_instant|_mine_env|_att_expect|candidate|out_of_order|review_time|rating_from_grade|truncated|endswith|splitlines|P = \\\"/tmp/quiz-answer-payload.json\\\"\" docs/learning-events-schema-v1.md canvas-vault/.claude/skills/quiz-answer/SKILL.md canvas-vault/.claude/scripts/fsrs_bridge.py" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w7-ledger
+ succeeded in 0ms:
+     1	结论：**需整改**。指定 25 门虽全部通过，但生产主 PYEOF 块仍复现 **2 BLOCKER + 3 HIGH + 2 MEDIUM**。
+     2	
+     3	### Round-2 整改复核
+     4	
+     5	| 项目 | 结论 | 当前证据 |
+     6	|---|---|---|
+     7	| B-a | PASS | 已应用判据改为 `W >= durable.review_time`；envelope 位于 no-op/A2/恢复前，见 `SKILL.md:419-470`。 |
+     8	| B-b | FAIL | 两个身份键已排除、attempt 已按态计算，但存在历史 attempt 误拒和任意额外 payload 自抄。 |
+     9	| B-c | PASS | 全文件 parsed `event_id` 计数并在重放前拒绝，见 `SKILL.md:277-300`、门㉓ `test:779-807`。 |
+    10	| H-a | PASS（原项） | 显式 rating 类型/范围及 abandoned≠1 已拒绝，见 `fsrs_bridge.py:193-208`；但 scored 自洽仍有新 HIGH。 |
+    11	| H-b | FAIL | calibration/last_examined 已改，正常路径 mastery 仍使用 `p["ts"]`，见 `SKILL.md:584`。 |
+    12	| H-c | PASS | 双引号用 `json.loads`，单引号/裸词兼容，见 `SKILL.md:251-270`、门㉔。 |
+    13	| H-d | PASS | `st_size > 0` 后才读取尾字节，见 `learning_event_log.py:92-115`、门⑳。 |
+    14	| M-a | PASS | 已声明同一 vault 内任何两个 quiz-answer 不得并行，见 `SKILL.md:272-274`。 |
+    15	
+    16	### Findings
+    17	
+    18	[BLOCKER] canvas-vault/.claude/skills/quiz-answer/SKILL.md:450-458,482,507-545 — `_mine_env` 仍从 durable payload 自抄任意额外键，可绕过 envelope 并跳过 FSRS 恢复。  
+    19	依据: 临时生产块实测：给崩溃窗口 durable 行加入 `payload.out_of_order=true`，envelope 放行，A2 因 `:482` 排除该行，writer 仍 `rc=0` 并写入 calibration/mastery，但节点 `fsrs_fields={}`、账本仍一行；主体 validator 甚至返回 `rc=0`。这违反 schema §6.2:183-189 的完整 payload envelope 与恢复约束。门⑧只变异被独立覆盖的 `exam_board/event_version`。  
+    20	建议: 从本次输入和固定生产键集独立构造 candidate payload；在线重试出现 `out_of_order` 或未知额外键必须冲突，仅排除明确批准的两个身份键。
+    21	
+    22	[BLOCKER] canvas-vault/.claude/skills/quiz-answer/SKILL.md:484-496；canvas-vault/.claude/scripts/fsrs_bridge.py:190,233-241 — A2 会归一并消费带小数秒的 durable `review_time`，导致同一账本行二次推进 FSRS。  
+    23	依据: 预置唯一行 `review_time=10:00:00.500Z`。第一次恢复 `rc=0`，W 写为 `10:00:00Z`；第二次同 ID 重跑仍判 pending，再次重放后 W 变为 `10:00:01Z`，账本始终一行。正是 §6.2:192 禁止的 A5 二次 apply。门⑤只覆盖正常新写输入。  
+    24	建议: A2 调 bridge 前严格校验 durable 时刻为 tz-aware 整秒；非法 durable 行 fail-closed，禁止消费时顺手规范化。
+    25	
+    26	[HIGH] canvas-vault/.claude/skills/quiz-answer/SKILL.md:433,439-458 — applied 态用当前 tip 的 `attempt_count` 校验历史事件，合法旧事件重放会被误报冲突。  
+    27	依据: 实测 E1、E2 均成功，durable attempts 为 `[1,2]`，frontmatter 为 2；随后原样重跑 E1 返回 `rc=1 envelope 冲突`，而 §6.2:187 要求同 canonical envelope no-op。门①只测紧邻重跑。  
+    28	建议: 从账本边界独立复算历史 ordinal，不能把当前 tip 当成旧 durable 值；新增 `E1→E2→重跑E1` 门。
+    29	
+    30	[HIGH] canvas-vault/.claude/skills/quiz-answer/SKILL.md:523,581-588；backend/tests/regression/test_g3_2_review_ledger.py:60-61,207-220 — H-b 的逐字节恢复仍未闭合。  
+    31	依据: 正常路径 `:584` 传原始 `p["ts"]`，恢复路径 `:523` 传 durable `review_time`。用含 `last_examined` 且触发 A3 的正常卡实测，两次均 `rc=0`，但节点 SHA 分别为 `96205e2a…` 与 `3b469e84…`；`mastery_a` 分别为 `65631885.0457` 与 `65631877.4112`。现门②使用无 `last_examined` 的新卡，无法触发差异。  
+    32	建议: 正常路径也传 `review_time`；门②改用含 idle 状态且触发 A3/A5 的整节点 byte 对拍。
+    33	
+    34	[HIGH] canvas-vault/.claude/scripts/fsrs_bridge.py:193-208；canvas-vault/.claude/skills/quiz-answer/SKILL.md:492-496 — A2 仍会应用 scored rating 与 grade_norm 不自洽的 pending 行。  
+    35	依据: `answer_scored + grade_norm=0.75 + rating=4` 类型和范围合法但契约应为 rating 3；实测 writer `rc=0`、输出“A2 重放已应用”并追加下一事件，事后 validator 才返回 `rc=1`。门⑰只测 float 与 abandoned 变体。  
+    36	建议: 显式 rating 对 scored 同样要求 `rating == rating_from_grade(grade_norm)`，并在 apply 前拒绝。
+    37	
+    38	[MEDIUM] docs/learning-events-schema-v1.md:183；canvas-vault/.claude/skills/quiz-answer/SKILL.md:434-457；backend/tests/regression/test_g3_2_review_ledger.py:829-842 — 门㉕锁定的身份键排除策略尚未同步到冻结 schema。  
+    39	依据: §6.2:183 定义 envelope 包含完整 payload，只明确排除 `recorded_at`；实现及门㉕却允许两个身份键不同。  
+    40	建议: 若该分层裁决确定生效，正式修订 §6.2；否则实现须服从现有完整 payload 契约。
+    41	
+    42	[MEDIUM] canvas-vault/.claude/skills/quiz-answer/SKILL.md:278-288；backend/tests/regression/test_g3_2_review_ledger.py:284-313 — 尾行解析丢失 EOF 是否有 LF，带 LF 的损坏末行也被当成可容忍截断。  
+    43	依据: 预置坏 JSON 且已带终止 LF，实测 writer 仍 `rc=0`、声称“截断尾行”，继续追加并推进节点。门⑦仅覆盖无 LF partial。  
+    44	建议: 保留原始 EOF/LF 状态；只有无 LF 的最后坏行可隔离，带 LF 坏行必须 fail-closed。
+    45	
+    46	### 六格状态机
+    47	
+    48	`fsrs_applied` 只在 `dup=有` 时有定义，因此实际是 `2 + 4 = 6` 格。
+    49	
+    50	| 状态 | 当前行为 | 结论 |
+    51	|---|---|---|
+    52	| `dup=None,f1=F` | A2 后正常 append/apply | PARTIAL：foreign pending 输入门不完整 |
+    53	| `dup=None,f1=T` | 旧写序孤儿 no-op | PASS |
+    54	| `dup有,f1=T,applied=T` | envelope 后 no-op | FAIL：历史 attempt 误拒 |
+    55	| `dup有,f1=F,applied=T` | envelope 后人工裁定 | PASS |
+    56	| `dup有,f1=T,applied=F` | A2 后只补 FSRS | FAIL：小数秒可重复推进 |
+    57	| `dup有,f1=F,applied=F` | A2 后全套恢复 | FAIL：额外键可跳过 A2，且字节不等 |
+    58	
+    59	即时 degraded/crash 恢复到 applied 后的 attempt 计算局部自洽；一旦 `W` 被后续事件推进到 `W > durable.review_time`，状态切换即失去自洽。
+    60	
+    61	### 回归与六项终审
+    62	
+    63	指定命令结果：`25 passed, 10 warnings in 18.62s`。未运行整仓测试；首次只读沙箱因无可写 tempdir 在收集前失败，使用隔离临时 fixture 后同命令通过。
+    64	
+    65	- 写序：PASS，单写者路径确为 ledger fsync 后再发布 frontmatter。
+    66	- A2：FAIL。
+    67	- 查重：FAIL；parsed equality 和全文件唯一性已通过，但 canonical envelope 仍可绕过。
+    68	- degraded 哨兵：PASS；两键成对、W 冻结未发现问题。
+    69	- G3-3 边界：PASS；声明范围已诚实覆盖 per-vault。
+    70	- fixture：主 PYEOF 逐字提取 PASS；状态覆盖完备性 FAIL，绿色 25 门不能覆盖上述反例。
+
+ succeeded in 0ms:
+canvas-vault/.claude/scripts/fsrs_bridge.py:25:    于是写出的 W 与事件里的 review_time 差一个小数秒, A5 的"同一瞬间"不成立,
+canvas-vault/.claude/scripts/fsrs_bridge.py:27:  输出的 review_time 即本次实际采用的整秒 UTC 时刻, 与 fsrs_last_review 逐字相同;
+canvas-vault/.claude/scripts/fsrs_bridge.py:31:  review_time / rating / fsrs_library_version / fsrs_params_hash。
+canvas-vault/.claude/scripts/fsrs_bridge.py:51:    candidates = [
+canvas-vault/.claude/scripts/fsrs_bridge.py:58:    for c in candidates:
+canvas-vault/.claude/scripts/fsrs_bridge.py:86:    W 与事件 review_time 都只有秒级精度; 原实现只在 _iso() 输出时截,
+canvas-vault/.claude/scripts/fsrs_bridge.py:96:def rating_from_grade(grade_norm: float, abandoned: bool) -> int:
+canvas-vault/.claude/scripts/fsrs_bridge.py:172:#: A7 review 域上界 (schema v1 §6.2): review_time 与 W 同域同界且均须严格小于。
+canvas-vault/.claude/scripts/fsrs_bridge.py:182:        返回的 review_time 逐字相同);
+canvas-vault/.claude/scripts/fsrs_bridge.py:187:        显式值必须与 rating_from_grade(grade_norm, abandoned) **相等** —— 不
+canvas-vault/.claude/scripts/fsrs_bridge.py:205:        # apply 前机械复算并要求相等; abandoned=true 由 rating_from_grade 一票
+canvas-vault/.claude/scripts/fsrs_bridge.py:207:        _expect = rating_from_grade(grade_norm, abandoned)
+canvas-vault/.claude/scripts/fsrs_bridge.py:218:        used_rating = rating_from_grade(grade_norm, abandoned)
+canvas-vault/.claude/scripts/fsrs_bridge.py:244:        # W 与 review_time 同域同界, W+1s 越出 A7 上界 ⇒ 后继不可写, fail-closed。
+canvas-vault/.claude/scripts/fsrs_bridge.py:266:        # G3-2 加性输出: 调用方必须把 review_time 原样写进事件 payload
+canvas-vault/.claude/scripts/fsrs_bridge.py:268:        "review_time": _iso(now),
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:191:P = "/tmp/quiz-answer-payload.json"
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:220:    from fsrs_bridge import rating_from_grade, fields_from_frontmatter
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:230:def _durable_instant(rt, ctx):
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:231:    """durable 行的 review_time → UTC 整秒 aware datetime; 不合规即 fail-closed。
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:233:    Codex round-3 BLOCKER (R2): A2 会把小数秒 durable review_time 交给 bridge,
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:242:        raise SystemExit(f"[quiz-answer] {ctx} 的 review_time 非字符串 ({rt!r}), fail-closed 拒写")
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:246:        raise SystemExit(f"[quiz-answer] {ctx} 的 review_time 不可解析 ({rt!r}), fail-closed 拒写")
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:248:        raise SystemExit(f"[quiz-answer] {ctx} 的 review_time 非 UTC ({rt!r}; §6.2 A6 要求 tz-aware UTC 时刻), fail-closed 拒写")
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:250:        raise SystemExit(f"[quiz-answer] {ctx} 的 review_time 含小数秒 ({rt!r}; §6.2 A5 要求整秒 — 消费时归一会让同一行二次推进 FSRS), fail-closed 拒写")
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:272:# Codex round-2 BLOCKER): 「已应用」的机械判据是 W >= durable.review_time,
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:284:            if v.startswith('"') and v.endswith('"') and len(v) >= 2:
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:308:    _ends_with_lf = _raw_text.endswith("\n")
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:343:# 正常路径用 payload ts, 恢复路径用 durable 行 review_time — 保证恢复产物与
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:421:    (review_time — 与 effective_at 同源, 保证恢复产物与直接应用逐字节对齐)。"""
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:449:rating = rating_from_grade(GN2, bool(p.get("abandoned")))
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:452:# ── G3-2 适用事件集 (本节点 / schema_ext=review/1 / 未标 out_of_order),
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:462:    if _o.get("node_id") != node_id or _pl.get("out_of_order") is True:
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:464:    _applicable.append((_durable_instant(_pl.get("review_time"), f"账本第 {_ln} 行({_o.get('event_id')})"), _ln, _o))
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:468:# 「FSRS 已应用」的机械判据 = W >= durable.review_time。F1 (calibration 有无)
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:480:    # R2: durable 时刻必须 UTC 整秒才允许参与 W 比较与后续消费 (见 _durable_instant)
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:481:    _dup_inst = _durable_instant(_dpl.get("review_time"), f"账本行 {evid}")
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:482:    _dup_rt = _dpl["review_time"]
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:491:    # ⛔ candidate 必须**独立字面构造** (Codex round-3 BLOCKER R1): 旧实现以
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:493:    # 任意**未知额外键**被原样抄进 candidate — 比较退化成「自己比自己」。
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:494:    # 实测反例: 给崩溃窗口①的 durable 行加 payload.out_of_order=true, envelope
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:513:        _att_expect = _att_now - _after_applied
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:515:        _att_expect = _att_now + 1 + _before_pending
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:516:    _mine_env = {
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:520:                    "rating": rating, "grade_norm": GN2, "review_time": _dup_rt,
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:522:                    "attempt_count": _att_expect}}
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:526:    if json.dumps(_mine_env, sort_keys=True, ensure_ascii=False, separators=(",", ":")) != json.dumps(_theirs_env, sort_keys=True, ensure_ascii=False, separators=(",", ":")):
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:541:# (review/1、未标 out_of_order、review_time > W) 按 (时刻, 行序) 升序重放至空。
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:551:                         _pl["review_time"], rating=_pl.get("rating"))
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:558:    print(f"[quiz-answer] A2 重放已应用: {_o.get('event_id')} @ {_pl['review_time']}")
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:563:    # ── 恢复路径。review_time 采纳 durable 行 (业务事实时刻), 全部副作用
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:566:    review_time = _dpl["review_time"]
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:575:        print(f"[quiz-answer] A2 恢复(degraded 遗留): 仅补 FSRS @ {review_time}, EMA/校准不重复应用")
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:578:        old, A, B, new = _apply_mastery(fm, review_time)
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:582:        fm = re.sub(r'^(type:.*)$', lambda x: x.group(1) + f"\nmastery_score: {new}\nmastery_a: {round(A, 4)}\nmastery_b: {round(B, 4)}\nattempt_count: {n_att}\nlast_examined: " + json.dumps(review_time, ensure_ascii=False), fm, count=1, flags=re.M)
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:583:        fm = _append_calibration(fm, review_time)
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:587:        print(f"[quiz-answer] A2 恢复(崩溃窗口①): mastery {old}->{new}; FSRS+EMA+校准全套补齐 @ {review_time}")
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:607:    review_time = _out["review_time"]
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:631:    review_time = _rt.strftime("%Y-%m-%dT%H:%M:%SZ")
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:637:# last_examined 与 mastery 的闲置折旧基准**都**用 review_time (业务生效时刻)
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:640:# 路径传 durable review_time。含 last_examined 的卡上 days_idle 由该基准算出,
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:642:# 小数秒截断使 review_time != p["ts"] 时必然触发。
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:643:old, A, B, new = _apply_mastery(fm, review_time)
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:647:fm = re.sub(r'^(type:.*)$', lambda x: x.group(1) + f"\nmastery_score: {new}\nmastery_a: {round(A, 4)}\nmastery_b: {round(B, 4)}\nattempt_count: {n_att}\nlast_examined: " + json.dumps(review_time, ensure_ascii=False), fm, count=1, flags=re.M)
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:655:           "recorded_at": p["ts"], "effective_at": review_time,
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:661:                       "review_time": review_time,
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:694:        print(f"[quiz-answer] 事件已落日志(write-ahead): {etype} @ {review_time}")
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:697:# ts = review_time 业务生效时刻, 与恢复路径同源 — round-2 HIGH 字节对齐）
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:698:fm = _append_calibration(fm, review_time)
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:721:print(f"[quiz-answer] {NODE}: mastery {old}->{new}; event={eid}; fsrs={'applied @ ' + review_time if fsrs_ok else 'degraded (事件已入账, W 未推进)'}; ledger=append; callout={'yes' if cal else 'no'}")
+docs/learning-events-schema-v1.md:56:| `candidate_created` | `cand:<candidate_id>` | `source`, `description`(≤200 字符) | backend `app/services/conversation_distiller.py:445` |
+docs/learning-events-schema-v1.md:57:| `candidate_accepted` | `accept:<candidate_id>` | `edited` | backend `app/api/v1/endpoints/errors.py:198` |
+docs/learning-events-schema-v1.md:58:| `candidate_disputed` | `dispute:<candidate_id>` | `dispute_reason`(≤300 字符) | backend `app/api/v1/endpoints/errors.py:259` |
+docs/learning-events-schema-v1.md:70:3. `backend/app/api/v1/endpoints/errors.py:198` — `candidate_accepted`
+docs/learning-events-schema-v1.md:71:4. `backend/app/api/v1/endpoints/errors.py:259` — `candidate_disputed`
+docs/learning-events-schema-v1.md:72:5. `backend/app/services/conversation_distiller.py:445` — `candidate_created`
+docs/learning-events-schema-v1.md:88:### 6.1 事件形状
+docs/learning-events-schema-v1.md:105:  - **评分自洽（Codex round-3 HIGH）**：`answer_scored` 的 `rating` 必须等于 `rating_from_grade(grade_norm)`（`fsrs_bridge.rating_from_grade` 口径：`grade = 1 + 3·gn` 就近落四档、越界钳制）；`answer_abandoned` 的 `rating` **恒为 1**（[Decision-FSRS-1] 弃答一票否决 Again）。
+docs/learning-events-schema-v1.md:106:  - `review_time`：本次复习业务时刻（§三受理语法，tz-aware，**必须整秒**见 §6.2 A5）；与顶层 `effective_at` **同一瞬间**（按绝对时刻比较——`Z` 与 `+00:00` 是同一瞬间的两种写法，不按原字符串比）
+docs/learning-events-schema-v1.md:110:### 6.2 写序与崩溃恢复状态机（G3-2 落实；Codex round-1 BLOCKER + round-2 交错窗口整改）
+docs/learning-events-schema-v1.md:116:- **正常卡** = 持久化 tuple **完整、canonical、落在可调度域内，且 `W` 落在 review 域内**（round-8 HIGH#2：`fsrs_last_review` 是"上一次 review 的时刻"，与 `review_time` 同域，必须**严格小于** A7 的 review 域上界——否则不存在任何合法后继事件（后继须 `> W` 且同样严格小于该上界），`W` 恰为上界时 A3 的 `W+1s` 也立即越界；`fsrs_due` 是调度产物，适用更宽的一般时间戳上界）（round-5 HIGH#2 + round-6 HIGH#1 逐条收紧：bridge `review()` 消费**六字段**构造 `Card`，规则不精确会放过真实调用时抛 `AssertionError`/`ZeroDivisionError`/产生 NaN 的形状）。逐条：
+docs/learning-events-schema-v1.md:141:**比较与排序语义（必须按绝对瞬间，不得按字符串）**：`W` 与 `review_time` 的所有比较（`>`、`≤`、相等）**以及 pending 集合的排序**，**必须先解析为 tz-aware datetime 再比**。理由：bridge 的 `_iso()` 把时刻 `astimezone(UTC)` 后写成 `...Z`（`fsrs_bridge.py:55-56`），而事件的 `review_time` 允许任意合法 offset——实测 `2026-08-01T18:00:00+08:00`（事件）与 `2026-08-01T10:00:00Z`（W）**是同一瞬间但字符串不同**。按字符串比较会把"已应用"判成 pending 并二次推进；**按字符串排序**会把 `10:00:02Z` 排在真实更早的 `18:00:01+08:00` 之前（round-5 反例），导致重放顺序错乱。
+docs/learning-events-schema-v1.md:146:- **review 域上界（`review_time` 与 `fsrs_last_review` 共用，且须严格小于）**：两者必须 **< 9000-01-01T00:00:00Z**（该端点本身**不合法**）。
+docs/learning-events-schema-v1.md:148:  - **为什么是"严格小于"而非 `≤`（round-9 闭包 + round-10 文档对齐）**：`review_time` 会成为下一个 `W`，而 `W` 必须留出后继空间（后继须 `> W` 且仍在域内）。若端点取 `≤`，则 `review_time = 9000-01-01Z` 是合法输入却会写出一个**没有任何合法后继**的 `W` ⇒ 合法事件确定性制造残缺卡。两侧同界且同为排他，闭包才成立：**合法输入产出的状态必然合法**（实测最后合法秒 `8999-12-31T23:59:59Z` 经真实 bridge 产出 `due=9000-01-01T00:09:59Z`，分类 normal）。
+docs/learning-events-schema-v1.md:149:- **一般时间戳上界**：`recorded_at`/`effective_at`/`fsrs_due` 等 ≤ **9500-01-01T00:00:00Z**（只拦 UTC 归一化本身会溢出的极端值）。⚠️ round-7 反例：若把 review 域的保守上界通用到所有字段，合法 review（如最后合法秒 `8999-12-31T23:59:59Z`）经调度产出的 `due`（实测 `9000-01-01T00:09:59Z`）会**反被判 degraded**。注：`review_time = 9000-01-01Z` 这个端点本身按 A7 就**不合法**（见上条排他上界），此处只是说明 due 需要更宽的域。
+docs/learning-events-schema-v1.md:152:**A6 调度器入参必须是 UTC（round-5 HIGH#1，端到端条款）**：传给 fsrs `Scheduler.review_card()` 的 `review_datetime` **必须 tz-aware 且 tzinfo 恰为 UTC**——库对此硬校验（`scheduler.py:256-260` 抛 `ValueError: datetime must be timezone-aware and set to UTC`）。因此 G3-2 写路径必须满足：**事件 `payload.review_time`、传入调度器的时刻、写出的 `W` 三者是同一瞬间，且入库/入调度器前统一 `astimezone(UTC)`**。
+docs/learning-events-schema-v1.md:155:**pending 集合**：账本中该节点全部满足以下全部条件的事件：`schema_ext == "review/1"`、**未标 `out_of_order`**、且 `payload.review_time > W`（按绝对瞬间比较）；按 `(review_time, 账本行序)` 升序。
+docs/learning-events-schema-v1.md:162:  - 崩溃窗口全覆盖：①事件已落账、frontmatter 未推进 → 下次写入前 A2 重放恢复；②两者都完成 → `review_time ≤ W`，不推进（幂等）；③追加即崩（事件未落账）→ 账本与 frontmatter 一致，本次评分丢失属用户可感知重试面，非账本不一致。
+docs/learning-events-schema-v1.md:163:- **A3 严格递增（等时唯一口径：写侧推进，禁止拒绝）**：写侧必须保证同节点新事件 `review_time` **严格大于** `W`（按绝对瞬间比较）——若计算值 ≤ `W`（秒级精度下等时是常见情形），**推进到 `W + 1s` 后再写**，不得以原值写入。
+docs/learning-events-schema-v1.md:167:    - **不是乐观 CAS**——round-4 反例：两写者可在同一秒各自 durable append，胜者发布 `W = t1` 后，败者事件因 `review_time == W`（等时）**永久不进 pending**，该次评分静默丢失。CAS 只能检测"值被改过"，无法阻止已发生的 append 副作用。
+docs/learning-events-schema-v1.md:187:      ⚠️ **candidate 必须独立字面构造（Codex round-3 BLOCKER，CARD-G3-2b 冻结）**：参与比较的 candidate envelope 必须由**本次输入 + 该写路径的固定生产键集**字面构造，**禁止以 durable 行的 payload 为底再覆盖已知键**（`{**durable_payload, ...}`）——那会把 durable 行的**未知额外键**原样抄进 candidate，比较退化成“自己比自己”。实测反例：给崩溃窗口①的 durable 行加 `payload.out_of_order=true`，envelope 放行，而 A2 的适用集按定义排除标了 `out_of_order` 的行 ⇒ FSRS 永不应用，writer 仍 `rc=0` 写下 calibration/mastery，节点 `fsrs_*` 全空、账本仍一行。因此**键集本身是等价面的一部分**：durable payload 相对固定生产键集**多一键、少一键或值不同，一律判 ② 冲突**；唯一放行的差异是上面明确排除的两个身份键。
+docs/learning-events-schema-v1.md:195:- **A5 整秒精度（Codex round-3 BLOCKER：小数秒二次推进）**：`review_time` **必须为整秒**（无小数秒段）。因为 `W` 只有秒级精度，`10:00:00.5 > 10:00:00` 恒成立——同一事件重放会被判 pending 并**二次推进**（实测：首次应用后 Learning/due 10:10，重放同一事件推进为 Review/due +2d）。校验器对 `schema_ext=review/1` 行机械强制整秒。**A2 消费侧同样机械强制（Codex round-3 BLOCKER，CARD-G3-2b 冻结）**：重放前逐行校验 durable `review_time` 为 tz-aware、UTC 偏移为 0、无小数秒，不合规即 **fail-closed**；⛔ **禁止消费时顺手归一化**——bridge 入口的 `_whole_second` 会把 `10:00:00.500Z` 截成 `10:00:00Z` 写进 `W`，而账本里那行仍是 `.500Z`，于是 `.500 > .000` 恒真，同一行**每次重跑都判 pending 并再推进一次 FSRS**（实测：账本始终一行，`W` 逐次 +1s）。归一化把损坏行洗成合法行，等于把缺陷从写入面挪进不可见面。
+docs/learning-events-schema-v1.md:197:**三态语义（消解"已应用 vs 迟到乱序"歧义）**：`review_time ≤ W` 的事件**一律不推进 current state**——无论它是"已应用"还是"迟到的乱序事件"，对 current state 的动作**完全相同**，因此该歧义对 exactly-once 无影响。二者的区分只用于**账本标注**：
+docs/learning-events-schema-v1.md:198:- **乱序判据统一为 G3-3 卡面口径**（`review_time 早于已应用的最新事件`，即 `review_time ≤ W`，按绝对瞬间比较），标 `out_of_order`；本文档 pending 集合定义已显式**排除已标 out_of_order 的行**，两处口径自洽。
+docs/learning-events-schema-v1.md:199:- **`out_of_order` 字段冻结（round-4 HIGH#3，round-17 补语义门）**：位置 = `payload.out_of_order`；类型 = **布尔 `true`**（唯一合法值）；**未标 = 不写该键**（禁止写 `false`、字符串 `"true"`、对象或任何其他形态——它们既非"已标"也非"未标"，会让 pending 排除条件产生歧义）。校验器机械强制该形态。
+docs/learning-events-schema-v1.md:200:  ⚠️ **形态合法 ≠ 语义为真（round-17 Codex HIGH）**：proof 的 scanner 排除标了 `out_of_order` 的行，于是"标记本身"成了把事件移出适用集的手段。若某行标了该键、其 `review_time` 却**晚于此前所有适用事件**，它就是**被伪装成乱序的真实后继**——排除它即绕过尾部覆盖门。故 proof 侧额外强制：标记行的 `review_time` 必须**不晚于**此前适用事件的最大时刻（即符合本条乱序定义 `review_time ≤ W`）；不符者**报违规且仍计入适用集**。
+docs/learning-events-schema-v1.md:201:- **迟到事件的入账通道**：A3 的"严格大于 W"只约束**在线评分**（正常复习写入）。补录/迟到事件走**账本补录通道**：以原始 `review_time` 入账 + 标 `payload.out_of_order = true`，**不进 pending、不推进 current state**——因此与 A3 无冲突。
+docs/learning-events-schema-v1.md:203:  - **解冻的唯一合法条件（round-5 提出，round-6 机械化）**：修复必须**把六字段与 `W` 原子重建到同一个可证明的账本边界**上——选定账本中某个事件 `E`，从**可证明起点**折叠到 `E` 为止，把结果的六字段与 `W = E.review_time` 在**同一次原子替换**中写入。三项必须机械确定：
+docs/learning-events-schema-v1.md:205:      - **最外层（top-level）proof**：`E` 必须是该节点在账本中**行号最大的适用事件**（`schema_ext=review/1`、未标 `out_of_order`），且 **`cursor_line` 之后不得再存在该节点的任何适用事件**——保证重建覆盖到账本末尾。
+docs/learning-events-schema-v1.md:215:        ⑤ 不做完整记录级 schema 校验 —— scanner 只校验 proof 依赖的字段 (node_id / schema_ext / out_of_order / review_time / event_id / 算法身份 / vault_id); proof 校验以「该账本已通过主体校验」为前置条件;
+docs/learning-events-schema-v1.md:221:      ⚠️ round-11 反例：若按 `(review_time, 行号)` 复合序取最大，当 `L1=t2`、`L2=t1`（两行都未标乱序）时 E=L1，区间只含 L1，单调门真空通过，**L2 完全逃逸未被覆盖**。改用行号口径后，E=L2，L1 与 L2 同在区间内，单调门会因 `t2 > t1` 而判该区间不自洽 ⇒ 正确地报"不可证明"。
+docs/learning-events-schema-v1.md:230:      | `event_id` / `review_time` | E 的幂等键与业务时刻（`review_time` 即重建后写入的 `W`） |
+docs/learning-events-schema-v1.md:257:      3. `state.fsrs_last_review == ancestor_proof.review_time`（祖先折叠到的事件时刻，即为该快照的水位线）。
+docs/learning-events-schema-v1.md:259:      - **区间**：账本中该节点、`schema_ext=review/1`、未标 `out_of_order`、且**行号**落在 `(ancestor_proof.cursor_line, cursor_line]` 内的全部事件——**左开右闭、按行号界定**（不用时刻界定，因同瞬间不同行会有两种解释）。`origin.kind == "new_card"` 时左端点 = `genesis_evidence.first_event_line - 1`。
+docs/learning-events-schema-v1.md:261:      - **单调性硬门（round-10）**：区间内的 `review_time` 必须**随行号严格递增**。若出现"行号递增而 `review_time` 不增"的行，说明该行是迟到/乱序事件却**未标 `out_of_order`** ⇒ 账本自身不自洽，**proof 不可证明**（须先由人工裁定该行的归属，而非由工具选一种顺序）。这消除了"按行号折"与"按时刻折"两种解释的分歧——两者在通过该门的区间上必然一致。
+docs/learning-events-schema-v1.md:270:    - **跨层单调门（round-12 HIGH：分层可绕过层内单调性）**：`ancestor_proof.review_time`（即 ancestor 折叠到的时刻，也是 snapshot 的 `W`）必须 **严格小于本层折叠区间中首个事件的 `review_time`**。
+docs/learning-events-schema-v1.md:271:      ⚠️ round-12 反例：`L1=t2、L2=t1`（`t2 > t1`，两行均未标 `out_of_order`）时，可拆成 ancestor 区间 `(0,1]` 与本层区间 `(1,2]`——两个**单事件区间**的层内单调门都**真空通过**，全链非单调却蒙混过关。加上本条后：ancestor 的 `W = t2` 不小于本层首事件的 `t1` ⇒ 正确判**不可证明**。
+docs/learning-events-schema-v1.md:276:  - **不可证明时必须继续冻结**：当账本缺少覆盖该节点的完整 review/1 事件序列（例如该节点的历史全是无扩展的旧行），**无法**重建可证明同源的 state+W ⇒ 该节点保持冻结并向用户如实报告，由人工裁定（例如接受"以当前 frontmatter 为准、把 `W` 设为账本中该节点最大 `review_time`"这一有损但显式的决策）。**禁止工具自动做该有损决策**。
+docs/learning-events-schema-v1.md:282:### 6.3 历史兼容
+docs/learning-events-schema-v1.md:284:- 历史行（无 `schema_ext` 标记的 `answer_scored`/`answer_abandoned`）**永久合法**——校验器不以扩展键缺失判 FAIL（防对现网账本误报）。历史行不参与 6.2 水位线重放（无 `review_time`，视为已应用）。
+docs/learning-events-schema-v1.md:297:- **判定规则**（每行）: **严格 JSON** 可解析（RFC 8259——拒 `NaN`/`Infinity` 非标准常量、拒对象内重复键；写侧 `json.dumps(dict)` 不可能产出两者，合法数据零误报）；非法 UTF-8 字节序列 = 该行违规（逐行独立解码，不中断其余行）；**前向兼容分流**：`event_version` 为 int 且 ≠1 的行**只 WARN 并完全跳过 v1 形状校验**（Codex round-1：原"WARN+形状 FAIL 双发"违反前向兼容，已修）；v1 行：顶层键**恰好** 7 键、各字段类型/约束按 §三、`event_type` ∈ 白名单、时间戳按 §三受理语法且 tz-aware；payload 含 `schema_ext: "review/1"` 时强制 §6.1 全部扩展键类型与**语义绑定**（挂载点 / concept_id==node_id / review_time 整秒且与 effective_at 同瞬间 / rating-grade_norm 自洽 / 弃答 rating=1 / 库指纹与 golden manifest 真值相等）；`schema_ext` 值非法或复习事件带扩展键却无 marker = 违规（防降级绕过）。深层嵌套（RecursionError）与超长整数（解析限额）均单行判违规、不中断其余行。**文件级**: `event_id` 全文件唯一（跨版本行也登记——幂等键语义跨版本恒定）。无标记历史行的 payload 键集不做 FAIL 判定（§6.3）。
+
+**Planning precise schema section extraction**
+exec
+/bin/zsh -lc "rg -n '"'^### 6'"\\.' docs/learning-events-schema-v1.md" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w7-ledger
+ succeeded in 0ms:
+88:### 6.1 事件形状
+110:### 6.2 写序与崩溃恢复状态机（G3-2 落实；Codex round-1 BLOCKER + round-2 交错窗口整改）
+282:### 6.3 历史兼容
+
+**Planning code review ranges**
+exec
+/bin/zsh -lc "nl -ba docs/learning-events-schema-v1.md | sed -n '211,311p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w7-ledger
+exec
+/bin/zsh -lc "nl -ba docs/learning-events-schema-v1.md | sed -n '88,210p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w7-ledger
+ succeeded in 0ms:
+   211	        ① 不复算 FSRS 折叠 —— canonical reducer 的精度常量属 G3-2, 需真实 fsrs;
+   212	        ② 不复算 `result_hash` —— 它是折叠产物的 hash, 同样依赖 reducer;
+   213	        ③ 不传 `ledger_path` 时不复算 `ledger_prefix_sha256`、不自行抽取事件 —— 此时 `applicable` 是信任边界, 其完整性由调用方保证 (抽取不全会让尾部门真空通过); 传 `ledger_path` 后 verifier 自行抽取并复算, 但这不等于消除全部信任 (见 ⑤);
+   214	        ④ 不把 genesis 原文与真实节点文件的字节比对 —— 只验其与自报 hash 自洽、且顶层无 `fsrs_*` 键; 节点文件路径不在 proof 内, 该绑定须由调用方另行完成;
+   215	        ⑤ 不做完整记录级 schema 校验 —— scanner 只校验 proof 依赖的字段 (node_id / schema_ext / out_of_order / review_time / event_id / 算法身份 / vault_id); proof 校验以「该账本已通过主体校验」为前置条件;
+   216	        ⑥ 传 `ledger_path` 时读的是调用瞬间的快照 —— 之后的并发追加不在判定内 (调用方须在持有账本锁时校验)。
+   217	        📌 **proof 侧的强依赖（与账本主体校验不同口径）**：账本校验主体是 stdlib-only，但 **proof 侧强制要求 PyYAML**（genesis 顶层键判定）**与同仓 G3-4 golden manifest**（算法身份同源，且其 `scheduler_config` 须完整含六键）。任一不可达或残缺 ⇒ **fail-closed 报违规**，不降级放行——降级会让"合法形状版本 + 任意 hash + 残缺配置"直接通过（round-16/17 实证）。
+   218	        📌 **`scheduler_config` 的类型冻结**：proof 的该字段必须与 manifest 的 **canonical JSON 文本逐字相同**（`json.dumps(sort_keys=True, separators=(",",":"))`）。这一并冻结了各键的 JSON 类型——`enable_fuzzing` 是 `false` 不是 `0`、`learning_steps_minutes` 是整数数组不是布尔数组、`maximum_interval` 是 `36500` 不是 `36500.0`。Python 的 `==` 对前两组判等（`0 == False`、`True == 1`），故**不得用 `==` 比较**。
+   219	        📌 另：proof 对**无法解释的记录**一律 fail-closed —— 未知 `event_version`（无法按 v1 解释）与缺失路由信封 `node_id`（无法判定归属）都**拒绝背书**，这是拒绝背书而非完整校验。
+   220	        返回空违规 = "已判门内无歧义，可交付 reducer 复算"，**不等于** proof 成立。
+   221	      ⚠️ round-11 反例：若按 `(review_time, 行号)` 复合序取最大，当 `L1=t2`、`L2=t1`（两行都未标乱序）时 E=L1，区间只含 L1，单调门真空通过，**L2 完全逃逸未被覆盖**。改用行号口径后，E=L2，L1 与 L2 同在区间内，单调门会因 `t2 > t1` 而判该区间不自洽 ⇒ 正确地报"不可证明"。
+   222	    - **canonical reducer（round-6 实测的舍入歧义）**：折叠必须**逐事件按生产持久化精度舍入后再进下一步**（与 bridge 的写-读循环一致），**不得**在内存中连续折叠、只在末尾舍入。实测差异：三次 Good 后 `stability` = **10.9711**（逐步舍入）vs **10.9710**（末尾舍入）——两者都满足"折叠到 E"的粗描述，故边界必须唯一化。舍入精度以 bridge 写出 frontmatter 时的实际精度为准（G3-2 落地时把该常量与本条一并锁进测试）。
+   223	    - **proof schema（round-8 HIGH#4 机械化——此前只是清单，两个不同起点可满足同一清单却折出不同结果）**。proof 是一个 JSON object，字段与语义如下，缺任一项或任一项不满足约束即**不可证明**：
+   224	
+   225	      | 字段 | 内容与约束 |
+   226	      |---|---|
+   227	      | `vault_id` / `node_id` | 本次重建的目标节点身份 |
+   228	      | `ledger_prefix_sha256` | 账本文件**从第 0 字节起、到 E 所在行的终止 LF（含该 LF）为止**的字节序列的 sha256。若 E 是文件最后一行且无终止 LF，则到文件末字节为止，并置 `prefix_ends_without_lf: true` |
+   229	      | `cursor_line` | E 的 1-based 行号（与 `ledger_prefix_sha256` 的截断点必须一致） |
+   230	      | `event_id` / `review_time` | E 的幂等键与业务时刻（`review_time` 即重建后写入的 `W`） |
+   231	      | `fsrs_library_version` / `fsrs_params_hash` / `scheduler_config` | 复算所用的算法身份与完整配置（须与 G3-4 golden manifest 同源；`degraded:*` 哨兵不合格） |
+   232	      | `reducer` | canonical reducer 标识与其精度常量（见上一条；G3-2 落地时冻结具体值） |
+   233	      | `origin` | 起点，二选一：`{"kind": "new_card", "genesis_evidence": {...}}`（真新卡，链终止于此；折叠区间左端点 = `genesis_evidence.first_event_line - 1`，见下方 genesis 锚——round-11 修正原「取 0」与后文冲突）或 `{"kind": "snapshot", "state": {...}, "snapshot_hash": "...", "ancestor_proof": {...}}`（三条等式约束见下） |
+   234	      | `result_hash` | 重建出的**状态对象**（键集按下方"状态对象的唯一形状"——Learning/Relearning 六键、**Review 五键**）的 canonical JSON 的 UTF-8 字节 sha256——供他人独立复算比对 |
+   235	
+   236	    - **状态对象的唯一形状（round-9 HIGH#3，round-10 补值类型）**：proof 里出现的每个"状态"（`origin.snapshot.state`、`result` 等）都是**恰含 `fsrs_bridge.py:44-46` FIELD_ORDER 中「适用于该 `fsrs_state` 的键」的 JSON object**：
+   237	
+   238	      | `fsrs_state` | 键集 |
+   239	      |---|---|
+   240	      | 1 Learning / 3 Relearning | 六键：`fsrs_due` / `fsrs_state` / `fsrs_step` / `fsrs_stability` / `fsrs_difficulty` / `fsrs_last_review` |
+   241	      | 2 Review | **五键**：同上但**省略 `fsrs_step`**（与 §三态表的 canonical 形状一致——Review 态带 step 即非 canonical） |
+   242	
+   243	      （r11/r12 修正：早前几处混写"固定六键"，与 Review 省略 step 冲突；现全文以本表为准。）
+   244	      **值类型必须归一化后再序列化（round-10 HIGH）**——否则 `{"fsrs_state": 2, "fsrs_stability": 10}` 与 `{"fsrs_state": "2", "fsrs_stability": 10.0}` 都能通过三态判别却产生**不同 hash**，proof 失去唯一性：
+   245	
+   246	      | 键 | canonical 类型 |
+   247	      |---|---|
+   248	      | `fsrs_due` / `fsrs_last_review` | JSON string，**UTC 整秒 `Z` 形式**（`%Y-%m-%dT%H:%M:%SZ`，与 `fsrs_bridge._iso()` 写出格式一致） |
+   249	      | `fsrs_state` | JSON number（整数），取值 1/2/3——不得为字符串 |
+   250	      | `fsrs_step` | JSON number（非负整数）**或该键省略**（Review 态省略，见三态表）——不得为 `null`、不得为字符串 |
+   251	      | `fsrs_stability` / `fsrs_difficulty` | JSON number（**float**，即使整数值也序列化为 `10.0` 而非 `10`）——不得为字符串 |
+   252	      ⚠️ **不再单列 `W`**——`W` 就是该对象里的 `fsrs_last_review`（round-9 指出："six_fields + W"的写法会让同一信息有两处表示，可不一致）。凡文中说"六字段与 `W`"，均指该单一对象。
+   253	      `result_hash` / `snapshot_hash` = 该对象的 `json.dumps(..., sort_keys=True, ensure_ascii=False, separators=(",",":"))` 的 **UTF-8 字节** 的 sha256（编码与分隔符一并冻结）。
+   254	    - **`origin.kind == "snapshot"` 的绑定（round-8 提出，round-9 加等式约束）**：必须含 `{state, snapshot_hash, ancestor_proof}`，且**以下三条等式全部成立**，否则不可证明：
+   255	      1. `snapshot_hash == sha256(canonical(state))`（自洽）；
+   256	      2. `snapshot_hash == ancestor_proof.result_hash`（该快照必须**正是**祖先 proof 的产出，而非另一份同形对象）；
+   257	      3. `state.fsrs_last_review == ancestor_proof.review_time`（祖先折叠到的事件时刻，即为该快照的水位线）。
+   258	    - **折叠区间与折叠顺序（round-9 HIGH#3，round-10 补顺序与单调性）**：
+   259	      - **区间**：账本中该节点、`schema_ext=review/1`、未标 `out_of_order`、且**行号**落在 `(ancestor_proof.cursor_line, cursor_line]` 内的全部事件——**左开右闭、按行号界定**（不用时刻界定，因同瞬间不同行会有两种解释）。`origin.kind == "new_card"` 时左端点 = `genesis_evidence.first_event_line - 1`。
+   260	      - **顺序**：按**行号升序**折叠（账本的物理追加序即因果序——A2 保证写入时状态已是最新）。
+   261	      - **单调性硬门（round-10）**：区间内的 `review_time` 必须**随行号严格递增**。若出现"行号递增而 `review_time` 不增"的行，说明该行是迟到/乱序事件却**未标 `out_of_order`** ⇒ 账本自身不自洽，**proof 不可证明**（须先由人工裁定该行的归属，而非由工具选一种顺序）。这消除了"按行号折"与"按时刻折"两种解释的分歧——两者在通过该门的区间上必然一致。
+   262	    - **`origin.kind == "new_card"` 的 genesis 锚（round-10 HIGH）**：`new_card` 不能只是自报——同一份账本在"此前是真新卡"与"此前已有未入账的 Review 状态"两个世界里会折出不同结果（Learning vs Review），proof 必须能区分。因此该分支**必须附** `genesis_evidence`：
+   263	      - `node_frontmatter_hash`：重建时刻该节点 frontmatter 的 sha256。**字节域冻结**：从文件首个 `---` 行的**下一字节**起，到闭合 `---` 行的**前一字节**为止（不含两条 `---` 行本身及其换行），按 UTF-8 原始字节计算；此刻该 frontmatter **不含任何 `fsrs_` 前缀字段**（三态判别为 `new`）。为便于复验，proof 须同时携带该 frontmatter 的**原文**（`node_frontmatter_text`）；
+   264	      - `first_event_line`：该节点在账本中最早一条事件的行号，且 `first_event_line > 0`；折叠区间左端点即取 `first_event_line - 1`（而非笼统的 0），使区间起点也可核验；
+   265	      - 三者缺一 ⇒ 不可证明，必须改走 `snapshot` 分支或人工裁定。
+   266	      - ⚠️ **证明强度的诚实上限（round-11）**：`genesis_evidence` 证明的是"**重建时刻**该节点无任何 FSRS 状态"，**不能**证明"历史上从未存在过未入账的 Review 状态"（例如状态曾被手工删除）。因此 `new_card` 分支只在该节点**账本历史完整**（其全部复习事件都带 `review/1`）时可用；若存在无扩展的旧行，则该节点属 §"不可证明时必须继续冻结"，须人工裁定——工具不得自行采信 `new_card`。
+   267	    - **链的终止与防循环（round-8，round-15 补深度上限）**：`ancestor_proof` 链必须**终止于 `origin.kind == "new_card"`**；链上每一层的 `(vault_id, node_id)` 必须相同，且 `cursor_line` 必须**严格递减**（保证有限步终止、不可自引用）。任一条不满足 ⇒ 不可证明。
+   268	      **深度上限 = 128 层**（`validate_learning_events.py::PROOF_MAX_DEPTH`）。⚠️ round-14 Codex LOW：此前实现私设 64 层却未成文，会**误拒合法的长链**。现明确：该上限是针对畸形/自引用输入的防御性保险，不是语义约束——严格递减本已保证有限步；单节点的解冻链层数等于历史上的重建次数，128 已极为宽裕。超限时报违规而非静默截断。
+   269	      ⚠️ **round-15 自查（上限取值有硬约束）**：该值**必须远低于实现语言的递归上限**。一度改取 1024 > Python 默认的 `sys.getrecursionlimit()`（1000），结果深度约 985 起的链在递归中抛**未捕获的 RecursionError**——工具崩溃而非报违规，比原来的"误拒长链"更坏。校验器另在公开入口捕获 `RecursionError` 转为违规作纵深防御（调用方栈深不可知）。
+   270	    - **跨层单调门（round-12 HIGH：分层可绕过层内单调性）**：`ancestor_proof.review_time`（即 ancestor 折叠到的时刻，也是 snapshot 的 `W`）必须 **严格小于本层折叠区间中首个事件的 `review_time`**。
+   271	      ⚠️ round-12 反例：`L1=t2、L2=t1`（`t2 > t1`，两行均未标 `out_of_order`）时，可拆成 ancestor 区间 `(0,1]` 与本层区间 `(1,2]`——两个**单事件区间**的层内单调门都**真空通过**，全链非单调却蒙混过关。加上本条后：ancestor 的 `W = t2` 不小于本层首事件的 `t1` ⇒ 正确判**不可证明**。
+   272	      该条不会误伤正常链：真实追加序下时刻本就随行号递增，跨层边界自然满足严格小于。
+   273	    - **`prefix_ends_without_lf` 的取值规则（round-9）**：类型为 boolean。E 所在行**有**终止 LF 时该键**必须省略**（不得写 `false`）；**无**终止 LF（E 是文件末行且文件不以 LF 结尾）时**必须**写 `true`。这样"省略"与"false"不并存，比较无歧义。
+   274	    - **`degraded:*` 哨兵行不参与自动证明链**：其 `fsrs_library_version`/`params_hash` 是哨兵而非算法身份，无法确定性复算——含此类事件的区间必须由人工裁定。
+   275	  - **为什么必须如此**（round-5 两反例）：若 state 已含 `E2` 而水位线被随手修成 `W = t1` ⇒ `E2` 会被二次应用；若 state 仅含 `E1` 而 `W` 被修成 `t2` ⇒ `E2` 永久遗漏。两种错误都源于"state 与 W 不同源"。
+   276	  - **不可证明时必须继续冻结**：当账本缺少覆盖该节点的完整 review/1 事件序列（例如该节点的历史全是无扩展的旧行），**无法**重建可证明同源的 state+W ⇒ 该节点保持冻结并向用户如实报告，由人工裁定（例如接受"以当前 frontmatter 为准、把 `W` 设为账本中该节点最大 `review_time`"这一有损但显式的决策）。**禁止工具自动做该有损决策**。
+   277	  - 冻结期间账本中的 pending 事件**不因冻结而失效**（它们仍在账本里，解冻后按上述边界一并计入）。
+   278	
+   279	- **duplicate 与 IO 失败必须可区分**（§二折叠语义）：G3-2 写点先显式查重再追加，禁止依赖 `append_event` 的折叠布尔。
+   280	- **截断尾行 LF 守卫**：见 §二"截断自愈"行。
+   281	
+   282	### 6.3 历史兼容
+   283	
+   284	- 历史行（无 `schema_ext` 标记的 `answer_scored`/`answer_abandoned`）**永久合法**——校验器不以扩展键缺失判 FAIL（防对现网账本误报）。历史行不参与 6.2 水位线重放（无 `review_time`，视为已应用）。
+   285	
+   286	## 七、白名单对账评审记录
+   287	
+   288	| 日期 | 评审 | 结论 |
+   289	|---|---|---|
+   290	| 2026-07-23 | `callout_ingested` 加入白名单（燃料策略对账批次5' 方案评审） | 通过，第 9 类（`learning_event_log.py:33-34` 注记） |
+   291	| 2026-08-28 | G3-1 冻结评审：复习域是否需要新 event_type？ | **否**——`answer_scored`/`answer_abandoned`/`exam_created` 已覆盖复习动作语义；G3-2 走 payload 加性键（§六），EVENT_TYPES 白名单 9 类不变。若未来出现无法归入现有 9 类的复习动作（如调度重算、休眠/恢复），须新开评审行再入集 |
+   292	
+   293	## 八、校验脚本契约（`backend/scripts/validate_learning_events.py`）
+   294	
+   295	- **定位**: 确定性校验器。**账本校验主体 stdlib-only**，可独立对任意 vault 的 jsonl 执行；**vault_id 绑定层**需 PyYAML + 可 import 的 backend `app.config`（必须与生产 `Settings.vault_id` 逐环节同源，见 §6.1），不可达时降级为不绑定 + WARN，主体不受影响。白名单在脚本内复制一份，由契约测试与 `learning_event_log.EVENT_TYPES` 锁死同步（漂移即红）。
+   296	- **用法**: `python3 backend/scripts/validate_learning_events.py <learning_events.jsonl 路径>`
+   297	- **判定规则**（每行）: **严格 JSON** 可解析（RFC 8259——拒 `NaN`/`Infinity` 非标准常量、拒对象内重复键；写侧 `json.dumps(dict)` 不可能产出两者，合法数据零误报）；非法 UTF-8 字节序列 = 该行违规（逐行独立解码，不中断其余行）；**前向兼容分流**：`event_version` 为 int 且 ≠1 的行**只 WARN 并完全跳过 v1 形状校验**（Codex round-1：原"WARN+形状 FAIL 双发"违反前向兼容，已修）；v1 行：顶层键**恰好** 7 键、各字段类型/约束按 §三、`event_type` ∈ 白名单、时间戳按 §三受理语法且 tz-aware；payload 含 `schema_ext: "review/1"` 时强制 §6.1 全部扩展键类型与**语义绑定**（挂载点 / concept_id==node_id / review_time 整秒且与 effective_at 同瞬间 / rating-grade_norm 自洽 / 弃答 rating=1 / 库指纹与 golden manifest 真值相等）；`schema_ext` 值非法或复习事件带扩展键却无 marker = 违规（防降级绕过）。深层嵌套（RecursionError）与超长整数（解析限额）均单行判违规、不中断其余行。**文件级**: `event_id` 全文件唯一（跨版本行也登记——幂等键语义跨版本恒定）。无标记历史行的 payload 键集不做 FAIL 判定（§6.3）。
+   298	- **exit code**: `0` = 全部通过；`1` = 存在违规（逐行报告）；`2` = 用法/IO 错误。输出确定性排序，可入 CI。
+   299	
+   300	## 九、已知差异登记（不改代码本体，如实记录）
+   301	
+   302	| 差异 | 位置 | 说明 |
+   303	|---|---|---|
+   304	| **查重用子串匹配而非字段等值**（Codex round-6/7 BLOCKER 分项） | `learning_event_log.py:86-88`（`json.dumps(event_id) in line`） | 若某 `event_id` 的 JSON 串形恰好出现在任意历史行的 payload 文本里，新事件会被误判 duplicate 而**零次落账**（丢一次真实事实）。契约（§二 + §6.2 A4.5）已冻结为 **parsed-field equality**；这是**修正错误实现**而非改幂等语义，不触发 §一的 v2 升版条款。**移交 G3-2**（其新写点必须用 parsed 查重；既有 `append_event` 本体的修正随之进行） |
+   305	| **bridge 时间口径三项**（Codex round-5 HIGH#1） | `fsrs_bridge.py:50 _aware()` / `:55 _iso()` | ①`_aware()` 只补 tzinfo 不做 `astimezone(UTC)`——把校验器判定合法的 `12:00:00+08:00` 传给真实库会抛 `ValueError: datetime must be timezone-aware and set to UTC`（round-5 只读复算实测）；②naive 串被静默当 UTC；③`_iso()` 截掉小数秒。契约 A6 已冻结"三者同一瞬间且统一 UTC"；**移交 G3-2**（接入复习写路径时一并修） |
+   306	| docstring/注释写"8 类"，实际白名单 9 类 | `learning_event_log.py:11`（"限 8 类核心动作"）、:73（"8 类白名单"） | `callout_ingested` 2026-07-23 入集后注释未同步。本卡边界不动该文件；移交 G3-2 顺手修注释（一行，无行为变化） |
+   307	| **Review 态 `fsrs_step: null` 的文本解析偏差**（Codex round-8） | `fsrs_bridge.py:117`（`int(step) if step not in (None, "") else None`） | 契约允许 Review 卡不带 `fsrs_step`（或写 null）。但 bridge 从 frontmatter **文本**解析时，YAML 的 `null` 会成为字符串 `"null"`，不落在 `(None, "")` 判空集合里 ⇒ `int("null")` 抛错。**移交 G3-2/G3-3**：写侧应**省略该键**而非写 null，或读侧把 `"null"`/`"~"` 一并归空 |
+   308	| **canonical reducer 的精度常量与序列化 bytes 未冻结**（Codex round-7 HIGH 部分） | §6.2 degraded 解冻条款 | 本卡已冻结**方向**（逐事件持久化舍入，禁末尾舍入；实测差异 10.9711 vs 10.9710 在案），但"精度常量、`round` tie 语义、序列化规则、bridge blob hash"依赖 G3-2 落地时的真实写出实现——**移交 G3-2**：实现落地时把这些常量与 blob hash 一并锁进测试，届时本条方可闭合 |
+   309	| v2 卡"backend 4 写点"计数 | 总账 v2 G3-1 档案节 | 实为 5 调用点，见 §五勘误 |
+   310	| **tips 写点把 IO 失败误报为 duplicate 并中止管道**（Codex round-1 HIGH） | `tips.py:572-578` | `append_event` 返回 `False` 折叠两义（§二），tips 消费者按 duplicate 分支返回 `accepted=False`——IO 失败时 callout 被错误拒收且"不阻断主链"不成立。生产路径修复不在本卡；**移交独立 micro-patch**（⚠️ G3-7 卡面只含 `/review/record`、`/fsrs-state`、mastery grade 三条路径，**不含 tips**——不可默认由其顺带收，Codex round-2 指出） |
+   311	| **tips 入口可产出 naive `effective_at`**（Codex round-1 HIGH） | `tips.py:510`（`CalloutDirectRequest.added_at` 接受 naive datetime）→ `:570` `isoformat()` 落账 | 违反 §三 tz-aware 契约的**潜在 producer 缺陷**（现网 22 行未命中——实际调用方都传了 tz-aware）。校验器会如实抓出此类行。生产路径修复不在本卡；**移交独立 micro-patch**（与上条同 owner），修法 = schema 层 `AwareDatetime` 或入口归一化 UTC |
+
+ succeeded in 0ms:
+    88	### 6.1 事件形状
+    89	
+    90	- **不新增 event_type**：沿用既有 `answer_scored` / `answer_abandoned`（白名单不变，见 §七评审记录）。
+    91	- **机械可判别标记（Codex round-1 HIGH）**：扩展行 payload **必须**含 `"schema_ext": "review/1"`。这是历史行与新契约行的唯一机械分界——校验器对含此标记的行强制以下键与类型，对无标记行（全部历史行）零追溯零误报。
+    92	  - **降级绕过封堵（Codex round-3 HIGH）**：`schema_ext` 出现但值不是 `"review/1"`（如 `"review/01"`、非字符串）= **违规**，不得静默降级为历史行；复习事件 payload **带扩展键却无 marker** 同样违规（历史行 payload 只有 `grade_norm`/`exam_board`/`attempt_count`，不含扩展键，故对存量零误报）。
+    93	- **挂载点限定**：`review/1` 只许挂在 `answer_scored` / `answer_abandoned` 上（挂到 `session_archived` 等 = 违规）。
+    94	- **扩展必填键**（`schema_ext == "review/1"` 时 REQUIRED，类型与语义由校验器强制）：
+    95	  - `vault_id`：非空 string——显式冗余 vault 归属，**必须等于账本同目录 `.canvas-config.yaml` 声明的 `vault_id`**（与文件位置隐含归属互证；防事件写错 vault 或账本被搬运后仍自称原 vault）。
+    96	    ⚠️ **绑定链路与可用范围（round-10/11 终局：与生产逐环节同源）**：
+    97	    - `payload.vault_id` 必须等于账本所在 vault 的**规范化 vault_id**——即生产 `Settings.vault_id` 的取值（`config.py:782-795`），完整链路是 **`yaml.safe_load` → `isinstance(str)` → `sanitize_vault_id()` → `!= "default"` 才采信**。
+    98	    - ⚠️ **事件里写的必须是规范化后的形式**：配置写 `"canvas-vault"` 时生产取值是 `canvas_vault`（连字符被 `sanitize_vault_id` 转下划线），事件若写原始连字符形式即判不一致。
+    99	    - **校验器复用同一实现**（PyYAML 解析 + import backend 的 `sanitize_vault_id` 本体），不自写副本——r5~r11 实证：手写 YAML 子集与手写 sanitize 副本都会与生产静默分叉（引号键、`0x10`、Unicode 转义键名、`team#1` → `team_1` …）。
+   100	    - **降级**：PyYAML 缺失或 backend 不可 import ⇒ **不绑定 + WARN**（少一层防护，安全方向），账本校验主体不受影响。
+   101	    - **安全性质（测试锁定）**：校验器绑定值要么等于真实生产入口取值，要么为 `None`——**绝不产生与生产不同的非 None 值**。生产在显式字段无效时会回退到目录名/环境推断，校验器不知运行时环境，对这类输入一律不绑定。
+   102	  - `concept_id`：非空 string，且**必须等于顶层 `node_id`**——映射关系 = `node_id` 承载 concept_id
+   103	  - `rating`：int 且 ∈ {1,2,3,4}（FSRS Rating；bool 伪装 int 判违规）
+   104	  - `grade_norm`：数值且 ∈ [0,1]（既有 quiz-answer 写点已产此键）
+   105	  - **评分自洽（Codex round-3 HIGH）**：`answer_scored` 的 `rating` 必须等于 `rating_from_grade(grade_norm)`（`fsrs_bridge.rating_from_grade` 口径：`grade = 1 + 3·gn` 就近落四档、越界钳制）；`answer_abandoned` 的 `rating` **恒为 1**（[Decision-FSRS-1] 弃答一票否决 Again）。
+   106	  - `review_time`：本次复习业务时刻（§三受理语法，tz-aware，**必须整秒**见 §6.2 A5）；与顶层 `effective_at` **同一瞬间**（按绝对时刻比较——`Z` 与 `+00:00` 是同一瞬间的两种写法，不按原字符串比）
+   107	  - `fsrs_library_version` + `fsrs_params_hash`：产生本次调度结果的库版本与参数指纹。**非降级时必须与 G3-4 `backend/tests/regression/fsrs_golden_manifest.json` 的 `library_version` / `params_hash` 真值相等**（Codex round-3 HIGH：只验形状时 `999.999` + 全零 hash 可蒙混）；校验器找不到该 manifest（脚本被拷到别处独立运行）时降级为形状校验并输出 WARN。
+   108	  - **降级口径（诚实声明）**：fsrs 库不可用而评分链仍降级运行时，两键填 `"degraded:<原因>"` 哨兵（如 `degraded:fsrs-import-failed`）——禁止编造 hash、禁止留空、禁止省键；两键的 degraded 状态必须**成对**，原因非空。
+   109	
+   110	### 6.2 写序与崩溃恢复状态机（G3-2 落实；Codex round-1 BLOCKER + round-2 交错窗口整改）
+   111	
+   112	**水位线定义（字段名以真实实现为准）**：`W(node)` = 该节点 frontmatter 的 **`fsrs_last_review`**（`canvas-vault/.claude/scripts/fsrs_bridge.py:44-46` FIELD_ORDER 真相源；写出格式 `%Y-%m-%dT%H:%M:%SZ`，**秒级精度**）。
+   113	
+   114	**水位线三态（Codex round-3 HIGH + round-4 HIGH#2 收紧）**：判别按**完整 FSRS tuple 的可解析性**，不只看单键存在性。
+   115	- **真新卡** = 节点 frontmatter **不含任何 `fsrs_*` 字段** ⇒ `W = -∞`，全部事件 pending（合法首事件路径）。
+   116	- **正常卡** = 持久化 tuple **完整、canonical、落在可调度域内，且 `W` 落在 review 域内**（round-8 HIGH#2：`fsrs_last_review` 是"上一次 review 的时刻"，与 `review_time` 同域，必须**严格小于** A7 的 review 域上界——否则不存在任何合法后继事件（后继须 `> W` 且同样严格小于该上界），`W` 恰为上界时 A3 的 `W+1s` 也立即越界；`fsrs_due` 是调度产物，适用更宽的一般时间戳上界）（round-5 HIGH#2 + round-6 HIGH#1 逐条收紧：bridge `review()` 消费**六字段**构造 `Card`，规则不精确会放过真实调用时抛 `AssertionError`/`ZeroDivisionError`/产生 NaN 的形状）。逐条：
+   117	  - `fsrs_last_review`：存在且可解析为 tz-aware 时刻（⇒ `W` = 该值）；
+   118	  - `fsrs_due`：存在且可解析为 tz-aware 时刻（**缺它 bridge 走 New 卡分支**，`fsrs_bridge.py:102`）；
+   119	  - `fsrs_state`：整数 ∈ {1,2,3}（`0` 属 legacy，走 bridge 的字段级迁移分支，不算"正常卡"）；
+   120	  - **按 state 的 canonical 形状**（round-6 四反例逐个封堵）：
+   121	    | state | `fsrs_step` | `fsrs_stability` / `fsrs_difficulty` | round-6 反例 |
+   122	    |---|---|---|---|
+   123	    | 1 Learning | **必须**存在且非负整数 | 要么**同时缺失**（首步未初始化），要么**同时为可调度域内正实数** | `state=1, step=0, S=D=0` 曾判正常 → 真实调用 `ZeroDivisionError` |
+   124	    | 2 Review | **必须缺失或 null** | **必须**同时存在且在可调度域内 | `state=2, step=0` 曾判正常 → 成功但持续写回**非 canonical** Review tuple |
+   125	    | 3 Relearning | **必须**存在且非负整数 | **必须**同时存在且在可调度域内 | `state=3` + 正常 S/D 但缺 step 曾判正常 → 真实 `review()` 抛 `AssertionError` |
+   126	  - **可调度数值域**（round-6 反例：正有限 `S=D=1e308` 曾判正常 → 调度产生 NaN 路径并失败）：
+   127	    - `fsrs_stability`：**有限正实数，上界 1e9 天**（≈274 万年）。⚠️ round-7 更正：早前把 `maximum_interval = 36500` 当上界是**错的**——FSRS 封顶的是 **interval** 不是 stability（实测连续 7 次 Easy 后 `S = 68949 > 36500`，会把合法卡误判 degraded）。⚠️ round-8 再收紧：但"任意有限正数"又过宽——`S = 1.797e308` 曾判 normal 而真实 bridge 抛 `OverflowError`。1e9 取的是**语义合理性上界**（方向 fail-closed）：技术可执行边界更高（实测 1e100 仍可执行，1.797e308 才溢出），但真实语义远低于此（Easy 链实测 7 万量级、`maximum_interval` 封顶 36500 天），超过 1e9 天必是数据损坏——故 1e9~1e100 区间**虽技术可执行仍判 degraded**，属有意的保守偏差（停下来要人工确认）而非误判；
+   128	    - `fsrs_difficulty` ∈ `[1, 10]`（FSRS 难度定义域，这条正确）；
+   129	    - 任一数值不得为 `NaN`/`±Inf`/空串/不可解析。
+   130	  - **整数字段用纯整数词法**（round-7）：`fsrs_state`/`fsrs_step` 必须是 int 或匹配 `^[+-]?\d+$` 的字符串。`1.0` 这类写法不受理——真实 bridge 执行 `int("1.0")` 实测抛 `ValueError`（`fsrs_bridge.py:106`）。
+   131	  - **重复 frontmatter 键的边界（round-7 如实收窄）**：`classify_card_state(fields: dict)` 接收的是**已解析且无重复键**的 dict——重复键信息在解析层即丢失，本函数无法机械判定。该条由 **frontmatter 解析层**负责（G3-2/G3-3 实现时须用保留重复键信息的解析器或在解析处 fail-closed）；本契约在此显式声明该责任边界，不再宣称由三态判别覆盖。
+   132	  - **可执行形式**：以上规则由 `backend/scripts/validate_learning_events.py::classify_card_state()` 机械实现（返回 `("new"|"normal"|"degraded", reason)`），G3-2/G3-3 直接复用同一函数，避免"文档一套、实现一套"。
+   133	- **残缺卡 = 上述以外的一切组合**，一律 **fail-closed**（禁止自动重放，报 degraded 待修复）。显式列举（round-4/5 点名的灰区）：
+   134	  - 缺 `fsrs_last_review` 但有其他 `fsrs_*`；
+   135	  - **只有 `fsrs_last_review` 而缺 `fsrs_due`/`fsrs_state`**；
+   136	  - 三键齐全但 **`state=2/3` 缺 stability/difficulty**，或 **`state=1` 缺 step**（round-5 实测：真实 `review()` 抛 AssertionError）；
+   137	  - 任一数值字段为 `NaN`/`Inf`/空串/不可解析，或 `fsrs_state` 越界；
+   138	  - frontmatter 内该键**重复出现**（解析歧义，不可证）。
+   139	- **理由**：`W` 的可信前提是"当前 current state 与该水位线属同一次应用"。任何字段缺失或不可解析都意味着这个前提不可证——此时按 `-∞` 重放会二次推进，按该 `W` 前进又可能建立在错误状态上，唯一诚实处置是停下来。
+   140	
+   141	**比较与排序语义（必须按绝对瞬间，不得按字符串）**：`W` 与 `review_time` 的所有比较（`>`、`≤`、相等）**以及 pending 集合的排序**，**必须先解析为 tz-aware datetime 再比**。理由：bridge 的 `_iso()` 把时刻 `astimezone(UTC)` 后写成 `...Z`（`fsrs_bridge.py:55-56`），而事件的 `review_time` 允许任意合法 offset——实测 `2026-08-01T18:00:00+08:00`（事件）与 `2026-08-01T10:00:00Z`（W）**是同一瞬间但字符串不同**。按字符串比较会把"已应用"判成 pending 并二次推进；**按字符串排序**会把 `10:00:02Z` 排在真实更早的 `18:00:01+08:00` 之前（round-5 反例），导致重放顺序错乱。
+   142	
+   143	**整秒性判定同样按 UTC 归一化后计**：A5 要求的"整秒"在 UTC 归一化后保持（offset 只到分钟级；含秒的 offset 已被 §三 受理语法拒绝）。
+   144	
+   145	**A7 时间上界，分两档（round-6 MEDIUM 提出，round-7 分档）**：
+   146	- **review 域上界（`review_time` 与 `fsrs_last_review` 共用，且须严格小于）**：两者必须 **< 9000-01-01T00:00:00Z**（该端点本身**不合法**）。
+   147	  - 基础理由：真实调度器会在复习时刻上叠加最长 `maximum_interval = 36500` 天（≈100 年）算出新 `due`，A3 的等时消解还要 `+1s`——`9999-12-31T23:59:59Z` 会让二者都抛 `OverflowError`。
+   148	  - **为什么是"严格小于"而非 `≤`（round-9 闭包 + round-10 文档对齐）**：`review_time` 会成为下一个 `W`，而 `W` 必须留出后继空间（后继须 `> W` 且仍在域内）。若端点取 `≤`，则 `review_time = 9000-01-01Z` 是合法输入却会写出一个**没有任何合法后继**的 `W` ⇒ 合法事件确定性制造残缺卡。两侧同界且同为排他，闭包才成立：**合法输入产出的状态必然合法**（实测最后合法秒 `8999-12-31T23:59:59Z` 经真实 bridge 产出 `due=9000-01-01T00:09:59Z`，分类 normal）。
+   149	- **一般时间戳上界**：`recorded_at`/`effective_at`/`fsrs_due` 等 ≤ **9500-01-01T00:00:00Z**（只拦 UTC 归一化本身会溢出的极端值）。⚠️ round-7 反例：若把 review 域的保守上界通用到所有字段，合法 review（如最后合法秒 `8999-12-31T23:59:59Z`）经调度产出的 `due`（实测 `9000-01-01T00:09:59Z`）会**反被判 degraded**。注：`review_time = 9000-01-01Z` 这个端点本身按 A7 就**不合法**（见上条排他上界），此处只是说明 due 需要更宽的域。
+   150	- 两档留出的余量（≈7000 年）远超任何真实用法，对现网零影响。校验器按字段分别强制。
+   151	
+   152	**A6 调度器入参必须是 UTC（round-5 HIGH#1，端到端条款）**：传给 fsrs `Scheduler.review_card()` 的 `review_datetime` **必须 tz-aware 且 tzinfo 恰为 UTC**——库对此硬校验（`scheduler.py:256-260` 抛 `ValueError: datetime must be timezone-aware and set to UTC`）。因此 G3-2 写路径必须满足：**事件 `payload.review_time`、传入调度器的时刻、写出的 `W` 三者是同一瞬间，且入库/入调度器前统一 `astimezone(UTC)`**。
+   153	> ⚠️ **移交（bridge 实现缺陷，本卡不改生产代码）**：`fsrs_bridge.py:50 _aware()` 只补 tzinfo 不做 `astimezone(UTC)`——把校验器判定合法的 `12:00:00+08:00` 传给真实库会**抛 ValueError**（round-5 只读复算实测）；该函数同时把 naive 串静默当 UTC、并在 `_iso()` 截掉小数秒。三项均属 bridge 侧修复，随 **G3-2** 接入时一并处置（登记于 §九）。
+   154	
+   155	**pending 集合**：账本中该节点全部满足以下全部条件的事件：`schema_ext == "review/1"`、**未标 `out_of_order`**、且 `payload.review_time > W`（按绝对瞬间比较）；按 `(review_time, 账本行序)` 升序。
+   156	
+   157	五条硬约束，G3-2 必须同时实现（缺一则 exactly-once 不成立）：
+   158	
+   159	- **A1 write-ahead**：先追加事件再更新 frontmatter。当前现实为 frontmatter 先写、事件后补，差异已在 D0 修订 §四登记。
+   160	- **A2 恢复先于新写（消灭交错窗口）**：任何复习写点在**追加新事件之前**，必须先把该节点的 pending 集合按序重放至空。
+   161	  - **为什么必要**（round-2 反例）：若允许"E1@t1 落账未应用时 E2@t2 直接从旧状态推进到 t2"，则水位线抬到 t2 后 E1 满足 `t1 ≤ W` 被误判已应用，**E1 对 current state 的贡献永久丢失**。A2 使**单写者下**任意时刻至多只有最后一次追加的事件处于 pending，该交错窗口不会出现。**并发下 A2 本身不够**——见 A4。
+   162	  - 崩溃窗口全覆盖：①事件已落账、frontmatter 未推进 → 下次写入前 A2 重放恢复；②两者都完成 → `review_time ≤ W`，不推进（幂等）；③追加即崩（事件未落账）→ 账本与 frontmatter 一致，本次评分丢失属用户可感知重试面，非账本不一致。
+   163	- **A3 严格递增（等时唯一口径：写侧推进，禁止拒绝）**：写侧必须保证同节点新事件 `review_time` **严格大于** `W`（按绝对瞬间比较）——若计算值 ≤ `W`（秒级精度下等时是常见情形），**推进到 `W + 1s` 后再写**，不得以原值写入。
+   164	  - ⚠️ **口径统一（round-4 指出的自相矛盾）**：早前移交条款里的"等时**拒绝**"作废。唯一口径是**推进**（`W + 1s`）——拒绝会丢掉一次真实评分，与"事件账是完整审计"冲突。G3-3 的职责是在**并发面强制**该规则（见 A4），而非另立拒绝策略。
+   165	- **A4 临界区与并发协议（round-3 BLOCKER + round-4 BLOCKER 收紧）**：**"读 W → 判三态 → 扫描 pending → 重放 → 计算新状态 → durable append 新事件 → apply → 原子发布 frontmatter → 释放"整段必须在 per-node 真互斥内完成**。以下四条是并发正确性的最小充分集，缺一不可：
+   166	  - **A4.1 真互斥 + 稳定锁身份**：必须是**独占的 per-node 排他锁**，持有期覆盖到**发布之后**。两点缺一不可：
+   167	    - **不是乐观 CAS**——round-4 反例：两写者可在同一秒各自 durable append，胜者发布 `W = t1` 后，败者事件因 `review_time == W`（等时）**永久不进 pending**，该次评分静默丢失。CAS 只能检测"值被改过"，无法阻止已发生的 append 副作用。
+   168	    - **锁对象必须是不会被 `os.replace` 顶替的实体**（round-5 反例）：若对节点文件本身加锁，`A 锁旧 inode → replace → C 锁新 inode → B 获得旧 inode 锁` 会让 B/C 同时自认排他。冻结为：**per-node sidecar 锁文件或锁目录**（如 `<vault>/.locks/<key>.lock`），`key = 规范化({vault_id, node_id})`（NFC 归一 + 路径安全转义，保证同一节点恒得同一 key）。
+   169	    - **接管必须带 fencing，不得只靠超时（round-6 BLOCKER 分项）**：`pid + 时间戳 + 超时接管` **不充分**——反例：A 因 STW/换页暂停超过超时，B 接管并发布，A 恢复后仍会发布基于旧状态的结果（双持 + 状态回退）。冻结为两条同时成立：
+   170	      ① **fencing epoch**：锁文件内记单调递增的 `epoch`（每次成功获取 +1）与持有者身份；持有者在**发布前（写 temp 之后、`os.replace` 之前）必须重读锁文件确认 `epoch` 与身份仍是自己**，否则**放弃本次发布**（已 durable 的事件留在账本里，由下一次带锁的 A2 重放消化——这正是 write-ahead 的价值）。
+   171	      ② **接管必须是 conditional takeover（CAS），死亡证明须与观察值原子绑定（round-7 BLOCKER 分项）**：
+   172	        - 死亡证明本身：`pid` 不存在，或 `pid` 存在但**进程启动时间与锁记录不符**（pid 复用检测）；二者都无法证明时**不得接管**，如实报 degraded 待人工处置；
+   173	        - **绑定方式**：接管写入必须是"**当且仅当锁内容仍等于观察到的 `{epoch, owner}` 时，原子替换为 `{epoch+1, self}`**"。⚠️ round-7 反例：B 与 C 同时读到 `{7, A(已死)}` 并各自证明 A 已死，B 接管为 `{8, B}` 后，C 仍凭**陈旧证明**覆盖新 owner ⇒ 双持。CAS 让 C 的写入因观察值已变而失败，须重新观察。
+   174	  - **A4.2 唯一折叠基线（round-5：原措辞自相矛盾，此处收敛）**：在线写路径的基线**恒为当前 frontmatter 的 current state**，游标 = 本次锁内读到的 `W`，只做 **pending 增量重放**。"从账本起点全量折叠"**仅作离线对账/审计手段**，禁止出现在在线写路径——两者在"事件账不完整（历史行无 review/1 扩展）"的现实下**并不等价**，把全量折叠当在线基线会重复应用已在 state 里的事件。
+   175	  - **A4.3 耐久序列（round-5 补全，参照仓内已有正确模式 `canvas-vault/.claude/scripts/sync_board_concepts.py:583`）**：
+   176	    - 账本追加：`write` → `flush` → `fsync(账本 fd)`；**账本文件首次创建时还须 `fsync(父目录 fd)`**（否则崩溃后目录项可能不存在）；
+   177	    - 顺序：账本 durable **先于** apply 与 frontmatter 发布。顺序颠倒会造成"frontmatter 已推进但账本无该事件"的审计断链，且下次恢复无法察觉。
+   178	  - **A4.4 原子发布（round-5 补全 fsync）**：frontmatter 六字段（`fsrs_bridge.py:44-46` FIELD_ORDER）与 `fsrs_last_review` 必须在**同一次原子替换**中落盘：`写 temp` → `flush` → `fsync(temp fd)` → `os.replace` → **`fsync(父目录 fd)`**。杜绝"部分字段已更新、W 未更新"的半态——半态会被三态判别识别为**残缺卡**并 fail-closed（正确的降级方向）。
+   179	  - **A4.5 账本追加的原子性与查重同域（round-5 新增，round-6 三项收紧）**：
+   180	    - **查重与追加同锁**：`event_id` 的查重与追加必须在同一把锁内（查重通过后到写入之间不得释放锁），否则两写者可各自查重通过再双写同一 `event_id`。账本是 **per-vault 共享文件**（非 per-node），故该锁粒度为 **per-vault 账本锁**，与 A4.1 的 per-node 锁是两把不同的锁（获取顺序全局固定：**先 node 锁后账本锁**，防死锁）。
+   181	    - **查重必须是 parsed-field equality（round-6 BLOCKER 分项）**：逐行 `json.loads` 后比较 `record["event_id"]` 字段是否相等；**禁止子串匹配**。既有 `append_event` 用的是子串查重（`learning_event_log.py:86-88`，§二已如实登记）——当任一历史行的 payload 文本里恰好含有新 `event_id` 的 JSON 串形时，新事件会被**误判 duplicate 而零次落账**（丢一次真实评分）。⚠️ 澄清：这**不是改变幂等语义**（幂等键仍是 `event_id` 唯一，不触发 §一的 v2 升版条款），而是**修正查重实现的正确性**——子串匹配从来就不是"字段相等"的正确实现。既有实现的偏离登记在 §九，随 G3-2 修正。
+   182	    - **写入必须验证完整落盘（round-6 BLOCKER 分项）**：`O_APPEND` 对**普通文件**不提供 `PIPE_BUF` 级原子性保证（该保证只对管道成立），普通文件 `write` 仍可能**短写**。因此：单行须一次 `write` 提交，并**检查返回字节数等于期望长度**；短写时按 §二"截断自愈"处理（下次追加前 LF 守卫），并在重启恢复流程中把不可解析的尾行如实报为损坏行（校验器已实现该判定）。
+   183	      ⚠️ **可容忍的截断 vs 完整损坏（Codex round-3 MEDIUM，CARD-G3-2b 冻结）**：读取账本时**必须保留 EOF 是否以 LF 结尾的状态**。只有「最后一行解析失败 **且** 文件不以 LF 结尾」才是截断（`write` 被腰斩的半行），可跳过留痕并由追加前 LF 守卫隔离；**最后一行解析失败但带终止 LF** = 整行已完整落盘之后损坏，必须与中间坏行**同等 fail-closed**。只看「最后一行解析失败」会把真实损坏当截断容忍——实测：预置带终止 LF 的坏 JSON 末行，写点仍 `rc=0` 自称「截断尾行」并继续追加、推进节点。
+   184	    - **duplicate 命中后的状态推进门（round-6 BLOCKER 分项，round-7 扩等价面）**：查重命中同一 `event_id` 时，按**语义 envelope 的 canonical 形式**分流。envelope = `{event_version, event_type, node_id, effective_at, payload}` 的 `json.dumps(..., sort_keys=True, separators=(",",":"))`——**显式排除 `recorded_at`**（重试时自然变化，不构成事实差异）。
+   185	      ⚠️ round-7 反例：只比 `payload` 时，两条同 `event_id`、同 payload、`event_type` 分别为 `answer_scored`/`answer_abandoned` 的记录会被误判 no-op（两者是**相反的事实**：答对 vs 弃答）。
+   186	      ⚠️ **身份键的等价面归属（Codex round-3 MEDIUM，CARD-G3-2b 回写——此前只活在实现与门㉕里，契约原文只排除 `recorded_at`，两处不同口径）**：`review/1` 行的 `payload.fsrs_library_version` 与 `payload.fsrs_params_hash` 两键**排除出 envelope 等价面**——它们是**复算环境快照**（py-fsrs 升级或参数改动即变），不是评分事实；留在等价面里会让一次合法的库升级把所有历史事件的重放变成“冲突”。二者的**完整性另有归属，不是无人认领**：由校验器 `backend/scripts/validate_learning_events.py` 的**golden manifest 绑定门**承担（算法身份与同仓 G3-4 manifest 逐字比对，篡改形状或真值一律判 FAIL）。分层的代价如实记：envelope 放行被篡改身份键的 durable 行，恢复照常发生，**该次污染要到下一次跑校验器时才被发现**。
+   187	      ⚠️ **candidate 必须独立字面构造（Codex round-3 BLOCKER，CARD-G3-2b 冻结）**：参与比较的 candidate envelope 必须由**本次输入 + 该写路径的固定生产键集**字面构造，**禁止以 durable 行的 payload 为底再覆盖已知键**（`{**durable_payload, ...}`）——那会把 durable 行的**未知额外键**原样抄进 candidate，比较退化成“自己比自己”。实测反例：给崩溃窗口①的 durable 行加 `payload.out_of_order=true`，envelope 放行，而 A2 的适用集按定义排除标了 `out_of_order` 的行 ⇒ FSRS 永不应用，writer 仍 `rc=0` 写下 calibration/mastery，节点 `fsrs_*` 全空、账本仍一行。因此**键集本身是等价面的一部分**：durable payload 相对固定生产键集**多一键、少一键或值不同，一律判 ② 冲突**；唯一放行的差异是上面明确排除的两个身份键。
+   188	      ⚠️ **适用范围（round-8 MEDIUM）**：envelope 冲突门**只约束 `schema_ext=review/1` 的复习写路径**（G3-2 地盘）。通用 `append_event()` 在调用方省略 `effective_at` 时每次以新 `now` 填充（5 个 backend 调用点中 4 个省略），若全局套用 envelope 门，**合法重试会因 `effective_at` 天然不同而被误判冲突**——非扩展行沿用既有语义：同 `event_id` 即幂等跳过，不做 envelope 比较。
+   189	      ⚠️ **已知保守误拒**：canonical 比较基于 JSON 文本，同一瞬间的 `Z` 与 `+00:00` 两种写法会被判为不同 ⇒ 误报冲突。因写点内部时刻表示统一（同一实现产出同一格式），现实中不触发；若未来出现跨写点重试，须在比较前对时间字段做瞬间归一化。
+   190	      ① **同 ID 同 canonical envelope** ⇒ 视为重放/恢复，**no-op**（不再落账、**绝不再次 apply**；若 frontmatter 尚未推进则按 A2 走 pending 重放路径恢复）；
+   191	      ② **同 ID 不同 canonical envelope** ⇒ **冲突，fail-closed**（拒绝写入并如实报错——同一幂等键承载了两份不同事实，属上游 bug，不得由工具静默选边）；
+   192	      ③ 任何情况下 duplicate 都**不得触发第二次 apply**。
+   193	  - ⚠️ **移交条款（G3-3，五项必补）**：①per-node **排他 sidecar 锁**（非 CAS、非节点文件本身）覆盖 A4 全序列 + 崩溃回收；②**per-vault 账本锁**内完成 event_id 查重与 `O_APPEND` 单次写；③冲突写者在锁内**重读 W 并按 A3 推进时刻**后重算（不得在陈旧状态上重试）；④账本与 frontmatter 的**完整 fsync 序列**（含父目录）；⑤只做 pending 增量重放，不把全量折叠当在线基线。
+   194	    G3-3 卡面（编排 worktree 的总账文件）当前仍只写"比较 last_review/revision 后写"，**五项均不在其中**——卡面更新属编排者动作，本卡无权改他人卡面，故在此与 CURRENT_TASK 双处登记。本卡只冻结契约，不实现。
+   195	- **A5 整秒精度（Codex round-3 BLOCKER：小数秒二次推进）**：`review_time` **必须为整秒**（无小数秒段）。因为 `W` 只有秒级精度，`10:00:00.5 > 10:00:00` 恒成立——同一事件重放会被判 pending 并**二次推进**（实测：首次应用后 Learning/due 10:10，重放同一事件推进为 Review/due +2d）。校验器对 `schema_ext=review/1` 行机械强制整秒。**A2 消费侧同样机械强制（Codex round-3 BLOCKER，CARD-G3-2b 冻结）**：重放前逐行校验 durable `review_time` 为 tz-aware、UTC 偏移为 0、无小数秒，不合规即 **fail-closed**；⛔ **禁止消费时顺手归一化**——bridge 入口的 `_whole_second` 会把 `10:00:00.500Z` 截成 `10:00:00Z` 写进 `W`，而账本里那行仍是 `.500Z`，于是 `.500 > .000` 恒真，同一行**每次重跑都判 pending 并再推进一次 FSRS**（实测：账本始终一行，`W` 逐次 +1s）。归一化把损坏行洗成合法行，等于把缺陷从写入面挪进不可见面。
+   196	
+   197	**三态语义（消解"已应用 vs 迟到乱序"歧义）**：`review_time ≤ W` 的事件**一律不推进 current state**——无论它是"已应用"还是"迟到的乱序事件"，对 current state 的动作**完全相同**，因此该歧义对 exactly-once 无影响。二者的区分只用于**账本标注**：
+   198	- **乱序判据统一为 G3-3 卡面口径**（`review_time 早于已应用的最新事件`，即 `review_time ≤ W`，按绝对瞬间比较），标 `out_of_order`；本文档 pending 集合定义已显式**排除已标 out_of_order 的行**，两处口径自洽。
+   199	- **`out_of_order` 字段冻结（round-4 HIGH#3，round-17 补语义门）**：位置 = `payload.out_of_order`；类型 = **布尔 `true`**（唯一合法值）；**未标 = 不写该键**（禁止写 `false`、字符串 `"true"`、对象或任何其他形态——它们既非"已标"也非"未标"，会让 pending 排除条件产生歧义）。校验器机械强制该形态。
+   200	  ⚠️ **形态合法 ≠ 语义为真（round-17 Codex HIGH）**：proof 的 scanner 排除标了 `out_of_order` 的行，于是"标记本身"成了把事件移出适用集的手段。若某行标了该键、其 `review_time` 却**晚于此前所有适用事件**，它就是**被伪装成乱序的真实后继**——排除它即绕过尾部覆盖门。故 proof 侧额外强制：标记行的 `review_time` 必须**不晚于**此前适用事件的最大时刻（即符合本条乱序定义 `review_time ≤ W`）；不符者**报违规且仍计入适用集**。
+   201	- **迟到事件的入账通道**：A3 的"严格大于 W"只约束**在线评分**（正常复习写入）。补录/迟到事件走**账本补录通道**：以原始 `review_time` 入账 + 标 `payload.out_of_order = true`，**不进 pending、不推进 current state**——因此与 A3 无冲突。
+   202	- **degraded pending 处置（round-4 HIGH#3 + round-5 HIGH#3 解冻边界）**：当节点落入**残缺卡**（三态 fail-closed）时，该节点的 pending 集合**整体冻结**——不重放、不追加新在线事件（新评分应向用户如实报错而非静默丢弃）。禁止"跳过残缺节点继续写新事件"——那会在错误基线上叠加。
+   203	  - **解冻的唯一合法条件（round-5 提出，round-6 机械化）**：修复必须**把六字段与 `W` 原子重建到同一个可证明的账本边界**上——选定账本中某个事件 `E`，从**可证明起点**折叠到 `E` 为止，把结果的六字段与 `W = E.review_time` 在**同一次原子替换**中写入。三项必须机械确定：
+   204	    - **`E` 的选取与层级作用域（round-11 修正尾部逃逸，round-13 冻结作用域）**：
+   205	      - **最外层（top-level）proof**：`E` 必须是该节点在账本中**行号最大的适用事件**（`schema_ext=review/1`、未标 `out_of_order`），且 **`cursor_line` 之后不得再存在该节点的任何适用事件**——保证重建覆盖到账本末尾。
+   206	      - **`ancestor_proof`（中间层）：不受"其后无适用事件"约束**。⚠️ round-13 指出的歧义：若把该尾部约束**递归**施于 ancestor，则正常链 `L1=t1、L2=t2` 中的 ancestor（`cursor_line=1`）会因 L2 存在而失效，任何多层链都无法成立；只施于最外层则是原意。现明确冻结为**仅最外层**——ancestor 的职责是提供一个**中间快照**，本就不必覆盖到末尾，它只需满足：区间定义、层内单调、跨层单调、三条等式、链终止与防循环。
+   207	      - 两个 verifier 因此不会给出相反结果。
+   208	      - 📌 **可执行的单一事实（round-14，round-15 补真实绑定）**：以上分层语义已落成参考实现 `backend/scripts/validate_learning_events.py::verify_degraded_proof(proof, applicable, *, ledger_path=None)`——作用域由**内部**递归参数 `is_top_level` 承载（递归固定传 `False`），round-15 起**已移出公开签名**（公开可写等于给调用方一个关掉尾部门的开关）。行为门见 `test_learning_events_schema_contract.py::test_normal_two_layer_chain_is_provable`（正常两层链必须 PASS）与 `::test_layered_split_cannot_bypass_monotonicity`（分层绕过必须 FAIL）。
+   209	        **传 `ledger_path` = 账本直读模式**：verifier 用 `scan_ledger_bytes()` 在**单一字节快照**上抽取适用事件、该节点全部事件行、无扩展历史行、degraded 哨兵行与 vault_id 集合，并用 `ledger_prefix()` 复算 `ledger_prefix_sha256` 与 `prefix_ends_without_lf`，忽略调用方传入的 `applicable`。**生产接入必须传 `ledger_path`**——否则 `applicable` 是信任边界，调用方抽取不全会让最外层尾部门真空通过（round-14 Codex HIGH 实证）。
+   210	        ⚠️ **verifier 不做的六件事**（round-17 落定；与 `validate_learning_events.py` 的模块头注释、`verify_degraded_proof` docstring **逐字同文**）：
+
+exec
+/bin/zsh -lc "nl -ba docs/learning-events-schema-v1.md | sed -n '175,210p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w7-ledger
+ succeeded in 0ms:
+   175	  - **A4.3 耐久序列（round-5 补全，参照仓内已有正确模式 `canvas-vault/.claude/scripts/sync_board_concepts.py:583`）**：
+   176	    - 账本追加：`write` → `flush` → `fsync(账本 fd)`；**账本文件首次创建时还须 `fsync(父目录 fd)`**（否则崩溃后目录项可能不存在）；
+   177	    - 顺序：账本 durable **先于** apply 与 frontmatter 发布。顺序颠倒会造成"frontmatter 已推进但账本无该事件"的审计断链，且下次恢复无法察觉。
+   178	  - **A4.4 原子发布（round-5 补全 fsync）**：frontmatter 六字段（`fsrs_bridge.py:44-46` FIELD_ORDER）与 `fsrs_last_review` 必须在**同一次原子替换**中落盘：`写 temp` → `flush` → `fsync(temp fd)` → `os.replace` → **`fsync(父目录 fd)`**。杜绝"部分字段已更新、W 未更新"的半态——半态会被三态判别识别为**残缺卡**并 fail-closed（正确的降级方向）。
+   179	  - **A4.5 账本追加的原子性与查重同域（round-5 新增，round-6 三项收紧）**：
+   180	    - **查重与追加同锁**：`event_id` 的查重与追加必须在同一把锁内（查重通过后到写入之间不得释放锁），否则两写者可各自查重通过再双写同一 `event_id`。账本是 **per-vault 共享文件**（非 per-node），故该锁粒度为 **per-vault 账本锁**，与 A4.1 的 per-node 锁是两把不同的锁（获取顺序全局固定：**先 node 锁后账本锁**，防死锁）。
+   181	    - **查重必须是 parsed-field equality（round-6 BLOCKER 分项）**：逐行 `json.loads` 后比较 `record["event_id"]` 字段是否相等；**禁止子串匹配**。既有 `append_event` 用的是子串查重（`learning_event_log.py:86-88`，§二已如实登记）——当任一历史行的 payload 文本里恰好含有新 `event_id` 的 JSON 串形时，新事件会被**误判 duplicate 而零次落账**（丢一次真实评分）。⚠️ 澄清：这**不是改变幂等语义**（幂等键仍是 `event_id` 唯一，不触发 §一的 v2 升版条款），而是**修正查重实现的正确性**——子串匹配从来就不是"字段相等"的正确实现。既有实现的偏离登记在 §九，随 G3-2 修正。
+   182	    - **写入必须验证完整落盘（round-6 BLOCKER 分项）**：`O_APPEND` 对**普通文件**不提供 `PIPE_BUF` 级原子性保证（该保证只对管道成立），普通文件 `write` 仍可能**短写**。因此：单行须一次 `write` 提交，并**检查返回字节数等于期望长度**；短写时按 §二"截断自愈"处理（下次追加前 LF 守卫），并在重启恢复流程中把不可解析的尾行如实报为损坏行（校验器已实现该判定）。
+   183	      ⚠️ **可容忍的截断 vs 完整损坏（Codex round-3 MEDIUM，CARD-G3-2b 冻结）**：读取账本时**必须保留 EOF 是否以 LF 结尾的状态**。只有「最后一行解析失败 **且** 文件不以 LF 结尾」才是截断（`write` 被腰斩的半行），可跳过留痕并由追加前 LF 守卫隔离；**最后一行解析失败但带终止 LF** = 整行已完整落盘之后损坏，必须与中间坏行**同等 fail-closed**。只看「最后一行解析失败」会把真实损坏当截断容忍——实测：预置带终止 LF 的坏 JSON 末行，写点仍 `rc=0` 自称「截断尾行」并继续追加、推进节点。
+   184	    - **duplicate 命中后的状态推进门（round-6 BLOCKER 分项，round-7 扩等价面）**：查重命中同一 `event_id` 时，按**语义 envelope 的 canonical 形式**分流。envelope = `{event_version, event_type, node_id, effective_at, payload}` 的 `json.dumps(..., sort_keys=True, separators=(",",":"))`——**显式排除 `recorded_at`**（重试时自然变化，不构成事实差异）。
+   185	      ⚠️ round-7 反例：只比 `payload` 时，两条同 `event_id`、同 payload、`event_type` 分别为 `answer_scored`/`answer_abandoned` 的记录会被误判 no-op（两者是**相反的事实**：答对 vs 弃答）。
+   186	      ⚠️ **身份键的等价面归属（Codex round-3 MEDIUM，CARD-G3-2b 回写——此前只活在实现与门㉕里，契约原文只排除 `recorded_at`，两处不同口径）**：`review/1` 行的 `payload.fsrs_library_version` 与 `payload.fsrs_params_hash` 两键**排除出 envelope 等价面**——它们是**复算环境快照**（py-fsrs 升级或参数改动即变），不是评分事实；留在等价面里会让一次合法的库升级把所有历史事件的重放变成“冲突”。二者的**完整性另有归属，不是无人认领**：由校验器 `backend/scripts/validate_learning_events.py` 的**golden manifest 绑定门**承担（算法身份与同仓 G3-4 manifest 逐字比对，篡改形状或真值一律判 FAIL）。分层的代价如实记：envelope 放行被篡改身份键的 durable 行，恢复照常发生，**该次污染要到下一次跑校验器时才被发现**。
+   187	      ⚠️ **candidate 必须独立字面构造（Codex round-3 BLOCKER，CARD-G3-2b 冻结）**：参与比较的 candidate envelope 必须由**本次输入 + 该写路径的固定生产键集**字面构造，**禁止以 durable 行的 payload 为底再覆盖已知键**（`{**durable_payload, ...}`）——那会把 durable 行的**未知额外键**原样抄进 candidate，比较退化成“自己比自己”。实测反例：给崩溃窗口①的 durable 行加 `payload.out_of_order=true`，envelope 放行，而 A2 的适用集按定义排除标了 `out_of_order` 的行 ⇒ FSRS 永不应用，writer 仍 `rc=0` 写下 calibration/mastery，节点 `fsrs_*` 全空、账本仍一行。因此**键集本身是等价面的一部分**：durable payload 相对固定生产键集**多一键、少一键或值不同，一律判 ② 冲突**；唯一放行的差异是上面明确排除的两个身份键。
+   188	      ⚠️ **适用范围（round-8 MEDIUM）**：envelope 冲突门**只约束 `schema_ext=review/1` 的复习写路径**（G3-2 地盘）。通用 `append_event()` 在调用方省略 `effective_at` 时每次以新 `now` 填充（5 个 backend 调用点中 4 个省略），若全局套用 envelope 门，**合法重试会因 `effective_at` 天然不同而被误判冲突**——非扩展行沿用既有语义：同 `event_id` 即幂等跳过，不做 envelope 比较。
+   189	      ⚠️ **已知保守误拒**：canonical 比较基于 JSON 文本，同一瞬间的 `Z` 与 `+00:00` 两种写法会被判为不同 ⇒ 误报冲突。因写点内部时刻表示统一（同一实现产出同一格式），现实中不触发；若未来出现跨写点重试，须在比较前对时间字段做瞬间归一化。
+   190	      ① **同 ID 同 canonical envelope** ⇒ 视为重放/恢复，**no-op**（不再落账、**绝不再次 apply**；若 frontmatter 尚未推进则按 A2 走 pending 重放路径恢复）；
+   191	      ② **同 ID 不同 canonical envelope** ⇒ **冲突，fail-closed**（拒绝写入并如实报错——同一幂等键承载了两份不同事实，属上游 bug，不得由工具静默选边）；
+   192	      ③ 任何情况下 duplicate 都**不得触发第二次 apply**。
+   193	  - ⚠️ **移交条款（G3-3，五项必补）**：①per-node **排他 sidecar 锁**（非 CAS、非节点文件本身）覆盖 A4 全序列 + 崩溃回收；②**per-vault 账本锁**内完成 event_id 查重与 `O_APPEND` 单次写；③冲突写者在锁内**重读 W 并按 A3 推进时刻**后重算（不得在陈旧状态上重试）；④账本与 frontmatter 的**完整 fsync 序列**（含父目录）；⑤只做 pending 增量重放，不把全量折叠当在线基线。
+   194	    G3-3 卡面（编排 worktree 的总账文件）当前仍只写"比较 last_review/revision 后写"，**五项均不在其中**——卡面更新属编排者动作，本卡无权改他人卡面，故在此与 CURRENT_TASK 双处登记。本卡只冻结契约，不实现。
+   195	- **A5 整秒精度（Codex round-3 BLOCKER：小数秒二次推进）**：`review_time` **必须为整秒**（无小数秒段）。因为 `W` 只有秒级精度，`10:00:00.5 > 10:00:00` 恒成立——同一事件重放会被判 pending 并**二次推进**（实测：首次应用后 Learning/due 10:10，重放同一事件推进为 Review/due +2d）。校验器对 `schema_ext=review/1` 行机械强制整秒。**A2 消费侧同样机械强制（Codex round-3 BLOCKER，CARD-G3-2b 冻结）**：重放前逐行校验 durable `review_time` 为 tz-aware、UTC 偏移为 0、无小数秒，不合规即 **fail-closed**；⛔ **禁止消费时顺手归一化**——bridge 入口的 `_whole_second` 会把 `10:00:00.500Z` 截成 `10:00:00Z` 写进 `W`，而账本里那行仍是 `.500Z`，于是 `.500 > .000` 恒真，同一行**每次重跑都判 pending 并再推进一次 FSRS**（实测：账本始终一行，`W` 逐次 +1s）。归一化把损坏行洗成合法行，等于把缺陷从写入面挪进不可见面。
+   196	
+   197	**三态语义（消解"已应用 vs 迟到乱序"歧义）**：`review_time ≤ W` 的事件**一律不推进 current state**——无论它是"已应用"还是"迟到的乱序事件"，对 current state 的动作**完全相同**，因此该歧义对 exactly-once 无影响。二者的区分只用于**账本标注**：
+   198	- **乱序判据统一为 G3-3 卡面口径**（`review_time 早于已应用的最新事件`，即 `review_time ≤ W`，按绝对瞬间比较），标 `out_of_order`；本文档 pending 集合定义已显式**排除已标 out_of_order 的行**，两处口径自洽。
+   199	- **`out_of_order` 字段冻结（round-4 HIGH#3，round-17 补语义门）**：位置 = `payload.out_of_order`；类型 = **布尔 `true`**（唯一合法值）；**未标 = 不写该键**（禁止写 `false`、字符串 `"true"`、对象或任何其他形态——它们既非"已标"也非"未标"，会让 pending 排除条件产生歧义）。校验器机械强制该形态。
+   200	  ⚠️ **形态合法 ≠ 语义为真（round-17 Codex HIGH）**：proof 的 scanner 排除标了 `out_of_order` 的行，于是"标记本身"成了把事件移出适用集的手段。若某行标了该键、其 `review_time` 却**晚于此前所有适用事件**，它就是**被伪装成乱序的真实后继**——排除它即绕过尾部覆盖门。故 proof 侧额外强制：标记行的 `review_time` 必须**不晚于**此前适用事件的最大时刻（即符合本条乱序定义 `review_time ≤ W`）；不符者**报违规且仍计入适用集**。
+   201	- **迟到事件的入账通道**：A3 的"严格大于 W"只约束**在线评分**（正常复习写入）。补录/迟到事件走**账本补录通道**：以原始 `review_time` 入账 + 标 `payload.out_of_order = true`，**不进 pending、不推进 current state**——因此与 A3 无冲突。
+   202	- **degraded pending 处置（round-4 HIGH#3 + round-5 HIGH#3 解冻边界）**：当节点落入**残缺卡**（三态 fail-closed）时，该节点的 pending 集合**整体冻结**——不重放、不追加新在线事件（新评分应向用户如实报错而非静默丢弃）。禁止"跳过残缺节点继续写新事件"——那会在错误基线上叠加。
+   203	  - **解冻的唯一合法条件（round-5 提出，round-6 机械化）**：修复必须**把六字段与 `W` 原子重建到同一个可证明的账本边界**上——选定账本中某个事件 `E`，从**可证明起点**折叠到 `E` 为止，把结果的六字段与 `W = E.review_time` 在**同一次原子替换**中写入。三项必须机械确定：
+   204	    - **`E` 的选取与层级作用域（round-11 修正尾部逃逸，round-13 冻结作用域）**：
+   205	      - **最外层（top-level）proof**：`E` 必须是该节点在账本中**行号最大的适用事件**（`schema_ext=review/1`、未标 `out_of_order`），且 **`cursor_line` 之后不得再存在该节点的任何适用事件**——保证重建覆盖到账本末尾。
+   206	      - **`ancestor_proof`（中间层）：不受"其后无适用事件"约束**。⚠️ round-13 指出的歧义：若把该尾部约束**递归**施于 ancestor，则正常链 `L1=t1、L2=t2` 中的 ancestor（`cursor_line=1`）会因 L2 存在而失效，任何多层链都无法成立；只施于最外层则是原意。现明确冻结为**仅最外层**——ancestor 的职责是提供一个**中间快照**，本就不必覆盖到末尾，它只需满足：区间定义、层内单调、跨层单调、三条等式、链终止与防循环。
+   207	      - 两个 verifier 因此不会给出相反结果。
+   208	      - 📌 **可执行的单一事实（round-14，round-15 补真实绑定）**：以上分层语义已落成参考实现 `backend/scripts/validate_learning_events.py::verify_degraded_proof(proof, applicable, *, ledger_path=None)`——作用域由**内部**递归参数 `is_top_level` 承载（递归固定传 `False`），round-15 起**已移出公开签名**（公开可写等于给调用方一个关掉尾部门的开关）。行为门见 `test_learning_events_schema_contract.py::test_normal_two_layer_chain_is_provable`（正常两层链必须 PASS）与 `::test_layered_split_cannot_bypass_monotonicity`（分层绕过必须 FAIL）。
+   209	        **传 `ledger_path` = 账本直读模式**：verifier 用 `scan_ledger_bytes()` 在**单一字节快照**上抽取适用事件、该节点全部事件行、无扩展历史行、degraded 哨兵行与 vault_id 集合，并用 `ledger_prefix()` 复算 `ledger_prefix_sha256` 与 `prefix_ends_without_lf`，忽略调用方传入的 `applicable`。**生产接入必须传 `ledger_path`**——否则 `applicable` 是信任边界，调用方抽取不全会让最外层尾部门真空通过（round-14 Codex HIGH 实证）。
+   210	        ⚠️ **verifier 不做的六件事**（round-17 落定；与 `validate_learning_events.py` 的模块头注释、`verify_degraded_proof` docstring **逐字同文**）：
+
+**Extracting main PYEOF block lines 180-380**
+exec
+/bin/zsh -lc "nl -ba canvas-vault/.claude/skills/quiz-answer/SKILL.md | sed -n '180,380p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w7-ledger
+ succeeded in 0ms:
+   180	```
+   181	
+   182	（A2 弃答时：`grade_norm: 0.0`、`abandoned: true`，callout 必填——用你的弃答原话 + 题目 hook 构造「此题弃答」疑问块。）
+   183	
+   184	**4c · `Bash` 运行下面这段静态 python**（⛔ 逐字照抄，零占位符零拼接）：
+   185	
+   186	```bash
+   187	python3 - <<'PYEOF'
+   188	import json, re, os, sys, subprocess
+   189	from datetime import datetime, timedelta, timezone
+   190	from pathlib import Path
+   191	P = "/tmp/quiz-answer-payload.json"
+   192	p = json.load(open(P, encoding="utf-8"))
+   193	NODE = p["node"]; GN = float(p["grade_norm"])
+   194	# F3 修复 (2026-07-12): grade_norm 钳制 [0,1] — LLM 把 1-4 分误当 grade_norm
+   195	# 传入时 (如 3.5), 首评分支会把 mastery_score 直接写成 3.5 污染全链
+   196	GN = max(0.0, min(1.0, GN))
+   197	# G3-2: 舍入先行 — 事件 payload 的 grade_norm 与 FSRS 的 rating 同源自洽
+   198	# (校验器按 payload 的 grade_norm 复算 rating; 若 FSRS 吃未舍入值而 payload
+   199	# 存舍入值, 0.4999 这类档界值会两边分档)。mastery 仍用钳制原值, 行为不变。
+   200	GN2 = round(GN, 2)
+   201	
+   202	s = open(NODE, encoding="utf-8").read()
+   203	m = re.match(r'^﻿?---\r?\n(.*?)\r?\n---[ \t]*\r?\n?(.*)$', s, re.S)
+   204	if not m:
+   205	    raise SystemExit("frontmatter 解析失败：" + NODE)
+   206	fm, body = m.group(1), m.group(2)
+   207	
+   208	eid = p.get("event_id", "")
+   209	etype = "answer_abandoned" if p.get("abandoned") else "answer_scored"
+   210	evid = "quiz:" + eid
+   211	node_id = os.path.splitext(os.path.basename(NODE))[0]
+   212	VAULT = os.path.dirname(os.path.dirname(os.path.abspath(NODE)))
+   213	REPO = os.path.dirname(VAULT)
+   214	EV = os.path.join(VAULT, "learning_events.jsonl")
+   215	
+   216	# ── G3-2 复用单一实现 (禁第三套, DD-03/DD-13): 三态判别用校验器本体,
+   217	# rating/字段抽取用 bridge 本体, vault_id 绑定用校验器的 _vault_id_of。
+   218	sys.path.insert(0, os.path.join(VAULT, ".claude", "scripts"))
+   219	try:
+   220	    from fsrs_bridge import rating_from_grade, fields_from_frontmatter
+   221	    sys.path.insert(0, os.path.join(REPO, "backend", "scripts"))
+   222	    from validate_learning_events import classify_card_state, _vault_id_of
+   223	except Exception as _e:
+   224	    raise SystemExit(f"[quiz-answer] G3-2 依赖不可达 (validate_learning_events/fsrs_bridge import 失败), fail-closed 拒写: {_e}")
+   225	
+   226	def _aware(s):
+   227	    dt = datetime.fromisoformat(str(s).replace("Z", "+00:00"))
+   228	    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+   229	
+   230	def _durable_instant(rt, ctx):
+   231	    """durable 行的 review_time → UTC 整秒 aware datetime; 不合规即 fail-closed。
+   232	
+   233	    Codex round-3 BLOCKER (R2): A2 会把小数秒 durable review_time 交给 bridge,
+   234	    bridge 入口 _whole_second 截成整秒写进 W ⇒ 「10:00:00.5 > 10:00:00」恒真,
+   235	    同一账本行每次重跑都判 pending 并**再推进一次 FSRS** (§6.2 A5 禁止的二次
+   236	    apply; 实测账本始终一行而 W 逐次 +1s)。
+   237	    ⛔ 只验不改: 消费时顺手规范化 = 把损坏行洗成合法行, 缺陷从写入面挪进不可
+   238	    见面。本写点的 _iso() 恒产出整秒 UTC, 校验器对 review/1 行也机械强制整秒 —
+   239	    出现小数秒/非 UTC 即外部污染, 停下人工修, 不猜。
+   240	    """
+   241	    if not isinstance(rt, str) or not rt.strip():
+   242	        raise SystemExit(f"[quiz-answer] {ctx} 的 review_time 非字符串 ({rt!r}), fail-closed 拒写")
+   243	    try:
+   244	        _dt = datetime.fromisoformat(rt.strip().replace("Z", "+00:00"))
+   245	    except ValueError:
+   246	        raise SystemExit(f"[quiz-answer] {ctx} 的 review_time 不可解析 ({rt!r}), fail-closed 拒写")
+   247	    if _dt.tzinfo is None or _dt.utcoffset() != timedelta(0):
+   248	        raise SystemExit(f"[quiz-answer] {ctx} 的 review_time 非 UTC ({rt!r}; §6.2 A6 要求 tz-aware UTC 时刻), fail-closed 拒写")
+   249	    if _dt.microsecond:
+   250	        raise SystemExit(f"[quiz-answer] {ctx} 的 review_time 含小数秒 ({rt!r}; §6.2 A5 要求整秒 — 消费时归一会让同一行二次推进 FSRS), fail-closed 拒写")
+   251	    return _dt
+   252	
+   253	# ── G3-2 frontmatter 重复键 fail-closed (schema §6.2 三态边界声明: 重复键
+   254	# 信息在解析层即丢失, 责任在解析处; 本正则解析器不保留重复键 ⇒ 写/读的键
+   255	# 出现重复时停下, 不猜)。误报方向 fail-closed (顶格错位文本会被当键) 可接受。
+   256	FSRS_KEYS = ("fsrs_due", "fsrs_state", "fsrs_step", "fsrs_stability", "fsrs_difficulty", "fsrs_last_review")
+   257	_watched = ("type", "source_board", "mastery_score", "mastery", "mastery_level",
+   258	            "mastery_a", "mastery_b", "attempt_count", "last_examined", "calibration_log") + FSRS_KEYS
+   259	_keycount = {}
+   260	for _mm in re.finditer(r'^([A-Za-z_][A-Za-z0-9_-]*):', fm, re.M):
+   261	    _keycount[_mm.group(1)] = _keycount.get(_mm.group(1), 0) + 1
+   262	_dupkeys = sorted(k for k, c in _keycount.items() if c > 1 and k in _watched)
+   263	if _dupkeys:
+   264	    raise SystemExit(f"[quiz-answer] frontmatter 重复键 {_dupkeys} (解析歧义不可证), fail-closed 拒写 — 请手工修复节点后重跑")
+   265	
+   266	# ── G3-2 幂等分诊前置判定。两个独立域:
+   267	#   F1 = 本 event_id 已在 frontmatter calibration_log (解析层判定, 非子串 —
+   268	#        live 实证 Obsidian 会把 yaml 引号规范化掉, json.dumps 子串恒不命中;
+   269	#        双引号形态经 json.loads 与写侧 json.dumps 同源反解, 单引号/裸词剥引号)
+   270	#   L1 = 账本已有 parsed event_id == evid 的行 (parsed-field equality, 禁子串)
+   271	# ⛔ F1 单独不能证明 FSRS 已推进 (degraded 落账写过 calibration 但没写 W —
+   272	# Codex round-2 BLOCKER): 「已应用」的机械判据是 W >= durable.review_time,
+   273	# 分诊在下方主流程里做, 这里只放解析函数。
+   274	def _fm_has_event(fm_text, ev_id):
+   275	    mcal = re.search(r'^calibration_log:[ \t]*$', fm_text, re.M)
+   276	    if not mcal:
+   277	        return False
+   278	    for ln in fm_text[mcal.end():].split("\n")[1:]:
+   279	        if ln and not ln[0].isspace():
+   280	            break
+   281	        mm = re.match(r'^\s*-\s*event_id:\s*(.+?)\s*$', ln)
+   282	        if mm:
+   283	            v = mm.group(1).strip()
+   284	            if v.startswith('"') and v.endswith('"') and len(v) >= 2:
+   285	                try:
+   286	                    v = json.loads(v)  # 双引号 scalar 与写侧 json.dumps 同源反解 (含 \" \\)
+   287	                except ValueError:
+   288	                    pass
+   289	            elif len(v) >= 2 and v[0] == v[-1] and v[0] == "'":
+   290	                v = v[1:-1]
+   291	            if v == ev_id:
+   292	                return True
+   293	    return False
+   294	
+   295	# ── G3-2 账本读取 (parsed)。⚠️ 单写者前提 (G3-3 前无锁): 同一 vault 内不得
+   296	# 并行运行任何两个 quiz-answer (账本 per-vault 共享文件, 与是否同节点无关,
+   297	# schema §6.2 A4.5) — 本块无任何互斥, 并行会在「读-算-写」间隙双写/丢失。
+   298	# 尾行截断 (崩溃产物, §二 截断自愈) → 跳过并留痕, 由追加前 LF 守卫隔离;
+   299	# 中间坏行 = 真实损坏 → fail-closed 人工介入。
+   300	# Codex round-3 MEDIUM (R7): 「可容忍的截断」必须同时满足 ①是最后一行 ②文件
+   301	# **不以 LF 结尾**。带终止 LF 的坏末行是**完整写入后损坏**的行 (write 已整行
+   302	# 提交), 不是被腰斩的半行 — 旧实现只看「最后一行解析失败」, 于是真实损坏被
+   303	# 当截断容忍, writer 照常 rc=0 追加并推进节点。EOF 的 LF 状态是区分二者的
+   304	# 唯一机械证据, 读取时必须保留。
+   305	_rows = []
+   306	if os.path.exists(EV):
+   307	    _raw_text = open(EV, encoding="utf-8").read()
+   308	    _ends_with_lf = _raw_text.endswith("\n")
+   309	    _raw_lines = _raw_text.split("\n")
+   310	    _n_lines = len([x for x in _raw_lines if x.strip()])
+   311	    for _ln, _line in enumerate((x for x in _raw_lines if x.strip()), 1):
+   312	        try:
+   313	            _rows.append((_ln, json.loads(_line.strip())))
+   314	        except ValueError:
+   315	            if _ln == _n_lines and not _ends_with_lf:
+   316	                print(f"[quiz-answer] 账本第 {_ln} 行为截断尾行 (崩溃产物: 非 JSON 且无终止 LF) — 追加时 LF 守卫隔离, 不阻塞本次评分")
+   317	            else:
+   318	                _why = "该行有终止 LF ⇒ 完整写入的损坏行, 非截断" if _ln == _n_lines else "中间行"
+   319	                raise SystemExit(f"[quiz-answer] 账本第 {_ln} 行损坏 (非 JSON; {_why}), fail-closed 拒写 — 请人工修复 learning_events.jsonl")
+   320	# 幂等键全文件唯一 (§三): 账本被外部工具写出重复 event_id 时, A2 会把两条
+   321	# 同 id 行各重放一次 = 确定性二次 apply (Codex round-2 BLOCKER) → 拒写人工修复
+   322	_seen_ids = {}
+   323	for _, _o in _rows:
+   324	    if isinstance(_o, dict):
+   325	        _k = _o.get("event_id")
+   326	        if isinstance(_k, str) and _k:
+   327	            _seen_ids[_k] = _seen_ids.get(_k, 0) + 1
+   328	_id_dupes = sorted(k for k, c in _seen_ids.items() if c > 1)
+   329	if _id_dupes:
+   330	    raise SystemExit(f"[quiz-answer] 账本 event_id 重复 {_id_dupes[:3]} (幂等键全文件唯一被破坏), fail-closed 拒写 — 请人工修复 learning_events.jsonl")
+   331	_dup_entry = next((( _ln, _o) for _ln, _o in _rows if isinstance(_o, dict) and _o.get("event_id") == evid), None)
+   332	dup = _dup_entry[1] if _dup_entry is not None else None
+   333	_dup_line = _dup_entry[0] if _dup_entry is not None else None  # R3: ordinal 复算的全序键之一
+   334	f1 = bool(eid) and _fm_has_event(fm, eid)
+   335	
+   336	# 回填 type/source_board（Dashboard 可见性，缺才补）
+   337	if not re.search(r'^type:', fm, re.M):
+   338	    fm = "type: concept\n" + fm.lstrip("\n")
+   339	if p.get("source_board") and not re.search(r'^source_board:', fm, re.M):
+   340	    fm = fm.rstrip() + '\nsource_board: ' + json.dumps(p["source_board"], ensure_ascii=False)
+   341	
+   342	# ── G3-2 mastery 计算抽函数 (正常/恢复两路径共用)。biz_ts = 本次业务时刻:
+   343	# 正常路径用 payload ts, 恢复路径用 durable 行 review_time — 保证恢复产物与
+   344	# 直接应用逐字节对齐 (Codex round-2 HIGH: 卡文门②要求字节等值)。
+   345	sys.path.insert(0, os.path.join(VAULT, ".claude", "scripts"))
+   346	from decay_beta import PRIOR_A, PRIOR_B, from_legacy, mu, update_after_idle
+   347	
+   348	def _apply_mastery(fm_text, biz_ts):
+   349	    """衰减 Beta 后验 (批次2' A1, MEM-FLYWHEEL-2026-07-22): Beta(a,b)+γ=0.9
+   350	    打折 + 闲置折旧 (终审 A2)。返回 (old, A, B, new)。"""
+   351	    old = None
+   352	    for key in ("mastery_score", "mastery", "mastery_level"):
+   353	        mo = re.search(rf'^{key}:\s*"?([0-9]*\.?[0-9]+)"?\s*$', fm_text, re.M)
+   354	        if mo:
+   355	            old = float(mo.group(1)); break
+   356	    ma = re.search(r'^mastery_a:\s*"?([0-9]*\.?[0-9]+)"?\s*$', fm_text, re.M)
+   357	    mb = re.search(r'^mastery_b:\s*"?([0-9]*\.?[0-9]+)"?\s*$', fm_text, re.M)
+   358	    if ma and mb:
+   359	        a_, b_ = float(ma.group(1)), float(mb.group(1))
+   360	    elif old is not None:
+   361	        a_, b_ = from_legacy(old)  # 旧 EMA 分迁移: 均值继承, 只给等效样本量3的低置信
+   362	    else:
+   363	        a_, b_ = PRIOR_A, PRIOR_B
+   364	    # 闲置感知评分 (终审 A2, DAILY-REVIEW-PUSH-2026-07-29): 先按闲置天数折旧
+   365	    # 旧证据再吸收本次成绩 — 否则闲置期抬高的 σ 会被旧 n 一次评分瞬间抹平。
+   366	    days_idle = 0.0
+   367	    mle = re.search(r'^last_examined:\s*"?([^"\n]+)"?\s*$', fm_text, re.M)
+   368	    if mle:
+   369	        try:
+   370	            days_idle = max(0.0, (_aware(biz_ts) - _aware(mle.group(1))).total_seconds() / 86400.0)
+   371	        except ValueError:
+   372	            days_idle = 0.0  # 时间戳损坏: 不折旧, 保守按连续考察处理
+   373	    a_, b_ = max(a_, 1e-4), max(b_, 1e-4)  # 手工编辑容错: a/b 被改成 0 时 effective 会拒 (Code-Review L7)
+   374	    a_, b_ = update_after_idle(a_, b_, GN, days_idle)
+   375	    return old, a_, b_, round(mu(a_, b_), 2)
+   376	
+   377	# ── G3-2 三态判别 (复用校验器 classify_card_state, schema §6.2)。
+   378	# degraded(残缺卡) → fail-closed: 报错、零写节点、检验白板停在
+   379	# scored_pending_node_update 续跑态 (裁决③)。
+   380	_fields = fields_from_frontmatter(fm)
+
+exec
+/bin/zsh -lc "nl -ba canvas-vault/.claude/skills/quiz-answer/SKILL.md | sed -n '377,585p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w7-ledger
+ succeeded in 0ms:
+   377	# ── G3-2 三态判别 (复用校验器 classify_card_state, schema §6.2)。
+   378	# degraded(残缺卡) → fail-closed: 报错、零写节点、检验白板停在
+   379	# scored_pending_node_update 续跑态 (裁决③)。
+   380	_fields = fields_from_frontmatter(fm)
+   381	_state, _reason = classify_card_state(_fields)
+   382	if _state == "degraded":
+   383	    raise SystemExit(f"[quiz-answer] 节点调度状态残缺 (classify_card_state: {_reason}), fail-closed 拒写 — 请人工修复 {NODE} 后重跑")
+   384	W = _fields.get("fsrs_last_review")
+   385	W_inst = _aware(W) if W else None
+   386	
+   387	# ── G3-2 vault_id 绑定 (与校验器同函数同链路; 绑不出 = 配置断裂, fail-closed)
+   388	_vid = _vault_id_of(Path(EV))
+   389	if not _vid:
+   390	    raise SystemExit("[quiz-answer] vault 归属无法绑定 (.canvas-config.yaml 缺失/损坏或 backend 不可达), fail-closed 拒写事件")
+   391	
+   392	# ── G3-2 bridge 调用封装。exit 2 = 输入缺陷 (naive/越界) → fail-closed;
+   393	# 其余失败 (exit 3 / 坏输出) = fsrs 环境不可用 → 调用方走 degraded 裁决②。
+   394	def _bridge(fm_text, gn, ab, ts, rating=None):
+   395	    payload_in = {"fm": fm_text, "grade_norm": gn, "abandoned": ab, "ts": ts}
+   396	    if rating is not None:
+   397	        payload_in["rating"] = rating
+   398	    try:
+   399	        _r = subprocess.run(
+   400	            ["python3", os.path.join(VAULT, ".claude", "scripts", "fsrs_bridge.py")],
+   401	            input=json.dumps(payload_in), capture_output=True, text=True, timeout=30)
+   402	    except Exception as _e:
+   403	        return None, str(_e)
+   404	    try:
+   405	        _out = json.loads(_r.stdout) if _r.stdout.strip() else {}
+   406	    except ValueError:
+   407	        _out = {}
+   408	    if _r.returncode == 2:
+   409	        raise SystemExit(f"[quiz-answer] bridge 拒绝输入 (fail-closed): {_out.get('error') or _r.stderr[:200]}")
+   410	    if _r.returncode == 0 and _out.get("fm_block"):
+   411	        return _out, None
+   412	    _err = _out.get("error") or _r.stdout[:120] or _r.stderr[:120] or "fsrs-bridge-empty-output"
+   413	    return None, _err
+   414	
+   415	def _apply_fsrs_block(fm_text, block):
+   416	    fm_text = re.sub(r'^(fsrs_due|fsrs_state|fsrs_step|fsrs_stability|fsrs_difficulty|fsrs_last_review):.*\r?\n?', '', fm_text, flags=re.M)
+   417	    return re.sub(r'^(type:.*)$', lambda x: x.group(1) + block, fm_text, count=1, flags=re.M)
+   418	
+   419	def _append_calibration(fm_text, ts_str):
+   420	    """calibration_log 条目 (正常/恢复两路径共用)。ts_str = 业务生效时刻
+   421	    (review_time — 与 effective_at 同源, 保证恢复产物与直接应用逐字节对齐)。"""
+   422	    q_ = lambda v: json.dumps(v, ensure_ascii=False)
+   423	    scn_ = p.get("self_confidence_norm")
+   424	    entry_ = (f'  - event_id: {q_(eid)}\n'
+   425	              f'    ts: {q_(ts_str)}\n'
+   426	              f'    exam_board: {q_(p.get("exam_board",""))}\n'
+   427	              f'    question_id: {q_(p.get("question_id","q1"))}\n'
+   428	              f'    self_confidence_raw: {q_(p.get("self_confidence_raw") or "null")}\n'
+   429	              f'    self_confidence_norm: {scn_ if scn_ is not None else "null"}\n'
+   430	              f'    grade_norm: {GN2}\n'
+   431	              f'    abandoned: {"true" if p.get("abandoned") else "false"}')
+   432	    # F3 修复 (2026-07-12): 定位 calibration_log 块末尾插入 — 旧逻辑无条件追加
+   433	    # 到 frontmatter 末尾, 当 calibration_log 非最后一个 key 时 (Obsidian
+   434	    # Properties 面板默认在末尾新增属性, 极常见), 事件条目会被 YAML 静默
+   435	    # 归档进相邻列表键 (如 aliases), 校准数据丢失且零报错。
+   436	    mcal_ = re.search(r'^calibration_log:', fm_text, re.M)
+   437	    if mcal_:
+   438	        lines_ = fm_text.split("\n")
+   439	        li_ = next(i for i, ln in enumerate(lines_) if re.match(r'^calibration_log:', ln))
+   440	        j_ = li_ + 1
+   441	        while j_ < len(lines_) and lines_[j_].startswith("  "):
+   442	            j_ += 1
+   443	        lines_[j_:j_] = entry_.split("\n")
+   444	        return "\n".join(lines_)
+   445	    return fm_text.rstrip() + "\ncalibration_log:\n" + entry_
+   446	
+   447	# ── G3-2 rating 同源: 显式算好传给 bridge (bridge 优先用显式 rating),
+   448	# payload 存同一个值 — 事件内 rating/grade_norm 自洽是构造性保证。
+   449	rating = rating_from_grade(GN2, bool(p.get("abandoned")))
+   450	abandoned = bool(p.get("abandoned"))
+   451	
+   452	# ── G3-2 适用事件集 (本节点 / schema_ext=review/1 / 未标 out_of_order),
+   453	# 按 (业务时刻, 行序) 升序。A2 的 pending 与 envelope 门的 attempt ordinal
+   454	# 复算**共用同一集合** — 两处若各扫一遍, 「进 pending 的行」与「参与 ordinal
+   455	# 计数的行」会分叉。R2 (round-3 BLOCKER): 该集合每一行都参与 W 比较,
+   456	# 故逐行机械强制 UTC 整秒 (小数秒行会让同一事件反复判 pending 二次推进)。
+   457	_applicable = []
+   458	for _ln, _o in _rows:
+   459	    _pl = _o.get("payload") if isinstance(_o, dict) else None
+   460	    if not isinstance(_pl, dict) or _pl.get("schema_ext") != "review/1":
+   461	        continue
+   462	    if _o.get("node_id") != node_id or _pl.get("out_of_order") is True:
+   463	        continue
+   464	    _applicable.append((_durable_instant(_pl.get("review_time"), f"账本第 {_ln} 行({_o.get('event_id')})"), _ln, _o))
+   465	_applicable.sort(key=lambda t: (t[0], t[1]))
+   466	
+   467	# ── G3-2 幂等分诊主流程 (Codex round-2 BLOCKER 重排)。
+   468	# 「FSRS 已应用」的机械判据 = W >= durable.review_time。F1 (calibration 有无)
+   469	# 单独不能当幂等凭据 — degraded 落账写过 calibration 却没写 W, F1 早退会
+   470	# ①吞掉冲突事实 ②让 degraded pending 永不恢复。
+   471	if dup is None:
+   472	    if f1:
+   473	        print(f"[quiz-answer] {NODE}: event={eid} 已完整应用，幂等跳过（无任何改动）；账本无对应行 — 旧写序(先 frontmatter 后事件)遗留，本次不补录，审计完整性请走账本补录通道")
+   474	        os.remove(P)
+   475	        raise SystemExit(0)
+   476	else:
+   477	    _dpl = dup.get("payload") or {}
+   478	    if _dpl.get("schema_ext") != "review/1":
+   479	        raise SystemExit(f"[quiz-answer] 账本已有 {evid} 但缺 review/1 扩展 (旧写序行/损坏) — 状态不可证, fail-closed 拒写")
+   480	    # R2: durable 时刻必须 UTC 整秒才允许参与 W 比较与后续消费 (见 _durable_instant)
+   481	    _dup_inst = _durable_instant(_dpl.get("review_time"), f"账本行 {evid}")
+   482	    _dup_rt = _dpl["review_time"]
+   483	    _fsrs_applied = W_inst is not None and W_inst >= _dup_inst
+   484	    # A4.5 canonical envelope 门 — 对「已应用 no-op」与「恢复」两态都生效,
+   485	    # 冲突事实不得被 no-op 吞掉 (round-2 B-1①)。等价面取舍 (如实声明):
+   486	    # fsrs_library_version/params_hash 两键**排除** — 它们是复算环境快照
+   487	    # (库升级即变), 不是评分事实; durable 行的身份完整性由校验器的 golden
+   488	    # manifest 绑定门承担 (篡改形状/真值都会被 validator 判 FAIL)。分层裁决
+   489	    # 已回写契约 §6.2 (round-3 MEDIUM R6)。
+   490	    #
+   491	    # ⛔ candidate 必须**独立字面构造** (Codex round-3 BLOCKER R1): 旧实现以
+   492	    # durable payload 为底再覆盖已知键 (`{**_dpl, ...}`), 于是 durable 行的
+   493	    # 任意**未知额外键**被原样抄进 candidate — 比较退化成「自己比自己」。
+   494	    # 实测反例: 给崩溃窗口①的 durable 行加 payload.out_of_order=true, envelope
+   495	    # 放行, 而 A2 的适用集把该行排除 ⇒ FSRS 永不应用, writer 仍 rc=0 写下
+   496	    # calibration/mastery, 节点 fsrs_* 全空。键集本身是等价面的一部分:
+   497	    # 多一键 / 少一键 / 值不同 一律冲突, 只放行明确排除的两个身份键。
+   498	    _att = re.search(r'^attempt_count:\s*(\d+)', fm, re.M)
+   499	    _att_now = int(_att.group(1)) if _att else 0
+   500	    # R3 (round-3 HIGH): attempt 序数从**账本边界**复算, 不拿当前 tip 当历史
+   501	    # durable 值。口径: frontmatter.attempt_count 与事件同一次原子发布 ⇒ 账本
+   502	    # 中某事件的 attempt_count = 写它时的 frontmatter 值 + 1, 沿账本回推即得。
+   503	    # f1 (calibration 域证据, 与 mastery/attempt 同一次原子写) 判「本事件的
+   504	    # attempt 是否已计入当前 frontmatter」。旧实现在已应用态直接取当前值 ⇒
+   505	    # E1→E2→重跑 E1 时把 E2 的计数当成 E1 的, 合法历史重放被误报冲突
+   506	    # (§6.2:187 要求同 canonical envelope 必须 no-op)。
+   507	    _dup_key = (_dup_inst, _dup_line)
+   508	    _after_applied = sum(1 for _i, _l, _ in _applicable
+   509	                         if (_i, _l) > _dup_key and W_inst is not None and _i <= W_inst)
+   510	    _before_pending = sum(1 for _i, _l, _ in _applicable
+   511	                          if (_i, _l) < _dup_key and (W_inst is None or _i > W_inst))
+   512	    if _fsrs_applied or f1:
+   513	        _att_expect = _att_now - _after_applied
+   514	    else:
+   515	        _att_expect = _att_now + 1 + _before_pending
+   516	    _mine_env = {
+   517	        "event_version": 1, "event_type": etype, "node_id": node_id,
+   518	        "effective_at": _dup_rt,
+   519	        "payload": {"schema_ext": "review/1", "vault_id": _vid, "concept_id": node_id,
+   520	                    "rating": rating, "grade_norm": GN2, "review_time": _dup_rt,
+   521	                    "exam_board": p.get("exam_board", ""),
+   522	                    "attempt_count": _att_expect}}
+   523	    _theirs_env = {"event_version": dup.get("event_version"), "event_type": dup.get("event_type"),
+   524	                   "node_id": dup.get("node_id"), "effective_at": dup.get("effective_at"),
+   525	                   "payload": {k: v for k, v in _dpl.items() if k not in ("fsrs_library_version", "fsrs_params_hash")}}
+   526	    if json.dumps(_mine_env, sort_keys=True, ensure_ascii=False, separators=(",", ":")) != json.dumps(_theirs_env, sort_keys=True, ensure_ascii=False, separators=(",", ":")):
+   527	        raise SystemExit(f"[quiz-answer] envelope 冲突: 账本 {evid} 与本次评分事实不一致 (canonical envelope), fail-closed 拒写")
+   528	    if _fsrs_applied:
+   529	        if f1:
+   530	            print(f"[quiz-answer] {NODE}: event={eid} 已完整应用，幂等跳过（无任何改动）")
+   531	            os.remove(P)
+   532	            raise SystemExit(0)
+   533	        # FSRS 已被本事件/后续事件吸收, 但校准/EMA/attempt 缺失 — 补齐会引入
+   534	        # last_examined/attempt 的顺序错乱 (后跑事件时刻更晚), 无机械判据 →
+   535	        # 停下人工裁定 (诚实方向, 不猜)
+   536	        raise SystemExit(f"[quiz-answer] 事件 {evid} 的 FSRS 已应用但 frontmatter 缺校准记录 — 恢复会引入顺序错乱, fail-closed 请人工核对 {NODE} 与账本")
+   537	    # FSRS 未应用 → 落入下方恢复路径: f1=T = degraded 遗留 (只补 FSRS,
+   538	    # mastery/calibration 已应用防 EMA 双吃); f1=F = 崩溃窗口① (全套补)
+   539	
+   540	# ── G3-2 A2 恢复先于新写: 追加本次事件之前, 把本节点 pending 集合
+   541	# (review/1、未标 out_of_order、review_time > W) 按 (时刻, 行序) 升序重放至空。
+   542	# 重放只复算 FSRS (mastery/callout 无事件载荷可复放, 见验收单「未证明什么」)。
+   543	# pending = 适用集里尚未被 W 吸收的行 (_applicable 已按 (时刻, 行序) 升序且
+   544	# 已逐行强制 UTC 整秒 — 与 envelope 门的 ordinal 复算同源同集合)。
+   545	pending = [t for t in _applicable if W_inst is None or t[0] > W_inst]
+   546	replay_failed = None
+   547	for _inst, _ln, _o in pending:
+   548	    _pl = _o["payload"]
+   549	    _out, _err = _bridge(fm, float(_pl.get("grade_norm", 0.0)),
+   550	                         _o.get("event_type") == "answer_abandoned",
+   551	                         _pl["review_time"], rating=_pl.get("rating"))
+   552	    if _out is None:
+   553	        # Codex round-1 BLOCKER: 存在 pending 且重放失败 → 一律 fail-closed
+   554	        # 零写 (既不 degraded 落账、也不发布), A2 "追加前重放至空" 无例外;
+   555	        # 待 fsrs 恢复后重跑即可恢复。
+   556	        raise SystemExit(f"[quiz-answer] A2 pending 重放失败 (fsrs 不可用且存在未恢复事件), fail-closed 零写 — 待恢复后重跑: 账本第 {_ln} 行({_o.get('event_id')}): {_err}")
+   557	    fm = _apply_fsrs_block(fm, "\n" + _out["fm_block"])
+   558	    print(f"[quiz-answer] A2 重放已应用: {_o.get('event_id')} @ {_pl['review_time']}")
+   559	
+   560	# ── G3-2 恢复路径 / 正常路径分叉 (A2 重放已完成: dup 与全部 pending 的 FSRS
+   561	# 都已按序应用到内存 fm, 重放失败已在上方 fail-closed 退出)。
+   562	if dup is not None:
+   563	    # ── 恢复路径。review_time 采纳 durable 行 (业务事实时刻), 全部副作用
+   564	    # (mastery/calibration/last_examined) 以它为基准 — 保证恢复产物与直接
+   565	    # 应用逐字节对齐 (卡文门②; round-2 HIGH)。
+   566	    review_time = _dpl["review_time"]
+   567	    fsrs_ok = True
+   568	    if not re.search(r'^type:', fm, re.M):
+   569	        fm = "type: concept\n" + fm.lstrip("\n")
+   570	    if p.get("source_board") and not re.search(r'^source_board:', fm, re.M):
+   571	        fm = fm.rstrip() + '\nsource_board: ' + json.dumps(p["source_board"], ensure_ascii=False)
+   572	    if f1:
+   573	        # degraded 遗留 (f1=T): mastery/calibration 已应用 — 只补 FSRS。
+   574	        # 再算一次 EMA 会双吃成绩 (round-2 场景②: 首评 degraded 后重试)。
+   575	        print(f"[quiz-answer] A2 恢复(degraded 遗留): 仅补 FSRS @ {review_time}, EMA/校准不重复应用")
+   576	    else:
+   577	        # 崩溃窗口① (f1=F): 评分链其余副作用全部未应用 → 全套补齐
+   578	        old, A, B, new = _apply_mastery(fm, review_time)
+   579	        mo_att = re.search(r'^attempt_count:\s*(\d+)', fm, re.M)
+   580	        n_att = (int(mo_att.group(1)) if mo_att else 0) + 1
+   581	        fm = re.sub(r'^(mastery_score|mastery|mastery_level|mastery_a|mastery_b|attempt_count|last_examined):.*\r?\n?', '', fm, flags=re.M)
+   582	        fm = re.sub(r'^(type:.*)$', lambda x: x.group(1) + f"\nmastery_score: {new}\nmastery_a: {round(A, 4)}\nmastery_b: {round(B, 4)}\nattempt_count: {n_att}\nlast_examined: " + json.dumps(review_time, ensure_ascii=False), fm, count=1, flags=re.M)
+   583	        fm = _append_calibration(fm, review_time)
+   584	        cal = (p.get("callout") or "").strip()
+   585	        if cal and cal not in body:
+
+exec
+/bin/zsh -lc "nl -ba canvas-vault/.claude/skills/quiz-answer/SKILL.md | sed -n '580,730p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w7-ledger
+ succeeded in 0ms:
+   580	        n_att = (int(mo_att.group(1)) if mo_att else 0) + 1
+   581	        fm = re.sub(r'^(mastery_score|mastery|mastery_level|mastery_a|mastery_b|attempt_count|last_examined):.*\r?\n?', '', fm, flags=re.M)
+   582	        fm = re.sub(r'^(type:.*)$', lambda x: x.group(1) + f"\nmastery_score: {new}\nmastery_a: {round(A, 4)}\nmastery_b: {round(B, 4)}\nattempt_count: {n_att}\nlast_examined: " + json.dumps(review_time, ensure_ascii=False), fm, count=1, flags=re.M)
+   583	        fm = _append_calibration(fm, review_time)
+   584	        cal = (p.get("callout") or "").strip()
+   585	        if cal and cal not in body:
+   586	            body = body.rstrip() + "\n\n" + cal + "\n"
+   587	        print(f"[quiz-answer] A2 恢复(崩溃窗口①): mastery {old}->{new}; FSRS+EMA+校准全套补齐 @ {review_time}")
+   588	    # ── A4.4 原子发布 (恢复路径)
+   589	    _f = open(NODE + ".quiz-tmp", "w", encoding="utf-8")
+   590	    _f.write(f"---\n{fm}\n---\n{body}")
+   591	    _f.flush()
+   592	    os.fsync(_f.fileno())
+   593	    _f.close()
+   594	    os.replace(NODE + ".quiz-tmp", NODE)
+   595	    _dfd = os.open(os.path.dirname(NODE) or ".", os.O_RDONLY)
+   596	    try:
+   597	        os.fsync(_dfd)
+   598	    finally:
+   599	        os.close(_dfd)
+   600	    os.remove(P)
+   601	    raise SystemExit(0)
+   602	
+   603	# ── 正常路径 (dup=None): 计算本次 + durable append + apply + 发布。
+   604	# 本次时刻 = bridge 整秒化结果; A3 等时 (≤W) 在 bridge 内推进 W+1s。
+   605	_out, _err = _bridge(fm, GN2, abandoned, p["ts"], rating=rating)
+   606	if _out is not None:
+   607	    review_time = _out["review_time"]
+   608	    rating = _out["rating"]
+   609	    lib_ver = _out["fsrs_library_version"]
+   610	    p_hash = _out["fsrs_params_hash"]
+   611	    fsrs_ok = True
+   612	    fm = _apply_fsrs_block(fm, "\n" + _out["fm_block"])
+   613	else:
+   614	    # 裁决② (pending 已空或重放成功时才可能到这里): fsrs 不可用时事件
+   615	    # 仍先落账, 两键成对 degraded 哨兵, frontmatter 只写衰减 Beta 不写 W。
+   616	    # 本地整秒 + A3 (≤W → W+1s), 基准取重放后的内存 W (防撞行)。
+   617	    print(f"[quiz-answer] FSRS 桥降级跳过(不影响评分): {_err}")
+   618	    _raw = str(p["ts"]).strip().replace("Z", "+00:00")
+   619	    _dt = datetime.fromisoformat(_raw)
+   620	    if _dt.tzinfo is None:
+   621	        raise SystemExit(f"[quiz-answer] ts 缺时区, fail-closed 拒写: {p['ts']!r}")
+   622	    _rt = _dt.astimezone(timezone.utc).replace(microsecond=0)
+   623	    _W_now = fields_from_frontmatter(fm).get("fsrs_last_review")
+   624	    _W_now_inst = _aware(_W_now) if _W_now else None
+   625	    if _W_now_inst is not None and _rt <= _W_now_inst:
+   626	        _rt = _W_now_inst + timedelta(seconds=1)  # A3: 等时推进, 防事件变孤儿行
+   627	    if _rt >= datetime(9000, 1, 1, tzinfo=timezone.utc):
+   628	        # A7 排他上界 (§6.2; 与 bridge._REVIEW_MAX / validator.REVIEW_INPUT_MAX
+   629	        # 同值) — Codex round-1 HIGH: 本地推进缺此门会制造非法孤儿事件
+   630	        raise SystemExit(f"[quiz-answer] degraded A3 推进越出 A7 review 域上界 (W={_W_now}), fail-closed 零写")
+   631	    review_time = _rt.strftime("%Y-%m-%dT%H:%M:%SZ")
+   632	    lib_ver = f"degraded:{(_err or 'unknown').strip() or 'unknown'}"
+   633	    p_hash = f"degraded:{(_err or 'unknown').strip() or 'unknown'}"
+   634	    fsrs_ok = False
+   635	
+   636	# ── G3-2 A4 (批次2') attempt_count/last_examined 重写。
+   637	# last_examined 与 mastery 的闲置折旧基准**都**用 review_time (业务生效时刻)
+   638	# — 与恢复路径同源, 保证「先崩后恢复」与「直接成功」产物逐字节对齐。
+   639	# R4 (Codex round-3 HIGH): 旧实现此处传 p["ts"] (本次运行的重试时刻), 恢复
+   640	# 路径传 durable review_time。含 last_examined 的卡上 days_idle 由该基准算出,
+   641	# 两路径的 mastery_a/b 因此不同 (实测节点 SHA 不同) — A3 等时推进 (W+1s) 或
+   642	# 小数秒截断使 review_time != p["ts"] 时必然触发。
+   643	old, A, B, new = _apply_mastery(fm, review_time)
+   644	mo_att = re.search(r'^attempt_count:\s*(\d+)', fm, re.M)
+   645	n_att = (int(mo_att.group(1)) if mo_att else 0) + 1
+   646	fm = re.sub(r'^(mastery_score|mastery|mastery_level|mastery_a|mastery_b|attempt_count|last_examined):.*\r?\n?', '', fm, flags=re.M)
+   647	fm = re.sub(r'^(type:.*)$', lambda x: x.group(1) + f"\nmastery_score: {new}\nmastery_a: {round(A, 4)}\nmastery_b: {round(B, 4)}\nattempt_count: {n_att}\nlast_examined: " + json.dumps(review_time, ensure_ascii=False), fm, count=1, flags=re.M)
+   648	
+   649	# ── G3-2 A1 write-ahead: 先 durable append 事件, 再 apply/发布 frontmatter。
+   650	# append = LF 守卫 + parsed 查重 + O_APPEND 单次 write + 字节数校验 + fsync
+   651	# (首建加父目录 fsync) — A4.3/A4.5。失败即中止 (frontmatter 未动, 可安全重试)。
+   652	if True:  # 正常路径 append (恢复路径已在上方 raise SystemExit(0) 结束)
+   653	    rec = {"event_id": evid, "event_version": 1, "event_type": etype,
+   654	           "node_id": node_id,
+   655	           "recorded_at": p["ts"], "effective_at": review_time,
+   656	           "payload": {"schema_ext": "review/1",
+   657	                       "vault_id": _vid,
+   658	                       "concept_id": node_id,
+   659	                       "rating": rating,
+   660	                       "grade_norm": GN2,
+   661	                       "review_time": review_time,
+   662	                       "fsrs_library_version": lib_ver,
+   663	                       "fsrs_params_hash": p_hash,
+   664	                       "exam_board": p.get("exam_board", ""),
+   665	                       "attempt_count": n_att}}
+   666	    # 防御性二次查重 (单写者下不可达 — _rows 快照在 dup 判定时已排除; 保留作
+   667	    # 纵深防御, 与 A4.5 "查重紧贴写入" 同型)
+   668	    _again = next((o for _, o in _rows if isinstance(o, dict) and o.get("event_id") == evid), None)
+   669	    if _again is not None:
+   670	        print(f"[quiz-answer] {evid} 已在账本 (防御性二次查重命中), 跳过 append")
+   671	    else:
+   672	        _created = not os.path.exists(EV)
+   673	        if not _created and os.path.getsize(EV) > 0:
+   674	            with open(EV, "rb") as _f:
+   675	                _f.seek(-1, os.SEEK_END)
+   676	                if _f.read(1) != b"\n":
+   677	                    with open(EV, "a", encoding="utf-8") as _f2:
+   678	                        _f2.write("\n")  # LF 守卫: 截断尾行自愈隔离
+   679	        _line = (json.dumps(rec, ensure_ascii=False) + "\n").encode("utf-8")
+   680	        _fd = os.open(EV, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
+   681	        try:
+   682	            _n = os.write(_fd, _line)
+   683	            if _n != len(_line):
+   684	                raise SystemExit(f"[quiz-answer] 账本短写 ({_n}/{len(_line)} 字节), fail-closed 中止 — frontmatter 未动, 可安全重跑")
+   685	            os.fsync(_fd)
+   686	        finally:
+   687	            os.close(_fd)
+   688	        if _created:
+   689	            _dfd = os.open(VAULT, os.O_RDONLY)
+   690	            try:
+   691	                os.fsync(_dfd)
+   692	            finally:
+   693	                os.close(_dfd)
+   694	        print(f"[quiz-answer] 事件已落日志(write-ahead): {etype} @ {review_time}")
+   695	
+   696	# calibration_log 结构化事件（开头的事件级幂等已保证本事件未记录过;
+   697	# ts = review_time 业务生效时刻, 与恢复路径同源 — round-2 HIGH 字节对齐）
+   698	fm = _append_calibration(fm, review_time)
+   699	
+   700	# 疑问归纳 callout（前置空行防并块；内容幂等：续跑不重复 append）
+   701	cal = (p.get("callout") or "").strip()
+   702	if cal and cal not in body:
+   703	    body = body.rstrip() + "\n\n" + cal + "\n"
+   704	
+   705	# ── G3-2 A4.4 原子发布: temp → flush → fsync → os.replace → fsync 父目录。
+   706	# 六字段与 fsrs_last_review 在同一次替换中落盘 (半态会被三态判别判残缺 →
+   707	# fail-closed, 是正确降级方向, 但不应由每次崩溃制造)。
+   708	tmp = NODE + ".quiz-tmp"
+   709	_f = open(tmp, "w", encoding="utf-8")
+   710	_f.write(f"---\n{fm}\n---\n{body}")
+   711	_f.flush()
+   712	os.fsync(_f.fileno())
+   713	_f.close()
+   714	os.replace(tmp, NODE)
+   715	_dfd = os.open(os.path.dirname(NODE) or ".", os.O_RDONLY)
+   716	try:
+   717	    os.fsync(_dfd)
+   718	finally:
+   719	    os.close(_dfd)
+   720	os.remove(P)
+   721	print(f"[quiz-answer] {NODE}: mastery {old}->{new}; event={eid}; fsrs={'applied @ ' + review_time if fsrs_ok else 'degraded (事件已入账, W 未推进)'}; ledger=append; callout={'yes' if cal else 'no'}")
+   722	PYEOF
+   723	```
+   724	
+   725	（衰减 Beta：评分前先按闲置天数折旧 `a,b ← a,b·0.99^days_idle`（防置信度复活，终审 A2），再 `a←γa+grade, b←γb+(1−grade)`，γ=0.9，`mastery_score=μ=a/(a+b)`；越考越准（σ 收窄）且 ~10 次内跟上状态跳变，取代不收敛的恒权 EMA（批次2' A1）。算法与常数见 `.claude/scripts/decay_beta.py`，v2 上层再接 FSRS 调度。python stdout 只给你看，不进回执。）
+   726	
+   727	## Step 4c-bis · 刷新原白板目录（RAG-S2.6 T2 · 掌握度行内值的唯一保鲜点）
+   728	
+   729	python 写分成功后，**`Bash` 跑一次目录同步**——把新掌握度 / `attempt_count`
+   730	刷进原白板 `## Concepts` 的行内显示：
+
+**Analyzing ledger line parsing bug**
+**Investigating JSON serialization and timestamp mismatch**
+**Verifying durable effective_at handling**
+**Assessing timestamp handling in retries**
+**Identifying timestamp conflicts in candidate construction**
+**Analyzing state combinations and duplicates**
+**Evaluating mastery application in A2 event replay**
+**Analyzing potential mastery loss after crash recovery**
+**Clarifying FSRS versus mastery data persistence**
+**Analyzing attempt count conflict in ledger schema**
+**Examining multiple pending attempt inconsistencies**
+**Questioning mastery application in multiple replays**
+**Analyzing replay and retry conflict logic**
+**Identifying out_of_order schema validation issue**
+**Highlighting severity of out_of_order fraud**
+**Analyzing out_of_order semantic enforcement risks**
+**Identifying silent loss from malformed external rows**
+**Assessing corruption impact on ledger writing**
+**Assessing ledger validation scope and parser robustness**
+**Analyzing timezone offset parsing inconsistencies**
+**Tracing timestamp parsing issues**
+**Testing ISO timestamp and JSON parsing**
+**Confirming contract duplicate key rejection**
+**Identifying duplicate key handling issue**
+**Highlighting incomplete duplicate key validation**
+**Verifying float rounding consistency**
+**Verifying numeric threshold consistency**
+exec
+/bin/zsh -lc "nl -ba canvas-vault/.claude/scripts/fsrs_bridge.py | sed -n '1,314p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w7-ledger
+ succeeded in 0ms:
+     1	#!/usr/bin/env python3
+     2	"""FSRS WHEN 桥 (FSRS-V2-2026-07-30, [Decision-FSRS-1/2])。
+     3	
+     4	职责: 把 quiz-answer 的一次评分翻译成 py-fsrs 复习, 产出 6 个加性
+     5	frontmatter 字段 (fsrs_due/state/step/stability/difficulty/last_review)。
+     6	无字段 = New 卡即刻到期 (零迁移)。
+     7	
+     8	调用形态: quiz-answer 静态段用系统 python3 (stdlib) 经 stdin JSON 调本
+     9	文件; 本文件发现 fsrs 不可导入时自动 re-exec backend/.venv python。
+    10	调度计算全部收拢在写侧 — 读侧 (daily_review_pick/Dashboard) 只做字符串
+    11	日期比较, 维持 launchd 纯 stdlib 契约 (审查报告 §四-④)。
+    12	
+    13	参数契约: DEFAULT_PARAMETERS + desired_retention=0.9 + enable_fuzzing=False
+    14	(可复现可测试; 个人化拟合 F6 延后)。被 backend/tests/regression/
+    15	test_fsrs_bridge.py 锁定。
+    16	
+    17	时刻契约 (CARD-G3-2, schema v1 §6.2 A5/A6; 修 §九登记的 bridge 三缺陷):
+    18	  - **统一 UTC**: 入参一律 astimezone(UTC) 后再交给调度器 —— fsrs 库对
+    19	    review_datetime 硬校验 "tz-aware 且 tzinfo 恰为 UTC"
+    20	    (scheduler.py:256-260), 原实现只补 tzinfo 不转换, 于是合法的
+    21	    '12:00:00+08:00' 会被库抛 ValueError;
+    22	  - **naive 拒绝**: 不带时区的时刻**拒收并在 stdout 明说**, 不再静默当 UTC ——
+    23	    无时区的时刻无法与水位线 W 做绝对瞬间比较, 猜一个时区等于伪造事实;
+    24	  - **整秒对齐**: 复习时刻在**入口**截到整秒 (原实现只在 _iso() 输出时截,
+    25	    于是写出的 W 与事件里的 review_time 差一个小数秒, A5 的"同一瞬间"不成立,
+    26	    重放时 10:00:00.5 > 10:00:00 恒真 ⇒ 同一事件被二次推进)。
+    27	  输出的 review_time 即本次实际采用的整秒 UTC 时刻, 与 fsrs_last_review 逐字相同;
+    28	  调用方必须把它写进事件 payload, 不要自己另算一份。
+    29	
+    30	stdout 加性字段 (向后兼容, 老调用方只读 fm_block 不受影响):
+    31	  review_time / rating / fsrs_library_version / fsrs_params_hash。
+    32	stdin 加性字段: rating (可选, 显式指定 FSRS Rating; 缺省仍按 grade_norm+abandoned
+    33	  推导) —— 供 G3-2 的 A2 pending 重放按事件**已断言的** rating 复算。
+    34	"""
+    35	
+    36	from __future__ import annotations
+    37	
+    38	import hashlib
+    39	import json
+    40	import os
+    41	import re
+    42	import sys
+    43	from datetime import datetime, timedelta, timezone
+    44	
+    45	def _venv_python() -> str | None:
+    46	    """候选顺序: 相对本 vault 的仓库根 backend/.venv (worktree 与主仓副本各自
+    47	    成立, Code-Review H1: 不能让 live vault 的 FSRS 写侧系于 dev worktree
+    48	    存亡) → 硬编码 worktree 路径兜底。"""
+    49	    from pathlib import Path
+    50	
+    51	    candidates = [
+    52	        Path(__file__).resolve().parents[3] / "backend" / ".venv" / "bin" / "python",
+    53	        Path(
+    54	            "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/"
+    55	            "feature-obsidian-hybrid-dev/backend/.venv/bin/python"
+    56	        ),
+    57	    ]
+    58	    for c in candidates:
+    59	        if c.exists():
+    60	            return str(c)
+    61	    return None
+    62	
+    63	FIELD_ORDER = (
+    64	    "fsrs_due", "fsrs_state", "fsrs_step",
+    65	    "fsrs_stability", "fsrs_difficulty", "fsrs_last_review",
+    66	)
+    67	
+    68	
+    69	def _aware(s: str) -> datetime:
+    70	    """受理语法内时刻 → tz-aware datetime, 统一 astimezone(UTC)。
+    71	
+    72	    naive (无时区) 一律 ValueError 拒绝 —— G3-2 契约 A6: 无时区的时刻无法
+    73	    与水位线 W 做绝对瞬间比较, 静默当 UTC 等于伪造事实。原实现
+    74	    `dt.replace(tzinfo=utc)` 只补 tzinfo 不转换, 合法的 '12:00:00+08:00'
+    75	    会原样传给 fsrs 库并被其 UTC 硬校验抛 ValueError (§九登记缺陷①②)。
+    76	    """
+    77	    dt = datetime.fromisoformat(str(s).strip().replace("Z", "+00:00"))
+    78	    if dt.tzinfo is None:
+    79	        raise ValueError(f"naive 时刻拒收 (无法与水位线比较, 请带时区重传): {s!r}")
+    80	    return dt.astimezone(timezone.utc)
+    81	
+    82	
+    83	def _whole_second(dt: datetime) -> datetime:
+    84	    """截掉小数秒 (向零取整, 即丢弃小数部分) —— A5 整秒口径。
+    85	
+    86	    W 与事件 review_time 都只有秒级精度; 原实现只在 _iso() 输出时截,
+    87	    写出的 W 与调用方手里的 ts 差一个小数秒, A5 "同一瞬间" 不成立。
+    88	    """
+    89	    return dt.replace(microsecond=0)
+    90	
+    91	
+    92	def _iso(dt: datetime) -> str:
+    93	    return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    94	
+    95	
+    96	def rating_from_grade(grade_norm: float, abandoned: bool) -> int:
+    97	    """[Decision-FSRS-1] 弃答→Again; 否则还原 grade=1+3·gn 就近落四档。"""
+    98	    if abandoned:
+    99	        return 1
+   100	    g = 1.0 + 3.0 * max(0.0, min(1.0, float(grade_norm)))
+   101	    if g < 1.5:
+   102	        return 1
+   103	    if g < 2.5:
+   104	        return 2
+   105	    if g < 3.5:
+   106	        return 3
+   107	    return 4
+   108	
+   109	
+   110	_ONE_MINUTE = timedelta(minutes=1)
+   111	
+   112	
+   113	def _steps_to_minutes(steps) -> list[int]:
+   114	    """timedelta 序列 → 整分钟列表。非整分钟步长直接抛错, 不静默截断。
+   115	
+   116	    用 timedelta 整除/取余 (内部纯整数微秒), 不走 total_seconds() 浮点 ——
+   117	    json.dumps 把 1.0 写成 "1.0"、1 写成 "1", hash 会分叉。
+   118	    """
+   119	    minutes: list[int] = []
+   120	    for td in steps:
+   121	        if td % _ONE_MINUTE != timedelta(0):
+   122	            raise ValueError(f"学习步长 {td!r} 非整分钟, 无法用 *_steps_minutes 表达")
+   123	        minutes.append(td // _ONE_MINUTE)
+   124	    return minutes
+   125	
+   126	
+   127	def scheduler_identity(sched) -> tuple[str, str]:
+   128	    """从活体 fsrs Scheduler 反推 (library_version, params_hash)。
+   129	
+   130	    params_hash 口径与 backend/scripts/generate_fsrs_golden_vectors.py::
+   131	    params_hash() 逐字一致 (sha256 of canonical JSON, 六键形状), 零硬编码 ——
+   132	    golden manifest 真值相等是被**复算证明**的, 不是被声明的。库/参数升级时
+   133	    此处如实返回新身份, 与 manifest 的相等性检查由校验器负责。
+   134	    """
+   135	    from importlib.metadata import version as _pkg_version
+   136	
+   137	    config = {
+   138	        "parameters": [float(p) for p in sched.parameters],
+   139	        "desired_retention": float(sched.desired_retention),
+   140	        "learning_steps_minutes": _steps_to_minutes(sched.learning_steps),
+   141	        "relearning_steps_minutes": _steps_to_minutes(sched.relearning_steps),
+   142	        "maximum_interval": int(sched.maximum_interval),
+   143	        "enable_fuzzing": bool(sched.enable_fuzzing),
+   144	    }
+   145	    canonical = json.dumps(config, sort_keys=True, separators=(",", ":"))
+   146	    return _pkg_version("fsrs"), hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+   147	
+   148	
+   149	def fields_from_frontmatter(fm: str) -> dict:
+   150	    """从 frontmatter 文本抽 fsrs_* 字段 (纯 stdlib, 读侧同款正则)。"""
+   151	    out = {}
+   152	    for key in FIELD_ORDER:
+   153	        m = re.search(rf'^{key}:\s*"?([^"\n]+?)"?\s*$', fm, re.M)
+   154	        if m:
+   155	            out[key] = m.group(1).strip()
+   156	    return out
+   157	
+   158	
+   159	def _legacy_param(v):
+   160	    """legacy state:0 伴生参数哨兵归一: 空/null/~/0/0.0/不可解析 → None。"""
+   161	    if v in (None, ""):
+   162	        return None
+   163	    s = str(v).strip().lower()
+   164	    if s in ("null", "none", "~"):
+   165	        return None
+   166	    try:
+   167	        return None if float(s) == 0.0 else v
+   168	    except ValueError:
+   169	        return None
+   170	
+   171	
+   172	#: A7 review 域上界 (schema v1 §6.2): review_time 与 W 同域同界且均须严格小于。
+   173	#: 调度会在其上叠加 interval, A3 还要 +1s —— 逼近上界时新事件不可写, fail-closed。
+   174	_REVIEW_MAX = datetime(9000, 1, 1, tzinfo=timezone.utc)
+   175	
+   176	
+   177	def review(fields: dict, grade_norm: float, abandoned: bool, ts: str, rating: int | None = None) -> dict:
+   178	    """一次评分 → 新 fsrs_* 字段 (需要 fsrs 可导入)。
+   179	
+   180	    G3-2 时刻语义 (schema v1 §6.2 A3/A5/A6):
+   181	      - ts 归一 UTC 整秒后作为本次 review 时刻 (写出的 fsrs_last_review 与
+   182	        返回的 review_time 逐字相同);
+   183	      - 若当前 frontmatter 有 W (fsrs_last_review) 且本次时刻 ≤ W, 推进到
+   184	        W+1s 再写 (A3 等时唯一口径: 推进不拒绝);
+   185	      - rating 可显式指定 (A2 pending 重放按事件已断言的 rating 复算),
+   186	        缺省按 grade_norm+abandoned 推导; abandoned 恒为 1 (弃答一票否决);
+   187	        显式值必须与 rating_from_grade(grade_norm, abandoned) **相等** —— 不
+   188	        自洽的 pending 行在 apply 前拒绝, 不靠事后 validator 兜 (R5)。
+   189	    """
+   190	    from fsrs import Card, Rating, Scheduler, State
+   191	
+   192	    now = _whole_second(_aware(ts))
+   193	    if now >= _REVIEW_MAX:
+   194	        raise ValueError(f"review 时刻 {ts!r} 越出 A7 review 域上界 (须严格小于 {_iso(_REVIEW_MAX)})")
+   195	    if rating is not None:
+   196	        # 严格 int (Codex round-1 MEDIUM): int(1.5)==1 会把非法 pending 行
+   197	        # 静默应用; §6.1 冻结 rating 为真 int 1-4, bool 伪装同样拒绝。
+   198	        if isinstance(rating, bool) or not isinstance(rating, int) or rating not in (1, 2, 3, 4):
+   199	            raise ValueError(f"显式 rating 必须为 int 1-4, 实为 {rating!r}")
+   200	        # 评分事实自洽 (Codex round-3 HIGH R5; 含 round-2 HIGH 的 abandoned 分项):
+   201	        # 类型/范围合法 ≠ 与本行的评分事实自洽。`answer_scored + grade_norm=0.75
+   202	        # + rating=4` 三项单看都合法, 但 [Decision-FSRS-1] 下 0.75 的契约值是 3
+   203	        # —— 旧实现照单全收并推进 FSRS, 事后才由 validator 判 FAIL (损坏基线上
+   204	        # 已叠加一次调度)。rating 是 grade_norm/abandoned 的**纯函数**, 故在
+   205	        # apply 前机械复算并要求相等; abandoned=true 由 rating_from_grade 一票
+   206	        # 否决为 1, 弃答给非 1 的 rating 同样落在本门内。
+   207	        _expect = rating_from_grade(grade_norm, abandoned)
+   208	        if rating != _expect:
+   209	            raise ValueError(
+   210	                f"显式 rating {rating} 与评分事实不自洽 "
+   211	                f"(grade_norm={grade_norm!r}, abandoned={abandoned!r} ⇒ 契约值 {_expect})"
+   212	            )
+   213	    if abandoned:
+   214	        used_rating = 1
+   215	    elif rating is not None:
+   216	        used_rating = rating
+   217	    else:
+   218	        used_rating = rating_from_grade(grade_norm, abandoned)
+   219	
+   220	    sched = Scheduler(enable_fuzzing=False)
+   221	    if fields.get("fsrs_due"):
+   222	        step = fields.get("fsrs_step")
+   223	        stability = fields.get("fsrs_stability")
+   224	        difficulty = fields.get("fsrs_difficulty")
+   225	        raw_state = int(fields.get("fsrs_state", 1))
+   226	        if raw_state == 0:
+   227	            # legacy New 形状字段级迁移 (CARD-C3, roundtrip 显式例外):
+   228	            # state 0→Learning(1) — py-fsrs 4+ 无 New 态, State(0) 抛
+   229	            # ValueError; 伴生哨兵 0/0.0/null → None (0.0 会进 v6 稳定度
+   230	            # 幂运算抛 ZeroDivisionError); step 兜底 0 (Learning 首步)。
+   231	            raw_state = 1
+   232	            stability = _legacy_param(stability)
+   233	            difficulty = _legacy_param(difficulty)
+   234	            step = _legacy_param(step) or 0
+   235	        card = Card(
+   236	            state=State(raw_state),
+   237	            step=int(step) if step not in (None, "") else None,
+   238	            stability=float(stability) if stability else None,
+   239	            difficulty=float(difficulty) if difficulty else None,
+   240	            due=_aware(fields["fsrs_due"]),
+   241	            last_review=_aware(fields["fsrs_last_review"]) if fields.get("fsrs_last_review") else None,
+   242	        )
+   243	        # A3 等时消解: 时刻 ≤ W → 推进 W+1s (写侧唯一口径, 禁止拒绝丢评分)。
+   244	        # W 与 review_time 同域同界, W+1s 越出 A7 上界 ⇒ 后继不可写, fail-closed。
+   245	        if fields.get("fsrs_last_review"):
+   246	            w = _whole_second(_aware(fields["fsrs_last_review"]))
+   247	            if now <= w:
+   248	                bumped = w + timedelta(seconds=1)
+   249	                if bumped >= _REVIEW_MAX:
+   250	                    raise ValueError(f"A3 推进 W+1s 越出 A7 上界 (W={_iso(w)}) — 后继事件不可写")
+   251	                now = bumped
+   252	    else:
+   253	        card = Card(due=now)  # 无字段 = New 卡即刻到期 (零迁移)
+   254	
+   255	    card, _log = sched.review_card(
+   256	        card, Rating(used_rating), review_datetime=now
+   257	    )
+   258	    lib_ver, p_hash = scheduler_identity(sched)
+   259	    out = {
+   260	        "fsrs_due": _iso(card.due),
+   261	        "fsrs_state": int(card.state),
+   262	        "fsrs_step": card.step if card.step is not None else "",
+   263	        "fsrs_stability": round(card.stability, 4) if card.stability is not None else "",
+   264	        "fsrs_difficulty": round(card.difficulty, 4) if card.difficulty is not None else "",
+   265	        "fsrs_last_review": _iso(now),
+   266	        # G3-2 加性输出: 调用方必须把 review_time 原样写进事件 payload
+   267	        # (与 effective_at 同一瞬间), 不要自己另算一份。
+   268	        "review_time": _iso(now),
+   269	        "rating": used_rating,
+   270	        "fsrs_library_version": lib_ver,
+   271	        "fsrs_params_hash": p_hash,
+   272	    }
+   273	    out["fm_block"] = "\n".join(
+   274	        f"{k}: {out[k]}" for k in FIELD_ORDER if out[k] != ""
+   275	    )
+   276	    return out
+   277	
+   278	
+   279	def _ensure_fsrs() -> bool:
+   280	    try:
+   281	        import fsrs  # noqa: F401
+   282	        return True
+   283	    except ImportError:
+   284	        venv_py = _venv_python()
+   285	        if os.environ.get("FSRS_BRIDGE_REEXEC") != "1" and venv_py:
+   286	            os.environ["FSRS_BRIDGE_REEXEC"] = "1"
+   287	            os.execv(venv_py, [venv_py, os.path.abspath(__file__)] + sys.argv[1:])
+   288	        return False
+   289	
+   290	
+   291	def main() -> int:
+   292	    if not _ensure_fsrs():
+   293	        print(json.dumps({"error": "fsrs_unavailable — backend/.venv 缺失或未装 fsrs"}))
+   294	        return 3
+   295	    p = json.load(sys.stdin)
+   296	    try:
+   297	        out = review(
+   298	            fields_from_frontmatter(p.get("fm", "")),
+   299	            float(p.get("grade_norm", 0.0)),
+   300	            bool(p.get("abandoned")),
+   301	            p["ts"],
+   302	            rating=p.get("rating"),
+   303	        )
+   304	    except ValueError as e:
+   305	        # G3-2: naive/越界/非法 rating 等输入缺陷 —— 拒绝并 stdout 明说,
+   306	        # 不静默降级。exit 2 = 输入错误 (区别于 3 = fsrs 不可用)。
+   307	        print(json.dumps({"error": f"invalid_input — {e}"}, ensure_ascii=False))
+   308	        return 2
+   309	    print(json.dumps(out, ensure_ascii=False))
+   310	    return 0
+   311	
+   312	
+   313	if __name__ == "__main__":
+   314	    sys.exit(main())
+
+**Verifying rating threshold consistency**
+**Analyzing degraded write and recovery discrepancies**
+**Noting LF preservation limitation in text mode**
+**Assessing line-ending and UTF-8 error handling**
+**Evaluating bad line handling and log reading**
+exec
+/bin/zsh -lc "nl -ba backend/app/services/learning_event_log.py | sed -n '1,131p'" in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w7-ledger
+ succeeded in 0ms:
+     1	"""批次3' 2-4 — 统一学习事件日志 (MEM-FLYWHEEL-2026-07-22, 对账 schema 四要素)。
+     2	
+     3	`<vault>/learning_events.jsonl` append-only: frontmatter 仍是真相源 (不改架构),
+     4	日志提供「过程可回放、图可重建」兜底 — 会话记忆层从「丢图即永失」变为可重放。
+     5	
+     6	Schema 四要素 (ChatGPT 对账采纳):
+     7	  - event_id: 幂等键 (调用方构造稳定值, 重放/重试不双写)
+     8	  - event_version: schema 版本 (当前 1)
+     9	  - recorded_at / effective_at: 双时间戳 (记录时刻 vs 业务生效时刻,
+    10	    补录历史事件时两者分离)
+    11	  - event_type: 限 9 类核心动作 (EVENT_TYPES), 未知类型拒绝 — 防事件膨胀
+    12	    (callout_ingested 2026-07-23 对账评审入集后 "8 类" 注释曾未同步)
+    13	
+    14	写点 (批次3' 接入 4 个, node_derived 留批次4' 拆分补强):
+    15	  backend: candidate_created (蒸馏) / candidate_accepted / candidate_disputed
+    16	           (= dispute 三件套第三件「可追溯」suppression log) / session_archived
+    17	  vault:   answer_scored / answer_abandoned (quiz-answer) / exam_created
+    18	           (start-exam-board) — SKILL 静态 python 直接 append 同一文件
+    19	"""
+    20	
+    21	from __future__ import annotations
+    22	
+    23	import json
+    24	import logging
+    25	import os
+    26	import threading
+    27	from datetime import datetime, timezone
+    28	from pathlib import Path
+    29	from typing import Any, Optional
+    30	
+    31	logger = logging.getLogger(__name__)
+    32	
+    33	EVENT_VERSION = 1
+    34	
+    35	#: 核心动作白名单 — 新增类型必须走对账评审, 不得随手扩
+    36	#: (callout_ingested 经 2026-07-23 燃料策略对账批次5' 方案评审加入)
+    37	EVENT_TYPES = frozenset(
+    38	    {
+    39	        "node_derived",
+    40	        "exam_created",
+    41	        "answer_scored",
+    42	        "answer_abandoned",
+    43	        "candidate_created",
+    44	        "candidate_accepted",
+    45	        "candidate_disputed",
+    46	        "session_archived",
+    47	        "callout_ingested",
+    48	    }
+    49	)
+    50	
+    51	_write_lock = threading.Lock()
+    52	
+    53	
+    54	def _log_path() -> Path:
+    55	    from app.config import settings
+    56	
+    57	    canvas_base = getattr(settings, "CANVAS_BASE_PATH", None) or "/vaults/canvas-vault"
+    58	    return Path(canvas_base) / "learning_events.jsonl"
+    59	
+    60	
+    61	def append_event(
+    62	    event_type: str,
+    63	    event_id: str,
+    64	    node_id: str = "",
+    65	    payload: Optional[dict[str, Any]] = None,
+    66	    effective_at: Optional[str] = None,
+    67	) -> bool:
+    68	    """append-only 落一条学习事件; event_id 已存在 → 幂等跳过。
+    69	
+    70	    永不抛异常 (记录失败不得影响主链) — 返回 False 表示未写入
+    71	    (幂等跳过或 IO 失败, 区别见日志)。
+    72	    """
+    73	    try:
+    74	        if event_type not in EVENT_TYPES:
+    75	            logger.warning("[learning-events] 拒绝未知 event_type=%r (9 类白名单)", event_type)
+    76	            return False
+    77	        if not event_id:
+    78	            logger.warning("[learning-events] 拒绝空 event_id (幂等键必填)")
+    79	            return False
+    80	
+    81	        path = _log_path()
+    82	        path.parent.mkdir(parents=True, exist_ok=True)
+    83	
+    84	        with _write_lock:
+    85	            # 幂等: 文件内已有该 event_id → 跳过 (日志量级小, 全文扫描可接受;
+    86	            # 大文件时可换尾部 N 行 + 索引)。
+    87	            # G3-2 (CARD-G3-2, schema §二/§6.2 A4.5): 查重改为 parsed-field
+    88	            # equality — 原子串匹配 (`json.dumps(event_id) in line`) 在任意
+    89	            # 历史行 payload 文本恰好含该 JSON 串形时会把新事件误判 duplicate
+    90	            # 而**零次落账** (丢一次真实事实)。幂等语义不变 (event_id 唯一),
+    91	            # 只修正查重实现的正确性; 无法解析的行不算命中 (留痕后跳过)。
+    92	            if path.exists() and path.stat().st_size > 0:
+    93	                # (round-2 HIGH: 空文件 seek(-1, SEEK_END) 抛 OSError, 守卫
+    94	                # 必须 size>0 才读尾字节 — 否则首事件永远写不进去)
+    95	                with open(path, encoding="utf-8") as f:
+    96	                    for line in f:
+    97	                        try:
+    98	                            record = json.loads(line)
+    99	                        except ValueError:
+   100	                            # 坏行 (截断/损坏) 不构成 duplicate 证据, 但要留痕
+   101	                            logger.warning(
+   102	                                "[learning-events] 账本存在无法解析的行 (截断/损坏), 查重跳过该行: %r", line[:80]
+   103	                            )
+   104	                            continue
+   105	                        if isinstance(record, dict) and record.get("event_id") == event_id:
+   106	                            return False
+   107	                # G3-2 LF 守卫 (schema §二 截断自愈): 尾行无换行时先补 LF 再
+   108	                # 追加 — 否则新事件粘进坏行连坐损坏 (Codex round-1 HIGH:
+   109	                # 预置 partial JSON 后 append 会把两个 JSON 粘成一行坏行)。
+   110	                with open(path, "rb") as bf:
+   111	                    bf.seek(-1, os.SEEK_END)
+   112	                    if bf.read(1) != b"\n":
+   113	                        with open(path, "a", encoding="utf-8") as tf:
+   114	                            tf.write("\n")
+   115	                        logger.warning("[learning-events] 检测到无换行结尾的尾行 (疑似截断), 已补 LF 隔离后再追加")
+   116	            now = datetime.now(timezone.utc).isoformat()
+   117	            record = {
+   118	                "event_id": event_id,
+   119	                "event_version": EVENT_VERSION,
+   120	                "event_type": event_type,
+   121	                "node_id": node_id,
+   122	                "recorded_at": now,
+   123	                "effective_at": effective_at or now,
+   124	                "payload": payload or {},
+   125	            }
+   126	            with open(path, "a", encoding="utf-8") as f:
+   127	                f.write(json.dumps(record, ensure_ascii=False) + "\n")
+   128	        return True
+   129	    except Exception as e:  # noqa: BLE001 — 日志兜底, 不炸主链
+   130	        logger.warning("[learning-events] append 失败 (主链不受影响): %s", e)
+   131	        return False
+
+**Verifying event log changes**
+**Assessing append_event corruption risks**
+2026-09-01T20:49:54.161681Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+**Verifying worktree status and hashes**
+**Assessing external mutation script effects**
+codex
+基线出现了关键变化：审查开始时两份源文件与测试均干净且哈希已固定；只读轨随后观察到 `SKILL.md` 与回归测试在审查过程中被外部进程改动（不是本审查团队所为）。我现在先冻结证据并区分“91aaa11 已提交对象”与“当前漂移工作树”；后续生产实测将明确指定所测版本，避免把热修后的结果冒充对最终 commit 的审查。
+exec
+/bin/zsh -lc 'git diff -- canvas-vault/.claude/skills/quiz-answer/SKILL.md backend/tests/regression/test_g3_2_review_ledger.py' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w7-ledger
+ succeeded in 0ms:
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+diff --git a/backend/tests/regression/test_g3_2_review_ledger.py b/backend/tests/regression/test_g3_2_review_ledger.py
+index c72c0a97..9cfbb9fd 100644
+--- a/backend/tests/regression/test_g3_2_review_ledger.py
++++ b/backend/tests/regression/test_g3_2_review_ledger.py
+@@ -958,9 +958,16 @@ def test_r2_non_whole_second_durable_review_time_fail_closed(vault):
+     并再推进一次 FSRS** (实测: 账本始终一行, W 逐次 +1s = §6.2 A5 禁止的二次
+     apply)。修复方向必须是 apply 前只验不改 — 消费时归一化会把损坏行洗成
+     合法行, 把缺陷从写入面挪进不可见面。"""
++    # 判据必须落在**字面**上, 不是解析后的值 (自查补): '.000000Z' 的
++    # microsecond 恰为 0, 只看值会放行它, 而校验器的 _WHOLE_SECOND_RE 按字面
++    # 判 FAIL ⇒ 写点放行、validator 拒, 实现与契约又成两个口径。
+     for rt_bad, why in (
+         ("2026-08-01T10:00:00.500Z", "小数秒"),
+-        ("2026-08-01T18:00:00+08:00", "非 UTC"),
++        ("2026-08-01T10:00:00.000000Z", "小数秒"),  # 零值小数秒字面: 值合规、字面不合规
++        ("2026-08-01T10:00:00.0Z", "小数秒"),
++        ("2026-08-01T10:00:00+00:00:00", "小数秒"),  # 非 canonical 偏移字面
++        ("2026-08-01T10:00+00:00", "小数秒"),  # 省略秒段 (§6.2 round-4 HIGH#1)
++        ("2026-08-01T18:00:00+08:00", "非 UTC"),  # 字面合规但偏移非零
+     ):
+         (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+         _write_ledger(vault, _review_row(**{"payload.review_time": rt_bad, "effective_at": rt_bad}))
+@@ -975,12 +982,14 @@ def test_r2_non_whole_second_durable_review_time_fail_closed(vault):
+         assert r2.returncode != 0, f"{why} durable 行 (foreign pending 路径) 必须 fail-closed"
+         assert why in r2.stderr, r2.stderr
+         assert _sha(vault / NODE_REL) == sha and len(_ledger_lines(vault)) == 1, "零写"
+-    # 对照 (验伪): 整秒 UTC 的同形行必须照常重放
+-    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+-    _write_ledger(vault, _review_row())
+-    rok = _run_writer(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
+-    assert rok.returncode == 0, rok.stdout + rok.stderr
+-    assert "A2 重放已应用" in rok.stdout
++    # 对照 (验伪): 整秒 UTC 的两种 canonical 字面都必须照常重放 —— 本门不是
++    # 「凡带偏移就拒」的假门, Z 与 +00:00 是同一瞬间的两种合法写法。
++    for rt_ok in ("2026-08-01T10:00:00Z", "2026-08-01T10:00:00+00:00"):
++        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
++        _write_ledger(vault, _review_row(**{"payload.review_time": rt_ok, "effective_at": rt_ok}))
++        rok = _run_writer(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
++        assert rok.returncode == 0, f"{rt_ok} 必须照常重放: " + rok.stdout + rok.stderr
++        assert "A2 重放已应用" in rok.stdout
+ 
+ 
+ # ── 门㉘ R3 (HIGH): 历史事件重跑 (E1→E2→重跑 E1) 必须 no-op, 不得误报冲突 ──
+diff --git a/canvas-vault/.claude/skills/quiz-answer/SKILL.md b/canvas-vault/.claude/skills/quiz-answer/SKILL.md
+index 7c49f259..0e55c918 100644
+--- a/canvas-vault/.claude/skills/quiz-answer/SKILL.md
++++ b/canvas-vault/.claude/skills/quiz-answer/SKILL.md
+@@ -219,7 +219,7 @@ sys.path.insert(0, os.path.join(VAULT, ".claude", "scripts"))
+ try:
+     from fsrs_bridge import rating_from_grade, fields_from_frontmatter
+     sys.path.insert(0, os.path.join(REPO, "backend", "scripts"))
+-    from validate_learning_events import classify_card_state, _vault_id_of
++    from validate_learning_events import classify_card_state, _vault_id_of, _WHOLE_SECOND_RE
+ except Exception as _e:
+     raise SystemExit(f"[quiz-answer] G3-2 依赖不可达 (validate_learning_events/fsrs_bridge import 失败), fail-closed 拒写: {_e}")
+ 
+@@ -240,14 +240,20 @@ def _durable_instant(rt, ctx):
+     """
+     if not isinstance(rt, str) or not rt.strip():
+         raise SystemExit(f"[quiz-answer] {ctx} 的 review_time 非字符串 ({rt!r}), fail-closed 拒写")
++    # 整秒判据复用**校验器本体**的 _WHOLE_SECOND_RE (禁第三套, DD-03/DD-13):
++    # 判据必须是**字面**而非解析后的值 —— '10:00:00.000000Z' 的 microsecond
++    # 恰为 0, 只看值会放行它, 而校验器按字面判 FAIL ⇒ 写点放行、validator 拒,
++    # 实现与契约又成两个口径 (正是 R6 那类缺陷的重演)。同源即无分叉。
++    if not _WHOLE_SECOND_RE.match(rt.strip()):
++        raise SystemExit(f"[quiz-answer] {ctx} 的 review_time 非 canonical 整秒形态 ({rt!r}; §6.2 A5 要求 YYYY-MM-DDThh:mm:ss 加 Z 或 ±hh:mm, 无小数秒 — 含小数秒会让同一行二次推进 FSRS), fail-closed 拒写")
+     try:
+         _dt = datetime.fromisoformat(rt.strip().replace("Z", "+00:00"))
+     except ValueError:
+         raise SystemExit(f"[quiz-answer] {ctx} 的 review_time 不可解析 ({rt!r}), fail-closed 拒写")
+-    if _dt.tzinfo is None or _dt.utcoffset() != timedelta(0):
++    # 字面门放行 ±hh:mm 任意偏移 (校验器口径); A2 消费面比校验器**严一档**,
++    # 只收 UTC (卡文 (b)) —— 本写点恒产出 Z, 非 UTC 行必为外部写入。
++    if _dt.tzinfo is None:
+         raise SystemExit(f"[quiz-answer] {ctx} 的 review_time 非 UTC ({rt!r}; §6.2 A6 要求 tz-aware UTC 时刻), fail-closed 拒写")
+-    if _dt.microsecond:
+-        raise SystemExit(f"[quiz-answer] {ctx} 的 review_time 含小数秒 ({rt!r}; §6.2 A5 要求整秒 — 消费时归一会让同一行二次推进 FSRS), fail-closed 拒写")
+     return _dt
+ 
+ # ── G3-2 frontmatter 重复键 fail-closed (schema §6.2 三态边界声明: 重复键
+
+exec
+/bin/zsh -lc 'shasum -a 256 canvas-vault/.claude/skills/quiz-answer/SKILL.md backend/tests/regression/test_g3_2_review_ledger.py canvas-vault/.claude/scripts/fsrs_bridge.py docs/learning-events-schema-v1.md' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w7-ledger
+ succeeded in 0ms:
+8ea2c2c39e8b63f75884d106563e72338be75ac01ac437a5172ae26da63063b7  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+87ce7638ee0b7c583086e1108fe540e9f75fa9f0f0a30c0cbff3009be93f54a4  backend/tests/regression/test_g3_2_review_ledger.py
+80679678ebf56d53bcbf5f6b5b2b0dbc51e66ea7f8c66977ff2f8d8e7615b35d  canvas-vault/.claude/scripts/fsrs_bridge.py
+046cf0b0a57bd9ddc2456c3db38af7a356e4db4f9e03138803d755178bb676d7  docs/learning-events-schema-v1.md
+
+exec
+/bin/zsh -lc 'git status --short --branch' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w7-ledger
+ succeeded in 0ms:
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+## card/w7-ledger
+ M backend/scripts/g32b_mutation_gates.py
+ M backend/tests/regression/test_g3_2_review_ledger.py
+ M canvas-vault/.claude/skills/quiz-answer/SKILL.md
+?? "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G3-2-round1.stderr"
+?? "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G3-2-round2.stderr"
+?? "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G3-2-round3.stderr"
+?? "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G3-2b.md"
+?? "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G3-2b.stderr"
+?? "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-G3-2b.md"
+
+2026-09-01T20:49:58.543864Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T20:49:58.972338Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T20:50:05.357783Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T20:50:05.874427Z ERROR codex_models_manager::manager: failed to load models cache: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T20:50:05.878427Z ERROR codex_models_manager::manager: failed to load models cache: missing field `supports_parallel_tool_calls` at line 97 column 5
+**Identifying conflicts in UTC check fix**
+**Planning isolated commit extraction and testing**
+**Verifying file hashes in isolated archive**
+**Requesting sandbox escalation for temp directory creation**
+exec
+/bin/zsh -lc 'mktemp -d /private/tmp/card-g3-2b-audit.XXXXXX' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w7-ledger
+2026-09-01T20:50:20.894946Z ERROR codex_core::tools::router: error=timeout_ms must be at least 10000
+ succeeded in 0ms:
+/private/tmp/card-g3-2b-audit.2rtspx
+
+**Designing separate git archive and extraction steps**
+exec
+/bin/zsh -lc 'git archive --format=tar --output=/private/tmp/card-g3-2b-audit.2rtspx/commit.tar 91aaa11' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w7-ledger
+ succeeded in 399ms:
+2026-09-01T20:50:33.304461Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T20:50:36.197996Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+**Extracting archive and creating symlink**
+exec
+/bin/zsh -lc 'tar -xf /private/tmp/card-g3-2b-audit.2rtspx/commit.tar -C /private/tmp/card-g3-2b-audit.2rtspx' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w7-ledger
+2026-09-01T20:50:37.625545Z ERROR codex_models_manager::manager: failed to load models cache: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T20:50:37.629490Z ERROR codex_models_manager::manager: failed to load models cache: missing field `supports_parallel_tool_calls` at line 97 column 5
+ succeeded in 523ms:
+**Planning symlink creation for .venv**
+2026-09-01T20:50:49.364114Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T20:50:52.881672Z ERROR codex_models_manager::manager: failed to renew cache TTL: missing field `supports_parallel_tool_calls` at line 97 column 5
+**Planning symlink creation**
+exec
+/bin/zsh -lc 'ln -s /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w7-ledger/backend/.venv /private/tmp/card-g3-2b-audit.2rtspx/backend/.venv' in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w7-ledger
+2026-09-01T20:50:55.534127Z ERROR codex_models_manager::manager: failed to load models cache: missing field `supports_parallel_tool_calls` at line 97 column 5
+2026-09-01T20:50:55.538003Z ERROR codex_models_manager::manager: failed to load models cache: missing field `supports_parallel_tool_calls` at line 97 column 5
+ succeeded in 0ms:
+**Preparing environment for targeted tests**
+exec
+/bin/zsh -lc 'mkdir -p /private/tmp/card-g3-2b-audit.2rtspx/tmp' in /private/tmp/card-g3-2b-audit.2rtspx
+ succeeded in 0ms:
+codex
+已冻结到 `/private/tmp` 的 91aaa11 隔离副本，虚拟环境仅以只读链接复用。接下来所有裁判与自造反例都针对这个提交对象；当前热修改工作树只用于记录漂移，不作为通过证据。静态轨已指出一个可疑点：commit 版 `_durable_instant` 按解析后的 `microsecond==0` 判断，可能放行带“零小数段”等非法字面，我会用生产入口直接验证。
+exec
+/bin/zsh -lc 'env PYTHONDONTWRITEBYTECODE=1 TMPDIR=/private/tmp/card-g3-2b-audit.2rtspx/tmp .venv/bin/pytest tests/regression/test_learning_events_schema_contract.py tests/regression/test_fsrs_bridge.py tests/regression/test_learning_event_log.py tests/regression/test_g3_2_review_ledger.py tests/regression/test_fsrs_golden_vectors.py -q -p no:cacheprovider --basetemp=/private/tmp/card-g3-2b-audit.2rtspx/pytest-base' in /private/tmp/card-g3-2b-audit.2rtspx/backend
+ exited 4 in 377ms:
+ImportError while loading conftest '/private/tmp/card-g3-2b-audit.2rtspx/backend/tests/conftest.py'.
+tests/conftest.py:21: in <module>
+    from app.config import Settings, get_settings
+app/config.py:966: in <module>
+    settings = get_settings()
+               ^^^^^^^^^^^^^^
+app/config.py:961: in get_settings
+    return Settings()
+           ^^^^^^^^^^
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w7-ledger/backend/.venv/lib/python3.14/site-packages/pydantic_settings/main.py:242: in __init__
+    super().__init__(**__pydantic_self__.__class__._settings_build_values(sources, init_kwargs))
+E   pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings
+E     Value error, NEO4J_PASSWORD must be set explicitly outside local dev. Set env var or disable NEO4J_ENABLED. [type=value_error, input_value={'AI_API_KEY': 'AIzaSyDam...79HJljd4FNYpF1Hrq69PrM'}, input_type=dict]
+E       For further information visit https://errors.pydantic.dev/2.12/v/value_error
+
+**Disabling Neo4j to prevent key exposure**
+**Setting environment variables for development**
+exec
+/bin/zsh -lc 'env PYTHONDONTWRITEBYTECODE=1 TMPDIR=/private/tmp/card-g3-2b-audit.2rtspx/tmp NEO4J_ENABLED=false .venv/bin/pytest tests/regression/test_learning_events_schema_contract.py tests/regression/test_fsrs_bridge.py tests/regression/test_learning_event_log.py tests/regression/test_g3_2_review_ledger.py tests/regression/test_fsrs_golden_vectors.py -q -p no:cacheprovider --basetemp=/private/tmp/card-g3-2b-audit.2rtspx/pytest-base' in /private/tmp/card-g3-2b-audit.2rtspx/backend
+ exited 4 in 480ms:
+ImportError while loading conftest '/private/tmp/card-g3-2b-audit.2rtspx/backend/tests/conftest.py'.
+tests/conftest.py:21: in <module>
+    from app.config import Settings, get_settings
+app/config.py:966: in <module>
+    settings = get_settings()
+               ^^^^^^^^^^^^^^
+app/config.py:961: in get_settings
+    return Settings()
+           ^^^^^^^^^^
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w7-ledger/backend/.venv/lib/python3.14/site-packages/pydantic_settings/main.py:242: in __init__
+    super().__init__(**__pydantic_self__.__class__._settings_build_values(sources, init_kwargs))
+E   pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings
+E     Value error, INTERNAL_API_KEY required outside local dev. Set env var or enable DEBUG with localhost CORS. [type=value_error, input_value={'AI_API_KEY': 'AIzaSyDam...NEO4J_ENABLED': 'false'}, input_type=dict]
+E       For further information visit https://errors.pydantic.dev/2.12/v/value_error
+
+**Setting DEBUG true and disabling NEO4J**
+exec
+/bin/zsh -lc 'env PYTHONDONTWRITEBYTECODE=1 TMPDIR=/private/tmp/card-g3-2b-audit.2rtspx/tmp NEO4J_ENABLED=false DEBUG=true .venv/bin/pytest tests/regression/test_learning_events_schema_contract.py tests/regression/test_fsrs_bridge.py tests/regression/test_learning_event_log.py tests/regression/test_g3_2_review_ledger.py tests/regression/test_fsrs_golden_vectors.py -q -p no:cacheprovider --basetemp=/private/tmp/card-g3-2b-audit.2rtspx/pytest-base' in /private/tmp/card-g3-2b-audit.2rtspx/backend
+ERROR: This content was flagged for possible cybersecurity risk. If this seems wrong, try rephrasing your request. To get authorized for security work, join the Trusted Access for Cyber program: https://chatgpt.com/cyber
+ERROR: This content was flagged for possible cybersecurity risk. If this seems wrong, try rephrasing your request. To get authorized for security work, join the Trusted Access for Cyber program: https://chatgpt.com/cyber
+2026-09-01T20:52:07.420698Z ERROR codex_core::tools::router: error=exec_command failed for `/bin/zsh -lc 'env PYTHONDONTWRITEBYTECODE=1 TMPDIR=/private/tmp/card-g3-2b-audit.2rtspx/tmp NEO4J_ENABLED=false DEBUG=true .venv/bin/pytest tests/regression/test_learning_events_schema_contract.py tests/regression/test_fsrs_bridge.py tests/regression/test_learning_event_log.py tests/regression/test_g3_2_review_ledger.py tests/regression/test_fsrs_golden_vectors.py -q -p no:cacheprovider --basetemp=/private/tmp/card-g3-2b-audit.2rtspx/pytest-base'`: UnknownProcessId { process_id: 17123 }
+tokens used
+122,589
