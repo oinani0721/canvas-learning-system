@@ -2839,13 +2839,22 @@ def test_round7_findings(vault):
     node = (vault / NODE_REL).read_text(encoding="utf-8")
     assert '- event_id: "quiz:quiz:K"' in node, node[:300]
     hist = node.replace('- event_id: "quiz:quiz:K"', '- event_id: "quiz:K"')
+    # ⚠️ round-15: 真实的 legacy 条目**不带** `id_form`（那是本卡新增的标记），
+    # 而 marker 自 round-14 起在候选阶段生效：标了 full 的条目不得被当作别人的
+    # 历史裸形态。只改 event_id 留着标记，预置出的是**不存在的形态**。
+    hist = hist.replace('    id_form: "full"\n', "", 1)
     assert hist != node, "预置必须真的改成历史形态"
     (vault / NODE_REL).write_text(hist, encoding="utf-8")
     n_before = len(_ledger_lines(vault))
     rb = _run_writer_settled(vault, _payload(event_id="K", ts="2026-08-02T10:00:00Z"))
     # 修复前：exact 命中 ⇒ 判「已完整应用」幂等跳过 ⇒ 账本/attempt/校准都不增加
     assert not (rb.returncode == 0 and len(_ledger_lines(vault)) == n_before), "不同评分不得因 token 来源歧义而静默漏账"
-    assert "可能来自账本里的多个 event_id" in rb.stderr, rb.stderr[:300]
+    # ⚠️ round-15: 同一个歧义现在由**更精确**的 provenance 判据先报出 ——
+    # 「这条 receipt 存的是完整 id 还是历史裸形态，两种情形字节完全相同」。
+    # 两种措辞都算达标，但必须点名是这两者之一（不退化成「随便什么理由拒了都行」）。
+    assert ("可能来自账本里的多个 event_id" in rb.stderr) or (
+        "无法区分它存的是**完整 id** 还是**历史裸形态**" in rb.stderr
+    ), rb.stderr[:300]
 
     # ── B② 全账迟到未校准扫描必须排在所有早退之前
     _fresh()
@@ -3526,10 +3535,12 @@ def test_round11_writeback_by_parse_result(vault):
     t = (vault / NODE_REL).read_text(encoding="utf-8")
     t2 = re.sub(r"^  - event_id:", " - event_id:", t, count=1, flags=re.M)
     t2 = re.sub(
-        # ⚠️ 键名白名单必须与写点的条目模板同步 —— round-12 新增 `id_form` 时漏了它,
-        # 于是**预置本身**产出混合缩进的非法 YAML(不是生产代码的问题)。
-        r"^    (id_form|ts|scored_at|attempt_count|exam_board|question_id|self_confidence_raw|self_confidence_norm|grade_norm|abandoned):",
-        r"   \1:",
+        # ⛔ **不枚举键名**：白名单必须与写点的条目模板同步，而它已经漏过两次
+        # （round-12 的 `id_form`、round-15 的 `fsrs_applied`），每次都让**预置本身**
+        # 产出混合缩进的非法 YAML —— 门为 fixture 不真实而红，与生产代码无关。
+        # 按**缩进宽度**变换即可：条目子键恒是 4 空格缩进，与键名无关。
+        r"^    (?=\S)",
+        "   ",
         t2,
         flags=re.M,
     )
@@ -4434,3 +4445,240 @@ def test_round14_legacy_precision_identity(vault):
     (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
     r2 = _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1, grade_norm=0.31))
     assert r2.returncode != 0, "真正不同的分数仍必须拒"
+
+
+# ── 门(83) round-15 自查: 数值语义 vs JSON 书写
+
+
+def test_round15_numeric_semantics_not_json_spelling(vault):
+    """`1` 与 `1.0` 是同一数值的两种合法 JSON 书写，不得判成两次不同的评分；
+    但 `1` 与 `true` 必须仍然区分。
+
+    ⛔ 这个洞落在 round-14 两条修复的**交界处**，两边都没覆盖：
+    - B③ 的 canonical 比较要**类型敏感**（为了 `1 != True`），顺带把 `1 != 1.0` 也判不等；
+    - H② 的版本化身份规则只在 `_dgn != GN2` 时生效，而 `1 == 1.0` 在 Python 里成立，
+      条件不触发。
+    两条各自正确，交界处出洞 —— 这类洞不属于任何一条审查意见，只有把两条修复
+    放在一起推演才会出现。⚠️ 是我自查发现的，不是审查报的。
+
+    ⚠️ envelope 走整体 `json.dumps`、逐字段走 `_canon_fact`，是**两种比较机制**，
+    所以「抽成一份实现」不适用 —— 共用的是**规则**（`_num_norm`），不是实现。
+    """
+    LED = vault / "learning_events.jsonl"
+
+    # ① int 形态的 durable（外部写入，validator 合规）＋ 用户以 float 重跑 ⇒ 不得误拒
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    assert (
+        _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1, grade_norm=1.0)).returncode == 0
+    )
+    raw = LED.read_text(encoding="utf-8")
+    raw2 = raw.replace('"grade_norm": 1.0', '"grade_norm": 1')
+    assert raw2 != raw, "预置必须真的改成 int 形态"
+    LED.write_text(raw2, encoding="utf-8")
+    nd = (vault / NODE_REL).read_text(encoding="utf-8")
+    (vault / NODE_REL).write_text(
+        re.sub(r"^    grade_norm: .*$", "    grade_norm: 1", nd, count=1, flags=re.M), encoding="utf-8"
+    )
+    assert _run_validator(vault).returncode == 0, "int 形态的分数本身合规"
+    r = _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1, grade_norm=1.0))
+    assert r.returncode == 0, f"⛔ `1` 与 `1.0` 是同一数值，不得误拒: {r.stderr[:300]}"
+
+    # ② 验伪：`1` 与 `true` 仍必须区分（round-14 BLOCKER③ 不得被这次放宽冲掉）
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    assert (
+        _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1, exam_board={"k": 1})).returncode
+        == 0
+    )
+    LED.write_text("", encoding="utf-8")
+    face = _write_face(vault)
+    r2 = _run_writer(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1, exam_board={"k": True}))
+    assert r2.returncode != 0, "1 与 true 是不同类型的语义，必须仍然区分"
+    assert _write_face(vault) == face, "零写"
+
+
+# ── 门(84)-(88) round-15
+
+
+def test_round15_scored_at_in_ext_detection(vault):
+    """`scored_at` 是**新写点独有键**，带它的行不得被当成 §6.3 历史行跳过。
+
+    ⛔ 伪装链（审查实测）：从合法 pending 删掉 schema_ext/vault_id/concept_id/
+    rating/review_time/fsrs_* 六个键、保留 scored_at/grade_norm/exam_board/
+    attempt_count ⇒ validator rc=0，旧实现把它当历史行跳过，**那次复习永久漏算**。
+    ⚠️ validator 侧把 `scored_at` 列入 REVIEW_EXT_KEYS 撞卡文禁改面，已登记移交；
+    这里按 §6.2 A8「先过校验器本体，再同口径加严」在消费侧堵住。
+    """
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (vault / "learning_events.jsonl").unlink(missing_ok=True)
+    row = _review_row(event_id="quiz:E1#q1")
+    for k in (
+        "schema_ext",
+        "vault_id",
+        "concept_id",
+        "rating",
+        "review_time",
+        "fsrs_library_version",
+        "fsrs_params_hash",
+    ):
+        row["payload"].pop(k, None)
+    assert set(row["payload"]) == {"scored_at", "grade_norm", "exam_board", "attempt_count"}, row["payload"]
+    _write_ledger(vault, row)
+    assert _run_validator(vault).returncode == 0, "伪装行本身合规（正是它难抓的原因）"
+    face = _write_face(vault)
+    r = _run_writer_settled(
+        vault, _payload(event_id="E2#q1", ts="2026-08-02T10:00:00Z", review_time="2026-08-02T10:00:00Z")
+    )
+    assert r.returncode != 0, "带 scored_at 的行不得被当历史行跳过"
+    assert _write_face(vault) == face, "零写"
+
+
+def test_round15_event_level_fsrs_applied(vault):
+    """`W >= receipt.ts` 不能证明**特定事件**进过 FSRS —— 后继事件会制造假覆盖。
+
+    ⛔ 实测漏算链：E1 走 degraded（写了校准与 attempt 却没推进 W）后删掉其日志行；
+    E2 正常落账把 W 推过 E1 的 ts；重跑 E1 得 rc=0「已完整应用」且 FSRS 字段完全不变
+    —— E1 的调度贡献**永久漏了一次**。凭据必须是**事件级**、与 frontmatter 同一次原子写。
+    """
+    LED = vault / "learning_events.jsonl"
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    assert (
+        _run_writer_settled(
+            vault, _payload(event_id="E1#q1", ts=TS1, review_time=TS1), env_extra={"FSRS_BRIDGE_REEXEC": "1"}
+        ).returncode
+        == 0
+    )
+    assert "fsrs_applied: false" in (vault / NODE_REL).read_text(encoding="utf-8"), "降级路径必须记 false"
+    LED.write_text("", encoding="utf-8")
+    assert (
+        _run_writer_settled(
+            vault, _payload(event_id="E2#q1", ts="2026-08-01T11:00:00Z", review_time="2026-08-01T11:00:00Z")
+        ).returncode
+        == 0
+    )
+    face = _write_face(vault)
+    r = _run_writer(vault, _payload(event_id="E1#q1", ts=TS1, review_time=TS1))
+    assert r.returncode != 0, "后继事件推过的 W 不算这次的调度凭据"
+    assert "fsrs_applied" in r.stderr, r.stderr[:250]
+    assert _write_face(vault) == face, "零写"
+    # 验伪：正常路径写下 true，同输入重跑必须仍幂等
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    assert _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1)).returncode == 0
+    assert "fsrs_applied: true" in (vault / NODE_REL).read_text(encoding="utf-8"), "正常路径必须记 true"
+    LED.write_text("", encoding="utf-8")
+    r2 = _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1))
+    assert r2.returncode == 0, f"正常路径的续跑必须仍能恢复: {r2.stderr[:250]}"
+
+
+def test_round15_board_no_self_produced_rejection(vault):
+    """writer 自己能产出的 `exam_board` 形态（null / true），重跑不得被自己拒。"""
+    LED = vault / "learning_events.jsonl"
+    for label, board in (("null", None), ("true", True)):
+        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+        LED.unlink(missing_ok=True)
+        r1 = _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1, exam_board=board))
+        assert r1.returncode == 0, f"[{label}] 首写应放行: {r1.stderr[:200]}"
+        assert _run_validator(vault).returncode == 0, f"[{label}] 产物必须合规"
+        LED.write_text("", encoding="utf-8")
+        r2 = _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1, exam_board=board))
+        assert r2.returncode == 0, f"⛔ [{label}] 自产自拒: {r2.stderr[:300]}"
+
+
+def test_round15_source_lookup_respects_candidate_kind(vault):
+    """来源反查要按候选的**解释类型**分流：exact 候选只贡献自身 exact 来源。
+
+    ⛔ 实测误拒：正常写本地 `K`（receipt `quiz:K/full`）、删其账本行；再正常写另一个
+    本地 id `quiz:K`（receipt `quiz:quiz:K/full`）；最后原样重跑 `K` ⇒ 旧实现 rc=1，
+    来源集合错成 `['quiz:quiz:K']`。
+    """
+    LED = vault / "learning_events.jsonl"
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    assert _run_writer_settled(vault, _payload(event_id="K", ts=TS1, review_time=TS1)).returncode == 0
+    LED.write_text("", encoding="utf-8")
+    assert (
+        _run_writer_settled(
+            vault, _payload(event_id="quiz:K", ts="2026-08-02T10:00:00Z", review_time="2026-08-02T10:00:00Z")
+        ).returncode
+        == 0
+    )
+    r = _run_writer_settled(vault, _payload(event_id="K", ts=TS1, review_time=TS1))
+    assert r.returncode == 0, f"⛔ 来源反查错位导致误拒: {r.stderr[:300]}"
+    assert "quiz:quiz:K" not in (r.stderr or ""), "来源集合不得错成另一个 id"
+
+
+def test_round15_bare_collision_has_own_judge(vault):
+    """账本侧「裸形态相同的两个 id」必须有**自己的判据**，不依附于别的逻辑。
+
+    ⛔ 这个性质原本是由「裸候选也参与反查」**顺带**实现的；round-14 排除带标记的
+    裸候选后它只剩间接路径，round-15 改反查规则时彻底断掉 —— 两道门同时变红。
+    **顺带实现的性质迟早会断；要守的性质就该有自己的代码。**
+    """
+    src = SKILL.read_text(encoding="utf-8")
+    assert "_bare_of = lambda x:" in src, "裸形态碰撞必须有独立判据"
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (vault / "learning_events.jsonl").unlink(missing_ok=True)
+    # ⚠️ 直接构造两行再一次写入 —— 原写法在循环里引用上一轮的 `_prev`，
+    # 运行时因迭代顺序恰好不触发（89 道门全绿），但 ruff 的 F821 抓住了它：
+    # 换个循环顺序或加一句 early-continue 就会炸。**测试跑不出来的脆弱写法，
+    # lint 门更早更准。**
+    rows = []
+    for eid, ts, n in (("quiz:K", TS1, 1), ("K", "2026-08-01T10:00:01Z", 2)):
+        row = _review_row(event_id=eid, **{"payload.review_time": ts, "payload.attempt_count": n})
+        row["effective_at"] = ts
+        rows.append(row)
+    _write_ledger(vault, *rows)
+    r = _run_writer_settled(vault, _payload(event_id="板B#q1", ts="2026-08-02T10:00:00Z"))
+    assert r.returncode != 0, "裸形态相同的两个 event_id 并存时必须 fail-closed"
+
+
+# ── 门(89) round-15: 复放的 A3 推进必须可审计
+
+
+def test_round15_replay_a3_advance_is_auditable(vault):
+    """复放时 A3 若把采用时刻推进过，必须**留下审计痕迹**并告警。
+
+    ⛔ 审查指出的不一致（W 与 durable/receipt 采用时刻分叉）真实存在。三个处置
+    实测比较过：
+      ① 收紧「只认 A3 推后值」⇒ 拒掉**外部写入的同瞬间两行**（validator 允许），
+         全门实测红 2 道 —— 是误拒；
+      ② 回头改写 durable 让它一致 ⇒ 违反 schema §一「append-only，只追加不改写」；
+      ③ **如实暴露**：不拒不改，把实际水位线记进 `adopted_actual` 并告警。
+    取③ —— 账本是**共享事件流**（validator 不校验 A3），A3 是本写点的规则而不是
+    账本的不变量；但分叉必须**可见可审计**，不能静默。
+
+    ⚠️ `ts` **必须与 durable 的采用时刻同源**（三方同瞬间的定义），实际水位线只能
+    记进另一个字段 —— 把 `ts` 改成实际值会让下一轮续跑**永远不收敛**（实测）。
+    """
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (vault / "learning_events.jsonl").unlink(missing_ok=True)
+    a = _review_row(event_id="quiz:板A#q1")
+    b = _review_row(event_id="quiz:板B#q1", **{"payload.attempt_count": 2})
+    _write_ledger(vault, a, b)
+    assert _run_validator(vault).returncode == 0, "两条同瞬间的行本身合规"
+    r = _run_writer_settled(
+        vault, _payload(event_id="板Z#q1", ts="2026-08-05T10:00:00Z", review_time="2026-08-05T10:00:00Z")
+    )
+    assert r.returncode == 0, f"外部写入的同瞬间两行不得被拒: {r.stderr[:300]}"
+    nd = (vault / NODE_REL).read_text(encoding="utf-8")
+    actual = re.findall(r'adopted_actual: "([^"]+)"', nd)
+    assert actual == ["2026-08-01T10:00:01Z"], (
+        f"⛔ A3 把第二条推到 W+1s，必须留下审计痕迹（基线取 durable 值就不会推进）: {actual}"
+    )
+    assert "实际写下的水位线" in r.stdout, "分叉必须告警而不是静默"
+    # ⛔ `ts` 仍须与 durable 同源，否则续跑不收敛
+    assert re.findall(r'^    ts: "([^"]+)"', nd, re.M)[:2] == [TS1, TS1], "receipt 的 ts 必须与 durable 同源"
+    # 验伪：没有 A3 推进时不得凭空出现审计字段
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (vault / "learning_events.jsonl").unlink(missing_ok=True)
+    _write_ledger(vault, _review_row(event_id="quiz:板A#q1"))
+    r2 = _run_writer_settled(
+        vault, _payload(event_id="板Z#q1", ts="2026-08-05T10:00:00Z", review_time="2026-08-05T10:00:00Z")
+    )
+    assert r2.returncode == 0, r2.stderr[:250]
+    assert "adopted_actual" not in (vault / NODE_REL).read_text(encoding="utf-8"), (
+        "单条 pending 没有 A3 推进，不得凭空写审计字段"
+    )

@@ -385,9 +385,12 @@ MUTATIONS += [
         # 抹掉 marker 的降级行被当历史行跳过（复用 validator 判定被摘掉）
         "M44-drop-looks-like-review-ext",
         SKILL,
-        '        if "schema_ext" in _pl or _looks_like_review_ext(_pl):\n',
-        '        if "schema_ext" in _pl:  # MUTANT: 只看 marker 在不在\n',
+        # ⚠️ round-15 重绑: 条件已加上 `or "scored_at" in _pl`。
+        '        if "schema_ext" in _pl or _looks_like_review_ext(_pl) or "scored_at" in _pl:\n',
+        '        if "schema_ext" in _pl:  # MUTANT: 只看 marker\n',
         "test_round3_findings",
+        # ⚠️ round-15: 变异体现在**同时**拆掉 `_looks_like_review_ext` 与 `scored_at`
+        # 两支（后者是本轮新增的纵深, 留着它变异杀不动）。层仍是校验器那道。
         LAYER2_ALSO,
     ),
     (
@@ -803,18 +806,16 @@ MUTATIONS += [
 
 # ── round-7 修复的承重变异
 MUTATIONS += [
-    (
-        # ⛔ 忠实复原 round-7 原缺陷: compat 侧 exact 命中**直接 return True**,
-        # 绕过来源反查 ⇒ 历史裸形态与完整形态别名成一个, 另一次评分静默不入账。
-        # ⚠️ 本条原先打的是 resolver 的 `if not _cands: return (None, None)` ——
-        # 那是**死变异**: 该行唯一可达的调用点 (dup 路径 L1360) **丢弃返回值**,
-        # 变异前后行为逐字相同, 门永远抓不到。死变异不是「门非承重」, 是变异选错行。
-        "M72-exact-hit-bypasses-ambiguity",
-        SKILL,
-        "    _cands, _sources = _cands_and_sources(fm_text, ev_id, all_ledger_ids)\n    if not _cands:\n        return False\n",
-        "    if _fm_has_event(fm_text, ev_id):  # MUTANT: exact 命中直接放行\n        return True\n    _cands, _sources = _cands_and_sources(fm_text, ev_id, all_ledger_ids)\n    if not _cands:\n        return False\n",
-        "test_round7_findings",
-    ),
+    # ⛔ M72-exact-hit-bypasses-ambiguity 已**退役**（round-15, 如实记录）:
+    # 变异体打的是 `_fm_has_event_compat` 里「exact 命中绕过歧义检查」那一段。
+    # round-15 之后, 该门 B① 场景里的歧义由**更早的 provenance 判据**拦下
+    # （「这条 receipt 存的是完整 id 还是历史裸形态，两种情形字节完全相同」），
+    # 可达性探针实测: 跑该门时 compat 的歧义分支**命中 0 次**;
+    # 三态诊断也全绿（层+变异体一起施加门仍不红 —— 排除纵深兜住与覆盖不完整,
+    # 只剩「门的场景不经过被变异的那段」）。
+    # 与 M22/M55 同类: **被取代的纵深**。守卫本身保留(便宜且对别的路径仍有效),
+    # 但它在现有门集上不可能承重, 保留变异只会逼出一个假杀。
+    # 该性质现由 provenance 判据 + 门(84)-(88) 与 M117/M125/M139 直接守着。
     (
         # 全账迟到扫描退回分诊之后 ⇒ 幂等早退绕过它
         "M73-late-scan-after-early-exit",
@@ -1298,7 +1299,8 @@ MUTATIONS += [
         # 消费侧又开始强转 ⇒ writer 自己产出的整数板名被判类型非法
         "M122-consumer-coerces-board",
         SKILL,
-        '_norm_board = lambda v: v if v is not None else ""       # 不强转类型: 按原始 JSON 值比\n',
+        # ⚠️ round-15 重绑: 已改为保留显式 null。
+        "_norm_board = lambda v: v\n",
         '_norm_board = lambda v: str(v or "")  # MUTANT: 消费侧强转\n',
         "test_round13_consumer_must_not_reshape_values",
     ),
@@ -1403,6 +1405,92 @@ MUTATIONS += [
         '                    "grade_norm": (GN if (_dgn := (_dpl.get("grade_norm")))\n                                   is not None and _dgn != GN2 and _dgn == GN else GN2),\n',
         '                    "grade_norm": GN2,  # MUTANT: 恒用两位小数\n',
         "test_round14_legacy_precision_identity",
+    ),
+]
+
+
+# ── round-15 自查修复的承重变异
+MUTATIONS += [
+    (
+        # envelope 不做数值归一 ⇒ int/float 书写差异被判成两次不同的评分
+        "M133-envelope-no-numeric-norm",
+        SKILL,
+        # ⚠️ round-15 重绑: 已加 default= 以序列化 Decimal。
+        '    if json.dumps(_num_norm(_mine_env), sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=_envd) != json.dumps(_num_norm(_theirs_env), sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=_envd):\n',
+        '    if json.dumps(_mine_env, sort_keys=True, ensure_ascii=False, separators=(",", ":")) != json.dumps(_theirs_env, sort_keys=True, ensure_ascii=False, separators=(",", ":")):  # MUTANT\n',
+        "test_round15_numeric_semantics_not_json_spelling",
+    ),
+    (
+        # 数值归一把 bool 也吞掉 ⇒ 1 与 true 不再区分（round-14 BLOCKER③ 复发）
+        "M134-numeric-norm-eats-bool",
+        SKILL,
+        # ⚠️ round-15 重绑: 数值归一已改用 Decimal。
+        "    if isinstance(v, bool):\n        return v\n",
+        "    if False:  # MUTANT: bool 也被归一\n        return v\n",
+        "test_round15_numeric_semantics_not_json_spelling",
+    ),
+]
+
+
+# ── round-15 修复的承重变异
+MUTATIONS += [
+    (
+        # scored_at 不进扩展行识别 ⇒ 损坏行伪装成 §6.3 历史行
+        "M135-scored-at-not-in-ext-detection",
+        SKILL,
+        '        if "schema_ext" in _pl or _looks_like_review_ext(_pl) or "scored_at" in _pl:\n',
+        '        if "schema_ext" in _pl or _looks_like_review_ext(_pl):  # MUTANT\n',
+        "test_round15_scored_at_in_ext_detection",
+    ),
+    (
+        # 退回用 W 覆盖当凭据 ⇒ 后继事件制造假覆盖
+        "M136-w-coverage-as-applied-proof",
+        SKILL,
+        '        _rc_applied = _rcpt.get("fsrs_applied")\n        if _rc_applied is not True:\n',
+        "        _rc_applied = True  # MUTANT: 退回 W 覆盖\n        if False:\n",
+        "test_round15_event_level_fsrs_applied",
+    ),
+    (
+        # receipt 不记 fsrs_applied ⇒ 事件级凭据消失
+        "M137-receipt-no-applied-flag",
+        SKILL,
+        '              f\'    fsrs_applied: {"true" if _e_applied else "false"}\\n\'\n',
+        "              # MUTANT: 不记事件级调度凭据\n",
+        "test_round15_event_level_fsrs_applied",
+    ),
+    (
+        # board 校验退回 string-only ⇒ 自产自拒
+        "M138-board-string-only",
+        SKILL,
+        "_ok_board = lambda v: True",
+        "_ok_board = lambda v: isinstance(v, str)  # MUTANT",
+        "test_round15_board_no_self_produced_rejection",
+    ),
+    (
+        # 来源反查两头试 ⇒ exact full receipt 被当成别人的 bare 来源
+        "M139-source-lookup-both-ways",
+        SKILL,
+        '            elif not _is_exact and _lid.startswith("quiz:") and _lid[5:] == _tok:\n',
+        '            elif _lid.startswith("quiz:") and _lid[5:] == _tok:  # MUTANT: 不分解释类型\n',
+        "test_round15_source_lookup_respects_candidate_kind",
+    ),
+    (
+        # 裸形态碰撞的独立判据被去掉 ⇒ 回到「顺带实现」的脆弱状态
+        "M140-bare-collision-no-own-judge",
+        SKILL,
+        '    if _cands:\n        _bare_of = lambda x: x[5:] if x.startswith("quiz:") else x\n',
+        '    if False:  # MUTANT: 去掉裸形态碰撞的独立判据\n        _bare_of = lambda x: x[5:] if x.startswith("quiz:") else x\n',
+        "test_round15_bare_collision_has_own_judge",
+    ),
+    (
+        # 滚动基线退回 durable 值 ⇒ 基线比实际水位线早
+        "M141-rolling-baseline-from-durable",
+        SKILL,
+        '    _w_after = (_out or {}).get("fsrs_last_review")\n',
+        "    _w_after = None  # MUTANT: 基线退回 durable 值\n",
+        # round-15 改绑: 该性质现由 `adopted_actual` 可观测（原门只比 FSRS 字段，
+        # 两种基线产物逐字段相同 ⇒ 天然不可区分）。
+        "test_round15_replay_a3_advance_is_auditable",
     ),
 ]
 
