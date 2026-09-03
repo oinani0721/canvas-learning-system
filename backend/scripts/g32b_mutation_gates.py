@@ -1583,6 +1583,43 @@ def first_fail(out):
     return "digest:" + hashlib.sha256(body.encode("utf-8")).hexdigest()[:24]
 
 
+# ── round-16 三条 HIGH 的承重变异
+MUTATIONS += [
+    (
+        # 别节点非法整数 id 阻塞本节点（登记面退回 str() 强转）
+        "M150-all-ledger-ids-coerce-str",
+        SKILL,
+        "_ALL_LEDGER_IDS = tuple(\n",
+        '_ALL_LEDGER_IDS = tuple(  # MUTANT: 登记面退回 str() 强转\n    str(_r.get("event_id") or "") for _, _r in _rows if isinstance(_r, dict)\n) if True else tuple(\n',
+        "test_round16_foreign_nonstr_event_id_does_not_block",
+    ),
+    (
+        # receipt 的 exam_board 退回「JSON 字面裸嵌 YAML」⇒ 自产自拒
+        "M151-exam-board-bare-json-in-yaml",
+        SKILL,
+        "              f'    board_form: {q_(\"json\")}\\n'\n",
+        "              f'    board_form: {q_(\"legacy\")}\\n'  # MUTANT\n",
+        "test_round16_exam_board_roundtrips_through_yaml",
+    ),
+    (
+        # F1-only 无视持久写序锚, 退回按时刻猜 cursor
+        "M152-f1-ignores-write-order-anchor",
+        SKILL,
+        '                if isinstance(_rc_probe_f1, dict) and "pred_id" in _rc_probe_f1:\n',
+        "                if False:  # MUTANT: 无视写序锚\n",
+        "test_round16_f1_only_uses_persisted_write_order_anchor",
+    ),
+    (
+        # 无锚旧 receipt 不做歧义证明 ⇒ 硬算一个错的期望序数
+        "M153-legacy-cursor-skips-ambiguity-proof",
+        SKILL,
+        "                    if _amb_f1:\n",
+        "                    if False:  # MUTANT: 不证明就硬算\n",
+        "test_round16_legacy_receipt_without_anchor_says_unprovable",
+    ),
+]
+
+
 def main():
     failures = []
     kill_fail = {}

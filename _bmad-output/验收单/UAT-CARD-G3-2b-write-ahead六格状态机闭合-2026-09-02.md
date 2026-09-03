@@ -1193,6 +1193,28 @@ round-14 排除带标记的裸候选后它只剩间接路径；round-15 我改�
 2. **M141 退役（等价变异体，附推证）**：`_w_after = None` 让 `_w_roll` 从「bridge 实际写下的 W」退回 `_w_durable = _aware(_pl["review_time"])`。这两支**在能被使用的每条路径上恒等**——同一轮迭代里 `_w_roll` 赋值后紧接着 `_append_calibration(..., actual_ts=_w_after)`，其 `_aa_diff` 哨兵一旦发现两者不同瞬间就 raise，于是「两支不同」的唯一前提必然在下一条 pending 用到 `_w_roll` 之前把进程打死。两次改绑（round16 门 → round14 门）实测均 SURVIVED，与推证一致。⚠️ 它**曾经**承重（round-15 靠 `adopted_actual` 可观测）——是 ④ 的口径收紧使它失效，不是门变弱。
 3. **排查顺序**：M148 用掉四次尝试，本可更短。**先算清楚行为差异在哪（跑一段最小仿真），再动手改场景**——「改一版跑一版」每次要 1-20 分钟。
 
+### round-16 续（同轮剩余 3 HIGH + 2 可改 MEDIUM 全部处置）
+
+| # | 缺陷 | 修法 | 承重变异 |
+|---|------|------|----------|
+| ⑤ | F1-only 按时刻猜 cursor：§6.3 历史行**无 `review_time`** 被跳过 ⇒ 反被当成后继，序数算成 0（审查原 repro 实测 rc=1、零写，一次真实评分再也落不回去）；同瞬间后继被吞进基线同理 | receipt 持久化写序锚 `pred_id`（本节点评分行里排在它之前的最后一个 id，无则 null）；旧 receipt 无锚且存在「无 review_time / 与 ts 同瞬间」的行 ⇒ 明说**原写序不可证明**，不硬算期望序数 | M152 / M153 |
+| ⑥ | `exam_board` 用 `json.dumps` 把 JSON 字面**裸嵌** YAML：`1e300` 写出 `exam_board: 1e+300`，YAML 1.1 float resolver 要求带小数点 ⇒ PyYAML 读回是**字符串** ⇒ **自产自拒**（首写 rc=0，同输入重跑 rc=1） | 存 canonical JSON **字符串** + `board_form: json` 标记，读侧 `json.loads`；无标记的旧条目按原语义读（向后兼容） | M151 |
+| ⑦ | `_EARLY_LEDGER_IDS`/`_ALL_LEDGER_IDS` 用 `str(x or "")` 强转 ⇒ 别节点一行非法 `event_id: 1`（整数）被登记成 `"1"`，与本节点裸形态撞成来源歧义 | 登记面收敛为 `isinstance(str) and 非空`，与 validator `seen_ids` 逐字同口径 | M150 |
+| ⑧ | §6.3「历史行永久合法」被误引成「带 `scored_at` 的无 marker 行也合法」 | 规格补齐口径（只覆盖真·无扩展键的行）+ **如实记执行面缺口**：validator `REVIEW_EXT_KEYS` 不含 `scored_at`，CLI 仍 PASS 而写点拒 —— 唯一原因是 validator 在硬边界内不可改 ⇒ **移交** | — |
+| ⑩ | 「排除环境键以支持合法库升级」与「用当前单一 golden manifest 淘汰旧行」自相矛盾 | 更正为：envelope 侧障碍确实拿掉了，但**升级后消费旧行仍不被支持**；要真支持须按事件声明版本匹配版本化追加式 manifest 集（validator 禁改 ⇒ **移交**） | — |
+| ⑨ | validator 对超大整数先 `float()` ⇒ `OverflowError` traceback 而非按行 violation | ⛔ validator 在硬边界内（禁改）⇒ **只能移交**，本卡不动 | — |
+
+**(d) 字节相同的保全推证**（加字段前先算，不靠事后跑门发现）：`pred_id` 在正常路径与恢复路径取到**同一个值**——`_rows` 于启动时解析，正常写时本行尚未 append ⇒ 切点为空 ⇒ 取全部在先行的最后一条；恢复复放时本行在 `_rows` 里 ⇒ 按它的行号切 ⇒ 同一条。若改成「取账本最后一行」，两条路径当场分叉、(d) 断。
+
+**⛔ 本轮最值得记的一条：给文档补一段话，会静默削弱 grep 型门。**
+契约门 `test_r6_..._integrity_owner` 用 `assert "golden manifest 绑定门" in seg` 锁定归属条款。
+我为修 ⑩ 在**同一段**补了一句也提到该短语的话 ⇒ 变异 M7（删掉真正的归属条款）**由 KILLED 变成 SURVIVED**。
+门一个字没改，是**被审对象长出了能喂饱判据的新文本**。
+处置：needle 收紧到**归属语义**（`**golden manifest 绑定门**承担`，含归属动词）。
+判别法：**改完被审文档必须重跑针对它的变异**——只跑门看不出区别（门本来就绿、改完还是绿）。
+
+**终态**：96 门 / 134 变异（全杀、25 条带层过空变异对照、逐字节还原）/ 三裁判全绿（325 passed·31 of 31·rc=0）。
+
 ## 如实边界声明（本卡未证明什么）
 
 1. **并发面仍不成立**（最重要，与前卡同）：本卡**没有实现任何锁**，G3-3 的 per-node sidecar 锁 / fencing epoch / per-vault 账本锁一项未做。单写者（同一 vault 内不并行跑任何两个 `quiz-answer`）是本卡正确性的前提。两个 writer 同时跑，本卡的所有 fail-closed 判据都可能在「读—算—写」的间隙被绕过。

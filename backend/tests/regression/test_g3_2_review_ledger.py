@@ -1213,7 +1213,11 @@ def test_r6_schema_declares_identity_key_integrity_owner():
         "fsrs_library_version",
         "fsrs_params_hash",
         "排除出 envelope 等价面",
-        "golden manifest 绑定门",
+        # ⛔ needle 必须带上「承担」这个**归属动词**（round-16 实测）: 只搜短语
+        # 「golden manifest 绑定门」时, 同段后文另一处提到同一短语（讲升级不兼容）
+        # 就足以把门喂饱 —— 删掉真正的归属条款后 M7 照样 SURVIVED。
+        # **判据要落在「谁承担」这个语义上, 不是「这几个字出现过」。**
+        "**golden manifest 绑定门**承担",
         "candidate 必须独立字面构造",
         "多一键、少一键或值不同",
     ):
@@ -4851,9 +4855,13 @@ def test_round16_canonical_tree_type_faithful(vault):
     assert raw2 != raw, "预置必须真的改成 int 形态"
     LED.write_text(raw2, encoding="utf-8")
     nd = (vault / NODE_REL).read_text(encoding="utf-8")
-    (vault / NODE_REL).write_text(
-        re.sub(r"^    exam_board: .*$", "    exam_board: 1", nd, count=1, flags=re.M), encoding="utf-8"
-    )
+    # ⚠️ 预置必须是**新写点产得出的形态**：round-16 起 receipt 的 exam_board 存的是
+    # canonical JSON **字符串**（配 `board_form: json` 标记），所以 int 形态是 `"1"`
+    # 而不是裸 `1`。写成裸 `1` 会让 `json.loads` 拿到 int 而抛 ⇒ 条目「不可解析」，
+    # 门测的就变成「我把 receipt 改坏了」而不是「1 与 1.0 是否判等」。
+    _nd2 = re.sub(r"^    exam_board: .*$", '    exam_board: "1"', nd, count=1, flags=re.M)
+    assert _nd2 != nd and '    exam_board: "1"\n' in _nd2, "预置必须真的改成 int 形态"
+    (vault / NODE_REL).write_text(_nd2, encoding="utf-8")
     r2 = _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1, exam_board=1.0))
     assert r2.returncode == 0, f"⛔ `1` 与 `1.0` 是同一数值，不得误拒: {r2.stderr[:300]}"
 
@@ -4908,3 +4916,128 @@ def test_round16_unmarked_exact_enumerates_both_sources(vault):
     assert "多个 event_id" in (r.stderr or ""), (
         f"拒因须点名「来源可能是多个 event_id」（不退化成「随便什么理由拒了都算数」）: {(r.stderr or '')[-300:]}"
     )
+
+
+# ── round-16 三条 HIGH 的门 ──
+
+
+def test_round16_foreign_nonstr_event_id_does_not_block(vault):
+    """别节点的**非字符串** `event_id` 不得阻塞本节点。
+
+    ⛔ 缺陷: `_EARLY_LEDGER_IDS` / `_ALL_LEDGER_IDS` 用 `str(_r.get("event_id") or "")`
+    强转 ⇒ 别节点一行非法的 `event_id: 1`(整数, validator 自己会拒) 被登记成 `"1"`,
+    与本节点合法的裸形态 `"1"` 撞成来源歧义 ⇒ 本节点原样重跑 rc=1、零写。
+    ⚠️ 这是「口径分叉」的另一个方向: 不是实现比契约严(误拒), 而是**登记面比消费方宽** ——
+    外部坏数据因此获得了阻塞本节点的影响力。登记面须与 validator 的 `seen_ids`
+    (`isinstance(str)`) 同口径。
+    """
+    LED = vault / "learning_events.jsonl"
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    assert _run_writer_settled(vault, _payload(event_id="1", ts=TS1, review_time=TS1)).returncode == 0
+    rows = _ledger_lines(vault)
+    assert len(rows) == 1 and rows[0]["event_id"] == "quiz:1", rows
+    bad = json.loads(json.dumps(rows[0], ensure_ascii=False))
+    bad["event_id"] = 1  # ⛔ 非字符串 —— schema 禁止
+    bad["node_id"] = "别的节点"
+    with LED.open("a", encoding="utf-8") as _f:
+        _f.write(json.dumps(bad, ensure_ascii=False) + "\n")
+    assert _run_validator(vault).returncode != 0, "前提自证: validator 会拒这行"
+    n0, face = len(_ledger_lines(vault)), _write_face(vault)
+    r = _run_writer_settled(vault, _payload(event_id="1", ts=TS1, review_time=TS1))
+    assert r.returncode == 0, f"⛔ 别节点坏行不得阻塞本节点的幂等重跑: {r.stderr[:300]}"
+    assert len(_ledger_lines(vault)) == n0 and _write_face(vault) == face, "幂等 ⇒ 零写"
+
+
+def test_round16_exam_board_roundtrips_through_yaml(vault):
+    """receipt 的 `exam_board` 必须能走完「写出 → YAML 读回 → 事实比较」闭环。
+
+    ⛔ 缺陷: 用 `json.dumps` 把 JSON 字面**裸嵌** YAML —— 两种编码的标量语法只是
+    **部分**重合。实测 `exam_board=1e300` 写出 `exam_board: 1e+300`, 而 YAML 1.1 的
+    float resolver 要求带小数点 ⇒ PyYAML 读回是**字符串** ⇒ 完全相同的输入立即重跑
+    报 `exam_board '1e+300' != 期望 1e+300` —— **自产自拒**(首写 rc=0)。
+    """
+    LED = vault / "learning_events.jsonl"
+    for _board in (1e300, {"k": 1e300}, [1e300], 1e-7):
+        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+        LED.unlink(missing_ok=True)
+        pl = _payload(event_id="板X#q1", ts=TS1, review_time=TS1, exam_board=_board)
+        assert _run_writer_settled(vault, pl).returncode == 0, f"首写应放行 board={_board!r}"
+        n0, face = len(_ledger_lines(vault)), _write_face(vault)
+        r = _run_writer_settled(vault, dict(pl))  # 完全相同的输入
+        assert r.returncode == 0, f"⛔ 自产自拒 board={_board!r}: 写得出却认不回 —— {r.stderr[:300]}"
+        assert len(_ledger_lines(vault)) == n0 and _write_face(vault) == face, "幂等 ⇒ 零写"
+
+
+def test_round16_f1_only_uses_persisted_write_order_anchor(vault):
+    """F1-only 的原写序靠 receipt 里的**持久锚** `pred_id`, 不靠按时刻猜 cursor。
+
+    ⛔ 缺陷: `_base_line_f1` 取「review_time ≤ receipt.ts 的最大行号」——
+    §6.3 历史行**没有** review_time ⇒ 被跳过 ⇒ 它反被当成「后继」, 序数算错。
+    实测(审查原 repro): 节点 attempt=1 + 账本一条合法 §6.3 前驱 L; 正常写 E 得
+    attempt=2; **只删 E 的账本行**后原样重跑 ⇒ rc=1「receipt attempt_count=2 与
+    推导期望 0 不符」, 节点与账本零写 —— 一次真实评分再也落不回去。
+    """
+    LED = vault / "learning_events.jsonl"
+    (vault / NODE_REL).write_text(
+        NODE_V0.replace("mastery_score: 0.5\n", "mastery_score: 0.5\nattempt_count: 1\n"),
+        encoding="utf-8",
+    )
+    L = {
+        "event_id": "quiz:旧#q0",
+        "event_version": 1,
+        "event_type": "answer_scored",
+        "node_id": "测试节点",
+        "recorded_at": "2026-07-01T10:00:00Z",
+        "effective_at": "2026-07-01T10:00:00Z",
+        # §6.3 历史形态: 无 schema_ext、**无 review_time**
+        "payload": {"grade_norm": 1.0, "exam_board": "x", "attempt_count": 1},
+    }
+    _write_ledger(vault, L)
+    assert _run_validator(vault).returncode == 0, "前提自证: §6.3 历史行本身合规"
+    r0 = _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1))
+    assert r0.returncode == 0, f"正常写 E: {r0.stderr[:300]}"
+    # ⚠️ `_fm_fields` 只解 fsrs_* 白名单，attempt_count 不在里面 —— 直接读 frontmatter。
+    assert re.search(r"^attempt_count: 2$", _fm(vault), re.M), _fm(vault)[:400]
+    keep = [x for x in _ledger_lines(vault) if x.get("event_id") != "quiz:板A#q1"]
+    assert len(keep) == len(_ledger_lines(vault)) - 1, "预置必须真的只删掉 E 那一行"
+    LED.write_text("".join(json.dumps(x, ensure_ascii=False) + "\n" for x in keep), encoding="utf-8")
+    r = _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1))
+    assert r.returncode == 0, f"⛔ 有写序锚就该认得出这是同一次评分: {r.stderr[:400]}"
+
+
+def test_round16_legacy_receipt_without_anchor_says_unprovable(vault):
+    """旧 receipt(无 `pred_id`) 遇到无 review_time 的行时, 必须明说「顺序不可证明」。
+
+    ⛔ 不能按猜出来的基线硬算一个期望序数 —— 那正是上面那条误拒的来源。
+    """
+    LED = vault / "learning_events.jsonl"
+    (vault / NODE_REL).write_text(
+        NODE_V0.replace("mastery_score: 0.5\n", "mastery_score: 0.5\nattempt_count: 1\n"),
+        encoding="utf-8",
+    )
+    L = {
+        "event_id": "quiz:旧#q0",
+        "event_version": 1,
+        "event_type": "answer_scored",
+        "node_id": "测试节点",
+        "recorded_at": "2026-07-01T10:00:00Z",
+        "effective_at": "2026-07-01T10:00:00Z",
+        "payload": {"grade_norm": 1.0, "exam_board": "x", "attempt_count": 1},
+    }
+    _write_ledger(vault, L)
+    assert _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1)).returncode == 0
+    # 把 receipt 退回**本卡之前的旧形态**: 删掉 pred_id 这一行
+    nd = (vault / NODE_REL).read_text(encoding="utf-8")
+    nd2 = re.sub(r"^    pred_id: .*\n", "", nd, count=1, flags=re.M)
+    assert nd2 != nd, "预置必须真的删掉写序锚"
+    (vault / NODE_REL).write_text(nd2, encoding="utf-8")
+    keep = [x for x in _ledger_lines(vault) if x.get("event_id") != "quiz:板A#q1"]
+    LED.write_text("".join(json.dumps(x, ensure_ascii=False) + "\n" for x in keep), encoding="utf-8")
+    face = _write_face(vault)
+    r = _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1))
+    assert r.returncode != 0, "⛔ 无锚 + 无 review_time 的行 ⇒ 顺序不可证明, 必须停"
+    assert "原写序不可证明" in (r.stderr or ""), (
+        f"拒因须点名「顺序不可证明」, 不能报一个算错的期望序数: {(r.stderr or '')[-300:]}"
+    )
+    assert _write_face(vault) == face, "零写"

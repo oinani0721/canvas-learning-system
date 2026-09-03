@@ -448,6 +448,12 @@ def _receipt_of(fm_text, ev_id):
         if isinstance(_doc, dict) and isinstance(_doc.get("calibration_log"), list):
             for _e in _doc["calibration_log"]:
                 if isinstance(_e, dict) and str(_e.get("event_id", "")) == ev_id:
+                    if _e.get("board_form") == "json":
+                        # 标记存在 ⇒ `exam_board` 必须是可解析的 canonical JSON
+                        # 字符串。解不出 = 条目损坏 ⇒ 由外层 except 收敛为 None,
+                        # 调用方报「receipt 不可解析, fail-closed 拒写」。
+                        _e = dict(_e)
+                        _e["exam_board"] = json.loads(_e["exam_board"])
                     return _e
     except Exception:
         pass
@@ -981,7 +987,15 @@ if _id_dupes:
 #: 供上面的 F1 判定证明「裸键回落映射唯一」。与后面的 _ALL_LEDGER_IDS 同源,
 #: 但 f1 在适用集构造**之前**求值, 所以这里先取一份。
 _EARLY_LEDGER_IDS = tuple(
-    str(_r.get("event_id") or "") for _, _r in _rows if isinstance(_r, dict)
+    # ⛔ round-16 HIGH: 只登记 **schema 定义的非空字符串** id, 与 validator 的
+    # `seen_ids`(`isinstance(str)`) 逐字同口径。原实现 `str(_r.get("event_id") or "")`
+    # 把**别节点**一行非法的 `event_id: 1`(整数, validator 会拒) 强转成 `"1"`,
+    # 与本节点合法的裸形态 `"1"` 撞成来源歧义 ⇒ 本节点原样重跑 rc=1、零写。
+    # ⚠️ 这是「口径分叉」的另一个方向: 不是实现比契约严(误拒), 而是**登记面比
+    # 消费方宽** —— 外部坏数据因此获得了阻塞本节点的影响力。
+    # 别节点的非法 id 交给离线校验器, 不得参与本节点的来源证明。
+    _e for _, _r in _rows if isinstance(_r, dict)
+    for _e in (_r.get("event_id"),) if isinstance(_e, str) and _e
 )
 # ⛔ **不注入 candidate** (Codex round-10 BLOCKER): 上一版在这里 `+ (evid,)`,
 # 于是「本次要判定的 id」自己成了唯一性证据 —— 实测: 先用完整 id `K` 应用并
@@ -1185,13 +1199,45 @@ def _append_calibration(fm_text, ts_str, ev=None, applied=None, actual_ts=None):
     # E1 的调度贡献**永久漏了一次**(损坏链 state=1/stability=2.3065,
     # 正常 E1→E2 对照是 state=2/stability=7.3153)。
     # 凭据必须是**事件级**的: 这一次到底有没有推进 FSRS, 与 frontmatter 同一次原子写。
+    # ⛔ round-16 HIGH: **持久化写序锚**, 取代「按时刻猜 cursor」。
+    # F1-only（账本目标行已丢失）要复算本次的 attempt 序数, 就得知道当时哪些行
+    # 排在它前面。原实现拿「review_time ≤ receipt.ts 的最大行号」当基线, 两处会错:
+    #   · §6.3 历史行**没有** review_time ⇒ 被跳过 ⇒ 它反被当成「后继」;
+    #   · 同瞬间的后继满足 `≤` ⇒ 被吞进基线, 真实 receipt 1 被推成期望 2。
+    # 锚点 = 写这条时, 本节点评分行里排在它**之前**的最后一个 event_id(没有则 null)。
+    # ⚠️ 正常路径与恢复路径取到**同一个值**: 正常写时本行还不在 `_rows` 里
+    # (启动时解析, 早于 append) ⇒ 切点为空 ⇒ 取全部在先行的最后一条;
+    # 恢复复放时本行在 `_rows` 里 ⇒ 按它的行号切 ⇒ 同一条。故不破坏「正常与恢复
+    # 节点字节相同」。
+    def _pred_of(_tid):
+        _c = [(_l, _o) for _l, _o in _rows
+              if isinstance(_o, dict)
+              and _nkey(_o.get("node_id")) == _NODE_KEY
+              and _o.get("event_type") in ("answer_scored", "answer_abandoned")
+              and isinstance(_o.get("event_id"), str) and _o["event_id"]]
+        _self = [_l for _l, _o in _c if _o["event_id"] == _tid]
+        _cut = min(_self) if _self else None
+        _before = [_o["event_id"] for _l, _o in _c if _cut is None or _l < _cut]
+        return _before[-1] if _before else None
+
+    _e_pred = _pred_of(_e_id)
     entry_ = (f'  - event_id: {q_(_e_id)}\n'
+              f'    pred_id: {q_(_e_pred) if _e_pred is not None else "null"}\n'
               f'    id_form: {q_("full")}\n'
               f'    fsrs_applied: {"true" if _e_applied else "false"}\n'
               f'    ts: {q_(ts_str)}\n'
               f'    scored_at: {q_(_e_sa)}\n'
               f'    attempt_count: {_e_att}\n'
-              f'    exam_board: {q_(_e_pl.get("exam_board",""))}\n'
+              f'    board_form: {q_("json")}\n'
+              # ⛔ round-16 HIGH: `q_` 是 `json.dumps`, 把 JSON **字面裸嵌 YAML** ——
+              # 两种编码的标量语法只是**部分**重合。实测 `exam_board=1e300` 写出
+              # `exam_board: 1e+300`, 而 YAML 1.1 的 float resolver 要求带小数点,
+              # PyYAML 读回是**字符串** ⇒ 完全相同的输入立即重跑报
+              # `exam_board '1e+300' != 期望 1e+300` —— **自产自拒**(首写 rc=0)。
+              # 修法: 存**明确标记的 canonical JSON 字符串**(双编码), 读侧
+              # `json.loads` 还原; 类型往返由 JSON 自己保证, 不再依赖 YAML 的
+              # 标量推断。`board_form` 缺失的旧条目仍按原语义读(向后兼容)。
+              f'    exam_board: {q_(json.dumps(_e_pl.get("exam_board", ""), ensure_ascii=False, sort_keys=True))}\n'
               f'    question_id: {_e_qid}\n'
               f'    self_confidence_raw: {_e_scr}\n'
               f'    self_confidence_norm: {scn_ if scn_ is not None else "null"}\n'
@@ -1465,7 +1511,15 @@ _applicable.sort(key=lambda t: (t[0], t[1]))
 #: 「裸键回落的映射唯一」。必须取全量而不是适用集: 别名的另一半可能挂在
 #: 别的节点上, 只看本节点会漏掉它, 唯一性就成了假证明。
 _ALL_LEDGER_IDS = tuple(
-    str(_r.get("event_id") or "") for _, _r in _rows if isinstance(_r, dict)
+    # ⛔ round-16 HIGH: 只登记 **schema 定义的非空字符串** id, 与 validator 的
+    # `seen_ids`(`isinstance(str)`) 逐字同口径。原实现 `str(_r.get("event_id") or "")`
+    # 把**别节点**一行非法的 `event_id: 1`(整数, validator 会拒) 强转成 `"1"`,
+    # 与本节点合法的裸形态 `"1"` 撞成来源歧义 ⇒ 本节点原样重跑 rc=1、零写。
+    # ⚠️ 这是「口径分叉」的另一个方向: 不是实现比契约严(误拒), 而是**登记面比
+    # 消费方宽** —— 外部坏数据因此获得了阻塞本节点的影响力。
+    # 别节点的非法 id 交给离线校验器, 不得参与本节点的来源证明。
+    _e for _, _r in _rows if isinstance(_r, dict)
+    for _e in (_r.get("event_id"),) if isinstance(_e, str) and _e
 )
 
 # 是「已应用」的凭据; 「≤ W」只说明不该推进 W, 不说明已经算过。
@@ -1547,14 +1601,57 @@ if dup is None:
                 # 基线行号: 本节点评分行中, 采用时刻**不晚于** receipt ts 的最大行号。
                 # ⚠️ 必须算在下面那个列表推导**之前** —— 顺序反了会 NameError,
                 # 靠「基线必须先算」的断言当场拦住。
-                _base_line_f1 = 0
-                for _lb, _ob in _rows:
-                    if not (isinstance(_ob, dict) and _nkey(_ob.get("node_id")) == _NODE_KEY
-                            and _ob.get("event_type") in ("answer_scored", "answer_abandoned")):
-                        continue
-                    _ib = _durable_instant_safe((_ob.get("payload") or {}).get("review_time"))
-                    if _ib is not None and _ib <= _rc_inst_f1:
-                        _base_line_f1 = max(_base_line_f1, _lb)
+                # ⛔ round-16 HIGH: 优先用 receipt 里的**持久写序锚**, 只有旧条目
+                # (无 `pred_id` 键) 才回落到按时刻猜 cursor —— 而且回落前必须先
+                # 证明「猜得准」, 猜不准就明说「顺序不可证明」, 不算一个错的期望值。
+                _rows_node_f1 = [
+                    (_lb, _ob) for _lb, _ob in _rows
+                    if isinstance(_ob, dict) and _nkey(_ob.get("node_id")) == _NODE_KEY
+                    and _ob.get("event_type") in ("answer_scored", "answer_abandoned")
+                ]
+                if isinstance(_rc_probe_f1, dict) and "pred_id" in _rc_probe_f1:
+                    _pid_f1 = _rc_probe_f1.get("pred_id")
+                    if _pid_f1 is None:
+                        _base_line_f1 = 0          # 本节点的第一次评分, 前面没有行
+                    elif isinstance(_pid_f1, str) and _pid_f1:
+                        _hit_f1 = [_lb for _lb, _ob in _rows_node_f1
+                                   if _ob.get("event_id") == _pid_f1]
+                        if len(_hit_f1) != 1:
+                            raise SystemExit(
+                                f"[quiz-answer] {evid} 的 receipt 写序锚 pred_id={_pid_f1!r} "
+                                f"在账本里命中 {len(_hit_f1)} 条(应恰好 1) — 原写序不可证明, "
+                                f"fail-closed 拒写 — 请人工核对 learning_events.jsonl 是否被删改"
+                            )
+                        _base_line_f1 = _hit_f1[0]
+                    else:
+                        raise SystemExit(
+                            f"[quiz-answer] {evid} 的 receipt 写序锚 pred_id={_pid_f1!r} "
+                            f"类型非法(应为字符串或 null) — 原写序不可证明, fail-closed 拒写"
+                        )
+                else:
+                    # 旧 receipt 无锚: 时刻 cursor 只在**无歧义**时可用。
+                    _amb_f1 = []
+                    for _lb, _ob in _rows_node_f1:
+                        if str(_ob.get("event_id") or "") == evid:
+                            continue
+                        _ib = _durable_instant_safe((_ob.get("payload") or {}).get("review_time"))
+                        if _ib is None:
+                            _amb_f1.append(f"第 {_lb} 行没有可用的 review_time")
+                        elif _ib == _rc_inst_f1:
+                            _amb_f1.append(f"第 {_lb} 行与 receipt 的 ts 同瞬间")
+                    if _amb_f1:
+                        raise SystemExit(
+                            f"[quiz-answer] {evid} 的 receipt 是本卡之前写的旧条目(没有写序锚 "
+                            f"pred_id), 而账本里 {'; '.join(_amb_f1[:3])} — 按时刻推 cursor "
+                            f"在这种形态上会把在先的行当成后继(或反之), **原写序不可证明**。"
+                            f"⛔ 不按猜出来的基线硬算一个期望序数(那正是误拒/漏算的来源), "
+                            f"fail-closed 拒写 — 请人工核对后决定补录还是重评"
+                        )
+                    _base_line_f1 = 0
+                    for _lb, _ob in _rows_node_f1:
+                        _ib = _durable_instant_safe((_ob.get("payload") or {}).get("review_time"))
+                        if _ib is not None and _ib <= _rc_inst_f1:
+                            _base_line_f1 = max(_base_line_f1, _lb)
                 _after_f1 = sorted(
                     [(_l7, _o7) for _l7, _o7 in _rows
                      if isinstance(_o7, dict) and _nkey(_o7.get("node_id")) == _NODE_KEY
