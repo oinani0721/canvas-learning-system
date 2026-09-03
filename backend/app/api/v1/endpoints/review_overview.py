@@ -34,6 +34,12 @@ CARD-G6-4 (同批) 节点级明细: 板行之下加一行 details/summary 折叠
 节点/<name>.md。**零 schema 改动** —— 全部字段都已在 due_nodes 行里, 本卡只
 是把此前只用于对账的 bucket/why_due 拿来渲染 (并因此给它们补了独立门禁:
 旧投影没有 buckets 顶层键时 _gate_buckets 不跑, 这两个字段此前完全没验形)。
+
+CARD-G3-6b (BATCH-2026-09-01-第八批) 板级解释加性消费: top_boards 行新增的
+why_this_board / estimated_minutes 在场即严验 (非空串 / 非负 int, 垃圾走既有
+corrupt 降级), 按板名挂到 boards 行渲染一条整宽解释行 —— 字段全部是生产器
+投影内复算落盘的, 本端点照旧一个数都不算 (缺省 = 旧投影 / 榜外板, 整块不
+出现, 不伪造)。
 """
 
 from __future__ import annotations
@@ -654,6 +660,7 @@ def _summarize(payload: dict) -> dict:
     # top_boards 全量元素门禁 (CARD-D1: 行序依赖每个元素的 board) —
     # [0] 额外保留 top_node/pending 门禁 (汇总行消费)
     prio: dict[str, int] = {}
+    board_explain: dict[str, tuple[str | None, int | None]] = {}
     for i, tb in enumerate(top_boards):
         if not isinstance(tb, dict):
             raise ValueError(f"top_boards[{i}] 应为 object, 实为 {type(tb).__name__}")
@@ -665,6 +672,16 @@ def _summarize(payload: dict) -> dict:
         if b in prio:
             raise ValueError(f"top_boards[{i}].board 重复: {b!r}")
         prio[b] = i
+        # CARD-G3-6b 加性消费: 板级解释与预计分钟 (旧投影缺省 → None, 渲染层
+        # 整块不出现)。在场即严验 — 消费的字段必须验形, 垃圾不发 ok;
+        # minutes 不许 bool 冒充 (JSON true 属 int 子类, 同 _strict_int 口径)。
+        why = tb.get("why_this_board")
+        if why is not None and (not isinstance(why, str) or not why):
+            raise ValueError(f"top_boards[{i}].why_this_board 应为非空字符串或缺省, 实为 {why!r}")
+        mins = tb.get("estimated_minutes")
+        if mins is not None and (type(mins) is not int or mins < 0):
+            raise ValueError(f"top_boards[{i}].estimated_minutes 应为非负整数或缺省, 实为 {mins!r}")
+        board_explain[b] = (why, mins)
     top = top_boards[0] if top_boards else {}
     up_gated = _gate_upcoming(upcoming)
     # 不透传整对象 (round3: 内部字段未验的 dict 原样进响应仍是形状垃圾
@@ -704,6 +721,11 @@ def _summarize(payload: dict) -> dict:
             "earliest": g["earliest"],
             # CARD-G6-4 加性: 板内到期节点明细 (纯消费既有 due_nodes 行, 零 schema 改动)
             "nodes": _node_rows(g["rows"]),
+            # CARD-G3-6b 加性: 该板若在 top_boards 榜上 → 解释与预计分钟;
+            # 不在榜 (top_boards 截 3 之外) 或旧投影 → None, 渲染层整块不出现。
+            # 值全部来自投影已落盘的字段, 本端点一个数都不算。
+            "why_this_board": board_explain.get(b, (None, None))[0],
+            "estimated_minutes": board_explain.get(b, (None, None))[1],
         }
         for b, g in groups.items()
     ]
@@ -984,6 +1006,9 @@ def _board_table_html(vault_id: str, boards: list[dict], now_sh: datetime) -> st
     CARD-G6-4: 有到期节点的板在数据行之下多一行 `colspan=5` 的折叠区
     (`<details>`)。放在整宽的第二行而不是塞进"白板名"那一格 —— 塞进单元格
     会把第一列撑宽、把其余四列挤扁, 375px 窄窗尤其难看。
+    CARD-G3-6b: 折叠区之前再加一条整宽的解释行 —— 「为什么是这块板 · 预计 N
+    分钟」, 字段由生产器投影内复算落盘, 本页只 html.escape 原样显示, 一个数
+    都不算。任一字段缺省 (旧投影 / 截 3 之外的板) → 整块不出现, 不伪造。
     """
     if not boards:
         return '<div style="color:#6b7280;margin:10px 0;font-size:13px">该库暂无到期或已排期的白板</div>'
@@ -1004,6 +1029,17 @@ def _board_table_html(vault_id: str, boards: list[dict], now_sh: datetime) -> st
             f'<td style="{_TD};white-space:nowrap;color:{eta_color}">{html.escape(eta)}</td>'
             f"</tr>"
         )
+        why = r.get("why_this_board")
+        mins = r.get("estimated_minutes")
+        # 原子对 (Codex round-1 MEDIUM): 两字段由生产器成对产出, 单边缺省
+        # 不是旧投影的"降级形态"而是半份配置 —— 整块不出现, 不渲染一条
+        # 没有分钟的裸解释 (那会让人把预估时长当成"没说"而非"没配")
+        if why and mins is not None:
+            text = html.escape(why) + f" · 预计 {int(mins)} 分钟"
+            rows_html.append(
+                f'<tr><td colspan="5" style="{_TD};padding-top:0;color:#6b7280;font-size:12px">'
+                f"为什么是这块板 · {text}</td></tr>"
+            )
         detail = _node_detail_html(vault_id, r.get("nodes") or [], now_sh)
         if detail:
             rows_html.append(f'<tr><td colspan="5" style="{_TD};padding-top:0">{detail}</td></tr>')
