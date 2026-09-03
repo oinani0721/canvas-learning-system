@@ -5224,7 +5224,18 @@ def test_domain_r27_seedish_h3_and_corrupt_seeds():
     同批：损坏的 `seeds=[None]` 会被过滤成空 rows，再因**原值仍是 list** 被当成
     合法零种子 ⇒ 损坏数据静默通过。现改为 fail-closed。
 
-    **它证明什么**：六种形态各自正确（三报三放行），含围栏内形似标题不误报。
+    ⛔ round-37（Codex 冻结审查 HIGH「第八形态」）：`_h3_wellformed` 原先标题体
+    收 `[^\n]*`（什么都认），于是 `###  种子`（两空格）/ `###\t种子`（制表符）/
+    不带尾随井号的 `` ### `种子` `` 与 `### ==种子==` 全被判**合规** ⇒ 其下台账行
+    既不进绑定面也不进漏网扫描。⚠️ 原有的 inline-code / highlight 两条之所以变红，
+    靠的是它们**额外带了尾随 ` ###`**——即「闭合井号被判不合规」，
+    **不是** inline-code/highlight 归一承重（审查方指出，实测属实）。
+    本轮去掉尾随 closer 单独立条，才真正测到那条性质。
+
+    同批：台账 H2 之后、**第一个 H3 之前**的台账形状行原先 `_cur_bad` 初值 `False`
+    ⇒ 是一段完全无人看管的区间，现改为默认「不在任何认可小节内」。
+
+    **它证明什么**：十五种形态各自正确（九报六放行），含围栏内形似标题不误报。
     **它不证明什么**：不覆盖 `ledger` 为扁平 list 的损坏形态；
     也不改变 `_SECTION_RE` 的接受集本身（放宽须改本体让两侧同动）。
     """
@@ -5235,13 +5246,13 @@ def test_domain_r27_seedish_h3_and_corrupt_seeds():
     #    ⇒ 每条都**绑定诊断关键词**，报错内容必须是这一条。
     for want, why, text, ledger in (
         (
-            "小节之外",
+            "不受任何认可小节覆盖",
             "第六形态 a：seeds=[] + 不认可 H3 + Ghost 行",
             "## 台账\n\n### 种子 ###\n\n- Ghost — 批注 9 条\n\n## 末\n",
             {"seeds": []},
         ),
         (
-            "小节之外",
+            "不受任何认可小节覆盖",
             "第六形态 b：认可的空小节 + 第二个不认可 H3 + Ghost（非零种子板）",
             "## 台账\n\n### 种子\n\n\n\n### 种子 ###\n\n- Ghost — 批注 9 条\n\n## 末\n",
             {"seeds": [{"node_id": "S", "tips_count": 2}]},
@@ -5265,13 +5276,13 @@ def test_domain_r27_seedish_h3_and_corrupt_seeds():
             {"seeds": [{"node_id": "S", "tips_count": 2}]},
         ),
         (
-            "小节之外",
+            "不受任何认可小节覆盖",
             "⭐第七形态：inline code 标题（`_visible_text` 不归一 inline code）",
             "## 台账\n\n### 种子\n\n\n\n### `种子` ###\n\n- Ghost — 批注 9 条\n\n## 末\n",
             {"seeds": [{"node_id": "S", "tips_count": 2}]},
         ),
         (
-            "小节之外",
+            "不受任何认可小节覆盖",
             "⭐第七形态：highlight 标题（源码已声明 highlight 未覆盖）",
             "## 台账\n\n### 种子\n\n\n\n### ==种子== ###\n\n- Ghost — 批注 9 条\n\n## 末\n",
             {"seeds": [{"node_id": "S", "tips_count": 2}]},
@@ -5286,6 +5297,36 @@ def test_domain_r27_seedish_h3_and_corrupt_seeds():
             None,
             "⭐误伤面：正文里的 `### 种子相关说明`（我预判、审查方确认的误伤）",
             "## 附录\n\n### 种子相关说明\n\n自由叙述。\n\n## 末\n",
+            {"seeds": [{"node_id": "S", "tips_count": 2}]},
+        ),
+        (
+            "不受任何认可小节覆盖",
+            "⭐第八形态 a：inline code 标题**不带**尾随 closer（原先靠 closer 才变红）",
+            "## 台账\n\n### 种子\n\n\n\n### `种子`\n\n- Ghost — 批注 9 条\n\n## 末\n",
+            {"seeds": [{"node_id": "S", "tips_count": 2}]},
+        ),
+        (
+            "不受任何认可小节覆盖",
+            "⭐第八形态 b：highlight 标题**不带**尾随 closer",
+            "## 台账\n\n### 种子\n\n\n\n### ==种子==\n\n- Ghost — 批注 9 条\n\n## 末\n",
+            {"seeds": [{"node_id": "S", "tips_count": 2}]},
+        ),
+        (
+            "不受任何认可小节覆盖",
+            "⭐第八形态 c：`###` 后两个空格（`_SECTION_RE` 只认恰好一个）",
+            "## 台账\n\n### 种子\n\n\n\n###  种子\n\n- Ghost — 批注 9 条\n\n## 末\n",
+            {"seeds": [{"node_id": "S", "tips_count": 2}]},
+        ),
+        (
+            "不受任何认可小节覆盖",
+            "⭐第八形态 d：`###` 后制表符",
+            "## 台账\n\n### 种子\n\n\n\n###\t种子\n\n- Ghost — 批注 9 条\n\n## 末\n",
+            {"seeds": [{"node_id": "S", "tips_count": 2}]},
+        ),
+        (
+            "不受任何认可小节覆盖",
+            "⭐首个 H3 之前：台账 H2 后、任何 H3 前的台账形状行（原先无人看管）",
+            "## 台账\n\n- Ghost — 批注 9 条\n\n### 种子\n\n## 末\n",
             {"seeds": [{"node_id": "S", "tips_count": 2}]},
         ),
         (
@@ -5358,6 +5399,97 @@ def test_domain_r28_tips_binding_visible_space_cli(tmp_path):
     assert run_verify(report).returncode == 0, "渲染等价的合规 tips 行被误判"
 
 
+def test_domain_r31_tail_fields_bound_to_scan():
+    """R3 round-37（Codex 冻结审查 HIGH）：种子行尾巴的另两个字段必须绑出处。
+
+    ⛔ `_tail_conflict` 的 docstring 此前写着这两个字段「在 scan JSON 里**没有
+    对应的逐节点字段可绑**」—— **假声明**。`tips_open` 与 `derived_children_count`
+    一直都在，且 SKILL.md 明写「已派生 x 点」就是**抄** `derived_children_count`。
+    也就是说：这两个数本就来自 scan，却从来没核对过，报告里改成任意值都能通过。
+
+    **它证明什么**：有字段就必须对得上（篡改必红），无字段不误报（能力边界）。
+    **它不证明什么**：不覆盖尾巴里的其它自由文本；也不改变 D2 的碰撞判据性质。
+    """
+    rs = _load_recap_scan()
+    row = {"node_id": "S", "tips_count": 2, "tips_open": 3, "derived_children_count": 4}
+    bare = {"node_id": "S", "tips_count": 2}  # 旧 scan / fallback：两字段缺失
+
+    def run(line: str, seed: dict) -> list[str]:
+        ps: list[str] = []
+        rs._verify_seed_ledger_counts(
+            f"## 台账\n\n### 种子\n\n{line}\n\n## 末\n",
+            {"ledger": {"seeds": [seed]}},
+            ps,
+        )
+        return ps
+
+    for line, seed, want, why in (
+        ("- S — 批注 2 条（理解度未闭环 3 条）", row, None, "对照：两数都对"),
+        ("- S — 批注 2 条（理解度未闭环 9 条）", row, "tips_open", "篡改未闭环数必红"),
+        ("- S — 批注 2 条（理解度未闭环 3 条）· 已派生 4 点", row, None, "对照：派生数也对"),
+        ("- S — 批注 2 条（理解度未闭环 3 条）· 已派生 9 点", row, "derived_children_count", "篡改派生数必红"),
+        ("- S — 批注 2 条（理解度未闭环 9 条）· 已派生 9 点", bare, None, "能力边界：无字段不误报"),
+    ):
+        ps = run(line, seed)
+        if want is None:
+            assert ps == [], f"{why}：误伤 —— {ps!r}"
+        else:
+            assert any(want in x for x in ps), f"{why}：未报出目标诊断 {want!r} —— {ps!r}"
+
+
+def test_domain_r30_obsidian_comment_hidden_break_cli(tmp_path):
+    """R3 round-37（Codex 冻结审查 BLOCKER）：Obsidian 自己的注释 `%%…%%`。
+
+    ⛔ 正文早就禁写 **HTML** 注释（「渲染隐藏面 / 可见文本与校验文本分叉」），
+    但 Obsidian 的原生注释语法 `%%…%%` **完全没管**。它是同一类隐藏面：
+
+      `- 本板共有987654%%x%%0个子节点。`
+
+    阅读视图隐藏注释后读者看到 `9876540`；校验器在 `%` 处**断开**，
+    只取量词前的尾片 `0`，而 **0 因 `abs(a-a)` 恒在池内** ⇒ 整条放行。
+    又一次「尾片重锚」，只是换了个隐藏载体。
+
+    **它证明什么**：`%%` 按与 HTML 注释**逐字同款**的口径处置 ——
+    在**原始文本**上一次判死（不区分闭合与否、不管是否落在 code span 内），
+    且校验前剥掉（防「注释里藏正确模板行、可见文本撒谎」）。
+    **它不证明什么**：不覆盖别的渲染隐藏面（math `$…$`、脚注、折叠块等）——
+    那是本卡反复登记的 renderer 开放集，逐个补不是闭包（见接手清单 A2）。
+    """
+    rs = _load_recap_scan()
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    pool = rs._derived_number_pool(scan)
+    assert 987654 not in pool, "前提：987654 必须在池外"
+    assert 0 in pool, "前提：0 恒在池内 —— 这正是尾片重锚的危险来源"
+
+    report = write_report(vault, scan)
+    base = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+
+    def inject(line: str):
+        text = base.replace("## 三维审查", f"## 三维审查\n\n{line}", 1)
+        assert text != base, "注入未命中：报告一字未改，这条门测的是空气"
+        report.write_text(text, encoding="utf-8")
+        return run_verify(report)
+
+    for line, why in (
+        ("- 本板共有987654%%x%%0个子节点。【实测】", "注释制造隐藏硬断点 → 尾片 0 重锚"),
+        ("- 本板共有%%注释%%5个子节点。【实测】", "注释在数字之前"),
+        ("- 本板共有5%%注释%%个子节点。【实测】", "注释在量词之前"),
+        ("- 正常一句话 %%只是个注释%%。【实测】", "无数字也判死（与 HTML 注释同口径）"),
+        ("- 本板共有 `%%` 个子节点。【实测】", "code span 内同样判死（同 HTML 注释口径）"),
+    ):
+        r = inject(line)
+        assert r.returncode != 0, f"{why}：%% 注释放行 —— {line!r}"
+        out = (r.stdout or "") + (r.stderr or "")
+        assert "Obsidian 注释标记" in out, f"{why}：报错了但不是这条报的 —— {out[-300:]!r}"
+
+    # 对照：单个 `%` 不受影响（百分数是正常写法）
+    report.write_text(base, encoding="utf-8")
+    r = inject("- 覆盖率 50% 已达标。【实测】")
+    assert r.returncode == 0, f"单个 % 被误伤：{(r.stdout or '')[-300:]!r}"
+
+
 def test_domain_r29_separator_third_state_cli(tmp_path):
     """R3 round-35（2026-09-03 内部多维复核 BLOCKER）：分隔符的**第三态**。
 
@@ -5407,10 +5539,24 @@ def test_domain_r29_separator_third_state_cli(tmp_path):
     ):
         r = inject(line)
         assert r.returncode != 0, f"{why}：分隔符第三态放行 —— {line!r}"
+        # ⛔ round-37（Codex 冻结审查）：原先只断言 `rc != 0` —— **目标无关假绿**：
+        # 换个理由报错（模板不合规、别的字段对不上）这门照样绿。绑定诊断关键词。
+        out = (r.stdout or "") + (r.stderr or "")
+        assert "数字终核" in out, f"{why}：报错了但不是数字终核报的 —— {out[-300:]!r}"
 
-    # 归一行为本身：一律删，不看位数
-    assert rs._normalize_number_seps("987654,0") == "9876540"
-    assert rs._normalize_number_seps("1,05") == "105"
-    assert rs._normalize_number_seps("987654,000") == "987654000"
+    # ⛔ round-37：这里原先断言的是**实现手法**（「一律删，不看位数」），
+    # 而 round-35 那个手法本身被证明有害：它把 `1, 2个`（读者看见两个数）
+    # 合成 `12个`。改为断言**安全性质**：
+    #   · 合法千分位分组 → 归一成完整量级（可赋值）
+    #   · 含糊/非法分隔   → 划进同一 token 且**判不出值**（调用方 fail-closed）
+    for legal, want in (("1,005", 1005), ("987654,000", 987654000), ("1,234,567", 1234567)):
+        assert rs._count_token_value(rs._join_free(rs._normalize_number_seps(legal))) == want, legal
+    for ambiguous in ("987654,0", "987654，0", "987654'0", "1,05", "1, 2"):
+        norm = rs._normalize_number_seps(ambiguous)
+        toks = rs._NUM_RUN_RE.findall(norm)
+        assert len(toks) == 1, f"{ambiguous!r} 被切成多个 token（硬断点复活）: {toks}"
+        assert rs._count_token_value(rs._join_free(toks[0])) is None, (
+            f"{ambiguous!r} 被赋了值 —— 含糊分隔必须 fail-closed"
+        )
     # 非数字上下文不受影响
     assert rs._normalize_number_seps("见 1,と") == "见 1,と"

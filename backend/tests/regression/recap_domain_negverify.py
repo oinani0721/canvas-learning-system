@@ -185,7 +185,7 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "survivor-12 (C) 提取面收窄成单字（「抓得到才拒得掉」全线：唯一提取模式被禁）",
         [
             (
-                '_NUM_RUN_PAT = rf"[{_NUMERAL_LIKE_CHARS}](?:{_D2_JOIN_ONE}*+[{_NUMERAL_LIKE_CHARS}])*"',
+                '_NUM_RUN_PAT = rf"[{_NUM_RUN_CHARS}](?:{_D2_JOIN_ONE}*+[{_NUM_RUN_CHARS}])*"',
                 '_NUM_RUN_PAT = rf"[{_NUMERAL_LIKE_CHARS}]"',
             )
         ],
@@ -196,7 +196,7 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "survivor-13 (C-2) 数串不再跨连接字符（CJK 与 ASCII 两侧提取面一起禁）",
         [
             (
-                '_NUM_RUN_PAT = rf"[{_NUMERAL_LIKE_CHARS}](?:{_D2_JOIN_ONE}*+[{_NUMERAL_LIKE_CHARS}])*"',
+                '_NUM_RUN_PAT = rf"[{_NUM_RUN_CHARS}](?:{_D2_JOIN_ONE}*+[{_NUM_RUN_CHARS}])*"',
                 '_NUM_RUN_PAT = rf"[{_NUMERAL_LIKE_CHARS}]+"',
             ),
         ],
@@ -283,7 +283,7 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "现改为保留捕获组、只收窄字符集，代码仍可运行。",
         [
             (
-                'rf"([0-9]){_D2_JOIN_ONE}*[,，\'’]{_D2_JOIN_ONE}*(?=[0-9])"',
+                'rf"[0-9](?:{_D2_JOIN_ONE}*[{_NUM_SEP_CHARS}]{_D2_JOIN_ONE}*[0-9]{{3}})+(?![0-9])"',
                 'r"([0-9]),(?=[0-9])"',
             ),
         ],
@@ -780,11 +780,46 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "r28_tips_binding",
     ),
     (
-        "survivor-66 (C-39) 分隔符归一退回「恰好三位分组」前瞻（制造第三态：既不删也不断 ⇒ 硬断点，匹配重锚到尾片）",
+        "survivor-66 (C-39→37) 分隔符退出**定界集**（第三态复活：既不删也不算连接字符 ⇒ 硬断点，匹配重锚到尾片）",
         [
             (
-                'rf"([0-9]){_D2_JOIN_ONE}*[,，\'’]{_D2_JOIN_ONE}*(?=[0-9])"',
-                'rf"([0-9]){_D2_JOIN_ONE}*[,，\'’]{_D2_JOIN_ONE}*(?=[0-9]{{3}}(?![0-9]))"',
+                "_NUM_RUN_CHARS = _NUMERAL_LIKE_CHARS + _NUM_SEP_CHARS",
+                "_NUM_RUN_CHARS = _NUMERAL_LIKE_CHARS",
+            )
+        ],
+        "r29_separator_third_state",
+    ),
+    (
+        "survivor-67 (C-40) Obsidian `%%` 注释全局禁用被摘除（渲染隐藏面重开）",
+        [('    if "%%" in text_raw:', "    if False:")],
+        "r30_obsidian_comment",
+    ),
+    (
+        "survivor-68 (C-41) `_h3_wellformed` 标题体退回「什么都收」（第八形态复活）",
+        [
+            (
+                'r"^### [^\\s#`=*~\\[\\]<>][^\\n`=*~\\[\\]<>]*$"',
+                'r"^###[^\\S\\n]+[^\\s#][^\\n]*$"',
+            )
+        ],
+        "r27_seedish_h3",
+    ),
+    (
+        "survivor-69 (C-42) 台账段首个 H3 之前的区间退回「默认已覆盖」（无人看管区复活）",
+        [("        _cur_bad = True", "        _cur_bad = False")],
+        "r27_seedish_h3",
+    ),
+    (
+        "survivor-70 (C-43) 尾巴字段绑定被摘除（`理解度未闭环`/`已派生` 回到任写任过）",
+        [("        if _want is None:", "        if True:")],
+        "r31_tail_fields_bound",
+    ),
+    (
+        "survivor-71 (C-44) 合法分组判据放宽为「分隔符后 1 位即可」（回到 round-35 的无条件剥除：`1, 2个` 被合成 `12个`）",
+        [
+            (
+                "[0-9]{{3}})+(?![0-9])",
+                "[0-9]{{1}})+(?![0-9])",
             )
         ],
         "r29_separator_third_state",
@@ -868,7 +903,7 @@ def _looks_like_crash(out: str) -> bool:
     )
 
 
-def run_suite(targets: list[str], keyword: str | None = None) -> tuple[int, str, int, int, bool]:
+def run_suite(targets: list[str], keyword: str | None = None) -> tuple[int, str, int, int, bool, set[str]]:
     """跑目标用例，返回 (rc, 输出尾部, 收集到的用例数, 失败数, 是否崩溃)。
 
     ⛔ round-36：`targets` 是**精确 nodeid 列表**（基线态传套件路径 + keyword）。
@@ -886,7 +921,7 @@ def run_suite(targets: list[str], keyword: str | None = None) -> tuple[int, str,
     要求"确实收集到用例"且"确实有失败"才算变红。
     """
     r = subprocess.run(
-        [str(PYTEST), *targets, "-q", "-p", "no:cacheprovider"] + (["-k", keyword] if keyword else []),
+        [str(PYTEST), *targets, "-q", "-rf", "-p", "no:cacheprovider"] + (["-k", keyword] if keyword else []),
         cwd=ROOT / "backend",
         capture_output=True,
         text=True,
@@ -923,7 +958,11 @@ def run_suite(targets: list[str], keyword: str | None = None) -> tuple[int, str,
     # 假阳边界如实声明: 若某条门**故意**断言输出里含 traceback 文本, 会被误判为
     # 崩溃 —— 那是「宁可误报也不漏报」的方向选择, 且当前目标套件无此形态。
     crash = _looks_like_crash(both)
-    return r.returncode, out[-400:], passed + failed, failed, crash
+    # ⛔ round-37（Codex HIGH）：只汇总 `N failed` 是**计数**，不是**身份**。
+    # 「指名 A、结果 B 死了」在计数上与「A 死了」完全一样。`-rf` 让 pytest 打出
+    # `FAILED <nodeid>` 短摘要，这里解析出**真实失败的门**交给判据比对集合。
+    failed_ids = {m.group(1).split("::")[-1] for m in re.finditer(r"^FAILED\s+(\S+)", out, re.M)}
+    return r.returncode, out[-400:], passed + failed, failed, crash, failed_ids
 
 
 DESIGNATED: dict[str, list[str]] = {
@@ -1012,6 +1051,11 @@ DESIGNATED: dict[str, list[str]] = {
     "survivor-64": ["test_domain_r27_seedish_h3_and_corrupt_seeds"],
     "survivor-65": ["test_domain_r28_tips_binding_visible_space_cli"],
     "survivor-66": ["test_domain_r29_separator_third_state_cli"],
+    "survivor-67": ["test_domain_r30_obsidian_comment_hidden_break_cli"],
+    "survivor-68": ["test_domain_r27_seedish_h3_and_corrupt_seeds"],
+    "survivor-69": ["test_domain_r27_seedish_h3_and_corrupt_seeds"],
+    "survivor-70": ["test_domain_r31_tail_fields_bound_to_scan"],
+    "survivor-71": ["test_domain_r29_separator_third_state_cli"],
 }
 """每条变体**指定要杀死的门**（卡文完成条件 (e)）。
 
@@ -1033,7 +1077,15 @@ DESIGNATED: dict[str, list[str]] = {
 且每个 nodeid 必须真实存在于套件收集结果里（防指名腐烂）。
 """
 
-MUTANT_COUNT_EXPECTED = 66
+MUTANT_COUNT_EXPECTED = 71
+DESIGNATED_COUNT_EXPECTED = 78
+"""指定门总数的**独立**期望值（Codex round-37 HIGH）。
+
+原先只冻结了变体数 66，指定门总数 73 是**从 DESIGNATED 动态求和后打印**的 ——
+于是「从某条多指名列表里删掉一个门」会让 `len(指名)` 同步缩小，
+剩下的门全死照样判承重：**判据的期望值来自被判据对象本身，是自证**。
+（与本卡开头抓到的 `#23` 自抄期望同型，第 N 次。）
+"""
 """变体数的**独立**期望值。
 
 ⛔ 冻结审查 v6：脚本原先只在结尾动态打印「共 N 条」—— 误删一个变体仍会成功退出。
@@ -1090,6 +1142,12 @@ def preflight() -> list[str]:
     # ⛔ round-36：指名表 fail-closed 校验（防「指名腐烂」）。
     # 键集必须与变体 id 集**完全相等** —— 少一个 = 有变体没指名（判据无从谈起），
     # 多一个 = 指名指向已删除的变体（陈旧声明冒充在场）。
+    total = sum(len(v) for v in DESIGNATED.values())
+    if total != DESIGNATED_COUNT_EXPECTED:
+        bad.append(f"指定门总数 {total} ≠ 期望 {DESIGNATED_COUNT_EXPECTED}（增删指名须同步改期望值）")
+    for _sid, _nds in DESIGNATED.items():
+        if len(set(_nds)) != len(_nds):
+            bad.append(f"{_sid}: 指名列表内有重复 nodeid（会让 len 虚高）: {_nds}")
     missing = sorted(set(ids) - set(DESIGNATED))
     extra = sorted(set(DESIGNATED) - set(ids))
     if missing:
@@ -1107,6 +1165,11 @@ def preflight() -> list[str]:
         env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
         timeout=300,
     )
+    if r.returncode != 0:
+        # ⛔ round-37（Codex HIGH）：collect-only 的 rc 原先没查 —— 收集期报错
+        # （import 失败 / 插件炸）会让 collected 为空或残缺，而后面只报「指名不存在」，
+        # 把「套件坏了」说成「指名腐烂」，两种病同一个诊断。
+        bad.append(f"套件收集期 rc={r.returncode}（收集本身失败，不是指名的问题）")
     collected = {ln.strip().split("::")[-1] for ln in r.stdout.splitlines() if "::" in ln}
     if not collected:
         bad.append("套件收集为空，无法校验指名（pytest --collect-only 没输出 nodeid）")
@@ -1164,7 +1227,7 @@ def main() -> int:
         original = TARGET.read_bytes()
         backup_sha = hashlib.sha256(original).hexdigest()
 
-        rc0, out0, n0, f0, _c0 = run_suite([SUITE], keyword="domain_")
+        rc0, out0, n0, f0, _c0, _ids0 = run_suite([SUITE], keyword="domain_")
         if rc0 != 0 or f0 or n0 == 0:
             print(f"⛔ 基线不可信（rc={rc0} 收集={n0} 失败={f0}）:\n{out0}")
             return 2
@@ -1193,7 +1256,7 @@ def main() -> int:
             #    （grep MUTANT + sha 对比），本脚本自身证明不了这件事。
             try:
                 TARGET.write_text(text, encoding="utf-8")
-                rc, out, n, f, crash = run_suite([f"{SUITE}::{nd}" for nd in designated])
+                rc, out, n, f, crash, failed_ids = run_suite([f"{SUITE}::{nd}" for nd in designated])
             finally:
                 TARGET.write_bytes(original)  # 立刻还原，异常也还原
             got = hashlib.sha256(TARGET.read_bytes()).hexdigest()
@@ -1224,6 +1287,14 @@ def main() -> int:
                 # f < want ⇒ 有指名门没被杀死（变异对它不承重，或指名指错了）。
                 print(
                     f"❌ {name}: 指名 {want} 个门，只死了 {f} 个 —— 未杀死全部**指定**门\n  指名: {designated}\n{out}"
+                )
+                failures += 1
+            elif failed_ids != set(designated):
+                # ⛔ round-37（Codex HIGH）：计数相等 ≠ 身份相同。
+                # 走到这里说明「死的门数对上了，但死的不是指名的那些」。
+                print(
+                    f"❌ {name}: 死的门与指名的门**不是同一批**\n"
+                    f"  指名: {sorted(designated)}\n  实死: {sorted(failed_ids)}"
                 )
                 failures += 1
             else:

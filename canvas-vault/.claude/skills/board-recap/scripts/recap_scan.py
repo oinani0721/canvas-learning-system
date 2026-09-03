@@ -1664,7 +1664,17 @@ def _derived_number_pool(scan: dict) -> set[int]:
     return pool
 
 
-_NUM_RUN_PAT = rf"[{_NUMERAL_LIKE_CHARS}](?:{_D2_JOIN_ONE}*+[{_NUMERAL_LIKE_CHARS}])*"
+# ⛔ R3 round-37（Codex 冻结审查）：分隔符必须进**定界**集。
+# round-35 把「不合法分组的分隔符」一律删掉，堵住了 `987654,0` 的硬断点，
+# 却把 `1, 2个` 合成 `12个` —— 读者看见两个数，校验器看见一个。
+# **修严的同时开了个松口**（本卡第 N 次「口径分叉的两个方向」）。
+# 正解回到本域既有的「**定界要宽、赋值要窄**」：分隔符参与**划出 token**
+# （于是不再制造硬断点、不会重锚到尾片），但**不参与赋值** ——
+# `_count_token_value` 见到含分隔符的 token 返回 None ⇒ fail-closed。
+# 合法千分位分组由 `_normalize_number_seps` 在这之前就已删除分隔符，不受影响。
+_NUM_SEP_CHARS = ",，'’"
+_NUM_RUN_CHARS = _NUMERAL_LIKE_CHARS + _NUM_SEP_CHARS
+_NUM_RUN_PAT = rf"[{_NUM_RUN_CHARS}](?:{_D2_JOIN_ONE}*+[{_NUM_RUN_CHARS}])*"
 _NUM_RUN_RE = re.compile(_NUM_RUN_PAT)
 
 # ⛔ R3 round-6: 定义下移至此 —— 句式门现在引用 _NUMERAL_LIKE_CHARS（定界集），
@@ -1823,6 +1833,16 @@ def _visible_block(text: str) -> str:
     return "\n".join(_visible_text(ln) for ln in text.splitlines())
 
 
+# 合法千分位分组：**分隔符之后每段恰好三位**，且整段之后不再接数字。
+# 首段长度**不限** —— round-4 立的契约要求 `987654，000` 按完整量级查池
+# （⚠️ 我 round-37 第一版把首段也限成 1-3 位，当场打红那条门：
+#   收窄判据时把一条**既有契约**一起收掉了，靠跑门才发现）。
+# 分隔符两侧仍容连接字符（`987654<b>,</b>000` 渲染成 `987654,000`）。
+_GROUPED_NUM_RE = re.compile(
+    rf"[0-9](?:{_D2_JOIN_ONE}*[{_NUM_SEP_CHARS}]{_D2_JOIN_ONE}*[0-9]{{3}})+(?![0-9])"
+)
+
+
 def _normalize_number_seps(line: str) -> str:
     """千分位分隔符归一 —— **D2 与 fallback 共用**。
 
@@ -1851,9 +1871,16 @@ def _normalize_number_seps(line: str) -> str:
     #    `int("105")` 本就按十进制解析，删分隔符不会改变量级；
     #    真正危险的是留下任何字符停在「不删也不断」的第三态。
     #    ⚠️ 仍要求两侧都是数字，`见 1,と` 这类非数字上下文不受影响。
-    return re.sub(
-        rf"([0-9]){_D2_JOIN_ONE}*[,，'’]{_D2_JOIN_ONE}*(?=[0-9])",
-        r"\1",
+    # ⛔ R3 round-37（Codex 冻结审查）：只归一**合法千分位分组**。
+    # round-35 的无条件剥除把 `1, 2个`（两个可见数）合成 `12个` —— 若 12 在池里
+    # 就是假放行。不合法/含糊的分隔符不再删除：它已进 `_NUM_RUN_CHARS` 定界集，
+    # 会与两侧数字划进**同一个 token**，`_count_token_value` 判不出值 ⇒ fail-closed。
+    # ⚠️ 代价如实声明：`本板共有 1, 2 个子节点` 这类**含糊写法**从此硬 FAIL
+    # （与卡文对 `一两个/三五个` 的既定处置同向）；合法千分位 `1,005` 不受影响。
+    return _GROUPED_NUM_RE.sub(
+        lambda m: re.sub(
+            rf"{_D2_JOIN_ONE}*[{_NUM_SEP_CHARS}]{_D2_JOIN_ONE}*", "", m.group(0)
+        ),
         line,
     )
 
@@ -2104,7 +2131,9 @@ def _verify_prose_counts(text: str, scan: dict, problems: list[str]) -> None:
                     )
 
 
-def _tail_conflict(mm: "re.Match[str]", key: str, problems: list[str]) -> None:
+def _tail_conflict(
+    mm: "re.Match[str]", key: str, problems: list[str], row: dict | None = None
+) -> None:
     """种子行尾巴里若再出现**同一字段**的计数，与已绑定的首数矛盾 ⇒ fail-closed。
 
     ⛔ R3 round-26（冻结审查 v7 直接回答了我提的问题）：round-25 放宽尾巴起始
@@ -2112,9 +2141,17 @@ def _tail_conflict(mm: "re.Match[str]", key: str, problems: list[str]) -> None:
     扩大**；但相对于同轮新增的 fail-closed 形状门，它**也确实放松了接受集**。
     审查方判词是「两者兼有」，我原来只说了扩大那一半 —— 措辞比证据宽。
 
-    ⚠️ 能力边界：尾巴里的**其它**字段（`理解度未闭环 N 条` / `已派生 N 点`）
-    在 scan JSON 里没有对应的逐节点字段可绑，**本函数不管**，如实登记。
-    这里只堵一种明确矛盾：尾巴里又写了一个 `批注 N 条`。
+    ⛔ R3 round-37（Codex 冻结审查 HIGH）：上一版这里写着「`理解度未闭环 N 条` /
+    `已派生 N 点` 在 scan JSON 里**没有对应的逐节点字段可绑**」—— **这是假声明**。
+    字段一直都在：`tips_open`（每节点，`_collect_*` 产出）与
+    `derived_children_count`（manifest 模式产出），两者都随 ledger 一起落盘。
+    SKILL.md 甚至明写「manifest 模式可在同行后补『· 已派生 x 点』（抄
+    `derived_children_count`）」—— 也就是说这两个数**本就来自 scan**，
+    却从来没人核对过：报告里改成任意值都能通过。
+
+    ⇒ 本轮补上绑定。`row` 是该节点在 ledger 里的原始条目；缺字段（旧 scan /
+    fallback 模式下 `derived_children_count` 为 None）时**不报**——
+    没有出处可比不等于有矛盾，那属能力边界；有字段而对不上才 fail-closed。
     """
     # ⛔ R3 round-27（冻结审查 v8）：原先只在 **raw** 尾巴上找，`批**注** 999 条` /
     #    `批<b>注</b> 999 条` / 全角数字全部漏；且 `未批注 999 条` 会因**子串**命中
@@ -2129,6 +2166,20 @@ def _tail_conflict(mm: "re.Match[str]", key: str, problems: list[str]) -> None:
             f"数字终核: 台账『种子』行 {key} 的尾巴里又出现『批注 {_n} 条』——"
             "同一字段两处计数, 无法确定以哪个为准 (fail-closed)"
         )
+    # ⛔ round-37：尾巴里的另两个字段绑到**该节点的** scan 字段（见 docstring）。
+    for _pat, _field, _label in (
+        (r"理解度未闭环\s*(\d+)\s*条", "tips_open", "理解度未闭环"),
+        (r"已派生\s*(\d+)\s*点", "derived_children_count", "已派生"),
+    ):
+        _want = (row or {}).get(_field)
+        if _want is None:
+            continue  # 无出处可比 ≠ 有矛盾（旧 scan / fallback 模式）
+        for _n in re.findall(_pat, rest):
+            if int(_n) != _want:
+                problems.append(
+                    f"数字终核: 台账『种子』行 {key} 的尾巴报『{_label} {_n}』, "
+                    f"scan JSON 的 {_field} 是 {_want} (形状对不等于数字有据)"
+                )
 
 
 def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> None:
@@ -2255,19 +2306,43 @@ def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> No
     _covered = {k for lo, hi in sections for k in range(lo, hi)}
 
     def _h3_wellformed(v: str) -> bool:
-        """H3 标题本身是否合规（与 `_SECTION_RE` 同精神：段名后只允许行尾或全角括号）。
+        """H3 标题是否被**统一口径 `_SECTION_RE` 认得出**。
 
         ⚠️ 这里只判**形状**，不判段名 —— 台账下合法的 H3 至少有 `种子` / `派生`，
         把它们逐个枚举又会造出一张闭表（本卡反复消掉的那种）。
+
+        ⛔ R3 round-37（Codex 冻结审查 HIGH「第八形态」）：原式的标题体是
+        `[^\n]*`（**什么都收**），于是一批「渲染后看着就是 `### 种子`、
+        却匹配不上 `_H3_SEED_RE`」的写法被判为**合规**，其下的台账行随即
+        `_cur_bad=False` 被跳过 —— 既不进绑定面、也不进漏网扫描：
+
+          · `### \u0060种子\u0060`（inline code）· `### ==种子==`（highlight）
+          · `###  种子`（两个空格）· `###\t种子`（制表符）
+
+        本函数的 docstring 一直写着「与 `_SECTION_RE` 同精神」，而 `_SECTION_RE`
+        要求的是 `^### 种子` —— **恰好一个空格、段名后直接行尾或全角括号**。
+        说的与做的不符，这是本卡第 N 次。现按它自己声称的口径收紧：
+          ① `###` 后**恰好一个空格**（对齐 `re.escape("### 种子")`）；
+          ② 标题体不含 Markdown 标记字符 —— 带标记的标题「渲染后看着像 X」
+             但**不是** X，属本域反复抓的「可见文本与校验文本分叉」；
+          ③ 仍禁尾随闭合井号。
+
+        **代价如实声明**：`### 派生 ###` 是合法的 ATX 闭合写法，本域不接受 ——
+        其下的台账形状行会被报「H3 标题写法不被统一口径认可」。这是
+        **有意的窄化**（统一口径只认一种写法），不是漏判；诊断措辞已相应改写，
+        不再说成「必须写在种子小节内」。
         """
-        return bool(re.match(r"^###[^\S\n]+[^\s#][^\n]*$", v)) and not re.search(
-            r"[^\S\n]#+[^\S\n]*$", v
-        )
+        return bool(
+            re.match(r"^### [^\s#`=*~\[\]<>][^\n`=*~\[\]<>]*$", v)
+        ) and not re.search(r"[^\S\n]#+[^\S\n]*$", v)
 
     # 「当前所处的 H3 标题是否合规」——不合规的 H3 底下的台账形状行才算漏网
     _bad_h3 = [False] * len(vis_lines)
     for _lo, _hi in _ledger_spans:
-        _cur_bad = False
+        # ⛔ R3 round-37（Codex 冻结审查）：原先初值 `False` ⇒ 台账 H2 之后、
+        #    **第一个 H3 之前**的台账形状行既不进 `_covered`、也不进漏网扫描，
+        #    是一段完全无人看管的区间。默认应为「不在任何认可小节内」= True。
+        _cur_bad = True
         for _k in range(_lo, _hi):
             if _in_fence[_k]:
                 continue
@@ -2282,9 +2357,11 @@ def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> No
                 raw_lines[_k]
             ):
                 problems.append(
-                    "数字终核: 台账段内、**认可的『种子』小节之外**出现台账形状行 "
+                    "数字终核: 台账段内出现**不受任何认可小节覆盖**的台账形状行 "
                     f"({vis_lines[_k].strip()[:50]!r}) —— 它不会进入任何绑定面; "
-                    "台账行必须写在 `### 种子` 小节内 (统一口径 _SECTION_RE)"
+                    "台账行必须写在统一口径 `_SECTION_RE` 认得出的 H3 小节内 "
+                    "(`### 种子` / `### 派生`：恰好一个空格、标题不带 Markdown 标记、"
+                    "无尾随闭合井号)"
                 )
 
     if not sections:
@@ -2353,6 +2430,7 @@ def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> No
         #    都会被静默放行（我第一版就是这么写的，当场实测漏）。
         #    继续往下走：绑定面为空 ⇒ 每一行都会按「不在 ledger 里」报。
     tips_by_node = {str(r.get("node_id")): r.get("tips_count") for r in rows}
+    row_by_node = {str(r.get("node_id")): r for r in rows}
     # 归一空间的候选索引：只在 raw 行解析不出时才用（round-25）
     vis_index: dict[str, list[str]] = {}
     for _raw_id in tips_by_node:
@@ -2394,7 +2472,7 @@ def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> No
                             f"数字终核: 台账『种子』行 {key} 报批注 {got} 条, "
                             f"scan JSON 的 tips_count 是 {want} (形状对不等于数字有据)"
                         )
-                    _tail_conflict(raw_ms, key, problems)
+                    _tail_conflict(raw_ms, key, problems, row_by_node.get(key))
                     continue
                 # ⛔ round-25: raw 精确未命中**不等于**身份非法 —— ledger id 为 `A&B`
                 #    而报告合法写成 `A&amp;B` 时，读者看到的是同一个名字。原实现
@@ -2422,7 +2500,7 @@ def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> No
                     f"数字终核: 台账『种子』行 {key} 报批注 {got} 条, "
                     f"scan JSON 的 tips_count 是 {want} (形状对不等于数字有据)"
                 )
-            _tail_conflict(ms, key, problems)
+            _tail_conflict(ms, key, problems, row_by_node.get(key))
 
 
 def _verify_numbers(fm: str, text: str, report_path: Path, problems: list[str]) -> None:
@@ -2725,9 +2803,21 @@ def _verify_report(path: str) -> int:
         problems.append(
             "正文含 HTML 注释标记 (渲染隐藏面/可见文本与校验文本分叉, 报告禁写注释)"
         )
+    # ⛔ R3 round-37 (Codex 冻结审查 BLOCKER): Obsidian 自己的注释语法 `%%…%%`
+    # 与 HTML 注释是**同一类渲染隐藏面**, 而上面那条只判了 HTML 一种。
+    # 实测载体: `本板共有987654%%x%%0个子节点` —— 阅读视图隐藏注释后读者看到
+    # `9876540`, 而校验器在 `%` 处**断开**、只取量词前的 `0`, 且 0 因 `abs(a-a)`
+    # **恒在池内** ⇒ 整条放行。这正是本卡反复出现的「尾片重锚」, 换了个隐藏载体。
+    # 按与 HTML 注释**逐字同款**的口径处置: 在原始文本上一次判死 + 校验前剥掉,
+    # 不区分闭合与否、不管是否落在 code span 内。
+    if "%%" in text_raw:
+        problems.append(
+            "正文含 Obsidian 注释标记 %% (渲染隐藏面/可见文本与校验文本分叉, 报告禁写注释)"
+        )
     # 六轮影子字段防御: 正文校验前剥 HTML 注释 — "注释里藏正确模板行、
     # 可见文本撒谎"的形态失效, 可见文本必须独立过全部校验。
     text = re.sub(r"<!--.*?-->", "", text_raw, flags=re.S)
+    text = re.sub(r"%%.*?%%", "", text, flags=re.S)
     # round-4: 零宽/双向控制字符 — 渲染不可见但能改变正则匹配与阅读顺序,
     # 是"看起来合规、实际另一回事"的通用载体。合法报告没有理由出现它们。
     # ⛔ R3 round-15 (冻结审查): 这里原先**手抄**了一份不可见字符集, 只到 U+2064,
