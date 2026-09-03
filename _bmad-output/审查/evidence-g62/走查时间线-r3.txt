@@ -1,0 +1,20 @@
+CARD-G6-2 走查时间线 round-3（Codex round-2 整改后的复核走查）
+========================================================================
+
+前提：走查针对 a9410c9f 之后的 round-2 整改代码（未提交态）。uvicorn 本车道
+127.0.0.1:8012，live vault 只读。截图①的 503 仍由「前 2 请求放行、之后 503」
+的一次性代理（8013）注入（上游 8012 存活）——语义与真实宕机等价（fetch 收到
+非 200）。
+
+11:39:25  WALKTHROUGH3-START（uvicorn 本次启动 >2 分钟，RAG reconcile 拖长）
+11:46     截图② g62-2-正常-live列表-r3.png：已连接徽标 + live 数据；
+          同 run 抓 netlog → netlog-normal-full-r3.json
+11:46:51  截图① g62-1-unavailable不白屏-r3.png：首轮 GET 成功（canvas-vault
+          已是「今日投影」绿徽标——今早 09:05 推送真实发生），下一轮轮询吃
+          503 → 红徽标 + 横幅「页面保留 11:46:51 的最后一次成功数据」 +
+          三卡数据完整保留。
+11:57:02  WALKTHROUGH3-END；投影 SHA 前后逐字相同（写侧零，全程未点刷新）。
+netlog    netlog-analysis-r3.txt：页面相关请求全部同源 8012，外部请求 = 0
+          （google/gvt1 域名为 Chrome 自身后台组件，与页面无关）。
+
+工具残留：uvicorn(8012)/proxy(8013) 走查结束即杀（lsof 双 0 确认）。
