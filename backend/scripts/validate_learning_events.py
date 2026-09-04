@@ -388,6 +388,22 @@ _PROOF_REQUIRED_KEYS = (
 #: (工具崩溃而非报违规) —— 为修 round-14 的"64 层误拒"反而引入了更坏的失败模式。
 #: 128 层对单节点的解冻链 (层数 = 历史重建次数) 已极为宽裕。
 PROOF_MAX_DEPTH = 128
+#: ── §6.1 输入硬上限（CARD-G3-2c-B / round-17 B③ 的主防线）────────────────
+#: ⛔ B③ 的根不是「递归实现」，而是**深层值能进账本**：512 层 exam_board 首写
+#: rc=0 落了一行，崩溃窗重跑才炸 ⇒ 日志记了一次、笔记零次、补不回来。把
+#: `_canon_tree` 改成显式栈只让**恢复期**不炸（纵深）；主防线是不让它进来。
+#:
+#: **同源而非同步**：写点 (`SKILL.md:254`) 直接 `import validate_record_full`
+#: 并在首次 append 前自检 (`:2755`)，故上限只在此定义一份，写点自动继承 ——
+#: 消除了「两份常量漂移」这个分叉面，不必靠契约测试去发现漂移。
+#:
+#: 取值依据：真实 payload 深度 ≤3（`exam_board` 是路径字符串或标量），64 层是
+#: 天文余量，不会误拒合法数据；节点预算与 SKILL.md `_canon_tree._NODE_BUDGET`
+#: 同值 20 万，两者一起挡住「深而窄」与「浅而宽」两个独立维度。
+#: ⚠️ 深度上限必须远低于 `sys.getrecursionlimit()`（同 PROOF_MAX_DEPTH 的教训）：
+#: 主动拒才有确定的拒因，撞解释器上限只会得到一个环境相关的崩溃。
+MAX_VALUE_DEPTH = 64
+MAX_VALUE_NODES = 200_000
 #: scheduler_config 的必要字段 —— manifest 的该字段必须**含全部六键**才可用作
 #: 同源判据 (round-17 起: 残缺即 fail-closed, 不再降级形状校验)
 _SCHEDULER_CONFIG_KEYS = frozenset(
@@ -1474,6 +1490,76 @@ def validate_record(record: object, manifest: Optional[dict] = None, vault_id: O
     return validate_record_full(record, manifest, vault_id)[0]
 
 
+def value_shape_problems(value: object) -> list[str]:
+    """§6.1 输入硬上限：深度 / 节点数超限即判违规（**拒绝而非尽力解析**）。
+
+    ⛔ 必须是**迭代**实现：用递归去检查「是不是太深」，自己会先撞
+    `RecursionError` —— 检查器和被检查对象死在同一个坑里，等于没检查。
+
+    ⚠️ 自引用（PyYAML 锚点 `&a [*a]` 能造出真正的环）：迭代遍历不会栈溢出，
+    但会**永远转下去**。把「炸」换成「挂」是更坏的失败模式（用户看到评分卡死，
+    没有任何输出）。节点预算就是这里的终止保证，并且要报**真因**。
+    """
+
+    def _children(n: object):
+        """惰性产出容器的子节点（dict 的键与值都算子节点，各占一层）。"""
+        if isinstance(n, dict):
+            for k, v in n.items():
+                yield k
+                yield v
+        elif isinstance(n, (list, tuple)):
+            yield from n
+
+    def _is_container(n: object) -> bool:
+        return isinstance(n, (dict, list, tuple))
+
+    # ⛔ 必须 **lazy** DFS：上一版是「把整批子节点压栈、下一轮再逐个检查」，
+    # 于是节点预算永远晚于入栈 —— 一个扇出 20 万的值会先构造出上百 MB 的待处理
+    # 栈，检查器自己先被撑爆（Codex 实测：1 万路自引用列表在拒绝前 tracemalloc
+    # 峰值已达 46 MB）。这里每次只 `next()` 一个 child，栈深 = 结构深度，
+    # 内存与扇出无关。
+    #
+    # ⛔ 环用 **active-path identity set** 直接判，不靠节点预算兜：预算能保证
+    # 终止，但报出来的拒因是「深度超限」或「节点超限」，与真因（结构自引用）
+    # 不符 —— 上游照着这个理由去查会白费。identity set 只记**当前根到栈顶这条
+    # 路径**上的容器（环只可能出现在这条路径上），出栈即移除，不会把
+    # 「同一个子对象被两个兄弟共享」误判成环。
+    problems: list[str] = []
+    root_container = _is_container(value)
+    stack: list[tuple[object, object, int]] = [(value, _children(value) if root_container else None, 0)]
+    active: set[int] = {id(value)} if root_container else set()
+    seen = 1  # root 自己算一个节点
+    while stack:
+        node, it, depth = stack[-1]
+        if it is None:
+            stack.pop()
+            continue
+        try:
+            child = next(it)
+        except StopIteration:
+            stack.pop()
+            active.discard(id(node))
+            continue
+        seen += 1
+        if seen > MAX_VALUE_NODES:
+            return [f"值的节点数超过上限 {MAX_VALUE_NODES} — 该值异常庞大, fail-closed 拒收 (§6.1 输入硬上限)"]
+        if depth + 1 > MAX_VALUE_DEPTH:
+            return [
+                f"值的嵌套深度超过上限 {MAX_VALUE_DEPTH} — 深层结构在崩溃恢复期"
+                f"不可靠且无真实用途, fail-closed 拒收 (§6.1 输入硬上限)"
+            ]
+        if _is_container(child):
+            if id(child) in active:
+                return [
+                    "值含自引用结构 (容器直接或间接包含自身, YAML 锚点可造出) — "
+                    "遍历不终止, fail-closed 拒收 (§6.1 输入硬上限)"
+                ]
+            active.add(id(child))
+            stack.append((child, _children(child), depth + 1))
+        # 标量不入栈：它没有子节点，深度与计数在上面已经记过
+    return problems
+
+
 def validate_record_full(
     record: object, manifest: Optional[dict] = None, vault_id: Optional[str] = None
 ) -> tuple[list[str], list[str]]:
@@ -1486,6 +1572,13 @@ def validate_record_full(
     warnings: list[str] = []
     if not isinstance(record, dict):
         return ["顶层必须是 JSON object"], warnings
+
+    # §6.1 输入硬上限 —— **最先**判：超限的值不值得继续逐字段解析，而且后面
+    # 每一个遍历 payload 的检查都会在同一个结构上重复付出代价。
+    # 写点走同一条路 (`SKILL.md:2755` 自检) ⇒ 首次 append 前就拒, 账本零行。
+    shape = value_shape_problems(record)
+    if shape:
+        return shape, warnings
 
     keys = set(record.keys())
     missing = sorted(TOP_LEVEL_KEYS - keys)

@@ -5277,14 +5277,24 @@ def test_round17_rebuild_preserves_existing_receipt_bytes(vault):
 
 
 def test_round17_deep_json_recovers_after_crash_window(vault):
-    """合法的深层嵌套值首写成功后，崩溃窗必须**恢复得回来**。
+    """**上限内**的深层嵌套值首写成功后，崩溃窗必须恢复得回来。
 
-    ⛔ `_canon_tree` 原为递归实现：`exam_board` 512 层嵌套时首写 rc=0（validator 也 rc=0，
+    ⛔ `_canon_tree` 原为递归实现：`exam_board` 深层嵌套时首写 rc=0（validator 也 rc=0，
     是合法值），而崩溃窗重跑撞 `RecursionError` ⇒ rc=1、W 仍 None、账本已有一行 ——
-    **日志记了一次、笔记零次、重跑补不回来**，正是本卡定义的 BLOCKER。
+    **日志记了一次、笔记零次、重跑补不回来**，正是 round-17 B③ 定义的 BLOCKER。
+
+    ⚠️ **CARD-G3-2c-B 契约变更（默认裁决 D1/D2）**：原用例取 512 / 900 层，前提是
+    「深层值是合法值，首写应放行」。§6.1 加入输入硬上限后**那个前提不再成立** ——
+    超限值在首次 append 前就被拒（见 `test_g32cb_depth_over_limit_*`）。
+    ⚠️ **本门已退化为「上限内恢复 smoke」，不再守护「必须是显式栈」这个性质**
+    （Codex 实测：把 `_canon_tree` 换回等价递归实现，本门仍 PASS —— 上限内的
+    深度对递归版也绰绰有余）。上一版 docstring 写「仍只有显式栈守着」是
+    **声明比证据宽**，已更正。超限输入由 `test_g32cb_depth_over_limit_*` 守；
+    「显式栈 vs 递归」在新契约下已无可观测差异 —— 因为 >64 层不再是合法输入。
     """
     LED = vault / "learning_events.jsonl"
-    for _depth in (32, 512, 900):
+    _lim = _max_legal_nesting()
+    for _depth in (8, 32, _lim):
         (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
         LED.unlink(missing_ok=True)
         _deep = "leaf"
@@ -5355,3 +5365,412 @@ def test_round17_tri_instant_binding_narrow(vault):
         f"拒因须点名三方同瞬间（不退化成「随便什么理由拒了都算」）: {(r.stderr or '')[-300:]}"
     )
     assert _write_face(vault) == face, "零写"
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# CARD-G3-2c-B (d): 深层/非规范输入 **fail-closed 拒绝而非解析**
+#
+# round-17 B③ 的根不是「递归实现」，而是**深层值能进账本**：512 层 exam_board
+# 首写 rc=0 落了一行，崩溃窗重跑才炸 ⇒ 日志记了一次、笔记零次、补不回来
+# （数据丢失路径）。工作树把 `_canon_tree` 改成显式栈，让**恢复期**不再炸 ——
+# 那是纵深，不是主防线。主防线是：**根本不让它进账本**。
+#
+# ⛔ 判据的方向因此改变：不是「恢复得回来」，而是「**账本零行**」。
+# 上限同源：写点 (`SKILL.md:2755`) import 并调用 validator 的
+# `validate_record_full` 做首写自检 ⇒ 上限只需在 validator 里定义一次，
+# 写点自动继承。**同源代替同步**——消除分叉的可能，而不是靠测试发现分叉。
+# 契约面见 schema §6.1「输入硬上限」。
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def _nest(depth: int, leaf="leaf"):
+    """构造 `depth` 层嵌套数组（`depth=1` ⇒ `["leaf"]`）。"""
+    v = leaf
+    for _ in range(depth):
+        v = [v]
+    return v
+
+
+def _validator_mod():
+    """加载 validator 本体——测试不复制常量也不复制判据（复制即分叉）。"""
+    import importlib.util as _ilu
+
+    _spec = _ilu.spec_from_file_location("_vle_limits_probe", VALIDATOR)
+    _mod = _ilu.module_from_spec(_spec)
+    _spec.loader.exec_module(_mod)
+    return _mod
+
+
+def _validator_limits():
+    _m = _validator_mod()
+    return _m.MAX_VALUE_DEPTH, _m.MAX_VALUE_NODES
+
+
+def _max_legal_nesting():
+    """在**完整 record 语境**下，`exam_board` 还合规的最大嵌套层数。
+
+    ⚠️ 不能写成 `MAX_VALUE_DEPTH - 1`：深度基准取决于 record 的层次结构
+    （`record → payload → exam_board` 已占两层），把基准硬编码进测试就是
+    「测试自己抄了一份实现」——实现一改层次，门要么误红要么变空。
+    这里直接问实现本体。
+    """
+    _m = _validator_mod()
+    _rec = {"payload": {"exam_board": None}}
+    for _n in range(_m.MAX_VALUE_DEPTH, 0, -1):
+        _rec["payload"]["exam_board"] = _nest(_n)
+        if not _m.value_shape_problems(_rec):
+            return _n
+    raise AssertionError("找不到任何合规嵌套层数 — 上限被设得过紧")
+
+
+def test_g32cb_depth_over_limit_rejected_before_first_append(vault):
+    """深度超硬上限 ⇒ **首次 append 之前**就拒；账本零行。
+
+    ⛔ 反例（本门要杀死的行为）：首写 rc=0 → 账本已有一行 → 崩溃窗重跑才拒。
+    那正是 B③ 的数据丢失形态；「恢复得回来」不能替代「不该进来」。
+    """
+    _max_depth, _ = _validator_limits()
+    LED = vault / "learning_events.jsonl"
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    face = _write_face(vault)
+    pl = _payload(event_id="板A#q1", ts=TS1, review_time=TS1, exam_board=_nest(_max_depth + 1))
+    r = _run_writer(vault, pl)
+    assert r.returncode != 0, f"⛔ 超限深度必须在首写前拒: rc={r.returncode} {(r.stdout or '')[-200:]}"
+    assert not LED.exists() or LED.read_bytes() == b"", (
+        f"⛔ 账本必须零行（这是本门的核心判据）: {LED.read_bytes()[:200]!r}"
+    )
+    assert _write_face(vault) == face, "零写：拒绝路径不得改节点"
+    _err = r.stderr or ""
+    assert "深" in _err or "嵌套" in _err or "上限" in _err, f"拒因须点名深度/上限，不能是随便什么理由: {_err[-300:]}"
+    assert "RecursionError" not in _err, f"⛔ 必须是**主动拒**而非撞解释器递归上限: {_err[-300:]}"
+
+
+def test_g32cb_depth_at_limit_still_accepted(vault):
+    """边界内深度必须照常放行——加严不得误拒合法数据（验伪锚）。
+
+    ⚠️ 没有这一条，把上限设成 0 也能让上面那道门绿。
+    """
+    _max_depth, _ = _validator_limits()
+    _n = _max_legal_nesting()
+    assert _n > _max_depth // 2, f"合规余量异常小（{_n}/{_max_depth}）— 上限或基准深度有问题"
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (vault / "learning_events.jsonl").unlink(missing_ok=True)
+    pl = _payload(event_id="板A#q1", ts=TS1, review_time=TS1, exam_board=_nest(_n))
+    r = _run_writer_settled(vault, pl)
+    assert r.returncode == 0, f"⛔ 上限内深度被误拒（加严只该拒超限的）: {(r.stderr or '')[-400:]}"
+    assert _run_validator(vault).returncode == 0, "上限内的账本必须合规"
+    assert _fm_fields(vault).get("fsrs_last_review"), "上限内必须正常落地 W"
+
+
+def test_g32cb_node_budget_over_limit_rejected_before_first_append(vault):
+    """节点数超预算 ⇒ 首写前拒、账本零行（与深度是两个独立维度）。
+
+    宽而浅的结构深度合规、节点数爆炸 —— 只设深度上限挡不住。
+    """
+    _, _max_nodes = _validator_limits()
+    LED = vault / "learning_events.jsonl"
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    face = _write_face(vault)
+    pl = _payload(event_id="板A#q1", ts=TS1, review_time=TS1, exam_board=["x"] * (_max_nodes + 8))
+    r = _run_writer(vault, pl)
+    assert r.returncode != 0, f"⛔ 超预算节点数必须在首写前拒: rc={r.returncode}"
+    assert not LED.exists() or LED.read_bytes() == b"", "⛔ 账本必须零行"
+    assert _write_face(vault) == face, "零写"
+    assert "节点" in (r.stderr or "") or "上限" in (r.stderr or ""), f"拒因须点名节点预算: {(r.stderr or '')[-300:]}"
+
+
+def test_g32cb_validator_rejects_oversize_ledger_line(vault):
+    """validator 侧独立门：直接构造账本行（不经写点），超限必须报真因。
+
+    (f) fixture 直接构造账本行 + 先断言形态：写点被上限挡住后就产不出这种行了，
+    只能手工构造 —— 那正是「账本被别的程序写坏」的题设输入域。
+    """
+    _max_depth, _ = _validator_limits()
+    LED = vault / "learning_events.jsonl"
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    # 先拿一条真实合法行做模板（逐字抄生产写侧形态，不手搓 schema）
+    LED.unlink(missing_ok=True)
+    assert _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1)).returncode == 0
+    assert _run_validator(vault).returncode == 0, "模板行必须合规（前提自证）"
+    _tpl = json.loads(LED.read_text(encoding="utf-8").strip().splitlines()[-1])
+    # 只把 exam_board 换成超限深度，其余逐字保持生产形态
+    _tpl["payload"]["exam_board"] = _nest(_max_depth + 1)
+    LED.write_text(json.dumps(_tpl, ensure_ascii=False) + "\n", encoding="utf-8")
+    # ⛔ 形态自证：预置真的产生了超限深度（否则这道门是空的）
+    _probe, _d = json.loads(LED.read_text(encoding="utf-8").strip()), 0
+    _v = _probe["payload"]["exam_board"]
+    while isinstance(_v, list) and _v:
+        _d += 1
+        _v = _v[0]
+    assert _d == _max_depth + 1, f"预置形态自证失败：实际深度 {_d}，期望 {_max_depth + 1}"
+    r = _run_validator(vault)
+    assert r.returncode != 0, "⛔ validator 必须拒超限行"
+    _out = (r.stdout or "") + (r.stderr or "")
+    assert "深" in _out or "嵌套" in _out or "上限" in _out, f"拒因须点名深度/上限: {_out[-400:]}"
+    assert "Traceback" not in _out, f"⛔ 必须是判违规而非崩溃: {_out[-400:]}"
+
+
+def test_g32cb_self_referential_receipt_reports_real_cause(vault):
+    """YAML 锚点造出的**自引用** receipt 必须报真因，不得死循环/栈溢出。
+
+    ⛔ 迭代实现把「炸」换成「挂」是更坏的失败模式：递归版 RecursionError 至少
+    会停，无预算的显式栈会**永远转下去**（用户看到的是评分卡死，没有任何输出）。
+    """
+    LED = vault / "learning_events.jsonl"
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    pl = _payload(event_id="板A#q1", ts=TS1, review_time=TS1)
+    assert _run_writer_settled(vault, pl).returncode == 0, "首写"
+    # 把 calibration_log 里那条 receipt 的 exam_board 换成自引用锚点
+    nd = (vault / NODE_REL).read_text(encoding="utf-8")
+    nd2 = re.sub(r"^    exam_board: .*$", "    exam_board: &loop [*loop]", nd, count=1, flags=re.M)
+    assert nd2 != nd and "&loop" in nd2, "预置必须真的写进自引用锚点"
+    (vault / NODE_REL).write_text(nd2, encoding="utf-8")
+    # 自证：PyYAML 读回来确实是自引用（列表第 0 项就是它自己）
+    import yaml as _y
+
+    _fm_txt = nd2.split("---")[1]
+    _eb = _y.unsafe_load(_fm_txt)["calibration_log"][0]["exam_board"]
+    assert _eb[0] is _eb, "预置形态自证失败：不是真的自引用"
+    r = _run_writer_settled(vault, dict(pl))
+    assert r.returncode != 0, "⛔ 自引用必须拒"
+    # ⛔ 拒因判据两次踩坑，记在这里：
+    # ① 原写法含 `"节点" in _err` —— 测试路径本身就是 `节点/测试节点.md`，
+    #    这个 needle **恒真**，等于没判（Codex 实测：整个 shape 检查禁掉后门仍绿）。
+    # ② 走写点这条路时，拒绝其实来自更早的 receipt 解析层（`board_form: json`
+    #    对 YAML list 调 `json.loads` 抛异常被吞），压根到不了形状防线。
+    # ⇒ 写点侧只断言「拒了且零写」，**形状防线本身直接对 `value_shape_problems()`
+    #    下判据**（下面那段），两件事分开证。
+    _err = r.stderr or ""
+    assert "Traceback" not in _err, f"⛔ 必须是判违规而非崩溃: {_err[-300:]}"
+
+    # ── 形状防线本体：把真正的环对象交给它，断言报的是**环**而不是深度/预算 ──
+    _m = _validator_mod()
+    _loop = []
+    _loop.append(_loop)
+    _probs = _m.value_shape_problems({"payload": {"exam_board": _loop}})
+    assert _probs, "⛔ 自引用必须被形状防线拒"
+    assert "自引用" in _probs[0], (
+        f"拒因须是**环**本身，不是被深度/节点预算兜住的副作用（那样上游照着查会白费）: {_probs}"
+    )
+
+
+def test_g32cb_six_cell_triplets_probe(vault, capsys):
+    """(e) 六格状态机的 **rc / W / ledger 三元组实测值**（验收单要求逐格给数）。
+
+    ⚠️ 与 `test_six_cell_state_machine_closed` 的分工：那道门断言**语义**
+    （零写、字节相同、不二次吸收…），本门只负责把三个可观测量**如实读出来**。
+    从断言反推三元组是不诚实的 —— 断言写的是期望，这里跑的是实际。
+    两者跑同一条路径，任一格的语义变化都会先在那道门翻红。
+    """
+
+    def _triplet(r):
+        return (
+            r.returncode,
+            (_fm_fields(vault) or {}).get("fsrs_last_review"),
+            len(_ledger_lines(vault)),
+        )
+
+    rows = []
+
+    # 格1 dup=None, f1=F —— 正常新写（A2 先把 foreign pending 重放至空）
+    foreign = _review_row(event_id="quiz:板A#q1")
+    _write_ledger(vault, foreign)
+    r = _run_writer_settled(vault, _payload(ts="2026-08-02T10:00:00Z", review_time="2026-08-02T10:00:00Z"))
+    rows.append(("格1 dup=无 f1=假", _triplet(r)))
+
+    # 格2 dup=None, f1=T —— 旧写序孤儿，整体 no-op
+    _write_ledger(vault, foreign)
+    r = _run_writer(vault, _payload(ts="2026-09-01T08:00:00Z", review_time="2026-08-02T10:00:00Z"))
+    rows.append(("格2 dup=无 f1=真", _triplet(r)))
+
+    # 格3 dup=有, f1=T, applied=T —— 完整成功后重放，envelope 通过 + no-op
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (vault / "learning_events.jsonl").unlink()
+    assert _run_writer(vault, _payload()).returncode == 0
+    r = _run_writer(vault, _payload(ts="2026-09-01T08:30:00Z"))
+    rows.append(("格3 dup=有 f1=真 applied=真", _triplet(r)))
+
+    # 格4 dup=有, f1=F, applied=T —— FSRS 已吸收但校准缺失，停下人工裁定
+    _strip_calibration(vault)
+    r = _run_writer(vault, _payload(ts="2026-09-01T09:00:00Z"))
+    rows.append(("格4 dup=有 f1=假 applied=真", _triplet(r)))
+
+    # 格5 dup=有, f1=T, applied=F —— degraded 遗留，只补 FSRS
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (vault / "learning_events.jsonl").unlink()
+    assert _run_writer(vault, _payload(), env_extra={"FSRS_BRIDGE_REEXEC": "1"}).returncode == 0
+    r = _run_writer(vault, _payload(ts="2026-09-01T09:30:00Z"))
+    rows.append(("格5 dup=有 f1=真 applied=假", _triplet(r)))
+
+    # 格6 dup=有, f1=F, applied=F —— 崩溃窗口①，全套补齐
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (vault / "learning_events.jsonl").unlink()
+    assert _run_writer(vault, _payload()).returncode == 0
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    r = _run_writer(vault, _payload(ts="2026-09-01T10:00:00Z"))
+    rows.append(("格6 dup=有 f1=假 applied=假", _triplet(r)))
+
+    with capsys.disabled():
+        print("\n╭─ 六格状态机三元组实测 (rc / W / ledger) ─────────────")
+        for name, (rc, w, n) in rows:
+            print(f"│ {name:28} rc={rc}  W={w or '—'}  ledger={n}")
+        print("╰──────────────────────────────────────────────────────")
+
+    # 每格都必须真的跑到（防「循环没进去」这类空门）
+    assert len(rows) == 6
+    # ⛔ 必须**逐格断言**，不能只打印：Codex 实测把 `_triplet()` 改成恒返
+    # `(99, "WRONG-W", 999)`，六行全错而本门照样 passed —— 只打印的门不承重。
+    _EXPECT = [
+        ("格1 dup=无 f1=假", (0, "2026-08-02T10:00:00Z", 2)),
+        ("格2 dup=无 f1=真", (0, "2026-08-02T10:00:00Z", 1)),
+        ("格3 dup=有 f1=真 applied=真", (0, TS1, 1)),
+        # 格4 = FSRS 已吸收但校准缺失 ⇒ 无机械判据, fail-closed 停下等人工裁定
+        ("格4 dup=有 f1=假 applied=真", (1, TS1, 1)),
+        ("格5 dup=有 f1=真 applied=假", (0, TS1, 1)),
+        ("格6 dup=有 f1=假 applied=假", (0, TS1, 1)),
+    ]
+    assert rows == _EXPECT, f"六格三元组与冻结值不符:\n实测 {rows}\n期望 {_EXPECT}"
+    # 六格走完账本仍须过校验器（与主门同一收口）
+    assert _run_validator(vault).returncode == 0
+
+
+def test_g32cb_anchor_without_direction_evidence_falls_back(vault):
+    """锚**命中但方向不可证**时必须回落，不得直接采信。
+
+    ⛔ 这道门是**变异照出来的缺口**（CARD-G3-2c-B 的 M3 负控）：
+    round-17 MEDIUM 描述的场景是「后继 B 被改成**无 `review_time` 且无
+    `attempt_count`** 的 §6.3 行，再把 A 的锚改指 B」——那时才走到
+    `_ib_a is None and not _ord_ok` 这个分支。而既有的
+    `test_round17_anchor_direction_is_verified` 用的是**正常** B 行
+    （两样证据都在），`_ib_a` 不为 None，原代码本来就走 else 分支 ⇒
+    把该分支整个拆掉，那道门照样全绿（实测 M3 `SURVIVED(rc=0)`）。
+
+    ⚠️ 教训（写给下一个人）：门绿不等于门承重。两道门的**拒因来源不同**——
+    那道门的拒绝来自「自相矛盾」检查，本门的拒绝才来自方向证据缺失。
+    判据要落在「是哪一层拦下的」，不是「拦下了没有」。
+    """
+    LED = vault / "learning_events.jsonl"
+    rows = _seed_three(vault)
+    # 删 A 的账本行（F1-only 分支的前提：frontmatter 有 receipt 而账本无该行）
+    keep = [x for x in rows if x.get("event_id") != "quiz:板A#q1"]
+    # 把后继 B 退化成**合法的** §6.3 历史行：payload 只留 `grade_norm` /
+    # `exam_board`（§6.1 原文：历史行 payload 只有 grade_norm/exam_board/
+    # attempt_count，不含扩展键），并把 attempt_count 也去掉
+    # ⇒ 时刻证据与序数证据**同时**缺席，锚的方向无从证明。
+    # ⚠️ 只删 `schema_ext` 是不够的（第一版就这么写，实测门被更早的一层喂饱）：
+    # 留着 `vault_id`/`rating`/`fsrs_*` 等扩展键而没有 marker，校验器会先判
+    # 「含扩展键但缺 schema_ext 标记」而拒，**根本走不到锚方向那一层**。
+    _LEGACY_KEYS = ("grade_norm", "exam_board")
+    for x in keep:
+        if x.get("event_id") == "quiz:板B#q1":
+            x["payload"] = {k: v for k, v in x["payload"].items() if k in _LEGACY_KEYS}
+    LED.write_text("".join(json.dumps(x, ensure_ascii=False) + "\n" for x in keep), encoding="utf-8")
+    # ⛔ 形态自证：B 真的是**合法的**无证据历史行，否则这道门测的是别的东西
+    _b = [x for x in _ledger_lines(vault) if x.get("event_id") == "quiz:板B#q1"]
+    assert len(_b) == 1, f"预置形态自证失败：B 行应恰好 1 条，实见 {len(_b)}"
+    assert sorted(_b[0]["payload"]) == sorted(_LEGACY_KEYS), (
+        f"预置形态自证失败：B 的 payload 应恰为 §6.3 历史键集，实见 {sorted(_b[0]['payload'])}"
+    )
+    assert _run_validator(vault).returncode == 0, (
+        "预置形态自证失败：B 必须是**校验器放行**的合法历史行 —— 否则拒绝会来自"
+        "更早的校验层，这道门就测不到锚方向（第一版正是栽在这里）"
+    )
+    # 篡改 A 的 receipt：attempt 1→2 且把锚改指后继 B
+    nd = (vault / NODE_REL).read_text(encoding="utf-8")
+    seg = nd[nd.index('- event_id: "quiz:板A#q1"') :]
+    old_seg = seg[: seg.index('- event_id: "quiz:板B#q1"')]
+    new_seg = re.sub(r"^    pred_id: .*$", '    pred_id: "quiz:板B#q1"', old_seg, count=1, flags=re.M)
+    new_seg = re.sub(r"^    attempt_count: 1$", "    attempt_count: 2", new_seg, count=1, flags=re.M)
+    assert new_seg != old_seg and '"quiz:板B#q1"' in new_seg, "预置必须真的把锚改指后继"
+    (vault / NODE_REL).write_text(nd.replace(old_seg, new_seg, 1), encoding="utf-8")
+    face = _write_face(vault)
+    r = _run_writer_settled(
+        vault,
+        _payload(
+            event_id="板A#q1",
+            ts="2026-08-01T10:00:00Z",
+            review_time="2026-08-01T10:00:00Z",
+            exam_board="检验白板/板A.md",
+        ),
+    )
+    assert r.returncode != 0, (
+        "⛔ 方向不可证的锚被直接采信 ⇒ 被篡改的 attempt_count 蒙混过关、"
+        f"writer 零写却声称完整（那次评分静默漏算）: rc={r.returncode} {(r.stdout or '')[-300:]}"
+    )
+    # ⛔ 拒因来源必须是**序数/写序**这一层，不是「随便什么理由拒了都算」。
+    # 第一版只断言 rc != 0，实测被更早的校验层喂饱：变异态与原态的 stderr
+    # **逐字相同**，门照样绿。判据要落在「是哪一层拦下的」。
+    _err = r.stderr or ""
+    assert ("attempt_count" in _err) or ("序数" in _err) or ("写序" in _err), (
+        f"拒因不是来自序数/写序层 ⇒ 这道门守的不是锚方向（被别的层喂饱了）: {_err[-400:]}"
+    )
+    assert _write_face(vault) == face, "零写"
+
+
+def test_g32cb_limits_are_pinned_to_exact_values():
+    """把 64 / 200000 这两个数**钉死**，用独立 oracle 而不是反问被测函数。
+
+    ⛔ 其余几道门都走 `_validator_limits()` / `_max_legal_nesting()` 从实现读
+    上限再据此构造输入 —— 那让门**永远跟着实现走**：Codex 实测把阈值放宽两层，
+    三道门仍全绿；放宽节点阈值 1，七道门仍全绿。同源保证了不漂移，代价是
+    **门看不见常量本身被改**（本卡的 M4/M5 变异第一版正是栽在同一处）。
+    所以必须有一道门写死字面值。
+
+    深度口径（Codex 指出原先未定义，此处一并钉死并已回写 §6.1）：
+    `depth` = 从 root 到该节点的**边数**，root 自身为 0；dict 的**键与值都算
+    子节点**，各占一层；空容器不产生子节点。
+    """
+    _m = _validator_mod()
+    assert _m.MAX_VALUE_DEPTH == 64, f"深度上限被改动: {_m.MAX_VALUE_DEPTH}"
+    assert _m.MAX_VALUE_NODES == 200000, f"节点上限被改动: {_m.MAX_VALUE_NODES}"
+
+    # ── 深度：64 放行 / 65 拒（root 为 0，故 _nest(64) 的最深处 depth 恰为 64）──
+    assert _m.value_shape_problems(_nest(64)) == [], "深度恰为上限时必须放行"
+    _p65 = _m.value_shape_problems(_nest(65))
+    assert _p65 and "深度" in _p65[0], f"深度 65 必须拒且报深度: {_p65}"
+
+    # ── 节点数：200000 放行 / 200001 拒（root 列表 1 + 元素 n）──
+    assert _m.value_shape_problems(["x"] * (200000 - 1)) == [], "节点数恰为上限时必须放行"
+    _pn = _m.value_shape_problems(["x"] * 200000)
+    assert _pn and "节点数" in _pn[0], f"节点数 200001 必须拒且报节点数: {_pn}"
+
+    # ── 口径自证：dict 的键与值各算一层、各计一个节点 ──
+    assert _m.value_shape_problems({"a": 1}) == [], "浅 dict 必须放行"
+    # 空容器不产生子节点 ⇒ 不会因「末端为空」多算一层
+    assert _m.value_shape_problems(_nest(63, leaf=[])) == [], "末端空容器不得多算深度"
+
+    # ── 环：直接判环，不靠预算兜（拒因必须是环本身）──
+    _loop = []
+    _loop.append(_loop)
+    _pl = _m.value_shape_problems(_loop)
+    assert _pl and "自引用" in _pl[0], f"环必须报真因而非深度/预算: {_pl}"
+    # 兄弟共享同一个子对象**不是**环，不得误判
+    _shared = {"x": 1}
+    assert _m.value_shape_problems([_shared, _shared, _shared]) == [], "共享子对象被误判成环"
+
+
+def test_g32cb_shape_check_memory_is_bounded_by_depth_not_fanout():
+    """形状检查的内存必须只随**深度**增长，与扇出无关。
+
+    ⛔ 上一版把整批子节点压栈、下一轮才检查预算 ⇒ 一个扇出 20 万的值会先构造出
+    上百 MB 待处理栈，检查器自己先被撑爆（Codex 实测 1 万路自引用峰值 46 MB）。
+    「拒得对」不等于「拒得起」——检查器被输入撑爆和放行是同一类失败。
+    """
+    import tracemalloc
+
+    _m = _validator_mod()
+    wide = ["x"] * 199000  # 上限内、扇出极大
+    tracemalloc.start()
+    try:
+        assert _m.value_shape_problems(wide) == [], "上限内的宽结构必须放行"
+        _, peak_wide = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    # 惰性 DFS 下峰值应远小于「整批入栈」所需（后者每个元素一个 tuple ≥ 60B
+    # ⇒ 199000 × 60 ≈ 12 MB）。给 4 MB 的宽裕上限：真正的批量入栈实现过不了。
+    assert peak_wide < 4 * 1024 * 1024, (
+        f"形状检查峰值内存 {peak_wide} 字节 — 疑似整批子节点入栈（应为惰性 DFS，内存只随深度增长）"
+    )
