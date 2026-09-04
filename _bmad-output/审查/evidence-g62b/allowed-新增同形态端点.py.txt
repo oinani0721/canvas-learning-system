@@ -1,0 +1,6 @@
+# CARD-G6-2b AST 门探针 [allowed]: 新增同形态端点
+# 用法: 追加到 backend/app/api/v1/endpoints/review_app.py 源码**字符串**尾部
+# (只在内存里拼, 不落进生产文件); 期望 = 新门必须放行 (合法写法不许误伤)
+@review_app_router.get("/extra")
+def _probe_extra(request: Request):
+    return HTMLResponse(request.url_for("review_overview"))

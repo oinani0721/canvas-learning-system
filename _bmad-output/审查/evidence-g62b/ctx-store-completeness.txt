@@ -1,0 +1,27 @@
+形态                      TGT 的 ctx        ctx=Store?
+--------------------------------------------------------------
+✅ for 目标                 Store            True
+✅ for 嵌套解构               Store            True
+✅ for 星号解包               Store            True
+✅ with as                Store            True
+✅ with as 解构             Store            True
+✅ async for              Store            True
+✅ async with as          Store            True
+✅ 海象                     Store            True
+✅ 推导式目标                  Load,Store       True
+✅ 推导式嵌套目标                Store            True
+✅ 赋值                     Store            True
+✅ 赋值解构                   Store            True
+✅ 赋值星号                   Store            True
+✅ 增量赋值                   Store            True
+✅ 带标注赋值                  Store            True
+✅ type 别名(3.12+)         Store            True
+✅ 多目标赋值                  Store            True
+✅ 下标目标(读取位)              Load             False
+✅ 属性目标(读取位)              Load             False
+--------------------------------------------------------------
+不符预期: 0 []
+
+结论: 全部绑定形态的目标 Name 都是 Store; 只有 `cache[TGT]=1` / `TGT.attr=1` 这两种
+      **读取位置**不是 Store —— 那正是整改第 7 条要停止误伤的两种, 且它们本身
+      分别由「属性赋值禁令」与「取别名禁令」另行覆盖。

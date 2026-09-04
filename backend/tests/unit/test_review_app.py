@@ -232,42 +232,76 @@ def test_no_second_due_pipeline_in_python_module():
         assert banned not in src, f"review_app.py 出现了它不该有的 {banned!r}"
 
 
-def test_review_app_module_imports_are_closed():
-    """AST 结构门 (round-1 HIGH-4 新增, round-2 HIGH-4 升级为正向合约):
-    本模块只允许「模板注入」这一种依赖形态。
-
-    反面黑名单可被换形绕过 (round-2 实证: `__builtins__["open"](...)` 不新增
-    import 也不命中任何名字/属性黑名单)。所以调用侧改成**正向合约**——
-    枚举全部允许的调用形态, 任何新调用 (含 getattr/下标取内建/lambda 包裹/
-    任何新函数) 都必须先有意识地改这份白名单, 代码评审必然看见。
-    """
-    ALLOWED_IMPORTS = {
-        "__future__.annotations",
-        "json",
-        "fastapi.APIRouter",
-        "fastapi.Request",
-        "fastapi.responses.HTMLResponse",
-        "app.api.v1.endpoints.review_overview._BUCKET_CN",
-        "app.api.v1.endpoints.review_overview._BUCKET_ORDER",
-        "app.api.v1.endpoints.review_overview._STATUS_META",
+#: ── AST 结构门的白名单 (round-1 HIGH-4 / round-2 HIGH-4 / round-4 HIGH-4b) ──
+#: 三张白名单是**正向合约**: 任何新调用形态都必须先有意识地改这里, 代码评审
+#: 必然看见。CARD-G6-2b 把它们从测试函数体提到模块级 —— 检查器要被探针矩阵
+#: (test_ast_gate_rejects_shadowing_forms) 复用, 白名单值逐字不变、不放宽。
+_ALLOWED_IMPORTS = {
+    "__future__.annotations",
+    "json",
+    "fastapi.APIRouter",
+    "fastapi.Request",
+    "fastapi.responses.HTMLResponse",
+    "app.api.v1.endpoints.review_overview._BUCKET_CN",
+    "app.api.v1.endpoints.review_overview._BUCKET_ORDER",
+    "app.api.v1.endpoints.review_overview._STATUS_META",
+}
+_ALLOWED_CALL_NAMES = {"APIRouter", "list", "_js_json", "HTMLResponse"}
+_ALLOWED_CALL_ATTRS = {"get", "replace", "url_for", "dumps", "items"}
+#: Attribute 调用允许的接收者 (unparse 基名) — 只查尾部方法名不够,
+#: 任意对象都能挂同名方法 (round-3 HIGH-4b 实证绕过面)
+_ALLOWED_RECEIVERS = {"json", "request", "review_app_router", "_STATUS_META", "_PAGE_TEMPLATE"}
+#: 任何形态的重绑定/遮蔽都禁的名字 = 调用名 ∪ 接收者 ∪ 模块级单例
+#: (round-4 HIGH-4b: 接收者名可被 `json = evil` 重绑定, 白名单就失效了)
+_BANNED_REBINDS = (
+    _ALLOWED_CALL_NAMES
+    | _ALLOWED_RECEIVERS
+    | {
+        "_BUCKET_CN",
+        "_BUCKET_ORDER",
+        "review_overview_router",
     }
-    ALLOWED_CALL_NAMES = {"APIRouter", "list", "_js_json", "HTMLResponse"}
-    ALLOWED_CALL_ATTRS = {"get", "replace", "url_for", "dumps", "items"}
-    #: Attribute 调用允许的接收者 (unparse 基名) — 只查尾部方法名不够,
-    #: 任意对象都能挂同名方法 (round-3 HIGH-4b 实证绕过面)
-    ALLOWED_RECEIVERS = {"json", "request", "review_app_router", "_STATUS_META", "_PAGE_TEMPLATE"}
-    #: 任何形态的重绑定/遮蔽都禁的名字 = 调用名 ∪ 接收者 ∪ 模块级单例
-    #: (round-4 HIGH-4b: 接收者名可被 `json = evil` 重绑定, 白名单就失效了)
-    BANNED_REBINDS = (
-        ALLOWED_CALL_NAMES
-        | ALLOWED_RECEIVERS
-        | {
-            "_BUCKET_CN",
-            "_BUCKET_ORDER",
-            "review_overview_router",
-        }
-    )
-    src = (_ENDPOINTS_DIR / "review_app.py").read_text(encoding="utf-8")
+)
+#: 本模块**自有**的模块级定义名 —— 它们占着受保护名, 但那是这些名字的
+#: **定义点**而不是遮蔽。反过来说: 受保护名里**只有这三个**允许在模块级被
+#: 定义, 其余 (import 来的 json / 内建的 list / 形参 request / 从
+#: review_overview 拿来的常量 …) 在本模块里已经有绑定了, 任何再绑定都是覆盖。
+#: 豁免的四重限定, 缺一条就等于开了个后门 (round-5 反例集实证):
+#:   1. 只在模块级 —— 函数/类体内再 `def _js_json` 是遮蔽;
+#:   2. 只对 `def` 与"字面量/白名单调用"的赋值 —— `class _js_json: pass` 会把
+#:      函数换成类, 于是 `_js_json(urls)` 变成构造实例;
+#:   3. 每个名字**至多一个定义点** —— 第二个会静默顶掉第一个, 而两者都被豁免;
+#:   4. 只对这张表里的名字 —— 否则 `json = 0` / `HTMLResponse = APIRouter()`
+#:      这种"看起来像定义"的赋值会把 import 来的绑定整个换掉 (round-5 BLOCKER-2)。
+#: 这不是第四张调用白名单 —— 往这里加名字 = 承认模块多了一个自有模块级定义。
+_OWN_MODULE_DEFINITIONS = {"_js_json", "_PAGE_TEMPLATE", "review_app_router"}
+#: PEP 695 节点 (3.12+)。低版本上取不到时 `isinstance(x, ())` 恒 False,
+#: 而低版本也没有对应语法 —— 那正是该有的语义, 门不会因此炸。
+_TYPE_ALIAS_NODES = tuple(c for c in (getattr(ast, "TypeAlias", None),) if c is not None)
+_TYPE_PARAM_NODES = tuple(
+    c for c in (getattr(ast, n, None) for n in ("TypeVar", "ParamSpec", "TypeVarTuple")) if c is not None
+)
+
+
+def _root_name(node: ast.AST) -> str:
+    """`json.__dict__["dumps"]` → `"json"`; 取不到根 Name 时返回空串。
+
+    受保护对象的**内部**被改写 (属性 / 下标) 与"重绑定这个名字"是两回事:
+    前者一个 Store 位置的 Name 都不产生, 名字检查一个字都看不见, 但改掉的是
+    同一个对象 (round-5 BLOCKER-3)。判据只能是"这条写路径的根是谁"。
+    """
+    while isinstance(node, (ast.Attribute, ast.Subscript)):
+        node = node.value
+    return node.id if isinstance(node, ast.Name) else ""
+
+
+def _assert_module_closed(src: str) -> None:
+    """AST 结构门本体 (吃源码文本, 不碰磁盘) —— 违规即 fail/AssertionError。
+
+    与被测模块解耦是为了让探针矩阵能喂「真实源码 + 一段注入片段」的内存
+    字符串: 门补的每一条规则都必须有一个「不补就漏、补了就抓」的证据,
+    而不是靠肉眼相信枚举完整 (CARD-G6-2b R2/R3 + round-5 反例集)。
+    """
     tree = ast.parse(src)
     collected: set[str] = set()
     for node in ast.walk(tree):
@@ -279,70 +313,185 @@ def test_review_app_module_imports_are_closed():
                     pytest.fail(f"import alias 禁止 (asname={a.asname!r}) — alias 可遮蔽白名单调用名")
                 collected.add(a.name)
         elif isinstance(node, ast.ImportFrom):
+            # 相对导入禁令 (round-5 反例集): `from . import json` 收进 collected 的
+            # 也是字符串 "json", 与标准库那条白名单条目**不可分辨** —— 放它过去等于
+            # 让同目录的 json.py 冒充标准库 json。本模块只用绝对导入。
+            if node.level:
+                pytest.fail(
+                    f"相对导入禁止 (from {'.' * node.level}{node.module or ''} import …) — "
+                    "相对模块名与白名单里的绝对模块名不可分辨"
+                )
             mod = node.module or ""
             for a in node.names:
                 if a.asname is not None:
                     pytest.fail(f"import alias 禁止 (asname={a.asname!r}) — alias 可遮蔽白名单调用名")
                 collected.add(f"{mod}.{a.name}" if mod else a.name)
-    banned = collected - ALLOWED_IMPORTS
+    banned = collected - _ALLOWED_IMPORTS
     assert not banned, f"出现白名单外的 import: {sorted(banned)} — 第二套管道的载体"
 
     def _flag_rebind(name: str, where: str):
-        if name in BANNED_REBINDS:
+        if name in _BANNED_REBINDS:
             pytest.fail(f"受保护名 {name!r} 被{where} — 调用点/接收者拼写检查会被架空 (round-4 HIGH-4b)")
 
-    # 函数体内的节点集合 — 保护名在函数体内被赋值 = 一律红 (参数遮蔽/局部重绑定);
-    # 模块级定义 (字面量 / 白名单调用) 才是合法形态
+    def _flag_targets(target: ast.AST, where: str):
+        """绑定目标里递归找**写位置**: Name 看名字, Attribute/Subscript 看根名。
+
+        - Name: 只认 Store / Del 上下文 —— 目标里也会出现**读取**位置的 Name,
+          例如 `cache[json] = value` 的下标 `json` 是 Load, 它没有绑定任何东西
+          (round-5 反例集 false-positive-load; ctx 完备性实证见
+          evidence-g62b/ctx-store-completeness.txt)。
+        - Attribute / Subscript: 写的是**别的对象的内部**, 一个 Store 位置的 Name
+          都不产生。根名受保护 = 改的是受保护对象本体 (`json.dumps = …`、
+          `json.__dict__["dumps"] = …`、`_STATUS_META["ok"] = …`); 根名不受保护
+          则是普通对象 (`cache[k] = v`、`obj.value = 1`), 放行 (round-5 BLOCKER-3
+          与登记级误伤同时收口)。
+        """
+        for sub in ast.walk(target):
+            if isinstance(sub, ast.Name) and isinstance(sub.ctx, (ast.Store, ast.Del)):
+                _flag_rebind(sub.id, where)
+            elif isinstance(sub, (ast.Attribute, ast.Subscript)) and isinstance(sub.ctx, (ast.Store, ast.Del)):
+                root = _root_name(sub)
+                if root in _BANNED_REBINDS:
+                    pytest.fail(
+                        f"受保护对象 {root!r} 的内部被写 ({ast.unparse(sub)}) — "
+                        "改的是同一个对象, 名字层的拼写检查看不见"
+                    )
+
+    #: 享受了"模块级定义豁免"的名字 → 次数。同一个受保护名出现两个定义点时,
+    #: 后者静默顶掉前者, 而两者都各自被豁免 —— 计数是这条缝的唯一堵法。
+    definitions: dict[str, int] = {}
+
+    # 作用域根的节点集合 — 保护名在函数/类体内被绑定 = 一律红 (参数遮蔽/局部
+    # 重绑定); 模块级定义才是合法形态。`sub is not node`: 作用域根自身不算
+    # 「在自己里面」, 否则模块级 def 会被当成嵌套 def, 定义豁免永远够不着。
     in_function: set[int] = set()
     for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef)):
             for sub in ast.walk(node):
-                in_function.add(id(sub))
+                if sub is not node:
+                    in_function.add(id(sub))
     for node in ast.walk(tree):
-        # 重绑定禁令: 赋值目标里**递归**收集全部 Name (解构 `a, b = ...`、
-        # 星号解包都逃不掉 — round-4 HIGH-4b 实证直接 Name 检查不够)
         if isinstance(node, (ast.Assign, ast.AugAssign, ast.AnnAssign)):
             targets = node.targets if isinstance(node, ast.Assign) else [node.target]
-            # 模块级初始化豁免: 右侧是字面量 (模板字符串) 或白名单调用
-            # (`review_app_router = APIRouter()`) = 定义; 其它一律按重绑定处理
-            init = id(node) not in in_function and (
+            # 取别名禁令: `alias = json` 之后 `alias.dumps = …` 改的是受保护模块
+            # 本体, 而全程没碰过任何保护名 —— 两步各封一半, 这里封前半步。
+            if isinstance(node.value, ast.Name) and node.value.id in _BANNED_REBINDS:
+                pytest.fail(f"受保护名 {node.value.id!r} 被取别名 — 别名不受拼写检查约束")
+            # 模块级定义豁免: 只对 _OWN_MODULE_DEFINITIONS 里的名字, 且右侧是
+            # 字面量 (模板字符串) 或白名单调用 (`review_app_router = APIRouter()`)。
+            # AugAssign 永不豁免 —— 读-改-写修改的是既有定义, 不是在定义什么。
+            value_is_definition = not isinstance(node, ast.AugAssign) and (
                 isinstance(node.value, ast.Constant)
                 or (
                     isinstance(node.value, ast.Call)
                     and isinstance(node.value.func, ast.Name)
-                    and node.value.func.id in ALLOWED_CALL_NAMES
+                    and node.value.func.id in _ALLOWED_CALL_NAMES
                 )
             )
-            if not init:
-                for tgt in targets:
-                    for sub in ast.walk(tgt):
-                        if isinstance(sub, ast.Name):
-                            _flag_rebind(sub.id, "重绑定")
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
-            if isinstance(node, ast.Lambda):
-                arg_sets = [node.args.args]
+            module_level = id(node) not in in_function
+            for tgt in targets:
+                exempt = (
+                    module_level
+                    and value_is_definition
+                    and isinstance(tgt, ast.Name)
+                    and tgt.id in _OWN_MODULE_DEFINITIONS
+                )
+                if exempt:
+                    definitions[tgt.id] = definitions.get(tgt.id, 0) + 1
+                else:
+                    _flag_targets(tgt, "重绑定")
+        # 赋值语句**之外**的绑定形态 —— 下面每一种都能在不触发任何 Assign 节点
+        # 的前提下把保护名绑到别的对象上 (逐类各有一个探针)。
+        if isinstance(node, (ast.For, ast.AsyncFor)):
+            _flag_targets(node.target, "for 目标绑定")
+        if isinstance(node, (ast.With, ast.AsyncWith)):
+            for item in node.items:
+                if item.optional_vars is not None:
+                    _flag_targets(item.optional_vars, "with…as 绑定")
+        if isinstance(node, ast.Delete):
+            # `del json` 解绑之后, 后续调用点全部 NameError —— 不是静默绕过,
+            # 但它同样让"这个名字指向什么"不再由本文件的其余规则决定。
+            for tgt in node.targets:
+                _flag_targets(tgt, "del 解绑")
+        if isinstance(node, ast.ExceptHandler) and node.name:
+            _flag_rebind(node.name, "except…as 绑定")
+        if isinstance(node, ast.NamedExpr):
+            _flag_targets(node.target, "海象绑定")
+        if isinstance(node, ast.comprehension):
+            _flag_targets(node.target, "推导式目标绑定")
+        if isinstance(node, _TYPE_ALIAS_NODES):
+            _flag_targets(node.name, "type 别名绑定")
+        if isinstance(node, _TYPE_PARAM_NODES):
+            _flag_rebind(node.name, "type 形参遮蔽")
+        if isinstance(node, ast.MatchAs) and node.name:
+            _flag_rebind(node.name, "match 捕获绑定")
+        if isinstance(node, ast.MatchStar) and node.name:
+            _flag_rebind(node.name, "match 星号捕获绑定")
+        if isinstance(node, ast.MatchMapping) and node.rest:
+            _flag_rebind(node.rest, "match **rest 绑定")
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            for dec in node.decorator_list:
+                # 无括号装饰器 = **导入期的隐式调用**, 下面那条 ast.Call 检查看不见它
+                # (`@print` 一个 Call 节点都不产生)。形态必须逐类穷举: 下标取内建
+                # (`@__builtins__["print"]`) 与 lambda 包裹 (`@(lambda fn: fn)`)
+                # 既不是 Name 也不是 Attribute (round-5 BLOCKER-4)。
+                if isinstance(dec, ast.Call):
+                    continue  # 由下面的 ast.Call 正向合约覆盖
+                if isinstance(dec, ast.Name):
+                    assert dec.id in _ALLOWED_CALL_NAMES, f"白名单外装饰器 @{dec.id} — 无括号装饰器是导入期的隐式调用"
+                elif isinstance(dec, ast.Attribute):
+                    assert dec.attr in _ALLOWED_CALL_ATTRS, (
+                        f"白名单外装饰器方法 @….{dec.attr} — 无括号装饰器是导入期的隐式调用"
+                    )
+                    dec_recv = _root_name(dec.value)
+                    assert dec_recv in _ALLOWED_RECEIVERS, (
+                        f"非白名单装饰器接收者 @{dec_recv}.{dec.attr} — 只查方法名挡不住任意对象"
+                    )
+                else:
+                    pytest.fail(
+                        f"非白名单装饰器形态: {type(dec).__name__} — 下标取内建/lambda 包裹 都是导入期隐式调用的载体"
+                    )
+            # def/class 名也是绑定: `def list(...)` / `class json: ...` 同样
+            # 把白名单调用名/接收者绑到别的东西上, 且一个 Assign 节点都不留。
+            # 豁免四重限定见 _OWN_MODULE_DEFINITIONS 的注释。
+            is_own_def = (
+                node.name in _OWN_MODULE_DEFINITIONS
+                and isinstance(node, ast.FunctionDef)
+                and id(node) not in in_function
+            )
+            if is_own_def:
+                definitions[node.name] = definitions.get(node.name, 0) + 1
             else:
-                a = node.args
-                arg_sets = [
-                    a.args + a.posonlyargs + a.kwonlyargs,
-                    [x for x in (a.vararg, a.kwarg) if x],
-                ]  # round-4: 补 *args/**kwargs
+                _flag_rebind(node.name, "def/class 名遮蔽")
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            # Lambda 与 FunctionDef 走**同一条**取参路径 —— 原先 Lambda 只取
+            # node.args.args, posonlyargs/kwonlyargs/vararg/kwarg 四类都能遮蔽
+            a = node.args
+            arg_sets = [
+                a.args + a.posonlyargs + a.kwonlyargs,
+                [x for x in (a.vararg, a.kwarg) if x],
+            ]  # round-4: 补 *args/**kwargs
             for group in arg_sets:
                 for arg in group:
                     arg_name = getattr(arg, "arg", getattr(arg, "id", ""))
                     # "request" 豁免: FastAPI 依赖注入的形参就是接收者本体
-                    # (request.url_for 的合法来源); 函数体内对它的重赋值仍会被
-                    # 上面的 Assign 检查抓住
-                    if arg_name != "request":
+                    # (request.url_for 的合法来源) —— 但必须**真的**被注解成
+                    # Request: 不带注解的 `request` 是普通查询参数, 拿到的是
+                    # 字符串, `.url_for` 根本不存在 (round-5 BLOCKER-5)。
+                    annotated_request = (
+                        arg_name == "request"
+                        and _root_name(getattr(arg, "annotation", None) or ast.Constant(value=None)) == "Request"
+                    )
+                    if not annotated_request:
                         _flag_rebind(arg_name, "参数遮蔽")
         if isinstance(node, ast.Call):
             f = node.func
             if isinstance(f, ast.Name):
-                assert f.id in ALLOWED_CALL_NAMES, f"白名单外调用 {f.id}() — 模板注入之外的第二种行为"
+                assert f.id in _ALLOWED_CALL_NAMES, f"白名单外调用 {f.id}() — 模板注入之外的第二种行为"
             elif isinstance(f, ast.Attribute):
-                assert f.attr in ALLOWED_CALL_ATTRS, f"白名单外方法 .{f.attr}() — 模板注入之外的第二种行为"
+                assert f.attr in _ALLOWED_CALL_ATTRS, f"白名单外方法 .{f.attr}() — 模板注入之外的第二种行为"
                 recv_base = ast.unparse(f.value).split("(", 1)[0]
-                assert recv_base in ALLOWED_RECEIVERS or isinstance(f.value, ast.Call), (
+                assert recv_base in _ALLOWED_RECEIVERS or isinstance(f.value, ast.Call), (
                     f"非白名单接收者 {recv_base}.{f.attr}() — 只查方法名挡不住任意对象挂同名方法"
                 )
             else:
@@ -350,6 +499,149 @@ def test_review_app_module_imports_are_closed():
                     f"非白名单调用形态: {type(f).__name__} — 动态派发/下标取内建/lambda "
                     f"包裹都是第二套管道的载体 (round-2 HIGH-4 实证绕过面)"
                 )
+
+    dupes = sorted(n for n, c in definitions.items() if c > 1)
+    assert not dupes, f"受保护名有多个模块级定义点: {dupes} — 后一个静默顶掉前一个, 而两个都各自享受了定义豁免"
+
+
+def _review_app_src() -> str:
+    return (_ENDPOINTS_DIR / "review_app.py").read_text(encoding="utf-8")
+
+
+def test_review_app_module_imports_are_closed():
+    """AST 结构门 (round-1 HIGH-4 新增, round-2 HIGH-4 升级为正向合约):
+    本模块只允许「模板注入」这一种依赖形态。
+
+    反面黑名单可被换形绕过 (round-2 实证: `__builtins__["open"](...)` 不新增
+    import 也不命中任何名字/属性黑名单)。所以调用侧改成**正向合约**——
+    枚举全部允许的调用形态, 任何新调用 (含 getattr/下标取内建/lambda 包裹/
+    任何新函数) 都必须先有意识地改这份白名单, 代码评审必然看见。
+    """
+    _assert_module_closed(_review_app_src())
+
+
+#: 探针矩阵 (CARD-G6-2b R2/R3 + round-5 反例集): `label → (注入片段, 拒因关键词)`。
+#: 每条 = 一段**注入生产源码尾部**的合法 Python, 它踩且只踩被测的那一条规则
+#: (片段里的调用全部取自白名单, 否则红的会是「白名单外调用」而不是被测规则 ——
+#: 那样探针就分辨不出门补没补)。拒因关键词是**失败身份**的判据: 只断言「被拒了」
+#: 会把「因为别的规则而红」也算成绿。只在内存里拼字符串: 不落盘、不改生产文件。
+#: 补门前逐条 PASS (门瞎) / 补门后逐条 REJECT 的红绿矩阵见
+#: _bmad-output/审查/evidence-g62b/probe-matrix.md。
+_AST_PROBES = {
+    # ── R3: 赋值语句之外的绑定形态 ──
+    "for-目标": ("for json in ():\n    pass\n", "受保护名"),
+    "async-for-目标": ("async def _probe_af():\n    async for json in _js_json(1):\n        pass\n", "受保护名"),
+    "with-as": ("with _js_json(1) as json:\n    pass\n", "受保护名"),
+    "async-with-as": ("async def _probe_aw():\n    async with _js_json(1) as json:\n        pass\n", "受保护名"),
+    "except-as": ("try:\n    pass\nexcept Exception as json:\n    pass\n", "受保护名"),
+    "海象": ("if (json := 1):\n    pass\n", "受保护名"),
+    "推导式目标": ("_probe_comp = [json for json in ()]\n", "受保护名"),
+    "def-名遮蔽": ("def json():\n    pass\n", "被def/class 名遮蔽"),
+    "class-名遮蔽": ("class list:\n    pass\n", "被def/class 名遮蔽"),
+    "嵌套-自有定义遮蔽": (
+        "def _probe_nested():\n    def _js_json(x):\n        return x\n    return _js_json\n",
+        "被def/class 名遮蔽",
+    ),
+    "match-捕获": ("match _PAGE_TEMPLATE:\n    case json:\n        pass\n", "受保护名"),
+    "match-星号": ("match _PAGE_TEMPLATE:\n    case [*json]:\n        pass\n", "受保护名"),
+    "match-rest": ('match _PAGE_TEMPLATE:\n    case {"k": _, **json}:\n        pass\n', "受保护名"),
+    # ── R2: Lambda 与 FunctionDef 的参数对称 ──
+    "lambda-posonly": ("_probe_l1 = lambda json, /: json\n", "参数遮蔽"),
+    "lambda-kwonly": ("_probe_l2 = lambda *, json: json\n", "参数遮蔽"),
+    "lambda-vararg": ("_probe_l3 = lambda *json: json\n", "参数遮蔽"),
+    "lambda-kwarg": ("_probe_l4 = lambda **json: json\n", "参数遮蔽"),
+    # ── round-5 反例集 (从断连那一轮的 stderr 里抢救出的用例, 逐字还原) ──
+    # 这 8 条在**本卡第一版**的门下全部放行 —— 补第一版时我以为"绑定形态"补齐了,
+    # 其实缺的是另外几个维度: 定义点唯一性、导入的相对性、装饰器的隐式调用、
+    # 属性赋值这条完全不碰保护名的通路。
+    "重复定义-def": ("def _js_json(value):\n    return json.dumps(value)\n", "多个模块级定义点"),
+    "重复定义-class": ("class _js_json:\n    pass\n", "被def/class 名遮蔽"),
+    "重复定义-模板": ('_PAGE_TEMPLATE = "wrong"\n', "多个模块级定义点"),
+    "模板增量赋值": ('_PAGE_TEMPLATE += "wrong"\n', "受保护名"),
+    "相对导入": ("from . import json\n", "相对导入禁止"),
+    "无括号装饰器": ("@print\ndef _probe_dec():\n    pass\n", "白名单外装饰器"),
+    "type-别名": ("type json = int\n", "受保护名"),
+    "取别名改属性": ('alias = json\nalias.dumps = lambda value, **kwargs: "wrong"\n', "被取别名"),
+    # ── round-5 报告 (重发那一轮) 的反例: 上面那批补完之后**仍然**放行的 11 条 ──
+    # 按维度归类: ①"定义豁免"对谁开放 ②写路径的**根**是谁 ③装饰器形态的穷举
+    # ④豁免条件本身要不要验证。补前逐条实测放行, 见 probe-matrix.md。
+    "模块级覆盖-import名": ("json = 0\n", "受保护名"),
+    "模块级覆盖-内建名": ("list = 0\n", "受保护名"),
+    "模块级覆盖-白名单调用名": ("HTMLResponse = APIRouter()\n", "受保护名"),
+    "元组内属性目标": ('(json.dumps,) = (lambda value, **kwargs: "wrong",)\n', "受保护对象"),
+    "for-属性目标": ("for json.dumps in ():\n    pass\n", "受保护对象"),
+    "受保护对象-dunder下标写": ('json.__dict__["dumps"] = 1\n', "受保护对象"),
+    "受保护对象-下标写": ('_STATUS_META["ok"] = ("x", "#fff")\n', "受保护对象"),
+    "del-保护名": ("del json\n", "受保护名"),
+    "装饰器-下标取内建": ('@__builtins__["print"]\ndef _probe_d1():\n    pass\n', "非白名单装饰器形态"),
+    "装饰器-lambda包裹": ("@(lambda fn: fn)\ndef _probe_d2():\n    pass\n", "非白名单装饰器形态"),
+    "装饰器-非白名单接收者": ("@Foo.get\ndef _probe_d3():\n    pass\n", "非白名单装饰器接收者"),
+    "import-alias": ("import json as _probe_j\n", "import alias 禁止"),
+    "type-形参": ("def _probe_tp[json]():\n    pass\n", "type 形参遮蔽"),
+    "无注解request形参": ("def _probe_r(request):\n    return request\n", "受保护名"),
+}
+
+#: 反向探针: 这些**合法**写法必须放行。加严的门只可能在两个方向上错 ——
+#: 漏网 (上面那张表) 与误伤 (这张表)。只测漏网 = 只证明了门够严, 没证明它没坏。
+_AST_ALLOWED_SHAPES = {
+    # 目标里出现的**读取**位置 Name 不是绑定 (round-5 反例集 false-positive-load)
+    "下标读取保护名": "def _probe_load(cache, value):\n    cache[json] = value\n",
+    # 新端点仍然只用白名单调用形态 —— 门管的是依赖形态, 不是端点数量
+    # `request` 必须**带注解** —— 不带注解的 request 在 FastAPI 里是普通查询参数,
+    # 拿到的是字符串, `.url_for` 根本不存在; 那不是合法写法 (round-5 BLOCKER-5)
+    "新增同形态端点": '@review_app_router.get("/extra")\ndef _probe_extra(request: Request):\n    return HTMLResponse(request.url_for("review_overview"))\n',
+    # 写路径的根名不受保护 = 普通对象, 放行 (与「受保护对象内部被写」成对)
+    "普通对象属性赋值": "def _probe_attr(obj):\n    obj.value = 1\n",
+    "普通对象下标赋值": "def _probe_sub(cache, k, v):\n    cache[k] = v\n",
+    # 既不遮蔽也不新增调用的惰性代码 (门不是「见改就红」)
+    "惰性代码": "_probe_inert = 1\nfor _i in ():\n    pass\n",
+    # 非保护名走全部新补的绑定形态, 一条都不许误伤
+    "非保护名走新形态": (
+        "for _a in ():\n    pass\n"
+        "with _js_json(1) as _b:\n    pass\n"
+        "try:\n    pass\nexcept Exception as _c:\n    pass\n"
+        "if (_d := 1):\n    pass\n"
+        "_probe_c2 = [_e for _e in ()]\n"
+    ),
+}
+
+
+def _gate_verdict(src: str) -> "str | None":
+    """跑一遍 AST 门: 返回拒因字符串 (None = 放行)。"""
+    try:
+        _assert_module_closed(src)
+    except (AssertionError, pytest.fail.Exception) as exc:
+        return str(exc)
+    return None
+
+
+@pytest.mark.parametrize("label", sorted(_AST_PROBES))
+def test_ast_gate_rejects_shadowing_forms(label):
+    """负向探针: 每一类绕过形态都被门抓住, **且抓的是那条规则**。"""
+    snippet, expect = _AST_PROBES[label]
+    probe = _review_app_src() + "\n\n" + snippet
+    ast.parse(probe)  # 探针本身必须是合法 Python — 否则测的是语法错不是门
+    verdict = _gate_verdict(probe)
+    assert verdict is not None, f"探针 {label} 未被门拦下 — 该形态仍是绕过通道"
+    assert expect in verdict, f"探针 {label} 红的身份不对: 期望含 {expect!r}, 实得 {verdict!r}"
+
+
+@pytest.mark.parametrize("label", sorted(_AST_ALLOWED_SHAPES))
+def test_ast_gate_does_not_reject_legitimate_shapes(label):
+    """反向探针: 合法写法不许被误伤 (加严的门在这个方向上一样会错)。"""
+    probe = _review_app_src() + "\n\n" + _AST_ALLOWED_SHAPES[label]
+    ast.parse(probe)
+    verdict = _gate_verdict(probe)
+    assert verdict is None, f"合法写法 {label} 被误拒: {verdict}"
+
+
+def test_ast_gate_probe_harness_is_not_vacuous():
+    """探针矩阵的验伪锚: 同一台机器上, **未注入**的真实源码必须放行。
+
+    少了这条, 「25 条负向探针全被拦下」可以由一个恒红的门平凡满足 —— 那不是
+    门变严了, 是门坏了。
+    """
+    assert _gate_verdict(_review_app_src()) is None
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -1267,6 +1559,83 @@ test("②c 目标库从聚合消失 → 失败反馈在最终帧可见 (lostnote
 
 
 @pytest.mark.usefixtures("page_html")
+def test_js_post_repaint_frame_keeps_lost_sync_note(node_harness):
+    """R1 门 (CARD-G6-2b): 失联通知不许只活在 poll 的最终帧。
+
+    round-4 HIGH-1 反例二只封住了 poll 成功路径的最终帧 (renderPage +
+    lostSyncNotesHtml)。但卡片区还有另外两条重绘路径走 renderCards():
+    ①settlePendingSync 的兜底重绘 —— GET 失败时它就是**最后一帧** (catch
+    分支之后不再有 renderPage), 失败反馈连同失联通知一起看不见;
+    ②onRefreshClick 的 POST 反馈重绘 —— 把上一轮已经上屏的失联通知洗掉,
+    要等下一轮轮询才回来 (用户视角: 提示一闪就没)。
+    """
+    proc = _run_node(
+        node_harness,
+        r"""
+import test from "node:test";
+import assert from "node:assert/strict";
+import {boot, flush, mkNode, matches} from "./boot.mjs";
+// 聚合里只有「别的库」—— cs_61b 已从聚合消失 (它的卡不会被渲染)
+const WITHOUT = {vaults: [{vault_id: "别的库", status: "ok", error: null,
+  projection: {due_count: 1, due_new_count: 0, placeholder_backlog: 0, bucket_counts: null,
+    generated_at: "g", next_upcoming: null, boards: []}}]};
+const okGet = () => ({ok: true, status: 200, json: async () => WITHOUT});
+// 按钮挂着但**没有** [data-note-for] span (卡已消失, 就地补必然落空) →
+// 强制走 renderCards 兜底重绘, 也就是本门要测的那条路径
+function attach(b, ...vids) {
+  const nodes = vids.map(v => { const n = mkNode("btn:" + v);
+    n._attrs["data-refresh-vault"] = v; return n; });
+  b.els["cards"]._desc = nodes;
+  return nodes;
+}
+const click = btn => ({target: {closest: sel => (matches(btn, sel) ? btn : null)}});
+
+test("① 结算兜底重绘 (GET 失败, 这就是最后一帧) 必须保留失联通知", async () => {
+  let n = 0;
+  const b = boot({
+    getJson: () => (++n === 1 ? okGet() : {ok: false, status: 503, json: async () => null}),
+    postJson: () => ({ok: true, status: 200, json: async () =>
+      ({rebuilt: true, reason: "rebuilt", rebuild_count: 3})}),
+  });
+  await flush();
+  const [btn] = attach(b, "cs_61b");
+  await b.handlers["cards::click"](click(btn));
+  await flush();   // rebuilt 触发的 GET 失败 → catch → settlePendingSync(false) → 兜底重绘
+  assert.equal(b.els["conn"].className, "conn down", "前提: 这一轮 GET 确实失败了");
+  assert.match(b.els["cards"].innerHTML, /同步失败/,
+    "失败结算是最后一帧的内容 — 用户必须看得见");
+  assert.match(b.els["cards"].innerHTML, /该库已不在当前聚合中/);
+});
+
+test("② 另一个库的 POST 反馈重绘不许洗掉已上屏的失联通知", async () => {
+  const b = boot({
+    getJson: okGet,
+    postJson: (url, opts) => {
+      const vid = opts.body.get("vault_id");
+      // cs_61b 触发 rebuilt (→ 失败结算 → 失联通知上屏); 别的库被去抖
+      // (rebuilt=false → 不触发新 GET, POST 反馈重绘就是最后一帧)
+      return vid === "cs_61b"
+        ? {ok: true, status: 200, json: async () => ({rebuilt: true, reason: "rebuilt", rebuild_count: 5})}
+        : {ok: true, status: 200, json: async () =>
+            ({rebuilt: false, reason: "debounced", debounce_ttl_seconds: 10, rebuild_count: 5})};
+    },
+  });
+  await flush();
+  const [lost, other] = attach(b, "cs_61b", "别的库");
+  await b.handlers["cards::click"](click(lost));
+  await flush();
+  assert.match(b.els["cards"].innerHTML, /该库已不在当前聚合中/, "前提: 失联通知已上屏");
+  await b.handlers["cards::click"](click(other));   // 去抖 → 不触发 poll, 无后续帧
+  assert.match(b.els["cards"].innerHTML, /未重算/, "前提: 这一帧确实是 POST 反馈重绘");
+  assert.match(b.els["cards"].innerHTML, /该库已不在当前聚合中/,
+    "刷新别的库不该让上一个库的失联提示一闪就没");
+});
+""",
+    )
+    _assert_node_green(proc)
+
+
+@pytest.mark.usefixtures("page_html")
 def test_js_malformed_200_keeps_last_data(node_harness):
     """round-2 M2 门: HTTP 200 的坏形状在提交状态之前就被拒 —
     旧数据不清、连接徽标翻红、横幅说话, 绝不清屏装『已连接』。"""
@@ -1487,6 +1856,62 @@ test("② 回前台 → 新 GET (启动晚于重建) 正常结算", async () => 
   await flush();
   assert.match(b.els["cards"].innerHTML, /数字已更新/, "因果合法的 GET 完成结算");
   assert.ok(!b.els["cards"].innerHTML.includes("正在同步"));
+});
+""",
+    )
+    _assert_node_green(proc)
+
+
+@pytest.mark.usefixtures("page_html")
+def test_js_causal_anchor_survives_same_millisecond(node_harness):
+    """round-5 BLOCKER-1 门: 因果锚不许依赖时间戳的**分辨率**。
+
+    上一版用 `startMs < n.atMs` 比较毫秒时间戳。重建完成与旧 GET 启动落在
+    同一毫秒时该式为假, 于是重建前的投影冒充了重建后状态 —— 而这在本机
+    环回 + 快后端下完全可能发生。本门把 `Date.now` 冻结成常量, 把「同毫秒」
+    从偶发变成必然: 时间戳实现下本门必红, 代际 (pollGen 严格递增) 实现下才绿。
+    """
+    proc = _run_node(
+        node_harness,
+        r"""
+import test from "node:test";
+import assert from "node:assert/strict";
+import {boot, flush, mkNode, matches} from "./boot.mjs";
+const OK = {vaults: [{vault_id: "cs_61b", status: "ok", error: null,
+  projection: {due_count: 3, due_new_count: 0, placeholder_backlog: 0, bucket_counts: null,
+    generated_at: "pre-rebuild", next_upcoming: null, boards: []}}]};
+
+test("冻结时钟 → 旧 GET 与 rebuild 同毫秒, 仍无权结算", async () => {
+  const realNow = Date.now;
+  Date.now = () => 1788000000000;   // 重建完成与旧 GET 启动落在同一毫秒
+  try {
+    const deferreds = [];
+    const b = boot({
+      getJson: () => {
+        let resolve;
+        const promise = new Promise(r => { resolve = r; });
+        deferreds.push({resolve});
+        return {ok: true, status: 200, json: () => promise};
+      },
+      postJson: () => ({ok: true, status: 200, json: async () =>
+        ({rebuilt: true, reason: "rebuilt", rebuild_count: 9})}),
+      hidden: true,   // rebuilt 不触发新 GET → 旧 GET 仍是最新代际
+    });
+    const btn = mkNode("btn");
+    btn._attrs["data-refresh-vault"] = "cs_61b";
+    const note = mkNode("note");
+    note._attrs["data-note-for"] = "cs_61b";
+    b.els["cards"]._desc = [btn, note];
+    await b.handlers["cards::click"]({target: {closest: sel => (matches(btn, sel) ? btn : null)}});
+    assert.equal(b.calls.get, 1, "前提: 隐藏时 rebuilt 不得触发新 GET");
+    deferreds.pop().resolve(OK);   // 旧 GET 此刻才返回重建前投影
+    await flush();
+    assert.match(note.innerHTML, /正在同步最新数字/, "同毫秒不是「更晚」— pending 必须留着");
+    assert.ok(!note.innerHTML.includes("数字已更新"),
+      "时间戳比较在同毫秒下失效, 重建前投影会冒充重建后状态");
+  } finally {
+    Date.now = realNow;
+  }
 });
 """,
     )
