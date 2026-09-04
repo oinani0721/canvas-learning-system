@@ -1586,6 +1586,16 @@ def test_m7_collect_normal_board_still_works(tmp_path):
 # （不采信台账——round-6 存在的理由正是「台账称已处置但实测未处置」）。
 
 LIVE_FIXTURES = Path(__file__).parent / "fixtures" / "recap_live_reports"
+# fixture 目录里的**语料**文件（4 报告 + 4 scan JSON）。
+# ⛔ 排除清单是**闭表**：录入清单 MANIFEST.sha256 与刷新脚本本身不是语料，
+#   拷进测试工作目录会让被测物看到不该看到的文件。表外的任何新文件仍必须
+#   出现在 MANIFEST 里（`test_live_fixtures_match_recorded_snapshot` 的
+#   目录/清单对账会因此变红），所以这张表不会变成"悄悄漏一个"的通道。
+_LIVE_NON_CORPUS = {"MANIFEST.sha256", "refresh_from_live.py"}
+
+
+def _live_corpus_files() -> list[Path]:
+    return [p for p in sorted(LIVE_FIXTURES.iterdir()) if p.is_file() and p.name not in _LIVE_NON_CORPUS]
 
 
 def _mutate_report(tmp_path: Path, mutate) -> subprocess.CompletedProcess:
@@ -1777,31 +1787,54 @@ def test_domain_allow_live_real_reports(tmp_path, report_name):
     """
     work = tmp_path / "outputs"
     work.mkdir(parents=True)
-    for src in LIVE_FIXTURES.iterdir():
+    for src in _live_corpus_files():
         shutil.copy2(src, work / src.name)
     r = run_verify(work / report_name)
     assert r.returncode == 0, f"live 真报告被收紧误伤:\n{r.stdout}"
 
 
-def test_live_fixtures_are_byte_identical_to_source():
-    """诚实性门: fixture 必须是 live 原件的**逐字节**拷贝，不是"整理过"的版本。
+def _read_live_manifest() -> dict[str, str]:
+    """读 fixture 快照清单 `MANIFEST.sha256`（由 refresh_from_live.py 生成）。"""
+    rows: dict[str, str] = {}
+    for ln in (LIVE_FIXTURES / "MANIFEST.sha256").read_text(encoding="utf-8").splitlines():
+        ln = ln.strip()
+        if not ln or ln.startswith("#"):
+            continue
+        digest, _, name = ln.partition("  ")
+        rows[name] = digest
+    return rows
+
+
+def test_live_fixtures_match_recorded_snapshot():
+    """诚实性门: fixture 必须与**录入时的快照**逐字节相同，不是"整理过"的版本。
 
     否则放行门就成了自证——用一份为了通过而修饰过的语料去证明"没有误伤"。
-    live 侧只读：本用例只算哈希，不写 live vault。
+
+    ⚠️⚠️ CARD-维护B-R4 (b) / 默认裁决 D3 的**诚实性降级**，如实登记：
+      · 改造前：门比对 fixture 与**此刻 live vault 里的原件** ⇒ 证明的是
+        "fixture == 现在的真报告"，但代价是硬编码现网绝对路径（换机器只能
+        skip，诚实性在最需要它的地方缺席），且把 live vault 变成测试的隐式
+        输入（改 live 的人不知道自己动了一道门）。
+      · 改造后：门比对 fixture 与 `MANIFEST.sha256` ⇒ 证明的只是
+        **"fixture 自录入以来没被改过"**。
+      · "录入时的快照真的来自 live" 这一点，此后由 git 历史 +
+        `refresh_from_live.py` 的存在性背书，**不再由每次跑测试来证明**。
+      这是取舍不是升级；刷新必须有人显式跑脚本并把改动 commit（留痕）。
     """
-    live_dir = Path("/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/outputs")
-    if not live_dir.is_dir():
-        pytest.skip("live vault 不在本机此路径（CI/他机）")
-    checked = 0
-    for fx in LIVE_FIXTURES.iterdir():
-        src = live_dir / fx.name
-        if not src.is_file():
-            pytest.fail(f"fixture 在 live 侧找不到同名原件: {fx.name}")
-        assert hashlib.sha256(fx.read_bytes()).hexdigest() == hashlib.sha256(src.read_bytes()).hexdigest(), (
-            f"fixture 与 live 原件不逐字节相同: {fx.name}"
+    recorded = _read_live_manifest()
+    on_disk = sorted(p.name for p in _live_corpus_files())
+    assert on_disk == sorted(recorded), (
+        "fixture 目录与 MANIFEST 清单不一致（多/少文件都算漂移；"
+        f"新增 fixture 须跑 refresh_from_live.py --apply）\n磁盘: {on_disk}\n清单: {sorted(recorded)}"
+    )
+    for name, want in recorded.items():
+        got = hashlib.sha256((LIVE_FIXTURES / name).read_bytes()).hexdigest()
+        assert got == want, (
+            f"fixture 与录入时的快照不逐字节相同: {name}\n"
+            f"  清单 {want}\n  磁盘 {got}\n"
+            "  —— 若这是有意的刷新, 跑 refresh_from_live.py --apply 并 commit"
         )
-        checked += 1
-    assert checked == 8, f"应有 4 报告 + 4 scan JSON，实际 {checked}"
+    assert len(recorded) == 8, f"应有 4 报告 + 4 scan JSON，实际 {len(recorded)}"
 
 
 # ── Codex round-1 整改：门覆盖缺口（每一条都对应一个实测 survivor/BLOCKER） ──
@@ -1859,7 +1892,7 @@ def test_domain_block_seed_count_tamper_on_real_manifest_line(tmp_path):
     """
     work = tmp_path / "outputs"
     work.mkdir(parents=True)
-    for src in LIVE_FIXTURES.iterdir():
+    for src in _live_corpus_files():
         shutil.copy2(src, work / src.name)
     report = work / "回顾-CS 61B-2026-08-27.md"
     text = report.read_text(encoding="utf-8")
@@ -2024,7 +2057,7 @@ def _live_probe(tmp_path: Path, extra: str, report="回顾-CS 61B-2026-08-27.md"
     """在 live 真报告尾部追加一段后跑 --verify（fixture 逐字节拷贝，live 只读）。"""
     work = tmp_path / "outputs"
     work.mkdir(parents=True)
-    for src in LIVE_FIXTURES.iterdir():
+    for src in _live_corpus_files():
         shutil.copy2(src, work / src.name)
     rp = work / report
     base = run_verify(rp)
@@ -2130,7 +2163,7 @@ def _verdicts_on_all_boards(tmp_path: Path, prose: str) -> dict:
     for i, name in enumerate(sorted(p.name for p in LIVE_FIXTURES.glob("*.md"))):
         work = tmp_path / f"b{i}" / "outputs"
         work.mkdir(parents=True)
-        for src in LIVE_FIXTURES.iterdir():
+        for src in _live_corpus_files():
             shutil.copy2(src, work / src.name)
         rp = work / name
         rp.write_text(rp.read_text(encoding="utf-8") + f"\n- {prose}【实测】\n", encoding="utf-8")
