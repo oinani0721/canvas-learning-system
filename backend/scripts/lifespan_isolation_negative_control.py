@@ -294,6 +294,10 @@ class _ModuleIndex:
         #: 误判成 unknown 违规。近似是**单向放宽**且要求「函数体内确有由可证
         #: FastAPI 类构造的赋值 + return 同一个名字」，冒用面极窄。
         self.fastapi_returning_funcs: set[str] = set()
+        #: 永久失格的工厂 key —— 同名多定义时「任一定义不合格 ⇒ 整个 key 不合格」。
+        #: 见 :meth:`_mark_fastapi_returning` 里的说明（阻断项 E）。一旦失格不再翻身，
+        #: 所以本集合跨迭代累积、不清空。
+        self.disqualified_factory_keys: set[str] = set()
         #: 「每一条 return 都返回 app.main 的 TestClient 实例」的函数（`类名.方法名`
         #: 或 `<module>.函数名`）—— `with make():` 会跑真实 lifespan（L2-d）。
         self.main_client_funcs: set[str] = set()
@@ -317,6 +321,9 @@ class _ModuleIndex:
                 dict(self.isolation_wrappers),
             )
             self._mark_all_fastapi_returning(tree)
+            # 失格名单在本轮可能新增（也可能因为迭代顺序，安全版先于不合格版被
+            # 收进集合），所以每轮都做一次差集，而不是只在第一轮减。
+            self.fastapi_returning_funcs -= self.disqualified_factory_keys
             self._mark_main_client_sources(tree)
             self._mark_isolation_wrappers(tree)
             if (
@@ -598,11 +605,19 @@ class _ModuleIndex:
         returns = [s for s in own_stmts if isinstance(s, ast.Return) and s.value is not None]
         if not returns:
             return
+        key = self._factory_key(fd)
         for stmt in returns:
             candidates = stmt.value.elts if isinstance(stmt.value, ast.Tuple) else [stmt.value]
             if not any(self._value_origin(c, stmt, own) == O_LOCAL_APP for c in candidates):
-                return  # 这条 return 拿不出可证的局部 app ⇒ 整个函数不算工厂
-        key = self._factory_key(fd)
+                # 这条 return 拿不出可证的局部 app ⇒ 整个函数不算工厂。
+                # ⛔ 还要把 key 记进**永久失格名单**：同一个 key 可能有多个定义
+                # （`def make()` 写两遍），而 Python 运行时用的是**后**定义的那个。
+                # 只做「不合格就不 add」的话，先定义的安全版已经进了集合、key 又
+                # 相同，调用点就按安全算 —— 与本门自己的哲学（「存在一条安全的
+                # 不算数，必须条条都是」）直接矛盾。2026-09-04 round-2 抢救出的
+                # 阻断项 E，复现见验收单 §7.6f。
+                self.disqualified_factory_keys.add(key)
+                return
         self.fastapi_returning_funcs.add(key)
 
     def _mark_main_client_sources(self, tree: ast.Module) -> None:
@@ -612,9 +627,20 @@ class _ModuleIndex:
           （与 FastAPI 工厂同口径：存在一条安全的不算数，必须条条都是）；
         * ``main_client_attrs``：``self.<attr> = TestClient(<app.main 的 app>)``。
 
-        ⚠️ **不覆盖容器**：``clients = [TestClient(app)]`` 之后 ``with clients[0]:``
-        静态上追不动（要做容器元素级别的别名分析），如实登记为已知盲区，
-        见模块 docstring「这道负门不比什么」。
+        ⚠️ **不覆盖容器，也不覆盖解包**（2026-09-04 补准确）：
+
+        * ``clients = [TestClient(app)]`` 之后 ``with clients[0]:`` —— 索引访问；
+        * ``def make(): return FastAPI(), TestClient(app.main.app)`` 之后
+          ``_, c = make(); with c:`` —— **tuple 解包**。这一条是 round-2 抢救出的
+          阻断项 D，本 session 实测确认漏检（0 违规）。它与索引访问同族：都要做
+          **容器/序列元素级别的别名分析**才追得动，不是判据写松了。
+          注意工厂登记那一步对 tuple 用的是 ``any(... == O_LOCAL_APP ...)``，
+          即「tuple 里**存在**一个可证局部 app 就登记」—— 那是为了识别
+          ``app, n = make()` 这类正例（见本类 ``fastapi_returning_funcs`` 的注释），
+          单独把它改成 ``all`` 会误伤正例，而**并不能**堵住 D：D 的漏检发生在
+          调用方解包那一步，不在登记这一步。
+
+        两者都如实登记为已知盲区，见模块 docstring「这道负门不比什么」。
         """
         for node in ast.walk(tree):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
