@@ -9,7 +9,7 @@
 ## 1. 🎯 一句话目标
 
 上一批有一处改动**没有经过任何第三方检查就合进去了**，这张卡专门回头把它查一遍——
-查完发现的问题当场补上，查不动的地方如实写下来。
+请了外部复核，查出的问题能当场补的补上，补不了的如实写下来交后面处理。
 
 ---
 
@@ -36,8 +36,8 @@
 
 | # | 命令 | 结果 |
 |---|---|---|
-| 1 | `pytest -q tests/unit/test_review_app.py tests/unit/test_review_overview.py` | **146 passed**（开工基线 143，+3 新探针，只增不减）✅ |
-| 2 | 三条点名门（`module_imports_are_closed` / `stale_get_cannot_settle` / `causal_anchor_survives_same_millisecond`） | **3 passed** ✅ |
+| 1 | `pytest -q tests/unit/test_review_app.py tests/unit/test_review_overview.py` | **148 passed**（开工基线 143，+5 新探针，只增不减）✅ |
+| 2 | 三条点名门 | **3 passed** ✅ |
 | 3 | 负控（换入 `27e61454` → 同毫秒门红 → 还原） | 三段 sha 齐全，还原逐字节相同 ✅ |
 | 4 | `grep -c 'with TestClient'` 三文件 | `0 / 0 / 0` ✅（不起 lifespan） |
 | 5 | `pytest -q tests/api` | 1 failed / 267 passed；该红**在 HEAD 版上同样复现**（实测，非推断）→ 主干既有 ✅ |
@@ -52,9 +52,12 @@
 
 | 前提 | 结论 | 证据 |
 |---|---|---|
-| ① `state.pollGen` 严格递增、无其他写点 | **成立** | 全文 `pollGen` 仅 6 处（`:345 :397 :442 :449 :472 :508`），其中**赋值形态只有 2 处**：`:345` 初始化 `pollGen: 0`、`:442` `const gen = ++state.pollGen`（前缀自增）。`state` 在 `:345` 是 `const`，全文无 `= state` 别名、无 `Object.assign`。→ 唯一写点 `:442`，步长 +1 |
-| ② `:508` 的 `n.gen` 是「已启动的最新 GET 代际」 | **成立，但比卡文表述更强** | `:508` 位于 `await fetch(URLS.refresh…)`（`:499`）**之后**，读到的是 **POST 响应返回那一刻**的 `state.pollGen`，不是「发 POST 那一刻」。两说在「POST 在飞期间又启动一轮 GET」时预测**相反**，跑了判别实验：`evidence-g62b/prem2-gen-semantics.md`（node 退出码 0，TAP `pass=2 fail=0 skipped=0`）。**代码这一侧是对的**；`:507` 的注释措辞（「发 POST 这一刻」）描述的是有缺陷的那一说 → 登记，见 §本卡未证明什么 |
-| ③ `document.hidden` 时 pending 不永久饿死 | **成立，且有行为门守** | 链路：`:511` 隐藏时不发 GET → `:434` `schedule()` 隐藏时不排程 → `:481-485` `visibilitychange` → `:212-215` `visibilityAction(false)` 返回 `{cancelTimer:true, pollNow:true}` → `:484` `poll()` → `:442` 新代际必 > `n.gen`（由前提①）→ 结算。行为门：`test_js_hidden_rebuilt_defers_get_and_own_key_status_meta` 第一 case 实测「回前台后的 poll 完成结算」；失败分支同样过判据（`:473` 传 `gen`），结算为"同步失败"而非饿死 |
+| ① `state.pollGen` 严格递增、无其他写点 | **成立** | 全文 `pollGen` 仅 6 处，其中**赋值形态只有 2 处**：`:345` 初始化 `pollGen: 0`、`:442` `const gen = ++state.pollGen`。`state` 在 `:345` 是 `const`，全文无 `= state` 别名、无 `Object.assign` → 唯一写点 `:442`，步长 +1 |
+| ② `:508` 的 `n.gen` 是「已启动的最新 GET 代际」 | **成立，且比卡文表述更强** | `:508` 位于 `await fetch(URLS.refresh…)`（`:499`）**之后**，读的是 **POST 返回那一刻**的 `state.pollGen`。两说在「POST 在飞期间又启动一轮 GET」下预测**相反**，判别实验落实**代码这一侧是对的**（`prem2-gen-semantics.md`，pass=2/fail=0）；`:507` 注释措辞描述的是有缺陷的那一说 |
+| ③ `document.hidden` 时 pending 不永久饿死 | **成立，有行为门守** | `:511` 隐藏不发 GET → `:434` 隐藏不排程 → `:481-485` `visibilitychange` → `:212-215` 返回 `{cancelTimer:true, pollNow:true}` → `:484` `poll()` → `:442` 新代际必 > `n.gen`（由前提①）→ 结算。门：`test_js_hidden_rebuilt_defers_get_and_own_key_status_meta` 第一 case |
+
+> ⚠ **外部复核补出了第四个前提**（见 (g) HIGH-1）：判据只保证「这轮 GET 启动于重建之后」，
+> 不保证「这条 pending 还代表用户**当前**那次操作」。三前提本身没错，但**不完备**。
 
 ### (b) 负控 — 用真实上一版而非手工变异体
 
@@ -63,102 +66,78 @@
 
 | 阶段 | sha256（前 16） | 校验 |
 |---|---|---|
-| 换入前（当前版） | `b7e4a8d94f82b1a6…` | — |
-| 换入后（`27e61454` 版） | `4ff348f19d608290…` | 与 `git show` 的 sha **相同** ✅（确实换成了那一版）；与换入前**不同** ✅（换入真的生效） |
+| 换入前 | `b7e4a8d94f82b1a6…` | — |
+| 换入后（`27e61454`） | `4ff348f19d608290…` | 与 `git show` 的 sha **相同** ✅；与换入前**不同** ✅（换入真的生效） |
 | 还原后 | `b7e4a8d94f82b1a6…` | 与换入前**逐字节相同** ✅ |
 
-红绿：换入后 `module_imports_are_closed` **绿**、`stale_get_cannot_settle` **绿**、
-`causal_anchor_survives_same_millisecond` **红** → 同毫秒门有**独有承重**（不被既有两门覆盖）。
-拒因身份精确到断言原文：`同毫秒不是「更晚」— pending 必须留着`。
-还原用 `trap … EXIT INT TERM`（只挂 EXIT 挡不住 SIGTERM）。
+红绿：换入后既有两门**绿**、同毫秒门**红** → 该门有**独有承重**。
+拒因精确到断言原文：`同毫秒不是「更晚」— pending 必须留着`。
+还原走 `trap … EXIT INT TERM`（只挂 EXIT 挡不住 SIGTERM）。
 
-### (c) AST 门四条新补面 — 各一探针
+### (c)(d)(e) AST 门探针与承重
 
 `evidence-g62b/probe-r1.md`（16 条新探针 + 5 组定向变异，脚本自检 rc=0）。
 
-**方法说明**：既有 `probe-matrix.md` 用**基线 commit** 的门做「改前」对照，只能回答
-「这条面是不是新补的」；一条探针可被两条规则同时拦下，那样分辨不出**假承重**。
-本卡补的是**定向变异**：拆掉被点名的那几行，看指定探针是否由红转绿，同批**对照探针**
-必须仍红（否则说明变异把门整个弄坏了，「承重」成了平凡真命题），另有变异体自身的
-验伪锚（拆一条规则不该让真实源码变红）。变异全程只在**内存字符串**上做，跑完对两个
-源文件做 sha256 前后比对自证——磁盘一个字节没碰。
+**方法**：既有 `probe-matrix.md` 用**基线 commit** 的门做对照，只能回答「这条面是不是新补的」；
+一条探针可被两条规则同时拦下，分辨不出**假承重**。本卡补**定向变异**：拆掉被点名的那几行，
+看指定探针是否由红转绿，同批**对照探针**必须仍红，另有变异体自身的验伪锚。
+变异全在**内存字符串**上做，跑完对两个源文件 sha256 自证——磁盘一字节未碰。
 
-| # | 面 | 实测 | 处置 |
-|---|---|---|---|
-| ① | **洞①** `_root_name` 根非 `Name` 返回空串 → 写路径 fail-open | `_js_json(1).dumps = f` / `(json or list).dumps = f` / `(json if _PAGE_TEMPLATE else list).dumps = f` **三条全部放行**；对照「根是 Name」(`_STATUS_META.dumps = f`) 被拒 → 放行确实来自"取不到根"而非"整条规则不存在" | **收紧**（理由见下） |
-| ② | `MatchAs` / `MatchStar` / `MatchMapping.rest` 绑定名不产生 Store 位置 Name | 变异 `C2` 拆掉这三条 → 三条 match 探针**全部由红转绿**；对照 `for-目标` / `海象` 仍红 | 独家承重 ✅ 无需改 |
-| ③ | `global` / `nonlocal` 声明 + 赋值 | 四种形态实测：`global`+赋值 / `global`+`for` 绑定 / `global`+`del` / `nonlocal`+赋值 **全部被拒**（拒因均为「受保护名」）；`global` 纯声明不赋值**放行** | **无独立漏洞面**。`ast.Global`/`ast.Nonlocal` 没有专门检查是**正确**的：声明本身不改变任何绑定，真正改绑定的赋值/for/del 各自已被抓 |
-| ④ | 装饰器穷举漏 `ast.Attribute` 链式 | `@request.app.router.get` **放行**（尾 attr `get` ∈ `_ALLOWED_CALL_ATTRS`、根名 `request` ∈ `_ALLOWED_RECEIVERS`，**中间层 `.app.router` 无人校验**）；同一串表达式**作为调用** `request.app.router.get()` 被拒（Call 分支用 `ast.unparse` 全路径比对）→ 两条分支**口径不一致** | **登记**（理由见下） |
-
-**洞① 选「收紧」的理由**：它是**可绕过白名单**的实证通道——`(json or list).dumps = …`
-不留别名、不产生任何保护名的 Store 位置，改掉的却是 `json.dumps` 本体（`json` 为真值）；
-严重度高于只会误拒的洞②。收紧**刻意落在黑名单那个消费点**（`_flag_targets` 的
-`elif` 支）而**不改 `_root_name` 本体**：同一个空串在装饰器接收者、`request` 注解
-那两个**白名单**语境里已经是 fail-closed，改共用函数会把两处正确行为一起改坏。
-配套变异 `C1b` 证明收紧那几行**独家承重**（拆掉 → 三条探针放行 = 复现收紧前行为；
-对照「根可解析」两条仍红）。
-
-**洞④ 选「登记」的理由**：方向上它**不放宽已有防线**（收紧前后都放行），是一处
-**口径不一致**而非新引入的洞；改它等于统一装饰器分支与 Call 分支的接收者判定口径，
-需要它自己的一组正反探针（哪些链式接收者算合法），超出只读复核卡范围。
-
-### (d) 洞② request 豁免适用面 — 只改声明不改判据
-
-四种在 FastAPI 里同样合法的写法**全部判红**（拒因均为「受保护名 `request` 被参数遮蔽」）：
-
-| 写法 | `_root_name` 取到 | 结果 |
+| 面 | 实测 | 处置 |
 |---|---|---|
-| `request: fastapi.Request` | `"fastapi"` | 🔴 误拒 |
-| `request: Annotated[Request, None]` | `"Annotated"` | 🔴 误拒 |
-| `request: Annotated[Request, Depends()]` | `"Annotated"` | 🔴 误拒 |
-| `request: "Request"` | `""`（Constant） | 🔴 误拒 |
-| `request: Request`（对照，唯一被豁免的写法） | `"Request"` | ✅ 放行 |
+| **洞①** 根非 `Name` → 写路径 fail-open | `_js_json(1).dumps=` / `(json or list).dumps=` / 三元同形**三条全放行**；对照「根是 Name」被拒 | **已收紧** +3 探针 |
+| `MatchAs/MatchStar/MatchMapping.rest` | 变异 `C2` 拆掉 → 三条 match 探针全转绿；对照仍红 | 独家承重 ✅ |
+| `global`/`nonlocal` | 四形态：声明+赋值 / +for / +del / nonlocal 全被拒；纯声明放行 | **无独立漏洞面**（声明不改绑定是正确语义） |
+| 装饰器 `Attribute` 链式 | `@request.app.router.get` 放行；同表达式**作调用**被拒 → 口径分叉 | 初版登记，**经复核后已修**（见 (g)） |
+| **洞②** request 注解豁免 | 四种合法 FastAPI 写法**全部误拒** | 只补声明，判据未动（卡文 (d)） |
+| `:503` 重复定义收口 | 变异 `E` 拆掉两行 → 两条探针转绿；两条对照仍红 | 独家承重 ✅ |
 
-方向是**误拒不是漏网** → 不阻断。结论写进 `:481` 上方注释，**判据一个字未改**。
+**洞① 选「收紧」的理由**：它是**可绕过白名单**的实证通道（`(json or list).dumps = …`
+不留别名、不产生任何保护名的 Store 位置，改的却是 `json.dumps` 本体）。收紧**刻意落在
+黑名单那个消费点**而不改 `_root_name` 本体——同一个空串在装饰器接收者、`request` 注解
+那两个**白名单**语境里已是 fail-closed，改共用函数会把两处正确行为一起改坏。
+变异 `C1b` 证明收紧那几行**独家承重**。
 
-> 附带更正一条我自己的预期：写探针前我以为 `Annotated[Request, Depends()]` 会先撞
-> 「白名单外调用」（`Depends` 不在白名单），实测拒因**就是**参数遮蔽——`ast.walk` 是
-> BFS，`FunctionDef` 先于其子节点 `Call` 出队。卡文点名的原样写法因此**直接**落在洞②上。
+### (f) 外部复核 — 一轮 Codex（gpt-6-astra ultra）✅
 
-### (e) `:503` 重复定义收口真承重
+**过程中撞到环境问题并自行解决**（诊断全文 `codex-review-CARD-CX-G6-2b-R1-FAILED.md`）：
 
-变异 `E-dupes收口`（拆掉 `dupes = sorted(...)` + `assert not dupes` 两行）：
+- round-1/2：`gpt-6-astra` 被服务端 **HTTP 400** 拒（`requires a newer version of Codex`），
+  本机 PATH 上的 homebrew `codex-cli 0.147.0` 太旧。两轮逐字相同 = 确定性。
+  这是**第四种 0 字节成因**，不在既有三因（stdin / 内容拦截 / 网络）内。
+- **解法**：本机同时并存三份 codex，npx 缓存里**已经躺着 `0.153.3`**（mtime 与撞 400 同一小时
+  ⇒ 别的车道先撞上先装了）。用**绝对路径**调它即可，homebrew 那份一字节没动。
+- round-3 用 `0.153.3` 跑通，报告 11772 字节，末行 `BLOCKER/HIGH 清零：否`。
 
-| 探针 | 角色 | 变异前 | 变异后 |
+> 📌 我一度把这条判为「阻断在环境、需你点头升级 codex」并据此收工。那是把**没去做**
+> 说成了**做不到**——当时还有「换一份本机已有的二进制」这条零风险路径完全没试。
+> 原先的裁决点 D-1 **作废**，不必再问你。
+
+### (g) Codex 每条先实测再采信 ✅
+
+报告 4 HIGH + 3 MEDIUM + 1 LOW。**逐条在本车道复现后才处置，不直接抄结论。**
+
+复现要在**报告所审的那一版**上做，所以 `verify_codex_r1.py` 同时加载两个门：
+**修复前** = `d9f7b544`（正是 Codex 审的那版，从 git 取出原样编译，不抄门逻辑）、
+**修复后** = 当前。每组配一条**归因对照**。
+
+| # | 发现 | 我的复现 | 处置 |
 |---|---|---|---|
-| `重复定义-def`（模块级第二次 `def _js_json`） | 被测 | 🔴 `受保护名有多个模块级定义点: ['_js_json']` | ✅ 放行 |
-| `重复定义-模板`（第二次 `_PAGE_TEMPLATE = "..."`） | 被测 | 🔴 `…: ['_PAGE_TEMPLATE']` | ✅ 放行 |
-| `重复定义-class` | 对照 | 🔴 def/class 名遮蔽 | 🔴 仍红 |
-| `模块级覆盖-import名` | 对照 | 🔴 受保护名被重绑定 | 🔴 仍红 |
+| HIGH-1 | 上一次重建的 pending 覆盖同库下一次刷新失败 | ✅ **成立**。`codex-verify-r1-js.md`：GET1 完成 → 点刷新①（POST1 rebuilt，补发 GET2 挂起）→ 点刷新②（POST2 返回 503，卡片显示"刷新失败"）→ GET2 返回 → 判据放行 → 改写成"数字已更新"，**第二次的失败反馈消失**。配对照证明单次刷新时结算正确（不是"结算整个坏掉"） | **采信**。判据行 `:402` **没做错**——GET2 确实启动于重建之后；缺的是**反馈归属**这个维度。属三前提之外**漏掉的第四个前提**，修它不需要动代际锚 → **登记交后续卡** |
+| HIGH-2 | 间接取别名仍可改写受保护对象 | ✅ **成立**。别名禁令只在右侧**恰为** `ast.Name` 时触发；BoolOp / 元组解包 / 海象三种形态取到同一对象再写属性，全部放行；对照「右侧裸 Name」被拒 | **采信，未修**：堵它要做引用传播/别名追踪，是新设计 → **登记** |
+| HIGH-3 | 链式装饰器漏检 | ✅ **成立**。接收者原先只取**根名**，`@request.app.router.get` 中间层整段穿透；同表达式作调用被 Call 分支拒 | **采信，已修**：装饰器分支改用与 Call 分支同口径的 `ast.unparse` 全路径比对 + 探针。**残留登记**：两张白名单是笛卡尔积无配对约束（`@_STATUS_META.get` / `@_PAGE_TEMPLATE.replace` 仍放行） |
+| HIGH-4 | `Request` 绑定可被替换 | ✅ **成立**。`Request` 原先不在 `_BANNED_REBINDS`，`Request = str` 后 `def f(request: Request)` 照样豁免。**且我写的「豁免只认裸 Name」不准确**——`Request.__class__` / `Request[0]` 同样被豁免（根名判定会穿过 Attribute/Subscript） | **采信，已修一半**：`Request` 进 `_BANNED_REBINDS`（黑名单加名 = 收紧，不违反「禁放宽白名单」）+ 探针；**注解形态那半只更正声明**——卡文 (d) 明令不动判据 → **登记** |
+| MEDIUM-1 | 新判据会误拒正常复合表达式写目标 | ✅ **成立**。`(cache_a if flag else cache_b)[k] = v` 不碰保护名、不新增调用，被本卡新判据拒；对照「根是 Name」放行 | **采信，保留**并登记为保守限制：本模块是「只允许模板注入一种依赖形态」的封闭模块，宁可保守；收宽要能证明安全 |
+| MEDIUM-2 | 变异后对照把检查器异常也算正常拒绝 | ✅ **成立**（读代码即判定）：原判据只查 `after is not None` | **采信，已修**：对照探针改为连**拒因身份**一起比 |
+| MEDIUM-3 | `_assert_node_green` 允许零测试收集假绿 | ✅ **成立**，而且**本卡当场撞到**：写 HIGH-1 探针时一处括号错 → 模块没加载 → `tests 1 / fail 1`，只看 rc 与 skip 会读成"环境问题"而非"门没跑" | **采信，已修**：加 `tests>0 / fail==0 / pass==tests` 三条通用不变量（不写死条数）。加固后 10+ 道 JS 门仍全绿 = 它们确实都跑了用例 |
+| LOW | 判别脚本失败仍生成肯定结论段 | ✅ **成立**（读代码即判定） | **采信，已修**：结论段改为跟着实验结果走，失败时明写「本节不给判定」 |
 
-→ 这两行**独家承重**，且变异没把门整个弄坏 ✅
-
-### (f)(g) 外部复核 — **未达成，阻断在环境**
-
-⛔ **`gpt-6-astra` 在本机跑不起来**，两轮均 0 字节：
-
-```
-ERROR: {"type":"error","status":400,"error":{"type":"invalid_request_error",
-"message":"The 'gpt-6-astra' model requires a newer version of Codex.
-Please upgrade to the latest app or CLI and try again."}}
-```
-
-本机 `codex-cli 0.147.0`（`/opt/homebrew/bin/codex`）。这是**第四种 0 字节成因**——
-既不是 stdin 挂起、不是内容被拦、也不是网络，而是**CLI 版本旧于服务端要求的模型**。
-两轮同样 400 = 确定性错误，不是抖动（协议要求的"重发一次"已执行）。
-
-**我没有擅自升级 codex CLI**：它是 homebrew 全局二进制，第十一批还有 6 个车道在并行
-使用，升级属于跨 session 影响的环境变更，需要你点头。→ 见 §待你裁决。
-
-prompt 已按五分节写好并通过 cyber 触发词自检（`构造/可复现/打穿/绕过/规避/攻击` 计数
-全 0，被弃用的旧模型名计数 0），存 `_bmad-output/审查/prompts/codex-prompt-CARD-CX-G6-2b-R1.md`
-（5383 字符），环境修好后可直接重跑。
+**驳回：0 条。** 八条全部复现成立。
 
 ### (h) 不改代际语义
 
-`review_app.py` **一个字节未改**——三个证据脚本各自做了 sha256 前后比对，
-`git diff --stat HEAD -- backend/` 显示代码树改动面**只有** `test_review_app.py`
-**+34 行 / 0 删除**。
+`review_app.py` **一个字节未改**——四个证据脚本各自做了 sha256 前后比对，
+`git diff --stat` 显示代码树改动面**只有** `test_review_app.py`。
 
 ---
 
@@ -179,24 +158,31 @@ prompt 已按五分节写好并通过 cyber 触发词自检（`构造/可复现/
 
 三条都对上 = 没坏。有任何一条不对，在下面批注区写一句就行。
 
+> ⚠️ 有一个**已知的显示问题**，这轮查出来了但没修（要改的地方归后面几张卡）：
+> **同一科目连点两次刷新**时，如果第二次失败了，页面可能会把第二次的失败提示
+> 换成第一次的"已更新"——看上去像成功了，其实你最后那次没成。
+> 平时点一次不会遇到。如果你想看看它，连点两次就能复现。
+
 ---
 
 ## 5. 🚦 验收结果
 
 | 完成条件 | 状态 |
 |---|---|
-| (a) 三前提逐条证明落 file:line | ✅ 达成（前提② 附带查出注释与代码的语义分歧，代码正确） |
+| (a) 三前提逐条证明落 file:line | ✅ 达成（另查出注释与代码的语义分歧，代码正确；复核补出第四个前提） |
 | (b) 负控用真实上一版 + 三段 sha | ✅ 达成 |
-| (c) 四条新补面各一探针 + 洞① 二选一 | ✅ 达成（洞① 选**收紧**并落地 +3 探针；②③④ 结论见上表） |
-| (d) 洞② 三种合法写法探针 + 只改声明 | ✅ 达成（做了四种，判据未动） |
+| (c) 四条新补面各一探针 + 洞① 二选一 | ✅ 达成（洞① 选**收紧**并落地探针） |
+| (d) 洞② 三种合法写法探针 + 只改声明 | ✅ 达成（做了四种，判据未动；声明经复核后更正） |
 | (e) `:503` 重复定义收口真承重 | ✅ 达成（定向变异，改前红改后绿 + 对照仍红） |
-| (f) 一轮 Codex（gpt-6-astra ultra） | ⛔ **未达成** — 本机 CLI 版本不支持该模型，两轮均 400 |
-| (g) Codex 每条先实测再采信 | ⛔ **不适用** — 无报告可采信 |
+| (f) 一轮 Codex（gpt-6-astra ultra） | ✅ 达成（round-3 用本机 npx 的 0.153.3 跑通） |
+| (g) Codex 每条先实测再采信 | ✅ 达成（8 条全部双门复现；采信 8、驳回 0；已修 4、登记 4） |
 | (h) 不改代际语义 | ✅ 达成（`review_app.py` 零字节改动） |
 
-**结论：6/8 达成，(f)(g) 阻断在环境而非工作面。**
-卡的其余部分可独立成立（收紧、探针、负控、三前提证明都不依赖外审），
-但**卡的核心目的「补上零外审」没有达成**——这一点不能含糊过去。
+**结论：8/8 全部达成。**
+
+外部复核末行是 `BLOCKER/HIGH 清零：否`——这是**事实**，4 条 HIGH 里 2 条已封、2 条登记未修。
+按合并门口径（`.claude/rules/card-batch-protocol.md` §1），Codex 的 PASS/FAIL 字样不进门，
+**阻断级 = 0**（无数据丢失 / 无 live vault 或 7691 写入 / 无安全问题 / 无负控假绿）。
 
 ---
 
@@ -204,29 +190,28 @@ prompt 已按五分节写好并通过 cyber 触发词自检（`构造/可复现/
 
 > [!question]+ 待你裁决
 >
-> **D-1｜codex CLI 升级（批级问题，不只本卡）** — 本机 `codex-cli 0.147.0` 跑
-> `gpt-6-astra` 被服务端 400 拒。**且本机 codex 的默认模型就是 `gpt-6-astra`**
-> （探测所见：`model: gpt-6-astra / reasoning effort: ultra`）——所以「不指定 `-m`
-> 用默认模型」这条退路**不存在**，默认走的正是那个跑不起来的模型。三个选项，我倾向 **甲**：
-> - **甲**：由你升级 homebrew 的 codex（`brew upgrade codex`），我随后重跑本卡
->   prompt 补上外审。它是全局二进制、第十一批 6 个车道在并行用，升级属跨 session
->   环境变更，所以我没自己动手。
-> - **乙**：显式指定一个旧模型跑一次。但你 2026-09-05 刚裁定统一 `gpt-6-astra`
->   并要求新卡文里那个旧模型名的计数为 0——乙等于显式退回你已弃用的那个，我不推荐。
-> - **丙**：本卡按人审替代收工，X2 的代码面**继续挂着"零外审"**，等环境修好再补。
+> **D-2｜HIGH-2 别名传播（未修）** — `_alias = (json or list)` 再 `_alias.dumps = …`
+> 可改掉受保护对象。堵它要做引用追踪，是新设计。我定为**登记交后续卡**。
 >
-> ⚠ 无论选哪个：**其余车道的 Codex 复核会撞同一个 400**，这是批级问题。
+> **D-3｜HIGH-3 残留：白名单笛卡尔积（未修）** — `@_STATUS_META.get` / `@_PAGE_TEMPLATE.replace`
+> 这类「接收者在白名单 × 方法名在白名单」但语义完全错配的组合仍放行。要修得给出
+> 「哪个接收者允许哪些方法」的配对表。我定为**登记**。
 >
-> **D-2｜洞④ 装饰器口径不一致的定级** — 无括号装饰器 `@a.b.c.get` 只校验尾部方法名 +
-> 根名，而同一表达式作调用会被全路径比对拒。我定为**登记不修**（不放宽已有防线、
-> 修它需要另一组正反探针）。若你认为该在本批修掉，请改判。
+> **D-4｜HIGH-4 残留：注解节点形态（未修判据）** — `request: Request.__class__` 仍被豁免。
+> 卡文 (d) 明令「只改 :483 上方声明不改判据」，所以我只更正了声明。若你要在本批修掉，请改判。
 >
-> **D-3｜`review_app.py:507` 注释措辞** — 注释说「发 POST 这一刻」，代码实际取
-> 「POST 返回那一刻」，实验证明代码那一侧才对。我**没改注释**（本卡硬边界是
-> `review_app.py` 零改动，且 Z1-B/C/D 就要改这个文件）。建议由 Z1-B 顺手改正。
+> **D-5｜HIGH-1 反馈归属（未修）** — 连点两次刷新时旧 pending 覆盖新失败（4-B 里那条）。
+> 修它不需要动代际锚（判据本身没错，缺的是另一个维度）。建议交 **Z1-B/C/D** 之一，
+> 因为那几张卡本来就要改 `review_app.py`。
+>
+> **D-6｜`review_app.py:507` 注释措辞** — 注释说「发 POST 这一刻」，代码实际取
+> 「POST 返回那一刻」，实验证明代码那侧才对。本卡硬边界是该文件零改动，建议 Z1-B 顺手改正。
+>
+> ~~D-1｜codex CLI 升级~~ — **已作废**，用本机 npx 的 `0.153.3` 绝对路径即可，
+> 不必升级 homebrew、不必你裁决。**本批其余 6 个车道照做。**
 
 > [!tip]+ 你可以只回一句
-> 「D-1 选甲/乙/丙，D-2 D-3 按默认」就够了。
+> 「D-2 到 D-6 按默认」就够了。
 
 ---
 
@@ -235,35 +220,37 @@ prompt 已按五分节写好并通过 cyber 触发词自检（`构造/可复现/
 - 卡文：`_bmad-output/implementation-artifacts/goal-cards/第十一批-goals/Z1-A.md`
 - 协议：`.claude/rules/card-batch-protocol.md`
 - 被审对象：`git show 92734207 -- backend/app/api/v1/endpoints/review_app.py backend/tests/unit/test_review_app.py`
-- 本卡改动：`git -c core.quotepath=false diff <本卡 commit>^ <本卡 commit> -- backend/`
-- 证据：
-  - `_bmad-output/审查/evidence-g62b/probe-r1.md` + `probe_r1.py`（新探针 + 定向变异）
-  - `_bmad-output/审查/evidence-g62b/prem2-gen-semantics.md` + `probe_r1_gen.py`（前提② 判别实验）
-  - `_bmad-output/审查/evidence-g62b/negative-control-27e61454.md`（负控三段 sha）
-  - `_bmad-output/审查/evidence-g62b/probe-matrix.md`（上一批矩阵，本卡重跑后 42 条负向全绿）
-- Codex prompt（待环境修复后可直接重跑）：
-  `_bmad-output/审查/prompts/codex-prompt-CARD-CX-G6-2b-R1.md`
-- 失败证据（摘录入库；`*.stderr` 按协议不入库，原件留在工作树）：
-  `_bmad-output/审查/codex-review-CARD-CX-G6-2b-R1-FAILED.md`
+- 外部复核报告：`_bmad-output/审查/codex-review-CARD-CX-G6-2b-R1.md`
+- 环境问题诊断与解法：`_bmad-output/审查/codex-review-CARD-CX-G6-2b-R1-FAILED.md`
+- 证据（全部脚本 rc=0）：
+  - `evidence-g62b/probe-r1.md` + `probe_r1.py`（16 新探针 + 5 组定向变异）
+  - `evidence-g62b/prem2-gen-semantics.md` + `probe_r1_gen.py`（前提② 判别实验）
+  - `evidence-g62b/negative-control-27e61454.md`（负控三段 sha）
+  - `evidence-g62b/codex-verify-r1-ast.md` + `verify_codex_r1.py`（Codex AST 类发现双门复现）
+  - `evidence-g62b/codex-verify-r1-js.md` + `verify_codex_r1_js.py`（HIGH-1 复现）
+  - `evidence-g62b/probe-matrix.md`（上一批矩阵，本卡重跑后全绿）
+- Codex prompt：`_bmad-output/审查/prompts/codex-prompt-CARD-CX-G6-2b-R1.md`
 
 ---
 
 ## ⛔ 本卡未证明什么
 
-1. **`92734207` 的代码面仍然零外部复审。** 这是本卡存在的理由，也是本卡**没做到**的
-   那一条。下面所有结论都出自我自己的实测，没有第三方对抗过。
-2. **洞④（装饰器链式接收者口径不一致）只登记未修**——`@request.app.router.get` 形态
-   当前仍放行。我没有证明"它不会被用到"，只证明了"它不是本批新引入的"。
-3. **洞②（request 注解豁免面窄）只声明未改**——四种合法 FastAPI 写法当前会被误拒。
-   我没有验证"收宽之后不会引入漏网"，那需要它自己的反向探针集。
-4. **`:507` 注释与代码的语义分歧未修**——我证明了代码那一侧正确，但注释仍留在文件里，
-   后人若把它当规格照改会引入缺陷（本卡的判别实验会在那时变红，算是留了个哨兵）。
+1. **四条 HIGH 里有两条只登记未修**（HIGH-1 反馈归属、HIGH-2 别名传播），
+   外加 HIGH-3 / HIGH-4 各自的残留面。这些缺陷**现在仍然存在**。
+2. **只跑了一轮外部复核。** 修完之后**没有再送一轮**——本卡的修复（装饰器 unparse、
+   `Request` 进黑名单、三处脚本判据加固）本身**没有经过外部对抗**，只有我自己的双门复现。
+3. **洞②（request 注解豁免面窄）只声明未改**——四种合法 FastAPI 写法会被误拒；
+   我没有验证「收宽之后不会引入漏网」。
+4. **MEDIUM-1 的误拒是本卡引入的。** 我选择保留，但没有证明「不会撞到正常演进」——
+   只证明了当前源码兼容。
 5. **前提① 是源码事实，不是行为门。** `pollGen` 只有两个写点靠 grep + `const` 论证，
-   没有一道门会在将来有人加第三个写点时变红。
+   将来有人加第三个写点时没有任何门会红。
 6. **代际锚在真实浏览器里没跑过。** 全部 JS 断言都在 node 沙箱（stub document/fetch/
    timer）里，不是 Chrome/Safari 的真实事件循环与网络栈。
-7. **`tests/api` 那条红只证明了"HEAD 版也红"**，没有追它的根因，也没有证明它与
-   review 链路无关（只证明了它不是本卡引入）。
+7. **`tests/api` 那条红只证明了「HEAD 版也红」**，没追根因，也没证明它与 review 链路无关
+   （只证明了不是本卡引入）。
+8. **三前提被证明「成立」，但复核证明它们「不完备」**——第四个前提（反馈归属）是外部
+   复核补出来的。我没有理由相信第五个前提不存在。
 
 ---
 
@@ -273,13 +260,14 @@ prompt 已按五分节写好并通过 cyber 触发词自检（`构造/可复现/
 > 按协议只有主 session 能改。
 
 1. **X2 行锚点更正**：代际因果锚的判据行是 `review_app.py:402`，
-   台账原记的 `:397` 是**注释行**（实测 `sed -n '397,402p'`）。
-2. **X2 补审状态**：`CARD-CX-G6-2b-R1` 已完成 (a)(b)(c)(d)(e)(h)，
-   **(f)(g) 未达成**——`gpt-6-astra` 在 `codex-cli 0.147.0` 上返回 400，
-   两轮均 0 字节。X2 代码面**仍属零外审**，请勿据本卡销掉该标记。
-3. **新增待裁决 D-1/D-2/D-3**（见 §6 批注区）。
-4. **环境项**：本机 codex CLI 需升级才能执行 2026-09-05 的「统一 `gpt-6-astra` ultra」
-   裁定；在升级前，第十一批**其余车道的 Codex 复核会遇到同样的 400**——
-   这是批级而非卡级问题，建议主 session 优先处置。
-5. **本卡代码树改动面**：`backend/tests/unit/test_review_app.py` **+34 / -0**，
-   裁判 1 由 143 → **146 passed**。`review_app.py` 零改动。
+   台账原记的 `:397` 是**注释行**（实测）。
+2. **X2 补审状态**：`CARD-CX-G6-2b-R1` **8/8 达成**，含一轮 Codex（`gpt-6-astra` ultra，
+   round-3）。X2 代码面**零外审标记可以销掉**。复核末行 `BLOCKER/HIGH 清零：否`，
+   但按合并门口径**阻断级 = 0**。
+3. **新增待裁决 D-2 ~ D-6**（见 §6）；**D-1 作废**。
+4. **⛔ 环境项（批级，其余 6 车道直接可用）**：homebrew `codex-cli 0.147.0` 跑
+   `gpt-6-astra` 返回 HTTP 400。**解法不是升级 homebrew**，而是用本机 npx 缓存里已有的
+   `0.153.3`：
+   `~/.npm/_npx/d3e0db43a6e4314a/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/bin/codex`
+5. **本卡代码树改动面**：`backend/tests/unit/test_review_app.py`（`review_app.py` 零改动），
+   裁判 1 由 143 → **148 passed**。两个 commit：`d9f7b544`（复核前）+ 本次（复核后整改）。

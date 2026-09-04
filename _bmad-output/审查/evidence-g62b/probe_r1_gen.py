@@ -239,6 +239,22 @@ def main() -> int:
     ]
     if proc.stderr.strip():
         body += ["", "stderr:", "```", proc.stderr.strip()[:2000], "```"]
+    # 结论段必须跟着实验结果走 (Codex round-1 LOW): 原先无条件写「B 说是对的」，
+    # 实验失败时退出码虽然照样报错，单读报告却会得到与结果相反的判断。
+    if not ok:
+        body += [
+            "",
+            "## 结论",
+            "",
+            f"⚠ **实验未成立（rc={proc.returncode}，计数 {n_pass}/{n_fail}/{n_skip}，"
+            f"sha {'一致' if sha_before == sha_after else '不一致'}），本节不给判定。**",
+            "先看上面的 node 输出定位失败原因，修好再跑；在那之前，",
+            "A 说与 B 说孰是孰非**没有**被本实验分出胜负。",
+        ]
+        (HERE / "prem2-gen-semantics.md").write_text("\n".join(body) + "\n", encoding="utf-8")
+        print("\n".join(body))
+        return 1
+
     body += [
         "",
         "## 结论",

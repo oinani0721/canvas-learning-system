@@ -128,9 +128,11 @@ _NEW_PROBES: dict[str, tuple[str, str, str]] = {
     # ── (c)④ 装饰器 Attribute 分支: 只查尾部 attr + 根名，中间层不查 ──
     "装饰器-链式中间层": (
         "@request.app.router.get\ndef _probe_dc1():\n    pass\n",
-        "ALLOW",
-        "尾 attr 'get' 在 _ALLOWED_CALL_ATTRS、根名 'request' 在 _ALLOWED_RECEIVERS → 放行；"
-        "中间的 .app.router 无人检查",
+        "REJECT:非白名单装饰器接收者",
+        "本卡初版实测**放行**（尾 attr 'get' ∈ _ALLOWED_CALL_ATTRS、根名 'request' ∈ "
+        "_ALLOWED_RECEIVERS，中间 .app.router 无人校验）。Codex round-1 HIGH-3 指出它已构成"
+        "实际的隐式调用面 → 本卡把装饰器接收者改成与 Call 分支同口径的 unparse 全路径比对，"
+        "现在拒。修复前后的对照见 codex-verify-r1-ast.md",
     ),
     # 同一条表达式**作为调用**必须被拒 —— 证明这是装饰器分支与 Call 分支的口径分叉，
     # 而不是「这个形态本来就允许」。
@@ -217,7 +219,7 @@ _MUTATIONS: dict[str, tuple[str, str, dict[str, str], str]] = {
     ),
     # ── (c)④ 装饰器 Attribute 分支的接收者断言 ──
     "C4-装饰器接收者": (
-        "                    dec_recv = _root_name(dec.value)\n"
+        '                    dec_recv = ast.unparse(dec.value).split("(", 1)[0]\n'
         "                    assert dec_recv in _ALLOWED_RECEIVERS, (\n"
         '                        f"非白名单装饰器接收者 @{dec_recv}.{dec.attr} — 只查方法名挡不住任意对象"\n'
         "                    )\n",
@@ -335,11 +337,21 @@ def main() -> int:  # noqa: C901
                     f"变异 {mname} / 探针 {plabel}: 拆了被点名的行, 探针仍红 ({after!r}) — "
                     "该探针另有防线兜底, 这几行不是独家承重"
                 )
-            if want == "REJECT" and after is None:
-                bad.append(
-                    f"变异 {mname} / 对照 {plabel}: 对照探针也变绿了 — 变异把门整个弄坏了, "
-                    "「承重」成了平凡真命题"
-                )
+            if want == "REJECT":
+                # 对照探针不能只查「非空」(Codex round-1 MEDIUM-2): 变异若把某个分支
+                # 弄成 NameError/TypeError, 那也是「非空」, 于是局部损坏会被记成「仍红」。
+                # 必须连**拒因身份**一起比 —— 与变异前逐字同一条规则才算对照成立。
+                if after is None:
+                    bad.append(
+                        f"变异 {mname} / 对照 {plabel}: 对照探针也变绿了 — 变异把门整个弄坏了, "
+                        "「承重」成了平凡真命题"
+                    )
+                elif kw not in after:
+                    bad.append(
+                        f"变异 {mname} / 对照 {plabel}: 变异后仍红, 但**拒因身份变了** "
+                        f"(期望含 {kw!r}, 实得 {after!r}) — 多半是变异让该分支抛了别的异常, "
+                        "不能算「这条防线没被动到」"
+                    )
         mut_rows.append((mname, "ok", results, note))
 
     sha_after = {"test": _sha(TEST_PY), "prod": _sha(PROD_PY)}

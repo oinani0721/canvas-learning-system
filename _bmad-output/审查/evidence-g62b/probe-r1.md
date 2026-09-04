@@ -12,7 +12,7 @@
 
 | 文件 | 跑前 sha256 | 跑后 sha256 | 相同 |
 |---|---|---|---|
-| `backend/tests/unit/test_review_app.py` | `cd81ae6da4e26f32…` | `cd81ae6da4e26f32…` | ✅ |
+| `backend/tests/unit/test_review_app.py` | `2ae86d3d85997ea1…` | `2ae86d3d85997ea1…` | ✅ |
 | `backend/app/api/v1/endpoints/review_app.py` | `b7e4a8d94f82b1a6…` | `b7e4a8d94f82b1a6…` | ✅ |
 
 验伪锚（未注入的真实源码在当前门下）：✅ 放行
@@ -34,7 +34,7 @@
 | `global-声明加del` | `REJECT:受保护名` | 🔴 拒: `Failed: 受保护名 'json' 被del 解绑 — 调用点/接收者拼写检查会被架空 (round-4 HIGH-4b)` | global + del —— 走 ast.Delete 分支 |
 | `nonlocal-声明加赋值` | `REJECT:受保护名` | 🔴 拒: `Failed: 受保护名 'json' 被重绑定 — 调用点/接收者拼写检查会被架空 (round-4 HIGH-4b)` | nonlocal 同理；且外层 `json = 1` 本身已是函数内重绑定，两处都该红 |
 | `global-纯声明不赋值` | `ALLOW` | ✅ 放行 | 只有 global 声明、没有赋值 → 绑定未被改变 → 放行是正确语义，不是漏网 |
-| `装饰器-链式中间层` | `ALLOW` | ✅ 放行 | 尾 attr 'get' 在 _ALLOWED_CALL_ATTRS、根名 'request' 在 _ALLOWED_RECEIVERS → 放行；中间的 .app.router 无人检查 |
+| `装饰器-链式中间层` | `REJECT:非白名单装饰器接收者` | 🔴 拒: `AssertionError: 非白名单装饰器接收者 @request.app.router.get — 只查方法名挡不住任意对象` | 本卡初版实测**放行**（尾 attr 'get' ∈ _ALLOWED_CALL_ATTRS、根名 'request' ∈ _ALLOWED_RECEIVERS，中间 .app.router 无人校验）。Codex round-1 HIGH-3 指出它已构成实际的隐式调用面 → 本卡把装饰器接收者改成与 Call 分支同口径的 unparse 全路径比对，现在拒。修复前后的对照见 codex-verify-r1-ast.md |
 | `装饰器-链式对照-同表达式作调用` | `REJECT:非白名单接收者` | 🔴 拒: `AssertionError: 非白名单接收者 request.app.router.get() — 只查方法名挡不住任意对象挂同名方法` | Call 分支用 ast.unparse 全路径比对 → 'request.app.router' 不在白名单 → 拒。同一表达式作无括号装饰器却放行 = 两条分支口径不一致 |
 | `洞②-限定名注解` | `REJECT:受保护名` | 🔴 拒: `Failed: 受保护名 'request' 被参数遮蔽 — 调用点/接收者拼写检查会被架空 (round-4 HIGH-4b)` | FastAPI 合法写法；_root_name 下钻到 'fastapi' ≠ 'Request' → 误拒（fail-closed 方向） |
 | `洞②-Annotated注解` | `REJECT:受保护名` | 🔴 拒: `Failed: 受保护名 'request' 被参数遮蔽 — 调用点/接收者拼写检查会被架空 (round-4 HIGH-4b)` | FastAPI 合法写法；Subscript 下钻到 'Annotated' ≠ 'Request' → 误拒。（真实写法里第二个参数是 Depends()，那会先撞「白名单外调用」，换成 None 才能隔离出注解判定这一条） |
@@ -108,6 +108,6 @@ match 绑定名不产生 Store 位置的 Name —— 拆掉这三条后三条探
 
 ## 三 自检
 
-- ✅ 新探针 16 条全部与预期一致（其中 3 条实测放行 = 洞或正确语义，见上表说明列）
+- ✅ 新探针 16 条全部与预期一致（其中 2 条实测放行 = 洞或正确语义，见上表说明列）
 - ✅ 定向变异 5 组：被测探针全部由红变绿、对照探针全部仍红、变异体验伪锚全部成立
 - ✅ 落盘自证：两个源文件 sha256 跑前跑后逐字节相同

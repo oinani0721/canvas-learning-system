@@ -21,8 +21,8 @@
 - 生产文件 sha256 跑前跑后：`b7e4a8d94f82b1a6…` / `b7e4a8d94f82b1a6…` → 逐字节相同 ✅
 
 ```
-✔ POST 在飞期间启动的 GET 无权结算 → n.gen 取的是 POST **返回**时刻的代际 (14.566625ms)
-✔ 对照: 启动于 POST 返回之后的 GET (gen=3) 结算成功 → harness 观察得到结算, 且不饿死 (7.861208ms)
+✔ POST 在飞期间启动的 GET 无权结算 → n.gen 取的是 POST **返回**时刻的代际 (14.985333ms)
+✔ 对照: 启动于 POST 返回之后的 GET (gen=3) 结算成功 → harness 观察得到结算, 且不饿死 (9.283667ms)
 ℹ tests 2
 ℹ suites 0
 ℹ pass 2
@@ -30,7 +30,7 @@
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 50.561084
+ℹ duration_ms 52.767125
 ```
 
 ## 结论
