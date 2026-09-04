@@ -1,0 +1,31 @@
+rc=0
+[KILLED] T1 runtime_sha.sh：glob 展开提到快照外（缓存）
+        probe_runtime_glob_absent_to_present ok=False rc=0 reason=rc=0 changed=False unchanged=True gate_broken=False stdout=rivate/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/w4-glob-new-i7fisc3j/backend/data/bug_log.jsonl
+absent  /private/var/folders/vq/gssw8v
+[KILLED] T2 runtime_sha.sh：glob 放宽回 vault_index_pending*
+        probe_runtime_glob_sidecar_excluded ok=False rc=1 reason=rc=1 changed=True unchanged=False gate_broken=False stdout=olders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/w4-glob-sidecar-hg73rfj8/backend/app/data/vault_index_pending_backup.jsonl
+WRAPPED-COMMAND-EXIT: 0
+[KILLED] T3 runtime_sha.sh：删掉旧固定名精确项
+        probe_runtime_legacy_journal_watched ok=False rc=0 reason=rc=0 changed=False unchanged=True gate_broken=False stdout=gacy-pjlyhzb_/backend/app/data/vault_index_pending.jsonl
+=== RUNTIME-FILES after (2026-09-05 06:53:11 +0800) ===
+absent  /private/var/folders
+[KILLED] T4 runtime_sha.sh：去掉 LC_ALL=C sort
+        probe_runtime_glob_expansion_sorted ok=False rc=0 reason=rc=0 实得=['vault_index_pending__10.jsonl', 'vault_index_pending__2.jsonl', 'vault_index_pending__zeta.jsonl', 'vault_index_pending__alpha.jsonl', 'vault_index_pending__beta.jsonl', 'vault_index_pending
+[KILLED] T5 negative_control.py：注释掉失格差集（LOW#18）
+        FAIL=True MISSED=['同名工厂重定义：安全版在前，不安全版在后（阻断项 E 的原始形态）', '同名工厂重定义：不安全版在前，安全版在后（顺序反过来同样不算数）']
+[KILLED] T6 negative_control.py：失格名单回退成跨迭代累积（M16）
+        FAIL=True FALSE_POSITIVE=['验伪锚 12：转调工厂，被调者定义在**后**（前向引用，合法）']
+[KILLED] T7 negative_control.py：runtime_files 缓存 glob 展开
+        SELFTEST_FAIL=True 判据串命中=True
+[KILLED] T8 negative_control.py：glob 放宽回 vault_index_pending*
+        SELFTEST_FAIL=True 判据串命中=True
+[KILLED] T9 negative_control.py：删掉旧固定名精确项
+        SELFTEST_FAIL=True 判据串命中=True
+
+=== 还原复核（全文件 sha 与跑前基线逐个比对）===
+  OK  lifespan_isolation_runtime_sha.sh 280cfadb874845cd
+  OK  lifespan_isolation_negative_control.py ae50687e11115cef
+  OK  lifespan_isolation_guard_probes.py a7c4b222d9d68496
+{"survived": [], "drift": []}
+
+[exited with code 0]

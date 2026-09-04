@@ -112,9 +112,14 @@ MUTATED = "with TestClient(app) as c:"
 EXPECTED_REASON = "live Neo4j port connect attempted"
 
 #: 与 backend/scripts/lifespan_isolation_runtime_sha.sh 的监视清单保持一致。
+#:
+#: 第三项是 orchestrator journal 的**旧固定名**（``legacy_state_path``，G2-5 之前的
+#: 形态）。它以前靠 ``vault_index_pending*.jsonl`` 这条过宽 glob 顺带收进来；
+#: M14 收窄之后 glob 只认命名空间形态，旧名必须显式列成固定项，否则监视面变窄。
 RUNTIME_FILE_RELPATHS = [
     "data/bug_log.jsonl",
     "data/outbox/events.jsonl",
+    "app/data/vault_index_pending.jsonl",
 ]
 
 #: ⛔ 不能写成固定文件名（2026-09-04 主干合并后当场抓到的假门）：CARD-G2-5
@@ -132,8 +137,21 @@ RUNTIME_FILE_RELPATHS = [
 #: 同族的 ``lancedb_pending_index__<key>.jsonl``（``lancedb_index_service.py:76``）
 #: 合并前就不在清单里，本卡只登记移交，不在此扩面（扩面会让 runtime_sha 变严，
 #: 属于另一张卡的范围决策）。
+#:
+#: ⛔ M14 收窄（CARD-W4-3b，2026-09-05）：上一版写成 ``vault_index_pending*.jsonl``，
+#: 比生产写侧**实际能产出的形态更宽** —— ``vault_index_pending_backup.jsonl``、
+#: ``vault_index_pending.jsonl.old.jsonl`` 这类**人手放的旁文件**也会被收进监视面，
+#: 于是「谁在 backend/app/data 里放了个同前缀备份」会让本门判 CHANGED（假红），
+#: 而门一旦以「会误报」出名，下一个人就会去放宽它。收窄成两条**可由写侧证明**的形态：
+#:   * ``legacy_state_path()`` 的旧固定名 —— 进 :data:`RUNTIME_FILE_RELPATHS` 精确项；
+#:   * ``namespaced_state_path()`` 的 ``<stem>__<safe_key>.jsonl`` —— 本 glob，
+#:     ``NAMESPACE_SEP`` 是双下划线（``vault_state_paths.py:36``），而
+#:     ``sanitize_vault_id`` 保证 key 只含 ``\\w``、压缩形态是 ``<前缀>-<sha12>``，
+#:     两者都不含 ``/``，所以 ``__*`` 恰好覆盖全部可能的 key。
+#: ⚠️ 收窄是**放松**方向，证据在验收单 §M14：全仓 20 个同前缀文件逐个列出，
+#: 收窄前后被收的集合**完全相同**（旧 glob 多收的那一类在真实树上一个都没有）。
 RUNTIME_FILE_GLOBS = [
-    "app/data/vault_index_pending*.jsonl",
+    "app/data/vault_index_pending__*.jsonl",
 ]
 
 
@@ -149,6 +167,76 @@ def runtime_files(backend_dir: Path) -> list[Path]:
     for pattern in RUNTIME_FILE_GLOBS:
         globbed.extend(backend_dir.glob(pattern))
     return fixed + sorted(globbed)
+
+
+def run_runtime_files_selftest() -> int:
+    """:func:`runtime_files` 的行为自证 —— **无条件**先于一切跑（M15 的 Python 侧）。
+
+    X4 验收单 §7.9a #15 的缺口是「glob 修复没有任何门保护」：``runtime_sha.sh`` 那侧
+    由 ``lifespan_isolation_guard_probes.py`` 的 ``runtime-glob-*`` 族补上；本函数补
+    Python 这一侧。四条判据，每条都对应一种**具体的坏法**：
+
+    1. **每次调用重新展开** —— 第一次调用时 journal 还不存在，新建之后第二次调用
+       必须看得见。把展开结果缓存下来（``@lru_cache`` / 模块级列表）就抓不到
+       「跑完才出现的 journal」，而那正是本门要抓的那一类。
+    2. **旧固定名仍在监视面** —— M14 收窄之后它由 :data:`RUNTIME_FILE_RELPATHS`
+       的精确项承接；接不住就是监视面偷偷变窄。
+    3. **单下划线旁文件不在监视面** —— 收窄的正证据（写侧产不出这个形态）。
+    4. **顺序稳定** —— 同一批文件两次调用必须给出同一个序列，否则快照会因为
+       **排列不同**而字符串不等 ⇒ 假红。
+
+    ⛔ 只在 tmp 假 backend 里造文件：真实 ``backend/app/data`` 是生产运行时数据。
+    """
+    print("=== RUNTIME-FILES SELFTEST ===")
+    problems: list[str] = []
+    tmp = Path(tempfile.mkdtemp(prefix="w4-runtime-files-selftest-"))
+    try:
+        fake = tmp / "backend"
+        (fake / "app" / "data").mkdir(parents=True)
+        (fake / "data" / "outbox").mkdir(parents=True)
+
+        before = runtime_files(fake)
+        journal = fake / "app" / "data" / "vault_index_pending__selftest.jsonl"
+        if journal in before:
+            problems.append("前提被破坏：journal 在创建之前就出现在监视清单里")
+        journal.write_text("{}\n", encoding="utf-8")
+        after = runtime_files(fake)
+        if journal not in after:
+            problems.append(
+                "glob 没有每次重新展开：新建的 "
+                f"{journal.name} 不在第二次调用的结果里（缓存展开 ⇒ 抓不到 after 才出现的 journal）"
+            )
+
+        legacy = fake / "app" / "data" / "vault_index_pending.jsonl"
+        if legacy not in runtime_files(fake):
+            problems.append(
+                f"旧固定名 {legacy.name} 不在监视清单里 —— M14 收窄让监视面变窄了"
+                "（它应由 RUNTIME_FILE_RELPATHS 的精确项承接，与文件是否存在无关）"
+            )
+
+        sidecar = fake / "app" / "data" / "vault_index_pending_backup.jsonl"
+        sidecar.write_text("{}\n", encoding="utf-8")
+        if sidecar in runtime_files(fake):
+            problems.append(f"单下划线旁文件 {sidecar.name} 进了监视面 —— glob 比写侧能产出的形态宽（M14）")
+
+        for name in ("vault_index_pending__b.jsonl", "vault_index_pending__a.jsonl"):
+            (fake / "app" / "data" / name).write_text("{}\n", encoding="utf-8")
+        if runtime_files(fake) != runtime_files(fake):
+            problems.append("同一批文件两次调用给出不同顺序 —— 快照会因排列不同而假红")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    if problems:
+        print("RUNTIME-FILES-SELFTEST: FAIL")
+        for p in problems:
+            print(f"  - {p}")
+        return 1
+    print(
+        "RUNTIME-FILES-SELFTEST: PASS "
+        f"({len(RUNTIME_FILE_RELPATHS)} 固定项 + {len(RUNTIME_FILE_GLOBS)} glob；"
+        "重新展开 / 旧名在册 / 旁文件排除 / 顺序稳定 四条全过)"
+    )
+    return 0
 
 
 #: 钉死的**完整 nodeid**（第八批 Codex MEDIUM：此前用 ``-k`` 子串过滤 + 名字
@@ -294,9 +382,11 @@ class _ModuleIndex:
         #: 误判成 unknown 违规。近似是**单向放宽**且要求「函数体内确有由可证
         #: FastAPI 类构造的赋值 + return 同一个名字」，冒用面极窄。
         self.fastapi_returning_funcs: set[str] = set()
-        #: 永久失格的工厂 key —— 同名多定义时「任一定义不合格 ⇒ 整个 key 不合格」。
-        #: 见 :meth:`_mark_fastapi_returning` 里的说明（阻断项 E）。一旦失格不再翻身，
-        #: 所以本集合跨迭代累积、不清空。
+        #: 失格的工厂 key —— 同名多定义时「任一定义不合格 ⇒ 整个 key 不合格」。
+        #: 见 :meth:`_mark_fastapi_returning` 里的说明（阻断项 E）。
+        #: ⛔ **每轮从零重算**，不跨迭代累积（M16：累积会把「知识还没补齐」这个
+        #: 中间状态钉成永久结论，误拒前向引用的安全工厂）。详见
+        #: :meth:`_mark_all_fastapi_returning` 的 docstring。
         self.disqualified_factory_keys: set[str] = set()
         #: 「每一条 return 都返回 app.main 的 TestClient 实例」的函数（`类名.方法名`
         #: 或 `<module>.函数名`）—— `with make():` 会跑真实 lifespan（L2-d）。
@@ -319,10 +409,16 @@ class _ModuleIndex:
                 set(self.main_client_funcs),
                 set(self.main_client_attrs),
                 dict(self.isolation_wrappers),
+                # M16 之后失格名单每轮重算 ⇒ 它也是迭代状态的一部分，必须进
+                # 不动点判据；漏掉它，「失格集还在变」的那一轮会被当成已收敛。
+                set(self.disqualified_factory_keys),
             )
             self._mark_all_fastapi_returning(tree)
-            # 失格名单在本轮可能新增（也可能因为迭代顺序，安全版先于不合格版被
-            # 收进集合），所以每轮都做一次差集，而不是只在第一轮减。
+            # ⛔ 这一行**承重**：`_mark_fastapi_returning` 只做「不合格就不 add」的话，
+            # 同名工厂的安全版已经把 key 加进集合了，调用点就按安全算 —— 而 Python
+            # 运行时用的是**后**定义的那个（阻断项 E）。差集是把 E 关掉的那一步。
+            # 常设反例见 `_AST_MUST_FLAG` 的「同名工厂重定义」条（LOW#18）；注释掉
+            # 本行，那条反例当场 MISSED ⇒ AST-NEGATIVE-CONTROL: FAIL。
             self.fastapi_returning_funcs -= self.disqualified_factory_keys
             self._mark_main_client_sources(tree)
             self._mark_isolation_wrappers(tree)
@@ -331,6 +427,7 @@ class _ModuleIndex:
                 self.main_client_funcs,
                 self.main_client_attrs,
                 self.isolation_wrappers,
+                self.disqualified_factory_keys,
             ) == before:
                 break
         self._rebuild(tree)
@@ -573,8 +670,34 @@ class _ModuleIndex:
 
     # ── FastAPI-returning helper 识别 ───────────────────────────────────
     def _mark_all_fastapi_returning(self, tree: ast.Module) -> None:
-        """两轮：先按「可证 FastAPI 类」标一轮，再让 helper 调 helper 收敛一次。"""
+        """两轮：先按「可证 FastAPI 类」标一轮，再让 helper 调 helper 收敛一次。
+
+        ⛔ 失格名单**每轮从零重算**（M16 修复，CARD-W4-3b 2026-09-05）。
+
+        上一版把 :attr:`disqualified_factory_keys` 写成「跨迭代累积、一旦失格不再
+        翻身」。E（同名工厂重定义）那条语义要的是「同一个 key 的**每个定义**都合格
+        才算工厂」，但累积实现顺带把**中间状态**也钉死了：``ast.walk`` 按定义顺序走，
+        于是
+
+            def outer():          # 先定义
+                return inner()
+            def inner():          # 后定义
+                a = FastAPI()
+                return a
+
+        在第一轮里 outer 会因为「``inner`` 此刻还不在已知工厂集」被判不合格、写进
+        失格名单；等后面的轮次把 ``inner`` 学会了，outer 也已经**永久**翻不了身 ——
+        同一段代码只要把两个 def 换个顺序就一个报违规、一个放行。2026-09-05 实测：
+        outer 在前 ⇒ 1 violation（误拒），inner 在前 ⇒ 0（正确）。
+
+        修法是让失格判定在**知识收敛之后**才作数：每轮 walk 前清空，用**当轮**的
+        知识重新判一遍。前向引用那条在知识补齐后自然不再失格；而 E 的不安全定义
+        在任何知识水平下都不合格，每轮都会重新进名单 —— E 的语义**一字不损**，
+        由 ``_AST_MUST_FLAG`` 里那条常设反例钉住（LOW#18）。
+        """
         for _ in range(2):
+            # 从零重算：本轮的失格结论只能由本轮的知识产生。
+            self.disqualified_factory_keys = set()
             for node in ast.walk(tree):
                 if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     self._mark_fastapi_returning(node)
@@ -1344,6 +1467,45 @@ _AST_MUST_FLAG: list[tuple[str, str]] = [
         "    with TestClient(app) as c:\n"
         "        pass\n",
     ),
+    # ── LOW#18（X4 验收单 §7.7a 其四）：阻断项 E 的原始反例 ────────────────
+    # E 修好了却没进常设反例清单，等于「加门 ≠ 加强度」——下一个人把
+    # `fastapi_returning_funcs -= disqualified_factory_keys` 那行删掉，22/11 照样
+    # 全绿。这两条把 E 的两个方向都钉住：
+    #   * 安全版**先**定义（安全版先进集合，key 相同 ⇒ 调用点按安全算）；
+    #   * 安全版**后**定义（Python 运行时真正用的就是它，但门不该因此放行 ——
+    #     判据是「每个定义都合格」，不是「最后一个定义合格」）。
+    # 运行时用的是**后**定义的那个，所以第一条才是真实害；第二条防的是有人
+    # 把差集改成「只看最后一个定义」这种看似更精确、实则又漏一半的收窄。
+    (
+        "同名工厂重定义：安全版在前，不安全版在后（阻断项 E 的原始形态）",
+        "from fastapi import FastAPI\n"
+        "from fastapi.testclient import TestClient\n"
+        "from app.main import app as real_app\n"
+        "def make():\n"
+        "    a = FastAPI()\n"
+        "    return a\n"
+        "def make():\n"
+        "    return real_app\n"
+        "def t():\n"
+        "    app = make()\n"
+        "    with TestClient(app) as c:\n"
+        "        pass\n",
+    ),
+    (
+        "同名工厂重定义：不安全版在前，安全版在后（顺序反过来同样不算数）",
+        "from fastapi import FastAPI\n"
+        "from fastapi.testclient import TestClient\n"
+        "from app.main import app as real_app\n"
+        "def make():\n"
+        "    return real_app\n"
+        "def make():\n"
+        "    a = FastAPI()\n"
+        "    return a\n"
+        "def t():\n"
+        "    app = make()\n"
+        "    with TestClient(app) as c:\n"
+        "        pass\n",
+    ),
 ]
 
 _AST_MUST_PASS: list[tuple[str, str]] = [
@@ -1448,6 +1610,40 @@ _AST_MUST_PASS: list[tuple[str, str]] = [
         "    with no_lifespan(app):\n"
         "        with client:\n"
         "            pass\n",
+    ),
+    # ── M16（X4 验收单 §7.10 D 类）：失格名单不得误拒**前向引用**的安全工厂 ──
+    # `outer()` 转调 `inner()`、而 `inner` 定义在**后面** —— 纯 Python 里完全合法
+    # （调用发生在 import 之后，两个名字都已绑定）。失格名单跨迭代累积的那一版会
+    # 在第一轮把 outer 钉死，之后学会 inner 也翻不了身。两条正例把顺序两个方向
+    # 都锁住：只有 A 是回归锚（B 在修复前就已经是绿的），留 B 是为了让「顺序不
+    # 影响结论」这句话本身有门。
+    (
+        "验伪锚 12：转调工厂，被调者定义在**后**（前向引用，合法）",
+        "from fastapi import FastAPI\n"
+        "from fastapi.testclient import TestClient\n"
+        "def outer():\n"
+        "    return inner()\n"
+        "def inner():\n"
+        "    a = FastAPI()\n"
+        "    return a\n"
+        "def t():\n"
+        "    app = outer()\n"
+        "    with TestClient(app) as c:\n"
+        "        pass\n",
+    ),
+    (
+        "验伪锚 13：转调工厂，被调者定义在**前**（同一段代码换个顺序，结论必须相同）",
+        "from fastapi import FastAPI\n"
+        "from fastapi.testclient import TestClient\n"
+        "def inner():\n"
+        "    a = FastAPI()\n"
+        "    return a\n"
+        "def outer():\n"
+        "    return inner()\n"
+        "def t():\n"
+        "    app = outer()\n"
+        "    with TestClient(app) as c:\n"
+        "        pass\n",
     ),
     (
         "验伪锚 5：同类方法工厂 self._make()（test_rag_four_state_api 的真实形态）",
@@ -1690,6 +1886,14 @@ def _parse_junit(path: Path, target_rel: str) -> list[tuple[str, dict]]:
 def main() -> int:
     print("=== lifespan isolation NEGATIVE CONTROL ===")
     print(f"    interpreter: {sys.executable}")
+
+    # -- 00. runtime_files 自证 —— **先于一切**，且不受任何 --xxx 短路影响 ------
+    #    它证明的是「本脚本自己用来判定运行时文件有没有被写的那个函数」行为正确。
+    #    放在 `--ast-*` 分支之前是刻意的：那两条捷径也依赖 runtime_snapshot 的语义，
+    #    自检若能被命令行参数跳过，就等于给了「怎么跑才不会红」的选择权。
+    if run_runtime_files_selftest() != 0:
+        print("NEGATIVE-CONTROL: FAIL — runtime_files 自证未通过，后续判定不可信")
+        return 1
 
     if "--ast-negative-control" in sys.argv:
         return run_ast_negative_control()
