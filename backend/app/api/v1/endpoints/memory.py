@@ -32,6 +32,7 @@ from typing import Annotated, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from app.core.decision_tracker import log_retrieval_status_decision
+from app.core.nothrow_logging import nothrow
 from app.models.memory_schemas import (
     BatchEpisodesRequest,
     BatchEpisodesResponse,
@@ -51,7 +52,10 @@ from app.services.memory_service import (
     get_memory_service,
 )
 
-logger = logging.getLogger(__name__)
+# CARD-OBS-nothrow-logging: 端点模块的日志调用不得成为业务失败源 ——
+# 包装后 logger.<level>(...) 抛错不再改变 HTTP 状态码与 detail (两级降级,
+# 诚实边界见 app/core/nothrow_logging.py 模块 docstring)。
+logger = nothrow(logging.getLogger(__name__))
 
 # ChatGPT-DR-2026-05-13 P0-3: Memory API 统一鉴权 — 6 个 non-extract endpoint
 # endpoint-level 加 Depends(require_internal_api_key), 防匿名 LAN/external 访问.
@@ -135,11 +139,11 @@ async def create_learning_episode(
             duration_seconds=episode.duration_seconds,
         )
 
-        logger.info(f"Created learning episode: {episode_id}")
+        logger.info("Created learning episode: %s", episode_id)
         return LearningEpisodeResponse(episode_id=episode_id, status="created")
 
     except Exception as e:
-        logger.error(f"Failed to create learning episode: {e}")
+        logger.error("Failed to create learning episode: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to record learning event: {str(e)}",
@@ -265,7 +269,7 @@ async def get_learning_history(
         )
 
     except Exception as e:
-        logger.error(f"Failed to get learning history: {e}")
+        logger.error("Failed to get learning history: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to query learning history: {str(e)}",
@@ -344,7 +348,7 @@ async def get_concept_history(
         return ConceptHistoryResponse(**result)
 
     except Exception as e:
-        logger.error(f"Failed to get concept history: {e}")
+        logger.error("Failed to get concept history: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to query concept history: {str(e)}",
@@ -457,7 +461,7 @@ async def get_review_suggestions(
         )
 
     except Exception as e:
-        logger.error(f"Failed to get review suggestions: {e}")
+        logger.error("Failed to get review suggestions: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get review suggestions: {str(e)}",
@@ -494,7 +498,7 @@ async def get_memory_health(memory_service: MemoryServiceDep) -> MemoryHealthRes
         return MemoryHealthResponse(**health_status)
 
     except Exception as e:
-        logger.error(f"Failed to get memory health status: {e}")
+        logger.error("Failed to get memory health status: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get memory health status: {str(e)}",
@@ -558,7 +562,7 @@ async def create_batch_episodes(
         )
 
     except Exception as e:
-        logger.error(f"Failed to process batch episodes: {e}")
+        logger.error("Failed to process batch episodes: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to process batch episodes: {str(e)}",
@@ -746,8 +750,10 @@ async def extract_conversation_learning(
             extracted_count += 1
 
         logger.info(
-            f"[Observer-Fallback] Extracted {extracted_count} items "
-            f"for node {request.node_id} into group {resolved_group_id}"
+            "[Observer-Fallback] Extracted %s items for node %s into group %s",
+            extracted_count,
+            request.node_id,
+            resolved_group_id,
         )
 
         return ExtractConversationResponse(
@@ -759,7 +765,7 @@ async def extract_conversation_learning(
         )
 
     except Exception as e:
-        logger.error(f"[Observer-Fallback] extract-conversation error: {e}")
+        logger.error("[Observer-Fallback] extract-conversation error: %s", e)
         return ExtractConversationResponse(
             extracted=False,
             status="error",
@@ -902,7 +908,7 @@ async def archive_session(
         )
 
     except Exception as e:
-        logger.error(f"[M3] archive-session error: {e}")
+        logger.error("[M3] archive-session error: %s", e)
         return SessionArchiveResponse(
             archived=False,
             status="error",

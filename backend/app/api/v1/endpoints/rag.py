@@ -16,10 +16,11 @@ from datetime import datetime, timezone
 from typing import Annotated, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.decision_tracker import log_retrieval_status_decision
-from app.core.subject_config import set_current_subject_id
+from app.core.nothrow_logging import nothrow
+from app.core.vault_scope import resolve_vault_scope
 from app.models.service_status import ServiceStatus
 from app.services.rag_service import (
     RAGService,
@@ -28,8 +29,10 @@ from app.services.rag_service import (
     get_rag_service,
 )
 
-# Get logger for this module
-logger = logging.getLogger(__name__)
+# CARD-OBS-nothrow-logging: 端点模块的日志调用不得成为业务失败源 ——
+# 包装后 logger.<level>(...) 抛错不再改变 HTTP 状态码与 detail (两级降级,
+# 诚实边界见 app/core/nothrow_logging.py 模块 docstring)。
+logger = nothrow(logging.getLogger(__name__))
 
 # Create router
 rag_router = APIRouter()
@@ -44,6 +47,29 @@ class RAGQueryRequest(BaseModel):
     """RAG 查询请求"""
 
     query: str = Field(..., description="查询字符串", min_length=1, max_length=2000)
+    # CARD-G4-4: 显式 VaultScope — 必填 (缺 → 422)。请求 vault 与进程 active
+    # vault 不一致时 resolve_vault_scope 抛 409, 禁止静默改写作用域
+    # (CARD-G2-2 契约 2)。本端点此前完全没有 vault 作用域, 是 full RAG 链上
+    # 最后一个「缺参落默认组」的旁路。
+    vault_id: str = Field(
+        ...,
+        min_length=1,
+        description=(
+            "Vault 稳定 ID (必填, CARD-G4-4)。检索作用域只落在该 vault 内; "
+            "与进程 active vault 不一致 → 409。"
+        ),
+    )
+
+    @field_validator("vault_id")
+    @classmethod
+    def _reject_blank_vault_id(cls, v: str) -> str:
+        # CARD-G4-4 Codex round-1 HIGH-2: min_length=1 拦不住纯空白串;
+        # resolve_vault_scope 把空白当「缺失」走双缺失推导 → 空白请求
+        # 会以 active vault 作用域 200 通过, 等于契约被绕过。在模型层
+        # fail-closed (422)。
+        if not v or not v.strip():
+            raise ValueError("vault_id 不能为空白")
+        return v
     canvas_file: Optional[str] = Field(
         None, description="Canvas 文件路径 (用于上下文过滤)"
     )
@@ -67,6 +93,7 @@ class RAGQueryRequest(BaseModel):
         json_schema_extra={
             "example": {
                 "query": "什么是逆否命题？",
+                "vault_id": "canvas_vault",
                 "canvas_file": "离散数学.canvas",
                 "subject_id": "math",
                 "cross_subject": False,
@@ -271,21 +298,52 @@ async def rag_query(
         HTTPException 503: RAG 服务不可用
         HTTPException 500: 查询执行失败
     """
-    # CARD-G4-3 Codex round-3 HIGH-1: 这条入口日志在主 try **之外**, 它抛错会
-    # 让请求直接 500 且 `rag_service.query` 一次都没被调用 —— 观测面又一次成了
-    # 业务面的失败源, 而且它在**本卡已修改的文件里**, 不能推给"服务层硬边界外"。
-    # 与 log_retrieval_status_decision 同口径: 观测失败最多损失可观测性。
-    try:
-        logger.info(
-            f"RAG query: {request.query[:50]}... subject={request.subject_id} cross={request.cross_subject}"
-        )
-    except Exception:  # noqa: BLE001 — 观测面刻意兜底
-        pass
+    # CARD-G4-3 Codex round-3 HIGH-1 → CARD-OBS-nothrow-logging: 这条入口日志
+    # 曾在主 try **之外**手写 try/except 兜底 (它抛错会让请求直接 500 且
+    # `rag_service.query` 一次都没被调用)。本卡把兜底收敛进 NoThrowLogger 本身
+    # (与 log_retrieval_status_decision 同口径: 观测失败最多损失可观测性),
+    # 调用点恢复为直接调用 —— call-site 的 try/except 与包装器双层兜底会让
+    # test_rag_four_state_api 的注入门测不到包装器 (假绿面)。
+    logger.info(
+        "RAG query: %s... subject=%s cross=%s",
+        request.query[:50],
+        request.subject_id,
+        request.cross_subject,
+    )
 
-    # Story 1.9 CRITICAL fix: Set ContextVar so downstream services
-    # (via get_current_subject_id()) see the correct subject.
-    if request.subject_id:
-        set_current_subject_id(request.subject_id)
+    # CARD-G4-4: 每请求恰一次 VaultScope 解析 (chat.py:284-296 范式)。
+    # resolve_vault_scope 内部把解析结果注入 ContextVar (group_id, 含
+    # subject/canvas 二级), 替代原「subject_id 有值才 set、缺省不注入」的
+    # 旁路 —— 本端点从此没有无作用域路径。vault_id 必填由 pydantic 把守
+    # (缺 → 422); 请求 vault ≠ 进程 active vault → 409 fail-closed
+    # (CARD-G2-2 契约 2), 禁止静默改写作用域。
+    _scope = resolve_vault_scope(
+        request.vault_id,
+        subject_id=request.subject_id,
+        canvas_path=request.canvas_file,
+    )
+    # 与入口日志同口径: 观测失败最多损失可观测性, 不得成为业务失败源
+    # (G4-3 round-3 HIGH-1 确立的纪律; 日志一律惰性参数)。
+    # CARD-OBS-nothrow-logging-R1 归一 (CARD-G4-4a 完成条件 (k)): 兜底收敛进
+    # 模块级 `logger = nothrow(...)`, 调用点**不再**手写 try/except ——
+    # 与入口日志统一为**单层**保护 (OBS 78c9e6e7 对入口日志已确立该口径,
+    # 本行是 G4-4 后加日志的补齐)。理由: 调用点 try/except 叠在包装器之上时,
+    # 任何针对本行的注入负控都会先被调用点吞掉, 测不到包装器本身。
+    # ⚠️ 现有门覆盖面的准确说法 (Codex round-4 HIGH-2 更正, 勿再写宽):
+    #   · test_nothrow_logging_api.py 的 /rag/query 用例 (TestRagQueryErrorLogs)
+    #     注入的是 **error** 日志的 503/500 分支, **不覆盖**本行的 info;
+    #   · 真正覆盖本行的是 test_rag_four_state_api.py:197
+    #     (TestRagTraceAlignment::test_entry_logger_failure_does_not_break_response)
+    #     —— 它 patch rag.logger.inner.info, 本 handler 两处 logger.info 都经过
+    #     该注入点, 断言 200 且 rag_service.query 已被 await;
+    #   · 但它**同时**命中入口与本行, **无法单独锁定本行**。scope 专用的负控
+    #     (含验伪锚) 尚未沉淀为常驻用例, 已登记移交 OBS 后续卡。
+    logger.info(
+        "RAG query scope resolved: vault=%s source=%s group=%s",
+        _scope.vault_id,
+        _scope.source,
+        _scope.group_id,
+    )
 
     try:
         result = await rag_service.query(
@@ -379,11 +437,11 @@ async def rag_query(
         )
 
     except RAGUnavailableError as e:
-        logger.error(f"RAG service unavailable: {e}")
+        logger.error("RAG service unavailable: %s", e)
         raise HTTPException(status_code=503, detail=str(e)) from e
 
     except RAGServiceError as e:
-        logger.error(f"RAG query failed: {e}")
+        logger.error("RAG query failed: %s", e)
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
@@ -416,7 +474,7 @@ async def get_weak_concepts(
     Returns:
         WeakConceptsResponse: 薄弱概念列表
     """
-    logger.info(f"Getting weak concepts for: {canvas_file}")
+    logger.info("Getting weak concepts for: %s", canvas_file)
 
     try:
         concepts = await rag_service.get_weak_concepts(
@@ -438,7 +496,7 @@ async def get_weak_concepts(
         )
 
     except RAGUnavailableError as e:
-        logger.error(f"RAG service unavailable: {e}")
+        logger.error("RAG service unavailable: %s", e)
         raise HTTPException(status_code=503, detail=str(e)) from e
 
 
@@ -494,7 +552,7 @@ async def get_rag_config() -> dict:
         config = merge_config()
         return dict(config)
     except Exception as e:
-        logger.error(f"Failed to load RAG config: {e}")
+        logger.error("Failed to load RAG config: %s", e)
         raise HTTPException(status_code=500, detail=f"Config load failed: {e}") from e
 
 
@@ -538,7 +596,9 @@ async def update_rag_config(updates: dict) -> dict:
                 yaml.dump(existing, f, default_flow_style=False, allow_unicode=True)
 
             logger.info(
-                f"[CONFIG] Updated {len(updates)} params, persisted to {config_path}"
+                "[CONFIG] Updated %s params, persisted to %s",
+                len(updates),
+                config_path,
             )
         except ImportError:
             logger.warning(
@@ -548,7 +608,7 @@ async def update_rag_config(updates: dict) -> dict:
         # Log changes
         for param, value in updates.items():
             old_val = DEFAULT_CONFIG.get(param, "N/A")
-            logger.info(f"[CONFIG] Updated {param}: {old_val} -> {value}")
+            logger.info("[CONFIG] Updated %s: %s -> %s", param, old_val, value)
 
         return {
             "status": "ok",
@@ -557,5 +617,5 @@ async def update_rag_config(updates: dict) -> dict:
         }
 
     except Exception as e:
-        logger.error(f"Failed to update RAG config: {e}")
+        logger.error("Failed to update RAG config: %s", e)
         raise HTTPException(status_code=400, detail=f"Config update failed: {e}") from e

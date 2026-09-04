@@ -77,6 +77,14 @@ sys.dont_write_bytecode = True
 try:
     _spec = importlib.util.spec_from_file_location("recap_scan", _SCAN_PATH)
     _rs = importlib.util.module_from_spec(_spec)
+    # ⛔ 第十批集成修复 (CARD-维护B-R4 合入时主 session 发现): recap_scan.py 自
+    # R4 起含模块级 `@dataclass`; Python 3.14 的 dataclass 自省会取
+    # `sys.modules[cls.__module__].__dict__`, 模块不在册 ⇒ `None.__dict__`
+    # ⇒ AttributeError, 本脚本整体不可用 (tests/skills/test_g5_9_recap_exam.py
+    # 117 条同崩)。importlib 官方配方: exec_module **之前**先注册 sys.modules。
+    # 与 backend/tests/regression/test_recap_scan_signals.py:1517 同一修法——
+    # 那里的注释说「生产路径不受影响, 那边脚本是 __main__」, 对本加载点不成立。
+    sys.modules["recap_scan"] = _rs
     _spec.loader.exec_module(_rs)
 finally:
     sys.dont_write_bytecode = _prev_dont_write

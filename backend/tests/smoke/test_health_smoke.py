@@ -1,20 +1,26 @@
-"""Smoke tests: verify app boots and health endpoints respond.
+"""Smoke tests: verify health endpoints respond.
 
 These run as the FIRST gate in PostToolUse hook (~2s).
 If smoke fails, skip all other tests (fast-fail).
 
 Reuses the existing `client` fixture from conftest.py (function-scoped TestClient).
+
+CARD-TEST-isolate-lifespan (2026-09-01): the root `client` fixture is now
+lifespan-free — these tests exercise the **route layer only** and no longer
+prove that the app's startup sequence runs. Real-startup coverage lives in
+tests/integration/ and tests/e2e/ (the advisory-exempt files that still run
+the real lifespan). Do not describe these tests as boot verification.
 """
 
 import pytest
 
 
 @pytest.mark.smoke
-class TestAppBoot:
-    """Verify the FastAPI app starts without crash."""
+class TestRouteAvailability:
+    """Verify the route layer responds (lifespan-free; NOT a boot test)."""
 
-    def test_app_starts(self, client):
-        """App boots and responds to any request."""
+    def test_health_route_responds(self, client):
+        """Health route responds (routing + middleware healthy)."""
         response = client.get("/api/v1/health")
         assert response.status_code == 200
 

@@ -1,0 +1,154 @@
+=== RUNTIME-FILES before (2026-09-03 03:17:22 +0800) ===
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/data/bug_log.jsonl
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/app/data/vault_index_pending.jsonl
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/data/outbox/events.jsonl
+=== 执行被包裹命令 ===
+$ /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/.venv/bin/python -m pytest tests/api tests/unit/test_vault_scope_409.py -q -p no:cacheprovider
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 267 items
+
+tests/api/v1/endpoints/test_agents_dedup.py ...............              [  5%]
+tests/api/v1/endpoints/test_agents_encoding.py ................          [ 11%]
+tests/api/v1/endpoints/test_agents_health.py ............                [ 16%]
+tests/api/v1/endpoints/test_agents_learning_event.py ................... [ 23%]
+                                                                         [ 23%]
+tests/api/v1/endpoints/test_fsrs_state_api.py ..............             [ 28%]
+tests/api/v1/endpoints/test_memory_four_state_api.py ................... [ 35%]
+..............................                                           [ 46%]
+tests/api/v1/endpoints/test_metadata_subject_mapping.py ................ [ 52%]
+..F                                                                      [ 53%]
+tests/api/v1/endpoints/test_multimodal.py .............                  [ 58%]
+tests/api/v1/endpoints/test_ping.py ..                                   [ 59%]
+tests/api/v1/endpoints/test_rag_four_state_api.py ...................... [ 67%]
+........                                                                 [ 70%]
+tests/api/v1/endpoints/test_recommend_action.py ........................ [ 79%]
+F...............                                                         [ 85%]
+tests/unit/test_vault_scope_409.py ..................................... [ 99%]
+.                                                                        [100%]
+
+=================================== FAILURES ===================================
+________________ TestGetMetadata.test_metadata_group_id_format _________________
+tests/api/v1/endpoints/test_metadata_subject_mapping.py:315: in test_metadata_group_id_format
+    assert data["group_id"] == "math54:线性代数"
+E   AssertionError: assert 'vault:canvas...t:math54:线性代数' == 'math54:线性代数'
+E     
+E     - math54:线性代数
+E     + vault:canvas_vault:math54:线性代数
+---------------------------- Captured stdout setup -----------------------------
+{"event": "SubjectResolver config loaded: 2 mappings, 2 category rules", "logger": "app.services.subject_resolver", "level": "info", "timestamp": "2026-09-02T19:17:30.565693Z"}
+------------------------------ Captured log setup ------------------------------
+INFO     app.services.subject_resolver:subject_resolver.py:146 {'event': 'SubjectResolver config loaded: 2 mappings, 2 category rules', 'logger': 'app.services.subject_resolver', 'level': 'info', 'timestamp': '2026-09-02T19:17:30.565693Z'}
+----------------------------- Captured stdout call -----------------------------
+{"event": "vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)", "request_id": "5506197520", "logger": "app.core.vault_scope", "level": "warning", "timestamp": "2026-09-02T19:17:30.567084Z"}
+{"method": "GET", "path": "/api/v1/canvas-meta/metadata", "endpoint": "/api/v1/canvas-meta/metadata", "status": 200, "duration_ms": 1.27, "event": "request.completed", "request_id": "5506197520", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-02T19:17:30.567645Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.core.vault_scope:vault_scope.py:195 vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/canvas-meta/metadata', 'endpoint': '/api/v1/canvas-meta/metadata', 'status': 200, 'duration_ms': 1.27, 'event': 'request.completed', 'request_id': '5506197520', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-02T19:17:30.567645Z'}
+_ TestRecommendActionEndpoint.test_history_query_failure_graceful_degradation __
+tests/api/v1/endpoints/test_recommend_action.py:351: in test_history_query_failure_graceful_degradation
+    response = await recommend_action(request, mock_memory)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app/api/v1/endpoints/agents.py:2069: in recommend_action
+    history_result = await memory_service.get_learning_history(
+tests/api/v1/endpoints/test_recommend_action.py:76: in get_learning_history
+    raise Exception("Mock history query error")
+E   Exception: Mock history query error
+----------------------------- Captured stdout call -----------------------------
+{"event": "vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)", "logger": "app.core.vault_scope", "level": "warning", "timestamp": "2026-09-02T19:17:30.685120Z"}
+{"event": "[Story 31.3] recommend_action: score=65, node_id=node-005, canvas_name=test.canvas, include_history=True", "logger": "app.api.v1.endpoints.agents", "level": "info", "timestamp": "2026-09-02T19:17:30.685157Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.core.vault_scope:vault_scope.py:195 vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)
+INFO     app.api.v1.endpoints.agents:agents.py:2052 [Story 31.3] recommend_action: score=65, node_id=node-005, canvas_name=test.canvas, include_history=True
+=============================== warnings summary ===============================
+../../../../backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../../../backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../../../backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../../../backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:805
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/app/api/v1/endpoints/chat.py:805: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:105
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/app/api/v1/endpoints/metadata.py:105: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:176
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/app/api/v1/endpoints/metadata.py:176: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../../../backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+tests/api/v1/endpoints/test_agents_dedup.py::TestDedupEndpointResponses::test_duplicate_request_returns_409
+tests/api/v1/endpoints/test_agents_dedup.py::TestDedupEndpointResponses::test_409_response_detail_format
+tests/api/v1/endpoints/test_agents_learning_event.py::TestEndpointIntegration::test_explain_oral_triggers_recording
+tests/api/v1/endpoints/test_agents_learning_event.py::TestAllExplainEndpointsRecording::test_explain_endpoint_records_event[explain_oral-explain_oral]
+tests/api/v1/endpoints/test_agents_learning_event.py::TestAllExplainEndpointsRecording::test_explain_endpoint_records_event[explain_clarification-explain_clarification]
+tests/api/v1/endpoints/test_agents_learning_event.py::TestAllExplainEndpointsRecording::test_explain_endpoint_records_event[explain_comparison-explain_comparison]
+tests/api/v1/endpoints/test_agents_learning_event.py::TestAllExplainEndpointsRecording::test_explain_endpoint_records_event[explain_memory-explain_memory]
+tests/api/v1/endpoints/test_agents_learning_event.py::TestAllExplainEndpointsRecording::test_explain_endpoint_records_event[explain_four_level-explain_four-level]
+tests/api/v1/endpoints/test_agents_learning_event.py::TestAllExplainEndpointsRecording::test_explain_endpoint_records_event[explain_example-explain_example]
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/app/api/v1/endpoints/agents.py:1168: DeprecationWarning: deprecated
+    legacy_group_id=request.group_id,
+
+tests/api/v1/endpoints/test_agents_learning_event.py::TestEndpointIntegration::test_decompose_basic_triggers_recording
+tests/api/v1/endpoints/test_agents_learning_event.py::TestEndpointIntegration::test_learning_event_failure_does_not_block_response
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/app/api/v1/endpoints/agents.py:787: DeprecationWarning: deprecated
+    legacy_group_id=request.group_id,
+
+tests/api/v1/endpoints/test_agents_learning_event.py::TestEndpointIntegration::test_decompose_deep_triggers_recording
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/app/api/v1/endpoints/agents.py:900: DeprecationWarning: deprecated
+    legacy_group_id=request.group_id,
+
+tests/api/v1/endpoints/test_agents_learning_event.py::TestEndpointIntegration::test_score_understanding_triggers_recording
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/app/api/v1/endpoints/agents.py:1019: DeprecationWarning: deprecated
+    legacy_group_id=request.group_id,
+
+tests/api/v1/endpoints/test_recommend_action.py: 13 warnings
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/app/api/v1/endpoints/agents.py:2042: DeprecationWarning: deprecated
+    legacy_group_id=request.group_id,
+
+tests/unit/test_vault_scope_409.py::TestEndpointConflict409::test_sync_batch_mismatch_409
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/app/api/v1/endpoints/sync.py:117: DeprecationWarning: deprecated
+    legacy_group_id=request.group_id,
+
+tests/unit/test_vault_scope_409.py::TestCodexRound1RectifiedEndpoints::test_inheritance_distill_mismatch_409
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/app/api/v1/endpoints/inheritance.py:83: DeprecationWarning: deprecated
+    request.vault_id, legacy_group_id=request.group_id
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetMetadata::test_metadata_group_id_format
+FAILED tests/api/v1/endpoints/test_recommend_action.py::TestRecommendActionEndpoint::test_history_query_failure_graceful_degradation
+================== 2 failed, 265 passed, 38 warnings in 1.12s ==================
+=== RUNTIME-FILES after (2026-09-03 03:17:33 +0800) ===
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/data/bug_log.jsonl
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/app/data/vault_index_pending.jsonl
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2/backend/data/outbox/events.jsonl
+WRAPPED-COMMAND-EXIT: 1
+RUNTIME-FILES: unchanged

@@ -1,0 +1,100 @@
+{
+ "board_exists": true,
+ "board_stem": "递归与分治 (Recursion & Divide-Conquer)",
+ "board_name": "递归与分治 (Recursion & Divide-Conquer)",
+ "recap_date": "2026-08-27",
+ "report_path": "outputs/回顾-递归与分治 (Recursion & Divide-Conquer)-2026-08-27.md",
+ "data_mode": "manifest",
+ "manifest": {
+  "source": "live",
+  "source_status": "ok",
+  "degraded": false,
+  "degraded_reason": null,
+  "generated_at": "2026-08-26T22:13:32.094945+00:00",
+  "lag_seconds": 0.0,
+  "stale": false,
+  "orphans": [],
+  "orphans_count": 0,
+  "dual_source_gap": {
+   "concepts_only": [],
+   "frontmatter_only": []
+  },
+  "parse_errors_count": 0,
+  "exam_history": [
+   {
+    "exam_board_id": "递归与分治 (Recursion & Divide-Conquer)-2026-07-24-0714",
+    "created_at": "2026-07-24T07:14:16Z",
+    "status": "in_progress",
+    "selected_node": "my-recursion-notes",
+    "question_count": 1
+   }
+  ],
+  "exam_history_count": 1
+ },
+ "source_revision": {
+  "board_sha256": "47b1451f0862fd7e802132ae5a1e9557e9b205dd9018763d58302f23e2832ab0",
+  "board_mtime_utc": "2026-08-13T00:00:35Z",
+  "scan_at_utc": "2026-08-26T22:14:15Z",
+  "manifest_generated_at": "2026-08-26T22:13:32.094945+00:00",
+  "manifest_lag_seconds": 0.0,
+  "manifest_stale": false
+ },
+ "ledger": {
+  "seeds": [
+   {
+    "node_id": "my-recursion-notes",
+    "role": "seed",
+    "role_source": "manifest",
+    "is_stub": false,
+    "mastery_score": null,
+    "mastery_source": "absent",
+    "attempt_count": null,
+    "last_examined": null,
+    "created_at": null,
+    "created_from": null,
+    "pick_rank": 1,
+    "relation_type": null,
+    "relation_target": null,
+    "derived_at": null,
+    "derived_reason": null,
+    "tips": [],
+    "tips_count": 0,
+    "tips_open": 0,
+    "error_candidates_pending": 0,
+    "derived_children": [],
+    "derived_children_count": 0
+   }
+  ],
+  "derived": [],
+  "unknown": []
+ },
+ "counts": {
+  "members": 1,
+  "seeds": 1,
+  "derived": 0,
+  "stubs": 0,
+  "never_examined": 1,
+  "tips_total": 0,
+  "tips_unanswered_upper_bound": 0,
+  "tips_understanding_open": 0,
+  "tips_undated": 0,
+  "body_callouts": 0,
+  "annotations": 0,
+  "relation_types": {},
+  "error_candidates_pending": 0
+ },
+ "tips_oldest3": [],
+ "scale_gate": {
+  "member_threshold": 30,
+  "annotation_threshold": 100,
+  "over_threshold": false,
+  "detail_k": 10,
+  "detail_node_ids": null,
+  "tail_counts": null
+ },
+ "concepts_members": [
+  "my-recursion-notes"
+ ],
+ "previous_recap": null,
+ "unsafe_write_targets": []
+}

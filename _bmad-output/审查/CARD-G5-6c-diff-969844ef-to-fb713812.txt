@@ -1,0 +1,1060 @@
+diff --git a/_bmad-output/审查/evidence-g56c/README-取证说明.md b/_bmad-output/审查/evidence-g56c/README-取证说明.md
+new file mode 100644
+index 00000000..7ff888e6
+--- /dev/null
++++ b/_bmad-output/审查/evidence-g56c/README-取证说明.md
+@@ -0,0 +1,52 @@
++# CARD-G5-6c 取证说明（BATCH-2026-09-01-第九批）
++
++本目录是 CARD-G5-6c 的**可复现**取证包。它证明什么、不证明什么，逐条如实写在下面。
++
++## 1. 三条新反例的先红 / 后绿（核心裁判 2）
++
++`make_repro_g56c.py <目标目录>` 落三份 tmp vault，字节与 round-8 审查存档逐字节对齐：
++
++| 反例 | 文件 | 字节数 | 十六进制（前缀） |
++|---|---|---|---|
++| round-8 BLOCKER-1 | `hash-NBSP.md` | 8 | `23c2a06b6565700a`（`#` + U+00A0 + `keep` + LF） |
++| round-8 BLOCKER-2 | `GPT4声明.md` | 36 | `2d2d2d0a67656e657261746f723a20…` |
++| round-8 HIGH | `DOI来源.md` | 32 | `2d2d2d0a536f757263653a20444f493a…` |
++
++⛔ 脚本对 NBSP 反例带**字节断言**（`EXPECTED_HEX`）：不可见字符若被编辑器/格式化器
++静默换成普通空格，脚本当场 `SystemExit`，不会产出一份「看着对但测错东西」的 fixture。
++同理，源码里这些字符一律写成 `\uXXXX` ASCII 转义，不直接敲 —— 本卡实测 `ruff format`
++重排该文件后字节自证仍通过，正是这个写法的回报。
++
++复现（`--vault` 与 `--out-dir` 都用 tmp，零写 live）：
++
++```sh
++python3 -B canvas-vault/.claude/skills/clear-inbox/scripts/inbox_preview.py \
++  --vault <tmp>/NEW_HEADING/vault --now 2026-09-01T00:00:00+08:00 \
++  --out-dir <tmp>/NEW_HEADING/out
++```
++
++- **修复前**（HEAD `969844ef`）：三份均 `C3_empty_or_skeleton / 建议删 / confident=true`，
++  与 round-8 §二贴出的 JSON 逐字符一致。
++- **修复后**：三份均 `C6_undecided / 拿不准 / confident=false`。
++- 三份输入文件的 sha256 在跑前跑后相同（零写侧对账）。
++
++## 2. 回退变异负控（核心裁判 3）
++
++`g56c_mutations.py <仓库根>`，输出存 `g56c_mutations_output.txt`。
++
++判据比「N/N killed」严：**指定的那一道门必须变红**。`rc=5`（没收集到用例）不算红。
++每条变异回退该缺陷的**全部**防线层（M-AI 退两层、M-DOI 退两层）—— 只退一层会被
++另一层兜住，门看起来「没抓到」，从而被误判为不承重。
++
++实测：三条各 `1 failed, 81 passed`，**连带红恰好 1 门**（说明每道新门恰好覆盖它
++声称覆盖的那条防线，既非假红也非靠交叉保护蒙混）；跑完源码 sha256 与基线逐字节相同。
++
++⛔ 本脚本**原地修改 checkout 源码**，必须串行、独占运行。
++
++## 3. 本取证包不证明什么
++
++- 不证明「没有第四条」。round-3..8 每一轮都在「已全部声明」之后又抓出新构造；
++  本卡只证明 round-8 点名的那三条已被拦住。
++- 不证明真实库存上的判据准确率（I-4 仍未解锁：两个 vault 都还没有 `_待处理/`）。
++- 不证明非法端口、Markdown 特殊路径等已登记的 M/L 边界被修 —— 它们按卡文 §3
++  默认裁决**保留不修**，见生产文件头偏差 16 / 17。
+diff --git a/_bmad-output/审查/evidence-g56c/g56c_mutations.py b/_bmad-output/审查/evidence-g56c/g56c_mutations.py
+new file mode 100644
+index 00000000..1ad86e2b
+--- /dev/null
++++ b/_bmad-output/审查/evidence-g56c/g56c_mutations.py
+@@ -0,0 +1,151 @@
++#!/usr/bin/env python3
++"""CARD-G5-6c 负控：三条回退变异，各须由**指定的那道门**杀死。
++
++判据（逐条硬门，缺一即 FAIL）：
++  1. 指定 nodeid 必须出现在 FAILED 列表里 —— 「某处有失败」不算，
++     必须是那道门红（reference_gate_design_pitfalls）。
++  2. rc=5（no tests collected）不算红 —— 那是没跑，不是抓到了。
++  3. 每条变异串行执行，跑完立刻还原并**逐字节**比对 sha256
++     （reference_mutation_script_serial_only + temp_file_swap_needs_exit_trap）。
++  4. 每条变异回退**该缺陷的全部防线层**，不只一层 ——
++     只改一层会被纵深兜住，误判门不承重（reference_mutation_must_disable_all_layers）。
++
++⛔ 本脚本原地修改 checkout 源码，必须串行、必须独占运行。
++"""
++
++from __future__ import annotations
++
++import hashlib
++import pathlib
++import subprocess
++import sys
++
++ROOT = pathlib.Path(sys.argv[1]).resolve()
++SRC = ROOT / "canvas-vault/.claude/skills/clear-inbox/scripts/inbox_preview.py"
++TESTFILE = "tests/skills/test_g5_6_clear_inbox.py"
++BACKEND = ROOT / "backend"
++PYTEST = [str(BACKEND / ".venv/bin/pytest"), TESTFILE, "-q", "-p", "no:cacheprovider"]
++
++# ── 三条变异：(名字, 指定必杀门, [(old, new), ...] 全部防线层) ──
++MUTATIONS = [
++    (
++        "M-NBSP  井号后分隔回退到 Unicode \\s",
++        "test_nbsp_after_hash_is_not_an_atx_heading",
++        [
++            (
++                r'_HEADING_RE = re.compile(r"^ {0,3}#{1,6}(?:[ \t]|$)")',
++                r'_HEADING_RE = re.compile(r"^ {0,3}#{1,6}(?:\s|$)")',
++            )
++        ],
++    ),
++    (
++        "M-AI    生成断言结构 + 生成器键两层全回退",
++        "test_model_version_generation_claim_is_undigested_signal",
++        [
++            ("    gen_claim = find_generation_claim(text)\n", "    gen_claim = None\n"),
++            (
++                "    generator_keys = [k for k in fm if _norm_fm_key(k) in _GENERATOR_DECL_KEYS]\n",
++                "    generator_keys = []\n",
++            ),
++        ],
++    ),
++    (
++        "M-DOI   来源键名归一 + DOI 值形态两层全回退",
++        "test_doi_source_identifier_blocks_deletion",
++        [
++            (
++                "    source_alias_keys = [k for k in fm if _norm_fm_key(k) in _SOURCE_DECL_KEYS]\n",
++                '    source_alias_keys = [k for k in fm if k == "source"]\n',
++            ),
++            (
++                "    doi_bearing_keys = [k for k, v in fm.items() if _looks_like_doi_value(v)]\n",
++                "    doi_bearing_keys = []\n",
++            ),
++        ],
++    ),
++]
++
++
++def sha(p: pathlib.Path) -> str:
++    return hashlib.sha256(p.read_bytes()).hexdigest()
++
++
++def run_suite() -> tuple[int, list[str], str]:
++    r = subprocess.run(
++        PYTEST,
++        cwd=BACKEND,
++        capture_output=True,
++        text=True,
++        env={
++            "PATH": "/usr/bin:/bin",
++            "PYTHONDONTWRITEBYTECODE": "1",
++            "HOME": str(pathlib.Path.home()),
++            "LC_ALL": "C.UTF-8",
++        },
++    )
++    out = r.stdout + r.stderr
++    failed = [
++        ln.split("::")[1].split(" ")[0].strip()
++        for ln in out.splitlines()
++        if ln.startswith("FAILED ") and "::" in ln
++    ]
++    tail = [
++        ln
++        for ln in out.splitlines()
++        if "passed" in ln or "failed" in ln or "error" in ln
++    ]
++    return r.returncode, failed, (tail[-1] if tail else "<no summary>")
++
++
++original = SRC.read_bytes()
++base_sha = sha(SRC)
++print(f"源码基线 sha256 = {base_sha}\n")
++
++results: list[tuple[str, bool, str]] = []
++try:
++    for name, target_gate, layers in MUTATIONS:
++        text = original.decode("utf-8")
++        for old, new in layers:
++            n = text.count(old)
++            if n != 1:
++                raise SystemExit(f"[{name}] 变异锚点出现 {n} 次（须 1）：{old!r}")
++            text = text.replace(old, new)
++        SRC.write_text(text, encoding="utf-8")
++        assert sha(SRC) != base_sha, f"[{name}] 变异没有真的改到字节"
++
++        rc, failed, summary = run_suite()
++
++        # 还原 + 逐字节比对（每条变异跑完立刻还原，串行不重叠）
++        SRC.write_bytes(original)
++        restored = sha(SRC)
++
++        killed = target_gate in failed
++        ok = killed and rc not in (0, 5) and restored == base_sha
++        detail = (
++            f"rc={rc} | {summary} | 指定门{'已' if killed else '未'}被杀"
++            f" | 连带红 {len(failed)} 门 | 还原 sha {'一致' if restored == base_sha else '⛔不一致'}"
++        )
++        results.append((name, ok, detail))
++        print(
++            f"{'✅' if ok else '❌'} {name}\n   目标门 {target_gate}\n   {detail}\n"
++            f"   FAILED: {failed}\n"
++        )
++finally:
++    SRC.write_bytes(original)
++    final = sha(SRC)
++    print(
++        f"finally 还原后 sha256 = {final} "
++        f"({'与基线逐字节相同' if final == base_sha else '⛔ 漂移'})"
++    )
++
++print("\n" + "=" * 70)
++allok = (
++    all(ok for _, ok, _ in results)
++    and sha(SRC) == base_sha
++    and len(results) == len(MUTATIONS)
++)
++print(
++    f"G56C_NEGATIVE_CONTROL: {'PASS' if allok else 'FAIL'} "
++    f"（{sum(1 for _, ok, _ in results if ok)}/{len(MUTATIONS)} 变异各由指定门杀死）"
++)
++sys.exit(0 if allok else 1)
+diff --git a/_bmad-output/审查/evidence-g56c/g56c_mutations_output.txt b/_bmad-output/审查/evidence-g56c/g56c_mutations_output.txt
+new file mode 100644
+index 00000000..235e0fdf
+--- /dev/null
++++ b/_bmad-output/审查/evidence-g56c/g56c_mutations_output.txt
+@@ -0,0 +1,21 @@
++源码基线 sha256 = cba6e46415879a451f8a6736441f26c3e8cd8c5876ab58ffa130d235e118c59e
++
++✅ M-NBSP  井号后分隔回退到 Unicode \s
++   目标门 test_nbsp_after_hash_is_not_an_atx_heading
++   rc=1 | ================== 1 failed, 81 passed, 10 warnings in 5.86s =================== | 指定门已被杀 | 连带红 1 门 | 还原 sha 一致
++   FAILED: ['test_nbsp_after_hash_is_not_an_atx_heading']
++
++✅ M-AI    生成断言结构 + 生成器键两层全回退
++   目标门 test_model_version_generation_claim_is_undigested_signal
++   rc=1 | ================== 1 failed, 81 passed, 10 warnings in 5.83s =================== | 指定门已被杀 | 连带红 1 门 | 还原 sha 一致
++   FAILED: ['test_model_version_generation_claim_is_undigested_signal']
++
++✅ M-DOI   来源键名归一 + DOI 值形态两层全回退
++   目标门 test_doi_source_identifier_blocks_deletion
++   rc=1 | ================== 1 failed, 81 passed, 10 warnings in 5.87s =================== | 指定门已被杀 | 连带红 1 门 | 还原 sha 一致
++   FAILED: ['test_doi_source_identifier_blocks_deletion']
++
++finally 还原后 sha256 = cba6e46415879a451f8a6736441f26c3e8cd8c5876ab58ffa130d235e118c59e (与基线逐字节相同)
++
++======================================================================
++G56C_NEGATIVE_CONTROL: PASS （3/3 变异各由指定门杀死）
+diff --git a/_bmad-output/审查/evidence-g56c/make_repro_g56c.py b/_bmad-output/审查/evidence-g56c/make_repro_g56c.py
+new file mode 100644
+index 00000000..a932956e
+--- /dev/null
++++ b/_bmad-output/审查/evidence-g56c/make_repro_g56c.py
+@@ -0,0 +1,31 @@
++#!/usr/bin/env python3
++"""CARD-G5-6c round-8 三条新反例的 tmp fixture 落盘 + 字节自证。
++
++不可见字符一律走 \\uXXXX 转义写，禁止在源码里直接敲 —— 编辑器/工具链
++会把 NBSP 与普通空格互换，肉眼与 diff 都看不出来。
++"""
++
++import pathlib
++import sys
++
++REPRO = pathlib.Path(sys.argv[1])
++
++CASES = {
++    # round-8 BLOCKER-1：`#` + U+00A0 + `keep` + 换行，权威字节 23c2a06b6565700a
++    "NEW_HEADING": ("hash-NBSP.md", "#\u00a0keep\n"),
++    # round-8 BLOCKER-2：带模型版本的真实生成声明
++    "NEW_AI": ("GPT4声明.md", "---\ngenerator: 由 GPT-4 生成\n---\n"),
++    # round-8 HIGH：大写 Source 键 + DOI 来源标识
++    "NEW_SOURCE": ("DOI来源.md", "---\nSource: DOI:10.1000/xyz\n---\n"),
++}
++
++EXPECTED_HEX = {"NEW_HEADING": "23c2a06b6565700a"}
++
++for key, (name, body) in CASES.items():
++    p = REPRO / key / "vault" / "_待处理" / name
++    raw = body.encode("utf-8")
++    p.write_bytes(raw)
++    print(f"{key:12s} {name:16s} {len(raw):3d} bytes  hex={raw.hex()}")
++    want = EXPECTED_HEX.get(key)
++    if want is not None and raw.hex() != want:
++        raise SystemExit(f"字节不符权威取证值：{key} 期望 {want} 实得 {raw.hex()}")
+diff --git a/_bmad-output/验收单/UAT-CARD-G5-6-clear-inbox只读盘点提名preview-2026-08-31.md b/_bmad-output/验收单/UAT-CARD-G5-6-clear-inbox只读盘点提名preview-2026-08-31.md
+index 49cec736..680c0ffb 100644
+--- a/_bmad-output/验收单/UAT-CARD-G5-6-clear-inbox只读盘点提名preview-2026-08-31.md
++++ b/_bmad-output/验收单/UAT-CARD-G5-6-clear-inbox只读盘点提名preview-2026-08-31.md
+@@ -1,9 +1,9 @@
+ ---
+ type: uat
+-title: "UAT · CARD-G5-6 clear-inbox 只读盘点提名 preview（2026-08-31，v2 六轮整改 · 长尾登记合并）"
++title: "UAT · CARD-G5-6 clear-inbox 只读盘点提名 preview（v3 · 2026-09-02 长尾三条已修）"
+ date: 2026-08-31
+-status: "已按用户裁决收口（round-8 终裁后不再续轮）；五条原缺陷+12 类衍生变体已修；3 条长尾变体登记留下一批"
+-scope: "BATCH-2026-08-31-第七批 / CARD-G5-6 → BATCH-2026-09-01-第八批 / CARD-G5-6b — R8 稿 Step 0-2 只读半边；v2 = round-2 五条缺陷定向整改 + 三轮自审 + round-3..8 六轮独立审查整改循环"
++status: "v3（CARD-G5-6c）：round-8 登记的 3 条长尾已全部修复并各配定向回归门+回退变异负控；五条原缺陷+12 类衍生仍不回归。⚠️ 「清零」在本对抗范式下仍不可达 —— 见「证据缺口」"
++scope: "BATCH-2026-08-31-第七批 / CARD-G5-6 → 第八批 / CARD-G5-6b → BATCH-2026-09-01-第九批 / CARD-G5-6c — R8 稿 Step 0-2 只读半边；v3 = v2 全部整改 + round-8 三条长尾（井号后 NBSP / 带模型版本的生成声明 / 大写 Source 的 DOI 来源）定向修复"
+ worktree: "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v6-inbox"
+ ---
+ 
+@@ -15,24 +15,27 @@ worktree: "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktre
+ > 它**不会移动、删除或修改你的任何既有笔记**（唯一新增 = 输出文件夹里的两份
+ > 盘点报告）—— 真正动手清理属于下一张卡（G5-7 执行侧）。
+ >
+-> **v2 是什么**：上一版经审查判「未清零」，这一版经历了 **6 轮独立对抗审查 +
+-> 每轮整改**的循环（你批准突破原定两轮上限）。五条原始误判全部修掉并经六轮
+-> 连续确认闭合；过程中还抓出并修掉了 **12 类衍生的「会删错东西」变体**。
+-> 最终一轮审查又构造出 3 条更极端的变体 —— 按你的裁决，这 3 条**如实登记为
+-> 已知长尾、不再继续修**，留下一批处理（见下）。
++> **v3 是什么**：v2 经历了 **6 轮独立对抗审查 + 每轮整改**（你批准突破原定
++> 两轮上限），五条原始误判全部修掉并经六轮连续确认闭合，过程中还修掉了
++> **12 类衍生的「会删错东西」变体**；最后一轮又构造出 3 条更极端的变体，
++> 当时按你的裁决登记为长尾、留到下一批。
++> **v3（第九批 CARD-G5-6c）就是那个下一批**：这 3 条已全部修掉（见下）。
+ 
+-## 📌 round-8 终裁登记的 3 条已知长尾（下一批的活，本卡不修）
++## 📌 round-8 登记的 3 条长尾 —— 本版全部修掉
+ 
+-1. **井号后跟特殊空格的标题行**：`#` 和文字之间如果是不普通空格（从网页复制
+-   常见），仍会被当成标题剥掉 → 极端构造下可致误判空文件。
+-2. **写明模型版本的 AI 声明**：如「由 GPT-5.2 生成」——里面没有「AI」二字，
+-   现有信号（有限标记表 + 独立词 AI）都抓不到；漏判后若无正文仍可能被建议删。
+-3. **DOI 等非链接来源标识**：`Source: 10.1234/xxxx`（学术论文 DOI，不是网址）
+-   不被认作来源声明 → 极端构造下重复正文件仍会被建议删。
++三条原缺陷都是同一个后果：**有内容、有来源的材料被「确定删除」**（不是拿不准，
++是打勾的建议删）。三条都先在临时 vault 上用真实命令跑出红态、逐字节核对过
++审查存档里的原始输出，再修。
+ 
+-三条都已写入审查存档（`codex-review-CARD-G5-6-round8.md` §二，含复现命令）。
+-**触发形态都相当刻意**（需要特殊空格/精确的模型名写法/DOI 标识），日常剪藏和
+-笔记形态已被现有护栏覆盖；但「已知长尾」就必须如实登记，这是本卡的原则。
++| 原缺陷 | 你会遇到的形态 | 修法 | 为什么这么修 |
++|---|---|---|---|
++| 井号后跟特殊空格 | 从网页复制来的 `#` + 不间断空格 + 文字 | 井号后只认普通空格和制表符 | 通行的 Markdown 规范就是这两种；上一轮已经把**井号前面**的缩进收窄成普通空格，**井号后面**却漏了 —— 同一条规则的两半只修一半 |
++| 写明模型版本的声明 | 「由 GPT-4 生成」（整句里没有「AI」二字） | 按**声明的句式**判（「由 X 生成」/「generated by X」），外加认 generator 这类属性名 | 模型名是列不完的（GPT-4 之后还有 GPT-4o、下个月发布的那个），列表永远追不上；句式是有限的 |
++| DOI 等非链接来源 | `Source: DOI:10.1000/xyz`（论文编号，不是网址） | 来源属性名不分大小写；值里认 DOI 编号形态 | 上一版只认小写 `source` 四个字母，大写 `Source` 直接取不到；DOI 也不是网址，两道口都漏 |
++
++⚠️ 如实说明：DOI **不会**被当成网址、也不会让文件升格成「一手来源 · 留原地」；
++它只是让引擎说「这里有一个出处，我不敢删」。审查存档见
++`codex-review-CARD-G5-6-round8.md` §二（含原始复现命令）。
+ 
+ ## 📌 你需要过目的五个结论
+ 
+@@ -52,11 +55,12 @@ worktree: "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktre
+    AI 字样（词判定改「左右非英文字母」）、制表符/特殊空格的假围栏与假标题
+    （缩进一律限普通空格）、没写完的注释吞掉整份文件、睡眠台账键被静默删除等。
+ 
+-3. **「拿不准」不硬猜的验证强度（如实）**：29 条机械变异（每条故意改坏一个
+-   判断）全部被对应测试当场抓住；12 道防回归门对修复前旧版恰好全红；终态
+-   79 条测试全绿。**但这证明的是「这 29 个指定改坏方式会被抓住」**——上面
+-   3 条长尾就是活证据：对抗构造没有终点，所以「没抓到新变体」永远不等于
+-   「没有新变体」。
++3. **「拿不准」不硬猜的验证强度（如实）**：v2 的 29 条机械变异全部被对应测试
++   抓住；本版又加 3 条「把修复退回去」的变异，每条都要求**指定的那一道测试**
++   变红才算数（不是「某处报错」就算），跑完源码逐字节还原比对；终态 82 条
++   测试全绿。**但这证明的是「这 32 个指定改坏方式会被抓住」**——round-3..8
++   连续六轮都在「已全部声明」之后又抓出新构造，这就是活证据：对抗构造没有
++   终点，「没抓到新变体」永远不等于「没有新变体」。
+ 
+ 4. **两个 vault 里都还没有 `_待处理/` 目录**，「对真实库存出 preview」继续降级：
+    真实跑覆盖空仓回执路径（两 vault 各一次，回执正确、零修改）；判据能力基于
+@@ -75,7 +79,7 @@ worktree: "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktre
+ - [ ] **I-2 去向词表含「留原地/拿不准」**（默认：保留超集）
+ - [ ] **I-3 AI 自述标记表不扩**（默认：不扩——结构性信号已替代枚举扩表）
+ - [ ] **I-4 真实 `_待处理/` 在哪个 vault**（默认：未指定 → 继续降级）
+-- [ ] **3 条长尾变体的处置**：留下一批修（建议）/ 接受为永久上限 / 其他
++- [ ] **3 条长尾已在本版修掉**（原选项作废）；新的待裁决项：护栏的「生成器属性名」表要不要再扩（默认：不扩 —— 已按句式判，扩表收益递减）
+ - [ ] **D1/D2/D3/D5/D6/D7** 均已按默认执行完毕（详见审查存档 round-2..8）
+ 
+ ## ✅ 技术验证（Claude 已代跑）
+@@ -83,9 +87,12 @@ worktree: "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktre
+ | 项 | 结果 | 证据 |
+ |---|---|---|
+ | 先红（五轮镜像） | 各轮新门对整改前状态**恰好全红** | 8/55 → 11/55 → 1/66 → 2/67 → 2/71 → 3/76 failed（其余全绿） |
+-| 终态 | **79 passed, 0 failed** | `backend/.venv/bin/pytest tests/skills/test_g5_6_clear_inbox.py -q` |
++| 终态 | **82 passed, 0 failed**（开工基线 79 → 新增 3 道定向门） | `cd backend && PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest tests/skills/test_g5_6_clear_inbox.py -q -p no:cacheprovider` |
++| 三条新反例先红（真实 CLI） | 修复前三份 tmp vault 全部 `建议删 + confident=true`，与 round-8 存档逐字符一致；修复后全部 `C6 拿不准 + confident=false` | `_bmad-output/审查/evidence-g56c/make_repro_g56c.py`（8 / 36 / 32 字节，NBSP 十六进制 `23c2a06b6565700a` 对齐存档；脚本自带字节断言，改坏即 SystemExit） |
+ | 纯函数门 | `pure-function gates OK` | 围栏三态/NBSP/AI 表锁/边界正反例/fm 键值保真/未闭合注释信号 |
+-| 负验证变异 | **29/29 条全部被指定门杀灭** | `scratchpad/g56b_mutations_output.txt`；串行 + 每轮还原 cmp=0；冗余场景升级组合变异（M7/M17/M19） |
++| 负验证变异（v2） | **29/29 条全部被指定门杀灭** | `scratchpad/g56b_mutations_output.txt`；串行 + 每轮还原 cmp=0 |
++| 负验证变异（本版 3 条回退） | **3/3 各由指定门杀死，且只有那一道红** | `_bmad-output/审查/evidence-g56c/g56c_mutations.py`（输出存 `g56c_mutations_output.txt`）：M-NBSP/M-AI/M-DOI 各回退该缺陷的**全部**防线层（只退一层会被另一层兜住 → 误判门不承重）；每条 `1 failed, 81 passed`，还原后 sha256 与基线逐字节相同 |
++| 循环门真空通过（round-8 §三登记） | 4 道门补上件数/正向锚 | 3 道 `for it in items` 门此前 items 为空也绿、1 道全 `not in` 的表锁门在`AI_MARKERS=()` 时也绿 —— 现已先断言件数与必留表项 |
+ | 字节码门 | tmp 隔离；porcelain pycache 0→0 | round-3/4/6/8 审查各自实测删保护→门精确变红 = 承重 |
+ | 零写侧（live） | 两 vault exit 0、find 计数 0、porcelain sha `263efa14…` 前后相等 | `out-live`/`out-worktree` 固定名；⛔ 如实：弱于全树逐项等值（审查判 reviewer 侧 UNVERIFIABLE，此为我方证据） |
+ | 确定性二跑 | `test_deterministic_two_runs_byte_identical` 绿 | 裁判 §D；护栏文案含插值仍逐字节稳定（round-7 实测） |
+@@ -103,29 +110,36 @@ worktree: "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktre
+ | round-5 | 全部 CONFIRMED-CLOSED | AI 大小写/空白变体；损坏URL别名 | 已修（casefold+空白折叠；URL 前缀形态） |
+ | round-6 | 全部 CONFIRMED-CLOSED | 表外自然AI声明；autolink别名；backtick info string | 已修（独立词AI信号；substring 判据；CommonMark 4.4） |
+ | round-7 | 全部 CONFIRMED-CLOSED | CJK邻接AI；tab/NBSP标题缩进；YAML标签/MD链接URL | 已修（非ASCII字母边界；字面空格缩进；substring 级） |
+-| round-8（终裁） | 全部 CONFIRMED-CLOSED | `#\xa0`标题分隔符；带模型版本AI声明；DOI 来源标识 | **按你裁决登记长尾，不修** |
++| round-8 | 全部 CONFIRMED-CLOSED | `#\xa0`标题分隔符；带模型版本AI声明；DOI 来源标识 | 当轮按你裁决登记长尾不修 |
++| **第九批 CARD-G5-6c** | 全部不回归 | —（本卡只收 round-8 的 3 条） | **已全部修**（井号后分隔限 ASCII 空格/tab；生成断言结构+生成器键两条护栏；来源键名归一+DOI 值形态）|
+ 
+ 末行原文：`BLOCKER/HIGH 清零: 否`（round-8；此前 round-4..7 同）。
+ 
+ ### ⚠️ 证据缺口（如实）
+ 
+-1. **「清零」在本审查范式下不可达**：六轮连续抓出新构造证明了对抗空间无限。
+-   收口依据是你的裁决（等完即收口），不是「没有新变体」。
++1. **「清零」在本审查范式下不可达**：round-3..8 六轮**每一轮**都在「已全部
++   声明」之后抓出新构造 —— 这是本项目最贵的一条教训。CARD-G5-6c 修掉的是
++   round-8 点名的那三条，**不是**「以后不会有第四条」。修法刻意选了
++   「按声明结构/字段名判」而不是「枚举模型名」，就是为了让下一个版本号
++   （GPT-5、Claude 4.5、还没发布的那个）不必再开一张卡；但键名表与断言骨架
++   本身仍是有限的，`authored_with: gpt-4` 这类形态仍会漏。
+ 2. **I-4 未解锁**：真实库存上的判据表现未证明（全部验证基于构造材料+真实语料抽样）。
+ 
+ ### 「本卡未证明什么」（必填，如实）
+ 
+-- **未证明 BLOCKER/HIGH 清零**：round-8 三条长尾在案（见顶部声明）。
+-- **真实材料判据表现未证明**（I-4）。
+-- **29/29 变异全杀 ≠ 全称保证**——长尾即实证。
++- **未证明「不会再有第四条」**：本卡只证明 round-8 那三条已被拦住（各配
++  一道定向门 + 一条回退变异，变异必须让**指定的那道门**变红才算数）。
++- **真实材料判据表现未证明**（I-4）：全部验证基于构造材料 + 真实语料抽样。
++- **82 门全绿 + 3/3 定向变异被杀 ≠ 全称保证**——六轮长尾即实证。
+ - AI 识别的原理上限：语义否定（「这不是由 AI 生成」）仍会给归档提名，靠依据
+-  行号+原文供你否决；「漏判落拿不准」只对含已知信号的形态成立（round-8
+-  BLOCKER-2 的模型版本声明不在内）。
++  行号 + 命中的固定写法供你否决。「漏判落拿不准」只对**已登记形态**成立 ——
++  round-8 的模型版本声明现已登记（生成断言结构 + 生成器键两条护栏），
++  但未登记的新写法仍不在保证内。
+ - 「CommonMark 兼容」是子集：无完整解析器，未覆盖边角（列表项内围栏、
+   反斜杠转义、Setext 标题等）不在声明范围。
+ - 引擎只提名不执行；执行属 G5-7。
+ 
+-## v1 → v2 你将看到的变化
++## v1 → v3 你将看到的变化（标 v3 的三行是本版新修）
+ 
+ | 场景 | v1 | v2 |
+ |---|---|---|
+@@ -139,42 +153,57 @@ worktree: "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktre
+ | `url:`/`URL:`/`<https://…>`/`!!str https://…`/`[来源](https://…)` 各形态来源 | 被当不存在→误删 | 全部认作来源声明 ✅ |
+ | 从 Sleeping 移回的件（带 slept_at） | 被建议删且台账时间戳销毁 | 「拿不准」保留台账 ✅ |
+ | 没写完的注释/制表符假围栏/假标题缩进 | 可能被判「空文件」 | 正常识别 ✅ |
+-| **井号后特殊空格的标题** | 同 v1 | ⛔ 长尾：极端构造下仍误判 |
+-| **「由 GPT-5.2 生成」类模型版本声明（无正文）** | 同 v1 | ⛔ 长尾：仍可能建议删 |
+-| **`Source: 10.1234/doi` 类 DOI 来源 + 重复正文** | 同 v1 | ⛔ 长尾：仍可能建议删 |
++| **井号后特殊空格的标题**（`#` 后跟不间断空格） | 同 v1 | v3 ✅ 那不是标题，是正文 |
++| **「由 GPT-4 生成」类带版本号的模型声明（无正文）** | 同 v1 | v3 ✅「拿不准」，不删 |
++| **`Source: DOI:10.1000/xyz` 类 DOI 来源（含重复正文）** | 同 v1 | v3 ✅「拿不准」，不删 |
+ 
+ ## 👤 你来验（下次真实使用时照这几条看）
+ 
+ - [ ] 我打开生成的盘点报告 → 七节结构每一节都在说人话 → 我看得懂。
+-- [ ] 我把「写了一半的笔记」「只有链接的剪藏」「从 Sleeping 移回的件」放进
+-      待处理再跑 → 它们都不在「建议删」清单里 → 我感觉它不敢拿我的材料冒险。
+-- [ ] 我找一篇讨论 AI 话题的手写笔记再跑 → 它没被打进「AI 产物」清单 →
+-      它分得清「谈论 AI」和「AI 写的」。
+-- [ ] 每条建议后面都带着依据（AI 类给行号原文、重复类给正本或候选、空文件类
+-      给逐项计数）→ 我逐条核对对得上 → 我信任它的提名。
++- [ ] 我把「写了一半的笔记」「只有链接的剪藏」「只写了一个 DOI 编号的剪藏」
++      「从 Sleeping 移回的件」「文件开头属性里写着 generator 的件」放进待处理
++      再跑 → 它们**都不在「建议删」清单里**（会落进「拿不准」）→ 我感觉它
++      不会把这些仍有内容、仍有来源的材料确定删除。
++- [ ] 我找一篇讨论 AI 话题的手写笔记（标题里有「AI」但不是 AI 写的）再跑 →
++      它没被打进「AI 产物」清单 → 我感觉它没有见「AI」就下结论。
++      ⚠️ 如实说明：它靠的是**固定写法比对**，不是读懂意思 —— 一句
++      「这不是由 AI 生成」它仍会当成 AI 自述给出归档提名，请按依据里的行号
++      回看原文再拍板。
++- [ ] 每条建议后面都带着依据（AI 类给**行号 + 命中的那句固定写法**，重复类给
++      正本或候选，空文件类给逐项计数）→ 我按行号回原文对得上 → 我信任它的提名。
++      ⚠️ 如实说明：依据里那句 AI 写法是**对照表里的规范写法**，不是你文件里的
++      原字（大小写和空格会先归一再比）；行号是准的。
+ - [ ] 同一材料跑两遍 → 两份报告一字不差 → 稳定、可复验。
+ 
+ ## 📄 交付物清单
+ 
+ - 引擎：`canvas-vault/.claude/skills/clear-inbox/scripts/inbox_preview.py`
+-  （scripts-only；五处定向整改 + 三轮自审 + round-3..8 六轮审查整改；3 条长尾未修）
+-- 裁判：`backend/tests/skills/test_g5_6_clear_inbox.py`（**79 条**；存量 55 断言
+-  原样保留——字节码门按裁定重构隔离方式；新增/扩充 24 门）
++  （scripts-only；五处定向整改 + 三轮自审 + round-3..8 六轮审查整改 +
++  CARD-G5-6c 修掉 round-8 登记的 3 条长尾）
++- 裁判：`backend/tests/skills/test_g5_6_clear_inbox.py`（**82 条**；v2 的 79 条
++  原样保留 + CARD-G5-6c 新增 3 道定向门；另给 4 道此前「空集合/全否定断言也能绿」
++  的门补上件数与正向锚，让它们真的承重）
+ - 产物契约：JSON `schema_version = 1`（冻结，键集合与上一版逐字同）+ 人读 MD 七节
+ - 审查存档：`_bmad-output/审查/codex-review-CARD-G5-6-round2..8.md`（含每条
+   反例的复现命令与逐字输出）
+-- 变异取证：`scratchpad/g56b_mutations_output.txt`（29 条串行 + 还原校验）
+-
+-## 🔍 引擎自陈的边界（文件头 15 条显式偏差，随轮次逐字校准）
+-
+-1. **「建议删」两出口共用「未消化信号」护栏（偏差 15）**：六类信号——未闭合
+-   注释 / 解析不成键的行 / source 键 / 任意键 URL 形态值（含损坏、角括号、
+-   YAML 标签、MD 链接包装）/ slept_at 台账键 / 独立「AI」字样（含 CJK 邻接）。
+-   ⛔ 长尾三条是这组信号的已知未覆盖面。
+-2. **AI 标记识别诚实声明（偏差 4）**：假阳性方向不安全（靠依据供你否决）；
+-   漏判方向「落拿不准」仅对含已知信号的形态成立。
++- 变异取证：v2 的 `g56b_mutations_output.txt`（29 条串行 + 还原校验）+ CARD-G5-6c 的 `_bmad-output/审查/evidence-g56c/g56c_mutations.py`（3 条回退变异，判据是**指定的那道门**必须变红，跑完逐字节还原并比对 sha256）
++
++## 🔍 引擎自陈的边界（文件头 17 条显式偏差，随轮次逐字校准）
++
++1. **「建议删」两出口共用「未消化信号」护栏（偏差 15）**：**八类**信号——未闭合
++   注释 / 解析不成键的行 / 来源声明（source 键**不分大小写**、任意键的值含网址、
++   任意键的值含 DOI）/ slept_at 台账键 / 疑似 AI 自述 / 独立「AI」字样（含 CJK
++   邻接）/ **生成断言句式**（「由 X 生成」）/ **生成器属性名**（generator 等）。
++   ⚠️ 这八类是**已知形态的登记表**，不是完备判据 —— 后四类是 round-4/6/7/8
++   四轮各被真实反例打穿一次后补上的。
++2. **AI 标记识别诚实声明（偏差 4）**：假阳性方向不安全（靠依据供你否决，且
++   依据里那句写法是**对照表的规范形态**、不是你文件里的原字）；漏判方向
++   「落拿不准」仅对**已登记**形态成立。
+ 3. **正本不可判（偏差 11）**：多份同正文时列全部候选 + 声明不可判；
+    C4 删除前 frontmatter 元数据挂冲突留痕。
++4. **本版新登记两条边界（偏差 16 / 17）**：非法端口的网址仍被当一手来源
++   （方向安全：留原地不删，按卡文裁决保留为中低优先级）；护栏按句式与属性名
++   判、不枚举模型名，故 `authored_with: gpt-4` 这类形态仍会漏。
+ 
+ ## 📝 批注区
+ 
+@@ -192,8 +221,10 @@ worktree: "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktre
+ > - **H3 文件头误吞族**（正文网址行/无空格键/冒号前空格）：v1 整篇被吞+编造
+ >   依据；v2 键=冒号后空白或行尾，解析不全由护栏兜住。
+ > - **H4 报告自相矛盾**：v1 钦定正本；v2 列全部候选+「不可判」（路径转义保真）。
+-> - **⛔ round-8 长尾三条（不修，登记）**：井号后特殊空格标题 / 模型版本 AI
+->   声明（无 AI 二字）/ DOI 非链接来源。触发形态刻意，日常形态已被覆盖；
+->   修法方向已在审查存档，留给下一批。
++> - **✅ round-8 长尾三条（v3 已修）**：井号后特殊空格标题 → 井号后只认普通
++>   空格/制表符；模型版本 AI 声明（无 AI 二字）→ 按「由 X 生成」句式 +
++>   generator 属性名两条护栏；DOI 非链接来源 → 来源属性名不分大小写 +
++>   认 DOI 编号形态。三条各配一道定向测试与一条回退变异；DOI 不冒充网址、
++>   不升「一手来源」。
+ 
+ **User：**
+diff --git a/backend/tests/skills/test_g5_6_clear_inbox.py b/backend/tests/skills/test_g5_6_clear_inbox.py
+index 69f3aa02..548f2b12 100644
+--- a/backend/tests/skills/test_g5_6_clear_inbox.py
++++ b/backend/tests/skills/test_g5_6_clear_inbox.py
+@@ -420,6 +420,9 @@ def test_duplicate_within_batch_is_flagged_not_deleted(tmp_path):
+ 
+     assert run_cli(vault, out).returncode == 0
+     data = load_json(out)
++    assert {it["name"] for it in data["items"]} == {"甲.md", "乙.md"}, (
++        "件数先锁死 —— 循环门在 items 为空/缺件时恒真 = 假绿 (round-8 §三)"
++    )
+     for it in data["items"]:
+         assert it["verdict"] != "建议删"
+         assert any(c["kind"] == "duplicate_within_batch" for c in it["conflicts"])
+@@ -552,7 +555,11 @@ def test_within_batch_dup_does_not_block_c4_when_corpus_canonical_exists(tmp_pat
+     mk(vault / "_待处理" / "乙.md", body, age_days=2)
+ 
+     assert run_cli(vault, out).returncode == 0
+-    for it in load_json(out)["items"]:
++    items = load_json(out)["items"]
++    assert {it["name"] for it in items} == {"甲.md", "乙.md"}, (
++        "件数先锁死 —— 循环门在 items 为空/缺件时恒真 = 假绿 (round-8 §三)"
++    )
++    for it in items:
+         assert it["criterion"] == "C4_exact_duplicate"
+         assert it["exact_duplicate_of"] == "节点/库内正本.md"
+         assert any(c["kind"] == "duplicate_within_batch" for c in it["conflicts"])
+@@ -642,6 +649,9 @@ def test_engine_never_emits_human_only_verdicts(tmp_path):
+     assert set(vocab["human_only"]) == {"归入白板", "新建节点"}
+     assert vocab["human_only_note"]
+     reachable = set(vocab["reachable_by_engine"])
++    assert {it["name"] for it in data["items"]} == {"a.md", "b.md"}, (
++        "件数先锁死 —— 循环门在 items 为空/缺件时恒真 = 假绿 (round-8 §三)"
++    )
+     for it in data["items"]:
+         assert it["verdict"] in reachable
+         assert it["verdict"] not in set(vocab["human_only"])
+@@ -1306,6 +1316,11 @@ def test_bare_ai_markers_are_removed_from_table():
+     assert "AI生成" not in mod.AI_MARKERS
+     assert "本文由 AI" not in mod.AI_MARKERS
+     assert "本报告由 AI" not in mod.AI_MARKERS
++    # ⛔ round-8 §三(真空通过): 全 `not in` 的表锁门在 `AI_MARKERS=()` 时照样绿 ——
++    # 「什么都没有」满足一切否定断言。先锁住表里**必须还留着**的断言锚形态。
++    for kept in ("由 AI 生成", "由AI生成", "Generated by AI", "由 Deep Research 生成"):
++        assert kept in mod.AI_MARKERS, f"断言锚形态被删空/误删: {kept}"
++    assert len(mod.AI_MARKERS) == len(set(mod.AI_MARKERS)), "表内不得有重复项"
+ 
+ 
+ def test_bare_url_line_is_not_a_frontmatter_key(tmp_path):
+@@ -1853,3 +1868,157 @@ def test_frontmatter_map_value_fidelity():
+     assert fm["title"] == "x", "冒号前空格的键 (pyyaml 认) 必须解析出值"
+     fm = mod.frontmatter_map(["source:https://x"])
+     assert "source" not in fm, "冒号后无空格不认键, URL 不得被吞成值"
++
++
++# ───── I. round-8 定向整改回归门 (CARD-G5-6c: NBSP 标题 / 模型声明 / DOI 来源) ─────
++
++
++def test_nbsp_after_hash_is_not_an_atx_heading(tmp_path):
++    """⛔ round-8 BLOCKER-1: ATX 的**井号后分隔**也只认 ASCII 空格/制表符。
++
++    前置缩进在 round-7 已收窄为字面空格, 但 `#{1,6}` 后仍写着 `(?:\\s|$)` ——
++    Python `re` 的 `\\s` 在 str 模式下是 Unicode 语义, `#\\xa0keep`
++    (字节 23c2a06b6565700a) 被当标题剥掉 → 「标题 1 行、实质正文 0 字符」
++    → `建议删 + confident=true`。同一条规则的两半只修一半, 等于没修。
++    """
++    mod = load_module()
++    # 纯函数半边: CommonMark §4.2 = 空格 / 制表符 / 行尾
++    assert mod._HEADING_RE.match("# x"), "ASCII 空格必须仍是合法分隔"
++    assert mod._HEADING_RE.match("#\tx"), "制表符是 CommonMark 合法分隔, 不得连坐收窄"
++    assert mod._HEADING_RE.match("#"), "行尾 ATX (空标题) 必须仍成立"
++    assert mod._HEADING_RE.match("   ###### x"), "3 空格缩进 + 六级标题仍成立"
++    assert not mod._HEADING_RE.match("#\u00a0x"), "NBSP 不是 ATX 分隔 (round-8 BLOCKER-1)"
++    # ⛔ 验伪锚: 防「按反例特判 NBSP」的窄修 —— 全角/EM 空格是同族 Unicode 空白
++    assert not mod._HEADING_RE.match("#\u2003x"), "EM SPACE 同属 Unicode 空白, 不得只排 NBSP"
++    assert not mod._HEADING_RE.match("#\u3000x"), "IDEOGRAPHIC SPACE 同上"
++    assert not mod._HEADING_RE.match("#x"), "井号后无分隔本就不是标题 (口径不得放宽)"
++
++    # 端到端半边: 真实 CLI
++    vault, out = base_vault(tmp_path)
++    inbox = vault / "_待处理"
++    mk(inbox / "井号NBSP.md", "#\u00a0keep\n", age_days=6)
++    # ⛔ 正向对照(验伪锚): 井号后制表符**是**标题 → 无正文仍 C3 建议删。
++    # 若有人把修复写成只认空格 `(?:[ ]|$)`, 本条会红。
++    mk(inbox / "井号TAB标题.md", "#\tonly heading\n", age_days=5)
++    # 正向对照: 顶格空格标题 + 无正文 → 仍 C3 建议删
++    mk(inbox / "顶格标题.md", "# 标题\n\n## 小节\n", age_days=4)
++
++    assert run_cli(vault, out).returncode == 0
++    data = load_json(out)
++    assert data["items"], "items 为空则本门恒真 = 假绿"
++    it = item_by_name(data, "井号NBSP.md")
++    assert it["verdict"] != "建议删", f"NBSP 井号行被建议删了: {it['basis']}"
++    assert it["criterion"] == "C6_undecided", it["criterion"]
++    assert it["confident"] is False
++    assert it["target_hint"] is None and it["nomination_type"] is None
++    for name in ("井号TAB标题.md", "顶格标题.md"):
++        ctrl = item_by_name(data, name)
++        assert ctrl["criterion"] == "C3_empty_or_skeleton", f"{name}: {ctrl['basis']}"
++        assert ctrl["verdict"] == "建议删", name
++
++
++def test_model_version_generation_claim_is_undigested_signal(tmp_path):
++    """⛔ round-8 BLOCKER-2: 带模型版本的真实生成声明穿透三层护栏。
++
++    `generator: 由 GPT-4 生成` 既不在有限表 (表只到 `由 GPT 生成`, 差一个版本号),
++    也没有独立词「AI」 → 无正文时 `建议删 + confident=true`。
++    修法按**声明骨架**而非**枚举模型名** (卡文 §3 默认裁决): 模型名是开放集合,
++    `由 <某物> 生成` / `generated by <某物>` 这个断言骨架是闭合的。
++    ⚠️ 只降 C6, 绝不进 C2 —— 宽匹配给话题提及发确定归档就是硬猜。
++    """
++    vault, out = base_vault(tmp_path)
++    inbox = vault / "_待处理"
++    # round-8 反例原样
++    mk(inbox / "GPT4声明.md", "---\ngenerator: 由 GPT-4 生成\n---\n", age_days=9)
++    # ⛔ 同族(不得靠枚举): 换任意模型名/版本号都必须接住
++    mk(inbox / "Gemini声明.md", "---\nnote: 本文由 Gemini 2.5 Pro 生成\n---\n", age_days=8)
++    mk(inbox / "英文声明.md", "---\nnote: Generated by Llama-4-Maverick\n---\n", age_days=7)
++    # 字段半边: 值里根本没有「生成」二字, 只有键名在声明
++    mk(inbox / "仅键名声明.md", "---\ngenerator: claude-opus-4\n---\n", age_days=6)
++    # C4 出口也必须拦(护栏是路径属性, 不能只拦 C3)
++    body = "这份正文和库里那份一字不差。\n第二行也相同。\n"
++    mk(vault / "节点" / "库内正本.md", body, age_days=40)
++    mk(inbox / "声明重复件.md", "---\ngenerator: 由 GPT-4o 生成\n---\n" + body, age_days=5)
++    # 正向对照: 无任何生成声明的纯空骨架 → 仍 C3 建议删
++    mk(inbox / "纯空骨架.md", "---\ntitle: t\n---\n\n# 只有标题\n", age_days=4)
++
++    assert run_cli(vault, out).returncode == 0
++    data = load_json(out)
++    assert data["items"], "items 为空则本门恒真 = 假绿"
++    for name in ("GPT4声明.md", "Gemini声明.md", "英文声明.md"):
++        it = item_by_name(data, name)
++        assert it["verdict"] != "建议删", f"{name} 被建议删了: {it['basis']}"
++        assert it["criterion"] == "C6_undecided", name
++        assert it["confident"] is False, name
++        assert it["target_hint"] is None and it["nomination_type"] is None, name
++        assert "生成断言结构" in (it["uncertain_reason"] or ""), it["uncertain_reason"]
++    key_only = item_by_name(data, "仅键名声明.md")
++    assert key_only["verdict"] != "建议删", key_only["basis"]
++    assert key_only["criterion"] == "C6_undecided"
++    assert "生成器声明键" in (key_only["uncertain_reason"] or ""), key_only["uncertain_reason"]
++    dup = item_by_name(data, "声明重复件.md")
++    assert dup["verdict"] != "建议删", f"带生成声明的重复件被建议删了: {dup['basis']}"
++    assert dup["criterion"] == "C6_undecided"
++    assert dup["exact_duplicate_of"] == "节点/库内正本.md", "重复证据仍须留痕"
++    # ⛔ 信号只降级, 不扩大 C2: 这些文件不得被判成「AI 自述 → 确定归档」
++    for name in ("GPT4声明.md", "Gemini声明.md", "英文声明.md", "仅键名声明.md"):
++        assert item_by_name(data, name)["criterion"] != "C2_ai_self_declared", name
++    skeleton = item_by_name(data, "纯空骨架.md")
++    assert skeleton["criterion"] == "C3_empty_or_skeleton"
++    assert skeleton["verdict"] == "建议删"
++
++
++def test_doi_source_identifier_blocks_deletion(tmp_path):
++    """⛔ round-8 HIGH: `Source: DOI:10.1000/xyz` 的唯一来源标识被当作不存在。
++
++    两处缺口: `"source" in fm` 是**大小写敏感**的字面查找(取不到 `Source`),
++    而值不含 `http(s)://` 时 `url_bearing_keys` 也接不住 → C3 `建议删 +
++    confident=true`。护栏两侧都补: 键名归一(大小写/连字符) + DOI 值形态。
++    ⚠️ DOI **不冒充 URL 也不升 C1**(卡文 §3): 只把来源摆上台面降 C6。
++    """
++    vault, out = base_vault(tmp_path)
++    inbox = vault / "_待处理"
++    # round-8 反例原样
++    mk(inbox / "DOI来源.md", "---\nSource: DOI:10.1000/xyz\n---\n", age_days=9)
++    # 键名归一半边: 值不是 URL 也不是 DOI, 靠键名接住
++    mk(inbox / "大写SOURCE手抄.md", "---\nSOURCE: 手抄自 2019 年讲义 P37\n---\n", age_days=8)
++    # 值形态半边: 键名不在别名表, 靠 DOI 形态接住
++    mk(inbox / "identifier键DOI.md", "---\nidentifier: 10.1145/3292500.3330701\n---\n", age_days=7)
++    # C4 出口也必须拦
++    body = "这份正文和库里那份一字不差。\n第二行也相同。\n"
++    mk(vault / "节点" / "库内正本.md", body, age_days=40)
++    mk(inbox / "DOI重复件.md", "---\ndoi: 10.1000/dup-only\n---\n" + body, age_days=6)
++    # 正向对照 1: 无来源声明的纯空骨架 → 仍 C3 建议删
++    mk(inbox / "纯空骨架.md", "---\ntitle: t\n---\n\n# 只有标题\n", age_days=5)
++    # 正向对照 2: 合法 source URL → 仍 C1(护栏不得扩大也不得挤掉判据)
++    mk(inbox / "正常剪藏.md", "---\nsource: https://ok.test/clip\n---\n", age_days=4)
++
++    assert run_cli(vault, out).returncode == 0
++    data = load_json(out)
++    assert data["items"], "items 为空则本门恒真 = 假绿"
++    for name, frag in (
++        ("DOI来源.md", "DOI:10.1000/xyz"),
++        ("大写SOURCE手抄.md", "讲义 P37"),
++        ("identifier键DOI.md", "10.1145/3292500.3330701"),
++    ):
++        it = item_by_name(data, name)
++        assert it["verdict"] != "建议删", f"{name} 被建议删了: {it['basis']}"
++        assert it["criterion"] == "C6_undecided", name
++        assert it["confident"] is False, name
++        assert it["target_hint"] is None and it["nomination_type"] is None, name
++        # ⛔ 来源标识必须逐字留痕 —— 否则「拦住了」等于把线索一起吞掉
++        assert frag in (it["uncertain_reason"] or ""), it["uncertain_reason"]
++    # ⛔ DOI 不冒充 URL / 不升 C1
++    doi_item = item_by_name(data, "DOI来源.md")
++    assert doi_item["criterion"] != "C1_source_url", "DOI 不得被判成一手 URL"
++    assert "DOI" in (doi_item["uncertain_reason"] or "")
++    dup = item_by_name(data, "DOI重复件.md")
++    assert dup["verdict"] != "建议删", f"带 DOI 的重复件被建议删了: {dup['basis']}"
++    assert dup["criterion"] == "C6_undecided"
++    assert dup["exact_duplicate_of"] == "节点/库内正本.md", "重复证据仍须留痕"
++    skeleton = item_by_name(data, "纯空骨架.md")
++    assert skeleton["criterion"] == "C3_empty_or_skeleton"
++    assert skeleton["verdict"] == "建议删"
++    primary = item_by_name(data, "正常剪藏.md")
++    assert primary["criterion"] == "C1_source_url"
++    assert primary["verdict"] == "留原地"
+diff --git a/canvas-vault/.claude/skills/clear-inbox/scripts/inbox_preview.py b/canvas-vault/.claude/skills/clear-inbox/scripts/inbox_preview.py
+index 0669ac00..4bf6b117 100644
+--- a/canvas-vault/.claude/skills/clear-inbox/scripts/inbox_preview.py
++++ b/canvas-vault/.claude/skills/clear-inbox/scripts/inbox_preview.py
+@@ -36,8 +36,13 @@
+      **无机械判据，故恒不产出**（`verdict_vocabulary.human_only`）。这类材料一律
+      落 C6 拿不准并把这两个选项写进提问里，交给人/LLM 层。
+ 
+-⛔ 显式偏差与已知边界（全部声明；「无未声明项」指本清单 + MD §七所列范围，
+-不含未来新形态 —— 新形态以门与审查为准，发现即入清单）：
++⛔ 显式偏差与已知边界（⚠️ 本清单是**已发现项的登记**，不是穷尽性证明。
++round-8 §四判定原措辞「全部声明、无未声明项」为 FAIL，理由成立：round-4/5/6/7/8
++每一轮都是在「已全部声明」之后又抓出新的破坏路径 —— round-8 一轮就抓出三条
++（井号后 NBSP、带版本号的模型声明、大写 Source 的 DOI）。有限的门与定点变异
++只能证明「登记在册的这些确实被拦住了」，证不出「没有别的」。故此处不再声称
++无未声明项；请把它读作**当前已知边界的快照**，新形态以门与审查为准，
++发现即入清单）：
+   1. **近似重复不是第七条判据，是修饰符**。R8 原稿 #4 写的是「高相似 → 建议删」，
+      卡片把它收紧为「精确重复才建议删」。于是 difflib 相似度在本引擎里**永远不决定
+      任何事**：前面已有判据命中时它挂 conflict 留痕；走到 C6 时它把兜底理由具体化为
+@@ -52,10 +57,19 @@
+      等），ASCII 字母收尾标记（`Generated by AI`）后须为行尾或表中标点（空白不算
+      —— `Generated by AI Lab` 是机构名不是自述）。故「由 AI 生成内容的版权问题」
+      这类话题提及不再命中；但「这不是由 AI 生成」（行尾）仍会**命中并给出归档
+-     提名** —— 子串匹配的原理上限在这个方向上**不安全**，靠 basis 带行号与逐字
+-     片段供人否决来兜底。漏判方向（该抓没抓）：无正文时由护栏④（AI 嫌疑信号）
+-     拦住落 C6（round-4 BLOCKER-1 实证无护栏时会掉进 C3 建议删）；有正文时若
+-     文件名带 R{n}_ 仍按 C5 归轮次，否则落 C6。本引擎只提名，不执行。
++     提名** —— 子串匹配的原理上限在这个方向上**不安全**，靠 basis 带行号与
++     **命中的规范标记文本**供人否决来兜底。⚠️ 原措辞写的是「逐字片段」，
++     round-8 §四证伪：匹配在归一化形态上做，basis 展示的是**表项原文**而非
++     输入原文 —— 输入 `GENERATED BY AI` 时 basis 里是表项 `Generated by AI`。
++     行号准确、标记可核对，但它不是输入的逐字拷贝，故不再这么写。
++     漏判方向（该抓没抓）：无正文时由偏差 15 的 AI 族信号（⑤疑似自述、
++     ⑥独立词 AI、⑦生成断言结构、⑧生成器声明键）拦住落 C6。⚠️ 这条承诺
++     **曾被连续四轮证伪四次**：`Generated by AI on March` 无护栏（round-4）、
++     `generated by an AI system` 双层全盲（round-6）、`由AI系统生成` 无词边界
++     （round-7）、`由 GPT-4 生成` 三层全盲（round-8）—— 每一次都是补一条信号，
++     没有一次证明了穷尽性。**它是一条尽力而为的护栏，不是不变式**；未登记的
++     新形态漏判方向仍**不安全**（可能落 C3 建议删）。有正文时若文件名带 R{n}_
++     仍按 C5 归轮次，否则落 C6。本引擎只提名，不执行。
+   5. **裸 --now 按 Asia/Shanghai 解释**（不用 `datetime.astimezone()` 的宿主本地时区）：
+      本卡有「二跑逐字节相等」硬门，宿主 TZ 会让同一份输入在不同机器产出不同产物。
+      此处与 `scripts/daily_review_pick.py` 的裸时间语义有意分歧，理由如上。
+@@ -84,10 +98,16 @@
+      后续判据。方向是安全的（不会误判成一手），但确实识别不了这种写法。
+      ⛔ 键必须是 `key:` 后接**空白或行尾**（正文行 `http://…` 的 `http:` 不是键，
+      整篇不再被吞成 frontmatter）；连带：`source:https://x`（冒号后无空格）
+-     不识别为键 —— 若该行是块内首个有效行则整块降为正文，否则该行被 span 吞掉
+-     （既不进 map 也不进正文）；**若其余判据均不命中**，两种形态最终都由
+-     偏差 15 的护栏兜住落 C6，不会变成「空骨架建议删」（文件名带 R{n}_ 的
+-     仍会按 C5 归轮次，合法 source 剪藏仍按 C1 留原地）。
++     不识别为键 —— ⚠️ 两种形态**走的不是同一条路**（round-8 §四实证，
++     原措辞混为一谈）：
++     · 该行是块内**首个有效行** → 整块降为正文 → 那一行**本身就是实质正文**，
++       于是 C3 压根不成立，材料按普通次序走到 C6 —— **不经过**偏差 15 的护栏；
++     · 该行排在**合法键之后** → 被 span 吞掉（既不进 map 也不进正文）→ 此时
++       才由偏差 15 的 `unparsed_fm` 信号接住落 C6。
++     两条路的落点都不是「空骨架建议删」，但依据不同，`uncertain_reason` 也不同。
++     ⚠️ 「文件名带 R{n}_ 仍按 C5 归轮次」以 **C1/C2/C3/C4 均未先命中**为前提
++     （判据次序铁律）；「合法 source 剪藏仍按 C1」以该行确实被解析成 source 键
++     为前提。原措辞省掉了这两个前提。
+  13. **身份键对文件名做 NFC 归一**：只差 NFC/NFD 形态的两个文件名会得到同一个
+      stable_id（与 `split_preview` 的重名判定同口径）。macOS 上这两者本就不能共存；
+      在允许共存的文件系统上，这是一个已知且有意的合并。
+@@ -108,19 +128,56 @@
+      带有引擎未能完全消化的结构信号 —— ① 以**未闭合 HTML 注释**结尾（B3-1：忘写
+      `-->` 的粘贴件曾被判「标题 0 行」假依据建议删）；② frontmatter **含解析不成
+      键的行**（H3-1：`source:https://x` 排在合法键后被 span 吞掉，一手书签被判
+-     建议删）；③ frontmatter **有来源声明** —— `source` 键在场（H1-1），或
+-     **任意键的值是合法 URL 形态**（`url:`/`URL:`/`Source:` 等剪藏工具键名，
+-     round-5 自审 F2：曾穿透全部信号被建议删且 URL 零留痕；C1 仍只认字面
+-     source 键，本信号只降 C6 不扩大 C1）；④ frontmatter 带**睡眠台账键
+-     slept_at**（round-5 自审 F3：引擎在 Sleeping 台账认识这个键，删除会抹掉
+-     用户的起睡时间戳）；⑤ 文头有**疑似 AI 自述**（边界规则拒掉但裸子串在场，
+-     round-4 BLOCKER-1：`Generated by AI on March` × 无正文曾被建议删）——
+-     则 C3 不判「空骨架」。信号与 C4 叠加时（round-4 BLOCKER-2：非标准 source ×
++     建议删）；③ frontmatter **有来源声明**，三个半边：③a `source` 键在场
++     （H1-1）——⚠️ 键名按 `_norm_fm_key` 归一（casefold + `-`→`_`），故
++     `Source`/`SOURCE` 同判（round-8 HIGH：原实现字面小写查找，`Source:` 取不到，
++     唯一来源标识被当作不存在并 confident 删除）；③b **任意键的值含 URL 形态**
++     （substring 级，`url:`/`URL:` 等剪藏工具键名，round-5 自审 F2 + round-7
++     BLOCKER-3）；③c **任意键的值含 DOI 形态**（`_DOI_RE`，round-8 HIGH：
++     `Source: DOI:10.1000/xyz` 两个半边都漏）。⚠️ 三个半边**都只降 C6**：
++     C1 仍只认字面小写 `source` 键 + http(s) URL，DOI 不冒充 URL、不升 C1；
++     ④ frontmatter 带**睡眠台账键 slept_at**（round-5 自审 F3：引擎在 Sleeping
++     台账认识这个键，删除会抹掉用户的起睡时间戳）；⑤ 文头有**疑似 AI 自述**
++     （边界规则拒掉但裸子串在场，round-4 BLOCKER-1：`Generated by AI on March`
++     × 无正文曾被建议删）；⑥ 文头或 frontmatter 值出现**独立词「AI」**
++     （左右非 ASCII 字母，round-6 BLOCKER-1 `generated by an AI system` 不含任何
++     表项 + round-7 BLOCKER-1 `由AI系统生成` CJK 邻接无词边界）；⑦ 文头出现
++     **生成断言结构** `由 <某物> 生成` / `generated by <某物>`（round-8
++     BLOCKER-2：`由 GPT-4 生成` 比表项多一个版本号，三层全盲）；⑧ frontmatter
++     带**生成器声明键**（`generator`/`model`/`llm` 等，值里可以完全没有「生成」
++     二字，如 `generator: claude-opus-4`）—— 则 C3 不判「空骨架」。信号与 C4 叠加时（round-4 BLOCKER-2：非标准 source ×
+      正文重复），C4 也不建议删 —— C4 只证明「剥掉 frontmatter 后正文相等」，
+      不证明「整个文件多余」，独有信号必须先摆到台面上。无信号但 frontmatter
+      带元数据键时，C4 照常建议删但挂 `frontmatter_metadata_present` 冲突留痕。
+      统一原则：**「建议删」的两个出口都要拦；对结构没有把握的文件，宁可拿不准
+-     也不建议删**。
++     也不建议删**。⚠️ 这组信号是**有限的登记表**而不是完备判据：⑤⑥⑦⑧ 四条
++     AI 族信号是 round-4/6/7/8 四轮各补一条堆出来的，每一轮都是先被真实反例
++     打穿、再补一条 —— 没有任何一轮证明了「没有下一条」。未登记形态的漏判
++     方向仍不安全，见偏差 4 与偏差 17。
++ 16. **URL 合法性只查 scheme 与 hostname 非空，不校验 authority 其余部分**
++     （round-8 §五 MEDIUM 实证）：`source: https://example.test:notaport/x` 实跑为
++     `C1 / 留原地 / primary-record / confident=true`。根因是 `urlsplit` 只在
++     **访问 `.port`** 时才对非法端口抛 ValueError，而 `_is_primary_source_url`
++     只访问 `.hostname`，于是非法端口一路放行。⛔ 本卡**不修**（CARD-G5-6c §3
++     默认裁决：保留为 M/L，不得写成已穷尽）：方向安全 —— 判成一手来源 =
++     留原地，不删不动、不改文件；且「什么算合法 authority」属 URL 规范面，
++     不属本引擎的盘点判据面。如实登记，待用户裁决。
++ 17. **生成声明与来源标识的护栏按「声明结构 / 字段名」判，不枚举具体名字**
++     （round-8 BLOCKER-2 与 HIGH 的修法，CARD-G5-6c §3 默认裁决）。四条判据：
++     生成断言结构 `_GEN_CLAIM_CN_RE`/`_GEN_CLAIM_EN_RE`、生成器声明键
++     `_GENERATOR_DECL_KEYS`、来源键名别名 `_SOURCE_DECL_KEYS`、DOI 值形态
++     `_DOI_RE`。⛔ 之所以不枚举模型名：模型名是**开放集合**（`GPT-4` 之后还有
++     `GPT-4o`/`Claude 3.5`/下个月发布的那个），而「由 X 生成」这个断言骨架是
++     闭合的 —— round-8 BLOCKER-2 的教训正是「表里有 `由 GPT 生成`，差一个版本号
++     就全盲」。⚠️ 四条**只降 C6，不进任何判据**，DOI 尤其**不解析、不解引用、
++     不联网**，只把「这里有一个出处标识」摆上台面。
++     ⚠️ 边界如实声明：键名集合与断言骨架**都是有限的**。`authored_with: gpt-4`
++     这类（键名不在表 + 值无断言结构）仍会漏判，漏判方向与偏差 4 同族 ——
++     **不安全**（无正文时可能落 C3 建议删）。本条是把已知三类形态登记在册，
++     不是穷尽性证明。
++     ⚠️ 误命中方向如实声明：`由编译器生成`、`generated by hand` 这类非 AI 的
++     生成断言也会命中 ⑦ —— 它们只降 C6（拿不准，不给去向），方向安全，
++     代价是这类无正文文件不再被建议删。这是刻意选的偏向。
+ 
+ ━━━━━━━━━━━━━━━━━━━━━ 与 board-split 的复用关系（卡片 (c)）━━━━━━━━━━━━━━━━━━━━━
+ 本模块以 importlib 从**兄弟 skill** `board-split/scripts/split_preview.py` 加载并复用：
+@@ -335,7 +392,15 @@ _TZ_SHANGHAI = timezone(timedelta(hours=8))
+ #: ATX 标题：**最多 3 个字面空格**缩进（⛔ 与 _FENCE_RE 同口径，\s 会放行
+ #: 制表符/NBSP —— `\t# keep` 是缩进代码、`\xa0# keep` 是普通正文，都曾被当
+ #: 标题剥掉 → 空骨架建议删，round-7 BLOCKER-2）。
+-_HEADING_RE = re.compile(r"^ {0,3}#{1,6}(?:\s|$)")
++#: ⛔ **井号后的分隔同样只认 ASCII 空格/制表符**（CommonMark §4.2：开头的 `#`
++#: 序列后必须跟空格、制表符或行尾）：round-8 BLOCKER-1 实证前置缩进收窄后
++#: 后边界仍写着 `(?:\s|$)`，而 Python `re` 的 `\s` 在 str 模式下是 Unicode
++#: 语义 —— `#\xa0keep`（字节 23c2a06b6565700a）被当成标题剥掉 → 「标题 1 行、
++#: 实质正文 0 字符」→ `建议删 + confident=true`。同一条规则的两半只修一半，
++#: 等于没修。⚠️ 边界如实声明：本条只管**标题判定**；`#` 孤行（`# ` / `#\xa0`
++#: 这类井号后无实质内容者）经 `_ONLY_STRUCT_RE` 归入「纯结构行」，与普通空格
++#: 版本同桶 —— 那是既有的结构行口径，不是本条收窄出来的新差异。
++_HEADING_RE = re.compile(r"^ {0,3}#{1,6}(?:[ \t]|$)")
+ _LIST_PREFIX_RE = re.compile(r"^\s*(?:[-*+]\s+|\d{1,3}[.)]\s+|>\s?)+")
+ #: 纯结构行（分隔线 / 表格分隔 / 空列表符）。⛔ 不含 `~`：`~~~` 是代码围栏标记，
+ #: 由 `_classify_lines` 的状态机处理；把它当"结构"曾让整段围栏代码凭空消失。
+@@ -674,6 +739,75 @@ _AI_MARKERS_NORM = tuple(" ".join(m.split()).casefold() for m in AI_MARKERS)
+ #: 归档，那是硬猜）。
+ _AI_WORD_RE = re.compile(r"(?<![A-Za-z])AI(?![A-Za-z])", re.IGNORECASE)
+ 
++#: ⛔ 护栏级**生成断言结构**（round-8 BLOCKER-2）：`generator: 由 GPT-4 生成`
++#: 里既没有表项（表只收到 `由 GPT 生成`，`GPT-4` 差一个版本号）也没有独立词
++#: 「AI」，三层护栏全盲 → 无正文时掉进 C3 `建议删 + confident=true`。
++#: 修法按**声明骨架**而不是**枚举模型名**（卡文 §3 默认裁决）：模型名是开放
++#: 集合，`GPT-4` 之后还有 `GPT-4o`/`Claude 3.5`/`Gemini 2.5`/下个月发布的那个，
++#: 枚举永远追不上；「由 <某物> 生成」这个断言骨架是闭合的。
++#: ⚠️ 只作**未消化信号降 C6**，绝不进 C2：宽匹配给话题提及发确定归档就是硬猜
++#: （`由编译器生成`、`generated by hand` 都会命中本条 —— 它们降 C6，方向安全）。
++#: 中文：`由` 与 `生成` 之间 1-40 个非句读字符（句读收尾防跨句吞成假断言）。
++_GEN_CLAIM_CN_RE = re.compile(r"由[^。；！？\n]{1,40}?生成")
++#: 英文：在 `_norm_ai_line` 归一（连续空白折叠为单空格 + casefold）后的行上匹配，
++#: 故此处只写单空格。`generated by` 后必须有非空 token —— 光一句 `generated by`
++#: 没有主语，不构成生成断言。
++_GEN_CLAIM_EN_RE = re.compile(r"generated by \S")
++
++#: ⛔ 护栏级**生成器声明字段**（round-8 BLOCKER-2 的另一半）：键名本身就是声明。
++#: `generator: gpt-4`（值里没有「生成」二字）只有本条能接住，`本文由 GPT-4 生成`
++#: 写在正文里（无 frontmatter）只有 `_GEN_CLAIM_*` 能接住 —— 两条互补，都不冗余。
++#: 键名归一口径见 `_norm_fm_key`。
++_GENERATOR_DECL_KEYS = frozenset(
++    {"generator", "generated_by", "ai_generated", "model", "llm", "ai"}
++)
++
++#: ⛔ 来源声明键别名（round-8 HIGH）：`Source: DOI:10.1000/xyz` 的唯一来源标识
++#: 曾被当作不存在 —— `"source" in fm` 是**大小写敏感**的字面查找，取不到 `Source`；
++#: 而值不含 `http(s)://`，`url_bearing_keys` 也接不住。⚠️ 本别名集合只用于
++#: **护栏**：C1 仍只认字面小写 `source` 键（R8 稿约定），DOI 更不冒充 URL 或 C1
++#: （卡文 §3 默认裁决）—— 信号只把来源摆上台面降 C6，不给出「留原地/一手」提名。
++_SOURCE_DECL_KEYS = frozenset({"source", "sources"})
++
++#: DOI 形态（ISO 26324：`10.<registrant>/<suffix>`）。左界排除字母数字与点，
++#: 于是 `DOI:10.1000/xyz`、`doi: 10.1000/xyz`、裸 `10.1000/xyz` 都命中，而
++#: 版本号 `v10.1000/x` 之类不命中。⚠️ 只作来源信号，不解析、不解引用、不联网。
++_DOI_RE = re.compile(r"(?<![0-9A-Za-z.])10\.\d{4,9}/[^\s\"'<>]+")
++
++
++def _norm_fm_key(k: str) -> str:
++    """frontmatter 键名归一：casefold + `-`→`_`。
++
++    ⛔ 仅供**护栏**的键名比对（`Source`/`SOURCE`/`generated-by` 与
++    `source`/`generated_by` 同判）。判据侧（C1）刻意不走这里 —— 那会静默扩大
++    C1 的命中面，而 C1 命中意味着「一手来源 · 留原地 · confident=true」，
++    是有后果的提名，扩它必须是明写的决定而不是归一化的副作用。
++    """
++    return k.casefold().replace("-", "_")
++
++
++def _looks_like_doi_value(v: str) -> bool:
++    """值里含 DOI 形态的来源标识（⛔ substring 级，与 `_looks_like_source_value`
++    同口径）。非空才算 —— 卡文 (d) 要的是「**非空** DOI 来源阻止 C3 删除」。"""
++    return bool(v) and bool(_DOI_RE.search(v))
++
++
++def find_generation_claim(text: str) -> str | None:
++    """文头窗口内的**生成断言结构**片段（归一化匹配），无则 None。
++
++    ⛔ 只作 C3/C4 的「未消化信号」，不作 C2 判据 —— 见 `_GEN_CLAIM_CN_RE` 头注。
++    返回归一化后的命中片段（casefold + 空白折叠），供 uncertain_reason 展示；
++    ⚠️ 它是**归一形态**不是输入原文，措辞里如实这么说（round-8 §四对
++    「basis 带逐字片段」的证伪同源教训：写「逐字」就必须真的逐字）。
++    """
++    for _, ln in head_window(text):
++        norm = _norm_ai_line(ln)
++        for rx in (_GEN_CLAIM_CN_RE, _GEN_CLAIM_EN_RE):
++            m = rx.search(norm)
++            if m:
++                return m.group(0)
++    return None
++
+ 
+ def _find_marker_pos(ln: str, marker: str) -> int:
+     """marker 在**已归一**的 ln 中第一个满足右边界规则的起点；无则 -1。
+@@ -915,6 +1049,11 @@ def nominate(
+         ),
+         None,
+     )
++    # 未消化信号之七（round-8 BLOCKER-2）：生成断言结构「由 X 生成」/
++    # 「generated by X」—— 不枚举模型名，见 `_GEN_CLAIM_CN_RE` 头注。
++    gen_claim = find_generation_claim(text)
++    # 未消化信号之八（round-8 BLOCKER-2 的另一半）：生成器声明键名本身。
++    generator_keys = [k for k in fm if _norm_fm_key(k) in _GENERATOR_DECL_KEYS]
+ 
+     # ── 后置证据（不参与次序，但必须全量呈现） ──
+     exact_all = sorted(dup_index.get(body, [])) if body else []
+@@ -1006,6 +1145,13 @@ def nominate(
+     # 合法 source 键在此不可能出现（C1 已先行返回）。⚠️ C1 仍只认字面 source 键
+     # （R8 稿约定）；本信号只把这类来源摆上台面降 C6，不扩大 C1。
+     url_bearing_keys = [k for k, v in fm.items() if v and _looks_like_source_value(v)]
++    # 信号③a'（round-8 HIGH）：`source` 键名的**大小写/连字符变体**。原实现只查
++    # 字面小写 `source`，于是 `Source: DOI:10.1000/xyz` 的唯一来源标识被当作
++    # 不存在并 confident 删除。⚠️ 归一只作用于护栏，C1 不动（见 `_norm_fm_key`）。
++    source_alias_keys = [k for k in fm if _norm_fm_key(k) in _SOURCE_DECL_KEYS]
++    # 信号③c（round-8 HIGH）：值是 DOI 形态的来源标识（`identifier:` 之类
++    # 不在别名表的键名靠它接住）。DOI 不是 URL —— 文案分列，不冒充。
++    doi_bearing_keys = [k for k, v in fm.items() if _looks_like_doi_value(v)]
+ 
+     def undigested_reason() -> str | None:
+         """⛔ 「未消化信号」统一护栏（显式偏差 15）：C3/C4 是仅有的两个产出
+@@ -1022,11 +1168,19 @@ def nominate(
+                 f"frontmatter 含本引擎无法解析为键的行（如 {unparsed_fm[0]!r}），"
+                 "解析不完整"
+             )
+-        if "source" in fm:
++        if source_alias_keys:
++            k = source_alias_keys[0]
+             return (
+-                f"frontmatter 声明了 source（{fm['source']!r}）但不是可机判的"
++                f"frontmatter 声明了 {k}（{fm[k]!r}）但不是可机判的"
+                 "一手 URL —— 来源声明还在，不能当它不存在"
+             )
++        if doi_bearing_keys:
++            k = doi_bearing_keys[0]
++            return (
++                f"frontmatter 的 {k} 键声明了一个 DOI 来源标识"
++                f"（{fm[k]!r}）—— 这是该材料唯一的出处线索，不能当它不存在"
++                "（⚠️ 引擎不解析、不解引用 DOI，故只降拿不准，不判一手来源）"
++            )
+         if url_bearing_keys:
+             return (
+                 f"frontmatter 的 {url_bearing_keys[0]} 键声明了一个来源 URL"
+@@ -1048,6 +1202,18 @@ def nominate(
+                 f"文头或 frontmatter 出现独立词「AI」（如 {ai_word_hit!r}），"
+                 "可能与 AI 生成有关 —— 引擎不解读语义，宁可拿不准"
+             )
++        if gen_claim:
++            return (
++                f"文头出现生成断言结构（归一化后片段：{gen_claim!r}）—— 由谁生成"
++                "引擎不解读（模型名是开放集合，枚举追不上），但「这是生成物」"
++                "这句声明还在，不能当它不存在"
++            )
++        if generator_keys:
++            k = generator_keys[0]
++            return (
++                f"frontmatter 带生成器声明键 {k}（{fm[k]!r}）—— 键名本身就是"
++                "「这份材料是被生成出来的」这条声明，删除会把它一起抹掉"
++            )
+         return None
+ 
+     # ── C3 空 / 空骨架（⛔ 未消化信号护栏，见显式偏差 15）──
+@@ -1642,22 +1808,32 @@ def render_md(d: dict) -> str:
+     L.append(f"- 引擎可达去向：{'、'.join(v['reachable_by_engine'])}")
+     L.append(f"- **恒不产出**：{'、'.join(v['human_only'])} —— {v['human_only_note']}")
+     L.append(
+-        "- 近似重复（difflib）**永不**产出建议删：只有归一化正文逐字相等才建议删；"
+-        "库内只有一份同正文时给正本路径，多份同正文时给出全部候选并声明"
+-        "「哪一份是正本不可判」。"
++        "- 近似重复（difflib）**永不**产出建议删：**在重复这条判据里**，只有"
++        "归一化正文逐字相等才建议删（另一个建议删的出口是「空/空骨架」，"
++        "它跟像不像别的文件无关）；库内只有一份同正文时给正本路径，多份同正文时"
++        "给出全部候选并声明「哪一份是正本不可判」。"
+     )
+     L.append(
+         "- 建议删有两个出口（空骨架 / 正文重复），共用一组护栏（如实声明）："
+-        "在来源链接与 AI 自述都未确定命中时，文件若以未闭合注释结尾、frontmatter"
+-        " 含解析不了的行、有 source 声明、或文头有疑似 AI 自述 —— 空骨架不判、"
+-        "重复也不建议删，一律落「拿不准」把证据摆给你。"
++        "在来源链接与 AI 自述都未确定命中时，文件若带下列任一信号 —— "
++        "① 以未闭合的 HTML 注释结尾；② frontmatter 含解析不了的行；"
++        "③ frontmatter 有来源声明（source 键，键名大小写不敏感；或任意键的值里"
++        "含网址、含 DOI 编号）；④ 带睡眠台账键 slept_at；⑤ 文头有疑似 AI 自述；"
++        "⑥ 文头或 frontmatter 出现独立的「AI」字样；⑦ 文头出现「由 X 生成」/"
++        "「generated by X」这类生成声明；⑧ frontmatter 带 generator/model 之类的"
++        "生成器声明键 —— 空骨架不判、重复也不建议删，一律落「拿不准」把证据摆给你。"
++        "⚠️ 这八条是**已知形态的登记表**，不是完备判据：它们是被真实反例逐轮"
++        "打穿后一条条补上的，没有哪一轮证明了「没有下一条」。"
+     )
+     L.append(
+         "- AI 自述标记为字面量 + 右边界规则（汉字收尾标记后须为行尾/空白/有限标点"
+         "表，英文收尾标记后须为行尾/表中标点），仍不做语义否定检测：语义否定"
+         "（「这不是由 AI 生成」）与满足边界的话题提及仍可能给出归档提名 —— 依据"
+-        "带行号与逐字片段，请逐条核对后再拍板；漏判方向在其余判据也不命中时落"
+-        "「拿不准」。"
++        "带行号与**命中的标记文本**（⚠️ 那是标记表里的规范写法，不是你文件里的"
++        "原字，匹配在大小写/空白归一后做；行号是准的），请按行号回看原文再拍板。"
++        "⚠️ 漏判方向（该认出是 AI 写的却没认出）：**已登记的**形态由上面 ⑤⑥⑦⑧"
++        "四条信号接住落「拿不准」；**未登记的**新写法仍可能被判成空骨架建议删 —— "
++        "这条护栏是尽力而为，不是保证。"
+     )
+     L.append(f"- 判据次序（先命中者定去向）：{' → '.join(d['criteria_order'])}")
+     L.append("")

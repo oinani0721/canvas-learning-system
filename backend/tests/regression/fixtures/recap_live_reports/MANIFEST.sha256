@@ -1,0 +1,10 @@
+# live fixture 快照清单 —— 由 refresh_from_live.py --apply 生成。
+# 每行: <sha256>  <文件名>。手改本文件 = 让诚实性门失去意义。
+2264c1ada4e29a1af5275f4cfb5dc4c7a1e7e978221517944da79d00cfb40d55  回顾-CS 61B-2026-08-27.md
+c028a9d70c24fbe0249d37f26110f2c0a8f82ca1d23564a168cff6935d020207  回顾-CS188 lecture 2-2026-08-27.md
+753f850212f6f8009a77f467eae37d7ec554e608b41f087d28173387011c315e  回顾-特征值与特征向量-2026-08-27.md
+d40bf08159aeecf5f68cb525246b3ac26ae96fa6417ec855c57fd89da0613806  回顾-递归与分治 (Recursion & Divide-Conquer)-2026-08-27.md
+026e5b641e6b8e2187296db367daf6d6967b2a16a27b674c50317b6a007f7545  .recap-scan-CS 61B.json
+6f370fb9d4c947519b22b9bb5cfec2ff826153d7ad40a3e9752924ba776f1dd8  .recap-scan-CS188 lecture 2.json
+42120142b8500aac584d5201cf1ebd406cf398110fd358f0074465ac52c689c8  .recap-scan-特征值与特征向量.json
+00c0763ba9de302551e565864066c1574e58b4fb269253525e0a5628225b1ad0  .recap-scan-递归与分治 (Recursion & Divide-Conquer).json

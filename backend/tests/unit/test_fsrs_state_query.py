@@ -21,6 +21,7 @@ import pytest
 from app.config import Settings, get_settings
 from app.main import app
 from fastapi.testclient import TestClient
+from tests.support.lifespan import no_lifespan
 
 # Correct patch target: review.py imports get_review_service as _get_review_service_singleton
 REVIEW_SERVICE_PATCH = "app.api.v1.endpoints.review._get_review_service_singleton"
@@ -56,7 +57,7 @@ class TestFSRSStateQueryEndpoint:
     @pytest.fixture
     def test_client(self):
         """Create FastAPI test client."""
-        with TestClient(app) as c:
+        with no_lifespan(app), TestClient(app) as c:
             yield c
 
     def test_endpoint_returns_fsrs_state_when_card_exists(self, test_client):
@@ -193,9 +194,7 @@ class TestReviewServiceGetFSRSState:
         card-states file to tmp so tests never write backend/data/."""
         import app.services.review_service as rs_module
 
-        monkeypatch.setattr(
-            rs_module, "_CARD_STATES_FILE", tmp_path / "fsrs_card_states.json"
-        )
+        monkeypatch.setattr(rs_module, "_CARD_STATES_FILE", tmp_path / "fsrs_card_states.json")
 
     @pytest.mark.asyncio
     async def test_get_fsrs_state_returns_card_data(self, review_service_factory):
@@ -216,9 +215,7 @@ class TestReviewServiceGetFSRSState:
         assert "found" in result
 
     @pytest.mark.asyncio
-    async def test_get_fsrs_state_spawns_no_background_tasks(
-        self, review_service_factory
-    ):
+    async def test_get_fsrs_state_spawns_no_background_tasks(self, review_service_factory):
         """CARD-C4 回归锁定: auto-create 路径不再派生 fire-and-forget 任务
         (原幻影 Graphiti 镜像写, 每次必失败, G-FAKE-007)。"""
         service = review_service_factory()
@@ -229,9 +226,7 @@ class TestReviewServiceGetFSRSState:
         assert not leaked, f"get_fsrs_state 派生了未预期的后台任务: {leaked}"
 
     @pytest.mark.asyncio
-    async def test_get_fsrs_state_auto_creates_card_for_missing_concept(
-        self, review_service_factory
-    ):
+    async def test_get_fsrs_state_auto_creates_card_for_missing_concept(self, review_service_factory):
         """Story 38.3 AC-4: unknown concept auto-creates a card, found=True.
 
         CARD-A1: the previous found=False assertion was only green because
@@ -246,9 +241,7 @@ class TestReviewServiceGetFSRSState:
         assert "error" not in result.get("reason", "")
 
     @pytest.mark.asyncio
-    async def test_get_fsrs_state_edge_case_ids_resolve_gracefully(
-        self, review_service_factory
-    ):
+    async def test_get_fsrs_state_edge_case_ids_resolve_gracefully(self, review_service_factory):
         """
         AC-32.3.5 spirit: edge-case concept ids must not raise.
         With auto-create (38.3 AC-4) they resolve to found=True instead of
@@ -315,9 +308,7 @@ class TestFSRSStateResponseSchema:
         """
         from app.models.schemas import FSRSStateQueryResponse
 
-        response = FSRSStateQueryResponse(
-            concept_id="new-concept", fsrs_state=None, card_state=None, found=False
-        )
+        response = FSRSStateQueryResponse(concept_id="new-concept", fsrs_state=None, card_state=None, found=False)
 
         data = response.model_dump()
 
@@ -357,9 +348,7 @@ class TestFSRSStateIntegration:
         valid_states = [0, 1, 2, 3]
 
         for state_val in valid_states:
-            state = FSRSStateResponse(
-                stability=5.0, difficulty=5.0, state=state_val, reps=0, lapses=0
-            )
+            state = FSRSStateResponse(stability=5.0, difficulty=5.0, state=state_val, reps=0, lapses=0)
             assert state.state in valid_states
 
     def test_difficulty_in_valid_range(self):
@@ -368,9 +357,7 @@ class TestFSRSStateIntegration:
         """
         from app.models.schemas import FSRSStateResponse
 
-        state = FSRSStateResponse(
-            stability=5.0, difficulty=7.5, state=2, reps=3, lapses=0
-        )
+        state = FSRSStateResponse(stability=5.0, difficulty=7.5, state=2, reps=3, lapses=0)
         assert 1 <= state.difficulty <= 10
 
 
@@ -383,14 +370,10 @@ class TestAutoCreatePersistHonestyD3:
     def _isolate_card_states_file(self, tmp_path, monkeypatch):
         import app.services.review_service as rs_module
 
-        monkeypatch.setattr(
-            rs_module, "_CARD_STATES_FILE", tmp_path / "fsrs_card_states.json"
-        )
+        monkeypatch.setattr(rs_module, "_CARD_STATES_FILE", tmp_path / "fsrs_card_states.json")
 
     @pytest.mark.asyncio
-    async def test_auto_create_reports_persisted_flag_honestly(
-        self, review_service_factory, monkeypatch
-    ):
+    async def test_auto_create_reports_persisted_flag_honestly(self, review_service_factory, monkeypatch):
         from pathlib import Path
 
         import app.services.review_service as rs_module
@@ -403,9 +386,7 @@ class TestAutoCreatePersistHonestyD3:
         # result.get("reason", "") 消费方), 不接受 {"reason": None}
         assert "reason" not in ok
 
-        monkeypatch.setattr(
-            rs_module, "_CARD_STATES_FILE", Path("/dev/null/card-states.json")
-        )
+        monkeypatch.setattr(rs_module, "_CARD_STATES_FILE", Path("/dev/null/card-states.json"))
         svc2 = review_service_factory()
         bad = await svc2.get_fsrs_state("d3-auto-fail")
         assert bad["found"] is True
@@ -413,9 +394,7 @@ class TestAutoCreatePersistHonestyD3:
         assert bad["reason"] == "auto_created_not_persisted"
 
     @pytest.mark.asyncio
-    async def test_existing_card_reports_persisted_true(
-        self, review_service_factory
-    ):
+    async def test_existing_card_reports_persisted_true(self, review_service_factory):
         """已在持久层的卡走 else 分支 → persisted=True, 无 reason。"""
         svc = review_service_factory()
         await svc.get_fsrs_state("d3-existing")  # auto-create + 落盘
@@ -425,9 +404,7 @@ class TestAutoCreatePersistHonestyD3:
         assert "reason" not in again  # Codex LOW-1: 键必须缺席
 
     @pytest.mark.asyncio
-    async def test_persist_failure_not_whitewashed_by_cache_hit(
-        self, review_service_factory, monkeypatch
-    ):
+    async def test_persist_failure_not_whitewashed_by_cache_hit(self, review_service_factory, monkeypatch):
         """Codex HIGH-1 反例: auto-create 写失败后, 同实例第二次查询命中
         缓存不得把失败洗白成 persisted=True (卡留在 _card_states, 原实现
         else 分支无条件 True + 删 reason)。"""
@@ -435,9 +412,7 @@ class TestAutoCreatePersistHonestyD3:
 
         import app.services.review_service as rs_module
 
-        monkeypatch.setattr(
-            rs_module, "_CARD_STATES_FILE", Path("/dev/null/card-states.json")
-        )
+        monkeypatch.setattr(rs_module, "_CARD_STATES_FILE", Path("/dev/null/card-states.json"))
         svc = review_service_factory()
         first = await svc.get_fsrs_state("d3-dirty")
         assert first["found"] is True
