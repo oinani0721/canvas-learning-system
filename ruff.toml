@@ -12,7 +12,7 @@
 #     line_width           = 88  -> 这是 ruff 的**缺省值**, 不是本仓的选择;
 #                                   pyproject.toml [tool.ruff] 与 backend/ruff.toml
 #                                   都写着 120, 但前者被本文件遮蔽、后者只管 backend/。
-# 本卡只统一下面两个**口径**, 不动 select (2000+ 存量违规, 另开卡):
+# 本卡只统一 line-length 这**一个**口径, 不动 select (2000+ 存量违规, 另开卡):
 #
 # line-length = 120
 #   与 pyproject.toml [tool.ruff] / backend/ruff.toml 的声明对齐, 消除
@@ -20,14 +20,20 @@
 #   scripts/ 下 `ruff format --check` 从 83 个文件需重排变成 86 个
 #   (88 与 120 都要重排绝大多数文件, 差别只在换行位置)。
 #
-# target-version = "py312"
-#   缺省的 py39 会把**合法**的 PEP 701 f-string 判成 invalid-syntax ——
-#   实测 scripts/finalize-iteration.py 3 条, 而该文件在本仓实际执行它的
-#   解释器 (backend/.venv = Python 3.14) 下 `py_compile` rc=0。
-#   scripts/ 全部由该 venv 执行, py39 这个缺省值在本树没有任何依据。
-#   注: backend/ruff.toml 自己声明的 py39 本卡**不动** (超范围, 已登台账)。
+# ⚠️ 这里**刻意不写 target-version** —— 本卡曾一度加过 `py312`, 已撤回, 原因如实记下:
+#   1. 当时的理由「py39 是无依据的缺省」不成立: 本文件同目录的 pyproject.toml:6
+#      有 `requires-python = ">=3.9"`, ruff 由它推断出 py39。ruff 0.15.9 真正的
+#      裸缺省是 py310(在无 requires-python 的空目录实测 3.10), 不是 py39。
+#   2. 当时的证据(scripts/finalize-iteration.py 的 3 条 PEP 701 f-string
+#      invalid-syntax)已被本卡自己的 `ruff format` 落盘改写掉 —— 该文件现在
+#      在 py39 下也 `All checks passed!`。理由失效, 结论就不该留。
+#   3. 把目标版本抬到 py312 反而会放行 CI 跑不了的语法:
+#      .github/workflows/api-spec-sync.yml 用 **Python 3.11** 执行 scripts/,
+#      readme-claims.yml / release-evidence.yml 用 3.12。声明的下限是 3.9。
+#   现状(格式化后实测): scripts/ 在 py39/py310/py311 下各 24 条 invalid-syntax、
+#   py312 下 21 条, **全部集中在 scripts/spec-tools/api-reality-dashboard.py**
+#   —— 那是真语法错(Python 3.14 py_compile 也 rc=1), 与目标版本无关。
 line-length = 120
-target-version = "py312"
 
 [lint]
 select = []

@@ -95,8 +95,10 @@ pre-commit:
     # CARD-TOOL-lint-glob [BATCH-2026-09-05-第十一批]: glob 由
     # `{backend,src}/**/*.py` 改为 `{backend,src,scripts}/*.py`。两处改动:
     #   1. 补 scripts/ —— 本仓 tracked .py 的分布是 backend 845 / scripts 91 /
-    #      src **0**。即原 glob 的 `src` 分支是恒空集(保留只为与下方 pyright
-    #      块的 glob 同形), 而真正有 91 个文件(49 个在一级)的 scripts/ 从未过过 ruff 门。
+    #      src **0**。即原 glob 的 `src` 分支在**本 SHA 下**匹配不到任何文件
+    #      (保留只为与下方 pyright 块的 glob 同形, 不是「恒」空集 —— 有人建
+    #      src/ 它就会生效), 而真正有 91 个文件(49 个在一级)的 scripts/
+    #      从未过过 ruff 门。
     #   2. `**` 换单 `*` —— 沿用 X8 在本文件 OpenAPI 快照块钉死的引擎矩阵
     #      (lefthook 2.1.6): 单 `*` 跨目录层级, `**` 反而要求至少跨一级。
     #      故天真写法 `{backend,src,scripts}/**/*.py` 会漏掉 scripts/ 一级的
@@ -106,8 +108,10 @@ pre-commit:
     # 覆盖面诚实声明(别把本门当 lint 门读): scripts/ 的 ruff 配置解析到**根**
     # ruff.toml 而非 backend/ruff.toml, 其 `[lint] select = []` 让 lint 面成为
     # 空集。所以对 scripts/ 而言 `ruff check` 只拦解析器级 invalid-syntax,
-    # 不拦未定义名之类的规则违规 —— 实测 scripts/validate-source-citations.py:402
-    # 有一处 F821(f-string 里的 `{technology}`), 现行配置**不报**。
+    # 不拦未定义名之类的规则违规 —— 实测 scripts/validate-source-citations.py
+    # 的 `generate_report()` 多行 f-string 里有一处 F821(`{technology}`),
+    # 现行配置**不报**。(不写死行号: 它已被本卡 commit-2 的 ruff format
+    # 从 402 推到 392, 行号会随任何重排漂走。)
     # 真正拦住 scripts/ 的是下面的 `ruff format --check`。开 scripts/ 必错级
     # 规则集(对齐 backend/ruff.toml 的 E9,F63,F7,F82) = 另一张卡, 已登台账。
     python-lint:
@@ -251,36 +255,82 @@ pre-commit:
     #   _bmad-output/**                          审查报告/验收单正文引用
     # 标记串在运行时由两段拼出, 使**本文件自身**不含那个字面量 —— 否则每次
     # 编辑本块都会被自己拦下(判据不可自指)。
+    #
+    # ⚠️ 执行时机(2026-09-05 实测, 不要按 YAML 位置想当然): lefthook 2.1.6 对
+    # 未设 priority 的 commands **按命令名字母序**执行, 不是按 YAML 里的先后。
+    # 实测序列(名字首字母): c 开头的 Cypher 门 → g 开头的 ghost-files →
+    # m 开头的本块 → python-lint → p 开头的 pyright 门 → r 开头的 README 门
+    # → 最后是两个 OpenAPI 快照块(flat / root)。
+    # 即本块虽写在段末, 却在那两个快照块**之前**跑; 它们随后 `git add` 的
+    # backend/openapi.json **不在本门的扫描面内**(该文件由 app.openapi() 机器
+    # 生成, 其源头 backend/app/** 本身在扫描面内)。给本块加 `priority:` 不能
+    # 解决 —— 实测任何 priority 值都会把它排到**最前**(带 priority 的命令整体
+    # 先于无 priority 的)。要真正排到最后只能改命令名的字母序, 已登台账。
+    #
+    # 以下防御逐条对应 Codex round-1 的实测反例(全部本机复现过):
+    #   -z + tr        : `core.quotepath=false` 只关非 ASCII 八进制转义;
+    #                    含 `"`/`\`/TAB 的路径仍被 C 引号化, 拿去当 pathspec
+    #                    查不到东西 → 静默放行。-z 输出原始字节, 无引号。
+    #   --literal-pathspecs : 文件名里的 `*` `?` `:` 不再被当 pathspec 通配/魔法。
+    #   --no-color     : `color.ui=always` 时 diff 带 ANSI 前缀, `^+` 命中数
+    #                    实测由 90 掉到 0 → 门静默放行。必须用 diff 的**标志**,
+    #                    不能写 `-c color.ui=never` —— 更具体的 `color.diff=always`
+    #                    会盖过它(实测该写法下命中仍为 0, 标志写法为 2)。
+    #   --no-renames   : 默认 `--diff-filter=AM` 会漏掉被判为 R(重命名)的文件;
+    #                    关掉重命名检测后它变成 A, 重新进扫描面。
+    #   awk inhunk 状态: 原写法用 `/^\+\+\+/` 认文件头, 会把**正文里**以 `++`
+    #                    开头的新增行当成头吞掉, 且不推进行号(实测下一行的行号
+    #                    少 1)。现在只有 `@@` 之前的行算文件头。
+    #   FAILED 位      : git / awk 失败不再被管道吞成 0; 扫描没跑完 = fail-closed。
+    #   mktemp -d      : 0700 私有目录, 取代可预测的 $$ 路径与 `: >` 截断。
     mutant-residue-scan:
       run: |
+        set -u
         MARKER="MUT""ANT"
-        TMP="${TMPDIR:-/tmp}/lefthook-mutant-residue.$$"
-        : > "$TMP"
-        git -c core.quotepath=false diff --cached --name-only --diff-filter=AM \
-          | while IFS= read -r f; do
-              case "$f" in
-                backend/scripts/g32b_mutation_gates.py) continue ;;
-                backend/scripts/g32cb_mutation_gates.py) continue ;;
-                _bmad-output/*) continue ;;
-              esac
-              git diff --cached -U0 --diff-filter=AM -- "$f" \
-                | awk -v F="$f" -v M="$MARKER" '
-                    /^@@/    { split($3, a, ","); ln = a[1] + 0; next }
-                    /^\+\+\+/ { next }
-                    /^\+/    { if (index($0, M)) printf "  %s:%d: %s\n", F, ln, substr($0, 2); ln++ }
-                  ' >> "$TMP"
-            done
-        if [ -s "$TMP" ]; then
+        TMPD=$(mktemp -d "${TMPDIR:-/tmp}/lefthook-mutant-residue.XXXXXX") || {
+          echo "[Mutant-Scan] FAILED: 无法创建临时目录 — 按 fail-closed 阻断。"; exit 1; }
+        trap 'rm -rf "$TMPD"' EXIT
+        FAILED=0
+        if ! git --no-pager diff --cached --no-color --no-renames \
+               --name-only --diff-filter=AM -z > "$TMPD/names"; then
+          echo "[Mutant-Scan] FAILED: 枚举暂存文件失败 — 按 fail-closed 阻断。"; exit 1
+        fi
+        tr '\000' '\n' < "$TMPD/names" > "$TMPD/list" || {
+          echo "[Mutant-Scan] FAILED: 文件名解码失败 — 按 fail-closed 阻断。"; exit 1; }
+        : > "$TMPD/hits"
+        while IFS= read -r f; do
+          [ -n "$f" ] || continue
+          case "$f" in
+            backend/scripts/g32b_mutation_gates.py) continue ;;
+            backend/scripts/g32cb_mutation_gates.py) continue ;;
+            _bmad-output/*) continue ;;
+          esac
+          if ! git --no-pager --literal-pathspecs diff --cached --no-color \
+                 --no-renames -U0 --diff-filter=AM -- "$f" > "$TMPD/d"; then
+            echo "[Mutant-Scan] FAILED: 取 diff 失败: $f"; FAILED=1; continue
+          fi
+          awk -v F="$f" -v M="$MARKER" '
+            /^diff --git / { inhunk = 0; next }
+            /^@@/          { split($3, a, ","); ln = a[1] + 0; inhunk = 1; next }
+            !inhunk        { next }
+            /^\+/          { if (index($0, M)) printf "  %s:%d: %s\n", F, ln, substr($0, 2); ln++; next }
+            /^ /           { ln++; next }
+            { next }
+          ' "$TMPD/d" >> "$TMPD/hits" || { echo "[Mutant-Scan] FAILED: 解析失败: $f"; FAILED=1; }
+        done < "$TMPD/list"
+        if [ "$FAILED" -ne 0 ]; then
+          echo "[Mutant-Scan] 扫描未完成(见上) — 这不是「没发现标记」, 按 fail-closed 阻断。"
+          exit 1
+        fi
+        if [ -s "$TMPD/hits" ]; then
           echo ""
           echo "[Mutant-Scan] BLOCKED — 暂存的新增行里带变异残留标记:"
-          cat "$TMP"
+          cat "$TMPD/hits"
           echo ""
           echo "[Mutant-Scan] 变异 harness 没还原干净。先 restore 被改的生产文件,"
           echo "[Mutant-Scan] 再拿变异前的全文件 sha 基线逐个复核 —— 标记只是最弱那道网。"
-          rm -f "$TMP"
           exit 1
         fi
-        rm -f "$TMP"
         echo "[Mutant-Scan] OK (staged additions carry no mutation marker)."
 
 # ============================================================
