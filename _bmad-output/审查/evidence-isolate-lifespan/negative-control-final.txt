@@ -1,0 +1,10 @@
+=== lifespan isolation NEGATIVE CONTROL ===
+[0] AST gate: 0 violations across 258 files
+[1] 预采集 nodeid 全集: 3 条
+[2] 已摘掉 no_lifespan: tests/api/v1/endpoints/test_metadata_subject_mapping.py
+[3] pytest 子进程（串行）: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-micro/backend/.venv/bin/pytest tests/api/v1/endpoints/test_metadata_subject_mapping.py -p tests.support.guard_plugin -p no:cacheprovider --override-ini=addopts= -q --tb=no -rA -k test_get_returns_200 or test_add_returns_200 or test_remove_nonexistent_returns_404
+    pytest exit=1
+[3b] 子进程门汇总: attempts=7 blocked=7
+[4] outcomes: total=3 red=3 green=0 red-wrong-reason=0
+[5] 还原完成; byte-identical=True; runtime sha unchanged=True
+NEGATIVE-CONTROL: PASS (3 nodeids red for expected reason; runtime files unchanged; restored byte-identical; AST-GATE: PASS 0/258 files)

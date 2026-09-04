@@ -26,6 +26,7 @@ from fastapi.testclient import TestClient
 
 from app.config import Settings, get_settings
 from app.main import app
+from tests.support.lifespan import no_lifespan
 
 
 # ---------------------------------------------------------------------------
@@ -84,16 +85,14 @@ def auth_client() -> Generator[TestClient, None, None]:
         "litellm.acompletion",
         new=AsyncMock(return_value=None),
     ):
-        with patch(
-            "app.core.litellm_config.get_runtime_model_config"
-        ) as mock_get_runtime:
+        with patch("app.core.litellm_config.get_runtime_model_config") as mock_get_runtime:
             # The endpoint calls mgr.update(sys_config). We just want a
             # no-op manager so the call doesn't blow up or leak state.
             mock_mgr = AsyncMock()
             mock_mgr.update = lambda *args, **kwargs: None
             mock_get_runtime.return_value = mock_mgr
 
-            with TestClient(app) as test_client:
+            with no_lifespan(app), TestClient(app) as test_client:
                 yield test_client
 
     app.dependency_overrides.clear()
@@ -114,9 +113,7 @@ class TestSystemConfigAuth:
         assert "not configured" in response.json()["detail"].lower()
 
     def test_prod_wrong_key_403(self, auth_client: TestClient) -> None:
-        app.dependency_overrides[get_settings] = _settings_factory(
-            debug=False, key="real-key"
-        )
+        app.dependency_overrides[get_settings] = _settings_factory(debug=False, key="real-key")
         response = auth_client.post(
             "/api/v1/system/config",
             json=CONFIG_PAYLOAD,
@@ -125,16 +122,12 @@ class TestSystemConfigAuth:
         assert response.status_code == 403
 
     def test_prod_missing_header_403(self, auth_client: TestClient) -> None:
-        app.dependency_overrides[get_settings] = _settings_factory(
-            debug=False, key="real-key"
-        )
+        app.dependency_overrides[get_settings] = _settings_factory(debug=False, key="real-key")
         response = auth_client.post("/api/v1/system/config", json=CONFIG_PAYLOAD)
         assert response.status_code == 403
 
     def test_prod_correct_key_200(self, auth_client: TestClient) -> None:
-        app.dependency_overrides[get_settings] = _settings_factory(
-            debug=False, key="real-key"
-        )
+        app.dependency_overrides[get_settings] = _settings_factory(debug=False, key="real-key")
         response = auth_client.post(
             "/api/v1/system/config",
             json=CONFIG_PAYLOAD,
@@ -143,9 +136,7 @@ class TestSystemConfigAuth:
         assert response.status_code == 200
         assert response.json()["data"]["status"] == "ok"
 
-    def test_dev_mode_empty_key_now_fails_closed_503_p0_2(
-        self, auth_client: TestClient
-    ) -> None:
+    def test_dev_mode_empty_key_now_fails_closed_503_p0_2(self, auth_client: TestClient) -> None:
         """ChatGPT-DR-2026-05-13 P0-2: DEBUG+empty no longer auto-allows.
 
         Previous contract (pre-P0-2): DEBUG=True + empty key + missing header → 200.
@@ -170,9 +161,7 @@ class TestSystemTestLLMAuth:
         assert response.status_code == 503
 
     def test_prod_wrong_key_403(self, auth_client: TestClient) -> None:
-        app.dependency_overrides[get_settings] = _settings_factory(
-            debug=False, key="real-key"
-        )
+        app.dependency_overrides[get_settings] = _settings_factory(debug=False, key="real-key")
         response = auth_client.post(
             "/api/v1/system/test-llm",
             json=TEST_LLM_PAYLOAD,
@@ -181,16 +170,12 @@ class TestSystemTestLLMAuth:
         assert response.status_code == 403
 
     def test_prod_missing_header_403(self, auth_client: TestClient) -> None:
-        app.dependency_overrides[get_settings] = _settings_factory(
-            debug=False, key="real-key"
-        )
+        app.dependency_overrides[get_settings] = _settings_factory(debug=False, key="real-key")
         response = auth_client.post("/api/v1/system/test-llm", json=TEST_LLM_PAYLOAD)
         assert response.status_code == 403
 
     def test_prod_correct_key_200(self, auth_client: TestClient) -> None:
-        app.dependency_overrides[get_settings] = _settings_factory(
-            debug=False, key="real-key"
-        )
+        app.dependency_overrides[get_settings] = _settings_factory(debug=False, key="real-key")
         response = auth_client.post(
             "/api/v1/system/test-llm",
             json=TEST_LLM_PAYLOAD,
@@ -200,9 +185,7 @@ class TestSystemTestLLMAuth:
         # LiteLLM is mocked to no-op; success path returns status=success.
         assert response.json()["data"]["status"] == "success"
 
-    def test_dev_mode_empty_key_now_fails_closed_503_p0_2(
-        self, auth_client: TestClient
-    ) -> None:
+    def test_dev_mode_empty_key_now_fails_closed_503_p0_2(self, auth_client: TestClient) -> None:
         """ChatGPT-DR-2026-05-13 P0-2: DEBUG+empty no longer auto-allows.
 
         See test_internal_api_key_p0_2_hardening.py for full 6-branch coverage

@@ -22,6 +22,7 @@ import pytest
 from app.core.bug_tracker import BugTracker
 from app.main import app
 from fastapi.testclient import TestClient
+from tests.support.lifespan import no_lifespan
 
 
 @pytest.fixture
@@ -63,7 +64,7 @@ def client_with_bugs(test_bug_tracker: BugTracker) -> Generator[TestClient, None
 
     # Patch the global bug_tracker
     with patch("app.api.v1.endpoints.debug.bug_tracker", test_bug_tracker):
-        with TestClient(app) as client:
+        with no_lifespan(app), TestClient(app) as client:
             yield client
 
 
@@ -75,7 +76,7 @@ def client_empty_bugs(
     Create test client with empty bug_tracker.
     """
     with patch("app.api.v1.endpoints.debug.bug_tracker", test_bug_tracker):
-        with TestClient(app) as client:
+        with no_lifespan(app), TestClient(app) as client:
             yield client
 
 
@@ -275,7 +276,7 @@ class TestDebugRouterRegistration:
 
     def test_debug_routes_registered(self):
         """Test debug routes are registered in the app."""
-        with TestClient(app) as client:
+        with no_lifespan(app), TestClient(app) as client:
             # Check OpenAPI schema includes debug endpoints
             # Note: OpenAPI is served at /api/v1/openapi.json per main.py config
             response = client.get("/api/v1/openapi.json")
@@ -290,13 +291,12 @@ class TestDebugRouterRegistration:
 
     def test_debug_tag_in_openapi(self):
         """Test Debug tag is in OpenAPI schema."""
-        with TestClient(app) as client:
+        with no_lifespan(app), TestClient(app) as client:
             # Note: OpenAPI is served at /api/v1/openapi.json per main.py config
             response = client.get("/api/v1/openapi.json")
             openapi = response.json()
 
             tags = [tag["name"] for tag in openapi.get("tags", [])]
             assert "Debug" in tags or any(
-                "Debug" in path_item.get("get", {}).get("tags", [])
-                for path_item in openapi.get("paths", {}).values()
+                "Debug" in path_item.get("get", {}).get("tags", []) for path_item in openapi.get("paths", {}).values()
             )

@@ -490,7 +490,9 @@ def _capture_bark_request(monkeypatch, tmp_path) -> dict:
         captured["body"] = json.loads(req.data.decode("utf-8"))
         return _AcceptedResp()
 
-    monkeypatch.setattr(runner.send_bark.urllib.request, "urlopen", _capture_urlopen)
+    # CARD-TEST-bark-autostub: patch 模块内唯一出口缝, 不再改全局
+    # urllib.request.urlopen (旧写法会波及同进程内一切 urllib 用户)
+    monkeypatch.setattr(runner.send_bark, "_urlopen", _capture_urlopen)
     return captured
 
 

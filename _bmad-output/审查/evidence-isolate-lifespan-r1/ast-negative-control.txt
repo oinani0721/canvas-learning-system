@@ -1,0 +1,59 @@
+=== lifespan isolation NEGATIVE CONTROL ===
+    interpreter: /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/.venv/bin/python
+=== AST GATE NEGATIVE CONTROL ===
+  [must-flag] CAUGHT: 属性式 TestClient（import fastapi.testclient as tc）
+              → <negctl:属性式 TestClient（import fastapi.testclient as tc）>:4: TestClient(app) —— app 来自 app.main 且没有生效中的 no_lifespan/lifespan_lite（同 with 语句里排在前面的兄弟项，或支配本处的外层 with 块）
+  [must-flag] CAUGHT: 局部重定义同名 no_lifespan（import provenance 必须失效）
+              → <negctl:局部重定义同名 no_lifespan（import provenance 必须失效）>:9: TestClient(app) —— app 来自 app.main 且没有生效中的 no_lifespan/lifespan_lite（同 with 语句里排在前面的兄弟项，或支配本处的外层 with 块）
+  [must-flag] CAUGHT: with 之后才 app = FastAPI()（语句顺序）
+              → <negctl:with 之后才 app = FastAPI()（语句顺序）>:4: TestClient(app) —— app 来源无法静态证明（解析结果=unknown，按违规处理，人工复核）
+  [must-flag] CAUGHT: class body 污染冒充局部 app
+              → <negctl:class body 污染冒充局部 app>:6: TestClient(app) —— app 来源无法静态证明（解析结果=unknown，按违规处理，人工复核）
+  [must-flag] CAUGHT: 伪造本地 FastAPI() 工厂
+              → <negctl:伪造本地 FastAPI() 工厂>:6: TestClient(app) —— app 来源无法静态证明（解析结果=unknown，按违规处理，人工复核）
+  [must-flag] CAUGHT: helper 顺序在 TestClient 之后
+              → <negctl:helper 顺序在 TestClient 之后>:5: TestClient(app) —— app 来自 app.main 且没有生效中的 no_lifespan/lifespan_lite（同 with 语句里排在前面的兄弟项，或支配本处的外层 with 块）
+  [must-flag] CAUGHT: TestClient 名字被本地遮蔽（无法证明是真 TestClient）
+              → <negctl:TestClient 名字被本地遮蔽（无法证明是真 TestClient）>:6: with TestClient(...) —— TestClient 这个名字解析不到 ['fastapi.testclient', 'starlette.testclient'] 的真实 import（当前来源=localfunc:TestClient），无法证明它是被隔离约束覆盖的那个 TestClient
+  [must-flag] CAUGHT: import app.main as m; m.app 裸用
+              → <negctl:import app.main as m; m.app 裸用>:4: TestClient(<...>.app) —— app 来自 app.main 且没有生效中的 no_lifespan/lifespan_lite（同 with 语句里排在前面的兄弟项，或支配本处的外层 with 块）
+  [must-flag] CAUGHT: 外部对象冒充局部 app 工厂（other.make() 不是 self.make()）
+              → <negctl:外部对象冒充局部 app 工厂（other.make() 不是 self.make()）>:8: TestClient(app) —— app 来源无法静态证明（解析结果=unknown，按违规处理，人工复核）
+  [must-flag] CAUGHT: R1-8a：client = TestClient(app) 之后 with client:
+              → <negctl:R1-8a：client = TestClient(app) 之后 with client:>:5: with client —— 它是用 app.main 的 app 构造的 TestClient 实例，进入上下文会跑真实 lifespan（它包的是 app）；构造点没有隔离，本处也没有支配的外层隔离块
+  [must-flag] CAUGHT: R1-8b：ExitStack.enter_context(TestClient(app))
+              → <negctl:R1-8b：ExitStack.enter_context(TestClient(app))>:6: TestClient(app) —— app 来自 app.main 且没有生效中的 no_lifespan/lifespan_lite（同 with 语句里排在前面的兄弟项，或支配本处的外层 with 块）（经 enter_context）
+  [must-flag] CAUGHT: R1-8c：enter_context(先前构造的实例)
+              → <negctl:R1-8c：enter_context(先前构造的实例)>:7: enter_context client —— 它是用 app.main 的 app 构造的 TestClient 实例，进入上下文会跑真实 lifespan（它包的是 app）；构造点没有隔离，本处也没有支配的外层隔离块
+  [must-flag] CAUGHT: R1-9：分支里才赋局部 app（控制流不是词法顺序）
+              → <negctl:R1-9：分支里才赋局部 app（控制流不是词法顺序）>:8: TestClient(app) —— app 来源无法静态证明（解析结果=unknown，按违规处理，人工复核）
+  [must-flag] CAUGHT: R1-10：工厂里 a=FastAPI() 之后被覆盖成生产 app
+              → <negctl:R1-10：工厂里 a=FastAPI() 之后被覆盖成生产 app>:10: TestClient(app) —— app 来源无法静态证明（解析结果=unknown，按违规处理，人工复核）
+  [must-flag] CAUGHT: R1-11：同名方法跨类污染（A.make 安全不代表 B.make 安全）
+              → <negctl:R1-11：同名方法跨类污染（A.make 安全不代表 B.make 安全）>:13: TestClient(app) —— app 来源无法静态证明（解析结果=unknown，按违规处理，人工复核）
+  [must-flag] CAUGHT: R1-13c：TestClient(app=...) 关键字形态
+              → <negctl:R1-13c：TestClient(app=...) 关键字形态>:4: TestClient(app) —— app 来自 app.main 且没有生效中的 no_lifespan/lifespan_lite（同 with 语句里排在前面的兄弟项，或支配本处的外层 with 块）
+  [must-flag] CAUGHT: L2-b：TestClient 实例存进 self 再在别处 with
+              → <negctl:L2-b：TestClient 实例存进 self 再在别处 with>:7: with <...>.c —— 它是用 app.main 的 app 构造的 TestClient 实例，进入上下文会跑真实 lifespan（包的 app 名静态不可知，fail-closed）；构造点没有隔离，本处也没有支配的外层隔离块
+  [must-flag] CAUGHT: L2-d：工厂函数返回 TestClient(app) 后直接 with make()
+              → <negctl:L2-d：工厂函数返回 TestClient(app) 后直接 with make()>:6: with make() —— 它是用 app.main 的 app 构造的 TestClient 实例，进入上下文会跑真实 lifespan（包的 app 名静态不可知，fail-closed）；构造点没有隔离，本处也没有支配的外层隔离块
+  [must-flag] CAUGHT: L1-c：包装器没有真的调 no_lifespan
+              → <negctl:L1-c：包装器没有真的调 no_lifespan>:8: TestClient(app) —— app 来自 app.main 且没有生效中的 no_lifespan/lifespan_lite（同 with 语句里排在前面的兄弟项，或支配本处的外层 with 块）
+  [must-flag] CAUGHT: L1-d：包装器在 with 之外 yield（隔离没盖住让出控制权那一刻）
+              → <negctl:L1-d：包装器在 with 之外 yield（隔离没盖住让出控制权那一刻）>:11: TestClient(app) —— app 来自 app.main 且没有生效中的 no_lifespan/lifespan_lite（同 with 语句里排在前面的兄弟项，或支配本处的外层 with 块）
+  [must-flag] CAUGHT: L1-e：包装器隔离的是**另一个**形参
+              → <negctl:L1-e：包装器隔离的是**另一个**形参>:12: TestClient(app) —— app 来自 app.main 且没有生效中的 no_lifespan/lifespan_lite（同 with 语句里排在前面的兄弟项，或支配本处的外层 with 块）
+  [must-flag] CAUGHT: 工厂名被重绑定后仍冒充局部 app 工厂
+              → <negctl:工厂名被重绑定后仍冒充局部 app 工厂>:10: TestClient(app) —— app 来源无法静态证明（解析结果=unknown，按违规处理，人工复核）
+  [must-pass] CLEAN: 验伪锚 1：标准隔离形态
+  [must-pass] CLEAN: 验伪锚 2：函数级 import + 别名 TestClient
+  [must-pass] CLEAN: 验伪锚 3：局部 FastAPI()（来源可证）
+  [must-pass] CLEAN: 验伪锚 4：helper 返回局部 FastAPI() 后解包
+  [must-pass] CLEAN: 验伪锚 6：外层 with no_lifespan(app) 支配内层 with TestClient(app)
+  [must-pass] CLEAN: 验伪锚 7：完整属性链 fastapi.testclient.TestClient + 局部 app
+  [must-pass] CLEAN: 验伪锚 8：裸 TestClient(app) 不进 with —— 不跑 lifespan，不算违规
+  [must-pass] CLEAN: 验伪锚 9：局部 app 构造的实例进 with —— 无害
+  [must-pass] CLEAN: 验伪锚 10：自建 contextmanager 包 no_lifespan（合法，不该报）
+  [must-pass] CLEAN: 验伪锚 11：外层 no_lifespan(app) 支配 with client:（合法，不该报）
+  [must-pass] CLEAN: 验伪锚 5：同类方法工厂 self._make()（test_rag_four_state_api 的真实形态）
+AST-NEGATIVE-CONTROL: PASS (22 绕过全抓 / 11 正例全净)

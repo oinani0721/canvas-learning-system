@@ -1,0 +1,1853 @@
+{
+  "summary": "NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=223 (blocked=223, advisory=0)",
+  "total": 223,
+  "blocked": 223,
+  "advisory": 0,
+  "per_item_attempts": {
+    "tests/api/v1/endpoints/test_agents_dedup.py::TestDedupEndpointResponses::test_duplicate_request_returns_409": 1,
+    "tests/api/v1/endpoints/test_fsrs_state_api.py::TestFSRSStateEndpoint::test_returns_auto_created_card": 2,
+    "tests/api/v1/endpoints/test_fsrs_state_api.py::TestFSRSStateEndpoint::test_returns_reason_fsrs_not_initialized": 2,
+    "tests/api/v1/endpoints/test_fsrs_state_api.py::TestFSRSStateEndpoint::test_returns_reason_on_service_exception": 2,
+    "tests/api/v1/endpoints/test_fsrs_state_api.py::TestFSRSStateEndpoint::test_returns_reason_auto_creation_failed": 2,
+    "tests/api/v1/endpoints/test_fsrs_state_api.py::TestFSRSStateEndpoint::test_found_true_has_null_reason": 2,
+    "tests/api/v1/endpoints/test_fsrs_state_api.py::TestHealthEndpointFSRS::test_health_includes_fsrs_ok": 2,
+    "tests/api/v1/endpoints/test_fsrs_state_api.py::TestHealthEndpointFSRS::test_health_includes_fsrs_degraded": 2,
+    "tests/api/v1/endpoints/test_fsrs_state_api.py::TestHealthEndpointFSRS::test_health_fsrs_degraded_when_runtime_false": 2,
+    "tests/api/v1/endpoints/test_fsrs_state_api.py::TestHealthEndpointFSRS::test_health_fsrs_ok_when_runtime_none_but_available": 2,
+    "tests/api/v1/endpoints/test_fsrs_state_api.py::TestFrontendContractDefaultScore::test_not_found_returns_null_fsrs_state": 2,
+    "tests/api/v1/endpoints/test_fsrs_state_api.py::TestFrontendContractDefaultScore::test_auto_created_card_returns_non_null_fsrs_state": 2,
+    "tests/api/v1/endpoints/test_fsrs_state_api.py::TestFrontendContractDefaultScore::test_error_returns_null_fsrs_state": 2,
+    "tests/api/v1/endpoints/test_fsrs_state_api.py::TestPersistHonestyForwardingD3::test_fsrs_state_forwards_persisted_and_reason": 2,
+    "tests/api/v1/endpoints/test_fsrs_state_api.py::TestPersistHonestyForwardingD3::test_record_forwards_card_state_persisted": 2,
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetSubjectMapping::test_get_returns_200": 2,
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetSubjectMapping::test_get_returns_mappings": 2,
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetSubjectMapping::test_get_returns_correct_mapping_structure": 2,
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetSubjectMapping::test_get_returns_category_rules": 2,
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetSubjectMapping::test_get_returns_defaults": 2,
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestAddSubjectMapping::test_add_returns_200": 2,
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestAddSubjectMapping::test_add_includes_new_mapping_in_response": 2,
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestAddSubjectMapping::test_add_duplicate_updates_existing": 2,
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestAddSubjectMapping::test_add_requires_all_params": 2,
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestRemoveSubjectMapping::test_remove_existing_returns_200": 2,
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestRemoveSubjectMapping::test_remove_reflects_in_config": 2,
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestRemoveSubjectMapping::test_remove_nonexistent_returns_404": 2,
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestUpdateSubjectMapping::test_update_returns_200": 2,
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestUpdateSubjectMapping::test_update_replaces_config": 2,
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetMetadata::test_metadata_config_match": 2,
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetMetadata::test_metadata_default_fallback": 2,
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetMetadata::test_metadata_ignores_extra_params": 2,
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetMetadata::test_metadata_requires_canvas_path": 2,
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetMetadata::test_metadata_group_id_format": 2,
+    "tests/api/v1/endpoints/test_ping.py::TestPingEndpoint::test_ping_returns_200": 2,
+    "tests/api/v1/endpoints/test_ping.py::TestPingEndpoint::test_ping_returns_pong": 2,
+    "tests/unit/test_mastery_api.py::TestBatchEndpoint::test_empty_result": 2,
+    "tests/unit/test_mastery_api.py::TestBatchEndpoint::test_with_concepts": 2,
+    "tests/unit/test_mastery_api.py::TestGradeEndpoint::test_valid_grades[1]": 2,
+    "tests/unit/test_mastery_api.py::TestGradeEndpoint::test_valid_grades[2]": 2,
+    "tests/unit/test_mastery_api.py::TestGradeEndpoint::test_valid_grades[3]": 2,
+    "tests/unit/test_mastery_api.py::TestGradeEndpoint::test_valid_grades[4]": 2,
+    "tests/unit/test_mastery_api.py::TestGradeEndpoint::test_grade_out_of_range": 2,
+    "tests/unit/test_mastery_api.py::TestGradeEndpoint::test_grade_zero": 2,
+    "tests/unit/test_mastery_api.py::TestGradeEndpoint::test_grade_updates_mastery": 2,
+    "tests/unit/test_mastery_api.py::TestOverrideEndpoint::test_valid_levels[shaky]": 2,
+    "tests/unit/test_mastery_api.py::TestOverrideEndpoint::test_valid_levels[developing]": 2,
+    "tests/unit/test_mastery_api.py::TestOverrideEndpoint::test_valid_levels[proficient]": 2,
+    "tests/unit/test_mastery_api.py::TestOverrideEndpoint::test_valid_levels[mastered]": 2,
+    "tests/unit/test_mastery_api.py::TestOverrideEndpoint::test_invalid_level": 2,
+    "tests/unit/test_mastery_api.py::TestDeleteOverrideEndpoint::test_delete_existing": 2,
+    "tests/unit/test_mastery_api.py::TestDeleteOverrideEndpoint::test_delete_not_found": 2,
+    "tests/unit/test_mastery_api.py::TestSelfAssessEndpoint::test_valid_colors[1]": 2,
+    "tests/unit/test_mastery_api.py::TestSelfAssessEndpoint::test_valid_colors[2]": 2,
+    "tests/unit/test_mastery_api.py::TestSelfAssessEndpoint::test_valid_colors[3]": 2,
+    "tests/unit/test_mastery_api.py::TestSelfAssessEndpoint::test_valid_colors[4]": 2,
+    "tests/unit/test_mastery_api.py::TestSelfAssessEndpoint::test_valid_colors[5]": 2,
+    "tests/unit/test_mastery_api.py::TestSelfAssessEndpoint::test_valid_colors[6]": 2,
+    "tests/unit/test_mastery_api.py::TestGraphitiSyncEndpoint::test_valid_signals[misconception]": 2,
+    "tests/unit/test_mastery_api.py::TestGraphitiSyncEndpoint::test_valid_signals[problem_trap]": 2,
+    "tests/unit/test_mastery_api.py::TestGraphitiSyncEndpoint::test_valid_signals[guided_thinking_correct]": 2,
+    "tests/unit/test_mastery_api.py::TestGraphitiSyncEndpoint::test_invalid_signal": 2,
+    "tests/unit/test_mastery_api.py::TestGraphitiSyncEndpoint::test_existing_concept_matched": 2,
+    "tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_no_key_configured_fails_closed_503": 2,
+    "tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_missing_header_returns_403": 2,
+    "tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_wrong_key_returns_403": 2,
+    "tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_correct_key_grants_access": 3,
+    "tests/unit/test_sync_batch_auth.py::TestDevelopmentConvenience::test_dev_mode_no_key_now_fails_closed_503_p0_2": 2,
+    "tests/unit/test_sync_batch_auth.py::TestDevelopmentConvenience::test_dev_mode_with_key_still_enforces": 2,
+    "tests/unit/test_sync_batch_auth.py::TestHeaderParsing::test_canonical_header_name": 3,
+    "tests/unit/test_subjects_group_isolation.py::TestEndpointPhysicalGroupInjection::test_vault_id_query_param_reaches_cypher_as_physical_group": 2,
+    "tests/unit/test_sync_group_isolation.py::TestEndpointPhysicalGroupInjection::test_vault_id_reaches_cypher_as_physical_group": 3,
+    "tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_no_key_configured_503": 2,
+    "tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_wrong_key_403": 2,
+    "tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_missing_header_403": 2,
+    "tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_correct_key_200": 2,
+    "tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_dev_mode_empty_key_now_fails_closed_503_p0_2": 2,
+    "tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_no_key_configured_503": 2,
+    "tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_wrong_key_403": 2,
+    "tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_missing_header_403": 2,
+    "tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_correct_key_200": 2,
+    "tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_dev_mode_empty_key_now_fails_closed_503_p0_2": 2,
+    "tests/unit/test_fsrs_state_query.py::TestFSRSStateQueryEndpoint::test_endpoint_returns_fsrs_state_when_card_exists": 2,
+    "tests/unit/test_fsrs_state_query.py::TestFSRSStateQueryEndpoint::test_endpoint_returns_not_found_when_no_card": 2,
+    "tests/unit/test_fsrs_state_query.py::TestFSRSStateQueryEndpoint::test_endpoint_handles_special_characters_in_concept_id": 2,
+    "tests/unit/test_fsrs_state_query.py::TestFSRSStateQueryEndpoint::test_endpoint_handles_null_retrievability_and_due": 2,
+    "tests/unit/test_sync_exception_classification.py::TestInfrastructureErrors::test_service_unavailable_returns_503": 2,
+    "tests/unit/test_sync_exception_classification.py::TestInfrastructureErrors::test_auth_error_returns_503": 2,
+    "tests/unit/test_sync_exception_classification.py::TestInfrastructureErrors::test_connection_error_returns_503": 2,
+    "tests/unit/test_sync_exception_classification.py::TestLogicErrors::test_value_error_returns_500": 2,
+    "tests/unit/test_sync_exception_classification.py::TestLogicErrors::test_type_error_returns_500": 2,
+    "tests/unit/test_sync_exception_classification.py::TestLogicErrors::test_generic_exception_returns_500": 2,
+    "tests/unit/test_vault_scope_409.py::TestEndpointConflict409::test_sync_batch_mismatch_409": 3,
+    "tests/test_debug.py::TestGetRecentBugs::test_get_bugs_success": 2,
+    "tests/test_debug.py::TestGetRecentBugs::test_get_bugs_empty": 2,
+    "tests/test_debug.py::TestGetRecentBugs::test_get_bugs_with_limit": 2,
+    "tests/test_debug.py::TestGetRecentBugs::test_get_bugs_default_limit": 2,
+    "tests/test_debug.py::TestGetRecentBugs::test_get_bugs_limit_validation_min": 2,
+    "tests/test_debug.py::TestGetRecentBugs::test_get_bugs_limit_validation_max": 2,
+    "tests/test_debug.py::TestGetRecentBugs::test_get_bugs_response_format": 2,
+    "tests/test_debug.py::TestGetRecentBugs::test_get_bugs_newest_first": 2,
+    "tests/test_debug.py::TestGetBugById::test_get_bug_by_id_success": 2,
+    "tests/test_debug.py::TestGetBugById::test_get_bug_by_id_not_found": 2,
+    "tests/test_debug.py::TestGetBugStats::test_get_stats_success": 2,
+    "tests/test_debug.py::TestGetBugStats::test_get_stats_empty": 2,
+    "tests/test_debug.py::TestGetBugStats::test_get_stats_by_error_type": 2,
+    "tests/test_debug.py::TestGetBugStats::test_get_stats_by_endpoint": 2,
+    "tests/test_debug.py::TestDebugRouterRegistration::test_debug_routes_registered": 2,
+    "tests/test_debug.py::TestDebugRouterRegistration::test_debug_tag_in_openapi": 2,
+    "tests/test_deep_monitoring.py::test_metrics_endpoint_returns_200": 2
+  },
+  "outcomes": {
+    "tests/api/v1/endpoints/test_agents_dedup.py::TestDedupEndpointResponses::test_duplicate_request_returns_409": "passed",
+    "tests/api/v1/endpoints/test_agents_dedup.py::TestDedupEndpointResponses::test_409_response_detail_format": "passed",
+    "tests/api/v1/endpoints/test_agents_dedup.py::TestDedupConfigToggle::test_dedup_disabled_allows_duplicate": "passed",
+    "tests/api/v1/endpoints/test_agents_dedup.py::TestDedupConfigToggle::test_dedup_enabled_by_default": "passed",
+    "tests/api/v1/endpoints/test_agents_dedup.py::TestDedupHelperFunctions::test_check_duplicate_request_returns_cache_key": "passed",
+    "tests/api/v1/endpoints/test_agents_dedup.py::TestDedupHelperFunctions::test_check_duplicate_request_marks_in_progress": "passed",
+    "tests/api/v1/endpoints/test_agents_dedup.py::TestDedupHelperFunctions::test_check_duplicate_request_raises_409_on_duplicate": "passed",
+    "tests/api/v1/endpoints/test_agents_dedup.py::TestDedupHelperFunctions::test_complete_request_marks_completed": "passed",
+    "tests/api/v1/endpoints/test_agents_dedup.py::TestDedupHelperFunctions::test_cancel_request_removes_entry": "passed",
+    "tests/api/v1/endpoints/test_agents_dedup.py::TestDedupHelperFunctions::test_cancel_request_allows_retry": "passed",
+    "tests/api/v1/endpoints/test_agents_dedup.py::TestDedupAcrossEndpoints::test_different_agent_types_not_duplicate": "passed",
+    "tests/api/v1/endpoints/test_agents_dedup.py::TestDedupAcrossEndpoints::test_different_nodes_not_duplicate": "passed",
+    "tests/api/v1/endpoints/test_agents_dedup.py::TestDedupAcrossEndpoints::test_different_canvases_not_duplicate": "passed",
+    "tests/api/v1/endpoints/test_agents_dedup.py::TestDedupEmptyKeyHandling::test_complete_request_with_empty_key": "passed",
+    "tests/api/v1/endpoints/test_agents_dedup.py::TestDedupEmptyKeyHandling::test_cancel_request_with_empty_key": "passed",
+    "tests/api/v1/endpoints/test_agents_encoding.py::test_encoding_error_returns_encoding_error_type": "passed",
+    "tests/api/v1/endpoints/test_agents_encoding.py::test_encoding_error_is_retryable": "passed",
+    "tests/api/v1/endpoints/test_agents_encoding.py::test_encoding_error_diagnostic_contains_position": "passed",
+    "tests/api/v1/endpoints/test_agents_encoding.py::test_encoding_error_diagnostic_contains_hex_char_code": "passed",
+    "tests/api/v1/endpoints/test_agents_encoding.py::test_encoding_error_diagnostic_chinese_character": "passed",
+    "tests/api/v1/endpoints/test_agents_encoding.py::test_encoding_error_logs_ascii_safe": "passed",
+    "tests/api/v1/endpoints/test_agents_encoding.py::test_encoding_error_cancels_request_cache": "passed",
+    "tests/api/v1/endpoints/test_agents_encoding.py::test_encoding_error_no_cancel_when_no_cache_key": "passed",
+    "tests/api/v1/endpoints/test_agents_encoding.py::test_encoding_error_empty_object": "passed",
+    "tests/api/v1/endpoints/test_agents_encoding.py::test_encoding_error_position_out_of_bounds": "passed",
+    "tests/api/v1/endpoints/test_agents_encoding.py::test_decompose_basic_has_encoding_error_handler": "passed",
+    "tests/api/v1/endpoints/test_agents_encoding.py::test_decompose_deep_has_encoding_error_handler": "passed",
+    "tests/api/v1/endpoints/test_agents_encoding.py::test_decompose_question_has_encoding_error_handler": "passed",
+    "tests/api/v1/endpoints/test_agents_encoding.py::test_call_explanation_has_encoding_error_handler": "passed",
+    "tests/api/v1/endpoints/test_agents_encoding.py::test_score_understanding_has_encoding_error_handler": "passed",
+    "tests/api/v1/endpoints/test_agents_encoding.py::test_generate_verification_questions_has_encoding_error_handler": "passed",
+    "tests/api/v1/endpoints/test_agents_health.py::test_health_check_healthy_status": "passed",
+    "tests/api/v1/endpoints/test_agents_health.py::test_health_check_degraded_status": "passed",
+    "tests/api/v1/endpoints/test_agents_health.py::test_health_check_unhealthy_no_api_key": "passed",
+    "tests/api/v1/endpoints/test_agents_health.py::test_health_check_unhealthy_no_client": "passed",
+    "tests/api/v1/endpoints/test_agents_health.py::test_health_check_with_api_test_success": "passed",
+    "tests/api/v1/endpoints/test_agents_health.py::test_health_check_with_api_test_failure": "passed",
+    "tests/api/v1/endpoints/test_agents_health.py::test_health_check_without_api_test": "passed",
+    "tests/api/v1/endpoints/test_agents_health.py::test_health_check_cache_ttl": "passed",
+    "tests/api/v1/endpoints/test_agents_health.py::test_health_check_cache_expired": "passed",
+    "tests/api/v1/endpoints/test_agents_health.py::test_health_check_separate_cache_keys": "passed",
+    "tests/api/v1/endpoints/test_agents_health.py::test_health_check_response_model": "passed",
+    "tests/api/v1/endpoints/test_agents_health.py::test_health_check_timestamp_format": "passed",
+    "tests/api/v1/endpoints/test_agents_learning_event.py::TestRecordLearningEvent::test_record_learning_event_success": "passed",
+    "tests/api/v1/endpoints/test_agents_learning_event.py::TestRecordLearningEvent::test_record_learning_event_includes_required_fields": "passed",
+    "tests/api/v1/endpoints/test_agents_learning_event.py::TestRecordLearningEvent::test_record_learning_event_with_score": "passed",
+    "tests/api/v1/endpoints/test_agents_learning_event.py::TestRecordLearningEvent::test_record_learning_event_failure_silent": "passed",
+    "tests/api/v1/endpoints/test_agents_learning_event.py::TestRecordLearningEvent::test_record_learning_event_different_agent_types": "passed",
+    "tests/api/v1/endpoints/test_agents_learning_event.py::TestBackgroundTaskIntegration::test_background_task_non_blocking": "passed",
+    "tests/api/v1/endpoints/test_agents_learning_event.py::TestBackgroundTaskIntegration::test_background_task_failure_graceful": "passed",
+    "tests/api/v1/endpoints/test_agents_learning_event.py::TestMemoryServiceSingleton::test_singleton_returns_same_instance": "passed",
+    "tests/api/v1/endpoints/test_agents_learning_event.py::TestEndpointIntegration::test_decompose_basic_triggers_recording": "passed",
+    "tests/api/v1/endpoints/test_agents_learning_event.py::TestEndpointIntegration::test_decompose_deep_triggers_recording": "passed",
+    "tests/api/v1/endpoints/test_agents_learning_event.py::TestEndpointIntegration::test_score_understanding_triggers_recording": "passed",
+    "tests/api/v1/endpoints/test_agents_learning_event.py::TestEndpointIntegration::test_explain_oral_triggers_recording": "passed",
+    "tests/api/v1/endpoints/test_agents_learning_event.py::TestEndpointIntegration::test_learning_event_failure_does_not_block_response": "passed",
+    "tests/api/v1/endpoints/test_agents_learning_event.py::TestAllExplainEndpointsRecording::test_explain_endpoint_records_event[explain_oral-explain_oral]": "passed",
+    "tests/api/v1/endpoints/test_agents_learning_event.py::TestAllExplainEndpointsRecording::test_explain_endpoint_records_event[explain_clarification-explain_clarification]": "passed",
+    "tests/api/v1/endpoints/test_agents_learning_event.py::TestAllExplainEndpointsRecording::test_explain_endpoint_records_event[explain_comparison-explain_comparison]": "passed",
+    "tests/api/v1/endpoints/test_agents_learning_event.py::TestAllExplainEndpointsRecording::test_explain_endpoint_records_event[explain_memory-explain_memory]": "passed",
+    "tests/api/v1/endpoints/test_agents_learning_event.py::TestAllExplainEndpointsRecording::test_explain_endpoint_records_event[explain_four_level-explain_four-level]": "passed",
+    "tests/api/v1/endpoints/test_agents_learning_event.py::TestAllExplainEndpointsRecording::test_explain_endpoint_records_event[explain_example-explain_example]": "passed",
+    "tests/api/v1/endpoints/test_fsrs_state_api.py::TestFSRSStateEndpoint::test_returns_auto_created_card": "passed",
+    "tests/api/v1/endpoints/test_fsrs_state_api.py::TestFSRSStateEndpoint::test_returns_reason_fsrs_not_initialized": "passed",
+    "tests/api/v1/endpoints/test_fsrs_state_api.py::TestFSRSStateEndpoint::test_returns_reason_on_service_exception": "passed",
+    "tests/api/v1/endpoints/test_fsrs_state_api.py::TestFSRSStateEndpoint::test_returns_reason_auto_creation_failed": "passed",
+    "tests/api/v1/endpoints/test_fsrs_state_api.py::TestFSRSStateEndpoint::test_found_true_has_null_reason": "passed",
+    "tests/api/v1/endpoints/test_fsrs_state_api.py::TestHealthEndpointFSRS::test_health_includes_fsrs_ok": "passed",
+    "tests/api/v1/endpoints/test_fsrs_state_api.py::TestHealthEndpointFSRS::test_health_includes_fsrs_degraded": "passed",
+    "tests/api/v1/endpoints/test_fsrs_state_api.py::TestHealthEndpointFSRS::test_health_fsrs_degraded_when_runtime_false": "passed",
+    "tests/api/v1/endpoints/test_fsrs_state_api.py::TestHealthEndpointFSRS::test_health_fsrs_ok_when_runtime_none_but_available": "passed",
+    "tests/api/v1/endpoints/test_fsrs_state_api.py::TestFrontendContractDefaultScore::test_not_found_returns_null_fsrs_state": "passed",
+    "tests/api/v1/endpoints/test_fsrs_state_api.py::TestFrontendContractDefaultScore::test_auto_created_card_returns_non_null_fsrs_state": "passed",
+    "tests/api/v1/endpoints/test_fsrs_state_api.py::TestFrontendContractDefaultScore::test_error_returns_null_fsrs_state": "passed",
+    "tests/api/v1/endpoints/test_fsrs_state_api.py::TestPersistHonestyForwardingD3::test_fsrs_state_forwards_persisted_and_reason": "passed",
+    "tests/api/v1/endpoints/test_fsrs_state_api.py::TestPersistHonestyForwardingD3::test_record_forwards_card_state_persisted": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestEpisodesFourState::test_status_is_passed_through_verbatim[ok-None]": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestEpisodesFourState::test_status_is_passed_through_verbatim[empty-None]": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestEpisodesFourState::test_status_is_passed_through_verbatim[degraded-Neo4j unreachable \\u2014 \\u5185\\u5b58\\u515c\\u5e95\\u63a5\\u7ba1]": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestEpisodesFourState::test_status_is_passed_through_verbatim[unavailable-ConnectionRefusedError: bolt://localhost:7687]": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestEpisodesFourState::test_absent_service_keys_yield_null_not_invented_status": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestEpisodesFourState::test_legacy_required_keys_all_preserved": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestConceptHistoryFourState::test_status_is_passed_through_verbatim[ok-None]": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestConceptHistoryFourState::test_status_is_passed_through_verbatim[empty-None]": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestConceptHistoryFourState::test_status_is_passed_through_verbatim[degraded-partial timeline \\u2014 graphiti down]": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestConceptHistoryFourState::test_status_is_passed_through_verbatim[unavailable-RuntimeError: driver closed]": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestConceptHistoryFourState::test_unavailable_empty_timeline_is_distinguishable_from_empty": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestConceptHistoryFourState::test_legacy_required_keys_all_preserved": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestReviewSuggestionsEnvelope::test_envelope_carries_status[<lambda>-ok-None]": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestReviewSuggestionsEnvelope::test_envelope_carries_status[<lambda>-empty-None]": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestReviewSuggestionsEnvelope::test_envelope_carries_status[<lambda>-degraded-graphiti down]": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestReviewSuggestionsEnvelope::test_envelope_carries_status[<lambda>-unavailable-ConnectionRefusedError: bolt]": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestReviewSuggestionsEnvelope::test_items_payload_shape_unchanged": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestReviewSuggestionsEnvelope::test_endpoint_consumes_status_aware_service_method": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestReviewSuggestionsEnvelope::test_unavailable_returns_200_with_empty_items": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceAlignment::test_degraded_logs_decision_with_enum_value": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceAlignment::test_healthy_states_do_not_spam_trace[ok]": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceAlignment::test_healthy_states_do_not_spam_trace[empty]": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceAlignment::test_review_suggestions_unavailable_logs_decision": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceAlignment::test_concept_history_degraded_logs_decision": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryAdditiveContract::test_legacy_schema_parses_episodes_under_all_states[ok]": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryAdditiveContract::test_legacy_schema_parses_episodes_under_all_states[empty]": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryAdditiveContract::test_legacy_schema_parses_episodes_under_all_states[degraded]": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryAdditiveContract::test_legacy_schema_parses_episodes_under_all_states[unavailable]": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryAdditiveContract::test_legacy_nested_timeline_model_actually_participates": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryAdditiveContract::test_legacy_schema_parses_concept_history_under_all_states[ok]": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryAdditiveContract::test_legacy_schema_parses_concept_history_under_all_states[empty]": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryAdditiveContract::test_legacy_schema_parses_concept_history_under_all_states[degraded]": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryAdditiveContract::test_legacy_schema_parses_concept_history_under_all_states[unavailable]": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryAdditiveContract::test_review_suggestions_envelope_is_declared_breaking_not_additive": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceEnumNormalization::test_enum_valued_status_normalizes_in_trace_and_body": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceEnumNormalization::test_out_of_domain_status_fails_loud_not_silently_passed_through": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemorySchemaRequiredSetsFrozen::test_required_set_unchanged[ConceptHistoryResponse]": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemorySchemaRequiredSetsFrozen::test_required_set_unchanged[LearningHistoryItem]": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemorySchemaRequiredSetsFrozen::test_required_set_unchanged[LearningHistoryResponse]": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemorySchemaRequiredSetsFrozen::test_required_set_unchanged[ReviewSuggestionResponse]": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemorySchemaRequiredSetsFrozen::test_new_status_fields_are_optional_everywhere": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemorySchemaRequiredSetsFrozen::test_status_field_value_domain_is_the_unified_enum[LearningHistoryResponse]": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemorySchemaRequiredSetsFrozen::test_status_field_value_domain_is_the_unified_enum[ConceptHistoryResponse]": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemorySchemaRequiredSetsFrozen::test_status_field_value_domain_is_the_unified_enum[ReviewSuggestionsResponse]": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceFailOpen::test_trace_sink_failure_does_not_break_response[/api/v1/memory/episodes?user_id=u-get_learning_history-<lambda>-unavailable-neo4j down]": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceFailOpen::test_trace_sink_failure_does_not_break_response[/api/v1/memory/concepts/c/history-get_concept_history-<lambda>-degraded-partial timeline]": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceFailOpen::test_both_sink_and_fallback_logger_failing_still_returns_200[/api/v1/memory/episodes?user_id=u-get_learning_history-<lambda>-unavailable-neo4j down]": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceFailOpen::test_both_sink_and_fallback_logger_failing_still_returns_200[/api/v1/memory/concepts/c/history-get_concept_history-<lambda>-degraded-partial timeline]": "passed",
+    "tests/api/v1/endpoints/test_memory_four_state_api.py::TestMemoryTraceFailOpen::test_review_suggestions_trace_failure_does_not_break_response": "passed",
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetSubjectMapping::test_get_returns_200": "passed",
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetSubjectMapping::test_get_returns_mappings": "passed",
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetSubjectMapping::test_get_returns_correct_mapping_structure": "passed",
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetSubjectMapping::test_get_returns_category_rules": "passed",
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetSubjectMapping::test_get_returns_defaults": "passed",
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestAddSubjectMapping::test_add_returns_200": "passed",
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestAddSubjectMapping::test_add_includes_new_mapping_in_response": "passed",
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestAddSubjectMapping::test_add_duplicate_updates_existing": "passed",
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestAddSubjectMapping::test_add_requires_all_params": "passed",
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestRemoveSubjectMapping::test_remove_existing_returns_200": "passed",
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestRemoveSubjectMapping::test_remove_reflects_in_config": "passed",
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestRemoveSubjectMapping::test_remove_nonexistent_returns_404": "passed",
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestUpdateSubjectMapping::test_update_returns_200": "passed",
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestUpdateSubjectMapping::test_update_replaces_config": "passed",
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetMetadata::test_metadata_config_match": "passed",
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetMetadata::test_metadata_default_fallback": "passed",
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetMetadata::test_metadata_ignores_extra_params": "passed",
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetMetadata::test_metadata_requires_canvas_path": "passed",
+    "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetMetadata::test_metadata_group_id_format": "failed",
+    "tests/api/v1/endpoints/test_multimodal.py::TestMultimodalModels::test_upload_url_request_valid": "passed",
+    "tests/api/v1/endpoints/test_multimodal.py::TestMultimodalModels::test_update_request_optional_fields": "passed",
+    "tests/api/v1/endpoints/test_multimodal.py::TestMultimodalModels::test_multimodal_response_model": "passed",
+    "tests/api/v1/endpoints/test_multimodal.py::TestMultimodalModels::test_media_type_enum": "passed",
+    "tests/api/v1/endpoints/test_multimodal.py::TestMultimodalHealthModels::test_health_response_full_capability": "passed",
+    "tests/api/v1/endpoints/test_multimodal.py::TestMultimodalHealthModels::test_health_degraded_values": "passed",
+    "tests/api/v1/endpoints/test_multimodal.py::TestMultimodalHealthModels::test_health_field_validation": "passed",
+    "tests/api/v1/endpoints/test_multimodal.py::TestMultimodalQueryModels::test_media_item_response_valid": "passed",
+    "tests/api/v1/endpoints/test_multimodal.py::TestMultimodalQueryModels::test_media_item_response_type_validation": "passed",
+    "tests/api/v1/endpoints/test_multimodal.py::TestMultimodalQueryModels::test_media_item_response_score_bounds": "passed",
+    "tests/api/v1/endpoints/test_multimodal.py::TestMultimodalQueryModels::test_pagination_meta_valid": "passed",
+    "tests/api/v1/endpoints/test_multimodal.py::TestMultimodalQueryModels::test_search_request_valid": "passed",
+    "tests/api/v1/endpoints/test_multimodal.py::TestMultimodalQueryModels::test_search_request_query_not_empty": "passed",
+    "tests/api/v1/endpoints/test_ping.py::TestPingEndpoint::test_ping_returns_200": "passed",
+    "tests/api/v1/endpoints/test_ping.py::TestPingEndpoint::test_ping_returns_pong": "passed",
+    "tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagQueryFourStatePassthrough::test_state_status_reaches_http_surface[ok-None]": "passed",
+    "tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagQueryFourStatePassthrough::test_state_status_reaches_http_surface[empty-None]": "passed",
+    "tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagQueryFourStatePassthrough::test_state_status_reaches_http_surface[degraded-graphiti timeout \\u2014 lancedb \\u72ec\\u625b]": "passed",
+    "tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagQueryFourStatePassthrough::test_state_status_reaches_http_surface[unavailable-rag fallback: ainvoke returned None]": "passed",
+    "tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagQueryFourStatePassthrough::test_missing_status_stays_null_not_invented": "passed",
+    "tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagQueryFourStatePassthrough::test_state_key_entirely_absent_is_tolerated": "passed",
+    "tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagQueryFourStatePassthrough::test_unavailable_still_returns_200": "passed",
+    "tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagQueryFourStatePassthrough::test_status_value_domain_matches_unified_enum": "passed",
+    "tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagTraceAlignment::test_degraded_logs_decision_with_enum_value": "passed",
+    "tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagTraceAlignment::test_entry_logger_failure_does_not_break_response": "passed",
+    "tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagTraceAlignment::test_healthy_states_do_not_log_decision[ok]": "passed",
+    "tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagTraceAlignment::test_healthy_states_do_not_log_decision[empty]": "passed",
+    "tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagTraceAlignment::test_ok_does_not_log_decision": "passed",
+    "tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagTraceAlignment::test_null_status_does_not_log_decision": "passed",
+    "tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagAdditiveContract::test_legacy_schema_parses_new_response[ok]": "passed",
+    "tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagAdditiveContract::test_legacy_schema_parses_new_response[empty]": "passed",
+    "tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagAdditiveContract::test_legacy_schema_parses_new_response[degraded]": "passed",
+    "tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagAdditiveContract::test_legacy_schema_parses_new_response[unavailable]": "passed",
+    "tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagAdditiveContract::test_legacy_schema_parses_new_response[None]": "passed",
+    "tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagAdditiveContract::test_legacy_nested_multimodal_model_actually_participates": "passed",
+    "tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagAdditiveContract::test_legacy_required_keys_all_preserved": "passed",
+    "tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagSchemaRequiredSetFrozen::test_required_set_stays_empty": "passed",
+    "tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagSchemaRequiredSetFrozen::test_status_field_value_domain_is_the_unified_enum": "passed",
+    "tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagRealFallbackEntrypoint::test_real_ainvoke_none_fallback_returns_200_unavailable": "passed",
+    "tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagRealFallbackEntrypoint::test_query_with_fallback_exception_exit_reports_unavailable": "passed",
+    "tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagTraceFailOpen::test_trace_sink_failure_does_not_break_the_response": "passed",
+    "tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagTraceFailOpen::test_both_sink_and_fallback_logger_failing_still_returns_200": "passed",
+    "tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagProductionStateShapesAllReturn200::test_create_initial_state_shape_returns_200": "passed",
+    "tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagProductionStateShapesAllReturn200::test_fallback_result_shape_returns_200[ainvoke_returned_none]": "passed",
+    "tests/api/v1/endpoints/test_rag_four_state_api.py::TestRagProductionStateShapesAllReturn200::test_fallback_result_shape_returns_200[some_other_reason]": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestCalculateTrend::test_single_score_returns_stable": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestCalculateTrend::test_empty_scores_returns_stable": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestCalculateTrend::test_improving_trend": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestCalculateTrend::test_declining_trend": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestCalculateTrend::test_stable_trend_small_diff": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestCalculateTrend::test_two_scores_returns_stable": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestCalculateTrend::test_two_scores_declining_returns_stable": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestCalculateTrend::test_three_scores_improving": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestCalculateTrend::test_three_scores_declining": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestRecommendActionFromScore::test_low_score_recommends_decompose": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestRecommendActionFromScore::test_medium_score_recommends_explain": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestRecommendActionFromScore::test_high_score_recommends_next": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestRecommendActionFromScore::test_boundary_60_recommends_explain": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestRecommendActionFromScore::test_boundary_80_recommends_next": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestRecommendActionFromScore::test_boundary_59_recommends_decompose": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestRecommendActionFromScore::test_declining_trend_suggests_review": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestRecommendActionFromScore::test_consecutive_low_scores_adds_alternatives": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestRecommendActionFromScore::test_high_score_ignores_history": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestRecommendActionFromScore::test_high_score_with_declining_trend_preserves_review": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestRecommendActionFromScore::test_high_score_with_consecutive_low_preserves_review": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestRecommendActionEndpoint::test_basic_request_low_score": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestRecommendActionEndpoint::test_basic_request_medium_score": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestRecommendActionEndpoint::test_basic_request_high_score": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestRecommendActionEndpoint::test_with_history_context": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestRecommendActionEndpoint::test_history_query_failure_graceful_degradation": "failed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestRecommendActionEndpoint::test_empty_history_no_context": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestRecommendActionEndpoint::test_history_with_none_scores_filtered": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestRecommendActionEndpoint::test_review_suggested_for_declining_trend": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestRecommendActionEndpoint::test_history_with_timestamps_sorted_correctly": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestRecommendActionEndpoint::test_history_without_timestamps_preserves_source_order": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestRecommendActionModels::test_request_validation_valid": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestRecommendActionModels::test_request_validation_score_bounds": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestRecommendActionModels::test_response_model_structure": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestRecommendActionModels::test_history_context_model": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestRecommendActionModels::test_alternative_agent_model": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestRecommendActionHTTP::test_http_low_score_returns_200_decompose": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestRecommendActionHTTP::test_http_high_score_returns_200_next": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestRecommendActionHTTP::test_http_invalid_score_returns_422": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestRecommendActionHTTP::test_http_missing_required_field_returns_422": "passed",
+    "tests/api/v1/endpoints/test_recommend_action.py::TestRecommendActionHTTP::test_http_response_structure_complete": "passed",
+    "tests/unit/test_mastery_api.py::TestBatchEndpoint::test_empty_result": "passed",
+    "tests/unit/test_mastery_api.py::TestBatchEndpoint::test_with_concepts": "failed",
+    "tests/unit/test_mastery_api.py::TestGradeEndpoint::test_valid_grades[1]": "passed",
+    "tests/unit/test_mastery_api.py::TestGradeEndpoint::test_valid_grades[2]": "passed",
+    "tests/unit/test_mastery_api.py::TestGradeEndpoint::test_valid_grades[3]": "passed",
+    "tests/unit/test_mastery_api.py::TestGradeEndpoint::test_valid_grades[4]": "passed",
+    "tests/unit/test_mastery_api.py::TestGradeEndpoint::test_grade_out_of_range": "passed",
+    "tests/unit/test_mastery_api.py::TestGradeEndpoint::test_grade_zero": "passed",
+    "tests/unit/test_mastery_api.py::TestGradeEndpoint::test_grade_updates_mastery": "failed",
+    "tests/unit/test_mastery_api.py::TestOverrideEndpoint::test_valid_levels[shaky]": "passed",
+    "tests/unit/test_mastery_api.py::TestOverrideEndpoint::test_valid_levels[developing]": "passed",
+    "tests/unit/test_mastery_api.py::TestOverrideEndpoint::test_valid_levels[proficient]": "passed",
+    "tests/unit/test_mastery_api.py::TestOverrideEndpoint::test_valid_levels[mastered]": "passed",
+    "tests/unit/test_mastery_api.py::TestOverrideEndpoint::test_invalid_level": "passed",
+    "tests/unit/test_mastery_api.py::TestDeleteOverrideEndpoint::test_delete_existing": "failed",
+    "tests/unit/test_mastery_api.py::TestDeleteOverrideEndpoint::test_delete_not_found": "passed",
+    "tests/unit/test_mastery_api.py::TestSelfAssessEndpoint::test_valid_colors[1]": "passed",
+    "tests/unit/test_mastery_api.py::TestSelfAssessEndpoint::test_valid_colors[2]": "passed",
+    "tests/unit/test_mastery_api.py::TestSelfAssessEndpoint::test_valid_colors[3]": "passed",
+    "tests/unit/test_mastery_api.py::TestSelfAssessEndpoint::test_valid_colors[4]": "passed",
+    "tests/unit/test_mastery_api.py::TestSelfAssessEndpoint::test_valid_colors[5]": "passed",
+    "tests/unit/test_mastery_api.py::TestSelfAssessEndpoint::test_valid_colors[6]": "passed",
+    "tests/unit/test_mastery_api.py::TestGraphitiSyncEndpoint::test_valid_signals[misconception]": "passed",
+    "tests/unit/test_mastery_api.py::TestGraphitiSyncEndpoint::test_valid_signals[problem_trap]": "passed",
+    "tests/unit/test_mastery_api.py::TestGraphitiSyncEndpoint::test_valid_signals[guided_thinking_correct]": "passed",
+    "tests/unit/test_mastery_api.py::TestGraphitiSyncEndpoint::test_invalid_signal": "passed",
+    "tests/unit/test_mastery_api.py::TestGraphitiSyncEndpoint::test_existing_concept_matched": "failed",
+    "tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_no_key_configured_fails_closed_503": "failed",
+    "tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_missing_header_returns_403": "passed",
+    "tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_wrong_key_returns_403": "passed",
+    "tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_correct_key_grants_access": "passed",
+    "tests/unit/test_sync_batch_auth.py::TestDevelopmentConvenience::test_dev_mode_no_key_now_fails_closed_503_p0_2": "passed",
+    "tests/unit/test_sync_batch_auth.py::TestDevelopmentConvenience::test_dev_mode_with_key_still_enforces": "passed",
+    "tests/unit/test_sync_batch_auth.py::TestHeaderParsing::test_canonical_header_name": "passed",
+    "tests/unit/test_subjects_group_isolation.py::TestListSubjectsGroupFilter::test_count_join_query_carries_group_filter": "passed",
+    "tests/unit/test_subjects_group_isolation.py::TestListSubjectsGroupFilter::test_response_parsing_survives_filtered_query": "passed",
+    "tests/unit/test_subjects_group_isolation.py::TestUpdateSubjectGroupFilter::test_node_count_query_carries_group_filter": "passed",
+    "tests/unit/test_subjects_group_isolation.py::TestUpdateSubjectGroupFilter::test_subject_metadata_update_itself_stays_global": "passed",
+    "tests/unit/test_subjects_group_isolation.py::TestGroupSourceFallbacks::test_missing_vault_id_falls_back_to_contextvar_group": "passed",
+    "tests/unit/test_subjects_group_isolation.py::TestGroupSourceFallbacks::test_default_context_falls_back_to_active_vault": "passed",
+    "tests/unit/test_subjects_group_isolation.py::TestDualVaultIsolation::test_same_query_binds_distinct_groups_per_vault": "passed",
+    "tests/unit/test_subjects_group_isolation.py::TestEndpointPhysicalGroupInjection::test_vault_id_query_param_reaches_cypher_as_physical_group": "passed",
+    "tests/unit/test_sync_group_isolation.py::TestSyncServiceGroupKeys::test_upsert_node_merge_key_carries_group": "passed",
+    "tests/unit/test_sync_group_isolation.py::TestSyncServiceGroupKeys::test_delete_node_match_key_carries_group": "passed",
+    "tests/unit/test_sync_group_isolation.py::TestSyncServiceGroupKeys::test_upsert_edge_endpoints_and_merge_key_carry_group": "passed",
+    "tests/unit/test_sync_group_isolation.py::TestSyncServiceGroupKeys::test_delete_edge_match_key_carries_group": "passed",
+    "tests/unit/test_sync_group_isolation.py::TestSyncServiceGroupKeys::test_upsert_board_merge_key_carries_group": "passed",
+    "tests/unit/test_sync_group_isolation.py::TestSyncServiceGroupKeys::test_delete_board_cascade_both_sides_carry_group": "passed",
+    "tests/unit/test_sync_group_isolation.py::TestUpsertCypherClauseOrder::test_upsert_node_on_create_precedes_standalone_set": "passed",
+    "tests/unit/test_sync_group_isolation.py::TestUpsertCypherClauseOrder::test_upsert_edge_on_create_precedes_standalone_set": "passed",
+    "tests/unit/test_sync_group_isolation.py::TestUpsertCypherClauseOrder::test_upsert_board_on_create_precedes_standalone_set": "passed",
+    "tests/unit/test_sync_group_isolation.py::TestDualVaultIsolation::test_same_entity_id_upsert_binds_distinct_groups": "passed",
+    "tests/unit/test_sync_group_isolation.py::TestDualVaultIsolation::test_same_entity_id_delete_binds_distinct_groups": "passed",
+    "tests/unit/test_sync_group_isolation.py::TestDualVaultIsolation::test_same_board_id_delete_binds_distinct_groups": "passed",
+    "tests/unit/test_sync_group_isolation.py::TestEndpointPhysicalGroupInjection::test_vault_id_reaches_cypher_as_physical_group": "passed",
+    "tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_no_key_configured_503": "failed",
+    "tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_wrong_key_403": "passed",
+    "tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_missing_header_403": "passed",
+    "tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_correct_key_200": "passed",
+    "tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_dev_mode_empty_key_now_fails_closed_503_p0_2": "passed",
+    "tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_no_key_configured_503": "failed",
+    "tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_wrong_key_403": "passed",
+    "tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_missing_header_403": "passed",
+    "tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_correct_key_200": "passed",
+    "tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_dev_mode_empty_key_now_fails_closed_503_p0_2": "passed",
+    "tests/unit/test_fsrs_state_query.py::TestFSRSStateQueryEndpoint::test_endpoint_returns_fsrs_state_when_card_exists": "passed",
+    "tests/unit/test_fsrs_state_query.py::TestFSRSStateQueryEndpoint::test_endpoint_returns_not_found_when_no_card": "passed",
+    "tests/unit/test_fsrs_state_query.py::TestFSRSStateQueryEndpoint::test_endpoint_handles_special_characters_in_concept_id": "passed",
+    "tests/unit/test_fsrs_state_query.py::TestFSRSStateQueryEndpoint::test_endpoint_handles_null_retrievability_and_due": "passed",
+    "tests/unit/test_fsrs_state_query.py::TestReviewServiceGetFSRSState::test_get_fsrs_state_returns_card_data": "passed",
+    "tests/unit/test_fsrs_state_query.py::TestReviewServiceGetFSRSState::test_get_fsrs_state_spawns_no_background_tasks": "passed",
+    "tests/unit/test_fsrs_state_query.py::TestReviewServiceGetFSRSState::test_get_fsrs_state_auto_creates_card_for_missing_concept": "passed",
+    "tests/unit/test_fsrs_state_query.py::TestReviewServiceGetFSRSState::test_get_fsrs_state_edge_case_ids_resolve_gracefully": "passed",
+    "tests/unit/test_fsrs_state_query.py::TestFSRSStateResponseSchema::test_response_matches_schema_with_card": "passed",
+    "tests/unit/test_fsrs_state_query.py::TestFSRSStateResponseSchema::test_response_matches_schema_without_card": "passed",
+    "tests/unit/test_fsrs_state_query.py::TestFSRSStateIntegration::test_retrievability_in_valid_range": "passed",
+    "tests/unit/test_fsrs_state_query.py::TestFSRSStateIntegration::test_state_values_are_valid_fsrs_states": "passed",
+    "tests/unit/test_fsrs_state_query.py::TestFSRSStateIntegration::test_difficulty_in_valid_range": "passed",
+    "tests/unit/test_fsrs_state_query.py::TestAutoCreatePersistHonestyD3::test_auto_create_reports_persisted_flag_honestly": "passed",
+    "tests/unit/test_fsrs_state_query.py::TestAutoCreatePersistHonestyD3::test_existing_card_reports_persisted_true": "passed",
+    "tests/unit/test_fsrs_state_query.py::TestAutoCreatePersistHonestyD3::test_persist_failure_not_whitewashed_by_cache_hit": "passed",
+    "tests/unit/test_sync_exception_classification.py::TestInfrastructureErrors::test_service_unavailable_returns_503": "failed",
+    "tests/unit/test_sync_exception_classification.py::TestInfrastructureErrors::test_auth_error_returns_503": "failed",
+    "tests/unit/test_sync_exception_classification.py::TestInfrastructureErrors::test_connection_error_returns_503": "failed",
+    "tests/unit/test_sync_exception_classification.py::TestLogicErrors::test_value_error_returns_500": "failed",
+    "tests/unit/test_sync_exception_classification.py::TestLogicErrors::test_type_error_returns_500": "failed",
+    "tests/unit/test_sync_exception_classification.py::TestLogicErrors::test_generic_exception_returns_500": "failed",
+    "tests/unit/test_vault_scope_409.py::TestResolveVaultScope::test_explicit_mismatch_raises_409": "passed",
+    "tests/unit/test_vault_scope_409.py::TestResolveVaultScope::test_mismatch_does_not_rewrite_contextvar": "passed",
+    "tests/unit/test_vault_scope_409.py::TestResolveVaultScope::test_explicit_match_derives_and_injects": "passed",
+    "tests/unit/test_vault_scope_409.py::TestResolveVaultScope::test_mismatch_compare_is_after_sanitize": "passed",
+    "tests/unit/test_vault_scope_409.py::TestResolveVaultScope::test_legacy_group_id_path_does_not_409": "passed",
+    "tests/unit/test_vault_scope_409.py::TestResolveVaultScope::test_double_missing_derives_active_vault": "passed",
+    "tests/unit/test_vault_scope_409.py::TestResolveVaultScope::test_double_missing_keeps_secondary_levels": "passed",
+    "tests/unit/test_vault_scope_409.py::TestResolveVaultScope::test_whitespace_vault_id_treated_as_missing": "passed",
+    "tests/unit/test_vault_scope_409.py::TestHookCwdScope::test_cwd_vault_differing_from_active_is_legal": "passed",
+    "tests/unit/test_vault_scope_409.py::TestHookCwdScope::test_cwd_none_falls_back_to_active": "passed",
+    "tests/unit/test_vault_scope_409.py::TestUnifiedReadGates::test_current_group_id_prefers_injected_scope": "passed",
+    "tests/unit/test_vault_scope_409.py::TestUnifiedReadGates::test_current_group_id_canonicalizes_bare_value": "passed",
+    "tests/unit/test_vault_scope_409.py::TestUnifiedReadGates::test_current_group_id_unset_derives_active_vault": "passed",
+    "tests/unit/test_vault_scope_409.py::TestUnifiedReadGates::test_current_vault_id_extracts_segment": "passed",
+    "tests/unit/test_vault_scope_409.py::TestUnifiedReadGates::test_current_vault_id_unset_falls_back_to_active": "passed",
+    "tests/unit/test_vault_scope_409.py::TestEndpointConflict409::test_sync_batch_mismatch_409": "passed",
+    "tests/unit/test_vault_scope_409.py::TestEndpointConflict409::test_mastery_batch_mismatch_409": "passed",
+    "tests/unit/test_vault_scope_409.py::TestEndpointConflict409::test_memory_episodes_mismatch_409": "passed",
+    "tests/unit/test_vault_scope_409.py::TestEndpointConflict409::test_exam_sessions_mismatch_409": "passed",
+    "tests/unit/test_vault_scope_409.py::TestEndpointConflict409::test_boards_manifest_mismatch_409": "passed",
+    "tests/unit/test_vault_scope_409.py::TestEndpointConflict409::test_409_detail_names_both_vaults": "passed",
+    "tests/unit/test_vault_scope_409.py::TestCodexRound1RectifiedEndpoints::test_chat_enrich_context_mismatch_409": "passed",
+    "tests/unit/test_vault_scope_409.py::TestCodexRound1RectifiedEndpoints::test_chat_enrich_context_match_path_executes": "passed",
+    "tests/unit/test_vault_scope_409.py::TestCodexRound1RectifiedEndpoints::test_chat_post_turn_extract_mismatch_409": "passed",
+    "tests/unit/test_vault_scope_409.py::TestCodexRound1RectifiedEndpoints::test_tips_get_mismatch_409_not_empty_200": "passed",
+    "tests/unit/test_vault_scope_409.py::TestCodexRound1RectifiedEndpoints::test_tips_save_mismatch_409_not_500": "passed",
+    "tests/unit/test_vault_scope_409.py::TestCodexRound1RectifiedEndpoints::test_tips_callout_direct_409_before_idempotency_write": "passed",
+    "tests/unit/test_vault_scope_409.py::TestCodexRound1RectifiedEndpoints::test_tips_batch_mismatch_409_not_item_failure": "passed",
+    "tests/unit/test_vault_scope_409.py::TestCodexRound1RectifiedEndpoints::test_memory_archive_session_409_not_200_error": "passed",
+    "tests/unit/test_vault_scope_409.py::TestCodexRound1RectifiedEndpoints::test_memory_archive_session_409_before_trivial_early_return": "passed",
+    "tests/unit/test_vault_scope_409.py::TestCodexRound1RectifiedEndpoints::test_memory_archive_deprecated_group_cannot_override_vault": "passed",
+    "tests/unit/test_vault_scope_409.py::TestCodexRound1RectifiedEndpoints::test_memory_episodes_batch_mismatch_409": "passed",
+    "tests/unit/test_vault_scope_409.py::TestCodexRound1RectifiedEndpoints::test_metadata_batch_index_mismatch_409": "passed",
+    "tests/unit/test_vault_scope_409.py::TestCodexRound1RectifiedEndpoints::test_inheritance_distill_mismatch_409": "passed",
+    "tests/unit/test_vault_scope_409.py::TestCodexRound1RectifiedEndpoints::test_errors_rebuild_graphiti_mismatch_409": "passed",
+    "tests/unit/test_vault_scope_409.py::TestVaultAliasTolerance::test_directory_name_alias_accepted": "passed",
+    "tests/unit/test_vault_scope_409.py::TestVaultAliasTolerance::test_genuinely_foreign_vault_still_409": "passed",
+    "tests/unit/test_vault_scope_409.py::TestVaultAliasTolerance::test_hook_cwd_alias_normalizes_to_stable_id": "passed",
+    "tests/test_debug.py::TestGetRecentBugs::test_get_bugs_success": "passed",
+    "tests/test_debug.py::TestGetRecentBugs::test_get_bugs_empty": "passed",
+    "tests/test_debug.py::TestGetRecentBugs::test_get_bugs_with_limit": "passed",
+    "tests/test_debug.py::TestGetRecentBugs::test_get_bugs_default_limit": "passed",
+    "tests/test_debug.py::TestGetRecentBugs::test_get_bugs_limit_validation_min": "passed",
+    "tests/test_debug.py::TestGetRecentBugs::test_get_bugs_limit_validation_max": "passed",
+    "tests/test_debug.py::TestGetRecentBugs::test_get_bugs_response_format": "passed",
+    "tests/test_debug.py::TestGetRecentBugs::test_get_bugs_newest_first": "passed",
+    "tests/test_debug.py::TestGetBugById::test_get_bug_by_id_success": "passed",
+    "tests/test_debug.py::TestGetBugById::test_get_bug_by_id_not_found": "passed",
+    "tests/test_debug.py::TestGetBugStats::test_get_stats_success": "passed",
+    "tests/test_debug.py::TestGetBugStats::test_get_stats_empty": "passed",
+    "tests/test_debug.py::TestGetBugStats::test_get_stats_by_error_type": "passed",
+    "tests/test_debug.py::TestGetBugStats::test_get_stats_by_endpoint": "passed",
+    "tests/test_debug.py::TestDebugRouterRegistration::test_debug_routes_registered": "passed",
+    "tests/test_debug.py::TestDebugRouterRegistration::test_debug_tag_in_openapi": "passed",
+    "tests/test_deep_monitoring.py::test_metrics_endpoint_returns_200": "passed",
+    "tests/test_deep_monitoring.py::test_metrics_endpoint_content_type": "passed",
+    "tests/test_deep_monitoring.py::test_metrics_endpoint_contains_agent_metrics": "passed",
+    "tests/test_deep_monitoring.py::test_metrics_endpoint_contains_memory_metrics": "passed",
+    "tests/test_deep_monitoring.py::test_metrics_endpoint_contains_resource_metrics": "passed",
+    "tests/test_deep_monitoring.py::test_metrics_endpoint_prometheus_format": "passed",
+    "tests/test_deep_monitoring.py::test_metrics_summary_returns_200": "passed",
+    "tests/test_deep_monitoring.py::test_metrics_summary_content_type": "passed",
+    "tests/test_deep_monitoring.py::test_metrics_summary_structure": "passed",
+    "tests/test_deep_monitoring.py::test_metrics_summary_agents_structure": "passed",
+    "tests/test_deep_monitoring.py::test_metrics_summary_memory_system_structure": "passed",
+    "tests/test_deep_monitoring.py::test_metrics_summary_resources_structure": "passed",
+    "tests/test_deep_monitoring.py::test_metrics_summary_timestamp_format": "passed",
+    "tests/test_deep_monitoring.py::test_both_endpoints_accessible": "passed",
+    "tests/test_deep_monitoring.py::test_health_endpoint_still_works": "passed",
+    "tests/test_deep_monitoring.py::test_metrics_endpoint_response_time": "passed",
+    "tests/test_deep_monitoring.py::test_metrics_summary_response_time": "passed",
+    "tests/test_deep_monitoring.py::test_metrics_endpoint_handles_concurrent_requests": "passed",
+    "tests/test_deep_monitoring.py::test_ac1_agent_execution_tracking": "passed",
+    "tests/test_deep_monitoring.py::test_ac2_memory_system_latency_tracking": "passed",
+    "tests/test_deep_monitoring.py::test_ac3_resource_monitoring": "passed",
+    "tests/test_deep_monitoring.py::test_ac5_prometheus_endpoint": "passed",
+    "tests/test_deep_monitoring.py::test_ac6_json_summary_endpoint": "passed"
+  },
+  "records": [
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "MainThread",
+      "owner": "tests/api/v1/endpoints/test_agents_dedup.py::TestDedupEndpointResponses::test_duplicate_request_returns_409",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-136b8da90",
+      "owner": "tests/api/v1/endpoints/test_fsrs_state_api.py::TestFSRSStateEndpoint::test_returns_auto_created_card",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-136b8da90",
+      "owner": "tests/api/v1/endpoints/test_fsrs_state_api.py::TestFSRSStateEndpoint::test_returns_auto_created_card",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1485602d0",
+      "owner": "tests/api/v1/endpoints/test_fsrs_state_api.py::TestFSRSStateEndpoint::test_returns_reason_fsrs_not_initialized",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1485602d0",
+      "owner": "tests/api/v1/endpoints/test_fsrs_state_api.py::TestFSRSStateEndpoint::test_returns_reason_fsrs_not_initialized",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-144b1ec10",
+      "owner": "tests/api/v1/endpoints/test_fsrs_state_api.py::TestFSRSStateEndpoint::test_returns_reason_on_service_exception",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-144b1ec10",
+      "owner": "tests/api/v1/endpoints/test_fsrs_state_api.py::TestFSRSStateEndpoint::test_returns_reason_on_service_exception",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-144bd7950",
+      "owner": "tests/api/v1/endpoints/test_fsrs_state_api.py::TestFSRSStateEndpoint::test_returns_reason_auto_creation_failed",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-144bd7950",
+      "owner": "tests/api/v1/endpoints/test_fsrs_state_api.py::TestFSRSStateEndpoint::test_returns_reason_auto_creation_failed",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14f0235c0",
+      "owner": "tests/api/v1/endpoints/test_fsrs_state_api.py::TestFSRSStateEndpoint::test_found_true_has_null_reason",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14f0235c0",
+      "owner": "tests/api/v1/endpoints/test_fsrs_state_api.py::TestFSRSStateEndpoint::test_found_true_has_null_reason",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14472af90",
+      "owner": "tests/api/v1/endpoints/test_fsrs_state_api.py::TestHealthEndpointFSRS::test_health_includes_fsrs_ok",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14472af90",
+      "owner": "tests/api/v1/endpoints/test_fsrs_state_api.py::TestHealthEndpointFSRS::test_health_includes_fsrs_ok",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-144aa88d0",
+      "owner": "tests/api/v1/endpoints/test_fsrs_state_api.py::TestHealthEndpointFSRS::test_health_includes_fsrs_degraded",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-144aa88d0",
+      "owner": "tests/api/v1/endpoints/test_fsrs_state_api.py::TestHealthEndpointFSRS::test_health_includes_fsrs_degraded",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-13670ff00",
+      "owner": "tests/api/v1/endpoints/test_fsrs_state_api.py::TestHealthEndpointFSRS::test_health_fsrs_degraded_when_runtime_false",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-13670ff00",
+      "owner": "tests/api/v1/endpoints/test_fsrs_state_api.py::TestHealthEndpointFSRS::test_health_fsrs_degraded_when_runtime_false",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1367a2450",
+      "owner": "tests/api/v1/endpoints/test_fsrs_state_api.py::TestHealthEndpointFSRS::test_health_fsrs_ok_when_runtime_none_but_available",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1367a2450",
+      "owner": "tests/api/v1/endpoints/test_fsrs_state_api.py::TestHealthEndpointFSRS::test_health_fsrs_ok_when_runtime_none_but_available",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-150e46a50",
+      "owner": "tests/api/v1/endpoints/test_fsrs_state_api.py::TestFrontendContractDefaultScore::test_not_found_returns_null_fsrs_state",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-150e46a50",
+      "owner": "tests/api/v1/endpoints/test_fsrs_state_api.py::TestFrontendContractDefaultScore::test_not_found_returns_null_fsrs_state",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14dcd7890",
+      "owner": "tests/api/v1/endpoints/test_fsrs_state_api.py::TestFrontendContractDefaultScore::test_auto_created_card_returns_non_null_fsrs_state",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14dcd7890",
+      "owner": "tests/api/v1/endpoints/test_fsrs_state_api.py::TestFrontendContractDefaultScore::test_auto_created_card_returns_non_null_fsrs_state",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1366485f0",
+      "owner": "tests/api/v1/endpoints/test_fsrs_state_api.py::TestFrontendContractDefaultScore::test_error_returns_null_fsrs_state",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1366485f0",
+      "owner": "tests/api/v1/endpoints/test_fsrs_state_api.py::TestFrontendContractDefaultScore::test_error_returns_null_fsrs_state",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-136409c50",
+      "owner": "tests/api/v1/endpoints/test_fsrs_state_api.py::TestPersistHonestyForwardingD3::test_fsrs_state_forwards_persisted_and_reason",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-136409c50",
+      "owner": "tests/api/v1/endpoints/test_fsrs_state_api.py::TestPersistHonestyForwardingD3::test_fsrs_state_forwards_persisted_and_reason",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-144714bb0",
+      "owner": "tests/api/v1/endpoints/test_fsrs_state_api.py::TestPersistHonestyForwardingD3::test_record_forwards_card_state_persisted",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-144714bb0",
+      "owner": "tests/api/v1/endpoints/test_fsrs_state_api.py::TestPersistHonestyForwardingD3::test_record_forwards_card_state_persisted",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1470e09f0",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetSubjectMapping::test_get_returns_200",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1470e09f0",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetSubjectMapping::test_get_returns_200",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1471d6040",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetSubjectMapping::test_get_returns_mappings",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1471d6040",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetSubjectMapping::test_get_returns_mappings",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-146eee3c0",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetSubjectMapping::test_get_returns_correct_mapping_structure",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-146eee3c0",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetSubjectMapping::test_get_returns_correct_mapping_structure",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14719f9a0",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetSubjectMapping::test_get_returns_category_rules",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14719f9a0",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetSubjectMapping::test_get_returns_category_rules",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14719ed60",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetSubjectMapping::test_get_returns_defaults",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14719ed60",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetSubjectMapping::test_get_returns_defaults",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14719e3c0",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestAddSubjectMapping::test_add_returns_200",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14719e3c0",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestAddSubjectMapping::test_add_returns_200",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-15e3e48a0",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestAddSubjectMapping::test_add_includes_new_mapping_in_response",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-15e3e48a0",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestAddSubjectMapping::test_add_includes_new_mapping_in_response",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1470e24a0",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestAddSubjectMapping::test_add_duplicate_updates_existing",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1470e24a0",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestAddSubjectMapping::test_add_duplicate_updates_existing",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-15e3e7230",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestAddSubjectMapping::test_add_requires_all_params",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-15e3e7230",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestAddSubjectMapping::test_add_requires_all_params",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1599ce0b0",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestRemoveSubjectMapping::test_remove_existing_returns_200",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1599ce0b0",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestRemoveSubjectMapping::test_remove_existing_returns_200",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1599cef20",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestRemoveSubjectMapping::test_remove_reflects_in_config",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1599cef20",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestRemoveSubjectMapping::test_remove_reflects_in_config",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1599cf230",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestRemoveSubjectMapping::test_remove_nonexistent_returns_404",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1599cf230",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestRemoveSubjectMapping::test_remove_nonexistent_returns_404",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1470e2dd0",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestUpdateSubjectMapping::test_update_returns_200",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1470e2dd0",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestUpdateSubjectMapping::test_update_returns_200",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-144ad86e0",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestUpdateSubjectMapping::test_update_replaces_config",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-144ad86e0",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestUpdateSubjectMapping::test_update_replaces_config",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-15e198a60",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetMetadata::test_metadata_config_match",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-15e198a60",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetMetadata::test_metadata_config_match",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-15e199b70",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetMetadata::test_metadata_default_fallback",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-15e199b70",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetMetadata::test_metadata_default_fallback",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-15e1999b0",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetMetadata::test_metadata_ignores_extra_params",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-15e1999b0",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetMetadata::test_metadata_ignores_extra_params",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1470e3b60",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetMetadata::test_metadata_requires_canvas_path",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1470e3b60",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetMetadata::test_metadata_requires_canvas_path",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-146eedcc0",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetMetadata::test_metadata_group_id_format",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-146eedcc0",
+      "owner": "tests/api/v1/endpoints/test_metadata_subject_mapping.py::TestGetMetadata::test_metadata_group_id_format",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-146eefc40",
+      "owner": "tests/api/v1/endpoints/test_ping.py::TestPingEndpoint::test_ping_returns_200",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-146eefc40",
+      "owner": "tests/api/v1/endpoints/test_ping.py::TestPingEndpoint::test_ping_returns_200",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-146eee200",
+      "owner": "tests/api/v1/endpoints/test_ping.py::TestPingEndpoint::test_ping_returns_pong",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-146eee200",
+      "owner": "tests/api/v1/endpoints/test_ping.py::TestPingEndpoint::test_ping_returns_pong",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14aae18d0",
+      "owner": "tests/unit/test_mastery_api.py::TestBatchEndpoint::test_empty_result",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14aae18d0",
+      "owner": "tests/unit/test_mastery_api.py::TestBatchEndpoint::test_empty_result",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14aae1860",
+      "owner": "tests/unit/test_mastery_api.py::TestBatchEndpoint::test_with_concepts",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14aae1860",
+      "owner": "tests/unit/test_mastery_api.py::TestBatchEndpoint::test_with_concepts",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-13673a120",
+      "owner": "tests/unit/test_mastery_api.py::TestGradeEndpoint::test_valid_grades[1]",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-13673a120",
+      "owner": "tests/unit/test_mastery_api.py::TestGradeEndpoint::test_valid_grades[1]",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1446edb70",
+      "owner": "tests/unit/test_mastery_api.py::TestGradeEndpoint::test_valid_grades[2]",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1446edb70",
+      "owner": "tests/unit/test_mastery_api.py::TestGradeEndpoint::test_valid_grades[2]",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-136800de0",
+      "owner": "tests/unit/test_mastery_api.py::TestGradeEndpoint::test_valid_grades[3]",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-136800de0",
+      "owner": "tests/unit/test_mastery_api.py::TestGradeEndpoint::test_valid_grades[3]",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14aae2c10",
+      "owner": "tests/unit/test_mastery_api.py::TestGradeEndpoint::test_valid_grades[4]",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14aae2c10",
+      "owner": "tests/unit/test_mastery_api.py::TestGradeEndpoint::test_valid_grades[4]",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1470e03d0",
+      "owner": "tests/unit/test_mastery_api.py::TestGradeEndpoint::test_grade_out_of_range",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1470e03d0",
+      "owner": "tests/unit/test_mastery_api.py::TestGradeEndpoint::test_grade_out_of_range",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14aae2040",
+      "owner": "tests/unit/test_mastery_api.py::TestGradeEndpoint::test_grade_zero",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14aae2040",
+      "owner": "tests/unit/test_mastery_api.py::TestGradeEndpoint::test_grade_zero",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14aae19b0",
+      "owner": "tests/unit/test_mastery_api.py::TestGradeEndpoint::test_grade_updates_mastery",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14aae19b0",
+      "owner": "tests/unit/test_mastery_api.py::TestGradeEndpoint::test_grade_updates_mastery",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-13668b460",
+      "owner": "tests/unit/test_mastery_api.py::TestOverrideEndpoint::test_valid_levels[shaky]",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-13668b460",
+      "owner": "tests/unit/test_mastery_api.py::TestOverrideEndpoint::test_valid_levels[shaky]",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-146eec2f0",
+      "owner": "tests/unit/test_mastery_api.py::TestOverrideEndpoint::test_valid_levels[developing]",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-146eec2f0",
+      "owner": "tests/unit/test_mastery_api.py::TestOverrideEndpoint::test_valid_levels[developing]",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1369f60b0",
+      "owner": "tests/unit/test_mastery_api.py::TestOverrideEndpoint::test_valid_levels[proficient]",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1369f60b0",
+      "owner": "tests/unit/test_mastery_api.py::TestOverrideEndpoint::test_valid_levels[proficient]",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-136801940",
+      "owner": "tests/unit/test_mastery_api.py::TestOverrideEndpoint::test_valid_levels[mastered]",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-136801940",
+      "owner": "tests/unit/test_mastery_api.py::TestOverrideEndpoint::test_valid_levels[mastered]",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1471d6740",
+      "owner": "tests/unit/test_mastery_api.py::TestOverrideEndpoint::test_invalid_level",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1471d6740",
+      "owner": "tests/unit/test_mastery_api.py::TestOverrideEndpoint::test_invalid_level",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1488afaf0",
+      "owner": "tests/unit/test_mastery_api.py::TestDeleteOverrideEndpoint::test_delete_existing",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1488afaf0",
+      "owner": "tests/unit/test_mastery_api.py::TestDeleteOverrideEndpoint::test_delete_existing",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1488ad4e0",
+      "owner": "tests/unit/test_mastery_api.py::TestDeleteOverrideEndpoint::test_delete_not_found",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1488ad4e0",
+      "owner": "tests/unit/test_mastery_api.py::TestDeleteOverrideEndpoint::test_delete_not_found",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1488ad860",
+      "owner": "tests/unit/test_mastery_api.py::TestSelfAssessEndpoint::test_valid_colors[1]",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1488ad860",
+      "owner": "tests/unit/test_mastery_api.py::TestSelfAssessEndpoint::test_valid_colors[1]",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-15e199940",
+      "owner": "tests/unit/test_mastery_api.py::TestSelfAssessEndpoint::test_valid_colors[2]",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-15e199940",
+      "owner": "tests/unit/test_mastery_api.py::TestSelfAssessEndpoint::test_valid_colors[2]",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-144ad9e10",
+      "owner": "tests/unit/test_mastery_api.py::TestSelfAssessEndpoint::test_valid_colors[3]",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-144ad9e10",
+      "owner": "tests/unit/test_mastery_api.py::TestSelfAssessEndpoint::test_valid_colors[3]",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14aae2c80",
+      "owner": "tests/unit/test_mastery_api.py::TestSelfAssessEndpoint::test_valid_colors[4]",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14aae2c80",
+      "owner": "tests/unit/test_mastery_api.py::TestSelfAssessEndpoint::test_valid_colors[4]",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1471d7af0",
+      "owner": "tests/unit/test_mastery_api.py::TestSelfAssessEndpoint::test_valid_colors[5]",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1471d7af0",
+      "owner": "tests/unit/test_mastery_api.py::TestSelfAssessEndpoint::test_valid_colors[5]",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1471d6eb0",
+      "owner": "tests/unit/test_mastery_api.py::TestSelfAssessEndpoint::test_valid_colors[6]",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1471d6eb0",
+      "owner": "tests/unit/test_mastery_api.py::TestSelfAssessEndpoint::test_valid_colors[6]",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1471d5780",
+      "owner": "tests/unit/test_mastery_api.py::TestGraphitiSyncEndpoint::test_valid_signals[misconception]",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1471d5780",
+      "owner": "tests/unit/test_mastery_api.py::TestGraphitiSyncEndpoint::test_valid_signals[misconception]",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-146eec130",
+      "owner": "tests/unit/test_mastery_api.py::TestGraphitiSyncEndpoint::test_valid_signals[problem_trap]",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-146eec130",
+      "owner": "tests/unit/test_mastery_api.py::TestGraphitiSyncEndpoint::test_valid_signals[problem_trap]",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-15e3e78c0",
+      "owner": "tests/unit/test_mastery_api.py::TestGraphitiSyncEndpoint::test_valid_signals[guided_thinking_correct]",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-15e3e78c0",
+      "owner": "tests/unit/test_mastery_api.py::TestGraphitiSyncEndpoint::test_valid_signals[guided_thinking_correct]",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-15e3e55c0",
+      "owner": "tests/unit/test_mastery_api.py::TestGraphitiSyncEndpoint::test_invalid_signal",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-15e3e55c0",
+      "owner": "tests/unit/test_mastery_api.py::TestGraphitiSyncEndpoint::test_invalid_signal",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-146eef230",
+      "owner": "tests/unit/test_mastery_api.py::TestGraphitiSyncEndpoint::test_existing_concept_matched",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-146eef230",
+      "owner": "tests/unit/test_mastery_api.py::TestGraphitiSyncEndpoint::test_existing_concept_matched",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14719cec0",
+      "owner": "tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_no_key_configured_fails_closed_503",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14719cec0",
+      "owner": "tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_no_key_configured_fails_closed_503",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14c62cbb0",
+      "owner": "tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_missing_header_returns_403",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14c62cbb0",
+      "owner": "tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_missing_header_returns_403",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14845fbd0",
+      "owner": "tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_wrong_key_returns_403",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14845fbd0",
+      "owner": "tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_wrong_key_returns_403",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14845de80",
+      "owner": "tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_correct_key_grants_access",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14845de80",
+      "owner": "tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_correct_key_grants_access",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14845de80",
+      "owner": "tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_correct_key_grants_access",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1368031c0",
+      "owner": "tests/unit/test_sync_batch_auth.py::TestDevelopmentConvenience::test_dev_mode_no_key_now_fails_closed_503_p0_2",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1368031c0",
+      "owner": "tests/unit/test_sync_batch_auth.py::TestDevelopmentConvenience::test_dev_mode_no_key_now_fails_closed_503_p0_2",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-5e99f0520",
+      "owner": "tests/unit/test_sync_batch_auth.py::TestDevelopmentConvenience::test_dev_mode_with_key_still_enforces",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-5e99f0520",
+      "owner": "tests/unit/test_sync_batch_auth.py::TestDevelopmentConvenience::test_dev_mode_with_key_still_enforces",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-146eee2e0",
+      "owner": "tests/unit/test_sync_batch_auth.py::TestHeaderParsing::test_canonical_header_name",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-146eee2e0",
+      "owner": "tests/unit/test_sync_batch_auth.py::TestHeaderParsing::test_canonical_header_name",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-146eee2e0",
+      "owner": "tests/unit/test_sync_batch_auth.py::TestHeaderParsing::test_canonical_header_name",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-5e99f00c0",
+      "owner": "tests/unit/test_subjects_group_isolation.py::TestEndpointPhysicalGroupInjection::test_vault_id_query_param_reaches_cypher_as_physical_group",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-5e99f00c0",
+      "owner": "tests/unit/test_subjects_group_isolation.py::TestEndpointPhysicalGroupInjection::test_vault_id_query_param_reaches_cypher_as_physical_group",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-149e63ee0",
+      "owner": "tests/unit/test_sync_group_isolation.py::TestEndpointPhysicalGroupInjection::test_vault_id_reaches_cypher_as_physical_group",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-149e63ee0",
+      "owner": "tests/unit/test_sync_group_isolation.py::TestEndpointPhysicalGroupInjection::test_vault_id_reaches_cypher_as_physical_group",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-149e63ee0",
+      "owner": "tests/unit/test_sync_group_isolation.py::TestEndpointPhysicalGroupInjection::test_vault_id_reaches_cypher_as_physical_group",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-34880ec10",
+      "owner": "tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_no_key_configured_503",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-34880ec10",
+      "owner": "tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_no_key_configured_503",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-161f86ac0",
+      "owner": "tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_wrong_key_403",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-161f86ac0",
+      "owner": "tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_wrong_key_403",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-161f86900",
+      "owner": "tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_missing_header_403",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-161f86900",
+      "owner": "tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_missing_header_403",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-159c62350",
+      "owner": "tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_correct_key_200",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-159c62350",
+      "owner": "tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_correct_key_200",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-163e09e10",
+      "owner": "tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_dev_mode_empty_key_now_fails_closed_503_p0_2",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-163e09e10",
+      "owner": "tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_dev_mode_empty_key_now_fails_closed_503_p0_2",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-15638aa50",
+      "owner": "tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_no_key_configured_503",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-15638aa50",
+      "owner": "tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_no_key_configured_503",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1563897f0",
+      "owner": "tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_wrong_key_403",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1563897f0",
+      "owner": "tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_wrong_key_403",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-156389860",
+      "owner": "tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_missing_header_403",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-156389860",
+      "owner": "tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_missing_header_403",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-161f86c10",
+      "owner": "tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_correct_key_200",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-161f86c10",
+      "owner": "tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_correct_key_200",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-161f85e80",
+      "owner": "tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_dev_mode_empty_key_now_fails_closed_503_p0_2",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-161f85e80",
+      "owner": "tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_dev_mode_empty_key_now_fails_closed_503_p0_2",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-161f844b0",
+      "owner": "tests/unit/test_fsrs_state_query.py::TestFSRSStateQueryEndpoint::test_endpoint_returns_fsrs_state_when_card_exists",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-161f844b0",
+      "owner": "tests/unit/test_fsrs_state_query.py::TestFSRSStateQueryEndpoint::test_endpoint_returns_fsrs_state_when_card_exists",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-154866f90",
+      "owner": "tests/unit/test_fsrs_state_query.py::TestFSRSStateQueryEndpoint::test_endpoint_returns_not_found_when_no_card",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-154866f90",
+      "owner": "tests/unit/test_fsrs_state_query.py::TestFSRSStateQueryEndpoint::test_endpoint_returns_not_found_when_no_card",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-154867ee0",
+      "owner": "tests/unit/test_fsrs_state_query.py::TestFSRSStateQueryEndpoint::test_endpoint_handles_special_characters_in_concept_id",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-154867ee0",
+      "owner": "tests/unit/test_fsrs_state_query.py::TestFSRSStateQueryEndpoint::test_endpoint_handles_special_characters_in_concept_id",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-154866040",
+      "owner": "tests/unit/test_fsrs_state_query.py::TestFSRSStateQueryEndpoint::test_endpoint_handles_null_retrievability_and_due",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-154866040",
+      "owner": "tests/unit/test_fsrs_state_query.py::TestFSRSStateQueryEndpoint::test_endpoint_handles_null_retrievability_and_due",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-34880f1c0",
+      "owner": "tests/unit/test_sync_exception_classification.py::TestInfrastructureErrors::test_service_unavailable_returns_503",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-34880f1c0",
+      "owner": "tests/unit/test_sync_exception_classification.py::TestInfrastructureErrors::test_service_unavailable_returns_503",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-34880d710",
+      "owner": "tests/unit/test_sync_exception_classification.py::TestInfrastructureErrors::test_auth_error_returns_503",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-34880d710",
+      "owner": "tests/unit/test_sync_exception_classification.py::TestInfrastructureErrors::test_auth_error_returns_503",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-34880e200",
+      "owner": "tests/unit/test_sync_exception_classification.py::TestInfrastructureErrors::test_connection_error_returns_503",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-34880e200",
+      "owner": "tests/unit/test_sync_exception_classification.py::TestInfrastructureErrors::test_connection_error_returns_503",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-149e62c80",
+      "owner": "tests/unit/test_sync_exception_classification.py::TestLogicErrors::test_value_error_returns_500",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-149e62c80",
+      "owner": "tests/unit/test_sync_exception_classification.py::TestLogicErrors::test_value_error_returns_500",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-149e602f0",
+      "owner": "tests/unit/test_sync_exception_classification.py::TestLogicErrors::test_type_error_returns_500",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-149e602f0",
+      "owner": "tests/unit/test_sync_exception_classification.py::TestLogicErrors::test_type_error_returns_500",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-149e63cb0",
+      "owner": "tests/unit/test_sync_exception_classification.py::TestLogicErrors::test_generic_exception_returns_500",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-149e63cb0",
+      "owner": "tests/unit/test_sync_exception_classification.py::TestLogicErrors::test_generic_exception_returns_500",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14ee78d00",
+      "owner": "tests/unit/test_vault_scope_409.py::TestEndpointConflict409::test_sync_batch_mismatch_409",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14ee78d00",
+      "owner": "tests/unit/test_vault_scope_409.py::TestEndpointConflict409::test_sync_batch_mismatch_409",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14ee78d00",
+      "owner": "tests/unit/test_vault_scope_409.py::TestEndpointConflict409::test_sync_batch_mismatch_409",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-161f87700",
+      "owner": "tests/test_debug.py::TestGetRecentBugs::test_get_bugs_success",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-161f87700",
+      "owner": "tests/test_debug.py::TestGetRecentBugs::test_get_bugs_success",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-15f63f460",
+      "owner": "tests/test_debug.py::TestGetRecentBugs::test_get_bugs_empty",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-15f63f460",
+      "owner": "tests/test_debug.py::TestGetRecentBugs::test_get_bugs_empty",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-147cb56a0",
+      "owner": "tests/test_debug.py::TestGetRecentBugs::test_get_bugs_with_limit",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-147cb56a0",
+      "owner": "tests/test_debug.py::TestGetRecentBugs::test_get_bugs_with_limit",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-147cb5a90",
+      "owner": "tests/test_debug.py::TestGetRecentBugs::test_get_bugs_default_limit",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-147cb5a90",
+      "owner": "tests/test_debug.py::TestGetRecentBugs::test_get_bugs_default_limit",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1489f1400",
+      "owner": "tests/test_debug.py::TestGetRecentBugs::test_get_bugs_limit_validation_min",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1489f1400",
+      "owner": "tests/test_debug.py::TestGetRecentBugs::test_get_bugs_limit_validation_min",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-163e0a660",
+      "owner": "tests/test_debug.py::TestGetRecentBugs::test_get_bugs_limit_validation_max",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-163e0a660",
+      "owner": "tests/test_debug.py::TestGetRecentBugs::test_get_bugs_limit_validation_max",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1548672a0",
+      "owner": "tests/test_debug.py::TestGetRecentBugs::test_get_bugs_response_format",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-1548672a0",
+      "owner": "tests/test_debug.py::TestGetRecentBugs::test_get_bugs_response_format",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-154866190",
+      "owner": "tests/test_debug.py::TestGetRecentBugs::test_get_bugs_newest_first",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-154866190",
+      "owner": "tests/test_debug.py::TestGetRecentBugs::test_get_bugs_newest_first",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-154865cc0",
+      "owner": "tests/test_debug.py::TestGetBugById::test_get_bug_by_id_success",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-154865cc0",
+      "owner": "tests/test_debug.py::TestGetBugById::test_get_bug_by_id_success",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-147cb4600",
+      "owner": "tests/test_debug.py::TestGetBugById::test_get_bug_by_id_not_found",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-147cb4600",
+      "owner": "tests/test_debug.py::TestGetBugById::test_get_bug_by_id_not_found",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-147cb60b0",
+      "owner": "tests/test_debug.py::TestGetBugStats::test_get_stats_success",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-147cb60b0",
+      "owner": "tests/test_debug.py::TestGetBugStats::test_get_stats_success",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-147cb6a50",
+      "owner": "tests/test_debug.py::TestGetBugStats::test_get_stats_empty",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-147cb6a50",
+      "owner": "tests/test_debug.py::TestGetBugStats::test_get_stats_empty",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-147cb4910",
+      "owner": "tests/test_debug.py::TestGetBugStats::test_get_stats_by_error_type",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-147cb4910",
+      "owner": "tests/test_debug.py::TestGetBugStats::test_get_stats_by_error_type",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-157ea6c80",
+      "owner": "tests/test_debug.py::TestGetBugStats::test_get_stats_by_endpoint",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-157ea6c80",
+      "owner": "tests/test_debug.py::TestGetBugStats::test_get_stats_by_endpoint",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14651a120",
+      "owner": "tests/test_debug.py::TestDebugRouterRegistration::test_debug_routes_registered",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-14651a120",
+      "owner": "tests/test_debug.py::TestDebugRouterRegistration::test_debug_routes_registered",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-154866890",
+      "owner": "tests/test_debug.py::TestDebugRouterRegistration::test_debug_tag_in_openapi",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-154866890",
+      "owner": "tests/test_debug.py::TestDebugRouterRegistration::test_debug_tag_in_openapi",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-15bd272a0",
+      "owner": "tests/test_deep_monitoring.py::test_metrics_endpoint_returns_200",
+      "exempt": false
+    },
+    {
+      "address": "('::1', 7691, 0, 0)",
+      "thread": "asyncio-portal-15bd272a0",
+      "owner": "tests/test_deep_monitoring.py::test_metrics_endpoint_returns_200",
+      "exempt": false
+    }
+  ]
+}
