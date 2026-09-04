@@ -72,7 +72,9 @@ import json
 import math
 import re
 import sys
+from dataclasses import dataclass
 from datetime import datetime, timezone
+from functools import lru_cache
 from itertools import zip_longest
 from pathlib import Path
 
@@ -993,117 +995,22 @@ def _indent_after_quotes(line: str) -> int:
 
 
 def _strip_code_blocks(text: str) -> str:
-    """剔除**围栏**代码块 (```/~~~), 含引用块内的围栏 (round-4 M3 → round-5)。
+    """剔除**围栏**代码块 (```/~~~), 含引用块内的围栏 —— 现为渲染层的薄封装。
 
     代码块里的内容渲染为字面文本, 不是报告的陈述 —— 把信号行藏进去曾让
     verifier 认为"信号行在场"。行数保持不变 (整行替空), 以免影响其他基于
     行的校验。
 
-    round-5 两项修正:
-      · 引用前缀 (``> ``) 内的围栏此前不被识别 (``> ``` `` 逃逸) → 先剥
-        引用前缀再判围栏;
-      · **不再剥四空格缩进块** —— 合法的三级嵌套列表 (四空格缩进) 会被误删,
-        实测导致"③段缺信号行"误报。缩进块里的信号行改由信号行自身的
-        严格模板拒绝 (模板行首只允许 ``> ``/``- ``/空白, 不允许四空格缩进)。
-
-    ⛔ 维护卡 B · E1 (round-6 实证反例 `four-fence-short-close`): 原实现只存
-    ``bare[:3]`` 并用 ``startswith`` 判闭合 —— 四反引号开栏、三反引号"闭合"后,
-    后续内容被当成**块外正文**, 于是藏在 ``<pre><code>`` 里的信号行仍被 verifier
-    当成在场陈述 (实测 exit 0)。CommonMark 的规则是: 闭合围栏必须**同字符**且
-    **不短于**开栏。这里按规则记录开栏的完整标记再比长度。
+    ⛔ CARD-维护B-R4: 状态机本体已搬进 `_scan_fences`, 由 `render_visible`
+      调用。搬家的理由不是整洁 —— 是 round-27 那条实测 BLOCKER:
+      `_verify_seed_ledger_counts` 当时**手抄了第二份围栏状态机**("遇到任意
+      三反引号就布尔翻转"), 比本体弱得多, 于是四反引号开栏→块内三反引号伪
+      闭栏→真闭栏之后的可见冲突小节被整段跳过。同一原则有两个实现点, 迟早
+      分叉。现在只剩一个实现点。
+    ⚠️ 新增消费方请读 `Line.in_fence` / `Line.stripped`, 不要再拿整块字符串去
+      `splitlines()` —— 那条往返会丢末尾空项, 旧代码只能靠越界兜底。
     """
-    out: list[str] = []
-    fence: str | None = None  # 开栏的完整标记, 如 "````"
-    # ⛔ Codex round-1 BLOCKER-1: 只比字符与长度**仍不是** CommonMark ——
-    # 闭栏行在标记之后**只能有空白**(`` ````not-a-valid-close `` 不是闭栏),
-    # 且围栏行缩进最多三格 (四格起是缩进代码块)。少这两条时,
-    # ````text 后跟一个带 info string 的伪闭栏就能让后续信号行"看起来在块外",
-    # 而 CommonMark 渲染里它们全在 <pre><code> 内 —— 实测 exit 0。
-    open_re = re.compile(r"^(?P<ind> {0,3})(?P<fence>`{3,}|~{3,})")
-    close_re = re.compile(r"^ {0,3}(?P<fence>`{3,}|~{3,})[^\S\n]*$")
-    for ln in text.splitlines():
-        # 剥任意层引用前缀后再判围栏。
-        # ⛔ CARD-维护B-R2 round-2 线索（Codex 被截断前的中途发现, 本车道独立复现）:
-        # 只剥 `>`/空白不剥**列表标记**时, `> - ``` ` (列表项内围栏, Obsidian 渲染为
-        # 列表项内的代码块) 不被识别为开栏 —— 藏进里面的信号行被当成在场陈述,
-        # 整篇 VERIFY PASS (实测 A/A2 两形态 exit 0)。剥列表符只影响**围栏判定**
-        # (非围栏行 out.append 原样保留), 标记后须有空白 (`- ``` 是列表项围栏,
-        # `---` 是 thematic break 不是列表)。
-        # ⛔ CARD-维护B-R2 round-3: 无序 marker 之外**有序 marker** (`1. `) 与
-        # **多层 marker** (`- - `) 同样是列表容器 (渲染为列表项内围栏), 一并剥。
-        # ⛔ R3 round-26（冻结审查 v7）：原式的 `[>\s]` 会**吃掉任意前导空白**，
-        #    于是 open_re 的 ` {0,3}` 形同虚设 —— 顶层缩进四格的 ``` 被当成开栏
-        #    （CommonMark 里那是 indented code block，不是围栏），其后用户
-        #    **看得见**的「本板共有 N 个…」会被当成围栏内内容整段免检。
-        #    ⇒ 只剥**容器前缀**（引用 `>` / 列表 marker，各自最多 3 格缩进），
-        #      无 marker 时**不动**前导空白，让 ` {0,3}` 真正生效。
-        # ⛔ R3 round-27（冻结审查 v8）：round-26 的 marker 后 `[^\S\n]*` 会**吞任意
-        #    空白** —— `>` 后 5 格再跟三反引号被剥成顶层 fence，而 CommonMark 里
-        #    引用 padding 至多 1 格、余下 4 格使其成为 indented code，不该开栏。
-        #    ⇒ 引用后至多 1 格 padding；列表 marker 后 1-4 格（再多是 indented code）。
-        #    ⚠️ **列表 continuation 未建模**（`- item` 之后的相对内容列）——
-        #      审查方指出继续补单条 regex 无法闭合这一面，属重做设计，如实登记。
-        bare = re.sub(
-            r"^(?: {0,3}(?:>[^\S\n]?|(?:[-*+]|\d{1,9}[.)])[^\S\n]{1,4}))*", "", ln
-        )
-        if fence is None:
-            m = open_re.match(bare)
-            # 反引号围栏的 info string 不得含反引号 (CommonMark);
-            # 波浪线围栏无此限制。
-            if m and not (m.group("fence")[0] == "`" and "`" in bare[m.end() :]):
-                fence = m.group("fence")
-                # ⛔ round-3 BLOCKER-1 (Codex 实证 + 车道独立复现): 列表项内围栏
-                # 的内容行**绝对内容列必须 ≥ 开栏行剥到围栏标记的绝对列** ——
-                # 缩进不足的非空行会结束容器, 围栏随之结束, 该行渲染为
-                # **可见正文** (三个 sibling <li> 的中间项)。不跟踪这一点时,
-                # 可见伪计数被误当围栏内容剥掉, D2 漏拦 (实测
-                # `- ``` / - 本板共有 987654 个… / - ``` ` exit 0)。
-                # ⛔ 口径 = **绝对列** (round-5 LOW 更正: 原注释写「相对口径」与
-                # 实现矛盾)——开栏列 = 本行剥掉的前缀长度; 内容行绝对列 =
-                # _quote_width + _indent_after_quotes (引用系前缀 + 其后缩进,
-                # 前导空白计入引用系)。无列表容器 (纯引用/缩进) 时无边界,
-                # 行为不变。
-                fence_list_col = None
-                if re.search(r"(?:[-*+]|\d{1,9}[.)])[^\S\n]", ln):
-                    fence_list_col = len(ln) - len(bare)
-                out.append("")
-                continue
-        else:
-            # ⛔ R3 round-28（冻结审查 v9 反例）：围栏打开后仍对内容逐行剥
-            #    **列表** marker，于是块内的 `- ``` ` 被当成闭栏、下一行重新
-            #    开栏，最终把用户可见的正文剥到 EOF。CommonMark 里闭栏必须在
-            #    **同一容器**内 —— 带列表 marker 的行是新列表项，不可能是闭栏。
-            #    ⇒ 判闭栏时只剥引用前缀，不剥列表 marker。
-            #    ⚠️ 完整的容器状态（列表 continuation 的相对内容列）仍未建模，
-            #      审查方判为需重做设计，如实登记。
-            #   剥引用前缀恒做；**列表 marker 只在开栏本身就在列表项内时才剥** ——
-            #   顶层围栏里的 `- ``` ` 是字面内容（审查方反例），列表项内围栏
-            #   则本来就由下一个 `- ``` ` 闭合（round-2 固化形态）。
-            if fence_list_col is None:
-                bare_close = re.sub(r"^(?: {0,3}>[^\S\n]?)*", "", ln)
-            else:
-                bare_close = bare
-            mc = close_re.match(bare_close)
-            # 闭合: 同字符 + 长度 ≥ 开栏 + 其后只有空白
-            if (
-                mc
-                and mc.group("fence")[0] == fence[0]
-                and len(mc.group("fence")) >= len(fence)
-            ):
-                fence = None
-                out.append("")
-                continue
-            if fence_list_col is not None and ln.strip():
-                # 缩进不足 (相对引用系) 的非空行 → 容器结束, 围栏随之结束:
-                # 该行按普通正文保留, 交回 D2/信号行校验。
-                if _quote_width(ln) + _indent_after_quotes(ln) < fence_list_col:
-                    fence = None
-                    out.append(ln)
-                    continue
-            out.append("")
-            continue
-        out.append(ln)
-    return "\n".join(out)
+    return render_visible(text).stripped_block()
 
 
 def _verify_signal_lines(text: str, signals: dict, problems: list[str]) -> None:
@@ -1787,9 +1694,52 @@ _RANGE_LEFT_BAD_RE = re.compile(
 _VIS_STRIKE_RE = re.compile(r"~~")
 _VIS_EMPHASIS_RE = re.compile(r"[*_]")
 
+# ── CARD-维护B-R4 渲染层新增常量 ────────────────────────────────────────
+# Obsidian 方言 —— 卡文 (e) 显式列举的五项里, 前三项旧实现已建模:
+#   wikilink        ✅ `_VIS_WIKILINK_*` 取显示文本
+#   callout         ✅ `_VIS_SHORTCUT_LINK_RE` 的 `(?![!^])` 前瞻放行 `[!x]`
+#   引用嵌套围栏     ✅ `_scan_fences` 剥容器前缀后判围栏
+# 后两项本卡新建模, 两者都是**收紧**(更多文本进入受检面, 不是放松):
+#   ==高亮==   剥标记取内容 —— 渲染后读者看得见那几个字; 不剥则
+#              `本板共有==987654==个` 的句式被隔断(见下方 `_render_line` 步 6)。
+#   %%注释%%   **不在这一层处理** —— `_verify_report` 已于**原始文本**上把它
+#              判死(禁写注释)并在校验前整段剥离, 渲染层看不到它。在这里再实现
+#              一遍会得到一个永不触发的分支 = 死代码冒充防线, 正是本卡反复
+#              批判的病(round-39 的 `_h3_wellformed` 孤儿就是这么来的)。
+_VIS_HIGHLIGHT_RE = re.compile(r"==([^=\n]+)==")
 
-def _visible_text(line: str) -> str:
+# 已知 HTML 标签 —— 渲染层剥 `<…>` 时的白名单。
+# ⛔ 旧 `_VIS_TAG_RE` 剥掉**任意** `<…>`: `<foo bar>` 不是标签也照剥, 这正是
+#   审查方所说的「静默剥离」。本卡的答复不是"不剥"(那会改变 visible 输出、
+#   打翻 282 条金样), 而是**剥照旧、但把表外标签名报出来** ⇒ 拒绝层
+#   fail-closed。「不再静默」= 剥离仍然发生, 但不再无声无息。
+_KNOWN_HTML_TAGS = frozenset(
+    "a b big br code del div em font i ins kbd mark p s small span "
+    "strong sub sup u".split()
+)
+_HTML_TAGNAME_RE = re.compile(r"^\s*/?\s*([A-Za-z][A-Za-z0-9]*)")
+
+# 列举**之外**、且会改变「数字是否可见 / 是哪个数」的构造。命中 ⇒ 未知形态。
+# ⚠️ 判据刻意窄: 只在**含数词样字符**的行上判 —— 要问的是"这行有数, 而它的
+#    排版我没建模", 不是"报告里出现了 `$`"。否则误拒面会无谓放大到全文。
+# ⚠️ 围栏内的行不判(见 `render_visible`): 代码块里的 `$x$` 是字面文本。
+_UNKNOWN_INLINE_FORMS = (
+    ("math", "数学公式 `$…$` / `$$…$$`", re.compile(r"\$\$|\$[^$\n]+\$")),
+    ("footnote", "脚注引用 `[^n]`", re.compile(r"\[\^[^\]\n]+\]")),
+    ("image", "图片 `![alt](src)`", re.compile(r"!\[[^\]\n]*\]\(")),
+)
+
+# ATX 标题 / 列表标记 —— 结构识别的**唯一**两式(消费方不许再手抄)。
+# CommonMark: 标题允许 0-3 空格缩进; 四格起是缩进代码块, 不是标题。
+_DOC_HEADING_RE = re.compile(r"^ {0,3}(#{1,6})(?:[^\S\n]|$)")
+_DOC_LIST_RE = re.compile(r"^ {0,3}((?:[-*+]|\d{1,9}[.)]))[^\S\n]")
+
+
+def _render_line(line: str) -> str:
     """源码行 → **读者在 Obsidian 里看到的文本**（本域收敛器，非完整渲染器）。
+
+    ⛔ CARD-维护B-R4: 本函数是渲染核的**实现本体**，只应被 `render_visible()`
+      与片段 API `_visible_text()` 调用。文档级消费方一律读 `Line.visible`。
 
     顺序有讲究（每一步都对应前几轮的一条实测 HIGH）：
       1. **先解 HTML 实体**再做全角转换 —— 反过来会让 `&#xff19;` 解出 `９`
@@ -1825,20 +1775,308 @@ def _visible_text(line: str) -> str:
     line = _VIS_SHORTCUT_LINK_RE.sub(r"\1", line)
     line = _VIS_INVISIBLE_RE.sub("", line)
     line = _VIS_STRIKE_RE.sub("", line)
+    # 6. ⬇ CARD-维护B-R4 新建模: Obsidian `==高亮==` 渲染后**内容可见**，只有
+    #    标记不可见。放在强调剥离**之前** —— `==` 与 `*_` 无交集，但先去高亮
+    #    标记才符合读者视角（`==*x*==` 先成 `*x*` 再成 `x`）。
+    #    剥它是**收紧**: `本板共有==987654==个` 原先在 `=` 处断成尾片，
+    #    剥后整个数进入受检面。
+    line = _VIS_HIGHLIGHT_RE.sub(r"\1", line)
     return _VIS_EMPHASIS_RE.sub("", line)
 
 
+def _visible_text(line: str) -> str:
+    """**片段级**渲染: 把一小段源码文本推成读者看到的样子。
+
+    ⛔ 职责边界（CARD-维护B-R4 卡文 (e) 的落法）：
+      · 需要"整篇文档怎么渲染 / 这一行在哪个小节里 / 它是不是代码块" ⇒ 用
+        `render_visible(text)` 拿 `Doc`，**不要**用本函数逐行拼 —— 只要一块
+        渲染文本而丢掉结构，正是过去四轮"两处口径分叉"的起点；
+      · 本函数只服务**非文档行**的片段归一（ledger 里的 node_id、正则捕获到的
+        尾巴片段等）——那些不是"文档的一行"，没有结构可谈。
+    实现即 `_render_line`，两条路径**同一处实现**（不是两份，故不可能分叉）。
+    """
+    return _render_line(line)
+
+
 def _visible_block(text: str) -> str:
-    """整块文本的**渲染后**形态：逐行过 `_visible_text` 再拼回去。
+    """整块文本的**渲染后**形态 —— 现为 `render_visible()` 的薄封装。
 
     ⛔ 这个模式在本卡出现了**四次**（③段信号行选行 / 五元组 / 台账种子行的
     值绑定与形状门），每次都是"某处判据还在源码文本上做，而同一条内容的另一道
-    检查已经在渲染文本上做"。⇒ 提为**单一应用点**，新增消费方直接用它。
+    检查已经在渲染文本上做"。R4 把它连同结构一起收进 `render_visible()`。
 
     ⚠️ 逐行归一后拼接，**行数与顺序不变** —— 依赖 `^...$` 多行锚点的正则
     （段落抓取、整行 fullmatch）可以直接换用它而不改语义。
+    ⚠️ 新增消费方请直接用 `render_visible(text)` 拿 `Doc`：只要一块渲染文本
+      而丢掉结构，往往正是下一个"两处口径分叉"的起点。
     """
-    return "\n".join(_visible_text(ln) for ln in text.splitlines())
+    return render_visible(text).visible_block()
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 渲染层 (CARD-维护B-R4「先渲染再核数」): 源码 → 可见文本 → 结构, 单一入口
+# ══════════════════════════════════════════════════════════════════════════
+# ⛔ 为什么重切: 维护B 族 4+27 轮 Codex 的 BLOCKER 集合**每轮再生**。根因不是
+# 某个正则写错, 而是「每道判据各自决定: 在源码上判, 还是在渲染文本上判」——
+# 两处口径一分叉就长出一个新形态。第六～第十形态、收集器/安全态分叉、
+# 手抄的第二份围栏状态机、判据副本与主表分叉…… 全是同一个病的不同长相。
+# ⇒ R4 的答复: 把「源码 → 可见文本 → 结构」收进**一个入口**。判据不再自己
+#   做归一, 只在 Doc 上提问。口径分叉这一类缺陷从此在结构上无处生长。
+#
+# 三级结构 (卡文 §三 (e)):
+#   Line    — 逐行: raw / visible / stripped / in_fence / heading / list_marker
+#   Section — 章节: ATX 标题切分, 与 `_SECTION_RE` **同口径**(不再手抄第二式)
+#   Doc     — 全文: lines + sections + unknown(未知形态清单)
+#
+# ⚠️⚠️ 诚实边界 (与验收单 §「本卡未证明什么」逐字同步):
+#   渲染层是**有限列举**, 不是完整 CommonMark 实现。它比「逐条补正则」强的
+#   只有两条, 一条也不多:
+#     ① 归一与结构只有**一个**定义点 —— 口径分叉这一类被结构性消灭;
+#     ② 列举之外的形态**报出来**而不是静默剥离 —— 风险方向从「漏」倒成「误拒」。
+#   「倒过来」**不等于**「闭合」: 列举本身仍可能漏, 漏掉的后果仍然是放行。
+#   本层不宣称覆盖 Markdown, 只宣称"我处理不了的会说出来"。
+
+
+@dataclass(frozen=True)
+class Line:
+    """一个源行的三种面貌 + 它在结构里的位置。
+
+    不变式 (由 `test_render_doc_line_invariants` 锁住):
+      · `idx` == 该行在 `text.splitlines()` 里的下标 —— raw / visible / stripped
+        三者**同下标即同源行**, 不可能错配。旧实现两次独立 `re.search` 取段再按
+        下标配对, round-25 实测错配过;
+      · `visible` **不含换行** —— `&#10;` 解出的换行折成空格, 否则"一行"这个
+        概念本身会碎掉, 而 seed 的 raw/visible 按下标配对正依赖它。
+    """
+
+    idx: int
+    raw: str
+    visible: str
+    stripped: str
+    in_fence: bool
+    heading: int | None
+    list_marker: str | None
+    unknown: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class Section:
+    """ATX 标题切出的章节。`lo`/`hi` 是**内容行**范围 [lo, hi), 不含标题行本身。
+
+    终点 = 下一个**同级或更高级**标题(树语义)。旧实现在四处手写终点扫描
+    (`#{2,3}` / `##` 各一套), 本类是那四份副本的唯一替代。
+    """
+
+    level: int
+    title_idx: int
+    title: str
+    lo: int
+    hi: int
+
+
+@dataclass(frozen=True)
+class Doc:
+    """一次渲染的全部产物。**唯一**的结构来源。"""
+
+    text: str
+    lines: tuple[Line, ...]
+    sections: tuple[Section, ...]
+    unknown: tuple[str, ...]
+
+    def visible_block(self) -> str:
+        """整块渲染文本 —— 与重切前的 `_visible_block` 逐字等价。"""
+        return "\n".join(ln.visible for ln in self.lines)
+
+    def stripped_block(self) -> str:
+        """整块剥围栏文本 —— 与重切前的 `_strip_code_blocks` 逐字等价。"""
+        return "\n".join(ln.stripped for ln in self.lines)
+
+    def sections_named(self, prefix: str) -> list["Section"]:
+        """按 `_SECTION_RE` 统一口径取名的小节 (如 `sections_named("### 种子")`)。
+
+        ⛔ **必须**走这里, 不许消费方自己写标题正则 —— 收集器与安全态判定的
+          口径分叉正是 round-40「第十形态」与 BLOCKER②(`### 派生` 零绑定)
+          的共同成因。`Section.title` 存的是**整行**可见文本, 所以本方法与
+          旧的 `_H3_SEED_RE.match(vis_lines[i])` 逐字同义。
+        """
+        pat = re.compile(_SECTION_RE(prefix))
+        return [sec for sec in self.sections if pat.match(sec.title)]
+
+
+def _scan_fences(raw_lines: list[str]) -> list[str]:
+    """围栏代码块状态机 —— 返回与输入**等长**的「剥后行」列表。
+
+    围栏行与围栏内容整行置空(行数保持不变, 以免影响基于行的校验);
+    容器提前结束的行原样保留。判据逐条来自前几轮实测, 见行内注。
+    ⛔ 本函数是 `_strip_code_blocks` 的实现本体, 只有一个调用方
+      (`render_visible`); 消费方读 `Line.in_fence` / `Line.stripped`。
+    ⚠️ 返回 list 而非拼好的字符串: 旧实现靠 `"\n".join` 再 `splitlines()`
+      往返, 末尾空项会丢, 下游只能靠越界兜底。等长 list 让"同下标即同源行"
+      成为真的不变式。
+    """
+    out: list[str] = []
+    fence: str | None = None  # 开栏的完整标记, 如 "````"
+    fence_list_col: int | None = None
+    # ⛔ Codex round-1 BLOCKER-1: 只比字符与长度**仍不是** CommonMark ——
+    # 闭栏行在标记之后**只能有空白**(`` ````not-a-valid-close `` 不是闭栏),
+    # 且围栏行缩进最多三格 (四格起是缩进代码块)。少这两条时,
+    # ````text 后跟一个带 info string 的伪闭栏就能让后续信号行"看起来在块外",
+    # 而 CommonMark 渲染里它们全在 <pre><code> 内 —— 实测 exit 0。
+    open_re = re.compile(r"^(?P<ind> {0,3})(?P<fence>`{3,}|~{3,})")
+    close_re = re.compile(r"^ {0,3}(?P<fence>`{3,}|~{3,})[^\S\n]*$")
+    for ln in raw_lines:
+        # 剥任意层**容器前缀**(引用 `>` / 列表 marker)后再判围栏。
+        # ⛔ R3 round-26: 原式的 `[>\s]` 会**吃掉任意前导空白**, 于是 open_re 的
+        #    ` {0,3}` 形同虚设 —— 顶层缩进四格的 ``` 被当成开栏(CommonMark 里
+        #    那是 indented code block), 其后用户**看得见**的计数被当成围栏内
+        #    内容整段免检。⇒ 无 marker 时**不动**前导空白。
+        # ⛔ R3 round-27: 引用后至多 1 格 padding; 列表 marker 后 1-4 格
+        #    (再多是 indented code)。
+        #    ⚠️ **列表 continuation 未建模**(`- item` 之后的相对内容列)——
+        #      审查方指出补单条 regex 无法闭合这一面, 如实登记。
+        bare = re.sub(
+            r"^(?: {0,3}(?:>[^\S\n]?|(?:[-*+]|\d{1,9}[.)])[^\S\n]{1,4}))*", "", ln
+        )
+        if fence is None:
+            m = open_re.match(bare)
+            # 反引号围栏的 info string 不得含反引号 (CommonMark);
+            # 波浪线围栏无此限制。
+            if m and not (m.group("fence")[0] == "`" and "`" in bare[m.end() :]):
+                fence = m.group("fence")
+                # ⛔ round-3 BLOCKER-1: 列表项内围栏的内容行**绝对内容列必须 ≥
+                #    开栏行剥到围栏标记的绝对列** —— 缩进不足的非空行会结束容器,
+                #    围栏随之结束, 该行渲染为**可见正文**(三个 sibling <li> 的
+                #    中间项)。口径 = **绝对列**。
+                fence_list_col = None
+                if re.search(r"(?:[-*+]|\d{1,9}[.)])[^\S\n]", ln):
+                    fence_list_col = len(ln) - len(bare)
+                out.append("")
+                continue
+        else:
+            # ⛔ R3 round-28: 围栏打开后仍对内容逐行剥**列表** marker, 于是块内的
+            #    `- ``` ` 被当成闭栏、下一行重新开栏, 最终把用户可见的正文剥到
+            #    EOF。CommonMark 里闭栏必须在**同一容器**内 —— 带列表 marker 的
+            #    行是新列表项, 不可能是闭栏。
+            #    ⇒ 剥引用前缀恒做; **列表 marker 只在开栏本身就在列表项内时才剥**。
+            if fence_list_col is None:
+                bare_close = re.sub(r"^(?: {0,3}>[^\S\n]?)*", "", ln)
+            else:
+                bare_close = bare
+            mc = close_re.match(bare_close)
+            # 闭合: 同字符 + 长度 ≥ 开栏 + 其后只有空白
+            if (
+                mc
+                and mc.group("fence")[0] == fence[0]
+                and len(mc.group("fence")) >= len(fence)
+            ):
+                fence = None
+                out.append("")
+                continue
+            if fence_list_col is not None and ln.strip():
+                # 缩进不足 (相对引用系) 的非空行 → 容器结束, 围栏随之结束:
+                # 该行按普通正文保留, 交回 D2/信号行校验。
+                if _quote_width(ln) + _indent_after_quotes(ln) < fence_list_col:
+                    fence = None
+                    out.append(ln)
+                    continue
+            out.append("")
+            continue
+        out.append(ln)
+    return out
+
+
+def _unknown_forms_in(raw: str, visible: str) -> tuple[str, ...]:
+    """这一行里有没有**渲染层没建模**的构造? 有则说出来(拒绝层据此 fail-closed)。
+
+    两类判据, 都刻意窄 —— 「加严不等于更安全」: 加在**已被证明过的维度**上
+    只可能误拒, 所以每一条都得能说出"它挡的是哪个具体放行面"。
+      · 表外 HTML 标签 —— 渲染层照剥(保 visible 逐字等价), 但不再**静默**剥;
+      · **含数的行**上的公式/脚注/图片 —— 判据是"这行有数, 而它的排版我没建模",
+        不是"报告里出现了 `$`"。窄到这个程度才不会把误拒面无谓放大到全文。
+    """
+    found: list[str] = []
+    for m in _VIS_TAG_RE.finditer(raw):
+        inner = m.group(0)[1:-1]
+        if inner.startswith("!"):  # `<!--…-->` 由 _verify_report 按注释判死
+            continue
+        nm = _HTML_TAGNAME_RE.match(inner)
+        if nm is None or nm.group(1).lower() not in _KNOWN_HTML_TAGS:
+            found.append(f"未知标签 {m.group(0)[:40]!r}")
+    if re.search(rf"[{_NUMERAL_LIKE_CHARS}]", visible):
+        for _key, _label, _pat in _UNKNOWN_INLINE_FORMS:
+            if _pat.search(raw):
+                found.append(f"未建模构造: {_label}")
+    return tuple(dict.fromkeys(found))  # 去重保序
+
+
+@lru_cache(maxsize=8)
+def render_visible(text: str) -> Doc:
+    """**唯一**的渲染入口: 源码 → 可见文本 → 结构。
+
+    所有需要"读者看到什么 / 这行在哪个小节里 / 这行是不是代码块"的判据,
+    一律读本函数的产物, **不得**自行归一或自写标题正则。
+    (旧实现里同一原则被手抄过至少四份: 第二套围栏状态机、两式标题正则、
+     四处终点扫描、raw/visible 两次独立取段 —— 每一份都长出过一个 BLOCKER。)
+
+    `lru_cache`: 一次 `--verify` 里同一份 text 会被十余处判据反复问, 缓存让
+    「单一入口」不必付十余次渲染的代价。`Doc` 全 frozen, 缓存安全。
+    """
+    raw_lines = text.splitlines()
+    stripped = _scan_fences(raw_lines)
+    lines: list[Line] = []
+    unknown: list[str] = []
+    for _i, raw in enumerate(raw_lines):
+        vis = _render_line(raw)
+        # 「原行非空而剥后为空」= 在围栏内(或本身是围栏标记行)。
+        in_fence = bool(raw.strip()) and not stripped[_i].strip()
+        mh = None if in_fence else _DOC_HEADING_RE.match(vis)
+        ml = None if in_fence else _DOC_LIST_RE.match(vis)
+        # ⚠️ 围栏内不判未知形态: 代码块里的 `$x$` 是字面文本, 不是公式。
+        unk = () if in_fence else _unknown_forms_in(raw, vis)
+        for _u in unk:
+            unknown.append(f"第 {_i + 1} 行: {_u}")
+        lines.append(
+            Line(
+                idx=_i,
+                raw=raw,
+                visible=vis,
+                stripped=stripped[_i],
+                in_fence=in_fence,
+                heading=len(mh.group(1)) if mh else None,
+                list_marker=ml.group(1) if ml else None,
+                unknown=unk,
+            )
+        )
+    # 章节树: 终点 = 下一个**同级或更高级**标题。
+    sections: list[Section] = []
+    for _i, ln in enumerate(lines):
+        if ln.heading is None:
+            continue
+        _j = _i + 1
+        while _j < len(lines) and not (
+            lines[_j].heading is not None and lines[_j].heading <= ln.heading
+        ):
+            _j += 1
+        sections.append(
+            Section(
+                level=ln.heading,
+                title_idx=_i,
+                # ⛔ `title` = **整行可见文本**(含井号), 不做任何裁剪。
+                #   `_SECTION_RE("### 种子")` 是对**整行**的 `^` 锚定式; 在这里
+                #   预先去掉井号, `sections_named` 就与旧的
+                #   `_H3_SEED_RE.match(vis_lines[i])` 不再逐字等价 —— 那正是
+                #   本卡要消灭的那类口径分叉(收集器与安全态各认一半)。
+                title=ln.visible,
+                lo=_i + 1,
+                hi=_j,
+            )
+        )
+    return Doc(
+        text=text,
+        lines=tuple(lines),
+        sections=tuple(sections),
+        unknown=tuple(unknown),
+    )
 
 
 # 合法千分位分组：**分隔符之后每段恰好三位**，且整段之后不再接数字。
@@ -2211,10 +2449,24 @@ def _tail_conflict(
         (r"理解度未闭环\s*(\d+)\s*条", "tips_open", "理解度未闭环"),
         (r"已派生\s*(\d+)\s*点", "derived_children_count", "已派生"),
     ):
+        _hits = re.findall(_pat, rest)
+        if not _hits:
+            continue  # 报告没写这个数 ⇒ 没什么可比
         _want = (row or {}).get(_field)
         if _want is None:
-            continue  # 无出处可比 ≠ 有矛盾（旧 scan / fallback 模式）
-        for _n in re.findall(_pat, rest):
+            # ⛔ CARD-维护B-R4 拒绝层 (卡文 (h)): 这里原先写着
+            #   `continue  # 无出处可比 ≠ 有矛盾`。那句话把两件事混成了一件:
+            #     · 报告**没写**这个数 ⇒ 确实没什么可比(已由上面的 `_hits` 处理);
+            #     · 报告**写了**这个数而 scan 里没有该字段 ⇒ 这个数没有出处,
+            #       正是 verifier 存在的唯一理由要拦的东西。
+            #   旧写法让第二种情况从第一种的门缝里溜走: 只要让字段缺失
+            #   (旧 scan / fallback 模式), 尾巴里的数字就可以任写任过。
+            problems.append(
+                f"数字终核: 台账『种子』行 {key} 写了『{_label} {_hits[0]}』, "
+                f"但 scan JSON 里该节点的 {_field} 无值 —— 无出处可绑 (fail-closed)"
+            )
+            continue
+        for _n in _hits:
             if int(_n) != _want:
                 problems.append(
                     f"数字终核: 台账『种子』行 {key} 的尾巴报『{_label} {_n}』, "
@@ -2222,174 +2474,130 @@ def _tail_conflict(
                 )
 
 
-def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> None:
-    """台账『种子』行的批注数必须绑到 scan JSON 里**该节点的** tips_count。
+# ── 台账小节 ↔ scan JSON ledger 角色的**唯一**映射表 (CARD-维护B-R4) ──
+# ⛔ round-11 BLOCKER② 连续四轮未闭合, 根因是**一条规则两处定义**:
+#      · 收集器只认 `### 种子` (`_H3_SEED_RE`);
+#      · 安全态判定认 `("种子", "派生")` 两个。
+#    于是 `### 派生` 底下的台账行**两边都不管** —— 不进绑定面(收集器不收),
+#    也不进漏网扫描(安全态说它合规)。而 scan JSON 的 `ledger.derived` 一直
+#    有数据可绑, 从来没绑过: 写 `- D — 批注 999 条` 实测 exit 0。
+# ⇒ 一张表**同时**驱动收集与安全态。口径分叉在结构上不可能再生。
+# ⚠️ 这是模板**自己的**段名(封闭表), 与 round-33 要避免的"攻击形态开放集
+#   闭表"不是一回事: 那边枚举的是攻击者能写出的花样(开放), 这边枚举的是
+#   本 Skill 模板规定的两个小节(封闭, 改模板才会变, 而模板与本表同表同改)。
+_LEDGER_ROLE_SECTIONS: tuple[tuple[str, str], ...] = (
+    ("种子", "seeds"),
+    ("派生", "derived"),
+)
+
+# 派生小节的台账行: 身份 + 尾巴。模板见 SKILL.md「### 派生」
+#   `- <node_id> — <占位|已剖析> · mastery … · <考过 n 次|从未考察> · tips 未闭环 m 条`
+# ⚠️ 与种子行**不同模板**(种子写「批注 N 条」, 派生写搞懂信号), 所以不能复用
+#   `_SEED_LEDGER_LINE_RE` 去要求形状 —— 那会把四份真报告全部误伤。
+#   这里只锚**身份分隔符**(` — `), 数字绑定交给下面按字段逐条比对。
+_DERIVED_LEDGER_LINE_RE = re.compile(r"^[>\s]*-\s+(?P<node>\S.*?)\s+—\s+(?P<rest>.*)$")
+
+# 派生行尾巴里可绑的字段: (正则, scan 字段, 人话标签)。
+# ⛔ 与 `_tail_conflict` 的种子尾巴表**刻意分开**: 两个小节的模板不同, 合成
+#   一张表就得靠 if/else 分流, 那又是一处会分叉的地方。
+_DERIVED_TAIL_FIELDS = (
+    (r"tips\s*未闭环\s*(\d+)\s*条", "tips_open", "tips 未闭环"),
+    (r"(?<!未)批注\s*(\d+)\s*条", "tips_count", "批注"),
+    (r"考过\s*(\d+)\s*次", "attempt_count", "考过"),
+)
+
+
+def _ledger_rows(scan: dict, key: str, problems: list[str]) -> list[dict] | None:
+    """取 `ledger.<key>` 的行, 形状不对就 fail-closed 报错并返回 None。
+
+    ⛔ round-28: 分组形态却没有该角色 = scan 侧异常, **不回落到其它角色**
+      (那正是"派生节点冒充种子"的洞)。
+    ⛔ round-32: `seeds=[None]` 会被过滤成空 list, 随后因**原值仍是 list**
+      被当成合法零成员 ⇒ 损坏数据静默通过。故先查损坏再过滤。
+    """
+    groups = scan.get("ledger")
+    if isinstance(groups, list):
+        # 扁平 list 形态无角色信息: 维持旧行为(只对种子生效), 如实登记 ——
+        # 那是 scan 侧的形态问题, 不在本函数职责内。
+        return [x for x in groups if isinstance(x, dict)] if key == "seeds" else []
+    if not isinstance(groups, dict):
+        problems.append(f"数字终核: scan JSON 无可用 ledger, 台账『{key}』行无法绑定")
+        return None
+    rows = groups.get(key)
+    if not isinstance(rows, list):
+        problems.append(
+            f"数字终核: scan JSON 的 ledger 是分组形态但缺少可用的 {key} 列表, "
+            f"台账相应小节无法绑定 (不回落到其它角色, 避免角色互相冒充)"
+        )
+        return None
+    if any(not isinstance(x, dict) for x in rows):
+        problems.append(
+            f"数字终核: scan JSON 的 ledger.{key} 含非对象条目 (损坏), 台账行无法绑定"
+        )
+        return None
+    return rows
+
+
+def _verify_ledger_counts(text: str, scan: dict, problems: list[str]) -> None:
+    """台账两个小节的每一行都必须绑到 scan JSON 里**该角色、该节点**的字段。
 
     ⛔ 维护卡 B · H-2 后半 (round-6 实证): 原实现只有整行**形状**白名单
     (``- <节点> — 批注 N 条``), 不绑值 —— 把真实的「批注 2 条」改成
-    「批注 999 条」形状照样合法, 实测 exit 0。白名单管住了句式, 没管住数字的出处。
+    「批注 999 条」形状照样合法, 实测 exit 0。白名单管住了句式, 没管住出处。
 
-    scan JSON 的 ``ledger`` 是**按角色分组的 dict** (seeds/derived/unknown) 而非扁平
-    列表 —— 我第一版直接迭代它, 拿到的是键字符串, verifier 当场抛 NameError/AttributeError,
-    stdout 全空 exit 1, 症状伪装成"报告不合规"。这里显式摊平并容两种形态。
+    ⛔ CARD-维护B-R4 (卡文 (g)(h)) —— 本函数从「只管种子」扩到**两个角色**,
+    并改由 `render_visible()` 提供结构:
+      · 旧名 `_verify_seed_ledger_counts` 已名实不符 (DD-13): 它的安全态判定
+        早就把 `### 派生` 算作"认可小节", 却从不绑定其中的行 —— 那正是
+        BLOCKER②。改名 + 表驱动, 让"管哪些小节"只有一个答案。
+      · 旧实现在这里**手抄了三份**结构重建: 逐行 `_visible_text`、第二份围栏
+        状态机 (round-27 BLOCKER)、两个 while 循环的段落终点扫描。现在全部
+        读 `Doc` —— 同下标即同源行是类型层面的保证, 不再靠"一次切行"的约定。
+
+    ⚠️ 两个小节的**模板不同**(种子写「批注 N 条」, 派生写搞懂信号串), 故形状
+      判据分开; 相同的是「身份必须在 ledger 对应角色里」与「写出来的数必须
+      等于 scan 里的那个数」。
     """
-    # ⛔ R3 round-22（冻结审查 v3）：段抓取与行匹配原先都在 **raw** 文本上做 ——
-    #    留一条正确的种子行、再加一条**渲染等价但源码不命中**的冲突行
-    #    （`- SeedA — 批**注** 999 条` / `批<b>注</b>`），后者匹配不上就静默
-    #    continue，绑定被跳过。**fallback 模式**下有形状门兜底（这正是我上一轮
-    #    『未复现』的原因），但 **manifest 模式没有那层门** —— 两条实测 exit 0。
-    #    与③段信号行、五元组的双行逃逸完全同型，第三次。
-    # ⛔ R3 round-25（冻结审查 v6）：round-24 用**两次独立 re.search** 分别在 raw
-    #    与 visible 上取段，再按下标配对 —— 未验证两边选中的是**同一小节**；且
-    #    `_visible_block` 的拼接依赖「行数不变」这个当时**并不成立**的不变式
-    #    （`&#10;` 解出换行）。另外只处理**首个** `### 种子`，一个正确的诱饵小节
-    #    就能遮住后面的冲突小节。
-    #    ⇒ 改为：**一次切行**，raw 与 visible 是同一份 list 的逐行映射（下标即同源
-    #      行，不可能错配）；小节按 visible 标题识别（兼容被排版切开的标题）并
-    #      **逐个**处理，不再只取第一个。
-    raw_lines = text.splitlines()
-    vis_lines = [_visible_text(_ln) for _ln in raw_lines]
-    # ⛔ R3 round-27（冻结审查 v8）：round-26 我在这里**手抄了第二份围栏状态机** ——
-    #    「遇到任意三反引号就布尔翻转」，比 `_strip_code_blocks` 本体弱得多：
-    #    四反引号开栏 → 块内三反引号伪闭栏 → 四反引号真闭栏，状态会 True→False→True，
-    #    于是真闭栏之后的可见冲突小节被整段跳过。**同一原则两处定义**，第 N 次。
-    #    ⇒ 复用本体：`_strip_code_blocks` 把围栏行与围栏内容都置空。
-    #    ⚠️ 措辞更正（v9）：并非无条件「行数恒等」—— 返回字符串再 splitlines 时
-    #      **末尾空项会丢**（既有测试已记录三空行只得两项）。准确说法是
-    #      **索引映射保持、尾项由越界兜底补偿**（下面按空串处理）。
-    #      「原行非空而剥后为空」即「在围栏内（或本身是围栏标记）」。
-    # ⛔ 同轮收紧两处判定（审查方逐条点名）：
-    #    · 父级 H2 原用 `"台账" in heading` ⇒ `## 非台账示例` 也算 —— 改整行匹配
-    #      （允许模板里设计内的全角括号补充与 ATX 闭合井号）；
-    #    · `### 种子 ###`（合法 ATX 闭合序列）原不识别，而 `###种子`（非法 ATX，
-    #      Obsidian 不渲染成标题）反而命中 —— 两侧都改正。
-    _stripped = _strip_code_blocks(text).splitlines()
-    _in_fence = [
-        bool(raw_lines[_n].strip())
-        and not (_stripped[_n] if _n < len(_stripped) else "").strip()
-        for _n in range(len(raw_lines))
-    ]
-    # ⛔ R3 round-29（冻结审查 v10）：round-28 我在这里**自己写了两式**
-    #    （`^ {0,3}##\s+台账…`、闭合井号…），而 `_SECTION_RE` 的 docstring 里
-    #    **明写着**「存在性检查与下游定位**必须共用本函数** —— 两处口径一旦不同，
-    #    就会出现『算在场却定位不到』的缝隙」。我正好犯了它警告的那件事：
-    #      · `## 台账（x`（未闭合括号）—— 必需段门认在场，我的式子不认 ⇒
-    #        种子校验器拿到零个 section 直接返回，`999` 完全不绑定；
-    #      · 反向，我新接受的 `   ## 台账` / `## 台账 ###` 又会被必需段门拒绝。
-    #    ⇒ **改回共用 `_SECTION_RE`**。缩进标题与**裸的** ATX 闭合井号两侧一致地不接受。
-    #    ⚠️ 措辞更正（v11）：「不接受所有 ATX 闭合井号」这句**过宽** ——
-    #      `_SECTION_RE` 的括号分支是 `（[^\n]*$`，会吞下括号后的任意尾巴，
-    #      所以 `## 台账（x ###` 是**被接受**的。如实登记，不吹。
-    #    两侧一致地不接受的部分：
-    #      写成那样的报告会被必需段门直接判 FAIL，整体仍是 fail-closed。
-    #      要放宽就得改 `_SECTION_RE` 本体，让两侧同时动 —— 不在本轮范围。
-    _H2_LEDGER_RE = re.compile(_SECTION_RE("## 台账"))
-    _H3_SEED_RE = re.compile(_SECTION_RE("### 种子"))
-    # ⛔ R3 round-32（冻结审查 v13 的第六形态）：只收集**认可的**小节，等于把
-    #    「不被 `_SECTION_RE` 认可的种子 H3」整块**排除在审计面之外** ——
-    #      · `seeds=[]` + `### 种子 ###` + `- Ghost — 批注 9 条` ⇒ 零 section 且
-    #        零种子，函数直接返回，Ghost 行永不受审；
-    #      · 更强：先放一个**认可的空** `### 种子`，再放第二个**不认可**的 H3 +
-    #        Ghost 行 ⇒ 第二块永不审，非零种子板同样可绕。
-    #    ⇒ 凡是「H3 且可见文本以『种子』开头」却不被 `_H3_SEED_RE` 认可的行，
-    #      自己报出来（fail-closed），不再静默跳过。
-    # ⛔ R3 round-33（冻结审查 v14）：round-32 用「标题像不像种子」来报，
-    #    两头都错：
-    #      · **误伤**（我自己预判、审查方确认）：没有 `_under_ledger` 约束，
-    #        正文/附录里合法的 `### 种子相关说明` 会直接报错；
-    #      · **漏**（第七形态）：`### \`种子\` ###`（inline code）/ `### ==种子== ###`
-    #        （highlight）都不被 `_visible_text` 归一 ⇒ 既不匹配认可标题、也不匹配
-    #        「种子」前缀，Ghost 行不进任何 section；更一般地把第二节改成
-    #        `### 其他` 再装台账形状行，同样不受绑定。
-    #    ⇒ 换判据：**不猜标题，直接查内容** —— 台账段内、**认可小节之外**出现
-    #      台账形状的行（`- <节点> — 批注 N 条`）即 fail-closed。
-    #      这一条闭合第六/第七形态（**标题本身不合规**的 H3），且不误伤
-    #      `### 派生` 这类合规小节里的同形行。
-    #    ⚠️ 未覆盖：**合规但非预期**的 H3（如 `### 其他`）里装台账形状行 ——
-    #      要覆盖它得枚举台账下允许的段名，那又是一张闭表。如实登记。
-    _under_ledger = False
-    sections: list[tuple[int, int]] = []
-    _i = 0
-    while _i < len(vis_lines):
-        if _in_fence[_i]:
-            _i += 1
-            continue
-        if re.match(r"^##[^\S\n]", vis_lines[_i]):
-            _under_ledger = bool(_H2_LEDGER_RE.match(vis_lines[_i]))
-        if _under_ledger and _H3_SEED_RE.match(vis_lines[_i]):
-            _j = _i + 1
-            # ⛔ round-29（冻结审查 v10）：终点扫描原先**不判围栏** ⇒ 围栏内的
-            #    `## 假标题` 会提前截断小节，真闭栏之后的可见冲突行完全不再遍历。
-            #    「小节内跳过围栏」上一轮只保护了消费行，没保护小节**终点**。
-            while _j < len(vis_lines) and not (
-                not _in_fence[_j] and re.match(r"^#{2,3}[^\S\n]", vis_lines[_j])
-            ):
-                _j += 1
-            sections.append((_i + 1, _j))
-            _i = _j
-        else:
-            _i += 1
-    # 台账段的行范围（H2『台账』→ 下一个 H2），用于下面的「漏网行」扫描
-    _ledger_spans: list[tuple[int, int]] = []
-    _i = 0
-    while _i < len(vis_lines):
-        if not _in_fence[_i] and _H2_LEDGER_RE.match(vis_lines[_i]):
-            _j = _i + 1
-            while _j < len(vis_lines) and not (
-                not _in_fence[_j] and re.match(r"^##[^\S\n]", vis_lines[_j])
-            ):
-                _j += 1
-            _ledger_spans.append((_i + 1, _j))
-            _i = _j
-        else:
-            _i += 1
-    _covered = {k for lo, hi in sections for k in range(lo, hi)}
+    doc = render_visible(text)
+    vis_lines = [ln.visible for ln in doc.lines]
+    raw_lines = [ln.raw for ln in doc.lines]
+    in_fence = [ln.in_fence for ln in doc.lines]
 
-    # ⛔ R3 round-39：原先这里有个 `_h3_wellformed` 助手 —— round-38 把安全态改由
-    # `_SECTION_RE` 段名匹配判定后，它就**定义了但无人调用**，是上一轮改动留下的孤儿。
-    # 是**负变异**发现的：打它标题体的那条变体**未承重**（改的那处已不影响任何行为）
-    # = 本卡分类学里的**空变异**（性质搬了家）。
-    # 它守的性质（第八形态：双空格/tab/inline-code/highlight 标题）现由段名匹配
-    # 一并覆盖，由 `survivor-73` 锁住。
+    # 台账 H2 的行范围（H2『台账』→ 下一个同级或更高级标题）。
+    ledger_spans = [(sec.lo, sec.hi) for sec in doc.sections_named("## 台账")]
+    if not ledger_spans:
+        return
 
-    # 「当前所处的 H3 标题是否合规」——不合规的 H3 底下的台账形状行才算漏网
-    _bad_h3 = [False] * len(vis_lines)
-    for _lo, _hi in _ledger_spans:
-        # ⛔ R3 round-37（Codex 冻结审查）：原先初值 `False` ⇒ 台账 H2 之后、
-        #    **第一个 H3 之前**的台账形状行既不进 `_covered`、也不进漏网扫描，
-        #    是一段完全无人看管的区间。默认应为「不在任何认可小节内」= True。
+    # 角色小节: 必须**嵌在台账 H2 之内**（`### 种子` 写在别的 H2 下不算）。
+    # ⛔ round-33 的误伤面（正文里合法的 `### 种子相关说明`）由此避免:
+    #   判据不是"标题像不像种子", 而是"它是不是台账段里那个统一口径的小节"。
+    role_sections: list[tuple[str, str, Section]] = []
+    for _name, _key in _LEDGER_ROLE_SECTIONS:
+        for sec in doc.sections_named(f"### {_name}"):
+            if any(lo <= sec.title_idx < hi for lo, hi in ledger_spans):
+                role_sections.append((_name, _key, sec))
+    covered = {k for _n, _kk, sec in role_sections for k in range(sec.lo, sec.hi)}
+
+    # 「当前所处的 H3 标题是否合规」——不合规的 H3 底下的台账形状行才算漏网。
+    # ⛔ round-37: 初值必须是 True（台账 H2 之后、第一个 H3 之前是一段完全
+    #   无人看管的区间）。⛔ round-38/40: 安全态与收集器**同口径** ——
+    #   现在两者读的是同一张 `_LEDGER_ROLE_SECTIONS`，缩进 H3 仍**更新状态**
+    #   （否则继承前一个安全态）但判为不认可（`_SECTION_RE` 只认顶格）。
+    bad_h3 = [False] * len(vis_lines)
+    for _lo, _hi in ledger_spans:
         _cur_bad = True
         for _k in range(_lo, _hi):
-            if _in_fence[_k]:
+            if in_fence[_k]:
                 continue
-            # ⛔ round-38（Codex 冻结审查 HIGH「第九形态」）：原先
-            #    ① 只有**顶格** `###` 才更新状态 —— CommonMark 允许 1-3 空格缩进，
-            #       缩进的 H3 不更新状态，其下的行**继承前一个合规 H3 的安全态**；
-            #    ② 「合规」只判**形状**不判段名 —— `### 其他` / `### 种子 (说明)` /
-            #       `### 种子 ^id` 形状都合规，却都不是受绑定的种子小节，
-            #       于是 `_cur_bad=False`，其下台账行照旧无人看管。
-            # ⇒ 安全态收窄为「**统一口径 `_SECTION_RE` 认得出的台账小节**」。
-            #    这是一张**只有两项**的表（模板里台账下就这两个 H3），
-            #    与 round-33 要避免的「伪装面开放集闭表」不是一回事：
-            #    那边枚举的是**攻击形态**（开放），这边枚举的是**模板自己的段名**（封闭）。
             if re.match(r"^ {0,3}###[^\S\n]", vis_lines[_k]):
-                # ⛔ R3 round-40（Codex 末轮 BLOCKER「第十形态」）：上一版把缩进
-                #    H3 **去缩进后**再判段名 —— 而小节收集器 `_H3_SEED_RE`
-                #    （= `_SECTION_RE("### 种子")`）只认**顶格**。两处口径一分叉，
-                #    `   ### 种子` 就成了「收集器不收、安全态却判安全」的夹缝：
-                #    它下面的台账行既不进绑定面，也不进漏网扫描。
-                #    ⚠️ 这是我上一轮**修第九形态时新造的**分叉 —— 修一处口径不齐时
-                #    顺手补了缩进，却只补在两处中的一处。
-                # ⇒ 安全态与收集器**同口径**：只有顶格且段名匹配才算认可小节；
-                #    缩进 H3 仍**更新状态**（否则继承前一个安全态），但判为不认可。
                 _cur_bad = not any(
                     re.match(_SECTION_RE(f"### {_nm}"), vis_lines[_k])
-                    for _nm in ("种子", "派生")
+                    for _nm, _ in _LEDGER_ROLE_SECTIONS
                 )
-            _bad_h3[_k] = _cur_bad
-    for _lo, _hi in _ledger_spans:
+            bad_h3[_k] = _cur_bad
+    for _lo, _hi in ledger_spans:
         for _k in range(_lo, _hi):
-            if _k in _covered or _in_fence[_k] or not _bad_h3[_k]:
+            if _k in covered or in_fence[_k] or not bad_h3[_k]:
                 continue
             if _SEED_LEDGER_LINE_RE.match(vis_lines[_k]) or _SEED_LEDGER_LINE_RE.match(
                 raw_lines[_k]
@@ -2402,143 +2610,188 @@ def _verify_seed_ledger_counts(text: str, scan: dict, problems: list[str]) -> No
                     "无尾随闭合井号)"
                 )
 
-    if not sections:
-        # ⛔ R3 round-30（冻结审查 v11）：H2 有全局必需段门兜底，**H3 没有** ——
-        #    于是「与统一口径一致地不接受」对 H3 就成了**静默洞**：
-        #    `### 种子 ###` 这类写法既不被本函数扫描、也没有任何别处会报，
-        #    整块台账行不受绑定。上一轮我把这种「静默不检查」写进门当成期望，
-        #    等于把缺陷编码成了正确行为（审查方点名的目标无关假绿）。
-        #    ⇒ 台账段在场却找不到可扫描的『种子』小节 = fail-closed。
-        # ⛔ R3 round-31（冻结审查 v12）：round-30 这道 fail-closed **误伤了合法的
-        #    零种子报告** —— 生成侧允许 `ledger.seeds == []` / `counts.seeds == 0`，
-        #    那种板本来就没有种子小节。⇒ 只有在**确有种子可绑**时才要求小节在场。
+    # ⛔ round-30/31: 台账段在场、**确有数据可绑**却找不到种子小节 = fail-closed
+    #   (`### 种子 ###` 这类不合口径的写法既不被扫描、也没有别处会报, 那是个
+    #    静默洞); 而合法的零种子板 (`ledger.seeds == []`) 不该被这条打到。
+    # ⚠️ **只对种子生效, 派生不加这条** —— 如实说明理由, 免得后人以为是漏了:
+    #   卡文 (g) 要的是"派生小节里的行必须绑得上", 不是"派生小节必须在场"。
+    #   整个 `### 派生` 小节缺席不会产生任何编造的数字(少写信息 ≠ 写错数字),
+    #   而"把派生行搬到小节外"由上面的漏网扫描覆盖。给它补这条 = 引入卡文
+    #   没要求的收紧, 而收紧加在**已被别的机制证明过的维度**上只可能误拒
+    #   (实测: 9 条只测种子逻辑的既有门当场变红)。
+    if not any(k == "seeds" for _n, k, _s in role_sections):
         _seed_rows = (
             (scan.get("ledger") or {}).get("seeds")
             if isinstance(scan.get("ledger"), dict)
             else None
         )
-        if _seed_rows and re.search(_SECTION_RE("## 台账"), text, re.M):
+        if _seed_rows:
             problems.append(
                 "数字终核: 报告有『## 台账』段却找不到可绑定的『### 种子』小节 "
                 "(标题须与统一口径 _SECTION_RE 一致: 段名后只能是行尾或全角括号补充)"
             )
-        return
-    groups = scan.get("ledger")
-    rows: list[dict] = []
-    if isinstance(groups, dict):
-        # ⛔ R3 round-27（冻结审查 v8）：原先**摊平全部角色**（seeds/derived/unknown）
-        #    ⇒ 把**派生节点**写进「种子」小节、按它的 tips_count 就能通过。
-        #    本函数管的是种子小节，绑定面就只能是 seeds。
-        #    ⚠️ 仅当 ledger 是按角色分组的 dict 时才收窄；扁平 list 形态无角色信息，
-        #      维持原样并如实登记（那是 scan 侧的形态问题，不在本函数职责内）。
-        seeds = groups.get("seeds")
-        if isinstance(seeds, list):
-            rows = [x for x in seeds if isinstance(x, dict)]
+
+    for _name, _key, sec in role_sections:
+        rows = _ledger_rows(scan, _key, problems)
+        if rows is None:
+            return
+        if _key == "seeds":
+            _bind_seed_section(sec, rows, doc, problems)
         else:
-            # ⛔ round-28（冻结审查 v9）：round-27 在 `seeds` 缺失/非 list 时**静默
-            #    回落到摊平全部角色** —— 那正是本轮要堵的洞（派生节点混进种子小节）。
-            #    分组形态却没有 seeds = scan 侧异常，**fail-closed**，不猜。
-            problems.append(
-                "数字终核: scan JSON 的 ledger 是分组形态但缺少可用的 seeds 列表, "
-                "台账『种子』行无法绑定 (不回落到其它角色, 避免派生节点冒充种子)"
-            )
-            return
-    elif isinstance(groups, list):
-        rows = [x for x in groups if isinstance(x, dict)]
-    if not rows:
-        # ⛔ round-31（冻结审查 v12）：`seeds == []` 是**合法**的零种子板，
-        #    与「scan JSON 根本没有 ledger」不是一回事。前者放行（没有种子可绑，
-        #    小节里也不该有台账行——真有行会在下面按「不在 ledger 里」报）；
-        #    后者仍 fail-closed。
-        _raw_seeds = groups.get("seeds") if isinstance(groups, dict) else None
-        if isinstance(_raw_seeds, list) and any(
-            not isinstance(x, dict) for x in _raw_seeds
-        ):
-            # ⛔ round-32（冻结审查 v13）：`seeds=[None]` 会被过滤成空 rows，
-            #    随后因**原值仍是 list** 被当成合法零种子 ⇒ 损坏数据静默通过。
-            problems.append(
-                "数字终核: scan JSON 的 ledger.seeds 含非对象条目 (损坏), "
-                "台账『种子』行无法绑定"
-            )
-            return
-        if not (isinstance(groups, dict) and isinstance(groups.get("seeds"), list)):
-            problems.append("数字终核: scan JSON 无可用 ledger, 台账『种子』行无法绑定")
-            return
-        # ⚠️ `seeds == []` 时**不能提前 return** —— 那样零种子板里写的任何台账行
-        #    都会被静默放行（我第一版就是这么写的，当场实测漏）。
-        #    继续往下走：绑定面为空 ⇒ 每一行都会按「不在 ledger 里」报。
+            _bind_derived_section(sec, rows, doc, problems, _name)
+
+
+def _bind_seed_section(
+    sec: "Section", rows: list[dict], doc: Doc, problems: list[str]
+) -> None:
+    """`### 种子` 小节: 每行须是标准模板, 且批注数 == 该节点的 `tips_count`。
+
+    ⚠️ `rows == []` 时**不能提前 return** —— 那样零种子板里写的任何台账行都会
+      被静默放行（round-31 实测漏）。绑定面为空 ⇒ 每一行都按「不在 ledger 里」报。
+    """
     tips_by_node = {str(r.get("node_id")): r.get("tips_count") for r in rows}
     row_by_node = {str(r.get("node_id")): r for r in rows}
-    # 归一空间的候选索引：只在 raw 行解析不出时才用（round-25）
+    # 归一空间的候选索引: 只在 raw 行解析不出时才用（round-25）
     vis_index: dict[str, list[str]] = {}
     for _raw_id in tips_by_node:
         vis_index.setdefault(_visible_text(_raw_id), []).append(_raw_id)
-    for _lo, _hi in sections:
-        for _k in range(_lo, _hi):
-            ln = vis_lines[_k]
-            if not ln.strip():
+    for _k in range(sec.lo, sec.hi):
+        line = doc.lines[_k]
+        if not line.visible.strip() or line.in_fence:
+            continue
+        raw_ms = _SEED_LEDGER_LINE_RE.match(line.raw)
+        ms = _SEED_LEDGER_LINE_RE.match(line.visible)
+        if not ms and not raw_ms:
+            # ⛔ round-25: 原先静默 continue（理由是"形状问题由 fallback 白名单
+            #   报"）—— 但那道白名单**只在 fallback 路径**上跑, manifest 模式
+            #   没有兜底, 于是种子小节里任何不匹配模板的行整条免检。
+            problems.append(
+                f"数字终核: 台账『种子』小节出现非模板行 (每行须为 "
+                f"`- <节点> — 批注 N 条` 或 `- <节点> — 无批注`): {line.visible.strip()[:60]}"
+            )
+            continue
+        if not ms:
+            ms = raw_ms
+        if raw_ms:
+            node = raw_ms.group("node").strip()
+            if node in tips_by_node:
+                got = 0 if raw_ms.group("none") else int(raw_ms.group("n"))
+                want = tips_by_node[node]
+                if got != want:
+                    problems.append(
+                        f"数字终核: 台账『种子』行 {node} 报批注 {got} 条, "
+                        f"scan JSON 的 tips_count 是 {want} (形状对不等于数字有据)"
+                    )
+                _tail_conflict(raw_ms, node, problems, row_by_node.get(node))
                 continue
-            # ⛔ round-28（冻结审查 v9）：`_in_fence` 原先只用于**找标题**，
-            #    进了小节之后逐行检查不再判围栏 ⇒ 小节里放一段代码块，
-            #    块内的字面行会被当成台账行强判。
-            if _in_fence[_k]:
-                continue
-            raw_ln = raw_lines[_k]  # 同一下标 = 同一源行（一次切行保证）
-            raw_ms = _SEED_LEDGER_LINE_RE.match(raw_ln)
-            ms = _SEED_LEDGER_LINE_RE.match(ln)
-            if not ms and not raw_ms:
-                # ⛔ R3 round-25（冻结审查 v6）：原先静默 `continue`，理由是"形状问题
-                #    由 _verify_report 的模板白名单报" —— 但那道白名单**只在 fallback
-                #    路径**上跑，**manifest 模式没有兜底**，于是种子小节里任何不匹配
-                #    模板的行（含 `批注 999 条&#10;x` 这种尾巴）整条免检。
-                #    ⇒ 本函数自己 fail-closed：小节内的非空行必须是标准模板行。
-                problems.append(
-                    f"数字终核: 台账『种子』小节出现非模板行 (每行须为 "
-                    f"`- <节点> — 批注 N 条` 或 `- <节点> — 无批注`): {ln.strip()[:60]}"
-                )
-                continue
-            if not ms:
-                ms = raw_ms
-            if raw_ms:
-                node = raw_ms.group("node").strip()
-                if node in tips_by_node:
-                    key = node
-                    got = 0 if raw_ms.group("none") else int(raw_ms.group("n"))
-                    want = tips_by_node[key]
-                    if got != want:
-                        problems.append(
-                            f"数字终核: 台账『种子』行 {key} 报批注 {got} 条, "
-                            f"scan JSON 的 tips_count 是 {want} (形状对不等于数字有据)"
-                        )
-                    _tail_conflict(raw_ms, key, problems, row_by_node.get(key))
-                    continue
-                # ⛔ round-25: raw 精确未命中**不等于**身份非法 —— ledger id 为 `A&B`
-                #    而报告合法写成 `A&amp;B` 时，读者看到的是同一个名字。原实现
-                #    在这里直接报错，不再尝试唯一的归一候选 ⇒ 合法用法误伤。
-                #    改为**继续往下**走归一候选（唯一才绑，撞车仍 fail-closed）。
-            node = ms.group("node").strip()
+            # ⛔ round-25: raw 精确未命中**不等于**身份非法（ledger id 为 `A&B`
+            #   而报告合法写成 `A&amp;B` 时读者看到的是同一个名字）⇒ 继续走
+            #   归一候选（唯一才绑, 撞车仍 fail-closed）。
+        node = ms.group("node").strip()
+        cands = vis_index.get(node) or []
+        if len(cands) > 1:
+            problems.append(
+                f"数字终核: 台账『种子』行的节点 {node!r} 归一后同时对应 "
+                f"{sorted(cands)!r} —— 无法确定是哪一个, 不猜 (fail-closed)"
+            )
+            continue
+        if not cands:
+            problems.append(
+                f"数字终核: 台账『种子』行的节点 {node!r} 不在 scan JSON 的 ledger 里 "
+                "(台账不得列出未扫描到的节点)"
+            )
+            continue
+        key = cands[0]
+        want = tips_by_node[key]
+        got = 0 if ms.group("none") else int(ms.group("n"))
+        if got != want:
+            problems.append(
+                f"数字终核: 台账『种子』行 {key} 报批注 {got} 条, "
+                f"scan JSON 的 tips_count 是 {want} (形状对不等于数字有据)"
+            )
+        _tail_conflict(ms, key, problems, row_by_node.get(key))
+
+
+def _bind_derived_section(
+    sec: "Section", rows: list[dict], doc: Doc, problems: list[str], name: str
+) -> None:
+    """`### 派生` 小节: **BLOCKER② 的闭合点**(卡文 (g), round-11 起四轮未闭合)。
+
+    在此之前, 这个小节是审计面上的一个洞: 收集器不收它, 安全态又说它合规,
+    于是 `- D — 批注 999 条` 实测 exit 0 —— 而 `ledger.derived` 一直在那儿。
+
+    绑定规则(与 SKILL.md「### 派生」模板同表同改):
+      · **身份**: 行首 `- <node_id> — ` 的 node_id 必须在 `ledger.derived` 里;
+      · **数字**: 尾巴里写出来的 `tips 未闭环 m 条` / `批注 N 条` / `考过 n 次`
+        必须等于该节点的 `tips_open` / `tips_count` / `attempt_count`;
+      · **零派生板**: `ledger.derived == []` 时小节里**不得出现台账形状行** ——
+        没有可绑的数据, 写出来的任何一行都是无中生有。四份 live 真报告的
+        零派生写法(`- 无（derived 列表为空）` / `- （无：derived 计数 0…）`)
+        不含 ` — ` 身份分隔符, 不是台账形状行, 不受此条影响。
+
+    ⚠️ 不对本小节施加**整行模板白名单**: 派生行的尾巴是「搞懂信号 · mastery ·
+      考察 · tips」的自由组合(见四份真报告, 每份写法都不同), 套种子的模板会
+      把它们全部误伤。覆盖面因此比种子小节窄, 如实登记在验收单。
+    """
+    by_node = {str(r.get("node_id")): r for r in rows}
+    vis_index: dict[str, list[str]] = {}
+    for _raw_id in by_node:
+        vis_index.setdefault(_visible_text(_raw_id), []).append(_raw_id)
+    for _k in range(sec.lo, sec.hi):
+        line = doc.lines[_k]
+        if not line.visible.strip() or line.in_fence:
+            continue
+        ms = _DERIVED_LEDGER_LINE_RE.match(
+            line.visible
+        ) or _DERIVED_LEDGER_LINE_RE.match(line.raw)
+        if ms is None:
+            continue  # 不是台账形状行(说明行/占位行), 其中的数字仍受 D2 治理
+        if not rows:
+            problems.append(
+                f"数字终核: 台账『{name}』小节出现台账形状行, 但 scan JSON 的 "
+                f"ledger.derived 是空的 —— 没有出处可绑, 这一行是无中生有: "
+                f"{line.visible.strip()[:60]}"
+            )
+            continue
+        node = ms.group("node").strip()
+        row = by_node.get(node)
+        if row is None:
             cands = vis_index.get(node) or []
             if len(cands) > 1:
                 problems.append(
-                    f"数字终核: 台账『种子』行的节点 {node!r} 归一后同时对应 "
+                    f"数字终核: 台账『{name}』行的节点 {node!r} 归一后同时对应 "
                     f"{sorted(cands)!r} —— 无法确定是哪一个, 不猜 (fail-closed)"
                 )
                 continue
             if not cands:
                 problems.append(
-                    f"数字终核: 台账『种子』行的节点 {node!r} 不在 scan JSON 的 ledger 里 "
-                    "(台账不得列出未扫描到的节点)"
+                    f"数字终核: 台账『{name}』行的节点 {node!r} 不在 scan JSON 的 "
+                    "ledger.derived 里 (台账不得列出未扫描到的节点)"
                 )
                 continue
-            key = cands[0]
-            want = tips_by_node[key]
-            got = 0 if ms.group("none") else int(ms.group("n"))
-            if got != want:
+            node = cands[0]
+            row = by_node[node]
+        rest = _visible_text(ms.groupdict().get("rest") or "")
+        for _pat, _field, _label in _DERIVED_TAIL_FIELDS:
+            hits = re.findall(_pat, rest)
+            if not hits:
+                continue
+            want = row.get(_field)
+            if want is None:
+                # ⛔ 卡文 (h) 拒绝层: 报告**写了**这个数, scan 里却没有该字段 ⇒
+                #   无出处 = fail-closed。旧 `_tail_conflict` 在这里 `continue`
+                #   放行("无出处可比 ≠ 有矛盾"), 那正是"伪造数字放行"的形态。
                 problems.append(
-                    f"数字终核: 台账『种子』行 {key} 报批注 {got} 条, "
-                    f"scan JSON 的 tips_count 是 {want} (形状对不等于数字有据)"
+                    f"数字终核: 台账『{name}』行 {node} 写了『{_label} {hits[0]}』, "
+                    f"但 scan JSON 里该节点的 {_field} 无值 —— 无出处可绑 (fail-closed)"
                 )
-            _tail_conflict(ms, key, problems, row_by_node.get(key))
+                continue
+            for _n in hits:
+                if int(_n) != want:
+                    problems.append(
+                        f"数字终核: 台账『{name}』行 {node} 报『{_label} {_n}』, "
+                        f"scan JSON 的 {_field} 是 {want} (形状对不等于数字有据)"
+                    )
 
 
 def _verify_numbers(fm: str, text: str, report_path: Path, problems: list[str]) -> None:
@@ -2668,7 +2921,7 @@ def _verify_numbers(fm: str, text: str, report_path: Path, problems: list[str]) 
         for got in all_hits:  # 段外同形句同样绑定, 不留"第二处说法"
             if int(got) != want_v:
                 problems.append(f"数字终核: {name} {got} ≠ scan JSON {want_v}")
-    _verify_seed_ledger_counts(text, scan, problems)
+    _verify_ledger_counts(text, scan, problems)
     _verify_prose_counts(text, scan, problems)
     _verify_signals_if_present(text, scan, problems)
     _verify_fallback_derive_numbers(text, scan, problems)
@@ -2863,6 +3116,18 @@ def _verify_report(path: str) -> int:
     #    又一处「同一原则两处定义」。改为共用 _INVISIBLE_ONE。
     if re.search(_INVISIBLE_ONE, text):
         problems.append("正文含零宽/双向控制字符 (不可见字符, 报告禁用)")
+    # ⛔ CARD-维护B-R4 拒绝层 (卡文 (e) 的「列举之外 fail-closed」):
+    #   渲染层把它**没建模**的构造报出来, 在这里变成 problems。
+    #   在此之前, 表外的 `<zzz>` 会被 `_VIS_TAG_RE` **静默剥掉** —— 剥的动作
+    #   本身没错(读者确实看不到未知标签), 错的是"剥了却不吭声": 一个没人
+    #   建模过的构造改变了受检文本, 而没有任何人知道它改过。
+    # ⚠️ 这**不是**闭合: 列举仍可能漏, 漏掉的后果仍是放行。它只把风险方向
+    #   从「漏」倒成「误拒」——倒过来不等于关上。如实登记在验收单。
+    _doc = render_visible(text)
+    for _u in _doc.unknown:
+        problems.append(
+            f"渲染层未知形态 (无法确定读者看到的是什么数, fail-closed): {_u}"
+        )
     _verify_numbers(fm, text, Path(path), problems)
     if not re.search(r"^type:\s*recap\s*$", fm, re.M):
         problems.append("frontmatter 缺 type: recap")

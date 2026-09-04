@@ -704,7 +704,22 @@ def render_report(scan: dict) -> str:
         f"- {r['node_id']} — " + (f"批注 {r['tips_count']} 条" if r.get("tips_count") else "无批注")
         for r in (scan.get("ledger") or {}).get("seeds", [])
     )
-    ledger_derived = "- DerivedB — 占位 · mastery 未记录 · tips 未闭环 2 条\n- DerivedC — 已剖析 · mastery 未记录"
+    # ⛔ CARD-维护B-R4（BLOCKER② 的教科书式证据）：上面那段注释说的事，在
+    #    **派生行**上原样重演了一遍——种子行早在 round-6 就改成「按 scan 渲染」，
+    #    派生行却一直是**硬编码字符串**（`tips 未闭环 2 条`，而 scan 里是 0 或 1）。
+    #    它一直没露馅，因为旧 verifier 根本不绑派生小节：收集器只认 `### 种子`，
+    #    安全态却把 `### 派生` 算作"认可小节"，两边都不管。
+    #    新的角色表绑定第一次跑就抓出来了——连测试自己的基线报告都在编造数字。
+    #    ⇒ 与种子行**逐字同型**地改为按 scan 的 ledger.derived 渲染。
+    ledger_derived = (
+        "\n".join(
+            f"- {r['node_id']} — "
+            + ("占位" if r.get("is_stub") else "已剖析")
+            + f" · mastery 未记录 · tips 未闭环 {r.get('tips_open') or 0} 条"
+            for r in (scan.get("ledger") or {}).get("derived", [])
+        )
+        or "- 无（derived 列表为空）"
+    )
     return f"""---
 type: recap
 board: "{scan["board_stem"]}"
@@ -1487,12 +1502,28 @@ def _load_recap_scan():
         pytest.fail(f"被测脚本不存在: {SCRIPT}")
     prev = sys.dont_write_bytecode
     sys.dont_write_bytecode = True
+    name = "recap_scan_ut"
+    had = name in sys.modules
+    prev_mod = sys.modules.get(name)
     try:
-        spec = importlib.util.spec_from_file_location("recap_scan_ut", SCRIPT)
+        spec = importlib.util.spec_from_file_location(name, SCRIPT)
         mod = importlib.util.module_from_spec(spec)
+        # ⛔ CARD-维护B-R4: 必须**先注册再 exec** —— importlib 官方用法如此，
+        #   而原实现漏了这一步。被测脚本引入 `@dataclass` 后当场暴露：
+        #   Python 3.14 的 `dataclasses._is_type` 会做
+        #   `sys.modules.get(cls.__module__).__dict__`，模块不在册 ⇒ `None`
+        #   ⇒ `AttributeError`，50 条门一起变红，而症状伪装成"被测物坏了"。
+        #   (生产路径不受影响：那边脚本是 `__main__`，本来就在 sys.modules 里。)
+        sys.modules[name] = mod
         spec.loader.exec_module(mod)
     finally:
         sys.dont_write_bytecode = prev
+        # 零污染还原：本函数每次调用都要给出**全新**模块，注册只为 exec 期间
+        # 的自省服务，用完即撤。
+        if had:
+            sys.modules[name] = prev_mod
+        else:
+            sys.modules.pop(name, None)
     return mod
 
 
@@ -4750,7 +4781,7 @@ def test_domain_r20_seed_ledger_visible_in_manifest_cli(tmp_path):
     等价但源码不命中的冲突行）。这是同一形态在本卡的**第三次**命中。
 
     **它证明什么**：种子行的段抓取与行匹配都在渲染文本上做；两个消费方
-    （`_verify_seed_ledger_counts` 的值绑定 + fallback 的整行形状门）同口径。
+    （`_verify_ledger_counts` 的值绑定 + fallback 的整行形状门）同口径。
     **它不证明什么**：`_visible_block` 仍不是完整 renderer；③标题与 tips 的
     同型攻击在两种模式下都未复现（**未复现 ≠ 安全**，如实登记）。
     """
@@ -4810,8 +4841,24 @@ def test_domain_r20_seed_ledger_visible_in_manifest_cli(tmp_path):
     assert len(_call_lines) == 5, f"_visible_block 真实调用点应为 5 处，实得 {len(_call_lines)}：{_call_lines!r}"
     # ⚠️ 判据必须**计数**，不能靠「删掉函数名再查子串」—— 删名字不删函数体，
     #    helper 自己的那行 join 照样命中（第一版就这么错的，门当场变红）。
-    #    恰好 1 处 = 只存在于 `_visible_block` 的定义里。
-    assert _src.count('"\\n".join(_visible_text(ln)') == 1, "生产里出现了第二处内联的逐行 join —— 单一应用点被绕开"
+    # ⛔ CARD-维护B-R4 重锚（**性质等价**，强度不降；等价性登记在验收单形态门表）：
+    #    逐行 join 的实现已从 `_visible_block` 搬进 `Doc.visible_block`，
+    #    原判据串 `'"\\n".join(_visible_text(ln)'` 在新架构里 count == 0 ——
+    #    **判据恒真 = 假绿**，所以必须换串，不能留着。守的性质一字未变：
+    #    「生产里只许有一处逐行渲染再拼」。
+    assert _src.count('"\\n".join(ln.visible for ln in self.lines)') == 1, (
+        "生产里出现了第二处内联的逐行 join —— 单一应用点被绕开"
+    )
+    # ⛔ 同轮补三条，锁住 R4 的「单一入口」本身（旧门只锁了 join，锁不住
+    #    「有人又手抄一份围栏状态机 / 一式标题正则」——那正是 round-27/29 的 BLOCKER）：
+    _defs = lambda name: _src.count(f"def {name}(")
+    assert _defs("_scan_fences") == 1 and _src.count("_scan_fences(") == 2, (
+        "围栏状态机必须只有一个定义点、一个调用点（render_visible）"
+    )
+    assert _defs("_render_line") == 1 and _src.count("_render_line(") == 3, (
+        "行渲染核必须只有一个定义点，调用方只许 render_visible 与片段 API _visible_text"
+    )
+    assert _src.count("def render_visible(") == 1, "渲染入口必须唯一"
 
 
 def test_domain_r21_seed_node_identity_same_space():
@@ -4840,7 +4887,7 @@ def test_domain_r21_seed_node_identity_same_space():
     def run(lines: str, ledger: list[dict]) -> list[str]:
         text = f"## 台账\n\n### 种子\n\n{lines}\n\n## 下一段\n"
         problems: list[str] = []
-        rs._verify_seed_ledger_counts(text, {"ledger": {"seeds": ledger}}, problems)
+        rs._verify_ledger_counts(text, {"ledger": {"seeds": ledger}}, problems)
         return problems
 
     A_AND_UA = [{"node_id": "SeedA", "tips_count": 9}, {"node_id": "Seed_A", "tips_count": 2}]
@@ -4936,7 +4983,7 @@ def test_domain_r22_fence_indent_and_seed_scope_cli(tmp_path):
 
     # ④ 尾巴里同名字段的第二个数 ⇒ fail-closed（函数级，最小可控）
     problems: list[str] = []
-    rs._verify_seed_ledger_counts(
+    rs._verify_ledger_counts(
         "## 台账\n\n### 种子\n\n- SeedA — 批注 2 条（批注 999 条）\n\n## 末\n",
         {"ledger": {"seeds": [{"node_id": "SeedA", "tips_count": 2}]}},
         problems,
@@ -4944,9 +4991,26 @@ def test_domain_r22_fence_indent_and_seed_scope_cli(tmp_path):
     assert any("尾巴里又出现" in p for p in problems), f"同字段两处计数未 fail-closed：{problems!r}"
     # 反面：真实报告的尾巴（其它字段）不得误伤
     problems2: list[str] = []
-    rs._verify_seed_ledger_counts(
+    rs._verify_ledger_counts(
         "## 台账\n\n### 种子\n\n- SeedA — 批注 2 条（理解度未闭环 2 条）；已派生 3 点\n\n## 末\n",
-        {"ledger": {"seeds": [{"node_id": "SeedA", "tips_count": 2}]}},
+        # ⛔ CARD-维护B-R4: fixture 补齐 `tips_open` / `derived_children_count` ——
+        #   本 case 的意图是"**真实报告**的尾巴不得误伤"，而真实 ledger 里这两个
+        #   字段一直都在（`_collect_*` 产出，四份 live fixture 实测有）。原 fixture
+        #   缺它们，于是它测的其实是"字段缺失时放行"，与它自己的名字不符。
+        #   （卡文 (h) 收紧后，"缺字段还硬写数"应当 fail-closed —— 那条由
+        #    `test_domain_r31_tail_fields_bound_to_scan` 专门守。）
+        {
+            "ledger": {
+                "seeds": [
+                    {
+                        "node_id": "SeedA",
+                        "tips_count": 2,
+                        "tips_open": 2,
+                        "derived_children_count": 3,
+                    }
+                ]
+            }
+        },
         problems2,
     )
     assert problems2 == [], f"真实报告的尾巴被误伤：{problems2!r}"
@@ -4985,7 +5049,7 @@ def test_domain_r23_seed_scope_fence_and_tail_render():
 
     def run(text: str) -> list[str]:
         ps: list[str] = []
-        rs._verify_seed_ledger_counts(text, SEEDS, ps)
+        rs._verify_ledger_counts(text, SEEDS, ps)
         return ps
 
     def L(row: str) -> str:
@@ -5073,7 +5137,7 @@ def test_domain_r24_fence_closer_atx_and_tail_prefix():
 
     def run(text: str, scan=None) -> list[str]:
         ps: list[str] = []
-        rs._verify_seed_ledger_counts(text, scan or SEEDS, ps)
+        rs._verify_ledger_counts(text, scan or SEEDS, ps)
         return ps
 
     def L(row: str) -> str:
@@ -5146,7 +5210,7 @@ def test_domain_r25_section_criterion_unified_cli(tmp_path):
 
     def run(text: str) -> list[str]:
         ps: list[str] = []
-        rs._verify_seed_ledger_counts(text, S, ps)
+        rs._verify_ledger_counts(text, S, ps)
         return ps
 
     # ① 口径分叉的正向：必需段门认在场的形态，种子绑定也必须认
@@ -5242,7 +5306,7 @@ def test_domain_r26_zero_seed_board_not_false_positive():
         ),
     ):
         ps: list[str] = []
-        rs._verify_seed_ledger_counts(text, {"ledger": ledger} if ledger is not None else {}, ps)
+        rs._verify_ledger_counts(text, {"ledger": ledger} if ledger is not None else {}, ps)
         if want_problem:
             assert ps, f"{why}：应报错却放行"
         else:
@@ -5355,8 +5419,16 @@ def test_domain_r27_seedish_h3_and_corrupt_seeds():
             {"seeds": [{"node_id": "S", "tips_count": 2}]},
         ),
         (
-            "不受任何认可小节覆盖",
-            "⭐第八形态 b：highlight 标题**不带**尾随 closer",
+            # ⛔ CARD-维护B-R4 **性质等价**改写（登记在验收单形态门表）：
+            #    `==种子==` 在 Obsidian 里渲染成高亮的「种子」——读者看到的**就是**
+            #    一个标题为「种子」的 H3。R4 的渲染层据此归一，于是这一节不再是
+            #    「伪装的标题」，而是一个货真价实的种子小节，其中的 Ghost 行走
+            #    **绑定**路径被拒。两版都 fail-closed（ps 非空 ⇒ FAIL），
+            #    变的只是拒因；而新拒因比旧的更贴近读者所见。
+            #    ⚠️ 期望值必须跟着实现走，但**必须仍是「报」**——若改成 None
+            #      就是把收紧写成了放行，那才是削弱证据。
+            "不在 scan JSON 的 ledger 里",
+            "⭐第八形态 b：highlight 标题**不带**尾随 closer（R4 起按渲染后的真标题绑定）",
             "## 台账\n\n### 种子\n\n\n\n### ==种子==\n\n- Ghost — 批注 9 条\n\n## 末\n",
             {"seeds": [{"node_id": "S", "tips_count": 2}]},
         ),
@@ -5410,7 +5482,7 @@ def test_domain_r27_seedish_h3_and_corrupt_seeds():
         ),
     ):
         ps: list[str] = []
-        rs._verify_seed_ledger_counts(text, {"ledger": ledger}, ps)
+        rs._verify_ledger_counts(text, {"ledger": ledger}, ps)
         _seen.append(want)
         if want is None:
             assert ps == [], f"{why}：误伤 —— {ps!r}"
@@ -5497,7 +5569,7 @@ def test_domain_r31_tail_fields_bound_to_scan():
 
     def run(line: str, seed: dict) -> list[str]:
         ps: list[str] = []
-        rs._verify_seed_ledger_counts(
+        rs._verify_ledger_counts(
             f"## 台账\n\n### 种子\n\n{line}\n\n## 末\n",
             {"ledger": {"seeds": [seed]}},
             ps,
@@ -5509,7 +5581,20 @@ def test_domain_r31_tail_fields_bound_to_scan():
         ("- S — 批注 2 条（理解度未闭环 9 条）", row, "tips_open", "篡改未闭环数必红"),
         ("- S — 批注 2 条（理解度未闭环 3 条）· 已派生 4 点", row, None, "对照：派生数也对"),
         ("- S — 批注 2 条（理解度未闭环 3 条）· 已派生 9 点", row, "derived_children_count", "篡改派生数必红"),
-        ("- S — 批注 2 条（理解度未闭环 9 条）· 已派生 9 点", bare, None, "能力边界：无字段不误报"),
+        # ⛔ CARD-维护B-R4 卡文 (h) **行为变更**（非等价，已登记在验收单）：
+        #    旧期望把「报告写了数、scan 里没有该字段 ⇒ 放行」写成了"能力边界"。
+        #    但那两件事被混成了一件：报告**没写**这个数才叫没什么可比；
+        #    报告**写了**而 scan 里没有出处，正是 verifier 存在的唯一理由要拦的。
+        #    旧写法让第二种从第一种的门缝里溜走——只要让字段缺失（旧 scan /
+        #    fallback），尾巴里的数字就可以任写任过。
+        #    ⚠️ 实测四份 live 真报告在收紧后仍全部 rc=0（它们的 ledger 有这些字段），
+        #      所以这条收紧打到的是"缺字段还硬写数"，不是正常报告。
+        (
+            "- S — 批注 2 条（理解度未闭环 9 条）· 已派生 9 点",
+            bare,
+            "无出处可绑",
+            "字段缺失却写了数 ⇒ fail-closed（R4 起）",
+        ),
     ):
         ps = run(line, seed)
         if want is None:
@@ -5558,7 +5643,7 @@ def test_domain_r32_indent_h3_and_zero_token_claim(tmp_path):
 
     def ledger(h3: str) -> list[str]:
         ps: list[str] = []
-        rs._verify_seed_ledger_counts(
+        rs._verify_ledger_counts(
             "## 台账\n\n### 种子\n\n- S — 批注 2 条\n\n### 派生\n\n- D — 批注 1 条\n\n"
             f"{h3}\n\n- Ghost — 批注 999 条\n\n## 末\n",
             {"ledger": {"seeds": [{"node_id": "S", "tips_count": 2}]}},
@@ -5729,3 +5814,150 @@ def test_domain_r29_separator_third_state_cli(tmp_path):
         )
     # 非数字上下文不受影响
     assert rs._normalize_number_seps("见 1,と") == "见 1,と"
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# CARD-维护B-R4「先渲染再核数」—— 架构重切的三道新门
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def test_r4_render_doc_invariants():
+    """渲染层 `Doc` 的不变式 —— 它们是绑定层"同下标即同源行"的地基。
+
+    ⛔ 为什么这些必须是门而不是注释：旧实现用**两次独立 `re.search`** 分别在
+      raw 与 visible 上取段、再按下标配对，round-25 实测错配；后来改成"一次
+      切行"的**约定**，而约定没有任何东西在核对它。现在它是类型层面的产物，
+      再加这道门锁住。
+    """
+    rs = _load_recap_scan()
+    CORPORA = (
+        "",
+        "\n",
+        "A\n\n\n",
+        "## 台账\n\n### 种子\n\n- A — 批注 1 条\n",
+        "````text\n### 种子\n```\n- A — 批注 9 条\n````\n",
+        "- ```\n- 本板共有 987654 个子节点\n- ```\n",
+        "> > ```\n> > ### 种子\n> > ```\n",
+        "A&#10;B — 批注 1 条\n",
+        "本板共有​９８７６５４个子节点\n",
+    )
+    for text in CORPORA:
+        doc = rs.render_visible(text)
+        raw = text.splitlines()
+        assert len(doc.lines) == len(raw), f"行数不变式破了: {text!r}"
+        for i, ln in enumerate(doc.lines):
+            assert ln.idx == i, "idx 必须等于源行下标"
+            assert ln.raw == raw[i], "同下标必须同源行"
+            assert "\n" not in ln.visible and "\r" not in ln.visible, (
+                f"visible 不得含换行（`&#10;` 解出的换行必须折成空格）: {ln.visible!r}"
+            )
+        # 与两个薄封装自洽（防有人改了封装却没改本体，或反过来）
+        assert doc.visible_block() == rs._visible_block(text)
+        assert doc.stripped_block() == rs._strip_code_blocks(text)
+
+    # 单一入口：结构识别不许有第二份实现
+    doc = rs.render_visible("## 台账\n\n### 种子\n\n- A — 批注 1 条\n\n## 末\n")
+    secs = doc.sections_named("### 种子")
+    assert len(secs) == 1, "sections_named 必须与 _SECTION_RE 同口径"
+    assert secs[0].title == "### 种子", "Section.title 必须是**整行**可见文本（含井号）"
+    # 章节终点 = 下一个同级或更高级标题
+    assert doc.lines[secs[0].lo].visible == "", "内容范围从标题的下一行开始"
+    assert all(doc.lines[k].heading is None for k in range(secs[0].lo, secs[0].hi))
+
+    # 缩进 H3 仍被识别为标题（要能更新安全态），但 `_SECTION_RE` 只认顶格
+    doc2 = rs.render_visible("   ### 种子\n")
+    assert doc2.lines[0].heading == 3, "缩进 0-3 格仍是 ATX 标题（CommonMark）"
+    assert doc2.sections_named("### 种子") == [], "但统一口径只认顶格 —— 这是 round-40 的口径"
+
+
+@pytest.mark.parametrize(
+    "inject,want_unknown,why",
+    [
+        (None, False, "对照：真报告原样不得被新门误伤"),
+        ("本板共有<b>3</b>个子节点。", False, "对照：白名单内的 HTML 标签照常剥，不报"),
+        ("本板共有<zzz>3</zzz>个子节点。", True, "表外标签：剥照旧，但不再**静默**剥"),
+        ("这一段<zzz>没有数</zzz>。", True, "表外标签与有没有数字无关"),
+        ("本板共有 $3$ 个子节点。", True, "math 未建模：读者看到的是公式排版，不敢判"),
+        ("本板共有3[^1]个子节点。", True, "脚注未建模"),
+        ("本板共有![x](y.png)3个子节点。", True, "图片未建模"),
+        ("```\n本板共有 $3$ 个子节点。\n```", False, "围栏内是字面文本，不判未知形态"),
+    ],
+    ids=["control", "known_tag", "unknown_tag", "unknown_tag_nonum", "math", "footnote", "image", "in_fence"],
+)
+def test_r4_unknown_forms_fail_closed(tmp_path, inject, want_unknown, why):
+    """卡文 (e)「列举之外 fail-closed」——渲染层报出它没建模的构造。
+
+    ⚠️ 这道门**不**证明"未知形态已闭合"。它证明的只有两件事：
+      ① 列举之外的构造会被报出来（风险方向从「漏」倒成「误拒」）；
+      ② 列举**之内**的构造不会被误伤（对照两条）。
+      列举本身仍可能漏，漏掉的后果仍是放行 —— 如实登记在验收单。
+    """
+    work = tmp_path / "outputs"
+    work.mkdir(parents=True)
+    for src in _live_corpus_files():
+        shutil.copy2(src, work / src.name)
+    report = work / "回顾-CS 61B-2026-08-27.md"
+    if inject is not None:
+        report.write_text(
+            report.read_text(encoding="utf-8").replace("\n## 三维审查\n", f"\n## 三维审查\n\n{inject}\n", 1),
+            encoding="utf-8",
+        )
+    r = run_verify(report)
+    # ⛔ 判据必须比对**拒因身份**，不能只看 rc —— 崩溃也是非零退出。
+    assert "Traceback" not in r.stderr, f"被测物崩溃了，不是判错：{r.stderr[:300]}"
+    hit = "渲染层未知形态" in r.stdout
+    assert hit is want_unknown, f"{why}：未知形态判定不符（rc={r.returncode}）\n{r.stdout[:400]}"
+    if not want_unknown:
+        assert r.returncode == 0, f"{why}：对照组被误伤\n{r.stdout[:400]}"
+
+
+def test_r4_derived_ledger_binding_closes_blocker2(tmp_path):
+    """⭐ BLOCKER②（round-11 起连续四轮未闭合）：`### 派生` 小节的台账行零绑定。
+
+    旧实现里这个小节是审计面上的一个洞：收集器只认 `### 种子`，安全态判定却
+    把 `### 派生` 算作"认可小节"，于是其中的行**两边都不管** —— 而
+    `ledger.derived` 一直有数据可绑。实测 `- D — 批注 999 条` exit 0。
+
+    ⛔ 本门同时锁住"不许再回到零绑定"与"不许过度收紧打到真报告"。
+    """
+    rs = _load_recap_scan()
+
+    def run(text, ledger):
+        ps: list[str] = []
+        rs._verify_ledger_counts(text, {"ledger": ledger}, ps)
+        return ps
+
+    NONZERO = {
+        "seeds": [{"node_id": "S", "tips_count": 2}],
+        "derived": [{"node_id": "D", "tips_count": 3, "tips_open": 1, "attempt_count": None}],
+    }
+    ZERO = {"seeds": [{"node_id": "S", "tips_count": 2}], "derived": []}
+
+    def L(derived_body, ledger=NONZERO):
+        return run(
+            f"## 台账\n\n### 种子\n\n- S — 批注 2 条\n\n### 派生\n\n{derived_body}\n\n## 末\n",
+            ledger,
+        )
+
+    # ① 红点 1 本体：零派生板里写一条编造的台账行
+    ps = L("- D — 批注 999 条", ZERO)
+    assert any("无中生有" in x for x in ps), f"零派生板的编造台账行必须被拒 —— {ps!r}"
+
+    # ② 身份绑定：节点不在 ledger.derived 里
+    assert any("不在 scan JSON 的 ledger.derived 里" in x for x in L("- Ghost — 占位 · tips 未闭环 0 条")), (
+        "台账不得列出未扫描到的派生节点"
+    )
+
+    # ③ 数字绑定：写出来的数必须等于 scan 里的那个数
+    assert any("tips_open 是 1" in x for x in L("- D — 占位 · tips 未闭环 7 条")), "tips 未闭环须绑 tips_open"
+    assert any("tips_count 是 3" in x for x in L("- D — 批注 9 条")), "批注数须绑 tips_count"
+
+    # ④ 拒绝层（卡文 (h)）：报告写了数、scan 里该字段无值 ⇒ **不再** continue 放行
+    ps = L("- D — 占位 · 考过 5 次 · tips 未闭环 1 条")
+    assert any("无出处可绑" in x for x in ps), f"字段无值却写了数, 必须 fail-closed —— {ps!r}"
+
+    # ⑤ 反向：合规行不得误伤
+    assert L("- D — 占位 · tips 未闭环 1 条") == [], "合规派生行被误伤"
+    # ⑥ 反向：四份真报告的两种零派生占位写法都不含身份分隔符 ⇒ 不是台账形状行
+    assert L("- 无（derived 列表为空）", ZERO) == [], "真报告的零派生占位写法被误伤"
+    assert L("- （无：derived 计数 0，本板尚无派生成员）", ZERO) == [], "同上（另一种写法）"
