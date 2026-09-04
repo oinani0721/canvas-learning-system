@@ -244,15 +244,47 @@ class TestReloadSettings:
         # Restore
         reload_settings(overrides={"ACTIVE_VAULT": original})
 
-    def test_vault_id_changes_after_reload(self):
-        from app.config import get_current_vault_id, get_settings, reload_settings
+    def test_vault_id_changes_after_reload(self, tmp_path):
+        """reload 后 get_current_vault_id() 跟着 ACTIVE_VAULT 走 (原意图不变)。
 
-        original = get_settings().ACTIVE_VAULT
+        CARD-REDBASE-R1 翻新 (基线即红的环境耦合): ``Settings.vault_id``
+        优先读 ``CANVAS_BASE_PATH/.canvas-config.yaml`` 的显式 ``vault_id``
+        (config.py:781-790, 引入于 b345e02b), 仓内 yaml 在位且写死 vault_id
+        时 ``reload_settings({'ACTIVE_VAULT': ...})`` 恒失效 —— 断言的是仓内
+        yaml 而不是 reload 行为。
+        改法: 把 CANVAS_BASE_PATH 指到无 yaml 的 tmp 目录, 让 yaml-first 分支
+        不触发, 从而真正测到 ACTIVE_VAULT fallback 这一层。yaml 优先级本身由
+        :146-166 的 schema-v2 用例覆盖, 此处不重复; 与姊妹用例
+        test_fallback_to_active_vault_when_yaml_missing 的区别是: 那条断言
+        ``settings.vault_id`` 字段, 本条断言运行期访问器
+        ``get_current_vault_id()`` (reload 后缓存确实换了实例)。
+        环境恢复不用 monkeypatch —— monkeypatch 的 env 还原发生在用例体之后,
+        settings 的 lru_cache 会留在 tmp 目录上污染后续用例; 故手工 try/finally
+        先还原 env 再 reload_settings() 重建。
+        """
+        import os
 
-        reload_settings(overrides={"ACTIVE_VAULT": "CS 61B"})
-        assert get_current_vault_id() == "cs_61b"
+        from app.config import get_current_vault_id, reload_settings
 
-        reload_settings(overrides={"ACTIVE_VAULT": original})
+        vault_dir = tmp_path / "reload-target-vault"
+        vault_dir.mkdir()  # 故意不建 .canvas-config.yaml
+
+        saved = {k: os.environ.get(k) for k in ("CANVAS_BASE_PATH", "ACTIVE_VAULT")}
+        try:
+            reload_settings(
+                overrides={
+                    "CANVAS_BASE_PATH": str(vault_dir),
+                    "ACTIVE_VAULT": "CS 61B",
+                }
+            )
+            assert get_current_vault_id() == "cs_61b"
+        finally:
+            for key, value in saved.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+            reload_settings()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
