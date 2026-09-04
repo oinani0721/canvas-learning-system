@@ -385,16 +385,21 @@ function renderCards(nowMs) {
   el("cards").innerHTML = renderPage(state.lastData, nowMs, freshNotes(nowMs), state.inflight) +
     lostSyncNotesHtml(state.lastData, nowMs);
 }
-function settlePendingSync(nowMs, ok, renderedVids, startMs) {
+function settlePendingSync(nowMs, ok, renderedVids, startGen) {
   // rebuilt 只发"正在同步…"；数字是否真更新, 由 GET 成败结算 (round-2 HIGH-1)。
   // round-3 HIGH-1: 成功结算绑定 renderedVids 证据 (渲染成功 + projection 可用)。
   // round-4 HIGH-1: 结算还要过**因果锚** — 本次 GET 必须启动于该库重建完成
-  // (atMs) 之后; 启动更早的 GET (rebuilt 后切后台导致没有新 GET 时, 旧 GET
-  // 仍是最新代际) 看到的是重建前投影, 无权结算 — 跳过并把 pending 留给
-  // 下一轮启动更晚的 GET。
+  // 之后; 启动更早的 GET (rebuilt 后切后台导致没有新 GET 时, 旧 GET 仍是最新
+  // 代际) 看到的是重建前投影, 无权结算 — 跳过并把 pending 留给下一轮启动更晚
+  // 的 GET。
+  // round-5: 因果锚从**时间戳**换成**代际**。时间戳有同毫秒盲区 —— 重建完成
+  // (atMs) 与旧 GET 启动 (startMs) 落在同一毫秒时 `startMs < n.atMs` 为假,
+  // 重建前投影就冒充了重建后状态。pollGen 是严格递增的整数, 没有这个盲区:
+  // 记下发 POST 时的最新代际 n.gen, 只有代际**更大**的 GET (= 确实在重建完成
+  // 之后才启动) 才有权结算。
   for (const vid of Object.keys(state.pendingSync)) {
     const n = state.pendingSync[vid];
-    if (startMs !== undefined && n.atMs !== undefined && startMs < n.atMs) continue;
+    if (startGen !== undefined && n.gen !== undefined && startGen <= n.gen) continue;
     delete state.pendingSync[vid];
     const okThis = ok && renderedVids && renderedVids[vid] === true;
     const text = okThis ? "已重建（本进程累计 " + n.count + " 次）· 数字已更新"
@@ -432,8 +437,9 @@ function schedule(ms) {
 }
 async function poll() {
   let delay = RETRY_DELAY_MS;
-  const gen = ++state.pollGen;  // 代际: 只有最新一次 GET 可以提交状态 (乱序旧响应整包丢弃)
-  const startMs = Date.now();   // 启动时刻 — 结算的因果锚 (round-4 HIGH-1)
+  // 代际: 只有最新一次 GET 可以提交状态 (乱序旧响应整包丢弃); 同时它就是结算的
+  // **因果锚** — 严格递增, 不像时间戳那样有同毫秒盲区 (round-4 HIGH-1 / round-5)
+  const gen = ++state.pollGen;
   try {
     const resp = await fetch(URLS.overview, {cache: "no-store"});
     if (!resp.ok) throw new Error("HTTP " + resp.status);
@@ -453,7 +459,7 @@ async function poll() {
       if (v && v.vault_id && v.projection) renderedVids[v.vault_id] = true;
     }
     state.lastData = data;
-    settlePendingSync(nowMs, true, renderedVids, startMs);
+    settlePendingSync(nowMs, true, renderedVids, gen);
     // 最终帧与其余重绘共用同一条路径 (state.lastData 上一行刚设为 data) —
     // 帧形态单一来源, 将来新增重绘点不会再漏拼失联通知 (G6-2b R1)
     renderCards(nowMs);
@@ -464,7 +470,7 @@ async function poll() {
     delay = computePollDelayMs(data, nowMs);
   } catch (e) {
     if (gen !== state.pollGen) return;  // 过期响应的失败同样不碰状态
-    settlePendingSync(Date.now(), false, null, startMs);
+    settlePendingSync(Date.now(), false, null, gen);
     el("banner").innerHTML = renderUnavailableBanner(String((e && e.message) || e),
       state.lastOkAt ? fmtClock(state.lastOkAt) : null);
     el("banner").hidden = false;
@@ -498,7 +504,8 @@ async function onRefreshClick(ev) {
     if (!applyNote(vid) && state.lastData) renderCards(Date.now());
     if (resp.ok && payload && payload.rebuilt) {
       // 数字是否真更新交给 GET 结算 (settlePendingSync) — 不在 POST 结局里预先声称
-      state.pendingSync[vid] = {count: payload.rebuild_count, atMs: Date.now()};
+      // gen = 发 POST 这一刻的最新代际; 只有代际更大的 GET 才有权结算
+      state.pendingSync[vid] = {count: payload.rebuild_count, gen: state.pollGen};
       // 隐藏时不触发 GET (round-3 LOW-2): pending 挂着, 回前台 visibilitychange
       // 的 poll 会结算 — 不在用户看不见的时候起网络活动
       if (!document.hidden) poll();

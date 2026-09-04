@@ -103,12 +103,16 @@ def main() -> int:
         _dump("probe", label, snippet, "补门前放行 / 补门后被拒")
         o, n = old_gate(real + "\n\n" + snippet), cur._gate_verdict(real + "\n\n" + snippet)
         neg.append((label, expect, o, n))
-        if o is not None:
-            bad.append(f"{label}: 旧门就已拦下 (探针不具鉴别力, 拒因={o!r})")
+        # 分类依据取自**实测**的基线门行为, 不是脚本作者的期望表:
+        #   旧放行 → 新拒 = 本卡新补的面;  旧拒 → 新拒 = 回归面 (证明本卡没把
+        #   已有防线拆掉 —— ctx 判定那一改的风险恰在这里)。
+        # 失败判据只有三条, 都与"旧门拦不拦"无关:
         if n is None:
             bad.append(f"{label}: 新门未拦下 — 该形态仍是漏网")
         elif expect not in n:
             bad.append(f"{label}: 新门红的身份不对 (期望含 {expect!r}, 实得 {n!r})")
+        if o is not None and n is None:
+            bad.append(f"{label}: 旧门拦得住、新门放行 —— 本卡把已有防线拆了")
 
     for label in sorted(cur._AST_ALLOWED_SHAPES):
         snippet = cur._AST_ALLOWED_SHAPES[label]
@@ -129,14 +133,19 @@ def main() -> int:
         f"(旧={'放行' if old_gate(real) is None else '拒绝'}, "
         f"新={'放行' if cur._gate_verdict(real) is None else '拒绝'})",
         "",
-        "## 负向探针 — 期望「改前放行(门瞎) → 改后被拒, 且拒因身份正确」",
+        "## 负向探针 — 改后必须被拒, 且拒因身份正确",
         "",
-        "| 探针 | 拒因关键词 | 改前 (基线门) | 改后 (本卡门) |",
-        "|---|---|---|---|",
+        "> 「改前」一栏是**分类**不是判据: 改前放行 = 本卡新补的面; 改前也拒 = 回归面",
+        "> (证明本卡没把已有防线拆掉 —— `ctx=Store` 那一改的风险恰在这里)。",
+        "> 真正的失败只有三种: 新门放行、新门红的身份不对、旧拒→新放。",
+        "",
+        "| 探针 | 拒因关键词 | 改前 (基线门) | 改后 (本卡门) | 类别 |",
+        "|---|---|---|---|---|",
     ]
     fmt = lambda v: "✅ 放行" if v is None else "🔴 拒: `%s`" % v.replace("|", "\\|")[:90]  # noqa: E731
     for label, expect, o, n in neg:
-        lines.append(f"| `{label}` | `{expect}` | {fmt(o)} | {fmt(n)} |")
+        kind = "新补面" if o is None else "回归面"
+        lines.append(f"| `{label}` | `{expect}` | {fmt(o)} | {fmt(n)} | {kind} |")
     lines += [
         "",
         "## 反向探针 — 合法写法不许被误伤",
@@ -151,9 +160,11 @@ def main() -> int:
     for label, o, n in pos:
         lines.append(f"| `{label}` | {fmt(o)} | {fmt(n)} |")
     lines += ["", "## 自检", ""]
+    n_new = sum(1 for _, _, o, _ in neg if o is None)
     lines += [f"- ❌ {b}" for b in bad] or [
-        f"- ✅ 负向 {len(neg)} 条全部具鉴别力 (旧放行 → 新拒绝且身份正确); "
-        f"反向 {len(pos)} 条全部放行; 验伪锚成立"
+        f"- ✅ 负向 {len(neg)} 条全部被拒且身份正确（其中 {n_new} 条新补面 = 基线门放行、"
+        f"{len(neg) - n_new} 条回归面 = 基线门也拒）; 反向 {len(pos)} 条全部放行; "
+        "无一条「旧拒 → 新放」; 验伪锚成立"
     ]
     (HERE / "probe-matrix.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines))
