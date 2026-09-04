@@ -73,19 +73,46 @@ pre-commit:
         echo "[Python] Format OK."
 
     # --- Python typecheck: pyright on staged files ---
+    # HONESTY CONTRACT (CARD-DEBT-hook-pyright, BATCH-2026-09-04-第十批):
+    # pyright is NOT a declared dependency of this repo (absent from
+    # backend/requirements*.txt, backend/pyproject.toml and backend/.venv);
+    # only pyrightconfig.json exists. Before this card the block ended in a bare
+    # `echo`, so the shell block's exit code was that echo's 0 -- a missing binary
+    # (rc=127) was reported by lefthook as `✔️ python-typecheck`. Worse, 127
+    # ("tool absent") and 1 ("real type errors") were funnelled into the same
+    # "Type errors found!" line, so the gate could not tell "did not run" from
+    # "ran and failed". Now: absent -> explicit SKIP lines + rc 0, with no claim of
+    # having checked anything; present -> real run + explicit `exit` of pyright's
+    # own rc, so type errors actually block the commit.
+    # Installing pyright is deliberately OUT of scope (separate card): this block
+    # only stops lying about whether it ran.
     python-typecheck:
       glob: "{backend,src}/**/*.py"
       run: |
         # Activate backend venv for pyright
         if [ -f "backend/.venv/bin/activate" ]; then source backend/.venv/bin/activate; fi
-        echo "[Python] Running pyright type check..."
-        pyright {staged_files} 2>&1
+        # Resolve the binary explicitly: venv first, then PATH. Empty == not installed.
+        if [ -x "backend/.venv/bin/pyright" ]; then
+          PYRIGHT_BIN="backend/.venv/bin/pyright"
+        elif command -v pyright >/dev/null 2>&1; then
+          PYRIGHT_BIN="$(command -v pyright)"
+        else
+          PYRIGHT_BIN=""
+        fi
+        if [ -z "$PYRIGHT_BIN" ]; then
+          echo "[Python] SKIP: pyright not installed (looked for backend/.venv/bin/pyright, then PATH)."
+          echo "[Python] SKIP: typecheck did NOT run -- this is NOT a pass. See pyrightconfig.json."
+          exit 0
+        fi
+        echo "[Python] Running pyright type check ($PYRIGHT_BIN)..."
+        "$PYRIGHT_BIN" {staged_files} 2>&1
         PYRIGHT_EXIT=$?
         if [ $PYRIGHT_EXIT -ne 0 ]; then
           echo "[Python] Type errors found! Review and fix before committing."
           echo "[Python] Hint: Some errors may be pre-existing. Focus on YOUR changes."
         fi
         echo "[Python] Typecheck done (exit: $PYRIGHT_EXIT)."
+        exit $PYRIGHT_EXIT
 
     # --- Cypher vault-filter lint (wave-5 Stage C) ---
     # Heuristic gate: any *newly staged* `session.run(` or `tx.run(` call in
