@@ -379,7 +379,11 @@ function freshNotes(nowMs) {
   return out;
 }
 function renderCards(nowMs) {
-  el("cards").innerHTML = renderPage(state.lastData, nowMs, freshNotes(nowMs), state.inflight);
+  // 卡片区**每一帧**的统一形态 = 投影卡 + 失联通知。round-4 HIGH-1 反例二只封了
+  // poll 成功路径的最终帧, 而结算兜底重绘 (GET 失败时它就是最后一帧) 与 POST
+  // 反馈重绘同样是用户眼前的一帧 — 少拼失联通知 = 失败反馈一闪就没 (G6-2b R1)
+  el("cards").innerHTML = renderPage(state.lastData, nowMs, freshNotes(nowMs), state.inflight) +
+    lostSyncNotesHtml(state.lastData, nowMs);
 }
 function settlePendingSync(nowMs, ok, renderedVids, startMs) {
   // rebuilt 只发"正在同步…"；数字是否真更新, 由 GET 成败结算 (round-2 HIGH-1)。
@@ -450,8 +454,9 @@ async function poll() {
     }
     state.lastData = data;
     settlePendingSync(nowMs, true, renderedVids, startMs);
-    el("cards").innerHTML = renderPage(data, nowMs, freshNotes(nowMs), state.inflight) +
-      lostSyncNotesHtml(data, nowMs);
+    // 最终帧与其余重绘共用同一条路径 (state.lastData 上一行刚设为 data) —
+    // 帧形态单一来源, 将来新增重绘点不会再漏拼失联通知 (G6-2b R1)
+    renderCards(nowMs);
     el("banner").hidden = true;
     state.lastOkAt = nowMs;
     el("updated").textContent = "上次更新 " + fmtClock(nowMs);

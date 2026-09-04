@@ -1,0 +1,5 @@
+# CARD-G6-2b AST 门探针: for-目标
+# 用法: 追加到 backend/app/api/v1/endpoints/review_app.py 源码**字符串**尾部
+# (只在内存里拼, 不落进生产文件); 期望 = 补门前放行 / 补门后被拒。
+for json in ():
+    pass
