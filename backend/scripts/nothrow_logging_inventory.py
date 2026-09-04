@@ -64,14 +64,38 @@ HANDOFF_ANCHORS: List[Tuple[str, str, str]] = [
 
 
 def _alias_table(tree: ast.Module) -> Set[str]:
-    """本文件里指向 nothrow 的本地别名 (from x import nothrow / nothrow as nt)。"""
-    names = {"nothrow"}
+    """本文件里指向 nothrow 的本地别名。
+
+    Codex round-1 LOW-8: 只认 **from app.core.nothrow_logging import nothrow**
+    (module 尾段匹配) —— 名字恰好叫 nothrow 的其它来源 (第三方、本地 helper)
+    不能作为"已包装"的证据。
+    """
+    names: Set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
-            for alias in node.names:
-                if alias.name == "nothrow":
-                    names.add(alias.asname or alias.name)
+            mod = node.module or ""
+            if mod == "app.core.nothrow_logging" or mod.endswith(".nothrow_logging"):
+                for alias in node.names:
+                    if alias.name == "nothrow":
+                        names.add(alias.asname or alias.name)
     return names
+
+
+def _local_nothrow_shadows(tree: ast.Module) -> List[Tuple[str, int]]:
+    """本文件里自定义的 nothrow 名字 (def nothrow / nothrow = ...) —— 假包装源。
+
+    Codex round-1 LOW-8: 本地 ``def nothrow(x): return x`` 会让裸 Logger 在
+    AST 形态上与真包装逐字相同。检出即整文件判 SUSPECT (不可信), 不判已包装。
+    """
+    out: List[Tuple[str, int]] = []
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "nothrow":
+            out.append(("def", node.lineno))
+        elif isinstance(node, ast.Assign):
+            for t in node.targets:
+                if isinstance(t, ast.Name) and t.id == "nothrow":
+                    out.append(("assign", node.lineno))
+    return out
 
 
 def _is_call_named(node: ast.AST, names: Set[str], attr: Optional[str] = None) -> bool:
@@ -211,6 +235,10 @@ def _calls(
             receiver = base.id
         elif isinstance(base, ast.Name) and base.id in external_names:
             receiver = f"<external:{base.id}>"
+        elif isinstance(base, ast.Name) and base.id == "logging":
+            # Codex round-1 LOW-8: 根模块便捷调用 logging.error("boom") ——
+            # 无变量可寻址, 模块级包装罩不住, 单列计数。
+            receiver = "<root-logging>"
         elif isinstance(base, ast.Call) and _is_getlogger_call(base):
             receiver = "<inline-getLogger>"
         if receiver is None:
@@ -243,7 +271,10 @@ def _parse(path: Path):
 
 def _self_check() -> None:
     cases = [
-        ("logger = nothrow(logging.getLogger(__name__))", True),
+        (
+            "from app.core.nothrow_logging import nothrow\nlogger = nothrow(logging.getLogger(__name__))",
+            True,
+        ),
         ("logger = logging.getLogger(__name__)", False),
         ("from app.core.nothrow_logging import nothrow as _nt\nlogger = _nt(logging.getLogger(__name__))", True),
         ("import structlog\nlogger = structlog.get_logger(__name__)", False),
@@ -259,7 +290,33 @@ def _self_check() -> None:
                 file=sys.stderr,
             )
             raise SystemExit(2)
-    print("[self-check] 篡改自检 4/4 通过 — 判定函数不是恒 False 的坏门")
+
+    # Codex round-1 LOW-8: 假包装 (本地 def nothrow 恒等函数 / 来源不对的
+    # import) 不得判已包装 —— 名字叫 nothrow 不等于包装。
+    suspect_cases = [
+        ("def nothrow(x):\n    return x\nlogger = nothrow(logging.getLogger(__name__))", False),
+        ("from some.other.mod import nothrow\nlogger = nothrow(logging.getLogger(__name__))", False),
+    ]
+    for src, expect_wrapped in suspect_cases:
+        tree = ast.parse(src)
+        aliases = _alias_table(tree)
+        bs = _bindings(tree, src.splitlines(), aliases)
+        got = bool(bs) and bs[0].wrapped
+        if got is not expect_wrapped:
+            print(
+                f"⛔ 假包装自检失败\n  语料: {src!r}\n  期望 wrapped={expect_wrapped}, 实得 {got}",
+                file=sys.stderr,
+            )
+            raise SystemExit(2)
+
+    # root-module 便捷调用 (logging.error('boom')) 必须被看见
+    tree = ast.parse("import logging\nlogging.error('boom')")
+    calls = _calls(tree, set(), ["", ""], _spans(tree))
+    if not any(c.receiver == "<root-logging>" for c in calls):
+        print("⛔ 根模块调用自检失败: logging.error('boom') 没被识别", file=sys.stderr)
+        raise SystemExit(2)
+
+    print("[self-check] 篡改自检 4/4 + 假包装 2/2 + 根模块调用 1/1 通过 — 判定函数不是恒 False 的坏门")
 
 
 def _structural_anchors(backend: Path, reports: Dict[str, dict]) -> None:
@@ -299,7 +356,9 @@ def scan_endpoints(backend: Path) -> Dict[str, dict]:
         external_names = {n for n, _ in imported}
         calls = _calls(tree, bound_names, lines, spans, external_names)
         inline = [c for c in calls if c.receiver == "<inline-getLogger>"]
+        root_calls = [c for c in calls if c.receiver == "<root-logging>"]
         ext_calls = [c for c in calls if c.receiver and c.receiver.startswith("<external:")]
+        shadows = _local_nothrow_shadows(tree)
         stdlib_bs = [b for b in bindings if b.kind == "stdlib"]
         structlog_bs = [b for b in bindings if b.kind == "structlog"]
         module_calls = [c for c in calls if c.receiver in bound_names]
@@ -309,6 +368,8 @@ def scan_endpoints(backend: Path) -> Dict[str, dict]:
             "structlog_bindings": structlog_bs,
             "calls": module_calls,
             "inline_calls": len(inline),
+            "root_calls": root_calls,
+            "shadows": shadows,
             "external": len(imported),
             "external_detail": imported,
             "external_calls": ext_calls,
@@ -405,6 +466,10 @@ def main() -> int:
         b = info["stdlib_bindings"][0]
         print(f"  ✓ {name:28} :{b.lineno:<5} {b.source}")
         print(f"      日志调用 {len(info['calls']):>3} 处 | f-string 首参 {len(info['fstring_calls'])} 处 (必须为 0)")
+        if info["root_calls"]:
+            print(f"      ⚠ 另有根模块便捷调用 {len(info['root_calls'])} 处 (logging.<level>, 包装罩不住)")
+        if info["shadows"]:
+            print(f"      ⚠ SUSPECT: 本文件自定义了 nothrow 名字 {info['shadows']} —— 已包装判定不可信")
         for c in info["fstring_calls"]:
             print(f"        ⚠ :{c.lineno} logger.{c.method}(f...)  in {c.func}()")
 

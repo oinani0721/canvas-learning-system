@@ -32,13 +32,22 @@
 4. **不是全仓保护**: 只有模块级 ``logger`` 被换成本包装器的文件才受保护。
    未包装模块的清单见 ``backend/scripts/nothrow_logging_inventory.py``。
 
-已知代价 (刻意接受, 不是疏漏):
-- 日志调用里的**编程错误**(如 ``logger.log("INFO", ...)`` 把 level 传成字符串)
-  原本会当场抛 ``TypeError``, 现在降级成一条 fallback WARNING。fallback 行里
-  带 logger 名、方法名和异常 ``repr``, 足以定位; 但它确实比"当场炸"更容易被
-  忽略。这是"观测面不得成为业务失败源"这条要求的必然代价。
-  (注: 消息占位符与实参个数不匹配这类错误, stdlib **本来**就在 ``handleError``
-  里自吞、不抛给调用点, 不是本模块新引入的遮蔽。)
+已知代价 (刻意接受, 不是疏漏; 三层区分按 Codex round-1 HIGH-1 的实证修正):
+- **包装器新增吞掉的面**: 调用方传入的参数会让 stdlib 方法在 LogRecord 创建
+  **之前**就抛的错 —— 最典型是 ``stacklevel=None`` 时补偿算式 ``1 + None`` 的
+  ``TypeError``、``logger.log("INFO", ...)`` 把 level 传成字符串。裸 Logger 会
+  当场抛, 包装后降级成一条 fallback WARNING (带 logger 名/方法名/异常 repr,
+  可定位但比"当场炸"容易被忽略)。这是"观测面不得成为业务失败源"的必然代价。
+- **stdlib 本来就自吞、非本模块新增**: 常见 ``StreamHandler.emit`` 内部的
+  格式化/写失败走 ``Handler.handleError`` 自吞 (消息占位符与实参不匹配属于
+  这类)。注意这不是日志链的普遍性质: ``Handler.handle``/``Logger.callHandlers``
+  并无 catch, 自定义 Handler/filter/``extra`` 键冲突是会从裸 Logger 传播的 ——
+  包装后这类错也进 fallback, 属于上面第一层的扩张。
+- **不接的**: ``except Exception`` 不接 ``KeyboardInterrupt``/``SystemExit``
+  (BaseException 直通); ``StreamHandler.emit`` 对 ``RecursionError`` 刻意重抛
+  (CPython ``logging/__init__.py`` emit 内 ``handleError`` 的分支), 这类从
+  handler 链里逃出的错包装器看不见 (它们发生在 inner 调用返回之后/或属于
+  BaseException), 不在本模块守护语义内。
 """
 
 import logging
@@ -102,9 +111,14 @@ class NoThrowLogger:
         ``method`` 只来自本模块的 ``_LEVEL_METHODS`` 字面量, 不接受外部输入 ——
         ``getattr`` 本身不会失败, 除非 ``inner`` 根本不是 Logger (那属于调用方
         用错了本类, 会走进同一个 fallback 并留下 ``AttributeError`` 的 repr)。
+
+        ⚠️ stacklevel 补偿**必须在 try 内**做 (Codex round-1 HIGH-1):
+        ``kwargs.get("stacklevel")`` 之外的求值若放在 try 外 —— 例如调用方传
+        ``stacklevel=None`` 时 ``1 + None`` 的 TypeError —— 会直接传播, 击穿
+        本类唯一的 no-throw 承诺。参数归一化本身就是可能抛错的操作。
         """
-        kwargs["stacklevel"] = kwargs.get("stacklevel", 1) + _STACKLEVEL_OFFSET
         try:
+            kwargs["stacklevel"] = kwargs.get("stacklevel", 1) + _STACKLEVEL_OFFSET
             getattr(self.inner, method)(*args, **kwargs)
         except Exception as exc:  # noqa: BLE001 — 观测面刻意兜底, 见模块 docstring
             try:
