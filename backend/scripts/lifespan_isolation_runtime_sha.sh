@@ -249,6 +249,22 @@ snapshot() {
   # 不允许「空 digest 前后相等 = unchanged」的假绿。
   local f digest g
   local -a targets=("${WATCHED_FIXED[@]}")
+
+  # ⛔ compgen 可用性自检 —— 必须先于任何 `|| true` 的容错。
+  #    初版把展开写成 `compgen -G "$g" || true`：`|| true` 本意只是吞掉「无匹配」
+  #    （compgen -G 无匹配时返回 1，这是正常情形），但它**同时吞掉了「compgen 本身
+  #    坏了/被劫持」**——两种情况在返回码上不可区分。后果是 glob 项**整组静默消失**，
+  #    快照退化成只剩固定两项，门照样打印 `unchanged` ⇒ 假绿。
+  #    自检用一个**必然匹配**的字面路径（脚本开头已断言 app/main.py 存在）：它既不含
+  #    通配符、又必须原样回显，compgen 一旦不是真 builtin 就对不上。
+  local __cg_probe __cg_expect="${BACKEND_DIR}/app/main.py"
+  __cg_probe="$(builtin compgen -G "$__cg_expect" 2>/dev/null)" || __cg_probe=""
+  if [ "$__cg_probe" != "$__cg_expect" ]; then
+    builtin printf 'RUNTIME-FILES: GATE-BROKEN — compgen 自检失败（期望 %s，得到 %s）；glob 展开不可信，拒绝给出 unchanged\n' \
+      "$__cg_expect" "${__cg_probe:-<空>}" >&2
+    exit 1
+  fi
+
   # ⛔ glob 必须**每次快照都重新展开**：命令跑完后才被创建出来的 journal，只有
   #    在 after 这一次展开里才看得见。把展开结果算一次缓存起来 = 新建文件永远
   #    进不了 after 快照，本门就退化成只盯固定两项。

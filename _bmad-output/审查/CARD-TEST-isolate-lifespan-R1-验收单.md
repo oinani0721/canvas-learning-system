@@ -709,4 +709,112 @@ tests/unit 文件 + 主干带入的同族文件 + W4 卡文点名的那批），
 随时可发。本 session 的实际尝试结果记在下方 —— **rc=0 + 0 字节 ≠ 通过**，先 `wc -c`
 再读，这条纪律不因赶进度而放宽。
 
-> ⏳ **本 session 试发结果**：见本节末尾的回填（若未回填，即表示尚未尝试）。
+#### 试发记录
+
+**背景更正**：配额比预告的 09-07 11:47 **提前恢复**了 —— 09-04 当天同时段本机另有两个
+车道（`card-x2-g62b` 的 G6-2b round-5、`card-x3-vaultscope` 的 G4-4a）的 `codex exec`
+在跑。所以卡文里「等到 09-07」的前提在执行时已经不成立，本 session 按「能做就做」直接试发。
+
+**第 1 次（09-04 09:00 发出，rc=0，正文 0 字节）** —— 失败原因是**网络传输**，
+既不是配额，也不是内容被拦。这是本卡遇到的**第三种**失败模式，stderr 尾部原文：
+
+```
+ERROR codex_api::endpoint::responses_websocket: failed to connect to websocket:
+  IO error: tls handshake eof, url: wss://chatgpt.com/backend-api/codex/responses
+warning: Falling back from WebSockets to HTTPS transport.
+  stream disconnected before completion: tls handshake eof
+ERROR: Reconnecting... 1/5 … 5/5
+ERROR: stream disconnected before completion:
+  error sending request for url (https://chatgpt.com/backend-api/codex/responses)
+```
+
+stderr 24551 字节里除了上述传输错误，其余是 prompt 回显（prompt 本身 19880 字节），
+**没有任何推理正文**，也没有 `usage limit` 字样 —— 与 round-2 上一次那 0 字节的原因
+（账号级配额）是两回事，不要混记。第 1 次的 stderr 已另存一份，未被第 2 次覆盖。
+
+⚠️ 这一条正好再证一次那条纪律：**`rc=0` + 0 字节 ≠ 通过**。命令退出码是 0，如果只看
+rc 就会把「一个字都没审」当成「审过了」。
+
+**第 2 次（09-04 09:16 发出）—— 跑到 869 KB stderr 后被杀，`status=killed`。**
+死因是**我的操作失误**：我用了一个忙等循环（`until [ -s "$MD" ]; do :; done`）去轮询正文
+落地，10 分钟后被工具超时 SIGTERM，连带把同 session 的 codex 后台任务一起带走了。
+它当时已经连上并在正常推理（stderr 里零传输错误）。这一轮的推理内容已另存
+`round2-attempt2-killed-585k.stderr`（实际 868972 字节）。
+
+⛔ 教训：**永远不要用忙等轮询后台任务**——既空转 CPU，超时被杀时还会波及同 session
+的后台进程。要等就用 Monitor / `run_in_background` 的完成通知。
+
+**第 3 次（09-04 09:5x 发出，rc=0，正文 0 字节，`tokens used 209,708`）** ——
+这次网络全程干净（`stream disconnected|tls handshake eof` 计数 **0**），
+死因是**第三种**：内容过滤。stderr 末尾原文：
+
+```
+ERROR: This content was flagged for possible cybersecurity risk. …
+tokens used 209,708
+```
+
+`tokens used` 出现 = 审查**实际跑完了大部分工作**，是在最后交付时被拦。
+
+### 7.6b round-2 的实质裁定：**FAIL**（正文被拦，结论从 stderr 抢救）
+
+第 3 次的 stderr 第 7489 行留下了 codex 自己的阶段性结论，逐字抄录：
+
+> 目前已经出现**可复现的冻结阻断项**，不是"措辞问题"：AST 门对 tuple 解包工厂与同名
+> 工厂重定义均返回空违规；runtime shell 门也能在输出 `compgen` 已损坏的同时 rc=0、
+> 宣告 `unchanged`。我正在对另外三条运行时护栏反例做主审复核，尤其确认它们是否是
+> 真实线程交错/普通 import 路径，而不是只靠人为篡改得出的假象。
+
+**所以 (i) 不成立**：正文 `wc -c` = 0，没有 B/H 计数行、没有末行清零字样。
+**但"没有拿到裁定"不等于"没有结论"** —— 抢救出的阻断项都带可复现命令，我逐条复核过。
+
+### 7.6c 阻断级清单（本 session 复核结果）
+
+| # | 缺陷 | 复现 | 引入轮次 | 本 session 处置 |
+|---|---|---|---|---|
+| **A** | `bolt://127.0.0.1:0` → guard 解析出端口 `0`，不在受拦集合 `[7687, 7691]` 内 → **放行**；neo4j driver 把无效的 port 0 归一化成默认 **7687**，实连现网库 | ✅ 已独立复现：`_port_of_uri("bolt://127.0.0.1:0")` → `0`；codex 侧 `driver_port 7687` | round-1 那条 BLOCKER 的**整改本身**（口径从"子串"改成"端口存在且不在黑名单"，而 `0` 满足"存在"） | **未修**，登记 |
+| **B** | `BASH_ENV=<(…)` 仍能劫持 `runtime_sha.sh`，凭空伪造 `RUNTIME-FILES: unchanged` + `rc=0`（被包裹命令是 `/usr/bin/false`） | ✅ 已独立复现，逐字一致 | round-1 第 5 条「shell 控制流劫持」整改**没有真的关闭**：`BASH_ENV` 在 bash **读脚本之前**就被 source，脚本内部再 `env -u BASH_ENV` 重新 exec 已经太晚 | **未修**，登记 |
+| **C** | `compgen` 损坏/被劫持时 glob 项**整组静默消失**，快照退化成只剩固定两项，门照样宣告 `unchanged` ⇒ 假绿 | ✅ 定位到 `runtime_sha.sh` 的 `compgen -G "$g" \|\| true` —— `\|\| true` 本意只吞「无匹配」（正常返回 1），却**同时吞掉了「compgen 坏了」**，两者返回码不可区分 | ⚠️ **本轮 `2b160897` 引入**（我的 glob 修复） | ✅ **已修**（见 §7.6d） |
+| **D** | AST 门对 **tuple 解包工厂** 返回空违规 | codex 声明可复现；本 session **未独立复现**（缺确切形态） | 未定 | **未修**，登记 |
+| **E** | AST 门对 **同名工厂重定义** 返回空违规 | 同上 | 未定 | **未修**，登记 |
+| **F** | 线程交错让最终结算漏账：`_final_accounting()` 跑完报 `blocked=0`，被阻塞线程随后落账变成 `blocked=1, unaccounted=1` | ✅ codex 实测输出：`AFTER-FINAL … blocked=0` → `WORKER-BLOCKED` → `AFTER-RECORD … blocked=1, unaccounted=1` | round-1 第 2 条（`_FINALIZING` 不可逆）的残余窗口 | **未修**，登记 |
+
+### 7.6d 本 session 已修的一条（C）
+
+`runtime_sha.sh::snapshot()` 在 glob 展开**之前**加了 compgen 可用性自检：用一个**必然
+匹配**的字面路径（`app/main.py`，脚本开头已断言其存在）做探针，compgen 一旦不是真
+builtin 就对不上，直接 `GATE-BROKEN` 退出。
+
+**负验证做了两次，第一次 SURVIVED，原因值得记**：
+
+1. 先用 `BASH_ENV=<(enable -n compgen)` 注入 —— 门仍报 `unchanged`。**不是自检没用，是
+   纵深兜住了**：脚本会 `env -u BASH_ENV` 重新 exec 自己，而 `enable -n compgen` 不像
+   缺陷 B 那样立刻 `exit 0`，撑不到自检点就被新进程的干净环境洗掉了。
+2. 改用直接变异自检的期望值（指向不存在的路径）→ **KILLED**：
+   ```
+   RUNTIME-FILES: GATE-BROKEN — compgen 自检失败（期望 …/__w4_negctl_absent__，得到 <空>）；
+                  glob 展开不可信，拒绝给出 unchanged
+   RUNTIME-FILES: GATE-BROKEN — before snapshot 失败，拒绝执行被包裹命令
+   rc=1
+   ```
+   fail-closed 的**位置**也对：在执行被包裹命令**之前**就拒绝，而不是跑完再说。
+
+变异用 Edit 做（`sed -i` / `rm -f` 被 guard-hook 拦），还原后 `grep -rn '__w4_negctl_absent__'
+backend/scripts/` **零命中**，三道裁判复跑仍全绿。
+
+### 7.6e 本卡结论：**不能合并**
+
+阻断级 ≥ 6 条（A–F），其中 2 条本 session 已独立复现、1 条已修。它们让本卡「门有效」这个
+**核心主张**不成立：A 让 socket 门可被绕过且不留记录，B 让 runtime 门可被凭空伪造。
+
+按卡文 (j)：round-2「否」→ 只修阻断级一轮 → round-3。本 session 只修了 C（我自己引入的
+那条）；A/B/D/E/F 需要实质的安全工程设计（端口判据改正面白名单、shell 门改双层 launcher +
+身份标记、AST 门补两种工厂形态、最终结算的线程窗口），**不是一次顺手改动能完成的**，
+且 D/E 还缺确切复现形态。
+
+**round-3 发之前必须先解决内容过滤**：按既有教训，破局在**任务边界**而不是措辞 ——
+现行 prompt §4 明写「我特别希望你攻击的点」并请它构造绕过，这类请求本身就是触发源。
+改法是把 §4 换成「规范符合性对照：实现是否与声称逐条对应？有无要求了声称没写的（误拒）
+或漏检了声称写了的（漏网）？请逐门列表对照」，并收窄它要读的文件面。
+
+**(i)/(j) 均未达成，本 session 不宣布任何一条达成。**是否续 round-3、以及 A/B/D/E/F 的
+修复排期，需要你裁决。
