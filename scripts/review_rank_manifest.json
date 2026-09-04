@@ -1,6 +1,12 @@
 {
-  "version": 1,
+  "version": 2,
   "_说明": "CARD-G3-6b 排序系数清单。两类字段语义不同, 改动前先读 authoritative/recorded 各自的 _说明。daily_review_pick.py 的 S4/S5/S6 书面裁定段是本文件的规格。",
+
+  "_版本历史": {
+    "_说明": "version 是指纹的口径版本, 不是文件的修订号。口径一变, 之前归档的 sha 快照就不再可比 —— 拿旧 sha 去核对新 payload 只会得出「变了」这个无信息的结论。所以每次升版都在此登记「旧快照失效」。本节纯登记, 不参与任何计算。",
+    "2": "CARD-G3-6b-R2 (BATCH-2026-09-04-第十批): effective_rank_config 新增 decay_beta_sha256 —— 摘 vault 内 decay_beta.py 的整份字节。⚠ 所有在 version=1 下归档的 rank sha 快照(如 503fd4b6…)自此失效, 不得再拿来做前后对比; 它们记的是「只摘六个常量取值」那个口径。升版原因: v1 口径下只改 pick_score 函数体一个符号(六常量逐字不动)能让板序翻转而 sha 恒定(R1 轮 Codex HIGH 实测), 版本化在该方向上是摆设。",
+    "1": "CARD-G3-6b (BATCH-2026-09-01-第八批): 首版 —— version + 因子序 + 取整精度 + 生效分钟 + 上限 + decay 六常量取值 + pick.py 自身字节。"
+  },
 
   "authoritative": {
     "_说明": "本节是运行时真相源 —— 改这里的数值, 下一次生成的投影立刻按新值算。只影响 CARD-G3-6b 新增的 estimated_minutes 字段, 不触碰任何 A2 冻结字段, 所以可以放心改。",
