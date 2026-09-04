@@ -4,9 +4,15 @@
 仓库根：`/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2`
 （只读；不要修改任何文件）。
 
-审查对象绑定：分支 `card/w4-safety-r2`，**实现最终态 = commit `2b160897`**。
+审查对象绑定：分支 `card/w4-safety-r2`，**实现最终态 = commit `de57e375`**。
+
+> 📌 round-2 于 2026-09-04 发了三次都没拿到正文（网络 / 被误杀 / 内容过滤），但从
+> 第 3 次的 stderr 抢救到了阶段性结论与可复现命令。**那一轮抢救出的阻断项已在本轮
+> 逐条处置完毕**，处置结果见 `_bmad-output/审查/CARD-TEST-isolate-lifespan-R1-验收单.md`
+> §7.6b–§7.6f。请把它们当作**已知已处置项**，重点复核处置是否真的关闭了问题、以及
+> 处置本身有没有引入新缺陷（本轮就有过一次「改进反而降低强度」并回退的记录）。
 本文件与验收单之后还有一个 docs-only 尾巴 commit（只动 `_bmad-output/`），它**不改变
-代码树**；判据可自行复核：`git diff --stat 2b160897 HEAD -- . ':(exclude)_bmad-output'`
+代码树**；判据可自行复核：`git diff --stat de57e375 HEAD -- . ':(exclude)_bmad-output'`
 输出为空。
 
 审查面分三段（分开给，是因为本分支上还并行着另一张卡 Bark-R1，`git diff 1f249b33..HEAD`
@@ -17,8 +23,10 @@
 git diff 4a25578e..0684e0fa
 # ② 并入主干（见下方「本轮的三件新事」第 1 条）
 git show d5f96344 --stat
-# ③ 终审前新增：连库测试转 mock + 运行时锚点修复
+# ③ 连库测试转 mock + 运行时锚点修复
 git diff d5f96344..2b160897
+# ④ round-2 抢救出的阻断项处置（compgen 自检 / shell 门声称更正 / 同名工厂失格名单）
+git diff 2b160897..de57e375 -- backend/
 ```
 
 ⚠️ 上一轮（配额耗尽、未取得裁定的那次）绑的是一个**更早**的 commit —— 位于
