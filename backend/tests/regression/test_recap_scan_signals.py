@@ -22,7 +22,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import pathlib
 import re
+import shutil
 import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
@@ -99,15 +101,42 @@ def run_collect(vault: Path, board: str = BOARD, *extra: str) -> subprocess.Comp
     )
 
 
+# 子进程崩溃的确定性标记（见 _surface_child_stderr / negverify._looks_like_crash）。
+# 刻意选一个不会在正常报告或诊断里出现的串。
+CHILD_CRASH_MARK = "[[CHILD-CRASH]]"
+
+
+def _surface_child_stderr(r: subprocess.CompletedProcess) -> None:
+    """把**被测 CLI 子进程**的 stderr 抬到测试自己的 stdout 上。
+
+    ⛔ round-20（冻结审查 v2 §四.4）：本域大量门是跑 CLI 子进程再核 stdout 的，
+    子进程以 `capture_output=True` 执行，断言里只带 `r.stdout` ⇒ 内层 traceback
+    若只落在 `r.stderr`，**外层 pytest 的两路输出里根本不会出现它**，
+    `recap_domain_negverify` 的崩溃识别就永远看不见内层崩溃。
+    pytest 会在失败时展示 "Captured stdout call"，所以 print 到这里即接通。
+    """
+    if not (r.stderr and r.stderr.strip()):
+        return
+    # ⛔ round-21（冻结审查 v3）：外层判据原先只能**解析 pytest 的渲染**去猜
+    # "这次红是崩溃还是判错"，那是随 formatter 变的启发式。这里改为在源头打一个
+    # **确定性标记**：子进程 stderr 里出现 traceback = 被测 CLI 崩了，事实明确，
+    # 不需要下游再猜。标记串刻意选得不会在正常输出里出现。
+    if "Traceback (most recent call last):" in r.stderr:
+        print(f"{CHILD_CRASH_MARK} rc={r.returncode}")
+    print(f"[child stderr]\n{r.stderr}")
+
+
 def run_verify(report: Path) -> subprocess.CompletedProcess:
     if not SCRIPT.exists():
         pytest.fail(f"被测脚本不存在: {SCRIPT}")
-    return subprocess.run(
+    r = subprocess.run(
         [sys.executable, str(SCRIPT), "--verify", str(report)],
         capture_output=True,
         text=True,
         timeout=60,
     )
+    _surface_child_stderr(r)
+    return r
 
 
 # ────────────────────────── fixture 构造器 ──────────────────────────
@@ -667,8 +696,30 @@ def render_report(scan: dict) -> str:
         if fallback
         else "- 待定纠错候选 0 条 · 孤儿 0 · 双源差集 无 · 检验历史 0 板"
     )
-    ledger_seed = "- SeedA — 批注 2 条"
-    ledger_derived = "- DerivedB — 占位 · mastery 未记录 · tips 未闭环 2 条\n- DerivedC — 已剖析 · mastery 未记录"
+    # ⛔ 维护卡 B: 这里原本**硬编码** `- SeedA — 批注 2 条`，不随 scan 变——
+    # 在 standard_vault 下恰好等于真值所以一直没露馅，在空 tips 板上就是一条
+    # 「形状合法、数字无据」的行。新增的种子行绑值门第一次跑就把它抓了出来
+    # （这正是本卡要的效果：形状对不等于数字有据）。改为按 scan 的 ledger 渲染。
+    ledger_seed = "\n".join(
+        f"- {r['node_id']} — " + (f"批注 {r['tips_count']} 条" if r.get("tips_count") else "无批注")
+        for r in (scan.get("ledger") or {}).get("seeds", [])
+    )
+    # ⛔ CARD-维护B-R4（BLOCKER② 的教科书式证据）：上面那段注释说的事，在
+    #    **派生行**上原样重演了一遍——种子行早在 round-6 就改成「按 scan 渲染」，
+    #    派生行却一直是**硬编码字符串**（`tips 未闭环 2 条`，而 scan 里是 0 或 1）。
+    #    它一直没露馅，因为旧 verifier 根本不绑派生小节：收集器只认 `### 种子`，
+    #    安全态却把 `### 派生` 算作"认可小节"，两边都不管。
+    #    新的角色表绑定第一次跑就抓出来了——连测试自己的基线报告都在编造数字。
+    #    ⇒ 与种子行**逐字同型**地改为按 scan 的 ledger.derived 渲染。
+    ledger_derived = (
+        "\n".join(
+            f"- {r['node_id']} — "
+            + ("占位" if r.get("is_stub") else "已剖析")
+            + f" · mastery 未记录 · tips 未闭环 {r.get('tips_open') or 0} 条"
+            for r in (scan.get("ledger") or {}).get("derived", [])
+        )
+        or "- 无（derived 列表为空）"
+    )
     return f"""---
 type: recap
 board: "{scan["board_stem"]}"
@@ -875,7 +926,12 @@ def test_verify_unclosed_html_comment_fails(tmp_path):
     )
     r = run_verify(report)
     assert r.returncode == 1, "未闭合 HTML 注释未被拦截 (渲染隐藏面)"
-    assert "未闭合 HTML 注释" in r.stdout
+    # ⚠️ 维护卡 B：拦截行为不变（仍 exit 1），但**理由合并了**。
+    # 原实现「先剥闭合注释、再查残留 `<!--`」有个致命顺序问题：两个标记都被剥掉后
+    # 那道残留检查恒不触发，于是把标记包成 code span 就能让整段正文对**全部**检查隐身
+    # （实测连 HARD-R4 禁词都能这样藏进去并 VERIFY PASS）。改为在**原始文本**上
+    # 一次判死：闭合与否、是否在代码跨度内，一律算「正文含 HTML 注释标记」。
+    assert "HTML 注释标记" in r.stdout
 
 
 def test_verify_nodata_line_with_numbers_fails(tmp_path):
@@ -1016,7 +1072,11 @@ def test_verify_trailing_number_in_tail_text_fails(tmp_path):
     report.write_text(text.replace(line, tampered), encoding="utf-8")
     r = run_verify(report)
     assert r.returncode == 1, "尾部说明段的第二组数字未被拦"
-    assert "尾部说明夹带第二组计数" in r.stdout
+    # ⛔ 维护卡 B · H-3: 拦截行为不变（仍 exit 1），但**失败理由变了**——
+    # 尾部从「先开放再排除」（黑名单：禁数值字符/禁 X/N 形态）改成正向允许式
+    # （只许标准尾部文案 + 锚 `$`），于是这类夹带在整行 fullmatch 处就被拒，
+    # 不再走那条已删除的字符表分支。断言随之改锚新理由。
+    assert "未整行匹配标准式" in r.stdout
 
 
 @pytest.mark.parametrize(
@@ -1036,7 +1096,11 @@ def test_verify_trailing_unicode_numerals_fail(tmp_path, tail):
     )
     r = run_verify(report)
     assert r.returncode == 1, f"尾部 {tail} 未被拦"
-    assert "尾部说明夹带第二组计数" in r.stdout
+    # ⛔ 维护卡 B · H-3: 拦截行为不变（仍 exit 1），但**失败理由变了**——
+    # 尾部从「先开放再排除」（黑名单：禁数值字符/禁 X/N 形态）改成正向允许式
+    # （只许标准尾部文案 + 锚 `$`），于是这类夹带在整行 fullmatch 处就被拒，
+    # 不再走那条已删除的字符表分支。断言随之改锚新理由。
+    assert "未整行匹配标准式" in r.stdout
 
 
 @pytest.mark.parametrize(
@@ -1167,7 +1231,11 @@ def test_verify_trailing_slash_pair_fails(tmp_path, tail):
     )
     r = run_verify(report)
     assert r.returncode == 1, f"尾部 {tail} 未被拦"
-    assert "尾部说明夹带第二组计数" in r.stdout
+    # ⛔ 维护卡 B · H-3: 拦截行为不变（仍 exit 1），但**失败理由变了**——
+    # 尾部从「先开放再排除」（黑名单：禁数值字符/禁 X/N 形态）改成正向允许式
+    # （只许标准尾部文案 + 锚 `$`），于是这类夹带在整行 fullmatch 处就被拒，
+    # 不再走那条已删除的字符表分支。断言随之改锚新理由。
+    assert "未整行匹配标准式" in r.stdout
 
 
 @pytest.mark.parametrize(
@@ -1434,12 +1502,28 @@ def _load_recap_scan():
         pytest.fail(f"被测脚本不存在: {SCRIPT}")
     prev = sys.dont_write_bytecode
     sys.dont_write_bytecode = True
+    name = "recap_scan_ut"
+    had = name in sys.modules
+    prev_mod = sys.modules.get(name)
     try:
-        spec = importlib.util.spec_from_file_location("recap_scan_ut", SCRIPT)
+        spec = importlib.util.spec_from_file_location(name, SCRIPT)
         mod = importlib.util.module_from_spec(spec)
+        # ⛔ CARD-维护B-R4: 必须**先注册再 exec** —— importlib 官方用法如此，
+        #   而原实现漏了这一步。被测脚本引入 `@dataclass` 后当场暴露：
+        #   Python 3.14 的 `dataclasses._is_type` 会做
+        #   `sys.modules.get(cls.__module__).__dict__`，模块不在册 ⇒ `None`
+        #   ⇒ `AttributeError`，50 条门一起变红，而症状伪装成"被测物坏了"。
+        #   (生产路径不受影响：那边脚本是 `__main__`，本来就在 sys.modules 里。)
+        sys.modules[name] = mod
         spec.loader.exec_module(mod)
     finally:
         sys.dont_write_bytecode = prev
+        # 零污染还原：本函数每次调用都要给出**全新**模块，注册只为 exec 期间
+        # 的自省服务，用完即撤。
+        if had:
+            sys.modules[name] = prev_mod
+        else:
+            sys.modules.pop(name, None)
     return mod
 
 
@@ -1496,7 +1580,8 @@ def test_m7_collect_refuses_control_char_board(tmp_path):
     vault = build_vault(tmp_path, ["SeedA"])
     bad = f"{BOARD}\x85尾"
     (vault / "原白板" / f"{bad}.md").write_text(
-        f"---\ntype: whiteboard\n---\n\n# {bad}\n\n## Concepts\n\n- [[节点/SeedA]]\n", encoding="utf-8"
+        f"---\ntype: whiteboard\n---\n\n# {bad}\n\n## Concepts\n\n- [[节点/SeedA]]\n",
+        encoding="utf-8",
     )
     r = run_collect(vault, bad)
     assert r.returncode == 0, r.stderr
@@ -1523,3 +1608,4606 @@ def test_m7_collect_normal_board_still_works(tmp_path):
     scan = collect_json(standard_vault(tmp_path))
     assert scan["board_exists"] is True
     assert scan["counts"]["members"] == 3
+
+
+# ══════════════ 维护卡 B · 数字治理域双向门（BATCH-2026-08-31-第七批） ══════════════
+# 治理域裁定见卡文 §零（按位置/结构划分，不按字符）。
+# ⛔ 拦截门与放行门**同权重**：round-5 那 4 个误伤输入就是只有拦截门时漏掉的。
+# 下列反例全部来自 round-6 定向复核的**实测**记录，本卡开工前逐条重测过现状
+# （不采信台账——round-6 存在的理由正是「台账称已处置但实测未处置」）。
+
+LIVE_FIXTURES = Path(__file__).parent / "fixtures" / "recap_live_reports"
+# fixture 目录里的**语料**文件（4 报告 + 4 scan JSON）。
+# ⛔ 排除清单是**闭表**：录入清单 MANIFEST.sha256 与刷新脚本本身不是语料，
+#   拷进测试工作目录会让被测物看到不该看到的文件。表外的任何新文件仍必须
+#   出现在 MANIFEST 里（`test_live_fixtures_match_recorded_snapshot` 的
+#   目录/清单对账会因此变红），所以这张表不会变成"悄悄漏一个"的通道。
+_LIVE_NON_CORPUS = {"MANIFEST.sha256", "refresh_from_live.py"}
+
+
+def _live_corpus_files() -> list[Path]:
+    return [p for p in sorted(LIVE_FIXTURES.iterdir()) if p.is_file() and p.name not in _LIVE_NON_CORPUS]
+
+
+def _mutate_report(tmp_path: Path, mutate) -> subprocess.CompletedProcess:
+    """在标准 fixture 报告上施加一处变异后跑 --verify。"""
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    report = write_report(vault, scan)
+    base = run_verify(report)
+    assert base.returncode == 0, f"基线报告本身就不过 verifier:\n{base.stdout}"
+    before = report.read_text(encoding="utf-8")
+    after = mutate(before, scan)
+    # ⛔ MEMORY `reference_gate_design_pitfalls`: `str.replace` 不命中**不报错**——
+    # 变异没打上去、报告没变、verifier 当然 exit 0，而拦截门会把这读成"未被拦"，
+    # 或者更糟：某天实现修好了，这条门却因为构造失效而恒绿。变异必须真的改到东西。
+    assert after != before, "变异未命中：报告一字未改，这条门测的是空气"
+    report.write_text(after, encoding="utf-8")
+    return run_verify(report)
+
+
+def _sig_line(text: str, label: str = "来源覆盖率") -> str:
+    return next(ln for ln in text.splitlines() if label in ln)
+
+
+# ── 拦截门（round-6 实证反例，逐条先红后绿） ────────────────────────────
+
+
+def test_domain_block_four_fence_short_close(tmp_path):
+    """E1: 四反引号开栏 + 三反引号「短闭合」后塞信号行 —— round-6 实测 exit 0。
+
+    CommonMark 规定闭合围栏须同字符且**不短于**开栏；原实现只存 `bare[:3]` 并用
+    startswith 判闭合，于是块被误判为已结束，藏在 <pre><code> 里的信号行仍被
+    verifier 当成在场陈述。
+    """
+
+    def m(text, scan):
+        sig = _sig_line(text)
+        return text.replace(sig, f"````\n```\n{sig}", 1)
+
+    r = _mutate_report(tmp_path, m)
+    assert r.returncode != 0, f"四反引号短闭合仍被放行:\n{r.stdout}"
+
+
+def test_domain_block_blockquote_indented_code(tmp_path):
+    """E1 邻域: 引用内缩进代码形态的信号行不得被当成合法在场。
+
+    ⚠️ 如实记录：round-6 报告称此例 exit 0，本卡开工前**实测为 exit 1**
+    （被信号行模板的整行匹配拦下）。构造差异或代码已变，两说；
+    本用例锁的是**结果面**——这种形态不得被当成合法信号行。
+    """
+
+    def m(text, scan):
+        sig = _sig_line(text)
+        return text.replace(sig, f">     {sig.lstrip('> ').lstrip()}", 1)
+
+    r = _mutate_report(tmp_path, m)
+    assert r.returncode != 0, f"引用内缩进代码形态被当成合法信号行:\n{r.stdout}"
+
+
+def test_domain_block_scale_line_tail_append(tmp_path):
+    """H-2 前半: 正确规模行**尾部追加**任意文字 —— 原式缺 `$`，match() 只认前缀。
+
+    ⛔ R3 round-8 追加文本更换（负验证实测暴露）：原用「，SeedA 的派生子女共有仨个」，
+    但 round-8 把 `仨` 加进定界集、并放宽了句式门之后，这句话会**先被数字绑定**
+    独立拦下（`仨` → 无法解析）⇒ 去掉行尾锚 `$` 不再产生泄漏，`survivor-2`
+    当场变成不承重。那不是门坏了，是**同一场景多了一道独立防线**。
+    按 negverify 铁律「变体必须禁掉该性质的**全部**防线」，正确修法是让这道门
+    **只测一个性质**：追加文本改为**不含任何数词**，于是唯一能拦它的就是
+    「模板外『派生』表述」——也就是行尾锚 `$` 真正守的那条。
+    """
+
+    def m(text, scan):
+        line = next(ln for ln in text.splitlines() if "成员（" in ln)
+        return text.replace(line, line + "，SeedA 的派生子女如上", 1)
+
+    r = _mutate_report(tmp_path, m)
+    assert r.returncode != 0, f"规模行尾部追加未被拦:\n{r.stdout}"
+    assert "模板外的『派生』表述" in r.stdout, f"应由『行尾锚失效 ⇒ 白名单不再匹配』拦下，而不是别的防线:\n{r.stdout}"
+
+
+def test_domain_block_seed_ledger_fake_count(tmp_path):
+    """H-2 后半: 种子行「批注 999 条」形状合法但值无据 —— 白名单只管句式不管出处。"""
+
+    def m(text, scan):
+        line = next(ln for ln in text.splitlines() if ln.startswith("- SeedA — 批注"))
+        return text.replace(line, "- SeedA — 批注 999 条", 1)
+
+    r = _mutate_report(tmp_path, m)
+    assert r.returncode != 0, f"种子行伪计数未被拦:\n{r.stdout}"
+    assert "tips_count" in r.stdout, f"未点名绑定字段:\n{r.stdout}"
+
+
+def test_domain_block_signal_tail_append(tmp_path):
+    """H-3: 覆盖率行**标准尾部之后**追加「另有仨条」——「仨」在任何字符表之外。"""
+
+    def m(text, scan):
+        line = _sig_line(text)
+        return text.replace(line, line.replace("【", "另有仨条【", 1), 1)
+
+    r = _mutate_report(tmp_path, m)
+    assert r.returncode != 0, f"信号行尾部夹带未被拦:\n{r.stdout}"
+
+
+def test_domain_block_bare_count_in_prose(tmp_path):
+    """D2（本卡原始命题）: 叙述段里**无出处**的裸计数必须被拦。
+
+    ⚠️ 如实记录一处能力边界：卡文/goal 举的例子是「99 个子节点」，但在当前池语义下
+    **99 恰好可由 scan 的数值一阶推出**（池 = 数值 ∪ 两两和差），所以它拦不住——
+    而这个池语义又是必需的：live 报告实测有合法推算
+    「7 个派生点中仅 2 个带 derived_at……其余 5 个无据」（5 = 7−2）。
+    ⇒ 拦截力与「不误伤合法算术」用同一套值域匹配**无法兼得**。
+    本用例因此改用不可由一阶推算得到的 987654，并把这条边界写进验收单裁决点：
+    D2 真正能拦的是「罕见的、推不出来的大数」，对常见小数值形同虚设。
+    """
+
+    def m(text, scan):
+        return text.replace("## 三维审查", "## 三维审查\n\n- 本板共有 987654 个子节点。【实测】", 1)
+
+    r = _mutate_report(tmp_path, m)
+    assert r.returncode != 0, f"域内裸计数未被拦:\n{r.stdout}"
+    assert "找不到同值来源" in r.stdout, f"未点名无出处:\n{r.stdout}"
+
+
+# ── 放行门（与拦截门同权重） ────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "prose",
+    [
+        "说明十分清楚。",  # round-5 误伤: 含「十」的正常中文
+        "统计口径尚未一致。",  # round-5 误伤: 含「一」的正常中文
+        "数据来自 2026-08-27 的扫描。",  # E4 日期形态
+        "参见 [[节点/Lecture 14]] 的记录。",  # E3 wikilink 内自带数字
+    ],
+    ids=["shifen", "yizhi", "date", "wikilink"],
+)
+def test_domain_allow_legit_prose(tmp_path, prose):
+    """放行门: 合法叙述不得被收紧误伤（五类合法语料各一组）。"""
+    r = _mutate_report(
+        tmp_path,
+        lambda text, scan: text.replace("## 三维审查", f"## 三维审查\n\n- {prose}【实测】", 1),
+    )
+    assert r.returncode == 0, f"合法语料被误伤 ({prose}):\n{r.stdout}"
+
+
+def test_domain_allow_skill_hotkey_action_line(tmp_path):
+    """放行门: SKILL HARD-CONSTRAINTS 的白名单动作句（含 `Cmd+Shift+D` 与「派生」）。
+
+    ⚠️ 这条第一次写时用了 `- ` 前缀而红——白名单要求的是**有序列表**形态
+    （`## 你现在可以做的` 段的模板就是有序列表）。是语料构造不真实，不是实现误伤；
+    如实改测试而不是放宽实现。行内代码跨度由 E2 豁免，序号由 E5 豁免。
+    """
+    r = _mutate_report(
+        tmp_path,
+        lambda text, scan: text.replace(
+            "## 你现在可以做的\n",
+            "## 你现在可以做的\n2. 在原白板选中相关文本 `Cmd+Shift+D` 派生新节点【实测】\n",
+            1,
+        ),
+    )
+    assert r.returncode == 0, f"SKILL 白名单动作句被误伤:\n{r.stdout}"
+
+
+def test_domain_allow_legit_nested_list(tmp_path):
+    """放行门: 合法三级列表（四空格缩进）不得被当缩进代码块删掉致误报缺信号行。"""
+    r = _mutate_report(
+        tmp_path,
+        lambda text, scan: text.replace("## 三维审查", "## 三维审查\n\n- 一级\n  - 二级\n    - 三级缩进项\n", 1),
+    )
+    assert r.returncode == 0, f"合法三级列表被误伤:\n{r.stdout}"
+
+
+@pytest.mark.parametrize(
+    "report_name",
+    [
+        "回顾-递归与分治 (Recursion & Divide-Conquer)-2026-08-27.md",
+        "回顾-特征值与特征向量-2026-08-27.md",
+        "回顾-CS 61B-2026-08-27.md",
+        "回顾-CS188 lecture 2-2026-08-27.md",
+    ],
+    ids=["recursion", "eigen", "cs61b", "cs188"],
+)
+def test_domain_allow_live_real_reports(tmp_path, report_name):
+    """⛔ 最重要的放行门: **live vault 的四份真报告**整篇 --verify 必须仍 exit 0。
+
+    fixture 是 live 原件的逐字节拷贝（连同各自的 .recap-scan-*.json）。
+    合成 fixture 再像也覆盖不到真实语料的全部形态——真报告里有 mastery 0.01、
+    量表 1-4、ISO 时间戳、引用用户原话（含 `[03:21]`、作答「111」）、
+    board_name_mismatch 说明等等，这些正是"多禁一点"最容易打到的地方。
+    """
+    work = tmp_path / "outputs"
+    work.mkdir(parents=True)
+    for src in _live_corpus_files():
+        shutil.copy2(src, work / src.name)
+    r = run_verify(work / report_name)
+    assert r.returncode == 0, f"live 真报告被收紧误伤:\n{r.stdout}"
+
+
+def _read_live_manifest() -> dict[str, str]:
+    """读 fixture 快照清单 `MANIFEST.sha256`（由 refresh_from_live.py 生成）。"""
+    rows: dict[str, str] = {}
+    for ln in (LIVE_FIXTURES / "MANIFEST.sha256").read_text(encoding="utf-8").splitlines():
+        ln = ln.strip()
+        if not ln or ln.startswith("#"):
+            continue
+        digest, _, name = ln.partition("  ")
+        rows[name] = digest
+    return rows
+
+
+def test_live_fixtures_match_recorded_snapshot():
+    """诚实性门: fixture 必须与**录入时的快照**逐字节相同，不是"整理过"的版本。
+
+    否则放行门就成了自证——用一份为了通过而修饰过的语料去证明"没有误伤"。
+
+    ⚠️⚠️ CARD-维护B-R4 (b) / 默认裁决 D3 的**诚实性降级**，如实登记：
+      · 改造前：门比对 fixture 与**此刻 live vault 里的原件** ⇒ 证明的是
+        "fixture == 现在的真报告"，但代价是硬编码现网绝对路径（换机器只能
+        skip，诚实性在最需要它的地方缺席），且把 live vault 变成测试的隐式
+        输入（改 live 的人不知道自己动了一道门）。
+      · 改造后：门比对 fixture 与 `MANIFEST.sha256` ⇒ 证明的只是
+        **"fixture 自录入以来没被改过"**。
+      · "录入时的快照真的来自 live" 这一点，此后由 git 历史 +
+        `refresh_from_live.py` 的存在性背书，**不再由每次跑测试来证明**。
+      这是取舍不是升级；刷新必须有人显式跑脚本并把改动 commit（留痕）。
+    """
+    recorded = _read_live_manifest()
+    on_disk = sorted(p.name for p in _live_corpus_files())
+    assert on_disk == sorted(recorded), (
+        "fixture 目录与 MANIFEST 清单不一致（多/少文件都算漂移；"
+        f"新增 fixture 须跑 refresh_from_live.py --apply）\n磁盘: {on_disk}\n清单: {sorted(recorded)}"
+    )
+    for name, want in recorded.items():
+        got = hashlib.sha256((LIVE_FIXTURES / name).read_bytes()).hexdigest()
+        assert got == want, (
+            f"fixture 与录入时的快照不逐字节相同: {name}\n"
+            f"  清单 {want}\n  磁盘 {got}\n"
+            "  —— 若这是有意的刷新, 跑 refresh_from_live.py --apply 并 commit"
+        )
+    assert len(recorded) == 8, f"应有 4 报告 + 4 scan JSON，实际 {len(recorded)}"
+
+
+# ── Codex round-1 整改：门覆盖缺口（每一条都对应一个实测 survivor/BLOCKER） ──
+
+
+@pytest.mark.parametrize("section", ["你现在可以做的", "三维审查"], ids=["actions", "review3"])
+def test_domain_block_bare_count_in_each_d2_section(tmp_path, section):
+    """D2 的**每个段**都要有自己的门。
+
+    ⛔ Codex 实测 survivor：把 `_D2_SECTIONS` 砍成只剩「三维审查」，套件仍 142 passed
+    ——因为原来的拦截门只往「三维审查」插探针，域的另一半根本没人看着。
+    这是「门覆盖不全」的典型：域声明了两段，门只守了一段。
+    """
+    r = _mutate_report(
+        tmp_path,
+        lambda text, scan: text.replace(
+            f"## {section}\n",
+            f"## {section}\n- 本板共有 987654 个隐藏节点。【实测】\n",
+            1,
+        ),
+    )
+    assert r.returncode != 0, f"『{section}』段的裸计数未被拦:\n{r.stdout}"
+
+
+@pytest.mark.parametrize("suffix", ["", "（本轮）"], ids=["exact", "with_suffix"])
+def test_domain_block_survives_section_title_suffix(tmp_path, suffix):
+    """⛔ BLOCKER-2: 给段标题加后缀不得关掉整个域。
+
+    报告别处用**宽松**段名口径（允许 `## 三维审查（本轮）`），D2 却用精确标题定位——
+    于是加四个字就能整段关掉 D2。单变量对照实测：精确标题 exit 1、加后缀 exit 0。
+    这是「存在性与下游定位口径不一致」的同型复发。
+    """
+
+    def m(text, scan):
+        text = text.replace("## 三维审查", f"## 三维审查{suffix}", 1)
+        return text.replace(
+            f"## 三维审查{suffix}",
+            f"## 三维审查{suffix}\n\n- 本板共有 987654 个隐藏节点。【实测】",
+            1,
+        )
+
+    r = _mutate_report(tmp_path, m)
+    assert r.returncode != 0, f"标题后缀 {suffix!r} 关掉了 D2:\n{r.stdout}"
+
+
+def test_domain_block_seed_count_tamper_on_real_manifest_line(tmp_path):
+    """⛔ BLOCKER-3: 种子绑值门必须在**真实 manifest 台账行**上生效。
+
+    真报告的种子行带后续字段（`- cs-61b-csm — 批注 2 条；未派生…· mastery 0.3…`），
+    原正则要求「批注 N 条」后直接行尾 ⇒ 整行不匹配 ⇒ 被 continue 跳过 ⇒
+    把 2 改成 999 照样 exit 0。**门在真实语料上完全不生效**。
+
+    而放行门只证明了「真报告 PASS」，没证明「真报告被篡改后 FAIL」——
+    这正是假绿的经典形态：正例过了就以为门在工作。本用例补的就是这半边。
+    """
+    work = tmp_path / "outputs"
+    work.mkdir(parents=True)
+    for src in _live_corpus_files():
+        shutil.copy2(src, work / src.name)
+    report = work / "回顾-CS 61B-2026-08-27.md"
+    text = report.read_text(encoding="utf-8")
+    line = next(ln for ln in text.splitlines() if ln.startswith("- cs-61b-csm — 批注"))
+    assert "批注 2 条" in line, f"前提失效，真报告形态已变: {line}"
+    report.write_text(
+        text.replace(line, line.replace("批注 2 条", "批注 999 条", 1), 1),
+        encoding="utf-8",
+    )
+    r = run_verify(report)
+    assert r.returncode != 0, f"真实 manifest 台账行的伪计数未被拦:\n{r.stdout}"
+
+
+def test_domain_block_fence_close_needs_trailing_blank_only(tmp_path):
+    """⛔ BLOCKER-1: 闭栏标记之后只能有空白（CommonMark），带 info string 的不是闭栏。
+
+    实测：` ```` text` 开栏 + ` ````not-a-valid-close` 后跟信号行 → 原实现判块已闭合，
+    信号行"看起来在块外"照样在场；而 CommonMark 渲染里它们全在 <pre><code> 内。
+    """
+
+    def m(text, scan):
+        sig = _sig_line(text)
+        return text.replace(sig, f"````text\n````not-a-valid-close\n{sig}", 1)
+
+    r = _mutate_report(tmp_path, m)
+    assert r.returncode != 0, f"带 info string 的伪闭栏被当成闭栏:\n{r.stdout}"
+
+
+@pytest.mark.parametrize(
+    "prose",
+    ["从 2~3 个节点里挑一个复盘。", "覆盖 1-2 个薄弱点。", "建议再看 2 到 3 个例子。"],
+    ids=["tilde", "hyphen", "cjk"],
+)
+def test_domain_allow_range_expression(tmp_path, prose):
+    """放行门（E7）: 范围表达的端点不是独立计数。
+
+    ⛔ Codex 实测：`2~3 个` 在「递归与分治」报告 FAIL、在 CS 61B 报告 PASS——
+    因为后者的 scan 里恰好有个无关的整数 3。**合法与否取决于另一块板的偶然数字**，
+    这是明确的误伤，按结构豁免整段区间。
+    """
+    r = _mutate_report(
+        tmp_path,
+        lambda text, scan: text.replace("## 三维审查", f"## 三维审查\n\n- {prose}【实测】", 1),
+    )
+    assert r.returncode == 0, f"范围表达被误伤 ({prose}):\n{r.stdout}"
+
+
+def test_domain_number_pool_excludes_string_derived_digits(tmp_path):
+    """⛔ D2 池只收**数值型**，不从字符串抽数。
+
+    Codex 实测：`544 个子节点` 通过（544 只来自 board_sha256 片段）、
+    `111 个子节点` 通过（111 只来自用户作答原话）。池被哈希与原话污染后，
+    "有出处"这个语义就空了——罕见大数拦得住，常见小数值形同虚设。
+    """
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    sha = scan["source_revision"]["board_sha256"]
+    frag = next((sha[i : i + 4] for i in range(len(sha) - 3) if sha[i : i + 4].isdigit()), None)
+    if frag is None:
+        pytest.skip("本次 fixture 的 sha 里没有 4 位纯数字片段")
+    report = write_report(vault, scan)
+    text = report.read_text(encoding="utf-8")
+    report.write_text(
+        text.replace(
+            "## 三维审查",
+            f"## 三维审查\n\n- 本板共有 {int(frag)} 个隐藏节点。【实测】",
+            1,
+        ),
+        encoding="utf-8",
+    )
+    r = run_verify(report)
+    assert r.returncode != 0, f"来自 SHA 字符串的数字 {int(frag)} 被当成了「有出处」:\n{r.stdout}"
+
+
+# ── Codex round-1 HIGH「D1 仍只是少量枚举」整改：域倒转为 default-deny 后的逐条门 ──
+# 下列每一条都是复核者实测 **exit 0** 的越界探针；域从「点名两段」改成
+# 「默认全域 + 显式例外」后应全部拦下。
+
+
+@pytest.mark.parametrize(
+    "anchor,inject",
+    [
+        # 台账『派生』行（原来只有『种子』行有 binder）
+        ("### 派生", "- 本板共有 987654 条未闭环 tips。\n"),
+        # AI 侧对账段的其余数字（原来只绑 tips 两式）
+        ("## AI 侧对账", "- 本板共有 987654 条待定纠错候选。\n"),
+        # 「本段新增」段
+        ("## 本段新增", "- 本板共有 987654 个隐藏节点。【实测】\n"),
+        # 自造的新段落——加个标题就该逃出治理，正是 default-deny 要堵的
+        ("## 三维审查", "## 附录\n\n- 本板共有 987654 个隐藏节点。【实测】\n\n"),
+    ],
+    ids=["ledger_derived", "ai_recon", "new_section", "appendix"],
+)
+def test_domain_default_deny_covers_every_section(tmp_path, anchor, inject):
+    """⛔ 域倒转（default-deny）后，这些位置都不再是「没人管」的缝隙。
+
+    原实现 `_D2_SECTIONS = ("你现在可以做的", "三维审查")` 是**点名两段的允许式**，
+    于是复核者只要把伪数字写在别处（甚至新开一个 `## 附录`）就能 exit 0。
+    「加一个标题就能逃出治理」——那不是域，是几个段名。
+    """
+
+    def m(text, scan):
+        if inject is None:  # 规模 callout：改模板里那个「1 次调用」
+            return text.replace("manifest（1 次调用）", "manifest（987654 次调用）", 1)
+        return (
+            text.replace(anchor, anchor + "\n" + inject if anchor.startswith("##") else anchor, 1)
+            if anchor.startswith("###") is False and inject.startswith("##")
+            else text.replace(anchor, anchor + "\n" + inject, 1)
+        )
+
+    r = _mutate_report(tmp_path, m)
+    assert r.returncode != 0, f"{anchor} 处的越界数字未被拦:\n{r.stdout}"
+
+
+def test_domain_exempt_section_is_explicit_not_accidental(tmp_path):
+    """反向锁: 唯一出域的段（数据来源与新鲜度）是**显式**豁免，不是碰巧扫不到。
+
+    这条锁的是"例外表"本身——如果哪天有人往 `_D2_EXEMPT_SECTIONS` 里加东西，
+    这条会提醒他：出域是一个需要写下来的决定，不是实现细节。
+    """
+    mod_src = (
+        Path(__file__).resolve().parents[3] / "canvas-vault/.claude/skills/board-recap/scripts/recap_scan.py"
+    ).read_text(encoding="utf-8")
+    assert "_D2_EXEMPT_SECTIONS = (" in mod_src
+    exempt_block = mod_src.split("_D2_EXEMPT_SECTIONS = (", 1)[1].split("\n)", 1)[0]
+    # ⚠️ 只数**非注释行**的条目——第一版直接 count('"') 把注释里的引号也数进去了（4 != 2）。
+    entries = [ln.strip() for ln in exempt_block.splitlines() if ln.strip() and not ln.strip().startswith("#")]
+    assert entries == ['"数据来源与新鲜度",'], f"例外表变了却没人复核——出域必须是显式决定，不是实现细节: {entries}"
+
+
+def test_domain_covers_scale_callout_preamble(tmp_path):
+    """⛔ 规模自陈 callout 在**首个 `##` 之前**——原实现按 `##` 段定位，根本扫不到它。
+
+    复核者实测：manifest 模式报告里把「manifest（1 次调用）」改成「987654 次调用」exit 0。
+    default-deny 切段时必须把 preamble 也当成一段。
+    """
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault, "--manifest", str(make_manifest(vault)))
+    assert scan["data_mode"] == "manifest", "前提失效：需要 manifest 模式才有那句 callout"
+    report = write_report(vault, scan)
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+    text = report.read_text(encoding="utf-8")
+    assert "manifest（1 次调用）" in text, f"前提失效，callout 形态已变:\n{text[:400]}"
+    # ⚠️ 判据从"值在池里"改为"句式 + 值"后（见 _D2_CLAIM_RE 的说明），
+    # 模板里的「manifest（N 次调用）」不再由 D2 管——它没有自称全板规模，
+    # 且该数由 D1 的 data_mode 绑定面负责。这里锁的是 **preamble 段确实在域内**：
+    # 往 callout 里塞一句自称全板规模的假计数，必须被拦。
+    report.write_text(
+        text.replace("> 数据面：", "> 本板共有 987654 个子节点。\n> 数据面：", 1),
+        encoding="utf-8",
+    )
+    r = run_verify(report)
+    assert r.returncode != 0, f"规模 callout（preamble）里的越界数字未被拦:\n{r.stdout}"
+
+
+# ══════ 多智能体对抗审查（ultracode workflow）整改门 · 8 条实证发现 ══════
+# 5 路探针（结构 / 数字形态 / 误伤 / 门覆盖 / 名实一致）× 三视角证伪。
+# 下列每条都由探针在**四份 live 真报告**上实测 exit 0，全部先红后绿。
+
+
+def _live_probe(tmp_path: Path, extra: str, report="回顾-CS 61B-2026-08-27.md"):
+    """在 live 真报告尾部追加一段后跑 --verify（fixture 逐字节拷贝，live 只读）。"""
+    work = tmp_path / "outputs"
+    work.mkdir(parents=True)
+    for src in _live_corpus_files():
+        shutil.copy2(src, work / src.name)
+    rp = work / report
+    base = run_verify(rp)
+    assert base.returncode == 0, f"基线真报告本身就不过 verifier:\n{base.stdout}"
+    rp.write_text(rp.read_text(encoding="utf-8") + extra, encoding="utf-8")
+    return run_verify(rp)
+
+
+def test_audit_code_span_html_comment_cannot_hide_content(tmp_path):
+    """⛔ BLOCKER: code span 包住 `<!--` / `-->`，可让**渲染可见**的正文对全部检查隐身。
+
+    原实现「先无条件剥闭合注释、再查残留 `<!--`」——两个标记都被吃掉，残留检查恒不触发。
+    在 Obsidian 里 `` `<!--` `` 渲染成字面文本，读者看得见那段字，verifier 却先把它删了。
+    影响面远不止 D2：探针实测连 HARD-R4 禁词「偏离」都能这样藏进去并 VERIFY PASS。
+    """
+    r = _live_probe(tmp_path, "\n- 注释语法 `<!--` 起，本板共有 987654 个子节点，`-->` 止。\n")
+    assert r.returncode != 0, f"code-span 包裹的注释标记让计数隐身:\n{r.stdout}"
+    r2 = _live_probe(tmp_path / "b", "\n- 语法 `<!--` 起，你的理解偏离了材料主线，`-->` 止。\n")
+    assert r2.returncode != 0, f"同一构造还能藏 HARD-R4 禁词:\n{r2.stdout}"
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        "\n### 数据来源与新鲜度（补充）\n\n- 本板共有 987654 个子节点。\n",
+        "\n## 附录（数据来源与新鲜度）\n\n- 本板共有 987654 个子节点。\n",
+        "\n```\n## 板级数据来源与新鲜度\n```\n\n- 本板共有 987654 个子节点。\n",
+    ],
+    ids=["h3_heading", "suffix_in_title", "fake_heading_in_fence"],
+)
+def test_audit_exempt_section_match_is_prefix_anchored(tmp_path, extra):
+    """⛔ BLOCKER: 出域判定曾用**子串**匹配，且切段正则连 `###` 一起当段首。
+
+    于是「把豁免段名塞进任意标题的非开头位置」或「加个三级标题」就能整段出域——
+    这正是 Codex round-1 已推翻过一次的缺陷（「加一个标题就能逃出治理」）换条路复活。
+    第三个构造更隐蔽：围栏**里**的假标题被切段正则当成真标题，而读者只看到一段灰底代码。
+    ⚠️ 我原来那道守卫测试只锁了例外表的**字面量**，没锁**匹配语义**——守卫守错了东西。
+    """
+    r = _live_probe(tmp_path, extra)
+    assert r.returncode != 0, f"出域匹配被绕过:\n{r.stdout}"
+
+
+def test_audit_number_pool_excludes_scale_gate_constants(tmp_path):
+    """⛔ BLOCKER: 数值池混入 `scale_gate` 的源码常量（30/100/10），任何板都有。
+
+    后果：100−1=99 恒在池内 ⇒ **卡文与 goal 的旗舰反例「99 个子节点」在四份真报告上
+    全部放行**，而验收单 §一 当时还写着「拦下」。门槛常量不是「这块板的数据」，
+    拿它当出处等于给池注水。
+    """
+    r = _live_probe(tmp_path, "\n- 本板共有 99 个子节点。【实测】\n")
+    assert r.returncode != 0, f"99 仍被当成「有出处」（池里还有 scale_gate 常量？）:\n{r.stdout}"
+
+
+@pytest.mark.parametrize(
+    "extra,ids",
+    [
+        ("\n- 本板共有 `987654` 个子节点。【实测】\n", "inline_code"),
+        ("\n- 详见 [[节点/x|本板共有 987654 个子节点]]。\n", "wikilink_alias"),
+        ("\n- 本板共有 **987654** 个子节点。【实测】\n", "bold"),
+        ("\n- 本板共有 <span>987654</span> 个子节点。\n", "html_span"),
+        ("\n- 本板共有 987654&nbsp;个子节点。\n", "nbsp"),
+        ("\n- 本板共有 0.987654 个子节点。【实测】\n", "decimal_prefix"),
+    ],
+    ids=lambda v: v if isinstance(v, str) and not v.startswith("\n") else None,
+)
+def test_audit_visible_number_forms_are_counted(tmp_path, extra, ids):
+    """⛔ 渲染**可见**的计数不得因排版而免检。
+
+    - 行内代码 / wikilink 别名：挖空的是读者看得见的正文，`` `987654` 个子节点 ``
+      的渲染结果与裸写等价地在断言一个计数；
+    - 加粗 / `<span>` / `&nbsp;`：原式要求数字与量词**紧邻**（只容 `\\s`），
+      任一排版插入即漏检——而加粗数字正是 LLM 写报告的常见排版；
+    - `0.` 前缀：`(?<![0-9.])` 的本意是不切开小数，实际效果是任何数字补个 `0.` 就退出治理。
+    """
+    r = _live_probe(tmp_path, extra)
+    assert r.returncode != 0, f"{ids}: 可见计数因排版免检:\n{r.stdout}"
+
+
+@pytest.mark.parametrize(
+    "extra,ids",
+    [
+        ("\n```\n本板共有 987654 个子节点\n```\n", "fenced_code"),
+        ("\n- 用 `/node-chat 节点/cs-61b-csm` 继续剖析。\n", "cmd_inline_code"),
+        ("\n- 考分量表 `1-4 (1=最低)` 为数据字段自带的推定值。\n", "scale_inline_code"),
+        ("\n- 详见 [[节点/Lecture 14]] 的记录。\n", "wikilink_target"),
+    ],
+    ids=lambda v: v if isinstance(v, str) and not v.startswith("\n") else None,
+)
+def test_audit_legit_forms_still_pass_on_live_report(tmp_path, extra, ids):
+    """放行门（与上一条同权重）：收紧不得误伤真实语料里的合法形态。
+
+    ⚠️ E1 的缺失曾是**双向**的：D2 从不调用 `_strip_code_blocks`，
+    既让围栏里的字面文本被当成报告的陈述（误伤），又让围栏里的假标题开出出域段（绕过）。
+    这四条锁的是误伤那一侧——命令示例、量表、wikilink 目标在 live 报告里大量出现。
+    """
+    r = _live_probe(tmp_path, extra)
+    assert r.returncode == 0, f"{ids}: 合法形态被误伤:\n{r.stdout}"
+
+
+def _verdicts_on_all_boards(tmp_path: Path, prose: str) -> dict:
+    """同一句话追加到四份 live 真报告，返回各自的 exit code。"""
+    out = {}
+    for i, name in enumerate(sorted(p.name for p in LIVE_FIXTURES.glob("*.md"))):
+        work = tmp_path / f"b{i}" / "outputs"
+        work.mkdir(parents=True)
+        for src in _live_corpus_files():
+            shutil.copy2(src, work / src.name)
+        rp = work / name
+        rp.write_text(rp.read_text(encoding="utf-8") + f"\n- {prose}【实测】\n", encoding="utf-8")
+        out[name[:12]] = run_verify(rp).returncode
+    return out
+
+
+@pytest.mark.parametrize(
+    "prose",
+    [
+        "你说「我做了 5 个练习」，这条批注未闭环。",
+        "承接第 4 条动作建议继续推进。",
+        "以上 4 条建议按优先级排序。",
+        "建议覆盖 4 个到 5 个节点。",
+        "有 5 处值得注意。",
+        "详见 [共 987 个例子](节点/x.md)。",
+    ],
+    ids=["quote", "ordinal", "self_ref", "range_alt", "synonym_quant", "md_link"],
+)
+def test_audit_verdict_is_board_independent(tmp_path, prose):
+    """⛔ BLOCKER: 同一句合法叙述，在**四块板上必须判决一致**。
+
+    这是本卡最深的一处修正。原判据是「值落在 scan 数值池里 = 有出处」——
+    那是个**碰撞判据**：池里有 0/1/2/3 时几乎任何小计数都"碰巧有出处"，
+    池小的板（「递归与分治」只有 `[0,1]`）则合法叙述全被拒。
+    对抗审查实测：上列每一句在 CS 61B / 特征值 / CS188 放行，在「递归与分治」FAIL。
+    **同一句话的对错取决于另一组数据**——这不是覆盖面问题，是判据不可用。
+
+    ⇒ D2 收窄为只查**明确自称全板规模**的句式（`_D2_CLAIM_RE`），
+    普通叙述（引用原话 / 序数 / 自指 / 同义量词 / 链接文本）不再被牵连。
+    宁可少管，不可乱判。
+    """
+    v = _verdicts_on_all_boards(tmp_path, prose)
+    assert len(set(v.values())) == 1, f"同一句话在不同板上判决不同: {v}"
+    assert set(v.values()) == {0}, f"合法叙述被误伤: {v}"
+
+
+@pytest.mark.parametrize(
+    "prose",
+    [
+        "本板共有 987654 个子节点。",
+        "这块板共有 99 个子节点。",
+        "全板总共 987654 条批注。",
+    ],
+    ids=["ben_ban", "zhe_kuai_ban", "quan_ban"],
+)
+def test_audit_scale_claims_blocked_on_every_board(tmp_path, prose):
+    """反向：**自称全板规模**的假计数，在四块板上必须一致地被拦下。
+
+    与上一条同权重——收窄不能收成"什么都不管"。
+    """
+    v = _verdicts_on_all_boards(tmp_path, prose)
+    assert all(v.values()), f"自称全板规模的假计数未被拦: {v}"
+
+
+# ── 对抗审查第 3/4 路（数字形态面 / 门覆盖面）整改门 ──
+# ⚠️ 工作流在 verify 阶段撞上周限额中断，**没有三视角证伪结果**——
+# 下列每条都是我自己在四份 live 真报告上逐条复现后才动手的，如实记录该证据缺口。
+
+
+@pytest.mark.parametrize(
+    "prose,ids",
+    [
+        ("本板共有 ９８７６５４ 个子节点。", "fullwidth"),
+        ("本板共有九十八万个子节点。", "cjk_numeral"),
+        ("本板共有 987654 名成员。", "quant_outside_table"),
+        ("本板共有 987654 组关系。", "quant_zu"),
+        ("本板共有 987654 多个子节点。", "modifier_duo"),
+        ("本板共有 987654 余条批注。", "modifier_yu"),
+        ("本板共有 1-987654 个子节点。", "range_laundering"),
+        ("本板共有 987654 `条` 批注。", "quant_in_code_span"),
+        ("本板共有 999,016 个子节点。", "thousands_sep"),
+    ],
+    ids=lambda v: v if isinstance(v, str) and "共有" not in v else None,
+)
+def test_audit_number_form_bypasses_are_closed(tmp_path, prose, ids):
+    """⛔ 数字/量词识别面的九条绕过，四板一致地拦下。
+
+    - **全角与中文数字**（BLOCKER）：原来 D2 的数字是 `[0-9]+`，于是
+      「本板共有九十八万个子节点」这种**完全虚构**的规模自陈整域免检。
+      scan 的计数都是 ASCII 整数，报告换个写法不该换来免检 ⇒ 归一后照常比对。
+    - **表外量词**：11 字封闭表被 21 个常用量词（名/位/台/件/组…）绕过 ⇒ 扩表。
+      ⚠️ 仍是封闭表——如实登记的边界，不宣称"位置承担了一切"。
+    - **修饰字**（多/余/来/几/约/近/超）：插一个字就断开数字与量词的紧邻关系。
+    - **E7 洗钱通道**：范围豁免原为**无条件**整段挖空 ⇒ 写个 `1-` 前缀，
+      任意量级都不受检。现在只有**两端都有出处**才算合法区间。
+    - **量词包进 code span**：挖空量词会让前面的数字失去锚点 ⇒ 纯量词跨度不再豁免。
+    """
+    v = _verdicts_on_all_boards(tmp_path, prose)
+    assert len(set(v.values())) == 1, f"{ids}: 四板判决不一致: {v}"
+    assert all(v.values()), f"{ids}: 未被拦下: {v}"
+
+
+@pytest.mark.parametrize(
+    "prose,ids",
+    [
+        ("建议覆盖 2~3 个节点。", "legit_range"),
+        ("覆盖 4 个到 5 个节点。", "legit_range_cjk"),
+        ("量表 `1-4 (1=最低)` 为数据字段自带的推定值。", "legit_scale_code"),
+        ("统计口径尚未一致。", "cjk_yi_in_prose"),
+        ("说明十分清楚。", "cjk_shi_in_prose"),
+    ],
+    ids=lambda v: v if isinstance(v, str) and "。" not in v else None,
+)
+def test_audit_number_form_fixes_do_not_overreach(tmp_path, prose, ids):
+    """放行门（同权重）：数字形态收紧不得反噬合法语料。
+
+    ⚠️ 特别是最后两条——`统计口径尚未一致` / `说明十分清楚` 含「一」「十」，
+    正是 round-5 那次翻车的原始误伤输入。中文数字解析器上线后必须重新验一遍：
+    中文数字只有**紧跟量词**时才算计数，散落在正常中文里的数字字不算。
+    """
+    v = _verdicts_on_all_boards(tmp_path, prose)
+    assert len(set(v.values())) == 1, f"{ids}: 四板判决不一致: {v}"
+    assert not any(v.values()), f"{ids}: 合法语料被误伤: {v}"
+
+
+# ══════════ CARD-维护B-R2 · survivor 承重门（BATCH-2026-09-01-第八批） ══════════
+# 第七批复核裁定 F-4: 在隔离拷贝上重放 round-6 的 survivor，S1/S3/S4 变异后
+# **全套件 passed/failed 集合与原版逐字相同** = 门没锁住；验收单「survivor 5 条
+# 全部如期变红」那一行不实（那 5 条锁的是别的性质）。
+# 本节为三个 survivor + 一个旧 survivor 各配**先红后绿**的承重门。
+# ⛔ 每道门写明「它证明什么、不证明什么」——不写比门宽的话。
+
+SIGNAL_LABELS = ("未答问题年龄", "来源覆盖率", "无来源结论", "重复堆积")
+SKILL_MD = SCRIPT.parent.parent / "SKILL.md"
+
+
+def _parse_skill_nodata_reasons(skill_text: str) -> list[str]:
+    """从 SKILL.md ③段铁律里解析五条无据原因（顺序保留）。
+
+    ⛔ 解析必须真的读文件：返回常量的"解析器"会让同步锁恒绿（假门）。
+    锚点是铁律原文「原因只能逐字取自下列」，其后**第一条**全部由反引号项
+    与 `/` 组成的行即原因表行；找不到就返回空表（让比对失败并点名），
+    ⛔ 不静默回退成"就当它们相等"。
+    """
+    idx = skill_text.find("原因只能逐字取自下列")
+    if idx < 0:
+        return []
+    for line in skill_text[idx:].splitlines()[1:]:
+        if re.fullmatch(r"\s*`[^`\n]+`(?:\s*/\s*`[^`\n]+`)+\s*", line):
+            return re.findall(r"`([^`\n]+)`", line)
+    return []
+
+
+def _parse_skill_tail_notes(skill_text: str) -> list[str]:
+    """从 SKILL.md ③段铁律里解析**信号行尾部注记**封闭表（CARD-维护B-R2 (e)）。"""
+    idx = skill_text.find("附注只许")
+    if idx < 0:
+        return []
+    for line in skill_text[idx:].splitlines()[1:]:
+        toks = re.findall(r"`([^`\n]+)`", line)
+        if toks:
+            return toks
+    return []
+
+
+# ── (b) S1: `_NODATA_REASONS` 增一条即放宽，无任何测试锁表 ──────────────
+
+
+def test_domain_skill_sync_nodata_reasons_table():
+    """b1 · S1 承重门①「SKILL 同步锁」: 代码表与 SKILL.md 铁律表必须**全等**。
+
+    survivor 实证: 往 `_NODATA_REASONS` 里加第六项「任意原因」，
+    既有门 `test_verify_nodata_reason_whitelist` 只喂固定 bogus 串，
+    表多一条只放宽那一个字面 —— 全套件 196 passed 无新增红。
+    代码注释写着「新增文案必须两处同改」，但那只是**注释约定**，没有门。
+
+    **它证明什么**: 代码的五条原因与 SKILL.md 文档面逐字同序一致；
+    单侧增删（代码侧或文档侧）立刻变红。
+    **它不证明什么**: 不证明这五条原因本身是"对的"文案，也不证明
+    verifier 在运行时真的按这张表拦截（那是 b2 的行为门的事）。
+    """
+    rs = _load_recap_scan()
+    skill_text = SKILL_MD.read_text(encoding="utf-8")
+    parsed = _parse_skill_nodata_reasons(skill_text)
+    assert len(parsed) == 5, f"SKILL.md 原因表解析异常（应 5 条，得 {parsed}）"
+    assert tuple(parsed) == rs._NODATA_REASONS, (
+        f"代码与 SKILL.md 的无据原因表不同步:\n  代码 = {rs._NODATA_REASONS}\n  SKILL = {tuple(parsed)}"
+    )
+    # ⛔ 篡改门（MEMORY `reference_positive_gate_needs_tamper_test`）:
+    # 只验「真语料 PASS」不证明门在工作 —— 必须证明它对**不同步**会报警。
+    # 三种篡改都从**文档侧文本**下手，因此同时证明解析器真的在读 SKILL.md、
+    # 不是返回一个与代码常量同源的副本。
+    reason_line = next(
+        ln
+        for ln in skill_text[skill_text.find("原因只能逐字取自下列") :].splitlines()[1:]
+        if re.fullmatch(r"\s*`[^`\n]+`(?:\s*/\s*`[^`\n]+`)+\s*", ln)
+    )
+    tampers = {
+        "多一项": reason_line + " / `任意原因`",
+        "少一项": " / ".join(reason_line.strip().split(" / ")[:-1]),
+        "改顺序": " / ".join(reversed(reason_line.strip().split(" / "))),
+    }
+    for name, bad_line in tampers.items():
+        bad = skill_text.replace(reason_line, bad_line, 1)
+        assert bad != skill_text, f"{name}: 篡改未命中，这条篡改门测的是空气"
+        assert tuple(_parse_skill_nodata_reasons(bad)) != rs._NODATA_REASONS, (
+            f"{name} 后同步锁仍判「一致」—— 该锁不承重"
+        )
+
+
+@pytest.mark.parametrize(
+    "reason",
+    ["任意原因", "其他", "略", "见上文", "分母为零（补充）"],
+    ids=["renyi", "qita", "lve", "jianshangwen", "fenmu_suffix"],
+)
+def test_domain_block_nodata_reason_outside_table(tmp_path, reason):
+    """b2 · S1 承重门②「表外原因行为门」: 表外原因必须被 verifier 实际拦下。
+
+    与 b1 互补: b1 锁"表的内容"，b2 锁"表在运行时真的封闭"。
+    `分母为零（补充）` 一条专打**前缀式**放行——它以合法原因开头，
+    只有整行锚定（`$`）才拦得住。
+
+    **它证明什么**: 这五个表外原因写进无据行时 exit 1 且点名「未整行匹配标准式」。
+    **它不证明什么**: 不证明表内五条原因**都**能放行（那由既有的
+    `test_verify_nodata_lines_pass` 与本套件的真语料门覆盖），
+    也不证明穷尽了所有表外写法——表外是无限集，本门取五个代表。
+    """
+    vault = build_vault(tmp_path, ["SeedA", "DerivedB"])
+    write_node(vault, "SeedA")
+    write_node(vault, "DerivedB", derived_from="[[SeedA]]")
+    scan = collect_json(vault)
+    assert scan["signals"]["duplicate_accumulation"]["availability"] == "无据"
+    report = write_report(vault, scan)
+    text = report.read_text(encoding="utf-8")
+    line = next(ln for ln in text.splitlines() if "重复堆积" in ln)
+    bogus = f"> - 重复堆积：无据（{reason}）"
+    assert bogus != line, "构造与原行相同，这条门测的是空气"
+    report.write_text(text.replace(line, bogus, 1), encoding="utf-8")
+    r = run_verify(report)
+    assert r.returncode == 1, f"表外原因「{reason}」被放行:\n{r.stdout}"
+    assert "无据行未整行匹配标准式" in r.stdout, f"拦截理由不是白名单:\n{r.stdout}"
+    assert "VERIFY PASS" not in r.stdout
+
+
+# ── (c) S3: 多层引用前缀下围栏只剥一层 ──────────────────────────────
+
+
+def _wrap_signals_in_fence(text: str, prefix: str) -> str:
+    """把四条信号行整体包进 `<prefix>``` … <prefix>``` `，信号行同层前缀。"""
+    lines = text.splitlines()
+    idx = [i for i, ln in enumerate(lines) if any(lb in ln for lb in SIGNAL_LABELS)]
+    start, end = idx[0], idx[-1]
+    body = [prefix + re.sub(r"^[>\s]*", "", lines[i]) for i in range(start, end + 1)]
+    out = lines[:start] + [prefix + "```"] + body + [prefix + "```"] + lines[end + 1 :]
+    return "\n".join(out)
+
+
+@pytest.mark.parametrize("prefix", ["> > ", "> > > ", ">>"], ids=["depth2", "depth3", "no_space"])
+def test_domain_block_multilevel_blockquote_fence(tmp_path, prefix):
+    """c1 · S3 承重门①「多层引用围栏行为门」: 任意层引用前缀下的围栏都必须识别。
+
+    survivor 实证: `_strip_code_blocks` 的 `^[>\\s]*` 改成 `^>?[^\\S\\n]*`（只剥一层）后
+    全套件 196 passed 无新增红。既有门 `test_verify_blockquote_fence_hides_nothing`
+    只构造**一层** `> ```；`grep -c "> > " 测试文件` = 0。
+    而 `> > - 信号行` 恰好落在信号行前缀允许式 `[>\\-*·\\s]{0,6}`（6 字符）里
+    ⇒ 变异体下 VERIFY PASS，可 Obsidian 把它渲染成**引用内代码块**（读者看到灰底代码）。
+
+    **它证明什么**: 二层/三层/无空格三种前缀下，藏进围栏的信号行都不被当成在场，
+    且拦截理由是"代码块相关"而非碰巧撞上别的规则。
+    **它不证明什么**: 不证明所有 CommonMark 引用嵌套形态都覆盖（如引用内列表内围栏），
+    也不证明围栏识别对 `~~~` 与反引号的所有交叉组合都正确（同族另配 old-1 门）。
+    """
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    report = write_report(vault, scan)
+    base = run_verify(report)
+    assert base.returncode == 0, f"基线报告本身就不过 verifier:\n{base.stdout}"
+    before = report.read_text(encoding="utf-8")
+    after = _wrap_signals_in_fence(before, prefix)
+    assert after != before, "变异未命中：报告一字未改，这条门测的是空气"
+    report.write_text(after, encoding="utf-8")
+    r = run_verify(report)
+    assert r.returncode != 0, f"{prefix!r} 层引用内的围栏未被识别:\n{r.stdout}"
+    assert "代码块内出现信号名" in r.stdout or "缺信号行" in r.stdout, (
+        f"拦截理由与「信号行藏在代码块里」无关（可能撞上了别的规则）:\n{r.stdout}"
+    )
+    assert "VERIFY PASS" not in r.stdout
+
+
+def test_domain_block_list_item_fence_hides_signals(tmp_path):
+    """round-2 线索门 + round-3 BLOCKER-1/2 修复门: 列表容器内的围栏。
+
+    渲染语义（CommonMark，round-3 与 Codex 双向确认）:
+      · `- ``` ` 开栏 + **缩进 ≥ 内容列** 的内容行 → 内容渲染在代码块内（灰底），
+        verifier 必须剥 ⇒ 藏信号 = 缺行/代码块内信号名;
+      · `- ``` ` 开栏后 **marker 行**（缩进不足的同级 `- 内容`）→ 是**新的 sibling
+        列表项，渲染为可见正文** ⇒ verifier 必须保留 ⇒ 可见伪计数由 D2 拦
+        （round-3 BLOCKER-1: 无容器边界跟踪时它被误剥成代码内容，D2 漏拦）;
+      · **有序 marker** `1. ``` `（round-3 BLOCKER-2）与无序同语义。
+
+    先红证据: `evidence-maintb-r2/codex-hint-repro.txt`（round-2 形态）、
+    `round3-repro.txt`（BLOCKER-1 实测 exit 0）、`round3-v2-probe4.txt`（整改后 19 项行为矩阵）。
+
+    **它证明什么**: 上述三形态的「剥/留」判定与下游拦截各就各位。
+    **它不证明什么**: 不证明所有 CommonMark 容器嵌套（引用内列表内列表等）都覆盖
+    ——以「模板允许的前缀形态 + 常见列表容器」为封闭集。
+    """
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    report = write_report(vault, scan)
+    base = run_verify(report)
+    assert base.returncode == 0, f"基线报告本身就不过 verifier:\n{base.stdout}"
+    text = report.read_text(encoding="utf-8")
+    lines = text.splitlines()
+    idx = [i for i, ln in enumerate(lines) if any(lb in ln for lb in SIGNAL_LABELS)]
+    start, end = idx[0], idx[-1]
+
+    # ① 列表项围栏 + 缩进内容（真代码）→ 剥 → 拦
+    body = ["> - ```"] + [">   " + re.sub(r"^[>\s]*-\s*", "", lines[i]) for i in range(start, end + 1)] + [">   ```"]
+    out = lines[:start] + body + lines[end + 1 :]
+    report.write_text("\n".join(out) + "\n", encoding="utf-8")
+    r = run_verify(report)
+    assert r.returncode != 0, f"列表项围栏(缩进内容)仍被放行:\n{r.stdout}"
+    assert "代码块内出现信号名" in r.stdout or "缺信号行" in r.stdout, f"拦截理由与围栏无关:\n{r.stdout}"
+
+    # ② 有序列表围栏 + 缩进内容（round-3 BLOCKER-2）→ 剥 → 拦
+    body = ["1. ```"] + ["   " + re.sub(r"^[>\s]*-\s*", "", lines[i]) for i in range(start, end + 1)] + ["1. ```"]
+    out = lines[:start] + body + lines[end + 1 :]
+    report.write_text("\n".join(out) + "\n", encoding="utf-8")
+    r = run_verify(report)
+    assert r.returncode != 0, f"有序列表围栏仍被放行:\n{r.stdout}"
+    assert "代码块内出现信号名" in r.stdout or "缺信号行" in r.stdout, f"拦截理由与围栏无关:\n{r.stdout}"
+
+    # ③ sibling marker 行 = 可见正文（round-3 BLOCKER-1）→ 保留 → D2 拦伪计数
+    r = _mutate_report(
+        tmp_path / "sibling",
+        lambda t, s: t.replace(
+            "## 三维审查",
+            "## 三维审查\n\n- ```\n- 本板共有 987654 个子节点\n- ```\n",
+            1,
+        ),
+    )
+    assert r.returncode != 0, f"sibling 列表项可见伪计数被放行:\n{r.stdout}"
+    assert "找不到同值来源" in r.stdout, f"拦截理由不是 D2:\n{r.stdout}"
+
+    # ④ sibling marker 行放合规信号 = 可见且合规 → 放行（渲染语义锁，防过剥）
+    r = _mutate_report(
+        tmp_path / "sibling_ok",
+        lambda t, s: t.replace(
+            "## 三维审查",
+            "## 三维审查\n\n- ```\n- 本报告信号与数据快照一致\n- ```\n",
+            1,
+        ),
+    )
+    assert r.returncode == 0, f"sibling 列表项可见正文被误伤:\n{r.stdout}"
+
+
+def test_domain_strip_code_blocks_unit_contract():
+    """c2 · S3 承重门②「`_strip_code_blocks` 单元契约门」: 直接调函数验双向行为。
+
+    行为门（c1/列表围栏门）走整条 verifier，误伤面与拦截面都可能被别的规则掩盖；
+    这道单元门把契约钉在函数本身（round-3 重写为渲染语义三分类）:
+      · **剥空**（真代码内容，渲染为灰底）: 任意层引用围栏 / 列表项围栏 +
+        缩进达内容列的内容 / 有序列表围栏；
+      · **保留**（sibling marker 行 = 可见正文，round-3 BLOCKER-1 的语义反转）:
+        `- ``` ` 开栏后缩进不足的同级 `- 内容` 行——围栏行剥空但内容行原样；
+      · **零改动**: 合法列表 / thematic break / 无围栏结构。
+
+    **它证明什么**: 上述三分类的逐形态行为。
+    **它不证明什么**: 不证明调用方（`_verify_signal_lines` / `_verify_prose_counts`）
+    正确使用了它——那是行为门的事；也不穷尽 CommonMark 容器嵌套。
+    """
+    rs = _load_recap_scan()
+
+    def mid_kept(got: str, src: str) -> bool:
+        """围栏行剥空 + **内容行**（第 2 行）原样保留 = sibling 可见正文语义。"""
+        g, s = got.split("\n"), src.split("\n")
+        return len(g) == len(s) and g[1] == s[1] and not g[0].strip() and not g[2].strip()
+
+    # ── 剥空（真代码内容）──
+    for name, src in (
+        ("两层引用围栏", "> > ```\n> > x\n> > ```"),
+        (
+            "列表围栏+缩进内容",
+            "> - ```\n>   未答问题年龄：无据（无带时间戳批注）\n>   ```",
+        ),
+        (
+            "无引用列表围栏+缩进内容",
+            "- ```\n  未答问题年龄：无据（无带时间戳批注）\n- ```",
+        ),
+        (
+            "有序列表围栏+缩进内容",
+            "1. ```\n   > - 来源覆盖率：0/3 成员含来源锚点【实测】\n1. ```",
+        ),
+        ("普通围栏", "```\n本板共有 987654 个子节点\n```"),
+    ):
+        got = rs._strip_code_blocks(src)
+        # ⚠️ 必须用 split("\n") 不能用 splitlines(): 三行全空时结果是 "\n\n",
+        # splitlines() 只给两项——第一次写就踩了，如实留注。
+        assert all(not x.strip() for x in got.split("\n")), f"{name} 未整块剥空: {src!r} → {got!r}"
+
+    # ── 保留（sibling marker 行 = 可见正文）──
+    for name, src in (
+        (
+            "引用内 sibling",
+            "> - ```\n> - 未答问题年龄：无据（无带时间戳批注）\n> - ```",
+        ),
+        ("无引用 sibling", "- ```\n- 本板共有 987654 个子节点\n- ```"),
+    ):
+        got = rs._strip_code_blocks(src)
+        assert mid_kept(got, src), f"{name}: 内容行应保留（可见正文）却被剥: {got!r}"
+
+    # ── 零改动 ──
+    for name, legit in (
+        ("thematic break", "---\n正文\n---"),
+        ("合法二级引用列表", "> > - 合法二级引用列表"),
+        (
+            "合法三级列表",
+            "- 一级\n  - 二级\n    - 三级列表（四空格缩进，合法 Markdown）",
+        ),
+    ):
+        assert rs._strip_code_blocks(legit) == legit, f"{name} 被误剥: {legit!r}"
+    # 三层引用围栏仍剥空
+    p = "> > > "
+    got = rs._strip_code_blocks(f"{p}```\n{p}藏起来的正文\n{p}```")
+    assert all(not x.strip() for x in got.split("\n")), f"三层引用围栏未剥空: {got!r}"
+
+
+def test_domain_block_fence_close_must_be_same_char(tmp_path):
+    """old-1 承重门: 闭栏的「同字符」条件是承重的（`~~~` 不得关掉 ``` 开的围栏）。
+
+    ⛔ 本卡新发现（不在 goal 点名的三个 survivor 内）: (a) 重放实测，
+    单独删掉闭栏的「同字符」判据后全套件 196 passed 无新增红——**它也是 survivor**。
+    验收单原写「变异脚本的 survivor-1 已把 E1 两条判据一起禁，现如期变红 2/2」，
+    但那条变体是把**同字符 + 长度 + 尾随空白**三条一起禁；
+    只禁同字符这一条时套件全绿 ⇒ 那句话比证据宽。
+
+    **它证明什么**: 用 `~~~` 伪闭合一个 ``` 围栏时，其后的信号行仍被当作在块内。
+    **它不证明什么**: 不证明 CommonMark 围栏规则被完整实现（长度/缩进/info string
+    另有 `test_domain_block_four_fence_short_close` 等门）。
+    """
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    report = write_report(vault, scan)
+    base = run_verify(report)
+    assert base.returncode == 0, f"基线报告本身就不过 verifier:\n{base.stdout}"
+    before = report.read_text(encoding="utf-8")
+    first_sig = next(ln for ln in before.splitlines() if SIGNAL_LABELS[0] in ln)
+    after = before.replace(first_sig, "> ```\n> 无关正文\n> ~~~\n" + first_sig, 1)
+    assert after != before, "变异未命中：报告一字未改，这条门测的是空气"
+    report.write_text(after, encoding="utf-8")
+    r = run_verify(report)
+    assert r.returncode != 0, f"`~~~` 伪闭合了 ``` 围栏，信号行被当成在场:\n{r.stdout}"
+    assert "代码块内出现信号名" in r.stdout or "缺信号行" in r.stdout, f"拦截理由与围栏无关:\n{r.stdout}"
+
+
+# ── (d) S4: fallback「派生」允许式加一条自由叙述即放宽 ────────────────
+
+D1_NEGATIVES = [
+    "备注：SeedA 的派生子女数为 3 个。",
+    "注：SeedA 的派生子女数为 3 个。",
+    "说明：SeedA 的派生子女数为 3 个。",
+    "补充：SeedA 的派生子女数为 3 个。",
+    "PS：SeedA 的派生子女数为 3 个。",
+    "> 备注：SeedA 的派生子女数为 3 个。",
+    "- 备注：SeedA 的派生子女数为 3 个。",
+    "SeedA 派生了 3 个子节点。",
+]
+
+
+@pytest.mark.parametrize(
+    "bogus",
+    D1_NEGATIVES,
+    ids=[
+        "beizhu",
+        "zhu",
+        "shuoming",
+        "buchong",
+        "ps",
+        "quote_beizhu",
+        "list_beizhu",
+        "bare",
+    ],
+)
+def test_domain_block_freeform_derivation_note(tmp_path, bogus):
+    """d1 · S4 承重门①「自由叙述行为门」: 模板外的「派生」表述必须被拦。
+
+    survivor 实证: 往允许式里加一条 `^\\s*备注[：:].*派生.*$` 后全套件 196 passed
+    无新增红 —— 既有门 `test_verify_derivation_assertion_outside_seed_section`
+    只喂**对全部模式都不匹配**的句子，往表里加一条模式除非恰好有测试喂那条模式
+    的句子，否则不可见。
+
+    ⚠️ 语料刻意避开 `_D2_CLAIM_RE`（无「本板/全板 + 共有」）与 fallback 禁词表，
+    否则拦截会来自别的规则、变异体下仍红 ⇒ 门看着绿其实不承重。
+
+    **它证明什么**: 七种前缀 + 一句裸叙述写进 fallback 报告 ①段时 exit 1，
+    且理由是「模板外的『派生』表述」。
+    **它不证明什么**: 不证明允许式表本身完备（合法形态另由放行门与 d2 覆盖），
+    也不覆盖 manifest 模式（该检查是 fallback 专属）。
+    """
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    assert scan["data_mode"] == "fallback_local"
+    report = write_report(vault, scan)
+    base = run_verify(report)
+    assert base.returncode == 0, f"基线报告本身就不过 verifier:\n{base.stdout}"
+    lines = report.read_text(encoding="utf-8").splitlines()
+    idx = next(i for i, ln in enumerate(lines) if ln.startswith("### ① "))
+    lines.insert(idx + 1, bogus)
+    report.write_text("\n".join(lines), encoding="utf-8")
+    r = run_verify(report)
+    assert r.returncode == 1, f"模板外派生叙述被放行: {bogus}\n{r.stdout}"
+    assert "模板外的『派生』表述" in r.stdout, (
+        f"拦截理由不是派生白名单（可能撞上了别的规则，那样这条门就不承重）:\n{r.stdout}"
+    )
+
+
+# SKILL Step 5 模板 / live 真报告里**合法**的「派生」行形态（d2 的正例集）
+D2_SKILL_POSITIVES = [
+    "> 3 成员（1 种子 + 2 派生，0 占位）/ 3 批注 /",
+    "## 台账（种子/派生）",
+    "### 派生",
+    "> - 无来源结论：1/2 派生角色成员缺来源锚点【文件】",
+    "> - 无来源结论：无据（本板无派生角色成员）",
+    "> - 关系类型分布：derived_from 1 · extends 1",
+    "2. 在原白板选中相关文本 `Cmd+Shift+D` 派生新节点【实测】",
+    "2 个派生角色成员缺来源锚点。",
+    "方向叙述：来源锚点缺失集中在派生角色成员，关联声明以既有数据为准。",
+]
+
+
+def test_domain_derive_allow_entries_are_grounded(tmp_path):
+    """d2 · S4 承重门②「允许式绑定结构门」: 每条允许式都必须有**可验证的依据**。
+
+    d1 拦的是"表外的句子"，d2 拦的是"往表里塞一条没有依据的模式"——
+    后者才是 survivor 的实际形态（改的是实现，不是报告）。
+    逐条判据:
+      · `scan:<路径>` → 该路径必须能在**真实** scan JSON 里解析到；
+      · `md:heading`  → 模式必须以 `^#{1,6}` 起（真的是在匹配标题结构）；
+      · `skill:action-verb` → 模式必须含 SKILL HARD-CONSTRAINTS 白名单动词之一；
+      · `skill:③段固定句式` → 归口 SKILL.md ③段模板/叙述句式；
+      · 且**每条**模式至少匹配一条 SKILL 模板正例、且**不匹配** d1 反例集里的任何一行。
+
+    最后一条是关键: 「备注：…派生…」这类自由允许式无论挂什么依据，
+    都会因为"匹配到了 d1 反例"而变红。
+
+    **它证明什么**: 表内 8 条允许式各有可解析的依据、都在匹配真实模板形态、
+    且没有一条会顺带放行 d1 的越界语料。
+    **它不证明什么**: 不证明这 8 条**穷尽**了合法形态（漏一条合法形态表现为误伤，
+    由 live/合成真语料放行门守）；`skill:③段固定句式` 的依据是**语义归口**，
+    不是与 SKILL.md 的逐字比对（SKILL.md:203 原文无「角色」二字，逐字锁会锁错）。
+    """
+    rs = _load_recap_scan()
+    scan = collect_json(standard_vault(tmp_path))
+    table = rs._FALLBACK_DERIVE_ALLOW
+    assert len(table) >= 8, f"允许式表条目数异常: {len(table)}"
+    for pattern, basis in table:
+        if basis.startswith("scan:"):
+            node = scan
+            for part in basis[len("scan:") :].split("."):
+                assert isinstance(node, dict) and part in node, (
+                    f"依据 {basis!r} 在真实 scan JSON 里解析不到（到 {part!r} 断链）"
+                )
+                node = node[part]
+        elif basis == "md:heading":
+            assert pattern.pattern.startswith("^#{1,6}"), f"依据声明为标题结构，模式却不是标题锚定: {pattern.pattern!r}"
+        elif basis == "skill:action-verb":
+            # ⚠️ 白名单动词在模式里是**正则转义**过的（`Cmd\+Shift\+D`），
+            # 裸子串比对会恒假 —— 这条断言第一次写就因此变红，如实留注。
+            assert any(v in pattern.pattern or re.escape(v) in pattern.pattern for v in rs._VERIFY_ACTION_VERBS), (
+                f"依据声明为 SKILL 白名单动词，模式里却没有任何白名单动词: {pattern.pattern!r}"
+            )
+        elif basis == "skill:③段固定句式":
+            assert "派生角色成员" in pattern.pattern, (
+                f"依据声明为 ③段固定句式，模式却不含该句式的锚: {pattern.pattern!r}"
+            )
+        else:
+            pytest.fail(f"未知依据类型 {basis!r} —— 新增允许式必须带可验证依据")
+        assert any(pattern.match(p) for p in D2_SKILL_POSITIVES), (
+            f"允许式 {pattern.pattern!r} 匹配不到任何 SKILL 模板正例（它在放行什么？）"
+        )
+        for neg in D1_NEGATIVES:
+            assert not pattern.match(neg), f"允许式 {pattern.pattern!r}（依据 {basis}）放行了越界语料: {neg!r}"
+
+
+def test_domain_derive_allow_covers_every_skill_positive(tmp_path):
+    """d2 反向锁: 每条 SKILL 模板正例都必须被表里**某条**允许式放行。
+
+    只验"允许式不放行反例"会让"把表删空"通过（空表不放行任何反例）。
+    这条从另一侧钉住: 表不能收窄到打到合法模板。
+    """
+    rs = _load_recap_scan()
+    for pos in D2_SKILL_POSITIVES:
+        assert any(p.match(pos) for p, _ in rs._FALLBACK_DERIVE_ALLOW), (
+            f"SKILL 模板正例被允许式表整体拒绝（误伤）: {pos!r}"
+        )
+
+
+@pytest.mark.parametrize(
+    "bogus",
+    [
+        "派生角色成员的子女数为 987654 个。",
+        "3 个派生角色成员的子女数合计 987654 个。",
+        "本轮优化集中在派生角色成员的 987654 个子女上。",
+    ],
+    ids=["free_tail", "leading_count_free_tail", "jizhong_free_tail"],
+)
+def test_domain_block_derive_clause_free_tail(tmp_path, bogus):
+    """D3 裁决（⑦ 自由段收紧）: 「派生角色成员」句式的自由尾段不得夹带子女数。
+
+    ⛔ (a) 重放实测的**同族缺口**（不在三个 survivor 内）: ⑦ 原式
+    `^[>\\s]*(?:\\d+\\s*个)?派生角色成员[^。\\n]*。?\\s*$` 的 `[^。\\n]*` 自由段
+    让「派生角色成员的子女数为 987654 个。」在**原版**上 exit 0。
+    收紧口径以 SKILL.md:267 信号行模板（`<value>/<denominator> 派生角色成员缺来源锚点`）
+    + :203 叙述句式（原文「N 个派生成员缺来源锚点」，无「角色」二字——
+    同步锁比**匹配语义**不比字面）为准: 谓语固定为「缺来源锚点」，尾段禁裸数字。
+
+    **它证明什么**: 三种自由尾段形态现在 exit 1 且理由是派生白名单。
+    **它不证明什么**: 不证明 fallback 下所有伪计数都被拦（D2 只管自称全板规模的句式，
+    D1 只管模板行；两者未覆盖的位置仍留给人工判读——这是如实登记的边界）。
+    """
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    assert scan["data_mode"] == "fallback_local"
+    report = write_report(vault, scan)
+    lines = report.read_text(encoding="utf-8").splitlines()
+    idx = next(i for i, ln in enumerate(lines) if ln.startswith("### ③ "))
+    lines.insert(idx + 1, bogus)
+    report.write_text("\n".join(lines), encoding="utf-8")
+    r = run_verify(report)
+    assert r.returncode == 1, f"⑦ 自由尾段仍放行: {bogus}\n{r.stdout}"
+    assert "模板外的『派生』表述" in r.stdout, f"拦截理由不是派生白名单:\n{r.stdout}"
+
+
+# ── (e) 「口径一致」封闭注记槽（第七批 §三 B-1 建议甲，默认执行、待用户裁决） ──
+
+
+def _tail_note_line(text: str, label: str, note_form: str) -> tuple[str, str]:
+    """把 label 信号行的档位标注前插入注记，返回 (原行, 新行)。"""
+    line = _sig_line(text, label)
+    return line, line.replace("【", note_form + "【", 1)
+
+
+@pytest.mark.parametrize(
+    "label,note_form",
+    [
+        ("来源覆盖率", "口径一致"),
+        ("来源覆盖率", " · 口径一致"),
+        ("无来源结论", "口径一致"),
+    ],
+    ids=["coverage_adjacent", "coverage_middot", "unsourced_adjacent"],
+)
+def test_domain_allow_signal_tail_note(tmp_path, label, note_form):
+    """e1 放行门: 信号行尾部的**封闭表**注记「口径一致」必须放行。
+
+    ⛔ 这是 goal 点名、round-5/6 一直挂着的输入。开工前实测（存档
+    `evidence/e1-pre-implementation-red.txt`）: 紧接式与 ` · ` 分隔式**均 exit 1**
+    （理由「未整行匹配标准式」）⇒ 本门先红后绿成立。
+
+    处置口径 = 第七批复核裁定 §三 **B-1 建议甲（放宽规则）**，
+    ⚠️ 与本卡上一版验收单裁决点 1 的甲/乙标签**相反**（那里甲 = 不许附注）：
+    实现的是**封闭表注记槽**（`_SIGNAL_TAIL_NOTES`），不是自由文本槽——
+    自由槽等于把 H-3 那条黑名单老路重开一遍。**仍待你裁决**。
+
+    **它证明什么**: 表内短语在两种分隔形态下、在 X/N 型信号行上放行且整篇 VERIFY PASS。
+    **它不证明什么**: 不证明"任意附注"放行（e2 反向锁），也不证明无据行可带附注
+    （无据行不适用本槽，e2 末条锁）。
+    """
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    report = write_report(vault, scan)
+    base = run_verify(report)
+    assert base.returncode == 0, f"基线报告本身就不过 verifier:\n{base.stdout}"
+    text = report.read_text(encoding="utf-8")
+    old, new = _tail_note_line(text, label, note_form)
+    assert new != old, "构造未命中，这条门测的是空气"
+    report.write_text(text.replace(old, new, 1), encoding="utf-8")
+    r = run_verify(report)
+    assert r.returncode == 0, f"封闭表注记被误伤 ({label}/{note_form!r}):\n{r.stdout}"
+    assert "VERIFY PASS" in r.stdout
+
+
+@pytest.mark.parametrize(
+    "note_form",
+    [
+        "口径一致另有仨条",
+        "另有仨条口径一致",
+        "口径一致 2/3",
+        "口径一致/3",
+        "口径一致口径一致",
+        "口径不一致",
+    ],
+    ids=[
+        "note_then_smuggle",
+        "smuggle_then_note",
+        "note_then_pair",
+        "note_then_slash",
+        "note_twice",
+        "not_in_table",
+    ],
+)
+def test_domain_block_signal_tail_note_outside_table(tmp_path, note_form):
+    """e2 拦截门: 注记槽是**封闭表**，不是自由文本槽。
+
+    ⛔ 槽一旦写成 `[^【】]*` 之类的自由式，H-3 那条"先开放再排除"的黑名单老路
+    立刻复活（「另有仨条」正是当年绕过的原话）。本门逐条钉死:
+    表内短语的前后都不许夹带、不许重复、近似词（`口径不一致`）不算。
+
+    **它证明什么**: 六种夹带/近似形态一律 exit 1 且理由是"未整行匹配标准式"。
+    **它不证明什么**: 不证明穷尽了所有夹带写法（表外是无限集），
+    只证明槽的**封闭性**在这六个代表形态上成立。
+    """
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    report = write_report(vault, scan)
+    text = report.read_text(encoding="utf-8")
+    old, new = _tail_note_line(text, "来源覆盖率", note_form)
+    assert new != old, "构造未命中，这条门测的是空气"
+    report.write_text(text.replace(old, new, 1), encoding="utf-8")
+    r = run_verify(report)
+    assert r.returncode == 1, f"表外注记被放行: {note_form!r}\n{r.stdout}"
+    assert "未整行匹配标准式" in r.stdout, f"拦截理由异常:\n{r.stdout}"
+    assert "VERIFY PASS" not in r.stdout
+
+
+def test_domain_block_nodata_line_takes_no_tail_note(tmp_path):
+    """e2 补充: **无据行**不适用注记槽（它另有整行固定模板）。"""
+    vault = build_vault(tmp_path, ["SeedA", "DerivedB"])
+    write_node(vault, "SeedA")
+    write_node(vault, "DerivedB", derived_from="[[SeedA]]")
+    scan = collect_json(vault)
+    assert scan["signals"]["duplicate_accumulation"]["availability"] == "无据"
+    report = write_report(vault, scan)
+    text = report.read_text(encoding="utf-8")
+    line = next(ln for ln in text.splitlines() if "重复堆积" in ln)
+    report.write_text(text.replace(line, line + "口径一致", 1), encoding="utf-8")
+    r = run_verify(report)
+    assert r.returncode == 1, f"无据行带了注记却被放行:\n{r.stdout}"
+    assert "无据行未整行匹配标准式" in r.stdout
+
+
+def test_domain_skill_sync_signal_tail_notes_table():
+    """e3 表锁: `_SIGNAL_TAIL_NOTES` 与 SKILL.md ③段铁律的附注表必须全等 + 篡改门。
+
+    **它证明什么**: 代码侧注记表与文档侧逐字同序一致，单侧改动即红。
+    **它不证明什么**: 不证明表内短语在运行时真的放行（e1）或表外真的被拦（e2）。
+    """
+    rs = _load_recap_scan()
+    skill_text = SKILL_MD.read_text(encoding="utf-8")
+    parsed = _parse_skill_tail_notes(skill_text)
+    assert parsed, "SKILL.md 里解析不到信号行附注表"
+    assert tuple(parsed) == rs._SIGNAL_TAIL_NOTES, (
+        f"代码与 SKILL.md 的附注表不同步:\n  代码 = {rs._SIGNAL_TAIL_NOTES}\n  SKILL = {tuple(parsed)}"
+    )
+    note_line = next(
+        ln for ln in skill_text[skill_text.find("附注只许") :].splitlines()[1:] if re.findall(r"`([^`\n]+)`", ln)
+    )
+    for name, bad_line in {
+        "多一项": note_line.replace("`口径一致`", "`口径一致` / `另有仨条`", 1),
+        "改文案": note_line.replace("`口径一致`", "`口径不一致`", 1),
+    }.items():
+        bad = skill_text.replace(note_line, bad_line, 1)
+        assert bad != skill_text, f"{name}: 篡改未命中，这条篡改门测的是空气"
+        assert tuple(_parse_skill_tail_notes(bad)) != rs._SIGNAL_TAIL_NOTES, (
+            f"{name} 后附注表同步锁仍判「一致」—— 该锁不承重"
+        )
+
+
+def test_domain_allow_note_as_independent_line(tmp_path):
+    """e4 现状锁: 「口径一致」写成**下一条独立叙述行**始终放行（round-1 Codex 的建议形态）。
+
+    开工前实测 exit 0；本门把它钉住，防止注记槽上线后反而把这条路堵死。
+    """
+    r = _mutate_report(
+        tmp_path,
+        lambda text, scan: text.replace("\n方向叙述：", "\n\n口径一致。\n\n方向叙述：", 1),
+    )
+    assert r.returncode == 0, f"独立叙述行形态被误伤:\n{r.stdout}"
+
+
+# ── (f) 含 signals 的真语料放行门（第七批 §三 B-3 建议「补」，默认执行） ──
+
+SYNTH_FIXTURES = Path(__file__).parent / "fixtures" / "recap_synthetic_signals"
+SYNTH_REPORT = "回顾-CS 61B-2026-09-01.md"
+
+
+def _synth_workdir(tmp_path: Path) -> Path:
+    work = tmp_path / "outputs"
+    work.mkdir(parents=True)
+    for src in SYNTH_FIXTURES.iterdir():
+        shutil.copy2(src, work / src.name)
+    return work
+
+
+def test_synthetic_signals_report_passes(tmp_path):
+    """(f) 放行门: **含 signals 的真 scan** 渲染出的整篇报告必须 exit 0。
+
+    ⛔ 证据边界（Codex round-1 MEDIUM 的直接整改）: 四份 live 真报告的 scan
+    **都没有 `signals` 键**，生产代码会整块跳过信号行校验 ⇒ 它们能证明
+    「D1/D2 不误伤真语料」，**不能**证明「信号行固定尾部不误伤」。
+
+    本 fixture 的诚实口径 = **scan 真、③段渲染**（⛔ 不是「live 真报告」）:
+      · scan JSON 是 live vault `CS 61B` 板的**只读** collect 真产物
+        （执行前后 live outputs 8 份 shasum+mtime 逐字相同，证据在验收单）；
+      · 报告③段的四条信号行按 SKILL.md Step 5 模板逐字渲染，
+        其余散文取自 live 2026-08-27 真报告并按 fallback 口径去掉 manifest 专属陈述。
+    ⚠️ synthetic 标记落在**目录名**上而非文件名: verifier 强制
+    「文件名解析出的板名 == frontmatter board」，文件名带后缀会被判
+    「绑定另一块板的 scan JSON」（实测）。
+
+    **它证明什么**: 真 scan 的四条信号行（含一条无据行）在整篇报告里不被误伤。
+    **它不证明什么**: 不证明这份报告是 LLM 真实产出的（③段是我按模板渲染的），
+    也没有 live 侧的逐字节哈希门（scan 随时间变，钉不住）。
+    """
+    work = _synth_workdir(tmp_path)
+    scan = json.loads((work / ".recap-scan-CS 61B.json").read_text(encoding="utf-8"))
+    assert "signals" in scan, "fixture 的 scan 没有 signals 键，这条门测的是空气"
+    assert scan["signals"]["source_coverage"]["availability"] != "无据", (
+        "fixture 的信号全是无据档，证明不了 X/N 型固定尾部不误伤"
+    )
+    r = run_verify(work / SYNTH_REPORT)
+    assert r.returncode == 0, f"含 signals 的真语料被误伤:\n{r.stdout}"
+    assert "VERIFY PASS" in r.stdout
+
+
+@pytest.mark.parametrize(
+    "old,new",
+    [
+        ("最老 21 天", "最老 22 天"),
+        ("参与统计 3 条", "参与统计 4 条"),
+        ("p25/p50/p75 = 20/21/21 天", "p25/p50/p75 = 20/21/99 天"),
+        ("0/2 成员含来源锚点", "1/2 成员含来源锚点"),
+        ("0/3 条批注为重复条目", "1/3 条批注为重复条目"),
+        (
+            "无来源结论：无据（本板无派生角色成员）",
+            "无来源结论：0/2 派生角色成员缺来源锚点【文件】",
+        ),
+    ],
+    ids=[
+        "age_value",
+        "age_denom",
+        "percentile",
+        "coverage_value",
+        "duplicate_value",
+        "nodata_to_measured",
+    ],
+)
+def test_synthetic_signals_tamper_fails(tmp_path, old, new):
+    """(f) 篡改门（与放行门同权重）: 真语料**被篡改后**必须 FAIL。
+
+    ⛔ Codex round-1 BLOCKER-3 的教训: 放行门只证明了「真报告 PASS」，
+    **没有证明「真报告被篡改后 FAIL」**——正例过了就以为门在工作，是假绿的经典形态。
+    六条各打一个信号字段（含把无据行改写成有数行）。
+    """
+    work = _synth_workdir(tmp_path)
+    rp = work / SYNTH_REPORT
+    before = rp.read_text(encoding="utf-8")
+    after = before.replace(old, new, 1)
+    assert after != before, f"篡改未命中「{old}」，这条门测的是空气"
+    rp.write_text(after, encoding="utf-8")
+    r = run_verify(rp)
+    assert r.returncode == 1, f"信号数字被改却仍 PASS: {old} → {new}\n{r.stdout}"
+
+
+# ── round-3 整改门（Codex round-3: BLOCKER-1/2 + HIGH-3/4/5/6；先红证据
+#    evidence-maintb-r2/round3-repro.txt 与 round3-v2-probe4.txt）──────────
+
+
+def test_domain_r3_eof_unclosed_fence_signal_caught(tmp_path):
+    """HIGH-3: EOF 未闭合围栏的伪信号行必须被「代码块内出现信号名」逮住。
+
+    原实现用 zip() 对齐原文/剥后文本——EOF 未闭合围栏把尾部剥空后 splitlines()
+    行数差让最后一行原文不参与比较，伪信号逃过检查（实测 exit 0）。
+    修复 = zip_longest 对齐。
+    """
+    r = _mutate_report(
+        tmp_path,
+        lambda t, s: t + "\n```\n> - 来源覆盖率：9/9 成员含来源锚点【实测】\n",
+    )
+    assert r.returncode != 0, f"EOF 未闭合围栏伪信号被放行:\n{r.stdout}"
+    assert "代码块内出现信号名" in r.stdout, f"拦截理由异常:\n{r.stdout}"
+
+
+def test_domain_r3_nodata_signal_line_only_in_section3(tmp_path):
+    """HIGH-4: 「无来源结论」信号行只许出现在③段（附录同形行必拦）。
+
+    fallback 措辞白名单 (#3/#4) 作用于全文——③段外的同形行不受信号绑定保护，
+    实测附录 `987654/2` 伪信号与矛盾无据行都 VERIFY PASS。
+    修复 = _verify_fallback_derive_numbers 限定 ③ 段。
+    """
+    for name, extra in (
+        (
+            "伪有数信号",
+            "\n## 附录\n\n- 无来源结论：987654/2 派生角色成员缺来源锚点【实测】\n",
+        ),
+        ("矛盾无据信号", "\n## 附录\n\n> - 无来源结论：无据（分母为零）\n"),
+    ):
+        r = _mutate_report(tmp_path / name, lambda t, s, e=extra: t + e)
+        assert r.returncode != 0, f"{name}: ③段外无来源结论行被放行:\n{r.stdout}"
+        assert "只许出现在③段" in r.stdout, f"{name}: 拦截理由异常:\n{r.stdout}"
+
+
+@pytest.mark.parametrize(
+    "name,inject",
+    [
+        ("fullwidth_tail", "2 个派生角色成员缺来源锚点，另有９８７６５４个。"),
+        ("cjk_tail", "2 个派生角色成员缺来源锚点，另有九十八万个。"),
+        ("arbitrary_prefix", "9 个派生角色成员缺来源锚点。"),
+    ],
+    ids=["fullwidth_tail", "cjk_tail", "arbitrary_prefix"],
+)
+def test_domain_r3_derive_clause_numbers_bound(tmp_path, name, inject):
+    """HIGH-5: 「派生角色成员缺来源锚点」句式的数字必须受控。
+
+    · 前置 N 必须全等 signals.unsourced_conclusions.value（standard_vault 真值 0）；
+    · 尾段数字禁令从 ASCII 扩到全角 + 中文数词（原 `[^。\\n0-9]*` 放行
+      `９８７６５４` / `九十八万`）。
+    """
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    assert scan["data_mode"] == "fallback_local"
+    assert scan["signals"]["unsourced_conclusions"]["value"] == 0, "fixture 真值变化，先改此门"
+    report = write_report(vault, scan)
+    lines = report.read_text(encoding="utf-8").splitlines()
+    idx = next(i for i, ln in enumerate(lines) if ln.startswith("### ③ "))
+    lines.insert(idx + 1, inject)
+    report.write_text("\n".join(lines), encoding="utf-8")
+    r = run_verify(report)
+    assert r.returncode == 1, f"{name}: 越界数字叙述被放行:\n{r.stdout}"
+    assert "派生角色成员" in r.stdout or "模板外的『派生』表述" in r.stdout, f"{name}: 拦截理由异常:\n{r.stdout}"
+
+
+def test_domain_r3_derive_allow_numbers_in_pool(tmp_path):
+    """HIGH-6: fallback 允许式放行的行，行内数字必须在 scan 数值池。
+
+    · `#### 派生子女 987654 个的说明`（四级标题，不截断③段）曾放行；
+    · `- 关系类型分布：无 987654` 曾放行。
+    反向: 无数字的合法标题/关系行、报告主标题年份不受牵连。
+    """
+    for name, inject, want in (
+        ("标题夹伪计数", "\n#### 派生子女 987654 个的说明\n", 1),
+        ("关系行夹伪计数", "\n- 关系类型分布：无 987654\n", 1),
+        ("合法关系行无数字", "\n- 关系类型分布：无\n", 0),
+    ):
+        r = _mutate_report(
+            tmp_path / name,
+            lambda t, s, e=inject: t.replace("方向叙述：", f"{e}\n方向叙述：", 1) if e else t,
+        )
+        if want == 1:
+            assert r.returncode != 0, f"{name}: 无出处数字被放行:\n{r.stdout}"
+            assert "无出处" in r.stdout, f"{name}: 拦截理由异常:\n{r.stdout}"
+        else:
+            assert r.returncode == 0, f"{name}: 合法行被误伤:\n{r.stdout}"
+    # 主标题年份不误伤（`# 回顾 · 板 · 2026-09-01` 不含「派生」，不在检查范围）
+    # ——由上面「合法关系行无数字」与全套件的放行门共同覆盖；不单列空变异 case
+    # （_mutate_report 的防空气断言会拒绝不改内容的变异）。
+
+
+# ── round-4 整改门（Codex round-4 被 cyber 过滤器截断，无终裁；其 stderr
+#    抢救探针 A/B/C 三缝隙由车道独立复现实锤后整改。先红证据
+#    evidence-maintb-r2/round4-repro.txt，整改后 round4-after2.txt）──────────
+
+
+def test_domain_r4_leading_space_blockquote_list_fence(tmp_path):
+    """round-4 A: 前导空格的引用内列表围栏（` > - ``` `）藏信号必须拦。
+
+    `_quote_width` 原来只从 `>` 起算——引用标记**前**的前导空白不计入时，
+    内容列被算大，` >   信号行` 被误判「缩进不足→容器结束→可见正文」而放行；
+    markdown-it 确认该形态渲染在 `<pre><code>` 内（Codex round-4 stderr 实证）。
+    """
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    report = write_report(vault, scan)
+    lines = report.read_text(encoding="utf-8").splitlines()
+    idx = [i for i, ln in enumerate(lines) if any(lb in ln for lb in SIGNAL_LABELS)]
+    core = [lines[i].lstrip("> ").lstrip("- ").strip() for i in range(idx[0], idx[-1] + 1)]
+    body = [" > - ```"] + [" >   " + x for x in core] + [" >   ```"]
+    out = lines[: idx[0]] + body + lines[idx[-1] + 1 :]
+    report.write_text("\n".join(out) + "\n", encoding="utf-8")
+    r = run_verify(report)
+    assert r.returncode != 0, f"前导空格引用内列表围栏藏信号被放行:\n{r.stdout}"
+    assert "代码块内出现信号名" in r.stdout or "缺信号行" in r.stdout
+
+
+def test_domain_r4_manifest_appendix_signal_in_section3_only(tmp_path):
+    """round-4 B: 「无来源结论」限定③段对 **manifest 模式**同样生效。
+
+    HIGH-4 的限定原本只挂在 fallback 分支——manifest 报告的附录伪信号
+    `987654/2 派生角色成员缺来源锚点` 实测放行（Codex round-4 探针 B）。
+    """
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault, "--manifest", str(make_manifest(vault)))
+    assert scan["data_mode"] == "manifest"
+    report = write_report(vault, scan)
+    with report.open("a", encoding="utf-8") as f:
+        f.write("\n## 附录\n\n- 无来源结论：987654/2 派生角色成员缺来源锚点【实测】\n")
+    r = run_verify(report)
+    assert r.returncode != 0, f"manifest 附录伪信号被放行:\n{r.stdout}"
+    assert "只许出现在③段" in r.stdout
+
+
+def test_domain_r4_derive_allow_cjk_numbers_in_pool(tmp_path):
+    """round-4 C: 允许式行内的**中文数词**也必须入池比对。
+
+    `#### 派生子女 九十八万个 的说明`——`\\d+` 抓不到中文数字，实测放行
+    （Codex round-4 探针 C）。
+    ⛔ round-5 定向复核 HIGH 整改: 多字数词**不再交给 _cjk_to_int**——提取
+    字符集与映射表同集导致「解析失败」分支静态不可达，且连续数字字只留末位
+    （「五四」得 4）可能按错值查池。现只认**单字**数词（值=映射，绝对确定），
+    多字串一律「无法验证」fail-closed（模板/合成语料无多字合法用例，零误伤）。
+    """
+    # 多字数词 → 无法验证（round-5 HIGH 锁: 不许按错值查池后放行）
+    for name, inject in (
+        ("九十八万", "\n#### 派生子女 九十八万个 的说明\n"),
+        ("五四_末位陷阱", "\n#### 派生子女 五四 个 的说明\n"),
+    ):
+        r = _mutate_report(
+            tmp_path / name,
+            lambda t, s, e=inject: t.replace("方向叙述：", f"{e}\n方向叙述：", 1),
+        )
+        assert r.returncode != 0, f"{name}: 中文数词绕过被放行:\n{r.stdout}"
+        assert "无法验证" in r.stdout, f"{name}: 应走「无法验证」fail-closed（不许按解析值查池）:\n{r.stdout}"
+
+
+# ══════════ CARD-维护B-R3 · 中文数词终态冻结（BATCH-2026-09-01-第九批） ══════════
+# round-5 定向复核 HIGH（属实）: 「解析失败 fail-closed」分支**静态不可达**
+# （提取字符集 == `_CJK_NUM ∪ _CJK_UNIT`，任何非空匹配必返回某个整数），且连续
+# 数字字不校验文法、只反复覆盖 `digit` ⇒ 按**局部值**查池。
+# c754b043 只在 fallback 允许式一侧改成「只认单字」；**D2 叙述段仍在调**多位
+# 解析器 `_cjk_to_int` —— R3 开工在标准 fixture 上实测红证据:
+#   `- 本板共有一零个子节点。【实测】` → exit **0 放行**
+#   （`_cjk_to_int("一零") == 0`，而 0 恒在池内 `abs(a-a)`）⇒ 纯虚构的规模自陈
+#   整域免检。证据: _bmad-output/审查/evidence-maintb-r3/b-prefix-red-repro.txt
+# R3 终态（冻结，不得再引入多位解析器）: `_cjk_to_int` 整体退役，两处消费点共用
+# `_cjk_single_to_int`（只认单字，值 = 映射，绝对确定）。
+
+
+def test_domain_r5_cjk_single_char_only_unit_contract():
+    """R3 判据契约: 只认单字数词；多字 / 单字量词 / 集合外一律 None。
+
+    **它证明什么**: 判据函数本身的逐形态取值；提取字符类由 `_CJK_NUM ∪ _CJK_UNIT`
+    **机械派生**（手抄两份字面量正是 D2 与 fallback 两侧此前分叉的成因）；
+    多位解析器 `_cjk_to_int` 确已退役、不得复活。
+    **它不证明什么**: 不证明调用方正确使用了它——那是下面三道门的事。
+    """
+    rs = _load_recap_scan()
+
+    assert not hasattr(rs, "_cjk_to_int"), "多位中文数词解析器复活了——R3 冻结口径禁止重新引入（round-5 HIGH 的根因）"
+    # ⛔ 期望值必须有**独立来源**: 第一版写成 `for ch, want in rs._CJK_NUM.items()`
+    # ——期望值与被测值取自同一张表，把 `零/〇` 的映射改成 7 全套件照样 253 全绿
+    # （车道对抗审查实测）。自抄期望 = 自证恒真 = 假门。这里逐字写死。
+    EXPECT = {
+        "零": 0,
+        "〇": 0,
+        "一": 1,
+        "二": 2,
+        "两": 2,
+        "三": 3,
+        "四": 4,
+        "五": 5,
+        "六": 6,
+        "七": 7,
+        "八": 8,
+        "九": 9,
+    }
+    UNITS = {"十": 10, "百": 100, "千": 1000, "万": 10000, "亿": 100000000}
+    assert rs._CJK_NUM == EXPECT, f"单字数词表被改动: {rs._CJK_NUM}"
+    assert rs._CJK_UNIT == UNITS, f"量词表被改动: {rs._CJK_UNIT}"
+    for ch, want in EXPECT.items():
+        assert rs._cjk_single_to_int(ch) == want, f"单字数词 {ch} 取值错"
+    for ch in UNITS:  # 十百千万亿 不在 _CJK_NUM ⇒ 单字量词同样无法确定
+        assert rs._cjk_single_to_int(ch) is None, f"单字量词 {ch} 必须 fail-closed"
+    for s in ("一零", "五四", "九十八万", "零一", "十二", "两三", "", "甲", "五个"):
+        assert rs._cjk_single_to_int(s) is None, f"{s!r} 必须判「无法确定」（不猜）"
+
+    # 提取面必须覆盖判据面: **抓得到才拒得掉**。提取面漏字 ⇒ 该字组成的串落到
+    # 检查面之外 = 漏拦（不是 fail-closed）。
+    assert set(rs._CJK_NUM_CHARS) == set(EXPECT) | set(UNITS)
+    # ⛔ R3 round-3: 取数用的是**宽集合**（数词样字符），它只用于**定界**、不赋值。
+    # 表外数词字（廿卅/大写金融数字）必须进得来——进不来 ⇒ `廿五个` 会从 `五`
+    # 重锚按 5 查池而放行（Codex round-2 HIGH，车道实测 rc=0）。
+    # ⛔ 精确相等而非子集包含（Codex round-3 属实指出：子集断言锁不住声明里的
+    # `卌` 与各种异体，表少一个字就意味着那类写法会从尾片重锚）。
+    assert set(rs._NUMERAL_LIKE_CHARS) == (
+        set(rs._CJK_NUM_CHARS)
+        | set("0123456789")
+        | set(
+            "廿卅卌壹贰貳叁參参肆伍陆陸柒捌玖拾佰仟萬亿億两兩兆京垓秭穰仨俩①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳〡〢〣〤〥〦〧〨〩〸〹〺"
+        )
+    ), f"定界集漂移: {rs._NUMERAL_LIKE_CHARS}"
+    # 宽集合只定界不赋值：表外字符进来只会让整串"无法确定"，不会被猜成某个数。
+    for s in ("廿五", "壹佰", "九十八万5", "五四", "一零"):
+        assert rs._count_token_value(s) is None, f"{s!r} 不得被赋值"
+    for s, want in (("980005", 980005), ("016", 16), ("五", 5), ("0", 0)):
+        assert rs._count_token_value(s) == want, f"{s!r} 取值错"
+    m = rs._NUM_RUN_RE.match("九十八万")
+    assert m and m.group(0) == "九十八万", "提取面抓不到连续多字串 = 漏拦"
+    # ⛔ 且必须**跨排版噪声/不可见字符**整体抓 —— 断开就只剩尾片，判据再「绝对
+    # 确定」也没用（拿到的 token 不是那句话里的数）。这一条是 R3 round-2 的
+    # BLOCKER：`九十八万**五**个` 渲染出来就是「九十八万五个」，实测曾 exit 0。
+    for name, s in (
+        ("粗体", "九十八万**五"),
+        ("空白", "九十八万 五"),
+        ("nbsp", "九十八万&nbsp;五"),
+        ("零宽", "九十八万\u200b五"),
+        ("空标签", "九十八万<span></span>五"),
+        ("HTML注释", "九十八万<!--x-->五"),
+    ):
+        m = rs._NUM_RUN_RE.match(s)
+        assert m and m.group(0) == s, f"{name}切断: 提取面只抓到 {m and m.group(0)!r}"
+        assert rs._join_free(m.group(0)) == "九十八万五", f"{name}: 剥噪声后不是原数"
+        assert rs._cjk_single_to_int(rs._join_free(m.group(0))) is None
+
+
+def test_domain_r5_derive_allow_single_char_value_enters_pool():
+    """R3 单元门: 单字数词必须**带着自己的值**进池比对；多字不得按局部值查池。
+
+    ⚠️ 为什么用合成 scan 而不是标准 fixture: 标准 fixture 的数值池是 `[0..16, 22]`，
+    **覆盖了 `_CJK_NUM` 的全部值（0-9）** ⇒ CLI 层根本构造不出「单字且值不在池」
+    的用例，只写 `五` 放行会退化成**空洞证明**（没查池也 rc=0）。合成 scan 把池
+    收窄到 `[0,1,2]`，`九` 才能证明 9 确实进了池比对。合成语料非 live 正文。
+
+    **它证明什么**: 单字 → 按自身值查池（九→`行内数字 9 无出处` / 二→放行）；
+    多字 → 走「无法验证」且**不产生任何按局部值的池诊断**（`一零` 的 0、
+    `五四` 的 4、`九十八万` 的 980000 都不得出现在诊断里）。
+    **它不证明什么**: 不证明整条 verifier 的段切分与白名单匹配——那是 CLI 门的事。
+    """
+    rs = _load_recap_scan()
+    synth = {"data_mode": "fallback_local", "counts": {"members": 1, "seeds": 1}}
+    pool = rs._derived_number_pool(synth)
+    assert pool == {0, 1, 2}, f"合成池漂移，判别前提失效: {sorted(pool)}"
+
+    def probs_for(tok: str) -> list[str]:
+        out: list[str] = []
+        rs._verify_fallback_derive_numbers(f"#### 派生子女 {tok} 个 的说明\n", synth, out)
+        return out
+
+    assert any("行内数字 9 无出处" in p for p in probs_for("九")), "单字未按自身值查池"
+    assert probs_for("二") == [], "值在池的单字被误伤"
+    for tok, leaked in (("一零", "0"), ("五四", "4"), ("九十八万", "980000")):
+        got = probs_for(tok)
+        assert any("无法验证" in p for p in got), f"{tok}: 多字未 fail-closed: {got}"
+        assert not any("无出处" in p for p in got), f"{tok}: 仍按局部值查池: {got}"
+        assert not any(leaked in p for p in got), f"{tok}: 诊断里泄出解析值 {leaked}: {got}"
+
+
+def test_domain_r5_derive_allow_cjk_pool_collision_cli(tmp_path):
+    """R3 行为门①: fallback 允许式行内多字数词一律 fail-closed，单字不误伤。
+
+    **它证明什么**: 走完整 CLI（`--verify`）时，`一零`/`五四`（局部值**实测在池**，
+    即碰撞前提成立）与 `九十八万`/`十` 全部 exit 1 且诊断为「无法验证」，
+    诊断里不出现任何池比对结论；值在池的单字 `五` 放行。
+    **它不证明什么**: 不证明「单字带自身值查池」——本 fixture 池覆盖 0-9，
+    该性质由 test_domain_r5_derive_allow_single_char_value_enters_pool 证明。
+    """
+    rs = _load_recap_scan()
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    pool = rs._derived_number_pool(scan)
+    # ⛔ 碰撞前提必须**实测**: 局部值真的在池里，这条门才是在测「按错值查池会放行」；
+    # 前提不成立时它只是在测别的东西（MEMORY `reference_gate_design_pitfalls`）。
+    assert {0, 4, 5} <= pool, f"碰撞前提失效（局部值不在池）: {sorted(pool)}"
+    report = write_report(vault, scan)
+    base_text = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+
+    def verify_with(tok: str):
+        text = base_text.replace("方向叙述：", f"\n#### 派生子女 {tok} 个 的说明\n\n方向叙述：", 1)
+        assert text != base_text, "变异未命中：报告一字未改，这条门测的是空气"
+        report.write_text(text, encoding="utf-8")
+        return run_verify(report)
+
+    for tok in ("一零", "五四", "九十八万", "十"):
+        r = verify_with(tok)
+        assert r.returncode != 0, f"{tok}: 中文数词绕过被放行:\n{r.stdout}"
+        assert "无法验证" in r.stdout, f"{tok}: 应走「无法验证」fail-closed:\n{r.stdout}"
+        assert "无出处" not in r.stdout, f"{tok}: 仍按局部/末位值查池:\n{r.stdout}"
+    r = verify_with("五")
+    assert r.returncode == 0, f"值在池的单字数词被误伤:\n{r.stdout}"
+
+
+def test_domain_r5_prose_cjk_multichar_fail_closed_cli(tmp_path):
+    """R3 行为门②: D2 叙述段的多字中文数词计数同样 fail-closed。
+
+    ⛔ 这是 R3 开工实测的**漏拦**（不是假想）: c754b043 只封了 fallback 一侧，
+    `- 本板共有一零个子节点。【实测】` 在开工 HEAD `c754b043` 上 **exit 0 放行**
+    （`_cjk_to_int("一零") == 0`，0 恒在池内）。红证据:
+    `_bmad-output/审查/evidence-maintb-r3/b-prefix-red-repro.txt`。
+
+    **它证明什么**: 该形态现在 exit 1、诊断为「无法解析」，且不再产生按局部值的
+    池比对结论；值在池的单字自陈（`共有五个`）不误伤。
+    **它不证明什么**: 不证明 D2 对**所有**数字形态的绑定力——池碰撞判据的固有
+    边界见 test_domain_block_bare_count_in_prose 的说明，本卡未改变它。
+    """
+
+    def prose_case(tok: str):
+        def m(text, scan):
+            return text.replace("## 三维审查", f"## 三维审查\n\n- 本板共有{tok}个子节点。【实测】", 1)
+
+        return m
+
+    for tok in ("一零", "五四", "九十八万", "十"):
+        r = _mutate_report(tmp_path / f"d2-{tok}", prose_case(tok))
+        assert r.returncode != 0, f"{tok}: D2 段多字数词自陈被放行:\n{r.stdout}"
+        assert "无法解析" in r.stdout, f"{tok}: 应走「无法解析」fail-closed:\n{r.stdout}"
+        assert "找不到同值来源" not in r.stdout, f"{tok}: 仍按局部值查池:\n{r.stdout}"
+    r = _mutate_report(tmp_path / "d2-五", prose_case("五"))
+    assert r.returncode == 0, f"值在池的单字自陈被误伤:\n{r.stdout}"
+
+
+# ── R3 round-2：车道对抗审查（5 镜头 17 agent）确认的 1 BLOCKER + 4 HIGH ──────
+# 全部同一根因：**提取面**在排版噪声/不可见字符处断开，匹配重锚到紧邻量词的尾片，
+# 于是「判据绝对确定」变得无关紧要——判据拿到的 token 不是那句话里的数。
+# ⛔ 归因如实：该性质在开工 HEAD `c754b043` 上**同样存在**（验证者用 git show 重放
+# 实证），**不是 R3 引入的回归**；但 R3 的门与 docstring 宣称「多字中文数词一律
+# fail-closed」，被一个 `**` 击穿 = 声明比证据宽，按本仓口径算真缺陷，必须闭合。
+
+
+def test_domain_r5_noise_split_number_run_cli(tmp_path):
+    """R3 round-2 行为门：排版噪声/不可见字符**不得**成为数串的断点。
+
+    `- 本板共有九十八万**五**个子节点。【实测】` 在 Obsidian 里渲染成
+    「本板共有九十八万五个子节点」（粗体的五），而验证器原先只抓到尾片 `五`，
+    `_cjk_single_to_int('五')==5` 且 5 在池内 ⇒ 纯虚构的 980005 **exit 0 放行**。
+    ASCII 侧同形：`980 005个`（空格千分位）只查到 `005`。
+
+    **它证明什么**：数串跨连接字符（排版标记 / `&nbsp;` / 空白 / 短 HTML 标签与
+    注释 / 零宽与双向控制）整体抓取并剥噪声后再判 —— D2 侧覆盖 CJK 与 ASCII，
+    fallback 侧本门只覆盖 CJK；合法的单字/池内数值不受影响。
+    ⚠️ 措辞收窄（Codex round-2 属实指出）：本门原写「CJK 与 ASCII × D2 与
+    fallback 全覆盖」，但矩阵里 fallback 只喂了 CJK——而当时 fallback 的 ASCII
+    侧**确实还是** ``re.findall(r"\\d+")`` 的碎片取数。该缺口由
+    `test_domain_r6_cross_class_and_offtable_numeral_cli` 闭合并配门。
+    **它不证明什么**：连接集是**封闭表**（与量词表同口径）。表外字符仍能切断数串
+    （`九十八万x五个` / `九十八万、五个` / `[[x|]]` 的残留 `|]]`）——那些断点
+    **渲染后可见**，读者不会读成一个连续的数；表外的**不可见**载体（如超长 HTML
+    注释）是真残余，登记在验收单 §五之三，本门不宣称覆盖。
+    """
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    pool = _load_recap_scan()._derived_number_pool(scan)
+    # 前提实测：尾片值必须真的在池里，这条门才是在测「按尾片查池会放行」。
+    assert {0, 4, 5} <= pool, f"前提失效（尾片值不在池）: {sorted(pool)}"
+    report = write_report(vault, scan)
+    base_text = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+
+    def verify(anchor: str, injected: str):
+        text = base_text.replace(anchor, injected, 1)
+        assert text != base_text, "变异未命中：报告一字未改，这条门测的是空气"
+        report.write_text(text, encoding="utf-8")
+        return run_verify(report)
+
+    def d2(line: str):
+        return verify("## 三维审查", f"## 三维审查\n\n{line}")
+
+    # ── 拦截面：渲染后连续、源码被切断 ──
+    for name, line in (
+        ("粗体", "- 本板共有九十八万**五**个子节点。【实测】"),
+        ("空白", "- 本板共有九十八万 五个子节点。【实测】"),
+        ("nbsp", "- 本板共有九十八万&nbsp;五个子节点。【实测】"),
+        ("空标签", "- 本板共有九十八万<span></span>五个子节点。【实测】"),
+        ("修饰字余", "- 本板共有九十八万余五个子节点。【实测】"),
+        ("行内代码", "- 本板共有九十八万`x`五个子节点。【实测】"),
+    ):
+        r = d2(name and line)
+        assert r.returncode != 0, f"CJK {name}切断被放行:\n{r.stdout}"
+        assert _one_problem_has(r.stdout, "无法解析", "九十八万五"), (
+            f"CJK {name}: 诊断类别与完整数串未绑在同一条 problem:\n{r.stdout}"
+        )
+    for name, line, whole in (
+        ("空格千分位", "- 本板共有980 005个子节点。【实测】", "980005"),
+        ("粗体", "- 本板共有98765**4**个子节点。【实测】", "987654"),
+        # ⛔ 与「前导零归一化」的交互：行级剥零会把 `1 000`(渲染=1000, SI 千分位)
+        # 先剥成 `1 0` 再拼成 `10` 落进池内 ⇒ 放行。归一化必须作用在拼接后的
+        # token 上（车道实测，本卡修复时自己踩出来的洞）。
+        ("SI千分位+前导零", "- 本板共有1 000个子节点。【实测】", "1000"),
+    ):
+        r = d2(line)
+        assert r.returncode != 0, f"ASCII {name}切断被放行:\n{r.stdout}"
+        assert _one_problem_has(r.stdout, "找不到同值来源", whole), (
+            f"ASCII {name}: 诊断类别与完整数串未绑在同一条 problem:\n{r.stdout}"
+        )
+    # fallback 允许式侧同根（碎片逐片查池全部命中 ⇒ 整体虚构值放行）
+    for tok, joined in (("九**五**", "九五"), ("九十八万**五**", "九十八万五")):
+        r = verify("方向叙述：", f"\n#### 派生子女 {tok} 个 的说明\n\n方向叙述：")
+        assert r.returncode != 0, f"fallback {tok} 碎片被放行:\n{r.stdout}"
+        assert _one_problem_has(r.stdout, "无法验证", joined), (
+            f"fallback {tok}: 诊断类别与完整数串未绑在同一条 problem:\n{r.stdout}"
+        )
+
+    # ── 放行面（同权重）：合法形态不得被这道收紧反噬 ──
+    for name, line in (
+        ("单字在池", "- 本板共有五个子节点。【实测】"),
+        ("ASCII 在池", "- 本板共有3个子节点。【实测】"),
+        ("ASCII 在池 22", "- 本板共有22个子节点。【实测】"),
+        ("前导零 016=16 在池", "- 本板共有016个子节点。【实测】"),
+        ("round-5 原始误伤 十分", "- 说明十分清楚。【实测】"),
+        ("round-5 原始误伤 一致", "- 统计口径尚未一致。【实测】"),
+    ):
+        r = d2(line)
+        assert r.returncode == 0, f"合法形态被误伤（{name}）:\n{r.stdout}"
+
+
+def test_domain_r5_prose_single_char_value_enters_pool():
+    """R3 round-2 单元门：D2 侧单字数词同样必须**带自身值**进池比对。
+
+    ⚠️ 与 fallback 侧同因：标准 fixture 池 `[0..16,22]` 覆盖 `_CJK_NUM` 全部值
+    （0-9），CLI 层构造不出「单字且值不在池」的用例，于是「值不在池」这条分支
+    在 D2 侧**零门覆盖**（车道对抗审查实测：摘掉该分支 253 用例仍全绿）。
+    合成 scan 把池收窄到 `[0,1,2]`，`九` 才能证明 9 确实进了池比对。
+
+    **它证明什么**：D2 段内单字 → 按自身值查池（九→找不到同值来源 / 二→放行）；
+    多字与被切断的数串 → 走「无法解析」，且诊断里出现的是**剥噪声后的完整数串**。
+    **它不证明什么**：不证明段切分、豁免跨度剥离与句式门——那是 CLI 门的事。
+    """
+    rs = _load_recap_scan()
+    synth = {"data_mode": "fallback_local", "counts": {"members": 1, "seeds": 1}}
+    assert rs._derived_number_pool(synth) == {0, 1, 2}, "合成池漂移，判别前提失效"
+
+    def probs(tok: str) -> list[str]:
+        out: list[str] = []
+        rs._verify_prose_counts(f"## 三维审查\n\n- 本板共有{tok}个子节点。【实测】\n", synth, out)
+        return out
+
+    got = probs("九")
+    assert any("九(9)" in p and "找不到同值来源" in p for p in got), f"单字未按自身值查池: {got}"
+    assert probs("二") == [], "值在池的单字被误伤"
+    for tok, joined in (("一零", "一零"), ("九十八万**五", "九十八万五")):
+        got = probs(tok)
+        assert any("无法解析" in p and joined in p for p in got), (
+            f"{tok}: 诊断类别与完整数串未绑在同一条 problem: {got}"
+        )
+        assert not any("找不到同值来源" in p for p in got), f"{tok}: 仍按局部值查池: {got}"
+
+
+# ── R3 round-3：Codex round-2 报的 4 条 HIGH（车道逐条实测复现后闭合）──────────
+# 根因是同一个结构病：取数按字符类分成 CJK / ASCII 两条循环，于是**跨类**或
+# **表外**的数词字成了断点，匹配重锚到尾片。已合并为一条规则（宽集合定界 →
+# 剥连接字符 → 只有「全 ASCII 数字」或「表内单字」给值，其余 fail-closed）。
+# ⚠️ Codex 同轮还报了 `980,005个` 被切断——**实测不成立**（逗号归一化已覆盖，
+# 按 980005 查池），本卡如实驳回，见验收单 §五。
+
+
+def _one_problem_has(stdout: str, *needles: str) -> bool:
+    """同一条诊断行里同时出现全部 needle。
+
+    ⛔ Codex round-2 的测试批评（属实）：`assert "无法解析" in out` 与
+    `assert "九十八万五" in out` 两条独立 `any`，理论上可由**两条不同的**
+    problem 分别满足 —— 断言没有把「诊断类别」与「完整 token」绑在一起。
+    """
+    return any(all(n in ln for n in needles) for ln in stdout.splitlines())
+
+
+def test_domain_r6_cross_class_and_offtable_numeral_cli(tmp_path):
+    """R3 round-3 行为门：跨类 / 表外数词字 / CJK 小数都不得按尾片查池。
+
+    四条实测反例（修前全部 exit 0）：
+      · `本板共有九十八万5个子节点` —— CJK run 停在 `万`，ASCII 只取 `5`
+      · `本板共有廿五个子节点` —— `廿` 表外，从 `五` 重锚按 5 查池（读者读 25）
+      · `本板共有壹佰个子节点` —— 两字全表外，一个 token 都抽不出
+      · `本板共有五点五个 / 5点5个` —— `点` 在量词表里，被拆成两个 5 分别碰池
+      · fallback `#### 派生子女 1 000 个` —— `\\d+` 拆成碎片逐片碰池
+
+    **它证明什么**：D2 与 fallback、CJK 与 ASCII 走**同一条**取数规则；
+    诊断类别与还原后的完整 token 出现在**同一条** problem 里；
+    合法形态（含 `3点建议` 里 `点` 的正当量词用法）不被反噬。
+    **它不证明什么**：`_NUMERAL_LIKE_CHARS` 仍是**封闭表**（廿卅卌 + 大写金融
+    数字 + 异体），表外的其它数词写法仍可能重锚；量词表同样封闭。见 §五之三。
+    """
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    pool = _load_recap_scan()._derived_number_pool(scan)
+    assert {5, 3, 16, 22} <= pool, f"放行面前提失效: {sorted(pool)}"
+    report = write_report(vault, scan)
+    base_text = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+
+    def verify(anchor: str, injected: str):
+        text = base_text.replace(anchor, injected, 1)
+        assert text != base_text, "变异未命中：报告一字未改，这条门测的是空气"
+        report.write_text(text, encoding="utf-8")
+        return run_verify(report)
+
+    def d2(line: str):
+        return verify("## 三维审查", f"## 三维审查\n\n{line}")
+
+    def fb(tok: str):
+        return verify("方向叙述：", f"\n#### 派生子女 {tok} 个 的说明\n\n方向叙述：")
+
+    # 拦截面：诊断必须同时点名「无法解析」与**还原后的完整 token**
+    for name, line, token in (
+        ("跨类混写", "- 本板共有九十八万5个子节点。【实测】", "九十八万5"),
+        ("表外廿", "- 本板共有廿五个子节点。【实测】", "廿五"),
+        ("表外大写金融数字", "- 本板共有壹佰个子节点。【实测】", "壹佰"),
+        ("多字+切断", "- 本板共有九十八万**五**个子节点。【实测】", "九十八万五"),
+    ):
+        r = d2(line)
+        assert r.returncode != 0, f"D2 {name} 被放行:\n{r.stdout}"
+        assert _one_problem_has(r.stdout, "无法解析", token), (
+            f"D2 {name}: 诊断类别与完整 token 未绑在同一条 problem:\n{r.stdout}"
+        )
+    # CJK/混写小数：与 ASCII 小数同口径恒 FAIL
+    for name, line, token in (
+        ("CJK 小数", "- 本板共有五点五个子节点。【实测】", "五点五"),
+        ("混写小数", "- 本板共有5点5个子节点。【实测】", "5点5"),
+    ):
+        r = d2(line)
+        assert r.returncode != 0, f"D2 {name} 被放行:\n{r.stdout}"
+        assert _one_problem_has(r.stdout, "小数形态", token), f"D2 {name}: 未按小数形态点名:\n{r.stdout}"
+    # fallback 侧 ASCII 也必须整串取（round-2 只补了 CJK 侧，是本轮 HIGH 之一）
+    for name, tok, token in (
+        ("ASCII SI千分位", "1 000", "1000"),
+        ("ASCII 标记切断", "9**5", "95"),
+    ):
+        r = fb(tok)
+        assert r.returncode != 0, f"fallback {name} 被放行:\n{r.stdout}"
+        assert _one_problem_has(r.stdout, "无出处", token), f"fallback {name}: 未按整串值点名:\n{r.stdout}"
+    r = fb("廿五")
+    assert r.returncode != 0 and _one_problem_has(r.stdout, "无法验证", "廿五"), (
+        f"fallback 表外数词未 fail-closed:\n{r.stdout}"
+    )
+
+    # 放行面（同权重）
+    for name, line in (
+        ("单字在池", "- 本板共有五个子节点。【实测】"),
+        ("ASCII 在池", "- 本板共有3个子节点。【实测】"),
+        ("前导零 016=16", "- 本板共有016个子节点。【实测】"),
+        ("池内 22", "- 本板共有22个子节点。【实测】"),
+        ("`点` 的正当量词用法", "- 本板共有3点建议。【实测】"),
+        ("round-5 原始误伤 十分", "- 说明十分清楚。【实测】"),
+        ("round-5 原始误伤 一致", "- 统计口径尚未一致。【实测】"),
+    ):
+        r = d2(line)
+        assert r.returncode == 0, f"合法形态被误伤（{name}）:\n{r.stdout}"
+    for name, tok in (("fallback 单字在池", "五"), ("fallback ASCII 在池", "3")):
+        r = fb(tok)
+        assert r.returncode == 0, f"合法形态被误伤（{name}）:\n{r.stdout}"
+
+    # Codex round-2 报的第五条：`980,005个` 声称被逗号切断 —— **实测不成立**，
+    # 逗号归一化先于取数生效，按 980005 查池。这条门把「不成立」也钉住，
+    # 防止后人照抄该判词去"修"一个不存在的问题。
+    r = d2("- 本板共有980,005个子节点。【实测】")
+    assert r.returncode != 0 and _one_problem_has(r.stdout, "找不到同值来源", "980005"), (
+        # ⛔ 必须同时绑「找不到同值来源」——只断言出现 980005 的话，
+        # 实现改成「无法解析 980005」这条门照样绿，就证不出"按 980005 **查池**"
+        # 这件事（Codex round-3 属实指出）。
+        f"千分位逗号形态应按完整量级 980005 **查池**:\n{r.stdout}"
+    )
+
+
+# ── R3 round-4：Codex round-3 报的 3 条 HIGH（车道逐条实测复现后闭合）──────────
+# ⚠️ 轮次口径：round-1 被内容过滤器截断、**无终裁**（卡文判 UNVERIFIABLE），
+# 故产出终裁的是 round-2 / round-3 两轮，本轮整改后仍有一轮送审额度。
+
+
+def test_domain_r7_range_endpoints_and_fallback_seps_cli(tmp_path):
+    """R3 round-4 行为门：区间两端都终核；fallback 也有小数/千分位防线。
+
+    三条实测反例（修前全部 exit 0）：
+      · `本板共有987654-0个子节点` —— 某端无出处时区间不挖空，而后面的循环只取
+        **紧邻量词**的右端 `0`；任一非空池都由 `abs(a-a)` 生成 0 ⇒ 放行。
+        既有门只测了反方向 `1-987654`（大数在右）。
+      · fallback `#### 派生子女 0.0 个` / `零点零` / `1,005` —— 千分位归一与小数
+        防线原先**只在 D2 路径**，fallback 直接对原行 findall 逐片入池。
+      · `本板共有987654<b>.</b>0个子节点` —— 渲染成 `987654.0`，但小数式原要求
+        数串与 `.` 直接相邻，两道防线全不命中；`987654，000个` 的全角逗号同理。
+
+    **它证明什么**：区间两端都进池比对且**只在规模自陈句式内**报（非自陈句
+    `建议覆盖 2~3 个节点` 不受伤——第一版把报错放在句式门之前，当场误伤）；
+    千分位与小数防线在 D2 与 fallback **两侧都在**，且认全角逗号与被标签包住的
+    小数点。
+    **它不证明什么**：分隔符集合（`,`/`，`）与小数分隔符集合（`.`/`．`/`点`）
+    仍是**封闭表**；其它千分位写法（空格已由连接集覆盖，撇号 `'` 等未覆盖）
+    未验证。见验收单 §五之三。
+    """
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    pool = _load_recap_scan()._derived_number_pool(scan)
+    assert 0 in pool and 987654 not in pool, f"前提失效: {sorted(pool)}"
+    report = write_report(vault, scan)
+    base_text = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+
+    def verify(anchor: str, injected: str):
+        text = base_text.replace(anchor, injected, 1)
+        assert text != base_text, "变异未命中：报告一字未改，这条门测的是空气"
+        report.write_text(text, encoding="utf-8")
+        return run_verify(report)
+
+    def d2(line: str):
+        return verify("## 三维审查", f"## 三维审查\n\n{line}")
+
+    def fb(tok: str):
+        return verify("方向叙述：", f"\n#### 派生子女 {tok} 个 的说明\n\n方向叙述：")
+
+    # 区间：大数在左（本轮新反例）与在右（既有方向）都必须被点名
+    for name, line in (
+        ("大数在左", "- 本板共有987654-0个子节点。【实测】"),
+        ("大数在右", "- 本板共有0-987654个子节点。【实测】"),
+        ("到字式", "- 本板共有987654到0个子节点。【实测】"),
+    ):
+        r = d2(line)
+        assert r.returncode != 0, f"区间 {name} 被放行:\n{r.stdout}"
+        assert _one_problem_has(r.stdout, "区间端点", "987654"), f"区间 {name}: 未点名无出处的那一端:\n{r.stdout}"
+    # fallback 侧小数与千分位
+    for name, tok, needles in (
+        ("小数 ASCII", "0.0", ("小数形态", "0.0")),
+        ("小数 CJK", "零点零", ("小数形态", "零点零")),
+        ("千分位", "1,005", ("无出处", "1005")),
+    ):
+        r = fb(tok)
+        assert r.returncode != 0, f"fallback {name} 被放行:\n{r.stdout}"
+        assert _one_problem_has(r.stdout, *needles), f"fallback {name}: 诊断未绑定:\n{r.stdout}"
+    # D2 侧：标签包住小数点 / 全角逗号
+    r = d2("- 本板共有987654<b>.</b>0个子节点。【实测】")
+    assert r.returncode != 0 and _one_problem_has(r.stdout, "小数形态", "987654.0"), (
+        f"标签包住小数点未被识别为小数:\n{r.stdout}"
+    )
+    r = d2("- 本板共有987654，000个子节点。【实测】")
+    assert r.returncode != 0 and _one_problem_has(r.stdout, "找不到同值来源", "987654000"), (
+        f"全角逗号千分位未按完整量级查池:\n{r.stdout}"
+    )
+
+    # 放行面（同权重）
+    for name, line in (
+        ("合法区间两端在池", "- 建议覆盖 2~3 个节点。【实测】"),
+        ("单字在池", "- 本板共有五个子节点。【实测】"),
+        ("`点` 的正当量词用法", "- 本板共有3点建议。【实测】"),
+    ):
+        r = d2(line)
+        assert r.returncode == 0, f"合法形态被误伤（{name}）:\n{r.stdout}"
+    for name, tok in (("fallback 单字", "五"), ("fallback ASCII", "3")):
+        r = fb(tok)
+        assert r.returncode == 0, f"合法形态被误伤（{name}）:\n{r.stdout}"
+
+
+# ── R3 round-5：Codex round-4 报的 7 条 HIGH（车道 10 条探针逐条复现后闭合）──────
+# ⚠️ 本轮送审已**超出卡文「最多 3 轮」上限**，需用户追认；代码侧仍按"发现即修"处理。
+
+
+def test_domain_r8_entities_ranges_and_table_gaps_cli(tmp_path):
+    """R3 round-5 行为门：HTML 实体 / 区间共用式 / 两张封闭表的补漏。
+
+    七条实测反例（修前全部 exit 0，见 evidence-maintb-r3/m-round4-high-repro.txt）：
+      1. `总计987654-0个…` —— 区间**先挖空、后判句式**，挖空后 `_D2_CLAIM_RE` 的
+         「共有/总计 + 数字」分支失锚 ⇒ continue，已收集的坏端点不再报。
+      2. `本板共有987654<b>-</b>0个…` —— 区间正则是裸 ASCII 窄路径，不复用数串式。
+      3. `987654<b>,</b>000个` / fallback `1<b>,</b>005` —— 千分位只认紧邻逗号。
+      4. `987654&#46;0个` / `987654&#20010;` —— HTML 字符实体未规范化。
+      5. `.5个` / `．五个` —— 小数式要求分隔符两侧都有数串。
+      6. `九兆五个` —— `兆` 不在定界集 ⇒ 从尾片重锚（与 `廿五` 同机制）。
+      7. `987654层关系` —— `层` 不在量词表 ⇒ 整句零校验。
+
+    **它证明什么**：句式判定取自**挖空之前**的行；区间端点走与普通计数**同一个**
+    判值器（中文/混写端点不再免检）且两端都报；HTML 实体先解再核；小数左侧可缺；
+    两张封闭表补入常用字符后对应形态被拦。
+    **它不证明什么**：`_NUMERAL_LIKE_CHARS` 与 `_D2_QUANT` **仍是封闭表**——
+    补的是"已知常用"，不是全集。`html.unescape` 也只覆盖标准实体。
+    根本口径见验收单 §五之四：源码级归一化在对抗范式下不可清零。
+    """
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    pool = _load_recap_scan()._derived_number_pool(scan)
+    assert 0 in pool and 987654 not in pool, f"前提失效: {sorted(pool)}"
+    report = write_report(vault, scan)
+    base_text = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+
+    def verify(anchor: str, injected: str):
+        text = base_text.replace(anchor, injected, 1)
+        assert text != base_text, "变异未命中：报告一字未改，这条门测的是空气"
+        report.write_text(text, encoding="utf-8")
+        return run_verify(report)
+
+    def d2(line: str):
+        return verify("## 三维审查", f"## 三维审查\n\n{line}")
+
+    def fb(tok: str):
+        return verify("方向叙述：", f"\n#### 派生子女 {tok} 个 的说明\n\n方向叙述：")
+
+    # 1/2：区间。⛔ Codex 指出既有门都用「大数在一端 + 池内 0」，一个只检查
+    # max(ends) 的实现仍会全绿 ⇒ 这里补「双端均坏、逐个报」与非 `个` 量词。
+    for name, line, tokens in (
+        ("裸『总计』句式", "- 总计987654-0个子节点。【实测】", ("987654",)),
+        ("连接字符连字符", "- 本板共有987654<b>-</b>0个子节点。【实测】", ("987654",)),
+        ("双端均坏", "- 本板共有987654-876543个子节点。【实测】", ("987654", "876543")),
+        ("中文端点", "- 本板共有九十八万-0个子节点。【实测】", ("九十八万",)),
+        ("非『个』量词（层）", "- 本板共有987654-0层关系。【实测】", ("987654",)),
+    ):
+        r = d2(line)
+        assert r.returncode != 0, f"区间 {name} 被放行:\n{r.stdout}"
+        for tok in tokens:
+            assert _one_problem_has(r.stdout, "区间端点", tok), f"区间 {name}: 未逐个点名端点 {tok}:\n{r.stdout}"
+
+    # 3：千分位跨连接字符（两个消费面）
+    r = d2("- 本板共有987654<b>,</b>000个子节点。【实测】")
+    assert r.returncode != 0 and _one_problem_has(r.stdout, "找不到同值来源", "987654000"), (
+        f"D2 千分位跨连接字符未按完整量级查池:\n{r.stdout}"
+    )
+    r = fb("1<b>,</b>005")
+    assert r.returncode != 0 and _one_problem_has(r.stdout, "无出处", "1005"), (
+        f"fallback 千分位跨连接字符未按完整量级查池:\n{r.stdout}"
+    )
+
+    # 4：HTML 字符实体
+    r = d2("- 本板共有987654&#46;0个子节点。【实测】")
+    assert r.returncode != 0 and _one_problem_has(r.stdout, "小数形态", "987654.0"), f"实体小数点未被识别:\n{r.stdout}"
+    # ⛔ 「小数分隔符两侧容连接字符」这条性质，必须用 `_visible_text` **不移除**的
+    # 连接字符来测（Codex round-8 + 负验证实测）：原门用 `<b>.</b>`，但 round-6 起
+    # `_visible_text` 会先剥标签 ⇒ 该性质被**纵深遮蔽**，`survivor-38` 当场不承重。
+    # 空白在连接集内、却不被 `_visible_text` 移除，正好只由这条性质接住。
+    r = d2("- 本板共有987654 . 0个子节点。【实测】")
+    assert r.returncode != 0 and _one_problem_has(r.stdout, "小数形态", "987654.0"), (
+        f"空白分隔的小数未被识别（小数式必须容连接字符）:\n{r.stdout}"
+    )
+    r = d2("- 本板共有987654 点 0个子节点。【实测】")
+    assert r.returncode != 0 and _one_problem_has(r.stdout, "小数形态", "987654点0"), (
+        f"空白分隔的中文小数未被识别:\n{r.stdout}"
+    )
+    r = d2("- 本板共有987654&#20010;子节点。【实测】")
+    assert r.returncode != 0 and _one_problem_has(r.stdout, "找不到同值来源", "987654"), (
+        f"实体量词未还原出锚点:\n{r.stdout}"
+    )
+
+    # 5：小数左侧可缺（含全角小数点——Codex 指出此前无输入门）
+    for name, line, tok in (
+        ("半角左缺", "- 本板共有.5个子节点。【实测】", ".5"),
+        ("全角左缺", "- 本板共有．五个子节点。【实测】", "．五"),
+    ):
+        r = d2(line)
+        assert r.returncode != 0 and _one_problem_has(r.stdout, "小数形态", tok), f"{name} 小数未被识别:\n{r.stdout}"
+
+    # 6/7：两张封闭表补漏
+    r = d2("- 本板共有九兆五个子节点。【实测】")
+    assert r.returncode != 0 and _one_problem_has(r.stdout, "无法解析", "九兆五"), (
+        f"定界集漏『兆』导致尾片重锚:\n{r.stdout}"
+    )
+    r = d2("- 本板共有987654层关系。【实测】")
+    assert r.returncode != 0 and _one_problem_has(r.stdout, "找不到同值来源", "987654"), (
+        f"量词表漏『层』导致整句零校验:\n{r.stdout}"
+    )
+
+    # 放行面（同权重）
+    for name, line in (
+        ("合法区间两端在池", "- 建议覆盖 2~3 个节点。【实测】"),
+        ("单字在池", "- 本板共有五个子节点。【实测】"),
+        ("ASCII 在池", "- 本板共有3个子节点。【实测】"),
+        ("`点` 的正当量词用法", "- 本板共有3点建议。【实测】"),
+        ("round-5 原始误伤 十分", "- 说明十分清楚。【实测】"),
+    ):
+        r = d2(line)
+        assert r.returncode == 0, f"合法形态被误伤（{name}）:\n{r.stdout}"
+    for name, tok in (("fallback 单字", "五"), ("fallback ASCII", "3")):
+        r = fb(tok)
+        assert r.returncode == 0, f"合法形态被误伤（{name}）:\n{r.stdout}"
+
+
+# ── R3 round-6：Codex round-5 八条实现 HIGH 的整改 + **一次假设检验** ──────────
+# ⛔ 本轮最重要的产出不是修了 8 条，而是**证伪了车道自己的中心断言**。
+# 车道在 round-5 收口时写下：「五轮全部 finding 在『先渲染再核数』的设计下会
+# **同时消失**，因为它们共享『源码与渲染不一致』这一个前提」。
+# round-6 把 `_visible_text()` 真正实现出来并实测：**10 条里只闭合 3 条**
+# （标记/实体/千分位），其余 7 条与渲染无关——是**封闭表**（量词 `门`、区间
+# 分隔符 `～`）、**判据正则过窄**（`总计五个` / `总计：`）、**负号**、
+# **有意豁免**（inline-code）、**顺序问题**（wikilink 在归一前已被挖空）。
+# ⇒ 那句「同时消失」是**未经检验就写进结论的断言**，已按实测更正为 3/10。
+
+
+def test_domain_r9_visible_text_and_round5_closures_cli(tmp_path):
+    """R3 round-6：渲染归一 + 六处非渲染缺口，逐条锁住。
+
+    **它证明什么**：
+      · `_visible_text()` 把 HTML 实体（含 `&#xff19;` 这类全角实体，**先解实体
+        再转全角**，顺序反了就永远转不成 ASCII）、HTML 标签、无别名 wikilink 的
+        显示文本、零宽字符、强调标记统一归一到"读者看到的文本"；
+      · 句式门 `总计/合计/共有` 其后接**任一数词样字符**（原只认 ASCII 数字，
+        `总计五个` / `总计：987654个` 整句不进检查面）；
+      · 区间分隔符含全角波浪等变体；负数计数恒 FAIL；量词表补常用字。
+    **它不证明什么**：三张表（数词/量词/分隔符）**仍是封闭表**；
+    `_visible_text` **不是完整 markdown 渲染器**，是针对本域已知构造的收敛器；
+    inline code 内容是**有意豁免**的字段值（E2 设计选择），本门不覆盖。
+    """
+    rs = _load_recap_scan()
+    # 归一器单元契约：顺序错了 `&#xff19;` 就会停在全角 `９`（round-5 HIGH-3）
+    assert rs._visible_text("&#xff19;&#xff18;") == "98", "解实体必须早于全角转换"
+    assert rs._visible_text("987654<b>-</b>0") == "987654-0"
+    assert rs._visible_text("[[987654]]") == "987654", "无别名 wikilink 的目标就是显示文本"
+    assert rs._visible_text("[[节点/A|五]]") == "五", "有别名时显示的是别名"
+    assert rs._visible_text("98​7") == "987", "零宽字符不得切断数串"
+    # ⛔ round-6 自查回归（Codex round-6 HIGH-1，车道实测确认并含**误伤**）：
+    # 第一版 `_VIS_EMPHASIS_RE = [*_~]` 无条件剥 `~`，而 `_visible_text` 跑在
+    # `_D2_RANGE_RE` **之前** ⇒ 合法区间 `2~3个` 被拼成 `23`（池外）而 FAIL。
+    # ⚠️ 这条门此前只用**全角 `～`**，恰好漏掉 ASCII `~`。
+    assert rs._visible_text("987654~0") == "987654~0", "单个 ~ 是区间号，不得剥"
+    assert rs._visible_text("98~~7~~6") == "9876", "成对 ~~ 是删除线，须剥"
+
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    pool = _load_recap_scan()._derived_number_pool(scan)
+    assert 5 in pool and 987654 not in pool, f"前提失效: {sorted(pool)}"
+    report = write_report(vault, scan)
+    base_text = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+
+    def d2(line: str):
+        text = base_text.replace("## 三维审查", f"## 三维审查\n\n{line}", 1)
+        assert text != base_text, "变异未命中：报告一字未改，这条门测的是空气"
+        report.write_text(text, encoding="utf-8")
+        return run_verify(report)
+
+    for name, line, needles in (
+        (
+            "实体全角数字",
+            "- 本板共有&#xff19;&#xff18;&#xff17;&#xff16;&#xff15;&#xff14;个子节点。【实测】",
+            ("找不到同值来源", "987654"),
+        ),
+        (
+            "千分位后三位内部再切",
+            "- 本板共有987654,0<b>0</b>0个子节点。【实测】",
+            ("找不到同值来源", "987654000"),
+        ),
+        (
+            "标记切断的裸『总计』",
+            "- 总计**987654**个子节点。【实测】",
+            ("找不到同值来源", "987654"),
+        ),
+        (
+            "冒号式裸『总计』",
+            "- 总计：987654个子节点。【实测】",
+            ("找不到同值来源", "987654"),
+        ),
+        (
+            "无别名 wikilink",
+            "- 本板共有[[987654]]个子节点。【实测】",
+            ("找不到同值来源", "987654"),
+        ),
+        (
+            "全角波浪区间",
+            "- 本板共有987654～0个子节点。【实测】",
+            ("区间端点", "987654"),
+        ),
+        # ⛔ ASCII `~` 必须与全角同等对待（round-6 回归点）
+        (
+            "ASCII 波浪区间",
+            "- 本板共有987654~0个子节点。【实测】",
+            ("区间端点", "987654"),
+        ),
+        (
+            "成对删除线（渲染=9876）",
+            "- 本板共有98~~7~~6个子节点。【实测】",
+            ("找不到同值来源", "9876"),
+        ),
+        ("负数计数", "- 本板共有-5个子节点。【实测】", ("负数形态", "-5")),
+        (
+            "量词表补『门』",
+            "- 本板共有987654门课程。【实测】",
+            ("找不到同值来源", "987654"),
+        ),
+        # 句式门真的进了检查面（而非恰好放行）——多字/表外都必须 fail-closed
+        (
+            "裸『总计』+多字数词",
+            "- 总计九十八万个子节点。【实测】",
+            ("无法解析", "九十八万"),
+        ),
+        ("裸『合计』+表外数词", "- 合计：廿五个子节点。【实测】", ("无法解析", "廿五")),
+    ):
+        r = d2(line)
+        assert r.returncode != 0, f"{name} 被放行:\n{r.stdout}"
+        assert _one_problem_has(r.stdout, *needles), f"{name}: 诊断未绑定 {needles}:\n{r.stdout}"
+
+    # 放行面（同权重）：收紧不得反噬
+    for name, line in (
+        ("裸『总计』+值在池的单字", "- 总计五个子节点。【实测】"),
+        ("单字在池", "- 本板共有五个子节点。【实测】"),
+        ("ASCII 在池", "- 本板共有3个子节点。【实测】"),
+        ("合法区间（非自陈句）", "- 建议覆盖 2~3 个节点。【实测】"),
+        # ⛔ 自陈句内的合法 ASCII 区间 —— 回归的**误伤面**（曾被拼成 23 而 FAIL）
+        ("自陈句内合法 ASCII 区间", "- 本板共有2~3个子节点。【实测】"),
+        ("`点` 的正当量词用法", "- 本板共有3点建议。【实测】"),
+        ("round-5 原始误伤 十分", "- 说明十分清楚。【实测】"),
+        ("round-5 原始误伤 一致", "- 统计口径尚未一致。【实测】"),
+    ):
+        r = d2(line)
+        assert r.returncode == 0, f"合法形态被误伤（{name}）:\n{r.stdout}"
+
+
+# ── R3 round-8：Codex round-6 八条中的其余七条（**5 实现 + 2 自证**，非全部实现）──
+# ⛔ 本轮同时是一次**速率测量**：round-6 那一刀在闭合 3 条的同时自引 1 条回归，
+# 车道据此判「修复速率 ≈ 引入速率、应停止」。但那只是**一个数据点**，而"再修会
+# 引入更多"本身就是未经验证的断言。
+# 实测（⚠️ 措辞按 Codex round-7 HIGH-8 收窄）：round-7 修 1 条（自引回归）、
+# round-8 修 7 条；本轮拦截面 8/8 闭合，**已列举的 10 个放行样例**与**已运行的
+# 全套件**未发现回归。⇒ 「再修必然引入回归」这一断言在本轮**未被支持**。
+# ⚠️ 这**不等于**「零回归」——未被门覆盖的行为面没有被测，不能据此声称。
+
+
+def test_domain_r10_ordering_and_render_closure_cli(tmp_path):
+    """R3 round-8：三处**顺序耦合** + 渲染闭包缺口 + 三张闭表的便宜面。
+
+    七条实测反例（修前全部 exit 0）：
+      · `[[节点/A|987654]]个` —— D2 把 `[[目标` 挖空**跑在 `_visible_text` 之前**，
+        只剩 `|987654]]个`，量词锚失效（顺序耦合）；
+      · fallback `#### 派**生**子女 987654 个` —— 在**源码行**上判「含派生」与
+        白名单匹配，`**` 隔开 `派`/`生` 整行不进检查面（顺序耦合）；
+      · fallback `-5` —— 负数守卫原先**只在 D2 侧**（覆盖不全）；
+      · `总[计](http://x)987654个` —— 标准 Markdown link 未取显示文本；
+      · `98⁦⁩7654个` —— U+2066-2069 bidi isolate 不在不可见集；
+      · `1'005个` / `987654笔` / `仨五个` —— 三张闭表的常见缺口。
+
+    **它证明什么**：归一必须跑在**筛选与豁免挖空之前**（三处顺序已改）；
+    `_visible_text` 覆盖 Markdown link 与 bidi isolate；负数守卫两侧同口径。
+    **它不证明什么**：`_visible_text` **仍不是完整 renderer**，三张表**仍是闭表**
+    —— 见验收单 §五之五 的分类（四类都**没有**被证明有限）。
+    """
+    rs = _load_recap_scan()
+    assert rs._visible_text("总[计](http://x)987654个") == "总计987654个"
+    # ⛔ round-12：reference-style link 同处理（Codex 三轮点名）。
+    # ⚠️ 如实声明：`_visible_text` **仍不是完整 renderer** —— Obsidian highlight
+    # `==x==`、math `$x$`、脚注 `[^1]` 等未覆盖。这是**又补一个已知构造**，不是闭包。
+    assert rs._visible_text("总[计][r]987654个") == "总计987654个"
+    assert rs._visible_text("98⁦⁩7") == "987", "bidi isolate 不得切断数串"
+    assert rs._normalize_number_seps("1'005") == "1005", "撇号千分位"
+
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    assert 987654 not in _load_recap_scan()._derived_number_pool(scan)
+    report = write_report(vault, scan)
+    base_text = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+
+    def verify(anchor: str, injected: str):
+        text = base_text.replace(anchor, injected, 1)
+        assert text != base_text, "变异未命中：报告一字未改，这条门测的是空气"
+        report.write_text(text, encoding="utf-8")
+        return run_verify(report)
+
+    def d2(line: str):
+        return verify("## 三维审查", f"## 三维审查\n\n{line}")
+
+    def fb_raw(raw: str):
+        return verify("方向叙述：", f"\n{raw}\n\n方向叙述：")
+
+    for name, line, needles in (
+        (
+            "有别名 wikilink（顺序耦合）",
+            "- 本板共有[[节点/A|987654]]个子节点。【实测】",
+            ("找不到同值来源", "987654"),
+        ),
+        (
+            "Markdown link 显示文本（inline）",
+            "- 总[计](http://x)987654个子节点。【实测】",
+            ("找不到同值来源", "987654"),
+        ),
+        (
+            "Markdown link 显示文本（reference-style，round-12 新增）",
+            "- 总[计][r]987654个子节点。【实测】",
+            ("找不到同值来源", "987654"),
+        ),
+        ("bidi isolate", "- 本板共有98⁦⁩七654个子节点。【实测】", ("无法解析",)),
+        ("撇号千分位", "- 本板共有1'005个子节点。【实测】", ("找不到同值来源", "1005")),
+        (
+            "量词表『笔』",
+            "- 本板共有987654笔支出。【实测】",
+            ("找不到同值来源", "987654"),
+        ),
+        ("数词表『仨』", "- 本板共有仨五个子节点。【实测】", ("无法解析", "仨五")),
+    ):
+        r = d2(line)
+        assert r.returncode != 0, f"{name} 被放行:\n{r.stdout}"
+        assert _one_problem_has(r.stdout, *needles), f"{name}: 诊断未绑定:\n{r.stdout}"
+
+    # fallback 侧：选行顺序 + 负数守卫
+    r = fb_raw("#### 派**生**子女 987654 个 的说明")
+    assert r.returncode != 0 and _one_problem_has(r.stdout, "无出处", "987654"), (
+        f"fallback 在源码行上选行 ⇒ 整行不进检查面:\n{r.stdout}"
+    )
+    r = fb_raw("#### 派生子女 -5 个 的说明")
+    assert r.returncode != 0 and _one_problem_has(r.stdout, "负数形态", "-5"), (
+        f"fallback 负数未 fail-closed:\n{r.stdout}"
+    )
+
+    # 放行面（同权重）——本轮的**回归探测面**
+    for name, line in (
+        ("单字在池", "- 本板共有五个子节点。【实测】"),
+        ("ASCII 在池", "- 本板共有3个子节点。【实测】"),
+        ("自陈句内合法 ASCII 区间", "- 本板共有2~3个子节点。【实测】"),
+        ("非自陈句区间", "- 建议覆盖 2~3 个节点。【实测】"),
+        ("`点` 的正当量词用法", "- 本板共有3点建议。【实测】"),
+        ("前导零 016=16", "- 本板共有016个子节点。【实测】"),
+        ("round-5 原始误伤 十分", "- 说明十分清楚。【实测】"),
+        ("round-5 原始误伤 一致", "- 统计口径尚未一致。【实测】"),
+    ):
+        r = d2(line)
+        assert r.returncode == 0, f"合法形态被误伤（{name}）:\n{r.stdout}"
+    # ⛔ Codex round-8 HIGH-9：中文「负」原**只测 D2 侧**，而两侧守卫**不是共享常量**
+    # ⇒ fallback 那份可以漂移。补 fallback 侧的中文负号行为门。
+    r = fb_raw("#### 派生子女 负五 个 的说明")
+    assert r.returncode != 0 and _one_problem_has(r.stdout, "负数形态", "-五"), (
+        f"fallback 侧中文负号未 fail-closed:\n{r.stdout}"
+    )
+
+    for name, raw in (
+        ("fallback 单字", "#### 派生子女 五 个 的说明"),
+        ("fallback ASCII", "#### 派生子女 3 个 的说明"),
+    ):
+        r = fb_raw(raw)
+        assert r.returncode == 0, f"合法形态被误伤（{name}）:\n{r.stdout}"
+
+
+# ── R3 round-9：Codex round-7 的实现侧真缺陷（逐条实测复现后闭合）────────────
+# ⚠️ Codex round-7 报 5 实现 HIGH，车道逐条实测：**H1/H3/H4/H5 属实**，
+# 而 H2 的两个具体例子（inline-code 藏 `笔`、⑦⑧手抄数词禁集）**不成立**
+# ——它们分别被「`支` 已在量词表」与「信号行整行格式检查」拦下。机制或许仍在，
+# 但**给出的反例不可复现**，如实驳回，不按它去改一个测不出来的东西。
+# H4（reference-style link）与 H5（过度拼接不保值）**未修**，登记在 §五之三。
+
+
+def test_domain_r11_fulltext_gate_and_visible_numerals_cli(tmp_path):
+    """R3 round-9：全文『派生』门先归一 + 可见数字/量词/中文负号的闭表补漏。
+
+    四条实测反例（修前 exit 0）：
+      · `- 派**生**出 987654 个新节点` —— **全文**白名单门仍在**源码行**上判
+        「含派生」；round-8 只把**局部**数字函数改成先归一，这道门漏了 ⇒ 整行
+        既不进局部循环、也绕过全文门（**同一个顺序耦合，修了一处漏了另一处**）；
+      · `本板共有⑤个子节点` —— 带圈数字不在定界集 ⇒ **一个 token 都抽不出**，
+        整句零校验（比尾片重锚更彻底）；
+      · `本板共有987654例记录` —— `例` 不在量词表 ⇒ 整句零校验；
+      · `本板共有负五个子节点` —— 符号守卫只认五个西文符号，漏中文「负」。
+
+    **它证明什么**：两道 fallback 门（全文/局部）**同口径**先归一；可见数字与
+    常用量词进表后对应形态被拦；中文负号与西文负号同等对待。
+    **它不证明什么**：三张表**仍是封闭表**——本轮补的是"已知可见形态"，不是全集。
+    Unicode 里还有大量可渲染成数字的字符未纳入，见 §五之三。
+    """
+    rs = _load_recap_scan()
+    assert rs._count_token_value("⑤") is None, "带圈数字应进定界面但**不赋值**"
+    assert "⑤" in rs._NUMERAL_LIKE_CHARS and "〡" in rs._NUMERAL_LIKE_CHARS
+
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    assert 987654 not in rs._derived_number_pool(scan)
+    report = write_report(vault, scan)
+    base_text = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+
+    def verify(anchor: str, injected: str):
+        text = base_text.replace(anchor, injected, 1)
+        assert text != base_text, "变异未命中：报告一字未改，这条门测的是空气"
+        report.write_text(text, encoding="utf-8")
+        return run_verify(report)
+
+    def d2(line: str):
+        return verify("## 三维审查", f"## 三维审查\n\n{line}")
+
+    def fb_raw(raw: str):
+        return verify("方向叙述：", f"\n{raw}\n\n方向叙述：")
+
+    # 全文『派生』门：必须由**模板外派生表述**拦下（不是被别的防线顺手接住）
+    r = fb_raw("- 派**生**出 987654 个新节点")
+    assert r.returncode != 0, f"全文门在源码行上判 ⇒ 整行逃出:\n{r.stdout}"
+    assert "模板外的『派生』表述" in r.stdout, f"应由全文『派生』白名单门拦下:\n{r.stdout}"
+
+    for name, line, needles in (
+        ("带圈数字（可见但表外）", "- 本板共有⑤个子节点。【实测】", ("无法解析", "⑤")),
+        (
+            "表外量词『例』",
+            "- 本板共有987654例记录。【实测】",
+            ("找不到同值来源", "987654"),
+        ),
+        ("中文负号（D2 侧）", "- 本板共有负五个子节点。【实测】", ("负数形态", "-五")),
+        # ⛔ Codex round-8 HIGH-9：量词表本轮补了 `例束艘架间`，原门只测 `例`
+        # ⇒ 其余四字可漂移而无人发现。逐字补齐行为门。
+        (
+            "表外量词『束』",
+            "- 本板共有987654束数据。【实测】",
+            ("找不到同值来源", "987654"),
+        ),
+        (
+            "表外量词『艘』",
+            "- 本板共有987654艘记录。【实测】",
+            ("找不到同值来源", "987654"),
+        ),
+        (
+            "表外量词『架』",
+            "- 本板共有987654架记录。【实测】",
+            ("找不到同值来源", "987654"),
+        ),
+        (
+            "表外量词『间』",
+            "- 本板共有987654间记录。【实测】",
+            ("找不到同值来源", "987654"),
+        ),
+    ):
+        r = d2(line)
+        assert r.returncode != 0, f"{name} 被放行:\n{r.stdout}"
+        assert _one_problem_has(r.stdout, *needles), f"{name}: 诊断未绑定:\n{r.stdout}"
+
+    # 放行面（同权重）——本轮的回归探测面
+    for name, line in (
+        ("单字在池", "- 本板共有五个子节点。【实测】"),
+        ("ASCII 在池", "- 本板共有3个子节点。【实测】"),
+        ("池内 22", "- 本板共有22个子节点。【实测】"),
+        ("自陈句内合法区间", "- 本板共有2~3个子节点。【实测】"),
+        ("非自陈句区间", "- 建议覆盖 2~3 个节点。【实测】"),
+        ("`点` 的正当量词用法", "- 本板共有3点建议。【实测】"),
+        ("前导零 016=16", "- 本板共有016个子节点。【实测】"),
+        ("round-5 原始误伤 十分", "- 说明十分清楚。【实测】"),
+        ("round-5 原始误伤 一致", "- 统计口径尚未一致。【实测】"),
+    ):
+        r = d2(line)
+        assert r.returncode == 0, f"合法形态被误伤（{name}）:\n{r.stdout}"
+    for name, raw in (
+        ("fallback 单字", "#### 派生子女 五 个 的说明"),
+        ("fallback ASCII", "#### 派生子女 3 个 的说明"),
+    ):
+        r = fb_raw(raw)
+        assert r.returncode == 0, f"合法形态被误伤（{name}）:\n{r.stdout}"
+
+
+# ── R3 round-11：消掉一张手抄闭表副本 + 给另一张加漂移检测 ────────────────────
+# ⛔ Codex 连续三轮点名「隐藏的手抄闭表」。本卡反复证明的那条原则是：
+# **一个原则只有一个应用点**（判据分叉 / 双循环分类 / 预处理顺序耦合，
+# 全是同一个病的不同实例）。所以这里不是再补一次表，而是：
+#   · inline-code 守卫的量词副本 → **从 `_D2_QUANT` 机械派生**（副本消失）；
+#   · ⑦⑧允许式的数词禁集在**定界集定义之前**，移动代码风险大 ⇒ 保留副本，
+#     但加一道**漂移检测门**：它必须覆盖 `_NUMERAL_LIKE_CHARS` 的每一个字符。
+#     ⚠️ 这不等于消除副本，只是**把静默分叉变成会被抓住的分叉**——如实登记。
+
+
+def test_domain_r12_no_silent_table_copies():
+    """R3 round-11：闭表副本要么派生，要么可检测。
+
+    **它证明什么**：① inline-code 的量词守卫确实从 `_D2_QUANT` 派生（给主表加字，
+    守卫自动跟上，`` `例` `` 不再被当普通 code span 挖空）；② ⑦⑧允许式的数词禁集
+    覆盖定界集全集，任一方漂移都会被这道门抓住。
+    **它不证明什么**：⑦⑧ 的副本**仍然存在**（只是不能再静默分叉）；
+    三张主表本身**仍是封闭表**，本门不宣称覆盖表外形态。
+    """
+    rs = _load_recap_scan()
+    quant = set(rs._D2_QUANT.strip("[]"))
+
+    # ① inline-code 守卫必须与主量词表同步（派生 ⇒ 逐字覆盖）
+    for ch in sorted(quant):
+        assert rs._codespan_is_visible_count(ch), (
+            f"量词 {ch!r} 单独写成 code span 时被挖空 ⇒ 前面的数字失去锚点；inline-code 守卫与 _D2_QUANT 已分叉"
+        )
+    # ⛔ round-14（冻结审查）：数字部分原先仍手写 `[0-9]+` ——「副本已消除」只对了
+    # 一半，于是 `` `九十八万个` ``/`` `987654 个` `` 这类**完整可见计数**写进
+    # code span 会被整体挖空、整域免检。现数字部分也派生自定界集。
+    for span in ("987654 个", "九十八万个", "987654", "廿五个"):
+        assert rs._codespan_is_visible_count(span), f"纯计数 code span `{span}` 被当字段值挖空 ⇒ 可见计数整域免检"
+    # ⛔ round-17（冻结审查 §一.2）：判据从 raw 正则前瞻改为**先归一再判**的函数，
+    # 符号/小数点/千分位/全角数字不再让守卫失效。
+    for span in ("-5", "5.5个", "1,005个", "５５个"):
+        assert rs._codespan_is_visible_count(span), f"可见计数 `{span}` 仍被当字段值挖空"
+    for span in ("-", ".", " "):
+        assert not rs._codespan_is_visible_count(span), f"纯符号 `{span}` 不该算计数（白丢 E2 豁免）"
+    # 可见计数 span **只挖反引号**：反引号不在连接集里，原样留下会让量词锚失效。
+    assert rs._D2_CODE_SPAN_RE.sub(rs._blank_inline_code, "共有`-5`个") == "共有 -5 个"
+    # 字段值 span 整段挖空，且**等长**（行内偏移不能乱）——期望值算出来，不手数空格
+    assert (
+        rs._D2_CODE_SPAN_RE.sub(rs._blank_inline_code, "项 `mastery` 已改") == "项 " + " " * len("`mastery`") + " 已改"
+    )
+    # 负号集必须是**单一常量**（原先 D2/fallback 手抄两次）
+    assert hasattr(rs, "_NEG_SIGN"), "负号集应提为单一常量，避免第三处副本"
+    # ⛔ round-15（冻结审查）：全文零宽门原先**手抄**一份只到 U+2064 的集合，
+    # 而 `_INVISIBLE_ONE` 覆盖到 U+2069 ⇒ bidi isolate U+2065-2069 能过全局门。
+    # 又一处「同一原则两处定义」。现两处共用同一常量 —— 逐字符验证一致性。
+    import re as _re
+
+    _inv = _re.compile(rs._INVISIBLE_ONE)
+    # 全文零宽门与归一集必须是**同一个**集合：逐字符比对两者判定。
+    _globals_src = pathlib.Path(rs.__file__).read_text(encoding="utf-8")
+    assert "if re.search(_INVISIBLE_ONE, text):" in _globals_src, (
+        "全文零宽门未共用 _INVISIBLE_ONE —— 手抄副本会与归一集分叉"
+    )
+    for _cp in (0x2065, 0x2066, 0x2067, 0x2068, 0x2069):
+        assert _inv.match(chr(_cp)), f"U+{_cp:04X} (bidi isolate) 不在不可见集内 —— 它能切断数串却过全局门"
+    # 反面：非量词的 code span 仍应被挖空（否则豁免整个失效）
+    assert not rs._codespan_is_visible_count("abc"), "普通 code span 应仍被豁免（字段值）"
+
+    # ② ⑦⑧允许式的手抄数词禁集必须覆盖定界集全集（漂移即被抓）
+    # ⚠️ 必须**按行为**检测，不能拿字符去子串匹配 pattern 源码 ——
+    # `0-9` 在字符类里是**区间**，`"1" in pattern` 恒 False，会给出大批假阳性
+    # （第一版就这么写的，当场报出 60+ 个"缺失"，其中 1-8 是假的）。
+    pats = [p for p, _ in rs._FALLBACK_DERIVE_ALLOW if "缺来源锚点" in p.pattern or "集中在" in p.pattern]
+    assert len(pats) == 2, f"⑦⑧允许式应恰有两条: {len(pats)}"
+    p7, p8 = pats
+    missing = set()
+    for ch in rs._NUMERAL_LIKE_CHARS:
+        if p7.match(f"2 个派生角色成员缺来源锚点{ch}。"):
+            missing.add(ch)
+        if p8.match(f"集中在派生角色成员{ch}。"):
+            missing.add(ch)
+    assert not missing, (
+        f"⑦⑧的手抄数词禁集与定界集已分叉，未禁: {''.join(sorted(missing))}\n"
+        "⇒ 这些字符写进③段固定句式的尾段可绕过数字禁令"
+    )
+
+
+def test_domain_r13_shortcut_link_and_crash_classifier(tmp_path):
+    """R3 round-16（冻结审查 HIGH ×2）：shortcut link 渲染面 + 崩溃判据的假阴面。
+
+    两条实测反例（修前）：
+      · `总[计]987654个子节点` —— link 三形态只覆盖了 inline `[t](url)` 与
+        reference `[t][r]`/`[t][]`，**shortcut** `[t]` 未覆盖；渲染后读者看到
+        `总计987654个`，源码里 `总`/`计` 被方括号隔开，句式门失锚 ⇒ exit 0；
+      · negverify 的崩溃判据**枚举**五个异常名、且只扫外层 pytest stdout ⇒
+        `ValueError`/`KeyError` 崩溃、以及 **CLI 子进程**里的 traceback 全部
+        记成「✅ 如期变红」。崩溃伪红是四种假绿里**唯一伪装成成功**的一种。
+
+    **它证明什么**：shortcut link 的显示文本进入受检面且不误伤 callout/脚注；
+    崩溃判据按**形态**（`E <Exc>` 非 AssertionError / traceback / INTERNALERROR /
+    收集期 error）而非**名单**识别，两个已知假阴面各有一条正例。
+    **它不证明什么**：`_visible_text` 仍不是完整 renderer（highlight/math/脚注
+    未覆盖）；崩溃判据取的是「宁可误报不漏报」方向，可能把**故意**断言 traceback
+    文本的门误判为崩溃（当前目标套件无此形态）。
+    """
+    rs = _load_recap_scan()
+
+    # ① 渲染面：shortcut 取显示文本，且不吃掉 callout / 脚注
+    assert rs._visible_text("总[计]987654个") == "总计987654个"
+    assert rs._visible_text("总[计](http://x)987654个") == "总计987654个", (
+        "inline 形态必须先于 shortcut 剥，否则只剩裸 url"
+    )
+    assert rs._visible_text("总[计][r]987654个") == "总计987654个"
+    assert rs._visible_text("> [!question]+ 提问") == "> [!question]+ 提问", (
+        "Obsidian callout 头不是链接语法，剥掉会改变段落语义"
+    )
+    assert rs._visible_text("脚注[^1]在此") == "脚注[^1]在此"
+
+    # ② CLI：shortcut link 藏起来的可见计数必须被拦
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    assert 987654 not in rs._derived_number_pool(scan)
+    report = write_report(vault, scan)
+    base_text = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+    text = base_text.replace(
+        "## 三维审查",
+        "## 三维审查\n\n- 本板总[计]987654个子节点。【实测】",
+        1,
+    )
+    assert text != base_text, "变异未命中：报告一字未改，这条门测的是空气"
+    report.write_text(text, encoding="utf-8")
+    r = run_verify(report)
+    assert r.returncode != 0, "shortcut link 藏起来的可见计数被放行"
+    assert _one_problem_has(r.stdout, "987654"), f"诊断未指向完整数串 987654:\n{r.stdout}"
+
+    # ③ 崩溃判据：两个已知假阴面各一条正例 + 断言失败不得误判
+    import importlib.util as _ilu
+
+    _prev = sys.dont_write_bytecode
+    sys.dont_write_bytecode = True
+    try:
+        _spec = _ilu.spec_from_file_location(
+            "negverify_ut", pathlib.Path(__file__).with_name("recap_domain_negverify.py")
+        )
+        _nv = _ilu.module_from_spec(_spec)
+        _spec.loader.exec_module(_nv)
+    finally:
+        sys.dont_write_bytecode = _prev
+
+    for out, want, why in (
+        ("E   AssertionError: 期望 FAIL", False, "断言失败=判错，正是我们要的红"),
+        ("E   assert 0 == 1", False, "裸 assert 同上"),
+        ("1 failed, 260 passed", False, "纯失败摘要"),
+        ("E   re.error: invalid group reference", True, "round-10 原案"),
+        ("E   ValueError: too many values", True, "旧版枚举之外 ⇒ 假阴"),
+        ("E   KeyError: 3", True, "旧版枚举之外 ⇒ 假阴"),
+        (
+            "  Traceback (most recent call last):\n    File 'x'",
+            True,
+            "CLI 子进程崩溃，外层无异常名 ⇒ 旧版假阴",
+        ),
+        ("INTERNALERROR> boom", True, "pytest 内部错"),
+        ("1 error, 260 passed", True, "收集期 error"),
+        # ⛔ round-17（冻结审查 §一.4）：上一版号称"从名单改形态"，其实只是把名单
+        # 从**全名**换成了**后缀** `(?:[Ee]rror|Exception)` —— 仍是我手写的闭表。
+        # 下面三个都不以 Error/Exception 结尾，旧判据全部漏掉。
+        ("E   SystemExit: 2", True, "不以 Error/Exception 结尾 ⇒ 旧后缀表假阴"),
+        ("E   subprocess.TimeoutExpired: t", True, "同上，且是点分名"),
+        ("E   RecursionError: deep", True, "枚举五名单之外"),
+        ("E   Failed: 被测脚本不存在", True, "pytest.fail = 夹具坏了，不是判错"),
+        # ⛔ round-20 二修（冻结审查 v2）：**无消息异常**没有冒号 ——
+        # 要求"紧跟冒号"会漏掉整整一类崩溃。承重的条件是**缩进上界**，不是冒号。
+        ("E   RecursionError", True, "无消息异常（无冒号）⇒ 冒号规则会假阴"),
+        ("E   SystemExit", True, "同上"),
+        # ⛔ round-20：下列样例的缩进是**实测**的 —— 让被测 CLI 真的抛
+        # RecursionError 跑一遍，外层 pytest 打出来的顶层行是 `E` + **3 空格**
+        # （续行 4-5 格）。此前这批样例写的是 7 空格，是我**凭想象**编的形状，
+        # round-20 给判据加缩进上界后当场全红 —— 门的 fixture 本身就不真实。
+        # ⛔ round-17 二修（实测 39/44 假阳）：第一版把判据放宽成「行首是个标识符」，
+        # 但 pytest 给失败详情的**每一行**都加 `E ` 前缀 ⇒ 断言消息的**续行**被
+        # 当成异常类型。**修严引入松、修松引入严** —— 两个方向必须同时锁。
+        ("E     VERIFY FAIL (1 项) — 改写报告后重跑本命令", False, "断言消息续行，不是异常"),
+        ("E     VERIFY PASS — 可以发回执", False, "同上"),
+        ("E    +  where 0 = CompletedProcess(args=[...])", False, "assert 重写的 where 行"),
+        ("E   AssertionError: 四反引号短闭合仍被放行:", False, "消息自己以冒号结尾，仍是断言"),
+        ("E     E1 围栏闭合: 少一个反引号", False, "续行首词恰好像类名 ⇒ 必须靠缩进外的冒号规则排除"),
+    ):
+        assert _nv._looks_like_crash(out) is want, f"崩溃判据判错: {why} | {out!r}"
+
+    # ④ transport：崩溃分析必须同时看 stderr。本域大量门跑 CLI 子进程，
+    #    子进程 traceback 只落 stderr 时，外层只剩一个 AssertionError。
+    assert not _nv._looks_like_crash("1 failed, 260 passed"), "前提：单看 stdout 不算崩溃"
+    assert _nv._looks_like_crash(_nv._crash_text("1 failed, 260 passed", "Traceback (most recent call last):")), (
+        "stderr 里的 traceback 被丢弃 ⇒ 生产崩溃会被当成正常判错变红"
+    )
+    assert _nv._crash_text("a", None) == "a\n", "stderr 为 None 时不得抛"
+
+
+def test_domain_r14_range_left_edge_and_codespan_order_cli(tmp_path):
+    """R3 round-17（冻结审查 §一.1/§一.2）：两处**顺序耦合**，六条实测反例。
+
+    修前全部 exit 0：
+      · `-2~3个` —— 区间端点用的 `_NUM_RUN_PAT` **不含符号**，匹配从负号之后
+        重新起锚成 `2~3`；两端都在池 ⇒ 整段挖空，负号守卫再也看不到它；
+      · `2.2~3个` —— 同理从小数点之后起锚；
+      · `` `-5`个 `` / `` `5.5个` `` / `` `1,005个` `` / `` `５５个` `` ——
+        inline-code 的「纯计数」豁免判据作用在 **raw** span 上，而它跑在
+        `_visible_text` / `_normalize_number_seps` **之前**，于是符号/小数点/
+        千分位/全角数字都不在 `_D2_COUNTISH_CHARS` 里 ⇒ 前瞻失败 ⇒ 整段按
+        「字段值」挖空，后续所有数值门都看不见。
+
+    **它证明什么**：区间首端紧邻负号/小数点时 fail-closed；code span 的豁免
+    判据看的是**渲染后**内容，且可见计数只挖反引号（保住量词锚）。
+    **它不证明什么**：`_D2_RANGE_RE` 的分隔符仍是**闭表**；「可见计数」判据
+    仍依赖 `_D2_COUNTISH_CHARS` 这张闭表 —— 两者都如实登记在验收单 §五之三。
+    """
+    rs = _load_recap_scan()
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    pool = rs._derived_number_pool(scan)
+    assert {2, 3, 5} <= pool, "前提：2/3/5 必须在池内，否则下面测的是别的东西"
+    assert 55 not in pool and 1005 not in pool, "前提：55/1005 必须在池外"
+
+    report = write_report(vault, scan)
+    base_text = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+
+    def verify(injected: str):
+        text = base_text.replace("## 三维审查", f"## 三维审查\n\n{injected}", 1)
+        assert text != base_text, "变异未命中：报告一字未改，这条门测的是空气"
+        report.write_text(text, encoding="utf-8")
+        return run_verify(report)
+
+    # ① 必须拦：六条实测反例
+    for line, needle, why in (
+        ("- 本板共有-2~3个子节点。【实测】", "-2~3", "区间首端负号"),
+        ("- 本板共有2.2~3个子节点。【实测】", "2.2~3", "区间首端小数"),
+        ("- 本板共有`-5`个子节点。【实测】", "5", "负号在 code span 外"),
+        ("- 本板共有`5.5个`子节点。【实测】", "5.5", "小数整体在 code span"),
+        ("- 本板共有`1,005个`子节点。【实测】", "1005", "千分位整体在 code span"),
+        ("- 本板共有`５５个`子节点。【实测】", "55", "全角数字在 code span（池外 55）"),
+    ):
+        r = verify(line)
+        assert r.returncode != 0, f"{why}：放行了 —— {line!r}"
+        assert _one_problem_has(r.stdout, needle), f"{why}：诊断未指向完整数串 {needle}\n{r.stdout}"
+
+    # ② 不得误伤：E2 字段值豁免仍在，池内值与合法区间照常放行
+    for line, why in (
+        ("- 配置项 `mastery_score` 已更新。【实测】", "普通字段值 code span 仍豁免"),
+        ("- 本板共有`５个`子节点。【实测】", "全角 ５=5 在池内，应放行"),
+        ("- 建议覆盖2~3个节点。", "合法区间不受伤"),
+    ):
+        assert verify(line).returncode == 0, f"误伤：{why} —— {line!r}"
+
+
+def test_domain_r15_signal_line_selection_is_visible_text_cli(tmp_path):
+    """R3 round-18（冻结审查 §一.3）：③段信号行的**选行**必须在渲染后文本上做。
+
+    实测反例（修前 exit 0）：保留一条合规信号行，再加一条**渲染等价但 label 被
+    切开**的冲突行 —— `来源**覆盖**率：99/3…` / `来源<b>覆盖</b>率：99/3…`。
+    原实现用 `re.findall(rf"^.*{label}.*$", s3)` 在 **raw** 行上选行，这两条
+    根本进不了「逐条全查」，于是"一条合规一条私货"的双行逃逸成立。
+
+    **它证明什么**：选行与后续整行 fullmatch 都在 `_visible_text()` 上做，
+    与 D2 / fallback 两条主链同一个文本空间；零宽形态另有全文门兜底。
+    **它不证明什么**：`_visible_text` 仍不是完整 renderer；seed ledger / 五元组 /
+    tips / fallback ⑦ 四处 raw 专用绑定**本轮未修**（见验收单 §五之五）。
+    """
+    m = sys.modules[__name__]
+    rs = _load_recap_scan()
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    report = write_report(vault, scan)
+    base = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+
+    good = "> - 来源覆盖率：2/3 成员含来源锚点【文件】"
+    assert good in base, "前提：标准报告必须含这条合规信号行"
+
+    def with_extra(extra: str):
+        text = base.replace(good, good + "\n" + extra, 1)
+        assert text != base, "注入未命中：报告一字未改，这条门测的是空气"
+        report.write_text(text, encoding="utf-8")
+        return run_verify(report)
+
+    for extra, why in (
+        ("> - 来源覆盖率：99/3 成员含来源锚点【文件】", "对照：裸 label 冲突行"),
+        ("> - 来源**覆盖**率：99/3 成员含来源锚点【文件】", "label 被强调标记切开"),
+        ("> - 来源<b>覆盖</b>率：99/3 成员含来源锚点【文件】", "label 被 HTML 标签切开"),
+        ("> - 来源\u200b覆盖率：99/3 成员含来源锚点【文件】", "label 被零宽切开（全文门兜底）"),
+    ):
+        assert with_extra(extra).returncode != 0, f"{why}：冲突信号行被放行 —— {extra!r}"
+
+    # 不得误伤：把合规行本身写成渲染等价的强调形态，仍须通过
+    report.write_text(
+        base.replace(good, "> - 来源**覆盖**率：2/3 成员含来源锚点【文件】", 1),
+        encoding="utf-8",
+    )
+    assert run_verify(report).returncode == 0, "渲染等价的合规行被误判"
+
+
+def test_domain_r16_clause7_n_binding_is_visible_text_cli(tmp_path):
+    """R3 round-19（冻结审查 §一.3）：⑦『派生角色成员』前置 N 的绑定口径分叉。
+
+    实测反例（修前 exit 0，三条）：措辞白名单（`_FALLBACK_DERIVE_ALLOW`，:2437）
+    早已改在 `_visible_text` 上判，而同一条叙述的 **N 绑定** 仍在 **raw** 行上
+    `m7.match(ln)` ⇒ 出现「白名单放行、N 绑定跳过」的夹缝：
+
+      · `999 个派**生**角色成员缺来源锚点。`
+      · `999 个派<b>生</b>角色成员缺来源锚点。`
+      · `999<b></b> 个派生角色成员缺来源锚点。`
+
+    渲染后都是明确的 `999 个…`，而 `signals.unsourced_conclusions.value == 0`。
+
+    **它证明什么**：同一条叙述的**白名单**与**值绑定**必须同口径（都在渲染后
+    文本上）——口径分叉本身就是漏洞，不需要任何一侧写错。
+    **它不证明什么**：`_visible_text` 仍不是完整 renderer；台账种子行仍是 raw
+    绑定（实测其形状偏离会撞模板白名单，四条攻击均 fail-closed，故本轮不改）。
+    """
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    assert scan.get("data_mode") == "fallback_local", "前提：本门测 fallback 路径"
+    sig = (scan.get("signals") or {}).get("unsourced_conclusions") or {}
+    assert sig.get("value") == 0, f"前提：value 必须是 0，否则 999 的对照没有意义: {sig}"
+
+    report = write_report(vault, scan)
+    base = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+    anchor = "方向叙述："
+    assert anchor in base, "前提：模板必须含方向叙述锚点"
+
+    def inject(line: str):
+        text = base.replace(anchor, f"\n{line}\n\n{anchor}", 1)
+        assert text != base, "注入未命中：报告一字未改，这条门测的是空气"
+        report.write_text(text, encoding="utf-8")
+        return run_verify(report)
+
+    for line, why in (
+        ("999 个派生角色成员缺来源锚点。", "对照：裸前置 N"),
+        ("999 个派**生**角色成员缺来源锚点。", "谓语被强调标记切开"),
+        ("999 个派<b>生</b>角色成员缺来源锚点。", "谓语被 HTML 标签切开"),
+        ("999<b></b> 个派生角色成员缺来源锚点。", "N 与量词之间插空标签"),
+    ):
+        assert inject(line).returncode != 0, f"{why}：前置 N 未被绑定 —— {line!r}"
+
+    # ⚠️ round-21 更正：下面注入的锚点 `方向叙述：` **仍在③段内**，所以这两条
+    #    测的是「③段内的伪信号行」，**不是**真正的段外路径（冻结审查 v3 指出
+    #    原措辞过宽）。段外路径由 `_verify_signals_if_present` 的 rest 判定负责，
+    #    本门不覆盖 —— 如实登记。
+    for line, why in (
+        ("> - 无来源结论：99/2 派生角色成员缺来源锚点【推定】", "③段内裸伪信号行"),
+        ("> - 无**来源**结论：99/2 派生角色成员缺来源锚点【推定】", "③段内伪信号行被切开"),
+    ):
+        assert inject(line).returncode != 0, f"{why}：伪信号行被放行 —— {line!r}"
+
+
+def test_domain_r17_freeze_v2_bounded_highs_cli(tmp_path):
+    """R3 round-20（冻结审查 v2 的五组有界 HIGH）：六条实测反例 + 一处被推翻的判断。
+
+    修前实测放行：
+      · 区间首端**无整数部分**的小数 —— `.2~3个` / `．二~三个` / `点二~三个`
+        （守卫原先要求小数点前必须有数词样字符）；
+      · code span 里的**可见区间**与 **NBSP** —— `` `999~999个` `` / `` `999 个` ``
+        （NBSP）：`_D2_COUNTISH_EXTRA` 与区间主表分叉、空白域只列了空格与 tab，
+        于是整段被当字段值挖空，区间门与数字门**都不可达**；
+      · 五元组**双行逃逸** —— 保留一条正确五元组，再加一条渲染等价但源码不命中的
+        冲突行（`999 成**员**（…）` / `999 成<b>员</b>（…）`），后者既不计入
+        「恰好一处」也不被逐条校验。
+
+    ⛔ 最后一条推翻了我上一轮「三处 raw 绑定实测不成立」的判断：我当时只测了
+    「改坏那条唯一正确行」（形状一坏就 fail-closed），**没把「留一条好的 + 加一条
+    冲突的」这个已经在 ③段信号行上验证过的形态迁移过来**。
+
+    **它证明什么**：区间首端守卫覆盖无整数部分的小数；code span 的字符域与区间
+    主表同源、空白按 `str.isspace()` 判；五元组逐行归一后匹配。
+    **它不证明什么**：`_visible_text` 仍不是完整 renderer；台账种子行与 tips
+    的同型双行攻击我**未能复现**（不等于安全，如实登记）。
+    """
+    rs = _load_recap_scan()
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    pool = rs._derived_number_pool(scan)
+    assert {2, 3} <= pool and 999 not in pool, f"前提：2/3 在池、999 不在池: {sorted(pool)[:8]}"
+
+    report = write_report(vault, scan)
+    base = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+
+    def verify(text: str):
+        assert text != base, "注入未命中：报告一字未改，这条门测的是空气"
+        report.write_text(text, encoding="utf-8")
+        return run_verify(report)
+
+    def in3(line: str):
+        return verify(base.replace("## 三维审查", f"## 三维审查\n\n{line}", 1))
+
+    # ① 区间首端：无整数部分的小数（三种写法）
+    for line, why in (
+        ("- 本板共有.2~3个子节点。【实测】", "半角小数点开头"),
+        ("- 本板共有．二~三个子节点。【实测】", "全角小数点 + 中文数词"),
+        ("- 本板共有点二~三个子节点。【实测】", "『点』开头"),
+    ):
+        assert in3(line).returncode != 0, f"{why}：区间从小数点后重锚仍被放行 —— {line!r}"
+
+    # ② code span：可见区间与 NBSP 都必须进入受检面
+    assert in3("- 本板共有`999~999个`子节点。【实测】").returncode != 0, "code span 里的池外区间被当字段值整段挖空"
+    assert in3("- 本板共有`999\u00a0个`子节点。【实测】").returncode != 0, (
+        "code span 里的 NBSP 让整段被豁免（主连接集用 \\s，这里原先只列空格与 tab）"
+    )
+    # 反面：池内区间照常放行（受检 ≠ 一律拒）
+    assert in3("- 本板共有`2~3个`子节点。【实测】").returncode == 0, (
+        "池内区间被误伤 —— 目标是让它**进入检查**，不是一律拒"
+    )
+
+    # ③ 五元组双行逃逸
+    scale = next((ln for ln in base.splitlines() if re.search(r"\d+\s*成员（", ln)), None)
+    assert scale, "前提：报告必须含五元组行"
+    for repl, why in (
+        ("999 成**员**", "强调标记切开"),
+        ("999 成<b>员</b>", "HTML 标签切开"),
+    ):
+        conflict = re.sub(r"(\d+)\s*成员", repl, scale, count=1)
+        assert verify(base.replace(scale, scale + "\n" + conflict, 1)).returncode != 0, (
+            f"五元组双行逃逸（{why}）：冲突行既不计数也不校验"
+        )
+
+    # ④ 字符域必须与区间主表同源（漂移即被抓）
+    # ⛔ round-23：此前只枚举 5 个，漏掉六种横线；且区间正则当时**手抄了第二份表**，
+    #    所谓「同源」并不成立。现从 `_D2_RANGE_SEPS` 逐字符双向锁：两个消费面都必须覆盖。
+    # ⛔ round-25：`len >= 11` 不锁**互异**，11 个重复字符也能过（冻结审查 v6）。
+    assert len(set(rs._D2_RANGE_SEPS)) >= 11, f"分隔表互异字符不足: {rs._D2_RANGE_SEPS!r}"
+    assert len(set(rs._D2_RANGE_SEPS)) == len(rs._D2_RANGE_SEPS), (
+        f"分隔表有重复字符（多半是手抄漏了）: {rs._D2_RANGE_SEPS!r}"
+    )
+    for ch in rs._D2_RANGE_SEPS:
+        assert rs._codespan_is_visible_count(f"2{ch}3个"), (
+            f"区间分隔符 {ch!r} 不在 code span 字符域里 ⇒ 可见区间被整段豁免"
+        )
+        assert rs._D2_RANGE_RE.search(f"2{ch}3个"), f"区间分隔符 {ch!r} 不被区间正则识别 ⇒ 两侧分隔表已分叉"
+    for ch in ("\u00a0", "\u3000"):
+        assert rs._codespan_is_visible_count(f"999{ch}个"), (
+            f"空白 U+{ord(ch):04X} 不被接受 ⇒ 整段被豁免（主连接集用 \\s）"
+        )
+
+
+def test_domain_r18_crash_judge_indent_and_child_stderr():
+    """R3 round-20（冻结审查 v2 §四.4）：崩溃判据的假阳面 + 内层 stderr 接线。
+
+    两条判词都成立：
+      · 只要「紧跟冒号」仍假阳 —— 断言消息的续行 `E       Expected: 3` 同样是
+        「标识符+冒号」。实测 pytest 语法：顶层行是 `E` + **3 个空格**，
+        续行缩进更深（`E     VERIFY…` 5 格 / `E    +  where` 4 格）；
+      · 内层 CLI 以 `capture_output=True` 执行、断言只带 `r.stdout` ⇒
+        子进程 traceback 若只在 stderr，**外层两路输出里根本不会出现**。
+
+    **它证明什么**：缩进上界（`E` + 1-3 格）+ `assert`/`AssertionError` 白名单判异常 ——
+    「紧跟冒号」这个条件已在 round-20 二修**删除**（它既多余又漏掉无消息异常）；
+    此处文案 round-23 才更正，此前与实现矛盾；
+    `run_verify` 已把子进程 stderr 打到测试 stdout（pytest 失败时展示）。
+    **它不证明什么**：这套解析**不是可靠二分**（round-21 如实收回该说法）——
+    pytest 的缩进随 tb 风格而变，本仓 `backend/pytest.ini` 的 addopts 强制
+    `--tb=short`（我此前注释写的『-q 默认 tb』是**事实错误**）。内层无
+    traceback 的崩溃仍会假阴、正文偶含 traceback 字样仍会假阳。
+    确定性的那一半由 `[[CHILD-CRASH]]` 标记承担，解析只是补充。
+    """
+    import importlib.util as _ilu
+
+    _prev = sys.dont_write_bytecode
+    sys.dont_write_bytecode = True
+    try:
+        _spec = _ilu.spec_from_file_location(
+            "negverify_ut2", pathlib.Path(__file__).with_name("recap_domain_negverify.py")
+        )
+        _nv = _ilu.module_from_spec(_spec)
+        _spec.loader.exec_module(_nv)
+    finally:
+        sys.dont_write_bytecode = _prev
+
+    for out, want, why in (
+        ("E   AssertionError: x", False, "顶层断言异常"),
+        ("E   assert 0 != 0", False, "顶层裸 assert"),
+        ("E     VERIFY FAIL (1 项)", False, "续行（5 格）"),
+        ("E    +  where 0 = C(", False, "assert 重写的 where 行（4 格）"),
+        ("E       Expected: 3", False, "续行里的『标识符+冒号』—— 只靠冒号会假阳"),
+        ("E       Actual: 4", False, "同上"),
+        ("E   re.error: bad", True, "顶层异常"),
+        ("E   SystemExit: 2", True, "不以 Error/Exception 结尾"),
+        ("E   subprocess.TimeoutExpired: t", True, "点分名"),
+        ("E   Exception: boom", True, "裸 Exception"),
+        ("E   Failed: 夹具坏", True, "pytest.fail = 夹具坏了"),
+        ("E   RecursionError", True, "无消息异常：没有冒号，靠缩进上界识别"),
+        # 缩进上界实现接受 1-3 格；实测形态是 3 格（本仓 pytest.ini 强制 --tb=short）。
+        # 1/2 格没有实测样本，但判为异常是**保守方向**，这里显式锁住行为。
+        ("E ValueError: x", True, "1 格缩进（无实测样本，保守判为异常）"),
+        ("E  KeyError: x", True, "2 格缩进（同上）"),
+        # 确定性标记优先于一切启发式
+        ("[[CHILD-CRASH]] rc=1", True, "子进程崩溃的确定性标记"),
+        ("1 passed", False, "对照：没有标记也没有异常行"),
+        ("  Traceback (most recent call last):", True, "任意位置的 traceback"),
+        ("INTERNALERROR> x", True, "pytest 内部错"),
+        ("1 error, 260 passed", True, "收集期 error"),
+        ("1 failed, 260 passed", False, "纯失败摘要"),
+    ):
+        assert _nv._looks_like_crash(out) is want, f"崩溃判据判错: {why} | {out!r}"
+
+    # transport：外层 stderr 不得被丢弃（合成输入，只测 helper 本身）
+    assert _nv._looks_like_crash(_nv._crash_text("1 failed, 260 passed", "Traceback (most recent call last):")), (
+        "外层 stderr 仍被丢弃"
+    )
+    # ⛔ 真实接线由 r19 用 monkeypatch 哨兵验证 —— 这里**不再**读自己的源码查字符串。
+    #    那种写法是恒真的（要找的串就在断言那一行里），round-21 实测：删掉
+    #    run_verify 里真正的调用点，门仍 2 passed。本卡第三次踩同款。
+
+
+def test_domain_r19_child_stderr_transport_is_real(capsys, monkeypatch, tmp_path):
+    """R3 round-21：`run_verify` 必须**真的**调用 `_surface_child_stderr`。
+
+    ⛔ round-20 这里写的是 `assert "_surface_child_stderr(r)" in <本文件源码>` ——
+    **恒真**：要找的字符串就在断言那一行里。round-21 实测验伪：把 `run_verify`
+    里真正的调用点删掉，门仍 **2 passed**。这是本卡**第三次**踩同一款
+    （#23 自抄期望 / round-15 自比常量 / 本条自读源码）。
+    ⇒ 改为 monkeypatch 哨兵：替换掉接线函数本体，跑一次真实 `run_verify`，
+    断言哨兵**被调用过**且拿到的是那个 CompletedProcess。删掉调用点 = 门变红。
+
+    **它证明什么**：接线真实存在；且 stderr 非空时会打出 `[child stderr]`，
+    出现 traceback 时额外打确定性标记 `[[CHILD-CRASH]]`。
+    **它不证明什么**：不证明每条门都会触发它（取决于被测 CLI 是否真的崩）。
+    """
+    import subprocess as _sp
+
+    # ① 接线：run_verify 必须调用它（哨兵，不是读源码字符串）
+    called: list = []
+    monkeypatch.setattr(sys.modules[__name__], "_surface_child_stderr", lambda r: called.append(r))
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    report = write_report(vault, scan)
+    returned = run_verify(report)
+    assert len(called) == 1, "run_verify 未调用 _surface_child_stderr（接线断了）"
+    # ⚠️ round-23：必须断言**同一个对象**。原先只验「是某个 CompletedProcess」，
+    #    那不能排除接线接到了另一次调用的结果上（措辞比证据宽）。
+    assert called[0] is returned, "哨兵拿到的不是 run_verify 返回的那个子进程结果"
+    monkeypatch.undo()
+
+    # ② 函数本体：空 stderr 不出声；有 traceback 时打确定性标记
+    _surface_child_stderr(_sp.CompletedProcess(args=["x"], returncode=1, stdout="", stderr=""))
+    assert capsys.readouterr().out == "", "stderr 为空时不得产生噪声"
+
+    _surface_child_stderr(
+        _sp.CompletedProcess(
+            args=["x"],
+            returncode=1,
+            stdout="",
+            stderr="Traceback (most recent call last):\n  RecursionError: x\n",
+        )
+    )
+    out = capsys.readouterr().out
+    assert CHILD_CRASH_MARK in out, "子进程崩溃未打确定性标记 ⇒ 下游只能靠解析渲染猜"
+    assert "[child stderr]" in out, "子进程 stderr 未被抬到测试 stdout"
+
+    # ③ 无 traceback 的 stderr（如告警）不得误打崩溃标记
+    _surface_child_stderr(_sp.CompletedProcess(args=["x"], returncode=0, stdout="", stderr="DeprecationWarning: x\n"))
+    out2 = capsys.readouterr().out
+    assert CHILD_CRASH_MARK not in out2, "普通 stderr 被误标成崩溃"
+    assert "[child stderr]" in out2
+
+
+def test_domain_r20_seed_ledger_visible_in_manifest_cli(tmp_path):
+    """R3 round-22（冻结审查 v3）：台账种子行的 raw/visible 夹缝 —— **manifest 模式**。
+
+    ⛔ 这条推翻了我 round-19 的「实测不成立」。当时我在 **fallback** 模式下测，
+    冲突行会撞上那里的整行形状门 ⇒ 看起来 fail-closed。审查方指出
+    **manifest 模式没有那层门** —— 实测两条 exit 0 放行：
+
+      · `- SeedA — 批**注** 999 条`
+      · `- SeedA — 批<b>注</b> 999 条`
+
+    形态与 ③段信号行、五元组的双行逃逸**完全相同**（留一条正确行 + 加一条渲染
+    等价但源码不命中的冲突行）。这是同一形态在本卡的**第三次**命中。
+
+    **它证明什么**：种子行的段抓取与行匹配都在渲染文本上做；两个消费方
+    （`_verify_ledger_counts` 的值绑定 + fallback 的整行形状门）同口径。
+    **它不证明什么**：`_visible_block` 仍不是完整 renderer；③标题与 tips 的
+    同型攻击在两种模式下都未复现（**未复现 ≠ 安全**，如实登记）。
+    """
+    vault = standard_vault(tmp_path)
+    mpath = make_manifest(vault)
+    scan = collect_json(vault, "--manifest", str(mpath))
+    assert scan.get("data_mode") == "manifest", "前提：本门测的是 manifest 路径"
+
+    report = write_report(vault, scan)
+    base = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+
+    ms = re.search(r"^### 种子\s*$(.*?)(?=^#{2,3}[^\S\n]|\Z)", base, re.M | re.S)
+    assert ms, "前提：报告必须含『### 种子』小节"
+    seed = [ln for ln in ms.group(1).splitlines() if ln.strip() and "批注" in ln]
+    assert seed, "前提：种子小节必须含带批注数的行"
+    good = seed[0]
+    n = re.search(r"批注\s*(\d+)\s*条", good)
+    assert n, f"前提：种子行必须含批注数: {good!r}"
+
+    def with_conflict(broken: str):
+        conflict = good.replace("批注", broken, 1).replace(f"{n.group(1)} 条", "999 条")
+        text = base.replace(good, good + "\n" + conflict, 1)
+        assert text != base, "注入未命中：报告一字未改，这条门测的是空气"
+        report.write_text(text, encoding="utf-8")
+        return run_verify(report), conflict
+
+    for broken, why in (("批**注**", "强调标记切开"), ("批<b>注</b>", "HTML 标签切开")):
+        r, conflict = with_conflict(broken)
+        assert r.returncode != 0, f"种子行双行逃逸（{why}）被放行 —— {conflict!r}"
+
+    # 不得误伤：把**正确行本身**写成渲染等价的强调形态，仍须通过
+    report.write_text(base.replace(good, good.replace("批注", "批**注**", 1), 1), encoding="utf-8")
+    assert run_verify(report).returncode == 0, "渲染等价的合规种子行被误判"
+
+    # 单一应用点：四处消费方必须都走 _visible_block（漂移即被抓）
+    rs = _load_recap_scan()
+    assert callable(getattr(rs, "_visible_block", None)), "共用 helper 不存在 ⇒ 又会各自 join 一遍"
+    assert rs._visible_block("a**b**\n<c>d</c>") == "ab\nd", "helper 行为不符（行数/顺序必须不变）"
+    # ⚠️ round-23：上一版这句「四处消费方都走 helper」**当时不成立**（③段信号行
+    #    还在逐行 `_visible_text`）。生产已统一，这里按**调用点计数**锁住，
+    #    漂移（有人又写回内联 join）即被抓。
+    _src = pathlib.Path(rs.__file__).read_text(encoding="utf-8")
+    # ⛔ round-25（冻结审查 v6）：原判据 `>=5` 会假绿 —— 文本共出现 6 次
+    #    （定义 1 + 真实调用 4 + 注释 1），删掉任一真实调用仍剩 5，门继续绿。
+    #    改为**按调用形态计数**：排除定义行与注释行后，真实调用须恰好 4 处。
+    _call_lines = [
+        _l
+        for _l in _src.splitlines()
+        if "_visible_block(" in _l and not _l.lstrip().startswith("#") and not _l.lstrip().startswith("def ")
+    ]
+    # ⚠️ round-25：seed 的值绑定改用**逐行数组**（比整块 join 更强：下标即同源行），
+    #    于是它不再调 `_visible_block` ⇒ 真实调用点由 4 降为 3（③段/五元组/形状门）。
+    #    期望值随实现改，但必须是**确切数**，不能写 `>=`（那正是上一版假绿的原因）。
+    # ⚠️ round-34：tips 两数（B1，审查方连续七轮点名）也改用 helper ⇒ 调用点 3→5。
+    #    期望值随实现改，但必须是**确切数** —— 写 `>=` 正是它上一版假绿的成因。
+    assert len(_call_lines) == 5, f"_visible_block 真实调用点应为 5 处，实得 {len(_call_lines)}：{_call_lines!r}"
+    # ⚠️ 判据必须**计数**，不能靠「删掉函数名再查子串」—— 删名字不删函数体，
+    #    helper 自己的那行 join 照样命中（第一版就这么错的，门当场变红）。
+    # ⛔ CARD-维护B-R4 重锚（**性质等价**，强度不降；等价性登记在验收单形态门表）：
+    #    逐行 join 的实现已从 `_visible_block` 搬进 `Doc.visible_block`，
+    #    原判据串 `'"\\n".join(_visible_text(ln)'` 在新架构里 count == 0 ——
+    #    **判据恒真 = 假绿**，所以必须换串，不能留着。守的性质一字未变：
+    #    「生产里只许有一处逐行渲染再拼」。
+    assert _src.count('"\\n".join(ln.visible for ln in self.lines)') == 1, (
+        "生产里出现了第二处内联的逐行 join —— 单一应用点被绕开"
+    )
+    # ⛔ 同轮补三条，锁住 R4 的「单一入口」本身（旧门只锁了 join，锁不住
+    #    「有人又手抄一份围栏状态机 / 一式标题正则」——那正是 round-27/29 的 BLOCKER）：
+    _defs = lambda name: _src.count(f"def {name}(")
+    assert _defs("_scan_fences") == 1 and _src.count("_scan_fences(") == 2, (
+        "围栏状态机必须只有一个定义点、一个调用点（render_visible）"
+    )
+    # ⛔ Codex round-2 HIGH-1 之后，渲染核拆成两段：`_render_line_parts` 产出
+    #   `(structural, visible)`，`_render_line` 是取 visible 的薄封装。
+    #   结构识别读 structural（高亮归一前）——否则 `==##== 末` 会被当成标题。
+    assert _defs("_render_line_parts") == 1 and _src.count("_render_line_parts(") == 3, (
+        "渲染核本体必须唯一，调用方只许 _render_line 与 render_visible"
+    )
+    assert _defs("_render_line") == 1 and _src.count("_render_line(") == 2, (
+        "取 visible 的薄封装只许被片段 API _visible_text 调用"
+    )
+    assert _src.count("def render_visible(") == 1, "渲染入口必须唯一"
+
+
+def test_domain_r21_seed_node_identity_same_space():
+    """R3 round-24（冻结审查 v5）：种子行身份取自**还能解析的最原始形态**。
+
+    ⛔ 三轮演化，两次都是我错、审查方对：
+      · round-22：把整个小节交给 `_visible_block` ⇒ 节点名归一成 `SeedA`，
+        却仍去对 raw `node_id` `Seed_A` ⇒ 误拒 + **值绑定被整条跳过**；
+      · round-23：我加了「先精确匹配 raw id」—— 但 `node` 本身**已经是归一后的**，
+        这一段对含 `_` 的名字**永远不可能命中**，是个自相矛盾的前提。后果一漏一伤：
+          - ledger 同时有 `SeedA` 与 `Seed_A` 时，报告里的 raw `Seed_A` 归一成
+            `SeedA` ⇒ **错绑到另一个节点**，撞车检查被跳过，错的数放行；
+          - ledger 有 `Seed_A` 与 `Se_edA` 时，报告里**精确正确**的 `Seed_A`
+            归一后撞车 ⇒ 合法身份被拒。
+      · round-24（本轮）：raw 与 visible **逐行并列**（`_visible_block` 保证行数
+        与顺序不变）。raw 行解析得出 = 身份精确，直接用，不进归一空间；只有 raw
+        行解析不出（被排版切开的冲突行）才退到归一行，那时才谈撞车。
+
+    **它证明什么**：七种形态的行为（见下），含两种碰撞、两种双行逃逸。
+    **它不证明什么**：不证明 `_visible_text` 的归一集合与节点名字符规则无交集；
+    也不覆盖 raw 段与 visible 段行数不齐的极端情形（代码里按下标越界安全退化）。
+    """
+    rs = _load_recap_scan()
+    assert rs._visible_text("Seed_A") == "SeedA", "前提不成立：_visible_text 不再删下划线"
+
+    def run(lines: str, ledger: list[dict]) -> list[str]:
+        text = f"## 台账\n\n### 种子\n\n{lines}\n\n## 下一段\n"
+        problems: list[str] = []
+        rs._verify_ledger_counts(text, {"ledger": {"seeds": ledger}}, problems)
+        return problems
+
+    A_AND_UA = [{"node_id": "SeedA", "tips_count": 9}, {"node_id": "Seed_A", "tips_count": 2}]
+    TWO_UA = [{"node_id": "Seed_A", "tips_count": 2}, {"node_id": "Se_edA", "tips_count": 7}]
+    ONLY_A = [{"node_id": "SeedA", "tips_count": 2}]
+
+    for lines, ledger, want, why in (
+        ("- Seed_A — 批注 2 条", A_AND_UA, None, "遮蔽碰撞：精确身份 + 数字对 ⇒ 放行"),
+        ("- Seed_A — 批注 999 条", A_AND_UA, "999", "遮蔽碰撞：数字错 ⇒ 必须报数字不符，不得错绑到 SeedA"),
+        ("- Seed_A — 批注 2 条", TWO_UA, None, "误伤面：精确身份不得被归一撞车拒掉"),
+        (
+            "- Seed**A** — 批注 999 条",
+            TWO_UA,
+            "无法确定",
+            "节点名被切开：raw 精确未命中后**继续**走归一候选，撞车 ⇒ fail-closed",
+        ),
+        (
+            "- SeedA — 批注 2 条\n- Seed**A** — 批注 999 条",
+            ONLY_A,
+            "999",
+            "双行逃逸（节点名被切开）⇒ 退归一候选后报数字不符",
+        ),
+        ("- SeedA — 批注 2 条\n- SeedA — 批**注** 999 条", ONLY_A, "999", "双行逃逸（谓语被切开 ⇒ 走归一路径）"),
+        ("- SeedA — 批**注** 999 条", TWO_UA, "无法确定", "真归一撞车 ⇒ fail-closed 不猜"),
+    ):
+        ps = run(lines, ledger)
+        if want is None:
+            assert ps == [], f"{why}：合法输入被拒 —— {ps!r}"
+        else:
+            assert ps, f"{why}：应报错却放行了"
+            assert any(want in x for x in ps), f"{why}：诊断未含 {want!r} —— {ps!r}"
+
+
+def test_domain_r22_fence_indent_and_seed_scope_cli(tmp_path):
+    """R3 round-26（冻结审查 v7）：四空格伪围栏 + 种子小节范围 + 尾巴同名字段。
+
+    三条实测：
+      · **四空格缩进的 ``` 不是围栏**（CommonMark 里那是 indented code block）。
+        原实现先用 `[>\\s]` 吃掉**任意**前导空白，`open_re` 的 ` {0,3}` 形同虚设
+        ⇒ 顶层 `    ```` 被当成开栏，其后读者**看得见**的自陈句整段免检（实测放行）；
+      · round-25 的「逐个处理全部种子小节」**范围超出意图** —— 搜全篇任意
+        `### 种子`，未限定父级 `## 台账`、未排除围栏 ⇒ 附录里的同名小节被强制
+        套台账模板（本轮误伤面，审查方指出）；
+      · 尾巴里再写一个**同名字段**的计数（`批注 N 条`）与已绑定的首数矛盾。
+
+    **它证明什么**：容器前缀（引用/列表）仍被正确剥离，但无 marker 时不动缩进；
+    种子小节只在「台账」H2 之下且不在围栏内才生效；同字段两处计数 fail-closed。
+    ⛔ round-38 更正：这里原写「尾巴里其它字段在 scan JSON 无逐节点对应字段，
+    不绑定」—— **假声明**，且生产侧同款假声明已在 round-37 删除，测试侧却留着，
+    与同批新增的 `r31` 自相矛盾（审查方点名）。`tips_open` 与
+    `derived_children_count` 一直都在，round-37 已补绑定，见 `r31`。
+
+    **它不证明什么**：本门不覆盖那两个字段的绑定（那是 `r31` 的职责）。
+    """
+    rs = _load_recap_scan()
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    report = write_report(vault, scan)
+    base = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+
+    def in3(block: str):
+        text = base.replace("## 三维审查", f"## 三维审查\n\n{block}", 1)
+        assert text != base, "注入未命中：报告一字未改，这条门测的是空气"
+        report.write_text(text, encoding="utf-8")
+        return run_verify(report)
+
+    HIDE = "- 本板共有987654个子节点。【实测】"
+    assert 987654 not in rs._derived_number_pool(scan), "前提：987654 必须在池外"
+
+    # ① 四空格不是围栏 ⇒ 藏在里面的可见计数必须受检
+    r = in3(f"    ```\n{HIDE}\n    ```")
+    assert r.returncode != 0, "四空格伪围栏让可见计数整段免检"
+    assert _one_problem_has(r.stdout, "987654"), f"诊断未指向 987654:\n{r.stdout}"
+
+    # ② 对照：真围栏（0-3 格）与列表项内围栏仍豁免（否则是误伤）
+    for block, why in (
+        (f"```\n{HIDE}\n```", "顶层真围栏"),
+        (f"   ```\n{HIDE}\n   ```", "三格缩进真围栏"),
+        (f"- ```\n  {HIDE}\n- ```", "列表项内围栏（round-2 修过的形态）"),
+    ):
+        assert in3(block).returncode == 0, f"{why}被误判为非围栏"
+
+    # ③ 种子小节范围：`## 台账` 之外的同名小节不得被强制套模板
+    text = base.replace(
+        "## 三维审查",
+        "## 附录\n\n### 种子\n\n这里是自由叙述，不是台账行。\n\n## 三维审查",
+        1,
+    )
+    assert text != base, "注入未命中"
+    report.write_text(text, encoding="utf-8")
+    assert run_verify(report).returncode == 0, "非『台账』下的同名小节被强制套台账模板 —— 范围超出意图"
+
+    # ④ 尾巴里同名字段的第二个数 ⇒ fail-closed（函数级，最小可控）
+    problems: list[str] = []
+    rs._verify_ledger_counts(
+        "## 台账\n\n### 种子\n\n- SeedA — 批注 2 条（批注 999 条）\n\n## 末\n",
+        {"ledger": {"seeds": [{"node_id": "SeedA", "tips_count": 2}]}},
+        problems,
+    )
+    assert any("尾巴里又出现" in p for p in problems), f"同字段两处计数未 fail-closed：{problems!r}"
+    # 反面：真实报告的尾巴（其它字段）不得误伤
+    problems2: list[str] = []
+    rs._verify_ledger_counts(
+        "## 台账\n\n### 种子\n\n- SeedA — 批注 2 条（理解度未闭环 2 条）；已派生 3 点\n\n## 末\n",
+        # ⛔ CARD-维护B-R4: fixture 补齐 `tips_open` / `derived_children_count` ——
+        #   本 case 的意图是"**真实报告**的尾巴不得误伤"，而真实 ledger 里这两个
+        #   字段一直都在（`_collect_*` 产出，四份 live fixture 实测有）。原 fixture
+        #   缺它们，于是它测的其实是"字段缺失时放行"，与它自己的名字不符。
+        #   （卡文 (h) 收紧后，"缺字段还硬写数"应当 fail-closed —— 那条由
+        #    `test_domain_r31_tail_fields_bound_to_scan` 专门守。）
+        {
+            "ledger": {
+                "seeds": [
+                    {
+                        "node_id": "SeedA",
+                        "tips_count": 2,
+                        "tips_open": 2,
+                        "derived_children_count": 3,
+                    }
+                ]
+            }
+        },
+        problems2,
+    )
+    assert problems2 == [], f"真实报告的尾巴被误伤：{problems2!r}"
+
+
+def test_domain_r23_seed_scope_fence_and_tail_render():
+    """R3 round-27（冻结审查 v8）：围栏状态机复用本体 + 标题/角色收窄 + 尾巴渲染面。
+
+    ⚠️ round-32 更正：本门原名带 `_cli` 后缀，但它**只直接调用 helper**、
+    不跑 CLI 子进程，`tmp_path` 也没用上 —— 名实不符，已改名并去掉参数。
+
+    ⛔ round-26 我在种子扫描里**手抄了第二份围栏状态机**（遇任意三反引号就布尔
+    翻转），比 `_strip_code_blocks` 本体弱得多：四反引号开栏 → 块内三反引号
+    **伪闭栏** → 四反引号真闭栏，状态 True→False→True，真闭栏后的冲突小节被整段
+    跳过。**同一原则两处定义**，本卡第 N 次。⇒ 复用本体（行数不变，
+    「原行非空而剥后为空」= 在围栏内）。
+
+    审查方同批点名并已修的四条：
+      · 父级 H2 原用 `"台账" in heading` ⇒ `## 非台账示例` 也算 —— 改整行匹配；
+      · `### 种子 ###`（合法 ATX 闭合序列）原不识别，`###种子`（非法 ATX）反而命中；
+      · 绑定索引原**摊平全部角色** ⇒ 派生节点写进种子小节即可按其 tips_count 通过；
+      · `_tail_conflict` 原只在 **raw** 尾巴上找 ⇒ `批**注** 999 条` 漏，
+        且 `未批注 999 条` 因**子串**命中被误判。
+
+    **它证明什么**：八种形态的行为（见下）。
+    **它不证明什么**：**列表 continuation 未建模**（`- item` 之后的相对内容列）——
+    审查方指出继续补单条 regex 无法闭合这一面，属重做设计，如实登记。
+    """
+    rs = _load_recap_scan()
+    SEEDS = {
+        "ledger": {
+            "seeds": [{"node_id": "SeedA", "tips_count": 2}],
+            "derived": [{"node_id": "DerivedX", "tips_count": 5}],
+        }
+    }
+
+    def run(text: str) -> list[str]:
+        ps: list[str] = []
+        rs._verify_ledger_counts(text, SEEDS, ps)
+        return ps
+
+    def L(row: str) -> str:
+        return f"## 台账\n\n### 种子\n\n{row}\n\n## 末\n"
+
+    for text, want, why in (
+        # ① 尾巴同名字段的**渲染**形态
+        (L("- SeedA — 批注 2 条（批**注** 999 条）"), "尾巴里又出现", "尾巴同名字段被强调标记切开"),
+        (L("- SeedA — 批注 2 条（批<b>注</b> 999 条）"), "尾巴里又出现", "尾巴同名字段被 HTML 标签切开"),
+        (L("- SeedA — 批注 2 条（未批注 999 条）"), None, "反向：`未批注` 不是同名字段，不得误伤"),
+        # ② 围栏状态机：四反引号 + 块内伪闭栏 + 真闭栏
+        (
+            "## 台账\n\n````\n### 种子\n```\n````\n\n### 种子\n\n- SeedA — 批注 999 条\n\n## 末\n",
+            "999",
+            "四反引号块内伪闭栏后，真闭栏之后的冲突小节必须受检",
+        ),
+        # ③ 父级 H2 与 H3 标题判定
+        ("## 非台账示例\n\n### 种子\n\n自由叙述。\n\n## 末\n", None, "`## 非台账示例` 下的同名小节不得被套模板"),
+        # ⛔ round-29（冻结审查 v10）：这条原写「须识别」—— 那是 round-27 我**自造第二套
+        #    口径**的产物。`_SECTION_RE` 是段落标题的唯一口径，它**不接受** ATX 闭合井号；
+        #    两侧一致地不接受才没有「算在场却定位不到」的缝隙。整体仍 fail-closed：
+        #    这样写的报告会被**必需段门**判 FAIL（下面 CLI 面另有断言）。
+        # ⛔ round-30（冻结审查 v11）：上一版期望 `[]` —— 那是把「静默不检查」编码成
+        #    正确行为（H2 有全局必需段门兜底，**H3 没有**）。现改为 fail-closed。
+        (
+            "## 台账\n\n### 种子 ###\n\n- SeedA — 批注 999 条\n\n## 末\n",
+            "找不到可绑定",
+            "`### 种子 ###` 不合口径 ⇒ fail-closed",
+        ),
+        # ⛔ round-30：`###种子` 非法 ATX（Obsidian 不渲染成标题）同样不合口径 ⇒
+        #    也走 fail-closed —— 台账在场却无可绑定的种子小节，本就该报。
+        ("## 台账\n\n###种子\n\n- SeedA — 批注 999 条\n\n## 末\n", "找不到可绑定", "`###种子` 非法 ATX ⇒ fail-closed"),
+        # ④ 角色收窄
+        (L("- DerivedX — 批注 5 条"), "不在 scan JSON", "派生节点混进种子小节须报"),
+        # ⑤ 审查方点名的门缺口：fenced-seed（整个种子小节在围栏内）
+        (
+            "## 台账\n\n```\n### 种子\n\n- SeedA — 批注 999 条\n```\n\n## 末\n",
+            "找不到可绑定",
+            "整段在围栏内的种子小节：不被当台账行强判（`999` 不报数字错），"
+            "但台账段在场却无可绑定小节 ⇒ round-30 起 fail-closed",
+        ),
+    ):
+        ps = run(text)
+        if want is None:
+            assert ps == [], f"{why}：误伤 —— {ps!r}"
+        else:
+            assert ps, f"{why}：应报错却放行"
+            assert any(want in p for p in ps), f"{why}：诊断未含 {want!r} —— {ps!r}"
+
+
+def test_domain_r24_fence_closer_atx_and_tail_prefix():
+    """R3 round-28（冻结审查 v9）：顶层围栏闭合 / ATX 缩进与闭合序列 / 尾巴前缀。
+
+    审查方给的反例与我的处置：
+      · **顶层**围栏内的 `- ``` ` 被当成闭栏、下一行重新开栏 ⇒ 用户可见正文被剥到
+        EOF。CommonMark 里闭栏必须在**同一容器**内。⇒ 判闭栏时引用前缀恒剥，
+        **列表 marker 只在开栏本身就在列表项内时才剥**。
+        ⚠️ 第一版我不分容器一律禁列表 marker，当场打红 `strip_code_blocks` 单元
+        契约门（列表项内围栏本来就由下一个 `- ``` ` 闭合）；
+      · round-27 的 `(?<![\u4e00-\u9fff])批注` 排除了**所有**汉字前缀 ⇒
+        `累计/共/已批注 999 条` 全部放过。⇒ 只排除**否定前缀**「未」；
+      · ATX 标题的合法 0-3 格缩进不识别；`### 种子###`（闭合井号前无空白）误认；
+      · `seeds` 缺失/非 list 时**静默回落**到摊平全部角色 —— 那正是本轮要堵的洞。
+
+    **它证明什么**：八种形态的行为（含三种前缀、两种标题、fail-closed、小节内围栏）。
+    **它不证明什么**：**列表 continuation 未建模**（`- item` 之后的相对内容列），
+    审查方判为需重做设计；`_strip_code_blocks` 的行数前提准确表述是
+    **索引映射保持、尾项由越界兜底补偿**（末尾空项会丢），不是无条件行数恒等。
+    """
+    rs = _load_recap_scan()
+
+    # 顶层围栏内的列表 marker 行不是闭栏 ⇒ 其后的可见正文必须留下
+    assert "本板共有987654个子节点" in rs._strip_code_blocks("```\n- ```\n```\n本板共有987654个子节点"), (
+        "顶层围栏内的 `- ```` 被误当闭栏，可见正文被剥到 EOF"
+    )
+    # 列表项内围栏仍由下一个 `- ```` 闭合（round-2 固化形态，不得回归）
+    assert rs._strip_code_blocks("- ```\n  x：无据\n- ```").strip() == "", "列表项内围栏未整块剥空"
+
+    SEEDS = {
+        "ledger": {
+            "seeds": [{"node_id": "SeedA", "tips_count": 2}],
+            "derived": [{"node_id": "DerivedX", "tips_count": 5}],
+        }
+    }
+
+    def run(text: str, scan=None) -> list[str]:
+        ps: list[str] = []
+        rs._verify_ledger_counts(text, scan or SEEDS, ps)
+        return ps
+
+    def L(row: str) -> str:
+        return f"## 台账\n\n### 种子\n\n{row}\n\n## 末\n"
+
+    for text, want, why, scan in (
+        (L("- SeedA — 批注 2 条（累计批注 999 条）"), "尾巴里又出现", "尾巴 `累计批注`", None),
+        (L("- SeedA — 批注 2 条（共批注 999 条）"), "尾巴里又出现", "尾巴 `共批注`", None),
+        (L("- SeedA — 批注 2 条（已批注 999 条）"), "尾巴里又出现", "尾巴 `已批注`", None),
+        (L("- SeedA — 批注 2 条（未批注 999 条）"), None, "反向：`未批注` 不得误伤", None),
+        # ⛔ round-29：同上 —— `_SECTION_RE` 不接受前导缩进，两侧一致地不接受。
+        (
+            "   ## 台账\n\n   ### 种子\n\n- SeedA — 批注 999 条\n\n## 末\n",
+            None,
+            "⛔ round-33：缩进 `## 台账` ⇒ 取不到台账段 ⇒ helper 静默；"
+            "整体由**必需段门**判 FAIL（R25 第 ④ 段端到端验证）",
+            None,
+        ),
+        # ⛔ round-30：同上，H3 不合口径不再静默跳过。
+        (
+            "## 台账\n\n### 种子###\n\n- SeedA — 批注 999 条\n\n## 末\n",
+            "找不到可绑定",
+            "`### 种子###` 不合口径 ⇒ fail-closed（H3 无全局门兜底）",
+            None,
+        ),
+        (
+            L("- DerivedX — 批注 5 条"),
+            "缺少可用的 seeds",
+            "分组 ledger 缺 seeds ⇒ fail-closed，不回落到其它角色",
+            {"ledger": {"derived": [{"node_id": "DerivedX", "tips_count": 5}]}},
+        ),
+        (
+            "## 台账\n\n### 种子\n\n- SeedA — 批注 2 条\n\n```\n- SeedA — 批注 999 条\n```\n\n## 末\n",
+            None,
+            "小节内围栏中的字面行不得被当台账行",
+            None,
+        ),
+    ):
+        ps = run(text, scan)
+        if want is None:
+            assert ps == [], f"{why}：误伤 —— {ps!r}"
+        else:
+            assert ps, f"{why}：应报错却放行"
+            assert any(want in p for p in ps), f"{why}：诊断未含 {want!r} —— {ps!r}"
+
+
+def test_domain_r25_section_criterion_unified_cli(tmp_path):
+    """R3 round-29（冻结审查 v10）：段落标题**唯一口径** + 围栏内假标题不截断小节。
+
+    ⛔ `_SECTION_RE` 的 docstring 明写：「存在性检查与下游定位**必须共用本函数** ——
+    两处口径一旦不同，就会出现『算在场却定位不到』的缝隙」。round-28 我在种子扫描里
+    **自己写了两式**，正好犯了它警告的那件事：
+
+      · `## 台账（x`（未闭合括号）—— 必需段门认在场，我的式子不认 ⇒ 种子校验器
+        拿到零个 section 直接返回，`999` **完全不绑定**；
+      · 反向，我新接受的 `   ## 台账` / `## 台账 ###` 又会被必需段门拒绝。
+
+    ⇒ 改回共用 `_SECTION_RE`。缩进标题与 ATX 闭合井号两侧**一致地不接受**：
+    写成那样的报告会被必需段门直接判 FAIL（本门第 ④ 段端到端验证），整体 fail-closed。
+    要放宽就得改 `_SECTION_RE` 本体让两侧同时动 —— 不在本轮范围。
+
+    **它证明什么**：口径分叉的两个方向都堵上；围栏内假标题不再截断小节；
+    「不接受缩进标题」在 CLI 全链路上是 fail-closed 而非漏网。
+    **它不证明什么**：不证明 `_SECTION_RE` 的接受集与 CommonMark 一致
+    （它**不**接受合法的 0-3 格缩进与 ATX 闭合序列）—— 那是**声明过的统一口径**，
+    要改需连同全部消费方一起改，如实登记。
+    """
+    rs = _load_recap_scan()
+    S = {"ledger": {"seeds": [{"node_id": "SeedA", "tips_count": 2}]}}
+
+    def run(text: str) -> list[str]:
+        ps: list[str] = []
+        rs._verify_ledger_counts(text, S, ps)
+        return ps
+
+    # ① 口径分叉的正向：必需段门认在场的形态，种子绑定也必须认
+    ps = run("## 台账（x\n### 种子\n- SeedA — 批注 999 条\n\n## 末\n")
+    assert any("999" in p for p in ps), f"`## 台账（x` 下的冲突行未绑定：{ps!r}"
+    # 与全局口径同源（漂移即被抓）
+    import re as _re
+
+    assert _re.match(rs._SECTION_RE("## 台账"), "## 台账（x"), "前提：必需段门确实接受该形态"
+
+    # ② 围栏内的假标题不得截断小节
+    ps = run("## 台账\n\n### 种子\n\n```\n## 假标题\n```\n\n- SeedA — 批注 999 条\n\n## 末\n")
+    assert any("999" in p for p in ps), f"围栏内假标题截断了小节：{ps!r}"
+
+    # ③ 一致地不接受（两侧同口径）
+    for text, why, want in (
+        (
+            "   ## 台账\n\n   ### 种子\n\n- SeedA — 批注 999 条\n\n## 末\n",
+            "缩进 ATX 标题",
+            None,  # ⛔ round-33：缩进 `## 台账` ⇒ 取不到台账段 ⇒ helper 静默（CLI 由必需段门 fail-closed）
+        ),
+        ("## 台账\n\n### 种子 ###\n\n- SeedA — 批注 999 条\n\n## 末\n", "ATX 闭合井号", "找不到可绑定"),
+    ):
+        # ⛔ round-30：H2 不合口径 ⇒ 不扫描（由全局必需段门兜底，见第 ④ 段）；
+        #    H3 不合口径 ⇒ **本函数自己 fail-closed**（H3 没有全局门）。
+        ps = run(text)
+        if want is None:
+            assert ps == [], f"{why}：与全局口径不一致地被接受了"
+        else:
+            assert any(want in p for p in ps), f"{why}：H3 不合口径未 fail-closed —— {ps!r}"
+
+    # ④ 端到端：不接受 ≠ 漏网 —— 必需段门必须把这种报告判 FAIL
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    report = write_report(vault, scan)
+    base = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+    mt = re.search(r"^## 台账.*$", base, re.M)
+    assert mt, "前提：报告必须含『## 台账』段"
+    report.write_text(base.replace(mt.group(0), "   " + mt.group(0), 1), encoding="utf-8")
+    assert run_verify(report).returncode != 0, "缩进 `## 台账` 的报告未被必需段门拒 —— 那样「不接受」就成了漏网"
+
+
+def test_domain_r26_zero_seed_board_not_false_positive():
+    """R3 round-31（冻结审查 v12）：round-30 的 H3 fail-closed **误伤了合法零种子板**。
+
+    ⛔ 生成侧允许 `ledger.seeds == []` / `counts.seeds == 0` —— 那种板本来就没有
+    种子小节。round-30 我加的「台账段在场却找不到种子小节即报」对它是**误伤**；
+    另一条「无可用 ledger」也把 `seeds == []` 与「根本没有 ledger」混为一谈。
+
+    ⚠️ 修的过程中我自己又开了一个洞：第一版对 `seeds == []` **提前 return**，
+    于是零种子板里写的任何台账行都被**静默放行**（实测漏）。⇒ 不提前返回，
+    让绑定面为空自然走「不在 ledger 里」。
+
+    **它证明什么**：五种形态各自正确（两放行三拦截），且「合法零种子」与
+    「绑定面为空就放行」被区分开。
+    **它不证明什么**：不覆盖 `ledger` 为扁平 list 的零种子形态（无角色信息，
+    本函数维持原样，如实登记）。
+    """
+    rs = _load_recap_scan()
+
+    for want_problem, why, text, ledger in (
+        (
+            False,
+            "合法零种子：seeds=[] 且报告无种子小节",
+            "## 台账\n\n### 派生\n\n- X — 批注 1 条\n\n## 末\n",
+            {"seeds": [], "derived": [{"node_id": "X", "tips_count": 1}]},
+        ),
+        (
+            False,
+            "合法零种子：种子小节为真正的空",
+            "## 台账\n\n### 种子\n\n\n\n## 末\n",
+            {"seeds": []},
+        ),
+        (
+            True,
+            "确有种子却找不到小节 ⇒ fail-closed",
+            "## 台账\n\n### 派生\n\n- X — 批注 1 条\n\n## 末\n",
+            {"seeds": [{"node_id": "S", "tips_count": 2}]},
+        ),
+        (
+            True,
+            "零种子板却写了台账行 ⇒ 报『不在 ledger』（不得因空绑定面而静默放行）",
+            "## 台账\n\n### 种子\n\n- Ghost — 批注 9 条\n\n## 末\n",
+            {"seeds": []},
+        ),
+        (
+            True,
+            "无 ledger **且有认可的 H3** ⇒ fail-closed"
+            "（⚠️ round-32 收窄措辞：无 ledger 且**无**认可 H3 的情形本门不覆盖）",
+            "## 台账\n\n### 种子\n\n- S — 批注 2 条\n\n## 末\n",
+            None,
+        ),
+    ):
+        ps: list[str] = []
+        rs._verify_ledger_counts(text, {"ledger": ledger} if ledger is not None else {}, ps)
+        if want_problem:
+            assert ps, f"{why}：应报错却放行"
+        else:
+            assert ps == [], f"{why}：合法输入被误伤 —— {ps!r}"
+
+
+def test_domain_r27_seedish_h3_and_corrupt_seeds():
+    """R3 round-32（冻结审查 v13 的第六形态）：不被口径认可的种子 H3 必须自己报。
+
+    ⛔ 只收集**认可的**小节，等于把「不合口径的种子 H3」整块**排除在审计面之外**：
+      · `seeds=[]` + `### 种子 ###` + `- Ghost — 批注 9 条` ⇒ 零 section 且零种子，
+        函数直接返回，Ghost 行**永不受审**；
+      · 更强：先放一个**认可的空** `### 种子`，再放第二个**不认可**的 H3 + Ghost 行
+        ⇒ 第二块永不审，**非零种子板同样可绕**。
+
+    同批：损坏的 `seeds=[None]` 会被过滤成空 rows，再因**原值仍是 list** 被当成
+    合法零种子 ⇒ 损坏数据静默通过。现改为 fail-closed。
+
+    ⛔ round-37（Codex 冻结审查 HIGH「第八形态」）：`_h3_wellformed` 原先标题体
+    收 `[^\n]*`（什么都认），于是 `###  种子`（两空格）/ `###\t种子`（制表符）/
+    不带尾随井号的 `` ### `种子` `` 与 `### ==种子==` 全被判**合规** ⇒ 其下台账行
+    既不进绑定面也不进漏网扫描。⚠️ 原有的 inline-code / highlight 两条之所以变红，
+    靠的是它们**额外带了尾随 ` ###`**——即「闭合井号被判不合规」，
+    **不是** inline-code/highlight 归一承重（审查方指出，实测属实）。
+    本轮去掉尾随 closer 单独立条，才真正测到那条性质。
+
+    同批：台账 H2 之后、**第一个 H3 之前**的台账形状行原先 `_cur_bad` 初值 `False`
+    ⇒ 是一段完全无人看管的区间，现改为默认「不在任何认可小节内」。
+
+    ⛔ round-38（Codex 冻结审查 HIGH「第九形态」）：`_h3_wellformed` 只判**形状**
+    不判**段名** ⇒ `### 其他` / `### 种子 (说明)`（ASCII 括号）/ `### 种子 ^id`（块 id）
+    形状都合规，却都不是受绑定的种子小节，其下台账行照旧无人看管。
+    另：只有**顶格** `###` 更新状态，而 CommonMark 允许 1-3 空格缩进。
+    ⇒ 安全态收窄为「统一口径 `_SECTION_RE` 认得出的台账小节」（`种子`/`派生` 两项）。
+    ⚠️ 这张表是**封闭**的（模板自己的段名），与 round-33 要避开的
+    「伪装面开放集闭表」不是一回事 —— 那边枚举的是攻击形态。
+
+    ⚠️ 上一版这里写「十五种形态（九报六放行）」—— **数错了**，实数是
+    十报五放（审查方点名）。⇒ 本轮不再手写汇总数，改为在循环后**按实际表算**并断言。
+
+    **它证明什么**：表内每种形态各自正确，含围栏内形似标题不误报。
+    **它不证明什么**：不覆盖 `ledger` 为扁平 list 的损坏形态；
+    也不改变 `_SECTION_RE` 的接受集本身（放宽须改本体让两侧同动）。
+    """
+    rs = _load_recap_scan()
+
+    # ⛔ round-33：原先只断言「有报错」，于是 survivor-64 变异后靠**另一条**
+    #    诊断（「不在 ledger」）就能让门保持绿 —— 实测未承重。
+    #    ⇒ 每条都**绑定诊断关键词**，报错内容必须是这一条。
+    _seen: list[str | None] = []
+    for want, why, text, ledger in (
+        (
+            "不受任何认可小节覆盖",
+            "第六形态 a：seeds=[] + 不认可 H3 + Ghost 行",
+            "## 台账\n\n### 种子 ###\n\n- Ghost — 批注 9 条\n\n## 末\n",
+            {"seeds": []},
+        ),
+        (
+            "不受任何认可小节覆盖",
+            "第六形态 b：认可的空小节 + 第二个不认可 H3 + Ghost（非零种子板）",
+            "## 台账\n\n### 种子\n\n\n\n### 种子 ###\n\n- Ghost — 批注 9 条\n\n## 末\n",
+            {"seeds": [{"node_id": "S", "tips_count": 2}]},
+        ),
+        (
+            "含非对象条目",
+            "损坏 seeds=[None] 不得被当成合法零种子",
+            "## 台账\n\n### 种子\n\n- X — 批注 1 条\n\n## 末\n",
+            {"seeds": [None]},
+        ),
+        (
+            None,
+            "对照：合法零种子且无种子小节",
+            "## 台账\n\n### 派生\n\n- X — 批注 1 条\n\n## 末\n",
+            {"seeds": [], "derived": [{"node_id": "X", "tips_count": 1}]},
+        ),
+        (
+            None,
+            "对照：合法认可小节 + 数字对",
+            "## 台账\n\n### 种子\n\n- S — 批注 2 条\n\n## 末\n",
+            {"seeds": [{"node_id": "S", "tips_count": 2}]},
+        ),
+        (
+            "不受任何认可小节覆盖",
+            "⭐第七形态：inline code 标题（`_visible_text` 不归一 inline code）",
+            "## 台账\n\n### 种子\n\n\n\n### `种子` ###\n\n- Ghost — 批注 9 条\n\n## 末\n",
+            {"seeds": [{"node_id": "S", "tips_count": 2}]},
+        ),
+        (
+            "不受任何认可小节覆盖",
+            "⭐第七形态：highlight 标题（源码已声明 highlight 未覆盖）",
+            "## 台账\n\n### 种子\n\n\n\n### ==种子== ###\n\n- Ghost — 批注 9 条\n\n## 末\n",
+            {"seeds": [{"node_id": "S", "tips_count": 2}]},
+        ),
+        (
+            None,
+            "⭐误伤面：`### 派生` 小节里的同形行（台账下合法 H3，不得被当漏网）",
+            "## 台账\n\n### 派生\n\n- X — 批注 1 条\n\n## 末\n",
+            {"seeds": [], "derived": [{"node_id": "X", "tips_count": 1}]},
+        ),
+        (
+            None,
+            "⭐误伤面：正文里的 `### 种子相关说明`（我预判、审查方确认的误伤）",
+            "## 附录\n\n### 种子相关说明\n\n自由叙述。\n\n## 末\n",
+            {"seeds": [{"node_id": "S", "tips_count": 2}]},
+        ),
+        (
+            "不受任何认可小节覆盖",
+            "⭐第八形态 a：inline code 标题**不带**尾随 closer（原先靠 closer 才变红）",
+            "## 台账\n\n### 种子\n\n\n\n### `种子`\n\n- Ghost — 批注 9 条\n\n## 末\n",
+            {"seeds": [{"node_id": "S", "tips_count": 2}]},
+        ),
+        (
+            # ⛔ 本条一度被我改成「性质等价」（拒因从"不受认可小节覆盖"变成
+            #    "不在 ledger 里"），理由是 R4 的高亮归一让 `==种子==` 成了真标题。
+            #    Codex round-2 HIGH-1 指出那条归一同时把**非标题**的 `==##== 末`
+            #    变成了标题、截短审计段 ⇒ 放行面。修法是让**结构识别读高亮归一前
+            #    的文本**，于是本条自然回到重切前的行为 —— 期望值改回原值，
+            #    类别从「性质等价」降为**行为等价**（更好：不需要任何解释）。
+            "不受任何认可小节覆盖",
+            "⭐第八形态 b：highlight 标题**不带**尾随 closer",
+            "## 台账\n\n### 种子\n\n\n\n### ==种子==\n\n- Ghost — 批注 9 条\n\n## 末\n",
+            {"seeds": [{"node_id": "S", "tips_count": 2}]},
+        ),
+        (
+            "不受任何认可小节覆盖",
+            "⭐第八形态 c：`###` 后两个空格（`_SECTION_RE` 只认恰好一个）",
+            "## 台账\n\n### 种子\n\n\n\n###  种子\n\n- Ghost — 批注 9 条\n\n## 末\n",
+            {"seeds": [{"node_id": "S", "tips_count": 2}]},
+        ),
+        (
+            "不受任何认可小节覆盖",
+            "⭐第八形态 d：`###` 后制表符",
+            "## 台账\n\n### 种子\n\n\n\n###\t种子\n\n- Ghost — 批注 9 条\n\n## 末\n",
+            {"seeds": [{"node_id": "S", "tips_count": 2}]},
+        ),
+        (
+            "不受任何认可小节覆盖",
+            "⭐首个 H3 之前：台账 H2 后、任何 H3 前的台账形状行（原先无人看管）",
+            "## 台账\n\n- Ghost — 批注 9 条\n\n### 种子\n\n## 末\n",
+            {"seeds": [{"node_id": "S", "tips_count": 2}]},
+        ),
+        (
+            "不受任何认可小节覆盖",
+            "⭐第九形态 a：`### 其他`（形状合规、非模板段名）",
+            "## 台账\n\n### 种子\n\n\n\n### 其他\n\n- Ghost — 批注 9 条\n\n## 末\n",
+            {"seeds": [{"node_id": "S", "tips_count": 2}]},
+        ),
+        (
+            "不受任何认可小节覆盖",
+            "⭐第九形态 b：`### 种子 (说明)` —— ASCII 括号（`_SECTION_RE` 只认全角）",
+            "## 台账\n\n### 种子\n\n\n\n### 种子 (说明)\n\n- Ghost — 批注 9 条\n\n## 末\n",
+            {"seeds": [{"node_id": "S", "tips_count": 2}]},
+        ),
+        (
+            "不受任何认可小节覆盖",
+            "⭐第九形态 c：`### 种子 ^id` —— Obsidian 块 id 后缀",
+            "## 台账\n\n### 种子\n\n\n\n### 种子 ^id\n\n- Ghost — 批注 9 条\n\n## 末\n",
+            {"seeds": [{"node_id": "S", "tips_count": 2}]},
+        ),
+        (
+            None,
+            "对照：`### 种子（补充）` 全角括号后缀是 `_SECTION_RE` 认可的写法",
+            "## 台账\n\n### 种子（补充）\n\n- S — 批注 2 条\n\n## 末\n",
+            {"seeds": [{"node_id": "S", "tips_count": 2}]},
+        ),
+        (
+            None,
+            "对照：**围栏内**的形似标题不得误报",
+            "## 台账\n\n### 种子\n\n\n\n```\n### 种子 ###\n```\n\n## 末\n",
+            {"seeds": []},
+        ),
+    ):
+        ps: list[str] = []
+        rs._verify_ledger_counts(text, {"ledger": ledger}, ps)
+        _seen.append(want)
+        if want is None:
+            assert ps == [], f"{why}：误伤 —— {ps!r}"
+        else:
+            assert any(want in x for x in ps), f"{why}：未报出目标诊断 {want!r} —— {ps!r}"
+
+    # ⛔ round-38：汇总数**按实际表算**，不再手写 —— 上一版手写「九报六放」而实数
+    # 是「十报五放」，docstring 里的数字自己没有任何东西在核对它。
+    assert len(_seen) == 19, f"表长变了（{len(_seen)}）——请同步 docstring 的描述"
+    assert (sum(1 for w in _seen if w), sum(1 for w in _seen if not w)) == (13, 6), (
+        f"报/放比例变了：{(sum(1 for w in _seen if w), sum(1 for w in _seen if not w))}"
+    )
+
+
+def test_domain_r28_tips_binding_visible_space_cli(tmp_path):
+    """R3 round-34（B1，冻结审查 v9~v14 **连续七轮**点名）：tips 两数的渲染空间绑定。
+
+    ⛔ 这是本卡**最老、最明确、修法最现成**的一条未闭合项 —— 每轮我都登记「未改」，
+    而修法从 round-18 起就已存在（`_visible_block`，与种子小节 / 五元组 /
+    ③段信号行**逐字同型**，那三处都已被审查判 ✅）。
+    它一直排在队尾，不是被遗忘，是**优先级的结构性偏差**：新问题天然显得更紧急，
+    而「已经登记过 N 轮」在心理上会被当成「已经处理过」。
+
+    实测三条（修前 exit 0）：保留正确行 + 追加**渲染等价但源码不命中**的冲突行
+      · `- tips 批**注**共 999 条`
+      · `- tips 批<b>注</b>共 999 条`
+      · `- 其中理解度未**闭**环 999 条`
+
+    ⚠️ **复现方法本身有个坑**：第一版载荷把整行复制过去（含 `其中理解度未闭环 4 条`），
+    结果被**相邻**那条模式的唯一性检查拦下 —— 典型的**纵深遮蔽**，差点让我误判
+    「不可复现」。干净载荷必须只含被切断的那**一个**模式。
+
+    **它证明什么**：段抓取与两条模式的 in_sec/all_hits 都在渲染空间比对。
+    **它不证明什么**：不改变 tips 绑定的**语义**（仍是「段内恰一条 + 全文逐条等值」）；
+    也不覆盖中文数词 / 带圈数字等非 `Nd` 形态（见接手清单 B3）。
+    """
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    report = write_report(vault, scan)
+    base = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+
+    tips = next((ln for ln in base.splitlines() if re.search(r"tips 批注共\s*\d+\s*条", ln)), None)
+    assert tips, "前提：报告必须含 tips 标准计数行"
+
+    def with_conflict(conflict: str):
+        text = base.replace(tips, tips + "\n" + conflict, 1)
+        assert text != base, "注入未命中：报告一字未改，这条门测的是空气"
+        report.write_text(text, encoding="utf-8")
+        return run_verify(report)
+
+    for conflict, why in (
+        ("- tips 批**注**共 999 条", "第一条模式被强调标记切开"),
+        ("- tips 批<b>注</b>共 999 条", "第一条模式被 HTML 标签切开"),
+        ("- 其中理解度未**闭**环 999 条", "第二条模式被强调标记切开"),
+        ("- tips 批注共 999 条", "对照：裸冲突行"),
+    ):
+        r = with_conflict(conflict)
+        assert r.returncode != 0, f"{why}：冲突行被放行 —— {conflict!r}"
+        assert _one_problem_has(r.stdout, "999"), f"{why}：诊断未指向冲突值 999\n{r.stdout}"
+
+    # 不得误伤：把**正确行本身**写成渲染等价的强调形态，仍须通过
+    report.write_text(
+        base.replace(tips, tips.replace("tips 批注共", "tips 批**注**共", 1), 1),
+        encoding="utf-8",
+    )
+    assert run_verify(report).returncode == 0, "渲染等价的合规 tips 行被误判"
+
+
+def test_domain_r31_tail_fields_bound_to_scan():
+    """R3 round-37（Codex 冻结审查 HIGH）：种子行尾巴的另两个字段必须绑出处。
+
+    ⛔ `_tail_conflict` 的 docstring 此前写着这两个字段「在 scan JSON 里**没有
+    对应的逐节点字段可绑**」—— **假声明**。`tips_open` 与 `derived_children_count`
+    一直都在，且 SKILL.md 明写「已派生 x 点」就是**抄** `derived_children_count`。
+    也就是说：这两个数本就来自 scan，却从来没核对过，报告里改成任意值都能通过。
+
+    **它证明什么**：有字段就必须对得上（篡改必红），无字段不误报（能力边界）。
+    **它不证明什么**：不覆盖尾巴里的其它自由文本；也不改变 D2 的碰撞判据性质。
+    """
+    rs = _load_recap_scan()
+    row = {"node_id": "S", "tips_count": 2, "tips_open": 3, "derived_children_count": 4}
+    bare = {"node_id": "S", "tips_count": 2}  # 旧 scan / fallback：两字段缺失
+
+    def run(line: str, seed: dict) -> list[str]:
+        ps: list[str] = []
+        rs._verify_ledger_counts(
+            f"## 台账\n\n### 种子\n\n{line}\n\n## 末\n",
+            {"ledger": {"seeds": [seed]}},
+            ps,
+        )
+        return ps
+
+    for line, seed, want, why in (
+        ("- S — 批注 2 条（理解度未闭环 3 条）", row, None, "对照：两数都对"),
+        ("- S — 批注 2 条（理解度未闭环 9 条）", row, "tips_open", "篡改未闭环数必红"),
+        ("- S — 批注 2 条（理解度未闭环 3 条）· 已派生 4 点", row, None, "对照：派生数也对"),
+        ("- S — 批注 2 条（理解度未闭环 3 条）· 已派生 9 点", row, "derived_children_count", "篡改派生数必红"),
+        # ⛔ CARD-维护B-R4 卡文 (h) **行为变更**（非等价，已登记在验收单）：
+        #    旧期望把「报告写了数、scan 里没有该字段 ⇒ 放行」写成了"能力边界"。
+        #    但那两件事被混成了一件：报告**没写**这个数才叫没什么可比；
+        #    报告**写了**而 scan 里没有出处，正是 verifier 存在的唯一理由要拦的。
+        #    旧写法让第二种从第一种的门缝里溜走——只要让字段缺失（旧 scan /
+        #    fallback），尾巴里的数字就可以任写任过。
+        #    ⚠️ 实测四份 live 真报告在收紧后仍全部 rc=0（它们的 ledger 有这些字段），
+        #      所以这条收紧打到的是"缺字段还硬写数"，不是正常报告。
+        (
+            "- S — 批注 2 条（理解度未闭环 9 条）· 已派生 9 点",
+            bare,
+            "无出处可绑",
+            "字段缺失却写了数 ⇒ fail-closed（R4 起）",
+        ),
+    ):
+        ps = run(line, seed)
+        if want is None:
+            assert ps == [], f"{why}：误伤 —— {ps!r}"
+        else:
+            assert any(want in x for x in ps), f"{why}：未报出目标诊断 {want!r} —— {ps!r}"
+
+
+def _assert_rejected(r, keyword: str, why: str) -> None:
+    """「被拦下」的统一判据（round-38，Codex 冻结审查）。
+
+    三件事一起判，缺一条就还是假绿：
+      ① `rc == 1` —— 本域「报告不合规」的退出码。`rc != 0` 会把**崩溃**（rc=2/异常）
+         算成拦截，而崩溃不是拦截，是坏了；
+      ② 输出不含 traceback —— 同上，崩溃伪装成拦截的第二个入口；
+      ③ 诊断含指定关键词 —— 否则换个理由报错这门照样绿（目标无关假绿）。
+    """
+    out = (r.stdout or "") + (r.stderr or "")
+    assert "Traceback (most recent call last)" not in out, f"{why}：verifier **崩溃**了，不是拦下了 —— {out[-400:]!r}"
+    assert r.returncode == 1, f"{why}：rc={r.returncode}（只有 1 是「报告不合规」）—— {out[-300:]!r}"
+    assert keyword in out, f"{why}：报错了但不是 {keyword!r} 报的 —— {out[-300:]!r}"
+
+
+def test_domain_r32_indent_h3_and_zero_token_claim(tmp_path):
+    """R3 round-40（Codex 末轮两条 BLOCKER，**都是我上一轮引入的**）。
+
+    ⛔ 第十形态：round-39 修第九形态时，安全态改成「把缩进 H3 **去缩进后**判段名」，
+    而小节收集器 `_H3_SEED_RE`（= `_SECTION_RE("### 种子")`）只认**顶格**。
+    两处口径一分叉，`   ### 种子` 就落进「收集器不收、安全态却判安全」的夹缝：
+    它下面的台账行既不进绑定面，也不进漏网扫描。
+    ⚠️ 复现要点：缩进 H3 必须落在**任何 section span 之外**（先用顶格 H3 结束
+    前一个小节），否则它会被前一小节的 span 罩住、由小节内的模板门抓走 ——
+    我头两次复现都因为这个而"看起来没问题"。
+
+    ⛔ 零 token 兜底：同轮把 num-run 收窄成「首尾都必须是数字字符」（为堵
+    「顿号自成 token」的误伤），却在**量词之前**造出新硬断点 ——
+    `本板共有987654，个子节点` 句式命中、token 也抓到了，但量词前那个分隔符
+    不在 `_D2_JOIN_ONE` 里 ⇒ 量词前正则零命中 ⇒ 整个计数循环一次不跑，**无声通过**。
+    ⇒ 「有 claim 却一个数都没查」本身就该 fail-closed，与具体断点字符无关。
+
+    **它证明什么**：两条各自闭合，且合法形态不误伤。
+    **它不证明什么**：不覆盖 A1（软换行）与本域开放集 —— 见接手清单。
+    """
+    rs = _load_recap_scan()
+    KEY = "不受任何认可小节覆盖"
+
+    def ledger(h3: str) -> list[str]:
+        ps: list[str] = []
+        rs._verify_ledger_counts(
+            "## 台账\n\n### 种子\n\n- S — 批注 2 条\n\n### 派生\n\n- D — 批注 1 条\n\n"
+            f"{h3}\n\n- Ghost — 批注 999 条\n\n## 末\n",
+            {"ledger": {"seeds": [{"node_id": "S", "tips_count": 2}]}},
+            ps,
+        )
+        return ps
+
+    for h3, want in (("   ### 种子", True), ("   ### 派生", True), ("### 派生", False)):
+        ps = ledger(h3)
+        hit = any(KEY in x for x in ps)
+        assert hit is want, f"{h3!r}: 漏网门命中={hit}（期望 {want}）—— {ps!r}"
+
+    # ── 零 token 兜底：走真实 CLI ──
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    report = write_report(vault, scan)
+    base = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+
+    def inject(line: str):
+        text = base.replace("## 三维审查", f"## 三维审查\n\n{line}", 1)
+        assert text != base, "注入未命中：报告一字未改，这条门测的是空气"
+        report.write_text(text, encoding="utf-8")
+        return run_verify(report)
+
+    for line, why in (
+        ("- 本板共有987654，个子节点。【实测】", "全角逗号在量词前"),
+        ("- 本板共有987654,个子节点。【实测】", "半角逗号在量词前"),
+        ("- 本板共有987654'个子节点。【实测】", "撇号在量词前"),
+    ):
+        _assert_rejected(inject(line), "提取不到任何", why)
+
+    # 对照：合法区间不得被兜底误伤（区间路径会**挖空**整段，兜底判据必须取
+    # 挖空**之前**的快照 —— 第一版没这么做，当场打红四条既有门）
+    report.write_text(base, encoding="utf-8")
+    r = inject("- 建议覆盖 2~3 个节点。【实测】")
+    assert r.returncode == 0, f"合法区间被零 token 兜底误伤：{(r.stdout or '')[-300:]!r}"
+
+
+def test_domain_r30_obsidian_comment_hidden_break_cli(tmp_path):
+    """R3 round-37（Codex 冻结审查 BLOCKER）：Obsidian 自己的注释 `%%…%%`。
+
+    ⛔ 正文早就禁写 **HTML** 注释（「渲染隐藏面 / 可见文本与校验文本分叉」），
+    但 Obsidian 的原生注释语法 `%%…%%` **完全没管**。它是同一类隐藏面：
+
+      `- 本板共有987654%%x%%0个子节点。`
+
+    阅读视图隐藏注释后读者看到 `9876540`；校验器在 `%` 处**断开**，
+    只取量词前的尾片 `0`，而 **0 因 `abs(a-a)` 恒在池内** ⇒ 整条放行。
+    又一次「尾片重锚」，只是换了个隐藏载体。
+
+    **它证明什么**：`%%` 按与 HTML 注释**逐字同款**的口径处置 ——
+    在**原始文本**上一次判死（不区分闭合与否、不管是否落在 code span 内），
+    且校验前剥掉（防「注释里藏正确模板行、可见文本撒谎」）。
+    **它不证明什么**：不覆盖别的渲染隐藏面（math `$…$`、脚注、折叠块等）——
+    那是本卡反复登记的 renderer 开放集，逐个补不是闭包（见接手清单 A2）。
+    """
+    rs = _load_recap_scan()
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    pool = rs._derived_number_pool(scan)
+    assert 987654 not in pool, "前提：987654 必须在池外"
+    assert 0 in pool, "前提：0 恒在池内 —— 这正是尾片重锚的危险来源"
+
+    report = write_report(vault, scan)
+    base = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+
+    def inject(line: str):
+        text = base.replace("## 三维审查", f"## 三维审查\n\n{line}", 1)
+        assert text != base, "注入未命中：报告一字未改，这条门测的是空气"
+        report.write_text(text, encoding="utf-8")
+        return run_verify(report)
+
+    for line, why in (
+        ("- 本板共有987654%%x%%0个子节点。【实测】", "注释制造隐藏硬断点 → 尾片 0 重锚"),
+        ("- 本板共有%%注释%%5个子节点。【实测】", "注释在数字之前"),
+        ("- 本板共有5%%注释%%个子节点。【实测】", "注释在量词之前"),
+        ("- 正常一句话 %%只是个注释%%。【实测】", "无数字也判死（与 HTML 注释同口径）"),
+        ("- 本板共有 `%%` 个子节点。【实测】", "code span 内同样判死（同 HTML 注释口径）"),
+    ):
+        _assert_rejected(inject(line), "Obsidian 注释标记", why)
+
+    # 对照：单个 `%` 不受影响（百分数是正常写法）
+    report.write_text(base, encoding="utf-8")
+    r = inject("- 覆盖率 50% 已达标。【实测】")
+    assert r.returncode == 0, f"单个 % 被误伤：{(r.stdout or '')[-300:]!r}"
+
+
+def test_domain_r29_separator_third_state_cli(tmp_path):
+    """R3 round-35（2026-09-03 内部多维复核 BLOCKER）：分隔符的**第三态**。
+
+    ⛔ `_normalize_number_seps` 原式带 `(?=[0-9]{3}(?![0-9]))`「恰好三位分组」前瞻，
+    于是 `,，'’` 在同一个函数里有**两种互斥语义**，并制造出**第三态**：
+    分隔符既**不被删**（不满足前瞻）也**不算连接字符**（不在 `_D2_JOIN_ONE` 里）
+    ⇒ 成为**硬断点**，`_NUM_RUN_PAT` 从它之后重锚到尾片。
+
+    实测四条（修前全部 exit 0）：
+      · `987654,0`  —— 只看到 `0`，而 0 因 `abs(a-a)` **恒在池内**
+      · `987654，0` —— 全角逗号
+      · `987654'0`  —— Swiss 撇号，**本函数自己声明**的分隔符
+      · `1,05`      —— 读者读 105，校验器读 5
+    对照 `987654,000` 修前即拦下 —— **只差「分组是否恰好三位」**。
+
+    这与 round-2 的「九十八万**五** / 980 005」是**同一个尾片重锚病**，
+    只是断点字符换成了本函数自己声明为「数串内部分隔符」的那几个。
+
+    ⛔ round-37/38 更正：上一版这里写「分隔符一律按数串内噪声删除」——
+    那个做法本身被证伪（它把 `1, 2个` 合成 `12个`）。现在的口径是
+    **定界要宽、赋值要窄**：分隔符参与划 token（不再制造硬断点），但不参与赋值，
+    只有**合法千分位分组**（分隔符后每段恰好三位）才归一成完整量级。
+
+    **它证明什么**：含糊分隔一律 fail-closed；合法千分位归一后可赋值；
+    分组内**不吞**连接字符（`1, 002` / `1,约002` 不得被归成 `1002`）。
+    **它不证明什么**：不覆盖非数字上下文里的逗号（两侧仍要求数字）；
+    也不改变 D2「碰撞判据非字段绑定」这个设计层性质（见接手清单 A1/A2）。
+    """
+    rs = _load_recap_scan()
+    vault = standard_vault(tmp_path)
+    scan = collect_json(vault)
+    pool = rs._derived_number_pool(scan)
+    assert 987654 not in pool, "前提：987654 必须在池外"
+    assert 0 in pool, "前提：0 因 abs(a-a) 恒在池内 —— 这正是尾片重锚危险的原因"
+
+    report = write_report(vault, scan)
+    base = report.read_text(encoding="utf-8")
+    assert run_verify(report).returncode == 0, "基线报告本身就不过 verifier"
+
+    def inject(line: str):
+        text = base.replace("## 三维审查", f"## 三维审查\n\n{line}", 1)
+        assert text != base, "注入未命中：报告一字未改，这条门测的是空气"
+        report.write_text(text, encoding="utf-8")
+        return run_verify(report)
+
+    for line, why in (
+        ("- 本板共有987654,0个子节点。【实测】", "半角逗号 + 非三位尾段"),
+        ("- 本板共有987654，0个子节点。【实测】", "全角逗号"),
+        ("- 本板共有987654'0个子节点。【实测】", "Swiss 撇号（本函数自己声明的分隔符）"),
+        ("- 本板共有1,05个子节点。【实测】", "读者读 105，校验器曾只读 5"),
+        ("- 本板共有987654,000个子节点。【实测】", "对照：恰好三位分组（修前即拦）"),
+    ):
+        r = inject(line)
+        # ⛔ round-37：原先只断言 `rc != 0` —— **目标无关假绿**（换个理由报错照样绿）。
+        # ⛔ round-38（Codex 冻结审查）：`rc != 0` 还把**崩溃**算成拦截 ——
+        #    verifier 抛异常时 rc 也非 0，而那不是「拦下了」，是「炸了」。
+        #    收紧为 `rc == 1`（本域的「报告不合规」退出码）且输出不含 traceback。
+        _assert_rejected(r, "数字终核", why)
+
+    # ⛔ round-37：这里原先断言的是**实现手法**（「一律删，不看位数」），
+    # 而 round-35 那个手法本身被证明有害：它把 `1, 2个`（读者看见两个数）
+    # 合成 `12个`。改为断言**安全性质**：
+    #   · 合法千分位分组 → 归一成完整量级（可赋值）
+    #   · 含糊/非法分隔   → 划进同一 token 且**判不出值**（调用方 fail-closed）
+    # ⛔ round-38：分组内不得吞连接字符（`_D2_JOIN_ONE` 含空白与「约」等**可见字**）
+    for glued in ("1, 002", "1,约002"):
+        assert rs._normalize_number_seps(glued) == glued, f"{glued!r} 被当成合法分组归一 —— 读者看见的不是那个数"
+    # ⛔ round-38：分隔符不得**单独**成 token（否则普通顿号被报成「无法验证的数字」）
+    for prose in ("派生，说明", "本板，共有"):
+        assert rs._NUM_RUN_RE.findall(prose) == [], f"{prose!r} 里的顿号自成 token = 误伤"
+    for legal, want in (("1,005", 1005), ("987654,000", 987654000), ("1,234,567", 1234567)):
+        assert rs._count_token_value(rs._join_free(rs._normalize_number_seps(legal))) == want, legal
+    for ambiguous in ("987654,0", "987654，0", "987654'0", "1,05", "1, 2"):
+        norm = rs._normalize_number_seps(ambiguous)
+        toks = rs._NUM_RUN_RE.findall(norm)
+        assert len(toks) == 1, f"{ambiguous!r} 被切成多个 token（硬断点复活）: {toks}"
+        assert rs._count_token_value(rs._join_free(toks[0])) is None, (
+            f"{ambiguous!r} 被赋了值 —— 含糊分隔必须 fail-closed"
+        )
+    # 非数字上下文不受影响
+    assert rs._normalize_number_seps("见 1,と") == "见 1,と"
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# CARD-维护B-R4「先渲染再核数」—— 架构重切的三道新门
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def test_r4_render_doc_invariants():
+    """渲染层 `Doc` 的不变式 —— 它们是绑定层"同下标即同源行"的地基。
+
+    ⛔ 为什么这些必须是门而不是注释：旧实现用**两次独立 `re.search`** 分别在
+      raw 与 visible 上取段、再按下标配对，round-25 实测错配；后来改成"一次
+      切行"的**约定**，而约定没有任何东西在核对它。现在它是类型层面的产物，
+      再加这道门锁住。
+    """
+    rs = _load_recap_scan()
+    CORPORA = (
+        "",
+        "\n",
+        "A\n\n\n",
+        "## 台账\n\n### 种子\n\n- A — 批注 1 条\n",
+        "````text\n### 种子\n```\n- A — 批注 9 条\n````\n",
+        "- ```\n- 本板共有 987654 个子节点\n- ```\n",
+        "> > ```\n> > ### 种子\n> > ```\n",
+        "A&#10;B — 批注 1 条\n",
+        "本板共有​９８７６５４个子节点\n",
+    )
+    for text in CORPORA:
+        doc = rs.render_visible(text)
+        raw = text.splitlines()
+        assert len(doc.lines) == len(raw), f"行数不变式破了: {text!r}"
+        for i, ln in enumerate(doc.lines):
+            assert ln.idx == i, "idx 必须等于源行下标"
+            assert ln.raw == raw[i], "同下标必须同源行"
+            assert "\n" not in ln.visible and "\r" not in ln.visible, (
+                f"visible 不得含换行（`&#10;` 解出的换行必须折成空格）: {ln.visible!r}"
+            )
+        # 与两个薄封装自洽（防有人改了封装却没改本体，或反过来）。
+        # ⚠️ Codex round-2 LOW-1：这**只是同源自洽**，证明不了「与重切前逐字
+        #   等价」——两边都是当前实现。相对 `7b94f318` 的等价性由一次性的
+        #   新旧引擎对账证明（21 份语料，结论见验收单 §一），不由本门证明。
+        assert doc.visible_block() == rs._visible_block(text)
+        assert doc.stripped_block() == rs._strip_code_blocks(text)
+
+    # 单一入口：结构识别不许有第二份实现
+    doc = rs.render_visible("## 台账\n\n### 种子\n\n- A — 批注 1 条\n\n## 末\n")
+    secs = doc.sections_named("### 种子")
+    assert len(secs) == 1, "sections_named 必须与 _SECTION_RE 同口径"
+    assert secs[0].title == "### 种子", "Section.title 必须是**整行**可见文本（含井号）"
+    # 章节终点 = 下一个同级或更高级标题
+    assert doc.lines[secs[0].lo].visible == "", "内容范围从标题的下一行开始"
+    assert all(doc.lines[k].heading is None for k in range(secs[0].lo, secs[0].hi))
+
+    # 缩进 H3 仍被识别为标题（要能更新安全态），但 `_SECTION_RE` 只认顶格
+    doc2 = rs.render_visible("   ### 种子\n")
+    assert doc2.lines[0].heading == 3, "缩进 0-3 格仍是 ATX 标题（CommonMark）"
+    assert doc2.sections_named("### 种子") == [], "但统一口径只认顶格 —— 这是 round-40 的口径"
+
+
+@pytest.mark.parametrize(
+    "inject,want_unknown,why",
+    [
+        (None, False, "对照：真报告原样不得被新门误伤"),
+        ("本板共有<b>3</b>个子节点。", False, "对照：白名单内的 HTML 标签照常剥，不报"),
+        ("本板共有<zzz>3</zzz>个子节点。", True, "表外标签：剥照旧，但不再**静默**剥"),
+        ("这一段<zzz>没有数</zzz>。", True, "表外标签与有没有数字无关"),
+        ("本板共有 $3$ 个子节点。", True, "math 未建模：读者看到的是公式排版，不敢判"),
+        ("本板共有3[^1]个子节点。", True, "脚注未建模"),
+        ("本板共有![x](y.png)3个子节点。", True, "图片未建模"),
+        ("```\n本板共有 $3$ 个子节点。\n```", False, "围栏内是字面文本，不判未知形态"),
+    ],
+    ids=["control", "known_tag", "unknown_tag", "unknown_tag_nonum", "math", "footnote", "image", "in_fence"],
+)
+def test_r4_unknown_forms_fail_closed(tmp_path, inject, want_unknown, why):
+    """卡文 (e)「列举之外 fail-closed」——渲染层报出它没建模的构造。
+
+    ⚠️ 这道门**不**证明"未知形态已闭合"。它证明的只有两件事：
+      ① 列举之外的构造会被报出来（风险方向从「漏」倒成「误拒」）；
+      ② 列举**之内**的构造不会被误伤（对照两条）。
+      列举本身仍可能漏，漏掉的后果仍是放行 —— 如实登记在验收单。
+    """
+    work = tmp_path / "outputs"
+    work.mkdir(parents=True)
+    for src in _live_corpus_files():
+        shutil.copy2(src, work / src.name)
+    report = work / "回顾-CS 61B-2026-08-27.md"
+    if inject is not None:
+        report.write_text(
+            report.read_text(encoding="utf-8").replace("\n## 三维审查\n", f"\n## 三维审查\n\n{inject}\n", 1),
+            encoding="utf-8",
+        )
+    r = run_verify(report)
+    # ⛔ 判据必须比对**拒因身份**，不能只看 rc —— 崩溃也是非零退出。
+    assert "Traceback" not in r.stderr, f"被测物崩溃了，不是判错：{r.stderr[:300]}"
+    hit = "渲染层未知形态" in r.stdout
+    assert hit is want_unknown, f"{why}：未知形态判定不符（rc={r.returncode}）\n{r.stdout[:400]}"
+    if not want_unknown:
+        assert r.returncode == 0, f"{why}：对照组被误伤\n{r.stdout[:400]}"
+
+
+def test_r4_derived_ledger_binding_closes_blocker2(tmp_path):
+    """⭐ BLOCKER②（round-11 起连续四轮未闭合）：`### 派生` 小节的台账行零绑定。
+
+    旧实现里这个小节是审计面上的一个洞：收集器只认 `### 种子`，安全态判定却
+    把 `### 派生` 算作"认可小节"，于是其中的行**两边都不管** —— 而
+    `ledger.derived` 一直有数据可绑。实测 `- D — 批注 999 条` exit 0。
+
+    ⛔ 本门同时锁住"不许再回到零绑定"与"不许过度收紧打到真报告"。
+    """
+    rs = _load_recap_scan()
+
+    def run(text, ledger):
+        ps: list[str] = []
+        rs._verify_ledger_counts(text, {"ledger": ledger}, ps)
+        return ps
+
+    NONZERO = {
+        "seeds": [{"node_id": "S", "tips_count": 2}],
+        "derived": [{"node_id": "D", "tips_count": 3, "tips_open": 1, "attempt_count": None}],
+    }
+    ZERO = {"seeds": [{"node_id": "S", "tips_count": 2}], "derived": []}
+
+    def L(derived_body, ledger=NONZERO):
+        return run(
+            f"## 台账\n\n### 种子\n\n- S — 批注 2 条\n\n### 派生\n\n{derived_body}\n\n## 末\n",
+            ledger,
+        )
+
+    # ① 红点 1 本体：零派生板里写一条编造的台账行
+    ps = L("- D — 批注 999 条", ZERO)
+    assert any("无中生有" in x for x in ps), f"零派生板的编造台账行必须被拒 —— {ps!r}"
+
+    # ② 身份绑定：节点不在 ledger.derived 里
+    # ⛔ 文案由**共用**身份解析函数产出（Codex round-1 BLOCKER 的修复：身份解析
+    #   原先是两份实现，派生那份少了「raw 精确优先」⇒ 放行面）。角色信息由前缀
+    #   `台账『派生』行` 承载，判据同时校验两者，不比旧断言弱。
+    _ghost = L("- Ghost — 占位 · tips 未闭环 0 条")
+    assert any("不在 scan JSON 的 ledger 里" in x and "台账『派生』行" in x for x in _ghost), (
+        f"台账不得列出未扫描到的派生节点 —— {_ghost!r}"
+    )
+
+    # ⭐ Codex round-1 BLOCKER 的回归：身份归一撞车不得让数字绑到**别的节点**。
+    #   ledger 同时有 `D_A`(tips_open=1) 与 `DA`(999)，报告写 `D_A` 时若先归一
+    #   再查（`_` 被渲染剥掉 ⇒ `DA`），999 就"有出处"了 —— 实测曾放行。
+    _collide = run(
+        "## 台账\n### 派生\n- D_A — 占位 · tips 未闭环 999 条\n## 末\n",
+        {
+            "seeds": [],
+            "derived": [
+                {"node_id": "D_A", "tips_open": 1},
+                {"node_id": "DA", "tips_open": 999},
+            ],
+        },
+    )
+    assert any("tips_open 是 1" in x for x in _collide), (
+        f"身份必须绑到报告写的那个节点（D_A），不是归一后撞上的那个（DA）—— {_collide!r}"
+    )
+
+    # ③ 数字绑定：写出来的数必须等于 scan 里的那个数
+    assert any("tips_open 是 1" in x for x in L("- D — 占位 · tips 未闭环 7 条")), "tips 未闭环须绑 tips_open"
+    assert any("tips_count 是 3" in x for x in L("- D — 批注 9 条")), "批注数须绑 tips_count"
+
+    # ④ 拒绝层（卡文 (h)）：报告写了数、scan 里该字段无值 ⇒ **不再** continue 放行
+    ps = L("- D — 占位 · 考过 5 次 · tips 未闭环 1 条")
+    assert any("无出处可绑" in x for x in ps), f"字段无值却写了数, 必须 fail-closed —— {ps!r}"
+
+    # ⑤ 反向：合规行不得误伤
+    assert L("- D — 占位 · tips 未闭环 1 条") == [], "合规派生行被误伤"
+    # ⑥ 反向：四份真报告的两种零派生占位写法都不含身份分隔符 ⇒ 不是台账形状行
+    assert L("- 无（derived 列表为空）", ZERO) == [], "真报告的零派生占位写法被误伤"
+    assert L("- （无：derived 计数 0，本板尚无派生成员）", ZERO) == [], "同上（另一种写法）"
+
+
+@pytest.mark.parametrize(
+    "text,why",
+    [
+        (
+            "## 台账\n\n### 种子\n\n- S — 批注 2 条\n\n# 插入的一级标题\n\n### 其他\n\n- Ghost — 批注 9 条\n\n## 末\n",
+            "H1 不得终止台账段（树语义会，旧实现不会 —— 差出来的是放行面）",
+        ),
+        (
+            "## 台账\n\n### 种子\n\n- S — 批注 2 条\n\n"
+            "   ## 缩进的二级标题\n\n### 其他\n\n- Ghost — 批注 9 条\n\n## 末\n",
+            "缩进 H2 不得终止台账段（它连开段都不被 _SECTION_RE 认可，凭什么断段）",
+        ),
+        (
+            "## 台账\n\n### 种子\n\n- S — 批注 2 条\n\n   ### 缩进的三级标题\n\n- Ghost — 批注 9 条\n\n## 末\n",
+            "缩进 H3 同上",
+        ),
+        (
+            "## 台账\n\n### 种子\n\n- S — 批注 2 条\n\n#### 四级标题\n\n- Ghost — 批注 9 条\n\n## 末\n",
+            "更深层级不得终止上层小节（旧式 `^#{2,3}` 本就不匹配 H4）",
+        ),
+    ],
+    ids=["h1", "indent_h2", "indent_h3", "h4"],
+)
+def test_r4_audit_span_not_narrower_than_legacy(text, why):
+    r"""⭐ 审计段的覆盖面**不得**比重切前窄（本卡自己制造并抓住的两个放行面）。
+
+    ⛔ 教训（写在这里，因为它是重构最容易犯而最难发现的一类错）：
+      把 N 份手抄合并成一个抽象时，**抽象的语义未必等于被合并者的语义**。
+      `Section.hi` 用的是树语义（同级**或更高级**都终止），结构上正确；
+      而它替换掉的两处旧扫描是 `^##[^\S\n]` / `^#{2,3}[^\S\n]` —— 都要求
+      **顶格**、且 **H1 不终止**。两处差异各自都让台账段**变短**，
+      于是其后的编造台账行逃出审计面。实测（未修时）：`problems == []`，
+      `- Ghost — 批注 9 条` 被完全放行。
+
+    ⇒ `Doc.audit_span()` 是审计覆盖语义（终点 = 下一个**顶格**且
+      `2 <= level <= 本级` 的标题），与旧的两处扫描逐字同义；
+      `Section.hi` 的树语义并列保留，两者各答一个问题、各有单一定义点。
+    """
+    rs = _load_recap_scan()
+    ps: list[str] = []
+    rs._verify_ledger_counts(
+        text,
+        {"ledger": {"seeds": [{"node_id": "S", "tips_count": 2}], "derived": []}},
+        ps,
+    )
+    # ⛔ 判据是「Ghost 这一行**被拦下了**」，不是某一条具体拒因 —— 落在不同
+    #   位置会走不同路径（漏网扫描 vs 绑定失败），两条都是 fail-closed。
+    #   写死单一拒因会让门在"换了条路仍然拦住"时假红（我第一版就是这么写的）。
+    assert any("Ghost" in x or "不受任何认可小节覆盖" in x for x in ps), f"{why}：编造的台账行逃出了审计面 —— {ps!r}"
+
+
+def test_r4_flat_ledger_shape_does_not_false_reject():
+    """扁平 list 形态的 ledger（历史 scan JSON）不得因新增的派生绑定被误拒。
+
+    ⛔ 这是我在重构里造的**第四个**缺陷（前三个见验收单 §八）：
+      `ledger` 的历史形态是扁平 list，**没有角色信息**。我把非 seeds 角色的
+      取值写成 `[]`（"绑定面为空"），于是 `_bind_derived_section` 的
+      「零派生板不得写台账形状行」把**合法**的派生行判成无中生有。
+      实测同一份扁平 scan：重切前 0 条诊断，写成 `[]` 后 1 条误报。
+    ⇒ 扁平形态的正确答复是 `None`（**无法绑定**的能力边界），不是 `[]`
+      （**查过了，没有**）。两者差一个语义，而这个差别是可观测的。
+
+    ⚠️ 如实登记：扁平形态下派生小节**不受绑定**。那是 scan 侧的形态问题
+      （新 scan 一律输出分组形态），本卡不因此报错，也不宣称覆盖它。
+    """
+    rs = _load_recap_scan()
+    flat = {
+        "ledger": [
+            {"node_id": "S", "tips_count": 2},
+            {"node_id": "D", "tips_count": 1, "tips_open": 0},
+        ]
+    }
+    text = (
+        "## 台账\n\n### 种子\n\n- S — 批注 2 条\n\n"
+        "### 派生\n\n- D — 占位 · mastery 未记录 · tips 未闭环 0 条\n\n## 末\n"
+    )
+    ps: list[str] = []
+    rs._verify_ledger_counts(text, flat, ps)
+    assert ps == [], f"扁平 ledger 形态被误拒 —— {ps!r}"
+
+    # 反向：扁平形态**不得**因此放过种子侧的编造数字（能力边界只限派生角色）
+    ps2: list[str] = []
+    rs._verify_ledger_counts("## 台账\n\n### 种子\n\n- S — 批注 999 条\n\n## 末\n", flat, ps2)
+    assert any("tips_count 是 2" in x for x in ps2), f"扁平形态下种子绑定必须照常生效 —— {ps2!r}"
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Codex round-2 的五条发现 —— 逐条锁住（修了不加门等于没修）
+# ══════════════════════════════════════════════════════════════════════════
+
+
+@pytest.mark.parametrize(
+    "heading,why",
+    [
+        ("###", "裸 `###`（井号后无空白）不得终止审计段"),
+        ("##", "裸 `##` 同上"),
+        ("==##== 末", "高亮伪标题：源码不是标题，归一后像标题，不得终止审计段"),
+        ("==种子==", "高亮伪标题（另一种写法）"),
+    ],
+    ids=["bare_h3", "bare_h2", "highlight_fake_h2", "highlight_fake_seed"],
+)
+def test_r4_codex2_high1_audit_span_terminators(heading, why):
+    """⭐ Codex round-2 HIGH-1：审计段的终止集合必须等于重切前的那一个。
+
+    两个各自独立的成因，都让台账段**变短**⇒ 其后的编造行零诊断：
+      ① `_DOC_HEADING_RE` 有 `$` 分支，于是裸 `###` 也算标题；而旧的两处扫描
+         （`^##[^\S\n]` / `^#{2,3}[^\S\n]`）要求井号后**实际有空白**。
+         ⇒ `Line.heading_delimited` 记录「是否真消费了空白」，`audit_span` 用它。
+      ② 本卡新建模的 `==高亮==` 会把源码里**不是标题**的 `==##== 末` 归一成
+         `## 末`。⇒ 结构识别改读 `Line.structural`（高亮归一**前**），
+         与重切前的 `_visible_text` 输出逐字同形。
+
+    ⚠️ ② 是**我新造的**——旧实现不处理 `==`，所以它没有这一面。
+    """
+    rs = _load_recap_scan()
+    ps: list[str] = []
+    rs._verify_ledger_counts(
+        f"## 台账\n### 种子\n- S — 批注 2 条\n{heading}\n- Ghost — 批注 2 条\n## 末\n",
+        {"ledger": {"seeds": [{"node_id": "S", "tips_count": 2}], "derived": []}},
+        ps,
+    )
+    assert ps, f"{why}：编造的台账行零诊断（审计段被截短）"
+
+
+def test_r4_codex2_high2_resolver_no_silent_skip():
+    """⭐ Codex round-2 HIGH-2：身份解析不得有静默跳过路径。
+
+    `- <b></b> — 批注 2 条`：`<b>` 在白名单内会被剥掉，渲染后**节点名整个消失**，
+    于是 raw 能匹配模板、raw 身份不在 ledger、visible 又解析不出身份 ——
+    共用 resolver 原先直接 `return None`，调用方 `continue`，这一行不受任何检查。
+    旧的种子实现会继续用 raw 身份报「不在 ledger」；我在抽共用函数时丢了这条路径。
+    """
+    rs = _load_recap_scan()
+    for sec, led in (
+        ("种子", {"seeds": [{"node_id": "S", "tips_count": 2}], "derived": []}),
+        ("派生", {"seeds": [], "derived": [{"node_id": "D", "tips_open": 0}]}),
+    ):
+        ps: list[str] = []
+        rs._verify_ledger_counts(f"## 台账\n### {sec}\n- <b></b> — 批注 2 条\n## 末\n", {"ledger": led}, ps)
+        assert ps, f"『{sec}』小节：渲染后身份消失的行被静默跳过"
+
+
+def test_r4_codex2_high3_derived_rows_must_be_listed():
+    """⭐ Codex round-2 HIGH-3 子项：`ledger.derived` 有数据就必须列出来。
+
+    照抄零派生的占位说明（`- （无：derived 计数 0…）`）时，那句话本身与 scan
+    矛盾，却不含数字、不进 D2 ⇒ 整段无人过问。台账的职责是把 ledger 列出来，
+    有数据不列 = 报告在隐瞒，与写错数字同级。
+    """
+    rs = _load_recap_scan()
+    ps: list[str] = []
+    rs._verify_ledger_counts(
+        "## 台账\n### 派生\n- （无：derived 计数 0，本板尚无派生成员）\n## 末\n",
+        {"ledger": {"seeds": [], "derived": [{"node_id": "D", "tips_open": 1}]}},
+        ps,
+    )
+    assert any("一条台账行都没有" in x for x in ps), f"有数据却一行未列 —— {ps!r}"
+
+    # 反向：derived 为空时，同一句占位说明必须放行
+    ps2: list[str] = []
+    rs._verify_ledger_counts(
+        "## 台账\n### 派生\n- （无：derived 计数 0，本板尚无派生成员）\n## 末\n",
+        {"ledger": {"seeds": [], "derived": []}},
+        ps2,
+    )
+    assert ps2 == [], f"零派生板的占位说明被误伤 —— {ps2!r}"
+
+
+@pytest.mark.parametrize(
+    "value,want_reject,why",
+    [
+        (5, False, "int：正常"),
+        ("5", False, "历史字符串：fallback 的 _fm_scalar 产出的就是它，不得误拒"),
+        (" 5 ", False, "带空白的历史字符串"),
+        ("5.0", True, "小数字符串：非整数，fail-closed"),
+        (True, True, "布尔：isinstance(True, int) 为真，必须先排除"),
+        (None, True, "缺字段：报告写了数就得 fail-closed"),
+    ],
+    ids=["int", "str", "str_spaced", "float_str", "bool", "none"],
+)
+def test_r4_codex2_high4_int_field_accepts_legacy_string(value, want_reject, why):
+    """⭐ Codex round-2 HIGH-4（真实误拒）：fallback 的 `attempt_count` 是字符串。
+
+    收集器经 `_fm_scalar()` 产出 `"5"`，绑定器拿 `int(报告值)` 去比 `"5"` ——
+    永远不等，合法的 fallback 报告被判「数字无据」。
+    ⚠️ 只容纳「看起来就是这个整数」的字符串；小数/布尔/缺失一律 fail-closed。
+    """
+    rs = _load_recap_scan()
+    ps: list[str] = []
+    rs._verify_ledger_counts(
+        "## 台账\n### 派生\n- D — 占位 · 考过 5 次\n## 末\n",
+        {"ledger": {"seeds": [], "derived": [{"node_id": "D", "attempt_count": value}]}},
+        ps,
+    )
+    assert bool(ps) is want_reject, f"{why} —— {ps!r}"
+
+
+@pytest.mark.parametrize(
+    "text,why",
+    [
+        ("原话：`vector<T>`。", "行内代码里的泛型不是未知 HTML 标签"),
+        ("本轮 2 条原话：`$x$`。", "行内代码里的公式字面量不是未建模构造"),
+        ("原话：`![img](x)` 是图片语法。", "行内代码里的图片语法同上"),
+        ("原话：`脚注[^1]`。", "行内代码里的脚注同上"),
+    ],
+    ids=["generic", "math", "image", "footnote"],
+)
+def test_r4_codex2_med2_unknown_forms_respect_code_spans(text, why):
+    """⭐ Codex round-2 MEDIUM-2（真实误拒）：未知形态检测必须先屏蔽 inline code。
+
+    SKILL 明确允许把 tips 原话放进行内代码；CS 学习笔记里 `` `vector<T>` `` 与
+    `` `$x$` `` 是完全正常的字面量。不屏蔽就把真实报告拒在门外。
+    """
+    rs = _load_recap_scan()
+    doc = rs.render_visible(f"# T\n\n{text}\n")
+    assert not doc.unknown, f"{why} —— 误报 {list(doc.unknown)!r}"
+
+    # 反向：**不在**代码跨度里的同款构造仍须被报（屏蔽不得变成豁免通道）
+    bare = rs.render_visible("# T\n\n本板共有 $3$ 个子节点。\n")
+    assert bare.unknown, "代码跨度之外的公式必须照常被报"

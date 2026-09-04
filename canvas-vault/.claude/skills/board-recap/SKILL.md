@@ -249,6 +249,14 @@ generated_by: board-recap v1.1-signals
    任何自由叙述（哪怕不含"派生"二字）都会被 verifier 判违规>
 ### 派生
 - <node_id> — <搞懂信号：占位|已剖析 · mastery <值|未记录> · <考过 n 次|从未考察> · tips 未闭环 m 条>
+  <⛔ 本小节与「种子」小节一样受**数字绑定**（verifier `_bind_derived_section`，与本表同表同改）：
+   · `<node_id>` 必须在 scan JSON 的 `ledger.derived` 里 —— 台账不得列出未扫描到的节点；
+   · 行里写出的 `tips 未闭环 m 条` / `批注 N 条` / `考过 n 次` 必须逐字抄该节点的
+     `tips_open` / `tips_count` / `attempt_count`；
+   · ⛔ scan JSON 里该字段**无值**时不得写这个数（无出处 = FAIL，不是"写了也没人管"）；
+   · `counts.derived == 0` 时本小节**不得出现** `- <名> — …` 形状的行 —— 没有可绑的数据，
+     写出来的任何一行都是无中生有。零派生请写不带 ` — ` 的说明行，如
+     `- 无（derived 列表为空）`。>
 
 ## AI 侧对账
 - tips 批注共 <tips_total> 条【未确认-无法判定已答】，其中理解度未闭环 <tips_understanding_open> 条
@@ -277,10 +285,23 @@ generated_by: board-recap v1.1-signals
     `无带时间戳批注` / `分母为零` / `本板无派生角色成员` / `本板无批注` / `数据源不可用`
   - ⛔ 无据行不得出现 X/N 计数、不带档位标注；有数的信号行 ⛔ 不得写「无据」。
   - 有数信号行：`X/N` 之后的说明文字同样**禁一切数字**（防在正确数字后追加第二组）。
+  - 有数信号行的标准尾部与【档位】之间允许**一个可选附注**，附注只许**逐字**取自下表
+    （表外任何词都 FAIL；无据行不适用；附注表与 verifier 同表同改，单侧改动会被同步锁测试拦下）：
+    `口径一致` ——可紧接标准尾部，或以 · ，、等分隔符隔开。
   - 四行**一行都不能少**（verifier 逐行绑定 `signals.*`，缺行/改数/档位不符即 FAIL）。
   - ⛔ 信号行**不得**写进代码块（``` 围栏或四空格缩进）——verifier 校验前会剔除代码块，
     藏在里面等同于缺行。信号行就写在 ③ 段的 `> [!info]+` 引用块里（模板已给）。
 
+- ⛔ **未建模的排版会被拒**（verifier 渲染层，与 `_KNOWN_HTML_TAGS` / `_UNKNOWN_INLINE_FORMS` 同表同改）：
+  **含数字的行**不得使用数学公式 `$…$`、脚注 `[^n]`、图片 `![](…)`；
+  白名单外的 HTML 标签则**全文**不得使用
+  （白名单：`a b big br code del div em font i ins kbd mark p s small span strong sub sup u`）。
+  理由：这些排版会改变"读者看到的是哪个数"，而 verifier 没有为它们建模——**看不懂就不放行**，
+  而不是静默剥掉再假装读懂了。`==高亮==` 已建模（取其中内容）；`%%注释%%` 一律禁写（另有全局禁令）。
+  ⚠️ 这是**有限列举**：表外的写法会被拒，不代表表内的写法都已穷尽 Markdown。
+  ⚠️ 判据分两档是实现的真实行为（Codex round-2 LOW-3：原文声称三类构造全文禁止，
+  比实现宽）：公式/脚注/图片只在**含数词样字符的行**上判，是为了不把误拒面放大到全文。
+  行内代码跨度内的字面量（如 `` `vector<T>` ``）不受这条约束——检测前会先屏蔽它们。
 - ⛔ frontmatter 必含 `type: recap`（防旧回顾以实测口吻回流 RAG/对话）。
 - ⛔ 报告里**零自填格子**——没有任何要用户填的空。
 - ⛔ 结构注入防御（HARD-ISO-5 落地）：`board_name` 在 YAML 里必须带双引号（收集器已折叠空白并把内部双引号换成单引号）；
@@ -307,12 +328,16 @@ python3 "<vault 绝对路径>/.claude/skills/board-recap/scripts/recap_scan.py" 
 6. **数字终核（机械）**：verifier 加载同目录 `.recap-scan-<板>.json` 绑定校验——board_sha256/data_mode/recap_date 全等、
    规模自陈五元组 == `counts.*`、AI 侧对账 tips 两数 == `tips_total`/`tips_understanding_open`；scan JSON 缺失 = fail-closed FAIL。
    其余计数（台账/③段关系分布）仍须逐字段抄 scan JSON（关系分布只能抄 `counts.relation_types`）；
+   台账**两个**小节（种子/派生）都逐行绑定到 `ledger.seeds[i]` / `ledger.derived[i]` 的对应字段——
+   ⛔ 尾巴里写了某个数而 scan JSON 里该字段无值 = **无出处可绑 = FAIL**（不再按"能力边界"放行）；
    fallback 报告不得出现 orphans/exam_history/freshness 等 manifest 专属数字。
 7. **fallback 派生断言（全局行白名单）**：`data_mode: fallback_local` 时，报告里**任何含「派生」二字的行**
    都必须整行匹配下列合法用法之一，否则 FAIL（子女数在 fallback 恒无据，同义改写不再有意义）：
    ① 规模自陈行（`N 成员（X 种子 + Y 派生，Z 占位）…`，抄 `counts.derived`）；② 段落标题（`## 台账（种子/派生）`、`### 派生`）；
    ③ 无来源结论信号行（抄 `signals.unsourced_conclusions`）；④ 关系类型分布行（抄 `counts.relation_types`）；
-   ⑤ 以「派生角色成员」为主语的③段叙述。另原有词表（`已派生`/`未派生`/`从未派生`/`派生出`/`没有派生`/`无派生`/`零派生`/`子节点`）继续 0 命中
+   ⑤ ③段的「派生角色成员**缺来源锚点**」定量叙述（谓语固定，抄 `signals.unsourced_conclusions`；
+   句中除句首的「N 个」外 ⛔ 不得再出现任何数字——「派生角色成员的子女数为 N 个」这类自由续写属越界）。
+   另原有词表（`已派生`/`未派生`/`从未派生`/`派生出`/`没有派生`/`无派生`/`零派生`/`子节点`）继续 0 命中
    （派生子女在 fallback 无据；⛔ 同义改写也不行——想表达"这块板还没内容"就说「无成员/无批注」这类 scan JSON 直接支持的事实）。
 8. **动作句白名单动词**：「你现在可以做的」每条编号项必须命中白名单动词之一：
    `/node-chat`、`/start-exam-board`、`/board-recap`、`Cmd+Shift+D`、`Cmd+Shift+A`、`Dashboard` —— 一条不命中即改写。
