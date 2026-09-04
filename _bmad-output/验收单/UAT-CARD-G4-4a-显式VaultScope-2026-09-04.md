@@ -657,6 +657,44 @@ Codex 绑定的是 **`cb671e26`**。为落实它的 HIGH-2 / HIGH-5，本卡在�
 3. 本卡 Codex 轮次已用尽（族累计 4 轮，本卡上限 1 轮），无法再送一轮重绑；
 4. 合并门是「阻断级 = 0」，该结论**已经给出**，且这两处整改只会让文证更准。
 
+**破坏面已机器界定，请直接核这两条**：
+
+```
+$ git diff --stat cb671e26 HEAD -- . ":(exclude)_bmad-output"
+ backend/app/api/v1/endpoints/rag.py | 14 ++++++++++++--
+ backend/lib/agentic_rag/nodes.py    | 12 +++++++++---
+ 2 files changed, 21 insertions(+), 5 deletions(-)
+
+# 其中「非注释、非空」的改动行数：
+$ git diff cb671e26 HEAD -- . ":(exclude)_bmad-output" \
+    | grep -E '^[+-]' | grep -v '^[+-][+-]' \
+    | grep -vE '^[+-][[:space:]]*#' | grep -vE '^[+-][[:space:]]*$' | wc -l
+0
+```
+
+即：**审查之后动过的代码，一行逻辑都没有，全是注释**。
+
+> ⛔ **顺带实证一个影响全批的裁判命令缺陷（请主 session 过目）**：
+> 手册 §合并门写的判据是
+> `git diff --stat <审SHA> HEAD -- . ':!_bmad-output'`。
+> 该 pathspec 在 **zsh** 下会被解成 `:` + `_`，git 直接
+> `fatal: Unimplemented pathspec magic '_'`：
+>
+> ```
+> $ out=$(git diff --stat cb671e26 HEAD -- . ':!_bmad-output' 2>/dev/null)
+> $ echo "长度=${#out}"
+> 长度=0
+> $ git diff --stat cb671e26 HEAD -- . ':!_bmad-output' >/dev/null 2>&1; echo $?
+> 128
+> ```
+>
+> **fatal 走 stderr，stdout 恰好是空的** —— 如果判据是「输出为空即通过」，
+> 这条命令在 zsh 下会对**任何** commit 都判通过，包括真的改了代码的。
+> 这是本批合并门自身的一个**假绿面**。
+> 两个修法任选：写成 `":(exclude)_bmad-output"`（长形式，实测可用），
+> 或保留原写法但**判 rc 而不是判输出**（`rc=0` 才算跑过）。
+> 本卡上面给的数字用的是长形式，rc=0，真跑过。
+
 **如果你（主 session）坚持字面绑定**，回滚方式：
 `git revert <本收尾 commit>` 即可回到 `cb671e26` 的代码树 —— 代价是留下两处
 Codex 已点名为 HIGH 的失实注释。**建议保留整改。**
