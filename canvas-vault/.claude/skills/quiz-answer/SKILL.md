@@ -102,24 +102,63 @@ allowed-tools **不含** `get_board_manifest`，理由：
 
 ```bash
 python3 - <<'PYEOF'
-import json, re, os
+import json, re, os, sys, time, fcntl, hashlib
 P = "/tmp/quiz-answer-incr.json"
 p = json.load(open(P, encoding="utf-8"))
 NODE = p["node"]
-s = open(NODE, encoding="utf-8").read()
-m = re.match(r'^﻿?---\r?\n(.*?)\r?\n---[ \t]*\r?\n?(.*)$', s, re.S)
-if not m:
-    raise SystemExit("frontmatter 解析失败：" + NODE)
-fm, body = m.group(1), m.group(2)
+# ── CARD-G3-3 (a)(b): 本块也**整份覆盖**节点 —— 不设防时它与写分块并发就会互相
+# 吃掉对方的结果 (它拿旧 frontmatter 覆盖刚写的分数, 写分块拿旧 body 覆盖刚归纳
+# 的疑问)。用与写分块**同一把** per-node 锁 (同一条锁文件命名规则) + 同一个 CAS
+# 口径 (`fsrs_bridge.cas_token/cas_conflict`), 不另写一套。
+VAULT = os.path.dirname(os.path.dirname(os.path.abspath(NODE)))
+sys.path.insert(0, os.path.join(VAULT, ".claude", "scripts"))
+try:
+    from fsrs_bridge import cas_token, cas_conflict
+except Exception as _e:
+    raise SystemExit(f"[quiz-answer/A3] CAS 依赖不可达 (fsrs_bridge import 失败), fail-closed 拒写: {_e}")
+_lk_dir = os.path.join(VAULT, ".locks")
+os.makedirs(_lk_dir, exist_ok=True)
+_lk_path = os.path.join(_lk_dir, "node-" + hashlib.sha1(os.path.realpath(NODE).encode("utf-8")).hexdigest()[:16] + ".lock")
+_lk_fd = os.open(_lk_path, os.O_RDWR | os.O_CREAT, 0o644)
+_t0 = time.time()
+while True:
+    try:
+        fcntl.lockf(_lk_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        break
+    except OSError:
+        if time.time() - _t0 >= 60.0:
+            raise SystemExit(f"[quiz-answer/A3] 等 per-node 写锁超时 (60s; 锁文件 {_lk_path}) — 另一个 /quiz-answer 仍在写同一个节点, fail-closed 零写 — 请等它结束后重跑")
+        time.sleep(0.02)
+
+# ⛔ 本块的「不匹配就重读重算」是**真的自动重算**, 与写分块**故意不同**:
+# 本块的产物只由「盘上当前 body + 本次 callouts」决定 (逐条按内容查重后 append),
+# 重算不会丢掉任何别人的改动, 所以循环回去重读重算是安全且正确的。
+# 写分块的产物还含它自己算了一整路的 frontmatter, 自动重算会拿它内存里的旧正文
+# 盖掉别人刚写的编辑 —— 故那边取 fail-closed 让人重跑。两处口径不同见验收单。
 added = 0
-for cal in p.get("callouts", []):
-    cal = cal.strip()
-    if cal and cal not in body:
-        body = body.rstrip() + "\n\n" + cal + "\n"
-        added += 1
-tmp = NODE + ".incr-tmp"
-open(tmp, "w", encoding="utf-8").write(f"---\n{fm}\n---\n{body}")
-os.replace(tmp, NODE)
+for _attempt in range(4):
+    s = open(NODE, encoding="utf-8").read()
+    _tok = cas_token(s)
+    m = re.match(r'^﻿?---\r?\n(.*?)\r?\n---[ \t]*\r?\n?(.*)$', s, re.S)
+    if not m:
+        raise SystemExit("frontmatter 解析失败：" + NODE)
+    fm, body = m.group(1), m.group(2)
+    added = 0
+    for cal in p.get("callouts", []):
+        cal = cal.strip()
+        if cal and cal not in body:
+            body = body.rstrip() + "\n\n" + cal + "\n"
+            added += 1
+    _c = cas_conflict(NODE, _tok)
+    if _c is not None:
+        print(f"[quiz-answer/A3] CAS 冲突 ({_c}) — 重读重算 (第 {_attempt + 1} 次)")
+        continue
+    tmp = NODE + ".incr-tmp"
+    open(tmp, "w", encoding="utf-8").write(f"---\n{fm}\n---\n{body}")
+    os.replace(tmp, NODE)
+    break
+else:
+    raise SystemExit("[quiz-answer/A3] 连续 4 次 CAS 冲突 (节点被别的写者持续改写), fail-closed 零写 — 请稍后重跑")
 os.remove(P)
 print(f"[quiz-answer/A3] {NODE}: 增量归纳 {added} 条疑问 (分数未动)")
 PYEOF
@@ -188,7 +227,7 @@ PYEOF
 
 ```bash
 python3 - <<'PYEOF'
-import json, re, os, sys, subprocess, unicodedata, decimal
+import json, re, os, sys, subprocess, unicodedata, decimal, hashlib, fcntl, time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 P = "/tmp/quiz-answer-payload.json"
@@ -201,6 +240,55 @@ GN = max(0.0, min(1.0, GN))
 # (校验器按 payload 的 grade_norm 复算 rating; 若 FSRS 吃未舍入值而 payload
 # 存舍入值, 0.4999 这类档界值会两边分档)。mastery 仍用钳制原值, 行为不变。
 GN2 = round(GN, 2)
+
+# ── CARD-G3-3 (b) per-node 跨进程写锁: 覆盖「读节点 → 读账本 → 算 → 发布」整段。
+# ⛔ **先拿锁再读**, 顺序反了等于没锁: 两个进程若各自读到同一份旧 frontmatter,
+# 之后无论谁先发布, 后发布的那份都是按**旧基线**算出来的 —— attempt_count 双双
+# 写 1、水位线只反映一次评分, 另一次评分**在节点上永久消失**(账本里却有它,
+# 于是账本与笔记从此不自洽, 下一次评分被序数门永久拒掉)。锁在读之前 ⇒ 后到的
+# 进程读到的是前一个进程的结果, 它自然把那次评分算进 attempt/水位线 ——
+# 这正是 §一(a) 要的「重读重算而非覆盖」。
+# ⚠️ 选型理由已按独立复核更正 (2026-09-05): 原注释写「flock 同进程两个 fd 会自锁死,
+# 而门测试会在同一个 pytest 进程里 exec 本块」—— 复核实测**证伪**两点: ① flock 下
+# 旧 fd 关闭后第二个 fd 即可取得, 「重复调用本身不会自锁」; ② 全仓只有一处同进程
+# exec 主块 (test_g3_2_review_ledger.py), 且未参数化、vault 是函数级 fixture。
+# 真正的理由只剩一条: 本块与 backend 侧用同一套记录锁语义, 便于统一推理。
+# ⛔ lockf 的 per-process 语义**不是**免死金牌 —— 它不能掩盖 fd 生命周期问题。
+# ⛔ 锁必须落在**专用锁文件**上: POSIX 记录锁在本进程**任意一个** fd 关闭时就整个
+# 释放 —— 若拿节点文件本体当锁目标, 紧接着下面那行 `open(NODE).read()` 关闭时
+# 锁就没了, 得到一把看起来存在、实际不锁任何东西的锁。
+# ⛔ 同一条性质也约束**账本锁**: 持锁期间不得再 open 账本(见下方追加段), 且
+# open/lock/scan/write/close 必须在同一段互斥区内完成。
+# ⚠️ 锁只在**本机**成立 (fcntl 语义); 网络盘上的并发不在本卡承诺范围, 见验收单。
+_LOCK_TIMEOUT_S = 60.0
+_LEDGER_LOCK_TIMEOUT_S = 30.0
+_LOCK_POLL_S = 0.02
+
+
+def _lock_exclusive(fd, timeout, what, where):
+    """阻塞取排他锁, 超时 fail-closed —— 不静默降级为「没锁也写」。"""
+    _t0 = time.time()
+    while True:
+        try:
+            fcntl.lockf(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return
+        except OSError:
+            if time.time() - _t0 >= timeout:
+                raise SystemExit(f"[quiz-answer] 等{what}超时 ({timeout:g}s; 锁目标 {where}) — 另一个进程仍在写同一个目标, 或上一个进程卡住未退出; ⛔ 不无锁硬写(那正是丢评分的路), fail-closed 零写 — 请等它结束后重跑")
+            time.sleep(_LOCK_POLL_S)
+
+
+_lk_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(NODE))), ".locks")
+try:
+    os.makedirs(_lk_dir, exist_ok=True)
+    _lk_path = os.path.join(_lk_dir, "node-" + hashlib.sha1(os.path.realpath(NODE).encode("utf-8")).hexdigest()[:16] + ".lock")
+    _lk_fd = os.open(_lk_path, os.O_RDWR | os.O_CREAT, 0o644)
+except OSError as _lke:
+    raise SystemExit(f"[quiz-answer] 无法建立 per-node 写锁 ({_lke}) — 并发下会把一次评分覆盖掉, fail-closed 拒写")
+_lock_exclusive(_lk_fd, _LOCK_TIMEOUT_S, "per-node 写锁", _lk_path)
+# ⛔ 不主动 close/unlock: 锁的作用域就是本进程的整条写路径, 进程退出(含崩溃)时
+# 内核自动释放。close 本进程指向该文件的**任意**一个 fd 都会连带释放全部记录锁,
+# 所以这个 fd 必须一直留着不动。
 
 s = open(NODE, encoding="utf-8").read()
 m = re.match(r'^﻿?---\r?\n(.*?)\r?\n---[ \t]*\r?\n?(.*)$', s, re.S)
@@ -249,11 +337,39 @@ EV = os.path.join(VAULT, "learning_events.jsonl")
 # rating/字段抽取用 bridge 本体, vault_id 绑定用校验器的 _vault_id_of。
 sys.path.insert(0, os.path.join(VAULT, ".claude", "scripts"))
 try:
-    from fsrs_bridge import rating_from_grade, fields_from_frontmatter
+    from fsrs_bridge import rating_from_grade, fields_from_frontmatter, cas_token, cas_conflict
     sys.path.insert(0, os.path.join(REPO, "backend", "scripts"))
     from validate_learning_events import classify_card_state, _vault_id_of, _WHOLE_SECOND_RE, _looks_like_review_ext, validate_record_full, _golden_manifest, _TS_RE
 except Exception as _e:
     raise SystemExit(f"[quiz-answer] G3-2 依赖不可达 (validate_learning_events/fsrs_bridge import 失败), fail-closed 拒写: {_e}")
+
+#: CARD-G3-3 (a) per-node CAS 令牌 —— 由**上面已经读进来的那份字节** `s` 构造,
+#: 不重读磁盘 (重读会在「令牌」与「真正拿去算的内容」之间再开一个可插队的窗口)。
+#: 令牌本体与比较规则住在 `fsrs_bridge.cas_token/cas_conflict` —— 写侧只有这**一份**
+#: 口径, 增量归纳块与本块共用它, 不各写一套。
+_CAS = cas_token(s)
+
+
+def _cas_guard(_where):
+    """发布 frontmatter 前的 compare-and-set: 盘上还是我读的那一版才允许覆盖。
+
+    ⛔ 到这里为止本进程一直持有 per-node 写锁, 所以**参与锁协议的写者**不可能
+    造成冲突 —— 真会触发的是**不参与协议的写者**(Obsidian 里手改笔记、外部脚本)。
+    ⚠️ **能力边界如实声明** (独立复核 H6 实测): 这是 check-then-replace, **不是原子
+    CAS**。检查通过之后到 os.replace 之间仍有窗口 —— 实测在本函数返回后追加正文,
+    仍然 rc=0 且那段正文消失。把检查移到最贴近 replace 只能**缩小**窗口, 关不掉它。
+    要完整保住并发正文编辑, 需要编辑方也参与串行化(或保留冲突副本), 超出本卡范围。
+    所以本门的承诺是: **检测到就不覆盖**, 而不是「保证不丢编辑」。
+    对这一类, 「自动重读重算」不是正确处置: 本块从读入起就把 `body` 留在内存里,
+    自动重算 = 拿旧 body 覆盖掉用户刚写的正文, 那是把一种丢数据换成另一种。
+    故此处 **fail-closed 零写**并明说重跑 —— 重跑会重新拿锁、重新读盘、重新计算
+    (write-ahead + event_id 幂等保证重跑收敛), 那才是 §一(a) 的「重读重算」。
+    """
+    _c = cas_conflict(NODE, _CAS)
+    if _c is None:
+        return
+    raise SystemExit(f"[quiz-answer] CAS 冲突: 本次运行读到节点之后, 有别的写者改过它 ({_c}) — 本块要整份覆盖 frontmatter+正文, 直接写会把那次改动吃掉; ⛔ 也不自动重算(那会拿我内存里的旧正文覆盖你刚写的), **拒绝发布**节点 — 请重跑 /quiz-answer (它会重新读盘重新计算)。⚠️ 如实: 这不是「节点+账本零写」—— 正常路径的事件在此之前已按 write-ahead 落进账本(打印过「事件已落日志」), 本次只是没发布到节点, 属**已入账待恢复**态; 重跑会走恢复路径把它落定, 不会双写。冲突点: {_where}")
+
 
 #: 这次评分的**稳定业务时刻** (检验白板 Step 3 的 questions[0].scored_at)。
 #: ⛔ 缺失即 fail-closed, **不回抄 durable 值** (Codex round-8 BLOCKER):
@@ -2559,6 +2675,7 @@ _foreign_replayed = [t for t in pending if (t[2].get("event_id") if isinstance(t
 if _foreign_replayed and len(_foreign_replayed) != len(pending):
     raise SystemExit(f"[quiz-answer] 本次事件 {evid} 与另外 {len(_foreign_replayed)} 个未完成事件同处待恢复队列 — 两者的评分链副作用取自不同来源(本次取 payload、别人的取账本), 一次运行里无法同时正确处理, fail-closed 拒写 — 请先单独重跑那几张检验白板把它们落定")
 if _foreign_replayed:
+    _cas_guard("A2 foreign 重放后的恢复发布")
     _f = open(NODE + ".quiz-tmp", "w", encoding="utf-8")
     _f.write(f"---\n{fm}\n---\n{body}")
     _f.flush()
@@ -2626,6 +2743,7 @@ if dup is not None:
             body = body.rstrip() + "\n\n" + cal + "\n"
         print(f"[quiz-answer] A2 恢复(崩溃窗口①): mastery {old}->{new}; FSRS+EMA+校准全套补齐 @ {review_time}")
     # ── A4.4 原子发布 (恢复路径)
+    _cas_guard("dup 恢复路径发布")
     _f = open(NODE + ".quiz-tmp", "w", encoding="utf-8")
     _f.write(f"---\n{fm}\n---\n{body}")
     _f.flush()
@@ -2737,12 +2855,6 @@ if True:  # 正常路径 append (恢复路径已在上方 raise SystemExit(0) �
         print(f"[quiz-answer] {evid} 已在账本 (防御性二次查重命中), 跳过 append")
     else:
         _created = not os.path.exists(EV)
-        if not _created and os.path.getsize(EV) > 0:
-            with open(EV, "rb") as _f:
-                _f.seek(-1, os.SEEK_END)
-                if _f.read(1) != b"\n":
-                    with open(EV, "a", encoding="utf-8") as _f2:
-                        _f2.write("\n")  # LF 守卫: 截断尾行自愈隔离
         # ⛔ allow_nan=False (Codex round-6 HIGH): 默认 json.dumps 会把 NaN /
         # Infinity 原样写成字面量, 而校验器用 parse_constant 明确拒收
         # (RFC 8259 禁止, 跨语言读方会炸)。实测 exam_board=NaN 输入时写点 rc=0
@@ -2768,8 +2880,56 @@ if True:  # 正常路径 append (恢复路径已在上方 raise SystemExit(0) �
             )
         except ValueError as _nan_e:
             raise SystemExit(f"[quiz-answer] 本次事件含非有限浮点数 (NaN/Infinity: {_nan_e}) — RFC 8259 禁止, 校验器会拒收整个账本; fail-closed 拒写 — 请上游修正输入后重跑")
-        _fd = os.open(EV, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
+        # ── CARD-G3-3 (b) 账本追加的跨进程锁。粒度 = 整个 learning_events.jsonl
+        # (账本每 vault 一份, 追加是单点), 覆盖「LF 守卫 → write → fsync」整段。
+        # ⛔ LF 守卫必须**在锁内**: 它先读尾字节再决定补不补 LF, 两个进程各自读到
+        # 「尾行无 LF」时会**各补一个**, 于是账本多出一个空行 —— 而空行在校验器与
+        # 本写点两侧都判整个账本不合规, 下一次评分从此进不来。
+        # ⛔ 只靠 O_APPEND 不够: O_APPEND 保证的是每次 write 的**落点**在末尾,
+        # 不保证「读尾字节 → 补 LF → 写整行」这一串之间没人插队。
+        # ⚠️ per-node 锁只挡同一节点的并发; 账本是**跨节点共享**的写入面, 所以这
+        # 一层锁不可省 (两个不同节点同时评分正是最常见的并发形态)。
+        # ⛔ O_RDWR 而不是 O_WRONLY: LF 守卫要读尾字节, 而它必须走**这同一个 fd**。
+        _fd = os.open(EV, os.O_RDWR | os.O_CREAT | os.O_APPEND, 0o644)
         try:
+            _lock_exclusive(_fd, _LEDGER_LOCK_TIMEOUT_S, "账本追加锁", EV)
+            # ⛔ 持锁期间**不得再 open 这个文件**(2026-09-05 实测): POSIX 记录锁按
+            # 「进程 × 文件」释放 —— 本进程关掉指向该文件的**任意**一个 fd, 这个文件
+            # 上的全部记录锁就整体没了。旧写法那句 `with open(EV, "rb")` 一收尾锁就丢,
+            # 后面的 write 是**裸奔**的; 而锁门测的是「取锁那一刻」, 看不见这个。
+            # 故 LF 守卫改走 os.lseek/os.read/os.write, 全程只碰 _fd。
+            # ⛔ 持锁后**重新查重**, 不能只信锁外那份 `_rows` 快照 (独立复核 H5 实测)。
+            # per-node 锁只挡别的 quiz-answer 进程; backend 的 `append_event` 与
+            # ai-linked-doc 都不参与 per-node 锁, 它们可以在我们取账本锁之前写入
+            # **同一个 event_id**。实测: 让 backend 在主块准备取锁时先写同一事件 ⇒
+            # 本块照常追加 ⇒ 账本出现两条同 ID 行, 校验器 rc=1, 该 vault 从此写不进。
+            # 这里 fail-closed 而不是「跳过 append 继续发布」: 那条行不是本进程写的,
+            # 它的 payload 是否与本次评分一致不可证; 重跑会走 dup/恢复路径正确收口。
+            _raw_lock = b""
+            _sz = os.lseek(_fd, 0, os.SEEK_END)
+            if _sz > 0:
+                os.lseek(_fd, 0, os.SEEK_SET)
+                while True:
+                    _c = os.read(_fd, 1 << 20)
+                    if not _c:
+                        break
+                    _raw_lock += _c
+            _txt_lock = _raw_lock.decode("utf-8", "replace")
+            _lines_lock = _txt_lock.split("\n")
+            if _txt_lock.endswith("\n"):
+                _lines_lock = _lines_lock[:-1]
+            for _ln_lock in _lines_lock:
+                try:
+                    _o_lock = json.loads(_ln_lock)
+                except ValueError:
+                    continue
+                if isinstance(_o_lock, dict) and _o_lock.get("event_id") == evid:
+                    raise SystemExit(f"[quiz-answer] 取得账本锁后发现 {evid} 已在账本里, 但不是本进程写的 — 说明另一个写者(backend append_event / ai-linked-doc / 另一次运行)在本次快照之后写入了同一个 event_id; 它的载荷是否与本次评分一致不可证, 继续追加会造出同 ID 两行(校验器判整个账本不合规), fail-closed 零写 — 请重跑 /quiz-answer, 恢复路径会按账本里那一行收口")
+            # ⛔ LF 守卫的条件只看**锁内实测的大小**, 不看锁外算的 `_created`:
+            # `_created` 在取锁前求值, 若此间别的写者创建并写入了账本, 用它做条件
+            # 会把守卫整个跳过, 新事件直接粘到那条没有 LF 结尾的行上。
+            if _sz > 0 and not _raw_lock.endswith(b"\n"):
+                os.write(_fd, b"\n")  # LF 守卫: 截断尾行自愈隔离
             _n = os.write(_fd, _line)
             if _n != len(_line):
                 raise SystemExit(f"[quiz-answer] 账本短写 ({_n}/{len(_line)} 字节), fail-closed 中止 — frontmatter 未动, 可安全重跑")
@@ -2796,6 +2956,7 @@ if cal and cal not in body:
 # ── G3-2 A4.4 原子发布: temp → flush → fsync → os.replace → fsync 父目录。
 # 六字段与 fsrs_last_review 在同一次替换中落盘 (半态会被三态判别判残缺 →
 # fail-closed, 是正确降级方向, 但不应由每次崩溃制造)。
+_cas_guard("正常路径发布")
 tmp = NODE + ".quiz-tmp"
 _f = open(tmp, "w", encoding="utf-8")
 _f.write(f"---\n{fm}\n---\n{body}")

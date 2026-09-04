@@ -431,23 +431,63 @@ questions:
 
 ```bash
 python3 - <<'PYEOF'
-import json, os
+import json, os, fcntl, time
 P = "/tmp/exam-created-event.json"
 p = json.load(open(P, encoding="utf-8"))
 EV = os.path.join(p["vault_root"], "learning_events.jsonl")
 evid = "exam:" + os.path.splitext(os.path.basename(p["exam_board"]))[0]
 try:
-    seen = False
-    if os.path.exists(EV):
-        with open(EV, encoding="utf-8") as f:
-            seen = any(json.dumps(evid, ensure_ascii=False) in ln for ln in f)
-    if not seen:
-        rec = {"event_id": evid, "event_version": 1, "event_type": "exam_created",
-               "node_id": p["node"], "recorded_at": p["ts"], "effective_at": p["ts"],
-               "payload": {"exam_board": p["exam_board"]}}
-        with open(EV, "a", encoding="utf-8") as f:
-            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
-        print("[start-exam-board] 事件已落日志: exam_created")
+    # ── CARD-G3-3 (b) 账本追加的跨进程锁。账本是**跨节点、跨 Skill 共享**的写入面
+    # (本块 / quiz-answer 写分块 / backend 的 learning_event_log 都往同一个文件追加),
+    # 三方并发时「查重 → 追加」这一串必须整体互斥, 否则同一个 event_id 会被写两遍,
+    # 而校验器对重复 id 判**整个账本**不合规 —— 从此所有评分都进不来。
+    # ⛔ 用 POSIX 记录锁 (fcntl.lockf) 而不是 flock: 同进程重入不自锁死, 与另两个
+    # 写点同一把锁语义。锁挂在账本 fd 上, 无需额外锁文件; 进程退出即释放。
+    # ⚠️ 本块的失败契约不变 (写失败不阻断出题): 取锁超时同样只打印一行, 不中止建板。
+    fd = os.open(EV, os.O_RDWR | os.O_CREAT | os.O_APPEND, 0o644)
+    try:
+        _t0 = time.time()
+        while True:
+            try:
+                fcntl.lockf(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError:
+                if time.time() - _t0 >= 30.0:
+                    raise RuntimeError("等账本追加锁超时 (30s) — 另一个写者长时间持锁未退出")
+                time.sleep(0.02)
+        # ⛔ 查重也必须走**同一个 fd**(2026-09-05 实测): POSIX 记录锁按「进程 × 文件」
+        # 释放 —— 本进程关掉指向该文件的任意一个 fd, 该文件上的全部记录锁整体消失。
+        # 旧写法那句 `with open(EV)` 一收尾锁就丢了, 后面的 write 是裸奔的。
+        os.lseek(fd, 0, os.SEEK_SET)
+        _chunks = []
+        while True:
+            _c = os.read(fd, 1 << 20)
+            if not _c:
+                break
+            _chunks.append(_c)
+        # ⛔ 只按**物理 LF** 切行, 不用 str.splitlines(): 后者额外在
+        # \v \f \x1c \x1d \x1e \x85 \u2028 \u2029 上切, 而这些字符可以合法出现在
+        # 账本某行的字符串值里 —— 一条合法记录被切成碎片后查重就漏命中,
+        # 同一个 event_id 会被写第二遍 (2026-09-05 独立复核实测: 建板名含 U+2028 时
+        # 基线两次执行累计 1 行, splitlines 版变成 2 行同 ID)。
+        _txt = b"".join(_chunks).decode("utf-8", "replace")
+        _lines = _txt.split("\n")
+        if _txt.endswith("\n"):
+            _lines = _lines[:-1]
+        seen = any(json.dumps(evid, ensure_ascii=False) in ln for ln in _lines)
+        if not seen:
+            rec = {"event_id": evid, "event_version": 1, "event_type": "exam_created",
+                   "node_id": p["node"], "recorded_at": p["ts"], "effective_at": p["ts"],
+                   "payload": {"exam_board": p["exam_board"]}}
+            _line = (json.dumps(rec, ensure_ascii=False) + "\n").encode("utf-8")
+            _n = os.write(fd, _line)
+            # ⛔ 短写不得报成功 (独立复核 H4 实测: 只落盘 80 字节且无 LF 时,
+            # 基线打印「写入失败」而上一版打印「事件已落日志」)。
+            if _n != len(_line):
+                raise RuntimeError(f"账本短写 ({_n}/{len(_line)} 字节) — 事件未完整写入")
+            print("[start-exam-board] 事件已落日志: exam_created")
+    finally:
+        os.close(fd)
 except Exception as e:
     print(f"[start-exam-board] 事件日志写入失败(不阻断出题): {e}")
 os.remove(P)

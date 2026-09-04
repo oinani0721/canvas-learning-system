@@ -216,6 +216,9 @@ canvas-vault/.obsidian/plugins/templater-obsidian/
 canvas-vault/.obsidian/plugins/claudian/
 # Obsidian trash (user-deleted files)
 canvas-vault/.trash/
+
+# CARD-G3-3: per-node 写锁的锁文件 (进程运行期产物, 内容无意义)
+canvas-vault/.locks/
 canvas-vault/.obsidian/workspace-*.json
 canvas-vault/.obsidian/app.json
 canvas-vault/.obsidian/appearance.json

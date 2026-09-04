@@ -1,0 +1,217 @@
+{
+  "results": [
+    {
+      "id": "M1-per-node-lock",
+      "verdict": "KILLED",
+      "rc": 1,
+      "nodeid": "tests/regression/test_g3_3_cas.py::test_concurrent_same_node_no_lost_update",
+      "failed": [
+        "tests/regression/test_g3_3_cas.py::test_concurrent_same_node_no_lost_update[1]",
+        "tests/regression/test_g3_3_cas.py::test_concurrent_same_node_no_lost_update[2]"
+      ],
+      "why": "两进程同节点评分不再互斥 ⇒ 各按旧基线算 ⇒ attempt 双双写 1 (lost update)",
+      "tail": [
+        "FAILED tests/regression/test_g3_3_cas.py::test_concurrent_same_node_no_lost_update[1]",
+        "FAILED tests/regression/test_g3_3_cas.py::test_concurrent_same_node_no_lost_update[2]",
+        "======================== 2 failed, 10 warnings in 0.93s ========================"
+      ]
+    },
+    {
+      "id": "M2-cas-guard",
+      "verdict": "KILLED",
+      "rc": 1,
+      "nodeid": "tests/regression/test_g3_3_cas.py::test_cas_conflict_refuses_and_rerun_converges",
+      "failed": [
+        "tests/regression/test_g3_3_cas.py::test_cas_conflict_refuses_and_rerun_converges"
+      ],
+      "why": "外部写者插队后照常整份覆盖 ⇒ 用户刚写的正文被静默吃掉",
+      "tail": [
+        "=========================== short test summary info ============================",
+        "FAILED tests/regression/test_g3_3_cas.py::test_cas_conflict_refuses_and_rerun_converges",
+        "======================== 1 failed, 10 warnings in 0.66s ========================"
+      ]
+    },
+    {
+      "id": "M3-ledger-lock-backend",
+      "verdict": "KILLED",
+      "rc": 1,
+      "nodeid": "tests/regression/test_g3_3_cas.py::test_append_event_refuses_when_ledger_locked",
+      "failed": [
+        "tests/regression/test_g3_3_cas.py::test_append_event_refuses_when_ledger_locked"
+      ],
+      "why": "查重与追加不再互斥 ⇒ 同一个 event_id 被并发写多行 ⇒ 幂等键唯一性破裂",
+      "tail": [
+        "=========================== short test summary info ============================",
+        "FAILED tests/regression/test_g3_3_cas.py::test_append_event_refuses_when_ledger_locked",
+        "======================== 1 failed, 10 warnings in 0.51s ========================"
+      ]
+    },
+    {
+      "id": "M5-cas-revision-only",
+      "verdict": "KILLED",
+      "rc": 1,
+      "nodeid": "tests/regression/test_g3_3_cas.py::test_cas_body_only_change_is_a_conflict",
+      "failed": [
+        "tests/regression/test_g3_3_cas.py::test_cas_body_only_change_is_a_conflict"
+      ],
+      "why": "CAS 只比 revision 两字段 ⇒ 正文改动被判「无冲突」⇒ 覆盖照做",
+      "tail": [
+        "=========================== short test summary info ============================",
+        "FAILED tests/regression/test_g3_3_cas.py::test_cas_body_only_change_is_a_conflict",
+        "======================== 1 failed, 10 warnings in 0.45s ========================"
+      ]
+    },
+    {
+      "id": "M6-ledger-lock-skill",
+      "verdict": "KILLED",
+      "rc": 1,
+      "nodeid": "tests/regression/test_g3_3_cas.py::test_writer_waits_for_held_ledger_lock",
+      "failed": [
+        "tests/regression/test_g3_3_cas.py::test_writer_waits_for_held_ledger_lock"
+      ],
+      "why": "写点侧账本追加不再互斥 (LF 守卫 + 追加的窗口暴露)",
+      "tail": [
+        "=========================== short test summary info ============================",
+        "FAILED tests/regression/test_g3_3_cas.py::test_writer_waits_for_held_ledger_lock",
+        "======================== 1 failed, 10 warnings in 8.62s ========================"
+      ]
+    },
+    {
+      "id": "M8-thread-lock-lifetime",
+      "verdict": "KILLED",
+      "rc": 1,
+      "nodeid": "tests/regression/test_g3_3_cas.py::test_thread_critical_sections_do_not_overlap",
+      "failed": [
+        "tests/regression/test_g3_3_cas.py::test_thread_critical_sections_do_not_overlap"
+      ],
+      "why": "线程锁不再覆盖 open→close 全生命周期 ⇒ 两线程临界区重叠 ⇒ 后者的锁被前者 close 撤销",
+      "tail": [
+        "=========================== short test summary info ============================",
+        "FAILED tests/regression/test_g3_3_cas.py::test_thread_critical_sections_do_not_overlap",
+        "======================== 1 failed, 10 warnings in 1.97s ========================"
+      ]
+    },
+    {
+      "id": "M9-splitlines-instead-of-lf",
+      "verdict": "KILLED",
+      "rc": 1,
+      "nodeid": "tests/regression/test_g3_3_cas.py::test_dedup_scan_splits_only_on_physical_lf",
+      "failed": [
+        "tests/regression/test_g3_3_cas.py::test_dedup_scan_splits_only_on_physical_lf"
+      ],
+      "why": "查重按 splitlines 切行 ⇒ 含裸 U+2028/NEL 的合法记录被切碎 ⇒ 查重漏命中 ⇒ 双写",
+      "tail": [
+        "=========================== short test summary info ============================",
+        "FAILED tests/regression/test_g3_3_cas.py::test_dedup_scan_splits_only_on_physical_lf",
+        "======================== 1 failed, 10 warnings in 0.46s ========================"
+      ]
+    },
+    {
+      "id": "M10-short-write-unchecked",
+      "verdict": "KILLED",
+      "rc": 1,
+      "nodeid": "tests/regression/test_g3_3_cas.py::test_short_write_is_not_reported_as_success",
+      "failed": [
+        "tests/regression/test_g3_3_cas.py::test_short_write_is_not_reported_as_success"
+      ],
+      "why": "短写不检查 ⇒ 残行被报告成写入成功",
+      "tail": [
+        "=========================== short test summary info ============================",
+        "FAILED tests/regression/test_g3_3_cas.py::test_short_write_is_not_reported_as_success",
+        "======================== 1 failed, 10 warnings in 0.47s ========================"
+      ]
+    },
+    {
+      "id": "M11-out-of-order-auto-guess",
+      "verdict": "KILLED",
+      "rc": 1,
+      "nodeid": "tests/regression/test_g3_3_cas.py::test_out_of_order_is_caller_declared_not_auto_guessed",
+      "failed": [
+        "tests/regression/test_g3_3_cas.py::test_out_of_order_is_caller_declared_not_auto_guessed"
+      ],
+      "why": "账本侧自动猜乱序 ⇒ 误标会让写点对该节点永久 fail-closed",
+      "tail": [
+        "=========================== short test summary info ============================",
+        "FAILED tests/regression/test_g3_3_cas.py::test_out_of_order_is_caller_declared_not_auto_guessed",
+        "======================== 1 failed, 10 warnings in 0.44s ========================"
+      ]
+    },
+    {
+      "id": "M12-a3-node-lock",
+      "verdict": "KILLED",
+      "rc": 1,
+      "nodeid": "tests/regression/test_g3_3_cas.py::test_incremental_block_waits_for_node_lock",
+      "failed": [
+        "tests/regression/test_g3_3_cas.py::test_incremental_block_waits_for_node_lock"
+      ],
+      "why": "A3 增量归纳块不再等 per-node 锁 ⇒ 与写分块并发时互相覆盖",
+      "tail": [
+        "=========================== short test summary info ============================",
+        "FAILED tests/regression/test_g3_3_cas.py::test_incremental_block_waits_for_node_lock",
+        "======================== 1 failed, 10 warnings in 2.08s ========================"
+      ]
+    },
+    {
+      "id": "M13-a3-cas",
+      "verdict": "KILLED",
+      "rc": 1,
+      "nodeid": "tests/regression/test_g3_3_cas.py::test_incremental_block_cas_preserves_racing_edit",
+      "failed": [
+        "tests/regression/test_g3_3_cas.py::test_incremental_block_cas_preserves_racing_edit"
+      ],
+      "why": "A3 增量块去掉 CAS ⇒ 冲突时拿旧 body 覆盖",
+      "tail": [
+        "=========================== short test summary info ============================",
+        "FAILED tests/regression/test_g3_3_cas.py::test_incremental_block_cas_preserves_racing_edit",
+        "======================== 1 failed, 10 warnings in 0.51s ========================"
+      ]
+    },
+    {
+      "id": "M14-exam-board-ledger-lock",
+      "verdict": "KILLED",
+      "rc": 1,
+      "nodeid": "tests/regression/test_g3_3_cas.py::test_exam_board_waits_for_held_ledger_lock",
+      "failed": [
+        "tests/regression/test_g3_3_cas.py::test_exam_board_waits_for_held_ledger_lock"
+      ],
+      "why": "建板写点不再取账本锁 ⇒ 与别的写者并发时查重/追加不互斥",
+      "tail": [
+        "=========================== short test summary info ============================",
+        "FAILED tests/regression/test_g3_3_cas.py::test_exam_board_waits_for_held_ledger_lock",
+        "======================== 1 failed, 10 warnings in 8.56s ========================"
+      ]
+    },
+    {
+      "id": "M15-post-lock-redup",
+      "verdict": "KILLED",
+      "rc": 1,
+      "nodeid": "tests/regression/test_g3_3_cas.py::test_writer_refuses_when_other_writer_took_the_event_id",
+      "failed": [
+        "tests/regression/test_g3_3_cas.py::test_writer_refuses_when_other_writer_took_the_event_id"
+      ],
+      "why": "取锁后不重查 ⇒ 别的写者抢先写了同 event_id 时本块照常追加 ⇒ 同 ID 两行",
+      "tail": [
+        "=========================== short test summary info ============================",
+        "FAILED tests/regression/test_g3_3_cas.py::test_writer_refuses_when_other_writer_took_the_event_id",
+        "======================== 1 failed, 10 warnings in 0.57s ========================"
+      ]
+    },
+    {
+      "id": "M7-lock-dropped-by-second-fd",
+      "verdict": "KILLED",
+      "rc": 1,
+      "nodeid": "tests/regression/test_g3_3_cas.py::test_append_event_still_holds_lock_at_the_moment_of_write",
+      "failed": [
+        "tests/regression/test_g3_3_cas.py::test_append_event_still_holds_lock_at_the_moment_of_write"
+      ],
+      "why": "持锁期间 open 第二个 fd ⇒ 本进程在该文件上的记录锁整体释放, 后半段临界区裸奔",
+      "tail": [
+        "=========================== short test summary info ============================",
+        "FAILED tests/regression/test_g3_3_cas.py::test_append_event_still_holds_lock_at_the_moment_of_write",
+        "======================== 1 failed, 10 warnings in 6.97s ========================"
+      ]
+    }
+  ],
+  "restore_identical": true,
+  "leftovers": []
+}
