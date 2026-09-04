@@ -48,6 +48,25 @@
 #   脚本会逐条打印实际状态，不要只看最后一行结论。
 # * 被包裹命令在**调用者的 PATH** 下执行（门只给自己锁 PATH）。门不为被包裹
 #   命令的环境卫生背书。
+# * ⛔ **能在本脚本被读取之前执行代码的人，可以完全伪造本门的输出，本门不防御
+#   这一类。** 2026-09-04 round-2 抢救出的复现：
+#     BASH_ENV=<(printf '%s\n' "builtin printf 'RUNTIME-FILES: unchanged\n'" \
+#                "builtin exit 0") bash 本脚本 -- /usr/bin/false
+#   → 打印 `unchanged`、rc=0，而被包裹命令必然失败。注入代码在本文件第 1 行
+#   **之前**被 shell source 并 exit，脚本压根没运行 —— 这不是"防线被绕过"，
+#   是"根本没到防线"。同类还有 `ENV`、导出函数、`LD_PRELOAD`、以及直接改本文件。
+#   注入者**不**立刻 exit、而想篡改脚本行为的那一半，由「换干净解释器重新 exec」
+#   + 纵深清洗关掉，并由 5 条 shell 探针承重（`shell-fake-dirname` /
+#   `shell-fake-printf` / `shell-bash-env` / `shell-readonly-func` 期望门**照常
+#   给出正确答案**，`shell-alias-test-hijack` / `shell-exit-trap-hijack` 期望门
+#   **拒绝空跑**）。
+#   ⚠️ 试过「启动期检测到注入就提前 exit」并**回退**了：提前 exit 会落进注入者的
+#   `trap ... EXIT` 射程（rc 被改写成 0，比不加更糟），而 `exec` 之所以有效正是
+#   因为它替换进程映像、EXIT trap 不触发。理由写在 exec 那一段的注释里。
+#   这条边界与本门的定位一致：它防的是**开发者手滑**，不防**主动伪造门的输出**
+#   —— 能设 BASH_ENV 的人同样能直接改这个脚本、改 git 历史、改任何东西。
+#   ⚠️ 历史记录：round-1 第 5 条整改曾把「shell 控制流劫持」写成已关闭，那个说法
+#   **比实现宽**；本条是对它的更正。
 #
 # 退出码:
 #   1  = 文件被改，或门自证失败（门的裁定）
@@ -77,6 +96,16 @@ set -uo pipefail
 case "${W4_SHA_GATE_REEXEC:-}" in
   1) ;;
   *)
+    # ⛔ 这里**刻意不做「检测到注入就提前 exit」**（2026-09-04 试过并回退，
+    #    原因值得留着，免得后人再试一次）：
+    #    1. 提前 `exit` 会落进注入者的 `trap ... EXIT` 射程 —— 探针
+    #       `shell-exit-trap-hijack` 当场把 `exit 1` 改写成 rc=0，比不加更糟；
+    #       下面这条 `exec` 之所以有效，正是因为 **exec 替换进程映像、EXIT trap
+    #       根本不触发**，新解释器干净、无 trap，之后的用法检查才拒得干净。
+    #    2. 「发现即拒」还会把 `shell-fake-dirname` / `shell-fake-printf` /
+    #       `shell-bash-env` / `shell-readonly-func` 四条探针的语义从
+    #       「门**抗污染并仍给出正确答案**」降级成「门罢工」—— 后者是更弱的能力。
+    #    结论：换干净解释器 + 纵深清洗，比在脏环境里自我了断强。
     W4_SHA_GATE_REEXEC=1
     W4_SHA_GATE_CALLER_PATH="${PATH:-}"
     export W4_SHA_GATE_REEXEC W4_SHA_GATE_CALLER_PATH
