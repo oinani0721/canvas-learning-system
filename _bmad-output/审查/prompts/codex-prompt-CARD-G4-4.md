@@ -56,3 +56,19 @@
 新改动面（round-1 整改引入，常规扫描）：rag.py field_validator / nodes.py expand 表源 / test_recommend_action.py 适配 / 两个测试文件的新用例。
 
 输出格式同前。审查锚点：当前 HEAD。
+
+---
+
+# ROUND-3 复审请求（round-2 REJECT 整改对照，最终轮）
+
+本轮只复核 round-2 各项整改（PASS/FAIL + 证据）+ 新改动常规扫描：
+
+| round-2 项 | 整改声称 | 复核锚点 |
+|---|---|---|
+| B1 残留：活性对照假绿（恒等函数下门仍绿） | 活性判据改为「结果中存在 metadata.source_type == neighbor_expansion 的行」；fixture 加 6 行近距干扰把 a_neighbor 挤出主检索 top6（只能经扩展进入）；**M8 恒等变异实证该门变红**（8/8 exit=1） | test_agentic_rag_vault_scope.py::test_wikilink_neighbor_expansion_stays_in_vault + g44_mutations.py m8 |
+| round-2 新发现 HIGH：同 vault 跨 subject 邻居泄漏 | expand_neighbors 加 subject 参数属 lancedb_client（V5 未合禁改面）→ 本卡不动 client；xfail 锁边界（test_neighbor_expansion_respects_subject_boundary）+ 验收单 §未证明 #3 撤回跨学科声明 + 移交登记。⚠️ 该整改是「如实登记」不是「修复」——请按登记类整改评判（fail-closed 不可达 vs 声明诚实性） | xfail 用例 + UAT §未证明 #3 |
+| HIGH-5 数字/声明 | recommend_action 本卡回归改 9 条（第 10 处 mock 裸 Exception 开工前已红——你 round-2 的 ca116f51^ 复跑实证，验收单已采信）；新测试 35 collected = 34 passed + 1 xfailed；4-B 重写（插件无 full-RAG 提问路径，可感验证仅限仓外脚本）；§6.5 d 行更正（rag.py 属独占面内修正）、a 行更正（HTTP 客户端可读该头但旧客户端不解析不受影响） | UAT v3.1 对应段落 |
+| HIGH-6 交付完整性 | 收官裁判输出已归档：evidence-g44/final-judge1.txt（76 passed + 1 xfailed + 3 存量红 = 79 collected）+ final-judge2.txt（99 passed，排除 OBS/dedup 后 comm 空）；数字与你 round-2 独立复跑对齐 | evidence-g44/final-judge*.txt |
+| HIGH-4 残留声明 | 验收单 §6 error 区 v2→v3 段补 round-2 记录；「变异 7/7」改 8/8 | UAT §5 / §6 |
+
+输出格式同前。审查锚点：当前 HEAD（d5f27020 之后）。
