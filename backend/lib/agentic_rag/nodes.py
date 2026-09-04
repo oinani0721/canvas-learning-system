@@ -424,9 +424,26 @@ async def retrieve_lancedb(state: CanvasRAGState, runtime: Runtime[CanvasRAGConf
         # 直接 open_table(传入名); 变异 M6 实测该门仍杀。
         # CARD-G4-4b: 透传请求学科 —— 邻居扩展此前 LIKE 整张 vault 表, 同 vault
         # 内跨 subject 的邻居会被带回 (4a 以 xfail(strict) 锁住的已知缺陷)。
-        # state["subject"] 与请求作用域二级同源 (rag_service.query 从同一请求字段
-        # 写入; 不一致由本文件的 _warn_subject_scope_mismatch 哨兵告警)。
         # 缺省 (None) 时 expand_neighbors 行为与本卡之前逐字一致。
+        #
+        # state["subject"] 的来源与**已知缺口** (Codex round-5 HIGH-3 更正,
+        # 上一版注释把哨兵的覆盖面说宽了):
+        #   · 正常路径同源: rag.py 把**同一个** request.subject_id 既传给
+        #     resolve_vault_scope (:322) 也传给 rag_service.query (:352)。
+        #   · ⚠️ 但**空串**是反例: subject_id="" 时 resolve_vault_scope 会
+        #     改走 canvas 二级 (subject_config.py), 而 state["subject"] 保留 ""
+        #     —— 两者此时**不同源**, 且 _warn_subject_scope_mismatch 在
+        #     `if not subject: return` (本文件 :81) 处**早退, 不告警**。
+        #     后果仅是「不按 subject 过滤」(与主检索 :341 的
+        #     `[subject] if subject else [None]` 同口径), 不是泄漏。
+        #   · 非空值的分裂才由哨兵告警; 哨兵是告警不是门 (不抛错)。
+        #
+        # ⚠️ cross_subject=True 时本行会过度收窄 (Codex round-5 MEDIUM-4):
+        # 主检索按 subjects_to_search 多值扩展 (:341/:350), 而邻居扩展在该
+        # 循环**之外**只调一次、传原始单值 —— 桥接学科结果行的邻居会被丢弃。
+        # CRAG 回退路径 (deep_research 置 cross_subject=True + state_graph
+        # 重跑检索) 上自动可达。正解是传 subjects_to_search + where 用
+        # subject IN (...), 超出本卡单值形参口径, 已登记移交 (G4-4b-R2)。
         lancedb_results = await client.expand_neighbors(
             results=lancedb_results,
             table_name=client.resolve_table_name("canvas_nodes"),

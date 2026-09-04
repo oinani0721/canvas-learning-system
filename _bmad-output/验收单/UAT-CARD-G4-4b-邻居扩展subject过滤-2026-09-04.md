@@ -29,11 +29,20 @@
 ## 2. 📖 你的视角
 
 4a 堵住的是**库与库之间**串台；本卡堵的是**同一个库内部、不同科目之间**串台。
-两者合起来，检索结果的边界才算完整。
+
+**这句话的适用范围要说清**（Codex round-5 HIGH-3 指初稿「边界才算完整」
+是无条件闭合，过宽）：本卡的收口成立于「**请求带了非空学科** 且
+**没走跨学科检索**」这两个前提下。两个例外：
+- 请求**不带学科**（`subject` 为 `None` 或空串）→ 按设计**不过滤**
+  （与主检索同口径），邻居仍可跨科目；
+- **跨学科检索**（`cross_subject=True`，含 CRAG 低质量回退自动触发）→
+  邻居只按**主**学科过滤，反而比预期**更窄**（见 §未证明 #4）。
 
 ## 3. 🖥️ 交互流程（你的屏幕变化）
 
-问同一个问题，回答里**不会再混进别的科目的内容**。其余无变化。
+问同一个问题（**且问的时候指明了科目**），回答里**不会再混进别的科目的内容**。
+其余无变化。没指明科目时行为不变（不过滤）——这与「先选库才能查」的
+4a 不同：4a 是**必填**，本卡的学科是**可选**，卡文没有要求把它也做成必填。
 
 ## 4-A. 🤖 Claude 已代验（全部代跑，✅ = 有证据）
 
@@ -48,6 +57,7 @@
 | 7 | 变异还原三重外部锚点 | ✅ ① 两文件 sha256 一致 ② `git status` 仅本卡改动 ③ `grep MUTANT` rc=1 | 判据不依赖脚本自检 |
 | 8 | **裁判 3** 禁改门（`rag.py` / `agents.py` / `exam_service` / `verification_service`） | ✅ 空 | `git log --format= --name-only 138d2a94..HEAD -- <4 文件>` |
 | 9 | 4a 面无回归 | ✅ `test_rag_vault_scope_api` + `test_rag_four_state_api` + `test_nothrow_logging_api` **69 passed** | — |
+| 9b | **间接回归面**（全仓触及 `retrieve_lancedb` / `expand_neighbors` 的其余测试文件） | ✅ `test_state_graph_l1_routing.py` + `test_four_state_injection.py` **49 passed** | `grep -rln` 枚举出这三个文件，另一个即本卡主战场 |
 | 10 | `ruff check` 三个改动文件 + 变异脚本 | ✅ All checks passed | — |
 | 11 | live LanceDB / vault 零写 | ✅ 全部测试用 `tmp_path` 建库；未连现网 | fixture 均取 `tmp_path` |
 
@@ -98,15 +108,67 @@
 | **M2** 去掉 `_escape_sql` | `test_single_quote_injection_does_not_break_where` | 1 | `注入撑开了 where: … \| MATH_ONLY … \| PHYS_ONLY …` |
 | **M3** `nodes.py` 调用点不透传 | `test_neighbor_expansion_respects_subject_boundary` | 1 | `math 请求的邻居扩展带入了 physics 板内容 —— 同 vault 跨 subject 泄漏回归了` |
 
-**M2 的失败身份回答了「注入用例是不是假绿」这个问题**：
-注入断言是「一条邻居都不带回」。这在两种情况下都成立 ——
+**M2 能回答什么、不能回答什么**（Codex round-5 HIGH-2 指出初稿归因过宽，
+此处收窄）：
+
+注入断言是「一条邻居都不带回」。它在两种情况下都成立 ——
 (甲) 转义生效、字面量匹配不到任何行；(乙) where 语法炸了、整段被 `except` 吞掉。
-只跑正向测试分不出这两者。M2 把转义去掉后，**`MATH_ONLY` 与 `PHYS_ONLY` 双双回来**
-（`subject = 'x' OR '1'='1'` 恒真），说明未转义时 where 是**合法且恒真**的，
-即转义**确实在承重**，不是 (乙) 那种「碰巧空」。
+
+- **M2 证明的是**：把转义**去掉**后，`MATH_ONLY` 与 `PHYS_ONLY` **双双回来**
+  （`subject = 'x' OR '1'='1'` 是合法且恒真的条件）。即「未转义会撑开 where」
+  —— 转义**在承重**。这是**必要性**。
+- **M2 证明不了的是**：保留转义时那条查询**没有抛异常**。
+  M2 只观察了「去掉转义」那一侧；(乙) 的可能性它排除不掉。
+  初稿把「不是 (乙)」也算到 M2 头上，**过宽**。
+
+**排除 (乙) 的证据在 §4-A.4b**（转义充分性探针）：8 类载荷逐个直接打
+LanceDB filter，全部**零命中且不抛异常**，对照值正常命中自己 ——
+「不抛异常」这一半才是排除 (乙) 的那条证据。
+Codex 独立复跑同一批载荷得到相同结果，判定「是证据归因问题，不是实际注入漏洞」。
 
 另配一条 `test_escape_sql_doubles_single_quote` 直接钉 `_escape_sql` 的行为，
 与注入用例互为验伪。
+
+### 4-A.4b 转义充分性 —— 8 类载荷直接打 LanceDB filter（不是推理）
+
+`_escape_sql` 只做一件事：`value.replace("'", "''")`。**它对 LanceDB/DataFusion
+的 filter 语法够不够？** 这个问题不能靠「SQL 标准里加倍就是对的」来回答 ——
+不同引擎对反斜杠、Unicode 引号的处理不一样。本卡直接把载荷打进 tmp 库实测：
+
+| 载荷 | 转义后 where | 结果 |
+|---|---|---|
+| `math`（**对照**） | `subject = 'math'` | **命中自己** |
+| `x' OR '1'='1` | `subject = 'x'' OR ''1''=''1'` | 零命中，**无异常** |
+| `math' OR subject LIKE '%` | `subject = 'math'' OR subject LIKE ''%'` | 零命中，无异常 |
+| `math' --` | `subject = 'math'' --'` | 零命中，无异常 |
+| `x\' OR '1'='1`（反斜杠转义尝试） | `subject = 'x\'' OR ''1''=''1'` | 零命中，无异常 |
+| `x\\' OR '1'='1`（双反斜杠） | `subject = 'x\\'' OR ''1''=''1'` | 零命中，无异常 |
+| `x’ OR ’1’=’1`（Unicode 右单引号） | `subject = 'x’ OR ’1’=’1'` | 零命中，无异常 |
+| `math'\n OR '1'='1`（含换行） | 跨行 where | 零命中，无异常 |
+| `x'' OR ''1''=''1`（已加倍，测二次转义） | `subject = 'x'''' OR ''''1''''=''''1'` | 零命中，无异常 |
+
+**两个判据缺一不可**：
+
+1. **对照命中自己** —— 证明查询机制是活的，「零命中」不是因为整个查询坏了；
+2. **注入载荷零命中且不抛异常** —— 「不抛异常」这一半才是关键：
+   它把「转义生效、字面量不匹配」与「where 语法炸了、被 `except` 吞掉」
+   分开了。若是后者，这些行会以异常形式出现，而不是安静地返回空。
+
+反斜杠那两条是特意测的：DataFusion **不**把 `\'` 当作转义序列
+（它是「字面反斜杠 + 加倍的引号」），所以没有逃逸面。这是**实测**结论，
+不是从「SQL 标准」推出来的。
+
+> 与 M2 变异互补：M2 证明「**去掉**转义会撑开 where」（转义在承重），
+> 本探针证明「**加上**转义后各类载荷都关不出去」（转义够用）。
+> 一个证必要性，一个证充分性。
+>
+> ⚠️ **这条实证是版本域内的结论，不是永久不变量**：探针跑在
+> `lancedb 0.30.2` / `pyarrow 23.0.1` 上，而 `requirements.txt:76` 钉的是
+> **`lancedb>=0.14.0`（上界开放）**。「反斜杠不构成转义序列」是 DataFusion
+> **当前**的 filter 解析行为；将来若上游改了字符串字面量的转义规则，
+> 这一条需要重跑。`_escape_sql` 的「单引号加倍」本身是 SQL 标准做法、
+> 也是同文件其它 8 处过滤共用的写法，所以**代码不会因此变错**，
+> 只是**这份实测证据**要跟着版本走。
 
 ### 4-A.5 本卡的变异脚本修了 4a 脚本被点名的三处
 
@@ -132,8 +194,18 @@
 
 ## 5. 🚦 验收结果
 
-Claude 侧全部代验完成，指定裁判全绿，变异 3/3 杀门并记录失败身份，
-4a 面 69 passed 无回归，live 零写。
+Claude 侧全部代验完成：指定裁判全绿（`23 passed / 0 xfailed`；isolation
+`12 passed + 3` 条主干既有红）；目标用例改前 `xfailed` → 改后 `passed`；
+变异 3/3 杀门并记录失败身份；4a 面 69 passed + 间接回归面 49 passed 无回归；
+live vault / LanceDB / 只读车道全程零写；**Codex round-5 末行 `阻断级 = 0`**。
+
+按本批合并门（阻断级 = 数据丢失 / live 写入 / 安全 / 指定裁判红 / 负控假绿）：
+**本卡阻断级 = 0，可合**。Codex 的 3 HIGH + 1 MEDIUM 全为**声明过宽**类，
+已逐条撤回/收窄（§6.6），无一要求改功能代码。
+
+**留给你的三件**：D4（基线换成车道 HEAD，因 4a 未先合入主干）、
+台账 R1（`course_id` 分支的 schema 依赖）、台账 R2（`cross_subject` 收窄，
+CRAG 回退路径自动可达）。
 
 - [ ] 通过
 - [ ] 有问题（写在 §6 批注区）
@@ -146,6 +218,42 @@ Claude 侧全部代验完成，指定裁判全绿，变异 3/3 杀门并记录�
 | **D2** | `subject` 默认 `None`，向后兼容 | 按卡文默认执行。`None` 时 where 与本卡之前逐字相同，另有专门用例钉住 | |
 | **D3** | 不扩到 `search()` 主检索（主检索已各自传 subject） | 按卡文默认执行，本卡零改动 `search` / `search_multiple_tables` | |
 | **D4**（本卡新增） | 基线换成车道 HEAD 而非「含 4a 的新主干」（4a 尚未合入） | 见「先读 #1」。若你要 4b 独立合并，需先合 4a 再重切 | |
+
+## 6.6 Codex 定向复审（G4-4 族第 5 轮，本卡唯一一轮）—— **阻断级 = 0**
+
+提示词 `_bmad-output/审查/prompts/codex-prompt-CARD-G4-4b.md`（6709 字节），
+输出 `codex-review-CARD-G4-4b.md`（7008 字节，`rc=0`，一次成功，无需重发）。
+绑定 `3a938e28`。
+
+**一句话结论**：*「核心修复有效，未发现阻断级问题；但有 3 条声明过宽的 HIGH，
+以及 1 条非阻断的 `cross_subject` 召回问题。」* **末行 `阻断级 = 0`。**
+
+### PASS 的 5 项（它独立复核，不采信我的说法）
+
+向后兼容（新形参在签名末尾、`None` 跳过分支、仓内单一生产调用点）／
+空串未引入链内分叉／D1 丢弃语义成立／**变异门**（它在**隔离的临时 HEAD 副本**里
+重放 M1/M2/M3，3/3 以指定断言 `exit=1` 被杀，并复核我的工作树两份生产文件
+SHA 前后相同、零 `MUTANT` 残留）／指定裁判（`23 passed / 0 xfailed`、
+`12 passed + 3` 基线红、4a 三端点文件 `69 passed`、ruff 通过、未连 live）。
+
+### 3 HIGH + 1 MEDIUM 与本卡处置
+
+| # | Codex 的发现 | 本卡处置 |
+|---|---|---|
+| **HIGH-1** | 「缺 `subject` 列没有新增 schema 风险」**论证不成立** —— `course_id` 分支主检索查的是 `vault_notes`（`nodes.py:386`），邻居却恒查 `canvas_nodes`（`:432`），「同一张表」的前提只在默认分支成立 | ✅ **已撤回并限缩**。复核属实。§未证明 #2 改为分支表：默认分支仍成立、`course_id` 分支**确实新增**了依赖且失败静默。定性：召回损失，非数据丢失/泄漏 |
+| **HIGH-2** | M2 变异**不能**排除「转义后语法错被吞空」—— 它只观察了「去掉转义」那一侧 | ✅ **已收窄归因**。M2 证**必要性**；排除 (乙) 的证据是 §4-A.4b 的 8 载荷探针（零命中**且不抛异常**）。Codex 独立复跑同批载荷，判「归因问题，非实际漏洞」 |
+| **HIGH-3** | `nodes.py` 新注释称「同源 + 分裂会告警」过宽 —— `subject_id=""` 时 VaultScope 改走 canvas 二级、state 留空串，而哨兵在 `if not subject: return`（`:81`）**早退不告警**；验收单的「边界完整／其余无变化／功能面收口」也无条件 | ✅ **代码注释与三处闭合措辞均已收窄**到「非空 subject + `cross_subject=False`」，并把空串反例写进注释 |
+| **MEDIUM-4** | `cross_subject=True` 确实过度收窄，但**卡文没有该完成条件，登记后卡足够**；不过闭合文案必须收窄 | ✅ 代码不改（与卡文 (b) 单值形参一致）；登记升级为「CRAG 回退路径**自动可达**」+ 三选项权衡表；闭合措辞已收窄 |
+
+### 本卡对这一轮的自评
+
+Codex 的 HIGH-1 是**我论证里的真洞**：我验证了「主检索也依赖同一列」，
+却没有检查「主检索是不是总查同一张表」—— `course_id` 分支正好不是。
+这与本卡另外两处自查失误同形（`dredd` 高估影响、`cross_subject` 低估可达性）：
+**影响面判断的两头都要追，只追一头就是盲区**。
+
+HIGH-2 则是「证据归因」而非「证据缺失」—— 排除 (乙) 的探针我**做了**，
+只是在 M2 那一段把功劳记错了地方。
 
 ## 7. 🔗 技术 spec 引用
 
@@ -175,8 +283,33 @@ Claude 侧全部代验完成，指定裁判全绿，变异 3/3 杀门并记录�
    >   `("doc_type", "course", "tags_str")`，**不含 `subject`** ——
    >   即代码库本就把 `subject` 当作「必然存在」的列。
    >
-   > 结论：若 `subject` 列真的缺失，**主检索早就已经坏了**，不是本卡引入的。
-   > 本卡的 where 与主检索依赖**同一个列**，没有新增 schema 依赖面。
+   > ### ⛔ 这个结论**被 Codex round-5 HIGH-1 推翻了一半，此处撤回并限缩**
+   >
+   > 我原本写：「若 `subject` 列缺失，**主检索早就已经坏了**，本卡没有新增
+   > schema 依赖面」。**论证有洞** —— 它假定「主检索与邻居扩展查同一张表」，
+   > 而这个前提**只在一条分支上成立**：
+   >
+   > | 分支 | 主检索查的表 | 邻居扩展查的表 | 「同表」是否成立 |
+   > |---|---|---|---|
+   > | 无 `course_id`（默认） | `search_multiple_tables` → `DEFAULT_TABLES=["canvas_nodes"]` | `resolve_table_name("canvas_nodes")` | ✅ 成立 |
+   > | **有 `course_id`** | `progressive_scope_search(table_name="vault_notes")`（`nodes.py:386`） | 仍是 `canvas_nodes`（`nodes.py:432`） | ❌ **不成立** |
+   >
+   > 也就是说：走 `course_id` 分支时，主检索压根不碰 `canvas_nodes`，
+   > 所以「`canvas_nodes` 上的 `subject` 依赖早就存在」这句话**推不出来**。
+   > 若该表恰好缺 `subject` 列，**只有邻居这一路会坏，而且是静默地坏**
+   > （`lancedb_client.py` 的 `except Exception: continue` 吞掉 schema 错）。
+   > Codex 用临时真库复现了这个形态；本卡自己的缺列探针也是同一结果
+   > （`subject=None` 带回邻居 / `subject='math'` 零邻居）。
+   >
+   > **限缩后的正确表述**：
+   > - **默认分支**（无 `course_id`，即绝大多数流量）：主检索与邻居扩展查
+   >   **同一张表**、依赖**同一个列**，本卡未新增 schema 依赖面 —— 这一半仍成立；
+   > - **`course_id` 分支**：co-dependency **不成立**，本卡确实**新增**了一个
+   >   「`canvas_nodes` 必须有 `subject` 列」的依赖，且失败是静默的召回损失。
+   >
+   > 定性：**召回损失，不是持久数据丢失、不是安全泄漏**（Codex 同判），
+   > 故非阻断。但「没有新增依赖面」这句**无条件**的说法已撤回。
+   > 已并入台账移交 R1（给 `expand_neighbors` 补 `search()` 那道 schema guard）。
    >
    > **仍然留下的不对称（登记级，非本卡引入）**：`search()` 有 schema guard +
    > 分支异常累积（全分支失败会 raise）；`expand_neighbors` 两者都没有，
@@ -185,30 +318,137 @@ Claude 侧全部代验完成，指定裁判全绿，变异 3/3 杀门并记录�
 3. **没有证明 `state["subject"]` 与请求作用域二级永远一致**。4a 的
    `_warn_subject_scope_mismatch` 是**哨兵**（只告警不抛错），不是门。
    两者分裂时，本卡的过滤会按 `state["subject"]` 走。
-4. **没有覆盖 `cross_subject=True` 的跨学科检索场景**。该开关下主检索会
-   扩展到相似学科，而本卡的邻居过滤仍只按 `state["subject"]` 单值过滤 ——
-   跨学科模式下邻居可能被过度收窄。本卡**没有测**这条路径。
-5. **没有测 `subject` 为空字符串以外的 falsy 值**（如 `0`、`[]`）。
-   `if subject:` 对它们都不加子句；生产上 `state["subject"]` 只可能是
-   `str | None`，但这是**推断**不是门。
+4. **⚠️ `cross_subject=True` 下本卡引入了一处行为收窄**（定性从初稿的
+   「未测」上调 —— 它不只是没测，是**可以从代码结构直接读出来的行为变化**）。
+
+   机制（`nodes.py`，行号为本卡终态）：
+   - `:341` `subjects_to_search = [subject] if subject else [None]`；
+     `cross_subject=True` 时 `:350` 用 `expand_search_subjects` 把它**扩成多值**；
+   - `:380` `for search_subject in subjects_to_search:` —— 主检索**逐个学科**查，
+     结果合并进 `lancedb_results`；
+   - 而**邻居扩展在这个循环之外**（`:430`），只调用**一次**，
+     传的是 `subject=state.get("subject")` —— **原始单值**，不是扩展后的列表。
+
+   后果：`cross_subject=True` 时，主检索会带回桥接学科（如 physics）的行，
+   但这些行的**邻居**会被按主学科（math）过滤掉。
+   **改前**这些邻居会回来，**改后**不会 —— 这是本卡引入的**收窄**（非泄漏）。
+
+   **可达性（初稿写「opt-in 默认关」是低估了，此处更正）**：
+   `cross_subject` 的 API 字段确实默认 `False`（`rag.py:80-81`），插件也不传
+   （插件根本不调 `/rag/query`）。**但它还有一条自动路径**：
+   `deep_research.py` 在**三处**（`:226` / `:242` / `:303`）主动返回
+   `"cross_subject": True`，而 `state_graph.py:692-698` 明写
+   *「deep_research_fallback **reruns retrieval once** via the same
+   fan_out_retrieval conditional edge」* —— 即 CRAG 低质量回退时
+   （`route_after_quality_check` 的第三个出口，`:366`），
+   系统会**自己**把 `cross_subject` 打开并**重跑一次检索**。
+
+   所以这条收窄**在生产上可达**，触发条件是「检索质量低 + safe_degradation」，
+   不需要任何人手动开开关。而 `deep_research.py:205` 的注释写的正是
+   *「sets cross_subject=True (**widens** local recall)」* ——
+   本卡的过滤在这条**专门用来放宽召回**的路径上起了反作用。
+
+   仍然缓解的部分：它是**召回减少**，不是泄漏，也不是数据丢失；
+   主检索的扩展不受影响（只有邻居那一层被按主学科收窄）。
+
+   **三个选项与本卡的取舍**（把权衡摆出来，不藏在「超出范围」后面）：
+
+   | 选项 | 行为 | 代价 |
+   |---|---|---|
+   | **A（本卡采用）** | 邻居恒按 `state["subject"]` 过滤 | 泄漏堵住；`cross_subject` 路径召回收窄 |
+   | B | `subject=None if cross_subject else …` | 无收窄；但那条路径上**泄漏原样留着** |
+   | **C（正解）** | 把 `subjects_to_search` 传进去，where 用 `subject IN (...)` | 两头都对；但要改形参形状（单值 → 序列）+ 新门 |
+
+   选 A 的理由：本卡的**任务就是堵泄漏**，卡文 D1 明写「不匹配的邻居丢弃」；
+   B 会在一条可达路径上把缺陷原样留下，与卡文相悖。A 是**安全但偏窄**，
+   B 是**宽但不安全** —— 在两者之间，本卡选安全。
+   C 才是正解，但它改的是卡文 (b) 钉死的**单值** `subject` 形参形状，
+   还要配新的 `IN (...)` 转义门与变异，超出本卡 5h 范围。**已列进台账移交（R2）**，
+   并把可达性写清楚，好让排期时能正确定优先级。
+5. **`subject` 的真值语义已查证与主检索一致，但没有为它单独立门**。
+   本卡用 `if subject:`（Python 真值判断），空串 `""` 会**不加子句**。
+   查证链（三跳，都可复核）：
+   - `rag.py` 的 `subject_id: Optional[str]` 无 `min_length`，客户端可传 `""`；
+   - `rag_service.py:295` `effective_subject = subject_id` 直通，
+     `:302` 写进 `state["subject"]`；
+   - **主检索用的是同一个惯用法** —— `nodes.py:341`
+     `subjects_to_search = [subject] if subject else [None]`，
+     空串同样落到「不按 subject 过滤」。
+
+   即：空串在**整条链上**都等于「没指定学科」，本卡没有引入语义分叉。
+   `_build_where_clause:3211` 的 `if subject:` 也是同一口径。
+   **但这条一致性是查证出来的，不是门** —— 没有用例钉住「空串不过滤」。
+   非 `str | None` 的 falsy 值（`0` / `[]`）在生产上不可达（类型是 `Optional[str]`），
+   同样没有门。
 6. **4a 面的 69 passed 只覆盖三个端点测试文件**，不是全量回归。
+
+## 🔍 追到一半、结论是「无法确定」的一项（如实记录，不臆断）
+
+审查过程中冒出一个问题：**现网的 `canvas_nodes` 表里，`subject` 列会不会为空？**
+（若为空，本卡的 `AND subject = 'x'` 会把这些行从邻居里丢掉。）
+
+追查链与它停在哪里：
+
+1. **写侧确实存在两种形态** —— `lancedb_client.py` 里既有
+   `"subject": subject or ""`（`:1622` / `:1886` / `:2169`，None 时落**空串**），
+   也有 `"subject": subject`（`:1350` / `:1363` / `:1860` / `:2145`，可落 **NULL**）。
+   两者在 `subject = 'math'` 下**都不匹配**，都会被丢弃。
+2. **同文件有「不让旧行消失」的先例** —— `doc_type` 用
+   `(doc_type IN (...) OR doc_type IS NULL)`（`:3247`），
+   注释（`:3241-3243`）明写这是为了让 legacy 行「degrade 而不是 disappear」。
+   即这个仓**认可**「旧行缺值不该消失」这个原则。
+3. **想去现网数据上验一把，但验不了** —— 宿主上的
+   `data/lancedb` 与 `backend/data/lancedb` **只有** `vault_notes` /
+   `file_fingerprints` / `test_table`，**没有 `canvas_nodes`**；
+   但 `docker-compose.yml:161` 用的是**命名卷** `canvas-lancedb:/app/data/lancedb`，
+   宿主目录**不是**运行时库。而 `docker ps` 当前**无容器在跑**，
+   在不启动服务、不碰 live 基础设施的前提下**看不到卷里的内容**。
+
+**结论：无法确定**。所以本卡既不宣称「现网没有空 subject 行、所以无影响」，
+也不宣称「现网有、所以有缺陷」。留给主 session 一条**可执行的核对**：
+容器起来后 `docker run --rm -v canvas-lancedb:/d alpine ls /d` 看表清单，
+若有 `*_canvas_nodes`，再抽样看 `subject` 列的空值占比。
+
+> 顺带记一个**属于 4a 而非本卡**的观察：4a 把邻居扩展的表从裸 `vault_notes`
+> 改成了 `resolve_table_name("canvas_nodes")`。若运行时库里没有 `canvas_nodes`
+> 系的表，`open_table` 会抛错、被 `expand_neighbors` 外层的
+> `except Exception: pass` 吞掉 —— 邻居扩展会**静默变成 no-op**（不报错、
+> 不影响主检索结果）。同样因为看不到卷内容，**本卡无法判定这是否已经发生**。
+> 这条不影响 4b 的正确性（4b 的过滤逻辑在表存在时才执行），但值得主 session 核。
 
 ## 📋 台账待登记条目（由主 session 单点写入）
 
 > 本车道**未改**台账（卡文 §五 硬边界）。
 
 1. **§一 G4-4 行**：subject 面（CARD-G4-4b）已落地，4a 留下的
-   `xfail(strict=True)` 已转正为常绿门；G4-4 卡族至此**功能面收口完毕**。
+   `xfail(strict=True)` 已转正为常绿门。
+   ⚠️ 措辞按 Codex round-5 HIGH-3 收窄：**不写「功能面收口完毕」** ——
+   收口成立于「非空 subject + `cross_subject=False`」；
+   `cross_subject=True` 的过度收窄（R2）与 `course_id` 分支的 schema
+   依赖（R1）都还挂着。准确说法是「**vault 面与 subject 面的主路径已收口**」。
 2. **合并形态提醒**：4b 与 4a 在**同一分支** `card/x3-vaultscope` 上串成一条链
    （因 4a 未先合入主干）。squash 时会一起进；若需分开，见「先读 #1」。
-3. **新增移交项 G4-4b-R1（登记级）**：`expand_neighbors` 缺 `search()` 那道
-   schema guard（`lancedb_client.py:3312-3335`）与分支异常累积，
-   其 `except Exception: continue` 会把任何查询异常静默吞成「零邻居」。
-   **非本卡引入**（bare except 一直如此，且本卡的 `subject` 列依赖与主检索同源，
-   已查证不新增 schema 面，见「未证明」#2）。建议后续卡补齐。
+3. **新增移交项 G4-4b-R1（优先级建议：中）**：给 `expand_neighbors` 补
+   `search()` 那道 schema guard（`lancedb_client.py:3312-3335`）。
+   ⚠️ 定性按 Codex round-5 HIGH-1 更正：这**不完全是**「非本卡引入」——
+   在 **`course_id` 分支**上，主检索查 `vault_notes`（`nodes.py:386`）而邻居查
+   `canvas_nodes`（`:432`），两者**不同表**，所以「`canvas_nodes` 的 subject
+   依赖早已存在」推不出来；该分支上本卡**确实新增**了一个 schema 依赖，
+   且失败被 `except Exception: continue` 静默吞成「零邻居」。
+   默认分支（无 `course_id`）则同表同列，未新增。
    另：现网若有 `subject` **为空值**的历史行，本卡的等值过滤会丢弃它们。
-4. **新增移交项 G4-4b-R2**：`cross_subject=True` 场景下邻居过滤仍是单 subject
-   等值，可能过度收窄（见「未证明」#4）。
-5. **变异脚本范式已升级**：`evidence-g44b/g44b_mutations.py` 修了 4a 脚本被
+4. **新增移交项 G4-4b-R2（优先级建议：中，因为可达）**：
+   `cross_subject=True` 时邻居扩展在 `for search_subject` 循环**之外**
+   只调一次、传原始单值 subject，桥接学科结果行的邻居会被按主学科过滤掉
+   —— **本卡引入的召回收窄**。⚠️ 它**不是**「手动 opt-in 才会碰到」：
+   `deep_research.py:226/:242/:303` 会自动置 `cross_subject=True`，
+   `state_graph.py:692-698` 随即**重跑一次检索** —— 即 CRAG 低质量回退
+   路径上自动可达。修法（选项 C）：把 `subjects_to_search` 传进去、
+   where 用 `subject IN (...)`。详见「未证明」#4 的三选项表。
+5. **新增移交项 G4-4b-R3（需现网核对）**：容器起来后核
+   `canvas-lancedb` 卷里是否有 `*_canvas_nodes` 表、其 `subject` 列空值占比。
+   两件事都悬在这上面：本卡过滤会不会误伤空 subject 旧行，
+   以及 4a 的表名切换有没有让邻居扩展静默变成 no-op。见「追到一半」节。
+6. **变异脚本范式已升级**：`evidence-g44b/g44b_mutations.py` 修了 4a 脚本被
    Codex round-4 点名的三处（失败身份留存 / `__main__` 守卫 / 信号处理），
    建议后续卡以它为模板，并回头补 `g44_mutations.py`（4a 的 R5 移交项）。
