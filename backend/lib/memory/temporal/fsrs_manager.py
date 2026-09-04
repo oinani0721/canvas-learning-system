@@ -116,6 +116,10 @@ class FSRSManager:
         """
         self.desired_retention = desired_retention
         self._scheduler = None
+        # CARD-DEBT-8: 底层 py-fsrs 可用性以实例属性暴露（取模块级
+        # FSRS_AVAILABLE 快照），供上层 review_service 如实上报 algorithm。
+        # 不在上层新增第三个模块级标志——FSRS_RUNTIME_OK 仍是唯一 runtime 真相源。
+        self.library_available = FSRS_AVAILABLE
 
         if FSRS_AVAILABLE:
             # ✅ Verified from Context7 - Initialize FSRS Scheduler

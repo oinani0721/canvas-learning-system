@@ -2,6 +2,12 @@
 
 > **前 15 行是 Clear Context 后的恢复锚点 — 必须自包含**
 
+**本车道状态**（2026-09-01 · `card/w5-reviewapp` · CARD-G6-2 交互复习壳，6 commits 未 push 未合并）:
+- 🟡 **审查状态：三轮常规（到顶 FAIL）+ 用户裁决的定向第四轮**。r4：HIGH-3 VERIFIED ✓；HIGH-1/HIGH-4b 抓出真实反例（旧 GET 穿越重建 / 失联库反馈蒸发 / 解构重绑定·alias 绕 AST 门）→ **已全部整改 `f2a9e5f3`（因果锚 startMs≥atMs + lostnote + 递归 Name/接收者重绑定禁令 + alias 禁令 + lookahead），无第五轮复审**
+- ✅ 终版实测（f2a9e5f3）：90 passed（56+34，0 skip）· 变异 50/50 全红（rc==1 判据）· 裁判 1/3 全过 · pyright 0 错 · 走查 r5 + netlog 外部 0 + 投影 SHA 前后相同 · 写侧零（全程未点刷新）
+- 📋 终态裁决点 ⑦放行（三选一：合并/第五轮/打回）⑧DD-14 等价性：`_bmad-output/验收单/UAT-CARD-G6-2-交互复习壳-2026-09-01.md` 顶部显著声明；台账 §一 已更新
+- 📌 车道 venv 多装 `pyright`（pre-commit 依赖）；合并序 W6 先合本卡后合；合并前 merge 主干复跑裁判 1
+
 **主干状态**（2026-08-31 · `worktree-feature-obsidian-hybrid-dev` · 第七批收官已 push `a920e15c`，排第八批中）:
 - ✅ 第七批合 7 卡（G4-1b/M11M7/G6-1/G6-4/G4-3/DEBT-13/DEBT-16），回归 743 passed；CI 以 `gh run list --limit 3` 实查
 - ✅ G6-1/G6-4 已部署：compose 加 `DAILY_REVIEW_PICK`（用户 V3 标签页裁「甲」）+ 后端重启，总览页刷新/展开走查 OK

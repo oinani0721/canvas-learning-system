@@ -23,6 +23,24 @@ import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
+
+@pytest.fixture(autouse=True, scope="module")
+def _no_real_index_orchestrator():
+    """⛔ CARD-G2-5 round-3 隔离适配 (HIGH-2 同型): module 级 TestClient 触发
+    lifespan → 构造**默认 state_dir** 的真单例并 start()/shutdown() —— 上一版
+    会 quarantine 真实 app/data 的 legacy journal 并写空 journal。本文件只测
+    端点 409 行为, 关掉 orchestrator 开关不改变任何被测断言。
+    ⚠️ 必须 module scope: client fixture 也是 module scope, function-scope 的
+    patch 会在 lifespan 跑完之后才生效 (第一次实装踩的坑, 当场复现抓到)。
+    """
+    from app.config import settings
+
+    saved = settings.ENABLE_VAULT_INDEX_ORCHESTRATOR
+    settings.ENABLE_VAULT_INDEX_ORCHESTRATOR = False
+    yield
+    settings.ENABLE_VAULT_INDEX_ORCHESTRATOR = saved
+
+
 from app.core.subject_config import (
     DEFAULT_SUBJECT_ID,
     _current_subject_id,

@@ -28,6 +28,20 @@ ContextVar 注入测试: 每 endpoint 在调 service 前调 _vault_id_resolver.r
 from __future__ import annotations
 
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def _no_real_index_orchestrator(monkeypatch):
+    """⛔ CARD-G2-5 round-3 隔离适配 (HIGH-2 同型): TestClient 触发 lifespan 会
+    构造**默认 state_dir** 的真单例并 start()/shutdown() —— 上一版它会 quarantine
+    真实 app/data 的 legacy journal 并写空 journal (测试污染真实数据)。
+    本文件只测端点的 vault_id 注入, 关掉 orchestrator 开关 (get_→None,
+    lifespan 跳过 start/shutdown), 不改变任何被测断言。
+    """
+    monkeypatch.setattr("app.config.settings.ENABLE_VAULT_INDEX_ORCHESTRATOR", False)
+
+
+import pytest
 from unittest.mock import patch
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -80,9 +94,7 @@ class TestVaultIdResolverShared:
         from app.api.v1.endpoints._vault_id_resolver import resolve_vault_group_id
 
         with patch("app.config.get_current_vault_id", return_value="active_vault"):
-            result = resolve_vault_group_id(
-                vault_id=None, subject_id=None, legacy_group_id=None
-            )
+            result = resolve_vault_group_id(vault_id=None, subject_id=None, legacy_group_id=None)
 
         assert result == "vault:active_vault"
 
@@ -386,9 +398,7 @@ class TestContextVarInjectionFromResolver:
 
         # 调 resolver 注入新 vault (CARD-G2-2: 显式 vault 须与 active 一致)
         with patch("app.config.get_current_vault_id", return_value="数学"):
-            new_group = resolve_vault_group_id(
-                vault_id="数学", subject_id=None, legacy_group_id=None
-            )
+            new_group = resolve_vault_group_id(vault_id="数学", subject_id=None, legacy_group_id=None)
 
         # ContextVar 应已更新
         assert get_current_subject_id() == new_group

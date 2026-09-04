@@ -1,0 +1,8 @@
+BEFORE sha256 = cc5b098806bcf809c40e41877a53a4125ea26150ca014b742e8b1af9da704d05
+=== 变异结果 ===
+R1v2-flat-struct (expect ⑦ red): ================ 1 failed, 21 deselected, 10 warnings in 0.64s =================
+    FAILED: test_digest_renders_nested_struct_child_metadata
+R2v2-top-level-elem (expect ⑧ red): ================ 1 failed, 21 deselected, 10 warnings in 0.51s =================
+    FAILED: test_digest_renders_nested_list_child_metadata_and_elem_label
+AFTER sha256 = cc5b098806bcf809c40e41877a53a4125ea26150ca014b742e8b1af9da704d05
+RESTORE-IDENTICAL = True

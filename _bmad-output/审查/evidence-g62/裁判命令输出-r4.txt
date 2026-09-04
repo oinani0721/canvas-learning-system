@@ -1,0 +1,16 @@
+══ 裁判 1: 零外部 URL 探针 (终版 HEAD 复跑) ══
+external []
+
+══ 裁判 2: pytest 两文件全量 (终版: 56 基线 + 33 新增) ══
+======================= 89 passed, 10 warnings in 4.96s ========================
+
+══ 裁判 3: 零 JS 页 <script 基线 ══
+grep -c '<script' review_overview.py = 1
+
+══ 变异负验证 (46 条, rc==1 判据) ══
+负验证 PASS: 46/46 条变异均被**指定的那道门**抓住; 还原后基线仍全绿
+
+══ pyright + ruff ══
+0 errors, 0 warnings, 0 informations
+All checks passed!
+2 files already formatted

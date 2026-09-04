@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional
 
 import structlog
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from app.api.v1.endpoints._vault_id_resolver import resolve_vault_group_id
@@ -26,7 +27,7 @@ index_router = APIRouter()
 
 
 class RefreshChangedRequest(BaseModel):
-    """Round-23 Story 8.1 — incremental refresh request from Tauri plugin."""
+    """Round-23 Story 8.1 — incremental refresh request (手动/插件触发)."""
 
     paths: List[str] = Field(
         ...,
@@ -44,7 +45,7 @@ class PathRefreshStatus(BaseModel):
     """RAG-S1: per-path structured outcome — no aggregate fabrication."""
 
     path: str
-    status: str  # accepted | coalesced | excluded | disabled
+    status: str  # accepted | coalesced | excluded | disabled | persist_failed
 
 
 class RefreshChangedResponse(BaseModel):
@@ -52,6 +53,10 @@ class RefreshChangedResponse(BaseModel):
 
     旧契约 `scheduled=len(req.paths)` 是无条件假成功 (服务关闭 / 路径被黑名单
     排除 / debounce 互相取消, 三种情况全报 scheduled=N)——已废除。
+
+    CARD-G2-5 HIGH-3: durable journal 落盘失败的路径报 persist_failed；
+    任一路径 persist_failed 时整个响应用 HTTP 503 + 完整 body 返回
+    （durable=False），不再假报 200 成功。
     """
 
     accepted: int
@@ -59,6 +64,8 @@ class RefreshChangedResponse(BaseModel):
     excluded: int
     results: List[PathRefreshStatus]
     orchestrator_enabled: bool
+    persist_failed: int = 0
+    durable: bool = True
 
 
 def _get_lancedb_client():
@@ -146,7 +153,7 @@ async def refresh_changed_paths(req: RefreshChangedRequest) -> RefreshChangedRes
         )
 
     results = []
-    counts = {"accepted": 0, "coalesced": 0, "excluded": 0}
+    counts = {"accepted": 0, "coalesced": 0, "excluded": 0, "persist_failed": 0}
     for p in req.paths:
         # reset_backoff: an explicit API push is a real user event — clear
         # any M1 failure backoff so the file retries immediately.
@@ -159,12 +166,20 @@ async def refresh_changed_paths(req: RefreshChangedRequest) -> RefreshChangedRes
         accepted=counts["accepted"],
         coalesced=counts["coalesced"],
         excluded=counts["excluded"],
+        persist_failed=counts["persist_failed"],
     )
 
-    return RefreshChangedResponse(
+    resp = RefreshChangedResponse(
         accepted=counts["accepted"],
         coalesced=counts["coalesced"],
         excluded=counts["excluded"],
         results=results,
         orchestrator_enabled=True,
+        persist_failed=counts["persist_failed"],
+        durable=counts["persist_failed"] == 0,
     )
+    # CARD-G2-5 HIGH-3: 任一路径 durable 落盘失败 → 503 + 完整 body
+    # （默认裁决: 全仓无活消费方; 消费方按 resp.model_dump() 拿到逐 path 状态）。
+    if counts["persist_failed"]:
+        return JSONResponse(status_code=503, content=resp.model_dump())
+    return resp

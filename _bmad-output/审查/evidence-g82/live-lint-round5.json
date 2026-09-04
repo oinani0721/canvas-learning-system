@@ -1,0 +1,81 @@
+{
+  "vault": "/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault",
+  "today": "2026-09-01",
+  "summary": {
+    "exit_code": 0,
+    "checks_run": [
+      "orphan_nodes",
+      "raw_derived_confusion",
+      "projection_freshness"
+    ],
+    "checks_skipped": [],
+    "status_counts": {
+      "ok": 3,
+      "warn": 0,
+      "fail": 0
+    }
+  },
+  "checks": [
+    {
+      "name": "orphan_nodes",
+      "status": "ok",
+      "summary": "14 个节点, 0 个孤儿",
+      "findings": [],
+      "notes": [
+        "不比: frontmatter 里的 wikilink (source_note/up/derived-from) 不算入链; 自身出链不豁免自己 (含顶层裸自链); 围栏/行内 code、HTML 注释 (含 AUTO-GENERATED 哨兵段)、跨行 [[..]] 不算入链; 大小写与 NFC/NFD 归一后匹配 (方向=少报孤儿); symlink 文件、symlink 目录的后代、解析越界文件拒读并记盲区"
+      ],
+      "details": {
+        "nodes_scanned": 14,
+        "inbound_targets": 23,
+        "blind_spots": 0,
+        "blind_detail": {}
+      }
+    },
+    {
+      "name": "raw_derived_confusion",
+      "status": "ok",
+      "summary": "324 文件 / 175 目录, 0 条混淆 (含 0 条 recap 标记缺失)",
+      "findings": [],
+      "notes": [
+        "采信 finding 子集: G1/G2/G3/G4/G9; 台账 = vault_doc_roles.yaml (SHA 契约已校验)",
+        "本次**未验证** G5/G6/G7 (台账双列与真实准入函数是否一致) —— 需 probe 档, 而 probe 的 import 链会写系统临时缓存, 与本卡零写铁律冲突",
+        "台账扫描 info: 写侧 frontmatter 解析器不可用 (无 venv / 严格只读), G3/G4 走本模块的保守回落解析 —— 与写侧可能有细微差异, 结论按此打折",
+        "台账扫描 info: .quarantine/UAT-2.5.X-test.md 的准入两列取自 any_level 行 root-uat-scratch(文件名黑名单盖过目录), 但其 owner/retention 只描述根级实例 —— 本文件的治理以容器行 dir-quarantine 为准",
+        "台账扫描 info: raw/CS188/CLAUDE.md 的准入两列取自 any_level 行 root-claude-md(文件名黑名单盖过目录), 但其 owner/retention 只描述根级实例 —— 本文件的治理以容器行 dir-raw 为准",
+        "台账扫描 info: raw/CS188/_misc/junk/未命名 1.md 的准入两列取自 any_level 行 root-untitled-scratch(文件名黑名单盖过目录), 但其 owner/retention 只描述根级实例 —— 本文件的治理以容器行 dir-misc-junk 为准",
+        "台账扫描 info: raw/CS188/_misc/junk/未命名.md 的准入两列取自 any_level 行 root-untitled-scratch(文件名黑名单盖过目录), 但其 owner/retention 只描述根级实例 —— 本文件的治理以容器行 dir-misc-junk 为准",
+        "台账扫描 info: raw/CS188/管道设计.md 的准入两列取自 any_level 行 root-pipeline-design(文件名黑名单盖过目录), 但其 owner/retention 只描述根级实例 —— 本文件的治理以容器行 dir-raw 为准"
+      ],
+      "details": {
+        "files_seen": 324,
+        "dirs_seen": 175,
+        "codes_counted": [
+          "G1",
+          "G2",
+          "G3",
+          "G4",
+          "G9"
+        ],
+        "recap_missing_type": 0,
+        "recap_blind": {},
+        "blind_spots": 0,
+        "probe_skipped": true
+      }
+    },
+    {
+      "name": "projection_freshness",
+      "status": "ok",
+      "summary": "projection_status=ok",
+      "findings": [],
+      "notes": [
+        "口径复制自 review_overview.py:845-860 (`_vault_entry` 内联逻辑, 无可 import 的函数; 该文件 W6 独占禁改), 由 test_vault_lint.py 的同源锁绑定",
+        "不比: corrupt 面比 oracle 窄 —— 本检查不复现 `_summarize()` 的 v3 形状门禁, 只判 读不出/非 object/缺 generated_at"
+      ],
+      "details": {
+        "projection_status": "ok",
+        "generated_at": "2026-09-01T09:05:05+08:00",
+        "error": null
+      }
+    }
+  ]
+}

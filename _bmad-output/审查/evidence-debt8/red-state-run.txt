@@ -1,0 +1,141 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w8-scope/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 5 items
+
+tests/regression/test_debt8_fsrs_fallback_honest.py FFFF.                [100%]
+
+=================================== FAILURES ===================================
+_________ test_fallback_record_review_result_reports_honest_algorithm __________
+tests/regression/test_debt8_fsrs_fallback_honest.py:80: in test_fallback_record_review_result_reports_honest_algorithm
+    assert r.returncode == 0, r.stderr[-1200:]
+E   AssertionError: env/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+E       from pydantic.v1.fields import FieldInfo as FieldInfoV1
+E     /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w8-scope/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+E       import pkg_resources
+E     Building prefix dict from the default dictionary ...
+E     Loading model from cache /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/jieba.cache
+E     Loading model cost 0.241 seconds.
+E     Prefix dict has been built successfully.
+E     py-fsrs not installed. FSRS features will use fallback implementation.
+E     FSRS not available, using fallback scheduler
+E     Traceback (most recent call last):
+E       File "<string>", line 19, in <module>
+E         assert r["algorithm"] != "fsrs-4.5", f"lied fsrs-4.5: {r['algorithm']!r}"
+E                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     AssertionError: lied fsrs-4.5: 'fsrs-4.5'
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w8-scope/backend/...rs-4.5: {r[\'algorithm\']!r}"\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: lied fsrs-4.5: \'fsrs-4.5\'\n').returncode
+_________ test_fallback_record_review_result_keeps_persistence_signal __________
+tests/regression/test_debt8_fsrs_fallback_honest.py:103: in test_fallback_record_review_result_keeps_persistence_signal
+    assert r.returncode == 0, r.stderr[-1200:]
+E   AssertionError: kend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+E       from pydantic.v1.fields import FieldInfo as FieldInfoV1
+E     /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w8-scope/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+E       import pkg_resources
+E     Building prefix dict from the default dictionary ...
+E     Loading model from cache /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/jieba.cache
+E     Loading model cost 0.259 seconds.
+E     Prefix dict has been built successfully.
+E     py-fsrs not installed. FSRS features will use fallback implementation.
+E     FSRS not available, using fallback scheduler
+E     Traceback (most recent call last):
+E       File "<string>", line 25, in <module>
+E         assert "fsrs_library_missing" in reason, f"got {reason!r}"
+E                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     AssertionError: got 'card_state_write_failed'
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w8-scope/backend/...on, f"got {reason!r}"\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: got \'card_state_write_failed\'\n').returncode
+____________ test_fallback_schedule_review_reports_honest_algorithm ____________
+tests/regression/test_debt8_fsrs_fallback_honest.py:119: in test_fallback_schedule_review_reports_honest_algorithm
+    assert r.returncode == 0, r.stderr[-1200:]
+E   AssertionError: env/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+E       from pydantic.v1.fields import FieldInfo as FieldInfoV1
+E     /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w8-scope/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+E       import pkg_resources
+E     Building prefix dict from the default dictionary ...
+E     Loading model from cache /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/jieba.cache
+E     Loading model cost 0.260 seconds.
+E     Prefix dict has been built successfully.
+E     py-fsrs not installed. FSRS features will use fallback implementation.
+E     FSRS not available, using fallback scheduler
+E     Traceback (most recent call last):
+E       File "<string>", line 17, in <module>
+E         assert r["algorithm"] != "fsrs-4.5", f"lied fsrs-4.5: {r['algorithm']!r}"
+E                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     AssertionError: lied fsrs-4.5: 'fsrs-4.5'
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w8-scope/backend/...rs-4.5: {r[\'algorithm\']!r}"\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: lied fsrs-4.5: \'fsrs-4.5\'\n').returncode
+____________ test_fallback_get_fsrs_state_reports_honest_algorithm _____________
+tests/regression/test_debt8_fsrs_fallback_honest.py:136: in test_fallback_get_fsrs_state_reports_honest_algorithm
+    assert r.returncode == 0, r.stderr[-1200:]
+E   AssertionError: 3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+E       from pydantic.v1.fields import FieldInfo as FieldInfoV1
+E     /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w8-scope/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+E       import pkg_resources
+E     Building prefix dict from the default dictionary ...
+E     Loading model from cache /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/jieba.cache
+E     Loading model cost 0.283 seconds.
+E     Prefix dict has been built successfully.
+E     py-fsrs not installed. FSRS features will use fallback implementation.
+E     FSRS not available, using fallback scheduler
+E     Traceback (most recent call last):
+E       File "<string>", line 18, in <module>
+E         assert r.get("algorithm") == "fsrs-fallback-scheduler", f"got {r.get('algorithm')!r}"
+E                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E     AssertionError: got None
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w8-scope/backend/...got {r.get(\'algorithm\')!r}"\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: got None\n').returncode
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w8-scope/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w8-scope/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w8-scope/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w8-scope/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:805
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w8-scope/backend/app/api/v1/endpoints/chat.py:805: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:105
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w8-scope/backend/app/api/v1/endpoints/metadata.py:105: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:176
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w8-scope/backend/app/api/v1/endpoints/metadata.py:176: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w8-scope/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/regression/test_debt8_fsrs_fallback_honest.py::test_fallback_record_review_result_reports_honest_algorithm
+FAILED tests/regression/test_debt8_fsrs_fallback_honest.py::test_fallback_record_review_result_keeps_persistence_signal
+FAILED tests/regression/test_debt8_fsrs_fallback_honest.py::test_fallback_schedule_review_reports_honest_algorithm
+FAILED tests/regression/test_debt8_fsrs_fallback_honest.py::test_fallback_get_fsrs_state_reports_honest_algorithm
+================== 4 failed, 1 passed, 10 warnings in 44.32s ===================

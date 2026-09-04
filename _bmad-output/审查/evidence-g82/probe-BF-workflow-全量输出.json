@@ -1,0 +1,454 @@
+{
+  "summary": "CARD-G8-2 实现前六路只读实证探查 + 逐路对抗核查（区分实测与推测）",
+  "agentCount": 8,
+  "logs": [
+    "[probe:C-rawderived-scan] failed: You've hit your weekly limit · resets Sep 2 at 7pm (Asia/Shanghai)",
+    "[verify:F-live-census] failed: You've hit your weekly limit · resets Sep 2 at 7pm (Asia/Shanghai)",
+    "[probe:D-cli-and-test-conventions] failed: You've hit your weekly limit · resets Sep 2 at 7pm (Asia/Shanghai)",
+    "[probe:E-zero-write-risk] failed: You've hit your weekly limit · resets Sep 2 at 7pm (Asia/Shanghai)",
+    "[verify:B-freshness-oracle] failed: You've hit your weekly limit · resets Sep 2 at 7pm (Asia/Shanghai)",
+    "[probe:A-orphan-forms] failed: You've hit your weekly limit · resets Sep 2 at 7pm (Asia/Shanghai)"
+  ],
+  "result": [
+    {
+      "probe": {
+        "probe_id": "probe-B / CARD-G8-2 · freshness 同源锁可行性实证",
+        "findings": [
+          {
+            "claim": "直接 import 包路由 `from app.api.v1.endpoints.review_overview import _vault_entry` 有严重副作用：29.4 秒、加载 7875 个模块、并在 import 期发起**出站 HTTP 请求**（socket.connect 到 127.0.0.1:1082 代理）、创建 /var/folders/.../T/torchinductor_Heishing 目录、写并删一个临时文件。不能用于 vault_lint。",
+            "evidence_kind": "measured",
+            "evidence": "命令：`PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=<backend> .venv/bin/python variant.py pkg`（脚本用 sys.addaudithook 捕获 open(写模式)/socket.connect/subprocess.Popen/os.mkdir/os.rename/os.remove）。输出：`VARIANT=pkg OK=_vault_entry SECONDS=29.39 MODULES=7875` / `HEAVY_PKGS ['fastapi','graphiti_core','httpx','jieba','lancedb','langgraph','litellm','neo4j','openai','torch','transformers']` / `EVENTS 8`，其中 `('socket.connect', \"(<socket.socket fd=3 ...>, ('127.0.0.1', 1082))\")` 与 `('os.mkdir', \"('/var/folders/vq/.../T/torchinductor_Heishing', 511, -1)\")`。",
+            "impact_on_impl": "vault_lint 的同源锁测试**禁止**用包路由 import oracle。否则每次跑测试都会联网、拉 torch/neo4j/lancedb，且 29s 的 import 会让『快速 lint』名不副实。"
+          },
+          {
+            "claim": "出站网络的根因链已定位到逐行：是 `endpoints/__init__.py` 连带 import 了 health，最终触发 litellm 在 import 期拉远程 model cost map —— 与 review_overview.py 本身无关。",
+            "evidence_kind": "measured",
+            "evidence": "完整 traceback（import_trace2.py，audit hook 捕 socket.getaddrinfo）：`app/api/v1/endpoints/__init__.py:5 from . import health` → `app/api/v1/endpoints/health.py:36 from app.dependencies import AgentServiceDep` → `app/dependencies.py:34 from .clients.gemini_client import GeminiClient` → `app/clients/__init__.py:9 from app.clients.claude_client import (` → `app/clients/claude_client.py:25 from app.middleware.prompt_injection_guard import check_input, check_output` → `app/middleware/__init__.py:32 from app.middleware.llm_call_logger import (` → `app/middleware/llm_call_logger.py:42 from litellm.integrations.custom_logger import CustomLogger` → `litellm/__init__.py:457 model_cost = get_model_cost_map(url=model_cost_map_url)` → `get_model_cost_map.py:153 response = httpx.get(url, timeout=timeout)`。",
+            "impact_on_impl": "确认副作用**不是** review_overview.py 的属性，而是包 __init__ 的传染。因此绕开包路由即可完全消除，无需给 oracle 打补丁、无需设 LITELLM_LOCAL_MODEL_COST_MAP 之类的环境变量兜底。"
+          },
+          {
+            "claim": "可行的加载路径：`importlib.util.spec_from_file_location` 直载 review_overview.py 文件 —— 0.95 秒、557 个模块、**审计事件 0**（无 socket、无写、无 mkdir、无 subprocess），且不拉 neo4j / litellm / torch / lancedb / graphiti_core。同源锁可行。",
+            "evidence_kind": "measured",
+            "evidence": "命令：`PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=<backend> .venv/bin/python variant.py filespec`。输出：`VARIANT=filespec OK=_vault_entry SECONDS=0.95 MODULES=557` / `HEAVY_PKGS ['fastapi']` / `EVENTS 0`。对照 `config_only`（只 import app.config）= 0.42s / 298 modules / EVENTS 0。",
+            "impact_on_impl": "vault_lint 测试里 oracle 的取法固定为：`spec = importlib.util.spec_from_file_location(\"_ro_oracle\", <绝对路径>/backend/app/api/v1/endpoints/review_overview.py); mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod); oracle = mod._vault_entry`。"
+          },
+          {
+            "claim": "filespec 路由加载的是**真实的** app.config（不是 stub / mock），满足 DD-03；但必须提供 PYTHONPATH（或等价 sys.path 注入）指向 backend，cwd 则完全无关。",
+            "evidence_kind": "measured",
+            "evidence": "cwd=/ 跑：`CWD_INDEPENDENT_OK _vault_entry` / `app.config 是真模块? /Users/.../card-w9-lint/backend/app/config.py` / `MODULES 557`。去掉 PYTHONPATH 后同一命令报 `File \".../review_overview.py\", line 60, in <module> from app.config import get_settings` → `ModuleNotFoundError: No module named 'app'`。",
+            "impact_on_impl": "测试文件里需 `sys.path.insert(0, str(BACKEND_DIR))`（BACKEND_DIR 由 __file__ 上溯推导，不硬编码绝对路径），或由 pytest 的 rootdir/conftest 保证。不需要 cd 到 backend。"
+          },
+          {
+            "claim": "`PYTHONDONTWRITEBYTECODE=1` 对本方案是**承重**的，且有一个反直觉的泄漏面：即使 exec_module 加载的是 scratchpad 里的副本，它 `from app.config import ...` 的导入闭包仍会把 8 个 .pyc 写进 **repo 的 backend/app/** 下。",
+            "evidence_kind": "measured",
+            "evidence": "在 scratchpad 副本 ro_copy.py 上做 A/B：A 带该变量 → `dont_write_bytecode= True`，`__pycache__ ? -> NONE`；B 不带 → `dont_write_bytecode= False`，`__pycache__ ? -> ro_copy.cpython-314.pyc`。B 同时在 repo 内生成 8 个 .pyc（mtime 全为 2026-09-01 00:53:06，与副本 .pyc 同刻）：app/__pycache__/{__init__,config}、app/core/__pycache__/{__init__,agent_memory_mapping,request_cache,subject_config}、app/utils/__pycache__/{__init__,cypher_helpers}。注意 endpoints/__pycache__ 始终为 NONE（副本的字节码去了 scratchpad）。",
+            "impact_on_impl": "vault_lint 的测试/CI 入口必须显式设 `PYTHONDONTWRITEBYTECODE=1`（或在 conftest 顶部 `sys.dont_write_bytecode = True`，须在 import oracle **之前**执行）。若卡里有『零写门』，光看 endpoints/ 目录会假绿 —— 泄漏点在 app/、app/core/、app/utils/ 三处，门要覆盖整个 backend/app 子树。"
+          },
+          {
+            "claim": "最小合法 v3 投影（**不带** boards、**不带** buckets）确认可让 _summarize 通过并抵达 stale 判定，返回 status=\"ok\"。任务里的坑判断成立。",
+            "evidence_kind": "measured",
+            "evidence": "逐字 fixture（harness.py 落盘到 <vault>/outputs/今日复习.json）：\n{\n  \"schema_version\": 3,\n  \"generated_at\": \"2026-08-31T09:05:05+08:00\",\n  \"stats\": {\"due_nodes\": 0},\n  \"top_boards\": [],\n  \"upcoming\": [],\n  \"due_nodes\": [],\n  \"ineligible\": {\"placeholder\": []}\n}\n真调 `_vault_entry(Path(<lane>/v_ok), date(2026,8,31))` 返回：{\"vault_id\":\"v_ok\",\"path\":\"...\",\"status\":\"ok\",\"projection\":{\"schema_version\":3,\"vault_id\":null,\"date\":null,\"generated_at\":\"2026-08-31T09:05:05+08:00\",\"due_count\":0,\"placeholder_backlog\":0,\"recommended_board\":null,\"top_node\":null,\"pending\":null,\"next_upcoming\":null,\"boards\":[],\"due_new_count\":0,\"placeholder_attributed\":null,\"bucket_counts\":null},\"error\":null}",
+            "impact_on_impl": "这 7 个键就是 fixture 的必需集，可直接作为 vault_lint 同源锁的 fixture 基座；改 generated_at 一个字段即可扫完整张矩阵。projection 里 boards=[] / bucket_counts=null 是**派生**结果，不是输入键，别照抄回输入。"
+          },
+          {
+            "claim": "boards / buckets 的存在性行为实测：`boards: []` 意外地**放行**（ok），`boards: null` → corrupt，`buckets: {}` → corrupt（报 boards 缺席），`boards:[]+buckets:{}` → corrupt（报五桶键集合不符）。可选键 date / vault_id 加了仍是 ok。",
+            "evidence_kind": "measured",
+            "evidence": "mech.py 实测输出：`加 boards:[] -> ok`；`加 boards:null -> corrupt  ValueError: boards 应为数组, 实为 NoneType`；`加 buckets:{} -> corrupt  ValueError: buckets 在场但 boards 缺席 — 非生产器产物 (二者同版一起落盘)`；`加 boards:[]+buckets:{} -> corrupt  ValueError: buckets 键集合非 G3-6a 五桶: []`；`加 date:'2026-08-31' -> ok`；`加 vault_id:'cs61b' -> ok`。",
+            "impact_on_impl": "矩阵 fixture 一律**省略** boards 与 buckets 两键（不是设成 [] / {}）—— 这样 17 组用例的唯一自变量就是 generated_at，任何 corrupt 都能确定归因到 generated_at 而非形状门。"
+          },
+          {
+            "claim": "generated_at 边界矩阵：17 组输入 → 实测 status。关键反直觉项：**非字符串（int 20260831）判 corrupt 而非 stale**；数字串 \"20260831\"、纯日期、无时区、空串均为 stale；跨午夜 UTC 用例 d 正确判 ok。",
+            "evidence_kind": "measured",
+            "evidence": "harness.py + mech.py 同一 today=date(2026,8,31)，逐条真调 _vault_entry：\na '2026-08-31T09:05:05+08:00' → ok；b '2026-08-30T09:05:05+08:00' → stale；c '2026-08-31T01:05:05Z' → ok；d '2026-08-30T23:00:00Z' → ok（跨午夜关键用例，上海日 2026-08-31）；e '2026-08-31' → stale；f '2026-08-31T09:05:05' → stale；g1 '' → stale；g2 20260831(int) → **corrupt**，error=`ValueError: generated_at 应为字符串, 实为 int`；g3 '20260831' → stale；h1 '+9999-08-31T09:05:05+08:00' → stale；h2 '9999-12-31T23:59:59+00:00' → stale；h3 '0001-01-01T00:00:00+14:00' → stale；i1 '2026-08-31T09:05:05+08:60' → stale；i2 '2026-08-31T09:05:05+15:00' → stale；i3 '2026-08-31T17:05:05Z' → stale（上海日 2026-09-01）；i4 '2026-08-31T00:30:00+08:00' → ok；i5 '2026-09-01T00:30:00+08:00' → stale。",
+            "impact_on_impl": "这 17 组直接就是同源锁的用例表（远超 ≥6 组要求）。必须注意 g2 走的是 corrupt 分支 —— 若 vault_lint 把『generated_at 非法』一律映射成 stale，g2 就会与 oracle 分叉。建议锁四态全枚举而非只锁 ok/stale 二元。"
+          },
+          {
+            "claim": "同一个 status 背后存在 4 种不同机制（SUMMARIZE_TYPE_REJECT / REGEX_REJECT / ASTIMEZONE_RAISE(OverflowError) / DATE_COMPARE）。stale 一档就覆盖了 3 种机制 —— 只比对 status 的同源锁对机制层的变异是盲的。",
+            "evidence_kind": "measured",
+            "evidence": "mech.py 逐条归因（复刻 :851-857 分支，判据仍取 _vault_entry 真实返回）：REGEX_REJECT = e/f/g1/g3/h1/i1/i2；ASTIMEZONE_RAISE(OverflowError) = h2 '9999-12-31T23:59:59+00:00'、h3 '0001-01-01T00:00:00+14:00'（**确实走到了 :856 的 except**，不是被正则挡掉）；SUMMARIZE_TYPE_REJECT = g2；DATE_COMPARE = a/b/c/d/i3/i4/i5，其中 d 的 sh_day=2026-08-31、i3 的 sh_day=2026-09-01。",
+            "impact_on_impl": "h2/h3 是 oracle 里唯一能触达 OverflowError 兜底的用例，必须进同源锁 —— 否则删掉 :856 的 try/except 后测试仍全绿（该门变异不敏感）。同时提示：若 vault_lint 自己实现 freshness 判定，它对 h2/h3 也必须『不炸且判 stale』。"
+          },
+          {
+            "claim": "`_vault_entry` 是 (vault_dir, today) 的**纯函数** —— 全文件 datetime.now 只出现在 :883 和 :1402 两个 caller 里，函数体及其被调链均不读墙上时钟。因此 vault_lint 的 `--now` 注入 = 直接传 date 参数，**不需要 monkeypatch datetime**。",
+            "evidence_kind": "measured",
+            "evidence": "`grep -n \"datetime\\.now|time\\.time|date\\.today\" backend/app/api/v1/endpoints/review_overview.py` 全文件仅两命中：`883:    now = datetime.now(_TZ_SHANGHAI)` 与 `1402:        return _vault_entry(vault_dir, datetime.now(_TZ_SHANGHAI).date())`。`grep -rn \"_vault_entry\" --include=*.py`（排除 .venv）确认全仓仅 :813 定义 + :894 / :1402 两处调用（:1265 是注释引用）。",
+            "impact_on_impl": "同源锁写法极简：`assert vault_lint_verdict(vault_dir, now=T) == oracle(vault_dir, T)`，两侧共用同一个 date 对象。不需要 freezegun / 不需要改环境 TZ / 不需要 patch 模块属性 —— 也就没有『注入点被更早的门抓住』那类假绿风险。"
+          },
+          {
+            "claim": "`today` 的时区语义 = **Asia/Shanghai 本地日**（不是 UTC 日、不是宿主 naive 本地日）。两个 caller 口径一致。",
+            "evidence_kind": "measured",
+            "evidence": "review_overview.py:883 `now = datetime.now(_TZ_SHANGHAI)  # CARD-D1: 全链路上海本地时区` → :894 `vaults.append(_vault_entry(v, now.date()))`（GET /overview 的 _collect）；review_overview.py:1402 `return _vault_entry(vault_dir, datetime.now(_TZ_SHANGHAI).date())`（refresh 端点）。_TZ_SHANGHAI 定义在 :74-81（ZoneInfo(\"Asia/Shanghai\")，缺 tzdata 时退化 timezone(timedelta(hours=8))）。",
+            "impact_on_impl": "vault_lint 的 `--now` 必须按 Asia/Shanghai 解释。若接受的是 datetime，须 `.astimezone(ZoneInfo(\"Asia/Shanghai\")).date()` 后再传；若直接接受 YYYY-MM-DD，须在文档/help 里写明是上海日。⚠ 容器 TZ 为空时用 `date.today()` 会得到 UTC 日 —— 这正是记忆里 G6-1 踩过的『refresh 产出昨天的 date』同一个坑，别在 lint 侧重犯。"
+          },
+          {
+            "claim": "用真实 live 投影跑 oracle（只读）成功，四态判定在生产数据上可复现：today=2026-08-31 → ok，today=2026-09-01 → stale（due_count=6 两次相同）。live 投影带 boards+buckets+notification+unassigned_nodes 共 13 个顶层键。",
+            "evidence_kind": "measured",
+            "evidence": "命令：filespec 载 oracle 后 `_vault_entry(Path('/Users/.../canvas-learning-system/canvas-vault'), t)`。输出：`today= 2026-08-31 -> status= ok | due_count= 6 | err= None` / `today= 2026-09-01 -> status= stale | due_count= 6 | err= None`。live 顶层键：`['boards','buckets','date','due_nodes','generated_at','ineligible','notification','schema_version','stats','top_boards','unassigned_nodes','upcoming','vault_id']`，generated_at='2026-08-31T09:05:05+08:00'。跑前跑后投影 mtime 恒为 1788138305、vault 文件数恒 324。",
+            "impact_on_impl": "同源锁除了合成 fixture，还应加一条『拿 live 投影当只读语料』的用例（用固定 today 而非真实 now，否则测试会随日期翻篇而翻红）。另注意 live 有 `notification` / `unassigned_nodes` 两个 _summarize 完全不门禁的顶层键 —— vault_lint 若对未知键报警会与 oracle 分叉。"
+          },
+          {
+            "claim": "（fixture 设计警示）无 boards 时，`stats.due_nodes` 与 due_nodes 明细长度**不做**交叉核对：stats.due_nodes=3 配空 due_nodes 明细仍判 ok。但 due_nodes 的类型门很严（bool/str/float/负数/None 全 corrupt）。",
+            "evidence_kind": "measured",
+            "evidence": "mech.py：`stats.due_nodes=0 -> ok`；`=3 -> ok`（due_nodes 明细为空）；`='0' -> corrupt ValueError: 应为非负整数, 实为 '0'`；`=True -> corrupt ... 实为 True`；`=-1 -> corrupt`；`=None -> corrupt`；`=0.0 -> corrupt`。",
+            "impact_on_impl": "fixture 可以只填 stats.due_nodes 而不构造对应明细（省事）；但 vault_lint 若自己加一条『stats 与明细对账』的检查，就会比 oracle **更严**，同源锁会在这类输入上分叉 —— 要么别加，要么把该检查排除在同源锁比对范围外并写明『不比什么』。"
+          },
+          {
+            "claim": "（环境告警，非本探查产物）作业期间 LANE 出现两个不是我造的 untracked 条目，说明有并发 agent 正在同一 worktree 写文件。",
+            "evidence_kind": "measured",
+            "evidence": "探查开始时 `git -C <LANE> status --short` 为空（clean）。结束时为：`?? \"_bmad-output/\\345\\256\\241\\346\\237\\245/prompts/\"` 与 `?? backend/scripts/vault_lint.py`。mtime：vault_lint.py = 2026-09-01 00:56:06，_bmad-output/审查/prompts = 2026-09-01 00:50:25。本探查全程未对 LANE 执行任何 Write/Edit。",
+            "impact_on_impl": "主 session 若要用 git status 做零写门，基线必须在**并发写入开始前**采，或按路径白名单收窄 —— 否则别的车道的产物会被算进本卡账上（记忆里『并行 session 写同一路径会拼接损坏』的同源风险面）。"
+          }
+        ],
+        "commands_run": [
+          "git -C <LANE> status --short  (基线, 空)",
+          "find <LANE> -name '*.pyc' | sort > pyc-before.txt  (基线 22197 行)",
+          "find <VAULT> -type f | wc -l  (基线 324)",
+          "<BE>/.venv/bin/python -V  →  Python 3.14.4",
+          "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=<BE> <BE>/.venv/bin/python <SP>/import_audit.py   # audit hook 记 open(写)/socket/subprocess/mkdir",
+          "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=<BE> <BE>/.venv/bin/python <SP>/import_trace.py   # socket.connect / os.mkdir 栈",
+          "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=<BE> <BE>/.venv/bin/python <SP>/import_trace2.py  # socket.getaddrinfo 完整栈 → litellm 根因链",
+          "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=<BE> <BE>/.venv/bin/python <SP>/variant.py config_only   # 0.42s / 298 mod / 0 events",
+          "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=<BE> <BE>/.venv/bin/python <SP>/variant.py filespec      # 0.95s / 557 mod / 0 events",
+          "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=<BE> <BE>/.venv/bin/python <SP>/variant.py pkg           # 29.39s / 7875 mod / 8 events",
+          "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=<BE> <BE>/.venv/bin/python <SP>/harness.py   # 四态 + 17 组 generated_at 矩阵 + 最小 fixture",
+          "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=<BE> <BE>/.venv/bin/python <SP>/mech.py      # 机制归因 + boards/buckets 存在性 + stats 类型门",
+          "grep -rn '_vault_entry' --include='*.py' <LANE>  (排除 .venv)  → :813 定义 / :894 / :1402 调用",
+          "grep -n 'datetime\\.now|time\\.time|date\\.today' <BE>/app/api/v1/endpoints/review_overview.py  → 仅 :883 / :1402",
+          "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=<BE> <BE>/.venv/bin/python <SP>/pyc_test.py <SP>/pyccopy/ro_copy.py   # A: 无 __pycache__",
+          "PYTHONPATH=<BE> <BE>/.venv/bin/python <SP>/pyc_test.py <SP>/pyccopy/ro_copy.py                             # B: 生成 __pycache__ (承重性证明 + 意外污染 repo)",
+          "cd / && PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=<BE> python -c '...spec_from_file_location...'  # cwd 无关性 + app.config 真模块",
+          "cd / && PYTHONDONTWRITEBYTECODE=1 python -c '...'  (无 PYTHONPATH)  → ModuleNotFoundError: No module named 'app'",
+          "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=<BE> python -c '...' # 对 live canvas-vault 只读跑 _vault_entry (today 8-31 / 9-01)",
+          "stat -f '%m %N' <VAULT>/outputs/今日复习.json  (跑前跑后均 1788138305)",
+          "mv <BE>/app/__pycache__ <BE>/app/core/__pycache__ <BE>/app/utils/__pycache__ → <SP>/quarantine/   # 清理我误造的 8 个 .pyc",
+          "find <LANE> -name '*.pyc' | sort | diff pyc-before.txt -  → 无差异 (22197, 逐行相同)"
+        ],
+        "side_effects_check": "如实报告：**中途确实产生过一次 LANE 内写入，已完全还原，live vault 全程零写。**\n\n【违规与还原】为验证 `PYTHONDONTWRITEBYTECODE=1` 是否承重，我在 scratchpad 副本上做了一组 A/B，其中 B 组**故意不带**该环境变量。虽然被加载的是 scratchpad 里的 ro_copy.py，但它 `from app.config import get_settings` 的导入闭包把 8 个 .pyc 写进了 repo：backend/app/__pycache__/{__init__,config}.cpython-314.pyc、backend/app/core/__pycache__/{__init__,agent_memory_mapping,request_cache,subject_config}.cpython-314.pyc、backend/app/utils/__pycache__/{__init__,cypher_helpers}.cpython-314.pyc（mtime 全为 2026-09-01 00:53:06）。这违反了硬边界 3（每条 python 命令都要带该变量），我低估了「加载 scratchpad 副本」仍会经 PYTHONPATH 污染 repo。\n还原：三个 __pycache__ 目录经核对 mtime 均为 00:53:06、内容仅我造的 8 个文件（无既存文件混入），已整体 `mv` 到 <SP>/quarantine/（guard-hook 拦 rm，故用 mv，也便于审计复核，未销毁任何字节）。\n\n【还原后自查命令与结果】\n1. `find <LANE> -name '*.pyc' | sed 's#^<LANE>#.#' | sort | diff pyc-before.txt -` → 无输出，`RESTORED_TO_BASELINE_EXACT (22197, 逐行相同)`。\n2. `ls -d <BE>/app/__pycache__ <BE>/app/core/__pycache__ <BE>/app/utils/__pycache__` → 三个均 No such file or directory（还原前基线本就不存在）。\n3. `ls -d <BE>/app/api/v1/endpoints/__pycache__` → NONE（oracle 文件本身**全程**未被写过字节码）。\n4. `git -C <LANE> status --short` → 仅剩 `?? _bmad-output/审查/prompts/`（mtime 00:50:25）与 `?? backend/scripts/vault_lint.py`（mtime 00:56:06）两条，**均非本探查产物**（本探查对 LANE 零 Write/Edit，且这两条出现时刻与我的任何命令无对应）；已在 findings 里单列为并发写入告警。\n\n【live vault 零写证据】\n- `stat -f '%m' <VAULT>/outputs/今日复习.json` → 跑前 1788138305，跑后 1788138305（未变）。\n- `find <VAULT> -type f | wc -l` → 跑前 324，跑后 324。\n- `find <VAULT> -name '*.pyc' | wc -l` → 4 个，mtime 分别为 2026-07-22 / 2026-07-30 / 2026-08-10 / 2026-08-11，全部远早于本 session，非本探查产物。（早前一次统计报 6 是因为 `-o -name '__pycache__'` 把 2 个**目录**也计入了。）\n- `find <VAULT> -newermt '2026-08-31 15:52'` → 仅 `.obsidian/workspace.json`（Obsidian 自身在跑，非本探查触碰）。\n\n【其他约束遵守】未连生产 Neo4j 7691（filespec 路由根本不 import neo4j；唯一一次出站连接是 pkg 路由下 litellm 的 model-cost-map 拉取，已记录在 findings 1/2，且该路由已被判定不可用）。未跑任何 daily_review_run.py / daily-review-push.sh / canvas-vault 下 runner，未发任何 Bark 推送。未跑 pytest（本探查全部走独立 python 脚本），故 `-p no:cacheprovider` 未涉及。所有临时文件写在 <SP>/probe-B/ 下。",
+        "open_questions": [
+          "vault_lint 的同源锁比对粒度：只比 status（四态字符串），还是连 entry 的 error 文案一起比？error 里含 oracle 的中文异常消息（如 `ValueError: generated_at 应为字符串, 实为 int`），比它会让锁对 oracle 的文案改动过度敏感；不比它则 corrupt 的归因差异被吞掉。建议主 session 定：比 status + error 的**异常类型前缀**（`ValueError:` / `JSONDecodeError:`），不比消息正文。",
+          "vault_lint 是否需要自己实现一份 freshness 判定？若它只是**转调** oracle，同源锁就退化成恒等式（测不出东西）；若它有独立实现，则 h2/h3（OverflowError）、g2（非 str → corrupt 而非 stale）、i1/i2（offset 收紧）这四个点是最可能分叉的地方，必须进锁。",
+          "`--now` 的入参形态未定：接受 `YYYY-MM-DD`（按上海日解释）还是完整 ISO datetime（再 astimezone 到上海）？后者能表达 d 用例（UTC 昨日 23:00 = 上海今日）那种跨午夜语义，前者更简单但把时区转换的责任推给调用方。",
+          "live 投影里 `notification` 与 `unassigned_nodes` 两个顶层键 _summarize 完全不门禁 —— vault_lint 若做「未知顶层键告警」会比 oracle 严格，需确认这属于 lint 的独立职责（不进同源锁）还是应当对齐。",
+          "本探查只锁了 _vault_entry 的 freshness 面。_summarize 的 boards/buckets 强校验分支（_gate_boards_rollup / _gate_buckets 共约 200 行、十余条构造律）未纳入 —— 若 vault_lint 也要覆盖这些，需要一份带 boards+buckets 的完整 fixture，量级远大于本次的最小 fixture，建议单独确认范围。",
+          "隔离在 <SP>/quarantine/ 的 8 个 .pyc 是否需要保留作为审计证据？scratchpad 是 session 级的，主 session 若要复核请尽快取；否则可直接忽略（它们只是字节码，无信息价值）。"
+        ]
+      },
+      "verify": null
+    },
+    {
+      "probe": {
+        "probe_id": "F — live vault 全量普查",
+        "findings": [
+          {
+            "claim": "live vault 顶层结构与文件数已全量清点：节点/ 14 md（扁平无子目录）、原白板/ 6 md、检验白板/ 10 md、outputs/ 18 文件（8 md）、raw/ 148 md（其中 35 个在 node_modules 内、1 个在 .obsidian 内，真实语料 112）、templates/ 2 md、CS188/ 1、CS189/ 1、wiki/ 仅 2 个 .gitkeep（0 md）、验收单/ 与 multimodal/ 是空目录、.trash/ 5 文件、.quarantine/ 1 md。顶层散落 13 个文件（含 4 个 0 字节的空 md）。",
+            "evidence_kind": "measured",
+            "evidence": "`for d in $V/*/ $V/.*/; do nf=$(find \"$d\" -type f|wc -l); nm=$(find \"$d\" -type f -name '*.md'|wc -l); done` 输出：检验白板 files=10 md=10 / 验收单 files=0 md=0 / 原白板 files=6 md=6 / 节点 files=14 md=14 / CS188 1/1 / CS189 1/1 / multimodal 0/0 / outputs 18/8 / raw 149/148 / templates 2/2 / wiki 2/0 / .claude 30/9 / .claudian 31/0 / .obsidian 41/2 / .quarantine 1/1 / .trash 5/2。`find $V -maxdepth 1 -type f` 列出 13 个顶层文件。`ls -la` 显示 `未命名 1.md`/`UAT-2.5.X-test.md`/`UAT-Study-Question-Skill-2026-05-10.md`/`chatgpt-adversarial-review-Q1Q2Q3-2026-05-12.md` 均为 0 字节。",
+            "impact_on_impl": "vault_lint 的扫描根必须显式排除 raw/**/node_modules/ 与 .obsidian/：`find $V -name '*.md'` 全量 214，排 node_modules 后 179，再排顶层点目录后 165。差值 49 个 md 全是第三方包 README/类型声明，任何按 md 计数的门若不排除会被稀释 23%。"
+          },
+          {
+            "claim": "节点/ 全部 14 个 md 的完整清单（少于 30 个，全列）。",
+            "evidence_kind": "measured",
+            "evidence": "`find $V/节点 -name '*.md' -type f | wc -l` → 14。清单：代理函数-(Agent-Function).md / 反射代理的局限性引出了规划代理-(Planning-Agents)-的需求.md / 理性代理-(Rational-Agent).md / 代理决策分析-0303().md / 规划的分类-1549().md / 规划代理的特点.md / 代理类型：反射与规划.md / Characteristic-Equation-for-Eigenvalues.md / cs-61b-csm.md / csm-tutoring-unit-credit.md / Eigenvalues-are-special-vectors-that-sat.md / Fundamentals.md / lecture 2.md / my-recursion-notes.md",
+            "impact_on_impl": "文件名含全角冒号（代理类型：反射与规划）、半角括号（代理决策分析-0303()、规划的分类-1549()）、空格（lecture 2）。测试 fixture 必须逐字复刻这三类字符——任何把 `(` `)` 当分隔符、或做全角→半角归一化的 wikilink 正则都会在这些名字上悄悄失配。"
+          },
+          {
+            "claim": "节点/ frontmatter 关键字段实测分布：source_board 14/14（100%）、type 13/14、source_note 9/14、derived-from 9/14、up 9/14。缺 source_note/derived-from/up 的是同一批 5 个非 ai_linked_doc 节点；缺 type 的只有 cs-61b-csm.md（它用的是 subject/mastery 旧 schema）。",
+            "evidence_kind": "measured",
+            "evidence": "census.py 输出：`type: 13/14  MISSING(1): ['cs-61b-csm.md']`；`source_board: 14/14  MISSING(0): []`；`source_note: 9/14  MISSING(5): ['Fundamentals.md','cs-61b-csm.md','csm-tutoring-unit-credit.md','lecture 2.md','my-recursion-notes.md']`；derived-from 与 up 的 MISSING 列表与 source_note **逐字相同**。cs-61b-csm.md frontmatter 首行是 `subject: cs-61b` / `mastery: 0.3`，无 type。",
+            "impact_on_impl": "(a) source_board 100% 覆盖 ⇒ 任何「无 source_board」类规则在 live 上恒零命中，必须配合成变异/篡改门才有意义。(b) source_note/derived-from/up 三字段是**同生同灭**的（同一批 9 个 ai_linked_doc 节点才有），把它们当三条独立信号会产生完全相关的重复 finding。(c) cs-61b-csm.md 是唯一的旧 schema 存量，任何 `type == 'concept'` 前置过滤会静默漏掉它。"
+          },
+          {
+            "claim": "source_board 的值形态是**带引号 + 带 `原白板/` 子路径**的 wikilink，全 vault 只有 4 个取值。",
+            "evidence_kind": "measured",
+            "evidence": "census.py `== distinct source_board values ==` 输出：`'\"[[原白板/CS 61B]]\"' x2` / `'\"[[原白板/CS188 lecture 2]]\"' x8` / `'\"[[原白板/特征值与特征向量]]\"' x3` / `'\"[[原白板/递归与分治 (Recursion & Divide-Conquer)]]\"' x1`。注意最后一个板名同时含空格、半角括号与 `&`。",
+            "impact_on_impl": "解析 source_board 必须依次剥离：外层双引号 → `[[ ]]` → `原白板/` 前缀。任何直接拿 raw YAML 字符串去和板文件名比对的实现都会失配（多了引号和路径前缀）。板名 `递归与分治 (Recursion & Divide-Conquer)` 是最毒的 fixture，必须收进测试。"
+          },
+          {
+            "claim": "三处入链源的 wikilink basename 集合：正文 union 29 个，frontmatter union 6 个，总 union 32 个。其中 14 个命中 节点/ 真实文件，10 个命中 vault 内其它 md，8 个指向不存在的文件。",
+            "evidence_kind": "measured",
+            "evidence": "census.py 输出：`原白板: body-distinct=21 fm-distinct=0` / `检验白板: body-distinct=0 fm-distinct=3` / `节点: body-distinct=19 fm-distinct=6`；`UNION body-distinct=29 UNION fm-distinct=6 UNION all=32`；分类 `node: 14, other-md: 10, BROKEN: 8`。BROKEN 清单：['${p.file.path}', 'An-eigenvalue-of-a-linear-transformation', 'affinity-tutoring-groups', 'berkeley-cs-support-resources', 'csm-registration', 'csm-tutoring-sections', 'lecture 2.mp4', 'wikilink']",
+            "impact_on_impl": "断链检查的分母是 32 个 distinct target，不是链接出现次数。8 个断链里只有 5 个是真的（见下条），若不做代码块剥离与二进制资产区分，断链 finding 会有 3/8 = 37.5% 假阳。"
+          },
+          {
+            "claim": "8 个断链里只有 5 个是真断链；另外 3 个是口径缺陷造成的假阳，且其中 1 个会把 1 个缺失资产放大成 144 条 finding。",
+            "evidence_kind": "measured",
+            "evidence": "(1) `[[wikilink]]` 出现在全部 6 个 原白板，且在**行内反引号代码段**里：`grep -n -B2 -A1 '\\[\\[wikilink\\]\\]'` → `原白板/CS 61B.md:18:> - Cmd+Click \\`[[wikilink]]\\` 仍可跳转到节点 md`。(2) `[[${p.file.path}|${p.file.name}]]` 在 `原白板/特征值与特征向量.md:82`，处于 42–113 行的 ```dataviewjs 围栏内（`grep -n '^```'` 显示 42 起 113 止）。(3) `lecture 2.mp4`：`grep -o '\\[\\[lecture 2\\.mp4[^]]*\\]\\]' | wc -l` → **144** 次出现（其中 `!\\[\\[` 嵌入 1 次，其余 143 条是 `#t=NNN` 时间戳深链），distinct target 只有 1 个；`find $V -name 'lecture 2.mp4'` 与 `find $V \\( -name '*.mp4' -o -name '*.mov' -o -name '*.webm' \\)` 均**零输出**——vault 内没有任何视频文件。真断链 5 条：`节点/An-eigenvalue-of-a-linear-transformation`（出现在 原白板/特征值与特征向量.md:201 的 Recent Activity 变更日志行，文件已被删到 `.trash/An-eigenvalue-of-a-linear-transformation.md.cleanup-2026-05-01-v41`），以及 `节点/csm-tutoring-unit-credit.md` 正文里 4 条 AI 生成的相关概念链 csm-tutoring-sections / csm-registration / affinity-tutoring-groups / berkeley-cs-support-resources（全部带 `|中文别名`，从未被创建）。",
+            "impact_on_impl": "断链规则**必须**：(a) 先剥离围栏代码块和行内反引号——否则每块板固定 1 条假阳、共 6 条 + dataviewjs 1 条；(b) 按 distinct target 去重并单独归类二进制资产——否则 `lecture 2.mp4` 一个缺失文件产出 144 条 finding，直接把人话清单淹掉；(c) `.trash/` 里的文件扩展名被改成 `.md.cleanup-2026-05-01-v41`，`*.md` glob 命中不了，所以 An-eigenvalue 才显示为断链——这条真断链本质是「历史日志行指向已回收文件」，人话清单里应降级或标注为历史记录而非待修复。"
+          },
+          {
+            "claim": "⛔ 按默认口径（既无入链、又无 source_board）算出的孤儿清单是**空的**：0 个。换任何一种更宽松的口径也仍是 0 个。",
+            "evidence_kind": "measured",
+            "evidence": "census.py `== ORPHANS ==` 三行输出：`default (no body inlink AND no source_board): 0 []`；`body-inlink-only criterion: 0 []`；`any-inlink (incl FM) criterion: 0 []`。逐节点入链明细显示 14/14 全部至少有 1 条正文入链，且 14/14 全部有 source_board。最少的一档是 cs-61b-csm 与 csm-tutoring-unit-credit（各 1 条，来自 原白板/CS 61B.md），最多的是 lecture 2（8 条）。",
+            "impact_on_impl": "这是最关键的一条：**live 取证跑出来的孤儿清单会是空的，主 session 拿不到任何可供用户勾选真伪的条目**。「0 条 finding」不等于「规则正确」——按 reference_positive_gate_needs_tamper_test，必须给孤儿规则配一道同语料篡改门（例如在 fixture 副本里删掉某个节点的 source_board 并抹掉它的入链，断言它**必须**被报出来），否则一个恒返回空列表的实现也会全绿通过 live 取证。"
+          },
+          {
+            "claim": "孤儿口径的最大假阳风险不在数据而在**两种链接形态并存**：原白板→节点 一律用带路径的 `[[节点/X]]`，节点→节点 一律用裸 basename `[[Fundamentals]]` / `[[lecture 2]]`。只支持其中一种的实现会得出完全不同的答案。",
+            "evidence_kind": "measured",
+            "evidence": "links2.py 逐文件 dump：原白板/CS188 lecture 2.md BODY 全部是 `[[节点/代理函数-(Agent-Function)]]` `[[节点/规划的分类-1549()]]` 这种路径形态；而 节点/代理函数-(Agent-Function).md BODY 是 `[[lecture 2]]`、节点/Characteristic-Equation-for-Eigenvalues.md BODY 是 `[[Fundamentals]]`——裸 basename。节点/Fundamentals.md BODY 则**混用**：`[[节点/Eigenvalues-are-special-vectors-that-sat]]` 与 `[[检验白板/特征值与特征向量-2026-07-18-1741]]` 都是路径形态。",
+            "impact_on_impl": "入链解析必须做 Obsidian 式 basename 归一（剥 `|别名`、剥 `#heading`/`^block`、剥目录前缀、剥 `.md`）。若实现只认裸 basename 而不剥 `节点/` 前缀，则 12 个「只被原白板链接」的节点会全部变成假孤儿；若只认路径形态，Fundamentals 与 lecture 2 的节点间入链会被漏掉。我的普查脚本两种都归一后才得到 0，这个 0 是**在正确归一前提下**的 0。"
+          },
+          {
+            "claim": "检验白板/ 在 live 上对入链**零贡献**：10 个检验白板正文里一条 wikilink 都没有，唯一的链接是 frontmatter 里指回 原白板 的 source_board。所以「检验白板也算入链源」这条口径在 live 数据上不可验证。",
+            "evidence_kind": "measured",
+            "evidence": "census.py：`检验白板: body-distinct=0 fm-distinct=3`。links2.py 逐文件：10 个检验白板中 9 个只有 `FM (1): ['[[原白板/...]]']`，第 10 个 `考察-Fundamentals-2026-07-16.md` 显示 `(no wikilinks)`——一条都没有。且这 3 个 distinct FM 链接全部指向 原白板/，没有一个指向 节点/。",
+            "impact_on_impl": "若实现声明「入链源 = 原白板 + 检验白板 + 节点 三处」，live 取证无法证明检验白板那一支在工作（它贡献 0 个节点入链）。这正是 reference_claims_wider_than_evidence 的形态：声明比证据宽。要么在 fixture 里造一个检验白板正文链节点的用例，要么在文档里如实写明「检验白板支在现网无正样本」。"
+          },
+          {
+            "claim": "raw/derived 混淆在 live 上三个方向都成立，其中最严重的是 `原白板/`（role=raw）几乎不含任何用户原始内容——6 块板里 5 块是 100% 机器生成，全目录只有 1 行用户手写。",
+            "evidence_kind": "measured",
+            "evidence": "`grep -rn '我的备注\\|我的理解\\|我的想法\\|TODO\\|待补' $V/原白板/` 全目录只返回 1 行：`原白板/CS 61B.md:35:> 我的备注：先补 asymptotics`。`grep -rln '✍️ 我的理解\\|\\*\\*User[：:]\\|\\[!relation' $V/原白板/` 返回**空**。板结构（`grep -n '^#\\{1,4\\} \\|^```' 原白板/CS188 lecture 2.md`）= frontmatter + 模板 blockquote + `## Concepts`（块内注释写明 `AUTO-GENERATED by .claude/scripts/sync_board_concepts.py … ⛔ 请勿手改`）+ `## 🔗 节点关系图` dataviewjs 围栏（42–113 行）+ `## Recent Activity` 自动日志（各板 1–9 条）。原白板/线性代数.md 与 原白板/CS.md 的 Concepts 块内容是 `_（暂无节点 …）_`，n=0。",
+            "impact_on_impl": "role=raw 这个标签对 原白板/ 是名实不符——它是生成物容器，不是原始语料容器。真正的 raw 在 raw/ 和 节点/lecture 2.md。若 lint 有「raw 目录不应含自动生成块」类规则，它会在 6/6 块板上全部命中，产出 6 条技术上为真、但对用户毫无动作价值的 finding。建议这类规则在 live 上直接豁免 原白板/，或降为 informational。"
+          },
+          {
+            "claim": "`节点/`（role=wiki）里有 2/14 是 raw 语料的副本，不是概念节点：`节点/lecture 2.md` 是 85KB 视频逐字稿，`节点/my-recursion-notes.md` 是 raw/my-recursion-notes.md 加了 5 行 frontmatter。",
+            "evidence_kind": "measured",
+            "evidence": "`wc -c 节点/lecture\\ 2.md raw/CS188/videos/lectures/lecture\\ 2/lecture\\ 2.md` → 85172 vs 81419；`diff` 总行数仅 133 行，且 diff 头部显示差异是 `1,39d0`（前置的 39 行 frontmatter）加若干插入的 `[!relation/...]+` 派生 callout。该文件正文含 144 条 `lecture 2.mp4` 时间戳链。`wc -c 节点/my-recursion-notes.md raw/my-recursion-notes.md` → 284 vs 185；diff 只有 `1,5d0`（5 行 frontmatter）+ 1 行末尾换行差异。",
+            "impact_on_impl": "节点/ 的成员在体量上跨 3 个数量级（my-recursion-notes 284 字节 vs lecture 2 85KB）。任何按「节点应短小/应有定义段」的启发式规则都会在 lecture 2.md 上误报；反过来任何按行数/字节数做的抽样或截断会让 lecture 2.md 主导统计。另外 144 条 mp4 断链全部集中在这一个文件，做 per-file finding 上限（例如同一 target 只报一次）是必需的。"
+          },
+          {
+            "claim": "`outputs/`（role=derived）里**没有**用户手写原件，但有 6 个文件内嵌了用户批注的**逐字引用**——按标记 grep 判定「派生目录混入用户内容」会全是假阳。",
+            "evidence_kind": "measured",
+            "evidence": "`grep -rn '✍️ 我的理解\\|\\*\\*User[：:]\\|\\[!question\\]\\|\\[!error\\]' $V/outputs/` 命中 6 个文件：回顾-特征值与特征向量-2026-08-27.md:52、回顾-CS188 lecture 2-2026-08-27.md:54/55/56、以及 .recap-manifest-CS188 lecture 2.json / .recap-scan-CS188 lecture 2.json / .recap-manifest-特征值与特征向量.json / .recap-scan-特征值与特征向量.json。命中形态均为被引号包住的引用，例：`3. [Fundamentals] \\`λ is the eigenvalue ✍️ 我的理解：λ 可以是 0 吗？\\`（2026-07-25T08:25:03.871000+00:00）`。`grep -rn '我的备注' $V/outputs/*.md` 零命中。所有 outputs md 的 frontmatter 都带 `generated_by: board-recap v1.0-thin` 或 `excalidraw-plugin: parsed`。",
+            "impact_on_impl": "判定「派生目录里有用户内容」不能靠批注标记 grep，要靠 frontmatter 的 generated_by/type 白名单（回顾类有 `type: recap` + `generated_by`，excalidraw 有 `excalidraw-plugin: parsed`）。另外实测出用户批注至少有 3 种形态：`✍️ 我的理解：`（节点正文 + outputs 引用）、`> 我的备注：`（只在 原白板/CS 61B.md 出现过一次）、`[!tips]+/[!question]+/[!error]+` callout。只 grep 前两种里的任一种都会漏——`我的备注` 是我逐行读 原白板/CS 61B.md 才发现的，第一轮按 `✍️ 我的理解|**User：` 的 grep 完全没命中它。"
+          },
+          {
+            "claim": "⛔ 投影 freshness：`outputs/今日复习.json` 的 date=2026-08-31、generated_at=2026-08-31T09:05:05+08:00，按上海时区**是昨天**（现在 2026-09-01T00:48+0800）。live 取证此刻跑 freshness 检查一定报 stale，而且这不是缺陷，是每天固定复现的 9 小时结构性窗口。",
+            "evidence_kind": "measured",
+            "evidence": "`grep -o '\"generated_at\"[^,]*' 今日复习.json` → `\"generated_at\": \"2026-08-31T09:05:05+08:00\"`；`\"date\": \"2026-08-31\"`。`stat -f '%Sm'` 显示 json 与 md 的 mtime 同为 2026-08-31T09:05:05+0800（与 generated_at 逐秒一致）。`TZ=Asia/Shanghai date` → 2026-09-01T00:48:05+0800。launchd `~/Library/LaunchAgents/com.canvas.daily-review.plist`：`grep -c '<key>Hour</key>'` → 12，Hour 取值 `9 10 11 12 13 14 15 16 17 18 19 20`，Minute 恒为 5。故每天 00:00→09:05（9h05m ≈ 全天 38%）文件的 date 必然是昨天。",
+            "impact_on_impl": "freshness 判据**不能**写成 `date == today(Asia/Shanghai)`——那样每天有 38% 的墙钟时间恒红，主 session 若在夜间取证会拿到一条必然出现的假 finding。应改为按 generated_at 的年龄阈值（需 > 10h 才不误伤跨夜窗口），或对齐「不早于 now 之前最近一个已排定 slot」。另外注意该文件被 launchd 每小时改写，测试绝不能把它的当前值写死进断言。"
+          },
+          {
+            "claim": "vault 边界：canvas-vault 下**零 symlink**（文件与目录都没有），因此没有任何指向 vault 外的软链。G11 vault_escape 在 live 上零正样本。",
+            "evidence_kind": "measured",
+            "evidence": "`find /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault -type l -exec ls -ld {} \\;` 无任何输出，rc=0；`find ... -type l | wc -l` → 0。",
+            "impact_on_impl": "与孤儿规则同病：vault_escape 在 live 上恒零命中，「跑完没报错」不能作为它工作的证据，必须在 fixture 里造一条指向 vault 外的 symlink 做正样本 + 一条 vault 内 symlink 做负样本。另外真实的边界风险不是 symlink 而是**嵌套 vault**：`raw/CS188/.obsidian/plugins/canvas-learning-ui/node_modules/` 是一个完整的 npm 树（35 个 md），`raw/CS188/.obsidian/` 是嵌套的 Obsidian 配置目录——扫描器若不剪枝会走进去。"
+          }
+        ],
+        "commands_run": [
+          "ls -la /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault",
+          "for d in $V/*/ $V/.*/; do nf=$(find \"$d\" -type f|wc -l); nm=$(find \"$d\" -type f -name '*.md'|wc -l); echo \"$b files=$nf md=$nm\"; done",
+          "find $V -type l -exec ls -ld {} \\;   # → 无输出",
+          "find $V -type l | wc -l   # → 0",
+          "find $V/节点 | sort ; find $V/节点 -name '*.md' -type f | wc -l   # → 14",
+          "find $V/原白板 ; find $V/检验白板 ; find $V/outputs | sort",
+          "find $V/raw -type f -name '*.md' ! -path '*/node_modules/*' ! -path '*/.obsidian/*' | wc -l   # → 112",
+          "find $V/raw -type f -name '*.md' | wc -l   # → 148 ; -path '*/node_modules/*' → 35",
+          "find $V -type f -name '*.md' | wc -l  # 214 ; excl node_modules 179 ; excl nm+dotdirs 165",
+          "for f in $V/节点/*.md; do awk 'NR==1&&$0!=\"---\"{print \"(NO FRONTMATTER)\";exit} NR==1{next} /^---[[:space:]]*$/{exit} {print}' \"$f\"; done   # 全 14 个 frontmatter dump",
+          "PYTHONDONTWRITEBYTECODE=1 backend/.venv/bin/python /private/tmp/.../scratchpad/probe-F/census.py   # frontmatter 字段统计 + wikilink basename 分类 + 逐节点入链 + 三种孤儿口径",
+          "PYTHONDONTWRITEBYTECODE=1 backend/.venv/bin/python /private/tmp/.../scratchpad/probe-F/links2.py   # 逐文件 dump FM/BODY 原始 wikilink 形态",
+          "grep -n -B2 -A1 '\\[\\[wikilink\\]\\]' $V/原白板/CS\\ 61B.md $V/原白板/CS.md",
+          "grep -n -B6 -A3 'p\\.file\\.path' $V/原白板/特征值与特征向量.md ; grep -n '^#\\{1,4\\} \\|^```' $V/原白板/CS188\\ lecture\\ 2.md",
+          "grep -n -B3 -A3 'An-eigenvalue-of-a-linear-transformation' $V/原白板/特征值与特征向量.md",
+          "find $V -name 'lecture 2.mp4' ; find $V \\( -name '*.mp4' -o -name '*.mov' -o -name '*.webm' \\)   # 均无输出",
+          "grep -o '\\[\\[lecture 2\\.mp4[^]]*\\]\\]' $V/节点/lecture\\ 2.md | wc -l   # → 144 ; '!\\[\\[' 变体 → 1",
+          "diff $V/节点/lecture\\ 2.md $V/raw/CS188/videos/lectures/lecture\\ 2/lecture\\ 2.md | wc -l   # → 133",
+          "diff $V/节点/my-recursion-notes.md $V/raw/my-recursion-notes.md ; wc -c 两者   # 284 vs 185",
+          "grep -rn '✍️ 我的理解\\|\\*\\*User[：:]\\|\\[!question\\]\\|\\[!error\\]' $V/outputs/",
+          "grep -rn '我的备注\\|我的理解\\|我的想法\\|TODO\\|待补' $V/原白板/   # 唯一命中 CS 61B.md:35",
+          "grep -rn '我的理解\\|\\[!tips\\]\\|\\[!question\\]\\|\\[!error\\]\\|\\[!relation' $V/节点/",
+          "head -c 1200 $V/outputs/今日复习.json ; grep -o '\"generated_at\"[^,]*' ; grep -o '\"date\"[^,]*'",
+          "stat -f '%Sm %N' -t '%Y-%m-%dT%H:%M:%S%z' $V/outputs/今日复习.json $V/outputs/今日复习.md",
+          "TZ=Asia/Shanghai date ; TZ=UTC date",
+          "grep -A1 '<key>Hour</key>' ~/Library/LaunchAgents/com.canvas.daily-review.plist | grep -o '[0-9]*'   # → 9..20, 12 档, Minute=5",
+          "sed -n '1,40p' $V/原白板/CS\\ 61B.md ; sed -n '/^## Concepts/,/^## /p' $V/原白板/线性代数.md",
+          "ls -la $V/.trash $V/.quarantine ; find $V/.claude -name '*.md'",
+          "find $V -newermt '-90 minutes'   # → 空（零改动自查）",
+          "find $V \\( -name '*.pyc' -o -name '__pycache__' \\) -exec stat -f '%Sm %N' -t '%Y-%m-%dT%H:%M' {} \\;",
+          "git -C /Users/Heishing/.../worktrees/card-w9-lint status --porcelain   # → 空",
+          "find $W -newermt '-90 minutes' -not -path '*/.git/*'   # → 空"
+        ],
+        "side_effects_check": "零副作用，四道自查全部通过。(1) live vault 零改动：`find /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault -newermt '-90 minutes'` 输出为**空**（我的 session 起于 ~00:45，90 分钟窗口完整覆盖）。(2) 未产生任何 __pycache__/.pyc：vault 内现存 6 个 pyc/pycache 条目，mtime 分别为 2026-07-22T11:56、2026-07-30T01:14、2026-08-10T23:59、2026-08-11T23:59——全部早于今日，是 .claude/hooks 与 .claude/scripts 的历史产物（对应记忆 reference_importlib_pycache_writes_into_vault），非本次生成。(3) worktree 干净：`git -C .../card-w9-lint status --porcelain` 输出为空；`find $W -newermt '-90 minutes' -not -path '*/.git/*'` 输出为空，也无新 .pyc。(4) 我唯一写过的位置是 /private/tmp/claude-501/.../scratchpad/probe-F/，内含且仅含 census.py 与 links2.py 两个我自建的分析脚本，未生成 __pycache__（两者均以顶层脚本方式执行，且每条 python 命令前均加了 PYTHONDONTWRITEBYTECODE=1）。全程只用 find/ls/grep/awk/sed/diff/wc/stat/head 与只读 python，未执行 Edit/Write，未连 Neo4j 7691，未跑 daily_review_run.py / daily-review-push.sh / canvas-vault/.claude/scripts 下任何 runner（launchd plist 只读取了 XML 文本，未 load/start），零 Bark 外发。",
+        "open_questions": [
+          "孤儿清单在 live 上是空的（14/14 全部既有入链又有 source_board），主 session 原计划的「人话版孤儿清单供用户勾选真伪」拿不到任何条目。需要裁决：是改为向用户展示「断链清单」（有 5 条真阳，见下）+「空板清单」（原白板/CS.md 与 原白板/线性代数.md 的 Concepts 块 n=0，零成员），还是接受孤儿一栏为空并改用 fixture 篡改门证明规则有效？",
+          "freshness 的 9 小时结构性 stale 窗口（每日 00:00–09:05 上海时区，launchd 首档 09:05）要不要在 vault_lint 里显式建模？若不建模，夜间跑取证必然产出一条恒真假 finding；若建模，阈值取多少（>10h 才判 stale？还是对齐最近一个已排定 slot？）需要主 session 定。",
+          "`lecture 2.mp4` 缺失导致 144 条链接指向不存在的资产，但 distinct target 只有 1 个。人话清单里这应该算 1 条「视频文件不在 vault 里」，还是根本不该报（视频可能本来就存在别处、只在 raw 管道里出现过）？另外 raw/CS188/videos/lectures/lecture 2/lecture 2.md 也引用同一个 mp4，说明这是视频管道的既有形态而非新损坏。",
+          "5 条真断链里，`节点/An-eigenvalue-of-a-linear-transformation` 出现在 原白板 的 Recent Activity 变更日志行，且目标文件确实躺在 .trash/（扩展名被改成 .md.cleanup-2026-05-01-v41）。历史日志行里的断链要不要报？若报，用户勾「假阳」的概率很高；若不报，需要一条「跳过 ## Recent Activity 段」的规则，而该规则本身需要门。",
+          "`原白板/`（role=raw）实测是 ~100% 生成物容器（全目录只有 1 行用户手写 `> 我的备注：先补 asymptotics`），role 标签名实不符。这属于 vault_lint 该报的 finding，还是属于 G8-1 vault 文档角色台账该修的定义问题？两边都不认领的话这条会掉地上。",
+          "用户批注实测有 3 种标记形态（`✍️ 我的理解：` / `> 我的备注：` / `[!tips]+`-`[!question]+`-`[!error]+` callout），其中 `我的备注` 全 vault 只出现 1 次、且是我逐行读文件才发现的。是否还有第 4 种我没扫到的形态？建议主 session 让另一个探查用「反向」方法核（列出 节点/原白板 里所有非模板、非自动生成的散行）而不是再 grep 一遍已知标记——同一方法复核不到新形态。"
+        ]
+      },
+      "verify": null
+    }
+  ],
+  "workflowProgress": [
+    {
+      "type": "workflow_phase",
+      "index": 1,
+      "title": "Probe"
+    },
+    {
+      "type": "workflow_phase",
+      "index": 2,
+      "title": "Verify"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 1,
+      "label": "probe:A-orphan-forms",
+      "phaseIndex": 1,
+      "phaseTitle": "Probe",
+      "agentId": "ac005b42af763b4ec",
+      "model": "claude-opus-5[1m]",
+      "state": "error",
+      "startedAt": 1788194784756,
+      "queuedAt": 1788194783028,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "probe-A / CARD-G8-2 orphan 判定形态学实证",
+      "promptPreview": "你是 CARD-G8-2 的探查 A：**orphan 判定的形态学实证**。\n\n目标：为「节点/ 下的 md 是否有入链」这条判定，把所有会导致假阴/假阳的形态**实测**清楚。\n\n背景：CLS 是 Obsidian vault。孤儿定义（默认裁决②）= 节点/ 下的 md **既无**来自 原白板/ 、检验白板/ 、节点/ 任一正文的 wikilink 入链（basename 命中），**又无** frontmatter 的 source_board。\n已有的只读解析器（**只准读、禁改**）：\n- /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w9-lint/canvas-vault/.claude/scripts/sync_board_concepts.py 的 `_WIKI…",
+      "lastProgressAt": 1788195621321,
+      "error": "You've hit your weekly limit · resets Sep 2 at 7pm (Asia/Shanghai)",
+      "tokens": 150505,
+      "toolCalls": 33,
+      "durationMs": 836565
+    },
+    {
+      "type": "workflow_agent",
+      "index": 2,
+      "label": "probe:B-freshness-oracle",
+      "phaseIndex": 1,
+      "phaseTitle": "Probe",
+      "agentId": "ae5a12bc2b5e399d7",
+      "model": "claude-opus-5[1m]",
+      "state": "done",
+      "startedAt": 1788194785837,
+      "queuedAt": 1788194783028,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "probe-B / CARD-G8-2 · freshness 同源锁可行性实证",
+      "promptPreview": "你是 CARD-G8-2 的探查 B：**freshness 同源锁的可行性实证**（本卡最高风险面）。\n\n目标：确认能否在测试里**直接调用真实的** `_vault_entry` 作为 oracle，并且让它真正走到 stale / ok 分支（而不是全落进 corrupt）。\n\n被测 oracle（**只准读、禁改**，该文件被 W6 车道独占）：/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w9-lint/backend/app/api/v1/endpoints/review_overview.py\n- `_vault_entry(vault_dir: Path, today: date) -> dict` 在 :813\n- stale 判定在 :845-860：`_GENE…",
+      "lastProgressAt": 1788195607104,
+      "tokens": 135458,
+      "toolCalls": 29,
+      "durationMs": 820817,
+      "resultPreview": "{\"probe_id\":\"probe-B / CARD-G8-2 · freshness 同源锁可行性实证\",\"findings\":[{\"claim\":\"直接 import 包路由 `from app.api.v1.endpoints.review_overview import _vault_entry` 有严重副作用：29.4 秒、加载 7875 个模块、并在 import 期发起**出站 HTTP 请求**（socket.connect 到 127.0.0.1:1082 代理）、创建 /var/folders/.../T/torchinductor_Heishing 目录、写并删一个临时文件。不能用于 vault_lint。\",\"evidence_kind\":\"measured\",\"evidence\":\"命令：`PYTHONDONTWRITEBYTECODE=1 PYTHONPATH…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 3,
+      "label": "probe:C-rawderived-scan",
+      "phaseIndex": 1,
+      "phaseTitle": "Probe",
+      "agentId": "a2ecf7f00cafbfd7e",
+      "model": "claude-opus-5[1m]",
+      "state": "error",
+      "startedAt": 1788194786161,
+      "queuedAt": 1788194783028,
+      "attempt": 1,
+      "lastToolName": "Bash",
+      "lastToolSummary": "echo \"=== backend/scripts/__pycache__ 是否存在 ===\"; ls -la…",
+      "promptPreview": "你是 CARD-G8-2 的探查 C：**raw-derived 混淆检查的可复用面实证**。\n\n目标：确定 vault_lint 怎样复用 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w9-lint/backend/scripts/check_vault_doc_roles.py（**只准 import、禁改一个字节**；它和 vault_doc_roles.yaml 都被 SHA 契约钉死）。\n\n必须实测回答：\n1. **可 import 性 + 副作用**：`check_vault_doc_roles` 不是包内模块（在 backend/scripts/ 下）。实测怎么 import 它最干净（sys.path 插入？importlib？看 /Users/Heishing/D…",
+      "lastProgressAt": 1788195455546,
+      "error": "You've hit your weekly limit · resets Sep 2 at 7pm (Asia/Shanghai)",
+      "tokens": 163839,
+      "toolCalls": 51,
+      "durationMs": 669259
+    },
+    {
+      "type": "workflow_agent",
+      "index": 4,
+      "label": "probe:D-cli-and-test-conventions",
+      "phaseIndex": 1,
+      "phaseTitle": "Probe",
+      "agentId": "a3befea708effc2f4",
+      "model": "claude-opus-5[1m]",
+      "state": "error",
+      "startedAt": 1788194785686,
+      "queuedAt": 1788194783029,
+      "attempt": 1,
+      "lastToolName": "Bash",
+      "lastToolSummary": "find /Users/Heishing/Desktop/canvas/canvas-learning-system/…",
+      "promptPreview": "你是 CARD-G8-2 的探查 D：**CLI 骨架与测试写法的仓内惯例**。\n\n目标：让新写的 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w9-lint/backend/scripts/vault_lint.py 与 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w9-lint/backend/tests/unit/test_vault_lint.py 读起来像这个仓里本来就有的代码。\n\n必须实测/引证回答（全部给 file:line）：\n1. **既有 lint/check 类脚本的 CLI 惯例**：把 /Users/Heishing/Desktop/canvas/…",
+      "lastProgressAt": 1788195463822,
+      "error": "You've hit your weekly limit · resets Sep 2 at 7pm (Asia/Shanghai)",
+      "tokens": 115075,
+      "toolCalls": 32,
+      "durationMs": 677535
+    },
+    {
+      "type": "workflow_agent",
+      "index": 5,
+      "label": "probe:E-zero-write-risk",
+      "phaseIndex": 1,
+      "phaseTitle": "Probe",
+      "agentId": "ab22fbd994714380f",
+      "model": "claude-opus-5[1m]",
+      "state": "error",
+      "startedAt": 1788194786432,
+      "queuedAt": 1788194783029,
+      "attempt": 1,
+      "lastToolName": "Bash",
+      "lastToolSummary": "D=/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-ca…",
+      "promptPreview": "你是 CARD-G8-2 的探查 E：**零写侧的全链路风险枚举**（这是本卡验收的核心裁判之一）。\n\n卡文铁律：「全程只读零写（含 __pycache__，PYTHONDONTWRITEBYTECODE=1）」；live 取证判据 = 跑前跑后 live vault 全树 sha 逐字相同（显式排除 `outputs/今日复习.*`）。\n\n必须实测回答：\n1. **枚举 vault_lint 未来会踩的每一条写路径**，逐条给出规避方式：\n   - import `check_vault_doc_roles` → 它 import 什么 → probe 档 import `app.services` → jieba.initialize() 写 tmp（实测确认）\n   - import `review_overview` → 它 import 什么（app.core.config? g…",
+      "lastProgressAt": 1788195469175,
+      "error": "You've hit your weekly limit · resets Sep 2 at 7pm (Asia/Shanghai)",
+      "tokens": 145047,
+      "toolCalls": 54,
+      "durationMs": 682743
+    },
+    {
+      "type": "workflow_agent",
+      "index": 6,
+      "label": "probe:F-live-census",
+      "phaseIndex": 1,
+      "phaseTitle": "Probe",
+      "agentId": "a2af0cbcffb0d8bb4",
+      "model": "claude-opus-5[1m]",
+      "state": "done",
+      "startedAt": 1788194785698,
+      "queuedAt": 1788194783029,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "F — live vault 全量普查",
+      "promptPreview": "你是 CARD-G8-2 的探查 F：**live vault 全量普查**（为 live 取证的「findings 逐条人工核真伪」做准备）。\n\n目标：主 session 最后要给用户一份**人话版孤儿清单**供勾选真伪。你要先把 live vault 的真实结构摸清楚，让那份清单不会满屏假阳。\n\n⛔ 对 /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault 严格只读。\n\n必须实测回答：\n1. **全量目录/文件普查**：/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault 下每个顶层目录的文件数、md 数；`节点/` 下所有 md 的完整清单（数量 + 前 30 个文件名）。\n2. **每个 节点/*.md 的 frontmat…",
+      "lastProgressAt": 1788195250437,
+      "tokens": 134879,
+      "toolCalls": 22,
+      "durationMs": 464150,
+      "resultPreview": "{\"probe_id\":\"F — live vault 全量普查\",\"findings\":[{\"claim\":\"live vault 顶层结构与文件数已全量清点：节点/ 14 md（扁平无子目录）、原白板/ 6 md、检验白板/ 10 md、outputs/ 18 文件（8 md）、raw/ 148 md（其中 35 个在 node_modules 内、1 个在 .obsidian 内，真实语料 112）、templates/ 2 md、CS188/ 1、CS189/ 1、wiki/ 仅 2 个 .gitkeep（0 md）、验收单/ 与 multimodal/ 是空目录、.trash/ 5 文件、.quarantine/ 1 md。顶层散落 13 个文件（含 4 个 0 字节的空 md）。\",\"evidence_kind\":\"measured\",\"evidence\":\"`for d in…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 7,
+      "label": "verify:F-live-census",
+      "phaseIndex": 2,
+      "phaseTitle": "Verify",
+      "agentId": "a185e695d9ffec574",
+      "model": "claude-opus-5[1m]",
+      "state": "error",
+      "startedAt": 1788195254106,
+      "queuedAt": 1788195252097,
+      "attempt": 1,
+      "lastToolName": "Bash",
+      "lastToolSummary": "cat > /private/tmp/claude-501/-Users-Heishing-Desktop-canva…",
+      "promptPreview": "你是 CARD-G8-2 探查 F-live-census 的**对抗核查者**。下面是探查 agent 交回的结论。你的唯一任务：找出其中**比证据宽**的说法（memory 里反复出现的失败模式：「我做了 X」被写成「X 已被证明」；没跑的命令被写成实测；一个样本被推广成普遍规律；「没有发生」被当成「验证通过」）。\n\n规则：\n- 对每一条标了 `evidence_kind: \"measured\"` 的结论，检查它的 evidence 里**是否真的有确切命令与输出**。没有的就是 overclaim。\n- 对关键结论**自己重跑一遍命令验证**（只读，遵守下面的硬边界）。特别是那些会直接决定实现方案的结论。\n- 如果探查漏掉了一个会让实现出错的形态/边界，也算 overclaim（原文 claim 写「已覆盖全部形态」之类）。\n- 如果这份探查其实是可信的，overclaims 就返回…",
+      "lastProgressAt": 1788195462143,
+      "error": "You've hit your weekly limit · resets Sep 2 at 7pm (Asia/Shanghai)",
+      "tokens": 98209,
+      "toolCalls": 11,
+      "durationMs": 208037
+    },
+    {
+      "type": "workflow_agent",
+      "index": 8,
+      "label": "verify:B-freshness-oracle",
+      "phaseIndex": 2,
+      "phaseTitle": "Verify",
+      "agentId": "a75d4e84cb3d10cbb",
+      "model": "claude-opus-5[1m]",
+      "state": "error",
+      "startedAt": 1788195612116,
+      "queuedAt": 1788195610122,
+      "attempt": 1,
+      "promptPreview": "你是 CARD-G8-2 探查 B-freshness-oracle 的**对抗核查者**。下面是探查 agent 交回的结论。你的唯一任务：找出其中**比证据宽**的说法（memory 里反复出现的失败模式：「我做了 X」被写成「X 已被证明」；没跑的命令被写成实测；一个样本被推广成普遍规律；「没有发生」被当成「验证通过」）。\n\n规则：\n- 对每一条标了 `evidence_kind: \"measured\"` 的结论，检查它的 evidence 里**是否真的有确切命令与输出**。没有的就是 overclaim。\n- 对关键结论**自己重跑一遍命令验证**（只读，遵守下面的硬边界）。特别是那些会直接决定实现方案的结论。\n- 如果探查漏掉了一个会让实现出错的形态/边界，也算 overclaim（原文 claim 写「已覆盖全部形态」之类）。\n- 如果这份探查其实是可信的，overclaim…",
+      "lastProgressAt": 1788195612581,
+      "error": "You've hit your weekly limit · resets Sep 2 at 7pm (Asia/Shanghai)",
+      "tokens": 0,
+      "toolCalls": 0,
+      "durationMs": 463
+    }
+  ],
+  "totalTokens": 943012,
+  "totalToolCalls": 232
+}

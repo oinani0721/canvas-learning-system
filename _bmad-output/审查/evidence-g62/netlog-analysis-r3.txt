@@ -1,0 +1,19 @@
+== CARD-G6-2 走查 netlog 分析 (round-3, 正常态) ==
+netlog 事件总条数: 1000
+
+页面相关请求 (/api/v1/review/overview*):
+  4x http://127.0.0.1:8012/api/v1/review/overview
+  5x http://127.0.0.1:8012/api/v1/review/overview/app
+
+页面请求同源判定: PASS — 页面 navigation 与 JS fetch 全部指向 127.0.0.1:8012, 页面发起的外部请求 = 0
+
+页面无关请求 (Chrome 自身后台组件):
+  5x http://127.0.0.1:8012
+  4x http://clients2.google.com
+  4x https://accounts.google.com
+  4x https://clients2.google.com
+  4x https://clientservices.googleapis.com
+  12x https://www.google.com
+  4x https://www.gstatic.com
+
+页面发起的外部请求总数: 0
