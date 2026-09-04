@@ -8,7 +8,8 @@ Schema 四要素 (ChatGPT 对账采纳):
   - event_version: schema 版本 (当前 1)
   - recorded_at / effective_at: 双时间戳 (记录时刻 vs 业务生效时刻,
     补录历史事件时两者分离)
-  - event_type: 限 8 类核心动作 (EVENT_TYPES), 未知类型拒绝 — 防事件膨胀
+  - event_type: 限 9 类核心动作 (EVENT_TYPES), 未知类型拒绝 — 防事件膨胀
+    (callout_ingested 2026-07-23 对账评审入集后 "8 类" 注释曾未同步)
 
 写点 (批次3' 接入 4 个, node_derived 留批次4' 拆分补强):
   backend: candidate_created (蒸馏) / candidate_accepted / candidate_disputed
@@ -21,6 +22,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
@@ -70,7 +72,7 @@ def append_event(
     """
     try:
         if event_type not in EVENT_TYPES:
-            logger.warning("[learning-events] 拒绝未知 event_type=%r (8 类白名单)", event_type)
+            logger.warning("[learning-events] 拒绝未知 event_type=%r (9 类白名单)", event_type)
             return False
         if not event_id:
             logger.warning("[learning-events] 拒绝空 event_id (幂等键必填)")
@@ -81,12 +83,36 @@ def append_event(
 
         with _write_lock:
             # 幂等: 文件内已有该 event_id → 跳过 (日志量级小, 全文扫描可接受;
-            # 大文件时可换尾部 N 行 + 索引)
-            if path.exists():
-                needle = json.dumps(event_id, ensure_ascii=False)
+            # 大文件时可换尾部 N 行 + 索引)。
+            # G3-2 (CARD-G3-2, schema §二/§6.2 A4.5): 查重改为 parsed-field
+            # equality — 原子串匹配 (`json.dumps(event_id) in line`) 在任意
+            # 历史行 payload 文本恰好含该 JSON 串形时会把新事件误判 duplicate
+            # 而**零次落账** (丢一次真实事实)。幂等语义不变 (event_id 唯一),
+            # 只修正查重实现的正确性; 无法解析的行不算命中 (留痕后跳过)。
+            if path.exists() and path.stat().st_size > 0:
+                # (round-2 HIGH: 空文件 seek(-1, SEEK_END) 抛 OSError, 守卫
+                # 必须 size>0 才读尾字节 — 否则首事件永远写不进去)
                 with open(path, encoding="utf-8") as f:
-                    if any(needle in line for line in f):
-                        return False
+                    for line in f:
+                        try:
+                            record = json.loads(line)
+                        except ValueError:
+                            # 坏行 (截断/损坏) 不构成 duplicate 证据, 但要留痕
+                            logger.warning(
+                                "[learning-events] 账本存在无法解析的行 (截断/损坏), 查重跳过该行: %r", line[:80]
+                            )
+                            continue
+                        if isinstance(record, dict) and record.get("event_id") == event_id:
+                            return False
+                # G3-2 LF 守卫 (schema §二 截断自愈): 尾行无换行时先补 LF 再
+                # 追加 — 否则新事件粘进坏行连坐损坏 (Codex round-1 HIGH:
+                # 预置 partial JSON 后 append 会把两个 JSON 粘成一行坏行)。
+                with open(path, "rb") as bf:
+                    bf.seek(-1, os.SEEK_END)
+                    if bf.read(1) != b"\n":
+                        with open(path, "a", encoding="utf-8") as tf:
+                            tf.write("\n")
+                        logger.warning("[learning-events] 检测到无换行结尾的尾行 (疑似截断), 已补 LF 隔离后再追加")
             now = datetime.now(timezone.utc).isoformat()
             record = {
                 "event_id": event_id,
