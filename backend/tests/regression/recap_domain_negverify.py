@@ -678,8 +678,8 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
             #   靠的是这一句。r23 的「整段在围栏内的种子小节」正是由它兜住——
             #   不禁它，纵深就把变异接住了，于是"未承重"其实是**变异覆盖不完整**。
             (
-                "        mh = None if in_fence else _DOC_HEADING_RE.match(vis)",
-                "        mh = _DOC_HEADING_RE.match(vis)",
+                "        mh = None if in_fence else _DOC_HEADING_RE.match(struct)",
+                "        mh = _DOC_HEADING_RE.match(struct)",
             ),
         ],
         "r23_seed_scope",
@@ -748,8 +748,8 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "survivor-60 (C-33) 小节终点扫描不再判围栏（围栏内假标题提前截断小节）",
         [
             (
-                "        mh = None if in_fence else _DOC_HEADING_RE.match(vis)",
-                "        mh = _DOC_HEADING_RE.match(vis)",
+                "        mh = None if in_fence else _DOC_HEADING_RE.match(struct)",
+                "        mh = _DOC_HEADING_RE.match(struct)",
             )
         ],
         "r25_section_criterion",
@@ -860,8 +860,8 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "survivor-73 (C-46→40) H3 安全态退回「任意形状合规标题」（第九/第十形态复活：`### 其他` 与缩进 H3 底下的台账行重新无人看管）",
         [
             (
-                '                _cur_bad = not any(\n                    re.match(_SECTION_RE(f"### {_nm}"), vis_lines[_k])\n                    for _nm, _ in _LEDGER_ROLE_SECTIONS\n                )',
-                '                _cur_bad = not re.match(r"^ {0,3}### [^\\s#][^\\n]*$", vis_lines[_k])',
+                '                _cur_bad = not any(\n                    re.match(_SECTION_RE(f"### {_nm}"), struct_lines[_k])\n                    for _nm, _ in _LEDGER_ROLE_SECTIONS\n                )',
+                '                _cur_bad = not re.match(r"^ {0,3}### [^\\s#][^\\n]*$", struct_lines[_k])',
             )
         ],
         "r32_indent_h3",

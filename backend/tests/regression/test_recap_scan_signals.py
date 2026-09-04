@@ -4855,8 +4855,14 @@ def test_domain_r20_seed_ledger_visible_in_manifest_cli(tmp_path):
     assert _defs("_scan_fences") == 1 and _src.count("_scan_fences(") == 2, (
         "围栏状态机必须只有一个定义点、一个调用点（render_visible）"
     )
-    assert _defs("_render_line") == 1 and _src.count("_render_line(") == 3, (
-        "行渲染核必须只有一个定义点，调用方只许 render_visible 与片段 API _visible_text"
+    # ⛔ Codex round-2 HIGH-1 之后，渲染核拆成两段：`_render_line_parts` 产出
+    #   `(structural, visible)`，`_render_line` 是取 visible 的薄封装。
+    #   结构识别读 structural（高亮归一前）——否则 `==##== 末` 会被当成标题。
+    assert _defs("_render_line_parts") == 1 and _src.count("_render_line_parts(") == 3, (
+        "渲染核本体必须唯一，调用方只许 _render_line 与 render_visible"
+    )
+    assert _defs("_render_line") == 1 and _src.count("_render_line(") == 2, (
+        "取 visible 的薄封装只许被片段 API _visible_text 调用"
     )
     assert _src.count("def render_visible(") == 1, "渲染入口必须唯一"
 
@@ -5419,16 +5425,14 @@ def test_domain_r27_seedish_h3_and_corrupt_seeds():
             {"seeds": [{"node_id": "S", "tips_count": 2}]},
         ),
         (
-            # ⛔ CARD-维护B-R4 **性质等价**改写（登记在验收单形态门表）：
-            #    `==种子==` 在 Obsidian 里渲染成高亮的「种子」——读者看到的**就是**
-            #    一个标题为「种子」的 H3。R4 的渲染层据此归一，于是这一节不再是
-            #    「伪装的标题」，而是一个货真价实的种子小节，其中的 Ghost 行走
-            #    **绑定**路径被拒。两版都 fail-closed（ps 非空 ⇒ FAIL），
-            #    变的只是拒因；而新拒因比旧的更贴近读者所见。
-            #    ⚠️ 期望值必须跟着实现走，但**必须仍是「报」**——若改成 None
-            #      就是把收紧写成了放行，那才是削弱证据。
-            "不在 scan JSON 的 ledger 里",
-            "⭐第八形态 b：highlight 标题**不带**尾随 closer（R4 起按渲染后的真标题绑定）",
+            # ⛔ 本条一度被我改成「性质等价」（拒因从"不受认可小节覆盖"变成
+            #    "不在 ledger 里"），理由是 R4 的高亮归一让 `==种子==` 成了真标题。
+            #    Codex round-2 HIGH-1 指出那条归一同时把**非标题**的 `==##== 末`
+            #    变成了标题、截短审计段 ⇒ 放行面。修法是让**结构识别读高亮归一前
+            #    的文本**，于是本条自然回到重切前的行为 —— 期望值改回原值，
+            #    类别从「性质等价」降为**行为等价**（更好：不需要任何解释）。
+            "不受任何认可小节覆盖",
+            "⭐第八形态 b：highlight 标题**不带**尾随 closer",
             "## 台账\n\n### 种子\n\n\n\n### ==种子==\n\n- Ghost — 批注 9 条\n\n## 末\n",
             {"seeds": [{"node_id": "S", "tips_count": 2}]},
         ),
@@ -6068,3 +6072,139 @@ def test_r4_flat_ledger_shape_does_not_false_reject():
     ps2: list[str] = []
     rs._verify_ledger_counts("## 台账\n\n### 种子\n\n- S — 批注 999 条\n\n## 末\n", flat, ps2)
     assert any("tips_count 是 2" in x for x in ps2), f"扁平形态下种子绑定必须照常生效 —— {ps2!r}"
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Codex round-2 的五条发现 —— 逐条锁住（修了不加门等于没修）
+# ══════════════════════════════════════════════════════════════════════════
+
+
+@pytest.mark.parametrize(
+    "heading,why",
+    [
+        ("###", "裸 `###`（井号后无空白）不得终止审计段"),
+        ("##", "裸 `##` 同上"),
+        ("==##== 末", "高亮伪标题：源码不是标题，归一后像标题，不得终止审计段"),
+        ("==种子==", "高亮伪标题（另一种写法）"),
+    ],
+    ids=["bare_h3", "bare_h2", "highlight_fake_h2", "highlight_fake_seed"],
+)
+def test_r4_codex2_high1_audit_span_terminators(heading, why):
+    """⭐ Codex round-2 HIGH-1：审计段的终止集合必须等于重切前的那一个。
+
+    两个各自独立的成因，都让台账段**变短**⇒ 其后的编造行零诊断：
+      ① `_DOC_HEADING_RE` 有 `$` 分支，于是裸 `###` 也算标题；而旧的两处扫描
+         （`^##[^\S\n]` / `^#{2,3}[^\S\n]`）要求井号后**实际有空白**。
+         ⇒ `Line.heading_delimited` 记录「是否真消费了空白」，`audit_span` 用它。
+      ② 本卡新建模的 `==高亮==` 会把源码里**不是标题**的 `==##== 末` 归一成
+         `## 末`。⇒ 结构识别改读 `Line.structural`（高亮归一**前**），
+         与重切前的 `_visible_text` 输出逐字同形。
+
+    ⚠️ ② 是**我新造的**——旧实现不处理 `==`，所以它没有这一面。
+    """
+    rs = _load_recap_scan()
+    ps: list[str] = []
+    rs._verify_ledger_counts(
+        f"## 台账\n### 种子\n- S — 批注 2 条\n{heading}\n- Ghost — 批注 2 条\n## 末\n",
+        {"ledger": {"seeds": [{"node_id": "S", "tips_count": 2}], "derived": []}},
+        ps,
+    )
+    assert ps, f"{why}：编造的台账行零诊断（审计段被截短）"
+
+
+def test_r4_codex2_high2_resolver_no_silent_skip():
+    """⭐ Codex round-2 HIGH-2：身份解析不得有静默跳过路径。
+
+    `- <b></b> — 批注 2 条`：`<b>` 在白名单内会被剥掉，渲染后**节点名整个消失**，
+    于是 raw 能匹配模板、raw 身份不在 ledger、visible 又解析不出身份 ——
+    共用 resolver 原先直接 `return None`，调用方 `continue`，这一行不受任何检查。
+    旧的种子实现会继续用 raw 身份报「不在 ledger」；我在抽共用函数时丢了这条路径。
+    """
+    rs = _load_recap_scan()
+    for sec, led in (
+        ("种子", {"seeds": [{"node_id": "S", "tips_count": 2}], "derived": []}),
+        ("派生", {"seeds": [], "derived": [{"node_id": "D", "tips_open": 0}]}),
+    ):
+        ps: list[str] = []
+        rs._verify_ledger_counts(f"## 台账\n### {sec}\n- <b></b> — 批注 2 条\n## 末\n", {"ledger": led}, ps)
+        assert ps, f"『{sec}』小节：渲染后身份消失的行被静默跳过"
+
+
+def test_r4_codex2_high3_derived_rows_must_be_listed():
+    """⭐ Codex round-2 HIGH-3 子项：`ledger.derived` 有数据就必须列出来。
+
+    照抄零派生的占位说明（`- （无：derived 计数 0…）`）时，那句话本身与 scan
+    矛盾，却不含数字、不进 D2 ⇒ 整段无人过问。台账的职责是把 ledger 列出来，
+    有数据不列 = 报告在隐瞒，与写错数字同级。
+    """
+    rs = _load_recap_scan()
+    ps: list[str] = []
+    rs._verify_ledger_counts(
+        "## 台账\n### 派生\n- （无：derived 计数 0，本板尚无派生成员）\n## 末\n",
+        {"ledger": {"seeds": [], "derived": [{"node_id": "D", "tips_open": 1}]}},
+        ps,
+    )
+    assert any("一条台账行都没有" in x for x in ps), f"有数据却一行未列 —— {ps!r}"
+
+    # 反向：derived 为空时，同一句占位说明必须放行
+    ps2: list[str] = []
+    rs._verify_ledger_counts(
+        "## 台账\n### 派生\n- （无：derived 计数 0，本板尚无派生成员）\n## 末\n",
+        {"ledger": {"seeds": [], "derived": []}},
+        ps2,
+    )
+    assert ps2 == [], f"零派生板的占位说明被误伤 —— {ps2!r}"
+
+
+@pytest.mark.parametrize(
+    "value,want_reject,why",
+    [
+        (5, False, "int：正常"),
+        ("5", False, "历史字符串：fallback 的 _fm_scalar 产出的就是它，不得误拒"),
+        (" 5 ", False, "带空白的历史字符串"),
+        ("5.0", True, "小数字符串：非整数，fail-closed"),
+        (True, True, "布尔：isinstance(True, int) 为真，必须先排除"),
+        (None, True, "缺字段：报告写了数就得 fail-closed"),
+    ],
+    ids=["int", "str", "str_spaced", "float_str", "bool", "none"],
+)
+def test_r4_codex2_high4_int_field_accepts_legacy_string(value, want_reject, why):
+    """⭐ Codex round-2 HIGH-4（真实误拒）：fallback 的 `attempt_count` 是字符串。
+
+    收集器经 `_fm_scalar()` 产出 `"5"`，绑定器拿 `int(报告值)` 去比 `"5"` ——
+    永远不等，合法的 fallback 报告被判「数字无据」。
+    ⚠️ 只容纳「看起来就是这个整数」的字符串；小数/布尔/缺失一律 fail-closed。
+    """
+    rs = _load_recap_scan()
+    ps: list[str] = []
+    rs._verify_ledger_counts(
+        "## 台账\n### 派生\n- D — 占位 · 考过 5 次\n## 末\n",
+        {"ledger": {"seeds": [], "derived": [{"node_id": "D", "attempt_count": value}]}},
+        ps,
+    )
+    assert bool(ps) is want_reject, f"{why} —— {ps!r}"
+
+
+@pytest.mark.parametrize(
+    "text,why",
+    [
+        ("原话：`vector<T>`。", "行内代码里的泛型不是未知 HTML 标签"),
+        ("本轮 2 条原话：`$x$`。", "行内代码里的公式字面量不是未建模构造"),
+        ("原话：`![img](x)` 是图片语法。", "行内代码里的图片语法同上"),
+        ("原话：`脚注[^1]`。", "行内代码里的脚注同上"),
+    ],
+    ids=["generic", "math", "image", "footnote"],
+)
+def test_r4_codex2_med2_unknown_forms_respect_code_spans(text, why):
+    """⭐ Codex round-2 MEDIUM-2（真实误拒）：未知形态检测必须先屏蔽 inline code。
+
+    SKILL 明确允许把 tips 原话放进行内代码；CS 学习笔记里 `` `vector<T>` `` 与
+    `` `$x$` `` 是完全正常的字面量。不屏蔽就把真实报告拒在门外。
+    """
+    rs = _load_recap_scan()
+    doc = rs.render_visible(f"# T\n\n{text}\n")
+    assert not doc.unknown, f"{why} —— 误报 {list(doc.unknown)!r}"
+
+    # 反向：**不在**代码跨度里的同款构造仍须被报（屏蔽不得变成豁免通道）
+    bare = rs.render_visible("# T\n\n本板共有 $3$ 个子节点。\n")
+    assert bare.unknown, "代码跨度之外的公式必须照常被报"

@@ -1731,12 +1731,20 @@ _UNKNOWN_INLINE_FORMS = (
 
 # ATX 标题 / 列表标记 —— 结构识别的**唯一**两式(消费方不许再手抄)。
 # CommonMark: 标题允许 0-3 空格缩进; 四格起是缩进代码块, 不是标题。
-_DOC_HEADING_RE = re.compile(r"^ {0,3}(#{1,6})(?:[^\S\n]|$)")
+# group(2) 非空 = 井号后**实际消费了空白**。裸 `###`（行尾）在 CommonMark 里
+# 是合法的空标题, 所以 `heading` 仍记级别; 但**审计段的终止**必须要求 group(2)
+# —— 旧扫描 `^##[^\S\n]` / `^#{2,3}[^\S\n]` 都要求空白, 裸井号不终止段落。
+# ⛔ Codex round-2 HIGH-1: 少了这个区分, 一行裸 `###` 就能把台账段截短,
+#    其后的编造台账行零诊断（实测放行）。
+_DOC_HEADING_RE = re.compile(r"^ {0,3}(#{1,6})(?:([^\S\n])|$)")
 _DOC_LIST_RE = re.compile(r"^ {0,3}((?:[-*+]|\d{1,9}[.)]))[^\S\n]")
 
 
-def _render_line(line: str) -> str:
-    """源码行 → **读者在 Obsidian 里看到的文本**（本域收敛器，非完整渲染器）。
+def _render_line_parts(line: str) -> tuple[str, str]:
+    """源码行 → `(structural, visible)`（本域收敛器，非完整渲染器）。
+
+    `structural` = 高亮归一**之前**的形态，供标题/列表结构识别（与重切前的
+    `_visible_text` 输出逐字同形）；`visible` = 最终显示文本，供数字判据。
 
     ⛔ CARD-维护B-R4: 本函数是渲染核的**实现本体**，只应被 `render_visible()`
       与片段 API `_visible_text()` 调用。文档级消费方一律读 `Line.visible`。
@@ -1775,13 +1783,21 @@ def _render_line(line: str) -> str:
     line = _VIS_SHORTCUT_LINK_RE.sub(r"\1", line)
     line = _VIS_INVISIBLE_RE.sub("", line)
     line = _VIS_STRIKE_RE.sub("", line)
-    # 6. ⬇ CARD-维护B-R4 新建模: Obsidian `==高亮==` 渲染后**内容可见**，只有
-    #    标记不可见。放在强调剥离**之前** —— `==` 与 `*_` 无交集，但先去高亮
-    #    标记才符合读者视角（`==*x*==` 先成 `*x*` 再成 `x`）。
-    #    剥它是**收紧**: `本板共有==987654==个` 原先在 `=` 处断成尾片，
-    #    剥后整个数进入受检面。
-    line = _VIS_HIGHLIGHT_RE.sub(r"\1", line)
-    return _VIS_EMPHASIS_RE.sub("", line)
+    # ⛔ Codex round-2 HIGH-1（结构面必须在高亮归一**之前**取）：
+    #   `==高亮==` 是本卡新建模的, 而它会把源码里**不是标题**的
+    #   `==##== 末` 归一成 `## 末` —— 结构识别若读归一后的文本, 这行就成了标题,
+    #   台账段被它提前截断, 其后的编造行整段逃出审计面（实测零诊断）。
+    #   旧实现的 `_visible_text` 不处理 `==`, 所以它没有这个面 —— 这是**我新造的**。
+    # ⇒ 结构（标题/列表）读 `structural`（高亮归一前, 与旧 visible 逐字同形），
+    #   数字判据读 `visible`（高亮归一后, 更贴近读者所见）。两者各有单一定义点。
+    structural = _VIS_EMPHASIS_RE.sub("", line)
+    visible = _VIS_EMPHASIS_RE.sub("", _VIS_HIGHLIGHT_RE.sub(r"\1", line))
+    return structural, visible
+
+
+def _render_line(line: str) -> str:
+    """行渲染核的**最终**输出（供数字判据）。结构识别请用 `Line.structural`。"""
+    return _render_line_parts(line)[1]
 
 
 def _visible_text(line: str) -> str:
@@ -1852,9 +1868,16 @@ class Line:
     idx: int
     raw: str
     visible: str
+    #: 高亮归一**之前**的渲染形态 —— 结构识别（标题/列表/小节名）只看它。
+    #: 与重切前的 `_visible_text` 输出逐字同形, 所以结构判定不会因本卡新建模
+    #: 的 `==高亮==` 而改变（Codex round-2 HIGH-1）。
+    structural: str
     stripped: str
     in_fence: bool
     heading: int | None
+    #: 井号后是否**实际消费了空白**。裸 `###` 是合法空标题, `heading` 仍记级别,
+    #: 但它**不终止**审计段 —— 与旧的两处扫描同口径。
+    heading_delimited: bool
     list_marker: str | None
     unknown: tuple[str, ...]
 
@@ -1915,8 +1938,9 @@ class Doc:
             #   (`^##[^\S\n]` / `^#{2,3}[^\S\n]`) 都是顶格, 与此逐字同义。
             if (
                 _h is not None
+                and self.lines[_k].heading_delimited  # 裸 `###` 不终止（HIGH-1）
                 and 2 <= _h <= sec.level
-                and not self.lines[_k].visible[:1].isspace()
+                and not self.lines[_k].structural[:1].isspace()
             ):
                 hi = _k
                 break
@@ -2025,6 +2049,12 @@ def _unknown_forms_in(raw: str, visible: str) -> tuple[str, ...]:
       · **含数的行**上的公式/脚注/图片 —— 判据是"这行有数, 而它的排版我没建模",
         不是"报告里出现了 `$`"。窄到这个程度才不会把误拒面无谓放大到全文。
     """
+    # ⛔ Codex round-2 MEDIUM-2: 检测**必须**先屏蔽 inline code span。
+    #   SKILL 明确允许把 tips 原话放在行内代码里, 而 CS 学习笔记里
+    #   `` `vector<T>` `` 与 `` `$x$` `` 是完全正常的字面量 —— 不屏蔽就会把它们
+    #   报成「未知标签」「未建模构造」, 把真实报告拒在门外（实测两条都误报）。
+    #   等长空白替换, 保持行内偏移不乱。
+    raw = _D2_CODE_SPAN_RE.sub(lambda mm: " " * len(mm.group(0)), raw)
     found: list[str] = []
     for m in _VIS_TAG_RE.finditer(raw):
         inner = m.group(0)[1:-1]
@@ -2057,11 +2087,12 @@ def render_visible(text: str) -> Doc:
     lines: list[Line] = []
     unknown: list[str] = []
     for _i, raw in enumerate(raw_lines):
-        vis = _render_line(raw)
+        struct, vis = _render_line_parts(raw)
         # 「原行非空而剥后为空」= 在围栏内(或本身是围栏标记行)。
         in_fence = bool(raw.strip()) and not stripped[_i].strip()
-        mh = None if in_fence else _DOC_HEADING_RE.match(vis)
-        ml = None if in_fence else _DOC_LIST_RE.match(vis)
+        # ⛔ 结构识别读 `struct`（高亮归一前）——见 Line.structural 的说明。
+        mh = None if in_fence else _DOC_HEADING_RE.match(struct)
+        ml = None if in_fence else _DOC_LIST_RE.match(struct)
         # ⚠️ 围栏内不判未知形态: 代码块里的 `$x$` 是字面文本, 不是公式。
         unk = () if in_fence else _unknown_forms_in(raw, vis)
         for _u in unk:
@@ -2071,9 +2102,11 @@ def render_visible(text: str) -> Doc:
                 idx=_i,
                 raw=raw,
                 visible=vis,
+                structural=struct,
                 stripped=stripped[_i],
                 in_fence=in_fence,
                 heading=len(mh.group(1)) if mh else None,
+                heading_delimited=bool(mh and mh.group(2)),
                 list_marker=ml.group(1) if ml else None,
                 unknown=unk,
             )
@@ -2097,7 +2130,10 @@ def render_visible(text: str) -> Doc:
                 #   预先去掉井号, `sections_named` 就与旧的
                 #   `_H3_SEED_RE.match(vis_lines[i])` 不再逐字等价 —— 那正是
                 #   本卡要消灭的那类口径分叉(收集器与安全态各认一半)。
-                title=ln.visible,
+                # ⛔ 用 `structural`（高亮归一前）—— 与重切前 `_H3_SEED_RE.match(
+                #   vis_lines[i])` 逐字同形。用 `visible` 会让 `### ==种子==` 变成
+                #   受认可的种子小节（本卡一度如此），那是新造的行为差异。
+                title=ln.structural,
                 lo=_i + 1,
                 hi=_j,
             )
@@ -2440,6 +2476,28 @@ def _verify_prose_counts(text: str, scan: dict, problems: list[str]) -> None:
                     )
 
 
+def _ledger_int_field(row: dict, field: str) -> int | None:
+    """取 ledger 行的整数字段, 容纳**历史纯数字字符串**。
+
+    ⛔ Codex round-2 HIGH-4（真实误拒）: fallback 收集器经 `_fm_scalar()` 把
+      `attempt_count` 产出为**字符串**, 而绑定器拿 `int(报告值)` 去比 JSON 的
+      `"5"` —— 永远不等, 合法的 fallback 报告被判「数字无据」（实测复现）。
+    ⚠️ 只容纳"看起来就是这个整数"的字符串。布尔、小数、非数字一律返回 None
+      ⇒ 落到调用方的「无出处可绑」fail-closed 分支, 不静默放过。
+      （`bool` 必须先排除: 在 Python 里 `isinstance(True, int)` 为真。）
+    """
+    v = row.get(field)
+    if isinstance(v, bool):
+        return None
+    if isinstance(v, int):
+        return v
+    if isinstance(v, str):
+        t = v.strip()
+        if t.lstrip("-").isdigit():
+            return int(t)
+    return None
+
+
 def _tail_conflict(
     mm: "re.Match[str]", key: str, problems: list[str], row: dict | None = None
 ) -> None:
@@ -2483,7 +2541,7 @@ def _tail_conflict(
         _hits = re.findall(_pat, rest)
         if not _hits:
             continue  # 报告没写这个数 ⇒ 没什么可比
-        _want = (row or {}).get(_field)
+        _want = _ledger_int_field(row or {}, _field)
         if _want is None:
             # ⛔ CARD-维护B-R4 拒绝层 (卡文 (h)): 这里原先写着
             #   `continue  # 无出处可比 ≠ 有矛盾`。那句话把两件事混成了一件:
@@ -2599,6 +2657,8 @@ def _verify_ledger_counts(text: str, scan: dict, problems: list[str]) -> None:
     """
     doc = render_visible(text)
     vis_lines = [ln.visible for ln in doc.lines]
+    # 结构判定（小节名 / 安全态）一律读结构面, 与重切前的 vis_lines 逐字同形。
+    struct_lines = [ln.structural for ln in doc.lines]
     raw_lines = [ln.raw for ln in doc.lines]
     in_fence = [ln.in_fence for ln in doc.lines]
 
@@ -2644,9 +2704,14 @@ def _verify_ledger_counts(text: str, scan: dict, problems: list[str]) -> None:
         for _k in range(_lo, _hi):
             if in_fence[_k]:
                 continue
-            if re.match(r"^ {0,3}###[^\S\n]", vis_lines[_k]):
+            # ⛔ Codex round-2 HIGH-1: 这里原先**手写了第二份 H3 正则**
+            #   (`^ {0,3}###[^\S\n]`), 与 `_DOC_HEADING_RE` 口径不同 ——
+            #   裸 `###` 在这份里不算标题(不更新安全态), 在 audit_span 那份里
+            #   却终止段落, 夹缝里的行两边都不管。改读 `Line` 的属性, 一份口径。
+            _ln_obj = doc.lines[_k]
+            if _ln_obj.heading == 3 and _ln_obj.heading_delimited:
                 _cur_bad = not any(
-                    re.match(_SECTION_RE(f"### {_nm}"), vis_lines[_k])
+                    re.match(_SECTION_RE(f"### {_nm}"), struct_lines[_k])
                     for _nm, _ in _LEDGER_ROLE_SECTIONS
                 )
             bad_h3[_k] = _cur_bad
@@ -2724,6 +2789,15 @@ def _resolve_ledger_node(
         if _n in known:
             return _n
     if vis_ms is None:
+        # ⛔ Codex round-2 HIGH-2: 这里原先直接 `return None`, 调用方 continue,
+        #   于是「raw 能匹配模板、raw 身份不在 ledger、渲染后又解析不出身份」
+        #   的行被**静默跳过**。实测 `- <b></b> — 批注 2 条`（`<b>` 在白名单,
+        #   渲染后节点名整个消失）零诊断放行。旧种子实现会继续用 raw 身份报
+        #   「不在 ledger」—— 我在抽共用函数时把这条路径丢了。
+        problems.append(
+            f"数字终核: 台账『{label}』行的节点身份无法绑定 —— 原文与 ledger 不匹配, "
+            "渲染后又解析不出节点名 (fail-closed, 不猜)"
+        )
         return None
     node = vis_ms.group("node").strip()
     cands = vis_index.get(node) or []
@@ -2823,6 +2897,7 @@ def _bind_derived_section(
     vis_index: dict[str, list[str]] = {}
     for _raw_id in by_node:
         vis_index.setdefault(_visible_text(_raw_id), []).append(_raw_id)
+    _seen_rows = 0
     for _k in range(*doc.audit_span(sec)):
         line = doc.lines[_k]
         if not line.visible.strip() or line.in_fence:
@@ -2832,6 +2907,7 @@ def _bind_derived_section(
         ms = vis_ms or raw_ms
         if ms is None:
             continue  # 不是台账形状行(说明行/占位行), 其中的数字仍受 D2 治理
+        _seen_rows += 1
         if not rows:
             problems.append(
                 f"数字终核: 台账『{name}』小节出现台账形状行, 但 scan JSON 的 "
@@ -2850,7 +2926,7 @@ def _bind_derived_section(
             hits = re.findall(_pat, rest)
             if not hits:
                 continue
-            want = row.get(_field)
+            want = _ledger_int_field(row, _field)
             if want is None:
                 # ⛔ 卡文 (h) 拒绝层: 报告**写了**这个数, scan 里却没有该字段 ⇒
                 #   无出处 = fail-closed。旧 `_tail_conflict` 在这里 `continue`
@@ -2866,6 +2942,18 @@ def _bind_derived_section(
                         f"数字终核: 台账『{name}』行 {node} 报『{_label} {_n}』, "
                         f"scan JSON 的 {_field} 是 {want} (形状对不等于数字有据)"
                     )
+
+    # ⛔ Codex round-2 HIGH-3 子项: `ledger.derived` **有数据**, 小节里却一条
+    #   台账形状行都没有（例如照抄零派生的占位说明「（无：derived 计数 0…）」）
+    #   —— 那句话本身就是一个与 scan 相矛盾的陈述, 而它不含数字、不进 D2,
+    #   于是整段无人过问（实测放行）。台账的职责是**把 ledger 列出来**,
+    #   有数据不列 = 报告在隐瞒, 与写错数字同级。
+    if rows and _seen_rows == 0:
+        problems.append(
+            f"数字终核: scan JSON 的 ledger.derived 有 {len(rows)} 条派生成员, "
+            f"但台账『{name}』小节里一条台账行都没有 —— 台账必须把它们列出来 "
+            "(零派生的占位说明只在 derived 为空时才成立)"
+        )
 
 
 def _verify_numbers(fm: str, text: str, report_path: Path, problems: list[str]) -> None:
