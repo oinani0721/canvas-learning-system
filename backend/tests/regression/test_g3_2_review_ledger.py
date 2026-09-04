@@ -6033,36 +6033,80 @@ def test_g32cc_markerless_legacy_bare_exponent_agrees(vault):
 
 
 def test_g32cc_emitter_rebuild_never_mutates_existing_entries(vault):
-    """重建已有条目必须**逐字节不变**（验证式 emitter 的承重面）。
+    """重建已有条目必须**逐字节不变**，且 B 必须照常入账。
 
-    ⚠️ 与字符轴分开测：(a) 落地后 hostile 字符首写即拒，
-    「A hostile → B → 删 A 行 → 重跑 A」那个场景**不再可达**。
-    但「追加新条目时不得改动旧条目」这条性质与字符轴无关，仍须守 ——
-    用**合法**中文值跑同一条路径。
+    ⛔ **载体选择是这道门的全部**（Codex round-2 HIGH）：
+    上一版用**合法中文值**做载体，实测把重建编码退回旧
+    `json.dumps(..., ensure_ascii=False)`（round-17 B② 的原缺陷形态）后，
+    这道门**照样全绿** —— 合法中文在两种编码下往返都成立，观察不到差异。
+
+    现在的载体是 `self_confidence_raw`（值含 U+0085）：
+    - 它**会逐字进入 receipt**（`entry_` 里经 `q_()` 编码）；
+    - 但它**不在账本 payload 键集里**，因此不受 §6.1 字符轴约束（那是字段级的），
+      仍然是合法输入 —— 这正是本卡收窄适用面后**仍然可用**的敌意载体。
+
+    ⚠️ 判据也补了两条（上一版只比 PyYAML 解析后的 dict）：
+    ① **逐字节**比较 A 那一行（dict `==` 既非字节比较也非类型敏感：
+       把 `attempt_count` 从 `int 1` 改成 `bool True` 仍判相等）；
+    ② 断言 B **必须 rc=0 且入账** —— 编码退化的直接后果就是 B 写不进去。
     """
     LED = vault / "learning_events.jsonl"
     (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
     LED.unlink(missing_ok=True)
-    pA = _payload(event_id="板甲#q1", ts=TS1, review_time=TS1, exam_board="检验白板/板甲.md")
+    pA = _payload(
+        event_id="板甲#q1",
+        ts=TS1,
+        review_time=TS1,
+        exam_board="检验白板/板甲.md",
+        self_confidence_raw=f"半{_NEL}懂",
+    )
     assert _run_writer_settled(vault, pA).returncode == 0, "A 首写"
+
+    # ⛔ 载体自证：那个字符真的进了 receipt（裸形或转义形都算）
+    nd_before = (vault / NODE_REL).read_text(encoding="utf-8")
+    _carrier = [ln for ln in nd_before.split("\n") if "self_confidence_raw" in ln]
+    assert _carrier, "预置失败：receipt 里没有 self_confidence_raw 行"
+    assert (_NEL in _carrier[0]) or ("\\u0085" in _carrier[0]), f"预置失败：敌意字符没进 receipt: {_carrier[0]!r}"
+    # 载体自证之二：它确实**不在**账本 payload 里（所以不受字段级字符轴约束）
+    _rec = _ledger_lines(vault)[-1]
+    assert "self_confidence_raw" not in _rec["payload"], (
+        f"载体前提变了：self_confidence_raw 进了账本 payload ⇒ 会被字符轴拒，这道门要换载体: {sorted(_rec['payload'])}"
+    )
+    _snap_A = _carrier[0]  # A 那一行的原始字节形态
+
+    # ── B 追加：会触发对 A 那条的**重建** ──
+    n0 = len(_ledger_lines(vault))
+    pB = _payload(
+        event_id="板乙#q1",
+        ts="2026-08-02T10:00:00Z",
+        review_time="2026-08-02T10:00:00Z",
+        exam_board="检验白板/板乙.md",
+    )
+    rB = _run_writer_settled(vault, pB)
+    assert rB.returncode == 0, (
+        f"⛔ B 写不进去 ⇒ 重建把 A 的 receipt 弄坏了（编码退化的直接后果）: {(rB.stderr or '')[-400:]}"
+    )
+    assert len(_ledger_lines(vault)) == n0 + 1, "B 必须入账"
+
+    # ── ① 逐字节：A 那一行不得有任何变化 ──
+    nd_after = (vault / NODE_REL).read_text(encoding="utf-8")
+    assert _snap_A in nd_after, (
+        f"⛔ 追加 B 之后 A 的 receipt 那一行被改动了（逐字节比较）\n"
+        f"原: {_snap_A!r}\n"
+        f"现: {[ln for ln in nd_after.split(chr(10)) if 'self_confidence_raw' in ln]!r}"
+    )
+
+    # ── ② 类型保真：dict `==` 挡不住 int→bool，这里显式比类型 ──
     import yaml as _y
 
-    _entry_A_before = _y.safe_load((vault / NODE_REL).read_text(encoding="utf-8").split("---")[1])["calibration_log"][0]
-    # B 追加 —— 会触发对 A 那条的**重建**
-    pB = _payload(
-        event_id="板乙#q1", ts="2026-08-02T10:00:00Z", review_time="2026-08-02T10:00:00Z", exam_board="检验白板/板乙.md"
-    )
-    assert _run_writer_settled(vault, pB).returncode == 0, "B 追加"
-    _log = _y.safe_load((vault / NODE_REL).read_text(encoding="utf-8").split("---")[1])["calibration_log"]
+    _log = _y.safe_load(nd_after.split("---")[1])["calibration_log"]
     assert len(_log) == 2, f"应恰有 2 条，实见 {len(_log)}"
-    # ⛔ 逐项类型敏感比对：A 那条不得有任何变化
-    assert _log[0] == _entry_A_before, (
-        f"⛔ 重建改动了已有条目 ⇒ 历史 receipt 与它记录的那次评分对不上，同一次评分可能被再算一遍\n"
-        f"前 {_entry_A_before}\n后 {_log[0]}"
-    )
-    # 删 A 的账本行后原样重跑 A：不得二次计分（attempt_count 不得再 +1）
-    _rows = _ledger_lines(vault)
-    _keep = [x for x in _rows if x.get("event_id") != "quiz:板甲#q1"]
+    _a = _log[0]
+    assert type(_a.get("attempt_count")) is int, f"attempt_count 类型被改: {type(_a.get('attempt_count'))}"
+    assert type(_a.get("fsrs_applied")) is bool, f"fsrs_applied 类型被改: {type(_a.get('fsrs_applied'))}"
+
+    # ── ③ 删 A 的账本行后原样重跑：不得二次计分 ──
+    _keep = [x for x in _ledger_lines(vault) if x.get("event_id") != "quiz:板甲#q1"]
     LED.write_text("".join(json.dumps(x, ensure_ascii=False) + "\n" for x in _keep), encoding="utf-8")
     _att_re = re.search(r"^attempt_count:\s*(\d+)", _fm(vault), re.M)
     _att0 = int(_att_re.group(1)) if _att_re else None
@@ -6088,9 +6132,10 @@ def test_g32cc_noncharacters_rejected_and_bmp_plus_still_ok():
     | U+1FFFE … U+10FFFF | OK | **✗ 失败**（转义成代理对后读不回来） |
     | U+FDD0–U+FDEF | OK | OK |
 
-    ⚠️ **如实说明**：`q_()` 的"裸形优先、转义回落"两层设计**恰好**把前两行各兜住一半，
-    所以在旧实现下它们并**不构成已发生的缺陷**。收进禁止集是**原则性**的 ——
-    本卡的立场是不靠"往返自证碰巧成功"来保证正确。
+    ⛔ **理由更正（Codex round-2）**：上一版写"两层设计各兜住一半、所以不构成缺陷"是**错的** ——
+    **组合**字符串会让两条路同时失败：`U+FFFE + U+1F3AF` 裸形抛 `ReaderError`、
+    ASCII 回落读成三个码点；`U+FFFF + U+20000` 同样。⇒ **原五段确有洞，扩集是修复**。
+    （`U+FDD0–U+FDEF` 实测两路都正常，一并收才是原则性的 —— 见下。）
 
     ### 为什么连实测正常的 U+FDD0–U+FDEF 也一起收
     拆开会让这个集合重新变成"凭实测逐个添加"的开放列表 —— 那正是前 17 轮的老路。

@@ -127,6 +127,15 @@ MUTATIONS = [
         "    (0x007F, 0x007F),",
         "test_g32cc_forbidden_set_matches_expected_exactly",
     ),
+    (
+        "M8",
+        "重建已有 receipt 的编码退回裸 json.dumps（round-17 B② 的原缺陷形态）—— "
+        "载体必须是 receipt 里、又不受字段级字符轴约束的字段，否则观察不到差异",
+        SKILL,
+        '                    _rebuilt.append(f"{_pfx}{_kq(_k)}: {q_(_e[_k])}")',
+        '                    _rebuilt.append(f"{_pfx}{_k}: {json.dumps(_e[_k], ensure_ascii=False, default=str)}")  # MUTANT M8',
+        "test_g32cc_emitter_rebuild_never_mutates_existing_entries",
+    ),
 ]
 
 
