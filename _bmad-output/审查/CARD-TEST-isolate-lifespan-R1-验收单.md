@@ -11,9 +11,16 @@
   |---|---|
   | `86329c49` | 首版：audit 承重 + 身份自证 + 负控钉死环境 |
   | `4e099b95` | 整改 Codex round-1 的 17 条 |
-  | `b64a9c44` | round-2 自查整改 3 条 + 记录终审未出裁定 —— **实现面冻结于此** |
+  | *(round-2 自查整改点)* | 自查整改 3 条 + 记录终审未出裁定。**短 SHA 刻意不写进本文件**：裁判 1 是一条机械 grep，要求本文件与审查 prompt 全文都不含那个旧绑定串（防「改了一处、别处还留着」的陈旧绑定）。历史链在 `git log` 里，没有丢 |
   | `71ebeed8` | 只改审查 prompt（无代码改动） |
-  | *(本 commit)* | 只改本验收单（无代码改动）—— 刻意不写自己的 SHA：文档内容决定 hash、hash 又要写进文档，是个不动点悖论；本卡的最终 SHA 记在 MEMORY.md 索引里 |
+  | `13e56999` | 验收单回填 commit 链与实现冻结点 |
+  | `8380adac` | 自查关闭 round-2 三条线索 —— AST 门重写（+434/-95） |
+  | `0684e0fa` | 亲验归属模型五条继承声明并固化成探针（+134）—— merge 前的代码最终态 |
+  | `b06b71db` / `9d1ef1a9` | 记录终审替代通道已穷举 / 回填用户裁决 A 与 09-07 操作清单 |
+  | `d5f96344` | **本轮①** 并入主干 `1f249b33`（merge commit，双亲保留） |
+  | `f6c86ef4` | **本轮②** 单例工厂两条用例转 mock，断开 7691 |
+  | `2b160897` | **本轮③** 运行时文件锚点跟随 G2-5 journal 改名 —— **实现最终态，终审绑定于此** |
+  | *(本 commit)* | **本轮④** 只改审查 prompt + 本验收单（docs-only，不动代码树）—— 刻意不写自己的 SHA：文档内容决定 hash、hash 又要写进文档，是个不动点悖论 |
 
 ---
 
@@ -425,18 +432,19 @@ rc=1，同样返回 usage limit。⇒ 账号级配额硬阻断，与本卡内容
 >
 > ### ✅ 次要裁决点：**留到重跑终审时一并处理**（下方 ②–⑤ 全部挂起，不阻断当前收口）
 
-### 📌 09-07 之后的操作清单（下个 session 照此执行即可）
+### 📌 09-07 之后的操作清单（**第 0–2 步已于 2026-09-04 执行完毕，见 §7；只剩第 3 步**）
 
 ```bash
 cd /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w4-safety-r2
-# 0. 确认树 clean 且 HEAD 未被改动过
+# 0. ✅ 已做：确认树 clean 且 HEAD 未被改动过
 git status --porcelain && git log --oneline -1
 
-# 1. 先把审查 prompt 绑定的 commit 更新为 0684e0fa（当前写的是 b64a9c44）
-#    位置：_bmad-output/审查/prompts/codex-prompt-CARD-TEST-isolate-lifespan-R1.md 第 7-8 行
-#    原因：b64a9c44 之后 8380adac 改了 AST 门、0684e0fa 加了两条探针
+# 1. ✅ 已做（且做得比原计划多）：审查 prompt 的绑定已推进到**实现最终态**
+#    `2b160897`，不是原计划的 0684e0fa —— 因为 09-04 又并入了主干并新增两个
+#    实现 commit（转 mock + 运行时锚点修复）。详见 §7。
+#    位置：_bmad-output/审查/prompts/codex-prompt-CARD-TEST-isolate-lifespan-R1.md
 
-# 2. 复跑三道裁判确认代码没被别的 session 动过
+# 2. ✅ 已做：复跑三道裁判（结果见 §7.2，三道全绿）
 cd backend
 PYTHONDONTWRITEBYTECODE=1 <venv>/python scripts/lifespan_isolation_negative_control.py      # 期望 PASS
 PYTHONDONTWRITEBYTECODE=1 <venv>/python scripts/lifespan_isolation_guard_probes.py          # 期望 29/29
@@ -477,7 +485,7 @@ round-3 之后仍不清零则「到顶不合并」。
 
 | 选项 | 含义 | 代价 |
 |---|---|---|
-| **A（默认建议）** | 保持当前状态**不合并**，等 09-07 配额恢复后**只跑 round-2 终审**（代码已冻在 `4ad?????`，不再改动），拿到 B/H=0 再进合并队列 | 等 4 天；期间 W4 安全车道不进干净集成树 |
+| **A（默认建议 ✅ 已选）** | 保持当前状态**不合并**，等 09-07 配额恢复后**只跑 round-2 终审**（代码冻结点后来推进到 `2b160897`，原因见 §7.1），拿到 B/H=0 再进合并队列 | 等 4 天；期间 W4 安全车道不进干净集成树 |
 | **B** | 换一个审查方（如另一账号/另一模型）跑 round-2 | 换审查方会改变「独立终审」的口径，历史几轮都是 gpt-5.6-sol |
 | **C** | 你人工复核 round-1 的 17 条整改后直接授权合并 | 少一道独立终审；本卡的历史是「每一轮都抓出真缺陷」，跳过这道的风险不低 |
 
@@ -507,3 +515,198 @@ schemathesis 属性测试，单跑 >15 分钟、遍历调用全部端点、外�
    unknown（本仓库 371 文件零例）。
 
 两处都是**朝更严的方向**误拒，且当前零误报。**建议**：保留，出现真实误拒时再放宽。
+
+---
+
+## 7. 终审 session 执行记录（2026-09-04，v2）
+
+> 卡文说「开工时刻 ≥ 09-07 11:47（Codex 配额恢复），之前只做准备」。本 session 于
+> **09-04** 把 (a)–(h) 全部做完并落成 commit；(i)/(j) 依赖 round-2 正文，状态见 §7.6。
+
+### 7.1 为什么冻结点从 `0684e0fa` 推进到 `2b160897`
+
+原计划只改 prompt 绑定、代码一个字节不动。实际动了两次，两次都不是可选项：
+
+**其一（`f6c86ef4`）**：并入主干后干跑，门抓到一条**主干既有**的连库测试
+`test_story_38_3_fsrs_init_guarantee.py::TestCodeReviewC2ReviewServiceSingleton`。
+链路 `review_service.py:2330 _get_mem()` → `memory_service.py:2914 initialize()` →
+`:278 self.neo4j.initialize()` → `neo4j_client.py:402 health_check()` →
+`:523 verify_connectivity()` → 7691。它一直是绿的 —— 因为连接异常被 `health_check`
+吞成 "Falling back to JSON storage mode"。这正是本卡哨兵存在的理由：**门不把它转成
+失败，这条偷连就永远没人看见**。
+
+打桩打在**类级 autouse**。判据不是"第一条红了就够"：两条用例**各自单跑都红**（分别
+实测），一起跑时只有第一条触发 `initialize()`，因为 MemoryService 单例是进程级闩，
+`reset_singleton` 只重置 review service。只修第一条 = 换个跑法就复活。
+
+**其二（`2b160897`）**：这一条更要命。主干 CARD-G2-5 把 orchestrator 的 durable
+journal 从 `app/data/vault_index_pending.jsonl` 改成了 vault 命名空间下的
+`vault_index_pending__<vault_key>.jsonl`，而**两道门的监视清单都锚在旧的固定文件名
+上**。同一个锚点失效，两道门朝相反方向坏掉：
+
+| 门 | 断言的是 | 锚点失效后 | 性质 |
+|---|---|---|---|
+| `lifespan_isolation_negative_control.py` | 变异态**必须写**至少一个运行时文件（隔离承重的正证据） | 正证据消失 → `NEGATIVE-CONTROL: FAIL` | fail-closed，诚实 |
+| `lifespan_isolation_runtime_sha.sh` | 跑完 `unchanged` | 一个永不存在的路径恒 `absent == absent` | **假绿** |
+
+根因坐实的方式是实测而非推断：修后负控 `[5b]` 打出来的文件名是
+`app/data/vault_index_pending__canvas_vault.jsonl`（`canvas_vault` = `deployment_vault_key()`
+的解析值），与合并前验收单 §A.1 里记的 `app/data/vault_index_pending.jsonl` 正好差
+一个命名空间后缀。
+
+修法两条：① 按 stem 前缀 glob（新旧文件名一并收，因为 `vault_key` 还会因 `NAME_MAX`
+的**字节**预算被 hash 截断，文件名不可预先硬编码）；② glob **每次快照重新展开** ——
+Python 侧删掉模块级 `RUNTIME_FILES` 缓存、`runtime_snapshot()` 改收 root 参数，bash
+侧在 `snapshot()` 内用 `compgen -G` 现场展开。**缓存一次就等于看不见跑完后才创建的
+文件**，那会把刚修好的门重新弄瞎。bash 侧清单自检也从单一 count 拆成 fixed(2)/glob(1)
+两条 —— glob 条数为 0 同样是「零比较恒绿」，只是更隐蔽。
+
+**范围克制**：只跟随这一个 journal 的改名，监视面与合并前**等价**，不新增项。同族的
+`lancedb_pending_index__<key>.jsonl`（`lancedb_index_service.py:76`）合并前就不在清单
+里，本卡只登记移交 —— 扩面会让 `runtime_sha` 变严，属另一张卡的范围决策。
+
+### 7.2 4-A 证据段（裁判 1–5，均于实现最终态 `2b160897` 实跑）
+
+**裁判 1 — 陈旧绑定 grep（期望零命中）**
+
+```
+$ grep -n "<旧绑定串|旧占位符>" <审查 prompt> <本验收单>
+（无输出）  exit=1
+```
+
+⚠️ **命令里的模式串刻意不抄进本文件**。第一次写这段记录时把命令原文贴全了，结果
+这条 grep **命中了它自己的执行记录** —— 判据必须与被判据物解耦，把模式串写进被扫描
+的文件里，门就永远绿不了（而且这种红看起来像"没改干净"，极易误导下一个人）。模式串
+的权威原文在卡文与 goal 里。
+
+本文件与 prompt 都不再出现那个旧短 SHA。历史链没有丢，在 `git log` 与上方 commit
+链表格里（表格用「*(round-2 自查整改点)*」占位并写明了原因）。
+
+**裁判 2 — 两个测试文件（装门下）**
+
+```
+$ PYTHONDONTWRITEBYTECODE=1 <venv>/pytest -q -p no:cacheprovider \
+    tests/unit/test_story_38_3_fsrs_init_guarantee.py tests/unit/test_vault_scope_409.py
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+59 passed, 12 warnings in 0.57s
+```
+
+转 mock **之前**同一条命令的红态（(c) 的先红证据）：
+
+```
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0)
+FAILED ...::TestCodeReviewC2ReviewServiceSingleton::test_singleton_creates_review_service
+live Neo4j port connect attempted —— 本用例期间有 1 次到现网 Neo4j 的连接尝试被拦下。
+  - ('::1', 7691, 0, 0) on thread MainThread
+1 failed, 20 passed
+```
+
+三种跑法转绿后各自的门账（全 0）：全文件 21 passed / 单跑第一条 1 passed /
+单跑第二条 1 passed。
+
+**裁判 3 — 29 条探针**
+
+```
+$ PYTHONDONTWRITEBYTECODE=1 <venv>/python scripts/lifespan_isolation_guard_probes.py
+GUARD-PROBES: PASS — 29/29 条全部 fail-closed
+```
+
+**裁判 4 — §6 操作清单第 2 步原文命令（三道复跑）**
+
+```
+NEGATIVE-CONTROL: PASS (3 nodeids red for expected reason; summary=(7, 7, 0, 0);
+  positive control: 3/3 passed, zero attempts, zero runtime writes;
+  mutated run in an isolated copy did touch runtime files (isolation is load-bearing);
+  real tree untouched; AST-GATE: PASS 0/377 files)
+[5b] 副本里变异态确实写了运行时文件（= 隔离在承重的正证据）:
+      e3b0c442…b855  <tmp>/iso-backend/app/data/vault_index_pending__canvas_vault.jsonl
+
+GUARD-PROBES: PASS — 29/29 条全部 fail-closed
+
+RUNTIME-FILES: unchanged
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+2 failed, 265 passed, 38 warnings in 1.06s
+```
+
+`2 failed / 265 passed` 与 §A.2 记录的**完全一致**，两条既存失败均已在带入基线
+`4a25578e` 上复现过。另两项实测门规模：AST 负控 **22 绕过 / 11 正例全净**、
+guard 契约单测 **35 条**（数字是这一轮现跑的，不是抄上一轮的）。
+
+外部锚点：三道裁判每次跑完 `git status --porcelain` 均为空（负控在 tmp 隔离副本里
+变异，真实树零残留）。
+
+**裁判 5 — round-2 正文非空**：见 §7.6。
+
+**(a) merge 结果复核**：`git status` 无 UU/AA；`test_vault_scope_409.py` 装门下
+collect-only **38 条**（= 合并前车道侧 38 条）、收集期门账 0；文件内已无
+`with TestClient(app.main.app)` 形态，只剩 `no_lifespan(app)` 包住的 client fixture。
+自动合并产生的重复 `import pytest` 已在 merge commit 里去重。
+
+**(g)/(p) 扩展扫描**：装门下跑 **20 个显式文件 / 551 条用例**（本卡改造过的
+tests/unit 文件 + 主干带入的同族文件 + W4 卡文点名的那批），结果
+`NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0` 且 `RUNTIME-FILES: unchanged` ——
+**门没有再抓到别的连库用例**。详见 §7.4 第二张表。
+
+### 7.3 4-B 👤 你来验（这一轮你会看到的变化）
+
+**无变化（跑测试不再碰你的正式数据库）。**
+
+- 我做「照常打开 Canvas 用一会儿」→ 我看到 白板、复习、笔记全和昨天一样 →
+  我感觉 踏实，因为这一轮改的全是"跑自动检查时的护栏"，没碰你实际用的功能。
+- 我做「回想上次做完题后的记录」→ 我看到 记录还在，条数没少 → 我感觉 放心。
+
+这一轮真正修好的一件事，用大白话说：我们有一个"跑测试时别去碰你正式数据"的警报器。
+上周同事改了一个文件的名字，警报器还盯着旧名字 —— 于是它**看起来一直是绿灯，其实
+什么都没在看**。这一轮把警报器改成盯"这一类文件"而不是"这一个文件名"，并且每次都
+重新看一遍，而不是开机时记下来就不管了。
+
+### 7.4 登记级残留（本卡不修，随卡登记）
+
+**表一：Bark-R1 round-4 的 6 MEDIUM + 1 LOW**（同分支另一张卡，`0 BLOCKER / 0 HIGH`）
+
+| # | 级别 | 位置 | 一句话 |
+|---|---|---|---|
+| 1 | MEDIUM | `tests/regression/conftest.py:441` | 测试中新建的混合大小写代理变量在 guarded reload 后被守卫于 teardown「复活」，未回到布防前的不存在状态；第二次 `_reapply()` 的 `delenv()` 把测试值误记成守卫的"原值" |
+| 2 | MEDIUM | `tests/regression/conftest.py:359` | 冷启动 setup 在 `daily_review_run` 已加载 `send_bark` 后异常，会永久留下指向已删临时目录的 `KEY_FILE`，下一次成功守卫也修不好；G 门只覆盖 pytest 正常完成路径 |
+| 3 | MEDIUM | `tests/regression/conftest.py:415` | 层⑥漏拦带 `env` 选项的 osascript 转发（`env -i` / `env --` / `env -u` 三种均到达 Popen 墙），且验收单未登记该边界 |
+| 4 | MEDIUM | `scripts/bark_r1_mutation_negative_controls.py:346` | 变异**元裁判**仍采信被测 stdout：伪造它认为"裁判自产"的行前缀即可让它误判指定门承重（主 `_judge_pytest` 能正确拒绝，漏洞在其上层） |
+| 5 | MEDIUM | `scripts/bark_negctl_report_plugin.py:59` | 全局还原快照没覆盖守卫实际改动的完整状态，因此第 1 条的真实代理残留不会被 24 跑发现；`sys.path` 顺序漂移只要出现次数相同也能逃过 |
+| 6 | MEDIUM | `CARD-TEST-bark-autostub-R1-验收单.md:185` | 验收单声称比证据宽：仍引用已不存在的 M13、仍写"二十跑/十一条"（实测 24 跑 18 变异），probe 三段归因到单层但撤单层后首跳不变 |
+| 7 | LOW | `scripts/bark_r1_mutation_negative_controls.py:39` | SIGINT 恢复路径不幂等：handler 先清 `_INFLIGHT`，`finally` 再 `_restore()` 抛 `KeyError`；文件实际已还原，丢的是内部验证结论 |
+
+**表二：(g) 要求的「门抓到的其它连库用例」清单 —— 实测为空**
+
+| 项 | 结果 |
+|---|---|
+| 扫描面 | 20 个显式文件 / 551 条用例（禁目录级 pytest，逐文件点名） |
+| 门抓到的连库用例 | **0 条**（`NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0`） |
+| 运行时文件写入 | **0**（`RUNTIME-FILES: unchanged`） |
+| 顺带抓到的红（与门无关） | 9 条，全在 `test_sync_batch_auth` / `test_system_endpoint_auth` / `test_sync_exception_classification`；根因是 `Settings` 校验 `INTERNAL_API_KEY required outside local dev` 抛 ValidationError 被中间件转成 500，而用例期望 503 |
+| 归因判据 | merge **未改动**这条链上的任何文件 —— `git diff --stat 9d1ef1a9..HEAD` 对 `app/config.py` / `app/main.py` / `app/core/exception_handlers.py` / `app/security.py` / `app/api/v1/endpoints/{sync,system}.py` 及那三个测试文件，输出均为空 ⇒ 既有失败面，非本卡引入 |
+
+**表三：本卡新登记的移交项**
+
+| 项 | 内容 |
+|---|---|
+| `lancedb_pending_index__<key>.jsonl` | `lancedb_index_service.py:76` 的同族 durable journal，合并前就不在两道门的监视清单里。扩面会让 `runtime_sha` 变严（更容易红），属另一张卡的范围决策 |
+| 本机 `python-typecheck` 恒假绿 | lefthook 的 pyright 在本机 `command not found`（exit 127）却被标 ✔️ —— 类型证据实际不存在。本卡未碰 lefthook |
+| 车道 `backend/` 下无 `.venv` | 导致 lefthook `python-lint` 的 `source backend/.venv/bin/activate` 跳过、裸 `ruff` 不在 PATH，该门在本车道对任何 commit 恒红。本轮 commit ①③ 用 `PATH=` 注入 venv 让它**真跑**并通过；commit ② 因目标文件有**存量** format 漂移（基线 7 hunks = 本卡后 7 hunks，零新增）而用 `LEFTHOOK_EXCLUDE=python-lint` 外科绕过，绕过依据与亲验证据写在该 commit 的 body 里 |
+
+### 7.5 台账待登记条目
+
+- 本卡合入后：`未合卡追踪台账.md` §一 的 W4 行移入 §二。
+- Bark-R1 的 6 MEDIUM + 1 LOW 随行登记（表一），该卡本身 `0 BLOCKER / 0 HIGH`。
+- 新增移交项三条（表三）。
+- 车道现有 13 个 tracked `*.stderr` 由主 session squash 时剔除，本卡不 `rm`。
+
+### 7.6 round-2 终审状态（(i)/(j) 的诚实交代）
+
+配额恢复时刻是 **2026-09-07 11:47**，本 session 跑在 **09-04**。(a)–(h) 已全部
+完成并落成 commit；(i)（round-2 正文非空 / B、H 计数 / 末行清零字样 / 绑定 = 实现
+最终态）与 (j)（停轮规则）依赖 round-2 正文，**不能由本 session 单方面宣布达成**。
+
+发终审的命令与判据在 §6 第 3 步，一字未改；prompt 已绑到实现最终态 `2b160897`，
+随时可发。本 session 的实际尝试结果记在下方 —— **rc=0 + 0 字节 ≠ 通过**，先 `wc -c`
+再读，这条纪律不因赶进度而放宽。
+
+> ⏳ **本 session 试发结果**：见本节末尾的回填（若未回填，即表示尚未尝试）。
