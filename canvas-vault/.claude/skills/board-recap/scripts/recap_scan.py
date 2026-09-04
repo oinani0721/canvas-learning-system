@@ -2548,9 +2548,17 @@ def _ledger_rows(scan: dict, key: str, problems: list[str]) -> list[dict] | None
     """
     groups = scan.get("ledger")
     if isinstance(groups, list):
-        # 扁平 list 形态无角色信息: 维持旧行为(只对种子生效), 如实登记 ——
-        # 那是 scan 侧的形态问题, 不在本函数职责内。
-        return [x for x in groups if isinstance(x, dict)] if key == "seeds" else []
+        # 扁平 list 形态**没有角色信息**。种子沿用旧行为(整表当种子面);
+        # 其余角色返回 `None` = 「无法绑定」的能力边界, **不是** `[]`。
+        # ⛔ 两者差一个语义, 而这个差别是可观测的: `[]` 会让
+        #   `_bind_derived_section` 的「零派生板不得写台账形状行」把**合法**的
+        #   派生行判成无中生有（实测: 同一份扁平 scan, 重切前 0 条诊断,
+        #   写成 `[]` 后 1 条误报）。`None` 则静默跳过, 与重切前逐字一致。
+        # ⚠️ 如实登记: 扁平形态下派生小节**不受绑定** —— 那是 scan 侧的形态
+        #   问题(新 scan 一律输出分组形态), 不在本函数职责内, 也不因此报错。
+        if key == "seeds":
+            return [x for x in groups if isinstance(x, dict)]
+        return None
     if not isinstance(groups, dict):
         problems.append(f"数字终核: scan JSON 无可用 ledger, 台账『{key}』行无法绑定")
         return None

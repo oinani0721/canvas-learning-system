@@ -5987,7 +5987,7 @@ def test_r4_derived_ledger_binding_closes_blocker2(tmp_path):
     ids=["h1", "indent_h2", "indent_h3", "h4"],
 )
 def test_r4_audit_span_not_narrower_than_legacy(text, why):
-    """⭐ 审计段的覆盖面**不得**比重切前窄（本卡自己制造并抓住的两个放行面）。
+    r"""⭐ 审计段的覆盖面**不得**比重切前窄（本卡自己制造并抓住的两个放行面）。
 
     ⛔ 教训（写在这里，因为它是重构最容易犯而最难发现的一类错）：
       把 N 份手抄合并成一个抽象时，**抽象的语义未必等于被合并者的语义**。
@@ -6012,3 +6012,38 @@ def test_r4_audit_span_not_narrower_than_legacy(text, why):
     #   位置会走不同路径（漏网扫描 vs 绑定失败），两条都是 fail-closed。
     #   写死单一拒因会让门在"换了条路仍然拦住"时假红（我第一版就是这么写的）。
     assert any("Ghost" in x or "不受任何认可小节覆盖" in x for x in ps), f"{why}：编造的台账行逃出了审计面 —— {ps!r}"
+
+
+def test_r4_flat_ledger_shape_does_not_false_reject():
+    """扁平 list 形态的 ledger（历史 scan JSON）不得因新增的派生绑定被误拒。
+
+    ⛔ 这是我在重构里造的**第四个**缺陷（前三个见验收单 §八）：
+      `ledger` 的历史形态是扁平 list，**没有角色信息**。我把非 seeds 角色的
+      取值写成 `[]`（"绑定面为空"），于是 `_bind_derived_section` 的
+      「零派生板不得写台账形状行」把**合法**的派生行判成无中生有。
+      实测同一份扁平 scan：重切前 0 条诊断，写成 `[]` 后 1 条误报。
+    ⇒ 扁平形态的正确答复是 `None`（**无法绑定**的能力边界），不是 `[]`
+      （**查过了，没有**）。两者差一个语义，而这个差别是可观测的。
+
+    ⚠️ 如实登记：扁平形态下派生小节**不受绑定**。那是 scan 侧的形态问题
+      （新 scan 一律输出分组形态），本卡不因此报错，也不宣称覆盖它。
+    """
+    rs = _load_recap_scan()
+    flat = {
+        "ledger": [
+            {"node_id": "S", "tips_count": 2},
+            {"node_id": "D", "tips_count": 1, "tips_open": 0},
+        ]
+    }
+    text = (
+        "## 台账\n\n### 种子\n\n- S — 批注 2 条\n\n"
+        "### 派生\n\n- D — 占位 · mastery 未记录 · tips 未闭环 0 条\n\n## 末\n"
+    )
+    ps: list[str] = []
+    rs._verify_ledger_counts(text, flat, ps)
+    assert ps == [], f"扁平 ledger 形态被误拒 —— {ps!r}"
+
+    # 反向：扁平形态**不得**因此放过种子侧的编造数字（能力边界只限派生角色）
+    ps2: list[str] = []
+    rs._verify_ledger_counts("## 台账\n\n### 种子\n\n- S — 批注 999 条\n\n## 末\n", flat, ps2)
+    assert any("tips_count 是 2" in x for x in ps2), f"扁平形态下种子绑定必须照常生效 —— {ps2!r}"

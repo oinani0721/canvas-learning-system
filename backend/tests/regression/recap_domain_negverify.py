@@ -940,6 +940,25 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         ],
         "r4_derived_ledger",
     ),
+    (
+        'survivor-R4e 扁平 ledger 的非 seeds 角色退回 `[]`（"空集" 当 "无信息" 用）'
+        "⚠️ 本条禁的是一条**防误拒**性质: 变异后门变红 = 那道门真的守着"
+        "「合法的扁平形态不被判成无中生有」。只测放行面的套件挡不住"
+        "「为堵放行面而把合法输入一起拒掉」。",
+        [
+            (
+                '        if key == "seeds":\n'
+                "            return [x for x in groups if isinstance(x, dict)]\n"
+                "        return None",
+                "        return (\n"
+                "            [x for x in groups if isinstance(x, dict)]\n"
+                '            if key == "seeds"\n'
+                "            else []\n"
+                "        )",
+            )
+        ],
+        "r4_flat_ledger",
+    ),
 ]
 
 
@@ -1102,6 +1121,8 @@ DESIGNATED: dict[str, list[str]] = {
     ],
     # R4d 摘掉零派生板的「无中生有」拒绝 ⇒ 红点 1 复活
     "survivor-R4d": ["test_r4_derived_ledger_binding_closes_blocker2"],
+    # R4e 扁平 ledger 退回 `[]` ⇒ 合法的派生行被判无中生有 = 误拒复活
+    "survivor-R4e": ["test_r4_flat_ledger_shape_does_not_false_reject"],
     "survivor-1": [
         "test_domain_block_four_fence_short_close",
         "test_domain_block_fence_close_needs_trailing_blank_only",
@@ -1215,8 +1236,8 @@ DESIGNATED: dict[str, list[str]] = {
 且每个 nodeid 必须真实存在于套件收集结果里（防指名腐烂）。
 """
 
-MUTANT_COUNT_EXPECTED = 77
-DESIGNATED_COUNT_EXPECTED = 89
+MUTANT_COUNT_EXPECTED = 78
+DESIGNATED_COUNT_EXPECTED = 90
 """指定门总数的**独立**期望值（Codex round-37 HIGH）。
 
 原先只冻结了变体数 66，指定门总数 73 是**从 DESIGNATED 动态求和后打印**的 ——
