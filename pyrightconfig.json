@@ -10,7 +10,22 @@
     "**/node_modules",
     "**/.git"
   ],
-  "pythonVersion": "3.14",
+  // CARD-TOOL-pyright [BATCH-2026-09-05-第十一批]: 3.14 -> 3.11。
+  // 类型检查器的 pythonVersion 应当是**代码必须能跑的最低版本**, 而不是开发机
+  // 恰好装的那个版本 —— 填高了等于对低版本上会崩的写法闭眼。
+  // 本机实测(pyright 1.1.411, 同一 include, 只改这一项):
+  //   3.9  -> 656 errors   (比 3.11 多 64: 其中 51 条是 `X | Y` 联合类型语法
+  //                         需 3.10+, 12+1 条需 3.11 的 asyncio 接口)
+  //   3.10 -> 605 errors   (仍比 3.11 多 13)
+  //   3.11 -> 592 errors   <- 拐点; 3.12 / 3.14 与它**逐条相同**
+  // 即: 本仓代码的真实下限是 **3.11**, 而 3.11 也正是 CI 矩阵的最低档
+  // (.github/workflows/test.yml 的 ['3.11','3.12'] 与 api-spec-sync.yml 的 3.11)。
+  // 因此 3.14 -> 3.11 是**零代价的收紧**(错误数 592 不变), 却让本检查器从此覆盖
+  // "在 CI 最低档上会崩" 这一类问题。
+  // ⚠️ 连带发现(本卡不修, 已登台账): 根 pyproject.toml:6 的
+  // `requires-python = ">=3.9"` 与 backend/ruff.toml 的 `target-version = "py39"`
+  // 都**已被证伪** —— 上面那 51 条 PEP 604 语法就是硬证据。
+  "pythonVersion": "3.11",
   "pythonPlatform": "All",
   "venvPath": "backend",
   "venv": ".venv",
