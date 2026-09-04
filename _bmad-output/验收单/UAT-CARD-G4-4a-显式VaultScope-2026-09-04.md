@@ -76,6 +76,32 @@
 > **定性：留存粒度问题，不是负控假绿。** 建议后续卡让脚本在 kill 时也保存
 > 失败身份（`--tb=line` 的 `^E` 行 + nodeid）。
 
+### 4-A.0 live vault 零写取证 —— 含一条**看起来像违规、实际不是**的记录
+
+本卡对 live vault 与主仓 `backend/data/` 全程只读，测试一律 `tmp_path`。终检：
+
+| 目标 | 结果 |
+|---|---|
+| 主仓 `backend/data/` 作业窗口内被改文件 | **0** |
+| `card-w8-scope`（只读取证车道）`git status` | **0** |
+| `card-v5-lance`（只借 venv）`git status` | **0** |
+| live `canvas-vault/` 作业窗口内被改文件 | **2** ⚠️ 见下 |
+
+⚠️ **那 2 个文件不是本卡写的，是既有定时任务**。逐条取证：
+
+- 文件：`canvas-vault/outputs/今日复习.md` 与 `.json`，
+  修改时刻 **`09:05:05`**。
+- 归因：`~/Library/LaunchAgents/com.canvas.daily-review.plist` 的调度里有
+  `Hour 9 / Minute 5` 这一档（CARD-A3 落地的 12 档 launchd），
+  `launchctl list` 可见 `com.canvas.daily-review` 已加载。**时刻精确吻合。**
+- 反证：本卡全程未运行 `daily_review_run.py` 或任何写 vault 的脚本；
+  Codex 以 `--sandbox read-only` 运行；该时刻本 session 正在做只读轮询。
+
+**为什么要把它写进来**：任何人复核时跑一遍
+`find canvas-vault -newermt <作业开始>` 都会看到这 2 个文件，
+不写清楚就会被当成「live vault 被写」的违规证据。
+**「窗口内有写入」不等于「本卡写的」——归因要落到具体的写入者。**
+
 ### 4-A.1 基线 → 终态逐条对照
 
 | 文件 | 主干基线（`1f249b33`） | 本卡终态 |
