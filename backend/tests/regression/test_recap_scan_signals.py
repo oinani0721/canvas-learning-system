@@ -5855,7 +5855,10 @@ def test_r4_render_doc_invariants():
             assert "\n" not in ln.visible and "\r" not in ln.visible, (
                 f"visible 不得含换行（`&#10;` 解出的换行必须折成空格）: {ln.visible!r}"
             )
-        # 与两个薄封装自洽（防有人改了封装却没改本体，或反过来）
+        # 与两个薄封装自洽（防有人改了封装却没改本体，或反过来）。
+        # ⚠️ Codex round-2 LOW-1：这**只是同源自洽**，证明不了「与重切前逐字
+        #   等价」——两边都是当前实现。相对 `7b94f318` 的等价性由一次性的
+        #   新旧引擎对账证明（21 份语料，结论见验收单 §一），不由本门证明。
         assert doc.visible_block() == rs._visible_block(text)
         assert doc.stripped_block() == rs._strip_code_blocks(text)
 

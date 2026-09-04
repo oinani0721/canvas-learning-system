@@ -1907,11 +1907,22 @@ class Doc:
     unknown: tuple[str, ...]
 
     def visible_block(self) -> str:
-        """整块渲染文本 —— 与重切前的 `_visible_block` 逐字等价。"""
+        """整块渲染文本。
+
+        ⚠️ 与重切前的 `_visible_block` **除新增的 `==高亮==` 归一外**逐字等价
+        （Codex round-2 LOW-1：原先写「逐字等价」，比证据宽）。等价性由一次性
+        的新旧引擎对账证明（21 份语料：4 份 live + 5 份 fixture + 12 条针对性
+        对抗语料，结论见验收单 §一）——**不是**由某道门证明：门里比的是 `Doc`
+        与它自己的薄封装，那是同源自洽。
+        """
         return "\n".join(ln.visible for ln in self.lines)
 
     def stripped_block(self) -> str:
-        """整块剥围栏文本 —— 与重切前的 `_strip_code_blocks` 逐字等价。"""
+        """整块剥围栏文本 —— 与重切前的 `_strip_code_blocks` 逐字等价。
+
+        （这一条**是**无条件等价：围栏状态机整段搬家，一个字符没改；
+        21 份语料对账全部相同。）
+        """
         return "\n".join(ln.stripped for ln in self.lines)
 
     def audit_span(self, sec: "Section") -> tuple[int, int]:
@@ -2516,9 +2527,12 @@ def _tail_conflict(
     `derived_children_count`）」—— 也就是说这两个数**本就来自 scan**，
     却从来没人核对过：报告里改成任意值都能通过。
 
-    ⇒ 本轮补上绑定。`row` 是该节点在 ledger 里的原始条目；缺字段（旧 scan /
-    fallback 模式下 `derived_children_count` 为 None）时**不报**——
-    没有出处可比不等于有矛盾，那属能力边界；有字段而对不上才 fail-closed。
+    ⇒ 本轮补上绑定。`row` 是该节点在 ledger 里的原始条目。
+
+    ⛔ **契约已在 CARD-维护B-R4 (h) 变更**（Codex round-2 LOW-2：这段说明过期）：
+      · 报告**没写**这个数 ⇒ 不检查（确实没什么可比）；
+      · 报告**写了**而 scan 里该字段无值 ⇒ **fail-closed**。
+      旧说明「缺字段时不报」把两件事混成一件，后者正是 verifier 唯一要拦的。
     """
     # ⛔ R3 round-27（冻结审查 v8）：原先只在 **raw** 尾巴上找，`批**注** 999 条` /
     #    `批<b>注</b> 999 条` / 全角数字全部漏；且 `未批注 999 条` 会因**子串**命中
