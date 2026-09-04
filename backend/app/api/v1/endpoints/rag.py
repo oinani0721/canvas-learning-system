@@ -326,8 +326,18 @@ async def rag_query(
     # (G4-3 round-3 HIGH-1 确立的纪律; 日志一律惰性参数)。
     # CARD-OBS-nothrow-logging-R1 归一 (CARD-G4-4a 完成条件 (k)): 兜底收敛进
     # 模块级 `logger = nothrow(...)`, 调用点**不再**手写 try/except ——
-    # 双层兜底会让 test_nothrow_logging_api 的注入门测不到包装器本身 (假绿面,
-    # OBS 78c9e6e7 对入口日志已确立同一口径, 本行是 G4-4 后加日志的补齐)。
+    # 与入口日志统一为**单层**保护 (OBS 78c9e6e7 对入口日志已确立该口径,
+    # 本行是 G4-4 后加日志的补齐)。理由: 调用点 try/except 叠在包装器之上时,
+    # 任何针对本行的注入负控都会先被调用点吞掉, 测不到包装器本身。
+    # ⚠️ 现有门覆盖面的准确说法 (Codex round-4 HIGH-2 更正, 勿再写宽):
+    #   · test_nothrow_logging_api.py 的 /rag/query 用例 (TestRagQueryErrorLogs)
+    #     注入的是 **error** 日志的 503/500 分支, **不覆盖**本行的 info;
+    #   · 真正覆盖本行的是 test_rag_four_state_api.py:197
+    #     (TestRagTraceAlignment::test_entry_logger_failure_does_not_break_response)
+    #     —— 它 patch rag.logger.inner.info, 本 handler 两处 logger.info 都经过
+    #     该注入点, 断言 200 且 rag_service.query 已被 await;
+    #   · 但它**同时**命中入口与本行, **无法单独锁定本行**。scope 专用的负控
+    #     (含验伪锚) 尚未沉淀为常驻用例, 已登记移交 OBS 后续卡。
     logger.info(
         "RAG query scope resolved: vault=%s source=%s group=%s",
         _scope.vault_id,

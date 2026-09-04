@@ -413,9 +413,15 @@ async def retrieve_lancedb(state: CanvasRAGState, runtime: Runtime[CanvasRAGConf
         # (真库反例复现)。邻居应从**被检索的同一张表**扩展: 主链
         # search_multiple_tables 默认查 DEFAULT_TABLES=["canvas_nodes"],
         # 这里显式 resolve 同一张表 (同一 ContextVar 解析源)。
-        # ⚠️ 原值 "vault_notes" 与 DEFAULT_TABLES 脱节属存量缺陷, 本卡一并
-        # 统一; resolve 的裸表回退 (B0.7) 是 lancedb_client 既有语义
-        # (V5 未合面), 其收敛登记移交。
+        # ⚠️ 原值 "vault_notes" 与 DEFAULT_TABLES 脱节属存量缺陷, 本卡一并统一。
+        # CARD-G4-4a 移植更正 (Codex round-4 HIGH-5): 上一版此处写「resolve 的
+        # 裸表回退 (B0.7) 是 lancedb_client 既有语义 (V5 未合面), 其收敛登记
+        # 移交」—— 那是在 V5 未合的车道上写的, 移到主干 1f249b33 后**已失效**:
+        # V5 (G2-4+G2-5) 已 squash 合入 (9e238dc5), resolve_table_name 的 B0.7
+        # 裸表回退**已删除**, 非 default vault 恒返回 prefixed 名, 已无「可能
+        # 回退到裸表」的语义, 也无待移交的收敛项。
+        # 泄漏面仍真实存在于 expand_neighbors 自身 —— 它不调 resolve_table_name,
+        # 直接 open_table(传入名); 变异 M6 实测该门仍杀。
         lancedb_results = await client.expand_neighbors(
             results=lancedb_results,
             table_name=client.resolve_table_name("canvas_nodes"),

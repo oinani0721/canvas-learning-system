@@ -130,7 +130,9 @@
 | R7 | 577 / 551 | `logger.info(f"[CONFIG] Updated {param}: {old_val} -> {value}")` | `logger.info("[CONFIG] Updated %s: %s -> %s", param, old_val, value)` |
 | R8 | 586 / 560 | `logger.error(f"Failed to update RAG config: {e}")` | `logger.error("Failed to update RAG config: %s", e)` |
 
-**不动**：:309（G4-4 新增 scope resolved，已惰性 + a3c41075 加的 call-site 兜底保留，§五 第 10 条）；:570（pyyaml warning 纯字面量）。**模块级** :35 = `nothrow(...)` + import。
+**不动**：:309（G4-4 新增 scope resolved，已惰性 + a3c41075 加的 call-site 兜底保留，§五 第 10 条）
+
+> ⚠️ **CARD-G4-4a 移植注（2026-09-04）**：这条「不动」已被 CARD-G4-4a 完成条件 (k) **推翻** —— `:309` 的 call-site `try/except` 已删除，兜底收敛进模块级 `logger = nothrow(...)`。两条依据：① 本行引用的「§五 第 10 条」**不存在**（§五 实测 只有 9 条，本文件其余四处 §五 引用均命中），即原决定无记载理由；② 本文件 §裁决点 A-3 自身的原则（「保留双层兜底 → 该门退化为测 call-site try/except 而非测包装器，假绿面」）指向收敛。判据：`test_nothrow_logging_api.py` 21 passed、裁判 1 107 passed/0 failed。详见 `UAT-CARD-G4-4a-显式VaultScope-2026-09-04.md` §6.6-OBS。；:570（pyyaml warning 纯字面量）。**模块级** :35 = `nothrow(...)` + import。
 
 ### memory.py（10 处改写 + 2 处不动；行号不变）
 
