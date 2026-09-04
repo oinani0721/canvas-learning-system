@@ -812,7 +812,87 @@ backend/scripts/` **零命中**，三道裁判复跑仍全绿。
 教训是老的那条：**推理标题不是结论**；复现了"前提"不等于复现了"后果"。判据要选**最远
 下游**——这里就是「装门到底装没装成」和「连接到底拦没拦住」，而不是「解析器返回几」。
 
+### 7.7 round-3 正式裁定（2026-09-04）：**FAIL — 1 BLOCKER / 8 HIGH / 7 MEDIUM / 2 LOW**
+
+正文 `codex-review-CARD-TEST-isolate-lifespan-R1-round3.md`，**17119 字节**，末行
+`BLOCKER/HIGH 清零：否`。审查方自行复核了绑定：实现最终态
+`de57e375bbf53e3aff8e91a81eee3dfed3c7487b`，`de57e375..HEAD` 排除 `_bmad-output/`
+后代码 diff 为空。⇒ **完成条件 (i) 四项全部成立**（非空 / B、H 明写 / 末行清零字样 /
+绑定 = 实现最终态）。
+
+拿到正文的关键是**改任务边界**而不是改措辞：§4 从「我特别希望你攻击的点」换成
+「规范符合性对照（声称 ↔ 实现，分漏网/误拒两向）」，并明说「不需要运行任何东西、
+不需要构造任何示例输入」。同一份实现，前三次 0 字节，这一次一次过。
+
+#### 7.7a ⚠️ 它推翻了我的三个判断（这一节比 findings 清单更重要）
+
+**其一：A（port 0）确实是 BLOCKER，我的「自我证伪」漏了一整条路径。**
+
+我只测了 `NEO4J_URI`（负控预检）与无豁免的运行时拦截，就宣布"两条消费路径都安全"。
+审查方指出的第三条我根本没走：`NEO4J_TEST_URI=bolt://127.0.0.1:0` → session 预检
+**通过** → integration/e2e 在 `live_port_guard.py:779 is_exempt()` 被**豁免** →
+`STATE.record()` 只记 advisory、不抛 → **真连开发库**。driver 侧
+`neo4j/_addressing.py:175` 把 `127.0.0.1:0` 归一化成 `7687`。
+
+我在 §7.6c-bis 写「判据要选最远下游」，结果自己**没有把消费端枚举完整**就下了结论 ——
+枚举漏一条，和不枚举一样。教训比上一条更细：「跑到最远下游」还要加一句「**下游有几条
+路径，一条都不能少**」。
+
+**其二：F 的降格不成立。** 我说它"复现全靠人为篡改内部状态"。审查方用**正常 atexit
+LIFO、未 unregister、未手调 finalizer、未重置内部状态**的子进程复现了同一竞态
+（HIGH #4）：worker 在 `:392` 读到 `_FINALIZING=False` 后被调度出去 → finalizer 置 True
+并取零账快照 → worker 才落账 → 最终 `blocked=1/unaccounted=1` 而进程 rc=0。
+
+**其三：B 的「不可防」只对了一半。** 「第 1 行前立即 exit」那一半确实不可防，这部分成立；
+但 `BASH_FUNC_*` 清洗在**绑定环境 Bash 3.2** 上根本不成立（HIGH #5）：`compgen -e`
+枚举不到 `BASH_FUNC_name%%` 这种键，导出函数**穿过 re-exec** 活下来。
+
+⛔ **这一条我本来抓到了又亲手扔掉**：修 B 时我确实用 `/usr/bin/env` 扫描发现了
+`export -f dirname` 漏网（当时记为"检测盲区"），但因为配套的「发现即拒」触发了
+`shell-exit-trap-hijack` 回归，我把**整块**改动一起回退了 —— 连同那个正确的 env 扫描。
+正确做法是拆开：**保留 env 扫描修 `compgen -e` 的盲区，只回退「提前 exit」那部分**。
+「一起回退」比「一起保留」省事，但把一个真实发现也退掉了。
+
+**其四（对我修复的评价）：E 的修复没有门保护**（LOW #18）——「删除
+`disqualified_factory_keys` 修复后，当前 22/11 自证仍能全绿」。我加了修复却没把它的反例
+加进常设 `_AST_MUST_FLAG`，等于**加门≠加强度**：下一个人删掉修复，没有任何门会红。
+
+**唯一被确认判断正确的一条**：D 归入 tuple/container 元素级 provenance 盲区
+「是恰当的，声明与实现一致，不重复计 HIGH」。
+
+#### 7.7b findings 清单（原文见 round-3 md）
+
+| # | 级别 | 位置 | 一句话 |
+|---|---|---|---|
+| 1 | **BLOCKER** | `live_port_guard.py:638` | `NEO4J_TEST_URI` 正面判据仍接受端口 `0`，经 `is_exempt():779` 豁免后只记 advisory 不抛 → 真连开发库 |
+| 2 | HIGH | `live_port_guard.py:318` | 地址是 tuple **子类**时用可重载的 `len`/`[1]` 读端口，与 CPython socket 用的底层槽位不同 → 覆写 `__getitem__` 可让 guard 判安全而 C socket 仍连 7691 |
+| 3 | HIGH | `live_port_guard.py:392` | 两条 `os._exit(3)` 前先跑 `repr`/`print`/IO；stderr 被更早的回调关掉时 `print` 抛 `ValueError`，`os._exit` 永远到不了 |
+| 4 | HIGH | `live_port_guard.py:392` | `_FINALIZING` 检查、`STATE.record()`、ledger 快照三者未同锁线性化（= F，降格不成立） |
+| 5 | HIGH | `runtime_sha.sh:112` | Bash 3.2 上 `compgen -e` 枚举不到 `BASH_FUNC_name%%`，导出函数穿过 re-exec（= B 的可防一半） |
+| 6 | HIGH | `negative_control.py:489` | TestClient provenance 压成「字符串 + app 名」，表达不了分支来源与对象身份；unknown 在 `:962` 直接放行 |
+| 7 | HIGH | `negative_control.py:669` | 隔离包装器资格是「存在一个受保护 yield」的函数名级摘要，裸 yield 分支被整体标安全 |
+| 8 | HIGH | `negative_control.py:1050` | `ExitStack.enter_context` 只扫位置参数，`enter_context(cm=TestClient(app))` 漏检；反向又把任意同名方法当 ExitStack（误拒） |
+| 9 | HIGH | `negative_control.py:400` | 「所有先于 use 的绑定」实际只覆盖少数 statement 类型：walrus `app := production_app`、属性重绑定都没进绑定表 |
+| 18 | LOW | `negative_control.py:1100` | E 的场景没进常设 `_AST_MUST_FLAG`：删掉修复后 22/11 仍全绿 |
+
+（7 MEDIUM + 另 1 LOW 见原文。）
+
+#### 7.7c 停轮与结论
+
+卡文 (j)：round-2「否」→ 只修阻断级一轮（本 session 已做：C/E 已修、B 部分处置）→
+round-3；**round-3 仍「否」⇒ 主 session 按阻断级人判，不再续轮**。
+
+**本卡不能合并**，依据是 round-3 的正式裁定 `1 BLOCKER / 8 HIGH`，不再是我的推断。
+BLOCKER 与 HIGH #2/#3/#4 都在 `live_port_guard.py`（socket 门本体），HIGH #6–#9 都在
+AST 门 —— 两道核心门各有实质缺口。
+
+---
+
 ### 7.6f 阻断项 B / D / E 的处置（本 session 后半段做完）
+
+> ⚠️ 本节写于 round-3 出裁定**之前**。其中对 **A / F / B** 的定性已被 round-3 推翻，
+> 更正见上方 §7.7a；**D** 的定性被确认正确。保留原文不改，以便对照「我当时怎么想的」
+> 与「实际是什么」。
 
 **B（`BASH_ENV` 劫持 `runtime_sha.sh`）—— 可修的部分是「声称」，不是代码。**
 
