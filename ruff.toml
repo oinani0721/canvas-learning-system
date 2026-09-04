@@ -2,6 +2,32 @@
 # NOTE: Lint rules temporarily disabled due to 2000+ pre-existing violations.
 # A dedicated lint cleanup sprint should re-enable rules incrementally.
 # Format checking remains active.
+#
+# CARD-TOOL-lint-glob [BATCH-2026-09-05-第十一批] 实机定性 (ruff 0.15.9,
+# `backend/.venv/bin/ruff check --show-settings scripts/send_bark.py`):
+#   `Settings path` 解析到**本文件** —— ruff 是"同目录 ruff.toml 优先于
+#   pyproject.toml", 不是两者合并。于是 backend/ 之外的全部 tracked .py
+#   (scripts/ 91 + 其余 94) 此前生效的配置是:
+#     linter.rules.enabled = []  -> lint 面为空集(只剩解析器的 invalid-syntax);
+#     line_width           = 88  -> 这是 ruff 的**缺省值**, 不是本仓的选择;
+#                                   pyproject.toml [tool.ruff] 与 backend/ruff.toml
+#                                   都写着 120, 但前者被本文件遮蔽、后者只管 backend/。
+# 本卡只统一下面两个**口径**, 不动 select (2000+ 存量违规, 另开卡):
+#
+# line-length = 120
+#   与 pyproject.toml [tool.ruff] / backend/ruff.toml 的声明对齐, 消除
+#   "88(scripts) vs 120(backend)" 这条从未有人选过的分叉。实测代价:
+#   scripts/ 下 `ruff format --check` 从 83 个文件需重排变成 86 个
+#   (88 与 120 都要重排绝大多数文件, 差别只在换行位置)。
+#
+# target-version = "py312"
+#   缺省的 py39 会把**合法**的 PEP 701 f-string 判成 invalid-syntax ——
+#   实测 scripts/finalize-iteration.py 3 条, 而该文件在本仓实际执行它的
+#   解释器 (backend/.venv = Python 3.14) 下 `py_compile` rc=0。
+#   scripts/ 全部由该 venv 执行, py39 这个缺省值在本树没有任何依据。
+#   注: backend/ruff.toml 自己声明的 py39 本卡**不动** (超范围, 已登台账)。
+line-length = 120
+target-version = "py312"
 
 [lint]
 select = []

@@ -92,8 +92,26 @@ pre-commit:
         fi
 
     # --- Python lint: ruff lint + format check on staged files ---
+    # CARD-TOOL-lint-glob [BATCH-2026-09-05-第十一批]: glob 由
+    # `{backend,src}/**/*.py` 改为 `{backend,src,scripts}/*.py`。两处改动:
+    #   1. 补 scripts/ —— 本仓 tracked .py 的分布是 backend 845 / scripts 91 /
+    #      src **0**。即原 glob 的 `src` 分支是恒空集(保留只为与下方 pyright
+    #      块的 glob 同形), 而真正有 91 个文件(49 个在一级)的 scripts/ 从未过过 ruff 门。
+    #   2. `**` 换单 `*` —— 沿用 X8 在本文件 OpenAPI 快照块钉死的引擎矩阵
+    #      (lefthook 2.1.6): 单 `*` 跨目录层级, `**` 反而要求至少跨一级。
+    #      故天真写法 `{backend,src,scripts}/**/*.py` 会漏掉 scripts/ 一级的
+    #      49 个 + backend/ 一级的 2 个(mutmut_config.py / start_server.py)。
+    #      本机逐文件探针复验见 UAT-CARD-TOOL-lint-glob-2026-09-05.md。
+    #
+    # 覆盖面诚实声明(别把本门当 lint 门读): scripts/ 的 ruff 配置解析到**根**
+    # ruff.toml 而非 backend/ruff.toml, 其 `[lint] select = []` 让 lint 面成为
+    # 空集。所以对 scripts/ 而言 `ruff check` 只拦解析器级 invalid-syntax,
+    # 不拦未定义名之类的规则违规 —— 实测 scripts/validate-source-citations.py:402
+    # 有一处 F821(f-string 里的 `{technology}`), 现行配置**不报**。
+    # 真正拦住 scripts/ 的是下面的 `ruff format --check`。开 scripts/ 必错级
+    # 规则集(对齐 backend/ruff.toml 的 E9,F63,F7,F82) = 另一张卡, 已登台账。
     python-lint:
-      glob: "{backend,src}/**/*.py"
+      glob: "{backend,src,scripts}/*.py"
       run: |
         # Activate backend venv for ruff
         if [ -f "backend/.venv/bin/activate" ]; then source backend/.venv/bin/activate; fi
@@ -211,6 +229,59 @@ pre-commit:
       run: |
         if [ -f "backend/.venv/bin/python" ]; then PY="backend/.venv/bin/python"; else PY="python3"; fi
         "$PY" backend/scripts/check_readme_claims.py --staged-diff
+
+    # --- Mutant residue scan (CARD-TOOL-lint-glob, BATCH-2026-09-05-第十一批) ---
+    # 变异卡会**原地改生产文件**再还原, 还原失败就把变异体留在树上。X7-A 登记
+    # 过一次: 一个 `if False:` 变异体带着标记躺在 card-w7-ledger 上, 直到主
+    # session 波 0 才被发现。本门在 commit 前扫暂存区的**新增行**, 命中标记
+    # 即 exit 1 阻断(不是 warning)。
+    #
+    # HONESTY CONTRACT —— 本门抓不到什么(照抄 X7-A 的真实反例, 别把它当锚点):
+    #   同一轮变异里 fsrs_bridge.py 被追加了一行 `_s.exit(9)`。它**不带任何
+    #   标记**, 于是三个裁判全绿、按标记 grep 得 0, 本门这一类**一条也抓不到**。
+    #   本门只是廉价补充; 唯一可靠的锚点仍然是「变异前对所有会被变异的文件取
+    #   全文件 sha 基线, 跑完逐个复核」(见 backend/scripts/g32b_mutation_gates.py)。
+    #   另: 匹配是**大小写敏感**的字面量, 只认 harness 实际写入的那个大写形态;
+    #   小写的散文提及("mutant testing")不会被误拦。
+    #
+    # 刻意不设 glob: 残留可以落在 .md / .yml / .sh, 不只是 .py。
+    # 排除名单写死在下面的 case 里(这三处的标记是**数据**不是残留):
+    #   backend/scripts/g32b_mutation_gates.py   变异 harness 本体(153 处)
+    #   backend/scripts/g32cb_mutation_gates.py  变异 harness 本体(10 处)
+    #   _bmad-output/**                          审查报告/验收单正文引用
+    # 标记串在运行时由两段拼出, 使**本文件自身**不含那个字面量 —— 否则每次
+    # 编辑本块都会被自己拦下(判据不可自指)。
+    mutant-residue-scan:
+      run: |
+        MARKER="MUT""ANT"
+        TMP="${TMPDIR:-/tmp}/lefthook-mutant-residue.$$"
+        : > "$TMP"
+        git -c core.quotepath=false diff --cached --name-only --diff-filter=AM \
+          | while IFS= read -r f; do
+              case "$f" in
+                backend/scripts/g32b_mutation_gates.py) continue ;;
+                backend/scripts/g32cb_mutation_gates.py) continue ;;
+                _bmad-output/*) continue ;;
+              esac
+              git diff --cached -U0 --diff-filter=AM -- "$f" \
+                | awk -v F="$f" -v M="$MARKER" '
+                    /^@@/    { split($3, a, ","); ln = a[1] + 0; next }
+                    /^\+\+\+/ { next }
+                    /^\+/    { if (index($0, M)) printf "  %s:%d: %s\n", F, ln, substr($0, 2); ln++ }
+                  ' >> "$TMP"
+            done
+        if [ -s "$TMP" ]; then
+          echo ""
+          echo "[Mutant-Scan] BLOCKED — 暂存的新增行里带变异残留标记:"
+          cat "$TMP"
+          echo ""
+          echo "[Mutant-Scan] 变异 harness 没还原干净。先 restore 被改的生产文件,"
+          echo "[Mutant-Scan] 再拿变异前的全文件 sha 基线逐个复核 —— 标记只是最弱那道网。"
+          rm -f "$TMP"
+          exit 1
+        fi
+        rm -f "$TMP"
+        echo "[Mutant-Scan] OK (staged additions carry no mutation marker)."
 
 # ============================================================
 # Commit-msg: Conventional commits with commitlint
