@@ -147,7 +147,7 @@ S4 排序因子清单 + why_this_board 生成律
   白名单外字符, 该门变红, 而不是静默把不可信串送进 HTML。
 
 S5 系数版本化: manifest 的权威边界 (哪些改了真生效, 哪些只是登记)
-  scripts/review_rank_manifest.json (version=1) 分两节, 语义不同 —— 混为
+  scripts/review_rank_manifest.json (version=2) 分两节, 语义不同 —— 混为
   一谈会造出「看起来能配、改了没用」的假配置:
     authoritative  运行时真相源, 改了下一轮立刻生效。当前只有
                    estimated_minutes 两个常量 (per_due_node / per_new_node)
@@ -165,7 +165,9 @@ S5 系数版本化: manifest 的权威边界 (哪些改了真生效, 哪些只�
              取 hash, 那么别人改 decay_beta.py 的 GAMMA (系数真的变了)
              指纹却纹丝不动, 版本化就成了摆设。实际入摘要的是 version +
              因子序 + 生效分钟常量 + 生效上限 + 从模块读到的 decay 六个
-             实际值, 任一变化 → sha 变 (契约测试逐项变异验证)。
+             实际值 + (R2 新增) vault 内 decay_beta.py 的整份字节,
+             任一变化 → sha 变 (契约测试逐项变异验证)。R2 之前只摘六个
+             常量取值, 改 pick_score 函数体可让板序翻转而 sha 不动。
 
 S6 归属与上限裁定 (无归属 / 一节点多板 / 同名板 / 上限 / 去重)
   无归属  _board_name(source_board) 返 None 的节点不进任何板, 点名在
@@ -307,6 +309,21 @@ DEFAULT_MINUTES = {"per_due_node": 3, "per_new_node": 5}
 
 #: S5 入指纹的 decay_beta 六常量名 (排序固定 → 指纹稳定)
 DECAY_CONSTANT_NAMES = ("BETA_EXPLORE", "FLOOR", "GAMMA", "GAMMA_DAILY", "PRIOR_A", "PRIOR_B")
+
+#: S5-R2 vault 内 decay_beta.py 的位置 —— load_decay 与"指纹取字节"共用这一处。
+#: 两处各写一遍路径 = 指纹摘的可能不是真正被 import 的那份 (CARD-G3-6b-R2)。
+DECAY_DIR_REL = (".claude", "scripts")
+DECAY_MODULE_FILENAME = "decay_beta.py"
+
+
+def decay_source_path(vault) -> Path:
+    """vault 内 decay_beta.py 的路径 (只读用)。
+
+    S5-R2: 指纹要摘 decay_beta.py 的**字节**, 路径必须从 vault 根显式派生
+    —— 不走 import, 也不读 decay.__file__ (调用方注入的假 decay 没有该属性,
+    静默兜 None 会让指纹在测试路径上恒定 = 新门自身假绿)。
+    """
+    return Path(vault).joinpath(*DECAY_DIR_REL, DECAY_MODULE_FILENAME)
 
 
 def _aware(s: str) -> datetime:
@@ -653,8 +670,12 @@ def _implementation_sha(path=None) -> str:
        decay_beta.py 的 effective() / pick_score() **函数体**算出 (调用点见
        scan_nodes 内 `decay.effective` / `decay.pick_score`)。该文件的**六个
        常量**在指纹内 (改常量必变 sha, 且 recorded 会打漂移告警), 但它的
-       **函数体不在** —— 改函数体可让排序变而本 sha 纹丝不动。decay_beta.py
-       本体归 CARD-G6-1b、本卡禁改, 故此处只**如实登记**这个缺口, 不扩指纹。
+       **函数体不在本键内** —— 改函数体可让排序变而**本键**
+       (implementation_sha256) 纹丝不动。⚠ CARD-G3-6b-R2 已在同一份
+       effective_rank_config 里新增 decay_beta_sha256 摘该文件整份字节, 故
+       「改函数体而 **rank_manifest 的 sha** 不动」**已不再成立**; 本键自身
+       的边界不变 (它始终只摘 pick.py)。decay_beta.py 本体归 CARD-G6-1b、
+       本卡仍禁改, 只读其字节。
     3. **单向保证**: 「本文件或明列系数变 ⟹ sha 变」。逆命题不成立, 且是刻意
        放弃的 —— 摘全文件使指纹对注释也敏感; 追加重复因子键同样「sha 变而
        排序不变」(Codex round-2 LOW 的实测方向)。不可拿 sha 变没变去推断
@@ -665,10 +686,43 @@ def _implementation_sha(path=None) -> str:
        完整性** (见验收单「本卡未证明什么」第 4 条)。
     """
     p = Path(path) if path is not None else Path(__file__).resolve()
-    return hashlib.sha256(p.read_bytes()).hexdigest()
+    return _file_sha(p)
 
 
-def effective_rank_config(decay, version, minutes: dict) -> dict:
+def _file_sha(path) -> str:
+    """字节指纹的唯一实现 —— _implementation_sha 与 _decay_sha 共用。
+
+    只读 Path.read_bytes(): 不 import、不执行被摘的文件。
+    """
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def _decay_sha(path) -> str:
+    """S5-R2 vault 内 decay_beta.py 的字节指纹 (CARD-G3-6b-R2)。
+
+    补的正是 _implementation_sha 边界第 2 条登记的那个缺口: pick 值由
+    decay_beta.py 的 effective()/pick_score() **函数体**算出, 而旧指纹只摘
+    六个常量的取值 —— 只改函数体一个符号 (六常量逐字不动) 可让板序翻转而
+    rank sha 恒为 503fd4b6…(R1 轮 Codex HIGH 实测)。本函数把该文件整份字节
+    摘进 effective_rank_config, 该缺口关闭。
+
+    ⚠ 精确边界 (措辞不得放宽):
+    1. path **必填**, 没有默认值可回落。给不出路径就 TypeError 当场炸, 而
+       不是兜一个常数让指纹在该路径上恒定 —— 那是新门自身假绿。
+    2. 摘的是**该路径上的字节**, 不是"排序真正用到的那个模块对象"。
+       load_decay 走 `import decay_beta`, 同一进程内再次导入取模块缓存;
+       生产是单 vault 单进程故两者同一, 多 vault 同进程 (测试) 时可能不同。
+       本函数**不宣称运行时模块身份**。
+    3. 与 _implementation_sha 同为**单向**保证:「文件字节变 ⟹ sha 变」。
+       逆命题不成立 —— 摘全文件使指纹对注释/空行同样敏感, 不可拿"sha 变了"
+       去推断"排序逻辑变了"(契约测试有一条注释变异正例锁住这个方向)。
+    4. 同样**不覆盖运行时字节码**: 篡改 __pycache__/*.pyc 并伪造 mtime 的面
+       见 _implementation_sha 第 4 条, 本卡未评估。
+    """
+    return _file_sha(path)
+
+
+def effective_rank_config(decay, version, minutes: dict, decay_path) -> dict:
     """S5 运行时实际生效的全部系数 —— sha256 的被摘要对象。
 
     ⚠ 摘要的是"生效值"而不是 manifest 文件字节: 只对文件取 hash 的话, 别人
@@ -678,6 +732,13 @@ def effective_rank_config(decay, version, minutes: dict) -> dict:
     implementation_sha256 摘本文件字节 (round-2 HIGH: 取值绑定无法全部
     数据化, 由实现指纹兜住「改**源文件**规则而指纹不动」—— 其单向性与
     不覆盖运行时 .pyc 的边界见 _implementation_sha 的四条声明)。
+
+    S5-R2 (CARD-G3-6b-R2): 新增 decay_beta_sha256 —— vault 内 decay_beta.py
+    的整份字节。旧版只摘该模块的六个**常量取值**, 于是"只改 pick_score
+    函数体一个符号"能让板序翻转而 sha 纹丝不动 (R1 轮实测缺口)。decay_path
+    由调用方从 **vault 根**显式派生 (decay_source_path), 必填、无默认值:
+    禁 import、禁 decay.__file__ —— 注入的假 decay 没有 __file__, 静默兜
+    None 会让指纹在测试路径上恒定, 新门自身就成了假绿。边界见 _decay_sha。
     """
     return {
         "version": version,
@@ -686,13 +747,20 @@ def effective_rank_config(decay, version, minutes: dict) -> dict:
         "estimated_minutes": {k: int(minutes[k]) for k in sorted(minutes)},
         "limits": {"top_boards": TOP_BOARDS_LIMIT, "upcoming": UPCOMING_LIMIT},
         "decay_beta_constants": {k: getattr(decay, k, None) for k in DECAY_CONSTANT_NAMES},
+        "decay_beta_sha256": _decay_sha(decay_path),
         "implementation_sha256": _implementation_sha(),
     }
 
 
-def build_rank_manifest(decay, version, minutes: dict, recorded: dict) -> dict:
-    """S5 payload.rank_manifest = {version, sha256}; 顺带发漂移告警。"""
-    effective = effective_rank_config(decay, version, minutes)
+def build_rank_manifest(
+    decay, version, minutes: dict, recorded: dict, decay_path
+) -> dict:
+    """S5 payload.rank_manifest = {version, sha256}; 顺带发漂移告警。
+
+    S5-R2: decay_path 必填 —— vault 内 decay_beta.py 的路径, 调用方从 vault
+    根显式派生 (decay_source_path(vault))。不给就 TypeError, 不静默兜底。
+    """
+    effective = effective_rank_config(decay, version, minutes, decay_path)
     _warn_recorded_drift(recorded, effective)
     blob = json.dumps(effective, sort_keys=True, ensure_ascii=False, allow_nan=False)
     return {"version": version, "sha256": hashlib.sha256(blob.encode("utf-8")).hexdigest()}
@@ -864,7 +932,9 @@ def build_payload(vault: Path, now: datetime, board_last_recommended: dict, deca
     参数是加性关键字, 消费面零变化。
     """
     version, minutes, recorded = load_rank_manifest(manifest_path)
-    rank_manifest = build_rank_manifest(decay, version, minutes, recorded)
+    rank_manifest = build_rank_manifest(
+        decay, version, minutes, recorded, decay_source_path(vault)
+    )
     nodes, stats, ineligible, placeholder_boards = scan_nodes(vault, now, decay)
     ranked, upcoming, unassigned = rank_boards(nodes, board_last_recommended, now, minutes)
     stats["unassigned"] = len(unassigned)
@@ -1094,7 +1164,9 @@ def atomic_write(path: Path, content: str):
 
 
 def load_decay(vault: Path):
-    sys.path.insert(0, str(vault / ".claude" / "scripts"))
+    # S5-R2: 目录取自 decay_source_path —— 与指纹取字节的路径同源, 防两处
+    # 各写一遍导致"摘的不是被 import 的那份"。
+    sys.path.insert(0, str(decay_source_path(vault).parent))
     import decay_beta
     return decay_beta
 

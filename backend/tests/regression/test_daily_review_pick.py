@@ -1044,6 +1044,36 @@ _BASELINE_SHA = "9af18b27"
 #: manifest 真文件 (生产默认加载的那一份)
 _REAL_MANIFEST = WT / "scripts" / "review_rank_manifest.json"
 
+#: 生产 decay_beta.py (只读 —— 本卡禁改其本体, 变异一律在 tmp 副本上做)
+_REAL_DECAY = WT / "canvas-vault" / ".claude" / "scripts" / "decay_beta.py"
+
+
+def _decay_copy(tmp_path, name="decay_only", mutate=None) -> Path:
+    """把生产 decay_beta.py 复制进 tmp 并返回副本路径 (mutate = (old, new))。
+
+    S5-R2: build_rank_manifest / effective_rank_config 的 decay_path 必填,
+    而 _fake_decay 是 SimpleNamespace **没有 __file__** —— 每个调用点显式给出
+    一个真实存在的 tmp 文件, 不让被测函数去猜 (猜 = 兜常数 = 新门自身假绿)。
+    """
+    d = tmp_path / name / ".claude" / "scripts"
+    d.mkdir(parents=True, exist_ok=True)
+    q = d / "decay_beta.py"
+    text = _REAL_DECAY.read_text(encoding="utf-8")
+    if mutate is not None:
+        old, new = mutate
+        assert text.count(old) == 1, f"变异锚点不唯一/未命中 —— 预置没生效, 门是空的: {old!r}"
+        text = text.replace(old, new, 1)
+    q.write_text(text, encoding="utf-8")
+    return q
+
+
+#: 只改 pick_score 函数体的一个符号 (μ−β·σ → μ+β·σ), 六个常量逐字不动 ——
+#: R1 轮 Codex HIGH 的原始反例形态: 板序翻转而 rank sha 恒定。
+_PICK_SCORE_BODY_MUT = (
+    "    return mu(a, b) - beta * sigma(a, b)\n",
+    "    return mu(a, b) + beta * sigma(a, b)\n",
+)
+
 
 def _fake_decay(**over):
     """只带 S5 六个系数的假 decay —— effective_rank_config 只 getattr 这六个。"""
@@ -1052,10 +1082,11 @@ def _fake_decay(**over):
     return types.SimpleNamespace(**base)
 
 
-def _sha_of(decay=None, version=1, minutes=None):
-    return picker.build_rank_manifest(decay or _fake_decay(), version, minutes or dict(picker.DEFAULT_MINUTES), {})[
-        "sha256"
-    ]
+def _sha_of(decay_path, decay=None, version=1, minutes=None):
+    """S5-R2: decay_path 由调用方显式给 —— 被测函数没有默认值可回落。"""
+    return picker.build_rank_manifest(
+        decay or _fake_decay(), version, minutes or dict(picker.DEFAULT_MINUTES), {}, decay_path
+    )["sha256"]
 
 
 def _write_manifest(tmp_path, obj, name="manifest.json") -> Path:
@@ -1230,33 +1261,39 @@ def test_g36b_rank_manifest_version_and_sha_in_payload(tmp_path):
     payload, _ = _build(tmp_path, {"甲": _node()})
     rm = payload["rank_manifest"]
     assert set(rm) == {"version", "sha256"}
-    assert rm["version"] == 1, "生产 manifest 当前 version=1"
+    assert rm["version"] == 2, "生产 manifest 当前 version=2 (CARD-G3-6b-R2 升版)"
     assert re.fullmatch(r"[0-9a-f]{64}", rm["sha256"]), "sha256 十六进制定长"
 
 
-def test_g36b_sha_changes_for_every_single_coefficient(monkeypatch):
+def test_g36b_sha_changes_for_every_single_coefficient(tmp_path, monkeypatch):
     """S5 逐项变异: 任何一个系数变了, 指纹必须变 —— 一项都不能漏。
 
-    漏掉任何一项 = 那个系数被改了而版本化毫无察觉, 版本化就成了摆设。"""
-    baseline = _sha_of()
-    assert _sha_of(version=2) != baseline, "version"
-    assert _sha_of(minutes={"per_due_node": 4, "per_new_node": 5}) != baseline, "per_due_node"
-    assert _sha_of(minutes={"per_due_node": 3, "per_new_node": 6}) != baseline, "per_new_node"
+    漏掉任何一项 = 那个系数被改了而版本化毫无察觉, 版本化就成了摆设。
+    S5-R2: 全程用同一份 tmp decay 副本作 decay_path, 让"变的只有被测那一项"。"""
+    dp = _decay_copy(tmp_path)
+    baseline = _sha_of(dp)
+    assert _sha_of(dp, version=2) != baseline, "version"
+    assert _sha_of(dp, minutes={"per_due_node": 4, "per_new_node": 5}) != baseline, "per_due_node"
+    assert _sha_of(dp, minutes={"per_due_node": 3, "per_new_node": 6}) != baseline, "per_new_node"
     for name in picker.DECAY_CONSTANT_NAMES:
-        assert _sha_of(decay=_fake_decay(**{name: 12.5})) != baseline, f"decay 常量 {name} 变了指纹却没动"
+        assert _sha_of(dp, decay=_fake_decay(**{name: 12.5})) != baseline, f"decay 常量 {name} 变了指纹却没动"
 
     class _Missing:  # 模块被删了五个常量 —— 缺了也是变了
         PRIOR_A = 0.9
 
-    assert _sha_of(decay=_Missing()) != baseline, "decay 常量缺失"
+    assert _sha_of(dp, decay=_Missing()) != baseline, "decay 常量缺失"
+
+    # CARD-G3-6b-R2: decay_beta.py 的字节也是"系数"的一部分 —— 换一份内容不同
+    # 的 decay 文件 (六常量取值不变, 只改函数体) 指纹必须变
+    assert _sha_of(_decay_copy(tmp_path, "mut_v", _PICK_SCORE_BODY_MUT)) != baseline, "decay 函数体"
 
     # Codex round-2 HIGH: 可执行取值规则 (精度/因子序) 也必须进指纹
     monkeypatch.setattr(picker, "TIE_PICK_ROUND_DIGITS", 7)
-    assert _sha_of() != baseline, "pick 取整精度变了指纹却没动"
+    assert _sha_of(dp) != baseline, "pick 取整精度变了指纹却没动"
     monkeypatch.setattr(
         picker, "TIE_FACTOR_KEYS", ("priority_pick", "board", "min_last_examined", "board_last_recommended")
     )
-    assert _sha_of() != baseline, "因子序变了指纹却没动"
+    assert _sha_of(dp) != baseline, "因子序变了指纹却没动"
 
 
 def test_g36b_sha_digests_effective_values_not_file_bytes(tmp_path):
@@ -1268,18 +1305,159 @@ def test_g36b_sha_digests_effective_values_not_file_bytes(tmp_path):
            (「把整个文件塞进摘要」的实现在这里会红。)
     """
     real = json.loads(_REAL_MANIFEST.read_text(encoding="utf-8"))
+    dp = _decay_copy(tmp_path)
     v, minutes, recorded = picker.load_rank_manifest(_REAL_MANIFEST)
-    baseline = picker.build_rank_manifest(_fake_decay(), v, minutes, recorded)["sha256"]
+    baseline = picker.build_rank_manifest(_fake_decay(), v, minutes, recorded, dp)["sha256"]
 
-    moved = picker.build_rank_manifest(_fake_decay(GAMMA=0.5), v, minutes, recorded)["sha256"]
+    moved = picker.build_rank_manifest(_fake_decay(GAMMA=0.5), v, minutes, recorded, dp)["sha256"]
     assert moved != baseline, "改 decay 系数(不碰文件) 指纹必须变"
 
     chatty = json.loads(json.dumps(real))
     chatty["_说明"] = "改一段与生效值无关的说明文字"
     chatty["recorded"]["_说明"] = "同上"
     v2, m2, r2 = picker.load_rank_manifest(_write_manifest(tmp_path, chatty))
-    same = picker.build_rank_manifest(_fake_decay(), v2, m2, r2)["sha256"]
+    same = picker.build_rank_manifest(_fake_decay(), v2, m2, r2, dp)["sha256"]
     assert same == baseline, "只改说明文字, 生效值没变, 指纹不该变"
+
+
+# ── S5-R2 (CARD-G3-6b-R2): vault 内 decay_beta.py 的函数体入指纹 ──
+
+
+def test_g36b_r2_decay_body_change_moves_sha(tmp_path):
+    """R2 主门 (B1): 只改 decay_beta.py 的 pick_score **函数体**一个符号,
+    六个常量逐字不动 → rank sha 必须变。
+
+    这正是 R1 轮 Codex HIGH 的原始反例: v1 口径下板序 [B板,A板]→[A板,B板]
+    翻转而 sha 恒为 503fd4b6…, 版本化在"改函数体"这个方向上完全是摆设。
+    HEAD (v1 实现) 上本门必红 —— 那时 build_rank_manifest 连路径都收不到。
+
+    ⚠ 本门只证**字节层**: 断言的是"文件变 ⇒ sha 变", 不断言"排序会变"
+    (排序变不变取决于数据; 且本门全程不 import 被改的副本 —— 见
+    _decay_sha 边界 2/3)。
+    """
+    base = _decay_copy(tmp_path, "body_base")
+    mut = _decay_copy(tmp_path, "body_mut", _PICK_SCORE_BODY_MUT)
+
+    # 自证前置 ①: 预置真的产生了差异 (否则本门是空的)
+    assert base.read_bytes() != mut.read_bytes(), "变异未落盘"
+
+    # 自证前置 ②: 变的只有函数体 —— 六个常量的定义行逐字相同。常量若也变了,
+    # 本门就退化成"改常量指纹会变", 而那条旧门 HEAD 起就绿着。
+    def const_lines(q):
+        return [
+            ln
+            for ln in q.read_text(encoding="utf-8").splitlines()
+            if any(ln.startswith(n + " =") for n in picker.DECAY_CONSTANT_NAMES)
+        ]
+
+    assert len(const_lines(base)) == 6, "六常量定义行没找全 —— 自证前置失效"
+    assert const_lines(base) == const_lines(mut), "变异误伤了常量, 本门退化"
+
+    v, minutes, recorded = picker.load_rank_manifest(_REAL_MANIFEST)
+    fake = _fake_decay()
+    sha_base = picker.build_rank_manifest(fake, v, minutes, recorded, base)["sha256"]
+    sha_mut = picker.build_rank_manifest(fake, v, minutes, recorded, mut)["sha256"]
+    assert sha_base != sha_mut, "改 pick_score 函数体, rank sha 必须变 (R1 缺口)"
+
+    # 差异必须落在新键上 —— 其余入摘项一个都没动
+    cfg_base = picker.effective_rank_config(fake, v, minutes, base)
+    cfg_mut = picker.effective_rank_config(fake, v, minutes, mut)
+    assert cfg_base["decay_beta_constants"] == cfg_mut["decay_beta_constants"]
+    assert cfg_base["implementation_sha256"] == cfg_mut["implementation_sha256"]
+    assert cfg_base["decay_beta_sha256"] != cfg_mut["decay_beta_sha256"], "差异必须落在新键上"
+
+
+def test_g36b_r2_decay_path_is_required_no_silent_fallback(tmp_path):
+    """R2 防"新门自身假绿": decay_path 没有默认值可回落。
+
+    _fake_decay 是 SimpleNamespace, **没有 __file__** —— 实现若走
+    decay.__file__ 会 AttributeError (5 个调用点当场炸), 若静默兜 None 则新键
+    在所有测试路径上恒定, 等于加了一个恒等常数。这里锁死"给不出路径就当场
+    TypeError", 让两种做假方式都无处落脚。
+    """
+    v, minutes, recorded = picker.load_rank_manifest(_REAL_MANIFEST)
+    with pytest.raises(TypeError):
+        picker.effective_rank_config(_fake_decay(), v, minutes)
+    with pytest.raises(TypeError):
+        picker.build_rank_manifest(_fake_decay(), v, minutes, recorded)
+
+    assert not hasattr(_fake_decay(), "__file__"), "假 decay 一旦有了 __file__, 本门的前提就没了"
+    assert re.fullmatch(
+        r"[0-9a-f]{64}",
+        picker.effective_rank_config(_fake_decay(), v, minutes, _decay_copy(tmp_path))["decay_beta_sha256"],
+    ), "显式给路径时照样算得出 —— 前一半的 TypeError 不是因为函数坏了"
+
+
+def test_g36b_r2_decay_sha_digests_bytes_not_identity(tmp_path):
+    """R2 边界正例: 摘的是**字节**不是文件身份, 且只是**单向**保证。
+
+    正向 — 同内容两个不同路径 → 同 sha (可复算, 不绑路径身份)。
+    反向 — 只改一行注释 (行为完全不变) → sha 照样变。这条**故意**锁住
+           "不可拿 sha 变了反推排序逻辑变了"; 谁把 docstring 写成
+           "sha 变 ⟺ 排序变", 这条门就是现成的反例。
+    """
+    a = _decay_copy(tmp_path, "twin_a")
+    b = _decay_copy(tmp_path, "twin_b")
+    assert a != b and a.read_bytes() == b.read_bytes()
+    assert picker._decay_sha(a) == picker._decay_sha(b), "同字节不同路径必须同 sha"
+
+    c = _decay_copy(tmp_path, "cmt", ("import math\n", "import math  # 与行为无关的一句注释\n"))
+    assert picker._decay_sha(c) != picker._decay_sha(a), "摘全文件 ⇒ 对注释同样敏感 (单向性)"
+
+    # 新键与 pick.py 自身的实现指纹是两个独立的键, 不许接错线 (DD-13)
+    v, minutes, _ = picker.load_rank_manifest(_REAL_MANIFEST)
+    cfg = picker.effective_rank_config(_fake_decay(), v, minutes, a)
+    assert cfg["decay_beta_sha256"] == picker._decay_sha(a)
+    assert cfg["implementation_sha256"] == picker._implementation_sha()
+    assert cfg["decay_beta_sha256"] != cfg["implementation_sha256"], "两键不得指向同一份文件"
+
+
+def test_g36b_r2_payload_sha_follows_vault_decay_file(tmp_path):
+    """R2 端到端: payload 的 rank_manifest.sha256 随**该 vault 内**
+    decay_beta.py 的字节走 —— 路径由 build_payload 从 vault 根派生。
+
+    ⚠ 同时如实锁住 _decay_sha 边界 2: 本用例两次 build_payload 的 top_boards
+    **完全相同** —— load_decay 走 `import decay_beta`, 同一进程内第二次导入取
+    模块缓存, 排序实际用的还是先导入的那份。指纹摘的是"路径上的字节", 不是
+    "运行时那个模块对象"。生产是单 vault 单进程, 两者同一。
+    """
+    nodes = {"甲": _node(board="A板", extra="mastery_a: 2.0\nmastery_b: 3.0\n")}
+    v_base = _mk_min_vault(tmp_path, "e2e_base", nodes)
+    v_mut = _mk_min_vault(tmp_path, "e2e_mut", nodes)
+    q = picker.decay_source_path(v_mut)
+    text = q.read_text(encoding="utf-8")
+    assert text.count(_PICK_SCORE_BODY_MUT[0]) == 1, "变异锚点未命中 —— 预置没生效, 门是空的"
+    q.write_text(text.replace(*_PICK_SCORE_BODY_MUT), encoding="utf-8")
+
+    p_base, _ = picker.build_payload(v_base, NOW, {}, picker.load_decay(v_base))
+    p_mut, _ = picker.build_payload(v_mut, NOW, {}, picker.load_decay(v_mut))
+    assert p_base["rank_manifest"]["sha256"] != p_mut["rank_manifest"]["sha256"], (
+        "vault 内 decay_beta.py 函数体变了, payload 指纹必须跟着变"
+    )
+    assert p_base["rank_manifest"]["version"] == p_mut["rank_manifest"]["version"] == 2
+    assert p_base["top_boards"], "fixture 必须真的产出板 —— 否则下一条相等断言是空集对空集"
+    assert p_base["top_boards"] == p_mut["top_boards"], (
+        "同进程模块缓存 ⇒ 排序仍来自先导入的那份; 本门证的是字节层, 不是运行时"
+    )
+
+
+def test_g36b_r2_manifest_version_bumped_and_old_snapshot_registered():
+    """R2 (B6): 口径变了就必须升版, 且旧 sha 快照要被显式登记为失效。
+
+    不升版 = 归档里 v1 与 v2 的 sha 混在一起, 谁都说不清某个快照是哪个口径
+    算出来的; 只升版不登记 = 后人拿 503fd4b6… 去比对新 payload, 得到一个
+    "变了"的无信息结论, 还以为发现了漂移。
+    """
+    obj = json.loads(_REAL_MANIFEST.read_text(encoding="utf-8"))
+    assert obj["version"] == 2, "CARD-G3-6b-R2 升版 2"
+    hist = obj["_版本历史"]
+    assert set(hist) >= {"_说明", "1", "2"}, "两个版本都要有登记"
+    assert "503fd4b6" in hist["2"], "旧 sha 快照必须点名登记失效"
+    assert "失效" in hist["2"]
+    assert "decay_beta_sha256" in hist["2"], "升版原因要写清楚"
+    # 登记节是纯说明, 不参与任何计算
+    v, _, recorded = picker.load_rank_manifest(_REAL_MANIFEST)
+    assert v == 2 and "_版本历史" not in recorded
 
 
 def test_g36b_recorded_decay_snapshot_matches_real_module(tmp_path):
@@ -1404,7 +1582,7 @@ def test_g36b_recorded_drift_warns_but_actual_value_wins(tmp_path, capsys):
         },
     )
     v, minutes, recorded = picker.load_rank_manifest(mp)
-    picker.build_rank_manifest(_fake_decay(), v, minutes, recorded)
+    picker.build_rank_manifest(_fake_decay(), v, minutes, recorded, _decay_copy(tmp_path))
     err = capsys.readouterr().err
     assert "recorded.limits 与实际生效值不符" in err
     assert "recorded.ranking_factors.order 与实际生效值不符" in err
@@ -1576,12 +1754,16 @@ def test_g36b_golden_new_fields_frozen(tmp_path):
         "recommend_gap_days",
     ], "factors 键序冻结 (落盘 diff 稳定性)"
     assert payload["truncated"] == {"top_boards": False, "upcoming": False}
-    assert payload["rank_manifest"]["version"] == 1
+    assert payload["rank_manifest"]["version"] == 2
     # sha 不冻结字面量 (用户改 manifest 分钟常量是预期内变更), 冻结「与复算一致」:
     # 拿生产 manifest 与生产 decay 重跑指纹函数, 必须逐字复得
     v, minutes, recorded = picker.load_rank_manifest(_REAL_MANIFEST)
-    decay = picker.load_decay(_mk_min_vault(tmp_path, "sha_v", {}))
-    assert payload["rank_manifest"]["sha256"] == picker.build_rank_manifest(decay, v, minutes, recorded)["sha256"]
+    sha_vault = _mk_min_vault(tmp_path, "sha_v", {})
+    decay = picker.load_decay(sha_vault)
+    assert (
+        payload["rank_manifest"]["sha256"]
+        == picker.build_rank_manifest(decay, v, minutes, recorded, picker.decay_source_path(sha_vault))["sha256"]
+    )
     # due_nodes 行: idle_days 行尾追加 (None = 从未考察), 旧键序不动
     assert list(payload["due_nodes"][0]) == [
         "node",
@@ -1727,7 +1909,8 @@ def test_g36b_tie_keys_are_single_source(tmp_path, monkeypatch):
     assert order_default == ["B板", "A板"], "默认序: blr 级先决 (B 从未被推荐)"
 
     _, minutes, _ = picker.load_rank_manifest(_REAL_MANIFEST)
-    sha_before = picker.build_rank_manifest(decay, 1, minutes, {})["sha256"]
+    dp = picker.decay_source_path(vault)
+    sha_before = picker.build_rank_manifest(decay, 1, minutes, {}, dp)["sha256"]
 
     keys = picker.TIE_FACTOR_KEYS
     # 交换位置 1 (blr) 与 3 (board): pick/min_last 平局下, board 级提前
@@ -1736,7 +1919,7 @@ def test_g36b_tie_keys_are_single_source(tmp_path, monkeypatch):
     monkeypatch.setattr(picker, "TIE_FACTOR_KEYS", swapped)
     order_swapped = [r["board"] for r in picker.rank_boards(nodes, blr, NOW)[0]]
     assert order_swapped == ["A板", "B板"], "交换因子位置后板序必须随之变化 (单一真相源)"
-    sha_after = picker.build_rank_manifest(decay, 1, minutes, {})["sha256"]
+    sha_after = picker.build_rank_manifest(decay, 1, minutes, {}, dp)["sha256"]
     assert sha_after != sha_before, "交换因子位置后 sha 必须同变"
 
 
@@ -1815,11 +1998,12 @@ def test_g36b_tie_precision_is_versioned(tmp_path, monkeypatch):
     )
     decay = picker.load_decay(vault)
     _, minutes, _ = picker.load_rank_manifest(_REAL_MANIFEST)
-    cfg = picker.effective_rank_config(decay, 1, minutes)
+    dp = picker.decay_source_path(vault)
+    cfg = picker.effective_rank_config(decay, 1, minutes, dp)
     assert cfg["tie_pick_round_digits"] == picker.TIE_PICK_ROUND_DIGITS == 8, "精度必须登记进指纹"
 
     monkeypatch.setattr(picker, "TIE_PICK_ROUND_DIGITS", 7)
-    cfg7 = picker.effective_rank_config(decay, 1, minutes)
+    cfg7 = picker.effective_rank_config(decay, 1, minutes, dp)
     assert cfg7["tie_pick_round_digits"] == 7
     import hashlib
 
@@ -1878,7 +2062,7 @@ def test_g36b_implementation_sha_is_registered_and_self_consistent(tmp_path):
     完整性 —— 篡改 __pycache__/*.pyc 并伪造 mtime 可让排序变而本 sha 不变
     (round-3 实测复现), 该面明确排除在本卡威胁模型外。断言措辞不得回退成
     「任何改动必变」一类的绝对表述。"""
-    cfg = picker.effective_rank_config(_fake_decay(), 1, dict(picker.DEFAULT_MINUTES))
+    cfg = picker.effective_rank_config(_fake_decay(), 1, dict(picker.DEFAULT_MINUTES), _decay_copy(tmp_path))
     assert re.fullmatch(r"[0-9a-f]{64}", cfg["implementation_sha256"])
     assert cfg["implementation_sha256"] == picker._implementation_sha(), "与真文件自洽"
     # 同一实现的指纹可由任意路径副本复算 (摘的是字节不是身份)
