@@ -27,11 +27,12 @@ from pathlib import Path
 
 class Colors:
     """终端颜色"""
-    OK = '\033[92m'
-    WARNING = '\033[93m'
-    ERROR = '\033[91m'
-    RESET = '\033[0m'
-    BOLD = '\033[1m'
+
+    OK = "\033[92m"
+    WARNING = "\033[93m"
+    ERROR = "\033[91m"
+    RESET = "\033[0m"
+    BOLD = "\033[1m"
 
 
 def check_neo4j() -> Tuple[bool, str, Dict[str, Any]]:
@@ -58,10 +59,7 @@ def check_neo4j() -> Tuple[bool, str, Dict[str, Any]]:
 
         driver.close()
 
-        return True, f"Connected ({uri})", {
-            "uri": uri,
-            "node_count": node_count
-        }
+        return True, f"Connected ({uri})", {"uri": uri, "node_count": node_count}
     except ImportError:
         return False, "neo4j package not installed", {}
     except Exception as e:
@@ -86,11 +84,7 @@ def check_lancedb() -> Tuple[bool, str, Dict[str, Any]]:
         db = lancedb.connect(path)
         tables = db.table_names()
 
-        return True, f"Ready ({path})", {
-            "path": path,
-            "tables": list(tables),
-            "table_count": len(tables)
-        }
+        return True, f"Ready ({path})", {"path": path, "tables": list(tables), "table_count": len(tables)}
     except ImportError:
         return False, "lancedb package not installed", {}
     except Exception as e:
@@ -110,15 +104,16 @@ def check_graphiti() -> Tuple[bool, str, Dict[str, Any]]:
         client = GraphitiClient()
 
         # 尝试获取一些统计信息
-        stats = client.get_stats() if hasattr(client, 'get_stats') else {}
+        stats = client.get_stats() if hasattr(client, "get_stats") else {}
 
-        node_count = stats.get('node_count', 'N/A')
-        edge_count = stats.get('edge_count', 'N/A')
+        node_count = stats.get("node_count", "N/A")
+        edge_count = stats.get("edge_count", "N/A")
 
-        return True, f"Initialized ({node_count} nodes, {edge_count} edges)", {
-            "node_count": node_count,
-            "edge_count": edge_count
-        }
+        return (
+            True,
+            f"Initialized ({node_count} nodes, {edge_count} edges)",
+            {"node_count": node_count, "edge_count": edge_count},
+        )
     except ImportError as e:
         return False, f"Import error: {e}", {}
     except Exception as e:
@@ -138,13 +133,14 @@ def check_agentic_rag() -> Tuple[bool, str, Dict[str, Any]]:
 
         if canvas_agentic_rag:
             # 检查graph结构
-            nodes = getattr(canvas_agentic_rag, 'nodes', {})
-            edges = getattr(canvas_agentic_rag, 'edges', [])
+            nodes = getattr(canvas_agentic_rag, "nodes", {})
+            edges = getattr(canvas_agentic_rag, "edges", [])
 
-            return True, "Compiled", {
-                "node_count": len(nodes) if nodes else "N/A",
-                "edge_count": len(edges) if edges else "N/A"
-            }
+            return (
+                True,
+                "Compiled",
+                {"node_count": len(nodes) if nodes else "N/A", "edge_count": len(edges) if edges else "N/A"},
+            )
         else:
             return False, "Not compiled", {}
     except ImportError as e:
@@ -166,9 +162,7 @@ def check_fsrs() -> Tuple[bool, str, Dict[str, Any]]:
         # 创建Scheduler实例测试 (FSRS类在py-fsrs 6.0.0中重命名为Scheduler)
         scheduler = Scheduler()
 
-        return True, "Initialized", {
-            "version": getattr(scheduler, 'version', 'N/A')
-        }
+        return True, "Initialized", {"version": getattr(scheduler, "version", "N/A")}
     except ImportError:
         return False, "fsrs package not installed", {}
     except Exception as e:
@@ -187,20 +181,12 @@ def check_langsmith() -> Tuple[bool, str, Dict[str, Any]]:
     project = os.environ.get("LANGSMITH_PROJECT", "default")
 
     if api_key and tracing:
-        return True, "Connected (tracing enabled)", {
-            "tracing": True,
-            "project": project
-        }
+        return True, "Connected (tracing enabled)", {"tracing": True, "project": project}
     elif api_key:
-        return True, "Configured (tracing disabled)", {
-            "tracing": False,
-            "project": project
-        }
+        return True, "Configured (tracing disabled)", {"tracing": False, "project": project}
     else:
         # LangSmith是可选的
-        return True, "Not configured (optional)", {
-            "configured": False
-        }
+        return True, "Not configured (optional)", {"configured": False}
 
 
 def check_cohere() -> Tuple[bool, str, Dict[str, Any]]:
@@ -214,14 +200,10 @@ def check_cohere() -> Tuple[bool, str, Dict[str, Any]]:
 
     if api_key:
         # 可选：测试API连接
-        return True, "Configured", {
-            "configured": True
-        }
+        return True, "Configured", {"configured": True}
     else:
         # Cohere是可选的（会降级到本地Reranking）
-        return True, "Not configured (will use local reranking)", {
-            "configured": False
-        }
+        return True, "Not configured (will use local reranking)", {"configured": False}
 
 
 def check_openai() -> Tuple[bool, str, Dict[str, Any]]:
@@ -234,15 +216,10 @@ def check_openai() -> Tuple[bool, str, Dict[str, Any]]:
     api_key = os.environ.get("OPENAI_API_KEY")
 
     if api_key:
-        return True, "Configured", {
-            "configured": True,
-            "model": os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
-        }
+        return True, "Configured", {"configured": True, "model": os.environ.get("OPENAI_MODEL", "gpt-4o-mini")}
     else:
         # OpenAI用于Query重写，是可选的
-        return True, "Not configured (query rewrite disabled)", {
-            "configured": False
-        }
+        return True, "Not configured (query rewrite disabled)", {"configured": False}
 
 
 def run_all_checks(verbose: bool = False) -> Dict[str, Any]:
@@ -266,11 +243,7 @@ def run_all_checks(verbose: bool = False) -> Dict[str, Any]:
         ("OpenAI", check_openai),
     ]
 
-    results = {
-        "timestamp": datetime.now().isoformat(),
-        "overall_status": "healthy",
-        "checks": {}
-    }
+    results = {"timestamp": datetime.now().isoformat(), "overall_status": "healthy", "checks": {}}
 
     all_passed = True
     critical_failed = False
@@ -305,7 +278,7 @@ def run_all_checks(verbose: bool = False) -> Dict[str, Any]:
                 "passed": passed,
                 "message": message,
                 "details": details,
-                "critical": is_critical
+                "critical": is_critical,
             }
 
         except Exception as e:
@@ -314,7 +287,7 @@ def run_all_checks(verbose: bool = False) -> Dict[str, Any]:
                 "passed": False,
                 "message": f"Unexpected error: {e}",
                 "details": {},
-                "critical": name in ["Neo4j", "LanceDB", "Agentic RAG"]
+                "critical": name in ["Neo4j", "LanceDB", "Agentic RAG"],
             }
             all_passed = False
 
@@ -337,10 +310,8 @@ def run_all_checks(verbose: bool = False) -> Dict[str, Any]:
 
 def main():
     parser = argparse.ArgumentParser(description="Epic 12 Health Check")
-    parser.add_argument("--json", action="store_true",
-                        help="Output results as JSON")
-    parser.add_argument("--verbose", "-v", action="store_true",
-                        help="Show detailed information")
+    parser.add_argument("--json", action="store_true", help="Output results as JSON")
+    parser.add_argument("--verbose", "-v", action="store_true", help="Show detailed information")
     args = parser.parse_args()
 
     # 添加项目根目录到路径

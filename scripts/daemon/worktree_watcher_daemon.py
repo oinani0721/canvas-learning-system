@@ -42,11 +42,7 @@ class WorktreeWatcherDaemon:
     VERSION = "1.0.0"
 
     def __init__(
-        self,
-        base_path: Path,
-        max_concurrent_qa: int = 3,
-        scan_interval: int = 30,
-        state_file: Optional[Path] = None
+        self, base_path: Path, max_concurrent_qa: int = 3, scan_interval: int = 30, state_file: Optional[Path] = None
     ):
         """
         Initialize the daemon.
@@ -97,20 +93,20 @@ class WorktreeWatcherDaemon:
 
     def _update_worktree_status(self, worktree_path: Path, new_status: str):
         """Update the status in .worktree-status.yaml."""
-        status_file = worktree_path / '.worktree-status.yaml'
+        status_file = worktree_path / ".worktree-status.yaml"
 
         if not status_file.exists():
             return
 
         try:
             # Read existing content
-            with open(status_file, 'r', encoding='utf-8') as f:
+            with open(status_file, "r", encoding="utf-8") as f:
                 lines = f.readlines()
 
             # Update status line
             updated_lines = []
             for line in lines:
-                if line.strip().startswith('status:'):
+                if line.strip().startswith("status:"):
                     updated_lines.append(f'status: "{new_status}"\n')
                 else:
                     updated_lines.append(line)
@@ -120,7 +116,7 @@ class WorktreeWatcherDaemon:
                 updated_lines.append(f'qa_started_at: "{datetime.now().isoformat()}"\n')
 
             # Write back
-            with open(status_file, 'w', encoding='utf-8') as f:
+            with open(status_file, "w", encoding="utf-8") as f:
                 f.writelines(updated_lines)
 
             print(f"[Daemon] Updated status to '{new_status}' for {worktree_path.name}")
@@ -136,11 +132,11 @@ class WorktreeWatcherDaemon:
                 "timestamp": datetime.now().isoformat(),
                 "base_path": str(self.base_path),
                 "known_worktrees": list(self._known_worktrees),
-                "qa_sessions": self.spawner.get_status_summary()
+                "qa_sessions": self.spawner.get_status_summary(),
             }
 
             self.state_file.parent.mkdir(parents=True, exist_ok=True)
-            with open(self.state_file, 'w', encoding='utf-8') as f:
+            with open(self.state_file, "w", encoding="utf-8") as f:
                 json.dump(state, f, indent=2)
 
         except Exception as e:
@@ -153,11 +149,11 @@ class WorktreeWatcherDaemon:
                 continue
 
             try:
-                with open(wt.status_file, 'r', encoding='utf-8') as f:
+                with open(wt.status_file, "r", encoding="utf-8") as f:
                     content = f.read()
 
                 # Simple check for dev-complete
-                if 'status:' in content and 'dev-complete' in content.lower():
+                if "status:" in content and "dev-complete" in content.lower():
                     # Check if not already being processed
                     session = self.spawner.get_session(wt.story_id)
                     if session is None:
@@ -247,12 +243,16 @@ class WorktreeWatcherDaemon:
         """Print current status."""
         status = self.spawner.get_status_summary()
 
-        print(f"\r[{datetime.now().strftime('%H:%M:%S')}] "
-              f"Worktrees: {len(self._known_worktrees)} | "
-              f"QA Sessions - Running: {status['running']}, "
-              f"Pending: {status['pending']}, "
-              f"Completed: {status['completed']}, "
-              f"Failed: {status['failed']}", end="", flush=True)
+        print(
+            f"\r[{datetime.now().strftime('%H:%M:%S')}] "
+            f"Worktrees: {len(self._known_worktrees)} | "
+            f"QA Sessions - Running: {status['running']}, "
+            f"Pending: {status['pending']}, "
+            f"Completed: {status['completed']}, "
+            f"Failed: {status['failed']}",
+            end="",
+            flush=True,
+        )
 
     def _shutdown(self):
         """Clean shutdown."""
@@ -268,42 +268,26 @@ class WorktreeWatcherDaemon:
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description='Worktree Watcher Daemon - Auto-trigger QA on dev-complete',
+        description="Worktree Watcher Daemon - Auto-trigger QA on dev-complete",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog='''
+        epilog="""
 Examples:
     python worktree_watcher_daemon.py
     python worktree_watcher_daemon.py --base-path "C:\\Users\\ROG\\托福"
     python worktree_watcher_daemon.py --max-concurrent 5 --scan-interval 60
-        '''
+        """,
     )
 
     parser.add_argument(
-        '--base-path',
-        type=Path,
-        default=Path(r'C:\Users\ROG\托福'),
-        help='Base path where worktrees are located'
+        "--base-path", type=Path, default=Path(r"C:\Users\ROG\托福"), help="Base path where worktrees are located"
     )
 
-    parser.add_argument(
-        '--max-concurrent',
-        type=int,
-        default=3,
-        help='Maximum concurrent QA sessions (default: 3)'
-    )
+    parser.add_argument("--max-concurrent", type=int, default=3, help="Maximum concurrent QA sessions (default: 3)")
+
+    parser.add_argument("--scan-interval", type=int, default=30, help="Seconds between worktree scans (default: 30)")
 
     parser.add_argument(
-        '--scan-interval',
-        type=int,
-        default=30,
-        help='Seconds between worktree scans (default: 30)'
-    )
-
-    parser.add_argument(
-        '--state-file',
-        type=Path,
-        default=None,
-        help='Path to state file (default: Canvas/.daemon-state.json)'
+        "--state-file", type=Path, default=None, help="Path to state file (default: Canvas/.daemon-state.json)"
     )
 
     args = parser.parse_args()
@@ -313,11 +297,11 @@ Examples:
         base_path=args.base_path,
         max_concurrent_qa=args.max_concurrent,
         scan_interval=args.scan_interval,
-        state_file=args.state_file
+        state_file=args.state_file,
     )
 
     daemon.start()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

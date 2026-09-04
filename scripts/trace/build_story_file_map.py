@@ -13,6 +13,7 @@ Usage:
   python scripts/trace/build_story_file_map.py         # incremental
   python scripts/trace/build_story_file_map.py --all    # full rebuild
 """
+
 from __future__ import annotations
 
 import argparse
@@ -27,6 +28,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from scripts.trace._story_reader import read_file_list
+
 STORY_DIR = PROJECT_ROOT / "_bmad-output" / "implementation-artifacts"
 INDEX_DIR = PROJECT_ROOT / "docs" / "_meta" / "indices"
 INDEX_FILE = INDEX_DIR / "story-file-map.yaml"
@@ -59,8 +61,12 @@ def scan_git_trailers() -> dict[str, set[str]]:
     try:
         log_output = subprocess.check_output(
             [
-                "git", "log", "--all", "--format=%H %B",
-                "--diff-filter=ACMR", "--name-only",
+                "git",
+                "log",
+                "--all",
+                "--format=%H %B",
+                "--diff-filter=ACMR",
+                "--name-only",
             ],
             cwd=str(PROJECT_ROOT),
             text=True,

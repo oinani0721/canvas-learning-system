@@ -174,9 +174,7 @@ def diff_nodes(snap, live, pointer, out):
     """收集归一化后两树的**全部**差异(不截断, 截断只发生在展示层); 子树整体
     缺失只报最高层, 不下钻刷屏。"""
     if type(snap) is not type(live):
-        out.append(
-            f"{pointer}: 类型不同 snapshot={_display(snap)} live={_display(live)}"
-        )
+        out.append(f"{pointer}: 类型不同 snapshot={_display(snap)} live={_display(live)}")
         return
     if isinstance(snap, dict):
         for key in sorted(snap.keys() | live.keys()):
@@ -251,12 +249,9 @@ def check_drift(snapshot_path: Path) -> int:
     for line in details[:DETAIL_LINE_CAP]:
         print(f"  {line}")
     if truncated:
-        print(
-            f"  ... 以及更多差异(仅显示前 {DETAIL_LINE_CAP} 条, 共 {len(details)} 条)"
-        )
+        print(f"  ... 以及更多差异(仅显示前 {DETAIL_LINE_CAP} 条, 共 {len(details)} 条)")
     print(
-        "FIX: python scripts/spec-tools/check-openapi-drift.py --write backend/openapi.json"
-        "  (禁手改快照)",
+        "FIX: python scripts/spec-tools/check-openapi-drift.py --write backend/openapi.json  (禁手改快照)",
         file=sys.stderr,
     )
     return 1
@@ -278,28 +273,19 @@ def write_snapshot(output_path: Path) -> int:
     schema["info"] = {key: info[key] for key in sorted(info)}
     output_path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = output_path.with_name(f"{output_path.name}.{os.getpid()}.tmp")
-    tmp_path.write_text(
-        json.dumps(schema, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
-    )
+    tmp_path.write_text(json.dumps(schema, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     tmp_path.replace(output_path)
     paths = len(schema.get("paths", {}))
     schemas = len(schema.get("components", {}).get("schemas", {}))
-    print(
-        f"WROTE: {output_path} (paths={paths} schemas={schemas}, "
-        f"x-generated-at={info['x-generated-at']})"
-    )
+    print(f"WROTE: {output_path} (paths={paths} schemas={schemas}, x-generated-at={info['x-generated-at']})")
     return 0
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     mode = parser.add_mutually_exclusive_group(required=True)
-    mode.add_argument(
-        "--snapshot", metavar="PATH", help="只读比对该快照与 app.openapi()"
-    )
-    mode.add_argument(
-        "--write", metavar="PATH", help="重生成快照并写入该路径(唯一合法落盘口)"
-    )
+    mode.add_argument("--snapshot", metavar="PATH", help="只读比对该快照与 app.openapi()")
+    mode.add_argument("--write", metavar="PATH", help="重生成快照并写入该路径(唯一合法落盘口)")
     args = parser.parse_args()
 
     if args.snapshot:

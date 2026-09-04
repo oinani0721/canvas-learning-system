@@ -12,6 +12,7 @@ Reads the same File List section as BMAD code-review Step 1.
 Usage:
   python scripts/trace/locate_by_bug.py BUG-12AB34CD
 """
+
 from __future__ import annotations
 
 import json
@@ -22,6 +23,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from scripts.trace._story_reader import extract_section, find_story_file, read_file_list
+
 BUG_LOG = PROJECT_ROOT / "backend" / "data" / "bug_log.jsonl"
 DECISION_LOG = PROJECT_ROOT / "backend" / "data" / "decision_log.jsonl"
 STORY_DIR = PROJECT_ROOT / "_bmad-output" / "implementation-artifacts"

@@ -9,6 +9,7 @@ Reads the BMAD native "### File List" section from Story .md files.
 This is the same data source that BMAD dev-story Step 1 and code-review
 Step 1 consume, ensuring zero divergence.
 """
+
 from __future__ import annotations
 
 import re
@@ -48,7 +49,7 @@ def extract_section(story_path: Path, section_name: str) -> str:
 
 def _extract_section(text: str, section_name: str) -> str:
     escaped = re.escape(section_name)
-    pattern = rf"^(#{2,3})\s+{escaped}\s*$"
+    pattern = rf"^(#{2, 3})\s+{escaped}\s*$"
     match = re.search(pattern, text, re.MULTILINE | re.IGNORECASE)
     if not match:
         return ""
@@ -70,6 +71,7 @@ def find_story_file(
     """Find a Story file by its ID (e.g., '30.23')."""
     if story_dir is None:
         from scripts.lib.planning_utils import get_project_root
+
         story_dir = get_project_root() / "_bmad-output" / "implementation-artifacts"
 
     candidates = list(story_dir.glob(f"*{story_id}*"))

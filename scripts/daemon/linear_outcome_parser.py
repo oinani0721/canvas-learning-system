@@ -19,6 +19,7 @@ from linear_progress import StoryOutcome
 @dataclass
 class ParsedOutcome:
     """Result of parsing a story execution."""
+
     outcome: StoryOutcome
     commit_sha: Optional[str] = None
     blocking_reason: Optional[str] = None
@@ -55,16 +56,9 @@ class OutcomeParser:
 
     def __init__(self, result_filename: str = ".worktree-result.json"):
         self.result_filename = result_filename
-        self._compact_regex = re.compile(
-            "|".join(self.COMPACT_PATTERNS),
-            re.IGNORECASE
-        )
+        self._compact_regex = re.compile("|".join(self.COMPACT_PATTERNS), re.IGNORECASE)
 
-    def parse(
-        self,
-        worktree_path: Path,
-        return_code: int
-    ) -> ParsedOutcome:
+    def parse(self, worktree_path: Path, return_code: int) -> ParsedOutcome:
         """
         Parse the outcome of a story execution.
 
@@ -106,7 +100,7 @@ class OutcomeParser:
     def _parse_result_file(self, result_file: Path) -> ParsedOutcome:
         """Parse the .worktree-result.json file."""
         try:
-            with open(result_file, 'r', encoding='utf-8') as f:
+            with open(result_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
             outcome_str = data.get("outcome", "UNKNOWN")
@@ -143,7 +137,7 @@ class OutcomeParser:
 
         try:
             # Read last portion of log file efficiently
-            with open(log_file, 'r', encoding='utf-8', errors='replace') as f:
+            with open(log_file, "r", encoding="utf-8", errors="replace") as f:
                 # Seek to approximate last 50KB
                 try:
                     f.seek(0, 2)  # End of file
@@ -176,7 +170,7 @@ class OutcomeParser:
             return False, None
 
         try:
-            with open(log_file, 'r', encoding='utf-8', errors='replace') as f:
+            with open(log_file, "r", encoding="utf-8", errors="replace") as f:
                 f.seek(0, 2)
                 size = f.tell()
                 if size > 20000:
@@ -225,7 +219,7 @@ class LogMonitor:
             return False, False
 
         try:
-            with open(self.log_file, 'r', encoding='utf-8', errors='replace') as f:
+            with open(self.log_file, "r", encoding="utf-8", errors="replace") as f:
                 f.seek(0, 2)
                 current_size = f.tell()
 

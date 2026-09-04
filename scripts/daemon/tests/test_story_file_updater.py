@@ -9,6 +9,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import sys
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from story_file_updater import StoryFileUpdater, UpdateResult
@@ -37,25 +38,19 @@ class TestStoryFileUpdater:
             "dev_record": {
                 "agent_model": "Claude Code (claude-sonnet-4-5)",
                 "duration_seconds": 1200,
-                "files_created": [
-                    {"path": "src/api/main.py", "description": "FastAPI application"}
-                ],
-                "files_modified": [
-                    {"path": "src/__init__.py", "description": "Updated exports"}
-                ],
-                "completion_notes": "Implemented FastAPI initialization with CORS"
+                "files_created": [{"path": "src/api/main.py", "description": "FastAPI application"}],
+                "files_modified": [{"path": "src/__init__.py", "description": "Updated exports"}],
+                "completion_notes": "Implemented FastAPI initialization with CORS",
             },
             "qa_record": {
                 "quality_score": 88,
                 "ac_coverage": {
                     "AC1": {"status": "PASS", "evidence": "test_app_creation"},
-                    "AC2": {"status": "PASS", "evidence": "test_cors_middleware"}
+                    "AC2": {"status": "PASS", "evidence": "test_cors_middleware"},
                 },
-                "issues_found": [
-                    {"severity": "low", "description": "Consider adding rate limiting"}
-                ],
-                "recommendations": ["Add OpenTelemetry integration"]
-            }
+                "issues_found": [{"severity": "low", "description": "Consider adding rate limiting"}],
+                "recommendations": ["Add OpenTelemetry integration"],
+            },
         }
 
     @pytest.fixture
@@ -122,25 +117,13 @@ Claude Code (claude-sonnet-4-5)
 
     def test_section_needs_update_with_placeholder(self, updater, story_content_with_placeholders):
         """Test detection of placeholder content."""
-        assert updater._section_needs_update(
-            story_content_with_placeholders,
-            "## Dev Agent Record"
-        ) is True
-        assert updater._section_needs_update(
-            story_content_with_placeholders,
-            "## QA Results"
-        ) is True
+        assert updater._section_needs_update(story_content_with_placeholders, "## Dev Agent Record") is True
+        assert updater._section_needs_update(story_content_with_placeholders, "## QA Results") is True
 
     def test_section_needs_update_already_filled(self, updater, story_content_already_updated):
         """Test detection of already-updated content."""
-        assert updater._section_needs_update(
-            story_content_already_updated,
-            "## Dev Agent Record"
-        ) is False
-        assert updater._section_needs_update(
-            story_content_already_updated,
-            "## QA Results"
-        ) is False
+        assert updater._section_needs_update(story_content_already_updated, "## Dev Agent Record") is False
+        assert updater._section_needs_update(story_content_already_updated, "## QA Results") is False
 
     def test_generate_dev_record(self, updater, sample_result):
         """Test Dev Agent Record generation."""
@@ -166,11 +149,7 @@ Claude Code (claude-sonnet-4-5)
     def test_update_section(self, updater, story_content_with_placeholders):
         """Test section content replacement."""
         new_dev_record = "### Agent Model Used\nTest Model"
-        updated = updater._update_section(
-            story_content_with_placeholders,
-            "## Dev Agent Record",
-            new_dev_record
-        )
+        updated = updater._update_section(story_content_with_placeholders, "## Dev Agent Record", new_dev_record)
 
         assert "Test Model" in updated
         assert "*待填写*" not in updated
@@ -219,10 +198,7 @@ Claude Code (claude-sonnet-4-5)
 
             # Run update
             result = updater.update_story_file(
-                story_id="15.1",
-                result=sample_result,
-                worktree_path=worktree_path,
-                main_repo_path=main_repo_path
+                story_id="15.1", result=sample_result, worktree_path=worktree_path, main_repo_path=main_repo_path
             )
 
             assert result.dev_record_updated is True
@@ -244,7 +220,7 @@ class TestUpdateResult:
             story_id="15.1",
             dev_record_updated=True,
             qa_results_updated=True,
-            file_synced=True
+            file_synced=True,
         )
         assert result.is_complete() is True
 
@@ -254,7 +230,7 @@ class TestUpdateResult:
             story_id="15.1",
             dev_record_updated=False,
             qa_results_updated=True,
-            file_synced=True
+            file_synced=True,
         )
         assert result.is_complete() is False
 
@@ -265,7 +241,7 @@ class TestUpdateResult:
             dev_record_updated=True,
             qa_results_updated=True,
             file_synced=True,
-            error=None
+            error=None,
         )
         d = result.to_dict()
         assert d["story_id"] == "15.1"

@@ -18,8 +18,8 @@ from typing import List, Dict, Tuple
 from datetime import datetime
 
 # Force UTF-8 encoding for Windows console output
-if sys.platform == 'win32':
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+if sys.platform == "win32":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
 
 class SDDRequirementsExtractor:
@@ -40,9 +40,9 @@ class SDDRequirementsExtractor:
         """从Epic文件中提取API端点定义"""
         endpoints = []
 
-        with open(epic_file, 'r', encoding='utf-8') as f:
+        with open(epic_file, "r", encoding="utf-8") as f:
             content = f.read()
-            lines = content.split('\n')
+            lines = content.split("\n")
 
             # 查找API Endpoints章节
             in_api_section = False
@@ -51,39 +51,41 @@ class SDDRequirementsExtractor:
 
             for line_num, line in enumerate(lines, 1):
                 # 检测API章节开始
-                if re.search(r'## API Endpoints', line, re.IGNORECASE):
+                if re.search(r"## API Endpoints", line, re.IGNORECASE):
                     in_api_section = True
                     continue
 
                 # 检测章节结束 (只检测二级标题 ##，不包括 ### 三级标题)
-                if in_api_section and line.startswith('## ') and 'API' not in line:
+                if in_api_section and line.startswith("## ") and "API" not in line:
                     break
 
                 if in_api_section:
                     # 检测分类（如 ### Canvas操作）
-                    category_match = re.search(r'###\s+(.+)\s+\((\d+)\s+endpoints?\)', line)
+                    category_match = re.search(r"###\s+(.+)\s+\((\d+)\s+endpoints?\)", line)
                     if category_match:
                         current_category = category_match.group(1).strip()
                         continue
 
                     # 提取端点定义
                     # 格式: - `METHOD /path` - 描述
-                    endpoint_match = re.search(r'-\s+`(GET|POST|PUT|DELETE|PATCH)\s+([^`]+)`\s*-\s*(.+)', line)
+                    endpoint_match = re.search(r"-\s+`(GET|POST|PUT|DELETE|PATCH)\s+([^`]+)`\s*-\s*(.+)", line)
                     if endpoint_match and current_category:
                         method = endpoint_match.group(1)
                         path = endpoint_match.group(2)
                         description = endpoint_match.group(3).strip()
 
-                        endpoints.append({
-                            'method': method,
-                            'path': path,
-                            'description': description,
-                            'category': current_category,
-                            'prd_file': epic_file.name,
-                            'prd_line': line_num,
-                            'openapi_status': '⏳待检查',
-                            'coverage': 0
-                        })
+                        endpoints.append(
+                            {
+                                "method": method,
+                                "path": path,
+                                "description": description,
+                                "category": current_category,
+                                "prd_file": epic_file.name,
+                                "prd_line": line_num,
+                                "openapi_status": "⏳待检查",
+                                "coverage": 0,
+                            }
+                        )
 
         return endpoints
 
@@ -91,9 +93,9 @@ class SDDRequirementsExtractor:
         """从Epic文件中提取数据模型定义"""
         models = []
 
-        with open(epic_file, 'r', encoding='utf-8') as f:
+        with open(epic_file, "r", encoding="utf-8") as f:
             content = f.read()
-            lines = content.split('\n')
+            lines = content.split("\n")
 
             # 查找数据模型章节
             in_model_section = False
@@ -101,17 +103,17 @@ class SDDRequirementsExtractor:
 
             for line_num, line in enumerate(lines, 1):
                 # 检测数据模型章节开始
-                if re.search(r'## 数据模型', line, re.IGNORECASE) or re.search(r'## Data Models', line, re.IGNORECASE):
+                if re.search(r"## 数据模型", line, re.IGNORECASE) or re.search(r"## Data Models", line, re.IGNORECASE):
                     in_model_section = True
                     continue
 
                 # 检测章节结束 (只检测二级标题 ##，不包括 ### 三级标题)
-                if in_model_section and line.startswith('## ') and '模型' not in line and 'Model' not in line:
+                if in_model_section and line.startswith("## ") and "模型" not in line and "Model" not in line:
                     break
 
                 if in_model_section:
                     # 检测分类
-                    category_match = re.search(r'\d+\.\s+\*\*(.+模型)\*\*\s+\((\d+)个\)', line)
+                    category_match = re.search(r"\d+\.\s+\*\*(.+模型)\*\*\s+\((\d+)个\)", line)
                     if category_match:
                         current_category = category_match.group(1).strip()
                         # 不要continue，继续检查同一行是否有模型名称
@@ -119,17 +121,19 @@ class SDDRequirementsExtractor:
                     # 提取模型名称
                     # 格式: `ModelName`, `ModelBase`, `ModelCreate`
                     # 注意：模型名称和分类可能在同一行
-                    if current_category and '`' in line:
-                        model_names = re.findall(r'`([A-Z][a-zA-Z]+)`', line)
+                    if current_category and "`" in line:
+                        model_names = re.findall(r"`([A-Z][a-zA-Z]+)`", line)
                         for model_name in model_names:
-                            models.append({
-                                'name': model_name,
-                                'category': current_category,
-                                'prd_file': epic_file.name,
-                                'prd_line': line_num,
-                                'schema_status': '⏳待检查',
-                                'coverage': 0
-                            })
+                            models.append(
+                                {
+                                    "name": model_name,
+                                    "category": current_category,
+                                    "prd_file": epic_file.name,
+                                    "prd_line": line_num,
+                                    "schema_status": "⏳待检查",
+                                    "coverage": 0,
+                                }
+                            )
 
         return models
 
@@ -141,12 +145,12 @@ class SDDRequirementsExtractor:
             print(f"⚠️ OpenAPI文件不存在: {openapi_file}")
             return
 
-        with open(openapi_file, 'r', encoding='utf-8') as f:
+        with open(openapi_file, "r", encoding="utf-8") as f:
             openapi_content = f.read()
 
         for endpoint in self.api_endpoints:
-            path = endpoint['path']
-            method = endpoint['method'].lower()
+            path = endpoint["path"]
+            method = endpoint["method"].lower()
 
             # 检查路径是否存在
             if path in openapi_content:
@@ -154,16 +158,16 @@ class SDDRequirementsExtractor:
                 # 简单检查：在路径定义后查找方法
                 path_index = openapi_content.find(path)
                 if path_index != -1:
-                    section = openapi_content[path_index:path_index + 1000]
+                    section = openapi_content[path_index : path_index + 1000]
                     if f"  {method}:" in section or f"    {method}:" in section:
-                        endpoint['openapi_status'] = '✅已定义'
-                        endpoint['coverage'] = 100
+                        endpoint["openapi_status"] = "✅已定义"
+                        endpoint["coverage"] = 100
                     else:
-                        endpoint['openapi_status'] = '⚠️路径存在，方法缺失'
-                        endpoint['coverage'] = 50
+                        endpoint["openapi_status"] = "⚠️路径存在，方法缺失"
+                        endpoint["coverage"] = 50
             else:
-                endpoint['openapi_status'] = '❌未定义'
-                endpoint['coverage'] = 0
+                endpoint["openapi_status"] = "❌未定义"
+                endpoint["coverage"] = 0
 
     def check_schema_coverage(self):
         """检查JSON Schema覆盖率"""
@@ -177,42 +181,46 @@ class SDDRequirementsExtractor:
         schema_files = list(schema_dir.glob("*.schema.json"))
 
         for model in self.data_models:
-            model_name = model['name']
+            model_name = model["name"]
 
             # 检查是否有对应的schema文件
             # 转换驼峰到kebab-case
             # 例如: NodeCreate → node-create.schema.json
-            kebab_name = re.sub(r'(?<!^)(?=[A-Z])', '-', model_name).lower()
+            kebab_name = re.sub(r"(?<!^)(?=[A-Z])", "-", model_name).lower()
 
             matched = False
             for schema_file in schema_files:
                 if kebab_name in schema_file.stem:
-                    model['schema_status'] = f'✅{schema_file.name}'
-                    model['coverage'] = 100
+                    model["schema_status"] = f"✅{schema_file.name}"
+                    model["coverage"] = 100
                     matched = True
                     break
 
             if not matched:
-                model['schema_status'] = '❌未定义'
-                model['coverage'] = 0
+                model["schema_status"] = "❌未定义"
+                model["coverage"] = 0
 
     def generate_index_markdown(self) -> str:
         """生成Markdown格式的SDD需求索引"""
 
         # 统计覆盖率
         total_endpoints = len(self.api_endpoints)
-        covered_endpoints = sum(1 for e in self.api_endpoints if e['coverage'] == 100)
+        covered_endpoints = sum(1 for e in self.api_endpoints if e["coverage"] == 100)
         endpoint_coverage_pct = (covered_endpoints / total_endpoints * 100) if total_endpoints > 0 else 0
 
         total_models = len(self.data_models)
-        covered_models = sum(1 for m in self.data_models if m['coverage'] == 100)
+        covered_models = sum(1 for m in self.data_models if m["coverage"] == 100)
         model_coverage_pct = (covered_models / total_models * 100) if total_models > 0 else 0
 
-        overall_coverage = (covered_endpoints + covered_models) / (total_endpoints + total_models) * 100 if (total_endpoints + total_models) > 0 else 0
+        overall_coverage = (
+            (covered_endpoints + covered_models) / (total_endpoints + total_models) * 100
+            if (total_endpoints + total_models) > 0
+            else 0
+        )
 
         md = f"""# SDD需求索引 (SDD Requirements Index)
 
-**生成时间**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+**生成时间**: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 **生成脚本**: scripts/extract-sdd-requirements.py
 
 ---
@@ -221,9 +229,9 @@ class SDDRequirementsExtractor:
 
 | 类别 | 总数 | 已覆盖 | 覆盖率 | 状态 |
 |------|------|--------|--------|------|
-| API端点 | {total_endpoints} | {covered_endpoints} | {endpoint_coverage_pct:.1f}% | {'✅' if endpoint_coverage_pct >= 80 else '⚠️' if endpoint_coverage_pct >= 50 else '❌'} |
-| 数据模型 | {total_models} | {covered_models} | {model_coverage_pct:.1f}% | {'✅' if model_coverage_pct >= 80 else '⚠️' if model_coverage_pct >= 50 else '❌'} |
-| **总体** | {total_endpoints + total_models} | {covered_endpoints + covered_models} | {overall_coverage:.1f}% | {'✅' if overall_coverage >= 80 else '⚠️' if overall_coverage >= 50 else '❌'} |
+| API端点 | {total_endpoints} | {covered_endpoints} | {endpoint_coverage_pct:.1f}% | {"✅" if endpoint_coverage_pct >= 80 else "⚠️" if endpoint_coverage_pct >= 50 else "❌"} |
+| 数据模型 | {total_models} | {covered_models} | {model_coverage_pct:.1f}% | {"✅" if model_coverage_pct >= 80 else "⚠️" if model_coverage_pct >= 50 else "❌"} |
+| **总体** | {total_endpoints + total_models} | {covered_endpoints + covered_models} | {overall_coverage:.1f}% | {"✅" if overall_coverage >= 80 else "⚠️" if overall_coverage >= 50 else "❌"} |
 
 **质量门禁**: 覆盖率需达到 ≥80% 才能通过Planning Finalize
 
@@ -238,7 +246,7 @@ class SDDRequirementsExtractor:
         # 按分类组织端点
         categories = {}
         for endpoint in self.api_endpoints:
-            cat = endpoint['category']
+            cat = endpoint["category"]
             if cat not in categories:
                 categories[cat] = []
             categories[cat].append(endpoint)
@@ -260,7 +268,7 @@ class SDDRequirementsExtractor:
         # 按分类组织模型
         model_categories = {}
         for model in self.data_models:
-            cat = model['category']
+            cat = model["category"]
             if cat not in model_categories:
                 model_categories[cat] = []
             model_categories[cat].append(model)
@@ -283,13 +291,13 @@ class SDDRequirementsExtractor:
 
         # 简单追溯矩阵（需要后续完善）
         for endpoint in self.api_endpoints[:5]:  # 示例前5个
-            path = endpoint['path']
-            method = endpoint['method']
+            path = endpoint["path"]
+            method = endpoint["method"]
             # 猜测相关Schema（实际需要更智能的映射）
             related_schemas = []
             for model in self.data_models:
-                if 'Request' in model['name'] or 'Response' in model['name']:
-                    if any(keyword in path for keyword in ['node', 'edge', 'canvas', 'agent', 'review']):
+                if "Request" in model["name"] or "Response" in model["name"]:
+                    if any(keyword in path for keyword in ["node", "edge", "canvas", "agent", "review"]):
                         related_schemas.append(f"`{model['name']}`")
 
             schemas_str = ", ".join(related_schemas[:2]) if related_schemas else "_TBD_"
@@ -305,7 +313,7 @@ _(追溯矩阵持续更新中...)_
 ### 缺失的OpenAPI端点
 """
 
-        missing_endpoints = [e for e in self.api_endpoints if e['coverage'] < 100]
+        missing_endpoints = [e for e in self.api_endpoints if e["coverage"] < 100]
         if missing_endpoints:
             for ep in missing_endpoints:
                 md += f"- [ ] `{ep['method']} {ep['path']}` - {ep['description']} ({ep['openapi_status']})\n"
@@ -316,10 +324,10 @@ _(追溯矩阵持续更新中...)_
 ### 缺失的JSON Schema
 """
 
-        missing_models = [m for m in self.data_models if m['coverage'] < 100]
+        missing_models = [m for m in self.data_models if m["coverage"] < 100]
         if missing_models:
             for model in missing_models:
-                kebab_name = re.sub(r'(?<!^)(?=[A-Z])', '-', model['name']).lower()
+                kebab_name = re.sub(r"(?<!^)(?=[A-Z])", "-", model["name"]).lower()
                 md += f"- [ ] `{model['name']}` → `specs/data/{kebab_name}.schema.json`\n"
         else:
             md += "_✅ 所有数据模型已定义Schema_\n"
@@ -382,7 +390,7 @@ _(追溯矩阵持续更新中...)_
 
         md_content = self.generate_index_markdown()
 
-        with open(output_file, 'w', encoding='utf-8') as f:
+        with open(output_file, "w", encoding="utf-8") as f:
             f.write(md_content)
 
         print(f"✅ SDD需求索引已生成: {output_file}")
@@ -412,8 +420,10 @@ _(追溯矩阵持续更新中...)_
         print("\n🔍 检查OpenAPI覆盖率...")
         if self.api_endpoints:
             self.check_openapi_coverage()
-            covered = sum(1 for e in self.api_endpoints if e['coverage'] == 100)
-            print(f"   ✅ OpenAPI覆盖: {covered}/{len(self.api_endpoints)} ({covered/len(self.api_endpoints)*100:.1f}%)")
+            covered = sum(1 for e in self.api_endpoints if e["coverage"] == 100)
+            print(
+                f"   ✅ OpenAPI覆盖: {covered}/{len(self.api_endpoints)} ({covered / len(self.api_endpoints) * 100:.1f}%)"
+            )
         else:
             print("   ⚠️ 没有找到API端点")
 
@@ -421,8 +431,10 @@ _(追溯矩阵持续更新中...)_
         print("\n🔍 检查Schema覆盖率...")
         if self.data_models:
             self.check_schema_coverage()
-            covered_models = sum(1 for m in self.data_models if m['coverage'] == 100)
-            print(f"   ✅ Schema覆盖: {covered_models}/{len(self.data_models)} ({covered_models/len(self.data_models)*100:.1f}%)")
+            covered_models = sum(1 for m in self.data_models if m["coverage"] == 100)
+            print(
+                f"   ✅ Schema覆盖: {covered_models}/{len(self.data_models)} ({covered_models / len(self.data_models) * 100:.1f}%)"
+            )
         else:
             print("   ⚠️ 没有找到数据模型")
 

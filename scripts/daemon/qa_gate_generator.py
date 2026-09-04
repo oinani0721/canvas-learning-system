@@ -16,6 +16,7 @@ from dataclasses import dataclass
 @dataclass
 class GateResult:
     """Result of a QA Gate generation operation."""
+
     gate_file: Path
     story_id: str
     gate_status: str
@@ -165,19 +166,23 @@ class QAGateGenerator:
         top_issues = []
         for i, issue in enumerate(issues[:5]):  # Max 5 issues
             if isinstance(issue, dict):
-                top_issues.append({
-                    "id": f"ISSUE-{i+1:03d}",
-                    "severity": issue.get("severity", "low"),
-                    "finding": issue.get("description", str(issue)),
-                    "suggested_action": issue.get("action", "Review and address"),
-                })
+                top_issues.append(
+                    {
+                        "id": f"ISSUE-{i + 1:03d}",
+                        "severity": issue.get("severity", "low"),
+                        "finding": issue.get("description", str(issue)),
+                        "suggested_action": issue.get("action", "Review and address"),
+                    }
+                )
             else:
-                top_issues.append({
-                    "id": f"ISSUE-{i+1:03d}",
-                    "severity": "low",
-                    "finding": str(issue),
-                    "suggested_action": "Review and address",
-                })
+                top_issues.append(
+                    {
+                        "id": f"ISSUE-{i + 1:03d}",
+                        "severity": "low",
+                        "finding": str(issue),
+                        "suggested_action": "Review and address",
+                    }
+                )
 
         # Build risk summary
         risk_totals = {"critical": 0, "high": 0, "medium": 0, "low": 0}

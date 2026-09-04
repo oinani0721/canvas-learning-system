@@ -28,12 +28,14 @@ from typing import List, Dict, Any, Tuple, Optional
 
 # Set UTF-8 encoding for Windows console
 import io
-if sys.stdout.encoding != 'utf-8':
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+
+if sys.stdout.encoding != "utf-8":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
 # Try to import yaml
 try:
     import yaml
+
     YAML_AVAILABLE = True
 except ImportError:
     YAML_AVAILABLE = False
@@ -51,7 +53,7 @@ def load_yaml_file(file_path: Path) -> Optional[Dict]:
     if not file_path.exists():
         return None
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             return yaml.safe_load(f)
     except Exception:
         return None
@@ -62,7 +64,7 @@ def load_json_file(file_path: Path) -> Optional[Dict]:
     if not file_path.exists():
         return None
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception:
         return None
@@ -71,14 +73,14 @@ def load_json_file(file_path: Path) -> Optional[Dict]:
 def extract_schema_fields(schema: Dict) -> Dict[str, Dict]:
     """从JSON Schema中提取字段定义"""
     fields = {}
-    properties = schema.get('properties', {})
-    required = schema.get('required', [])
+    properties = schema.get("properties", {})
+    required = schema.get("required", [])
 
     for field_name, field_def in properties.items():
         fields[field_name] = {
-            'type': field_def.get('type'),
-            'required': field_name in required,
-            'description': field_def.get('description', ''),
+            "type": field_def.get("type"),
+            "required": field_name in required,
+            "description": field_def.get("description", ""),
         }
     return fields
 
@@ -86,13 +88,13 @@ def extract_schema_fields(schema: Dict) -> Dict[str, Dict]:
 def extract_openapi_schemas(openapi: Dict) -> Dict[str, Dict]:
     """从OpenAPI中提取schema定义"""
     schemas = {}
-    components = openapi.get('components', {})
-    schema_defs = components.get('schemas', {})
+    components = openapi.get("components", {})
+    schema_defs = components.get("schemas", {})
 
     for schema_name, schema_def in schema_defs.items():
         # 处理$ref引用
-        if '$ref' in schema_def:
-            schemas[schema_name] = {'ref': schema_def['$ref']}
+        if "$ref" in schema_def:
+            schemas[schema_name] = {"ref": schema_def["$ref"]}
         else:
             schemas[schema_name] = extract_schema_fields(schema_def)
     return schemas
@@ -101,13 +103,13 @@ def extract_openapi_schemas(openapi: Dict) -> Dict[str, Dict]:
 def check_schema_openapi_refs(project_root: Path) -> List[Dict]:
     """检查OpenAPI中的$ref是否指向存在的Schema文件"""
     conflicts = []
-    api_dir = project_root / 'specs' / 'api'
-    data_dir = project_root / 'specs' / 'data'
+    api_dir = project_root / "specs" / "api"
+    data_dir = project_root / "specs" / "data"
 
     if not api_dir.exists():
         return conflicts
 
-    for api_file in api_dir.glob('*.yml'):
+    for api_file in api_dir.glob("*.yml"):
         openapi = load_yaml_file(api_file)
         if not openapi:
             continue
@@ -116,18 +118,20 @@ def check_schema_openapi_refs(project_root: Path) -> List[Dict]:
         refs = find_all_refs(openapi)
         for ref in refs:
             # 检查外部文件引用
-            if ref.startswith('../data/') or ref.startswith('./'):
-                ref_file = ref.split('#')[0]
+            if ref.startswith("../data/") or ref.startswith("./"):
+                ref_file = ref.split("#")[0]
                 ref_path = (api_file.parent / ref_file).resolve()
                 if not ref_path.exists():
-                    conflicts.append({
-                        'type': 'Missing $ref',
-                        'document_a': str(api_file.name),
-                        'document_b': ref_file,
-                        'description': f"OpenAPI references non-existent schema file: {ref}",
-                        'level_a': 4,  # OpenAPI
-                        'level_b': 3,  # Schema
-                    })
+                    conflicts.append(
+                        {
+                            "type": "Missing $ref",
+                            "document_a": str(api_file.name),
+                            "document_b": ref_file,
+                            "description": f"OpenAPI references non-existent schema file: {ref}",
+                            "level_a": 4,  # OpenAPI
+                            "level_b": 3,  # Schema
+                        }
+                    )
 
     return conflicts
 
@@ -138,8 +142,8 @@ def find_all_refs(obj: Any, refs: List[str] = None) -> List[str]:
         refs = []
 
     if isinstance(obj, dict):
-        if '$ref' in obj:
-            refs.append(obj['$ref'])
+        if "$ref" in obj:
+            refs.append(obj["$ref"])
         for value in obj.values():
             find_all_refs(value, refs)
     elif isinstance(obj, list):
@@ -152,36 +156,38 @@ def find_all_refs(obj: Any, refs: List[str] = None) -> List[str]:
 def check_schema_consistency(project_root: Path) -> List[Dict]:
     """检查JSON Schema之间的一致性"""
     conflicts = []
-    data_dir = project_root / 'specs' / 'data'
+    data_dir = project_root / "specs" / "data"
 
     if not data_dir.exists():
         return conflicts
 
     schemas = {}
-    for schema_file in data_dir.glob('*.json'):
+    for schema_file in data_dir.glob("*.json"):
         schema = load_json_file(schema_file)
         if schema:
             schemas[schema_file.stem] = {
-                'file': schema_file,
-                'content': schema,
+                "file": schema_file,
+                "content": schema,
             }
 
     # 检查$ref引用
     for schema_name, schema_info in schemas.items():
-        refs = find_all_refs(schema_info['content'])
+        refs = find_all_refs(schema_info["content"])
         for ref in refs:
-            if ref.startswith('./') or ref.startswith('../'):
-                ref_file = ref.split('#')[0]
-                ref_path = (schema_info['file'].parent / ref_file).resolve()
+            if ref.startswith("./") or ref.startswith("../"):
+                ref_file = ref.split("#")[0]
+                ref_path = (schema_info["file"].parent / ref_file).resolve()
                 if not ref_path.exists():
-                    conflicts.append({
-                        'type': 'Schema $ref',
-                        'document_a': schema_info['file'].name,
-                        'document_b': ref_file,
-                        'description': f"Schema references non-existent file: {ref}",
-                        'level_a': 3,
-                        'level_b': 3,
-                    })
+                    conflicts.append(
+                        {
+                            "type": "Schema $ref",
+                            "document_a": schema_info["file"].name,
+                            "document_b": ref_file,
+                            "description": f"Schema references non-existent file: {ref}",
+                            "level_a": 3,
+                            "level_b": 3,
+                        }
+                    )
 
     return conflicts
 
@@ -189,31 +195,33 @@ def check_schema_consistency(project_root: Path) -> List[Dict]:
 def check_openapi_paths(project_root: Path) -> List[Dict]:
     """检查OpenAPI路径定义的一致性"""
     conflicts = []
-    api_dir = project_root / 'specs' / 'api'
+    api_dir = project_root / "specs" / "api"
 
     if not api_dir.exists():
         return conflicts
 
     all_paths = {}
-    for api_file in api_dir.glob('*.yml'):
+    for api_file in api_dir.glob("*.yml"):
         openapi = load_yaml_file(api_file)
         if not openapi:
             continue
 
-        paths = openapi.get('paths', {})
+        paths = openapi.get("paths", {})
         for path, methods in paths.items():
             if path in all_paths:
                 # 检查重复定义
-                conflicts.append({
-                    'type': 'Duplicate Path',
-                    'document_a': str(api_file.name),
-                    'document_b': str(all_paths[path]['file']),
-                    'description': f"Path '{path}' defined in multiple OpenAPI files",
-                    'level_a': 4,
-                    'level_b': 4,
-                })
+                conflicts.append(
+                    {
+                        "type": "Duplicate Path",
+                        "document_a": str(api_file.name),
+                        "document_b": str(all_paths[path]["file"]),
+                        "description": f"Path '{path}' defined in multiple OpenAPI files",
+                        "level_a": 4,
+                        "level_b": 4,
+                    }
+                )
             else:
-                all_paths[path] = {'file': api_file.name, 'methods': methods}
+                all_paths[path] = {"file": api_file.name, "methods": methods}
 
     return conflicts
 
@@ -240,7 +248,7 @@ def generate_conflict_report(conflicts: List[Dict]) -> str:
 
 def main():
     """主函数"""
-    verbose = '--verbose' in sys.argv
+    verbose = "--verbose" in sys.argv
 
     print("=" * 60)
     print("[VALIDATE] Source of Truth Hierarchy Validation")

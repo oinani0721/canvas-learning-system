@@ -15,6 +15,7 @@ from dataclasses import dataclass
 @dataclass
 class UpdateResult:
     """Result of a Story file update operation."""
+
     story_file: Path
     story_id: str
     dev_record_updated: bool
@@ -65,9 +66,7 @@ class StoryFileUpdater:
     ]
 
     def __init__(self):
-        self.placeholder_regex = re.compile(
-            "|".join(self.PLACEHOLDER_PATTERNS), re.IGNORECASE
-        )
+        self.placeholder_regex = re.compile("|".join(self.PLACEHOLDER_PATTERNS), re.IGNORECASE)
 
     def update_story_file(
         self,
@@ -317,7 +316,7 @@ class StoryFileUpdater:
 - **Commit SHA**: `{commit_sha}`
 - **Duration**: {duration:.0f}s
 - **Completed At**: {timestamp}
-- **Retry Count**: {result.get('fix_attempts', 0)}
+- **Retry Count**: {result.get("fix_attempts", 0)}
 
 ### File List
 {file_list_text}"""

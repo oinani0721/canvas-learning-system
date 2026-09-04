@@ -33,6 +33,7 @@ from qa_gate_generator import QAGateGenerator, GateResult
 @dataclass
 class PostProcessResult:
     """Result of the complete post-processing operation."""
+
     story_id: str
     session_id: str
     story_updated: bool

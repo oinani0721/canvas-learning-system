@@ -20,42 +20,32 @@ from planning_utils import (
     generate_markdown_report,
     compare_versions,
     print_status,
-    get_project_root
+    get_project_root,
 )
 
 # ========================================
 # 验证结果类
 # ========================================
 
+
 class ValidationResult:
     """验证结果"""
+
     def __init__(self):
         self.breaking_changes: List[Dict] = []
         self.warnings: List[Dict] = []
         self.info: List[Dict] = []
 
     def add_breaking_change(self, type: str, details: Any, recommendation: str):
-        self.breaking_changes.append({
-            "type": type,
-            "details": details,
-            "severity": "HIGH",
-            "recommendation": recommendation
-        })
+        self.breaking_changes.append(
+            {"type": type, "details": details, "severity": "HIGH", "recommendation": recommendation}
+        )
 
     def add_warning(self, type: str, details: Any, recommendation: str = ""):
-        self.warnings.append({
-            "type": type,
-            "details": details,
-            "severity": "MEDIUM",
-            "recommendation": recommendation
-        })
+        self.warnings.append({"type": type, "details": details, "severity": "MEDIUM", "recommendation": recommendation})
 
     def add_info(self, type: str, details: Any):
-        self.info.append({
-            "type": type,
-            "details": details,
-            "severity": "LOW"
-        })
+        self.info.append({"type": type, "details": details, "severity": "LOW"})
 
     def has_breaking_changes(self) -> bool:
         return len(self.breaking_changes) > 0
@@ -63,24 +53,24 @@ class ValidationResult:
     def has_warnings(self) -> bool:
         return len(self.warnings) > 0
 
+
 # ========================================
 # PRD验证逻辑
 # ========================================
+
 
 def validate_prd_changes(prev: Dict, curr: Dict, rules: Dict) -> ValidationResult:
     """验证PRD文件的变更"""
     result = ValidationResult()
 
-    prev_files = {f['path']: f for f in prev.get("files", {}).get("prd", [])}
-    curr_files = {f['path']: f for f in curr.get("files", {}).get("prd", [])}
+    prev_files = {f["path"]: f for f in prev.get("files", {}).get("prd", [])}
+    curr_files = {f["path"]: f for f in curr.get("files", {}).get("prd", [])}
 
     # 检查文件删除
     deleted_files = set(prev_files.keys()) - set(curr_files.keys())
     if deleted_files and not rules.get("prd_validation", {}).get("can_delete", True):
         result.add_breaking_change(
-            "PRD File Deletion",
-            list(deleted_files),
-            "恢复被删除的PRD文件或明确标记为deprecated"
+            "PRD File Deletion", list(deleted_files), "恢复被删除的PRD文件或明确标记为deprecated"
         )
 
     # 检查版本号递增
@@ -95,44 +85,38 @@ def validate_prd_changes(prev: Dict, curr: Dict, rules: Dict) -> ValidationResul
                         result.add_warning(
                             "PRD Version Not Incremented",
                             f"{path}: {prev_version} → {curr_version}",
-                            "递增版本号以反映变更"
+                            "递增版本号以反映变更",
                         )
 
             # 检查hash变化
             if prev_files[path]["hash"] != curr_files[path]["hash"]:
-                result.add_info(
-                    "PRD File Modified",
-                    f"{path}: Version {curr_version}"
-                )
+                result.add_info("PRD File Modified", f"{path}: Version {curr_version}")
 
     # 检查新增文件
     added_files = set(curr_files.keys()) - set(prev_files.keys())
     for path in added_files:
-        result.add_info(
-            "New PRD File Added",
-            path
-        )
+        result.add_info("New PRD File Added", path)
 
     return result
+
 
 # ========================================
 # Architecture验证逻辑
 # ========================================
 
+
 def validate_architecture_changes(prev: Dict, curr: Dict, rules: Dict) -> ValidationResult:
     """验证Architecture文件的变更"""
     result = ValidationResult()
 
-    prev_files = {f['path']: f for f in prev.get("files", {}).get("architecture", [])}
-    curr_files = {f['path']: f for f in curr.get("files", {}).get("architecture", [])}
+    prev_files = {f["path"]: f for f in prev.get("files", {}).get("architecture", [])}
+    curr_files = {f["path"]: f for f in curr.get("files", {}).get("architecture", [])}
 
     # 检查文件删除
     deleted_files = set(prev_files.keys()) - set(curr_files.keys())
     if deleted_files:
         result.add_breaking_change(
-            "Architecture File Deletion",
-            list(deleted_files),
-            "Architecture文件不能删除，只能标记为deprecated"
+            "Architecture File Deletion", list(deleted_files), "Architecture文件不能删除，只能标记为deprecated"
         )
 
     # 检查版本号递增
@@ -146,37 +130,32 @@ def validate_architecture_changes(prev: Dict, curr: Dict, rules: Dict) -> Valida
                     result.add_warning(
                         "Architecture Version Not Incremented",
                         f"{path}: {prev_version} → {curr_version}",
-                        "递增版本号以反映变更"
+                        "递增版本号以反映变更",
                     )
 
             # 检查hash变化
             if prev_files[path]["hash"] != curr_files[path]["hash"]:
-                result.add_info(
-                    "Architecture File Modified",
-                    f"{path}: Version {curr_version}"
-                )
+                result.add_info("Architecture File Modified", f"{path}: Version {curr_version}")
 
     return result
+
 
 # ========================================
 # OpenAPI验证逻辑
 # ========================================
 
+
 def validate_openapi_changes(prev: Dict, curr: Dict, rules: Dict) -> ValidationResult:
     """验证OpenAPI Spec的变更"""
     result = ValidationResult()
 
-    prev_specs = {f['path']: f for f in prev.get("files", {}).get("api_specs", [])}
-    curr_specs = {f['path']: f for f in curr.get("files", {}).get("api_specs", [])}
+    prev_specs = {f["path"]: f for f in prev.get("files", {}).get("api_specs", [])}
+    curr_specs = {f["path"]: f for f in curr.get("files", {}).get("api_specs", [])}
 
     # 检查OpenAPI spec删除
     deleted_specs = set(prev_specs.keys()) - set(curr_specs.keys())
     if deleted_specs:
-        result.add_breaking_change(
-            "OpenAPI Spec File Deleted",
-            list(deleted_specs),
-            "不能删除OpenAPI spec文件"
-        )
+        result.add_breaking_change("OpenAPI Spec File Deleted", list(deleted_specs), "不能删除OpenAPI spec文件")
 
     # 检查版本和hash变化
     for path in curr_specs:
@@ -192,59 +171,49 @@ def validate_openapi_changes(prev: Dict, curr: Dict, rules: Dict) -> ValidationR
                     result.add_warning(
                         "OpenAPI Spec Modified Without Version Change",
                         f"{path}: Content changed but version unchanged ({curr_version})",
-                        "更新OpenAPI spec的version字段"
+                        "更新OpenAPI spec的version字段",
                     )
                 else:
-                    result.add_info(
-                        "OpenAPI Spec Modified",
-                        f"{path}: {prev_version} → {curr_version}"
-                    )
+                    result.add_info("OpenAPI Spec Modified", f"{path}: {prev_version} → {curr_version}")
 
     return result
+
 
 # ========================================
 # Epic验证逻辑
 # ========================================
 
+
 def validate_epic_changes(prev: Dict, curr: Dict, rules: Dict) -> ValidationResult:
     """验证Epic文件的变更"""
     result = ValidationResult()
 
-    prev_epics = {f['path']: f for f in prev.get("files", {}).get("epics", [])}
-    curr_epics = {f['path']: f for f in curr.get("files", {}).get("epics", [])}
+    prev_epics = {f["path"]: f for f in prev.get("files", {}).get("epics", [])}
+    curr_epics = {f["path"]: f for f in curr.get("files", {}).get("epics", [])}
 
     # 检查Epic删除
     deleted_epics = set(prev_epics.keys()) - set(curr_epics.keys())
     if deleted_epics and not rules.get("prd_validation", {}).get("epics", {}).get("can_delete", False):
-        result.add_breaking_change(
-            "Epic Deleted",
-            list(deleted_epics),
-            "Epic不能删除，如需合并请明确记录"
-        )
+        result.add_breaking_change("Epic Deleted", list(deleted_epics), "Epic不能删除，如需合并请明确记录")
 
     # 检查Epic数量减少
     prev_count = len(prev_epics)
     curr_count = len(curr_epics)
     if curr_count < prev_count:
-        result.add_warning(
-            "Epic Count Decreased",
-            f"从{prev_count}减少到{curr_count}",
-            "确认Epic合并或删除是有意的"
-        )
+        result.add_warning("Epic Count Decreased", f"从{prev_count}减少到{curr_count}", "确认Epic合并或删除是有意的")
 
     # 检查新增Epic
     added_epics = set(curr_epics.keys()) - set(prev_epics.keys())
     for path in added_epics:
-        result.add_info(
-            "New Epic Added",
-            path
-        )
+        result.add_info("New Epic Added", path)
 
     return result
+
 
 # ========================================
 # 虚拟数据检测
 # ========================================
+
 
 def detect_mock_data(prev: Dict, curr: Dict, rules: Dict) -> ValidationResult:
     """检测虚拟数据引入"""
@@ -263,14 +232,14 @@ def detect_mock_data(prev: Dict, curr: Dict, rules: Dict) -> ValidationResult:
     for category in curr.get("files", {}).values():
         all_curr_files.extend(category)
 
-    all_prev_files = {f['path']: f for files in prev.get("files", {}).values() for f in files}
+    all_prev_files = {f["path"]: f for files in prev.get("files", {}).values() for f in files}
 
     for file in all_curr_files:
-        path = file['path']
-        curr_hash = file['hash']
+        path = file["path"]
+        curr_hash = file["hash"]
 
         # 新增或修改的文件
-        if path not in all_prev_files or all_prev_files[path]['hash'] != curr_hash:
+        if path not in all_prev_files or all_prev_files[path]["hash"] != curr_hash:
             # 检查是否包含mock data patterns
             # 注意：这里简化处理，实际需要读取文件内容检查
             for pattern in patterns:
@@ -278,15 +247,17 @@ def detect_mock_data(prev: Dict, curr: Dict, rules: Dict) -> ValidationResult:
                     result.add_warning(
                         "Potential Mock Data Detected",
                         f"{path} contains pattern '{pattern}'",
-                        "确认这是真实数据而非虚拟数据"
+                        "确认这是真实数据而非虚拟数据",
                     )
                     break
 
     return result
 
+
 # ========================================
 # 主验证逻辑
 # ========================================
+
 
 def validate_iterations(prev_iteration: int, curr_iteration: int, rules: Dict) -> ValidationResult:
     """验证两次迭代间的一致性"""
@@ -342,25 +313,22 @@ def validate_iterations(prev_iteration: int, curr_iteration: int, rules: Dict) -
 
     return combined_result, prev_snapshot, curr_snapshot
 
+
 # ========================================
 # 报告生成
 # ========================================
 
-def generate_validation_report(
-    result: ValidationResult,
-    prev_snapshot: Dict,
-    curr_snapshot: Dict,
-    output_path: Path
-):
+
+def generate_validation_report(result: ValidationResult, prev_snapshot: Dict, curr_snapshot: Dict, output_path: Path):
     """生成验证报告"""
     sections = []
 
     # Summary
     summary_content = f"""
-**Previous Iteration**: {prev_snapshot['iteration']}
-**Current Iteration**: {curr_snapshot['iteration']}
-**Previous Git Commit**: `{prev_snapshot['git_commit'][:8]}...`
-**Current Git Commit**: `{curr_snapshot['git_commit'][:8]}...`
+**Previous Iteration**: {prev_snapshot["iteration"]}
+**Current Iteration**: {curr_snapshot["iteration"]}
+**Previous Git Commit**: `{prev_snapshot["git_commit"][:8]}...`
+**Current Git Commit**: `{curr_snapshot["git_commit"][:8]}...`
 
 **Validation Results**:
 - 🔴 Breaking Changes: {len(result.breaking_changes)}
@@ -401,10 +369,10 @@ def generate_validation_report(
     version_matrix = f"""
 | Category | Previous | Current | Change |
 |----------|----------|---------|--------|
-| PRD Files | {prev_snapshot['statistics']['prd_count']} | {curr_snapshot['statistics']['prd_count']} | {curr_snapshot['statistics']['prd_count'] - prev_snapshot['statistics']['prd_count']:+d} |
-| Architecture Files | {prev_snapshot['statistics']['architecture_count']} | {curr_snapshot['statistics']['architecture_count']} | {curr_snapshot['statistics']['architecture_count'] - prev_snapshot['statistics']['architecture_count']:+d} |
-| Epic Files | {prev_snapshot['statistics']['epic_count']} | {curr_snapshot['statistics']['epic_count']} | {curr_snapshot['statistics']['epic_count'] - prev_snapshot['statistics']['epic_count']:+d} |
-| API Specs | {prev_snapshot['statistics']['api_spec_count']} | {curr_snapshot['statistics']['api_spec_count']} | {curr_snapshot['statistics']['api_spec_count'] - prev_snapshot['statistics']['api_spec_count']:+d} |
+| PRD Files | {prev_snapshot["statistics"]["prd_count"]} | {curr_snapshot["statistics"]["prd_count"]} | {curr_snapshot["statistics"]["prd_count"] - prev_snapshot["statistics"]["prd_count"]:+d} |
+| Architecture Files | {prev_snapshot["statistics"]["architecture_count"]} | {curr_snapshot["statistics"]["architecture_count"]} | {curr_snapshot["statistics"]["architecture_count"] - prev_snapshot["statistics"]["architecture_count"]:+d} |
+| Epic Files | {prev_snapshot["statistics"]["epic_count"]} | {curr_snapshot["statistics"]["epic_count"]} | {curr_snapshot["statistics"]["epic_count"] - prev_snapshot["statistics"]["epic_count"]:+d} |
+| API Specs | {prev_snapshot["statistics"]["api_spec_count"]} | {curr_snapshot["statistics"]["api_spec_count"]} | {curr_snapshot["statistics"]["api_spec_count"] - prev_snapshot["statistics"]["api_spec_count"]:+d} |
 """
     sections.append({"title": "Version Matrix", "content": version_matrix})
 
@@ -461,42 +429,28 @@ git commit -m "Planning Iteration {curr_snapshot['iteration']} Complete"
         sections.append({"title": "Recommendations", "content": rec_content})
 
     # 生成报告
-    report = generate_markdown_report(
-        f"Planning Iteration {curr_snapshot['iteration']} Validation Report",
-        sections
-    )
+    report = generate_markdown_report(f"Planning Iteration {curr_snapshot['iteration']} Validation Report", sections)
 
     # 保存报告
-    with open(output_path, 'w', encoding='utf-8') as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         f.write(report)
 
     print_status(f"Validation report saved: {output_path}", "success")
+
 
 # ========================================
 # CLI接口
 # ========================================
 
+
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description="Validate consistency between Planning Phase iterations"
-    )
+    parser = argparse.ArgumentParser(description="Validate consistency between Planning Phase iterations")
+    parser.add_argument("--iteration", type=int, required=True, help="Current iteration number to validate")
+    parser.add_argument("--final", action="store_true", help="Run final validation before finalize (stricter checks)")
     parser.add_argument(
-        '--iteration',
-        type=int,
-        required=True,
-        help='Current iteration number to validate'
-    )
-    parser.add_argument(
-        '--final',
-        action='store_true',
-        help='Run final validation before finalize (stricter checks)'
-    )
-    parser.add_argument(
-        '--output',
-        type=str,
-        help='Output report path (default: iteration-{iteration}-validation-report.md)'
+        "--output", type=str, help="Output report path (default: iteration-{iteration}-validation-report.md)"
     )
 
     args = parser.parse_args()
@@ -517,11 +471,7 @@ def main():
 
     # 执行验证
     try:
-        result, prev_snapshot, curr_snapshot = validate_iterations(
-            previous_iteration,
-            current_iteration,
-            rules
-        )
+        result, prev_snapshot, curr_snapshot = validate_iterations(previous_iteration, current_iteration, rules)
     except FileNotFoundError as e:
         print_status(f"Error: {e}", "error")
         return 1
@@ -539,13 +489,13 @@ def main():
     generate_validation_report(result, prev_snapshot, curr_snapshot, output_path)
 
     # 打印摘要
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("📊 Validation Summary")
-    print("="*60)
+    print("=" * 60)
     print(f"🔴 Breaking Changes: {len(result.breaking_changes)}")
     print(f"🟡 Warnings: {len(result.warnings)}")
     print(f"🟢 Info: {len(result.info)}")
-    print("="*60)
+    print("=" * 60)
 
     if result.has_breaking_changes():
         print("\n❌ VALIDATION FAILED: Breaking changes detected!")
@@ -558,6 +508,7 @@ def main():
     else:
         print("\n✅ VALIDATION PASSED: No issues detected!")
         return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

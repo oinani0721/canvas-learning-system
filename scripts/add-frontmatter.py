@@ -18,7 +18,7 @@ from planning_utils import (
     write_file,
     get_git_sha,
     print_status,
-    confirm_action
+    confirm_action,
 )
 
 # ========================================
@@ -106,6 +106,7 @@ metadata:
 # 版本提取
 # ========================================
 
+
 def extract_version_from_content(content: str) -> str:
     """
     从文档内容中提取版本号
@@ -116,10 +117,10 @@ def extract_version_from_content(content: str) -> str:
     - version: v1.0.0
     """
     patterns = [
-        r'\*\*版本\*\*\s*[：:]\s*v?(\d+\.\d+(?:\.\d+)?)',
-        r'\*\*文档版本[：:]\*\*\s*v?(\d+\.\d+(?:\.\d+)?)',
-        r'version\s*[：:]\s*v?(\d+\.\d+(?:\.\d+)?)',
-        r'Version\s*[：:]\s*v?(\d+\.\d+(?:\.\d+)?)',
+        r"\*\*版本\*\*\s*[：:]\s*v?(\d+\.\d+(?:\.\d+)?)",
+        r"\*\*文档版本[：:]\*\*\s*v?(\d+\.\d+(?:\.\d+)?)",
+        r"version\s*[：:]\s*v?(\d+\.\d+(?:\.\d+)?)",
+        r"Version\s*[：:]\s*v?(\d+\.\d+(?:\.\d+)?)",
     ]
 
     for pattern in patterns:
@@ -127,7 +128,7 @@ def extract_version_from_content(content: str) -> str:
         if match:
             version = match.group(1)
             # 确保是三位版本号
-            parts = version.split('.')
+            parts = version.split(".")
             if len(parts) == 2:
                 version = f"{version}.0"
             return version
@@ -135,13 +136,16 @@ def extract_version_from_content(content: str) -> str:
     # 默认版本
     return "1.0.0"
 
+
 def has_frontmatter(content: str) -> bool:
     """检查文档是否已有YAML frontmatter"""
-    return content.strip().startswith('---')
+    return content.strip().startswith("---")
+
 
 # ========================================
 # Frontmatter添加
 # ========================================
+
 
 def add_frontmatter_to_prd(file_path: Path, dry_run: bool = False) -> bool:
     """
@@ -166,9 +170,7 @@ def add_frontmatter_to_prd(file_path: Path, dry_run: bool = False) -> bool:
 
     # 生成frontmatter
     frontmatter = PRD_FRONTMATTER_TEMPLATE.format(
-        version=version,
-        date=datetime.now().strftime('%Y-%m-%d'),
-        git_sha=get_git_sha()[:8]
+        version=version, date=datetime.now().strftime("%Y-%m-%d"), git_sha=get_git_sha()[:8]
     )
 
     # 添加frontmatter到文档开头
@@ -181,6 +183,7 @@ def add_frontmatter_to_prd(file_path: Path, dry_run: bool = False) -> bool:
         write_file(file_path, new_content)
         print_status(f"  Added frontmatter (v{version}): {file_path.name}", "success")
         return True
+
 
 def add_frontmatter_to_architecture(file_path: Path, dry_run: bool = False) -> bool:
     """
@@ -209,14 +212,15 @@ def add_frontmatter_to_architecture(file_path: Path, dry_run: bool = False) -> b
     api_spec_hash = ""
     if api_spec_path.exists():
         from planning_utils import compute_file_hash
+
         api_spec_hash = compute_file_hash(api_spec_path)[:16]
 
     # 生成frontmatter
     frontmatter = ARCHITECTURE_FRONTMATTER_TEMPLATE.format(
         version=version,
-        date=datetime.now().strftime('%Y-%m-%d'),
+        date=datetime.now().strftime("%Y-%m-%d"),
         git_sha=get_git_sha()[:8],
-        api_spec_hash=api_spec_hash
+        api_spec_hash=api_spec_hash,
     )
 
     # 添加frontmatter到文档开头
@@ -230,9 +234,11 @@ def add_frontmatter_to_architecture(file_path: Path, dry_run: bool = False) -> b
         print_status(f"  Added frontmatter (v{version}): {file_path.name}", "success")
         return True
 
+
 # ========================================
 # 批量处理
 # ========================================
+
 
 def process_prd_documents(dry_run: bool = False):
     """处理所有PRD文档"""
@@ -254,6 +260,7 @@ def process_prd_documents(dry_run: bool = False):
 
     return count
 
+
 def process_architecture_documents(dry_run: bool = False):
     """处理所有Architecture文档"""
     root = get_project_root()
@@ -274,42 +281,31 @@ def process_architecture_documents(dry_run: bool = False):
 
     return count
 
+
 # ========================================
 # CLI接口
 # ========================================
+
 
 def main():
     """主函数"""
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description="Add YAML frontmatter metadata to PRD and Architecture documents"
-    )
+    parser = argparse.ArgumentParser(description="Add YAML frontmatter metadata to PRD and Architecture documents")
     parser.add_argument(
-        '--type',
-        choices=['prd', 'architecture', 'all'],
-        default='all',
-        help='Document type to process (default: all)'
+        "--type", choices=["prd", "architecture", "all"], default="all", help="Document type to process (default: all)"
     )
-    parser.add_argument(
-        '--dry-run',
-        action='store_true',
-        help='Preview changes without writing files'
-    )
-    parser.add_argument(
-        '--file',
-        type=str,
-        help='Process a single file instead of all files'
-    )
+    parser.add_argument("--dry-run", action="store_true", help="Preview changes without writing files")
+    parser.add_argument("--file", type=str, help="Process a single file instead of all files")
 
     args = parser.parse_args()
 
     # Initialize UTF-8 encoding for Windows
     init_utf8_encoding()
 
-    print("="*60)
+    print("=" * 60)
     print("📝 Add Frontmatter to Planning Documents")
-    print("="*60)
+    print("=" * 60)
     print()
 
     if args.dry_run:
@@ -326,9 +322,9 @@ def main():
 
         print_status(f"Processing single file: {file_path.name}", "progress")
 
-        if 'prd' in str(file_path):
+        if "prd" in str(file_path):
             add_frontmatter_to_prd(file_path, args.dry_run)
-        elif 'architecture' in str(file_path):
+        elif "architecture" in str(file_path):
             add_frontmatter_to_architecture(file_path, args.dry_run)
         else:
             print_status("Cannot determine document type from path", "error")
@@ -342,24 +338,24 @@ def main():
     prd_count = 0
     arch_count = 0
 
-    if args.type in ['prd', 'all']:
+    if args.type in ["prd", "all"]:
         print_status("Processing PRD documents...", "progress")
         prd_count = process_prd_documents(args.dry_run)
         print()
 
-    if args.type in ['architecture', 'all']:
+    if args.type in ["architecture", "all"]:
         print_status("Processing Architecture documents...", "progress")
         arch_count = process_architecture_documents(args.dry_run)
         print()
 
     # 打印摘要
-    print("="*60)
+    print("=" * 60)
     print("📊 Summary")
-    print("="*60)
+    print("=" * 60)
     print(f"PRD documents processed: {prd_count}")
     print(f"Architecture documents processed: {arch_count}")
     print(f"Total: {prd_count + arch_count}")
-    print("="*60)
+    print("=" * 60)
 
     if args.dry_run:
         print()
@@ -375,6 +371,7 @@ def main():
         print("  3. Commit changes: git add . && git commit -m 'Add frontmatter metadata'")
 
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

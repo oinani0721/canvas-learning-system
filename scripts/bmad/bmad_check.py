@@ -12,6 +12,7 @@ Compact source always skips (Anthropic issue #15174).
 Usage (called by context-inject.js):
   echo '{"cwd": "...", "source": "startup"}' | python scripts/bmad/bmad_check.py
 """
+
 from __future__ import annotations
 
 import json

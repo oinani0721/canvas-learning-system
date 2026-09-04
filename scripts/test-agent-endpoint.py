@@ -36,8 +36,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 # Fix Windows console encoding for Unicode characters (emojis)
 if sys.platform == "win32":
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 # ✅ Verified from ADR-008: httpx for HTTP client
 import httpx
@@ -166,9 +166,7 @@ def test_health_endpoints(
     print("=" * 60)
 
     for name, path in HEALTH_ENDPOINTS.items():
-        success, message, data = test_endpoint(
-            client, name, path, method="GET", verbose=verbose
-        )
+        success, message, data = test_endpoint(client, name, path, method="GET", verbose=verbose)
 
         if success:
             print(f"  ✅ {name}: {message}")
@@ -306,13 +304,15 @@ Examples:
     # Mutually exclusive group for test scope
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument(
-        "--endpoint", "-e",
+        "--endpoint",
+        "-e",
         type=str,
         choices=list(AGENT_ENDPOINTS.keys()),
         help="测试指定的Agent端点",
     )
     group.add_argument(
-        "--all", "-a",
+        "--all",
+        "-a",
         action="store_true",
         help="测试所有端点 (健康检查 + Agent)",
     )
@@ -324,18 +324,21 @@ Examples:
 
     # Optional arguments
     parser.add_argument(
-        "--base-url", "-b",
+        "--base-url",
+        "-b",
         type=str,
         default="http://localhost:8000",
         help="后端服务器URL (默认: http://localhost:8000)",
     )
     parser.add_argument(
-        "--verbose", "-v",
+        "--verbose",
+        "-v",
         action="store_true",
         help="显示详细输出 (包括完整响应)",
     )
     parser.add_argument(
-        "--timeout", "-t",
+        "--timeout",
+        "-t",
         type=float,
         default=DEFAULT_TIMEOUT,
         help=f"请求超时时间(秒) (默认: {DEFAULT_TIMEOUT})",
@@ -367,9 +370,7 @@ Examples:
         elif args.endpoint:
             # Test single endpoint
             health_results = (0, 0)
-            agent_results = test_agent_endpoints(
-                client, [args.endpoint], args.verbose
-            )
+            agent_results = test_agent_endpoints(client, [args.endpoint], args.verbose)
 
         else:
             # Test all endpoints

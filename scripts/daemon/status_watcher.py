@@ -36,7 +36,7 @@ class WorktreeStatusHandler(FileSystemEventHandler):
         self,
         status_files: Dict[str, Path],  # story_id -> status_file_path
         on_dev_complete: Callable[[str, Path], None],
-        debounce_seconds: float = 2.0
+        debounce_seconds: float = 2.0,
     ):
         """
         Initialize the handler.
@@ -75,7 +75,7 @@ class WorktreeStatusHandler(FileSystemEventHandler):
         modified_path = Path(src_path)
 
         # Only process .worktree-status.yaml files
-        if modified_path.name != '.worktree-status.yaml':
+        if modified_path.name != ".worktree-status.yaml":
             return
 
         story_id = self._find_story_for_path(modified_path)
@@ -105,8 +105,8 @@ class WorktreeStatusHandler(FileSystemEventHandler):
         # Fallback: extract from path
         # Path format: .../Canvas-develop-13.1/.worktree-status.yaml
         parent_name = path.parent.name
-        if 'develop-' in parent_name:
-            parts = parent_name.split('-')
+        if "develop-" in parent_name:
+            parts = parent_name.split("-")
             return parts[-1] if parts else None
 
         return None
@@ -116,7 +116,7 @@ class WorktreeStatusHandler(FileSystemEventHandler):
         try:
             status = self._read_status_file(status_path)
 
-            if status.get('status') == 'dev-complete':
+            if status.get("status") == "dev-complete":
                 with self._lock:
                     if story_id in self._already_triggered:
                         return  # Already triggered, skip
@@ -134,7 +134,7 @@ class WorktreeStatusHandler(FileSystemEventHandler):
 
     def _read_status_file(self, path: Path) -> dict:
         """Read and parse a YAML status file."""
-        with open(path, 'r', encoding='utf-8') as f:
+        with open(path, "r", encoding="utf-8") as f:
             content = f.read()
 
         # Use yaml library if available
@@ -143,9 +143,9 @@ class WorktreeStatusHandler(FileSystemEventHandler):
 
         # Simple fallback parser
         result = {}
-        for line in content.split('\n'):
-            if ':' in line and not line.strip().startswith('#'):
-                key, value = line.split(':', 1)
+        for line in content.split("\n"):
+            if ":" in line and not line.strip().startswith("#"):
+                key, value = line.split(":", 1)
                 key = key.strip()
                 value = value.strip().strip('"').strip("'")
                 result[key] = value
@@ -195,7 +195,7 @@ class StatusWatcher:
         # Build status file mapping
         status_files = {}
         for wt in worktrees:
-            if hasattr(wt, 'story_id') and hasattr(wt, 'status_file'):
+            if hasattr(wt, "story_id") and hasattr(wt, "status_file"):
                 status_files[wt.story_id] = wt.status_file
 
         if not status_files:
@@ -203,17 +203,14 @@ class StatusWatcher:
             return False
 
         # Create handler
-        self._handler = WorktreeStatusHandler(
-            status_files=status_files,
-            on_dev_complete=self.on_dev_complete
-        )
+        self._handler = WorktreeStatusHandler(status_files=status_files, on_dev_complete=self.on_dev_complete)
 
         # Create and start observer
         self._observer = Observer()
 
         # Watch each worktree directory
         for wt in worktrees:
-            if hasattr(wt, 'path'):
+            if hasattr(wt, "path"):
                 path_str = str(wt.path)
                 if path_str not in self._watched_paths:
                     try:

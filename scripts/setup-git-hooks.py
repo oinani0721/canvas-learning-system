@@ -12,16 +12,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent / "lib"))
 
-from planning_utils import (
-    get_project_root,
-    print_status
-)
+from planning_utils import get_project_root, print_status
+
 
 def make_executable(file_path: Path):
     """使文件可执行（Unix-like系统）"""
-    if os.name != 'nt':  # 非Windows系统
+    if os.name != "nt":  # 非Windows系统
         st = os.stat(file_path)
         os.chmod(file_path, st.st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+
 
 def setup_pre_commit_hook():
     """设置pre-commit hook"""
@@ -64,6 +63,7 @@ def setup_pre_commit_hook():
 
     return True
 
+
 def test_hook():
     """测试hook是否正常工作"""
     root = get_project_root()
@@ -78,12 +78,8 @@ def test_hook():
     # 检查Python是否可用
     try:
         import subprocess
-        result = subprocess.run(
-            ['python3', '--version'],
-            capture_output=True,
-            text=True,
-            check=True
-        )
+
+        result = subprocess.run(["python3", "--version"], capture_output=True, text=True, check=True)
         print_status(f"Python found: {result.stdout.strip()}", "success")
     except (subprocess.CalledProcessError, FileNotFoundError):
         print_status("Python3 not found. Hook may not work properly.", "warning")
@@ -98,17 +94,19 @@ def test_hook():
     print_status("Hook setup verified successfully!", "success")
     return True
 
+
 def main():
     """主函数"""
     # Windows编码处理
-    if sys.platform == 'win32':
+    if sys.platform == "win32":
         import io
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
-    print("="*60)
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8")
+
+    print("=" * 60)
     print("🔧 Git Hooks Setup for Planning Phase")
-    print("="*60)
+    print("=" * 60)
     print()
 
     # 设置pre-commit hook
@@ -129,9 +127,9 @@ def main():
         print_status("Some tests failed. Hook may not work as expected.", "warning")
 
     print()
-    print("="*60)
+    print("=" * 60)
     print("✅ Git Hooks Setup Complete!")
-    print("="*60)
+    print("=" * 60)
     print()
     print("The pre-commit hook will now automatically:")
     print("  1. Detect Planning Phase file changes")
@@ -140,13 +138,14 @@ def main():
     print("  4. Block commit if breaking changes detected")
     print()
     print("To bypass the hook (NOT RECOMMENDED):")
-    print("  git commit -n -m \"message\"")
+    print('  git commit -n -m "message"')
     print()
     print("To accept breaking changes:")
     print("  python scripts/finalize-iteration.py --breaking")
-    print("="*60)
+    print("=" * 60)
 
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -24,12 +24,13 @@ from planning_utils import (
     get_openapi_version,
     get_git_sha,
     scan_planning_files,
-    print_status
+    print_status,
 )
 
 # ========================================
 # Snapshot文件信息提取
 # ========================================
+
 
 def extract_file_info(file_path: Path) -> Dict:
     """
@@ -52,11 +53,11 @@ def extract_file_info(file_path: Path) -> Dict:
         "path": str(file_path.relative_to(get_project_root())),
         "hash": compute_file_hash(file_path),
         "size": file_path.stat().st_size,
-        "last_modified": datetime.fromtimestamp(file_path.stat().st_mtime).isoformat()
+        "last_modified": datetime.fromtimestamp(file_path.stat().st_mtime).isoformat(),
     }
 
     # 尝试提取frontmatter信息
-    if file_path.suffix == '.md':
+    if file_path.suffix == ".md":
         try:
             content = read_file(file_path)
             frontmatter, _ = extract_frontmatter(content)
@@ -68,7 +69,7 @@ def extract_file_info(file_path: Path) -> Dict:
                     "status": frontmatter.get("status"),
                     "iteration": frontmatter.get("iteration"),
                     "compatible_with": frontmatter.get("compatible_with"),
-                    "changes_from_previous": frontmatter.get("changes_from_previous")
+                    "changes_from_previous": frontmatter.get("changes_from_previous"),
                 }
             else:
                 info["version"] = "no_frontmatter"
@@ -79,16 +80,18 @@ def extract_file_info(file_path: Path) -> Dict:
             info["metadata"] = {}
 
     # 如果是OpenAPI spec文件
-    elif file_path.suffix in ['.yml', '.yaml'] and 'api' in str(file_path):
+    elif file_path.suffix in [".yml", ".yaml"] and "api" in str(file_path):
         version = get_openapi_version(file_path)
         info["version"] = version or "unknown"
         info["metadata"] = {"type": "openapi"}
 
     return info
 
+
 # ========================================
 # 主Snapshot生成逻辑
 # ========================================
+
 
 def create_snapshot(iteration_num: int = None) -> Dict:
     """
@@ -112,13 +115,13 @@ def create_snapshot(iteration_num: int = None) -> Dict:
         "iteration": iteration_num,
         "timestamp": datetime.now().isoformat(),
         "git_commit": get_git_sha(),
-        "files": {}
+        "files": {},
     }
 
     # 处理PRD文件
     print_status("Scanning PRD files...", "progress")
     snapshot["files"]["prd"] = []
-    for file in files_by_category['prd']:
+    for file in files_by_category["prd"]:
         file_info = extract_file_info(file)
         if file_info:
             snapshot["files"]["prd"].append(file_info)
@@ -128,7 +131,7 @@ def create_snapshot(iteration_num: int = None) -> Dict:
     # 处理Architecture文件
     print_status("Scanning Architecture files...", "progress")
     snapshot["files"]["architecture"] = []
-    for file in files_by_category['architecture']:
+    for file in files_by_category["architecture"]:
         file_info = extract_file_info(file)
         if file_info:
             snapshot["files"]["architecture"].append(file_info)
@@ -138,7 +141,7 @@ def create_snapshot(iteration_num: int = None) -> Dict:
     # 处理Epic文件
     print_status("Scanning Epic files...", "progress")
     snapshot["files"]["epics"] = []
-    for file in files_by_category['epics']:
+    for file in files_by_category["epics"]:
         file_info = extract_file_info(file)
         if file_info:
             snapshot["files"]["epics"].append(file_info)
@@ -148,9 +151,9 @@ def create_snapshot(iteration_num: int = None) -> Dict:
     # 处理API Specs
     print_status("Scanning API Specification files...", "progress")
     snapshot["files"]["api_specs"] = []
-    for file in files_by_category['api_specs']:
+    for file in files_by_category["api_specs"]:
         # 排除versions/目录中的文件
-        if 'versions' not in str(file):
+        if "versions" not in str(file):
             file_info = extract_file_info(file)
             if file_info:
                 snapshot["files"]["api_specs"].append(file_info)
@@ -160,7 +163,7 @@ def create_snapshot(iteration_num: int = None) -> Dict:
     # 处理Data Schemas
     print_status("Scanning Data Schema files...", "progress")
     snapshot["files"]["data_schemas"] = []
-    for file in files_by_category['data_schemas']:
+    for file in files_by_category["data_schemas"]:
         file_info = extract_file_info(file)
         if file_info:
             snapshot["files"]["data_schemas"].append(file_info)
@@ -170,7 +173,7 @@ def create_snapshot(iteration_num: int = None) -> Dict:
     # 处理Behavior Specs
     print_status("Scanning Behavior Specification files...", "progress")
     snapshot["files"]["behavior_specs"] = []
-    for file in files_by_category['behavior_specs']:
+    for file in files_by_category["behavior_specs"]:
         file_info = extract_file_info(file)
         if file_info:
             snapshot["files"]["behavior_specs"].append(file_info)
@@ -185,37 +188,29 @@ def create_snapshot(iteration_num: int = None) -> Dict:
         "epic_count": len(snapshot["files"]["epics"]),
         "api_spec_count": len(snapshot["files"]["api_specs"]),
         "data_schema_count": len(snapshot["files"]["data_schemas"]),
-        "behavior_spec_count": len(snapshot["files"]["behavior_specs"])
+        "behavior_spec_count": len(snapshot["files"]["behavior_specs"]),
     }
 
     return snapshot
+
 
 # ========================================
 # CLI接口
 # ========================================
 
+
 def main():
     """主函数"""
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description="Create a snapshot of the Planning Phase state"
-    )
+    parser = argparse.ArgumentParser(description="Create a snapshot of the Planning Phase state")
+    parser.add_argument("--iteration", type=int, help="Iteration number (default: auto-increment)")
     parser.add_argument(
-        '--iteration',
-        type=int,
-        help='Iteration number (default: auto-increment)'
-    )
-    parser.add_argument(
-        '--output',
+        "--output",
         type=str,
-        help='Output file path (default: .bmad-core/planning-iterations/snapshots/iteration-NNN.json)'
+        help="Output file path (default: .bmad-core/planning-iterations/snapshots/iteration-NNN.json)",
     )
-    parser.add_argument(
-        '--verbose',
-        action='store_true',
-        help='Print detailed information'
-    )
+    parser.add_argument("--verbose", action="store_true", help="Print detailed information")
 
     args = parser.parse_args()
 
@@ -229,16 +224,16 @@ def main():
     if args.output:
         output_path = Path(args.output)
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(output_path, 'w', encoding='utf-8') as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             json.dump(snapshot, f, indent=2, ensure_ascii=False)
         print_status(f"Snapshot saved to: {output_path}", "success")
     else:
         save_snapshot(snapshot, snapshot["iteration"])
 
     # 打印摘要
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("📸 Snapshot Summary")
-    print("="*60)
+    print("=" * 60)
     print(f"Iteration Number: {snapshot['iteration']}")
     print(f"Timestamp: {snapshot['timestamp']}")
     print(f"Git Commit: {snapshot['git_commit'][:8]}...")
@@ -250,12 +245,12 @@ def main():
     print(f"  - Data Schemas: {snapshot['statistics']['data_schema_count']}")
     print(f"  - Behavior Specs: {snapshot['statistics']['behavior_spec_count']}")
     print(f"\nTotal Files: {snapshot['statistics']['total_files']}")
-    print("="*60)
+    print("=" * 60)
 
     # 详细输出（如果指定了--verbose）
     if args.verbose:
         print("\n📄 Detailed File List:")
-        print("-"*60)
+        print("-" * 60)
 
         for category, files in snapshot["files"].items():
             if files:
@@ -269,6 +264,7 @@ def main():
     print("\n✅ Snapshot created successfully!")
 
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

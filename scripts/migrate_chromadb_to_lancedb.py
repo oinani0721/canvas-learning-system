@@ -36,11 +36,11 @@ from tqdm import tqdm
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
+    format="%(asctime)s - %(levelname)s - %(message)s",
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler(f'migration_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log')
-    ]
+        logging.FileHandler(f"migration_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"),
+    ],
 )
 logger = logging.getLogger(__name__)
 
@@ -48,6 +48,7 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 # 配置类
 # ============================================================================
+
 
 class MigrationConfig:
     """迁移配置"""
@@ -59,7 +60,7 @@ class MigrationConfig:
         export_file: str = "chromadb_export.jsonl",
         backup_dir: str = "./chromadb_backup",
         batch_size: int = 1000,
-        validation_sample_size: int = 100
+        validation_sample_size: int = 100,
     ):
         self.chromadb_path = chromadb_path
         self.lancedb_path = os.path.expanduser(lancedb_path)
@@ -69,16 +70,10 @@ class MigrationConfig:
         self.validation_sample_size = validation_sample_size
 
         # ChromaDB collection names
-        self.chroma_collections = [
-            "canvas_explanations",
-            "canvas_concepts"
-        ]
+        self.chroma_collections = ["canvas_explanations", "canvas_concepts"]
 
         # LanceDB table mapping
-        self.lancedb_tables = {
-            "canvas_explanations": "canvas_explanations",
-            "canvas_concepts": "canvas_concepts"
-        }
+        self.lancedb_tables = {"canvas_explanations": "canvas_explanations", "canvas_concepts": "canvas_concepts"}
 
     def get_lance_table(self, collection_name: str) -> str:
         """获取LanceDB表名
@@ -95,6 +90,7 @@ class MigrationConfig:
 # ============================================================================
 # ChromaDB 导出器
 # ============================================================================
+
 
 class ChromaDBExporter:
     """ChromaDB数据导出器
@@ -116,16 +112,14 @@ class ChromaDBExporter:
 
             if os.path.exists(self.config.chromadb_path):
                 self.client = chromadb.PersistentClient(
-                    path=self.config.chromadb_path,
-                    settings=Settings(anonymized_telemetry=False)
+                    path=self.config.chromadb_path, settings=Settings(anonymized_telemetry=False)
                 )
                 logger.info("✅ Connected to existing ChromaDB")
             else:
                 logger.warning(f"ChromaDB path not found: {self.config.chromadb_path}")
                 logger.info("Creating empty ChromaDB for testing...")
                 self.client = chromadb.PersistentClient(
-                    path=self.config.chromadb_path,
-                    settings=Settings(anonymized_telemetry=False)
+                    path=self.config.chromadb_path, settings=Settings(anonymized_telemetry=False)
                 )
                 self._create_sample_data()
 
@@ -139,8 +133,7 @@ class ChromaDBExporter:
 
         for collection_name in self.config.chroma_collections:
             collection = self.client.get_or_create_collection(
-                name=collection_name,
-                metadata={"description": f"Sample {collection_name} for testing"}
+                name=collection_name, metadata={"description": f"Sample {collection_name} for testing"}
             )
 
             # 添加100个示例文档
@@ -156,7 +149,7 @@ class ChromaDBExporter:
                     "canvas_file": "离散数学.canvas",
                     "concept": f"concept_{i}",
                     "timestamp": datetime.now().isoformat(),
-                    "agent_type": "scoring-agent"
+                    "agent_type": "scoring-agent",
                 }
                 # 1536-dim embedding (OpenAI text-embedding-3-small compatible)
                 embedding = np.random.rand(1536).astype(np.float32).tolist()
@@ -167,10 +160,7 @@ class ChromaDBExporter:
                 sample_embeddings.append(embedding)
 
             collection.add(
-                ids=sample_ids,
-                documents=sample_docs,
-                metadatas=sample_metadatas,
-                embeddings=sample_embeddings
+                ids=sample_ids, documents=sample_docs, metadatas=sample_metadatas, embeddings=sample_embeddings
             )
 
             logger.info(f"✅ Created {len(sample_ids)} sample documents in {collection_name}")
@@ -187,20 +177,14 @@ class ChromaDBExporter:
             collection = self.client.get_collection(collection_name)
 
             # 获取所有数据
-            results = collection.get(
-                include=["documents", "metadatas", "embeddings"]
-            )
+            results = collection.get(include=["documents", "metadatas", "embeddings"])
 
             count = len(results["ids"])
             logger.info(f"Found {count} documents in {collection_name}")
 
             if count == 0:
                 logger.warning(f"Collection {collection_name} is empty, skipping export")
-                return {
-                    "collection_name": collection_name,
-                    "count": 0,
-                    "file_path": None
-                }
+                return {"collection_name": collection_name, "count": 0, "file_path": None}
 
             # 导出为JSON Lines
             export_file = f"{collection_name}_export.jsonl"
@@ -212,18 +196,14 @@ class ChromaDBExporter:
                         "doc_id": results["ids"][i],
                         "content": results["documents"][i],
                         "metadata": results["metadatas"][i],
-                        "embedding": results["embeddings"][i]
+                        "embedding": results["embeddings"][i],
                     }
                     f.write(json.dumps(doc, ensure_ascii=False) + "\n")
                     exported_count += 1
 
             logger.info(f"✅ Exported {exported_count} documents to {export_file}")
 
-            return {
-                "collection_name": collection_name,
-                "count": exported_count,
-                "file_path": export_file
-            }
+            return {"collection_name": collection_name, "count": exported_count, "file_path": export_file}
 
         except Exception as e:
             logger.error(f"Failed to export collection {collection_name}: {e}")
@@ -250,6 +230,7 @@ class ChromaDBExporter:
 # ============================================================================
 # LanceDB 导入器
 # ============================================================================
+
 
 class LanceDBImporter:
     """LanceDB数据导入器
@@ -308,7 +289,7 @@ class LanceDBImporter:
                         "timestamp": doc["metadata"].get("timestamp", ""),
                         "agent_type": doc["metadata"].get("agent_type", ""),
                         # 保留完整metadata作为JSON字符串
-                        "metadata_json": json.dumps(doc["metadata"], ensure_ascii=False)
+                        "metadata_json": json.dumps(doc["metadata"], ensure_ascii=False),
                     }
 
                     data.append(lance_doc)
@@ -321,11 +302,7 @@ class LanceDBImporter:
 
             # 创建LanceDB表
             logger.info(f"Creating LanceDB table: {table_name}")
-            table = self.db.create_table(
-                table_name,
-                data=data,
-                mode="overwrite"
-            )
+            table = self.db.create_table(table_name, data=data, mode="overwrite")
 
             # 验证导入数量
             imported_count = table.count_rows()
@@ -375,6 +352,7 @@ class LanceDBImporter:
 # 数据一致性校验器
 # ============================================================================
 
+
 class DataConsistencyValidator:
     """数据一致性校验器
 
@@ -384,22 +362,12 @@ class DataConsistencyValidator:
     - 向量相似度 > 0.99 (余弦相似度)
     """
 
-    def __init__(
-        self,
-        config: MigrationConfig,
-        chroma_client: chromadb.Client,
-        lance_db: lancedb.DBConnection
-    ):
+    def __init__(self, config: MigrationConfig, chroma_client: chromadb.Client, lance_db: lancedb.DBConnection):
         self.config = config
         self.chroma_client = chroma_client
         self.lance_db = lance_db
 
-    def validate_collection(
-        self,
-        collection_name: str,
-        table_name: str,
-        sample_size: int = 100
-    ) -> Dict[str, Any]:
+    def validate_collection(self, collection_name: str, table_name: str, sample_size: int = 100) -> Dict[str, Any]:
         """校验单个collection vs table
 
         Returns:
@@ -423,13 +391,7 @@ class DataConsistencyValidator:
 
             if total_docs == 0:
                 logger.warning(f"No documents in {collection_name}, skipping validation")
-                return {
-                    "collection_name": collection_name,
-                    "sample_size": 0,
-                    "passed": 0,
-                    "failed": 0,
-                    "errors": []
-                }
+                return {"collection_name": collection_name, "sample_size": 0, "passed": 0, "failed": 0, "errors": []}
 
             # 获取LanceDB table
             lance_table = self.lance_db.open_table(table_name)
@@ -455,10 +417,7 @@ class DataConsistencyValidator:
                     lance_result = lance_table.search().where(f"doc_id = '{doc_id}'").limit(1).to_pandas()
 
                     if len(lance_result) == 0:
-                        errors.append({
-                            "doc_id": doc_id,
-                            "error": "Document not found in LanceDB"
-                        })
+                        errors.append({"doc_id": doc_id, "error": "Document not found in LanceDB"})
                         failed += 1
                         continue
 
@@ -466,24 +425,28 @@ class DataConsistencyValidator:
 
                     # 验证content
                     if chroma_doc != lance_doc["content"]:
-                        errors.append({
-                            "doc_id": doc_id,
-                            "error": "Content mismatch",
-                            "chroma": chroma_doc[:100],
-                            "lance": str(lance_doc["content"])[:100]
-                        })
+                        errors.append(
+                            {
+                                "doc_id": doc_id,
+                                "error": "Content mismatch",
+                                "chroma": chroma_doc[:100],
+                                "lance": str(lance_doc["content"])[:100],
+                            }
+                        )
                         failed += 1
                         continue
 
                     # 验证metadata (从JSON字符串恢复)
                     lance_metadata = json.loads(lance_doc["metadata_json"])
                     if chroma_metadata != lance_metadata:
-                        errors.append({
-                            "doc_id": doc_id,
-                            "error": "Metadata mismatch",
-                            "chroma": chroma_metadata,
-                            "lance": lance_metadata
-                        })
+                        errors.append(
+                            {
+                                "doc_id": doc_id,
+                                "error": "Metadata mismatch",
+                                "chroma": chroma_metadata,
+                                "lance": lance_metadata,
+                            }
+                        )
                         failed += 1
                         continue
 
@@ -494,21 +457,20 @@ class DataConsistencyValidator:
                     )
 
                     if cosine_sim < 0.99:
-                        errors.append({
-                            "doc_id": doc_id,
-                            "error": "Vector similarity too low",
-                            "cosine_similarity": float(cosine_sim)
-                        })
+                        errors.append(
+                            {
+                                "doc_id": doc_id,
+                                "error": "Vector similarity too low",
+                                "cosine_similarity": float(cosine_sim),
+                            }
+                        )
                         failed += 1
                         continue
 
                     passed += 1
 
                 except Exception as e:
-                    errors.append({
-                        "doc_id": doc_id,
-                        "error": str(e)
-                    })
+                    errors.append({"doc_id": doc_id, "error": str(e)})
                     failed += 1
 
             logger.info(f"✅ Validation complete: {passed}/{sample_size} passed, {failed}/{sample_size} failed")
@@ -518,7 +480,7 @@ class DataConsistencyValidator:
                 "sample_size": sample_size,
                 "passed": passed,
                 "failed": failed,
-                "errors": errors
+                "errors": errors,
             }
 
         except Exception as e:
@@ -538,9 +500,7 @@ class DataConsistencyValidator:
 
             try:
                 result = self.validate_collection(
-                    collection_name,
-                    table_name,
-                    sample_size=self.config.validation_sample_size
+                    collection_name, table_name, sample_size=self.config.validation_sample_size
                 )
                 results.append(result)
             except Exception as e:
@@ -552,6 +512,7 @@ class DataConsistencyValidator:
 # ============================================================================
 # 备份和回滚管理器
 # ============================================================================
+
 
 class BackupManager:
     """备份和回滚管理器
@@ -573,10 +534,7 @@ class BackupManager:
         """
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            backup_file = os.path.join(
-                self.config.backup_dir,
-                f"chromadb_backup_{timestamp}.tar.gz"
-            )
+            backup_file = os.path.join(self.config.backup_dir, f"chromadb_backup_{timestamp}.tar.gz")
 
             # 创建备份目录
             os.makedirs(self.config.backup_dir, exist_ok=True)
@@ -638,6 +596,7 @@ class BackupManager:
 # 双写适配器 (AC 3.4)
 # ============================================================================
 
+
 class DualWriteAdapter:
     """双写适配器 - AC 3.4
 
@@ -665,13 +624,14 @@ class DualWriteAdapter:
             "both_success": 0,
             "chroma_failed": 0,
             "lance_failed": 0,
-            "both_failed": 0
+            "both_failed": 0,
         }
 
     def connect(self):
         """连接到两个数据库"""
         try:
             import chromadb
+
             self.chroma_client = chromadb.PersistentClient(path=self.config.chromadb_path)
             logger.info(f"✅ Connected to ChromaDB at {self.config.chromadb_path}")
         except Exception as e:
@@ -681,6 +641,7 @@ class DualWriteAdapter:
 
         try:
             import lancedb
+
             self.lance_db = lancedb.connect(self.config.lancedb_path)
             logger.info(f"✅ Connected to LanceDB at {self.config.lancedb_path}")
         except Exception as e:
@@ -689,12 +650,7 @@ class DualWriteAdapter:
                 raise
 
     def add_document(
-        self,
-        collection_name: str,
-        doc_id: str,
-        content: str,
-        metadata: Dict[str, Any],
-        embedding: List[float]
+        self, collection_name: str, doc_id: str, content: str, metadata: Dict[str, Any], embedding: List[float]
     ) -> Dict[str, bool]:
         """双写文档到两个数据库
 
@@ -715,12 +671,7 @@ class DualWriteAdapter:
         if self.chroma_client is not None:
             try:
                 collection = self.chroma_client.get_or_create_collection(collection_name)
-                collection.add(
-                    ids=[doc_id],
-                    documents=[content],
-                    metadatas=[metadata],
-                    embeddings=[embedding]
-                )
+                collection.add(ids=[doc_id], documents=[content], metadatas=[metadata], embeddings=[embedding])
                 results["chromadb"] = True
                 self.write_stats["chroma_success"] += 1
                 logger.debug(f"✅ ChromaDB write success: {doc_id}")
@@ -743,7 +694,7 @@ class DualWriteAdapter:
                     "canvas_file": metadata.get("canvas_file", ""),
                     "node_id": metadata.get("node_id", ""),
                     "timestamp": metadata.get("timestamp", datetime.now().isoformat()),
-                    "metadata_json": json.dumps(metadata, ensure_ascii=False)
+                    "metadata_json": json.dumps(metadata, ensure_ascii=False),
                 }
 
                 # 检查表是否存在
@@ -772,11 +723,7 @@ class DualWriteAdapter:
 
         return results
 
-    def batch_add_documents(
-        self,
-        collection_name: str,
-        documents: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+    def batch_add_documents(self, collection_name: str, documents: List[Dict[str, Any]]) -> Dict[str, Any]:
         """批量双写文档
 
         Args:
@@ -786,12 +733,7 @@ class DualWriteAdapter:
         Returns:
             批量写入结果统计
         """
-        batch_results = {
-            "total": len(documents),
-            "chromadb_success": 0,
-            "lancedb_success": 0,
-            "both_success": 0
-        }
+        batch_results = {"total": len(documents), "chromadb_success": 0, "lancedb_success": 0, "both_success": 0}
 
         for doc in documents:
             results = self.add_document(
@@ -799,7 +741,7 @@ class DualWriteAdapter:
                 doc_id=doc["doc_id"],
                 content=doc["content"],
                 metadata=doc["metadata"],
-                embedding=doc["embedding"]
+                embedding=doc["embedding"],
             )
 
             if results["chromadb"]:
@@ -822,10 +764,7 @@ class DualWriteAdapter:
         else:
             success_rate = self.write_stats["both_success"] / self.write_stats["total"] * 100
 
-        return {
-            **self.write_stats,
-            "success_rate": f"{success_rate:.2f}%"
-        }
+        return {**self.write_stats, "success_rate": f"{success_rate:.2f}%"}
 
     def verify_consistency(self, collection_name: str, sample_size: int = 100) -> Dict[str, Any]:
         """验证双写数据一致性
@@ -843,10 +782,7 @@ class DualWriteAdapter:
         try:
             # 从ChromaDB获取文档
             chroma_collection = self.chroma_client.get_collection(collection_name)
-            chroma_results = chroma_collection.get(
-                limit=sample_size,
-                include=["documents", "metadatas", "embeddings"]
-            )
+            chroma_results = chroma_collection.get(limit=sample_size, include=["documents", "metadatas", "embeddings"])
 
             # 从LanceDB获取对应文档
             table_name = self.config.get_lance_table(collection_name)
@@ -858,31 +794,23 @@ class DualWriteAdapter:
                 lance_rows = lance_table.search().where(f"doc_id = '{doc_id}'").limit(1).to_list()
 
                 if not lance_rows:
-                    mismatches.append({
-                        "doc_id": doc_id,
-                        "error": "Document not found in LanceDB"
-                    })
+                    mismatches.append({"doc_id": doc_id, "error": "Document not found in LanceDB"})
                     continue
 
                 # 验证向量相似度
                 chroma_vec = np.array(chroma_results["embeddings"][i])
                 lance_vec = np.array(lance_rows[0]["vector"])
 
-                cosine_sim = np.dot(chroma_vec, lance_vec) / (
-                    np.linalg.norm(chroma_vec) * np.linalg.norm(lance_vec)
-                )
+                cosine_sim = np.dot(chroma_vec, lance_vec) / (np.linalg.norm(chroma_vec) * np.linalg.norm(lance_vec))
 
                 if cosine_sim < 0.99:
-                    mismatches.append({
-                        "doc_id": doc_id,
-                        "error": f"Vector similarity too low: {cosine_sim:.4f}"
-                    })
+                    mismatches.append({"doc_id": doc_id, "error": f"Vector similarity too low: {cosine_sim:.4f}"})
 
             return {
                 "total_checked": len(chroma_results["ids"]),
                 "mismatches": len(mismatches),
                 "consistency_rate": f"{(1 - len(mismatches) / len(chroma_results['ids'])) * 100:.2f}%",
-                "errors": mismatches[:10]  # 只返回前10个错误
+                "errors": mismatches[:10],  # 只返回前10个错误
             }
 
         except Exception as e:
@@ -892,6 +820,7 @@ class DualWriteAdapter:
 # ============================================================================
 # 主迁移流程
 # ============================================================================
+
 
 class MigrationOrchestrator:
     """迁移流程编排器"""
@@ -908,11 +837,7 @@ class MigrationOrchestrator:
         Returns:
             迁移报告
         """
-        report = {
-            "start_time": datetime.now().isoformat(),
-            "status": "running",
-            "steps": {}
-        }
+        report = {"start_time": datetime.now().isoformat(), "status": "running", "steps": {}}
 
         try:
             # Step 1: 备份ChromaDB
@@ -921,10 +846,7 @@ class MigrationOrchestrator:
             logger.info("=" * 80)
 
             backup_file = self.backup_mgr.backup_chromadb()
-            report["steps"]["backup"] = {
-                "status": "success",
-                "backup_file": backup_file
-            }
+            report["steps"]["backup"] = {"status": "success", "backup_file": backup_file}
 
             # Step 2: 连接ChromaDB
             logger.info("=" * 80)
@@ -940,10 +862,7 @@ class MigrationOrchestrator:
             logger.info("=" * 80)
 
             export_results = self.exporter.export_all()
-            report["steps"]["export"] = {
-                "status": "success",
-                "results": export_results
-            }
+            report["steps"]["export"] = {"status": "success", "results": export_results}
 
             # Step 4: 连接LanceDB
             logger.info("=" * 80)
@@ -959,27 +878,17 @@ class MigrationOrchestrator:
             logger.info("=" * 80)
 
             import_results = self.importer.import_all(export_results)
-            report["steps"]["import"] = {
-                "status": "success",
-                "results": import_results
-            }
+            report["steps"]["import"] = {"status": "success", "results": import_results}
 
             # Step 6: 数据一致性校验
             logger.info("=" * 80)
             logger.info("Step 6: Validate data consistency")
             logger.info("=" * 80)
 
-            validator = DataConsistencyValidator(
-                self.config,
-                self.exporter.client,
-                self.importer.db
-            )
+            validator = DataConsistencyValidator(self.config, self.exporter.client, self.importer.db)
 
             validation_results = validator.validate_all()
-            report["steps"]["validation"] = {
-                "status": "success",
-                "results": validation_results
-            }
+            report["steps"]["validation"] = {"status": "success", "results": validation_results}
 
             # 检查是否有validation失败
             total_failed = sum(r["failed"] for r in validation_results)
@@ -1006,49 +915,22 @@ class MigrationOrchestrator:
 # CLI入口
 # ============================================================================
 
+
 def main():
     """主函数"""
-    parser = argparse.ArgumentParser(
-        description="ChromaDB → LanceDB数据迁移工具 (Story 12.3)"
-    )
+    parser = argparse.ArgumentParser(description="ChromaDB → LanceDB数据迁移工具 (Story 12.3)")
 
-    parser.add_argument(
-        "--chromadb-path",
-        default="./chroma_db",
-        help="ChromaDB数据目录 (default: ./chroma_db)"
-    )
+    parser.add_argument("--chromadb-path", default="./chroma_db", help="ChromaDB数据目录 (default: ./chroma_db)")
 
-    parser.add_argument(
-        "--lancedb-path",
-        default="~/.lancedb",
-        help="LanceDB数据目录 (default: ~/.lancedb)"
-    )
+    parser.add_argument("--lancedb-path", default="~/.lancedb", help="LanceDB数据目录 (default: ~/.lancedb)")
 
-    parser.add_argument(
-        "--backup-dir",
-        default="./chromadb_backup",
-        help="备份目录 (default: ./chromadb_backup)"
-    )
+    parser.add_argument("--backup-dir", default="./chromadb_backup", help="备份目录 (default: ./chromadb_backup)")
 
-    parser.add_argument(
-        "--batch-size",
-        type=int,
-        default=1000,
-        help="批处理大小 (default: 1000)"
-    )
+    parser.add_argument("--batch-size", type=int, default=1000, help="批处理大小 (default: 1000)")
 
-    parser.add_argument(
-        "--validation-sample-size",
-        type=int,
-        default=100,
-        help="一致性校验抽样大小 (default: 100)"
-    )
+    parser.add_argument("--validation-sample-size", type=int, default=100, help="一致性校验抽样大小 (default: 100)")
 
-    parser.add_argument(
-        "--skip-backup",
-        action="store_true",
-        help="跳过备份步骤 (NOT RECOMMENDED)"
-    )
+    parser.add_argument("--skip-backup", action="store_true", help="跳过备份步骤 (NOT RECOMMENDED)")
 
     args = parser.parse_args()
 
@@ -1058,7 +940,7 @@ def main():
         lancedb_path=args.lancedb_path,
         backup_dir=args.backup_dir,
         batch_size=args.batch_size,
-        validation_sample_size=args.validation_sample_size
+        validation_sample_size=args.validation_sample_size,
     )
 
     # 执行迁移

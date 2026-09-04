@@ -11,10 +11,8 @@ from typing import Dict, List, Set, Any
 
 sys.path.insert(0, str(Path(__file__).parent / "lib"))
 
-from planning_utils import (
-    print_status,
-    generate_markdown_report
-)
+from planning_utils import print_status, generate_markdown_report
+
 
 class SchemaDiff:
     """JSON Schema差异分析器"""
@@ -37,6 +35,7 @@ class SchemaDiff:
 
     def has_breaking_changes(self) -> bool:
         return len(self.breaking_changes) > 0
+
 
 def compare_properties(diff: SchemaDiff, props1: Dict, props2: Dict, required1: Set, required2: Set, context: str = ""):
     """比较schema properties"""
@@ -70,33 +69,34 @@ def compare_properties(diff: SchemaDiff, props1: Dict, props2: Dict, required1: 
     # 类型变更
     common = keys1 & keys2
     for field in common:
-        type1 = props1[field].get('type')
-        type2 = props2[field].get('type')
+        type1 = props1[field].get("type")
+        type2 = props2[field].get("type")
 
         if type1 != type2:
             diff.add_breaking(f"Type changed: {context}{field} ({type1} → {type2})")
+
 
 def diff_schemas(schema1: Dict, schema2: Dict) -> SchemaDiff:
     """比较两个JSON Schema"""
     diff = SchemaDiff(schema1, schema2)
 
     # 比较基本信息
-    id1 = schema1.get('$id', schema1.get('id', ''))
-    id2 = schema2.get('$id', schema2.get('id', ''))
+    id1 = schema1.get("$id", schema1.get("id", ""))
+    id2 = schema2.get("$id", schema2.get("id", ""))
     if id1 != id2:
         diff.add_info(f"Schema ID changed: {id1} → {id2}")
 
     # 比较properties
-    props1 = schema1.get('properties', {})
-    props2 = schema2.get('properties', {})
-    required1 = set(schema1.get('required', []))
-    required2 = set(schema2.get('required', []))
+    props1 = schema1.get("properties", {})
+    props2 = schema2.get("properties", {})
+    required1 = set(schema1.get("required", []))
+    required2 = set(schema2.get("required", []))
 
     compare_properties(diff, props1, props2, required1, required2)
 
     # 比较definitions/components
-    defs1 = schema1.get('definitions', schema1.get('$defs', {}))
-    defs2 = schema2.get('definitions', schema2.get('$defs', {}))
+    defs1 = schema1.get("definitions", schema1.get("$defs", {}))
+    defs2 = schema2.get("definitions", schema2.get("$defs", {}))
 
     for def_name in set(defs1.keys()) | set(defs2.keys()):
         if def_name in defs1 and def_name not in defs2:
@@ -105,6 +105,7 @@ def diff_schemas(schema1: Dict, schema2: Dict) -> SchemaDiff:
             diff.add_info(f"Definition added: {def_name}")
 
     return diff
+
 
 def generate_diff_report(diff: SchemaDiff, schema1_path: Path, schema2_path: Path) -> str:
     """生成Markdown格式报告"""
@@ -134,48 +135,23 @@ def generate_diff_report(diff: SchemaDiff, schema1_path: Path, schema2_path: Pat
 
     return generate_markdown_report("JSON Schema Diff Report", sections)
 
+
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description="Compare JSON Schemas and detect breaking changes"
-    )
-    parser.add_argument(
-        '--base',
-        type=str,
-        help='Path to baseline snapshot JSON or schema file'
-    )
-    parser.add_argument(
-        '--current',
-        type=str,
-        help='Path to current schemas directory or file'
-    )
-    parser.add_argument(
-        'schema1',
-        nargs='?',
-        help='First schema file (legacy mode)'
-    )
-    parser.add_argument(
-        'schema2',
-        nargs='?',
-        help='Second schema file (legacy mode)'
-    )
-    parser.add_argument(
-        '--output',
-        type=str,
-        help='Output file path'
-    )
-    parser.add_argument(
-        '--fail-on-breaking',
-        action='store_true',
-        help='Exit with code 1 if breaking changes detected'
-    )
+    parser = argparse.ArgumentParser(description="Compare JSON Schemas and detect breaking changes")
+    parser.add_argument("--base", type=str, help="Path to baseline snapshot JSON or schema file")
+    parser.add_argument("--current", type=str, help="Path to current schemas directory or file")
+    parser.add_argument("schema1", nargs="?", help="First schema file (legacy mode)")
+    parser.add_argument("schema2", nargs="?", help="Second schema file (legacy mode)")
+    parser.add_argument("--output", type=str, help="Output file path")
+    parser.add_argument("--fail-on-breaking", action="store_true", help="Exit with code 1 if breaking changes detected")
 
     args = parser.parse_args()
 
-    print("="*60)
+    print("=" * 60)
     print("🔍 JSON Schema Diff")
-    print("="*60)
+    print("=" * 60)
 
     # 确定模式
     if args.base and args.current:
@@ -192,17 +168,17 @@ def main():
             schema2_path = current_path
 
         # 从base确定对应的schema
-        if base_path.suffix == '.json' and 'iteration' not in base_path.stem:
+        if base_path.suffix == ".json" and "iteration" not in base_path.stem:
             schema1_path = base_path
         else:
             # 从snapshot加载
-            with open(base_path, 'r', encoding='utf-8') as f:
+            with open(base_path, "r", encoding="utf-8") as f:
                 snapshot = json.load(f)
-            schema_files = snapshot.get('files', {}).get('schemas', [])
+            schema_files = snapshot.get("files", {}).get("schemas", [])
             if not schema_files:
                 print_status("No schemas in baseline", "warning")
                 return 0
-            schema1_path = Path(schema_files[0].get('path', ''))
+            schema1_path = Path(schema_files[0].get("path", ""))
 
     elif args.schema1 and args.schema2:
         schema1_path = Path(args.schema1)
@@ -218,9 +194,9 @@ def main():
         print_status(f"Schema 2 not found: {schema2_path}", "error")
         return 1
 
-    with open(schema1_path, 'r', encoding='utf-8') as f:
+    with open(schema1_path, "r", encoding="utf-8") as f:
         schema1 = json.load(f)
-    with open(schema2_path, 'r', encoding='utf-8') as f:
+    with open(schema2_path, "r", encoding="utf-8") as f:
         schema2 = json.load(f)
 
     # 比较
@@ -228,7 +204,7 @@ def main():
     report = generate_diff_report(diff, schema1_path, schema2_path)
 
     if args.output:
-        Path(args.output).write_text(report, encoding='utf-8')
+        Path(args.output).write_text(report, encoding="utf-8")
         print_status(f"Report saved: {args.output}", "success")
     else:
         print("\n" + report)
@@ -237,6 +213,7 @@ def main():
         return 1
 
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())
