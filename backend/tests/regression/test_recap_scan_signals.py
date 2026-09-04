@@ -5944,8 +5944,29 @@ def test_r4_derived_ledger_binding_closes_blocker2(tmp_path):
     assert any("无中生有" in x for x in ps), f"零派生板的编造台账行必须被拒 —— {ps!r}"
 
     # ② 身份绑定：节点不在 ledger.derived 里
-    assert any("不在 scan JSON 的 ledger.derived 里" in x for x in L("- Ghost — 占位 · tips 未闭环 0 条")), (
-        "台账不得列出未扫描到的派生节点"
+    # ⛔ 文案由**共用**身份解析函数产出（Codex round-1 BLOCKER 的修复：身份解析
+    #   原先是两份实现，派生那份少了「raw 精确优先」⇒ 放行面）。角色信息由前缀
+    #   `台账『派生』行` 承载，判据同时校验两者，不比旧断言弱。
+    _ghost = L("- Ghost — 占位 · tips 未闭环 0 条")
+    assert any("不在 scan JSON 的 ledger 里" in x and "台账『派生』行" in x for x in _ghost), (
+        f"台账不得列出未扫描到的派生节点 —— {_ghost!r}"
+    )
+
+    # ⭐ Codex round-1 BLOCKER 的回归：身份归一撞车不得让数字绑到**别的节点**。
+    #   ledger 同时有 `D_A`(tips_open=1) 与 `DA`(999)，报告写 `D_A` 时若先归一
+    #   再查（`_` 被渲染剥掉 ⇒ `DA`），999 就"有出处"了 —— 实测曾放行。
+    _collide = run(
+        "## 台账\n### 派生\n- D_A — 占位 · tips 未闭环 999 条\n## 末\n",
+        {
+            "seeds": [],
+            "derived": [
+                {"node_id": "D_A", "tips_open": 1},
+                {"node_id": "DA", "tips_open": 999},
+            ],
+        },
+    )
+    assert any("tips_open 是 1" in x for x in _collide), (
+        f"身份必须绑到报告写的那个节点（D_A），不是归一后撞上的那个（DA）—— {_collide!r}"
     )
 
     # ③ 数字绑定：写出来的数必须等于 scan 里的那个数

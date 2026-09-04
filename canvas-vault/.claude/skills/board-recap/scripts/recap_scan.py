@@ -2698,6 +2698,50 @@ def _verify_ledger_counts(text: str, scan: dict, problems: list[str]) -> None:
             _bind_derived_section(sec, rows, doc, problems, _name)
 
 
+def _resolve_ledger_node(
+    raw_ms: "re.Match[str] | None",
+    vis_ms: "re.Match[str] | None",
+    known: dict,
+    vis_index: dict[str, list[str]],
+    problems: list[str],
+    label: str,
+) -> str | None:
+    """台账行的节点身份 → ledger 里的 node_id。**种子与派生共用这一份**。
+
+    ⛔ 两段式, 顺序**不能反**（Codex round-1 实证, 本地复现）:
+      ① **raw 精确**: 报告原文与 ledger id 逐字相同就直接绑。渲染会剥掉
+         `_` / `*`（`D_A` → `DA`）, 先归一再查会让 `D_A` 绑到**另一个**真的叫
+         `DA` 的节点上 —— 实测 ledger 同时有 `D_A`(tips_open=1) 与 `DA`(999),
+         报告写 `- D_A — … tips 未闭环 999 条` 时**放行**。
+      ② 归一候选: raw 不命中**不等于**身份非法 —— ledger id 为 `A&B` 而报告
+         合法写成 `A&amp;B` 时, 读者看到的是同一个名字。唯一才绑, 撞车
+         fail-closed（不猜）。
+    ⚠️ 这个函数存在的理由就是「一份实现」: 上一版派生侧自己写了一份, 少了 ①,
+      当场成为放行面。新增角色时**必须**走这里。
+    """
+    if raw_ms is not None:
+        _n = raw_ms.group("node").strip()
+        if _n in known:
+            return _n
+    if vis_ms is None:
+        return None
+    node = vis_ms.group("node").strip()
+    cands = vis_index.get(node) or []
+    if len(cands) > 1:
+        problems.append(
+            f"数字终核: 台账『{label}』行的节点 {node!r} 归一后同时对应 "
+            f"{sorted(cands)!r} —— 无法确定是哪一个, 不猜 (fail-closed)"
+        )
+        return None
+    if not cands:
+        problems.append(
+            f"数字终核: 台账『{label}』行的节点 {node!r} 不在 scan JSON 的 ledger 里 "
+            "(台账不得列出未扫描到的节点)"
+        )
+        return None
+    return cands[0]
+
+
 def _bind_seed_section(
     sec: "Section", rows: list[dict], doc: Doc, problems: list[str]
 ) -> None:
@@ -2727,46 +2771,31 @@ def _bind_seed_section(
                 f"`- <节点> — 批注 N 条` 或 `- <节点> — 无批注`): {line.visible.strip()[:60]}"
             )
             continue
-        if not ms:
-            ms = raw_ms
-        if raw_ms:
-            node = raw_ms.group("node").strip()
-            if node in tips_by_node:
-                got = 0 if raw_ms.group("none") else int(raw_ms.group("n"))
-                want = tips_by_node[node]
-                if got != want:
-                    problems.append(
-                        f"数字终核: 台账『种子』行 {node} 报批注 {got} 条, "
-                        f"scan JSON 的 tips_count 是 {want} (形状对不等于数字有据)"
-                    )
-                _tail_conflict(raw_ms, node, problems, row_by_node.get(node))
-                continue
-            # ⛔ round-25: raw 精确未命中**不等于**身份非法（ledger id 为 `A&B`
-            #   而报告合法写成 `A&amp;B` 时读者看到的是同一个名字）⇒ 继续走
-            #   归一候选（唯一才绑, 撞车仍 fail-closed）。
-        node = ms.group("node").strip()
-        cands = vis_index.get(node) or []
-        if len(cands) > 1:
-            problems.append(
-                f"数字终核: 台账『种子』行的节点 {node!r} 归一后同时对应 "
-                f"{sorted(cands)!r} —— 无法确定是哪一个, 不猜 (fail-closed)"
-            )
+        # ⛔ 身份解析走**共用**函数 —— 与派生侧同一份实现。
+        #   只修派生侧那一份 = 把 BLOCKER 堵上但把成因留着（下一个人加第三个
+        #   角色时会照着这里的内联逻辑再抄一遍）。
+        key = _resolve_ledger_node(
+            raw_ms, ms, tips_by_node, vis_index, problems, "种子"
+        )
+        if key is None:
             continue
-        if not cands:
-            problems.append(
-                f"数字终核: 台账『种子』行的节点 {node!r} 不在 scan JSON 的 ledger 里 "
-                "(台账不得列出未扫描到的节点)"
-            )
+        # 取数的 match: raw 精确命中时用 raw_ms（它保留了未被渲染剥掉的字符）,
+        # 否则用渲染后的 ms —— 与身份解析走的是同一条分支。
+        use = (
+            raw_ms
+            if (raw_ms is not None and raw_ms.group("node").strip() == key)
+            else ms
+        )
+        if use is None:
             continue
-        key = cands[0]
         want = tips_by_node[key]
-        got = 0 if ms.group("none") else int(ms.group("n"))
+        got = 0 if use.group("none") else int(use.group("n"))
         if got != want:
             problems.append(
                 f"数字终核: 台账『种子』行 {key} 报批注 {got} 条, "
                 f"scan JSON 的 tips_count 是 {want} (形状对不等于数字有据)"
             )
-        _tail_conflict(ms, key, problems, row_by_node.get(key))
+        _tail_conflict(use, key, problems, row_by_node.get(key))
 
 
 def _bind_derived_section(
@@ -2798,9 +2827,9 @@ def _bind_derived_section(
         line = doc.lines[_k]
         if not line.visible.strip() or line.in_fence:
             continue
-        ms = _DERIVED_LEDGER_LINE_RE.match(
-            line.visible
-        ) or _DERIVED_LEDGER_LINE_RE.match(line.raw)
+        vis_ms = _DERIVED_LEDGER_LINE_RE.match(line.visible)
+        raw_ms = _DERIVED_LEDGER_LINE_RE.match(line.raw)
+        ms = vis_ms or raw_ms
         if ms is None:
             continue  # 不是台账形状行(说明行/占位行), 其中的数字仍受 D2 治理
         if not rows:
@@ -2810,24 +2839,12 @@ def _bind_derived_section(
                 f"{line.visible.strip()[:60]}"
             )
             continue
-        node = ms.group("node").strip()
-        row = by_node.get(node)
-        if row is None:
-            cands = vis_index.get(node) or []
-            if len(cands) > 1:
-                problems.append(
-                    f"数字终核: 台账『{name}』行的节点 {node!r} 归一后同时对应 "
-                    f"{sorted(cands)!r} —— 无法确定是哪一个, 不猜 (fail-closed)"
-                )
-                continue
-            if not cands:
-                problems.append(
-                    f"数字终核: 台账『{name}』行的节点 {node!r} 不在 scan JSON 的 "
-                    "ledger.derived 里 (台账不得列出未扫描到的节点)"
-                )
-                continue
-            node = cands[0]
-            row = by_node[node]
+        # ⛔ 身份解析走**共用**函数（Codex round-1 BLOCKER: 这里原先是第二份
+        #   实现, 少了「raw 精确优先」那一段 ⇒ `D_A` 绑到另一个叫 `DA` 的节点）。
+        node = _resolve_ledger_node(raw_ms, vis_ms, by_node, vis_index, problems, name)
+        if node is None:
+            continue
+        row = by_node[node]
         rest = _visible_text(ms.groupdict().get("rest") or "")
         for _pat, _field, _label in _DERIVED_TAIL_FIELDS:
             hits = re.findall(_pat, rest)
