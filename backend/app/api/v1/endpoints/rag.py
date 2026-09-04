@@ -16,10 +16,10 @@ from datetime import datetime, timezone
 from typing import Annotated, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.decision_tracker import log_retrieval_status_decision
-from app.core.subject_config import set_current_subject_id
+from app.core.vault_scope import resolve_vault_scope
 from app.models.service_status import ServiceStatus
 from app.services.rag_service import (
     RAGService,
@@ -44,6 +44,29 @@ class RAGQueryRequest(BaseModel):
     """RAG 查询请求"""
 
     query: str = Field(..., description="查询字符串", min_length=1, max_length=2000)
+    # CARD-G4-4: 显式 VaultScope — 必填 (缺 → 422)。请求 vault 与进程 active
+    # vault 不一致时 resolve_vault_scope 抛 409, 禁止静默改写作用域
+    # (CARD-G2-2 契约 2)。本端点此前完全没有 vault 作用域, 是 full RAG 链上
+    # 最后一个「缺参落默认组」的旁路。
+    vault_id: str = Field(
+        ...,
+        min_length=1,
+        description=(
+            "Vault 稳定 ID (必填, CARD-G4-4)。检索作用域只落在该 vault 内; "
+            "与进程 active vault 不一致 → 409。"
+        ),
+    )
+
+    @field_validator("vault_id")
+    @classmethod
+    def _reject_blank_vault_id(cls, v: str) -> str:
+        # CARD-G4-4 Codex round-1 HIGH-2: min_length=1 拦不住纯空白串;
+        # resolve_vault_scope 把空白当「缺失」走双缺失推导 → 空白请求
+        # 会以 active vault 作用域 200 通过, 等于契约被绕过。在模型层
+        # fail-closed (422)。
+        if not v or not v.strip():
+            raise ValueError("vault_id 不能为空白")
+        return v
     canvas_file: Optional[str] = Field(
         None, description="Canvas 文件路径 (用于上下文过滤)"
     )
@@ -67,6 +90,7 @@ class RAGQueryRequest(BaseModel):
         json_schema_extra={
             "example": {
                 "query": "什么是逆否命题？",
+                "vault_id": "canvas_vault",
                 "canvas_file": "离散数学.canvas",
                 "subject_id": "math",
                 "cross_subject": False,
@@ -282,10 +306,28 @@ async def rag_query(
     except Exception:  # noqa: BLE001 — 观测面刻意兜底
         pass
 
-    # Story 1.9 CRITICAL fix: Set ContextVar so downstream services
-    # (via get_current_subject_id()) see the correct subject.
-    if request.subject_id:
-        set_current_subject_id(request.subject_id)
+    # CARD-G4-4: 每请求恰一次 VaultScope 解析 (chat.py:284-296 范式)。
+    # resolve_vault_scope 内部把解析结果注入 ContextVar (group_id, 含
+    # subject/canvas 二级), 替代原「subject_id 有值才 set、缺省不注入」的
+    # 旁路 —— 本端点从此没有无作用域路径。vault_id 必填由 pydantic 把守
+    # (缺 → 422); 请求 vault ≠ 进程 active vault → 409 fail-closed
+    # (CARD-G2-2 契约 2), 禁止静默改写作用域。
+    _scope = resolve_vault_scope(
+        request.vault_id,
+        subject_id=request.subject_id,
+        canvas_path=request.canvas_file,
+    )
+    # 与入口日志同口径: 观测失败最多损失可观测性, 不得成为业务失败源
+    # (G4-3 round-3 HIGH-1 确立的纪律; 本卡新增日志一律惰性参数)。
+    try:
+        logger.info(
+            "RAG query scope resolved: vault=%s source=%s group=%s",
+            _scope.vault_id,
+            _scope.source,
+            _scope.group_id,
+        )
+    except Exception:  # noqa: BLE001 — 观测面刻意兜底
+        pass
 
     try:
         result = await rag_service.query(
