@@ -1891,6 +1891,37 @@ class Doc:
         """整块剥围栏文本 —— 与重切前的 `_strip_code_blocks` 逐字等价。"""
         return "\n".join(ln.stripped for ln in self.lines)
 
+    def audit_span(self, sec: "Section") -> tuple[int, int]:
+        r"""**审计覆盖**语义的段范围: 到下一个 `2 <= level <= 本级` 的标题为止。
+
+        ⛔ 与 `Section.hi`（树语义: 同级**或更高级**都终止）**刻意不同**, 两者
+          各有单一定义点, 不是分叉 —— 它们回答的是两个问题:
+            · 树语义: "这个小节的内容有哪些" —— 嵌套结构该怎么切;
+            · 本方法: "这一段的审计覆盖到哪" —— 报告中间插一个 `# 一级标题`
+              **不该**让台账段提前结束, 把其后的台账形状行放出审计面。
+        ⚠️ 这一条是自审 + 探针实测出来的: 只用树语义时,
+          `## 台账 … # 插入的一级标题 … ### 其他 … - Ghost — 批注 9 条`
+          里的漏网行不再被扫描 —— 那是**放行面**, 不是整洁问题。
+          旧实现的两处终点扫描（`^##[^\S\n]` 与 `^#{2,3}[^\S\n]`）都不被 H1
+          终止, 本方法与它们逐字同义。
+        """
+        hi = len(self.lines)
+        for _k in range(sec.lo, len(self.lines)):
+            _h = self.lines[_k].heading
+            # ⛔ 终止判据必须**顶格**: `_DOC_HEADING_RE` 允许 0-3 格缩进
+            #   (CommonMark 正确), 而 `_SECTION_RE` 只认顶格。若这里不要求顶格,
+            #   缩进标题就成了「**不能开段、却能断段**」的不对称件 —— 段落被它
+            #   截短, 其后的台账形状行逃出审计面。旧实现的两处终点扫描
+            #   (`^##[^\S\n]` / `^#{2,3}[^\S\n]`) 都是顶格, 与此逐字同义。
+            if (
+                _h is not None
+                and 2 <= _h <= sec.level
+                and not self.lines[_k].visible[:1].isspace()
+            ):
+                hi = _k
+                break
+        return sec.lo, hi
+
     def sections_named(self, prefix: str) -> list["Section"]:
         """按 `_SECTION_RE` 统一口径取名的小节 (如 `sections_named("### 种子")`)。
 
@@ -2564,7 +2595,7 @@ def _verify_ledger_counts(text: str, scan: dict, problems: list[str]) -> None:
     in_fence = [ln.in_fence for ln in doc.lines]
 
     # 台账 H2 的行范围（H2『台账』→ 下一个同级或更高级标题）。
-    ledger_spans = [(sec.lo, sec.hi) for sec in doc.sections_named("## 台账")]
+    ledger_spans = [doc.audit_span(sec) for sec in doc.sections_named("## 台账")]
     if not ledger_spans:
         return
 
@@ -2576,7 +2607,23 @@ def _verify_ledger_counts(text: str, scan: dict, problems: list[str]) -> None:
         for sec in doc.sections_named(f"### {_name}"):
             if any(lo <= sec.title_idx < hi for lo, hi in ledger_spans):
                 role_sections.append((_name, _key, sec))
-    covered = {k for _n, _kk, sec in role_sections for k in range(sec.lo, sec.hi)}
+    # ⛔ 每个角色的行**取一次**（同角色两个小节时不重复报同一条 ledger 诊断）。
+    # ⚠️ 必须在 `covered` **之前**算 —— `covered` 的语义是「这些行确实被检查过」,
+    #   不是「这些行落在某个认可小节里」。绑定面取不到（scan 缺该角色/损坏）时,
+    #   那个小节里的行**没有人检查过**, 算进 covered 就等于把它们从漏网扫描里
+    #   摘出去。实测: `### 派生` + ledger 无 derived 键 ⇒ 其后缩进 H3 底下的
+    #   `- Ghost — 批注 999 条` 两边都不管（既没绑定、也不漏网）—— 与本卡开头
+    #   要闭合的 BLOCKER② 是**同一个形态**，只是换了触发条件。
+    _rows_by_key: dict[str, list[dict] | None] = {}
+    for _n, _kk, _sec in role_sections:
+        if _kk not in _rows_by_key:
+            _rows_by_key[_kk] = _ledger_rows(scan, _kk, problems)
+    covered = {
+        k
+        for _n, _kk, sec in role_sections
+        if _rows_by_key.get(_kk) is not None
+        for k in range(*doc.audit_span(sec))
+    }
 
     # 「当前所处的 H3 标题是否合规」——不合规的 H3 底下的台账形状行才算漏网。
     # ⛔ round-37: 初值必须是 True（台账 H2 之后、第一个 H3 之前是一段完全
@@ -2632,9 +2679,11 @@ def _verify_ledger_counts(text: str, scan: dict, problems: list[str]) -> None:
             )
 
     for _name, _key, sec in role_sections:
-        rows = _ledger_rows(scan, _key, problems)
+        rows = _rows_by_key[_key]
         if rows is None:
-            return
+            # 该角色 fail-closed 已记账（上面取 rows 时报过）; 别的角色照查。
+            # 这些行也**没有**进 covered, 所以它们已由漏网扫描兜住。
+            continue
         if _key == "seeds":
             _bind_seed_section(sec, rows, doc, problems)
         else:
@@ -2655,7 +2704,7 @@ def _bind_seed_section(
     vis_index: dict[str, list[str]] = {}
     for _raw_id in tips_by_node:
         vis_index.setdefault(_visible_text(_raw_id), []).append(_raw_id)
-    for _k in range(sec.lo, sec.hi):
+    for _k in range(*doc.audit_span(sec)):
         line = doc.lines[_k]
         if not line.visible.strip() or line.in_fence:
             continue
@@ -2737,7 +2786,7 @@ def _bind_derived_section(
     vis_index: dict[str, list[str]] = {}
     for _raw_id in by_node:
         vis_index.setdefault(_visible_text(_raw_id), []).append(_raw_id)
-    for _k in range(sec.lo, sec.hi):
+    for _k in range(*doc.audit_span(sec)):
         line = doc.lines[_k]
         if not line.visible.strip() or line.in_fence:
             continue

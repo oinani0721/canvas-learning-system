@@ -73,7 +73,7 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
     ),
     (
         "survivor-3 种子行只查形状不绑值（H-2 后半全线）",
-        [("    _verify_seed_ledger_counts(text, scan, problems)\n", "")],
+        [("    _verify_ledger_counts(text, scan, problems)\n", "")],
         "seed_ledger_fake_count",
     ),
     (
@@ -612,9 +612,16 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "所以它证明的是：渲染空间比对这一步是活的",
         [
             (
-                "    vis_lines = [_visible_text(_ln) for _ln in raw_lines]",
-                "    vis_lines = raw_lines",
-            )
+                "    vis_lines = [ln.visible for ln in doc.lines]",
+                "    vis_lines = [ln.raw for ln in doc.lines]",
+            ),
+            # ⛔ R4 重锚教训：只改上面那个数组是**空变异** —— 它只喂给 bad_h3 与
+            #   漏网扫描；绑定循环直接读 `doc.lines[k].visible`。性质搬了家，
+            #   锚点必须跟着搬（脚本铁律 4）。全线禁 = 两处一起。
+            (
+                "        ms = _SEED_LEDGER_LINE_RE.match(line.visible)",
+                "        ms = _SEED_LEDGER_LINE_RE.match(line.raw)",
+            ),
         ],
         "r20_seed_ledger",
     ),
@@ -622,7 +629,7 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "survivor-52 (C-25) 种子节点身份退回「归一名对 raw node_id」（`Seed_A` 归一成 `SeedA` ⇒ 误拒 + 值绑定被跳过）",
         [
             (
-                "        raw_ms = _SEED_LEDGER_LINE_RE.match(raw_ln)",
+                "        raw_ms = _SEED_LEDGER_LINE_RE.match(line.raw)",
                 "        raw_ms = None",
             )
         ],
@@ -642,8 +649,8 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "survivor-54 (C-27) 种子小节不再限定在『台账』之下（附录同名小节被强制套模板）",
         [
             (
-                "        if _under_ledger and _H3_SEED_RE.match(vis_lines[_i]):",
-                "        if _H3_SEED_RE.match(vis_lines[_i]):",
+                "            if any(lo <= sec.title_idx < hi for lo, hi in ledger_spans):",
+                "            if True:",
             )
         ],
         "r22_fence_indent",
@@ -654,9 +661,26 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "**不是**「退回手抄布尔翻转」；它变红来自 fenced-seed 被误当台账行（误伤面）",
         [
             (
-                "    _stripped = _strip_code_blocks(text).splitlines()",
-                "    _stripped = text.splitlines()",
-            )
+                "    in_fence = [ln.in_fence for ln in doc.lines]",
+                "    in_fence = [False for ln in doc.lines]",
+            ),
+            # ⛔ 同 survivor-51 的教训：绑定循环用的是 `line.in_fence`，
+            #   不是上面那个数组。两处一起禁才等价于旧变异的「围栏判定整体失效」。
+            (
+                "        if not line.visible.strip() or line.in_fence:\n"
+                "            continue\n"
+                "        raw_ms = _SEED_LEDGER_LINE_RE.match(line.raw)",
+                "        if not line.visible.strip():\n"
+                "            continue\n"
+                "        raw_ms = _SEED_LEDGER_LINE_RE.match(line.raw)",
+            ),
+            # ⛔ 第三处（禁两处仍报未承重时实测补上）：围栏内的行**不成为标题**
+            #   靠的是这一句。r23 的「整段在围栏内的种子小节」正是由它兜住——
+            #   不禁它，纵深就把变异接住了，于是"未承重"其实是**变异覆盖不完整**。
+            (
+                "        mh = None if in_fence else _DOC_HEADING_RE.match(vis)",
+                "        mh = _DOC_HEADING_RE.match(vis)",
+            ),
         ],
         "r23_seed_scope",
     ),
@@ -667,18 +691,22 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "先把 fail-closed 分支换回摊平，再置 None，才真正复现该行为",
         [
             (
-                "            problems.append(\n"
-                '                "数字终核: scan JSON 的 ledger 是分组形态但缺少可用的 seeds 列表, "\n'
-                '                "台账『种子』行无法绑定 (不回落到其它角色, 避免派生节点冒充种子)"\n'
-                "            )\n"
-                "            return",
-                "            for grp in groups.values():\n"
-                "                if isinstance(grp, list):\n"
-                "                    rows.extend(x for x in grp if isinstance(x, dict))",
+                "        problems.append(\n"
+                '            f"数字终核: scan JSON 的 ledger 是分组形态但缺少可用的 {key} 列表, "\n'
+                '            f"台账相应小节无法绑定 (不回落到其它角色, 避免角色互相冒充)"\n'
+                "        )\n"
+                "        return None",
+                "        return [\n"
+                "            x\n"
+                "            for grp in groups.values()\n"
+                "            if isinstance(grp, list)\n"
+                "            for x in grp\n"
+                "            if isinstance(x, dict)\n"
+                "        ]",
             ),
             (
-                '        seeds = groups.get("seeds")',
-                "        seeds = None",
+                "    rows = groups.get(key)",
+                "    rows = None",
             ),
         ],
         "r23_seed_scope",
@@ -710,8 +738,8 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "survivor-59 (C-32) 种子小节的段落标题口径退回自造式（与 _SECTION_RE 分叉）",
         [
             (
-                '    _H2_LEDGER_RE = re.compile(_SECTION_RE("## 台账"))',
-                '    _H2_LEDGER_RE = re.compile(r"^ {0,3}##[^\\S\\n]+台账[^\\S\\n]*$")',
+                "        pat = re.compile(_SECTION_RE(prefix))",
+                '        pat = re.compile(r"^ {0,3}#{1,6}[^\\S\\n]+" + re.escape(prefix.lstrip("# ")) + r"[^\\S\\n]*$")',
             )
         ],
         "r25_section_criterion",
@@ -720,8 +748,8 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "survivor-60 (C-33) 小节终点扫描不再判围栏（围栏内假标题提前截断小节）",
         [
             (
-                '                not _in_fence[_j] and re.match(r"^#{2,3}[^\\S\\n]", vis_lines[_j])',
-                '                re.match(r"^#{2,3}[^\\S\\n]", vis_lines[_j])',
+                "        mh = None if in_fence else _DOC_HEADING_RE.match(vis)",
+                "        mh = _DOC_HEADING_RE.match(vis)",
             )
         ],
         "r25_section_criterion",
@@ -731,7 +759,7 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "（H2 有全局必需段门兜底，H3 没有 ⇒ 不合口径的 `### 种子 ###` 整块不受绑定）",
         [
             (
-                '        if _seed_rows and re.search(_SECTION_RE("## 台账"), text, re.M):\n            problems.append(',
+                "        if _seed_rows:\n            problems.append(",
                 "        if False:\n            problems.append(",
             )
         ],
@@ -741,8 +769,8 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "survivor-62 (C-35) 零种子板的空绑定面提前 return（板里写的台账行被静默放行）",
         [
             (
-                "        # ⚠️ `seeds == []` 时**不能提前 return**",
-                "        return\n        # ⚠️ `seeds == []` 时**不能提前 return**",
+                '    tips_by_node = {str(r.get("node_id")): r.get("tips_count") for r in rows}',
+                '    if not rows:\n        return\n    tips_by_node = {str(r.get("node_id")): r.get("tips_count") for r in rows}',
             )
         ],
         "r26_zero_seed",
@@ -752,7 +780,7 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "（第六/第七形态：不合规 H3 底下装台账行，整块排除在审计面外）",
         [
             (
-                "            if _k in _covered or _in_fence[_k] or not _bad_h3[_k]:",
+                "            if _k in covered or in_fence[_k] or not bad_h3[_k]:",
                 "            if True:",
             )
         ],
@@ -761,9 +789,13 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
     (
         "survivor-64 (C-37) 损坏的 ledger.seeds（含非对象条目）退回被当合法零种子",
         [
+            # ⛔ R4 重锚教训（脚本铁律 5）：第一版写成 `if False and …`，于是含
+            #   非 dict 的 rows 被原样下发, 下游 `r.get(...)` **抛异常** ——
+            #   测试是红了, 但那是**因崩溃红**, 不算承重。
+            #   正解: 静默过滤掉损坏条目, 复现旧的「被当合法零种子」**判错**行为。
             (
-                "        if isinstance(_raw_seeds, list) and any(",
-                "        if False and isinstance(_raw_seeds, list) and any(",
+                "    if any(not isinstance(x, dict) for x in rows):",
+                "    rows = [x for x in rows if isinstance(x, dict)]\n    if False:",
             )
         ],
         "r27_seedish_h3",
@@ -828,7 +860,7 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
         "survivor-73 (C-46→40) H3 安全态退回「任意形状合规标题」（第九/第十形态复活：`### 其他` 与缩进 H3 底下的台账行重新无人看管）",
         [
             (
-                '                _cur_bad = not any(\n                    re.match(_SECTION_RE(f"### {_nm}"), vis_lines[_k])\n                    for _nm in ("种子", "派生")\n                )',
+                '                _cur_bad = not any(\n                    re.match(_SECTION_RE(f"### {_nm}"), vis_lines[_k])\n                    for _nm, _ in _LEDGER_ROLE_SECTIONS\n                )',
                 '                _cur_bad = not re.match(r"^ {0,3}### [^\\s#][^\\n]*$", vis_lines[_k])',
             )
         ],
@@ -843,6 +875,70 @@ MUTANTS: list[tuple[str, list[tuple[str, str]], str]] = [
             )
         ],
         "r32_indent_h3",
+    ),
+    # ── CARD-维护B-R4「先渲染再核数」的三个**新**性质 ──
+    # 只给旧变体重锚 = 新架构自己没有负验证覆盖。这三条摘掉后若套件仍全绿,
+    # 说明本卡新加的门是摆设。
+    (
+        "survivor-R4a 渲染层未知形态检测被摘除（表外 HTML 标签 / math / 脚注 / 图片重新被**静默**剥掉再去数数字）",
+        [
+            (
+                "        unk = () if in_fence else _unknown_forms_in(raw, vis)",
+                "        unk = ()",
+            )
+        ],
+        "r4_unknown_forms",
+    ),
+    (
+        "survivor-R4b 派生小节绑定被摘除（⭐BLOCKER② 复活: `### 派生` 回到零绑定）"
+        "⚠️ 全线一次禁: 光把 `_bind_derived_section` 的调用去掉还不够——角色表里"
+        "留着 `派生` 会让那些行进 `covered`, 于是漏网扫描也看不到它们, 正是旧实现"
+        "「两边都不管」的原样复现。这里两处一起改回旧形态。",
+        [
+            (
+                "            _bind_derived_section(sec, rows, doc, problems, _name)",
+                "            pass",
+            )
+        ],
+        "r4_derived_ledger",
+    ),
+    (
+        "survivor-R4c 拒绝层退回「无出处可比 != 有矛盾 -> continue」"
+        "（种子尾巴与派生尾巴**两处**同时退回, 只退一处会被另一处的门兜住）",
+        [
+            (
+                "            problems.append(\n"
+                '                f"数字终核: 台账『种子』行 {key} 写了『{_label} {_hits[0]}』, "\n'
+                '                f"但 scan JSON 里该节点的 {_field} 无值 —— 无出处可绑 (fail-closed)"\n'
+                "            )\n"
+                "            continue",
+                "            continue",
+            ),
+            (
+                "                problems.append(\n"
+                '                    f"数字终核: 台账『{name}』行 {node} 写了『{_label} {hits[0]}』, "\n'
+                '                    f"但 scan JSON 里该节点的 {_field} 无值 —— 无出处可绑 (fail-closed)"\n'
+                "                )\n"
+                "                continue",
+                "                continue",
+            ),
+        ],
+        "r31_tail_fields or r4_derived_ledger",
+    ),
+    (
+        "survivor-R4d 零派生板的「无中生有」拒绝被摘除"
+        "（`ledger.derived == []` 时台账形状行重新静默放行 = 红点 1 复活）",
+        [
+            (
+                "        if not rows:\n"
+                "            problems.append(\n"
+                '                f"数字终核: 台账『{name}』小节出现台账形状行, 但 scan JSON 的 "',
+                "        if False:\n"
+                "            problems.append(\n"
+                '                f"数字终核: 台账『{name}』小节出现台账形状行, 但 scan JSON 的 "',
+            )
+        ],
+        "r4_derived_ledger",
     ),
 ]
 
@@ -986,6 +1082,26 @@ def run_suite(targets: list[str], keyword: str | None = None) -> tuple[int, str,
 
 
 DESIGNATED: dict[str, list[str]] = {
+    # ── CARD-维护B-R4 四条新变体的指名（人工按性质挑，非反推） ──
+    # R4a 摘掉未知形态检测 ⇒ 「列举之外应被报出」的**每一条**正向 case 都该变红；
+    #     两条对照（control / known_tag）期望 want_unknown=False，摘掉后仍绿，
+    #     故**不**指名它们——指名一条不会因该性质变红的门 = 判据掺水。
+    "survivor-R4a": [
+        "test_r4_unknown_forms_fail_closed[unknown_tag]",
+        "test_r4_unknown_forms_fail_closed[unknown_tag_nonum]",
+        "test_r4_unknown_forms_fail_closed[math]",
+        "test_r4_unknown_forms_fail_closed[footnote]",
+        "test_r4_unknown_forms_fail_closed[image]",
+    ],
+    # R4b 摘掉派生小节绑定 ⇒ BLOCKER② 复活，专守它的那道门必红
+    "survivor-R4b": ["test_r4_derived_ledger_binding_closes_blocker2"],
+    # R4c 拒绝层两处同时退回 continue ⇒ 种子侧与派生侧各有一道门
+    "survivor-R4c": [
+        "test_domain_r31_tail_fields_bound_to_scan",
+        "test_r4_derived_ledger_binding_closes_blocker2",
+    ],
+    # R4d 摘掉零派生板的「无中生有」拒绝 ⇒ 红点 1 复活
+    "survivor-R4d": ["test_r4_derived_ledger_binding_closes_blocker2"],
     "survivor-1": [
         "test_domain_block_four_fence_short_close",
         "test_domain_block_fence_close_needs_trailing_blank_only",
@@ -1099,8 +1215,8 @@ DESIGNATED: dict[str, list[str]] = {
 且每个 nodeid 必须真实存在于套件收集结果里（防指名腐烂）。
 """
 
-MUTANT_COUNT_EXPECTED = 73
-DESIGNATED_COUNT_EXPECTED = 80
+MUTANT_COUNT_EXPECTED = 77
+DESIGNATED_COUNT_EXPECTED = 89
 """指定门总数的**独立**期望值（Codex round-37 HIGH）。
 
 原先只冻结了变体数 66，指定门总数 73 是**从 DESIGNATED 动态求和后打印**的 ——
