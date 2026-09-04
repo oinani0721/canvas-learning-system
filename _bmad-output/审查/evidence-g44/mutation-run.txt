@@ -5,5 +5,6 @@
 [M5-哨兵降级debug] ✓ 指定门变红 (exit=1)
 [M6-expand裸表旁路] ✓ 指定门变红 (exit=1)
 [M7-空白validator失效] ✓ 指定门变红 (exit=1)
+[M8-扩展恒等失效] ✓ 指定门变红 (exit=1)
 
-ALL 7 MUTATIONS KILLED THEIR GATES (exit=1 only) ✓
+ALL 8 MUTATIONS KILLED THEIR GATES (exit=1 only) ✓

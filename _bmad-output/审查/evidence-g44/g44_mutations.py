@@ -127,6 +127,21 @@ def m7():
     RAG.write_text(s.replace(old, new, 1))
 MUTATIONS.append(("M7-空白validator失效", "TestVaultIdRequired::test_whitespace_only_vault_id_rejected_with_422", m7))
 
+def m8():
+    """Codex round-2 整改: 活性门 — expand_neighbors 换恒等函数
+    (扩展静默失效) 必须被 source_type 活性断言抓住。"""
+    s = NODES.read_text()
+    old = """        lancedb_results = await client.expand_neighbors(
+            results=lancedb_results,
+            table_name=client.resolve_table_name("canvas_nodes"),
+            max_neighbors=neighbor_max_count,
+            score_decay=neighbor_score_decay,
+        )"""
+    new = """        lancedb_results = lancedb_results  # M8 恒等变异: 扩展静默失效"""
+    assert old in s
+    NODES.write_text(s.replace(old, new, 1))
+MUTATIONS.append(("M8-扩展恒等失效", "TestDualVaultIsolationOnTmpLanceDB::test_wikilink_neighbor_expansion_stays_in_vault", m8))
+
 failed = []
 for name, gate, fn in MUTATIONS:
     fn()
