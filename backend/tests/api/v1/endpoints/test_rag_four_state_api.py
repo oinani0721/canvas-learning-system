@@ -198,12 +198,17 @@ class TestRagTraceAlignment:
         """入口 `logger.info` 在主 try **之外** —— 它抛错会让服务一次都没被调用。
 
         (Codex round-3 HIGH-1: 这是本卡**已修改文件内**的第六个绕过点,
-        不能推给"服务层硬边界外"。整改前实测 500 且 `query.await_count == 0`。)
+        不能推给"服务层硬边界外"。整改前实测 500 且 `query.await_count == 0`。
+        CARD-OBS-nothrow-logging 收敛 call-site 兜底后注入点下移到 inner。)
         """
         mock_rag_service.query.return_value = _state(status="ok", reason=None)
 
+        # CARD-OBS-nothrow-logging: call-site 手写 try/except 已收敛进包装器,
+        # 注入点必须下移到 inner —— patch 包装器方法本身会绕过它的内部保护,
+        # 注入异常直接传播 (那道门会假红)。下移后异常产生于被守护区内、由
+        # _guarded 吞掉, 本门从"测 call-site try/except"变成真正测 NoThrowLogger。
         with patch(
-            "app.api.v1.endpoints.rag.logger.info",
+            "app.api.v1.endpoints.rag.logger.inner.info",
             side_effect=RuntimeError("entry log sink failed"),
         ):
             response = _post(client)

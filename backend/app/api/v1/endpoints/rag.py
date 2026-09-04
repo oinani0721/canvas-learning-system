@@ -19,6 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.decision_tracker import log_retrieval_status_decision
+from app.core.nothrow_logging import nothrow
 from app.core.vault_scope import resolve_vault_scope
 from app.models.service_status import ServiceStatus
 from app.services.rag_service import (
@@ -28,8 +29,10 @@ from app.services.rag_service import (
     get_rag_service,
 )
 
-# Get logger for this module
-logger = logging.getLogger(__name__)
+# CARD-OBS-nothrow-logging: 端点模块的日志调用不得成为业务失败源 ——
+# 包装后 logger.<level>(...) 抛错不再改变 HTTP 状态码与 detail (两级降级,
+# 诚实边界见 app/core/nothrow_logging.py 模块 docstring)。
+logger = nothrow(logging.getLogger(__name__))
 
 # Create router
 rag_router = APIRouter()
@@ -295,16 +298,18 @@ async def rag_query(
         HTTPException 503: RAG 服务不可用
         HTTPException 500: 查询执行失败
     """
-    # CARD-G4-3 Codex round-3 HIGH-1: 这条入口日志在主 try **之外**, 它抛错会
-    # 让请求直接 500 且 `rag_service.query` 一次都没被调用 —— 观测面又一次成了
-    # 业务面的失败源, 而且它在**本卡已修改的文件里**, 不能推给"服务层硬边界外"。
-    # 与 log_retrieval_status_decision 同口径: 观测失败最多损失可观测性。
-    try:
-        logger.info(
-            f"RAG query: {request.query[:50]}... subject={request.subject_id} cross={request.cross_subject}"
-        )
-    except Exception:  # noqa: BLE001 — 观测面刻意兜底
-        pass
+    # CARD-G4-3 Codex round-3 HIGH-1 → CARD-OBS-nothrow-logging: 这条入口日志
+    # 曾在主 try **之外**手写 try/except 兜底 (它抛错会让请求直接 500 且
+    # `rag_service.query` 一次都没被调用)。本卡把兜底收敛进 NoThrowLogger 本身
+    # (与 log_retrieval_status_decision 同口径: 观测失败最多损失可观测性),
+    # 调用点恢复为直接调用 —— call-site 的 try/except 与包装器双层兜底会让
+    # test_rag_four_state_api 的注入门测不到包装器 (假绿面)。
+    logger.info(
+        "RAG query: %s... subject=%s cross=%s",
+        request.query[:50],
+        request.subject_id,
+        request.cross_subject,
+    )
 
     # CARD-G4-4: 每请求恰一次 VaultScope 解析 (chat.py:284-296 范式)。
     # resolve_vault_scope 内部把解析结果注入 ContextVar (group_id, 含
@@ -318,16 +323,17 @@ async def rag_query(
         canvas_path=request.canvas_file,
     )
     # 与入口日志同口径: 观测失败最多损失可观测性, 不得成为业务失败源
-    # (G4-3 round-3 HIGH-1 确立的纪律; 本卡新增日志一律惰性参数)。
-    try:
-        logger.info(
-            "RAG query scope resolved: vault=%s source=%s group=%s",
-            _scope.vault_id,
-            _scope.source,
-            _scope.group_id,
-        )
-    except Exception:  # noqa: BLE001 — 观测面刻意兜底
-        pass
+    # (G4-3 round-3 HIGH-1 确立的纪律; 日志一律惰性参数)。
+    # CARD-OBS-nothrow-logging-R1 归一 (CARD-G4-4a 完成条件 (k)): 兜底收敛进
+    # 模块级 `logger = nothrow(...)`, 调用点**不再**手写 try/except ——
+    # 双层兜底会让 test_nothrow_logging_api 的注入门测不到包装器本身 (假绿面,
+    # OBS 78c9e6e7 对入口日志已确立同一口径, 本行是 G4-4 后加日志的补齐)。
+    logger.info(
+        "RAG query scope resolved: vault=%s source=%s group=%s",
+        _scope.vault_id,
+        _scope.source,
+        _scope.group_id,
+    )
 
     try:
         result = await rag_service.query(
@@ -421,11 +427,11 @@ async def rag_query(
         )
 
     except RAGUnavailableError as e:
-        logger.error(f"RAG service unavailable: {e}")
+        logger.error("RAG service unavailable: %s", e)
         raise HTTPException(status_code=503, detail=str(e)) from e
 
     except RAGServiceError as e:
-        logger.error(f"RAG query failed: {e}")
+        logger.error("RAG query failed: %s", e)
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
@@ -458,7 +464,7 @@ async def get_weak_concepts(
     Returns:
         WeakConceptsResponse: 薄弱概念列表
     """
-    logger.info(f"Getting weak concepts for: {canvas_file}")
+    logger.info("Getting weak concepts for: %s", canvas_file)
 
     try:
         concepts = await rag_service.get_weak_concepts(
@@ -480,7 +486,7 @@ async def get_weak_concepts(
         )
 
     except RAGUnavailableError as e:
-        logger.error(f"RAG service unavailable: {e}")
+        logger.error("RAG service unavailable: %s", e)
         raise HTTPException(status_code=503, detail=str(e)) from e
 
 
@@ -536,7 +542,7 @@ async def get_rag_config() -> dict:
         config = merge_config()
         return dict(config)
     except Exception as e:
-        logger.error(f"Failed to load RAG config: {e}")
+        logger.error("Failed to load RAG config: %s", e)
         raise HTTPException(status_code=500, detail=f"Config load failed: {e}") from e
 
 
@@ -580,7 +586,9 @@ async def update_rag_config(updates: dict) -> dict:
                 yaml.dump(existing, f, default_flow_style=False, allow_unicode=True)
 
             logger.info(
-                f"[CONFIG] Updated {len(updates)} params, persisted to {config_path}"
+                "[CONFIG] Updated %s params, persisted to %s",
+                len(updates),
+                config_path,
             )
         except ImportError:
             logger.warning(
@@ -590,7 +598,7 @@ async def update_rag_config(updates: dict) -> dict:
         # Log changes
         for param, value in updates.items():
             old_val = DEFAULT_CONFIG.get(param, "N/A")
-            logger.info(f"[CONFIG] Updated {param}: {old_val} -> {value}")
+            logger.info("[CONFIG] Updated %s: %s -> %s", param, old_val, value)
 
         return {
             "status": "ok",
@@ -599,5 +607,5 @@ async def update_rag_config(updates: dict) -> dict:
         }
 
     except Exception as e:
-        logger.error(f"Failed to update RAG config: {e}")
+        logger.error("Failed to update RAG config: %s", e)
         raise HTTPException(status_code=400, detail=f"Config update failed: {e}") from e
