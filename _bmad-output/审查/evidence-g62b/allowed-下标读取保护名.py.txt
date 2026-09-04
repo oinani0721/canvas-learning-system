@@ -1,0 +1,5 @@
+# CARD-G6-2b AST 门探针 [allowed]: 下标读取保护名
+# 用法: 追加到 backend/app/api/v1/endpoints/review_app.py 源码**字符串**尾部
+# (只在内存里拼, 不落进生产文件); 期望 = 新门必须放行 (合法写法不许误伤)
+def _probe_load(cache, value):
+    cache[json] = value

@@ -1,0 +1,14 @@
+# CARD-G6-2b AST 门探针 [allowed]: 非保护名走新形态
+# 用法: 追加到 backend/app/api/v1/endpoints/review_app.py 源码**字符串**尾部
+# (只在内存里拼, 不落进生产文件); 期望 = 新门必须放行 (合法写法不许误伤)
+for _a in ():
+    pass
+with _js_json(1) as _b:
+    pass
+try:
+    pass
+except Exception as _c:
+    pass
+if (_d := 1):
+    pass
+_probe_c2 = [_e for _e in ()]

@@ -65,3 +65,7 @@ BLOCKER/HIGH 清零：是
 ```
 BLOCKER/HIGH 清零：否
 ```
+
+---
+
+绑定 SHA：`9cfcb189`（本卡 tip；此后若有 docs-only 提交，代码树不变）。
