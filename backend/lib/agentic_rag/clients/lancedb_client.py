@@ -2280,12 +2280,30 @@ class LanceDBClient:
         table_name: str = "vault_notes",
         max_neighbors: int = 5,
         score_decay: float = 0.7,
+        subject: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         Story 2.8 AC-4: 1-hop wiki-link neighbor expansion.
 
         For each search result, extract wiki-links and fetch chunks from linked files.
         Neighbor chunks get decayed scores and source_type="neighbor_expansion".
+
+        CARD-G4-4b (BATCH-2026-09-04-第十批): ``subject`` 收口同 vault 内的**跨学科
+        泄漏**。此前 where 只有 ``canvas_file LIKE '%<link>%'``, 匹配的是**整张 vault
+        表** —— 一条 math 板的笔记只要写了 ``[[物理板]]``, 扩展就会把 physics 板的行
+        带回 math 请求的结果里 (真库反例 ``PHYSICS_SECRET``, G4-4 Codex round-2 发现,
+        4a 以 xfail(strict) 锁住并移交本卡)。
+
+        语义 (卡文 (h) / D1): subject 非空时, **不匹配的邻居直接丢弃**, 不是「保留但
+        不加分」—— 邻居是被**当作检索结果返回**的, 留下来就是泄漏。
+
+        向后兼容 (卡文 (b) / D2): ``subject=None`` (默认) 时 where 与本卡之前**逐字
+        相同**, 不加任何子句。主检索链 (``search``/``search_multiple_tables``) 已各自
+        传 subject, 本卡不动它们 (D3)。
+
+        Args:
+            subject: 可选学科过滤。非空时 where 并入 ``AND subject = '<escaped>'``,
+                值经 :meth:`_escape_sql` 转义 (单引号注入不破 where)。
         """
         if not results:
             return results
@@ -2325,6 +2343,11 @@ class LanceDBClient:
                 try:
                     escaped_link = self._escape_like(link_name)
                     where_clause = f"canvas_file LIKE '%{escaped_link}%'"
+                    # CARD-G4-4b: 同 vault 跨 subject 收口。与 _build_where_clause
+                    # (:3211) 同一惯用法: 值经 _escape_sql 转义后等值比较。
+                    # subject 为 None/空串时不加子句 —— 与本卡之前逐字一致。
+                    if subject:
+                        where_clause += f" AND subject = '{self._escape_sql(subject)}'"
                     rows = tbl.search().where(where_clause).limit(3).to_list()
                     for row in rows:
                         neighbor_doc = dict(row)

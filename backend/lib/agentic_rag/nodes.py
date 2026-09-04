@@ -422,11 +422,17 @@ async def retrieve_lancedb(state: CanvasRAGState, runtime: Runtime[CanvasRAGConf
         # 回退到裸表」的语义, 也无待移交的收敛项。
         # 泄漏面仍真实存在于 expand_neighbors 自身 —— 它不调 resolve_table_name,
         # 直接 open_table(传入名); 变异 M6 实测该门仍杀。
+        # CARD-G4-4b: 透传请求学科 —— 邻居扩展此前 LIKE 整张 vault 表, 同 vault
+        # 内跨 subject 的邻居会被带回 (4a 以 xfail(strict) 锁住的已知缺陷)。
+        # state["subject"] 与请求作用域二级同源 (rag_service.query 从同一请求字段
+        # 写入; 不一致由本文件的 _warn_subject_scope_mismatch 哨兵告警)。
+        # 缺省 (None) 时 expand_neighbors 行为与本卡之前逐字一致。
         lancedb_results = await client.expand_neighbors(
             results=lancedb_results,
             table_name=client.resolve_table_name("canvas_nodes"),
             max_neighbors=neighbor_max_count,
             score_decay=neighbor_score_decay,
+            subject=state.get("subject"),
         )
 
         # Deduplicate by doc_id, keeping highest score
