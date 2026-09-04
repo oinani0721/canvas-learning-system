@@ -1,0 +1,111 @@
+源码基线 sha256 = 0025452e4c367e104bd1f42ae541cf1e284a4c373fed0a609e653d3fee570097
+
+✅ M-NBSP       井号后分隔回退到 Unicode \s
+   期望红: ['test_nbsp_after_hash_is_not_an_atx_heading', 'test_nbsp_heading_narrowing_locks_each_consumer']
+   实际红: ['test_nbsp_after_hash_is_not_an_atx_heading', 'test_nbsp_heading_narrowing_locks_each_consumer']
+   rc=1 | ================== 2 failed, 97 passed, 10 warnings in 6.27s =================== | 还原 sha 一致
+
+✅ M-CLAIMBOUND 生成骨架加回长度上界 + 字面空格
+   期望红: ['test_long_model_name_and_punctuated_generation_claims_are_undigested']
+   实际红: ['test_long_model_name_and_punctuated_generation_claims_are_undigested']
+   rc=1 | ================== 1 failed, 98 passed, 10 warnings in 6.35s =================== | 还原 sha 一致
+
+✅ M-ZEROWIDTH  护栏归一退回旧归一（不剥零宽）
+   期望红: ['test_invisible_chars_are_detected_by_category_not_enumeration', 'test_zero_width_split_marker_still_reads_as_ai_suspect']
+   实际红: ['test_invisible_chars_are_detected_by_category_not_enumeration', 'test_zero_width_split_marker_still_reads_as_ai_suspect']
+   rc=1 | ================== 2 failed, 97 passed, 10 warnings in 6.41s =================== | 还原 sha 一致
+
+✅ M-GENSIGNAL  生成断言结构 + 生成器键两层全回退
+   期望红: ['test_invisible_chars_are_detected_by_category_not_enumeration', 'test_long_model_name_and_punctuated_generation_claims_are_undigested', 'test_model_version_generation_claim_is_undigested_signal']
+   实际红: ['test_invisible_chars_are_detected_by_category_not_enumeration', 'test_long_model_name_and_punctuated_generation_claims_are_undigested', 'test_model_version_generation_claim_is_undigested_signal']
+   rc=1 | ================== 3 failed, 96 passed, 10 warnings in 6.39s =================== | 还原 sha 一致
+
+✅ M-SRCALIAS   来源键名归一退回字面小写 source
+   期望红: ['test_doi_source_identifier_blocks_deletion']
+   实际红: ['test_doi_source_identifier_blocks_deletion']
+   rc=1 | ================== 1 failed, 98 passed, 10 warnings in 6.39s =================== | 还原 sha 一致
+
+✅ M-DOIVAL     DOI/ISBN 值形态信号回退
+   期望红: ['test_doi_source_identifier_blocks_deletion', 'test_duplicate_frontmatter_key_does_not_mask_source']
+   实际红: ['test_doi_source_identifier_blocks_deletion', 'test_duplicate_frontmatter_key_does_not_mask_source']
+   rc=1 | ================== 2 failed, 97 passed, 10 warnings in 6.51s =================== | 还原 sha 一致
+
+✅ M-PAIRS      护栏扫描面退回折叠后的 map（重复键遮蔽复现）
+   期望红: ['test_duplicate_frontmatter_key_does_not_mask_source']
+   实际红: ['test_duplicate_frontmatter_key_does_not_mask_source']
+   rc=1 | ================== 1 failed, 98 passed, 10 warnings in 6.41s =================== | 还原 sha 一致
+
+✅ M-FALLBACK   兜底信号⑨回退（方向退回 fail-open）
+   期望红: ['test_any_nonempty_frontmatter_value_blocks_confident_deletion', 'test_unparsed_source_with_duplicate_body_is_not_suggested_for_deletion']
+   实际红: ['test_any_nonempty_frontmatter_value_blocks_confident_deletion', 'test_unparsed_source_with_duplicate_body_is_not_suggested_for_deletion']
+   rc=1 | ================== 2 failed, 97 passed, 10 warnings in 6.36s =================== | 还原 sha 一致
+
+✅ M-INVISENUM  不可见字符判定退回有限枚举
+   期望红: ['test_invisible_chars_are_detected_by_category_not_enumeration']
+   实际红: ['test_invisible_chars_are_detected_by_category_not_enumeration']
+   rc=1 | ================== 1 failed, 98 passed, 10 warnings in 6.27s =================== | 还原 sha 一致
+
+✅ M-COMMENT    闭合注释未消化信号⑩回退
+   期望红: ['test_fence_info_string_and_semantic_operators_are_not_skeleton', 'test_source_inside_closed_html_comment_blocks_deletion', 'test_unclosed_html_comment_never_suggested_for_deletion']
+   实际红: ['test_fence_info_string_and_semantic_operators_are_not_skeleton', 'test_source_inside_closed_html_comment_blocks_deletion', 'test_unclosed_html_comment_never_suggested_for_deletion']
+   rc=1 | ================== 3 failed, 96 passed, 10 warnings in 6.70s =================== | 还原 sha 一致
+
+✅ M-HEADING    标题不算实质正文（回退用户裁决）
+   期望红: ['test_ascii_whitespace_semantics_are_not_unicode', 'test_atx_heading_text_is_parsed_structurally', 'test_heading_with_text_counts_as_substantive_content']
+   实际红: ['test_ascii_whitespace_semantics_are_not_unicode', 'test_atx_heading_text_is_parsed_structurally', 'test_heading_with_text_counts_as_substantive_content']
+   rc=1 | ================== 3 failed, 96 passed, 10 warnings in 6.60s =================== | 还原 sha 一致
+
+✅ M-STRUCT     结构行判定退回字符集匹配
+   期望红: ['test_atx_heading_text_is_parsed_structurally', 'test_fence_info_string_and_semantic_operators_are_not_skeleton']
+   实际红: ['test_atx_heading_text_is_parsed_structurally', 'test_fence_info_string_and_semantic_operators_are_not_skeleton']
+   rc=1 | ================== 2 failed, 97 passed, 10 warnings in 6.31s =================== | 还原 sha 一致
+
+✅ M-KEYNAME    兜底信号⑨ 退回只看值
+   期望红: ['test_information_in_key_name_blocks_deletion']
+   实际红: ['test_information_in_key_name_blocks_deletion']
+   rc=1 | ================== 1 failed, 98 passed, 10 warnings in 6.73s =================== | 还原 sha 一致
+
+✅ M-ATX        标题文字解析退回 lstrip 剥井号
+   期望红: ['test_atx_heading_text_is_parsed_structurally']
+   实际红: ['test_atx_heading_text_is_parsed_structurally']
+   rc=1 | ================== 1 failed, 98 passed, 10 warnings in 6.56s =================== | 还原 sha 一致
+
+✅ M-SEMWS      dup_body 退回无条件 rstrip + 丢空行
+   期望红: ['test_c4_comparison_keeps_semantic_whitespace']
+   实际红: ['test_c4_comparison_keeps_semantic_whitespace']
+   rc=1 | ================== 1 failed, 98 passed, 10 warnings in 6.82s =================== | 还原 sha 一致
+
+✅ M-FNAME      文件名来源信号回退
+   期望红: ['test_markdown_line_and_block_boundaries_are_not_unicode', 'test_prefixed_url_filename_is_a_source_signal', 'test_source_identifier_in_filename_blocks_deletion']
+   实际红: ['test_markdown_line_and_block_boundaries_are_not_unicode', 'test_prefixed_url_filename_is_a_source_signal', 'test_source_identifier_in_filename_blocks_deletion']
+   rc=1 | ================== 3 failed, 96 passed, 10 warnings in 6.85s =================== | 还原 sha 一致
+
+✅ M-ASCIIWS    dup_body 空白判定退回 Unicode
+   期望红: ['test_ascii_whitespace_semantics_are_not_unicode']
+   实际红: ['test_ascii_whitespace_semantics_are_not_unicode']
+   rc=1 | ================== 1 failed, 98 passed, 10 warnings in 6.89s =================== | 还原 sha 一致
+
+✅ M-ATXWS      ATX closing 分隔符退回 Unicode
+   期望红: ['test_ascii_whitespace_semantics_are_not_unicode']
+   实际红: ['test_ascii_whitespace_semantics_are_not_unicode']
+   rc=1 | ================== 1 failed, 98 passed, 10 warnings in 6.71s =================== | 还原 sha 一致
+
+✅ M-FNAMEURL   文件名 URL 判定退回锚定匹配
+   期望红: ['test_markdown_line_and_block_boundaries_are_not_unicode', 'test_prefixed_url_filename_is_a_source_signal']
+   实际红: ['test_markdown_line_and_block_boundaries_are_not_unicode', 'test_prefixed_url_filename_is_a_source_signal']
+   rc=1 | ================== 2 failed, 97 passed, 10 warnings in 6.91s =================== | 还原 sha 一致
+
+✅ M-MDLINE     分行退回 str.splitlines()
+   期望红: ['test_markdown_line_and_block_boundaries_are_not_unicode']
+   实际红: ['test_markdown_line_and_block_boundaries_are_not_unicode']
+   rc=1 | ================== 1 failed, 98 passed, 10 warnings in 6.91s =================== | 还原 sha 一致
+
+✅ M-HTMLBLOCK  raw HTML block 状态回退
+   期望红: ['test_markdown_line_and_block_boundaries_are_not_unicode']
+   实际红: ['test_markdown_line_and_block_boundaries_are_not_unicode']
+   rc=1 | ================== 1 failed, 98 passed, 10 warnings in 7.01s =================== | 还原 sha 一致
+
+finally 还原后 sha256 = 0025452e4c367e104bd1f42ae541cf1e284a4c373fed0a609e653d3fee570097 (与基线逐字节相同)
+
+======================================================================
+G56C_NEGATIVE_CONTROL: PASS （21/21 变异的实际失败集合等于预先声明集合）
