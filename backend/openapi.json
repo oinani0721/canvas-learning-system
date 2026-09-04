@@ -10276,7 +10276,8 @@
           "cross_subject": false,
           "is_review_canvas": false,
           "query": "什么是逆否命题？",
-          "subject_id": "math"
+          "subject_id": "math",
+          "vault_id": "canvas_vault"
         },
         "properties": {
           "canvas_file": {
@@ -10355,10 +10356,17 @@
             ],
             "description": "学科 ID, 用于多学科知识图谱隔离 (Story 1.9). 当提供时, 检索范围限定在该学科内.",
             "title": "Subject Id"
+          },
+          "vault_id": {
+            "description": "Vault 稳定 ID (必填, CARD-G4-4)。检索作用域只落在该 vault 内; 与进程 active vault 不一致 → 409。",
+            "minLength": 1,
+            "title": "Vault Id",
+            "type": "string"
           }
         },
         "required": [
-          "query"
+          "query",
+          "vault_id"
         ],
         "title": "RAGQueryRequest",
         "type": "object"
@@ -11045,7 +11053,7 @@
         "type": "object"
       },
       "RefreshChangedRequest": {
-        "description": "Round-23 Story 8.1 — incremental refresh request from Tauri plugin.",
+        "description": "Round-23 Story 8.1 — incremental refresh request (手动/插件触发).",
         "properties": {
           "paths": {
             "description": "vault 相对路径列表 (如 ['节点/A.md', '节点/B.md'])",
@@ -11077,7 +11085,7 @@
         "type": "object"
       },
       "RefreshChangedResponse": {
-        "description": "RAG-S1 (2026-08-03): structured per-path status.\n\n旧契约 `scheduled=len(req.paths)` 是无条件假成功 (服务关闭 / 路径被黑名单\n排除 / debounce 互相取消, 三种情况全报 scheduled=N)——已废除。",
+        "description": "RAG-S1 (2026-08-03): structured per-path status.\n\n旧契约 `scheduled=len(req.paths)` 是无条件假成功 (服务关闭 / 路径被黑名单\n排除 / debounce 互相取消, 三种情况全报 scheduled=N)——已废除。\n\nCARD-G2-5 HIGH-3: durable journal 落盘失败的路径报 persist_failed；\n任一路径 persist_failed 时整个响应用 HTTP 503 + 完整 body 返回\n（durable=False），不再假报 200 成功。",
         "properties": {
           "accepted": {
             "title": "Accepted",
@@ -11087,6 +11095,11 @@
             "title": "Coalesced",
             "type": "integer"
           },
+          "durable": {
+            "default": true,
+            "title": "Durable",
+            "type": "boolean"
+          },
           "excluded": {
             "title": "Excluded",
             "type": "integer"
@@ -11094,6 +11107,11 @@
           "orchestrator_enabled": {
             "title": "Orchestrator Enabled",
             "type": "boolean"
+          },
+          "persist_failed": {
+            "default": 0,
+            "title": "Persist Failed",
+            "type": "integer"
           },
           "results": {
             "items": {
@@ -15661,7 +15679,7 @@
     "description": "Multi-agent learning system backend using Feynman method",
     "title": "Canvas Learning System API",
     "version": "1.0.0",
-    "x-generated-at": "2026-09-01T11:13:57.151677+00:00",
+    "x-generated-at": "2026-09-04T21:00:02.271907+00:00",
     "x-generator": "scripts/spec-tools/check-openapi-drift.py --write"
   },
   "openapi": "3.1.0",
@@ -26169,6 +26187,28 @@
           }
         },
         "summary": "跨 vault 复习总览聚合 (CARD-C2)",
+        "tags": [
+          "Review"
+        ]
+      }
+    },
+    "/api/v1/review/overview/app": {
+      "get": {
+        "description": "交互复习壳: 自动轮询 GET /overview, 手动按钮 POST /overview/refresh。\n\n与零 JS 只读页 (/overview/page) 共存。API 路径按本次请求的路由表注入\n(url_for), 不硬编码。",
+        "operationId": "review_overview_app_api_v1_review_overview_app_get",
+        "responses": {
+          "200": {
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "跨 vault 复习总览 · 交互版 (CARD-G6-2; 单文件内联 HTML, 零外部 URL)",
         "tags": [
           "Review"
         ]
