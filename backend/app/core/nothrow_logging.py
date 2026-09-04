@@ -32,22 +32,26 @@
 4. **不是全仓保护**: 只有模块级 ``logger`` 被换成本包装器的文件才受保护。
    未包装模块的清单见 ``backend/scripts/nothrow_logging_inventory.py``。
 
-已知代价 (刻意接受, 不是疏漏; 三层区分按 Codex round-1 HIGH-1 的实证修正):
-- **包装器新增吞掉的面**: 调用方传入的参数会让 stdlib 方法在 LogRecord 创建
-  **之前**就抛的错 —— 最典型是 ``stacklevel=None`` 时补偿算式 ``1 + None`` 的
-  ``TypeError``、``logger.log("INFO", ...)`` 把 level 传成字符串。裸 Logger 会
-  当场抛, 包装后降级成一条 fallback WARNING (带 logger 名/方法名/异常 repr,
-  可定位但比"当场炸"容易被忽略)。这是"观测面不得成为业务失败源"的必然代价。
+已知代价与边界 (按 Codex round-1 HIGH-1 / round-2 MEDIUM-1 的实证修正):
+- **包装器新增吞掉的面 (守护区 = 进入 ``_guarded`` 后至 inner 返回前)**:
+  此窗口内同步冒出的一切 ``Exception`` 都降级为 fallback WARNING —— 包括
+  (a) 调用方参数引发的错 (``stacklevel=None`` 的补偿 TypeError、
+  ``logger.log("INFO", ...)`` 的 level 类型错、``wrapped.log()`` 缺 level 的
+  绑定错不在此列 —— 那发生在**进入守护区之前**的 Python 参数绑定, 属于
+  "签名不合法的调用", 不在本承诺内); (b) stdlib 本来会传播的错 (自定义
+  Handler/filter 抛错、``extra`` 键冲突、``MemoryError``、``StreamHandler``
+  ``handleError`` 重抛的 ``RecursionError`` —— 它虽然从 handler 链里逃出,
+  但仍发生在 inner 调用窗口内, 一样被接住)。裸 Logger 会当场抛的, 包装后
+  都变成一条 fallback WARNING (带 logger 名/方法名/异常 repr, 可定位但比
+  "当场炸"容易被忽略)。这是"观测面不得成为业务失败源"的必然代价。
 - **stdlib 本来就自吞、非本模块新增**: 常见 ``StreamHandler.emit`` 内部的
   格式化/写失败走 ``Handler.handleError`` 自吞 (消息占位符与实参不匹配属于
   这类)。注意这不是日志链的普遍性质: ``Handler.handle``/``Logger.callHandlers``
-  并无 catch, 自定义 Handler/filter/``extra`` 键冲突是会从裸 Logger 传播的 ——
-  包装后这类错也进 fallback, 属于上面第一层的扩张。
+  并无统一 catch —— 那部分传播面已被本包装器接管 (见上)。
 - **不接的**: ``except Exception`` 不接 ``KeyboardInterrupt``/``SystemExit``
-  (BaseException 直通); ``StreamHandler.emit`` 对 ``RecursionError`` 刻意重抛
-  (CPython ``logging/__init__.py`` emit 内 ``handleError`` 的分支), 这类从
-  handler 链里逃出的错包装器看不见 (它们发生在 inner 调用返回之后/或属于
-  BaseException), 不在本模块守护语义内。
+  (BaseException 直通); 以及进入守护区**之前**的失败 —— 实参求值发生在
+  调用点 (见上第 2 条) 方法调用的参数绑定错误 (如 ``wrapped.log()`` 少传
+  level)。
 """
 
 import logging
