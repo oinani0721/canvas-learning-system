@@ -533,21 +533,21 @@ class TestDualVaultIsolationOnTmpLanceDB:
             f"裸表内容按 doc_id 之外的复核也命中: {contents}"
         )
 
-    @pytest.mark.xfail(
-        reason=(
-            "归 CARD-G4-4b: expand_neighbors 无 subject 过滤。已知边界 "
-            "(Codex round-2 新发现 HIGH, 主干既有缺陷非本卡引入): "
-            "expand_neighbors 不传 subject, LIKE 匹配整张 vault 表 — "
-            "同 vault 内跨 subject 的邻居会被带回。收口面在 "
-            "expand_neighbors 签名 (lancedb_client.py), 是 CARD-G4-4a 的 "
-            "硬禁改面, 因此拆给 CARD-G4-4b; 4b 落地后本用例转正为门。"
-            "strict=True: 意外修复 (XPASS) 视为失败, 提醒转正。"
-        ),
-        strict=True,
-    )
     def test_neighbor_expansion_respects_subject_boundary(self, monkeypatch):
         """同 vault 跨 subject: math 请求的邻居不得带 physics 板内容。
-        当前生产行为会带 (xfail 锁住已知缺陷, 防止无声回归为「更糟」)。"""
+
+        **CARD-G4-4b 已转正为常绿门**（此前是 4a 留下的 `xfail(strict=True)`）。
+
+        历史：G4-4 Codex round-2 发现 —— `expand_neighbors` 的 where 只有
+        `canvas_file LIKE '%<link>%'`，匹配整张 vault 表，于是 math 板的笔记
+        只要写了 `[[物理板]]`，physics 板的行就会被当作邻居带回。收口面
+        `lancedb_client.py` 是 4a 的硬禁改面，故拆给 4b。
+
+        4b 的修法：`expand_neighbors(..., subject=None)`，非空时 where 并入
+        `AND subject = '<_escape_sql 转义>'`；`nodes.py` 调用点透传
+        `state["subject"]`。`strict=True` 当时就是为这一刻设的 —— 缺陷一旦被
+        修好，XPASS 会立刻报红提醒转正（本卡实测到了这个提醒）。
+        """
         import lancedb as _ldb
 
         # physics 板的机密只有 subject=physics 可见
@@ -615,6 +615,122 @@ class TestDualVaultIsolationOnTmpLanceDB:
             r.get("content", "") for r in update.get("lancedb_results", [])
         )
         assert "PHYSICS_SECRET" not in contents, (
-            "math 请求的邻居扩展带入了 physics 板内容 (已知边界, 若此断言"
-            "通过说明 expand 已收口 subject — 请把 xfail 转正为门)"
+            "math 请求的邻居扩展带入了 physics 板内容 —— 同 vault 跨 subject "
+            "泄漏回归了。收口点: lancedb_client.expand_neighbors 的 where 应含 "
+            "AND subject = '<escaped>' (CARD-G4-4b), 且 nodes.py 调用点须透传 "
+            "state['subject']。两处任一被去掉, 本断言即红。"
         )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# CARD-G4-4b: expand_neighbors 的 subject 过滤 —— 转义与向后兼容
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestExpandNeighborsSubjectFilter:
+    """直接打 `expand_neighbors`，不经 nodes 链 —— 把 subject 子句本身钉死。
+
+    上面 `test_neighbor_expansion_respects_subject_boundary` 走的是完整
+    retrieve_lancedb 链（贴生产），本类是它的**单元级补充**：链路里任何一环
+    （表名解析、哨兵、state 构造）都不参与，红了就一定是 where 子句的问题。
+    """
+
+    @pytest.fixture(autouse=True)
+    def _seed(self, tmp_path):
+        import lancedb
+
+        db = lancedb.connect(str(tmp_path))
+        # 同一张表、同一个 canvas_file、两个不同 subject —— 只有 subject 能区分它们。
+        # canvas_file 刻意相同: 排除「靠 canvas_file LIKE 顺带过滤掉了」的平凡通过。
+        db.create_table(
+            "t",
+            data=[
+                {
+                    "doc_id": "math_row",
+                    "subject": "math",
+                    "content": "MATH_ONLY 数学内容",
+                    "vector": _vec(0.10),
+                    "content_tokenized": _jieba_tokens("MATH_ONLY 数学内容"),
+                    "canvas_file": "共享板.canvas",
+                },
+                {
+                    "doc_id": "physics_row",
+                    "subject": "physics",
+                    "content": "PHYS_ONLY 物理内容",
+                    "vector": _vec(0.20),
+                    "content_tokenized": _jieba_tokens("PHYS_ONLY 物理内容"),
+                    "canvas_file": "共享板.canvas",
+                },
+            ],
+        )
+        self.tmp_path = tmp_path
+        self.client = _make_client(tmp_path)
+        # 起点结果：一条带 [[共享板]] wiki-link 的行，扩展会去 LIKE 它
+        self.seed_results = [
+            {
+                "doc_id": "seed",
+                "content": "起点 [[共享板]]",
+                "score": 1.0,
+                "metadata": {},
+            }
+        ]
+
+    def _expand(self, subject):
+        out = asyncio.run(
+            self.client.expand_neighbors(
+                results=list(self.seed_results),
+                table_name="t",
+                subject=subject,
+            )
+        )
+        return " | ".join(r.get("content", "") for r in out)
+
+    def test_subject_none_keeps_legacy_behavior_both_rows(self):
+        """向后兼容 (卡文 (b)/D2): subject=None 时不加子句, 两个 subject 都带回。
+
+        这条同时是下一条的**正向对照** —— 若扩展链本身没活, 两条都会空,
+        「physics 没带回来」就成了假绿。
+        """
+        contents = self._expand(None)
+        assert "MATH_ONLY" in contents, f"扩展链没活: {contents}"
+        assert "PHYS_ONLY" in contents, (
+            f"subject=None 时行为应与本卡之前逐字一致(不过滤): {contents}"
+        )
+
+    def test_subject_math_drops_physics_neighbor(self):
+        """语义 (卡文 (h)/D1): 不匹配的邻居**丢弃**, 不是保留不加分。"""
+        contents = self._expand("math")
+        assert "MATH_ONLY" in contents, f"同 subject 的邻居被误丢: {contents}"
+        assert "PHYS_ONLY" not in contents, (
+            f"跨 subject 邻居未被丢弃: {contents}"
+        )
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            "x' OR '1'='1",
+            "math' OR subject LIKE '%",
+            "math' --",
+        ],
+    )
+    def test_single_quote_injection_does_not_break_where(self, payload):
+        """(c) 注入用例: 单引号经 _escape_sql 转义, where 不被撑开。
+
+        未转义时 `subject = 'x' OR '1'='1'` 会恒真 → 两行全带回 (泄漏);
+        转义后它只是一个**匹配不到任何行**的字面量 → 零邻居。
+        断言「一个都不带回」而不是只断言「没有 PHYS_ONLY」——
+        后者在 where 语法炸掉、扩展整段被 except 吞掉时也成立 (假绿)。
+        """
+        contents = self._expand(payload)
+        assert "PHYS_ONLY" not in contents, f"注入撑开了 where: {contents}"
+        assert "MATH_ONLY" not in contents, f"注入撑开了 where: {contents}"
+
+    def test_escape_sql_doubles_single_quote(self):
+        """转义函数本身的直接判据 —— 防「上面三条因 where 语法错而恒空」的假绿。
+
+        与上一条互为验伪: 上面证明「注入不生效」, 这条证明「不生效的原因是
+        转义而不是语法炸了」。
+        """
+        from agentic_rag.clients.lancedb_client import LanceDBClient
+
+        assert LanceDBClient._escape_sql("x' OR '1'='1") == "x'' OR ''1''=''1"
