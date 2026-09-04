@@ -30,7 +30,14 @@ X7-A 只证明了 round-17 的门在这套代码上全绿；绿门 ≠ 有效门
    正确的变异是拆掉**判据本身**（`if depth > MAX:` → `if False:`）：
    上限常量不动，门的构造不变，而检查不再执行。
 
-用法：`python3 backend/scripts/g32cb_mutation_gates.py [--list]`
+⚠️ **锚点自检**（CARD-CX-G3-2c-C-R1）：M8 这类变异靠**硬编码源码字面量**匹配
+   （连前导空格一起写死）。生产那行改个缩进、换个变量名，锚就静默失配。
+   原先只在变异循环里逐条 `count(old) != 1` 判一次，要等 8 道门的绿态前提
+   跑完（约 1 分钟）才报；现在提到**最前面**，锚一漂就非零退出、不跑任何变异。
+
+用法：
+  `python3 backend/scripts/g32cb_mutation_gates.py`          跑全部
+  `python3 backend/scripts/g32cb_mutation_gates.py --list`   只列变异与锚点命中数（不改任何文件）
 """
 
 from __future__ import annotations
@@ -189,11 +196,64 @@ def _self_heal() -> list[str]:
     return healed
 
 
+def _anchor_audit() -> tuple[bool, list[tuple[str, int, str, str, str]]]:
+    """锚点自检：每条变异的原文本必须在目标文件里**恰好命中 1 次**。
+
+    命中 0 次 = 锚漂了（生产那行改了缩进/改了名），变异写不进去、门照常绿。
+
+    ⚠️ **如实说明这道自检加了什么**（CARD-CX-G3-2c-C-R1）：变异循环里**本来就有**
+    `src.count(old) != 1 → ANCHOR-ERROR + continue`，且末尾按
+    `n_killed == len(MUTATIONS)` 判定 ⇒ 锚漂时脚本会 `return 1`，**不会**
+    报成「8/8 KILLED」的假绿。本函数加的不是那个防线，而是两件事：
+      ① 把判断提到所有慢步骤**之前**（原先要等 8 道门的绿态前提跑完才逐条发现）；
+      ② 给 `--list` 一个不改任何文件的只读入口。
+    别把它写成「防假绿」——那是说得比做得宽。
+
+    ⚠️ **已知盲区，本卡未修**（Codex round-1 LOW，副本实测）：判据是「原文本
+    在**整个文件**里出现 1 次」，而不是「命中了那条**执行语句**」。于是
+      · 生产那行的前导空格由 20 变 21 —— 锚仍是子串，count 仍为 1；
+      · 把活行改成等价写法、只在**注释**里留下旧锚 —— 同样 count 为 1，
+        变异落在注释上，变异前后执行块的 AST 完全相同。
+    这两种情况下变异是**无效**的，但完整 runner 会把它报成 SURVIVED（非零退出），
+    不会伪装成 KILLED。要真正堵上得绑定执行块内的语句身份（AST），属另立卡。
+    """
+    rows, ok = [], True
+    for mid, desc, target, old, _new, gate in MUTATIONS:
+        n = target.read_text(encoding="utf-8").count(old)
+        rows.append((mid, n, str(target.relative_to(WT)), gate, desc))
+        if n != 1:
+            ok = False
+    return ok, rows
+
+
+def _print_anchor_rows(rows, *, with_desc: bool) -> None:
+    for mid, n, rel, gate, desc in rows:
+        print(f"  [{mid}] 锚命中 {n} 次 @ {rel} → {gate}", flush=True)
+        if n != 1:
+            print("       ⛔ 须恰好 1 次 —— 锚文本漂了，变异会静默失配", flush=True)
+        if with_desc:
+            print(f"       {desc}", flush=True)
+
+
 def main() -> int:
+    if "--list" in sys.argv[1:]:
+        ok, rows = _anchor_audit()
+        print("═══ 变异清单与锚点自检 ═══")
+        _print_anchor_rows(rows, with_desc=True)
+        return 0 if ok else 4
+
     _install_signal_handlers()
     healed = _self_heal()
     if healed:
         print(f"⚠️ 自愈：还原了上一次残留的变异体 {healed}", flush=True)
+
+    # ── 锚点自检**先于**一切慢步骤：锚漂了就别跑，免得报出「8/8 KILLED」式假绿 ──
+    _ok, _rows = _anchor_audit()
+    print("═══ 锚点自检 ═══", flush=True)
+    _print_anchor_rows(_rows, with_desc=False)
+    if not _ok:
+        print("⛔ 锚点自检不通过 —— 中止（不跑变异）", flush=True)
+        return 4
 
     # ── 跑前：全文件 sha 基线（对**每个**会被变异的文件，不只是其中一个）──
     touched = sorted({m[2] for m in MUTATIONS}, key=str)

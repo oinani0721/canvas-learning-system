@@ -5902,6 +5902,13 @@ def test_g32cc_charset_traverses_all_container_shapes():
         ({"payload": {"exam_board": {f"k{NEL}": "v"}}}, "dict 键"),
         ({"payload": {"exam_board": [[{"deep": f"a{NEL}"}]]}}, "嵌套 list+dict"),
         ({"payload": {"exam_board": [1, None, True, f"x{NEL}"]}}, "混合类型 list"),
+        # ⛔ CARD-CX-G3-2c-C-R1（Codex round-1 LOW）：本门的 docstring 从
+        # `991ae914` 起就写着「覆盖 dict 键 / dict 值 / list / **tuple** 嵌套」，
+        # 而样本里**一个 tuple 都没有** —— 实测把遍历里的 tuple 支持删掉，
+        # 相关五道纯门全绿。声明比证据宽，补样本堵上。
+        ({"payload": {"exam_board": (f"a{NEL}b",)}}, "tuple 元素"),
+        ({"payload": {"exam_board": [("x", f"y{NEL}")]}}, "list 里嵌 tuple"),
+        ({"payload": {"exam_board": ({"k": [f"z{NEL}"]},)}}, "tuple 里嵌 dict+list"),
     )
     for rec, why in shapes:
         probs = _m.value_charset_problems(rec)
@@ -5943,6 +5950,386 @@ def test_g32cc_charset_only_applies_to_identity_and_receipt_fields():
         ("payload", "concept_id"),
         ("payload", "exam_board"),
     }, f"严格字段表变了却没同步本门与 §6.1: {_m.CHARSET_STRICT_FIELDS}"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CARD-CX-G3-2c-C-R1：字符轴判据的**自洽性**（991ae914 整改后无复审）
+#
+# 991ae914 把字符轴收窄到 `CHARSET_STRICT_FIELDS` 五路径，分界写的是
+# 「该字段会不会**逐字进入 YAML receipt** 或参与身份比较」。把这句话穷举展开
+# 后它与实现**不自洽**：receipt 条目里 `question_id` 与 `self_confidence_raw`
+# 也逐字进 receipt（`SKILL.md` 的 `entry_` 拼接链），却不在严格表里。
+#
+# ⛔ 裁定（本卡）：**不扩表**，改判据措辞。理由（Codex round-1 MEDIUM 后收窄）：
+#   `value_charset_problems()` 只看**账本 record**，而 quiz-answer 的落账写点
+#   **不写**这两个键（下门用 AST 从唯一执行块取键集实证），复放路径也不读它们
+#   （foreign 分支固定记 null）⇒ 给严格表加 `("payload","question_id")` 在
+#   **当前业务路径上**恒不触发。
+#   ⚠️ **不是「结构上不可能」**：`learning_event_log.append_event()` 接受任意
+#   payload，实测能把带 U+0085 的 `question_id` 写进账本且校验器不报违规。
+#   那条路一旦有业务调用方传这两个键，本裁定就得重做。
+#   receipt 侧的字符防线另有其人且**承重**：`q_()` 的正面往返自证
+#   （证不出往返就拒写，round-17）与 `_kq()`；行为证据见 (b) 那道门。
+#
+# 本门是**差集重算触发器**：receipt 条目字段集/行序、账本 payload 键集、
+# 严格表，三者任一变动即红，强制重做一次差集再改门。
+# ─────────────────────────────────────────────────────────────────────────────
+def _writer_ast():
+    """主写点 PYEOF 块（**唯一执行块**）的 AST。
+
+    ⛔ 不再用正则扫 `_SKILL_TEXT`（Codex round-1 MEDIUM，三个变异实测漏网）：
+    正则会把**注释掉的旧行**算成有效键、认不出改名、也漏掉双引号 f-string。
+    AST 只看真正会执行的那条赋值，这三种漂移都当场暴露。
+    """
+    import ast as _ast
+
+    return _ast.parse(CODE)
+
+
+def _receipt_entry_fields() -> list[tuple[str, str]]:
+    """从写点 AST 取 `entry_` 那条 f-string 拼接链的 (键, 值表达式源码)。"""
+    import ast as _ast
+
+    nodes = [
+        n
+        for n in _ast.walk(_writer_ast())
+        if isinstance(n, _ast.Assign) and any(isinstance(t, _ast.Name) and t.id == "entry_" for t in n.targets)
+    ]
+    assert len(nodes) == 1, f"写点里 `entry_ =` 赋值有 {len(nodes)} 处（须恰好 1）⇒ 本门的提取前提没了"
+    val = nodes[0].value
+    assert isinstance(val, _ast.JoinedStr), "`entry_` 不再是单条 f-string 拼接链 ⇒ 先重做差集再改本门"
+    out: list[tuple[str, str]] = []
+    prev = ""
+    for part in val.values:
+        if isinstance(part, _ast.Constant) and isinstance(part.value, str):
+            prev = part.value
+        elif isinstance(part, _ast.FormattedValue):
+            mm = re.search(r"(?:^|\n)[ ]*(?:- )?(\w+): $", prev)
+            assert mm, f"receipt 行形态变了，认不出键名: {prev[-48:]!r}"
+            out.append((mm.group(1), _ast.unparse(part.value)))
+            prev = ""
+    return out
+
+
+def _ledger_payload_key_sets() -> tuple[set[str], set[str]]:
+    """写点 AST 里 `"payload": {"schema_ext": "review/1", ...}` 的两处键集。
+
+    返回 `(落账写点键集, duplicate 比较用 envelope 键集)`。
+    ⚠️ 两处**不相等**是设计内：envelope 故意去掉 4 个易变字段
+    （`review_time` / `scored_at` / `fsrs_library_version` / `fsrs_params_hash`），
+    否则同一次评分在两次运行里会比出不等。判别靠 `review_time` 在不在里面。
+    （上一版把两处笼统说成「写点两处 payload 构造」——其中一处其实是比较用的
+    `_mine_env`，不是落账写点，Codex round-1 MEDIUM 点名更正。）
+    """
+    import ast as _ast
+
+    found: list[set[str]] = []
+    for n in _ast.walk(_writer_ast()):
+        if not isinstance(n, _ast.Dict):
+            continue
+        for k, v in zip(n.keys, n.values):
+            if (
+                isinstance(k, _ast.Constant)
+                and k.value == "payload"
+                and isinstance(v, _ast.Dict)
+                and any(isinstance(kk, _ast.Constant) and kk.value == "schema_ext" for kk in v.keys)
+            ):
+                found.append({kk.value for kk in v.keys if isinstance(kk, _ast.Constant) and isinstance(kk.value, str)})
+    assert len(found) == 2, f"写点里 review/1 payload 构造有 {len(found)} 处（须恰好 2）⇒ 先重做差集"
+    write = [f for f in found if "review_time" in f]
+    env = [f for f in found if "review_time" not in f]
+    assert len(write) == 1 and len(env) == 1, f"分不出落账写点与 envelope: {found}"
+    return write[0], env[0]
+
+
+def test_g32ccr1_charset_scope_is_bounded_by_ledger_record_reality():
+    """字符轴的适用面上界 = **quiz-answer 落账写点真的会写的那些键**。
+
+    四条断言各自独立承重：
+      ⓪ 严格表**本身**逐项钉死 —— 否则下面 ③ 的「无死条目」在**空表**上是
+         空真（Codex round-1 实测：把表改成空 tuple，上一版本门照样绿）；
+      ① receipt 条目字段集与行序（变了就得重算差集）；
+      ② 落账写点的 payload 键集里**没有** `question_id` / `self_confidence_raw`；
+      ③ 严格表里每一项都**够得着**落账写点产出的 record（不是死条目）。
+
+    ⚠️ 措辞收窄（Codex round-1 MEDIUM）：②③ 说的是「**当前 quiz-answer 写点**
+    不写这两个键」，**不是**「任何写侧都写不出」——`learning_event_log.append_event()`
+    接受任意 payload，实测能把它们写进账本且校验器不报违规。本门守的是
+    「裁定所依赖的那个前提还在不在」，不是「这件事不可能发生」。
+    """
+    _m = _validator_mod()
+
+    # ⓪ 严格表逐项钉死（空表空真的堵口）
+    assert set(_m.CHARSET_STRICT_FIELDS) == {
+        ("event_id",),
+        ("node_id",),
+        ("payload", "vault_id"),
+        ("payload", "concept_id"),
+        ("payload", "exam_board"),
+    }, f"严格字段表变了 ⇒ 先重做差集再改本门: {_m.CHARSET_STRICT_FIELDS}"
+
+    keys = [k for k, _ in _receipt_entry_fields()]
+    assert keys == [
+        "event_id",
+        "pred_id",
+        "id_form",
+        "fsrs_applied",
+        "ts",
+        "scored_at",
+        "attempt_count",
+        "board_form",
+        "exam_board",
+        "question_id",
+        "self_confidence_raw",
+        "self_confidence_norm",
+        "grade_norm",
+        "abandoned",
+    ], f"receipt 条目字段集/行序变了 ⇒ 先重做一次「逐字进 receipt」差集，再改本门: {keys}"
+
+    led, env = _ledger_payload_key_sets()
+    assert led == {
+        "schema_ext",
+        "vault_id",
+        "concept_id",
+        "rating",
+        "grade_norm",
+        "review_time",
+        "scored_at",
+        "fsrs_library_version",
+        "fsrs_params_hash",
+        "exam_board",
+        "attempt_count",
+    }, f"落账写点的 payload 键集变了 ⇒ 差集要重算: {sorted(led)}"
+    assert env < led, f"duplicate 比较用的 envelope 必须是落账键集的真子集: {sorted(env)}"
+
+    # ② receipt-only 的用户输入字符串字段：进 receipt、**不进 quiz-answer 的账本行**
+    receipt_only = {"question_id", "self_confidence_raw"}
+    assert receipt_only <= set(keys), "这两个键必须在 receipt 条目里（本卡差集的前件）"
+    assert not (receipt_only & led), (
+        f"⛔ receipt-only 字段进了落账写点的 payload ⇒ 它现在**受**字符轴管辖，"
+        f"本卡「不扩表」的裁定失效，必须重新决定: {sorted(receipt_only & led)}"
+    )
+
+    # ③ 严格表无死条目：每一项都够得着落账写点产出的 record
+    for path in _m.CHARSET_STRICT_FIELDS:
+        if path[0] == "payload":
+            assert len(path) == 2 and path[1] in led, (
+                f"严格表里的 {'.'.join(path)} 不是落账写点 payload 的键 ⇒ 死条目（恒不触发的假防线）"
+            )
+        else:
+            assert len(path) == 1 and path[0] in _m.TOP_LEVEL_KEYS, (
+                f"严格表里的 {'.'.join(path)} 不是 v1 顶层键 ⇒ 死条目"
+            )
+
+
+def test_g32ccr1_receipt_only_fields_roundtrip_under_hostile_codepoints(vault):
+    """(b) receipt-only 字段带 U+0085 **写得进也读得回**——收窄没有放过真实缺陷。
+
+    这是「不扩表」裁定的行为证据：`question_id` / `self_confidence_raw` 满足
+    「逐字进 receipt」这个前件，却不在字符轴管辖内；如果 receipt 侧没有防线，
+    它们就该复现 round-17 那条「写得出、认不回」的砖化链。实测不复现，因为
+    `q_()` 在写 receipt 时**正面证明往返**（证不成回落 `\\uXXXX` 转义形态），
+    于是原值一字不差地读得回来，重跑也不会被判成另一次评分。
+    """
+    import yaml as _y
+
+    LED = vault / "learning_events.jsonl"
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    qid, scr = f"q1{_NEL}x", f"半{_NEL}懂"
+    pA = _payload(
+        event_id="板丙#q1",
+        ts=TS1,
+        review_time=TS1,
+        exam_board="检验白板/板丙.md",
+        question_id=qid,
+        self_confidence_raw=scr,
+    )
+    rA = _run_writer_settled(vault, pA)
+    assert rA.returncode == 0, f"⛔ receipt-only 字段带 U+0085 首写就被拒: {(rA.stderr or '')[-400:]}"
+    assert len(_ledger_lines(vault)) == 1, "首写必须恰好落 1 行"
+
+    # 前件自证之一：它们确实**不在**账本 payload 里（字符轴够不着）
+    _pl = _ledger_lines(vault)[-1]["payload"]
+    assert "question_id" not in _pl and "self_confidence_raw" not in _pl, (
+        f"前件变了：receipt-only 字段进了账本 payload: {sorted(_pl)}"
+    )
+    # 前件自证之二：敌意字符确实进了 receipt（裸形或转义形都算）
+    nd = (vault / NODE_REL).read_text(encoding="utf-8")
+    _lines = [ln for ln in nd.split("\n") if "self_confidence_raw" in ln or "question_id" in ln]
+    assert len(_lines) == 2 and all((_NEL in ln) or ("\\u0085" in ln) for ln in _lines), (
+        f"预置失败：敌意字符没进 receipt: {_lines!r}"
+    )
+
+    # ── 读得回：YAML 解析后逐字等于原值 ──
+    _entry = _y.safe_load(nd.split("---")[1])["calibration_log"][-1]
+    assert _entry["question_id"] == qid, f"⛔ question_id 写得进读不回: {_entry['question_id']!r} != {qid!r}"
+    assert _entry["self_confidence_raw"] == scr, (
+        f"⛔ self_confidence_raw 写得进读不回: {_entry['self_confidence_raw']!r} != {scr!r}"
+    )
+
+    # ── 不砖化：原样重跑仍 rc=0、不增行、attempt 不动（不被判成另一次评分）──
+    _m0 = re.search(r"^attempt_count:\s*(\d+)", _fm(vault), re.M)
+    assert _m0, "预置失败：frontmatter 里没有 attempt_count"
+    _att0 = int(_m0.group(1))
+    r2 = _run_writer_settled(vault, dict(pA))
+    assert r2.returncode == 0, f"⛔ 原样重跑被拒 ⇒ 自产自拒砖化链复现了: {(r2.stderr or '')[-400:]}"
+    assert len(_ledger_lines(vault)) == 1, "重跑不得增行"
+    _m1 = re.search(r"^attempt_count:\s*(\d+)", _fm(vault), re.M)
+    assert _m1, "重跑后 frontmatter 里没有 attempt_count"
+    _att1 = int(_m1.group(1))
+    assert _att1 == _att0 == 1, f"重跑改了 attempt_count（二次计分）: {_att0} → {_att1}"
+
+
+def test_g32ccr1_timestamp_axis_rejects_hostile_codepoints_before_any_write(vault):
+    """(b) 时刻串归**词法轴**管：`ts` 与 `review_time` **各自**被自己那道门拒。
+
+    `ts` / `scored_at` 同样逐字进 receipt，但它们不需要字符轴——写点入口的
+    `_TS_RE.fullmatch()`（复用校验器本体的 §三 受理正则）根本不受理这种值。
+
+    ⛔ 上一版**同时**污染两个字段（Codex round-1 MEDIUM）：写点在
+    `SKILL.md:266` 先判 `review_time` 就退出了，于是把 `ts` 那道判据删掉，
+    这道门**照样绿**——它当时证明的是「有人拒了」，不是「ts 那道门承重」。
+    现在一次只污染一个字段，并**核对拒因点名的是哪个字段**（判据绑定
+    「被哪一层拒的」，不是 `rc != 0`）。
+
+    ⚠️ 适用面如实收窄：这条只覆盖**本次输入**。账本里**已有**的行不走这道
+    入口——实测 durable `scored_at` 含 U+0085 时 validator 不报违规，那段由
+    后续时刻解析与 `q_()` 处理，不能一并算在词法门头上。
+    """
+    for _field, _needle in (
+        ("ts", "本次输入 ts="),
+        ("review_time", "缺稳定业务时刻 review_time"),
+    ):
+        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+        (vault / "learning_events.jsonl").unlink(missing_ok=True)
+        face = _write_face(vault)
+        p = _payload(
+            event_id="板丁#q1",
+            ts=TS1,
+            review_time=TS1,
+            exam_board="检验白板/板丁.md",
+        )
+        p[_field] = f"{TS1}{_NEL}"
+        r = _run_writer_settled(vault, p)
+        assert r.returncode != 0, f"{_field} 含非规范码点必须被拒"
+        assert _needle in (r.stderr or ""), (
+            f"⛔ 拒因不是 {_field} 那道门（被更早的判据喂饱了）: {(r.stderr or '')[-500:]}"
+        )
+        assert len(_ledger_lines(vault)) == 0 and _write_face(vault) == face, f"{_field}: 拒绝 ⇒ 零写"
+
+
+def test_g32ccr1_nondict_branch_unreachable_from_validate_record_full():
+    """(c) `value_charset_problems()` 的非 dict 静默放行分支从生产调用点**不可达**。
+
+    ⚠️ 这条分支本身看着像个洞（record 不是 dict 就直接返回空表），但它够不到：
+    `validate_record_full()` 的第一件事就是非 dict 早退，且函数体内 `record`
+    从不重新绑定 —— 传进 `value_charset_problems()` 的实参必定是 dict。
+
+    ⛔ 三处按 Codex round-1 MEDIUM 收紧：
+      ① 重绑扫描改成「**任何 Store 上下文的 `record` 名字**」——上一版只列了
+         Assign / AugAssign / AnnAssign / For / withitem，**漏掉海象**
+         (`value_shape_problems(record := b"x")`)，实测那样改完本门仍 PASS，
+         而字符检查真的收到了 `bytes` 并随后 AttributeError；
+      ② 守卫要**支配**调用点：两者都必须是函数体的**顶层语句**且守卫在前，
+         不能只比行号（嵌在别的分支里的守卫不支配调用）；
+      ③ 守卫必须真的比 `dict` 且**立即 return**，不能只是「有个 isinstance」。
+    保留那条分支的意义只剩**直接调用方**（本文件的单元门就是直接调它的）。
+    """
+    import ast as _ast
+
+    _m = _validator_mod()
+    _fn = next(
+        n
+        for n in _ast.walk(_ast.parse(VALIDATOR.read_text(encoding="utf-8")))
+        if isinstance(n, _ast.FunctionDef) and n.name == "validate_record_full"
+    )
+
+    def _is_guard(st):
+        return (
+            isinstance(st, _ast.If)
+            and isinstance(st.test, _ast.UnaryOp)
+            and isinstance(st.test.op, _ast.Not)
+            and isinstance(st.test.operand, _ast.Call)
+            and getattr(st.test.operand.func, "id", "") == "isinstance"
+            and len(st.test.operand.args) == 2
+            and getattr(st.test.operand.args[0], "id", "") == "record"
+            and getattr(st.test.operand.args[1], "id", "") == "dict"
+        )
+
+    def _has_charset_call(st):
+        return any(
+            isinstance(n, _ast.Call)
+            and getattr(n.func, "id", "") == "value_charset_problems"
+            and n.args
+            and getattr(n.args[0], "id", "") == "record"
+            for n in _ast.walk(st)
+        )
+
+    _g_idx = [i for i, st in enumerate(_fn.body) if _is_guard(st)]
+    _c_idx = [i for i, st in enumerate(_fn.body) if _has_charset_call(st)]
+    assert len(_g_idx) == 1, f"函数体顶层的非 dict 守卫不唯一 ⇒ 本门的推理前提没了: {_g_idx}"
+    assert _c_idx, "字符轴调用不在函数体顶层 ⇒ 守卫不一定支配它，本门的推理前提没了"
+    assert _g_idx[0] < min(_c_idx), f"守卫必须排在字符轴调用之前: 守卫 #{_g_idx[0]} vs 调用 #{min(_c_idx)}"
+    _g = _fn.body[_g_idx[0]]
+    assert isinstance(_g, _ast.If)  # `_is_guard` 已保证，这里让类型检查器也知道
+    assert len(_g.body) == 1 and isinstance(_g.body[0], _ast.Return) and not _g.orelse, (
+        "非 dict 守卫必须**立即返回**（否则它不阻断后续语句）"
+    )
+    # ① 任何 Store 上下文的 `record` 都算重绑（含海象 / for / with / 推导式）
+    _rebind = [
+        n.lineno
+        for n in _ast.walk(_fn)
+        if isinstance(n, _ast.Name) and isinstance(n.ctx, _ast.Store) and n.id == "record"
+    ]
+    _rebind += [n.lineno for n in _ast.walk(_fn) if isinstance(n, _ast.ExceptHandler) and n.name == "record"]
+    assert not _rebind, f"`record` 在函数体内被重新绑定 ⇒ dict 保证失效: {_rebind}"
+
+    # 行为面：非 dict 一律被早退守卫拦下，够不到字符轴
+    for _bad in ("字符串", 123, None, ["列表"], (1, 2), True, b"bytes"):
+        assert _m.validate_record_full(_bad)[0] == ["顶层必须是 JSON object"], f"早退守卫没兜住 {_bad!r}"
+        assert _m.value_charset_problems(_bad) == [], f"直调非 dict 应返回空表（防御性分支）: {_bad!r}"
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "写点缺口（Codex round-1 HIGH，CARD-CX-G3-2c-C-R1 实测复现）："
+        "self_confidence_norm 未经类型/取值检查就**裸插值**进 receipt YAML "
+        "(quiz-answer/SKILL.md:1320 读、:1408 拼)，可改掉新 receipt 条目的 event_id；"
+        "此后原样重跑与下一次正常评分全部 rc=1，该节点评不了分。"
+        "本卡硬边界禁改 quiz-answer SKILL.md 语义 ⇒ **移交写点边界卡**。"
+        "修好后本门 XPASS(strict) 会报红，提醒把它转正。"
+    ),
+)
+def test_g32ccr1_self_confidence_norm_must_not_forge_receipt_identity(vault):
+    """receipt 的身份不能被一个**自评分数**字段改写。
+
+    这是本卡「三段防线覆盖 receipt 全部 14 键」这句声明的**反例**：
+    `self_confidence_norm` 既不走 `q_()`、也没有类型约束，`{scn_}` 直接进 YAML。
+    期望行为二选一：写点拒（零写），或者写进去但 receipt 身份不变且能重跑。
+    """
+    import yaml as _y2
+
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (vault / "learning_events.jsonl").unlink(missing_ok=True)
+    pA = _payload(
+        event_id="板戊#q1",
+        ts=TS1,
+        review_time=TS1,
+        exam_board="检验白板/板戊.md",
+        self_confidence_norm='0.5\n    event_id: "quiz:injected"',
+    )
+    r = _run_writer_settled(vault, pA)
+    if r.returncode != 0:
+        assert len(_ledger_lines(vault)) == 0, "拒绝 ⇒ 零写"
+        return
+    _log = _y2.safe_load((vault / NODE_REL).read_text(encoding="utf-8").split("---")[1])["calibration_log"]
+    assert _log[-1]["event_id"] == "quiz:板戊#q1", (
+        f"⛔ receipt 身份被 self_confidence_norm 注入改写: {_log[-1].get('event_id')!r}"
+    )
+    r2 = _run_writer_settled(vault, dict(pA))
+    assert r2.returncode == 0, f"⛔ 原样重跑被拒 ⇒ 该节点砖化: {(r2.stderr or '')[-300:]}"
 
 
 def test_g32cc_depth_two_sides_agree_across_levels(vault):
@@ -6032,6 +6419,27 @@ def test_g32cc_markerless_legacy_bare_exponent_agrees(vault):
     assert len(_ledger_lines(vault)) == n0 and _write_face(vault) == face, "拒绝 ⇒ 零写"
 
 
+def _first_calibration_entry_block(text: str) -> str:
+    """frontmatter 里 `calibration_log:` 下**第一条**条目的完整字节块（含结束边界）。
+
+    ⛔ CARD-CX-G3-2c-C-R1（Codex round-1 MEDIUM）：拿「原块是不是子串」当
+    「整条逐字节」用，等于**没有结束边界**的前缀比较——在原块末尾追加一行，
+    子串判据依然成立。要证明「这一条一个字节都没变」，必须把**变更后**那一条
+    也按边界切出来整块比。
+    """
+    _fmt = text.split("---")[1]
+    _lines = _fmt.split("\n")
+    _h = next(i for i, ln in enumerate(_lines) if ln.startswith("calibration_log:"))
+    _i0 = _h + 1
+    assert _i0 < len(_lines) and _lines[_i0].startswith("  - "), (
+        f"calibration_log 第一条的形态不是 block list ⇒ 本 helper 的前提没了: {_lines[_i0 : _i0 + 1]!r}"
+    )
+    _i1 = _i0 + 1
+    while _i1 < len(_lines) and _lines[_i1].startswith("    "):
+        _i1 += 1
+    return "\n".join(_lines[_i0:_i1])
+
+
 def test_g32cc_emitter_rebuild_never_mutates_existing_entries(vault):
     """重建已有条目必须**逐字节不变**，且 B 必须照常入账。
 
@@ -6044,6 +6452,9 @@ def test_g32cc_emitter_rebuild_never_mutates_existing_entries(vault):
     - 它**会逐字进入 receipt**（`entry_` 里经 `q_()` 编码）；
     - 但它**不在账本 payload 键集里**，因此不受 §6.1 字符轴约束（那是字段级的），
       仍然是合法输入 —— 这正是本卡收窄适用面后**仍然可用**的敌意载体。
+
+    ⚠️ **R1 补强**：判据①原为子串包含，对「行被复制」「行位移」双盲
+    （负控 E1/E2 实测 SURVIVED）——现改为「整条逐字节 + 出现次数 + 行序」。
 
     ⚠️ 判据也补了两条（上一版只比 PyYAML 解析后的 dict）：
     ① **逐字节**比较 A 那一行（dict `==` 既非字节比较也非类型敏感：
@@ -6073,6 +6484,8 @@ def test_g32cc_emitter_rebuild_never_mutates_existing_entries(vault):
         f"载体前提变了：self_confidence_raw 进了账本 payload ⇒ 会被字符轴拒，这道门要换载体: {sorted(_rec['payload'])}"
     )
     _snap_A = _carrier[0]  # A 那一行的原始字节形态
+    # ⛔ CARD-CX-G3-2c-C-R1: 只记「那一行」不够 —— 见下面判据①的说明。
+    _blk_A = _first_calibration_entry_block(nd_before)  # A 整条，含结束边界
 
     # ── B 追加：会触发对 A 那条的**重建** ──
     n0 = len(_ledger_lines(vault))
@@ -6088,13 +6501,31 @@ def test_g32cc_emitter_rebuild_never_mutates_existing_entries(vault):
     )
     assert len(_ledger_lines(vault)) == n0 + 1, "B 必须入账"
 
-    # ── ① 逐字节：A 那一行不得有任何变化 ──
+    # ── ① 逐字节 + 出现次数 + 行序：A 那一条不得有任何变化 ──
+    # ⛔ CARD-CX-G3-2c-C-R1: 上一版只写 `assert _snap_A in nd_after` ——
+    # **子串包含**对「行被复制」与「行位移」双盲，两个变异实测都 SURVIVED
+    # （`backend/scripts/g32ccr1_negative_controls.py` 的 E1/E2）：
+    #   · 复制成两行 ⇒ 同一映射里出现重复键，PyYAML `safe_load` 取最后一个，
+    #     于是生产自身的 `_canon_tree(_kept)` 逐条比较**相等**、条目数也对；
+    #   · 键序重排 ⇒ 那一行的字节一模一样，只是挪了位置，dict 比较对键序不敏感。
+    # 两条都能溜过生产自检，也能溜过原判据。补两个维度堵上：
+    #   ① 出现次数恰为 1（挡复制）；② A 的**整条**逐字节相同且仍紧跟在
+    #   `calibration_log:` 之后（挡位移与键序重排，也挡「A 被挪到 B 后面」）。
     nd_after = (vault / NODE_REL).read_text(encoding="utf-8")
-    assert _snap_A in nd_after, (
-        f"⛔ 追加 B 之后 A 的 receipt 那一行被改动了（逐字节比较）\n"
-        f"原: {_snap_A!r}\n"
-        f"现: {[ln for ln in nd_after.split(chr(10)) if 'self_confidence_raw' in ln]!r}"
+    assert nd_after.count(_snap_A) == 1, (
+        f"⛔ A 的 receipt 载体行出现 {nd_after.count(_snap_A)} 次（须恰好 1 次）——"
+        f"重复键会让读侧只看见最后一个，历史 receipt 静默变形\n"
+        f"原: {_snap_A!r}"
     )
+    # ⛔ round-1 MEDIUM 再收窄：`_blk_A in nd_after` 仍是**没有结束边界**的
+    # 前缀比较 —— 在 A 末尾追加一个同值重复键（`abandoned: false`），原块依旧
+    # 是子串、依旧紧跟 header、载体行也依旧只出现一次，实测门 PASS 而那个键的
+    # 行数从 2 变 3。所以要把**变更后**那一条也按边界切出来，两边整块相等才算。
+    _blk_A_after = _first_calibration_entry_block(nd_after)
+    assert _blk_A_after == _blk_A, (
+        f"⛔ 追加 B 之后 A 那一条被改动了（整条逐字节，含结束边界）\n原: {_blk_A!r}\n现: {_blk_A_after!r}"
+    )
+    assert ("calibration_log:\n" + _blk_A + "\n") in nd_after, "A 必须仍是 calibration_log 的第一条"
 
     # ── ② 类型保真：dict `==` 挡不住 int→bool，这里显式比类型 ──
     import yaml as _y
@@ -6111,11 +6542,22 @@ def test_g32cc_emitter_rebuild_never_mutates_existing_entries(vault):
     _att_re = re.search(r"^attempt_count:\s*(\d+)", _fm(vault), re.M)
     _att0 = int(_att_re.group(1)) if _att_re else None
     r = _run_writer_settled(vault, dict(pA))
+    # ⛔ CARD-CX-G3-2c-C-R1（Codex round-1 MEDIUM）：只比「attempt 不增加」是
+    # **粗判据** —— 直接拒绝也满足它。实测在真实 F1-only 成功出口前插一句
+    # `raise SystemExit`，writer rc=[0,0,1] 而本门照样 PASS。先钉住 rc=0。
+    assert r.returncode == 0, (
+        f"⛔ 恢复没有成功（rc={r.returncode}）—— 「attempt 不增加」被**拒绝**满足了，"
+        f"那不是幂等，是这条恢复路径坏了: {(r.stderr or '')[-400:]}"
+    )
     _att_re2 = re.search(r"^attempt_count:\s*(\d+)", _fm(vault), re.M)
     _att1 = int(_att_re2.group(1)) if _att_re2 else None
     assert _att0 is not None and _att1 == _att0, (
         f"⛔ 二次计分：attempt_count {_att0} → {_att1}（同一次评分被算了两遍）; rc={r.returncode}"
     )
+    import yaml as _y3
+
+    _log3 = _y3.safe_load((vault / NODE_REL).read_text(encoding="utf-8").split("---")[1])["calibration_log"]
+    assert len(_log3) == 2, f"恢复重跑不得改动 receipt 条目数（期望 2，实见 {len(_log3)}）"
 
 
 def test_g32cc_noncharacters_rejected_and_bmp_plus_still_ok():
