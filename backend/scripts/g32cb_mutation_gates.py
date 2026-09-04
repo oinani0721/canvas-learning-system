@@ -105,8 +105,8 @@ MUTATIONS = [
         "M6",
         "拆掉字符轴判据：非规范码点（NEL/LS/PS/C1/DEL/孤立代理）不再被拒（CARD-G3-2c-C）",
         VALIDATOR,
-        "                    if lo <= cp <= hi:",
-        "                    if False:  # MUTANT M6 拆掉字符轴判据",
+        "            if lo <= cp <= hi:",
+        "            if False:  # MUTANT M6 拆掉字符轴判据",
         "test_g32cc_charaxis_nonconforming_codepoints_rejected",
     ),
     (
@@ -125,7 +125,7 @@ MUTATIONS = [
         "    (0x2028, 0x2029),\n"
         "    (0x0090, 0x0090),\n"
         "    (0x007F, 0x007F),",
-        "test_g32cc_charaxis_forbidden_set_is_closed_by_ranges",
+        "test_g32cc_forbidden_set_matches_expected_exactly",
     ),
 ]
 

@@ -5818,27 +5818,131 @@ def test_g32cc_charaxis_normal_text_still_accepted(vault):
     assert r.returncode == 0, f"⛔ 合法中文板名被误拒: {(r.stderr or '')[-300:]}"
 
 
-def test_g32cc_charaxis_forbidden_set_is_closed_by_ranges():
-    """禁止集必须按**码点区间**定义（闭合），不是枚举（开放）。
+def _expected_forbidden_codepoints() -> set:
+    """**独立**构造的禁止码点期望集 —— 不从实现读区间（读了就是自证）。
 
-    ⛔ 这是本卡原则的可执行判据：枚举漏一个就等于没有。逐个抽查区间内的
-    **非样例**码点 —— 它们从没在任何一轮 round 里被点名过，但必须一样被拒。
+    ⛔ 这一版是 Codex round-1 MEDIUM 的整改：上一版从实现读区间再抽样几个点，
+    实测把实现换成"仅枚举当前测试触达的 47 个单点"，9 道门仍全绿 ——
+    抽样黑名单证明不了"闭合"。现在写死全集，逐个比对。
+    """
+    s = set(range(0x00, 0x20))  # C0
+    s.add(0x7F)  # DEL
+    s |= set(range(0x80, 0xA0))  # C1
+    s |= {0x2028, 0x2029}  # 行/段分隔符
+    s |= set(range(0xD800, 0xE000))  # 代理码位
+    s |= set(range(0xFDD0, 0xFDF0))  # noncharacters（连续段）
+    for _plane in range(17):  # 每平面末两个 noncharacter
+        s |= {0x10000 * _plane + 0xFFFE, 0x10000 * _plane + 0xFFFF}
+    return s
+
+
+def test_g32cc_forbidden_set_matches_expected_exactly():
+    """禁止集必须与**独立期望表逐点相等** —— 全量 2181 个，不是抽样。
+
+    ⛔ 为什么必须全量：禁止集的价值在于"闭合"，而抽样只能证明"抽到的那几个被拒"。
+    Codex 实测：实现换成"仅枚举测试触达的 47 个单点"时，抽样版门全绿，
+    却漏放 `U+0000`、`U+0002`、`U+DFFF`、`U+FDD1`。
+    判据必须是**集合相等**：多拒一个（误拒）和少拒一个（漏网）都要红。
     """
     _m = _validator_mod()
-    # 每个区间取几个「没人点过名」的码点
-    for _cp in (0x01, 0x0B, 0x1F, 0x7F, 0x80, 0x9F, 0x2028, 0x2029):
-        _probs = _m.value_charset_problems({"payload": {"exam_board": f"x{chr(_cp)}y"}})
-        assert _probs, f"区间内码点 U+{_cp:04X} 未被拒 —— 禁止集不闭合（写成枚举了？）"
-        assert f"U+{_cp:04X}" in _probs[0], f"拒因须报出具体码点 U+{_cp:04X}: {_probs}"
-    # 孤立代理：只可能出现在**内存中的 record**（账本是 UTF-8，编不出这种字节）
-    _lone = "x\ud800y"
-    _probs = _m.value_charset_problems({"payload": {"exam_board": _lone}})
-    assert _probs and "U+D800" in _probs[0], f"孤立代理必须被拒并报码点: {_probs}"
-    # 边界外必须放行（区间端点 off-by-one 的验伪锚）
-    for _cp in (0x20, 0x7E, 0xA0, 0x2027, 0x202A):
-        assert _m.value_charset_problems({"payload": {"exam_board": f"x{chr(_cp)}y"}}) == [], (
-            f"区间外码点 U+{_cp:04X} 被误拒 —— 区间端点写错"
-        )
+    expected = _expected_forbidden_codepoints()
+    assert len(expected) == 2181, f"期望表自身算错了: {len(expected)}"
+
+    # 实现认为被禁的码点集合（从区间展开，但区间是实现的产物，比对的是最终集合）
+    actual = set()
+    for lo, hi in _m.FORBIDDEN_CODEPOINT_RANGES:
+        actual |= set(range(lo, hi + 1))
+
+    missing = sorted(expected - actual)
+    extra = sorted(actual - expected)
+    assert not missing, f"漏网 {len(missing)} 个码点，前 8 个: {[f'U+{c:04X}' for c in missing[:8]]}"
+    assert not extra, f"多拒 {len(extra)} 个码点（误拒面），前 8 个: {[f'U+{c:04X}' for c in extra[:8]]}"
+
+
+def test_g32cc_every_forbidden_codepoint_actually_rejected():
+    """**逐个**跑 `value_charset_problems()`，全部 2181 个都必须被拒并报出自己的码点。
+
+    ⚠️ 与上一道门的分工：那道比的是"区间展开后的集合"，本门比的是**函数的实际行为** ——
+    区间对了但遍历写坏（例如漏掉 dict 键）时，只有本门会红。
+    """
+    _m = _validator_mod()
+    bad = []
+    for cp in sorted(_expected_forbidden_codepoints()):
+        probs = _m.value_charset_problems({"payload": {"exam_board": f"x{chr(cp)}y"}})
+        if not probs or f"U+{cp:04X}" not in probs[0]:
+            bad.append(cp)
+    assert not bad, f"{len(bad)} 个禁止码点未被拒或未报出码点，前 8 个: {[f'U+{c:04X}' for c in bad[:8]]}"
+
+
+def test_g32cc_boundary_neighbours_all_allowed():
+    """每个禁止区间的**两侧邻点**都必须放行 —— off-by-one 的全量验伪锚。"""
+    _m = _validator_mod()
+    expected = _expected_forbidden_codepoints()
+    neighbours = set()
+    for cp in expected:
+        for n in (cp - 1, cp + 1):
+            if 0 <= n <= 0x10FFFF and n not in expected:
+                neighbours.add(n)
+    assert len(neighbours) > 20, f"邻点太少（{len(neighbours)}），验伪锚没铺开"
+    bad = [cp for cp in sorted(neighbours) if _m.value_charset_problems({"payload": {"exam_board": f"x{chr(cp)}y"}})]
+    assert not bad, f"{len(bad)} 个边界邻点被误拒，前 8 个: {[f'U+{c:04X}' for c in bad[:8]]}"
+
+
+def test_g32cc_charset_traverses_all_container_shapes():
+    """遍历必须覆盖 **dict 键 / dict 值 / list / tuple 嵌套**。
+
+    ⛔ Codex 实测：删掉 dict 键与 list/tuple 遍历后，7 道门仍全绿 —— 没有门看着它。
+    `exam_board` 的双编码形态可以是任意 JSON 值，容器里的字符串同样要查。
+    """
+    _m = _validator_mod()
+    NEL = chr(0x85)
+    shapes = (
+        ({"payload": {"exam_board": [f"a{NEL}b"]}}, "list 元素"),
+        ({"payload": {"exam_board": {"k": f"a{NEL}b"}}}, "dict 值"),
+        ({"payload": {"exam_board": {f"k{NEL}": "v"}}}, "dict 键"),
+        ({"payload": {"exam_board": [[{"deep": f"a{NEL}"}]]}}, "嵌套 list+dict"),
+        ({"payload": {"exam_board": [1, None, True, f"x{NEL}"]}}, "混合类型 list"),
+    )
+    for rec, why in shapes:
+        probs = _m.value_charset_problems(rec)
+        assert probs and "U+0085" in probs[0], f"{why} 里的非规范码点漏检: {rec}"
+
+
+def test_g32cc_charset_only_applies_to_identity_and_receipt_fields():
+    """⛔ 字符轴**只**施于身份键与 receipt 载体，自由文本必须放行。
+
+    这是 round-1 BLOCKER 的回归门。第一版对整条 record 施加字符轴，造成真实的
+    数据丢失路径：用户写一条**多行批注** → `tips.py` 经 `append_event`
+    （那条路不调 `validate_record_full`）把 `callout_ingested.payload.text`
+    连同 `\n` 写进账本 → 此后同一节点的**每一次评分**都在消费该行时撞 `U+000A`
+    而 fail-closed ⇒ **那个节点从此评不了分**（实测 writer rc=1、账本不增行）。
+    """
+    _m = _validator_mod()
+    NEL, LF = chr(0x85), "\n"
+    # ── 自由文本：放行 ──
+    for rec, why in (
+        ({"payload": {"text": f"第一行{LF}第二行"}}, "多行批注（BLOCKER 的原形）"),
+        ({"payload": {"text": f"含{NEL}控制符的自由文本"}}, "自由文本含 C1"),
+        ({"payload": {"note": f"a{LF}b"}}, "其它自由字段"),
+    ):
+        assert _m.value_charset_problems(rec) == [], f"自由文本被误拒（{why}）: {rec}"
+    # ── 身份键与 receipt 载体：必拒 ──
+    for rec, why in (
+        ({"event_id": f"quiz:板{NEL}#q1"}, "event_id"),
+        ({"node_id": f"节点{NEL}"}, "node_id"),
+        ({"payload": {"vault_id": f"v{NEL}"}}, "payload.vault_id"),
+        ({"payload": {"concept_id": f"c{NEL}"}}, "payload.concept_id"),
+        ({"payload": {"exam_board": f"检验白板/板{NEL}.md"}}, "payload.exam_board"),
+    ):
+        assert _m.value_charset_problems(rec), f"身份/载体字段漏检（{why}）: {rec}"
+    # ⚠️ 严格字段表本身要与契约一致（改表必须同时改 §6.1）
+    assert set(_m.CHARSET_STRICT_FIELDS) == {
+        ("event_id",),
+        ("node_id",),
+        ("payload", "vault_id"),
+        ("payload", "concept_id"),
+        ("payload", "exam_board"),
+    }, f"严格字段表变了却没同步本门与 §6.1: {_m.CHARSET_STRICT_FIELDS}"
 
 
 def test_g32cc_depth_two_sides_agree_across_levels(vault):
