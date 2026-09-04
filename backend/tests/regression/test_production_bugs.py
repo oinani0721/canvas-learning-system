@@ -12,6 +12,35 @@ Re-generate:
 """
 
 import pytest
+from unittest.mock import MagicMock
+
+
+@pytest.fixture(autouse=True)
+def stub_lazy_service_dependencies():
+    """覆盖 agents/canvas 链路上会惰性初始化 MemoryService 的 DI 依赖。
+
+    CARD-TEST-isolate-lifespan: 本文件的回归用例走根 conftest 的 lifespan-free
+    client，但 agents/canvas 端点的 DI 链（AgentServiceDep → CanvasService →
+    MemoryService）会在**请求期**惰性 initialize 并对 NEO4J_URI 真跑 driver
+    health_check（Codex round-1 HIGH 实测）。这些用例只断言「结构化错误、
+    不 500」，不消费服务行为 —— 覆盖为哑对象。
+    """
+    from app.dependencies import get_canvas_service
+    from app.main import app
+    from app.services.memory_service import get_memory_service
+
+    saved = {
+        get_canvas_service: app.dependency_overrides.get(get_canvas_service),
+        get_memory_service: app.dependency_overrides.get(get_memory_service),
+    }
+    app.dependency_overrides[get_canvas_service] = lambda: MagicMock()
+    app.dependency_overrides[get_memory_service] = lambda: MagicMock()
+    yield
+    for dep, original in saved.items():
+        if original is None:
+            app.dependency_overrides.pop(dep, None)
+        else:
+            app.dependency_overrides[dep] = original
 
 
 # ════════════════════════════════════════════════════════════════
@@ -46,8 +75,7 @@ def test_bug_bug_84f00404(client):
     response = client.post("/api/v1/agents/decompose/basic", json={})
     # The endpoint must return a structured error (4xx), never crash (500).
     assert response.status_code != 500, (
-        f"Endpoint /api/v1/agents/decompose/basic returned 500 — regression of bug_84f00404: "
-        f"{response.text[:200]}"
+        f"Endpoint /api/v1/agents/decompose/basic returned 500 — regression of bug_84f00404: {response.text[:200]}"
     )
 
 
@@ -60,8 +88,7 @@ def test_bug_bug_6b8d0e19(client):
     response = client.post("/api/v1/agents/decompose/basic", json={})
     # The endpoint must return a structured error (4xx), never crash (500).
     assert response.status_code != 500, (
-        f"Endpoint /api/v1/agents/decompose/basic returned 500 — regression of bug_6b8d0e19: "
-        f"{response.text[:200]}"
+        f"Endpoint /api/v1/agents/decompose/basic returned 500 — regression of bug_6b8d0e19: {response.text[:200]}"
     )
 
 
@@ -74,8 +101,7 @@ def test_bug_bug_33d715c2(client):
     response = client.post("/api/v1/agents/decompose/deep", json={})
     # The endpoint must return a structured error (4xx), never crash (500).
     assert response.status_code != 500, (
-        f"Endpoint /api/v1/agents/decompose/deep returned 500 — regression of bug_33d715c2: "
-        f"{response.text[:200]}"
+        f"Endpoint /api/v1/agents/decompose/deep returned 500 — regression of bug_33d715c2: {response.text[:200]}"
     )
 
 
@@ -88,8 +114,7 @@ def test_bug_bug_5f4bdf2e(client):
     response = client.post("/api/v1/agents/decompose/deep", json={})
     # The endpoint must return a structured error (4xx), never crash (500).
     assert response.status_code != 500, (
-        f"Endpoint /api/v1/agents/decompose/deep returned 500 — regression of bug_5f4bdf2e: "
-        f"{response.text[:200]}"
+        f"Endpoint /api/v1/agents/decompose/deep returned 500 — regression of bug_5f4bdf2e: {response.text[:200]}"
     )
 
 
@@ -102,8 +127,7 @@ def test_bug_bug_85cef22c(client):
     response = client.post("/api/v1/rag/query", json={})
     # The endpoint must return a structured error (4xx), never crash (500).
     assert response.status_code != 500, (
-        f"Endpoint /api/v1/rag/query returned 500 — regression of bug_85cef22c: "
-        f"{response.text[:200]}"
+        f"Endpoint /api/v1/rag/query returned 500 — regression of bug_85cef22c: {response.text[:200]}"
     )
 
 
@@ -116,8 +140,7 @@ def test_bug_bug_d9da1d77(client):
     response = client.post("/api/v1/agents/recommend-action", json={})
     # The endpoint must return a structured error (4xx), never crash (500).
     assert response.status_code != 500, (
-        f"Endpoint /api/v1/agents/recommend-action returned 500 — regression of bug_d9da1d77: "
-        f"{response.text[:200]}"
+        f"Endpoint /api/v1/agents/recommend-action returned 500 — regression of bug_d9da1d77: {response.text[:200]}"
     )
 
 

@@ -1,0 +1,16 @@
+CARD-G4-4b 变异负控 — 3 条, 串行
+
+[M1-去subject子句] ✓ 指定门变红 (exit=1)
+    门: test_subject_math_drops_physics_neighbor
+    失败身份: E   AssertionError: 跨 subject 邻居未被丢弃: 起点 [[共享板]] | MATH_ONLY 数学内容 | PHYS_ONLY 物理内容
+
+[M2-去转义] ✓ 指定门变红 (exit=1)
+    门: test_single_quote_injection_does_not_break_where
+    失败身份: E   AssertionError: 注入撑开了 where: 起点 [[共享板]] | MATH_ONLY 数学内容 | PHYS_ONLY 物理内容
+    失败身份: E   AssertionError: 注入撑开了 where: 起点 [[共享板]] | MATH_ONLY 数学内容 | PHYS_ONLY 物理内容
+
+[M3-调用点不透传] ✓ 指定门变红 (exit=1)
+    门: test_neighbor_expansion_respects_subject_boundary
+    失败身份: E   AssertionError: math 请求的邻居扩展带入了 physics 板内容 —— 同 vault 跨 subject 泄漏回归了。收口点: lancedb_client.expand_neighbors 的 where 应含 AND subject = '<escaped>' (
+
+ALL 3 MUTATIONS KILLED THEIR GATES (exit=1 only) ✓

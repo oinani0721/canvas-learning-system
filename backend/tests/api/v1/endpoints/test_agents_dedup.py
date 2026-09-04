@@ -13,10 +13,13 @@ from typing import Generator
 from unittest.mock import patch
 
 import pytest
+from unittest.mock import MagicMock
+
 from app.core.request_cache import request_cache
 from app.main import app
 from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
+from tests.support.lifespan import no_lifespan
 
 
 @pytest.fixture(autouse=True)
@@ -27,10 +30,38 @@ def clear_request_cache():
     request_cache.clear()
 
 
+@pytest.fixture(autouse=True)
+def stub_canvas_service_dependency():
+    """把会惰性初始化 MemoryService 的依赖换成哑对象。
+
+    CARD-TEST-isolate-lifespan: agents 路由的 DI 链有两条会触达
+    ``get_memory_service()`` —— ``dependencies.get_canvas_service`` 与
+    ``get_memory_service`` 本身。MemoryService 首次 initialize 会对
+    NEO4J_URI 真跑 driver health_check（进程内首个 HTTP 请求触发）。
+    本文件的断言只关心去重 409/200 信封，这两个服务从不参与 ——
+    dependency_overrides 覆盖掉即可消掉这条请求期连接。
+    """
+    from app.dependencies import get_canvas_service
+    from app.services.memory_service import get_memory_service
+
+    saved = {
+        get_canvas_service: app.dependency_overrides.get(get_canvas_service),
+        get_memory_service: app.dependency_overrides.get(get_memory_service),
+    }
+    app.dependency_overrides[get_canvas_service] = lambda: MagicMock()
+    app.dependency_overrides[get_memory_service] = lambda: MagicMock()
+    yield
+    for dep, original in saved.items():
+        if original is None:
+            app.dependency_overrides.pop(dep, None)
+        else:
+            app.dependency_overrides[dep] = original
+
+
 @pytest.fixture
 def client() -> Generator[TestClient, None, None]:
     """Create a test client."""
-    with TestClient(app) as c:
+    with no_lifespan(app), TestClient(app) as c:
         yield c
 
 
@@ -45,12 +76,8 @@ class TestDedupEndpointResponses:
         request_cache.mark_in_progress(cache_key)
 
         # Mock dependencies to avoid actual service calls
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as ac:
-            with patch(
-                "app.api.v1.endpoints.agents.check_duplicate_request"
-            ) as mock_check:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            with patch("app.api.v1.endpoints.agents.check_duplicate_request") as mock_check:
                 # Simulate 409 from check_duplicate_request
                 from fastapi import HTTPException
 
@@ -79,12 +106,8 @@ class TestDedupEndpointResponses:
         cache_key = request_cache.get_key("test.canvas", "node123", "explain_oral")
         request_cache.mark_in_progress(cache_key)
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as ac:
-            with patch(
-                "app.api.v1.endpoints.agents.check_duplicate_request"
-            ) as mock_check:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            with patch("app.api.v1.endpoints.agents.check_duplicate_request") as mock_check:
                 from fastapi import HTTPException
 
                 mock_check.side_effect = HTTPException(

@@ -171,3 +171,14 @@ pydub>=0.25.1
 pillow>=12.3.0
 # ✅ NFR Quick Win #1: Dependency vulnerability scanning
 pip-audit>=2.7.0
+
+# ==========================================================
+# Markdown parsing (CARD-G8-2b / r12 M1)
+# ==========================================================
+# backend/scripts/vault_lint.py::_wikilink_targets 用它做 orphan 检查的
+# block/inline token 分层 (fence / code_block / html_block 整块不扫)。
+# 此前只经 fastapi-mcp → rich 的**传递依赖**提供 = 隐式依赖: 上游换掉 rich、
+# 或 rich 放宽下界让 mdit 漂到 3.x, lint 会在 clean install 上以 rc=3 罢工
+# 而 requirements 里查不到任何线索。与 pillow 同一处置口径 (曾是 moviepy 的
+# 未声明传递依赖, 后显式声明)。
+markdown-it-py>=4.0.0

@@ -62,6 +62,37 @@ _lancedb_client: Optional[LanceDBClient] = None
 _temporal_client: Optional[TemporalClient] = None
 
 
+def _warn_subject_scope_mismatch(state: CanvasRAGState, *, logger_ctx: str) -> None:
+    """CARD-G4-4: state["subject"] 与请求级 VaultScope 二级一致性哨兵。
+
+    rag 端点经 ``resolve_vault_scope`` 注入 ContextVar (group 含二级 =
+    请求 subject_id); ``rag_service.query`` 又把同一 subject_id 写进
+    ``state["subject"]`` —— 两者同源 (同一请求字段), 正常路径恒一致。
+    本检查是哨兵而非门: 若未来某调用方往 state["subject"] 塞了与请求
+    作用域不同的值 (如经 query_with_fallback 旁路), 在此显式告警而非
+    静默分裂 —— 检索链用 state["subject"], 记忆注入用 ContextVar, 分裂
+    会让两条链落到不同作用域。哨兵自身不得成为业务失败源, 任何异常吞掉。
+    """
+    try:
+        from app.core.subject_config import sanitize_subject_name
+        from app.core.vault_scope import current_group_id
+
+        subject = state.get("subject")
+        if not subject:
+            return
+        parts = current_group_id().split(":")
+        if len(parts) >= 3 and parts[2] and parts[2] != sanitize_subject_name(str(subject)):
+            logger.warning(
+                "[%s] state.subject=%r 与请求级 VaultScope 二级 %r 不一致 — "
+                "检索链与记忆注入可能落在不同作用域 (CARD-G4-4 哨兵)",
+                logger_ctx,
+                subject,
+                parts[2],
+            )
+    except Exception as e:  # noqa: BLE001 — 哨兵失败只损失告警
+        logger.debug("[%s] subject-scope sentinel skipped: %s", logger_ctx, e)
+
+
 def _safe_get_config(runtime: Runtime[CanvasRAGConfig], key: str, default: Any = None) -> Any:
     """
     Safely access runtime context with None protection.
@@ -202,6 +233,7 @@ async def retrieve_graphiti(state: CanvasRAGState, runtime: Runtime[CanvasRAGCon
     )
     canvas_file = state.get("canvas_file")
     subject = state.get("subject")
+    _warn_subject_scope_mismatch(state, logger_ctx="retrieve_graphiti")
 
     # Story 1.9: Build scoped group_id for Graphiti search isolation.
     # When subject is set, use build_group_id to scope the search.
@@ -291,6 +323,7 @@ async def retrieve_lancedb(state: CanvasRAGState, runtime: Runtime[CanvasRAGConf
     neighbor_score_decay = _safe_get_config(runtime, "neighbor_score_decay", 0.7)
     canvas_file = state.get("canvas_file")
     subject = state.get("subject")
+    _warn_subject_scope_mismatch(state, logger_ctx="retrieve_lancedb")
 
     # Story 2.4: Extract course_id and tags from state for pre-filtering
     course_id = state.get("course_id")
@@ -374,11 +407,49 @@ async def retrieve_lancedb(state: CanvasRAGState, runtime: Runtime[CanvasRAGConf
             lancedb_results.extend(subject_results)
 
         # Story 2-8 H2: 1-hop wiki-link neighbor expansion on search results
+        # CARD-G4-4 Codex round-1 BLOCKER-1: expand_neighbors 内部直接
+        # open_table(传入名), 不走作用域解析 —— 原固定传裸 "vault_notes" 会让
+        # 邻居扩展绕过 vault 命名空间、从裸 legacy 表带回其他 vault 的内容
+        # (真库反例复现)。邻居应从**被检索的同一张表**扩展: 主链
+        # search_multiple_tables 默认查 DEFAULT_TABLES=["canvas_nodes"],
+        # 这里显式 resolve 同一张表 (同一 ContextVar 解析源)。
+        # ⚠️ 原值 "vault_notes" 与 DEFAULT_TABLES 脱节属存量缺陷, 本卡一并统一。
+        # CARD-G4-4a 移植更正 (Codex round-4 HIGH-5): 上一版此处写「resolve 的
+        # 裸表回退 (B0.7) 是 lancedb_client 既有语义 (V5 未合面), 其收敛登记
+        # 移交」—— 那是在 V5 未合的车道上写的, 移到主干 1f249b33 后**已失效**:
+        # V5 (G2-4+G2-5) 已 squash 合入 (9e238dc5), resolve_table_name 的 B0.7
+        # 裸表回退**已删除**, 非 default vault 恒返回 prefixed 名, 已无「可能
+        # 回退到裸表」的语义, 也无待移交的收敛项。
+        # 泄漏面仍真实存在于 expand_neighbors 自身 —— 它不调 resolve_table_name,
+        # 直接 open_table(传入名); 变异 M6 实测该门仍杀。
+        # CARD-G4-4b: 透传请求学科 —— 邻居扩展此前 LIKE 整张 vault 表, 同 vault
+        # 内跨 subject 的邻居会被带回 (4a 以 xfail(strict) 锁住的已知缺陷)。
+        # 缺省 (None) 时 expand_neighbors 行为与本卡之前逐字一致。
+        #
+        # state["subject"] 的来源与**已知缺口** (Codex round-5 HIGH-3 更正,
+        # 上一版注释把哨兵的覆盖面说宽了):
+        #   · 正常路径同源: rag.py 把**同一个** request.subject_id 既传给
+        #     resolve_vault_scope (:322) 也传给 rag_service.query (:352)。
+        #   · ⚠️ 但**空串**是反例: subject_id="" 时 resolve_vault_scope 会
+        #     改走 canvas 二级 (subject_config.py), 而 state["subject"] 保留 ""
+        #     —— 两者此时**不同源**, 且 _warn_subject_scope_mismatch 在
+        #     `if not subject: return` (本文件 :81) 处**早退, 不告警**。
+        #     后果仅是「不按 subject 过滤」(与主检索 :341 的
+        #     `[subject] if subject else [None]` 同口径), 不是泄漏。
+        #   · 非空值的分裂才由哨兵告警; 哨兵是告警不是门 (不抛错)。
+        #
+        # ⚠️ cross_subject=True 时本行会过度收窄 (Codex round-5 MEDIUM-4):
+        # 主检索按 subjects_to_search 多值扩展 (:341/:350), 而邻居扩展在该
+        # 循环**之外**只调一次、传原始单值 —— 桥接学科结果行的邻居会被丢弃。
+        # CRAG 回退路径 (deep_research 置 cross_subject=True + state_graph
+        # 重跑检索) 上自动可达。正解是传 subjects_to_search + where 用
+        # subject IN (...), 超出本卡单值形参口径, 已登记移交 (G4-4b-R2)。
         lancedb_results = await client.expand_neighbors(
             results=lancedb_results,
-            table_name="vault_notes",
+            table_name=client.resolve_table_name("canvas_nodes"),
             max_neighbors=neighbor_max_count,
             score_decay=neighbor_score_decay,
+            subject=state.get("subject"),
         )
 
         # Deduplicate by doc_id, keeping highest score
@@ -1772,8 +1843,15 @@ async def compress_context_node(state: CanvasRAGState, runtime: Runtime[CanvasRA
             # 跨 vault 泄漏。范式同 chat.py:290-297。
             memory_group_id = None
             try:
-                from app.config import get_current_vault_id
+                # CARD-G4-4: 改读**请求级** VaultScope (app.core.vault_scope)。
+                # 原先经 app.config 的进程级读取口拿的是 active vault ——
+                # 请求作用域与进程级在 hook-cwd 等合法场景下可不同, 且请求级
+                # 二级 (subject) 不会反映到这里。
+                # current_vault_id() 读 ContextVar 已注入 group 的 vault 段
+                # (请求路径恒已注入, 由 resolve_vault_scope 完成); 未注入
+                # (后台任务) 时派生 active vault, 与 G2-2 推导语义一致。
                 from app.core.subject_config import build_vault_group_id
+                from app.core.vault_scope import current_vault_id
 
                 # ⛔ P1-02 复核修正 (Codex 2026-08-19): **必须用基组, 不能传
                 # canvas_path**。tips 的写侧 _resolve_tips_group_id
@@ -1783,7 +1861,8 @@ async def compress_context_node(state: CanvasRAGState, runtime: Runtime[CanvasRA
                 # → 写基组读子组, 实算 overlap = ∅, 召回恒空。
                 # live 佐证: SelfAnnotation 112 edges / 21 nodes 全在
                 # vault__canvas_vault 基组。
-                memory_group_id = build_vault_group_id(get_current_vault_id())
+                memory_group_id = build_vault_group_id(current_vault_id())
+                _warn_subject_scope_mismatch(state, logger_ctx="compress_context")
             except Exception as gid_exc:  # noqa: BLE001
                 logger.warning(
                     "[compress_context] group_id 解析失败, 跳过学习记忆注入以免跨 vault 检索: %s",

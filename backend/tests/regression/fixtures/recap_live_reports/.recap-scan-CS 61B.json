@@ -1,0 +1,173 @@
+{
+ "board_exists": true,
+ "board_stem": "CS 61B",
+ "board_name": "CS 61B 数据结构",
+ "recap_date": "2026-08-27",
+ "report_path": "outputs/回顾-CS 61B-2026-08-27.md",
+ "data_mode": "manifest",
+ "manifest": {
+  "source": "live",
+  "source_status": "ok",
+  "degraded": false,
+  "degraded_reason": null,
+  "generated_at": "2026-08-26T22:13:21.653266+00:00",
+  "lag_seconds": 0.0,
+  "stale": false,
+  "orphans": [],
+  "orphans_count": 0,
+  "dual_source_gap": {
+   "concepts_only": [],
+   "frontmatter_only": []
+  },
+  "parse_errors_count": 0,
+  "exam_history": [
+   {
+    "exam_board_id": "CS 61B-2026-08-11-1349",
+    "created_at": "2026-08-11T13:49:24Z",
+    "status": "done",
+    "selected_node": "csm-tutoring-unit-credit",
+    "question_count": 1
+   },
+   {
+    "exam_board_id": "CS 61B-2026-08-11-1538",
+    "created_at": "2026-08-11T15:38:51Z",
+    "status": "in_progress",
+    "selected_node": "csm-tutoring-unit-credit",
+    "question_count": 1
+   }
+  ],
+  "exam_history_count": 2
+ },
+ "source_revision": {
+  "board_sha256": "c544f19530e35bc6788e6a4ea1eb17f5974237f2ac25929f35b3f57cbf590878",
+  "board_mtime_utc": "2026-08-15T00:00:21Z",
+  "scan_at_utc": "2026-08-26T22:14:12Z",
+  "manifest_generated_at": "2026-08-26T22:13:21.653266+00:00",
+  "manifest_lag_seconds": 0.0,
+  "manifest_stale": false
+ },
+ "ledger": {
+  "seeds": [
+   {
+    "node_id": "cs-61b-csm",
+    "role": "seed",
+    "role_source": "manifest",
+    "is_stub": false,
+    "mastery_score": 0.3,
+    "mastery_source": "legacy_v2",
+    "attempt_count": null,
+    "last_examined": null,
+    "created_at": null,
+    "created_from": null,
+    "pick_rank": 2,
+    "relation_type": null,
+    "relation_target": null,
+    "derived_at": null,
+    "derived_reason": null,
+    "tips": [
+     {
+      "text": "提供有针对性的 (affinity) 辅导小组，例如面向女性、LGBTQ+、EOP、SEED 或 CS Scholar 的学生 [03:21]()。",
+      "tag": "error",
+      "understanding": "fuzzy",
+      "added_at": "2026-08-10T14:50:07.564000+00:00"
+     },
+     {
+      "text": "每学期末开放申请，下学期初截止 [03:57]()。",
+      "tag": "tips",
+      "understanding": "understood",
+      "added_at": "2026-08-10T14:50:07.564000+00:00"
+     }
+    ],
+    "tips_count": 2,
+    "tips_open": 1,
+    "error_candidates_pending": 0,
+    "derived_children": [],
+    "derived_children_count": 0
+   },
+   {
+    "node_id": "csm-tutoring-unit-credit",
+    "role": "seed",
+    "role_source": "manifest",
+    "is_stub": false,
+    "mastery_score": 0.01,
+    "mastery_source": "beta",
+    "attempt_count": 1,
+    "last_examined": "2026-08-11T13:55:58+00:00",
+    "created_at": null,
+    "created_from": null,
+    "pick_rank": 1,
+    "relation_type": null,
+    "relation_target": null,
+    "derived_at": null,
+    "derived_reason": null,
+    "tips": [
+     {
+      "text": "你在考『csm-tutoring-unit-credit』时作答「111」，没说清这个节点在 CS 61B 主题下讲什么、为什么值得单独成节点。 AI 判断来源：你在回答『csm-tutoring-unit-credit』的考题时提出。原因：0 分作答暴露的概念缺口——CSM 辅导学分这一概念尚未建立起来。",
+      "tag": "question",
+      "understanding": null,
+      "added_at": "2026-08-11T13:56:49.967000+00:00"
+     }
+    ],
+    "tips_count": 1,
+    "tips_open": 1,
+    "error_candidates_pending": 0,
+    "derived_children": [],
+    "derived_children_count": 0
+   }
+  ],
+  "derived": [],
+  "unknown": []
+ },
+ "counts": {
+  "members": 2,
+  "seeds": 2,
+  "derived": 0,
+  "stubs": 0,
+  "never_examined": 1,
+  "tips_total": 3,
+  "tips_unanswered_upper_bound": 3,
+  "tips_understanding_open": 2,
+  "tips_undated": 0,
+  "body_callouts": 0,
+  "annotations": 3,
+  "relation_types": {},
+  "error_candidates_pending": 0
+ },
+ "tips_oldest3": [
+  {
+   "text": "提供有针对性的 (affinity) 辅导小组，例如面向女性、LGBTQ+、EOP、SEED 或 CS Scholar 的学生 [03:21]()。",
+   "tag": "error",
+   "understanding": "fuzzy",
+   "added_at": "2026-08-10T14:50:07.564000+00:00",
+   "node_id": "cs-61b-csm"
+  },
+  {
+   "text": "每学期末开放申请，下学期初截止 [03:57]()。",
+   "tag": "tips",
+   "understanding": "understood",
+   "added_at": "2026-08-10T14:50:07.564000+00:00",
+   "node_id": "cs-61b-csm"
+  },
+  {
+   "text": "你在考『csm-tutoring-unit-credit』时作答「111」，没说清这个节点在 CS 61B 主题下讲什么、为什么值得单独成节点。 AI 判断来源：你在回答『csm-tutoring-unit-credit』的考题时提出。原因：0 分作答暴露的概念缺口——CSM 辅导学分这一概念尚未建立起来。",
+   "tag": "question",
+   "understanding": null,
+   "added_at": "2026-08-11T13:56:49.967000+00:00",
+   "node_id": "csm-tutoring-unit-credit"
+  }
+ ],
+ "scale_gate": {
+  "member_threshold": 30,
+  "annotation_threshold": 100,
+  "over_threshold": false,
+  "detail_k": 10,
+  "detail_node_ids": null,
+  "tail_counts": null
+ },
+ "concepts_members": [
+  "cs-61b-csm",
+  "csm-tutoring-unit-credit"
+ ],
+ "previous_recap": null,
+ "unsafe_write_targets": []
+}

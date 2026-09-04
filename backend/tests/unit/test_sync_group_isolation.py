@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import re
 from typing import Any
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -264,9 +265,18 @@ class TestEndpointPhysicalGroupInjection:
         from app.main import app
         from app.services import sync_service as sync_service_module
 
+        from tests.support.lifespan import no_lifespan
+
         session = _StubSession()
         svc = sync_service_module.get_sync_service()
         monkeypatch.setattr(svc, "_driver", _StubDriver(session))
+
+        # CARD-TEST-isolate-lifespan: /sync/batch 请求期会经 schema_gate 真连
+        # NEO4J_URI（verify 失败按「未知态」放行）—— 打桩成恒放行，与本用例
+        # 关心的 Cypher 断言无关，只消掉这条请求期连接。
+        gate = MagicMock()
+        gate.block_reason = AsyncMock(return_value=None)
+        monkeypatch.setattr("app.services.schema_gate.get_canvas_schema_gate", lambda: gate)
 
         def _settings() -> Settings:
             return Settings(
@@ -281,7 +291,7 @@ class TestEndpointPhysicalGroupInjection:
 
         app.dependency_overrides[get_settings] = _settings
         try:
-            with TestClient(app) as client:
+            with no_lifespan(app), TestClient(app) as client:
                 response = client.post(
                     "/api/v1/sync/batch",
                     json={

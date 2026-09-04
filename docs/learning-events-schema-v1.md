@@ -107,6 +107,31 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
   - `fsrs_library_version` + `fsrs_params_hash`：产生本次调度结果的库版本与参数指纹。**非降级时必须与 G3-4 `backend/tests/regression/fsrs_golden_manifest.json` 的 `library_version` / `params_hash` 真值相等**（Codex round-3 HIGH：只验形状时 `999.999` + 全零 hash 可蒙混）；校验器找不到该 manifest（脚本被拷到别处独立运行）时降级为形状校验并输出 WARN。
   - **降级口径（诚实声明）**：fsrs 库不可用而评分链仍降级运行时，两键填 `"degraded:<原因>"` 哨兵（如 `degraded:fsrs-import-failed`）——禁止编造 hash、禁止留空、禁止省键；两键的 degraded 状态必须**成对**，原因非空。
 
+- **输入硬上限（CARD-G3-2c-B 加性追加；round-17 B③ 的主防线）**：任何 v1 记录的**值形状**必须满足 `嵌套深度 ≤ 64` 且 `节点总数 ≤ 200000`。超限 = **违规**，`validate_record_full` 直接判拒，不做任何"尽力解析"。
+  - ⛔ **拒绝而不是解析**：round-17 B③ 的根不是"递归实现"，而是**深层值能进账本**——512 层 `exam_board` 首写 `rc=0` 落了一行，崩溃窗重跑才炸，于是**日志记了一次、笔记零次、且重跑补不回来**（数据丢失路径）。把规范化改成显式栈只让**恢复期**不炸，那是纵深；主防线是让这种值**根本进不了账本**。
+  - **写点与校验器同源，不是"同步"**：写点在**首次 append 之前**调用 `validate_record_full` 自检（`quiz-answer/SKILL.md` 直接 import 校验器本体），因此上限只在校验器里定义一份（`MAX_VALUE_DEPTH` / `MAX_VALUE_NODES`），写点自动继承。⚠️ 这与 `EVENT_TYPES` 白名单那种"两侧各存一份 + 契约测试锁死"的做法**不同**：那里两侧无法共享代码，只能靠测试发现漂移；这里能共享，就不该留下漂移的可能。
+  - **禁"首写成功后才在恢复期拒"**：判据是**不得追加该事件记录**，不是"恢复得回来"。⚠️ 措辞收窄（Codex round-1 LOW）：原文写"账本零行"**只对空账本成立** —— A4.5 的 LF 守卫排在自检之前，若账本尾部本来就是被腰斩的半行，超限事件会先触发补 LF（账本字节数变化），随后才在自检处被拒。那一个字节属于既有的截断自愈语义，不是本次事件的记录。
+  - **深度口径**：`depth` = 从 root 到该节点的**边数**，root 自身为 0；dict 的**键与值都算子节点**，各占一层；空容器不产生子节点。⇒ 一条 64 层的嵌套链放行，65 层拒。契约测试对 64/65 与 200000/200001 四个边界写死字面值（不得只从实现读常量——那样门永远跟着实现走，看不见常量本身被改）。
+  - **环要直接判、不靠预算兜**：节点预算能保证**终止**，但报出来的拒因会是"深度超限"或"节点超限"，与真因（结构自引用）不符，上游照着查会白费。实现用 active-path identity set 直判环；预算退居第二层。
+  - **检查器自身的内存必须只随深度增长**：把整批子节点压栈、下一轮才检查预算 ⇒ 扇出 20 万的值会先构造出上百 MB 待处理栈，**检查器自己先被撑爆**。「拒得对」不等于「拒得起」，两者都是 fail-closed 的前提。
+  - **实现必须迭代、且必须有节点预算**：用递归去检查"是不是太深"，检查器会先撞 `RecursionError`，与被检查对象死在同一个坑里。而纯迭代遇到 PyYAML 锚点造出的**自引用**结构会**永远转下去**——把"炸"换成"挂"是更坏的失败模式（用户看到评分卡死，没有任何输出）。节点预算既挡"浅而宽"，也是自引用的终止保证，并且要报**真因**。
+  - **字符轴规范输入集（CARD-G3-2c-C 加性追加；默认裁决 D1，round-1 BLOCKER 后收窄适用面）**：**身份键与 receipt 载体字段**不得包含以下码点，出现即**违规**并报出具体码点（如 `U+0085`）。适用字段是**枚举的**（`validate_learning_events.py::CHARSET_STRICT_FIELDS`）：顶层 `event_id`、`node_id`；`payload` 的 `vault_id`、`concept_id`、`exam_board`（含这些字段内嵌容器里的字符串与 dict 键）。
+    - ⛔ **为什么是字段级而不是整条 record**（round-1 BLOCKER，实测复现）：第一版对整条 record 施加字符轴，制造了一条**真实的数据丢失路径**——用户写一条**多行批注**，`tips.py` 经 `learning_event_log.append_event`（**那条路不调 `validate_record_full`**）把 `callout_ingested.payload.text` 连同换行写进账本；此后同一节点的**每一次评分**都在消费该行时撞 `U+000A` 而 fail-closed ⇒ **那个节点从此评不了分**（实测 writer `rc=1`、账本不增行）。
+    - **分界标准**：该字段会不会**逐字进入 YAML receipt 或参与身份比较**。会 → 字符往返失败就是「写得出认不回」，必须严格；不会 → 它只活在 JSON 里，转义可无损往返，控制符不构成风险。⚠️ 这不是放宽安全性，是把规则放到**它真正保护的那个面**上。
+    - ⚠️ **写入面不止一个 producer**：`start-exam-board` / `ai-linked-doc` / `append_event` 都能直接追加账本行，全仓**只有 quiz-answer 调 `validate_record_full()`**。所以本规则对自由文本**本来就拦不住**，把它写成「全体 v1 字符串契约」是**声明比证据宽**。它们写不出身份键含非规范码点的行——那些 id 由写点构造。
+    - **禁止集按码点区间定义，不是枚举**：C0 `U+0000–U+001F` / DEL `U+007F` / C1 `U+0080–U+009F`（含 NEL `U+0085`） / 行段分隔符 `U+2028`–`U+2029` / 代理码位 `U+D800–U+DFFF` / **Unicode noncharacters**（`U+FDD0–U+FDEF` 加每个平面末尾的 `U+xFFFE`、`U+xFFFF`，共 66 个）。
+    - **noncharacters 的收录理由（如实）**：实测（PyYAML 6.0.3 / Python 3.14）`U+FFFE`、`U+FFFF` 裸形往返抛 `ReaderError` 而 ASCII 转义往返正常；`U+1FFFE` 起的非 BMP noncharacter 反过来——裸形正常而 ASCII 转义往返失败；`U+FDD0–U+FDEF` 两条路都正常。⛔ **理由更正（round-2）**：先前写"两层设计各兜住一半、所以不构成缺陷"是**错的** —— **组合**字符串会让两条路同时失败：`U+FFFE + U+1F3AF` 裸形抛 `ReaderError`、ASCII 回落读成三个码点；`U+FFFF + U+20000` 同样。⇒ **原五段确有洞，扩集是修复而不是原则性收录**。（`U+FDD0–U+FDEF` 实测两路都正常，一并收进来才是原则性的：Unicode 标准把这 66 个码点定义为同一集合，拆开会让它重新变成"凭实测逐个添加"的开放列表。）⚠️ 连实测正常的 `U+FDD0–U+FDEF` 也一并收，是因为拆开会让这个集合重新变成"凭实测逐个添加"的开放列表，那正是前 17 轮的老路；Unicode 标准把这 66 个码点定义为同一集合。
+    - ⚠️ **不得退化成"U+10000 以上一律拒"**：那会拒掉 emoji、数学字母、CJK 扩展区等**正常**的非 BMP 字符。契约测试对这四类有验伪锚。
+    - ⛔ **为什么不再"支持"这些字符**：G3-2b 的 17 轮实证——修好 `U+0085` 就冒出 `U+2028/2029`，修好那两个就冒出 C1，再往下是孤立代理。危险集合由 YAML 版本、解析器实现、以及"什么算一个文本行"共同决定，**不属于本系统，修不完**。枚举式黑名单漏一个就等于没有；区间是**闭合的**，这才是这条规则与前 17 轮的区别。
+    - **不做 transliteration，也不做静默转义**：把 `U+0085` 折成空格是**有损**的（历史 receipt 与它记录的那次评分对不上，同一次评分会被再算一遍）；即使是无损的 `\uXXXX` 转义，也只是把问题挪到"下一个解析器"。一律拒绝、报码点、让上游改。
+    - **必须报出码点**：这些字符在终端和编辑器里大多**不可见**（NEL 看起来就是个空格），只说"含非法字符"等于让上游去猜。
+    - **误拒面（测试有验伪锚）**：中文、emoji、空格、连字符、全角标点全部是普通图形字符，不在任何区间内；真实板名（检验白板文件名 + `#q1`）零命中。
+    - ⚠️ **措辞更正（round-1 MEDIUM）**：C0 段（含 TAB/LF/CR）**并非「文件系统不允许」**——实测 macOS 上含制表符/换行的 `.md` 文件名 `exists=True` 且目录枚举逐字相等，JSONL 对转义换行也能正常读回。准确的表述是「**文件系统允许，但本契约定义为非规范**」。⇒ 理想做法是在**建板入口**就拒绝这类板名，而不是等到评分落账阶段才报错（**移交项**，本卡不改建板链路）。
+    - ⚠️ **覆盖面如实（两条边界）**：
+      ① **孤立代理的来源，声明更正（round-1 LOW）**：先前写「只可能出现在内存 record」**不准确**。裸 UTF-8 确实编不出代理码位，但**纯 ASCII 的合法 JSONL 可以含 `\uD800` 转义**，`json.loads` 会从文件重建出孤立代理（实测：文件全 ASCII、UTF-8 解码成功、CLI `rc=1` 报 `U+D800`）。读写两路都会命中本检查。
+      ② 本规则只约束**进入账本记录的字段**。用户批注 `callout` 的文本**不在 payload 键集里**（实测：多行 callout 首写 `rc=0`，账本 payload 恰为 11 个 review/1 键，不含 `callout`），因此多行批注不受本规则影响；它写进 frontmatter 的那条路径由 `q_()` 的往返自证保护，不走校验器。
+  - **取值依据**：真实 payload 深度 ≤3（`exam_board` 是路径字符串或标量），64 层是天文余量；上限只拒真正异常的输入，不误拒任何合法数据。深度上限须远低于 `sys.getrecursionlimit()`（同 `PROOF_MAX_DEPTH` 的教训）。
+
 ### 6.2 写序与崩溃恢复状态机（G3-2 落实；Codex round-1 BLOCKER + round-2 交错窗口整改）
 
 **水位线定义（字段名以真实实现为准）**：`W(node)` = 该节点 frontmatter 的 **`fsrs_last_review`**（`canvas-vault/.claude/scripts/fsrs_bridge.py:44-46` FIELD_ORDER 真相源；写出格式 `%Y-%m-%dT%H:%M:%SZ`，**秒级精度**）。
@@ -152,6 +177,31 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
 **A6 调度器入参必须是 UTC（round-5 HIGH#1，端到端条款）**：传给 fsrs `Scheduler.review_card()` 的 `review_datetime` **必须 tz-aware 且 tzinfo 恰为 UTC**——库对此硬校验（`scheduler.py:256-260` 抛 `ValueError: datetime must be timezone-aware and set to UTC`）。因此 G3-2 写路径必须满足：**事件 `payload.review_time`、传入调度器的时刻、写出的 `W` 三者是同一瞬间，且入库/入调度器前统一 `astimezone(UTC)`**。
 > ⚠️ **移交（bridge 实现缺陷，本卡不改生产代码）**：`fsrs_bridge.py:50 _aware()` 只补 tzinfo 不做 `astimezone(UTC)`——把校验器判定合法的 `12:00:00+08:00` 传给真实库会**抛 ValueError**（round-5 只读复算实测）；该函数同时把 naive 串静默当 UTC、并在 `_iso()` 截掉小数秒。三项均属 bridge 侧修复，随 **G3-2** 接入时一并处置（登记于 §九）。
 
+**⚠️ A3 的适用面与外部写入方（round-16 回写）**：A3 约束的是**任何**向该账本追加
+`review/1` 行的写入方，不只是 quiz-answer 本身——因为 A6 要求「事件 `review_time`、
+传入调度器的时刻、写出的 `W` 三者是同一瞬间」，而消费侧要靠这条不变量复算采用时刻。
+- 校验器**当前不校验 A3**（它逐行校验，看不到同节点的先后关系）。⛔ 这是**校验器的
+  缺口，不是许可**：判定以本规格为准。校验器侧补 A3 跨行校验 = 移交项。
+- 消费侧（`quiz-answer`）对每条 pending 复算 `_adopted_from(scored_at, 当时的 W)`
+  并与账本记的采用时刻比对，不符即 fail-closed。已落盘的同瞬间两行的处置：按 A3 把
+  第二行的采用时刻改成 `W+1s`（原始时刻保留在 `scored_at`），或走 `out_of_order` 补录通道。
+
+**receipt（节点 frontmatter 的 `calibration_log`）字段契约（round-16 回写）**：
+校验器不校验该结构（它只校验账本文件），但消费侧依赖它做幂等与恢复判定，故在此定契约。
+- `event_id` —— **完整**账本 id（含 `quiz:` 前缀）；
+- `id_form: "full"` —— 形态标记。**只对 exact 命中有效**：它证明该条目存的是完整 id，
+  不能证明它是别人的历史裸形态。无此标记的条目按历史裸形态兼容处理；
+- `fsrs_applied: true|false` —— **事件级**调度凭据，与 frontmatter 同一次原子写。
+  降级路径写 `false`、正常路径与复放写 `true`。⛔ 全局水位线 `W ≥ receipt.ts`
+  **不能**替代它：后继事件会把 W 推过去制造**假覆盖**。旧条目缺该键 ⇒ 不可证、fail-closed；
+- `ts` —— 与账本 `effective_at` / `payload.review_time` **同一瞬间**（三方绑定）；
+- `scored_at` —— 原始稳定业务时刻，与账本 `payload.scored_at` 相等。
+
+**`payload.scored_at` 的归属（round-16 回写）**：它是 round-8 起新增的**新写点独有键**，
+§6.3 历史行不可能带它。消费侧把它计入「复习扩展键」（带它却无 `schema_ext: review/1`
+的行一律 fail-closed，防止损坏行伪装成历史行）。⛔ 校验器的 `REVIEW_EXT_KEYS` 与
+§6.1 必填集尚未同步——撞本卡禁改面，**登记为移交项**。
+
 **pending 集合**：账本中该节点全部满足以下全部条件的事件：`schema_ext == "review/1"`、**未标 `out_of_order`**、且 `payload.review_time > W`（按绝对瞬间比较）；按 `(review_time, 账本行序)` 升序。
 
 五条硬约束，G3-2 必须同时实现（缺一则 exactly-once 不成立）：
@@ -180,8 +230,17 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
     - **查重与追加同锁**：`event_id` 的查重与追加必须在同一把锁内（查重通过后到写入之间不得释放锁），否则两写者可各自查重通过再双写同一 `event_id`。账本是 **per-vault 共享文件**（非 per-node），故该锁粒度为 **per-vault 账本锁**，与 A4.1 的 per-node 锁是两把不同的锁（获取顺序全局固定：**先 node 锁后账本锁**，防死锁）。
     - **查重必须是 parsed-field equality（round-6 BLOCKER 分项）**：逐行 `json.loads` 后比较 `record["event_id"]` 字段是否相等；**禁止子串匹配**。既有 `append_event` 用的是子串查重（`learning_event_log.py:86-88`，§二已如实登记）——当任一历史行的 payload 文本里恰好含有新 `event_id` 的 JSON 串形时，新事件会被**误判 duplicate 而零次落账**（丢一次真实评分）。⚠️ 澄清：这**不是改变幂等语义**（幂等键仍是 `event_id` 唯一，不触发 §一的 v2 升版条款），而是**修正查重实现的正确性**——子串匹配从来就不是"字段相等"的正确实现。既有实现的偏离登记在 §九，随 G3-2 修正。
     - **写入必须验证完整落盘（round-6 BLOCKER 分项）**：`O_APPEND` 对**普通文件**不提供 `PIPE_BUF` 级原子性保证（该保证只对管道成立），普通文件 `write` 仍可能**短写**。因此：单行须一次 `write` 提交，并**检查返回字节数等于期望长度**；短写时按 §二"截断自愈"处理（下次追加前 LF 守卫），并在重启恢复流程中把不可解析的尾行如实报为损坏行（校验器已实现该判定）。
-    - **duplicate 命中后的状态推进门（round-6 BLOCKER 分项，round-7 扩等价面）**：查重命中同一 `event_id` 时，按**语义 envelope 的 canonical 形式**分流。envelope = `{event_version, event_type, node_id, effective_at, payload}` 的 `json.dumps(..., sort_keys=True, separators=(",",":"))`——**显式排除 `recorded_at`**（重试时自然变化，不构成事实差异）。
+      ⚠️ **可容忍的截断 vs 完整损坏（Codex round-3 MEDIUM，CARD-G3-2b 冻结）**：读取账本时**必须保留 EOF 是否以 LF 结尾的状态**。只有「最后一行解析失败 **且** 文件不以 LF 结尾」才是截断（`write` 被腰斩的半行），可跳过留痕并由追加前 LF 守卫隔离；**最后一行解析失败但带终止 LF** = 整行已完整落盘之后损坏，必须与中间坏行**同等 fail-closed**。只看「最后一行解析失败」会把真实损坏当截断容忍——实测：预置带终止 LF 的坏 JSON 末行，写点仍 `rc=0` 自称「截断尾行」并继续追加、推进节点。
+    - **duplicate 命中后的状态推进门（round-6 BLOCKER 分项，round-7 扩等价面）**：查重命中同一 `event_id` 时，按**语义 envelope 的 canonical 形式**分流。envelope = `{event_version, event_type, node_id, scored_at, payload}` 的 `json.dumps(..., sort_keys=True, separators=(",",":"))`——**显式排除 `recorded_at`**（重试时自然变化，不构成事实差异）。
+      ⚠️ **三个时刻各司其职（round-8 分离，round-12 回写契约）**：本条此前写的是 `effective_at`，与实现已分叉（Codex round-12 HIGH②）。正确口径：
+      - `recorded_at` —— 这一行**日志何时被写下**（重试即变，不进 envelope）；
+      - `payload.review_time` / `effective_at` —— A3 **采用**的调度时刻（`≤W` 时被推到 `W+1s`），两者同一瞬间；
+      - `payload.scored_at` —— **原始稳定业务时刻**，评分那一步记一次，续跑只读不重取。
+      envelope 比 `scored_at`：比采用时刻会让**真实续跑**（A3 推移过）被误判冲突；只比原始时刻则**采用时刻可被篡改**——后者由下面两道证明兜住。
+      ⚠️ **采用时刻的两道证明（round-12）**：①有校准记录时，`effective_at` / `payload.review_time` / receipt 的 `ts` **三方同一瞬间**；②崩溃窗内（append 后、frontmatter 未推进，**没有 receipt**）——此时水位线为空，而 A3 只在水位线**非空**时才推移，故该行 `review_time` **必等于** `scored_at`，不等即拒。实测反例：同步把两者改到 12-01（`scored_at` 保持 08-01），旧实现 writer rc=0、validator 全程 rc=0，水位线被恢复成 12-01。
       ⚠️ round-7 反例：只比 `payload` 时，两条同 `event_id`、同 payload、`event_type` 分别为 `answer_scored`/`answer_abandoned` 的记录会被误判 no-op（两者是**相反的事实**：答对 vs 弃答）。
+      ⚠️ **身份键的等价面归属（Codex round-3 MEDIUM，CARD-G3-2b 回写——此前只活在实现与门㉕里，契约原文只排除 `recorded_at`，两处不同口径）**：`review/1` 行的 `payload.fsrs_library_version` 与 `payload.fsrs_params_hash` 两键**排除出 envelope 等价面**——它们是**复算环境快照**（py-fsrs 升级或参数改动即变），不是评分事实；留在等价面里会让一次合法的库升级把所有历史事件的重放变成“冲突”。⛔ **但排除它们并不等于「升级后可以重放历史行」（Codex round-16 MEDIUM 更正）**：校验器的 golden manifest 绑定门拿**当前单一 manifest** 与行内身份键逐字比对，实测把 `library_version` 从 `1.0` 升到 `2.0` 后，旧行立刻得到两条真值不匹配 violation，消费侧在 envelope 比较**之前**就停住了。也就是说：envelope 侧的障碍确实拿掉了，而**升级后消费旧行仍然不被支持**——现行契约的真实状态是「禁止跨算法版本重放历史行」。要真正支持升级，校验器须按事件自己声明的版本去匹配一个**版本化、追加式**的已知 manifest 集（`validate_learning_events.py` 在 CARD-G3-2b 的硬边界内不可改 ⇒ **移交**）；在那之前，本段不得被读成「升级兼容已经成立」。二者的**完整性另有归属，不是无人认领**：由校验器 `backend/scripts/validate_learning_events.py` 的**golden manifest 绑定门**承担（算法身份与同仓 G3-4 manifest 逐字比对，篡改形状或真值一律判 FAIL）。分层的代价如实记：envelope 放行被篡改身份键的 durable 行，恢复照常发生，**非哨兵形态的污染要到下一次跑校验器时才被发现**。⛔ **覆盖面有一个真实缺口，不得说成「一律判 FAIL」（Codex 预审 round-17 HIGH 更正）**：把两个身份键**成对**改成 `degraded:<任意文本>` 时，校验器走的是「degraded 成对」分支、**完全不做 manifest 真值绑定**，实测判 0 violation；写点侧又明确把这两个键排除出 envelope 等价面，判「已完整应用，幂等跳过」。**这一类篡改两侧都放行，不是「下次才发现」，而是永远不会被发现。**所以本段声明的归属只覆盖**非哨兵形态**：形状非法或真值与 manifest 不符的**具名版本**行由绑定门承担；`degraded:*` 哨兵行**不在**任何一侧的覆盖内 —— 该缺口的封堵需要改 `validate_learning_events.py`（在 CARD-G3-2b 的硬边界内不可改）⇒ **移交**。
+      ⚠️ **candidate 必须独立字面构造（Codex round-3 BLOCKER，CARD-G3-2b 冻结）**：参与比较的 candidate envelope 必须由**本次输入 + 该写路径的固定生产键集**字面构造，**禁止以 durable 行的 payload 为底再覆盖已知键**（`{**durable_payload, ...}`）——那会把 durable 行的**未知额外键**原样抄进 candidate，比较退化成“自己比自己”。实测反例：给崩溃窗口①的 durable 行加 `payload.out_of_order=true`，envelope 放行，而 A2 的适用集按定义排除标了 `out_of_order` 的行 ⇒ FSRS 永不应用，writer 仍 `rc=0` 写下 calibration/mastery，节点 `fsrs_*` 全空、账本仍一行。因此**键集本身是等价面的一部分**：durable payload 相对固定生产键集**多一键、少一键或值不同，一律判 ② 冲突**；唯一放行的差异是上面明确排除的两个身份键。
       ⚠️ **适用范围（round-8 MEDIUM）**：envelope 冲突门**只约束 `schema_ext=review/1` 的复习写路径**（G3-2 地盘）。通用 `append_event()` 在调用方省略 `effective_at` 时每次以新 `now` 填充（5 个 backend 调用点中 4 个省略），若全局套用 envelope 门，**合法重试会因 `effective_at` 天然不同而被误判冲突**——非扩展行沿用既有语义：同 `event_id` 即幂等跳过，不做 envelope 比较。
       ⚠️ **已知保守误拒**：canonical 比较基于 JSON 文本，同一瞬间的 `Z` 与 `+00:00` 两种写法会被判为不同 ⇒ 误报冲突。因写点内部时刻表示统一（同一实现产出同一格式），现实中不触发；若未来出现跨写点重试，须在比较前对时间字段做瞬间归一化。
       ① **同 ID 同 canonical envelope** ⇒ 视为重放/恢复，**no-op**（不再落账、**绝不再次 apply**；若 frontmatter 尚未推进则按 A2 走 pending 重放路径恢复）；
@@ -189,13 +248,29 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
       ③ 任何情况下 duplicate 都**不得触发第二次 apply**。
   - ⚠️ **移交条款（G3-3，五项必补）**：①per-node **排他 sidecar 锁**（非 CAS、非节点文件本身）覆盖 A4 全序列 + 崩溃回收；②**per-vault 账本锁**内完成 event_id 查重与 `O_APPEND` 单次写；③冲突写者在锁内**重读 W 并按 A3 推进时刻**后重算（不得在陈旧状态上重试）；④账本与 frontmatter 的**完整 fsync 序列**（含父目录）；⑤只做 pending 增量重放，不把全量折叠当在线基线。
     G3-3 卡面（编排 worktree 的总账文件）当前仍只写"比较 last_review/revision 后写"，**五项均不在其中**——卡面更新属编排者动作，本卡无权改他人卡面，故在此与 CURRENT_TASK 双处登记。本卡只冻结契约，不实现。
-- **A5 整秒精度（Codex round-3 BLOCKER：小数秒二次推进）**：`review_time` **必须为整秒**（无小数秒段）。因为 `W` 只有秒级精度，`10:00:00.5 > 10:00:00` 恒成立——同一事件重放会被判 pending 并**二次推进**（实测：首次应用后 Learning/due 10:10，重放同一事件推进为 Review/due +2d）。校验器对 `schema_ext=review/1` 行机械强制整秒。
+- **A8 消费侧准入（CARD-G3-2b 冻结；写点比校验器严，此处写明分工以免被当口径分叉）**：在线写路径把一条 `review/1` 行取来**重放**之前，必须逐条确认它「可被证明」，任一不满足即 **fail-closed**——⚠️ 这几条**比校验器严**，是**有意的**：校验器是离线审计工具，它的职责是把事实**记全**并容忍未来版本；在线写路径是**消费者**，它拿不准的记录不能当没看见（跳过 = 那次评分静默漏算），也不能照单全收（= 在不可证的基线上继续）。
+  - **⛔ 先过校验器本体，再叠加更严的（Codex round-4 HIGH；CARD-G3-2b 冻结）**：上一句「比校验器严」只描述**叠加的那几条**，不是说消费侧可以**另起一套**判据。写点消费本节点的 `review/1` 行前，必须先调 `validate_learning_events.py::validate_record_full(record, vault_id=...)`，有 violation 即 fail-closed；本条以下几款才是在它之上的**同口径防御性复核及消费侧加严**。⚠️ 措辞如实（Codex round-7 LOW）：其中 8 处与校验器**功能重合**——它们对同一坏数据结论一致，不产生受理差异，是**有意保留的纵深**（校验器是可被绕过的外部脚本），不是「更严」。变异侧对它们挂「同时禁掉校验器那层」以保持鉴别力。⚠️ 实测（写点手写第二套判据时）：顶层是 `[]` / 目标行缺 `payload` / `event_version` 为 `true`（Python 里 `True == 1` 成立）/ 时刻首尾带空白（写点 `.strip()` 洗值而校验器按字面判），**四种形态都是写点 `rc=0` 而校验器 `rc=1`** —— 全在**漏网**方向。手写的第二套判据永远追不上校验器（DD-03/DD-13 同一条理由）。
+  - **顶层必须是 JSON object**：`[]` / `12345` 这类行此前被账本读取层收下、又因 `isinstance(_o, dict)` 为假而静默跳过。
+  - **归属判断必须排在「缺 payload 就跳过」之前**：本节点的行缺 `payload` 时它**仍可能是一次真实评分**，静默跳过 = 漏算，故 fail-closed；别的节点的行才轮得到「跳过」。⚠️ 这条边界是双向的——写点只对**自己要消费的行**负责，别节点的不合规行由校验器兜底，写点**不得越权阻塞**本次写入。
+  - **`attempt_count` 必填正整数**（非 bool、≥1）。它是 ordinal 回推与恢复的**权威值**——缺了就无法证明「这是第几次评分」。⚠️ 实测：删掉它后 writer 与校验器**都** `rc=0`，账本 attempts=`[null,1]`：两次评分而笔记计数只有 1。📌 **移交**：§6.1 的键定义与校验器目前**都没把它列为必填**（Codex round-3 BLOCKER④），本卡只在消费侧强制；校验器侧收紧属另一张卡（`validate_learning_events.py` 在本卡禁改面上）。
+  - **本节点的未知 `event_version` 行 fail-closed**。§一的前向兼容条款「读方必须容忍未知 event_version 行（跳过并告警，不炸）」约束的是**别的节点**的行；轮到**本节点**时「跳过」等于把那次评分静默漏算，所以这里停下。校验器对未知版本 WARN 并跳过 v1 形状校验，两者分工不同、都对。
+  - **`payload` 必须是 object**（§一：改类型要 bump v2）；**顶层 `node_id` 必须是可用字符串**（§一 路由信封读方义务）；**`effective_at` 与 `payload.review_time` 必须是同一绝对瞬间**——注意这一条只比**瞬间**，`Z` 与 `+00:00` 与 `+08:00` 是同一瞬间的三种写法，**不按原字符串比**（整秒只约束 `review_time`，别把它的字面门套到 `effective_at` 上）；**`event_type` 必须是 `answer_scored` / `answer_abandoned` 之一**，`concept_id` 必须等于 `node_id`，`vault_id` 必须等于本 vault；**`rating` / `grade_norm` 必须存在且形态合法**——缺 `rating` 时调度桥会回落到推导，`grade_norm` 也缺时用默认 `0.0`，于是一次可能是「答对」的评分被当成 `Rating.Again`（完全忘记）静默应用（实测 rc=0、水位线照常推进）。
+- **A9 恢复先落定（Codex round-3 BLOCKER；CARD-G3-2b 冻结）**：A2 若重放了**非本次事件**的行，必须**先把恢复结果原子发布**，再以非零码退出要求重跑，**不得在同一次运行里既恢复又追加新事件**。两个理由：
+  ① **恢复结果独立持久化**：把它先落盘, 本次评分后续任何失败都不会连带把已恢复的状态一起丢掉；
+  ② 被恢复事件的校准条目一并复放后, 那几张检验白板的 `status` 能正常落定（否则用户回去重跑会撞上「FSRS 已应用但缺校准记录」的人工裁定, 白板**永久卡在** `scored_pending_node_update`）。
+  ⚠️ **这里不写「mastery 无载荷可复放」** —— 那是错的, 也是本卡一度写错并据以决策的地方：`grade_norm` / `review_time` / `attempt_count` **都在 payload 里**, 复放所需的量齐备；真正不在载荷里的只有 `question_id` 与 `self_confidence_*`（复放时记 null）。A2 重放**必须逐项复放** mastery / `last_examined` / 校准条目 / attempt —— 只补其中一项会造出自相矛盾的中间态（已考 +1 而掌握度与 `last_examined` 停在上一次, `last_examined` < `fsrs_last_review`），并让最终掌握度取决于用户的操作顺序而非账本（实测：崩溃后先答下一题得 0.65，与没崩溃的 0.59 差 0.06；复放后两者一致）。⛔ 复放只施于**别人的**事件——本次事件(dup)自己的副作用由恢复路径按本次 payload 处理, 在重放里再算一次会双吃 EMA。
+  代价是用户多跑一次——这与写点既有的「失败则保持续跑态、重跑自动续跑」语义一致，不是新概念。⚠️ 该结构必须**可终止**：被恢复事件的时刻晚于 / 等于 / 早于本次评分三种关系下都要在**第二轮**收敛（晚于那档靠 A3 把本次时刻推到 `W+1s`），且退出时必须保留输入 payload 让重跑可达。
+- **A5 整秒精度（Codex round-3 BLOCKER：小数秒二次推进）**：`review_time` **必须为整秒**（无小数秒段）。因为 `W` 只有秒级精度，`10:00:00.5 > 10:00:00` 恒成立——同一事件重放会被判 pending 并**二次推进**（实测：首次应用后 Learning/due 10:10，重放同一事件推进为 Review/due +2d）。校验器对 `schema_ext=review/1` 行机械强制整秒。**A2 消费侧同样机械强制（Codex round-3 BLOCKER，CARD-G3-2b 冻结）**：重放前逐行校验 durable `review_time` 为 tz-aware、UTC 偏移为 0、无小数秒，不合规即 **fail-closed**；⛔ **禁止消费时顺手归一化**——bridge 入口的 `_whole_second` 会把 `10:00:00.500Z` 截成 `10:00:00Z` 写进 `W`，而账本里那行仍是 `.500Z`，于是 `.500 > .000` 恒真，同一行**每次重跑都判 pending 并再推进一次 FSRS**（实测：账本始终一行，`W` 逐次 +1s）。归一化把损坏行洗成合法行，等于把缺陷从写入面挪进不可见面。
 
 **三态语义（消解"已应用 vs 迟到乱序"歧义）**：`review_time ≤ W` 的事件**一律不推进 current state**——无论它是"已应用"还是"迟到的乱序事件"，对 current state 的动作**完全相同**，因此该歧义对 exactly-once 无影响。二者的区分只用于**账本标注**：
 - **乱序判据统一为 G3-3 卡面口径**（`review_time 早于已应用的最新事件`，即 `review_time ≤ W`，按绝对瞬间比较），标 `out_of_order`；本文档 pending 集合定义已显式**排除已标 out_of_order 的行**，两处口径自洽。
 - **`out_of_order` 字段冻结（round-4 HIGH#3，round-17 补语义门）**：位置 = `payload.out_of_order`；类型 = **布尔 `true`**（唯一合法值）；**未标 = 不写该键**（禁止写 `false`、字符串 `"true"`、对象或任何其他形态——它们既非"已标"也非"未标"，会让 pending 排除条件产生歧义）。校验器机械强制该形态。
   ⚠️ **形态合法 ≠ 语义为真（round-17 Codex HIGH）**：proof 的 scanner 排除标了 `out_of_order` 的行，于是"标记本身"成了把事件移出适用集的手段。若某行标了该键、其 `review_time` 却**晚于此前所有适用事件**，它就是**被伪装成乱序的真实后继**——排除它即绕过尾部覆盖门。故 proof 侧额外强制：标记行的 `review_time` 必须**不晚于**此前适用事件的最大时刻（即符合本条乱序定义 `review_time ≤ W`）；不符者**报违规且仍计入适用集**。
+  ⚠️ **写点（在线 A2）侧同款语义门，但方向是 fail-closed（CARD-G3-2b 冻结）**：上一条约束的是 **proof / 离线审计**侧（报违规但仍计入，因为审计要把事实算全）。**在线写路径**面对同一条「被伪装成乱序的真实后继」时不能照搬——它没有权限替用户裁定那条行到底是补录还是后继，把它算进适用集会**多应用**一次 FSRS，排除它会**永久丢失**一次评分。故写点侧冻结为：适用集构造时，标了 `out_of_order` 的本节点 `review/1` 行若 `review_time > W`（含 `W` 不存在的新卡），**fail-closed 拒写**并如实报「被伪装成乱序的真实后继」，等人工裁定。同时机械强制该键的形态（唯一合法值布尔 `true`，未标则不写该键）——`false` / `"true"` / 对象等形态既非「已标」也非「未标」，写点侧同样拒写。⚠️ 实测：缺这道门时，外部写入一条标了该键、`review_time` 晚于一切适用事件的行，writer 照常 `rc=0`、`W` 只反映本次事件，那条事件的 FSRS **永久丢失且无任何提示**。
 - **迟到事件的入账通道**：A3 的"严格大于 W"只约束**在线评分**（正常复习写入）。补录/迟到事件走**账本补录通道**：以原始 `review_time` 入账 + 标 `payload.out_of_order = true`，**不进 pending、不推进 current state**——因此与 A3 无冲突。
+  ⚠️ **写点侧对「没走这条通道」的行 fail-closed（Codex round-3 BLOCKER①，CARD-G3-2b 冻结）**：上面「`review_time ≤ W` 的事件一律不推进 current state」这句的**前提**是——它要么**已经应用过**，要么**已标 `out_of_order`** 走了补录通道。两个都不成立时，读方无法判定它是「已应用」还是「被漏掉的真实复习」，而这两者对用户的意义完全相反。故在线写路径冻结为：本节点的 `review/1` 行若 `review_time ≤ W`、**未标** `out_of_order`、且其 `event_id` **不在 frontmatter 的校准记录里**，一律 **fail-closed**，请人工补标或修正时刻。判据取校准记录（它与 mastery/attempt 同一次原子写，是「已应用」的凭据）——`≤ W` 只说明**不该推进 W**，不说明**已经算过**。
+  ⚠️ **实测漏算链**：`E1@10:00` 正常写入（`W=10:00`）→ 外部追加同节点 `E2@`**同一秒**、未标 `out_of_order`（校验器 `rc=0` 放行）→ 再写 `E3` 时 `E2` 既不进 pending 也无人过问，账本 `attempt_count` 变成 `[1,2,2]`（`E3` 复用了 `E2` 的序数），**`E2` 那次复习永久消失且无任何提示**。
+  📌 **校验器侧仍放行**这类行（它对未标的迟到行不判违规），本卡只在消费侧强制；校验器收紧属另一张卡（`validate_learning_events.py` 在本卡禁改面上）。
 - **degraded pending 处置（round-4 HIGH#3 + round-5 HIGH#3 解冻边界）**：当节点落入**残缺卡**（三态 fail-closed）时，该节点的 pending 集合**整体冻结**——不重放、不追加新在线事件（新评分应向用户如实报错而非静默丢弃）。禁止"跳过残缺节点继续写新事件"——那会在错误基线上叠加。
   - **解冻的唯一合法条件（round-5 提出，round-6 机械化）**：修复必须**把六字段与 `W` 原子重建到同一个可证明的账本边界**上——选定账本中某个事件 `E`，从**可证明起点**折叠到 `E` 为止，把结果的六字段与 `W = E.review_time` 在**同一次原子替换**中写入。三项必须机械确定：
     - **`E` 的选取与层级作用域（round-11 修正尾部逃逸，round-13 冻结作用域）**：
@@ -277,6 +352,14 @@ G3-2 把复习评分写路径接入账本时，按以下**加性**规则执行�
 - **截断尾行 LF 守卫**：见 §二"截断自愈"行。
 
 ### 6.3 历史兼容
+
+**markerless 旧 receipt 的解析规则（CARD-G3-2c-C 加性追加；默认裁决 D3 冻结）**
+
+`calibration_log` 的条目在 G3-2b 之后带 `board_form: "json"` 标记，`exam_board` 存 JSON 字面（双编码）。**没有该标记的旧条目**按下列规则处置：
+
+- **按 YAML 读回的原值使用，不做类型猜测**。实测形态：裸 `exam_board: 1e+300` 被 PyYAML 读回成**字符串**（YAML 1.1 的浮点正则要求小数点），而本次事实是 float `1e+300` —— 同值不同型。
+- **同值不同型 ⇒ 视为歧义，fail-closed 拒绝，并给出可执行处置**（点名补 `board_form: "json"` 并把值改写成 JSON 字符串）。⛔ **不得"聪明地"按 JSON 猜解**：那样一块**真名就叫 `1e+300`** 的检验白板会被当成数字，是替上游做主 —— 与 `event_id` 首尾空白"拒绝而不 strip"是同一条理由。
+- **三处分工（不是三处同答案）**：首写产出新条目 ⇒ `rc=0`；校验器**只看账本**，看不到 frontmatter receipt ⇒ 对 markerless 退化无意见（`rc=0`，账本确实没变）；重跑负责 receipt 与本次事实的一致性 ⇒ 识别歧义并拒。round-17 报的"三处不一致"是把分工误读成矛盾。
 
 - 历史行（无 `schema_ext` 标记的 `answer_scored`/`answer_abandoned`）**永久合法**——校验器不以扩展键缺失判 FAIL（防对现网账本误报）。历史行不参与 6.2 水位线重放（无 `review_time`，视为已应用）。
 

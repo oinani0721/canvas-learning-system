@@ -1032,34 +1032,60 @@ def test_real_producer_start_exam_board_writer(tmp_path):
 
 
 def test_real_producer_quiz_answer_writer(tmp_path):
-    """vault 写点 3/3: quiz-answer 评分链的账本写段逐字提取, 以真实上下文
-    变量 exec, 产物过校验器 + 幂等 + abandoned 分支。"""
+    """vault 写点 3/3: quiz-answer 评分链主写点 PYEOF 块逐字提取执行
+    (G3-2 起为完整 write-ahead 静态块; 唯一重定向 = P 常量, SKILL 硬编码
+    /tmp, 测试指到 tmp fixture 防与真实 skill 并发相撞)。产物过校验器 +
+    幂等 + abandoned 分支。FSRS 桥成功与否不影响本门 (degraded 哨兵成对
+    也是合规形态, 校验器两态都放行)。"""
     text = (SKILLS / "quiz-answer" / "SKILL.md").read_text(encoding="utf-8")
-    m = re.search(
-        r'(EV = os\.path\.join\(VAULT.*?写入失败\(不影响评分\): \{_e\}"\))',
-        text,
-        re.DOTALL,
-    )
-    assert m, "quiz-answer SKILL.md 找不到账本写段"
-    code = m.group(1)
+    blocks = re.findall(r"python3 - <<'PYEOF'\n(.*?)\nPYEOF", text, re.DOTALL)
+    matches = [b for b in blocks if 'P = "/tmp/quiz-answer-payload.json"' in b]
+    assert len(matches) == 1, f"SKILL.md 应恰有 1 个主写点 PYEOF 块, 实见 {len(matches)}"
+    vault = tmp_path / "canvas-vault"
+    node = vault / "节点" / "测试节点.md"
+    node.parent.mkdir(parents=True, exist_ok=True)
+    node.write_text("---\ntype: concept\nmastery_score: 0.5\ntitle: 测试节点\n---\n正文\n", encoding="utf-8")
+    # G3-2 静态块 fail-closed 依赖: 校验器 import 路径 + vault_id 绑定配置 +
+    # vault 内 bridge/decay_beta (生产形态: 两者就住在 <vault>/.claude/scripts)。
+    # validator/bridge 用 symlink (真文件漂移即测到; validator 的
+    # _sanitize_vault_id 经 resolve 找 backend 本体, 与
+    # test_g3_2_review_ledger.py 的镜像 fixture 同款布局)。
+    (tmp_path / "backend" / "scripts").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "backend" / "scripts" / "validate_learning_events.py").symlink_to(VALIDATOR)
+    vscripts = vault / ".claude" / "scripts"
+    vscripts.mkdir(parents=True, exist_ok=True)
+    (vscripts / "fsrs_bridge.py").symlink_to(WT / "canvas-vault" / ".claude" / "scripts" / "fsrs_bridge.py")
+    (vscripts / "decay_beta.py").symlink_to(WT / "canvas-vault" / ".claude" / "scripts" / "decay_beta.py")
+    (vault / ".canvas-config.yaml").write_text('vault_id: "canvas-vault-契约测试"\n', encoding="utf-8")
+    code = matches[0].replace('"/tmp/quiz-answer-payload.json"', json.dumps(str(tmp_path / "payload.json")))
 
-    def run_writer(p_extra, eid):
-        ns = {
-            "os": __import__("os"),
-            "json": json,
-            "VAULT": str(tmp_path),
-            "p": {"ts": "2026-08-01T10:00:00+00:00", "exam_board": "检验白板/x-检验.md", **p_extra},
-            "eid": eid,
-            "NODE": str(tmp_path / "节点" / "测试节点.md"),
-            "GN": 0.752,
-            "n_att": 2,
+    def run_once(p_extra, eid):
+        payload = {
+            "node": str(node),
+            "grade_norm": 0.752,
+            "ts": "2026-08-01T10:00:00Z",
+            # 稳定业务时刻（检验白板 Step 3 的 questions[0].scored_at）——
+            # round-8 起写点要求它必填：它是「同一次评分」的唯一身份依据，
+            # 缺了就无法区分「续跑」与「同 ID 换了业务时刻」。
+            "review_time": "2026-08-01T10:00:00Z",
+            "event_id": eid,
+            "exam_board": "检验白板/x-检验.md",
+            "question_id": "q1",
+            "source_board": "[[原白板/CS 61B]]",
+            "abandoned": False,
+            "callout": "",
+            **p_extra,
         }
-        exec(compile(code, "quiz-answer-SKILL-extract", "exec"), ns)
+        (tmp_path / "payload.json").write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+        proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=120, cwd=vault)
+        assert proc.returncode == 0, proc.stdout + proc.stderr
 
-    run_writer({}, "e-scored-1")
-    run_writer({}, "e-scored-1")  # 幂等重放
-    run_writer({"abandoned": True}, "e-abandoned-1")
-    ledger = tmp_path / "learning_events.jsonl"
+    run_once({}, "e-scored-1")
+    run_once({}, "e-scored-1")  # 幂等重放 (frontmatter+账本双侧命中 → no-op)
+    ledger = vault / "learning_events.jsonl"
+    lines = [json.loads(ln) for ln in ledger.read_text(encoding="utf-8").strip().splitlines()]
+    assert len(lines) == 1 and lines[0]["event_type"] == "answer_scored"
+    run_once({"abandoned": True}, "e-abandoned-1")
     lines = [json.loads(ln) for ln in ledger.read_text(encoding="utf-8").strip().splitlines()]
     assert [r["event_type"] for r in lines] == ["answer_scored", "answer_abandoned"]
     assert _run(ledger).returncode == 0

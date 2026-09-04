@@ -1,14 +1,20 @@
-== CARD-G8-2 evidence manifest (2026-09-02 round-13 终版字节; 源码与 round-12 相同, 仅 UAT 文档更新) ==
+== CARD-G8-2 evidence manifest (2026-09-04 round-14 字节 · CARD-G8-2b 收口: vault_lint.py 与测试字节已变) ==
 
 [被审源码/测试 sha256]
-0c7df059efa21f7026a6b2df63ae12e3d31ef57dae987236f7e0a654608ee1cf  backend/scripts/vault_lint.py
-ea9f92da21352954c08e122a6bc5b56fda6c3921ef0b245bd6f2c473bb40654b  backend/tests/unit/test_vault_lint.py
+# ⛔ CARD-G8-2b 存量更正 (2026-09-04): 本块原先钉的是 w9-lint 基线 9af18b27 的字节。
+#    check_vault_doc_roles.py 与 vault_doc_roles.yaml 已被 V5 (9e238dc5 · G2-4+G2-5)
+#    改动 (ROLES_SHA256 常量 + yaml), 于是本 MANIFEST 自校验在主干树上一直有
+#    2/5 条对不上 —— 这正是 G8-2 UAT §5 第 7 条预告的「V5 合入后须复跑」。
+#    G8-2b 未改这两个文件, 只把登记值重钉到**当前树**的字节, 使本块可自校验。
+6ead1f081f2654b9748bd767a19a66fc6027a9ad7c298ffc57c6d01cdd3de0ae  backend/scripts/vault_lint.py
+86b5581f4d0c4aa1df77eb3b5c8f1ea02cac6c254d0c51acc710f74d3aa8f589  backend/tests/unit/test_vault_lint.py
 6617b17b38767c037ca61c0c1608d72ccfd1cb6cd96bacda593678297a39f114  backend/tests/unit/test_vault_doc_roles.py
-3e9aafd78684579e4853b43dfee06c9f2572e6835a4dab075a82186ee0d1b011  backend/scripts/check_vault_doc_roles.py
-e5a02e1275a84fc759da2624804397a01d4ff7dafc82a7b1da7512d9d0e834a7  backend/scripts/vault_doc_roles.yaml
+38870bb85c64aa6270838d0748c4465119b0227f6a8e1ad0a1c7944d9d5b7342  backend/scripts/check_vault_doc_roles.py
+2a68d4cd8091dd7def01d3539a68cb9fb1efd458be2f8882459791312cf46648  backend/scripts/vault_doc_roles.yaml
 
 [evidence-g82 全部文件 sha256 (本 MANIFEST 与 .old-* 备份除外)]
-76faafb06aafe224ad6a5f55f85754b3dc9dbb8bfcd05448405a82d9cbaef305  g82_mutation_negative_controls.sh
+
+0149755eda2d1e289d9fc73cc947515e520d790c70f3f6e886956a506a2ad1ad  g82_mutation_negative_controls.sh
 26ba8140675a8b50d9ca3061ffba831bf6d789f2dfcee8fdfaf5ea2e3280ed7e  help-full.txt
 676436de013a9c0865bd3b94dfe763eb8ee159e2214a836cbe5489e019d4f107  help-head20.txt
 69a1c513c9ac4cb185af2725513a5984a41cbf0fd580560c8bf3d166cc825f30  live-lint-final.json
@@ -17,6 +23,7 @@ f8aa8afceda6be78bb9a1a31c09f3e91555ff696529a4c9ba0ccfe510853f025  live-lint-roun
 f8aa8afceda6be78bb9a1a31c09f3e91555ff696529a4c9ba0ccfe510853f025  live-lint-round11.json
 f8aa8afceda6be78bb9a1a31c09f3e91555ff696529a4c9ba0ccfe510853f025  live-lint-round12.json
 f8aa8afceda6be78bb9a1a31c09f3e91555ff696529a4c9ba0ccfe510853f025  live-lint-round13.json
+40ff14128b22bb19dbf0bec308885b0231f868dfb5293b5ab206273917c1cf98  live-lint-round14.json
 8779b4bd0b897c9c831effed929643e8a80d0247d66d7fef6f6e76c1d63bbb31  live-lint-round2.json
 69a1c513c9ac4cb185af2725513a5984a41cbf0fd580560c8bf3d166cc825f30  live-lint-round3.json
 69a1c513c9ac4cb185af2725513a5984a41cbf0fd580560c8bf3d166cc825f30  live-lint-round4.json
@@ -32,6 +39,7 @@ cc20466e5dce413d131ea85fab5beb68937acf7e33b46f0d67f2dfc9d6bd081f  live-lint.json
 9830ce9d409097e8147e1ce53d55c9b0539a7344c241bd2caad75ca441f08355  live-rc-round11.txt
 9830ce9d409097e8147e1ce53d55c9b0539a7344c241bd2caad75ca441f08355  live-rc-round12.txt
 9830ce9d409097e8147e1ce53d55c9b0539a7344c241bd2caad75ca441f08355  live-rc-round13.txt
+9830ce9d409097e8147e1ce53d55c9b0539a7344c241bd2caad75ca441f08355  live-rc-round14.txt
 9830ce9d409097e8147e1ce53d55c9b0539a7344c241bd2caad75ca441f08355  live-rc-round2.txt
 93ff7811a209e2a8479230bbb9b6bc19f7f311d3af383ec350c1db2a7e7d5494  live-rc-round3.txt
 93ff7811a209e2a8479230bbb9b6bc19f7f311d3af383ec350c1db2a7e7d5494  live-rc-round4.txt
@@ -47,6 +55,7 @@ dee75389451262919d41edc60cb14191b39be48e5e7c0ba9a3857d27605d2254  live-sha-after
 dee75389451262919d41edc60cb14191b39be48e5e7c0ba9a3857d27605d2254  live-sha-after-r11.txt
 dee75389451262919d41edc60cb14191b39be48e5e7c0ba9a3857d27605d2254  live-sha-after-r12.txt
 dee75389451262919d41edc60cb14191b39be48e5e7c0ba9a3857d27605d2254  live-sha-after-r13.txt
+c60d2de75c851058cf809efc319c43ee91be4a561a7049422874322b13a51022  live-sha-after-r14.txt
 dee75389451262919d41edc60cb14191b39be48e5e7c0ba9a3857d27605d2254  live-sha-after-r2.txt
 dee75389451262919d41edc60cb14191b39be48e5e7c0ba9a3857d27605d2254  live-sha-after-r3.txt
 dee75389451262919d41edc60cb14191b39be48e5e7c0ba9a3857d27605d2254  live-sha-after-r4.txt
@@ -62,6 +71,7 @@ dee75389451262919d41edc60cb14191b39be48e5e7c0ba9a3857d27605d2254  live-sha-befor
 dee75389451262919d41edc60cb14191b39be48e5e7c0ba9a3857d27605d2254  live-sha-before-r11.txt
 dee75389451262919d41edc60cb14191b39be48e5e7c0ba9a3857d27605d2254  live-sha-before-r12.txt
 dee75389451262919d41edc60cb14191b39be48e5e7c0ba9a3857d27605d2254  live-sha-before-r13.txt
+c60d2de75c851058cf809efc319c43ee91be4a561a7049422874322b13a51022  live-sha-before-r14.txt
 dee75389451262919d41edc60cb14191b39be48e5e7c0ba9a3857d27605d2254  live-sha-before-r2.txt
 dee75389451262919d41edc60cb14191b39be48e5e7c0ba9a3857d27605d2254  live-sha-before-r3.txt
 dee75389451262919d41edc60cb14191b39be48e5e7c0ba9a3857d27605d2254  live-sha-before-r4.txt
@@ -79,6 +89,7 @@ bed1124877727e0dc865c77f19f8964e9f2e74557d2e98341d203dddd228ed4e  live-window-ro
 922e4f2092aa5259c8c62239539e121c321db6cc9157c3ce29a429960808953c  live-window-round11.txt
 ceb34830fe588465d2cbfa68bea576902132f674ccf34113994f971b2864cb78  live-window-round12.txt
 568893b0c26403f06e02f8d9cea5c1717f143bc38bcd7ac212dd340e2d9209e0  live-window-round13.txt
+0bd87d1edf88978d87d5342e25d69ba2afbeaa9cc43e72af0b06a3f15e00e69c  live-window-round14.txt
 5593b484aad342fcc5a2e8a3521daab9d779ac9ac0794c2624e2c4db5a5574f4  live-window-round2.txt
 5b51f27e048619161321f14d0362e1d8ced59121821ca9bff55987654104b603  live-window-round3.txt
 c3ebdc546bec9cd1836dc26ed9123f114335372c6089bedb76897e846f64ce15  live-window-round4.txt
@@ -126,5 +137,11 @@ de3bb9c3807f6a60cedeba3b3525bbd1d100439150d9c889858e0624df9ff065  referee1-pytes
 76a2bee980606c5c8dbad18949ed4f70c4e4b2d5957654c06e534d33e748572f  referee1-pytest-full-round9.txt
 98f7d78efa2bb386a6e09571ba227d9e701d07ed8afd1032c32389d958d1552b  referee1-pytest-full.txt
 
-[manifest 生成时间] 2026-09-02 03:47:28 +0800
-[绑定说明] referee1-pytest-full-round13.txt (208 passed) / live-lint-round13.json (rc=2) / mutation-transcripts/ (22/22 KILLED, round-12 字节生成——源码未变) 均对应当前 vault_lint.py 字节; 任何源码变更后自动失效, 须复跑
+[manifest 生成时间] 2026-09-04 08:56:34 +0800
+[绑定说明] ⛔ CARD-G8-2b (BATCH-2026-09-04-第十批) 改了 vault_lint.py 与 test_vault_lint.py 的字节, 按本文件原有的失效条款, round-12/13 生成的下列证据对**当前字节**不再有效, 现逐项如实标注:
+  - referee1-pytest-full-round13.txt (208 passed) —— 失效。当前字节的门数为 90 (test_vault_lint.py 单文件, 89 基线 + G8-2b 新增 1 条 M5 门); G8-1 的 119 不回归本卡未复跑。
+  - live-lint-round13.json (rc=2) —— 失效, 已由 live-lint-round14.json (rc=2, 2026-09-04 08:55) 取代。两者唯一差异是 generated_at/today 日期 (freshness 的结构性窗口), orphan 的 blind_detail 两轮均为 {} —— 即 M5 的 key 形态变更在现网**无可观测差异**, 只由 fixture 门证明 (现网无 AUTO 段结构异常)。
+  - mutation-transcripts/ —— 失效 (round-12 字节生成, 源码此后已变)。⚠ 本卡按卡文明令**不重跑**变异 harness (它原地改生产源码, 且与 X1 车道互斥)。这 21 份 transcript 只能作历史记录读, 不构成对当前字节的负验证。
+  - ⛔ 计数更正 (r12 M6): 原绑定说明写 "22/22 KILLED" 是**误计**。该 22 来自 `grep -c '^mutate_and_test'`, 它把脚本 :18 行的**函数定义** `mutate_and_test() {` 也数了进去。实际变异**调用**为 21 条, transcripts 也是 21 份, 逐条同名一一对应、**无任何一条缺证**。正确判据是 `grep -c '^mutate_and_test \"'` (带引号, 只数调用) = 21。M13/M16/M21/M22 是已删除编号 (脚本 :136 / :196 有记录), 不存在"第 22 条"。
+  - 未受影响: help-full.txt / help-head20.txt (--help 文案本卡未改) / vault_doc_roles 三件 / probe-*。
+  任何后续源码变更同样使上述证据自动失效, 须复跑。

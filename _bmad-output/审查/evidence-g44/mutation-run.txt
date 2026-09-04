@@ -1,0 +1,58 @@
+[M1-去422] ✓ 指定门变红 (exit=1)
+[M2-去409-恢复旁路] ✓ 指定门变红 (exit=1)
+[M3-内链改回进程级] ✓ 指定门变红 (exit=1)
+[M4-fixture同组化] ✓ 指定门变红 (exit=1)
+[M5-哨兵降级debug] ✓ 指定门变红 (exit=1)
+[M6-expand裸表旁路] ✓ 指定门变红 (exit=1)
+[M7-空白validator失效] ✓ 指定门变红 (exit=1)
+[M8-扩展恒等失效] ✓ 指定门变红 (exit=1)
+
+ALL 8 MUTATIONS KILLED THEIR GATES (exit=1 only) ✓
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CARD-G4-4a 移植后复跑（2026-09-04，车道 card/x3-vaultscope，主干基线 1f249b33）
+# 命令: G44_BACKEND=<lane>/backend PYTHONDONTWRITEBYTECODE=1 \
+#        backend/.venv/bin/python _bmad-output/审查/evidence-g44/g44_mutations.py
+# 串行、原地改源码、每条变异后立即还原。
+# ─────────────────────────────────────────────────────────────────────────────
+[M1-去422] ✓ 指定门变红 (exit=1)
+[M2-去409-恢复旁路] ✓ 指定门变红 (exit=1)
+[M3-内链改回进程级] ✓ 指定门变红 (exit=1)
+[M4-fixture同组化] ✓ 指定门变红 (exit=1)
+[M5-哨兵降级debug] ✓ 指定门变红 (exit=1)
+[M6-expand裸表旁路] ✓ 指定门变红 (exit=1)
+[M7-空白validator失效] ✓ 指定门变红 (exit=1)
+[M8-扩展恒等失效] ✓ 指定门变红 (exit=1)
+
+ALL 8 MUTATIONS KILLED THEIR GATES (exit=1 only) ✓
+
+# 外部锚点（脚本自检之外的独立复核，防「自证」）:
+#   1. 跑前对三个被变异文件全部记 sha256 基线，跑后逐个比对 → 三条全一致
+#   2. git status --porcelain → 空（工作树干净，无变异体残留）
+#   3. grep -rn "MUTANT" 三文件 → rc=1（零命中）
+# M6 的意义（回答卡文完成条件 (m)）: 主干已由 CARD-G2-4 删除
+# resolve_table_name 的 B0.7 裸表回退，卡文担心该门因此恒真变假绿。实测
+# M6（把 nodes.py 的 resolve_table_name("canvas_nodes") 改回裸 "vault_notes"）
+# 仍杀死 test_wikilink_neighbor_expansion_stays_in_vault → 该门**不是假绿**，
+# 无需改写。真因: expand_neighbors 内部是 self._db.open_table(传入名)，
+# **根本不调用 resolve_table_name**，B0.7 的删除与这条路径无关。
+
+# ─────────────────────────────────────────────────────────────────────────────
+# M6 击杀身份核验（CARD-G4-4a 追加，防「假杀」）
+# 判据不是「有东西红了」，而是**哪一条断言红了**——带层变异报 KILLED 但击杀
+# 由别的层贡献 = 假杀。
+# ─────────────────────────────────────────────────────────────────────────────
+# 步骤 1（击杀身份）: 只施 M6，看失败身份。
+#   → exit=1，失败断言 = 「扩展带回的邻居不是 A 库版本: ['B 库绝密量子隐形传态']」
+#   → 失败语义**就是跨库泄漏本身**（从裸 vault_notes 带回了 B 库内容，
+#     取代了 A 库版本），击杀由被测防线（表名解析）贡献 → **不是假杀**。
+#   ⚠️ 但它是门里的**第二条**断言；显式泄漏探针
+#     `assert not any(d.endswith("b_secret") ...)` 排在第三条，pytest 在第二条
+#     就 fail，第三条**根本没跑到** → 该探针的活性未被 M6 单独证明。
+#
+# 步骤 2（可达性探针，complete 型层变异，如实声明）: M6 + 把前两条断言临时
+#   放行（`assert True or ...`，不动第三条本身），暴露第三条的可达性。
+#   → exit=1，失败断言 = 「邻居扩展混入裸表 B 内容: [...]」
+#   → 第三条显式 b_secret 探针**可达且会变红**，不是死断言。
+#
+# 两步均串行、原地改、finally 无条件还原、逐字节 sha 比对通过，git status 空。
