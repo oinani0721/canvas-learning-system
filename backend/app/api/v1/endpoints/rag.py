@@ -323,16 +323,17 @@ async def rag_query(
         canvas_path=request.canvas_file,
     )
     # 与入口日志同口径: 观测失败最多损失可观测性, 不得成为业务失败源
-    # (G4-3 round-3 HIGH-1 确立的纪律; 本卡新增日志一律惰性参数)。
-    try:
-        logger.info(
-            "RAG query scope resolved: vault=%s source=%s group=%s",
-            _scope.vault_id,
-            _scope.source,
-            _scope.group_id,
-        )
-    except Exception:  # noqa: BLE001 — 观测面刻意兜底
-        pass
+    # (G4-3 round-3 HIGH-1 确立的纪律; 日志一律惰性参数)。
+    # CARD-OBS-nothrow-logging-R1 归一 (CARD-G4-4a 完成条件 (k)): 兜底收敛进
+    # 模块级 `logger = nothrow(...)`, 调用点**不再**手写 try/except ——
+    # 双层兜底会让 test_nothrow_logging_api 的注入门测不到包装器本身 (假绿面,
+    # OBS 78c9e6e7 对入口日志已确立同一口径, 本行是 G4-4 后加日志的补齐)。
+    logger.info(
+        "RAG query scope resolved: vault=%s source=%s group=%s",
+        _scope.vault_id,
+        _scope.source,
+        _scope.group_id,
+    )
 
     try:
         result = await rag_service.query(

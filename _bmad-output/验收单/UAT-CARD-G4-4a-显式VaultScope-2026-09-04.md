@@ -197,6 +197,47 @@ G4-4 卡族**累计已 3 轮** Codex（round-1 REJECT / round-2 / round-3 到顶
 `.venv` 被 `.gitignore` 覆盖（`git status` 全程为空），**不入库**。
 作业结束后由本卡移除，车道恢复开工时形态。
 
+## 6.6-OBS. OBS 三提交 cherry-pick（完成条件 (k)）
+
+| # | 新 SHA | 源 SHA | cherry-pick | 随卡剔除 |
+|---|---|---|---|---|
+| 1 | `38daedbb` | `78c9e6e7` | 干净（**无 git 冲突**） | — |
+| 2 | `89dd7806` | `6b995031` | 干净 | `codex-review-CARD-OBS-nothrow-logging.stderr` |
+| 3 | `c694478c` | `c1f8968d` | 干净 | `codex-review-CARD-OBS-nothrow-logging-round2.stderr` |
+
+### ⚠️ 「没有 git 冲突」不等于「语义已归一」——本卡实测
+
+卡文预判 `rag.py` 与 `test_rag_four_state_api.py` 各会冲突一次。实测**三条 pick
+全部干净应用**，原因是 OBS 的 patch 命中的是**入口日志**那段 hunk，而
+`a3c41075` 新增的是**另一处** scope 日志 hunk，两者不重叠 —— git 无从察觉。
+
+结果是 `rag.py` 一度处于**两种口径并存**的状态：
+
+- 入口日志：OBS 已改为模块级 `logger = nothrow(logging.getLogger(__name__))` + 直调；
+- scope 日志：仍保留 `a3c41075` 手写的 `try: logger.info(...) except Exception: pass`。
+
+按 (k)「以 OBS 的 `logger = nothrow(...)` 为准，删掉 `a3c41075` 手写 try/except」，
+本卡删除了 scope 日志的调用点 try/except。
+
+**为什么这不是洁癖而是真缺陷**：OBS 自己在 `rag.py:300-305` 的注释里写明了 ——
+*「call-site 的 try/except 与包装器双层兜底会让注入门测不到包装器（假绿面）」*。
+双层兜底下，注入门把 logger 打成抛错，调用点的 `except` 会先吞掉，
+于是**包装器是否真的生效，门测不出来**。这正是 OBS 这张卡要防的东西。
+
+### OBS 面判据
+
+| # | 判据 | 结果 |
+|---|---|---|
+| 1 | `test_nothrow_logging_api.py`（OBS 自带） | ✅ **21 passed** |
+| 2 | 裁判 1（四文件）OBS 后复跑 | ✅ **107 passed / 0 failed**（与 4a 终态一致，未回退） |
+| 3 | 裁判 2 OBS 后复跑 | ✅ 28 passed + 1 xfailed + 3 主干既有红（与 4a 终态一致） |
+| 4 | `ruff check` OBS 面 6 文件 | ✅ All checks passed |
+| 5 | `*.stderr` 入库 | ✅ `git ls-files \| grep '\.stderr$'` rc=1（零命中） |
+
+**未跑**：`backend/scripts/nothrow_logging_negative_control.py` —— 它是**原地改源码**
+的变异脚本（`m.target.write_text(...)`），卡文 (k) 未要求跑，且与本卡自身的
+`g44_mutations.py` 存在串行互斥要求。登记，不跑。
+
 ## 6.6 Codex 定向复审（round-4 of G4-4 族，本卡 1 轮）
 
 <!-- 待 (n) 执行后回填 -->
