@@ -1,0 +1,5 @@
+== netlog 分析 (round-4 终版, 正常态) ==
+页面相关请求:
+  4x http://127.0.0.1:8012/api/v1/review/overview
+  5x http://127.0.0.1:8012/api/v1/review/overview/app
+页面请求同源判定: PASS — 外部请求 0

@@ -694,8 +694,9 @@ async def vault_index_status(
 
 # RAG-S2 T5 M6 quarantine (2026-08-10): incremental 端点退役 — 与 orchestrator
 # worker 是两个并发写者 (delete-before-insert 交错可产双份 chunk), 且曾是考题
-# 入库旁路 (lancedb_client.index_single_file 直写)。全仓无活调用方实锤 (前端走
-# POST /api/v1/index/refresh-changed = enqueue 进 orchestrator 串行 worker)。
+# 入库旁路 (lancedb_client.index_single_file 直写)。全仓无活调用方 (2026-09-01
+# CARD-G2-5 round-3 复核实查: frontend 无 refresh-changed 命中, 该注释旧句
+# "前端走 refresh-changed" 不实, 已更正; 无产线消费方)。
 # 姿势照抄 vault.py P0-3 410 隔离先例; 实现机器 (index_single_file) 保留未删。
 @metadata_router.post(
     "/index/vault/incremental",

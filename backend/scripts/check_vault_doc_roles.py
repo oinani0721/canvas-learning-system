@@ -97,7 +97,7 @@ ROLES_YAML = Path(__file__).with_name("vault_doc_roles.yaml")
 
 #: 规则文件全文 SHA-256 指纹 — 任何字节变化都必须同 commit 更新此常量。
 #: 刷新: python3 backend/scripts/check_vault_doc_roles.py --print-roles-sha
-ROLES_SHA256 = "e5a02e1275a84fc759da2624804397a01d4ff7dafc82a7b1da7512d9d0e834a7"
+ROLES_SHA256 = "2a68d4cd8091dd7def01d3539a68cb9fb1efd458be2f8882459791312cf46648"
 
 #: yaml 顶层节名与顺序契约
 EXPECTED_SECTIONS = (

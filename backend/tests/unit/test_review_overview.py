@@ -9,6 +9,7 @@ CARD-G3-6a (BATCH-2026-08-29-第六批) 追加: 五桶分层计数消费与跨�
 """
 
 import hashlib
+import html
 import json
 import os
 import re
@@ -139,11 +140,12 @@ def _projection(
 
 
 def _mk_vault(root, name: str, projection: dict | None = None, raw: str | None = None):
-    """真目录 + 真文件 — 不 mock 任何文件系统语义。"""
+    """真目录 + 真文件 — 不 mock 任何文件系统语义。幂等: 同名 vault 重复建不炸
+    (CARD-G3-6b 垃圾门用例每轮覆盖写投影)。"""
     vault = root / name
-    (vault / ".obsidian").mkdir(parents=True)
+    (vault / ".obsidian").mkdir(parents=True, exist_ok=True)
     if raw is not None or projection is not None:
-        (vault / "outputs").mkdir()
+        (vault / "outputs").mkdir(exist_ok=True)
         text = raw if raw is not None else json.dumps(projection, ensure_ascii=False, indent=2)
         (vault / "outputs" / "今日复习.json").write_text(text, encoding="utf-8")
     return vault
@@ -2021,9 +2023,16 @@ def test_g64_nodes_are_purely_additive_and_same_source(overview_env):
 
     p = client.get("/api/v1/review/overview").json()["vaults"][0]["projection"]
     for b in p["boards"]:
-        assert set(b) == {"board", "due", "due_new", "placeholder", "earliest", "nodes"}, (
-            f"boards 行只许加性追加 nodes, 实为 {sorted(b)}"
-        )
+        assert set(b) == {
+            "board",
+            "due",
+            "due_new",
+            "placeholder",
+            "earliest",
+            "nodes",
+            "why_this_board",
+            "estimated_minutes",
+        }, f"boards 行只许加性追加, 实为 {sorted(b)}"
         assert len(b["nodes"]) == b["due"]
         for n in b["nodes"]:
             assert set(n) == {"node", "due_reason", "fsrs_due", "bucket", "why_due"}
@@ -2066,6 +2075,157 @@ def test_g64_narrow_viewport_structural_guarantees(overview_env):
     assert not re.search(r"(?<!max-)width:\s*\d+px", page), "(c) 不许固定 px 宽度"
     # viewport meta 在位 (缺了移动端会按 980px 虚拟视口渲染, 必横溢)
     assert 'name="viewport" content="width=device-width, initial-scale=1"' in page
+
+
+# ════════════════════════════════════════════════════════════════════
+# CARD-G3-6b (BATCH-2026-09-01-第八批): 板级解释加性消费
+# 生产器投影内复算落盘, 本端点只门禁 + 渲染, 一个数都不算。
+# ════════════════════════════════════════════════════════════════════
+
+
+def _top_row(board: str, top_node: str, **extra) -> dict:
+    """top_boards 行真形状 (旧七字段 + G3-6b 三件套)。extra 注入垃圾用。"""
+    row = {
+        "board": board,
+        "top_node": top_node,
+        "priority": 1.0,
+        "pending": 1,
+        "idle_days": None,
+        "difficulty": "",
+        "next_due": "",
+        "why_this_board": "1 个节点到期 · 最该考的从未考察 · 这块板从未被推荐过",
+        "estimated_minutes": 5,
+        "factors": {"due_total": 1},
+    }
+    row.update(extra)
+    return row
+
+
+def test_g36b_board_rows_carry_explain_from_top_boards(overview_env):
+    """(d) 消费链路: top_boards 行的解释/分钟按板名挂到 boards 行; 榜外板与
+    旧投影 → None。JSON 端先锁数据面。"""
+    root, client = overview_env
+    rows = [
+        _due_row("甲1", "甲板", bucket="new", why_due="新卡"),
+        _due_row("乙1", "乙板", bucket="new", why_due="新卡"),
+        _due_row("丙1", "丙板", bucket="new", why_due="新卡"),
+    ]
+    top = [
+        _top_row("甲板", "甲1"),
+        _top_row("乙板", "乙1"),
+        _top_row("丙板", "丙1"),
+    ]
+    proj = _nodes_projection("vault-a", rows, top=top)
+    _mk_vault(root, "vault-a", proj)
+    p = client.get("/api/v1/review/overview").json()["vaults"][0]["projection"]
+    by = {b["board"]: b for b in p["boards"]}
+    assert by["甲板"]["why_this_board"].startswith("1 个节点到期")
+    assert by["甲板"]["estimated_minutes"] == 5
+    assert by["乙板"]["why_this_board"] and by["乙板"]["estimated_minutes"] == 5
+
+
+def test_g36b_page_renders_explain_row_and_escapes_hostile(overview_env):
+    """(d) 页面渲染: 榜上板行下多一条「为什么是这块板 · 预计 N 分钟」整宽行,
+    双字段都 html.escape。敌对串注入不产出任何可执行的标记。"""
+    root, client = overview_env
+    hostile_why = '到期待复习<script>alert("x")</script>&<b>粗体</b>'
+    rows = [_due_row("甲1", "甲板", bucket="new", why_due="新卡")]
+    top = [_top_row("甲板", "甲1", why_this_board=hostile_why, estimated_minutes=13)]
+    _mk_vault(root, "vault-a", _nodes_projection("vault-a", rows, top=top))
+    page = client.get("/api/v1/review/overview/page").text
+    assert "为什么是这块板" in page, "解释行整行缺失"
+    assert "预计 13 分钟" in page, "预计分钟缺失"
+    assert "<script>" not in page and "<b>粗体</b>" not in page, "敌对串必须被转义"
+    assert html.escape(hostile_why) in page, "why 原样 escape 后应在场"
+
+
+def test_g36b_off_rank_and_old_projection_no_explain_row(overview_env):
+    """(d) 缺字段整块不出现: 旧投影 (无新字段) 与榜外板都不渲染解释行,
+    也不显示可能不可信的零分钟。"""
+    root, client = overview_env
+    # 旧投影: top_boards 行不带新字段 (_due_row 板只有一行, proj 不注入 top)
+    rows = [_due_row("甲1", "甲板", bucket="new", why_due="新卡")]
+    _mk_vault(root, "vault-a", _nodes_projection("vault-a", rows))
+    page = client.get("/api/v1/review/overview/page").text
+    assert "为什么是这块板" not in page, "旧投影不许伪造解释行"
+
+    # 新投影但板数超上限: 第 4 块板不在 top_boards 榜内 → 无解释行
+    rows4 = [_due_row(f"节点{i}", f"板{i}", bucket="new", why_due="新卡") for i in range(4)]
+    top4 = [_top_row(f"板{i}", f"节点{i}") for i in range(3)]  # 只 3 块上榜
+    _mk_vault(root, "vault-b", _nodes_projection("vault-b", rows4, top=top4))
+    page_b = client.get("/api/v1/review/overview/page").text
+    body_b = page_b[page_b.index("vault-b") :]
+    assert body_b.count("为什么是这块板") == 3, f"只有榜上 3 板有解释行, 实得 {body_b.count('为什么是这块板')}"
+
+
+def test_g36b_one_sided_explain_fields_render_nothing(overview_env):
+    """Codex round-1 MEDIUM (原子对): 两字段由生产器成对产出, 单边在场不是
+    "降级形态"而是半份配置 —— 解释行整块不出现, 不渲染没分钟的裸解释。"""
+    root, client = overview_env
+    rows = [_due_row("甲1", "甲板", bucket="new", why_due="新卡")]
+    # 只有 why, 缺分钟
+    top_why_only = [
+        {
+            "board": "甲板",
+            "top_node": "甲1",
+            "priority": 1.0,
+            "pending": 1,
+            "idle_days": None,
+            "difficulty": "",
+            "next_due": "",
+            "why_this_board": "1 个节点到期 · 最该考的从未考察",
+            "factors": {},
+        }
+    ]
+    # 只有分钟, 缺 why
+    top_mins_only = [
+        {
+            "board": "甲板",
+            "top_node": "甲1",
+            "priority": 1.0,
+            "pending": 1,
+            "idle_days": None,
+            "difficulty": "",
+            "next_due": "",
+            "estimated_minutes": 5,
+            "factors": {},
+        }
+    ]
+    for label, top in (("只有why缺分钟", top_why_only), ("只有分钟缺why", top_mins_only)):
+        _mk_vault(root, "vault-a", _nodes_projection("vault-a", rows, top=top))
+        resp = client.get("/api/v1/review/overview/page")
+        # 200 断言防门空转: 若实现变成半份配置渲染到一半抛异常被中间件兜成
+        # 500 错误页, 错误页恰好不含解释行字样 —— 只查子串会把「崩了」误判
+        # 成「整块不出现」(M8 变异实测)。单边缺省的正确行为是 200 且无解释行。
+        assert resp.status_code == 200, f"{label}: 单边缺省必须正常渲染, 不许 500"
+        assert "为什么是这块板" not in resp.text, f"{label}: 单边在场必须整块不出现"
+    # 双在场恢复显示
+    _mk_vault(root, "vault-a", _nodes_projection("vault-a", rows, top=[_top_row("甲板", "甲1")]))
+    resp = client.get("/api/v1/review/overview/page")
+    assert resp.status_code == 200
+    assert "为什么是这块板" in resp.text and "预计 5 分钟" in resp.text
+
+
+def test_g36b_garbage_explain_fields_degrade_corrupt_not_ok(overview_env):
+    """消费即负责验形: why 非串 / minutes 负数或 bool → ValueError → corrupt,
+    不给形状垃圾发 ok (与该文件所有被消费字段同一条纪律)。"""
+    root, client = overview_env
+    rows = [_due_row("甲1", "甲板", bucket="new", why_due="新卡")]
+    clean_top = [_top_row("甲板", "甲1")]
+    _mk_vault(root, "vault-a", _nodes_projection("vault-a", rows, top=clean_top))
+    assert client.get("/api/v1/review/overview").json()["vaults"][0]["status"] == "ok"
+    for label, top in (
+        ("why非串", [_top_row("甲板", "甲1", why_this_board=123)]),
+        ("why空串", [_top_row("甲板", "甲1", why_this_board="")]),
+        ("分钟负数", [_top_row("甲板", "甲1", estimated_minutes=-1)]),
+        ("分钟bool", [_top_row("甲板", "甲1", estimated_minutes=True)]),
+    ):
+        _mk_vault(root, "vault-a", _nodes_projection("vault-a", rows, top=top))
+        entry = client.get("/api/v1/review/overview").json()["vaults"][0]
+        assert entry["status"] == "corrupt", f"{label}: 垃圾必须走 corrupt 降级"
+        # 还原干净投影, 让下一轮断言不被上一轮污染
+        _mk_vault(root, "vault-a", _nodes_projection("vault-a", rows, top=clean_top))
+        assert client.get("/api/v1/review/overview").json()["vaults"][0]["status"] == "ok"
 
 
 # ════════════════════════════════════════════════════════════════════

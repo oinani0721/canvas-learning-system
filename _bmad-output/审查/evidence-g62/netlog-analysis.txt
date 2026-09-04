@@ -1,0 +1,30 @@
+══ CARD-G6-2 网络证据 (netlog, 2026-09-01 正常走查同跑) ══
+方法: --log-net-log 进程级全量; Chrome 未正常退出致尾部无闭合括号,
+      按『完整 URL 字符串』正则提取 (任何已发起请求必然留下完整 URL)。
+
+页面请求 (全部同源): 4 个
+  ✓ http://127.0.0.1:8012/
+  ✓ http://127.0.0.1:8012/api/v1/review/overview
+  ✓ http://127.0.0.1:8012/api/v1/review/overview/app
+  ✓ http://127.0.0.1:8012/favicon.ico
+
+外部请求合计: 30 个, 按域名:
+  · accounts.google.com
+  · android.clients.google.com
+  · clients2.google.com
+  · clientservices.googleapis.com
+  · edgedl.me.gvt1.com
+  · r4---sn-a5meknd6.gvt1.com
+  · redirector.gvt1.com
+  · safebrowsing.googleapis.com
+  · update.googleapis.com
+  · www.google.com
+  · www.gstatic.com
+
+其中非 Chrome 自身域名: 0 个
+其中页面路径相关 (含 /api/v1/ 等页面资源): 0 个  ← 核心判据
+
+结论: ① 页面级请求 100% 同源 (127.0.0.1:8012);
+      ② 外部域名全部属于 Chrome 浏览器自身组件更新/账号服务 (gvt1 组件
+        下载、googleapis 更新检查等) —— headless 一次性进程即会发起,
+        与所打开的页面无关; DevTools 网络面板 (页面级) 不会显示它们。

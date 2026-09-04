@@ -186,7 +186,7 @@ async def _get_fast_client() -> Any:
             # T5 审查 HIGH-1: enable_fallback=False — LanceDBClient.search()
             # 默认把超时/任何异常吞成 [] (基础设施故障 → 假 ok_empty)。本
             # client 是 MCP 专属 (不与索引端点共享), 关掉吞噬让异常沿
-            # _two_tier_search → search_supplementary(search_failed, degraded)
+            # _vault_scoped_search → search_supplementary(search_failed, degraded)
             # → _fast_path_search raise → source_status="error" 诚实上报。
             client = LanceDBClient(db_path=resolved_db_path, enable_fallback=False)
             ok = await client.initialize()  # loads embedding weights — once
@@ -283,7 +283,6 @@ def _material_to_item(m: Dict[str, Any]) -> NoteResultItem:
             "ce_score",
             "injection_risk",
             "is_link_list_chunk",
-            "is_legacy_fallback",
         )
     else:
         signal_keys = (
@@ -294,7 +293,6 @@ def _material_to_item(m: Dict[str, Any]) -> NoteResultItem:
             "injection_risk",
             "source_type",
             "is_link_list_chunk",
-            "is_legacy_fallback",
         )
     metadata: Dict[str, Any] = {k: m[k] for k in signal_keys if m.get(k) is not None}
     metadata["taint"] = taint

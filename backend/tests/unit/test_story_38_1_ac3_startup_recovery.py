@@ -43,7 +43,11 @@ class TestAC3StartupRecovery:
             svc._pending_file = Path(tmpdir) / "nonexistent.jsonl"
 
             result = await svc.recover_pending("/tmp/canvas")
-            assert result == {"recovered": 0, "pending": 0}
+            # CARD-G2-5 round-3: 返回 dict 加性含 persist_failed（断言口径从
+            # 整 dict 相等改为逐键, 原语义 fully 保留）。
+            assert result["recovered"] == 0
+            assert result["pending"] == 0
+            assert result["persist_failed"] == 0
 
     @pytest.mark.asyncio
     async def test_recover_pending_retries_entries(self):
@@ -91,9 +95,7 @@ class TestAC3StartupRecovery:
             assert result["pending"] == 0
 
             # JSONL file should be removed after all recovered
-            assert not svc._pending_file.exists(), (
-                "JSONL file should be deleted when all entries are recovered"
-            )
+            assert not svc._pending_file.exists(), "JSONL file should be deleted when all entries are recovered"
 
     @pytest.mark.asyncio
     async def test_recover_pending_partial_failure(self):
@@ -237,9 +239,9 @@ class TestAC3StartupRecovery:
                 await svc.recover_pending("/tmp/canvas")
 
             info_messages = [r.message for r in caplog.records]
-            assert any(
-                "pending index updates recovered" in msg for msg in info_messages
-            ), f"Expected startup log about pending recovery. Got: {info_messages}"
+            assert any("pending index updates recovered" in msg for msg in info_messages), (
+                f"Expected startup log about pending recovery. Got: {info_messages}"
+            )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

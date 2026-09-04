@@ -332,8 +332,9 @@ vault_entries:
     notes: >-
       **在库但检索不可见**: doc_type=whiteboard 命中读侧 exclude_doc_types
       (react_agent/tool_executor/agent_graph/supplementary_search_service 共 7 处
-      显式 + retriever 1 处默认)。G4-16 §3 登记的 Tier-2 旁路
-      (ENABLE_LANCEDB_TIER2_FALLBACK, 默认关) 是该结论的已知边界。
+      显式 + retriever 1 处默认)。G4-16 §3 曾登记的 Tier-2 裸表旁路 (绕过
+      doc_type 排除) 已由 CARD-G2-4 删除分支本体, 该已知边界随之关闭 —
+      现在只剩 vault 前缀表这一条读路径, 排除过滤无旁路可绕。
 
   - id: dir-jiedian
     role: wiki

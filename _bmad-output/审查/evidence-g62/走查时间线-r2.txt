@@ -1,0 +1,34 @@
+CARD-G6-2 走查时间线 round-2（Codex round-1 四 HIGH 整改后的复核走查）
+========================================================================
+
+前提：走查针对 b984f1e2 之后的整改代码（未提交态），uvicorn 本车道实例
+127.0.0.1:8012，live vault 只读（GET /overview 是纯读投影文件）。
+
+07:08 之前   投影文件 SHA 基线：
+             今日复习.json 551f284b331e0770bd1527d00cc57ac834a5956bcaec37a3f41ac0a37024df6b
+             今日复习.md   9f4e9d0ae40c08fd3bbd6ce3b890784c590e0529a86d06623ac315c6b120c0ae
+07:08:45     WALKTHROUGH2-START（uvicorn 8012 启动，READY ~50s）
+07:10        截图② g62-2-正常-live列表-r2.png：
+             已连接徽标 + 上次更新 07:10:44 + 下次自动刷新 ~60 秒后（clamp 上限路径实测）；
+             canvas-vault（过期投影, 到期 6）/ test-vault（过期投影, 到期 2）/
+             _bmad-output（无投影）三卡正常渲染，节点明细折叠在位。
+             同 run 抓 netlog → netlog-normal-full-r2.json
+07:17-07:19  （工具排障：①首拍时序竞态拍到 Chrome 错误页，重设计；
+             ②flaky 代理被 macOS 系统代理劫持 → 空 ProxyHandler 强制直连修复）
+07:20:45     截图① g62-1-unavailable不白屏-r2.png：
+             经「前 2 请求放行、之后 503」的一次性代理（8013）加载同一页面 ——
+             首轮 GET 成功渲染数据，下一轮轮询吃 HTTP 503 → 红徽标「后端不可用」
+             + 横幅「后端离线/不可用 — HTTP 503。页面保留 07:20:45 的最后一次
+             成功数据。自动重试中…」+ 三卡数据完整保留（不白屏）。
+             ※ 这是 round-1 未覆盖的「有旧数据垫底」分支，本轮补齐。
+07:21:54     WALKTHROUGH2-END；SHA 后比对逐字相同（写侧零取证，全程未点刷新）。
+netlog       netlog-analysis-r2.txt：页面相关请求共 2 个（HTML navigation +
+             JS fetch GET /api/v1/review/overview），全部同源 127.0.0.1:8012；
+             页面发起的外部请求 = 0。netlog 里出现的 google/gvt1 域名是
+             Chrome 自身后台组件（组件更新/安全浏览），与页面无关。
+
+工具残留清理：uvicorn(8012)、flaky proxy(8013) 走查结束后即杀。
+陪跑说明：截图① 所用 503 由测试代理注入（上游 8012 存活），目的是在一次
+headless 加载里确定性复现「成功过→然后挂」的时序；语义与真实宕机等价
+（fetch 收到非 200）。真实宕机分支（连接拒绝）由 round-1 截图
+g62-1-unavailable不白屏.png 覆盖。

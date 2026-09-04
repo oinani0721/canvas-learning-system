@@ -283,6 +283,15 @@ class ReviewService:
             self._fsrs_manager = fsrs_manager
             self._fsrs_init_ok = True
             FSRS_RUNTIME_OK = True
+            # CARD-DEBT-8 (Codex round-1 M1): 外来注入的 manager 缺
+            # library_available 时 helper 走 fail-open 缺省 True——改
+            # fail-closed 会打红既有 mock 注入套件, 故保留 HEAD 行为但
+            # 让这个边缘显式出声 (一次性, 不在每次调用时刷屏)。
+            if not hasattr(self._fsrs_manager, "library_available"):
+                logger.warning(
+                    "Injected fsrs_manager lacks 'library_available' "
+                    "(CARD-DEBT-8); assuming real py-fsrs library (fail-open)"
+                )
             logger.info("FSRS manager initialized successfully")
         else:
             # Story 32.8: Auto-create via unified factory (checks USE_FSRS internally)
@@ -308,6 +317,19 @@ class ReviewService:
         # 全量快照写成功时整体治愈 (clear), 查询侧据此如实上报 persisted。
         self._unpersisted_concepts: set = set()
         logger.debug("ReviewService initialized")
+
+    def _fsrs_library_ok(self) -> bool:
+        """CARD-DEBT-8: 底层 py-fsrs 是否真在位。
+
+        manager 存在只证明 fsrs_manager 模块可导入; py-fsrs 缺失时底层走
+        _fallback_review（简单倍率调度）, algorithm 字段必须据此如实上报。
+        getattr 缺省 True 是**显式裁决** (Codex round-1 M1): 生产 factory
+        产出的 FSRSManager 恒有此属性, 缺属性的只有外来注入的替身/旧式
+        wrapper——对它们 fail-open 保持 HEAD 行为, 改 fail-closed 会把
+        既有 mock 注入套件全部打红; 缺属性情形已在 __init__ 一次性
+        warning 出声。
+        """
+        return bool(getattr(self._fsrs_manager, "library_available", True))
 
     @staticmethod
     def _load_card_states() -> Dict[str, str]:
@@ -883,12 +905,17 @@ class ReviewService:
                     # New cards: stability/difficulty are None — formatting them
                     # with ':.2f' raised TypeError, silently degrading every new
                     # concept to the Ebbinghaus fallback via the except below.
-                    reason=f"FSRS-4.5 scheduling, "
+                    # CARD-DEBT-8: 底层 fallback 激活时决策日志也不得谎报 FSRS-4.5。
+                    reason=f"{'FSRS-4.5' if self._fsrs_library_ok() else 'fallback'} scheduling, "
                     f"stability={_fmt_optional_2f(getattr(card, 'stability', None))}, "
                     f"difficulty={_fmt_optional_2f(getattr(card, 'difficulty', None))}",
                 )
 
-                return {
+                # CARD-DEBT-8: manager 在位 != py-fsrs 在位。底层 fallback
+                # 激活时如实上报 fsrs-fallback-scheduler + degraded_reason
+                # （加性, 沿 CARD-D3 先例; 真实库在位响应逐键与此前相同）。
+                lib_ok = self._fsrs_library_ok()
+                response = {
                     "canvas_name": canvas_name,
                     "concept_id": concept_id,
                     "scheduled_date": due_date.isoformat()
@@ -919,8 +946,11 @@ class ReviewService:
                     },
                     "card_data": self._fsrs_manager.serialize_card(card),
                     "status": "scheduled",
-                    "algorithm": "fsrs-4.5",
+                    "algorithm": "fsrs-4.5" if lib_ok else "fsrs-fallback-scheduler",
                 }
+                if not lib_ok:
+                    response["degraded_reason"] = "fsrs_library_missing"
+                return response
 
             # INTENTIONAL: Third-party py-fsrs library may raise unpredictable errors; fallback to Ebbinghaus
             except Exception as e:
@@ -1069,6 +1099,17 @@ class ReviewService:
                     card_state_persisted = False
                     degraded_reason = "empty_concept_id_not_persisted"
 
+                # CARD-DEBT-8: 底层 py-fsrs 缺失时如实上报, 不再谎报 fsrs-4.5。
+                # fsrs_library_missing 与 CARD-D3 的持久化降级原因并存时
+                # 逗号拼接——两个降级都真实, 谁也不冲掉谁。
+                lib_ok = self._fsrs_library_ok()
+                if not lib_ok:
+                    degraded_reason = (
+                        "fsrs_library_missing"
+                        if degraded_reason is None
+                        else f"fsrs_library_missing,{degraded_reason}"
+                    )
+
                 # Extract state value safely
                 state_val = getattr(updated_card, "state", 0)
                 if hasattr(state_val, "value"):
@@ -1100,7 +1141,7 @@ class ReviewService:
                     "details": details or {},
                     "recorded_at": datetime.now(timezone.utc).isoformat(),
                     "status": "recorded",
-                    "algorithm": "fsrs-4.5",
+                    "algorithm": "fsrs-4.5" if lib_ok else "fsrs-fallback-scheduler",
                     # CARD-D3: 持久化诚实信号 (评分计算成功 != 状态已落盘)
                     "card_state_persisted": card_state_persisted,
                     "degraded_reason": degraded_reason,
@@ -2209,6 +2250,12 @@ class ReviewService:
                     if auto_created
                     else "cached_state_not_persisted"
                 )
+            # CARD-DEBT-8: 底层 py-fsrs 缺失时加性声明降级（真实库在位
+            # 不加键, 响应逐键与此前相同）。retrievability/due 此时来自
+            # fallback 估算, 消费方须能看见这不是 FSRS-4.5 的输出。
+            if not self._fsrs_library_ok():
+                result["algorithm"] = "fsrs-fallback-scheduler"
+                result["degraded_reason"] = "fsrs_library_missing"
 
             logger.debug(
                 f"FSRS state for {concept_id}: stability={result['stability']:.2f}, "
