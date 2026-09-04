@@ -27,8 +27,9 @@ socket 门只管连接，**挡不住文件写**；挡住文件写的是 ``no_lif
   ``blocked=0`` 看起来却像「哨兵没接住」）；
 * **现场复原**：变异态新造出来的运行时文件（跑前 absent）由脚本删除。跑前就存在
   且内容变了的**不覆盖**（可能混有并发写入），直接判失败交人工。
-  ``app/data/vault_index_pending.jsonl`` 的路径在
-  ``app/services/vault_index_orchestrator.py:101`` 是**硬编码**的，重定向不了。
+  orchestrator 的 durable journal 落在 ``app/data/`` 下（``state_dir`` 不给就取
+  模块相对路径），重定向不了；文件名自 CARD-G2-5 起是 vault 命名空间下的
+  ``vault_index_pending__<vault_key>.jsonl``，见 ``RUNTIME_FILE_GLOBS``。
 
 ## 第八批 BLOCKER 的收口：子进程环境必须钉死，而不是继承
 
@@ -113,16 +114,42 @@ EXPECTED_REASON = "live Neo4j port connect attempted"
 #: 与 backend/scripts/lifespan_isolation_runtime_sha.sh 的监视清单保持一致。
 RUNTIME_FILE_RELPATHS = [
     "data/bug_log.jsonl",
-    "app/data/vault_index_pending.jsonl",
     "data/outbox/events.jsonl",
+]
+
+#: ⛔ 不能写成固定文件名（2026-09-04 主干合并后当场抓到的假门）：CARD-G2-5
+#: （第七批）把 orchestrator 的 durable journal 从 ``app/data/vault_index_pending.jsonl``
+#: 改成了 vault 命名空间下的 ``vault_index_pending__<vault_key>.jsonl``
+#: （``app/core/vault_state_paths.py::namespaced_state_path``），而且 vault_key 还会
+#: 因 ``NAME_MAX`` 的**字节**预算被 hash 截断 —— 文件名根本不可预先硬编码。
+#: 后果分两个方向，都很难看：
+#:   * 本脚本这一侧：「变异态必须写至少一个运行时文件」的正证据锚点落空 → 负控
+#:     报 FAIL（fail-closed，还算诚实）；
+#:   * ``runtime_sha.sh`` 那一侧：断言的是 ``unchanged``，锚点落空直接变**假绿**。
+#: 所以按 stem 前缀 glob，新旧两种文件名一并收（旧的固定名也匹配）。
+#:
+#: 覆盖面刻意与合并前**等价**：只跟随这一个 journal 的改名，不新增监视项。
+#: 同族的 ``lancedb_pending_index__<key>.jsonl``（``lancedb_index_service.py:76``）
+#: 合并前就不在清单里，本卡只登记移交，不在此扩面（扩面会让 runtime_sha 变严，
+#: 属于另一张卡的范围决策）。
+RUNTIME_FILE_GLOBS = [
+    "app/data/vault_index_pending*.jsonl",
 ]
 
 
 def runtime_files(backend_dir: Path) -> list[Path]:
-    return [backend_dir / rel for rel in RUNTIME_FILE_RELPATHS]
+    """固定项 + glob 项。
 
+    ⚠️ glob **每次调用都重新展开** —— before 快照时文件还不存在、after 才被写出来
+    正是本门要抓的情形；把展开结果缓存下来就等于抓不到新建文件。
+    展开结果排序，避免文件系统顺序波动造成假 delta。
+    """
+    fixed = [backend_dir / rel for rel in RUNTIME_FILE_RELPATHS]
+    globbed: list[Path] = []
+    for pattern in RUNTIME_FILE_GLOBS:
+        globbed.extend(backend_dir.glob(pattern))
+    return fixed + sorted(globbed)
 
-RUNTIME_FILES = runtime_files(BACKEND_DIR)
 
 #: 钉死的**完整 nodeid**（第八批 Codex MEDIUM：此前用 ``-k`` 子串过滤 + 名字
 #: substring 判定，三个名字加任意后缀仍能满足「身份钉死」）。这里直接把完整
@@ -1545,9 +1572,8 @@ def make_isolated_backend(tmp_root: Path) -> Path:
       被写**，所以「读原文 → 期间别人编辑 → 用旧变异体覆盖」这条链根本不存在，
       不需要靠 CAS 去追一个本来就不该发生的写。
     * **HIGH-6（`absent → exists` 就 unlink 可能删掉别人的数据）**：变异运行产生的
-      运行时文件（``app/data/vault_index_pending.jsonl`` 的路径是硬编码的，
-      重定向不了）落在**副本**里，随 tmp 目录一起消失；真实树下的同名文件本脚本
-      **永远不删**。
+      运行时文件（orchestrator 的 journal 只落在 ``app/data/`` 下，重定向不了）
+      落在**副本**里，随 tmp 目录一起消失；真实树下的同名文件本脚本**永远不删**。
 
     **只复制 git tracked 的文件**（内容取自工作树，所以未提交的改动照样进副本 ——
     负控要验的就是此刻这份代码）。这一条不是为了省空间，是为了不把数据带出去：
@@ -1594,8 +1620,13 @@ def sha_of(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def runtime_snapshot() -> str:
-    return "\n".join(f"{sha_of(p)}  {p}" for p in RUNTIME_FILES)
+def runtime_snapshot(root: Path) -> str:
+    """``root`` 下受监视运行时文件的 "<sha|absent>  <path>" 快照。
+
+    ⛔ 必须传 root 并**在每次快照时重新展开 glob**：模块级缓存一份 Path 列表会让
+    「跑完之后新出现的 journal」永远进不了 after 快照 —— 那正是本门要抓的东西。
+    """
+    return "\n".join(f"{sha_of(p)}  {p}" for p in runtime_files(root))
 
 
 def _parse_junit(path: Path, target_rel: str) -> list[tuple[str, dict]]:
@@ -1687,7 +1718,7 @@ def main() -> int:
     print(f"[0b] 隔离副本: {iso}")
 
     # 真实树的运行时文件在整个脚本期间必须纹丝不动（本脚本从不写、也从不删它们）
-    real_before = "\n".join(f"{sha_of(p)}  {p}" for p in RUNTIME_FILES)
+    real_before = runtime_snapshot(BACKEND_DIR)
 
     # -- 0d. 前置：逐项精确核对**应用侧解析出来的**隔离环境 -------------------
     preflight_env = _child_env(vault_tmp, lance_tmp, None, iso)
@@ -1763,7 +1794,7 @@ def main() -> int:
     ledger_problem: str | None = None
     child_stdout = ""
     child_stderr = ""
-    iso_runtime_before = "\n".join(f"{sha_of(p)}  {p}" for p in runtime_files(iso))
+    iso_runtime_before = runtime_snapshot(iso)
     positive_runtime_ok = False
     mutated_runtime_delta = ""
 
@@ -1802,7 +1833,7 @@ def main() -> int:
     pos_summary = _parse_summary(pos.stdout)
     pos_cases = _parse_junit(pos_junit, TARGET_REL) if pos_junit.exists() else []
     pos_outcomes = [(nid, c["outcome"]) for nid, c in pos_cases]
-    positive_runtime_ok = "\n".join(f"{sha_of(p)}  {p}" for p in runtime_files(iso)) == iso_runtime_before
+    positive_runtime_ok = runtime_snapshot(iso) == iso_runtime_before
     print(f"[1b] 正控 rc={pos.returncode} 门汇总={pos_summary} outcomes={pos_outcomes}")
     pos_problem = None
     if pos.returncode != 0:
@@ -1908,9 +1939,9 @@ def main() -> int:
         print(f"    RED-WRONG-REASON: {w}")
 
     # -- 5. 运行时文件：副本必须被写（隔离承重的正证据）；真实树必须纹丝不动 --
-    iso_runtime_after = "\n".join(f"{sha_of(p)}  {p}" for p in runtime_files(iso))
+    iso_runtime_after = runtime_snapshot(iso)
     mutated_runtime_delta = "" if iso_runtime_after == iso_runtime_before else iso_runtime_after
-    real_after = "\n".join(f"{sha_of(p)}  {p}" for p in RUNTIME_FILES)
+    real_after = runtime_snapshot(BACKEND_DIR)
     real_untouched = real_after == real_before
     target_untouched = hashlib.sha256(TARGET.read_bytes()).hexdigest() == original_sha
     print(f"[5] 真实树运行时文件 untouched={real_untouched}; 真实目标文件 untouched={target_untouched}")

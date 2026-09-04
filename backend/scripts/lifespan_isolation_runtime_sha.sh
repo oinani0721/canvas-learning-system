@@ -197,20 +197,36 @@ if [ ! -f "${BACKEND_DIR}/app/main.py" ] || [ ! -d "${BACKEND_DIR}/tests" ]; the
 fi
 
 # 受监视文件 —— 均 git-ignored 的运行时产物，均由 app/main.py 的 lifespan 链写。
-#   bug_log.jsonl            <- app/services/bug_tracker.py
-#   vault_index_pending.jsonl<- app/services/vault_index_orchestrator.py
+#   bug_log.jsonl            <- app/core/bug_tracker.py
 #   outbox/events.jsonl      <- app/services/event_bus.py
-WATCHED=(
+WATCHED_FIXED=(
   "${BACKEND_DIR}/data/bug_log.jsonl"
-  "${BACKEND_DIR}/app/data/vault_index_pending.jsonl"
   "${BACKEND_DIR}/data/outbox/events.jsonl"
 )
-EXPECTED_WATCH_COUNT=3
+
+# ⛔ orchestrator 的 durable journal 不能写成固定文件名（2026-09-04 主干合并后
+#    当场抓到的假门）：CARD-G2-5（第七批）把它改成了 vault 命名空间下的
+#    vault_index_pending__<vault_key>.jsonl（app/core/vault_state_paths.py::
+#    namespaced_state_path），vault_key 还会因 NAME_MAX 的**字节**预算被 hash
+#    截断 —— 文件名不可预先硬编码。锚点落空的后果就是本门恒 unchanged 的**假绿**：
+#    它断言的是"没变"，而一个永远不存在的路径永远 absent==absent。
+#   vault_index_pending__*.jsonl <- app/services/vault_index_orchestrator.py:131
+WATCHED_GLOBS=(
+  "${BACKEND_DIR}/app/data/vault_index_pending*.jsonl"
+)
+EXPECTED_FIXED_COUNT=2
+EXPECTED_GLOB_COUNT=1
 
 # 自检: 监视清单不能悄悄变空/变短 —— 空清单会让本门「零比较、恒绿」。
-if [ "${#WATCHED[@]}" -ne "${EXPECTED_WATCH_COUNT}" ]; then
-  builtin printf 'RUNTIME-FILES: GATE-BROKEN — 监视清单有 %s 项, 期望 %s 项\n' \
-    "${#WATCHED[@]}" "${EXPECTED_WATCH_COUNT}" >&2
+# 两类分别自检: glob 项数为 0 同样是「零比较」，只是更隐蔽。
+if [ "${#WATCHED_FIXED[@]}" -ne "${EXPECTED_FIXED_COUNT}" ]; then
+  builtin printf 'RUNTIME-FILES: GATE-BROKEN — 固定监视项有 %s 个, 期望 %s 个\n' \
+    "${#WATCHED_FIXED[@]}" "${EXPECTED_FIXED_COUNT}" >&2
+  exit 1
+fi
+if [ "${#WATCHED_GLOBS[@]}" -ne "${EXPECTED_GLOB_COUNT}" ]; then
+  builtin printf 'RUNTIME-FILES: GATE-BROKEN — glob 监视模式有 %s 条, 期望 %s 条\n' \
+    "${#WATCHED_GLOBS[@]}" "${EXPECTED_GLOB_COUNT}" >&2
   exit 1
 fi
 
@@ -226,11 +242,22 @@ if [ "$#" -eq 0 ]; then
 fi
 
 snapshot() {
-  # 逐行输出 "<sha256|absent>  <path>"；顺序与 WATCHED 一致。
+  # 逐行输出 "<sha256|absent>  <path>"；固定项在前（顺序与 WATCHED_FIXED 一致），
+  # glob 项在后（compgen -G 的展开结果本身就按 collating sequence 排好序，所以
+  # 不必引入外部 sort —— 少一个需要锁死路径的工具）。
   # hash 管道任何一环失败（shasum 出错 / 结果非 64 位十六进制）都判门损坏，
   # 不允许「空 digest 前后相等 = unchanged」的假绿。
-  local f digest
-  for f in "${WATCHED[@]}"; do
+  local f digest g
+  local -a targets=("${WATCHED_FIXED[@]}")
+  # ⛔ glob 必须**每次快照都重新展开**：命令跑完后才被创建出来的 journal，只有
+  #    在 after 这一次展开里才看得见。把展开结果算一次缓存起来 = 新建文件永远
+  #    进不了 after 快照，本门就退化成只盯固定两项。
+  for g in "${WATCHED_GLOBS[@]}"; do
+    while IFS= read -r f; do
+      [ -n "$f" ] && targets+=("$f")
+    done < <(builtin compgen -G "$g" || true)
+  done
+  for f in "${targets[@]}"; do
     if [ -f "$f" ]; then
       digest="$(hash_stdin <"$f")" || {
         builtin printf 'RUNTIME-FILES: GATE-BROKEN — sha256 失败: %s\n' "$f" >&2
