@@ -472,9 +472,53 @@ def sha(p):
     return hashlib.sha256(p.read_bytes()).hexdigest()
 
 
+def _self_heal_leftovers() -> list[str]:
+    """启动即自愈：还原**上一次被外部杀死时残留的**变异体。
+
+    ⛔ 本脚本已有 `finally` 无条件还原，但那挡不住"整个进程组被杀"——
+    2026-09-04 实测：跑到一半 python 进程消失，`for _inst_, _ln_, _o_ in []:  # MUTANT`
+    留在了 `SKILL.md` 里（输出文件 0 字节，连缓冲都没 flush）。
+    `finally` 和信号处理写得再小心，外部 kill 总可能发生；唯一可靠的兜底是
+    **下一次启动时先检查**。
+    """
+    healed = []
+    for _mut in MUTATIONS:
+        _tag, _target, _old, _new = _mut[0], _mut[1], _mut[2], _mut[3]
+        try:
+            src = _target.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        if _new in src and _old not in src:
+            _target.write_text(src.replace(_new, _old, 1), encoding="utf-8")
+            healed.append(f"{_tag} @ {_target.name}")
+    return healed
+
+
+def _PYTEST_BIN() -> str:
+    """pytest 可执行文件路径。
+
+    ⚠️ 原为硬编码 `ROOT/backend/.venv/bin/pytest` —— 在**没有自己 venv 的车道**
+    （从主干新切的工作树就是这样）直接 `FileNotFoundError`，脚本跑不起来。
+    优先取环境变量 `G32B_PYTEST`，其次才是车道内的 venv；两者都不可用时**报清楚**，
+    不要留一个 FileNotFoundError 让人去猜。
+    """
+    import os as _os
+
+    env = _os.environ.get("G32B_PYTEST")
+    if env and pathlib.Path(env).exists():
+        return env
+    local = ROOT / "backend/.venv/bin/pytest"
+    if local.exists():
+        return str(local)
+    raise SystemExit(
+        f"✗✗ 找不到 pytest：环境变量 G32B_PYTEST 未设或指向不存在的路径，"
+        f"且本车道无 {local} —— 请设 G32B_PYTEST 指向可用的 pytest 后重跑"
+    )
+
+
 def run_gate(name):
     return subprocess.run(
-        [str(ROOT / "backend/.venv/bin/pytest"), f"{TESTF}::{name}", "-q", "-p", "no:cacheprovider", "--tb=line"],
+        [_PYTEST_BIN(), f"{TESTF}::{name}", "-q", "-p", "no:cacheprovider", "--tb=line"],
         cwd=str(ROOT / "backend"),
         capture_output=True,
         text=True,
@@ -1663,14 +1707,17 @@ MUTATIONS += [
 
 # ── round-17（对抗预审确认项）的承重变异
 MUTATIONS += [
-    (
-        # receipt 编码退回裸 ensure_ascii=False ⇒ 字符轴自产自拒（YAML 折叠/拒收）
-        "M154-q-bare-ensure-ascii-false",
-        SKILL,
-        "        _lit = json.dumps(v, ensure_ascii=False)\n",
-        "        _lit = json.dumps(v, ensure_ascii=False)\n        return _lit  # MUTANT: 跳过往返自证\n",
-        "test_round17_receipt_survives_yaml_hostile_chars",
-    ),
+    # ── M154-q-bare-ensure-ascii-false：退役（**承重面上移，不是死纵深**）
+    # 原变异拆掉 `q_()` 的往返自证，绑 `test_round17_receipt_survives_yaml_hostile_chars`。
+    # CARD-G3-2c-C 把字符轴反转成**一律拒绝**（§6.1 字符轴规范输入集，码点区间闭合），
+    # 判据上移到校验器 `value_charset_problems()`，那道门也随之反转为
+    # `test_round17_hostile_chars_now_rejected_not_survived`。
+    # ⇒ 非规范码点在**进入 q_() 之前**就被拒，本变异再拆 `q_()` 也观察不到差异（会 SURVIVED）。
+    # 承重面移交：`g32cb_mutation_gates.py` 的 M6（拆字符轴判据）与 M7（区间退化成枚举），
+    # 二者实测均 KILLED。
+    # ⚠️ 如实声明未证明面：`q_()` 的往返自证如今是**纵深**（校验器被绕过时仍起作用），
+    # 退役**不等于**它被证明过。要为纵深挂变异，必须同时禁掉校验器那一层（depth 类变异），
+    # 那是另一套设计，本脚本不做。
     (
         # 无视 board_form 标记恒 json.loads ⇒ 旧条目读不出来（向后兼容契约无承重面）
         "M155-board-form-ignored",
@@ -1719,22 +1766,28 @@ MUTATIONS += [
         "    if _rc_dup is not None and _rc_dup_applied is None:  # MUTANT: 只拒 None\n",
         "test_round17_fsrs_applied_must_be_strict_bool",
     ),
-    (
-        # 重建已有条目退回裸 json.dumps ⇒ 每追加一条就把旧条目的字符重新破坏一次
-        "M159-rebuild-bare-json-dumps",
-        SKILL,
-        '                    _rebuilt.append(f"{_pfx}{_kq(_k)}: {q_(_e[_k])}")\n',
-        '                    _rebuilt.append(f"{_pfx}{_k}: {json.dumps(_e[_k], ensure_ascii=False, default=str)}")  # MUTANT\n',
-        "test_round17_rebuild_preserves_existing_receipt_bytes",
-    ),
-    (
-        # 规范化退回递归实现 ⇒ 深层合法值首写成功、崩溃窗恢复撞 RecursionError
-        "M160-canon-tree-recursive",
-        SKILL,
-        "    _stack, _res, _seen = [(v, False)], [], 0\n",
-        '    def _rec(x):  # MUTANT: 退回递归实现\n        if isinstance(x, dict):\n            return ("obj", tuple(sorted((str(k), _rec(y)) for k, y in x.items())))\n        if isinstance(x, (list, tuple)):\n            return ("arr", tuple(_rec(y) for y in x))\n        return _scalar(x)\n    return _rec(v)\n    _stack, _res, _seen = [(v, False)], [], 0\n',
-        "test_round17_deep_json_recovers_after_crash_window",
-    ),
+    # ── M159-rebuild-bare-json-dumps：退役（同 M154，承重面上移 + 载体不可达）
+    # 原变异让重建路径退回裸 `json.dumps`，绑
+    # `test_round17_rebuild_preserves_existing_receipt_bytes`（该门用 U+0085 作载体）。
+    # 字符轴反转后那个载体**不可达**（首写即拒），门已改为
+    # `test_round17_rebuild_hostile_carrier_is_unreachable_now` 只锁"老路确实被封"。
+    # ⚠️ 它原先守的性质 —— **追加新条目时不得改动已有条目** —— 与字符轴无关，仍然要守；
+    # 已移交给 `test_g32cc_emitter_rebuild_never_mutates_existing_entries`：用**合法中文值**
+    # 走同一条重建路径，逐项类型敏感比对**整个条目**（不只 exam_board 那一行），
+    # 并断言删账本行后重跑不二次计分。
+    # ⚠️ 如实声明未证明面：该新门当前**没有对应的变异**为它承重打分 —— 要打，
+    # 变异对象应是重建路径的**类型保真比较**（`_canon_tree(_kept) != _canon_tree(_cur)`）
+    # 而不是字符编码。登记为 backlog。
+    # ── M160-canon-tree-recursive：退役（**被更强的防线取代，且已被独立复核证伪**）
+    # 原变异把 `_canon_tree` 退回递归实现，绑 `test_round17_deep_json_recovers_after_crash_window`。
+    # CARD-G3-2c-B 给账本加了输入硬上限（深度 ≤64）后，>64 层不再是合法输入，
+    # 那道门的用例从 512/900 降到上限内 ⇒ **递归版在上限内也绰绰有余**。
+    # Codex 独立复核实测：把 `_canon_tree` 换回等价递归实现，该门仍 PASS。
+    # ⇒ 本变异已无鉴别力（必然 SURVIVED），且它想守的性质（深层值不造成不可恢复窗）
+    # 现在由**上限本身**承担：`g32cb_mutation_gates.py` 的 M4（拆深度判据）/
+    # M5（拆节点判据）实测 KILLED。
+    # ⚠️ 如实声明：显式栈实现仍然保留（纵深），但在新契约下它与递归版**无可观测差异**，
+    # 因此没有任何门能区分两者 —— 这是取代，不是"证明了显式栈没必要"。
     (
         # foreign 恢复**静默**不提升事件级凭据 ⇒ 两阶段永不收敛, 原白板卡死
         "M161-foreign-no-credential-promotion",
@@ -1774,6 +1827,9 @@ def _syntax_errors(texts):
 def main():
     failures = []
     kill_fail = {}
+    _healed = _self_heal_leftovers()
+    if _healed:
+        print(f"⚠️ 自愈：还原了上一次残留的变异体 {_healed}", flush=True)
     # ⛔ 全文件基线核对（round-11b 新增，起因是一次真实污染）:
     # 更早一轮的探针往 `fsrs_bridge.py` 末尾追加了两段 `_s.exit(9)` 且**没有还原**。
     # 三裁判全绿、101 条变异全 KILLED、`grep -c MUTANT` 返回 0 —— 全都没抓到它,

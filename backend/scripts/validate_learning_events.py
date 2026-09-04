@@ -404,6 +404,48 @@ PROOF_MAX_DEPTH = 128
 #: 主动拒才有确定的拒因，撞解释器上限只会得到一个环境相关的崩溃。
 MAX_VALUE_DEPTH = 64
 MAX_VALUE_NODES = 200_000
+#: ── §6.1 字符轴规范输入集（CARD-G3-2c-C）────────────────────────────────
+#: G3-2b 的 17 轮证明字符轴是**开放集合**：修好 U+0085 就冒出 U+2028/2029，
+#: 修好那两个就冒出 C1，再往下是孤立代理 —— 每一轮都"只差最后一个字符"。
+#: 因为危险集合由 YAML 版本、解析器实现、以及"文本行"的定义共同决定，
+#: 它不属于本系统，修不完。
+#:
+#: ⇒ 换方向：不再"支持"这些输入，而是把它们定义为**非规范输入**，一律拒绝。
+#: ⛔ 禁止集按**码点区间**定义，不是枚举 —— 枚举漏一个就等于没有，区间是闭合的。
+#: 五段区间的共同点：在 YAML/JSON/文本行的某一层有特殊语义或根本不可编码，
+#: 而在真实值域（检验白板文件名 + `#q1`）里**没有任何正当用途**。
+#:
+#:   C0 控制符   U+0000–U+001F   （含 NUL/LF/CR；JSON 里必须转义，YAML 里多义）
+#:   DEL         U+007F
+#:   C1 控制符   U+0080–U+009F   （含 NEL U+0085 —— YAML 1.1 按换行折叠）
+#:   行/段分隔符 U+2028 / U+2029  （YAML 1.1 同样折叠）
+#:   代理码位    U+D800–U+DFFF   （孤立代理编不出 UTF-8）
+#:
+#: ⚠️ 误拒面：中文、emoji、空格、连字符、全角标点全部是普通图形字符，不在任何
+#: 区间内。真实板名零命中（契约测试有验伪锚门锁这一点）。
+FORBIDDEN_CODEPOINT_RANGES = (
+    (0x0000, 0x001F),
+    (0x007F, 0x007F),
+    (0x0080, 0x009F),
+    (0x2028, 0x2029),
+    (0xD800, 0xDFFF),
+    #: Unicode **noncharacters**（标准声明"永不用于交换"的 66 个码点）。
+    #: 实测（PyYAML 6.0.3 / Python 3.14）：
+    #:   U+FFFE / U+FFFF        裸形往返抛 ReaderError，ASCII 转义往返 OK
+    #:   U+1FFFE … U+10FFFF     裸形往返 OK，**ASCII 转义往返失败**（转义成代理对后读不回来）
+    #:   U+FDD0–U+FDEF          两条路都 OK
+    #: ⚠️ 如实说明：`q_()` 的"裸形优先、转义回落"两层设计**恰好**把上面前两行各兜住一半，
+    #: 所以在旧实现下它们并不构成已发生的缺陷。收进禁止集是**原则性**的 ——
+    #: 本卡的立场是不靠"往返自证碰巧成功"来保证正确，而是按闭合集拒绝；
+    #: U+FDD0–U+FDEF 实测正常，一并收进来是因为 Unicode 标准把它们和前两类归为同一集合，
+    #: 拆开会让这个集合重新变成"凭实测逐个添加"的开放列表 —— 那正是前 17 轮的老路。
+    #: 误拒面：noncharacter 按定义永不分配给字符，任何正常文本（含 emoji）都不含它们。
+    (0xFDD0, 0xFDEF),
+) + tuple(
+    #: 每个平面末尾的两个码点 U+xFFFE / U+xFFFF（17 个平面共 34 个）
+    (0x10000 * _plane + 0xFFFE, 0x10000 * _plane + 0xFFFF)
+    for _plane in range(17)
+)
 #: scheduler_config 的必要字段 —— manifest 的该字段必须**含全部六键**才可用作
 #: 同源判据 (round-17 起: 残缺即 fail-closed, 不再降级形状校验)
 _SCHEDULER_CONFIG_KEYS = frozenset(
@@ -1560,6 +1602,45 @@ def value_shape_problems(value: object) -> list[str]:
     return problems
 
 
+def value_charset_problems(value: object) -> list[str]:
+    """§6.1 字符轴：任一字符串（**含 dict 的键**）含非规范码点即判违规，并报码点。
+
+    ⛔ **报出码点**是硬要求，不是锦上添花：这些字符在终端和编辑器里大多**不可见**
+    （NEL 看起来就是个空格），只说「含非法字符」等于让上游去猜。报 `U+0085` 才
+    可查。这条教训与 [不可见字符必须在源码里转义] 同源。
+
+    ⚠️ 与 `value_shape_problems()` 并列，同样在 `validate_record_full()` 早段执行，
+    因此写点在首次 append 前经自检自动继承（`SKILL.md` import 本体）。
+
+    ⚠️ **孤立代理只可能出现在内存中的 record**：账本文件是 UTF-8，编不出这种字节，
+    所以从文件读进来的行天然不含。这条检查对写点自检那条路才真正生效 —— 如实声明，
+    不要写成"两条路都拦得住"。
+    """
+    problems: list[str] = []
+    # 迭代遍历（理由同 value_shape_problems：递归检查器会先撞 RecursionError）。
+    # 形状上限由 value_shape_problems 先行保证，这里不再重复计数。
+    stack: list[object] = [value]
+    while stack:
+        node = stack.pop()
+        if isinstance(node, str):
+            for ch in node:
+                cp = ord(ch)
+                for lo, hi in FORBIDDEN_CODEPOINT_RANGES:
+                    if lo <= cp <= hi:
+                        return [
+                            f"字符串含非规范码点 U+{cp:04X} — 该码点在 YAML/JSON/文本行的某一层"
+                            f"有特殊语义或不可编码, 写入后读不回原值 (§6.1 字符轴规范输入集), "
+                            f"fail-closed 拒收; 出现位置的值片段: {node[:40]!r}"
+                        ]
+        elif isinstance(node, dict):
+            for k, v in node.items():
+                stack.append(k)  # 键同样可能含敌意字符
+                stack.append(v)
+        elif isinstance(node, (list, tuple)):
+            stack.extend(node)
+    return problems
+
+
 def validate_record_full(
     record: object, manifest: Optional[dict] = None, vault_id: Optional[str] = None
 ) -> tuple[list[str], list[str]]:
@@ -1579,6 +1660,11 @@ def validate_record_full(
     shape = value_shape_problems(record)
     if shape:
         return shape, warnings
+
+    # §6.1 字符轴 —— 紧随形状之后：形状先保证遍历有界，字符检查才敢走全量。
+    charset = value_charset_problems(record)
+    if charset:
+        return charset, warnings
 
     keys = set(record.keys())
     missing = sorted(TOP_LEVEL_KEYS - keys)

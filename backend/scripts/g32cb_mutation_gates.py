@@ -101,6 +101,32 @@ MUTATIONS = [
         "        if False:  # MUTANT M5 拆掉节点判据",
         "test_g32cb_node_budget_over_limit_rejected_before_first_append",
     ),
+    (
+        "M6",
+        "拆掉字符轴判据：非规范码点（NEL/LS/PS/C1/DEL/孤立代理）不再被拒（CARD-G3-2c-C）",
+        VALIDATOR,
+        "                    if lo <= cp <= hi:",
+        "                    if False:  # MUTANT M6 拆掉字符轴判据",
+        "test_g32cc_charaxis_nonconforming_codepoints_rejected",
+    ),
+    (
+        "M7",
+        "把禁止集从**区间**退化成**枚举**（只留 round 里点过名的 5 个码点）—— 这正是前 17 轮「修一个再生一个」的形态",
+        VALIDATOR,
+        # 锚只取区间元组的**头部**（noncharacters 段随后追加），避免每次扩集都要改锚
+        "FORBIDDEN_CODEPOINT_RANGES = (\n"
+        "    (0x0000, 0x001F),\n"
+        "    (0x007F, 0x007F),\n"
+        "    (0x0080, 0x009F),\n"
+        "    (0x2028, 0x2029),\n"
+        "    (0xD800, 0xDFFF),",
+        "FORBIDDEN_CODEPOINT_RANGES = (  # MUTANT M7 区间退化成枚举\n"
+        "    (0x0085, 0x0085),\n"
+        "    (0x2028, 0x2029),\n"
+        "    (0x0090, 0x0090),\n"
+        "    (0x007F, 0x007F),",
+        "test_g32cc_charaxis_forbidden_set_is_closed_by_ranges",
+    ),
 ]
 
 

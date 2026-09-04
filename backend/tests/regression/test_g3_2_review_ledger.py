@@ -5059,36 +5059,38 @@ def test_round16_legacy_receipt_without_anchor_says_unprovable(vault):
 _NEL, _LS, _PS, _C1, _DEL = chr(0x85), chr(0x2028), chr(0x2029), chr(0x90), chr(0x7F)
 
 
-def test_round17_receipt_survives_yaml_hostile_chars(vault):
-    """receipt 里的字符串必须**能原样读回** —— 字符轴的自产自拒。
+def test_round17_hostile_chars_now_rejected_not_survived(vault):
+    """⚠️ **契约反转**（CARD-G3-2c-C 默认裁决 D1）：这些字符不再"存活"，而是一律拒绝。
 
-    ⛔ round-16 只修好了**类型轴**（存 canonical JSON 字符串）。内层 `ensure_ascii=False`
-    让非 ASCII 字符**原样裸嵌**在 YAML 双引号标量里，而 YAML 1.1 对 U+0085(NEL)/
-    U+2028/U+2029 走换行折叠、对 C1 控制符拒收。实测：板名含 U+0085 时首写 rc=0
-    （账本已落行、节点已写），读回变成空格 ⇒ 事实比较判「同一个 event_id 承载了两次
-    不同的评分」而永久拒写 —— 那张检验白板就此砖化。
-    ⚠️ 同一个板名同时进 `event_id`，两个载体是同一个根因，所以两个都要测。
+    ### 这道门原来测什么
+    原名 `test_round17_receipt_survives_yaml_hostile_chars`，断言板名含
+    U+0085/U+2028/U+2029/C1/DEL 时**首写 rc=0 且能原样读回**（字符轴的自产自拒）。
+    round-16 只修好类型轴，round-17 补 `q_()` 让字符轴也能往返。
+
+    ### 为什么反转
+    G3-2b 的 17 轮证明：修好 U+0085 就冒出 U+2028/2029，修好那两个就冒出 C1，
+    再往下是孤立代理 —— 危险集合由 YAML 版本、解析器实现和"文本行"的定义共同
+    决定，**不属于本系统，修不完**。改为把它们定义为**非规范输入**，一律拒绝
+    （§6.1 字符轴规范输入集，按码点区间闭合定义）。
+
+    ### 现在测什么
+    同样这 5 个载体、同样两个字段，判据从"能存活"翻成"在首次 append 前就被拒、
+    账本零行、拒因报出码点"。更强的覆盖在 `test_g32cc_charaxis_*` 三门。
     """
     LED = vault / "learning_events.jsonl"
     for _tag, _ch in (("NEL", _NEL), ("LS", _LS), ("PS", _PS), ("C1", _C1), ("DEL", _DEL)):
-        # ① exam_board 载体
-        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
-        LED.unlink(missing_ok=True)
-        pl = _payload(event_id="板X#q1", ts=TS1, review_time=TS1, exam_board=f"检验白板/板{_ch}A.md")
-        assert _run_writer_settled(vault, pl).returncode == 0, f"[{_tag}/board] 首写应放行"
-        n0, face = len(_ledger_lines(vault)), _write_face(vault)
-        r = _run_writer_settled(vault, dict(pl))
-        assert r.returncode == 0, f"⛔ [{_tag}/board] 自产自拒: 写得出却认不回 —— {r.stderr[:300]}"
-        assert len(_ledger_lines(vault)) == n0 and _write_face(vault) == face, "幂等 ⇒ 零写"
-        # ② event_id 载体（生产里 event_id = 检验白板文件名 + #q1）
-        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
-        LED.unlink(missing_ok=True)
-        pl2 = _payload(event_id=f"板{_ch}B#q1", ts=TS1, review_time=TS1)
-        assert _run_writer_settled(vault, pl2).returncode == 0, f"[{_tag}/evid] 首写应放行"
-        n1, face1 = len(_ledger_lines(vault)), _write_face(vault)
-        r2 = _run_writer_settled(vault, dict(pl2))
-        assert r2.returncode == 0, f"⛔ [{_tag}/evid] 自产自拒 —— {r2.stderr[:300]}"
-        assert len(_ledger_lines(vault)) == n1 and _write_face(vault) == face1, "幂等 ⇒ 零写"
+        for _which, _pl in (
+            ("board", _payload(event_id="板X#q1", ts=TS1, review_time=TS1, exam_board=f"检验白板/板{_ch}A.md")),
+            ("evid", _payload(event_id=f"板{_ch}B#q1", ts=TS1, review_time=TS1)),
+        ):
+            (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+            LED.unlink(missing_ok=True)
+            face = _write_face(vault)
+            r = _run_writer(vault, _pl)
+            assert r.returncode != 0, f"⛔ [{_tag}/{_which}] 非规范码点必须拒，不再走往返转义"
+            assert not LED.exists() or LED.read_bytes() == b"", f"[{_tag}/{_which}] 账本零行"
+            assert _write_face(vault) == face, f"[{_tag}/{_which}] 零写"
+            assert "U+" in (r.stderr or ""), f"[{_tag}/{_which}] 拒因须报码点: {(r.stderr or '')[-200:]}"
 
 
 def test_round17_legacy_receipt_without_board_form_still_read(vault):
@@ -5221,59 +5223,37 @@ def test_round17_fsrs_applied_must_be_strict_bool(vault):
         assert _write_face(vault) == face, "零写"
 
 
-def test_round17_rebuild_preserves_existing_receipt_bytes(vault):
-    """追加新条目时**不得改动已有条目** —— 重建路径必须走同一个验证式编码。
+def test_round17_rebuild_hostile_carrier_is_unreachable_now(vault):
+    """⚠️ **承重面已移交**（CARD-G3-2c-C）：原门用 hostile 字符作载体，该载体不再可达。
 
-    ⛔ 上一版重建用裸 `json.dumps(..., ensure_ascii=False)`，于是新编码只保护了新条目，
-    每追加一条就把**旧**条目的字符重新破坏一次。实测：A 的板名含 U+0085 首写 rc=0；
-    普通 B 追加后 A 的 receipt 里 U+0085 变成空格；删掉 A 的账本行再原样重跑 A ⇒
-    rc=0、attempt 2→3 —— **同一次评分被算了两遍**。
+    ### 原门测什么
+    原名 `test_round17_rebuild_preserves_existing_receipt_bytes`：
+    「A 板名含 U+0085 首写 → 普通 B 追加 → A 的 receipt 那一行必须逐字未变」。
+    它守的是**「追加新条目时不得改动已有条目」**（上一版重建用裸
+    `json.dumps(ensure_ascii=False)`，每追加一条就把旧条目的字符重新破坏一次，
+    删掉 A 的账本行再重跑 ⇒ attempt 2→3，同一次评分被算了两遍）。
+
+    ### 为什么改
+    D1 反转后 hostile 首写即拒 ⇒ **原门的构造不可达**。而那条性质与字符轴无关，
+    仍须守 —— 已由 `test_g32cc_emitter_rebuild_never_mutates_existing_entries`
+    用**合法中文值**覆盖，且更强：逐项类型敏感比对**整个条目**（不只 exam_board
+    那一行），并断言删账本行后重跑不二次计分。
+
+    ### 本门现在只锁一件事
+    那个载体确实已不可达 —— 否则"承重面已移交"就是空话（移交给谁不重要，
+    重要的是老路真的被封了）。
     """
     LED = vault / "learning_events.jsonl"
     (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
     LED.unlink(missing_ok=True)
     _hostile = f"板{_NEL}X"
-    pa = _payload(event_id=f"{_hostile}#q1", ts=TS1, review_time=TS1, exam_board=f"检验白板/{_hostile}.md")
-    assert _run_writer_settled(vault, pa).returncode == 0, "A 首写"
-    _before = (vault / NODE_REL).read_text(encoding="utf-8")
-    # 前提自证：A 的 receipt 里确实带着那个字符 —— **裸形或转义形都算**
-    # （新编码证不成裸形往返时会落到 `\u0085` 转义，这正是它该做的事）。
-    _ESC = "\\u0085"
-    _carrier = [ln for ln in _before.split("\n") if "exam_board:" in ln]
-    assert _carrier and (_NEL in _carrier[0] or _ESC in _carrier[0]), (
-        f"预置必须真的把敌意字符写进 receipt: {_carrier!r}"
+    face = _write_face(vault)
+    r = _run_writer(
+        vault, _payload(event_id=f"{_hostile}#q1", ts=TS1, review_time=TS1, exam_board=f"检验白板/{_hostile}.md")
     )
-    _snap_a = _carrier[0]
-    assert (
-        _run_writer_settled(
-            vault,
-            _payload(
-                event_id="板B#q1",
-                ts="2026-08-02T10:00:00Z",
-                review_time="2026-08-02T10:00:00Z",
-                exam_board="检验白板/板B.md",
-            ),
-        ).returncode
-        == 0
-    ), "B 首写"
-    # A 的 receipt 必须逐字未变
-    _after = (vault / NODE_REL).read_text(encoding="utf-8")
-    # ⛔ 判据落在**那一行逐字未变**上，不是「文件里还有这个字符」——
-    # 后者会被别处（例如 B 的条目）救活，是典型的粗判据。
-    assert _snap_a in _after, (
-        f"⛔ 追加 B 之后 A 的 receipt 那一行被改动了。原: {_snap_a!r} 现: "
-        f"{[ln for ln in _after.split(chr(10)) if 'exam_board:' in ln]!r}"
-    )
-    # 删掉 A 的账本行后原样重跑 A：必须认得出是同一次评分
-    _att_before = re.search(r"^attempt_count: (\d+)$", _after, re.M)
-    keep = [x for x in _ledger_lines(vault) if x.get("event_id") != f"quiz:{_hostile}#q1"]
-    LED.write_text("".join(json.dumps(x, ensure_ascii=False) + "\n" for x in keep), encoding="utf-8")
-    r = _run_writer_settled(vault, dict(pa))
-    _att_after = re.search(r"^attempt_count: (\d+)$", (vault / NODE_REL).read_text(encoding="utf-8"), re.M)
-    assert not (r.returncode == 0 and _att_before and _att_after and _att_after.group(1) != _att_before.group(1)), (
-        f"⛔ 同一次评分被算了两遍: attempt {_att_before and _att_before.group(1)} → "
-        f"{_att_after and _att_after.group(1)}"
-    )
+    assert r.returncode != 0, "⛔ hostile 载体仍可写入 ⇒ 承重面并未真的移交"
+    assert not LED.exists() or LED.read_bytes() == b"", "账本零行"
+    assert _write_face(vault) == face, "零写"
 
 
 def test_round17_deep_json_recovers_after_crash_window(vault):
@@ -5774,3 +5754,268 @@ def test_g32cb_shape_check_memory_is_bounded_by_depth_not_fanout():
     assert peak_wide < 4 * 1024 * 1024, (
         f"形状检查峰值内存 {peak_wide} 字节 — 疑似整批子节点入栈（应为惰性 DFS，内存只随深度增长）"
     )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# CARD-G3-2c-C: 边界一律硬拒绝 —— 字符轴 / 递归深度 / markerless legacy
+#
+# G3-2b 的 17 轮证明：字符轴与递归深度是**开放集合**，每轮修一个就再生一个
+# （U+0085 → U+2028/2029 → C1 → 孤立代理 → …）。本卡不再「支持」这些输入，
+# 而是把它们定义为**非规范输入**：validator 与写点同一判据、同为拒绝、报真因。
+#
+# ⛔ 禁止集用**码点区间**定义，不是枚举 —— 枚举式黑名单漏一个就等于没有，
+# 而区间是**闭合的**：C0 / DEL / C1 / U+2028-2029 / 代理区。
+# 同源方式与 B 卡一致：只在 validator 里定义一份，写点经 `validate_record_full`
+# 自检自动继承（`SKILL.md:2755`，在首次 append 之前）。
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def test_g32cc_charaxis_nonconforming_codepoints_rejected(vault):
+    """非规范码点 —— validator 与写点**同判据拒绝**，并报出码点。
+
+    ⛔ 契约变更（默认裁决 D1）：此前这些字符靠 `q_()` 的「往返自证 + ASCII 转义
+    回落」**存活**（见 `test_round17_receipt_survives_yaml_hostile_chars` 旧版）。
+    17 轮的教训是那条路走不完 —— 每修一个字符就再生一个。现在一律拒绝。
+    """
+    _m = _validator_mod()
+    LED = vault / "learning_events.jsonl"
+    for _tag, _ch in (("NEL", _NEL), ("LS", _LS), ("PS", _PS), ("C1", _C1), ("DEL", _DEL)):
+        # ① 写点侧：首写就拒，账本零行
+        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+        LED.unlink(missing_ok=True)
+        face = _write_face(vault)
+        pl = _payload(event_id="板X#q1", ts=TS1, review_time=TS1, exam_board=f"检验白板/板{_ch}A.md")
+        r = _run_writer(vault, pl)
+        assert r.returncode != 0, f"⛔ [{_tag}/board] 非规范码点必须在首写前拒: rc={r.returncode}"
+        assert not LED.exists() or LED.read_bytes() == b"", f"[{_tag}/board] 账本必须零行"
+        assert _write_face(vault) == face, f"[{_tag}/board] 零写"
+        _err = r.stderr or ""
+        assert "U+" in _err or "码点" in _err, f"[{_tag}/board] 拒因须报码点: {_err[-300:]}"
+        # ② event_id 载体（生产里 event_id = 检验白板文件名 + #q1，同一根因）
+        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+        LED.unlink(missing_ok=True)
+        r2 = _run_writer(vault, _payload(event_id=f"板{_ch}B#q1", ts=TS1, review_time=TS1))
+        assert r2.returncode != 0, f"⛔ [{_tag}/evid] 必须拒"
+        # ③ validator 侧同判据（直接对本体下判据，不经写点）
+        _probs = _m.value_charset_problems({"payload": {"exam_board": f"板{_ch}"}})
+        assert _probs, f"[{_tag}] validator 必须判违规"
+        assert "U+" in _probs[0], f"[{_tag}] validator 拒因须报码点: {_probs}"
+
+
+def test_g32cc_charaxis_normal_text_still_accepted(vault):
+    """验伪锚：中文 / emoji / 空格 / 连字符 / 全角标点必须照常放行。
+
+    ⚠️ 没有这一条，把禁止集写成「非 ASCII 一律拒」也能让上面那道门绿 ——
+    而那会拒掉**每一个**真实板名（真实值域就是中文）。
+    """
+    _m = _validator_mod()
+    for _ok in ("检验白板/CS 61B-2026-08-01-1000.md", "中文板名", "emoji 🎯 板", "a b-c_d.md", "全角：？！"):
+        assert _m.value_charset_problems({"payload": {"exam_board": _ok}}) == [], f"误拒合法值: {_ok!r}"
+    # 端到端：真实形态的中文板名必须能写进去
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (vault / "learning_events.jsonl").unlink(missing_ok=True)
+    r = _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1))
+    assert r.returncode == 0, f"⛔ 合法中文板名被误拒: {(r.stderr or '')[-300:]}"
+
+
+def test_g32cc_charaxis_forbidden_set_is_closed_by_ranges():
+    """禁止集必须按**码点区间**定义（闭合），不是枚举（开放）。
+
+    ⛔ 这是本卡原则的可执行判据：枚举漏一个就等于没有。逐个抽查区间内的
+    **非样例**码点 —— 它们从没在任何一轮 round 里被点名过，但必须一样被拒。
+    """
+    _m = _validator_mod()
+    # 每个区间取几个「没人点过名」的码点
+    for _cp in (0x01, 0x0B, 0x1F, 0x7F, 0x80, 0x9F, 0x2028, 0x2029):
+        _probs = _m.value_charset_problems({"payload": {"exam_board": f"x{chr(_cp)}y"}})
+        assert _probs, f"区间内码点 U+{_cp:04X} 未被拒 —— 禁止集不闭合（写成枚举了？）"
+        assert f"U+{_cp:04X}" in _probs[0], f"拒因须报出具体码点 U+{_cp:04X}: {_probs}"
+    # 孤立代理：只可能出现在**内存中的 record**（账本是 UTF-8，编不出这种字节）
+    _lone = "x\ud800y"
+    _probs = _m.value_charset_problems({"payload": {"exam_board": _lone}})
+    assert _probs and "U+D800" in _probs[0], f"孤立代理必须被拒并报码点: {_probs}"
+    # 边界外必须放行（区间端点 off-by-one 的验伪锚）
+    for _cp in (0x20, 0x7E, 0xA0, 0x2027, 0x202A):
+        assert _m.value_charset_problems({"payload": {"exam_board": f"x{chr(_cp)}y"}}) == [], (
+            f"区间外码点 U+{_cp:04X} 被误拒 —— 区间端点写错"
+        )
+
+
+def test_g32cc_depth_two_sides_agree_across_levels(vault):
+    """`exam_board` 32/384/512/640/768 层：validator 与写点**结论必须一致**。
+
+    ⛔ round-17 B③ 的形态是「首写 rc=0 / 重跑 rc=1」的不可恢复窗 —— 两侧结论
+    不一致就会出现那种窗。上限常量与 B 卡同源单点（`MAX_VALUE_DEPTH`），
+    这里只验「同一个输入，两侧给同一个答案」。
+    """
+    _m = _validator_mod()
+    LED = vault / "learning_events.jsonl"
+    for _depth in (32, 384, 512, 640, 768):
+        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+        LED.unlink(missing_ok=True)
+        _v = _nest(_depth)
+        # validator 侧结论（对完整 record 形状，与写点自检同一函数）
+        _v_reject = bool(_m.value_shape_problems({"payload": {"exam_board": _v}}))
+        # 写点侧结论
+        r = _run_writer(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1, exam_board=_v))
+        _w_reject = r.returncode != 0
+        assert _v_reject == _w_reject, (
+            f"⛔ [{_depth} 层] 两侧结论不一致：validator {'拒' if _v_reject else '放行'} / "
+            f"写点 {'拒' if _w_reject else '放行'} —— 这正是「首写 0 / 重跑 1」窗的来源"
+        )
+        if _w_reject:
+            assert not LED.exists() or LED.read_bytes() == b"", f"[{_depth}] 拒绝时账本必须零行"
+            assert "RecursionError" not in (r.stderr or ""), f"[{_depth}] 必须主动拒而非撞递归上限"
+        else:
+            # 放行的层级必须能**原样重跑**（不可恢复窗的直接判据）
+            r2 = _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1, exam_board=_v))
+            assert r2.returncode == 0, f"⛔ [{_depth}] 首写放行却重跑失败 = 不可恢复窗: {(r2.stderr or '')[-300:]}"
+
+
+def test_g32cc_markerless_legacy_bare_exponent_agrees(vault):
+    """markerless 旧 receipt 的 `exam_board=1e+300` **裸值**：三处结论自洽（§6.3 冻结）。
+
+    ⛔ round-17 MEDIUM 报的是「三处不一致」。本卡实测后的裁决是：**这不是缺陷**，
+    三处各管各的一段，答案本来就该不同 ——
+
+    | 处 | 管什么 | 对 markerless 裸值的结论 |
+    |---|---|---|
+    | 首写 | 产出新条目（双编码，带 `board_form`） | rc=0 |
+    | validator | **只看账本**，看不到 frontmatter receipt | rc=0（账本确实没变） |
+    | 重跑 | receipt 与本次事实的一致性 | **rc=1，识别歧义并给出可执行处置** |
+
+    ⚠️ 为什么**拒绝**才是对的（默认裁决 D3 冻结进 §6.3）：裸 `1e+300` 被 PyYAML
+    读回成字符串（1.1 的浮点正则要求小数点），与本次事实的 float `1e+300` 同值不同型。
+    若"聪明地"按 JSON 猜解成 float，那么一块**真名就叫 `1e+300`** 的板会被当成数字 ——
+    那是替上游做主，与 `q_()` 里"不做 strip"是同一条理由。
+    歧义不可判时报出来并给处置，比猜一个更安全。
+
+    本门锁的是：拒因必须**可执行**（点名 `board_form` 与改写方式），不是含糊地拒。
+    """
+    LED = vault / "learning_events.jsonl"
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    pl = _payload(event_id="板A#q1", ts=TS1, review_time=TS1, exam_board=1e300)
+    assert _run_writer_settled(vault, pl).returncode == 0, "① 首写（新双编码）"
+    assert _run_validator(vault).returncode == 0, "② validator"
+    # 退回 markerless 旧形态：删 board_form + exam_board 存**裸**指数浮点
+    nd = (vault / NODE_REL).read_text(encoding="utf-8")
+    nd2 = re.sub(r"^    board_form: .*\n", "", nd, count=1, flags=re.M)
+    nd2 = re.sub(r"^    exam_board: .*$", "    exam_board: 1e+300", nd2, count=1, flags=re.M)
+    assert "board_form" not in nd2 and "1e+300" in nd2, "预置必须真的退回 markerless 裸值形态"
+    (vault / NODE_REL).write_text(nd2, encoding="utf-8")
+    # ⛔ 形态自证：PyYAML 读回来确实是 float，不是字符串
+    import yaml as _y
+
+    _e0 = _y.safe_load(nd2.split("---")[1])["calibration_log"][0]
+    # ⚠️ 形态自证的**期望值来自实测**，不是想当然：PyYAML 1.1 的浮点正则要求
+    # 小数点，裸 `1e+300` 被读回成 **str**。round-17 报的
+    # `exam_board '1e+300' != 期望 1e+300`（左 str 右 float）正是这个来源 ——
+    # markerless 旧条目丢了类型信息，消费侧拿字符串去和浮点比。
+    assert isinstance(_e0["exam_board"], str) and "board_form" not in _e0, (
+        f"预置形态自证失败: exam_board={_e0.get('exam_board')!r} ({type(_e0.get('exam_board')).__name__}) "
+        f"board_form={_e0.get('board_form')!r}"
+    )
+    n0, face = len(_ledger_lines(vault)), _write_face(vault)
+    # ② validator 对 markerless 退化**无意见**：它管账本，账本一字未动
+    assert _run_validator(vault).returncode == 0, "validator 只管账本，markerless receipt 不在它的量化域内"
+    # ③ 重跑：识别歧义 → fail-closed，且拒因必须可执行
+    r = _run_writer_settled(vault, dict(pl))
+    assert r.returncode != 0, "⛔ markerless 歧义必须 fail-closed，不得猜一个类型继续"
+    _err = r.stderr or ""
+    for _needle in ("board_form", "裸 JSON 字面", "同值不同类型"):
+        assert _needle in _err, f"拒因须可执行（点名 board_form 与改写方式），实见: {_err[-400:]}"
+    assert len(_ledger_lines(vault)) == n0 and _write_face(vault) == face, "拒绝 ⇒ 零写"
+
+
+def test_g32cc_emitter_rebuild_never_mutates_existing_entries(vault):
+    """重建已有条目必须**逐字节不变**（验证式 emitter 的承重面）。
+
+    ⚠️ 与字符轴分开测：(a) 落地后 hostile 字符首写即拒，
+    「A hostile → B → 删 A 行 → 重跑 A」那个场景**不再可达**。
+    但「追加新条目时不得改动旧条目」这条性质与字符轴无关，仍须守 ——
+    用**合法**中文值跑同一条路径。
+    """
+    LED = vault / "learning_events.jsonl"
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    pA = _payload(event_id="板甲#q1", ts=TS1, review_time=TS1, exam_board="检验白板/板甲.md")
+    assert _run_writer_settled(vault, pA).returncode == 0, "A 首写"
+    import yaml as _y
+
+    _entry_A_before = _y.safe_load((vault / NODE_REL).read_text(encoding="utf-8").split("---")[1])["calibration_log"][0]
+    # B 追加 —— 会触发对 A 那条的**重建**
+    pB = _payload(
+        event_id="板乙#q1", ts="2026-08-02T10:00:00Z", review_time="2026-08-02T10:00:00Z", exam_board="检验白板/板乙.md"
+    )
+    assert _run_writer_settled(vault, pB).returncode == 0, "B 追加"
+    _log = _y.safe_load((vault / NODE_REL).read_text(encoding="utf-8").split("---")[1])["calibration_log"]
+    assert len(_log) == 2, f"应恰有 2 条，实见 {len(_log)}"
+    # ⛔ 逐项类型敏感比对：A 那条不得有任何变化
+    assert _log[0] == _entry_A_before, (
+        f"⛔ 重建改动了已有条目 ⇒ 历史 receipt 与它记录的那次评分对不上，同一次评分可能被再算一遍\n"
+        f"前 {_entry_A_before}\n后 {_log[0]}"
+    )
+    # 删 A 的账本行后原样重跑 A：不得二次计分（attempt_count 不得再 +1）
+    _rows = _ledger_lines(vault)
+    _keep = [x for x in _rows if x.get("event_id") != "quiz:板甲#q1"]
+    LED.write_text("".join(json.dumps(x, ensure_ascii=False) + "\n" for x in _keep), encoding="utf-8")
+    _att_re = re.search(r"^attempt_count:\s*(\d+)", _fm(vault), re.M)
+    _att0 = int(_att_re.group(1)) if _att_re else None
+    r = _run_writer_settled(vault, dict(pA))
+    _att_re2 = re.search(r"^attempt_count:\s*(\d+)", _fm(vault), re.M)
+    _att1 = int(_att_re2.group(1)) if _att_re2 else None
+    assert _att0 is not None and _att1 == _att0, (
+        f"⛔ 二次计分：attempt_count {_att0} → {_att1}（同一次评分被算了两遍）; rc={r.returncode}"
+    )
+
+
+def test_g32cc_noncharacters_rejected_and_bmp_plus_still_ok():
+    """Unicode **noncharacters** 一律拒；非 BMP 的**正常**字符必须照常放行。
+
+    ### 这条是怎么来的
+    Codex 一轮的正文两次都是 0 字节（内容过滤），但它 stderr 里的推理标题留下了
+    `Confirming U+FFFE and U+FFFF cause failures`。顺着这条线索实测
+    （PyYAML 6.0.3 / Python 3.14）：
+
+    | 码点 | 裸形往返 | ASCII 转义往返 |
+    |---|---|---|
+    | U+FFFE / U+FFFF | ✗ `ReaderError` | OK |
+    | U+1FFFE … U+10FFFF | OK | **✗ 失败**（转义成代理对后读不回来） |
+    | U+FDD0–U+FDEF | OK | OK |
+
+    ⚠️ **如实说明**：`q_()` 的"裸形优先、转义回落"两层设计**恰好**把前两行各兜住一半，
+    所以在旧实现下它们并**不构成已发生的缺陷**。收进禁止集是**原则性**的 ——
+    本卡的立场是不靠"往返自证碰巧成功"来保证正确。
+
+    ### 为什么连实测正常的 U+FDD0–U+FDEF 也一起收
+    拆开会让这个集合重新变成"凭实测逐个添加"的开放列表 —— 那正是前 17 轮的老路。
+    Unicode 标准把这 66 个码点定义为同一集合（"永不用于交换"），按集合收才闭合。
+
+    ### 误拒验伪锚
+    noncharacter 按定义永不分配给字符。**非 BMP 的正常字符（emoji、数学字母）必须放行** ——
+    没有这一条，"禁掉所有 U+10000 以上"也能让上半截绿，而那会拒掉 emoji 板名。
+    """
+    _m = _validator_mod()
+    # ── 三类 noncharacter 都拒 ──
+    for _cp in (0xFFFE, 0xFFFF, 0xFDD0, 0xFDEF, 0x1FFFE, 0x2FFFF, 0x10FFFE, 0x10FFFF):
+        _probs = _m.value_charset_problems({"payload": {"exam_board": f"x{chr(_cp)}y"}})
+        assert _probs, f"noncharacter U+{_cp:04X} 未被拒 —— 集合不闭合"
+        assert f"U+{_cp:04X}" in _probs[0], f"拒因须报出具体码点 U+{_cp:04X}: {_probs}"
+    # ── 每个平面的末两个都在集合里（不是只收了 BMP 那一对）──
+    for _plane in range(17):
+        for _off in (0xFFFE, 0xFFFF):
+            _cp = 0x10000 * _plane + _off
+            assert _m.value_charset_problems({"payload": {"exam_board": chr(_cp)}}), (
+                f"平面 {_plane} 的 U+{_cp:04X} 漏网 —— 只收了部分平面 = 又一个枚举"
+            )
+    # ⛔ 验伪锚：非 BMP 的**正常**字符必须放行
+    for _ok, _why in (
+        ("emoji 🎯 板", "U+1F3AF 表情"),
+        ("𝕬 数学字母", "U+1D56C 数学字母"),
+        ("𠀀 扩展汉字", "U+20000 CJK 扩展 B"),
+        ("检验白板/CS 61B-2026-08-01.md", "真实板名"),
+    ):
+        assert _m.value_charset_problems({"payload": {"exam_board": _ok}}) == [], (
+            f"误拒合法非 BMP 值（{_why}）: {_ok!r} —— 禁止集写成「U+10000 以上一律拒」了？"
+        )
