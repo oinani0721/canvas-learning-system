@@ -368,6 +368,39 @@ class TestCodeReviewC2ReviewServiceSingleton:
         yield
         reset_review_service_singleton()
 
+    @pytest.fixture(autouse=True)
+    def stub_memory_service(self, monkeypatch):
+        """CARD-TEST-isolate-lifespan-R1: 切断单例工厂到现网 Neo4j(7691) 的连接.
+
+        不打桩时的链路(2026-09-04 装门实测, 哨兵报 blocked=1):
+        review_service.py:2330 ``_get_mem()`` -> memory_service.py:2914
+        ``initialize()`` -> :278 ``self.neo4j.initialize()`` ->
+        neo4j_client.py:402 ``health_check()`` -> :523
+        ``verify_connectivity()`` -> bolt://localhost:7691.
+        连接异常被 health_check 吞成 "Falling back to JSON storage mode",
+        用例照样绿 —— 所以它一直在偷连正式库而没人发现.
+
+        Patch-target: ``get_review_service()`` 里的
+        ``from app.services.memory_service import get_memory_service as _get_mem``
+        是**函数体内**的延迟 import, 每次调用重新从源模块取名字, 因此 patch
+        源命名空间即可(同 tests/unit/test_read_scope_callers_g41a.py:83 范式).
+
+        ⚠️ 必须类级 autouse, 两条用例都要打: MemoryService 单例是进程级闩,
+        一起跑时只有第一条触发 initialize(), 但**各自单跑时两条都红**
+        (2026-09-04 分别实测确认). 只修第一条 = 换个跑法就复活.
+
+        本类只断言 "工厂返回 ReviewService 且两次同一实例", 不消费 memory
+        服务本身, 故哑对象不改变任何被测断言.
+        """
+
+        async def _fake_get_memory_service():
+            return MagicMock()
+
+        monkeypatch.setattr(
+            "app.services.memory_service.get_memory_service",
+            _fake_get_memory_service,
+        )
+
     @pytest.mark.asyncio
     async def test_singleton_creates_review_service(self):
         """get_review_service() returns a ReviewService instance."""
