@@ -173,11 +173,9 @@ mutate_and_test "M20-BEGIN分支拆除" \
   "test_orphan_ignores_nonsemantic_wikilinks"
 
 # ── round-8 整改新增的防线 ──
-# M23 嵌套 BEGIN 深度 +1 拆除 (round-9) → 内层 BEGIN 不加深, 第一个 END 提前关闸
-# M23 嵌套 BEGIN 深度 +1 拆除 (round-9) → 内层 BEGIN 不加深, 第一个 END 提前关闸
-# M23 嵌套 BEGIN 深度 +1 拆除 (round-9) → 内层 BEGIN 不加深, 第一个 END 提前关闸
-# M23 嵌套 BEGIN 深度 +1 拆除 (round-9, round-11 字节重锚) → 内层 BEGIN 不加深
-# M23 嵌套 BEGIN 深度 +1 拆除 (round-9, round-11 字节重锚) → 内层 BEGIN 不加深
+# M23 嵌套 BEGIN 深度 +1 拆除 (round-9, round-11 字节重锚) → 内层 BEGIN 不加深,
+#     第一个 END 提前关闸
+# (r12 LOW3 / CARD-G8-2b: 此处原有同一句注释的 5 份重复残留, 已去重留最新一份。)
 mutate_and_test "M23-嵌套深度拆除" \
   '            if _AUTO_BEGIN_RE.match(stripped):\n                # r9 H2: 嵌套 BEGIN —— 深度 +1 (真实生成器单层; 嵌套 = 结构异常, 显式记录)\n                depth += 1|||            if False:\n                depth += 1  # MUTANT' \
   "test_nested_auto_begin_depth"

@@ -95,11 +95,14 @@ def _md_parser() -> Any:
             _md = MarkdownIt()
         except ImportError as exc:
             # ⛔ r8 M1: 缺包是「lint 没跑成」的配置/环境错误, 兑现 --help 声明的 rc=3,
-            # 不许裸 ModuleNotFoundError 崩成 rc=1。(传递依赖不进本卡 requirements
-            # 声明 —— 批次约定 requirements.txt 本批无人改, DEBT-1 排第九批补声明。)
+            # 不许裸 ModuleNotFoundError 崩成 rc=1。
+            # ⛔ r12 M1 (CARD-G8-2b 已收口): 该依赖**已在 backend/requirements.txt
+            #    显式声明** (`markdown-it-py>=4.0.0`), 不再只靠 fastapi-mcp→rich 的
+            #    传递依赖。原注释把移交挂在「DEBT-1 第九批」下是**指错** —— 总账
+            #    DEBT-1 实为「全量测试超时」, 与本依赖无关 (G8-2 UAT §7 已如实更正)。
             raise LintConfigError(
                 f"orphan 检查依赖 markdown-it-py 不可用 ({exc}) —— "
-                f"它当前经传递依赖提供; 如持续缺失请在 requirements 显式声明"
+                f"它已在 backend/requirements.txt 显式声明; 请在本环境安装依赖后重跑"
             ) from exc
     return _md
 
@@ -588,11 +591,15 @@ def check_orphan_nodes(vault: Path) -> CheckResult:
             #    同一物理文件以别名路径贡献入链 —— 相对路径键会让它绕过自身排除。
             src_phys = os.path.realpath(src)
             targets, auto_anomalies = _wikilink_targets(body)
+            src_rel = src.relative_to(vault).as_posix()
             for anomaly in auto_anomalies:
-                # r11: 同文件多条 anomaly 不得同 key last-write-wins —— key 唯一化
-                blind[f"AUTO 异常 [{src_dir}/{src.name}] {anomaly}"] = (
-                    f"AUTO 段结构异常: {anomaly} (该段已盲化, 内容不参与判定)"
-                )
+                # r11: 同文件多条 anomaly 不得同 key last-write-wins —— key 唯一化。
+                # ⛔ r12 M5 (CARD-G8-2b): 键名用**完整相对路径**而不是
+                #    `{src_dir}/{src.name}` —— 后者丢掉中间子目录, `原白板/d1/same.md`
+                #    与 `原白板/d2/same.md` 会撞成同一个 `原白板/same.md` 键,
+                #    后写覆盖先写, 一条真实异常凭空消失 (blind_spots 也少数一个)。
+                #    与本函数其余 blind 键 (blocked / unreadable / own) 同口径。
+                blind[f"AUTO 异常 [{src_rel}] {anomaly}"] = f"AUTO 段结构异常: {anomaly} (该段已盲化, 内容不参与判定)"
             for target in targets:
                 inbound.setdefault(target, set()).add(src_phys)
 
