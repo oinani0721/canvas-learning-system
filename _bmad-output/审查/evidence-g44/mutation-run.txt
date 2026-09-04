@@ -8,3 +8,31 @@
 [M8-扩展恒等失效] ✓ 指定门变红 (exit=1)
 
 ALL 8 MUTATIONS KILLED THEIR GATES (exit=1 only) ✓
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CARD-G4-4a 移植后复跑（2026-09-04，车道 card/x3-vaultscope，主干基线 1f249b33）
+# 命令: G44_BACKEND=<lane>/backend PYTHONDONTWRITEBYTECODE=1 \
+#        backend/.venv/bin/python _bmad-output/审查/evidence-g44/g44_mutations.py
+# 串行、原地改源码、每条变异后立即还原。
+# ─────────────────────────────────────────────────────────────────────────────
+[M1-去422] ✓ 指定门变红 (exit=1)
+[M2-去409-恢复旁路] ✓ 指定门变红 (exit=1)
+[M3-内链改回进程级] ✓ 指定门变红 (exit=1)
+[M4-fixture同组化] ✓ 指定门变红 (exit=1)
+[M5-哨兵降级debug] ✓ 指定门变红 (exit=1)
+[M6-expand裸表旁路] ✓ 指定门变红 (exit=1)
+[M7-空白validator失效] ✓ 指定门变红 (exit=1)
+[M8-扩展恒等失效] ✓ 指定门变红 (exit=1)
+
+ALL 8 MUTATIONS KILLED THEIR GATES (exit=1 only) ✓
+
+# 外部锚点（脚本自检之外的独立复核，防「自证」）:
+#   1. 跑前对三个被变异文件全部记 sha256 基线，跑后逐个比对 → 三条全一致
+#   2. git status --porcelain → 空（工作树干净，无变异体残留）
+#   3. grep -rn "MUTANT" 三文件 → rc=1（零命中）
+# M6 的意义（回答卡文完成条件 (m)）: 主干已由 CARD-G2-4 删除
+# resolve_table_name 的 B0.7 裸表回退，卡文担心该门因此恒真变假绿。实测
+# M6（把 nodes.py 的 resolve_table_name("canvas_nodes") 改回裸 "vault_notes"）
+# 仍杀死 test_wikilink_neighbor_expansion_stays_in_vault → 该门**不是假绿**，
+# 无需改写。真因: expand_neighbors 内部是 self._db.open_table(传入名)，
+# **根本不调用 resolve_table_name**，B0.7 的删除与这条路径无关。

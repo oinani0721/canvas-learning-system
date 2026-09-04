@@ -1,5 +1,15 @@
 # UAT 验收单 — CARD-G4-4 full RAG 显式 VaultScope
 
+> ⚠️ **CARD-G4-4a 移植注（2026-09-04）**：本文件由 `card/w8-scope` 逐条
+> cherry-pick 到 `card/x3-vaultscope`。按 CARD-G4-4a 完成条件 (j)，随卡
+> 证据只带 `evidence-g44/g44_mutations.py` 与 `evidence-g44/mutation-run.txt`；
+> 下文引用的 `final-judge1.txt` / `final-judge2.txt` / `baseline-judge*.txt`
+> 与三份 `codex-review-*.stderr` **未随卡入库**（`*.stderr*` 属公共纪律禁入库项，
+> judge 输出体积大且已被 4a 自身裁判输出取代）。其原文数字已逐字保留在本文
+> 正文（`collected 80 items` / `3 failed, 76 passed, 1 xfailed` / API `99 passed,
+> 166 deselected`），原件仍在 `card/w8-scope@6a732e1b` 可查。4a 自身的裁判
+> 输出见 `UAT-CARD-G4-4a-显式VaultScope-2026-09-04.md`。
+
 > 批次: BATCH-2026-09-01-第八批 · 车道 W8 · 分支 card/w8-scope
 > 卡文: `第八批-goals/W8-2.md` · 工时 11h
 > commits: ca116f51 (核心) → a3c41075 (适配) → cee863a0 (透传门+证据)

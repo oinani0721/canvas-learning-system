@@ -535,11 +535,13 @@ class TestDualVaultIsolationOnTmpLanceDB:
 
     @pytest.mark.xfail(
         reason=(
-            "已知边界 (Codex round-2 新发现 HIGH): expand_neighbors 不传 "
-            "subject, LIKE 匹配整张 vault 表 — 同 vault 内跨 subject 的 "
-            "邻居过滤未做。收口在 expand_neighbors 签名 (lancedb_client, "
-            "V5 未合禁改面), 登记移交 (未合卡追踪台账 G4-4-R1); 收口后 "
-            "转正为门。strict=True: 意外修复 (XPASS) 视为失败, 提醒转正。"
+            "归 CARD-G4-4b: expand_neighbors 无 subject 过滤。已知边界 "
+            "(Codex round-2 新发现 HIGH, 主干既有缺陷非本卡引入): "
+            "expand_neighbors 不传 subject, LIKE 匹配整张 vault 表 — "
+            "同 vault 内跨 subject 的邻居会被带回。收口面在 "
+            "expand_neighbors 签名 (lancedb_client.py), 是 CARD-G4-4a 的 "
+            "硬禁改面, 因此拆给 CARD-G4-4b; 4b 落地后本用例转正为门。"
+            "strict=True: 意外修复 (XPASS) 视为失败, 提醒转正。"
         ),
         strict=True,
     )
