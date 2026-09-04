@@ -1041,6 +1041,11 @@ def probe_runtime_glob_expansion_sorted() -> dict:
 
     本探针用同一组会让 readdir 乱序的文件名，直接从门的 before 段读回实际排列。
     判据是「**glob 项那几行**恰好等于字典序」——不是「跑完没红」。
+
+    ⛔ 还要**验证乱序前提**（round-1 Codex LOW-4）：先直接问一次未经排序的
+    ``compgen -G``，确认它在**本次运行的这个文件系统上**确实给出非字节序。前提不
+    成立时，「删掉 sort 会翻红」这句话在此环境下不成立 —— 那就判 FAIL 并说清楚
+    「承重未验证」，而不是绿着糊过去（探针的价值来自它能失败）。
     """
     tmp, fake = _fake_backend("w4-glob-sorted-")
     data = fake / "app" / "data"
@@ -1048,6 +1053,12 @@ def probe_runtime_glob_expansion_sorted() -> dict:
     names = [f"vault_index_pending__{k}.jsonl" for k in ("zeta", "alpha", "Mid", "beta", "10", "2")]
     for n in names:
         (data / n).write_text("x\n", encoding="utf-8")
+    # 前提探测：未经排序的原始展开顺序。
+    raw_proc = _sh(f"/bin/bash --noprofile --norc -c 'builtin compgen -G \"{data}/vault_index_pending__*.jsonl\"'")
+    raw = [line.rsplit("/", 1)[-1] for line in raw_proc.stdout.splitlines() if line.strip()]
+    expected = sorted(names)
+    premise_ok = sorted(raw) == expected and raw != expected
+
     gate = fake / "scripts" / "lifespan_isolation_runtime_sha.sh"
     proc = _sh(f"bash {gate} -- /usr/bin/true")
     seen: list[str] = []
@@ -1057,16 +1068,27 @@ def probe_runtime_glob_expansion_sorted() -> dict:
         for n in names:
             if line.endswith(f"/{n}"):
                 seen.append(n)
-    expected = sorted(names)
-    ok = proc.returncode == 0 and seen == expected and "GATE-BROKEN" not in proc.stdout
+    sorted_ok = proc.returncode == 0 and seen == expected and "GATE-BROKEN" not in proc.stdout
+    ok = sorted_ok and premise_ok
     shutil.rmtree(tmp, ignore_errors=True)
+    if not premise_ok:
+        reason = (
+            f"乱序前提不成立：原始 compgen 展开为 {raw}（排序后 {expected}）—— "
+            "本环境下去掉 sort 也会通过，本探针无鉴别力，不能声称排序承重已验证"
+        )
+    elif not sorted_ok:
+        reason = f"rc={proc.returncode} 实得={seen} 期望={expected}"
+    else:
+        reason = ""
     return {
         "name": "runtime-glob-expansion-sorted",
         "ok": ok,
         "rc": proc.returncode,
         "expect_rc": 0,
-        "verdict": "glob 展开按字节序排好" if ok else "glob 展开顺序不是字节序（readdir 顺序会让快照假红）",
-        "reason": "" if ok else f"rc={proc.returncode} 实得={seen} 期望={expected}",
+        "verdict": "glob 展开按字节序排好（且原始展开确实乱序 ⇒ 排序承重）"
+        if ok
+        else ("乱序前提不成立，承重未验证" if not premise_ok else "glob 展开顺序不是字节序"),
+        "reason": reason,
         "stderr_tail": proc.stderr[-300:],
     }
 

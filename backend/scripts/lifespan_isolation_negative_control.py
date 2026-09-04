@@ -182,8 +182,10 @@ def run_runtime_files_selftest() -> int:
     2. **旧固定名仍在监视面** —— M14 收窄之后它由 :data:`RUNTIME_FILE_RELPATHS`
        的精确项承接；接不住就是监视面偷偷变窄。
     3. **单下划线旁文件不在监视面** —— 收窄的正证据（写侧产不出这个形态）。
-    4. **顺序稳定** —— 同一批文件两次调用必须给出同一个序列，否则快照会因为
-       **排列不同**而字符串不等 ⇒ 假红。
+    4. **glob 项按字节序排列** —— 与**独立构造**的期望清单比对（不是拿两次调用互比：
+       那只测「枚举可重复」，去掉 ``sorted()`` 照样通过，round-1 Codex MEDIUM-2），
+       并**验证乱序前提**：原始枚举本次若恰好已有序，本条判据在此环境下无鉴别力，
+       那就报失败说清楚，不绿着糊过去。顺序不稳会让快照因**排列不同**而字符串不等 ⇒ 假红。
 
     ⛔ 只在 tmp 假 backend 里造文件：真实 ``backend/app/data`` 是生产运行时数据。
     """
@@ -219,10 +221,29 @@ def run_runtime_files_selftest() -> int:
         if sidecar in runtime_files(fake):
             problems.append(f"单下划线旁文件 {sidecar.name} 进了监视面 —— glob 比写侧能产出的形态宽（M14）")
 
-        for name in ("vault_index_pending__b.jsonl", "vault_index_pending__a.jsonl"):
-            (fake / "app" / "data" / name).write_text("{}\n", encoding="utf-8")
-        if runtime_files(fake) != runtime_files(fake):
-            problems.append("同一批文件两次调用给出不同顺序 —— 快照会因排列不同而假红")
+        # ⛔ 顺序判据必须与**独立构造**的期望清单比，不能拿两次调用互比
+        #    （round-1 Codex MEDIUM-2）：`runtime_files(fake) != runtime_files(fake)`
+        #    两次调用之间目录没变、枚举顺序也没变，于是把 `sorted(globbed)` 改成
+        #    `globbed` 照样通过 —— 它测的是「枚举可重复」，不是「排序做了」。
+        data_dir = fake / "app" / "data"
+        order_names = [f"vault_index_pending__{k}.jsonl" for k in ("zeta", "alpha", "Mid", "beta", "10", "2")]
+        for name in order_names:
+            (data_dir / name).write_text("{}\n", encoding="utf-8")
+        raw = list(data_dir.glob("vault_index_pending__*.jsonl"))
+        # 期望清单**逐个列举**（含判据 1 那步建的 journal），不拿 glob 结果当期望 ——
+        # 用被测的东西算期望就成了自证。
+        expected = sorted(data_dir / n for n in [*order_names, journal.name])
+        got = [p for p in runtime_files(fake) if p.name.startswith("vault_index_pending__")]
+        if got != expected:
+            problems.append(f"glob 项没有按字节序排列：实得 {[p.name for p in got]}，期望 {[p.name for p in expected]}")
+        # 前提验证：这一批名字在**本次运行的这个文件系统上**确实枚举乱序。
+        # 前提不成立 ⇒ 上面那条判据在此环境下无鉴别力（去掉 sorted 也会通过），
+        # 那就不能声称「排序承重已验证」—— fail-closed 说出来，而不是绿着糊过去。
+        if raw == sorted(raw):
+            problems.append(
+                "顺序判据无鉴别力：原始 glob 枚举本次恰好已是字节序 "
+                f"（{[p.name for p in raw]}），去掉 sorted() 也会通过 —— 排序承重未验证"
+            )
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
@@ -234,7 +255,7 @@ def run_runtime_files_selftest() -> int:
     print(
         "RUNTIME-FILES-SELFTEST: PASS "
         f"({len(RUNTIME_FILE_RELPATHS)} 固定项 + {len(RUNTIME_FILE_GLOBS)} glob；"
-        "重新展开 / 旧名在册 / 旁文件排除 / 顺序稳定 四条全过)"
+        "重新展开 / 旧名在册 / 旁文件排除 / 按字节序排列（乱序前提已验证）四条全过)"
     )
     return 0
 
@@ -384,10 +405,13 @@ class _ModuleIndex:
         self.fastapi_returning_funcs: set[str] = set()
         #: 失格的工厂 key —— 同名多定义时「任一定义不合格 ⇒ 整个 key 不合格」。
         #: 见 :meth:`_mark_fastapi_returning` 里的说明（阻断项 E）。
-        #: ⛔ **每轮从零重算**，不跨迭代累积（M16：累积会把「知识还没补齐」这个
-        #: 中间状态钉成永久结论，误拒前向引用的安全工厂）。详见
+        #: ⛔ 与 :attr:`fastapi_returning_funcs` **每轮一起重建**，两者都不累积
+        #: （M16 + round-1 Codex HIGH-1：只重建其中一个会造成暂态资格传播）。详见
         #: :meth:`_mark_all_fastapi_returning` 的 docstring。
         self.disqualified_factory_keys: set[str] = set()
+        #: 本轮扫描的逐 key 裁定（``key -> 全部定义都合格``），轮末发布成上面两个集合。
+        #: 扫描期间**不**被 :meth:`_is_local_app_factory_call` 读到 —— 那正是要点。
+        self._factory_verdicts: dict[str, bool] = {}
         #: 「每一条 return 都返回 app.main 的 TestClient 实例」的函数（`类名.方法名`
         #: 或 `<module>.函数名`）—— `with make():` 会跑真实 lifespan（L2-d）。
         self.main_client_funcs: set[str] = set()
@@ -413,13 +437,9 @@ class _ModuleIndex:
                 # 不动点判据；漏掉它，「失格集还在变」的那一轮会被当成已收敛。
                 set(self.disqualified_factory_keys),
             )
+            # 可信集与失格集在 `_mark_all_fastapi_returning` 内部**一起**发布
+            # （冻结知识 + 按 key 聚合 + 整组通过才发布，见该方法 docstring）。
             self._mark_all_fastapi_returning(tree)
-            # ⛔ 这一行**承重**：`_mark_fastapi_returning` 只做「不合格就不 add」的话，
-            # 同名工厂的安全版已经把 key 加进集合了，调用点就按安全算 —— 而 Python
-            # 运行时用的是**后**定义的那个（阻断项 E）。差集是把 E 关掉的那一步。
-            # 常设反例见 `_AST_MUST_FLAG` 的「同名工厂重定义」条（LOW#18）；注释掉
-            # 本行，那条反例当场 MISSED ⇒ AST-NEGATIVE-CONTROL: FAIL。
-            self.fastapi_returning_funcs -= self.disqualified_factory_keys
             self._mark_main_client_sources(tree)
             self._mark_isolation_wrappers(tree)
             if (
@@ -672,35 +692,64 @@ class _ModuleIndex:
     def _mark_all_fastapi_returning(self, tree: ast.Module) -> None:
         """两轮：先按「可证 FastAPI 类」标一轮，再让 helper 调 helper 收敛一次。
 
-        ⛔ 失格名单**每轮从零重算**（M16 修复，CARD-W4-3b 2026-09-05）。
+        ⛔ **冻结知识 + 按 key 聚合 + 整组通过才发布**（M16 修复，CARD-W4-3b
+        2026-09-05；round-1 Codex HIGH-1 的整改）。
 
-        上一版把 :attr:`disqualified_factory_keys` 写成「跨迭代累积、一旦失格不再
-        翻身」。E（同名工厂重定义）那条语义要的是「同一个 key 的**每个定义**都合格
-        才算工厂」，但累积实现顺带把**中间状态**也钉死了：``ast.walk`` 按定义顺序走，
-        于是
+        **原缺陷（M16）**：:attr:`disqualified_factory_keys` 跨迭代累积、一旦失格
+        不再翻身。E（同名工厂重定义）要的是「同一个 key 的**每个定义**都合格才算
+        工厂」，但累积实现顺带把**中间状态**也钉死了 —— ``ast.walk`` 按定义顺序走，
+        于是 ``def outer(): return inner()`` 写在 ``inner`` **之前**时，第一轮 outer
+        会因「``inner`` 此刻还不在已知工厂集」被判不合格并**永久**失格。实测：
+        outer 在前 ⇒ 1 violation（误拒），inner 在前 ⇒ 0。同一段代码换个顺序两种结论。
 
-            def outer():          # 先定义
-                return inner()
-            def inner():          # 后定义
+        ⛔ **第一版修法（只把失格集每轮清空）是错的，且比不修更糟** —— round-1
+        Codex HIGH-1 用纯 AST 在内存里交叉复现，父版 1 violation → 那一版 **0**：
+
+            def outer():        # ①
+                return make()
+            def make():         # ② 安全版
                 a = FastAPI()
                 return a
+            def make():         # ③ 不安全版 —— Python 运行时用的是这个
+                return real_app
 
-        在第一轮里 outer 会因为「``inner`` 此刻还不在已知工厂集」被判不合格、写进
-        失格名单；等后面的轮次把 ``inner`` 学会了，outer 也已经**永久**翻不了身 ——
-        同一段代码只要把两个 def 换个顺序就一个报违规、一个放行。2026-09-05 实测：
-        outer 在前 ⇒ 1 violation（误拒），inner 在前 ⇒ 0（正确）。
+        因为 :attr:`fastapi_returning_funcs` 当时仍是 **add-only 累积**，两个集合的
+        生命周期不一致，于是出现**暂态资格传播**：第二遍 walk 里 ① 读到了第一遍刚
+        加进去、**本轮差集还没执行**的 ``make`` 资格，抢先拿到安全身份；随后差集只
+        剔掉 ``make``，``outer`` 幸存 —— 而它调用的 ``make()`` 返回的是生产 app。
+        把内外循环上限加到 20/40 仍然漏检：这不是迭代次数不够，是**发布时机**错了。
 
-        修法是让失格判定在**知识收敛之后**才作数：每轮 walk 前清空，用**当轮**的
-        知识重新判一遍。前向引用那条在知识补齐后自然不再失格；而 E 的不安全定义
-        在任何知识水平下都不合格，每轮都会重新进名单 —— E 的语义**一字不损**，
-        由 ``_AST_MUST_FLAG`` 里那条常设反例钉住（LOW#18）。
+        **现在的口径**（三条一起才成立，少一条就退回上面某个缺陷）：
+
+        1. **冻结知识**：本轮所有判定只读 ``frozen`` —— 上一轮**结束时**的可信集。
+           扫描过程中产生的新资格一律不参与本轮求值，暂态传播无从发生。
+        2. **按 key 聚合**：同名多定义的裁定用 ``and`` 合并（``verdicts[key]``），
+           「存在一条安全的不算数，必须条条都是」这句哲学直接落在数据结构上。
+        3. **整组通过才发布**：两个集合在轮末**一起**重建 —— 可信集不再是 add-only，
+           失格集也不再累积，它们是同一次裁定的两半。
+
+        这样：E（②③ 同名）在任何知识水平下整组都不合格，永不进集；前向引用
+        （outer→inner，无重定义）在知识补齐后的下一轮自然通过；HIGH-1 那个组合
+        （①+②③）里 ``outer`` 每一轮读到的 ``frozen`` 都不含 ``make``，因此也永不进集。
+        三条反例/正例都在 ``_AST_MUST_FLAG`` / ``_AST_MUST_PASS`` 里常设钉住。
         """
         for _ in range(2):
-            # 从零重算：本轮的失格结论只能由本轮的知识产生。
-            self.disqualified_factory_keys = set()
+            # (1) 冻结：本轮求值只看上一轮结束时的知识。`_is_local_app_factory_call`
+            #     读的是 self.fastapi_returning_funcs，所以直接把它按住不动，
+            #     裁定写进独立的 verdicts，轮末才发布。
+            frozen = set(self.fastapi_returning_funcs)
+            self.fastapi_returning_funcs = frozen
+            self._factory_verdicts = {}
             for node in ast.walk(tree):
                 if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     self._mark_fastapi_returning(node)
+            # (3) 发布：两个集合一起重建。先全放进可信集，再减掉失格的那些 ——
+            #     ⛔ 下面这个差集**承重**：注释掉它，E 的两条反例当场 MISSED
+            #     ⇒ AST-NEGATIVE-CONTROL: FAIL（LOW#18 的常设门）。
+            verdicts = self._factory_verdicts
+            self.fastapi_returning_funcs = set(verdicts)
+            self.disqualified_factory_keys = {k for k, ok in verdicts.items() if not ok}
+            self.fastapi_returning_funcs -= self.disqualified_factory_keys
 
     def _mark_fastapi_returning(self, fd) -> None:
         """判定「本函数的**每一条**可达 return 都返回可证的局部 app」。
@@ -729,19 +778,20 @@ class _ModuleIndex:
         if not returns:
             return
         key = self._factory_key(fd)
+        ok = True
         for stmt in returns:
             candidates = stmt.value.elts if isinstance(stmt.value, ast.Tuple) else [stmt.value]
             if not any(self._value_origin(c, stmt, own) == O_LOCAL_APP for c in candidates):
-                # 这条 return 拿不出可证的局部 app ⇒ 整个函数不算工厂。
-                # ⛔ 还要把 key 记进**永久失格名单**：同一个 key 可能有多个定义
-                # （`def make()` 写两遍），而 Python 运行时用的是**后**定义的那个。
-                # 只做「不合格就不 add」的话，先定义的安全版已经进了集合、key 又
-                # 相同，调用点就按安全算 —— 与本门自己的哲学（「存在一条安全的
-                # 不算数，必须条条都是」）直接矛盾。2026-09-04 round-2 抢救出的
-                # 阻断项 E，复现见验收单 §7.6f。
-                self.disqualified_factory_keys.add(key)
-                return
-        self.fastapi_returning_funcs.add(key)
+                # 这条 return 拿不出可证的局部 app ⇒ 这个**定义**不算工厂。
+                ok = False
+                break
+        # ⛔ 裁定写进 verdicts、**按 key 用 and 聚合**，不直接改两个对外集合：
+        #    同一个 key 可能有多个定义（`def make()` 写两遍），而 Python 运行时用的是
+        #    **后**定义的那个。「存在一条安全的不算数，必须条条都是」这句哲学就落在
+        #    这个 `and` 上（阻断项 E，2026-09-04 round-2 抢救出，复现见 X4 验收单 §7.6f）。
+        #    发布时机与冻结知识见 :meth:`_mark_all_fastapi_returning` 的 docstring ——
+        #    直接 add/discard 会让本轮新资格被同轮的别的定义读到（round-1 Codex HIGH-1）。
+        self._factory_verdicts[key] = self._factory_verdicts.get(key, True) and ok
 
     def _mark_main_client_sources(self, tree: ast.Module) -> None:
         """收敛两类「会把 app.main 的 TestClient 实例递出来」的源。
@@ -1506,6 +1556,31 @@ _AST_MUST_FLAG: list[tuple[str, str]] = [
         "    with TestClient(app) as c:\n"
         "        pass\n",
     ),
+    # ── round-1 Codex HIGH-1：转调 + 同名重定义的**组合** ───────────────────
+    # 这一条是本卡自己的 M16 初版修复引入的漏检（父版报 1，初版报 0），由独立复核
+    # 用纯 AST 交叉复现抓到。机制是**暂态资格传播**：只把失格集每轮重算、而可信集
+    # 仍 add-only 时，`outer` 会读到同一轮里刚被安全版 `make` 加进去、但本轮差集
+    # 还没执行的资格，抢先拿到安全身份；随后差集只剔掉 `make`，`outer` 幸存 ——
+    # 而它调用的 `make()` 在运行时返回的是生产 app。
+    # 加大迭代次数**不能**修（内外 20/40 仍漏），修法是「冻结知识 + 按 key 聚合 +
+    # 整组通过才发布」，见 `_mark_all_fastapi_returning`。
+    (
+        "转调一个同名重定义过的工厂（round-1 Codex HIGH-1 的组合形态）",
+        "from fastapi import FastAPI\n"
+        "from fastapi.testclient import TestClient\n"
+        "from app.main import app as real_app\n"
+        "def outer():\n"
+        "    return make()\n"
+        "def make():\n"
+        "    a = FastAPI()\n"
+        "    return a\n"
+        "def make():\n"
+        "    return real_app\n"
+        "def t():\n"
+        "    app = outer()\n"
+        "    with TestClient(app) as c:\n"
+        "        pass\n",
+    ),
 ]
 
 _AST_MUST_PASS: list[tuple[str, str]] = [
@@ -1889,8 +1964,13 @@ def main() -> int:
 
     # -- 00. runtime_files 自证 —— **先于一切**，且不受任何 --xxx 短路影响 ------
     #    它证明的是「本脚本自己用来判定运行时文件有没有被写的那个函数」行为正确。
-    #    放在 `--ast-*` 分支之前是刻意的：那两条捷径也依赖 runtime_snapshot 的语义，
-    #    自检若能被命令行参数跳过，就等于给了「怎么跑才不会红」的选择权。
+    #
+    #    放在 `--ast-*` 分支之前是**刻意的选择**，理由如实写清（round-1 Codex LOW-3
+    #    更正了上一版的说法）：两条 AST 捷径本身**并不**调用 runtime_snapshot ——
+    #    `--ast-negative-control` 和 `--ast-only` 都在运行时快照之前就 return 了。
+    #    这里要的是「本脚本的**每一个**入口都跑一遍综合自检」，不给「换个参数跑就
+    #    不会红」的选择权。代价如实登记：纯静态检查因此也需要一个可写的临时目录
+    #    （mkdtemp/mkdir/write_text），在只读文件系统上会失败。
     if run_runtime_files_selftest() != 0:
         print("NEGATIVE-CONTROL: FAIL — runtime_files 自证未通过，后续判定不可信")
         return 1

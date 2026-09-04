@@ -3,12 +3,16 @@
 你是独立审查者。工作树只读：
 `/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-z3-w4`
 
-**审查面 = 本卡未提交改动**，取法：
+**审查面 = 本卡的单个 commit `2c53a881`**（其父 `304f03ca` 是主干基线），取法：
 
 ```
 cd /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-z3-w4
-git diff
+git show 2c53a881 --stat
+git diff 304f03ca 2c53a881 -- backend/
 ```
+
+（`_bmad-output/` 下的三个文档是本卡的验收单 / prompt / 拆门实测存档，可读作背景，
+但**代码结论必须自己从 `backend/` 的 diff 读出来**，不要采信验收单的自述。）
 
 涉及 4 个文件：
 - `backend/scripts/lifespan_isolation_guard_probes.py`
