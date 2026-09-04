@@ -13,7 +13,7 @@
 | G6-6（snooze）与本卡抢同一 state 文件与动作面，**本批不排**（需用户拍板板级/节点级与时长档位）；本卡禁实现任何压制 due 的逻辑 | 总账 v2 逐卡档案 |
 
 ## 一 完成条件（AND）
-- (a) 用户拍板两项写进验收单头部（默认：完成 = 移入「已完成」折叠区而非隐藏；允许未答题直接标完成但页面明示「不影响 FSRS」）。
+- (a) 用户两项**已按默认裁定（2026-09-05）**：完成 = 移入「已完成」折叠区而非隐藏；允许未答题直接标完成但页面明示「不影响 FSRS」——抄进验收单头部并标已裁。
 - (b) per-vault state **加性扩展**：`daily-review.<vault_key>.state.json` 增 `board_done`（board → 本地日）字段，schema_version 加性升级并保留旧文件兼容读；损坏/缺字段按 C1a 既有降级路径处置，不 500。
 - (c) 新 POST 端点复用 `:1721 _assert_same_origin` 与 `:1605 _assert_write_target_contained`（grep 证明是 import/调用复用不是复制）；零 JS 表单路径与交互壳路径都能走通。
 - (d) FSRS 零触碰硬断言：完成动作前后节点 frontmatter 的 `fsrs_*` 字段与 `learning_events.jsonl` 行数逐字节 / 逐行相同（先红后绿：故意写 fsrs_due 的变异体被门拦）。

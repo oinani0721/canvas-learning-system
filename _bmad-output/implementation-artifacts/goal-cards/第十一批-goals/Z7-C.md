@@ -1,5 +1,5 @@
 > ⚠️ 本文件是 CARD-TOOL-dredd-decide 的完整卡文——车道开工后必读并逐条执行；它不是 /goal 粘贴文本。/goal 在第十一批手册 §三 Z7-C 块。
-> 批次标记 `[BATCH-2026-09-05-第十一批 / CARD-TOOL-dredd-decide]`。车道：`card-z7-tool`，**前提 Z7-B 已 commit**。**用户裁决卡**：第一个 commit 只出裁决页；若手册 §三 Z7-C 块上方「用户裁决记录」已填则抄录直接进 (b)。勘探 2026-09-05。协议：`.claude/rules/card-batch-protocol.md`。
+> 批次标记 `[BATCH-2026-09-05-第十一批 / CARD-TOOL-dredd-decide]`。车道：`card-z7-tool`，**前提 Z7-B 已 commit**。**用户已裁（2026-09-05，按默认 = 乙 退役 + schemathesis 接进 CI + 硬前置）**：记录在手册 §三 Z7-C 块上方；(a) 只需抄录进验收单并标已裁，直接进 (b)；CI/CD 变更仍车道落 commit 不 push，合并前用户逐项批 diff。勘探 2026-09-05。协议：`.claude/rules/card-batch-protocol.md`。
 
 # CARD-TOOL-dredd-decide — Dredd 复活 / 退役裁决卡（默认退役，条件是 schemathesis 合约测试真接进 CI）
 
