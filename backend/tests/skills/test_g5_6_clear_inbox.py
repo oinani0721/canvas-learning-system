@@ -2981,3 +2981,93 @@ def test_markdown_line_and_block_boundaries_are_not_unicode(tmp_path):
         assert it["criterion"] == "C6_undecided", name
     dup = item_by_name(data, "真重复.md")
     assert dup["criterion"] == "C4_exact_duplicate", dup["basis"]
+
+
+def test_fenced_nbsp_only_content_is_not_a_skeleton(tmp_path):
+    """⛔ 同族第四次（定域收口）：`has_substantive_content` 判「围栏内容行是否
+    非空」用的还是 Unicode 口径的裸 `.strip()`，于是围栏里唯一那行只写了一个
+    NBSP（从网页粘贴代码块最常见的产物）时，整份材料被判空骨架 →
+    `C3_empty_or_skeleton` + 建议删 + confident=true。
+
+    ⚠️ 这与同文件关闭围栏那条「仅空白必须逐字符限 ASCII」是**同一条规范**
+    （CommonMark 4.4/4.5 里 NBSP 是围栏内容，不是空白）—— 那处第三轮就写死了
+    ASCII，这处一直没跟上。本门与它对称。
+
+    ⚠️ 源码里 NBSP 一律写 `\\u00a0` 转义：直接敲进去会被编辑器/格式化工具静默
+    换成 ASCII 空格，那样门看着在跑、实测的却是另一个字符。第一条断言就是这个
+    转义的字节自证。
+    """
+    nb = "\u00a0"
+    assert nb.encode("utf-8") == b"\xc2\xa0", "NBSP 被工具链换掉了，本门测的不是它"
+
+    mod = load_module()
+    assert mod.has_substantive_content(f"```\n{nb}\n```\n") is True, "围栏里的 NBSP 是内容"
+    assert mod.has_substantive_content("```\n  \n```\n") is False, "围栏里的 ASCII 空白仍是空"
+    # `skeleton_note` 的纯结构行计数同口径。⚠️ 如实：这一处只决定 C3 的**理由
+    # 文案**、不决定 verdict；且在 `_is_structural_line` 已 ASCII 化之后，含 NBSP
+    # 的正文行会先被判成实质正文而不再走到这里 —— 故本条是**函数级**可达，
+    # CLI 路径下本卡未证明它可达（见验收单「本卡未证明什么」）。
+    assert "纯结构行 1 行" in mod.skeleton_note(f"{nb}\n", 3), mod.skeleton_note(f"{nb}\n", 3)
+    assert "纯结构行 0 行" in mod.skeleton_note("  \n", 3), mod.skeleton_note("  \n", 3)
+
+    vault, out = base_vault(tmp_path)
+    inbox = vault / "_待处理"
+    # ⛔ 标题必须留空：标题里写了字本身就算实质正文，会先把材料接住，本门要测
+    # 的那条防线根本轮不到（与信号⑩ 那道门同一个陷阱）。
+    mk(inbox / "围栏内仅NBSP.md", f"# \n\n```\n{nb}\n```\n", age_days=6)
+    # ⛔ 验伪锚：围栏内只有 ASCII 空白 → 仍是空骨架，仍确定删除。少了它，把
+    # `.strip()` 整个删掉（放行一切围栏内容）也能让本门变绿。
+    mk(inbox / "围栏内仅空格.md", "# \n\n```\n  \n```\n", age_days=5)
+    mk(inbox / "无注释骨架.md", "# \n\n## \n", age_days=4)
+
+    assert run_cli(vault, out).returncode == 0
+    data = load_json(out)
+    assert data["items"], "items 为空则本门恒真 = 假绿"
+    it = item_by_name(data, "围栏内仅NBSP.md")
+    assert it["verdict"] != "建议删", f"围栏里的 NBSP 被当空白删了: {it['basis']}"
+    assert it["criterion"] != "C3_empty_or_skeleton", it["basis"]
+    assert it["confident"] is False, it["basis"]
+    for name in ("围栏内仅空格.md", "无注释骨架.md"):
+        ctrl = item_by_name(data, name)
+        assert ctrl["criterion"] == "C3_empty_or_skeleton", ctrl["basis"]
+        assert ctrl["verdict"] == "建议删", ctrl["basis"]
+
+
+def test_nbsp_only_closed_comment_is_an_undigested_signal(tmp_path):
+    """⛔ 同族第五次：信号⑩（被**闭合** HTML 注释剥掉的原文行）用裸 `.strip()`
+    筛「注释里有没有非空内容」，于是注释里只写了一个 NBSP 时护栏不触发，材料
+    落回 `C3_empty_or_skeleton` + 建议删 + confident=true。
+
+    ⚠️ 信号⑩ 的语义是「引擎剥掉了内容就该说出来」——「剥掉的算不算空白」必须
+    与剥离侧同口径（`_classify_lines_typed` 收集注释内容时不做任何空白归一）。
+    用 Unicode 口径筛，等于替用户判定 NBSP 不算内容。
+
+    ⚠️ 已知不完美、本卡范围外：理由文案里那句 `commented_out[0].strip()!r` 仍是
+    Unicode 口径，故文案会把内容显示成 `''`。护栏本身已触发，文案精度另计 ——
+    本门只锁护栏，不锁那句文案。
+    """
+    nb = "\u00a0"
+    assert nb.encode("utf-8") == b"\xc2\xa0", "NBSP 被工具链换掉了，本门测的不是它"
+
+    vault, out = base_vault(tmp_path)
+    inbox = vault / "_待处理"
+    mk(inbox / "注释内仅NBSP.md", f"# \n\n<!-- {nb} -->\n", age_days=6)
+    mk(inbox / "跨行注释仅NBSP.md", f"# \n\n<!--\n{nb}\n-->\n", age_days=5)
+    # ⛔ 验伪锚：注释里只有 ASCII 空白 / 空注释 → 信号⑩ 仍不该触发，仍确定删除。
+    # 少了它们，把整个 `if ln.strip()` 筛子删掉也能让本门变绿。
+    mk(inbox / "注释内仅空格.md", "# \n\n<!--   -->\n", age_days=4)
+    mk(inbox / "空注释.md", "# \n\n<!---->\n", age_days=3)
+
+    assert run_cli(vault, out).returncode == 0
+    data = load_json(out)
+    assert data["items"], "items 为空则本门恒真 = 假绿"
+    for name in ("注释内仅NBSP.md", "跨行注释仅NBSP.md"):
+        it = item_by_name(data, name)
+        assert it["verdict"] != "建议删", f"{name} 被确定删除了: {it['basis']}"
+        assert it["criterion"] == "C6_undecided", it["basis"]
+        assert it["confident"] is False, it["basis"]
+        assert "注释" in (it["uncertain_reason"] or ""), it["uncertain_reason"]
+    for name in ("注释内仅空格.md", "空注释.md"):
+        ctrl = item_by_name(data, name)
+        assert ctrl["criterion"] == "C3_empty_or_skeleton", ctrl["basis"]
+        assert ctrl["verdict"] == "建议删", ctrl["basis"]

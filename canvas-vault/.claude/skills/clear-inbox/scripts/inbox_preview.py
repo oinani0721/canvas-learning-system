@@ -213,8 +213,9 @@ round-8 §四判定原措辞「全部声明、无未声明项」为 FAIL，理�
      ⚠️ 与偏差 15 的 C3 侧裁决**刻意不一致**，这个不一致是被明确选择的，不是遗漏。
  19. **本卡交付时的其余已知缺陷（第五轮终审登记，未修）**：
      · 多行闭合 HTML 注释、frontmatter 里的 YAML 注释 —— 来源写在其中仍会被删；
-     · `splitlines()` 先于不可见归一执行，故 U+001D/001E/2028/2029 这类**行分隔**
-       类字符能绕过护栏（问题在处理顺序，不在码点表）；
+     · ~~`splitlines()` 先于不可见归一执行，故 U+001D/001E/2028/2029 这类**行分隔**
+       类字符能绕过护栏~~ —— **已修（R11-H1）**：分行改走 `md_splitlines()`
+       （`_MD_LINE_SPLIT_RE`，只认 \\n / \\r\\n / \\r），那些码点不再是行界；
      · 空键名编码 DOI/ISBN 的对抗构造。
      ⚠️ 五轮独立审查每一轮都抓出新构造 —— 这份清单是**当轮快照**，不是穷尽。
 ━━━━━━━━━━━━━━━━━━━━━ 与 board-split 的复用关系（卡片 (c)）━━━━━━━━━━━━━━━━━━━━━
@@ -831,6 +832,10 @@ def _classify_lines(text: str) -> list[tuple[str, bool]]:
 def dup_body(text: str) -> str:
     """**逐字保真**的正文形态 —— C4「精确重复」的唯一比对依据。
 
+    ⚠️ 「逐字保真」的口径以 `md_splitlines()` 切出的行为单位：R11-H1 已闭合 ——
+    行分隔符先按 `_MD_LINE_SPLIT_RE`（只认 \\n / \\r\\n / \\r）归一后再比对，
+    U+001D 之类不再被当行界改写。此前 `str.splitlines()` 把它们当行界，
+    `a<U+001D>b` 与 `a\\nb` 判等 —— 那时的「逐字」措辞比实际做到的宽。
     只做无语义的归一：丢标题行（围栏外）、行尾空白 rstrip、丢空行、NFC。
     ⛔ **不** `.strip()` 每行、**不**剥列表符号：那会抹掉代码缩进，让
     `if ok:` + 缩进 `run()` 与 `if ok:` + 顶格 `run()` 判成"逐字相等"，
@@ -876,7 +881,7 @@ def has_substantive_content(text: str) -> bool:
     """
     for ln, kind in _classify_lines_typed(text)[0]:
         if kind == "code":
-            if ln.strip():
+            if ln.strip(" \t"):
                 return True  # 围栏内容 = 真实材料（含长得像围栏的行）
             continue
         if kind == "fence":
@@ -927,7 +932,9 @@ def skeleton_note(text: str, size: int) -> str:
     rows = _classify_lines_typed(text)[0]
     headings = sum(1 for ln, k in rows if k == "text" and _HEADING_RE.match(ln))
     struct = sum(
-        1 for ln, k in rows if k == "text" and not _HEADING_RE.match(ln) and ln.strip()
+        1
+        for ln, k in rows
+        if k == "text" and not _HEADING_RE.match(ln) and ln.strip(" \t")
     )
     fences = sum(1 for _, k in rows if k == "fence")
     return (
@@ -1603,7 +1610,9 @@ def nominate(
     # ⚠️ 与①（未闭合注释）对称：①保护的是「不知道被吞了什么」，⑩保护的是
     # 「知道被吞了什么，但引擎没消费它」。此前只有①有保护，于是把唯一来源
     # 写在闭合注释里的文件 C3/C4 双出口全穿。只收**注释里有非空内容**的行。
-    commented_out = [ln for ln in stripped_comments if ln.strip()] + fm_comment_lines
+    commented_out = [
+        ln for ln in stripped_comments if ln.strip(" \t")
+    ] + fm_comment_lines
     # ⛔ 第九轮 HIGH（R9-H2）：文件名进了 item，但护栏一条都不看它 —— 于是
     # `ISBN_978-7-111-54742-6.md`、`DOI_10.1000_xyz.md` 这类**唯一来源写在文件名
     # 里**的材料，正文一撞上库内某份就被确定删除，文件名里的标识零留痕。
