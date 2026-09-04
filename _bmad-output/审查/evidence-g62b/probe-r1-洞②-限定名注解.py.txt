@@ -1,0 +1,5 @@
+# CARD-CX-G6-2b-R1 探针: 洞②-限定名注解
+# 用法: 追加到 review_app.py 源码**字符串**尾部（只在内存里拼, 不落进生产文件）
+# 预期: REJECT:受保护名  —  FastAPI 合法写法；_root_name 下钻到 'fastapi' ≠ 'Request' → 误拒（fail-closed 方向）
+def _probe_r1(request: fastapi.Request):
+    return request

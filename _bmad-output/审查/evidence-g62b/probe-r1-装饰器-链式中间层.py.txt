@@ -1,0 +1,6 @@
+# CARD-CX-G6-2b-R1 探针: 装饰器-链式中间层
+# 用法: 追加到 review_app.py 源码**字符串**尾部（只在内存里拼, 不落进生产文件）
+# 预期: ALLOW  —  尾 attr 'get' 在 _ALLOWED_CALL_ATTRS、根名 'request' 在 _ALLOWED_RECEIVERS → 放行；中间的 .app.router 无人检查
+@request.app.router.get
+def _probe_dc1():
+    pass

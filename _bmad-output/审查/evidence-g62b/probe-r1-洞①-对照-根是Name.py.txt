@@ -1,0 +1,4 @@
+# CARD-CX-G6-2b-R1 探针: 洞①-对照-根是Name
+# 用法: 追加到 review_app.py 源码**字符串**尾部（只在内存里拼, 不落进生产文件）
+# 预期: REJECT:受保护对象  —  同一条 Attribute-Store 路径，根名可解析 → 命中黑名单 → 拒（洞①的归因对照）
+_STATUS_META.dumps = lambda value, **kwargs: "wrong"

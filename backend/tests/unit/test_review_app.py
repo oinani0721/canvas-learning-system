@@ -351,6 +351,18 @@ def _assert_module_closed(src: str) -> None:
                 _flag_rebind(sub.id, where)
             elif isinstance(sub, (ast.Attribute, ast.Subscript)) and isinstance(sub.ctx, (ast.Store, ast.Del)):
                 root = _root_name(sub)
+                # R1 洞①: 根不是 Name 时 _root_name 返回空串, 而空串永远不在黑名单里 ——
+                # `(json or list).dumps = f` / `_js_json(1).dumps = f` / `(json if c else
+                # list).dumps = f` 改的都是受保护对象**本体**, 却因为"根名取不到"被放行
+                # (三条实测见 evidence-g62b/probe-r1.md)。同一个空串在装饰器接收者与
+                # request 注解那两个**白名单**语境里已经是 fail-closed (不在白名单 → 拒),
+                # 这里是**黑名单**语境, 方向正好相反 —— 所以收紧只能落在这个消费点上,
+                # 改 _root_name 本体会把那两处正确的行为一起改坏。
+                if not root:
+                    pytest.fail(
+                        f"写路径的根不可解析 ({ast.unparse(sub)}) — 根是调用/布尔短路/三元等"
+                        "表达式时取不到根名, 而它写的可能正是受保护对象本体 (R1 洞①)"
+                    )
                 if root in _BANNED_REBINDS:
                     pytest.fail(
                         f"受保护对象 {root!r} 的内部被写 ({ast.unparse(sub)}) — "
@@ -478,6 +490,18 @@ def _assert_module_closed(src: str) -> None:
                     # (request.url_for 的合法来源) —— 但必须**真的**被注解成
                     # Request: 不带注解的 `request` 是普通查询参数, 拿到的是
                     # 字符串, `.url_for` 根本不存在 (round-5 BLOCKER-5)。
+                    #
+                    # ⚠ 适用面 (CARD-CX-G6-2b-R1 洞② 实测, 四条见
+                    # evidence-g62b/probe-r1.md): 豁免只认**裸 Name** `Request`。
+                    # 下面四种在 FastAPI 里同样合法的写法当前一律判红:
+                    #   def f(request: fastapi.Request)            → 根名 "fastapi"
+                    #   def f(request: Annotated[Request, None])   → 根名 "Annotated"
+                    #   def f(request: Annotated[Request, Depends()])  → 同上
+                    #   def f(request: "Request")                  → Constant, 空串
+                    # 方向是 fail-closed (误拒, 不是漏网), 所以**不阻断**; 代价是本模块
+                    # 将来想用 Annotated 依赖注入会先撞这道门。本卡是只读复核卡, 只如实
+                    # 声明适用面、不动判据 —— 收宽豁免面等于扩大"哪些形参算接收者本体"
+                    # 的判定, 那需要它自己的反向探针集, 归后续卡。
                     annotated_request = (
                         arg_name == "request"
                         and _root_name(getattr(arg, "annotation", None) or ast.Constant(value=None)) == "Request"
@@ -579,6 +603,16 @@ _AST_PROBES = {
     "import-alias": ("import json as _probe_j\n", "import alias 禁止"),
     "type-形参": ("def _probe_tp[json]():\n    pass\n", "type 形参遮蔽"),
     "无注解request形参": ("def _probe_r(request):\n    return request\n", "受保护名"),
+    # ── CARD-CX-G6-2b-R1 补审: 写路径「根名取不到」的 fail-open 面 (洞①) ──
+    # 上面「受保护对象-下标写 / 元组内属性目标」那批封的是**根是 Name** 的写路径;
+    # 根换成调用/布尔短路/三元, _root_name 返回空串就绕过去了 —— 而这三条改的
+    # 都是受保护对象本体 (json 为真值, `(json or list).dumps` 就是 json.dumps)。
+    "根不可解析-调用结果属性写": ('_js_json(1).dumps = lambda value, **kwargs: "wrong"\n', "根不可解析"),
+    "根不可解析-布尔短路属性写": ('(json or list).dumps = lambda value, **kwargs: "wrong"\n', "根不可解析"),
+    "根不可解析-三元属性写": (
+        '(json if _PAGE_TEMPLATE else list).dumps = lambda value, **kwargs: "wrong"\n',
+        "根不可解析",
+    ),
 }
 
 #: 反向探针: 这些**合法**写法必须放行。加严的门只可能在两个方向上错 ——

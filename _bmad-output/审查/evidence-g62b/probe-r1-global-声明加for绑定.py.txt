@@ -1,0 +1,7 @@
+# CARD-CX-G6-2b-R1 探针: global-声明加for绑定
+# 用法: 追加到 review_app.py 源码**字符串**尾部（只在内存里拼, 不落进生产文件）
+# 预期: REJECT:受保护名  —  global + for 目标绑定 —— 走 ast.For 分支
+def _probe_g2():
+    global json
+    for json in ():
+        pass
