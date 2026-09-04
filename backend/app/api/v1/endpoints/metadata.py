@@ -122,7 +122,7 @@ async def get_canvas_metadata(
     Returns:
     - **subject**: Subject identifier (e.g., "math54")
     - **category**: Category identifier (e.g., "math")
-    - **group_id**: Graphiti group_id (e.g., "math54:离散数学")
+    - **group_id**: Graphiti group_id (D16 格式, e.g., "vault:cs_61b:math54:离散数学")
     - **source**: How the metadata was resolved
 
     Resolution priority:

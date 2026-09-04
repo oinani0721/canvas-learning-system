@@ -45,7 +45,7 @@ class SubjectResolver:
         >>> resolver = SubjectResolver(config_path="backend/config/subject_mapping.yaml")
         >>> info = resolver.resolve("Math 54/离散数学.canvas")
         >>> print(info.subject)  # "math54"
-        >>> print(info.group_id)  # "math54:离散数学"
+        >>> print(info.group_id)  # "vault:cs_61b:math54:离散数学"
 
     [Source: Design doc - Phase 2.2 SubjectResolver Service]
     """
