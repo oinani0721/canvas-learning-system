@@ -283,8 +283,12 @@ class IntelligentParallelResponse(BaseModel):
     )
     subject_group_id: Optional[str] = Field(
         None,
-        description="Subject isolation group_id, format: {subject}:{canvas_name}",
-        examples=["数学:离散数学"],
+        description=(
+            "Subject isolation group_id, D16 vault: 格式。段数随作用域而变: 有请求作用域时"
+            "原样透传 ContextVar (vault:<vault_id> 或 vault:<vault_id>:<subject>:<canvas>), "
+            "无作用域时回落 vault:default:<subject> —— 见 intelligent_grouping_service.py:202-214"
+        ),
+        examples=["vault:cs_61b:数学"],
     )
     # Story 33.4 AC-33.4.3: Clustering quality metrics
     silhouette_score: Optional[float] = Field(

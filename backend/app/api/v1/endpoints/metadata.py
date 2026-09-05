@@ -122,7 +122,10 @@ async def get_canvas_metadata(
     Returns:
     - **subject**: Subject identifier (e.g., "math54")
     - **category**: Category identifier (e.g., "math")
-    - **group_id**: Graphiti group_id (D16 格式, e.g., "vault:cs_61b:math54:离散数学")
+    - **group_id**: Graphiti group_id — D16 规定 vault: 前缀
+      (vault:<vault_id>[:<subject_id>]); SubjectResolver 在其上再拼 canvas 段,
+      产出四段组合形态。示例 "vault:cs_61b:math54:离散数学" 中的 vault 段是
+      **部署期变量占位符** (取自 get_current_vault_id()), 实际值随部署而变 — 勿硬编码
     - **source**: How the metadata was resolved
 
     Resolution priority:
