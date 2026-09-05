@@ -1,0 +1,20 @@
+=== 判据补强 F：注释批量修正后的结构等价复核 ===
+工作树 vs 4cc4824c（全卡面）与 vs HEAD(bdf15fba)
+--- 4cc4824c(卡起点) -> 工作树: 差异 1 处 ---
+    .pre-commit.commands.python-typecheck.glob
+        旧 '{backend,src}/**/*.py'
+        新 'backend/app/*.py'
+    判定: ✅ 全卡面唯一差异 = python-typecheck 的 glob
+--- bdf15fba(HEAD) -> 工作树: 差异 0 处 ---
+    判定: ✅ 零差异（本轮只改 YAML 注释）
+--- 命令名集合与顺序（全卡面）---
+OK 空
+--- 无 priority 键 ---
+priority 键: 零
+--- 最终行锚（grep -n 实测）---
+python-typecheck: 205
+glob:             206
+mutant-residue-scan: 345  (4cc4824c 上 286)
+pre-push:            442  (4cc4824c 上 383)
+注释净增 N = 59
+rc=0

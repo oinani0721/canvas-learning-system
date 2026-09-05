@@ -1,0 +1,21 @@
+=== 判据补强 D：结构等价（替换旧的三条 sha 判据，堵 O5 盲区）===
+原理：run: | 是字面块标量，块内 '#' 行是 run 脚本字符串的一部分 ⇒ yaml.safe_load 保留它；
+      而 YAML 注释（本卡唯一改动的东西）被解析器丢弃。故'解析后逐键比较'恰好：
+      允许我改的（YAML 注释）不可见，禁止我改的（run 内容/glob/命令名/顺序/priority）全可见。
+
+--- 4cc4824c -> HEAD：解析后差异 1 处 ---
+    .pre-commit.commands.python-typecheck.glob
+        旧: '{backend,src}/**/*.py'
+        新: 'backend/app/*.py'
+    判定: ✅ 唯一差异就是 python-typecheck 的 glob
+
+--- 4cc4824c -> 工作树：解析后差异 1 处 ---
+    .pre-commit.commands.python-typecheck.glob
+        旧: '{backend,src}/**/*.py'
+        新: 'backend/app/*.py'
+    判定: ✅ 唯一差异就是 python-typecheck 的 glob
+
+--- 验伪锚：把 python-lint run 块内的一行 shell 注释改掉 ---
+    本判据报出差异 1 处: ['.pre-commit.commands.python-lint.run']
+    判定: ✅ 判据能看见 run 块内的注释改动（旧判据在此处全绿=假绿）
+rc=0

@@ -1,0 +1,146 @@
+=== 判据补强 E（v2）：负控绑定性重测 ===
+scratch=/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe2-023916  base=bdf15fbad71f55cf79ed29602aaf05c19db73f18  lefthook=2.1.6
+
+⚠️ v1 作废原因（本卡自查）：sed 把 glob 硬编码写到第 147 行，但本 base(bdf15fba) 的
+   glob 行已漂到 190 ⇒ 往 python-lint 块里插入了第二个 glob 键 ⇒ YAML 解析失败，
+   六档全部没跑成。而判据『Running pyright 未出现 = 未命中』把「配置炸了」与
+   「glob 没匹配」判成同一结果。是矩阵里的两档**正控**（本该命中却报未命中）暴露了它。
+   v2 修法：行号 grep -n 动态取 + 每档先验 YAML 可解析 + 正控不命中即中止。
+
+动态取到的 glob 行号 = 190 ; 原文 =       glob: "backend/app/*.py"
+
+──────────────────────────────────────────────
+[档] glob=backend/app/*.py  file=backend/app/main.py  类型=正控  预期=命中
+  生效 glob 行(190):       glob: "backend/app/*.py"
+  [前置门] YAML 可解析, 本命令 glob = backend/app/*.py
+  [暂存自证 1] git diff --cached --name-only -> backend/app/main.py 
+  [暂存自证 2] git status --porcelain       -> M  backend/app/main.py 
+  [暂存自证 3] git diff --cached --numstat  -> 1	0	backend/app/main.py 
+  [lefthook 输出]
+      ╭──────────────────────────────────────╮
+      │ 🥊 lefthook v2.1.6  hook: pre-commit │
+      ╰──────────────────────────────────────╯
+      ┃  python-typecheck ❯ 
+      
+      [Python] Running pyright type check (backend/.venv/bin/pyright)...
+      /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe2-023916/backend/app/main.py
+        /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe2-023916/backend/app/main.py:104:10 - error: Import "agentic_rag.config" could not be resolved (reportMissingImports)
+        /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe2-023916/backend/app/main.py:573:34 - warning: Unnecessary "# type: ignore" comment (reportUnnecessaryTypeIgnoreComment)
+        /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe2-023916/backend/app/main.py:664:20 - warning: Unnecessary isinstance call; "str" is always an instance of "str" (reportUnnecessaryIsInstance)
+      1 error, 2 warnings, 0 informations
+      [Python] Type errors found! Review and fix before committing.
+      [Python] Hint: Some errors may be pre-existing. Focus on YOUR changes.
+      [Python] Typecheck done (exit: 1).
+      
+      exit status 1                                      
+        ────────────────────────────────────
+      summary: (done in 3.95 seconds)       
+      🥊 python-typecheck (3.77 seconds)
+  lefthook_rc=1
+  实测: hit=yes
+  还原后 status: 0 行
+──────────────────────────────────────────────
+[档] glob={backend,src}/**/*.py  file=backend/app/main.py  类型=正控  预期=命中
+  生效 glob 行(190):       glob: "{backend,src}/**/*.py"
+  [前置门] YAML 可解析, 本命令 glob = {backend,src}/**/*.py
+  [暂存自证 1] git diff --cached --name-only -> backend/app/main.py 
+  [暂存自证 2] git status --porcelain       -> M  backend/app/main.py 
+  [暂存自证 3] git diff --cached --numstat  -> 1	0	backend/app/main.py 
+  [lefthook 输出]
+      ╭──────────────────────────────────────╮
+      │ 🥊 lefthook v2.1.6  hook: pre-commit │
+      ╰──────────────────────────────────────╯
+      ┃  python-typecheck ❯ 
+      
+      [Python] Running pyright type check (backend/.venv/bin/pyright)...
+      /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe2-023916/backend/app/main.py
+        /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe2-023916/backend/app/main.py:104:10 - error: Import "agentic_rag.config" could not be resolved (reportMissingImports)
+        /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe2-023916/backend/app/main.py:573:34 - warning: Unnecessary "# type: ignore" comment (reportUnnecessaryTypeIgnoreComment)
+        /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe2-023916/backend/app/main.py:664:20 - warning: Unnecessary isinstance call; "str" is always an instance of "str" (reportUnnecessaryIsInstance)
+      1 error, 2 warnings, 0 informations
+      [Python] Type errors found! Review and fix before committing.
+      [Python] Hint: Some errors may be pre-existing. Focus on YOUR changes.
+      [Python] Typecheck done (exit: 1).
+      
+      exit status 1                                      
+        ────────────────────────────────────
+      summary: (done in 3.85 seconds)       
+      🥊 python-typecheck (3.79 seconds)
+  lefthook_rc=1
+  实测: hit=yes
+  还原后 status: 0 行
+──────────────────────────────────────────────
+[档] glob=backend/app/*.py  file=backend/mutmut_config.py  类型=负控  预期=跳过
+  生效 glob 行(190):       glob: "backend/app/*.py"
+  [前置门] YAML 可解析, 本命令 glob = backend/app/*.py
+  [暂存自证 1] git diff --cached --name-only -> backend/mutmut_config.py 
+  [暂存自证 2] git status --porcelain       -> M  backend/mutmut_config.py 
+  [暂存自证 3] git diff --cached --numstat  -> 1	0	backend/mutmut_config.py 
+  [lefthook 输出]
+      ╭──────────────────────────────────────╮
+      │ 🥊 lefthook v2.1.6  hook: pre-commit │
+      ╰──────────────────────────────────────╯
+      │  python-typecheck (skip) no files for inspection
+                                            
+        ────────────────────────────────────
+      summary: (done in 0.12 seconds)       
+  lefthook_rc=0
+  实测: hit=no
+  还原后 status: 0 行
+──────────────────────────────────────────────
+[档] glob=backend/app/*.py  file=backend/start_server.py  类型=负控  预期=跳过
+  生效 glob 行(190):       glob: "backend/app/*.py"
+  [前置门] YAML 可解析, 本命令 glob = backend/app/*.py
+  [暂存自证 1] git diff --cached --name-only -> backend/start_server.py 
+  [暂存自证 2] git status --porcelain       -> M  backend/start_server.py 
+  [暂存自证 3] git diff --cached --numstat  -> 1	0	backend/start_server.py 
+  [lefthook 输出]
+      ╭──────────────────────────────────────╮
+      │ 🥊 lefthook v2.1.6  hook: pre-commit │
+      ╰──────────────────────────────────────╯
+      │  python-typecheck (skip) no files for inspection
+                                            
+        ────────────────────────────────────
+      summary: (done in 0.09 seconds)       
+  lefthook_rc=0
+  实测: hit=no
+  还原后 status: 0 行
+──────────────────────────────────────────────
+[档] glob={backend,src}/**/*.py  file=backend/mutmut_config.py  类型=负控  预期=跳过（证 ** 要求跨一级）
+  生效 glob 行(190):       glob: "{backend,src}/**/*.py"
+  [前置门] YAML 可解析, 本命令 glob = {backend,src}/**/*.py
+  [暂存自证 1] git diff --cached --name-only -> backend/mutmut_config.py 
+  [暂存自证 2] git status --porcelain       -> M  backend/mutmut_config.py 
+  [暂存自证 3] git diff --cached --numstat  -> 1	0	backend/mutmut_config.py 
+  [lefthook 输出]
+      ╭──────────────────────────────────────╮
+      │ 🥊 lefthook v2.1.6  hook: pre-commit │
+      ╰──────────────────────────────────────╯
+      │  python-typecheck (skip) no files for inspection
+                                            
+        ────────────────────────────────────
+      summary: (done in 0.12 seconds)       
+  lefthook_rc=0
+  实测: hit=no
+  还原后 status: 0 行
+──────────────────────────────────────────────
+[档] glob={backend,src}/**/*.py  file=backend/start_server.py  类型=负控  预期=跳过（补 Codex 4' 缺档）
+  生效 glob 行(190):       glob: "{backend,src}/**/*.py"
+  [前置门] YAML 可解析, 本命令 glob = {backend,src}/**/*.py
+  [暂存自证 1] git diff --cached --name-only -> backend/start_server.py 
+  [暂存自证 2] git status --porcelain       -> M  backend/start_server.py 
+  [暂存自证 3] git diff --cached --numstat  -> 1	0	backend/start_server.py 
+  [lefthook 输出]
+      ╭──────────────────────────────────────╮
+      │ 🥊 lefthook v2.1.6  hook: pre-commit │
+      ╰──────────────────────────────────────╯
+      │  python-typecheck (skip) no files for inspection
+                                            
+        ────────────────────────────────────
+      summary: (done in 0.13 seconds)       
+  lefthook_rc=0
+  实测: hit=no
+  还原后 status: 0 行
+──────────────────────────────────────────────
+整轮判定: ✅ 全部符合预期（两档正控命中 + 四档负控跳过，且每档暂存自证三行齐全）
+FAILED=0

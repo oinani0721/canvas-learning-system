@@ -151,8 +151,18 @@ pre-commit:
     # 交集) —— 于是旧 glob 的可达面是 **844** 个 .py(backend 目录共 846 个 .py,
     # 减去一级的 2 个 —— 旧 glob 的 `**` 要求至少跨一级, 见下面的死枝登记;
     # 844 里 backend/tests 占 493), 远大于 include 面。测试目录的存量类型债因此
-    # 拦下了绝大多数提交(第十一批 CARD-TOOL-pyright 台账记 18/19 ≈ 95% 被拦),
-    # 而那些报错与被提交的改动无关 —— 一个恒红的门等于没有门, 只会训练人去绕过它。
+    # 拦下了绝大多数提交(第十一批 CARD-TOOL-pyright 台账逐字记 "18/19 = 94%",
+    # 精确值 94.7%; 别把它渲染成 95% 再说成"台账记的"), 而那些报错与被提交的改动
+    # 无关 —— 一个恒红的门等于没有门, 只会训练人去绕过它。
+    # ⚠️ "报错与改动无关"这半句是**归因**, 本卡零样本核查(没有检视过那 18 次提交
+    # 里的任何一次报错内容); 机制上有单例演示(探针只往 conftest.py 追加一行注释,
+    # pyright 仍报存量 1 err), 但那是可能性演示, 不是对那 18 次的实测。
+    #
+    # "位置实参取代 include" 的**直接实证**(不是推论):
+    # pyrightconfig.json 的 include = ["backend/app","src","tests"], `backend/tests`
+    # 不在其中; 而旧 glob 下把 backend/tests/conftest.py 交给本门, pyright 真的分析
+    # 了它并报出 4 条诊断(evidence-typecheck-glob/probe-OLDGLOB-flip.txt)。若语义是
+    # 取交集, 它会被 include 排除、零诊断。judge12 存档记录了这条对照。
     # ⚠️ 846 是**目录总量**, 不是旧 glob 的**匹配量**; 两者差 2, 别混用
     # (Codex round-1 抓到本注释初版把这两个数混为一谈, 且与下面的死枝登记自相矛盾)。
     # 收窄后门面 = backend/app 的 263 个 .py, 是 pyrightconfig include 面的真子集:
@@ -162,13 +172,19 @@ pre-commit:
     # 的文件)。旧手册里的 258 / 35 是过期数, 不要照抄。
     #
     # ⚠️ glob 语义(本机 lefthook 2.1.6 五档探针实测, transcript 见
-    # _bmad-output/审查/evidence-typecheck-glob/): 单 `*` 跨任意目录层级, 所以单条
+    # _bmad-output/审查/evidence-typecheck-glob/): 单 `*` 跨目录层级, 所以单条
     # `backend/app/*.py` 同时命中根级 main.py / 1 级 mcp/server.py / 3 级
     # api/v1/endpoints/health.py, **不需要**像上面 spec-sync 那样拆 flat+root ——
     # 那张矩阵里的"根文件 skip"是花括号子目录 `{api,models,schemas,mcp}` 造成的,
-    # 不是单星本身。负控: backend/tests/conftest.py 与 backend/mutmut_config.py 均
-    # `(skip) no files for inspection`。翻转对照: 同一个 backend/tests/conftest.py
-    # 在**旧** glob 下真跑并 exit 1, 证明收窄确实改变了可达面, 不只是换个写法。
+    # 不是单星本身。⚠️ 实测只抽了深度 0 / 1 / 3 三档(深度 2 及更深未测), "跨任意
+    # 层级"是对这三个样本的**规则归纳**, 不是穷举; 同理"门面 = 263"是按该规则对
+    # 263 条路径的外推, 不是逐条枚举(外审 codex-review §1 已写下同一限定)。
+    # 负控(judge14 v2, 每档带三行暂存自证): backend/mutmut_config.py 与
+    # backend/start_server.py 在**新旧两套** glob 下均 `(skip) no files for
+    # inspection`, 同轮两档正控(main.py 新/旧 glob)均命中 —— 正控排除了
+    # "git add 没生效 / 配置解析失败" 这两种会产生相同 skip 字样的假因。
+    # 翻转对照: 同一个 backend/tests/conftest.py 在**旧** glob 下真跑并 exit 1,
+    # 新 glob 下 skip, 证明收窄确实改变了可达面, 不只是换个写法。
     #
     # 两条死枝, 本卡有意不收(登记, 非疏漏):
     #   src/                       仓库内零 tracked 文件; 旧 glob 的 `src` 分支与
