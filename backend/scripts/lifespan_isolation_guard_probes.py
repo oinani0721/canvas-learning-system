@@ -949,6 +949,85 @@ def _glob_probe_result(
     }
 
 
+def probe_allowed_test_ports_cannot_admit_live() -> dict:
+    """CARD-W4-3a：往 ``ALLOWED_TEST_PORTS`` 里加现网端口，预检必须**仍拒**。
+
+    `NEO4J_TEST_URI` 的判据从黑名单改成正面白名单之后，最省事的拆门方式就变成了
+    「把 7687 加进白名单」——加完之后 ``bolt://…:0``（驱动归一成 7687）就成了
+    "白名单内"，判据当场变成恒真，而 X4 那条 BLOCKER 原样复活。
+
+    所以 :func:`assert_test_uri_not_blocked` 开头有一道**无条件**的自检：
+    白名单与 :data:`BLOCKED_PORTS` 不得相交。本探针在子进程里把 7687 塞进白名单，
+    断言那道自检当场抛。
+
+    三段判据，缺一不可（判据要绑定「被哪一层拒的」）：
+      A. 白名单被污染 ⇒ 抛，且拒因是**相交自检**（不是恰好被别的分支拒）；
+      B. 对照：白名单干净时同一个 `:0` URI 也要抛，但拒因必须是 **canonical 7687**；
+      C. 对照：白名单干净 + 7692 URI ⇒ 不抛（证明整条判据不是恒抛）。
+    """
+    body = """
+    from tests.support import live_port_guard as g
+    problems = []
+
+    # A. 白名单被塞进现网端口 ⇒ 相交自检必须当场拒（连 URI 都还没看）
+    os.environ.pop("NEO4J_TEST_URI", None)
+    g.ALLOWED_TEST_PORTS = frozenset({7692, 7687})
+    try:
+        g.assert_test_uri_not_blocked()
+        problems.append("A 白名单含 7687 却放行了（判据已被拆成恒真）")
+    except RuntimeError as e:
+        if "相交" not in str(e):
+            problems.append("A 拒了但不是因为相交自检: " + str(e)[:160])
+
+    # B. 对照：白名单干净时，:0 必须因 canonical 7687 被拒。
+    #    ⛔ 判据不能只查文案里有没有 "7687"（round-1 Codex MEDIUM）：解析失败分支与
+    #    普通白名单拒绝分支都会把默认端口 7687 带进文案，于是把 helper 改成返回 0 或
+    #    None 这两种**错误实现**照样能让本段通过。要绑定的是 **canonical 复算结果本身**。
+    g.ALLOWED_TEST_PORTS = frozenset({7692})
+    ports, why = g.canonical_target_ports("bolt://127.0.0.1:0")
+    if ports != (7687,):
+        problems.append(f"B canonical 复算不是 (7687,)，实得 {ports}（{why}）")
+    os.environ["NEO4J_TEST_URI"] = "bolt://127.0.0.1:0"
+    try:
+        g.assert_test_uri_not_blocked()
+        problems.append("B bolt://127.0.0.1:0 被放行（X4 的 BLOCKER 复活）")
+    except RuntimeError as e:
+        if "白名单" not in str(e):
+            problems.append("B 拒了但不是白名单分支: " + str(e)[:160])
+
+    # B2. routing scheme 的多地址陷阱（round-1 Codex BLOCKER）：netloc 按空白拆分，
+    #     驱动取 [0]。单值解析会给 7692 而放行，实际连的是 7687。
+    ports, why = g.canonical_target_ports("neo4j://127.0.0.1 :7692")
+    if ports != (7687, 7692):
+        problems.append(f"B2 routing 多地址复算不是 (7687, 7692)，实得 {ports}（{why}）")
+    os.environ["NEO4J_TEST_URI"] = "neo4j://127.0.0.1 :7692"
+    try:
+        g.assert_test_uri_not_blocked()
+        problems.append("B2 routing 多地址陷阱被放行（驱动会连 7687）")
+    except RuntimeError as e:
+        if "白名单" not in str(e):
+            problems.append("B2 拒了但不是白名单分支: " + str(e)[:160])
+
+    # C. 对照：白名单干净 + 7692 ⇒ 必须放行（否则整条判据是恒抛，A/B 无意义）
+    os.environ["NEO4J_TEST_URI"] = "bolt://127.0.0.1:7692"
+    try:
+        g.assert_test_uri_not_blocked()
+    except Exception as e:
+        problems.append("C 合法的 7692 被拒 —— 判据恒抛: " + str(e)[:160])
+
+    # C2. 对照：routing 多地址**全部** 7692 也必须放行（防收紧过头）。
+    os.environ["NEO4J_TEST_URI"] = "neo4j://127.0.0.1:7692 localhost:7692"
+    try:
+        g.assert_test_uri_not_blocked()
+    except Exception as e:
+        problems.append("C2 全 7692 的 routing 多地址被误拒: " + str(e)[:160])
+
+    verdict(not problems, "allowed-test-ports-cannot-admit-live", "; ".join(problems))
+    sys.exit(1 if problems else 0)
+    """
+    return _run("guard-allowed-test-ports-cannot-admit-live", body, expect_rc=0)
+
+
 def probe_runtime_glob_absent_to_present() -> dict:
     """正探针：快照前不存在、被包裹命令新建的 journal 必须让门判 CHANGED。
 
@@ -1139,6 +1218,8 @@ def main() -> int:
         probe_isolated_copy_carries_no_data(),
         probe_shell_selftest_is_load_bearing(),
         probe_shell_can_report_changed(),
+        # CARD-W4-3a：NEO4J_TEST_URI 的正面白名单不能被「往里加现网端口」拆掉。
+        probe_allowed_test_ports_cannot_admit_live(),
         # M15 族：runtime 文件的 **glob 分支**（CARD-W4-3b）。前三条是
         # 「正探针 + 两条拆了要瞎的对照」，后两条钉住 M14 收窄的两个方向。
         probe_runtime_glob_absent_to_present(),
