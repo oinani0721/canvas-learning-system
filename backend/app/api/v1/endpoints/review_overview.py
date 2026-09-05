@@ -325,6 +325,11 @@ def _gate_boards_rollup(
 _BUCKET_ORDER = ("new", "learning_queue", "due_now", "due_today", "future")
 #: 其中三个到期桶: 成员恒等于 due_nodes 明细 (生产器 S2「加标签不搬移」)
 _DUE_BUCKETS = ("new", "learning_queue", "due_now")
+#: CARD-G6-5-R 透传白名单: 生产器落盘的桶行四字段 (daily_review_pick.py:1007-1013)。
+#: 与 _gate_buckets 验形处 (:436 三串字段 + :440 fsrs_due) 是**两个字面量**, 靠
+#: 本文件的 test_bucket_rows_passthrough_* 锁在一起 —— 验形没覆盖的字段一旦进
+#: 白名单, 那道门会红 (未验字段不许出门)。
+_BUCKET_ROW_FIELDS = ("node", "board", "why_due", "fsrs_due")
 #: 生产器 build_payload 对 upcoming 的截断上限 (payload["upcoming"] = upcoming[:3])
 _UPCOMING_LIMIT = 3
 #: 桶位人读标签 (页面汇总行)
@@ -352,11 +357,21 @@ def _gate_buckets(
     generated_at: str,
     future_map: dict[str, tuple[int, str]],
     up_gated: list[dict],
-) -> dict[str, int]:
+) -> tuple[dict[str, int], dict[str, list[dict]]]:
     """G3-6a 加性 buckets 门禁 (可选顶层键: 旧投影缺省走 None 路径)。
 
-    只消费桶位计数 (卡片汇总行的分层分布); why_due 的节点级展示属 G6-5 地盘,
-    这里只门禁不渲染 —— 但仍逐行验形, 不给形状垃圾发 ok。
+    返回 (桶位计数, 已验节点行) —— CARD-G6-5-R 起第二项由本函数出门: 节点行
+    此前验完即丢, 两页只拿得到一行计数, new/future 在节点级完全不可见。透传
+    的行**就是本函数逐行验过、并用来数出计数的那些行** (同一个 buckets[name]
+    列表, 见函数末尾的构造点), 不从别处再取一次; 字段按 _BUCKET_ROW_FIELDS
+    白名单原样搬运, 不重算不改写。调用方在边界上再核一次「逐桶行数 == 计数」
+    (不变量守卫: 将来有人把行换成别处来源就当场 corrupt)。
+
+    ⚠ 三方计数 (⑤) 的参照系, 逐字: 本断言的参照系是 generated_at，不是 now；
+    读侧到点标记不并入本等式的任何被加数。
+    (出处: _bmad-output/研究/2026-09-05-乙2-读时重判到期-可行性设计.md §三)
+    读侧若把「现在已过 fsrs_due」的 due_today 行就地记成到期并计进 ⑤ 的被加数,
+    :487-489 的时间语义逆检查会对**合法投影**抛 ValueError → 整库 corrupt。
 
     跨源一致性 (与 _gate_boards_rollup 同一纪律): 生产器 S1/S2 构造保证
     ① 五桶两两不交 (同一 board/node 只出现一次);
@@ -538,7 +553,12 @@ def _gate_buckets(
         board_min = min(nondue_by_board[u["board"]])
         if u["next_due"] != board_min:
             raise ValueError(f"upcoming {u['board']!r} 的 next_due={u['next_due']} 非板内最早 {board_min}")
-    return counts
+    # CARD-G6-5-R 透传构造点 (全部判据通过之后): 逐桶从 **counts 数的同一个
+    # 列表** buckets[name] 取行, 只做字段白名单投影 —— 不排序不去重不补字段,
+    # 所以 len(rows[name]) 恒等于上面 :465 数出的 counts[name]; 调用方边界上
+    # 的那条等式因此只可能被「换来源/改行数」的未来改动打破。
+    rows = {name: [{f: r[f] for f in _BUCKET_ROW_FIELDS} for r in buckets[name]] for name in _BUCKET_ORDER}
+    return counts, rows
 
 
 def _humanize_due(ts: str | None, now_sh: datetime) -> tuple[str, str]:
@@ -706,12 +726,26 @@ def _summarize(payload: dict) -> dict:
     # CARD-G3-6a 加性: 五桶分层计数 (同 "boards" 口径 — 显式 null 不是"旧
     # 投影缺省", 是形状垃圾; 生产器恒产出五键 object)
     bucket_counts = None
+    # CARD-G6-5-R: 已验节点行 (缺省 None = 旧投影无 buckets 键, 与 bucket_counts 同缺省纪律)
+    bucket_rows = None
     if "buckets" in payload:
         # Codex round-3: 二者由同一版生产器一起产出 —— "有 buckets 无 boards"
         # 不是任何历史形态, 放行它等于放弃非到期两桶的逐板对账
         if future_map is None:
             raise ValueError("buckets 在场但 boards 缺席 — 非生产器产物 (二者同版一起落盘)")
-        bucket_counts = _gate_buckets(payload["buckets"], groups, stats, generated_at, future_map, up_gated)
+        bucket_counts, bucket_rows = _gate_buckets(
+            payload["buckets"], groups, stats, generated_at, future_map, up_gated
+        )
+        # CARD-G6-5-R 边界不变量 (实现契约, 不是数据判据 —— 数据由 :490-499
+        # 的三方计数管): 透传出来的行必须仍是被数过的那些行。逐桶行数与计数
+        # 脱钩 = 实现"从别处取了行"或"取行后被改", 那样卡片上的计数与队列区块
+        # 里能点开的卡会各说各话; 与其发一个自相矛盾的页面, 不如按既有 corrupt
+        # 语义降级。
+        drift = {
+            b: (len(bucket_rows[b]), bucket_counts[b]) for b in _BUCKET_ORDER if len(bucket_rows[b]) != bucket_counts[b]
+        }
+        if drift:
+            raise ValueError(f"bucket_rows 逐桶行数与 bucket_counts 脱钩 (桶: (行数, 计数)): {drift}")
     board_rows = [
         {
             "board": b,
@@ -797,6 +831,9 @@ def _summarize(payload: dict) -> dict:
         "placeholder_attributed": sum(ph_map.values()) if rollup_zero is not None else None,
         # CARD-G3-6a 加性: 五桶分层计数; 缺省 null = 旧投影无 buckets 键
         "bucket_counts": bucket_counts,
+        # CARD-G6-5-R 加性: 五桶节点行 (_gate_buckets 已验并已数过的那些行);
+        # 缺省 null = 旧投影无 buckets 键 —— 两页据此整块不渲染, 不伪造空队列
+        "bucket_rows": bucket_rows,
     }
 
 
@@ -1000,6 +1037,56 @@ def _node_detail_html(vault_id: str, nodes: list[dict], now_sh: datetime) -> str
     )
 
 
+def _queue_layers_html(vault_id: str, bucket_rows: dict | None, now_sh: datetime) -> str:
+    """CARD-G6-5-R 队列分层区块 (零 JS): 五桶各自成区, 区内逐节点点名。
+
+    与板表格 (_board_table_html) 是同一批节点的**另一种切法**, 不是它的替代:
+    板视图回答「今天先开哪块板」, 队列视图回答「这张卡为什么现在出现 / 什么时候
+    轮到它」。new 与 future 两桶在板视图里根本没有对手盘 (它们不在 due_nodes
+    里, 板行的 nodes 明细只有到期节点), 节点级此前完全不可见 —— 本区块就是补
+    这一块。
+
+    数据全部来自 _gate_buckets 已验并已数过的透传行, 本函数一个数都不算、
+    一次排序都不做 (桶内顺序 = 生产器扫描序)。bucket_rows 缺省 (旧投影无
+    buckets 键) → 整块不出现, 与卡片汇总分层行 (:1109) 同一条纪律。空桶保留
+    分区并显示 0: 与汇总行摆 0 同口径 —— 藏掉空桶会让"今天这一桶是空的"看起来
+    像"系统里没有这一桶"。
+    """
+    if bucket_rows is None:
+        return ""
+    sections = []
+    for b in _BUCKET_ORDER:
+        rows = bucket_rows[b]
+        head = (
+            f'<div style="font-size:12px;color:#374151;margin:6px 0 2px">'
+            f'{html.escape(_BUCKET_CN[b])} <span style="color:#6b7280">（{len(rows)}）</span></div>'
+        )
+        if not rows:
+            body = '<div style="color:#9ca3af;font-size:12px;margin:0 0 2px">这一桶今天是空的</div>'
+        else:
+            items = []
+            for r in rows:
+                link = html.escape(_node_link(vault_id, r["node"]))
+                eta, eta_color = _humanize_due(r["fsrs_due"], now_sh)
+                items.append(
+                    f'<li style="{_NODE_LI}">'
+                    f'<a href="{link}" style="color:#2563eb;text-decoration:none">{html.escape(r["node"])}</a>'
+                    f'<span style="{_NODE_TAG}">{html.escape(r["board"])}</span>'
+                    f'<span style="color:{eta_color};font-size:12px;margin-left:6px">{html.escape(eta)}</span>'
+                    f'<div style="color:#6b7280;font-size:12px;margin-top:1px">{html.escape(r["why_due"])}</div>'
+                    f"</li>"
+                )
+            body = f'<ul style="margin:2px 0 2px;padding:0">{"".join(items)}</ul>'
+        sections.append(f'<div data-queue-bucket="{b}">{head}{body}</div>')
+    total = sum(len(bucket_rows[b]) for b in _BUCKET_ORDER)
+    return (
+        f'<details data-queue-layers="1" style="margin:4px 0 2px">'
+        f'<summary style="cursor:pointer;color:#6b7280;font-size:12px;padding:2px 0">'
+        f"按到期阶段看队列（{total} 张卡分五块）</summary>"
+        f'<div style="margin:2px 0 0">{"".join(sections)}</div></details>'
+    )
+
+
 def _board_table_html(vault_id: str, boards: list[dict], now_sh: datetime) -> str:
     """三级视图第二/三级: 板表格 白板名|到期|新卡|待剖析|最早到期。
 
@@ -1118,6 +1205,8 @@ def _card_html(entry: dict, now_sh: datetime, refresh_action: str) -> str:
         body = (
             summary
             + layers
+            # CARD-G6-5-R: 分层计数行紧跟着它的节点级明细 (缺省整块不出现)
+            + _queue_layers_html(entry["vault_id"], proj.get("bucket_rows"), now_sh)
             + _board_table_html(entry["vault_id"], proj["boards"], now_sh)
             + f'<div style="color:#6b7280;font-size:12px;margin:4px 0 6px">生成于 {gen_disp}</div>'
             + open_link

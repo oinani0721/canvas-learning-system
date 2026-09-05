@@ -131,6 +131,13 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
   .nodeli { margin: 0 0 6px; list-style: none; line-height: 1.5;
             overflow-wrap: anywhere; word-break: break-word; }
   .whydue { color: #6b7280; font-size: 12px; margin-top: 1px; }
+  /* CARD-G6-5-R 队列分层区块 (五桶分区) */
+  .qwrap { margin: 4px 0 2px; }
+  .qsum { cursor: pointer; color: #6b7280; font-size: 12px; padding: 2px 0; }
+  .qhead { font-size: 12px; color: #374151; margin: 6px 0 2px; }
+  .qcount { color: #6b7280; }
+  .qempty { color: #9ca3af; font-size: 12px; margin: 0 0 2px; }
+  .qlist { margin: 2px 0; padding: 0; }
   .empty { color: #6b7280; }
   .lostnote { flex: 1 1 100%; color: #d97706; font-size: 12px; margin: 4px 0 0; }
   .footer { color: #9ca3af; font-size: 12px; margin-top: 24px; }
@@ -233,6 +240,35 @@ function nodeDetailHtml(vaultId, nodes, nowMs) {
   return '<details style="margin:2px 0 4px"><summary style="cursor:pointer;color:#6b7280;font-size:12px">节点明细（' +
     nodes.length + '）</summary><ul style="margin:6px 0 0;padding:0 0 0 6px">' + items.join("") + "</ul></details>";
 }
+function queueLayersHtml(vaultId, rows, nowMs) {
+  // CARD-G6-5-R 队列分层区块 — 与零 JS 页 _queue_layers_html 同一形态。
+  // 板视图 (boardTableHtml) 回答「今天先开哪块板」, 本区块回答「这张卡为什么
+  // 现在出现 / 什么时候轮到它」: new 与 future 两桶不在 due_nodes 里, 板行的
+  // nodes 明细根本没有它们, 节点级只有这里看得见。
+  // 数据 = 服务端 _gate_buckets 已验并已数过的透传行, 本函数一个数都不算
+  // (与本页其余部分同一条纪律: 谁到期/多少张全来自投影)。
+  // 缺省 (旧投影无 buckets → bucket_rows 为 null) 整块不出现, 不伪造空队列。
+  // 桶序与人读标签用服务端注入的 BUCKET_ORDER / BUCKET_CN, 前端不另立一套。
+  if (rows == null) return "";
+  let total = 0;
+  const secs = BUCKET_ORDER.map(b => {
+    const list = Array.isArray(rows[b]) ? rows[b] : [];
+    total += list.length;
+    const head = '<div class="qhead">' + esc(BUCKET_CN[b] || b) +
+      '<span class="qcount">（' + list.length + "）</span></div>";
+    const body = !list.length ? '<div class="qempty">这一桶今天是空的</div>' :
+      '<ul class="qlist">' + list.map(r => {
+        const due = humanizeDue(r.fsrs_due, nowMs);
+        return '<li class="nodeli"><a href="' + esc(nodeLink(vaultId, r.node)) + '">' + esc(r.node) + "</a>" +
+          '<span class="nodetag">' + esc(r.board) + "</span>" +
+          '<span style="color:' + due.color + ';font-size:12px;margin-left:6px">' + esc(due.text) + "</span>" +
+          '<div class="whydue">' + esc(r.why_due) + "</div></li>";
+      }).join("") + "</ul>";
+    return '<div data-queue-bucket="' + b + '">' + head + body + "</div>";
+  }).join("");
+  return '<details data-queue-layers="1" class="qwrap"><summary class="qsum">按到期阶段看队列（' +
+    total + " 张卡分五块）</summary><div>" + secs + "</div></details>";
+}
 function boardTableHtml(vaultId, boards, nowMs) {
   if (!Array.isArray(boards) || !boards.length) return "";
   const head = ["白板名", "到期", "新卡", "待剖析", "最早到期"].map(c => "<th>" + c + "</th>").join("");
@@ -289,6 +325,9 @@ function renderVaultCard(entry, nowMs, noteHtml, isInflight) {
         " · 待剖析 " + proj.placeholder_backlog + "</small></div>" + layers +
         boardTableHtml(vid, proj.boards, nowMs);
     }
+    // CARD-G6-5-R: 队列分层区块两条分支都出 —— 休息日 (due_count===0) 恰恰
+    // 是最需要它的一天: 今天没有到期的, 但「以后」那一桶里排着什么, 只有这里说得出
+    body += queueLayersHtml(vid, proj.bucket_rows, nowMs);
     body += '<div class="gen">生成于 ' + esc(String(proj.generated_at)) + "</div>" +
       '<a href="obsidian://open?vault=' + esc(encodeURIComponent(vid)) + '">在 Obsidian 中打开 ↗</a>';
     // W6 加性顶层 rank_manifest: 在场才出现, 不解析内部形状
@@ -489,6 +528,12 @@ async function onRefreshClick(ev) {
   if (!btn) return;
   const vid = btn.getAttribute("data-refresh-vault");
   if (state.inflight[vid]) return;  // 同库重建在飞, 不发第二个 POST
+  // Z1-A HIGH-1 (反馈归属): 同库开始新一次刷新 ⇒ 上一次重建挂下的 pending
+  // 就此失去改写「当前」反馈的权利。代际锚 (:402) 判的是「这轮 GET 是否启动
+  // 于那次重建之后」—— 它没错, 但漏了另一个维度: 那条 pending 还代不代表用户
+  // 眼下这次操作。不作废它, 第一次的补发 GET 成功后会把第二次刷新的失败提示
+  // 覆盖成「数字已更新」(复现时序见 evidence-g62b/codex-verify-r1-js.md)。
+  delete state.pendingSync[vid];
   state.inflight[vid] = true;
   state.notes[vid] = {html: '<span class="rnote">⏳ 重建中…</span>', atMs: Date.now()};
   for (const b of vaultButtons(vid)) b.disabled = true;

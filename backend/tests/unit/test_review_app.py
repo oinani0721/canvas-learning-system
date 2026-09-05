@@ -415,7 +415,7 @@ def _assert_module_closed(src: str) -> None:
                     and tgt.id in _OWN_MODULE_DEFINITIONS
                 )
                 if exempt:
-                    definitions[tgt.id] = definitions.get(tgt.id, 0) + 1
+                    definitions[tgt.id] = definitions.get(tgt.id, 0) + 1  # pyright: ignore[reportAttributeAccessIssue]
                 else:
                     _flag_targets(tgt, "重绑定")
         # 赋值语句**之外**的绑定形态 —— 下面每一种都能在不触发任何 Assign 节点
@@ -438,9 +438,9 @@ def _assert_module_closed(src: str) -> None:
         if isinstance(node, ast.comprehension):
             _flag_targets(node.target, "推导式目标绑定")
         if isinstance(node, _TYPE_ALIAS_NODES):
-            _flag_targets(node.name, "type 别名绑定")
+            _flag_targets(node.name, "type 别名绑定")  # pyright: ignore[reportAttributeAccessIssue, reportArgumentType]
         if isinstance(node, _TYPE_PARAM_NODES):
-            _flag_rebind(node.name, "type 形参遮蔽")
+            _flag_rebind(node.name, "type 形参遮蔽")  # pyright: ignore[reportAttributeAccessIssue, reportArgumentType]
         if isinstance(node, ast.MatchAs) and node.name:
             _flag_rebind(node.name, "match 捕获绑定")
         if isinstance(node, ast.MatchStar) and node.name:
@@ -773,7 +773,7 @@ export function boot({getJson, postJson, hidden = false} = {}) {
     "document", "fetch", "setTimeout", "clearTimeout",
     SRC +
     "\n;return {esc, shDay, parseDueMs, humanizeDue, computePollDelayMs, visibilityAction," +
-    " boardLink, nodeLink, nodeDetailHtml, boardTableHtml, restDayHtml, renderVaultCard," +
+    " boardLink, nodeLink, nodeDetailHtml, boardTableHtml, queueLayersHtml, restDayHtml, renderVaultCard," +
     " renderPage, renderUnavailableBanner, renderRefreshResult, freshNotes};"
   );
   const api = sandbox(
@@ -2155,6 +2155,210 @@ test("④ 自动轮询绝不 POST: 连跑多轮, 沙箱收到的 POST 次数恒�
   b.handlers["document::visibilitychange"]();
   await flush();
   assert.equal(b.calls.post, 0, "可见性切换路径上也不许 POST");
+});
+""",
+    )
+    _assert_node_green(proc)
+
+
+# ════════════════════════════════════════════════════════════════════
+# CARD-G6-5-R 队列分层视图 (BATCH-2026-09-05-第十二批)
+# ════════════════════════════════════════════════════════════════════
+
+
+def test_js_queue_layers_five_sections_present_and_absent(node_harness):
+    """(d) 交互壳队列分区: 五桶各成一区、节点级可点; 缺省整块不出现。
+
+    重点在**板视图看不见的那两桶**: new 与 future 不在 due_nodes 里, 板行的
+    nodes 明细根本没有它们 —— 本门用同一份数据同时断言"板表格里没有二叉堆"
+    与"队列区块里有二叉堆", 这才是本卡要补上的那块可见性, 而不是又渲染一遍
+    已经看得见的到期节点。
+    """
+    proc = _run_node(
+        node_harness,
+        _BOOT_PRELUDE
+        + _FIX_JS
+        + r"""
+const ROWS = {
+  new: [{node: "并查集", board: "图论基础", why_due: "新卡未排期，视同即刻到期 · 从未考察", fsrs_due: ""}],
+  learning_queue: [],
+  due_now: [{node: "Dijkstra", board: "图论基础", why_due: "到期待复习 · 已逾期 1 天", fsrs_due: "2026-08-28T02:00:00Z"}],
+  due_today: [],
+  future: [{node: "二叉堆", board: "堆", why_due: "明天 10:00 到期", fsrs_due: "2026-09-05T02:00:00Z"}],
+};
+function withRows(base) {
+  const v = JSON.parse(JSON.stringify(base || OK_VAULT));
+  v.projection.bucket_rows = JSON.parse(JSON.stringify(ROWS));
+  return v;
+}
+test("五桶各成一区 (空桶也在), 容器标记恰 1 次", () => {
+  const h = boot().api.renderVaultCard(withRows(), NOW);
+  assert.equal((h.match(/data-queue-layers/g) || []).length, 1);
+  for (const b of ["new", "learning_queue", "due_now", "due_today", "future"])
+    assert.ok(h.includes('data-queue-bucket="' + b + '"'), b + " 桶没有自己的分区");
+  assert.match(h, /这一桶今天是空的/, "空桶如实说空, 不藏掉整区");
+  assert.match(h, /按到期阶段看队列（3 张卡分五块）/);
+});
+test("桶名与桶序和汇总行同一套 (都出自服务端注入的 BUCKET_CN/BUCKET_ORDER)", () => {
+  // 不在测试里抄一份中文标签: 从既有汇总分层行里取, 逐区按位置比对 ——
+  // 前端若另立一套标签或换了桶序, 这条立刻红
+  const h = boot().api.renderVaultCard(withRows(), NOW);
+  const line = h.match(/<div class="layers">分层 · ([^<]*)<\/div>/);
+  assert.ok(line, "前提: 汇总分层行在, 否则本条无从比对");
+  const labels = line[1].split(" · ").map(s => s.replace(/\s+\d+$/, ""));
+  assert.equal(labels.length, 5);
+  const parts = h.slice(h.indexOf("data-queue-layers")).split('data-queue-bucket="').slice(1);
+  assert.equal(parts.length, 5, "队列区块必须恰好五区");
+  parts.forEach((p, i) => assert.ok(p.includes(labels[i]),
+    "第 " + (i + 1) + " 区与汇总行不同源: 期待标签 " + labels[i]));
+});
+test("new / future 两桶: 板视图看不见, 队列区块看得见 (本卡补的正是这块)", () => {
+  const v = withRows();
+  const board = boot().api.boardTableHtml("cs_61b", v.projection.boards, NOW);
+  assert.ok(!board.includes("二叉堆"), "前提: 未来节点本来就不在板表格里");
+  assert.ok(!board.includes("并查集"), "前提: 新卡不在这份 fixture 的板明细里");
+  const q = boot().api.queueLayersHtml("cs_61b", v.projection.bucket_rows, NOW);
+  assert.match(q, /二叉堆/);
+  assert.match(q, /并查集/);
+  assert.match(q, /明天 10:00 到期/, "why_due 逐字透传, 不在前端重编");
+});
+test("节点名是 obsidian:// 深链 (复用 nodeLink, 不新造拼接)", () => {
+  const q = boot().api.queueLayersHtml("cs_61b", ROWS, NOW);
+  const api = boot().api;
+  assert.ok(q.includes(api.esc(api.nodeLink("cs_61b", "二叉堆"))), "深链与 nodeLink 不同源");
+  assert.match(q, /obsidian:\/\/open\?vault=cs_61b&amp;file=/);
+});
+test("bucket_rows 缺省 / null → 整块不出现 (旧投影不伪造空队列)", () => {
+  assert.ok(!boot().api.renderVaultCard(OK_VAULT, NOW).includes("data-queue-layers"));
+  const v = JSON.parse(JSON.stringify(OK_VAULT));
+  v.projection.bucket_rows = null;
+  assert.ok(!boot().api.renderVaultCard(v, NOW).includes("data-queue-layers"));
+  assert.equal(boot().api.queueLayersHtml("v", null, NOW), "");
+  assert.equal(boot().api.queueLayersHtml("v", undefined, NOW), "");
+});
+test("休息日 (到期 0) 也出队列区块 —— 「以后」那一桶只有这里说得出", () => {
+  const h = boot().api.renderVaultCard(withRows(REST_DAY), NOW);
+  assert.match(h, /休息一天/, "休息日文案不受影响");
+  assert.match(h, /data-queue-layers/);
+  assert.match(h, /二叉堆/);
+});
+test("敌意节点名/板名被转义, 不注入标记", () => {
+  const q = boot().api.queueLayersHtml('v"x', {
+    new: [{node: '<img src=x onerror=alert(1)>', board: '"><b>', why_due: "<script>", fsrs_due: ""}],
+    learning_queue: [], due_now: [], due_today: [], future: [],
+  }, NOW);
+  assert.ok(!q.includes("<img"), "节点名没转义");
+  assert.ok(!q.includes("<b>"), "板名没转义");
+  assert.match(q, /&lt;img src=x onerror=alert\(1\)&gt;/);
+});
+""",
+    )
+    _assert_node_green(proc)
+
+
+def test_js_new_refresh_supersedes_stale_pending_high1(node_harness):
+    """(f) Z1-A 移交 HIGH-1「反馈归属」修复门。
+
+    复现时序逐字取自 _bmad-output/审查/evidence-g62b/codex-verify-r1-js.md:
+    刷新① rebuilt 挂 pending(gen=1) 并补发 GET2 → 刷新② 失败 → GET2 成功后
+    按代际锚 (startGen 2 > n.gen 1) 放行, 把第二次的失败反馈改写成第一次的
+    「数字已更新」。代际锚本身没判错, 缺的是「这条 pending 还代不代表用户眼下
+    这次操作」—— 修法是新一次刷新入口作废同库旧 pending。
+
+    配两条对照, 防"结算整个坏掉"冒充修好: 只点一次仍要结算成功; 连点两次都
+    rebuilt 时结算的必须是**第二次**的计数。
+    """
+    proc = _run_node(
+        node_harness,
+        _BOOT_PRELUDE
+        + _FIX_JS
+        + r"""
+const OK = {vaults: [OK_VAULT]};
+function rig(postJson) {
+  const gets = [];
+  const b = boot({
+    getJson: () => {
+      let r;
+      const p = new Promise(x => { r = x; });
+      gets.push({resolve: r});
+      return {ok: true, status: 200, json: () => p};
+    },
+    postJson,
+    hidden: false,
+  });
+  const btn = mkNode("btn"); btn._attrs["data-refresh-vault"] = "cs_61b";
+  const note = mkNode("note"); note._attrs["data-note-for"] = "cs_61b";
+  b.els["cards"]._desc = [btn, note];
+  const click = () => b.handlers["cards::click"](
+    {target: {closest: sel => (matches(btn, sel) ? btn : null)}});
+  return {b, gets, note, click};
+}
+
+test("HIGH-1 已修: 第二次刷新的失败反馈不再被第一次的 pending 改写", async () => {
+  let posts = 0;
+  const {b, gets, note, click} = rig(() => {
+    posts += 1;
+    return posts === 1
+      ? {ok: true, status: 200, json: async () => ({rebuilt: true, reason: "rebuilt", rebuild_count: 5})}
+      : {ok: false, status: 503, json: async () => ({detail: "后端不可用"})};
+  });
+  assert.equal(b.calls.get, 1, "前提: 启动发首轮 GET");
+  gets.pop().resolve(OK);
+  await flush();
+
+  await click();
+  await flush();
+  assert.equal(b.calls.post, 1);
+  assert.equal(b.calls.get, 2, "前提: rebuilt 后补发了一轮 GET(gen=2)");
+  const g2 = gets.pop();
+  assert.match(note.innerHTML, /正在同步最新数字/, "前提: 第一次刷新确实挂上了 pending");
+
+  await click();
+  await flush();
+  assert.equal(b.calls.post, 2, "前提: 第二次 POST 发出去了 (inflight 没挡住)");
+  assert.match(note.innerHTML, /刷新失败/, "前提: 第二次操作的失败反馈此刻可见");
+
+  g2.resolve(OK);
+  await flush();
+  assert.match(note.innerHTML, /刷新失败/, "最新一次操作失败了, 页面不许改口说上一次成功");
+  assert.ok(!note.innerHTML.includes("数字已更新"));
+  assert.ok(b.els["cards"].innerHTML.includes("刷新失败"), "整块重绘后失败反馈同样要在");
+});
+
+test("对照①: 只点一次时结算照常成功 (上一条不是把结算整个弄坏了)", async () => {
+  const {b, gets, note, click} = rig(() => ({ok: true, status: 200,
+    json: async () => ({rebuilt: true, reason: "rebuilt", rebuild_count: 5})}));
+  gets.pop().resolve(OK);
+  await flush();
+  await click();
+  await flush();
+  gets.pop().resolve(OK);
+  await flush();
+  assert.match(note.innerHTML, /数字已更新/);
+  assert.match(note.innerHTML, /累计 5 次/);
+});
+
+test("对照②: 连点两次都 rebuilt → 结算的是第二次的计数, 不是第一次的", async () => {
+  let posts = 0;
+  const {gets, note, click} = rig(() => {
+    posts += 1;
+    return {ok: true, status: 200,
+      json: async () => ({rebuilt: true, reason: "rebuilt", rebuild_count: posts === 1 ? 5 : 6})};
+  });
+  gets.pop().resolve(OK);
+  await flush();
+  await click();
+  await flush();
+  const g2 = gets.pop();
+  await click();
+  await flush();
+  const g3 = gets.pop();
+  g2.resolve(OK);
+  await flush();
+  g3.resolve(OK);
+  await flush();
+  assert.match(note.innerHTML, /累计 6 次/, "结算必须归属最新一次刷新");
+  assert.ok(!note.innerHTML.includes("累计 5 次"));
 });
 """,
     )

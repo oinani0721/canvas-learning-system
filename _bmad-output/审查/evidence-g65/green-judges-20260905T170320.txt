@@ -1,0 +1,17 @@
+### 裁判2 test_js_poll_contract_wiring_g63
+
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+============================== 1 passed in 0.65s ===============================
+rc=0
+
+### 裁判4 regression/test_daily_review_pick.py
+
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+============================== 74 passed in 1.47s ==============================
+rc=0
+
+### 绿：本卡两条新反例
+
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================= 2 passed, 61 deselected in 0.71s =======================
+rc=0

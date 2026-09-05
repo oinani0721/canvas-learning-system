@@ -1050,7 +1050,7 @@ def test_buckets_gate_accepts_real_producer_payload(tmp_path, overview_env):
 
     wt = Path(__file__).resolve().parents[3]
     sys.path.insert(0, str(wt / "scripts"))
-    import daily_review_pick as picker
+    import daily_review_pick as picker  # pyright: ignore[reportMissingImports]
 
     root, client = overview_env
     vault = root / "vault-real"
@@ -1107,6 +1107,148 @@ def test_buckets_gate_accepts_real_producer_payload(tmp_path, overview_env):
         "future": 5,
     }
     assert entry["projection"]["due_count"] == payload["stats"]["due_nodes"] == 3
+    # CARD-G6-5-R: 透传行必须在**真生产器产物**上与落盘 buckets 逐字相等 ——
+    # 手搓 fixture 只能证"我造的形状能过", 证不了"生产器发的行原样到了页面"
+    assert entry["projection"]["bucket_rows"] == {
+        b: [{f: r[f] for f in ("node", "board", "why_due", "fsrs_due")} for r in payload["buckets"][b]]
+        for b in ("new", "learning_queue", "due_now", "due_today", "future")
+    }
+    assert [r["node"] for r in entry["projection"]["bucket_rows"]["future"]] == [
+        r["node"] for r in payload["buckets"]["future"]
+    ], "future 桶节点身份与顺序不得在透传中漂移"
+
+
+# ════════════════════════════════════════════════════════════════════
+# CARD-G6-5-R 队列分层视图 (BATCH-2026-09-05-第十二批)
+#
+# 本卡新增面 = **透传**与**渲染**; 五桶验形与三方计数是 G3-6a 既有资产
+# (:813 用例已含 bad-buckets-stats-drift / bad-buckets-future-drift 两条反例,
+# 本节不再造同型)。
+# ⚠ 三方计数的参照系, 逐字: 本断言的参照系是 generated_at，不是 now；读侧
+# 到点标记不并入本等式的任何被加数。
+# ════════════════════════════════════════════════════════════════════
+
+#: 板级 rollup 行的零值底板 (与 :813 用例同形状, 生产器 boards 行全字段)
+_ROLLUP_BLANK = {
+    "due": 0,
+    "due_new": 0,
+    "due_scheduled": 0,
+    "future": 0,
+    "next_due": "",
+    "placeholder": 0,
+    "earliest_overdue": "",
+}
+
+
+def _layered(root, name: str, *, gen_iso: str, tomorrow: str, buckets=None, stats=None):
+    """最小**合法**分层投影: 甲板 1 张新卡到期 + 乙板 1 张明天到期。
+
+    五桶三空两满 —— 空桶不是凑数: 渲染层「空桶也出分区、且不伪造节点」这条
+    只有在真有空桶时才被跑到。
+    """
+    good = {
+        "new": [_bucket_row("n1", "甲板", why="新卡未排期，视同即刻到期 · 从未考察")],
+        "learning_queue": [],
+        "due_now": [],
+        "due_today": [],
+        "future": [_bucket_row("f2", "乙板", fsrs_due=tomorrow, why="明天 09:00 到期")],
+    }
+    proj = _projection(
+        name,
+        generated_at=gen_iso,
+        due_nodes=[_due_row("n1", "甲板")],
+        stats=stats or {"due_nodes": 1, "future_nodes": 1},
+        top_boards=[{"board": "甲板", "top_node": "n1", "pending": 1}],
+        upcoming=[{"board": "乙板", "next_due": tomorrow, "node": "f2"}],
+        boards=[
+            {**_ROLLUP_BLANK, "board": "甲板", "due": 1, "due_new": 1},
+            {**_ROLLUP_BLANK, "board": "乙板", "future": 1, "next_due": tomorrow},
+        ],
+        buckets=good if buckets is None else buckets,
+    )
+    _mk_vault(root, name, proj)
+    return good
+
+
+def test_bucket_rows_passthrough_and_boundary_len_gate(overview_env, monkeypatch):
+    """CARD-G6-5-R ①透传 ②边界不变量 ③旧投影缺省 (本卡新增面)。
+
+    ② 是本卡唯一的新硬断言: 透传行的逐桶 len 与 bucket_counts 不等 → corrupt。
+    它挡的不是投影数据 (那由 :490-499 的三方计数管), 而是**透传实现本身** ——
+    「从别处取行」或「取行后被改」。反例用 monkeypatch 模拟那种未来改动:
+    计数照旧、行被掏空一桶。
+    """
+    root, client = overview_env
+    sh_today = datetime.now(_SH).date()
+    gen_iso = _sh_at(sh_today, 8).isoformat(timespec="seconds")
+    tomorrow = _utc_z(_sh_at(sh_today + timedelta(days=1), 9))
+    good = _layered(root, "vault-layered", gen_iso=gen_iso, tomorrow=tomorrow)
+    # 桶行带一个门禁没验过的多余字段 —— 白名单必须把它挡在 API 之外
+    good_extra = {**good, "future": [{**good["future"][0], "secret": "不该出门的字段"}]}
+    _layered(root, "vault-extra-field", gen_iso=gen_iso, tomorrow=tomorrow, buckets=good_extra)
+    _mk_vault(root, "vault-old", _projection("vault-old", generated_at=gen_iso))
+
+    by_id = {v["vault_id"]: v for v in client.get("/api/v1/review/overview").json()["vaults"]}
+
+    entry = by_id["vault-layered"]
+    assert entry["status"] == "ok", entry.get("error")
+    rows = entry["projection"]["bucket_rows"]
+    assert list(rows) == ["new", "learning_queue", "due_now", "due_today", "future"], "五键恒在且按桶序"
+    assert rows == good, "透传行必须与投影 buckets 逐字相等 (不排序不改写不补字段)"
+    # 与计数同源: 逐桶 len 恒等于 bucket_counts (本卡边界不变量的正向面)
+    assert {b: len(rows[b]) for b in rows} == entry["projection"]["bucket_counts"]
+
+    extra = by_id["vault-extra-field"]
+    assert extra["status"] == "ok", extra.get("error")
+    assert set(extra["projection"]["bucket_rows"]["future"][0]) == {"node", "board", "why_due", "fsrs_due"}, (
+        "只有 _gate_buckets 验过的四字段可以出门 —— 未验字段进 API 就是没门禁的通道"
+    )
+
+    old = by_id["vault-old"]
+    assert old["status"] == "ok"
+    assert old["projection"]["bucket_rows"] is None, "旧投影不伪造空队列 (与 bucket_counts 同缺省纪律)"
+    assert old["projection"]["bucket_counts"] is None
+
+    # ② 边界不变量: 计数不动, 只把透传行掏空一桶
+    import app.api.v1.endpoints.review_overview as ro
+
+    real_gate = ro._gate_buckets
+
+    def _rows_from_elsewhere(*args, **kwargs):
+        counts, passed = real_gate(*args, **kwargs)
+        return counts, {**passed, "future": []}
+
+    monkeypatch.setattr(ro, "_gate_buckets", _rows_from_elsewhere)
+    after = {v["vault_id"]: v for v in client.get("/api/v1/review/overview").json()["vaults"]}
+    assert after["vault-layered"]["status"] == "corrupt", "透传行与计数脱钩必须 corrupt 降级, 不许照常出页面"
+    assert "bucket_rows" in str(after["vault-layered"]["error"]), after["vault-layered"]["error"]
+    assert after["vault-old"]["status"] == "ok", "旧投影不过 buckets 分支, 不受本不变量影响"
+
+
+def test_page_renders_five_bucket_sections_and_omits_them_for_old_projection(overview_env):
+    """CARD-G6-5-R (d) 零 JS 页: 五桶分区区块 + 节点级深链; 旧投影整块不出现。"""
+    root, client = overview_env
+    sh_today = datetime.now(_SH).date()
+    gen_iso = _sh_at(sh_today, 8).isoformat(timespec="seconds")
+    tomorrow = _utc_z(_sh_at(sh_today + timedelta(days=1), 9))
+    _layered(root, "vault-layered", gen_iso=gen_iso, tomorrow=tomorrow)
+    _mk_vault(root, "vault-old", _projection("vault-old", generated_at=gen_iso))
+
+    page = client.get("/api/v1/review/overview/page")
+    assert page.status_code == 200
+    # 容器标记恰 1 次 = 分层库出一块、旧投影库出 0 块 (缺省整块不出现)
+    assert page.text.count("data-queue-layers") == 1, "旧投影卡片不得出现队列区块容器"
+    from app.api.v1.endpoints.review_overview import _BUCKET_CN, _BUCKET_ORDER
+
+    for b in _BUCKET_ORDER:
+        assert f'data-queue-bucket="{b}"' in page.text, f"{b} 桶必须自成一区 (空桶也出, 不藏)"
+        assert _BUCKET_CN[b] in page.text
+    # 节点级可见 + obsidian:// 深链 (复用 _node_link, 不新造拼接)
+    assert "n1" in page.text and "f2" in page.text
+    assert quote("节点/f2.md", safe="") in page.text
+    assert "obsidian://open?vault=" + quote("vault-layered", safe="") in page.text
+    # 空桶如实显示 0, 不伪造节点
+    assert "learning_queue" in page.text
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -1230,7 +1372,7 @@ def test_refresh_writes_only_projection_and_never_touches_runner_state(refresh_e
     decay_beta 的副产物) 会直接在这里露馅。
     """
     root, client = refresh_env
-    vault = _mk_node_vault(root, "vault-w", {"甲": _node_md(), "乙": _node_md(board="数学")})
+    _vault = _mk_node_vault(root, "vault-w", {"甲": _node_md(), "乙": _node_md(board="数学")})
 
     backups = root / "backups"  # 非 vault (无 .obsidian) — 不进枚举, 只作写面靶子
     backups.mkdir()
@@ -1302,7 +1444,7 @@ def test_refresh_and_generator_interleaved_never_yield_unparsable_projection(ref
     thread = threading.Thread(target=_writer, daemon=True)
     thread.start()
     try:
-        for i in range(12):
+        for _i in range(12):
             resp = client.post(_REFRESH_URL, data={"vault_id": "vault-c"})
             assert resp.status_code == 200, resp.text
             raw = proj.read_text(encoding="utf-8")
@@ -1961,12 +2103,12 @@ def test_g64_dirty_bucket_or_why_degrades_corrupt_not_ok(overview_env):
     每一条都必须降级为 corrupt, 且健康库不受拖累。
     """
     root, client = overview_env
-    now_iso = _now_local().isoformat(timespec="seconds")
+    _now_iso = _now_local().isoformat(timespec="seconds")
     _mk_vault(root, "vault-ok", _nodes_projection("vault-ok", [_due_row("好节点", "甲板")]))
 
     hostile = {
         "bad-bucket-enum": _due_row("n", "甲板", bucket="不是桶名"),
-        "bad-bucket-type": _due_row("n", "甲板", bucket=3),
+        "bad-bucket-type": _due_row("n", "甲板", bucket=3),  # pyright: ignore[reportArgumentType]
         # Codex-G6-4 round-1: due_nodes 行按构造只可能落到期三桶。放行
         # bucket="future" 会让一个已逾期节点在页面上被标成「未来」——
         # 比不标更坏, 那是主动误导
@@ -1983,8 +2125,8 @@ def test_g64_dirty_bucket_or_why_degrades_corrupt_not_ok(overview_env):
         ),
         "bad-bucket-duenow-vs-new": _due_row("n", "甲板", due_reason="new", bucket="due_now"),
         "bad-why-empty": _due_row("n", "甲板", why_due=""),
-        "bad-why-type": _due_row("n", "甲板", why_due=["列表"]),
-        "bad-why-null-but-bucket": _due_row("n", "甲板", why_due=None),
+        "bad-why-type": _due_row("n", "甲板", why_due=["列表"]),  # pyright: ignore[reportArgumentType]
+        "bad-why-null-but-bucket": _due_row("n", "甲板", why_due=None),  # pyright: ignore[reportArgumentType]
     }
     for name, row in hostile.items():
         _mk_vault(root, name, _nodes_projection(name, [row]))
@@ -2290,7 +2432,7 @@ def test_hostname_host_is_refused_ip_and_localhost_pass(refresh_env, monkeypatch
     """
     import app.api.v1.endpoints.review_overview as mod
 
-    root, client = refresh_env
+    root, _client = refresh_env
     _mk_node_vault(root, "vault-host", {"甲": _node_md()})
     from fastapi.testclient import TestClient
 
@@ -2404,7 +2546,7 @@ def test_allowed_hosts_env_is_normalized_like_url_hostname(refresh_env, monkeypa
 
     from app.main import app
 
-    root, client = refresh_env
+    root, _client = refresh_env
     _mk_node_vault(root, "vault-hostnorm", {"甲": _node_md()})
 
     for raw in ("My-Mac.local", "my-mac.local:8011", "  MY-MAC.LOCAL  ", "[::1]:8011,My-Mac.local"):
@@ -2431,7 +2573,7 @@ def test_review_enabled_markers_constant_is_the_single_source(refresh_env):
     """
     import app.api.v1.endpoints.review_overview as mod
 
-    root, client = refresh_env
+    root, _client = refresh_env
     weird = _mk_vault(root, "改了常量的库")
     (weird / "节点").mkdir()
     (weird / ".claude" / "scripts").mkdir(parents=True)

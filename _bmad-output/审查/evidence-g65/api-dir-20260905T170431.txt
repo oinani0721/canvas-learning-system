@@ -1,0 +1,30 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-x2-g62b/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 268 items
+
+tests/api/v1/endpoints/test_agents_dedup.py ...............              [  5%]
+tests/api/v1/endpoints/test_agents_encoding.py ................          [ 11%]
+tests/api/v1/endpoints/test_agents_health.py ............                [ 16%]
+tests/api/v1/endpoints/test_agents_learning_event.py ................... [ 23%]
+                                                                         [ 23%]
+tests/api/v1/endpoints/test_fsrs_state_api.py ..............             [ 28%]
+tests/api/v1/endpoints/test_memory_four_state_api.py ................... [ 35%]
+..............................                                           [ 46%]
+tests/api/v1/endpoints/test_metadata_subject_mapping.py ................ [ 52%]
+...                                                                      [ 53%]
+tests/api/v1/endpoints/test_multimodal.py .............                  [ 58%]
+tests/api/v1/endpoints/test_nothrow_logging_api.py ..................... [ 66%]
+                                                                         [ 66%]
+tests/api/v1/endpoints/test_ping.py ..                                   [ 67%]
+tests/api/v1/endpoints/test_rag_four_state_api.py ...................... [ 75%]
+........                                                                 [ 78%]
+tests/api/v1/endpoints/test_rag_vault_scope_api.py ..................    [ 85%]
+tests/api/v1/endpoints/test_recommend_action.py ........................ [ 94%]
+................                                                         [100%]
+
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+============================= 268 passed in 2.01s ==============================
