@@ -26,6 +26,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -397,6 +398,106 @@ def test_report_inside_source_exits_2(vault_pair):
     assert not (source / "report.txt").exists()
 
 
+# ── Codex round-1 四条指控的回归门 ────────────────────────────────────
+#
+# 四条都在本机独立复现成立后才改的代码（证据 evidence-g26/codex-r1-claims-verified-*.txt）。
+# 每条配一个能在修复前打红的反例——只写「修好了」不算数。
+
+
+def test_report_hardlinked_into_vault_is_refused(vault_pair, tmp_path):
+    """BLOCKER 回归: 树外报告路径若与树内文件同 inode，必须拒绝（rc=2）且不改那个文件。
+
+    修复前: `is_relative_to` 只看路径不看 inode，检查放行 → `write_text` 原地覆盖，
+    树内 Dashboard.md 被报告正文冲掉，且校验器还返回 0。
+    """
+    source, target = vault_pair
+    victim = target / "Dashboard.md"
+    before = victim.read_bytes()
+    outside = tmp_path / "outside-report.txt"
+    os.link(victim, outside)  # 树外路径，与树内文件共享 inode
+
+    assert not outside.is_relative_to(target), "前提: 该路径确实在被查树之外"
+    rc = _run(target, source=source, report=outside)
+    assert rc == 2
+    assert victim.read_bytes() == before, "树内文件被写穿了"
+
+
+def test_normally_deployed_vault_is_not_reported_as_drift(vault_pair):
+    """HIGH 回归: 模板源里有 exclude 件、目标按脚本剪掉了 —— 这是**正确部署**，不是漂移。
+
+    修复前: 目录摘要把 `.claude/scripts/__pycache__` 与 `pending_archives*.jsonl`
+    也算进去，于是 `.claude/scripts` 和 `.claude/hooks` 双双被判 content-drift、exit 1。
+    """
+    source, target = vault_pair
+    # 活 vault（模板源）天然带这两类东西 —— live 实测确实有
+    (source / ".claude" / "scripts" / "__pycache__").mkdir(parents=True)
+    (source / ".claude" / "scripts" / "__pycache__" / "cached.pyc").write_bytes(b"\x00c")
+    (source / ".claude" / "hooks" / "pending_archives_2026.jsonl").write_text("[]", encoding="utf-8")
+    # target = install-vault.sh 正常部署的结果（:84 剪了 pycache，:86 删了归档队列）
+    result = _classify(target, source=source)
+    assert result.content_drift == [], "正确部署被误报 drift"
+    assert result.missing == []
+    assert result.extra == []
+    assert result.intentionally_excluded == [], "目标侧本就没有这些件"
+    assert _run(target, source=source) == 0
+
+
+def test_exclude_kind_matches_script_type_conditions(vault_pair):
+    """MEDIUM 回归: `:84` 是 `-type d`、`:86` 是 `rm -f` —— 类型不符的同名条目不算 excluded。"""
+    source, target = vault_pair
+    # __pycache__ 这次是个**普通文件**：脚本的 find -type d 不会删它
+    (target / ".claude" / "scripts" / "__pycache__").write_text("not a dir", encoding="utf-8")
+    # pending_archives_x.jsonl 这次是个**目录**：rm -f 不会删目录
+    (target / ".claude" / "hooks" / "pending_archives_x.jsonl").mkdir(parents=True)
+    result = _classify(target, source=source)
+    assert result.intentionally_excluded == [], "类型不符却被判 excluded，与脚本的 -type d / rm -f 条件不一致"
+
+
+@pytest.mark.parametrize("bad_action", [[], {}, 123, None])
+def test_non_string_action_still_exits_2(tmp_path, vault_pair, manifest_data, bad_action):
+    """MEDIUM 回归: unhashable 的 action 曾抛 TypeError 逃出捕获面，CLI 拿不到 rc=2。"""
+    source, target = vault_pair
+    manifest_data["items"][0]["action"] = bad_action
+    bad = tmp_path / "bad-action.json"
+    bad.write_text(json.dumps(manifest_data), encoding="utf-8")
+    with pytest.raises(vv.ManifestError):
+        vv.load_manifest(bad)
+    assert vv.main(["--vault", str(target), "--manifest", str(bad), "--source", str(source)]) == 2
+
+
+@pytest.mark.parametrize("bad_kind", ["directory", "DIR", 1, []])
+def test_invalid_kind_is_rejected(tmp_path, manifest_data, bad_kind):
+    manifest_data["items"][0]["kind"] = bad_kind
+    bad = tmp_path / "bad-kind.json"
+    bad.write_text(json.dumps(manifest_data), encoding="utf-8")
+    with pytest.raises(vv.ManifestError) as exc:
+        vv.load_manifest(bad)
+    assert "kind" in str(exc.value)
+
+
+def test_manifest_declares_kind_for_the_two_typed_excludes():
+    """两个隐含 exclude 必须带类型条件，且类型要对得上脚本命令的实际可删集合。"""
+    data = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    by_path = {i["path"]: i for i in data["items"]}
+    # :84 是 find -type d —— 只剪目录
+    assert by_path[".claude/**/__pycache__"]["kind"] == "dir"
+    # :86 的强制删除清掉一切**非目录**条目（软链、悬空软链、FIFO 都删，真目录不删）。
+    # 写成 "file" 是错的：is_file() 对后三者为 False。
+    assert by_path[".claude/hooks/pending_archives*.jsonl"]["kind"] == "nondir"
+
+
+def test_manifest_does_not_over_constrain_path_only_excludes():
+    """:68/:69 那些按路径声明「不复制」的项**没有**类型条件，不得擅自加 kind。
+
+    早先给 learning_events.jsonl 与 workspace.json 加了 kind=file，反而收窄了语义：
+    同名的目录会因类型不符而落到 extra 去。
+    """
+    data = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    by_path = {i["path"]: i for i in data["items"]}
+    for p in ("learning_events.jsonl", ".obsidian/workspace.json", "outputs/**", "原白板/**"):
+        assert "kind" not in by_path[p], f"{p} 不该有类型条件"
+
+
 def test_verifier_exposes_only_readonly_switches():
     """(b) 只读: CLI 参数面是**白名单**, 多一个开关就红。
 
@@ -406,17 +507,46 @@ def test_verifier_exposes_only_readonly_switches():
     parser = vv._build_parser()
     options = {s for action in parser._actions for s in action.option_strings}
     assert options == {"-h", "--help", "--vault", "--source", "--manifest", "--report"}
+    # 白名单只管带前缀的开关；位置参数和子命令的 option_strings 是空的，会从名单里漏过去
+    positional = [a for a in parser._actions if not a.option_strings]
+    assert positional == [], f"不得有位置参数或子命令: {positional}"
 
 
-def test_verifier_source_has_no_stray_write_calls():
-    """(b) 只读: AST 层数写操作 —— 唯一允许的写是 main() 里落 --report。
+def _is_stdio_write(node) -> bool:
+    """精确豁免 `sys.stdout.write` / `sys.stderr.write` 两个字面形态。
 
-    看的是调用节点, 不是文本, 所以注释/docstring 里怎么写都不影响判定。
+    只豁免这两个：`f.write(...)` 那种对文件对象的写照样要被抓住，
+    所以判据不能简单地放过所有名字叫 write 的调用。
     """
     import ast
 
-    tree = ast.parse(VERIFIER.read_text(encoding="utf-8"))
-    write_attrs = {
+    func = node.func
+    if not isinstance(func, ast.Attribute) or func.attr != "write":
+        return False
+    owner = func.value
+    return (
+        isinstance(owner, ast.Attribute)
+        and owner.attr in ("stdout", "stderr")
+        and isinstance(owner.value, ast.Name)
+        and owner.value.id == "sys"
+    )
+
+
+def test_verifier_write_calls_are_confined_to_write_report():
+    """(b) 只读: 所有写调用必须落在 `_write_report()` 这一个函数内。
+
+    比早先那条「只允许一次 write_text」强两处：
+      ① 调用名面扩大 —— 旧版漏掉 `Path.open("w")`、文件对象 `.write`、`os.*` 全族、
+         以及 from-import 形式的 rmtree；
+      ② 判据从「计数 + 落在 main 的行号区间」改成「按函数边界圈定」——
+         写操作只允许出现在那个专门负责落盘的函数里，别处一个都不许有。
+    看的是调用节点，不是文本，所以注释/docstring 里怎么写都不影响判定。
+    """
+    import ast
+
+    source = VERIFIER.read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    write_names = {
         "write_text",
         "write_bytes",
         "mkdir",
@@ -432,25 +562,53 @@ def test_verifier_source_has_no_stray_write_calls():
         "copytree",
         "copy2",
         "move",
+        "write",
+        "writelines",
+        "truncate",
+        "makedirs",
+        "remove",
+        "link",
+        "symlink",
+        "mknod",
+        "mkfifo",
+        "chown",
+        "utime",
+        "open",
     }
-    found: list[tuple[str, int]] = []
+    funcs = {
+        n.name: (n.lineno, n.end_lineno)
+        for n in ast.walk(tree)
+        if isinstance(n, ast.FunctionDef) and n.end_lineno is not None
+    }
+    assert "_write_report" in funcs, "落盘应当收敛到 _write_report()"
+    lo, hi = funcs["_write_report"]
+
+    offenders = []
     for node in ast.walk(tree):
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
-            if node.func.attr in write_attrs:
-                found.append((node.func.attr, node.lineno))
-        # open(..., "w") 之类
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
-            if node.func.id == "open":
-                found.append(("open", node.lineno))
-    assert [name for name, _ in found] == ["write_text"], f"校验器出现了预期外的写操作: {found}"
-    # 那一次 write_text 必须在 main() 内 (落 --report), 不在比对逻辑里
-    main_fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "main")
-    main_end = main_fn.end_lineno
-    assert main_end is not None
-    assert main_fn.lineno < found[0][1] <= main_end
-    assert "shutil" not in {
-        alias.name for node in ast.walk(tree) if isinstance(node, ast.Import) for alias in node.names
-    }
+        if not isinstance(node, ast.Call):
+            continue
+        name = None
+        if isinstance(node.func, ast.Attribute):
+            name = node.func.attr
+        elif isinstance(node.func, ast.Name):
+            name = node.func.id
+        if name not in write_names:
+            continue
+        if _is_stdio_write(node):
+            continue  # 写标准输出/错误不碰文件系统，是报告的缺省去处
+        if not (lo <= node.lineno <= hi):
+            offenders.append((name, node.lineno))
+    assert offenders == [], f"写调用出现在 _write_report 之外: {offenders}"
+
+    # 危险的整树删除工具一律不许进来，无论 import 形式
+    imported = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported.update(a.name for a in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            imported.add(node.module or "")
+            imported.update(a.name for a in node.names)
+    assert "shutil" not in imported and "rmtree" not in imported
 
 
 # ── 零写门 (钉死点 5) ─────────────────────────────────────────────────
@@ -482,3 +640,276 @@ def test_verifier_writes_nothing_into_vault_or_source(vault_pair, tmp_path):
     assert _tree_digest(target) == before_target, "校验器写了目标 vault"
     assert _tree_digest(source) == before_source, "校验器写了模板源"
     assert report.exists()
+
+
+# ── Codex round-2 + 对抗审查的回归门 ──────────────────────────────────
+#
+# 这一组同样是「先在本机复现指控成立，再改代码，再补门」的产物。
+# 证据：evidence-g26/codex-r2-claims-verified-*.txt
+
+
+def test_report_via_dev_fd_alias_is_refused(vault_pair, tmp_path):
+    """BLOCKER 回归: `--report /dev/fd/N` 曾能写穿被审文件。
+
+    `/dev/fd/N` 的 resolve() 返回它自己（路径判据以为在树外），stat() 又返回被打开
+    文件的属性、st_nlink=1（硬链接判据也不触发）——两道早退判据同时失明。
+    真正承重的是落盘写法本身：临时文件 + os.replace，绝不原地覆盖已有 inode。
+    """
+    source, target = vault_pair
+    victim = target / "Dashboard.md"
+    before = victim.read_bytes()
+    fd = os.open(str(victim), os.O_WRONLY)
+    try:
+        rc = _run(target, source=source, report=Path(f"/dev/fd/{fd}"))
+    finally:
+        os.close(fd)
+    assert rc == 2
+    assert victim.read_bytes() == before, "被审文件被写穿了"
+
+
+def test_report_behind_vault_symlink_is_refused(tmp_path, manifest_data):
+    """HIGH 回归: vault 里一条指向树外的目录软链，会让「树外」路径其实就是树内文件。
+
+    只比路径前缀挡不住这个：报告落点在 vault 之外（字符串上成立），但通过 vault 里
+    那条软链看得见。落点判据必须把树内软链的解析目标也算作禁写区。
+    """
+    outside = tmp_path / "outside-claude"
+    (outside / "skills").mkdir(parents=True)
+    real = outside / "settings.json"
+    real.write_text("REAL SETTINGS\n", encoding="utf-8")
+    vault = tmp_path / "v"
+    _build_vault(vault, manifest_data)
+    # 把 vault 里的 .claude 换成指向树外目录的软链
+    shutil_free_remove(vault / ".claude")
+    os.symlink(str(outside), str(vault / ".claude"))
+
+    assert not real.resolve().is_relative_to(vault.resolve()), "前提: 落点在路径意义上确实在树外"
+    rc = _run(vault, report=real)
+    assert rc == 2
+    assert real.read_text(encoding="utf-8") == "REAL SETTINGS\n"
+
+
+def shutil_free_remove(path: Path) -> None:
+    """删掉一棵测试用的临时目录树（只在 tmp_path 下用；不引入 shutil，AST 门禁它）。"""
+    for child in sorted(path.rglob("*"), key=lambda p: len(p.parts), reverse=True):
+        if child.is_dir() and not child.is_symlink():
+            child.rmdir()
+        else:
+            child.unlink()
+    path.rmdir()
+
+
+def test_unreadable_subtree_is_not_reported_as_match(vault_pair):
+    """HIGH 回归: 读不进去的子树不得被当成「不存在」而判等。
+
+    `Path.rglob` 静默吞 PermissionError —— 源里一棵 000 权限的子树看起来跟不存在
+    一样，与目标的空目录一比就「相等」，exit=0。那是漏报：把「我看不见」说成
+    「一致」，比误报危险。
+    """
+    source, target = vault_pair
+    locked = source / ".claude" / "hooks" / "child"
+    locked.mkdir(parents=True)
+    (locked / "hidden.txt").write_text("SECRET DIFFERENCE\n", encoding="utf-8")
+    (target / ".claude" / "hooks" / "child").mkdir(parents=True)  # 目标是空目录
+    os.chmod(locked, 0o000)
+    try:
+        result = _classify(target, source=source)
+        assert result.unreadable != [], "不可读条目必须被登记"
+        assert result.exit_code != 0, "读不进去就不能报 0"
+    finally:
+        os.chmod(locked, 0o755)
+
+
+def test_trailing_newline_name_is_not_excluded(vault_pair):
+    """MEDIUM 回归: 正则用 `$` 会匹配「最后一个换行之前」，名字带尾随换行的文件被误排除。
+
+    POSIX 文件名允许换行；shell 的模式不会匹配它，校验器也不该匹配。
+    """
+    rx = vv._pattern_to_regex(".claude/hooks/pending_archives*.jsonl")
+    assert rx.fullmatch(".claude/hooks/pending_archives_keep.jsonl")
+    assert not rx.fullmatch(".claude/hooks/pending_archives_keep.jsonl\n")
+    source, target = vault_pair
+    weird = source / ".claude" / "hooks" / "pending_archives_keep.jsonl\n"
+    weird.write_text("[]", encoding="utf-8")
+    result = _classify(target, source=source)
+    # 源多了一个不该被排除的文件 → 必须体现为 drift，而不是被静默排除
+    assert [f.path for f in result.content_drift] == [".claude/hooks"]
+
+
+@pytest.mark.parametrize(
+    "bad_scan",
+    [
+        {"dir": 123, "match": "*"},
+        {"dir": [], "match": "*"},
+        {"dir": ".claude", "match": 123},
+        {"dir": ".claude", "match": []},
+        {"dir": ".claude", "match": ""},
+        {"dir": "/absolute", "match": "*"},
+        {"dir": "../outside", "match": "*"},
+    ],
+)
+def test_invalid_extra_scan_exits_2(tmp_path, vault_pair, manifest_data, bad_scan):
+    """MEDIUM 回归: extra_scan 的 dir/match 曾完全不校验。
+
+    非字符串让校验器以未捕获 TypeError 终止（rc=1 而非承诺的 2）；更糟的是 `dir`
+    接受绝对路径与 `..`，扫描面直接逃出 --vault。path 有这套校验、extra_scan.dir
+    没有——同一条约束只在一半字段上生效，正是根因。
+    """
+    source, target = vault_pair
+    manifest_data["extra_scan"] = [bad_scan]
+    bad = tmp_path / "bad-scan.json"
+    bad.write_text(json.dumps(manifest_data), encoding="utf-8")
+    with pytest.raises(vv.ManifestError):
+        vv.load_manifest(bad)
+    assert vv.main(["--vault", str(target), "--manifest", str(bad), "--source", str(source)]) == 2
+
+
+@pytest.mark.parametrize("variant", [".claude/skills/", ".claude//skills", ".claude/./skills"])
+def test_path_is_normalized_so_match_and_extra_agree(tmp_path, vault_pair, manifest_data, variant):
+    """MEDIUM 回归: path 原样入集、extra 检测用规范化路径 → 同一条目同时进 match 与 extra。"""
+    source, target = vault_pair
+    for item in manifest_data["items"]:
+        if item["path"] == ".claude/skills":
+            item["path"] = variant
+            break
+    else:  # pragma: no cover — 清单里一定有这一项
+        raise AssertionError("清单里找不到 .claude/skills")
+    m = tmp_path / "variant.json"
+    m.write_text(json.dumps(manifest_data), encoding="utf-8")
+    manifest = vv.load_manifest(m)
+    assert ".claude/skills" in manifest.declared_paths, "规范化后应当与磁盘上的相对路径一致"
+    result = vv.verify(target, manifest, source_dir=source)
+    assert result.extra == [], "同一条目不该既是 match 又是 extra"
+    assert result.missing == []
+
+
+@pytest.mark.parametrize(
+    "bad_manifest_bytes",
+    [b"\xff\xfe not utf-8", b"{ not json", b'{"version": 1'],
+)
+def test_unreadable_or_malformed_manifest_exits_2(tmp_path, vault_pair, bad_manifest_bytes):
+    """MEDIUM 回归: 非 UTF-8 / 坏 JSON 曾以未捕获异常终止，rc=1 而非 2。"""
+    source, target = vault_pair
+    bad = tmp_path / "bad.json"
+    bad.write_bytes(bad_manifest_bytes)
+    assert vv.main(["--vault", str(target), "--manifest", str(bad), "--source", str(source)]) == 2
+
+
+def test_manifest_pointing_at_a_directory_exits_2(tmp_path, vault_pair):
+    """`--manifest` 指向一个目录时也必须是 rc=2（曾是 IsADirectoryError 逃出）。"""
+    source, target = vault_pair
+    assert vv.main(["--vault", str(target), "--manifest", str(tmp_path), "--source", str(source)]) == 2
+
+
+def test_exclude_kind_nondir_matches_what_the_script_deletes(vault_pair):
+    """脚本 `:86` 的强制删除清掉一切非目录条目 —— 软链/悬空软链/FIFO 都算，真目录不算。"""
+    _source, target = vault_pair
+    hooks = target / ".claude" / "hooks"
+    (hooks / "pending_archives_plain.jsonl").write_text("[]", encoding="utf-8")
+    os.symlink(str(target / "Dashboard.md"), str(hooks / "pending_archives_link.jsonl"))
+    os.symlink(str(target / "nope"), str(hooks / "pending_archives_dangling.jsonl"))
+    os.mkfifo(str(hooks / "pending_archives_fifo.jsonl"))
+    (hooks / "pending_archives_dir.jsonl").mkdir()
+
+    hits = vv.ExcludeMatcher(vv.load_manifest(MANIFEST).exclude_items).hits_for(
+        target,
+        next(i for i in vv.load_manifest(MANIFEST).items if i.path == ".claude/hooks/pending_archives*.jsonl"),
+    )
+    assert "pending_archives_plain.jsonl" in " ".join(hits)
+    assert "pending_archives_link.jsonl" in " ".join(hits)
+    assert "pending_archives_dangling.jsonl" in " ".join(hits)
+    assert "pending_archives_fifo.jsonl" in " ".join(hits)
+    assert "pending_archives_dir.jsonl" not in " ".join(hits), "真目录不该被算作已删除"
+
+
+def test_extra_scan_surface_is_pinned():
+    """extra 覆盖面是本卡承诺的一部分，删掉一条不能静默通过。"""
+    data = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    assert [(s["dir"], s["match"]) for s in data["extra_scan"]] == [
+        (".claude", "*"),
+        (".obsidian", "*.json"),
+        (".obsidian/plugins", "*"),
+    ]
+
+
+def test_target_side_exclusion_is_also_pinned(vault_pair):
+    """exclude 剔除在**目标侧**同样承重（早先只有源侧那一半被钉住）。"""
+    source, target = vault_pair
+    (target / ".claude" / "scripts" / "__pycache__").mkdir(parents=True)
+    (target / ".claude" / "scripts" / "__pycache__" / "x.pyc").write_bytes(b"\x00")
+    result = _classify(target, source=source)
+    assert result.content_drift == [], "目标侧多出的排除件不该算 drift"
+    assert [f.path for f in result.intentionally_excluded] == [".claude/**/__pycache__"]
+
+
+def test_array_parse_scans_whole_file_not_a_fixed_window():
+    """五数组解析不能只盯 :63-67 —— 那一行之下新增第 6 个数组会对主判据不可见。"""
+    lines = INSTALL_SH.read_text(encoding="utf-8").splitlines()
+    whole = re.findall(r"^([A-Z_]+)=\(([^)]*)\)\s*$", "\n".join(lines), re.M)
+    assert len(whole) == 5, f"全文扫描到的数组数与预期不符: {[n for n, _ in whole]}"
+    lo, hi = MANIFEST_BLOCK
+    for name, _ in whole:
+        hit = [i + 1 for i, ln in enumerate(lines) if ln.startswith(name + "=(")]
+        assert hit and lo <= hit[0] <= hi, f"{name} 落在 MANIFEST 区之外: 第 {hit} 行"
+
+
+def test_bracket_is_literal_in_both_places(vault_pair):
+    """`[` 在 _has_glob 与 _pattern_to_regex 两处必须是同一种东西。
+
+    早先 GLOB_CHARS 含 `[`，于是一条写成字符类的模式会被判为 glob（走正则路径），
+    而正则里 `[` 又被 re.escape 成字面量 —— 两处口径分裂，模式静默不命中，
+    正确部署的 vault 因此被误报 drift。现在统一按字面量。
+    """
+    assert not vv._has_glob("outputs/[abc].json"), "`[` 不再算通配符"
+    rx = vv._pattern_to_regex("outputs/[abc].json")
+    assert rx.fullmatch("outputs/[abc].json"), "字面量应当精确命中"
+    assert not rx.fullmatch("outputs/a.json"), "不得展开成字符类"
+    # 真实文件名里的方括号按字面匹配 —— 这才是这类名字该有的行为
+    source, target = vault_pair
+    odd = target / "outputs" / "[draft].json"
+    odd.write_text("{}", encoding="utf-8")
+    result = _classify(target, source=source)
+    assert [f.path for f in result.intentionally_excluded] == ["outputs/**"]
+    assert odd.name in result.intentionally_excluded[0].detail
+
+
+def test_duplicate_path_is_caught_after_normalization(tmp_path, manifest_data):
+    """`outputs/` 与 `outputs` 是同一个 path —— 查重必须在规范化之后做。"""
+    for item in manifest_data["items"]:
+        if item["path"] == "outputs/**":
+            item["path"] = "outputs/"
+            break
+    bad = tmp_path / "dup.json"
+    bad.write_text(json.dumps(manifest_data), encoding="utf-8")
+    with pytest.raises(vv.ManifestError) as exc:
+        vv.load_manifest(bad)
+    assert "重复" in str(exc.value)
+
+
+def test_unreadable_alone_still_blocks(vault_pair):
+    """unreadable 单独出现时也必须挡住 —— 这条是「计入阻断」的专属门。
+
+    上一条 test_unreadable_subtree_is_not_reported_as_match 里源侧不可读、目标侧空，
+    两侧摘要不同 ⇒ content_drift 非空 ⇒ 退出码被它兜成 1，于是「unreadable 计入阻断」
+    那段逻辑拆掉也不红（纵深兜住）。这里让**两侧都有同一个读不进去的目录**：
+    摘要相同、没有 drift，unreadable 成为唯一的差异来源。
+    顺带钉住一件事——两侧都读不进去时摘要会「判等」，所以不假绿全靠 unreadable 这一桶。
+    """
+    source, target = vault_pair
+    locked_src = source / ".claude" / "hooks" / "locked"
+    locked_tgt = target / ".claude" / "hooks" / "locked"
+    for d in (locked_src, locked_tgt):
+        d.mkdir(parents=True)
+        (d / "same.txt").write_text("same\n", encoding="utf-8")
+    os.chmod(locked_src, 0o000)
+    os.chmod(locked_tgt, 0o000)
+    try:
+        result = _classify(target, source=source)
+        assert result.content_drift == [], "两侧同样读不进去，摘要应当判等（无 drift）"
+        assert result.missing == [] and result.extra == []
+        assert result.unreadable != [], "读不进去必须被登记"
+        assert result.exit_code != 0, "unreadable 单独出现时也不能报 0"
+        assert _run(target, source=source) == 1
+    finally:
+        os.chmod(locked_src, 0o755)
+        os.chmod(locked_tgt, 0o755)
