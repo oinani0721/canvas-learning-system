@@ -6332,6 +6332,66 @@ def test_g32ccr1_self_confidence_norm_must_not_forge_receipt_identity(vault):
     assert r2.returncode == 0, f"⛔ 原样重跑被拒 ⇒ 该节点砖化: {(r2.stderr or '')[-300:]}"
 
 
+def test_g32ce_q_ascii_escape_fallback_is_load_bearing(vault):
+    """`q_()` 的 **ASCII 转义回落**承重：拆掉它，敌意载体就写不进去。
+
+    ⛔ **这条性质此前没有门**。X7-C 时字符轴还管着整条 record，非规范码点在进入
+    `q_()` **之前**就被校验器拒了 ⇒ 拆 `q_()` 观察不到差异，对应变异
+    `M154-q-bare-ensure-ascii-false` 被判假杀而退役；X7-C 验收单自陈
+    「`q_()` 的往返自证（纵深）没有变异承重…那一层若失效不会被任何门发现」。
+
+    CARD-CX-G3-2c-C-R1 把字符轴收窄到 5 个枚举字段之后，`self_confidence_raw`
+    这类 **receipt-only** 字段不再受字符轴管辖 ⇒ 敌意值**能到达** `q_()`，
+    载体重新可达，M154 得以复活成 g32cb 的 **M9**，而且**不需要挂 depth 层**
+    （不挂层就没有「击杀由层贡献」的假杀面）。
+
+    本门比 `test_g32ccr1_receipt_only_fields_roundtrip_under_hostile_codepoints`
+    **窄**：只钉「回落这条路真的跑了」——
+      ① 写入成功（`rc=0`）：拆掉回落后 `q_()` 两条路都证不成往返而 fail-closed，
+         这里立刻红，且拒因点名「无法编码成能原样读回的 YAML 标量」；
+      ② receipt 里必须是**转义形态**（`\\u0085`）而**不是裸 NEL**：这两条把
+         「回落跑了」与「往返自证被绕过」区分开——拆自证（负控 E4）会让它写出
+         裸形，落在 ② 上；拆回落（M9）让它根本写不出去，落在 ① 上。
+    """
+    import yaml as _y4
+
+    LED = vault / "learning_events.jsonl"
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    scr = f"半{_NEL}懂"
+    pA = _payload(
+        event_id="板己#q1",
+        ts=TS1,
+        review_time=TS1,
+        exam_board="检验白板/板己.md",
+        self_confidence_raw=scr,
+    )
+    r = _run_writer_settled(vault, pA)
+    # ① 回落存在 ⇒ 写得进去
+    assert r.returncode == 0, (
+        f"⛔ `q_()` 的 ASCII 转义回落没了：裸形证不成往返、又没有第二条路，"
+        f"于是 fail-closed 拒写 —— 敌意载体从「能写、读得回」退化成「写不进去」。"
+        f"stderr: {(r.stderr or '')[-400:]}"
+    )
+    assert len(_ledger_lines(vault)) == 1, "首写必须恰好落 1 行"
+
+    # ② 落盘的确实是**转义形态**，不是裸 NEL
+    nd = (vault / NODE_REL).read_text(encoding="utf-8")
+    _lines = [ln for ln in nd.split("\n") if "self_confidence_raw" in ln]
+    assert len(_lines) == 1, f"receipt 里 self_confidence_raw 行数不对: {_lines!r}"
+    assert "\\u0085" in _lines[0], (
+        f"⛔ 回落这条路没跑：receipt 里不是转义形态 ⇒ 要么 `q_()` 的往返自证被绕过"
+        f"（裸形直接落盘），要么编码换了。实见: {_lines[0]!r}"
+    )
+    assert _NEL not in _lines[0], (
+        f"⛔ 裸 NEL 进了 receipt ⇒ 往返自证被绕过（那是负控 E4 的形态，不是本门要测的）: {_lines[0]!r}"
+    )
+
+    # ③ 转义形态必须读得回原值（回落不是"糊弄过去"）
+    _entry = _y4.safe_load(nd.split("---")[1])["calibration_log"][-1]
+    assert _entry["self_confidence_raw"] == scr, f"⛔ 转义形态读不回原值: {_entry['self_confidence_raw']!r} != {scr!r}"
+
+
 def test_g32cc_depth_two_sides_agree_across_levels(vault):
     """`exam_board` 32/384/512/640/768 层：validator 与写点**结论必须一致**。
 
