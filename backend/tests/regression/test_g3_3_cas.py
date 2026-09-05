@@ -621,7 +621,10 @@ def _race_fired(vault: Path) -> bool:
     最终正文上长得一模一样。凭据名是 `<节点>.race-fired`, 而发布走
     `os.replace(<节点>.quiz-tmp, <节点>)` —— 名字不同, 覆盖吃不掉它。
     """
-    node = (vault / NODE_REL).resolve()
+    # ⛔ 路径**从 `_race_env` 取**, 不再自己解析一遍 (独立复核 round-2 R2-03):
+    # 两处独立解析今天等价, 但哪天解析目标一变就会分叉, 而分叉的两个方向
+    # (凭据恒不存在 / 恒存在) 都会毁掉判据。
+    node = Path(_race_env(vault)["G33_RACE_NODE"])
     return (node.parent / (node.name + ".race-fired")).exists()
 
 
@@ -699,6 +702,15 @@ def test_cas_body_only_change_is_a_conflict(tmp_path):
 # ─────────────── 门④ 乱序补录: 加性标记 + frontmatter 不回退 ───────────────
 
 
+def _typed(obj):
+    """把值连同类型一起编码, 供类型敏感比较 —— 裸 `==` 认为 `1 == True`。"""
+    if isinstance(obj, dict):
+        return {k: _typed(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_typed(v) for v in obj]
+    return (type(obj).__name__, obj)
+
+
 def _review_payload(**over) -> dict:
     pl = {
         "schema_ext": "review/1",
@@ -752,7 +764,10 @@ def test_out_of_order_marker_is_additive(monkeypatch, tmp_path):
     assert "out_of_order" not in caller_payload, "append_event 就地污染了调用方的 payload"
     # ⛔ 「没多这个键」不等于「一个字节没动」(独立复核 R1-04): 改用快照做加性比较后,
     # 「就地改调用方**已有**字段」这一形态就没人管了。整份比一次补回来。
-    assert caller_payload == caller_snapshot, "append_event 改动了调用方 payload 的已有字段"
+    # ⛔ 类型敏感比较 (独立复核 round-2 R2-04): 裸 `==` 认为 `1 == True`, 于是把调用方的
+    # `attempt_count` 从 int 1 改成 bool True 照样通过 —— 注释里写的是「逐字不变」,
+    # 那条声明比 `==` 证明的宽。`_typed` 把每个值连同它的类型一起比。
+    assert _typed(caller_payload) == _typed(caller_snapshot), "append_event 改动了调用方 payload 的已有字段 (值或类型)"
 
 
 def test_later_and_foreign_events_are_not_marked(monkeypatch, tmp_path):

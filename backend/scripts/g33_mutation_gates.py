@@ -34,6 +34,7 @@ import json
 import os
 import re
 import signal
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -359,6 +360,19 @@ def _failed_nodeids(stdout: str) -> set[str]:
     return set(re.findall(r"^FAILED (\S+?)(?: - .*)?$", stdout, re.M))
 
 
+def _failed_reasons(stdout: str) -> list[tuple[str, str]]:
+    """`-rf` 短摘要行 `FAILED <nodeid> - <reason>` 的 (nodeid, reason) 列表。
+
+    ⛔ 判据要用**这一行**而不是回溯里的 `E ` 行 (独立复核 round-2 R2-01)。
+    实测: 短摘要的 reason 只取失败断言消息的**第一行** —— 断言消息里内嵌的
+    `{out}` / `{err}` / `{ctx}` (都在换行之后) 进不来。而 `E ` 行会把多行消息
+    逐行加前缀, 于是**前提断言**失败时子进程的整份输出都灌进判据面; 被测进程只要
+    在运行期把期望片段拼出来打到 stderr, 就能让「目标断言其实没红」照样判 KILLED。
+    ⚠️ 配套: `_run_gate` 必须设 `COLUMNS`, 否则 80 列下 reason 会被截成空串。
+    """
+    return [(m[0], m[1]) for m in re.findall(r"^FAILED (\S+?)(?: - (.*))?$", stdout, re.M)]
+
+
 def _hit(nodeid: str, failed: set[str]) -> bool:
     """声明的 nodeid 是否命中失败集 —— **含参数化用例**。
 
@@ -416,7 +430,9 @@ def _run_gate(nodeid: str) -> tuple[int, str]:
         capture_output=True,
         text=True,
         timeout=1800,
-        env={"PYTHONDONTWRITEBYTECODE": "1", **_env()},
+        # ⛔ COLUMNS 必须给足: pytest 的 `-rf` 短摘要按终端宽度截断, 80 列下
+        # `FAILED … - <reason>` 的 reason 会被截成空串 ⇒ 判据恒不命中 (假 SURVIVED)。
+        env={"PYTHONDONTWRITEBYTECODE": "1", "COLUMNS": "1000", **_env()},
     )
     return proc.returncode, proc.stdout + proc.stderr
 
@@ -504,7 +520,10 @@ def main() -> int:
                     Path(sp).write_bytes(data)
             failed = _failed_nodeids(out)
             err_text = _error_lines(out)
-            expect_hit = expect_msg is None or expect_msg in err_text
+            # ⛔ 判据只看**失败那一条断言自己的消息**(短摘要 reason), 不看整份回溯:
+            # 见 `_failed_reasons` 的 docstring (独立复核 round-2 R2-01)。
+            reasons = [r for nid, r in _failed_reasons(out) if _hit(nodeid, {nid})]
+            expect_hit = expect_msg is None or any(expect_msg in r for r in reasons)
             # ⛔ 判据 = rc 非零 **且 指定的那道门**在失败集里 **且 指定的那一条断言**
             # 真的抛了。只判 rc 会被别的门红了喂饱; 只判 nodeid 会被**同一个门里
             # 别的断言**喂饱 —— 后者正是旧 M15 假杀的形态。
@@ -519,6 +538,7 @@ def main() -> int:
                     "expect_msg": expect_msg,
                     "expect_hit": expect_hit,
                     "why": why,
+                    "failed_reasons": reasons,
                     "error_lines": err_text.splitlines()[:8],
                     "tail": out.strip().splitlines()[-3:],
                 }
@@ -575,15 +595,21 @@ def main() -> int:
                 for fn in filenames:
                     p = Path(dirpath) / fn
                     try:
+                        # ⛔ 用 `os.lstat` 而不是 `Path.is_file()` / `is_symlink()`
+                        # (独立复核 round-2 R2-02): pathlib 的这两个谓词把 `OSError`
+                        # **吞成 False** —— 目录能列名字但没有搜索权限时, stat 的 EACCES
+                        # 被转成「不是普通文件」直接跳过, 而 `walk_failed` 仍是 False
+                        # ⇒ 漏扫了还报告扫描成功。`os.lstat` 会把错误抛出来。
                         # symlink 不跟随。⚠️ 依据如实收窄 (内部对抗审查): 这**不是**因为
                         # 扫描面里现在有 symlink —— 实测扫描面里 symlink 数 = 0, 而且
                         # `os.walk(followlinks=False)` 本来就不进目录 symlink。留着它是
                         # 纵深: 将来若有人往这四个 root 里放一个指向仓外的链接, 跟随会把
                         # 扫描面悄悄扩出去(或绕回来数两遍), 那两种都会让判据不可信。
-                        if p.is_symlink() or not p.is_file():
+                        st = os.lstat(p)
+                        if stat.S_ISLNK(st.st_mode) or not stat.S_ISREG(st.st_mode):
                             continue
                     except OSError as e:
-                        print(f"⛔ MARK 扫描失败 (stat {p} 出错): {e}")
+                        print(f"⛔ MARK 扫描失败 (lstat {p} 出错): {e}")
                         return None
                     try:
                         with p.open("rb") as fh:

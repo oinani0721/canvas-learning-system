@@ -24,12 +24,19 @@
 | ⭐ **收官回归（两文件）** | `regression-g33-g32-20260906T022107.txt` | `161 passed, 1 xfailed in 334.81s` / `rc=0` |
 | ⭐ **收官 `tests/skills`** | `skills-final-20260906T023434.txt` | `369 passed`（与开工同数）/ `rc=0` |
 | ⭐ **收官回归三文件** | `regression-three-20260906T023555.txt` | `210 passed, 1 skipped` / `rc=0` |
+| **对照输入：只让 race 副本注入失效**（证 `_race_fired` 承重） | `race-fired-loadbearing-20260906T025034.txt` | M2 / M16 / M17 三条门全部红在 `_race_fired` 前提断言、`expect_msg` 不命中 → SURVIVED / `rc=0` |
+| **对照输入：外审 round-2 的 R2-01 / R2-02 / R2-04** | `r2-falsifiers-20260906T025711.txt` | 三条旧行为全部 ⛔、新行为全部 ✅ / `rc=0` |
+| **绑定 sha + ruff + pyright（round-2 整改后 = 最终）** | `binding-20260906T025102.txt` | `g33 = bed7e1e6…` / `test_g3_3_cas = 119d56f3…`；三项 rc=0 |
+| ⭐⭐ **最终收官回归（两文件）** | `regression-g33-g32-20260906T025722.txt` | `161 passed, 1 xfailed in 375.40s` / `rc=0` |
+| ⭐⭐ **最终收官全量变异（换判据后重验）** | `mutation-run-20260906T025116.txt` · `mutation-results-20260906T025116.json` | `杀灭: 18/18`（`expect_hit` 全 True）/ `SYNTAX-INVALID: 0` / `还原逐字节相同: 是` / `新增残留: 无` / `基线缺失: 无` / `rc=0` |
 | 中间轮全量变异（自检抓到探针留下的 `.pyc`） | `mutation-run-20260906T021523.txt` · `.json` | `杀灭: 18/18` / `rc=0`（绑 `73dee2ff…`，非最终） |
 | 回归：`test_fsrs_bridge.py` + `test_learning_event_log.py` + `test_learning_events_schema_contract.py` | `regression-three-20260905T171104.txt` | `210 passed, 1 skipped` / `rc=0` |
 | `tests/skills` 目录级（开工） | `skills-baseline-20260905T170500.txt` | `369 passed` / `rc=0` |
 | `tests/skills` 目录级（送审版收工，非最终） | `skills-final-20260905T171712.txt` | `369 passed` / `rc=0` |
 
-⭐ = 绑定**最终代码**（`binding-20260906T022723.txt` 里那组 sha）的收官跑；其余为过程留证。
+⭐⭐ = 绑定**最终代码**（`binding-20260906T025102.txt`：`bed7e1e6…` / `119d56f3…`）的收官跑。
+⭐ = 绑定上一轮定稿（`binding-20260906T022723.txt`）的收官跑——外审 round-2 之后代码又改过，
+所以它们**绑不住最终代码**，保留为过程留证。代码一共定稿三次，对应三轮审查依次落地。
 
 `mutation-results-*.json` 每条含 `expect_msg` / `expect_hit` / `error_lines`——
 `error_lines` 是 pytest 回溯里真正抛出来的异常文本，用来核对**红在哪一条断言上**

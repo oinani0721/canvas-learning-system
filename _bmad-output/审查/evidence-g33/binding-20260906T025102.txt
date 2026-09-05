@@ -1,0 +1,10 @@
+=== 收官绑定 sha256 (round-2 整改后) ===
+bed7e1e6a46a2e5d1b374e7b35cea8a8d153ea47dee721a23417190ac1fd6878  backend/scripts/g33_mutation_gates.py
+119d56f3b735bfc29480f6f628babc5a5bdb5ba08740755bdf92acfc2afca8cd  backend/tests/regression/test_g3_3_cas.py
+
+2 files already formatted
+ruff-format rc=0
+All checks passed!
+ruff-check rc=0
+0 errors, 0 warnings, 0 informations
+pyright rc=0
