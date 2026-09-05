@@ -49,7 +49,13 @@ class CanvasMetadataResponse(BaseModel):
     subject: str = Field(..., description="Subject identifier (e.g., 'math54')")
     category: str = Field(..., description="Category identifier (e.g., 'math')")
     group_id: str = Field(
-        ..., description="Graphiti group_id (e.g., 'math54:离散数学')"
+        ...,
+        description=(
+            "Graphiti group_id — D16 规定 vault: 前缀 (vault:<vault_id>[:<subject_id>]); "
+            "SubjectResolver 在其上再拼 canvas 段, 产出四段组合形态。"
+            "示例 'vault:cs_61b:math54:离散数学' 中的 vault 段是**部署期变量占位符** "
+            "(取自 get_current_vault_id()), 实际值随部署而变 — 勿按字面值硬编码"
+        ),
     )
     source: MetadataSource = Field(..., description="How the metadata was resolved")
 
@@ -59,7 +65,7 @@ class CanvasMetadataResponse(BaseModel):
                 "canvas_path": "Math 54/离散数学.canvas",
                 "subject": "math54",
                 "category": "math",
-                "group_id": "math54:离散数学",
+                "group_id": "vault:cs_61b:math54:离散数学",
                 "source": "config",
             }
         }
@@ -174,7 +180,7 @@ class CanvasIndexResponse(BaseModel):
                 "node_count": 42,
                 "subject": "math54",
                 "category": "math",
-                "group_id": "math54:离散数学",
+                "group_id": "vault:cs_61b:math54:离散数学",
                 "duration_ms": 1250.5,
                 "message": None,
             }
@@ -289,7 +295,7 @@ class SubjectInfo(BaseModel):
             "example": {
                 "subject": "math54",
                 "category": "math",
-                "group_id": "math54:离散数学",
+                "group_id": "vault:cs_61b:math54:离散数学",
                 "source": "config",
             }
         }
