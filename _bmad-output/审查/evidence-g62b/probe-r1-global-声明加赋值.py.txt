@@ -1,0 +1,6 @@
+# CARD-CX-G6-2b-R1 探针: global-声明加赋值
+# 用法: 追加到 review_app.py 源码**字符串**尾部（只在内存里拼, 不落进生产文件）
+# 预期: REJECT:受保护名  —  ast.Global 本身没有专门检查，但赋值语句的 Name-Store 目标被 _flag_targets 抓住
+def _probe_g1():
+    global _PAGE_TEMPLATE
+    _PAGE_TEMPLATE = "wrong"

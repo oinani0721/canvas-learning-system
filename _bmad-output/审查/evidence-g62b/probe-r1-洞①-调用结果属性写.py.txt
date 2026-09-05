@@ -1,0 +1,4 @@
+# CARD-CX-G6-2b-R1 探针: 洞①-调用结果属性写
+# 用法: 追加到 review_app.py 源码**字符串**尾部（只在内存里拼, 不落进生产文件）
+# 预期: REJECT:根不可解析  —  根是 ast.Call → _root_name 返回空串。**本卡已收紧**：黑名单消费点上「取不到根」直接拒（收紧前实测放行，见 git diff 与 probe-matrix.md 的「改前」栏）
+_js_json(1).dumps = lambda value, **kwargs: "wrong"

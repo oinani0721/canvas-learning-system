@@ -1,0 +1,4 @@
+# CARD-CX-G6-2b-R1 探针: 装饰器-链式对照-同表达式作调用
+# 用法: 追加到 review_app.py 源码**字符串**尾部（只在内存里拼, 不落进生产文件）
+# 预期: REJECT:非白名单接收者  —  Call 分支用 ast.unparse 全路径比对 → 'request.app.router' 不在白名单 → 拒。同一表达式作无括号装饰器却放行 = 两条分支口径不一致
+_probe_dc2 = request.app.router.get()
