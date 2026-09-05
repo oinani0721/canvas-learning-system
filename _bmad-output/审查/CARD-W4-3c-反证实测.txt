@@ -1,0 +1,29 @@
+跑前 sha256: d54bc5c27c6f4a26428926ae91530a97b27d998ababce22b714e61638bd7155f
+
+[对照：当前修复态]
+    ======================== 4 passed, 10 warnings in 0.38s ========================
+    NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+    拦截日志出现: False
+
+[反证 A：只删防回归断言（链路不变，只是失去防回归能力）]
+    ======================== 4 passed, 10 warnings in 0.36s ========================
+    NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+    拦截日志出现: False
+
+[反证 B：**完整回退**到修复前形态（patch 目标 + neo4j 注入两处一起拆）]
+    {"event": "Neo4j health check failed: live Neo4j port connect attempted: ('::1', 7691, 0, 0). \u53d7\u62e6\u7aef\u53e3 [7687, 7691] \u662f\u73b0\u7f51 Neo4j\uff1b\u6d4b\u8bd5\u8fdb\u7a0b\u4e0d\u5f97\u8fde\u63a5\u3002\u82e5\u8fd9\u662f\u7aef\u70b9\u6d4b\u8bd5\uff0c\u8bf7\u7528 backend/tests/support/lifespan.py::no_lifespan \u5173\u6389 app.main \u7684 lifespan\uff1b\u82e5\u786e\u9700\u771f\u5e93\uff0c\u7528\u6d4b\u8bd5\u5bb9\u5668 NEO4J_TEST_URI(7692) \u5e76\u6253 integration/real_neo4j marker\u3002", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-05T00:31:54.967206Z"}
+    NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0)
+    拦截日志出现: True
+
+还原后 sha256: d54bc5c27c6f4a26428926ae91530a97b27d998ababce22b714e61638bd7155f
+SHA 一致 ✅
+
+=== 补证：修复前形态的完整判定 ===
+    {"event": "Neo4j health check failed: live Neo4j port connect attempted: ('::1', 7691, 0, 0). \u53d7\u62e6\u7aef\u53e3 [7687, 7691] \u662f\u73b0\u7f51 Neo4j\uff1b\u6d4b\u8bd5\u8fdb\u7a0b\u4e0d\u5f97\u8fde\u63a5\u3002\u82e5\u8fd9\u662f\u7aef\u70b9\u6d4b\u8bd5\uff0c\u8bf7\u7528 backend/tests/support/lifespan.py::no_lifespan \u5173\u6389 app.main \u7684 lifespan\uff1b\u82e5\u786e\u9700\u771f\u5e93\uff0c\u7528\u6d4b\u8bd5\u5bb9\u5668 NEO4J_TEST_URI(7692) \u5e76\u6253 integration/real_neo4j marker\u3002", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-05T00:32:37.007180Z"}
+    {"event": "Neo4j health check failed during initialization", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-05T00:32:37.007253Z"}
+    WARNING  app.clients.neo4j_client:neo4j_client.py:532 Neo4j health check failed: live Neo4j port connect attempted: ('::1', 7691, 0, 0). 受拦端口 [7687, 7691] 是现网 Neo4j；测试进程不得连接。若这是端点测试，请用 backend/tests/support/lifespan.py::no_lifespan 关掉 app.main 的 lifespan；若确需真库，用测试容器 NEO4J_TEST_URI(7692) 并打 integration/real_neo4j marker。
+    WARNING  app.clients.neo4j_client:neo4j_client.py:408 Neo4j health check failed during initialization
+    NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0)
+    =================== 3 failed, 1 passed, 10 warnings in 0.43s ===================
+    pytest rc = 1
+    还原 sha 一致: True
