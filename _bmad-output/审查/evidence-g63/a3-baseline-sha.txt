@@ -1,0 +1,2 @@
+b673233c494da06c15edde69db2db3d99fa6ff80260bb2ac2d8bd91815e2924e  scripts/launchd/com.canvas.daily-review.plist
+44e39e254283be5af1a46d6e3140a30b807af67e4987e49d96bd0c76d5738dc3  scripts/daily_review_run.py
