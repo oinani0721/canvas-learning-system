@@ -118,6 +118,41 @@ import warnings
 REQUIRED_BLOCKED_PORTS = frozenset({7691, 7687})
 BLOCKED_PORTS = REQUIRED_BLOCKED_PORTS
 
+#: ``NEO4J_TEST_URI`` 允许指向的端口 —— **正面白名单**，默认拒绝一切其它值。
+#:
+#: ⛔ 为什么这里是白名单而 :data:`BLOCKED_PORTS` 仍是黑名单（两者**语义不同、
+#: 各管各的**，别把它们统一）：
+#:
+#: * 本白名单只管一件事：``NEO4J_TEST_URI`` 这个**配置值**指向哪里。配置只有
+#:   一个正确答案（测试容器 7692），所以「默认拒绝 + 列出唯一允许项」是对的。
+#:   X4 两轮独立终审的 BLOCKER 正是黑名单式判据挡不住的：``bolt://127.0.0.1:0``
+#:   端口既非 None 又不在黑名单里 ⇒ 放行，而驱动会把 ``:0`` 归一成 **7687**
+#:   （现网默认端口），再经 :func:`is_exempt` 的 integration/e2e advisory 真连开发库。
+#:   黑名单要挡住它，就得枚举 0、00、空、以及一切会被驱动归一成 7687 的写法 ——
+#:   那是「枚举白名单」式的必输游戏，方向反了。
+#: * :data:`BLOCKED_PORTS` 管的是 :func:`_audit_hook` 里**每一次 socket.connect**。
+#:   那里**绝不能**改成白名单：测试进程要连的本地端口远不止 7692 ——
+#:   Ollama ``localhost:11434``（``app/config.py:531``）、``tests/contract/
+#:   test_pact_provider.py``、``tests/unit/test_embedder_factory.py`` 都会连
+#:   非 7692 的本地端口，探针自己还会临时往受拦集合里加端口（见上）。
+#:   在 hook 上做白名单 = 把整个测试套件的出站流量一并拦死。
+#: * 黑名单常量还是 :func:`audit_hook_alive` / :func:`assert_guard_live` 的自证
+#:   锚点，取值动不得（详见那两处）。
+#:
+#: 允许往里加端口的唯一场景是「又起了一个测试容器」，且必须同步更新
+#: :func:`assert_test_uri_not_blocked` 的探针与契约测试 —— 探针
+#: ``guard-allowed-test-ports-cannot-admit-live`` 钉死了「把 7687 加进白名单仍必须拒」。
+ALLOWED_TEST_PORTS = frozenset({7692})
+
+#: neo4j 驱动对「没写端口 / 端口为 0」时使用的默认端口。
+#: 来源不是文档而是实现：``neo4j/_sync/driver.py::_Direct._default_port``，
+#: 由 ``_parse_target`` 传给 ``Address.parse(default_port=…)``；
+#: ``neo4j/_addressing.py`` 里 ``port = port or default_port or 0`` ——
+#: ``int("0")`` 是 falsy，所以 ``:0`` 和 ``:00`` 都会落到这个默认值上。
+#: 它恰好等于 :data:`BLOCKED_PORTS` 里的现网默认端口，这正是 BLOCKER 的要害。
+_DRIVER_DEFAULT_PORT = 7687
+_DRIVER_DEFAULT_HOST = "localhost"
+
 #: 打了这些 marker 的用例只记录不拦（advisory）。
 EXEMPT_MARKERS = frozenset({"integration", "e2e", "real_neo4j"})
 
@@ -314,13 +349,40 @@ def extract_port(address) -> int | None:
     CPython 的 socket 接受任何实现 ``__index__`` 的对象当端口（2026-09-03 实测
     ``sock.connect(("127.0.0.1", IndexPort(p)))`` 连接成功），只认 ``int`` 会把
     这类地址整条漏掉（第八批 Codex MEDIUM）。
+
+    ⛔ **tuple 子类要读底层槽位，不能拒绝，也不能走它的重载方法**
+    （X4 §7.10 A 类 HIGH #2 + round-1 Codex HIGH，本卡两次修才对）：
+
+    ``len(address)`` / ``address[1]`` 走的是可被子类重载的 ``__len__`` /
+    ``__getitem__``，而 CPython 的 socket 读的是**底层槽位** —— 覆写
+    ``__getitem__`` 让它对我们返回安全端口、对 C 层仍是 7691，就能让 guard 判安全
+    而连接照常发出。
+
+    ⚠️ 本卡第一版的修法是「tuple 子类一律不可信」，**错了，而且误拦真流量**：
+    neo4j 驱动自己的地址类 ``neo4j._addressing.Address``（``IPv4Address`` /
+    ``ResolvedIPv4Address`` …）**就是 tuple 子类**，且
+    ``_async_compat/network/_bolt_socket.py`` 直接 ``s.connect(resolved_address)``
+    —— 一律拒绝会把**合法的 7692 测试容器连接**当场拦掉（2026-09-05 实测：
+    ``Address.parse('127.0.0.1:7692')`` 经本 hook 抛 RuntimeError）。
+    当时的注释还写着「Python 层读不到 C 层看见的那个值」—— 这句同样是错的，
+    ``tuple.__getitem__(addr, 1)`` 就读得到（契约测试自己就在用它）。
+
+    正解是**绕开重载、直接读底层槽位**：``tuple.__len__`` / ``tuple.__getitem__``
+    拿到的就是 C 层 sockaddr 构造时会看到的那个对象，伪装子类骗不过它，
+    真驱动的地址类也照常工作。
     """
-    if isinstance(address, tuple) and len(address) >= 2:
-        try:
-            return operator.index(address[1])
-        except TypeError:
+    if not isinstance(address, tuple):
+        return None
+    try:
+        if tuple.__len__(address) < 2:
             return None
-    return None
+        raw = tuple.__getitem__(address, 1)
+    except Exception:  # noqa: BLE001 —— 连底层槽位都读不到 ⇒ 取不到端口
+        return None
+    try:
+        return operator.index(raw)
+    except TypeError:
+        return None
 
 
 def port_is_trustworthy(address) -> bool:
@@ -334,10 +396,28 @@ def port_is_trustworthy(address) -> bool:
     int 子类但当端口毫无意义）一律视为不可信 —— 调用方按受拦处理（fail-closed）。
     这会连带拦掉「用奇怪端口对象连非受拦端口」的写法；那种写法在本仓库不存在，
     宁可误拦也不给 TOCTOU 留口子。
+
+    ⛔ **端口一律从底层槽位读**（X4 §7.10 A 类 HIGH #2 + round-1 Codex HIGH）：
+    地址是 tuple **子类**时，``len(address)`` / ``address[1]`` 走的是可重载的
+    ``__len__`` / ``__getitem__``，而 CPython 的 socket 读的是**底层槽位** ——
+    覆写 ``__getitem__``（对本 hook 返回 1、对 C 层仍是 7691）就能让 guard 判安全
+    而连接照常建立，与那个有状态 ``__index__`` 的 TOCTOU 同型但更好写。
+
+    ⚠️ 本卡第一版写成「tuple 子类一律不可信」，**误拦真流量**：neo4j 驱动的
+    ``Address`` 家族就是 tuple 子类，且直接被 ``s.connect()`` 使用。
+    详见 :func:`extract_port` 的说明。现在两个函数都用
+    ``tuple.__len__`` / ``tuple.__getitem__`` 绕开重载读底层槽位 —— 伪装骗不过，
+    真驱动也不误伤。
     """
-    if not (isinstance(address, tuple) and len(address) >= 2):
+    if not isinstance(address, tuple):
         return True  # 非元组地址（AF_UNIX 等）不在射程，不谈可信不可信
-    return type(address[1]) is int  # noqa: E721 —— 必须是精确 int，子类不算
+    try:
+        if tuple.__len__(address) < 2:
+            return True  # 长度不足 —— 不在射程
+        raw = tuple.__getitem__(address, 1)
+    except Exception:  # noqa: BLE001 —— 底层槽位都读不到 ⇒ 不可信，fail-closed
+        return False
+    return type(raw) is int  # noqa: E721 —— 必须是精确 int，子类（含 bool）不算
 
 
 def _block_message(address) -> str:
@@ -366,7 +446,34 @@ _FINALIZING = False
 
 
 def _is_selftest_address(address) -> bool:
-    return isinstance(address, tuple) and len(address) >= 1 and address[0] == _SELFTEST_HOST
+    """这条地址是不是**本模块自己合成的**自证探针地址。
+
+    ⛔ 这个分类决定「拦截要不要记账」，所以它必须**比端口判据更严**，且一步都
+    不能走被测对象能重载的方法（round-1 Codex round-2 HIGH-1）。
+
+    旧实现 ``isinstance(address, tuple) and len(address) >= 1 and address[0] == _SELFTEST_HOST``
+    的三处都可被重载，于是有两种伪装能让**真实的受拦连接**被分类成自证 ——
+    抛出的 ``_SelfTestBlocked`` 继承 ``RuntimeError``、普通 ``except`` 就能吞掉，
+    而 ``STATE.record()`` 在这之后才跑 ⇒ **账本为零**，后续结账无从据此拒绝 rc=0：
+
+    * tuple 子类：底层槽位是 ``("127.0.0.1", 7691)``，``[0]`` 返回哨兵主机名；
+    * 普通 tuple + ``str`` 子类主机名，其 ``__eq__`` 对哨兵恒真。
+
+    现在三道都钉死：``type(address) is tuple``（不认子类）、
+    ``tuple.__getitem__`` 读底层槽位（不走重载）、``type(host) is str``
+    （不认 ``str`` 子类的 ``__eq__``）。本模块自己合成的探针地址恰好满足全部三条，
+    别人构造的地址想满足就得**真的**是精确 tuple + 精确 str —— 那时它已经不是
+    伪装，而就是自证地址本身，而含 NUL 的主机名连不上任何东西。
+    """
+    if type(address) is not tuple:  # noqa: E721 —— 子类不算
+        return False
+    try:
+        if tuple.__len__(address) < 1:
+            return False
+        host = tuple.__getitem__(address, 0)
+    except Exception:  # noqa: BLE001
+        return False
+    return type(host) is str and host == _SELFTEST_HOST  # noqa: E721 —— str 子类不算
 
 
 def _audit_hook(event: str, args) -> None:
@@ -620,29 +727,195 @@ def assert_not_uvloop() -> None:
     _assert_uvloop_closed(RuntimeError, "（session 复核）")
 
 
-def assert_test_uri_not_blocked() -> None:
-    """``NEO4J_TEST_URI`` 必须**显式**指向一个可证安全的测试端口。
+def canonical_target_ports(uri: str) -> tuple[tuple[int, ...] | None, str]:
+    """按 **neo4j 驱动自己的解析链**复算这个 URI 的**全部初始目标端口**。
 
-    R1 Codex BLOCKER：旧实现是 ``f":{port}" in uri`` 的子串判断，
-    ``bolt://127.0.0.1``（**不写端口**）能通过 —— 而 neo4j 驱动对缺省端口的解析
-    结果是 **7687**，正是现网默认端口。于是在有意 advisory 的
-    integration/e2e/real_neo4j 用例里，门会「按 advisory 放行」一条打向开发库的连接。
+    返回 ``(端口元组, 依据)``；解析不出来返回 ``(None, 原因)``，调用方一律 fail-closed。
 
-    现在的判据是正面的：解析出端口 → 端口必须存在 → 且必须不在受拦集合里。
-    解析不出端口（含「压根没写端口」）一律拒绝，不再靠「没看见受拦端口的字样」
-    来推断安全。
+    ⚠️ 返回的是**元组**而不是单值：routing scheme（``neo4j://``）的 netloc 会被
+    ``Address.parse_list`` 按空白拆成**多个**初始地址（驱动取 ``[0]``，但整张表
+    都会进连接池的初始候选）。调用方必须要求**每一个**端口都合规 ——
+    只看第一个就会漏掉 ``neo4j://ok:7692 evil:7691`` 这类写法。
+
+    ⛔ 为什么不能用本模块的 :func:`_port_of_uri` 推断：它是**另一个解析器**，
+    与驱动的口径必然会分叉。X4 的 BLOCKER 就是这么来的 ——
+    ``_port_of_uri("bolt://127.0.0.1:0")`` 老实返回 ``0``，而驱动返回 **7687**。
+    判据要挡的是「驱动实际会连哪里」，就必须问驱动本人。
+
+    驱动的链路是三段（2026-09-05 于 venv 内实读 + 实跑）：
+
+    1. ``neo4j/_api.py::parse_neo4j_uri`` → ``urlparse(uri)``；
+       ``parsed.username`` / ``parsed.password`` 非空**直接** ``ConfigurationError``
+       —— 驱动根本不接受带 userinfo 的 URI；
+    2. 同处校验 scheme 白名单（bolt / bolt+s / bolt+ssc / neo4j / neo4j+s / neo4j+ssc），
+       其它 scheme ``ConfigurationError``；
+    3. ``_sync/driver.py:276`` 把 **``parsed.netloc``** 交给
+       ``_Direct._parse_target`` → ``Address.parse(netloc, default_host='localhost',
+       default_port=7687)``。
+
+    所以这里也走 ``urlparse → scheme 校验 → netloc → Address.parse{,_list}``，
+    参数与 ``:446-452`` / ``:470-479`` 一字不差。
+    **刻意不自己切字符串**：直接把 ``bolt://user:pass@h:7692`` 的 tail 喂给
+    ``Address.parse`` 得到的东西与驱动的真实行为（在第 1 步就 ConfigurationError）
+    是两回事 —— 那种"看起来也拒了"的巧合不能当判据，它在别的输入上就会分叉。
+    （原注释说那会抛 ``ValueError: Unknown port value``，round-1 Codex 指出**并非
+    总是如此**，本机实测某些形态会返回字符串端口；措辞已改成不依赖具体异常。）
+
+    ⚠️ **延迟 import 的合法性**：本模块刻意不在模块层 import 任何重物（装门必须
+    早于一切业务 import，见 ``tests/conftest.py:28``）。但本函数只由
+    :func:`assert_test_uri_not_blocked` 调用，而那是在 **session fixture**
+    （``tests/conftest.py:106``）里跑的 —— 那时 neo4j 早已可 import。
+    所以 import 写在**函数体内**是合法的；模块层新增 import 则禁止（裁判 6 会数）。
     """
+    try:
+        from urllib.parse import urlparse
+    except Exception as exc:  # noqa: BLE001 —— 标准库都 import 不了，只能 fail-closed
+        return None, f"urllib.parse 不可用（{exc!r}）"
+    try:
+        from neo4j import Address
+        from neo4j import api as neo4j_api
+    except Exception as exc:  # noqa: BLE001
+        return None, f"neo4j.Address / neo4j.api 不可用（{exc!r}）—— 无法按驱动口径复算，拒绝推断"
+    try:
+        parsed = urlparse(uri)
+    except Exception as exc:  # noqa: BLE001
+        return None, f"urlparse({uri!r}) 失败：{exc!r}"
+    try:
+        if parsed.username or parsed.password:
+            return None, "URI 含 userinfo —— 驱动的 parse_neo4j_uri 会直接 ConfigurationError"
+    except Exception as exc:  # noqa: BLE001 —— 畸形 netloc 会让 username 属性本身抛
+        return None, f"URI 的 userinfo 无法判定：{exc!r}"
+    # 第 2 段：scheme 白名单。常量取自 **驱动自己的公开 api 模块**，不自己抄字面值 ——
+    # 抄下来的字符串会随驱动升级悄悄过期，而 import 它则会当场报错。
+    # ⚠️ ``bolt+routing`` 刻意**不在**集合里：驱动对它抛「已改名，请用 neo4j://」。
+    # ⚠️ 这一段是 2026-09-05 本 session 自查补的：先前只做了 userinfo + Address.parse，
+    #    于是 ``ftp://127.0.0.1:7692`` / ``http://…`` / ``bolt+routing://…`` 都会被算出
+    #    7692 而**放行** —— 驱动那边其实是 ConfigurationError（连都建不起来）。
+    #    后果不是安全洞（建不起 driver 就不会连任何东西），但它让 docstring 里
+    #    「按驱动自己的解析链复算」这句**比实现宽**，而且拒因会给错（说"会连 7687"）。
+    supported_schemes = frozenset(
+        {
+            neo4j_api.URI_SCHEME_BOLT,
+            neo4j_api.URI_SCHEME_BOLT_SELF_SIGNED_CERTIFICATE,
+            neo4j_api.URI_SCHEME_BOLT_SECURE,
+            neo4j_api.URI_SCHEME_NEO4J,
+            neo4j_api.URI_SCHEME_NEO4J_SELF_SIGNED_CERTIFICATE,
+            neo4j_api.URI_SCHEME_NEO4J_SECURE,
+        }
+    )
+    # urlparse 已把 scheme 小写化，与驱动侧的比较口径一致。
+    if parsed.scheme not in supported_schemes:
+        return None, (
+            f"scheme {parsed.scheme!r} 不在驱动支持的集合 {sorted(supported_schemes)} 内 "
+            f"—— 驱动的 parse_neo4j_uri 会 ConfigurationError"
+        )
+    # 第 3 段：direct 与 routing 走的是**两个不同的解析入口**，必须跟着分流。
+    #
+    # ⛔ round-1 Codex BLOCKER：本卡第一版对所有 scheme 统一调 ``Address.parse``，
+    #    而驱动对 ``neo4j[+s|+ssc]`` 走的是 ``_Routing._parse_targets`` →
+    #    ``Address.parse_list``，后者**按空白把 netloc 拆成多个地址**
+    #    （``_addressing.py`` 的 ``parse_list``）。两条实测反例（本机 neo4j 6.1.0）：
+    #      * ``neo4j://127.0.0.1 :7692``      单值解析给 7692（放行），
+    #        parse_list 给 [('127.0.0.1', **7687**), ('localhost', 7692)]，驱动取 [0] ⇒ 连现网；
+    #      * ``neo4j://[::1]:7691 [::1]:7692`` 同理，驱动实际连 **7691**。
+    #    反方向也误拒：``neo4j://127.0.0.1:7692 localhost:7692`` 单值解析失败被拒，
+    #    而驱动接受它。
+    routing_schemes = frozenset(
+        {
+            neo4j_api.URI_SCHEME_NEO4J,
+            neo4j_api.URI_SCHEME_NEO4J_SELF_SIGNED_CERTIFICATE,
+            neo4j_api.URI_SCHEME_NEO4J_SECURE,
+        }
+    )
+    try:
+        if parsed.scheme in routing_schemes:
+            addrs = list(
+                Address.parse_list(
+                    parsed.netloc,
+                    default_host=_DRIVER_DEFAULT_HOST,
+                    default_port=_DRIVER_DEFAULT_PORT,
+                )
+            )
+            how = "Address.parse_list（routing scheme，按空白拆分多地址）"
+        else:
+            addrs = [
+                Address.parse(
+                    parsed.netloc,
+                    default_host=_DRIVER_DEFAULT_HOST,
+                    default_port=_DRIVER_DEFAULT_PORT,
+                )
+            ]
+            how = "Address.parse（direct scheme）"
+    except Exception as exc:  # noqa: BLE001
+        return None, f"驱动口径解析 netloc={parsed.netloc!r} 失败：{exc!r}"
+    if not addrs:
+        return None, f"驱动口径解析 netloc={parsed.netloc!r} 得到空地址表"
+    ports: list[int] = []
+    for addr in addrs:
+        try:
+            port = addr[1]
+        except Exception as exc:  # noqa: BLE001
+            return None, f"驱动解析结果取不到端口：{addr!r}（{exc!r}）"
+        if type(port) is not int or isinstance(port, bool):  # noqa: E721 —— 必须是精确 int
+            return None, f"驱动解析出的端口不是 int：{port!r}"
+        ports.append(port)
+    return tuple(ports), f"驱动 canonical：netloc={parsed.netloc!r} → {how} → {addrs!r}"
+
+
+def assert_test_uri_not_blocked() -> None:
+    """``NEO4J_TEST_URI`` 的**驱动 canonical 端口**必须在 :data:`ALLOWED_TEST_PORTS` 里。
+
+    判据历史（两次都是被独立终审打回后改的，留着免得有人往回改）：
+
+    1. 最早是 ``f":{port}" in uri`` 的子串判断 —— ``bolt://127.0.0.1``（不写端口）
+       通过检查，而驱动会用 7687。R1 Codex BLOCKER。
+    2. 改成「解析出端口 + 端口不在 :data:`BLOCKED_PORTS`」—— 仍是**黑名单**，
+       ``bolt://127.0.0.1:0`` 的端口 ``0`` 既非 None 又不在黑名单里 ⇒ 放行，
+       而驱动把 ``:0`` 归一成 7687，再经 :func:`is_exempt` 的 advisory 路径**真连开发库**。
+       X4 两轮独立终审给出的**同一条 BLOCKER**。
+
+    现在是**正面白名单 + 驱动口径**，判据显式三分，没有"其余情况"这种灰地带：
+
+    * 没配 ``NEO4J_TEST_URI`` → **射程外**，直接返回（不是本函数要管的事）；
+    * 驱动口径解析不出 int 端口 → **拒绝**（fail-closed，不再靠"没看见受拦端口"推断）；
+    * 解析出端口且 ∈ :data:`ALLOWED_TEST_PORTS` → **放行**；其余一律**拒绝**。
+
+    白名单为空时连 7692 也拒 —— 契约测试 monkeypatch 空集验证这一点，证明它承重
+    而不是恒真。
+    """
+    # ⛔ 先检查白名单**自己**合不合法，且**无条件**检查（不受"有没有配 URI"影响）：
+    #    「往 ALLOWED_TEST_PORTS 里加一个现网端口」是拆掉本判据最省事的方式 ——
+    #    加完之后 `:0`→7687 就成了"白名单内"，这道判据当场变成恒真。白名单与
+    #    受拦集合必须不相交，相交即 fail-closed。探针
+    #    `guard-allowed-test-ports-cannot-admit-live` 钉死这一条。
+    admitted_live = ALLOWED_TEST_PORTS & BLOCKED_PORTS
+    if admitted_live:
+        raise RuntimeError(
+            f"ALLOWED_TEST_PORTS={sorted(ALLOWED_TEST_PORTS)} 与受拦集合 "
+            f"{sorted(BLOCKED_PORTS)} 相交于 {sorted(admitted_live)} —— "
+            f"把现网端口放进测试白名单等于把这道判据拆成恒真，拒绝装门。"
+        )
     uri = os.environ.get("NEO4J_TEST_URI")
     if not uri:
-        return  # 没配测试容器 URI —— 不是本函数要管的事
-    port = _port_of_uri(uri)
-    if port is None:
+        return  # 射程外：没配测试容器 URI
+    ports, why = canonical_target_ports(uri)
+    if ports is None:
         raise RuntimeError(
-            f"NEO4J_TEST_URI={uri!r} 没有显式端口：驱动会用默认端口 7687，"
-            f"而 7687 正是受拦的现网默认端口。测试容器请写全，例如 bolt://127.0.0.1:7692。"
+            f"NEO4J_TEST_URI={uri!r} 无法按驱动口径解析出端口（{why}）。"
+            f"解析不了就不能证明它不指向现网库（默认端口 {_DRIVER_DEFAULT_PORT}），"
+            f"拒绝装门。测试容器请写全，例如 bolt://127.0.0.1:7692。"
         )
-    if port in BLOCKED_PORTS:
-        raise RuntimeError(f"NEO4J_TEST_URI={uri!r} 指向受拦端口 {port}（现网库）。测试容器应当是 7692。")
+    # ⛔ **每一个**初始候选地址都要合规，不是只看驱动会先用的那个：routing scheme
+    #    的 netloc 会被拆成多地址，`neo4j://ok:7692 evil:7691` 只看第一个就漏了。
+    offending = sorted({p for p in ports if p not in ALLOWED_TEST_PORTS})
+    if offending:
+        raise RuntimeError(
+            f"NEO4J_TEST_URI={uri!r} 按驱动口径的初始目标端口是 {list(ports)}，"
+            f"其中 {offending} 不在允许的测试端口白名单 {sorted(ALLOWED_TEST_PORTS)} 内。"
+            f"（{why}；驱动对缺省/0 端口的默认值是 {_DRIVER_DEFAULT_PORT}，"
+            f"而 {_DRIVER_DEFAULT_PORT} 正是现网默认端口。）"
+            f"测试容器请写全，例如 bolt://127.0.0.1:7692。"
+        )
 
 
 def assert_neo4j_target_blocked() -> None:
@@ -664,34 +937,43 @@ def assert_neo4j_target_blocked() -> None:
         raise RuntimeError(
             f"{ENV_REQUIRE_BLOCKED_TARGET}=1 但 NEO4J_URI 未设置：无法证明连接目标在门的射程内，拒绝装门。"
         )
-    port = _port_of_uri(uri)
-    if port is None:
-        raise RuntimeError(f"{ENV_REQUIRE_BLOCKED_TARGET}=1 但 NEO4J_URI={uri!r} 解析不出端口，拒绝装门。")
-    if port not in BLOCKED_PORTS:
+    # ⛔ 这里也必须用驱动口径（round-2 Codex MEDIUM）：旧实现用本模块自写的
+    #    :func:`_port_of_uri`，它把 query / fragment 里的数字当端口 —— 实测
+    #    ``bolt://127.0.0.1:11434#tag:7687`` 被它读成 7687、
+    #    ``bolt://127.0.0.1:7692?x=:7691`` 被它读成 7691，于是这道"目标必须在射程内"
+    #    的预检会**假通过**，负控以为自己钉死了受拦目标，其实没有。
+    #    与 :func:`assert_test_uri_not_blocked` 同源同口径，两处不再各用一个解析器。
+    ports, why = canonical_target_ports(uri)
+    if ports is None:
         raise RuntimeError(
-            f"{ENV_REQUIRE_BLOCKED_TARGET}=1 但 NEO4J_URI={uri!r} 指向端口 {port}，"
-            f"不在受拦集合 {sorted(BLOCKED_PORTS)} 内 —— 摘掉隔离后会真实连接该库，拒绝装门。"
+            f"{ENV_REQUIRE_BLOCKED_TARGET}=1 但 NEO4J_URI={uri!r} 按驱动口径解析不出端口（{why}），拒绝装门。"
+        )
+    # 反向判据：这里要的是「目标**在**受拦集合内」，所以**每一个**初始候选地址
+    # 都必须受拦 —— 有一个在射程外，摘掉隔离后它就会被真连。
+    escaping = sorted({p for p in ports if p not in BLOCKED_PORTS})
+    if escaping:
+        raise RuntimeError(
+            f"{ENV_REQUIRE_BLOCKED_TARGET}=1 但 NEO4J_URI={uri!r} 的初始目标端口是 {list(ports)}，"
+            f"其中 {escaping} 不在受拦集合 {sorted(BLOCKED_PORTS)} 内 —— "
+            f"摘掉隔离后会真实连接该库，拒绝装门。（{why}）"
         )
 
 
-def _port_of_uri(uri: str) -> int | None:
-    """从 ``bolt://[user:pass@]host:port[/path]`` 取端口。
-
-    解析不出来返回 None —— 调用方 :func:`assert_neo4j_target_blocked` 对 None
-    一律 fail-closed（拒绝装门），所以「解析器看不懂的 URI」不会变成放行。
-    """
-    tail = uri.split("://", 1)[1] if "://" in uri else uri
-    tail = tail.split("/", 1)[0]  # 去掉 path/query
-    tail = tail.rpartition("@")[2] or tail  # 去掉 userinfo（其中可能含 ':'）
-    if tail.startswith("["):  # IPv6 字面量 [::1]:7691
-        tail = tail.partition("]")[2]
-    if ":" not in tail:
-        return None
-    port_str = tail.rsplit(":", 1)[1]
-    try:
-        return int(port_str)
-    except ValueError:
-        return None
+# ⛔ 这里原本有一个 `_port_of_uri()` —— 本模块自写的 URI 端口解析器，
+#    已于 CARD-W4-3a **删除**（不是留着不用，是删掉）。理由：
+#
+#    它是「**另一个**解析器」，而门要判的是「驱动实际会连哪里」。两个解析器必然
+#    分叉，而每一次分叉都是一个洞。这个函数身上已经攒了两条实证缺陷：
+#      * `_port_of_uri("bolt://127.0.0.1:0")` 老实返回 0，驱动返回 7687
+#        （X4 两轮独立终审的那条 BLOCKER 就是这么来的）；
+#      * 它把 query / fragment 里的数字当端口 —— `bolt://127.0.0.1:11434#tag:7687`
+#        被读成 7687、`bolt://127.0.0.1:7692?x=:7691` 被读成 7691，于是
+#        `assert_neo4j_target_blocked` 的「目标必须在射程内」预检**假通过**
+#        （round-2 Codex MEDIUM）。
+#
+#    两个调用点（`assert_test_uri_not_blocked` / `assert_neo4j_target_blocked`）
+#    现在都走 :func:`canonical_target_ports`，同源同口径。留着一个零调用、已知有
+#    缺陷、名字又像"正经解析器"的函数，只会让下一个人再捡起来用。
 
 
 # ═══════════════════════════════════════════════════════════════════════════

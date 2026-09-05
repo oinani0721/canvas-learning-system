@@ -260,6 +260,12 @@ _BANNED_REBINDS = (
         "_BUCKET_CN",
         "_BUCKET_ORDER",
         "review_overview_router",
+        # `Request` 本身不是调用名也不是接收者, 却是 request 形参豁免**所依赖的**名字:
+        # 豁免判据只比对注解的拼写, 所以 `Request = str` 之后 `def f(request: Request)`
+        # 照样豁免, 而 FastAPI 会把它当成普通查询参数 —— 拿到字符串, `.url_for` 不存在
+        # (Codex round-1 HIGH-4, 已实测复现)。名字拼写不等于类型身份; 把这个名字锁死,
+        # 拼写才重新代表得了那个类。
+        "Request",
     }
 )
 #: 本模块**自有**的模块级定义名 —— 它们占着受保护名, 但那是这些名字的
@@ -351,6 +357,18 @@ def _assert_module_closed(src: str) -> None:
                 _flag_rebind(sub.id, where)
             elif isinstance(sub, (ast.Attribute, ast.Subscript)) and isinstance(sub.ctx, (ast.Store, ast.Del)):
                 root = _root_name(sub)
+                # R1 洞①: 根不是 Name 时 _root_name 返回空串, 而空串永远不在黑名单里 ——
+                # `(json or list).dumps = f` / `_js_json(1).dumps = f` / `(json if c else
+                # list).dumps = f` 改的都是受保护对象**本体**, 却因为"根名取不到"被放行
+                # (三条实测见 evidence-g62b/probe-r1.md)。同一个空串在装饰器接收者与
+                # request 注解那两个**白名单**语境里已经是 fail-closed (不在白名单 → 拒),
+                # 这里是**黑名单**语境, 方向正好相反 —— 所以收紧只能落在这个消费点上,
+                # 改 _root_name 本体会把那两处正确的行为一起改坏。
+                if not root:
+                    pytest.fail(
+                        f"写路径的根不可解析 ({ast.unparse(sub)}) — 根是调用/布尔短路/三元等"
+                        "表达式时取不到根名, 而它写的可能正是受保护对象本体 (R1 洞①)"
+                    )
                 if root in _BANNED_REBINDS:
                     pytest.fail(
                         f"受保护对象 {root!r} 的内部被写 ({ast.unparse(sub)}) — "
@@ -443,7 +461,13 @@ def _assert_module_closed(src: str) -> None:
                     assert dec.attr in _ALLOWED_CALL_ATTRS, (
                         f"白名单外装饰器方法 @….{dec.attr} — 无括号装饰器是导入期的隐式调用"
                     )
-                    dec_recv = _root_name(dec.value)
+                    # 与下面 ast.Call 分支**同口径**: 比对 unparse 出来的**完整**接收者
+                    # 路径, 不是只取根名。取根名会让中间层整段穿透 —— `@request.app.router.get`
+                    # 的根是 'request'、尾 attr 是 'get', 两头都在白名单, 中间的 .app.router
+                    # 无人校验就放行了; 而同一串表达式**作为调用**会被 Call 分支拒。
+                    # 同一形态在两条分支上一放一拒 = 口径分叉, 宽的那条就是绕过面
+                    # (Codex round-1 HIGH-3, 已实测复现)。
+                    dec_recv = ast.unparse(dec.value).split("(", 1)[0]
                     assert dec_recv in _ALLOWED_RECEIVERS, (
                         f"非白名单装饰器接收者 @{dec_recv}.{dec.attr} — 只查方法名挡不住任意对象"
                     )
@@ -478,6 +502,27 @@ def _assert_module_closed(src: str) -> None:
                     # (request.url_for 的合法来源) —— 但必须**真的**被注解成
                     # Request: 不带注解的 `request` 是普通查询参数, 拿到的是
                     # 字符串, `.url_for` 根本不存在 (round-5 BLOCKER-5)。
+                    #
+                    # ⚠ 适用面 (CARD-CX-G6-2b-R1 实测, 用例见 evidence-g62b/
+                    # probe-r1.md 与 codex-verify-r1-ast.md)。判据是「注解的**根名**
+                    # 等于字符串 'Request'」, 它在**两个方向上都不准**:
+                    #
+                    # (一) 误拒 —— 下面三种在 FastAPI 里合法的写法当前判红:
+                    #   def f(request: fastapi.Request)               → 根名 "fastapi"
+                    #   def f(request: Annotated[Request, Depends()]) → 根名 "Annotated"
+                    #   def f(request: "Request")                     → Constant, 空串
+                    # 方向 fail-closed, 不阻断; 代价是将来想用 Annotated 依赖注入会先撞门。
+                    #
+                    # (二) 漏网 —— **本卡初版把这条写成了「只认裸 Name」, 那是错的**
+                    #   (Codex round-1 HIGH-4 指出, 已实测复现):
+                    #   def f(request: Request.__class__)  → _root_name 下钻到 Name → 豁免
+                    #   def f(request: Request[0])         → 同上, 也豁免
+                    # 根名判定会**穿过** Attribute/Subscript, 所以豁免面并不限于裸 Name。
+                    # 收紧它要改判据本身, 卡文 (d) 明令只改声明不动判据 → 归后续卡。
+                    #
+                    # 另一半漏网 (`Request` 这个名字本身可被重绑定, 于是"注解拼成 Request"
+                    # 不等于"类型真的是 Request") 已在本卡堵上: `Request` 已进
+                    # _BANNED_REBINDS, 见那里的注释。
                     annotated_request = (
                         arg_name == "request"
                         and _root_name(getattr(arg, "annotation", None) or ast.Constant(value=None)) == "Request"
@@ -579,6 +624,28 @@ _AST_PROBES = {
     "import-alias": ("import json as _probe_j\n", "import alias 禁止"),
     "type-形参": ("def _probe_tp[json]():\n    pass\n", "type 形参遮蔽"),
     "无注解request形参": ("def _probe_r(request):\n    return request\n", "受保护名"),
+    # ── CARD-CX-G6-2b-R1 补审: 写路径「根名取不到」的 fail-open 面 (洞①) ──
+    # 上面「受保护对象-下标写 / 元组内属性目标」那批封的是**根是 Name** 的写路径;
+    # 根换成调用/布尔短路/三元, _root_name 返回空串就绕过去了 —— 而这三条改的
+    # 都是受保护对象本体 (json 为真值, `(json or list).dumps` 就是 json.dumps)。
+    "根不可解析-调用结果属性写": ('_js_json(1).dumps = lambda value, **kwargs: "wrong"\n', "根不可解析"),
+    "根不可解析-布尔短路属性写": ('(json or list).dumps = lambda value, **kwargs: "wrong"\n', "根不可解析"),
+    "根不可解析-三元属性写": (
+        '(json if _PAGE_TEMPLATE else list).dumps = lambda value, **kwargs: "wrong"\n',
+        "根不可解析",
+    ),
+    # ── Codex round-1 复核补口 (CARD-CX-G6-2b-R1, 逐条实测复现后才改) ──
+    # HIGH-4: 豁免比对的是注解**拼写**, 不是类型身份。`Request` 被重绑定后
+    # `def f(request: Request)` 照样豁免, 而 FastAPI 会把它当查询参数 (拿到字符串,
+    # `.url_for` 不存在)。把这个名字锁进 _BANNED_REBINDS, 拼写才重新代表得了那个类。
+    "Request名被重绑定": ("Request = str\n", "受保护名"),
+    # HIGH-3: 装饰器接收者原先只取根名 → 中间层整段穿透。改成与 Call 分支同口径的
+    # unparse 全路径比对后, 下面这条必须红 —— 它的根名 'request' 在白名单里,
+    # 靠的正是「中间层没人看」。
+    "装饰器-链式中间层穿透": (
+        "@request.app.router.get\ndef _probe_chain():\n    pass\n",
+        "非白名单装饰器接收者",
+    ),
 }
 
 #: 反向探针: 这些**合法**写法必须放行。加严的门只可能在两个方向上错 ——
@@ -786,6 +853,23 @@ def _assert_node_green(proc: subprocess.CompletedProcess):
     # skipped 必须为 0 — 门不许被 conditional skip 悄悄掏空 (HIGH-2 配套);
     # 零计数 (`# skipped 0` / `skipped 0`) 放行, 非零即红
     assert not re.search(r"\bskipped?\s*[:=]?\s*[1-9]", proc.stdout), f"出现非零 skip:\n{proc.stdout}"
+    # 计数必须对上 (CARD-CX-G6-2b-R1, Codex round-1 MEDIUM-3): 退出码 0 + 无 skip
+    # **不足以**证明门跑过了 —— 一个 test 都没收集到时 `node --test` 同样 rc=0、
+    # 同样零 skip, 于是「JS 门全绿」可以由一个空跑平凡满足。本卡实测撞到过:
+    # case 文件里一处括号写错 → 模块根本没加载 → tests 1 / fail 1, 若只看 rc 与 skip
+    # 会读成"环境有问题"而不是"门没跑"。
+    # 不写死具体条数 (各门用例数不同), 只锁住三条通用不变量。
+    counts = {
+        k: int(m.group(1))
+        for k in ("tests", "pass", "fail")
+        if (m := re.search(rf"^[ℹ#]\s*{k}\s+(\d+)\s*$", proc.stdout, flags=re.M))
+    }
+    assert len(counts) == 3, f"取不到 node --test 的计数摘要 (tests/pass/fail):\n{proc.stdout}"
+    assert counts["tests"] > 0, f"零条 test 被收集 — 门是空跑, 不是绿:\n{proc.stdout}"
+    assert counts["fail"] == 0, f"fail 非零:\n{proc.stdout}"
+    assert counts["pass"] == counts["tests"], (
+        f"pass({counts['pass']}) != tests({counts['tests']}) — 有用例既没过也没记failed:\n{proc.stdout}"
+    )
 
 
 #: 测试公共 fixture JSON: 覆盖四态 + 休息日 + W6 三字段 (固定时钟, 不读真实时间)
@@ -1972,6 +2056,105 @@ test("status='constructor' → 走灰徽标兜底, 不命中继承属性", () =>
   assert.match(h, /constructor/, "原字面灰徽标");
   assert.match(h, /#6b7280/);
   assert.ok(!h.includes("今日投影"));
+});
+""",
+    )
+    _assert_node_green(proc)
+
+
+# ════════════════════════════════════════════════════════════════════
+# E. 轮询节奏契约的**接线层** (CARD-G6-3 完成条件 b)
+# ════════════════════════════════════════════════════════════════════
+
+
+@pytest.mark.usefixtures("page_html")
+def test_js_poll_contract_wiring_g63(node_harness):
+    """CARD-G6-3 (b): 四条轮询契约在**真实事件驱动**下各一条断言。
+
+    与既有 test_js_poll_interval_clamped_and_visibility_pauses 的分工:
+    那门测的主要是 `computePollDelayMs` / `visibilityAction` 两个**纯函数**,
+    接线只覆盖了 60s 上限一条路径。纯函数对不代表接线对 —— 函数算出 5000
+    与「真的排了一个 5000 的 timer」是两回事; `visibilityAction` 返回
+    `pollNow: true` 与「visibilitychange 事件真的触发了一轮 GET」也是两回事。
+    本门补的就是这段落差:
+
+      ① clamp 下限 5s 走到 setTimeout (上限那条既有门已覆盖, 这里一并锁住,
+         两个边界都在同一个事件驱动路径上比对);
+      ② clamp 上限 60s 同上;
+      ③ visibilitychange 事件真的引发一轮 GET (不是只返回一个意图对象);
+      ④ 自动轮询整条路径上 POST 计数**恒为 0** —— 既有门数的是源码里
+         `method: "POST"` 出现几次 (静态文本), 那挡不住"运行时经由别的路径
+         发出 POST"; 这里数的是沙箱 fetch 实际收到的 POST 次数。
+
+    本卡零产品代码改动: 只加测试, 一个字节的 JS 都没动。
+    node 不可用时 node_harness fixture 直接 fail —— 本门不接受 skip 假绿。
+    """
+    proc = _run_node(
+        node_harness,
+        _BOOT_PRELUDE
+        + r"""
+// next_due 相对**真实** Date.now() 构造 —— 沙箱不冻结时钟, 排程延迟是拿
+// 真实 now 算的; 用固定日期会一律落到"已过期 → 回落上限", 下限路径就测不到。
+function feedIn(seconds) {
+  const iso = new Date(Date.now() + seconds * 1000).toISOString().replace(/\.\d{3}Z$/, "Z");
+  return () => ({ok: true, status: 200, json: async () => ({vaults: [{
+    vault_id: "v", status: "ok", error: null,
+    projection: {due_count: 1, due_new_count: 0, placeholder_backlog: 0,
+      bucket_counts: null, generated_at: "g", boards: [],
+      next_upcoming: {board: "b", next_due: iso, node: "n"}}}]})});
+}
+
+test("① clamp 下限: 2 秒后到期 → 实际排程 5000ms (不打爆后端)", async () => {
+  const b = boot({getJson: feedIn(2)});
+  await flush();
+  assert.equal(b.calls.get, 1);
+  assert.equal(b.timers.length, 1, "必须排下一轮");
+  assert.equal(b.timers[0].ms, 5000, "下限没生效 = 会按 2 秒打后端");
+  assert.match(b.els["nextpoll"].textContent, /5 秒后/);
+});
+
+test("② clamp 上限: 1 小时后到期 → 实际排程 60000ms (不睡死)", async () => {
+  const b = boot({getJson: feedIn(3600)});
+  await flush();
+  assert.equal(b.timers[0].ms, 60000, "上限没生效 = 一小时不问后端");
+  assert.match(b.els["nextpoll"].textContent, /60 秒后/);
+});
+
+test("③ visibilitychange 接线: 隐藏不排程, 回前台**真的**又拉了一轮", async () => {
+  const b = boot({getJson: feedIn(3600), hidden: true});
+  await flush();
+  assert.equal(b.calls.get, 1, "首轮照拉");
+  assert.equal(b.timers.length, 0, "隐藏期间不排下一轮");
+  assert.match(b.els["nextpoll"].textContent, /已暂停/);
+
+  b.document.hidden = false;
+  b.handlers["document::visibilitychange"]();   // 真实事件, 不是调纯函数
+  await flush();
+  assert.equal(b.calls.get, 2, "回前台必须立即拉一轮 (pollNow 的接线端)");
+  assert.equal(b.timers.length, 1, "回前台后恢复排程");
+});
+
+test("④ 自动轮询绝不 POST: 连跑多轮, 沙箱收到的 POST 次数恒为 0", async () => {
+  const b = boot({getJson: feedIn(3600)});
+  await flush();
+  assert.equal(b.calls.get, 1);
+  assert.equal(b.calls.post, 0);
+  // 手动把排程的 timer 打到点, 模拟自动轮询连续跑 —— 每一轮都不许 POST
+  for (let i = 0; i < 5; i++) {
+    const t = b.timers.pop();
+    assert.ok(t, "每轮结束都应排下一轮");
+    t.fn();
+    await flush();
+  }
+  assert.equal(b.calls.get, 6, "5 轮自动轮询 + 首轮 = 6 次 GET");
+  assert.equal(b.calls.post, 0, "自动轮询路径上出现了 POST — 默认裁决② 被破坏");
+  // 隐藏/回前台各来一次, 同样不许 POST
+  b.document.hidden = true;
+  b.handlers["document::visibilitychange"]();
+  b.document.hidden = false;
+  b.handlers["document::visibilitychange"]();
+  await flush();
+  assert.equal(b.calls.post, 0, "可见性切换路径上也不许 POST");
 });
 """,
     )

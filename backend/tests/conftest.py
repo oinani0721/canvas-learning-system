@@ -183,9 +183,16 @@ def pytest_cmdline_main(config):
 
     ⚠️ 本层**不是最后一道**：pytest 在本 hook 返回之后还有自身清理、其它
     ``atexit`` 处理器与迟到线程（第八批 Codex HIGH 实测：那段窗口里的拦截被
-    记账、进程却仍 exit 0）。最终收口在 ``live_port_guard._final_accounting``
-    （``atexit`` LIFO 最后执行，必要时 ``os._exit(3)``）。这里把最终裁定用的
-    退出码回填给它。
+    记账、进程却仍 exit 0）。再往后一层是 ``live_port_guard._final_accounting``
+    （``atexit``，必要时 ``os._exit(3)``）。这里把最终裁定用的退出码回填给它。
+
+    ⛔ 措辞更正（CARD-W4-3b，2026-09-05）：这里原本写「``atexit`` LIFO 最后执行」，
+    **比实现宽**，且已被 R1 Codex HIGH-2 打回过（``live_port_guard.py:47`` /
+    ``:708`` 那两处当时改了，本处漏改）。``atexit`` 是 LIFO 意味着**后注册的先跑**
+    —— 在 ``live_port_guard`` 被 import **之前**就注册的回调排在它**后面**，所以
+    它不是「最后一道」。真正兜住那段窗口的不是执行次序，而是 ``_final_accounting``
+    进入时立刻置不可逆的 ``_FINALIZING``：此后 audit hook 一命中受拦端口就地
+    ``os._exit(3)``，不依赖任何后续的结账机会。
     """
     status = yield
     state = live_port_guard.STATE

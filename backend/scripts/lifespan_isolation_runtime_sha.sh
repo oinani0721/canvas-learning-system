@@ -9,8 +9,10 @@
 # 例:
 #   bash scripts/lifespan_isolation_runtime_sha.sh -- .venv/bin/pytest tests/api -q
 #
-# 判据: 三个受监视文件在命令前后 **逐字节相同**（sha256 相等，或前后都不存在）。
-#       任一不同 → 打印 `RUNTIME-FILES: CHANGED` 并 exit 1。
+# 判据: 受监视文件在命令前后 **逐字节相同**（sha256 相等，或前后都不存在）。
+#       监视面 = WATCHED_FIXED 的固定项 + WATCHED_GLOBS 每次快照重新展开的 glob 项；
+#       任一不同（含 glob 在 after 才展开出来的**新建**文件）→ 打印
+#       `RUNTIME-FILES: CHANGED` 并 exit 1。
 #
 # ## 为什么整段前言这么长（第八批 Codex HIGH 的直接整改）
 #
@@ -39,8 +41,10 @@
 #
 # ## 这道门不比什么（诚实边界）
 #
-# * 只看这三个**具名**文件。lifespan 若写了别的路径（新增的日志/缓存/临时文件），
-#   本门看不到 —— 它证明的是「这三个已知受害者没被动」，不是「全盘零写入」。
+# * 只看 WATCHED_FIXED / WATCHED_GLOBS 这份**具名**清单（3 个固定项 + 1 条 glob）。
+#   lifespan 若写了别的路径（新增的日志/缓存/临时文件），本门看不到 —— 它证明的是
+#   「这几个已知受害者没被动」，不是「全盘零写入」。同族的
+#   `lancedb_pending_index__*.jsonl` **不在**清单里（扩面属另一张卡的范围决策）。
 # * 只比首尾两个时刻。命令中途写进去、结束前又改回原内容，本门判 unchanged。
 # * 不看 live vault、不看 Neo4j。数据库里被 DDL 改了 schema，本门照样绿
 #   —— 那是 socket 门（backend/tests/support/live_port_guard.py）的职责。
@@ -180,6 +184,15 @@ if [ -z "$SHA_BIN" ]; then
 fi
 DATE_BIN=/bin/date
 DIFF_BIN=/usr/bin/diff
+# ⛔ 排序是**承重**的，不是装饰（M13，见 snapshot() 里的实测记录）：glob 展开顺序
+#    不稳定时 before/after 会因**排列不同**而字符串不等 ⇒ 门判 CHANGED 假红。
+#    所以 SORT_BIN 缺席必须 fail-closed，不能像 DIFF_BIN 那样软降级。
+SORT_BIN=/usr/bin/sort
+if [ ! -x "$SORT_BIN" ]; then
+  builtin printf 'RUNTIME-FILES: GATE-BROKEN — 找不到可执行的 %s；glob 展开无法稳定排序，拒绝给出结论\n' \
+    "$SORT_BIN" >&2
+  exit 1
+fi
 
 # ── 门自证：常量串的 sha256 必须等于钉死值 ──────────────────────────────
 # 这一步同时验证 SHA_BIN、builtin printf、builtin read 三者都没被掉包。
@@ -226,11 +239,16 @@ if [ ! -f "${BACKEND_DIR}/app/main.py" ] || [ ! -d "${BACKEND_DIR}/tests" ]; the
 fi
 
 # 受监视文件 —— 均 git-ignored 的运行时产物，均由 app/main.py 的 lifespan 链写。
-#   bug_log.jsonl            <- app/core/bug_tracker.py
-#   outbox/events.jsonl      <- app/services/event_bus.py
+#   bug_log.jsonl                <- app/core/bug_tracker.py
+#   outbox/events.jsonl          <- app/services/event_bus.py
+#   app/data/vault_index_pending.jsonl
+#       <- app/core/vault_state_paths.py::legacy_state_path（G2-5 之前的旧固定名）。
+#          它以前是被下面那条过宽 glob 顺带收进来的；M14 收窄后 glob 只认命名空间
+#          形态，所以旧名必须**显式**列在这里，否则监视面会悄悄变窄。
 WATCHED_FIXED=(
   "${BACKEND_DIR}/data/bug_log.jsonl"
   "${BACKEND_DIR}/data/outbox/events.jsonl"
+  "${BACKEND_DIR}/app/data/vault_index_pending.jsonl"
 )
 
 # ⛔ orchestrator 的 durable journal 不能写成固定文件名（2026-09-04 主干合并后
@@ -240,10 +258,19 @@ WATCHED_FIXED=(
 #    截断 —— 文件名不可预先硬编码。锚点落空的后果就是本门恒 unchanged 的**假绿**：
 #    它断言的是"没变"，而一个永远不存在的路径永远 absent==absent。
 #   vault_index_pending__*.jsonl <- app/services/vault_index_orchestrator.py:131
+#
+# ⛔ M14 收窄（CARD-W4-3b，2026-09-05）：上一版是 `vault_index_pending*.jsonl`，
+#    比写侧**实际能产出的形态更宽** —— 单下划线的 `vault_index_pending_backup.jsonl`
+#    这类人手放的旁文件也会进监视面，让本门对「有人在 app/data 放了个备份」判 CHANGED
+#    （假红）。门以「会误报」出名，下一个人就会去放宽它。现在只认两条**可由写侧证明**
+#    的形态：旧固定名进上面的 WATCHED_FIXED，命名空间形态进本 glob。
+#    `NAMESPACE_SEP` 是双下划线（vault_state_paths.py:36），`sanitize_vault_id` 保证
+#    key 只含 \w、压缩形态是 `<前缀>-<sha12>`，两者都不含 `/` —— `__*` 恰好覆盖全部
+#    可能的 key。收窄是**放松**方向，逐文件证据见验收单 §M14。
 WATCHED_GLOBS=(
-  "${BACKEND_DIR}/app/data/vault_index_pending*.jsonl"
+  "${BACKEND_DIR}/app/data/vault_index_pending__*.jsonl"
 )
-EXPECTED_FIXED_COUNT=2
+EXPECTED_FIXED_COUNT=3
 EXPECTED_GLOB_COUNT=1
 
 # 自检: 监视清单不能悄悄变空/变短 —— 空清单会让本门「零比较、恒绿」。
@@ -272,8 +299,21 @@ fi
 
 snapshot() {
   # 逐行输出 "<sha256|absent>  <path>"；固定项在前（顺序与 WATCHED_FIXED 一致），
-  # glob 项在后（compgen -G 的展开结果本身就按 collating sequence 排好序，所以
-  # 不必引入外部 sort —— 少一个需要锁死路径的工具）。
+  # glob 项在后，**显式按字节序排序**（`LC_ALL=C sort`）。
+  #
+  # ⛔ M13 更正（CARD-W4-3b，2026-09-05 实测）：上一版这里写的是「compgen -G 的展开
+  #    结果本身就按 collating sequence 排好序，所以不必引入外部 sort」——**这句是错的**，
+  #    而且它是**未经实测**就写下的断言。在绑定环境 GNU bash 3.2.57(1)-release
+  #    (arm64-apple-darwin25) 上实测（六个文件 p__{zeta,alpha,Mid,beta,10,2}.jsonl）：
+  #      * `compgen -G "p__*.jsonl"`  → alpha, 2, Mid, zeta, beta, 10   ← **readdir 顺序**
+  #      * `for f in p__*.jsonl`      → 10, 2, alpha, beta, Mid, zeta   ← 排序（同 ls）
+  #    `LC_ALL=C` 与默认 locale 下 compgen 的输出**完全一致**，可见它压根没走排序。
+  #    也就是说 pathname expansion 排序、`compgen -G` 不排序，两者不能互相推断。
+  #    后果：目录里增删文件会让 readdir 顺序重排，同一批内容在 before/after 排成不同
+  #    顺序 ⇒ 字符串不等 ⇒ 判 CHANGED，**假红**。假红比假绿轻，但会把门推向「大家都
+  #    知道它爱误报」，下一个人就来放宽它 —— 所以照样得修。
+  #    修法用 `LC_ALL=C` 钉死字节序：locale 会改变 sort 的比较规则，不钉死的话
+  #    before/after 之间只要环境变量不同就能排出两个顺序（本仓吃过这个亏）。
   # hash 管道任何一环失败（shasum 出错 / 结果非 64 位十六进制）都判门损坏，
   # 不允许「空 digest 前后相等 = unchanged」的假绿。
   local f digest g
@@ -283,7 +323,7 @@ snapshot() {
   #    初版把展开写成 `compgen -G "$g" || true`：`|| true` 本意只是吞掉「无匹配」
   #    （compgen -G 无匹配时返回 1，这是正常情形），但它**同时吞掉了「compgen 本身
   #    坏了/被劫持」**——两种情况在返回码上不可区分。后果是 glob 项**整组静默消失**，
-  #    快照退化成只剩固定两项，门照样打印 `unchanged` ⇒ 假绿。
+  #    快照退化成只剩固定项，门照样打印 `unchanged` ⇒ 假绿。
   #    自检用一个**必然匹配**的字面路径（脚本开头已断言 app/main.py 存在）：它既不含
   #    通配符、又必须原样回显，compgen 一旦不是真 builtin 就对不上。
   local __cg_probe __cg_expect="${BACKEND_DIR}/app/main.py"
@@ -296,11 +336,23 @@ snapshot() {
 
   # ⛔ glob 必须**每次快照都重新展开**：命令跑完后才被创建出来的 journal，只有
   #    在 after 这一次展开里才看得见。把展开结果算一次缓存起来 = 新建文件永远
-  #    进不了 after 快照，本门就退化成只盯固定两项。
+  #    进不了 after 快照，本门就退化成只盯固定项。
+  # ⛔ 排序**不能**直接串进 `compgen … | sort || true` 那条管道：`|| true` 是给
+  #    「compgen 无匹配（rc=1，正常情形）」用的，串进去之后 **sort 自己坏掉**也会被
+  #    同一个 `|| true` 吞掉 —— glob 项整组静默消失、门照样打印 unchanged，正是上面
+  #    compgen 自检要防的那类假绿的翻版。所以分两步：无匹配照旧容错，排序失败 fail-closed。
+  local __raw __sorted
   for g in "${WATCHED_GLOBS[@]}"; do
+    __raw="$(builtin compgen -G "$g" || true)"
+    [ -n "$__raw" ] || continue
+    __sorted="$(builtin printf '%s\n' "$__raw" | LC_ALL=C "$SORT_BIN")" || {
+      builtin printf 'RUNTIME-FILES: GATE-BROKEN — glob 展开排序失败（%s），拒绝给出结论\n' \
+        "$SORT_BIN" >&2
+      exit 1
+    }
     while IFS= read -r f; do
       [ -n "$f" ] && targets+=("$f")
-    done < <(builtin compgen -G "$g" || true)
+    done <<<"$__sorted"
   done
   for f in "${targets[@]}"; do
     if [ -f "$f" ]; then

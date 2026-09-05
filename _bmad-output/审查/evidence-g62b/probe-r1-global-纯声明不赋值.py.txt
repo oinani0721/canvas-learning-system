@@ -1,0 +1,6 @@
+# CARD-CX-G6-2b-R1 探针: global-纯声明不赋值
+# 用法: 追加到 review_app.py 源码**字符串**尾部（只在内存里拼, 不落进生产文件）
+# 预期: ALLOW  —  只有 global 声明、没有赋值 → 绑定未被改变 → 放行是正确语义，不是漏网
+def _probe_g4():
+    global json
+    return _js_json(1)

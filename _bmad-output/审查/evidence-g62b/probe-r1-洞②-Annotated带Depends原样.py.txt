@@ -1,0 +1,5 @@
+# CARD-CX-G6-2b-R1 探针: 洞②-Annotated带Depends原样
+# 用法: 追加到 review_app.py 源码**字符串**尾部（只在内存里拼, 不落进生产文件）
+# 预期: REJECT:受保护名  —  卡文点名的原样写法。实测拒因**就是**洞②那条（参数遮蔽）而不是「白名单外调用」——`ast.walk` 是 BFS（内部用 deque），FunctionDef 先于它的子节点 Call 出队，参数遮蔽检查先触发。写这条前我预期它会先撞 Call 白名单，实测推翻了该预期
+def _probe_r4(request: Annotated[Request, Depends()]):
+    return request

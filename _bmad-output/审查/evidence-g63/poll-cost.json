@@ -1,0 +1,16 @@
+{
+  "sample_requests": 720,
+  "due_count": 12,
+  "nodes_seeded": 12,
+  "cpu_total_s": 0.6384,
+  "wall_total_s": 0.8266,
+  "cpu_per_req_ms": 0.8867,
+  "wall_per_req_ms_p50": 1.1374,
+  "p95": 1.2629,
+  "p99": 1.4121,
+  "rss_delta_mb": 6.44,
+  "hour_requests_max": 720,
+  "hour_requests_min": 60,
+  "hour_cpu_s_max": 0.638,
+  "hour_cpu_s_min": 0.053
+}
