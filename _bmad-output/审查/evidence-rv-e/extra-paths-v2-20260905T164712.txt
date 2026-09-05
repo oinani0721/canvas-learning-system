@@ -1,0 +1,32 @@
+########## CARD-RV-E 追加探针 v2  20260905T170519 ##########
+
+=== E2b 索引 ===
+M	control.py
+T	t.txt
+=== E2b --diff-filter=AM 枚举面(t.txt 在不在里面) ===
+control.py
+=== E2b symlink 目标串确实带标记 ===
+target_with_ZZPROBEMARKZZ_inside
+=== E2b 不加 --diff-filter 时 t.txt 的新增行 ===
++++ /dev/null
++++ b/t.txt
++target_with_ZZPROBEMARKZZ_inside
+=== E2b NEW 门 ===
+
+[Mutant-Scan] BLOCKED — 暂存的新增行里带变异残留标记:
+  control.py:2: ctl = "ZZPROBEMARKZZ"
+
+[Mutant-Scan] 变异 harness 没还原干净。先 restore 被改的生产文件,
+[Mutant-Scan] 再拿变异前的全文件 sha 基线逐个复核 —— 标记只是最弱那道网。
+E2b rc=1
+>>> 判读: 验伪锚 control.py 被抓到 = 门在跑; t.txt 未出现在 hits = T 状态漏检
+
+=== E3b: sh 中 "while ... done < 不存在的文件" 之后是否继续执行 ===
+sh: line 2: /nonexistent/list: No such file or directory
+  loop rc=1 ; FAILED=0 ; 循环体未执行
+  -> 会打印 OK (fail-open)
+E3b outer rc=0
+>>> 对照: 真实门里 $TMPD/list 由 :298 的 tr 刚创建, :298 失败会 exit 1;
+>>> 故该窗口窄(需 TMPD 在 :298 与 :320 之间消失), 但确属 FAILED 位未覆盖的失败点。
+
+########## 追加探针 v2 结束 20260905T170519 ##########

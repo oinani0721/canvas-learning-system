@@ -1,0 +1,38 @@
+=== py39 与 py312 的诊断差集(那 3 条是什么) ===
+py39 条数=      24  py312 条数=      21
+--- 只在 py39 出现(即目标版本相关的那几条) ---
+scripts/spec-tools/api-reality-dashboard.py:120:38
+scripts/spec-tools/api-reality-dashboard.py:120:39
+scripts/spec-tools/api-reality-dashboard.py:120:46
+--- 只在 py312 出现 ---
+
+=== 这几条的诊断原文(py39) ===
+    |
+
+invalid-syntax: Cannot use an escape sequence (backslash) in f-strings on Python 3.9 (syntax was added in Python 3.12)
+   --> scripts/spec-tools/api-reality-dashboard.py:120:38
+--
+    |
+
+invalid-syntax: Cannot reuse outer quote character in f-strings on Python 3.9 (syntax was added in Python 3.12)
+   --> scripts/spec-tools/api-reality-dashboard.py:120:39
+--
+    |
+
+invalid-syntax: Cannot use an escape sequence (backslash) in f-strings on Python 3.9 (syntax was added in Python 3.12)
+   --> scripts/spec-tools/api-reality-dashboard.py:120:46
+--
+    |
+
+invalid-syntax: f-string: unterminated string
+   --> scripts/spec-tools/api-reality-dashboard.py:120:84
+--
+    |
+
+invalid-syntax: f-string: unterminated string
+   --> scripts/spec-tools/api-reality-dashboard.py:120:84
+--
+    |
+
+invalid-syntax: f-string: expecting `}`
+   --> scripts/spec-tools/api-reality-dashboard.py:123:1

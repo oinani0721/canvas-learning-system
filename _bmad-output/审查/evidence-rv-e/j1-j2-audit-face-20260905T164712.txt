@@ -1,0 +1,16 @@
+=== J1: blob identity HEAD vs 870e52b3 ===
+17dacb73c22b2c60fdfdd6e80f56536a33044fe0
+17dacb73c22b2c60fdfdd6e80f56536a33044fe0
+fdc227b0e03cf51202740779c5a38f67a8390d12
+fdc227b0e03cf51202740779c5a38f67a8390d12
+--- rc=0
+
+=== J2: audit face diffstat b20fe550..870e52b3 ===
+ lefthook.yml | 98 +++++++++++++++++++++++++++++++++++++++++++++---------------
+ ruff.toml    | 22 +++++++++-----
+ 2 files changed, 88 insertions(+), 32 deletions(-)
+--- rc=0
+
+=== J2b: commit subject 870e52b3 / b20fe550 ===
+870e52b3 fix(lint): 变异残留门补 6 处静默放行 + 撤回 target-version [BATCH-2026-09-05-第十一批]
+b20fe550 style(scripts): ruff format 落盘 86 个文件, 清 scripts/ 存量格式债 [BATCH-2026-09-05-第十一批]

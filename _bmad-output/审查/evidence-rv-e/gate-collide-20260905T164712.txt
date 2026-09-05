@@ -1,0 +1,135 @@
+########################################################
+# CARD-RV-E 门对撞取证  20260905T165748
+# OLD = b20fe550:lefthook.yml 的 mutant-residue-scan run 块(逐字, 仅 MARKER 换中性串)
+# NEW = 870e52b3:lefthook.yml 的同一块(= 主干 HEAD, blob 17dacb73)
+# MARKER 探针串 = ZZPROBEMARKZZ
+########################################################
+
+=== 场景1 索引 ===
+A	"back\\slash.py"
+A	"dq\"uote.py"
+A	"new\nline.py"
+A	plain.py
+A	plusplus.py
+R094	orig.py	renamed.py
+A	star*glob.py
+A	"tab\tname.py"
+A	"\344\270\255\346\226\207\345\220\215.py"
+
+--- 场景1 OLD ---
+
+[Mutant-Scan] BLOCKED — 暂存的新增行里带变异残留标记:
+  plain.py:2: y = "ZZPROBEMARKZZ"
+  plusplus.py:1: g = "ZZPROBEMARKZZ"
+  star*glob.py:1: s = "ZZPROBEMARKZZ"
+  中文名.py:1: u = "ZZPROBEMARKZZ"
+
+[Mutant-Scan] 变异 harness 没还原干净。先 restore 被改的生产文件,
+[Mutant-Scan] 再拿变异前的全文件 sha 基线逐个复核 —— 标记只是最弱那道网。
+OLD rc=1
+
+--- 场景1 NEW ---
+
+[Mutant-Scan] BLOCKED — 暂存的新增行里带变异残留标记:
+  backslash.py:1: b = "ZZPROBEMARKZZ"
+  dq"uote.py:1: q = "ZZPROBEMARKZZ"
+  plain.py:2: y = "ZZPROBEMARKZZ"
+  plusplus.py:2: g = "ZZPROBEMARKZZ"
+  renamed.py:31: r = "ZZPROBEMARKZZ"
+  star*glob.py:1: s = "ZZPROBEMARKZZ"
+  tab	name.py:1: t = "ZZPROBEMARKZZ"
+  中文名.py:1: u = "ZZPROBEMARKZZ"
+
+[Mutant-Scan] 变异 harness 没还原干净。先 restore 被改的生产文件,
+[Mutant-Scan] 再拿变异前的全文件 sha 基线逐个复核 —— 标记只是最弱那道网。
+NEW rc=1
+
+=== 场景2 索引 ===
+A	:magic.py
+A	sharp.py
+A	x?.py
+A	xy.py
+
+--- 场景2 OLD ---
+
+[Mutant-Scan] BLOCKED — 暂存的新增行里带变异残留标记:
+  x?.py:1: w = "ZZPROBEMARKZZ"
+
+[Mutant-Scan] 变异 harness 没还原干净。先 restore 被改的生产文件,
+[Mutant-Scan] 再拿变异前的全文件 sha 基线逐个复核 —— 标记只是最弱那道网。
+OLD rc=1
+
+--- 场景2 NEW ---
+
+[Mutant-Scan] BLOCKED — 暂存的新增行里带变异残留标记:
+  :magic.py:1: c = "ZZPROBEMARKZZ"
+  sharp.py:1: +++ ZZPROBEMARKZZ marker on a plus-plus-plus line
+  x?.py:1: w = "ZZPROBEMARKZZ"
+
+[Mutant-Scan] 变异 harness 没还原干净。先 restore 被改的生产文件,
+[Mutant-Scan] 再拿变异前的全文件 sha 基线逐个复核 —— 标记只是最弱那道网。
+NEW rc=1
+
+=== 场景3 原语: '^+' 命中数 ===
+  裸 diff(无 --no-color)          : 0
+  -c color.ui=never (注释称无效)  : 0
+  --no-color 标志   (注释称有效)  : 3
+
+--- 场景3 OLD ---
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+OLD rc=0
+
+--- 场景3 NEW ---
+
+[Mutant-Scan] BLOCKED — 暂存的新增行里带变异残留标记:
+  plain.py:2: y = "ZZPROBEMARKZZ"
+
+[Mutant-Scan] 变异 harness 没还原干净。先 restore 被改的生产文件,
+[Mutant-Scan] 再拿变异前的全文件 sha 基线逐个复核 —— 标记只是最弱那道网。
+NEW rc=1
+
+=== 场景4 cwd 非 git 仓 ===
+fatal: not a git repository (or any of the parent directories): .git
+
+--- 场景4 OLD ---
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+OLD rc=0
+
+--- 场景4 NEW ---
+[Mutant-Scan] FAILED: 枚举暂存文件失败 — 按 fail-closed 阻断。
+NEW rc=1
+
+=== 场景5 环1: :294-295 的 -z 输出里换行是原始字节 ===
+0000000    b   a   c   k   \   s   l   a   s   h   .   p   y  \0   d   q
+0000020    "   u   o   t   e   .   p   y  \0   n   e   w  \n   l   i   n
+0000040    e   .   p   y  \0   p   l   a   i   n   .   p   y  \0   p   l
+=== 场景5 环1-对照: 旧门枚举(无 -z) C 引号化成一行 ===
+3:"new\nline.py"
+=== 场景5 环2: 经 :298 的 tr 后裂成两行 ===
+3:new
+4:line.py
+=== 场景5 环3: 两段各自作 pathspec -> 无输出 rc=0 ===
+  seg1 rc=0
+  seg2 rc=0
+=== 场景5 环3-验伪锚: 同形命令对真实存在的路径能出输出 ===
+ plain.py | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/plain.py b/plain.py
+new file mode 100644
+index 0000000..638b35e
+--- /dev/null
++++ b/plain.py
+@@ -0,0 +1,2 @@
++x = 1
++y = "ZZPROBEMARKZZ"
+  anchor rc=0
+
+=== 场景6 awk -v 对文件名做转义处理(F 仅用于显示) ===
+  -v  F=[backslash.py]
+  -v  F=[a
+b.py]
+  ARGV F=[back\slash.py]
+awk version 20200816
+
+########## 取证结束 20260905T165748 ##########

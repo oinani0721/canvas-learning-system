@@ -1,0 +1,41 @@
+=== pre-commit 下 8 个 command 的真实行号与 YAML 书写顺序 ===
+51	    spec-sync-flat:
+62	    spec-sync-root:
+75	    ghost-files:
+117	    python-lint:
+146	    python-typecheck:
+187	    cypher-vault-filter-lint:
+231	    readme-claims-lint:
+286	    mutant-residue-scan:
+
+=== YAML 书写顺序 ===
+     1	spec-sync-flat
+     2	spec-sync-root
+     3	ghost-files
+     4	python-lint
+     5	python-typecheck
+     6	cypher-vault-filter-lint
+     7	readme-claims-lint
+     8	mutant-residue-scan
+
+=== 字母序 ===
+     1	cypher-vault-filter-lint
+     2	ghost-files
+     3	mutant-residue-scan
+     4	python-lint
+     5	python-typecheck
+     6	readme-claims-lint
+     7	spec-sync-flat
+     8	spec-sync-root
+
+=== 两者是否相同(相同则本仓无法区分两种排序假说) ===
+不同 -> 注释记录的观察序若等于字母序, 即排除了 YAML 顺序假说
+
+=== 注释 :261-263 记录的观察序 vs 字母序 ===
+注释序: cypher-… -> ghost-files -> mutant-residue-scan -> python-lint -> python-typecheck(注释称 pyright 门) -> readme-claims-lint -> spec-sync-flat -> spec-sync-root
+字母序: cypher-vault-filter-lint ghost-files mutant-residue-scan python-lint python-typecheck readme-claims-lint spec-sync-flat spec-sync-root 
+
+=== git add 的两处所属 command(真实行号) ===
+18:  # 触及(如 config.py + 某端点)时会并发, 两条的 `git add backend/openapi.json`
+60:        git add backend/openapi.json || exit 1
+71:        git add backend/openapi.json || exit 1

@@ -1,0 +1,20 @@
+=== J5a: lefthook version (homebrew) ===
+2.1.6
+rc=0
+
+=== J5b: 暂存区状态(应为空) ===
+staged-count=       0
+
+=== J5c: 真跑 mutant-residue-scan (空暂存区) ===
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+╰──────────────────────────────────────╯
+┃  mutant-residue-scan ❯ 
+
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+
+                                      
+  ────────────────────────────────────
+summary: (done in 0.06 seconds)       
+✔️ mutant-residue-scan (0.03 seconds)
+rc=0
