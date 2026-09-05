@@ -1609,10 +1609,40 @@ def value_shape_problems(value: object) -> list[str]:
 #: 连同 `\n` 写进账本 → 此后同一节点的**每一次评分**都在消费该行时撞 `U+000A`
 #: 而 fail-closed ⇒ **那个节点从此评不了分**。实测复现：writer `rc=1`、账本不增行。
 #:
-#: 判断的分界是「这个字段会不会**逐字进入 YAML receipt 或参与身份比较**」：
+#: 分界（CARD-CX-G3-2c-C-R1 收窄措辞）：**这条账本记录里**，该字段会不会
+#: 参与身份比较、或被逐字搬进 YAML receipt：
 #:   会 → 字符往返失败就是"写得出认不回"，必须严格（本表）；
 #:   不会 → 它只活在 JSON 里，转义可无损往返，控制符不构成风险（自由文本）。
 #: ⚠️ 这不是放宽安全性，而是把规则放到**它真正保护的那个面**上。
+#:
+#: ⛔ **「账本记录里」这五个字是判据的一部分，不是修辞**（R1 整改）。原措辞只说
+#: 「会不会逐字进入 receipt」，穷举展开后与实现不自洽：receipt 条目里
+#: `question_id` 与 `self_confidence_raw` 同样逐字进 receipt（`quiz-answer/SKILL.md`
+#: 的 `entry_` 拼接链），却不在本表。但它们**根本不在账本 payload 键集里**
+#: （落账写点 payload 键集实测：schema_ext/vault_id/concept_id/rating/grade_norm/
+#: review_time/scored_at/fsrs_library_version/fsrs_params_hash/exam_board/
+#: attempt_count），而本函数只看账本 record ⇒ 把它们加进本表，在**当前业务
+#: 路径上**恒不触发，那是装饰不是防线。
+#:
+#: ⚠️ **依据是「当前没人写」，不是「结构上不可能」**（Codex round-1 MEDIUM 更正）：
+#: `app/services/learning_event_log.py::append_event()` 接受任意 payload，实测能把
+#: 带 U+0085 的 `question_id` 写进账本且本函数不报违规——那条路一旦有业务调用方
+#: 传这两个键，本裁定就得重做。一致性门守的就是这个前提。
+#:
+#: receipt 侧的分工（**逐键**，别再概括成"三段全覆盖"）：
+#:   · `question_id` / `self_confidence_raw` → 写点 `q_()` 的正面往返自证
+#:     （证不出往返就拒写，round-17）与 `_kq()`；
+#:   · `ts` / `scored_at` → 写点入口 `_TS_RE.fullmatch` 词法门，**只管本次输入**；
+#:     账本里**已有**的行不走这道入口（durable `scored_at` 含 U+0085 时本函数
+#:     不报违规），那段由后续时刻解析与 `q_()` 承担；
+#:   · `attempt_count` / `grade_norm` → 整数/数值构造或校验后直接插值；
+#:   · ⛔ `self_confidence_norm` → **目前没有任何约束**：原样读取后裸插值进
+#:     receipt YAML，可改写新条目的 `event_id`（Codex round-1 HIGH 实测复现，
+#:     首写 rc=0 而其后每次评分都 rc=1）。已立 `xfail(strict=True)` 交接门
+#:     `test_g32ccr1_self_confidence_norm_must_not_forge_receipt_identity`，
+#:     修复移交 quiz-answer 写点边界卡。
+#: 行为证据见 `tests/regression/test_g3_2_review_ledger.py::test_g32ccr1_*`。
+#:
 #: 覆盖不到的 producer（start-exam-board / ai-linked-doc / append_event）仍可写入
 #: 自由文本，那是设计内；它们写不出**身份键含非规范码点**的行，因为 id 由写点构造。
 CHARSET_STRICT_FIELDS: tuple[tuple[str, ...], ...] = (
@@ -1645,8 +1675,13 @@ def value_charset_problems(value: object) -> list[str]:
     第一版查整条，造成一条真实的数据丢失路径（round-1 BLOCKER，实测复现）：
     多行批注经 `append_event` 进账本后，同节点的**每一次评分**都在消费该行时
     撞 `U+000A` 而 fail-closed ⇒ 那个节点从此评不了分。
-    分界是「该字段会不会**逐字进入 YAML receipt 或参与身份比较**」——
+    分界是「**这条账本记录里**，该字段会不会参与身份比较、或被逐字搬进 receipt」——
     会，字符往返失败就是"写得出认不回"；不会，它只活在 JSON 里，转义可无损往返。
+    ⚠️ 「账本记录里」是判据的一部分：只进 receipt、不进账本的字段
+    （`question_id` / `self_confidence_raw`）本函数看不到，由写点的 `q_()`
+    往返自证把守。⛔ 措辞注意：那是「**当前的落账写点不写它们**」，不是
+    「结构上够不着」—— `append_event()` 能把它们写进账本（Codex round-1
+    MEDIUM 实测）。逐键分工与已知缺口见 `CHARSET_STRICT_FIELDS` 上方的说明。
 
     ⛔ **报出码点**是硬要求：这些字符在终端和编辑器里大多**不可见**
     （NEL 看起来就是个空格），只说「含非法字符」等于让上游去猜。
