@@ -326,9 +326,10 @@ _BUCKET_ORDER = ("new", "learning_queue", "due_now", "due_today", "future")
 #: 其中三个到期桶: 成员恒等于 due_nodes 明细 (生产器 S2「加标签不搬移」)
 _DUE_BUCKETS = ("new", "learning_queue", "due_now")
 #: CARD-G6-5-R 透传白名单: 生产器落盘的桶行四字段 (daily_review_pick.py:1007-1013)。
-#: 与 _gate_buckets 验形处 (:436 三串字段 + :440 fsrs_due) 是**两个字面量**, 靠
-#: 本文件的 test_bucket_rows_passthrough_* 锁在一起 —— 验形没覆盖的字段一旦进
-#: 白名单, 那道门会红 (未验字段不许出门)。
+#: 与 _gate_buckets 验形处 (那里的 `for f in ("node", "board", "why_due")` 循环 +
+#: 紧随其后的 _due_ts(r.get("fsrs_due"), ...)) 是**两个字面量**, 靠本文件的
+#: test_bucket_rows_passthrough_* 锁在一起 —— 验形没覆盖的字段一旦进白名单,
+#: 那道门会红 (未验字段不许出门)。
 _BUCKET_ROW_FIELDS = ("node", "board", "why_due", "fsrs_due")
 #: 生产器 build_payload 对 upcoming 的截断上限 (payload["upcoming"] = upcoming[:3])
 _UPCOMING_LIMIT = 3
@@ -361,17 +362,22 @@ def _gate_buckets(
     """G3-6a 加性 buckets 门禁 (可选顶层键: 旧投影缺省走 None 路径)。
 
     返回 (桶位计数, 已验节点行) —— CARD-G6-5-R 起第二项由本函数出门: 节点行
-    此前验完即丢, 两页只拿得到一行计数, new/future 在节点级完全不可见。透传
-    的行**就是本函数逐行验过、并用来数出计数的那些行** (同一个 buckets[name]
-    列表, 见函数末尾的构造点), 不从别处再取一次; 字段按 _BUCKET_ROW_FIELDS
-    白名单原样搬运, 不重算不改写。调用方在边界上再核一次「逐桶行数 == 计数」
-    (不变量守卫: 将来有人把行换成别处来源就当场 corrupt)。
+    此前验完即丢, 两页只拿得到一行计数, **due_today / future 两桶**在节点级
+    完全不可见 (它们在 due_nodes 里没有对手盘; new 属 _DUE_BUCKETS, 早就随
+    板行明细出现了 —— Codex round-1 LOW 更正)。透传的行**就是本函数逐行验过、
+    并用来数出计数的那些行** (同一个 buckets[name] 列表, 见函数末尾的构造点),
+    不从别处再取一次; 字段按 _BUCKET_ROW_FIELDS 白名单原样搬运, 不重算不改写。
+    调用方在边界上再核一次「逐桶行数 == 计数」——那是一条**逐桶行数漂移守卫**,
+    只能发现长度变了; 等长替换 (换身份 / 改字段值 / 改顺序) 它一概发现不了
+    (Codex round-1 LOW: 别把它说成来源或身份守卫)。
 
     ⚠ 三方计数 (⑤) 的参照系, 逐字: 本断言的参照系是 generated_at，不是 now；
     读侧到点标记不并入本等式的任何被加数。
     (出处: _bmad-output/研究/2026-09-05-乙2-读时重判到期-可行性设计.md §三)
-    读侧若把「现在已过 fsrs_due」的 due_today 行就地记成到期并计进 ⑤ 的被加数,
-    :487-489 的时间语义逆检查会对**合法投影**抛 ValueError → 整库 corrupt。
+    把参照时钟换成读取时刻的后果 (Codex round-1 更正了先后顺序): 最先炸的是
+    **非到期侧**的桶判据重算 —— 一个合法的 due_today 行到点之后 fsrs_due 就
+    不再晚于新时钟, 于是"未到期桶的时刻必须晚于参照时钟"那条对**合法投影**抛
+    ValueError → 整库 corrupt。到期侧的逆检查是更靠后才会碰到的一层。
 
     跨源一致性 (与 _gate_boards_rollup 同一纪律): 生产器 S1/S2 构造保证
     ① 五桶两两不交 (同一 board/node 只出现一次);
@@ -555,10 +561,13 @@ def _gate_buckets(
             raise ValueError(f"upcoming {u['board']!r} 的 next_due={u['next_due']} 非板内最早 {board_min}")
     # CARD-G6-5-R 透传构造点 (全部判据通过之后): 逐桶从 **counts 数的同一个
     # 列表** buckets[name] 取行, 只做字段白名单投影 —— 不排序不去重不补字段,
-    # 所以 len(rows[name]) 恒等于上面 :465 数出的 counts[name]; 调用方边界上
-    # 的那条等式因此只可能被「换来源/改行数」的未来改动打破。
-    rows = {name: [{f: r[f] for f in _BUCKET_ROW_FIELDS} for r in buckets[name]] for name in _BUCKET_ORDER}
-    return counts, rows
+    # 所以 len(passed_rows[name]) 恒等于上面 `counts[name] = len(rows)` 那一行
+    # 数出的值; 调用方边界上的那条等式因此只可能被「改行数」的未来改动打破
+    # (等长替换它发现不了 —— Codex round-1 LOW)。
+    # 变量名不复用循环里的 `rows`: 那个名字在上面的验形循环里指"当前这一桶的
+    # 原始行", 循环虽已结束, 同名重绑会让后来读的人以为是同一个东西。
+    passed_rows = {name: [{f: r[f] for f in _BUCKET_ROW_FIELDS} for r in buckets[name]] for name in _BUCKET_ORDER}
+    return counts, passed_rows
 
 
 def _humanize_due(ts: str | None, now_sh: datetime) -> tuple[str, str]:
@@ -736,11 +745,13 @@ def _summarize(payload: dict) -> dict:
         bucket_counts, bucket_rows = _gate_buckets(
             payload["buckets"], groups, stats, generated_at, future_map, up_gated
         )
-        # CARD-G6-5-R 边界不变量 (实现契约, 不是数据判据 —— 数据由 :490-499
-        # 的三方计数管): 透传出来的行必须仍是被数过的那些行。逐桶行数与计数
-        # 脱钩 = 实现"从别处取了行"或"取行后被改", 那样卡片上的计数与队列区块
-        # 里能点开的卡会各说各话; 与其发一个自相矛盾的页面, 不如按既有 corrupt
-        # 语义降级。
+        # CARD-G6-5-R 边界不变量 = **逐桶行数漂移守卫**, 不是来源/身份守卫
+        # (Codex round-1 LOW 收窄措辞): 它只能发现"行数与计数对不上"; 等长的
+        # 身份替换 / 字段改值 / 顺序变动它一概发现不了 —— 那些由 _gate_buckets
+        # 内的成员恒等与逐字相等判据管, 本条不重复也不冒领。
+        # 行数一旦脱钩, 卡片上的计数与队列区块里能点开的卡就各说各话; 与其发
+        # 一个自相矛盾的页面, 不如按既有 corrupt 语义降级。
+        # 当前实现下本式恒真 (行与计数取自同一个列表), 守的是**未来改动**。
         drift = {
             b: (len(bucket_rows[b]), bucket_counts[b]) for b in _BUCKET_ORDER if len(bucket_rows[b]) != bucket_counts[b]
         }
@@ -1042,15 +1053,19 @@ def _queue_layers_html(vault_id: str, bucket_rows: dict | None, now_sh: datetime
 
     与板表格 (_board_table_html) 是同一批节点的**另一种切法**, 不是它的替代:
     板视图回答「今天先开哪块板」, 队列视图回答「这张卡为什么现在出现 / 什么时候
-    轮到它」。new 与 future 两桶在板视图里根本没有对手盘 (它们不在 due_nodes
-    里, 板行的 nodes 明细只有到期节点), 节点级此前完全不可见 —— 本区块就是补
-    这一块。
+    轮到它」。
 
-    数据全部来自 _gate_buckets 已验并已数过的透传行, 本函数一个数都不算、
-    一次排序都不做 (桶内顺序 = 生产器扫描序)。bucket_rows 缺省 (旧投影无
-    buckets 键) → 整块不出现, 与卡片汇总分层行 (:1109) 同一条纪律。空桶保留
-    分区并显示 0: 与汇总行摆 0 同口径 —— 藏掉空桶会让"今天这一桶是空的"看起来
-    像"系统里没有这一桶"。
+    ⚠ 真正此前节点级不可见的是 **due_today 与 future 两桶**, 不是 new
+    (Codex-G6-5-R round-1 LOW 更正): _DUE_BUCKETS 含 new, 到期三桶的成员按
+    _gate_buckets ② 恒等于 due_nodes 明细, 所以新卡早就随板行的 nodes 明细
+    出现了。due_today / future 在 due_nodes 里没有对手盘 (生产器 S2 不搬移),
+    投影内只有 upcoming 点名过其中极少数 —— 本区块补的是这一块。
+
+    数据全部来自 _gate_buckets 已验并已数过的透传行。本函数**只数已验行的条数**
+    (桶内 len 与总数), 不重判到期、不重新排序、不改任何字段 (桶内顺序 = 生产器
+    扫描序)。bucket_rows 缺省 (旧投影无 buckets 键) → 整块不出现, 与卡片汇总
+    分层行同一条纪律。空桶保留分区并显示 0: 与汇总行摆 0 同口径 —— 藏掉空桶会让
+    "今天这一桶是空的"看起来像"系统里没有这一桶"。
     """
     if bucket_rows is None:
         return ""

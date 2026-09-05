@@ -1247,8 +1247,10 @@ def test_page_renders_five_bucket_sections_and_omits_them_for_old_projection(ove
     assert "n1" in page.text and "f2" in page.text
     assert quote("节点/f2.md", safe="") in page.text
     assert "obsidian://open?vault=" + quote("vault-layered", safe="") in page.text
-    # 空桶如实显示 0, 不伪造节点
-    assert "learning_queue" in page.text
+    # 空桶如实显示 0 且不伪造节点: 三个空桶各出一条空态文案, 计数括号里是 0
+    assert page.text.count("这一桶今天是空的") == 3, "learning_queue / due_now / due_today 三桶今天为空"
+    assert page.text.count("（0）") == 3
+    assert "按到期阶段看队列（2 张卡分五块）" in page.text
 
 
 # ════════════════════════════════════════════════════════════════════

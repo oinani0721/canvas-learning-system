@@ -2169,25 +2169,49 @@ test("④ 自动轮询绝不 POST: 连跑多轮, 沙箱收到的 POST 次数恒�
 def test_js_queue_layers_five_sections_present_and_absent(node_harness):
     """(d) 交互壳队列分区: 五桶各成一区、节点级可点; 缺省整块不出现。
 
-    重点在**板视图看不见的那两桶**: new 与 future 不在 due_nodes 里, 板行的
-    nodes 明细根本没有它们 —— 本门用同一份数据同时断言"板表格里没有二叉堆"
-    与"队列区块里有二叉堆", 这才是本卡要补上的那块可见性, 而不是又渲染一遍
-    已经看得见的到期节点。
+    重点在**板视图看不见的那两桶 = due_today / future**（Codex round-1 LOW 更正：
+    不是 new —— new 属到期三桶，其成员按 _gate_buckets ② 恒等于 due_nodes 明细，
+    早就随板行的 nodes 明细出现了）。所以夹具必须是**自洽的生产形态**：到期桶的
+    成员同时出现在 boards[].nodes 与 bucket_rows，非到期两桶只出现在 bucket_rows。
+    夹具不自洽的话，"板视图看不见 X" 只是夹具自己造成的，证不了任何事。
     """
     proc = _run_node(
         node_harness,
         _BOOT_PRELUDE
         + _FIX_JS
         + r"""
-const ROWS = {
-  new: [{node: "并查集", board: "图论基础", why_due: "新卡未排期，视同即刻到期 · 从未考察", fsrs_due: ""}],
-  learning_queue: [],
-  due_now: [{node: "Dijkstra", board: "图论基础", why_due: "到期待复习 · 已逾期 1 天", fsrs_due: "2026-08-28T02:00:00Z"}],
-  due_today: [],
-  future: [{node: "二叉堆", board: "堆", why_due: "明天 10:00 到期", fsrs_due: "2026-09-05T02:00:00Z"}],
+// 自洽夹具: 到期三桶 (并查集/Dijkstra) 与 boards[].nodes 逐条对应;
+// due_today(跳表) / future(二叉堆) 在 due_nodes 里没有对手盘, 只在桶里。
+const CONSISTENT = {
+  vault_id: "cs_61b", status: "ok", error: null,
+  projection: {
+    due_count: 2, due_new_count: 1, placeholder_backlog: 0,
+    generated_at: "2026-08-29T09:05:00+08:00",
+    bucket_counts: {new: 1, learning_queue: 0, due_now: 1, due_today: 1, future: 1},
+    next_upcoming: {board: "堆", next_due: "2026-08-29T14:00:00Z", node: "跳表"},
+    boards: [
+      {board: "图论基础", due: 2, due_new: 1, placeholder: null, earliest: "2026-08-28T02:00:00Z",
+       nodes: [
+         {node: "并查集", due_reason: "new", fsrs_due: "", bucket: "new", why_due: "新卡未排期，视同即刻到期"},
+         {node: "Dijkstra", due_reason: "scheduled", fsrs_due: "2026-08-28T02:00:00Z",
+          bucket: "due_now", why_due: "到期待复习 · 已逾期 1 天"},
+       ]},
+      {board: "堆", due: 0, due_new: 0, placeholder: null, earliest: "2026-08-29T14:00:00Z", nodes: []},
+    ],
+    bucket_rows: {
+      new: [{node: "并查集", board: "图论基础", why_due: "新卡未排期，视同即刻到期", fsrs_due: ""}],
+      learning_queue: [],
+      due_now: [{node: "Dijkstra", board: "图论基础", why_due: "到期待复习 · 已逾期 1 天",
+                 fsrs_due: "2026-08-28T02:00:00Z"}],
+      due_today: [{node: "跳表", board: "堆", why_due: "今天 22:00 到期（尚未到点）",
+                   fsrs_due: "2026-08-29T14:00:00Z"}],
+      future: [{node: "二叉堆", board: "堆", why_due: "明天 10:00 到期", fsrs_due: "2026-09-05T02:00:00Z"}],
+    },
+  },
 };
+const ROWS = CONSISTENT.projection.bucket_rows;
 function withRows(base) {
-  const v = JSON.parse(JSON.stringify(base || OK_VAULT));
+  const v = JSON.parse(JSON.stringify(base || CONSISTENT));
   v.projection.bucket_rows = JSON.parse(JSON.stringify(ROWS));
   return v;
 }
@@ -2197,7 +2221,7 @@ test("五桶各成一区 (空桶也在), 容器标记恰 1 次", () => {
   for (const b of ["new", "learning_queue", "due_now", "due_today", "future"])
     assert.ok(h.includes('data-queue-bucket="' + b + '"'), b + " 桶没有自己的分区");
   assert.match(h, /这一桶今天是空的/, "空桶如实说空, 不藏掉整区");
-  assert.match(h, /按到期阶段看队列（3 张卡分五块）/);
+  assert.match(h, /按到期阶段看队列（4 张卡分五块）/);
 });
 test("桶名与桶序和汇总行同一套 (都出自服务端注入的 BUCKET_CN/BUCKET_ORDER)", () => {
   // 不在测试里抄一份中文标签: 从既有汇总分层行里取, 逐区按位置比对 ——
@@ -2212,15 +2236,21 @@ test("桶名与桶序和汇总行同一套 (都出自服务端注入的 BUCKET_C
   parts.forEach((p, i) => assert.ok(p.includes(labels[i]),
     "第 " + (i + 1) + " 区与汇总行不同源: 期待标签 " + labels[i]));
 });
-test("new / future 两桶: 板视图看不见, 队列区块看得见 (本卡补的正是这块)", () => {
-  const v = withRows();
+test("due_today / future 两桶: 板视图看不见, 队列区块看得见 (本卡补的正是这块)", () => {
+  const v = CONSISTENT;
   const board = boot().api.boardTableHtml("cs_61b", v.projection.boards, NOW);
-  assert.ok(!board.includes("二叉堆"), "前提: 未来节点本来就不在板表格里");
-  assert.ok(!board.includes("并查集"), "前提: 新卡不在这份 fixture 的板明细里");
+  // 到期三桶的成员本来就在板明细里 —— 包括 new。本卡没有"让新卡第一次可见",
+  // 这条断言把这个事实钉死, 防止说明再写宽 (Codex round-1 LOW)
+  assert.ok(board.includes("并查集"), "前提: 新卡属到期三桶, 早就在板明细里了");
+  assert.ok(board.includes("Dijkstra"), "前提: 到期节点在板明细里");
+  // 非到期两桶在 due_nodes 里没有对手盘 —— 板明细里一个都没有
+  assert.ok(!board.includes("跳表"), "due_today 节点不该出现在板明细 (它不在 due_nodes 里)");
+  assert.ok(!board.includes("二叉堆"), "future 节点不该出现在板明细");
   const q = boot().api.queueLayersHtml("cs_61b", v.projection.bucket_rows, NOW);
-  assert.match(q, /二叉堆/);
-  assert.match(q, /并查集/);
+  assert.match(q, /跳表/, "本卡要补的可见性: due_today 节点级");
+  assert.match(q, /二叉堆/, "本卡要补的可见性: future 节点级");
   assert.match(q, /明天 10:00 到期/, "why_due 逐字透传, 不在前端重编");
+  assert.match(q, /今天 22:00 到期（尚未到点）/);
 });
 test("节点名是 obsidian:// 深链 (复用 nodeLink, 不新造拼接)", () => {
   const q = boot().api.queueLayersHtml("cs_61b", ROWS, NOW);
@@ -2237,10 +2267,20 @@ test("bucket_rows 缺省 / null → 整块不出现 (旧投影不伪造空队列
   assert.equal(boot().api.queueLayersHtml("v", undefined, NOW), "");
 });
 test("休息日 (到期 0) 也出队列区块 —— 「以后」那一桶只有这里说得出", () => {
-  const h = boot().api.renderVaultCard(withRows(REST_DAY), NOW);
+  // 休息日的自洽形态: 到期三桶全空 (所以 due_count=0), 只有非到期两桶有货。
+  // 拿一份"到期桶非空却 due_count=0"的夹具来测, 测的是不可能出现的投影。
+  const v = JSON.parse(JSON.stringify(REST_DAY));
+  v.projection.bucket_counts = {new: 0, learning_queue: 0, due_now: 0, due_today: 0, future: 1};
+  v.projection.bucket_rows = {
+    new: [], learning_queue: [], due_now: [], due_today: [],
+    future: [{node: "特征值", board: "线性代数", why_due: "9 月 3 日 09:00 到期",
+              fsrs_due: "2026-09-03T01:00:00Z"}],
+  };
+  const h = boot().api.renderVaultCard(v, NOW);
   assert.match(h, /休息一天/, "休息日文案不受影响");
   assert.match(h, /data-queue-layers/);
-  assert.match(h, /二叉堆/);
+  assert.match(h, /特征值/, "今天没到期的日子, 「以后」排着什么只有这里说得出");
+  assert.match(h, /按到期阶段看队列（1 张卡分五块）/);
 });
 test("敌意节点名/板名被转义, 不注入标记", () => {
   const q = boot().api.queueLayersHtml('v"x', {
@@ -2338,7 +2378,11 @@ test("对照①: 只点一次时结算照常成功 (上一条不是把结算整�
   assert.match(note.innerHTML, /累计 5 次/);
 });
 
-test("对照②: 连点两次都 rebuilt → 结算的是第二次的计数, 不是第一次的", async () => {
+test("对照②: 连点两次都 rebuilt → 第二次的 pending 必须真被结算", async () => {
+  // Codex round-1 MEDIUM: 只断言"含累计 6"是假绿 —— POST2 自己的回执
+  // 「已重建（本进程累计 6 次）· 正在同步最新数字…」就含"累计 6 次",
+  // 于是"第二次永远不结算"也能过。判据必须落在**只有结算才写得出**的
+  // 「数字已更新」上, 并且先断言 GET2 回来时它还没出现。
   let posts = 0;
   const {gets, note, click} = rig(() => {
     posts += 1;
@@ -2355,10 +2399,14 @@ test("对照②: 连点两次都 rebuilt → 结算的是第二次的计数, 不
   const g3 = gets.pop();
   g2.resolve(OK);
   await flush();
+  assert.match(note.innerHTML, /正在同步最新数字/, "GET2 代际不够新, 第二次的 pending 应还挂着");
+  assert.ok(!note.innerHTML.includes("数字已更新"), "还没结算就不许说已更新");
   g3.resolve(OK);
   await flush();
+  assert.match(note.innerHTML, /数字已更新/, "GET3 必须真的把第二次的 pending 结算掉");
   assert.match(note.innerHTML, /累计 6 次/, "结算必须归属最新一次刷新");
   assert.ok(!note.innerHTML.includes("累计 5 次"));
+  assert.ok(!note.innerHTML.includes("正在同步最新数字"));
 });
 """,
     )

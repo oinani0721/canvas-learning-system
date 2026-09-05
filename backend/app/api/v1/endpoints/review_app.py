@@ -243,10 +243,12 @@ function nodeDetailHtml(vaultId, nodes, nowMs) {
 function queueLayersHtml(vaultId, rows, nowMs) {
   // CARD-G6-5-R 队列分层区块 — 与零 JS 页 _queue_layers_html 同一形态。
   // 板视图 (boardTableHtml) 回答「今天先开哪块板」, 本区块回答「这张卡为什么
-  // 现在出现 / 什么时候轮到它」: new 与 future 两桶不在 due_nodes 里, 板行的
-  // nodes 明细根本没有它们, 节点级只有这里看得见。
-  // 数据 = 服务端 _gate_buckets 已验并已数过的透传行, 本函数一个数都不算
-  // (与本页其余部分同一条纪律: 谁到期/多少张全来自投影)。
+  // 现在出现 / 什么时候轮到它」。
+  // ⚠ 此前节点级不可见的是 **due_today 与 future 两桶** (它们在 due_nodes 里
+  // 没有对手盘), 不是 new —— new 属到期三桶, 早就随板行的 nodes 明细出现了
+  // (Codex-G6-5-R round-1 LOW 更正)。
+  // 数据 = 服务端 _gate_buckets 已验并已数过的透传行; 本函数只数已验行的条数
+  // (桶内 len 与总数), 不判到期、不排序、不改字段 —— 谁到期/多少张到期全来自投影。
   // 缺省 (旧投影无 buckets → bucket_rows 为 null) 整块不出现, 不伪造空队列。
   // 桶序与人读标签用服务端注入的 BUCKET_ORDER / BUCKET_CN, 前端不另立一套。
   if (rows == null) return "";
