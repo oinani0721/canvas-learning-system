@@ -143,8 +143,44 @@ pre-commit:
     # own rc, so type errors actually block the commit.
     # Installing pyright is deliberately OUT of scope (separate card): this block
     # only stops lying about whether it ran.
+    #
+    # SCOPE (CARD-TOOL-typecheck-glob, BATCH-2026-09-05-第十二批, 用户裁定 D-1 丙):
+    # glob 由 `{backend,src}/**/*.py` 收窄为单条 `backend/app/*.py`。
+    # 起因是**位置实参覆盖 include**: 下面 run 块把 {staged_files} 当**位置实参**
+    # 传给 pyright, 而位置实参**取代** pyrightconfig.json 的 include(不是与它取
+    # 交集) —— 于是旧 glob 的可达面是 backend 全部 846 个 .py(其中 backend/tests
+    # 占 493), 远大于 include 面。测试目录的存量类型债因此拦下了绝大多数提交
+    # (第十一批 CARD-TOOL-pyright 实测 18/19 = 94% 被拦), 而那些报错与被提交的
+    # 改动无关 —— 一个恒红的门等于没有门, 只会训练人去绕过它。
+    # 收窄后门面 = backend/app 的 263 个 .py, 是 pyrightconfig include 面的真子集:
+    #   backend/app 263 + src 0 + 仓库根 tests 41 = 304。
+    # 实数以 `git ls-files` 为准(2026-09-05 于 base 4cc4824c 实测); 旧手册里的
+    # 258 / 35 是过期数, 不要照抄。
+    #
+    # ⚠️ glob 语义(本机 lefthook 2.1.6 五档探针实测, transcript 见
+    # _bmad-output/审查/evidence-typecheck-glob/): 单 `*` 跨任意目录层级, 所以单条
+    # `backend/app/*.py` 同时命中根级 main.py / 1 级 mcp/server.py / 3 级
+    # api/v1/endpoints/health.py, **不需要**像上面 spec-sync 那样拆 flat+root ——
+    # 那张矩阵里的"根文件 skip"是花括号子目录 `{api,models,schemas,mcp}` 造成的,
+    # 不是单星本身。负控: backend/tests/conftest.py 与 backend/mutmut_config.py 均
+    # `(skip) no files for inspection`。翻转对照: 同一个 backend/tests/conftest.py
+    # 在**旧** glob 下真跑并 exit 1, 证明收窄确实改变了可达面, 不只是换个写法。
+    #
+    # 两条死枝, 本卡有意不收(登记, 非疏漏):
+    #   src/                       仓库内零 tracked 文件; 旧 glob 的 `src` 分支与
+    #                              pyrightconfig 的 "src" 都是死枝。
+    #   backend/mutmut_config.py   backend 一级的这 2 个 .py 不在 backend/app 下;
+    #   backend/start_server.py    旧 glob(`**` 要求至少跨一级)本来也漏掉它们,
+    #                              本卡不借收窄之机扩面。
+    #
+    # ⚠️ 本块**不声称**任何文件的类型是对的: backend/app 的 263 个文件存量报错未动
+    # (pyrightconfig.json 注释里的 592 err 是**整个 include 面 304 文件**的数, 不是
+    # backend/app 单独的数, 本卡没有单独测过), backend/tests 493 个文件的类型债也
+    # 没清(另卡)。且主仓 backend/.venv 至今无 pyright ⇒ 主干上本门仍走下面的 SKIP
+    # 分支, 收窄 glob 不会让它开始跑; 只有 symlink 到含 pyright 的共享 venv 的车道
+    # 树才真跑。
     python-typecheck:
-      glob: "{backend,src}/**/*.py"
+      glob: "backend/app/*.py"
       run: |
         # Activate backend venv for pyright
         if [ -f "backend/.venv/bin/activate" ]; then source backend/.venv/bin/activate; fi

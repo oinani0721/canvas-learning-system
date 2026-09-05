@@ -1,0 +1,27 @@
+=== CARD-TOOL-typecheck-glob 裁判1: 改前实数 ===
+tree: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-z7-tool
+branch: card/z7-tool  HEAD: 4cc4824c60bd75ba6d4057c1d74aadbcbda3eb51
+date: 2026-09-05T09:36:53Z
+
+--- 1.1 git ls-files backend/app | grep -c '\.py$'  (期望 263) ---
+263
+--- 1.2 git ls-files src | wc -l  (期望 0) ---
+       0
+--- 1.3 git ls-files tests | grep -c '\.py$'  (期望 41) ---
+41
+--- 1.4 git ls-files backend | grep -c '\.py$'  (期望 846) ---
+846
+--- 1.5 git ls-files backend/tests | grep -c '\.py$'  (期望 493) ---
+493
+--- 1.6 backend 一级 .py (期望 mutmut_config.py / start_server.py) ---
+backend/mutmut_config.py
+backend/start_server.py
+--- 1.7 backend/app 根级 .py (期望 5) ---
+backend/app/__init__.py
+backend/app/config.py
+backend/app/dependencies.py
+backend/app/main.py
+backend/app/security.py
+--- 1.8 include 面算术 ---
+backend/app=263 src=0 tests=41  sum=304
+rc=0

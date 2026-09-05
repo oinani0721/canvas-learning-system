@@ -1,0 +1,51 @@
+=== 旧 glob 对照（翻转用例）===
+scratch=/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe-173743  base=4cc4824c60bd75ba6d4057c1d74aadbcbda3eb51
+glob=      glob: "{backend,src}/**/*.py"   <- 已还原为原 glob
+lefthook=2.1.6
+date=2026-09-05T09:39:33Z
+
+--- [旧 glob] backend/tests/conftest.py ---
+staged: backend/tests/conftest.py
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+╰──────────────────────────────────────╯
+┃  python-typecheck ❯ 
+
+[Python] Running pyright type check (backend/.venv/bin/pyright)...
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe-173743/backend/tests/conftest.py
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe-173743/backend/tests/conftest.py:38:57 - error: Import "HealthCheck" is not accessed (reportUnusedImport)
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe-173743/backend/tests/conftest.py:54:5 - warning: Function "_configure_logging_for_tests" is not accessed (reportUnusedFunction)
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe-173743/backend/tests/conftest.py:67:5 - warning: Function "_reset_structlog_contextvars" is not accessed (reportUnusedFunction)
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe-173743/backend/tests/conftest.py:93:5 - warning: Function "_neo4j_live_port_guard" is not accessed (reportUnusedFunction)
+1 error, 3 warnings, 0 informations
+[Python] Type errors found! Review and fix before committing.
+[Python] Hint: Some errors may be pre-existing. Focus on YOUR changes.
+[Python] Typecheck done (exit: 1).
+
+exit status 1                                      
+  ────────────────────────────────────
+summary: (done in 4.32 seconds)       
+🥊 python-typecheck (4.23 seconds)
+rc=0
+restored: 0 lines
+
+--- [旧 glob] backend/mutmut_config.py ---
+staged: backend/mutmut_config.py
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+╰──────────────────────────────────────╯
+│  python-typecheck (skip) no files for inspection
+                                      
+  ────────────────────────────────────
+summary: (done in 0.12 seconds)       
+rc=0
+restored: 0 lines
+
+=== 勘误（本卡自查，2026-09-05）===
+上面两处 `rc=0` **不是 lefthook 的退出码**：本命令把 lefthook 输出接进了 `| head -30`，
+而 `${PIPESTATUS[0]:-$?}` 是 bash 语法，本机 shell 为 zsh（对应变量是小写 `pipestatus`
+且下标从 1 起）⇒ 取值为空、回落到 `$?` = **head 的 rc**。
+真值以 lefthook 自己打印的块内字面为准：
+  - backend/tests/conftest.py（旧 glob）: 块内 `exit status 1` + `🥊 python-typecheck` ⇒ 门 rc=1（命中且拦下）
+  - backend/mutmut_config.py（旧 glob）: `python-typecheck (skip) no files for inspection` ⇒ 未跑
+五份主 transcript（probe-HIT-* / probe-NEG-*）无管道，其 `rc=` 行是 lefthook 本身的退出码，不受此影响。

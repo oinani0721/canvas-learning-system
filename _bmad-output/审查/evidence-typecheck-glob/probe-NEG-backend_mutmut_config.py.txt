@@ -1,0 +1,18 @@
+=== 负控探针: backend/mutmut_config.py ===
+scratch=/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe-173743  base=4cc4824c60bd75ba6d4057c1d74aadbcbda3eb51
+glob=      glob: "backend/app/*.py"
+lefthook=2.1.6
+date=2026-09-05T09:38:32Z
+--- 追加 # probe 并 git add ---
+backend/mutmut_config.py
+--- lefthook run pre-commit --command python-typecheck --no-auto-install ---
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+╰──────────────────────────────────────╯
+│  python-typecheck (skip) no files for inspection
+                                      
+  ────────────────────────────────────
+summary: (done in 0.09 seconds)       
+rc=0
+--- 还原 ---
+status: 0 lines for backend/mutmut_config.py
