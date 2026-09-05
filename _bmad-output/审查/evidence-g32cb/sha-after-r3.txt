@@ -1,0 +1,2 @@
+dd6d4e4b8d6b47f4ab57dc64f32f00982a4558848141c7c4434015c8cfa73dbf  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+45c77229169c5c388332f785449aaaf284942cbdc023447598f9fc051f3828a2  backend/scripts/validate_learning_events.py

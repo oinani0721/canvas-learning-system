@@ -21,6 +21,21 @@ X7-A 只证明了 round-17 的门在这套代码上全绿；绿门 ≠ 有效门
 6. **判据比对失败身份，防假杀**：只看「有测试失败」会把「变异让别的门红了」
    当成击杀。必须是**指定的那条测试**失败才算 KILLED。
 
+⚠️ **M9 = 退役变异 M154 的复活**（CARD-G3-2c-E）：X7-C 时 `M154-q-bare-ensure-ascii-false`
+   被判假杀而退役，理由是「非规范码点在进入 `q_()` **之前**就被字符轴拒了 ⇒ 拆
+   `q_()` 观察不到差异」，并留下自陈「`q_()` 的往返自证那一层若失效不会被任何门发现」。
+   **当前**（CARD-CX-G3-2c-C-R1 把字符轴收窄到 5 个枚举字段之后）实测：
+   `self_confidence_raw` 不在那 5 路径里，也不在落账 payload 的 11 键里 ⇒ 敌意值
+   **能到达** `q_()`，载体可达。
+   ⚠️ 措辞收窄（Codex round-1 #7）：「X7-C 当时不可达」是**那份验收单的记载**，
+   「现在可达」是**本卡的实测**；两者合起来支持采用 M9，但不据此追认
+   「恰恰是因为收窄才首次可达」这条因果——当前文件证不到历史。
+   所以 M9 **不需要挂 depth 层**（卡文原本预判要挂）——不挂层就没有「击杀由层贡献」
+   的假杀面，这比挂层严格更好。归因靠窄门
+   `test_g32ce_q_ascii_escape_fallback_is_load_bearing`：拆**回落**（M9）落在它的
+   `rc=0` 断言上；拆**往返自证**（`g32ccr1` 的 E4）落在它的「必须是转义形态」断言上，
+   两种失效形态可分辨。
+
 ⚠️ **拆防线，不要改参数**（M4/M5 踩了两次才对）：
    门是**从实现读上限**再按它构造输入的（`_validator_limits()`）。于是
    ① 把上限改成 `10**9` ⇒ 门去构造十亿层嵌套，卡死（实测 300s 超时）；
@@ -52,10 +67,78 @@ from pathlib import Path
 WT = Path(__file__).resolve().parents[2]
 SKILL = WT / "canvas-vault" / ".claude" / "skills" / "quiz-answer" / "SKILL.md"
 VALIDATOR = WT / "backend" / "scripts" / "validate_learning_events.py"
-PYTEST = Path(
-    "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/pytest"
-)
 LEDGER_TEST = "tests/regression/test_g3_2_review_ledger.py"
+#: `_pytest_bin()` 的一次性解析结果（身份自检要起子进程，不必每道门都跑一遍）
+_PYTEST_CACHE: str | None = None
+
+
+def _pytest_bin() -> str:
+    """pytest 可执行文件路径：环境变量 → 本车道 venv → **明确报错**。
+
+    ⛔ 原为**硬编码另一个车道**的 venv 绝对路径：那个车道一旦被清理，本脚本立刻
+    报废；在没有自己 venv 的新车道上也跑不起来，而且报出来的是一个
+    `FileNotFoundError`，看的人得自己去猜原因。
+    ⚠️ 这里**故意不写出**那条旧路径的字面 —— 裁判用 `grep -c '<旧车道名>'` 判 0，
+    把它抄进注释等于让判据被自己的说明文字打红（判据不能自指）。
+    形态与 `g32b_mutation_gates.py::_PYTEST_BIN()` 一致 —— 同型缺口在 g32b 那边
+    早就修过（`G32B_PYTEST`），g32cb 一直没跟上（CARD-G3-2c-E）。
+    """
+    global _PYTEST_CACHE
+    if _PYTEST_CACHE is not None:
+        return _PYTEST_CACHE
+
+    env = os.environ.get("G32CB_PYTEST")
+    if env:
+        cand = Path(env).expanduser()
+        # ⛔ **必须 resolve 成绝对路径**（Codex round-1 LOW 实测）：`_run_gate()` 用
+        # `cwd=WT/backend` 起子进程，于是从工作树根设 `G32CB_PYTEST=backend/.venv/bin/pytest`
+        # 这种**相对路径**在这里 `exists()` 为真、到了子进程却 `FileNotFoundError(2)`。
+        cand = cand if cand.is_absolute() else (Path.cwd() / cand).resolve()
+        _reject_if_unusable(cand, f"环境变量 G32CB_PYTEST={env!r}（解析为 {cand}）")
+        _PYTEST_CACHE = str(cand)
+        return _PYTEST_CACHE
+
+    local = (WT / "backend" / ".venv" / "bin" / "pytest").resolve()
+    if local.exists():
+        _reject_if_unusable(local, f"本车道 venv {local}")
+        _PYTEST_CACHE = str(local)
+        return _PYTEST_CACHE
+
+    raise SystemExit(
+        f"✗✗ 找不到 pytest：环境变量 G32CB_PYTEST 未设，且本车道无 {local} "
+        f"—— 请设 G32CB_PYTEST 指向可用的 pytest 后重跑"
+    )
+
+
+def _reject_if_unusable(path: Path, who: str) -> None:
+    """确认 `path` 真的是一个**能跑的 pytest**，否则**当场**报清楚。
+
+    ⛔ 为什么不能只判 `exists()`（Codex round-1 LOW，逐条实测）：
+      · 指向仓库里的某个普通脚本 ⇒ 接受，然后子进程抛 `PermissionError(13)`；
+      · 指向 `/usr/bin/true` 或 `/bin/echo` ⇒ 每道门都「rc=0」，绿态前提**全绿**，
+        变异阶段则全部 SURVIVED ⇒ 报出来是 **0/9 KILLED**。脚本 rc=1 不算假绿，
+        但它把「你配错了 pytest」说成「9 道防线全都不承重」——**诊断指错方向**，
+        而这正是本族反复栽的那类坑；
+      · 指向 `/usr/bin/false` ⇒ 绿态前提第一道就 rc=1，脚本 rc=2 报「前提不成立」，
+        同样指错方向。
+    所以这里做三件事：是不是文件、有没有执行权限、`--version` 认不认自己是 pytest。
+    """
+    if not path.is_file():
+        raise SystemExit(f"✗✗ {who} 不是一个文件 —— 请指向 pytest 可执行文件本身")
+    if not os.access(path, os.X_OK):
+        raise SystemExit(f"✗✗ {who} 没有执行权限")
+    try:
+        probe = subprocess.run([str(path), "--version"], capture_output=True, text=True, timeout=60)
+    except OSError as exc:
+        raise SystemExit(f"✗✗ {who} 起不起来：{type(exc).__name__}: {exc}") from exc
+    blob = (probe.stdout or "") + (probe.stderr or "")
+    if probe.returncode != 0 or "pytest" not in blob.lower():
+        raise SystemExit(
+            f"✗✗ {who} 不是 pytest：`--version` 退出码 {probe.returncode}、输出 {blob.strip()[:120]!r}。"
+            f"⚠️ 不在这里拦住的话，后面会报成「0/9 KILLED」或「绿态前提不成立」，"
+            f"把配置错误伪装成防线失效"
+        )
+
 
 #: (id, 说明, 目标文件, 原文本, 变异文本, 必须变红的测试)
 #: ⚠️ 「必须变红的测试」是**身份判据**：变异后必须是这一条失败，别的门红不算数。
@@ -143,6 +226,16 @@ MUTATIONS = [
         '                    _rebuilt.append(f"{_pfx}{_k}: {json.dumps(_e[_k], ensure_ascii=False, default=str)}")  # MUTANT M8',
         "test_g32cc_emitter_rebuild_never_mutates_existing_entries",
     ),
+    (
+        "M9",
+        "拆掉 `q_()` 的 **ASCII 转义回落**（`ensure_ascii=True` → `False`）—— "
+        "裸形证不成往返、又没有第二条路 ⇒ fail-closed 拒写，敌意载体从「能写、读得回」"
+        "退化成「写不进去」",
+        SKILL,
+        "        _asc = json.dumps(v, ensure_ascii=True)",
+        "        _asc = json.dumps(v, ensure_ascii=False)  # MUTANT M9 拆掉 ASCII 转义回落",
+        "test_g32ce_q_ascii_escape_fallback_is_load_bearing",
+    ),
 ]
 
 
@@ -167,14 +260,19 @@ def _run_gate(test_name: str) -> tuple[int, str]:
     # 拿不到解释器环境而挂住（实测一次 10 分钟外部超时就是这么来的）。
     env = dict(os.environ)
     env["PYTHONDONTWRITEBYTECODE"] = "1"
-    r = subprocess.run(
-        [str(PYTEST), "-q", "-p", "no:cacheprovider", f"{LEDGER_TEST}::{test_name}"],
-        cwd=WT / "backend",
-        capture_output=True,
-        text=True,
-        env=env,
-        timeout=300,
-    )
+    try:
+        r = subprocess.run(
+            [_pytest_bin(), "-q", "-p", "no:cacheprovider", f"{LEDGER_TEST}::{test_name}"],
+            cwd=WT / "backend",
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=300,
+        )
+    except OSError as exc:
+        # ⛔ 不要让启动失败混进「门红了」里（Codex round-1 LOW）：那会把
+        # 「pytest 起不来」读成「防线失效」。
+        raise SystemExit(f"✗✗ 起不动 pytest（{_pytest_bin()}）：{type(exc).__name__}: {exc}") from exc
     return r.returncode, (r.stdout or "") + (r.stderr or "")
 
 
