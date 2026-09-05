@@ -1,0 +1,4 @@
+───── before-3 install 顺序：预检在门外（期望 connected / blocked=0） ─────
+  rc=0
+  out| RESULT: 预检内连接 = ['connected'], STATE.blocked=0, STATE.total=0
+rc=0

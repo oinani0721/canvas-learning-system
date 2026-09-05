@@ -1,0 +1,28 @@
+=== CARD-W4-4-settle-atomic BEFORE 证据（主干未改代码）===
+    backend: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend
+    interpreter: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/python
+───── before-1 结算竞态丢记录（rc 期望 0 / 账本 unaccounted 期望 0） ─────
+  rc=0
+  out| STAGE: 迟到线程已停在 record() 之前（它读到的 _FINALIZING 是 False）
+  out| STAGE: 迟到线程已在最终结算之后落账
+  ledger| total=0 blocked=0 advisory=0 unaccounted=0
+  ==> 判读：rc=0 而账本 unaccounted=0
+───── before-2 账本与裁定打脸（rc 期望 0 / 账本 unaccounted 期望 1） ─────
+  rc=0
+  out| STAGE: 迟到线程已停在 record() 之前（它读到的 _FINALIZING 是 False）
+  out| STAGE: 迟到线程已在快照 A 与快照 B 之间落账
+  ledger| total=1 blocked=1 advisory=0 unaccounted=1
+  ==> 判读：rc=0 而账本 unaccounted=1
+───── before-3 install 顺序：预检在门外（期望 connected / blocked=0） ─────
+  rc=1
+  err|   File "<string>", line 11
+  err|     os.environ["NEO4J_URI"] = "bolt://127.0.0.1:%%d" %% port
+  err|                                                       ^
+  err| SyntaxError: invalid syntax
+───── before-4 T-10 advisory 窗口（期望 session-fixture 处 exempt=True）─────
+  rc=0
+  out| PROBE configure: exempt=False owner='<unknown>'
+  out| PROBE session-fixture: exempt=True owner='test_mini.py::test_first_is_integration'
+  out| 1 passed, 1 warning in 0.35s
+=== BEFORE 证据结束 ===
+rc=

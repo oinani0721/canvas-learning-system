@@ -1191,6 +1191,263 @@ def probe_runtime_legacy_journal_watched() -> dict:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# CARD-W4-4：结算原子性 / 账本与裁定一致 / install 顺序 / 注入点惰性
+# ═══════════════════════════════════════════════════════════════════════════
+
+#: 制造「hook 已过结算检查、结算已取快照、hook 才记账」这个交错。
+#:
+#: 唯一的注入点是 ``live_port_guard._finalize_race_seam_hook`` —— 生产里它是一个
+#: **默认 no-op**、被 :func:`_audit_hook` 无条件调用、返回值被丢弃的函数（不出现在
+#: 任何判据里，见那里的 docstring）。修好之后 hook 里已经没有「先读结算标志、再记账」
+#: 这个间隙了（判定进了 ``record()`` 的锁内），所以要证明间隙关上了，只能让 hook 在
+#: **即将记账**那一点停住 —— 进程外做不到这件事。
+#:
+#: ⚠️ ``atexit.unregister`` 那一行**不是拆门**，恰恰相反：生产里 ``_final_accounting``
+#: 只跑一次，而本探针手工调了它一次，若不摘掉注册，解释器退出时会**再结算一遍**，
+#: 那第二遍会看见迟到记录并 ``os._exit(3)`` —— 于是即便迟到判定完全失效，rc 照样是 3，
+#: 判据被更晚的一层喂饱（「判据必须绑定是被哪一层拒的」）。摘掉之后，rc=3 只可能
+#: 来自 hook 的迟到路径本身。
+_FINALIZE_RACE_BODY = """
+    from tests.support import live_port_guard as g
+    srv, port = listener()
+    g.BLOCKED_PORTS = frozenset(g.BLOCKED_PORTS | {port})   # 只加不减：门的不变量
+    g.install()
+
+    reached = threading.Event()
+    released = threading.Event()
+
+    def seam():
+        reached.set()          # hook 已走到「即将记账」那一点
+        released.wait(30)      # 等主线程把结算做完
+
+    g._finalize_race_seam_hook = seam
+
+    def late_connect():
+        s = socket.socket()
+        try:
+            s.connect(("127.0.0.1", port))
+        except BaseException:
+            pass
+        finally:
+            s.close()
+
+    t = threading.Thread(target=late_connect, name="w4-late", daemon=True)
+    t.start()
+    if not reached.wait(30):
+        verdict(False, %r, "迟到线程没走到注入点")
+        sys.exit(0)
+    g._final_accounting()                      # 结算：置位 + 取快照（必须原子）
+    atexit.unregister(g._final_accounting)     # 生产里只跑一次；见上面的 ⚠️
+    verdict(True, %r)                          # 裁定行必须在放行之前落地
+    released.set()
+    t.join(30)
+    srv.close()
+    sys.exit(0)
+    """
+
+_CLEAN_LEDGER_BODY = """
+    from tests.support import live_port_guard as g
+    g.install()
+    verdict(True, %r)
+    sys.exit(0)
+    """
+
+
+def probe_finalize_race_loses_record() -> dict:
+    """结算快照取走之后落地的 blocked 记录，必须让进程 rc=3（不得被整条丢掉）。
+
+    改前（主干 03ac8bf8）同一交错的结果是 **rc=0 且账本 unaccounted=0** —— 记录既不
+    进快照、又不触发迟到路径。实测证据：``_bmad-output/审查/evidence-w4-4`` 的
+    ``before-1``。
+    """
+    name = "guard-finalize-race-loses-record"
+    return _run(name, _FINALIZE_RACE_BODY % (name, name), expect_rc=3)
+
+
+def probe_ledger_matches_verdict() -> dict:
+    """账本文件与进程 rc 必须互相印证，**两个方向都要**。
+
+    * 结算之后落地一条 blocked ⇒ rc=3 且账本 ``unaccounted>0``、``blocked>0``；
+    * 一次连接都没有 ⇒ rc=0 且账本 ``unaccounted==0``、``blocked==0``。
+
+    只测一个方向会被「恒判 unaccounted=1」这类实现骗过。改前第一种形态可以出现
+    **账本 unaccounted=1 而 rc=0**（裁定读 ``_final_accounting`` 的快照、落盘读
+    ``write_ledger`` 自己再取的那一份）—— 实测证据见 ``before-2``。
+    """
+    name = "guard-ledger-matches-verdict"
+    tmp = Path(tempfile.mkdtemp(prefix="w4-verdict-"))
+    late_path = tmp / "late.json"
+    clean_path = tmp / "clean.json"
+    late = _run(name, _FINALIZE_RACE_BODY % (name, name), expect_rc=3, env_extra={"W4_GUARD_LEDGER": str(late_path)})
+    clean = _run(name, _CLEAN_LEDGER_BODY % name, expect_rc=0, env_extra={"W4_GUARD_LEDGER": str(clean_path)})
+    problems: list[str] = []
+    if not late["ok"]:
+        problems.append(f"迟到形态子进程未达标（{late['reason']}）")
+    if not clean["ok"]:
+        problems.append(f"干净形态子进程未达标（{clean['reason']}）")
+    for label, path, rc, want_positive in (
+        ("late", late_path, late["rc"], True),
+        ("clean", clean_path, clean["rc"], False),
+    ):
+        if not path.exists():
+            problems.append(f"{label}: 账本未落盘")
+            continue
+        led = json.loads(path.read_text(encoding="utf-8"))
+        if want_positive:
+            if not (led["unaccounted"] > 0 and led["blocked"] > 0 and rc == 3):
+                problems.append(
+                    f"{label}: rc={rc} 而账本 blocked={led['blocked']} unaccounted={led['unaccounted']}"
+                    " —— 账本与裁定不一致"
+                )
+        else:
+            if not (led["unaccounted"] == 0 and led["blocked"] == 0 and rc == 0):
+                problems.append(
+                    f"{label}: rc={rc} 而账本 blocked={led['blocked']} unaccounted={led['unaccounted']}"
+                    " —— 无连接却不是零账/零 rc"
+                )
+    shutil.rmtree(tmp, ignore_errors=True)
+    return {
+        "name": name,
+        "ok": not problems,
+        "rc": late["rc"],
+        "expect_rc": 3,
+        "verdict": [late["verdict"], clean["verdict"]],
+        "reason": "; ".join(problems),
+        "stderr_tail": (late["stderr_tail"] or clean["stderr_tail"])[-400:],
+    }
+
+
+def probe_install_order_precheck_is_guarded() -> dict:
+    """``install()`` 的目标预检必须跑在**门内**（T-14）。
+
+    ``assert_neo4j_target_blocked()`` 会走 ``canonical_target_ports``，后者在函数体内
+    ``from neo4j import Address``。旧顺序把这段放在 ``_install_audit_hook()`` **之前**，
+    于是预检期（含那次 import）的任何连接既不被拦、也不进账 —— 实测证据
+    ``before-3``：预检内一次到受拦端口的连接结果是 ``connected``、``STATE.blocked=0``。
+
+    这里在 ``canonical_target_ports`` 内部发起一次到受拦端口的连接，要求它**被拦下
+    且被记账**。把 (d) 的顺序改回去，本探针当场转红。
+    """
+    name = "guard-install-order-precheck-is-guarded"
+    body = """
+    from tests.support import live_port_guard as g
+    srv, port = listener()
+    os.environ["NEO4J_URI"] = "bolt://127.0.0.1:" + str(port)
+    g.BLOCKED_PORTS = frozenset(g.BLOCKED_PORTS | {port})   # 只加不减：门的不变量
+    seen = []
+    _orig = g.canonical_target_ports
+
+    def wrapped(uri):
+        # 模拟「预检期间（含它的延迟 import neo4j）发生了一次到受拦端口的连接」
+        s = socket.socket()
+        try:
+            s.connect(("127.0.0.1", port))
+            seen.append("connected")
+        except RuntimeError:
+            seen.append("blocked")
+        except BaseException as exc:
+            seen.append("other:" + type(exc).__name__)
+        finally:
+            s.close()
+        return _orig(uri)
+
+    g.canonical_target_ports = wrapped
+    g.install()
+    ok = seen == ["blocked"] and g.STATE.blocked == 1
+    verdict(ok, %r, "" if ok else ("预检内连接=" + repr(seen) + " STATE.blocked=" + str(g.STATE.blocked)))
+    srv.close()
+    sys.exit(0)
+    """
+    return _run(
+        name,
+        body % name,
+        expect_rc=3,
+        env_extra={"W4_GUARD_REQUIRE_BLOCKED_TARGET": "1"},
+    )
+
+
+def probe_late_exit_survives_broken_stderr() -> dict:
+    """迟到路径的强制退出**不得**被「打印失败」挡住（Codex round-1 HIGH-3）。
+
+    旧结构里 ``print(..., file=sys.stderr)`` 在异常保护之外，只有 ``flush()`` 被 try
+    裹着。stderr 若已关闭，``ValueError`` 会越过 ``os._exit(3)`` —— 于是「判迟到就
+    必然就地退出 3」这句在那种状态下不成立（Codex 独立实测：``finalizing=True,
+    blocked=1, unaccounted=1`` 而进程退出 **0**，且未替换注入点）。
+
+    本探针把 stderr 换成一个写就抛的对象，再走一次真正的迟到路径（连接发生在
+    **比本门更早注册**的 atexit 回调里 ⇒ LIFO 下排在最终结算之后）。
+    """
+    name = "guard-late-exit-survives-broken-stderr"
+    body = """
+    srv, port = listener()
+
+    class Boom:
+        def write(self, *a, **k):
+            raise ValueError("I/O operation on closed file")
+        def flush(self, *a, **k):
+            raise ValueError("I/O operation on closed file")
+
+    def very_late():
+        sys.stderr = Boom()          # 迟到连接发生时 stderr 已经坏掉
+        s = socket.socket()
+        try:
+            s.connect(("127.0.0.1", port))
+        except BaseException:
+            pass                      # 拦下来了，但没人会为它结账
+        finally:
+            s.close()
+
+    atexit.register(very_late)        # 先注册 ⇒ 最后执行（在最终结算之后）
+    from tests.support import live_port_guard as g
+    g.BLOCKED_PORTS = frozenset(g.BLOCKED_PORTS | {port})   # 只加不减
+    g.install()
+    g.STATE.reported_status = 0       # 模拟 pytest 已返回 0
+    verdict(True, %r)                 # 裁定行必须在 stderr 被弄坏之前落地
+    sys.exit(0)
+    """
+    return _run(name, body % name, expect_rc=3)
+
+
+def probe_finalize_seam_inert_when_unset() -> dict:
+    """注入点未被替换时必须**完全惰性**；被替换时必须当场算漂移。
+
+    两个方向都钉：默认那个 no-op 不返回任何东西、不动账本、``assert_guard_live``
+    照常通过；一旦被换掉，``assert_guard_live`` 必须抛 :class:`GuardDrift` 并点名
+    注入点 —— 否则这个 seam 就成了一条新的旁路。
+    """
+    name = "guard-finalize-seam-inert-when-unset"
+    body = """
+    import json as _json
+    from tests.support import live_port_guard as g
+    g.install()
+    problems = []
+    if g._finalize_race_seam_hook is not g._finalize_race_seam:
+        problems.append("默认注入点不是那个 no-op")
+    before = _json.dumps(g.STATE.ledger(), sort_keys=True, ensure_ascii=False)
+    for _ in range(10):
+        if g._finalize_race_seam_hook() is not None:
+            problems.append("默认注入点有返回值")
+            break
+    after = _json.dumps(g.STATE.ledger(), sort_keys=True, ensure_ascii=False)
+    if before != after:
+        problems.append("默认注入点动了账本")
+    g.assert_guard_live("seam 未替换")
+    g._finalize_race_seam_hook = lambda: None
+    try:
+        g.assert_guard_live("seam 已替换")
+        problems.append("注入点被替换却没被 assert_guard_live 抓到")
+    except g.GuardDrift as exc:
+        if "注入点" not in str(exc):
+            problems.append("漂移拒因不是注入点: " + str(exc)[:80])
+    finally:
+        g._finalize_race_seam_hook = g._finalize_race_seam
+    verdict(not problems, %r, "; ".join(problems))
+    sys.exit(0)
+    """
+    return _run(name, body % name, expect_rc=0)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 
 
 def main() -> int:
@@ -1228,6 +1485,13 @@ def main() -> int:
         probe_runtime_glob_sidecar_excluded(),
         probe_runtime_glob_expansion_sorted(),
         probe_runtime_legacy_journal_watched(),
+        # CARD-W4-4：结算原子性（门自己的假绿）+ 账本/裁定一致 + install 顺序 + 注入点惰性。
+        probe_finalize_race_loses_record(),
+        probe_ledger_matches_verdict(),
+        probe_install_order_precheck_is_guarded(),
+        probe_finalize_seam_inert_when_unset(),
+        # Codex round-1 HIGH-3 的处置门：打印失败不得挡住迟到路径的强制退出。
+        probe_late_exit_survives_broken_stderr(),
     ]
     results.extend(probe_shell_injections())
 

@@ -1,0 +1,17 @@
+### 注：zsh 不做词分割，此处用数组展开（上一次用裸 $FILES 把 5 个路径当成 1 个文件名，已作废）
+### ruff format --check（本卡改动文件，工作树版）
+Would reformat: tests/support/live_port_guard.py
+Would reformat: tests/unit/test_live_port_guard_contract.py
+2 files would be reformatted, 3 files already formatted
+ruff-format-rc=1
+
+### ruff check
+All checks passed!
+ruff-check-rc=0
+
+### HEAD 基线对比（逐个文件：HEAD 版本自己格式化过没有）
+  HEAD 版 tests/support/live_port_guard.py: 已格式化
+  HEAD 版 tests/conftest.py: 已格式化
+  HEAD 版 tests/support/guard_plugin.py: 已格式化
+  HEAD 版 tests/unit/test_live_port_guard_contract.py: 已格式化
+  HEAD 版 scripts/lifespan_isolation_guard_probes.py: 已格式化

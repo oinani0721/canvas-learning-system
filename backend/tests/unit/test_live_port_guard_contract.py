@@ -11,6 +11,10 @@
 
 from __future__ import annotations
 
+import ast
+import inspect
+import json
+import textwrap
 from pathlib import Path
 
 import pytest
@@ -532,3 +536,371 @@ class TestGuardLiveness:
         for key in ("total", "blocked", "advisory", "billed", "unaccounted", "reported_status", "installed"):
             assert key in led, f"账本缺字段 {key} —— 父进程复核会读它"
         assert led["installed"] is True
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# CARD-W4-4：结算原子性 / 单快照 / install 顺序 / 预检-豁免顺序 / 注入点惰性
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+@pytest.fixture
+def isolated_state(monkeypatch):
+    """给结算类用例一份**独立的** :class:`_GuardState`。
+
+    ⛔ 绝不能在真 ``guard.STATE`` 上试结算：一旦把它置成「已结算」，本进程后续
+    每一次到受拦端口的连接都会走迟到路径 ``os._exit(3)`` —— 整条测试线当场消失，
+    而且是以「进程没了」这种最难归因的形式。
+    """
+    state = guard._GuardState()
+    monkeypatch.setattr(guard, "STATE", state)
+    return state
+
+
+def _fn_ast(func) -> ast.FunctionDef:
+    """取某个函数的 AST（用于「顺序」「有没有调某某」这类**结构性**断言）。
+
+    有些性质在进程内观测不到——例如「``install()`` 里装 hook 是不是排在预检之前」，
+    真跑一次只会得到一个已经装好的门。这类断言只能盯源码结构；对应的**行为**证明
+    在 ``scripts/lifespan_isolation_guard_probes.py`` 的子进程探针里。
+    """
+    tree = ast.parse(textwrap.dedent(inspect.getsource(func)))
+    node = tree.body[0]
+    assert isinstance(node, ast.FunctionDef)
+    return node
+
+
+def _called_names(node: ast.AST) -> list[str]:
+    """节点子树里所有被调用的名字（``f()`` 记 ``f``；``a.b()`` 记 ``b``）。"""
+    names: list[str] = []
+    for child in ast.walk(node):
+        if isinstance(child, ast.Call):
+            func = child.func
+            if isinstance(func, ast.Name):
+                names.append(func.id)
+            elif isinstance(func, ast.Attribute):
+                names.append(func.attr)
+    return names
+
+
+class TestSettlementAtomicity:
+    """结算标志 / 账本快照 / 记账必须在**同一把锁**里（CARD-W4-4 的要害）。
+
+    行为面的证明（真的制造交错、看进程 rc）在探针
+    ``guard-finalize-race-loses-record`` 里 —— 迟到路径以 ``os._exit(3)`` 收场，
+    在 pytest 进程内跑不了。这里锁的是**判定本身**。
+    """
+
+    def test_record_before_finalize_is_block(self, isolated_state):
+        assert isolated_state.record(("127.0.0.1", 7691)) == guard.RECORD_BLOCK
+
+    def test_record_after_finalize_returns_late(self, isolated_state):
+        """结算之后再落地的记录必须拿到「迟到」信号，而不是普通的「该拦」。"""
+        isolated_state.finalize_and_snapshot()
+        assert isolated_state.record(("127.0.0.1", 7691)) == guard.RECORD_LATE
+
+    def test_finalize_snapshot_is_frozen_against_later_records(self, isolated_state):
+        """快照取走之后落地的记录**不得**回头改写那份快照。
+
+        它必须体现在两个地方：``STATE.late`` 计数，以及**重新取**的账本
+        （``late_snapshot``）。这样迟到路径重写账本文件时，文件才与 rc=3 对得上。
+        """
+        snapshot = isolated_state.finalize_and_snapshot()
+        assert snapshot["unaccounted"] == 0 and snapshot["blocked"] == 0
+
+        assert isolated_state.record(("127.0.0.1", 7691)) == guard.RECORD_LATE
+
+        assert snapshot["unaccounted"] == 0, "结算快照被事后改写了 —— 它必须是那一刻的定格"
+        assert isolated_state.late == 1
+        later = isolated_state.late_snapshot()
+        assert later["unaccounted"] == 1 and later["blocked"] == 1
+
+    def test_late_record_is_blocked_even_when_the_item_is_exempt(self, isolated_state, monkeypatch):
+        """迟到路径**不看豁免**：结算之后已无人能把 advisory 变成非零 rc。
+
+        （旧实现的 ``if _FINALIZING`` 同样不看豁免，这条锁的是语义没被改松。）
+        """
+        guard.begin_item("tests/integration/test_x.py::test_y", True)
+        try:
+            isolated_state.precheck_done = True
+            guard.begin_item("tests/integration/test_x.py::test_y", True)
+            assert guard._EXEMPT_CV.get() is True, "前置条件没成立：这条用例本该是豁免的"
+            isolated_state.finalize_and_snapshot()
+            assert isolated_state.record(("127.0.0.1", 7691)) == guard.RECORD_LATE
+            assert isolated_state.advisory == 0
+            assert isolated_state.blocked == 1
+            assert isolated_state.late_snapshot()["unaccounted"] == 1
+        finally:
+            guard.end_item()
+
+    def test_exempt_item_still_gets_advisory_before_finalize(self, isolated_state):
+        """反向锚：结算**之前**豁免照常生效 —— 否则上一条只是「什么都豁免不了」。"""
+        isolated_state.precheck_done = True
+        guard.begin_item("tests/integration/test_x.py::test_y", True)
+        try:
+            assert isolated_state.record(("127.0.0.1", 7691)) == guard.RECORD_ADVISORY
+            assert isolated_state.advisory == 1 and isolated_state.blocked == 0
+        finally:
+            guard.end_item()
+
+    def test_finalize_and_snapshot_sets_the_flag_and_snapshots_under_one_lock(self):
+        """``finalize_and_snapshot`` 的函数体里，置标志与取快照必须在**同一个** with。
+
+        这是本卡的核心不变量：拆成两条独立语句（哪怕都各自持锁）就重新打开了那个
+        夹缝。断言盯的是「``self.finalizing = True`` 与取快照同属一个 ``with self._lock``」。
+        """
+        node = _fn_ast(guard._GuardState.finalize_and_snapshot)
+        withs = [n for n in node.body if isinstance(n, ast.With)]
+        assert len(withs) == 1, "结算必须只有一个临界区"
+        body_src = ast.dump(withs[0])
+        assert "finalizing" in body_src, "结算标志不在这个临界区里"
+        assert "_ledger_locked" in body_src, "快照不在同一个临界区里"
+
+    def test_settlement_path_never_nests_the_lock(self):
+        """``_lock`` 不可重入 ⇒ 持锁的方法里禁止再调会取锁的公共读接口。
+
+        调了就是死锁，而死锁在 atexit 期表现为「进程挂住」，比翻红难查得多。
+        """
+        for method in (
+            guard._GuardState.finalize_and_snapshot,
+            guard._GuardState.late_snapshot,
+            guard._GuardState.record,
+            guard._GuardState.ledger,
+        ):
+            called = _called_names(_fn_ast(method))
+            for forbidden in ("ledger", "unaccounted_blocked", "summary_line", "take"):
+                assert forbidden not in called, f"{method.__name__} 里嵌套调用了会取锁的 {forbidden}()"
+
+    def test_audit_hook_reads_the_settlement_state_through_record(self):
+        """hook 不得再对结算标志做**锁外读**（这正是被修掉的那个缺陷）。"""
+        called = _called_names(_fn_ast(guard._audit_hook))
+        assert "record" in called, "hook 必须经 record() 拿归宿"
+        src = inspect.getsource(guard._audit_hook)
+        assert "_FINALIZING" not in src, "hook 里又出现了锁外读的模块级结算标志"
+
+    def test_module_level_finalizing_global_is_gone(self):
+        """模块级 ``_FINALIZING`` 必须整个消失，不能只是「没人读」。
+
+        留着一个同名全局，下一个人很容易顺手再读它一次 —— 缺陷就回来了。
+        """
+        assert not hasattr(guard, "_FINALIZING")
+
+
+class TestSingleLedgerSnapshot:
+    """裁定与落盘必须是**同一个 dict 对象**。"""
+
+    def test_final_accounting_hands_its_own_snapshot_to_write_ledger(self, isolated_state, monkeypatch, tmp_path):
+        """身份断言，不是等值断言。
+
+        ``==`` 会被「两次快照恰好内容相同」骗过 —— 而内容相同正是绝大多数时候的
+        情形，缺陷只在那条记录恰好落在两次之间时才现形。要锁的是「只取了一次」，
+        所以判据必须是 ``is``。
+        """
+        taken: list[dict] = []
+        original = isolated_state.finalize_and_snapshot
+
+        def spy_finalize():
+            snap = original()
+            taken.append(snap)
+            return snap
+
+        captured: dict = {}
+
+        def fake_write(path, ledger=None):
+            captured["path"] = path
+            captured["ledger"] = ledger
+
+        def forbidden_ledger():
+            raise AssertionError("结算路径又去取了第二次快照（STATE.ledger()）")
+
+        monkeypatch.setattr(isolated_state, "finalize_and_snapshot", spy_finalize)
+        monkeypatch.setattr(isolated_state, "ledger", forbidden_ledger)
+        monkeypatch.setattr(guard, "write_ledger", fake_write)
+        monkeypatch.setenv(guard.ENV_LEDGER, str(tmp_path / "ledger.json"))
+
+        guard._final_accounting()
+
+        assert len(taken) == 1, "结算快照必须恰好取一次"
+        assert captured["ledger"] is taken[0], "落盘写的不是裁定用的那一份快照"
+
+    def test_write_ledger_dumps_exactly_what_it_is_given(self, tmp_path):
+        """给了快照就写那一份，不得自己再取一次（那正是双快照的来源）。"""
+        path = tmp_path / "ledger.json"
+        handed = {"total": 41, "blocked": 7, "advisory": 0, "unaccounted": 7}
+        guard.write_ledger(str(path), handed)
+        assert json.loads(path.read_text(encoding="utf-8")) == handed
+
+    def test_write_ledger_without_a_snapshot_still_works_standalone(self, tmp_path, isolated_state):
+        """``ledger=None`` 是**结算之外**的独立调用留的口子，必须仍然可用。"""
+        path = tmp_path / "ledger.json"
+        guard.write_ledger(str(path))
+        assert json.loads(path.read_text(encoding="utf-8"))["total"] == 0
+
+
+class TestInstallOrder:
+    """T-14：承重 hook 必须装在任何预检之前。"""
+
+    def test_audit_hook_is_installed_before_the_target_precheck(self):
+        """``install()`` 体内 ``_install_audit_hook()`` 必须排在预检之前。
+
+        行为面的证明是探针 ``guard-install-order-precheck-is-guarded``
+        （在预检内部真发一次连接，看它被不被拦 + 记不记账）。这里锁的是顺序本身 ——
+        进程内跑一次 ``install()`` 只会看到一个已经装好的门，顺序观测不到。
+        """
+        node = _fn_ast(guard.install)
+        hook_at = precheck_at = None
+        for index, stmt in enumerate(node.body):
+            names = _called_names(stmt)
+            if hook_at is None and "_install_audit_hook" in names:
+                hook_at = index
+            if precheck_at is None and "assert_neo4j_target_blocked" in names:
+                precheck_at = index
+        assert hook_at is not None, "install() 里找不到 _install_audit_hook()"
+        assert precheck_at is not None, "install() 里找不到 assert_neo4j_target_blocked()"
+        assert hook_at < precheck_at, (
+            "承重 hook 装在预检之后 —— 预检（含 canonical_target_ports 的延迟 "
+            "import neo4j）整段在门外，那里的连接既不被拦也不进账"
+        )
+
+    def test_final_accounting_is_registered_after_the_precheck(self):
+        """相对顺序不变：预检抛出时就该拒绝装门，不留一个会 os._exit 的 atexit。"""
+        node = _fn_ast(guard.install)
+        precheck_at = register_at = None
+        for index, stmt in enumerate(node.body):
+            names = _called_names(stmt)
+            if precheck_at is None and "assert_neo4j_target_blocked" in names:
+                precheck_at = index
+            if register_at is None and "register_final_accounting" in names:
+                register_at = index
+        assert precheck_at is not None and register_at is not None
+        assert precheck_at < register_at
+
+
+class TestPrecheckBeforeExemption:
+    """T-10：``NEO4J_TEST_URI`` 预检必须早于任何豁免作用域。"""
+
+    def test_begin_item_refuses_exemption_before_the_precheck(self, isolated_state):
+        """预检没完成 ⇒ integration 路径的连接**不得**被记成 advisory。
+
+        这正是旧接线的洞：预检跑在 session fixture 里，而 session fixture 的 setup
+        跑在首个用例的 ``runtest_protocol`` 之内 —— 首个用例若在 tests/integration，
+        预检整段都在豁免窗口里。
+        """
+        assert isolated_state.precheck_done is False
+        guard.begin_item("tests/integration/test_x.py::test_y", True)
+        try:
+            assert guard._EXEMPT_CV.get() is False, "预检未完成却发了豁免票"
+            assert isolated_state.record(("127.0.0.1", 7691)) == guard.RECORD_BLOCK
+            assert isolated_state.advisory == 0 and isolated_state.blocked == 1
+        finally:
+            guard.end_item()
+
+    def test_begin_item_grants_exemption_after_the_precheck(self, isolated_state):
+        """反向锚：预检完成后豁免照常发 —— 否则上一条只证明了「永远不豁免」。"""
+        isolated_state.precheck_done = True
+        guard.begin_item("tests/integration/test_x.py::test_y", True)
+        try:
+            assert guard._EXEMPT_CV.get() is True
+            assert isolated_state.record(("127.0.0.1", 7691)) == guard.RECORD_ADVISORY
+        finally:
+            guard.end_item()
+
+    def test_successful_precheck_marks_done(self, isolated_state, monkeypatch):
+        monkeypatch.setenv("NEO4J_TEST_URI", "bolt://127.0.0.1:7692")
+        guard.assert_test_uri_not_blocked()
+        assert isolated_state.precheck_done is True
+
+    def test_unset_test_uri_still_marks_done(self, isolated_state, monkeypatch):
+        """没配测试容器 URI = 射程外，预检算完成（否则整条会话永久失去豁免）。"""
+        monkeypatch.delenv("NEO4J_TEST_URI", raising=False)
+        guard.assert_test_uri_not_blocked()
+        assert isolated_state.precheck_done is True
+
+    def test_failed_precheck_does_not_mark_done(self, isolated_state, monkeypatch):
+        """预检失败 ⇒ 标志保持关闭 ⇒ 豁免继续关着（fail-closed）。"""
+        monkeypatch.setenv("NEO4J_TEST_URI", "bolt://127.0.0.1:7691")
+        with pytest.raises(RuntimeError):
+            guard.assert_test_uri_not_blocked()
+        assert isolated_state.precheck_done is False
+
+    @pytest.mark.parametrize(
+        "module_path",
+        [
+            Path(__file__).resolve().parents[1] / "conftest.py",
+            Path(__file__).resolve().parents[1] / "support" / "guard_plugin.py",
+        ],
+        ids=["root-conftest", "guard-plugin"],
+    )
+    def test_precheck_lives_in_pytest_configure_not_in_a_session_fixture(self, module_path):
+        """两处接线都必须把预检放在 ``pytest_configure``，而不是 session fixture。
+
+        放回 fixture 里就等于把它塞进首个用例的 ``begin_item(exempt=…)`` 作用域。
+        """
+        tree = ast.parse(module_path.read_text(encoding="utf-8"))
+        found_in: list[str] = []
+        for node in tree.body:
+            if isinstance(node, ast.FunctionDef) and "assert_test_uri_not_blocked" in _called_names(node):
+                found_in.append(node.name)
+        assert found_in == ["pytest_configure"], (
+            f"{module_path.name} 里预检出现在 {found_in}；必须且只能在 pytest_configure"
+        )
+
+
+class TestFinalizeRaceSeam:
+    """注入点：未替换时完全惰性，被替换时当场算漂移。"""
+
+    def test_seam_is_the_noop_by_default(self):
+        assert guard._finalize_race_seam_hook is guard._finalize_race_seam
+        assert guard._finalize_race_seam_hook() is None
+
+    def test_seam_body_is_empty(self):
+        """默认注入点的函数体只有 docstring —— 没有任何可执行语句。"""
+        body = _fn_ast(guard._finalize_race_seam).body
+        assert len(body) == 1 and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant)
+
+    def test_seam_is_called_unconditionally_not_inside_a_condition(self):
+        """注入点**不出现在任何判据里**：它是一条独立语句，不是某个 ``if`` 的条件。"""
+        node = _fn_ast(guard._audit_hook)
+        for child in ast.walk(node):
+            if isinstance(child, (ast.If, ast.While)):
+                assert "_finalize_race_seam_hook" not in _called_names(child.test), "注入点进了分支条件"
+        assert any(
+            isinstance(child, ast.Expr) and "_finalize_race_seam_hook" in _called_names(child)
+            for child in ast.walk(node)
+        ), "注入点必须是一条独立的调用语句"
+
+    def test_seam_replacement_is_detected_as_drift(self, monkeypatch):
+        """有人拿注入点当旁路 ⇒ 下一个用例边界就 GuardDrift。"""
+        monkeypatch.setattr(guard, "_finalize_race_seam_hook", lambda: None)
+        with pytest.raises(guard.GuardDrift, match="注入点"):
+            guard.assert_guard_live("unit test: seam replaced")
+
+    def test_seam_untouched_passes_liveness(self):
+        """反向锚：没动它时自证照常通过。"""
+        guard.assert_guard_live("unit test: seam intact")
+
+    def test_throwing_seam_cannot_skip_accounting(self, isolated_state, monkeypatch):
+        """注入点抛异常**不得**跳过记账（Codex round-1 HIGH-1）。
+
+        原实现里 seam 的调用没有包 try：替换成一个抛 ``RuntimeError`` 的函数之后，
+        连接确实被阻断了（异常传给调用方），但 ``STATE.record()`` 根本没跑到 ⇒
+        账本为零、进程 exit 0 —— 这个「只为测试存在」的缝就成了一条跳过记账的旁路。
+        Codex 独立实测得到 ``blocked=0, unaccounted=0``、子进程退出 0。
+
+        现在 seam 被 ``try/except BaseException`` 包住，它对控制流的影响面是 0：
+        记账照做，非豁免连接照常抛 ``RuntimeError``。
+        """
+
+        def boom() -> None:
+            raise RuntimeError("seam 故意抛出 —— 不得影响记账与拦截")
+
+        monkeypatch.setattr(guard, "_finalize_race_seam_hook", boom)
+
+        # 走完整条承重路径：合成一次到受拦端口的审计事件（不建立任何真实连接）
+        with pytest.raises(RuntimeError, match=guard.BLOCK_REASON):
+            import sys as _sys
+
+            _sys.audit("socket.connect", None, ("127.0.0.1", 7691))
+
+        assert isolated_state.blocked == 1, "seam 抛异常把记账整条跳过了"
+        assert isolated_state.total == 1
+        assert isolated_state.late_snapshot()["unaccounted"] == 1

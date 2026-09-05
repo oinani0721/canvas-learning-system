@@ -37,11 +37,19 @@ live_port_guard.install()
 def pytest_configure(config):
     # 幂等复核：install() 内部会走 assert_guard_live()，import 之后被拆掉的门在此暴露。
     live_port_guard.install()
+    # ⛔ NEO4J_TEST_URI 白名单预检在这里，不在 session fixture（T-10，CARD-W4-4）——
+    #    session fixture 的 setup 跑在首个用例的 runtest_protocol 之内，也就是
+    #    begin_item(exempt=…) 之后；首个用例若在 integration/e2e，预检整段就落进
+    #    advisory 窗口。与根 conftest 同型同位置（tests/conftest.py 的 pytest_configure）。
+    live_port_guard.assert_test_uri_not_blocked()
 
 
 @pytest.fixture(scope="session", autouse=True)
 def _guard_plugin_session_asserts():
-    """门在位自证（与根 conftest 的同名 fixture 断言一致；幂等双保险）。"""
+    """门在位自证（与根 conftest 的同名 fixture 断言一致；幂等双保险）。
+
+    ⚠️ URI 预检**不在这里**（已上移到 ``pytest_configure``，见上）——放在 fixture 里
+    等于让它跑在首个用例的豁免作用域内。
+    """
     live_port_guard.assert_guard_live("guard_plugin session fixture")
-    live_port_guard.assert_test_uri_not_blocked()
     yield

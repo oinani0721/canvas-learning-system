@@ -1,0 +1,10 @@
+### r2 整改后：ruff format 落盘 + check
+5 files left unchanged
+5 files already formatted
+format-check-rc=0
+All checks passed!
+check-rc=0
+Would reformat: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/_bmad-output/审查/evidence-w4-4/before-repro.py
+Would reformat: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/_bmad-output/审查/evidence-w4-4/mutation_teardown.py
+2 files would be reformatted
+evidence-format-rc=1

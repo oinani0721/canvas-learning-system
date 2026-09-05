@@ -1,0 +1,15 @@
+### tests/unit nodeid 对账（修正版，取代同目录 unit-nodeid-diff-2026*.txt）
+# 首版判据 '^(FAILED|ERROR) ' 会误吃 structlog 的 'ERROR    app.xxx:...' 日志行
+# （基线文件头部已明确警告「日志噪音行不计」）。修正判据要求 nodeid 形态 '^(FAILED|ERROR) tests/...::'。
+
+基线 nodeid 数: 247
+收工 nodeid 数: 247
+收工 pytest 摘要: = 209 failed, 4628 passed, 1 skipped, 121 warnings, 38 errors in 273.79s (0:04:33) =
+
+--- 本卡新增红（收工有、基线无）---
+(以上为空 = 无新增)
+
+--- 本卡转绿（基线有、收工无）---
+(以上为空 = 无变化)
+
+rc=0
