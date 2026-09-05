@@ -2060,3 +2060,102 @@ test("status='constructor' → 走灰徽标兜底, 不命中继承属性", () =>
 """,
     )
     _assert_node_green(proc)
+
+
+# ════════════════════════════════════════════════════════════════════
+# E. 轮询节奏契约的**接线层** (CARD-G6-3 完成条件 b)
+# ════════════════════════════════════════════════════════════════════
+
+
+@pytest.mark.usefixtures("page_html")
+def test_js_poll_contract_wiring_g63(node_harness):
+    """CARD-G6-3 (b): 四条轮询契约在**真实事件驱动**下各一条断言。
+
+    与既有 test_js_poll_interval_clamped_and_visibility_pauses 的分工:
+    那门测的主要是 `computePollDelayMs` / `visibilityAction` 两个**纯函数**,
+    接线只覆盖了 60s 上限一条路径。纯函数对不代表接线对 —— 函数算出 5000
+    与「真的排了一个 5000 的 timer」是两回事; `visibilityAction` 返回
+    `pollNow: true` 与「visibilitychange 事件真的触发了一轮 GET」也是两回事。
+    本门补的就是这段落差:
+
+      ① clamp 下限 5s 走到 setTimeout (上限那条既有门已覆盖, 这里一并锁住,
+         两个边界都在同一个事件驱动路径上比对);
+      ② clamp 上限 60s 同上;
+      ③ visibilitychange 事件真的引发一轮 GET (不是只返回一个意图对象);
+      ④ 自动轮询整条路径上 POST 计数**恒为 0** —— 既有门数的是源码里
+         `method: "POST"` 出现几次 (静态文本), 那挡不住"运行时经由别的路径
+         发出 POST"; 这里数的是沙箱 fetch 实际收到的 POST 次数。
+
+    本卡零产品代码改动: 只加测试, 一个字节的 JS 都没动。
+    node 不可用时 node_harness fixture 直接 fail —— 本门不接受 skip 假绿。
+    """
+    proc = _run_node(
+        node_harness,
+        _BOOT_PRELUDE
+        + r"""
+// next_due 相对**真实** Date.now() 构造 —— 沙箱不冻结时钟, 排程延迟是拿
+// 真实 now 算的; 用固定日期会一律落到"已过期 → 回落上限", 下限路径就测不到。
+function feedIn(seconds) {
+  const iso = new Date(Date.now() + seconds * 1000).toISOString().replace(/\.\d{3}Z$/, "Z");
+  return () => ({ok: true, status: 200, json: async () => ({vaults: [{
+    vault_id: "v", status: "ok", error: null,
+    projection: {due_count: 1, due_new_count: 0, placeholder_backlog: 0,
+      bucket_counts: null, generated_at: "g", boards: [],
+      next_upcoming: {board: "b", next_due: iso, node: "n"}}}]})});
+}
+
+test("① clamp 下限: 2 秒后到期 → 实际排程 5000ms (不打爆后端)", async () => {
+  const b = boot({getJson: feedIn(2)});
+  await flush();
+  assert.equal(b.calls.get, 1);
+  assert.equal(b.timers.length, 1, "必须排下一轮");
+  assert.equal(b.timers[0].ms, 5000, "下限没生效 = 会按 2 秒打后端");
+  assert.match(b.els["nextpoll"].textContent, /5 秒后/);
+});
+
+test("② clamp 上限: 1 小时后到期 → 实际排程 60000ms (不睡死)", async () => {
+  const b = boot({getJson: feedIn(3600)});
+  await flush();
+  assert.equal(b.timers[0].ms, 60000, "上限没生效 = 一小时不问后端");
+  assert.match(b.els["nextpoll"].textContent, /60 秒后/);
+});
+
+test("③ visibilitychange 接线: 隐藏不排程, 回前台**真的**又拉了一轮", async () => {
+  const b = boot({getJson: feedIn(3600), hidden: true});
+  await flush();
+  assert.equal(b.calls.get, 1, "首轮照拉");
+  assert.equal(b.timers.length, 0, "隐藏期间不排下一轮");
+  assert.match(b.els["nextpoll"].textContent, /已暂停/);
+
+  b.document.hidden = false;
+  b.handlers["document::visibilitychange"]();   // 真实事件, 不是调纯函数
+  await flush();
+  assert.equal(b.calls.get, 2, "回前台必须立即拉一轮 (pollNow 的接线端)");
+  assert.equal(b.timers.length, 1, "回前台后恢复排程");
+});
+
+test("④ 自动轮询绝不 POST: 连跑多轮, 沙箱收到的 POST 次数恒为 0", async () => {
+  const b = boot({getJson: feedIn(3600)});
+  await flush();
+  assert.equal(b.calls.get, 1);
+  assert.equal(b.calls.post, 0);
+  // 手动把排程的 timer 打到点, 模拟自动轮询连续跑 —— 每一轮都不许 POST
+  for (let i = 0; i < 5; i++) {
+    const t = b.timers.pop();
+    assert.ok(t, "每轮结束都应排下一轮");
+    t.fn();
+    await flush();
+  }
+  assert.equal(b.calls.get, 6, "5 轮自动轮询 + 首轮 = 6 次 GET");
+  assert.equal(b.calls.post, 0, "自动轮询路径上出现了 POST — 默认裁决② 被破坏");
+  // 隐藏/回前台各来一次, 同样不许 POST
+  b.document.hidden = true;
+  b.handlers["document::visibilitychange"]();
+  b.document.hidden = false;
+  b.handlers["document::visibilitychange"]();
+  await flush();
+  assert.equal(b.calls.post, 0, "可见性切换路径上也不许 POST");
+});
+""",
+    )
+    _assert_node_green(proc)
