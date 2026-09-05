@@ -1,0 +1,51 @@
+> ⚠️ 本文件是 CARD-TOOL-dredd-prereq 的完整卡文——车道开工后必读并逐条执行；它不是 /goal 粘贴文本。/goal 在第十二批手册 §三 Y5-D 块。
+> 批次标记 `[BATCH-2026-09-05-第十二批 / CARD-TOOL-dredd-prereq]`。车道：`card-y5-review`（分支 `card/y5-review`，HEAD `03ac8bf8` + Y5-A/B/C 的 commit，主 session 已预合主干 03ac8bf8，venv symlink 已建 → 共享 venv 含 schemathesis 4.14.3），**前提 Y5-C（CARD-TOOL-openapi-R2）已独立 commit 且工作树干净**。勘探 2026-09-05 于主干 03ac8bf8。协议：`.claude/rules/card-batch-protocol.md`（§2.1 / §2.2 裁判落盘 / §2.3 环境通告 / §3 目录级口径）。
+
+# CARD-TOOL-dredd-prereq — Dredd/schemathesis 候选卡前置：耗时分段 profile + live-port 门 exit 3 的处置判据（零 CI 改动，只出证据与判据）
+
+## 〇 事实
+| 事实 | 位置 |
+|---|---|
+| Z7-C（CARD-TOOL-dredd-decide）UAT 的逐层计时表（同一 operation `GET /api/v1/health`）：`import app.main` + `from_asgi` 建 schema 7.1s（一次性）/ 收集 206 个 operation 35.8s（一次性）/ **schemathesis `case.call()` 单次 20–50s** / checks 0.00s / 对照 `httpx.ASGITransport` 直调 0.01s / `TestClient` 直调 0.00s / `TestClient` 跑一次 lifespan 7.1s | `_bmad-output/验收单/UAT-CARD-TOOL-dredd-decide-2026-09-05.md:170-180` |
+| 同 UAT 的自我更正（Codex round-1 #6 / round-2 #4）：schemathesis 4.x `ASGITransport.send` 每次 `with asgi.get_client(application)` 新建 starlette TestClient ⇒ **每次调用跑一遍 app lifespan**——「重复 lifespan 的机制已确认，耗时瓶颈尚未定位」；7.1s 解释不了 20–50s；两个对照不公平（`httpx.ASGITransport` 一次 lifespan 都不跑）；定位需「固定 Case + 同一客户端实现，拆 startup / 序列化与 hooks / 请求 / shutdown」 | 同文件 :182-200 |
+| 端到端实测：`1 failed, 186 deselected, 613 warnings in 208.70s (0:03:28)` + `NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=19 (blocked=19, advisory=0, unaccounted=0)`；口径边界：208.70s 是**整 session**（含 ~36s 收集）、分母不是 206（`-k` + `-x`）、9 个 **explicit** example 不计入 `max_examples` 且失败后不进生成阶段、单 operation 个位数样本 22s/49s 方差 ⇒ **禁 ×206 外推**（UAT 已撤回该口径） | 同文件 :207-225；Codex r2 表 :444 |
+| §3.5 独立阻断：conftest 两层把「被拦的 live 端口连接」转成失败；探针 blocked=19 ⇒ **即使耗时解决，该测试在门下仍 exit 3**；「复用一个已 startup 的客户端」只能把 lifespan 从 N 降到 1，**降不到 0** | 同文件 :232-250 |
+| `backend/tests/conftest.py`（HEAD 1015 行）：`pytest_runtest_protocol` :120-121（连接尝试归属到用例；`live_port_guard.is_exempt(item, Path(__file__).parent)` :132 决定「只记不拦」）；`pytest_runtest_makereport` :141-142（结账哨兵：被 app/main.py try/except 吞掉的拦截转用例失败）；`pytest_sessionfinish` :163；`pytest_cmdline_main` :175-176 wrapper——`status = 3` 在 :200（`unaccounted_blocked()`）与 :202（`blocked > 0 and status == 0`，「非豁免连接尝试绝不允许以全绿收场」）；`pytest_terminal_summary` :207 | `backend/tests/conftest.py` |
+| `backend/tests/support/live_port_guard.py`：`EXEMPT_MARKERS = frozenset({"integration", "e2e", "real_neo4j"})` :157；`EXEMPT_PATH_PREFIXES = ("integration", "e2e")` :164；`ENV_NO_EXEMPT = "W4_GUARD_NO_EXEMPT"` :175；`is_exempt()` :1061-1083 = marker 优先 → 路径相对 `backend/tests` 取**首段目录**匹配（相对化失败 fail-closed 不豁免）。⇒ `tests/contract/**` **不在**豁免面 | 同文件 |
+| `backend/tests/contract/test_openapi_contract.py`：`schemathesis = pytest.importorskip(...)` :17；`from app.main import app` :18；`schema = schemathesis.openapi.from_asgi("/api/v1/openapi.json", app)` :26；`@schema.parametrize()` + `@settings(max_examples=10, phases=[Phase.explicit, Phase.generate], deadline=10000)` :37-41；`def test_api_contract(case)` :43。`backend/openapi.json` 含 `GET /api/v1/health` | 同文件；`backend/openapi.json` paths |
+| CI：`.github/workflows/api-spec-sync.yml` `contract-test:` :327、`if: false` :330（X8 按用户 #2 停用）；`scripts/spec-tools/dredd-hooks.js` 存在（6643 B，2026-05-03） | 同文件 |
+| 实验产物写点与 gitignore：`neo4j_client.py:55` → `backend/data/neo4j_memory.json`（`backend/data/.gitignore:6 *_memory.json`）；`cost_tracker.py:35` → `backend/data/llm_call_logs.db`（`backend/data/.gitignore:7 *.db`；根 `.gitignore:193 *.db`）；`vault_index_orchestrator.py:131` → `backend/app/data/vault_index_pending__<vault_key>.jsonl`（根 `.gitignore:250 backend/app/data/vault_index_pending*.jsonl`；`runtime_sha.sh:256-271` 监视同族） | `git check-ignore -v` 三路径均命中 |
+| `backend/pytest.ini`：`testpaths = tests` :8、`python_files = test_*.py` :9 ⇒ 要让 profile 受 W4 门（conftest.py）管，它必须是 `backend/tests/` 下名为 `test_*.py` 的文件、且**不带** integration / e2e / real_neo4j marker | `backend/pytest.ini:8-9` |
+| 主干目录级口径：`tests/integration` / `tests/e2e` 走 advisory 仍真连 7691，禁；profile 单文件显式路径可跑 | 设计稿 §0 |
+
+## 一 完成条件（AND）
+- (a) **分段 profile**：写一个**临时** pytest 文件 `backend/tests/contract/test_zz_dredd_prereq_profile.py`（跑完从工作树删除；源码原样存档到 `_bmad-output/审查/evidence-dredd-prereq/profile_harness.py`），固定单个 Case = `GET /api/v1/health`（schema 用与 :26 相同的 `from_asgi("/api/v1/openapi.json", app)`，Case 从 `schema` 取该 operation；`-k` 表达式与 `--collect-only -q` 选中数 = 1 一并记录），**同一客户端实现**（schemathesis 自己的 ASGI transport，不换 httpx）；用 monkeypatch 计时包裹把一次 `case.call()` 拆成四段：① startup（TestClient 进入 `with` 到 lifespan startup 完成）② hooks + 序列化（transport 组请求前的部分）③ 请求（ASGI 调用本身）④ shutdown（退出 `with`）；每段 **≥5 次**，报中位数 + 极差，四段之和与整次 `case.call()` 墙钟对账（差额 = 未归类，必须列出）。原始输出 `tee` 进 `evidence-dredd-prereq/`（文件名带时间戳，末行 rc）。**结论必须回答「20–50s 里 7.1s 之外的部分是什么」**；答不出**如实写「仍未定位」**并列出已排除项。
+- (b) **门下跑**：profile 文件不带任何豁免 marker、不设 `W4_GUARD_NO_EXEMPT`、不改 conftest / 豁免面；每次运行记 `NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=… (blocked=…, advisory=…, unaccounted=…)` 行与 pytest rc（预期 3，如实记）。**禁**关门或加豁免换「干净」计时。
+- (c) **门侧三问**逐条 `file:line` 书面回答（进判据页）：① `tests/contract/**` 该不该进豁免面（对照 `EXEMPT_PATH_PREFIXES` :164 / `EXEMPT_MARKERS` :157 / `is_exempt` :1061-1083 与 conftest :132 的调用点）；② 不豁免时的替代路径各自代价——mock Neo4j（lifespan 里哪一段连库、mock 点在哪个模块）/ 复用已 startup 的客户端（N→1 但不到 0，引 UAT :246-250）/ 其它；③ 豁免会不会重开 W4 门想堵的洞（引 conftest :200 / :202 的两条 `status = 3` 各自堵什么）。
+- (d) **一页判据文档** `_bmad-output/审查/2026-09-<日>-Dredd-schemathesis-接CI可行性判据与成本.md`：含 (a) 的四段表、(c) 三问、以及「接 CI 的可行性判据」（哪些数字达到什么值才值得排接入卡）与成本清单；**明确标注** 208.70s 是整 session（含 ~36s 收集、`1 failed/186 deselected`、9 个 explicit example 不计 `max_examples`），**禁止任何 ×206 外推**（全文 `grep -c '×206\|x206\|\* 206'` = 0）；**禁把「重复 lifespan 机制已确认」写成「根因已定位」**（全文 `grep -c '根因已定位'` = 0，除非 (a) 真定位且四段对账闭合）。
+- (e) **零改动面**：`.github/workflows/**`、`backend/tests/conftest.py`、`backend/app/**`、`scripts/spec-tools/dredd-hooks.js`、`backend/tests/support/live_port_guard.py` 全部不动；`contract-test` job 维持 `if: false`；临时 profile 文件**不入 commit**（commit 前工作树里不存在）。
+- (f) **实验产物**：跑完逐条列出 `backend/data/llm_call_logs.db` / `backend/data/neo4j_memory.json` / `backend/app/data/vault_index_pending__*.jsonl` 的存在与否、mtime、是否新增行/字节（跑前跑后各一份 `ls -la` + `shasum -a 256`），`git check-ignore -v` 三路径均命中；`git status --porcelain` 不含它们。
+- (g) **Codex 一轮**，prompt `_bmad-output/审查/prompts/codex-prompt-CARD-TOOL-dredd-prereq.md` 五分节：§一 最小读取面写死 = `evidence-dredd-prereq/profile_harness.py` + 四段原始输出 + 判据页 + `conftest.py:120-206` + `live_port_guard.py:157-175,:1061-1083` + `test_openapi_contract.py:17-43`；§二 作者自述（判据页结论）标「请独立核对」；§三 按重要性：① 四段计时的归类是否正确（哪一段可能吞了别段）；② 「仍未定位 / 已定位」的措辞是否比证据宽；③ 三问答案的 file:line 是否成立；④ 有没有任何 ×206 外推或「根因已定位」滑坡；§四 输出格式 + 末行「BLOCKER/HIGH 清零：是/否」；§五 边界（只读、不运行）。prompt 按协议 §2 禁用词清单 grep 计数 = 0，协议 §2 点名的旧模型名 grep 计数 = 0。存档首部按协议 §2.1；`.stderr` 不入库。
+- (h) **「本卡未证明什么」必填**：不证明根因（除非四段对账闭合且写清）；不证明 CI 机器上的数字（本机 Python 3.14 vs CI 3.11/3.12 未控制）；不证明 Dredd 该复活或该退役（Z7-C 已裁乙）；不改 CI。**「台账待登记条目」必填**：Z7-C 两条前置（瓶颈 / exit 3）的本卡状态；判据页路径；四段中位数；blocked 计数。
+
+## 二 裁判命令
+（`<树>` = `/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review`；`PYTEST=$(pwd)/backend/.venv/bin/pytest` 在树根设；承重裁判 `2>&1 | tee <树>/_bmad-output/审查/evidence-dredd-prereq/<name>-$(date +%Y%m%dT%H%M%S).txt`，末行 `rc=${pipestatus[1]}`（zsh）/ `${PIPESTATUS[0]}`（bash）；profile 单次可达数分钟，判据是**进程退出**不是文件增长）
+1. 选中数：`cd <树>/backend && PYTHONDONTWRITEBYTECODE=1 $PYTEST --collect-only -q -p no:cacheprovider tests/contract/test_zz_dredd_prereq_profile.py 2>&1 | tail -3` → 1 个用例（或按 `-k` 选中 1）。
+2. profile：`cd <树>/backend && PYTHONDONTWRITEBYTECODE=1 $PYTEST -q -p no:cacheprovider -s tests/contract/test_zz_dredd_prereq_profile.py` → 四段各 ≥5 个样本 + 中位数/极差 + 整次墙钟 + `NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=…` 行；rc 如实（预期 3）。
+3. 产物对账：跑前跑后各 `cd <树>/backend && ls -la data/llm_call_logs.db data/neo4j_memory.json app/data/vault_index_pending__*.jsonl 2>&1; shasum -a 256 <存在的那些>` → 两份贴验收单；`git check-ignore -v data/llm_call_logs.db data/neo4j_memory.json 'app/data/vault_index_pending__probe.jsonl'` → 三行均命中。
+4. 零改动面：`cd <树> && git diff --stat <Y5-C 末 commit> HEAD -- .github/ backend/tests/conftest.py backend/app/ scripts/spec-tools/dredd-hooks.js backend/tests/support/live_port_guard.py` → 空；`grep -n 'if: false' .github/workflows/api-spec-sync.yml` → 含 :330。
+5. 门锚：`grep -n 'status = 3' <树>/backend/tests/conftest.py` → `200:` 与 `202:`（判据页须逐行引用）；`grep -n '^EXEMPT_MARKERS\|^EXEMPT_PATH_PREFIXES\|^def is_exempt' <树>/backend/tests/support/live_port_guard.py` → :157 / :164 / :1061。
+6. 措辞门：`grep -c '×206\|x206\|\* 206' <判据页>` = 0；`grep -c '根因已定位' <判据页>` = 0（或 (a) 闭合时写明例外）。
+7. 收工干净：`cd <树> && test ! -e backend/tests/contract/test_zz_dredd_prereq_profile.py && git status --porcelain | grep -v '^??'` 为空；`ls -1 _bmad-output/审查/evidence-dredd-prereq/` → 含 `profile_harness.py` + ≥1 份带时间戳的原始输出；`git -c core.quotepath=false ls-files --cached | grep -c '\.stderr'` = 0。
+
+## 三 禁改与隔离
+- 禁改 `.github/workflows/**`、解除 `contract-test` 的 `if: false`；禁改 `backend/tests/conftest.py`、`live_port_guard.py` 的豁免面、`backend/app/**`、`scripts/spec-tools/dredd-hooks.js`。
+- 禁给 profile 文件挂 `integration` / `e2e` / `real_neo4j` marker、禁设 `W4_GUARD_NO_EXEMPT`、禁改 `NEO4J_*` env 换干净计时。
+- 禁把 208.70s ×206 做任何形式的外推；禁把「机制已确认」写成「根因已定位」。
+- 禁连真 7691 / 7687（app lifespan 的连接尝试由门拦下计数，如实记录 blocked）；live vault `/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/` 只读；不新增任何外发凭据（`.env` 现状不改）。
+- 禁跑 `tests/contract` 目录级执行、`tests/integration` / `tests/e2e`、`tests/unit` 目录级；只跑 profile 单文件。
+- 临时 profile 文件不入 commit；实验产物不入库；`*.stderr*` 不入库；台账不改；不 push。
+- 本批地盘：`check-openapi-drift.py` / `test_openapi_snapshot_drift.py`（Y5-C 已收）本卡不动；`backend/openapi.json` 不动。
+
+## 四 Codex / 验收单
+命令：`codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat <树>/_bmad-output/审查/prompts/codex-prompt-CARD-TOOL-dredd-prereq.md)" > <树>/_bmad-output/审查/codex-review-CARD-TOOL-dredd-prereq.md 2> <树>/_bmad-output/审查/codex-review-CARD-TOOL-dredd-prereq.stderr </dev/null`（1 轮；0 字节重发一次后主 session 人审）。顺序固定：**profile 原始输出 + 判据页定稿 → 送 Codex → 之后只改 `_bmad-output`**。存档首部按协议 §2.1。验收单 `<树>/_bmad-output/验收单/UAT-CARD-TOOL-dredd-prereq-<日期>.md`：DoD-3 双段（4-A Claude 已代验：四段表 + 裁判 1-7 原始输出引用 + Codex 逐条采信/驳回；4-B 你来验：「无变化（只是把『那个自动检查为什么慢、为什么在保护罩下必然报错』量清楚，写成一页判断标准；什么都没改）」零技术词）；「本卡未证明什么」「台账待登记条目」必填。commit header ≤100 含批次标记，body 行 ≤100（`wc -m`）；不 push；跑完说「复核第十二批 Y5」。

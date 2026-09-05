@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-05-第十一批 · Z7-C · CARD-TOOL-dredd-decide round-1（首部由主 session 2026-09-05 按协议 §2.1 补记，正文一字未改）
+> 模型: `gpt-6-astra`（stderr 实测） · reasoning_effort: `ultra`（stderr 实测） · codex: 未自证（stderr 无版本行）
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat <prompt>)"`（第十一批手册规定形态；实参见车道 stderr）
+> 审查绑定: `46ed18f1..e6f9aebc`
+> 会话头自证（抄 .stderr，stderr 本身不入库）:
+> `OpenAI Codex v0.153.3` / `workdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-z7-tool` / `model: gpt-6-astra`
+
+---
+
 **结论：检查选择代码没有发现削弱；但“任何版本都跑不通”和性能归因存在 HIGH 级证据问题，依赖归一也未形成实际安装约束。未发现 BLOCKER。**
 
 已核对 `46ed18f1..e6f9aebc`：确实只有四个文件变化，两个 workflow 的 blob 完全相同。以下行号均以 **`e6f9aebc` 提交内容**为准；审查期间出现的未提交改动不纳入结论。全程未修改文件、启动应用或运行整套测试。

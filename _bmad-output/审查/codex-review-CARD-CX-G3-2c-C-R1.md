@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-05-第十一批 · Z6-A · CARD-CX-G3-2c-C-R1 round-1（首部由主 session 2026-09-05 按协议 §2.1 补记，正文一字未改）
+> 模型: `gpt-6-astra`（stderr 实测） · reasoning_effort: `ultra`（stderr 实测） · codex: 未自证（stderr 无版本行）
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat <prompt>)"`（第十一批手册规定形态；实参见车道 stderr）
+> 审查绑定: `514cff3c + 工作区`（整改 commit e22ad10a 零复审 → 第十二批 Y6-B 复审）
+> 会话头自证（抄 .stderr，stderr 本身不入库）:
+> `OpenAI Codex v0.153.3` / `workdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-x7-ledger-c` / `model: gpt-6-astra`
+
+---
+
 需整改
 
 1. **[HIGH] [docs/learning-events-schema-v1.md:122](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-x7-ledger-c/docs/learning-events-schema-v1.md:122) — 三段防线漏掉 `self_confidence_norm`，可损坏 receipt 身份并阻塞后续正常评分。**

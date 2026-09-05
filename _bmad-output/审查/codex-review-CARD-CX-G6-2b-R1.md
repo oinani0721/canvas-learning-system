@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-05-第十一批 · Z1 · CARD-CX-G6-2b-R1 round-3（首部由主 session 2026-09-05 按协议 §2.1 补记，正文一字未改）
+> 模型: `gpt-6-astra`（stderr 实测） · reasoning_effort: `ultra`（stderr 实测） · codex: 未自证（stderr 无版本行）
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat <prompt>)"`（第十一批手册规定形态；实参见车道 stderr）
+> 审查绑定: `92734207 → d9f7b544`（审后 3d30bde6 / 8e8fd737 共 +173 行零外审 → 第十二批 Y5-A 复审）
+> 会话头自证（抄 .stderr，stderr 本身不入库）:
+> `OpenAI Codex v0.153.3` / `workdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-x2-g62b` / `model: gpt-6-astra`
+
+---
+
 ## 结论摘要
 
 **不能清零：代际比较能解决所测的因果错位，但状态结算和 AST 检查器仍有可复现的漏网。** 当前相对 `HEAD` 的 backend 差异为空；相对 `92734207`，确为测试文件 **+34/-0**，生产文件完全相同。指定测试在使用现成可用的 Node v24.16.0 后得到 **146 passed**；拦截证据写出的重放也通过了 16 条新探针、5 组定向变异及两条代际实验。以下发现区分本次新增限制、既有检查器漏洞和证据推论边界，不重复列入已裁决事项。

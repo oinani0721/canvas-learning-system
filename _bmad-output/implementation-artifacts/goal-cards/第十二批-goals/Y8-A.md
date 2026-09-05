@@ -1,0 +1,57 @@
+> ⚠️ 本文件是 CARD-RV-C 的完整卡文——车道开工后必读并逐条执行；它不是 /goal 粘贴文本。/goal 在第十二批手册 §三 Y8-A 块。
+> 批次标记 `[BATCH-2026-09-05-第十二批 / CARD-RV-C]`。车道：NEW `card-y8-w4-ast`（分支 `card/y8-w4-ast`，HEAD `03ac8bf8`，主 session 已预合主干 03ac8bf8，venv symlink 已建），**无前提**（本车道首卡；独立 commit 后同车道继续 Y8-B）。本卡是**纯复审卡（零代码改动）**，Codex 1 轮 **2 个 prompt**（-p1 / -p2）。勘探 2026-09-05 于主干 03ac8bf8。协议：`.claude/rules/card-batch-protocol.md`（§2.1 存档首部 / §2.2 裁判落盘 / §2.3 环境通告）。
+
+# CARD-RV-C — Z3-B 合并态 `e06009bc` 首次外审（live_port_guard.py 全量 1093 行 + 契约测试 534 行 + guard_probes 增量），拆 P1/P2 两个 prompt
+
+## 〇 事实
+| 事实 | 位置 |
+|---|---|
+| 主干 HEAD = `03ac8bf8`；`e06009bc` = `fix(w4-guard): NEO4J_TEST_URI 改正面白名单 + driver canonical 契约 [BATCH-2026-09-05-第十一批 / CARD-W4-3a]`；其父 `004e08cc` = Z3-A round-1 整改 commit；`32c8e325` = 第十批 X4 squash | `git log -1` |
+| **两承重文件在主干与 e06009bc blob 同哈希**：`git rev-parse HEAD:backend/tests/support/live_port_guard.py e06009bc:backend/tests/support/live_port_guard.py` → `bc11f726731e7d223cb2d56e3191c315d695d476` ×2；契约测试同法 → `3bc0abece929a3cb38ee647f7c080bd529f551d5` ×2 ⇒ 可在主干读。⚠️ Y7-A 同批改 live_port_guard.py / conftest.py，若 Y7-A 先合入主干则两行不再相同（属预期）——本卡**一律 `git show e06009bc:<path>` 读**，不读工作区 | `git rev-parse` |
+| 行数：`git show e06009bc:backend/tests/support/live_port_guard.py \| wc -l` = **1093**；`…test_live_port_guard_contract.py \| wc -l` = **534**；合计 **1627 > 1500** 单 prompt 上限 ⇒ 必拆 | `git show … \| wc -l` |
+| Z3-B 合并态增量：`git diff --stat 004e08cc e06009bc -- . ':(exclude)_bmad-output'` → 3 files, **+751/-70**：guard_probes.py **81**（+81/-0）/ live_port_guard.py 376 / 契约 364；`git diff 004e08cc e06009bc -- backend/scripts/lifespan_isolation_guard_probes.py \| wc -l` = 99（原始 diff 文本含头与上下文） | git diff |
+| r1 存档 `_bmad-output/审查/codex-review-CARD-W4-3a-r1.md` **82 行**：首部（主 session 补记）「审查绑定：审工作区 `HEAD=004e08cc` 的三个未提交文件（不绑 commit）」；:10 裁定 **1 BLOCKER / 1 HIGH / 1 MEDIUM / 1 LOW**；:34 HIGH = 「一律拒绝 tuple 子类，会误拦真实同步 Neo4j 驱动的合法 7692 连接」 | 存档 |
+| r2 存档 `codex-review-CARD-W4-3a-r2.md` **111 行**：首部「**不绑合并态 e06009bc**（钉 live_port_guard.py:425 旧区并引用已删 `_port_of_uri`）→ 第十二批 Y8-A 首次合并态外审」；:10 裁定 **0 BLOCKER / 2 HIGH / 1 MEDIUM**；**HIGH-1** :14 = 「真实地址可以伪装成自证地址，拦截异常因此不入账」（旧 :425/:447/:462；:44 自述「这是自证分类缺陷，**独立于已归属的最终结算原子性**」）；**HIGH-2** :49 = 「先启用 advisory，后做 session URI 预检」（T-10，旧 conftest :131 / :92-106 / guard_plugin.py:42）；:77 引用已删 `_port_of_uri` | 存档 |
+| 合并态对 r2 HIGH-1 的处置：`_is_selftest_address` **:448-476** 重写为 `type(address) is tuple`（:468）/ `tuple.__len__`（:471）/ `tuple.__getitem__`（:473）/ `type(host) is str and host == _SELFTEST_HOST`（:476）；docstring :451-466 自述旧实现三处可重载与两种伪装。**r2 未审过这份修法**——本卡须判 | live_port_guard.py@e06009bc |
+| 合并态对 r1 HIGH 的处置：`extract_port` **:340**（:368-379「绕开重载、直接读底层槽位」`tuple.__len__` / `tuple.__getitem__(address, 1)`）与 `port_is_trustworthy` **:388**（:409-417 同法）——即「tuple 子类读底层槽位放行真驱动地址」，而 Z3-B 卡文 (e) 字面是「tuple 子类一律按不可信处理（fail-closed）」⇒ **专项 ①** | live_port_guard.py@e06009bc |
+| `install()` :581：:602 `poison_uvloop()` → :603-604 `if ENV_REQUIRE_BLOCKED_TARGET=="1": assert_neo4j_target_blocked()` → **:605 `_install_audit_hook()`**；`assert_neo4j_target_blocked` :921 在 :946 调 `canonical_target_ports` :730（函数体内延迟 `from neo4j import Address`）——预检 + 延迟 import 早于 hook 装载 ⇒ **专项 ②**（T-14；Y7-A (d) 负责修，本卡只判） | live_port_guard.py@e06009bc |
+| :980 段头注释「**最终总账（所有 cleanup / atexit 之后）**」 vs `register_final_accounting` :986 的 docstring :988「⚠️ **不能**声称『在所有 atexit 之后执行』（R1 Codex HIGH-2 打回的过宽表述）」+ :989-996 说明 atexit LIFO 与 `_FINALIZING` 的对策——同文件两处口径不一致 ⇒ **专项 ③** | live_port_guard.py@e06009bc |
+| 白名单：`ALLOWED_TEST_PORTS = frozenset({7692})` :145；`REQUIRED_BLOCKED_PORTS = frozenset({7691, 7687})` / `BLOCKED_PORTS` :118-119；`assert_test_uri_not_blocked` :865（:899-900 `NEO4J_TEST_URI` 未设 → 射程外 return；:901 `canonical_target_ports`）；模块层 `grep -n '^import\|^from' … \| grep -c neo4j` = **0** | live_port_guard.py@e06009bc |
+| T-5 结算原子性（:1024-1026 无锁置位 + 取快照；:1007/:1026 双快照）与 T-10 已另立 **Y7-A（CARD-W4-4-settle-atomic）**，本批并行 | 设计稿 §2 D-9 |
+| 契约测试 `grep -c 'def test_'` = **51**（pytest 收集数含参数化会更大，**开工实测、不写死**）；session fixture `conftest.py:105-106` 在 `NEO4J_TEST_URI` 端口不在白名单时 raise ⇒ 该文件全部用例 **error**（session 级 fail-closed） | conftest.py :92-106 |
+| 契约测试类：`TestExtractPort` :32 / `TestTargetScopePrecheck` :68 / `TestBlockedPortsContract` :118 / `TestDriverCanonicalPortContract` :143 / `TestPortTrustworthiness` :321 / `TestSelftestAddressClassification` :407 / `TestExemption` :462 / `TestGuardLiveness` :485 | 契约@e06009bc |
+| 五分节 prompt 范本 `_bmad-output/审查/prompts/codex-prompt-CARD-W4-3b.md`（100 行）；其 §五 边界写法：「`live_port_guard.py` 的既有缺陷**不在本卡范围**（已另立卡），除非本卡的改动让它变得更糟」 | prompts/ |
+| `codex --version` = `codex-cli 0.153.3`（`/opt/homebrew/bin/codex`） | 实测 |
+| 勘误（不得作事实出现）：r2 存档旧行号 :425/:447/:462 与 conftest :131、guard_plugin :42 是 004e08cc 工作区行号；台账「+962」不可复现；「84」是收集数不是 `def test_` 数 | 勘误 |
+
+## 一 完成条件（AND）
+- (a) **读取面写死为合并态全量（不是 diff、不是工作区）**：`git show e06009bc:backend/tests/support/live_port_guard.py`（1093）+ `git show e06009bc:backend/tests/unit/test_live_port_guard_contract.py`（534）+ `git diff 004e08cc e06009bc -- backend/scripts/lifespan_isolation_guard_probes.py`（81 stat / 99 文本）。开工先跑两对 `git rev-parse HEAD:<path> e06009bc:<path>`：相同 ⇒ 写「主干可读」；不同（Y7-A 已先合入）⇒ 写「主干已分叉，本卡只读 e06009bc」。prompt §一 把这三条命令**原样**写进读取面，禁用工作区路径替代。
+- (b) **拆两个 prompt**（1627 > 1500）：**P1** = live_port_guard.py 全量 1093 + r2 存档 111 行（≈1204）；**P2** = 契约 534 + guard_probes 增量 99 + r1 存档 82 行（≈715）。禁压缩摘要替代原文——用「作者自述」替代原文 = 第十一批 Z6-A「审工作区而非 commit」的同型假复审。两 prompt 各自写死读取面命令与行数。
+- (c) **范围划出**（prompt §五 照抄 W4-3b §五 写法）：r2 HIGH-2（T-10）与 T-5 结算原子性 → Y7-A；T-14 install 顺序 → Y7-A (d)（**本卡专项 ② 仍要判定是否留窗口，只判不修**）；W4-⑤ AST 6 条 → Y8-B；W4-⑥ BASH_ENV → Y7-B。外审对这些只在「合并态相对 004e08cc 的改动让它变得更糟」时才提。**r2 HIGH-1（自证地址伪装不入账）不归任何已立卡**：本卡须判合并态 :448-476 的修法是否闭合（三道 `type is` / 底层槽位读取是否还有可重载入口；`_SelfTestBlocked` 抛出点 :498 仍早于 `record()` :512 的前提下，还有哪种输入能进这条免记账分支）；不闭合 ⇒ 登记为新卡候选，本卡不修。
+- (d) **三件专项判定**，每件给 `文件:行` + 具体代码依据 + 结论（安全 / 不安全 / 未验证）：① `extract_port` :340-387 / `port_is_trustworthy` :388-420 对 tuple 子类「读底层槽位放行」vs 卡文「一律 fail-closed」——是否安全退化；有状态 `__index__` 端口对象是否仍按不可信（r1 HIGH :34 是这条退化的来由，判定要回答「误拦真驱动 7692」与「放行伪装」两头）；② `canonical_target_ports` 第二调用点 :946（`assert_neo4j_target_blocked` :921）在 `install()` :604 早于 :605 装 hook 的窗口——窗口内 neo4j 延迟 import 能发起什么、`W4_GUARD_REQUIRE_BLOCKED_TARGET` 未设时窗口是否存在；③ :980 段头「所有 atexit 之后」vs :988-996 docstring 的不一致——哪句与实现一致、不一致的后果（后人照抄哪句会写出坏门）。三件都可由 Codex 与车道各判一次，结论不一致时以代码为准并写明分歧。
+- (e) **端到端负控实测落 evidence-rv-c/**（协议 §2.2 `tee` + 末行 rc）：开工先 `grep -c 'def test_'` 记 N0、默认环境跑一次记收集数 C0；① `NEO4J_TEST_URI=bolt://localhost:0` → **全部 error**（数量 = C0，session 级 fail-closed，摘要行贴原文）；② `NEO4J_TEST_URI=bolt://localhost:7692` → **全绿**（= C0 passed）；③ 默认环境 → 全绿；④ `grep -n '^import\|^from' <(git show e06009bc:backend/tests/support/live_port_guard.py) | grep -c neo4j` → 0。三跑的 W4 摘要行（`NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=…`）都贴：预期契约用例是纯函数 / 合成 audit 事件、不发起连接；若 total>0 如实记录并停下核。
+- (f) **存档两份**：`_bmad-output/审查/codex-review-CARD-RV-C-p1.md` / `-p2.md`，首部按协议 §2.1 六行 blockquote（批次 / 车道 Y8 / 卡 CARD-RV-C round-1 prompt-1|2；模型 `gpt-6-astra`；`reasoning_effort: ultra`；`codex-cli 0.153.3`；审查绑定 `e06009bc`（全量）与 `004e08cc..e06009bc`（增量）；stderr 前三行自证）。缺 `模型 / reasoning_effort / codex` 任一字段 = 该轮不计。0 字节重发一次，再 0 字节 → 留给主 session 人审替代（协议 §1）。
+- (g) **零代码改动**：`git diff --stat <开工SHA> HEAD -- . ':(exclude)_bmad-output'` 为空（写法必须 `':(exclude)…'`，`':!…'` 在 zsh 下 rc=128 且 stdout 空会假绿——协议 §1）。产出 = 两份存档 + 复审报告 `_bmad-output/审查/2026-09-0N-RV-C-Z3B合并态复审.md`（含专项三判 + HIGH-1 判 + 新卡候选清单 + 「Codex 只读未跑 pytest」与「本卡 (e) 实跑」的边界）+ 验收单。
+- (h) **本卡未证明什么**（必填，至少）：不证明 W4-④/⑤/⑥ 三项（Y7-A / Y8-B / Y7-B 并行中）；不做真连 7691 活性验证；不改任何门实现；HIGH-1 判定是静态阅读 + Codex 纯内存推演，非变异实测；(e) 的 `:7692` 全绿只证明预检放行，不证明 7692 容器在听。**台账待登记条目**（必填，车道不改台账）：Z3-B 行补「合并态 e06009bc 首次外审 = RV-C p1/p2 存档 + 阻断级计数」；r1/r2 均不绑合并态的勘误；专项 ①②③ 与 HIGH-1 的结论各一行；新卡候选（若有）；主干是否已因 Y7-A 分叉。
+
+## 二 裁判命令
+先 `cd /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y8-w4-ast && PY=$(pwd)/backend/.venv/bin/python && EV=_bmad-output/审查/evidence-rv-c && mkdir -p "$EV"`；每条 `2>&1 | tee "$EV/<name>-$(date +%Y%m%dT%H%M%S).txt"` 并追加 `rc=` 行。
+1. **J1 blob 等价**：`git rev-parse HEAD:backend/tests/support/live_port_guard.py e06009bc:backend/tests/support/live_port_guard.py` → 两行相同（`bc11f726…`）；`git rev-parse HEAD:backend/tests/unit/test_live_port_guard_contract.py e06009bc:backend/tests/unit/test_live_port_guard_contract.py` → 两行相同（`3bc0abec…`）。不同则按 (a) 写「已分叉」。
+2. **J2 读取面尺寸**：`git show e06009bc:backend/tests/support/live_port_guard.py | wc -l` → 1093；`git show e06009bc:backend/tests/unit/test_live_port_guard_contract.py | wc -l` → 534；`git diff --stat 004e08cc e06009bc -- backend/scripts/lifespan_isolation_guard_probes.py` → `81 +`；`wc -l _bmad-output/审查/codex-review-CARD-W4-3a-r1.md codex-review-CARD-W4-3a-r2.md` → 82 / 111。
+3. **J3 契约三跑**（`cd backend`）：`PYTHONDONTWRITEBYTECODE=1 $PY -m pytest -q -p no:cacheprovider tests/unit/test_live_port_guard_contract.py` → 全绿，记 C0；`NEO4J_TEST_URI=bolt://localhost:0 …同命令` → `C0 errors`（摘要行原文）；`NEO4J_TEST_URI=bolt://localhost:7692 …同命令` → `C0 passed`。三份 log 各有 W4 摘要行。
+4. **J4 模块层 import**：`grep -n '^import\|^from' <(git show e06009bc:backend/tests/support/live_port_guard.py) | grep -c neo4j` → `0`。
+5. **J5 prompt 尺寸与措辞**：`wc -l _bmad-output/审查/prompts/codex-prompt-CARD-RV-C-p1.md …-p2.md`；prompt §一 里写死的读取面行数之和各 ≤1500；按协议 §2 列出的四个禁用措辞逐词 `grep -c` 两 prompt → 每词 0。
+6. **J6 零代码改动**：`git diff --stat <开工SHA> HEAD -- . ':(exclude)_bmad-output'` → 空且 rc=0（贴 rc）。
+7. **J7 存档首部**：`head -6 _bmad-output/审查/codex-review-CARD-RV-C-p1.md` / `-p2.md` 六行 blockquote 字段齐全；`ls -la` 两份非 0 字节；`*.stderr*` 不入库。
+
+## 三 禁改与隔离
+- **禁改** `backend/tests/support/live_port_guard.py` / `backend/tests/unit/test_live_port_guard_contract.py` / `backend/scripts/lifespan_isolation_guard_probes.py` / `backend/tests/conftest.py` / `backend/tests/support/guard_plugin.py` 任一行——本卡是复审，整改另立卡（Y7-A 正在改前两者，本卡钉 e06009bc 不读工作区）。
+- 禁改 `backend/scripts/lifespan_isolation_negative_control.py`（Y8-B 面，本车道下一卡）/ `lifespan_isolation_runtime_sha.sh`（Y7-B）。
+- 禁连 7691 / 7687；`:0` 与 `:7692` 两个负控口径是**门内路径**（预检只解析不连接），允许；禁跑 `tests/integration` / `tests/e2e`。
+- 禁把 W4-④/⑤/⑥ 的既有 HIGH 重新计入本卡阻断级计数；禁单 prompt 塞进 1627 行全量；禁用摘要替代原文。
+- prompt 与存档描述里不出现协议 §2 列出的四个禁用措辞（改说「负控输入 / 对照输入 / 未被拦下的输入 / 门未覆盖的路径」）。
+- live vault `/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/` 只读；不改 `backend/.env`；不改台账；不 push；`*.stderr*` 不入库；不往共享 venv 装东西（协议 §2.3）。
+- 本卡零代码 ⇒ 不涉 pyright 门；commit 只含 `_bmad-output`。
+
+## 四 Codex / 验收单
+命令同协议 §2，两次：`codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat <树>/_bmad-output/审查/prompts/codex-prompt-CARD-RV-C-p1.md)" > <树>/_bmad-output/审查/codex-review-CARD-RV-C-p1.md 2> …-p1.stderr </dev/null`，`-p2` 同形。两 prompt 五分节：一 背景 + 读取面写死（(a) 三条命令，P1/P2 各取其份）/ 二 「作者自述」= Z3-B 验收单与 r1/r2 的处置声明，请独立核对 / 三 按重要性：P1 = 专项 ①②③ + HIGH-1 修法是否闭合 + 门能否被未被拦下的输入通过 + `is_exempt` advisory 路径 + 解析完备性 + 装门时机；P2 = 契约用例是否只用合成事件（真实四条 socket API 是否有覆盖）+ `TestSelftestAddressClassification` :407 是否含「底层真实地址、表面哨兵」反例 + guard_probes 增量探针 `probe_allowed_test_ports_cannot_admit_live` 的判据是否可能被别的原因满足 / 四 输出格式（级别 + 文件:行 + 依据 + 建议；无法只读判定的写「未验证」）/ 五 边界（(c) 的划出清单；只读；不连任何端口）。存档首部按协议 §2.1（-p1/-p2 各一份）。验收单 `_bmad-output/验收单/UAT-CARD-RV-C-<日期>.md`：DoD-3 双段；4-B「无变化（给上一批合进主干却没被独立看过的那道『测试不许连真数据库』的门，补一次独立审查）」；「专项三判 + HIGH-1 判」一节；「本卡未证明什么」「台账待登记条目」必填。commit header ≤100 含批次标记，body 行 ≤100（wc -m）；不 push；**独立 commit 后同车道继续 Y8-B**；跑完说「复核第十二批 Y8」。

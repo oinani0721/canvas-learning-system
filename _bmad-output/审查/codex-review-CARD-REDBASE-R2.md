@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-05-第十一批 · Z4-B · CARD-REDBASE-R2 round-1（首部由主 session 2026-09-05 按协议 §2.1 补记，正文一字未改）
+> 模型: `gpt-6-astra`（stderr 实测） · reasoning_effort: `ultra`（stderr 实测） · codex: 未自证（stderr 无版本行）
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat <prompt>)"`（第十一批手册规定形态；实参见车道 stderr）
+> 审查绑定: `7283a8df..a5e0ce79d9a70e711934b827d7f62c052d281895`（正文首段自证）；（审后 c8611a89 +31 行零外审 → 第十二批 Y5-A 复审）
+> 会话头自证（抄 .stderr，stderr 本身不入库）:
+> `OpenAI Codex v0.153.3` / `workdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-z4-redbase` / `model: gpt-6-astra`
+
+---
+
 结论：**六处修改本身成立，但 E“全仓裸格式归零”不成立，仍有现行公开契约漏项。未找到本轮 BLOCKER/HIGH。**
 
 审查绑定 `7283a8df..a5e0ce79d9a70e711934b827d7f62c052d281895`。未修改仓库文件；审查期间外部进程补写的 UAT 内容未纳入结论。

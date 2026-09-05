@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-05-第十一批 · Z4-A · CARD-REDBASE-R1 round-2（首部由主 session 2026-09-05 按协议 §2.1 补记，正文一字未改）
+> 模型: `gpt-6-astra`（stderr 实测） · reasoning_effort: `ultra`（stderr 实测） · codex: 未自证（stderr 无版本行）
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat <prompt>)"`（第十一批手册规定形态；实参见车道 stderr）
+> 审查绑定: `HEAD=304f03ca` + 未提交五文件 diff（SHA-256 钉 `0a8ee996…`，2026-09-05 勘探两变体均不可复现 → 第十二批 Y5-A 整份重读）
+> 会话头自证（抄 .stderr，stderr 本身不入库）:
+> `OpenAI Codex v0.153.3` / `workdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-z4-redbase` / `model: gpt-6-astra`
+
+---
+
 增量结论：**M1 成立；M2 环境隔离整改成立，但“唯一路径证明”不成立；L1 成立。新增 2 条 LOW，未找到 BLOCKER/HIGH/MEDIUM。**
 
 审查绑定 `HEAD=304f03cadaec165bb9c13dcb145b4f6aac0cf50c`，当前五文件 diff SHA-256：

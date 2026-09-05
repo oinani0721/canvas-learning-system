@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-05-第十一批 · Z7-B · CARD-TOOL-pyright round-1（首部由主 session 2026-09-05 按协议 §2.1 补记，正文一字未改）
+> 模型: `gpt-6-astra`（stderr 实测） · reasoning_effort: `ultra`（stderr 实测） · codex: 未自证（stderr 无版本行）
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat <prompt>)"`（第十一批手册规定形态；实参见车道 stderr）
+> 审查绑定: `41470106 → d21b0bc4`（正文首段自证）
+> 会话头自证（抄 .stderr，stderr 本身不入库）:
+> `OpenAI Codex v0.153.3` / `workdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-z7-tool` / `model: gpt-6-astra`
+
+---
+
 **结论：部分成立，未发现 BLOCKER。** 工具已可在本机运行，主要诊断数字能够重现；但安装链、运行版本结论和提交阻断率的表述需要修正。
 
 审查绑定 `41470106 → d21b0bc4`，确认仅四文件变化，`lefthook.yml` 零改动。全程只读，未安装依赖、执行 Git hook 或修改文件。审查期间出现并持续变化的未跟踪 UAT，仅作为补充自述。

@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-05-第十一批 · Z3-B · CARD-W4-3a round-1（首部由主 session 2026-09-05 按协议 §2.1 补记，正文一字未改）
+> 模型: `gpt-6-astra`（stderr 实测） · reasoning_effort: `ultra`（stderr 实测） · codex: 未自证（stderr 无版本行）
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat <prompt>)"`（第十一批手册规定形态；实参见车道 stderr）
+> 审查绑定: 审工作区：`HEAD=004e08cc` 的三个未提交文件（不绑 commit）
+> 会话头自证（抄 .stderr，stderr 本身不入库）:
+> `OpenAI Codex v0.153.3` / `workdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-z3-w4` / `model: gpt-6-astra`
+
+---
+
 **本卡未通过：发现 1 个 BLOCKER、1 个 HIGH、1 个 MEDIUM、1 个 LOW。** 原来的 `bolt://…:0` 已被拒绝，但驱动解析链仍存在可绕过预检的分叉。
 
 审查基于 `HEAD=004e08ccaa8a` 的三个未提交文件，以及本机 **CPython 3.14.4 / Neo4j 6.1.0**。期间工作树追加了 scheme 检查，已重新核对；以下行号对应收尾版本。

@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-05-第十一批 · Z7-C · CARD-TOOL-dredd-decide round-2（首部由主 session 2026-09-05 按协议 §2.1 补记，正文一字未改）
+> 模型: `gpt-6-astra`（stderr 实测） · reasoning_effort: `ultra`（stderr 实测） · codex: `codex-cli 0.153.3`（stderr 实测）
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat <prompt>)"`（第十一批手册规定形态；实参见车道 stderr）
+> 审查绑定: `46ed18f1..4cf0a3ba`（正文首段自证）
+> 会话头自证（抄 .stderr，stderr 本身不入库）:
+> `OpenAI Codex v0.153.3` / `workdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-z7-tool` / `model: gpt-6-astra`
+
+---
+
 **证据链仍未闭合；暂不把整份测试原样接入现有 CI 是合理处置，但“只能因为慢”“根因已定位”“全套约 12 小时”均不能按已证实结论登记。**
 
 审查绑定 `46ed18f1..4cf0a3ba`，两个 workflow 确实零改动。UAT 为未跟踪文件，读取版本 SHA-256 为 `df18d1115f8355fd28a1bc0572b1c64dd5212ae9086298e18f54c93946378712`。审查期间出现的裁决页 §6.2 未提交更正已单独核对。全程未修改文件、启动应用或执行 pytest。

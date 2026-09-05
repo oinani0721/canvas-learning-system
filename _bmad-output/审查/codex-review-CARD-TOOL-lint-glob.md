@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-05-第十一批 · Z7-A · CARD-TOOL-lint-glob round-1（首部由主 session 2026-09-05 按协议 §2.1 补记，正文一字未改）
+> 模型: `gpt-6-astra`（stderr 实测） · reasoning_effort: `ultra`（stderr 实测） · codex: 未自证（stderr 无版本行）
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat <prompt>)"`（第十一批手册规定形态；实参见车道 stderr）
+> 审查绑定: `304f03ca..b20fe550`（正文首段自证）；（现行门 870e52b3 零复审 → 第十二批 Y4-A 复审）
+> 会话头自证（抄 .stderr，stderr 本身不入库）:
+> `OpenAI Codex v0.153.3` / `workdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-z7-tool` / `model: gpt-6-astra`
+
+---
+
 **glob 改写在 Lefthook 2.1.6 下成立；`b20fe550` 可完整重现为纯格式化输出。残留扫描门存在确定的漏检和失败放行，不能按“新增行含标记必阻断”验收。**
 
 审查绑定 `304f03ca..b20fe550`。全程只读，未运行完整 hook、变异 harness 或脚本运行时测试。以下位置均指最终提交的 [lefthook.yml](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-z7-tool/lefthook.yml) 和 [ruff.toml](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-z7-tool/ruff.toml)。

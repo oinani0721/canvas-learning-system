@@ -1,0 +1,52 @@
+> ⚠️ 本文件是 CARD-DEBT-mutation-kill-identity 的完整卡文——车道开工后必读并逐条执行；它不是 /goal 粘贴文本。/goal 在第十二批手册 §三 Y1-B 块。
+> 批次标记 `[BATCH-2026-09-05-第十二批 / CARD-DEBT-mutation-kill-identity]`。车道：`card-z2-cas`（分支 `card/z2-cas`，开工 HEAD = Y1-A 末 commit，主 session 已预合主干 03ac8bf8，venv symlink 已建），**前提 Y1-A CARD-G3-3-R1 已独立 commit 且工作树干净**。勘探 2026-09-05 于主干 03ac8bf8（三套既有 harness 主干与车道逐字同）与车道 7105e84c。协议：`.claude/rules/card-batch-protocol.md`（§2.1 存档首部 / §2.2 裁判落盘 / §2.3 环境通告 / §3 目录级覆盖）。合并队列：**Y6-B（RV-D 复审 g32ccr1 审面）之后**。
+
+# CARD-DEBT-mutation-kill-identity — 全仓变异 harness 统一「击杀必须落在声称的断言上」+ 变异体语法自检（回填 g32b / g32cb / g32ccr1）
+
+## 〇 事实
+| 事实 | 位置 |
+|---|---|
+| 本仓已发生两次假杀且都过了当时全部裁判：Z2 第一版 M1（击杀由别的层贡献）与 Z2 HEAD 的 M15（变异体编译期即死，红在 `:1118` 而非声称的 `:1116`）。Y1-A 在 g33 上做出参考实现：`expect_msg` 绑断言身份 + 变异后编译自检 `SYNTAX-INVALID` | Z2 验收单 §十二.9；第十一批复核裁定 §三.1；Y1-A (c)(d)(e) |
+| 四套 harness 判据现状——**g32b**（2063 行，138 条，`main` :1827）：只在 :1879-1889 做锚点命中数检查（命中≠1 记入 `failures` 并跳过），无 SIGTERM/SIGINT handler（全文 `grep -n 'signal\.'` 0 命中）；**g32cb**（419 行，9 条 M1-M9 :147-230）：`:383 killed = rc == 1 and (gate in out) and ("1 failed" in out or "failed" in out)`，`:378 ANCHOR-ERROR`，handler `:246-251`，`--list` 只读入口 `:337`；**g32ccr1**（306 行，11 条 E1-E11 :56-150）：`:277 killed = rc == 1 and gate in out and "failed" in out`，`:271 ANCHOR-ERROR`，handler `:164-169`，`--list`/`--only` `:227-232`。三套 `grep -c expect_msg` **均为 0**；三套都没有变异后编译自检 | `backend/scripts/g32b_mutation_gates.py` / `g32cb_mutation_gates.py` / `g32ccr1_negative_controls.py`（主干 03ac8bf8 = 车道 7105e84c 逐字同） |
+| `gate in out and "failed" in out` 这种判据与 g33 修前同型：只要**任何**断言红且 pytest 打印了该 nodeid 就算 KILLED，对「红在别的断言」「变异体没编译过」两类假杀无免疫 | `g32cb:383`；`g32ccr1:277` |
+| Z6-C（G3-2c-D，`e6d74ae6`）登记：g32b 全量 138 = **134 KILLED + 4 ANCHOR-ERROR**（`M142-dup-uses-global-w` / `M143-missing-applied-flag-tolerated` / `M145-recovery-does-not-promote-flag` 主锚、`M157-anchor-direction-unchecked` 层锚，均指向 round-17 前旧代码 → 更锚或退役）+ 2 条层声明过度（M100 / M151 → 降普通变异）；全程 **35m46s**；「g32b 缺 SIGTERM handler」同行登记 | 台账 `未合卡追踪台账.md:52`；`UAT-CARD-G3-2c-D-2026-09-05.md:82-85`（逐条锚点旧文/现址/定性表）、`:89-96`（「由 g32cb M1/M2/M3 承重」三条**均不成立**的反证） |
+| 4 条锚在 g32b 表内位置：M142 `:1561`、M143 `:1569`、M145 `:1585`、M157 `:1739`；g32b 变异体文本本身含 `MUTANT` 字面量（如 `:1694 / :1734`），g32b 与 g32cb 在 lefthook `mutant-residue-scan` 允许名单内（`lefthook.yml:303-304`），**g32ccr1 不在**（`:305` 只放行 `_bmad-output/*`）⇒ 本卡在 g32ccr1 新增的行**不得含该字面量**（用拼接），否则暂存扫描阻断且 `lefthook.yml` 是 Y4 地盘不可改 | `g32b:1561/1569/1585/1739`；`lefthook.yml:286-330` |
+| 在**车道树（Z2 版 SKILL.md，3076 行，sha `63b51029…`）**上 `--list` 实测：g32cb M1-M9 与 g32ccr1 E1-E11 **锚点全部命中 1 次，rc=0**（主干 2915 行版同样全 1）⇒ Z2 的 +207 行没有让 g32cb/g32ccr1 任何锚失效；g32b 无 `--list`，其 138 条在 Z2 版 SKILL.md 上的锚点命中数**未实测**（本卡 (a) 先补只读自检再跑） | 2026-09-05 车道实测 `backend/.venv/bin/python backend/scripts/g32cb_mutation_gates.py --list` / `g32ccr1_negative_controls.py --list`；`--list` 跑后 SKILL.md sha 不变 |
+| g33（Y1-A 后）的判据形态是本卡的参考实现：`_hit()` 解析 `-rf` 失败集并比 nodeid（含参数化）；`_run_gate` 返回 `(rc, stdout+stderr)`；`expect_msg in out`；编译自检对 `.md` 用 `test_g3_3_cas.py:36` 同一条正则提取 PYEOF 块、对 `.py` 直接 compile | `g33_mutation_gates.py`（Y1-A 定稿版） |
+| 被这些 harness 变异的**生产文件**：`canvas-vault/.claude/skills/quiz-answer/SKILL.md`、`backend/scripts/validate_learning_events.py`（1936 行）、（g32b 另含）`canvas-vault/.claude/scripts/fsrs_bridge.py` 等——本卡一律只读，跑前跑后 sha 必同；`fsrs_bridge.py` 改一字节 = 必须同批部署 live（协议 §3） | `--list` 输出的目标文件列；协议 §3 |
+| 门文件：g32b / g32cb / g32ccr1 的门都在 `backend/tests/regression/test_g3_2_review_ledger.py`（131 个 `def test_`，含 `:6294` 一条 `xfail(strict=True)`）；该文件本批无写者（Y6-B 只读复审）——本卡**不改门本体**，`expect_msg` 只能绑既有断言消息或该 assert 行源码唯一片段 | `grep -c '^def test_'`；地盘表 §5 |
+| evidence：`.gitignore:27 *.log` 全局吞 ⇒ 落盘用 `.txt`/`.json`；本卡独占目录 `_bmad-output/审查/evidence-mutkill/`（尚不存在） | `git check-ignore -v` 实测 |
+
+## 一 完成条件（AND）
+- (a) **第 0 分钟**：核 pwd / 分支 `card/z2-cas` / HEAD = Y1-A 末 commit / `git status --porcelain` 空；记三套 harness 目标文件的 `shasum -a 256` 基线（quiz-answer SKILL.md / validate_learning_events.py / fsrs_bridge.py / start-exam-board SKILL.md / learning_event_log.py）落 `evidence-mutkill/sha-before-<ts>.txt`；先跑三套的只读锚点自检：`g32cb --list`、`g32ccr1 --list`（期望全 1、rc=0）；g32b 无 `--list` ⇒ 本卡给它补一个**只读** `--list`（不施加变异、不写盘，与 g32cb `:337` 同语义），跑出 138 条的命中数表落 `evidence-mutkill/g32b-list-<ts>.txt`，把「Z2 引入的新锚漂」与「Z6-C 登记的 4 条旧锚漂」**分列**。
+- (b) **抽出共用判据模块**（新文件 `backend/scripts/mutation_kill_identity.py`，名实一致 DD-13，不含标记字面量）：① `parse_failed_nodeids(out) -> set[str]`（从 `-rf` 摘要解析）；② `gate_hit(nodeid, failed) -> bool`（含参数化 `nodeid[…]`）；③ `kill_identity_ok(rc, out, nodeid, expect_msg) -> bool`（`rc == 1 and gate_hit(...) and (expect_msg is None or expect_msg in out)`）；④ `syntax_check(path, text) -> str | None`（`.py` 直接 `compile`；`.md` 用 `re.findall(r"python3 - <<'PYEOF'\n(.*?)\nPYEOF", …, re.DOTALL)` 逐块 compile，返回首个错误文案）。g33 改为 import 本模块（删掉自己的重复实现），**g33 重跑结果的 verdict 列必须与 Y1-A 收官逐字相同**（`mutation-results-<ts>.json` 对比）。
+- (c) **回填 g32b / g32cb / g32ccr1**：每条变异加 `expect_msg`（表结构可加第 7 元素或改 dict）；判据改调 `kill_identity_ok`（g32cb `:383`、g32ccr1 `:277`、g32b 对应处）；施加变异后、跑门前调 `syntax_check`，失败 ⇒ verdict `SYNTAX-INVALID`、脚本 rc≠0；三套跑 `-rf`（若现有 `_run_gate` 没带，补上）。**不能一次补全的条目**列进各文件顶部显式豁免表 `EXPECT_MSG_EXEMPT = {id: 理由}`（理由须具体：如「门断言无消息且源码片段不唯一」），不得静默 `None`。`expect_msg` 取值须在 `test_g3_2_review_ledger.py` 里 `grep -c` 唯一，不得取恒命中串。
+- (d) **g32b 补 SIGTERM/SIGINT/SIGHUP handler**（与 g32cb `:246-251` 同形：转异常让 finally 还原跑得到）+ 全文件 sha 复核已存在则保持。
+- (e) **4 条 ANCHOR-ERROR 处置**（M142 / M143 / M145 主锚、M157 层锚）：逐条二选一——**更锚**到 Z2 版 SKILL.md 的对应现址（`UAT-CARD-G3-2c-D:82-85` 给了 Z6-C 时的现址，本卡在车道树重新 `grep -c` 确认命中 1 且性质不变）或**退役**（移入文件顶部 `RETIRED_MUTATIONS` 注释块，写「被什么取代 / 为什么等价变异体」）；⛔ 不得静默改成 KILLED；M157 的层锚失败发生在落盘前 ⇒ 处置同上并写明「主锚命中不算测过」。M100 / M151「层声明过度 → 降普通变异」**不在本卡范围**，只登记。
+- (f) **三套 + g33 全量重跑并落盘**（协议 §2.2，`.txt`）：`g32b`（实测约 36 min，`--json` 若有则一并）、`g32cb`、`g32ccr1`、`g33`，各 `2>&1 | tee evidence-mutkill/<name>-run-<ts>.txt`，末行 `rc=<实值>`；跑后 `shasum -a 256` 与 (a) 基线逐字同落 `sha-after-<ts>.txt`；**杀灭数变化逐条给原因**（新暴露的假杀 / 锚点更新 / 退役 / SYNTAX-INVALID），写成验收单 §五 表；`grep -rl MUTANT canvas-vault/ backend/app backend/scripts backend/tests | sort` 跑前跑后恒为基线 5 项（新模块不得入列）。
+- (g) **目录级覆盖**（协议 §3，改 `backend/scripts/**`）：`tests/regression/test_g3_2_review_ledger.py tests/regression/test_g3_3_cas.py` 全绿 + 恰 1 xfailed；`tests/skills` 目录级绿（harness 不是 skills 脚本，但 SKILL.md 被临时变异，收工必跑证明已还原）；pyright 对新模块与三套改动文件 `0 errors`（`backend/.venv/bin/pyright backend/scripts/mutation_kill_identity.py backend/scripts/g32b_mutation_gates.py …`），存量报错另贴。
+- (h) **Codex 一轮，绑 HEAD**：顺序「定稿 → 跑全部裁判 → 送 Codex → 之后只改 `_bmad-output`」；prompt 最小读取面 = 本卡 diff（`git diff <Y1-A 末 commit> <审SHA> -- . ':(exclude)_bmad-output'`）+ 新模块全文；问题清单至少含：`expect_msg` 能否被 pytest 别处输出喂饱、`syntax_check` 对 `.md` 的块提取与 `test_g3_3_cas.py:36` 是否同款、豁免表理由是否成立、退役理由是否等价、g32b handler 是否覆盖 `finally` 路径；prompt 里不得出现协议 §2 列出的四个禁用措辞（改说「负控输入 / 对照输入 / 未被拦下的输入 / 门未覆盖的路径」）。
+- (i) **「本卡未证明什么」必填**（至少：未改任何门本体（无消息的断言仍只能绑源码片段或豁免）；未证明 `expect_msg` 对「同消息多处断言」的区分力；未处置 M100/M151；未在主干版 SKILL.md（2915 行）上重跑——本卡结果是 Z2 版树上的；g32b 全量只跑一次，未做时序复现）+ **「台账待登记条目」必填**（至少：Z6-C 行 4 条 ANCHOR-ERROR 终态、g32b handler 已补、三套 N/N 变化表、新模块路径、g32ccr1 允许名单缺项移交 Y4）。
+
+## 二 裁判命令
+> 树根 `PYTEST=$(pwd)/backend/.venv/bin/pytest`；承重裁判一律 `2>&1 | tee _bmad-output/审查/evidence-mutkill/<name>-$(date +%Y%m%dT%H%M%S).txt`，末行 `echo rc=$pipestatus[1]`。
+1. `git log --oneline -1`（= Y1-A 末 commit）；`git status --porcelain`（空）。
+2. `cd backend && .venv/bin/python scripts/g32cb_mutation_gates.py --list; echo rc=$?` → 9 条全「锚命中 1 次」、rc=0；同 `scripts/g32ccr1_negative_controls.py --list` → 11 条全 1、rc=0；补好后 `scripts/g32b_mutation_gates.py --list` → 138 行命中数表（不改任何文件，跑后 sha 同）。
+3. `for s in g32b_mutation_gates g32cb_mutation_gates g32ccr1_negative_controls g33_mutation_gates; do echo "$s: $(grep -c 'expect_msg' scripts/$s.py)"; done` → 每套 > 0；`grep -c 'EXPECT_MSG_EXEMPT' scripts/g32b_mutation_gates.py …` → 有则每项带理由。
+4. `cd backend && .venv/bin/python scripts/g32b_mutation_gates.py 2>&1 | tee ../_bmad-output/审查/evidence-mutkill/g32b-run-<ts>.txt; echo rc=$pipestatus[1]` → 汇总 `N/138 KILLED`（或退役后的新分母），ANCHOR-ERROR 0、SYNTAX-INVALID 0，rc 如实。
+5. 同上 `g32cb_mutation_gates.py` → `9/9 KILLED`、rc=0；`g32ccr1_negative_controls.py` → `11/11 KILLED`、rc=0；`g33_mutation_gates.py --json …/g33-results-<ts>.json` → verdict 列与 Y1-A 收官 JSON 逐字同。
+6. `shasum -a 256 canvas-vault/.claude/skills/quiz-answer/SKILL.md canvas-vault/.claude/skills/start-exam-board/SKILL.md canvas-vault/.claude/scripts/fsrs_bridge.py backend/scripts/validate_learning_events.py backend/app/services/learning_event_log.py`（跑前/跑后）→ 逐字同；`grep -rl MUTANT canvas-vault/ backend/app backend/scripts backend/tests | sort` → 基线 5 项。
+7. `cd backend && PYTHONDONTWRITEBYTECODE=1 $PYTEST -q -p no:cacheprovider tests/regression/test_g3_2_review_ledger.py tests/regression/test_g3_3_cas.py` → 全绿 + 1 xfailed；`… tests/skills` → 绿。
+8. `backend/.venv/bin/pyright backend/scripts/mutation_kill_identity.py backend/scripts/g32b_mutation_gates.py backend/scripts/g32cb_mutation_gates.py backend/scripts/g32ccr1_negative_controls.py backend/scripts/g33_mutation_gates.py` → 本卡文件 `0 errors`。
+9. Codex 后：`git diff --stat <审SHA> HEAD -- . ':(exclude)_bmad-output'` → 空；存档首部三字段齐；对存档 `grep -c` 协议 §2 点名禁止的旧模型名 → 0。
+
+## 三 禁改与隔离
+- ⛔ 禁改被 harness 变异的**生产文件**（quiz-answer / start-exam-board SKILL.md、`validate_learning_events.py`、`fsrs_bridge.py`、`learning_event_log.py`）——只在 harness 内临时变异并无条件还原；`git diff <Y1-A 末 commit> HEAD -- backend/app canvas-vault` 必须为空。
+- ⛔ 禁写 live vault；禁连 7691 / 7687；开工/收工各存一次 live `learning_events.jsonl` 的 `shasum`（期望 `NOFILE`）。
+- 禁改 `backend/tests/**`（门本体不动；Y6-B 复审面与 Y7-A conftest 面）；禁改 `lefthook.yml`（Y4 面，g32ccr1 允许名单缺项只登记）；禁改 `docs/learning-events-schema-v1.md`。
+- 禁为保旧杀灭数把 `expect_msg` 设恒真、退化成 nodeid 重复、或把 ANCHOR-ERROR 静默改 KILLED；退役必须写理由并保留可追溯条目。
+- 三套 + g33 **串行**跑，单实例（`pgrep` 判据须「解释器+脚本路径」同现）；g32b 长跑用 `run_in_background`，进度看子进程参数而非文件增长（块缓冲）。
+- evidence 不用 `.log`；`*.stderr*` 不入库；不改台账；不 push。
+
+## 四 Codex / 验收单
+命令同协议 §2（`codex-prompt-CARD-DEBT-mutation-kill-identity.md` → `codex-review-CARD-DEBT-mutation-kill-identity.md`，1 轮；0 字节重发一次后人审）；存档首部按协议 §2.1。prompt 五分节（一 背景 + 最小读取面 = 本卡 diff + 新模块全文 / 二 作者自述请独立核对：三套 N/N、豁免表、退役表、g32b handler / 三 按重要性排序的问题（见 (h)） / 四 输出格式 / 五 边界：只读、不连库、门本体与生产文件不在本卡）。验收单 `_bmad-output/验收单/UAT-CARD-DEBT-mutation-kill-identity-<日期>.md`：DoD-3 双段；4-B「无变化（把三套自检工具改成『必须红在它说的那条上』，让下次自检不再被别的红蒙混过去）」+ felt-sense；「本卡未证明什么」「台账待登记条目」必填。commit header ≤100 含批次标记，body 行 ≤100（`wc -m`）；不 push；跑完说「复核第十二批 Y1」。

@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-05-第十一批 · Z3-A · CARD-W4-3b round-1（首部由主 session 2026-09-05 按协议 §2.1 补记，正文一字未改）
+> 模型: `gpt-6-astra`（stderr 实测） · reasoning_effort: `ultra`（stderr 实测） · codex: `codex-cli 0.147.0`（stderr 实测）
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat <prompt>)"`（第十一批手册规定形态；实参见车道 stderr）
+> 审查绑定: `304f03ca → 2c53a881`（正文首段自证）；（审后 004e08cc +204 行零外审 → 第十二批 Y5-B 复审）
+> 会话头自证（抄 .stderr，stderr 本身不入库）:
+> `OpenAI Codex v0.153.3` / `workdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-z3-w4` / `model: gpt-6-astra`
+
+---
+
 审查绑定 `304f03ca → 2c53a881`。发现 **0 BLOCKER、1 HIGH、1 MEDIUM、2 LOW**。其中 HIGH 已用两个 commit 的纯 AST 实现在内存中交叉复现；未运行应用、写盘测试或数据库连接。
 
 1. **HIGH — M16 引入错误不动点：失格工厂的调用方仍被判安全。**

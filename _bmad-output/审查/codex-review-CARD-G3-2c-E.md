@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-05-第十一批 · Z6-B · CARD-G3-2c-E round-1（首部由主 session 2026-09-05 按协议 §2.1 补记，正文一字未改）
+> 模型: `gpt-6-astra`（stderr 实测） · reasoning_effort: `ultra`（stderr 实测） · codex: 未自证（stderr 无版本行）
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat <prompt>)"`（第十一批手册规定形态；实参见车道 stderr）
+> 审查绑定: 见正文；LOW 整改后 `_run_gate` except OSError 未复核（台账 §一.b）
+> 会话头自证（抄 .stderr，stderr 本身不入库）:
+> `OpenAI Codex v0.153.3` / `workdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-x7-ledger-c` / `model: gpt-6-astra`
+
+---
+
 需整改
 
 [LOW] [backend/scripts/g32cb_mutation_gates.py:80](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-x7-ledger-c/backend/scripts/g32cb_mutation_gates.py:80) — 环境变量路径只检查存在，未规范化或验证可执行性，仍会绕过“明确报错”而抛裸异常。
