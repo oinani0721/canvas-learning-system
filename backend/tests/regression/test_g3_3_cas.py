@@ -198,6 +198,12 @@ def test_concurrent_same_node_no_lost_update(vault, round_no):
     node_text = (vault / NODE_REL).read_text(encoding="utf-8")
     att = _fm_value(vault, "attempt_count")
 
+    # ⛔ 前提先立 (独立复核 R1-01 同型): 下面那条链式 `== 2` 在**全零**时同样失败, 抛出的
+    # 还是那条 lost-update 消息 —— 两个写者都没跑成会伪装成「有一次被另一次盖掉了」。
+    # (这里刻意**不复述**那条消息的原文: 负控脚本用它做 `expect_msg`, 而判据要求它在本文件里
+    #  只出现一次 —— 连注释里的复述都会让那个唯一性自检变红。)
+    assert len(rows) == 2, f"两个写者没有都落账, 本门的前提不成立 (这不是 lost update): ids={ids}\n{ctx}"
+
     # ── ① lost update 的判据: 账本里的评分次数 == 笔记算进的次数 ──
     #    (放在最前面, 不被任何 rc 断言遮住)
     applied = sum(1 for eid in (e1, e2) if f"quiz:{eid}" in node_text)
@@ -566,7 +572,17 @@ def test_illegal_out_of_order_form_does_not_hide_baseline(monkeypatch, tmp_path,
 RACE_MARK = "\n<!-- 外部写者在评分进行中插入的一段正文 -->\n"
 
 
-def _install_racing_bridge(vault: Path) -> str:
+def _race_env(vault: Path) -> dict[str, str]:
+    """竞态注入用的 env —— 凭据路径与注入路径的**唯一**派生点。
+
+    ⛔ 三处注入点 (`_install_racing_bridge` 与 M13 门自己那份内联注入) 都从这里取, 不各拼
+    一次: 注入路径与 `_race_fired()` 查的凭据路径一旦分叉, 前提断言会恒红或恒真, 两个方向
+    都会毁掉判据。
+    """
+    return {"G33_RACE_NODE": str((vault / NODE_REL).resolve())}
+
+
+def _install_racing_bridge(vault: Path) -> tuple[str, dict[str, str]]:
     """把 fsrs_bridge 换成「真源码 + 在 main() 首行改一次节点」的版本。
 
     ⚠️ 这不是 mock: 除注入的那一行外逐字是生产源码, FSRS 真实参与。注入点选
@@ -583,18 +599,42 @@ def _install_racing_bridge(vault: Path) -> str:
         + "    if _rn:\n"
         + "        with open(_rn, 'a', encoding='utf-8') as _rf:\n"
         + f"            _rf.write({RACE_MARK!r})\n"
+        # ⛔ 与节点正文**无关**的独立凭据: 证明这次注入真的执行过 (独立复核 R1-02)。
+        # 少了它, 「注入根本没跑成」与「注入的正文被恢复发布覆盖掉」在最终正文上
+        # 长得一模一样 —— 前者会伪装成后者。
+        + "        with open(_rn + '.race-fired', 'a', encoding='utf-8') as _sf:\n"
+        + "            _sf.write('1')\n"
     )
     p = vault / ".claude" / "scripts" / "fsrs_bridge.py"
     p.unlink()
     p.write_text(real.replace(anchor, inject, 1), encoding="utf-8")
-    return real
+    # ⛔ 连 env 一起返回: 凭据路径 (`_race_fired`) 与注入路径 (`G33_RACE_NODE`) 由**同一处**
+    # 代码派生 (`_race_env`), 不靠调用方各自拼一次 —— 否则两者哪天不一致, 凭据会恒不存在
+    # (前提断言恒红) 或恒存在 (前提断言恒真), 两个方向都会毁掉判据。
+    return real, _race_env(vault)
+
+
+def _race_fired(vault: Path) -> bool:
+    """竞态注入的那段代码到底跑没跑过 —— **与节点正文无关**的独立凭据。
+
+    ⛔ 为什么必须与节点正文无关: 「注入根本没跑成」与「注入的正文被发布整份覆盖掉」在
+    最终正文上长得一模一样。凭据名是 `<节点>.race-fired`, 而发布走
+    `os.replace(<节点>.quiz-tmp, <节点>)` —— 名字不同, 覆盖吃不掉它。
+    """
+    node = (vault / NODE_REL).resolve()
+    return (node.parent / (node.name + ".race-fired")).exists()
 
 
 def test_cas_conflict_refuses_and_rerun_converges(vault):
-    real_src = _install_racing_bridge(vault)
+    real_src, race_env = _install_racing_bridge(vault)
     node = vault / NODE_REL
 
-    rc, out, err = _run_writer(vault, _payload("板A#q1"), "cas1", {"G33_RACE_NODE": str(node.resolve())})
+    rc, out, err = _run_writer(vault, _payload("板A#q1"), "cas1", race_env)
+    # ⛔ 前提先立 (内部对抗审查): 这条门此前只靠断言顺序, 我判断过「rc 断言在前所以安全」——
+    # **那个判断是错的**。它只挡住「运行期即死 ⇒ rc≠0」那一种失效, 挡不住**注入本身失效**:
+    # 那时未变异与变异后都 rc=0, 红的是同一条断言、同一段文本, 而那段文本正是 M2 的
+    # expect_msg ⇒ 假杀。harness 从不跑基线, expect_msg 是唯一区分手段。
+    assert _race_fired(vault), f"竞态注入没有触发, 本门的前提不成立\nSTDOUT{out}\nSTDERR{err}"
     assert rc != 0, f"外部写者插队后仍照常发布 = CAS 门没起作用\nSTDOUT{out}"
     assert "CAS 冲突" in err, f"拒因不是 CAS 冲突: {err[-600:]}"
     text = node.read_text(encoding="utf-8")
@@ -710,6 +750,9 @@ def test_out_of_order_marker_is_additive(monkeypatch, tmp_path):
     )
     # ⛔ 不得就地改调用方的 dict —— 同一个 payload 对象被复用时会把标记带到下一条。
     assert "out_of_order" not in caller_payload, "append_event 就地污染了调用方的 payload"
+    # ⛔ 「没多这个键」不等于「一个字节没动」(独立复核 R1-04): 改用快照做加性比较后,
+    # 「就地改调用方**已有**字段」这一形态就没人管了。整份比一次补回来。
+    assert caller_payload == caller_snapshot, "append_event 改动了调用方 payload 的已有字段"
 
 
 def test_later_and_foreign_events_are_not_marked(monkeypatch, tmp_path):
@@ -1072,6 +1115,11 @@ def test_incremental_block_cas_preserves_racing_edit(vault):
         + "        _os.environ['G33_RACE_DONE'] = '1'\n"
         + "        with open(_rn, 'a', encoding='utf-8') as _rf:\n"
         + "            _rf.write('外部写者在读后写前加的一行。\\n')\n"
+        # ⛔ 与 `_install_racing_bridge` 同一套独立凭据 (内部对抗审查): 这条门此前只看
+        # 最终正文里有没有那一行, 而「注入根本没跑成」与「注入被整份覆盖吃掉」在正文上
+        # 无法区分 —— 同型假杀面。
+        + "        with open(_rn + '.race-fired', 'a', encoding='utf-8') as _sf:\n"
+        + "            _sf.write('1')\n"
     )
     (vault / ".claude" / "scripts" / "fsrs_bridge.py").unlink()
     (vault / ".claude" / "scripts" / "fsrs_bridge.py").write_text(real.replace(anchor, inject, 1), encoding="utf-8")
@@ -1083,9 +1131,10 @@ def test_incremental_block_cas_preserves_racing_edit(vault):
         text=True,
         timeout=120,
         cwd=str(vault),
-        env=dict(os.environ, PYTHONDONTWRITEBYTECODE="1", G33_RACE_NODE=str(node.resolve())),
+        env=dict(os.environ, PYTHONDONTWRITEBYTECODE="1", **_race_env(vault)),
     )
     assert proc.returncode == 0, f"{proc.stdout}\n{proc.stderr}"
+    assert _race_fired(vault), f"竞态注入没有触发, 本门的前提不成立\nSTDOUT{proc.stdout}\nSTDERR{proc.stderr}"
     text = node.read_text(encoding="utf-8")
     assert "外部写者在读后写前加的一行。" in text, "CAS 没挡住: 增量块拿读盘时的旧 body 覆盖了外部写者的改动"
     assert "疑问A" in text, "重读重算之后归纳丢了"
@@ -1122,6 +1171,14 @@ def test_writer_refuses_when_other_writer_took_the_event_id(vault):
     )
     rows = _ledger_rows(vault)
     ids = [r["event_id"] for r in rows]
+    # ⛔ 前提与后果必须是**两条断言身份** (独立复核 R1-01)。`count(...) == 1` 在账本
+    # **零行**时同样失败, 抛出的还是下面那条重复写入的消息 (只是 ids 为空列表) —— 于是
+    # 「变异体在追加之前就死了(编译期或运行期)」会伪装成「重复写入被抓到」。先立前提:
+    # 插队写者至少写下了那一行。
+    # (同上: 注释里刻意不复述那条消息原文, 它是负控的 `expect_msg`, 须在本文件里唯一。)
+    assert ids.count("quiz:板A#q1") >= 1, (
+        f"账本里一行都没有 —— 写点在追加之前就死了, 本门的前提不成立 (这不是重复写入): {ids}\n{out}\n{err}"
+    )
     assert ids.count("quiz:板A#q1") == 1, f"同 event_id 被写了两遍: {ids}"
     assert rc != 0, f"别的写者抢先写了同 ID, 本块却照常收尾\n{out}\n{err}"
     assert "取得账本锁后发现" in err, f"拒因不对: {err[-500:]}"
@@ -1224,10 +1281,14 @@ def test_a2_foreign_recovery_publish_respects_cas(tmp_path):
     # ── 注入竞态: 外部写者在 bridge 调用时刻改节点 ──
     race = _make_vault(tmp_path / "race")
     _seed_review_row(race, "quiz:板Z#q9", "检验白板/板Z#q9.md")
-    _install_racing_bridge(race)
+    _, race_env = _install_racing_bridge(race)
     node = race / NODE_REL
-    rc, out, err = _run_writer(race, _payload("板A#q1"), "fgn-race", {"G33_RACE_NODE": str(node.resolve())})
+    rc, out, err = _run_writer(race, _payload("板A#q1"), "fgn-race", race_env)
     text = node.read_text(encoding="utf-8")
+    # ⛔ 先立前提, 再判后果 (独立复核 R1-02): 注入若根本没跑成, 最终正文里同样没有
+    # RACE_MARK —— 「前提不成立」会伪装成「编辑被恢复发布覆盖」。凭据取一个与节点
+    # 正文无关的独立信号。
+    assert _race_fired(race), f"竞态注入没有触发, 本门的前提不成立\nSTDOUT{out}\nSTDERR{err}"
     # ⛔ 状态不变量排在 rc 之前: 本路径**拆掉 CAS 后 rc 仍是非零**(恢复照样以「请重跑」
     # 收尾), 拿 rc 当判据会被那个非零码喂饱 —— 与门① 同一个教训。
     assert RACE_MARK.strip() in text, "CAS 门没挡住 A2 foreign 恢复发布: 外部写者那段正文被整份覆盖吃掉了"
@@ -1256,10 +1317,11 @@ def test_dup_recovery_publish_respects_cas(tmp_path):
     # ── 注入竞态 ──
     race = _make_vault(tmp_path / "race")
     _seed_review_row(race, "quiz:板A#q1", "检验白板/板A#q1.md")
-    _install_racing_bridge(race)
+    _, race_env = _install_racing_bridge(race)
     node = race / NODE_REL
-    rc, out, err = _run_writer(race, _payload("板A#q1"), "dup-race", {"G33_RACE_NODE": str(node.resolve())})
+    rc, out, err = _run_writer(race, _payload("板A#q1"), "dup-race", race_env)
     text = node.read_text(encoding="utf-8")
+    assert _race_fired(race), f"竞态注入没有触发, 本门的前提不成立\nSTDOUT{out}\nSTDERR{err}"
     assert RACE_MARK.strip() in text, "CAS 门没挡住 dup 恢复路径发布: 外部写者那段正文被整份覆盖吃掉了"
     assert "fsrs_last_review:" not in text, "CAS 冲突后仍把 dup 恢复结果发布到了节点 (非零写)"
     assert rc != 0, f"CAS 冲突后仍以成功码收尾\nSTDOUT{out}\nSTDERR{err}"

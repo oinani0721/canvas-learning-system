@@ -29,7 +29,9 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
+import os
 import re
 import signal
 import subprocess
@@ -327,6 +329,27 @@ def _sha(p: Path) -> str:
     return hashlib.sha256(p.read_bytes()).hexdigest()
 
 
+def _source_of(p: Path) -> str:
+    """把 `X/__pycache__/name.cpython-314.pyc` 归到它的源文件 `X/name.py`。
+
+    ⛔ 这不是放宽判据: 归属判的仍然是「这个 MARK 属于**哪个源文件**」。本脚本自身
+    与基线负控脚本的字节码是它们自己的派生物, 不算残留; 而**生产文件**的 `.pyc`
+    若含 MARK, 归到那个生产文件后照样落进 leftovers。
+
+    ⛔ 用 stdlib 的 `source_from_cache` 而不是自己 `split('.')`: 后者对**带点号的
+    模块名**会算错 —— `foo.bar.cpython-314.pyc` 被算成 `foo.py`(实测), 于是一个
+    与它无关的源文件替它顶了包。stdlib 对这种形态直接抛 ValueError, 落到 fallback
+    后该文件保持自身路径 ⇒ 进 leftovers **报出来**, 而不是被静默归错。
+    形态不认识时宁可多报, 不可少报。
+    """
+    if p.suffix == ".pyc" and p.parent.name == "__pycache__":
+        try:
+            return str(Path(importlib.util.source_from_cache(str(p))).resolve())
+        except (ValueError, NotImplementedError):
+            return str(p.resolve())
+    return str(p.resolve())
+
+
 def _failed_nodeids(stdout: str) -> set[str]:
     """从 pytest 输出抽失败的 nodeid。
 
@@ -344,6 +367,46 @@ def _hit(nodeid: str, failed: set[str]) -> bool:
     却长得跟「门不承重」一模一样。
     """
     return any(f == nodeid or f.startswith(nodeid + "[") for f in failed)
+
+
+def _check_expect_msg_unique() -> list[str]:
+    """每条 `expect_msg` 必须在它绑定的门文件里**恰好出现一次**。返回违规说明列表。
+
+    ⛔ 为什么要把它写成门, 而不是「作者跑一次 grep 确认过」: 手工查出来的不变量不写成
+    判据 = 没查 —— 本卡自己就当场破过一次 (给前提断言加注释时把 `expect_msg` 的原文
+    复述进了注释, 那条片段在门文件里变成 2 次)。注释里的复述不进 pytest 的 `E ` 行,
+    功能上无害, 但「唯一」这个前提一旦不成立, 判据就不再能证明红在**哪一条**断言上,
+    而且下一次的复述可能就落在另一条断言的消息里。宁可严到连注释也不许复述。
+    """
+    problems: list[str] = []
+    cache: dict[str, str] = {}
+    for mid, _path, _old, _new, nodeid, _why, expect_msg in MUTATIONS:
+        if not expect_msg:
+            problems.append(f"{mid}: expect_msg 为空 (每条必须填实值或显式声明理由)")
+            continue
+        gate_file = nodeid.split("::", 1)[0]
+        if gate_file not in cache:
+            p = BACKEND / gate_file
+            if not p.exists():
+                problems.append(f"{mid}: 门文件不存在 {p}")
+                continue
+            cache[gate_file] = p.read_text(encoding="utf-8")
+        n = cache[gate_file].count(expect_msg)
+        if n != 1:
+            problems.append(f"{mid}: expect_msg {expect_msg!r} 在 {gate_file} 里出现 {n} 次 (应为 1)")
+        # ⛔ 还要求它**不在被测的生产代码里出现** (内部对抗审查): pytest 会给多行断言消息的
+        # **每一行**都加 `E ` 前缀, 于是一条内嵌 `{out}/{err}/{ctx}` 的断言一旦红, 子进程的
+        # 全部输出都进了判据面。只要 expect_msg 在生产侧命中 0 次, 生产输出就喂不饱它。
+        for prod in (REPO / "canvas-vault", BACKEND / "app"):
+            for f in prod.rglob("*"):
+                if f.is_symlink() or not f.is_file():
+                    continue
+                try:
+                    if expect_msg.encode() in f.read_bytes():
+                        problems.append(f"{mid}: expect_msg {expect_msg!r} 也出现在生产文件 {f} 里 (须 0 次)")
+                except OSError:
+                    continue
+    return problems
 
 
 def _run_gate(nodeid: str) -> tuple[int, str]:
@@ -383,6 +446,12 @@ def main() -> int:
             print(f"⛔ 目标文件不存在: {p}", file=sys.stderr)
             return 2
 
+    # ⛔ 判据本身先自检: expect_msg 在门文件里不唯一 ⇒ 「红在哪一条断言上」不再可证。
+    if bad := _check_expect_msg_unique():
+        for b in bad:
+            print(f"⛔ expect_msg 唯一性自检失败 — {b}", file=sys.stderr)
+        return 2
+
     # ⛔ 基线覆盖**所有会被变异的文件**, 不是只盯一个: grep 标记有盲区
     # (变异体文本未必含该字样), 全文件 sha 才是外部锚点。
     baseline = {str(p): (p.read_bytes(), _sha(p)) for p in _TARGET_FILES}
@@ -401,7 +470,9 @@ def main() -> int:
         print(f"\n⚠️ 收到信号 {signum}, 已无条件还原全部目标文件后退出", file=sys.stderr)
         sys.exit(130)
 
-    for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+    # SIGQUIT (Ctrl-\) 的默认处置同样不做栈展开 —— 漏了它 finally 一样不执行。
+    # SIGKILL 挡不住, 如实声明: 被 -9 打断时变异体会留在生产文件里, 须手动 restore。
+    for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP, signal.SIGQUIT):
         signal.signal(sig, _on_signal)
 
     results = []
@@ -467,24 +538,97 @@ def main() -> int:
     # 负控脚本含该字面量 (g32b / g32cb / g32ccr1 / openapi_drift_negative_control /
     # recap_domain_negverify)。拿「= 0」当判据在本仓**恒不可达** —— 那是期望值
     # 没有独立来源的典型形态。
-    def _mark_files() -> set[str]:
-        out = subprocess.run(
-            [
-                "grep",
-                "-rln",
-                MARK,
-                str(REPO / "canvas-vault"),
-                str(BACKEND / "app"),
-                str(BACKEND / "scripts"),
-                str(BACKEND / "tests"),
-            ],
-            capture_output=True,
-            text=True,
-        ).stdout.split()
-        # 本脚本自身的 MARK 是拼接出来的, grep 命不中; 这里仍显式排除以防将来改写。
-        return {f for f in out if Path(f).resolve() != Path(__file__).resolve()}
+    def _mark_files() -> set[str] | None:
+        """含 MARK 字面量的文件集合; 扫描本身失败时返回 None (不是空集)。
 
-    leftovers = sorted(_mark_files() - BASELINE_MARK_FILES)
+        ⛔ **不 shell out 到 `grep`** (2026-09-05 实测, 独立复核 R1-05 的延伸):
+          ① 同一个名字在不同环境解析到**不同程序** —— 本机交互 shell 的 `grep`
+             是个函数, 最终跑的是 ugrep 7.8.4, 它对**二进制文件默认静默跳过**;
+             而 Python 的 subprocess 解析到 `/usr/bin/grep` (BSD), 它会报。于是
+             「同一条判据」的结论取决于 PATH, 换台机器就可能静默失明 —— 那正是
+             负控最不能有的东西。实测同一个 `.pyc`: shell 的 grep rc=1 (没看见),
+             `/usr/bin/grep -l` 报出文件名。
+          ② `.pyc` 里的常量折叠会把 `"MUT" + "ANT"` 变成一个**真正的** MARK
+             字面量 —— 那也是残留, 不该因为它是二进制就看不见。
+        扫描面 1166 个文件 / 19.6 MB (实测), 逐字节扫的代价可以忽略。
+        """
+        roots = (REPO / "canvas-vault", BACKEND / "app", BACKEND / "scripts", BACKEND / "tests")
+        needle = MARK.encode()
+        # ⛔ root 不存在时 rglob 静默返回空 —— 那会让扫描面缩水而判据照样报「无残留」。
+        for root in roots:
+            if not root.is_dir():
+                print(f"⛔ MARK 扫描面缺失: {root} 不存在 — 判扫描失败, 不当成「没有残留」")
+                return None
+        hits: set[str] = set()
+        walk_failed = False
+
+        def _on_walk_error(err: OSError) -> None:
+            # ⛔ `Path.rglob` 对**读不进去的目录**是静默跳过的 —— 扫描面缩水而判据照样
+            # 报「无残留」。`os.walk(onerror=...)` 是唯一能把它变成信号的方式 (内部对抗
+            # 审查: 不可读**文件**硬 fail-closed、不可读**目录**却静默跳过, 两种相反结局)。
+            nonlocal walk_failed
+            print(f"⛔ MARK 扫描失败 (遍历 {getattr(err, 'filename', '?')} 出错): {err}")
+            walk_failed = True
+
+        for root in roots:
+            for dirpath, _dirnames, filenames in os.walk(root, onerror=_on_walk_error, followlinks=False):
+                for fn in filenames:
+                    p = Path(dirpath) / fn
+                    try:
+                        # symlink 不跟随。⚠️ 依据如实收窄 (内部对抗审查): 这**不是**因为
+                        # 扫描面里现在有 symlink —— 实测扫描面里 symlink 数 = 0, 而且
+                        # `os.walk(followlinks=False)` 本来就不进目录 symlink。留着它是
+                        # 纵深: 将来若有人往这四个 root 里放一个指向仓外的链接, 跟随会把
+                        # 扫描面悄悄扩出去(或绕回来数两遍), 那两种都会让判据不可信。
+                        if p.is_symlink() or not p.is_file():
+                            continue
+                    except OSError as e:
+                        print(f"⛔ MARK 扫描失败 (stat {p} 出错): {e}")
+                        return None
+                    try:
+                        with p.open("rb") as fh:
+                            tail = b""
+                            while True:
+                                chunk = fh.read(1 << 20)
+                                if not chunk:
+                                    break
+                                if needle in tail + chunk:
+                                    hits.add(str(p))
+                                    break
+                                # 跨块边界的命中要靠这段重叠尾巴, 不能只看单块。
+                                # (len(needle)==1 时 `chunk[-0:]` 会取**整块**, 尾巴逐块
+                                #  翻倍 ⇒ 内存爆掉。当前 MARK 是 6 字符走不到, 别留坑。)
+                                tail = chunk[-(len(needle) - 1) :] if len(needle) > 1 else b""
+                    except OSError as e:
+                        print(f"⛔ MARK 扫描失败 (读 {p} 出错): {e}")
+                        return None
+        if walk_failed:
+            return None
+        return hits
+
+    # ⛔ 判据是**集合相等**, 两个方向都要看 (独立复核 R1-05): 只算 actual - baseline
+    # 时, 基线里某个文件被删/改名会静默通过 —— 而那意味着基线本身已经过期,
+    # 「与基线相同」这句话不再成立。
+    _raw_marks = _mark_files()
+    scan_ok = _raw_marks is not None
+    _self_src = str(Path(__file__).resolve())
+    if scan_ok:
+        # leftovers 报**实际那个文件**(不是归一化后的源路径), 否则读日志的人不知道
+        # 到底是哪个文件留了残留。
+        leftovers = sorted(
+            f for f in _raw_marks if _source_of(Path(f)) != _self_src and _source_of(Path(f)) not in BASELINE_MARK_FILES
+        )
+        # ⛔ baseline_missing 只认**源文件自身**的直接命中, 不认它的 `.pyc` (内部对抗审查):
+        # 归一化会让一份陈旧的 `__pycache__` 字节码替一个已被删掉/改名的基线源文件顶包,
+        # 于是「基线是否还成立」这个方向静默失效 —— 而它正是 R1-05 新加进来的那一半。
+        _direct = {str(Path(f).resolve()) for f in _raw_marks}
+        baseline_missing = sorted(BASELINE_MARK_FILES - _direct)
+    else:
+        # ⛔ 不往**路径列表**字段里塞哨兵字符串 (内部对抗审查): JSON 消费方会把
+        # `"<扫描失败>"` 读成「有一个叫这个名字的残留文件」。失败用 `mark_scan_ok`
+        # 这个布尔表达, 两个列表置 None ⇒ 语义是「未知」, 不是「无」。
+        leftovers = None
+        baseline_missing = None
 
     n_killed = sum(1 for r in results if r["verdict"] == "KILLED")
     n_syntax = sum(1 for r in results if r["verdict"] == "SYNTAX-INVALID")
@@ -492,7 +636,12 @@ def main() -> int:
     print(f"杀灭: {n_killed}/{len(results)}")
     print(f"SYNTAX-INVALID: {n_syntax} (>0 说明负控自己坏了, 不是被测物坏了)")
     print(f"还原逐字节相同: {'是' if ok_restore else '否 — ' + ', '.join(drift)}")
-    print(f"{MARK} 新增残留 (基线之外): {leftovers or '无'}")
+    print(f"{MARK} 扫描: {'完成' if scan_ok else '⛔ 失败 (见上)'}")
+    _unknown = "⛔ 未知 (扫描失败, 不等于「无」)"
+    print(f"{MARK} 新增残留 (基线之外): {_unknown if leftovers is None else (leftovers or '无')}")
+    print(
+        f"{MARK} 基线缺失 (基线里有而实测没有): {_unknown if baseline_missing is None else (baseline_missing or '无')}"
+    )
     survived = [r for r in results if r["verdict"] != "KILLED"]
     for r in survived:
         print(f"  · {r['id']} {r['verdict']} — {r['why']}")
@@ -505,7 +654,9 @@ def main() -> int:
                     "total": len(results),
                     "syntax_invalid": n_syntax,
                     "restore_identical": ok_restore,
+                    "mark_scan_ok": scan_ok,
                     "leftovers": leftovers,
+                    "baseline_missing": baseline_missing,
                 },
                 ensure_ascii=False,
                 indent=2,
@@ -514,11 +665,12 @@ def main() -> int:
         )
     # ⛔ 退出码必须反映**负控本身的结论**, 不只是「还原干净」(独立复核 M4 实测:
     # 用一条无效变异跑真实门, 得到 SURVIVED 却 rc=0 —— 一条死门可以让整份负控
-    # 看起来通过)。判据: 有选到东西 + 无锚点漂移 + 全部 KILLED + 还原干净 + 无残留。
+    # 看起来通过)。判据: 有选到东西 + 无锚点漂移 + 全部 KILLED + 还原干净 +
+    # 扫描真的跑成了 + 无残留 + 基线不缺项 (后三条见独立复核 R1-05)。
     all_killed = bool(results) and all(r["verdict"] == "KILLED" for r in results)
     if not results:
         print("⛔ 没有任何变异被选中 (--only 过滤过窄?) — 判失败, 免得空跑被当成通过")
-    return 0 if (all_killed and ok_restore and not leftovers) else 1
+    return 0 if (all_killed and ok_restore and scan_ok and not leftovers and not baseline_missing) else 1
 
 
 if __name__ == "__main__":

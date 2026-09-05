@@ -17,7 +17,7 @@
 **请只读下面这三份材料，不要通读全仓**：
 
 1. 本卡代码 diff：
-   `git diff 7105e84c <AUDIT_SHA> -- . ':(exclude)_bmad-output'`
+   `git diff 7105e84c a795741f -- . ':(exclude)_bmad-output'`
 2. `backend/scripts/g33_mutation_gates.py` 全文（负控脚本本体）
 3. `backend/tests/regression/test_g3_3_cas.py` 里的两条新门
    （`test_a2_foreign_recovery_publish_respects_cas` / `test_dup_recovery_publish_respects_cas`）
@@ -46,7 +46,7 @@
 4. **`BASELINE_MARK_FILES` 补第 5 项** `g32ccr1_negative_controls.py`：车道 HEAD 已含主干
    `03ac8bf8`，该文件是主干上新增的既有负控脚本；少列它会让「残留检查」把它算成本脚本的
    残留，从而**什么都没错也返 1**。判据仍是「与基线集合相同」，没有改成 `= 0`。
-5. **生产逻辑零改动**：`git diff 7105e84c <AUDIT_SHA> -- backend/app canvas-vault` 为空；
+5. **生产逻辑零改动**：`git diff 7105e84c a795741f -- backend/app canvas-vault` 为空；
    `learning_event_log.py` / `SKILL.md` 只在负控脚本内被临时改写并无条件还原。
 
 ---

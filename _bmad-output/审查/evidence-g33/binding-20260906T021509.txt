@@ -1,0 +1,10 @@
+=== 本次取证绑定的代码 sha256 ===
+73dee2ff4522aa55fddc9f9e0be0d78c54e11953479c3d6cc6c53e558cd5b1da  backend/scripts/g33_mutation_gates.py
+3e44005c3cfde2c3b699df5814dedc418ee273cecc59c755a830e50d9fafc10c  backend/tests/regression/test_g3_3_cas.py
+
+2 files already formatted
+ruff-format rc=0
+All checks passed!
+ruff-check rc=0
+0 errors, 0 warnings, 0 informations
+pyright rc=0
