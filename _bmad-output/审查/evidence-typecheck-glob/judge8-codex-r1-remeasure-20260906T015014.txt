@@ -1,0 +1,26 @@
+=== Codex round-1 整改：旧 glob 真实可达面实测 ===
+HEAD=64498c262b3d4e967be3eb2bf668eda6242a3d8c
+--- backend 目录总量（.py） ---
+846
+--- backend 一级 .py（旧 glob 的 ** 要求至少跨一级 ⇒ 不可达） ---
+backend/mutmut_config.py
+backend/start_server.py
+count=2
+--- 旧 glob {backend,src}/**/*.py 真实可达面 = backend 下深度>=1 的 .py ---
+844
+--- src 分支贡献 ---
+       0
+--- 校验：846 - 2 = ? ---
+846 - 2 = 844
+--- pyright 解析顺序（SKIP 的真实条件）---
+        # Resolve the binary explicitly: venv first, then PATH. Empty == not installed.
+        if [ -x "backend/.venv/bin/pyright" ]; then
+          PYRIGHT_BIN="backend/.venv/bin/pyright"
+        elif command -v pyright >/dev/null 2>&1; then
+          PYRIGHT_BIN="$(command -v pyright)"
+        else
+          PYRIGHT_BIN=""
+        fi
+--- 主干 PATH 上有无 pyright ---
+(当前 shell PATH 无 pyright, rc=1)
+rc=0

@@ -1,0 +1,30 @@
+=== Codex round-1 整改后：等价性判据（供主 session 逐行核）===
+审 SHA = 64498c26  当前工作树 = 已改注释, 未 commit
+
+--- 1. 改动是否**只**在注释行（每条 +/- 行必须以 '#' 开头） ---
+OK: 全部 +/- 行都是注释行
+
+--- 2. glob 行逐字节未变 ---
+审 SHA:       glob: "backend/app/*.py"
+工作树:       glob: "backend/app/*.py"
+
+--- 3. run 块逐字节未变（python-typecheck 的 run: 到块末） ---
+6af9337849f585d3fd1937f5efc1efe003b9041e4c9b5add2004dc8a980b5520  -
+6af9337849f585d3fd1937f5efc1efe003b9041e4c9b5add2004dc8a980b5520  -
+
+--- 4. 去掉所有注释行后，两版是否逐字节相同（= 行为面等价） ---
+d6ebf8bdbc4eab0d10e92995f65bb9f19d49f794d5f4670e292a78e858b4731f  -
+d6ebf8bdbc4eab0d10e92995f65bb9f19d49f794d5f4670e292a78e858b4731f  -
+
+--- 5. 命令名集合与顺序 ---
+OK: 空
+
+--- 6. 新的行锚偏移（相对 4cc4824c）---
+mutant-residue-scan: 286 -> 329
+pre-push:            383 -> 426
+注释总增行 N = 43
+
+--- 7. YAML 仍可解析 + glob 值 ---
+cmds: ['spec-sync-flat', 'spec-sync-root', 'ghost-files', 'python-lint', 'python-typecheck', 'cypher-vault-filter-lint', 'readme-claims-lint', 'mutant-residue-scan']
+glob: backend/app/*.py
+rc=0
