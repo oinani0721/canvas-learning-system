@@ -45,33 +45,81 @@ class TestVaultIdFromConfig:
     """AC #3: Post-vault-switch, LanceDB auto-switches to new vault's table space."""
 
     def test_dynamic_vault_id_follows_config(self):
-        from app.config import get_settings, reload_settings
+        """Vault 切换后 LanceDB 表名跟着换命名空间 (AC #3 原意图不变)。
+
+        CARD-REDBASE-R1 翻新 (基线即红的环境耦合): 原实现经
+        ``reload_settings(overrides={'ACTIVE_VAULT': ...})`` 切 vault, 但
+        ``Settings.vault_id`` 优先读 ``CANVAS_BASE_PATH/.canvas-config.yaml``
+        的显式 ``vault_id`` (config.py:781-790), 仓内 yaml 在位时 override
+        永远不生效 —— 断言的是环境而不是实现 (环境耦合假红)。
+        改法依据 = CARD-G2-2 先例 :155-163 (同文件姊妹用例), 直接 patch
+        Level-3 的 ``app.config.get_current_vault_id``。
+
+        ⛔ Codex round-1 M1 整改: 初版「先 patch 再建 client, 只取一次表名」
+        丢掉了旧用例的核心鉴别力 —— 旧版是「先建 client, 再切配置」, 能抓住
+        「``__init__`` 把 vault 冻进 ``_vault_id_override``」这类回归; 初版新门
+        对该变异 PASS (放过), 旧门 FAIL (抓住)。故本版**复用同一个 client**,
+        在两次不同 patch 下各解析一次并要求结果跟着变 —— 这才是 AC #3
+        「post-vault-switch 自动切表空间」的语义。
+        """
+        from unittest.mock import patch
+
         from agentic_rag.clients.lancedb_client import LanceDBClient
+        from app.core.subject_config import DEFAULT_SUBJECT_ID, _current_subject_id
 
-        original = get_settings().ACTIVE_VAULT
-        client = LanceDBClient()  # no override → uses config
+        vault_before, vault_after = "vault_before_switch", "vault_after_switch"
+        # Level-2 ContextVar 置 DEFAULT, 使解析落到 Level-3 (app.config)。
+        token = _current_subject_id.set(DEFAULT_SUBJECT_ID)
+        try:
+            with patch("app.config.get_current_vault_id", return_value=vault_before):
+                client = LanceDBClient()  # no override → uses config
+                assert client.resolve_table_name("vault_notes") == f"{vault_before}_vault_notes"
 
-        reload_settings(overrides={"ACTIVE_VAULT": "CS 61B"})
-        assert client.resolve_table_name("vault_notes") == "cs_61b_vault_notes"
-
-        reload_settings(overrides={"ACTIVE_VAULT": original})
+            # ⛔ 关键: 复用**同一个 client** 只切配置。构造时冻结 vault 的回归
+            # 必须被这一步抓住 (Codex round-1 M1 变异实证)。
+            with patch("app.config.get_current_vault_id", return_value=vault_after):
+                assert client.resolve_table_name("vault_notes") == f"{vault_after}_vault_notes"
+        finally:
+            _current_subject_id.reset(token)
 
 
 class TestSubjectResolverVaultId:
     """AC #6: subject_resolver includes vault_id in group_id."""
 
     def test_group_id_has_vault_prefix(self):
-        from app.config import get_settings, reload_settings
+        """subject_resolver 产出的 group_id 必须带 vault 段 (AC #6 原意图不变)。
+
+        CARD-REDBASE-R1 翻新 —— 两处过时叠加:
+        (1) ``reload_settings`` 被 ``Settings.vault_id`` 的 yaml-first 优先级
+            覆盖 (config.py:781-790) → 同 :47 改 patch
+            ``app.config.get_current_vault_id``; 改法依据 = CARD-G2-2 先例 :155-163。
+        (2) 期望值是裸 ``<vault>:`` 旧格式 (写于 43294c38 / 2026-04-17), 而
+            ``vault:`` 前缀自 D16 (Story 2.5.Y, 根 CLAUDE.md「Graphiti group_id
+            命名规约」) 起统一 (def3a27a 2026-05-05 / ecf16f2c 2026-05-10 落地)。
+        ⚠️ 出处精确化 (Codex round-1 L1): D16 原文只列 ``vault:<vault_id>`` /
+        ``:<subject_id>`` / ``:<canvas_name>`` 三种形态, 且 ``build_vault_group_id``
+        里 subject_id 与 canvas_path **互斥** (subject_config.py:255-262)。本用例
+        断言的四段 ``vault:<vault_id>:<subject>:<canvas>`` 是 ``subject_resolver
+        ._make_group_id`` (:201-206) 在 D16 三段 base 之后再拼 canvas 的**组合
+        形态**, 依据是 Phase A0.5-N (``_bmad-output/research/
+        round-23-multi-vault-implementation-plan-2026-05-10.md:77`` 明列
+        ``vault:<vault_id>:<subject>:<canvas>`` = 「✅ Phase A0.5-N ship」), 不是
+        D16 原文直接给出的格式。
+        断言的 vault 段由 patch 返回值动态组装, 不硬编码任何仓内 vault 字面量。
+        """
+        from unittest.mock import patch
+
         from app.services.subject_resolver import SubjectResolver
 
-        original = get_settings().ACTIVE_VAULT
-        reload_settings(overrides={"ACTIVE_VAULT": "cs61b"})
+        switched_vault = "cs61b"
+        with patch("app.config.get_current_vault_id", return_value=switched_vault):
+            resolver = SubjectResolver()
+            info = resolver.resolve("test-canvas.canvas", manual_subject="math")
 
-        resolver = SubjectResolver()
-        info = resolver.resolve("test-canvas.canvas", manual_subject="math")
-        assert info.group_id.startswith("cs61b:")
-
-        reload_settings(overrides={"ACTIVE_VAULT": original})
+        assert info.group_id.startswith(f"vault:{switched_vault}:")
+        # D16 四段组合形态: vault:<vault_id>:<subject>:<canvas>
+        # (canvas 段 "test-canvas" 经 sanitize_subject_name → "test_canvas")
+        assert info.group_id == f"vault:{switched_vault}:math:test_canvas"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -324,24 +372,28 @@ class TestActiveVaultIdNarrowExceptionAndFallbackWarning:
         """RuntimeError in subject_config ContextVar accessor → caught (in
         narrow tuple) → falls through to Level-3 (app.config). Confirms the
         wave-2 fallback chain still works after the narrowing.
+
+        CARD-REDBASE-R1 翻新 (意图不变, 只去环境耦合): 原实现用
+        ``reload_settings(overrides={'ACTIVE_VAULT': 'level3_target'})`` 造
+        Level-3 目标值, 但 ``Settings.vault_id`` yaml-first 优先级
+        (config.py:781-790) 让 override 恒失效。改法依据 = CARD-G2-2
+        先例 :155-163 —— 直接 patch ``app.config.get_current_vault_id``。
         """
         import sys
         import types
 
+        from unittest.mock import patch
+
         from agentic_rag.clients.lancedb_client import LanceDBClient
-        from app.config import get_settings, reload_settings
 
         replacement = types.ModuleType("app.core.subject_config")
         replacement.DEFAULT_SUBJECT_ID = "__never_matches__"
         replacement.get_current_subject_id = _raise_runtime_subject_config
         monkeypatch.setitem(sys.modules, "app.core.subject_config", replacement)
 
-        original = get_settings().ACTIVE_VAULT
-        try:
-            reload_settings(overrides={"ACTIVE_VAULT": "level3_target"})
+        level3_target = "level3_target"
+        with patch("app.config.get_current_vault_id", return_value=level3_target):
             client = LanceDBClient()
             # Level-2 raises RuntimeError (in narrow tuple) → caught →
-            # Level-3 yields global active vault from settings.
-            assert client.active_vault_id == "level3_target"
-        finally:
-            reload_settings(overrides={"ACTIVE_VAULT": original})
+            # Level-3 yields global active vault from app.config.
+            assert client.active_vault_id == level3_target

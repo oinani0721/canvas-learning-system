@@ -306,10 +306,29 @@ class TestGetMetadata:
         assert response.status_code == 422
 
     def test_metadata_group_id_format(self, client):
-        """group_id should be subject:canvas_name format."""
+        """group_id 必须是 D16 vault: 统一格式 (原意图: 校验 group_id 形态)。
+
+        CARD-REDBASE-R1 翻新: 期望值 ``math54:线性代数`` 写于 8222daef
+        (2026-02-11), **早于** ``vault:`` 前缀落地 (def3a27a 2026-05-05 /
+        ecf16f2c 2026-05-10) —— 测试过时, 端点实现 (metadata.py:152 直返
+        ``info.group_id``) 零回归。
+        D16 现行前缀规约见根 CLAUDE.md「Graphiti group_id 命名规约 (Story 2.5.Y
+        D16 锁定 2026-05-05)」。
+        ⚠️ 出处精确化 (Codex round-1 L1): D16 原文只列 ``vault:<vault_id>`` /
+        ``:<subject_id>`` / ``:<canvas_name>`` 三种形态, 且 ``build_vault_group_id``
+        里 subject_id 与 canvas_path **互斥** (subject_config.py:255-262)。这里的
+        四段是 ``subject_resolver._make_group_id`` (:201-206) 在 D16 三段 base
+        之后再拼 canvas 的**组合形态**, 依据是 Phase A0.5-N (``_bmad-output/
+        research/round-23-multi-vault-implementation-plan-2026-05-10.md:77`` 把
+        ``vault:<vault_id>:<subject>:<canvas>`` 明列为「✅ Phase A0.5-N ship」)。
+        vault 段由 ``get_current_vault_id()`` 动态组装 —— 不硬编码仓内 vault
+        字面量, 换 vault 部署照样绿。
+        """
+        from app.config import get_current_vault_id
+
         response = client.get(
             "/api/v1/canvas-meta/metadata",
             params={"canvas_path": "Math 54/线性代数.canvas"},
         )
         data = response.json()
-        assert data["group_id"] == "math54:线性代数"
+        assert data["group_id"] == f"vault:{get_current_vault_id()}:math54:线性代数"
