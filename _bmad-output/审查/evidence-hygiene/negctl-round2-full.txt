@@ -1,0 +1,69 @@
+════ 负控 round-2（补证）════
+时间: 2026-09-06 03:08:57
+生产代码 sha（跑前，须与跑后相同）:
+f3489cdcca8f39f004016a9a3003d7736eafbfac84a754653ee456abcd69e4ea  tests/unit/conftest.py
+5f1d7c1d77ef694525fbdd4e220c7a90938b869f7d9ab7c3ed7de549ecaef9c4  app/api/v1/system.py
+fcfd7100e5bf388419fe61d998b0ed6c34b33be5ddb5cd9cee04ee1e3a61aa93  tests/unit/test_startup_health_check.py
+
+════ 红轮：变异源码（逐字）════
+"""临时负控用例（CARD-TEST-hygiene-vaultinit (c)）—— 不入 commit。"""
+
+from pathlib import Path
+
+
+def test_negctl_writes_into_repo():
+    target = Path("raw/_probe")
+    target.mkdir(parents=True, exist_ok=True)
+    # 断言①：变异确实生效（这条 assert 本身就是「_probe 被创建」的记录）
+    assert target.is_dir(), "变异未生效：raw/_probe 未创建"
+    print(f"NEGCTL-MUTATION-EFFECTIVE abs={target.resolve()}")
+变异文件 sha: 086f6c09bab8da12f9a4af3144475a1d7778b5ff1c2a61b3a026313c76379f5a
+
+════ 红轮命令 ════
+PYTHONDONTWRITEBYTECODE=1 ./.venv/bin/python -m pytest tests/unit/test_zz_hygiene_negctl.py -q -p no:cacheprovider -p no:randomly --override-ini=addopts=
+红轮 rc=1
+
+════ 红轮判据（逐条，带出处）════
+① 变异生效 —— 用例内 print 的绝对路径:
+NEGCTL-MUTATION-EFFECTIVE abs=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y6-testhygiene/backend/raw/_probe
+  文件系统实证: backend/raw/_probe 存在 ✅
+② 拒因身份（必须是本卡的门）:
+CARD-TEST-hygiene-vaultinit 不变量门
+③ 指名 backend/raw:
+新出现 vault 骨架: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y6-testhygiene/backend/raw
+④ 被测用例本身 passed（红只来自门）:
+1 passed, 10 warnings, 1 error in 0.49s
+⑤ 红轮 ERROR 的 nodeid:
+ERROR tests/unit/test_zz_hygiene_negctl.py::test_negctl_writes_into_repo - Fa...
+⑥ 红轮 rc = 1 （非 0 才算门起作用）
+已清红轮污染 backend/raw
+
+════ 绿轮：还原后源码（逐字，nodeid 与红轮相同）════
+"""临时负控用例 —— 绿轮：同一用例，同一断言，只把写入目标换成 tmp_path。"""
+
+from pathlib import Path
+
+
+def test_negctl_writes_into_repo(tmp_path: Path):
+    target = tmp_path / "raw/_probe"
+    target.mkdir(parents=True, exist_ok=True)
+    assert target.is_dir(), "变异未生效：raw/_probe 未创建"
+    print(f"NEGCTL-MUTATION-EFFECTIVE abs={target.resolve()}")
+还原文件 sha: 75ef95d3777e85c2e076ecaf8f24a39a258efcc65fa1fab15999bae49ed882c1
+
+════ 绿轮判据 ════
+① 同一 nodeid 通过:
+1 passed, 10 warnings in 0.44s
+② 写入目标（应在 tmp_path 内，不在仓库）:
+  (未捕获 print，-q 模式下 passed 用例不打印)
+③ 门未误报: 0 次（应 0）
+④ backend/raw 不存在: ✅
+⑤ 绿轮 rc = 0 （应为 0）
+
+════ 生产代码 sha（跑后，须与跑前逐字相同）════
+f3489cdcca8f39f004016a9a3003d7736eafbfac84a754653ee456abcd69e4ea  tests/unit/conftest.py
+5f1d7c1d77ef694525fbdd4e220c7a90938b869f7d9ab7c3ed7de549ecaef9c4  app/api/v1/system.py
+fcfd7100e5bf388419fe61d998b0ed6c34b33be5ddb5cd9cee04ee1e3a61aa93  tests/unit/test_startup_health_check.py
+
+════ 结论 ════
+红轮 rc=1 / 绿轮 rc=0  → 门承重成立 ✅

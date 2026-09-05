@@ -91,7 +91,12 @@ backend/wiki     backend/wiki/canvases  backend/wiki/canvases/.gitkeep
 
 ## 三 结论
 
-**`backend/` 里的 vault 骨架，写者是**
+> **措辞收窄（Codex round-1 #3，按其建议改写）**：本卡证明的是
+> 「**该链能产生该现场**」+「台账原归因缺乏支持」，**不是**「历史那次就是它干的」。
+> `CLAUDE.md` 的 sha 一致只说明是同一段代码写的（`vault_init_service.py:40`
+> 是固定模板），**该 SHA 不是历史调用者的唯一指纹**。
+
+**`backend/` 里的 vault 骨架，本卡实证「能产生该现场」的写入链是**
 
 ```
 tests/contract/test_openapi_contract.py::test_api_contract[POST /api/v1/system/setup-wizard]
@@ -104,8 +109,12 @@ tests/contract/test_openapi_contract.py::test_api_contract[POST /api/v1/system/s
 `backend/` 起跑 ⇒ cwd = `backend/`）；`initialize_vault()` 随即在那里建骨架。
 
 **这条链与 `tests/unit` 无关。** H1（`tests/unit` 目录级）在同样三签名下
-`backend/` 三处判据全空 —— 台账把它归给 `test_vault_init_service.py` 是错的，
-那个文件 8 个用例全走 `tmp_path`、且在红基线里 0 条。
+`backend/` 三处判据全空 ⇒ 台账归给 `test_vault_init_service.py` **缺乏支持**。
+
+> **两处限定（Codex round-1 #3）**：① H1 收尾干净只支持「**该配置下**未复现」，
+> 不足以排除其他测试集合／fixture 覆盖／执行顺序／期间写入后又被清理的情况；
+> ② 「那 8 个用例全经 `vault_dir(tmp_path)`」是**我的源码核对陈述**，
+> Codex 按读取边界未独立验证该文件源码 —— 如实标注，不冒充双方确认。
 
 ## 四 修后验证 —— 受控对照实验
 
@@ -120,7 +129,7 @@ tests/contract/test_openapi_contract.py::test_api_contract[POST /api/v1/system/s
 | 两文件 sha | 未变 | 未变 |
 | `/tmp/test-vault*` | 出现 | **两条 No such file** |
 
-### 失败身份未被改变（零回归的证据）
+### 失败身份未被改变（**不等于**零回归）
 
 两轮 pytest 都是 `1 failed`，但**失败原因逐字同型**：
 
@@ -133,6 +142,11 @@ tests/contract/test_openapi_contract.py::test_api_contract[POST /api/v1/system/s
 `startup_health_check` 去连 7691 与 Ollama 各自超时，远超 10s deadline
 —— 与第十一批 Z7-C 裁定的「合约测试慢」是同一件事），改后仍红且原因相同。
 本卡**没有**改变它的失败身份，只消除了它的写盘副作用。
+
+> **措辞收窄（Codex round-1 #2）**：这条只支持「**该 operation 的失败身份未变**」，
+> **不支持**更广义的「零回归」—— `-k setup` 把覆盖从 206 个 operation 缩为 1，
+> 且相同的 `DeadlineExceeded` 不能排除被超时遮蔽的其他差异。
+> 全量回归面本卡未验证（约需 13 小时），已登记。
 
 （判据绑定失败身份而非 rc：只看「都是 1 failed」不足以证明零回归，
 必须比对拒因文本。）

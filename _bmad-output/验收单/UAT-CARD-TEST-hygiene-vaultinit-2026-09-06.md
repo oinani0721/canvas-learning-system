@@ -21,7 +21,19 @@
 | H1 = `tests/unit` 目录级 | **未复现** | **复现**，二分到 2 个 nodeid | **未复现** |
 | H2 = `tests/contract`（定向 setup-wizard，改前代码） | **复现** ⚠️ | 出现（含并行干扰面） | 未变（未跑到写它的端点） |
 
-### 🎯 H2 复现 = 台账那条污染的真正写者（详见 `定位结论-a-h2.md`）
+### 🎯 H2 复现出与冻结证据逐条吻合的污染（详见 `定位结论-a-h2.md`）
+
+> **措辞收窄（Codex round-1 批评「唯一历史真凶超出证据范围」，成立）**：
+> 本卡证明的是「**这条链在改前代码上能完整复现该污染形态**，产物与冻结证据树
+> 逐条吻合」；**没有**证明「冻结证据那次污染就是它干的」。
+> 理由：`CLAUDE.md` 的 sha256 一致只说明**是同一段代码写的** —— 骨架内容由
+> `VAULT_DIRECTORIES` + `CLAUDE_MD_SKELETON` 两个常量完全决定，任何调用
+> `initialize_vault()` 且路径解析到 `backend/` 的途径都会产出逐字节相同的东西。
+> 那是「同一段代码」的证据，不是「同一次运行」的证据；冻结证据是历史快照，
+> 本卡没有那次运行的进程级记录。
+>
+> 可以确定的是：**台账原归因（`test_vault_init_service.py`）被证伪**
+> —— 那 8 个用例全走 `tmp_path`，且 `tests/unit` 目录级跑完 `backend/` 三处判据全空。
 
 ```
 tests/contract/test_openapi_contract.py::test_api_contract[POST /api/v1/system/setup-wizard]
@@ -72,10 +84,48 @@ tests/contract/test_openapi_contract.py::test_api_contract[POST /api/v1/system/s
 `lsof` cwd 确认）就造了一对。所以「`ls -d /tmp/test-vault*` 有没有」这个判据
 **在并行环境下不可信**。
 
-我认为 nodeid 归因仍成立，理由是：并行车道的污染**成对**出现（两用例连着跑、
-间隔 ≈5s，与各自 5.48s/5.49s 的耗时吻合），而我的两次单跑各自**只**产生一个、
-且与源码字面量精确对应。「成对 vs 单个」是能翻转结论的对照。y9 那次意外运行
-反而成了独立第三方复现。**这条推理已列入 Codex 复核的第 1 问，请重点看。**
+#### 主论证（绑定本进程输出，与并行无关）—— Codex round-1 指出后改用
+
+两次单跑的 pytest **captured stdout 里有被测进程自己写的结构化日志**：
+
+```
+node1: "path": "/private/tmp/test-vault/CLAUDE.md",        "event": "claude_md_created"
+node2: "path": "/private/tmp/test-vault-wizard/CLAUDE.md", "event": "claude_md_created"
+```
+
+这是 `VaultInitService` 在**本进程内**打的日志（`vault_init_service.py:99`），
+别的车道的进程写不进我的 pytest 输出。它直接把「谁写的、写到哪」绑死，
+不依赖任何关于并行行为的假设。
+
+修后同一判据反向成立（`three-files-after.txt`）：
+
+```
+"path": ".../pytest-of-Heishing/pytest-18016/test_endpoint_exists0/test-vault/CLAUDE.md"
+grep -c '/private/tmp/test-vault' → 0
+```
+
+即改后本进程写的是 `tmp_path`，`/private/tmp` 零命中。
+
+**H2 侧同一判据更强**（日志路径直接含本 worktree 名，并行干扰在逻辑上不可能）：
+
+```
+改前 h2-directed:       "path": ".../worktrees/card-y6-testhygiene/backend/CLAUDE.md"
+改后 h2-directed-AFTER: grep -c 'claude_md_created' → 0
+```
+
+改后**连日志都没有** —— 请求被 `field_validator` 拦在 pydantic 层，
+根本没走到 `initialize_vault()`。这同时验证了「污染消失」和「消失的原因是
+校验器生效」两件事，而不只是「文件碰巧没出现」。
+
+完整落盘：`evidence-hygiene/写入归因-本进程日志.txt`。
+
+#### 弱论证（保留记录，但不作为依据）
+
+我原本的理由是：并行车道的污染**成对**出现（两用例连着跑、间隔 ≈5s，
+与各自 5.48s/5.49s 的耗时吻合），而我的两次单跑各自只产生一个。
+**Codex round-1 指出这条不足以排除并行干扰** —— 它只是让并行解释变得不太可能，
+并没有排除它（例如另一车道恰好只跑到一半、或恰好只跑了其中一个用例）。
+该批评成立，故上面改用本进程日志作主论证。「成对 vs 单个」降级为旁证。
 
 ---
 
@@ -88,7 +138,8 @@ tests/contract/test_openapi_contract.py::test_api_contract[POST /api/v1/system/s
 
 **实测划改为**：
 
-> `backend/` 内的 vault 骨架，写者是
+> `backend/` 内的 vault 骨架，**台账归给 `test_vault_init_service.py` 缺乏支持**；
+> 本卡实证「能产生该现场」的写入链是
 > **`tests/contract/test_openapi_contract.py::test_api_contract[POST /api/v1/system/setup-wizard]`**
 > —— schemathesis 对全端点做属性输入且无 exclude，生成的空串／相对路径
 > 经 `system.py:441` `Path(v).resolve()` 静默拼成 cwd（= `backend/`）。
@@ -99,15 +150,24 @@ tests/contract/test_openapi_contract.py::test_api_contract[POST /api/v1/system/s
 > `/tmp/test-vault-wizard`，写者是 `test_startup_health_check.py::TestSetupWizard`
 > 的两个 nodeid（硬编码 `/tmp` 字面量，本卡已改 `tmp_path`）。
 >
-> `test_vault_init_service.py` **不是**任一处的写者：其 8 个用例全部经
-> `vault_dir(tmp_path)`，且该文件在 tests/unit 红基线里 0 条；
-> `tests/unit` 目录级跑完 `backend/` 三处判据全空。
+> `test_vault_init_service.py` 的归因**缺乏支持**：其 8 个用例全部经
+> `vault_dir(tmp_path)`（**这是我的源码核对陈述**，Codex 按读取边界未独立验证），
+> 且该文件在 tests/unit 红基线里 0 条；`tests/unit` 目录级跑完 `backend/` 三处判据全空
+> —— 后者只支持「**该配置下**未复现」，不排除其他测试集合／顺序／写后清理的情况。
 
 ---
 
 ## 三 (b) 守卫面修改
 
 ### ① `SetupWizardRequest.vault_path` 加绝对路径校验（`system.py`）
+
+> **契约边界（Codex round-1 #4 指出后收窄）**：这道校验的契约是
+> **「拒绝相对路径与空串」**，**不是**「保证 `resolve()` 后的目标不在仓库内」。
+> 明确不在契约内的形态：仓库的完整绝对路径、该路径加 `/.`、指向仓库的绝对符号链接
+> —— 它们都能通过 `is_absolute()`；另有含 NUL 的绝对字符串会通过校验、
+> 随后在 `resolve()` 抛 `ValueError`（既有行为，改前同样如此，本卡未改善也未恶化）。
+> 已登记为独立卡，见 §八。**把「语法上绝对」当成「解析后的目标安全」是错误推理**，
+> 本单其余处的措辞已按此收窄。
 
 ```python
 @field_validator("vault_path")
@@ -164,6 +224,17 @@ macOS 的 `tmp_path` 正是 `/private/var/folders/...` 形态 ⇒ 不会误拒�
 比对 ① `backend/{raw,wiki,outputs,CLAUDE.md}` 存在性 ② `backend/.gitignore`
 与 `backend/config/subject_mapping.yaml` 的 sha256 ③ `/tmp/test-vault*` 集合；
 任一「新出现 / sha 变」→ `pytest.fail` 并列出具体路径。
+
+> **能力边界（Codex round-1 #5 指出后收窄）**：它是**末态增量检查**，
+> 变红发生在「fixture 启动后的观察窗口内」并以 session teardown 报错的形式出现
+> —— 不是「任何时刻立刻变红」。已知盲区：`raw/` 内新增文件（只测顶层存在性）、
+> 写后自行清理、fixture 启动**前**已存在的污染、从仓库根 cwd 写出的骨架
+> （fixture 固定盯 `backend/`）、xdist 下各 worker 无统一快照边界。
+>
+> 另：我原先说「setup 与 teardown 共用同一快照函数 ⇒ 不会假红」**说宽了**。
+> 共用函数只消除「两侧逻辑不同」这一种假红源，消除不了「两次可观测性不同」——
+> `conftest.py:77` 把读取失败记 `None`，于是 `None ↔ hash` 会被报成「文件改写」，
+> 两边都 `None` 则静默通过。**「内容改变」与「检查无法完成」当前没有区分。**
 
 ### 零副作用 —— 外部观测证明（不靠读代码）
 
@@ -259,6 +330,39 @@ nodeid 取的是**最后一个跑完的测试**（随收集顺序变）。
 `git diff --name-only HEAD -- . ':(exclude)_bmad-output'` → 恰好三文件，
 与期望集合**逐条相同** ✅（用 `:(exclude)` 而非 `:!`，rc=0 且有输出，
 避开了 zsh 吞 `:!` 导致「输出为空即通过」的假绿）。
+
+#### ⚠️ commit 后地盘门变成**四**个文件（`backend/openapi.json`，非本卡主动改）
+
+```
+backend/app/api/v1/system.py
+backend/openapi.json          ← 多出来的
+backend/tests/unit/conftest.py
+backend/tests/unit/test_startup_health_check.py
+```
+
+**来源已查清，是仓库强制机制、不是越界**：`lefthook.yml` 的 `spec-sync` hook
+（CARD-DEBT-openapi-sync，第八批立）在 pre-commit 时检测到 `backend/app/api/**`
+变更，自动跑 `check-openapi-drift.py --write` 重生成快照并 `git add`；
+该 hook 注释明写「禁手改快照」，重生成失败即 `exit 1` 阻断 commit。
+也就是说：改了 `backend/app/api/**` 就**必然**带上这个文件，别无选择。
+
+实际 diff 只有两处：
+
+```
+- "description": "Path to the Obsidian vault directory"
++ "description": "Absolute path to the Obsidian vault directory"      ← 本卡改 Field 的必然衍生
+- "x-generated-at": "2026-09-05T01:36:01..."
++ "x-generated-at": "2026-09-05T18:58:07..."                          ← hook 注释说明它恒变
+```
+
+**一个值得记的事实**：`field_validator` 的约束**没有**进 JSON Schema ——
+它是运行时校验，不像 `min_length` 那样会写成 schema 约束。快照里
+`vault_path` 仍是无约束的 `{"type": "string"}`。
+
+推论（与实测吻合）：schemathesis **仍会**生成非绝对路径输入，只是现在拿到 422
+而不是把目录建进仓库；422 是 FastAPI 为带 body 的端点自动声明的响应码，
+`status_code_conformance` 照样通过 —— 这正好解释了为什么改后那条 contract 测试
+的失败原因（`DeadlineExceeded`）与改前逐字同型。
 禁改文件（`vault_init_service.py` / `tests/conftest.py` /
 `test_vault_init_service.py` / `subject_mapping.yaml` / `tests/contract/`）
 `git diff --stat` 输出空且 rc=0 ⇒ **全部零改动** ✅
@@ -288,6 +392,31 @@ nodeid 取的是**最后一个跑完的测试**（随收集顺序变）。
 跑前 `ps` 择时（无其他车道在跑 pytest）+ 清空 `/tmp/test-vault*` 重新武装；
 全程 `/tmp` 未被并行车道污染，故 (c)/(e) 的冲突**本次未被触发**
 （不等于它不存在，见 §四）。
+
+#### ⚠️ (e) 判据本身带 flaky 面（Codex round-1 发现，我已独立核实）
+
+Codex 指出：**H1（改前那轮）**的红集合与基线相比虽同为 247 条，却有**一增一减**。
+我实测确认：
+
+| 用例 | H1（改前） | 裁判 6（改后） | 失败正文 |
+|---|---|---|---|
+| `test_candidate_service.py::test_accept_candidate_already_accepted_returns_422` | FAILED | 通过 | `live Neo4j port connect attempted` |
+| `test_mock_degradation_transparency.py::...::test_mock_mode_logs_warning` | 通过 | FAILED | `live Neo4j port connect attempted` |
+
+两条变化的失败正文**都是 W4 端口门哨兵**。该哨兵报的是「**本用例期间**有 N 次到
+现网 Neo4j 的连接尝试」，而越界连接常来自异步任务/后台线程，**归到哪个用例
+取决于时序** —— 同一次越界连接会在不同轮次被记到不同 nodeid 上。
+
+**对本卡结论的影响：无。** 差异出现在我改代码**之前**那轮（H1）上；
+而改后的裁判 6 与基线 `diff` 完全为空，两轮收工彼此逐字相同。
+
+**对方法的影响：有，须登记。** tests/unit 的红集合在 **nodeid 层面并不稳定**，
+即使总数稳定在 247。(e) 的「逐 nodeid diff 必须为空」判据带 flaky 面 ——
+本卡这次为空，有一部分是归属恰好一致。**下一张卡可能因同样的时序漂移被误判为
+引入回归**，见 §八.10。
+
+（附注：Codex 在只读面里拿不到那份外部基线文件——我的 prompt 只给了 evidence
+目录——所以它用 H1 log 当基线。它的视角与我的判据不冲突，两个发现都成立。）
 
 > 收工那一次在给 fixture 补覆盖面注释后**重跑**过，见 `judge6-final-raw.txt` /
 > `unit-red-final.txt`（改动全是 `#` 注释行，`ruff check` + `format --check` 全绿）。
@@ -330,7 +459,7 @@ nodeid 取的是**最后一个跑完的测试**（随收集顺序变）。
 | 6 | fixture 零写 + 不依赖 cwd | ✅ 外部观测，1603 条目指纹逐字相同 |
 | 7 | tests/unit 基线逐 nodeid diff 无 `>` 行 | ✅ 247 vs 247，diff **完全为空** |
 | 8 | pyright 零新增 | ✅ 9 → 7 errors，逐行号 +25 对应 |
-| 9 | 地盘门 ⊆ 三文件 | ✅ 逐条相同；禁改文件 5 项全零改动 |
+| 9 | 地盘门 | ✅ 三文件 + `openapi.json`（spec-sync hook 强制同步，见 §五）；禁改文件 5 项全零改动 |
 | 10 | 修复有效性（受控对照） | ✅ 同一 contract operation：改前污染、改后干净，失败身份不变 |
 | 11 | 契约面零回归 | ✅ tests/api `268 passed, 0 failed`，`blocked=0` |
 | 12 | `/tmp` 污染消失 | ✅ 裁判 2 与裁判 6 后均为两条 `No such file` |
@@ -383,6 +512,18 @@ D3-C 4-A 段甩锅词（请你跑/你执行/你打开终端/你来跑）: 0 命�
    setup-wizard 端点只有测试在调、前端零引用，但没有对真实部署做端到端验证。
 6. **未证明 `/tmp` 那段判据在并行环境下不会假红** —— 恰恰相反，实测它**会**
    （见 §四）。本卡按卡文要求保留了它。
+7. **未证明这道门在 `pytest-xdist`（`-n`）下的行为**。本卡全程顺序跑
+   （卡文要求二分需固定顺序）。venv 里装着 xdist 3.8.0，而 session 级 fixture
+   在 xdist 下**每个 worker 各执行一次** setup/teardown ——
+   多个 worker 的快照窗口互相重叠时会不会互相误报，本卡没测。
+8. **未证明本卡引入的假红不会阻断别的车道**。这道门只在本 worktree 的
+   `tests/unit` 生效，理论上不影响别人；但合并到主干后，**所有**车道跑
+   `tests/unit` 都会带上它，届时 `/tmp` 那段判据的假红面就会扩散到全批。
+   这是合并前应当裁掉或收窄的（见 §八.6）。
+9. **未证明 `field_validator` 对非 pytest 的真实调用方无副作用**。全仓 grep 显示
+   setup-wizard 只有测试在调、前端零引用（与 §七.5 同源），但未做真实部署验证；
+   若将来有客户端传相对路径（过去会「成功」地在 cwd 建 vault），现在会收到 422
+   —— 这是**有意的行为变更**，不是回归，但使用方需要知道。
 
 ## 八 台账待登记条目（必填，车道不改台账）
 
@@ -408,6 +549,22 @@ D3-C 4-A 段甩锅词（请你跑/你执行/你打开终端/你来跑）: 0 命�
    都受此影响，建议改为进程归属绑定。
 7. **`backend/logs`、`backend/data` 在 tests/unit 下被写入**，但被 `.gitignore`
    覆盖 ⇒ 任何以 `git status` 为唯一判据的卫生门对它们**恒绿**（假绿面）。
-8. **卡文事实偏差 2 条**：① 基线文件 `evidence-b12/unit-red-baseline-03ac8bf8.txt`
+8. **`backend/openapi.json` 使地盘门必然多一个文件**：`spec-sync` hook 对
+   `backend/app/api/**` 的任何改动都会重生成并 stage 该快照，且失败即阻断 commit。
+   凡「地盘门 ⊆ N 个文件」类卡文，只要 N 里含 `backend/app/api/**`，就应预先把
+   `backend/openapi.json` 计入，否则每张这类卡都会在收尾时撞一次。
+9. **⛔ (e) 的逐 nodeid diff 判据带 flaky 面（Codex round-1 发现，已独立核实）**：
+   W4 端口门哨兵按「本用例期间的连接尝试」归属，而越界连接来自异步任务/后台线程，
+   归到哪个 nodeid 取决于时序。实测同一批红在 H1 与裁判 6 两轮之间发生「一增一减」
+   （`test_accept_candidate_already_accepted_returns_422` ↔ `test_mock_mode_logs_warning`），
+   两条正文都是该哨兵。**总数稳定 ≠ nodeid 集合稳定**。
+   建议：(e) 类判据改为「新增项的失败正文必须不是 W4 哨兵」，或对哨兵归属做去抖，
+   否则下一张卡可能被这个时序漂移误判成引入回归。
+10. **路径守卫只做到语法层 = 独立卡**（Codex round-1 #4）：`is_absolute()` 通过、
+    但 `resolve()` 后仍落在仓库内的形态 —— 仓库完整绝对路径、该路径加 `/.`、
+    指向仓库的绝对符号链接 —— 本卡不拦；含 NUL 的绝对字符串通过校验后
+    `resolve()` 抛 `ValueError` 且未转成 422（**改前即如此**，本卡未改善未恶化）。
+    若要「保证目标不在仓库内」，需要 `resolve()` 之后的目标域校验，那是另一张卡。
+11. **卡文事实偏差 2 条**：① 基线文件 `evidence-b12/unit-red-baseline-03ac8bf8.txt`
    不在本车道树、只在设计稿树；② 裁判 2 的全量 H2 命令按 206 operation 需约
    13 小时，不可执行。详见 `evidence-hygiene/前置事实与卡文偏差.md`。
