@@ -191,8 +191,11 @@ flake8>=6.1.0                  # 代码检查
 #   pyright — 有完整配置 (仓库根 pyrightconfig.json, 13 项设置) + 有活的调用方
 #             (lefthook.yml 的 python-typecheck 块);
 #   mypy    — 全仓**零配置**([tool.mypy] / mypy.ini / setup.cfg 段全无) +
-#             **零调用方**(任何 workflow / 脚本 / hook 都没有 `mypy` 命令), 只剩
-#             本文件这两行声明。两者此前都没被装过, 所以这条声明从未生效过。
+#             **零调用方**(受版本控制的 workflow / 脚本 / hook 里没有任何 `mypy`
+#             命令), 只剩本文件这两行声明。
+#   注: 本文件**有**安装方 —— scripts/deploy_epic12.py::install_dependencies()
+#   会 `pip install -r <repo root>/requirements.txt`(:168-175, 主流程 :298 调用)。
+#   所以 mypy 可能被装过, 只是从来没有任何东西去调用它。这里不断言历史。
 # 声明落点见仓库根 pyproject.toml 的 [project.optional-dependencies].dev。
 # mypy>=1.5.0                  # 类型检查 —— 已由 pyright 取代, 见上
 
@@ -203,6 +206,13 @@ flake8>=6.1.0                  # 代码检查
 #
 # 开发环境安装：
 #   pip install -r requirements.txt
+#   # ⚠️ 上面这条**不装类型检查器**。pyright 声明在仓库根 pyproject.toml 的
+#   # [project.optional-dependencies].dev; 而 lefthook 的 python-typecheck 块
+#   # 优先在 backend/.venv/bin 里找它, 所以必须装到**那个**环境:
+#   backend/.venv/bin/python -m pip install 'pyright>=1.1.411'
+#   # 版本以 uv.lock 为准(当前锁 1.1.411)。`>=` 不保证复现该版本; 需要逐字复现时
+#   # 按 uv.lock 里的锁定版本装。注意 uv 默认的项目环境是仓库根 .venv, 与 hook
+#   # 优先查找的 backend/.venv **不是同一个**, 所以不能只跑 `uv sync --extra dev`。
 #
 # 运行测试：
 #   pytest tests/ -v
