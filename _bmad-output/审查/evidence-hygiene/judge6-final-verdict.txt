@@ -1,0 +1,22 @@
+=== 裁判 6 收工（注释改动后）最终判定 ===
+汇总: = 209 failed, 4609 passed, 1 skipped, 121 warnings, 38 errors in 317.12s (0:05:17) =
+收工红 nodeid:      247   基线红 nodeid:      247
+
+--- 基线 diff（'>' = 本卡引入 = 阻断） ---
+diff rc=0  [0 且无输出 = 逐 nodeid 完全相同]
+
+--- 与前一轮（改注释前）比对：应逐字相同 ---
+两轮逐字相同 ✅（注释改动零行为影响）
+
+--- 不变量门触发次数（应 0） ---
+0
+--- teardown ERROR（应 0） ---
+0
+
+--- 污染签名 ---
+  absent backend/raw
+  absent backend/wiki
+  absent backend/outputs
+  absent backend/CLAUDE.md
+  ls: /tmp/test-vault: No such file or directory
+  ls: /tmp/test-vault-wizard: No such file or directory

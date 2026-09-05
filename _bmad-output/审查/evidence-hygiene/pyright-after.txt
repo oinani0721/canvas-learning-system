@@ -1,0 +1,32 @@
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y6-testhygiene/backend/app/api/v1/system.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y6-testhygiene/backend/app/api/v1/system.py:336:20 - error: Argument of type "str" cannot be assigned to parameter "status" of type "Literal['ready', 'degraded', 'unavailable']" in function "__init__"
+    Type "str" is not assignable to type "Literal['ready', 'degraded', 'unavailable']"
+      "str" is not assignable to type "Literal['ready']"
+      "str" is not assignable to type "Literal['degraded']"
+      "str" is not assignable to type "Literal['unavailable']" (reportArgumentType)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y6-testhygiene/backend/app/api/v1/system.py:401:12 - error: Type "JSONResponse" is not assignable to return type "dict[Unknown, Unknown]"
+    "JSONResponse" is not assignable to "dict[Unknown, Unknown]" (reportReturnType)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y6-testhygiene/backend/app/api/v1/system.py:568:25 - error: Argument of type "type[LLMStatsSummary]" cannot be assigned to parameter "default_factory" of type "(() -> _T@Field) | ((dict[str, Any]) -> _T@Field)" in function "Field"
+    Type "type[LLMStatsSummary]" is not assignable to type "(() -> _T@Field) | ((dict[str, Any]) -> _T@Field)"
+      Type "type[LLMStatsSummary]" is not assignable to type "(dict[str, Any]) -> _T@Field"
+        Function accepts too few positional parameters; expected 1 but received 0
+          Extra parameter "total_calls"
+          Extra parameter "total_tokens"
+          Extra parameter "total_input_tokens"
+          Extra parameter "total_output_tokens"
+          Extra parameter "total_cost_usd"
+    ... (reportArgumentType)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y6-testhygiene/backend/app/api/v1/system.py:577:25 - error: Argument of type "type[ErrorStats]" cannot be assigned to parameter "default_factory" of type "(() -> _T@Field) | ((dict[str, Any]) -> _T@Field)" in function "Field"
+    Type "type[ErrorStats]" is not assignable to type "(() -> _T@Field) | ((dict[str, Any]) -> _T@Field)"
+      Type "type[ErrorStats]" is not assignable to type "(dict[str, Any]) -> _T@Field"
+        Function accepts too few positional parameters; expected 1 but received 0
+          Extra parameter "total"
+      Type "type[ErrorStats]" is not assignable to type "() -> _T@Field"
+        Extra parameter "total" (reportArgumentType)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y6-testhygiene/backend/app/api/v1/system.py:975:23 - error: Arguments missing for parameters "window_size", "total_in_window", "matched_count", "match_rate", "is_healthy" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y6-testhygiene/backend/app/api/v1/system.py:984:28 - error: Arguments missing for parameters "total_records", "annotated_count", "accuracy" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y6-testhygiene/backend/app/api/v1/system.py:1073:18 - error: Arguments missing for parameters "total", "page", "page_size" (reportCallIssue)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y6-testhygiene/backend/tests/unit/conftest.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y6-testhygiene/backend/tests/unit/conftest.py:81:5 - warning: Function "_no_vault_skeleton_left_behind" is not accessed (reportUnusedFunction)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y6-testhygiene/backend/tests/unit/conftest.py:129:5 - warning: Function "_stub_vault_identity_registry" is not accessed (reportUnusedFunction)
+7 errors, 2 warnings, 0 informations

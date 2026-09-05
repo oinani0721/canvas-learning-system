@@ -1,0 +1,15 @@
+=== H2 与 system.py 修改的时间线（用于排除「改动影响了 H2 取证」） ===
+--- H2 进程启动时刻（ps lstart） ---
+74010 Sun Sep  6 01:54:11 2026     /bin/zsh -c source /Users/Heishing/.claude/shell-snapsh
+74013 Sun Sep  6 01:54:11 2026     /opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Py
+--- 现在时刻 ---
+2026-09-06 02:08:03
+--- system.py 当前 mtime（改动前） ---
+2026-09-05 13:17:34 backend/app/api/v1/system.py
+--- system.py 与 HEAD 是否一致（改动前应为空） ---
+[空=未改]
+
+论证：H2 进程于上列时刻 import 完 app.main → app.api.v1.system，
+schemathesis 的 schema 在模块级由 from_asgi(app) 构建并固定。
+CPython 不会为已加载模块重新读取源文件，故其后对 system.py 的编辑
+不改变 H2 进程内的行为；H2 取证的是改前代码。

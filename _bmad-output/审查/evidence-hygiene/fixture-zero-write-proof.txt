@@ -1,0 +1,19 @@
+=== 零写证明（backend/ 全树指纹, 已排除 .venv/logs/data/__pycache__） ===
+条目数 before=1603 after=1603
+sha before = 4057912f32cfb4e3d6f0c3815018288332bf6ae79f9205885375ebb6a270600a
+sha after  = 4057912f32cfb4e3d6f0c3815018288332bf6ae79f9205885375ebb6a270600a
+零写: PASS ✅
+
+=== 不依赖 cwd 证明 ===
+cwd=backend/ 时 root = /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y6-testhygiene/backend
+cwd=/       时 root = /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y6-testhygiene/backend
+root 一致: PASS ✅
+snapshot 一致: PASS ✅
+
+=== 快照内容（cwd=/ 那次） ===
+exists: {'raw': False, 'wiki': False, 'outputs': False, 'CLAUDE.md': False}
+sha keys: ['.gitignore', 'config/subject_mapping.yaml']
+tmp 集合大小: 8
+
+=== root 指向的确实是 backend/ ===
+root2.name = backend | (root2/'app').is_dir() = True

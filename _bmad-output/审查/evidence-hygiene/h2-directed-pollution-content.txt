@@ -1,0 +1,33 @@
+=== H2 定向复现的污染内容（证明 ≡ VaultInitService 骨架）===
+backend/outputs
+backend/outputs/exam_boards
+backend/outputs/exam_boards/.gitkeep
+backend/raw
+backend/raw/.gitkeep
+backend/wiki
+backend/wiki/canvases
+backend/wiki/canvases/.gitkeep
+backend/wiki/concepts
+backend/wiki/concepts/.gitkeep
+--- backend/CLAUDE.md 首行 ---
+# Canvas Learning System — Vault
+--- backend/CLAUDE.md sha ---
+319599d2ca3c6f1f9839bb2a17e96e438bcd82d339f46e745a754d36b5449fa8  backend/CLAUDE.md
+
+=== 与冻结证据树 card-z4-redbase 逐项比对 ===
+--- 证据树 CLAUDE.md sha ---
+319599d2ca3c6f1f9839bb2a17e96e438bcd82d339f46e745a754d36b5449fa8  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-z4-redbase/backend/CLAUDE.md
+--- 证据树文件树 ---
+backend/outputs
+backend/outputs/exam_boards
+backend/outputs/exam_boards/.gitkeep
+backend/raw
+backend/raw/.gitkeep
+backend/wiki
+backend/wiki/canvases
+backend/wiki/canvases/.gitkeep
+backend/wiki/concepts
+backend/wiki/concepts/.gitkeep
+
+=== 结论：两者文件树是否逐条相同 ===
+✅ 逐条相同

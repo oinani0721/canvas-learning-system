@@ -1,0 +1,22 @@
+=== 改后定向 H2 判据（同一 operation，改后代码）===
+--- log 尾部 ---
+FAILED tests/contract/test_openapi_contract.py::test_api_contract[POST /api/v1/system/setup-wizard]
+1 failed, 205 deselected, 1352 warnings in 621.55s (0:10:21)
+<sys>:0: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
+rc=1
+
+--- 签名① backend 四路径 ---
+  absent backend/raw
+  absent backend/wiki
+  absent backend/outputs
+  absent backend/CLAUDE.md
+--- 签名① git status backend ---
+   M backend/app/api/v1/system.py
+   M backend/tests/unit/conftest.py
+   M backend/tests/unit/test_startup_health_check.py
+--- find backend -maxdepth 1 -newer sentinel-h2after ---
+--- 签名③ sha diff ---
+  (未变)
+--- 签名② /tmp ---
+  ls: /tmp/test-vault: No such file or directory
+  ls: /tmp/test-vault-wizard: No such file or directory

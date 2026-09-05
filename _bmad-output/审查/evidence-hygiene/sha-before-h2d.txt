@@ -1,0 +1,2 @@
+a9c80ab45e84b14138603241fb17ea8d3873aae6a43d39300ff3212876fca49b  backend/config/subject_mapping.yaml
+5b2dda21f374bcd8292c95146bd55a47350f16358862979de4c0d42e4211c046  backend/.gitignore

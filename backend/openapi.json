@@ -12644,7 +12644,7 @@
       "SetupWizardRequest": {
         "properties": {
           "vault_path": {
-            "description": "Path to the Obsidian vault directory",
+            "description": "Absolute path to the Obsidian vault directory",
             "title": "Vault Path",
             "type": "string"
           }
@@ -15679,7 +15679,7 @@
     "description": "Multi-agent learning system backend using Feynman method",
     "title": "Canvas Learning System API",
     "version": "1.0.0",
-    "x-generated-at": "2026-09-05T01:36:01.005895+00:00",
+    "x-generated-at": "2026-09-05T18:58:07.652738+00:00",
     "x-generator": "scripts/spec-tools/check-openapi-drift.py --write"
   },
   "openapi": "3.1.0",
