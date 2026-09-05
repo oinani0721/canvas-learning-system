@@ -1,0 +1,23 @@
+### J1a: git diff --stat d9f7b544 8e8fd737 -- backend/tests/unit/test_review_app.py
+ backend/tests/unit/test_review_app.py | 173 +++++++++++++++++++++++++++++++---
+ 1 file changed, 161 insertions(+), 12 deletions(-)
+rc=0
+### J1b: git diff --stat d9f7b544 8e8fd737 -- . ':(exclude)_bmad-output'
+ backend/tests/unit/test_review_app.py | 173 +++++++++++++++++++++++++++++++---
+ 1 file changed, 161 insertions(+), 12 deletions(-)
+rc=0
+### J2: git diff --stat 304f03ca 7283a8df -- . ':(exclude)_bmad-output'
+ .../v1/endpoints/test_metadata_subject_mapping.py  |  23 ++++-
+ .../regression/test_write_side_group_guard.py      | 111 +++++++++++++++++++--
+ backend/tests/unit/test_lancedb_vault_isolation.py | 100 ++++++++++++++-----
+ backend/tests/unit/test_subject_resolver.py        |  80 +++++++++++----
+ backend/tests/unit/test_vault_switch.py            |  50 ++++++++--
+ 5 files changed, 298 insertions(+), 66 deletions(-)
+rc=0
+### J3: git diff --stat a5e0ce79 c8611a89 -- . ':(exclude)_bmad-output'
+ backend/app/api/v1/endpoints/metadata.py          |  5 ++++-
+ backend/app/models/intelligent_parallel_models.py |  8 ++++++--
+ backend/app/models/metadata_models.py             |  8 +++++++-
+ backend/openapi.json                              | 10 +++++-----
+ 4 files changed, 22 insertions(+), 9 deletions(-)
+rc=0

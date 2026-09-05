@@ -1,0 +1,8 @@
+### sha-1 换入前 (HEAD 版, 工作树原件)
+b7e4a8d94f82b1a6a8e9b07ff636690801d5d1b53c071d21273562def1224a77  backend/app/api/v1/endpoints/review_app.py
+### sha-BAK 备份件
+b7e4a8d94f82b1a6a8e9b07ff636690801d5d1b53c071d21273562def1224a77  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-y5-review/c4c956cb-1c70-46ef-85ec-2f7126da8b02/scratchpad/review_app.HEAD.bak
+### sha-OLD 换入源 (27e61454)
+4ff348f19d6082908ca19aa66f2016292a611a58233dd2bdccc5d74a9e432b73  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-y5-review/c4c956cb-1c70-46ef-85ec-2f7126da8b02/scratchpad/review_app.27e61454.py
+### sha-2 换入后 (应等于 sha-OLD)
+4ff348f19d6082908ca19aa66f2016292a611a58233dd2bdccc5d74a9e432b73  backend/app/api/v1/endpoints/review_app.py

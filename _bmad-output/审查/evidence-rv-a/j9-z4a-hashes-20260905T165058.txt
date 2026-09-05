@@ -1,0 +1,8 @@
+### 口径A 全树 exclude:
+eb3ed96d39380a9cb4eafdad023052441635e115481e5da8112fde70317eb042  -
+### 口径B 五文件显式路径:
+eb3ed96d39380a9cb4eafdad023052441635e115481e5da8112fde70317eb042  -
+### 口径C --no-color 全树:
+eb3ed96d39380a9cb4eafdad023052441635e115481e5da8112fde70317eb042  -
+### 存档钉值(:15): 0a8ee996ac5efb74de16be74635669aba91ca4542f9d0aeb86a19d9b0b6b0d38
+rc=0
