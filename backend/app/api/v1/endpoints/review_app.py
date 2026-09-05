@@ -13,8 +13,13 @@ GET /api/v1/review/overview/app — 单文件交互 HTML (内联 CSS/JS, 零 CDN
   5s, 60s) (默认裁决②), next_due 只决定「下一次去问服务端的时刻」, 不据此
   改任何到期展示。
 - 页面隐藏 (visibilitychange) 时暂停轮询, 回到前台立即拉一轮。
-- 自动轮询**绝不** POST refresh — 只有手动「刷新投影」按钮才 POST
-  (同库重建在飞期间按钮禁用, 不发第二个 POST)。
+- 自动轮询**绝不** POST — 只有手动按钮才 POST (同库重建在飞期间按钮禁用,
+  不发第二个 POST)。CARD-G6-7 起 POST 路径有**两条**, 纪律相同: 「刷新投影」
+  与「这板做完了」都只挂在点击委托上, 都不进 timer / visibilitychange。
+- CARD-G6-7 完成反馈: 板行尾的「✅ 这板做完了」POST /overview/board-done,
+  服务端把它记进 runner state 的 board_done。前端**不自作主张折叠** —— 折不
+  折看下一轮 GET 回来的 entry.board_done, 前端一个数据都不改。「不影响 FSRS」
+  那句话从 review_overview._DONE_NOTE 注入 (与徽标文案同纪律: 共享不复制)。
 - 两个 API path 用 request.url_for 注入 (不硬编码) — prefix 改动不漂移。
 - 四态徽标字面从 review_overview._STATUS_META **import 后注入** JS (共享
   不复制, W6 改文案本页自动跟随); 前端另有第五态 unavailable: fetch 失败/
@@ -52,7 +57,7 @@ import json
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
-from app.api.v1.endpoints.review_overview import _BUCKET_CN, _BUCKET_ORDER, _STATUS_META
+from app.api.v1.endpoints.review_overview import _BUCKET_CN, _BUCKET_ORDER, _DONE_NOTE, _STATUS_META
 
 review_app_router = APIRouter()
 
@@ -122,6 +127,12 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
   .btn { font-size: 13px; color: #2563eb; background: #eff6ff; border: 1px solid #bfdbfe;
          border-radius: 6px; padding: 3px 10px; cursor: pointer; font-family: inherit; }
   .btn:disabled { opacity: .5; cursor: default; }
+  /* CARD-G6-7 完成反馈: 绿系与刷新钮区分开 — 误点代价不同, 不该长得一样 */
+  .btn.done { font-size: 12px; color: #15803d; background: #f0fdf4;
+              border-color: #bbf7d0; padding: 2px 9px; }
+  .donenote { color: #6b7280; font-size: 12px; margin: 2px 0 6px; }
+  .alldone { color: #16a34a; font-size: 14px; margin: 10px 0 4px; }
+  .donewrap { margin: 6px 0 2px; }
   .rnote { font-size: 12px; color: #6b7280; }
   .rnote.ok { color: #16a34a; }
   .rnote.warn { color: #d97706; }
@@ -163,6 +174,9 @@ const URLS = __URLS_JSON__;
 const STATUS_META = __STATUS_META_JSON__;
 const BUCKET_CN = __BUCKET_CN_JSON__;
 const BUCKET_ORDER = __BUCKET_ORDER_JSON__;
+// CARD-G6-7: 「不影响 FSRS」这句话由 review_overview._DONE_NOTE 注入 ——
+// 两页说的是同一个动作, 措辞只能有一处 (抄一份就会有一天只改了一边)
+const DONE_NOTE = __DONE_NOTE_JSON__;
 const POLL_MIN_MS = 5000;   // 轮询下限 (默认裁决②: clamp 5s)
 const POLL_MAX_MS = 60000;  // 轮询上限 (默认裁决②: clamp 60s)
 const RETRY_DELAY_MS = 10000;  // unavailable 态的固定重试间隔 (在 clamp 区间内)
@@ -172,6 +186,13 @@ const NOTE_TTL_MS = 15000;  // 刷新反馈的可见窗: 足够活过 rebuilt �
 // 无时钟读取 (nowMs 一律显式入参)。 ═══
 function esc(s) {
   return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+function doneKey(vaultId, board) {
+  // CARD-G6-7 复合键分隔符写成 \u0000 转义而非直接敲那个字节: 不可见字符
+  // 在源码里就该看得见 (直接敲会被工具链静默换掉, review 时也无从辨认)。
+  // 选它是因为板名可含任何可见字符 —— 用 "|" 之类会让 ("a|b","c") 与
+  // ("a","b|c") 撞成同一个键, 在飞禁用就会串到别的板上。
+  return String(vaultId) + "\u0000" + String(board);
 }
 function shDay(ms) {
   // Asia/Shanghai 本地日 YYYY-MM-DD (en-CA locale 恰好输出 ISO 形态);
@@ -271,7 +292,28 @@ function queueLayersHtml(vaultId, rows, nowMs) {
   return '<details data-queue-layers="1" class="qwrap"><summary class="qsum">按到期阶段看队列（' +
     total + " 张卡分五块）</summary><div>" + secs + "</div></details>";
 }
-function boardTableHtml(vaultId, boards, nowMs) {
+function boardDoneBtnHtml(vaultId, board, busy) {
+  // CARD-G6-7: 「这板做完了」—— 与零 JS 页 _board_done_form_html 同一动作,
+  // 同一端点; 这里是按钮 + 事件委托 (那边是表单 POST + 303 PRG)。
+  return '<button class="btn done"' + (busy ? " disabled" : "") +
+    ' data-done-vault="' + esc(vaultId) + '" data-done-board="' + esc(board) + '">✅ 这板做完了</button>';
+}
+function boardsSplitHtml(vaultId, boards, nowMs, doneList, doneBusy) {
+  // CARD-G6-7: 待做 / 已完成两区 — 与零 JS 页 _boards_split_html 同形。
+  // ⛔ 折叠不是隐藏: 已完成的板行原样还在页面上 (收进 details), 计数与
+  // 分层数字一个都不动 —— 服务端投影是唯一裁判, 前端不做任何压制。
+  const rows = Array.isArray(boards) ? boards : [];
+  const done = Object.create(null);   // 外部字符串做键: null-prototype (round-2 M1 同纪律)
+  for (const b of (Array.isArray(doneList) ? doneList : [])) done[b] = true;
+  const todo = rows.filter(r => r && !done[r.board]);
+  const fin = rows.filter(r => r && done[r.board]);
+  let out = todo.length ? boardTableHtml(vaultId, todo, nowMs, doneBusy)
+    : (fin.length ? '<div class="alldone">🎉 今天列出的白板都标完成了</div>' : "");
+  if (!fin.length) return out;
+  return out + '<details class="donewrap"><summary class="qsum">已完成（' + fin.length +
+    "）· 明天自动回来</summary>" + boardTableHtml(vaultId, fin, nowMs, null) + "</details>";
+}
+function boardTableHtml(vaultId, boards, nowMs, doneBusy) {
   if (!Array.isArray(boards) || !boards.length) return "";
   const head = ["白板名", "到期", "新卡", "待剖析", "最早到期"].map(c => "<th>" + c + "</th>").join("");
   const rows = boards.map(r => {
@@ -289,6 +331,8 @@ function boardTableHtml(vaultId, boards, nowMs) {
       out += '<tr><td colspan="5" class="why">💡 ' + esc(r.why_this_board) + "</td></tr>";
     const detail = nodeDetailHtml(vaultId, r.nodes, nowMs);
     if (detail) out += '<tr><td colspan="5" style="padding-top:0">' + detail + "</td></tr>";
+    if (doneBusy) out += '<tr><td colspan="5" style="padding-top:0">' +
+      boardDoneBtnHtml(vaultId, r.board, doneBusy[doneKey(vaultId, r.board)]) + "</td></tr>";
     return out;
   }).join("");
   return '<div class="tblwrap"><table><thead><tr>' + head + "</tr></thead><tbody>" + rows + "</tbody></table></div>";
@@ -307,7 +351,7 @@ function restDayHtml(proj, nowMs) {
     esc(nu.board) + " · " + esc(day) + "</div>" : "";
   return '<div class="restday">✅ 今日无到期节点，休息一天。' + tail + "</div>";
 }
-function renderVaultCard(entry, nowMs, noteHtml, isInflight) {
+function renderVaultCard(entry, nowMs, noteHtml, isInflight, doneBusy) {
   // 未知 status 防御: 原字面灰徽标 (未来第五态不白屏)。
   // own-key 访问 (round-3 LOW-3): "constructor"/"__proto__" 会命中继承属性,
   // 必须显式判自有键才落灰兜底
@@ -325,7 +369,10 @@ function renderVaultCard(entry, nowMs, noteHtml, isInflight) {
         '<div class="layers">分层 · ' + BUCKET_ORDER.map(b => esc(BUCKET_CN[b]) + " " + bc[b]).join(" · ") + "</div>";
       body = '<div class="big">到期 <b>' + proj.due_count + "</b><small> · 新卡 " + proj.due_new_count +
         " · 待剖析 " + proj.placeholder_backlog + "</small></div>" + layers +
-        boardTableHtml(vid, proj.boards, nowMs);
+        // CARD-G6-7: 待做 / 已完成两区 (doneBusy 缺省时不出完成钮 —— 纯渲染
+        // 断言直接调本函数时的既有形态不变)
+        boardsSplitHtml(vid, proj.boards, nowMs, entry.board_done, doneBusy || null) +
+        (doneBusy ? '<div class="donenote">' + esc(DONE_NOTE) + "</div>" : "");
     }
     // CARD-G6-5-R: 队列分层区块两条分支都出 —— 休息日 (due_count===0) 恰恰
     // 是最需要它的一天: 今天没有到期的, 但「以后」那一桶里排着什么, 只有这里说得出
@@ -348,11 +395,11 @@ function renderVaultCard(entry, nowMs, noteHtml, isInflight) {
     ' data-refresh-vault="' + esc(vid) + '">🔄 刷新投影</button>' +
     '<span class="rnote" data-note-for="' + esc(vid) + '">' + (noteHtml || "") + "</span></div></div>";
 }
-function renderPage(data, nowMs, notes, inflight) {
+function renderPage(data, nowMs, notes, inflight, doneBusy) {
   const vaults = data && Array.isArray(data.vaults) ? data.vaults : [];
   if (!vaults.length) return '<div class="empty">VAULTS_ROOT 下未发现任何 vault (需含 .obsidian/ 目录)</div>';
   return vaults.map(e => renderVaultCard(e, nowMs, (notes && notes[e.vault_id]) || "",
-    !!(inflight && inflight[e.vault_id]))).join("");
+    !!(inflight && inflight[e.vault_id]), doneBusy)).join("");
 }
 function renderUnavailableBanner(detail, lastOkText) {
   const keep = lastOkText ? "页面保留 " + esc(lastOkText) + " 的最后一次成功数据。" : "尚未成功获取过数据。";
@@ -381,11 +428,26 @@ function renderRefreshResult(status, payload) {
   if (status === 0) return '<span class="rnote err">❌ 刷新失败（网络错误）：' + esc(detail || "连接失败") + "</span>";
   return '<span class="rnote err">❌ 刷新失败（HTTP ' + esc(status) + "）" + (detail ? "：" + esc(detail) : "") + "</span>";
 }
+function renderBoardDoneResult(status, board, payload) {
+  // 与 renderRefreshResult 同纪律: 结局各有其形, 失败绝不长得像成功。
+  // 成功文案只说本动作真做了的事 —— 不顺口说"进度已更新", 那要等下一轮
+  // GET 把 board_done 带回来才算数。
+  if (status === 200) return '<span class="rnote ok">✅ 已标记「' + esc(board) +
+    '」今天做完 · 不影响 FSRS</span>';
+  let detail = "";
+  if (payload && payload.detail)
+    detail = typeof payload.detail === "string" ? payload.detail : (payload.detail.message || JSON.stringify(payload.detail));
+  if (status === 0) return '<span class="rnote err">❌ 标记失败（网络错误）：' + esc(detail || "连接失败") + "</span>";
+  return '<span class="rnote err">❌ 标记失败（HTTP ' + esc(status) + "）" + (detail ? "：" + esc(detail) : "") + "</span>";
+}
 
 // ═══ 副作用壳: 只消费上面纯函数的返回值 ═══
 const state = {timer: null, lastOkAt: null, lastData: null, pollGen: 0,
   // vault_id 是外部字符串 — Object.create(null) 防 "__proto__"/"constructor" 键注入原型 (round-2 M1)
-  notes: Object.create(null), inflight: Object.create(null), pendingSync: Object.create(null)};
+  notes: Object.create(null), inflight: Object.create(null), pendingSync: Object.create(null),
+  // CARD-G6-7 完成动作在飞 (键 = doneKey(vault, board)) —— 与 inflight 同纪律:
+  // 它是渲染态的一部分, 重绘不会把禁用的钮意外解锁成可双击
+  doneInflight: Object.create(null)};
 const el = id => document.getElementById(id);
 function fmtClock(ms) {
   return new Intl.DateTimeFormat("zh-CN", {timeZone: "Asia/Shanghai", hour12: false,
@@ -423,8 +485,8 @@ function renderCards(nowMs) {
   // 卡片区**每一帧**的统一形态 = 投影卡 + 失联通知。round-4 HIGH-1 反例二只封了
   // poll 成功路径的最终帧, 而结算兜底重绘 (GET 失败时它就是最后一帧) 与 POST
   // 反馈重绘同样是用户眼前的一帧 — 少拼失联通知 = 失败反馈一闪就没 (G6-2b R1)
-  el("cards").innerHTML = renderPage(state.lastData, nowMs, freshNotes(nowMs), state.inflight) +
-    lostSyncNotesHtml(state.lastData, nowMs);
+  el("cards").innerHTML = renderPage(state.lastData, nowMs, freshNotes(nowMs), state.inflight,
+    state.doneInflight) + lostSyncNotesHtml(state.lastData, nowMs);
 }
 function settlePendingSync(nowMs, ok, renderedVids, startGen) {
   // rebuilt 只发"正在同步…"；数字是否真更新, 由 GET 成败结算 (round-2 HIGH-1)。
@@ -492,7 +554,7 @@ async function poll() {
     // 先渲染候选数据当探针 (round-3 HIGH-1: 坏成员让 render 抛错时走 catch —
     // lastData/结算/成功提示都不会被半截提交), 再结算, 再上最终帧
     // (结算会更新 notes, 探针帧里是结算前的反馈, 不能直接用)
-    renderPage(data, nowMs, freshNotes(nowMs), state.inflight);
+    renderPage(data, nowMs, freshNotes(nowMs), state.inflight, state.doneInflight);
     // 成功结算的绑定证据: 渲染成功, 且该库条目带可用 projection
     // (损坏/缺投影的库不许沾最新 GET 的光说"数字已更新")
     const renderedVids = Object.create(null);
@@ -565,7 +627,43 @@ async function onRefreshClick(ev) {
     for (const b of vaultButtons(vid)) b.disabled = false;
   }
 }
+function doneButtons(vid, board) {
+  // 同 vaultButtons 的纪律: getAttribute 比对而非把外部字符串插进选择器
+  return Array.from(el("cards").querySelectorAll("[data-done-board]"))
+    .filter(b => b.getAttribute("data-done-vault") === vid && b.getAttribute("data-done-board") === board);
+}
+async function onBoardDoneClick(ev) {
+  const btn = ev.target.closest("[data-done-board]");
+  if (!btn) return;
+  const vid = btn.getAttribute("data-done-vault");
+  const board = btn.getAttribute("data-done-board");
+  const key = doneKey(vid, board);
+  if (state.doneInflight[key]) return;  // 同板在飞, 不发第二个 POST
+  state.doneInflight[key] = true;
+  for (const b of doneButtons(vid, board)) b.disabled = true;
+  try {
+    // 第二条 POST 路径 —— 与刷新钮同纪律: **只由显式点击触发**, 不接进
+    // timer / visibilitychange (默认裁决②: 自动轮询绝不 POST)
+    const resp = await fetch(URLS.boardDone, {method: "POST",
+      body: new URLSearchParams({vault_id: vid, board: board})});
+    let payload = null;
+    try { payload = await resp.json(); } catch (_e) { payload = null; }
+    state.notes[vid] = {html: renderBoardDoneResult(resp.status, board, payload), atMs: Date.now()};
+    if (!applyNote(vid) && state.lastData) renderCards(Date.now());
+    // 折叠要等服务端把 board_done 回给我们 (前端不自作主张改数据) ——
+    // 与刷新同款: 隐藏时不起网络活动, 回前台的 poll 会拿到
+    if (resp.ok && !document.hidden) poll();
+  } catch (e) {
+    state.notes[vid] = {html: renderBoardDoneResult(0, board, {detail: String((e && e.message) || e)}),
+      atMs: Date.now()};
+    if (!applyNote(vid) && state.lastData) renderCards(Date.now());
+  } finally {
+    delete state.doneInflight[key];
+    for (const b of doneButtons(vid, board)) b.disabled = false;
+  }
+}
 el("cards").addEventListener("click", onRefreshClick);
+el("cards").addEventListener("click", onBoardDoneClick);
 poll();
 </script>
 </body>
@@ -587,11 +685,13 @@ async def review_overview_app(request: Request) -> HTMLResponse:
     urls = {
         "overview": request.url_for("review_overview").path,
         "refresh": request.url_for("review_overview_refresh").path,
+        "boardDone": request.url_for("review_overview_board_done").path,
     }
     page = (
         _PAGE_TEMPLATE.replace("__URLS_JSON__", _js_json(urls))
         .replace("__STATUS_META_JSON__", _js_json({k: list(v) for k, v in _STATUS_META.items()}))
         .replace("__BUCKET_CN_JSON__", _js_json(_BUCKET_CN))
         .replace("__BUCKET_ORDER_JSON__", _js_json(list(_BUCKET_ORDER)))
+        .replace("__DONE_NOTE_JSON__", _js_json(_DONE_NOTE))
     )
     return HTMLResponse(content=page)

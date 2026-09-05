@@ -2696,3 +2696,428 @@ def test_child_tz_is_forced_so_container_utc_cannot_produce_yesterday(refresh_en
 
     # 读写两侧共用同一个字面量, 永不漂移
     assert getattr(mod._TZ_SHANGHAI, "key", "Asia/Shanghai") == mod._DISPLAY_TZ_NAME
+
+
+# ════════════════════════════════════════════════════════════════════
+# CARD-G6-7 完成本板反馈 (BATCH-2026-09-05-第十二批) —— Web UI 第一个写侧动作
+# ════════════════════════════════════════════════════════════════════
+
+_BOARD_DONE_URL = "/api/v1/review/overview/board-done"
+_PAGE_URL = "/api/v1/review/overview/page"
+
+#: (d) 门失败时打印的固定串。用它把「门红在哪一条」钉死 —— 负控与红跑证据
+#: 都按这个字面量核对, 否则"门红了"可能只是夹具坏了 (假杀第二形态)。
+_FSRS_GATE_MSG = "FSRS 面被写动"
+
+
+#: (每个节点 md 的 fsrs_* 行, learning_events 的 (行数, sha) | None)
+_FsrsFingerprint = tuple[dict[str, list[str]], "tuple[int, str] | None"]
+
+
+def _fsrs_fingerprint(vault: Path) -> _FsrsFingerprint:
+    """FSRS 调度面的指纹: 每个节点 md 的 fsrs_* frontmatter 行 + 事件账。
+
+    只挑 fsrs_* 行而不是整文件 sha —— 整文件 sha 会把无关改动 (比如正文
+    排版) 也算成"动了 FSRS", 那样门一旦红, 没人知道红的是不是调度面。
+    learning_events.jsonl 取 (行数, sha): 追加一行就变, 这正是要挡的那件事。
+    """
+    fm: dict[str, list[str]] = {}
+    for md in sorted((vault / "节点").glob("*.md")):
+        lines = md.read_text(encoding="utf-8").splitlines()
+        fm[md.name] = [ln for ln in lines if ln.startswith("fsrs_")]
+    events = vault / "learning_events.jsonl"
+    ev: "tuple[int, str] | None" = None
+    if events.exists():
+        raw = events.read_bytes()
+        ev = (raw.count(b"\n"), hashlib.sha256(raw).hexdigest())
+    return fm, ev
+
+
+def _assert_fsrs_untouched(before: _FsrsFingerprint, after: _FsrsFingerprint) -> None:
+    """(d) 唯一承重断言。负控与正例共用同一个函数 —— 两边判据必然同口径。"""
+    assert after == before, f"{_FSRS_GATE_MSG}: before={before!r} after={after!r}"
+
+
+def _install_contaminating_write_point(monkeypatch, mod, vault: Path):
+    """对照实现: 照常写完成账, 但**顺手**改一个节点的 fsrs_due。
+
+    ⛔ 它只拆「不写 FSRS」这一条, 其余路径 (状态码 / PRG / state 内容)
+    全部照旧 —— 门若因此变红, 红的只可能是 _assert_fsrs_untouched 那一条,
+    不会是"把被测路径弄坏了所以哪里都红"(那种红证明不了门有牙)。
+    """
+    real = mod._write_board_done
+
+    def contaminated(vault_dir, vaults_root, board, day):
+        state_file = real(vault_dir, vaults_root, board, day)
+        target = sorted((vault / "节点").glob("*.md"))[0]
+        text = target.read_text(encoding="utf-8")
+        target.write_text(text.replace("fsrs_due:", "fsrs_due: # 顺手改\nfsrs_due_shadow:"), encoding="utf-8")
+        return state_file
+
+    monkeypatch.setattr(mod, "_write_board_done", contaminated)
+
+
+@pytest.fixture
+def board_done_env(refresh_env, monkeypatch):
+    """refresh_env + runner 模块的 BACKUPS 改指 tmp。
+
+    ⛔ 必须当场断言补丁真的生效: runner.BACKUPS 的缺省值是**真实仓库**的
+    backups/ (CANVAS_REPO 缺省), 一个忘了打补丁的用例会直接往现网 state
+    上写。「预置到底有没有产生我以为的那个形态」要断言, 不能靠相信。
+    """
+    import app.api.v1.endpoints.review_overview as mod
+
+    root, client = refresh_env
+    script = mod._runner_script(Path(root))
+    assert script is not None, f"找不到 {mod._RUNNER_BASENAME} — 本 fixture 的前提不成立"
+    runner = mod._load_runner(script)
+    monkeypatch.setattr(runner, "BACKUPS", Path(root) / "backups")
+    probe = runner.state_path(Path(root) / "vault-probe")
+    assert probe.is_relative_to(Path(root)), f"BACKUPS 补丁没生效 ({probe}) — 用例会写真实仓库"
+    return root, client, runner, mod
+
+
+def _state_of(runner, root: Path, vault_name: str) -> dict:
+    return json.loads(runner.state_path(root / vault_name).read_text(encoding="utf-8"))
+
+
+def test_g67_board_done_writes_only_state_and_never_touches_fsrs(board_done_env, monkeypatch):
+    """完成条件 (d): 完成动作前后 fsrs_* 与 learning_events 逐字节相同。
+
+    红/绿证据 (evidence-g67/): 置 G67_FSRS_CONTAMINATE=1 时本用例自己装上
+    「顺手写 fsrs_due」的对照写点 → 门必须红在 _FSRS_GATE_MSG 上; 不置则绿。
+    两跑之外还有常驻负控 test_g67_fsrs_gate_reddens_under_contaminating_write_point,
+    保证这条性质留在 CI 里而不是只活在一次性证据里。
+
+    写面同时锁死: 全树指纹的差集必须恰是 backups 目录 + 那一个 state 文件。
+    """
+    root, client, runner, mod = board_done_env
+    vault = _mk_node_vault(
+        root,
+        "vault-fsrs",
+        {
+            "定义甲": _node_md(fsrs_due='"2099-01-01T00:00:00Z"'),
+            "定义乙": _node_md(board="数学", fsrs_due='"2030-06-01T00:00:00Z"'),
+        },
+    )
+    (vault / "learning_events.jsonl").write_text(
+        '{"event":"quiz","node":"定义甲","at":"2026-09-01T00:00:00Z"}\n', encoding="utf-8"
+    )
+    if os.environ.get("G67_FSRS_CONTAMINATE") == "1":
+        _install_contaminating_write_point(monkeypatch, mod, vault)
+
+    before_fsrs = _fsrs_fingerprint(vault)
+    assert before_fsrs[0]["定义甲.md"], "夹具前提: 节点必须真的带 fsrs_* 行, 否则门是空的"
+    assert before_fsrs[1] is not None, "夹具前提: 事件账必须真的存在, 否则那一半判据是空的"
+    before_tree = _tree(root)
+
+    resp = client.post(_BOARD_DONE_URL, data={"vault_id": "vault-fsrs", "board": "CS 61B"})
+    assert resp.status_code == 200, resp.text
+
+    # ⛔ 承重断言排第一: 对照写点让它先红, 而不是被别的断言抢先 (假杀)
+    _assert_fsrs_untouched(before_fsrs, _fsrs_fingerprint(vault))
+
+    body = resp.json()
+    assert body["board"] == "CS 61B" and body["fsrs_touched"] is False
+    assert body["done_date"] == mod._sh_today()
+    state_file = runner.state_path(vault)
+    assert Path(body["state_path"]) == state_file
+    assert not state_file.is_relative_to(vault), "完成账不许落在库内 (BACKUPS 在仓库下)"
+
+    st = _state_of(runner, Path(root), "vault-fsrs")
+    assert st["board_done"] == {"CS 61B": mod._sh_today()}
+    assert st["schema_version"] == runner.STATE_SCHEMA_VERSION
+
+    after_tree = _tree(root)
+    changed = {k for k in set(before_tree) | set(after_tree) if before_tree.get(k) != after_tree.get(k)}
+    assert changed == {"backups", f"backups/{state_file.name}"}, (
+        f"写面必须恰是 backups 目录 + 那一个 state 文件, 实为 {sorted(changed)}"
+    )
+
+
+def test_g67_fsrs_gate_reddens_under_contaminating_write_point(board_done_env, monkeypatch):
+    """(d) 常驻负控: 换上「顺手写 fsrs_due」的写点, 上面那道门必须红。
+
+    判据绑定到**具体那一条**断言 (_FSRS_GATE_MSG), 不是"某处失败了" ——
+    变异体若因语法/路径坏掉而让别的断言先红, 本门同样不放行。
+    """
+    root, client, runner, mod = board_done_env
+    vault = _mk_node_vault(root, "vault-neg", {"定义甲": _node_md(fsrs_due='"2099-01-01T00:00:00Z"')})
+    _install_contaminating_write_point(monkeypatch, mod, vault)
+
+    before = _fsrs_fingerprint(vault)
+    resp = client.post(_BOARD_DONE_URL, data={"vault_id": "vault-neg", "board": "CS 61B"})
+    assert resp.status_code == 200, "对照写点只污染 FSRS, 不许把请求本身弄坏 (否则红的是别的东西)"
+    assert _state_of(runner, Path(root), "vault-neg")["board_done"] == {"CS 61B": mod._sh_today()}, (
+        "对照写点必须仍然把完成账写对 —— 拆的只是那一条守卫"
+    )
+    with pytest.raises(AssertionError) as ei:
+        _assert_fsrs_untouched(before, _fsrs_fingerprint(vault))
+    assert _FSRS_GATE_MSG in str(ei.value), f"红的不是 FSRS 那条断言: {ei.value}"
+
+
+def test_g67_reuses_both_write_gates_and_writes_nothing_on_refusal(board_done_env):
+    """完成条件 (c): 两道写侧门是**复用**不是复制, 且被拒时零写入。
+
+    行为面而非文本面 —— 三种拒绝各一条, 每条都验"state 文件没被创建":
+    跨站表单 403 / 库外软链 503 / 未知 vault 404。
+    """
+    root, client, runner, _mod = board_done_env
+    _mk_node_vault(root, "vault-gate", {"甲": _node_md()})
+    state_file = runner.state_path(Path(root) / "vault-gate")
+
+    cross = client.post(
+        _BOARD_DONE_URL,
+        data={"vault_id": "vault-gate", "board": "CS 61B"},
+        headers={"origin": "http://evil.example", "sec-fetch-site": "cross-site"},
+    )
+    assert cross.status_code == 403, cross.text
+    assert cross.json()["detail"]["error"] == "cross_site_blocked"
+    assert not state_file.exists(), "被同源门拒的请求不许留下任何完成账"
+
+    assert client.post(_BOARD_DONE_URL, data={"vault_id": "不存在的库", "board": "b"}).status_code == 404
+    assert not state_file.exists()
+
+
+def test_g67_symlinked_vault_outside_root_is_refused(board_done_env, tmp_path_factory):
+    """(c) 容纳门复用: VAULTS_ROOT 下指向库外的软链 → 503, 且零写入。"""
+    root, client, runner, _mod = board_done_env
+    outside = tmp_path_factory.mktemp("g67-outside")
+    (outside / ".obsidian").mkdir()
+    (root / "vault-link").symlink_to(outside, target_is_directory=True)
+
+    resp = client.post(_BOARD_DONE_URL, data={"vault_id": "vault-link", "board": "CS 61B"})
+    assert resp.status_code == 503, resp.text
+    assert resp.json()["detail"]["error"] == "vault_outside_root"
+    assert not runner.state_path(root / "vault-link").exists()
+
+
+def test_g67_invalid_board_is_422_and_writes_nothing(board_done_env):
+    """空板名 / 超长板名 → 422, 不写账 (state 文件不许被凭空创建)。"""
+    root, client, runner, mod = board_done_env
+    _mk_node_vault(root, "vault-bad", {"甲": _node_md()})
+    state_file = runner.state_path(Path(root) / "vault-bad")
+
+    for board in ("", "板" * (mod._BOARD_NAME_MAX + 1)):
+        resp = client.post(_BOARD_DONE_URL, data={"vault_id": "vault-bad", "board": board})
+        assert resp.status_code == 422, (board[:10], resp.text)
+        assert not state_file.exists(), "422 之后不许留下 state"
+
+
+def test_g67_zero_js_form_path_redirects_and_failure_keeps_status(board_done_env):
+    """(c) 零 JS 表单路径: redirect=page → 303 回本页; 失败渲染错误页且状态码原样。
+
+    错误页标题必须说的是**这个**动作 —— 用户刚点「这板做完了」, 页面写着
+    「刷新失败」比没有错误页更糟 (他会去找刷新按钮的毛病)。
+    """
+    root, client, runner, _mod = board_done_env
+    _mk_node_vault(root, "vault-form", {"甲": _node_md()})
+
+    ok = client.post(
+        _BOARD_DONE_URL,
+        data={"vault_id": "vault-form", "board": "CS 61B", "redirect": "page"},
+        follow_redirects=False,
+    )
+    assert ok.status_code == 303
+    assert ok.headers["location"] == _PAGE_URL
+    assert runner.state_path(Path(root) / "vault-form").exists()
+
+    bad = client.post(
+        _BOARD_DONE_URL,
+        data={"vault_id": "不存在的库", "board": "CS 61B", "redirect": "page"},
+        follow_redirects=False,
+    )
+    assert bad.status_code == 404, "失败不许伪装成 303 成功"
+    assert "标记完成失败" in bad.text and "刷新失败" not in bad.text
+    assert "vault_not_found" in bad.text
+
+
+def _two_board_projection(vault_id: str, gen_iso: str) -> dict:
+    """两块板、各一到期节点的最小 v3 投影 (折叠用例要两块板才说明得了问题)。"""
+    proj = _projection(vault_id, generated_at=gen_iso, due=["节点甲"], board="CS 61B")
+    proj["due_nodes"].append(
+        {
+            "node": "节点乙",
+            "board": "数学",
+            "state": "new",
+            "pick": 1.0,
+            "fsrs_due": "",
+            "due_reason": "new",
+            "last_examined": "",
+            "difficulty": "",
+        }
+    )
+    proj["top_boards"].append(
+        {
+            "board": "数学",
+            "top_node": "节点乙",
+            "priority": 0.5,
+            "pending": 1,
+            "idle_days": 1,
+            "difficulty": "",
+            "next_due": "",
+        }
+    )
+    proj["stats"]["due_nodes"] = 2
+    return proj
+
+
+def test_g67_page_folds_done_board_without_dropping_it(board_done_env):
+    """(c)(f) 零 JS 页: 标完成的板折进「已完成」区 —— **折叠不是删除**。
+
+    三条判据缺一不可:
+      ① 完成前两块板都在主表格且各带一个完成钮;
+      ② 完成后该板不在主表格, 但仍在页面上 (details 内) —— 若实现改成
+         从投影里剔除, 本条红 (那正是卡文硬边界禁止的做法);
+      ③ 页面明示「不影响 FSRS」。
+    """
+    root, client, _runner, _mod = board_done_env
+    vault = _mk_vault(
+        root, "vault-page", _two_board_projection("vault-page", _now_local().isoformat(timespec="seconds"))
+    )
+    (vault / "节点").mkdir(exist_ok=True)
+
+    page = client.get(_PAGE_URL).text
+    assert page.count('name="board"') == 2, "两块板各一个完成钮"
+    assert "不影响 FSRS" in page
+    assert "已完成（" not in page, "还没标完成就不该有已完成区"
+
+    assert client.post(_BOARD_DONE_URL, data={"vault_id": "vault-page", "board": "CS 61B"}).status_code == 200
+
+    page2 = client.get(_PAGE_URL).text
+    i = page2.index("已完成（1）")
+    head, fold = page2[:i], page2[i:]
+    assert "数学" in head and "CS 61B" not in head, "已完成板应从待做区移出"
+    assert "CS 61B" in fold, "已完成板必须仍在页面上 (折叠区内), 不许被剔除"
+    assert page2.count('name="board"') == 1, "已完成板不该再带完成钮"
+    # JSON 侧同源: entry.board_done 与页面折叠的是同一份判定
+    entry = next(v for v in client.get("/api/v1/review/overview").json()["vaults"] if v["vault_id"] == "vault-page")
+    assert entry["board_done"] == ["CS 61B"]
+    # 投影本体一个数都没动 (硬边界: 禁在投影层压制)
+    assert entry["projection"]["due_count"] == 2
+    assert sorted(r["board"] for r in entry["projection"]["boards"]) == ["CS 61B", "数学"]
+
+
+def test_g67_done_expires_next_day_and_is_per_vault(board_done_env):
+    """(f) 隔日自然失效 + 双库互不影响。
+
+    「明天」不靠等: 直接把账里的日期改成昨天 —— 判定是 `值 == 今天`,
+    所以昨天的值必须表现得和"没标过"完全一样, 且旧键**不删**(加性)。
+    """
+    root, client, runner, mod = board_done_env
+    gen = _now_local().isoformat(timespec="seconds")
+    _mk_vault(root, "vault-x", _two_board_projection("vault-x", gen))
+    _mk_vault(root, "vault-y", _two_board_projection("vault-y", gen))
+
+    assert client.post(_BOARD_DONE_URL, data={"vault_id": "vault-x", "board": "CS 61B"}).status_code == 200
+    data = {v["vault_id"]: v for v in client.get("/api/v1/review/overview").json()["vaults"]}
+    assert data["vault-x"]["board_done"] == ["CS 61B"]
+    assert data["vault-y"]["board_done"] == [], "另一个库的完成账必须完全独立"
+    assert not runner.state_path(root / "vault-y").exists(), "只写被点的那个库的 state"
+
+    # 把日期改成昨天 = 时间往前走了一天
+    sf = runner.state_path(root / "vault-x")
+    st = json.loads(sf.read_text(encoding="utf-8"))
+    yesterday = (datetime.fromisoformat(mod._sh_today()) - timedelta(days=1)).date().isoformat()
+    st["board_done"]["CS 61B"] = yesterday
+    sf.write_text(json.dumps(st, ensure_ascii=False), encoding="utf-8")
+
+    data2 = {v["vault_id"]: v for v in client.get("/api/v1/review/overview").json()["vaults"]}
+    assert data2["vault-x"]["board_done"] == [], "隔日的值必须自然失效"
+    assert json.loads(sf.read_text(encoding="utf-8"))["board_done"] == {"CS 61B": yesterday}, "旧键不删 (加性)"
+    assert "已完成（" not in client.get(_PAGE_URL).text
+
+
+def test_g67_read_path_never_writes_even_for_corrupt_state(board_done_env):
+    """(b) 读路径纯度: 损坏的 state 遇上 GET, **不许**被隔离改名。
+
+    runner.load_state 对损坏文件的处置是 os.replace 隔离重建 —— 那是一次
+    写盘。读侧若图省事复用它, GET /overview 就会改盘, 本模块的只读契约当场
+    破掉。这条门盯的就是那个诱惑。
+    """
+    root, client, runner, _mod = board_done_env
+    _mk_vault(root, "vault-corrupt", _two_board_projection("vault-corrupt", _now_local().isoformat(timespec="seconds")))
+    sf = runner.state_path(root / "vault-corrupt")
+    sf.parent.mkdir(parents=True, exist_ok=True)
+    sf.write_text('{"board_done": "不是个 dict", 这里还坏了', encoding="utf-8")
+
+    before = _tree(root)
+    assert client.get("/api/v1/review/overview").status_code == 200
+    assert client.get(_PAGE_URL).status_code == 200
+    after = _tree(root)
+
+    assert before == after, "GET 路径动了盘 —— 只读契约被破坏"
+    assert not list(sf.parent.glob("*.corrupt-*")), "读路径不许隔离改名"
+    entry = next(v for v in client.get("/api/v1/review/overview").json()["vaults"] if v["vault_id"] == "vault-corrupt")
+    assert entry["board_done"] == [], "读不出来就是没有完成记录, 不是 500"
+
+
+def test_g67_write_path_quarantines_corrupt_state_and_rebuilds(board_done_env):
+    """(b) 写路径反过来: 复用 runner 的隔离重建 —— 坏账不许把请求打成 500。"""
+    root, client, runner, mod = board_done_env
+    _mk_node_vault(root, "vault-wq", {"甲": _node_md()})
+    sf = runner.state_path(root / "vault-wq")
+    sf.parent.mkdir(parents=True, exist_ok=True)
+    sf.write_text('{"board_done": ["错型"]}', encoding="utf-8")
+
+    resp = client.post(_BOARD_DONE_URL, data={"vault_id": "vault-wq", "board": "CS 61B"})
+    assert resp.status_code == 200, resp.text
+    assert list(sf.parent.glob("*.corrupt-*")), "错型 state 必须被隔离 (复用 runner 的既有行为)"
+    st = json.loads(sf.read_text(encoding="utf-8"))
+    assert st["board_done"] == {"CS 61B": mod._sh_today()}
+    assert st["schema_version"] == runner.STATE_SCHEMA_VERSION
+
+
+def test_g67_state_path_is_same_source_as_runner(board_done_env, monkeypatch):
+    """(b) state 路径派生与 runner 同源 —— 不是"看起来一样"而是同一个函数。
+
+    篡改门 (行为面): 把 runner.state_path 的产出改掉, 端点**实际写的位置**
+    必须跟着变。端点里若手拼了第二套命名规则 (哪怕此刻拼出的值恰好相同),
+    改了 runner 它不会跟着变 —— 本门立刻红。这比"读源码看它像不像"强,
+    因为它不依赖任何措辞。
+    """
+    root, client, runner, _mod = board_done_env
+    _mk_node_vault(root, "vault-同源", {"甲": _node_md()})
+    default_path = runner.state_path(Path(root) / "vault-同源")
+    moved = Path(root) / "backups" / "被改过的位置.state.json"
+    monkeypatch.setattr(runner, "state_path", lambda vault=None: moved)
+
+    resp = client.post(_BOARD_DONE_URL, data={"vault_id": "vault-同源", "board": "CS 61B"})
+    assert resp.status_code == 200, resp.text
+    assert moved.exists(), "端点没走 runner.state_path —— 疑似手拼了第二套路径规则"
+    assert Path(resp.json()["state_path"]) == moved
+    assert not default_path.exists(), "同时还往原位置写了一份 = 两套账"
+
+
+def test_g67_old_state_without_board_done_reads_as_empty(board_done_env):
+    """(b) 旧文件兼容读: schema_version 1 且无 board_done → 视同 {}, 不迁移不报错。"""
+    root, client, runner, mod = board_done_env
+    _mk_vault(root, "vault-old", _two_board_projection("vault-old", _now_local().isoformat(timespec="seconds")))
+    sf = runner.state_path(root / "vault-old")
+    sf.parent.mkdir(parents=True, exist_ok=True)
+    legacy = '{"schema_version": 1, "board_last_recommended": {"CS 61B": "2026-08-01"}}\n'
+    sf.write_text(legacy, encoding="utf-8")
+    legacy_sha = hashlib.sha256(sf.read_bytes()).hexdigest()
+
+    entry = next(v for v in client.get("/api/v1/review/overview").json()["vaults"] if v["vault_id"] == "vault-old")
+    assert entry["board_done"] == []
+    assert hashlib.sha256(sf.read_bytes()).hexdigest() == legacy_sha, "只读旧文件不许被顺手升级"
+
+    assert client.post(_BOARD_DONE_URL, data={"vault_id": "vault-old", "board": "CS 61B"}).status_code == 200
+    st = json.loads(sf.read_text(encoding="utf-8"))
+    assert st["board_last_recommended"] == {"CS 61B": "2026-08-01"}, "既有键的值一个都不许动"
+    assert st["board_done"] == {"CS 61B": mod._sh_today()}
+    assert st["schema_version"] == runner.STATE_SCHEMA_VERSION
+
+
+def test_g67_runner_script_missing_fails_closed_503(board_done_env, monkeypatch):
+    """(c) runner 不可达 → 503 fail-closed, 绝不另起一套账。"""
+    root, client, _runner, mod = board_done_env
+    _mk_node_vault(root, "vault-nr", {"甲": _node_md()})
+    monkeypatch.setattr(mod, "_runner_script", lambda _vaults_root: None)
+
+    resp = client.post(_BOARD_DONE_URL, data={"vault_id": "vault-nr", "board": "CS 61B"})
+    assert resp.status_code == 503, resp.text
+    assert resp.json()["detail"]["error"] == "runner_script_not_found"
+    # 读侧同一情形只是"没有完成记录", 不是 500 (读松写紧)
+    assert client.get("/api/v1/review/overview").status_code == 200

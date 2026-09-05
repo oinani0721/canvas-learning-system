@@ -49,29 +49,52 @@ def _now(arg: str | None) -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _vault_key() -> str:
-    """当前 VAULT 的命名空间 key (规则唯一定义点在 send_bark.vault_key)。"""
-    return send_bark.vault_key(VAULT.resolve().name)
+#: state 文件 schema 版本。v2 (CARD-G6-7): 加性新增 board_done —— 板级
+#: 「今天做完了」账 {board: "YYYY-MM-DD"}。加性升级不配迁移器: 旧文件缺该
+#: 键即视同 {} (load_state 兜底), 声明版本在下一次落盘时随形态一起前进。
+STATE_SCHEMA_VERSION = 2
 
 
-def state_path() -> Path:
+def _vault_key(vault: Path | None = None) -> str:
+    """当前 VAULT 的命名空间 key (规则唯一定义点在 send_bark.vault_key)。
+
+    CARD-G6-7 加性可选参数: Web 侧 (review_overview 的完成反馈端点) 要为
+    **任意一个库**算 state 路径, 它与 runner 不同进程, 没有 VAULT 全局可设。
+    给参数而不是让调用方临时改模块全局 —— 后端同步端点跑在线程池里, 改全局
+    是竞态 (A 库的请求改了它, B 库的请求读到)。缺省仍取全局, runner 零变化。
+    """
+    return send_bark.vault_key((vault or VAULT).resolve().name)
+
+
+def state_path(vault: Path | None = None) -> Path:
     """per-vault state 文件 (CARD-C1a)。旧全局 daily-review.state.json 由
     migrate_daily_review_state.py 一次性迁入, 此处不做隐式回退 — 隐式读旧
     文件会让双 vault 各自以为「今天推过了」, 恰是本卡要消灭的踩踏。"""
-    return BACKUPS / f"daily-review.{_vault_key()}.state.json"
+    return BACKUPS / f"daily-review.{_vault_key(vault)}.state.json"
 
 
-def load_state() -> dict:
-    state = state_path()
+def load_state(vault: Path | None = None) -> dict:
+    state = state_path(vault)
     if not state.exists():
-        return {"schema_version": 1, "board_last_recommended": {}}
+        return {"schema_version": STATE_SCHEMA_VERSION, "board_last_recommended": {}, "board_done": {}}
     try:
         st = json.loads(state.read_text(encoding="utf-8"))
         # Codex-D2b M1: 合法 JSON 但结构错型 (顶层非 dict / 账本非 dict) 与
         # 语法损坏同等对待 — 隔离重建, 不让 setdefault/.values() 半路炸
         if not isinstance(st, dict) or not isinstance(st.get("board_last_recommended", {}), dict):
             raise ValueError("state 结构错型")
+        # CARD-G6-7: board_done 与 board_last_recommended 同等对待 —— 错型也走
+        # 隔离重建。少这一条的话, 一个 "board_done": [] 会让写侧的 dict 下标
+        # 在半路炸成 500, 而不是像本文件其余部分那样诚实地隔离重建。
+        if not isinstance(st.get("board_done", {}), dict):
+            raise ValueError("state 结构错型 (board_done)")
         st.setdefault("board_last_recommended", {})
+        st.setdefault("board_done", {})
+        # 形态已是 v2 (上一行保证 board_done 恒在) → 声明版本随之前进, 单调
+        # 不回退。这不是迁移器: 没有独立的迁移入口, 也不改任何既有键的值。
+        declared = st.get("schema_version")
+        if not isinstance(declared, int) or declared < STATE_SCHEMA_VERSION:
+            st["schema_version"] = STATE_SCHEMA_VERSION
         return st
     except (json.JSONDecodeError, OSError, ValueError):
         quarantine = state.with_name(state.name + ".corrupt-" + datetime.now().strftime("%Y%m%dT%H%M%S"))
@@ -80,11 +103,11 @@ def load_state() -> dict:
         except OSError:
             pass
         print(f"[runner] state 损坏, 已隔离到 {quarantine.name}, 重建", file=sys.stderr)
-        return {"schema_version": 1, "board_last_recommended": {}}
+        return {"schema_version": STATE_SCHEMA_VERSION, "board_last_recommended": {}, "board_done": {}}
 
 
-def save_state(st: dict):
-    state = state_path()
+def save_state(st: dict, vault: Path | None = None):
+    state = state_path(vault)
     state.parent.mkdir(parents=True, exist_ok=True)
     tmp = state.with_suffix(".tmp")
     tmp.write_text(json.dumps(st, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -149,7 +172,12 @@ def ensure_payload(st: dict, now: datetime, today: str) -> tuple[dict | None, st
     import daily_review_pick as picker
 
     scan_started = time.time()
-    payload, ranked = picker.build_payload(VAULT, now, st["board_last_recommended"], picker.load_decay(VAULT))
+    # CARD-G6-7 加性: board_done 只影响「今天谁占榜首」, 不改分不改排序律
+    # (见 daily_review_pick.build_payload 的 board_done 分区块)。缺键的旧
+    # state 传 None = 与本卡之前逐字节同行为。
+    payload, ranked = picker.build_payload(
+        VAULT, now, st["board_last_recommended"], picker.load_decay(VAULT), board_done=st.get("board_done")
+    )
     out = VAULT / "outputs"
     out.mkdir(parents=True, exist_ok=True)
     picker.atomic_write(out / "今日复习.md", picker.render_md(payload, ranked))

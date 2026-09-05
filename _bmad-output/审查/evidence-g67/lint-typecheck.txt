@@ -1,0 +1,8 @@
+# CARD-G6-7 · lint / 类型门 · 2026-09-06T02:42:05+08:00
+---
+$ ruff check <8 files>
+All checks passed!
+$ ruff format --check <8 files>
+8 files already formatted
+$ pyright <6 backend files, = python-typecheck glob 命中面>
+0 errors, 0 warnings, 0 informations
