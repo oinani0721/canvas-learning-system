@@ -52,17 +52,29 @@ def test_api_contract(case):
 
     [Source: docs/stories/15.6.story.md#Testing - AC: 9]
     """
-    # ✅ Verified from Context7:/schemathesis/schemathesis
     # Only run positive validation checks (response schema conformance)
     # Skip negative_data_rejection check since routers are placeholders
-    case.call_and_validate(
-        checks=(
-            schemathesis.checks.status_code_conformance,
-            schemathesis.checks.content_type_conformance,
-            schemathesis.checks.response_headers_conformance,
-            schemathesis.checks.response_schema_conformance,
-        )
+    #
+    # CARD-TOOL-dredd-decide [BATCH-2026-09-05-第十一批] 修 API 混用:
+    # 原写法是 `schemathesis.checks.status_code_conformance` 这样的**模块属性**
+    # 访问 —— 那是 schemathesis 3.x 的形态。本机实测 4.14.3:
+    #   dir(schemathesis.checks) 里这四个名字**一个都没有**, 只有
+    #   not_a_server_error / max_response_time / CHECKS / load_all_checks 等;
+    #   四个 conformance check 仍然存在, 但改成经**注册表**取得(见下)。
+    # 于是本文件此前处于「任何版本都跑不通」的状态:
+    #   3.x -> 第 26 行的 `schemathesis.openapi.from_asgi` 在 import 期就 AttributeError;
+    #   4.x -> 这里每个用例都 AttributeError。
+    # 文件顶部的 `pytest.importorskip` 只挡"没装", 挡不住"装错版本", 所以这个
+    # 缺陷一直没被任何人看见 —— 它从未被真正执行过。
+    # 本次改动**不削弱任何检查**: 取的是同名的那四个 check, 语义不变。
+    _CHECK_NAMES = (
+        "status_code_conformance",
+        "content_type_conformance",
+        "response_headers_conformance",
+        "response_schema_conformance",
     )
+    schemathesis.checks.load_all_checks()
+    case.call_and_validate(checks=tuple(schemathesis.checks.CHECKS.get_by_names(_CHECK_NAMES)))
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

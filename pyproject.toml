@@ -14,7 +14,19 @@ dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21",
     "pytest-bdd>=7.0",
-    "schemathesis>=3.0",
+    # CARD-TOOL-dredd-decide [BATCH-2026-09-05-第十一批]: >=3.0 -> >=4.0。
+    # 本文件是 schemathesis 版本口径的**唯一**出处(原先 tests/contract/requirements.txt
+    # 另有一处 >=3.19.0, 已改为指回这里)。
+    # 为什么必须 >=4.0: backend/tests/contract/test_openapi_contract.py:26 用的是
+    # `schemathesis.openapi.from_asgi(...)` —— 这是 4.x 的形态。本机实测 4.14.3:
+    #   hasattr(schemathesis, "openapi")            -> True
+    #   hasattr(schemathesis.openapi, "from_asgi")  -> True
+    #   hasattr(schemathesis, "from_asgi")          -> **False**(顶层的已被移除)
+    # 即任何解到 3.x 的环境都会在 **import 阶段** AttributeError, 而该文件顶部的
+    # `pytest.importorskip("schemathesis")` 只挡"没装", 挡不住"装错版本" ——
+    # 那会变成收集期报错而不是 skip。CI 侧另配了 `python -c 'import schemathesis'`
+    # 硬前置(见 .github/workflows/test.yml), 让这类问题变红而不是被静默吞掉。
+    "schemathesis>=4.0",
     "hypothesis>=6.0",
     # CARD-TOOL-pyright [BATCH-2026-09-05-第十一批] —— 类型检查器归口。
     # 落在这里而不是 backend/requirements*.txt, 依据是后者文件头自己写的
