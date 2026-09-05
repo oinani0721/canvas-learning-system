@@ -402,12 +402,18 @@ Codex 的完整发现清单（4 MEDIUM + 5 LOW）全部为「下卡修 / 只登�
 
 ## 四 收工判据
 
+存档 `evidence-rv-e/j7-final-20260905T164712.txt`。
+
 | 判据 | 命令 | 实测 |
 |---|---|---|
-| 工作树干净 | `git status --porcelain` | （见 commit 后附） |
-| 零代码改动 | `git diff --stat df39bf21 HEAD -- . ':(exclude)_bmad-output'` | （见 commit 后附）|
+| 零代码改动 | `git diff --stat df39bf21 HEAD -- . ':(exclude)_bmad-output'` | **stdout 空、rc=0** ✅ |
+| ↑ 的**反向验伪锚** | 同形命令**不加**排除项 | ` 20 files changed, 1605 insertions(+)` ⇒ 上一行的空输出是「排除生效」，不是命令坏掉 ✅ |
+| 三个禁改文件逐字节未动 | `git rev-parse df39bf21:<f>` vs `HEAD:<f>` | `lefthook.yml` `17dacb73…`／`ruff.toml` `fdc227b0…`／`pyrightconfig.json` `f34fa9a2…` **三对全同** ✅ |
+| 本卡 commit | — | `fc431add`，20 files / 1605 insertions，**全部在 `_bmad-output/` 下** |
+| `.stderr` 未入库 | `git check-ignore -v` | 命中 `.gitignore:261 _bmad-output/审查/**/*.stderr*` ✅ |
 | lefthook 版本 | `/opt/homebrew/bin/lefthook version` | `2.1.6` ✅ |
 | 门真跑（空暂存区） | `lefthook run pre-commit --command mutant-residue-scan --force --no-auto-install` | `[Mutant-Scan] OK (staged additions carry no mutation marker).` **rc=0** ✅ |
+| 工作树干净 | `git status --porcelain` | 收尾 commit 后为空（见 §五末） |
 
 > 写法注意（协议 §1）：排除写 `':(exclude)…'`。`':!…'` 在 zsh / git 2.50 下
 > rc=128、stdout 空，「空即通过」会假绿。
@@ -417,9 +423,78 @@ Codex 的完整发现清单（4 MEDIUM + 5 LOW）全部为「下卡修 / 只登�
 
 ---
 
-## 五 提交期 hook 实况
+## 五 提交期 hook 实况（**未用 `LEFTHOOK_EXCLUDE`**，hook 真跑）
 
-（本段在 commit 后填写；同时用来捕获 (e) 段所需的**实际执行顺序**。）
+存档 `evidence-rv-e/commit-hook-run-20260905T164712.txt`（`git commit` 全程 tee）。
+`git commit` **rc=0**，产出 `fc431add`。
+
+### pre-commit（8 个 command 全部到位，无一被外部跳过）
+
+| 顺序 | command | 结果 | 原因 |
+|---|---|---|---|
+| 1 | `cypher-vault-filter-lint` | **SKIP** | `no matching staged files`（本卡只暂存 `_bmad-output/`） |
+| 2 | `ghost-files` | **PASS** ✔️ | `[Ghost Files] No untracked docs found.` |
+| 3 | `mutant-residue-scan` | **PASS** ✔️ | `[Mutant-Scan] OK (staged additions carry no mutation marker).` |
+| 4 | `python-lint` | **SKIP** | `no files for inspection` |
+| 5 | `python-typecheck` | **SKIP** | `no files for inspection`（**不是** `LEFTHOOK_EXCLUDE` 跳过，是无匹配文件） |
+| 6 | `readme-claims-lint` | **SKIP** | `no matching staged files` |
+| 7 | `spec-sync-flat` | **SKIP** | `no matching staged files` |
+| 8 | `spec-sync-root` | **SKIP** | `no matching staged files` |
+
+### commit-msg
+
+| command | 结果 | 输出 |
+|---|---|---|
+| `commitlint` | **PASS** ✔️ | `found 0 problems, 1 warnings`；唯一 warning = `subject must be lower-case [subject-case]`（中文 subject 的既有噪声，非阻断，`0 problems`） |
+| `spec-reference` | **PASS** ✔️ | `[Spec Ref] OK.` |
+
+### ⭐ 这次真跑顺手给 (e) 补了一条**新鲜**实测
+
+上面 pre-commit 的**打印顺序**就是 lefthook 的实际执行顺序：
+
+```
+cypher-vault-filter-lint → ghost-files → mutant-residue-scan → python-lint
+→ python-typecheck → readme-claims-lint → spec-sync-flat → spec-sync-root
+```
+
+**逐项等于字母序，且不等于 YAML 书写序**（YAML 序是 `spec-sync-flat` 打头、
+`mutant-residue-scan` 收尾，见 (e) 段的对照表）。
+
+⇒ :259-268 断言的**前半句**至此有**两条独立证据**：审查面内的排列对照 + 本次
+提交的真实 hook 输出。**后半句（priority）仍无任何证据**，维持"不追认为规格"。
+注意这仍**不是**源码/文档出处——它证明的是"本机 2.1.6 在本仓这份配置下如此"，
+不是"lefthook 2.1.6 规格如此"。
+
+### 环境噪声（如实记录，非本卡引入）
+
+每个 hook 阶段都打印 `Skipping hook sync: core.hooksPath is set locally to
+'…/canvas-learning-system/.git/hooks'`。这是**多 worktree 共享 `.git/hooks`** 的
+既有配置（`core.hooksPath` 指向主仓），lefthook 因此不自动重装 hook。
+**本卡未改动它**，也未按提示执行 `lefthook install --force`（那会改共享 hook =
+协议 §2.3 的批级事件）。
+
+### 收尾 commit
+
+`fc431add` 之后仍有 2 个未跟踪文件——`commit-hook-run-*.txt` 与 `j7-final-*.txt`
+**只能在那次 commit 之后才存在**（前者记录的正是那次 commit 的 hook 输出）。
+故本卡有**两个 commit**，第二个只补这两份收尾存档 + 本段。
+**第二个 commit 自身的 hook 输出无法再存进它自己**，其结果直接贴在下面：
+
+收尾 commit 初为 `22d0d173`，其后用 `--amend` 补齐本段（最终 hash 见 §八）。
+存档 `evidence-rv-e/amend-hook-run-20260905T164712.txt` 记录的是**第一次 amend**
+的完整 hook 输出。**最后一次 amend 无法把自己的输出存进自己**——这不是遗漏，
+是「记录一次运行的文件必须在那次运行之后才存在」的固有回归；到此就地打住，
+其结果直接写在下表（三次运行的 8 个 command 结果与顺序**逐项相同**）：
+
+| 阶段 | 结果 |
+|---|---|
+| pre-commit ×8 | 与 `fc431add` 同形：`ghost-files` PASS、`mutant-residue-scan` PASS（`OK`），其余 6 个 `no matching staged files` / `no files for inspection` SKIP |
+| commit-msg `commitlint` | PASS ✔️ |
+| commit-msg `spec-reference` | PASS ✔️ `[Spec Ref] OK.` |
+
+**全程未用 `LEFTHOOK_EXCLUDE`。** 两次 commit 的暂存内容都只有 `_bmad-output/`，
+所以 `python-typecheck`（pyright 门）的 SKIP 原因始终是「无匹配文件」，
+**不是**第十一批那种用环境变量绕过——本卡不适用 D-14 绕过口径，也确实没绕。
 
 ---
 
@@ -496,3 +571,17 @@ Codex 的完整发现清单（4 MEDIUM + 5 LOW）全部为「下卡修 / 只登�
    （`git config --get-regexp '^diff\.'` rc=1）⇒ textconv/外部 diff 路径**当前不可达**；
    但 `*.png/*.jpg/*.pdf/*.gz/*.zip` 的 `binary` 标注使 **E1 二进制漏检在本仓可达**。
 10. **本卡不引台账 Z3-A 行的任何「+962」类数字。**
+
+
+---
+
+## 八 最终状态
+
+| 项 | 值 |
+|---|---|
+| 本卡 commit 1 | `fc431add` — 复审正文 / prompt / Codex 存档 / evidence（20 files, 1605 insertions） |
+| 本卡 commit 2 | 收尾存档（hook 实况 + 收工判据 + §五/§八），经两次 `--amend` 定稿 |
+| 起点 | `df39bf21`（主 session 预合主干 `03ac8bf8` 后的车道 HEAD） |
+| 代码面 | **零改动**：`git diff --stat df39bf21 HEAD -- . ':(exclude)_bmad-output'` stdout 空 rc=0；三个禁改文件同 blob |
+| 推送 | **未 push**（按卡文） |
+| 下一步 | 同车道继续 **Y4-B**（pyright 门），`lefthook.yml:147` |
