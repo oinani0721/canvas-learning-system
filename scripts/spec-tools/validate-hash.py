@@ -24,16 +24,16 @@ from typing import Dict, List, Optional, Tuple
 
 
 class Colors:
-    RED = '\033[91m'
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    BLUE = '\033[94m'
-    END = '\033[0m'
+    RED = "\033[91m"
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    BLUE = "\033[94m"
+    END = "\033[0m"
 
 
 def color(text: str, c: str) -> str:
     """Add color to text"""
-    if os.environ.get('NO_COLOR'):
+    if os.environ.get("NO_COLOR"):
         return text
     return f"{c}{text}{Colors.END}"
 
@@ -43,16 +43,16 @@ def compute_spec_hash(spec_path: Path) -> str:
     if not spec_path.exists():
         return ""
 
-    with open(spec_path, 'r', encoding='utf-8') as f:
+    with open(spec_path, "r", encoding="utf-8") as f:
         spec = json.load(f)
 
     # Remove volatile fields for stable hashing
-    if 'info' in spec:
-        spec['info'].pop('x-generated-at', None)
+    if "info" in spec:
+        spec["info"].pop("x-generated-at", None)
 
     # Normalize and hash
     normalized = json.dumps(spec, sort_keys=True, ensure_ascii=False)
-    return hashlib.sha256(normalized.encode('utf-8')).hexdigest()[:16]
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:16]
 
 
 def find_adr_files(docs_dir: Path) -> List[Path]:
@@ -72,14 +72,14 @@ def find_adr_files(docs_dir: Path) -> List[Path]:
 
 def extract_spec_hash_from_adr(adr_path: Path) -> Optional[str]:
     """Extract api_spec_hash from ADR file"""
-    content = adr_path.read_text(encoding='utf-8')
+    content = adr_path.read_text(encoding="utf-8")
 
     # Look for various patterns
     patterns = [
         r'api_spec_hash:\s*["\']?([a-f0-9]+)["\']?',
         r'spec_hash:\s*["\']?([a-f0-9]+)["\']?',
         r'openapi_hash:\s*["\']?([a-f0-9]+)["\']?',
-        r'\[api_spec_hash\]:\s*([a-f0-9]+)',
+        r"\[api_spec_hash\]:\s*([a-f0-9]+)",
     ]
 
     for pattern in patterns:
@@ -92,16 +92,13 @@ def extract_spec_hash_from_adr(adr_path: Path) -> Optional[str]:
 
 def update_adr_hash(adr_path: Path, old_hash: str, new_hash: str) -> bool:
     """Update the hash in an ADR file"""
-    content = adr_path.read_text(encoding='utf-8')
+    content = adr_path.read_text(encoding="utf-8")
 
     # Replace old hash with new
     patterns = [
-        (r'(api_spec_hash:\s*["\']?)' + old_hash + r'(["\']?)',
-         r'\g<1>' + new_hash + r'\g<2>'),
-        (r'(spec_hash:\s*["\']?)' + old_hash + r'(["\']?)',
-         r'\g<1>' + new_hash + r'\g<2>'),
-        (r'(openapi_hash:\s*["\']?)' + old_hash + r'(["\']?)',
-         r'\g<1>' + new_hash + r'\g<2>'),
+        (r'(api_spec_hash:\s*["\']?)' + old_hash + r'(["\']?)', r"\g<1>" + new_hash + r"\g<2>"),
+        (r'(spec_hash:\s*["\']?)' + old_hash + r'(["\']?)', r"\g<1>" + new_hash + r"\g<2>"),
+        (r'(openapi_hash:\s*["\']?)' + old_hash + r'(["\']?)', r"\g<1>" + new_hash + r"\g<2>"),
     ]
 
     updated = False
@@ -112,7 +109,7 @@ def update_adr_hash(adr_path: Path, old_hash: str, new_hash: str) -> bool:
             updated = True
 
     if updated:
-        adr_path.write_text(content, encoding='utf-8')
+        adr_path.write_text(content, encoding="utf-8")
 
     return updated
 
@@ -129,11 +126,7 @@ def validate_spec_hashes(project_root: Path, update: bool = False) -> Tuple[bool
 
     current_hash = compute_spec_hash(spec_path)
     if not current_hash:
-        return False, [{
-            'file': str(spec_path),
-            'status': 'error',
-            'message': 'OpenAPI spec not found'
-        }]
+        return False, [{"file": str(spec_path), "status": "error", "message": "OpenAPI spec not found"}]
 
     results = []
     all_valid = True
@@ -149,39 +142,47 @@ def validate_spec_hashes(project_root: Path, update: bool = False) -> Tuple[bool
         relative_path = adr_path.relative_to(project_root)
 
         if adr_hash == current_hash:
-            results.append({
-                'file': str(relative_path),
-                'status': 'valid',
-                'hash': adr_hash,
-                'message': 'Hash matches current spec'
-            })
+            results.append(
+                {
+                    "file": str(relative_path),
+                    "status": "valid",
+                    "hash": adr_hash,
+                    "message": "Hash matches current spec",
+                }
+            )
         else:
             all_valid = False
             if update:
                 if update_adr_hash(adr_path, adr_hash, current_hash):
-                    results.append({
-                        'file': str(relative_path),
-                        'status': 'updated',
-                        'old_hash': adr_hash,
-                        'new_hash': current_hash,
-                        'message': 'Hash updated to match current spec'
-                    })
+                    results.append(
+                        {
+                            "file": str(relative_path),
+                            "status": "updated",
+                            "old_hash": adr_hash,
+                            "new_hash": current_hash,
+                            "message": "Hash updated to match current spec",
+                        }
+                    )
                 else:
-                    results.append({
-                        'file': str(relative_path),
-                        'status': 'error',
-                        'hash': adr_hash,
-                        'expected': current_hash,
-                        'message': 'Failed to update hash'
-                    })
+                    results.append(
+                        {
+                            "file": str(relative_path),
+                            "status": "error",
+                            "hash": adr_hash,
+                            "expected": current_hash,
+                            "message": "Failed to update hash",
+                        }
+                    )
             else:
-                results.append({
-                    'file': str(relative_path),
-                    'status': 'mismatch',
-                    'hash': adr_hash,
-                    'expected': current_hash,
-                    'message': f'Hash mismatch: ADR has {adr_hash}, spec has {current_hash}'
-                })
+                results.append(
+                    {
+                        "file": str(relative_path),
+                        "status": "mismatch",
+                        "hash": adr_hash,
+                        "expected": current_hash,
+                        "message": f"Hash mismatch: ADR has {adr_hash}, spec has {current_hash}",
+                    }
+                )
 
     return all_valid, results
 
@@ -195,23 +196,23 @@ def generate_report(current_hash: str, results: List[dict]) -> str:
     lines.append(f"Current OpenAPI Spec Hash: {color(current_hash, Colors.BLUE)}")
     lines.append("")
 
-    valid_count = sum(1 for r in results if r['status'] == 'valid')
-    mismatch_count = sum(1 for r in results if r['status'] == 'mismatch')
-    updated_count = sum(1 for r in results if r['status'] == 'updated')
-    error_count = sum(1 for r in results if r['status'] == 'error')
+    valid_count = sum(1 for r in results if r["status"] == "valid")
+    mismatch_count = sum(1 for r in results if r["status"] == "mismatch")
+    updated_count = sum(1 for r in results if r["status"] == "updated")
+    error_count = sum(1 for r in results if r["status"] == "error")
 
     if results:
         lines.append("## ADR Hash Validations")
         for result in results:
-            status = result['status']
-            if status == 'valid':
-                icon = color('✓', Colors.GREEN)
-            elif status == 'updated':
-                icon = color('↑', Colors.YELLOW)
-            elif status == 'mismatch':
-                icon = color('✗', Colors.RED)
+            status = result["status"]
+            if status == "valid":
+                icon = color("✓", Colors.GREEN)
+            elif status == "updated":
+                icon = color("↑", Colors.YELLOW)
+            elif status == "mismatch":
+                icon = color("✗", Colors.RED)
             else:
-                icon = color('!', Colors.RED)
+                icon = color("!", Colors.RED)
 
             lines.append(f"  {icon} {result['file']}")
             lines.append(f"      {result['message']}")
@@ -235,19 +236,9 @@ def generate_report(current_hash: str, results: List[dict]) -> str:
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Validate API spec hashes in ADR documents"
-    )
-    parser.add_argument(
-        "--update", "-u",
-        action="store_true",
-        help="Update mismatched hashes in ADR files"
-    )
-    parser.add_argument(
-        "--json", "-j",
-        action="store_true",
-        help="Output as JSON"
-    )
+    parser = argparse.ArgumentParser(description="Validate API spec hashes in ADR documents")
+    parser.add_argument("--update", "-u", action="store_true", help="Update mismatched hashes in ADR files")
+    parser.add_argument("--json", "-j", action="store_true", help="Output as JSON")
 
     args = parser.parse_args()
 
@@ -259,9 +250,9 @@ def main():
 
     if args.json:
         output = {
-            'current_spec_hash': current_hash,
-            'all_valid': all_valid,
-            'results': results,
+            "current_spec_hash": current_hash,
+            "all_valid": all_valid,
+            "results": results,
         }
         print(json.dumps(output, indent=2))
     else:

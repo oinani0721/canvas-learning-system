@@ -37,23 +37,24 @@ from dataclasses import dataclass, field
 # =============================================================================
 
 GHERKIN_KEYWORDS = {
-    'feature': ['Feature', '功能', 'Functionality'],
-    'background': ['Background', '背景'],
-    'scenario': ['Scenario', '场景', 'Example'],
-    'scenario_outline': ['Scenario Outline', '场景大纲', 'Scenario Template'],
-    'given': ['Given', '假如', '假设', '假定'],
-    'when': ['When', '当', '如果'],
-    'then': ['Then', '那么', '则'],
-    'and': ['And', '并且', '而且', '同时'],
-    'but': ['But', '但是', '但'],
-    'examples': ['Examples', '例子', 'Scenarios'],
-    'rule': ['Rule', '规则'],
+    "feature": ["Feature", "功能", "Functionality"],
+    "background": ["Background", "背景"],
+    "scenario": ["Scenario", "场景", "Example"],
+    "scenario_outline": ["Scenario Outline", "场景大纲", "Scenario Template"],
+    "given": ["Given", "假如", "假设", "假定"],
+    "when": ["When", "当", "如果"],
+    "then": ["Then", "那么", "则"],
+    "and": ["And", "并且", "而且", "同时"],
+    "but": ["But", "但是", "但"],
+    "examples": ["Examples", "例子", "Scenarios"],
+    "rule": ["Rule", "规则"],
 }
 
 
 @dataclass
 class ValidationResult:
     """验证结果"""
+
     file_path: Path
     errors: List[str] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
@@ -64,6 +65,7 @@ class ValidationResult:
 @dataclass
 class GherkinScenario:
     """Gherkin场景"""
+
     name: str
     line_number: int
     steps: List[Tuple[str, str, int]] = field(default_factory=list)  # (keyword, text, line)
@@ -76,6 +78,7 @@ class GherkinScenario:
 # Helper Functions
 # =============================================================================
 
+
 def get_project_root() -> Path:
     """获取项目根目录"""
     return Path(__file__).parent.parent
@@ -85,7 +88,7 @@ def is_keyword(line: str, keyword_type: str) -> bool:
     """检查行是否以指定类型的关键字开头"""
     stripped = line.strip()
     for kw in GHERKIN_KEYWORDS.get(keyword_type, []):
-        if stripped.startswith(kw + ':') or stripped.startswith(kw + ' '):
+        if stripped.startswith(kw + ":") or stripped.startswith(kw + " "):
             return True
     return False
 
@@ -95,7 +98,7 @@ def get_keyword_type(line: str) -> Optional[str]:
     stripped = line.strip()
     for kw_type, keywords in GHERKIN_KEYWORDS.items():
         for kw in keywords:
-            if stripped.startswith(kw + ':') or stripped.startswith(kw + ' '):
+            if stripped.startswith(kw + ":") or stripped.startswith(kw + " "):
                 return kw_type
     return None
 
@@ -103,10 +106,10 @@ def get_keyword_type(line: str) -> Optional[str]:
 def extract_step_text(line: str) -> Tuple[Optional[str], str]:
     """提取步骤的关键字和文本"""
     stripped = line.strip()
-    for kw_type in ['given', 'when', 'then', 'and', 'but']:
+    for kw_type in ["given", "when", "then", "and", "but"]:
         for kw in GHERKIN_KEYWORDS.get(kw_type, []):
-            if stripped.startswith(kw + ' '):
-                return kw_type, stripped[len(kw) + 1:].strip()
+            if stripped.startswith(kw + " "):
+                return kw_type, stripped[len(kw) + 1 :].strip()
     return None, stripped
 
 
@@ -114,10 +117,11 @@ def extract_step_text(line: str) -> Tuple[Optional[str], str]:
 # Validation Functions
 # =============================================================================
 
+
 def validate_encoding(file_path: Path) -> Tuple[bool, str]:
     """验证文件编码为UTF-8"""
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             f.read()
         return True, ""
     except UnicodeDecodeError as e:
@@ -133,17 +137,17 @@ def validate_feature_declaration(lines: List[str], file_path: Path) -> List[str]
     for i, line in enumerate(lines, 1):
         stripped = line.strip()
         # 跳过空行和注释
-        if not stripped or stripped.startswith('#') or stripped.startswith('@'):
+        if not stripped or stripped.startswith("#") or stripped.startswith("@"):
             continue
 
-        if is_keyword(line, 'feature'):
+        if is_keyword(line, "feature"):
             feature_found = True
             feature_line = i
 
             # 检查Feature名称
-            for kw in GHERKIN_KEYWORDS['feature']:
-                if stripped.startswith(kw + ':'):
-                    feature_name = stripped[len(kw) + 1:].strip()
+            for kw in GHERKIN_KEYWORDS["feature"]:
+                if stripped.startswith(kw + ":"):
+                    feature_name = stripped[len(kw) + 1 :].strip()
                     if not feature_name:
                         errors.append(f"Line {i}: Feature has no name")
                     break
@@ -173,13 +177,13 @@ def validate_scenarios(lines: List[str], file_path: Path) -> Tuple[List[str], Li
         stripped = line.strip()
 
         # 跳过空行、注释
-        if not stripped or stripped.startswith('#'):
+        if not stripped or stripped.startswith("#"):
             continue
 
         kw_type = get_keyword_type(line)
 
         # Background
-        if kw_type == 'background':
+        if kw_type == "background":
             in_background = True
             in_examples = False
             current_scenario = None
@@ -187,7 +191,7 @@ def validate_scenarios(lines: List[str], file_path: Path) -> Tuple[List[str], Li
             continue
 
         # Scenario / Scenario Outline
-        if kw_type in ['scenario', 'scenario_outline']:
+        if kw_type in ["scenario", "scenario_outline"]:
             in_background = False
             in_examples = False
 
@@ -197,12 +201,12 @@ def validate_scenarios(lines: List[str], file_path: Path) -> Tuple[List[str], Li
 
             # 提取场景名称
             for kw in GHERKIN_KEYWORDS[kw_type]:
-                if stripped.startswith(kw + ':'):
-                    name = stripped[len(kw) + 1:].strip()
+                if stripped.startswith(kw + ":"):
+                    name = stripped[len(kw) + 1 :].strip()
                     break
-                elif stripped.startswith(kw + ' '):
+                elif stripped.startswith(kw + " "):
                     # 有时候Scenario后面没有冒号
-                    name = stripped[len(kw) + 1:].strip()
+                    name = stripped[len(kw) + 1 :].strip()
                     break
             else:
                 name = "Unnamed"
@@ -212,42 +216,42 @@ def validate_scenarios(lines: List[str], file_path: Path) -> Tuple[List[str], Li
             continue
 
         # Examples
-        if kw_type == 'examples':
+        if kw_type == "examples":
             in_examples = True
             continue
 
         # Rule
-        if kw_type == 'rule':
+        if kw_type == "rule":
             continue
 
         # Steps (Given/When/Then/And/But)
-        if kw_type in ['given', 'when', 'then', 'and', 'but']:
+        if kw_type in ["given", "when", "then", "and", "but"]:
             step_kw, step_text = extract_step_text(stripped)
 
             if in_background:
                 # Background中的步骤
-                last_step_type = step_kw if step_kw not in ['and', 'but'] else last_step_type
+                last_step_type = step_kw if step_kw not in ["and", "but"] else last_step_type
             elif current_scenario:
                 # 记录步骤
                 current_scenario.steps.append((step_kw, step_text, i))
 
                 # 跟踪Given/When/Then状态
-                if step_kw == 'given':
+                if step_kw == "given":
                     current_scenario.has_given = True
-                    last_step_type = 'given'
-                elif step_kw == 'when':
+                    last_step_type = "given"
+                elif step_kw == "when":
                     current_scenario.has_when = True
-                    last_step_type = 'when'
-                elif step_kw == 'then':
+                    last_step_type = "when"
+                elif step_kw == "then":
                     current_scenario.has_then = True
-                    last_step_type = 'then'
-                elif step_kw in ['and', 'but']:
+                    last_step_type = "then"
+                elif step_kw in ["and", "but"]:
                     # And/But继承前一个步骤的类型
-                    if last_step_type == 'given':
+                    if last_step_type == "given":
                         current_scenario.has_given = True
-                    elif last_step_type == 'when':
+                    elif last_step_type == "when":
                         current_scenario.has_when = True
-                    elif last_step_type == 'then':
+                    elif last_step_type == "then":
                         current_scenario.has_then = True
 
     # 保存最后一个场景
@@ -263,15 +267,9 @@ def validate_scenarios(lines: List[str], file_path: Path) -> Tuple[List[str], Li
 
         # 检查Given-When-Then结构
         if not scenario.has_given and not scenario.has_when and not scenario.has_then:
-            errors.append(
-                f"Line {scenario.line_number}: Scenario '{scenario.name}' "
-                "has no Given/When/Then steps"
-            )
+            errors.append(f"Line {scenario.line_number}: Scenario '{scenario.name}' has no Given/When/Then steps")
         elif not scenario.has_then:
-            warnings.append(
-                f"Line {scenario.line_number}: Scenario '{scenario.name}' "
-                "has no Then step (no assertion)"
-            )
+            warnings.append(f"Line {scenario.line_number}: Scenario '{scenario.name}' has no Then step (no assertion)")
 
     # 检查是否有场景
     if not scenarios:
@@ -287,8 +285,8 @@ def check_corresponding_test_file(file_path: Path) -> Tuple[bool, str]:
 
     # 期望的测试文件位置
     test_patterns = [
-        project_root / 'tests' / 'bdd' / f'test_{feature_name.replace("-", "_")}.py',
-        project_root / 'tests' / 'bdd' / f'test_{feature_name}.py',
+        project_root / "tests" / "bdd" / f"test_{feature_name.replace('-', '_')}.py",
+        project_root / "tests" / "bdd" / f"test_{feature_name}.py",
     ]
 
     for test_path in test_patterns:
@@ -307,12 +305,12 @@ def validate_step_consistency(lines: List[str]) -> List[str]:
         stripped = line.strip()
         kw_type = get_keyword_type(line)
 
-        if kw_type in ['given', 'when', 'then']:
+        if kw_type in ["given", "when", "then"]:
             _, step_text = extract_step_text(stripped)
 
             # 提取步骤模式（忽略引号内的内容）
             pattern = re.sub(r'"[^"]*"', '"{}"', step_text)
-            pattern = re.sub(r'\d+', '{n}', pattern)
+            pattern = re.sub(r"\d+", "{n}", pattern)
 
             if pattern in steps_seen:
                 if steps_seen[pattern] != step_text:
@@ -339,9 +337,9 @@ def validate_feature_file(file_path: Path) -> ValidationResult:
         return result
 
     # 2. 读取文件
-    with open(file_path, 'r', encoding='utf-8') as f:
+    with open(file_path, "r", encoding="utf-8") as f:
         content = f.read()
-        lines = content.split('\n')
+        lines = content.split("\n")
 
     # 3. 验证Feature声明
     feature_errors = validate_feature_declaration(lines, file_path)
@@ -370,8 +368,7 @@ def validate_feature_file(file_path: Path) -> ValidationResult:
     else:
         # 统计步骤数
         result.steps_count = sum(
-            1 for line in lines
-            if get_keyword_type(line) in ['given', 'when', 'then', 'and', 'but']
+            1 for line in lines if get_keyword_type(line) in ["given", "when", "then", "and", "but"]
         )
 
     return result
@@ -380,6 +377,7 @@ def validate_feature_file(file_path: Path) -> ValidationResult:
 # =============================================================================
 # Main Function
 # =============================================================================
+
 
 def main():
     """主函数"""
@@ -393,12 +391,12 @@ def main():
         files_to_validate = [Path(f) for f in sys.argv[1:]]
     else:
         # 验证所有Feature文件
-        behavior_dir = get_project_root() / 'specs' / 'behavior'
+        behavior_dir = get_project_root() / "specs" / "behavior"
         if not behavior_dir.exists():
             print(f"Behavior directory not found: {behavior_dir}")
             return 0
 
-        files_to_validate = list(behavior_dir.glob('*.feature'))
+        files_to_validate = list(behavior_dir.glob("*.feature"))
 
     if not files_to_validate:
         print("No feature files to validate")
@@ -412,10 +410,7 @@ def main():
     for file_path in files_to_validate:
         if not file_path.exists():
             print(f"File not found: {file_path}")
-            all_results.append(ValidationResult(
-                file_path=file_path,
-                errors=[f"File not found: {file_path}"]
-            ))
+            all_results.append(ValidationResult(file_path=file_path, errors=[f"File not found: {file_path}"]))
             continue
 
         print(f"Validating: {file_path.name}...", end=" ")

@@ -14,6 +14,7 @@ from dataclasses import dataclass
 @dataclass
 class WorktreeInfo:
     """Information about a development worktree."""
+
     path: Path
     branch: str
     story_id: str
@@ -86,11 +87,11 @@ class WorktreeScanner:
 
         try:
             result = subprocess.run(
-                ['git', 'worktree', 'list', '--porcelain'],
+                ["git", "worktree", "list", "--porcelain"],
                 capture_output=True,
                 text=True,
                 cwd=str(self.main_repo_path),
-                timeout=10
+                timeout=10,
             )
 
             if result.returncode != 0:
@@ -100,35 +101,39 @@ class WorktreeScanner:
             current_path = None
             current_branch = None
 
-            for line in result.stdout.strip().split('\n'):
-                if line.startswith('worktree '):
+            for line in result.stdout.strip().split("\n"):
+                if line.startswith("worktree "):
                     current_path = Path(line[9:])
-                elif line.startswith('branch refs/heads/'):
+                elif line.startswith("branch refs/heads/"):
                     current_branch = line[18:]
-                elif line == '' and current_path:
+                elif line == "" and current_path:
                     # End of worktree block
                     if self._is_dev_worktree(current_path):
                         story_id = self._extract_story_id(current_path.name)
-                        worktrees.append(WorktreeInfo(
-                            path=current_path,
-                            branch=current_branch or "unknown",
-                            story_id=story_id,
-                            status_file=current_path / '.worktree-status.yaml',
-                            result_file=current_path / '.worktree-result.json'
-                        ))
+                        worktrees.append(
+                            WorktreeInfo(
+                                path=current_path,
+                                branch=current_branch or "unknown",
+                                story_id=story_id,
+                                status_file=current_path / ".worktree-status.yaml",
+                                result_file=current_path / ".worktree-result.json",
+                            )
+                        )
                     current_path = None
                     current_branch = None
 
             # Handle last worktree if no trailing newline
             if current_path and self._is_dev_worktree(current_path):
                 story_id = self._extract_story_id(current_path.name)
-                worktrees.append(WorktreeInfo(
-                    path=current_path,
-                    branch=current_branch or "unknown",
-                    story_id=story_id,
-                    status_file=current_path / '.worktree-status.yaml',
-                    result_file=current_path / '.worktree-result.json'
-                ))
+                worktrees.append(
+                    WorktreeInfo(
+                        path=current_path,
+                        branch=current_branch or "unknown",
+                        story_id=story_id,
+                        status_file=current_path / ".worktree-status.yaml",
+                        result_file=current_path / ".worktree-result.json",
+                    )
+                )
 
         except (subprocess.TimeoutExpired, FileNotFoundError):
             pass
@@ -143,17 +148,19 @@ class WorktreeScanner:
             for item in self.base_path.iterdir():
                 if item.is_dir() and item.name.startswith(self.WORKTREE_PREFIX):
                     story_id = self._extract_story_id(item.name)
-                    status_file = item / '.worktree-status.yaml'
+                    status_file = item / ".worktree-status.yaml"
 
                     # Only include if it has a status file (indicates proper setup)
                     if status_file.exists():
-                        worktrees.append(WorktreeInfo(
-                            path=item,
-                            branch=f"develop-story-{story_id}",
-                            story_id=story_id,
-                            status_file=status_file,
-                            result_file=item / '.worktree-result.json'
-                        ))
+                        worktrees.append(
+                            WorktreeInfo(
+                                path=item,
+                                branch=f"develop-story-{story_id}",
+                                story_id=story_id,
+                                status_file=status_file,
+                                result_file=item / ".worktree-result.json",
+                            )
+                        )
         except PermissionError:
             pass
 
@@ -161,10 +168,7 @@ class WorktreeScanner:
 
     def _is_dev_worktree(self, path: Path) -> bool:
         """Check if path is a development worktree."""
-        return (
-            self.WORKTREE_PREFIX in str(path) and
-            (path / '.worktree-status.yaml').exists()
-        )
+        return self.WORKTREE_PREFIX in str(path) and (path / ".worktree-status.yaml").exists()
 
     def _extract_story_id(self, name: str) -> str:
         """
@@ -175,8 +179,8 @@ class WorktreeScanner:
             'Canvas-develop-15.2' -> '15.2'
         """
         if name.startswith(self.WORKTREE_PREFIX):
-            return name[len(self.WORKTREE_PREFIX):]
-        return name.split('-')[-1] if '-' in name else "unknown"
+            return name[len(self.WORKTREE_PREFIX) :]
+        return name.split("-")[-1] if "-" in name else "unknown"
 
     def get_worktree(self, story_id: str) -> Optional[WorktreeInfo]:
         """Get a specific worktree by story ID."""

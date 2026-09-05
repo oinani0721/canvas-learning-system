@@ -26,45 +26,40 @@ STORY_PATH = Path("docs/stories")
 
 # Status mapping from various formats to kebab-case
 STATUS_MAP = {
-    'done': 'done',
-    'complete': 'done',
-    'completed': 'done',
-    '✅ done': 'done',
-    '✅ complete': 'done',
-    '**complete**': 'done',
-    'draft': 'draft',
-    'approved': 'approved',
-    '**approved**': 'approved',
-    'ready': 'ready-for-dev',
-    'ready for development': 'ready-for-dev',
-    'ready for dev': 'ready-for-dev',
-    'in progress': 'in-progress',
-    'in development': 'in-progress',
-    '🔄 in development': 'in-progress',
-    'review': 'ready-for-review',
-    'ready for review': 'ready-for-review',
-    'in review': 'in-review',
-    'blocked': 'blocked',
+    "done": "done",
+    "complete": "done",
+    "completed": "done",
+    "✅ done": "done",
+    "✅ complete": "done",
+    "**complete**": "done",
+    "draft": "draft",
+    "approved": "approved",
+    "**approved**": "approved",
+    "ready": "ready-for-dev",
+    "ready for development": "ready-for-dev",
+    "ready for dev": "ready-for-dev",
+    "in progress": "in-progress",
+    "in development": "in-progress",
+    "🔄 in development": "in-progress",
+    "review": "ready-for-review",
+    "ready for review": "ready-for-review",
+    "in review": "in-review",
+    "blocked": "blocked",
 }
 
 
 def get_staged_files() -> list:
     """Get list of staged files from git."""
     try:
-        result = subprocess.run(
-            ['git', 'diff', '--cached', '--name-only'],
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        return [f.strip() for f in result.stdout.strip().split('\n') if f.strip()]
+        result = subprocess.run(["git", "diff", "--cached", "--name-only"], capture_output=True, text=True, check=True)
+        return [f.strip() for f in result.stdout.strip().split("\n") if f.strip()]
     except subprocess.CalledProcessError:
         return []
 
 
 def extract_story_id(filename: str) -> Optional[str]:
     """Extract story ID from filename (e.g., '30.4' from '30.4.story.md')."""
-    match = re.search(r'(\d+\.\d+)', filename)
+    match = re.search(r"(\d+\.\d+)", filename)
     if match:
         return match.group(1)
     return None
@@ -75,28 +70,28 @@ def extract_status_from_story(filepath: Path) -> Optional[str]:
     if not filepath.exists():
         return None
 
-    content = filepath.read_text(encoding='utf-8')
+    content = filepath.read_text(encoding="utf-8")
 
     # Pattern 1: status: value (kebab-case format)
-    match = re.search(r'^status:\s*(.+)$', content, re.MULTILINE)
+    match = re.search(r"^status:\s*(.+)$", content, re.MULTILINE)
     if match:
         return match.group(1).strip().lower()
 
     # Pattern 2: ## Status section with value on next line
-    match = re.search(r'## Status\s*\n+([^\n#]+)', content, re.DOTALL)
+    match = re.search(r"## Status\s*\n+([^\n#]+)", content, re.DOTALL)
     if match:
         status_line = match.group(1).strip()
         # Clean up common patterns
-        status_line = re.sub(r'^\*\*Status\*\*:\s*', '', status_line)
-        status_line = re.sub(r'^Status:\s*', '', status_line)
-        status_line = re.sub(r'\s*\(.*\)$', '', status_line)  # Remove parenthetical notes
+        status_line = re.sub(r"^\*\*Status\*\*:\s*", "", status_line)
+        status_line = re.sub(r"^Status:\s*", "", status_line)
+        status_line = re.sub(r"\s*\(.*\)$", "", status_line)  # Remove parenthetical notes
         return status_line.strip().lower()
 
     # Pattern 3: Status: value in any format
-    match = re.search(r'^\*?\*?Status\*?\*?:\s*(.+)$', content, re.MULTILINE)
+    match = re.search(r"^\*?\*?Status\*?\*?:\s*(.+)$", content, re.MULTILINE)
     if match:
         status_line = match.group(1).strip()
-        status_line = re.sub(r'\s*\(.*\)$', '', status_line)
+        status_line = re.sub(r"\s*\(.*\)$", "", status_line)
         return status_line.strip().lower()
 
     return None
@@ -114,12 +109,12 @@ def normalize_status(status: Optional[str]) -> Optional[str]:
         return STATUS_MAP[status_lower]
 
     # If already kebab-case, return as-is
-    if re.match(r'^[a-z][a-z0-9-]*$', status_lower):
+    if re.match(r"^[a-z][a-z0-9-]*$", status_lower):
         return status_lower
 
     # Convert to kebab-case
-    result = re.sub(r'[^\w\s-]', '', status_lower)
-    result = re.sub(r'\s+', '-', result)
+    result = re.sub(r"[^\w\s-]", "", status_lower)
+    result = re.sub(r"\s+", "-", result)
     return result
 
 
@@ -130,20 +125,20 @@ def get_yaml_statuses() -> Dict[str, str]:
     if not YAML_PATH.exists():
         return statuses
 
-    content = YAML_PATH.read_text(encoding='utf-8')
+    content = YAML_PATH.read_text(encoding="utf-8")
 
     # Simple pattern matching for story_statuses section
     in_story_statuses = False
     current_story_id = None
 
-    for line in content.split('\n'):
-        if line.strip() == 'story_statuses:':
+    for line in content.split("\n"):
+        if line.strip() == "story_statuses:":
             in_story_statuses = True
             continue
 
         if in_story_statuses:
             # End of section
-            if line and not line.startswith(' ') and not line.startswith('#'):
+            if line and not line.startswith(" ") and not line.startswith("#"):
                 break
 
             # Story ID line
@@ -154,7 +149,7 @@ def get_yaml_statuses() -> Dict[str, str]:
 
             # Status line
             if current_story_id:
-                status_match = re.match(r'\s+status:\s*(\S+)', line)
+                status_match = re.match(r"\s+status:\s*(\S+)", line)
                 if status_match:
                     statuses[current_story_id] = status_match.group(1)
                     current_story_id = None
@@ -170,7 +165,7 @@ def main():
     staged_files = get_staged_files()
 
     # Filter story files
-    story_files = [f for f in staged_files if f.startswith('docs/stories/') and f.endswith('.md')]
+    story_files = [f for f in staged_files if f.startswith("docs/stories/") and f.endswith(".md")]
     yaml_staged = YAML_PATH.as_posix() in staged_files
 
     if not story_files:
@@ -209,11 +204,7 @@ def main():
         yaml_status = yaml_statuses.get(story_id)
 
         if file_status and yaml_status and file_status != yaml_status:
-            mismatches.append({
-                'story_id': story_id,
-                'file_status': file_status,
-                'yaml_status': yaml_status
-            })
+            mismatches.append({"story_id": story_id, "file_status": file_status, "yaml_status": yaml_status})
         elif file_status and not yaml_status:
             print(f"   ⚠️  {story_id}: Not in YAML story_statuses (file: {file_status})")
 
@@ -229,5 +220,5 @@ def main():
     return 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

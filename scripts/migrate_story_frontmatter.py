@@ -14,6 +14,7 @@ Usage:
   python scripts/migrate_story_frontmatter.py --apply      # write changes
   python scripts/migrate_story_frontmatter.py --enforce 28  # fail if Epic 28+ lacks FM
 """
+
 from __future__ import annotations
 
 import argparse

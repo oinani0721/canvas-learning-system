@@ -36,11 +36,11 @@ def main():
     print(f"[SUCCESS] Diagram size: {len(mermaid_str)} characters")
 
     # Also print to console for verification
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("MERMAID DIAGRAM:")
-    print("="*80)
+    print("=" * 80)
     print(mermaid_str)
-    print("="*80)
+    print("=" * 80)
 
     return 0
 

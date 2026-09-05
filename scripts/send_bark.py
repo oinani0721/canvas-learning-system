@@ -27,10 +27,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-KEY_FILE = Path(
-    os.environ.get("BARK_KEY_FILE")
-    or Path.home() / ".config" / "canvas-review" / "bark.key"
-)
+KEY_FILE = Path(os.environ.get("BARK_KEY_FILE") or Path.home() / ".config" / "canvas-review" / "bark.key")
 DEFAULT_SERVER = "https://api.day.app"
 TIMEOUT_S = 10
 RETRIES = 2
@@ -63,8 +60,7 @@ def vault_key(vault_id: str) -> str:
     # 令 "foo" 与 "foo\xa0" 两个不同目录名撞 key (Codex-C1a round2 实测)
     raw = str(vault_id or "").rstrip("/").rsplit("/", 1)[-1] or "vault"
     safe = re.sub(r"[^0-9A-Za-z._-]", "-", raw).strip("-.")
-    if (safe == raw and not _HASH_TAIL.search(raw)
-            and len(raw.encode("utf-8")) <= _KEY_MAX_BYTES):
+    if safe == raw and not _HASH_TAIL.search(raw) and len(raw.encode("utf-8")) <= _KEY_MAX_BYTES:
         return safe
     digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
     return f"{(safe or 'vault')[:_KEY_MAX_BYTES]}-{digest}"
@@ -120,7 +116,8 @@ def send(notification: dict, vault_id: str | None = None) -> int:
         if attempt:
             time.sleep(2 * attempt)
         req = urllib.request.Request(
-            f"{server}/push", data=body,
+            f"{server}/push",
+            data=body,
             headers={"Content-Type": "application/json; charset=utf-8"},
             method="POST",
         )

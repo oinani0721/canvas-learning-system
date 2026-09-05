@@ -11,6 +11,7 @@ from tempfile import TemporaryDirectory
 from datetime import datetime
 
 import sys
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from qa_gate_generator import QAGateGenerator, GateResult
@@ -40,14 +41,14 @@ class TestQAGateGenerator:
                 "ac_coverage": {
                     "AC1": {"status": "PASS", "evidence": "test_app_creation"},
                     "AC2": {"status": "PASS", "evidence": "test_cors_middleware"},
-                    "AC3": {"status": "FAIL", "evidence": "test_auth_header"}
+                    "AC3": {"status": "FAIL", "evidence": "test_auth_header"},
                 },
                 "issues_found": [
                     {"severity": "low", "description": "Consider adding rate limiting"},
-                    {"severity": "medium", "description": "Error messages could be more specific"}
+                    {"severity": "medium", "description": "Error messages could be more specific"},
                 ],
-                "recommendations": ["Add OpenTelemetry integration", "Improve error handling"]
-            }
+                "recommendations": ["Add OpenTelemetry integration", "Improve error handling"],
+            },
         }
 
     @pytest.fixture
@@ -60,7 +61,7 @@ class TestQAGateGenerator:
             "test_count": 20,
             "qa_gate": None,
             "blocking_reason": "Unit tests failing - import error in module",
-            "qa_record": {}
+            "qa_record": {},
         }
 
     @pytest.fixture
@@ -76,13 +77,13 @@ class TestQAGateGenerator:
                 "quality_score": 65,
                 "issues_found": [
                     {"severity": "high", "description": "Missing error handling for edge case"},
-                    {"severity": "medium", "description": "Code duplication in handlers"}
+                    {"severity": "medium", "description": "Code duplication in handlers"},
                 ],
                 "recommendations": [
                     {"action": "Add error handling", "priority": "high"},
-                    {"action": "Refactor handlers", "priority": "medium"}
-                ]
-            }
+                    {"action": "Refactor handlers", "priority": "medium"},
+                ],
+            },
         }
 
     def test_slugify_basic(self, generator):
@@ -186,10 +187,7 @@ class TestQAGateGenerator:
             output_dir = Path(tmpdir)
 
             result = generator.generate_gate(
-                story_id="12.5",
-                story_title="Test Story Title",
-                result=sample_result_success,
-                output_dir=output_dir
+                story_id="12.5", story_title="Test Story Title", result=sample_result_success, output_dir=output_dir
             )
 
             assert result.success is True
@@ -204,10 +202,7 @@ class TestQAGateGenerator:
             output_dir = Path(tmpdir)
 
             result = generator.generate_gate(
-                story_id="12.5",
-                story_title="Test Story",
-                result=sample_result_success,
-                output_dir=output_dir
+                story_id="12.5", story_title="Test Story", result=sample_result_success, output_dir=output_dir
             )
 
             # Read and parse YAML
@@ -224,10 +219,7 @@ class TestQAGateGenerator:
             output_dir = Path(tmpdir) / "nested" / "qa" / "gates"
 
             result = generator.generate_gate(
-                story_id="12.5",
-                story_title="Test Story",
-                result=sample_result_success,
-                output_dir=output_dir
+                story_id="12.5", story_title="Test Story", result=sample_result_success, output_dir=output_dir
             )
 
             assert result.success is True
@@ -243,10 +235,7 @@ class TestQAGateGenerator:
             bad_result = {"invalid": "data"}
 
             result = generator.generate_gate(
-                story_id="12.5",
-                story_title="Test",
-                result=bad_result,
-                output_dir=output_dir
+                story_id="12.5", story_title="Test", result=bad_result, output_dir=output_dir
             )
 
             # Should still succeed with defaults
@@ -268,7 +257,7 @@ class TestQAGateGenerator:
             "outcome": "SUCCESS",
             "qa_gate": "WAIVED",
             "waiver_reason": "Accepted minor issues for deadline",
-            "qa_record": {}
+            "qa_record": {},
         }
 
         gate_data = generator._build_gate_data("12.8", "Waived Story", result_waived)
@@ -287,13 +276,10 @@ class TestQAGateGenerator:
                 "issues_found": [
                     {"severity": "high", "description": "Issue 1"},
                     {"severity": "medium", "description": "Issue 2"},
-                    {"severity": "low", "description": "Issue 3"}
+                    {"severity": "low", "description": "Issue 3"},
                 ],
-                "ac_coverage": {
-                    "AC1": {"status": "PASS"},
-                    "AC2": {"status": "FAIL"}
-                }
-            }
+                "ac_coverage": {"AC1": {"status": "PASS"}, "AC2": {"status": "FAIL"}},
+            },
         }
 
         gate_data = generator._build_gate_data("12.9", "Test", result_no_score)
@@ -307,11 +293,7 @@ class TestGateResult:
 
     def test_gate_result_success(self):
         result = GateResult(
-            gate_file=Path("test.yml"),
-            story_id="12.5",
-            gate_status="PASS",
-            quality_score=88,
-            success=True
+            gate_file=Path("test.yml"), story_id="12.5", gate_status="PASS", quality_score=88, success=True
         )
         assert result.success is True
         assert result.error is None
@@ -323,18 +305,14 @@ class TestGateResult:
             gate_status="ERROR",
             quality_score=0,
             success=False,
-            error="File write failed"
+            error="File write failed",
         )
         assert result.success is False
         assert result.error == "File write failed"
 
     def test_gate_result_to_dict(self):
         result = GateResult(
-            gate_file=Path("test.yml"),
-            story_id="12.5",
-            gate_status="PASS",
-            quality_score=88,
-            success=True
+            gate_file=Path("test.yml"), story_id="12.5", gate_status="PASS", quality_score=88, success=True
         )
         d = result.to_dict()
         assert d["story_id"] == "12.5"

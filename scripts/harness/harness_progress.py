@@ -15,6 +15,7 @@ from typing import List, Optional, Dict, Any
 @dataclass
 class GateResult:
     """Result of CommitGate check (simplified G3+G4)."""
+
     passed: bool
     g3_tests: bool = False
     g4_qa: bool = False
@@ -24,13 +25,14 @@ class GateResult:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'GateResult':
+    def from_dict(cls, data: Dict[str, Any]) -> "GateResult":
         return cls(**data)
 
 
 @dataclass
 class StoryProgress:
     """Progress state for a single Story."""
+
     id: str
     status: str = "pending"  # pending, in_progress, completed, failed
     commit_sha: Optional[str] = None
@@ -45,7 +47,7 @@ class StoryProgress:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'StoryProgress':
+    def from_dict(cls, data: Dict[str, Any]) -> "StoryProgress":
         return cls(**data)
 
 
@@ -59,6 +61,7 @@ class HarnessProgress:
     - Resume from any point
     - Statistics tracking
     """
+
     version: str = "1.0"
     session_id: str = ""
     epic_id: str = ""
@@ -106,7 +109,7 @@ class HarnessProgress:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'HarnessProgress':
+    def from_dict(cls, data: Dict[str, Any]) -> "HarnessProgress":
         """Create from dictionary (JSON deserialization)."""
         progress = cls(
             version=data.get("version", "1.0"),
@@ -138,14 +141,14 @@ class HarnessProgress:
         return Path(f"harness-progress-{epic_id}.json")
 
     @classmethod
-    def load(cls, epic_id: str) -> Optional['HarnessProgress']:
+    def load(cls, epic_id: str) -> Optional["HarnessProgress"]:
         """Load progress from JSON file."""
         path = cls.get_progress_file(epic_id)
         if not path.exists():
             return None
 
         try:
-            with open(path, 'r', encoding='utf-8') as f:
+            with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             return cls.from_dict(data)
         except Exception as e:
@@ -153,7 +156,7 @@ class HarnessProgress:
             return None
 
     @classmethod
-    def load_or_create(cls, epic_id: str, story_ids: List[str] = None) -> 'HarnessProgress':
+    def load_or_create(cls, epic_id: str, story_ids: List[str] = None) -> "HarnessProgress":
         """Load existing progress or create new one."""
         existing = cls.load(epic_id)
         if existing:
@@ -171,7 +174,7 @@ class HarnessProgress:
         path = self.get_progress_file(self.epic_id)
 
         try:
-            with open(path, 'w', encoding='utf-8') as f:
+            with open(path, "w", encoding="utf-8") as f:
                 json.dump(self.to_dict(), f, indent=2, ensure_ascii=False)
         except Exception as e:
             print(f"[HarnessProgress] Error saving progress: {e}")
@@ -200,8 +203,7 @@ class HarnessProgress:
                 story.started_at = datetime.now().isoformat()
                 break
 
-    def mark_completed(self, story_id: str, commit_sha: str, gate_result: GateResult,
-                       duration_seconds: float = 0.0):
+    def mark_completed(self, story_id: str, commit_sha: str, gate_result: GateResult, duration_seconds: float = 0.0):
         """Mark a story as completed."""
         for story in self.stories:
             if story.id == story_id:

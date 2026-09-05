@@ -15,6 +15,7 @@ Usage:
   python scripts/bmad/scan_feedback.py --mode=interactive --story=30.23
   python scripts/bmad/scan_feedback.py --mode=batch-silent --sprint-status path/to/sprint-status.yaml
 """
+
 from __future__ import annotations
 
 import argparse
@@ -120,7 +121,7 @@ def parse_callouts(section: str) -> list[dict]:
 def is_processed(anno: dict) -> bool:
     if anno.get("processed"):
         return True
-    anno_id = anno['id']
+    anno_id = anno["id"]
     fname = anno_id if anno_id.startswith("ANNO-") else f"ANNO-{anno_id}"
     anno_file = ANNOTATIONS_DIR / f"{fname}.yaml"
     return anno_file.exists()
@@ -156,11 +157,13 @@ def scan(
         callouts = parse_callouts(section)
         for c in callouts:
             if not is_processed(c):
-                results.append({
-                    "source_file": str(fpath.relative_to(PROJECT_ROOT)),
-                    "story_status": story_status,
-                    **c,
-                })
+                results.append(
+                    {
+                        "source_file": str(fpath.relative_to(PROJECT_ROOT)),
+                        "story_status": story_status,
+                        **c,
+                    }
+                )
     return results
 
 

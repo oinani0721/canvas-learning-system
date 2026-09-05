@@ -158,9 +158,7 @@ def generate_synthetic(n_rows: int, seed: int = 42) -> List[Row]:
         p_learned = BKT_P_L0
         n_attempts = rng.randint(0, 20)
         for _ in range(n_attempts):
-            correct = rng.random() < (
-                p_learned * (1.0 - BKT_P_S) + (1.0 - p_learned) * BKT_P_G
-            )
+            correct = rng.random() < (p_learned * (1.0 - BKT_P_S) + (1.0 - p_learned) * BKT_P_G)
             p_learned = _bkt_step(p_learned, correct)
         p_true = max(0.0, min(1.0, p_learned))
 
@@ -174,9 +172,7 @@ def generate_synthetic(n_rows: int, seed: int = 42) -> List[Row]:
         # FSRS signal: retrievability at a random time since last review.
         stability = rng.uniform(2.0, 5.0)  # DSR initial stability window
         days_since = rng.uniform(0.0, stability * 2.0)
-        fsrs_val: Optional[float] = _fsrs_retrievability(
-            days_since, stability * (0.5 + p_true)
-        )
+        fsrs_val: Optional[float] = _fsrs_retrievability(days_since, stability * (0.5 + p_true))
 
         # Exam signal: noisy linear observation of p_true.
         exam_val: Optional[float] = max(0.0, min(1.0, p_true + rng.gauss(0.0, 0.15)))
@@ -399,9 +395,7 @@ def load_jsonl(path: Path) -> List[Row]:
                 Row(
                     node_id=str(obj.get("node_id", f"row-{line_num}")),
                     y=float(obj["y"]),
-                    signals={
-                        k: (None if v is None else float(v)) for k, v in signals.items()
-                    },
+                    signals={k: (None if v is None else float(v)) for k, v in signals.items()},
                 )
             )
     return rows
@@ -412,21 +406,14 @@ def load_jsonl(path: Path) -> List[Row]:
 # ---------------------------------------------------------------------------
 
 
-def _format_summary_table(
-    results: Dict[str, Dict[str, float]], data_source: str, n_rows: int
-) -> str:
+def _format_summary_table(results: Dict[str, Dict[str, float]], data_source: str, n_rows: int) -> str:
     lines = [
         f"# Ablation report ({data_source}, n={n_rows})",
         f"{'candidate':<14} {'logloss':>10} {'auc':>10} {'ece':>10}",
         f"{'-' * 14} {'-' * 10:>10} {'-' * 10:>10} {'-' * 10:>10}",
     ]
     for name, metrics in results.items():
-        lines.append(
-            f"{name:<14} "
-            f"{metrics['logloss']:>10.4f} "
-            f"{metrics['auc']:>10.4f} "
-            f"{metrics['ece']:>10.4f}"
-        )
+        lines.append(f"{name:<14} {metrics['logloss']:>10.4f} {metrics['auc']:>10.4f} {metrics['ece']:>10.4f}")
     return "\n".join(lines)
 
 

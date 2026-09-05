@@ -28,16 +28,16 @@ BACKEND_DIR = PROJECT_ROOT / "backend"
 
 
 class Colors:
-    RED = '\033[91m'
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    BLUE = '\033[94m'
-    CYAN = '\033[96m'
-    END = '\033[0m'
+    RED = "\033[91m"
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    BLUE = "\033[94m"
+    CYAN = "\033[96m"
+    END = "\033[0m"
 
 
 def color(text: str, c: str) -> str:
-    if os.environ.get('NO_COLOR'):
+    if os.environ.get("NO_COLOR"):
         return text
     return f"{c}{text}{Colors.END}"
 
@@ -54,16 +54,16 @@ def load_openapi() -> Optional[Dict]:
     spec_path = BACKEND_DIR / "openapi.json"
     if not spec_path.exists():
         return None
-    with open(spec_path, 'r', encoding='utf-8') as f:
+    with open(spec_path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
 def get_actual_endpoints(spec: Dict) -> Set[str]:
     """Extract actual API endpoints from OpenAPI spec."""
     endpoints = set()
-    for path, ops in spec.get('paths', {}).items():
+    for path, ops in spec.get("paths", {}).items():
         for method in ops.keys():
-            if method.lower() != 'options':
+            if method.lower() != "options":
                 endpoints.add(f"{method.upper()} {path}")
     return endpoints
 
@@ -93,113 +93,111 @@ def get_actual_files() -> Dict[str, Path]:
 def extract_epic_claims(epic_content: str) -> Dict[str, List[str]]:
     """Extract claims from EPIC content."""
     claims = {
-        'files': [],      # Files mentioned in EPIC
-        'endpoints': [],  # API endpoints mentioned
-        'classes': [],    # Classes/Services mentioned
+        "files": [],  # Files mentioned in EPIC
+        "endpoints": [],  # API endpoints mentioned
+        "classes": [],  # Classes/Services mentioned
     }
 
     # Extract file paths (e.g., `backend/app/services/xxx.py`)
     file_patterns = [
-        r'`([a-zA-Z0-9_/\-\.]+\.py)`',
-        r'`([a-zA-Z0-9_/\-\.]+\.ts)`',
-        r'`([a-zA-Z0-9_/\-\.]+\.tsx)`',
+        r"`([a-zA-Z0-9_/\-\.]+\.py)`",
+        r"`([a-zA-Z0-9_/\-\.]+\.ts)`",
+        r"`([a-zA-Z0-9_/\-\.]+\.tsx)`",
     ]
     for pattern in file_patterns:
         matches = re.findall(pattern, epic_content)
-        claims['files'].extend(matches)
+        claims["files"].extend(matches)
 
     # Extract API endpoints (e.g., POST /api/v1/xxx)
-    endpoint_pattern = r'(GET|POST|PUT|DELETE|PATCH)\s+(/api/v[0-9]/[a-zA-Z0-9_/\-\{\}]+)'
+    endpoint_pattern = r"(GET|POST|PUT|DELETE|PATCH)\s+(/api/v[0-9]/[a-zA-Z0-9_/\-\{\}]+)"
     matches = re.findall(endpoint_pattern, epic_content)
-    claims['endpoints'].extend([f"{m[0]} {m[1]}" for m in matches])
+    claims["endpoints"].extend([f"{m[0]} {m[1]}" for m in matches])
 
     # Extract service/class names
-    class_pattern = r'`?([A-Z][a-zA-Z]+(?:Service|Client|Controller|Handler))`?'
+    class_pattern = r"`?([A-Z][a-zA-Z]+(?:Service|Client|Controller|Handler))`?"
     matches = re.findall(class_pattern, epic_content)
-    claims['classes'].extend(matches)
+    claims["classes"].extend(matches)
 
     return claims
 
 
 def verify_claims(
-    claims: Dict[str, List[str]],
-    actual_endpoints: Set[str],
-    actual_files: Dict[str, Path]
+    claims: Dict[str, List[str]], actual_endpoints: Set[str], actual_files: Dict[str, Path]
 ) -> Dict[str, Any]:
     """Verify EPIC claims against code reality."""
     results = {
-        'files': {'verified': [], 'hallucinated': []},
-        'endpoints': {'verified': [], 'hallucinated': []},
-        'classes': {'verified': [], 'hallucinated': []},
+        "files": {"verified": [], "hallucinated": []},
+        "endpoints": {"verified": [], "hallucinated": []},
+        "classes": {"verified": [], "hallucinated": []},
     }
 
     # Verify files
-    for file_path in set(claims['files']):
+    for file_path in set(claims["files"]):
         # Normalize path
         normalized = file_path.replace("\\", "/")
         if normalized in actual_files:
-            results['files']['verified'].append(file_path)
+            results["files"]["verified"].append(file_path)
         else:
             # Check partial match
             found = False
             for actual_path in actual_files.keys():
                 if normalized in actual_path or actual_path.endswith(normalized):
-                    results['files']['verified'].append(f"{file_path} → {actual_path}")
+                    results["files"]["verified"].append(f"{file_path} → {actual_path}")
                     found = True
                     break
             if not found:
-                results['files']['hallucinated'].append(file_path)
+                results["files"]["hallucinated"].append(file_path)
 
     # Verify endpoints
-    for endpoint in set(claims['endpoints']):
+    for endpoint in set(claims["endpoints"]):
         # Normalize endpoint (handle path parameters)
-        normalized = re.sub(r'\{[^}]+\}', '{id}', endpoint)
+        normalized = re.sub(r"\{[^}]+\}", "{id}", endpoint)
         found = False
         for actual in actual_endpoints:
-            actual_normalized = re.sub(r'\{[^}]+\}', '{id}', actual)
+            actual_normalized = re.sub(r"\{[^}]+\}", "{id}", actual)
             if normalized == actual_normalized:
-                results['endpoints']['verified'].append(endpoint)
+                results["endpoints"]["verified"].append(endpoint)
                 found = True
                 break
         if not found:
-            results['endpoints']['hallucinated'].append(endpoint)
+            results["endpoints"]["hallucinated"].append(endpoint)
 
     # Verify classes (search in code)
-    for class_name in set(claims['classes']):
+    for class_name in set(claims["classes"]):
         found = False
         for file_path, full_path in actual_files.items():
-            if file_path.endswith('.py'):
+            if file_path.endswith(".py"):
                 try:
-                    content = full_path.read_text(encoding='utf-8')
+                    content = full_path.read_text(encoding="utf-8")
                     if f"class {class_name}" in content:
-                        results['classes']['verified'].append(f"{class_name} in {file_path}")
+                        results["classes"]["verified"].append(f"{class_name} in {file_path}")
                         found = True
                         break
                 except:
                     pass
         if not found:
-            results['classes']['hallucinated'].append(class_name)
+            results["classes"]["hallucinated"].append(class_name)
 
     return results
 
 
 def check_epic(epic_path: Path, actual_endpoints: Set[str], actual_files: Dict[str, Path]) -> Dict:
     """Check a single EPIC file."""
-    content = epic_path.read_text(encoding='utf-8')
+    content = epic_path.read_text(encoding="utf-8")
     claims = extract_epic_claims(content)
     verification = verify_claims(claims, actual_endpoints, actual_files)
 
     # Calculate hallucination score
     total_claims = sum(len(claims[k]) for k in claims)
-    hallucinated = sum(len(verification[k]['hallucinated']) for k in verification)
+    hallucinated = sum(len(verification[k]["hallucinated"]) for k in verification)
 
     return {
-        'epic': epic_path.name,
-        'claims': claims,
-        'verification': verification,
-        'total_claims': total_claims,
-        'hallucinated_count': hallucinated,
-        'hallucination_rate': hallucinated / total_claims * 100 if total_claims > 0 else 0
+        "epic": epic_path.name,
+        "claims": claims,
+        "verification": verification,
+        "total_claims": total_claims,
+        "hallucinated_count": hallucinated,
+        "hallucination_rate": hallucinated / total_claims * 100 if total_claims > 0 else 0,
     }
 
 
@@ -208,7 +206,7 @@ def print_report(result: Dict):
     print(f"\n  {color('EPIC:', Colors.BLUE)} {result['epic']}")
     print(f"  Claims: {result['total_claims']}, Hallucinated: {result['hallucinated_count']}")
 
-    rate = result['hallucination_rate']
+    rate = result["hallucination_rate"]
     if rate == 0:
         print(f"  {color('✅ 0% hallucination - EPIC matches code reality!', Colors.GREEN)}")
     elif rate < 20:
@@ -217,37 +215,27 @@ def print_report(result: Dict):
         print(f"  {color(f'🔴 {rate:.1f}% hallucination - EPIC has major discrepancies!', Colors.RED)}")
 
     # Print hallucinated items
-    v = result['verification']
-    if v['files']['hallucinated']:
+    v = result["verification"]
+    if v["files"]["hallucinated"]:
         print(f"\n  {color('Hallucinated files:', Colors.RED)}")
-        for f in v['files']['hallucinated'][:5]:
+        for f in v["files"]["hallucinated"][:5]:
             print(f"    ❌ {f}")
 
-    if v['endpoints']['hallucinated']:
+    if v["endpoints"]["hallucinated"]:
         print(f"\n  {color('Hallucinated endpoints:', Colors.RED)}")
-        for e in v['endpoints']['hallucinated'][:5]:
+        for e in v["endpoints"]["hallucinated"][:5]:
             print(f"    ❌ {e}")
 
-    if v['classes']['hallucinated']:
+    if v["classes"]["hallucinated"]:
         print(f"\n  {color('Hallucinated classes:', Colors.RED)}")
-        for c in v['classes']['hallucinated'][:5]:
+        for c in v["classes"]["hallucinated"][:5]:
             print(f"    ❌ {c}")
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Check EPIC claims against code reality"
-    )
-    parser.add_argument(
-        "--epic", "-e",
-        type=str,
-        help="Specific EPIC file to check (glob pattern)"
-    )
-    parser.add_argument(
-        "--json", "-j",
-        action="store_true",
-        help="Output as JSON"
-    )
+    parser = argparse.ArgumentParser(description="Check EPIC claims against code reality")
+    parser.add_argument("--epic", "-e", type=str, help="Specific EPIC file to check (glob pattern)")
+    parser.add_argument("--json", "-j", action="store_true", help="Output as JSON")
 
     args = parser.parse_args()
 
@@ -288,8 +276,8 @@ def main():
     if not args.json:
         print_header("Summary")
         total_epics = len(results)
-        clean_epics = sum(1 for r in results if r['hallucination_rate'] == 0)
-        problematic = [r for r in results if r['hallucination_rate'] >= 20]
+        clean_epics = sum(1 for r in results if r["hallucination_rate"] == 0)
+        problematic = [r for r in results if r["hallucination_rate"] >= 20]
 
         print(f"\n  Total EPICs: {total_epics}")
         print(f"  {color(f'Clean (0% hallucination): {clean_epics}', Colors.GREEN)}")
@@ -301,15 +289,15 @@ def main():
                 print(f"    - {p['epic']} ({p['hallucination_rate']:.1f}%)")
     else:
         output = {
-            'timestamp': datetime.now(timezone.utc).isoformat(),
-            'actual_endpoints_count': len(actual_endpoints),
-            'actual_files_count': len(actual_files),
-            'epics': results
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "actual_endpoints_count": len(actual_endpoints),
+            "actual_files_count": len(actual_files),
+            "epics": results,
         }
         print(json.dumps(output, indent=2))
 
     # Return exit code based on hallucination
-    max_hallucination = max(r['hallucination_rate'] for r in results) if results else 0
+    max_hallucination = max(r["hallucination_rate"] for r in results) if results else 0
     return 1 if max_hallucination >= 20 else 0
 
 

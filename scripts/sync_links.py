@@ -15,6 +15,7 @@ Usage:
   python scripts/sync_links.py              # full sync
   python scripts/sync_links.py --validate   # validate only, no writes
 """
+
 from __future__ import annotations
 
 import argparse
