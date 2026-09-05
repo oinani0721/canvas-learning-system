@@ -1,0 +1,53 @@
+[
+  {
+    "round": 1,
+    "due": "2026-09-05T00:03:23Z",
+    "fsrs_state": 1,
+    "lead_s": 60.0,
+    "pre_due_count": 0,
+    "pre_nodes": [],
+    "gen_s": 0.06,
+    "a_polls": 14,
+    "a_visible_after_due_s": null,
+    "a_due_count": 0,
+    "rebuild_s": 0.058,
+    "b_trigger_offset_s": 5.01,
+    "b_react_s": 0.06,
+    "b_abs_offset_s": 5.07,
+    "b_due_count": 1
+  },
+  {
+    "round": 2,
+    "due": "2026-09-05T00:04:28Z",
+    "fsrs_state": 1,
+    "lead_s": 60.0,
+    "pre_due_count": 0,
+    "pre_nodes": [],
+    "gen_s": 0.054,
+    "a_polls": 14,
+    "a_visible_after_due_s": null,
+    "a_due_count": 0,
+    "rebuild_s": 0.072,
+    "b_trigger_offset_s": 5.01,
+    "b_react_s": 0.075,
+    "b_abs_offset_s": 5.08,
+    "b_due_count": 1
+  },
+  {
+    "round": 3,
+    "due": "2026-09-05T00:05:33Z",
+    "fsrs_state": 1,
+    "lead_s": 60.0,
+    "pre_due_count": 0,
+    "pre_nodes": [],
+    "gen_s": 0.054,
+    "a_polls": 14,
+    "a_visible_after_due_s": null,
+    "a_due_count": 0,
+    "rebuild_s": 0.07,
+    "b_trigger_offset_s": 5.01,
+    "b_react_s": 0.073,
+    "b_abs_offset_s": 5.08,
+    "b_due_count": 1
+  }
+]

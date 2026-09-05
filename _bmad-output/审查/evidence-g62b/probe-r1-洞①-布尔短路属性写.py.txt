@@ -1,0 +1,4 @@
+# CARD-CX-G6-2b-R1 探针: 洞①-布尔短路属性写
+# 用法: 追加到 review_app.py 源码**字符串**尾部（只在内存里拼, 不落进生产文件）
+# 预期: REJECT:根不可解析  —  根是 ast.BoolOp → 空串。json 为真值，运行时改的就是 json.dumps 本体 —— 这是洞①里最直接的绕过形态（不留别名、不碰任何保护名的 Store 位置）。**本卡已收紧**
+(json or list).dumps = lambda value, **kwargs: "wrong"

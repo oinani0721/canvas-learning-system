@@ -16,6 +16,7 @@ from datetime import datetime
 
 class QASessionState(Enum):
     """States for a QA session."""
+
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -26,6 +27,7 @@ class QASessionState(Enum):
 @dataclass
 class QASession:
     """Represents a QA review session."""
+
     story_id: str
     worktree_path: Path
     state: QASessionState = QASessionState.PENDING
@@ -46,7 +48,7 @@ class QASession:
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
             "return_code": self.return_code,
             "log_file": str(self.log_file) if self.log_file else None,
-            "error_message": self.error_message
+            "error_message": self.error_message,
         }
 
 
@@ -58,7 +60,7 @@ class QASessionSpawner:
     """
 
     # QA prompt template for Claude Code
-    QA_PROMPT_TEMPLATE = '''Execute QA review for Story {story_id}.
+    QA_PROMPT_TEMPLATE = """Execute QA review for Story {story_id}.
 
 ===============================================================================
 QA WORKFLOW - Full Sequence
@@ -88,17 +90,12 @@ QA WORKFLOW - Full Sequence
 7. Write .worktree-result.json with final outcome
 
 ===============================================================================
-'''
+"""
 
     # Default allowed tools for QA sessions
     DEFAULT_ALLOWED_TOOLS = "Bash,Read,Write,Edit,Grep,Glob,TodoWrite"
 
-    def __init__(
-        self,
-        max_concurrent: int = 3,
-        allowed_tools: Optional[str] = None,
-        max_turns: int = 150
-    ):
+    def __init__(self, max_concurrent: int = 3, allowed_tools: Optional[str] = None, max_turns: int = 150):
         """
         Initialize the spawner.
 
@@ -118,19 +115,13 @@ QA WORKFLOW - Full Sequence
     def active_count(self) -> int:
         """Get number of active (running) sessions."""
         with self._lock:
-            return sum(
-                1 for s in self._sessions.values()
-                if s.state == QASessionState.RUNNING
-            )
+            return sum(1 for s in self._sessions.values() if s.state == QASessionState.RUNNING)
 
     @property
     def pending_count(self) -> int:
         """Get number of pending sessions."""
         with self._lock:
-            return sum(
-                1 for s in self._sessions.values()
-                if s.state == QASessionState.PENDING
-            )
+            return sum(1 for s in self._sessions.values() if s.state == QASessionState.PENDING)
 
     def spawn_qa_session(self, story_id: str, worktree_path: Path) -> bool:
         """
@@ -156,9 +147,7 @@ QA WORKFLOW - Full Sequence
                 # Queue for later
                 print(f"[QASpawner] Capacity full, queuing Story {story_id}")
                 self._sessions[story_id] = QASession(
-                    story_id=story_id,
-                    worktree_path=worktree_path,
-                    state=QASessionState.PENDING
+                    story_id=story_id, worktree_path=worktree_path, state=QASessionState.PENDING
                 )
                 return True
 
@@ -172,16 +161,19 @@ QA WORKFLOW - Full Sequence
 
         # Build Claude command
         cmd = [
-            'claude',
-            '-p', prompt,
-            '--dangerously-skip-permissions',
-            '--allowedTools', self.allowed_tools,
-            '--max-turns', str(self.max_turns)
+            "claude",
+            "-p",
+            prompt,
+            "--dangerously-skip-permissions",
+            "--allowedTools",
+            self.allowed_tools,
+            "--max-turns",
+            str(self.max_turns),
         ]
 
         try:
             # Open log file
-            log_handle = open(log_file, 'w', encoding='utf-8')
+            log_handle = open(log_file, "w", encoding="utf-8")
 
             # Spawn process
             process = subprocess.Popen(
@@ -190,7 +182,9 @@ QA WORKFLOW - Full Sequence
                 stdout=log_handle,
                 stderr=subprocess.STDOUT,
                 text=True,
-                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if hasattr(subprocess, 'CREATE_NEW_PROCESS_GROUP') else 0
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
+                if hasattr(subprocess, "CREATE_NEW_PROCESS_GROUP")
+                else 0,
             )
 
             # Record session
@@ -201,15 +195,11 @@ QA WORKFLOW - Full Sequence
                     state=QASessionState.RUNNING,
                     process=process,
                     started_at=datetime.now(),
-                    log_file=log_file
+                    log_file=log_file,
                 )
 
             # Start monitoring thread
-            threading.Thread(
-                target=self._monitor_session,
-                args=(story_id, log_handle),
-                daemon=True
-            ).start()
+            threading.Thread(target=self._monitor_session, args=(story_id, log_handle), daemon=True).start()
 
             print(f"[QASpawner] Started QA session for Story {story_id}")
             print(f"[QASpawner]   Log: {log_file}")
@@ -219,10 +209,7 @@ QA WORKFLOW - Full Sequence
             print(f"[QASpawner] Failed to spawn QA session for {story_id}: {e}")
             with self._lock:
                 self._sessions[story_id] = QASession(
-                    story_id=story_id,
-                    worktree_path=worktree_path,
-                    state=QASessionState.FAILED,
-                    error_message=str(e)
+                    story_id=story_id, worktree_path=worktree_path, state=QASessionState.FAILED, error_message=str(e)
                 )
             return False
 
@@ -239,10 +226,7 @@ QA WORKFLOW - Full Sequence
             with self._lock:
                 session.completed_at = datetime.now()
                 session.return_code = return_code
-                session.state = (
-                    QASessionState.COMPLETED if return_code == 0
-                    else QASessionState.FAILED
-                )
+                session.state = QASessionState.COMPLETED if return_code == 0 else QASessionState.FAILED
 
             print(f"[QASpawner] Session completed for Story {story_id} (code: {return_code})")
 
@@ -292,7 +276,7 @@ QA WORKFLOW - Full Sequence
                 "pending": self.pending_count,
                 "completed": sum(1 for s in self._sessions.values() if s.state == QASessionState.COMPLETED),
                 "failed": sum(1 for s in self._sessions.values() if s.state == QASessionState.FAILED),
-                "sessions": {k: v.to_dict() for k, v in self._sessions.items()}
+                "sessions": {k: v.to_dict() for k, v in self._sessions.items()},
             }
 
 

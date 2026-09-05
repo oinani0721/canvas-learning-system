@@ -22,15 +22,15 @@ def parse_story_files(story_id: str, stories_dir: Path) -> Set[str]:
         print(f"Warning: Story file not found: {story_file}", file=sys.stderr)
         return set()
 
-    content = story_file.read_text(encoding='utf-8')
+    content = story_file.read_text(encoding="utf-8")
     files = set()
 
     # Look for "Files to Modify" or similar sections
     patterns = [
-        r'##.*Files.*to.*Modify.*\n((?:[-*]\s+`?[\w/._-]+`?\n?)+)',
-        r'##.*Technical.*Notes.*\n.*?(?:files?|modify).*?:((?:\s*[-*]\s+`?[\w/._-]+`?\n?)+)',
-        r'`(src/[\w/._-]+\.py)`',
-        r'`(tests/[\w/._-]+\.py)`',
+        r"##.*Files.*to.*Modify.*\n((?:[-*]\s+`?[\w/._-]+`?\n?)+)",
+        r"##.*Technical.*Notes.*\n.*?(?:files?|modify).*?:((?:\s*[-*]\s+`?[\w/._-]+`?\n?)+)",
+        r"`(src/[\w/._-]+\.py)`",
+        r"`(tests/[\w/._-]+\.py)`",
     ]
 
     for pattern in patterns:
@@ -38,7 +38,7 @@ def parse_story_files(story_id: str, stories_dir: Path) -> Set[str]:
         for match in matches:
             if isinstance(match, str):
                 # Extract individual file paths
-                file_matches = re.findall(r'`?([\w/._-]+\.py)`?', match)
+                file_matches = re.findall(r"`?([\w/._-]+\.py)`?", match)
                 files.update(file_matches)
 
     return files
@@ -50,7 +50,7 @@ def find_conflicts(story_files: Dict[str, Set[str]]) -> List[Tuple[str, str, Set
     story_ids = list(story_files.keys())
 
     for i, story_a in enumerate(story_ids):
-        for story_b in story_ids[i+1:]:
+        for story_b in story_ids[i + 1 :]:
             common_files = story_files[story_a] & story_files[story_b]
             if common_files:
                 conflicts.append((story_a, story_b, common_files))
@@ -58,10 +58,7 @@ def find_conflicts(story_files: Dict[str, Set[str]]) -> List[Tuple[str, str, Set
     return conflicts
 
 
-def recommend_parallel_groups(
-    story_ids: List[str],
-    conflicts: List[Tuple[str, str, Set[str]]]
-) -> List[List[str]]:
+def recommend_parallel_groups(story_ids: List[str], conflicts: List[Tuple[str, str, Set[str]]]) -> List[List[str]]:
     """Recommend parallel groups avoiding conflicts."""
     # Build conflict graph
     conflict_pairs = {(a, b) for a, b, _ in conflicts}
@@ -75,10 +72,7 @@ def recommend_parallel_groups(
         group = []
         for story in list(remaining):
             # Check if story conflicts with any in current group
-            conflicts_with_group = any(
-                (story, g) in conflict_pairs or (g, story) in conflict_pairs
-                for g in group
-            )
+            conflicts_with_group = any((story, g) in conflict_pairs or (g, story) in conflict_pairs for g in group)
             if not conflicts_with_group:
                 group.append(story)
                 remaining.remove(story)
@@ -93,14 +87,14 @@ def recommend_parallel_groups(
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Analyze Story conflicts')
-    parser.add_argument('--stories', required=True, help='Comma-separated Story IDs')
-    parser.add_argument('--stories-dir', default='docs/stories', help='Stories directory')
-    parser.add_argument('--json', action='store_true', help='Output as JSON')
+    parser = argparse.ArgumentParser(description="Analyze Story conflicts")
+    parser.add_argument("--stories", required=True, help="Comma-separated Story IDs")
+    parser.add_argument("--stories-dir", default="docs/stories", help="Stories directory")
+    parser.add_argument("--json", action="store_true", help="Output as JSON")
     args = parser.parse_args()
 
     # Parse arguments
-    story_ids = [s.strip() for s in args.stories.split(',')]
+    story_ids = [s.strip() for s in args.stories.split(",")]
     stories_dir = Path(args.stories_dir)
 
     if not stories_dir.exists():
@@ -121,9 +115,9 @@ def main():
 
     if args.json:
         result = {
-            'story_files': {k: list(v) for k, v in story_files.items()},
-            'conflicts': [(a, b, list(f)) for a, b, f in conflicts],
-            'recommended_groups': groups,
+            "story_files": {k: list(v) for k, v in story_files.items()},
+            "conflicts": [(a, b, list(f)) for a, b, f in conflicts],
+            "recommended_groups": groups,
         }
         print(json.dumps(result, indent=2))
     else:
@@ -149,5 +143,5 @@ def main():
             print(f"Group {i}: {', '.join(group)}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

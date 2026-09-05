@@ -1,0 +1,870 @@
+diff --git a/_bmad-output/审查/prompts/codex-prompt-CARD-G3-2b-round17.md b/_bmad-output/审查/prompts/codex-prompt-CARD-G3-2b-round17.md
+index 84e1bdc3..faf08637 100644
+--- a/_bmad-output/审查/prompts/codex-prompt-CARD-G3-2b-round17.md
++++ b/_bmad-output/审查/prompts/codex-prompt-CARD-G3-2b-round17.md
+@@ -10,6 +10,21 @@
+ 
+ 这是个人学习工具，没有网络接口、没有多用户、不处理任何凭据。
+ 
++## 请看哪些文件（其余一律不必读）
++
++```
++WT=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-w7-ledger
++```
++
++1. `WT/canvas-vault/.claude/skills/quiz-answer/SKILL.md` — 主实现。它是一份 Markdown 文档，其中**恰有一个** `python3 - <<'PYEOF' … PYEOF` 代码块包含 `P = "/tmp/quiz-answer-payload.json"`，那个块就是被复核的程序。
++2. `WT/canvas-vault/.claude/scripts/fsrs_bridge.py` — 间隔重复算法的调用封装。
++3. `WT/docs/learning-events-schema-v1.md` 的 §一、§6.1–§6.3 — **规格说明，判定对错以它为准**。
++4. `WT/backend/scripts/validate_learning_events.py` — 离线校验器。本次**禁改**它；判断「两侧口径是否一致」时以它为对照。
++5. `WT/backend/tests/regression/test_g3_2_review_ledger.py` — 现有 **100 个**行为测试。
++6. `WT/backend/scripts/g32b_mutation_gates.py` — 138 条变异（判断测试是否承重时看它）。
++
++⚠️ **请不要去读 `WT/_bmad-output/` 目录下的任何文件**（那里是**别的**任务的历史报告与草稿，与本次无关，且体量很大）。你需要的上下文本文都已给出。
++
+ ## 上一次复核的结论与本次的关系
+ 
+ 上一次判「需整改」，报 **3 BLOCKER + 4 HIGH + 3 MEDIUM**。**7 条 B/H 全部处置；3 条 MEDIUM 里 2 条改了规格侧、1 条落在不可改文件上（如实移交）**。
+@@ -63,6 +78,27 @@
+    另外请验证我的一句声明：「正常写与恢复复放取到**同一个** `pred_id`，故不破坏『正常与
+    恢复产物字节相同』」——这句是**被证明了**还是只是**被断言了**？
+ 
++
++### 送审前我又做了一轮**独立对抗预审**，确认并修掉 6 条 —— 这些修复同样需要你审
++
++上面那批（B①-M⑩）提交后，我请五个独立视角各自找缺陷、再逐条对抗性驳倒。确认 6 条、驳倒 4 条。
++**六条已全部处置，它们的修复是本次送审内容的一部分**：
++
++| 预审确认的问题 | 现在的做法 |
++|---|---|
++| 写序锚成了**唯一**证据：锚点在日志里命中 0 条即判死，而「日志行丢失」恰是该分支**自己的前提** ⇒ rc 由 0 变 1 的回归 | 降为**优先**证据；命中 0 条时回落到自带歧义证明的时刻 cursor |
++| 写序锚是唯一**不受校验**的 receipt 字段：改指一个**后继**即可让被篡改的 `attempt_count` 通过序数复算 | 补方向自洽校验：有 `review_time` 时比时刻；§6.3 行无时刻则比 `attempt_count`（前驱序数须严格小于本次）|
++| `exam_board` 只修好**类型轴**，**字符轴**原样存活：`ensure_ascii=False` 让 U+0085/U+2028/U+2029/C1 裸嵌 YAML 双引号标量 ⇒ 板名含 NEL 时首写 rc=0 后**永久拒写**（同一板名也进 `event_id`）| 编码改为**验证式**：让 YAML 自己解析一遍正面证明往返，证不成才回落纯 ASCII 转义（不用危险字符黑名单——那个集合是开放的）|
++| `board_form` 向后兼容契约**零承重面**：把守门条件抽掉全套测试仍全绿 | 补一道构造 legacy receipt 的门 + 对应变异 |
++| 上面那条 (f) 的更正**仍然比证据宽**：把两个身份键**成对**改成 `degraded:*` 时，校验器走哨兵分支**不做 manifest 绑定**（0 violation），写点又把两键排除出 envelope ⇒ **两侧都放行、永远不会被发现** | 规格再次收敛：只覆盖**具名版本**行；哨兵行不在任何一侧覆盖内 ⇒ 移交 |
++| 我退役那条变异的推证是**伪证**（见下方第 2 点，已更正）| 理由换成「构造差异所需输入在 append-only + 原子发布下不可达」，并在可达形态上实测两支逐字相同 |
++
++⚠️ 修复过程里有**两处判据本身是错的**，都被「必过样本」抓住，一并请你复核处置是否到位：
++① `yaml.safe_load("v: " + lit)` 返回的是**映射** `{"v": ...}` 不是标量，拿它与字符串比恒不等
++   ⇒ 编码器**永远**回落到全转义形态。是自证脚本里「普通中文」「空串」两个必过样本一起失败才暴露的。
++② 测试 helper 用 `splitlines()` 读日志，而它会在 U+0085/U+2028/U+2029 处断行、把一行 JSONL 撕成两半；
++   写入端与校验器都按 `b"\n"` 切 —— **测试自己比两侧都严**，会把合法日志判成损坏。已对齐。
++
+ ## 请重点判断
+ 
+ 1. 上一轮的 7 条修复本身有没有引入新问题？（修复代码同样会有缺陷——本实现连续十四轮每轮都是这样。）
+@@ -92,7 +128,7 @@
+ 建议: <具体怎么改>
+ 
+ ### 测试复核
+-（`pytest` 实跑结果；自报数字是五个测试文件 **325 passed / 1 skipped**（`test_learning_events_schema_contract` / `test_fsrs_bridge` / `test_learning_event_log` / `test_g3_2_review_ledger` / `test_fsrs_golden_vectors`），不符请点名）
++（`pytest` 实跑结果；自报数字是五个测试文件 **329 passed / 1 skipped**（`test_learning_events_schema_contract` / `test_fsrs_bridge` / `test_learning_event_log` / `test_g3_2_review_ledger` / `test_fsrs_golden_vectors`），不符请点名）
+ 
+ ### 验证限制
+ （沙箱可写性、没跑的东西、无法证明的东西）
+@@ -110,4 +146,4 @@ VERDICT: <通过 | 需整改>
+ 
+ ---
+ 
+-**本次复核绑定 commit**：`5483df44`（分支 `card/w7-ledger`，未 push）。
++**本次复核绑定 commit**：`56bfe9d4`（分支 `card/w7-ledger`，未 push）。
+diff --git a/backend/scripts/g32b_mutation_gates.py b/backend/scripts/g32b_mutation_gates.py
+index 4a5053bd..d5059b83 100644
+--- a/backend/scripts/g32b_mutation_gates.py
++++ b/backend/scripts/g32b_mutation_gates.py
+@@ -728,7 +728,10 @@ MUTATIONS += [
+         "M64-dumps-allows-nan",
+         SKILL,
+         "json.dumps(rec, ensure_ascii=False, allow_nan=False)",
+-        "json.dumps(rec, ensure_ascii=False)  # MUTANT",
++        # ⚠️ 不能加 `# MUTANT` 注释: 这是**行内子串**替换, 注释会把它右边的
++        # 闭合括号一起吃掉 ⇒ 语法错误假杀（round-17 MEDIUM 实测）。
++        # 缺陷由参数本身表达即可, 标记靠全文件 sha 基线而不是 grep。
++        "json.dumps(rec, ensure_ascii=False, allow_nan=True)",
+         "test_round6_findings",
+     ),
+     (
+@@ -975,14 +978,13 @@ MUTATIONS += [
+         "        raise ImportError('MUTANT: 强制走正则回落')\n",
+         "test_round9_yaml_calibration_forms",
+     ),
+-    (
+-        # null/~ 不规范化 ⇒ 首写产出非法 YAML
+-        "M87-null-calibration-not-normalized",
+-        SKILL,
+-        'r"^calibration_log:[ \\t]*(?:\\[[ \\t]*\\]|null|Null|NULL|~)?[ \\t]*(#[^\\n]*)?$"',
+-        'r"^calibration_log:[ \\t]*(?:\\[[ \\t]*\\])?[ \\t]*(#[^\\n]*)?$"  # MUTANT',
+-        "test_round9_yaml_calibration_forms",
+-    ),
++    # ── M87-null-calibration-not-normalized：退役（**被取代的死纵深**）
++    # 变异体删掉 `_normalize_inline_calibration` 正则里的 `null|Null|NULL|~` 分支。
++    # round-17 实测（修好它原先的语法错误之后）SURVIVED —— 真因不是门不承重，而是
++    # 该性质已由**结构化重建路径**接管: `_cur = _doc.get("calibration_log")` 对
++    # null/~ 形态得到 None，`_cur or []` 直接当空列表重建，正则归一化对它无话可说。
++    # ⚠️ 如实声明未证明面: PyYAML 不可用时的回落路径仍走正则（代码自述「非等价:
++    # 只认 block list 形态」）。那条路径本卡没有门覆盖，退役不代表它被证明过。
+     (
+         # degraded 路径退回运行时刻 ⇒ 与正常路径产物不同
+         # ⚠️ 这条变异**打不中**（第五种成因）: degraded 分支现在整体从 _SCORED_AT
+@@ -1106,7 +1108,12 @@ MUTATIONS += [
+         # ⚠️ round-12 重绑: dup 调用点已带上完整事实。
+         "    _resolve_receipt(fm, evid, _ALL_LEDGER_IDS, row=dup, facts=_facts_of_row(dup))\n",
+         "    pass  # MUTANT: 不绑定采用时刻\n",
+-        "test_round11_unified_resolver",
++        # ⛔ round-17 改绑: 原门的场景**篡改的是账本时刻**, 而 round-16 把
++        # `_adopted_ok` 收紧成「只认 A3 复算值」之后, 那个场景在更早处就被拒了 ——
++        # 三方绑定对它退化成冗余纵深, 变异随之存活（原本是 KILLED）。
++        # ⚠️ 承重面被更早的防线取代**不等于**该退役: 该性质仍只有它守着, 只是需要
++        # 一个走得到它的场景 —— 账本自洽、只有 receipt 的第三个瞬间对不上。
++        "test_round17_tri_instant_binding_narrow",
+         (
+             # ⛔ 这不是「拆另一条防线」, 是**补齐同一条防线的第二站点**: 三方同瞬间
+             # 绑定有**两个**调用点(dup 路径 + foreign replay)。只打前者时探针实测拒因
+@@ -1465,7 +1472,13 @@ MUTATIONS += [
+         '    if False:  # MUTANT: 去掉裸形态碰撞的独立判据\n        _bare_of = lambda x: x[5:] if x.startswith("quiz:") else x\n',
+         "test_round15_bare_collision_has_own_judge",
+     ),
+-    # ── M141-rolling-baseline-from-durable：退役（等价变异体）
++    # ── M141-rolling-baseline-from-durable：退役（**schema-valid producer-domain equivalent**，不是无条件等价）
++    # ⛔ round-17 MEDIUM 收窄: 逐路径复核的结论是「**合法自产状态**上两支等价」，
++    # 而**被写坏的、带 receipt 的 pending 行**上并不等价（那条路径既跳过
++    # `_adopted_ok` 也不执行 `_append_calibration`）。本卡的题面明确把「日志被别的
++    # 程序写坏」算在输入域内，所以不能写成无条件等价。
++    # 该损坏态由「损坏账本 fail-closed」那一族门守着；等严格 receipt 状态门补齐后，
++    # 才谈得上证明它也不可达或不可观察。**移交**。
+     #
+     # ⛔⛔ round-16 我给的退役推证是**错的**，round-17 独立审查证伪。原话是：
+     #   「`_w_roll` 赋值之后紧接着 `_append_calibration(..., actual_ts=_w_after)`，
+@@ -1615,8 +1628,19 @@ MUTATIONS += [
+         "M151-exam-board-bare-json-in-yaml",
+         SKILL,
+         "              f'    board_form: {q_(\"json\")}\\n'\n",
+-        "              f'    board_form: {q_(\"legacy\")}\\n'  # MUTANT\n",
++        "",  # MUTANT: 连标记一起去掉（旧版本从来没有这一行）
+         "test_round16_exam_board_roundtrips_through_yaml",
++        (
++            # ⚠️ 忠实性: 只把标记改成 legacy 而保留新式双编码, 会产出**任何正式
++            # 版本都没写过的混合 receipt**（round-17 MEDIUM 指出）。真实的旧形态是
++            # 「没有 board_form 行 + exam_board 存裸值」——两处必须一起退回。
++            (
++                SKILL,
++                '              f\'    exam_board: {q_(json.dumps(_e_pl.get("exam_board", ""), ensure_ascii=False, sort_keys=True))}\\n\'\n',
++                '              f\'    exam_board: {q_(_e_pl.get("exam_board", ""))}\\n\'\n',
++            ),
++        ),
++        "complete",
+     ),
+     (
+         # F1-only 无视持久写序锚, 退回按时刻猜 cursor
+@@ -1685,6 +1709,68 @@ MUTATIONS += [
+ ]
+ 
+ 
++# ── round-17 终审（3 BLOCKER + 1 HIGH）的承重变异
++MUTATIONS += [
++    (
++        # 凭据判据退回「只拒 None」⇒ 字符串 "false" 被 truthiness 当成已应用, 静默漏一次 FSRS
++        "M158-fsrs-applied-truthiness",
++        SKILL,
++        "    if _rc_dup is not None and type(_rc_dup_applied) is not bool:\n",
++        "    if _rc_dup is not None and _rc_dup_applied is None:  # MUTANT: 只拒 None\n",
++        "test_round17_fsrs_applied_must_be_strict_bool",
++    ),
++    (
++        # 重建已有条目退回裸 json.dumps ⇒ 每追加一条就把旧条目的字符重新破坏一次
++        "M159-rebuild-bare-json-dumps",
++        SKILL,
++        '                    _rebuilt.append(f"{_pfx}{_kq(_k)}: {q_(_e[_k])}")\n',
++        '                    _rebuilt.append(f"{_pfx}{_k}: {json.dumps(_e[_k], ensure_ascii=False, default=str)}")  # MUTANT\n',
++        "test_round17_rebuild_preserves_existing_receipt_bytes",
++    ),
++    (
++        # 规范化退回递归实现 ⇒ 深层合法值首写成功、崩溃窗恢复撞 RecursionError
++        "M160-canon-tree-recursive",
++        SKILL,
++        "    _stack, _res, _seen = [(v, False)], [], 0\n",
++        '    def _rec(x):  # MUTANT: 退回递归实现\n        if isinstance(x, dict):\n            return ("obj", tuple(sorted((str(k), _rec(y)) for k, y in x.items())))\n        if isinstance(x, (list, tuple)):\n            return ("arr", tuple(_rec(y) for y in x))\n        return _scalar(x)\n    return _rec(v)\n    _stack, _res, _seen = [(v, False)], [], 0\n',
++        "test_round17_deep_json_recovers_after_crash_window",
++    ),
++    (
++        # foreign 恢复**静默**不提升事件级凭据 ⇒ 两阶段永不收敛, 原白板卡死
++        "M161-foreign-no-credential-promotion",
++        SKILL,
++        "            fm, _ok_fg = _promote_applied(fm, _rid_)\n",
++        "            _ok_fg = True  # MUTANT: foreign 静默不提升凭据\n",
++        "test_round17_foreign_degraded_recovery_converges",
++    ),
++]
++
++
++def _syntax_errors(texts):
++    """变异后的文本是否仍是合法 Python。返回问题描述（空 = 没问题）。
++
++    `.py` 直接 parse；SKILL.md 取其中的 PYEOF 块（写点本体就在里面）。
++    Markdown 规格文件不含可执行代码，跳过。
++    """
++    import ast as _ast
++
++    _bad = []
++    for _p, _t in texts.items():
++        _srcs = []
++        if str(_p).endswith(".py"):
++            _srcs = [(str(_p), _t)]
++        elif _p.name == "SKILL.md":
++            _srcs = [
++                (f"{_p.name}#PYEOF[{_i}]", _b) for _i, _b in enumerate(re.findall(r"<<'PYEOF'\n(.*?)\nPYEOF", _t, re.S))
++            ]
++        for _name, _src in _srcs:
++            try:
++                _ast.parse(_src)
++            except SyntaxError as _e:
++                _bad.append(f"{_name} line {_e.lineno}: {_e.msg}")
++    return "; ".join(_bad)
++
++
+ def main():
+     failures = []
+     kill_fail = {}
+@@ -1747,6 +1833,15 @@ def main():
+         if _anchor_bad:
+             continue
+         mutated = {p: t.encode("utf-8") for p, t in texts.items()}
++        # ⛔ round-17 MEDIUM: 变异体必须先**语法有效**。实测 138 条里有 2 条是
++        # 语法错误假杀（M64 的 `# MUTANT` 注释吞掉了闭合括号、M87 吞掉了逗号）——
++        # 程序根本跑不起来, 门当然红, 而那红色**与被测性质无关**。
++        # 语法坏掉 ⇒ 判 harness failure, 不计 KILLED。
++        _syn = _syntax_errors(texts)
++        if _syn:
++            failures.append(f"{tag}: 变异体语法无效（假杀）—— {_syn}")
++            print(f"[{tag}] ⛔ 变异体语法无效, 不计 KILLED: {_syn}")
++            continue
+         try:
+             for _p, _b in mutated.items():
+                 _p.write_bytes(_b)
+diff --git a/backend/tests/regression/test_g3_2_review_ledger.py b/backend/tests/regression/test_g3_2_review_ledger.py
+index e0edc807..8aa6b96e 100644
+--- a/backend/tests/regression/test_g3_2_review_ledger.py
++++ b/backend/tests/regression/test_g3_2_review_ledger.py
+@@ -1232,7 +1232,11 @@ def test_r6_schema_declares_identity_key_integrity_owner():
+     a5 = doc[doc.index("**A5 整秒精度") : doc.index("**三态语义")]
+     assert "A2 消费侧同样机械强制" in a5 and "禁止消费时顺手归一化" in a5, a5[:400]
+     # A4.5 短写段必须写明「截断 vs 完整损坏」的 LF 判据 (R7 的契约面)
+-    assert "可容忍的截断 vs 完整损坏" in doc and "不以 LF 结尾" in doc
++    # ⛔ round-17 LOW: 上一版把两个短语**跨全文**分别查 —— 「不以 LF 结尾」在 proof
++    # 条款里也出现一次，于是删掉 A4.5 真正的 LF 条款后，判据仍被别处喂饱（与 M7
++    # 那次同型）。收窄到 A4.5 段内，两句必须**同段**出现。
++    _a45 = doc[doc.index("**A4.5") : doc.index("**A5 整秒精度")]
++    assert "可容忍的截断 vs 完整损坏" in _a45 and "不以 LF 结尾" in _a45, _a45[:400]
+     # round-4 HIGH 的契约面: A8 必须写明「先过校验器本体、再叠加更严的」,
+     # 否则「比校验器严」那句会被读成「消费侧可以另起一套判据」——本卡正是
+     # 这么读的, 于是手写的第二套判据在 4 个形态上比校验器**松**。
+@@ -5188,3 +5192,166 @@ def test_round17_anchor_direction_is_verified(vault):
+         f"拒因须点名锚点方向自相矛盾（不退化成「随便什么理由拒了都算」）: {(r.stderr or '')[-300:]}"
+     )
+     assert _write_face(vault) == face, "零写"
++
++
++# ── round-17 终审（3 BLOCKER + 1 HIGH）的门 ──
++
++
++def test_round17_fsrs_applied_must_be_strict_bool(vault):
++    """`fsrs_applied` 的判据必须是**严格 bool**，不是「键在不在」。
++
++    ⛔ 上一版只拒 `None`，于是任何**非布尔真值**都被 `bool(...)` 当成「已应用」：
++    合法 YAML 字符串 `fsrs_applied: "false"` 原样重跑 ⇒ rc=0「已完整应用，幂等跳过」、
++    节点 sha 不变、W 仍为 None —— **那次 FSRS 静默漏掉**。
++    ⚠️ 判据不能写 `v in (True, False)`：`1 == True`、`0 == False`，整数会混进来。
++    """
++    LED = vault / "learning_events.jsonl"
++    for _bad in ('"false"', '"true"', "0", "1"):
++        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
++        LED.unlink(missing_ok=True)
++        assert _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1)).returncode == 0
++        nd = (vault / NODE_REL).read_text(encoding="utf-8")
++        nd2 = re.sub(r"^    fsrs_applied: .*$", f"    fsrs_applied: {_bad}", nd, count=1, flags=re.M)
++        assert nd2 != nd, f"预置必须真的改成 {_bad}"
++        (vault / NODE_REL).write_text(nd2, encoding="utf-8")
++        face = _write_face(vault)
++        r = _run_writer_settled(vault, _payload(event_id="板A#q1", ts=TS1, review_time=TS1))
++        assert r.returncode != 0, f"⛔ [{_bad}] 非布尔凭据不得被当成「已应用」"
++        assert "fsrs_applied" in (r.stderr or ""), f"拒因须点名凭据: {(r.stderr or '')[-200:]}"
++        assert _write_face(vault) == face, "零写"
++
++
++def test_round17_rebuild_preserves_existing_receipt_bytes(vault):
++    """追加新条目时**不得改动已有条目** —— 重建路径必须走同一个验证式编码。
++
++    ⛔ 上一版重建用裸 `json.dumps(..., ensure_ascii=False)`，于是新编码只保护了新条目，
++    每追加一条就把**旧**条目的字符重新破坏一次。实测：A 的板名含 U+0085 首写 rc=0；
++    普通 B 追加后 A 的 receipt 里 U+0085 变成空格；删掉 A 的账本行再原样重跑 A ⇒
++    rc=0、attempt 2→3 —— **同一次评分被算了两遍**。
++    """
++    LED = vault / "learning_events.jsonl"
++    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
++    LED.unlink(missing_ok=True)
++    _hostile = f"板{_NEL}X"
++    pa = _payload(event_id=f"{_hostile}#q1", ts=TS1, review_time=TS1, exam_board=f"检验白板/{_hostile}.md")
++    assert _run_writer_settled(vault, pa).returncode == 0, "A 首写"
++    _before = (vault / NODE_REL).read_text(encoding="utf-8")
++    # 前提自证：A 的 receipt 里确实带着那个字符 —— **裸形或转义形都算**
++    # （新编码证不成裸形往返时会落到 `\u0085` 转义，这正是它该做的事）。
++    _ESC = "\\u0085"
++    _carrier = [ln for ln in _before.split("\n") if "exam_board:" in ln]
++    assert _carrier and (_NEL in _carrier[0] or _ESC in _carrier[0]), (
++        f"预置必须真的把敌意字符写进 receipt: {_carrier!r}"
++    )
++    _snap_a = _carrier[0]
++    assert (
++        _run_writer_settled(
++            vault,
++            _payload(
++                event_id="板B#q1",
++                ts="2026-08-02T10:00:00Z",
++                review_time="2026-08-02T10:00:00Z",
++                exam_board="检验白板/板B.md",
++            ),
++        ).returncode
++        == 0
++    ), "B 首写"
++    # A 的 receipt 必须逐字未变
++    _after = (vault / NODE_REL).read_text(encoding="utf-8")
++    # ⛔ 判据落在**那一行逐字未变**上，不是「文件里还有这个字符」——
++    # 后者会被别处（例如 B 的条目）救活，是典型的粗判据。
++    assert _snap_a in _after, (
++        f"⛔ 追加 B 之后 A 的 receipt 那一行被改动了。原: {_snap_a!r} 现: "
++        f"{[ln for ln in _after.split(chr(10)) if 'exam_board:' in ln]!r}"
++    )
++    # 删掉 A 的账本行后原样重跑 A：必须认得出是同一次评分
++    _att_before = re.search(r"^attempt_count: (\d+)$", _after, re.M)
++    keep = [x for x in _ledger_lines(vault) if x.get("event_id") != f"quiz:{_hostile}#q1"]
++    LED.write_text("".join(json.dumps(x, ensure_ascii=False) + "\n" for x in keep), encoding="utf-8")
++    r = _run_writer_settled(vault, dict(pa))
++    _att_after = re.search(r"^attempt_count: (\d+)$", (vault / NODE_REL).read_text(encoding="utf-8"), re.M)
++    assert not (r.returncode == 0 and _att_before and _att_after and _att_after.group(1) != _att_before.group(1)), (
++        f"⛔ 同一次评分被算了两遍: attempt {_att_before and _att_before.group(1)} → "
++        f"{_att_after and _att_after.group(1)}"
++    )
++
++
++def test_round17_deep_json_recovers_after_crash_window(vault):
++    """合法的深层嵌套值首写成功后，崩溃窗必须**恢复得回来**。
++
++    ⛔ `_canon_tree` 原为递归实现：`exam_board` 512 层嵌套时首写 rc=0（validator 也 rc=0，
++    是合法值），而崩溃窗重跑撞 `RecursionError` ⇒ rc=1、W 仍 None、账本已有一行 ——
++    **日志记了一次、笔记零次、重跑补不回来**，正是本卡定义的 BLOCKER。
++    """
++    LED = vault / "learning_events.jsonl"
++    for _depth in (32, 512, 900):
++        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
++        LED.unlink(missing_ok=True)
++        _deep = "leaf"
++        for _ in range(_depth):
++            _deep = [_deep]
++        pl = _payload(event_id="板A#q1", ts=TS1, review_time=TS1, exam_board=_deep)
++        assert _run_writer_settled(vault, pl).returncode == 0, f"[{_depth}] 首写应放行"
++        assert _run_validator(vault).returncode == 0, f"[{_depth}] 账本合规（前提自证）"
++        # 精确崩溃窗：账本行留着，节点回滚到 append 前
++        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
++        r = _run_writer_settled(vault, dict(pl))
++        assert "RecursionError" not in (r.stderr or ""), f"⛔ [{_depth}] 崩溃窗恢复撞递归上限"
++        assert r.returncode == 0, f"⛔ [{_depth}] 崩溃窗必须恢复得回来: {(r.stderr or '')[-300:]}"
++        assert _fm_fields(vault).get("fsrs_last_review"), f"[{_depth}] 恢复后 W 必须落地"
++
++
++def test_round17_foreign_degraded_recovery_converges(vault):
++    """foreign degraded 行恢复后必须**提升事件级凭据**，否则两阶段永不收敛。
++
++    ⛔ 提升代码上一版只在**当前事件(dup)** 分支、按 `evid` 定位。实测不收敛链：
++    E1 degraded 首写 rc=0 ⇒ 提交 E2 的第一阶段恢复 E1（rc=1「恢复已落定」、W 到 E1 时刻）
++    但 E1 receipt 仍 false ⇒ E2 第二轮 rc=0、W 到 E2 ⇒ 再跑 E1 得 rc=1「false + W 已覆盖」
++    —— **那张原白板永远收敛不了**。
++    """
++    LED = vault / "learning_events.jsonl"
++    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
++    LED.unlink(missing_ok=True)
++    p1 = _payload(event_id="板A#q1", ts=TS1, review_time=TS1, exam_board="检验白板/板A.md")
++    r1 = _run_writer(vault, p1, env_extra={"FSRS_BRIDGE_REEXEC": "1"})
++    assert r1.returncode == 0 and "degraded" in r1.stdout, f"E1 degraded 首写: {r1.stderr[:200]}"
++    assert not _fm_fields(vault), "degraded 不推进 W（前提自证）"
++    p2 = _payload(
++        event_id="板B#q1", ts="2026-08-02T10:00:00Z", review_time="2026-08-02T10:00:00Z", exam_board="检验白板/板B.md"
++    )
++    r2 = _run_writer_settled(vault, p2)
++    assert r2.returncode == 0, f"E2 应收敛: {r2.stderr[:300]}"
++    # 收敛判据：再跑 E1 不得因「false + W 已覆盖」被拒
++    r3 = _run_writer_settled(vault, dict(p1))
++    assert r3.returncode == 0, f"⛔ 恢复后 E1 仍不可重跑 ⇒ 两阶段不收敛，那张白板卡死: {(r3.stderr or '')[-400:]}"
++
++
++def test_round17_tri_instant_binding_narrow(vault):
++    """**只篡改 receipt 的 ts**（账本一字不动）必须被三方同瞬间绑定抓住。
++
++    ⛔ 这道窄门是 round-17 补的：M100（不绑定采用时刻）原先由
++    `test_round11_unified_resolver` 承重，但 round-16 把 `_adopted_ok` 收紧成
++    「只认 A3 复算值」之后，**篡改账本时刻**的场景在更早处就被拒了 —— 三方绑定
++    对那个场景退化成冗余纵深，变异随之存活。
++    ⚠️ 承重面被更早的防线取代时，不能直接退役变异：该性质仍然只有它守着，
++    只是**需要一个走得到它的场景**。三方绑定唯一不可替代的场景就是
++    「账本自洽、只有 receipt 的第三个瞬间对不上」。
++    """
++    LED = vault / "learning_events.jsonl"
++    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
++    LED.unlink(missing_ok=True)
++    pl = _payload(event_id="板A#q1", ts=TS1, review_time=TS1)
++    assert _run_writer_settled(vault, pl).returncode == 0, "首写"
++    _led_before = (vault / "learning_events.jsonl").read_bytes()
++    nd = (vault / NODE_REL).read_text(encoding="utf-8")
++    nd2 = re.sub(r'^    ts: ".*"$', '    ts: "2026-08-01T10:00:05Z"', nd, count=1, flags=re.M)
++    assert nd2 != nd and '"2026-08-01T10:00:05Z"' in nd2, "预置必须真的改掉 receipt 的 ts"
++    (vault / NODE_REL).write_text(nd2, encoding="utf-8")
++    assert (vault / "learning_events.jsonl").read_bytes() == _led_before, "账本必须一字未动"
++    face = _write_face(vault)
++    r = _run_writer_settled(vault, dict(pl))
++    assert r.returncode != 0, "⛔ receipt 的第三个瞬间对不上 ⇒ 必须停"
++    assert ("采用时刻" in (r.stderr or "")) or ("同一瞬间" in (r.stderr or "")), (
++        f"拒因须点名三方同瞬间（不退化成「随便什么理由拒了都算」）: {(r.stderr or '')[-300:]}"
++    )
++    assert _write_face(vault) == face, "零写"
+diff --git a/canvas-vault/.claude/skills/quiz-answer/SKILL.md b/canvas-vault/.claude/skills/quiz-answer/SKILL.md
+index 863811ec..260a6ab3 100644
+--- a/canvas-vault/.claude/skills/quiz-answer/SKILL.md
++++ b/canvas-vault/.claude/skills/quiz-answer/SKILL.md
+@@ -213,7 +213,7 @@ eid = p.get("event_id", "")
+ # 事件 —— 账本双写、mastery 双吃、attempt 多加一次, 而 validator 看不出问题
+ # (两个不同的 event_id 本来就合法)。⛔ 这里**拒绝**而不是静默 strip: strip 会
+ # 把上游两个本来不同的 id 撞成一个, 那是替上游做主。带空白 = 上游 bug, 报给它。
+-if isinstance(eid, str) and eid != eid.strip():
++if False:  # MUTANT
+     raise SystemExit(f"[quiz-answer] event_id 首尾含空白 ({eid!r}) — 幂等键的字面即身份, 带空白的写法会与不带的各算一遍 (双写账本 + 双吃 mastery), fail-closed 拒写 — 请上游修正后重跑")
+ etype = "answer_abandoned" if p.get("abandoned") else "answer_scored"
+ # ⛔ 空的本地 event_id 必须在**任何写入之前**拒掉 (Codex round-12 HIGH④)。
+@@ -460,6 +460,35 @@ def _receipt_of(fm_text, ev_id):
+     return None
+ 
+ 
++def _promote_applied(fm_text, ev_id):
++    """把某个事件的 `fsrs_applied: false` 提升为 `true` —— **唯一实现**，两个调用点共用。
++
++    ⛔ round-17 HIGH: 上一版这段只写在**当前事件(dup)** 分支、按 `evid` 定位，于是
++    **foreign** 行走 degraded 恢复时 FSRS 补上了、receipt 却仍是 false。实测不收敛链:
++    E1 degraded 首写 rc=0 ⇒ 提交 E2 的第一阶段恢复 E1（rc=1「恢复已落定」、节点 W 到
++    E1 时刻）但 E1 receipt 仍 false ⇒ E2 第二轮 rc=0、W 到 E2 ⇒ 再跑 E1 得 rc=1
++    「false + W 已覆盖」—— **那张原白板永远收敛不了**。
++    ⚠️ 这正是本卡反复吃到的「修一半」：抽了统一函数却没让所有调用点都用。
++
++    返回 (新 fm_text, 是否发生了提升)。同一 id 命中多于一处 ⇒ fail-closed。
++    """
++    _bare = ev_id[5:] if ev_id.startswith("quiz:") else ev_id
++    for _tok in ((ev_id, _bare) if _bare != ev_id else (ev_id,)):
++        _pat = re.compile(
++            r'(^  - event_id: "' + re.escape(_tok) + r'"\n(?:    [^\n]*\n)*?    fsrs_applied: )false',
++            re.M,
++        )
++        _n = len(_pat.findall(fm_text))
++        if _n > 1:
++            raise SystemExit(
++                f"[quiz-answer] {ev_id} 在 calibration_log 里有 {_n} 条 `fsrs_applied: false` 条目"
++                f"（同一个 event_id 只该有一条）— 无法确定提升哪一条, fail-closed 拒写"
++            )
++        if _n == 1:
++            return (_pat.sub(lambda m: m.group(1) + "true", fm_text, count=1), True)
++    return (fm_text, False)
++
++
+ def _cands_and_sources(fm_text, ev_id, all_ledger_ids=()):
+     """校准 token 的候选集 + 来源反查 —— **唯一实现**, 两个调用点共用。
+ 
+@@ -590,11 +619,70 @@ def _canon_tree(v):
+ 
+     ⚠️ `bool` 必须先于数值判 —— `True/1` 是不同类型的语义（round-14 BLOCKER③）。
+     """
+-    if v is None:
+-        return ("null",)
+-    if isinstance(v, bool):
+-        return ("bool", v)
+-    if isinstance(v, (int, float)):
++    # ⛔ round-17 BLOCKER③: 原实现是**递归**的 —— `exam_board` 为 512 层嵌套时
++    # 首写 rc=0（validator 也 rc=0，是合法值），而 write-ahead 崩溃窗重跑时
++    # `RecursionError` 未被捕获 ⇒ rc=1、W 仍为 None、账本已有一行 ——
++    # **日志记了一次、笔记零次、且重跑补不回来**，正是本卡定义的 BLOCKER。
++    # 改为**显式栈的后序遍历**：深度只受内存限制，不再受解释器递归上限。
++    # ⚠️ 另设节点预算：PyYAML 的锚点/别名可以造出**自引用**结构，递归版会
++    # RecursionError、迭代版会**死循环**——把「炸」换成「挂」是更坏的失败模式。
++    # 预算耗尽即 fail-closed，报真因而不是无声打转。
++    _NODE_BUDGET = 200000
++
++    def _scalar(x):
++        """标量节点；不是标量时返回 _CONTAINER。"""
++        if x is None:
++            return ("null",)
++        if isinstance(x, bool):
++            return ("bool", x)
++        if isinstance(x, (int, float)):
++            return _num_node(x)
++        if isinstance(x, str):
++            return ("str", x)
++        if isinstance(x, (dict, list, tuple)):
++            return _CONTAINER
++        return ("other", type(x).__name__, repr(x))
++
++    _stack, _res, _seen = [(v, False)], [], 0
++    while _stack:
++        _n, _done = _stack.pop()
++        _seen += 1
++        if _seen > _NODE_BUDGET:
++            raise SystemExit(
++                f"[quiz-answer] 事实规范化的节点数超过 {_NODE_BUDGET} —— 该值要么异常庞大, "
++                f"要么含 YAML 锚点造出的自引用结构（会让遍历不终止）, fail-closed 拒写"
++            )
++        if _done:
++            if _n[0] == "obj":
++                _ks = _n[1]
++                _vals = [_res.pop() for _ in _ks]        # 压栈是正序 ⇒ 弹出即正序
++                _res.append(("obj", tuple(sorted(zip(_ks, _vals)))))
++            else:
++                _vals = [_res.pop() for _ in range(_n[1])]
++                _res.append(("arr", tuple(_vals)))
++            continue
++        _sc = _scalar(_n)
++        if _sc is not _CONTAINER:
++            _res.append(_sc)
++            continue
++        if isinstance(_n, dict):
++            _ks = tuple(str(_k) for _k in _n.keys())
++            _stack.append((("obj", _ks), True))
++            for _k in _n.keys():
++                _stack.append((_n[_k], False))
++        else:
++            _stack.append((("arr", len(_n)), True))
++            for _x in _n:
++                _stack.append((_x, False))
++    return _res[0]
++
++
++_CONTAINER = object()
++
++
++def _num_node(v):
++    """数值的类型保真规范节点（供 `_canon_tree` 用）。"""
++    if isinstance(v, (int, float)) and not isinstance(v, bool):
+         try:
+             _d = decimal.Decimal(v if isinstance(v, int) else repr(v))
+         except (ArithmeticError, ValueError, TypeError):
+@@ -610,12 +698,6 @@ def _canon_tree(v):
+         if _digits == [0]:
+             _sign, _exp = 0, 0          # -0.0 与 0 归一
+         return ("num", _sign, tuple(_digits), _exp)
+-    if isinstance(v, str):
+-        return ("str", v)
+-    if isinstance(v, dict):
+-        return ("obj", tuple(sorted((str(k), _canon_tree(x)) for k, x in v.items())))
+-    if isinstance(v, (list, tuple)):
+-        return ("arr", tuple(_canon_tree(x) for x in v))
+     return ("other", type(v).__name__, repr(v))
+ 
+ 
+@@ -763,7 +845,28 @@ def _resolve_receipt(fm_text, ev_id, all_ledger_ids=(), row=None, facts=None, re
+             elif not _ok(_got):
+                 _mis.append(f"receipt 的 {_k} 类型非法 ({_got!r})")
+             elif _canon_fact(_got) != _canon_fact(_want):
+-                _mis.append(f"{_k} {_got!r} != 期望 {_want!r}")
++                # ⛔ round-17 MEDIUM: 旧 receipt（无 `board_form`）里，老写点把
++                # **非字符串** JSON 标量写成**裸字面**（`exam_board: 1e+300`），
++                # PyYAML 读回是**字符串** ⇒ 与数值事实比不相等。这不是「两次不同的
++                # 评分」，是**形态歧义**：同一段文本，老写点对字符串板名会写成带引号
++                # 的 `"1e+300"`，YAML 读回**同样**是字符串 —— 读侧无从区分。
++                # ⚠️ 所以不能猜着解码放行（那会把两个不同的板名判等），
++                # 也不该报成「两次不同的评分」（那会让人以为数据坏了）。
++                # 报**可执行的迁移指引**：给该条目补 `board_form: json`。
++                _mig = None
++                if _k == "exam_board" and not _rcpt.get("board_form") and isinstance(_got, str):
++                    try:
++                        if _canon_fact(json.loads(_got)) == _canon_fact(_want):
++                            _mig = (
++                                f"{_k} 在旧条目里存的是**裸 JSON 字面** {_got!r}，"
++                                f"YAML 读回成字符串而本次事实是 {_want!r}（同值不同类型）"
++                                f" — 这是旧形态的歧义，不是两次不同的评分。"
++                                f"处置：给该条目补 `board_form: \"json\"` 并把值改写成"
++                                f" JSON 字符串（即 {json.dumps(_got, ensure_ascii=False)!r}）"
++                            )
++                    except (ValueError, TypeError):
++                        pass
++                _mis.append(_mig or f"{_k} {_got!r} != 期望 {_want!r}")
+         if _mis:
+             raise SystemExit(f"[quiz-answer] {ev_id} 的 receipt 与评分事实不一致 ({'; '.join(_mis)}) — 同一个 event_id 承载了两次不同的评分, fail-closed 拒写 — 请人工核对后修正 event_id 或账本")
+ 
+@@ -1162,7 +1265,41 @@ def _append_calibration(fm_text, ts_str, ev=None, applied=None, actual_ts=None):
+                 return _lit
+         except Exception:
+             pass
+-        return json.dumps(v, ensure_ascii=True)
++        _asc = json.dumps(v, ensure_ascii=True)
++        # ⛔ round-17: 两条路都证不成往返 ⇒ **拒写**, 不能静默产出一个读不回的字面。
++        # 产出它等于亲手制造下一次「自产自拒」——本卡已经吃过一次。
++        try:
++            import yaml as _y_rt2
++            _d2 = _y_rt2.safe_load("v: " + _asc)
++            if not (isinstance(_d2, dict) and _d2.get("v") == v):
++                raise SystemExit(
++                    f"[quiz-answer] 校准条目里的值 {v!r} 无法编码成能原样读回的 YAML 标量"
++                    f"（JSON 字面与纯 ASCII 转义两条都证不成往返）— 写下去会在下次重跑时"
++                    f"被判成「两次不同的评分」而永久拒写, fail-closed 拒写"
++                )
++        except SystemExit:
++            raise
++        except Exception:
++            pass
++        return _asc
++
++    def _kq(k):
++        """键的安全形态：**裸键能原样读回就保持裸形**，否则才加引号。
++
++        ⚠️ 不能无条件 `q_(key)` —— 那会把 `event_id:` 变成 `"event_id":`，改掉所有
++        既有笔记的字节形态（实测当场红 6 道门）。键在生产里都是普通标识符，走裸形；
++        只有外部篡改进来的敌意键才需要引号。判据同样是**正面证明往返**。
++        """
++        _k = str(k)
++        try:
++            import yaml as _y_k
++            _d = _y_k.safe_load(_k + ": 1")
++            if isinstance(_d, dict) and list(_d) == [_k] and _d[_k] == 1:
++                return _k
++        except Exception:
++            pass
++        return q_(_k)
++
+     if ev is None:
+         # ⛔ 正常路径也必须存**完整**账本 event_id (Codex round-6 BLOCKER):
+         # round-5 我只把 foreign 分支改成存完整 id, 正常分支仍存裸 `eid` ——
+@@ -1264,7 +1401,7 @@ def _append_calibration(fm_text, ts_str, ev=None, applied=None, actual_ts=None):
+               # `exam_board '1e+300' != 期望 1e+300` —— **自产自拒**(首写 rc=0)。
+               # 修法: 存**明确标记的 canonical JSON 字符串**(双编码), 读侧
+               # `json.loads` 还原; 类型往返由 JSON 自己保证, 不再依赖 YAML 的
+-              # 标量推断。`board_form` 缺失的旧条目仍按原语义读(向后兼容)。
++              # 标量推断。`board_form` 缺失的旧条目仍按原语义读。⛔ **兼容面只到「YAML 读回无歧义」为止**（round-17 MEDIUM 收窄）：老写点把**非字符串** JSON 标量写成裸字面（`exam_board: 1e+300`），PyYAML 读回是字符串；而字符串板名老写点写成 `"1e+300"`，读回**也是**字符串 —— 读侧无从区分。这类条目不自动解码（猜错会把两个不同的板名判等），而是报可执行的迁移指引（补 `board_form`）。不得宣称整个旧值域兼容。
+               f'    exam_board: {q_(json.dumps(_e_pl.get("exam_board", ""), ensure_ascii=False, sort_keys=True))}\n'
+               f'    question_id: {_e_qid}\n'
+               f'    self_confidence_raw: {_e_scr}\n'
+@@ -1334,7 +1471,14 @@ def _append_calibration(fm_text, ts_str, ev=None, applied=None, actual_ts=None):
+                 _ks = list(_e.keys()) if isinstance(_e, dict) else []
+                 for _n, _k in enumerate(_ks):
+                     _pfx = "  - " if _n == 0 else "    "
+-                    _rebuilt.append(f"{_pfx}{_k}: {json.dumps(_e[_k], ensure_ascii=False, default=str)}")
++                    # ⛔ round-17 BLOCKER②: 重建**已有**条目此前仍用裸
++                    # `json.dumps(..., ensure_ascii=False)` —— 于是新 `q_` 只保护了
++                    # 新条目, 而每追加一条就把**旧**条目的字符重新破坏一次。实测:
++                    # A 的板名含 U+0085 首写 rc=0; 普通 B 追加后 A 的 receipt 里
++                    # U+0085 变成空格; 删掉 A 的账本行再原样重跑 A ⇒ rc=0、
++                    # attempt 2→3 —— **同一次评分被算了两遍**。
++                    # 键也走 q_: 键同样可能含 YAML 敌意字符。
++                    _rebuilt.append(f"{_pfx}{_kq(_k)}: {q_(_e[_k])}")
+             _rebuilt.append(entry_)
+             # 删掉原有的那一段(裸键或 quoted 键皆可), 再插入重建结果
+             _cut = re.sub(r'^(?:"calibration_log"|calibration_log):.*?(?=^\S|\Z)', "",
+@@ -1343,6 +1487,15 @@ def _append_calibration(fm_text, ts_str, ev=None, applied=None, actual_ts=None):
+             _reparsed = _y.safe_load(_new_body)      # 落盘前自证可解析
+             if not isinstance(_reparsed, dict) or not isinstance(_reparsed.get("calibration_log"), list):
+                 raise SystemExit(f"[quiz-answer] 校准写回后的 frontmatter 形态不对 (calibration_log 不是列表) — 拒绝落盘, fail-closed")
++            # ⛔ round-17 BLOCKER②(下半): 只验「是列表」与「条数 +1」测不到**内容被改坏**。
++            # 逐条做类型保真比较, 证明重建没有动过任何一条已有条目。
++            _kept = _reparsed["calibration_log"][: len(_cur or [])]
++            if _canon_tree(_kept) != _canon_tree(list(_cur or [])):
++                raise SystemExit(
++                    "[quiz-answer] 校准写回时**已有条目被改动**（重建前后逐条比较不相等）"
++                    " — 那会让历史 receipt 与它记录的那次评分对不上, 于是同一次评分可能被"
++                    "再算一遍, 拒绝落盘, fail-closed 拒写"
++                )
+             if len(_reparsed["calibration_log"]) != len(_cur or []) + 1:
+                 raise SystemExit(f"[quiz-answer] 校准写回后条目数不对 (期望 {len(_cur or []) + 1}, 实为 {len(_reparsed['calibration_log'])}) — 可能有重复键或结构错位, 拒绝落盘, fail-closed")
+             return (_fm_m.group(1) + _new_body.rstrip("\n") + _fm_m.group(3)) if _fm_m else _new_body
+@@ -1664,7 +1817,28 @@ if dup is None:
+                 if isinstance(_rc_probe_f1, dict) and "pred_id" in _rc_probe_f1:
+                     _pid_f1 = _rc_probe_f1.get("pred_id")
+                     if _pid_f1 is None:
+-                        _base_line_f1 = 0          # 本节点的第一次评分, 前面没有行
++                        # ⛔ round-17 MEDIUM: `pred_id: null` 自称「前面没有行」——
++                        # 这句话要能被账本**正面反驳**才算数。若账本里还留着本节点
++                        # 一条**采用时刻严格早于**本次的评分行, 那 null 就与账本矛盾
++                        # （把锚改成 null 可以抹掉前驱、压低期望序数）。
++                        # ⚠️ 反过来「账本里没有更早的行」并不能证明当时也没有 ——
++                        # 写点自产的合法状态里就有 `pred_id: null` 配 attempt 2
++                        # （E1 正常评分后外部清空账本, 再评 E2）。所以这里只做
++                        # **反驳**, 不要求正面证明, 否则会误拒那个合法状态。
++                        _earlier = [
++                            _lb for _lb, _ob in _rows_node_f1
++                            if (lambda _i: _i is not None and _i < _rc_inst_f1)(
++                                _durable_instant_safe((_ob.get("payload") or {}).get("review_time"))
++                            )
++                        ]
++                        if _earlier:
++                            raise SystemExit(
++                                f"[quiz-answer] {evid} 的 receipt 写序锚 pred_id 为 null"
++                                f"（自称是本节点第一次评分），但账本第 {_earlier[:3]} 行的采用时刻"
++                                f"**早于**它的 ts={_rc_ts_f1!r} —— 两者自相矛盾, 原写序不可证明, "
++                                f"fail-closed 拒写"
++                            )
++                        _base_line_f1 = 0
+                         _anchor_ok_f1 = True
+                     elif isinstance(_pid_f1, str) and _pid_f1:
+                         _hit_f1 = [(_lb, _ob) for _lb, _ob in _rows_node_f1
+@@ -1700,19 +1874,27 @@ if dup is None:
+                             # —— 它是此刻唯一的排序信息, 拒绝等于把 §6.3 前驱一律判死。
+                             _na_a = (_ob_a.get("payload") or {}).get("attempt_count")
+                             _nr_a = _rc_probe_f1.get("attempt_count")
+-                            if (
++                            _ord_ok = (
+                                 isinstance(_na_a, int) and not isinstance(_na_a, bool)
+                                 and isinstance(_nr_a, int) and not isinstance(_nr_a, bool)
+-                                and _na_a >= _nr_a
+-                            ):
++                            )
++                            if _ord_ok and _na_a >= _nr_a:
+                                 raise SystemExit(
+                                     f"[quiz-answer] {evid} 的 receipt 写序锚 pred_id={_pid_f1!r} "
+                                     f"指向的账本行序数 attempt_count={_na_a} 不小于本次的 "
+                                     f"{_nr_a} —— 锚点按定义只能指向在先的行, 两者自相矛盾, "
+                                     f"fail-closed 拒写"
+                                 )
+-                            _base_line_f1 = _lb_a
+-                            _anchor_ok_f1 = True
++                            # ⛔ round-17 MEDIUM: 只有拿到**肯定的**方向证据（时刻或序数）
++                            # 才认这个锚。两样都拿不到时**回落**（回落路径自带歧义证明），
++                            # 而不是「没证据就信」—— 那正是「锚点指向后继」能通过的口子:
++                            # 实测把 B 变成无 review_time 且无 attempt_count 的 §6.3 行、
++                            # 再把 A 的锚改指 B, 上一版 rc=0 且声称完整。
++                            if _ib_a is None and not _ord_ok:
++                                pass                      # 无证据 ⇒ 锚不可用, 走回落
++                            else:
++                                _base_line_f1 = _lb_a
++                                _anchor_ok_f1 = True
+                         # len == 0 ⇒ 前驱行也丢了(本分支的前提) ⇒ 回落, 不是错误
+                     else:
+                         raise SystemExit(
+@@ -1876,11 +2058,18 @@ else:
+     if _rc_dup is None and evid.startswith("quiz:"):
+         _rc_dup = _receipt_of(fm, evid[5:])
+     _rc_dup_applied = _rc_dup.get("fsrs_applied") if isinstance(_rc_dup, dict) else None
+-    if _rc_dup is not None and _rc_dup_applied is None:
++    # ⛔ round-17 BLOCKER①: 判据必须是**严格 bool**, 不是「有没有这个键」。
++    # 上一版只拒 None, 于是任何**非布尔真值**都会被下面的 `bool(...)` 当成「已应用」:
++    # 实测把 receipt 改成合法 YAML 字符串 `fsrs_applied: "false"` 后原样重跑 ⇒ rc=0
++    # 「已完整应用, 幂等跳过」、节点 sha 不变、W 仍是 None —— **那次 FSRS 静默漏掉**。
++    # ⚠️ 不能写 `v in (True, False)`: `1 == True`、`0 == False`, 整数会混进来。
++    # 只有 `type(v) is bool` 能同时拒掉 "false"/"true"/0/1 四种形态。
++    if _rc_dup is not None and type(_rc_dup_applied) is not bool:
+         raise SystemExit(
+-            f"[quiz-answer] {evid} 的校准条目没有 `fsrs_applied` 事件级凭据（本卡之前写的"
+-            f"旧条目）—— 全局水位线 `W >= review_time` **不能**证明这一次的调度已生效"
+-            f"（后继事件会把 W 推过去制造假覆盖），fail-closed 拒写 — "
++            f"[quiz-answer] {evid} 的校准条目缺少可用的 `fsrs_applied` 事件级凭据"
++            f"（实得 {_rc_dup_applied!r}，必须是 YAML 布尔 true/false，字符串 \"false\" 与"
++            f"整数 0/1 都不算）—— 全局水位线 `W >= review_time` **不能**证明这一次的调度"
++            f"已生效（后继事件会把 W 推过去制造假覆盖），fail-closed 拒写 — "
+             f"请人工确认那次评分是否真的推进过 FSRS 后，给该条目补上 `fsrs_applied`"
+         )
+     # 有凭据时以它为准；没有 receipt（F1 为假）时仍按 W 判 —— 那一支由下面的
+@@ -1906,7 +2095,7 @@ else:
+             f"（本卡不提供该工具，属 recovery-only 路径，已登记裁决点）。"
+         )
+     _fsrs_applied = (
+-        bool(_rc_dup_applied) if _rc_dup is not None
++        (_rc_dup_applied is True) if _rc_dup is not None
+         else (W_inst is not None and W_inst >= _dup_inst)
+     )
+     # A4.5 canonical envelope 门 — 对「已应用 no-op」与「恢复」两态都生效,
+@@ -2237,7 +2426,7 @@ for _inst, _ln, _o in pending:
+             print(f"[quiz-answer] ⚠️ 账本第 {_ln} 行({_o.get('event_id')}) 记的采用时刻 "
+                   f"{_pl['review_time']!r} 与复放时实际写下的水位线 {_w_after!r} 不同 —— "
+                   f"A3 在复放时把它推进了(同瞬间的多条 pending 会这样)。账本是 append-only, "
+-                  f"**不改写**那一行; 差异记入该事件的校准条目 `adopted_actual` 以便审计。")
++                  f"**不改写**那一行; ⛔ 该分叉按规格 A3/A6 不是合法状态, 会在写回校准条目时被硬错误拦下。")
+         _w_roll = _w_real if _w_real is not None else _w_durable
+     except Exception:
+         pass
+@@ -2280,17 +2469,47 @@ for _inst, _ln, _o in pending:
+         fm, _rid_, _ALL_LEDGER_IDS, row=_o, facts=_facts_of_row(_o),
+     ) if _fm_has_event(fm, _rid_) or _fm_has_event(fm, _rid_[5:] if _rid_.startswith("quiz:") else _rid_) else (None, None)
+     _already_ = _rcpt_fg is not None
++    # ⛔ round-17 HIGH: foreign 行也必须走事件级凭据的**严格状态判定 + 提升**。
++    # 本轮 bridge 已经把这一行复放进 FSRS（上面 `_apply_fsrs_block`），所以它的
++    # receipt 若还是 false，就必须在**同一次原子发布**里升成 true；不升 ⇒ 两阶段
++    # 永不收敛（实测: E1 恢复后 receipt 仍 false、W 已过 E1，再跑 E1 报「false + W
++    # 已覆盖」而拒 —— 那张原白板卡死）。
++    if _already_ and _o.get("event_id") != evid:
++        _fa_fg = _rcpt_fg.get("fsrs_applied")
++        if type(_fa_fg) is not bool:
++            raise SystemExit(
++                f"[quiz-answer] 账本第 {_ln} 行({_rid_}) 的校准条目缺少可用的 `fsrs_applied`"
++                f" 事件级凭据（实得 {_fa_fg!r}，必须是 YAML 布尔）— 无法证明那次调度是否"
++                f"已生效, fail-closed 拒写"
++            )
++        if _fa_fg is False:
++            fm, _ok_fg = _promote_applied(fm, _rid_)
++            if not _ok_fg:
++                raise SystemExit(
++                    f"[quiz-answer] 账本第 {_ln} 行({_rid_}) 的 `fsrs_applied: false` 已补上"
++                    f"调度、却无法在 frontmatter 里定位并提升为 true — 不能只补一半"
++                    f"（下次重跑会因「false + W 已覆盖」再次被拒而永不收敛）, fail-closed 拒写"
++                )
++        else:
++            # true 却仍在待恢复队列里 = 状态自相矛盾: 正常写是「落账 → 应用 → 发布
++            # (receipt true 且 W=review_time)」, 那样它就不该还是 pending;
++            # 降级写产出的是 false。两种合法来源都到不了这里。
++            raise SystemExit(
++                f"[quiz-answer] 账本第 {_ln} 行({_rid_}) 的 receipt 记 `fsrs_applied: true`,"
++                f" 但这一行仍在待恢复队列里（review_time 尚未被水位线覆盖）— 两者自相矛盾,"
++                f" 无法判断那次调度到底生效没有, fail-closed 拒写 — 请人工核对后决定"
++            )
+     if _o.get("event_id") != evid and not _already_:
+         _o2_, _A2_, _B2_, _n2_ = _apply_mastery(fm, _pl["review_time"], _pl.get("grade_norm"))
+         fm = re.sub(r'^(mastery_score|mastery|mastery_level|mastery_a|mastery_b|last_examined):.*\r?\n?', '', fm, flags=re.M)
+         fm = re.sub(r'^(type:.*)$', lambda x: x.group(1) + f"\nmastery_score: {_n2_}\nmastery_a: {round(_A2_, 4)}\nmastery_b: {round(_B2_, 4)}\nlast_examined: " + json.dumps(_pl["review_time"], ensure_ascii=False), fm, count=1, flags=re.M)
+         # ⚠️ 复放的校准条目按**实际写下的**水位线记 ts（与节点 W 同源）,
+-        # 并在与 durable 不同时留下 `adopted_actual` 供审计（见上方告警）。
++        # ⛔ round-17 LOW: 本行原先描述的是已废弃的 round-15 方案（把分叉记进 `adopted_actual` 当合法状态）。该字段已删、分叉已升为硬错误；保留旧叙述会让后人按注释重新引入违规分支。
+         # ⛔ `ts` **必须与 durable 的采用时刻同源** —— 三方同瞬间(ledger effective_at /
+         # payload.review_time / receipt ts)的定义就是如此。把 ts 改成「实际水位线」
+         # 会让下一轮续跑的三方判据永远不通过, **续跑不收敛**(实测: 门报「恢复已落定,
+         # 请重跑」而 settled 版本反复跑也落不了地 —— 那不是误拒, 是不收敛)。
+-        # 实际水位线只能记进**另一个字段**(`adopted_actual`), 供审计, 不参与身份判定。
++        # ⛔ round-17 LOW: 本行原先描述的是已废弃的 round-15 方案（把分叉记进 `adopted_actual` 当合法状态）。该字段已删、分叉已升为硬错误；保留旧叙述会让后人按注释重新引入违规分支。
+         fm = _append_calibration(fm, _pl["review_time"], ev=_o, actual_ts=_w_after)
+     _n_ = _pl.get("attempt_count")
+     if isinstance(_n_, int) and not isinstance(_n_, bool) and _n_ >= 0:
+@@ -2387,20 +2606,7 @@ if dup is not None:
+         # 恢复(幂等但重复), 且「这次到底应用过没有」永远停在 false —— 事件级凭据失去意义。
+         # ⚠️ 只改**本事件**那一条; 用逐字定位而不是整份 YAML 往返(那会把 ISO 时刻
+         # 隐式转成 datetime, 见 round-10 的教训)。
+-        _fa_pat = re.compile(
+-            r'(^  - event_id: "' + re.escape(evid) + r'"\n(?:    [^\n]*\n)*?    fsrs_applied: )false',
+-            re.M,
+-        )
+-        _fm_before = fm
+-        fm = _fa_pat.sub(lambda m: m.group(1) + "true", fm, count=1)
+-        if fm == _fm_before:
+-            # 裸形态历史条目: 同样只改本事件那一条
+-            _bare_evid = evid[5:] if evid.startswith("quiz:") else evid
+-            _fa_pat2 = re.compile(
+-                r'(^  - event_id: "' + re.escape(_bare_evid) + r'"\n(?:    [^\n]*\n)*?    fsrs_applied: )false',
+-                re.M,
+-            )
+-            fm = _fa_pat2.sub(lambda m: m.group(1) + "true", fm, count=1)
++        fm, _ = _promote_applied(fm, evid)
+     else:
+         # 崩溃窗口① (f1=F): 评分链其余副作用全部未应用 → 全套补齐
+         old, A, B, new = _apply_mastery(fm, review_time)
+@@ -2551,6 +2757,15 @@ if True:  # 正常路径 append (恢复路径已在上方 raise SystemExit(0) 
+             raise SystemExit(f"[quiz-answer] 本次构造的事件未通过校验器自检: {'; '.join(_self_vio[:3])} — 写点不得产出 validator 会拒的行(它会阻塞后续所有评分), fail-closed 拒写 — 请修正输入后重跑")
+         try:
+             _line = (json.dumps(rec, ensure_ascii=False, allow_nan=False) + "\n").encode("utf-8")
++        except UnicodeEncodeError as _sur_e:
++            # ⛔ round-17 LOW: `UnicodeEncodeError` 是 `ValueError` 的**子类**, 上一版
++            # 被下面那个 handler 一并吞掉 ⇒ 孤立代理（`\ud800` 这类无法编码成 UTF-8 的
++            # 码位）被误报成「含 NaN/Infinity」。拒得对, 但说错了原因, 上游照着查会白费。
++            raise SystemExit(
++                f"[quiz-answer] 本次事件含无法编码成 UTF-8 的码位（孤立代理等: {_sur_e}）"
++                f" — 账本是 UTF-8 JSONL, 这一行写不进去; fail-closed 拒写 —"
++                f" 请上游修正输入后重跑"
++            )
+         except ValueError as _nan_e:
+             raise SystemExit(f"[quiz-answer] 本次事件含非有限浮点数 (NaN/Infinity: {_nan_e}) — RFC 8259 禁止, 校验器会拒收整个账本; fail-closed 拒写 — 请上游修正输入后重跑")
+         _fd = os.open(EV, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)

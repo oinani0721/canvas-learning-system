@@ -22,17 +22,19 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Tuple
 
+
 # 颜色输出
 class Colors:
-    RED = '\033[91m'
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    BLUE = '\033[94m'
-    END = '\033[0m'
+    RED = "\033[91m"
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    BLUE = "\033[94m"
+    END = "\033[0m"
+
 
 def color(text: str, c: str) -> str:
     """添加颜色"""
-    if os.environ.get('NO_COLOR'):
+    if os.environ.get("NO_COLOR"):
         return text
     return f"{c}{text}{Colors.END}"
 
@@ -42,7 +44,7 @@ def load_openapi_spec(spec_path: Path) -> dict:
     if not spec_path.exists():
         return {}
 
-    with open(spec_path, 'r', encoding='utf-8') as f:
+    with open(spec_path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -54,7 +56,7 @@ def extract_routes_from_code(api_dir: Path) -> Dict[str, List[str]]:
         if py_file.name.startswith("_"):
             continue
 
-        content = py_file.read_text(encoding='utf-8')
+        content = py_file.read_text(encoding="utf-8")
 
         # 匹配 FastAPI 路由装饰器
         patterns = [
@@ -78,16 +80,15 @@ def extract_routes_from_spec(spec: dict) -> List[Tuple[str, str]]:
     """从 OpenAPI 规范中提取路由"""
     routes = []
 
-    for path, methods in spec.get('paths', {}).items():
+    for path, methods in spec.get("paths", {}).items():
         for method in methods:
-            if method in ['get', 'post', 'put', 'patch', 'delete']:
+            if method in ["get", "post", "put", "patch", "delete"]:
                 routes.append((method.upper(), path))
 
     return routes
 
 
-def compare_routes(code_routes: Dict[str, List[Tuple[str, str]]],
-                   spec_routes: List[Tuple[str, str]]) -> dict:
+def compare_routes(code_routes: Dict[str, List[Tuple[str, str]]], spec_routes: List[Tuple[str, str]]) -> dict:
     """比较代码路由和规范路由"""
     # 扁平化代码路由
     all_code_routes = set()
@@ -103,29 +104,29 @@ def compare_routes(code_routes: Dict[str, List[Tuple[str, str]]],
     in_both = all_code_routes & spec_routes_set
 
     return {
-        'in_code_not_spec': sorted(in_code_not_spec),
-        'in_spec_not_code': sorted(in_spec_not_code),
-        'in_both': sorted(in_both),
-        'code_count': len(all_code_routes),
-        'spec_count': len(spec_routes),
-        'sync_rate': len(in_both) / max(len(all_code_routes), 1) * 100,
+        "in_code_not_spec": sorted(in_code_not_spec),
+        "in_spec_not_code": sorted(in_spec_not_code),
+        "in_both": sorted(in_both),
+        "code_count": len(all_code_routes),
+        "spec_count": len(spec_routes),
+        "sync_rate": len(in_both) / max(len(all_code_routes), 1) * 100,
     }
 
 
 def check_spec_age(spec_path: Path) -> dict:
     """检查规范文件的年龄"""
     if not spec_path.exists():
-        return {'exists': False, 'age_days': None}
+        return {"exists": False, "age_days": None}
 
     mtime = datetime.fromtimestamp(spec_path.stat().st_mtime, tz=timezone.utc)
     now = datetime.now(timezone.utc)
     age = now - mtime
 
     return {
-        'exists': True,
-        'last_modified': mtime.isoformat(),
-        'age_days': age.days,
-        'age_hours': age.total_seconds() / 3600,
+        "exists": True,
+        "last_modified": mtime.isoformat(),
+        "age_days": age.days,
+        "age_hours": age.total_seconds() / 3600,
     }
 
 
@@ -140,8 +141,8 @@ def generate_report(comparison: dict, spec_age: dict) -> str:
 
     # 规范年龄
     lines.append("## OpenAPI Specification Age")
-    if spec_age['exists']:
-        age_days = spec_age['age_days']
+    if spec_age["exists"]:
+        age_days = spec_age["age_days"]
         if age_days > 30:
             status = color("STALE", Colors.RED)
         elif age_days > 7:
@@ -161,7 +162,7 @@ def generate_report(comparison: dict, spec_age: dict) -> str:
     lines.append(f"  Code Routes: {comparison['code_count']}")
     lines.append(f"  Spec Routes: {comparison['spec_count']}")
 
-    sync_rate = comparison['sync_rate']
+    sync_rate = comparison["sync_rate"]
     if sync_rate >= 95:
         sync_status = color(f"{sync_rate:.1f}%", Colors.GREEN)
     elif sync_rate >= 80:
@@ -172,15 +173,15 @@ def generate_report(comparison: dict, spec_age: dict) -> str:
     lines.append("")
 
     # 差异详情
-    if comparison['in_code_not_spec']:
+    if comparison["in_code_not_spec"]:
         lines.append("## Routes in Code but NOT in Spec (Missing from docs)")
-        for method, path in comparison['in_code_not_spec']:
+        for method, path in comparison["in_code_not_spec"]:
             lines.append(f"  {color('!', Colors.YELLOW)} {method} {path}")
         lines.append("")
 
-    if comparison['in_spec_not_code']:
+    if comparison["in_spec_not_code"]:
         lines.append("## Routes in Spec but NOT in Code (Orphaned docs)")
-        for method, path in comparison['in_spec_not_code']:
+        for method, path in comparison["in_spec_not_code"]:
             lines.append(f"  {color('!', Colors.RED)} {method} {path}")
         lines.append("")
 
@@ -188,15 +189,15 @@ def generate_report(comparison: dict, spec_age: dict) -> str:
     lines.append("## Recommendations")
     recommendations = []
 
-    if not spec_age['exists']:
+    if not spec_age["exists"]:
         recommendations.append("- Generate OpenAPI spec: python scripts/spec-tools/export-openapi.py")
-    elif spec_age['age_days'] > 7:
+    elif spec_age["age_days"] > 7:
         recommendations.append("- Regenerate OpenAPI spec: python scripts/spec-tools/export-openapi.py")
 
-    if comparison['in_code_not_spec']:
+    if comparison["in_code_not_spec"]:
         recommendations.append(f"- Add {len(comparison['in_code_not_spec'])} missing routes to OpenAPI spec")
 
-    if comparison['in_spec_not_code']:
+    if comparison["in_spec_not_code"]:
         recommendations.append(f"- Remove {len(comparison['in_spec_not_code'])} orphaned routes from OpenAPI spec")
 
     if not recommendations:
@@ -212,24 +213,10 @@ def generate_report(comparison: dict, spec_age: dict) -> str:
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Verify specification sync with code"
-    )
-    parser.add_argument(
-        "--fix", "-f",
-        action="store_true",
-        help="Automatically regenerate OpenAPI spec if stale"
-    )
-    parser.add_argument(
-        "--report", "-r",
-        action="store_true",
-        help="Save report to file"
-    )
-    parser.add_argument(
-        "--json", "-j",
-        action="store_true",
-        help="Output as JSON"
-    )
+    parser = argparse.ArgumentParser(description="Verify specification sync with code")
+    parser.add_argument("--fix", "-f", action="store_true", help="Automatically regenerate OpenAPI spec if stale")
+    parser.add_argument("--report", "-r", action="store_true", help="Save report to file")
+    parser.add_argument("--json", "-j", action="store_true", help="Output as JSON")
 
     args = parser.parse_args()
 
@@ -251,9 +238,9 @@ def main():
 
     if args.json:
         result = {
-            'comparison': comparison,
-            'spec_age': spec_age,
-            'timestamp': datetime.now(timezone.utc).isoformat(),
+            "comparison": comparison,
+            "spec_age": spec_age,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         print(json.dumps(result, indent=2))
     else:
@@ -262,19 +249,19 @@ def main():
 
         if args.report:
             report_path = project_root / "spec-sync-report.txt"
-            with open(report_path, 'w', encoding='utf-8') as f:
+            with open(report_path, "w", encoding="utf-8") as f:
                 # 移除颜色代码
-                clean_report = re.sub(r'\033\[[0-9;]+m', '', report)
+                clean_report = re.sub(r"\033\[[0-9;]+m", "", report)
                 f.write(clean_report)
             print(f"\nReport saved to: {report_path}")
 
     # 自动修复
-    if args.fix and (not spec_age['exists'] or spec_age['age_days'] > 7):
+    if args.fix and (not spec_age["exists"] or spec_age["age_days"] > 7):
         print("\nRegenerating OpenAPI spec...")
         os.system(f"python {project_root / 'scripts' / 'spec-tools' / 'export-openapi.py'}")
 
     # 返回码
-    if comparison['sync_rate'] < 80 or spec_age.get('age_days', 0) > 30:
+    if comparison["sync_rate"] < 80 or spec_age.get("age_days", 0) > 30:
         sys.exit(1)
     sys.exit(0)
 

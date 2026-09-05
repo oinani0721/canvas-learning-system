@@ -26,8 +26,9 @@ from typing import List, Tuple
 
 # Set UTF-8 encoding for Windows console
 import io
-if sys.stdout.encoding != 'utf-8':
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+
+if sys.stdout.encoding != "utf-8":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
 
 # Stories before this Epic number are considered legacy
@@ -44,17 +45,17 @@ def extract_epic_number(filename: str) -> int:
         'story-15-1.md' -> 15
     """
     # Pattern 1: {epicNum}.{storyNum}.story.md
-    match = re.match(r'(\d+)\.\d+\.story\.md', filename)
+    match = re.match(r"(\d+)\.\d+\.story\.md", filename)
     if match:
         return int(match.group(1))
 
     # Pattern 2: story-{epicNum}-{storyNum}.md
-    match = re.match(r'story-(\d+)-\d+\.md', filename, re.IGNORECASE)
+    match = re.match(r"story-(\d+)-\d+\.md", filename, re.IGNORECASE)
     if match:
         return int(match.group(1))
 
     # Pattern 3: Any number at the start
-    match = re.match(r'(\d+)', filename)
+    match = re.match(r"(\d+)", filename)
     if match:
         return int(match.group(1))
 
@@ -70,14 +71,14 @@ def check_sdd_section(content: str) -> Tuple[bool, str]:
     """
     # Patterns that indicate SDD references
     sdd_patterns = [
-        r'SDD规范引用',           # Chinese section header
-        r'SDD Specification',     # English section header
-        r'OpenAPI.*specs/',       # OpenAPI reference
-        r'specs/api/',            # API spec path
-        r'specs/data/',           # Data schema path
-        r'\.schema\.json',        # JSON Schema file
-        r'\.openapi\.yml',        # OpenAPI file
-        r'\.openapi\.yaml',       # OpenAPI file (yaml extension)
+        r"SDD规范引用",  # Chinese section header
+        r"SDD Specification",  # English section header
+        r"OpenAPI.*specs/",  # OpenAPI reference
+        r"specs/api/",  # API spec path
+        r"specs/data/",  # Data schema path
+        r"\.schema\.json",  # JSON Schema file
+        r"\.openapi\.yml",  # OpenAPI file
+        r"\.openapi\.yaml",  # OpenAPI file (yaml extension)
     ]
 
     for pattern in sdd_patterns:
@@ -96,13 +97,13 @@ def check_adr_section(content: str) -> Tuple[bool, str]:
     """
     # Patterns that indicate ADR references
     adr_patterns = [
-        r'ADR关联',                      # Chinese section header
-        r'ADR References',               # English section header
-        r'ADR-\d{3}',                    # ADR number (e.g., ADR-001)
-        r'docs/architecture/decisions/', # ADR file path
-        r'No ADRs apply',                # Explicit no ADR statement
-        r'无相关ADR',                    # Chinese no ADR statement
-        r'N/A.*ADR',                     # N/A with ADR mention
+        r"ADR关联",  # Chinese section header
+        r"ADR References",  # English section header
+        r"ADR-\d{3}",  # ADR number (e.g., ADR-001)
+        r"docs/architecture/decisions/",  # ADR file path
+        r"No ADRs apply",  # Explicit no ADR statement
+        r"无相关ADR",  # Chinese no ADR statement
+        r"N/A.*ADR",  # N/A with ADR mention
     ]
 
     for pattern in adr_patterns:
@@ -127,7 +128,7 @@ def validate_story_file(filepath: Path) -> Tuple[bool, List[str]]:
 
     # Read file content
     try:
-        content = filepath.read_text(encoding='utf-8')
+        content = filepath.read_text(encoding="utf-8")
     except Exception as e:
         return False, [f"[ERROR] Cannot read file: {e}"]
 
@@ -165,12 +166,12 @@ def main():
     # Get story files from arguments or find all
     if len(sys.argv) > 1:
         # Files passed as arguments (from pre-commit)
-        story_files = [Path(f) for f in sys.argv[1:] if f.endswith('.story.md')]
+        story_files = [Path(f) for f in sys.argv[1:] if f.endswith(".story.md")]
     else:
         # No arguments - scan docs/stories/ directory
-        story_dir = Path('docs/stories')
+        story_dir = Path("docs/stories")
         if story_dir.exists():
-            story_files = list(story_dir.glob('*.story.md'))
+            story_files = list(story_dir.glob("*.story.md"))
         else:
             print("[INFO] No docs/stories/ directory found")
             print("[INFO] No story files to validate")

@@ -32,17 +32,17 @@ sys.path.insert(0, str(BACKEND_DIR))
 
 
 class Colors:
-    RED = '\033[91m'
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    BLUE = '\033[94m'
-    CYAN = '\033[96m'
-    END = '\033[0m'
+    RED = "\033[91m"
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    BLUE = "\033[94m"
+    CYAN = "\033[96m"
+    END = "\033[0m"
 
 
 def color(text: str, c: str) -> str:
     """Add color to text"""
-    if os.environ.get('NO_COLOR'):
+    if os.environ.get("NO_COLOR"):
         return text
     return f"{c}{text}{Colors.END}"
 
@@ -113,9 +113,10 @@ def model_to_schema_name(class_name: str) -> str:
         LearningEpisodeCreate -> learning-episode-create
     """
     import re
+
     # Insert hyphen before uppercase letters
-    s1 = re.sub('(.)([A-Z][a-z]+)', r'\1-\2', class_name)
-    s2 = re.sub('([a-z0-9])([A-Z])', r'\1-\2', s1)
+    s1 = re.sub("(.)([A-Z][a-z]+)", r"\1-\2", class_name)
+    s2 = re.sub("([a-z0-9])([A-Z])", r"\1-\2", s1)
     return s2.lower()
 
 
@@ -129,19 +130,19 @@ def generate_json_schema(model_class: Type) -> Dict[str, Any]:
         schema = model_class.model_json_schema()
 
         # Add metadata
-        schema['$id'] = f"https://canvas-learning.local/schemas/{model_to_schema_name(model_class.__name__)}.json"
-        schema['$schema'] = "https://json-schema.org/draft/2020-12/schema"
+        schema["$id"] = f"https://canvas-learning.local/schemas/{model_to_schema_name(model_class.__name__)}.json"
+        schema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
 
         # Add generation metadata
-        schema['x-generated'] = {
-            'from': f"app.models.{model_class.__module__.split('.')[-1]}.{model_class.__name__}",
-            'at': datetime.now(timezone.utc).isoformat(),
-            'tool': 'export-json-schemas.py'
+        schema["x-generated"] = {
+            "from": f"app.models.{model_class.__module__.split('.')[-1]}.{model_class.__name__}",
+            "at": datetime.now(timezone.utc).isoformat(),
+            "tool": "export-json-schemas.py",
         }
 
         return schema
     except Exception as e:
-        return {'error': str(e), 'model': model_class.__name__}
+        return {"error": str(e), "model": model_class.__name__}
 
 
 def export_schemas(output_dir: Path) -> Tuple[int, int, List[Dict]]:
@@ -166,26 +167,24 @@ def export_schemas(output_dir: Path) -> Tuple[int, int, List[Dict]]:
             schema_name = model_to_schema_name(class_name)
             output_path = output_dir / f"{schema_name}.schema.json"
 
-            if 'error' in schema:
+            if "error" in schema:
                 print(f"    {color('[X]', Colors.RED)} {class_name}: {schema['error']}")
                 errors += 1
-                results.append({
-                    'model': class_name,
-                    'status': 'error',
-                    'error': schema['error']
-                })
+                results.append({"model": class_name, "status": "error", "error": schema["error"]})
             else:
-                with open(output_path, 'w', encoding='utf-8') as f:
+                with open(output_path, "w", encoding="utf-8") as f:
                     json.dump(schema, f, indent=2, ensure_ascii=False)
 
                 print(f"    {color('[OK]', Colors.GREEN)} {class_name} -> {schema_name}.schema.json")
                 success += 1
-                results.append({
-                    'model': class_name,
-                    'status': 'success',
-                    'schema_file': str(output_path.name),
-                    'properties': len(schema.get('properties', {}))
-                })
+                results.append(
+                    {
+                        "model": class_name,
+                        "status": "success",
+                        "schema_file": str(output_path.name),
+                        "properties": len(schema.get("properties", {})),
+                    }
+                )
 
     return success, errors, results
 
@@ -196,8 +195,8 @@ def compare_schemas(generated_dir: Path, existing_dir: Path) -> Dict[str, Any]:
 
     Returns comparison report.
     """
-    generated_files = {f.stem.replace('.schema', ''): f for f in generated_dir.glob('*.schema.json')}
-    existing_files = {f.stem.replace('.schema', ''): f for f in existing_dir.glob('*.schema.json')}
+    generated_files = {f.stem.replace(".schema", ""): f for f in generated_dir.glob("*.schema.json")}
+    existing_files = {f.stem.replace(".schema", ""): f for f in existing_dir.glob("*.schema.json")}
 
     generated_names = set(generated_files.keys())
     existing_names = set(existing_files.keys())
@@ -212,37 +211,39 @@ def compare_schemas(generated_dir: Path, existing_dir: Path) -> Dict[str, Any]:
     matches = []
 
     for name in in_both:
-        with open(generated_files[name], 'r', encoding='utf-8') as f:
+        with open(generated_files[name], "r", encoding="utf-8") as f:
             gen_schema = json.load(f)
-        with open(existing_files[name], 'r', encoding='utf-8') as f:
+        with open(existing_files[name], "r", encoding="utf-8") as f:
             exist_schema = json.load(f)
 
         # Remove metadata for comparison
-        gen_props = set(gen_schema.get('properties', {}).keys())
-        exist_props = set(exist_schema.get('properties', {}).keys())
+        gen_props = set(gen_schema.get("properties", {}).keys())
+        exist_props = set(exist_schema.get("properties", {}).keys())
 
         if gen_props != exist_props:
             only_in_gen = gen_props - exist_props
             only_in_exist = exist_props - gen_props
-            differences.append({
-                'schema': name,
-                'generated_props': list(gen_props),
-                'existing_props': list(exist_props),
-                'only_in_generated': list(only_in_gen),
-                'only_in_existing': list(only_in_exist),
-                'issue': 'property_mismatch'
-            })
+            differences.append(
+                {
+                    "schema": name,
+                    "generated_props": list(gen_props),
+                    "existing_props": list(exist_props),
+                    "only_in_generated": list(only_in_gen),
+                    "only_in_existing": list(only_in_exist),
+                    "issue": "property_mismatch",
+                }
+            )
         else:
             matches.append(name)
 
     return {
-        'generated_count': len(generated_names),
-        'existing_count': len(existing_names),
-        'only_in_generated': list(only_in_generated),
-        'only_in_existing': list(only_in_existing),
-        'property_mismatches': differences,
-        'matches': matches,
-        'sync_rate': len(matches) / len(in_both) * 100 if in_both else 0
+        "generated_count": len(generated_names),
+        "existing_count": len(existing_names),
+        "only_in_generated": list(only_in_generated),
+        "only_in_existing": list(only_in_existing),
+        "property_mismatches": differences,
+        "matches": matches,
+        "sync_rate": len(matches) / len(in_both) * 100 if in_both else 0,
     }
 
 
@@ -255,31 +256,31 @@ def print_comparison_report(comparison: Dict[str, Any]):
     print(f"  Sync rate: {comparison['sync_rate']:.1f}%")
 
     # Schemas only in generated (new in code, missing in specs)
-    if comparison['only_in_generated']:
+    if comparison["only_in_generated"]:
         print(f"\n  {color('New schemas (in code, not in specs):', Colors.GREEN)}")
-        for name in comparison['only_in_generated'][:10]:
+        for name in comparison["only_in_generated"][:10]:
             print(f"    + {name}")
-        if len(comparison['only_in_generated']) > 10:
+        if len(comparison["only_in_generated"]) > 10:
             print(f"    ... and {len(comparison['only_in_generated']) - 10} more")
 
     # Schemas only in existing (orphaned specs, no code)
-    if comparison['only_in_existing']:
+    if comparison["only_in_existing"]:
         print(f"\n  {color('Orphaned schemas (in specs, not in code):', Colors.YELLOW)}")
-        for name in comparison['only_in_existing'][:10]:
+        for name in comparison["only_in_existing"][:10]:
             print(f"    ? {name}")
-        if len(comparison['only_in_existing']) > 10:
+        if len(comparison["only_in_existing"]) > 10:
             print(f"    ... and {len(comparison['only_in_existing']) - 10} more")
 
     # Property mismatches
-    if comparison['property_mismatches']:
+    if comparison["property_mismatches"]:
         print(f"\n  {color('Property mismatches:', Colors.RED)}")
-        for diff in comparison['property_mismatches'][:5]:
+        for diff in comparison["property_mismatches"][:5]:
             print(f"    {color('!', Colors.RED)} {diff['schema']}")
-            if diff['only_in_generated']:
+            if diff["only_in_generated"]:
                 print(f"      Code has: {diff['only_in_generated']}")
-            if diff['only_in_existing']:
+            if diff["only_in_existing"]:
                 print(f"      Schema has (not in code!): {diff['only_in_existing']}")
-        if len(comparison['property_mismatches']) > 5:
+        if len(comparison["property_mismatches"]) > 5:
             print(f"    ... and {len(comparison['property_mismatches']) - 5} more mismatches")
 
 
@@ -293,7 +294,7 @@ def print_stats(results: List[Dict], success: int, errors: int):
         print(f"  {color(f'Errors: {errors}', Colors.RED)}")
 
     # Properties per model
-    props_list = [r['properties'] for r in results if r['status'] == 'success']
+    props_list = [r["properties"] for r in results if r["status"] == "success"]
     if props_list:
         print(f"\n  Properties per model:")
         print(f"    Min: {min(props_list)}")
@@ -302,30 +303,17 @@ def print_stats(results: List[Dict], success: int, errors: int):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Export Pydantic models to JSON Schema (Code-First)"
-    )
+    parser = argparse.ArgumentParser(description="Export Pydantic models to JSON Schema (Code-First)")
     parser.add_argument(
-        "--output-dir", "-o",
+        "--output-dir",
+        "-o",
         type=Path,
         default=PROJECT_ROOT / "specs" / "data" / "generated",
-        help="Output directory for generated schemas"
+        help="Output directory for generated schemas",
     )
-    parser.add_argument(
-        "--compare", "-c",
-        action="store_true",
-        help="Compare with existing specs/data/ schemas"
-    )
-    parser.add_argument(
-        "--stats", "-s",
-        action="store_true",
-        help="Show detailed statistics"
-    )
-    parser.add_argument(
-        "--json", "-j",
-        action="store_true",
-        help="Output as JSON"
-    )
+    parser.add_argument("--compare", "-c", action="store_true", help="Compare with existing specs/data/ schemas")
+    parser.add_argument("--stats", "-s", action="store_true", help="Show detailed statistics")
+    parser.add_argument("--json", "-j", action="store_true", help="Output as JSON")
 
     args = parser.parse_args()
 
@@ -357,11 +345,11 @@ def main():
     # JSON output
     if args.json:
         output = {
-            'success': success,
-            'errors': errors,
-            'results': results,
-            'output_dir': str(args.output_dir),
-            'timestamp': datetime.now(timezone.utc).isoformat()
+            "success": success,
+            "errors": errors,
+            "results": results,
+            "output_dir": str(args.output_dir),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         print(json.dumps(output, indent=2))
     else:

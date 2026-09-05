@@ -144,6 +144,7 @@ STUB_MASTERY: Dict[str, Any] = {
     "mastery_label": "Not Assessed",
 }
 
+
 # Priority formula: 0.4 * (1 - p_mastery) + 0.3 * (1 - R) + 0.3 * kg_relevance
 #                 = 0.4 * 0.5 + 0.3 * 0.0 + 0.3 * kg_relevance
 #                 = 0.2 + 0.3 * kg_relevance
@@ -166,9 +167,7 @@ async def _clear_canvas(client: Neo4jClient, canvas_id: str) -> None:
     )
 
 
-async def _seed_node(
-    client: Neo4jClient, node_id: str, canvas_id: str, title: str
-) -> None:
+async def _seed_node(client: Neo4jClient, node_id: str, canvas_id: str, title: str) -> None:
     """Create a CanvasNode with the same label + canonical property keys
     (``id`` + ``canvasId``) that SyncService._upsert_node writes to. The
     createdAt/updatedAt timestamps are intentionally omitted — the A11 fix
@@ -255,9 +254,7 @@ class SchemaProbe:
 
     @property
     def ok(self) -> bool:
-        return self.legacy_uuid_nodes == 0 and self.canonical_nodes >= len(
-            PRIMARY_NODE_IDS
-        ) + len(FILLER_NODE_IDS)
+        return self.legacy_uuid_nodes == 0 and self.canonical_nodes >= len(PRIMARY_NODE_IDS) + len(FILLER_NODE_IDS)
 
 
 async def verify_schema(client: Neo4jClient, canvas_id: str) -> SchemaProbe:
@@ -355,22 +352,14 @@ def render_report(
     console.print(Panel(setup, title="[bold]Test Setup[/bold]", border_style="cyan"))
 
     # --- Schema verification ---
-    schema_status = (
-        "[green]✅ schema ok[/green]"
-        if schema.ok
-        else "[red]❌ schema broken[/red]"
-    )
+    schema_status = "[green]✅ schema ok[/green]" if schema.ok else "[red]❌ schema broken[/red]"
     schema_tbl = Table.grid(padding=(0, 2))
     schema_tbl.add_column(style="dim")
     schema_tbl.add_column()
-    schema_tbl.add_row(
-        "Canonical {id, canvasId} nodes", f"{schema.canonical_nodes}"
-    )
+    schema_tbl.add_row("Canonical {id, canvasId} nodes", f"{schema.canonical_nodes}")
     schema_tbl.add_row(
         "Legacy {uuid} nodes",
-        f"[red]{schema.legacy_uuid_nodes}[/red]"
-        if schema.legacy_uuid_nodes
-        else "[green]0[/green]",
+        f"[red]{schema.legacy_uuid_nodes}[/red]" if schema.legacy_uuid_nodes else "[green]0[/green]",
     )
     schema_tbl.add_row("CANVAS_EDGE relationships", f"{schema.edge_count}")
     schema_tbl.add_row("Overall", schema_status)
@@ -430,11 +419,7 @@ def render_report(
             note = "highest connectivity"
         elif i == 1:
             note = "← first pick"
-        deg_cell = (
-            f"[yellow]{pick.kg_relevance_degraded}[/yellow]"
-            if pick.kg_relevance_degraded
-            else "—"
-        )
+        deg_cell = f"[yellow]{pick.kg_relevance_degraded}[/yellow]" if pick.kg_relevance_degraded else "—"
         seq_table.add_row(
             str(i),
             pick.node_id,
@@ -516,17 +501,11 @@ async def main() -> int:
     try:
         await test_client.initialize()
     except Exception as exc:
-        console.print(
-            f"[red][FATAL] cannot reach test Neo4j at {TEST_NEO4J_URI}: {exc}[/red]"
-        )
-        console.print(
-            "[yellow]Hint:[/yellow] docker compose --profile test up -d neo4j-test"
-        )
+        console.print(f"[red][FATAL] cannot reach test Neo4j at {TEST_NEO4J_URI}: {exc}[/red]")
+        console.print("[yellow]Hint:[/yellow] docker compose --profile test up -d neo4j-test")
         return 1
     if getattr(test_client, "is_fallback_mode", False):
-        console.print(
-            "[red][FATAL] Neo4jClient fell back to JSON mode — test Neo4j is down[/red]"
-        )
+        console.print("[red][FATAL] Neo4jClient fell back to JSON mode — test Neo4j is down[/red]")
         return 1
 
     pin_test_neo4j_client(test_client)
@@ -536,9 +515,7 @@ async def main() -> int:
         # Step 1 — seed
         edge_count = await seed_test_fixture(test_client, TEST_CANVAS_ID)
         if edge_count != sum(EDGE_MAP.values()):
-            console.print(
-                f"[red]seeding wrote {edge_count} edges, expected {sum(EDGE_MAP.values())}[/red]"
-            )
+            console.print(f"[red]seeding wrote {edge_count} edges, expected {sum(EDGE_MAP.values())}[/red]")
             all_passed = False
 
         # Step 2 — schema verification
@@ -552,14 +529,9 @@ async def main() -> int:
         for node_id in PRIMARY_NODE_IDS:
             score, degraded = await qg._get_kg_relevance(node_id, TEST_CANVAS_ID)
             expected_score, expected_degraded = EXPECTED[node_id]
-            if (
-                abs(score - expected_score) > 1e-3
-                or degraded != expected_degraded
-            ):
+            if abs(score - expected_score) > 1e-3 or degraded != expected_degraded:
                 all_passed = False
-            kg_rows.append(
-                (node_id, EDGE_MAP[node_id], expected_score, score, degraded)
-            )
+            kg_rows.append((node_id, EDGE_MAP[node_id], expected_score, score, degraded))
 
         # Sort kg_rows by expected score DESC for display clarity
         kg_rows.sort(key=lambda r: (-r[2], r[0]))
@@ -584,17 +556,13 @@ async def main() -> int:
         # Step 5 — assert the exact pick sequence matches the connectivity ranking
         actual_sequence = [p.node_id for p in sequence]
         if actual_sequence != EXPECTED_SEQUENCE:
-            console.print(
-                f"[red]sequence mismatch — expected {EXPECTED_SEQUENCE}, got {actual_sequence}[/red]"
-            )
+            console.print(f"[red]sequence mismatch — expected {EXPECTED_SEQUENCE}, got {actual_sequence}[/red]")
             all_passed = False
 
         # Step 6 — assert distinct kg_relevance values (catches regression to constant 0.5)
         distinct_kg = {round(p.kg_relevance, 3) for p in sequence}
         if len(distinct_kg) < 3:
-            console.print(
-                f"[red]expected ≥3 distinct kg_relevance values, got {sorted(distinct_kg)}[/red]"
-            )
+            console.print(f"[red]expected ≥3 distinct kg_relevance values, got {sorted(distinct_kg)}[/red]")
             all_passed = False
 
         # Step 7 — render the user-facing report

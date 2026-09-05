@@ -1,0 +1,5 @@
+# CARD-CX-G6-2b-R1 探针: 洞②-对照-直接注解
+# 用法: 追加到 review_app.py 源码**字符串**尾部（只在内存里拼, 不落进生产文件）
+# 预期: ALLOW  —  唯一被豁免的写法（_root_name 直接得到 'Request'）——洞②的归因对照
+def _probe_r5(request: Request):
+    return request

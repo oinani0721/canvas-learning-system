@@ -15,6 +15,7 @@ from enum import Enum
 
 class ProgressStatus(Enum):
     """Status of the linear development session."""
+
     IDLE = "idle"
     IN_PROGRESS = "in_progress"
     HALTED = "halted"
@@ -23,18 +24,19 @@ class ProgressStatus(Enum):
 
 class StoryOutcome(Enum):
     """Possible outcomes for a Story execution."""
+
     SUCCESS = "SUCCESS"
     DEV_BLOCKED = "DEV_BLOCKED"
     QA_BLOCKED = "QA_BLOCKED"
     QA_CONCERNS_UNFIXED = "QA_CONCERNS_UNFIXED"
     COMPACT = "COMPACT"  # Claude session compacted
-    CRASH = "CRASH"      # Process crashed without result
+    CRASH = "CRASH"  # Process crashed without result
     TIMEOUT = "TIMEOUT"
     ERROR = "ERROR"
     UNKNOWN = "UNKNOWN"
 
     @classmethod
-    def from_result_outcome(cls, outcome_str: str) -> 'StoryOutcome':
+    def from_result_outcome(cls, outcome_str: str) -> "StoryOutcome":
         """Convert worktree-result.json outcome to StoryOutcome."""
         mapping = {
             "SUCCESS": cls.SUCCESS,
@@ -66,6 +68,7 @@ class StoryOutcome(Enum):
 @dataclass
 class CompletedStory:
     """Record of a completed Story."""
+
     story_id: str
     outcome: str  # String to allow JSON serialization
     commit_sha: Optional[str] = None
@@ -84,13 +87,20 @@ class CompletedStory:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'CompletedStory':
+    def from_dict(cls, data: Dict[str, Any]) -> "CompletedStory":
         # Handle backward compatibility with older progress files
         valid_fields = {
-            'story_id', 'outcome', 'commit_sha', 'duration_seconds',
-            'retry_count', 'compact_restarts', 'completed_at',
-            'story_file_updated', 'qa_gate_file',
-            'dev_record_complete', 'qa_record_complete'
+            "story_id",
+            "outcome",
+            "commit_sha",
+            "duration_seconds",
+            "retry_count",
+            "compact_restarts",
+            "completed_at",
+            "story_file_updated",
+            "qa_gate_file",
+            "dev_record_complete",
+            "qa_record_complete",
         }
         filtered_data = {k: v for k, v in data.items() if k in valid_fields}
         return cls(**filtered_data)
@@ -99,6 +109,7 @@ class CompletedStory:
 @dataclass
 class CurrentStory:
     """State of the currently executing Story."""
+
     story_id: str
     started_at: str
     retry_count: int = 0
@@ -109,13 +120,14 @@ class CurrentStory:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'CurrentStory':
+    def from_dict(cls, data: Dict[str, Any]) -> "CurrentStory":
         return cls(**data)
 
 
 @dataclass
 class Statistics:
     """Aggregate statistics for the session."""
+
     total_duration_seconds: float = 0.0
     total_retries: int = 0
     total_compact_restarts: int = 0
@@ -126,7 +138,7 @@ class Statistics:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'Statistics':
+    def from_dict(cls, data: Dict[str, Any]) -> "Statistics":
         return cls(**data)
 
 
@@ -140,6 +152,7 @@ class LinearProgress:
     - Resume from any point
     - Statistics tracking
     """
+
     version: str = "2.0"
     session_id: str = ""
     daemon_pid: Optional[int] = None
@@ -185,7 +198,7 @@ class LinearProgress:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'LinearProgress':
+    def from_dict(cls, data: Dict[str, Any]) -> "LinearProgress":
         """Create from dictionary (JSON deserialization)."""
         progress = cls(
             version=data.get("version", "2.0"),
@@ -216,13 +229,13 @@ class LinearProgress:
         return progress
 
     @classmethod
-    def load(cls, path: Path) -> Optional['LinearProgress']:
+    def load(cls, path: Path) -> Optional["LinearProgress"]:
         """Load progress from JSON file."""
         if not path.exists():
             return None
 
         try:
-            with open(path, 'r', encoding='utf-8') as f:
+            with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             return cls.from_dict(data)
         except Exception as e:
@@ -236,7 +249,7 @@ class LinearProgress:
 
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
-            with open(path, 'w', encoding='utf-8') as f:
+            with open(path, "w", encoding="utf-8") as f:
                 json.dump(self.to_dict(), f, indent=2, ensure_ascii=False)
         except Exception as e:
             print(f"[LinearProgress] Error saving progress: {e}")

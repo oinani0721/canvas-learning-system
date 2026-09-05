@@ -1,0 +1,5 @@
+# CARD-CX-G6-2b-R1 探针: 洞②-Annotated注解
+# 用法: 追加到 review_app.py 源码**字符串**尾部（只在内存里拼, 不落进生产文件）
+# 预期: REJECT:受保护名  —  FastAPI 合法写法；Subscript 下钻到 'Annotated' ≠ 'Request' → 误拒。（真实写法里第二个参数是 Depends()，那会先撞「白名单外调用」，换成 None 才能隔离出注解判定这一条）
+def _probe_r2(request: Annotated[Request, None]):
+    return request

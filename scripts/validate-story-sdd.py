@@ -20,17 +20,19 @@ from datetime import datetime
 sys.path.insert(0, str(Path(__file__).parent / "lib"))
 
 # Fix Windows console encoding for Unicode characters
-if sys.platform == 'win32':
-    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
-    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 
 # ========================================
 # 验证结果类
 # ========================================
 
+
 class SDDValidationResult:
     """SDD验证结果"""
+
     def __init__(self):
         self.errors: List[Dict] = []
         self.warnings: List[Dict] = []
@@ -38,27 +40,15 @@ class SDDValidationResult:
         self.passed_checks: List[str] = []
 
     def add_error(self, check: str, details: str, recommendation: str):
-        self.errors.append({
-            "check": check,
-            "details": details,
-            "severity": "ERROR",
-            "recommendation": recommendation
-        })
+        self.errors.append({"check": check, "details": details, "severity": "ERROR", "recommendation": recommendation})
 
     def add_warning(self, check: str, details: str, recommendation: str = ""):
-        self.warnings.append({
-            "check": check,
-            "details": details,
-            "severity": "WARNING",
-            "recommendation": recommendation
-        })
+        self.warnings.append(
+            {"check": check, "details": details, "severity": "WARNING", "recommendation": recommendation}
+        )
 
     def add_info(self, check: str, details: str):
-        self.info.append({
-            "check": check,
-            "details": details,
-            "severity": "INFO"
-        })
+        self.info.append({"check": check, "details": details, "severity": "INFO"})
 
     def add_passed(self, check: str):
         self.passed_checks.append(check)
@@ -74,6 +64,7 @@ class SDDValidationResult:
 # 辅助函数
 # ========================================
 
+
 def get_project_root() -> Path:
     """获取项目根目录"""
     current = Path(__file__).parent
@@ -86,13 +77,7 @@ def get_project_root() -> Path:
 
 def print_status(message: str, status_type: str = "info"):
     """打印状态消息"""
-    icons = {
-        "success": "✅",
-        "error": "❌",
-        "warning": "⚠️",
-        "progress": "⏳",
-        "info": "ℹ️"
-    }
+    icons = {"success": "✅", "error": "❌", "warning": "⚠️", "progress": "⏳", "info": "ℹ️"}
     icon = icons.get(status_type, "•")
     print(f"{icon} {message}")
 
@@ -101,7 +86,7 @@ def load_story_file(story_path: Path) -> str:
     """加载Story文件内容"""
     if not story_path.exists():
         raise FileNotFoundError(f"Story file not found: {story_path}")
-    return story_path.read_text(encoding='utf-8')
+    return story_path.read_text(encoding="utf-8")
 
 
 def load_openapi_spec(spec_path: Path) -> Dict:
@@ -110,12 +95,12 @@ def load_openapi_spec(spec_path: Path) -> Dict:
         return {}
 
     # Try multiple encodings
-    for encoding in ['utf-8', 'utf-8-sig', 'gbk', 'latin-1']:
+    for encoding in ["utf-8", "utf-8-sig", "gbk", "latin-1"]:
         try:
             content = spec_path.read_text(encoding=encoding)
-            if spec_path.suffix in ['.yml', '.yaml']:
+            if spec_path.suffix in [".yml", ".yaml"]:
                 return yaml.safe_load(content) or {}
-            elif spec_path.suffix == '.json':
+            elif spec_path.suffix == ".json":
                 return json.loads(content)
             return {}
         except (UnicodeDecodeError, UnicodeError):
@@ -130,7 +115,7 @@ def load_json_schema(schema_path: Path) -> Dict:
     """加载JSON Schema"""
     if not schema_path.exists():
         return {}
-    for encoding in ['utf-8', 'utf-8-sig', 'gbk', 'latin-1']:
+    for encoding in ["utf-8", "utf-8-sig", "gbk", "latin-1"]:
         try:
             return json.loads(schema_path.read_text(encoding=encoding))
         except (UnicodeDecodeError, UnicodeError):
@@ -145,19 +130,17 @@ def load_json_schema(schema_path: Path) -> Dict:
 # 提取Story中的SDD引用
 # ========================================
 
+
 def extract_api_endpoints(story_content: str) -> List[Dict]:
     """从Story内容中提取API端点引用"""
     endpoints = []
 
     # 匹配模式: POST /api/xxx, GET /api/xxx 等
-    endpoint_pattern = r'(GET|POST|PUT|DELETE|PATCH)\s+(/api/[^\s\]]+)'
+    endpoint_pattern = r"(GET|POST|PUT|DELETE|PATCH)\s+(/api/[^\s\]]+)"
     matches = re.findall(endpoint_pattern, story_content)
 
     for method, path in matches:
-        endpoints.append({
-            "method": method,
-            "path": path.rstrip(',').rstrip(')')
-        })
+        endpoints.append({"method": method, "path": path.rstrip(",").rstrip(")")})
 
     return endpoints
 
@@ -168,12 +151,12 @@ def extract_schema_references(story_content: str) -> List[str]:
 
     # 匹配模式: CanvasNode, AgentResponse 等（首字母大写的标识符）
     # 从specs/data/引用中提取
-    schema_pattern = r'specs/data/([a-z-]+)\.schema\.json'
+    schema_pattern = r"specs/data/([a-z-]+)\.schema\.json"
     matches = re.findall(schema_pattern, story_content)
     schemas.extend(matches)
 
     # 也匹配直接的Schema名称引用
-    name_pattern = r'Schema[:\s]+(\w+)'
+    name_pattern = r"Schema[:\s]+(\w+)"
     matches = re.findall(name_pattern, story_content)
     schemas.extend(matches)
 
@@ -185,7 +168,7 @@ def extract_adr_references(story_content: str) -> List[str]:
     adrs = []
 
     # 匹配模式: ADR-001, ADR-002 等
-    adr_pattern = r'ADR-(\d{3,4})'
+    adr_pattern = r"ADR-(\d{3,4})"
     matches = re.findall(adr_pattern, story_content)
 
     return list(set(matches))
@@ -202,17 +185,14 @@ def check_sdd_section_exists(story_content: str) -> Tuple[bool, bool]:
 # 验证逻辑
 # ========================================
 
-def validate_api_endpoints(
-    endpoints: List[Dict],
-    openapi_specs: Dict[str, Dict],
-    result: SDDValidationResult
-):
+
+def validate_api_endpoints(endpoints: List[Dict], openapi_specs: Dict[str, Dict], result: SDDValidationResult):
     """验证API端点是否在OpenAPI spec中定义"""
     if not endpoints:
         result.add_warning(
             "API Endpoint Check",
             "No API endpoints found in Story",
-            "If this Story involves API calls, add endpoint references"
+            "If this Story involves API calls, add endpoint references",
         )
         return
 
@@ -229,22 +209,18 @@ def validate_api_endpoints(
             if path in paths:
                 if method in paths[path]:
                     found = True
-                    result.add_info(
-                        "API Endpoint Validated",
-                        f"{endpoint['method']} {path} found in {spec_name}"
-                    )
+                    result.add_info("API Endpoint Validated", f"{endpoint['method']} {path} found in {spec_name}")
                     break
 
             # 路径参数匹配 (例如 /api/canvas/{id})
             for spec_path in paths:
                 # 将路径参数转换为正则
-                regex_path = re.sub(r'\{[^}]+\}', r'[^/]+', spec_path)
+                regex_path = re.sub(r"\{[^}]+\}", r"[^/]+", spec_path)
                 if re.match(f"^{regex_path}$", path):
                     if method in paths[spec_path]:
                         found = True
                         result.add_info(
-                            "API Endpoint Validated",
-                            f"{endpoint['method']} {path} matches {spec_path} in {spec_name}"
+                            "API Endpoint Validated", f"{endpoint['method']} {path} matches {spec_path} in {spec_name}"
                         )
                         break
 
@@ -255,51 +231,37 @@ def validate_api_endpoints(
             result.add_error(
                 "API Endpoint Not Defined",
                 f"{endpoint['method']} {path} not found in any OpenAPI spec",
-                f"Add this endpoint to specs/api/*.openapi.yml or verify the path is correct"
+                f"Add this endpoint to specs/api/*.openapi.yml or verify the path is correct",
             )
 
 
-def validate_schema_references(
-    schemas: List[str],
-    json_schemas: Dict[str, Dict],
-    result: SDDValidationResult
-):
+def validate_schema_references(schemas: List[str], json_schemas: Dict[str, Dict], result: SDDValidationResult):
     """验证Schema引用是否存在"""
     if not schemas:
-        result.add_info(
-            "Schema Check",
-            "No explicit schema references found in Story"
-        )
+        result.add_info("Schema Check", "No explicit schema references found in Story")
         return
 
     for schema_name in schemas:
         # 转换为文件名格式
-        file_name = schema_name.lower().replace('_', '-')
+        file_name = schema_name.lower().replace("_", "-")
 
         if file_name in json_schemas or schema_name in json_schemas:
-            result.add_info(
-                "Schema Validated",
-                f"Schema '{schema_name}' found in specs/data/"
-            )
+            result.add_info("Schema Validated", f"Schema '{schema_name}' found in specs/data/")
         else:
             result.add_warning(
                 "Schema Not Found",
                 f"Schema '{schema_name}' not found in specs/data/",
-                f"Add {file_name}.schema.json to specs/data/ or verify the name"
+                f"Add {file_name}.schema.json to specs/data/ or verify the name",
             )
 
 
-def validate_adr_references(
-    adrs: List[str],
-    adr_dir: Path,
-    result: SDDValidationResult
-):
+def validate_adr_references(adrs: List[str], adr_dir: Path, result: SDDValidationResult):
     """验证ADR引用是否存在"""
     if not adrs:
         result.add_warning(
             "ADR Check",
             "No ADR references found in Story",
-            "If this Story involves architecture decisions, add ADR references"
+            "If this Story involves architecture decisions, add ADR references",
         )
         return
 
@@ -309,31 +271,23 @@ def validate_adr_references(
         matching_files = list(adr_dir.glob(adr_pattern))
 
         if matching_files:
-            result.add_info(
-                "ADR Validated",
-                f"ADR-{adr_num} found: {matching_files[0].name}"
-            )
+            result.add_info("ADR Validated", f"ADR-{adr_num} found: {matching_files[0].name}")
         else:
             result.add_error(
                 "ADR Not Found",
                 f"ADR-{adr_num} not found in {adr_dir}",
-                f"Create this ADR using /architect → *create-adr command"
+                f"Create this ADR using /architect → *create-adr command",
             )
 
 
-def validate_required_sections(
-    story_content: str,
-    result: SDDValidationResult
-):
+def validate_required_sections(story_content: str, result: SDDValidationResult):
     """验证必填Section是否存在且非空"""
     has_sdd, has_adr = check_sdd_section_exists(story_content)
 
     if has_sdd:
         # 检查SDD section是否有内容
         sdd_match = re.search(
-            r'(?:SDD规范参考|SDD Spec Reference)[^\n]*\n(.*?)(?=\n##|\n### [A-Z]|\Z)',
-            story_content,
-            re.DOTALL
+            r"(?:SDD规范参考|SDD Spec Reference)[^\n]*\n(.*?)(?=\n##|\n### [A-Z]|\Z)", story_content, re.DOTALL
         )
         if sdd_match:
             content = sdd_match.group(1).strip()
@@ -341,7 +295,7 @@ def validate_required_sections(
                 result.add_warning(
                     "SDD Section Empty",
                     "SDD规范参考 section exists but has minimal content",
-                    "Add API endpoint and Schema references from specs/ directory"
+                    "Add API endpoint and Schema references from specs/ directory",
                 )
             else:
                 result.add_passed("SDD规范参考 section present and has content")
@@ -351,15 +305,13 @@ def validate_required_sections(
         result.add_error(
             "Missing Required Section",
             "SDD规范参考 section not found in Story",
-            "Add SDD规范参考 section with OpenAPI and Schema references"
+            "Add SDD规范参考 section with OpenAPI and Schema references",
         )
 
     if has_adr:
         # 检查ADR section是否有内容
         adr_match = re.search(
-            r'(?:ADR决策关联|ADR Decisions)[^\n]*\n(.*?)(?=\n##|\n### [A-Z]|\Z)',
-            story_content,
-            re.DOTALL
+            r"(?:ADR决策关联|ADR Decisions)[^\n]*\n(.*?)(?=\n##|\n### [A-Z]|\Z)", story_content, re.DOTALL
         )
         if adr_match:
             content = adr_match.group(1).strip()
@@ -367,7 +319,7 @@ def validate_required_sections(
                 result.add_warning(
                     "ADR Section Empty",
                     "ADR决策关联 section exists but has minimal content",
-                    "Add relevant ADR references from docs/architecture/decisions/"
+                    "Add relevant ADR references from docs/architecture/decisions/",
                 )
             else:
                 result.add_passed("ADR决策关联 section present and has content")
@@ -377,13 +329,14 @@ def validate_required_sections(
         result.add_error(
             "Missing Required Section",
             "ADR决策关联 section not found in Story",
-            "Add ADR决策关联 section with architecture decision references"
+            "Add ADR决策关联 section with architecture decision references",
         )
 
 
 # ========================================
 # 主验证函数
 # ========================================
+
 
 def validate_story_sdd(story_path: Path, strict: bool = False) -> SDDValidationResult:
     """执行完整的SDD验证"""
@@ -416,7 +369,7 @@ def validate_story_sdd(story_path: Path, strict: bool = False) -> SDDValidationR
         result.add_warning(
             "No OpenAPI Specs",
             f"No OpenAPI specs found in {specs_dir}",
-            "Create OpenAPI specs in Phase 3 using Architect agent"
+            "Create OpenAPI specs in Phase 3 using Architect agent",
         )
 
     # 加载JSON Schemas
@@ -426,7 +379,7 @@ def validate_story_sdd(story_path: Path, strict: bool = False) -> SDDValidationR
 
     if schemas_dir.exists():
         for schema_file in schemas_dir.glob("*.schema.json"):
-            schema_name = schema_file.stem.replace('.schema', '')
+            schema_name = schema_file.stem.replace(".schema", "")
             json_schemas[schema_name] = load_json_schema(schema_file)
 
     # 加载ADR目录
@@ -456,11 +409,7 @@ def validate_story_sdd(story_path: Path, strict: bool = False) -> SDDValidationR
     # Strict模式：将warnings也视为errors
     if strict and result.has_warnings():
         for warning in result.warnings:
-            result.add_error(
-                f"[Strict] {warning['check']}",
-                warning['details'],
-                warning['recommendation']
-            )
+            result.add_error(f"[Strict] {warning['check']}", warning["details"], warning["recommendation"])
 
     return result
 
@@ -469,10 +418,9 @@ def validate_story_sdd(story_path: Path, strict: bool = False) -> SDDValidationR
 # 报告生成
 # ========================================
 
+
 def generate_validation_report(
-    result: SDDValidationResult,
-    story_path: Path,
-    output_path: Optional[Path] = None
+    result: SDDValidationResult, story_path: Path, output_path: Optional[Path] = None
 ) -> str:
     """生成验证报告"""
     report_lines = [
@@ -487,98 +435,96 @@ def generate_validation_report(
         f"- ⚠️ Warnings: {len(result.warnings)}",
         f"- ✅ Passed: {len(result.passed_checks)}",
         f"- ℹ️ Info: {len(result.info)}",
-        f""
+        f"",
     ]
 
     # Errors
     if result.errors:
-        report_lines.extend([
-            f"## ❌ Errors (Must Fix)",
-            f""
-        ])
+        report_lines.extend([f"## ❌ Errors (Must Fix)", f""])
         for i, error in enumerate(result.errors, 1):
-            report_lines.extend([
-                f"### {i}. {error['check']}",
-                f"",
-                f"**Details**: {error['details']}",
-                f"",
-                f"**Recommendation**: {error['recommendation']}",
-                f"",
-                f"---",
-                f""
-            ])
+            report_lines.extend(
+                [
+                    f"### {i}. {error['check']}",
+                    f"",
+                    f"**Details**: {error['details']}",
+                    f"",
+                    f"**Recommendation**: {error['recommendation']}",
+                    f"",
+                    f"---",
+                    f"",
+                ]
+            )
 
     # Warnings
     if result.warnings:
-        report_lines.extend([
-            f"## ⚠️ Warnings (Should Fix)",
-            f""
-        ])
+        report_lines.extend([f"## ⚠️ Warnings (Should Fix)", f""])
         for i, warning in enumerate(result.warnings, 1):
-            report_lines.extend([
-                f"### {i}. {warning['check']}",
-                f"",
-                f"**Details**: {warning['details']}",
-                f"",
-                f"**Recommendation**: {warning.get('recommendation', 'Review manually')}",
-                f"",
-                f"---",
-                f""
-            ])
+            report_lines.extend(
+                [
+                    f"### {i}. {warning['check']}",
+                    f"",
+                    f"**Details**: {warning['details']}",
+                    f"",
+                    f"**Recommendation**: {warning.get('recommendation', 'Review manually')}",
+                    f"",
+                    f"---",
+                    f"",
+                ]
+            )
 
     # Passed
     if result.passed_checks:
-        report_lines.extend([
-            f"## ✅ Passed Checks",
-            f""
-        ])
+        report_lines.extend([f"## ✅ Passed Checks", f""])
         for check in result.passed_checks:
             report_lines.append(f"- ✅ {check}")
         report_lines.append("")
 
     # Info
     if result.info:
-        report_lines.extend([
-            f"## ℹ️ Information",
-            f""
-        ])
+        report_lines.extend([f"## ℹ️ Information", f""])
         for info in result.info:
             report_lines.append(f"- {info['check']}: {info['details']}")
         report_lines.append("")
 
     # Next Steps
     if result.has_errors():
-        report_lines.extend([
-            f"## 🔴 Next Steps",
-            f"",
-            f"1. Fix all errors listed above",
-            f"2. Re-run validation: `python scripts/validate-story-sdd.py --story {story_path}`",
-            f"3. Story cannot proceed to development until all errors are fixed",
-            f""
-        ])
+        report_lines.extend(
+            [
+                f"## 🔴 Next Steps",
+                f"",
+                f"1. Fix all errors listed above",
+                f"2. Re-run validation: `python scripts/validate-story-sdd.py --story {story_path}`",
+                f"3. Story cannot proceed to development until all errors are fixed",
+                f"",
+            ]
+        )
     elif result.has_warnings():
-        report_lines.extend([
-            f"## 🟡 Next Steps",
-            f"",
-            f"1. Review warnings and fix if possible",
-            f"2. Story can proceed but may have quality issues",
-            f"3. Consider running in strict mode: `--strict`",
-            f""
-        ])
+        report_lines.extend(
+            [
+                f"## 🟡 Next Steps",
+                f"",
+                f"1. Review warnings and fix if possible",
+                f"2. Story can proceed but may have quality issues",
+                f"3. Consider running in strict mode: `--strict`",
+                f"",
+            ]
+        )
     else:
-        report_lines.extend([
-            f"## 🟢 Next Steps",
-            f"",
-            f"1. Story passes SDD validation",
-            f"2. Ready for development: `/dev` → `*develop-story`",
-            f""
-        ])
+        report_lines.extend(
+            [
+                f"## 🟢 Next Steps",
+                f"",
+                f"1. Story passes SDD validation",
+                f"2. Ready for development: `/dev` → `*develop-story`",
+                f"",
+            ]
+        )
 
     report = "\n".join(report_lines)
 
     # 保存报告
     if output_path:
-        output_path.write_text(report, encoding='utf-8')
+        output_path.write_text(report, encoding="utf-8")
         print_status(f"Report saved: {output_path}", "success")
 
     return report
@@ -588,6 +534,7 @@ def generate_validation_report(
 # CLI入口
 # ========================================
 
+
 def main():
     import argparse
 
@@ -595,21 +542,10 @@ def main():
         description="Validate Story against SDD specifications (OpenAPI, JSON Schema, ADR)"
     )
     parser.add_argument(
-        '--story',
-        type=str,
-        required=True,
-        help='Path to Story file (e.g., docs/stories/12.1.story.md)'
+        "--story", type=str, required=True, help="Path to Story file (e.g., docs/stories/12.1.story.md)"
     )
-    parser.add_argument(
-        '--strict',
-        action='store_true',
-        help='Strict mode: treat warnings as errors'
-    )
-    parser.add_argument(
-        '--output',
-        type=str,
-        help='Output report path (default: story-sdd-validation-report.md)'
-    )
+    parser.add_argument("--strict", action="store_true", help="Strict mode: treat warnings as errors")
+    parser.add_argument("--output", type=str, help="Output report path (default: story-sdd-validation-report.md)")
 
     args = parser.parse_args()
 

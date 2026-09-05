@@ -34,7 +34,7 @@ def get_project_root() -> Path:
 def validate_json_syntax(file_path: Path) -> Tuple[bool, str]:
     """验证JSON语法"""
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             json.load(f)
         return True, ""
     except json.JSONDecodeError as e:
@@ -46,17 +46,17 @@ def validate_schema_structure(schema: Dict[str, Any], file_path: Path) -> List[s
     errors = []
 
     # 检查$schema声明
-    if '$schema' not in schema:
+    if "$schema" not in schema:
         errors.append(f"{file_path}: Missing $schema declaration")
-    elif 'draft-07' not in schema.get('$schema', ''):
+    elif "draft-07" not in schema.get("$schema", ""):
         errors.append(f"{file_path}: Schema should use draft-07 (found: {schema.get('$schema')})")
 
     # 检查type定义
-    if 'type' not in schema and '$ref' not in schema and 'oneOf' not in schema and 'allOf' not in schema:
+    if "type" not in schema and "$ref" not in schema and "oneOf" not in schema and "allOf" not in schema:
         errors.append(f"{file_path}: Missing type definition")
 
     # 检查title (推荐)
-    if 'title' not in schema:
+    if "title" not in schema:
         errors.append(f"{file_path}: Missing title (recommended for documentation)")
 
     return errors
@@ -68,11 +68,11 @@ def validate_refs(schema: Dict[str, Any], file_path: Path, schemas_dir: Path) ->
 
     def check_refs(obj, path=""):
         if isinstance(obj, dict):
-            if '$ref' in obj:
-                ref = obj['$ref']
+            if "$ref" in obj:
+                ref = obj["$ref"]
                 # 检查外部引用
-                if ref.startswith('./') or ref.startswith('../'):
-                    ref_path = (file_path.parent / ref.split('#')[0]).resolve()
+                if ref.startswith("./") or ref.startswith("../"):
+                    ref_path = (file_path.parent / ref.split("#")[0]).resolve()
                     if not ref_path.exists():
                         errors.append(f"{file_path}: Invalid $ref '{ref}' - file not found")
             for key, value in obj.items():
@@ -91,11 +91,11 @@ def check_required_fields(schema: Dict[str, Any]) -> List[str]:
 
     def extract_required(obj, path=""):
         if isinstance(obj, dict):
-            if 'required' in obj and isinstance(obj['required'], list):
-                for field in obj['required']:
+            if "required" in obj and isinstance(obj["required"], list):
+                for field in obj["required"]:
                     required.append(f"{path}.{field}" if path else field)
-            if 'properties' in obj:
-                for key, value in obj['properties'].items():
+            if "properties" in obj:
+                for key, value in obj["properties"].items():
                     extract_required(value, f"{path}.{key}" if path else key)
         elif isinstance(obj, list):
             for i, item in enumerate(obj):
@@ -122,24 +122,24 @@ def validate_schema_file(file_path: Path) -> Tuple[List[str], List[str]]:
         return errors, warnings
 
     # 2. 加载Schema
-    with open(file_path, 'r', encoding='utf-8') as f:
+    with open(file_path, "r", encoding="utf-8") as f:
         schema = json.load(f)
 
     # 3. 验证Schema结构
     structure_errors = validate_schema_structure(schema, file_path)
     for error in structure_errors:
-        if 'recommended' in error.lower():
+        if "recommended" in error.lower():
             warnings.append(error)
         else:
             errors.append(error)
 
     # 4. 验证$ref引用
-    schemas_dir = get_project_root() / 'specs' / 'data'
+    schemas_dir = get_project_root() / "specs" / "data"
     ref_errors = validate_refs(schema, file_path, schemas_dir)
     errors.extend(ref_errors)
 
     # 5. 检查空properties (警告)
-    if schema.get('type') == 'object' and 'properties' not in schema:
+    if schema.get("type") == "object" and "properties" not in schema:
         warnings.append(f"{file_path}: Object type without properties defined")
 
     return errors, warnings
@@ -157,12 +157,12 @@ def main():
         files_to_validate = [Path(f) for f in sys.argv[1:]]
     else:
         # 验证所有Schema文件
-        schemas_dir = get_project_root() / 'specs' / 'data'
+        schemas_dir = get_project_root() / "specs" / "data"
         if not schemas_dir.exists():
             print(f"⚠️ Schemas directory not found: {schemas_dir}")
             return 0
 
-        files_to_validate = list(schemas_dir.glob('*.json'))
+        files_to_validate = list(schemas_dir.glob("*.json"))
 
     if not files_to_validate:
         print("ℹ️ No schema files to validate")

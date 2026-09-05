@@ -32,16 +32,13 @@ import send_bark  # noqa: E402
 
 def main() -> int:
     # allow_abbrev=False 与 runner/push.sh 同源 (Codex-C1a F1)
-    ap = argparse.ArgumentParser(description="daily-review state per-vault 迁移",
-                                 allow_abbrev=False)
-    ap.add_argument("--vault", required=True,
-                    help="旧全局 state 归属的 vault (路径或目录名, 即当前 ACTIVE_VAULT)")
+    ap = argparse.ArgumentParser(description="daily-review state per-vault 迁移", allow_abbrev=False)
+    ap.add_argument("--vault", required=True, help="旧全局 state 归属的 vault (路径或目录名, 即当前 ACTIVE_VAULT)")
     ap.add_argument("--backups", help="backups 目录 (缺省 $CANVAS_REPO/backups)")
     ap.add_argument("--dry-run", action="store_true", help="只打印映射, 零写入")
     args = ap.parse_args()
 
-    repo = Path(os.environ.get(
-        "CANVAS_REPO", "/Users/Heishing/Desktop/canvas/canvas-learning-system"))
+    repo = Path(os.environ.get("CANVAS_REPO", "/Users/Heishing/Desktop/canvas/canvas-learning-system"))
     backups = Path(args.backups) if args.backups else repo / "backups"
     # 与 runner state_path 同一条名字规则: 存在的路径先 resolve (symlink /
     # 相对路径归一到真实目录名), 裸目录名保持字面 — 两侧 key 必须恒等,
@@ -68,8 +65,7 @@ def main() -> int:
     try:
         os.mkdir(lock_dir)
     except FileExistsError:
-        print("per-vault 锁被占用 (runner 或另一迁移实例在跑), 请稍后重试",
-              file=sys.stderr)
+        print("per-vault 锁被占用 (runner 或另一迁移实例在跑), 请稍后重试", file=sys.stderr)
         return 1
     except OSError as e:
         print(f"无法建立 per-vault 锁: {e}", file=sys.stderr)
@@ -83,7 +79,9 @@ def main() -> int:
         try:
             ps = subprocess.run(
                 ["/bin/ps", "-o", "lstart=", "-p", str(os.getpid())],
-                capture_output=True, text=True, timeout=5,
+                capture_output=True,
+                text=True,
+                timeout=5,
                 env={**os.environ, "TZ": "UTC", "LC_ALL": "C"},
             )
             lstart = ps.stdout.rstrip("\n")
@@ -107,8 +105,7 @@ def _migrate_locked(args, old: Path, new: Path, bak: Path, backups: Path) -> int
     # 并发残局都有显式出口, 不留 "重跑说无需迁移但其实丢了账本" 的死角。
     if not old.exists():
         if bak.exists() and not new.exists():
-            print(f"检测到中断的迁移: 仅剩 {bak.name} — 请先恢复 "
-                  f"(mv {bak.name} {old.name}) 后重跑", file=sys.stderr)
+            print(f"检测到中断的迁移: 仅剩 {bak.name} — 请先恢复 (mv {bak.name} {old.name}) 后重跑", file=sys.stderr)
             return 1
         if bak.exists() and new.exists():
             # 完成态判据 = 字节相等 (round3: 只验 "new 可解析" 会把内容
@@ -119,9 +116,10 @@ def _migrate_locked(args, old: Path, new: Path, bak: Path, backups: Path) -> int
                     return 0
             except OSError:
                 pass
-            print(f"目标与备份不一致 (疑写入中断或非本工具产物): {new.name} "
-                  f"vs {bak.name} — 请人工核对后删除损坏一方重迁",
-                  file=sys.stderr)
+            print(
+                f"目标与备份不一致 (疑写入中断或非本工具产物): {new.name} vs {bak.name} — 请人工核对后删除损坏一方重迁",
+                file=sys.stderr,
+            )
             return 1
         print("旧全局 state 不存在, 无需迁移 (新装环境 runner 首跑自建)")
         return 0
@@ -140,16 +138,14 @@ def _migrate_locked(args, old: Path, new: Path, bak: Path, backups: Path) -> int
         if blr is not None and not isinstance(blr, dict):
             raise ValueError("board_last_recommended 应为 object")
     except (json.JSONDecodeError, ValueError, OSError) as e:
-        print(f"旧 state 无法解析, 拒绝迁移 (交由 runner 损坏隔离逻辑处置): {e}",
-              file=sys.stderr)
+        print(f"旧 state 无法解析, 拒绝迁移 (交由 runner 损坏隔离逻辑处置): {e}", file=sys.stderr)
         return 1
     if new.exists():
         print(f"目标已存在, 拒绝覆盖: {new}", file=sys.stderr)
         return 1
     if bak.exists():
         # 已有 .bak (上次回滚副本或手工备份) 不许静默覆盖 — 人工处置后重跑
-        print(f"回滚副本已存在, 拒绝覆盖: {bak} (请先人工移走再重跑)",
-              file=sys.stderr)
+        print(f"回滚副本已存在, 拒绝覆盖: {bak} (请先人工移走再重跑)", file=sys.stderr)
         return 1
     if args.dry_run:
         print("DRY-RUN: 未写入任何文件")
@@ -160,8 +156,7 @@ def _migrate_locked(args, old: Path, new: Path, bak: Path, backups: Path) -> int
     try:
         os.replace(old, bak)
     except FileNotFoundError:
-        print("旧文件在校验后消失 (并发迁移实例已接手), 本实例退出",
-              file=sys.stderr)
+        print("旧文件在校验后消失 (并发迁移实例已接手), 本实例退出", file=sys.stderr)
         return 1
     # 发布 = mkstemp (随机名独占创建, 固定名 tmp 的 symlink 劫持不可行,
     # Codex-C1a F4) + rename 原子换名 (终点路径绝无半写可见窗口, round3 N1;
@@ -176,8 +171,7 @@ def _migrate_locked(args, old: Path, new: Path, bak: Path, backups: Path) -> int
             os.unlink(tmp_name)
         except OSError:
             pass
-        print(f"发布新文件失败: {e} — 旧账本在 {bak.name}, 可 mv 回原名回滚",
-              file=sys.stderr)
+        print(f"发布新文件失败: {e} — 旧账本在 {bak.name}, 可 mv 回原名回滚", file=sys.stderr)
         return 1
     print(f"已迁移; 旧文件保留为 {bak.name}")
     return 0

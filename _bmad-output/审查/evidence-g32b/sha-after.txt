@@ -1,0 +1,4 @@
+dd6d4e4b8d6b47f4ab57dc64f32f00982a4558848141c7c4434015c8cfa73dbf  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+80679678ebf56d53bcbf5f6b5b2b0dbc51e66ea7f8c66977ff2f8d8e7615b35d  canvas-vault/.claude/scripts/fsrs_bridge.py
+45c77229169c5c388332f785449aaaf284942cbdc023447598f9fc051f3828a2  backend/scripts/validate_learning_events.py
+43ac9e618d10d2ff2e851d10db3f5c0ed5632a93d10f00fcbb34d533302f0603  docs/learning-events-schema-v1.md

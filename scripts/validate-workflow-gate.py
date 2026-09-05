@@ -100,20 +100,15 @@ def is_story_file(file_path: str) -> bool:
     """Check if file is a story file"""
     path = Path(file_path)
     return (
-        "stories" in str(path) and
-        path.suffix == ".md" and
-        (
-            ".story.md" in str(path) or
-            "story-" in path.stem.lower()
-        )
+        "stories" in str(path) and path.suffix == ".md" and (".story.md" in str(path) or "story-" in path.stem.lower())
     )
 
 
 def print_header():
     """Print validation header"""
-    print(f"{BLUE}{'='*60}{RESET}")
+    print(f"{BLUE}{'=' * 60}{RESET}")
     print(f"{BOLD}[WORKFLOW GATE] BMad Workflow Pre-commit Validation{RESET}")
-    print(f"{BLUE}{'='*60}{RESET}")
+    print(f"{BLUE}{'=' * 60}{RESET}")
     print()
 
 
@@ -123,7 +118,9 @@ def print_result(result: ValidationResult):
         if result.details.get("skipped"):
             print(f"  {YELLOW}[SKIP]{RESET} Story {result.story_id}: {result.details.get('reason', 'Legacy Epic')}")
         else:
-            print(f"  {GREEN}[PASS]{RESET} Story {result.story_id}: Status = {result.current_status.value if result.current_status else 'N/A'}")
+            print(
+                f"  {GREEN}[PASS]{RESET} Story {result.story_id}: Status = {result.current_status.value if result.current_status else 'N/A'}"
+            )
     else:
         print(f"  {RED}[BLOCKED]{RESET} Story {result.story_id}")
         print(f"\n{result.error_message}\n")
@@ -131,9 +128,9 @@ def print_result(result: ValidationResult):
 
 def print_summary(passed: int, failed: int, skipped: int):
     """Print summary"""
-    print(f"{BLUE}{'='*60}{RESET}")
+    print(f"{BLUE}{'=' * 60}{RESET}")
     print(f"Summary: {GREEN}{passed} passed{RESET}, {RED}{failed} failed{RESET}, {YELLOW}{skipped} skipped{RESET}")
-    print(f"{BLUE}{'='*60}{RESET}")
+    print(f"{BLUE}{'=' * 60}{RESET}")
 
 
 # ============================================================================

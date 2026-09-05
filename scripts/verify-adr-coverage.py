@@ -32,28 +32,42 @@ from typing import List, Dict, Tuple, Optional, Set
 
 # Set UTF-8 encoding for Windows console
 import io
-if sys.stdout.encoding != 'utf-8':
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+
+if sys.stdout.encoding != "utf-8":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
 
 # 已知的技术决策类别
 DECISION_CATEGORIES = [
-    "framework", "database", "caching", "logging", "testing",
-    "authentication", "authorization", "api", "architecture",
-    "persistence", "communication", "error-handling", "retry",
-    "memory", "agent", "search", "integration"
+    "framework",
+    "database",
+    "caching",
+    "logging",
+    "testing",
+    "authentication",
+    "authorization",
+    "api",
+    "architecture",
+    "persistence",
+    "communication",
+    "error-handling",
+    "retry",
+    "memory",
+    "agent",
+    "search",
+    "integration",
 ]
 
 # 决策关键词模式
 DECISION_KEYWORDS = [
-    r'使用\s*(\S+)\s*(?:作为|来|进行)',
-    r'选择\s*(\S+)\s*(?:方案|框架|库|工具)',
-    r'采用\s*(\S+)\s*(?:模式|架构|策略)',
-    r'(?:Use|Using)\s+(\S+)\s+(?:for|as|to)',
-    r'(?:Chose|Choosing|Selected?)\s+(\S+)',
-    r'(?:Adopted?|Adopting)\s+(\S+)',
-    r'决策[:：]\s*(.+)',
-    r'Decision[:：]\s*(.+)',
+    r"使用\s*(\S+)\s*(?:作为|来|进行)",
+    r"选择\s*(\S+)\s*(?:方案|框架|库|工具)",
+    r"采用\s*(\S+)\s*(?:模式|架构|策略)",
+    r"(?:Use|Using)\s+(\S+)\s+(?:for|as|to)",
+    r"(?:Chose|Choosing|Selected?)\s+(\S+)",
+    r"(?:Adopted?|Adopting)\s+(\S+)",
+    r"决策[:：]\s*(.+)",
+    r"Decision[:：]\s*(.+)",
 ]
 
 
@@ -74,12 +88,7 @@ class ADRCoverageVerifier:
         self.existing_adrs: Dict[str, Dict] = {}
 
         # 覆盖率结果
-        self.coverage_results: Dict = {
-            'total': 0,
-            'covered': 0,
-            'missing': [],
-            'percentage': 0.0
-        }
+        self.coverage_results: Dict = {"total": 0, "covered": 0, "missing": [], "percentage": 0.0}
 
     def scan_existing_adrs(self) -> Dict[str, Dict]:
         """扫描现有ADR文件"""
@@ -92,26 +101,21 @@ class ADRCoverageVerifier:
 
         for adr_file in adr_files:
             try:
-                with open(adr_file, 'r', encoding='utf-8') as f:
+                with open(adr_file, "r", encoding="utf-8") as f:
                     content = f.read()
 
                 # 提取标题和关键词
-                title_match = re.search(r'^#\s+(.+)$', content, re.MULTILINE)
+                title_match = re.search(r"^#\s+(.+)$", content, re.MULTILINE)
                 title = title_match.group(1).strip() if title_match else adr_file.stem
 
                 # 提取状态
-                status_match = re.search(r'^##\s*Status\s*\n+\s*(\w+)', content, re.MULTILINE)
+                status_match = re.search(r"^##\s*Status\s*\n+\s*(\w+)", content, re.MULTILINE)
                 status = status_match.group(1) if status_match else "Unknown"
 
                 # 提取关键词 (从标题和内容)
                 keywords = self._extract_keywords(title + " " + content)
 
-                adrs[adr_file.name] = {
-                    'path': str(adr_file),
-                    'title': title,
-                    'status': status,
-                    'keywords': keywords
-                }
+                adrs[adr_file.name] = {"path": str(adr_file), "title": title, "status": status, "keywords": keywords}
 
             except Exception as e:
                 print(f"Warning: Cannot parse {adr_file}: {e}")
@@ -124,16 +128,16 @@ class ADRCoverageVerifier:
 
         # 技术名称模式
         tech_patterns = [
-            r'(LangGraph|LangChain|Graphiti|FastAPI|Pydantic)',
-            r'(Neo4j|LanceDB|Redis|PostgreSQL|SQLite)',
-            r'(SSE|WebSocket|HTTP|REST|GraphQL)',
-            r'(pytest|unittest|schemathesis|Gherkin|BDD)',
-            r'(structlog|logging|OpenTelemetry)',
-            r'(async|concurrent|parallel)',
-            r'(retry|circuit.?breaker|fallback)',
-            r'(cache|caching|tiered)',
-            r'(FSRS|Ebbinghaus|spaced.?repetition)',
-            r'(Canvas|Obsidian|Node|Edge)',
+            r"(LangGraph|LangChain|Graphiti|FastAPI|Pydantic)",
+            r"(Neo4j|LanceDB|Redis|PostgreSQL|SQLite)",
+            r"(SSE|WebSocket|HTTP|REST|GraphQL)",
+            r"(pytest|unittest|schemathesis|Gherkin|BDD)",
+            r"(structlog|logging|OpenTelemetry)",
+            r"(async|concurrent|parallel)",
+            r"(retry|circuit.?breaker|fallback)",
+            r"(cache|caching|tiered)",
+            r"(FSRS|Ebbinghaus|spaced.?repetition)",
+            r"(Canvas|Obsidian|Node|Edge)",
         ]
 
         for pattern in tech_patterns:
@@ -177,9 +181,9 @@ class ADRCoverageVerifier:
         decisions = []
 
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 content = f.read()
-                lines = content.split('\n')
+                lines = content.split("\n")
         except Exception as e:
             print(f"Warning: Cannot read {file_path}: {e}")
             return []
@@ -190,13 +194,13 @@ class ADRCoverageVerifier:
 
         for line_num, line in enumerate(lines, 1):
             # 检测决策章节开始
-            if re.search(r'(技术决策|Architecture\s*Decision|Tech\s*Stack|Technology\s*Choice)', line, re.IGNORECASE):
+            if re.search(r"(技术决策|Architecture\s*Decision|Tech\s*Stack|Technology\s*Choice)", line, re.IGNORECASE):
                 in_decision_section = True
                 continue
 
             # 检测章节结束（遇到同级或更高级标题）
-            if in_decision_section and re.match(r'^##?\s+[^#]', line):
-                if not re.search(r'(决策|Decision|Choice|Stack)', line, re.IGNORECASE):
+            if in_decision_section and re.match(r"^##?\s+[^#]", line):
+                if not re.search(r"(决策|Decision|Choice|Stack)", line, re.IGNORECASE):
                     in_decision_section = False
 
             # 在决策章节或全文中查找决策模式
@@ -207,23 +211,25 @@ class ADRCoverageVerifier:
                     keywords = self._extract_keywords(line)
 
                     if keywords:  # 只有当提取到技术关键词时才记录
-                        decisions.append({
-                            'text': decision_text.strip(),
-                            'keywords': keywords,
-                            'source_file': file_path.name,
-                            'source_line': line_num,
-                            'source_type': source_type,
-                            'context': line.strip()[:100]
-                        })
+                        decisions.append(
+                            {
+                                "text": decision_text.strip(),
+                                "keywords": keywords,
+                                "source_file": file_path.name,
+                                "source_line": line_num,
+                                "source_type": source_type,
+                                "context": line.strip()[:100],
+                            }
+                        )
 
         return decisions
 
     def match_decision_to_adr(self, decision: Dict) -> Optional[str]:
         """将决策匹配到ADR"""
-        decision_keywords = decision['keywords']
+        decision_keywords = decision["keywords"]
 
         for adr_name, adr_info in self.existing_adrs.items():
-            adr_keywords = adr_info['keywords']
+            adr_keywords = adr_info["keywords"]
 
             # 计算关键词交集
             intersection = decision_keywords & adr_keywords
@@ -242,7 +248,7 @@ class ADRCoverageVerifier:
         for decision in self.tech_decisions:
             matched_adr = self.match_decision_to_adr(decision)
             if matched_adr:
-                decision['matched_adr'] = matched_adr
+                decision["matched_adr"] = matched_adr
                 covered.append(decision)
             else:
                 missing.append(decision)
@@ -251,12 +257,7 @@ class ADRCoverageVerifier:
         covered_count = len(covered)
         percentage = (covered_count / total * 100) if total > 0 else 100.0
 
-        return {
-            'total': total,
-            'covered': covered_count,
-            'missing': missing,
-            'percentage': percentage
-        }
+        return {"total": total, "covered": covered_count, "missing": missing, "percentage": percentage}
 
     def verify(self) -> Tuple[bool, float]:
         """
@@ -295,11 +296,13 @@ class ADRCoverageVerifier:
         # 4. 检查覆盖率
         print("[4/4] Checking ADR coverage...")
         self.coverage_results = self.check_coverage()
-        print(f"  Coverage: {self.coverage_results['covered']}/{self.coverage_results['total']} ({self.coverage_results['percentage']:.1f}%)")
+        print(
+            f"  Coverage: {self.coverage_results['covered']}/{self.coverage_results['total']} ({self.coverage_results['percentage']:.1f}%)"
+        )
         print()
 
         # 判断是否通过
-        passed = self.coverage_results['percentage'] >= self.threshold
+        passed = self.coverage_results["percentage"] >= self.threshold
 
         # 打印结果
         print("=" * 60)
@@ -309,17 +312,17 @@ class ADRCoverageVerifier:
             print(f"[FAIL] ADR Coverage {self.coverage_results['percentage']:.1f}% < {self.threshold}% threshold")
 
             # 列出缺失项
-            if self.coverage_results['missing']:
+            if self.coverage_results["missing"]:
                 print("\nDecisions missing ADR documentation:")
-                for decision in self.coverage_results['missing'][:5]:
+                for decision in self.coverage_results["missing"][:5]:
                     print(f"  - {decision['text']} ({', '.join(decision['keywords'])})")
                     print(f"    Source: {decision['source_file']}:L{decision['source_line']}")
-                if len(self.coverage_results['missing']) > 5:
+                if len(self.coverage_results["missing"]) > 5:
                     print(f"  ... and {len(self.coverage_results['missing']) - 5} more")
 
         print("=" * 60)
 
-        return passed, self.coverage_results['percentage']
+        return passed, self.coverage_results["percentage"]
 
     def _deduplicate_decisions(self, decisions: List[Dict]) -> List[Dict]:
         """去重决策列表"""
@@ -327,8 +330,8 @@ class ADRCoverageVerifier:
         unique = []
 
         for decision in decisions:
-            key = frozenset(decision['keywords'])
-            if key not in seen_keywords and decision['keywords']:
+            key = frozenset(decision["keywords"])
+            if key not in seen_keywords and decision["keywords"]:
                 seen_keywords.add(key)
                 unique.append(decision)
 
@@ -336,13 +339,13 @@ class ADRCoverageVerifier:
 
     def generate_report(self, output_path: Optional[Path] = None) -> str:
         """生成详细覆盖率报告"""
-        pct = self.coverage_results['percentage']
+        pct = self.coverage_results["percentage"]
 
         report = f"""# ADR Coverage Report
 
-**Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+**Generated**: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 **Threshold**: {self.threshold}%
-**Status**: {'PASS' if pct >= self.threshold else 'FAIL'}
+**Status**: {"PASS" if pct >= self.threshold else "FAIL"}
 
 ---
 
@@ -350,11 +353,11 @@ class ADRCoverageVerifier:
 
 | Metric | Value |
 |--------|-------|
-| Total Decisions | {self.coverage_results['total']} |
-| Covered by ADR | {self.coverage_results['covered']} |
-| Missing ADR | {len(self.coverage_results['missing'])} |
+| Total Decisions | {self.coverage_results["total"]} |
+| Covered by ADR | {self.coverage_results["covered"]} |
+| Missing ADR | {len(self.coverage_results["missing"])} |
 | Coverage | {pct:.1f}% |
-| Status | {'PASS' if pct >= self.threshold else 'FAIL'} |
+| Status | {"PASS" if pct >= self.threshold else "FAIL"} |
 
 ---
 
@@ -364,20 +367,20 @@ class ADRCoverageVerifier:
 |-----|-------|--------|----------|
 """
         for adr_name, adr_info in sorted(self.existing_adrs.items()):
-            keywords = ', '.join(list(adr_info['keywords'])[:3])
+            keywords = ", ".join(list(adr_info["keywords"])[:3])
             report += f"| {adr_name} | {adr_info['title'][:40]}... | {adr_info['status']} | {keywords} |\n"
 
         report += f"""
 ---
 
-## Decisions Missing ADR ({len(self.coverage_results['missing'])})
+## Decisions Missing ADR ({len(self.coverage_results["missing"])})
 
 """
-        if self.coverage_results['missing']:
+        if self.coverage_results["missing"]:
             report += "| Decision | Keywords | Source | Line |\n"
             report += "|----------|----------|--------|------|\n"
-            for decision in self.coverage_results['missing']:
-                keywords = ', '.join(list(decision['keywords'])[:3])
+            for decision in self.coverage_results["missing"]:
+                keywords = ", ".join(list(decision["keywords"])[:3])
                 report += f"| {decision['text'][:40]}... | {keywords} | {decision['source_file']} | L{decision['source_line']} |\n"
         else:
             report += "_All decisions have corresponding ADR documentation._\n"
@@ -395,11 +398,11 @@ class ADRCoverageVerifier:
             report += "3. Ensure ADRs contain Context7技术验证 section for source verification\n\n"
 
             # 推荐创建的ADR
-            if self.coverage_results['missing']:
+            if self.coverage_results["missing"]:
                 report += "### Suggested ADRs to Create\n\n"
                 seen = set()
-                for decision in self.coverage_results['missing'][:5]:
-                    keywords = list(decision['keywords'])
+                for decision in self.coverage_results["missing"][:5]:
+                    keywords = list(decision["keywords"])
                     if keywords:
                         primary_keyword = keywords[0]
                         if primary_keyword not in seen:
@@ -418,7 +421,7 @@ class ADRCoverageVerifier:
 
         if output_path:
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(output_path, 'w', encoding='utf-8') as f:
+            with open(output_path, "w", encoding="utf-8") as f:
                 f.write(report)
             print(f"\nReport saved to: {output_path}")
 
@@ -427,10 +430,10 @@ class ADRCoverageVerifier:
 
 def main():
     """主函数"""
-    parser = argparse.ArgumentParser(description='Verify ADR coverage against architecture decisions')
-    parser.add_argument('--report', action='store_true', help='Generate detailed report')
-    parser.add_argument('--threshold', type=int, default=80, help='Coverage threshold percentage (default: 80)')
-    parser.add_argument('--output', type=str, help='Report output path (default: docs/specs/adr-coverage-report.md)')
+    parser = argparse.ArgumentParser(description="Verify ADR coverage against architecture decisions")
+    parser.add_argument("--report", action="store_true", help="Generate detailed report")
+    parser.add_argument("--threshold", type=int, default=80, help="Coverage threshold percentage (default: 80)")
+    parser.add_argument("--output", type=str, help="Report output path (default: docs/specs/adr-coverage-report.md)")
 
     args = parser.parse_args()
 

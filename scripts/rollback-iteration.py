@@ -20,8 +20,9 @@ from planning_utils import (
     is_git_clean,
     get_git_sha,
     print_status,
-    confirm_action
+    confirm_action,
 )
+
 
 def get_current_iteration() -> int:
     """获取当前迭代号"""
@@ -38,12 +39,13 @@ def get_current_iteration() -> int:
     max_iter = 0
     for f in iterations:
         try:
-            num = int(f.stem.split('-')[1])
+            num = int(f.stem.split("-")[1])
             max_iter = max(max_iter, num)
         except (IndexError, ValueError):
             continue
 
     return max_iter
+
 
 def get_iteration_snapshot(iteration_num: int) -> Optional[Dict]:
     """获取指定迭代的snapshot"""
@@ -55,48 +57,48 @@ def get_iteration_snapshot(iteration_num: int) -> Optional[Dict]:
 
     return load_snapshot(snapshot_path)
 
+
 def run_git_command(cmd: list, check: bool = True) -> subprocess.CompletedProcess:
     """执行Git命令"""
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        cwd=get_project_root()
-    )
+    result = subprocess.run(cmd, capture_output=True, text=True, cwd=get_project_root())
 
     if check and result.returncode != 0:
         raise RuntimeError(f"Git command failed: {' '.join(cmd)}\n{result.stderr}")
 
     return result
 
+
 def stash_changes(message: str) -> bool:
     """Stash当前更改"""
     try:
-        result = run_git_command(['git', 'stash', 'push', '-m', message])
-        return 'Saved working directory' in result.stdout or result.returncode == 0
+        result = run_git_command(["git", "stash", "push", "-m", message])
+        return "Saved working directory" in result.stdout or result.returncode == 0
     except Exception as e:
         print_status(f"Stash failed: {e}", "warning")
         return False
 
+
 def checkout_tag(tag_name: str) -> bool:
     """Checkout到指定tag"""
     try:
-        run_git_command(['git', 'checkout', tag_name])
+        run_git_command(["git", "checkout", tag_name])
         return True
     except Exception as e:
         print_status(f"Checkout failed: {e}", "error")
         return False
 
+
 def create_recovery_branch(iteration_num: int) -> str:
     """创建恢复分支"""
     branch_name = f"planning-recovery-from-{iteration_num}"
     try:
-        run_git_command(['git', 'checkout', '-b', branch_name])
+        run_git_command(["git", "checkout", "-b", branch_name])
         return branch_name
     except Exception as e:
         # 分支可能已存在
         print_status(f"Could not create branch {branch_name}: {e}", "warning")
         return ""
+
 
 def rollback_to_iteration(target_iter: int, force: bool = False, no_stash: bool = False) -> bool:
     """
@@ -134,9 +136,9 @@ def rollback_to_iteration(target_iter: int, force: bool = False, no_stash: bool 
 
     # 确认回滚
     if not force:
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("⚠️  Rollback Warning")
-        print("="*60)
+        print("=" * 60)
         print(f"\nCurrent iteration: {current_iter}")
         print(f"Target iteration: {target_iter}")
         print(f"\nThis will:")
@@ -155,11 +157,11 @@ def rollback_to_iteration(target_iter: int, force: bool = False, no_stash: bool 
     print_status(f"Checking out tag {tag_name}...", "progress")
 
     # 检查tag是否存在
-    result = run_git_command(['git', 'tag', '-l', tag_name], check=False)
+    result = run_git_command(["git", "tag", "-l", tag_name], check=False)
     if tag_name not in result.stdout:
         print_status(f"Tag {tag_name} not found", "error")
         print_status("Available tags:", "info")
-        result = run_git_command(['git', 'tag', '-l', 'planning-v*'], check=False)
+        result = run_git_command(["git", "tag", "-l", "planning-v*"], check=False)
         print(result.stdout)
         return False
 
@@ -172,34 +174,20 @@ def rollback_to_iteration(target_iter: int, force: bool = False, no_stash: bool 
 
     return True
 
+
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description="Rollback Planning files to a previous iteration state"
-    )
-    parser.add_argument(
-        '--target',
-        type=int,
-        required=True,
-        help='Target iteration number to rollback to'
-    )
-    parser.add_argument(
-        '--force',
-        action='store_true',
-        help='Skip confirmation prompt'
-    )
-    parser.add_argument(
-        '--no-stash',
-        action='store_true',
-        help='Discard current changes without stashing'
-    )
+    parser = argparse.ArgumentParser(description="Rollback Planning files to a previous iteration state")
+    parser.add_argument("--target", type=int, required=True, help="Target iteration number to rollback to")
+    parser.add_argument("--force", action="store_true", help="Skip confirmation prompt")
+    parser.add_argument("--no-stash", action="store_true", help="Discard current changes without stashing")
 
     args = parser.parse_args()
 
-    print("="*60)
+    print("=" * 60)
     print("⏪ Planning Iteration Rollback")
-    print("="*60)
+    print("=" * 60)
 
     current_iter = get_current_iteration()
     print_status(f"Current iteration: {current_iter}", "info")
@@ -209,16 +197,12 @@ def main():
         print_status(f"Target iteration must be less than current ({current_iter})", "error")
         return 1
 
-    success = rollback_to_iteration(
-        args.target,
-        force=args.force,
-        no_stash=args.no_stash
-    )
+    success = rollback_to_iteration(args.target, force=args.force, no_stash=args.no_stash)
 
     if success:
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("✅ Rollback Complete")
-        print("="*60)
+        print("=" * 60)
         print(f"   └─ Restored to: Iteration {args.target}")
         print(f"   └─ Branch: planning-recovery-from-{args.target}")
         print(f"\n📋 You can now:")
@@ -229,6 +213,7 @@ def main():
     else:
         print_status("Rollback failed", "error")
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

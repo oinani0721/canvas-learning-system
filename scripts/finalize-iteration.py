@@ -10,9 +10,9 @@ from pathlib import Path
 from datetime import datetime
 
 # Fix Windows console encoding for emoji support
-if sys.platform == 'win32':
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+if sys.platform == "win32":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 sys.path.insert(0, str(Path(__file__).parent / "lib"))
 
@@ -25,7 +25,7 @@ from planning_utils import (
     print_status,
     confirm_action,
     read_file,
-    write_file
+    write_file,
 )
 import subprocess
 import json
@@ -39,10 +39,10 @@ def run_coverage_gates(skip_context7_verify: bool = False) -> tuple[bool, dict]:
         tuple: (passed, results_dict)
     """
     results = {
-        'sdd_coverage': {'passed': False, 'coverage': 0, 'threshold': 80},
-        'adr_coverage': {'passed': False, 'coverage': 0, 'threshold': 80},
-        'source_citations': {'passed': False, 'valid': 0, 'total': 0},
-        'content_consistency': {'passed': False, 'issues': 0}
+        "sdd_coverage": {"passed": False, "coverage": 0, "threshold": 80},
+        "adr_coverage": {"passed": False, "coverage": 0, "threshold": 80},
+        "source_citations": {"passed": False, "valid": 0, "total": 0},
+        "content_consistency": {"passed": False, "issues": 0},
     }
     all_passed = True
     scripts_dir = Path(__file__).parent
@@ -55,19 +55,20 @@ def run_coverage_gates(skip_context7_verify: bool = False) -> tuple[bool, dict]:
             cwd=get_project_root(),
             capture_output=True,
             text=True,
-            encoding='utf-8',
-            errors='replace'
+            encoding="utf-8",
+            errors="replace",
         )
 
         if result.returncode == 0:
-            results['sdd_coverage']['passed'] = True
+            results["sdd_coverage"]["passed"] = True
             # Try to parse coverage from output
-            for line in result.stdout.split('\n'):
-                if 'coverage' in line.lower() and '%' in line:
+            for line in result.stdout.split("\n"):
+                if "coverage" in line.lower() and "%" in line:
                     import re
-                    match = re.search(r'(\d+(?:\.\d+)?)\s*%', line)
+
+                    match = re.search(r"(\d+(?:\.\d+)?)\s*%", line)
                     if match:
-                        results['sdd_coverage']['coverage'] = float(match.group(1))
+                        results["sdd_coverage"]["coverage"] = float(match.group(1))
             print_status(f"SDD coverage: {results['sdd_coverage']['coverage']:.1f}% (threshold: 80%)", "success")
         else:
             all_passed = False
@@ -86,18 +87,19 @@ def run_coverage_gates(skip_context7_verify: bool = False) -> tuple[bool, dict]:
             cwd=get_project_root(),
             capture_output=True,
             text=True,
-            encoding='utf-8',
-            errors='replace'
+            encoding="utf-8",
+            errors="replace",
         )
 
         if result.returncode == 0:
-            results['adr_coverage']['passed'] = True
-            for line in result.stdout.split('\n'):
-                if 'coverage' in line.lower() and '%' in line:
+            results["adr_coverage"]["passed"] = True
+            for line in result.stdout.split("\n"):
+                if "coverage" in line.lower() and "%" in line:
                     import re
-                    match = re.search(r'(\d+(?:\.\d+)?)\s*%', line)
+
+                    match = re.search(r"(\d+(?:\.\d+)?)\s*%", line)
                     if match:
-                        results['adr_coverage']['coverage'] = float(match.group(1))
+                        results["adr_coverage"]["coverage"] = float(match.group(1))
             print_status(f"ADR coverage: {results['adr_coverage']['coverage']:.1f}% (threshold: 80%)", "success")
         else:
             all_passed = False
@@ -116,16 +118,11 @@ def run_coverage_gates(skip_context7_verify: bool = False) -> tuple[bool, dict]:
             cmd.append("--verify-context7")
 
         result = subprocess.run(
-            cmd,
-            cwd=get_project_root(),
-            capture_output=True,
-            text=True,
-            encoding='utf-8',
-            errors='replace'
+            cmd, cwd=get_project_root(), capture_output=True, text=True, encoding="utf-8", errors="replace"
         )
 
         if result.returncode == 0:
-            results['source_citations']['passed'] = True
+            results["source_citations"]["passed"] = True
             print_status("Source citations valid", "success")
         else:
             all_passed = False
@@ -144,12 +141,12 @@ def run_coverage_gates(skip_context7_verify: bool = False) -> tuple[bool, dict]:
             cwd=get_project_root(),
             capture_output=True,
             text=True,
-            encoding='utf-8',
-            errors='replace'
+            encoding="utf-8",
+            errors="replace",
         )
 
         if result.returncode == 0:
-            results['content_consistency']['passed'] = True
+            results["content_consistency"]["passed"] = True
             print_status("Content consistency valid", "success")
         else:
             all_passed = False
@@ -165,21 +162,29 @@ def run_coverage_gates(skip_context7_verify: bool = False) -> tuple[bool, dict]:
 
 def print_coverage_summary(results: dict):
     """Print a summary of coverage gate results."""
-    print("\n" + "-"*50)
+    print("\n" + "-" * 50)
     print("📊 Coverage Gate Summary")
-    print("-"*50)
+    print("-" * 50)
 
     status_icon = lambda passed: "✅" if passed else "❌"
 
-    print(f"{status_icon(results['sdd_coverage']['passed'])} SDD Coverage: "
-          f"{results['sdd_coverage']['coverage']:.1f}% (threshold: {results['sdd_coverage']['threshold']}%)")
-    print(f"{status_icon(results['adr_coverage']['passed'])} ADR Coverage: "
-          f"{results['adr_coverage']['coverage']:.1f}% (threshold: {results['adr_coverage']['threshold']}%)")
-    print(f"{status_icon(results['source_citations']['passed'])} Source Citations: "
-          f"{'Valid' if results['source_citations']['passed'] else 'Invalid'}")
-    print(f"{status_icon(results['content_consistency']['passed'])} Content Consistency: "
-          f"{'Valid' if results['content_consistency']['passed'] else 'Issues Found'}")
-    print("-"*50)
+    print(
+        f"{status_icon(results['sdd_coverage']['passed'])} SDD Coverage: "
+        f"{results['sdd_coverage']['coverage']:.1f}% (threshold: {results['sdd_coverage']['threshold']}%)"
+    )
+    print(
+        f"{status_icon(results['adr_coverage']['passed'])} ADR Coverage: "
+        f"{results['adr_coverage']['coverage']:.1f}% (threshold: {results['adr_coverage']['threshold']}%)"
+    )
+    print(
+        f"{status_icon(results['source_citations']['passed'])} Source Citations: "
+        f"{'Valid' if results['source_citations']['passed'] else 'Invalid'}"
+    )
+    print(
+        f"{status_icon(results['content_consistency']['passed'])} Content Consistency: "
+        f"{'Valid' if results['content_consistency']['passed'] else 'Issues Found'}"
+    )
+    print("-" * 50)
 
 
 def git_commit_changes(iteration_num: int, goal: str = None) -> bool:
@@ -195,31 +200,23 @@ def git_commit_changes(iteration_num: int, goal: str = None) -> bool:
             "docs/epics/",
             "specs/",
             ".bmad-core/planning-iterations/",
-            "CHANGELOG.md"
+            "CHANGELOG.md",
         ]
 
         for path in paths_to_stage:
             full_path = get_project_root() / path
             if full_path.exists():
-                subprocess.run(
-                    ["git", "add", str(full_path)],
-                    cwd=get_project_root(),
-                    capture_output=True
-                )
+                subprocess.run(["git", "add", str(full_path)], cwd=get_project_root(), capture_output=True)
 
         # Also stage iteration snapshot
         subprocess.run(
             ["git", "add", f".bmad-core/planning-iterations/iteration-{iteration_num:03d}.json"],
             cwd=get_project_root(),
-            capture_output=True
+            capture_output=True,
         )
 
         # Check if there are staged changes
-        result = subprocess.run(
-            ["git", "diff", "--cached", "--quiet"],
-            cwd=get_project_root(),
-            capture_output=True
-        )
+        result = subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=get_project_root(), capture_output=True)
 
         if result.returncode == 0:
             print_status("No changes to commit", "warning")
@@ -239,8 +236,8 @@ def git_commit_changes(iteration_num: int, goal: str = None) -> bool:
             cwd=get_project_root(),
             capture_output=True,
             text=True,
-            encoding='utf-8',
-            errors='replace'
+            encoding="utf-8",
+            errors="replace",
         )
 
         if result.returncode != 0:
@@ -260,6 +257,7 @@ def git_commit_changes(iteration_num: int, goal: str = None) -> bool:
         print_status(f"Git commit error: {e}", "error")
         return False
 
+
 def update_iteration_log(iteration_num: int, snapshot: dict, validation_passed: bool):
     """更新iteration-log.md"""
     log_path = get_planning_iterations_dir() / "iteration-log.md"
@@ -272,19 +270,19 @@ def update_iteration_log(iteration_num: int, snapshot: dict, validation_passed: 
 
     # 创建新条目
     entry = f"""
-### Iteration {iteration_num:03d} - {datetime.now().strftime('%Y-%m-%d')}
+### Iteration {iteration_num:03d} - {datetime.now().strftime("%Y-%m-%d")}
 
-**Git Commit**: `{snapshot['git_commit']}`
-**Timestamp**: {snapshot['timestamp']}
+**Git Commit**: `{snapshot["git_commit"]}`
+**Timestamp**: {snapshot["timestamp"]}
 **Validation**: {"✅ Passed" if validation_passed else "⚠️ Warnings"}
 
 **Files Modified**:
-- PRD: {snapshot['statistics']['prd_count']} file(s)
-- Architecture: {snapshot['statistics']['architecture_count']} file(s)
-- Epics: {snapshot['statistics']['epic_count']} file(s)
-- API Specs: {snapshot['statistics']['api_spec_count']} file(s)
+- PRD: {snapshot["statistics"]["prd_count"]} file(s)
+- Architecture: {snapshot["statistics"]["architecture_count"]} file(s)
+- Epics: {snapshot["statistics"]["epic_count"]} file(s)
+- API Specs: {snapshot["statistics"]["api_spec_count"]} file(s)
 
-**Total Files**: {snapshot['statistics']['total_files']}
+**Total Files**: {snapshot["statistics"]["total_files"]}
 
 ---
 
@@ -299,6 +297,7 @@ def update_iteration_log(iteration_num: int, snapshot: dict, validation_passed: 
 
     write_file(log_path, log_content)
     print_status(f"Updated iteration log: {log_path}", "success")
+
 
 def create_post_checklist(iteration_num: int):
     """创建post-correct-course checklist实例"""
@@ -317,63 +316,30 @@ def create_post_checklist(iteration_num: int):
 
     return checklist_path
 
+
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description="Finalize a Planning Phase iteration"
+    parser = argparse.ArgumentParser(description="Finalize a Planning Phase iteration")
+    parser.add_argument("--breaking", action="store_true", help="Accept breaking changes (use with caution)")
+    parser.add_argument("--skip-validation", action="store_true", help="Skip validation step")
+    parser.add_argument("--no-tag", action="store_true", help="Do not create Git tag")
+    parser.add_argument("--no-commit", action="store_true", help="Do not auto-commit changes (manual commit required)")
+    parser.add_argument("--goal", type=str, help="Iteration goal for commit message")
+    parser.add_argument("-y", "--yes", action="store_true", help="Auto-confirm all prompts (non-interactive mode)")
+    parser.add_argument("--skip-coverage-gates", action="store_true", help="Skip SDD/ADR coverage gate verification")
+    parser.add_argument(
+        "--skip-context7-verify", action="store_true", help="Skip Context7 real-time verification (format check only)"
     )
     parser.add_argument(
-        '--breaking',
-        action='store_true',
-        help='Accept breaking changes (use with caution)'
-    )
-    parser.add_argument(
-        '--skip-validation',
-        action='store_true',
-        help='Skip validation step'
-    )
-    parser.add_argument(
-        '--no-tag',
-        action='store_true',
-        help='Do not create Git tag'
-    )
-    parser.add_argument(
-        '--no-commit',
-        action='store_true',
-        help='Do not auto-commit changes (manual commit required)'
-    )
-    parser.add_argument(
-        '--goal',
-        type=str,
-        help='Iteration goal for commit message'
-    )
-    parser.add_argument(
-        '-y', '--yes',
-        action='store_true',
-        help='Auto-confirm all prompts (non-interactive mode)'
-    )
-    parser.add_argument(
-        '--skip-coverage-gates',
-        action='store_true',
-        help='Skip SDD/ADR coverage gate verification'
-    )
-    parser.add_argument(
-        '--skip-context7-verify',
-        action='store_true',
-        help='Skip Context7 real-time verification (format check only)'
-    )
-    parser.add_argument(
-        '--force-coverage',
-        action='store_true',
-        help='Continue even if coverage gates fail (not recommended)'
+        "--force-coverage", action="store_true", help="Continue even if coverage gates fail (not recommended)"
     )
 
     args = parser.parse_args()
 
-    print("="*60)
+    print("=" * 60)
     print("🏁 Finalize Planning Phase Iteration")
-    print("="*60)
+    print("=" * 60)
 
     # 获取当前迭代编号
     iteration_num = get_next_iteration_number() - 1
@@ -387,6 +353,7 @@ def main():
     # 创建最终snapshot
     print_status("Creating final snapshot...", "progress")
     from snapshot_planning import create_snapshot
+
     snapshot = create_snapshot(iteration_num)
 
     # 运行验证（如果没有跳过）
@@ -397,6 +364,7 @@ def main():
         try:
             # Import validate-iteration.py (has hyphen in filename)
             import importlib.util
+
             validate_script = Path(__file__).parent / "validate-iteration.py"
             spec = importlib.util.spec_from_file_location("validate_iteration", validate_script)
             validate_module = importlib.util.module_from_spec(spec)
@@ -406,11 +374,7 @@ def main():
             load_validation_rules = validate_module.load_validation_rules
 
             rules = load_validation_rules()
-            result, prev_snapshot, curr_snapshot = validate_iterations(
-                iteration_num - 1,
-                iteration_num,
-                rules
-            )
+            result, prev_snapshot, curr_snapshot = validate_iterations(iteration_num - 1, iteration_num, rules)
 
             if result.has_breaking_changes() and not args.breaking:
                 print_status("Breaking changes detected!", "error")
@@ -434,9 +398,7 @@ def main():
     coverage_results = None
     if not args.skip_coverage_gates:
         print_status("Running coverage gates...", "progress")
-        coverage_passed, coverage_results = run_coverage_gates(
-            skip_context7_verify=args.skip_context7_verify
-        )
+        coverage_passed, coverage_results = run_coverage_gates(skip_context7_verify=args.skip_context7_verify)
         print_coverage_summary(coverage_results)
 
         if not coverage_passed:
@@ -480,33 +442,36 @@ def main():
             create_git_tag(tag_name, tag_message)
 
     # 打印完成信息
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("🎉 Iteration Finalized Successfully!")
-    print("="*60)
+    print("=" * 60)
     print(f"\n**Iteration**: {iteration_num}")
     print(f"**Snapshot**: iteration-{iteration_num:03d}.json")
     print(f"**Git Commit**: {snapshot['git_commit'][:8]}...")
-    print(f"**Validation**: {"✅ Passed" if validation_passed else "⚠️ Warnings"}")
-    print(f"**Coverage Gates**: {"✅ Passed" if coverage_passed else "⚠️ Warnings" if args.force_coverage else "Skipped"}")
+    print(f"**Validation**: {'✅ Passed' if validation_passed else '⚠️ Warnings'}")
+    print(
+        f"**Coverage Gates**: {'✅ Passed' if coverage_passed else '⚠️ Warnings' if args.force_coverage else 'Skipped'}"
+    )
     if coverage_results:
         print(f"  - SDD Coverage: {coverage_results['sdd_coverage']['coverage']:.1f}%")
         print(f"  - ADR Coverage: {coverage_results['adr_coverage']['coverage']:.1f}%")
-    print(f"**Auto-Committed**: {"✅ Yes" if (not args.no_commit and commit_success) else "❌ No"}")
+    print(f"**Auto-Committed**: {'✅ Yes' if (not args.no_commit and commit_success) else '❌ No'}")
 
     print(f"\n**Next Steps**:")
     print(f"1. Review post-checklist: {checklist_path}")
     if args.no_commit:
         print(f"2. Commit changes manually:")
         print(f"   git add .")
-        print(f"   git commit -m \"Planning Iteration {iteration_num} Complete\"")
+        print(f'   git commit -m "Planning Iteration {iteration_num} Complete"')
         print(f"3. Push to remote (if ready):")
         print(f"   git push origin main --tags")
     else:
         print(f"2. Push to remote (if ready):")
         print(f"   git push origin main --tags")
-    print("="*60)
+    print("=" * 60)
 
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

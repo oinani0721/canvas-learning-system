@@ -138,9 +138,7 @@ class StoryHarness:
                     self.progress.increment_retry(story.id)
                 else:
                     self.progress.mark_failed(
-                        story.id,
-                        gate_result,
-                        error_message=result.get("blocking_reason", "Gate failed")
+                        story.id, gate_result, error_message=result.get("blocking_reason", "Gate failed")
                     )
                     print(f"[StoryHarness] [X] Story {story.id} failed after max retries, halting")
                     self.progress.halt(f"Story {story.id} failed after max retries")
@@ -213,7 +211,7 @@ class StoryHarness:
         result_file = self.worktree_path / ".worktree-result.json"
         if result_file.exists():
             try:
-                with open(result_file, 'r', encoding='utf-8') as f:
+                with open(result_file, "r", encoding="utf-8") as f:
                     return json.load(f)
             except Exception as e:
                 print(f"[StoryHarness] Error reading result file: {e}")
@@ -304,33 +302,12 @@ class StoryHarness:
 
 def main():
     """CLI entry point."""
-    parser = argparse.ArgumentParser(
-        description="Story Harness - Anthropic-style long-running agent for BMad workflow"
-    )
-    parser.add_argument(
-        "--epic",
-        required=True,
-        help="Epic ID (e.g., '24')"
-    )
-    parser.add_argument(
-        "--stories",
-        help="Comma-separated Story IDs (e.g., '24.1,24.2,24.3')"
-    )
-    parser.add_argument(
-        "--mock",
-        action="store_true",
-        help="Run in mock mode (no Claude API calls)"
-    )
-    parser.add_argument(
-        "--resume",
-        action="store_true",
-        help="Resume from existing progress file"
-    )
-    parser.add_argument(
-        "--worktree",
-        type=Path,
-        help="Path to worktree (default: current directory)"
-    )
+    parser = argparse.ArgumentParser(description="Story Harness - Anthropic-style long-running agent for BMad workflow")
+    parser.add_argument("--epic", required=True, help="Epic ID (e.g., '24')")
+    parser.add_argument("--stories", help="Comma-separated Story IDs (e.g., '24.1,24.2,24.3')")
+    parser.add_argument("--mock", action="store_true", help="Run in mock mode (no Claude API calls)")
+    parser.add_argument("--resume", action="store_true", help="Resume from existing progress file")
+    parser.add_argument("--worktree", type=Path, help="Path to worktree (default: current directory)")
 
     args = parser.parse_args()
 

@@ -50,6 +50,7 @@ def export_openapi(output_path: str = "openapi.json", format_type: str = "json")
     if format_type == "yaml":
         try:
             import yaml
+
             with open(output, "w", encoding="utf-8") as f:
                 yaml.dump(schema, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
         except ImportError:
@@ -139,30 +140,13 @@ def compare_specs(old_path: str, new_schema: dict) -> dict:
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Export OpenAPI specification from Canvas Learning System"
-    )
+    parser = argparse.ArgumentParser(description="Export OpenAPI specification from Canvas Learning System")
+    parser.add_argument("--output", "-o", default="openapi.json", help="Output file path (default: openapi.json)")
     parser.add_argument(
-        "--output", "-o",
-        default="openapi.json",
-        help="Output file path (default: openapi.json)"
+        "--format", "-f", choices=["json", "yaml"], default="json", help="Output format (default: json)"
     )
-    parser.add_argument(
-        "--format", "-f",
-        choices=["json", "yaml"],
-        default="json",
-        help="Output format (default: json)"
-    )
-    parser.add_argument(
-        "--compare", "-c",
-        action="store_true",
-        help="Compare with existing specification"
-    )
-    parser.add_argument(
-        "--stats", "-s",
-        action="store_true",
-        help="Print specification statistics"
-    )
+    parser.add_argument("--compare", "-c", action="store_true", help="Compare with existing specification")
+    parser.add_argument("--stats", "-s", action="store_true", help="Print specification statistics")
 
     args = parser.parse_args()
 
@@ -182,7 +166,7 @@ def main():
             print(f"  Schemas: {stats['schemas_count']}")
             print(f"  Total Operations: {stats['total_operations']}")
             print(f"  Operations by method:")
-            for method, count in stats['operations'].items():
+            for method, count in stats["operations"].items():
                 print(f"    - {method.upper()}: {count}")
             print(f"  Tags: {', '.join(stats['tags'])}")
 
@@ -190,14 +174,14 @@ def main():
             comparison = compare_specs(args.output, schema)
             print(f"\n=== Comparison with Existing Spec ===")
             print(f"  Status: {comparison['status']}")
-            if comparison['status'] == "changed":
-                if comparison['paths']['added']:
+            if comparison["status"] == "changed":
+                if comparison["paths"]["added"]:
                     print(f"  New paths: {', '.join(comparison['paths']['added'])}")
-                if comparison['paths']['removed']:
+                if comparison["paths"]["removed"]:
                     print(f"  Removed paths: {', '.join(comparison['paths']['removed'])}")
-                if comparison['schemas']['added']:
+                if comparison["schemas"]["added"]:
                     print(f"  New schemas: {', '.join(comparison['schemas']['added'])}")
-                if comparison['schemas']['removed']:
+                if comparison["schemas"]["removed"]:
                     print(f"  Removed schemas: {', '.join(comparison['schemas']['removed'])}")
 
     except Exception as e:

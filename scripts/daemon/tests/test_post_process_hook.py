@@ -10,6 +10,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import sys
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from post_process_hook import PostProcessHook, PostProcessResult
@@ -35,25 +36,19 @@ class TestPostProcessHook:
             "dev_record": {
                 "agent_model": "Claude Code (claude-sonnet-4-5)",
                 "duration_seconds": 1200,
-                "files_created": [
-                    {"path": "src/api/main.py", "description": "FastAPI application"}
-                ],
-                "files_modified": [
-                    {"path": "src/__init__.py", "description": "Updated exports"}
-                ],
-                "completion_notes": "Implemented FastAPI initialization with CORS"
+                "files_created": [{"path": "src/api/main.py", "description": "FastAPI application"}],
+                "files_modified": [{"path": "src/__init__.py", "description": "Updated exports"}],
+                "completion_notes": "Implemented FastAPI initialization with CORS",
             },
             "qa_record": {
                 "quality_score": 88,
                 "ac_coverage": {
                     "AC1": {"status": "PASS", "evidence": "test_app_creation"},
-                    "AC2": {"status": "PASS", "evidence": "test_cors_middleware"}
+                    "AC2": {"status": "PASS", "evidence": "test_cors_middleware"},
                 },
-                "issues_found": [
-                    {"severity": "low", "description": "Consider adding rate limiting"}
-                ],
-                "recommendations": ["Add OpenTelemetry integration"]
-            }
+                "issues_found": [{"severity": "low", "description": "Consider adding rate limiting"}],
+                "recommendations": ["Add OpenTelemetry integration"],
+            },
         }
 
     @pytest.fixture
@@ -123,11 +118,7 @@ Initialize the FastAPI application with proper configuration.
         env = setup_test_environment
         hook = PostProcessHook(env["main_repo_path"])
 
-        result = hook.process(
-            story_id="15.1",
-            worktree_path=env["worktree_path"],
-            session_id="test-session"
-        )
+        result = hook.process(story_id="15.1", worktree_path=env["worktree_path"], session_id="test-session")
 
         assert result.story_id == "15.1"
         assert result.session_id == "test-session"
@@ -143,11 +134,7 @@ Initialize the FastAPI application with proper configuration.
             worktree.mkdir()
 
             hook = PostProcessHook(main_repo)
-            result = hook.process(
-                story_id="15.1",
-                worktree_path=worktree,
-                session_id="test"
-            )
+            result = hook.process(story_id="15.1", worktree_path=worktree, session_id="test")
 
             assert result.story_updated is False
             assert result.gate_generated is False
@@ -193,9 +180,7 @@ Initialize the FastAPI application with proper configuration.
         hook = PostProcessHook(env["main_repo_path"])
 
         result = hook._generate_qa_gate(
-            story_id="15.1",
-            story_title="FastAPI Application Initialization",
-            result_data=sample_result_data
+            story_id="15.1", story_title="FastAPI Application Initialization", result_data=sample_result_data
         )
 
         assert result.success is True
@@ -217,7 +202,7 @@ Initialize the FastAPI application with proper configuration.
             story_id="15.1",
             dev_record_updated=True,
             qa_results_updated=True,
-            file_synced=True
+            file_synced=True,
         )
 
         gate_result = GateResult(
@@ -225,15 +210,10 @@ Initialize the FastAPI application with proper configuration.
             story_id="15.1",
             gate_status="PASS",
             quality_score=88,
-            success=True
+            success=True,
         )
 
-        hook._update_result_file(
-            env["worktree_path"],
-            sample_result_data,
-            update_result,
-            gate_result
-        )
+        hook._update_result_file(env["worktree_path"], sample_result_data, update_result, gate_result)
 
         # Read updated file
         with open(env["result_file"], "r", encoding="utf-8") as f:
@@ -250,11 +230,7 @@ Initialize the FastAPI application with proper configuration.
         env = setup_test_environment
         hook = PostProcessHook(env["main_repo_path"])
 
-        result = hook.process(
-            story_id="15.1",
-            worktree_path=env["worktree_path"],
-            session_id="test"
-        )
+        result = hook.process(story_id="15.1", worktree_path=env["worktree_path"], session_id="test")
 
         # Read updated story file
         updated_content = env["story_file"].read_text(encoding="utf-8")
@@ -279,57 +255,35 @@ class TestPostProcessResult:
             gate_generated=True,
             dev_record_complete=True,
             qa_record_complete=True,
-            errors=None
+            errors=None,
         )
         assert result.is_success() is True
 
     def test_is_success_story_not_updated(self):
         result = PostProcessResult(
-            story_id="15.1",
-            session_id="test",
-            story_updated=False,
-            gate_generated=True,
-            errors=None
+            story_id="15.1", session_id="test", story_updated=False, gate_generated=True, errors=None
         )
         assert result.is_success() is False
 
     def test_is_success_gate_not_generated(self):
         result = PostProcessResult(
-            story_id="15.1",
-            session_id="test",
-            story_updated=True,
-            gate_generated=False,
-            errors=None
+            story_id="15.1", session_id="test", story_updated=True, gate_generated=False, errors=None
         )
         assert result.is_success() is False
 
     def test_is_success_with_errors(self):
         result = PostProcessResult(
-            story_id="15.1",
-            session_id="test",
-            story_updated=True,
-            gate_generated=True,
-            errors=["Some error occurred"]
+            story_id="15.1", session_id="test", story_updated=True, gate_generated=True, errors=["Some error occurred"]
         )
         assert result.is_success() is False
 
     def test_default_timestamp(self):
-        result = PostProcessResult(
-            story_id="15.1",
-            session_id="test",
-            story_updated=True,
-            gate_generated=True
-        )
+        result = PostProcessResult(story_id="15.1", session_id="test", story_updated=True, gate_generated=True)
         assert result.timestamp is not None
         assert len(result.timestamp) > 10  # ISO format should be longer
 
     def test_default_errors_list(self):
-        result = PostProcessResult(
-            story_id="15.1",
-            session_id="test",
-            story_updated=True,
-            gate_generated=True
-        )
+        result = PostProcessResult(story_id="15.1", session_id="test", story_updated=True, gate_generated=True)
         assert result.errors == []
 
     def test_to_dict(self):
@@ -342,7 +296,7 @@ class TestPostProcessResult:
             gate_file="/path/to/gate.yml",
             dev_record_complete=True,
             qa_record_complete=True,
-            errors=None
+            errors=None,
         )
         d = result.to_dict()
 
@@ -417,23 +371,21 @@ Initialize the FastAPI application with proper configuration.
                     "duration_seconds": 1800,
                     "files_created": [
                         {"path": "src/api/main.py", "description": "FastAPI application entry point"},
-                        {"path": "src/api/routers/health.py", "description": "Health check router"}
+                        {"path": "src/api/routers/health.py", "description": "Health check router"},
                     ],
-                    "files_modified": [
-                        {"path": "requirements.txt", "description": "Added FastAPI dependencies"}
-                    ],
-                    "completion_notes": "Implemented FastAPI application with CORS and health check"
+                    "files_modified": [{"path": "requirements.txt", "description": "Added FastAPI dependencies"}],
+                    "completion_notes": "Implemented FastAPI application with CORS and health check",
                 },
                 "qa_record": {
                     "quality_score": 92,
                     "ac_coverage": {
                         "AC1": {"status": "PASS", "evidence": "test_app_startup"},
                         "AC2": {"status": "PASS", "evidence": "test_cors_headers"},
-                        "AC3": {"status": "PASS", "evidence": "test_health_endpoint"}
+                        "AC3": {"status": "PASS", "evidence": "test_health_endpoint"},
                     },
                     "issues_found": [],
-                    "recommendations": ["Consider adding request logging middleware"]
-                }
+                    "recommendations": ["Consider adding request logging middleware"],
+                },
             }
             result_file = worktree / ".worktree-result.json"
             with open(result_file, "w", encoding="utf-8") as f:
@@ -443,7 +395,7 @@ Initialize the FastAPI application with proper configuration.
                 "main_repo": main_repo,
                 "worktree": worktree,
                 "story_file": worktree_stories / "15.1.story.md",
-                "result_file": result_file
+                "result_file": result_file,
             }
 
     def test_complete_pipeline(self, full_environment):
@@ -451,11 +403,7 @@ Initialize the FastAPI application with proper configuration.
         env = full_environment
         hook = PostProcessHook(env["main_repo"])
 
-        result = hook.process(
-            story_id="15.1",
-            worktree_path=env["worktree"],
-            session_id="integration-test"
-        )
+        result = hook.process(story_id="15.1", worktree_path=env["worktree"], session_id="integration-test")
 
         # Check result
         assert result.is_success() is True

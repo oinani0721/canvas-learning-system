@@ -1,0 +1,4 @@
+# CARD-CX-G6-2b-R1 探针: 洞①-三元属性写
+# 用法: 追加到 review_app.py 源码**字符串**尾部（只在内存里拼, 不落进生产文件）
+# 预期: REJECT:根不可解析  —  根是 ast.IfExp → 空串。**本卡已收紧**（换一种表达式形态确认收紧不是 BoolOp 专属）
+(json if _PAGE_TEMPLATE else list).dumps = lambda value, **kwargs: "wrong"
