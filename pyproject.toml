@@ -23,8 +23,10 @@ dev = [
     #   hasattr(schemathesis.openapi, "from_asgi")  -> True
     #   hasattr(schemathesis, "from_asgi")          -> **False**(顶层的已被移除)
     # 3.25/3.30/3.39 实测: `openapi.from_asgi` 与四个 `checks.*_conformance`
-    # **两套并存**, 所以该文件在 3.x 后期是能跑的; 4.x 把 checks 挪进注册表后,
-    # 只有注册表写法可用。本卡改用注册表写法 ⇒ 下限必须是 4.0。
+    # **两套并存**; 4.14.3 上模块属性经动态 __getattr__ + 插件收集期的
+    # load_all_checks() 同样可用(实测改前版本拒因是 DeadlineExceeded 而非
+    # AttributeError)。本卡改用**注册表写法**是为了不依赖"插件已加载"这个隐式前提,
+    # 而注册表 API 是 4.x 专用(3.39.0 无 load_all_checks/CHECKS) ⇒ 下限必须是 4.0。
     # ⚠️ 本注释**不描述 CI**: 截至本卡, .github/workflows/test.yml 既没有
     #    `python -c 'import schemathesis'` 硬前置(原方案计划加, 重裁后未实施),
     #    也没有把该合约测试放进白名单; 它在 :72 无版本地 `pip install schemathesis`。
