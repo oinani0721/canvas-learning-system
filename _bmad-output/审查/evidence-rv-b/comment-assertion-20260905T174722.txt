@@ -1,0 +1,14 @@
+== 核对新版 :747-748 注释的可证伪断言 ==
+   注释原文声称：「注释掉它，E 的两条反例当场 MISSED ⇒ AST-NEGATIVE-CONTROL: FAIL」
+
+[基线] HEAD                              探针=1  反例MISSED=0/25  正例误拒=0/13
+
+[变异] 去 :752 差集                         探针=0  反例MISSED=6/25  正例误拒=0/13
+      MISSED: 伪造本地 FastAPI() 工厂
+      MISSED: R1-10：工厂里 a=FastAPI() 之后被覆盖成生产 app
+      MISSED: R1-11：同名方法跨类污染（A.make 安全不代表 B.make 安全）
+      MISSED: 同名工厂重定义：安全版在前，不安全版在后（阻断项 E 的原始形态）
+      MISSED: 同名工厂重定义：不安全版在前，安全版在后（顺序反过来同样不算数）
+      MISSED: 转调一个同名重定义过的工厂（round-1 Codex HIGH-1 的组合形态）
+
+[还原] HEAD                              探针=1  反例MISSED=0/25  正例误拒=0/13

@@ -1,0 +1,17 @@
+== 对撞矩阵：analyze_source(输入, 'tests/high1_probe.py') ==
+  [   2c53a881 旧版] HIGH-1 探针(存档原文)          -> len=0  []
+  [ 004e08cc/HEAD] HIGH-1 探针(存档原文)          -> len=1  ['tests/high1_probe.py:17: TestClient(app) —— app 来源无法静态证明（解析结果=unknown，按违规处理，人工复核）']
+
+  [   2c53a881 旧版] HIGH-1 常设反例(表内)          -> len=0  []
+  [ 004e08cc/HEAD] HIGH-1 常设反例(表内)          -> len=1  ['tests/high1_probe.py:13: TestClient(app) —— app 来源无法静态证明（解析结果=unknown，按违规处理，人工复核）']
+
+  [   2c53a881 旧版] 验伪锚 标准隔离形态               -> len=0  []
+  [ 004e08cc/HEAD] 验伪锚 标准隔离形态               -> len=0  []
+
+== 探针 vs 常设反例 ==
+  逐字节相同: False
+  探针含 'as c': False | 反例含 'as c': True
+  探针 def test_case: True | 反例 def t: True
+  反例条目名: ['转调一个同名重定义过的工厂（round-1 Codex HIGH-1 的组合形态）']
+  _AST_MUST_FLAG 条数: 25 | 旧版: 24
+  _AST_MUST_PASS 条数: 13 | 旧版: 13
