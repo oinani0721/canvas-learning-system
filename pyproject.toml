@@ -14,7 +14,24 @@ dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21",
     "pytest-bdd>=7.0",
-    "schemathesis>=3.0",
+    # CARD-TOOL-dredd-decide [BATCH-2026-09-05-第十一批]: >=3.0 -> >=4.0。
+    # 本文件是 schemathesis 版本口径的**唯一**出处(原先 tests/contract/requirements.txt
+    # 另有一处 >=3.19.0, 已改为指回这里)。
+    # 为什么必须 >=4.0: backend/tests/contract/test_openapi_contract.py:26 用的是
+    # `schemathesis.openapi.from_asgi(...)` —— 这是 4.x 的形态。本机实测 4.14.3:
+    #   hasattr(schemathesis, "openapi")            -> True
+    #   hasattr(schemathesis.openapi, "from_asgi")  -> True
+    #   hasattr(schemathesis, "from_asgi")          -> **False**(顶层的已被移除)
+    # 3.25/3.30/3.39 实测: `openapi.from_asgi` 与四个 `checks.*_conformance`
+    # **两套并存**; 4.14.3 上模块属性经动态 __getattr__ + 插件收集期的
+    # load_all_checks() 同样可用(实测改前版本拒因是 DeadlineExceeded 而非
+    # AttributeError)。本卡改用**注册表写法**是为了不依赖"插件已加载"这个隐式前提,
+    # 而注册表 API 是 4.x 专用(3.39.0 无 load_all_checks/CHECKS) ⇒ 下限必须是 4.0。
+    # ⚠️ 本注释**不描述 CI**: 截至本卡, .github/workflows/test.yml 既没有
+    #    `python -c 'import schemathesis'` 硬前置(原方案计划加, 重裁后未实施),
+    #    也没有把该合约测试放进白名单; 它在 :72 无版本地 `pip install schemathesis`。
+    #    详见 _bmad-output/审查/2026-09-05-Dredd-复活或退役-裁决页.md §六。
+    "schemathesis>=4.0",
     "hypothesis>=6.0",
     # CARD-TOOL-pyright [BATCH-2026-09-05-第十一批] —— 类型检查器归口。
     # 落在这里而不是 backend/requirements*.txt, 依据是后者文件头自己写的
