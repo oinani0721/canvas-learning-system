@@ -7,7 +7,8 @@
 
 - **阻断级 = 0 即可合**：数据丢失 / live vault 或 Neo4j 7691 写入 / 安全 / 指定裁判红 / 负控假绿（窄口径：负控本身谎报 PASS）。其余 BLOCKER/HIGH/MEDIUM/LOW **登记不阻断**。
 - Codex 的 PASS/FAIL 字样**不进门**，但台账 §二 必须如实抄录（含模型名）。
-- 终审绑定看**代码树**：`git diff --stat <审SHA> HEAD -- . ':!_bmad-output'` 为空即仍绑定；纯注释尾巴由主 session 逐行核后可判等价（写明）。
+- 终审绑定看**代码树**：`git diff --stat <审SHA> HEAD -- . ':(exclude)_bmad-output'` 为空即仍绑定；纯注释尾巴由主 session 逐行核后可判等价（写明）。⚠️ 写法必须是 `':(exclude)…'`——`':!…'` 在 zsh 下被吃掉、在本机 git 2.50 下报 `Unimplemented pathspec magic`，rc=128 且 stdout 空，「为空即绑定」会把没跑成读成绿（第十一批复核实测）。
+- **串行车道的绑定口径**：一条车道串多张卡时，前面的卡在后面的卡改代码后必然「失绑」——按**本卡 diff 面**判：`git diff --stat <审SHA> <本卡末commit> -- <本卡改过的代码文件>` 为空即仍绑定；跨卡后续 commit 不算破坏。但**同一卡内**审后再改（如「按 Codex 意见整改」那次 commit）就是真失绑，须登记「整改未复审」。
 - 轮次按**卡族**累计 ≤3；改卡号不重置。0 字节存档重发一次，再 0 字节 → 主 session 人审替代，不等配额。
 - 主 session **人判合入**（终审「FAIL」但阻断级 0）必写：依据逐条对门、revert 点（单 squash SHA）、下批必排的修复卡。
 
