@@ -1,0 +1,135 @@
+=== 裁判 16：收尾 commit 的提交期 hook 全程（rc 在 tee 内捕获，整改 F2）===
+date=2026-09-05T18:46:50Z  base=bdf15fbad71f55cf79ed29602aaf05c19db73f18
+--- git commit ---
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+╰──────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+│  cypher-vault-filter-lint (skip) no matching staged files
+┃  ghost-files ❯ 
+
+[Ghost Files] No untracked docs found.
+
+┃  mutant-residue-scan ❯ 
+
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+
+│  python-lint (skip) no files for inspection
+│  python-typecheck (skip) no files for inspection
+│  readme-claims-lint (skip) no matching staged files
+│  spec-sync-flat (skip) no matching staged files
+│  spec-sync-root (skip) no matching staged files
+                                      
+  ────────────────────────────────────
+summary: (done in 0.05 seconds)       
+✔️ ghost-files (0.02 seconds)
+✔️ mutant-residue-scan (0.03 seconds)
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: commit-msg │
+╰──────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+┃  commitlint ❯ 
+
+⧗   input: docs: typecheck glob 内部复核整改 12 项 [BATCH-2026-09-05-第十二批 / CARD-TOOL-typecheck-glob]
+
+Codex 之后本卡自发跑了一轮只读多视角对抗性复核（17 agent，5 视角找 + 12 反驳验证）。
+产出 32 条 finding，脚本 CAP=6 只验证了 6 条，26 条未经反驳验证（已 log 声明，未静默截断）。
+逐条人判后采纳 12 项，本 commit 只改 lefthook.yml 的 YAML 注释 + 存档 + 验收单。
+
+承重整改三项：
+
+F1（我自己引入的）：为修 Codex 第 3 问「SKIP 条件写窄了」，上一版把 4-B 写成「跑不跑
+取决于工具装没装，不取决于这次改的 glob」——反向过宽，且与本卡核心结论自相矛盾。
+真实条件是 AND：有暂存文件命中 glob，且解析链能找到 pyright。本卡三次提交在装着
+pyright 的车道树上照样 (skip)，正是反例。
+
+F3：负控判据不绑定 glob。`(skip) no files for inspection` 只表示「交给该命令的列表为空」，
+git add 没生效会产生逐字节相同的输出，而 v1 transcript 对暂存只有一个无标签裸文件名。
+已重测 6 档（judge14 v2）：每档三行暂存自证 + 2 档正控，并补上 start_server.py 缺档
+（Codex 4' 指出）。v1 的第一次重测整轮作废并保留存档——sed 行号硬编码 147 而 glob 已漂到
+190，往 python-lint 块插进第二个 glob 键致 YAML 崩；判据把「配置炸了」和「glob 没匹配」
+判成同一结果，是矩阵里的正控暴露了它。
+
+F5：等价性三条判据对其它 run 块内的 shell 注释全部失明——改 python-lint 块里的
+`# Activate backend venv for ruff`（卡文列为禁改）能让三条全绿。改用结构等价判据：
+yaml.safe_load 后逐键比较。run: | 是字面块标量，块内 # 行是脚本字符串的一部分会被保留，
+而 YAML 注释被丢弃 ⇒ 可见性恰好互补。带验伪锚（该变异被报出 .python-lint.run 差异）。
+实测：4cc4824c → 最终树唯一差异 = python-typecheck 的 glob；bdf15fba → 最终树零差异。
+
+其余九项：commit_rc 判据串不在存档里（echo 写在 tee 外，本次已改进 tee 内）；844 的
+「互相印证」是同一次划分算两遍，已撤回并如实写证据强度；「台账记 ≈95%」是把自己的
+四舍五入归属给台账（台账逐字写 94%）；「单 * 跨任意层级」是 3 个深度样本的规则归纳，
+Codex 写过该限定而上一版丢掉了；核心机制「位置实参取代 include」此前只是喂给外审的
+背景断言，现用已有存档补直接实证（conftest.py 不在 include 面内却被真实分析并报诊断）；
+judge8 的 PATH 行是自抄字段且取自车道 shell；判据改绑显式 SHA 不绑 HEAD~1；4-B 段清掉
+技术词；Codex 存档字节数 6134 → 7096（补首部前量的）。
+
+行锚偏移最终值 +59（覆盖此前通报的 +36 / +43，那两个是过程值已作废）：
+mutant-residue-scan 286→345（Y4-C 面）、pre-push 383→442（Y4-D 面）、
+python-typecheck 146→205、glob 147→206。全部 grep -n 实测，Y4-C/Y4-D 请动态取。
+
+子代理越权写入对账：跑前钉 15 份 evidence + lefthook.yml + pyrightconfig 的 sha256 基线，
+跑完逐个复核零差异，HEAD 未动。
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GbA5ESa3WuwRcj6wBrdeca
+⚠   subject must be lower-case [subject-case]
+
+⚠   found 0 problems, 1 warnings
+ⓘ   Get help: https://github.com/conventional-changelog/commitlint/#what-is-commitlint
+
+
+┃  spec-reference ❯ 
+
+[Spec Ref] OK.
+
+                                      
+  ────────────────────────────────────
+summary: (done in 0.35 seconds)       
+✔️ commitlint (0.33 seconds)
+✔️ spec-reference (0.02 seconds)
+╭───────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: post-commit │
+╰───────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+[card/z7-tool 3f94993d] docs: typecheck glob 内部复核整改 12 项 [BATCH-2026-09-05-第十二批 / CARD-TOOL-typecheck-glob]
+ 8 files changed, 753 insertions(+), 212 deletions(-)
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-typecheck-glob/judge11-commit2-hook-20260906T015533.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-typecheck-glob/judge12-mechanism-proof-20260906T023820.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-typecheck-glob/judge13-structural-equiv-20260906T023855.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-typecheck-glob/judge14-negctl-binding-20260906T023943.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-typecheck-glob/judge14-negctl-binding-v2-20260906T024030.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-typecheck-glob/judge15-final-equiv-20260906T024158.txt"
+commit_rc=0
+--- 新 HEAD ---
+3f94993ddd68f1ff79d141073d3c9b2b8ee77664
+rc=0

@@ -241,6 +241,13 @@ include 成立（`judge12-mechanism-proof-*.txt`）。这是整张卡价值主�
 commit-msg：`commitlint ✔️`（`0 problems, 1 warnings`，`subject-case` 为 level 1）+
 `spec-reference ✔️`。三次均**未**使用 `LEFTHOOK_EXCLUDE`。
 
+> **存档递归的终止点（如实，不预测）**：每次 commit 的 hook 输出都是在那次 commit 过程中
+> 才生成的，所以"为第 N 次提交存档"必然需要第 N+1 次提交把它入库。本卡的终止方式是：
+> `judge16`（第三次提交的 hook 全程 + `commit_rc`）由**第四次提交**入库，而**第四次提交
+> 自身的 hook 输出不存档**——它只出现在本次会话的终端里。上一版曾用"第三次提交的 hook
+> 形态与前两次完全一致"来免除存档，那是**用预测替代实测**（内部复核 O14 指出），本版不再
+> 这样写：终止点就是终止点，如实标出，不给它编一个理由。
+
 `python-typecheck` 三次都 skip 是**正常且预期**的：本卡改的是 `.yml` / `.md` / `.txt`，
 不在其 glob 内——这同时也是 (e) 条件 1 的一个实例。
 
