@@ -761,6 +761,163 @@ def probe_shell_injections() -> list[dict]:
             }
         )
 
+    # ═══════════════════════════════════════════════════════════════════════
+    # CARD-W4-6（2026-09-05）—— exec 层本身是否承重 + 重入票据
+    #
+    # 上面四条 pipeline 探针**证明不了 exec 层**：注入的导出函数即便原样穿过
+    # `exec`，也会被纵深第二层（`unset -f` 循环）清掉，门照样给出正确答案。
+    # 本机实测的缺陷正是藏在这个盲区里 —— bash 3.2.57 把导出函数放进名为
+    # `BASH_FUNC_f%%` 的环境变量，`compgen -e` 看不见它，于是 exec 那句的 `-u`
+    # 列表**恒空**，一个导出函数都没摘。四条探针全绿，缺陷照样在。
+    #
+    # 要让判据绑定「是被**哪一层**拦下的」，就得**拆掉另一层**：下面三条用
+    # `_fake_backend(gate_text=…)` 造一份删去第二层 `unset -f` 循环的门副本，
+    # 此时还能挡住注入的就只剩 exec 层。锚点命中数必须恰好 1 —— 生产代码改了
+    # 形状时探针要当场喊脱节，而不是静默变成「没拆」（那会让这三条恒绿假通过）。
+    # ═══════════════════════════════════════════════════════════════════════
+    _LAYER2_ANCHOR = (
+        "for __fn in $(builtin compgen -A function 2>/dev/null); do\n"
+        '  builtin unset -f "$__fn" 2>/dev/null || true\n'
+        "done\n"
+    )
+    _gate_text = GATE.read_text(encoding="utf-8")
+    _anchor_hits = _gate_text.count(_LAYER2_ANCHOR)
+    _no_layer2 = _gate_text.replace(_LAYER2_ANCHOR, "# [W4-6 探针] 纵深第二层被拆掉：此处只剩 exec 层\n")
+
+    def _emit(name: str, ok: bool, proc, expect_rc, verdict_ok: str, verdict_bad: str, reason: str) -> None:
+        results.append(
+            {
+                "name": name,
+                "ok": ok,
+                "rc": proc.returncode if proc is not None else -1,
+                "expect_rc": expect_rc,
+                "verdict": verdict_ok if ok else verdict_bad,
+                "reason": "" if ok else reason,
+                "stderr_tail": (proc.stderr[-300:] if proc is not None else ""),
+            }
+        )
+
+    # ── 拆掉第二层的门副本：三条都要求门**自己**给出正确答案 ────────────────
+    #: (探针名, 注入文件, 被包裹命令 argv, 额外判据)
+    #: 额外判据 `wrapped_types`：断言被包裹命令的 `type -t` 输出里没有 `function`，
+    #: 且 `builtin`/`file` 都在 —— 后半句是防「命令根本没跑，空输出把否定判据喂饱」。
+    exec_layer_cases = [
+        (
+            "shell-bash-env-exec-layer-is-load-bearing",
+            fn_inject,
+            ["/usr/bin/true"],
+            False,
+        ),
+        (
+            "shell-exec-strips-readonly-func",
+            ro_inject,
+            ["/usr/bin/true"],
+            False,
+        ),
+        (
+            "shell-wrapped-cmd-sees-no-injected-func",
+            fn_inject,
+            ["/bin/bash", "-c", "type -t printf; type -t dirname"],
+            True,
+        ),
+    ]
+    for name, inject, wrapped, wrapped_types in exec_layer_cases:
+        if _anchor_hits != 1:
+            _emit(
+                name,
+                False,
+                None,
+                0,
+                "",
+                "第二层锚点与生产代码脱节",
+                f"`unset -f` 循环锚点在 runtime_sha.sh 里命中 {_anchor_hits} 次（须恰好 1）——"
+                " 探针无法证明 exec 层承重，拒绝报绿",
+            )
+            continue
+        ftmp, fake = _fake_backend("w4-exec-layer-", gate_text=_no_layer2)
+        try:
+            fgate = fake / "scripts" / "lifespan_isolation_runtime_sha.sh"
+            marker = str(fake / "data/bug_log.jsonl")
+            proc = _sh_direct(["bash", str(fgate), "--", *wrapped], {"BASH_ENV": str(inject)})
+            ok = proc.returncode == 0 and marker in proc.stdout and "RUNTIME-FILES: unchanged" in proc.stdout
+            if ok and wrapped_types:
+                # 被包裹命令必须真的跑了（builtin/file 都在），且看不到注入的函数
+                ok = "builtin" in proc.stdout and "file" in proc.stdout and "function" not in proc.stdout
+            _emit(
+                name,
+                ok,
+                proc,
+                0,
+                "exec 层自己摘掉了导出函数",
+                "拆掉纵深第二层后导出函数活了下来（exec 层不承重）",
+                f"rc={proc.returncode} marker={marker in proc.stdout} stdout={proc.stdout[-300:]} stderr={proc.stderr[-300:]}",
+            )
+        finally:
+            shutil.rmtree(ftmp, ignore_errors=True)
+
+    # ── 票据：旧的 W4_SHA_GATE_REEXEC=1 被照抄，清洗仍必须执行 ──────────────
+    # before（开工 SHA）实测：readonly -f 的注入函数活到第二层，`unset -f` 对它
+    # 失败 ⇒ `RUNTIME-FILES: GATE-BROKEN — 清不掉的 shell 函数仍在: dirname`、rc=1。
+    # 用 fn.sh（非 readonly）做同形对照时第二层会兜住、修复前后同 rc —— 那条
+    # **不能**作承重判据，所以这里只用 readonly.sh。
+    proc = _sh_direct(
+        ["bash", str(GATE), "--", "/usr/bin/true"],
+        {"W4_SHA_GATE_REEXEC": "1", "BASH_ENV": str(ro_inject)},
+    )
+    _emit(
+        "shell-reexec-sentinel-preset",
+        proc.returncode == 0 and expected_marker in proc.stdout and "RUNTIME-FILES: unchanged" in proc.stdout,
+        proc,
+        0,
+        "预设旧哨兵不再能跳过清洗",
+        "调用者预设一个环境变量就跳过了整段清洗",
+        f"rc={proc.returncode} stdout={proc.stdout[-300:]} stderr={proc.stderr[-300:]}",
+    )
+
+    # ── 票据：伪造前哨必须被明确拒绝（不重入、不假绿、在 timeout 内退出）────
+    try:
+        proc = _sh_direct(["bash", str(GATE), "--w4-reexec", "w4-forged-not-a-real-ticket", "--", "/usr/bin/true"])
+        forged_ok = (
+            proc.returncode == 1 and "GATE-BROKEN" in proc.stderr and "RUNTIME-FILES: unchanged" not in proc.stdout
+        )
+        forged_reason = f"rc={proc.returncode} stdout={proc.stdout[-300:]} stderr={proc.stderr[-300:]}"
+    except subprocess.TimeoutExpired:
+        proc, forged_ok = None, False
+        forged_reason = "门没有在 timeout 内退出 —— 疑似伪造前哨触发了无界重入"
+    _emit(
+        "shell-reexec-sentinel-forged",
+        forged_ok,
+        proc,
+        1,
+        "伪造票据被门明确拒绝",
+        "伪造票据没被拒绝（假绿或无界重入）",
+        forged_reason,
+    )
+
+    # ── 残余可伪造面的门：调用者自己 exec ⇒ 继承 PID ⇒ 票据**对得上**。
+    # 这一面本卡**没有关掉**（如实登记）。关掉的是它的危害：票据声称"已清洗"，
+    # 门就复核环境真的干净；伪票 + 注入自相矛盾 ⇒ 当场 GATE-BROKEN。
+    # 没有这条探针，那段环境自洽检查就是没人跑过的死代码。
+    try:
+        proc = _sh(
+            f'exec bash {GATE} --w4-reexec "w4-sha-gate-reexec-v1:$$" -- /usr/bin/true',
+            {"BASH_ENV": str(fn_inject)},
+        )
+        pid_ok = proc.returncode == 1 and "GATE-BROKEN" in proc.stderr and "RUNTIME-FILES: unchanged" not in proc.stdout
+        pid_reason = f"rc={proc.returncode} stdout={proc.stdout[-300:]} stderr={proc.stderr[-300:]}"
+    except subprocess.TimeoutExpired:
+        proc, pid_ok = None, False
+        pid_reason = "门没有在 timeout 内退出"
+    _emit(
+        "shell-forged-ticket-with-injection-refused",
+        pid_ok,
+        proc,
+        1,
+        "票据可伪造，但伪票+注入被环境自洽检查拦下",
+        "继承 PID 伪造票据后带着注入跑成了结论",
+        pid_reason,
+    )
+
     shutil.rmtree(tmp, ignore_errors=True)
     return results
 

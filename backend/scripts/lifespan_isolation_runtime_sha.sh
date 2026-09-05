@@ -9,6 +9,10 @@
 # 例:
 #   bash scripts/lifespan_isolation_runtime_sha.sh -- .venv/bin/pytest tests/api -q
 #
+# ⚠️ `--w4-reexec <票据>` 是**保留的内部前哨**，只由本脚本自己在 exec 时传给自己
+#    （见「已经重启过」的凭据那一段）。调用者不要传；传了且票据对不上，门会
+#    GATE-BROKEN rc=1 拒绝，而不是照常出结论。
+#
 # 判据: 受监视文件在命令前后 **逐字节相同**（sha256 相等，或前后都不存在）。
 #       监视面 = WATCHED_FIXED 的固定项 + WATCHED_GLOBS 每次快照重新展开的 glob 项；
 #       任一不同（含 glob 在 after 才展开出来的**新建**文件）→ 打印
@@ -60,10 +64,16 @@
 #   **之前**被 shell source 并 exit，脚本压根没运行 —— 这不是"防线被绕过"，
 #   是"根本没到防线"。同类还有 `ENV`、导出函数、`LD_PRELOAD`、以及直接改本文件。
 #   注入者**不**立刻 exit、而想篡改脚本行为的那一半，由「换干净解释器重新 exec」
-#   + 纵深清洗关掉，并由 5 条 shell 探针承重（`shell-fake-dirname` /
-#   `shell-fake-printf` / `shell-bash-env` / `shell-readonly-func` 期望门**照常
-#   给出正确答案**，`shell-alias-test-hijack` / `shell-exit-trap-hijack` 期望门
-#   **拒绝空跑**）。
+#   + 纵深清洗关掉，并由 11 条 shell 探针承重（`lifespan_isolation_guard_probes.py`
+#   的 `probe_shell_injections()`）：`shell-fake-dirname` / `shell-fake-printf` /
+#   `shell-bash-env` / `shell-readonly-func` 期望门**照常给出正确答案**；
+#   `shell-alias-test-hijack` / `shell-exit-trap-hijack` 期望门**拒绝空跑**；
+#   CARD-W4-6 新增五条钉住 exec 层本身：`shell-bash-env-exec-layer-is-load-bearing`
+#   / `shell-exec-strips-readonly-func` / `shell-wrapped-cmd-sees-no-injected-func`
+#   （拆掉纵深第二层的门副本仍须给出正确答案 ⇒ exec 层自己承重）、
+#   `shell-reexec-sentinel-preset`（照抄旧环境变量不再能跳过清洗）、
+#   `shell-forged-ticket-with-injection-refused`（伪造票据 + 注入 ⇒ 明确拒绝）。
+#   ⚠️ 上一版这里写「5 条」却列了 6 个名字 —— 数字与清单不一致，一并更正。
 #   ⚠️ 试过「启动期检测到注入就提前 exit」并**回退**了：提前 exit 会落进注入者的
 #   `trap ... EXIT` 射程（rc 被改写成 0，比不加更糟），而 `exec` 之所以有效正是
 #   因为它替换进程映像、EXIT trap 不触发。理由写在 exec 那一段的注释里。
@@ -88,18 +98,91 @@ set -uo pipefail
 # 用法检查都通过，脚本空跑并输出 `RUNTIME-FILES: unchanged`、exit 0。
 #
 # 干净的解法不是继续往清单里加名字（那是「枚举白名单」式的必输游戏），而是
-# **用 env -i 重新 exec 自己**：新解释器没有 BASH_ENV、没有导出函数、没有别名、
+# **换一个干净解释器 exec 自己**：新解释器没有 BASH_ENV、没有导出函数、没有别名、
 # 没有 trap、没有 readonly 变量。调用者的 PATH 用一个显式变量带过去，只给被包裹
-# 命令用。W4_SHA_GATE_REEXEC 是「已经重启过」的标记，防止无限递归。
+# 命令用。
 #
 # ⚠️ 刻意**不**用 `env -i`：被包裹命令（通常是 pytest）需要调用者的环境
 # （HOME / TMPDIR / locale / 项目自己的变量）。只摘注入面：`BASH_ENV`、`ENV`
-# 和全部 `BASH_FUNC_*`（导出函数就藏在这些变量里，`readonly -f` 的也一样）。
-# 判据用 `case` 而不是 `[` —— `[` 可以被 alias 劫持，而 `case` 是 shell 语法，
-# 劫持不了（这正是 R1 Codex HIGH-5 的攻击面）。
-case "${W4_SHA_GATE_REEXEC:-}" in
-  1) ;;
-  *)
+# 和环境里**全部 `BASH_FUNC_*` 变量**——导出函数（含 `readonly -f` 过的）就藏在
+# 这些变量里。判据用 `case` 而不是 `[` —— `[` 可以被 alias 劫持，而 `case` 是
+# shell 语法，劫持不了（这正是 R1 Codex HIGH-5 的攻击面）。
+#
+# ## 取名为什么不能用 `compgen -e`（CARD-W4-6，2026-09-05 本机实测）
+#
+# 上一版这里是 `for __v in $(builtin compgen -e); do case "$__v" in BASH_FUNC_*)`。
+# 在绑定环境 **GNU bash 3.2.57(1)-release (arm64-apple-darwin25)** 上实测：
+#
+#     /bin/bash --noprofile --norc -c 'f(){ :; }; export -f f;
+#         /usr/bin/env | grep "^BASH_FUNC"; builtin compgen -e | grep -c BASH_FUNC'
+#     → BASH_FUNC_f%%=() {  :      ← env 看得见
+#     → 0                          ← compgen -e 一个都数不出来
+#
+# 导出函数的环境变量名形如 `BASH_FUNC_f%%`，**带 `%%`、不是合法 shell 标识符**，
+# 而 `compgen -e` 给的是「可以当变量名用的导出名」列表，压根不列它。于是上一版
+# 收集到的 `__unset_args` **恒为空串**，那句 exec 一个导出函数都没摘 —— 导出函数
+# 原样进了新解释器（实测 `/usr/bin/env /bin/bash --noprofile --norc -c 'type -t f'`
+# → `function`），全靠下面**第二层**的 `unset -f` 兜住。也就是说 exec 层对
+# `BASH_FUNC_*` **不承重**，而上一版这段注释说得比实现宽。
+#
+# 现在改成读 `/usr/bin/env` 的输出逐行取名。取名规则**刻意取最宽**——凡行首是
+# `BASH_FUNC_` 的行，第一个 `=` 之前的整段都当名字。两个方向的代价不对称：
+#   * 漏摘（危险方向）会让导出函数活着进新解释器。函数名并**不**限于标识符字符：
+#     实测 `foo-bar(){ :; }; export -f foo-bar` 产出 `BASH_FUNC_foo-bar%%`、
+#     `a.b` 产出 `BASH_FUNC_a.b%%` —— 把锚点写成 `[A-Za-z_][A-Za-z0-9_]*` 就会漏。
+#   * 多摘（安全方向）只多一个 `-u <不存在的名字>`：实测 `env -u NO_SUCH_VAR_XYZ`
+#     rc=0、无副作用；且 `BASH_FUNC_` 是 bash 给导出函数保留的前缀，不误伤别的变量。
+#   残余误判面：多行函数体的**续行**若恰好行首也是 `BASH_FUNC_`，会被多当成一个
+#   名字（实测 bash 3.2 把续行缩进了一格，不触发；即便触发也落在「多摘」这侧）。
+#
+# ## 「已经重启过」的凭据：为什么不再是一个环境变量（CARD-W4-6）
+#
+# 上一版用 `W4_SHA_GATE_REEXEC=1` 当标记，而这个标记**调用者可以照抄**：
+#   `W4_SHA_GATE_REEXEC=1 BASH_ENV=<注入> bash 本脚本 -- cmd`
+# 整段清洗被直接跳过（2026-09-05 实测 before：`readonly -f` 的注入函数活到第二层，
+# `unset -f` 对它失败 ⇒ 门打印 GATE-BROKEN、rc=1。不是假绿，但一个环境变量就能让
+# 这道门罢工）。
+#
+# 现在改成 **argv 前哨 + PID 派生的一次性票据**：`exec` 不换 PID（实测），所以
+# 第一趟用 `$$` 造票、第二趟再用 `$$` 验票，两趟必然对得上；而调用者要伪造这张票，
+# 得先知道自己**尚未创建**的那个进程的 PID。
+#
+# 两条必须写清的边界：
+#   1. **残余可伪造面（没关掉）**：调用者若自己 `exec` 本脚本 ——
+#      `exec bash 本脚本 --w4-reexec "w4-sha-gate-reexec-v1:$$" -- cmd` ——
+#      子进程继承它的 PID，票就对得上。这一面落在本文件开头那条「能在本脚本被读取
+#      之前执行代码的人可以完全伪造本门的输出」里。本卡关掉的只是「照抄一个常量」
+#      这条**不需要任何前置能力**的路。
+#   2. 所以验票通过之后**还要验环境**：票声称"已经清洗过"，那 `BASH_ENV`/`ENV`
+#      必须为空、环境里必须没有 `BASH_FUNC_*`。伪造票的人只要**同时**注入，这两者
+#      就自相矛盾，门当场 GATE-BROKEN 拒绝 —— 伪造票而不注入则没造成危害。
+#
+# ⚠️ 这**不是**回到下面那段已否决的「检测到注入就提前 exit」：那一版把检测放在
+#    **正常路径**上。本版的检测只在「票据声称已清洗」这条分支上跑，正常调用永远走
+#    exec 清洗，四条数据管道探针的语义原样保留。理由详见紧接着的注释。
+#
+# ⚠️ `exec` / `export` / `unset` 本身都能被同名函数劫持（实测 `exec(){ :; }` 之后
+#    裸 `exec cmd` 什么也不做、脚本继续在**脏 shell 里往下跑**），所以本段一律用
+#    `builtin` 前缀。`builtin` 自己仍可被同名函数劫持（实测），那一面不在本卡关闭
+#    范围内 —— 它与全文件对 `builtin` 的依赖同源，属上面那条已声明的边界。
+
+#: 本进程的票据。exec 不换 PID ⇒ 第一趟造的票，第二趟验得过。
+__W4_TICKET="w4-sha-gate-reexec-v1:$$"
+__w4_claimed=0
+__w4_ticket_seen=""
+case "${1:-}" in
+  --w4-reexec)
+    __w4_claimed=1
+    # 用 case 而不是 `[` 判参数个数：`[` 在这里还可能是别名/函数。
+    case "$#" in
+      0|1) ;;
+      *) __w4_ticket_seen="$2"; shift 2 ;;
+    esac
+    ;;
+esac
+
+case "$__w4_claimed" in
+  0)
     # ⛔ 这里**刻意不做「检测到注入就提前 exit」**（2026-09-04 试过并回退，
     #    原因值得留着，免得后人再试一次）：
     #    1. 提前 `exit` 会落进注入者的 `trap ... EXIT` 射程 —— 探针
@@ -110,19 +193,56 @@ case "${W4_SHA_GATE_REEXEC:-}" in
     #       `shell-bash-env` / `shell-readonly-func` 四条探针的语义从
     #       「门**抗污染并仍给出正确答案**」降级成「门罢工」—— 后者是更弱的能力。
     #    结论：换干净解释器 + 纵深清洗，比在脏环境里自我了断强。
-    W4_SHA_GATE_REEXEC=1
     W4_SHA_GATE_CALLER_PATH="${PATH:-}"
-    export W4_SHA_GATE_REEXEC W4_SHA_GATE_CALLER_PATH
-    __unset_args=""
-    for __v in $(builtin compgen -e 2>/dev/null); do
-      case "$__v" in
-        BASH_FUNC_*) __unset_args="${__unset_args} -u ${__v}" ;;
+    builtin export W4_SHA_GATE_CALLER_PATH
+    # 数组恒非空（前三对固定项）：bash 3.2 在 `set -u` 下展开**空**数组
+    # `"${a[@]}"` 会报 unbound variable（本机实测），非空就绕开了这个坑。
+    # `-u W4_SHA_GATE_REEXEC`：该变量已退役（见上），顺手摘掉残值，免得后人
+    # 看见它还以为能靠它跳过清洗。
+    __w4_env_args=(-u BASH_ENV -u ENV -u W4_SHA_GATE_REEXEC)
+    while IFS= builtin read -r __w4_line; do
+      case "$__w4_line" in
+        BASH_FUNC_*) __w4_env_args+=(-u "${__w4_line%%=*}") ;;
       esac
-    done
-    # shellcheck disable=SC2086 —— __unset_args 由 compgen 产出的变量名组成，需要分词
-    exec /usr/bin/env -u BASH_ENV -u ENV ${__unset_args} /bin/bash --noprofile --norc "$0" "$@"
+    done < <(/usr/bin/env)
+    builtin unset __w4_line
+    builtin exec /usr/bin/env "${__w4_env_args[@]}" \
+      /bin/bash --noprofile --norc "$0" --w4-reexec "$__W4_TICKET" "$@"
+    ;;
+  *)
+    # ── 票据声称「已经清洗过」：验票 + 验环境 ──────────────────────────
+    case "$__w4_ticket_seen" in
+      "$__W4_TICKET") ;;
+      *)
+        builtin printf 'RUNTIME-FILES: GATE-BROKEN — --w4-reexec 票据不匹配（票据由本进程 PID 派生，伪造的前哨不被接受）；拒绝在未经清洗的环境里给出结论\n' >&2
+        builtin exit 1
+        ;;
+    esac
+    case "${BASH_ENV:-}${ENV:-}" in
+      "") ;;
+      *)
+        builtin printf 'RUNTIME-FILES: GATE-BROKEN — 票据声称已清洗，但 BASH_ENV/ENV 仍有值；拒绝给出结论\n' >&2
+        builtin exit 1
+        ;;
+    esac
+    __w4_stale=""
+    while IFS= builtin read -r __w4_line; do
+      case "$__w4_line" in
+        BASH_FUNC_*) __w4_stale="${__w4_stale} ${__w4_line%%=*}" ;;
+      esac
+    done < <(/usr/bin/env)
+    builtin unset __w4_line
+    case "$__w4_stale" in
+      "") ;;
+      *)
+        builtin printf 'RUNTIME-FILES: GATE-BROKEN — 票据声称已清洗，但环境里仍有导出函数:%s\n' "$__w4_stale" >&2
+        builtin exit 1
+        ;;
+    esac
+    builtin unset __w4_stale
     ;;
 esac
+builtin unset __W4_TICKET __w4_claimed __w4_ticket_seen
 
 # ── 地基清理第二步：纵深防御（即使上面的 exec 被人绕过也照做一遍）──────────
 unset BASH_ENV ENV CDPATH
