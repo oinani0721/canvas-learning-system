@@ -20,7 +20,7 @@ class LinearSessionSpawner:
     """
 
     # Full Dev+QA+Git workflow prompt template (from parallel-develop-auto.ps1)
-    PROMPT_TEMPLATE = '''Execute complete Dev→QA→Git workflow for Story {story_id}.
+    PROMPT_TEMPLATE = """Execute complete Dev→QA→Git workflow for Story {story_id}.
 {ultrathink_section}
 
 ===============================================================================
@@ -224,13 +224,13 @@ IMPORTANT REMINDERS
 - Document any issues in the QA assessment files
 - Do NOT push from worktree - orchestrator handles merge
 - Update .worktree-status.yaml at EVERY decision point
-'''
+"""
 
     # Allowed tools for development workflow
     ALLOWED_TOOLS = "Bash,Read,Write,Edit,Grep,Glob,Task,TodoWrite"
 
     # UltraThink section template - enables extended deep thinking
-    ULTRATHINK_SECTION = '''
+    ULTRATHINK_SECTION = """
 ===============================================================================
 🧠 ULTRATHINK MODE ENABLED - EXTENDED DEEP THINKING
 ===============================================================================
@@ -259,7 +259,7 @@ When implementing each Task:
 - Implement with proper error handling
 - Add tests for edge cases
 - Review your own code before moving on
-'''
+"""
 
     def __init__(self, max_turns: int = 200, ultrathink: bool = False):
         """
@@ -294,22 +294,22 @@ When implementing each Task:
 
         # Generate prompt with story ID and optional ultrathink section
         ultrathink_section = self.ULTRATHINK_SECTION if self.ultrathink else ""
-        prompt = self.PROMPT_TEMPLATE.format(
-            story_id=story_id,
-            ultrathink_section=ultrathink_section
-        )
+        prompt = self.PROMPT_TEMPLATE.format(story_id=story_id, ultrathink_section=ultrathink_section)
 
         # Build Claude CLI command
         cmd = [
-            'claude',
-            '-p', prompt,
-            '--dangerously-skip-permissions',
-            '--allowedTools', self.ALLOWED_TOOLS,
-            '--max-turns', str(self.max_turns),
+            "claude",
+            "-p",
+            prompt,
+            "--dangerously-skip-permissions",
+            "--allowedTools",
+            self.ALLOWED_TOOLS,
+            "--max-turns",
+            str(self.max_turns),
         ]
 
         # Open log file for writing
-        log_handle = open(log_file, 'w', encoding='utf-8')
+        log_handle = open(log_file, "w", encoding="utf-8")
 
         # Write header to log
         log_handle.write(f"{'=' * 70}\n")
@@ -325,7 +325,7 @@ When implementing each Task:
         try:
             # Windows-specific: create new process group
             creation_flags = 0
-            if sys.platform == 'win32':
+            if sys.platform == "win32":
                 creation_flags = subprocess.CREATE_NEW_PROCESS_GROUP
 
             process = subprocess.Popen(
@@ -351,7 +351,7 @@ When implementing each Task:
     def get_log_handle(self, worktree_path: Path) -> IO:
         """Get a handle to the log file for monitoring."""
         log_file = worktree_path / "dev-qa-output.log"
-        return open(log_file, 'r', encoding='utf-8', errors='replace')
+        return open(log_file, "r", encoding="utf-8", errors="replace")
 
     def cleanup_result_file(self, worktree_path: Path):
         """Remove previous result file before starting new session."""

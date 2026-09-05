@@ -349,8 +349,8 @@ def _board_name(raw: str | None):
     name = raw.strip()
     if name.startswith("[[") and name.endswith("]]"):
         name = name[2:-2]
-    name = name.split("|")[0]                 # [[path|alias]] 取 path
-    name = name.rsplit("/", 1)[-1].strip()    # 原白板/X → X
+    name = name.split("|")[0]  # [[path|alias]] 取 path
+    name = name.rsplit("/", 1)[-1].strip()  # 原白板/X → X
     return name or None
 
 
@@ -374,8 +374,7 @@ def _sh_local(ts: str):
     — 人话层绝不崩全轮, 交由调用方走兜底文案 / 归 future。
     """
     try:
-        return datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(
-            tzinfo=timezone.utc).astimezone(_TZ_SHANGHAI)
+        return datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).astimezone(_TZ_SHANGHAI)
     except (ValueError, OverflowError, OSError):
         return None
 
@@ -492,8 +491,7 @@ def scan_nodes(vault: Path, now: datetime, decay):
 
         a_raw, b_raw = _fm_num(fm, "mastery_a"), _fm_num(fm, "mastery_b")
         legacy = next(
-            (v for k in ("mastery_score", "mastery", "mastery_level")
-             if (v := _fm_num(fm, k)) is not None),
+            (v for k in ("mastery_score", "mastery", "mastery_level") if (v := _fm_num(fm, k)) is not None),
             None,
         )
         if a_raw is not None and b_raw is not None:
@@ -532,7 +530,7 @@ def scan_nodes(vault: Path, now: datetime, decay):
             continue
 
         fsrs_due = _fm_str(fm, "fsrs_due") or ""
-        fsrs_due_raw = fsrs_due   # CARD-G3-6a: fail-open 清空前留底, 供 why_due 点名
+        fsrs_due_raw = fsrs_due  # CARD-G3-6a: fail-open 清空前留底, 供 why_due 点名
         due_fail_open = False
         # Code-Review M2: Obsidian Properties 面板可能把 datetime 重新序列化成
         # 带偏移格式, 词法比较会反向误判「永不到期」。非规范格式 fail-open
@@ -550,21 +548,23 @@ def scan_nodes(vault: Path, now: datetime, decay):
                 print(f"[pick] fsrs_due 非规范格式, 视同到期: {stem} ({fsrs_due})", file=sys.stderr)
                 fsrs_due = ""
                 due_fail_open = True
-        nodes.append({
-            "node": stem,
-            "board": _board_name(_fm_str(fm, "source_board")),
-            "state": state,
-            "pick": pick,
-            "idle_days": idle_days,          # None = 从未考
-            "last_examined": last_exam or "",
-            "fsrs_due": fsrs_due,
-            "due_now": (not fsrs_due) or fsrs_due <= now_z,  # 无字段 = New 即刻到期
-            "due_fail_open": due_fail_open,
-            "difficulty": _fm_str(fm, "fsrs_difficulty") or "",
-            # CARD-G3-6a 内部字段 (不落盘): S1 判桶 / S3 人话的输入
-            "fsrs_due_raw": fsrs_due_raw,
-            "fsrs_state": _fm_int(fm, "fsrs_state"),
-        })
+        nodes.append(
+            {
+                "node": stem,
+                "board": _board_name(_fm_str(fm, "source_board")),
+                "state": state,
+                "pick": pick,
+                "idle_days": idle_days,  # None = 从未考
+                "last_examined": last_exam or "",
+                "fsrs_due": fsrs_due,
+                "due_now": (not fsrs_due) or fsrs_due <= now_z,  # 无字段 = New 即刻到期
+                "due_fail_open": due_fail_open,
+                "difficulty": _fm_str(fm, "fsrs_difficulty") or "",
+                # CARD-G3-6a 内部字段 (不落盘): S1 判桶 / S3 人话的输入
+                "fsrs_due_raw": fsrs_due_raw,
+                "fsrs_state": _fm_int(fm, "fsrs_state"),
+            }
+        )
     return nodes, stats, ineligible, placeholder_boards
 
 
@@ -597,14 +597,12 @@ def load_rank_manifest(path=None):
     # null 或形状不符都必须点名回落, 不许静默 (Codex round-2 MEDIUM: 前一轮
     # 只修了叶键, 父节缺失照样无声 —— 配置断裂被伪装成"就该是这个数")
     if not isinstance(auth, dict):
-        print(f"[pick] authoritative 节缺失或形状不符({auth!r}), 分钟用内置默认",
-              file=sys.stderr)
+        print(f"[pick] authoritative 节缺失或形状不符({auth!r}), 分钟用内置默认", file=sys.stderr)
         cfg = None
     else:
         cfg = auth.get("estimated_minutes")
         if not isinstance(cfg, dict):
-            print(f"[pick] authoritative.estimated_minutes 缺失或形状不符({cfg!r}), "
-                  "分钟用内置默认", file=sys.stderr)
+            print(f"[pick] authoritative.estimated_minutes 缺失或形状不符({cfg!r}), 分钟用内置默认", file=sys.stderr)
             cfg = {}
     if isinstance(cfg, dict):
         for k in DEFAULT_MINUTES:
@@ -615,8 +613,7 @@ def load_rank_manifest(path=None):
                 # 缺键与非法值同等待遇: 点名后再回落 (Codex round-1 MEDIUM —
                 # 只验"在场但坏", 会放过"压根没写"的半份配置, 让静默回落
                 # 伪装成用户确实配了)
-                print(f"[pick] estimated_minutes.{k} 缺失或非法({v!r}), 用内置默认 {minutes[k]}",
-                      file=sys.stderr)
+                print(f"[pick] estimated_minutes.{k} 缺失或非法({v!r}), 用内置默认 {minutes[k]}", file=sys.stderr)
 
     recorded = raw.get("recorded")
     return version, minutes, (recorded if isinstance(recorded, dict) else {})
@@ -639,15 +636,19 @@ def _warn_recorded_drift(recorded: dict, effective: dict):
     却没更新登记, 下一轮生成就有一行 stderr 指出来, 而不是让快照悄悄过期。
     """
     for label, claimed, actual in (
-        ("ranking_factors.order",
-         _recorded_claim(recorded, "ranking_factors", "order"), list(effective["ranking_factors"])),
+        (
+            "ranking_factors.order",
+            _recorded_claim(recorded, "ranking_factors", "order"),
+            list(effective["ranking_factors"]),
+        ),
         ("limits", _recorded_claim(recorded, "limits"), effective["limits"]),
-        ("decay_beta_constants",
-         _recorded_claim(recorded, "decay_beta_constants"), effective["decay_beta_constants"]),
+        ("decay_beta_constants", _recorded_claim(recorded, "decay_beta_constants"), effective["decay_beta_constants"]),
     ):
         if claimed is not None and claimed != actual:
-            print(f"[pick] 系数清单 recorded.{label} 与实际生效值不符 "
-                  f"(登记={claimed!r} 实际={actual!r}); 以实际为准", file=sys.stderr)
+            print(
+                f"[pick] 系数清单 recorded.{label} 与实际生效值不符 (登记={claimed!r} 实际={actual!r}); 以实际为准",
+                file=sys.stderr,
+            )
 
 
 def _implementation_sha(path=None) -> str:
@@ -752,9 +753,7 @@ def effective_rank_config(decay, version, minutes: dict, decay_path) -> dict:
     }
 
 
-def build_rank_manifest(
-    decay, version, minutes: dict, recorded: dict, decay_path
-) -> dict:
+def build_rank_manifest(decay, version, minutes: dict, recorded: dict, decay_path) -> dict:
     """S5 payload.rank_manifest = {version, sha256}; 顺带发漂移告警。
 
     S5-R2: decay_path 必填 —— vault 内 decay_beta.py 的路径, 调用方从 vault
@@ -826,8 +825,7 @@ def why_this_board(f: dict) -> str:
             parts.append("最早的今天到期")
     if f["due_malformed"]:
         parts.append(f"含 {int(f['due_malformed'])} 个到期时间无法解析的节点")
-    parts.append("最该考的从未考察" if f["idle_days"] is None
-                 else f"最该考的已闲置 {int(f['idle_days'])} 天")
+    parts.append("最该考的从未考察" if f["idle_days"] is None else f"最该考的已闲置 {int(f['idle_days'])} 天")
     if f["never_recommended"]:
         parts.append("这块板从未被推荐过")
     elif f["recommend_gap_days"] is None:
@@ -879,31 +877,33 @@ def rank_boards(nodes, board_last_recommended: dict, now: datetime, minutes: dic
             nxt = min(members, key=lambda n: n["fsrs_due"])
             upcoming.append({"board": board, "next_due": nxt["fsrs_due"], "node": nxt["node"]})
             continue
-        top = min(due, key=lambda n: n["pick"])   # WHAT: 到期集合内衰减 Beta 排序
+        top = min(due, key=lambda n: n["pick"])  # WHAT: 到期集合内衰减 Beta 排序
         factors = _board_factors(board, due, top, today_sh, board_last_recommended)
         # 排序键由 TIE_FACTOR_KEYS 逐键派生 (单一真相源, 见常量处裁定) ——
         # 各键取值与 HEAD 的字面 _tie 元组逐位相同, 初始顺序下排序行为零变化
         tie_parts = {
             "priority_pick": round(top["pick"], TIE_PICK_ROUND_DIGITS),
             "board_last_recommended": board_last_recommended.get(board, ""),  # 空串 = 从未被推荐, 排最前
-            "min_last_examined": min(n["last_examined"] for n in due),        # 空串 = 有从未考节点, 排最前
+            "min_last_examined": min(n["last_examined"] for n in due),  # 空串 = 有从未考节点, 排最前
             "board": board,
         }
-        ranked.append({
-            "board": board,
-            "top_node": top["node"],
-            "priority": round(top["pick"], 4),
-            "pending": len(due),                   # 到期即待复习 (Decision-FSRS-2)
-            "idle_days": (None if top["idle_days"] is None else int(top["idle_days"])),
-            "difficulty": top["difficulty"],
-            "next_due": min((n["fsrs_due"] for n in members if not n["due_now"]), default=""),
-            # CARD-G3-6b 加性 (S4): 板级解释三件套 — why 由 factors 单向复算,
-            # factors 同时落盘让消费方能自证那句话没跑偏 (禁 UI 再算)
-            "why_this_board": why_this_board(factors),
-            "estimated_minutes": estimated_minutes(factors, minutes),
-            "factors": factors,
-            "_tie": tuple(tie_parts[k] for k in TIE_FACTOR_KEYS),
-        })
+        ranked.append(
+            {
+                "board": board,
+                "top_node": top["node"],
+                "priority": round(top["pick"], 4),
+                "pending": len(due),  # 到期即待复习 (Decision-FSRS-2)
+                "idle_days": (None if top["idle_days"] is None else int(top["idle_days"])),
+                "difficulty": top["difficulty"],
+                "next_due": min((n["fsrs_due"] for n in members if not n["due_now"]), default=""),
+                # CARD-G3-6b 加性 (S4): 板级解释三件套 — why 由 factors 单向复算,
+                # factors 同时落盘让消费方能自证那句话没跑偏 (禁 UI 再算)
+                "why_this_board": why_this_board(factors),
+                "estimated_minutes": estimated_minutes(factors, minutes),
+                "factors": factors,
+                "_tie": tuple(tie_parts[k] for k in TIE_FACTOR_KEYS),
+            }
+        )
     ranked.sort(key=lambda r: r["_tie"])
     for r in ranked:
         del r["_tie"]
@@ -924,17 +924,14 @@ def _body(top: dict) -> str:
     return f"{top['top_node']} 待巩固 · {idle}"
 
 
-def build_payload(vault: Path, now: datetime, board_last_recommended: dict, decay,
-                  manifest_path=None):
+def build_payload(vault: Path, now: datetime, board_last_recommended: dict, decay, manifest_path=None):
     """CARD-G3-6b: 新增可选 manifest_path (缺省 = 本脚本同目录的系数清单)。
 
     runner 侧调用形态不变 (daily_review_run:159-160 传四个位置参数) —— 新
     参数是加性关键字, 消费面零变化。
     """
     version, minutes, recorded = load_rank_manifest(manifest_path)
-    rank_manifest = build_rank_manifest(
-        decay, version, minutes, recorded, decay_source_path(vault)
-    )
+    rank_manifest = build_rank_manifest(decay, version, minutes, recorded, decay_source_path(vault))
     nodes, stats, ineligible, placeholder_boards = scan_nodes(vault, now, decay)
     ranked, upcoming, unassigned = rank_boards(nodes, board_last_recommended, now, minutes)
     stats["unassigned"] = len(unassigned)
@@ -951,10 +948,9 @@ def build_payload(vault: Path, now: datetime, board_last_recommended: dict, deca
             "board": n["board"],
             "state": n["state"],
             "pick": round(n["pick"], 4),
-            "fsrs_due": n["fsrs_due"],           # 空串 = 新卡即刻到期
+            "fsrs_due": n["fsrs_due"],  # 空串 = 新卡即刻到期
             # Codex-A2 M1: 消费方须能区分真新卡与 fail-open 的脏日期卡
-            "due_reason": ("malformed" if n["due_fail_open"]
-                           else ("scheduled" if n["fsrs_due"] else "new")),
+            "due_reason": ("malformed" if n["due_fail_open"] else ("scheduled" if n["fsrs_due"] else "new")),
             "last_examined": n["last_examined"],
             "difficulty": n["difficulty"],
             # CARD-G3-6a 加性 (S2 加标签不搬移): 行仍在 due_nodes 内, 只多两
@@ -966,7 +962,8 @@ def build_payload(vault: Path, now: datetime, board_last_recommended: dict, deca
             # 下游要按闲置排序时不必再从人话串里抠数字。None = 从未考察。
             "idle_days": (None if n["idle_days"] is None else int(n["idle_days"])),
         }
-        for n in nodes if n["board"] and n["due_now"]
+        for n in nodes
+        if n["board"] and n["due_now"]
     ]
     stats["due_nodes"] = len(due_rows)
     stats["future_nodes"] = sum(1 for n in nodes if n["board"] and not n["due_now"])
@@ -984,18 +981,20 @@ def build_payload(vault: Path, now: datetime, board_last_recommended: dict, deca
         members = members_by_board.get(board, [])
         due = [n for n in members if n["due_now"]]
         future = [n for n in members if not n["due_now"]]
-        boards_rollup.append({
-            "board": board,
-            "due": len(due),
-            # 三分语义与 due_rows.due_reason 同一判据: new=真新卡 /
-            # scheduled=已排期 / malformed=due-new-scheduled 隐含
-            "due_new": sum(1 for n in due if not n["fsrs_due"] and not n["due_fail_open"]),
-            "due_scheduled": sum(1 for n in due if n["fsrs_due"]),
-            "future": len(future),
-            "next_due": min((n["fsrs_due"] for n in future), default=""),
-            "placeholder": placeholder_boards.get(board, 0),
-            "earliest_overdue": min((n["fsrs_due"] for n in due if n["fsrs_due"]), default=""),
-        })
+        boards_rollup.append(
+            {
+                "board": board,
+                "due": len(due),
+                # 三分语义与 due_rows.due_reason 同一判据: new=真新卡 /
+                # scheduled=已排期 / malformed=due-new-scheduled 隐含
+                "due_new": sum(1 for n in due if not n["fsrs_due"] and not n["due_fail_open"]),
+                "due_scheduled": sum(1 for n in due if n["fsrs_due"]),
+                "future": len(future),
+                "next_due": min((n["fsrs_due"] for n in future), default=""),
+                "placeholder": placeholder_boards.get(board, 0),
+                "earliest_overdue": min((n["fsrs_due"] for n in due if n["fsrs_due"]), default=""),
+            }
+        )
     # CARD-G3-6a 加性: 顶层 buckets 五桶节点级分组 — 划分的权威表达。
     # 五键恒在 (空 vault 亦为五个空数组, 与 ineligible 同风格, 消费方不做
     # 存在性分支); 桶内按扫描序 (= due_nodes 行序) 稳定。行只带消费方渲染
@@ -1005,15 +1004,17 @@ def build_payload(vault: Path, now: datetime, board_last_recommended: dict, deca
     for n in nodes:
         if not n["board"]:
             continue
-        buckets[n["bucket"]].append({
-            "node": n["node"],
-            "board": n["board"],
-            "why_due": n["why_due"],
-            "fsrs_due": n["fsrs_due"],
-        })
+        buckets[n["bucket"]].append(
+            {
+                "node": n["node"],
+                "board": n["board"],
+                "why_due": n["why_due"],
+                "fsrs_due": n["fsrs_due"],
+            }
+        )
     payload = {
         "unassigned_nodes": unassigned,  # Code-Review M3: 点名而非只给数字
-        "schema_version": 3,             # v3: +due_nodes 明细 +ineligible 分桶
+        "schema_version": 3,  # v3: +due_nodes 明细 +ineligible 分桶
         #                                  (纯加性; v2: FSRS WHEN 化 upcoming/due 语义)
         # CARD-C1a: 顶层加性新增 — send 侧据此组合 per-vault 有效通知 id,
         # C2 总览页据此标卡片; notification.id 值与其余字段零改动 (A2 冻结)
@@ -1026,7 +1027,7 @@ def build_payload(vault: Path, now: datetime, board_last_recommended: dict, deca
         "upcoming": upcoming[:UPCOMING_LIMIT],
         "due_nodes": due_rows,
         "boards": boards_rollup,  # CARD-D1 P1 加性: 板级全量 rollup
-        "buckets": buckets,       # CARD-G3-6a 加性: 五桶节点级分组 (S1 划分)
+        "buckets": buckets,  # CARD-G3-6a 加性: 五桶节点级分组 (S1 划分)
         "ineligible": ineligible,
         "stats": stats,
         "notification": None,
@@ -1077,9 +1078,7 @@ def render_md(payload, ranked) -> str:
         idle = "从未考" if r["idle_days"] is None else f"{r['idle_days']} 天"
         nxt = r["next_due"][:10] if r["next_due"] else "-"
         diff = r["difficulty"] or "-"
-        lines.append(
-            f"| {r['board']} | {r['priority']} | {r['pending']} | {r['top_node']} | {diff} | {idle} | {nxt} |"
-        )
+        lines.append(f"| {r['board']} | {r['priority']} | {r['pending']} | {r['top_node']} | {diff} | {idle} | {nxt} |")
     if payload.get("upcoming"):
         for u in payload["upcoming"]:
             lines.append(f"| {u['board']} | - | 0（未到期） | - | - | - | {u['next_due'][:10]} |")
@@ -1094,8 +1093,7 @@ def render_md(payload, ranked) -> str:
             if not why:
                 continue
             mins = r.get("estimated_minutes")
-            eta = (f" · 预计 {int(mins)} 分钟"
-                   if isinstance(mins, int) and not isinstance(mins, bool) else "")
+            eta = f" · 预计 {int(mins)} 分钟" if isinstance(mins, int) and not isinstance(mins, bool) else ""
             lines.append(f"- **{r['board']}** — {why}{eta}")
     if ranked:
         lines += ["", "## 一键开考（整行复制到 Claudian）", ""]
@@ -1121,8 +1119,7 @@ def render_md(payload, ranked) -> str:
             for r in rows:
                 lines.append(f"- {r['node']} · {r['board']} — {r['why_due']}")
     if payload.get("unassigned_nodes"):
-        lines += ["", "> ⚠ 未归板节点（无 source_board，不参与推荐）: "
-                  + "、".join(payload["unassigned_nodes"])]
+        lines += ["", "> ⚠ 未归板节点（无 source_board，不参与推荐）: " + "、".join(payload["unassigned_nodes"])]
     lines += [
         "",
         "> WHEN=FSRS 到期（无 fsrs_due 字段 = 新卡即刻到期）；WHAT=到期集合内按 μ−σ 排序",
@@ -1168,6 +1165,7 @@ def load_decay(vault: Path):
     # 各写一遍导致"摘的不是被 import 的那份"。
     sys.path.insert(0, str(decay_source_path(vault).parent))
     import decay_beta
+
     return decay_beta
 
 
@@ -1200,8 +1198,7 @@ def main():
     blr = {}
     if args.state and Path(args.state).exists():
         try:
-            blr = json.loads(Path(args.state).read_text(encoding="utf-8")).get(
-                "board_last_recommended", {})
+            blr = json.loads(Path(args.state).read_text(encoding="utf-8")).get("board_last_recommended", {})
         except (json.JSONDecodeError, OSError):
             pass  # state 损坏由 runner 处置, 选点侧降级为无记录
 

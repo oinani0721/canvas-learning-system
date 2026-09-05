@@ -13,6 +13,7 @@ frontmatter 关键字段, 保 body 完整. fail-open (hook 出错不阻断 sessi
   - sprint_progress          (done/total 计数)
   - last_updated             (UTC ISO 8601)
 """
+
 import os
 import re
 import sys
@@ -64,10 +65,7 @@ def find_next_ready_story(sprint_v3: dict):
         if entry.get("status") != "ready-for-dev":
             continue
         deps = entry.get("depends_on", []) or []
-        all_done = all(
-            isinstance(sprint_v3.get(d), dict) and sprint_v3[d].get("status") == "done"
-            for d in deps
-        )
+        all_done = all(isinstance(sprint_v3.get(d), dict) and sprint_v3[d].get("status") == "done" for d in deps)
         if not deps or all_done:
             candidates.append((story_id, entry))
     if not candidates:
@@ -98,8 +96,7 @@ def get_git_latest_commit() -> tuple[str, str]:
 def count_progress(sprint_v3: dict) -> tuple[int, int]:
     done = 0
     total = 0
-    skip_keys = {"sprint_label", "total_estimate_hours", "total_stories",
-                 "active_plan", "plan_doc", "deferred"}
+    skip_keys = {"sprint_label", "total_estimate_hours", "total_stories", "active_plan", "plan_doc", "deferred"}
     for story_id, entry in sprint_v3.items():
         if story_id in skip_keys:
             continue

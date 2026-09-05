@@ -39,11 +39,7 @@ BACKUPS = REPO / "backups"
 
 PUSH_WINDOW = (dtime(9, 5), dtime(21, 0))
 
-APPLESCRIPT = (
-    "on run argv\n"
-    "    display notification (item 2 of argv) with title (item 1 of argv)\n"
-    "end run\n"
-)
+APPLESCRIPT = "on run argv\n    display notification (item 2 of argv) with title (item 1 of argv)\nend run\n"
 
 
 def _now(arg: str | None) -> datetime:
@@ -73,15 +69,12 @@ def load_state() -> dict:
         st = json.loads(state.read_text(encoding="utf-8"))
         # Codex-D2b M1: 合法 JSON 但结构错型 (顶层非 dict / 账本非 dict) 与
         # 语法损坏同等对待 — 隔离重建, 不让 setdefault/.values() 半路炸
-        if not isinstance(st, dict) or not isinstance(
-            st.get("board_last_recommended", {}), dict
-        ):
+        if not isinstance(st, dict) or not isinstance(st.get("board_last_recommended", {}), dict):
             raise ValueError("state 结构错型")
         st.setdefault("board_last_recommended", {})
         return st
     except (json.JSONDecodeError, OSError, ValueError):
-        quarantine = state.with_name(
-            state.name + ".corrupt-" + datetime.now().strftime("%Y%m%dT%H%M%S"))
+        quarantine = state.with_name(state.name + ".corrupt-" + datetime.now().strftime("%Y%m%dT%H%M%S"))
         try:
             os.replace(state, quarantine)
         except OSError:
@@ -156,8 +149,7 @@ def ensure_payload(st: dict, now: datetime, today: str) -> tuple[dict | None, st
     import daily_review_pick as picker
 
     scan_started = time.time()
-    payload, ranked = picker.build_payload(
-        VAULT, now, st["board_last_recommended"], picker.load_decay(VAULT))
+    payload, ranked = picker.build_payload(VAULT, now, st["board_last_recommended"], picker.load_decay(VAULT))
     out = VAULT / "outputs"
     out.mkdir(parents=True, exist_ok=True)
     picker.atomic_write(out / "今日复习.md", picker.render_md(payload, ranked))
@@ -197,7 +189,10 @@ def osascript_fallback(noti: dict) -> bool:
     try:
         r = subprocess.run(
             ["/usr/bin/osascript", "-", noti["title"], noti["body"]],
-            input=APPLESCRIPT, text=True, capture_output=True, timeout=15,
+            input=APPLESCRIPT,
+            text=True,
+            capture_output=True,
+            timeout=15,
         )
         return r.returncode == 0
     except (OSError, subprocess.TimeoutExpired):
@@ -265,10 +260,14 @@ def main() -> int:
             # 本地兜底每日一次 (Code-Review L1 去重门); 无 key 也提醒一条
             # (Code-Review H1: key 配好前不能一切静默)
             if st.get("last_local_notify_date") != today:
-                local_noti = noti if rc != 2 else {
-                    "title": "📚 今日复习已生成",
-                    "body": noti["body"] + "（Bark 未配置，仅本地提醒）",
-                }
+                local_noti = (
+                    noti
+                    if rc != 2
+                    else {
+                        "title": "📚 今日复习已生成",
+                        "body": noti["body"] + "（Bark 未配置，仅本地提醒）",
+                    }
+                )
                 fallback = "ok" if osascript_fallback(local_noti) else "fail"
                 if fallback == "ok":
                     st["last_local_notify_date"] = today

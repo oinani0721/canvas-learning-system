@@ -28,9 +28,9 @@ from datetime import datetime
 from typing import Optional
 
 # Fix Windows console encoding for Chinese characters
-if sys.platform == 'win32':
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+if sys.platform == "win32":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
@@ -105,6 +105,7 @@ class LinearDevelopDaemon:
 
     def _setup_signal_handlers(self):
         """Setup handlers for graceful shutdown."""
+
         def signal_handler(sig, frame):
             print(f"\n[Daemon] Received signal {sig}, initiating graceful shutdown...")
             self._running = False
@@ -174,7 +175,9 @@ class LinearDevelopDaemon:
         print(f"  Worktree: {worktree_path}")
         print(f"  Time: {start_time.isoformat()}")
         print(f"  Retry: {self.progress.current_story.retry_count if self.progress.current_story else 0}")
-        print(f"  Compact restarts: {self.progress.current_story.compact_restarts if self.progress.current_story else 0}")
+        print(
+            f"  Compact restarts: {self.progress.current_story.compact_restarts if self.progress.current_story else 0}"
+        )
         print("=" * 70)
         print("")
 
@@ -247,7 +250,7 @@ class LinearDevelopDaemon:
                 print(f"[Daemon]   QA gate generated: {post_result.gate_generated}")
             else:
                 print(f"[Daemon]   Post-processing completed with warnings:")
-                for error in (post_result.errors or []):
+                for error in post_result.errors or []:
                     print(f"[Daemon]     - {error}")
 
             self.progress.mark_story_complete(
@@ -281,7 +284,9 @@ class LinearDevelopDaemon:
         elif outcome.outcome.is_blocked():
             # Blocked - check if we should retry
             if self.progress.should_retry():
-                print(f"[Daemon] BLOCKED - attempting retry ({self.progress.current_story.retry_count + 1}/{self.progress.max_retries + 1})")
+                print(
+                    f"[Daemon] BLOCKED - attempting retry ({self.progress.current_story.retry_count + 1}/{self.progress.max_retries + 1})"
+                )
                 self.progress.increment_retry()
                 # current_index unchanged, will retry same story
             else:
@@ -430,21 +435,18 @@ class LinearDevelopDaemon:
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description='Linear Development Daemon - 24/7 unattended sequential Story development',
+        description="Linear Development Daemon - 24/7 unattended sequential Story development",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog='''
+        epilog="""
 Examples:
     python linear_develop_daemon.py --stories 15.1,15.2,15.3,15.4,15.5,15.6
     python linear_develop_daemon.py --stories 15.1,15.2,15.3 --resume
     python linear_develop_daemon.py --stories 15.1,15.2 --max-turns 150
-        '''
+        """,
     )
 
     parser.add_argument(
-        '--stories',
-        type=str,
-        required=True,
-        help='Comma-separated list of Story IDs (e.g., "15.1,15.2,15.3")'
+        "--stories", type=str, required=True, help='Comma-separated list of Story IDs (e.g., "15.1,15.2,15.3")'
     )
 
     # Auto-detect base path from script location
@@ -455,35 +457,24 @@ Examples:
     default_base_path = canvas_dir.parent  # Parent of Canvas (e.g., C:\Users\ROG\托福)
 
     parser.add_argument(
-        '--base-path',
+        "--base-path",
         type=Path,
         default=default_base_path,
-        help='Base path where worktrees are located (auto-detected from script location)'
+        help="Base path where worktrees are located (auto-detected from script location)",
     )
 
-    parser.add_argument(
-        '--max-turns',
-        type=int,
-        default=200,
-        help='Maximum agentic turns per session (default: 200)'
-    )
+    parser.add_argument("--max-turns", type=int, default=200, help="Maximum agentic turns per session (default: 200)")
+
+    parser.add_argument("--resume", action="store_true", help="Resume from existing progress file")
 
     parser.add_argument(
-        '--resume',
-        action='store_true',
-        help='Resume from existing progress file'
-    )
-
-    parser.add_argument(
-        '--ultrathink',
-        action='store_true',
-        help='Enable UltraThink extended thinking mode for deep analysis'
+        "--ultrathink", action="store_true", help="Enable UltraThink extended thinking mode for deep analysis"
     )
 
     args = parser.parse_args()
 
     # Parse stories
-    stories = [s.strip() for s in args.stories.split(',')]
+    stories = [s.strip() for s in args.stories.split(",")]
 
     # Create and start daemon
     daemon = LinearDevelopDaemon(
@@ -497,5 +488,5 @@ Examples:
     daemon.start()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

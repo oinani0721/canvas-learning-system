@@ -60,7 +60,7 @@ def extract_openapi_endpoints():
     if not spec_path.exists():
         return []
 
-    with open(spec_path, 'r', encoding='utf-8') as f:
+    with open(spec_path, "r", encoding="utf-8") as f:
         spec = yaml.safe_load(f)
 
     endpoints = []
@@ -73,13 +73,15 @@ def extract_openapi_endpoints():
                 summary = operation.get("summary", "")
                 tags = operation.get("tags", [])
 
-                endpoints.append({
-                    "method": method.upper(),
-                    "path": path,
-                    "operation_id": operation_id,
-                    "summary": summary,
-                    "tags": tags
-                })
+                endpoints.append(
+                    {
+                        "method": method.upper(),
+                        "path": path,
+                        "operation_id": operation_id,
+                        "summary": summary,
+                        "tags": tags,
+                    }
+                )
 
     return endpoints
 
@@ -93,17 +95,19 @@ def extract_json_schemas():
     schemas = []
 
     for schema_file in schema_dir.glob("*.json"):
-        with open(schema_file, 'r', encoding='utf-8') as f:
+        with open(schema_file, "r", encoding="utf-8") as f:
             schema = json.load(f)
 
         title = schema.get("title", schema_file.stem)
         description = schema.get("description", "")
 
-        schemas.append({
-            "name": title,
-            "file": schema_file.name,
-            "description": description[:100] + "..." if len(description) > 100 else description
-        })
+        schemas.append(
+            {
+                "name": title,
+                "file": schema_file.name,
+                "description": description[:100] + "..." if len(description) > 100 else description,
+            }
+        )
 
     return schemas
 
@@ -154,7 +158,7 @@ def generate_markdown(files_by_dir, endpoints, schemas):
             lines.append(f"### {tag}")
             for ep in endpoints_by_tag[tag]:
                 lines.append(f"- `{ep['method']} {ep['path']}` - {ep['operation_id']}")
-                if ep['summary']:
+                if ep["summary"]:
                     lines.append(f"  - {ep['summary']}")
             lines.append("")
 
@@ -170,7 +174,7 @@ def generate_markdown(files_by_dir, endpoints, schemas):
         for schema in sorted(schemas, key=lambda x: x["name"]):
             lines.append(f"### {schema['name']}")
             lines.append(f"- File: `{schema['file']}`")
-            if schema['description']:
+            if schema["description"]:
                 lines.append(f"- {schema['description']}")
             lines.append("")
 
@@ -192,8 +196,9 @@ def generate_markdown(files_by_dir, endpoints, schemas):
 
 def main():
     parser = argparse.ArgumentParser(description="Generate project file index")
-    parser.add_argument("--output", "-o", default="project-file-index.md",
-                       help="Output file path (default: project-file-index.md)")
+    parser.add_argument(
+        "--output", "-o", default="project-file-index.md", help="Output file path (default: project-file-index.md)"
+    )
     args = parser.parse_args()
 
     print("[*] Scanning project files...")
@@ -209,7 +214,7 @@ def main():
     markdown = generate_markdown(files_by_dir, endpoints, schemas)
 
     output_path = PROJECT_ROOT / args.output
-    with open(output_path, 'w', encoding='utf-8') as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         f.write(markdown)
 
     # Summary

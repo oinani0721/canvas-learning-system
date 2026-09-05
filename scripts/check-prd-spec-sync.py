@@ -35,8 +35,8 @@ def extract_api_endpoints_from_prd(prd_content: str) -> Set[str]:
     # 匹配常见的API端点模式
     # 例如: GET /api/canvas/nodes, POST /api/scoring
     patterns = [
-        r'(GET|POST|PUT|DELETE|PATCH)\s+(/api/[a-zA-Z0-9/_\-{}]+)',
-        r'`(GET|POST|PUT|DELETE|PATCH)\s+(/api/[a-zA-Z0-9/_\-{}]+)`',
+        r"(GET|POST|PUT|DELETE|PATCH)\s+(/api/[a-zA-Z0-9/_\-{}]+)",
+        r"`(GET|POST|PUT|DELETE|PATCH)\s+(/api/[a-zA-Z0-9/_\-{}]+)`",
         r'endpoint[:\s]+[`"]?(/api/[a-zA-Z0-9/_\-{}]+)[`"]?',
     ]
 
@@ -61,19 +61,19 @@ def extract_endpoints_from_openapi(openapi_path: Path) -> Set[str]:
     if not openapi_path.exists():
         return endpoints
 
-    content = openapi_path.read_text(encoding='utf-8')
+    content = openapi_path.read_text(encoding="utf-8")
 
     # 简单的YAML路径解析
     # 匹配 paths: 下的端点定义
     in_paths = False
-    for line in content.split('\n'):
-        if line.strip() == 'paths:':
+    for line in content.split("\n"):
+        if line.strip() == "paths:":
             in_paths = True
             continue
 
         if in_paths:
             # 检测新的顶级键
-            if line and not line.startswith(' ') and not line.startswith('\t'):
+            if line and not line.startswith(" ") and not line.startswith("\t"):
                 in_paths = False
                 continue
 
@@ -109,13 +109,13 @@ def extract_schemas_from_specs(specs_dir: Path) -> Set[str]:
     """从specs/data/目录提取已定义的Schema"""
     schemas = set()
 
-    data_dir = specs_dir / 'data'
+    data_dir = specs_dir / "data"
     if not data_dir.exists():
         return schemas
 
-    for schema_file in data_dir.glob('*.json'):
+    for schema_file in data_dir.glob("*.json"):
         # 从文件名提取schema名
-        name = schema_file.stem.replace('.schema', '').replace('-', '').lower()
+        name = schema_file.stem.replace(".schema", "").replace("-", "").lower()
         schemas.add(name)
 
     return schemas
@@ -125,10 +125,10 @@ def extract_epics_from_prd(prd_dir: Path) -> Set[str]:
     """提取PRD中定义的Epic编号"""
     epics = set()
 
-    for prd_file in prd_dir.glob('**/*.md'):
-        content = prd_file.read_text(encoding='utf-8')
+    for prd_file in prd_dir.glob("**/*.md"):
+        content = prd_file.read_text(encoding="utf-8")
         # 匹配 Epic N, Epic-N, epic N 等格式
-        matches = re.findall(r'epic[- ]?(\d+)', content, re.IGNORECASE)
+        matches = re.findall(r"epic[- ]?(\d+)", content, re.IGNORECASE)
         epics.update(matches)
 
     return epics
@@ -141,10 +141,10 @@ def extract_epics_from_features(behavior_dir: Path) -> Set[str]:
     if not behavior_dir.exists():
         return epics
 
-    for feature_file in behavior_dir.glob('*.feature'):
-        content = feature_file.read_text(encoding='utf-8')
+    for feature_file in behavior_dir.glob("*.feature"):
+        content = feature_file.read_text(encoding="utf-8")
         # 匹配 @epic-N 标签
-        matches = re.findall(r'@epic-(\d+)', content)
+        matches = re.findall(r"@epic-(\d+)", content)
         epics.update(matches)
 
     return epics
@@ -158,8 +158,8 @@ def check_sync() -> Tuple[List[str], List[str], List[str]]:
         (errors, warnings, info) - 三个消息列表
     """
     root = get_project_root()
-    prd_dir = root / 'docs' / 'prd'
-    specs_dir = root / 'specs'
+    prd_dir = root / "docs" / "prd"
+    specs_dir = root / "specs"
 
     errors = []
     warnings = []
@@ -168,14 +168,14 @@ def check_sync() -> Tuple[List[str], List[str], List[str]]:
     # 1. 读取所有PRD内容
     prd_content = ""
     if prd_dir.exists():
-        for prd_file in prd_dir.glob('**/*.md'):
-            prd_content += prd_file.read_text(encoding='utf-8') + "\n"
+        for prd_file in prd_dir.glob("**/*.md"):
+            prd_content += prd_file.read_text(encoding="utf-8") + "\n"
 
     # 2. 检查API端点同步
     prd_endpoints = extract_api_endpoints_from_prd(prd_content)
 
-    openapi_files = list((specs_dir / 'api').glob('*.yml')) if (specs_dir / 'api').exists() else []
-    openapi_files += list((specs_dir / 'api').glob('*.yaml')) if (specs_dir / 'api').exists() else []
+    openapi_files = list((specs_dir / "api").glob("*.yml")) if (specs_dir / "api").exists() else []
+    openapi_files += list((specs_dir / "api").glob("*.yaml")) if (specs_dir / "api").exists() else []
 
     spec_endpoints = set()
     for openapi_file in openapi_files:
@@ -202,7 +202,7 @@ def check_sync() -> Tuple[List[str], List[str], List[str]]:
 
     # 4. 检查Epic-Feature同步
     prd_epics = extract_epics_from_prd(prd_dir)
-    feature_epics = extract_epics_from_features(specs_dir / 'behavior')
+    feature_epics = extract_epics_from_features(specs_dir / "behavior")
 
     # PRD中的Epic没有对应的Feature文件
     missing_features = prd_epics - feature_epics
@@ -211,9 +211,9 @@ def check_sync() -> Tuple[List[str], List[str], List[str]]:
 
     # 5. 检查文件存在性
     required_dirs = [
-        specs_dir / 'api',
-        specs_dir / 'data',
-        specs_dir / 'behavior',
+        specs_dir / "api",
+        specs_dir / "data",
+        specs_dir / "behavior",
     ]
 
     for dir_path in required_dirs:

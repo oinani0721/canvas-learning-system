@@ -1717,7 +1717,7 @@
           "canvas_path": "Math 54/离散数学.canvas",
           "category": "math",
           "duration_ms": 1250.5,
-          "group_id": "math54:离散数学",
+          "group_id": "vault:cs_61b:math54:离散数学",
           "node_count": 42,
           "subject": "math54",
           "success": true
@@ -1857,7 +1857,7 @@
         "example": {
           "canvas_path": "Math 54/离散数学.canvas",
           "category": "math",
-          "group_id": "math54:离散数学",
+          "group_id": "vault:cs_61b:math54:离散数学",
           "source": "config",
           "subject": "math54"
         },
@@ -1873,7 +1873,7 @@
             "type": "string"
           },
           "group_id": {
-            "description": "Graphiti group_id (e.g., 'math54:离散数学')",
+            "description": "Graphiti group_id — D16 规定 vault: 前缀 (vault:<vault_id>[:<subject_id>]); SubjectResolver 在其上再拼 canvas 段, 产出四段组合形态。示例 'vault:cs_61b:math54:离散数学' 中的 vault 段是**部署期变量占位符** (取自 get_current_vault_id()), 实际值随部署而变 — 勿按字面值硬编码",
             "title": "Group Id",
             "type": "string"
           },
@@ -5877,9 +5877,9 @@
                 "type": "null"
               }
             ],
-            "description": "Subject isolation group_id, format: {subject}:{canvas_name}",
+            "description": "Subject isolation group_id, D16 vault: 格式。段数随作用域而变: 有请求作用域时原样透传 ContextVar (vault:<vault_id> 或 vault:<vault_id>:<subject>:<canvas>), 无作用域时回落 vault:default:<subject> —— 见 intelligent_grouping_service.py:202-214",
             "examples": [
-              "数学:离散数学"
+              "vault:cs_61b:数学"
             ],
             "title": "Subject Group Id"
           },
@@ -15679,7 +15679,7 @@
     "description": "Multi-agent learning system backend using Feynman method",
     "title": "Canvas Learning System API",
     "version": "1.0.0",
-    "x-generated-at": "2026-09-04T21:00:02.271907+00:00",
+    "x-generated-at": "2026-09-05T01:36:01.005895+00:00",
     "x-generator": "scripts/spec-tools/check-openapi-drift.py --write"
   },
   "openapi": "3.1.0",
@@ -17902,7 +17902,7 @@
     },
     "/api/v1/canvas-meta/metadata": {
       "get": {
-        "description": "Get metadata for a Canvas file.\n\nReturns:\n- **subject**: Subject identifier (e.g., \"math54\")\n- **category**: Category identifier (e.g., \"math\")\n- **group_id**: Graphiti group_id (e.g., \"math54:离散数学\")\n- **source**: How the metadata was resolved\n\nResolution priority:\n1. Configuration file mapping\n2. Path-based auto-inference\n3. Default values\n\nWave-5 Stage B (2026-05-12) — Multi-vault P0-2:\n- vault_id 推荐必填, 注入 ContextVar 防跨 vault 元数据混淆.\n\n[Source: Design doc - Phase 1.1 Canvas Metadata Query API]",
+        "description": "Get metadata for a Canvas file.\n\nReturns:\n- **subject**: Subject identifier (e.g., \"math54\")\n- **category**: Category identifier (e.g., \"math\")\n- **group_id**: Graphiti group_id — D16 规定 vault: 前缀\n  (vault:<vault_id>[:<subject_id>]); SubjectResolver 在其上再拼 canvas 段,\n  产出四段组合形态。示例 \"vault:cs_61b:math54:离散数学\" 中的 vault 段是\n  **部署期变量占位符** (取自 get_current_vault_id()), 实际值随部署而变 — 勿硬编码\n- **source**: How the metadata was resolved\n\nResolution priority:\n1. Configuration file mapping\n2. Path-based auto-inference\n3. Default values\n\nWave-5 Stage B (2026-05-12) — Multi-vault P0-2:\n- vault_id 推荐必填, 注入 ContextVar 防跨 vault 元数据混淆.\n\n[Source: Design doc - Phase 1.1 Canvas Metadata Query API]",
         "operationId": "get_canvas_metadata",
         "parameters": [
           {

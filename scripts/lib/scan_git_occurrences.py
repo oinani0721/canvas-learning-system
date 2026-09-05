@@ -29,6 +29,7 @@ BATCH-2026-08-29-第六批 / CARD-DEBT-15
     push:<remote>    git push <remote> …
     push:DEFAULT     git push（无显式 remote，走默认上游）
 """
+
 import os
 import re
 import shlex
@@ -40,21 +41,58 @@ GIT_NAMES = {"git"}
 
 # git 在 <verb> 之前允许的全局选项。带值的需要多吃一个 token。
 GIT_GLOBAL_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"}
-GIT_GLOBAL_FLAGS = {"--no-pager", "--paginate", "--bare", "--literal-pathspecs",
-                    "--no-replace-objects", "--no-optional-locks"}
+GIT_GLOBAL_FLAGS = {
+    "--no-pager",
+    "--paginate",
+    "--bare",
+    "--literal-pathspecs",
+    "--no-replace-objects",
+    "--no-optional-locks",
+}
 
 # 递归闭包：这些命令的第一个非选项参数是「另一个待扫描的脚本」
-SCRIPT_RUNNERS = {"bash", "sh", "zsh", "dash", "ksh", "source", ".",
-                  "node", "nodejs", "python", "python3", "ruby", "perl"}
+SCRIPT_RUNNERS = {
+    "bash",
+    "sh",
+    "zsh",
+    "dash",
+    "ksh",
+    "source",
+    ".",
+    "node",
+    "nodejs",
+    "python",
+    "python3",
+    "ruby",
+    "perl",
+}
 
 # 可以出现在真实命令**之前**的 shell 关键字/前缀。必须跳过，否则
 #   if ! git commit -m "$MSG"; then …
 # 的首 token 是 `if`，整条 commit 逃逸（实测：stop-auto-sync-to-remote.sh:132）。
 # 用精确白名单而非「一路找 git」：后者会把 echo "To track: git add <f>"
 # 这类文案误当命令（负验证 N6 守此条）。
-SHELL_PREFIX = {"if", "then", "else", "elif", "while", "until", "do", "!",
-                "time", "command", "nohup", "exec", "eval", "builtin", "sudo",
-                "{", "(", "&&", "||"}
+SHELL_PREFIX = {
+    "if",
+    "then",
+    "else",
+    "elif",
+    "while",
+    "until",
+    "do",
+    "!",
+    "time",
+    "command",
+    "nohup",
+    "exec",
+    "eval",
+    "builtin",
+    "sudo",
+    "{",
+    "(",
+    "&&",
+    "||",
+}
 
 # python/js 里唯一能真正执行 git 的途径。行内无这些关键词 ⇒ git 只出现在
 # 日志/文案字符串里（实测误报：security_reminder_hook.py 的 debug_log(...)）。
@@ -64,7 +102,8 @@ SHELL_PREFIX = {"if", "then", "else", "elif", "while", "until", "do", "!",
 # 这种纯数据会被误判成进程调用（实测误报 N24）。
 EXEC_API = re.compile(
     r"\b(subprocess|spawnSync|spawn|execSync|execFileSync|execFile|exec|system|Popen|"
-    r"check_output|check_call|execa|shelljs|child_process|popen)\s*[.(]")
+    r"check_output|check_call|execa|shelljs|child_process|popen)\s*[.(]"
+)
 
 PREFILTER = re.compile(r"\b(git|" + "|".join(re.escape(r) for r in sorted(SCRIPT_RUNNERS)) + r")\b")
 
@@ -166,7 +205,7 @@ def split_simple_commands(line):
             buf.append(line[i])
             i += 1
             continue
-        two = line[i:i + 2]
+        two = line[i : i + 2]
         if two in ("&&", "||"):
             parts.append("".join(buf))
             buf = []
@@ -199,9 +238,7 @@ def classify_git_command(tokens, seek_git=False):
     idx = 0
     # 跳过 shell 关键字前缀与前导环境变量赋值：
     #   if ! FOO=bar git push …
-    while idx < len(tokens) and (
-            tokens[idx] in SHELL_PREFIX
-            or re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", tokens[idx])):
+    while idx < len(tokens) and (tokens[idx] in SHELL_PREFIX or re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", tokens[idx])):
         idx += 1
     if idx >= len(tokens):
         return None, None
@@ -227,7 +264,7 @@ def classify_git_command(tokens, seek_git=False):
     if idx >= len(tokens):
         return None, "git with no subcommand"
     verb = tokens[idx]
-    rest = tokens[idx + 1:]
+    rest = tokens[idx + 1 :]
 
     if verb == "add":
         # B1：区分覆盖整个工作树的 add 与只补具体路径的 add
@@ -331,7 +368,7 @@ def script_reference(tokens):
     exe = os.path.basename(tokens[idx])
     if exe not in SCRIPT_RUNNERS:
         return None
-    for t in tokens[idx + 1:]:
+    for t in tokens[idx + 1 :]:
         # -e / -c / -- 之后是**内联代码**，不是脚本路径
         # （如 perl -e 'exec {$ARGV[0]} @ARGV'、sh -c '…'）
         if t in ("-e", "-c", "--eval", "-E"):
@@ -369,7 +406,7 @@ def scan(path):
         return
 
     # shell 续行合并：末尾反斜杠把下一行接上，否则命令会被腰斩
-    merged = []          # (lineno_of_first_physical_line, text)
+    merged = []  # (lineno_of_first_physical_line, text)
     buf, start = "", None
     for i, ln in enumerate(raw_lines, 1):
         stripped = ln.rstrip("\n")
@@ -380,8 +417,7 @@ def scan(path):
             continue
         combined = buf + stripped
         # 跨行字符串：引号未闭合就继续吃下一行（上限 40 行防跑飞）
-        if not is_py and not is_js and not quotes_balanced(combined) \
-                and i - (start or i) < 40:
+        if not is_py and not is_js and not quotes_balanced(combined) and i - (start or i) < 40:
             buf = combined + "\n"
             continue
         merged.append((start, combined))
@@ -413,9 +449,7 @@ def scan(path):
         # 纯字符串字面量行 = 防护清单 / deny 规则 / 描述文案，是写副作用的反面。
         # 例如 settings.json 的 deny 条目、guard-hook.sh 的拦截项数组元素。
         # （负验证 N6 反向哨兵守此条）
-        if (len(stripped) > 1
-                and stripped[0] in ("\"", "'")
-                and stripped.rstrip(",").endswith(stripped[0])):
+        if len(stripped) > 1 and stripped[0] in ('"', "'") and stripped.rstrip(",").endswith(stripped[0]):
             # ⚠️ 只有「引号内含空格的多词短语」才是文案/deny 条目。
             #    引号内是单个无空格 token 的，是带引号的**路径调用**，
             #    如 "/abs/path/helper.sh" —— 不能跳过（实测漏报：N18）。

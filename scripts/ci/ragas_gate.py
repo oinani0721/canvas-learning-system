@@ -32,12 +32,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 DEFAULT_FIXTURES_DIR = (
-    Path(__file__).resolve().parents[2]
-    / "backend"
-    / "tests"
-    / "regression"
-    / "ragas_eval"
-    / "fixtures"
+    Path(__file__).resolve().parents[2] / "backend" / "tests" / "regression" / "ragas_eval" / "fixtures"
 )
 
 # Default thresholds — conservative on purpose. Tune via command-line flags
@@ -92,8 +87,7 @@ def _run_evaluation(cases: List[Dict[str, Any]]) -> Dict[str, float]:
 
     if not os.environ.get("RAGAS_EVAL_HANDLE"):
         print(
-            "[ragas-gate] SKIP: RAGAS_EVAL_HANDLE env var not set — "
-            "production RAG pipeline wiring still pending",
+            "[ragas-gate] SKIP: RAGAS_EVAL_HANDLE env var not set — production RAG pipeline wiring still pending",
             file=sys.stderr,
         )
         return {}
@@ -101,11 +95,11 @@ def _run_evaluation(cases: List[Dict[str, Any]]) -> Dict[str, float]:
     try:
         # Lazy import so the threshold check above can run without ragas
         import importlib
+
         ragas_module = importlib.import_module("ragas")
     except ImportError:
         print(
-            "[ragas-gate] ERROR: ragas package not installed. "
-            "Run: pip install 'ragas>=0.1.0'",
+            "[ragas-gate] ERROR: ragas package not installed. Run: pip install 'ragas>=0.1.0'",
             file=sys.stderr,
         )
         raise SystemExit(3)
@@ -117,9 +111,7 @@ def _run_evaluation(cases: List[Dict[str, Any]]) -> Dict[str, float]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="RAGAS CI gate for Canvas Learning System RAG pipeline"
-    )
+    parser = argparse.ArgumentParser(description="RAGAS CI gate for Canvas Learning System RAG pipeline")
     parser.add_argument(
         "--fixtures-dir",
         type=Path,
@@ -160,8 +152,7 @@ def main() -> int:
         return 2
 
     print(
-        f"[ragas-gate] Loaded {len(cases)} cases across "
-        f"{len({c.get('_topic') for c in cases})} topics",
+        f"[ragas-gate] Loaded {len(cases)} cases across {len({c.get('_topic') for c in cases})} topics",
         file=sys.stderr,
     )
 
@@ -175,8 +166,7 @@ def main() -> int:
 
     if not scores:
         print(
-            "[ragas-gate] No scores returned — evaluation wiring incomplete. "
-            "Exiting in observation mode.",
+            "[ragas-gate] No scores returned — evaluation wiring incomplete. Exiting in observation mode.",
             file=sys.stderr,
         )
         return 0
@@ -193,8 +183,7 @@ def main() -> int:
             continue
         status = "✓" if measured >= threshold else "✗"
         print(
-            f"[ragas-gate] {status} {metric}: {measured:.3f} "
-            f"(threshold {threshold:.3f})",
+            f"[ragas-gate] {status} {metric}: {measured:.3f} (threshold {threshold:.3f})",
             file=sys.stderr,
         )
         if measured < threshold:

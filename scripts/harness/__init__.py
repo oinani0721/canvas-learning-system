@@ -13,8 +13,8 @@ from .harness_progress import HarnessProgress, StoryProgress, GateResult
 from .story_harness import StoryHarness
 
 __all__ = [
-    'HarnessProgress',
-    'StoryProgress',
-    'GateResult',
-    'StoryHarness',
+    "HarnessProgress",
+    "StoryProgress",
+    "GateResult",
+    "StoryHarness",
 ]

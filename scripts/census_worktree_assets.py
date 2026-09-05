@@ -97,8 +97,7 @@ DEFAULT_TARGETS: List[Tuple[str, str, str]] = [
 # ⛔ 不得笼统判"主仓落后"——两个 HEAD 互不为祖先，实测 75 条里 20 条内容不同。
 FEATURE_BRANCH = "worktree-feature-obsidian-hybrid-dev"
 FEATURE_WORKTREE_PATH = (
-    "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/"
-    "feature-obsidian-hybrid-dev"
+    "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev"
 )
 
 # ---------------------------------------------------------------------------
@@ -176,9 +175,7 @@ RULES: List[Rule] = [
         "E3",
         CAT_EPHEMERAL,
         "测试与 lint 缓存",
-        lambda p: (
-            _seg(p, ".pytest_cache") or _seg(p, ".ruff_cache") or _seg(p, ".mypy_cache")
-        ),
+        lambda p: _seg(p, ".pytest_cache") or _seg(p, ".ruff_cache") or _seg(p, ".mypy_cache"),
     ),
     Rule(
         "E4",
@@ -210,10 +207,7 @@ RULES: List[Rule] = [
         lambda p: (
             _under(p, "canvas-vault/.obsidian/plugins/")
             and p.endswith(".json")
-            and (
-                os.path.basename(p).startswith("data")
-                or "backup" in os.path.basename(p).lower()
-            )
+            and (os.path.basename(p).startswith("data") or "backup" in os.path.basename(p).lower())
         ),
     ),
     Rule(
@@ -301,10 +295,7 @@ RULES: List[Rule] = [
         "U8",
         CAT_USER,
         "skill 缓存区里的用户内容备份（*.bak / *backup* 目录，丢失不可重建）",
-        lambda p: (
-            _under(p, "canvas-vault/.claude/cache/")
-            and ("backup" in p or p.endswith(".bak"))
-        ),
+        lambda p: _under(p, "canvas-vault/.claude/cache/") and ("backup" in p or p.endswith(".bak")),
     ),
     Rule(
         "E8",
@@ -340,10 +331,7 @@ RULES: List[Rule] = [
         "U7",
         CAT_USER,
         "用户手写批注与批注回复（丢失即不可重建）",
-        lambda p: (
-            _under(p, "_bmad-output/验收单/批注回复/")
-            or _under(p, "_bmad-output/决策批注/")
-        ),
+        lambda p: _under(p, "_bmad-output/验收单/批注回复/") or _under(p, "_bmad-output/决策批注/"),
     ),
     # --- 审查产物 ---
     Rule(
@@ -352,14 +340,10 @@ RULES: List[Rule] = [
         "BMAD 过程文档（审查/研究/验收单/goal-cards/planning）",
         lambda p: _under(p, "_bmad-output/"),
     ),
-    Rule(
-        "R2", CAT_REVIEW, "deep-research 指令与素材清单", lambda p: _under(p, ".gdr/")
-    ),
+    Rule("R2", CAT_REVIEW, "deep-research 指令与素材清单", lambda p: _under(p, ".gdr/")),
     # --- 应提交代码 ---
     Rule("C1", CAT_CODE, "后端源码 / 测试 / 脚本", lambda p: _under(p, "backend/")),
-    Rule(
-        "C2", CAT_CODE, "前端源码（含 Obsidian 插件）", lambda p: _under(p, "frontend/")
-    ),
+    Rule("C2", CAT_CODE, "前端源码（含 Obsidian 插件）", lambda p: _under(p, "frontend/")),
     Rule("C3", CAT_CODE, "仓库级脚本", lambda p: _under(p, "scripts/")),
     Rule(
         "C4",
@@ -550,13 +534,9 @@ GIT_READONLY_ARGS = [
 
 def git_raw(repo: str, args: Sequence[str], stdin: Optional[bytes] = None) -> bytes:
     cmd = ["git", "-C", repo, *GIT_READONLY_ARGS, *args]
-    proc = subprocess.run(
-        cmd, input=stdin, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-    )
+    proc = subprocess.run(cmd, input=stdin, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if proc.returncode != 0:
-        raise GitError(
-            f"{' '.join(cmd)} → rc={proc.returncode}\n{proc.stderr.decode('utf-8', 'replace')}"
-        )
+        raise GitError(f"{' '.join(cmd)} → rc={proc.returncode}\n{proc.stderr.decode('utf-8', 'replace')}")
     return proc.stdout
 
 
@@ -588,9 +568,7 @@ def porcelain_xy_sequence(repo: str) -> List[str]:
     与 ``-z`` 解析结果无共享代码路径，分组错会立刻在这里对不上。
     """
     raw = git_raw(repo, ["status", "--porcelain", "-uall"])
-    return [
-        line[:2].decode("utf-8", "surrogateescape") for line in raw.split(b"\n") if line
-    ]
+    return [line[:2].decode("utf-8", "surrogateescape") for line in raw.split(b"\n") if line]
 
 
 def porcelain_line_count(repo: str) -> int:
@@ -617,12 +595,7 @@ class Record:
     orig: Optional[str] = None  # 仅 R/C（rename/copy）有
 
     def serialize(self) -> bytes:
-        out = (
-            self.xy.encode("utf-8", "surrogateescape")
-            + b" "
-            + self.path.encode("utf-8", "surrogateescape")
-            + b"\0"
-        )
+        out = self.xy.encode("utf-8", "surrogateescape") + b" " + self.path.encode("utf-8", "surrogateescape") + b"\0"
         if self.orig is not None:
             out += self.orig.encode("utf-8", "surrogateescape") + b"\0"
         return out
@@ -689,11 +662,7 @@ def empty_blob_oid(repo: str) -> str:
     """该仓的空 blob OID。硬编码 SHA-1 在 SHA-256 仓会失效（Codex round-2 LOW）。"""
     # 查询失败不得回退硬编码 SHA-1（Codex round-3）：在 SHA-256 仓那会把一个
     # 不相干的常量当成"空 blob"，重新打开空内容误配的口子。fail-closed。
-    return (
-        git_raw(repo, ["hash-object", "-t", "blob", "--stdin"], stdin=b"")
-        .decode()
-        .strip()
-    )
+    return git_raw(repo, ["hash-object", "-t", "blob", "--stdin"], stdin=b"").decode().strip()
 
 
 @dataclass
@@ -708,9 +677,7 @@ class Relocation:
         return self.candidates[0] if self.candidates else None
 
 
-def batch_head_blobs(
-    repo: str, paths: Sequence[str], skipped: Optional[List[str]] = None
-) -> Dict[str, Optional[str]]:
+def batch_head_blobs(repo: str, paths: Sequence[str], skipped: Optional[List[str]] = None) -> Dict[str, Optional[str]]:
     """一次 cat-file --batch-check 取出 HEAD 版本各路径的 blob sha。
 
     含换行的路径无法走 batch 协议（协议按行分隔）。这类路径**只降级取证、不降级覆盖**：
@@ -724,14 +691,10 @@ def batch_head_blobs(
     if not usable:
         return result
     stdin = "".join(f"HEAD:{p}\n" for p in usable).encode("utf-8", "surrogateescape")
-    out = git_raw(repo, ["cat-file", "--batch-check"], stdin=stdin).decode(
-        "utf-8", "replace"
-    )
+    out = git_raw(repo, ["cat-file", "--batch-check"], stdin=stdin).decode("utf-8", "replace")
     lines = [ln for ln in out.split("\n") if ln != ""]
     if len(lines) != len(usable):
-        raise GitError(
-            f"cat-file --batch-check 行数 {len(lines)} != 输入路径数 {len(usable)}"
-        )
+        raise GitError(f"cat-file --batch-check 行数 {len(lines)} != 输入路径数 {len(usable)}")
     for path, line in zip(usable, lines):
         parts = line.split(" ")
         result[path] = parts[0] if len(parts) >= 3 and parts[1] == "blob" else None
@@ -755,9 +718,7 @@ def batch_worktree_blobs(
     if not usable:
         return {p: None for p in rel_paths}
     stdin = "".join(f"{p}\n" for p in usable).encode("utf-8", "surrogateescape")
-    out = git_raw(repo, ["hash-object", "--stdin-paths"], stdin=stdin).decode(
-        "utf-8", "replace"
-    )
+    out = git_raw(repo, ["hash-object", "--stdin-paths"], stdin=stdin).decode("utf-8", "replace")
     shas = [ln for ln in out.split("\n") if ln != ""]
     if len(shas) != len(usable):
         raise GitError(f"hash-object 输出行数 {len(shas)} != 输入路径数 {len(usable)}")
@@ -771,22 +732,14 @@ def head_blob_sizes(repo: str, paths: Sequence[str]) -> Dict[str, Optional[int]]
     if not paths:
         return {}
     stdin = "".join(f"HEAD:{p}\n" for p in paths).encode("utf-8", "surrogateescape")
-    out = git_raw(repo, ["cat-file", "--batch-check"], stdin=stdin).decode(
-        "utf-8", "replace"
-    )
+    out = git_raw(repo, ["cat-file", "--batch-check"], stdin=stdin).decode("utf-8", "replace")
     lines = [ln for ln in out.split("\n") if ln != ""]
     if len(lines) != len(paths):
-        raise GitError(
-            f"cat-file --batch-check 行数 {len(lines)} != 输入路径数 {len(paths)}"
-        )
+        raise GitError(f"cat-file --batch-check 行数 {len(lines)} != 输入路径数 {len(paths)}")
     result: Dict[str, Optional[int]] = {}
     for path, line in zip(paths, lines):
         parts = line.split(" ")
-        result[path] = (
-            int(parts[2])
-            if len(parts) >= 3 and parts[1] == "blob" and parts[2].isdigit()
-            else None
-        )
+        result[path] = int(parts[2]) if len(parts) >= 3 and parts[1] == "blob" and parts[2].isdigit() else None
     return result
 
 
@@ -820,12 +773,9 @@ def custom_filter_drivers(repo: str) -> List[str]:
         return []
     if proc.returncode != 0:
         raise GitError(
-            f"git config --get-regexp 读取失败 rc={proc.returncode}: "
-            f"{proc.stderr.decode('utf-8', 'replace').strip()}"
+            f"git config --get-regexp 读取失败 rc={proc.returncode}: {proc.stderr.decode('utf-8', 'replace').strip()}"
         )
-    return [
-        ln for ln in proc.stdout.decode("utf-8", "replace").split("\n") if ln.strip()
-    ]
+    return [ln for ln in proc.stdout.decode("utf-8", "replace").split("\n") if ln.strip()]
 
 
 def head_blob_index(repo: str) -> Dict[str, List[str]]:
@@ -923,9 +873,7 @@ def build_relocation_map(
     for u in untracked:
         by_basename.setdefault(os.path.basename(u), []).append(u)
 
-    head_sizes = (
-        head_blob_sizes(repo, [d for d in deleted if "\n" not in d]) if deleted else {}
-    )
+    head_sizes = head_blob_sizes(repo, [d for d in deleted if "\n" not in d]) if deleted else {}
 
     out: Dict[str, Relocation] = {}
     dest_to_src: Dict[str, List[str]] = {}
@@ -954,17 +902,13 @@ def build_relocation_map(
             out[d] = Relocation("evidence_skipped_size", name_hits, hb, "size_excluded")
             continue
         if hb == empty_oid:
-            out[d] = Relocation(
-                "evidence_skipped_empty_blob", name_hits, hb, "empty_blob_excluded"
-            )
+            out[d] = Relocation("evidence_skipped_empty_blob", name_hits, hb, "empty_blob_excluded")
             continue
         # Codex round-3 C-1：HEAD 侧也可能取不到 blob——含换行的被删路径被 batch
         # 跳过（head_blob=None）、gitlink（mode 160000）不是 blob。这两种情况下
         # 「没有内容同一副本」同样无从谈起，必须走无结论，不能落 no_candidate。
         if hb is None:
-            out[d] = Relocation(
-                "evidence_incomplete_head", name_hits, hb, "head_blob_unavailable"
-            )
+            out[d] = Relocation("evidence_incomplete_head", name_hits, hb, "head_blob_unavailable")
             continue
         # Codex round-5 F6：HEAD twin 是**正证据**——「同内容 blob 就在 HEAD 的另一个
         # 受控路径上」这句话的成立与否，和未跟踪池完不完整毫无关系。它必须先于
@@ -981,16 +925,12 @@ def build_relocation_map(
             continue
         # 未哈希池非空 ⇒ 「工作树里没有同内容副本」这句话无法成立，只能报「证据不全」。
         if unhashed:
-            out[d] = Relocation(
-                "evidence_incomplete_pool", name_hits, hb, "unhashed_candidates_exist"
-            )
+            out[d] = Relocation("evidence_incomplete_pool", name_hits, hb, "unhashed_candidates_exist")
             continue
         # HEAD twin 已在上面（unhashed 门之前）判过，这里不再重复——
         # round-6 F6-DEAD：round-4 留下的第二段判定与上面逐字相同，是不可达死代码，已删。
         if name_hits:
-            out[d] = Relocation(
-                "same_name_diff_content", name_hits, hb, "basename_only"
-            )
+            out[d] = Relocation("same_name_diff_content", name_hits, hb, "basename_only")
         else:
             out[d] = Relocation("no_candidate", [], hb, "none")
     return out, dest_to_src, duplicate_of_tracked, skipped, unhashed, unt_blobs
@@ -1018,9 +958,7 @@ def owner_from_last_commit(repo: str, path: str) -> Optional[str]:
     return f"{subj}（commit 无 CARD/BATCH 标记）"
 
 
-def unhashed_ok_paths(
-    repo: str, records: Sequence["Record"], unhashed: Dict[str, str]
-) -> List[str]:
+def unhashed_ok_paths(repo: str, records: Sequence["Record"], unhashed: Dict[str, str]) -> List[str]:
     """本应能被哈希的未跟踪普通文件（用于独立重算取证是否真的发生过）。"""
     out: List[str] = []
     for r in records:
@@ -1028,11 +966,7 @@ def unhashed_ok_paths(
             continue
         fp = Path(repo) / r.path
         try:
-            if (
-                fp.is_file()
-                and not fp.is_symlink()
-                and fp.stat().st_size <= HASH_SIZE_CAP
-            ):
+            if fp.is_file() and not fp.is_symlink() and fp.stat().st_size <= HASH_SIZE_CAP:
                 out.append(r.path)
         except OSError:
             continue
@@ -1219,9 +1153,7 @@ class TargetReport:
             **(
                 {"entries": [e.to_json() for e in self.entries]}
                 if include_entries
-                else {
-                    "entries_omitted": "--brief：逐条数组见首跑台账 json，复跑证据只留 diff 与断言"
-                }
+                else {"entries_omitted": "--brief：逐条数组见首跑台账 json，复跑证据只留 diff 与断言"}
             ),
         }
 
@@ -1303,11 +1235,7 @@ def disposition_for(
         )
     if relocation_sources:
         head = relocation_sources[0]
-        more = (
-            f"（另 {len(relocation_sources) - 1} 个同内容来源，方向未定）"
-            if len(relocation_sources) > 1
-            else ""
-        )
+        more = f"（另 {len(relocation_sources) - 1} 个同内容来源，方向未定）" if len(relocation_sources) > 1 else ""
         tail = "；⚠️ 位移方向未经独立证实，类别一律按本路径自身规则判定，不继承来源"
         return (
             f"未决搬迁的目的地：与 tracked 删除 `{head}`{more} 的 git blob 身份相同——"
@@ -1381,16 +1309,12 @@ def census_one(
     rep.filter_drivers_accepted = bool(rep.filter_drivers) and allow_filter_drivers
     # Codex round-4 A-2：断言名叫 "no_custom_filter_drivers" 而在 allow 模式下
     # 仍写 True，等于把"风险被接受"说成"驱动不存在"。改名为如实描述的语义。
-    rep.assertions["filter_drivers_absent_or_accepted"] = (
-        not rep.filter_drivers or allow_filter_drivers
-    )
+    rep.assertions["filter_drivers_absent_or_accepted"] = not rep.filter_drivers or allow_filter_drivers
 
     if pin:
         # 单向前缀断言，不留「反向也算过」的逃生口——那种写法会让 pin 门形同虚设。
         if not rep.head_sha.startswith(pin):
-            raise AssertionError(
-                f"[{label}] --pin-sha 基线校验失败：期望 HEAD 以 {pin} 开头，实际 {rep.head_sha}"
-            )
+            raise AssertionError(f"[{label}] --pin-sha 基线校验失败：期望 HEAD 以 {pin} 开头，实际 {rep.head_sha}")
         rep.assertions["pin_sha_ok"] = True
 
     raw_before = porcelain(repo)
@@ -1399,9 +1323,7 @@ def census_one(
     records = parse_porcelain(raw_before)
     # 期望值来自独立命令，不从 records 自身推导
     rep.record_count = porcelain_line_count(repo)
-    rep.assertions["parsed_count_matches_independent_count"] = (
-        len(records) == rep.record_count
-    )
+    rep.assertions["parsed_count_matches_independent_count"] = len(records) == rep.record_count
 
     # 断言：orig 字段只能、且必须出现在 R/C 记录上——挡「XY 序列与字节往返都对，
     # 但 orig 挂错了记录」的分组错（Codex round-2 A-3 反例：
@@ -1412,9 +1334,7 @@ def census_one(
     )
 
     # 断言：XY 序列与独立命令一致——挡「字段分组错但字节序不变」
-    rep.assertions["xy_sequence_matches_independent_parse"] = [
-        r.xy for r in records
-    ] == porcelain_xy_sequence(repo)
+    rep.assertions["xy_sequence_matches_independent_parse"] = [r.xy for r in records] == porcelain_xy_sequence(repo)
 
     # 断言：字节往返
     rebuilt = roundtrip(records)
@@ -1435,11 +1355,7 @@ def census_one(
     # round-6 F2-A：原来用 `label == "main"` 当隐藏角色开关——改个 label 就让最重的
     # 20 条 diverged 静默消失。改为**按仓判定**：只要该仓能解析出 FEATURE_BRANCH，
     # 就对它做三态比对。ref 不可解析时显式记账，不静默跳过。
-    feature_ref_ok = (
-        git_rev_parse_ok(repo, FEATURE_BRANCH)
-        if repo != FEATURE_WORKTREE_PATH
-        else False
-    )
+    feature_ref_ok = git_rev_parse_ok(repo, FEATURE_BRANCH) if repo != FEATURE_WORKTREE_PATH else False
     rep.feature_ref_resolvable = feature_ref_ok
     if feature_ref_ok:
         rep.feature_ref_oid = git_text(repo, ["rev-parse", FEATURE_BRANCH])
@@ -1447,9 +1363,7 @@ def census_one(
     # 它对本仓自身（feature worktree）与 ref 缺失都为真，但**产物里必须留下痕迹**：
     # feature_ref_resolvable / feature_ref_oid 两个字段就是那道痕迹。
     # 缺了它们，20 条 diverged 的「禁止单向覆盖」警告会整节静默消失而无人知晓。
-    rep.assertions["feature_ref_resolvable_or_declared"] = (
-        rep.feature_ref_resolvable is not None
-    )
+    rep.assertions["feature_ref_resolvable_or_declared"] = rep.feature_ref_resolvable is not None
     for r in records:
         st = state_of(r.xy)
         srcs = dest_to_src.get(r.path) if st == "untracked" else None
@@ -1480,9 +1394,7 @@ def census_one(
                         feature_state = "diverged"
         on_feature = feature_state is not None
         dup = dup_map.get(r.path) if st == "untracked" and not src else None
-        disp, manual = disposition_for(
-            st, category, reloc, on_feature, srcs, dup, feature_state
-        )
+        disp, manual = disposition_for(st, category, reloc, on_feature, srcs, dup, feature_state)
         # Codex round-3 B-3：Z1 的 manual 原来在 owner 计算之后才置位，
         # 于是 catch-all 条目拿到 needs_manual_review=true 却没有 owner。提前。
         if rule_id == CATCHALL_RULE:
@@ -1558,16 +1470,14 @@ def census_one(
         )
 
     # 断言：计数
-    rep.assertions["count_equals_porcelain_records"] = (
-        len(rep.entries) == rep.record_count
-    )
+    rep.assertions["count_equals_porcelain_records"] = len(rep.entries) == rep.record_count
 
     # round-6 A1：上面那条只绑「行数」。`path=(r.orig or r.path)` 这种**整列写错**
     # 能让台账把 rename 的目的地整条换掉，而计数、XY、往返、orig 四门全 PASS。
     # 这里把 records → entries 这一跳的三元组逐条钉死。
-    rep.assertions["entries_preserve_record_identity"] = [
-        (r.xy, r.path, r.orig) for r in records
-    ] == [(e.xy, e.path, e.orig) for e in rep.entries]
+    rep.assertions["entries_preserve_record_identity"] = [(r.xy, r.path, r.orig) for r in records] == [
+        (e.xy, e.path, e.orig) for e in rep.entries
+    ]
 
     # round-6 A2：§四 的内容级取证此前**零门覆盖**——把 unt_blobs 整体置 None
     # 就能把 moved_identical 翻成 no_candidate，而所有门照样全 PASS。
@@ -1582,8 +1492,7 @@ def census_one(
     _sample = [u for u in sorted(unhashed_ok_paths(repo, records, unhashed))][:32]
     _recomputed = batch_worktree_blobs(repo, _sample) if _sample else {}
     _evidence_live = all(
-        _recomputed.get(u) is not None and unt_blobs_used.get(u) == _recomputed.get(u)
-        for u in _sample
+        _recomputed.get(u) is not None and unt_blobs_used.get(u) == _recomputed.get(u) for u in _sample
     )
     rep.assertions["content_evidence_independently_recomputable"] = _evidence_live
     _pos = {
@@ -1607,18 +1516,14 @@ def census_one(
             if not srcs or any(x not in _paths for x in srcs):
                 _ok = False  # 位移目的地回指不到来源
     if rep.unhashed_untracked and any(
-        (e.relocation or {}).get("verdict")
-        in ("no_candidate", "same_name_diff_content")
-        for e in rep.entries
+        (e.relocation or {}).get("verdict") in ("no_candidate", "same_name_diff_content") for e in rep.entries
     ):
         _ok = False  # 池不完整却仍给出「没找到」这种肯定结论
     rep.assertions["relocation_evidence_self_consistent"] = _ok
 
     raw_after = porcelain(repo)
     rep.porcelain_sha_after = hashlib.sha256(raw_after).hexdigest()
-    rep.assertions["readonly_porcelain_unchanged"] = (
-        rep.porcelain_sha_before == rep.porcelain_sha_after
-    )
+    rep.assertions["readonly_porcelain_unchanged"] = rep.porcelain_sha_before == rep.porcelain_sha_after
 
     return rep
 
@@ -1645,9 +1550,7 @@ def diff_against_baseline(reports: Sequence[TargetReport], baseline_path: Path) 
     for rep in reports:
         base = base_by_label.get(rep.label)
         if base is None:
-            result["targets"].append(
-                {"label": rep.label, "status": "新增目标（基线中不存在）"}
-            )
+            result["targets"].append({"label": rep.label, "status": "新增目标（基线中不存在）"})
             continue
         # round-6 F8-ORDER：三态校验原来放在 base_entries 构造之后，
         # 于是畸形形态（字符串 / 非空 dict）会先在这一行抛 TypeError，
@@ -1703,9 +1606,7 @@ def diff_against_baseline(reports: Sequence[TargetReport], baseline_path: Path) 
             return {k: e.get(k) for k in DIFF_KEYS}
 
         changed = []
-        for path in (
-            sorted(set(now_entries) & set(base_entries)) if base_has_entries else []
-        ):
+        for path in sorted(set(now_entries) & set(base_entries)) if base_has_entries else []:
             a, b = _norm(base_entries[path]), _norm(now_entries[path])
             if a != b:
                 changed.append(
@@ -1797,9 +1698,7 @@ def render_md(
     A("# 工作树资产分类台账（DEBT-13）")
     A("")
     A(f"> **生成**: {generated_sh}（沪时） / {generated_utc}（UTC）")
-    A(
-        f"> **生成器**: `scripts/census_worktree_assets.py`（只读）· 调用 `{_md_escape(argv)}`"
-    )
+    A(f"> **生成器**: `scripts/census_worktree_assets.py`（只读）· 调用 `{_md_escape(argv)}`")
     A("> **卡**: CARD-DEBT-13 · **批次**: BATCH-2026-08-31-第七批")
     A("> **性质**: 只登记，不处置。本台账不授权任何删除 / 移动 / 提交动作。")
     A("")
@@ -1878,9 +1777,7 @@ def render_md(
     A("")
     A("## 一、盘点总览与断言")
     A("")
-    A(
-        "| 目标 | 路径 | HEAD | 分支 | porcelain 记录数 | 分类条目数 | 前 sha256 | 后 sha256 |"
-    )
+    A("| 目标 | 路径 | HEAD | 分支 | porcelain 记录数 | 分类条目数 | 前 sha256 | 后 sha256 |")
     A("| --- | --- | --- | --- | ---: | ---: | --- | --- |")
     for r in reports:
         A(
@@ -1891,9 +1788,7 @@ def render_md(
     A("")
     A("### 断言矩阵（任一 FAIL → 脚本 exit 2，台账不产出）")
     A("")
-    A(
-        "| 目标 | pin 基线 | 独立计数 | orig⇔R/C | XY 序列 | 分类对账 | 字节往返 | filter 无或已接受 | 只读取证 |"
-    )
+    A("| 目标 | pin 基线 | 独立计数 | orig⇔R/C | XY 序列 | 分类对账 | 字节往返 | filter 无或已接受 | 只读取证 |")
     A("| --- | --- | --- | --- | --- | --- | --- | --- | --- |")
     for r in reports:
 
@@ -2013,9 +1908,7 @@ def render_md(
     A("| --- | --- | --- |")
     for rule in RULES:
         A(f"| `{rule.rule_id}` | {rule.category} | {_md_escape(rule.why)} |")
-    A(
-        f"| `{CATCHALL_RULE}` | {CATCHALL_CATEGORY} | 无规则命中——保守归入最受保护的用户资产并强制人工裁定 |"
-    )
+    A(f"| `{CATCHALL_RULE}` | {CATCHALL_CATEGORY} | 无规则命中——保守归入最受保护的用户资产并强制人工裁定 |")
     A("")
 
     A("## 三、分类计数")
@@ -2024,19 +1917,9 @@ def render_md(
     A("| --- | " + " | ".join(["---:"] * len(CATEGORIES)) + " | ---: |")
     for r in reports:
         cc = r.category_counts
-        A(
-            f"| `{r.label}` | "
-            + " | ".join(str(cc[c]) for c in CATEGORIES)
-            + f" | {len(r.entries)} |"
-        )
+        A(f"| `{r.label}` | " + " | ".join(str(cc[c]) for c in CATEGORIES) + f" | {len(r.entries)} |")
     A("")
-    A(
-        "| 目标 | "
-        + " | ".join(
-            ["tracked_modified", "tracked_deleted", "untracked", "tracked_other"]
-        )
-        + " |"
-    )
+    A("| 目标 | " + " | ".join(["tracked_modified", "tracked_deleted", "untracked", "tracked_other"]) + " |")
     A("| --- | ---: | ---: | ---: | ---: |")
     for r in reports:
         sc = r.state_counts
@@ -2109,8 +1992,7 @@ def render_md(
             A(
                 f"⚠️ **`{r.label}` 有 {len(r.evidence_skipped)} 条路径含换行符**，无法走 git 的按行 batch 协议，"
                 "因此**只降级取证、不降级覆盖**：这些条目照常进分类与对账，但没有内容级搬迁/副本取证。"
-                "逐条："
-                + "、".join(f"`{_md_escape(x)}`" for x in r.evidence_skipped[:10])
+                "逐条：" + "、".join(f"`{_md_escape(x)}`" for x in r.evidence_skipped[:10])
             )
             A("")
     A(
@@ -2125,10 +2007,7 @@ def render_md(
         amb = [
             e
             for e in r.entries
-            if e.relocation
-            and str(e.relocation.get("match_kind", "")).startswith(
-                "content_sha_ambiguous"
-            )
+            if e.relocation and str(e.relocation.get("match_kind", "")).startswith("content_sha_ambiguous")
         ]
         if amb:
             A(
@@ -2204,9 +2083,7 @@ def render_md(
             )
         ]
         if odd:
-            A(
-                f"### `{r.label}`：⚠️ 非「内容同一位移」的删除（{len(odd)} 条，逐条需人审）"
-            )
+            A(f"### `{r.label}`：⚠️ 非「内容同一位移」的删除（{len(odd)} 条，逐条需人审）")
             A("")
             A("| 状态 | 路径 | 判定 | 同名候选 | 类别 |")
             A("| --- | --- | --- | --- | --- |")
@@ -2215,19 +2092,14 @@ def render_md(
                 shown = "、".join(f"`{_md_escape(c)}`" for c in cands[:3]) or "—"
                 if len(cands) > 3:
                     shown += f"（另 {len(cands) - 3} 条）"
-                A(
-                    f"| `{e.xy}` | `{_md_escape(e.path)}` | {e.relocation['verdict']} | {shown} | {e.category} |"
-                )
+                A(f"| `{e.xy}` | `{_md_escape(e.path)}` | {e.relocation['verdict']} | {shown} | {e.category} |")
             A("")
 
     for r in reports:
         multi = [
             e
             for e in r.entries
-            if e.relocation
-            and str(e.relocation.get("match_kind", "")).startswith(
-                "content_sha_multi_source"
-            )
+            if e.relocation and str(e.relocation.get("match_kind", "")).startswith("content_sha_multi_source")
         ]
         if multi:
             A(f"### `{r.label}`：⚠️ 一个位移目的地对应多个同内容来源（{len(multi)} 条）")
@@ -2257,9 +2129,7 @@ def render_md(
                 fs[e.feature_branch_state] = fs.get(e.feature_branch_state, 0) + 1
         if not fs:
             continue
-        A(
-            f"### `{_md_escape(r.label)}`：同路径也在 `{FEATURE_BRANCH}` 受控的未跟踪文件"
-        )
+        A(f"### `{_md_escape(r.label)}`：同路径也在 `{FEATURE_BRANCH}` 受控的未跟踪文件")
         A("")
         A(
             "> ⛔ **这一节原来一律写「主仓落后」，是错的**（Codex round-5 F2）。"
@@ -2270,10 +2140,7 @@ def render_md(
         A("| 状态 | 条数 | 含义与处置 |")
         A("| --- | ---: | --- |")
         if fs.get("same_blob"):
-            A(
-                f"| `same_blob` | {fs['same_blob']} | 同路径同内容——主仓这份是未纳管的同内容副本，"
-                "归 DEBT-14 合并策略 |"
-            )
+            A(f"| `same_blob` | {fs['same_blob']} | 同路径同内容——主仓这份是未纳管的同内容副本，归 DEBT-14 合并策略 |")
         if fs.get("diverged"):
             A(
                 f"| `diverged` | {fs['diverged']} | ⚠️ **同路径内容分歧**——禁止单向覆盖"
@@ -2324,28 +2191,17 @@ def render_md(
             groups.setdefault(e.path.split("/")[0] + "/", []).append(e)
         A(
             f"`{r.label}` 副本按顶层目录："
-            + "、".join(
-                f"`{k}` {len(v)} 条"
-                for k, v in sorted(groups.items(), key=lambda kv: -len(kv[1]))
-            )
+            + "、".join(f"`{k}` {len(v)} 条" for k, v in sorted(groups.items(), key=lambda kv: -len(kv[1])))
         )
         A("")
         sample = dup[:12]
         A("| 未跟踪路径 | 与之内容同一的受控路径 |")
         A("| --- | --- |")
         for e in sample:
-            more = (
-                f"（另 {len(e.duplicate_of_tracked) - 1} 处）"
-                if len(e.duplicate_of_tracked) > 1
-                else ""
-            )
-            A(
-                f"| `{_md_escape(e.path)}` | `{_md_escape(e.duplicate_of_tracked[0])}`{more} |"
-            )
+            more = f"（另 {len(e.duplicate_of_tracked) - 1} 处）" if len(e.duplicate_of_tracked) > 1 else ""
+            A(f"| `{_md_escape(e.path)}` | `{_md_escape(e.duplicate_of_tracked[0])}`{more} |")
         if len(dup) > len(sample):
-            A(
-                f"| …（另 {len(dup) - len(sample)} 条见 json 的 `duplicate_of_tracked` 字段） | |"
-            )
+            A(f"| …（另 {len(dup) - len(sample)} 条见 json 的 `duplicate_of_tracked` 字段） | |")
         A("")
 
     # 需人工裁定
@@ -2363,9 +2219,7 @@ def render_md(
         for disp, items in sorted(grouped.items(), key=lambda kv: -len(kv[1])):
             A(f"| {_md_escape(disp)} | {len(items)} |")
         A("")
-        small = (
-            [] if brief else [e for e in manual if len(grouped[e.disposition]) <= 40]
-        )
+        small = [] if brief else [e for e in manual if len(grouped[e.disposition]) <= 40]
         if small:
             A(f"逐条（仅列组内 ≤40 条的组，共 {len(small)} 条；全量见 json）：")
             A("")
@@ -2397,20 +2251,14 @@ def render_md(
         for owner, items in sorted(by_owner.items(), key=lambda kv: -len(kv[1])):
             A(f"| {_md_escape(owner)} | {len(items)} |")
         A("")
-        listed = (
-            []
-            if brief
-            else [e for e in code if len(by_owner[e.owner or OWNER_UNASSIGNED]) <= 60]
-        )
+        listed = [] if brief else [e for e in code if len(by_owner[e.owner or OWNER_UNASSIGNED]) <= 60]
         if listed:
             A(f"逐条（仅列组内 ≤60 条的 owner 组，共 {len(listed)} 条；全量见 json）：")
             A("")
             A("| 状态 | 路径 | 规则 | owner |")
             A("| --- | --- | --- | --- |")
             for e in listed:
-                A(
-                    f"| `{e.xy}` | `{_md_escape(e.path)}` | `{e.rule}` | {_md_escape(e.owner or OWNER_UNASSIGNED)} |"
-                )
+                A(f"| `{e.xy}` | `{_md_escape(e.path)}` | `{e.rule}` | {_md_escape(e.owner or OWNER_UNASSIGNED)} |")
             A("")
 
     # 全量清单
@@ -2427,10 +2275,7 @@ def render_md(
         )
         A("")
     else:
-        A(
-            "完整逐条数据在同名 `.json`（机读，含 blob OID 与规则 id）。此处按目标 + 类别给出"
-            "路径清单，便于人工核对。"
-        )
+        A("完整逐条数据在同名 `.json`（机读，含 blob OID 与规则 id）。此处按目标 + 类别给出路径清单，便于人工核对。")
         A("")
     for r in [] if brief else reports:
         A(f"### `{r.label}`（{len(r.entries)} 条）")
@@ -2474,9 +2319,7 @@ def render_md(
             A("")
             A("| 维度 | 基线 | 本次 |")
             A("| --- | --- | --- |")
-            A(
-                f"| HEAD | `{(t['head_sha_baseline'] or '')[:8]}` | `{t['head_sha_now'][:8]}` |"
-            )
+            A(f"| HEAD | `{(t['head_sha_baseline'] or '')[:8]}` | `{t['head_sha_now'][:8]}` |")
             A(
                 f"| porcelain sha256 | `{(t['porcelain_sha_baseline'] or '')[:16]}…` | `{t['porcelain_sha_now'][:16]}…` |"
             )
@@ -2516,10 +2359,7 @@ def render_md(
                 A("")
                 A("**改类**：")
                 for rc in t["recategorized"][:50]:
-                    A(
-                        f"- `{_md_escape(rc['path'])}`：{_md_escape(str(rc['from']))} → "
-                        f"{_md_escape(str(rc['to']))}"
-                    )
+                    A(f"- `{_md_escape(rc['path'])}`：{_md_escape(str(rc['from']))} → {_md_escape(str(rc['to']))}")
             A("")
 
     return "\n".join(L) + "\n"
@@ -2546,15 +2386,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         metavar="LABEL=SHA",
         help="基线校验：断言该目标 HEAD 以给定 sha 前缀开头，不符 exit 2。",
     )
-    ap.add_argument(
-        "--baseline", metavar="JSON", help="与既有台账 json 做 diff（复跑证据）。"
-    )
-    ap.add_argument(
-        "--out-dir", default=str(REPO_ROOT / "_bmad-output" / "审查"), help="产出目录。"
-    )
-    ap.add_argument(
-        "--out-stem", default=None, help="产出文件名主干（默认按日期生成）。"
-    )
+    ap.add_argument("--baseline", metavar="JSON", help="与既有台账 json 做 diff（复跑证据）。")
+    ap.add_argument("--out-dir", default=str(REPO_ROOT / "_bmad-output" / "审查"), help="产出目录。")
+    ap.add_argument("--out-stem", default=None, help="产出文件名主干（默认按日期生成）。")
     ap.add_argument(
         "--no-owner-lookup",
         action="store_true",
@@ -2601,8 +2435,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             # 不如在入口约束字符集——盘点目标的标签本就没有理由含这些字符。
             if not re.fullmatch(r"[A-Za-z0-9_.\-]{1,32}", label):
                 print(
-                    f"ASSERTION FAILED: --target 的 LABEL ({label!r}) 只允许 "
-                    "字母/数字/下划线/点/连字符，长度 1-32。",
+                    f"ASSERTION FAILED: --target 的 LABEL ({label!r}) 只允许 字母/数字/下划线/点/连字符，长度 1-32。",
                     file=sys.stderr,
                 )
                 return 2
@@ -2639,13 +2472,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     # （Codex round-2 A-1）。
     if args.out_stem is not None:
         stem = args.out_stem
-        if (
-            os.path.isabs(stem)
-            or "/" in stem
-            or os.sep in stem
-            or stem in ("", ".", "..")
-            or stem.startswith("~")
-        ):
+        if os.path.isabs(stem) or "/" in stem or os.sep in stem or stem in ("", ".", "..") or stem.startswith("~"):
             print(
                 f"ASSERTION FAILED: --out-stem ({stem!r}) 必须是不含路径分隔符的纯文件名——"
                 "绝对路径或 `..` 会让产出逃出 --out-dir。",
@@ -2665,9 +2492,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         try:
             outer_id = os.stat(outer)
         except OSError:
-            return os.path.normcase(inner) == os.path.normcase(
-                outer
-            ) or os.path.normcase(inner).startswith(os.path.normcase(outer) + os.sep)
+            return os.path.normcase(inner) == os.path.normcase(outer) or os.path.normcase(inner).startswith(
+                os.path.normcase(outer) + os.sep
+            )
         cur = os.path.realpath(inner)
         while not os.path.exists(cur):
             parent = os.path.dirname(cur)
@@ -2700,9 +2527,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         # 用 git 认定的工作树根，而不是 CLI 传进来的路径——GIT_WORK_TREE 等环境
         # 变量可以让二者指向不同目录（Codex round-2 A-1）。
         try:
-            repo_real = os.path.realpath(
-                git_text(path, ["rev-parse", "--show-toplevel"])
-            )
+            repo_real = os.path.realpath(git_text(path, ["rev-parse", "--show-toplevel"]))
         except GitError:
             repo_real = os.path.realpath(path)
         resolved_targets.append((label, repo_real, _note))
@@ -2799,9 +2624,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.rule_coverage:
         for r in reports:
             raw = git_raw(r.path, ["ls-files", "-z"])
-            tracked = [
-                x.decode("utf-8", "surrogateescape") for x in raw.split(b"\0") if x
-            ]
+            tracked = [x.decode("utf-8", "surrogateescape") for x in raw.split(b"\0") if x]
             miss = [t for t in tracked if classify(t)[1] == CATCHALL_RULE]
             r.rule_coverage = {
                 "tracked_total": len(tracked),
@@ -2813,9 +2636,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 + (f"（样本 {sorted(miss)[:5]}）" if miss else "")
             )
             if args.strict_rules and miss:
-                failed.append(
-                    f"[{r.label}] strict_rules: 全量 tracked 面有 {len(miss)} 条落 catch-all"
-                )
+                failed.append(f"[{r.label}] strict_rules: 全量 tracked 面有 {len(miss)} 条落 catch-all")
 
     if args.strict_rules:
         for r in reports:
@@ -2851,16 +2672,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(
             f"[{r.label}] catch-all 规则命中 {catchall} 条 · needs_manual_review "
             f"{sum(1 for e in r.entries if e.needs_manual_review)} 条"
-            + (
-                f" · 含换行路径未取证 {len(r.evidence_skipped)} 条"
-                if r.evidence_skipped
-                else ""
-            )
-            + (
-                f" · ⚠️ 自定义 filter 驱动 {len(r.filter_drivers)} 个"
-                if r.filter_drivers
-                else ""
-            )
+            + (f" · 含换行路径未取证 {len(r.evidence_skipped)} 条" if r.evidence_skipped else "")
+            + (f" · ⚠️ 自定义 filter 驱动 {len(r.filter_drivers)} 个" if r.filter_drivers else "")
         )
 
     if failed:
@@ -2876,10 +2689,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    stem = (
-        args.out_stem
-        or f"{generated.astimezone(SHANGHAI).strftime('%Y-%m-%d')}-DEBT-13-工作树资产分类台账"
-    )
+    stem = args.out_stem or f"{generated.astimezone(SHANGHAI).strftime('%Y-%m-%d')}-DEBT-13-工作树资产分类台账"
     md_path = out_dir / f"{stem}.md"
     json_path = out_dir / f"{stem}.json"
 
@@ -2891,8 +2701,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         # （第一个已经写完，于是留下半对）。非普通文件一律拒。
         if sink.exists() and not sink.is_symlink() and not sink.is_file():
             print(
-                f"ASSERTION FAILED: 产出路径 {sink} 已存在且不是普通文件"
-                "（FIFO / 设备 / 目录）——拒绝写入。",
+                f"ASSERTION FAILED: 产出路径 {sink} 已存在且不是普通文件（FIFO / 设备 / 目录）——拒绝写入。",
                 file=sys.stderr,
             )
             return 2
@@ -2914,9 +2723,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         sink_real = os.path.realpath(sink)
         for label, path, _n in targets:
             try:
-                repo_real = os.path.realpath(
-                    git_text(path, ["rev-parse", "--show-toplevel"])
-                )
+                repo_real = os.path.realpath(git_text(path, ["rev-parse", "--show-toplevel"]))
             except GitError:
                 repo_real = os.path.realpath(path)
             if not _same_or_inside(sink_real, repo_real):
@@ -2939,8 +2746,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             )
             if not ignored:
                 print(
-                    f"ASSERTION FAILED: 产出文件 {sink} 落在被盘点目标 `{label}` 内且未被其 "
-                    "gitignore 排除——拒绝写入。",
+                    f"ASSERTION FAILED: 产出文件 {sink} 落在被盘点目标 `{label}` 内且未被其 gitignore 排除——拒绝写入。",
                     file=sys.stderr,
                 )
                 return 2
@@ -2997,9 +2803,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             ],
         },
         "categories": CATEGORY_DEFINITION,
-        "rules": [
-            {"id": r.rule_id, "category": r.category, "why": r.why} for r in RULES
-        ]
+        "rules": [{"id": r.rule_id, "category": r.category, "why": r.why} for r in RULES]
         + [
             {
                 "id": CATCHALL_RULE,
@@ -3034,9 +2838,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             if not stat_module.S_ISREG(st.st_mode):
                 raise OSError(f"产出 sink {path} 不是普通文件")
             if st.st_nlink != 1:
-                raise OSError(
-                    f"产出 sink {path} 的硬链接数为 {st.st_nlink}（要求恰好 1）"
-                )
+                raise OSError(f"产出 sink {path} 的硬链接数为 {st.st_nlink}（要求恰好 1）")
             os.ftruncate(fd, 0)
             written = 0
             while written < len(data):  # 短写必须补齐，不能假设一次写完
@@ -3052,9 +2854,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     # （Codex round-4 A-1：原来 json 先写、md 后写，md 渲染失败就只剩半份）。
     # Codex round-5 F1：渲染**和编码**都必须发生在任何写盘之前——原来编码在
     # ftruncate 之后，于是「json 已更新 + md 编码抛异常」会留下半对。
-    json_bytes = json.dumps(payload, ensure_ascii=True, indent=2).encode(
-        "utf-8", "surrogateescape"
-    )
+    json_bytes = json.dumps(payload, ensure_ascii=True, indent=2).encode("utf-8", "surrogateescape")
     md_bytes = render_md(
         reports,
         diff,

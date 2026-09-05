@@ -29,6 +29,7 @@ from typing import List, Dict, Any, Tuple, Optional
 # Try to import yaml, fall back to basic validation if not available
 try:
     import yaml
+
     YAML_AVAILABLE = True
 except ImportError:
     YAML_AVAILABLE = False
@@ -37,6 +38,7 @@ except ImportError:
 try:
     from openapi_spec_validator import validate_spec
     from openapi_spec_validator.exceptions import OpenAPIValidationError
+
     VALIDATOR_AVAILABLE = True
 except ImportError:
     VALIDATOR_AVAILABLE = False
@@ -57,7 +59,7 @@ def validate_yaml_syntax(file_path: Path) -> Tuple[bool, str, Optional[Dict]]:
     if not YAML_AVAILABLE:
         # Basic validation without yaml library
         try:
-            content = file_path.read_text(encoding='utf-8')
+            content = file_path.read_text(encoding="utf-8")
             # Check for basic YAML structure indicators
             if not content.strip():
                 return False, "File is empty", None
@@ -66,7 +68,7 @@ def validate_yaml_syntax(file_path: Path) -> Tuple[bool, str, Optional[Dict]]:
             return False, f"Error reading file: {e}", None
 
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             content = yaml.safe_load(f)
         if content is None:
             return False, "File is empty or contains only comments", None
@@ -79,10 +81,10 @@ def validate_openapi_version(spec: Dict[str, Any], file_path: Path) -> List[str]
     """验证OpenAPI版本"""
     errors = []
 
-    openapi_version = spec.get('openapi')
+    openapi_version = spec.get("openapi")
     if not openapi_version:
         errors.append(f"{file_path.name}: Missing 'openapi' version field")
-    elif not re.match(r'^3\.(0|1)\.\d+$', str(openapi_version)):
+    elif not re.match(r"^3\.(0|1)\.\d+$", str(openapi_version)):
         errors.append(f"{file_path.name}: Invalid OpenAPI version '{openapi_version}' (expected 3.0.x or 3.1.x)")
 
     return errors
@@ -94,21 +96,21 @@ def validate_required_fields(spec: Dict[str, Any], file_path: Path) -> List[str]
     warnings = []
 
     # Required top-level fields
-    required_fields = ['openapi', 'info', 'paths']
+    required_fields = ["openapi", "info", "paths"]
     for field in required_fields:
         if field not in spec:
             errors.append(f"{file_path.name}: Missing required field '{field}'")
 
     # Info section requirements
-    if 'info' in spec:
-        info = spec['info']
-        if 'title' not in info:
+    if "info" in spec:
+        info = spec["info"]
+        if "title" not in info:
             errors.append(f"{file_path.name}: Missing 'info.title'")
-        if 'version' not in info:
+        if "version" not in info:
             errors.append(f"{file_path.name}: Missing 'info.version'")
 
     # Check if paths is empty (warning)
-    if 'paths' in spec and not spec['paths']:
+    if "paths" in spec and not spec["paths"]:
         warnings.append(f"{file_path.name}: 'paths' section is empty")
 
     return errors
@@ -117,21 +119,21 @@ def validate_required_fields(spec: Dict[str, Any], file_path: Path) -> List[str]
 def validate_refs(spec: Dict[str, Any], file_path: Path) -> List[str]:
     """验证$ref引用"""
     errors = []
-    components = spec.get('components', {})
-    schemas = components.get('schemas', {})
+    components = spec.get("components", {})
+    schemas = components.get("schemas", {})
 
     def check_refs(obj: Any, path: str = ""):
         if isinstance(obj, dict):
-            if '$ref' in obj:
-                ref = obj['$ref']
+            if "$ref" in obj:
+                ref = obj["$ref"]
                 # Check internal references
-                if ref.startswith('#/components/schemas/'):
-                    schema_name = ref.replace('#/components/schemas/', '')
+                if ref.startswith("#/components/schemas/"):
+                    schema_name = ref.replace("#/components/schemas/", "")
                     if schema_name not in schemas:
                         errors.append(f"{file_path.name}: Invalid $ref '{ref}' - schema not found")
                 # Check external file references
-                elif not ref.startswith('#'):
-                    ref_file = ref.split('#')[0]
+                elif not ref.startswith("#"):
+                    ref_file = ref.split("#")[0]
                     if ref_file:
                         ref_path = (file_path.parent / ref_file).resolve()
                         if not ref_path.exists():
@@ -150,33 +152,33 @@ def validate_refs(spec: Dict[str, Any], file_path: Path) -> List[str]:
 def validate_paths_structure(spec: Dict[str, Any], file_path: Path) -> List[str]:
     """验证paths结构"""
     errors = []
-    paths = spec.get('paths', {})
+    paths = spec.get("paths", {})
 
-    valid_methods = {'get', 'post', 'put', 'delete', 'patch', 'options', 'head', 'trace'}
+    valid_methods = {"get", "post", "put", "delete", "patch", "options", "head", "trace"}
 
     for path, path_item in paths.items():
-        if not path.startswith('/'):
+        if not path.startswith("/"):
             errors.append(f"{file_path.name}: Path '{path}' must start with '/'")
 
         if not isinstance(path_item, dict):
             continue
 
         for method, operation in path_item.items():
-            if method.startswith('x-'):
+            if method.startswith("x-"):
                 continue  # Extension fields
-            if method in ['parameters', 'servers', 'summary', 'description']:
+            if method in ["parameters", "servers", "summary", "description"]:
                 continue  # Path-level fields
             if method not in valid_methods:
                 errors.append(f"{file_path.name}: Invalid HTTP method '{method}' at path '{path}'")
 
             if isinstance(operation, dict):
                 # Check for operationId (recommended)
-                if 'operationId' not in operation:
+                if "operationId" not in operation:
                     # This is a warning, not error - don't add to errors
                     pass
 
                 # Check responses field (required)
-                if 'responses' not in operation:
+                if "responses" not in operation:
                     errors.append(f"{file_path.name}: Missing 'responses' for {method.upper()} {path}")
 
     return errors
@@ -247,8 +249,9 @@ def main():
     """主函数"""
     # Set UTF-8 encoding for Windows console
     import io
-    if sys.stdout.encoding != 'utf-8':
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+
+    if sys.stdout.encoding != "utf-8":
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
     print("=" * 60)
     print("[VALIDATE] OpenAPI Specification Validation")
@@ -270,12 +273,12 @@ def main():
         files_to_validate = [Path(f) for f in sys.argv[1:]]
     else:
         # 验证所有OpenAPI文件
-        api_dir = get_project_root() / 'specs' / 'api'
+        api_dir = get_project_root() / "specs" / "api"
         if not api_dir.exists():
             print(f"[WARNING] API specs directory not found: {api_dir}")
             return 0
 
-        files_to_validate = list(api_dir.glob('*.yml')) + list(api_dir.glob('*.yaml'))
+        files_to_validate = list(api_dir.glob("*.yml")) + list(api_dir.glob("*.yaml"))
 
     if not files_to_validate:
         print("[INFO] No OpenAPI files to validate")

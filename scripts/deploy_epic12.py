@@ -24,11 +24,12 @@ import argparse
 
 class Colors:
     """终端颜色"""
-    OK = '\033[92m'
-    WARNING = '\033[93m'
-    ERROR = '\033[91m'
-    RESET = '\033[0m'
-    BOLD = '\033[1m'
+
+    OK = "\033[92m"
+    WARNING = "\033[93m"
+    ERROR = "\033[91m"
+    RESET = "\033[0m"
+    BOLD = "\033[1m"
 
 
 def print_header(text: str):
@@ -61,13 +62,7 @@ def print_error(text: str):
 def run_command(cmd: str, capture: bool = True) -> Tuple[int, str, str]:
     """运行命令"""
     try:
-        result = subprocess.run(
-            cmd,
-            shell=True,
-            capture_output=capture,
-            text=True,
-            timeout=300
-        )
+        result = subprocess.run(cmd, shell=True, capture_output=capture, text=True, timeout=300)
         return result.returncode, result.stdout, result.stderr
     except subprocess.TimeoutExpired:
         return -1, "", "Command timed out"
@@ -102,6 +97,7 @@ def check_neo4j() -> bool:
     """检查Neo4j连接"""
     try:
         from neo4j import GraphDatabase
+
         uri = os.environ.get("NEO4J_URI", "bolt://localhost:7687")
         user = os.environ.get("NEO4J_USER", "neo4j")
         password = os.environ.get("NEO4J_PASSWORD", "password123")
@@ -120,6 +116,7 @@ def check_lancedb() -> bool:
     """检查LanceDB"""
     try:
         import lancedb
+
         path = os.environ.get("LANCEDB_PATH", "./data/lancedb")
         Path(path).mkdir(parents=True, exist_ok=True)
         db = lancedb.connect(path)
@@ -135,6 +132,7 @@ def check_agentic_rag() -> bool:
     try:
         # 尝试导入核心模块
         from src.agentic_rag.state_graph import canvas_agentic_rag
+
         if canvas_agentic_rag:
             print_ok("Agentic RAG: Compiled")
             return True
@@ -219,6 +217,7 @@ def start_neo4j_docker() -> bool:
         print_ok("Neo4j: Created and started")
         print("  Waiting for Neo4j to initialize (10s)...")
         import time
+
         time.sleep(10)
         return True
     else:
@@ -228,11 +227,7 @@ def start_neo4j_docker() -> bool:
 
 def create_data_directories() -> bool:
     """创建数据目录"""
-    directories = [
-        "./data/lancedb",
-        "./logs",
-        "./backups"
-    ]
+    directories = ["./data/lancedb", "./logs", "./backups"]
 
     for dir_path in directories:
         Path(dir_path).mkdir(parents=True, exist_ok=True)
@@ -273,10 +268,8 @@ def run_health_check() -> bool:
 
 def main():
     parser = argparse.ArgumentParser(description="Epic 12 Deployment Script")
-    parser.add_argument("--skip-docker", action="store_true",
-                        help="Skip Docker/Neo4j setup")
-    parser.add_argument("--check-only", action="store_true",
-                        help="Only run checks, no installation")
+    parser.add_argument("--skip-docker", action="store_true", help="Skip Docker/Neo4j setup")
+    parser.add_argument("--check-only", action="store_true", help="Only run checks, no installation")
     args = parser.parse_args()
 
     print_header("Epic 12 Deployment Script")

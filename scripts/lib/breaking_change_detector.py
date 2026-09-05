@@ -31,6 +31,7 @@ from enum import Enum
 
 class ChangeType(Enum):
     """变更类型"""
+
     FIELD_REMOVED = "field_removed"
     FIELD_REQUIRED_ADDED = "field_required_added"  # optional → required
     TYPE_CHANGED = "type_changed"
@@ -41,9 +42,10 @@ class ChangeType(Enum):
 
 class ChangeSeverity(Enum):
     """变更严重程度"""
-    ERROR = "error"      # Breaking change, blocks commit
+
+    ERROR = "error"  # Breaking change, blocks commit
     WARNING = "warning"  # Potentially breaking, needs review
-    INFO = "info"        # Informational, backward compatible
+    INFO = "info"  # Informational, backward compatible
 
 
 class BreakingChangeDetector:
@@ -68,11 +70,11 @@ class BreakingChangeDetector:
         """获取文件的Git diff"""
         try:
             result = subprocess.run(
-                ['git', 'diff', self.base_ref, '--', str(file_path)],
+                ["git", "diff", self.base_ref, "--", str(file_path)],
                 cwd=self.project_root,
                 capture_output=True,
                 text=True,
-                encoding='utf-8'
+                encoding="utf-8",
             )
             return result.stdout if result.returncode == 0 else None
         except Exception:
@@ -83,11 +85,11 @@ class BreakingChangeDetector:
         try:
             relative_path = file_path.relative_to(self.project_root)
             result = subprocess.run(
-                ['git', 'show', f'{ref}:{relative_path.as_posix()}'],
+                ["git", "show", f"{ref}:{relative_path.as_posix()}"],
                 cwd=self.project_root,
                 capture_output=True,
                 text=True,
-                encoding='utf-8'
+                encoding="utf-8",
             )
             return result.stdout if result.returncode == 0 else None
         except Exception:
@@ -102,7 +104,7 @@ class BreakingChangeDetector:
         previous_content = None
 
         try:
-            with open(schema_file, 'r', encoding='utf-8') as f:
+            with open(schema_file, "r", encoding="utf-8") as f:
                 current_content = f.read()
             current_schema = json.loads(current_content)
         except Exception:
@@ -118,9 +120,7 @@ class BreakingChangeDetector:
             return changes
 
         # 比较字段
-        changes.extend(self._compare_schema_fields(
-            schema_file.name, previous_schema, current_schema
-        ))
+        changes.extend(self._compare_schema_fields(schema_file.name, previous_schema, current_schema))
 
         return changes
 
@@ -128,49 +128,55 @@ class BreakingChangeDetector:
         """比较Schema字段变更"""
         changes = []
 
-        prev_props = prev.get('properties', {})
-        curr_props = curr.get('properties', {})
-        prev_required = set(prev.get('required', []))
-        curr_required = set(curr.get('required', []))
+        prev_props = prev.get("properties", {})
+        curr_props = curr.get("properties", {})
+        prev_required = set(prev.get("required", []))
+        curr_required = set(curr.get("required", []))
 
         # 检测字段删除
         for field in prev_props:
             if field not in curr_props:
-                changes.append({
-                    'file': schema_name,
-                    'type': ChangeType.FIELD_REMOVED.value,
-                    'field': field,
-                    'severity': ChangeSeverity.ERROR.value,
-                    'description': f"Field '{field}' was removed",
-                    'migration': f"Consumer code using '{field}' will break"
-                })
+                changes.append(
+                    {
+                        "file": schema_name,
+                        "type": ChangeType.FIELD_REMOVED.value,
+                        "field": field,
+                        "severity": ChangeSeverity.ERROR.value,
+                        "description": f"Field '{field}' was removed",
+                        "migration": f"Consumer code using '{field}' will break",
+                    }
+                )
 
         # 检测新增required字段 (optional → required)
         for field in curr_required:
             if field not in prev_required and field in prev_props:
-                changes.append({
-                    'file': schema_name,
-                    'type': ChangeType.FIELD_REQUIRED_ADDED.value,
-                    'field': field,
-                    'severity': ChangeSeverity.ERROR.value,
-                    'description': f"Field '{field}' changed from optional to required",
-                    'migration': f"Existing data without '{field}' will become invalid"
-                })
+                changes.append(
+                    {
+                        "file": schema_name,
+                        "type": ChangeType.FIELD_REQUIRED_ADDED.value,
+                        "field": field,
+                        "severity": ChangeSeverity.ERROR.value,
+                        "description": f"Field '{field}' changed from optional to required",
+                        "migration": f"Existing data without '{field}' will become invalid",
+                    }
+                )
 
         # 检测类型变更
         for field in prev_props:
             if field in curr_props:
-                prev_type = prev_props[field].get('type')
-                curr_type = curr_props[field].get('type')
+                prev_type = prev_props[field].get("type")
+                curr_type = curr_props[field].get("type")
                 if prev_type and curr_type and prev_type != curr_type:
-                    changes.append({
-                        'file': schema_name,
-                        'type': ChangeType.TYPE_CHANGED.value,
-                        'field': field,
-                        'severity': ChangeSeverity.ERROR.value,
-                        'description': f"Field '{field}' type changed from {prev_type} to {curr_type}",
-                        'migration': f"Data migration may be required"
-                    })
+                    changes.append(
+                        {
+                            "file": schema_name,
+                            "type": ChangeType.TYPE_CHANGED.value,
+                            "field": field,
+                            "severity": ChangeSeverity.ERROR.value,
+                            "description": f"Field '{field}' type changed from {prev_type} to {curr_type}",
+                            "migration": f"Data migration may be required",
+                        }
+                    )
 
         return changes
 
@@ -179,7 +185,7 @@ class BreakingChangeDetector:
         changes = []
 
         try:
-            with open(openapi_file, 'r', encoding='utf-8') as f:
+            with open(openapi_file, "r", encoding="utf-8") as f:
                 current_content = f.read()
         except Exception:
             return changes
@@ -194,15 +200,17 @@ class BreakingChangeDetector:
 
         for endpoint in prev_endpoints:
             if endpoint not in curr_endpoints:
-                path, method = endpoint.rsplit(':', 1)
-                changes.append({
-                    'file': openapi_file.name,
-                    'type': ChangeType.ENDPOINT_REMOVED.value,
-                    'field': endpoint,
-                    'severity': ChangeSeverity.ERROR.value,
-                    'description': f"Endpoint {method.upper()} {path} was removed",
-                    'migration': f"Clients using this endpoint will receive 404"
-                })
+                path, method = endpoint.rsplit(":", 1)
+                changes.append(
+                    {
+                        "file": openapi_file.name,
+                        "type": ChangeType.ENDPOINT_REMOVED.value,
+                        "field": endpoint,
+                        "severity": ChangeSeverity.ERROR.value,
+                        "description": f"Endpoint {method.upper()} {path} was removed",
+                        "migration": f"Clients using this endpoint will receive 404",
+                    }
+                )
 
         return changes
 
@@ -212,10 +220,10 @@ class BreakingChangeDetector:
 
         # 简单正则匹配路径和方法
         # 匹配模式: /path:\n  method:
-        path_pattern = r'^  ([/\w{}-]+):\s*$'
-        method_pattern = r'^\s{4}(get|post|put|delete|patch):\s*$'
+        path_pattern = r"^  ([/\w{}-]+):\s*$"
+        method_pattern = r"^\s{4}(get|post|put|delete|patch):\s*$"
 
-        lines = content.split('\n')
+        lines = content.split("\n")
         current_path = None
 
         for line in lines:
@@ -252,18 +260,18 @@ class BreakingChangeDetector:
 
     def has_breaking_changes(self) -> bool:
         """是否有Breaking Changes"""
-        return any(c['severity'] == ChangeSeverity.ERROR.value for c in self.changes)
+        return any(c["severity"] == ChangeSeverity.ERROR.value for c in self.changes)
 
     def generate_report(self) -> str:
         """生成Breaking Changes报告"""
-        errors = [c for c in self.changes if c['severity'] == ChangeSeverity.ERROR.value]
-        warnings = [c for c in self.changes if c['severity'] == ChangeSeverity.WARNING.value]
+        errors = [c for c in self.changes if c["severity"] == ChangeSeverity.ERROR.value]
+        warnings = [c for c in self.changes if c["severity"] == ChangeSeverity.WARNING.value]
 
         report = f"""# Breaking Changes Report
 
-**Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+**Generated**: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 **Base Reference**: {self.base_ref}
-**Status**: {'BLOCKED - Breaking Changes Detected' if errors else 'OK - No Breaking Changes'}
+**Status**: {"BLOCKED - Breaking Changes Detected" if errors else "OK - No Breaking Changes"}
 
 ---
 
@@ -323,10 +331,10 @@ def main():
     """命令行入口"""
     import argparse
 
-    parser = argparse.ArgumentParser(description='Detect breaking changes in SDD files')
-    parser.add_argument('--base-ref', type=str, default='HEAD~1', help='Git base reference (default: HEAD~1)')
-    parser.add_argument('--report', action='store_true', help='Generate detailed report')
-    parser.add_argument('--output', type=str, help='Report output path')
+    parser = argparse.ArgumentParser(description="Detect breaking changes in SDD files")
+    parser.add_argument("--base-ref", type=str, default="HEAD~1", help="Git base reference (default: HEAD~1)")
+    parser.add_argument("--report", action="store_true", help="Generate detailed report")
+    parser.add_argument("--output", type=str, help="Report output path")
 
     args = parser.parse_args()
 
@@ -345,7 +353,7 @@ def main():
     if detector.has_breaking_changes():
         print("[BLOCKED] Breaking changes detected!")
         for change in changes:
-            if change['severity'] == 'error':
+            if change["severity"] == "error":
                 print(f"  - {change['file']}: {change['description']}")
     else:
         print("[OK] No breaking changes detected")
@@ -360,7 +368,7 @@ def main():
             output_path = project_root / "docs" / "specs" / "breaking-changes-report.md"
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(output_path, 'w', encoding='utf-8') as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             f.write(report)
         print(f"\nReport saved to: {output_path}")
 
