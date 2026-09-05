@@ -1,0 +1,12 @@
+✅ KILLED   M1-per-node-lock: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_concurrent_same_node_no_lost_update[1]', 'tests/regression/test_g3_3_cas.py::test_concurrent_same_node_no_lost_update[2]']
+✅ KILLED   M10-short-write-unchecked: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_short_write_is_not_reported_as_success']
+✅ KILLED   M11-out-of-order-auto-guess: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_out_of_order_is_caller_declared_not_auto_guessed']
+✅ KILLED   M12-a3-node-lock: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_incremental_block_waits_for_node_lock']
+✅ KILLED   M13-a3-cas: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_incremental_block_cas_preserves_racing_edit']
+✅ KILLED   M14-exam-board-ledger-lock: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_exam_board_waits_for_held_ledger_lock']
+✅ KILLED   M15-post-lock-redup: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_writer_refuses_when_other_writer_took_the_event_id']
+
+── 汇总 ──
+还原逐字节相同: 是
+MUTANT 新增残留 (基线之外): ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-z2-cas/backend/scripts/g32ccr1_negative_controls.py']
+rc=1

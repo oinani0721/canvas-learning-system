@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import os
 import re
@@ -686,6 +687,10 @@ def test_out_of_order_marker_is_additive(monkeypatch, tmp_path):
         effective_at="2026-08-01T10:00:00Z",
     )
     caller_payload = _review_payload(review_time="2026-08-01T09:00:00Z")
+    # ⛔ 加性比较的期望值必须有**独立来源**: 拿 caller_payload 本身当基准, 等于让
+    # 被测函数自己提供期望值 —— 它若就地污染了这个 dict, 基准跟着一起变。这里留一份
+    # 调用前的快照, 加性只对它比; 「有没有被就地污染」由下面那条断言单独负责。
+    caller_snapshot = copy.deepcopy(caller_payload)
     # ⛔ 补录必须由**调用方显式声明** —— 账本侧读不到已应用水位线, 自动猜两个方向都会错
     # (误标会让写点对该节点永久 fail-closed; 漏标会把真实复习静默丢弃)。
     assert ev.append_event(
@@ -700,7 +705,9 @@ def test_out_of_order_marker_is_additive(monkeypatch, tmp_path):
     assert "out_of_order" not in rows[0]["payload"], "首个事件不该被标乱序"
     assert rows[1]["payload"]["out_of_order"] is True, "更早的补录事件必须标 out_of_order"
     # 加性: 除多这一个键外, payload 其余键逐字不变。
-    assert {k: v for k, v in rows[1]["payload"].items() if k != "out_of_order"} == caller_payload
+    assert {k: v for k, v in rows[1]["payload"].items() if k != "out_of_order"} == caller_snapshot, (
+        "out_of_order 标记不是加性的: 除该键外, payload 其余键必须与调用方传进来的逐字相同"
+    )
     # ⛔ 不得就地改调用方的 dict —— 同一个 payload 对象被复用时会把标记带到下一条。
     assert "out_of_order" not in caller_payload, "append_event 就地污染了调用方的 payload"
 
@@ -808,7 +815,9 @@ def test_append_event_refuses_when_ledger_locked(tmp_path, monkeypatch, caplog):
     try:
         assert holder.stdout is not None
         assert holder.stdout.readline().strip() == "held"
-        assert ev.append_event("answer_scored", "quiz:被锁住", node_id="N") is False
+        assert ev.append_event("answer_scored", "quiz:被锁住", node_id="N") is False, (
+            "别人持着账本锁时 append_event 却报了写入成功"
+        )
         assert ledger.read_text(encoding="utf-8") == "", "取不到锁却写了"
     finally:
         holder.kill()
@@ -1161,3 +1170,98 @@ def test_incremental_block_is_content_idempotent(vault):
         )
         assert proc.returncode == 0, proc.stderr
     assert node.read_text(encoding="utf-8").count("同一条疑问") == 1, "增量块重跑双写"
+
+
+# ───────── 门⑧ 两条**恢复路径**的发布点也必须过 CAS (CARD-G3-3-R1) ─────────
+# ⛔ 为什么单列: `_cas_guard` 在写点里有三个调用点 —— 正常路径、A2 foreign 重放后
+#    的恢复发布、dup 恢复路径发布。此前只有正常路径有门承重, 另外两个属于「已实现
+#    但没有任何门测它」的形态: 把它们拆掉整份测试照样全绿。恢复动作与正常路径一样是
+#    **整份覆盖** frontmatter+正文, 少一道 CAS 就是恢复动作自己把用户的并发编辑吃掉。
+
+
+def _seed_review_row(vault: Path, event_id: str, exam_board: str) -> dict:
+    """往 fresh vault 的账本里放**一条**待恢复的 review/1 行。
+
+    形态逐字照抄生产写侧真实产出的行 (顶层 6 键 + payload 11 键, 实测于本 fixture),
+    只改 event_id / exam_board —— 自造形态过不了写点侧的 `validate_record_full`,
+    「fixture 形态 ≠ 生产形态」是本仓踩过的坑。
+    ⛔ 只放**一条**: 若本次事件也在账本里, 会先撞 SKILL.md 的「本次事件与别人的事件
+    同处待恢复队列」fail-closed, 那样测到的就不是 CAS 了。
+    """
+    row = {
+        "event_id": event_id,
+        "event_version": 1,
+        "event_type": "answer_scored",
+        "node_id": "测试节点",
+        "recorded_at": TS1,
+        "effective_at": TS1,
+        "payload": _review_payload(exam_board=exam_board),
+    }
+    (vault / "learning_events.jsonl").write_text(json.dumps(row, ensure_ascii=False) + "\n", encoding="utf-8")
+    return row
+
+
+def test_a2_foreign_recovery_publish_respects_cas(tmp_path):
+    """A2 foreign 重放后的恢复发布必须先过 CAS。
+
+    ⚠️ 双段。**对照段不可省**: 只跑「注入竞态 → 失败」的话, 失败也可能是因为这个
+    seed 根本没走到恢复发布 (被采用时刻门 / attempt 序数门先拦下), 那样门是空的。
+    对照段先证明同一个 seed 真的走完了 foreign 重放并把恢复结果落了盘。
+    ⚠️ **如实**: foreign 恢复路径按设计以非零码收尾 (`恢复已落定, 本次评分未写入 —
+    请重跑`), 所以对照段的判据是「恢复结果落了盘 + 拒因是续跑要求」, 不是 rc==0。
+    """
+    # ── 对照: 不注入竞态 ──
+    ctrl = _make_vault(tmp_path / "ctrl")
+    _seed_review_row(ctrl, "quiz:板Z#q9", "检验白板/板Z#q9.md")
+    rc0, out0, err0 = _run_writer(ctrl, _payload("板A#q1"), "fgn-ctrl")
+    assert "A2 已恢复 1 个未完成事件" in out0, f"对照段没走到 foreign 恢复发布, 本门是空的\n{out0}\n{err0}"
+    assert _fm_value(ctrl, "fsrs_last_review") == TS1, f"对照段的恢复结果没落盘\n{out0}\n{err0}"
+    assert "quiz:板Z#q9" in (ctrl / NODE_REL).read_text(encoding="utf-8"), "对照段没写下被恢复事件的校准条目"
+    # 该路径**按设计**非零收尾: 恢复先落定, 本次评分要求重跑续写。
+    assert rc0 != 0 and "恢复已落定, 本次评分未写入" in err0, f"对照段的收尾语义变了: rc={rc0}\n{err0}"
+    assert _validate(ctrl).returncode == 0, "对照段写出的账本未通过校验器"
+
+    # ── 注入竞态: 外部写者在 bridge 调用时刻改节点 ──
+    race = _make_vault(tmp_path / "race")
+    _seed_review_row(race, "quiz:板Z#q9", "检验白板/板Z#q9.md")
+    _install_racing_bridge(race)
+    node = race / NODE_REL
+    rc, out, err = _run_writer(race, _payload("板A#q1"), "fgn-race", {"G33_RACE_NODE": str(node.resolve())})
+    text = node.read_text(encoding="utf-8")
+    # ⛔ 状态不变量排在 rc 之前: 本路径**拆掉 CAS 后 rc 仍是非零**(恢复照样以「请重跑」
+    # 收尾), 拿 rc 当判据会被那个非零码喂饱 —— 与门① 同一个教训。
+    assert RACE_MARK.strip() in text, "CAS 门没挡住 A2 foreign 恢复发布: 外部写者那段正文被整份覆盖吃掉了"
+    assert "fsrs_last_review:" not in text, "CAS 冲突后仍把 foreign 恢复结果发布到了节点 (非零写)"
+    assert rc != 0, f"CAS 冲突后仍以成功码收尾\nSTDOUT{out}\nSTDERR{err}"
+    assert "冲突点: A2 foreign 重放后的恢复发布" in err, f"拒因不是这一个发布点的 CAS: {err[-600:]}"
+    assert not list((race / "节点").glob("*.quiz-tmp")), "拒绝发布后留下了 .quiz-tmp 残留"
+
+
+def test_dup_recovery_publish_respects_cas(tmp_path):
+    """dup 恢复路径 (本次事件已入账、崩在发布前) 的发布也必须先过 CAS。
+
+    与 foreign 段同形的双段结构; 这条路径**成功时 rc=0**, 所以 rc 在这里是有判别力
+    的判据 —— 但状态不变量仍排在它前面 (先问「用户的正文还在吗」)。
+    """
+    # ── 对照: 不注入竞态 ──
+    ctrl = _make_vault(tmp_path / "ctrl")
+    _seed_review_row(ctrl, "quiz:板A#q1", "检验白板/板A#q1.md")
+    rc0, out0, err0 = _run_writer(ctrl, _payload("板A#q1"), "dup-ctrl")
+    assert rc0 == 0, f"对照段未收敛: rc={rc0}\nSTDOUT{out0}\nSTDERR{err0}"
+    assert "A2 恢复(崩溃窗口①)" in out0, f"对照段没走到 dup 恢复路径, 本门是空的\n{out0}"
+    assert _fm_value(ctrl, "fsrs_last_review") == TS1, f"对照段的恢复结果没落盘\n{out0}"
+    assert len(_ledger_rows(ctrl)) == 1, "恢复路径不得再追加一行 (event_id 幂等)"
+    assert _validate(ctrl).returncode == 0, "对照段写出的账本未通过校验器"
+
+    # ── 注入竞态 ──
+    race = _make_vault(tmp_path / "race")
+    _seed_review_row(race, "quiz:板A#q1", "检验白板/板A#q1.md")
+    _install_racing_bridge(race)
+    node = race / NODE_REL
+    rc, out, err = _run_writer(race, _payload("板A#q1"), "dup-race", {"G33_RACE_NODE": str(node.resolve())})
+    text = node.read_text(encoding="utf-8")
+    assert RACE_MARK.strip() in text, "CAS 门没挡住 dup 恢复路径发布: 外部写者那段正文被整份覆盖吃掉了"
+    assert "fsrs_last_review:" not in text, "CAS 冲突后仍把 dup 恢复结果发布到了节点 (非零写)"
+    assert rc != 0, f"CAS 冲突后仍以成功码收尾\nSTDOUT{out}\nSTDERR{err}"
+    assert "冲突点: dup 恢复路径发布" in err, f"拒因不是这一个发布点的 CAS: {err[-600:]}"
+    assert not list((race / "节点").glob("*.quiz-tmp")), "拒绝发布后留下了 .quiz-tmp 残留"

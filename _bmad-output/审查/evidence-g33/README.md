@@ -1,47 +1,32 @@
-# CARD-G3-3 证据 — 负控变异 + 并发取证
+# CARD-G3-3 / G3-3-R1 证据 — 负控变异 + 并发取证
 
-> 批次 `[BATCH-2026-09-05-第十一批 / CARD-G3-3]`，工作树 `card-z2-cas`。
-> 本文是 **Codex 复核 + 内部对抗审查打回后返工**的复跑结果（2026-09-05）。
-> 原始 `.log` 被全局 `.gitignore` 的 `*.log` 吞掉，故逐字转录；结构化结果见同目录 `.json`。
+> 工作树 `card-z2-cas`。
+> **本文只作索引，不再逐字转录**（协议 §2.2：验收单与索引只引用路径与末行，不自述数字）。
+> 上一轮（第十一批 CARD-G3-3）的 `.log` 文件被仓根 `.gitignore` 的 `*.log` 吞掉，
+> 从 R1 起落盘一律用 `.txt` / `.json` 并带时间戳。
 
-## 一 负控变异（14 条，`backend/scripts/g33_mutation_gates.py`）
+## 一 R1 收官证据（`[BATCH-2026-09-05-第十二批 / CARD-G3-3-R1]`）
 
-```
-✅ KILLED   M1-per-node-lock: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_concurrent_same_node_no_lost_update[1]', 'tests/regression/test_g3_3_cas.py::test_concurrent_same_node_no_lost_update[2]']
-✅ KILLED   M2-cas-guard: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_cas_conflict_refuses_and_rerun_converges']
-✅ KILLED   M3-ledger-lock-backend: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_append_event_refuses_when_ledger_locked']
-✅ KILLED   M5-cas-revision-only: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_cas_body_only_change_is_a_conflict']
-✅ KILLED   M6-ledger-lock-skill: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_writer_waits_for_held_ledger_lock']
-✅ KILLED   M8-thread-lock-lifetime: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_thread_critical_sections_do_not_overlap']
-✅ KILLED   M9-splitlines-instead-of-lf: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_dedup_scan_splits_only_on_physical_lf']
-✅ KILLED   M10-short-write-unchecked: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_short_write_is_not_reported_as_success']
-✅ KILLED   M11-out-of-order-auto-guess: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_out_of_order_is_caller_declared_not_auto_guessed']
-✅ KILLED   M12-a3-node-lock: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_incremental_block_waits_for_node_lock']
-✅ KILLED   M13-a3-cas: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_incremental_block_cas_preserves_racing_edit']
-✅ KILLED   M14-exam-board-ledger-lock: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_exam_board_waits_for_held_ledger_lock']
-✅ KILLED   M15-post-lock-redup: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_writer_refuses_when_other_writer_took_the_event_id']
-✅ KILLED   M7-lock-dropped-by-second-fd: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_append_event_still_holds_lock_at_the_moment_of_write']
+| 内容 | 文件 | 末行 / 关键行 |
+|---|---|---|
+| **修前**实证「合入即红」（`--only M1`，按 id 前缀实际匹配 M1/M10-M15 七条） | `premerge-leftovers-20260905T164552.txt` | `MUTANT 新增残留 (基线之外): ['…/g32ccr1_negative_controls.py']` / `rc=1` |
+| **负控之负控**：编译自检（旧 M15 串必判 `SYNTAX-INVALID` + 两个验伪锚 + 不落盘） | `syntax-selfcheck-20260905T165509.txt` | `未落盘 (跑前跑后 sha 逐字节相同): 是` / `rc=0` |
+| **收官全量变异**（18 条） | `mutation-run-20260905T171138.txt` · `mutation-results-20260905T171138.json` | `杀灭: 18/18` / `SYNTAX-INVALID: 0` / `还原逐字节相同: 是` / `MUTANT 新增残留 (基线之外): 无` / `rc=0` |
+| 并发取证 `--rounds 3` | `concurrency-run-20260905T171703.txt` · `.json` | `lost_update 轮数: 0/3` / `rc=0` |
+| 回归：`test_g3_3_cas.py` + `test_g3_2_review_ledger.py` | `regression-g33-g32-20260905T170619.txt` | `161 passed, 1 xfailed` / `rc=0` |
+| 回归：`test_fsrs_bridge.py` + `test_learning_event_log.py` + `test_learning_events_schema_contract.py` | `regression-three-20260905T171104.txt` | `210 passed, 1 skipped` / `rc=0` |
+| `tests/skills` 目录级（开工） | `skills-baseline-20260905T170500.txt` | `369 passed` / `rc=0` |
+| `tests/skills` 目录级（收工） | `skills-final-20260905T171712.txt` | `369 passed` / `rc=0` |
 
-── 汇总 ──
-还原逐字节相同: 是
-MUTANT 新增残留 (基线之外): 无
-rc=0
-```
+`mutation-results-*.json` 每条含 `expect_msg` / `expect_hit` / `error_lines`——
+`error_lines` 是 pytest 回溯里真正抛出来的异常文本，用来核对**红在哪一条断言上**
+（上一轮 M15 假杀就是死在这一格没人看）。
 
-## 二 并发取证 `g33_concurrency_evidence.py --rounds 3`
+pyright（本卡改动的两个文件）：`0 errors, 0 warnings, 0 informations`。
 
-```
-round 1: rc=[0, 0] 账本2条 attempt=2 W=2026-08-01T10:00:01Z validator=0 lost_update=False
-round 2: rc=[0, 0] 账本2条 attempt=2 W=2026-08-01T10:00:01Z validator=0 lost_update=False
-round 3: rc=[0, 0] 账本2条 attempt=2 W=2026-08-01T10:00:01Z validator=0 lost_update=False
+## 二 上一轮（第十一批 CARD-G3-3）留存
 
-lost_update 轮数: 0/3
-```
-
-## 三 pyright
-
-```
-$ backend/.venv/bin/pyright tests/regression/test_g3_3_cas.py app/services/learning_event_log.py \
-      scripts/g33_mutation_gates.py scripts/g33_concurrency_evidence.py
-0 errors, 0 warnings, 0 informations
-```
+`mutation-results.json` / `concurrency-run.json` 为上一轮结果，保留作对照。
+⚠️ 其中 `M15-post-lock-redup` 记为 `KILLED`——**那是假杀**，根因与修法见
+`_bmad-output/验收单/UAT-CARD-G3-3-R1-2026-09-05.md` §一。
+`mutation-run.log` / `concurrency-run.log` 未入库（被 `*.log` 忽略）。
