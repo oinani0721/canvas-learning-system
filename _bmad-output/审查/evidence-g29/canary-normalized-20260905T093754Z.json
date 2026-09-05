@@ -1,0 +1,228 @@
+{
+  "identities": {
+    "A": {
+      "graphiti_group_id": "vault__g29canary_a",
+      "lancedb_table": "g29canary_a_canvas_nodes",
+      "lancedb_vault_id": "g29canary_a",
+      "logical_group_id": "vault:g29canary_a",
+      "neo4j_physical_group_id": "vault__g29canary_a"
+    },
+    "B": {
+      "graphiti_group_id": "vault__g29canary_b",
+      "lancedb_table": "g29canary_b_canvas_nodes",
+      "lancedb_vault_id": "g29canary_b",
+      "logical_group_id": "vault:g29canary_b",
+      "neo4j_physical_group_id": "vault__g29canary_b"
+    }
+  },
+  "phases": {
+    "A_after_B_written": {
+      "graphiti": {
+        "entity": 1,
+        "episodic": 1,
+        "outside_read_scope": 0
+      },
+      "lancedb": {
+        "rows": 1,
+        "table_exists": 1
+      },
+      "neo4j": {
+        "canvas": 1,
+        "concept": 1,
+        "contains_node": 1,
+        "learned": 1,
+        "node": 1
+      }
+    },
+    "A_after_delete": {
+      "graphiti": {
+        "entity": 0,
+        "episodic": 0,
+        "outside_read_scope": 0
+      },
+      "lancedb": {
+        "rows": 0,
+        "table_exists": 0
+      },
+      "neo4j": {
+        "canvas": 0,
+        "concept": 0,
+        "contains_node": 0,
+        "learned": 0,
+        "node": 0
+      }
+    },
+    "A_sees_B": {
+      "graphiti": {
+        "entity": 0,
+        "episodic": 0,
+        "outside_read_scope": 0
+      },
+      "lancedb": {
+        "rows": 0,
+        "table_exists": 0
+      },
+      "neo4j": {
+        "canvas": 0,
+        "concept": 0,
+        "contains_node": 0,
+        "learned": 0,
+        "node": 0
+      }
+    },
+    "A_written": {
+      "graphiti": {
+        "entity": 1,
+        "episodic": 1,
+        "outside_read_scope": 0
+      },
+      "lancedb": {
+        "rows": 1,
+        "table_exists": 1
+      },
+      "neo4j": {
+        "canvas": 1,
+        "concept": 1,
+        "contains_node": 1,
+        "learned": 1,
+        "node": 1
+      }
+    },
+    "B_after_deleting_A": {
+      "graphiti": {
+        "entity": 1,
+        "episodic": 1,
+        "outside_read_scope": 0
+      },
+      "lancedb": {
+        "rows": 1,
+        "table_exists": 1
+      },
+      "neo4j": {
+        "canvas": 1,
+        "concept": 1,
+        "contains_node": 1,
+        "learned": 1,
+        "node": 1
+      }
+    },
+    "B_before_deleting_A": {
+      "graphiti": {
+        "entity": 1,
+        "episodic": 1,
+        "outside_read_scope": 0
+      },
+      "lancedb": {
+        "rows": 1,
+        "table_exists": 1
+      },
+      "neo4j": {
+        "canvas": 1,
+        "concept": 1,
+        "contains_node": 1,
+        "learned": 1,
+        "node": 1
+      }
+    },
+    "B_sees_A": {
+      "graphiti": {
+        "entity": 0,
+        "episodic": 0,
+        "outside_read_scope": 0
+      },
+      "lancedb": {
+        "rows": 0,
+        "table_exists": 0
+      },
+      "neo4j": {
+        "canvas": 0,
+        "concept": 0,
+        "contains_node": 0,
+        "learned": 0,
+        "node": 0
+      }
+    },
+    "B_written": {
+      "graphiti": {
+        "entity": 1,
+        "episodic": 1,
+        "outside_read_scope": 0
+      },
+      "lancedb": {
+        "rows": 1,
+        "table_exists": 1
+      },
+      "neo4j": {
+        "canvas": 1,
+        "concept": 1,
+        "contains_node": 1,
+        "learned": 1,
+        "node": 1
+      }
+    },
+    "after_purge_A": {
+      "graphiti": {
+        "entity": 0,
+        "episodic": 0,
+        "outside_read_scope": 0
+      },
+      "lancedb": {
+        "rows": 0,
+        "table_exists": 0
+      },
+      "neo4j": {
+        "canvas": 0,
+        "concept": 0,
+        "contains_node": 0,
+        "learned": 0,
+        "node": 0
+      }
+    },
+    "after_purge_B": {
+      "graphiti": {
+        "entity": 0,
+        "episodic": 0,
+        "outside_read_scope": 0
+      },
+      "lancedb": {
+        "rows": 0,
+        "table_exists": 0
+      },
+      "neo4j": {
+        "canvas": 0,
+        "concept": 0,
+        "contains_node": 0,
+        "learned": 0,
+        "node": 0
+      }
+    },
+    "concept_group_distribution": {
+      "vault__g29canary_a": 1,
+      "vault__g29canary_b": 1
+    }
+  },
+  "side_effect_probe": {
+    "B_table": "g29drift_b_canvas_nodes",
+    "B_table_survived_A_init": false,
+    "finding": "CONFIRMED: vault A 的 LanceDBClient.initialize() 删掉了 vault B 的表",
+    "source": "backend/lib/agentic_rag/clients/lancedb_client.py:962-968 (_cache_tables 对 db.table_names() 全表跑 _check_and_fix_dimension_mismatch)",
+    "tables_after_A_init": [],
+    "tables_before_A_init": [
+      "g29drift_b_canvas_nodes"
+    ]
+  },
+  "verdicts": {
+    "A_cannot_see_B": true,
+    "A_counts_positive": true,
+    "A_equals_B": true,
+    "A_gone_after_delete": true,
+    "A_unaffected_by_B_write": true,
+    "B_cannot_see_A": true,
+    "B_counts_positive": true,
+    "B_unchanged_after_deleting_A": true,
+    "identities_distinct": true,
+    "purge_left_nothing": true,
+    "read_scope_sentinels_clean": true,
+    "shared_concept_split_per_group": true
+  }
+}

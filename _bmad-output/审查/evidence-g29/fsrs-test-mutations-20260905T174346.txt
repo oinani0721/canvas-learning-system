@@ -1,0 +1,15 @@
+# 裁判6b — (c) 的两条 pytest 测试同样要被证明能翻红
+# 原地变异 → 指定断言必须红 → 无条件还原 + sha 逐字节对账
+# 变异脚本: _bmad-output/审查/evidence-g29/g29_fsrs_test_mutations.py
+还原校验: OK 逐字节相同 (5e173055c093)
+
+  KILLED    C1_global_state_file  rc=1
+            state 文件退化成全局单例（C1a 修的那个根缺陷）
+            =================== 1 failed, 1 passed, 10 warnings in 0.54s ===================
+  KILLED    C2_fsrs_due_ignored  rc=1
+            B 的 fsrs_due 被抹掉 ⇒ 变 New 卡即刻到期（FSRS 判定失效）
+            =================== 1 failed, 1 passed, 10 warnings in 0.47s ===================
+  KILLED    C3_outputs_not_isolated  rc=1
+            A 侧读到 B 的投影（outputs 目录不按 vault 隔离）
+            =================== 1 failed, 1 passed, 10 warnings in 0.46s ===================
+rc=0

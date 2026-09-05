@@ -1,0 +1,66 @@
+# 裁判4 — 负控。判据绑定「被哪一层拒的」（NEGCTL_REJECTED_BY/SOURCE），不是只看 rc≠0。
+# ⛔ blocked=0 单独不构成隔离成立的证据：它只说明没打到现网库。隔离由
+#    裁判3 的交叉 0 命中 + 本负控 + 验伪（裁判6）三者合起来说话。
+
+──────── N1: URI 直指现网 7691
+$ NEO4J_TEST_URI='bolt://localhost:7691' LANCEDB_DATA_PATH=<tmp>
+*** G2-9 CANARY REJECTED ***
+NEGCTL_REJECTED_BY=live_port_guard.assert_test_uri_not_blocked
+NEGCTL_REJECTED_SOURCE=backend/tests/support/live_port_guard.py:865 (raise 位于 :912-918，判据 ALLOWED_TEST_PORTS=:145)
+NEGCTL_REASON=端口门拒绝了 NEO4J_TEST_URI='bolt://localhost:7691'：NEO4J_TEST_URI='bolt://localhost:7691' 按驱动口径的初始目标端口是 [7691]，其中 [7691] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:7691' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7691))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+rc=2
+
+──────── N2: 省略端口 → 驱动归一成 7687（X4 两轮终审的 BLOCKER 形状）
+$ NEO4J_TEST_URI='bolt://localhost' LANCEDB_DATA_PATH=<tmp>
+*** G2-9 CANARY REJECTED ***
+NEGCTL_REJECTED_BY=live_port_guard.assert_test_uri_not_blocked
+NEGCTL_REJECTED_SOURCE=backend/tests/support/live_port_guard.py:865 (raise 位于 :912-918，判据 ALLOWED_TEST_PORTS=:145)
+NEGCTL_REASON=端口门拒绝了 NEO4J_TEST_URI='bolt://localhost'：NEO4J_TEST_URI='bolt://localhost' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+rc=2
+
+──────── N3: 端口 :0 → 驱动归一成 7687（同上）
+$ NEO4J_TEST_URI='bolt://localhost:0' LANCEDB_DATA_PATH=<tmp>
+*** G2-9 CANARY REJECTED ***
+NEGCTL_REJECTED_BY=live_port_guard.assert_test_uri_not_blocked
+NEGCTL_REJECTED_SOURCE=backend/tests/support/live_port_guard.py:865 (raise 位于 :912-918，判据 ALLOWED_TEST_PORTS=:145)
+NEGCTL_REASON=端口门拒绝了 NEO4J_TEST_URI='bolt://localhost:0'：NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+rc=2
+
+──────── N4: routing 多地址，只看第一个就会漏的写法
+$ NEO4J_TEST_URI='neo4j://ok:7692 evil:7691' LANCEDB_DATA_PATH=<tmp>
+*** G2-9 CANARY REJECTED ***
+NEGCTL_REJECTED_BY=live_port_guard.assert_test_uri_not_blocked
+NEGCTL_REJECTED_SOURCE=backend/tests/support/live_port_guard.py:865 (raise 位于 :912-918，判据 ALLOWED_TEST_PORTS=:145)
+NEGCTL_REASON=端口门拒绝了 NEO4J_TEST_URI='neo4j://ok:7692 evil:7691'：NEO4J_TEST_URI='neo4j://ok:7692 evil:7691' 按驱动口径的初始目标端口是 [7692, 7691]，其中 [7691] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='ok:7692 evil:7691' → Address.parse_list（routing scheme，按空白拆分多地址） → [IPv4Address(('ok', 7692)), IPv4Address(('evil', 7691))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+rc=2
+
+──────── N5: LanceDB 指向现网 backend/data/lancedb
+$ NEO4J_TEST_URI='bolt://localhost:7692' LANCEDB_DATA_PATH=backend/data/lancedb
+*** G2-9 CANARY REJECTED ***
+NEGCTL_REJECTED_BY=g29_dual_vault_canary._preflight_lancedb_path
+NEGCTL_REJECTED_SOURCE=backend/scripts/g29_dual_vault_canary.py::_preflight_lancedb_path
+NEGCTL_REASON=LanceDB 路径 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-z5-canary/backend/data/lancedb 指向现网默认库（*/data/lancedb）。canary 只许写 tmp。
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+rc=2
+
+──────── N6: LanceDB 指向 tmp 之外（白名单判据）
+$ NEO4J_TEST_URI='bolt://localhost:7692' LANCEDB_DATA_PATH=<仓库内路径>
+*** G2-9 CANARY REJECTED ***
+NEGCTL_REJECTED_BY=g29_dual_vault_canary._preflight_lancedb_path
+NEGCTL_REJECTED_SOURCE=backend/scripts/g29_dual_vault_canary.py::_preflight_lancedb_path
+NEGCTL_REASON=LanceDB 路径 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-z5-canary/_bmad-output/审查/evidence-g29/.negctl-probe 不在任何临时目录根下（允许的根：['/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T', '/private/tmp']）。canary 只往 tmp 写；确需别处请显式加 --allow-path-outside-tmp。
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+rc=2
+
+──────── N7: LANCEDB_DATA_PATH 未设 → 会落默认 data/lancedb
+$ NEO4J_TEST_URI='bolt://localhost:7692' LANCEDB_DATA_PATH=(未设置)
+*** G2-9 CANARY REJECTED ***
+NEGCTL_REJECTED_BY=g29_dual_vault_canary._preflight_lancedb_path
+NEGCTL_REJECTED_SOURCE=backend/scripts/g29_dual_vault_canary.py::_preflight_lancedb_path
+NEGCTL_REASON=LanceDB 路径未显式指定（--lancedb-path 或 LANCEDB_DATA_PATH 均为空）。不指定就会落到 LanceDBClient 的默认值 data/lancedb —— 那是现网库。
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+rc=2
