@@ -16,6 +16,17 @@ dev = [
     "pytest-bdd>=7.0",
     "schemathesis>=3.0",
     "hypothesis>=6.0",
+    # CARD-TOOL-pyright [BATCH-2026-09-05-第十一批] —— 类型检查器归口。
+    # 落在这里而不是 backend/requirements*.txt, 依据是后者文件头自己写的
+    # 单一权威规则: "本文件管 backend 生产依赖 / pyproject.toml 管 dev extras"。
+    # 消费方: lefthook.yml 的 python-typecheck 块先找 backend/.venv/bin/pyright
+    # 再找 PATH; 配置在仓库根 pyrightconfig.json (include 覆盖 backend/app + src
+    # + tests, 是仓库级工具而非 backend 专属)。
+    # 安装: backend/.venv/bin/python -m pip install 'pyright>=1.1.411'
+    # ⚠️ 已知缺口(本卡不接, 已登台账): 没有任何 CI workflow 安装本 extras
+    #    (test.yml 是 `cd backend && pip install -r requirements.txt` 再按名字
+    #    显式装三个), 所以 pyright 目前**只在本地 pre-commit 生效**。
+    "pyright>=1.1.411",
 ]
 api = [
     "fastapi>=0.100",
