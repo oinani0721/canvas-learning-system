@@ -1,0 +1,5 @@
+=== pyright 版本 ===
+pyright 1.1.411
+=== pyright 对本卡改动的测试文件 ===
+0 errors, 0 warnings, 0 informations
+rc_pyright=0

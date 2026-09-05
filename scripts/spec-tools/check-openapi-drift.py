@@ -250,8 +250,16 @@ def check_drift(snapshot_path: Path) -> int:
         print(f"  {line}")
     if truncated:
         print(f"  ... 以及更多差异(仅显示前 {DETAIL_LINE_CAP} 条, 共 {len(details)} 条)")
+    # FIX 串必须能被**逐字复制**到任意 cwd 执行(CARD-TOOL-openapi-R2): 原串的裸
+    # `python` 与相对路径同时失效 —— 裸 python 在本机/CI 都不是本仓 venv(缺 fastapi
+    # 即 ImportError), 相对路径在 backend/ 下解析成 backend/scripts/... 与
+    # backend/backend/openapi.json(双双不存在)。解析器口径与 lefthook.yml:54 一致。
+    fix_python = BACKEND_DIR / ".venv" / "bin" / "python"
+    fix_interpreter = str(fix_python) if fix_python.is_file() else "python3"
+    fix_script = Path(__file__).resolve()
+    fix_snapshot = BACKEND_DIR / "openapi.json"
     print(
-        "FIX: python scripts/spec-tools/check-openapi-drift.py --write backend/openapi.json  (禁手改快照)",
+        f'FIX: "{fix_interpreter}" "{fix_script}" --write "{fix_snapshot}"  (禁手改快照)',
         file=sys.stderr,
     )
     return 1

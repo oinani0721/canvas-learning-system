@@ -1,0 +1,21 @@
+### D-14 证明：本卡改动行 pyright 0 报错
+=== pyright 版本 ===
+pyright 1.1.411
+
+=== (1) lefthook python-typecheck glob = {backend,src}/**/*.py ===
+本卡改动的两个文件里，只有 backend/tests/contract/test_openapi_snapshot_drift.py 命中该 glob。
+scripts/spec-tools/check-openapi-drift.py 不在 glob 内，不参与 commit 门。
+
+=== (2) 命中 glob 的文件 pyright 原始输出 ===
+0 errors, 0 warnings, 0 informations
+rc=0
+
+=== (3) 未命中 glob 的脚本文件：存量报错行号 vs 本卡改动行 ===
+--- 本卡在该文件的改动行（git diff 新增行号）---
+@@ -252,0 +253,8 @@ def check_drift(snapshot_path: Path) -> int:
+@@ -254 +262 @@ def check_drift(snapshot_path: Path) -> int:
+改动区间 = 新文件 :253-264（唯一 hunk @@ -250,8 +250,16 @@）
+--- pyright 报错行号（去重排序）---
+96 144 278 279 280 281 286 287 288 
+--- 求交：落在 253-264 的报错行 ---
+(空 = 本卡改动行 0 报错)

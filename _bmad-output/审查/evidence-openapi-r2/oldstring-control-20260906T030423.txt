@@ -1,0 +1,16 @@
+### 对照：HEAD 之前的旧 FIX 串 'python scripts/spec-tools/check-openapi-drift.py --write backend/openapi.json' 逐字执行
+--- which python / python3 ---
+/opt/homebrew/bin/python
+/opt/homebrew/bin/python3
+=== 对照 A: cwd = 仓库根 ===
+cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review
+    from app.core.logging import configure_logging  # noqa: E402
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/app/core/logging.py", line 26, in <module>
+    import structlog
+ModuleNotFoundError: No module named 'structlog'
+rc_root_old=1
+=== 对照 B: cwd = backend/ ===
+cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python: can't open file '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/scripts/spec-tools/check-openapi-drift.py': [Errno 2] No such file or directory
+rc_backend_old=2

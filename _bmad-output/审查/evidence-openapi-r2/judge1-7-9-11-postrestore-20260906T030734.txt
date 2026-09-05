@@ -1,0 +1,30 @@
+=== 裁判 1(还原后复跑): 26 门 ===
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================= 26 passed, 10 warnings in 1.13s ========================
+rc_pytest=0
+=== 裁判 2: def test_ 计数 ===
+26
+=== 裁判 7(还原后复跑): DRIFT ===
+{"event": "LiteLLM: Failed to fetch remote model cost map from https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json: socket connect blocked during OpenAPI export (target=('127.0.0.1', 1082)) \u2014 check-openapi-drift.py \u53ea\u5141\u8bb8 import, \u4e0d\u5141\u8bb8 lifespan/\u7f51\u7edc\u884c\u4e3a. Falling back to local backup.", "logger": "LiteLLM", "level": "warning", "timestamp": "2026-09-05T19:07:48.630979Z"}
+{"event": "cohere not installed. Cohere API reranking unavailable.", "logger": "agentic_rag.reranking", "level": "info", "timestamp": "2026-09-05T19:07:54.405926Z"}
+{"event": "Agentic RAG module loaded successfully. AGENTIC_RAG_AVAILABLE=True", "logger": "agentic_rag", "level": "info", "timestamp": "2026-09-05T19:07:54.445662Z"}
+{"event": "RAGService: LangGraph/Agentic RAG available. LANGGRAPH_AVAILABLE=True", "logger": "app.services.rag_service", "level": "info", "timestamp": "2026-09-05T19:07:54.445748Z"}
+{"event": "AgentService not available, canvas uses template questions only", "logger": "app.api.v1.endpoints.review", "level": "info", "timestamp": "2026-09-05T19:07:54.633180Z"}
+{"event": "src.rollback not available \u2014 rollback endpoints will return 503", "logger": "app.api.v1.endpoints.rollback", "level": "warning", "timestamp": "2026-09-05T19:07:54.644283Z"}
+{"event": "[MCP] Patched fastapi-mcp anyOf+type schema conflict (v0.4.0 bug)", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-05T19:07:54.910224Z"}
+{"event": "[P0-2] Registered 6 read-only MCP tool routes + 14 quarantined (410) stubs", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-05T19:07:54.922080Z"}
+{"event": "[MCP] Stripped spurious 'type' from 321 anyOf properties across 204 tools", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-05T19:07:55.425160Z"}
+{"event": "No auth config provided, skipping auth setup", "logger": "fastapi_mcp.server", "level": "info", "timestamp": "2026-09-05T19:07:55.426323Z"}
+{"event": "MCP HTTP server listening at /mcp", "logger": "fastapi_mcp.server", "level": "info", "timestamp": "2026-09-05T19:07:55.426383Z"}
+{"event": "[Story 3.2] MCP server mounted at /mcp (streamable HTTP) with canvas-learning tools", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-05T19:07:55.426414Z"}
+DRIFT: none (paths=193 schemas=353)
+rc_drift=0
+=== 裁判 9: tests/contract --collect-only ===
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=================== 310 tests collected in 67.05s (0:01:07) ====================
+<sys>:0: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
+rc_collect=0
+=== 裁判 11: stderr 入库 / status ===
+ls-files stderr count = 0
+tracked-dirty (应空) =  M backend/tests/contract/test_openapi_snapshot_drift.py
+ M scripts/spec-tools/check-openapi-drift.py
