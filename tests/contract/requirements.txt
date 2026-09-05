@@ -14,14 +14,18 @@ PyYAML>=6.0
 
 # Schemathesis for API contract testing (optional, for FastAPI)
 # CARD-TOOL-dredd-decide [BATCH-2026-09-05-第十一批]: 版本口径统一到**一处**。
-# 这里原本写 `schemathesis>=3.19.0`, 与仓库根 pyproject.toml 的 `>=3.0` 是两套,
-# 而两者都放行 3.x —— 但 backend/tests/contract/test_openapi_contract.py 用的
-# `schemathesis.openapi.from_asgi` 是 4.x 才有的形态(实测 4.14.3 下顶层
-# `from_asgi` 已不存在)。为免再次出现"两个 pin 说不同的话", 本行不再写版本,
-# 唯一权威是 **仓库根 pyproject.toml 的 [project.optional-dependencies].dev**。
-#   安装: pip install -e ".[dev]"   或   pip install 'schemathesis>=4.0'
-# 注: 本文件全仓**没有任何安装方**(除了它自己第 2 行的说明), 属文档级清单。
-schemathesis    # 版本见仓库根 pyproject.toml [project.optional-dependencies].dev
+# 这里原本写 `schemathesis>=3.19.0`, 与仓库根 pyproject.toml 的 `>=3.0` 是两套。
+# 两者都没有上界, 于是环境漂到了 4.x —— 而 4.x 把四个 `checks.*_conformance`
+# 从模块属性挪进了注册表, backend/tests/contract/test_openapi_contract.py 已改用
+# 注册表写法(`load_all_checks()` + `CHECKS.get_by_names`), 那是 **4.x 专用**。
+# 单一权威 = **仓库根 pyproject.toml 的 [project.optional-dependencies].dev**。
+#   安装: pip install -e ".[dev]"
+# ⚠️ 下面这行**必须自带约束**, 不能只写裸包名靠注释指路 —— pip 读不到 pyproject
+#    的约束, 裸包名等于把原来的 `>=3.19.0` 下限也一并取消了(Codex round-1 指出)。
+#    所以这里与 pyproject 写同一个下限; 两处若再分叉, 以 pyproject 为准。
+# 注: 本文件在**受版本控制的自动化**里未找到消费方(CI 装的是 backend/requirements.txt),
+#     但不排除有人按上面第 2 行手动安装, 故仍按可安装清单维护。
+schemathesis>=4.0    # 与仓库根 pyproject.toml 同步; 冲突时以 pyproject 为准
 
 # HTTP client for contract tests (optional, for FastAPI)
 requests>=2.28.0

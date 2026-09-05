@@ -22,10 +22,13 @@ dev = [
     #   hasattr(schemathesis, "openapi")            -> True
     #   hasattr(schemathesis.openapi, "from_asgi")  -> True
     #   hasattr(schemathesis, "from_asgi")          -> **False**(顶层的已被移除)
-    # 即任何解到 3.x 的环境都会在 **import 阶段** AttributeError, 而该文件顶部的
-    # `pytest.importorskip("schemathesis")` 只挡"没装", 挡不住"装错版本" ——
-    # 那会变成收集期报错而不是 skip。CI 侧另配了 `python -c 'import schemathesis'`
-    # 硬前置(见 .github/workflows/test.yml), 让这类问题变红而不是被静默吞掉。
+    # 3.25/3.30/3.39 实测: `openapi.from_asgi` 与四个 `checks.*_conformance`
+    # **两套并存**, 所以该文件在 3.x 后期是能跑的; 4.x 把 checks 挪进注册表后,
+    # 只有注册表写法可用。本卡改用注册表写法 ⇒ 下限必须是 4.0。
+    # ⚠️ 本注释**不描述 CI**: 截至本卡, .github/workflows/test.yml 既没有
+    #    `python -c 'import schemathesis'` 硬前置(原方案计划加, 重裁后未实施),
+    #    也没有把该合约测试放进白名单; 它在 :72 无版本地 `pip install schemathesis`。
+    #    详见 _bmad-output/审查/2026-09-05-Dredd-复活或退役-裁决页.md §六。
     "schemathesis>=4.0",
     "hypothesis>=6.0",
     # CARD-TOOL-pyright [BATCH-2026-09-05-第十一批] —— 类型检查器归口。

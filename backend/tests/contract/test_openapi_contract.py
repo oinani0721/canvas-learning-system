@@ -55,18 +55,24 @@ def test_api_contract(case):
     # Only run positive validation checks (response schema conformance)
     # Skip negative_data_rejection check since routers are placeholders
     #
-    # CARD-TOOL-dredd-decide [BATCH-2026-09-05-第十一批] 修 API 混用:
-    # 原写法是 `schemathesis.checks.status_code_conformance` 这样的**模块属性**
-    # 访问 —— 那是 schemathesis 3.x 的形态。本机实测 4.14.3:
-    #   dir(schemathesis.checks) 里这四个名字**一个都没有**, 只有
-    #   not_a_server_error / max_response_time / CHECKS / load_all_checks 等;
-    #   四个 conformance check 仍然存在, 但改成经**注册表**取得(见下)。
-    # 于是本文件此前处于「任何版本都跑不通」的状态:
-    #   3.x -> 第 26 行的 `schemathesis.openapi.from_asgi` 在 import 期就 AttributeError;
-    #   4.x -> 这里每个用例都 AttributeError。
-    # 文件顶部的 `pytest.importorskip` 只挡"没装", 挡不住"装错版本", 所以这个
-    # 缺陷一直没被任何人看见 —— 它从未被真正执行过。
-    # 本次改动**不削弱任何检查**: 取的是同名的那四个 check, 语义不变。
+    # CARD-TOOL-dredd-decide [BATCH-2026-09-05-第十一批] —— 这是**防御性加固**,
+    # 不是 bug 修复。措辞经 Codex round-1 打回两次后按实测重写:
+    #
+    # 原写法 `schemathesis.checks.status_code_conformance` 是**模块属性**访问。
+    # 它在 3.25/3.30/3.39 上直接可用; 在 4.14.3 上, `schemathesis.checks` 有动态
+    # `__getattr__`, 且 pytest 插件在**收集期**(pytest/plugin.py:146 的 _gen_items)
+    # 就调了 load_all_checks(), 所以属性同样可用。
+    # 实测(把改前版本原样跑真 pytest, 一个 operation): 拒因是
+    # `hypothesis.errors.DeadlineExceeded: Test took 20857.69ms`, **不是 AttributeError**
+    # —— 即原写法在当前环境下**并没有坏**。
+    #
+    # 那为什么还要改: 原写法依赖"插件恰好已经加载过检查"这个**隐式前提**。
+    # 一旦有人在别的入口(非 pytest / 手搓 Case / CLI 以外的路径)复用这段逻辑,
+    # 属性就取不到。改成显式 `load_all_checks()` + 注册表取名后, 不再依赖该前提。
+    # **不削弱任何检查**: Codex 独立验证过 get_by_names 返回的四个函数与加载后的
+    # 四个模块属性**逐一是同一对象**; 缺名会抛 KeyError 而不是悄悄少取。
+    # 代价: 这套写法是 **4.x 专用**(3.39.0 没有 load_all_checks/CHECKS),
+    # 所以依赖下限必须同批抬到 >=4.0。
     _CHECK_NAMES = (
         "status_code_conformance",
         "content_type_conformance",
