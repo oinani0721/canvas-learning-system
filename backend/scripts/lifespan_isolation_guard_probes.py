@@ -817,6 +817,301 @@ def probe_shell_can_report_changed() -> dict:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# M15 —— runtime 文件 **glob 分支**的探针族（CARD-W4-3b，2026-09-05）
+#
+# 缺口原文（X4 验收单 §7.9a #15）：`runtime_sha.sh` 在 2026-09-04 修了一个真·假绿
+# （journal 改名成 `vault_index_pending__<key>.jsonl` 后，固定文件名锚点落空，
+# `absent == absent` 让门恒判 unchanged），但**没有任何一条探针覆盖那条修复**——
+# 22 条注册探针里唯一碰运行时文件的 `shell-can-report-changed` 写的是固定项
+# `data/bug_log.jsonl`，走的是 WATCHED_FIXED 分支。下一个人把 glob 那几行删掉，
+# 29/29 照样全绿。「加门 ≠ 加强度」的教科书形态。
+#
+# 本族六条，覆盖 glob 分支的可能坏法 + 收窄后的旧名回归 + 展开顺序：
+#   1. glob-absent-to-present  —— 正探针：after 才出现的文件必须被抓（rc=1 CHANGED）
+#   2. glob-cached-expansion   —— 对照：把展开提到快照外只算一次 ⇒ 必须瞎（unchanged）
+#   3. glob-pattern-neutralized—— 对照：模式换成不匹配的 ⇒ 必须瞎（unchanged）
+#   4. glob-sidecar-excluded   —— M14 收窄的正证据：单下划线旁文件**不该**进监视面
+#   5. glob-expansion-sorted   —— M13：展开必须按字节序，不是 readdir 顺序
+#   6. legacy-journal-watched  —— M14 收窄的安全证据：旧固定名仍必须被抓
+#
+# 2 和 3 是「拆了要瞎」型对照：它们证明 1 的红**来自 glob 分支**，而不是被固定项
+# 或别的什么顺带抓到的（判据绑定「被哪一层抓的」，不是「有东西红了」）。
+# 全部只在 tmp 假 backend 里造文件，真实工作树一个字节不碰。
+# ═══════════════════════════════════════════════════════════════════════════
+
+#: 假 backend 里 glob 分支的目标文件名 —— 必须是**命名空间形态**（双下划线），
+#: 与 `vault_state_paths.namespaced_state_path()` 的产出同形。
+_GLOB_JOURNAL_NAME = "vault_index_pending__w4probe.jsonl"
+#: 单下划线的「旁文件」—— 生产写侧**产不出**这个形态，收窄后不该被监视。
+_SIDECAR_NAME = "vault_index_pending_backup.jsonl"
+#: G2-5 之前的旧固定名 —— 收窄后由 WATCHED_FIXED 精确项承接。
+_LEGACY_JOURNAL_NAME = "vault_index_pending.jsonl"
+
+#: snapshot() 里「每次快照重新展开 glob」那一段的**逐字锚点**。
+#: 变异靠它定位；锚点对不上就说明生产代码改了形状，探针必须当场喊脱节而不是静默放过。
+_GLOB_EXPAND_ANCHOR = """  local __raw __sorted
+  for g in "${WATCHED_GLOBS[@]}"; do
+    __raw="$(builtin compgen -G "$g" || true)"
+    [ -n "$__raw" ] || continue
+    __sorted="$(builtin printf '%s\\n' "$__raw" | LC_ALL=C "$SORT_BIN")" || {
+      builtin printf 'RUNTIME-FILES: GATE-BROKEN — glob 展开排序失败（%s），拒绝给出结论\\n' \\
+        "$SORT_BIN" >&2
+      exit 1
+    }
+    while IFS= read -r f; do
+      [ -n "$f" ] && targets+=("$f")
+    done <<<"$__sorted"
+  done"""
+
+#: 变异体：把展开**提到 snapshot 之外**只算一次（= 「缓存 glob 展开」）。
+#: before/after 共用同一份预展开列表，after 才被创建的文件永远进不来。
+_GLOB_EXPAND_CACHED = """  if [ "${#W4_PROBE_CACHED[@]}" -gt 0 ]; then
+    targets+=("${W4_PROBE_CACHED[@]}")
+  fi"""
+
+_GLOB_CACHE_PRELUDE = """W4_PROBE_CACHED=()
+for __pg in "${WATCHED_GLOBS[@]}"; do
+  while IFS= read -r __pf; do
+    [ -n "$__pf" ] && W4_PROBE_CACHED+=("$__pf")
+  done < <(builtin compgen -G "$__pg" || true)
+done
+
+snapshot() {"""
+
+
+def _fake_backend(prefix: str, gate_text: str | None = None) -> tuple[Path, Path]:
+    """在 tmp 里搭一棵最小假 backend，返回 ``(tmp_root, fake_backend)``。
+
+    ⛔ 只在 tmp 造文件 —— 卡文隔离条款：真实 ``backend/app/data`` / ``backend/data``
+    一个字节都不碰（那两处是**生产运行时数据**，不是测试夹具）。
+    ``gate_text`` 不给就原样拷贝生产脚本；给了就写入变异体（对照探针用）。
+    """
+    tmp = Path(tempfile.mkdtemp(prefix=prefix))
+    fake = tmp / "backend"
+    (fake / "app" / "data").mkdir(parents=True)
+    (fake / "tests").mkdir()
+    (fake / "scripts").mkdir()
+    (fake / "data" / "outbox").mkdir(parents=True)
+    (fake / "app" / "main.py").write_text("# fake\n", encoding="utf-8")
+    dst = fake / "scripts" / "lifespan_isolation_runtime_sha.sh"
+    if gate_text is None:
+        shutil.copy2(GATE, dst)
+    else:
+        dst.write_text(gate_text, encoding="utf-8")
+    return tmp, fake
+
+
+def _run_gate_creating(fake: Path, filename: str) -> subprocess.CompletedProcess:
+    """让被包裹命令在假 backend 的 ``app/data/`` 下**新建** ``filename``。
+
+    快照前该文件不存在 —— 这正是「只有 after 那次展开才看得见」的形态。
+    """
+    target = fake / "app" / "data" / filename
+    assert not target.exists(), f"探针前提被破坏：{target} 在快照前就存在"
+    gate = fake / "scripts" / "lifespan_isolation_runtime_sha.sh"
+    return _sh(f"bash {gate} -- /bin/sh -c 'printf \"w4probe\\n\" > {target}'")
+
+
+def _glob_probe_result(
+    name: str,
+    proc: subprocess.CompletedProcess,
+    *,
+    expect_changed: bool,
+    verdict_ok: str,
+    verdict_bad: str,
+) -> dict:
+    """glob 族的统一判据。
+
+    ⛔ 期望「变绿」的对照探针**必须显式排除 GATE-BROKEN**：变异如果把脚本弄崩了，
+    rc 也可能非 0 / 输出里没有 CHANGED —— 那是「门坏了」而不是「门瞎了」，两者
+    对本探针是完全不同的结论。判据绑定的是**由哪一条路径给出的哪一句结论**。
+    """
+    changed = "RUNTIME-FILES: CHANGED" in proc.stdout
+    unchanged = "RUNTIME-FILES: unchanged" in proc.stdout
+    broken = "GATE-BROKEN" in proc.stdout or "GATE-BROKEN" in proc.stderr
+    if expect_changed:
+        ok = proc.returncode == 1 and changed and not broken
+    else:
+        ok = proc.returncode == 0 and unchanged and not broken
+    return {
+        "name": name,
+        "ok": ok,
+        "rc": proc.returncode,
+        "expect_rc": 1 if expect_changed else 0,
+        "verdict": verdict_ok if ok else verdict_bad,
+        "reason": ""
+        if ok
+        else (
+            f"rc={proc.returncode} changed={changed} unchanged={unchanged} "
+            f"gate_broken={broken} stdout={proc.stdout[-400:]}"
+        ),
+        "stderr_tail": proc.stderr[-300:],
+    }
+
+
+def probe_runtime_glob_absent_to_present() -> dict:
+    """正探针：快照前不存在、被包裹命令新建的 journal 必须让门判 CHANGED。
+
+    这是 M15 缺口的直接补门 —— 覆盖 ``WATCHED_GLOBS`` 的 absent→present 分支。
+    """
+    tmp, fake = _fake_backend("w4-glob-new-")
+    proc = _run_gate_creating(fake, _GLOB_JOURNAL_NAME)
+    shutil.rmtree(tmp, ignore_errors=True)
+    return _glob_probe_result(
+        "runtime-glob-absent-to-present",
+        proc,
+        expect_changed=True,
+        verdict_ok="glob 分支能抓到新建 journal",
+        verdict_bad="新建了命名空间 journal 却仍判 unchanged（glob 分支是死的）",
+    )
+
+
+def probe_runtime_glob_cached_expansion_is_blind() -> dict:
+    """对照：把 glob 展开提到快照外只算一次 ⇒ 门必须**瞎**（判 unchanged）。
+
+    证明上一条的红**来自「每次快照重新展开」这几行**，不是别处顺带抓到的。
+    """
+    text = GATE.read_text(encoding="utf-8")
+    assert _GLOB_EXPAND_ANCHOR in text, "glob 展开锚点不在脚本里 —— 探针与被测对象已脱节"
+    assert "\nsnapshot() {" in text, "snapshot 定义锚点不在脚本里 —— 探针与被测对象已脱节"
+    mutated = text.replace(_GLOB_EXPAND_ANCHOR, _GLOB_EXPAND_CACHED)
+    mutated = mutated.replace("\nsnapshot() {", "\n" + _GLOB_CACHE_PRELUDE, 1)
+    tmp, fake = _fake_backend("w4-glob-cached-", gate_text=mutated)
+    proc = _run_gate_creating(fake, _GLOB_JOURNAL_NAME)
+    shutil.rmtree(tmp, ignore_errors=True)
+    return _glob_probe_result(
+        "runtime-glob-cached-expansion",
+        proc,
+        expect_changed=False,
+        verdict_ok="缓存展开后门确实瞎了 ⇒ 「每次重新展开」承重",
+        verdict_bad="缓存了展开却仍判 CHANGED —— 上一条的红不来自 glob 分支",
+    )
+
+
+def probe_runtime_glob_pattern_neutralized_is_blind() -> dict:
+    """对照：把 glob 模式换成永不匹配的 ⇒ 门必须**瞎**（判 unchanged）。
+
+    刻意**不**删除数组元素：删了会撞上 ``EXPECTED_GLOB_COUNT`` 自检，门喊
+    GATE-BROKEN —— 那验的是计数自检，不是 glob 项本身承重。
+    """
+    text = GATE.read_text(encoding="utf-8")
+    real = '"${BACKEND_DIR}/app/data/vault_index_pending__*.jsonl"'
+    assert real in text, "WATCHED_GLOBS 的模式不在脚本里 —— 探针与被测对象已脱节"
+    mutated = text.replace(real, '"${BACKEND_DIR}/app/data/w4-never-matches__*.jsonl"')
+    tmp, fake = _fake_backend("w4-glob-neutral-", gate_text=mutated)
+    proc = _run_gate_creating(fake, _GLOB_JOURNAL_NAME)
+    shutil.rmtree(tmp, ignore_errors=True)
+    return _glob_probe_result(
+        "runtime-glob-pattern-neutralized",
+        proc,
+        expect_changed=False,
+        verdict_ok="换掉模式后门确实瞎了 ⇒ 这条 glob 项承重",
+        verdict_bad="模式已换成永不匹配却仍判 CHANGED —— 红因不明",
+    )
+
+
+def probe_runtime_glob_sidecar_excluded() -> dict:
+    """M14 收窄的正证据：单下划线**旁文件**不该进监视面 ⇒ 门判 unchanged。
+
+    ``vault_index_pending_backup.jsonl`` 是人手放的备份形态，生产写侧
+    （``legacy_state_path`` / ``namespaced_state_path``）**产不出**它。收窄前的
+    ``vault_index_pending*.jsonl`` 会把它收进来，于是「谁在 app/data 放了个备份」
+    就让门判 CHANGED —— 假红。本探针钉住收窄后的行为。
+    """
+    tmp, fake = _fake_backend("w4-glob-sidecar-")
+    proc = _run_gate_creating(fake, _SIDECAR_NAME)
+    shutil.rmtree(tmp, ignore_errors=True)
+    return _glob_probe_result(
+        "runtime-glob-sidecar-excluded",
+        proc,
+        expect_changed=False,
+        verdict_ok="旁文件不在监视面（M14 收窄生效）",
+        verdict_bad="单下划线旁文件仍被收进监视面 —— glob 比写侧能产出的形态宽",
+    )
+
+
+def probe_runtime_glob_expansion_sorted() -> dict:
+    """M13：glob 项在快照里必须**按字节序排列**，不能是 readdir 顺序。
+
+    2026-09-05 于 GNU bash 3.2.57(1)-release (arm64-apple-darwin25) 实测：
+    ``compgen -G`` 返回的是 **readdir 顺序**（六个文件实测得到 alpha, 2, Mid,
+    zeta, beta, 10），而 ``for f in glob`` 才排序（10, 2, alpha, beta, Mid, zeta）。
+    脚本原注释断言的「compgen -G 展开本身已排序、不必外部 sort」因此不成立。
+    顺序不稳定会让 before/after 因**排列不同**而字符串不等 ⇒ 判 CHANGED（假红）。
+
+    本探针用同一组会让 readdir 乱序的文件名，直接从门的 before 段读回实际排列。
+    判据是「**glob 项那几行**恰好等于字典序」——不是「跑完没红」。
+
+    ⛔ 还要**验证乱序前提**（round-1 Codex LOW-4）：先直接问一次未经排序的
+    ``compgen -G``，确认它在**本次运行的这个文件系统上**确实给出非字节序。前提不
+    成立时，「删掉 sort 会翻红」这句话在此环境下不成立 —— 那就判 FAIL 并说清楚
+    「承重未验证」，而不是绿着糊过去（探针的价值来自它能失败）。
+    """
+    tmp, fake = _fake_backend("w4-glob-sorted-")
+    data = fake / "app" / "data"
+    # 刻意用会让 readdir 顺序偏离字典序的一组名字（创建顺序也打乱）。
+    names = [f"vault_index_pending__{k}.jsonl" for k in ("zeta", "alpha", "Mid", "beta", "10", "2")]
+    for n in names:
+        (data / n).write_text("x\n", encoding="utf-8")
+    # 前提探测：未经排序的原始展开顺序。
+    raw_proc = _sh(f"/bin/bash --noprofile --norc -c 'builtin compgen -G \"{data}/vault_index_pending__*.jsonl\"'")
+    raw = [line.rsplit("/", 1)[-1] for line in raw_proc.stdout.splitlines() if line.strip()]
+    expected = sorted(names)
+    premise_ok = sorted(raw) == expected and raw != expected
+
+    gate = fake / "scripts" / "lifespan_isolation_runtime_sha.sh"
+    proc = _sh(f"bash {gate} -- /usr/bin/true")
+    seen: list[str] = []
+    for line in proc.stdout.splitlines():
+        if line.startswith("=== 执行被包裹命令"):
+            break  # 只读 before 段
+        for n in names:
+            if line.endswith(f"/{n}"):
+                seen.append(n)
+    sorted_ok = proc.returncode == 0 and seen == expected and "GATE-BROKEN" not in proc.stdout
+    ok = sorted_ok and premise_ok
+    shutil.rmtree(tmp, ignore_errors=True)
+    if not premise_ok:
+        reason = (
+            f"乱序前提不成立：原始 compgen 展开为 {raw}（排序后 {expected}）—— "
+            "本环境下去掉 sort 也会通过，本探针无鉴别力，不能声称排序承重已验证"
+        )
+    elif not sorted_ok:
+        reason = f"rc={proc.returncode} 实得={seen} 期望={expected}"
+    else:
+        reason = ""
+    return {
+        "name": "runtime-glob-expansion-sorted",
+        "ok": ok,
+        "rc": proc.returncode,
+        "expect_rc": 0,
+        "verdict": "glob 展开按字节序排好（且原始展开确实乱序 ⇒ 排序承重）"
+        if ok
+        else ("乱序前提不成立，承重未验证" if not premise_ok else "glob 展开顺序不是字节序"),
+        "reason": reason,
+        "stderr_tail": proc.stderr[-300:],
+    }
+
+
+def probe_runtime_legacy_journal_watched() -> dict:
+    """M14 收窄的**安全**证据：旧固定名仍必须被抓 ⇒ 门判 CHANGED。
+
+    收窄是放松方向。旧名 ``vault_index_pending.jsonl`` 以前靠那条过宽 glob 顺带
+    收进来，收窄后必须由 ``WATCHED_FIXED`` 的精确项接住 —— 接不住就是监视面变窄。
+    """
+    tmp, fake = _fake_backend("w4-glob-legacy-")
+    proc = _run_gate_creating(fake, _LEGACY_JOURNAL_NAME)
+    shutil.rmtree(tmp, ignore_errors=True)
+    return _glob_probe_result(
+        "runtime-legacy-journal-watched",
+        proc,
+        expect_changed=True,
+        verdict_ok="旧固定名仍在监视面（收窄没让它漏网）",
+        verdict_bad="收窄之后旧固定名漏网 —— 监视面实际变窄了",
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 
 
 def main() -> int:
@@ -844,6 +1139,14 @@ def main() -> int:
         probe_isolated_copy_carries_no_data(),
         probe_shell_selftest_is_load_bearing(),
         probe_shell_can_report_changed(),
+        # M15 族：runtime 文件的 **glob 分支**（CARD-W4-3b）。前三条是
+        # 「正探针 + 两条拆了要瞎的对照」，后两条钉住 M14 收窄的两个方向。
+        probe_runtime_glob_absent_to_present(),
+        probe_runtime_glob_cached_expansion_is_blind(),
+        probe_runtime_glob_pattern_neutralized_is_blind(),
+        probe_runtime_glob_sidecar_excluded(),
+        probe_runtime_glob_expansion_sorted(),
+        probe_runtime_legacy_journal_watched(),
     ]
     results.extend(probe_shell_injections())
 
