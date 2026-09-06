@@ -350,7 +350,10 @@ def _gate_payload(payload: dict) -> dict[str, int]:
     placeholder = payload["ineligible"].get("placeholder")
     _ph, _zero, future_map = _gate_boards_rollup(payload["boards"], groups, len(placeholder))
     assert future_map is not None, "boards rollup 没给出 future_map，门禁无法逐板对账"
-    return _gate_buckets(payload["buckets"], groups, payload["stats"], payload["generated_at"], future_map, up_gated)
+    # 集成期适配 (BATCH-2026-09-05-第十二批 主 session): Y2-A CARD-G6-5-R 把 _gate_buckets 的返回
+    # 从 dict[str,int] 改成 (counts, passed_rows) 二元组; 本门只消费 counts, 判据不变。
+    counts, _rows = _gate_buckets(payload["buckets"], groups, payload["stats"], payload["generated_at"], future_map, up_gated)
+    return counts
 
 
 @pytest.mark.parametrize(

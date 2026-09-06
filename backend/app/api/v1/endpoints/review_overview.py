@@ -2073,7 +2073,7 @@ def _write_board_done(vault_dir: Path, vaults_root: Path, board: str, day: str) 
 
     ⛔ 本函数是本端点**唯一**的写点, 写面恰是那一个 state 文件:
       · 不碰任何节点 md (fsrs_* frontmatter 一个字节都不动);
-      · 不追加 learning_events.jsonl ——「做完了」是看板偏好, 不是学习事件;
+      · 不追加 learning_events 账本 ——「做完了」是看板偏好, 不是学习事件;
       · 不写 vault 内任何路径 (BACKUPS 在仓库下, 不在库内)。
     读改写全程复用 runner.load_state / save_state: 损坏隔离与 os.replace
     原子写都是它们的既有行为, 这里不另写一套。
@@ -2380,7 +2380,7 @@ def review_overview_board_done(
     副产品; 本动作写的是用户的判断)。三条纪律见模块 docstring:
 
       · 写面恰是 backups/daily-review.<key>.state.json 一个文件 —— 节点
-        frontmatter 的 fsrs_* 一个字节不动, learning_events.jsonl 不追加。
+        frontmatter 的 fsrs_* 一个字节不动, learning_events 账本不追加。
         标记完成**不影响 FSRS**, 页面上也这么写着 (_DONE_NOTE)。
       · 允许一道题都没答就标完成 (用户裁决) —— 因为"做完了"记的是人的
         判断, 不是系统对掌握度的判断; 后者归 FSRS, 本动作碰不到它。
