@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-05-第十二批 · 车道 Y3 · 卡 CARD-G6-9a round-1
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`（`/opt/homebrew/bin/codex --version` 实测）
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-G6-9a.md)"`
+> 审查绑定: **不绑最终版本 / 审工作区**。Codex 自述读取版本 534 行、SHA-256 `9c52291d…08b0109`；本卡定稿版本 SHA-256 `8d803c277ff754b9676079c1067c9f011c2188bc25336960c911f4c1ce3b212a`（7 条整改后），commit `d393fd2e`。差异 = 本轮 7 条整改**未经复核**（失绑，已登记于验收单「台账待登记条目」#7 与「本卡未证明什么」#15）。
+> 会话头自证（抄 `.stderr` 含 model 行，stderr 本身不入库，`.gitignore:261` 覆盖）:
+> `OpenAI Codex v0.153.3` / `model: gpt-6-astra` / `reasoning effort: ultra`
+
+---
+
 **暂不建议本卡收官：发现 3 项 HIGH、2 项 MEDIUM、2 项 LOW，未另列 BLOCKER。**
 
 复核期间文件从 497 行变为 **534 行**；以下按最后稳定读取的版本定位，SHA-256 为 `9c52291d…08b0109`。本次未修改文件、未运行完整 pytest、未触发通知或定时任务；另在独立子进程中验证了原时区夹具和矩阵字面值。
