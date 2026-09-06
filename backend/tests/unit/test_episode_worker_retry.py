@@ -46,8 +46,14 @@ _ORIGINAL_ASYNCIO_SLEEP = asyncio.sleep
 
 
 @pytest.fixture
-async def worker(tmp_path):
+async def worker(tmp_path, monkeypatch):
     """A fresh GraphitiEpisodeWorker with a temp dead-letter path and a MagicMock graphiti client."""
+    # CARD-TOOL-testinfra-salvage 2026-09-06 (Codex round-1 MEDIUM-6): the
+    # dead-letter assertions below describe DEFAULT behaviour. DeadLetterStore reads
+    # DEAD_LETTER_STORE_FULL_BODY from the environment (episode_worker.py:228-232),
+    # so a developer who legitimately exports it would get a false red. Pin the
+    # default explicitly rather than inheriting whatever the shell happens to carry.
+    monkeypatch.delenv("DEAD_LETTER_STORE_FULL_BODY", raising=False)
     dead_letter = tmp_path / "dead_letter.jsonl"
     w = GraphitiEpisodeWorker(maxsize=10, dead_letter_path=str(dead_letter))
     mock_graphiti = MagicMock()
@@ -233,13 +239,22 @@ async def test_dead_letter_on_retries_exhausted(worker):
     assert record["retry_count"] == 3  # 3 retries attempted before dead-letter
     assert "failed_at" in record
     # CARD-TOOL-testinfra-salvage 2026-09-06: DeadLetterStore 做过隐私加固
-    # (episode_worker.py:205-254)：全文只在 DEAD_LETTER_STORE_FULL_BODY=true 时落盘，
-    # 默认只留 sha256 + length。原断言 `"episode_body_full" in record` 写于加固之前，
-    # 在默认配置下恒假。改为正面锁住加固后的契约（默认不落全文）。
-    assert "episode_body_full" not in record, "默认配置下不得把 episode 全文落进 dead-letter"
+    # (episode_worker.py:205-254)：未截断的 `episode_body_full` 只在
+    # DEAD_LETTER_STORE_FULL_BODY=true 时落盘，并且落之前过 _redact()。原断言
+    # `"episode_body_full" in record` 写于加固之前，在默认配置下恒假。
+    #
+    # ⚠️ 口径边界（Codex round-1 MEDIUM-3 更正）：这**不等于**「默认不落正文」。
+    # record 由 `**task.to_dict()` 展开（episode_worker.py:244），而 to_dict() 的
+    # `episode_body` 字段（:108）落的是 `self.episode_body[:200]` —— 截断到 200 字符
+    # 的正文，且**不过 _redact()**。本用例的 body 只有 17 字符，因此正文完整留在
+    # record["episode_body"] 里。下面第三条断言把这个真实行为钉住，免得后人从
+    # `episode_body_full not in record` 推出「dead-letter 不含正文」的错误结论。
+    assert "episode_body_full" not in record, "默认配置下不得落未截断的 episode 全文"
     # 期望值独立于被测量：直接对字面 body 求 sha256，不从 record 里反取。
     assert record["episode_body_sha256"] == hashlib.sha256(b'{"action":"test"}').hexdigest()
     assert record["episode_body_length"] == len('{"action":"test"}')
+    # 真实行为锚点：截断正文一直都在（存量，非本卡引入）。
+    assert record["episode_body"] == '{"action":"test"}'[:200]
 
 
 # ─── Scenario 4: WorkerMetrics counter completeness ────────────────────────

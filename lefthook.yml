@@ -466,12 +466,20 @@ pre-push:
     # failing plugin tests through pre-push. Only the pipe→wrapper transform is
     # taken from f19dcff6; its literal glob and runner predate the
     # ChatGPT-Review P0-1 fix above and are deliberately NOT applied.
+    #
+    # Codex round-1 HIGH-1 (2026-09-06): the wrapper alone is NOT enough. lefthook
+    # runs each `run` block through `sh -c` without `-e`, so the block's exit code
+    # is that of its LAST command — the trailing `echo` returned 0 and masked the
+    # wrapper's code (measured: wrapper line alone rc=127, whole block rc=0).
+    # f19dcff6 has the same defect. `|| exit $?` makes the block exit on failure
+    # before reaching the echo; backend-smoke below solves it the other way, with
+    # an explicit `exit $TEST_EXIT`.
     frontend-test:
       glob: "frontend/obsidian-plugin/{src,tests}/**/*.{ts,tsx}"
       run: |
         if [ -d "frontend/obsidian-plugin/node_modules" ]; then
           echo "[Pre-push] Running plugin tests (node --test via esbuild bundle)..."
-          ./scripts/run_cmd_capture.sh --cwd frontend/obsidian-plugin --tail 120 -- npm test
+          ./scripts/run_cmd_capture.sh --cwd frontend/obsidian-plugin --tail 120 -- npm test || exit $?
           echo "[Pre-push] Plugin tests done."
         else
           echo "[Pre-push] frontend/obsidian-plugin/node_modules missing — run 'npm --prefix frontend/obsidian-plugin install' first. Skipping."
