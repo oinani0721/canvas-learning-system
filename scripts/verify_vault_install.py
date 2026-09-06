@@ -9,15 +9,22 @@ Obsidian 自己生成的, 不算缺陷, 只是要让审计者看见。读不进�
 unreadable, 并且**计入阻断** —— 「我看不见」不等于「一致」。
 
 **只读**: 本脚本对 --vault / --source 只做 stat / 列目录 / 读字节, 没有任何写入
-分支。唯一的写是把报告落到 --report, 而且:
-  1. 落点不得在 --vault / --source 之内, **也不得在这两棵树里任何一条 symlink
-     解析后的目标之下** —— 只比路径前缀挡不住「vault 里的 .claude 是指向树外
-     目录的软链」这种别名;
-  2. 落点若是个已存在且有多个硬链接的文件, 直接拒绝;
-  3. 真正写的时候是「在同目录独占创建临时文件 → 写 → os.replace 换目录项」,
-     从不原地覆盖已有 inode。前两道是可读的早退, 第三道才是承重的那道。
-**已知边界(如实声明)**: 检查与写入之间存在 TOCTOU 窗口; 检查之后新建的别名不在
-覆盖范围内; 本脚本不是特权程序, 防的是误伤而不是有意的对抗。
+分支。唯一的写是把报告落到 --report, 由**三道共同承重**(不是「一道承重两道早退」——
+换 inode 保护得了旧 inode 的其它名字, 却保护不了「通过目录别名看到的目录项」,
+也阻止不了错误清理删掉别人的文件):
+  1. **落点按文件系统身份判**((st_dev, st_ino)), 不按路径字符串: resolve() 不做大小写
+     规范化, 而 macOS 默认文件系统大小写不敏感 —— 目录实际叫 `Vault` 时,
+     `--report vault/x` 的 is_relative_to 为 False 而两者其实是同一个对象。
+     禁写身份 = 两棵树本身 + 树内软链目标(**递归展开**, 两层软链能绕开单层解析),
+     按目录身份去重防环; 报告的**临时落点**同样过这道检查;
+  2. 落点若是已存在且有多个硬链接的文件, 直接拒绝; 若安全性扫描本身没跑完
+     (树里有读不动的目录), **拒绝落盘** —— 扫不完就不能说安全;
+  3. 写的时候在同目录独占创建临时文件(O_EXCL, 名字带 pid + 随机串) → 循环写满 →
+     os.replace 换目录项, 从不原地覆盖已有 inode; 失败时**只清理本次真正创建的那个
+     临时文件**(O_EXCL 失败意味着那文件是别人的, 删它就是毁别人的数据)。
+**已知边界(如实声明)**: 检查与写入之间存在 TOCTOU 窗口; 检查之后新建的别名不在覆盖
+范围内; 软链递归有深度上限, 超限按「扫描未完成」拒绝落盘; 身份比较覆盖大小写/软链/
+硬链接这几类别名, 但**不宣称穷尽所有别名**; 本脚本不是特权程序, 防的是误伤而不是对抗。
 
 **「活 vault 即模板」**(install-vault.sh:2-6): manifest 只声明 path/role/action/kind,
 不带任何内容或哈希基线 —— 内容的参照永远是 --source 指向的那个活 vault, 本仓不
@@ -42,6 +49,7 @@ import json
 import os
 import re
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
@@ -63,6 +71,9 @@ REQUIRED_ITEM_KEYS = ("path", "role", "action")
 GLOB_CHARS = "*?"
 
 DEFAULT_MANIFEST = Path(__file__).resolve().parent / "vault-install-manifest.json"
+
+# 落点检查器: 给一个路径, 返回错误消息或 None。报告本体与临时落点共用它。
+LocationGuard = Callable[[Path], "str | None"]
 
 
 class ManifestError(Exception):
@@ -140,6 +151,19 @@ class Report:
 # ── manifest 加载与校验 ───────────────────────────────────────────────
 
 
+def _require_encodable(value: str, label: str) -> None:
+    """会进报告文本的字符串必须能编码成 UTF-8。
+
+    孤立代理字符(如 JSON 里的 "\\ud800")能通过 json.loads, 却会在写报告时抛
+    UnicodeEncodeError —— 那时已经过了 ManifestError 的捕获面, 调用方拿到的不是
+    承诺的退出码 2, 还会留下临时文件。所以在加载阶段就挡掉。
+    """
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise ManifestError(f"{label} 含无法编码为 UTF-8 的字符: {exc}") from exc
+
+
 def _check_relative_segment(raw: object, label: str, *, allow_empty: bool = False) -> str:
     """校验并规范化一个「相对 vault 根」的路径值, 返回规范形式。
 
@@ -165,6 +189,10 @@ def _check_relative_segment(raw: object, label: str, *, allow_empty: bool = Fals
     normalized = PurePosixPath(raw).as_posix()
     if ".." in PurePosixPath(normalized).parts:
         raise ManifestError(f"{label} 不得含 .. 逃逸段: {raw!r}")
+    if normalized == ".":
+        # `.` / `./` / `.//` 都是「根」。不归一的话, 拼接会产出 `./a` 这种前缀,
+        # 与 declared_paths 里的 `a` 对不上, 已声明的条目会被误报成 extra。
+        return "" if allow_empty else normalized
     return normalized
 
 
@@ -203,6 +231,7 @@ def load_manifest(path: Path | str) -> Manifest:
     source = raw.get("source")
     if not isinstance(source, str) or not source:
         raise ManifestError(f"manifest 的 source 必须是非空字符串, 实为 {source!r}")
+    _require_encodable(source, "manifest 的 source")
     raw_items = raw.get("items")
     if not isinstance(raw_items, list) or not raw_items:
         raise ManifestError(f"manifest 的 items 必须是非空列表, 实为 {type(raw_items).__name__}")
@@ -218,6 +247,12 @@ def load_manifest(path: Path | str) -> Manifest:
         normalized_path = _check_path_field(entry["path"], seen)
         if not isinstance(entry["role"], str) or not entry["role"]:
             raise ManifestError(f"items[{index}] 的 role 必须是非空字符串")
+        _require_encodable(entry["role"], f"items[{index}] 的 role")
+        for optional in ("origin", "note"):
+            if optional in entry:
+                if not isinstance(entry[optional], str):
+                    raise ManifestError(f"items[{index}] 的 {optional} 必须是字符串")
+                _require_encodable(entry[optional], f"items[{index}] 的 {optional}")
         # 先验类型再查枚举: `action: []` / `{}` 这类 unhashable 值直接做集合成员判断会抛
         # TypeError, 逃出 ManifestError 的捕获面, CLI 就给不出承诺的退出码 2。
         if not isinstance(entry["action"], str):
@@ -249,6 +284,9 @@ def load_manifest(path: Path | str) -> Manifest:
         scan_match = entry["match"]
         if not isinstance(scan_match, str) or not scan_match:
             raise ManifestError(f"extra_scan[{index}] 的 match 必须是非空字符串")
+        _require_encodable(scan_match, f"extra_scan[{index}] 的 match")
+        if "/" in scan_match:
+            raise ManifestError(f"extra_scan[{index}] 的 match 只匹配单层名字, 不得含 /: {scan_match!r}")
         scan.append(ScanRoot(dir=scan_dir, match=scan_match))
 
     return Manifest(version=version, source=source, items=tuple(items), extra_scan=tuple(scan))
@@ -396,7 +434,10 @@ class ExcludeMatcher:
         """单条 exclude 在 vault 里实际命中的相对路径 (按静态前缀限定遍历面)。"""
         if not _has_glob(item.path):
             target = vault / item.path
-            return [item.path] if target.exists() and _kind_ok(item, target) else []
+            # exists() 对悬空软链是 False, 但那个条目**确实在目标里**(部署脚本也会删它),
+            # 不登记就等于漏报。用 lstat 口径: 只要目录项在, 就算存在。
+            present = target.exists() or target.is_symlink()
+            return [item.path] if present and _kind_ok(item, target) else []
         prefix = _static_prefix(item.path)
         scan_root = vault / prefix if prefix else vault
         regex = _pattern_to_regex(item.path)
@@ -408,18 +449,23 @@ class ExcludeMatcher:
 # ── 内容摘要 ─────────────────────────────────────────────────────────
 
 
-def _leaf_digest(path: Path) -> str:
-    """单个条目的摘要: 软链记指向, 文件记字节, 目录只记类型 (子孙另行逐条计入)。"""
+def _leaf_digest(path: Path) -> tuple[str, bool]:
+    """单个条目的 (摘要, 是否读不动)。软链记指向, 文件记字节, 目录只记类型。
+
+    **必须把「读不动」一并返回**: 早先这里遇到 OSError 只是返回一个标记字符串,
+    调用方无从知道发生过读取失败 —— 于是「两侧同名文件都是 000 权限、内容其实不同」
+    会摘要相等、unreadable 为空、退出码 0。那是假绿, 比误报危险。
+    """
     try:
         if path.is_symlink():
-            return "L:" + hashlib.sha256(str(path.readlink()).encode("utf-8")).hexdigest()
+            return "L:" + hashlib.sha256(str(path.readlink()).encode("utf-8")).hexdigest(), False
         if path.is_file():
-            return "F:" + hashlib.sha256(path.read_bytes()).hexdigest()
+            return "F:" + hashlib.sha256(path.read_bytes()).hexdigest(), False
         if path.is_dir():
-            return "D:"
+            return "D:", False
     except OSError:
-        return "U:unreadable"
-    return "?:unknown"
+        return "U:unreadable", True
+    return "?:unknown", False
 
 
 def _digest(
@@ -435,8 +481,20 @@ def _digest(
     判成 content-drift。base 是该 exclude 模式所相对的 vault 根 (源与目标各自的根)。
     读不进去的条目写成 U: 参与摘要, 并登记到 unreadable —— 不能当作「不存在」。
     """
+
+    def _note_unreadable(node: Path, fallback: str) -> None:
+        if unreadable is None:
+            return
+        try:
+            unreadable.append(node.relative_to(base).as_posix() if base is not None else fallback)
+        except ValueError:  # pragma: no cover
+            unreadable.append(fallback)
+
     if path.is_symlink() or not path.is_dir():
-        return _leaf_digest(path)
+        digest, bad = _leaf_digest(path)
+        if bad:
+            _note_unreadable(path, path.name)
+        return digest
     acc = hashlib.sha256()
     for rel, kind in sorted(_walk(path)):
         child = path / rel if rel else path
@@ -448,48 +506,103 @@ def _digest(
             if excluder.is_under_exclusion(base, full_rel):
                 continue
         if kind == "unreadable":
-            if unreadable is not None:
-                target = child.relative_to(base).as_posix() if base is not None else rel
-                unreadable.append(target)
+            _note_unreadable(child, rel)
             acc.update(f"{rel}\0U:unreadable\n".encode("utf-8"))
             continue
-        acc.update(f"{rel}\0{_leaf_digest(child)}\n".encode("utf-8"))
+        leaf, bad = _leaf_digest(child)
+        if bad:
+            _note_unreadable(child, rel)
+        acc.update(f"{rel}\0{leaf}\n".encode("utf-8"))
     return "D:" + acc.hexdigest()
 
 
 # ── 报告落点与落盘 ───────────────────────────────────────────────────
 
 
-def _forbidden_roots(tree: Path) -> list[Path]:
-    """tree 本身, 外加 tree 里每一条软链解析后的目标。
+SYMLINK_FOLLOW_DEPTH = 4
+
+
+def _forbidden_roots(tree: Path) -> tuple[list[Path], list[str]]:
+    """返回 (禁写根列表, 扫描没跑完的位置)。
 
     报告落点不能只按「路径是否在 tree 前缀下」判: vault 里一条指向树外目录的软链,
-    会让一个「树外」路径其实就是 vault 里看得见的文件 —— 路径判据说安全, 写下去
-    vault 的内容就变了。已知边界: 这一遍扫描之后新建的别名不在覆盖范围内。
+    会让一个「树外」路径其实就是 vault 里看得见的文件。而且**得递归展开** ——
+    `vault/link → A` 且 `A/link → B` 时, 只解析一层就漏掉 B, 报告写进 B 照样能被
+    vault 看见。按目录身份去重, 天然处理软链成环。
+
+    扫描不动的地方(比如权限 0111 的目录: 能按名字访问、不能列目录)必须**如实上报**,
+    调用方据此拒绝落盘 —— 扫不完就不能声称安全。
+    已知边界: 深度上限 SYMLINK_FOLLOW_DEPTH; 这一遍之后新建的别名不在覆盖范围内。
     """
-    roots = [tree]
-    for rel, kind in _walk(tree):
-        if kind != "symlink":
+    roots: list[Path] = []
+    failures: list[str] = []
+    seen: set[tuple[int, int]] = set()
+    queue: list[tuple[Path, int]] = [(tree, 0)]
+    while queue:
+        cur, depth = queue.pop()
+        ident = _fs_identity(cur)
+        if ident is not None:
+            if ident in seen:
+                continue
+            seen.add(ident)
+        roots.append(cur)
+        if depth >= SYMLINK_FOLLOW_DEPTH:
+            failures.append(f"{cur} (软链展开超过 {SYMLINK_FOLLOW_DEPTH} 层, 未继续)")
             continue
-        try:
-            roots.append((tree / rel).resolve())
-        except OSError:  # pragma: no cover — 悬空软链等
-            continue
-    return roots
+        for rel, kind in _walk(cur):
+            if kind == "unreadable":
+                failures.append(f"{cur}/{rel}" if rel else str(cur))
+                continue
+            if kind != "symlink":
+                continue
+            link = cur / rel
+            try:
+                target = link.resolve()
+            except OSError:
+                # 实测(本机 Python 3.14.4): 悬空软链**不走这里** —— resolve() 会返回那个
+                # 尚不存在的目标路径; 自环也不抛, 返回一个没完全解析开的路径。
+                # 这个分支实际覆盖的是别的 OSError(权限等), 留着是因为拿不到目标就
+                # 无法判断它是否出树, 必须计入 failures 让调用方拒绝落盘。
+                failures.append(str(link))
+                continue
+            if target.is_dir():
+                queue.append((target, depth + 1))
+            else:
+                roots.append(target)
+    return roots, failures
 
 
-def _write_report(path: Path, text: str) -> None:
+def _write_report(path: Path, text: str, guard: LocationGuard | None = None) -> None:
     """写新 inode 再换目录项 —— 绝不原地覆盖一个已经存在的 inode。
 
-    原地 `write_text` 会顺着任何别名写穿: 硬链接、`/dev/fd/N`（它 resolve 成自身、
-    stat 又返回被打开文件的属性且 nlink=1, 路径判据和链接数判据同时失明）。
-    `os.replace` 换的是目录项, 旧 inode 的其它名字仍指向旧内容。
+    原地 `write_text` 会顺着任何别名写穿: 硬链接、`/dev/fd/N`(它 resolve 成自身、
+    stat 又返回被打开文件的属性且 nlink=1)。`os.replace` 换的是目录项, 旧 inode 的
+    其它名字仍指向旧内容。
+
+    三条纪律, 每条都对应一个实测出来的坏结果:
+      - 临时名带 pid + 随机串, 且**临时落点也过一遍 guard** —— 它同样是一次真实写入;
+      - `O_EXCL` 失败意味着那个文件**不是本次创建的**, 绝不能清理它
+        (实测过: 无条件 unlink 会删掉别人的文件, 让指向它的软链变悬空);
+      - `os.write` 会短写(实测 RLIMIT_FSIZE 下只写进 1 字节却正常返回),
+        必须循环写满才换目录项, 否则会发布一份截断的报告。
     """
-    tmp = path.parent / f".{path.name}.tmp-{os.getpid()}"
+    data = text.encode("utf-8")
+    tmp = path.parent / f".{path.name}.tmp-{os.getpid()}-{os.urandom(4).hex()}"
+    if guard is not None:
+        problem = guard(tmp)
+        if problem is not None:
+            raise ReportWriteError(f"临时落点不安全: {problem}")
     fd = None
+    created = False
     try:
-        fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
-        os.write(fd, text.encode("utf-8"))
+        fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        created = True
+        written = 0
+        while written < len(data):
+            chunk = os.write(fd, data[written:])
+            if chunk <= 0:  # pragma: no cover — 正常内核不会返回 0
+                raise OSError("os.write 返回 0, 无法写满报告")
+            written += chunk
         os.close(fd)
         fd = None
         os.replace(str(tmp), str(path))
@@ -499,10 +612,11 @@ def _write_report(path: Path, text: str) -> None:
                 os.close(fd)
             except OSError:
                 pass
-        try:
-            os.unlink(str(tmp))
-        except OSError:
-            pass
+        if created:  # 只清理本次真正创建的那一个
+            try:
+                os.unlink(str(tmp))
+            except OSError:
+                pass
         raise ReportWriteError(f"报告落盘失败: {path} — {exc}") from exc
 
 
@@ -718,12 +832,62 @@ def _resolve_dir(raw: str, label: str) -> tuple[Path | None, str | None]:
     return path.resolve(), None
 
 
+def _fs_identity(path: Path) -> tuple[int, int] | None:
+    """文件系统认的同一性: (st_dev, st_ino)。取不到就 None。
+
+    比路径字符串强得多 —— 大小写差异(macOS 默认不敏感)、软链、硬链接、`.`/`..`
+    冗余段, 在这个维度上全都自动归一。**但不宣称穷尽所有别名**(挂载/绑定挂载等未验)。
+    """
+    try:
+        st = path.stat()
+    except OSError:
+        return None
+    return (st.st_dev, st.st_ino)
+
+
 def _check_report_location(report_path: Path, trees: list[tuple[Path | None, str]]) -> str | None:
-    """报告落点是否安全。返回错误消息, None 表示可以写。"""
+    """报告落点是否安全。返回错误消息, None 表示可以写。
+
+    第一道**按身份判**: resolve() 不做大小写规范化, 而本机文件系统默认大小写不敏感 ——
+    目录实际叫 `Vault` 时 `--report vault/x` 的 is_relative_to 为 False, 但两者的
+    (st_dev, st_ino) 完全相同, 写下去就是写穿。路径这个维度本身不成立。
+    第二道是路径前缀比较(错误信息更直观)。两道都不通过才放行。
+    """
+    forbidden: dict[tuple[int, int], str] = {}
+    scan_failures: list[str] = []
     for tree, label in trees:
         if tree is None:
             continue
-        for root in _forbidden_roots(tree):
+        roots, failures = _forbidden_roots(tree)
+        scan_failures.extend(f"{label}: {f}" for f in failures)
+        for root in roots:
+            ident = _fs_identity(root)
+            if ident is not None:
+                forbidden.setdefault(ident, label)
+
+    if scan_failures:
+        head = "; ".join(scan_failures[:3])
+        more = f" (共 {len(scan_failures)} 处)" if len(scan_failures) > 3 else ""
+        return f"安全性扫描没跑完, 无法确认 --report 落点在被审树之外, 拒绝落盘: {head}{more}"
+
+    # report 本身可能还不存在, 逐级向上找第一个 stat 得到的祖先
+    probe = report_path
+    while True:
+        ident = _fs_identity(probe)
+        if ident is not None and ident in forbidden:
+            return (
+                f"--report 落点位于 {forbidden[ident]} 树内 (按文件系统身份判定, "
+                f"不是按路径字符串): {report_path} 的 {probe} 与被审树是同一个对象"
+            )
+        if probe.parent == probe:
+            break
+        probe = probe.parent
+
+    for tree, label in trees:
+        if tree is None:
+            continue
+        roots, _ = _forbidden_roots(tree)
+        for root in roots:
             if report_path == root or report_path.is_relative_to(root):
                 return f"--report 不得落在 {label} 树内或其软链目标之下 (审计不写被审对象): {report_path} ⊂ {root}"
     if not report_path.parent.is_dir():
@@ -756,7 +920,8 @@ def main(argv: list[str] | None = None) -> int:
     report_path: Path | None = None
     if args.report:
         report_path = Path(args.report).expanduser().resolve()
-        problem = _check_report_location(report_path, [(vault, "--vault"), (source, "--source")])
+        trees = [(vault, "--vault"), (source, "--source")]
+        problem = _check_report_location(report_path, trees)
         if problem:
             print(f"❌ {problem}", file=sys.stderr)
             return EXIT_USAGE
@@ -772,7 +937,7 @@ def main(argv: list[str] | None = None) -> int:
     text = render(report, manifest)
     if report_path is not None:
         try:
-            _write_report(report_path, text)
+            _write_report(report_path, text, lambda p: _check_report_location(p, trees))
         except ReportWriteError as exc:
             print(f"❌ {exc}", file=sys.stderr)
             return EXIT_USAGE

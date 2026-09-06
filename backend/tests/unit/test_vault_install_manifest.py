@@ -595,7 +595,11 @@ def test_verifier_write_calls_are_confined_to_write_report():
         if name not in write_names:
             continue
         if _is_stdio_write(node):
-            continue  # 写标准输出/错误不碰文件系统，是报告的缺省去处
+            # 缺省报告去处。说明一句边界: 这里只按**语法形态**豁免
+            # `sys.stdout` / `sys.stderr` 这两个名字，并**不验证运行时那个文件描述符
+            # 指向哪里**（被重定向到文件时它当然会落盘）。这道门证明的是
+            # 「源码里没有别处的写调用」，不是「进程一定不写文件」。
+            continue
         if not (lo <= node.lineno <= hi):
             offenders.append((name, node.lineno))
     assert offenders == [], f"写调用出现在 _write_report 之外: {offenders}"
@@ -913,3 +917,237 @@ def test_unreadable_alone_still_blocks(vault_pair):
     finally:
         os.chmod(locked_src, 0o755)
         os.chmod(locked_tgt, 0o755)
+
+
+# ── Codex round-3 的回归门 ────────────────────────────────────────────
+#
+# 八条都是隔离夹具实测成立后才改的，证据 evidence-g26/codex-r3-claims-AFTER-FIX-*.txt。
+
+
+def test_case_insensitive_alias_is_refused(vault_pair, tmp_path):
+    """BLOCKER 回归: 大小写目录别名曾直接绕过禁写检查。
+
+    本机文件系统默认大小写不敏感——目录实际叫什么大小写都指向同一个对象，
+    而 `resolve()` 不做大小写规范化、`is_relative_to` 是纯字符串比较。
+    落点判据必须按 `(st_dev, st_ino)` 判，路径这个维度本身不成立。
+    """
+    _source, target = vault_pair
+    if not (target.parent / target.name.upper()).is_dir():
+        pytest.skip("本机文件系统大小写敏感，这条形态不适用")
+    alias = target.parent / target.name.upper() / "report.txt"
+    rc = _run(target, report=alias)
+    assert rc == 2
+    assert not (target / "report.txt").exists(), "报告被写进了被审树"
+
+
+def test_exclusive_create_failure_does_not_delete_someone_elses_file(vault_pair, tmp_path):
+    """BLOCKER 回归: `O_EXCL` 失败时那个文件不是本次创建的，绝不能清理它。
+
+    早先 except 分支无条件 `unlink(tmp)`——实测会删掉别人的文件，
+    指向它的软链因此变悬空。这是本轮整改**自己引入**的缺陷。
+    """
+    del vault_pair  # 这条只需要一个可写的临时目录, 不用被审树
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    report = outside / "report.txt"
+
+    # 临时名 = .<name>.tmp-<pid>-<随机串>。把随机串固定住，才能预置一个**同名**的
+    # 「别人的文件」，让 O_EXCL 真的失败 —— 否则那条 except 分支根本不会被触发，
+    # 测试看起来绿其实什么都没验（fixture 形态 ≠ 生产形态）。
+    fixed = bytes.fromhex("deadbeef")
+    stranger = outside / f".report.txt.tmp-{os.getpid()}-deadbeef"
+    stranger.write_text("SOMEONE ELSE'S FILE\n", encoding="utf-8")
+
+    real_urandom = os.urandom
+    os.urandom = lambda n: fixed[:n]
+    try:
+        with pytest.raises(vv.ReportWriteError):
+            vv._write_report(report, "报告正文\n")
+    finally:
+        os.urandom = real_urandom
+
+    assert stranger.exists(), "删掉了不属于本次调用的临时文件"
+    assert stranger.read_text(encoding="utf-8") == "SOMEONE ELSE'S FILE\n"
+    assert not report.exists(), "O_EXCL 失败后不该产出报告"
+
+
+def test_two_hop_symlink_target_is_refused(vault_pair, tmp_path):
+    """BLOCKER 回归: 禁写根必须**递归**展开——两层软链能绕开单层解析。"""
+    _source, target = vault_pair
+    a, b = tmp_path / "outA", tmp_path / "outB"
+    a.mkdir()
+    b.mkdir()
+    os.symlink(str(b), str(a / "link"))
+    os.symlink(str(a), str(target / "link"))
+    rc = _run(target, report=b / "report.txt")
+    assert rc == 2
+    assert not (target / "link" / "link" / "report.txt").exists()
+
+
+def test_incomplete_safety_scan_refuses_to_write(vault_pair, tmp_path):
+    """BLOCKER 回归: 安全性扫描没跑完就不能声称落点安全。
+
+    权限 0111 的目录能按名字访问、不能列目录——里面可能藏着指向树外的软链。
+    扫不动就必须拒绝落盘，而不是默默放行。
+    """
+    _source, target = vault_pair
+    locked = target / "locked"
+    locked.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    os.symlink(str(outside), str(locked / "escape"))
+    os.chmod(locked, 0o111)
+    try:
+        rc = _run(target, report=outside / "r.txt")
+        assert rc == 2
+        assert not (outside / "r.txt").exists()
+    finally:
+        os.chmod(locked, 0o755)
+
+
+def test_both_sides_unreadable_plain_files_still_block(vault_pair):
+    """HIGH 回归: 两侧同名普通文件都读不动、内容其实不同时，不得判等且报 0。
+
+    `_leaf_digest` 早先遇到 OSError 只返回一个标记字符串，调用方无从知道发生过
+    读取失败——摘要相等、unreadable 为空、rc=0。那是假绿。
+    """
+    source, target = vault_pair
+    (source / "CLAUDE.md").write_text("AAAA\n", encoding="utf-8")
+    (target / "CLAUDE.md").write_text("BBBB\n", encoding="utf-8")
+    os.chmod(source / "CLAUDE.md", 0o000)
+    os.chmod(target / "CLAUDE.md", 0o000)
+    try:
+        result = _classify(target, source=source)
+        assert result.unreadable != [], "读不动的普通文件必须被登记"
+        assert result.exit_code != 0, "读不动就不能报 0"
+    finally:
+        os.chmod(source / "CLAUDE.md", 0o644)
+        os.chmod(target / "CLAUDE.md", 0o644)
+
+
+def test_short_write_is_detected(tmp_path):
+    """MEDIUM 回归: `os.write` 会短写，必须循环写满才换目录项。
+
+    用一个只肯接受 1 字节的假 fd 复现——早先单次 `os.write` 正常返回，
+    于是发布了一份截断的报告。
+    """
+    calls = []
+    real_write = os.write
+
+    def stingy_write(fd, data):
+        calls.append(len(data))
+        return real_write(fd, data[:1])
+
+    out = tmp_path / "r.txt"
+    original = os.write
+    os.write = stingy_write
+    try:
+        vv._write_report(out, "ABCDE")
+    finally:
+        os.write = original
+    assert out.read_text(encoding="utf-8") == "ABCDE", "短写没有被补齐"
+    assert len(calls) >= 5, f"应当循环写满，实际只调了 {len(calls)} 次"
+
+
+@pytest.mark.parametrize("field", ["source", "role", "origin", "note"])
+def test_unencodable_string_in_manifest_exits_2(tmp_path, vault_pair, manifest_data, field):
+    """MEDIUM 回归: 孤立代理字符能过 json.loads，却在写报告时抛 UnicodeEncodeError。
+
+    那时已经过了 ManifestError 的捕获面，拿不到承诺的 rc=2，还会留下临时文件。
+    """
+    _source, target = vault_pair
+    if field == "source":
+        manifest_data["source"] = "\ud800"
+    else:
+        manifest_data["items"][0][field] = "\ud800"
+    bad = tmp_path / "surrogate.json"
+    bad.write_text(json.dumps(manifest_data), encoding="utf-8")
+    out = tmp_path / "out"
+    out.mkdir()
+    assert vv.main(["--vault", str(target), "--manifest", str(bad), "--report", str(out / "r.txt")]) == 2
+    assert list(out.iterdir()) == [], "落点目录留下了临时文件"
+
+
+@pytest.mark.parametrize("dot", [".", "./", ".//"])
+def test_extra_scan_dot_is_normalized_to_root(tmp_path, vault_pair, manifest_data, dot):
+    """MEDIUM 回归: `dir="."` 拼接出 `./a`，与 declared_paths 里的 `a` 对不上 → 误报 extra。"""
+    _source, target = vault_pair
+    manifest_data["extra_scan"] = [{"dir": dot, "match": "*.md"}]
+    m = tmp_path / "dot.json"
+    m.write_text(json.dumps(manifest_data), encoding="utf-8")
+    result = vv.verify(target, vv.load_manifest(m))
+    assert result.extra == [], f"dir={dot!r} 把已声明的条目误报成了 extra"
+
+
+def test_dangling_symlink_exclude_is_registered(vault_pair):
+    """LOW 回归: `exists()` 对悬空软链是 False，但那个目录项确实在目标里。"""
+    _source, target = vault_pair
+    os.symlink(str(target / "nowhere"), str(target / "learning_events.jsonl"))
+    os.symlink(str(target / "nowhere2"), str(target / ".obsidian" / "workspace.json"))
+    result = _classify(target)
+    got = [f.path for f in result.intentionally_excluded]
+    assert "learning_events.jsonl" in got
+    assert ".obsidian/workspace.json" in got
+    assert result.extra == [], "悬空的 workspace.json 不该落到 extra"
+
+
+def test_skeleton_content_excludes_are_pinned(vault_pair):
+    """LOW 回归: `raw/**` 与 `templates/**` 删掉后曾仍然全绿——现在钉住它们。
+
+    `:74` 的 mkdir 循环对六个骨架目录一视同仁，清单必须逐个声明「内容不复制」。
+    """
+    _source, target = vault_pair
+    (target / "raw" / "lecture.pdf").write_text("x", encoding="utf-8")
+    (target / "templates" / "daily.md").write_text("y", encoding="utf-8")
+    result = _classify(target)
+    got = [f.path for f in result.intentionally_excluded]
+    assert "raw/**" in got, "raw 下的遗留内容必须被登记为「故意不复制」"
+    assert "templates/**" in got
+    data = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    by_origin = [i["path"] for i in data["items"] if i["origin"] == "install-vault.sh:74"]
+    assert sorted(by_origin) == ["raw/**", "templates/**"]
+
+
+def test_bracket_exclude_declaration_works_end_to_end(tmp_path, vault_pair, manifest_data):
+    """LOW 回归: 之前那条方括号测试用的规则是 `outputs/**`，没有真正含 `[` 的声明。
+
+    这里放一条**真的带方括号**的 exclude，验证分类与负例都对。
+    """
+    _source, target = vault_pair
+    manifest_data["items"].append(
+        {"path": "outputs/[draft].json", "role": "build-artifact", "action": "exclude", "origin": "test-only"}
+    )
+    m = tmp_path / "bracket.json"
+    m.write_text(json.dumps(manifest_data), encoding="utf-8")
+    (target / "outputs" / "[draft].json").write_text("{}", encoding="utf-8")
+    (target / "outputs" / "d.json").write_text("{}", encoding="utf-8")
+    result = vv.verify(target, vv.load_manifest(m))
+    got = [f.path for f in result.intentionally_excluded]
+    assert "outputs/[draft].json" in got, "字面方括号声明应当精确命中"
+    # 负例：它不该被当成字符类而匹配到 outputs/d.json
+    hits = vv.ExcludeMatcher(vv.load_manifest(m).exclude_items).hits_for(
+        target,
+        next(i for i in vv.load_manifest(m).items if i.path == "outputs/[draft].json"),
+    )
+    assert hits == ["outputs/[draft].json"]
+
+
+def test_unreadable_leaf_inside_directory_is_registered(vault_pair):
+    """目录**内部**的叶子读不动时也要登记 —— 与顶层文件那条走的是不同分支。
+
+    `_digest` 有两处登记：顶层(被比对的 copy 项本身是文件)和循环内(目录里的子孙)。
+    只测其中一处，另一处拆掉也不会红。
+    """
+    source, target = vault_pair
+    for root in (source, target):
+        leaf = root / ".claude" / "hooks" / "leaf.txt"
+        leaf.write_text("same\n", encoding="utf-8")
+    os.chmod(source / ".claude" / "hooks" / "leaf.txt", 0o000)
+    os.chmod(target / ".claude" / "hooks" / "leaf.txt", 0o000)
+    try:
+        result = _classify(target, source=source)
+        assert any("leaf.txt" in f.path for f in result.unreadable), "目录内读不动的叶子必须被登记"
+        assert result.exit_code != 0
+    finally:
+        os.chmod(source / ".claude" / "hooks" / "leaf.txt", 0o644)
+        os.chmod(target / ".claude" / "hooks" / "leaf.txt", 0o644)
