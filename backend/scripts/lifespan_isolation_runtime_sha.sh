@@ -64,28 +64,39 @@
 #   **之前**被 shell source 并 exit，脚本压根没运行 —— 这不是"防线被绕过"，
 #   是"根本没到防线"。同类还有 `ENV`、导出函数、`LD_PRELOAD`、以及直接改本文件。
 #   注入者**不**立刻 exit、而想篡改脚本行为的那一半，由「换干净解释器重新 exec」
-#   + 纵深清洗关掉，并由 **15 条** shell 探针承重（`lifespan_isolation_guard_probes.py`
+#   + 纵深清洗关掉，并由 **19 条** shell 探针承重（`lifespan_isolation_guard_probes.py`
 #   的 `probe_shell_injections()`，名字逐条列全 —— 数字必须与清单条数相等）：
 #     既有 6 条 —— `shell-fake-dirname` / `shell-fake-printf` / `shell-bash-env` /
 #       `shell-readonly-func`（期望门**照常给出正确答案**）、
 #       `shell-alias-test-hijack` / `shell-exit-trap-hijack`（期望门**拒绝空跑**）；
-#     CARD-W4-6 新增 9 条 ——
-#       `shell-bash-env-exec-layer-is-load-bearing` /
-#       `shell-exec-strips-readonly-func` /
-#       `shell-wrapped-cmd-sees-no-injected-func`
-#         （拆掉纵深第二层的门副本仍须给出正确答案 ⇒ exec 层自己承重）、
-#       `shell-reexec-sentinel-preset`（照抄旧环境变量不再能跳过清洗）、
-#       `shell-reexec-sentinel-forged`（标记不匹配 ⇒ 按该分支的文案拒绝）、
-#       `shell-forged-ticket-with-injection-refused`（PID 一致但 BASH_ENV 非空
-#         ⇒ 按 BASH_ENV 分支的文案拒绝）、
-#       `shell-ticket-ok-but-exported-func-refused`（PID 一致、BASH_ENV 已被清掉、
-#         只剩导出函数 ⇒ 按**导出函数**分支的文案拒绝）、
-#       `shell-forged-ticket-under-exit-trap`（伪造标记 + EXIT trap ⇒ rc 不被改写）、
-#       `shell-multiline-env-var-not-mistaken-for-func`（值含换行的普通变量
-#         **不得**被当成导出函数 ⇒ 正常调用不假红）。
-#   ⚠️ 历史更正两次：更早一版写「5 条」列了 6 个名字；CARD-W4-6 初版改成「11 条」
-#      却漏列 `shell-reexec-sentinel-forged`（Codex round-1 LOW-6 抓到）。同一种
-#      「数字与清单不一致」的错连犯两次，所以现在把名字逐条列全。
+#     CARD-W4-6 新增 12 条 ——
+#       1 `shell-bash-env-exec-layer-is-load-bearing`
+#       2 `shell-exec-strips-readonly-func`
+#       3 `shell-wrapped-cmd-sees-no-injected-func`
+#         （以上三条用拆掉纵深第二层的门副本 ⇒ 证明 exec 层自己承重）
+#       4 `shell-reexec-sentinel-preset`（照抄旧环境变量不再能跳过清洗）
+#       5 `shell-reexec-sentinel-forged`（标记不匹配 ⇒ 按该分支的文案拒绝）
+#       6 `shell-forged-ticket-with-injection-refused`（PID 一致但 BASH_ENV 非空）
+#       7 `shell-ticket-ok-but-exported-func-refused`（PID 一致、BASH_ENV 已清、
+#         只剩导出函数 ⇒ 按**导出函数**分支的文案拒绝）
+#       8 `shell-forged-ticket-under-exit-trap`（伪造标记 + EXIT trap ⇒ rc 不被改写）
+#       9 `shell-multiline-env-var-not-mistaken-for-func`（值含换行的普通变量
+#         **不得**被当成导出函数 ⇒ 正常调用不假红）
+#      10 `shell-env-enum-failure-is-fail-closed-pass1`
+#      11 `shell-env-enum-failure-is-fail-closed-pass2`
+#         （两趟枚举各有一段完成检查，**分开钉**；只钉一趟的话，把另一趟那段删掉
+#          全部探针照样绿）
+#      12 `shell-shellopts-errexit-does-not-false-red`（调用者导出的 SHELLOPTS
+#         不得把正常调用弄成静默 rc=1）
+#      13 `shell-probe-roster-matches-declared-count`（**本段声明自己的门**，见下）
+#   ⚠️ 「数字与清单不一致」这个错在本文件里已被更正**三次**：最早写「5 条」列 6 个
+#      名字；CARD-W4-6 初版写「11 条」漏列 `shell-reexec-sentinel-forged`（Codex
+#      round-1 LOW-6 抓到）；round-2 写「15 条」漏列
+#      `shell-env-enum-failure-is-fail-closed`（对抗复核抓到）。前两次的处置都是
+#      「把注释改对」，然后第三次照旧发生 —— **注释管不住它自己**。所以第 13 条探针
+#      现在把这段声明变成判据：解析 `probe_shell_injections()` 函数体的 AST 取
+#      `shell-*` 字符串常量的互异集合，其**条数**必须等于上面那个数字，且集合里每个
+#      名字都要在本清单里出现（多列、漏列都红）。改探针时它会当场告诉你这里要改。
 #   ⚠️ 试过「启动期检测到注入就提前 exit」并**回退**了：提前 exit 会落进注入者的
 #   `trap ... EXIT` 射程（rc 被改写成 0，比不加更糟），而 `exec` 之所以有效正是
 #   因为它替换进程映像、EXIT trap 不触发。理由写在 exec 那一段的注释里。
@@ -93,6 +104,18 @@
 #   —— 能设 BASH_ENV 的人同样能直接改这个脚本、改 git 历史、改任何东西。
 #   ⚠️ 历史记录：round-1 第 5 条整改曾把「shell 控制流劫持」写成已关闭，那个说法
 #   **比实现宽**；本条是对它的更正。
+# * ⛔ **调用者控制解释器选项（`SHELLOPTS`）也在这条边界里**（2026-09-06 实测补记，
+#   存量、非 CARD-W4-6 引入）。bash 启动会导入环境里的 `SHELLOPTS` 并置位对应选项，
+#   而本文件的 `set -uo pipefail` 只加不减。两个已实测的形态：
+#     * `SHELLOPTS=errexit` —— **假红**：函数表空（正常情形）时 `compgen -A function`
+#       返回 1 + pipefail ⇒ 第二层的 `__leftover=` 赋值 rc=1 ⇒ errexit 静默退出，
+#       rc=1、零输出。CARD-W4-6 已在 exec 参数里 `-u SHELLOPTS` 摘掉，**这一个修好了**。
+#     * `SHELLOPTS=noexec` —— **假绿且无法从脚本内部防御**：bash 只解析不执行，
+#       连 `exec` 那句都不跑，rc=0、零输出、被包裹命令根本没跑。**没有修**，因为
+#       脚本自己的代码正是那个不会执行的东西。
+#   由此得出一条给**调用方**的硬要求：**判据不能只看 rc**，必须要求 stdout 里出现
+#   `RUNTIME-FILES: unchanged` / `CHANGED` 这一行结论；只看 rc 的调用方在 noexec 下
+#   会把「门压根没跑」读成「通过」。
 #
 # 退出码:
 #   1  = 文件被改，或门自证失败（门的裁定）
@@ -242,11 +265,33 @@ case "$__w4_claimed" in
     #    结论：换干净解释器 + 纵深清洗，比在脏环境里自我了断强。
     W4_SHA_GATE_CALLER_PATH="${PATH:-}"
     builtin export W4_SHA_GATE_CALLER_PATH
-    # 数组恒非空（前三对固定项）：bash 3.2 在 `set -u` 下展开**空**数组
+    # 数组恒非空（前几对固定项）：bash 3.2 在 `set -u` 下展开**空**数组
     # `"${a[@]}"` 会报 unbound variable（本机实测），非空就绕开了这个坑。
+    #
     # `-u W4_SHA_GATE_REEXEC`：该变量已退役（见上），顺手摘掉残值，免得后人
     # 看见它还以为能靠它跳过清洗。
-    __w4_env_args=(-u BASH_ENV -u ENV -u W4_SHA_GATE_REEXEC)
+    #
+    # ⚠️ `-u SHELLOPTS`（2026-09-06 实测，**存量缺陷**，非本卡引入）：bash 启动时会
+    #    读环境里的 `SHELLOPTS` 并把里面列的选项置位 —— 实测
+    #    `SHELLOPTS=errexit /bin/bash --noprofile --norc -c 'set -o | grep errexit'`
+    #    → `errexit on`。而本文件 `set -uo pipefail` **只加不减**，关不掉它。
+    #    后果是一条**方向反了的假红**：第二层复核函数表那句
+    #    `__leftover="$(builtin compgen -A function … | … tr …)"`，在函数表**空**
+    #    （= 正常情形）时 `compgen -A function` 返回 1，叠加 pipefail ⇒ 赋值 rc=1
+    #    ⇒ errexit 当场退出。实测 `SHELLOPTS=errexit bash 本脚本 -- /usr/bin/true`
+    #    → **rc=1、stdout/stderr 全空**；而留着清不掉的函数（= 异常情形）时
+    #    compgen rc=0，反而顺利走到 GATE-BROKEN 把话说出来。rc=1 正是本门文档里
+    #    「文件被改」的码，调用方会把「门被环境噎死」读成「运行时数据被动过」。
+    #    摘掉之后实测回到 rc=0（探针 `shell-shellopts-errexit-does-not-false-red`）。
+    #    `BASHOPTS` 一并摘作防御深度 —— 但如实写：本机 3.2.57 实测它**没有**被导入
+    #    （`BASHOPTS=expand_aliases … -c 'shopt expand_aliases'` → `off`），
+    #    所以它是「顺手」，不是已证实的向量。
+    #
+    # ⛔ 这一手**关不掉 `SHELLOPTS=noexec`**（如实登记，见文件开头的边界一节）：
+    #    noexec 下 bash 只解析不执行，下面这句 `exec` 本身就不会跑，脚本没有任何
+    #    自我防御的机会。实测 `SHELLOPTS=noexec bash 本脚本 -- <cmd>` → rc=0、
+    #    零输出、**被包裹命令没跑**。能改解释器选项的人等于能让本门不运行。
+    __w4_env_args=(-u BASH_ENV -u ENV -u W4_SHA_GATE_REEXEC -u SHELLOPTS -u BASHOPTS)
     __w4_env_ok=0
     while IFS= builtin read -r -d '' __w4_entry; do
       case "$__w4_entry" in

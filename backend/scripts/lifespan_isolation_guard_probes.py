@@ -1012,38 +1012,142 @@ def probe_shell_injections() -> list[dict]:
     # 输出被截断」会表现成「环境里没有导出函数」而**静默通过**。门靠一个完成哨兵
     # 条目区分两者。这个失败形态从生产输入到不了（`env -0` 在本机可用），所以用
     # 门副本模拟：把哨兵的产出去掉、检查留着 ⇒ 门必须拒绝，而不是当作「没有残留」。
+    # ⛔ 两趟各有一段枚举 + 一段完成检查，**必须分开钉**（对抗复核 F1b）：
+    # 「环境枚举未完整产出」这个前缀在门里出现两次，只断言它 ⇒ 探针绑定不了是哪一趟
+    # 拒的；而且把两处哨兵产出一起删掉时执行必然停在第一趟，**第二趟那段检查根本
+    # 到不了 —— 删掉它全部探针照样绿**。这与 Codex round-1 MEDIUM-2 修掉的是同一类
+    # 缺陷（判据必须绑定被哪一层拒的），换了个位置复发。
+    # 修法：按 `__w4_stale=""`（只出现在第二趟）把脚本切成两半，各自只改自己那半的
+    # 哨兵产出，并断言**该趟独有的**文案尾巴。
     _SENTINEL_EMIT = "{ /usr/bin/env -0 && builtin printf '%s\\0' \"$__W4_ENV_SENTINEL\"; }"
-    _sentinel_hits = _gate_text.count(_SENTINEL_EMIT)
-    if _sentinel_hits != 2:
-        _emit(
-            "shell-env-enum-failure-is-fail-closed",
-            False,
-            None,
-            1,
-            "",
-            "枚举哨兵锚点与生产代码脱节",
-            f"哨兵产出锚点命中 {_sentinel_hits} 次（须恰好 2：第一趟 + 第二趟）——拒绝报绿",
-        )
-    else:
-        stmp, sfake = _fake_backend(
-            "w4-env-enum-", gate_text=_gate_text.replace(_SENTINEL_EMIT, "{ /usr/bin/env -0; }")
-        )
+    _CHECK_ANCHOR = '    case "$__w4_env_ok" in\n      1) ;;'
+    _PASS2_SPLIT = '__w4_stale=""'
+    _head, _sep, _tail = _gate_text.partition(_PASS2_SPLIT)
+    _enum_cases = [
+        # (探针名, 变异后的门文本 or None, 该趟独有的文案尾巴, verdict)
+        (
+            "shell-env-enum-failure-is-fail-closed-pass1",
+            (_head.replace(_SENTINEL_EMIT, "{ /usr/bin/env -0; }") + _sep + _tail) if _sep else None,
+            "拒绝在不知道注入面的情况下继续",
+            "第一趟枚举不完整时拒绝给结论",
+        ),
+        (
+            "shell-env-enum-failure-is-fail-closed-pass2",
+            (_head + _sep + _tail.replace(_SENTINEL_EMIT, "{ /usr/bin/env -0; }")) if _sep else None,
+            "拒绝把「没看见残留」当成「没有残留」",
+            "第二趟枚举不完整时拒绝给结论",
+        ),
+    ]
+    # 锚点自检：产出站点与**检查**站点都必须各 2 处。只数产出站点的话，把第二趟那段
+    # 检查整个删掉，计数仍是 2、探针仍绿（判据不能自指，也不能只盯半边）。
+    _emit_hits, _check_hits = _gate_text.count(_SENTINEL_EMIT), _gate_text.count(_CHECK_ANCHOR)
+    _split_ok = bool(_sep) and _head.count(_SENTINEL_EMIT) == 1 and _tail.count(_SENTINEL_EMIT) == 1
+    for name, mutated, expect_tail, verdict_ok in _enum_cases:
+        if _emit_hits != 2 or _check_hits != 2 or not _split_ok or mutated is None:
+            _emit(
+                name,
+                False,
+                None,
+                1,
+                "",
+                "枚举哨兵锚点与生产代码脱节",
+                f"哨兵产出命中 {_emit_hits}（须 2）、完成检查命中 {_check_hits}（须 2）、"
+                f"两趟切分{'成立' if _split_ok else '不成立'} —— 拒绝报绿",
+            )
+            continue
+        stmp, sfake = _fake_backend(f"w4-env-enum-{name[-5:]}-", gate_text=mutated)
         try:
             sgate = sfake / "scripts" / "lifespan_isolation_runtime_sha.sh"
             proc = _sh_direct(["bash", str(sgate), "--", "/usr/bin/true"])
             _emit(
-                "shell-env-enum-failure-is-fail-closed",
-                proc.returncode == 1
-                and "环境枚举未完整产出" in proc.stderr
-                and "RUNTIME-FILES: unchanged" not in proc.stdout,
+                name,
+                proc.returncode == 1 and expect_tail in proc.stderr and "RUNTIME-FILES: unchanged" not in proc.stdout,
                 proc,
                 1,
-                "枚举不完整时门拒绝给结论",
-                "枚举不完整被当成『没有残留』而放行",
-                f"rc={proc.returncode} stdout={proc.stdout[-200:]} stderr={proc.stderr[-300:]}",
+                verdict_ok,
+                "枚举不完整被当成『没有残留』而放行（或被另一趟拒的）",
+                f"rc={proc.returncode} 期望文案={expect_tail!r} 命中={expect_tail in proc.stderr} "
+                f"stdout={proc.stdout[-200:]} stderr={proc.stderr[-300:]}",
             )
         finally:
             shutil.rmtree(stmp, ignore_errors=True)
+
+    # ── 调用者导出的 SHELLOPTS 不得把**正常**调用弄成静默 rc=1（存量缺陷）──────
+    # bash 启动会导入 SHELLOPTS 并置位选项，而门的 `set -uo pipefail` 只加不减。
+    # `errexit` 下：函数表空（正常情形）⇒ `compgen -A function` rc=1 + pipefail
+    # ⇒ 第二层 `__leftover=` 赋值 rc=1 ⇒ 静默退出，rc=1 零输出，而 rc=1 正是门文档里
+    # 「文件被改」的码。方向是反的：健康才死，留着脏函数反而能把话说完。
+    # 修法是在 exec 参数里 `-u SHELLOPTS`。判据要求**完整结论**，不只看 rc。
+    proc = _sh_direct(["bash", str(GATE), "--", "/usr/bin/true"], {"SHELLOPTS": "errexit"})
+    _emit(
+        "shell-shellopts-errexit-does-not-false-red",
+        proc.returncode == 0 and expected_marker in proc.stdout and "RUNTIME-FILES: unchanged" in proc.stdout,
+        proc,
+        0,
+        "调用者的 SHELLOPTS 被 exec 摘掉，正常调用仍给出结论",
+        "调用者导出 SHELLOPTS=errexit 就让正常调用静默 rc=1（假红）",
+        f"rc={proc.returncode} stdout={proc.stdout[-200:]} stderr={proc.stderr[-200:]}",
+    )
+
+    # ── 花名册门：门头注释声称的条数与清单，必须与本函数实际产出的探针名对得上 ──
+    #
+    # ⛔ 「数字与清单不一致」在 runtime_sha.sh 里已被更正**三次**（5→6 / 11 漏一个 /
+    # 15 漏一个）。前两次的处置都是「把注释改对」，然后第三次照旧发生 —— 说明
+    # **写在注释里的规矩管不住它自己**，得有人跑。这条把那句承重声明变成判据。
+    #
+    # 判据不自指：它比对的是**两份独立产物** —— 门脚本注释里的声明（文档）与本文件
+    # 的 AST（代码），任何一边漂了都红。用 AST 而不是 grep 整个文件：只数
+    # `probe_shell_injections()` **函数体内**的 `shell-*` 字符串常量，别处提到的
+    # 名字（如本注释、别的函数）不算进来。
+    roster_problems: list[str] = []
+    try:
+        import ast as _ast
+        import re as _re
+
+        _self_src = Path(__file__).read_text(encoding="utf-8")
+        _fn = next(
+            n
+            for n in _ast.walk(_ast.parse(_self_src))
+            if isinstance(n, _ast.FunctionDef) and n.name == "probe_shell_injections"
+        )
+        actual = {
+            n.value
+            for n in _ast.walk(_fn)
+            if isinstance(n, _ast.Constant) and isinstance(n.value, str) and _re.fullmatch(r"shell-[a-z0-9-]+", n.value)
+        }
+        m = _re.search(r"由 \*\*(\d+) 条\*\* shell 探针承重", _gate_text)
+        # 清单区 = 从那句声明起，到「数字与清单不一致」那段历史记录为止。
+        # ⚠️ 取名面必须**恰好等于清单区**，不能是整个文件：历史记录那几行会点名
+        # 「当年漏列的那个探针」，而那个名字今天可能已经被拆掉/改名（本卡就把
+        # `shell-env-enum-failure-is-fail-closed` 拆成了 -pass1/-pass2）。拿整份文件
+        # 当取名面 ⇒ 历史记录被当成「注释列了但不存在」，判据比它的主张宽（假红）。
+        end = _gate_text.find("「数字与清单不一致」")
+        if not m:
+            roster_problems.append("门头注释里找不到「由 **N 条** shell 探针承重」这句声明")
+        elif end < 0 or end <= m.start():
+            roster_problems.append("找不到清单区的结束锚点（「数字与清单不一致」那段）——拒绝在划不准范围时下判断")
+        else:
+            declared = int(m.group(1))
+            if declared != len(actual):
+                roster_problems.append(f"注释声称 {declared} 条，AST 实测 {len(actual)} 条")
+            listed = set(_re.findall(r"`(shell-[a-z0-9-]+)`", _gate_text[m.start() : end]))
+            missing = sorted(actual - listed)
+            extra = sorted(listed - actual)
+            if missing:
+                roster_problems.append(f"清单漏列: {missing}")
+            if extra:
+                roster_problems.append(f"清单列了但不存在: {extra}")
+    except Exception as exc:  # noqa: BLE001
+        roster_problems.append(f"花名册自检失败: {exc!r}")
+    _emit(
+        "shell-probe-roster-matches-declared-count",
+        not roster_problems,
+        None,
+        "—（静态比对，不起子进程）",
+        "门头声明的探针条数与清单，和实际产出一致",
+        "门头承重声明与实际探针对不上（同一种错已犯三次）",
+        "; ".join(roster_problems),
+    )
 
     shutil.rmtree(tmp, ignore_errors=True)
     return results
