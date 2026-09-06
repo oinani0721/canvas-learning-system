@@ -1,0 +1,219 @@
+[
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_chat_endpoint.py::test_enrich_context_accepts_user_question_and_mode_answer",
+  "identity": "503",
+  "test_line": "tests/unit/test_chat_endpoint.py:294",
+  "assert_text": "assert 503 == 200"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_chat_endpoint.py::test_enrich_context_answer_mode_uses_lazy_init_path",
+  "identity": "503",
+  "test_line": "tests/unit/test_chat_endpoint.py:338",
+  "assert_text": "assert 503 == 200"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_chat_endpoint.py::test_enrich_context_assembler_budget_field",
+  "identity": "其他(KeyError)",
+  "test_line": "tests/unit/test_chat_endpoint.py:274",
+  "assert_text": "KeyError: 'budget'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_chat_endpoint.py::test_enrich_context_default_frontmatter",
+  "identity": "503",
+  "test_line": "tests/unit/test_chat_endpoint.py:150",
+  "assert_text": "assert 503 == 200"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_chat_endpoint.py::test_enrich_context_degraded_appends_notice",
+  "identity": "503",
+  "test_line": "tests/unit/test_chat_endpoint.py:101",
+  "assert_text": "assert 503 == 200"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_chat_endpoint.py::test_enrich_context_empty_node_path_rejected",
+  "identity": "503",
+  "test_line": "tests/unit/test_chat_endpoint.py:115",
+  "assert_text": "assert 503 == 400"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_chat_endpoint.py::test_enrich_context_happy_path",
+  "identity": "503",
+  "test_line": "tests/unit/test_chat_endpoint.py:71",
+  "assert_text": "assert 503 == 200"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_chat_endpoint.py::test_enrich_context_max_hops_validation",
+  "identity": "503",
+  "test_line": "tests/unit/test_chat_endpoint.py:125",
+  "assert_text": "assert 503 == 422"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_chat_endpoint.py::test_enrich_context_preload_mode_skips_supplementary",
+  "identity": "503",
+  "test_line": "tests/unit/test_chat_endpoint.py:368",
+  "assert_text": "assert 503 == 200"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_chat_endpoint.py::test_enrich_context_rejects_invalid_mode",
+  "identity": "503",
+  "test_line": "tests/unit/test_chat_endpoint.py:303",
+  "assert_text": "assert 503 == 422"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_chat_endpoint.py::test_enrich_context_response_includes_elapsed_ms",
+  "identity": "503",
+  "test_line": "tests/unit/test_chat_endpoint.py:163",
+  "assert_text": "assert 503 == 200"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_chat_endpoint.py::test_enrich_context_returns_retrieval_trace",
+  "identity": "503",
+  "test_line": "tests/unit/test_chat_endpoint.py:216",
+  "assert_text": "assert 503 == 200"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_chat_endpoint.py::test_enrich_context_trace_includes_degradation_when_graph_unbuilt",
+  "identity": "其他(KeyError)",
+  "test_line": "tests/unit/test_chat_endpoint.py:257",
+  "assert_text": "KeyError: 'degraded'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_chat_endpoint.py::test_rag_enrich_hook_lazy_init_returns_none_injects_degraded_marker",
+  "identity": "503",
+  "test_line": "tests/unit/test_chat_endpoint.py:449",
+  "assert_text": "assert 503 == 200"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_chat_endpoint.py::test_rag_enrich_hook_short_prompt_skips_lazy_init",
+  "identity": "503",
+  "test_line": "tests/unit/test_chat_endpoint.py:424",
+  "assert_text": "assert 503 == 200"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_chat_endpoint.py::test_rag_enrich_hook_uses_lazy_init",
+  "identity": "503",
+  "test_line": "tests/unit/test_chat_endpoint.py:398",
+  "assert_text": "assert 503 == 200"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_enrich_context_vault_isolation.py::test_chinese_vault_id_not_collapsed_to_default",
+  "identity": "503",
+  "test_line": "tests/unit/test_enrich_context_vault_isolation.py:132",
+  "assert_text": "assert 503 == 200"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_enrich_context_vault_isolation.py::test_subject_id_optional_backward_compat",
+  "identity": "503",
+  "test_line": "tests/unit/test_enrich_context_vault_isolation.py:156",
+  "assert_text": "assert 503 == 200"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_emoji_stripped",
+  "identity": "503",
+  "test_line": "tests/unit/test_enrich_context_vault_isolation.py:245",
+  "assert_text": "assert 503 == 200"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_empty_string_rejected_422",
+  "identity": "503",
+  "test_line": "tests/unit/test_enrich_context_vault_isolation.py:75",
+  "assert_text": "assert 503 == 422"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_missing_rejected_422",
+  "identity": "503",
+  "test_line": "tests/unit/test_enrich_context_vault_isolation.py:65",
+  "assert_text": "assert 503 == 422"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_provided_triggers_context_var_injection",
+  "identity": "503",
+  "test_line": "tests/unit/test_enrich_context_vault_isolation.py:103",
+  "assert_text": "assert 503 == 200"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_with_special_chars_sanitized",
+  "identity": "503",
+  "test_line": "tests/unit/test_enrich_context_vault_isolation.py:223",
+  "assert_text": "assert 503 == 200"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_study_question_deep_mode.py::test_mode_answer_keeps_top_k_20_and_hard_cap_15",
+  "identity": "503",
+  "test_line": "tests/unit/test_study_question_deep_mode.py:161",
+  "assert_text": "assert 503 == 200"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_study_question_deep_mode.py::test_mode_deep_accepted_by_request_model",
+  "identity": "503",
+  "test_line": "tests/unit/test_study_question_deep_mode.py:65",
+  "assert_text": "AssertionError: deep mode 应被接受，实际 503: {\"detail\":\"Internal API key not configured. Set INTERNAL_API_KEY env for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_study_question_deep_mode.py::test_mode_deep_empty_user_question_skips_search",
+  "identity": "503",
+  "test_line": "tests/unit/test_study_question_deep_mode.py:217",
+  "assert_text": "assert 503 == 200"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_study_question_deep_mode.py::test_mode_deep_uses_top_k_30_and_hard_cap_20",
+  "identity": "503",
+  "test_line": "tests/unit/test_study_question_deep_mode.py:131",
+  "assert_text": "assert 503 == 200"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_study_question_deep_mode.py::test_mode_deep_without_user_question_skips_search",
+  "identity": "503",
+  "test_line": "tests/unit/test_study_question_deep_mode.py:195",
+  "assert_text": "assert 503 == 200"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_study_question_deep_mode.py::test_mode_default_is_preload",
+  "identity": "503",
+  "test_line": "tests/unit/test_study_question_deep_mode.py:93",
+  "assert_text": "assert 503 == 200"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_study_question_deep_mode.py::test_mode_invalid_rejected_by_pydantic",
+  "identity": "503",
+  "test_line": "tests/unit/test_study_question_deep_mode.py:76",
+  "assert_text": "assert 503 == 422"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_study_question_deep_mode.py::test_mode_preload_with_user_question_still_skips_search",
+  "identity": "503",
+  "test_line": "tests/unit/test_study_question_deep_mode.py:247",
+  "assert_text": "assert 503 == 200"
+ }
+]

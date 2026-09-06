@@ -1,0 +1,107 @@
+[
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_service_comparison.py::TestCallExplanationComparisonFormat::test_clarification_agent_receives_concept_string",
+  "identity": "其他(TypeError)",
+  "test_line": "tests/unit/test_agent_service_comparison.py:352",
+  "assert_text": "TypeError: TestCallExplanationComparisonFormat.test_clarification_agent_receives_concept_string.<locals>.mock_call_agent() got an unexpected keyword argument 'c"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_service_comparison.py::TestCallExplanationComparisonFormat::test_comparison_table_receives_concepts_array",
+  "identity": "其他(TypeError)",
+  "test_line": "tests/unit/test_agent_service_comparison.py:280",
+  "assert_text": "TypeError: TestCallExplanationComparisonFormat.test_comparison_table_receives_concepts_array.<locals>.mock_call_agent() got an unexpected keyword argument 'canv"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_service_comparison.py::TestCallExplanationComparisonFormat::test_example_agent_receives_concept_string",
+  "identity": "其他(TypeError)",
+  "test_line": "tests/unit/test_agent_service_comparison.py:427",
+  "assert_text": "TypeError: TestCallExplanationComparisonFormat.test_example_agent_receives_concept_string.<locals>.mock_call_agent() got an unexpected keyword argument 'canvas_"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_service_comparison.py::TestCallExplanationComparisonFormat::test_four_level_agent_receives_concept_string",
+  "identity": "其他(TypeError)",
+  "test_line": "tests/unit/test_agent_service_comparison.py:402",
+  "assert_text": "TypeError: TestCallExplanationComparisonFormat.test_four_level_agent_receives_concept_string.<locals>.mock_call_agent() got an unexpected keyword argument 'canv"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_service_comparison.py::TestCallExplanationComparisonFormat::test_memory_agent_receives_concept_string",
+  "identity": "其他(TypeError)",
+  "test_line": "tests/unit/test_agent_service_comparison.py:377",
+  "assert_text": "TypeError: TestCallExplanationComparisonFormat.test_memory_agent_receives_concept_string.<locals>.mock_call_agent() got an unexpected keyword argument 'canvas_n"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_service_comparison.py::TestCallExplanationComparisonFormat::test_oral_agent_receives_concept_string",
+  "identity": "其他(TypeError)",
+  "test_line": "tests/unit/test_agent_service_comparison.py:320",
+  "assert_text": "TypeError: TestCallExplanationComparisonFormat.test_oral_agent_receives_concept_string.<locals>.mock_call_agent() got an unexpected keyword argument 'canvas_nam"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/grouping/test_analyze_canvas.py::TestSubjectIsolation::test_group_id_extraction_chinese",
+  "identity": "assert",
+  "test_line": "tests/unit/grouping/test_analyze_canvas.py:123",
+  "assert_text": "AssertionError: assert 'vault:default:数学' == '数学:离散数学'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/grouping/test_analyze_canvas.py::TestSubjectIsolation::test_group_id_with_skip_directories",
+  "identity": "assert",
+  "test_line": "tests/unit/grouping/test_analyze_canvas.py:141",
+  "assert_text": "AssertionError: assert 'vault:default:物理' == '物理:力学'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_calibration_tracker.py::TestCalibrationRating::test_over_confident_boundary",
+  "identity": "assert",
+  "test_line": "tests/unit/test_calibration_tracker.py:266",
+  "assert_text": "AssertionError: assert <CalibrationR...er_confident'> == <CalibrationR...l_calibrated'>"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_calibration_tracker.py::TestCalibrationRating::test_under_confident_boundary",
+  "identity": "assert",
+  "test_line": "tests/unit/test_calibration_tracker.py:272",
+  "assert_text": "AssertionError: assert <CalibrationR...er_confident'> == <CalibrationR...l_calibrated'>"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_memory_injection.py::TestMemoryInjection::test_graceful_degradation_on_exception",
+  "identity": "其他(未定)",
+  "test_line": "tests/unit/test_agent_memory_injection.py:63",
+  "assert_text": "Exception: Mock search failure"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_degraded_flag_propagation.py::TestDegradedResponseFormat::test_degraded_score_is_reasonable",
+  "identity": "assert",
+  "test_line": "tests/unit/test_degraded_flag_propagation.py:248",
+  "assert_text": "assert 0.0 < 0.0"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_multimodal_path_security.py::TestValidateSafePath::test_path_traversal_windows_style",
+  "identity": "其他(未定)",
+  "test_line": "tests/unit/test_multimodal_path_security.py:64",
+  "assert_text": "Failed: DID NOT RAISE <class 'app.services.multimodal_service.MultimodalServiceError'>"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_s02_search_upgrade.py::test_search_recipes_all_5_mapped",
+  "identity": "assert",
+  "test_line": "tests/unit/test_s02_search_upgrade.py:185",
+  "assert_text": "AssertionError: assert {'combined_cr...dge_rrf', ...} == {'combined_cr...', 'node_rrf'}"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_wave5_stageb_continued_vault_id_injection.py::TestSharedResolverImportedByEndpoints::test_endpoint_imports_shared_resolver[app.api.v1.endpoints.agents]",
+  "identity": "assert",
+  "test_line": "tests/unit/test_wave5_stageb_continued_vault_id_injection.py:437",
+  "assert_text": "AssertionError: app.api.v1.endpoints.agents did not import resolve_vault_group_id from _vault_id_resolver"
+ }
+]

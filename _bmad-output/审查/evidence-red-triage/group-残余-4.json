@@ -1,0 +1,100 @@
+[
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_2_3_error_reminders.py::test_search_error_memories_normalizes_schema",
+  "identity": "assert",
+  "test_line": "tests/unit/test_story_2_3_error_reminders.py:403",
+  "assert_text": "AssertionError: assert '2026-04-15T12:34:56' == '2026-04-16T09:00:00'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_2_3_error_reminders.py::test_search_error_memories_passes_node_id_filter_to_search_memories",
+  "identity": "AttributeError",
+  "test_line": "tests/unit/test_story_2_3_error_reminders.py:417",
+  "assert_text": "AttributeError: 'list' object has no attribute 'items'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_2_3_error_reminders.py::test_search_error_memories_sorts_by_timestamp_desc",
+  "identity": "assert",
+  "test_line": "tests/unit/test_story_2_3_error_reminders.py:345",
+  "assert_text": "AssertionError: assert ['old', 'newest', 'middle'] == ['newest', 'middle', 'old']"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_2_3_error_reminders.py::test_search_memories_node_id_filter_post_merge",
+  "identity": "assert",
+  "test_line": "tests/unit/test_story_2_3_error_reminders.py:470",
+  "assert_text": "AssertionError: assert 1 == 2"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_2_3_error_reminders.py::test_search_memories_node_id_none_is_no_filter",
+  "identity": "assert",
+  "test_line": "tests/unit/test_story_2_3_error_reminders.py:498",
+  "assert_text": "assert 0 == 3"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_difficulty_canvas_integration.py::TestAIQuestionDifficultyInjection::test_difficulty_context_in_prompt",
+  "identity": "其他(NameError)",
+  "test_line": "tests/unit/test_difficulty_canvas_integration.py:432",
+  "assert_text": "NameError: name 'AgentType' is not defined"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_difficulty_canvas_integration.py::TestAIQuestionDifficultyInjection::test_no_difficulty_map_no_extra_fields",
+  "identity": "其他(NameError)",
+  "test_line": "tests/unit/test_difficulty_canvas_integration.py:476",
+  "assert_text": "NameError: name 'AgentType' is not defined"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_difficulty_canvas_integration.py::TestGetDifficultyData::test_memory_service_unavailable_returns_none",
+  "identity": "其他(未定)",
+  "test_line": "tests/unit/test_difficulty_canvas_integration.py:156",
+  "assert_text": "Exception: MemoryService unavailable"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_context_enrichment_2hop.py::TestEnrichWithAdjacentNodes2Hop::test_enrich_with_2hop_adjacent_nodes",
+  "identity": "其他(TypeError)",
+  "test_line": "tests/unit/test_context_enrichment_2hop.py:574",
+  "assert_text": "TypeError: ContextEnrichmentService.enrich_with_adjacent_nodes() got an unexpected keyword argument 'include_graphiti'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_context_enrichment_2hop.py::TestEnrichWithAdjacentNodes2Hop::test_enriched_context_contains_2hop_labels",
+  "identity": "其他(TypeError)",
+  "test_line": "tests/unit/test_context_enrichment_2hop.py:600",
+  "assert_text": "TypeError: ContextEnrichmentService.enrich_with_adjacent_nodes() got an unexpected keyword argument 'include_graphiti'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_memory_trigger.py::TestAgentMemoryMapping::test_all_14_agents_are_mapped",
+  "identity": "assert",
+  "test_line": "tests/unit/test_agent_memory_trigger.py:51",
+  "assert_text": "AssertionError: assert 15 == 14"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_epic36_gap_coverage.py::TestGetRelatedMemoriesReturnStructure::test_query_exception_returns_empty",
+  "identity": "其他(未定)",
+  "test_line": "tests/unit/test_epic36_gap_coverage.py:150",
+  "assert_text": "Exception: Connection lost"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_rag_p0_doc_type_filter.py::test_strip_whiteboard_removes_admonition_callouts",
+  "identity": "assert",
+  "test_line": "tests/unit/test_rag_p0_doc_type_filter.py:169",
+  "assert_text": "assert '原白板说明' not in '\\n> [!info]...= 节点关系**\\n\\n'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_vault_doc_roles.py::test_live_vault_enforce_clean",
+  "identity": "assert",
+  "test_line": "tests/unit/test_vault_doc_roles.py:481",
+  "assert_text": "AssertionError: \u001b[2m台账\u001b[0m /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y6-testhygiene/backend/scripts/vault_doc_roles.yaml"
+ }
+]

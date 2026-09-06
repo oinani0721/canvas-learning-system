@@ -1,0 +1,170 @@
+[
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_config_neo4j.py::TestNeo4jSettingsDefaults::test_neo4j_database_default",
+  "identity": "其他(未定)",
+  "test_line": "tests/unit/test_config_neo4j.py:46",
+  "assert_text": "pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_config_neo4j.py::TestNeo4jSettingsDefaults::test_neo4j_enabled_default_true",
+  "identity": "其他(未定)",
+  "test_line": "tests/unit/test_config_neo4j.py:22",
+  "assert_text": "pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_config_neo4j.py::TestNeo4jSettingsDefaults::test_neo4j_password_empty_default",
+  "identity": "其他(未定)",
+  "test_line": "tests/unit/test_config_neo4j.py:53",
+  "assert_text": "pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_config_neo4j.py::TestNeo4jSettingsDefaults::test_neo4j_uri_default",
+  "identity": "其他(未定)",
+  "test_line": "tests/unit/test_config_neo4j.py:32",
+  "assert_text": "pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_config_neo4j.py::TestNeo4jSettingsDefaults::test_neo4j_user_default",
+  "identity": "其他(未定)",
+  "test_line": "tests/unit/test_config_neo4j.py:39",
+  "assert_text": "pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_config_neo4j.py::TestNeo4jSettingsFromEnv::test_neo4j_enabled_case_insensitive",
+  "identity": "其他(未定)",
+  "test_line": "tests/unit/test_config_neo4j.py:88",
+  "assert_text": "pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_config_neo4j.py::TestNeo4jSettingsFromEnv::test_neo4j_enabled_false_from_env",
+  "identity": "其他(未定)",
+  "test_line": "tests/unit/test_config_neo4j.py:82",
+  "assert_text": "pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_config_neo4j.py::TestNeo4jSettingsFromEnv::test_neo4j_settings_from_env",
+  "identity": "其他(未定)",
+  "test_line": "tests/unit/test_config_neo4j.py:71",
+  "assert_text": "pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_config_neo4j.py::TestNeo4jSettingsFromEnv::test_neo4j_uri_with_different_port",
+  "identity": "其他(未定)",
+  "test_line": "tests/unit/test_config_neo4j.py:94",
+  "assert_text": "pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_30_24_boundary.py::TestSpecialCharacterGroupId::test_neo4j_parameterized_query_with_special_chars",
+  "identity": "assert",
+  "test_line": "tests/unit/test_story_30_24_boundary.py:187",
+  "assert_text": "AssertionError: groupId not passed as keyword param. kwargs={'userId': 'test_user', 'limit': 5, 'group_id': 'vault__script_drop_table_users', 'group_prefix': 'v"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_30_24_boundary.py::TestVaultVerifyExitCode::test_package_json_verify_command_correct",
+  "identity": "assert",
+  "test_line": "tests/unit/test_story_30_24_boundary.py:528",
+  "assert_text": "AssertionError: assert False"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_30_24_boundary.py::TestVaultVerifyExitCode::test_verify_script_exists",
+  "identity": "assert",
+  "test_line": "tests/unit/test_story_30_24_boundary.py:473",
+  "assert_text": "AssertionError: verify script not found: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y6-testhygiene/canvas-progress-tracker/obs"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_30_24_boundary.py::TestVaultVerifyExitCode::test_verify_script_exits_nonzero_when_file_not_found",
+  "identity": "assert",
+  "test_line": "tests/unit/test_story_30_24_boundary.py:497",
+  "assert_text": "assert 'NOT FOUND' in \"node:internal/modules/cjs/loader:1503\\n  throw err;\\n  ^\\n\\nError: Cannot find module '/Users/Heishing/Desktop/canvas...t node:internal/m"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_30_24_boundary.py::TestVaultVerifyExitCode::test_verify_script_exits_nonzero_when_stale",
+  "identity": "assert",
+  "test_line": "tests/unit/test_story_30_24_boundary.py:511",
+  "assert_text": "assert 'STALE' in (('' or ''))"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_30_24_boundary.py::TestVaultVerifyExitCode::test_verify_script_exits_zero_when_fresh",
+  "identity": "assert",
+  "test_line": "tests/unit/test_story_30_24_boundary.py:522",
+  "assert_text": "assert 1 == 0"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_supplementary_reranker.py::TestFilterFloor::test_floor_still_respects_top_k",
+  "identity": "assert",
+  "test_line": "tests/unit/test_supplementary_reranker.py:710",
+  "assert_text": "AssertionError: assert None is True"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_supplementary_reranker.py::TestFilterFloor::test_floor_triggered_marks_first_material",
+  "identity": "assert",
+  "test_line": "tests/unit/test_supplementary_reranker.py:653",
+  "assert_text": "AssertionError: assert None is True"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_supplementary_reranker.py::TestFilterFloor::test_floor_triggered_when_kill_ratio_high",
+  "identity": "assert",
+  "test_line": "tests/unit/test_supplementary_reranker.py:698",
+  "assert_text": "AssertionError: assert None is True"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_supplementary_reranker.py::TestFilterFloor::test_min_keep_zero_disables_floor",
+  "identity": "assert",
+  "test_line": "tests/unit/test_supplementary_reranker.py:684",
+  "assert_text": "AssertionError: assert 5 == 0"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_supplementary_reranker.py::TestFilterFloorTaintExclusion::test_floor_all_review_returns_empty_list",
+  "identity": "assert",
+  "test_line": "tests/unit/test_supplementary_reranker.py:813",
+  "assert_text": "AssertionError: assert 5 == 0"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_supplementary_reranker.py::TestFilterFloorTaintExclusion::test_floor_no_taint_field_treated_as_clean",
+  "identity": "assert",
+  "test_line": "tests/unit/test_supplementary_reranker.py:795",
+  "assert_text": "AssertionError: assert None is True"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_supplementary_reranker.py::TestFilterFloorTaintExclusion::test_min_keep_floor_excludes_review_taint",
+  "identity": "assert",
+  "test_line": "tests/unit/test_supplementary_reranker.py:752",
+  "assert_text": "AssertionError: assert 3 == 2"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_supplementary_reranker.py::TestTypeWeightsIndexerTransition::test_indexer_note_mapped_to_canonical",
+  "identity": "assert",
+  "test_line": "tests/unit/test_supplementary_reranker.py:587",
+  "assert_text": "assert 1.0 == 0.7"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_supplementary_reranker.py::TestTypeWeightsIndexerTransition::test_indexer_video_transcript_mapped_to_canonical",
+  "identity": "assert",
+  "test_line": "tests/unit/test_supplementary_reranker.py:594",
+  "assert_text": "AssertionError: assert 0.75 == 0.9"
+ }
+]

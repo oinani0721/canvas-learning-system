@@ -1,0 +1,23 @@
+=== 裁判 7：Z4-A (c7799298) 清掉的 9 条对账 ===
+--- c7799298 改动的 tests/unit 文件 ---
+   backend/tests/unit/test_lancedb_vault_isolation.py | 100 ++++++++++++++++-----
+   backend/tests/unit/test_subject_resolver.py        |  80 ++++++++++++-----
+   backend/tests/unit/test_vault_switch.py            |  50 +++++++++--
+
+--- 卡文点名的三文件是否在列 ---
+  test_lancedb_vault_isolation.py  ✅ 在列
+  test_subject_resolver.py         ✅ 在列
+  test_vault_switch.py             ✅ 在列
+
+--- 这三文件在 247 基线中的条数（应全为 0）---
+  test_lancedb_vault_isolation.py  0
+0 条
+  test_subject_resolver.py         0
+0 条
+  test_vault_switch.py             0
+0 条
+
+=== 裁判 4：纯分析门（开工 SHA 368b145a → HEAD）===
+rc=0  [空且 0 = 未动树]
+git status --porcelain -- backend | wc -l:
+0

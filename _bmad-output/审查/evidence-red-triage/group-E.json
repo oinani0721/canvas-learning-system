@@ -1,0 +1,65 @@
+[
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[canvas-orchestrator.md]",
+  "identity": "assert",
+  "test_line": "tests/unit/test_agent_templates_smoke.py:73",
+  "assert_text": "AssertionError: Missing agent template: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y6-testhygiene/.claude/agents/canvas-orches"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[graphiti-memory-agent.md]",
+  "identity": "assert",
+  "test_line": "tests/unit/test_agent_templates_smoke.py:73",
+  "assert_text": "AssertionError: Missing agent template: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y6-testhygiene/.claude/agents/graphiti-memo"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[hint-generation.md]",
+  "identity": "assert",
+  "test_line": "tests/unit/test_agent_templates_smoke.py:73",
+  "assert_text": "AssertionError: Missing agent template: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y6-testhygiene/.claude/agents/hint-generati"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[iteration-validator.md]",
+  "identity": "assert",
+  "test_line": "tests/unit/test_agent_templates_smoke.py:73",
+  "assert_text": "AssertionError: Missing agent template: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y6-testhygiene/.claude/agents/iteration-val"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[parallel-dev-orchestrator.md]",
+  "identity": "assert",
+  "test_line": "tests/unit/test_agent_templates_smoke.py:73",
+  "assert_text": "AssertionError: Missing agent template: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y6-testhygiene/.claude/agents/parallel-dev-"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[planning-orchestrator.md]",
+  "identity": "assert",
+  "test_line": "tests/unit/test_agent_templates_smoke.py:73",
+  "assert_text": "AssertionError: Missing agent template: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y6-testhygiene/.claude/agents/planning-orch"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[review-board-agent-selector.md]",
+  "identity": "assert",
+  "test_line": "tests/unit/test_agent_templates_smoke.py:73",
+  "assert_text": "AssertionError: Missing agent template: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y6-testhygiene/.claude/agents/review-board-"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_hint_generation_template_exists",
+  "identity": "assert",
+  "test_line": "tests/unit/test_agent_templates_smoke.py:94",
+  "assert_text": "AssertionError: hint-generation.md template missing"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_minimum_template_count",
+  "identity": "assert",
+  "test_line": "tests/unit/test_agent_templates_smoke.py:86",
+  "assert_text": "AssertionError: Expected >= 17 agent templates, found 11: ['scoring-agent.md', 'comparison-table.md', 'question-decomposition.md', 'memory-anchor.md', 'deep-dec"
+ }
+]
