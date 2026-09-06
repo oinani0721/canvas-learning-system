@@ -5,23 +5,43 @@
 """
 Unit tests for Graphiti JSON write retry functionality.
 
+⚠️ DEPRECATED — fix-test-infra-paralysis Phase 2 (2026-04-07)
+=================================================================
+The method `MemoryService._write_to_graphiti_json_with_retry` was deleted
+during the fix-rag-transform-and-episode-isolation refactor. The retry,
+exponential backoff, and dead-letter semantics it implemented now live in
+`backend/app/services/episode_worker.py:GraphitiEpisodeWorker._handle_failure`.
+
+Equivalent test coverage moved to:
+  backend/tests/unit/test_episode_worker_retry.py
+which exercises the production retry path through GraphitiEpisodeWorker.
+
+This file is preserved for blame/audit history rather than deleted, but every
+test in it would call a non-existent method. Module-level skip avoids the
+~18 noisy AttributeError failures while preserving the historical context.
+
 Story 31.A.3: 写入可靠性增强
 - AC-31.A.3.1: 添加重试机制
 - AC-31.A.3.4: 单元测试覆盖
 
-Test scenarios:
-- First attempt success
-- Success after retry
-- All retries failed (timeout)
-- Exception triggers retry
-- Retry success logging (info level)
-- All retries failed logging (warning level)
-
 [Source: docs/stories/31.A.3.story.md#Testing]
+[Migration: openspec/changes/fix-test-infra-paralysis/specs/test-infrastructure-resilience/spec.md]
 """
 
 import asyncio
 from unittest.mock import AsyncMock, patch
+
+import pytest
+
+# fix-test-infra-paralysis Phase 2: skip whole module — see file docstring above.
+pytestmark = pytest.mark.skip(
+    reason=(
+        "MemoryService._write_to_graphiti_json_with_retry deleted by "
+        "fix-rag-transform-and-episode-isolation; retry semantics moved to "
+        "GraphitiEpisodeWorker._handle_failure. Equivalent coverage in "
+        "backend/tests/unit/test_episode_worker_retry.py."
+    )
+)
 
 import pytest
 from app.services.memory_service import MemoryService
@@ -66,9 +86,7 @@ class TestWriteToGraphitiJsonWithRetry:
     """Tests for _write_to_graphiti_json_with_retry method."""
 
     @pytest.mark.asyncio
-    async def test_write_succeeds_first_attempt(
-        self, memory_service, mock_learning_memory_client
-    ):
+    async def test_write_succeeds_first_attempt(self, memory_service, mock_learning_memory_client):
         """AC-31.A.3.4: 测试首次写入成功"""
         await memory_service.initialize()
 
@@ -83,16 +101,12 @@ class TestWriteToGraphitiJsonWithRetry:
         assert mock_learning_memory_client.add_learning_episode.call_count == 1
 
     @pytest.mark.asyncio
-    async def test_write_succeeds_after_one_retry(
-        self, memory_service, mock_learning_memory_client
-    ):
+    async def test_write_succeeds_after_one_retry(self, memory_service, mock_learning_memory_client):
         """AC-31.A.3.4: 测试第一次超时后重试成功"""
         await memory_service.initialize()
 
         # 第一次超时，第二次成功
-        mock_learning_memory_client.add_learning_episode = AsyncMock(
-            side_effect=[asyncio.TimeoutError(), True]
-        )
+        mock_learning_memory_client.add_learning_episode = AsyncMock(side_effect=[asyncio.TimeoutError(), True])
 
         result = await memory_service._write_to_graphiti_json_with_retry(
             episode_id="test-episode-2",
@@ -105,9 +119,7 @@ class TestWriteToGraphitiJsonWithRetry:
         assert mock_learning_memory_client.add_learning_episode.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_write_succeeds_after_two_retries(
-        self, memory_service, mock_learning_memory_client
-    ):
+    async def test_write_succeeds_after_two_retries(self, memory_service, mock_learning_memory_client):
         """AC-31.A.3.4: 测试两次超时后第三次成功"""
         await memory_service.initialize()
 
@@ -128,15 +140,11 @@ class TestWriteToGraphitiJsonWithRetry:
         assert mock_learning_memory_client.add_learning_episode.call_count == 3
 
     @pytest.mark.asyncio
-    async def test_write_fails_after_all_retries_timeout(
-        self, memory_service, mock_learning_memory_client
-    ):
+    async def test_write_fails_after_all_retries_timeout(self, memory_service, mock_learning_memory_client):
         """AC-31.A.3.4: 测试全部重试失败（超时）"""
         await memory_service.initialize()
 
-        mock_learning_memory_client.add_learning_episode = AsyncMock(
-            side_effect=asyncio.TimeoutError()
-        )
+        mock_learning_memory_client.add_learning_episode = AsyncMock(side_effect=asyncio.TimeoutError())
 
         result = await memory_service._write_to_graphiti_json_with_retry(
             episode_id="test-episode-timeout",
@@ -150,16 +158,12 @@ class TestWriteToGraphitiJsonWithRetry:
         assert mock_learning_memory_client.add_learning_episode.call_count == 3
 
     @pytest.mark.asyncio
-    async def test_exception_triggers_retry(
-        self, memory_service, mock_learning_memory_client
-    ):
+    async def test_exception_triggers_retry(self, memory_service, mock_learning_memory_client):
         """AC-31.A.3.4: 测试异常（非超时）触发重试"""
         await memory_service.initialize()
 
         # 第一次异常，第二次成功
-        mock_learning_memory_client.add_learning_episode = AsyncMock(
-            side_effect=[Exception("Network error"), True]
-        )
+        mock_learning_memory_client.add_learning_episode = AsyncMock(side_effect=[Exception("Network error"), True])
 
         result = await memory_service._write_to_graphiti_json_with_retry(
             episode_id="test-episode-exception",
@@ -172,15 +176,11 @@ class TestWriteToGraphitiJsonWithRetry:
         assert mock_learning_memory_client.add_learning_episode.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_write_fails_after_all_retries_exception(
-        self, memory_service, mock_learning_memory_client
-    ):
+    async def test_write_fails_after_all_retries_exception(self, memory_service, mock_learning_memory_client):
         """AC-31.A.3.4: 测试全部重试失败（异常）"""
         await memory_service.initialize()
 
-        mock_learning_memory_client.add_learning_episode = AsyncMock(
-            side_effect=Exception("Persistent error")
-        )
+        mock_learning_memory_client.add_learning_episode = AsyncMock(side_effect=Exception("Persistent error"))
 
         result = await memory_service._write_to_graphiti_json_with_retry(
             episode_id="test-episode-exception-fail",
@@ -194,15 +194,11 @@ class TestWriteToGraphitiJsonWithRetry:
         assert mock_learning_memory_client.add_learning_episode.call_count == 3
 
     @pytest.mark.asyncio
-    async def test_retry_success_logging(
-        self, memory_service, mock_learning_memory_client
-    ):
+    async def test_retry_success_logging(self, memory_service, mock_learning_memory_client):
         """AC-31.A.3.4: 测试重试成功后记录 info 日志"""
         await memory_service.initialize()
 
-        mock_learning_memory_client.add_learning_episode = AsyncMock(
-            side_effect=[asyncio.TimeoutError(), True]
-        )
+        mock_learning_memory_client.add_learning_episode = AsyncMock(side_effect=[asyncio.TimeoutError(), True])
 
         with patch("app.services.memory_service.logger") as mock_logger:
             result = await memory_service._write_to_graphiti_json_with_retry(
@@ -222,15 +218,11 @@ class TestWriteToGraphitiJsonWithRetry:
         assert "2 attempts" in log_call_args
 
     @pytest.mark.asyncio
-    async def test_all_retries_failed_warning_logging(
-        self, memory_service, mock_learning_memory_client
-    ):
+    async def test_all_retries_failed_warning_logging(self, memory_service, mock_learning_memory_client):
         """AC-31.A.3.4: 测试全部重试失败后记录 warning 日志"""
         await memory_service.initialize()
 
-        mock_learning_memory_client.add_learning_episode = AsyncMock(
-            side_effect=asyncio.TimeoutError()
-        )
+        mock_learning_memory_client.add_learning_episode = AsyncMock(side_effect=asyncio.TimeoutError())
 
         with patch("app.services.memory_service.logger") as mock_logger:
             result = await memory_service._write_to_graphiti_json_with_retry(
@@ -249,9 +241,7 @@ class TestWriteToGraphitiJsonWithRetry:
         assert "3 attempts" in log_call_args
 
     @pytest.mark.asyncio
-    async def test_first_success_debug_logging(
-        self, memory_service, mock_learning_memory_client
-    ):
+    async def test_first_success_debug_logging(self, memory_service, mock_learning_memory_client):
         """AC-31.A.3.4: 测试首次成功只记录 debug 日志（不是 info）"""
         await memory_service.initialize()
 
@@ -272,9 +262,7 @@ class TestWriteToGraphitiJsonWithRetry:
         mock_logger.info.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_with_all_optional_params(
-        self, memory_service, mock_learning_memory_client
-    ):
+    async def test_with_all_optional_params(self, memory_service, mock_learning_memory_client):
         """AC-31.A.3.4: 测试所有可选参数都传递"""
         await memory_service.initialize()
 
@@ -303,15 +291,11 @@ class TestWriteToGraphitiJsonWithRetry:
         assert learning_memory.user_understanding == "用户的理解文本"
 
     @pytest.mark.asyncio
-    async def test_zero_retries_single_attempt(
-        self, memory_service, mock_learning_memory_client
-    ):
+    async def test_zero_retries_single_attempt(self, memory_service, mock_learning_memory_client):
         """AC-31.A.3.4: 测试 max_retries=0 只尝试一次"""
         await memory_service.initialize()
 
-        mock_learning_memory_client.add_learning_episode = AsyncMock(
-            side_effect=asyncio.TimeoutError()
-        )
+        mock_learning_memory_client.add_learning_episode = AsyncMock(side_effect=asyncio.TimeoutError())
 
         result = await memory_service._write_to_graphiti_json_with_retry(
             episode_id="test-episode-no-retry",
@@ -329,9 +313,7 @@ class TestWriteRetryStrictQA:
     """QA 补充测试: 严格验证 AC-31.A.3 的边界条件和实现细节。"""
 
     @pytest.mark.asyncio
-    async def test_exponential_backoff_delays(
-        self, memory_service, mock_learning_memory_client
-    ):
+    async def test_exponential_backoff_delays(self, memory_service, mock_learning_memory_client):
         """AC-31.A.3.1 + Story 38.6: 验证指数退避延迟值 (1.0s, 2.0s)"""
         await memory_service.initialize()
 
@@ -358,15 +340,11 @@ class TestWriteRetryStrictQA:
         assert delays[1] == pytest.approx(2.0)
 
     @pytest.mark.asyncio
-    async def test_exponential_backoff_all_failures(
-        self, memory_service, mock_learning_memory_client
-    ):
+    async def test_exponential_backoff_all_failures(self, memory_service, mock_learning_memory_client):
         """AC-31.A.3.1 + Story 38.6: 验证全部失败时指数退避延迟值 (1.0s, 2.0s)"""
         await memory_service.initialize()
 
-        mock_learning_memory_client.add_learning_episode = AsyncMock(
-            side_effect=asyncio.TimeoutError()
-        )
+        mock_learning_memory_client.add_learning_episode = AsyncMock(side_effect=asyncio.TimeoutError())
 
         with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
             result = await memory_service._write_to_graphiti_json_with_retry(
@@ -386,9 +364,7 @@ class TestWriteRetryStrictQA:
         assert delays[1] == pytest.approx(2.0)
 
     @pytest.mark.asyncio
-    async def test_mixed_timeout_then_exception_then_success(
-        self, memory_service, mock_learning_memory_client
-    ):
+    async def test_mixed_timeout_then_exception_then_success(self, memory_service, mock_learning_memory_client):
         """QA 补充: 混合异常类型 - Timeout后Exception后成功"""
         await memory_service.initialize()
 
@@ -408,15 +384,11 @@ class TestWriteRetryStrictQA:
         assert mock_learning_memory_client.add_learning_episode.call_count == 3
 
     @pytest.mark.asyncio
-    async def test_exception_failure_warning_includes_error_message(
-        self, memory_service, mock_learning_memory_client
-    ):
+    async def test_exception_failure_warning_includes_error_message(self, memory_service, mock_learning_memory_client):
         """QA 补充: Exception失败的warning日志应包含错误消息（与Timeout日志格式不同）"""
         await memory_service.initialize()
 
-        mock_learning_memory_client.add_learning_episode = AsyncMock(
-            side_effect=Exception("Custom DB error")
-        )
+        mock_learning_memory_client.add_learning_episode = AsyncMock(side_effect=Exception("Custom DB error"))
 
         with patch("app.services.memory_service.logger") as mock_logger:
             result = await memory_service._write_to_graphiti_json_with_retry(
@@ -437,15 +409,11 @@ class TestWriteRetryStrictQA:
         assert "(timeout)" not in log_msg
 
     @pytest.mark.asyncio
-    async def test_timeout_failure_warning_includes_timeout_suffix(
-        self, memory_service, mock_learning_memory_client
-    ):
+    async def test_timeout_failure_warning_includes_timeout_suffix(self, memory_service, mock_learning_memory_client):
         """QA 补充: Timeout失败的warning日志应包含'(timeout)'后缀"""
         await memory_service.initialize()
 
-        mock_learning_memory_client.add_learning_episode = AsyncMock(
-            side_effect=asyncio.TimeoutError()
-        )
+        mock_learning_memory_client.add_learning_episode = AsyncMock(side_effect=asyncio.TimeoutError())
 
         with patch("app.services.memory_service.logger") as mock_logger:
             result = await memory_service._write_to_graphiti_json_with_retry(
@@ -462,9 +430,7 @@ class TestWriteRetryStrictQA:
         assert "test-timeout-log" in log_msg
 
     @pytest.mark.asyncio
-    async def test_record_temporal_event_uses_retry_method(
-        self, memory_service, mock_learning_memory_client
-    ):
+    async def test_record_temporal_event_uses_retry_method(self, memory_service, mock_learning_memory_client):
         """AC-31.A.3.2: 验证 record_temporal_event 使用带重试的方法"""
         await memory_service.initialize()
 
@@ -495,9 +461,7 @@ class TestWriteRetryStrictQA:
         )
 
     @pytest.mark.asyncio
-    async def test_retry_creates_new_timestamp_each_attempt(
-        self, memory_service, mock_learning_memory_client
-    ):
+    async def test_retry_creates_new_timestamp_each_attempt(self, memory_service, mock_learning_memory_client):
         """QA 发现: 每次重试创建新的 LearningMemory（不同 timestamp）
 
         这记录了一个潜在的幂等性问题：如果第一次写入在 timeout 瞬间完成（race condition），

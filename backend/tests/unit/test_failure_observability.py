@@ -182,9 +182,7 @@ class TestCanvasServiceEdgeSyncFailure:
         # Create a mock memory_client with a neo4j that always fails
         mock_memory = MagicMock()
         mock_neo4j = AsyncMock()
-        mock_neo4j.create_edge_relationship = AsyncMock(
-            side_effect=ConnectionError("Neo4j down")
-        )
+        mock_neo4j.create_edge_relationship = AsyncMock(side_effect=ConnectionError("Neo4j down"))
         mock_memory.neo4j = mock_neo4j
         service._memory_client = mock_memory
 
@@ -206,9 +204,7 @@ class TestCanvasServiceEdgeSyncFailure:
         service = CanvasService(canvas_base_path="/tmp/test")
         mock_memory = MagicMock()
         mock_neo4j = AsyncMock()
-        mock_neo4j.create_edge_relationship = AsyncMock(
-            side_effect=ConnectionError("refused")
-        )
+        mock_neo4j.create_edge_relationship = AsyncMock(side_effect=ConnectionError("refused"))
         mock_memory.neo4j = mock_neo4j
         service._memory_client = mock_memory
 
@@ -234,9 +230,7 @@ class TestCanvasServiceEdgeSyncFailure:
         service = CanvasService(canvas_base_path="/tmp/test")
         mock_memory = MagicMock()
         mock_neo4j = AsyncMock()
-        mock_neo4j.create_edge_relationship = AsyncMock(
-            side_effect=ConnectionError("connection refused")
-        )
+        mock_neo4j.create_edge_relationship = AsyncMock(side_effect=ConnectionError("connection refused"))
         mock_memory.neo4j = mock_neo4j
         service._memory_client = mock_memory
 
@@ -248,9 +242,7 @@ class TestCanvasServiceEdgeSyncFailure:
                 to_node_id="b",
             )
 
-        warning_msgs = [
-            r.message for r in caplog.records if r.levelno >= logging.WARNING
-        ]
+        warning_msgs = [r.message for r in caplog.records if r.levelno >= logging.WARNING]
         combined = " ".join(warning_msgs)
         assert "edge-log-test" in combined
         assert "test.canvas" in combined
@@ -262,6 +254,16 @@ class TestCanvasServiceEdgeSyncFailure:
 # ============================================================================
 
 
+# fix-test-infra-paralysis Phase 2: skip — class tests deleted methods
+# `_write_to_graphiti_json` and `_write_to_graphiti_json_with_retry` directly.
+# Both methods removed by fix-rag-transform-and-episode-isolation; dual-write
+# pipeline is now `MemoryService._enqueue_episode → GraphitiEpisodeWorker`.
+# Failure observability for the new path: covered by test_episode_worker_retry.py
+# (dead-letter scenario asserts metrics + JSONL fields).
+@pytest.mark.skip(
+    reason="Tests deleted MemoryService._write_to_graphiti_json[_with_retry] directly; "
+    "EpisodeWorker dead-letter coverage in test_episode_worker_retry.py"
+)
 class TestMemoryServiceDualWriteFailure:
     """Test that dual-write failures increment counter + write dead-letter."""
 
@@ -300,9 +302,7 @@ class TestMemoryServiceDualWriteFailure:
 
         mock_neo4j = MagicMock()
         mock_learning = MagicMock()
-        mock_learning.add_learning_episode = AsyncMock(
-            side_effect=RuntimeError("disk full")
-        )
+        mock_learning.add_learning_episode = AsyncMock(side_effect=RuntimeError("disk full"))
 
         service = MemoryService(
             neo4j_client=mock_neo4j,
@@ -326,9 +326,7 @@ class TestMemoryServiceDualWriteFailure:
         mock_neo4j = MagicMock()
         mock_learning = MagicMock()
         mock_learning._initialized = False
-        mock_learning.add_learning_episode = AsyncMock(
-            side_effect=RuntimeError("persistent error")
-        )
+        mock_learning.add_learning_episode = AsyncMock(side_effect=RuntimeError("persistent error"))
 
         service = MemoryService(
             neo4j_client=mock_neo4j,
@@ -389,12 +387,7 @@ class TestHealthStorageReflectsFailures:
             StorageBackendStatus(name="mcp", status="ok"),
             StorageBackendStatus(name="json", status="ok"),
         ]
-        assert (
-            _aggregate_storage_status(
-                backends, edge_sync_failures=3, dual_write_failures=0
-            )
-            == "degraded"
-        )
+        assert _aggregate_storage_status(backends, edge_sync_failures=3, dual_write_failures=0) == "degraded"
 
     def test_aggregate_status_degraded_when_dual_write_failures(self):
         """Status is degraded when dual_write_failures > 0 (AC-36.12.6)."""

@@ -1,0 +1,33 @@
+===== (e) 三列拆分修正 + PASS 直证 · 2026-09-06T13:51:19+08:00 =====
+⚠️ 前一版把 test_story_30_10 的 11 条整块归入「skip 造成」——其中 2 条是真修，须拆开。
+
+--- test_story_30_10 减少的 11 条，逐条按「是否在 SKIPPED 名单里」分类 ---
+  [skip] tests/unit/test_story_30_10_idempotency.py::TestBatchEpisodesDedup::test_batch_deterministic_ids
+  [skip] tests/unit/test_story_30_10_idempotency.py::TestBatchEpisodesDedup::test_batch_duplicate_submission_dedup
+  [skip] tests/unit/test_story_30_10_idempotency.py::TestEpisodesDedup::test_different_events_both_stored
+  [skip] tests/unit/test_story_30_10_idempotency.py::TestEpisodesDedup::test_duplicate_event_single_episode
+  [skip] tests/unit/test_story_30_10_idempotency.py::TestEpisodesDedup::test_skip_existing_episode_on_dup
+  [skip] tests/unit/test_story_30_10_idempotency.py::TestGraphitiJsonWriteDedup::test_degrades_gracefully_on_search_error
+  [skip] tests/unit/test_story_30_10_idempotency.py::TestGraphitiJsonWriteDedup::test_degrades_when_learning_memory_uninitialized
+  [skip] tests/unit/test_story_30_10_idempotency.py::TestGraphitiJsonWriteDedup::test_skips_write_when_exists
+  [skip] tests/unit/test_story_30_10_idempotency.py::TestGraphitiJsonWriteDedup::test_writes_when_not_exists
+  [真修?] tests/unit/test_story_30_10_idempotency.py::TestBatchDeterministicEpisodeId::test_batch_id_format
+  [真修?] tests/unit/test_story_30_10_idempotency.py::TestDeterministicEpisodeId::test_id_format
+
+--- PASS 直证：单跑这 2 条，-v 看状态 ---
+tests/unit/test_story_30_10_idempotency.py::TestDeterministicEpisodeId::test_id_format PASSED [ 50%]
+tests/unit/test_story_30_10_idempotency.py::TestBatchDeterministicEpisodeId::test_batch_id_format PASSED [100%]
+======================== 2 passed, 10 warnings in 0.47s ========================
+
+--- 反证：同文件被 skip 的类确实是 SKIPPED（不是 PASS）---
+tests/unit/test_story_30_10_idempotency.py::TestEpisodesDedup::test_duplicate_event_single_episode SKIPPEDpisodeWorker pipeline
+tests/unit/test_story_30_10_idempotency.py::TestEpisodesDedup::test_different_events_both_stored SKIPPEDpisodeWorker pipeline
+tests/unit/test_story_30_10_idempotency.py::TestEpisodesDedup::test_skip_existing_episode_on_dup SKIPPEDpisodeWorker pipeline
+SKIPPED [1] tests/unit/test_story_30_10_idempotency.py:150: Depends on deleted MemoryService._write_to_graphiti_json_with_retry; EpisodeWorker pipeline coverage in test_episode_worker_retry.py
+SKIPPED [1] tests/unit/test_story_30_10_idempotency.py:179: Depends on deleted MemoryService._write_to_graphiti_json_with_retry; EpisodeWorker pipeline coverage in test_episode_worker_retry.py
+
+===== 修正后的三列 =====
+  第一列 skip 造成的减少 = 45 - 2 = 43
+  第二列 真实修好         = 2
+  第三列 新增红           = 0
+  247 - 43 - 2 = 202 = post2 实测 ✓

@@ -1,0 +1,18 @@
+===== 47 SKIPPED vs 43 红基线：差额 4 条的身份 · 2026-09-06T13:52:07+08:00 =====
+SKIPPED nodeid 总数 =       47
+
+--- 在红基线里的（= 掩盖了红）---
+  计 =       43
+
+--- 不在红基线里的（= 原本是绿的，被顺带关掉）---
+  tests/unit/test_graphiti_json_dual_write.py::TestGraphitiJsonDualWrite::test_config_flag_disables_dual_write
+  tests/unit/test_graphiti_json_dual_write.py::TestGraphitiJsonDualWrite::test_fire_and_forget_doesnt_block_return
+  tests/unit/test_graphiti_json_dual_write.py::TestGraphitiJsonDualWrite::test_timeout_protection
+  tests/unit/test_story_38_6_scoring_reliability.py::TestAC3StartupRecovery::test_recover_no_file
+  计 = 4
+
+--- 反证：这几条在 pre 基线（pick 前）里确实不是红的 ---
+  ✓ tests/unit/test_graphiti_json_dual_write.py::TestGraphitiJsonDualWrite::test_config_flag_disables_dual_write 在 pre 里不是红的 ⇒ 原本绿
+  ✓ tests/unit/test_graphiti_json_dual_write.py::TestGraphitiJsonDualWrite::test_fire_and_forget_doesnt_block_return 在 pre 里不是红的 ⇒ 原本绿
+  ✓ tests/unit/test_graphiti_json_dual_write.py::TestGraphitiJsonDualWrite::test_timeout_protection 在 pre 里不是红的 ⇒ 原本绿
+  ✓ tests/unit/test_story_38_6_scoring_reliability.py::TestAC3StartupRecovery::test_recover_no_file 在 pre 里不是红的 ⇒ 原本绿

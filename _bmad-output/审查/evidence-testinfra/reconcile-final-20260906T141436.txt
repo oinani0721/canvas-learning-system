@@ -1,0 +1,21 @@
+===== 最终对账（绑定 556ecc3d）· 2026-09-06T14:14:36+08:00 =====
+post3 = unit-post3-20260906T140952.txt  HEAD=556ecc3d
+= 173 failed, 4605 passed, 48 skipped, 122 warnings, 29 errors in 253.07s (0:04:13) =
+
+baseline=     247  pre=     247  post2=     202  post3=     202
+
+--- post3 vs post2 逐 nodeid（Codex 整改是否引入变化）---
+  逐 nodeid 完全相同 ✓ ⇒ 整改零回归
+
+--- post3 vs 红基线 ---
+  新增红 = 0
+  减少   = 45
+
+--- 三列（最终）---
+  第一列 skip 掩盖 = 43
+  第二列 真实修好 = 2
+  第三列 新增红   = 0
+  247 - 43 - 2 = 202 ; post3 实测 =      202
+
+--- test_episode_worker_retry.py 5 条 ---
+======================== 5 passed, 10 warnings in 0.59s ========================

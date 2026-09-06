@@ -1,0 +1,59 @@
+===== 66d6a835 排除理由的实测证据 · 2026-09-06T13:47:22+08:00 =====
+--- ① 规模 ---
+ 57 files changed, 7830 insertions(+), 114 deletions(-)
+
+--- ② 它的 lefthook.yml 是旧版 ---
+66d6a835 版行数 =      185
+本车道 HEAD 行数 =      513
+66d6a835:lefthook.yml 的 :17 / :20 / :76-83 —
+  parallel: true
+    spec-sync:
+    python-typecheck:
+      glob: "{backend,src}/**/*.py"
+      run: |
+        # Activate backend venv for pyright
+        if [ -f "backend/.venv/bin/activate" ]; then source backend/.venv/bin/activate; fi
+        echo "[Python] Running pyright type check..."
+        pyright {staged_files} 2>&1
+        PYRIGHT_EXIT=$?
+
+--- ③ 主干 lefthook.yml 里有、而 66d6a835 版没有的 hook 块（= 会被回滚的）---
+本车道有而 66d6a835 没有的块:
+    cypher-vault-filter-lint
+    mutant-residue-scan
+    readme-claims-lint
+    spec-sync-flat
+    spec-sync-root
+66d6a835 有而本车道没有的块:
+    backup-push
+    origin-push
+    spec-sync
+
+--- ④ 那些块分别是哪张卡加的（git log 溯源）---
+  mutant-residue-scan ← 1ffd6d36 chore(lint): lefthook glob 补 scripts/ + 变异残留门 [BATCH-2026-09-05-第十一批]
+  cypher-vault-filter-lint ← 79da7460 feat(2.2+2.9 wave-5 stage-c): backend p1 hardening + 跨 vault isolation integration test
+  readme-claims-lint ← 81364293 feat: README禁夸大机械lint三档+hook+CI门 [BATCH-2026-08-27-第四批 / CARD-G1-5]
+  spec-sync-flat ← 7ba8fc07 merge(squash): X8 OpenAPI 漂移门重排 13 文件白名单 + 快照重生成 [BATCH-2026-09-04-第十批 / CARD-DEBT-openapi-sync-R1]
+  spec-sync-root ← 7ba8fc07 merge(squash): X8 OpenAPI 漂移门重排 13 文件白名单 + 快照重生成 [BATCH-2026-09-04-第十批 / CARD-DEBT-openapi-sync-R1]
+
+--- ⑤ 66d6a835 的 pyright 块是否有解释器兜底（127 假绿面）---
+    python-typecheck:
+      glob: "{backend,src}/**/*.py"
+      run: |
+        # Activate backend venv for pyright
+        if [ -f "backend/.venv/bin/activate" ]; then source backend/.venv/bin/activate; fi
+        echo "[Python] Running pyright type check..."
+        pyright {staged_files} 2>&1
+        PYRIGHT_EXIT=$?
+        if [ $PYRIGHT_EXIT -ne 0 ]; then
+          echo "[Python] Type errors found! Review and fix before committing."
+          echo "[Python] Hint: Some errors may be pre-existing. Focus on YOUR changes."
+        fi
+        echo "[Python] Typecheck done (exit: $PYRIGHT_EXIT)."
+
+# ============================================================
+# Commit-msg: Conventional commits with commitlint
+# ============================================================
+commit-msg:
+  commands:
+    commitlint:

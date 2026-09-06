@@ -1,0 +1,36 @@
+===== (c) 判据 · 三 pick 定稿后 · 2026-09-06T13:36:22+08:00 =====
+HEAD=abc6fb78  Y4-C=16b9e337
+
+--- c1 wrapper 可执行 / bash -n / mode ---
+test -x: PASS
+bash -n rc=0
+100755 40ff9dc1a2e0e0c9e808834b345903f3c5559ea2 0	scripts/run_cmd_capture.sh
+
+--- c2 管道 tail 零命中（修前 5）---
+grep rc=1  (1 = 零命中 = PASS)
+
+--- c3 head 零命中（修前 1）· 原始 + 排除 JS 块注释 ---
+[原始正则]
+13: *   - Replaced `pytest ... | head -20` with scripts/run_cmd_capture.sh, which
+rc=0
+[排除 JSDoc 注释行]
+rc=1 (1 = 真管道零命中)
+
+--- c4 backend-smoke 二选一不并存 ---
+TEST_EXIT=$? 次数(全文件) = 1
+run_cmd_capture 出现行 = 463,474
+backend-smoke 块行范围 = 497 .. 505
+backend-smoke 块内 run_cmd_capture 次数 = 0
+
+--- c5 A11 两文件仍在 ---
+grep -c = 2
+
+--- 禁字面回退（非注释口径 ^[^#]*，与 c2 同）---
+  'frontend/src/\*\*' 非注释命中 = 0
+  'npx vitest' 非注释命中 = 0
+  'command -v python' 非注释命中 = 0
+  'tests/unit/ ' 非注释命中 = 0
+
+--- f 判据 stop hook exit 2 协议 ---
+process.exit(2) 次数 = 1
+63:    process.exit(2); // Stop hook protocol: exit 2 blocks

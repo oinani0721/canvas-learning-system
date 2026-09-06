@@ -1,0 +1,24 @@
+===== 整改后 lefthook 判据复跑 · 2026-09-06T14:10:03+08:00 =====
+--- YAML 合法 ---
+parsed OK, pre-push cmds: ['frontend-test', 'backend-smoke']
+
+--- (c) 判据仍成立 ---
+管道 grep rc=1 (1=零命中)
+TEST_EXIT=$? 次数 = 1
+backend-smoke 块内 run_cmd_capture = 0
+A11 两文件 = 2
+  'frontend/src/\*\*' 非注释命中 = 0
+  'npx vitest' 非注释命中 = 0
+  'command -v python' 非注释命中 = 0
+  'tests/unit/ ' 非注释命中 = 0
+
+--- 隔离仍成立：diff hunk 全在 pre-push 段内 ---
+pre-push 起始行 = 453
+@@ -460,0 +461,8 @@ pre-push:
+@@ -466 +474 @@ pre-push:
+（工作树未 commit 的改动）
+@@ -468,0 +469,8 @@ pre-push:
+@@ -474 +482 @@ pre-push:
+
+--- backend-smoke 段与 Y4-C 版仍逐字节相同 ---
+逐字节相同 ✓

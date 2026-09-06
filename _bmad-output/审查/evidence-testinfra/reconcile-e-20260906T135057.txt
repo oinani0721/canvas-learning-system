@@ -1,0 +1,29 @@
+===== (e) 三列对账 · 2026-09-06T13:50:57+08:00 =====
+post2 = unit-post2-20260906T134314.txt  HEAD=aae845f8
+= 173 failed, 4605 passed, 48 skipped, 122 warnings, 29 errors in 261.21s (0:04:21) =
+
+baseline =      247 | pre =      247 | post2 =      202
+pre vs baseline diff: 空 ✓
+
+--- 第三列：新增红（post2 有、baseline 无）---
+  计 = 0
+
+--- 减少总数（baseline 有、post2 无）= 45 ---
+
+--- 第二列：真实修好（须在 post2 日志里 PASS，不是 skip）---
+  FAILED tests/unit/test_story_30_10_idempotency.py::TestBatchDeterministicEpisodeId::test_batch_id_format
+  FAILED tests/unit/test_story_30_10_idempotency.py::TestDeterministicEpisodeId::test_id_format
+  在 post2 里的状态（从 skip-detail 与目录级跑核对）:
+    skip-detail 中出现次数: 0
+
+--- 第一列：skip 造成的减少（逐文件计数）---
+  test_memory_service_write_retry: 18
+  test_graphiti_json_dual_write: 8
+  test_story_30_10_idempotency: 11
+  test_failure_observability: 3
+  test_qa_38_6_scoring_reliability_extra: 2
+  test_story_38_6_scoring_reliability: 3
+  小计 = 45
+
+--- 减少项里除上述之外还有吗（须为空）---
+  计 = 0

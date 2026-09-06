@@ -1,0 +1,19 @@
+===== post-tool-router 形态的最小演示：'管道 + [ $? -ne 0 ]' 为何恒放行 =====
+--- 修前形态（16b9e337:.claude/hooks/post-tool-router.sh:29-30 的结构）---
+  管道后 $? = 0  ← tail 的退出码，不是 sh 的 3
+  → 判定通过，继续往下走（漏检）
+
+--- 修后形态（现行 :37/:46/:64 的结构）---
+  → || exit 1 触发（拦下）rc=3
+
+--- 修前那 5 处的原文（取自 Y4-C 版，证明结构确实如此）---
+29:        python -m pytest tests/smoke/ -x -q --no-cov --no-header --override-ini="addopts=" --tb=line 2>&1 | tail -5
+30:        [ $? -ne 0 ] && echo "SMOKE FAILED" && exit 1
+37:        python -m pytest $RELATED_TESTS -m "not integration and not slow" -x -q --no-cov --no-header --override-ini="addopts=" --tb=short 2>&1 | tail -20
+38:        [ $? -ne 0 ] && echo "TEST FAILURES" && exit 1
+43:    [ $? -ne 0 ] && echo "DEAD CODE DETECTED" && exit 1
+56:    python -m pytest "$FILE_PATH" -x -q --no-cov --no-header --override-ini="addopts=" --tb=short 2>&1 | tail -20
+57:    [ $? -ne 0 ] && exit 1
+63:    npx stryker run 2>&1 | tail -20
+64:    [ $? -ne 0 ] && exit 1
+67:    [ $? -ne 0 ] && echo "UNUSED EXPORTS DETECTED" && exit 1

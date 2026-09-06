@@ -1,0 +1,20 @@
+===== 被改 hook 脚本的语法检查（本应在 (c) 里，补跑）· 2026-09-06T13:56:15+08:00 =====
+--- post-tool-router.sh ---
+bash -n rc=0
+--- stop-test-runner.js ---
+node --check rc=0
+--- run_cmd_capture.sh（已在 c1 跑过，此处复跑作同批证据）---
+bash -n rc=0
+
+--- 验伪锚：判据能报红吗（喂一个已知语法错的临时文件）---
+  坏 shell 脚本 bash -n rc=2 （须非 0）
+  坏 js node --check rc=1 （须非 0）
+
+--- 文件权限位（hook 需可执行）---
+100644 d3acc70bfb05bfb19382f9eb4fa96202c343061b 0	.claude/hooks/post-tool-router.sh
+100644 93a27313db7040df4d5c2e90c3fb3632954931d9 0	.claude/hooks/stop-test-runner.js
+100755 40ff9dc1a2e0e0c9e808834b345903f3c5559ea2 0	scripts/run_cmd_capture.sh
+
+--- 与 Y4-C 版的权限位对照（须不变） ---
+100644 blob 718d63449a49690f73dd511704fd423ab4d971c8	.claude/hooks/post-tool-router.sh
+100644 blob c3ddb654ad4b9eeba17a08d4f11091f3d989c23a	.claude/hooks/stop-test-runner.js

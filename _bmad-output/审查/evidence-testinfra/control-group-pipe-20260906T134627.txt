@@ -1,0 +1,15 @@
+===== 控制组：修前命令 vs 修后命令，同一失败输入 · 2026-09-06T13:46:27+08:00 =====
+输入相同：frontend/obsidian-plugin 的 npm test（node_modules 缺席 ⇒ esbuild not found ⇒ 真实 rc=127）
+
+--- 基线端：16b9e337:lefthook.yml:466 的命令体（逐字取自 git，非我手打）---
+命令 = [npm --prefix frontend/obsidian-plugin test 2>&1 | tail -20]
+rc=0   ← 修前：管道让 tail 的退出码成为整条命令的退出码
+
+--- 处理端：现行 lefthook.yml:474 的命令体（逐字取自工作树）---
+命令 = [./scripts/run_cmd_capture.sh --cwd frontend/obsidian-plugin --tail 120 -- npm test]
+rc=127   ← 修后：wrapper 直传原始退出码
+
+--- 前提自证：这个输入确实是失败的（不是两端都成功导致的假对照）---
+裸 npm test rc=127   ← 须非 0，否则整个对照无意义
+
+⇒ 0 vs 127：同一个真实失败，修前被吞成通过，修后被正确传出。

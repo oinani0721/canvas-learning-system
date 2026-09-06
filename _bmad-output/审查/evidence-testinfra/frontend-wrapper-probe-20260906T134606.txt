@@ -1,0 +1,24 @@
+===== frontend-test 命令体的真实传播验证（绕过 -d 守卫直接跑 wrapper）· 2026-09-06T13:46:06+08:00 =====
+背景：node_modules 缺席 ⇒ lefthook 的 if [ -d ] 为假 ⇒ 这条命令在本机 pre-push 不会执行。
+     此处直接跑 wrapper 本体，验证它在该 cwd 下能把 npm 的非零码传出来。
+
+--- node_modules 状态 ---
+缺席（与 lefthook 守卫一致）
+
+--- 逐字复制 lefthook.yml:474 的命令体（只把 --tail 120 改 8 以缩短输出）---
+474:          ./scripts/run_cmd_capture.sh --cwd frontend/obsidian-plugin --tail 120 -- npm test
+
+[TEST FAILURE] exit code: 127
+[TEST FAILURE] full output: /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/run_cmd_capture_84537_1788673566.log.XXXXXX.an4OX0wSXC
+[TEST FAILURE] last 8 lines:
+----------------------------------------
+
+> canvas-learning-system-obsidian-plugin@1.0.0 test
+> esbuild tests/callout.test.ts tests/ai-linked-doc.test.ts tests/node-derivation.test.ts tests/derivation-snapshot.test.ts tests/configure-whiteboard.test.ts tests/node-chat-context.test.ts tests/error-candidate-helpers.test.ts tests/onboarding-helpers.test.ts tests/chat-fallback.test.ts tests/auth-headers.test.ts tests/vault-indicator.test.ts tests/status-bar.test.ts tests/exam-quick.test.ts --bundle --platform=node --format=cjs --outdir=tests/.out && node --test tests/.out/callout.test.js tests/.out/ai-linked-doc.test.js tests/.out/node-derivation.test.js tests/.out/derivation-snapshot.test.js tests/.out/configure-whiteboard.test.js tests/.out/node-chat-context.test.js tests/.out/error-candidate-helpers.test.js tests/.out/onboarding-helpers.test.js tests/.out/chat-fallback.test.js tests/.out/auth-headers.test.js tests/.out/vault-indicator.test.js tests/.out/status-bar.test.js tests/.out/exam-quick.test.js
+
+sh: esbuild: command not found
+----------------------------------------
+rc=127
+
+⇒ 若 rc≠0 且出现 [TEST FAILURE]，说明 wrapper 在该 cwd 上退出码传播成立；
+  但这仍不等于「pre-push 真实触发过」——真实触发需要 push + node_modules 存在，本卡未做。

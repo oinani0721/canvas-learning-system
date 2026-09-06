@@ -1,0 +1,35 @@
+===== c4 动态锚点重跑（前一版硬编码 489 已因注释插入漂移到 497）=====
+backend-smoke 块 = 行 497 ..      513（文件末）
+块内 run_cmd_capture 次数 = 0
+块内 TEST_EXIT=$? 次数     = 1
+frontend-test 块 = 行 469 .. 496
+块内 run_cmd_capture 次数 = 1
+块内 TEST_EXIT=$? 次数     = 0
+
+===== (f) stop-test-runner.js 结构核对 =====
+--- 主干（16b9e337）exit(2) 位置 ---
+41:    process.exit(2);
+49:    process.exit(2);
+--- 现版 exit(2) 位置 ---
+44:    process.exit(0); // No backend changes, skip tests
+63:    process.exit(2); // Stop hook protocol: exit 2 blocks
+66:  process.exit(0);
+69:  process.exit(0);
+
+--- 现版失败分支上下文 ---
+        `--override-ini="addopts="`,
+      { cwd: projectDir, stdio: 'inherit', timeout: 300000 }
+    );
+  } catch (testErr) {
+    // execSync throws on non-zero exit. status holds the wrapper's exit code,
+    // which equals pytest's exit code thanks to run_cmd_capture.sh propagation.
+    const code = testErr.status ?? 1;
+    process.stderr.write(`\n[DD-07 stop-test-runner] pytest failed with exit code ${code} — see [TEST FAILURE] block above for tail and full-log path.\n`);
+    process.exit(2); // Stop hook protocol: exit 2 blocks
+  }
+
+  process.exit(0);
+} catch (outerErr) {
+  // Defensive catch for git command errors etc — don't block on pre-test infra
+  process.exit(0);
+}

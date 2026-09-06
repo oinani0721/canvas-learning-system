@@ -1,0 +1,12 @@
+===== ④ 三端对照重跑（前一版中间态的 sed 分隔符与 '||' 冲突，跑的是空文件 = 假证据）=====
+--- Y4-C 基线端 ---
+    文件字节数=336  含 npm test=False  含 '|| exit'=False
+    完整 run 块 rc=0
+--- 中间态(Codex 审到的版本) ---
+    文件字节数=360  含 npm test=True  含 '|| exit'=False
+    完整 run 块 rc=0
+--- 终态 ---
+    文件字节数=371  含 npm test=True  含 '|| exit'=True
+    完整 run 块 rc=127
+
+结论：只有终态把 127 传出；中间态（只换 wrapper 不加 || exit）与 Y4-C 版同样吞掉失败。
