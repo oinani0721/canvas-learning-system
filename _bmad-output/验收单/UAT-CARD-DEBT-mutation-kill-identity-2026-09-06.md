@@ -279,7 +279,16 @@ ANCHOR-ERROR 0 / SYNTAX-INVALID 0。**这轮整改没有第二轮外审。**
 6. **移交门文件写者（Y6-B / Y7-A 面）**：`test_g3_2_review_ledger.py` 里被本卡绑到的
    若干**无消息断言**（进了 `EXPECT_MSG_EXEMPT`）建议补上断言消息，补完后这些条目
    就能从豁免表里去掉。
-7. **新暴露（不阻断）**：g32ccr1 的 E3 / E9 实际都落在
+7. **Codex 轮次**：CARD-DEBT-mutation-kill-identity round-1（`gpt-6-astra` / `ultra` /
+   `codex-cli 0.153.3`），绑 `52f1ccd2`，非 0 字节，存档首部已按协议 §2.1 补齐。
+   判 FAIL、**BLOCKER 0**；5 条已整改、4 条登记不阻断。⛔ **整改未复审**（整改在
+   送审之后，与审 SHA 失绑，无第二轮）。卡族轮次：本卡用 1 轮。
+8. **移交下一张卡（判据机制再设计）**：Codex HIGH-1 / HIGH-2 / MEDIUM-6 —— 把击杀
+   身份从「消息片段子串」换成「断言的源位置」+ 限定 pytest 摘要区 + 还原期间屏蔽信号。
+   ⚠️ HIGH-2 与 LOW-9 的形态**旧 g33 本就有**，不是本卡引入，但本卡把它抽成共用件
+   后扩到了四套 —— 如实登记。
+9. **本卡两个 commit**：`52f1ccd2`（送审态）+ `cd10021e`（整改态），均**未 push**。
+10. **新暴露（不阻断）**：g32ccr1 的 E3 / E9 实际都落在
    `test_g32ccr1_charset_scope_is_bounded_by_ledger_record_reality` 的 ⓪「严格表逐项
    钉死」那条断言上，而不是脚本 docstring 声称的 ③「死条目」判据 —— ③ 那条
    **当前没有任何变异为它承重**。
