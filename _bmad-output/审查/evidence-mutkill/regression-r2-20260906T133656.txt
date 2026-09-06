@@ -1,0 +1,12 @@
+=== 两回归文件 ===
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========== 161 passed, 1 xfailed, 10 warnings in 307.33s (0:05:07) ============
+=== tests/skills ===
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+====================== 369 passed, 22 warnings in 49.06s =======================
+=== ruff / pyright ===
+5 files already formatted
+All checks passed!
+0 errors, 0 warnings, 0 informations

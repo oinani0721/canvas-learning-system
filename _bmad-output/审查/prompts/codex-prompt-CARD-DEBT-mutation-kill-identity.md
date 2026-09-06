@@ -10,7 +10,7 @@
 1. **新模块全文**：`backend/scripts/mutation_kill_identity.py`
 2. **本卡 diff**：
    ```
-   git diff 3601051d <审SHA> -- . ':(exclude)_bmad-output'
+   git diff 3601051d 52f1ccd2 -- . ':(exclude)_bmad-output'
    ```
    （`3601051d` 是本卡开工时的 HEAD，即上一张卡 CARD-G3-3-R1 的末 commit。
    注意 pathspec 必须写成 `':(exclude)_bmad-output'`；`':!...'` 在 zsh 下会被吃掉。）
@@ -38,7 +38,7 @@ pytest `-rf` 短摘要行 `FAILED <nodeid> - <reason>` 里该 nodeid 自己的 r
 
 ## 二 作者自述（请独立核对，不要采信）
 
-1. **三套的 N/N**：g32b `<N>/138`、g32cb `9/9`、g32ccr1 `11/11`、g33 `18/18`，
+1. **三套的 N/N**：g32b `138/138`、g32cb `9/9`、g32ccr1 `11/11`、g33 `18/18`，
    `ANCHOR-ERROR 0`、`SYNTAX-INVALID 0`。g33 的 verdict 列与上一张卡收官的
    `mutation-results-20260906T025116.json` 逐字相同。
 2. **`EXPECT_MSG` 的来源**：g32cb 9 条、g32ccr1 11 条、以及 g32b 里

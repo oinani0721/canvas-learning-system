@@ -1,0 +1,12 @@
+=== g33 复核（共用模块改动后 verdict 必须仍与 Y1-A 收官逐字同）===
+✅ KILLED   M4b-marker-not-additive: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_out_of_order_marker_is_additive'] expect_hit=True
+✅ KILLED   M7-lock-dropped-by-second-fd: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_append_event_still_holds_lock_at_the_moment_of_write'] expect_hit=True
+
+── 汇总 ──
+杀灭: 18/18
+SYNTAX-INVALID: 0 (>0 说明负控自己坏了, 不是被测物坏了)
+还原逐字节相同: 是
+MUTANT 扫描: 完成
+MUTANT 新增残留 (基线之外): 无
+MUTANT 基线缺失 (基线里有而实测没有): 无
+rc=0

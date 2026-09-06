@@ -375,8 +375,16 @@ def main(argv: list[str]) -> int:
                 continue
             # KILLED 判据：rc 恰为 1 **且** 失败的是指定的那道门 **且** 红在
             # `EXPECT_MSG[mid]` 声称的那一条断言上。
+            # ⛔ Codex round-1 MEDIUM-4 整改：rc 不是 1 是**负控自己坏了**，不是
+            # 「门不承重」；印成 SURVIVED 会把诊断指向完全相反的方向。
             killed = kill_identity_ok(rc, out, nodeid, expect)
-            verdict = "KILLED" if killed else f"SURVIVED(rc={rc})"
+            if killed:
+                # ⛔ HIGH-3 整改：豁免条目判据仍是旧口径，不与「绑定断言击杀」并数。
+                verdict = "KILLED" if expect is not None else "KILLED-UNBOUND"
+            elif rc != 1:
+                verdict = f"HARNESS-ERROR(rc={rc})"
+            else:
+                verdict = "SURVIVED(rc=1)"
             print(f"  [{mid}] {desc}\n        {gate} → rc={rc} ⇒ {verdict}", flush=True)
             if not killed:
                 obs = [r for nid, r in failed_reasons(out) if gate_hit(nodeid, {nid})]
@@ -400,9 +408,13 @@ def main(argv: list[str]) -> int:
     for mid, gate, verdict, _d in results:
         print(f"  {mid:4} {verdict:22} {gate}", flush=True)
     n_killed = sum(1 for _, _, v, _ in results if v == "KILLED")
+    n_unbound = sum(1 for _, _, v, _ in results if v == "KILLED-UNBOUND")
+    n_harness = sum(1 for _, _, v, _ in results if v.startswith("HARNESS-ERROR"))
     n_anchor = sum(1 for _, _, v, _ in results if v == "ANCHOR-ERROR")
     n_syntax = sum(1 for _, _, v, _ in results if v == "SYNTAX-INVALID")
-    print(f"\n  {n_killed}/{len(muts)} KILLED", flush=True)
+    print(f"\n  {n_killed}/{len(muts)} KILLED (绑定断言身份)", flush=True)
+    print(f"  KILLED-UNBOUND: {n_unbound} (仅证明指定门红了)", flush=True)
+    print(f"  HARNESS-ERROR: {n_harness} (负控自己坏了, 不是关于被测物的结论)", flush=True)
     # ⛔ 两者都**不是**关于被测物的结论：ANCHOR-ERROR 是变异没打进去，
     # SYNTAX-INVALID 是负控自己坏了。单列，不并进 KILLED / SURVIVED 任何一边。
     print(f"  ANCHOR-ERROR: {n_anchor} (变异未施加)", flush=True)

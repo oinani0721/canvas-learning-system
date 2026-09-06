@@ -576,19 +576,29 @@ def is_killed(proc, gate, expect_msg):
     「摘要是 1 failed」为止 —— 这个门里**别的**断言红了同样满足。M15 假杀
     (Z2) 正是这个形态: 变异体编译期就死, 目标断言反而通过, 红落在另一条上。
     现在必须 `EXPECT_MSG[tag]` 出现在**该 nodeid 自己的**短摘要 reason 里。
+
+    ⚠️ 返回 `(verdict, why)`，`verdict` ∈ {KILLED, KILLED-UNBOUND, SURVIVED, HARNESS-ERROR}：
+      · `KILLED`          —— 红在 `EXPECT_MSG[tag]` 声称的那一条断言上；
+      · `KILLED-UNBOUND`  —— 该条在 `EXPECT_MSG_EXEMPT` 里（绑不出断言身份），
+        判据退化成旧口径「指定门红了」。⛔ Codex round-1 HIGH-3 整改：这类**不得**
+        与「指定断言击杀」并进同一个数，否则「138 条全部被指定断言杀死」就说宽了；
+      · `HARNESS-ERROR`   —— rc 不是 1（2 中断 / 3 内部错 / 4 用法错 / 5 零收集）或
+        判据面缺失。⛔ Codex round-1 MEDIUM-4 整改：原先这些也打印「SURVIVED ⇒ 假门」，
+        把**负控自己坏了**说成**门不承重**，诊断指错方向。
     """
     out = proc.stdout + proc.stderr
     nodeid = nodeid_of(gate)
     if surface := judge_surface_missing(proc.returncode, out):
-        return False, f"⛔ 判据面不成立: {surface}"
+        return "HARNESS-ERROR", f"⛔ 判据面不成立: {surface}"
     if proc.returncode != 1:
-        return False, f"rc={proc.returncode}（非 1 = 不是测试失败；4=门名/用法错误 5=零收集）"
+        return "HARNESS-ERROR", f"rc={proc.returncode}（非 1 = 不是测试失败；4=门名/用法错误 5=零收集）"
     if kill_identity_ok(proc.returncode, out, nodeid, expect_msg):
-        return True, (observed_reason(out, gate) or "")[:110]
+        verdict = "KILLED" if expect_msg is not None else "KILLED-UNBOUND"
+        return verdict, (observed_reason(out, gate) or "")[:110]
     obs = observed_reason(out, gate)
     if obs is None:
-        return False, "rc=1 但失败的不是指定的那道门（别的门红了）"
-    return False, f"红在别的断言上: expect={expect_msg!r} 实见 {obs[:110]!r}"
+        return "SURVIVED", "rc=1 但失败的不是指定的那道门（别的门红了）"
+    return "SURVIVED", f"红在别的断言上: expect={expect_msg!r} 实见 {obs[:110]!r}"
 
 
 def observed_reason(out, gate):
@@ -1997,6 +2007,10 @@ EXPECT_MSG: dict[str, str] = {
     "M157-anchor-direction-unchecked": "⛔ 锚点指向后继 ⇒ 与账本自相矛盾, 必须停",
     "M158-fsrs-applied-truthiness": "] 非布尔凭据不得被当成「已应用」",
     "M161-foreign-no-credential-promotion": "⛔ 恢复后 E1 仍不可重跑 ⇒ 两阶段不收敛，那张白板卡死: ",
+    # ⚠️ Codex round-1 MEDIUM-5 整改：这一条原被判「片段不唯一」进了豁免表，**是错的**——
+    # 该断言的消息是 `"裸 \\r 结尾在字节上无 LF ⇒ 应按截断隔离: " + r2.stdout + r2.stderr`
+    # （字符串拼接），去掉含转义的开头后剩下的这段在门文件里恰好 1 次，可直接绑，不必改门。
+    "M13b-N2-text-mode-read": "结尾在字节上无 LF ⇒ 应按截断隔离: ",
 }
 
 #: 显式豁免表 `{tag: 具体理由}` —— **不是「先欠着」**，每条都写清楚为什么绑不出来。
@@ -2024,7 +2038,6 @@ EXPECT_MSG_EXEMPT: dict[str, str] = {
     "M9-6cell-cell2-drop-orphan-noop": "② 该门此处断言的消息**求值为空串**, 短摘要里只有 'AssertionError:' —— 没有任何可绑的身份",
     "M10-R2-value-not-literal": "① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N]` 形态), 没有任何来自门文件的字面片段可绑; 绑生产文本会让判据被生产输出喂饱",
     "M12-N1-drop-out-of-order-shape-gate": "① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N]` 形态), 没有任何来自门文件的字面片段可绑; 绑生产文本会让判据被生产输出喂饱",
-    "M13b-N2-text-mode-read": "⑥ 该门实际打红的那条断言, 其消息首行的字面片段在门文件里不唯一(出现 >1 次), 绑上去就不能证明红在哪一条; 门本体不在本卡范围, 无法给它加更具身份的消息",
     "M14-N3-drop-duplicate-key-hook": "① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N]` 形态), 没有任何来自门文件的字面片段可绑; 绑生产文本会让判据被生产输出喂饱",
     "M15b-N4-decode-with-replace": "① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N]` 形态), 没有任何来自门文件的字面片段可绑; 绑生产文本会让判据被生产输出喂饱",
     "M16-N5-hard-compute-attempt-across-pending": "① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N]` 形态), 没有任何来自门文件的字面片段可绑; 绑生产文本会让判据被生产输出喂饱",
@@ -2173,23 +2186,37 @@ def main():
         _print_anchor_rows(_rows)
         _bad_anchor = [r for r in _rows if r[2] != 1]
         print(f"\n  共 {len(MUTATIONS)} 条变异 / {len(_rows)} 个锚点；异常锚点 {len(_bad_anchor)} 个")
-        for _p in _check_expect_msg():
+        # ⛔ Codex round-1 MEDIUM-7 整改：原先退出码**只看锚点**——门消息漂了、
+        # EXPECT_MSG 自检已经打印出错，`--list` 却照样返回 0。退出码必须同时取决于
+        # 两项自检，否则「只读自检通过」这句话是假的。
+        _bad_msg = _check_expect_msg()
+        for _p in _bad_msg:
             print(f"  ⛔ EXPECT_MSG 自检: {_p}")
-        return 0 if _ok else 4
+        return 0 if (_ok and not _bad_msg) else 4
 
     _probe = "--probe" in _argv
     # `--only <前缀>[,<前缀>…]`：按 tag 前缀挑变异。⛔ 判据落在**实际用来选择的那个键**
     # 上（round-11b 的编号碰撞教训）；选空了要报失败，不能空跑当成通过。
+    # ⛔ Codex round-1 LOW-8 整改：裸 `--only`（缺值）原先被**静默忽略**、退化成全量跑
+    # ——「我只想定点复核 4 条」变成「跑了 45 分钟全量并落进 PASS 判定」。缺值 / 空前缀
+    # 一律当场报错退出，不猜用户意图。
     _only = None
     for _i, _a in enumerate(_argv):
-        if _a == "--only" and _i + 1 < len(_argv):
+        if _a == "--only":
+            if _i + 1 >= len(_argv) or _argv[_i + 1].startswith("--"):
+                print("✗✗ `--only` 缺少取值（用法：`--only M142,M143` 或 `--only=M142`）")
+                return 4
             _only = set(_argv[_i + 1].split(","))
         elif _a.startswith("--only="):
             _only = set(_a.split("=", 1)[1].split(","))
+    if _only is not None and not all(p.strip() for p in _only):
+        print(f"✗✗ `--only` 含空前缀 {sorted(_only)} —— 空前缀会命中全部 tag, 拒绝执行")
+        return 4
     failures = []
     kill_fail = {}
     _syntax_invalid = []
     _observed = {}
+    _verdicts = {}
     _install_signal_handlers()
     _healed = _self_heal_leftovers()
     if _healed:
@@ -2292,9 +2319,10 @@ def main():
                 _p.write_bytes(_b)
             r = run_gate(gate)
             if _probe:
-                killed, why = False, f"OBSERVED reason={observed_reason(r.stdout + r.stderr, gate)!r}"
+                verdict, why = "OBSERVED", f"reason={observed_reason(r.stdout + r.stderr, gate)!r}"
             else:
-                killed, why = is_killed(r, gate, EXPECT_MSG.get(tag))
+                verdict, why = is_killed(r, gate, EXPECT_MSG.get(tag))
+            killed = verdict.startswith("KILLED")
         finally:
             # 并发编辑防护: 还原写的是**读时快照**, 若变异窗口内有人改了这个文件,
             # 无条件写回会**静默丢掉他的改动**, 而「还原后字节相同」自检比的是自己
@@ -2333,10 +2361,23 @@ def main():
             _observed[tag] = observed_reason(r.stdout + r.stderr, gate)
             print(f"[{tag}] {gate} → OBSERVED rc={r.returncode} reason={_observed[tag]!r}")
             continue
-        status = f"KILLED ({why})" if killed else f"SURVIVED ⇒ 假门 ({why})"
-        print(f"[{tag}] {gate} → {status}  [还原字节相同 {sha_after[:12]}]")
-        if not killed:
+        _verdicts[tag] = verdict
+        # ⛔ 三种非 KILLED 各说各的话（Codex round-1 MEDIUM-4）：
+        # `HARNESS-ERROR` 是**负控自己坏了**，把它印成「SURVIVED ⇒ 假门」等于把
+        # 「pytest 没跑成」说成「门不承重」——诊断指错方向，是本族反复栽的坑。
+        _label = {
+            "KILLED": f"KILLED ({why})",
+            "KILLED-UNBOUND": f"KILLED-UNBOUND 未绑断言身份, 判据退化成旧口径 ({why})",
+            "SURVIVED": f"SURVIVED ⇒ 假门 ({why})",
+            "HARNESS-ERROR": f"HARNESS-ERROR 负控自己坏了, 不是关于被测物的结论 ({why})",
+        }[verdict]
+        print(f"[{tag}] {gate} → {_label}  [还原字节相同 {sha_after[:12]}]")
+        if verdict == "SURVIVED":
             failures.append(f"{tag}: 门 {gate} 未抓住变异 (SURVIVED — {why})")
+            print("    ---- 门输出尾部 ----")
+            print("    " + "\n    ".join(r.stdout.strip().split("\n")[-6:]))
+        elif verdict == "HARNESS-ERROR":
+            failures.append(f"{tag}: HARNESS-ERROR — {why}")
             print("    ---- 门输出尾部 ----")
             print("    " + "\n    ".join(r.stdout.strip().split("\n")[-6:]))
 
@@ -2475,10 +2516,20 @@ def main():
     # ⛔ ANCHOR-ERROR 与 SYNTAX-INVALID 都**不是**关于被测物的结论 —— 前者是变异
     # 没打进去, 后者是负控自己坏了。单列出来, 不许并进 KILLED / SURVIVED 任何一边。
     _n_anchor_err = len({r[0] for r in _rows_anchor if r[2] != 1})
-    _n_killed = len(kill_fail)
+    _n_bound = sum(1 for v in _verdicts.values() if v == "KILLED")
+    _n_unbound = sum(1 for v in _verdicts.values() if v == "KILLED-UNBOUND")
+    _n_survived = sum(1 for v in _verdicts.values() if v == "SURVIVED")
+    _n_harness = sum(1 for v in _verdicts.values() if v == "HARNESS-ERROR")
     print()
     print("── 汇总 ──")
-    print(f"KILLED: {_n_killed}/{len(MUTATIONS)}")
+    # ⛔ Codex round-1 HIGH-3 整改: 「绑了断言身份的击杀」与「只证明了指定门红了」
+    # **分开报**。合起来说成「N 条全部被指定断言杀死」是把结论说得比证据宽 ——
+    # 豁免条目的判据仍是旧口径, 它们不在「红在声称的那条断言上」这个结论里。
+    print(f"KILLED (绑定断言身份): {_n_bound}/{len(MUTATIONS)}")
+    print(f"KILLED-UNBOUND (仅证明指定门红了, 见 EXPECT_MSG_EXEMPT): {_n_unbound}")
+    print(f"KILLED 合计 (两者之和, **不等于**「全部被指定断言杀死」): {_n_bound + _n_unbound}/{len(MUTATIONS)}")
+    print(f"SURVIVED: {_n_survived}")
+    print(f"HARNESS-ERROR: {_n_harness} (负控自己坏了, 不是关于被测物的结论)")
     print(f"ANCHOR-ERROR: {_n_anchor_err} (变异未施加, 不是结论)")
     print(f"SYNTAX-INVALID: {len(_syntax_invalid)} (>0 说明负控自己坏了) {_syntax_invalid or ''}")
     print()
