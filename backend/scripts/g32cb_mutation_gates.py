@@ -64,6 +64,17 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from mutation_kill_identity import (  # noqa: E402  (必须在 sys.path 兜底之后)
+    check_expect_msg_unique,
+    failed_reasons,
+    gate_hit,
+    judge_env,
+    judge_surface_missing,
+    kill_identity_ok,
+    syntax_check,
+)
+
 WT = Path(__file__).resolve().parents[2]
 SKILL = WT / "canvas-vault" / ".claude" / "skills" / "quiz-answer" / "SKILL.md"
 VALIDATOR = WT / "backend" / "scripts" / "validate_learning_events.py"
@@ -239,6 +250,74 @@ MUTATIONS = [
 ]
 
 
+#: 每条变异**声称**会打红的那一条断言的消息片段（首行字面，门文件里恰好 1 次）。
+#:
+#: ⛔ 为什么必须有（CARD-DEBT-mutation-kill-identity）：原判据
+#: `rc == 1 and gate in out and "failed" in out` 只能回答「有没有红」，回答不了
+#: 「红在**哪一条断言**上」。本仓已经因此吃过两次假杀（Z2 的 M1 与 M15）。
+#: 判据面是 `-rf` 短摘要的 reason —— 它只取断言消息的**第一行**，所以片段必须
+#: 落在第一行内（插值之后也算，只要没跨 `\n`）。
+#:
+#: ⚠️ 逐条的绑定依据（都是**先读门源码推出来**，再由跑批证实/证伪，不是抄跑批结果）：
+#:   M1 拆严格 bool ⇒ 非布尔凭据不再被拒 ⇒ 落在 `r.returncode != 0` 那条；
+#:   M2 去掉 foreign 凭据提升 ⇒ E1 重跑仍被拒 ⇒ 落在收敛判据那条；
+#:   M3 去掉方向校验 ⇒ 方向不可证的锚被采信 ⇒ 落在 `r.returncode != 0` 那条；
+#:   M4/M5 拆上限判据 ⇒ 超限输入不再在首写前被拒 ⇒ 各落在自己那条 rc 断言；
+#:   M6 拆字符轴判据 ⇒ 写点侧(SKILL.md:2867 复用 `validate_record_full`)不再拒
+#:      ⇒ 落在**写点侧**第一条 rc 断言（不是 ③ 的 validator 直调那条 —— 那条在它
+#:      之后, 前面先红就跑不到）；
+#:   M7 区间退化成枚举 ⇒ 出现漏网码点 ⇒ 落在「漏网 N 个码点」那条；
+#:   M8 重建编码退化 ⇒ 门 docstring 自陈「编码退化的直接后果就是 B 写不进去」
+#:      ⇒ 落在 `rB.returncode == 0` 那条；
+#:   M9 拆 ASCII 转义回落 ⇒ 门 docstring 自陈落在 ① 的 `rc=0` 断言。
+EXPECT_MSG: dict[str, str] = {
+    "M1": "] 非布尔凭据不得被当成「已应用」",
+    # ⛔ **本卡当场更正的一条**（CARD-DEBT-mutation-kill-identity 的第一个真发现）：
+    # 作者先按脚本自陈的说法（「E1 重跑仍被拒 ⇒ 两阶段不收敛」）绑到 `:5316` 的
+    # `⛔ 恢复后 E1 仍不可重跑`，实跑报 SURVIVED —— 该门**实际**红在**更早**的
+    # `:5313 assert r2.returncode == 0, f"E2 应收敛: …"` 上：拆掉 foreign 提升后，
+    # **E2 自己就写不进去了**（writer 撞上「receipt 记 true 却仍在待恢复队列」的自相矛盾，
+    # fail-closed 拒写），链条在声称的那一步**之前**就断了。
+    # ⇒ 防线确实承重（门红了），但**症状与卡文的叙述不是同一条**。旧判据
+    # (`rc==1 and gate in out and "failed" in out`) 把这两者记成同一个 KILLED，
+    # 于是「两阶段收敛那条断言被这条变异守着」这个说法从来没被验证过。
+    # ⚠️ `:5316` 那条断言并没有失去承重方：`g32b` 的 `M161-foreign-no-credential-promotion`
+    # （另一种拆法：`_ok_fg = True` 静默跳过提升并谎报成功）实测正落在它上面。
+    # 两条变异拆同一道防线的不同侧面、症状不同 —— 这正是新判据能分辨出来的东西。
+    "M2": "E2 应收敛: ",
+    "M3": "⛔ 方向不可证的锚被直接采信",
+    "M4": "⛔ 超限深度必须在首写前拒: rc=",
+    "M5": "⛔ 超预算节点数必须在首写前拒: rc=",
+    "M6": "/board] 非规范码点必须在首写前拒: rc=",
+    "M7": " 个码点，前 8 个: ",
+    "M8": "⛔ B 写不进去 ⇒ 重建把 A 的 receipt 弄坏了",
+    "M9": "的 ASCII 转义回落没了",
+}
+
+#: 显式豁免表 `{id: 具体理由}`。空 = 9 条全绑上了，没有欠账。
+EXPECT_MSG_EXEMPT: dict[str, str] = {}
+
+
+def _check_expect_msg() -> list[str]:
+    """`EXPECT_MSG` 完整性 + 唯一性自检（共用实现，见 `mutation_kill_identity`）。"""
+    gate_file = str(WT / "backend" / LEDGER_TEST)
+    problems = check_expect_msg_unique(
+        [(m[0], gate_file, EXPECT_MSG.get(m[0])) for m in MUTATIONS],
+        exempt=EXPECT_MSG_EXEMPT,
+        # ⛔ 片段还必须在**生产侧命中 0 次**：门里有些断言消息的**第一行**内嵌了
+        # `{r.stderr}`，那条断言一旦红，被测子进程的输出就进了判据面。命中 0 次，
+        # 生产输出就喂不饱它。⚠️ 只收被变异的那两个生产文件所在面，**不收**
+        # `backend/scripts/` 整目录 —— 本文件自己就在那儿，表里逐字写着这些片段。
+        prod_roots=(WT / "canvas-vault", WT / "backend" / "app", VALIDATOR),
+    )
+    stale = sorted((set(EXPECT_MSG) | set(EXPECT_MSG_EXEMPT)) - {m[0] for m in MUTATIONS})
+    if stale:
+        # ⛔ 反向也要看：表里留着已不存在的 id ⇒ 这张表与变异表脱节了，
+        # 「每条都绑好了」这句话不再可信（与 g33 的 baseline_missing 同型）。
+        problems.append(f"EXPECT_MSG/EXEMPT 里有已不存在的 id: {stale}")
+    return problems
+
+
 class _Terminated(Exception):
     """把 SIGTERM/SIGINT 转成异常，好让 finally 里的还原跑得到。"""
 
@@ -255,14 +334,23 @@ def _sha(p: Path) -> str:
     return hashlib.sha256(p.read_bytes()).hexdigest()
 
 
+def _nodeid(test_name: str) -> str:
+    """门函数名 → pytest nodeid。判据比的是 nodeid，不是「门名字样在输出里」。"""
+    return f"{LEDGER_TEST}::{test_name}"
+
+
 def _run_gate(test_name: str) -> tuple[int, str]:
     # ⚠️ 必须继承 os.environ 再覆盖：只给 PATH/HOME 的窄 env 会让写点子进程
     # 拿不到解释器环境而挂住（实测一次 10 分钟外部超时就是这么来的）。
     env = dict(os.environ)
-    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    # ⛔ judge_env() 放在**后面**覆盖 os.environ：外层导出的 COLUMNS=80 会把
+    # `-rf` 短摘要的 reason 截成空串 ⇒ expect_msg 恒不命中 ⇒ 全报 SURVIVED。
+    env.update(judge_env())
     try:
         r = subprocess.run(
-            [_pytest_bin(), "-q", "-p", "no:cacheprovider", f"{LEDGER_TEST}::{test_name}"],
+            # ⛔ `-rf` 不可省：击杀身份判据取的就是短摘要行 `FAILED <nodeid> - <reason>`。
+            # `--tb=line` 让回溯不再把整个测试函数的源码打出来（判据面越窄越好）。
+            [_pytest_bin(), "-q", "-p", "no:cacheprovider", "--tb=line", "-rf", _nodeid(test_name)],
             cwd=WT / "backend",
             capture_output=True,
             text=True,
@@ -338,7 +426,17 @@ def main() -> int:
         ok, rows = _anchor_audit()
         print("═══ 变异清单与锚点自检 ═══")
         _print_anchor_rows(rows, with_desc=True)
+        for p in _check_expect_msg():
+            print(f"  ⛔ EXPECT_MSG 自检: {p}")
+            ok = False
         return 0 if ok else 4
+
+    # ⛔ EXPECT_MSG 自检**先于**一切慢步骤：绑不唯一 ⇒ 「红在哪一条断言上」
+    # 不再可证，跑完再报等于白跑 20 分钟。
+    if bad := _check_expect_msg():
+        for p in bad:
+            print(f"⛔ EXPECT_MSG 自检失败 — {p}", flush=True)
+        return 4
 
     _install_signal_handlers()
     healed = _self_heal()
@@ -377,14 +475,35 @@ def main() -> int:
             print(f"  [{mid}] ⛔ 锚文本在 {target.name} 中出现 {src.count(old)} 次（须恰好 1 次）— 跳过", flush=True)
             results.append((mid, gate, "ANCHOR-ERROR", desc))
             continue
+        mutated_text = src.replace(old, new, 1)
+        # ⛔ 先编译自检，再跑门：语法不合法的变异体让被测进程在**编译期**就死，
+        # 于是「防线被拆掉之后本该发生的坏事」根本没机会发生，而门却因为**别的
+        # 断言**红了被记成 KILLED（Z2 的 M15 就是这个形态）。它照出的是负控自己
+        # 坏了 —— 单列第三种裁决，不并进 KILLED / SURVIVED 任何一边。
+        if syn := syntax_check(target, mutated_text):
+            print(f"  [{mid}] ⛔ SYNTAX-INVALID 变异体编译不过 — {syn}", flush=True)
+            results.append((mid, gate, "SYNTAX-INVALID", desc))
+            continue
         try:
-            target.write_text(src.replace(old, new, 1), encoding="utf-8")
+            target.write_text(mutated_text, encoding="utf-8")
             rc, out = _run_gate(gate)
-            # KILLED 判据：rc 恰为 1（测试失败），且失败的是**指定的那一条**
-            killed = rc == 1 and (f"{gate}" in out) and ("1 failed" in out or "failed" in out)
+            nodeid = _nodeid(gate)
+            expect = EXPECT_MSG.get(mid)
+            # ⛔ 判据面先自检：缺 `-rf` 时短摘要不存在，判据会安静退化成恒假 ⇒
+            # 全报 SURVIVED，长得跟「门都不承重」一模一样。
+            if surface := judge_surface_missing(rc, out):
+                print(f"  [{mid}] ⛔ 判据面不成立 — {surface}", flush=True)
+                results.append((mid, gate, "JUDGE-SURFACE-MISSING", desc))
+                continue
+            # KILLED 判据：rc 恰为 1 **且** 失败的是指定的那一条门 **且** 红在
+            # `EXPECT_MSG[mid]` 声称的那一条断言上。
+            killed = kill_identity_ok(rc, out, nodeid, expect)
             verdict = "KILLED" if killed else f"SURVIVED(rc={rc})"
             print(f"  [{mid}] {desc}\n        {gate} → rc={rc} ⇒ {verdict}", flush=True)
             if not killed:
+                obs = [r for nid, r in failed_reasons(out) if gate_hit(nodeid, {nid})]
+                print(f"        ⚠️ expect={expect!r}", flush=True)
+                print(f"        ⚠️ 该门实际拒因: {obs or '(该门没红)'}", flush=True)
                 print(
                     f"        ⚠️ 输出尾部: {out.strip().splitlines()[-1][:160] if out.strip() else '(空)'}", flush=True
                 )
@@ -406,9 +525,15 @@ def main() -> int:
 
     print("\n═══ 汇总 ═══", flush=True)
     for mid, gate, verdict, desc in results:
-        print(f"  {mid:4} {verdict:16} {gate}", flush=True)
+        print(f"  {mid:4} {verdict:22} {gate}", flush=True)
     n_killed = sum(1 for _, _, v, _ in results if v == "KILLED")
+    n_anchor = sum(1 for _, _, v, _ in results if v == "ANCHOR-ERROR")
+    n_syntax = sum(1 for _, _, v, _ in results if v == "SYNTAX-INVALID")
     print(f"\n  {n_killed}/{len(MUTATIONS)} KILLED", flush=True)
+    # ⛔ 两者都**不是**关于被测物的结论：ANCHOR-ERROR 是变异没打进去，
+    # SYNTAX-INVALID 是负控自己坏了。单列，不许并进 KILLED / SURVIVED 任何一边。
+    print(f"  ANCHOR-ERROR: {n_anchor} (变异未施加)", flush=True)
+    print(f"  SYNTAX-INVALID: {n_syntax} (>0 说明负控自己坏了)", flush=True)
     if dirty:
         print(f"⛔ 有文件未还原：{[str(p) for p in dirty]}", flush=True)
         return 3

@@ -1,0 +1,14 @@
+=== ruff format --check + check ===
+5 files already formatted
+All checks passed!
+=== pyright（本卡 5 个文件）===
+0 errors, 0 warnings, 0 informations
+=== 裁判 3: grep -c expect_msg ===
+g32b_mutation_gates: 27
+g32cb_mutation_gates: 18
+g32ccr1_negative_controls: 18
+g33_mutation_gates: 16
+=== 豁免表条数 ===
+g32b_mutation_gates EXPECT_MSG_EXEMPT: 4
+g32cb_mutation_gates EXPECT_MSG_EXEMPT: 3
+g32ccr1_negative_controls EXPECT_MSG_EXEMPT: 3

@@ -1,0 +1,27 @@
+✅ KILLED   M1-per-node-lock: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_concurrent_same_node_no_lost_update[1]', 'tests/regression/test_g3_3_cas.py::test_concurrent_same_node_no_lost_update[2]'] expect_hit=True
+✅ KILLED   M2-cas-guard: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_cas_conflict_refuses_and_rerun_converges'] expect_hit=True
+✅ KILLED   M3-ledger-lock-backend: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_append_event_refuses_when_ledger_locked'] expect_hit=True
+✅ KILLED   M5-cas-revision-only: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_cas_body_only_change_is_a_conflict'] expect_hit=True
+✅ KILLED   M6-ledger-lock-skill: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_writer_waits_for_held_ledger_lock'] expect_hit=True
+✅ KILLED   M8-thread-lock-lifetime: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_thread_critical_sections_do_not_overlap'] expect_hit=True
+✅ KILLED   M9-splitlines-instead-of-lf: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_dedup_scan_splits_only_on_physical_lf'] expect_hit=True
+✅ KILLED   M10-short-write-unchecked: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_short_write_is_not_reported_as_success'] expect_hit=True
+✅ KILLED   M11-out-of-order-auto-guess: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_out_of_order_is_caller_declared_not_auto_guessed'] expect_hit=True
+✅ KILLED   M12-a3-node-lock: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_incremental_block_waits_for_node_lock'] expect_hit=True
+✅ KILLED   M13-a3-cas: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_incremental_block_cas_preserves_racing_edit'] expect_hit=True
+✅ KILLED   M14-exam-board-ledger-lock: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_exam_board_waits_for_held_ledger_lock'] expect_hit=True
+✅ KILLED   M15-post-lock-redup: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_writer_refuses_when_other_writer_took_the_event_id'] expect_hit=True
+✅ KILLED   M16-a2-foreign-cas: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_a2_foreign_recovery_publish_respects_cas'] expect_hit=True
+✅ KILLED   M17-dup-recovery-cas: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_dup_recovery_publish_respects_cas'] expect_hit=True
+✅ KILLED   M4a-payload-in-place: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_out_of_order_marker_is_additive'] expect_hit=True
+✅ KILLED   M4b-marker-not-additive: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_out_of_order_marker_is_additive'] expect_hit=True
+✅ KILLED   M7-lock-dropped-by-second-fd: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_append_event_still_holds_lock_at_the_moment_of_write'] expect_hit=True
+
+── 汇总 ──
+杀灭: 18/18
+SYNTAX-INVALID: 0 (>0 说明负控自己坏了, 不是被测物坏了)
+还原逐字节相同: 是
+MUTANT 扫描: 完成
+MUTANT 新增残留 (基线之外): 无
+MUTANT 基线缺失 (基线里有而实测没有): 无
+rc=0

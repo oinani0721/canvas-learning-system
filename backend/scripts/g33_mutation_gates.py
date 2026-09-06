@@ -39,6 +39,20 @@ import subprocess
 import sys
 from pathlib import Path
 
+# ⛔ 判据本体已抽成共用模块 (CARD-DEBT-mutation-kill-identity): 四套 harness
+# 共用同一份「击杀必须落在声称的断言上 + 变异体先编译自检」，避免同一道封堵
+# 在四个文件里各写一遍、各漂一点。本文件只保留**它自己的**变异表与跑法。
+from mutation_kill_identity import (
+    check_expect_msg_unique,
+    failed_reasons,
+    gate_hit,
+    judge_env,
+    judge_surface_missing,
+    kill_identity_ok,
+    parse_failed_nodeids,
+    syntax_check,
+)
+
 BACKEND = Path(__file__).resolve().parents[1]
 REPO = BACKEND.parent
 SKILL = REPO / "canvas-vault" / ".claude" / "skills" / "quiz-answer" / "SKILL.md"
@@ -245,28 +259,17 @@ BASELINE_MARK_FILES = {
     str(BACKEND / "tests" / "regression" / "recap_domain_negverify.py"),
 }
 
-#: 与 `test_g3_3_cas.py:36` **同一条**正则 —— SKILL.md 的写点是逐字提取 PYEOF 块
-#: 后以 `python -c` 跑的, 所以「变异体语法合法吗」这个问题必须问在同一批块上。
-_PYEOF_RE = re.compile(r"python3 - <<'PYEOF'\n(.*?)\nPYEOF", re.DOTALL)
 
-
+#: 编译自检委托给共用模块的 `syntax_check()`。
+#:
+#: ⚠️ 与本卡之前的实现有**一处放宽**且是刻意的: 原正则 `python3 - <<'PYEOF'` 与
+#: `test_g3_3_cas.py:36` 逐字相同, 但它匹配不到 `start-exam-board/SKILL.md:246`
+#: 那种**带参数**的引导行 (`python3 - "节点/<target>.md" <<'PYEOF'`) —— 该文件
+#: 3 个块里有 1 个从来没被编译自检覆盖过, 而 M14 正是打在这个文件上。共用模块
+#: 用的是广义正则, 5 个块全覆盖; 未变异状态下 5 块逐块 compile 均通过 (实测),
+#: 所以放宽只增加覆盖面, 不制造假 SYNTAX-INVALID。
 def _syntax_error(path: Path, text: str) -> str | None:
-    """变异后的文本能不能编译? 返回错误串; None = 通过。
-
-    ⛔ 这道自检是**假杀的结构性封堵**: 语法不合法的变异体会让写点子进程在编译期
-    就死, 于是「防线被拆掉之后本该发生的坏事」根本没机会发生, 而门却因为别的
-    断言红了被记成 KILLED。它照出的是**负控自己坏了**, 不是被测物坏了 —— 所以
-    单列第三种裁决, 不并进 KILLED / SURVIVED 任何一边。
-    """
-    try:
-        if path.suffix == ".md":
-            for i, blk in enumerate(_PYEOF_RE.findall(text)):
-                compile(blk, f"<{path.name}#PYEOF{i}>", "exec")
-        else:
-            compile(text, str(path), "exec")
-    except SyntaxError as e:  # IndentationError/TabError 都是它的子类
-        return f"{type(e).__name__}: {e}"
-    return None
+    return syntax_check(path, text)
 
 
 def _error_lines(out: str) -> str:
@@ -351,76 +354,12 @@ def _source_of(p: Path) -> str:
     return str(p.resolve())
 
 
-def _failed_nodeids(stdout: str) -> set[str]:
-    """从 pytest 输出抽失败的 nodeid。
-
-    ⛔ 用 `-rf` 的 short summary 而不是猜: 「某处有 FAILED」不能证明**指定的那道
-    门**红了 —— 拿粗判据判 KILLED 是假杀的经典形态。
-    """
-    return set(re.findall(r"^FAILED (\S+?)(?: - .*)?$", stdout, re.M))
-
-
-def _failed_reasons(stdout: str) -> list[tuple[str, str]]:
-    """`-rf` 短摘要行 `FAILED <nodeid> - <reason>` 的 (nodeid, reason) 列表。
-
-    ⛔ 判据要用**这一行**而不是回溯里的 `E ` 行 (独立复核 round-2 R2-01)。
-    实测: 短摘要的 reason 只取失败断言消息的**第一行** —— 断言消息里内嵌的
-    `{out}` / `{err}` / `{ctx}` (都在换行之后) 进不来。而 `E ` 行会把多行消息
-    逐行加前缀, 于是**前提断言**失败时子进程的整份输出都灌进判据面; 被测进程只要
-    在运行期把期望片段拼出来打到 stderr, 就能让「目标断言其实没红」照样判 KILLED。
-    ⚠️ 配套: `_run_gate` 必须设 `COLUMNS`, 否则 80 列下 reason 会被截成空串。
-    """
-    return [(m[0], m[1]) for m in re.findall(r"^FAILED (\S+?)(?: - (.*))?$", stdout, re.M)]
-
-
-def _hit(nodeid: str, failed: set[str]) -> bool:
-    """声明的 nodeid 是否命中失败集 —— **含参数化用例**。
-
-    ⛔ 实测教训: 声明 `...::test_x` 而 pytest 报的是 `...::test_x[1]`,
-    直接用 `nodeid in failed` 会把真 KILLED 误报成 SURVIVED —— 判据自己坏了,
-    却长得跟「门不承重」一模一样。
-    """
-    return any(f == nodeid or f.startswith(nodeid + "[") for f in failed)
-
-
 def _check_expect_msg_unique() -> list[str]:
-    """每条 `expect_msg` 必须在它绑定的门文件里**恰好出现一次**。返回违规说明列表。
-
-    ⛔ 为什么要把它写成门, 而不是「作者跑一次 grep 确认过」: 手工查出来的不变量不写成
-    判据 = 没查 —— 本卡自己就当场破过一次 (给前提断言加注释时把 `expect_msg` 的原文
-    复述进了注释, 那条片段在门文件里变成 2 次)。注释里的复述不进 pytest 的 `E ` 行,
-    功能上无害, 但「唯一」这个前提一旦不成立, 判据就不再能证明红在**哪一条**断言上,
-    而且下一次的复述可能就落在另一条断言的消息里。宁可严到连注释也不许复述。
-    """
-    problems: list[str] = []
-    cache: dict[str, str] = {}
-    for mid, _path, _old, _new, nodeid, _why, expect_msg in MUTATIONS:
-        if not expect_msg:
-            problems.append(f"{mid}: expect_msg 为空 (每条必须填实值或显式声明理由)")
-            continue
-        gate_file = nodeid.split("::", 1)[0]
-        if gate_file not in cache:
-            p = BACKEND / gate_file
-            if not p.exists():
-                problems.append(f"{mid}: 门文件不存在 {p}")
-                continue
-            cache[gate_file] = p.read_text(encoding="utf-8")
-        n = cache[gate_file].count(expect_msg)
-        if n != 1:
-            problems.append(f"{mid}: expect_msg {expect_msg!r} 在 {gate_file} 里出现 {n} 次 (应为 1)")
-        # ⛔ 还要求它**不在被测的生产代码里出现** (内部对抗审查): pytest 会给多行断言消息的
-        # **每一行**都加 `E ` 前缀, 于是一条内嵌 `{out}/{err}/{ctx}` 的断言一旦红, 子进程的
-        # 全部输出都进了判据面。只要 expect_msg 在生产侧命中 0 次, 生产输出就喂不饱它。
-        for prod in (REPO / "canvas-vault", BACKEND / "app"):
-            for f in prod.rglob("*"):
-                if f.is_symlink() or not f.is_file():
-                    continue
-                try:
-                    if expect_msg.encode() in f.read_bytes():
-                        problems.append(f"{mid}: expect_msg {expect_msg!r} 也出现在生产文件 {f} 里 (须 0 次)")
-                except OSError:
-                    continue
-    return problems
+    """每条 `expect_msg` 必须在它绑定的门文件里**恰好出现一次** (共用门, 见模块)。"""
+    return check_expect_msg_unique(
+        [(m[0], str(BACKEND / m[4].split("::", 1)[0]), m[6]) for m in MUTATIONS],
+        prod_roots=(REPO / "canvas-vault", BACKEND / "app"),
+    )
 
 
 def _run_gate(nodeid: str) -> tuple[int, str]:
@@ -430,9 +369,9 @@ def _run_gate(nodeid: str) -> tuple[int, str]:
         capture_output=True,
         text=True,
         timeout=1800,
-        # ⛔ COLUMNS 必须给足: pytest 的 `-rf` 短摘要按终端宽度截断, 80 列下
-        # `FAILED … - <reason>` 的 reason 会被截成空串 ⇒ 判据恒不命中 (假 SURVIVED)。
-        env={"PYTHONDONTWRITEBYTECODE": "1", "COLUMNS": "1000", **_env()},
+        # ⛔ 判据面所需的环境 (COLUMNS 给足, 否则 `-rf` 的 reason 被截成空串 ⇒
+        # 判据恒不命中 = 假 SURVIVED) 统一由共用模块的 judge_env() 给。
+        env={**_env(), **judge_env()},
     )
     return proc.returncode, proc.stdout + proc.stderr
 
@@ -518,16 +457,20 @@ def main() -> int:
                 # 逐条立即还原: 下一条变异必须打在干净的树上。
                 for sp, (data, _) in baseline.items():
                     Path(sp).write_bytes(data)
-            failed = _failed_nodeids(out)
+            # ⛔ 先问「判据面在不在」再问「杀没杀死」: 缺 `-rf` 时短摘要不存在,
+            # 判据会安静退化成恒假 ⇒ 全报 SURVIVED, 长得跟「门都不承重」一样。
+            if surface := judge_surface_missing(rc, out):
+                print(f"⛔ 判据面不成立 {mid}: {surface}", file=sys.stderr)
+                return 2
+            failed = parse_failed_nodeids(out)
             err_text = _error_lines(out)
-            # ⛔ 判据只看**失败那一条断言自己的消息**(短摘要 reason), 不看整份回溯:
-            # 见 `_failed_reasons` 的 docstring (独立复核 round-2 R2-01)。
-            reasons = [r for nid, r in _failed_reasons(out) if _hit(nodeid, {nid})]
+            reasons = [r for nid, r in failed_reasons(out) if gate_hit(nodeid, {nid})]
             expect_hit = expect_msg is None or any(expect_msg in r for r in reasons)
-            # ⛔ 判据 = rc 非零 **且 指定的那道门**在失败集里 **且 指定的那一条断言**
-            # 真的抛了。只判 rc 会被别的门红了喂饱; 只判 nodeid 会被**同一个门里
-            # 别的断言**喂饱 —— 后者正是旧 M15 假杀的形态。
-            killed = rc != 0 and _hit(nodeid, failed) and expect_hit
+            # ⛔ 判据 = rc 恰为 1 **且 指定的那道门**在失败集里 **且 指定的那一条断言**
+            # 真的抛了 (共用实现见 mutation_kill_identity.kill_identity_ok)。只判 rc 会
+            # 被别的门红了喂饱; 只判 nodeid 会被**同一个门里别的断言**喂饱 —— 后者正是
+            # 旧 M15 假杀的形态。
+            killed = kill_identity_ok(rc, out, nodeid, expect_msg)
             results.append(
                 {
                     "id": mid,

@@ -1,0 +1,12 @@
+── 基线（跑前）──
+   a766fbcc28e3ff91  fsrs_bridge.py
+   63b51029ea96a78a  SKILL.md
+   43ac9e618d10d2ff  learning-events-schema-v1.md
+[M142-dup-uses-global-w] test_round16_fsrs_applied_across_all_branches → KILLED (AssertionError: 事件级凭据为 true ⇒ 不得再推进水位线（退回全局 W 判定会把它推回 08-01）)  [还原字节相同 63b51029ea96]
+[M143-missing-applied-flag-tolerated] test_round16_fsrs_applied_across_all_branches → KILLED (AssertionError: 旧条目缺事件级凭据 ⇒ 不可证，必须停)  [还原字节相同 63b51029ea96]
+[M145-recovery-does-not-promote-flag] test_round16_fsrs_applied_across_all_branches → KILLED (AssertionError: ⛔ 恢复成功后必须把该条目升为 true —— 否则每次重跑都再走一遍恢复，且「这次到底应用过没有」永远停在 false)  [还原字节相同 63b51029ea96]
+[M157-anchor-direction-unchecked] test_round17_anchor_direction_is_verified → KILLED (AssertionError: ⛔ 锚点指向后继 ⇒ 与账本自相矛盾, 必须停)  [还原字节相同 63b51029ea96]
+
+⚠️ --only ['M142', 'M143', 'M145', 'M157'] 选中 4 条: ['M142-dup-uses-global-w', 'M143-missing-applied-flag-tolerated', 'M145-recovery-does-not-promote-flag', 'M157-anchor-direction-unchecked']
+⚠️ 部分跑不构成全量结论，rc 恒为 4。
+rc=4
