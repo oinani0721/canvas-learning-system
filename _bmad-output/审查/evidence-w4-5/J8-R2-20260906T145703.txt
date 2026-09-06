@@ -1,0 +1,37 @@
+生产文件 sha256[:16] = 406674c9e327960d   must_flag = 47 条
+
+[ 1] ✅ 归因成立  (a) 整条退回旧行为：`if not node.args: continue`（两半一起关）
+        点名反例变 MISSED: ['(a)-1 enter_context(cm=TestClient(app))', '(a)-2 enter_context(**kw)']
+[ 2] ℹ️ 观察项（无点名反例）  (a) 只关「取 cm=」这一半，保留 fail-closed（看 (a)-1 是否有两层守护）
+        点名反例变 MISSED: （无）
+        ℹ️ 连带正例翻红: ['验伪锚 a']
+[ 3] ℹ️ 观察项（无点名反例）  (b) 去掉 IfExp 展开
+        点名反例变 MISSED: （无）
+        ℹ️ 连带正例翻红: ['验伪锚 b']
+[ 4] ℹ️ 观察项（无点名反例）  (c) 去掉 NamedExpr 递归
+        点名反例变 MISSED: （无）
+        ℹ️ 连带正例翻红: ['验伪锚 c1']
+[ 5] ✅ 归因成立  (c) 三分退回「不可证即放行」
+        点名反例变 MISSED: ['(c)-2 with <不可证的形参>', '(c)-4 容器取值 with clients[0]']
+        ℹ️ 连带 MISSED（这条规则也在守它们）: ['(c)-3 with make(flag)', 'R2-1 装饰器把函数换成 TestClient 实例（localfunc: 标签不看装饰器）', 'R2-7 C4']
+[ 6] ✅ 归因成立  (c)-C2 调用面无条件放行（不收回部分-main 工厂）
+        点名反例变 MISSED: ['(c)-3 with make(flag)']
+[ 7] ✅ 归因成立  (d) 解包退回「整体来源原样传给每个元素」（旧行为）
+        点名反例变 MISSED: ['(d)-1 tuple 解包出 TestClient 实例（模块 docstring 自认的阻断项 D）']
+        ℹ️ 连带正例翻红: ['验伪锚 d']
+[ 8] ✅ 归因成立  (d) 去掉 Delete 绑定
+        点名反例变 MISSED: ['(d)-2 del 之后名字不再绑着那个局部 app']
+[ 9] ✅ 归因成立  (d) 去掉 match capture 绑定
+        点名反例变 MISSED: ['(d)-3 match-case 的 capture 名遮蔽了外面那个可证的局部 app']
+        ℹ️ 连带 MISSED（这条规则也在守它们）: ['R2-2b match 捕获的 MatchStar 分支（此前只有 MatchAs 有输入）']
+[10] ✅ 归因成立  (f)-④ 去掉「形参被重绑定则失格」
+        点名反例变 MISSED: ['(f)-1 包装器体内重绑定了被隔离的形参（隔离盖的是重绑定之前那个对象）']
+        ℹ️ 连带 MISSED（这条规则也在守它们）: ['R2-5b 包装器']
+[11] ✅ 归因成立  (f)-⑤ yield 检查退回「体内有 yield 即可」
+        点名反例变 MISSED: ['(f)-2 包装器 yield 出去的不是被隔离的那个对象']
+[12] ✅ 归因成立  (f)-⑥ 去掉同名重定义聚合（退回 add-only 覆盖）
+        点名反例变 MISSED: ['(f)-3 包装器同名重定义']
+
+生产文件跑后 sha256[:16] = 406674c9e327960d  ⇒ 逐字节未变 ✅
+结论：12/12 条归因成立
+rc=0

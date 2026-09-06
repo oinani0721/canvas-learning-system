@@ -8,7 +8,7 @@
 
 **请只读以下内容，不要读工作区其它文件，不要运行任何命令、测试或端口连接：**
 
-1. 本卡 diff：`git diff <本卡开工 SHA> HEAD -- backend/scripts/lifespan_isolation_negative_control.py`（+939 / −107）
+1. 本卡 diff：`git -C /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y8-w4-ast diff 988fd655 6d6e3e09 -- backend/scripts/lifespan_isolation_negative_control.py`（+939 / −107）。文件绝对路径：`/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y8-w4-ast/backend/scripts/lifespan_isolation_negative_control.py`（当前工作树 = `6d6e3e09`，与该 commit 逐字节相同）。
 2. 该文件（改后共 3152 行）的这几段：
    - `:312-470` — 常量与来源标签：`AST_EXCLUDED_TOP_DIRS` :312、`_ENTER_CONTEXT_CM_PARAM` :323、`_IFEXP_MAX_DEPTH` :325、`_InstanceMain` :342、`_instance_main` :372、`_ref_path` :385、`Origin` :406、`O_IMPORTED_MODULE` :415、`_MODULE_OBJECT_ORIGINS` :422、`_module_has_testclient` :425
    - `:510-583` — `_ModuleIndex.__init__` 与 M16 不动点循环（`for _ in range(4)` :537，迭代状态元组与收敛比较紧随其后）

@@ -98,6 +98,47 @@ MUTANTS = [
         "                if False:\n                    continue",
         ["(f)-2"],
     ),
+    # ── R2 Codex 外审实证的 5 条 HIGH，各自的整改是否承重 ──
+    (
+        "R2-1 放行判据退回黑名单 `origin != O_UNKNOWN`",
+        "    if origin in _PROVEN_NOT_MAIN_INSTANCE:\n        return  # 可证不是 main 实例（白名单，逐条列举）",
+        "    if origin is not None and origin != O_UNKNOWN:\n        return  # MUTANT: 退回黑名单",
+        ["R2-1"],
+    ),
+    (
+        "R2-3 逐位表退回直接覆盖（不按 key 聚合）",
+        "        if key in self._return_elts_verdicts and self._return_elts_verdicts[key] != cols:\n            self._return_elts_verdicts[key] = None\n        else:\n            self._return_elts_verdicts[key] = cols",
+        "        self._return_elts_verdicts[key] = cols  # MUTANT: 直接覆盖",
+        # R2-3 那条实际由「剔除失格 key」守住（第一轮实测），真正只有「按 key 聚合」
+        # 能守的是 R2-3b：两个定义都不失格，危险的那一位被后定义覆盖成安全。
+        ["R2-3b"],
+    ),
+    (
+        "R2-3c 发布时不剔除失格 key",
+        "            if v is not None and k not in self.disqualified_factory_keys",
+        "            if v is not None  # MUTANT: 不看失格名单",
+        # 观察项：实测无可观测差异——失格的成因必然让逐位表不一致，上一条
+        # 「按 key 聚合」已经把整 key 判 None。如实登记为冗余防线。
+        [],
+    ),
+    (
+        "R2-5a yield 收集退回 ast.walk（会进嵌套作用域）",
+        "            yields = [y for b in stmt.body for y in _walk_same_scope(b) if isinstance(y, (ast.Yield, ast.YieldFrom))]",
+        "            yields = [y for b in stmt.body for y in ast.walk(b) if isinstance(y, (ast.Yield, ast.YieldFrom))]",
+        ["R2-5a"],
+    ),
+    (
+        "R2-5b 不扫 FunctionDef 的装饰器与默认参数里的海象",
+        "            for sub_expr in (*stmt.decorator_list, *stmt.args.defaults, *[d for d in stmt.args.kw_defaults if d]):\n                self._record_walrus_in(sub_expr, stmt, scope)",
+        "            pass  # MUTANT: 不扫装饰器/默认参数",
+        ["R2-5b"],
+    ),
+    (
+        "R2-7 C4 退回「只看 base 是不是模块」",
+        "        ref = _ref_path(expr)\n        return ref is not None and ref not in self.module_attr_writes",
+        "        return True  # MUTANT: 只看 base 是模块就放行",
+        ["R2-7"],
+    ),
     (
         "(f)-⑥ 去掉同名重定义聚合（退回 add-only 覆盖）",
         "            if key in verdicts and verdicts[key] != idx:\n                verdicts[key] = None  # 同名多定义裁定不一致 ⇒ 整 key 失格\n            else:\n                verdicts[key] = idx",

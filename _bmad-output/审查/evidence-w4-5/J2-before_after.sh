@@ -15,8 +15,8 @@ F="scripts/lifespan_isolation_negative_control.py"
 SCRATCH="$(dirname "$0")"
 cd "$W/backend" || exit 9
 
-BASE=$(git rev-parse HEAD)
-echo "BASE(开工SHA)=$BASE"
+BASE=${W45_BASE:-$(git rev-parse HEAD)}   # 可用 W45_BASE 显式指定对照基线
+echo "BASE(对照基线)=$BASE"
 SHA0=$(shasum -a 256 "$F" | awk '{print $1}')
 echo "SHA0(改后文件)=$SHA0"
 

@@ -421,6 +421,100 @@ O_UNKNOWN = "unknown"
 #: 「这个名字绑着一个 **module 对象**」的全部来源标签（(c)-C4）。
 _MODULE_OBJECT_ORIGINS = {O_IMPORTED_MODULE, O_MAIN_MODULE, O_FASTAPI_MODULE, O_TESTCLIENT_MODULE}
 
+#: 送进 ``__enter__`` 时**可证不是 app.main 的 TestClient 实例**的来源标签白名单。
+#:
+#: ⛔ 这里必须是**白名单**，不能写成 ``origin != O_UNKNOWN``（R2 Codex HIGH-1）。
+#: 反例：``localfunc:<name>`` 声称「这个名字此刻仍是本模块那个 def」，但它是按
+#: ``def`` 语句记的、**不看装饰器**——
+#:
+#:     def as_client(fn):
+#:         return TestClient(app)      # app.main 的 app
+#:     @as_client
+#:     def cm(): ...
+#:     with cm:  ...                   # 运行时 cm 就是那个 TestClient 实例
+#:
+#: 装饰后 ``cm`` 根本不是函数。黑名单写法把它当「非 unknown ⇒ 可证不是 main」放行；
+#: 白名单写法让它落进 fail-closed。每加一个新来源标签都要**显式决定**它进不进这张表，
+#: 而不是默认获得放行资格——这正是黑名单做不到的。
+_PROVEN_NOT_MAIN_INSTANCE = frozenset(
+    {
+        O_TESTCLIENT_INSTANCE_LOCAL,  # 局部 FastAPI() 造的客户端，进 with 无害
+        O_LOCAL_APP,  # 局部 app 本身（FastAPI 不是上下文管理器）
+        O_MAIN_APP,  # 生产 app 本身，同上——进 with 会 AttributeError，不跑 lifespan
+        O_HELPER,  # no_lifespan / lifespan_lite 函数对象
+        O_FASTAPI_CLASS,
+        O_FASTAPI_MODULE,
+        O_TESTCLIENT_CLASS,  # 类本身，不是实例
+        O_TESTCLIENT_MODULE,
+        O_MAIN_MODULE,
+        O_IMPORTED_MODULE,
+    }
+)
+
+
+def _walk_same_scope(node: ast.AST):
+    """``ast.walk`` 的同作用域版本：不下潜进会另开作用域的节点。
+
+    ⛔ R2 Codex HIGH-5：``_mark_isolation_wrappers`` 原来用 ``ast.walk`` 收 with 体内的
+    ``yield``，于是**嵌套函数里的** yield 也被算成「隔离覆盖了让出控制权那一刻」——
+
+        with no_lifespan(a):
+            def unused():
+                yield a        # 从不执行
+        yield a                # 真正让出控制权时，隔离已经退出
+
+    静态判定据此授予资格，调用方 `with wrapper(app), TestClient(app)` 被判安全。
+    """
+    # ⛔ 入口就要判 node 自己：调用方常常直接把一条**语句**传进来，而那条语句
+    #    本身就可能是 `def unused(): ...`。只对 child 做排除的话，node 自己的
+    #    子树照样被走遍——本卡第一版修复就漏在这里（只挡住了一层，`stmt.body`
+    #    里直接放一个嵌套 def 仍然漏，外面多包一层 class 才偶然堵住）。
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
+        return
+    stack = [node]
+    while stack:
+        cur = stack.pop()
+        yield cur
+        for child in ast.iter_child_nodes(cur):
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
+                continue
+            stack.append(child)
+
+
+def _module_attr_write_paths(tree: ast.Module) -> frozenset[str]:
+    """本模块里所有被赋值的**属性路径**（``mod.client = ...`` → ``"mod.client"``）。
+
+    覆盖 Assign / AnnAssign / AugAssign 的目标、``with ... as mod.x``、``for mod.x in``、
+    以及海象——凡是能把一个对象写进属性的语法位置。(c)-C4 的豁免要在此之外才成立。
+    """
+    paths: set[str] = set()
+
+    def collect(t):
+        if isinstance(t, ast.Attribute):
+            r = _ref_path(t)
+            if r is not None:
+                paths.add(r)
+        elif isinstance(t, (ast.Tuple, ast.List)):
+            for e in t.elts:
+                collect(e)
+        elif isinstance(t, ast.Starred):
+            collect(t.value)
+
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Assign):
+            for t in n.targets:
+                collect(t)
+        elif isinstance(n, (ast.AnnAssign, ast.AugAssign, ast.For, ast.AsyncFor)):
+            collect(n.target)
+        elif isinstance(n, (ast.With, ast.AsyncWith)):
+            for item in n.items:
+                if item.optional_vars is not None:
+                    collect(item.optional_vars)
+        elif isinstance(n, ast.Delete):
+            for t in n.targets:
+                collect(t)
+    return frozenset(paths)
+
 
 def _module_has_testclient(tree: ast.Module) -> bool:
     """本模块 AST 里有没有 TestClient 的可达性（(c)-C3 的判据）。
@@ -529,6 +623,9 @@ class _ModuleIndex:
         #: TestClient 的文件当成有可达性，于是它那 7 处 `with self._lock:` 全被
         #: fail-closed 判违规 —— 而该文件是别的卡的地盘，改不动，门就永远红。
         self.module_has_testclient = _module_has_testclient(tree)
+        #: 本模块里被赋过值的**属性路径**（`mod.client = ...` → `"mod.client"`）。
+        #: (c)-C4 用它排除「本模块自己写进 import 来的模块」那条漏放面。
+        self.module_attr_writes = _module_attr_write_paths(tree)
         self.module_scope = _Scope(tree, None, "module")
         self.scope_of: dict[int, _Scope] = {}
         # 建表与「哪些函数返回局部 app」互为输入 —— 迭代到不动点，最后再建一次表，
@@ -587,6 +684,12 @@ class _ModuleIndex:
         self.scope_of[id(stmt)] = scope
 
         if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            # ⛔ 装饰器与默认参数在**外层**作用域求值（R2 Codex HIGH-5）：
+            #     def unused(x=(a := FastAPI())): ...
+            # 这个海象重绑的是**外层**的 a。下面对 FunctionDef 直接 return，
+            # 若不先扫这两处，隔离包装器的「形参被重绑定则失格」就看不见它。
+            for sub_expr in (*stmt.decorator_list, *stmt.args.defaults, *[d for d in stmt.args.kw_defaults if d]):
+                self._record_walrus_in(sub_expr, stmt, scope)
             # 专门的来源标签：这样「这个名字此刻确实还是本模块那个 def」可以被
             # 证明；被后续赋值重绑定后解析结果就不再是它，工厂近似随之失效。
             scope.bind(stmt.name, _pos(stmt), f"{O_LOCAL_FUNC_PREFIX}{stmt.name}")
@@ -670,10 +773,16 @@ class _ModuleIndex:
         那一刻**才生效——写在使用点之后的海象不该影响使用点（reaching-definition
         口径与 :meth:`resolve_name` 一致）。
         """
-        for sub in self._own_exprs(stmt):
+        self._record_walrus_in(stmt, stmt, scope)
+
+    def _record_walrus_in(self, node: ast.AST, host: ast.stmt, scope: _Scope) -> None:
+        """扫 ``node`` 这一层的表达式子树，把海象绑定记进 ``scope``。"""
+        for sub in self._own_exprs(node):
             if isinstance(sub, ast.NamedExpr):
                 # NamedExpr.target 的类型就是 Name（语法上不可能是别的）
-                scope.bind(sub.target.id, _pos(sub), self._value_origin(sub.value, stmt, scope))
+                scope.bind(sub.target.id, _pos(sub), self._value_origin(sub.value, host, scope))
+        if isinstance(node, ast.NamedExpr):  # node 自己就是海象（默认参数的形态）
+            scope.bind(node.target.id, _pos(node), self._value_origin(node.value, host, scope))
 
     @staticmethod
     def _all_args(a: ast.arguments):
@@ -861,7 +970,16 @@ class _ModuleIndex:
         base = expr.value
         if not isinstance(base, ast.Name):
             return False
-        return self.resolve_name(base.id, _pos(node), scope) in _MODULE_OBJECT_ORIGINS
+        if self.resolve_name(base.id, _pos(node), scope) not in _MODULE_OBJECT_ORIGINS:
+            return False
+        # ⛔ 「是个 import 来的模块」证明不了「这个属性不是本模块写的」（R2 Codex HIGH-7）：
+        #     import contextlib as mod
+        #     mod.client = TestClient(app)      # 本模块就地写进去的
+        #     with mod.client: ...
+        # Python 的模块对象是可变的，import 不给任何只读保证。所以还要求本模块
+        # **没有对这条属性路径赋过值**——那才是「不由本模块构造」的可证部分。
+        ref = _ref_path(expr)
+        return ref is not None and ref not in self.module_attr_writes
 
     def _value_origin(self, value: ast.expr, stmt: ast.stmt, scope: _Scope) -> Origin:
         """赋值右侧的来源。只有**可证**的形态才给非 unknown。"""
@@ -1104,13 +1222,19 @@ class _ModuleIndex:
         #      `outer` 写在 `inner` 前面时每一轮都读到刚被清空的表 ⇒ 永远补不齐 ⇒
         #      「同一段代码换个定义顺序两种结论」（M16 原始缺陷的形态）。
         #      变异实测：把 `frozen_return_elts` 改成恒空，验伪锚 d2/d3 当场翻红。
-        #    * **每轮重建 —— 防御性纪律，本卡没造出能看见它的输入。** 2026-09-06
-        #      变异实测：删掉下面那行清空（退回 add-only 累积），40 条反例与 23 条
-        #      正例**全部不变**。查因是 dict 赋值本身就覆盖，而「某 key 在轮 N 登记、
-        #      轮 N+1 不登记」需要 `frozen` 里的条目消失，add-only 下它不会消失。
-        #      保留这行是因为 M16 的教训值 —— 但**不要**把它写成「已被门守住」。
+        #    * **每轮重建 —— R2 整改后已成冗余，如实标注。** 轮末的
+        #      :meth:`_publish_return_elts` 用**整体赋值**重建 `factory_return_elts`
+        #      （而不是增量写入），所以下面这行清空在当前实现下没有行为作用。
+        #      2026-09-06 变异实测两次：删掉它，47 条反例 + 27 条正例全部不变；
+        #      连 R2 Codex 专门为「区分重建与 add-only」构造的那段
+        #      （q 重定义 + later 转调 + mix）也给出相同判定——那个构造针对的是
+        #      round-1「扫描期直接写表」的实现，整改后不再适用。
+        #      保留这行是为了让「frozen 是上一轮、下面是本轮」这句话在代码里成立，
+        #      **不是**因为它承重。
         frozen_return_elts = dict(self.factory_return_elts)
         self.factory_return_elts = {}
+        #: 本轮逐 key 裁定；轮末按「全部定义一致才发布」写进 factory_return_elts。
+        self._return_elts_verdicts: dict[str, tuple | None] = {}
         self.partial_main_client_funcs = set()
         for node in ast.walk(tree):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -1146,6 +1270,31 @@ class _ModuleIndex:
                     owner = self._enclosing_class_name(node)
                     for tgt in attrs:
                         self.main_client_attrs.add(f"{owner}.{tgt.attr}")
+        # 全部定义扫完才发布逐位表 —— 「同名多定义任一不一致 ⇒ 整 key 失格」这句
+        # 哲学要求看完所有定义再下结论，扫描途中不许有人读到中间态。
+        self._publish_return_elts()
+
+    def _publish_return_elts(self) -> None:
+        """轮末把逐 key 裁定发布成逐位表。
+
+        两道过滤，**证据强度不同，如实分开写**：
+
+        * **裁定为 None ⇒ 不发布 —— 承重，有门。** 同名多定义逐位不一致时整 key 作废。
+          变异实测（`R2-3b` 反例）：退回直接覆盖，那条当场漏放——两个定义都不在失格
+          名单里，危险的那一位被后定义覆盖成安全来源。
+        * **失格 key 一并剔除 —— 冗余防线，本卡造不出能看见它的输入。** 变异实测：
+          去掉这个条件，48 条反例 + 27 条正例全部不变。查因：失格的成因是「某个定义
+          的 return 拿不出可证的局部 app」，而那必然让它的逐位表与别的定义不一致 ⇒
+          上一条已经把整 key 判 None；若**所有**定义都失格且逐位一致，表里的值本身
+          就是危险来源，构造点照样被拒。两条路都通向拒绝，看不出差别。
+          保留它是防御深度（失格结论对两张表同时有效这件事该被写下来），
+          **不是**因为有门守着。
+        """
+        self.factory_return_elts = {
+            k: v
+            for k, v in self._return_elts_verdicts.items()
+            if v is not None and k not in self.disqualified_factory_keys
+        }
 
     def _mark_factory_return_elts(self, fd, returns, own: _Scope, frozen: dict) -> None:
         """登记「返回 tuple 的工厂」的**逐位来源**，供调用方解包时按位配对。
@@ -1189,7 +1338,20 @@ class _ModuleIndex:
                 return
         if len({len(row) for row in rows}) != 1:
             return
-        self.factory_return_elts[key] = tuple(col[0] if len(set(col)) == 1 else O_UNKNOWN for col in zip(*rows))
+        cols = tuple(col[0] if len(set(col)) == 1 else O_UNKNOWN for col in zip(*rows))
+        # ⛔ 同 key 聚合（R2 Codex HIGH-3）：同名多定义时旧实现直接覆盖，于是
+        #     if True:
+        #         def make(): return production_app, 1     # 先登记：生产来源
+        #     else:
+        #         def make(): return FastAPI(), 1          # 后覆盖：安全来源
+        # 调用方 `a, n = make()` 拿到的是**后一个**定义的表，生产来源被抹掉。
+        # 与 `_mark_all_fastapi_returning` 的阻断项 E、`_mark_isolation_wrappers` 的 ⑥
+        # 完全同形——本卡在包装器侧补了那条，却在这里复刻了同一个缺陷。
+        # 口径统一为：裁定不一致（含宽度不同）⇒ 整个 key 记 None，轮末不发布。
+        if key in self._return_elts_verdicts and self._return_elts_verdicts[key] != cols:
+            self._return_elts_verdicts[key] = None
+        else:
+            self._return_elts_verdicts[key] = cols
 
     def _mark_isolation_wrappers(self, tree: ast.Module) -> None:
         """识别**自建的隔离包装器**，避免把合法写法误判成违规。
@@ -1277,7 +1439,7 @@ class _ModuleIndex:
                 continue
             if self.scope_of.get(id(stmt)) is not own:
                 continue
-            yields = [y for b in stmt.body for y in ast.walk(b) if isinstance(y, (ast.Yield, ast.YieldFrom))]
+            yields = [y for b in stmt.body for y in _walk_same_scope(b) if isinstance(y, (ast.Yield, ast.YieldFrom))]
             if not yields:
                 continue
             for item in stmt.items:
@@ -1649,8 +1811,8 @@ def _flag_instance_context(violations, index, rel, node, scope, expr, how: str) 
             f"进入上下文会跑真实 lifespan{hint}；构造点没有隔离，本处也没有支配的外层隔离块"
         )
         return
-    if origin is not None and origin != O_UNKNOWN:
-        return  # 可证不是 main 实例
+    if origin in _PROVEN_NOT_MAIN_INSTANCE:
+        return  # 可证不是 main 实例（白名单，逐条列举）
     exempt = _unprovable_context_exempt(index, node, scope, expr, how)
     if exempt is not None:
         return
@@ -2125,10 +2287,20 @@ _AST_MUST_FLAG: list[tuple[str, str]] = [
     ),
     # ══════════════════════════════════════════════════════════════════
     # CARD-W4-5（第十二批）：X4 两轮终审列为未整改的 5 HIGH + 1 unknown 放行。
-    # 下面 13 条里有 12 条在改动前**实测 0 违规**（六组 before/after 见验收单），
-    # 也就是「今天就能写出来、会跑真实 lifespan、而门判它合规」的源码。
-    # 唯一的例外是最后一条 (e)-2，它改动前后都被抓（原因不同），留在这里是
-    # 作为 `验伪锚 e` 的配对反例——锁住 (e) 的放宽不许过头。
+    # 本区块 15 条里有 14 条在改动前**实测 0 违规**（before/after 见验收单），
+    # 也就是「门判它合规」的源码。第 15 条 (e)-2 改动前后都被抓（原因不同），
+    # 是 `验伪锚 e` 的配对反例——锁住 (e) 的放宽不许过头。
+    #
+    # ⛔ **不要把这 14 条一概读成「会跑真实 lifespan 的漏检」**（R2 Codex MEDIUM-2
+    # 的更正，属实）。它们分三类，只有第一类是真漏检：
+    #   * **真漏检**：(a)-1 / (a)-2 / (b)-1 / (b)-2 / (c)-1 / (c)-2 / (c)-3 /
+    #     (c)-4 / (d)-1 / (d)-3 —— 运行时确实会跑真实 lifespan。
+    #   * **保守拒绝锚**（写法本身有别的问题，门拒它是因为来源不可证，不是因为
+    #     它真会启动）：(d)-2 那段 `del app` 之后再用 app，运行时先 UnboundLocalError。
+    #   * **规则边界锚**（隔离实际仍然生效，但静态判据的依据已不成立，按 fail-closed
+    #     拒绝）：(f)-1 的 `a = app` 重绑后仍是同一个被隔离对象；(f)-2 的 yield 值
+    #     被调用方忽略、真正进入的 app 仍在隔离中；(f)-3 同理。
+    # 这三类都该被拒，但理由不同——把后两类也说成「漏检」就是声明比证据宽。
     # ══════════════════════════════════════════════════════════════════
     (
         "(a)-1 enter_context(cm=TestClient(app))：关键字传参绕过位置参扫描",
@@ -2282,6 +2454,117 @@ _AST_MUST_FLAG: list[tuple[str, str]] = [
         "    clients = [TestClient(app)]\n"
         "    with clients[0]:\n"
         "        pass\n",
+    ),
+    # ══════════════════════════════════════════════════════════════════
+    # R2 Codex（2026-09-06 外审）实证的 5 条 HIGH 漏放面 + 2 条「无独立守护」的面。
+    # 前 5 条在 round-1 代码上**实测 0 违规**（漏放），整改后被抓；后 2 条 round-1
+    # 就被抓，但表里没有任何输入点名它们所依赖的那条规则，属「有能力没有门」。
+    # ══════════════════════════════════════════════════════════════════
+    (
+        "R2-1 装饰器把函数换成 TestClient 实例（localfunc: 标签不看装饰器）",
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "def as_client(fn):\n"
+        "    return TestClient(app)\n"
+        "@as_client\n"
+        "def cm():\n"
+        "    pass\n"
+        "with cm:\n"
+        "    pass\n",
+    ),
+    (
+        "R2-3 逐位表同名工厂覆盖（安全版把生产版抹掉）",
+        "from app.main import app as production\n"
+        "from fastapi import FastAPI\n"
+        "from fastapi.testclient import TestClient\n"
+        "if True:\n"
+        "    def make():\n"
+        "        return production, 1\n"
+        "else:\n"
+        "    def make():\n"
+        "        return FastAPI(), 1\n"
+        "def t():\n"
+        "    a, n = make()\n"
+        "    with TestClient(a):\n"
+        "        pass\n",
+    ),
+    (
+        "R2-3b 逐位表同名工厂：两个定义都不失格，但危险的那一位被后定义覆盖成安全",
+        "from app.main import app as production\n"
+        "from fastapi import FastAPI\n"
+        "from fastapi.testclient import TestClient\n"
+        "if True:\n"
+        "    def make():\n"
+        "        return FastAPI(), production\n"
+        "else:\n"
+        "    def make():\n"
+        "        return FastAPI(), FastAPI()\n"
+        "def t():\n"
+        "    a, c = make()\n"
+        "    with TestClient(c):\n"
+        "        pass\n",
+    ),
+    (
+        "R2-5a 包装器：隔离块内的 yield 其实在**嵌套函数**里（从不执行）",
+        "import contextlib\n"
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "from tests.support.lifespan import no_lifespan\n"
+        "@contextlib.contextmanager\n"
+        "def isolated(a):\n"
+        "    with no_lifespan(a):\n"
+        "        def unused():\n"
+        "            yield a\n"
+        "    yield a\n"
+        "def t():\n"
+        "    with isolated(app), TestClient(app):\n"
+        "        pass\n",
+    ),
+    (
+        "R2-5b 包装器：嵌套函数**默认参数**里的海象重绑了被隔离的形参",
+        "import contextlib\n"
+        "from fastapi import FastAPI\n"
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "from tests.support.lifespan import no_lifespan\n"
+        "@contextlib.contextmanager\n"
+        "def isolated(a):\n"
+        "    def unused(x=(a := FastAPI())):\n"
+        "        pass\n"
+        "    with no_lifespan(a):\n"
+        "        yield a\n"
+        "def t():\n"
+        "    with isolated(app), TestClient(app):\n"
+        "        pass\n",
+    ),
+    (
+        "R2-7 C4：本模块给 import 来的模块**写属性**（import 不给只读保证）",
+        "import contextlib as mod\n"
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "mod.client = TestClient(app)\n"
+        "with mod.client:\n"
+        "    pass\n",
+    ),
+    (
+        "R2-2a 海象**入表**（先 (app := production)，后 TestClient(app)）",
+        "from app.main import app as production\n"
+        "from fastapi.testclient import TestClient\n"
+        "def t(flag):\n"
+        "    if (app := production):\n"
+        "        with TestClient(app):\n"
+        "            pass\n",
+    ),
+    (
+        "R2-2b match 捕获的 MatchStar 分支（此前只有 MatchAs 有输入）",
+        "from fastapi import FastAPI\n"
+        "from fastapi.testclient import TestClient\n"
+        "def t(x):\n"
+        "    app = FastAPI()\n"
+        "    match x:\n"
+        "        case [1, *app]:\n"
+        "            with TestClient(app):\n"
+        "                pass\n",
     ),
     (
         "(e)-2 no_lifespan(m.other) 不覆盖 TestClient(m.app)（配对反例：放宽不许过头）",
@@ -2536,7 +2819,44 @@ _AST_MUST_PASS: list[tuple[str, str]] = [
     ),
     # ── (d) 的回归锚：转调工厂 + tuple + 解包。逐位表若只认「字面 tuple」，
     #    `outer` 拿不到表 ⇒ 每元素 unknown ⇒ 这两条当场翻红。两个定义顺序都留，
-    #    因为「被调者在前」那条还额外锁住冻结知识（只清空不冻结时它会红）。
+    #    两条一起留是因为它们锁的是**同一件事**：转调支必须读到一份**已发布**的表。
+    #    2026-09-06 变异实测（两种拆法）：
+    #      * `frozen` 改成恒空 ⇒ d2、d3 **都红**；
+    #      * 改成读本轮正在填的表（而不是上一轮已发布的）⇒ d2、d3 **也都红**，
+    #        因为 `_publish_return_elts` 在整个扫描循环之后才发布，扫描期表恒空。
+    #    ⚠️ R2 Codex 预测的是「d2 红、d3 绿」——那是对 round-1 实现的推演，在轮末
+    #    发布之后不再成立。保留两个定义顺序，是为了让「换顺序结论必须相同」这句话
+    #    本身有门（M16 原始缺陷的形态就是换顺序两种结论）。
+    # ── R2 Codex 指出的三条「豁免边界没有正向锚」，补上 ──
+    (
+        "验伪锚 e2：先构造 client=TestClient(m.app)，再由 no_lifespan(m.app) 支配 with client",
+        "import app.main as m\n"
+        "from fastapi.testclient import TestClient\n"
+        "from tests.support.lifespan import no_lifespan\n"
+        "def t():\n"
+        "    client = TestClient(m.app)\n"
+        "    with no_lifespan(m.app):\n"
+        "        with client:\n"
+        "            pass\n",
+    ),
+    (
+        "验伪锚 C3b：TestClient 只出现在 docstring 里（判据必须是 AST，不是文本查找）",
+        '"""这个模块讲的是 TestClient 怎么用，但一个 TestClient 节点都没有。"""\n'
+        "class C:\n"
+        "    def m(self):\n"
+        "        # 这里也提到 TestClient，同样只是注释\n"
+        "        with self._lock:\n"
+        "            pass\n",
+    ),
+    (
+        "验伪锚 C4b：只**读**import 来的模块的属性，本模块从没写过它",
+        "import somemod as mod\n"
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "def t():\n"
+        "    with mod._refresh_guard:\n"
+        "        pass\n",
+    ),
     (
         "验伪锚 d2：转调工厂返回 tuple 后解包，被调者定义在**后**",
         "from fastapi import FastAPI\n"
