@@ -21,7 +21,7 @@ import pytest
 WT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(WT / "scripts"))
 
-import daily_review_pick as picker  # noqa: E402
+import daily_review_pick as picker  # noqa: E402  # pyright: ignore[reportMissingImports]
 
 NOW = datetime(2026, 7, 30, 1, 0, tzinfo=timezone.utc)
 
@@ -122,7 +122,7 @@ def test_future_due_board_gets_rest_notification(tmp_path):
 
 def test_due_filter_beats_pick_within_board(tmp_path):
     """WHEN 先于 WHAT: 板内未到期节点即使 pick 更低也不能当 top_node。"""
-    payload, ranked = _build(
+    _payload, ranked = _build(
         tmp_path,
         {
             "低分未到期": _node(extra="mastery_a: 0.1\nmastery_b: 5.0\nfsrs_due: 2026-08-15T01:00:00Z\n"),
@@ -266,7 +266,7 @@ def test_nonfinite_pick_goes_corrupt_not_nan_json(tmp_path):
     的 pick 进 JSON, 单个 NaN 会让整个投影文件非法。必须进 corrupt 桶。"""
     import json as _json
 
-    payload, ranked = _build(
+    payload, _ranked = _build(
         tmp_path,
         {
             "溢出": _node(extra=f"mastery_a: {'9' * 400}\nmastery_b: 2\n"),
@@ -1598,7 +1598,7 @@ def test_g36b_unassigned_nodes_never_enter_any_board_surface(tmp_path):
     """S6 无归属 (HEAD 既有语义, 本卡独立锁定): 无 source_board 的节点不进
     任何板面 (top_boards / boards rollup / buckets), 点名在 unassigned_nodes
     —— 既不静默消失, 也不虚构归属。"""
-    payload, ranked = _build(
+    payload, _ranked = _build(
         tmp_path,
         {
             "孤儿": "---\ntype: concept\n---\n真实内容。\n",
@@ -2087,3 +2087,98 @@ def test_g36b_parent_section_missing_warns_not_silent(tmp_path, capsys):
         err = capsys.readouterr().err
         assert v == 1 and m == picker.DEFAULT_MINUTES
         assert "缺失或形状不符" in err and "分钟用内置默认" in err, f"形状{i}必须点名"
+
+
+# ── CARD-G6-7 (BATCH-2026-09-05-第十二批): 已完成板让出榜首 ──
+
+
+def _build_with_done(tmp_path, nodes: dict, board_done, now: datetime = NOW):
+    """与 _build 同形, 只多传新的可选参数 (缺省调用形态另有用例守)。"""
+    vault = tmp_path / f"vault{next(_seq)}"
+    scripts = vault / ".claude" / "scripts"
+    scripts.mkdir(parents=True)
+    (vault / "节点").mkdir()
+    shutil.copy(WT / "canvas-vault" / ".claude" / "scripts" / "decay_beta.py", scripts)
+    for name, content in nodes.items():
+        (vault / "节点" / f"{name}.md").write_text(content, encoding="utf-8")
+    return picker.build_payload(vault, now, {}, picker.load_decay(vault), board_done=board_done)
+
+
+#: 两块板、榜首确定的最小节点集 —— "甲板" 两张待巩固, "乙板" 一张,
+#: 于是无干扰时 ranked[0] 恒是 甲板 (先证明这一点, 再谈"让位")
+_TWO_BOARDS = {
+    "甲一": _node(board="甲板"),
+    "甲二": _node(board="甲板"),
+    "乙一": _node(board="乙板"),
+}
+_TODAY = NOW.astimezone().date().isoformat()
+
+
+def test_g67_done_board_yields_top_slot_but_stays_on_the_list(tmp_path):
+    """完成条件 (e): 今天标完成的板不占榜首 —— 但**仍在榜上**。
+
+    ⚠ 榜首是哪块板**实测得来**, 不由夹具作者猜 (初版写死"甲板", 实测
+    排第一的是乙板 —— 前提断言当场抓住)。把实测的榜首标完成, 断言换成
+    原来的第二名, 这样门测的是"让位"这件事本身, 不依赖排序律的具体形状。
+
+    三条一起才说明得了问题:
+      ① 前提: 无干扰时榜首是 first、次席是 second (两块板都在榜上);
+      ② 标 first 完成 → 榜首换成 second, 通知也跟着换 (通知取 ranked[0]);
+      ③ first 仍在 top_boards 里, boards rollup / buckets / stats 一个数没动。
+    """
+    base_payload, base_ranked = _build_with_done(tmp_path, _TWO_BOARDS, None)
+    assert len(base_ranked) >= 2, "前提: 榜上要有两块板才谈得上让位"
+    first, second = base_ranked[0]["board"], base_ranked[1]["board"]
+    assert base_payload["notification"]["title"].endswith(first)
+
+    payload, ranked = _build_with_done(tmp_path, _TWO_BOARDS, {first: _TODAY})
+    assert ranked[0]["board"] == second, "已完成板必须让出榜首"
+    assert payload["notification"]["title"].endswith(second), "通知取 ranked[0], 必须跟着让位"
+    assert [r["board"] for r in payload["top_boards"]] == [second, first], "让位不是除名 —— 它仍在榜上"
+    assert payload["stats"] == base_payload["stats"], "完成状态不许动任何统计口径"
+    assert payload["boards"] == base_payload["boards"], "板级 rollup 与完成状态无关"
+    assert payload["buckets"] == base_payload["buckets"], "五桶划分与完成状态无关"
+
+
+def test_g67_yesterday_done_does_not_yield(tmp_path):
+    """(f) 判据是「值 == 今天」: 昨天的完成账不该影响今天的榜首。"""
+    _base, base_ranked = _build_with_done(tmp_path, _TWO_BOARDS, None)
+    first = base_ranked[0]["board"]
+    yesterday = (NOW.astimezone() - timedelta(days=1)).date().isoformat()
+    _payload, ranked = _build_with_done(tmp_path, _TWO_BOARDS, {first: yesterday})
+    assert ranked[0]["board"] == first, "隔日的完成账必须自然失效"
+
+
+def test_g67_all_boards_done_keeps_ranking_and_notification(tmp_path):
+    """(e) 全部做完 → 分区退化为恒等: 榜与通知都不许凭空消失。
+
+    "没有下一块可让"时若把 ranked 清空, 当天通知会整个不见 —— 用户看到的
+    是"系统坏了", 而不是"你都做完了"。
+    """
+    base_payload, base_ranked = _build_with_done(tmp_path, _TWO_BOARDS, None)
+    all_done = {r["board"]: _TODAY for r in base_ranked}
+    payload, ranked = _build_with_done(tmp_path, _TWO_BOARDS, all_done)
+    assert [r["board"] for r in ranked] == [r["board"] for r in base_ranked], "全完成时顺序退化为恒等"
+    assert payload["notification"] == base_payload["notification"], "通知不许凭空消失或改板"
+
+
+def test_g67_board_done_is_purely_additive_when_absent_or_garbage(tmp_path):
+    """(e) 加性纯度: 缺省 / 空 / 非 dict 三种输入下, payload 与不传时深度全等。
+
+    生产器对上游脏数据一贯的纪律 —— 一个坏掉的 state 不该让整轮生成换个
+    结果 (更不该让它崩)。金样对比逐键深度相等, 不是"看起来差不多"。
+    """
+    golden, _ = _build_with_done(tmp_path, _TWO_BOARDS, None)
+    for bad in ({}, [], "不是 dict", 0, {"从未存在的板": _TODAY}):
+        payload, _ranked = _build_with_done(tmp_path, _TWO_BOARDS, bad)
+        for key in ("top_boards", "notification", "boards", "buckets", "stats", "due_nodes"):
+            assert payload[key] == golden[key], f"board_done={bad!r} 改变了 {key}"
+
+
+def test_g67_four_positional_call_form_still_works(tmp_path):
+    """(e) 既有四位置参数调用形态语义不变 (runner 之外的调用方不受影响)。"""
+    golden, golden_ranked = _build_with_done(tmp_path, _TWO_BOARDS, None)
+    payload, ranked = _build(tmp_path, _TWO_BOARDS)
+    assert [r["board"] for r in ranked] == [r["board"] for r in golden_ranked]
+    assert payload["top_boards"] == golden["top_boards"]
+    assert payload["schema_version"] == 3, "本卡不动投影 schema"

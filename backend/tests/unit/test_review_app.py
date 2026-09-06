@@ -46,6 +46,7 @@ APP_PATH = "/api/v1/review/overview/app"
 PAGE_PATH = "/api/v1/review/overview/page"
 OVERVIEW_PATH = "/api/v1/review/overview"
 REFRESH_PATH = "/api/v1/review/overview/refresh"
+BOARD_DONE_PATH = "/api/v1/review/overview/board-done"  # CARD-G6-7
 
 _ENDPOINTS_DIR = Path(__file__).resolve().parents[2] / "app" / "api" / "v1" / "endpoints"
 #: 开工基线 (2026-09-01 主干 9af18b27 实测): review_overview.py 的 `<script`
@@ -131,9 +132,12 @@ def test_api_paths_injected_from_url_for_not_hardcoded(client, page_html):
     assert urls == {
         "overview": app.url_path_for("review_overview"),
         "refresh": app.url_path_for("review_overview_refresh"),
+        # CARD-G6-7 第三条注入路径 (完成本板反馈)
+        "boardDone": app.url_path_for("review_overview_board_done"),
     }
     assert urls["overview"] == OVERVIEW_PATH
     assert urls["refresh"] == REFRESH_PATH
+    assert urls["boardDone"] == BOARD_DONE_PATH
     # 篡改门: 若有人把路径写死进模板, 上面的相等断言仍会过 (值恰好一样) ——
     # 这条才是真正锁"注入"的: 模板常量里连 /api/v1 的影子都不许有。
     assert "/api/v1" not in _PAGE_TEMPLATE
@@ -163,32 +167,49 @@ def test_api_paths_follow_mount_prefix_not_hardcoded():
         assert urls == {
             "overview": "/alt-prefix/overview",
             "refresh": "/alt-prefix/overview/refresh",
+            "boardDone": "/alt-prefix/overview/board-done",
         }, f"注入路径没有跟随挂载前缀 — 疑似硬编码: {urls}"
     finally:
         c.close()
 
 
 def test_js_fetches_only_the_two_same_origin_endpoints(page_html):
-    """JS 里所有 fetch 的目标都必须是注入的那两个常量, 不得有第三个去处。"""
+    """JS 里所有 fetch 的目标都必须是注入的那几个常量, 不得有第三个去处。
+
+    CARD-G6-7 起白名单是**三**个 (加了 board-done)。名单本身是正向合约:
+    多一个去处就要先有意识地改这里, 评审必然看见。
+    """
     targets = re.findall(r"fetch\(\s*([^,)\s]+)", page_html)
     assert targets, "没有找到任何 fetch 调用 — 页面不会拉数据?"
-    assert set(targets) == {"URLS.overview", "URLS.refresh"}
+    assert set(targets) == {"URLS.overview", "URLS.refresh", "URLS.boardDone"}
 
 
 def test_auto_poll_never_posts_only_manual_button_does(page_html):
-    """默认裁决②: 自动轮询绝不 POST refresh。
+    """默认裁决②: 自动轮询绝不 POST。
 
-    判据取自结构而非措辞 —— 整页只有一处 method:"POST", 且它在手动刷新
-    处理器 onRefreshClick 里; 轮询函数 poll() 的函数体内不含 POST。
+    判据取自结构而非措辞 —— 整页的 method:"POST" 出现次数必须等于**点击
+    处理器的条数**, 且每一处都落在某个点击处理器体内; 轮询函数 poll() 与
+    visibilitychange 处理器体内一个 POST 都不许有。
+
+    CARD-G6-7 把计数从 1 提到 2 (新增「这板做完了」)。⚠ 这不是放宽: 名单
+    从"唯一那个 handler"变成"这两个 handler", 每一处仍要被点名归属; 出现
+    第三处 POST 而没有对应的点击处理器, 本门照样红。
     """
-    assert page_html.count('method: "POST"') == 1
-    poll_body = _group(r"async function poll\(\)\s*\{(.*?)\n\}", page_html, re.S)
-    assert "POST" not in poll_body
-    assert "URLS.refresh" not in poll_body
-    click_body = _group(r"async function onRefreshClick\(ev\)\s*\{(.*?)\n\}", page_html, re.S)
-    assert 'method: "POST"' in click_body
-    # 点击处理器确实被接到 cards 容器上 (不是只有个没人调用的函数)
-    assert 'addEventListener("click", onRefreshClick)' in page_html
+    handlers = ("onRefreshClick", "onBoardDoneClick")
+    assert page_html.count('method: "POST"') == len(handlers)
+    for fn in ("poll",):
+        body = _group(rf"async function {fn}\(\)\s*\{{(.*?)\n\}}", page_html, re.S)
+        assert "POST" not in body, f"{fn}() 体内出现 POST"
+        assert "URLS.refresh" not in body and "URLS.boardDone" not in body
+    vis_body = _group(r'document\.addEventListener\("visibilitychange", \(\) => \{(.*?)\n\}\)', page_html, re.S)
+    assert "POST" not in vis_body, "visibilitychange 分支出现 POST"
+    seen = 0
+    for fn in handlers:
+        click_body = _group(rf"async function {fn}\(ev\)\s*\{{(.*?)\n\}}", page_html, re.S)
+        seen += click_body.count('method: "POST"')
+        # 点击处理器确实被接到 cards 容器上 (不是只有个没人调用的函数)
+        assert f'addEventListener("click", {fn})' in page_html
+    assert seen == len(handlers), f"有 POST 不在任何点击处理器体内 (handler 内 {seen} 处, 全页 2 处)"
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -245,6 +266,8 @@ _ALLOWED_IMPORTS = {
     "app.api.v1.endpoints.review_overview._BUCKET_CN",
     "app.api.v1.endpoints.review_overview._BUCKET_ORDER",
     "app.api.v1.endpoints.review_overview._STATUS_META",
+    # CARD-G6-7: 「不影响 FSRS」文案与徽标文案同纪律 —— 共享不复制
+    "app.api.v1.endpoints.review_overview._DONE_NOTE",
 }
 _ALLOWED_CALL_NAMES = {"APIRouter", "list", "_js_json", "HTMLResponse"}
 _ALLOWED_CALL_ATTRS = {"get", "replace", "url_for", "dumps", "items"}
@@ -259,6 +282,7 @@ _BANNED_REBINDS = (
     | {
         "_BUCKET_CN",
         "_BUCKET_ORDER",
+        "_DONE_NOTE",  # CARD-G6-7: 重绑它 = 页面上那句 FSRS 声明可以被换掉
         "review_overview_router",
         # `Request` 本身不是调用名也不是接收者, 却是 request 形参豁免**所依赖的**名字:
         # 豁免判据只比对注解的拼写, 所以 `Request = str` 之后 `def f(request: Request)`
@@ -738,6 +762,7 @@ export function mkNode(id) {
 export function matches(node, sel) {
   if (sel === "[data-refresh-vault]") return node._attrs["data-refresh-vault"] !== undefined;
   if (sel === "[data-note-for]") return node._attrs["data-note-for"] !== undefined;
+  if (sel === "[data-done-board]") return node._attrs["data-done-board"] !== undefined;
   return false;
 }
 
@@ -750,7 +775,14 @@ export function boot({getJson, postJson, hidden = false} = {}) {
   const calls = {get: 0, post: 0};
   function makeEl(id) {
     const node = mkNode(id);
-    node.addEventListener = (t, fn) => { handlers[id + "::" + t] = fn; };
+    node.addEventListener = (t, fn) => {
+      // 浏览器允许同一节点挂多个同类监听器 —— CARD-G6-7 起 cards 上就有两个
+      // (onRefreshClick / onBoardDoneClick)。存根若只留最后一个, 先注册的那个
+      // 在所有门里都永远跑不到, 而门照样"绿" = 假绿。这里按注册序全部派发。
+      const k = id + "::" + t;
+      const prev = handlers[k];
+      handlers[k] = prev ? (...a) => Promise.all([prev(...a), fn(...a)]) : fn;
+    };
     node.querySelectorAll = sel => (node._desc || []).filter(n => matches(n, sel));
     return node;
   }
@@ -774,6 +806,7 @@ export function boot({getJson, postJson, hidden = false} = {}) {
     SRC +
     "\n;return {esc, shDay, parseDueMs, humanizeDue, computePollDelayMs, visibilityAction," +
     " boardLink, nodeLink, nodeDetailHtml, boardTableHtml, queueLayersHtml, restDayHtml, renderVaultCard," +
+    " doneKey, boardDoneBtnHtml, boardsSplitHtml, renderBoardDoneResult," +
     " renderPage, renderUnavailableBanner, renderRefreshResult, freshNotes};"
   );
   const api = sandbox(
@@ -2407,6 +2440,259 @@ test("对照②: 连点两次都 rebuilt → 第二次的 pending 必须真被�
   assert.match(note.innerHTML, /累计 6 次/, "结算必须归属最新一次刷新");
   assert.ok(!note.innerHTML.includes("累计 5 次"));
   assert.ok(!note.innerHTML.includes("正在同步最新数字"));
+});
+""",
+    )
+    _assert_node_green(proc)
+
+
+# ════════════════════════════════════════════════════════════════════
+# CARD-G6-7 完成本板反馈 (BATCH-2026-09-05-第十二批)
+# ════════════════════════════════════════════════════════════════════
+
+#: 一库两板 + 服务端已把「图论基础」标成今天完成 (board_done 来自 GET /overview,
+#: 前端**只消费不判定** —— 夹具刻意让两块板的到期数都不为 0, 这样"折叠"就不可能
+#: 被"它本来就没到期"解释掉
+_G67_FIX = r"""
+const G67 = {
+  vault_id: "cs_61b", status: "ok", error: null, board_done: ["图论基础"],
+  projection: {
+    due_count: 3, due_new_count: 1, placeholder_backlog: 0, bucket_counts: null,
+    generated_at: "2026-09-05T09:05:00+08:00", next_upcoming: null,
+    boards: [
+      {board: "图论基础", due: 2, due_new: 1, placeholder: null,
+       earliest: "2026-09-05T02:00:00Z", nodes: []},
+      {board: "哈希表", due: 1, due_new: 0, placeholder: null,
+       earliest: "2026-09-05T03:00:00Z", nodes: []},
+    ],
+  },
+};
+const G67_OK = () => ({ok: true, status: 200, json: async () => ({vaults: [G67]})});
+"""
+
+
+def test_js_g67_board_done_button_and_folded_section(node_harness):
+    """(c)(f) 交互壳: 未完成板带「这板做完了」钮; 已完成板**折叠而非消失**。
+
+    三条各一断言, 每条都能被违反:
+      ① 已完成板的行仍出现在 HTML 里 (在 details 内) —— 若实现改成"过滤掉",
+         本条红。这是卡文硬边界"禁在投影层剔除"的前端对应面。
+      ② 已完成板的行**不带**完成钮 (做完了的板不该再给一个"再做完一次");
+      ③ 「不影响 FSRS」那句话出现在卡片上 —— 允许未答题直接标完成是用户裁决,
+         那么页面就必须当场说清这个钮到底动了什么。
+    """
+    proc = _run_node(
+        node_harness,
+        _BOOT_PRELUDE
+        + _G67_FIX
+        + r"""
+test("① 已完成板折进 details, 行还在; ② 折叠区内无完成钮", () => {
+  const b = boot();
+  const busy = Object.create(null);
+  const h = b.api.renderVaultCard(G67, 1788000000000, "", false, busy);
+  const i = h.indexOf("<details");
+  assert.ok(i > 0, "必须有折叠区");
+  const head = h.slice(0, i), fold = h.slice(i);
+  assert.match(head, /哈希表/, "未完成板留在主表格");
+  assert.ok(!/图论基础/.test(head), "已完成板不该还在主表格里");
+  assert.match(fold, /图论基础/, "已完成板必须**还在页面上**(折叠), 不是被过滤掉");
+  assert.match(fold, /已完成（1）/);
+  // 完成钮只挂在未完成板上
+  const btns = h.match(/data-done-board="[^"]*"/g) || [];
+  assert.deepEqual(btns, ['data-done-board="哈希表"'], "完成钮只应出现在未完成板上");
+  assert.match(h, /data-done-vault="cs_61b"/);
+});
+test("③ 卡片明示不影响 FSRS", () => {
+  const b = boot();
+  const h = b.api.renderVaultCard(G67, 1788000000000, "", false, Object.create(null));
+  assert.match(h, /不影响 FSRS/, "写侧动作必须当场说清它不动记忆曲线");
+});
+test("board_done 缺省 / 空 → 一块都不折 (旧后端不炸)", () => {
+  const b = boot();
+  const noKey = JSON.parse(JSON.stringify(G67));
+  delete noKey.board_done;
+  const h = b.api.renderVaultCard(noKey, 1788000000000, "", false, Object.create(null));
+  assert.ok(!h.includes("<details class=\"donewrap\""), "没有完成记录就不该出现已完成区");
+  assert.match(h, /图论基础/);
+  assert.match(h, /哈希表/);
+});
+test("全部板都完成 → 不复用「暂无白板」文案", () => {
+  const b = boot();
+  const all = JSON.parse(JSON.stringify(G67));
+  all.board_done = ["图论基础", "哈希表"];
+  const h = b.api.renderVaultCard(all, 1788000000000, "", false, Object.create(null));
+  assert.match(h, /都标完成了/, "「板都做完了」与「没有板」是两回事");
+  assert.match(h, /已完成（2）/);
+});
+test("恶意板名进按钮属性也被转义", () => {
+  const b = boot();
+  const h = b.api.boardDoneBtnHtml("v", '"><img src=x onerror=alert(1)>', false);
+  assert.ok(!h.includes("<img"), "板名必须转义后进属性");
+  assert.match(h, /&quot;&gt;&lt;img/);
+});
+test("doneKey 复合键不歧义 (在飞禁用不会串到别的板)", () => {
+  const b = boot();
+  assert.notEqual(b.api.doneKey("a|b", "c"), b.api.doneKey("a", "b|c"));
+  assert.notEqual(b.api.doneKey("a", "b"), b.api.doneKey("ab", ""));
+});
+""",
+    )
+    _assert_node_green(proc)
+
+
+@pytest.mark.usefixtures("page_html")
+def test_js_g67_board_done_click_posts_once_and_never_from_poll(node_harness):
+    """(g) 新 POST 的接线: 只由点击触发, 在飞不重发, 自动轮询路径上恒为 0。
+
+    与静态计数门 (test_auto_poll_never_posts_only_manual_button_does) 的分工:
+    那门数的是**源码里**出现几次 method:"POST"; 这门数的是**沙箱 fetch 实际
+    收到**几次 POST、去了哪个 URL —— 「运行时经由别的路径发出 POST」只有
+    这一侧看得见 (与 G6-3 ④ 同款判据)。
+    """
+    proc = _run_node(
+        node_harness,
+        _BOOT_PRELUDE
+        + _G67_FIX
+        + r"""
+function mkBtn(vid, board) {
+  const btn = mkNode("donebtn");
+  btn._attrs["data-done-vault"] = vid;
+  btn._attrs["data-done-board"] = board;
+  return btn;
+}
+test("点一次 → 恰一个 POST, 打到 board-done 且带 vault_id + board", async () => {
+  const posts = [];
+  const b = boot({getJson: G67_OK,
+    postJson: (url, opts) => { posts.push([url, String(opts.body)]);
+      return {ok: true, status: 200, json: async () => ({vault_id: "cs_61b", board: "哈希表",
+        done_date: "2026-09-05", fsrs_touched: false})}; }});
+  await flush();
+  const btn = mkBtn("cs_61b", "哈希表");
+  const note = mkNode("note");
+  note._attrs["data-note-for"] = "cs_61b";
+  b.els["cards"]._desc = [btn, note];
+  const getsBefore = b.calls.get;
+  await b.handlers["cards::click"]({target: {closest: sel => (matches(btn, sel) ? btn : null)}});
+  await flush();
+  assert.equal(b.calls.post, 1, "点一次只发一个 POST");
+  assert.equal(posts[0][0], URLS_BOARD_DONE, "POST 必须打到 board-done 端点");
+  assert.match(posts[0][1], /vault_id=cs_61b/);
+  assert.match(decodeURIComponent(posts[0][1]), /board=哈希表/);
+  assert.match(note.innerHTML, /已标记/, "反馈必须落到该库的 note 上");
+  assert.match(note.innerHTML, /不影响 FSRS/);
+  assert.ok(b.calls.get > getsBefore, "成功后应重拉一轮 (折不折由服务端说了算)");
+});
+test("同板在飞时的第二次点击不发第二个 POST", async () => {
+  let release;
+  const gate = new Promise(r => { release = r; });
+  const b = boot({getJson: G67_OK,
+    postJson: () => gate.then(() => ({ok: true, status: 200, json: async () => ({})}))});
+  await flush();
+  const btn = mkBtn("cs_61b", "哈希表");
+  b.els["cards"]._desc = [btn];
+  const click = () => b.handlers["cards::click"]({target: {closest: sel => (matches(btn, sel) ? btn : null)}});
+  const first = click();
+  await flush();
+  assert.equal(b.calls.post, 1);
+  assert.equal(btn.disabled, true, "在飞期间按钮必须禁用");
+  await click();
+  await flush();
+  assert.equal(b.calls.post, 1, "同板在飞期间不许发第二个 POST");
+  release();
+  await first;
+  await flush();
+  assert.equal(btn.disabled, false, "结束后必须解锁");
+});
+test("失败结局不许长得像成功", async () => {
+  const b = boot({getJson: G67_OK,
+    postJson: () => ({ok: false, status: 503, json: async () =>
+      ({detail: {error: "runner_script_not_found", message: "脚本不可达"}})})});
+  await flush();
+  const btn = mkBtn("cs_61b", "哈希表");
+  const note = mkNode("note");
+  note._attrs["data-note-for"] = "cs_61b";
+  b.els["cards"]._desc = [btn, note];
+  await b.handlers["cards::click"]({target: {closest: sel => (matches(btn, sel) ? btn : null)}});
+  await flush();
+  assert.match(note.innerHTML, /标记失败/);
+  assert.match(note.innerHTML, /503/);
+  assert.match(note.innerHTML, /脚本不可达/);
+  assert.ok(!note.innerHTML.includes("已标记"), "失败绝不许出现成功文案");
+});
+test("自动轮询与可见性切换路径上 POST 恒为 0", async () => {
+  const b = boot({getJson: G67_OK});
+  await flush();
+  for (let i = 0; i < 5; i++) {
+    const t = b.timers.pop();
+    assert.ok(t, "每轮结束都应排下一轮");
+    t.fn();
+    await flush();
+  }
+  b.document.hidden = true;
+  b.handlers["document::visibilitychange"]();
+  b.document.hidden = false;
+  b.handlers["document::visibilitychange"]();
+  await flush();
+  assert.equal(b.calls.post, 0, "完成反馈上线后, 自动路径仍然一个 POST 都不许有");
+});
+""".replace("URLS_BOARD_DONE", json.dumps(BOARD_DONE_PATH)),
+    )
+    _assert_node_green(proc)
+
+
+@pytest.mark.usefixtures("page_html")
+def test_js_g67_stale_refresh_settlement_cannot_overwrite_done_feedback(node_harness):
+    """Codex round-1 MEDIUM: 旧刷新的异步结算不许覆盖后来的完成失败提示。
+
+    时序（真实可发生，不是构造的极端值）：
+      刷新成功 → pendingSync 挂上 → 那轮补发的 GET 还在飞
+      → 用户点「这板做完了」拿到 503，note 显示「标记失败」
+      → 旧 GET 回来，settlePendingSync 把共享的 notes[vid] 改写成绿色
+        「已重建…数字已更新」→ 用户以为完成成功了。
+
+    修法与 onRefreshClick 的 Z1-A HIGH-1 同一条：同库开始新动作 ⇒ 旧 pending
+    就此失去改写「当前」反馈的权利。本门先证明前提（刷新确实挂上了 pending，
+    没有它这条门测不到东西），再证明完成动作把它作废掉。
+    """
+    proc = _run_node(
+        node_harness,
+        _BOOT_PRELUDE
+        + _G67_FIX
+        + r"""
+function deferred() { let r; const p = new Promise(res => { r = res; }); p.resolve = r; return p; }
+test("刷新 pending 在飞时标完成失败 → 失败提示不被旧结算改写", async () => {
+  const gets = [];
+  const b = boot({
+    getJson: () => { const d = deferred(); gets.push(d); return d; },
+    postJson: (url) => String(url).indexOf("board-done") !== -1
+      ? {ok: false, status: 503, json: async () => ({detail: {message: "落账被拒"}})}
+      : {ok: true, status: 200, json: async () => ({rebuilt: true, reason: "rebuilt", rebuild_count: 7})},
+  });
+  gets.pop().resolve({ok: true, status: 200, json: async () => ({vaults: [G67]})});
+  await flush();
+
+  const refreshBtn = mkNode("r"); refreshBtn._attrs["data-refresh-vault"] = "cs_61b";
+  const doneBtn = mkNode("d");
+  doneBtn._attrs["data-done-vault"] = "cs_61b"; doneBtn._attrs["data-done-board"] = "哈希表";
+  const note = mkNode("n"); note._attrs["data-note-for"] = "cs_61b";
+  b.els["cards"]._desc = [refreshBtn, doneBtn, note];
+  const click = el => b.handlers["cards::click"]({target: {closest: sel => (matches(el, sel) ? el : null)}});
+
+  await click(refreshBtn);           // 刷新成功 → 挂 pending, 触发一轮 GET (未返回)
+  await flush();
+  assert.match(note.innerHTML, /正在同步最新数字/, "前提: 刷新必须真的挂上了 pending");
+  const inflightGet = gets.pop();
+  assert.ok(inflightGet, "前提: 必须有一轮 GET 还在飞, 否则本门测不到覆盖");
+
+  await click(doneBtn);              // 完成失败 503
+  await flush();
+  assert.match(note.innerHTML, /标记失败/);
+  assert.match(note.innerHTML, /503/);
+
+  inflightGet.resolve({ok: true, status: 200, json: async () => ({vaults: [G67]})});
+  await flush();
+  assert.match(note.innerHTML, /标记失败/, "旧刷新的结算把完成失败改写掉了 — 用户会以为标记成功");
+  assert.ok(!note.innerHTML.includes("数字已更新"));
 });
 """,
     )

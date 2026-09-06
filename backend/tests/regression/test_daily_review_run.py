@@ -22,7 +22,7 @@ from pathlib import Path
 WT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(WT / "scripts"))
 
-import daily_review_run as runner  # noqa: E402
+import daily_review_run as runner  # noqa: E402  # pyright: ignore[reportMissingImports]
 
 NOW = datetime(2026, 7, 30, 2, 0, tzinfo=timezone.utc)
 TODAY = "2026-07-30"
@@ -195,7 +195,7 @@ def test_write_during_scan_window_not_lost(tmp_path, monkeypatch):
     _patch_runner(monkeypatch, vault, tmp_path)
     st = runner.load_state()
 
-    import daily_review_pick as picker
+    import daily_review_pick as picker  # pyright: ignore[reportMissingImports]
 
     real_build = picker.build_payload
     fired = []
@@ -553,7 +553,7 @@ def _old_state_fixture(tmp_path) -> Path:
 
 
 def _run_migrate(monkeypatch, argv: list[str]) -> int:
-    import migrate_daily_review_state as migrate
+    import migrate_daily_review_state as migrate  # pyright: ignore[reportMissingImports]
 
     monkeypatch.setattr(sys, "argv", ["migrate_daily_review_state.py", *argv])
     return migrate.main()
@@ -923,3 +923,205 @@ def test_legacy_cached_payload_without_top_boards_records_due(tmp_path, monkeypa
     assert runner.load_state()["last_push_kind"] == "due", (
         "legacy payload 语义未知必须保守记 due — 记 rest 会让当日 due 重扫误开反转门"
     )
+
+
+# ── CARD-G6-7 (BATCH-2026-09-05-第十二批): state 加性扩展 board_done ──
+
+
+def test_g67_legacy_state_reads_board_done_as_empty_and_bumps_schema(tmp_path, monkeypatch):
+    """(b) 旧文件兼容读: 缺 board_done → 视同 {}; 既有键的值一个都不许动。
+
+    schema_version 随形态单调前进 (读回的 dict 恒含 board_done, 那就是 v2 的
+    形状) —— 这不是迁移器: 没有独立迁移入口, 也不改任何既有键的值。
+    """
+    vault = _vault(tmp_path, {"甲": _node(board="A板")})
+    _patch_runner(monkeypatch, vault, tmp_path)
+    state = runner.state_path()
+    state.parent.mkdir(parents=True, exist_ok=True)
+    state.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "board_last_recommended": {"A板": "2026-07-29"},
+                "last_push_accepted_date": "2026-07-29",
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    st = runner.load_state()
+    assert st["board_done"] == {}, "旧文件缺 board_done 必须视同空账"
+    assert st["board_last_recommended"] == {"A板": "2026-07-29"}
+    assert st["last_push_accepted_date"] == "2026-07-29"
+    assert st["schema_version"] == runner.STATE_SCHEMA_VERSION == 2
+
+    # 单调: 已经比当前版本新的声明不许被降级
+    state.write_text(json.dumps({"schema_version": 99, "board_last_recommended": {}}), encoding="utf-8")
+    assert runner.load_state()["schema_version"] == 99, "版本号只前进不后退"
+
+
+def test_g67_wrong_typed_board_done_quarantined_not_crash(tmp_path, monkeypatch, capsys):
+    """(b) board_done 错型与 board_last_recommended 错型同等对待: 隔离重建。
+
+    缺这条的话, 一个 "board_done": [] 会让写侧的 dict 下标在半路炸成 500,
+    而不是像本文件其余部分那样诚实地隔离重建。
+    """
+    vault = _vault(tmp_path, {"甲": _node(board="A板")})
+    calls = _push_harness(monkeypatch, tmp_path, vault, rcs=[0])
+    state = runner.state_path()
+    state.parent.mkdir(parents=True, exist_ok=True)
+    state.write_text(
+        json.dumps({"schema_version": 2, "board_last_recommended": {}, "board_done": []}), encoding="utf-8"
+    )
+
+    out = _run_main(monkeypatch, capsys, vault, "2026-07-30T10:00:00+08:00")
+    assert "generate:new" in out and "push:accepted" in out and len(calls) == 1
+    assert list(state.parent.glob(state.name + ".corrupt-*")), "错型 board_done 必须隔离留档"
+    assert runner.load_state()["board_done"] == {}
+
+
+def test_g67_state_path_takes_explicit_vault_without_touching_global(tmp_path, monkeypatch):
+    """(b) 可选 vault 参数与全局 VAULT 同规则、互不干扰。
+
+    Web 侧要为**任意一个库**算 state 路径, 而它与 runner 不同进程。给参数
+    而不是让调用方临时改模块全局 —— 后者在线程池里跑的同步端点上是竞态。
+    本门锁的正是"给了参数就不该碰全局"这件事。
+    """
+    vault = _vault(tmp_path, {"甲": _node(board="A板")}, name="vault-本地")
+    other = _vault(tmp_path, {"乙": _node(board="B板")}, name="vault-另一个")
+    _patch_runner(monkeypatch, vault, tmp_path)
+
+    assert runner.state_path() == runner.state_path(vault), "缺省必须等于显式传全局 VAULT"
+    assert runner.state_path(other) != runner.state_path(vault)
+    assert runner.state_path(other).name == f"daily-review.{runner.send_bark.vault_key(other.name)}.state.json", (
+        "显式路径必须走同一条 vault_key 规则, 不是另拼一套"
+    )
+    assert runner.VAULT == vault, "算别的库的路径不许改动模块全局"
+
+    # 读写也接受显式 vault, 且落在各自的文件里
+    st = runner.load_state(other)
+    st["board_done"] = {"B板": "2026-07-30"}
+    runner.save_state(st, other)
+    assert runner.state_path(other).exists() and not runner.state_path(vault).exists()
+    assert runner.load_state(other)["board_done"] == {"B板": "2026-07-30"}
+    assert runner.load_state(vault)["board_done"] == {}
+
+
+def test_g67_runner_hands_board_done_to_picker(tmp_path, monkeypatch, capsys):
+    """(e) 接线: runner 把 state 的 board_done 原样交给生产器。
+
+    判据不是"源码里有那个词", 而是**生产器实际收到了什么** —— 拿真调用
+    的实参对账, 打桩换名/改写法都骗不过。
+
+    ⚠ 如实说明: 下传的从来不是 None, 而是 {} —— load_state 保证返回的 dict
+    恒含 board_done 键 (旧文件缺键时 setdefault 补 {})。生产器侧对 None 与 {}
+    的处置逐字相同 (两者都不进分区分支), 所以行为面等价; 但门断言的是**实际
+    看到的那个值**, 不是卡文里那句转述。
+    """
+    import daily_review_pick as picker  # pyright: ignore[reportMissingImports]
+
+    vault = _vault(tmp_path, {"甲": _node(board="A板")})
+    _push_harness(monkeypatch, tmp_path, vault, rcs=[0, 0])
+    seen = []
+    real = picker.build_payload
+    monkeypatch.setattr(
+        picker,
+        "build_payload",
+        lambda *a, **kw: (seen.append(kw.get("board_done", "缺省")), real(*a, **kw))[1],
+    )
+
+    _run_main(monkeypatch, capsys, vault, "2026-07-30T10:00:00+08:00")
+    assert seen == [{}], f"新 state 的空账应原样下传, 实为 {seen!r}"
+
+    st = runner.load_state()
+    st["board_done"] = {"A板": "2026-07-30"}
+    del st["last_generate_date"]  # 逼它重新生成 (不走缓存复用分支)
+    runner.save_state(st)
+    _run_main(monkeypatch, capsys, vault, "2026-07-30T11:05:00+08:00")
+    assert seen[-1] == {"A板": "2026-07-30"}, f"完成账必须原样下传, 实为 {seen[-1]!r}"
+
+
+def test_g67_two_vaults_board_done_isolated(tmp_path, monkeypatch, capsys):
+    """(f) 双库互不影响 (沿 C1a test_two_vaults_same_day_push_and_state_isolated 形态)。"""
+    v1 = _vault(tmp_path, {"甲": _node(board="A板")}, name="vault-一")
+    v2 = _vault(tmp_path, {"乙": _node(board="B板")}, name="vault-二")
+    _push_harness(monkeypatch, tmp_path, v1, rcs=[0, 0])
+
+    st1 = runner.load_state(v1)
+    st1["board_done"] = {"A板": "2026-07-30"}
+    runner.save_state(st1, v1)
+
+    assert runner.load_state(v2)["board_done"] == {}, "另一个库的完成账必须完全独立"
+    _run_main(monkeypatch, capsys, v2, "2026-07-30T10:00:00+08:00")
+    assert runner.load_state(v2)["board_done"] == {}
+    assert runner.load_state(v1)["board_done"] == {"A板": "2026-07-30"}, "跑另一个库不许动这个库的账"
+
+
+def test_g67_marking_done_invalidates_same_day_cache(tmp_path, monkeypatch, capsys):
+    """Codex round-1 MEDIUM: 完成账变化必须让当日缓存失效。
+
+    复现的是**真实时序**: 早上跑过一轮 (payload 已缓存) → 白天在网页上标完成 →
+    节点没动、也没跨到期点。少了这道门, ensure_payload 直接走缓存分支返回旧榜,
+    「让出榜首」整天不生效 (实测 how="cached"、榜首与通知都不变)。
+
+    榜首是哪块板**实测得来**, 不由夹具作者猜。
+    """
+    vault = _vault(tmp_path, {"甲一": _node(board="甲板"), "甲二": _node(board="甲板"), "乙一": _node(board="乙板")})
+    _patch_runner(monkeypatch, vault, tmp_path)
+
+    st = runner.load_state()
+    p1, how1 = runner.ensure_payload(st, NOW, TODAY)
+    assert how1 == "new"
+    first = p1["top_boards"][0]["board"]
+    assert p1["notification"]["title"].endswith(first)
+
+    # 无变化 → 仍然复用缓存 (防"永远重扫"的过度失效: 那会让本门恒绿而无意义)
+    _pin_pool_older_than_payload(vault, BASE)
+    _, how_same = runner.ensure_payload(runner.load_state(), NOW, TODAY)
+    assert how_same == "cached", "没有任何变化时必须仍然复用缓存"
+
+    st2 = runner.load_state()
+    st2["board_done"] = {first: TODAY}
+    runner.save_state(st2)
+    p2, how2 = runner.ensure_payload(runner.load_state(), NOW, TODAY)
+    assert how2 == "new", "标完成后必须重扫, 否则「让出榜首」整天不生效"
+    assert p2["top_boards"][0]["board"] != first, "重扫后榜首必须换人"
+    assert not p2["notification"]["title"].endswith(first), "通知也必须跟着换"
+
+    # 再跑一次: 完成账没再变 → 回到缓存 (签名门只对**变化**生效)
+    _pin_pool_older_than_payload(vault, BASE)
+    _, how3 = runner.ensure_payload(runner.load_state(), NOW, TODAY)
+    assert how3 == "cached", "完成账没再变就不该反复重扫"
+
+
+def test_g67_upgrade_day_missing_signature_with_nonempty_account_still_rescans(tmp_path, monkeypatch):
+    """缓存签名**缺席**的两种含义必须分开处理 (收紧规则的配套门)。
+
+    ① 缺席 + 账为空 = 本卡之前落盘的普通 state → 照常复用缓存
+       (一律当"变了"会打掉 legacy payload 复用那条既有契约);
+    ② 缺席 + 账非空 = 升级当天先标了完成、还没重新生成过 → 必须重扫。
+    只写①会让升级当天的让位失效; 只写②会打掉既有契约。两条各一个断言。
+    """
+    vault = _vault(tmp_path, {"甲一": _node(board="甲板"), "甲二": _node(board="甲板"), "乙一": _node(board="乙板")})
+    _patch_runner(monkeypatch, vault, tmp_path)
+    p1, _ = runner.ensure_payload(runner.load_state(), NOW, TODAY)
+    first = p1["top_boards"][0]["board"]
+    _pin_pool_older_than_payload(vault, BASE)
+
+    # ① 手工抹掉签名、账留空 —— 模拟本卡之前落盘的 state
+    st = runner.load_state()
+    st.pop("board_done_sig", None)
+    st["board_done"] = {}
+    runner.save_state(st)
+    _, how_a = runner.ensure_payload(runner.load_state(), NOW, TODAY)
+    assert how_a == "cached", "缺签名且账为空 = 旧 state, 不该被当成'变了'"
+
+    # ② 同样没有签名, 但账非空 —— 升级当天先标完成的那一格
+    st = runner.load_state()
+    st.pop("board_done_sig", None)
+    st["board_done"] = {first: TODAY}
+    runner.save_state(st)
+    p2, how_b = runner.ensure_payload(runner.load_state(), NOW, TODAY)
+    assert how_b == "new", "缺签名但账非空 = 从没对过账, 必须重扫"
+    assert p2["top_boards"][0]["board"] != first

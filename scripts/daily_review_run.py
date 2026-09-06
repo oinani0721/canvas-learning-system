@@ -22,6 +22,7 @@ import os
 import subprocess
 import sys
 import time
+import uuid
 from datetime import datetime, time as dtime, timezone
 from pathlib import Path
 
@@ -49,29 +50,52 @@ def _now(arg: str | None) -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _vault_key() -> str:
-    """当前 VAULT 的命名空间 key (规则唯一定义点在 send_bark.vault_key)。"""
-    return send_bark.vault_key(VAULT.resolve().name)
+#: state 文件 schema 版本。v2 (CARD-G6-7): 加性新增 board_done —— 板级
+#: 「今天做完了」账 {board: "YYYY-MM-DD"}。加性升级不配迁移器: 旧文件缺该
+#: 键即视同 {} (load_state 兜底), 声明版本在下一次落盘时随形态一起前进。
+STATE_SCHEMA_VERSION = 2
 
 
-def state_path() -> Path:
+def _vault_key(vault: Path | None = None) -> str:
+    """当前 VAULT 的命名空间 key (规则唯一定义点在 send_bark.vault_key)。
+
+    CARD-G6-7 加性可选参数: Web 侧 (review_overview 的完成反馈端点) 要为
+    **任意一个库**算 state 路径, 它与 runner 不同进程, 没有 VAULT 全局可设。
+    给参数而不是让调用方临时改模块全局 —— 后端同步端点跑在线程池里, 改全局
+    是竞态 (A 库的请求改了它, B 库的请求读到)。缺省仍取全局, runner 零变化。
+    """
+    return send_bark.vault_key((vault or VAULT).resolve().name)
+
+
+def state_path(vault: Path | None = None) -> Path:
     """per-vault state 文件 (CARD-C1a)。旧全局 daily-review.state.json 由
     migrate_daily_review_state.py 一次性迁入, 此处不做隐式回退 — 隐式读旧
     文件会让双 vault 各自以为「今天推过了」, 恰是本卡要消灭的踩踏。"""
-    return BACKUPS / f"daily-review.{_vault_key()}.state.json"
+    return BACKUPS / f"daily-review.{_vault_key(vault)}.state.json"
 
 
-def load_state() -> dict:
-    state = state_path()
+def load_state(vault: Path | None = None) -> dict:
+    state = state_path(vault)
     if not state.exists():
-        return {"schema_version": 1, "board_last_recommended": {}}
+        return {"schema_version": STATE_SCHEMA_VERSION, "board_last_recommended": {}, "board_done": {}}
     try:
         st = json.loads(state.read_text(encoding="utf-8"))
         # Codex-D2b M1: 合法 JSON 但结构错型 (顶层非 dict / 账本非 dict) 与
         # 语法损坏同等对待 — 隔离重建, 不让 setdefault/.values() 半路炸
         if not isinstance(st, dict) or not isinstance(st.get("board_last_recommended", {}), dict):
             raise ValueError("state 结构错型")
+        # CARD-G6-7: board_done 与 board_last_recommended 同等对待 —— 错型也走
+        # 隔离重建。少这一条的话, 一个 "board_done": [] 会让写侧的 dict 下标
+        # 在半路炸成 500, 而不是像本文件其余部分那样诚实地隔离重建。
+        if not isinstance(st.get("board_done", {}), dict):
+            raise ValueError("state 结构错型 (board_done)")
         st.setdefault("board_last_recommended", {})
+        st.setdefault("board_done", {})
+        # 形态已是 v2 (上一行保证 board_done 恒在) → 声明版本随之前进, 单调
+        # 不回退。这不是迁移器: 没有独立的迁移入口, 也不改任何既有键的值。
+        declared = st.get("schema_version")
+        if not isinstance(declared, int) or declared < STATE_SCHEMA_VERSION:
+            st["schema_version"] = STATE_SCHEMA_VERSION
         return st
     except (json.JSONDecodeError, OSError, ValueError):
         quarantine = state.with_name(state.name + ".corrupt-" + datetime.now().strftime("%Y%m%dT%H%M%S"))
@@ -80,15 +104,52 @@ def load_state() -> dict:
         except OSError:
             pass
         print(f"[runner] state 损坏, 已隔离到 {quarantine.name}, 重建", file=sys.stderr)
-        return {"schema_version": 1, "board_last_recommended": {}}
+        return {"schema_version": STATE_SCHEMA_VERSION, "board_last_recommended": {}, "board_done": {}}
 
 
-def save_state(st: dict):
-    state = state_path()
+def _state_tmp_path(state: Path) -> Path:
+    """state 的临时件路径 (唯一名, 与 daily_review_pick.atomic_write 同形)。
+
+    单独抽成一个名字, 是为了让门能把它钉死: 「名字猜不中」与「路径被占也写不进去」
+    是**两层**防御, 要验后一层就得先让前一层失效。测试补丁打在本函数上 (模块级、
+    可替换), 而不是去改 os.getpid / uuid.uuid4 —— 那两个是解释器全局, 打上去会
+    连累同进程里任何别的调用方 (实测: 会把 bug_tracker 的 BUG-id 生成一起弄坏)。
+    """
+    return state.with_name(f"{state.name}.{os.getpid()}.{uuid.uuid4().hex[:8]}.tmp")
+
+
+def save_state(st: dict, vault: Path | None = None):
+    """同目录 tmp → os.replace 原子发布。
+
+    ⚠ CARD-G6-7 (Codex round-1 HIGH): 原实现是
+    `tmp = state.with_suffix(".tmp"); tmp.write_text(...)` —— **固定名 + 跟随
+    符号链接**。于是事先在那个可预测的路径上摆一条指向库内节点的软链, 这次
+    保存就把 state JSON 写进那个节点, 把它的 fsrs_* frontmatter 整个覆盖掉
+    (os.replace 那一步不跟随软链, 所以问题一直在 tmp 写这一侧, 不在 state 侧)。
+
+    这条缺陷的**同款修法在姊妹函数上早就有了** —— `daily_review_pick.atomic_write`
+    (CARD-G6-1 round-3) 就是唯一名 + O_EXCL|O_NOFOLLOW; 本函数当时漏了。
+    从前它只有本机 runner 每小时走一次, 于是没人注意; CARD-G6-7 起浏览器点一下
+    就能走到这里 —— **可达性变了, 原来只在纸面上的前提必须变成代码里的判据**。
+
+    两处刻意与 atomic_write 同形而不是 import 它: 两个脚本在模块级互不依赖
+    (runner 只在 ensure_payload 里惰性 import picker), 为一个 8 行原语建立
+    模块级耦合不划算。同形处如实登记, 改一处要记得改另一处。
+    """
+    state = state_path(vault)
     state.parent.mkdir(parents=True, exist_ok=True)
-    tmp = state.with_suffix(".tmp")
-    tmp.write_text(json.dumps(st, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    os.replace(tmp, state)
+    tmp = _state_tmp_path(state)
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(json.dumps(st, ensure_ascii=False, indent=2) + "\n")
+        os.replace(tmp, state)
+    except BaseException:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        raise
 
 
 def log_line(msg: str):
@@ -133,8 +194,21 @@ def ensure_payload(st: dict, now: datetime, today: str) -> tuple[dict | None, st
     rest→due 两推 (CARD-D2b; state 持久化成立前提, 见推送门注释)。
     """
     payload_path = VAULT / "outputs" / "今日复习.json"
+    # CARD-G6-7 (Codex round-1 MEDIUM): 完成账变了也算缓存失效。少这一条 ——
+    # 当天投影已生成之后再标完成、节点没动、也没跨到期点 —— 缓存分支直接返回
+    # 旧榜, 「让出榜首」整天不生效 (真文件实测: how="cached", 榜首与通知不变)。
+    # 签名用 sort_keys 的 JSON 而不是 dict 本身: 只认内容变化, 不认键序抖动。
+    #
+    # ⚠ 签名**缺席**不等于变化: 本卡之前落盘的 state 都没有这个键, 一律当"变了"
+    # 会把「当天已缓存的 legacy payload 照常复用」这条既有契约打掉
+    # (test_legacy_cached_payload_without_top_boards_records_due 当场变红)。
+    # 只有"没签名**且**账非空"才是真的没对过账 —— 那正是升级当天先标了完成、
+    # 又还没重新生成过的那一格, 必须重扫。
+    done_sig = json.dumps(st.get("board_done") or {}, ensure_ascii=False, sort_keys=True)
+    cached_sig = st.get("board_done_sig")
+    done_unchanged = cached_sig == done_sig or (cached_sig is None and not st.get("board_done"))
     first_gen_today = st.get("last_generate_date") != today
-    if not first_gen_today and payload_path.exists():
+    if not first_gen_today and payload_path.exists() and done_unchanged:
         try:
             raw = payload_path.read_text(encoding="utf-8")
             # sha 校验 (Code-Review L3): 外部改动/半写的 payload 不复用, 重新生成
@@ -149,7 +223,12 @@ def ensure_payload(st: dict, now: datetime, today: str) -> tuple[dict | None, st
     import daily_review_pick as picker
 
     scan_started = time.time()
-    payload, ranked = picker.build_payload(VAULT, now, st["board_last_recommended"], picker.load_decay(VAULT))
+    # CARD-G6-7 加性: board_done 只影响「今天谁占榜首」, 不改分不改排序律
+    # (见 daily_review_pick.build_payload 的 board_done 分区块)。缺键的旧
+    # state 传 None = 与本卡之前逐字节同行为。
+    payload, ranked = picker.build_payload(
+        VAULT, now, st["board_last_recommended"], picker.load_decay(VAULT), board_done=st.get("board_done")
+    )
     out = VAULT / "outputs"
     out.mkdir(parents=True, exist_ok=True)
     picker.atomic_write(out / "今日复习.md", picker.render_md(payload, ranked))
@@ -160,6 +239,7 @@ def ensure_payload(st: dict, now: datetime, today: str) -> tuple[dict | None, st
     os.utime(payload_path, (scan_started, scan_started))
 
     st["last_generate_date"] = today
+    st["board_done_sig"] = done_sig  # CARD-G6-7: 与上面的缓存门同源
     st["payload_sha256"] = hashlib.sha256(raw.encode("utf-8")).hexdigest()
     # 最早未来到期点: ranked 是全量榜 (payload.top_boards 才截断), 每行
     # next_due 已是板内未来最小值; upcoming 按 next_due 升序, [0] 即全局

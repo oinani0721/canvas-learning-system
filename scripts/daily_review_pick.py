@@ -924,16 +924,36 @@ def _body(top: dict) -> str:
     return f"{top['top_node']} 待巩固 · {idle}"
 
 
-def build_payload(vault: Path, now: datetime, board_last_recommended: dict, decay, manifest_path=None):
+def build_payload(vault: Path, now: datetime, board_last_recommended: dict, decay, manifest_path=None, board_done=None):
     """CARD-G3-6b: 新增可选 manifest_path (缺省 = 本脚本同目录的系数清单)。
 
     runner 侧调用形态不变 (daily_review_run:159-160 传四个位置参数) —— 新
     参数是加性关键字, 消费面零变化。
+
+    CARD-G6-7: 再加一个可选 board_done ({board: "YYYY-MM-DD"}, 来自 runner
+    state 的加性键) —— 今天被用户按「这板做完了」的板不占当日榜首。缺省 None
+    = 与本参数出现之前逐字节同行为。
     """
     version, minutes, recorded = load_rank_manifest(manifest_path)
     rank_manifest = build_rank_manifest(decay, version, minutes, recorded, decay_source_path(vault))
     nodes, stats, ineligible, placeholder_boards = scan_nodes(vault, now, decay)
     ranked, upcoming, unassigned = rank_boards(nodes, board_last_recommended, now, minutes)
+    # ── CARD-G6-7 加性: 已完成板让出榜首 ──────────────────────────────
+    # 稳定分区: 今天没被标完成的板整体前移, 已完成的原序接在后面。
+    # 不删行、不改分、不碰 rank_boards 的排序律 —— 一块板"做完了"只是它
+    # 今天不该再被推到最前面, 不是它从榜上消失 (榜仍是全量, top_boards
+    # 与 buckets/boards rollup 的口径不受影响)。
+    # 全部板都已完成时分区退化为恒等 (undone 为空 → ranked 原样): 没有
+    # "下一块"可让, 强行清空只会让当天通知凭空消失。
+    # ⚠ 日历口径如实登记: 这里的 today 取 now.astimezone() = **机器本地日**
+    # (与 runner:215-216 同源, 也与 payload["date"] 同源); 而 Web 写入 board_done
+    # 时用的是 Asia/Shanghai 日。生产机两者恒等 (launchd 跑在宿主 macOS,
+    # 时区就是上海), 但这不是代码不变量 —— 分叉取证归 Y3-B。
+    if isinstance(board_done, dict) and board_done:
+        _today_key = now.astimezone().date().isoformat()
+        _undone = [r for r in ranked if board_done.get(r["board"]) != _today_key]
+        if _undone:
+            ranked = _undone + [r for r in ranked if board_done.get(r["board"]) == _today_key]
     stats["unassigned"] = len(unassigned)
     # CARD-G3-6a S1: 级联判桶 + why_due 一次算好, due_nodes 行与 buckets 分组
     # 同源引用同一对值 (禁两处各算一遍 → 禁口径分裂)。划分域 = 已归板。
