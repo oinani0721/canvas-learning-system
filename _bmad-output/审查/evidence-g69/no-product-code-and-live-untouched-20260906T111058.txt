@@ -1,0 +1,38 @@
+# 裁判 3/4/5 — 零产品代码 / live vault 未被触碰 / launchd 只读取证
+生成时间: 2026-09-06T11:10:58+08:00
+BASE = 1f9e9199960881d3421787360280a0ee21667c68
+
+## 裁判3 零产品代码
+$ git diff --stat $BASE HEAD -- backend/app backend/lib scripts canvas-vault | wc -l
+       0
+$ git status --porcelain -- backend/app backend/lib scripts canvas-vault | wc -l
+       0
+$ git status --porcelain（全部）
+?? _bmad-output/审查/codex-review-CARD-G6-9a.md
+?? _bmad-output/审查/evidence-g69/
+?? _bmad-output/审查/prompts/codex-prompt-CARD-G6-9a.md
+?? _bmad-output/验收单/UAT-CARD-G6-9a-2026-09-06.md
+?? backend/tests/regression/test_g69_refute_probe.py
+?? backend/tests/regression/test_g6_9_boundary_matrix.py
+
+## 裁判4 live vault
+$ live 产物 sha 对账（before vs after）
+diff_rc=0
+$ git status --porcelain -- canvas-vault/ | wc -l
+       0
+$ live vault 内近 3 小时新增 __pycache__（importlib 写字节码的老坑）
+       0
+
+## 裁判5 launchd（只读，未触发任何档位）
+$ launchctl list | grep com.canvas.daily-review   # 列: PID / 上次退出码 / Label
+-	0	com.canvas.daily-review
+$ 日志尾 6 行
+[runner] generate:cached push:skip-done fallback:-
+[runner] generate:cached push:skip-done fallback:-
+bark accepted http=200 code=200
+[runner] generate:new push:accepted fallback:-
+[runner] generate:cached push:skip-done fallback:-
+[runner] generate:cached push:skip-done fallback:-
+$ 主日志 mtime
+2026-09-06T11:05:05+08:00
+rc=0

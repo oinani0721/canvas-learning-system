@@ -1,0 +1,20 @@
+# 现网复习链状态复验（只读）—— 卡文事实⑧ 与记忆「停摆」条目的当前状态
+# ⚠️ 结论：链**在正常工作**。记忆「launchctl exit 78 / 今日零次重建」与
+#    卡文事实⑧「generated_at 停在 11:08:38」**均已过期**。
+时间: 2026-09-06T11:21:35+08:00
+
+1. launchctl 上次退出码（第二列）
+     -	0	com.canvas.daily-review
+2. live 产物
+     generated_at=2026-09-06T09:05:03+08:00  文件mtime=2026-09-06T09:05:03+08:00  due_nodes=6
+3. 主日志 mtime = 2026-09-06T11:05:05+08:00
+4. err 日志 mtime = 2026-08-01T00:45:44+08:00
+     ⇒ 一个多月前；里面 3 条 PermissionError 是**陈迹**
+5. 日志尾 6 行（形态：generate:new 一次 + 其余 generate:cached，正是 :136/:162 的预期）
+     [runner] generate:cached push:skip-done fallback:-
+     [runner] generate:cached push:skip-done fallback:-
+     bark accepted http=200 code=200
+     [runner] generate:new push:accepted fallback:-
+     [runner] generate:cached push:skip-done fallback:-
+     [runner] generate:cached push:skip-done fallback:-
+rc=0
