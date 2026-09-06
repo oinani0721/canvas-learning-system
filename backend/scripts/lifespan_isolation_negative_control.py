@@ -59,12 +59,25 @@ socket 门只管连接，**挡不住文件写**；挡住文件写的是 ``no_lif
   本脚本也不构造子进程连接场景。
 * AST 门是**静态**分析：它证明的是「源码里没有裸 TestClient(app.main 的 app)」，
   不证明「运行时真的没连」。运行时证明由变异运行承担。
-* AST 门**追不动容器与跨函数的实例传递**（2026-09-03 自查实测的已知盲区）：
-  ``clients = [TestClient(app)]`` 之后 ``with clients[0]:``、以及把实例作为普通
-  返回值/参数在函数间传递后再进 ``with``，都不会被抓。能追的三条是：绑到局部名字
-  （``client = TestClient(app)`` → ``with client:``）、存到 ``self.<attr>``、
-  以及**每条 return 都是 main 实例**的本模块工厂（``with make():``）。
-  要覆盖容器需要元素级别名分析，本卡不做。
+* AST 门**追不动容器取值与跨函数/跨模块的实例传递**（2026-09-03 自查实测的已知
+  盲区）。⚠️ CARD-W4-5（2026-09-06）改变了「追不动」的**后果**，但没有改变「追不动」
+  本身，两者必须分开说：
+
+  - **仍然追不动**（能力没变）：``clients = [TestClient(app)]`` 之后
+    ``with clients[0]:`` —— 门不知道 ``clients[0]`` 是什么，那要元素级别名分析；
+    ``import othermod as m`` 之后 ``with m.client:`` 同理（跨模块）。
+  - **但不再放行**（后果变了）：(c) 的三分把「追不到来源」从静默放行改成
+    **fail-closed 判违规**。所以上面第一例在**有 TestClient 可达性的模块里**
+    今天会被判违规（实测），理由写的是「来源静态不可证」而不是「它是 TestClient」——
+    门并没有看穿容器，只是不再假定它无害。第二例则由 :func:`_unprovable_context_exempt`
+    的 C4 显式放行（跨模块盲区，如实声明）。
+
+  能**追到来源**的六条是：绑到局部名字（``client = TestClient(app)`` →
+  ``with client:``）、存到 ``self.<attr>``、**每条 return 都是 main 实例**的本模块
+  工厂（``with make():``）、海象绑定（``enter_context(c := TestClient(app))``）、
+  **字面 tuple 与本模块工厂 tuple 返回值的按位解包**（``_, c = make()``，此前是
+  自认漏检的「阻断项 D」）、以及**部分 return 是 main 实例**的本模块工厂
+  （``with make(flag):``，`main_client_funcs` 的 all 口径漏掉的那一半）。
 * 底层 socket / atexit / shell 注入等旁路由
   ``backend/scripts/lifespan_isolation_guard_probes.py`` 单独证明，不在本脚本内。
 
@@ -99,6 +112,7 @@ import tempfile
 import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
+from typing import NamedTuple
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 TARGET_REL = "tests/api/v1/endpoints/test_metadata_subject_mapping.py"
@@ -304,6 +318,11 @@ ISOLATION_HELPER_NAMES = {"no_lifespan", "lifespan_lite"}
 #: 会触发 ``__enter__`` 的方法名（``ExitStack`` / ``AsyncExitStack``）。
 #: 走这条路进入的 TestClient 同样会跑真实 lifespan（R1 Codex HIGH-8）。
 _ENTER_CONTEXT_ATTRS = {"enter_context", "enter_async_context"}
+#: ``ExitStack.enter_context(self, cm)`` / ``AsyncExitStack.enter_async_context(self, cm)``
+#: 的那个形参名 —— 关键字调用走它（CARD-W4-5 (a)）。
+_ENTER_CONTEXT_CM_PARAM = "cm"
+#: ``with (a if c else b):`` 的展开深度上限。超过就 fail-closed 记违规，不静默放行。
+_IFEXP_MAX_DEPTH = 8
 
 #: TestClient 的合法来源模块。
 TESTCLIENT_MODULES = {"fastapi.testclient", "starlette.testclient"}
@@ -318,36 +337,111 @@ O_FASTAPI_MODULE = "fastapi:module"  # fastapi 模块对象（供 fastapi.FastAP
 O_LOCAL_APP = "local:FastAPI()"  # 由**可证的** FastAPI 类构造出来的局部 app
 O_TESTCLIENT_CLASS = "testclient:TestClient"
 O_TESTCLIENT_MODULE = "testclient:module"
-#: 由 app.main 的 app 构造出来的 TestClient **实例**（还没进 with，所以还没跑
-#: lifespan；一旦进了 with / enter_context 就会跑）。R1 Codex HIGH-8。
-#: 后面拼上**它包的那个 app 名**（`testclient:instance(app.main):app`）——
-#: 检查「外层 with no_lifespan(X)」时要比对的是 X 而不是客户端变量名。
-O_TESTCLIENT_INSTANCE_MAIN = "testclient:instance(app.main)"
 
 
-def _instance_main(app_name: str | None) -> str:
-    return f"{O_TESTCLIENT_INSTANCE_MAIN}:{app_name or '?'}"
+class _InstanceMain(NamedTuple):
+    """由 app.main 的 app 构造出来的 TestClient **实例**（还没进 with，所以还没跑
+    lifespan；一旦进了 with / enter_context 就会跑）。R1 Codex HIGH-8。
+
+    ``app_ref`` 是**它包的那个 app 的引用路径**（``app`` / ``m.app``）——检查
+    「外层 ``with no_lifespan(X)``」时要比对的是 X 而不是客户端变量名；静态取不到
+    时为 ``None``（fail-closed，:meth:`_flag_instance_context` 里直接判违规）。
+
+    ⛔ 这里是**结构化载体**，不是旧的 ``"testclient:instance(app.main):<name>"``
+    字符串编码（CARD-W4-5 (e)，X4 HIGH）。字符串版有两个各自独立的不可证面：
+
+    1. **取值靠切片**：``origin[len(前缀)+1:]`` 假定 app 名里不含分隔符。本卡把
+       ``app_ref`` 从「名字」扩到「属性链路径」（``m.app``）之后这个假定就更脆——
+       任何一次分隔符选择失误都会静默取回半截名字，而半截名字照样能与某个
+       ``no_lifespan(X)`` 比对**成功**，于是漏放。
+    2. **判型靠 startswith**：将来任何一个恰好以该前缀开头的新来源标签都会被
+       ``_is_instance_main`` 认成 main 实例。前缀是全局字符串空间里的约定，不是
+       类型；约定不会在加新标签时提醒你。
+
+    换成 NamedTuple 后，「是不是 main 实例」= :func:`isinstance`、「它包的是谁」=
+    字段读取，两者都不再依赖字符串形状。NamedTuple 而不是 dataclass 是因为 origin
+    要进 ``set``（:meth:`resolve_name` 的「全部绑定必须同源」判据）——它天然可哈希。
+    """
+
+    app_ref: str | None
+
+    def __str__(self) -> str:  # 违规文案里 `解析结果={origin}` 要人能读
+        return f"testclient:instance(app.main):{self.app_ref or '?'}"
 
 
-def _instance_app_name(origin: str) -> str | None:
-    """从实例来源里取回它包的 app 名；不是 main 实例则 None。"""
-    if not origin.startswith(O_TESTCLIENT_INSTANCE_MAIN + ":"):
-        return None
-    name = origin[len(O_TESTCLIENT_INSTANCE_MAIN) + 1 :]
-    return None if name == "?" else name
+def _instance_main(app_ref: str | None) -> _InstanceMain:
+    return _InstanceMain(app_ref)
 
 
-def _is_instance_main(origin: str) -> bool:
-    return origin.startswith(O_TESTCLIENT_INSTANCE_MAIN)
+def _instance_app_name(origin: object) -> str | None:
+    """从实例来源里取回它包的 app 引用路径；不是 main 实例则 None。"""
+    return origin.app_ref if isinstance(origin, _InstanceMain) else None
+
+
+def _is_instance_main(origin: object) -> bool:
+    return isinstance(origin, _InstanceMain)
+
+
+def _ref_path(expr: ast.expr | None) -> str | None:
+    """表达式的**可写出来的引用路径**：``x`` → ``"x"``；``m.app`` → ``"m.app"``。
+
+    只认「最终 base 是 :class:`ast.Name` 的属性链」——``f().app`` / ``d["k"].app``
+    这类每次求值都可能是不同对象的形态一律 ``None``（取不到路径 ⇒ 上游 fail-closed）。
+
+    它是 (e) 的另一半：有了路径，``TestClient(m.app)`` 才能与 ``no_lifespan(m.app)``
+    比对上（旧实现只认 :class:`ast.Name`，于是那个合法写法被判违规）。
+    """
+    if isinstance(expr, ast.Name):
+        return expr.id
+    if isinstance(expr, ast.Attribute):
+        base = _ref_path(expr.value)
+        return None if base is None else f"{base}.{expr.attr}"
+    return None
+
+
+#: 一个名字/表达式的**来源标签**：本模块那些 ``O_*`` 字符串常量之一，或结构化的
+#: :class:`_InstanceMain`（CARD-W4-5 (e) 把 main 实例从字符串编码换成了载体）。
+#: 两者都可哈希 —— :meth:`_ModuleIndex.resolve_name` 的「全部绑定必须同源」判据
+#: 要把它们放进 ``set``。
+Origin = str | _InstanceMain
 
 
 #: 由局部 FastAPI() 构造出来的 TestClient 实例 —— 进 with 也无害。
 O_TESTCLIENT_INSTANCE_LOCAL = "testclient:instance(local)"
 O_HELPER = "tests.support.lifespan:helper"
+#: ``import somelib as m`` 里那个 **module 对象**（不在已知模块表里的那些）。
+#: 与 unknown 分开是 (c)-C4 的判据基础：模块对象的属性不由本模块构造，
+#: 属跨模块盲区；unknown 则可能就是本模块自己造的 TestClient 实例。
+O_IMPORTED_MODULE = "module:imported"
 #: 本模块 ``def`` 出来的函数名（``localfunc:<name>``）。有了它，「这个名字此刻
 #: 还是不是本模块那个 def」可证 —— 被赋值重绑定后解析结果就变了。
 O_LOCAL_FUNC_PREFIX = "localfunc:"
 O_UNKNOWN = "unknown"
+
+#: 「这个名字绑着一个 **module 对象**」的全部来源标签（(c)-C4）。
+_MODULE_OBJECT_ORIGINS = {O_IMPORTED_MODULE, O_MAIN_MODULE, O_FASTAPI_MODULE, O_TESTCLIENT_MODULE}
+
+
+def _module_has_testclient(tree: ast.Module) -> bool:
+    """本模块 AST 里有没有 TestClient 的可达性（(c)-C3 的判据）。
+
+    四条命中面，取并集（宽，因为它是**放行**条件——放行条件宽了就是漏，所以要尽量
+    命中）：词法上出现 ``TestClient`` 名字或属性、``from fastapi/starlette.testclient
+    import ...``（覆盖 ``as TC`` 别名）、``import fastapi.testclient``。
+    """
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Name) and n.id == "TestClient":
+            return True
+        if isinstance(n, ast.Attribute) and n.attr == "TestClient":
+            return True
+        if isinstance(n, ast.ImportFrom) and (n.module or "") in TESTCLIENT_MODULES:
+            return True
+        if isinstance(n, ast.Import) and any(a.name in TESTCLIENT_MODULES for a in n.names):
+            return True
+        if isinstance(n, ast.alias) and (n.asname or n.name).split(".")[-1] == "TestClient":
+            return True
+    return False
+
 
 _POS_MAX = (10**9, 0)
 
@@ -370,12 +464,12 @@ class _Scope:
         self.node = node
         self.parent = parent
         self.kind = kind  # module | function | class
-        self.bindings: dict[str, list[tuple[tuple[int, int], str]]] = {}
+        self.bindings: dict[str, list[tuple[tuple[int, int], Origin]]] = {}
 
-    def bind(self, name: str, pos: tuple[int, int], origin: str) -> None:
+    def bind(self, name: str, pos: tuple[int, int], origin: Origin) -> None:
         self.bindings.setdefault(name, []).append((pos, origin))
 
-    def sorted_bindings(self, name: str) -> list[tuple[tuple[int, int], str]]:
+    def sorted_bindings(self, name: str) -> list[tuple[tuple[int, int], Origin]]:
         return sorted(self.bindings.get(name, ()), key=lambda b: b[0])
 
 
@@ -421,6 +515,20 @@ class _ModuleIndex:
         #: 本模块里**自建的隔离包装器**：`<owner>.<name>` → 被隔离的那个形参下标。
         #: 形态必须窄到可证（见 :meth:`_mark_isolation_wrappers`）。
         self.isolation_wrappers: dict[str, int] = {}
+        #: 返回 tuple 的本模块工厂：`key` → **每个位置**各自的来源。供调用方解包时
+        #: 按位配对（CARD-W4-5 (d)），取代「整体来源原样传给每个元素」的旧扩散。
+        #: 与上面几个集合同为迭代状态 ⇒ 一并进 M16 不动点判据。
+        self.factory_return_elts: dict[str, tuple] = {}
+        #: **存在**一条 return 是 main 实例、但不是条条都是的函数 —— :attr:`main_client_funcs`
+        #: 的 all 口径漏掉的那一半。(c)-C2 用它把「调用面」里本模块可证的可疑部分
+        #: 收回来 fail-closed，而不是整个调用面放行。同为迭代状态 ⇒ 进 M16。
+        self.partial_main_client_funcs: set[str] = set()
+        #: 本模块 AST 里有没有 TestClient 的可达性（(c)-C3 的判据）。
+        #: ⛔ 必须是 **AST 级**而不是文本 grep：`tests/support/live_port_guard.py`
+        #: 的 "TestClient" 只出现在 docstring 里（:34/:54），文本判据会把一个零
+        #: TestClient 的文件当成有可达性，于是它那 7 处 `with self._lock:` 全被
+        #: fail-closed 判违规 —— 而该文件是别的卡的地盘，改不动，门就永远红。
+        self.module_has_testclient = _module_has_testclient(tree)
         self.module_scope = _Scope(tree, None, "module")
         self.scope_of: dict[int, _Scope] = {}
         # 建表与「哪些函数返回局部 app」互为输入 —— 迭代到不动点，最后再建一次表，
@@ -436,6 +544,11 @@ class _ModuleIndex:
                 # M16 之后失格名单每轮重算 ⇒ 它也是迭代状态的一部分，必须进
                 # 不动点判据；漏掉它，「失格集还在变」的那一轮会被当成已收敛。
                 set(self.disqualified_factory_keys),
+                # CARD-W4-5 (d)：逐位来源表跨轮变化（工厂 return 里的元素来源要等
+                # `fastapi_returning_funcs` 收敛后才算得准），同样必须进判据。
+                dict(self.factory_return_elts),
+                # CARD-W4-5 (c)：部分-main 工厂集同理，跟着 main 实例解析一起变。
+                set(self.partial_main_client_funcs),
             )
             # 可信集与失格集在 `_mark_all_fastapi_returning` 内部**一起**发布
             # （冻结知识 + 按 key 聚合 + 整组通过才发布，见该方法 docstring）。
@@ -448,6 +561,8 @@ class _ModuleIndex:
                 self.main_client_attrs,
                 self.isolation_wrappers,
                 self.disqualified_factory_keys,
+                self.factory_return_elts,
+                self.partial_main_client_funcs,
             ) == before:
                 break
         self._rebuild(tree)
@@ -487,6 +602,7 @@ class _ModuleIndex:
             return
 
         self._record_bindings(stmt, scope)
+        self._record_walrus(stmt, scope)
 
         # 非作用域语句：递归其子块，绑定仍归当前 scope
         for field in ("body", "orelse", "finalbody", "handlers", "cases"):
@@ -498,11 +614,66 @@ class _ModuleIndex:
                     self._walk_stmt(sub, scope)
                 else:  # ExceptHandler / match_case 容器
                     self.scope_of[id(sub)] = scope
+                    # ``except E as name`` —— ExceptHandler 有 .name，这条早就在
                     name = getattr(sub, "name", None)
                     if isinstance(name, str):
                         scope.bind(name, _pos(sub), O_UNKNOWN)
+                    # ``match … case X() as c`` —— match_case **没有** .name 属性，
+                    # 上面那行对它恒取不到，于是整族 capture 名此前从不入表
+                    # （CARD-W4-5 (d)）。捕获名进表后它才会遮蔽同名的外层绑定，
+                    # 否则 `case _ as app:` 之后的 `TestClient(app)` 仍按外层那个
+                    # 可证 app 解析 —— 静默放行。
+                    self._record_match_captures(getattr(sub, "pattern", None), scope)
                     for inner in getattr(sub, "body", []) or []:
                         self._walk_stmt(inner, scope)
+
+    def _record_match_captures(self, pattern, scope: _Scope) -> None:
+        """把 match 模式里的捕获名绑成 :data:`O_UNKNOWN`（来源不可证）。
+
+        三类捕获：``MatchAs.name``（``case x:`` / ``case P() as x:``）、
+        ``MatchStar.name``（``case [*rest]:``）、``MatchMapping.rest``
+        （``case {**rest}:``）。守卫表达式里的海象另由 :meth:`_record_walrus` 覆盖。
+        """
+        if pattern is None:
+            return
+        for pat in ast.walk(pattern):
+            cap = None
+            if isinstance(pat, (ast.MatchAs, ast.MatchStar)):
+                cap = pat.name
+            elif isinstance(pat, ast.MatchMapping):
+                cap = pat.rest
+            if isinstance(cap, str):
+                scope.bind(cap, _pos(pat), O_UNKNOWN)
+
+    def _own_exprs(self, node: ast.AST):
+        """``node`` 自己那一层的表达式子树 —— 不进入语句，也不进入 lambda。
+
+        进入子语句会让同一个海象被父语句与子语句各绑一次（无害但冗余）；进入
+        lambda 则是**错的**：lambda 体里的 ``:=`` 绑定的是 lambda 自己的作用域。
+        推导式**不**排除——PEP 572 明确规定推导式里的海象绑定到外层作用域。
+        """
+        stack: list[ast.AST] = [node]
+        while stack:
+            cur = stack.pop()
+            for child in ast.iter_child_nodes(cur):
+                if isinstance(child, (ast.stmt, ast.Lambda)):
+                    continue
+                yield child
+                stack.append(child)
+
+    def _record_walrus(self, stmt: ast.stmt, scope: _Scope) -> None:
+        """海象 ``(x := v)``：在**当前**作用域绑定（CARD-W4-5 (d)）。
+
+        它此前整族不入表，于是 ``stack.enter_context(client := TestClient(app))``
+        里的 ``client`` 解析不到任何绑定 ⇒ ``O_UNKNOWN`` ⇒ 旧的 unknown 放行分支
+        直接过。绑定位置取海象自己的 ``(lineno, col_offset)``，因为它在**表达式求值
+        那一刻**才生效——写在使用点之后的海象不该影响使用点（reaching-definition
+        口径与 :meth:`resolve_name` 一致）。
+        """
+        for sub in self._own_exprs(stmt):
+            if isinstance(sub, ast.NamedExpr):
+                # NamedExpr.target 的类型就是 Name（语法上不可能是别的）
+                scope.bind(sub.target.id, _pos(sub), self._value_origin(sub.value, stmt, scope))
 
     @staticmethod
     def _all_args(a: ast.arguments):
@@ -539,7 +710,10 @@ class _ModuleIndex:
             for alias in stmt.names:
                 # `import a.b` 绑定的是**顶层包** `a`；`import a.b as x` 绑定 `x` = a.b
                 bound = alias.asname or alias.name.split(".")[0]
-                origin = O_UNKNOWN
+                # import 出来的东西**一定是模块对象**——这件事本身可证，与「是不是
+                # 我们认识的那个模块」无关。分开记，(c)-C4 才能凭它放行
+                # `mod._refresh_guard` 这类跨模块属性而不必放行全部 unknown。
+                origin = O_IMPORTED_MODULE
                 if alias.asname:
                     if alias.name == "app.main":
                         origin = O_MAIN_MODULE
@@ -571,7 +745,16 @@ class _ModuleIndex:
                 return
             origin = self._value_origin(value, stmt, scope)
             for t in targets:
-                self._bind_target(t, pos, origin, scope)
+                self._bind_target(t, pos, origin, scope, value=value, stmt=stmt)
+            return
+        if isinstance(stmt, ast.Delete):
+            # ``del app`` —— 名字此后不再绑着原来那个对象（CARD-W4-5 (d)）。
+            # 不绑的话 `del` 之后重新赋值成生产 app 时，「全部先前绑定必须同源」
+            # 会把已经作废的那条局部 app 绑定也算进去 ⇒ 两条不同源 ⇒ 恰好 unknown；
+            # 但只 del 不重绑的写法则会让作废的绑定**单独**成为唯一来源 ⇒ 误放行。
+            for t in stmt.targets:
+                if isinstance(t, ast.Name):
+                    scope.bind(t.id, pos, O_UNKNOWN)
             return
         if isinstance(stmt, (ast.With, ast.AsyncWith)):
             for item in stmt.items:
@@ -587,15 +770,100 @@ class _ModuleIndex:
                 scope.bind(name, pos, O_UNKNOWN)
             return
 
-    def _bind_target(self, target: ast.expr, pos, origin: str, scope: _Scope) -> None:
+    def _bind_target(self, target: ast.expr, pos, origin, scope: _Scope, value=None, stmt=None) -> None:
         if isinstance(target, ast.Name):
             scope.bind(target.id, pos, origin)
-        elif isinstance(target, (ast.Tuple, ast.List)):
-            for elt in target.elts:
-                # 解包：单个元素的来源不可逐一证明，只有整体来源可证时才传递
-                self._bind_target(elt, pos, origin, scope)
+            return
+        if isinstance(target, ast.Starred):
+            # ``a, *rest = …`` —— rest 绑的是一个**列表**，不是原来那个元素。
+            self._bind_target(target.value, pos, O_UNKNOWN, scope)
+            return
+        if isinstance(target, (ast.Tuple, ast.List)):
+            # 解包：**逐元素**配对，配不上就每个元素一律 unknown（CARD-W4-5 (d)）。
+            # 旧实现把整体来源原样传给每个元素，两个方向同时错：
+            #   * 放宽 —— `def make(): return FastAPI(), TestClient(app.main.app)`
+            #     整体判成 O_LOCAL_APP，于是 `_, c = make()` 里的 c 也成了「局部
+            #     app」，`with c:` 静默放行（模块 docstring 自认的阻断项 D）；
+            #   * 收紧 —— `n` 这种明明是常量的位置也被当成 app 来源。
+            elts = self._unpack_element_origins(target, value, stmt, scope)
+            for i, elt in enumerate(target.elts):
+                # 嵌套解包 `(a, b), c = …` 不再往下传 value：配对只做一层，
+                # 更深的层次拿不出可证的位置对应关系。
+                self._bind_target(elt, pos, elts[i] if elts is not None else O_UNKNOWN, scope)
 
-    def _value_origin(self, value: ast.expr, stmt: ast.stmt, scope: _Scope) -> str:
+    def _unpack_element_origins(self, target, value, stmt, scope: _Scope):
+        """解包时每个位置**各自**的来源；对不上返回 ``None``（调用方全判 unknown）。
+
+        两种可证的配对，且只有两种：
+
+        * 右侧是**字面** tuple/list 且长度相同 —— 逐元素各求各的来源；
+        * 右侧是本模块工厂调用且 :attr:`factory_return_elts` 里有它的逐位表 ——
+          按位置取（表本身要求该工厂的**每一条** return 都是同宽 tuple 且同位同源，
+          见 :meth:`_mark_main_client_sources`）。
+
+        带 ``*`` 的目标一律放弃：星号吸收的元素个数静态不定，位置对不上。
+        """
+        if value is None or stmt is None:
+            return None
+        if any(isinstance(e, ast.Starred) for e in target.elts):
+            return None
+        if isinstance(value, (ast.Tuple, ast.List)):
+            if len(value.elts) != len(target.elts) or any(isinstance(e, ast.Starred) for e in value.elts):
+                return None
+            return [self._value_origin(e, stmt, scope) for e in value.elts]
+        if isinstance(value, ast.Call):
+            cols = self._factory_return_elts_for(value, stmt, scope)
+            if cols is not None and len(cols) == len(target.elts):
+                return list(cols)
+        return None
+
+    def _callee_factory_key(self, func: ast.expr, node: ast.AST, scope: _Scope) -> str | None:
+        """这次调用指向哪个本模块工厂 key；形态与 :meth:`_is_local_app_factory_call`
+        同口径（裸名字必须仍绑着本模块那个 def，或 ``self.``/``cls.`` 的同类方法），
+        够不上就 ``None`` —— 刻意不接受 ``other.make()``（谁都能有个同名方法）。"""
+        if isinstance(func, ast.Name):
+            if self.resolve_name(func.id, _pos(node), scope) != f"{O_LOCAL_FUNC_PREFIX}{func.id}":
+                return None
+            return f"<module>.{func.id}"
+        if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name) and func.value.id in ("self", "cls"):
+            return f"{self._enclosing_class_name(node)}.{func.attr}"
+        return None
+
+    def _factory_return_elts_for(self, call: ast.Call, node: ast.AST, scope: _Scope):
+        """这次调用命中哪个本模块工厂的逐位来源表；够不上就 ``None``。"""
+        key = self._callee_factory_key(call.func, node, scope)
+        return None if key is None else self.factory_return_elts.get(key)
+
+    def factory_returns_any_main(self, func: ast.expr, node: ast.AST, scope: _Scope) -> bool:
+        """这次调用的目标工厂里**存在**一条返回 main 实例的 return（CARD-W4-5 (c)）。
+
+        :attr:`main_client_funcs` 要求条条都是，于是::
+
+            def make(flag):
+                if flag:
+                    return TestClient(app)     # app.main 的 app
+                return other
+            with make(True): ...               # 跑真实 lifespan
+
+        整个从判定里漏掉。这条让 (c)-C2 的「调用面归属跨函数盲区」不是无条件放行：
+        本模块内可证的可疑调用照样 fail-closed。
+        """
+        key = self._callee_factory_key(func, node, scope)
+        return key is not None and key in self.partial_main_client_funcs
+
+    def attribute_base_is_module(self, expr: ast.Attribute, node: ast.AST, scope: _Scope) -> bool:
+        """``<import 来的模块>.<attr>``（CARD-W4-5 (c)-C4 的判据）。
+
+        模块对象的属性不由本模块构造 —— 它要真是个 TestClient 实例，那也是**别的
+        模块**造的，属跨模块盲区（与 C2 同族，模块 docstring 已声明）。与「放行全部
+        unknown」的区别在于：这里「它是个模块」这件事本身可证（import 语句语义）。
+        """
+        base = expr.value
+        if not isinstance(base, ast.Name):
+            return False
+        return self.resolve_name(base.id, _pos(node), scope) in _MODULE_OBJECT_ORIGINS
+
+    def _value_origin(self, value: ast.expr, stmt: ast.stmt, scope: _Scope) -> Origin:
         """赋值右侧的来源。只有**可证**的形态才给非 unknown。"""
         if isinstance(value, ast.Call):
             callee = self._callable_origin(value.func, stmt, scope)
@@ -612,6 +880,13 @@ class _ModuleIndex:
                 origin = self.resolve_arg(app_arg, stmt, scope)
                 if origin == O_LOCAL_APP:
                     return O_TESTCLIENT_INSTANCE_LOCAL
+                # 引用路径扩到**来源可证的属性链**（``m.app``，CARD-W4-5 (e)）：
+                # 旧实现只认 ast.Name，于是 `with no_lifespan(m.app), TestClient(m.app)`
+                # 里的 app_ref 恒为 None，隔离比对根本不发生 ⇒ 合法写法被判违规。
+                # 属性链只有在**自身解析得出非 unknown 来源**时才给路径 —— 否则
+                # `whatever.app` 这种谁都能冒充的写法会拿到一个可比对的名字。
+                if isinstance(app_arg, ast.Attribute) and origin != O_UNKNOWN:
+                    return _instance_main(_ref_path(app_arg))
                 return _instance_main(app_arg.id if isinstance(app_arg, ast.Name) else None)
             # 本模块里「每一条 return 都返回 app.main 实例」的工厂：`with make():`
             # 同样会跑 lifespan（L2-d）。
@@ -648,14 +923,14 @@ class _ModuleIndex:
             return f"{owner}.{func.attr}" in self.fastapi_returning_funcs
         return False
 
-    def _callable_origin(self, func: ast.expr, node: ast.AST, scope: _Scope) -> str:
+    def _callable_origin(self, func: ast.expr, node: ast.AST, scope: _Scope) -> Origin:
         if isinstance(func, ast.Name):
             return self.resolve_name(func.id, _pos(node), scope)
         if isinstance(func, ast.Attribute):
             return self._attribute_origin(func, node, scope)
         return O_UNKNOWN
 
-    def _attribute_origin(self, attr: ast.Attribute, node: ast.AST, scope: _Scope) -> str:
+    def _attribute_origin(self, attr: ast.Attribute, node: ast.AST, scope: _Scope) -> Origin:
         """属性访问的来源。**递归**解析 base，从而支持完整属性链。
 
         R1 Codex MEDIUM-13：``fastapi.testclient.TestClient(...)`` 是
@@ -813,8 +1088,30 @@ class _ModuleIndex:
           单独把它改成 ``all`` 会误伤正例，而**并不能**堵住 D：D 的漏检发生在
           调用方解包那一步，不在登记这一步。
 
+        ⚠️ 上面第二条（tuple 解包漏检，阻断项 D）自 CARD-W4-5 (d) 起**不再是盲区**：
+        :attr:`factory_return_elts` 把返回 tuple 的工厂逐位登记，调用方解包时按位配对，
+        ``_, c = make()`` 里的 ``c`` 于是拿得到 :class:`_InstanceMain`。索引访问
+        （``clients[0]``）仍是盲区——那要的是容器元素级别名分析，本卡不做。
+
         两者都如实登记为已知盲区，见模块 docstring「这道负门不比什么」。
         """
+        # ⛔ 逐位表**每轮重建 + 冻结上一轮知识**（M16 的完整教训，见
+        #    :meth:`_mark_all_fastapi_returning`）。两条的证据强度**不一样**，
+        #    如实分开写：
+        #
+        #    * **冻结求值 —— 承重，有门。** 转调工厂（`def outer(): return inner()`）
+        #      要读被调者的表，而 `ast.walk` 按**定义顺序**走。只清空不冻结的话，
+        #      `outer` 写在 `inner` 前面时每一轮都读到刚被清空的表 ⇒ 永远补不齐 ⇒
+        #      「同一段代码换个定义顺序两种结论」（M16 原始缺陷的形态）。
+        #      变异实测：把 `frozen_return_elts` 改成恒空，验伪锚 d2/d3 当场翻红。
+        #    * **每轮重建 —— 防御性纪律，本卡没造出能看见它的输入。** 2026-09-06
+        #      变异实测：删掉下面那行清空（退回 add-only 累积），40 条反例与 23 条
+        #      正例**全部不变**。查因是 dict 赋值本身就覆盖，而「某 key 在轮 N 登记、
+        #      轮 N+1 不登记」需要 `frozen` 里的条目消失，add-only 下它不会消失。
+        #      保留这行是因为 M16 的教训值 —— 但**不要**把它写成「已被门守住」。
+        frozen_return_elts = dict(self.factory_return_elts)
+        self.factory_return_elts = {}
+        self.partial_main_client_funcs = set()
         for node in ast.walk(tree):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 own = self.scope_of.get(id(node.body[0])) if node.body else None
@@ -822,8 +1119,19 @@ class _ModuleIndex:
                     continue
                 own_stmts = [s for s in ast.walk(node) if self.scope_of.get(id(s)) is own]
                 returns = [s for s in own_stmts if isinstance(s, ast.Return) and s.value is not None]
-                if returns and all(_is_instance_main(self._value_origin(r.value, r, own)) for r in returns):
+                # `r.value is not None` 由上一行的 returns 构造保证，这里重述一遍是给
+                # 类型检查器看的（narrowing）——本卡改动行不许留新的 pyright 报错。
+                main_rets = [
+                    r for r in returns if r.value is not None and _is_instance_main(self._value_origin(r.value, r, own))
+                ]
+                if returns and len(main_rets) == len(returns):
                     self.main_client_funcs.add(self._factory_key(node))
+                elif main_rets:
+                    # 「**有些** return 是 main 实例」——all 口径判不出来，但
+                    # `with make(flag):` 只要走到那一支就跑真实 lifespan。
+                    # (c)-C2 据此把这类调用从「调用面盲区」里拉回来 fail-closed。
+                    self.partial_main_client_funcs.add(self._factory_key(node))
+                self._mark_factory_return_elts(node, returns, own, frozen_return_elts)
             elif isinstance(node, (ast.Assign, ast.AnnAssign)) and getattr(node, "value", None) is not None:
                 targets = node.targets if isinstance(node, ast.Assign) else [node.target]
                 attrs = [
@@ -838,6 +1146,50 @@ class _ModuleIndex:
                     owner = self._enclosing_class_name(node)
                     for tgt in attrs:
                         self.main_client_attrs.add(f"{owner}.{tgt.attr}")
+
+    def _mark_factory_return_elts(self, fd, returns, own: _Scope, frozen: dict) -> None:
+        """登记「返回 tuple 的工厂」的**逐位来源**，供调用方解包时按位配对。
+
+        登记条件（全部满足才登记，任何一条不满足就不给这个 key 建表 ⇒ 调用方按
+        unknown 处理，fail-closed）：
+
+        * 至少一条 return，且**每一条** return 要么是字面 tuple、要么是一次能在
+          ``frozen`` 里查到逐位表的**本模块工厂调用**（转调，见下）；
+        * 所有 return 的宽度相同，且字面 tuple 里都不带 ``*``（星号宽度静态不定）；
+        * 同一位置在所有 return 上**同源**，否则该位置单独记 unknown。
+
+        与 :attr:`main_client_funcs` 的 all 口径同族：「存在一条是这样的」不算数。
+
+        **转调这一支是回归修复**（本卡自查发现）：``def outer(): return inner()``
+        而 ``inner`` 返回 tuple 时，只认字面 tuple 会让 ``app, n = outer()`` 拿不到
+        逐位表 ⇒ 每元素 unknown ⇒ ``TestClient(app)`` 被误判违规。改前那份代码因为
+        「整体来源原样传给每个元素」反而放行，所以这是 (d) 引入的**新误报**，
+        `_AST_MUST_PASS` 原有的转调正例（验伪锚 12/13）用的是单值 return、不解包，
+        看不见它。现补两条正例（验伪锚 d2/d3）把两个定义顺序都钉住。
+
+        ``frozen`` 是**上一轮结束时**的表，不是本轮正在填的那张 —— 理由见
+        :meth:`_mark_main_client_sources` 开头的注释（同轮顺序依赖 = M16 原始缺陷）。
+        """
+        key = self._factory_key(fd)
+        if not returns:
+            return
+        rows: list[tuple] = []
+        for r in returns:
+            if isinstance(r.value, ast.Tuple):
+                if any(isinstance(e, ast.Starred) for e in r.value.elts):
+                    return
+                rows.append(tuple(self._value_origin(e, r, own) for e in r.value.elts))
+            elif isinstance(r.value, ast.Call):
+                callee = self._callee_factory_key(r.value.func, r, own)
+                cols = frozen.get(callee) if callee is not None else None
+                if cols is None:
+                    return
+                rows.append(tuple(cols))
+            else:
+                return
+        if len({len(row) for row in rows}) != 1:
+            return
+        self.factory_return_elts[key] = tuple(col[0] if len(set(col)) == 1 else O_UNKNOWN for col in zip(*rows))
 
     def _mark_isolation_wrappers(self, tree: ast.Module) -> None:
         """识别**自建的隔离包装器**，避免把合法写法误判成违规。
@@ -862,33 +1214,91 @@ class _ModuleIndex:
         3. 那个 ``with`` 的**体内**有 ``yield`` —— 即隔离确实覆盖了让出控制权的
            那一刻。只在 with 外面 yield 的包装器不算数（隔离没盖住调用方的代码）。
 
+        CARD-W4-5 (f) 再加两条（X4 HIGH，仍是「全部满足才算」）：
+
+        4. **被隔离的形参在体内没有被重绑定**。有重绑定就失格：``no_lifespan(a)``
+           盖住的是**执行到那一行时** ``a`` 指着的那个对象，之后 ``a = production_app``
+           不会让隔离跟过去；而调用点比对的是**形参下标**，它对重绑定一无所知，
+           于是 ``with wrapper(app), TestClient(app)`` 被判安全，实际裸启生产 app。
+        5. **yield 出去的就是被隔离的那个对象**。旧判据只问「with 体内有没有
+           yield」，于是::
+
+               with no_lifespan(a):
+                   yield other_app        # 隔离盖的是 a，递出去的是别人
+
+           照样拿到资格 —— 调用方以为 wrapper(app) 隔离了 app，其实拿到的是另一个。
+
         记下被隔离的**形参下标**，调用点按同一下标的实参名比对；换个参数传就不算。
+
+        ⛔ **每轮重建 + 按 key 聚合**（CARD-W4-5 (f)-⑥，本卡实测发现）：卡文说本条
+        「在『同名多定义任一不合格 ⇒ 整 key 失格』之外补两条」，暗示包装器侧已有那个
+        口径 —— **实测它此前不存在**。旧实现直接 ``self.isolation_wrappers[key] = idx``，
+        是 add-only 覆盖，于是::
+
+            @contextlib.contextmanager
+            def isolated(a):
+                with no_lifespan(a):
+                    yield a          # 合格 → 写进表
+            @contextlib.contextmanager
+            def isolated(a):
+                yield a              # 不合格 → 只是「不写」，删不掉上面那条
+            with isolated(app), TestClient(app): ...   # 判安全，而运行时用的是第二个
+
+        与 :meth:`_mark_all_fastapi_returning` 的阻断项 E 完全同形（那边有
+        ``_factory_verdicts`` 聚合，这边没有）。现在：本轮所有定义先各自裁定，
+        同一 key 上**任一定义不合格、或两个定义的下标不一致 ⇒ 整 key 失格**，
+        轮末整体发布；集合每轮重建，不再累积（M16 同款纪律）。
         """
+        verdicts: dict[str, int | None] = {}
         for node in ast.walk(tree):
             if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
-            own = self.scope_of.get(id(node.body[0])) if node.body else None
-            if own is None:
+            key = self._factory_key(node)
+            idx = self._isolation_wrapper_index(node)
+            if key in verdicts and verdicts[key] != idx:
+                verdicts[key] = None  # 同名多定义裁定不一致 ⇒ 整 key 失格
+            else:
+                verdicts[key] = idx
+        self.isolation_wrappers = {k: v for k, v in verdicts.items() if v is not None}
+
+    def _isolation_wrapper_index(self, node) -> int | None:
+        """单个 ``def`` 的隔离包装器资格：合格则返回被隔离的形参下标，否则 ``None``。
+
+        五条**全部**满足才合格，见 :meth:`_mark_isolation_wrappers` 的 docstring。
+        """
+        own = self.scope_of.get(id(node.body[0])) if node.body else None
+        if own is None:
+            return None
+        params = [a.arg for a in (node.args.posonlyargs + node.args.args)]
+        if not params:
+            return None
+        for stmt in ast.walk(node):
+            if not isinstance(stmt, (ast.With, ast.AsyncWith)):
                 continue
-            params = [a.arg for a in (node.args.posonlyargs + node.args.args)]
-            if not params:
+            if self.scope_of.get(id(stmt)) is not own:
                 continue
-            for stmt in ast.walk(node):
-                if not isinstance(stmt, (ast.With, ast.AsyncWith)):
+            yields = [y for b in stmt.body for y in ast.walk(b) if isinstance(y, (ast.Yield, ast.YieldFrom))]
+            if not yields:
+                continue
+            for item in stmt.items:
+                ctx = item.context_expr
+                if not isinstance(ctx, ast.Call):
                     continue
-                if self.scope_of.get(id(stmt)) is not own:
+                if self._callable_origin(ctx.func, stmt, own) != O_HELPER:
                     continue
-                has_yield = any(isinstance(x, (ast.Yield, ast.YieldFrom)) for b in stmt.body for x in ast.walk(b))
-                if not has_yield:
+                if not (ctx.args and isinstance(ctx.args[0], ast.Name) and ctx.args[0].id in params):
                     continue
-                for item in stmt.items:
-                    ctx = item.context_expr
-                    if not isinstance(ctx, ast.Call):
-                        continue
-                    if self._callable_origin(ctx.func, stmt, own) != O_HELPER:
-                        continue
-                    if ctx.args and isinstance(ctx.args[0], ast.Name) and ctx.args[0].id in params:
-                        self.isolation_wrappers[self._factory_key(node)] = params.index(ctx.args[0].id)
+                isolated_param = ctx.args[0].id
+                # (f)-④ 形参被重绑定 ⇒ 失格。形参自己那条绑定的位置是 (0, 0)
+                # （见 `_walk_stmt` 建函数作用域那一段），别的位置就是重绑定。
+                if any(pos != (0, 0) for pos, _ in own.sorted_bindings(isolated_param)):
+                    continue
+                # (f)-⑤ 每一条 yield 递出去的都必须**就是**被隔离的那个名字。
+                # `yield from` 递的是一个可迭代对象、不是被隔离的那一个，一律失格。
+                if not all(isinstance(y, ast.Yield) and _ref_path(y.value) == isolated_param for y in yields):
+                    continue
+                return params.index(isolated_param)
+        return None
 
     def isolation_wrapper_param(self, func: ast.expr, node: ast.AST, scope: _Scope) -> int | None:
         """这次调用是不是自建隔离包装器；是则返回被隔离的形参下标。"""
@@ -989,7 +1399,7 @@ class _ModuleIndex:
     def parent_of(self, node: ast.AST) -> ast.AST | None:
         return self.parents.get(id(node))
 
-    def resolve_name(self, name: str, pos: tuple[int, int], scope: _Scope) -> str:
+    def resolve_name(self, name: str, pos: tuple[int, int], scope: _Scope) -> Origin:
         """在 ``scope`` 处、位置 ``pos`` 上，名字 ``name`` 的来源。
 
         判据（R1 Codex HIGH-9 整改后）：**所有**位于 ``pos`` 之前的绑定必须来源
@@ -1030,7 +1440,7 @@ class _ModuleIndex:
             first = False
         return O_UNKNOWN
 
-    def resolve_arg(self, arg: ast.expr, node: ast.AST, scope: _Scope) -> str:
+    def resolve_arg(self, arg: ast.expr, node: ast.AST, scope: _Scope) -> Origin:
         if isinstance(arg, ast.Name):
             return self.resolve_name(arg.id, _pos(node), scope)
         if isinstance(arg, ast.Attribute):
@@ -1038,6 +1448,29 @@ class _ModuleIndex:
         if isinstance(arg, ast.Call):
             return self._value_origin(arg, node if isinstance(node, ast.stmt) else arg, scope)
         return O_UNKNOWN
+
+
+def _enter_context_arg(call: ast.Call) -> ast.expr | None:
+    """取 ``enter_context(...)`` 的上下文管理器实参（CARD-W4-5 (a)，X4 HIGH）。
+
+    位置参优先 → ``cm=`` → 第一个具名关键字。旧实现只看 ``call.args``，于是
+    ``stack.enter_context(cm=TestClient(app))`` —— 一个 CPython 签名原样接受、
+    会跑真实 lifespan 的写法 —— 在 ``if not node.args: continue`` 那行直接畅通。
+
+    「第一个具名关键字」这条兜底不是猜：``ExitStack.enter_context(self, cm)`` 与
+    ``AsyncExitStack.enter_async_context(self, cm)`` 各自只有一个非 self 形参，
+    任何具名关键字要么就是它，要么这次调用本来就 TypeError。
+    ``**kwargs`` 展开（``kw.arg is None``）取不到名字 ⇒ ``None`` ⇒ 调用方判违规。
+    """
+    if call.args:
+        return call.args[0]
+    for kw in call.keywords:
+        if kw.arg == _ENTER_CONTEXT_CM_PARAM:
+            return kw.value
+    for kw in call.keywords:
+        if kw.arg is not None:
+            return kw.value
+    return None
 
 
 def _syntactic_call_name(node: ast.expr) -> str | None:
@@ -1051,44 +1484,47 @@ def _syntactic_call_name(node: ast.expr) -> str | None:
     return None
 
 
-def _item_isolates(index: "_ModuleIndex", ctx, host_node, scope, app_name: str) -> bool:
-    """一个 ``with`` item 是否对名为 ``app_name`` 的 app 施加了隔离。
+def _item_isolates(index: "_ModuleIndex", ctx, host_node, scope, app_ref: str) -> bool:
+    """一个 ``with`` item 是否对引用路径为 ``app_ref`` 的 app 施加了隔离。
 
     两条路：直接调 import 来的 ``no_lifespan``/``lifespan_lite``；
     或调本模块**自建的隔离包装器**（窄定义见 `_mark_isolation_wrappers`），
     此时比对的是**被隔离的那个形参下标**上的实参。
+
+    比对用 :func:`_ref_path`（CARD-W4-5 (e)）：``m.app`` 这类属性链在两侧写法相同
+    时才算同一个 app；取不到路径（``f().app``）一律不算覆盖。
     """
     if not isinstance(ctx, ast.Call):
         return False
     if index._callable_origin(ctx.func, host_node, scope) == O_HELPER:
-        return bool(ctx.args) and isinstance(ctx.args[0], ast.Name) and ctx.args[0].id == app_name
+        return bool(ctx.args) and _ref_path(ctx.args[0]) == app_ref
     idx = index.isolation_wrapper_param(ctx.func, host_node, scope)
     if idx is None or idx >= len(ctx.args):
         return False
-    arg = ctx.args[idx]
-    return isinstance(arg, ast.Name) and arg.id == app_name
+    return _ref_path(ctx.args[idx]) == app_ref
 
 
 def _isolation_sibling_covers(index: "_ModuleIndex", with_node, upto_pos: int, app_arg, scope) -> bool:
     """同一个 ``with`` 语句里，位置**在前**的兄弟项是否对同一个 app 做了隔离。"""
-    if not isinstance(app_arg, ast.Name):
+    app_ref = _ref_path(app_arg)
+    if app_ref is None:
         return False
     for hpos, hitem in enumerate(with_node.items):
         if hpos >= upto_pos:
             break
-        if _item_isolates(index, hitem.context_expr, with_node, scope, app_arg.id):
+        if _item_isolates(index, hitem.context_expr, with_node, scope, app_ref):
             return True
     return False
 
 
-def _isolation_enclosing_covers_name(index: "_ModuleIndex", node, app_name: str) -> bool:
-    """按**名字**找支配本节点的外层 ``with no_lifespan(<app_name>):``。"""
+def _isolation_enclosing_covers_name(index: "_ModuleIndex", node, app_ref: str) -> bool:
+    """按**引用路径**找支配本节点的外层 ``with no_lifespan(<app_ref>):``。"""
     cur = index.parent_of(node)
     while cur is not None:
         if isinstance(cur, (ast.With, ast.AsyncWith)):
             scope = index.scope_for(cur)
             for hitem in cur.items:
-                if _item_isolates(index, hitem.context_expr, cur, scope, app_name):
+                if _item_isolates(index, hitem.context_expr, cur, scope, app_ref):
                     return True
         cur = index.parent_of(cur)
     return False
@@ -1101,46 +1537,128 @@ def _isolation_enclosing_covers(index: "_ModuleIndex", node, app_arg) -> bool:
     所以那是安全写法，旧实现却报违规。这里沿父链往上找 With，逐个看它是不是对
     **同一个名字**做了隔离。
     """
-    if not isinstance(app_arg, ast.Name):
+    app_ref = _ref_path(app_arg)
+    if app_ref is None:
         return False
-    return _isolation_enclosing_covers_name(index, node, app_arg.id)
+    return _isolation_enclosing_covers_name(index, node, app_ref)
 
 
 def _describe(expr) -> str:
     if isinstance(expr, ast.Name):
         return expr.id
     if isinstance(expr, ast.Attribute):
-        return f"<...>.{expr.attr}"
+        # 整条链写得出来就写整条（`m.app`），写不出来才退回旧的省略形态
+        return _ref_path(expr) or f"<...>.{expr.attr}"
+    if isinstance(expr, ast.Call):
+        syn = _syntactic_call_name(expr)
+        return f"{syn}(...)" if syn else "<expr>(...)"
+    if isinstance(expr, ast.NamedExpr):
+        return f"({expr.target.id} := ...)"
     return "<expr>"
 
 
-def _flag_instance_context(violations, index, rel, node, scope, expr, how: str) -> None:
-    """判定「把一个已构造好的 TestClient 实例送进 ``__enter__``」是否合规。
+def _unprovable_context_exempt(index, node, scope, expr, how: str) -> str | None:
+    """不可证的 ``__enter__`` 目标里，哪些**可证**不必 fail-closed（CARD-W4-5 (c)）。
 
-    覆盖 ``with client:``、``with self.client:``、``enter_context(client)``。
-    关键修正（我自己在 round-2 自查时抓到的）：外层隔离要比对的是**这个实例包着的
-    那个 app 名**，不是客户端变量名 —— 之前拿 ``client`` 去找 ``no_lifespan(client)``，
+    这不是「其余情况放行」的另一种写法 —— 四条各自都是可证命题，各自都配了
+    ``_AST_MUST_PASS`` 正例与 ``_AST_MUST_FLAG`` 反例；命中任何一条要说得出理由。
+    一刀切 fail-closed 的实测代价见每条注释里的数字（2026-09-06 于 385 个文件）。
+    """
+    # ── C1 异步上下文协议 ──────────────────────────────────────────────
+    # Starlette 的 TestClient 继承 httpx.Client，只实现 __enter__/__exit__，
+    # **没有** __aenter__。送进 `async with` / `enter_async_context` 的对象因此
+    # 可证不是 TestClient —— 真送了会 AttributeError，根本跑不到 lifespan。
+    if how == "enter_async_context" or isinstance(node, ast.AsyncWith):
+        return "C1:async-context-protocol"
+    # ── C2 调用面归属 ────────────────────────────────────────────────
+    # `with f():` 的返回值是不是 TestClient，属**跨函数传递**——模块 docstring
+    # 已把它声明为已知盲区。把这个面一并 fail-closed 实测会让 385 个文件里的
+    # 194 个变红（1431 条），全部是 pytest.raises / open / patch 这类，与本门
+    # 要防的东西无关；那是把「TestClient lifespan 门」改成「全部 with 可证性门」，
+    # 不是本卡范围。⛔ 但盲区不等于放行：调用的若是本模块工厂、且它**存在**一条
+    # 返回 main 实例的 return（只是没满足 main_client_funcs 的 all 口径），
+    # 仍然 fail-closed —— 本模块内可证的部分一条都不放。
+    if isinstance(expr, ast.Call):
+        if index.factory_returns_any_main(expr.func, node, scope):
+            return None
+        return "C2:call-surface-cross-function"
+    # ── C3 模块内无 TestClient 可达性 ─────────────────────────────────
+    # 本模块 AST 里连 TestClient 这个名字都没有 ⇒ 它构造不出 TestClient 实例。
+    # 判据必须是 AST 级：`tests/support/live_port_guard.py` 的 "TestClient" 只在
+    # docstring 里（:34/:54），文本 grep 会把这个零 TestClient 的文件判成有可达性。
+    if not index.module_has_testclient:
+        return "C3:no-testclient-in-module"
+    # ── C4 import 来的模块的属性 ─────────────────────────────────────
+    # `mod._refresh_guard` 这类对象不由本模块构造（同 C2 的跨模块盲区），
+    # 区别是「它是个模块」这件事由 import 语句语义直接可证。
+    if isinstance(expr, ast.Attribute) and index.attribute_base_is_module(expr, node, scope):
+        return "C4:imported-module-attribute"
+    return None
+
+
+def _flag_instance_context(violations, index, rel, node, scope, expr, how: str) -> None:
+    """判定「把一个对象送进 ``__enter__``」是否合规 —— 三分（CARD-W4-5 (c)）。
+
+    覆盖 ``with client:``、``with self.client:``、``enter_context(client)``、
+    以及 (b) 展开出来的 IfExp 分支。三分是：
+
+    * **可证是 app.main 的 TestClient 实例** ⇒ 违规（除非有支配的隔离块）；
+    * **可证不是** ⇒ 放行（局部实例 / FastAPI 类 / 模块对象 / helper …）；
+    * **不可证** ⇒ 违规并标注 fail-closed 理由，除非命中
+      :func:`_unprovable_context_exempt` 里逐条列举的可证窄化。
+
+    ⛔ 第三分是本卡新增的。旧实现是 ``if origin is None or not _is_instance_main:
+    return`` —— 一个静默放行分支，于是 ``with (client if c else client):``
+    （IfExp 解析不出 origin）、``enter_context(client := TestClient(app))``
+    （海象不入绑定表）这类**今天就能写出来、会跑真实 lifespan** 的源码全部畅通。
+
+    关键修正（round-2 自查）：外层隔离要比对的是**这个实例包着的那个 app 的引用
+    路径**，不是客户端变量名 —— 之前拿 ``client`` 去找 ``no_lifespan(client)``，
     于是合法的 `with no_lifespan(app): with client:` 被误报。
     """
+    if isinstance(expr, ast.NamedExpr):
+        # `enter_context(client := TestClient(app))` —— 送进 __enter__ 的是海象的
+        # **值**；名字绑定另由 `_ModuleIndex._record_walrus` 记表。旧实现两边都没有：
+        # NamedExpr 既不是 Call 也不是 Name ⇒ origin 恒 None ⇒ 静默放行。
+        _flag_instance_context(violations, index, rel, node, scope, expr.value, how)
+        return
     origin = None
     desc = _describe(expr)
     if isinstance(expr, ast.Name):
         origin = index.resolve_name(expr.id, _pos(node), scope)
-    elif index.is_main_client_attr(expr, node):
-        origin = _instance_main(None)
-    elif isinstance(expr, ast.Call) and index._is_main_client_factory_call(expr.func, node, scope):
-        # `with make():` —— 工厂的每一条 return 都是 app.main 实例（L2-d）
-        origin = _instance_main(None)
-        desc = f"{_describe(expr.func)}()"
-    if origin is None or not _is_instance_main(origin):
+    elif isinstance(expr, ast.Attribute):
+        origin = (
+            _instance_main(None)
+            if index.is_main_client_attr(expr, node)
+            else index._attribute_origin(expr, node, scope)
+        )
+    elif isinstance(expr, ast.Call):
+        if index._is_main_client_factory_call(expr.func, node, scope):
+            # `with make():` —— 工厂的每一条 return 都是 app.main 实例（L2-d）
+            origin = _instance_main(None)
+            desc = f"{_describe(expr.func)}()"
+        else:
+            origin = index._value_origin(expr, node if isinstance(node, ast.stmt) else expr, scope)
+    if _is_instance_main(origin):
+        app_ref = _instance_app_name(origin)
+        if app_ref is not None and _isolation_enclosing_covers_name(index, node, app_ref):
+            return
+        hint = f"（它包的是 {app_ref}）" if app_ref else "（包的 app 名静态不可知，fail-closed）"
+        violations.append(
+            f"{rel}:{node.lineno}: {how} {desc} —— 它是用 app.main 的 app 构造的 TestClient 实例，"
+            f"进入上下文会跑真实 lifespan{hint}；构造点没有隔离，本处也没有支配的外层隔离块"
+        )
         return
-    app_name = _instance_app_name(origin)
-    if app_name is not None and _isolation_enclosing_covers_name(index, node, app_name):
+    if origin is not None and origin != O_UNKNOWN:
+        return  # 可证不是 main 实例
+    exempt = _unprovable_context_exempt(index, node, scope, expr, how)
+    if exempt is not None:
         return
-    hint = f"（它包的是 {app_name}）" if app_name else "（包的 app 名静态不可知，fail-closed）"
     violations.append(
-        f"{rel}:{node.lineno}: {how} {desc} —— 它是用 app.main 的 app 构造的 TestClient 实例，"
-        f"进入上下文会跑真实 lifespan{hint}；构造点没有隔离，本处也没有支配的外层隔离块"
+        f"{rel}:{node.lineno}: {how} {desc} —— 送进上下文的对象来源静态不可证"
+        f"（解析结果={origin}），无法证明它不是用 app.main 的 app 构造的 TestClient 实例；"
+        "按违规处理（fail-closed）。合法写法：把它换成能追溯来源的局部名字，"
+        "或用 no_lifespan/lifespan_lite 包住构造点"
     )
 
 
@@ -1191,32 +1709,50 @@ def analyze_source(source: str, rel: str) -> list[str]:
                 f"或支配本处的外层 with 块）{how}"
             )
 
+    def check_with_ctx(ctx, node, scope, pos_i, depth=0):
+        """判定一个 ``with`` item 的 ``context_expr``。
+
+        条件表达式两支**各判一次**（CARD-W4-5 (b)）：``with (a if c else b):`` 里
+        运行时走哪一支静态不可知，任一支违规就是违规。旧实现只分「是不是 Call」，
+        IfExp 落进 else 支后在 `_flag_instance_context` 里解析不出 origin ⇒ 静默
+        放行，于是 ``with (client if c else client):`` 这种直白写法都抓不到。
+        """
+        if isinstance(ctx, ast.IfExp):
+            if depth >= _IFEXP_MAX_DEPTH:
+                violations.append(
+                    f"{rel}:{node.lineno}: with 的条件表达式嵌套超过 {_IFEXP_MAX_DEPTH} 层，"
+                    "本门不再展开 —— 无法证明每一支都不会跑真实 lifespan，按违规处理（fail-closed）"
+                )
+                return
+            check_with_ctx(ctx.body, node, scope, pos_i, depth + 1)
+            check_with_ctx(ctx.orelse, node, scope, pos_i, depth + 1)
+            return
+        if isinstance(ctx, ast.Call):
+            syn = _syntactic_call_name(ctx)
+            callee_origin = index._callable_origin(ctx.func, node, scope)
+            if syn == "TestClient" and callee_origin != O_TESTCLIENT_CLASS:
+                violations.append(
+                    f"{rel}:{node.lineno}: with TestClient(...) —— TestClient 这个名字"
+                    f"解析不到 {sorted(TESTCLIENT_MODULES)} 的真实 import"
+                    f"（当前来源={callee_origin}），无法证明它是被隔离约束覆盖的那个 TestClient"
+                )
+                return
+            if index.is_testclient_call(ctx, node, scope):
+                flag_client_construction(ctx, node, scope, pos_in_with=pos_i, with_node=node)
+            else:
+                # `with make():` —— 返回 app.main 实例的工厂调用（L2-d）
+                _flag_instance_context(violations, index, rel, node, scope, ctx, "with")
+            return
+        # with client: / with self.client: / with (x := ...) —— 送一个已存在的对象
+        _flag_instance_context(violations, index, rel, node, scope, ctx, "with")
+
     for node in ast.walk(tree):
         scope = index.scope_for(node)
 
         # ── 面 1/2：with 语句 ────────────────────────────────────────────
         if isinstance(node, (ast.With, ast.AsyncWith)):
             for pos_i, item in enumerate(node.items):
-                ctx = item.context_expr
-                # 1) with TestClient(...)
-                if isinstance(ctx, ast.Call):
-                    syn = _syntactic_call_name(ctx)
-                    callee_origin = index._callable_origin(ctx.func, node, scope)
-                    if syn == "TestClient" and callee_origin != O_TESTCLIENT_CLASS:
-                        violations.append(
-                            f"{rel}:{node.lineno}: with TestClient(...) —— TestClient 这个名字"
-                            f"解析不到 {sorted(TESTCLIENT_MODULES)} 的真实 import"
-                            f"（当前来源={callee_origin}），无法证明它是被隔离约束覆盖的那个 TestClient"
-                        )
-                        continue
-                    if index.is_testclient_call(ctx, node, scope):
-                        flag_client_construction(ctx, node, scope, pos_in_with=pos_i, with_node=node)
-                    else:
-                        # `with make():` —— 返回 app.main 实例的工厂调用（L2-d）
-                        _flag_instance_context(violations, index, rel, node, scope, ctx, "with")
-                    continue
-                # 2) with client: / with self.client:（先前构造的 TestClient 实例）
-                _flag_instance_context(violations, index, rel, node, scope, ctx, "with")
+                check_with_ctx(item.context_expr, node, scope, pos_i)
             continue
 
         # ── 面 3：ExitStack.enter_context(...) ──────────────────────────
@@ -1225,11 +1761,17 @@ def analyze_source(source: str, rel: str) -> list[str]:
             and isinstance(node.func, ast.Attribute)
             and node.func.attr in _ENTER_CONTEXT_ATTRS
         ):
-            if not node.args:
+            target = _enter_context_arg(node)
+            if target is None:
+                # 旧实现在这里 `continue` —— 于是 `stack.enter_context(cm=TestClient(app))`
+                # 直接畅通（CARD-W4-5 (a)，X4 HIGH）。取不到 = 不可证，判违规。
+                violations.append(
+                    f"{rel}:{node.lineno}: {node.func.attr}(...) 取不到上下文管理器实参 ——"
+                    "既没有位置参，也没有 cm= 或任何具名关键字（例如只有 **kwargs 展开），"
+                    "无法证明送进去的不是 TestClient，按违规处理（fail-closed，人工复核）"
+                )
                 continue
-            target = node.args[0]
-            stmt = node
-            if isinstance(target, ast.Call) and index.is_testclient_call(target, stmt, scope):
+            if isinstance(target, ast.Call) and index.is_testclient_call(target, node, scope):
                 flag_client_construction(target, node, scope, how="（经 enter_context）")
             else:
                 _flag_instance_context(violations, index, rel, node, scope, target, node.func.attr)
@@ -1581,6 +2123,175 @@ _AST_MUST_FLAG: list[tuple[str, str]] = [
         "    with TestClient(app) as c:\n"
         "        pass\n",
     ),
+    # ══════════════════════════════════════════════════════════════════
+    # CARD-W4-5（第十二批）：X4 两轮终审列为未整改的 5 HIGH + 1 unknown 放行。
+    # 下面 13 条里有 12 条在改动前**实测 0 违规**（六组 before/after 见验收单），
+    # 也就是「今天就能写出来、会跑真实 lifespan、而门判它合规」的源码。
+    # 唯一的例外是最后一条 (e)-2，它改动前后都被抓（原因不同），留在这里是
+    # 作为 `验伪锚 e` 的配对反例——锁住 (e) 的放宽不许过头。
+    # ══════════════════════════════════════════════════════════════════
+    (
+        "(a)-1 enter_context(cm=TestClient(app))：关键字传参绕过位置参扫描",
+        "import contextlib\n"
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "def t():\n"
+        "    with contextlib.ExitStack() as stack:\n"
+        "        c = stack.enter_context(cm=TestClient(app))\n",
+    ),
+    (
+        "(a)-2 enter_context(**kw)：实参静态不可知必须 fail-closed，不是 continue",
+        "import contextlib\n"
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "def t(kw):\n"
+        "    with contextlib.ExitStack() as stack:\n"
+        "        c = stack.enter_context(**kw)\n",
+    ),
+    (
+        "(b)-1 with (client if flag else client)：IfExp 不是 Call，旧实现整支放行",
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "def t(flag):\n"
+        "    client = TestClient(app)\n"
+        "    with (client if flag else client):\n"
+        "        pass\n",
+    ),
+    (
+        "(b)-2 with (nullcontext() if flag else TestClient(app))：危险的是 orelse 支",
+        "import contextlib\n"
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "def t(flag):\n"
+        "    with (contextlib.nullcontext() if flag else TestClient(app)):\n"
+        "        pass\n",
+    ),
+    (
+        "(c)-1 enter_context(client := TestClient(app))：海象既不入绑定表也不是 Call",
+        "import contextlib\n"
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "def t():\n"
+        "    with contextlib.ExitStack() as s:\n"
+        "        s.enter_context(client := TestClient(app))\n",
+    ),
+    (
+        "(c)-2 with <不可证的形参>：模块内有 TestClient 可达性 ⇒ 不许静默放行",
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "def t(client):\n"
+        "    with client:\n"
+        "        pass\n",
+    ),
+    (
+        "(c)-3 with make(flag)：**有些** return 是 main 实例（all 口径漏掉的那一半）",
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "def make(flag, other):\n"
+        "    if flag:\n"
+        "        return TestClient(app)\n"
+        "    return other\n"
+        "def t(o):\n"
+        "    with make(True, o):\n"
+        "        pass\n",
+    ),
+    (
+        "(d)-1 tuple 解包出 TestClient 实例（模块 docstring 自认的阻断项 D）",
+        "from fastapi import FastAPI\n"
+        "from fastapi.testclient import TestClient\n"
+        "import app.main\n"
+        "def make():\n"
+        "    return FastAPI(), TestClient(app.main.app)\n"
+        "def t():\n"
+        "    _, c = make()\n"
+        "    with c:\n"
+        "        pass\n",
+    ),
+    (
+        "(d)-2 del 之后名字不再绑着那个局部 app",
+        "from fastapi import FastAPI\n"
+        "from fastapi.testclient import TestClient\n"
+        "def t():\n"
+        "    app = FastAPI()\n"
+        "    del app\n"
+        "    with TestClient(app) as c:\n"
+        "        pass\n",
+    ),
+    (
+        "(d)-3 match-case 的 capture 名遮蔽了外面那个可证的局部 app",
+        "from fastapi import FastAPI\n"
+        "from fastapi.testclient import TestClient\n"
+        "def t(x):\n"
+        "    app = FastAPI()\n"
+        "    match x:\n"
+        "        case [app]:\n"
+        "            with TestClient(app) as c:\n"
+        "                pass\n",
+    ),
+    (
+        "(f)-1 包装器体内重绑定了被隔离的形参（隔离盖的是重绑定之前那个对象）",
+        "import contextlib\n"
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "from tests.support.lifespan import no_lifespan\n"
+        "@contextlib.contextmanager\n"
+        "def isolated(a):\n"
+        "    with no_lifespan(a):\n"
+        "        a = app\n"
+        "        yield a\n"
+        "def t():\n"
+        "    with isolated(app), TestClient(app) as c:\n"
+        "        pass\n",
+    ),
+    (
+        "(f)-2 包装器 yield 出去的不是被隔离的那个对象",
+        "import contextlib\n"
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "from tests.support.lifespan import no_lifespan\n"
+        "@contextlib.contextmanager\n"
+        "def isolated(a, other):\n"
+        "    with no_lifespan(a):\n"
+        "        yield other\n"
+        "def t(o):\n"
+        "    with isolated(app, o), TestClient(app) as c:\n"
+        "        pass\n",
+    ),
+    (
+        "(f)-3 包装器同名重定义：合格版在前、不合格版在后（Python 用后者）",
+        "import contextlib\n"
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "from tests.support.lifespan import no_lifespan\n"
+        "@contextlib.contextmanager\n"
+        "def isolated(a):\n"
+        "    with no_lifespan(a):\n"
+        "        yield a\n"
+        "@contextlib.contextmanager\n"
+        "def isolated(a):\n"
+        "    yield a\n"
+        "def t():\n"
+        "    with isolated(app), TestClient(app) as c:\n"
+        "        pass\n",
+    ),
+    (
+        "(c)-4 容器取值 with clients[0]：追不动 ⇒ fail-closed，不再静默放行",
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "def t():\n"
+        "    clients = [TestClient(app)]\n"
+        "    with clients[0]:\n"
+        "        pass\n",
+    ),
+    (
+        "(e)-2 no_lifespan(m.other) 不覆盖 TestClient(m.app)（配对反例：放宽不许过头）",
+        "import app.main as m\n"
+        "from fastapi.testclient import TestClient\n"
+        "from tests.support.lifespan import no_lifespan\n"
+        "def t():\n"
+        "    with no_lifespan(m.other), TestClient(m.app) as c:\n"
+        "        pass\n",
+    ),
 ]
 
 _AST_MUST_PASS: list[tuple[str, str]] = [
@@ -1732,6 +2443,127 @@ _AST_MUST_PASS: list[tuple[str, str]] = [
         "        app, _ = self._make()\n"
         "        with TestClient(app, raise_server_exceptions=False) as c:\n"
         "            pass\n",
+    ),
+    # ══════════════════════════════════════════════════════════════════
+    # CARD-W4-5：(c) 的三分把「不可证」从静默放行改成 fail-closed 之后，四条
+    # **可证**的窄化各配一条正例。它们是这道门不至于变成噪声机器的全部依据 ——
+    # 一刀切 fail-closed 实测会让 385 个文件里的 196 个变红（1453 条），其中 194
+    # 个只是 `with pytest.raises(...)` / `with open(...)` 这类（2026-09-06 实测）。
+    # 删掉任何一条窄化，对应的这条正例立刻翻红。
+    # ══════════════════════════════════════════════════════════════════
+    (
+        "验伪锚 C1：async with lock（TestClient 没有 __aenter__，可证不是它）",
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "async def t(lock):\n"
+        "    async with lock:\n"
+        "        pass\n",
+    ),
+    (
+        "验伪锚 C2：with pytest.raises(...)（调用面 = 已声明的跨函数盲区）",
+        "import pytest\n"
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "def t():\n"
+        "    with pytest.raises(ValueError):\n"
+        "        pass\n",
+    ),
+    (
+        "验伪锚 C3：模块内零 TestClient 可达性时的 with self._lock",
+        "class C:\n    def m(self):\n        with self._lock:\n            pass\n",
+    ),
+    (
+        "验伪锚 C4：import 来的模块的属性（对象不由本模块构造）",
+        "import somemod as mod\n"
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "def t():\n"
+        "    with mod._refresh_guard:\n"
+        "        pass\n",
+    ),
+    (
+        "验伪锚 e：no_lifespan(m.app) 覆盖 TestClient(m.app)（属性链两侧同路径）",
+        "import app.main as m\n"
+        "from fastapi.testclient import TestClient\n"
+        "from tests.support.lifespan import no_lifespan\n"
+        "def t():\n"
+        "    with no_lifespan(m.app), TestClient(m.app) as c:\n"
+        "        pass\n",
+    ),
+    (
+        "验伪锚 a：enter_context(cm=<局部 app 的 TestClient>)（关键字面不许一律判违规）",
+        "import contextlib\n"
+        "from fastapi import FastAPI\n"
+        "from fastapi.testclient import TestClient\n"
+        "def t():\n"
+        "    a = FastAPI()\n"
+        "    with contextlib.ExitStack() as s:\n"
+        "        s.enter_context(cm=TestClient(a))\n",
+    ),
+    # ── NamedExpr 递归的承重锚（本卡归因变异实测补上）：反例 (c)-1 在没有这条
+    #    递归时**照样被抓**——被 (c) 三分的 fail-closed 兜住，只是理由从「它是
+    #    app.main 的 client」退化成「来源不可证」。也就是说那条反例证明不了这条
+    #    递归。真正只有这条递归能做到的是**不误报**：海象包着局部 app 时必须放行。
+    (
+        "验伪锚 c1：enter_context(c := TestClient(局部 app))（海象递归不许把合法写法判红）",
+        "import contextlib\n"
+        "from fastapi import FastAPI\n"
+        "from fastapi.testclient import TestClient\n"
+        "def t():\n"
+        "    a = FastAPI()\n"
+        "    with contextlib.ExitStack() as s:\n"
+        "        s.enter_context(c := TestClient(a))\n",
+    ),
+    (
+        "验伪锚 b：IfExp 两支都是局部 app 的 client（展开不许把合法写法判红）",
+        "from fastapi import FastAPI\n"
+        "from fastapi.testclient import TestClient\n"
+        "def t(flag):\n"
+        "    a = FastAPI()\n"
+        "    c1 = TestClient(a)\n"
+        "    c2 = TestClient(a)\n"
+        "    with (c1 if flag else c2):\n"
+        "        pass\n",
+    ),
+    (
+        "验伪锚 d：字面 tuple 解包逐位配对（n 是常量，不该被当成 app 来源）",
+        "from fastapi import FastAPI\n"
+        "from fastapi.testclient import TestClient\n"
+        "def t():\n"
+        "    app, n = FastAPI(), 1\n"
+        "    with TestClient(app) as c:\n"
+        "        pass\n",
+    ),
+    # ── (d) 的回归锚：转调工厂 + tuple + 解包。逐位表若只认「字面 tuple」，
+    #    `outer` 拿不到表 ⇒ 每元素 unknown ⇒ 这两条当场翻红。两个定义顺序都留，
+    #    因为「被调者在前」那条还额外锁住冻结知识（只清空不冻结时它会红）。
+    (
+        "验伪锚 d2：转调工厂返回 tuple 后解包，被调者定义在**后**",
+        "from fastapi import FastAPI\n"
+        "from fastapi.testclient import TestClient\n"
+        "def outer():\n"
+        "    return inner()\n"
+        "def inner():\n"
+        "    a = FastAPI()\n"
+        "    return a, 1\n"
+        "def t():\n"
+        "    app, n = outer()\n"
+        "    with TestClient(app) as c:\n"
+        "        pass\n",
+    ),
+    (
+        "验伪锚 d3：转调工厂返回 tuple 后解包，被调者定义在**前**（换顺序结论须相同）",
+        "from fastapi import FastAPI\n"
+        "from fastapi.testclient import TestClient\n"
+        "def inner():\n"
+        "    a = FastAPI()\n"
+        "    return a, 1\n"
+        "def outer():\n"
+        "    return inner()\n"
+        "def t():\n"
+        "    app, n = outer()\n"
+        "    with TestClient(app) as c:\n"
+        "        pass\n",
     ),
 ]
 
