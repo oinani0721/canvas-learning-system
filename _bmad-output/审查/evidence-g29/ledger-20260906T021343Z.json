@@ -1,0 +1,15 @@
+{
+  "total": 0,
+  "blocked": 0,
+  "advisory": 0,
+  "billed": 0,
+  "unaccounted": 0,
+  "unaccounted_records": [],
+  "reported_status": null,
+  "installed": true,
+  "blocked_ports": [
+    7687,
+    7691
+  ],
+  "exempt_disabled": false
+}
