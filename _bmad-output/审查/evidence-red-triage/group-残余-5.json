@@ -1,0 +1,100 @@
+[
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_context_injection.py::TestGraphitiSearchDelegation::test_search_calls_graphiti_service",
+  "identity": "AttributeError",
+  "test_line": "tests/unit/test_agent_context_injection.py:58",
+  "assert_text": "AttributeError: 'ContextEnrichmentService' object has no attribute '_search_graphiti_relations'. Did you mean: '_search_learning_relations'?"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_context_injection.py::TestGraphitiSearchDelegation::test_search_returns_empty_without_graphiti_service",
+  "identity": "AttributeError",
+  "test_line": "tests/unit/test_agent_context_injection.py:82",
+  "assert_text": "AttributeError: 'ContextEnrichmentService' object has no attribute '_search_graphiti_relations'. Did you mean: '_search_learning_relations'?"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_context_injection.py::TestRelevanceSorting::test_search_graceful_on_exception",
+  "identity": "AttributeError",
+  "test_line": "tests/unit/test_agent_context_injection.py:112",
+  "assert_text": "AttributeError: 'ContextEnrichmentService' object has no attribute '_search_graphiti_relations'. Did you mean: '_search_learning_relations'?"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_context_injection.py::TestRelevanceSorting::test_search_limits_to_top_5",
+  "identity": "AttributeError",
+  "test_line": "tests/unit/test_agent_context_injection.py:97",
+  "assert_text": "AttributeError: 'ContextEnrichmentService' object has no attribute '_search_graphiti_relations'. Did you mean: '_search_learning_relations'?"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_intelligent_parallel_endpoints.py::TestCancelEndpoint::test_cancel_nonexistent_session_404",
+  "identity": "assert",
+  "test_line": "tests/unit/test_intelligent_parallel_endpoints.py:479",
+  "assert_text": "assert 500 == 404"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_intelligent_parallel_endpoints.py::TestCancelEndpoint::test_cancel_running_session",
+  "identity": "assert",
+  "test_line": "tests/unit/test_intelligent_parallel_endpoints.py:458",
+  "assert_text": "assert 409 == 200"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_intelligent_parallel_endpoints.py::TestErrorResponses::test_404_error_format",
+  "identity": "assert",
+  "test_line": "tests/unit/test_intelligent_parallel_endpoints.py:581",
+  "assert_text": "assert 500 == 404"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_intelligent_parallel_endpoints.py::TestProgressEndpoint::test_progress_invalid_session_404",
+  "identity": "assert",
+  "test_line": "tests/unit/test_intelligent_parallel_endpoints.py:437",
+  "assert_text": "assert 500 == 404"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_event_bus.py::TestTier2Important::test_tier2_all_retries_exhausted_writes_outbox",
+  "identity": "assert",
+  "test_line": "tests/unit/test_event_bus.py:172",
+  "assert_text": "assert 0 >= 1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_event_bus.py::TestTier2Important::test_tier2_retry_then_success",
+  "identity": "assert",
+  "test_line": "tests/unit/test_event_bus.py:159",
+  "assert_text": "assert 0 >= 2"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_canvas_memory_trigger.py::TestAddEdgeMemoryTrigger::test_add_edge_triggers_memory_event",
+  "identity": "assert",
+  "test_line": "tests/unit/test_canvas_memory_trigger.py:268",
+  "assert_text": "AssertionError: assert 'node_created' == 'edge_created'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_mastery_fusion.py::TestPearsonCorrelation::test_no_correlation",
+  "identity": "assert",
+  "test_line": "tests/unit/test_mastery_fusion.py:320",
+  "assert_text": "assert 1.0 < 0.5"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_s02_entity_types.py::TestProcessEpisodeForwarding::test_forwards_entity_and_edge_types",
+  "identity": "assert",
+  "test_line": "tests/unit/test_s02_entity_types.py:262",
+  "assert_text": "AssertionError: assert 'math-group__semantic' == 'math-group'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_verification_service_injection.py::TestDependenciesInjection::test_get_verification_service_injects_graphiti_client",
+  "identity": "assert",
+  "test_line": "tests/unit/test_verification_service_injection.py:113",
+  "assert_text": "AssertionError: Expected 'get_graphiti_temporal_client' to have been called once. Called 0 times."
+ }
+]

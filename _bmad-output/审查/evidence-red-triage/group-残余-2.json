@@ -1,0 +1,107 @@
+[
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_service_neo4j_memory.py::TestAC2Neo4jQuery::test_cypher_query_structure",
+  "identity": "assert",
+  "test_line": "tests/unit/test_agent_service_neo4j_memory.py:195",
+  "assert_text": "AssertionError: assert 'MATCH (m:LearningMemory)' in '\\n        MATCH (m:EntityNode)\\n        WHERE m.group_id = $group_id\\n          AND (toLower(m.text) CONTA"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_service_neo4j_memory.py::TestAC3RelevanceSorting::test_cypher_query_has_order_by_relevance",
+  "identity": "assert",
+  "test_line": "tests/unit/test_agent_service_neo4j_memory.py:240",
+  "assert_text": "AssertionError: assert 'ORDER BY m.relevance DESC' in '\\n        MATCH (m:EntityNode)\\n        WHERE m.group_id = $group_id\\n          AND (toLower(m.text) CONT"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_service_neo4j_memory.py::TestEdgeCases::test_neo4j_query_error_returns_empty",
+  "identity": "其他(未定)",
+  "test_line": "tests/unit/test_agent_service_neo4j_memory.py:501",
+  "assert_text": "Exception: Neo4j connection failed"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_service_neo4j_memory.py::TestMemoryFormatting::test_format_memory_with_none_score",
+  "identity": "assert",
+  "test_line": "tests/unit/test_agent_service_neo4j_memory.py:457",
+  "assert_text": "AssertionError: assert 'N/A' in '## 历史学习记忆\\n- [2026-01-15]  未评分概念: '"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_service_neo4j_memory.py::TestMemoryFormatting::test_format_single_memory",
+  "identity": "assert",
+  "test_line": "tests/unit/test_agent_service_neo4j_memory.py:441",
+  "assert_text": "AssertionError: assert '85%' in '## 历史学习记忆\\n- [2026-01-15]  测试概念: '"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_rag_multimodal_integration.py::TestRRFMultimodalFusion::test_rrf_fusion_with_multimodal_results",
+  "identity": "ImportError",
+  "test_line": "tests/unit/test_rag_multimodal_integration.py:363",
+  "assert_text": "ImportError: cannot import name '_fuse_rrf_multi_source' from 'agentic_rag.nodes' (/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_rag_multimodal_integration.py::TestRRFMultimodalFusion::test_rrf_multimodal_score_contribution",
+  "identity": "ImportError",
+  "test_line": "tests/unit/test_rag_multimodal_integration.py:408",
+  "assert_text": "ImportError: cannot import name '_fuse_rrf_multi_source' from 'agentic_rag.nodes' (/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_rag_multimodal_integration.py::TestRRFMultimodalFusion::test_weighted_fusion_with_multimodal",
+  "identity": "ImportError",
+  "test_line": "tests/unit/test_rag_multimodal_integration.py:447",
+  "assert_text": "ImportError: cannot import name '_fuse_weighted_multi_source' from 'agentic_rag.nodes' (/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_rag_multimodal_integration.py::TestStateGraphMultimodalIntegration::test_fan_out_retrieval_includes_multimodal",
+  "identity": "其他(TypeError)",
+  "test_line": "tests/unit/test_rag_multimodal_integration.py:511",
+  "assert_text": "TypeError: object of type 'coroutine' has no len()"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_38_1_review_fixes.py::TestDoIndexCoverage::test_do_index_raises_file_not_found",
+  "identity": "其他(TypeError)",
+  "test_line": "tests/unit/test_story_38_1_review_fixes.py:122",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_38_1_review_fixes.py::TestDoIndexCoverage::test_do_index_reads_canvas_and_calls_index",
+  "identity": "其他(TypeError)",
+  "test_line": "tests/unit/test_story_38_1_review_fixes.py:83",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_difficulty_matcher.py::TestSlidingWindowStats::test_empty_window_stats",
+  "identity": "assert",
+  "test_line": "tests/unit/test_difficulty_matcher.py:113",
+  "assert_text": "assert False is True"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_neo4j_fulltext_index.py::TestEnsureFulltextIndex::test_ensure_fulltext_index_idempotent",
+  "identity": "assert",
+  "test_line": "tests/unit/test_neo4j_fulltext_index.py:129",
+  "assert_text": "AssertionError: Should execute CREATE FULLTEXT INDEX each time × 2 indexes (IF NOT EXISTS handles idempotency, Round-23 Patch 3 added node_search_unified)"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_1_7_env_config.py::TestDockerComposeVariableization::test_no_hardcoded_user_paths",
+  "identity": "assert",
+  "test_line": "tests/unit/test_story_1_7_env_config.py:54",
+  "assert_text": "AssertionError: Hardcoded user paths found: ['/Users/Heishing/', '/Users/Heishing/', '/Users/Heishing/']"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_websocket_endpoints.py::TestWebSocketEndpoint::test_validate_session_handles_validator_error",
+  "identity": "其他(未定)",
+  "test_line": "tests/unit/test_websocket_endpoints.py:533",
+  "assert_text": "Exception: Validator error"
+ }
+]

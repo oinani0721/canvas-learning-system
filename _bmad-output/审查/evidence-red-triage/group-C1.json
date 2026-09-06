@@ -1,0 +1,345 @@
+[
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_failure_observability.py::TestMemoryServiceDualWriteFailure::test_dual_write_exception_increments_counter",
+  "identity": "AttributeError",
+  "test_line": "tests/unit/test_failure_observability.py:312",
+  "assert_text": "AttributeError: 'MemoryService' object has no attribute '_write_to_graphiti_json'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_failure_observability.py::TestMemoryServiceDualWriteFailure::test_dual_write_retry_failure_writes_dead_letter",
+  "identity": "AttributeError",
+  "test_line": "tests/unit/test_failure_observability.py:340",
+  "assert_text": "AttributeError: <module 'app.services.memory_service' from '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y6-testhygiene/backend/"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_failure_observability.py::TestMemoryServiceDualWriteFailure::test_dual_write_timeout_increments_counter",
+  "identity": "AttributeError",
+  "test_line": "tests/unit/test_failure_observability.py:287",
+  "assert_text": "AttributeError: 'MemoryService' object has no attribute '_write_to_graphiti_json'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_graphiti_json_dual_write.py::TestGraphitiJsonDualWrite::test_config_flag_enables_dual_write",
+  "identity": "其他(TimeoutError)",
+  "test_line": "tests/conftest.py:242",
+  "assert_text": "TimeoutError: <AsyncMock name='mock.add_learning_episode' id='5511406528'> not called 1 time(s) within 2.0s (actual: 0)"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_graphiti_json_dual_write.py::TestGraphitiJsonDualWrite::test_dual_write_called_after_neo4j_success",
+  "identity": "AttributeError",
+  "test_line": "tests/unit/test_graphiti_json_dual_write.py:82",
+  "assert_text": "AttributeError: <app.services.memory_service.MemoryService object at 0x148240a50> does not have the attribute '_write_to_graphiti_json_with_retry'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_graphiti_json_dual_write.py::TestGraphitiJsonDualWrite::test_json_write_failure_doesnt_affect_main_flow",
+  "identity": "其他(TimeoutError)",
+  "test_line": "tests/conftest.py:242",
+  "assert_text": "TimeoutError: <AsyncMock name='mock.add_learning_episode' id='5511974592'> not called 1 time(s) within 2.0s (actual: 0)"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_graphiti_json_dual_write.py::TestGraphitiJsonDualWrite::test_learning_memory_dataclass_creation",
+  "identity": "其他(TimeoutError)",
+  "test_line": "tests/conftest.py:284",
+  "assert_text": "TimeoutError: captured_memory set by fire-and-forget task not met within 2.0s"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_graphiti_json_dual_write.py::TestGraphitiJsonDualWrite::test_record_temporal_event_dual_write",
+  "identity": "其他(TimeoutError)",
+  "test_line": "tests/conftest.py:242",
+  "assert_text": "TimeoutError: <AsyncMock name='mock.add_learning_episode' id='5512783120'> not called 1 time(s) within 2.0s (actual: 0)"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_graphiti_json_dual_write.py::TestGraphitiJsonDualWrite::test_write_to_graphiti_json_failure_logging",
+  "identity": "AttributeError",
+  "test_line": "tests/unit/test_graphiti_json_dual_write.py:378",
+  "assert_text": "AttributeError: 'MemoryService' object has no attribute '_write_to_graphiti_json'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_graphiti_json_dual_write.py::TestGraphitiJsonDualWrite::test_write_to_graphiti_json_success_logging",
+  "identity": "AttributeError",
+  "test_line": "tests/unit/test_graphiti_json_dual_write.py:311",
+  "assert_text": "AttributeError: 'MemoryService' object has no attribute '_write_to_graphiti_json'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_graphiti_json_dual_write.py::TestGraphitiJsonDualWrite::test_write_to_graphiti_json_timeout_logging",
+  "identity": "AttributeError",
+  "test_line": "tests/unit/test_graphiti_json_dual_write.py:348",
+  "assert_text": "AttributeError: 'MemoryService' object has no attribute '_write_to_graphiti_json'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_memory_service_write_retry.py::TestWriteRetryStrictQA::test_exception_failure_warning_includes_error_message",
+  "identity": "AttributeError",
+  "test_line": "tests/unit/test_memory_service_write_retry.py:422",
+  "assert_text": "AttributeError: 'MemoryService' object has no attribute '_write_to_graphiti_json_with_retry'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_memory_service_write_retry.py::TestWriteRetryStrictQA::test_exponential_backoff_all_failures",
+  "identity": "AttributeError",
+  "test_line": "tests/unit/test_memory_service_write_retry.py:372",
+  "assert_text": "AttributeError: 'MemoryService' object has no attribute '_write_to_graphiti_json_with_retry'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_memory_service_write_retry.py::TestWriteRetryStrictQA::test_exponential_backoff_delays",
+  "identity": "AttributeError",
+  "test_line": "tests/unit/test_memory_service_write_retry.py:344",
+  "assert_text": "AttributeError: 'MemoryService' object has no attribute '_write_to_graphiti_json_with_retry'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_memory_service_write_retry.py::TestWriteRetryStrictQA::test_mixed_timeout_then_exception_then_success",
+  "identity": "AttributeError",
+  "test_line": "tests/unit/test_memory_service_write_retry.py:399",
+  "assert_text": "AttributeError: 'MemoryService' object has no attribute '_write_to_graphiti_json_with_retry'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_memory_service_write_retry.py::TestWriteRetryStrictQA::test_record_temporal_event_uses_retry_method",
+  "identity": "AttributeError",
+  "test_line": "tests/unit/test_memory_service_write_retry.py:471",
+  "assert_text": "AttributeError: <app.services.memory_service.MemoryService object at 0x1469a9350> does not have the attribute '_write_to_graphiti_json_with_retry'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_memory_service_write_retry.py::TestWriteRetryStrictQA::test_retry_creates_new_timestamp_each_attempt",
+  "identity": "AttributeError",
+  "test_line": "tests/unit/test_memory_service_write_retry.py:518",
+  "assert_text": "AttributeError: 'MemoryService' object has no attribute '_write_to_graphiti_json_with_retry'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_memory_service_write_retry.py::TestWriteRetryStrictQA::test_timeout_failure_warning_includes_timeout_suffix",
+  "identity": "AttributeError",
+  "test_line": "tests/unit/test_memory_service_write_retry.py:451",
+  "assert_text": "AttributeError: 'MemoryService' object has no attribute '_write_to_graphiti_json_with_retry'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_memory_service_write_retry.py::TestWriteToGraphitiJsonWithRetry::test_all_retries_failed_warning_logging",
+  "identity": "AttributeError",
+  "test_line": "tests/unit/test_memory_service_write_retry.py:236",
+  "assert_text": "AttributeError: 'MemoryService' object has no attribute '_write_to_graphiti_json_with_retry'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_memory_service_write_retry.py::TestWriteToGraphitiJsonWithRetry::test_exception_triggers_retry",
+  "identity": "AttributeError",
+  "test_line": "tests/unit/test_memory_service_write_retry.py:164",
+  "assert_text": "AttributeError: 'MemoryService' object has no attribute '_write_to_graphiti_json_with_retry'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_memory_service_write_retry.py::TestWriteToGraphitiJsonWithRetry::test_first_success_debug_logging",
+  "identity": "AttributeError",
+  "test_line": "tests/unit/test_memory_service_write_retry.py:259",
+  "assert_text": "AttributeError: 'MemoryService' object has no attribute '_write_to_graphiti_json_with_retry'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_memory_service_write_retry.py::TestWriteToGraphitiJsonWithRetry::test_retry_success_logging",
+  "identity": "AttributeError",
+  "test_line": "tests/unit/test_memory_service_write_retry.py:208",
+  "assert_text": "AttributeError: 'MemoryService' object has no attribute '_write_to_graphiti_json_with_retry'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_memory_service_write_retry.py::TestWriteToGraphitiJsonWithRetry::test_with_all_optional_params",
+  "identity": "AttributeError",
+  "test_line": "tests/unit/test_memory_service_write_retry.py:281",
+  "assert_text": "AttributeError: 'MemoryService' object has no attribute '_write_to_graphiti_json_with_retry'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_memory_service_write_retry.py::TestWriteToGraphitiJsonWithRetry::test_write_fails_after_all_retries_exception",
+  "identity": "AttributeError",
+  "test_line": "tests/unit/test_memory_service_write_retry.py:185",
+  "assert_text": "AttributeError: 'MemoryService' object has no attribute '_write_to_graphiti_json_with_retry'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_memory_service_write_retry.py::TestWriteToGraphitiJsonWithRetry::test_write_fails_after_all_retries_timeout",
+  "identity": "AttributeError",
+  "test_line": "tests/unit/test_memory_service_write_retry.py:141",
+  "assert_text": "AttributeError: 'MemoryService' object has no attribute '_write_to_graphiti_json_with_retry'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_memory_service_write_retry.py::TestWriteToGraphitiJsonWithRetry::test_write_succeeds_after_one_retry",
+  "identity": "AttributeError",
+  "test_line": "tests/unit/test_memory_service_write_retry.py:97",
+  "assert_text": "AttributeError: 'MemoryService' object has no attribute '_write_to_graphiti_json_with_retry'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_memory_service_write_retry.py::TestWriteToGraphitiJsonWithRetry::test_write_succeeds_after_two_retries",
+  "identity": "AttributeError",
+  "test_line": "tests/unit/test_memory_service_write_retry.py:119",
+  "assert_text": "AttributeError: 'MemoryService' object has no attribute '_write_to_graphiti_json_with_retry'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_memory_service_write_retry.py::TestWriteToGraphitiJsonWithRetry::test_write_succeeds_first_attempt",
+  "identity": "AttributeError",
+  "test_line": "tests/unit/test_memory_service_write_retry.py:75",
+  "assert_text": "AttributeError: 'MemoryService' object has no attribute '_write_to_graphiti_json_with_retry'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_memory_service_write_retry.py::TestWriteToGraphitiJsonWithRetry::test_zero_retries_single_attempt",
+  "identity": "AttributeError",
+  "test_line": "tests/unit/test_memory_service_write_retry.py:316",
+  "assert_text": "AttributeError: 'MemoryService' object has no attribute '_write_to_graphiti_json_with_retry'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_qa_38_4_dual_write_extra.py::TestQAGetAttrDefenseInDepth::test_memory_service_getattr_fallback_is_false",
+  "identity": "assert",
+  "test_line": "tests/unit/test_qa_38_4_dual_write_extra.py:63",
+  "assert_text": "AssertionError: assert False is True"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestFullCycleIntegration::test_full_cycle_fail_record_recover_merge",
+  "identity": "assert",
+  "test_line": "tests/unit/test_qa_38_6_scoring_reliability_extra.py:364",
+  "assert_text": "assert 0 == 1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestFullCycleIntegration::test_full_cycle_recovery_fails_then_merge",
+  "identity": "assert",
+  "test_line": "tests/unit/test_qa_38_6_scoring_reliability_extra.py:417",
+  "assert_text": "assert 0 == 1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestMergedViewEdgeCases::test_merged_view_sort_newest_first",
+  "identity": "assert",
+  "test_line": "tests/unit/test_qa_38_6_scoring_reliability_extra.py:295",
+  "assert_text": "AssertionError: assert 1 == 3"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestStartupIntegration::test_fallback_sync_called_in_lifespan",
+  "identity": "assert",
+  "test_line": "tests/unit/test_qa_38_6_scoring_reliability_extra.py:443",
+  "assert_text": "assert 'sync_all_fallbacks' in '# Canvas Learning System - FastAPI Application Entry Point\\n# ✅ Verified from Context7:/websites/fastapi_tiangolo (to...    \"doc"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestStartupIntegration::test_main_imports_fallback_sync",
+  "identity": "assert",
+  "test_line": "tests/unit/test_qa_38_6_scoring_reliability_extra.py:436",
+  "assert_text": "assert 'get_fallback_sync_service' in '# Canvas Learning System - FastAPI Application Entry Point\\n# ✅ Verified from Context7:/websites/fastapi_tiangolo (to... "
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_38_4_dual_write_default.py::TestAC1SafeDefault::test_lowercase_alias_returns_true_by_default",
+  "identity": "assert",
+  "test_line": "tests/unit/test_story_38_4_dual_write_default.py:57",
+  "assert_text": "AssertionError: Lowercase property alias should return True by default"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_38_4_dual_write_default.py::TestAC1SafeDefault::test_settings_field_default_is_true",
+  "identity": "assert",
+  "test_line": "tests/unit/test_story_38_4_dual_write_default.py:39",
+  "assert_text": "AssertionError: Expected default=True for safe default, got default=False. Story 38.4 Task 1.1: Change default=False -> default=True in config.py"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_38_4_dual_write_default.py::TestAC1SafeDefault::test_startup_log_dual_write_enabled_default",
+  "identity": "AttributeError",
+  "test_line": "tests/unit/test_story_38_4_dual_write_default.py:86",
+  "assert_text": "AttributeError: <module 'app.main' from '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y6-testhygiene/backend/app/main.py'> does "
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_38_4_dual_write_default.py::TestAC2ExplicitDisable::test_startup_log_dual_write_disabled_explicit",
+  "identity": "AttributeError",
+  "test_line": "tests/unit/test_story_38_4_dual_write_default.py:153",
+  "assert_text": "AttributeError: <module 'app.main' from '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y6-testhygiene/backend/app/main.py'> does "
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_38_4_dual_write_default.py::TestAC2ExplicitDisable::test_warning_log_data_loss_risk_when_disabled",
+  "identity": "AttributeError",
+  "test_line": "tests/unit/test_story_38_4_dual_write_default.py:201",
+  "assert_text": "AttributeError: <module 'app.main' from '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y6-testhygiene/backend/app/main.py'> does "
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_38_4_dual_write_default.py::TestAC3MissingEnvVar::test_missing_env_var_defaults_to_true",
+  "identity": "assert",
+  "test_line": "tests/unit/test_story_38_4_dual_write_default.py:254",
+  "assert_text": "AssertionError: Expected True when env var missing, got False. Story 38.4 AC-3: Missing env var should default to True (safe default)"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_38_6_scoring_reliability.py::TestAC1TimeoutRetryAlignment::test_backoff_progression",
+  "identity": "assert",
+  "test_line": "tests/unit/test_story_38_6_scoring_reliability.py:65",
+  "assert_text": "AssertionError: Attempt 0: expected 1.0s, got 0.1s"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_38_6_scoring_reliability.py::TestAC1TimeoutRetryAlignment::test_inner_per_attempt_timeout_increased",
+  "identity": "assert",
+  "test_line": "tests/unit/test_story_38_6_scoring_reliability.py:39",
+  "assert_text": "assert 0.5 >= 2.0"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_38_6_scoring_reliability.py::TestAC1TimeoutRetryAlignment::test_retry_backoff_base_is_1_second",
+  "identity": "assert",
+  "test_line": "tests/unit/test_story_38_6_scoring_reliability.py:43",
+  "assert_text": "assert 0.1 == 1.0"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_38_6_scoring_reliability.py::TestAC3StartupRecovery::test_recover_malformed_entries_preserved",
+  "identity": "assert",
+  "test_line": "tests/unit/test_story_38_6_scoring_reliability.py:257",
+  "assert_text": "assert 0 == 1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_38_6_scoring_reliability.py::TestAC3StartupRecovery::test_recover_partial_failure",
+  "identity": "assert",
+  "test_line": "tests/unit/test_story_38_6_scoring_reliability.py:225",
+  "assert_text": "assert 0 == 1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_38_6_scoring_reliability.py::TestAC3StartupRecovery::test_recover_successful_replay",
+  "identity": "assert",
+  "test_line": "tests/unit/test_story_38_6_scoring_reliability.py:178",
+  "assert_text": "assert 0 == 1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_38_6_scoring_reliability.py::TestAC4MergedView::test_get_learning_history_merges_failed_scores",
+  "identity": "assert",
+  "test_line": "tests/unit/test_story_38_6_scoring_reliability.py:343",
+  "assert_text": "assert 1 == 2"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_38_8_fallback_sync.py::TestAC5FileRotation::test_pending_entries_rewritten",
+  "identity": "其他(未定)",
+  "test_line": "tests/unit/test_story_38_8_fallback_sync.py:856",
+  "assert_text": "Exception: Neo4j connection lost"
+ }
+]

@@ -1,0 +1,1484 @@
+[
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_agent_service_extraction.py::TestDebugAgentResponseLogging::test_extract_with_debug_logging_enabled",
+  "file": "tests/unit/test_agent_service_extraction.py",
+  "cat": "B"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_agent_service_extraction.py::TestDebugAgentResponseLogging::test_extract_without_debug_logging",
+  "file": "tests/unit/test_agent_service_extraction.py",
+  "cat": "B"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_color_removed_event_type",
+  "file": "tests/unit/test_memory_service_batch.py",
+  "cat": "B"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_concept_fallback_to_node_text",
+  "file": "tests/unit/test_memory_service_batch.py",
+  "cat": "B"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_concept_fallback_to_unknown",
+  "file": "tests/unit/test_memory_service_batch.py",
+  "cat": "B"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_concept_field_used_when_present",
+  "file": "tests/unit/test_memory_service_batch.py",
+  "cat": "B"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_neo4j_disconnected_still_stores_in_memory",
+  "file": "tests/unit/test_memory_service_batch.py",
+  "cat": "B"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_node_removed_event_type",
+  "file": "tests/unit/test_memory_service_batch.py",
+  "cat": "B"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_10_idempotency.py::TestBatchEpisodesDedup::test_batch_deterministic_ids",
+  "file": "tests/unit/test_story_30_10_idempotency.py",
+  "cat": "B"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_10_idempotency.py::TestBatchEpisodesDedup::test_batch_duplicate_submission_dedup",
+  "file": "tests/unit/test_story_30_10_idempotency.py",
+  "cat": "B"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_10_idempotency.py::TestEpisodesDedup::test_different_events_both_stored",
+  "file": "tests/unit/test_story_30_10_idempotency.py",
+  "cat": "B"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_10_idempotency.py::TestEpisodesDedup::test_duplicate_event_single_episode",
+  "file": "tests/unit/test_story_30_10_idempotency.py",
+  "cat": "B"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_10_idempotency.py::TestEpisodesDedup::test_skip_existing_episode_on_dup",
+  "file": "tests/unit/test_story_30_10_idempotency.py",
+  "cat": "B"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_10_idempotency.py::TestGraphitiJsonWriteDedup::test_degrades_gracefully_on_search_error",
+  "file": "tests/unit/test_story_30_10_idempotency.py",
+  "cat": "B"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_10_idempotency.py::TestGraphitiJsonWriteDedup::test_degrades_when_learning_memory_uninitialized",
+  "file": "tests/unit/test_story_30_10_idempotency.py",
+  "cat": "B"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_10_idempotency.py::TestGraphitiJsonWriteDedup::test_skips_write_when_exists",
+  "file": "tests/unit/test_story_30_10_idempotency.py",
+  "cat": "B"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_10_idempotency.py::TestGraphitiJsonWriteDedup::test_writes_when_not_exists",
+  "file": "tests/unit/test_story_30_10_idempotency.py",
+  "cat": "B"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_11_batch_parallel.py::TestBatchIdempotencyCompat::test_duplicate_batch_no_duplicates",
+  "file": "tests/unit/test_story_30_11_batch_parallel.py",
+  "cat": "B"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_11_batch_parallel.py::TestBatchNeo4jDegradation::test_neo4j_unavailable_still_processes_to_memory",
+  "file": "tests/unit/test_story_30_11_batch_parallel.py",
+  "cat": "B"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_11_batch_parallel.py::TestBatchParallelExecution::test_50_events_all_processed",
+  "file": "tests/unit/test_story_30_11_batch_parallel.py",
+  "cat": "B"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_11_batch_parallel.py::TestBatchParallelExecution::test_neo4j_called_for_each_event",
+  "file": "tests/unit/test_story_30_11_batch_parallel.py",
+  "cat": "B"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_11_batch_parallel.py::TestBatchParallelExecution::test_parallel_faster_than_sequential",
+  "file": "tests/unit/test_story_30_11_batch_parallel.py",
+  "cat": "B"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_11_batch_parallel.py::TestBatchParallelExecution::test_performance_stats_recorded",
+  "file": "tests/unit/test_story_30_11_batch_parallel.py",
+  "cat": "B"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_11_batch_parallel.py::TestBatchPartialFailure::test_episode_ids_only_for_successful",
+  "file": "tests/unit/test_story_30_11_batch_parallel.py",
+  "cat": "B"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_11_batch_parallel.py::TestBatchPartialFailure::test_neo4j_failure_does_not_block_processing",
+  "file": "tests/unit/test_story_30_11_batch_parallel.py",
+  "cat": "B"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_11_batch_parallel.py::TestBatchPartialFailure::test_validation_failure_isolated",
+  "file": "tests/unit/test_story_30_11_batch_parallel.py",
+  "cat": "B"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_11_batch_parallel.py::TestBatchSemaphore::test_concurrency_limited_by_semaphore",
+  "file": "tests/unit/test_story_30_11_batch_parallel.py",
+  "cat": "B"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_13_batch_idempotency.py::TestBatchIdempotency::test_different_events_not_deduplicated",
+  "file": "tests/unit/test_story_30_13_batch_idempotency.py",
+  "cat": "B"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_13_batch_idempotency.py::TestBatchIdempotency::test_duplicate_event_detection",
+  "file": "tests/unit/test_story_30_13_batch_idempotency.py",
+  "cat": "B"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_13_batch_idempotency.py::TestBatchIdempotency::test_idempotent_writes_across_retries",
+  "file": "tests/unit/test_story_30_13_batch_idempotency.py",
+  "cat": "B"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_13_batch_idempotency.py::TestBatchIdempotency::test_large_batch_idempotency",
+  "file": "tests/unit/test_story_30_13_batch_idempotency.py",
+  "cat": "B"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_event_ordering_preserved",
+  "file": "tests/unit/test_story_30_13_batch_idempotency.py",
+  "cat": "B"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_neo4j_unavailable_fallback",
+  "file": "tests/unit/test_story_30_13_batch_idempotency.py",
+  "cat": "B"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_partial_failure_recovery",
+  "file": "tests/unit/test_story_30_13_batch_idempotency.py",
+  "cat": "B"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPerformance::test_batch_1000_events_completion",
+  "file": "tests/unit/test_story_30_13_batch_idempotency.py",
+  "cat": "B"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPerformance::test_batch_50_events_under_500ms",
+  "file": "tests/unit/test_story_30_13_batch_idempotency.py",
+  "cat": "B"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPerformance::test_batch_memory_metrics",
+  "file": "tests/unit/test_story_30_13_batch_idempotency.py",
+  "cat": "B"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPerformance::test_concurrent_batch_requests",
+  "file": "tests/unit/test_story_30_13_batch_idempotency.py",
+  "cat": "B"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/grouping/test_analyze_canvas.py::TestSubjectIsolation::test_group_id_extraction_chinese",
+  "file": "tests/unit/grouping/test_analyze_canvas.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/grouping/test_analyze_canvas.py::TestSubjectIsolation::test_group_id_with_skip_directories",
+  "file": "tests/unit/grouping/test_analyze_canvas.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_context_injection.py::TestGraphitiSearchDelegation::test_search_calls_graphiti_service",
+  "file": "tests/unit/test_agent_context_injection.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_context_injection.py::TestGraphitiSearchDelegation::test_search_returns_empty_without_graphiti_service",
+  "file": "tests/unit/test_agent_context_injection.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_context_injection.py::TestRelevanceSorting::test_search_graceful_on_exception",
+  "file": "tests/unit/test_agent_context_injection.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_context_injection.py::TestRelevanceSorting::test_search_limits_to_top_5",
+  "file": "tests/unit/test_agent_context_injection.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_memory_injection.py::TestMemoryInjection::test_graceful_degradation_on_exception",
+  "file": "tests/unit/test_agent_memory_injection.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_memory_trigger.py::TestAgentMemoryMapping::test_all_14_agents_are_mapped",
+  "file": "tests/unit/test_agent_memory_trigger.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_service_comparison.py::TestCallExplanationComparisonFormat::test_clarification_agent_receives_concept_string",
+  "file": "tests/unit/test_agent_service_comparison.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_service_comparison.py::TestCallExplanationComparisonFormat::test_comparison_table_receives_concepts_array",
+  "file": "tests/unit/test_agent_service_comparison.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_service_comparison.py::TestCallExplanationComparisonFormat::test_example_agent_receives_concept_string",
+  "file": "tests/unit/test_agent_service_comparison.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_service_comparison.py::TestCallExplanationComparisonFormat::test_four_level_agent_receives_concept_string",
+  "file": "tests/unit/test_agent_service_comparison.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_service_comparison.py::TestCallExplanationComparisonFormat::test_memory_agent_receives_concept_string",
+  "file": "tests/unit/test_agent_service_comparison.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_service_comparison.py::TestCallExplanationComparisonFormat::test_oral_agent_receives_concept_string",
+  "file": "tests/unit/test_agent_service_comparison.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_service_extraction.py::TestDebugAgentResponseLogging::test_config_has_debug_agent_response_field",
+  "file": "tests/unit/test_agent_service_extraction.py",
+  "cat": "B"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_service_neo4j_memory.py::TestAC2Neo4jQuery::test_cypher_query_structure",
+  "file": "tests/unit/test_agent_service_neo4j_memory.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_service_neo4j_memory.py::TestAC3RelevanceSorting::test_cypher_query_has_order_by_relevance",
+  "file": "tests/unit/test_agent_service_neo4j_memory.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_service_neo4j_memory.py::TestEdgeCases::test_neo4j_query_error_returns_empty",
+  "file": "tests/unit/test_agent_service_neo4j_memory.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_service_neo4j_memory.py::TestMemoryFormatting::test_format_memory_with_none_score",
+  "file": "tests/unit/test_agent_service_neo4j_memory.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_service_neo4j_memory.py::TestMemoryFormatting::test_format_single_memory",
+  "file": "tests/unit/test_agent_service_neo4j_memory.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[canvas-orchestrator.md]",
+  "file": "tests/unit/test_agent_templates_smoke.py",
+  "cat": "E"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[graphiti-memory-agent.md]",
+  "file": "tests/unit/test_agent_templates_smoke.py",
+  "cat": "E"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[hint-generation.md]",
+  "file": "tests/unit/test_agent_templates_smoke.py",
+  "cat": "E"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[iteration-validator.md]",
+  "file": "tests/unit/test_agent_templates_smoke.py",
+  "cat": "E"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[parallel-dev-orchestrator.md]",
+  "file": "tests/unit/test_agent_templates_smoke.py",
+  "cat": "E"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[planning-orchestrator.md]",
+  "file": "tests/unit/test_agent_templates_smoke.py",
+  "cat": "E"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[review-board-agent-selector.md]",
+  "file": "tests/unit/test_agent_templates_smoke.py",
+  "cat": "E"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_hint_generation_template_exists",
+  "file": "tests/unit/test_agent_templates_smoke.py",
+  "cat": "E"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_minimum_template_count",
+  "file": "tests/unit/test_agent_templates_smoke.py",
+  "cat": "E"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_cache_configuration.py::TestDefaultValuesBackwardCompatible::test_enrichment_extreme_maxsize_1",
+  "file": "tests/unit/test_cache_configuration.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_cache_configuration.py::TestDIPathPropagation::test_enrichment_service_di_passes_cache_config",
+  "file": "tests/unit/test_cache_configuration.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_cache_configuration.py::TestEnrichmentCacheFromSettings::test_cache_default_maxsize",
+  "file": "tests/unit/test_cache_configuration.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_cache_configuration.py::TestEnrichmentCacheFromSettings::test_cache_uses_custom_maxsize",
+  "file": "tests/unit/test_cache_configuration.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_cache_configuration.py::TestMemoryRetryDelayFromSettings::test_retry_delay_reads_settings",
+  "file": "tests/unit/test_cache_configuration.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_calibration_tracker.py::TestCalibrationRating::test_over_confident_boundary",
+  "file": "tests/unit/test_calibration_tracker.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_calibration_tracker.py::TestCalibrationRating::test_under_confident_boundary",
+  "file": "tests/unit/test_calibration_tracker.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_canvas_memory_trigger.py::TestAddEdgeMemoryTrigger::test_add_edge_triggers_memory_event",
+  "file": "tests/unit/test_canvas_memory_trigger.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_chat_endpoint.py::test_enrich_context_accepts_user_question_and_mode_answer",
+  "file": "tests/unit/test_chat_endpoint.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_chat_endpoint.py::test_enrich_context_answer_mode_uses_lazy_init_path",
+  "file": "tests/unit/test_chat_endpoint.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_chat_endpoint.py::test_enrich_context_assembler_budget_field",
+  "file": "tests/unit/test_chat_endpoint.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_chat_endpoint.py::test_enrich_context_default_frontmatter",
+  "file": "tests/unit/test_chat_endpoint.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_chat_endpoint.py::test_enrich_context_degraded_appends_notice",
+  "file": "tests/unit/test_chat_endpoint.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_chat_endpoint.py::test_enrich_context_empty_node_path_rejected",
+  "file": "tests/unit/test_chat_endpoint.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_chat_endpoint.py::test_enrich_context_happy_path",
+  "file": "tests/unit/test_chat_endpoint.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_chat_endpoint.py::test_enrich_context_max_hops_validation",
+  "file": "tests/unit/test_chat_endpoint.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_chat_endpoint.py::test_enrich_context_preload_mode_skips_supplementary",
+  "file": "tests/unit/test_chat_endpoint.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_chat_endpoint.py::test_enrich_context_rejects_invalid_mode",
+  "file": "tests/unit/test_chat_endpoint.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_chat_endpoint.py::test_enrich_context_response_includes_elapsed_ms",
+  "file": "tests/unit/test_chat_endpoint.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_chat_endpoint.py::test_enrich_context_returns_retrieval_trace",
+  "file": "tests/unit/test_chat_endpoint.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_chat_endpoint.py::test_enrich_context_trace_includes_degradation_when_graph_unbuilt",
+  "file": "tests/unit/test_chat_endpoint.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_chat_endpoint.py::test_rag_enrich_hook_lazy_init_returns_none_injects_degraded_marker",
+  "file": "tests/unit/test_chat_endpoint.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_chat_endpoint.py::test_rag_enrich_hook_short_prompt_skips_lazy_init",
+  "file": "tests/unit/test_chat_endpoint.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_chat_endpoint.py::test_rag_enrich_hook_uses_lazy_init",
+  "file": "tests/unit/test_chat_endpoint.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_config_neo4j.py::TestNeo4jSettingsDefaults::test_neo4j_database_default",
+  "file": "tests/unit/test_config_neo4j.py",
+  "cat": "C2"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_config_neo4j.py::TestNeo4jSettingsDefaults::test_neo4j_enabled_default_true",
+  "file": "tests/unit/test_config_neo4j.py",
+  "cat": "C2"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_config_neo4j.py::TestNeo4jSettingsDefaults::test_neo4j_password_empty_default",
+  "file": "tests/unit/test_config_neo4j.py",
+  "cat": "C2"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_config_neo4j.py::TestNeo4jSettingsDefaults::test_neo4j_uri_default",
+  "file": "tests/unit/test_config_neo4j.py",
+  "cat": "C2"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_config_neo4j.py::TestNeo4jSettingsDefaults::test_neo4j_user_default",
+  "file": "tests/unit/test_config_neo4j.py",
+  "cat": "C2"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_config_neo4j.py::TestNeo4jSettingsFromEnv::test_neo4j_enabled_case_insensitive",
+  "file": "tests/unit/test_config_neo4j.py",
+  "cat": "C2"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_config_neo4j.py::TestNeo4jSettingsFromEnv::test_neo4j_enabled_false_from_env",
+  "file": "tests/unit/test_config_neo4j.py",
+  "cat": "C2"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_config_neo4j.py::TestNeo4jSettingsFromEnv::test_neo4j_settings_from_env",
+  "file": "tests/unit/test_config_neo4j.py",
+  "cat": "C2"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_config_neo4j.py::TestNeo4jSettingsFromEnv::test_neo4j_uri_with_different_port",
+  "file": "tests/unit/test_config_neo4j.py",
+  "cat": "C2"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_context_enrichment_2hop.py::TestEnrichWithAdjacentNodes2Hop::test_enrich_with_2hop_adjacent_nodes",
+  "file": "tests/unit/test_context_enrichment_2hop.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_context_enrichment_2hop.py::TestEnrichWithAdjacentNodes2Hop::test_enriched_context_contains_2hop_labels",
+  "file": "tests/unit/test_context_enrichment_2hop.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_degraded_flag_propagation.py::TestDegradedResponseFormat::test_degraded_score_is_reasonable",
+  "file": "tests/unit/test_degraded_flag_propagation.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_difficulty_canvas_integration.py::TestAIQuestionDifficultyInjection::test_difficulty_context_in_prompt",
+  "file": "tests/unit/test_difficulty_canvas_integration.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_difficulty_canvas_integration.py::TestAIQuestionDifficultyInjection::test_no_difficulty_map_no_extra_fields",
+  "file": "tests/unit/test_difficulty_canvas_integration.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_difficulty_canvas_integration.py::TestGetDifficultyData::test_memory_service_unavailable_returns_none",
+  "file": "tests/unit/test_difficulty_canvas_integration.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_difficulty_matcher.py::TestSlidingWindowStats::test_empty_window_stats",
+  "file": "tests/unit/test_difficulty_matcher.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_enrich_context_vault_isolation.py::test_chinese_vault_id_not_collapsed_to_default",
+  "file": "tests/unit/test_enrich_context_vault_isolation.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_enrich_context_vault_isolation.py::test_subject_id_optional_backward_compat",
+  "file": "tests/unit/test_enrich_context_vault_isolation.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_emoji_stripped",
+  "file": "tests/unit/test_enrich_context_vault_isolation.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_empty_string_rejected_422",
+  "file": "tests/unit/test_enrich_context_vault_isolation.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_missing_rejected_422",
+  "file": "tests/unit/test_enrich_context_vault_isolation.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_provided_triggers_context_var_injection",
+  "file": "tests/unit/test_enrich_context_vault_isolation.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_with_special_chars_sanitized",
+  "file": "tests/unit/test_enrich_context_vault_isolation.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_epic30_memory_pipeline.py::TestRecordTemporalEventLifecycle::test_p0_neo4j_write_failure_degrades_silently",
+  "file": "tests/unit/test_epic30_memory_pipeline.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_epic36_gap_coverage.py::TestGetRelatedMemoriesReturnStructure::test_query_exception_returns_empty",
+  "file": "tests/unit/test_epic36_gap_coverage.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_event_bus.py::TestTier2Important::test_tier2_all_retries_exhausted_writes_outbox",
+  "file": "tests/unit/test_event_bus.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_event_bus.py::TestTier2Important::test_tier2_retry_then_success",
+  "file": "tests/unit/test_event_bus.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_failure_observability.py::TestMemoryServiceDualWriteFailure::test_dual_write_exception_increments_counter",
+  "file": "tests/unit/test_failure_observability.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_failure_observability.py::TestMemoryServiceDualWriteFailure::test_dual_write_retry_failure_writes_dead_letter",
+  "file": "tests/unit/test_failure_observability.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_failure_observability.py::TestMemoryServiceDualWriteFailure::test_dual_write_timeout_increments_counter",
+  "file": "tests/unit/test_failure_observability.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_graphiti_json_dual_write.py::TestGraphitiJsonDualWrite::test_config_flag_enables_dual_write",
+  "file": "tests/unit/test_graphiti_json_dual_write.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_graphiti_json_dual_write.py::TestGraphitiJsonDualWrite::test_dual_write_called_after_neo4j_success",
+  "file": "tests/unit/test_graphiti_json_dual_write.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_graphiti_json_dual_write.py::TestGraphitiJsonDualWrite::test_json_write_failure_doesnt_affect_main_flow",
+  "file": "tests/unit/test_graphiti_json_dual_write.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_graphiti_json_dual_write.py::TestGraphitiJsonDualWrite::test_learning_memory_dataclass_creation",
+  "file": "tests/unit/test_graphiti_json_dual_write.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_graphiti_json_dual_write.py::TestGraphitiJsonDualWrite::test_record_temporal_event_dual_write",
+  "file": "tests/unit/test_graphiti_json_dual_write.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_graphiti_json_dual_write.py::TestGraphitiJsonDualWrite::test_write_to_graphiti_json_failure_logging",
+  "file": "tests/unit/test_graphiti_json_dual_write.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_graphiti_json_dual_write.py::TestGraphitiJsonDualWrite::test_write_to_graphiti_json_success_logging",
+  "file": "tests/unit/test_graphiti_json_dual_write.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_graphiti_json_dual_write.py::TestGraphitiJsonDualWrite::test_write_to_graphiti_json_timeout_logging",
+  "file": "tests/unit/test_graphiti_json_dual_write.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_health_detailed.py::TestDetailedHealthEndpoint::test_component_has_required_fields",
+  "file": "tests/unit/test_health_detailed.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_health_detailed.py::TestDetailedHealthEndpoint::test_returns_components",
+  "file": "tests/unit/test_health_detailed.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_health_detailed.py::TestDetailedHealthEndpoint::test_unavailable_core_returns_503",
+  "file": "tests/unit/test_health_detailed.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_intelligent_parallel_endpoints.py::TestCancelEndpoint::test_cancel_nonexistent_session_404",
+  "file": "tests/unit/test_intelligent_parallel_endpoints.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_intelligent_parallel_endpoints.py::TestCancelEndpoint::test_cancel_running_session",
+  "file": "tests/unit/test_intelligent_parallel_endpoints.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_intelligent_parallel_endpoints.py::TestErrorResponses::test_404_error_format",
+  "file": "tests/unit/test_intelligent_parallel_endpoints.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_intelligent_parallel_endpoints.py::TestProgressEndpoint::test_progress_invalid_session_404",
+  "file": "tests/unit/test_intelligent_parallel_endpoints.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_kg_health.py::TestKGHealthEndpoint::test_endpoint_returns_200",
+  "file": "tests/unit/test_kg_health.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_mastery_fusion.py::TestPearsonCorrelation::test_no_correlation",
+  "file": "tests/unit/test_mastery_fusion.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_memory_service_write_retry.py::TestWriteRetryStrictQA::test_exception_failure_warning_includes_error_message",
+  "file": "tests/unit/test_memory_service_write_retry.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_memory_service_write_retry.py::TestWriteRetryStrictQA::test_exponential_backoff_all_failures",
+  "file": "tests/unit/test_memory_service_write_retry.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_memory_service_write_retry.py::TestWriteRetryStrictQA::test_exponential_backoff_delays",
+  "file": "tests/unit/test_memory_service_write_retry.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_memory_service_write_retry.py::TestWriteRetryStrictQA::test_mixed_timeout_then_exception_then_success",
+  "file": "tests/unit/test_memory_service_write_retry.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_memory_service_write_retry.py::TestWriteRetryStrictQA::test_record_temporal_event_uses_retry_method",
+  "file": "tests/unit/test_memory_service_write_retry.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_memory_service_write_retry.py::TestWriteRetryStrictQA::test_retry_creates_new_timestamp_each_attempt",
+  "file": "tests/unit/test_memory_service_write_retry.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_memory_service_write_retry.py::TestWriteRetryStrictQA::test_timeout_failure_warning_includes_timeout_suffix",
+  "file": "tests/unit/test_memory_service_write_retry.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_memory_service_write_retry.py::TestWriteToGraphitiJsonWithRetry::test_all_retries_failed_warning_logging",
+  "file": "tests/unit/test_memory_service_write_retry.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_memory_service_write_retry.py::TestWriteToGraphitiJsonWithRetry::test_exception_triggers_retry",
+  "file": "tests/unit/test_memory_service_write_retry.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_memory_service_write_retry.py::TestWriteToGraphitiJsonWithRetry::test_first_success_debug_logging",
+  "file": "tests/unit/test_memory_service_write_retry.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_memory_service_write_retry.py::TestWriteToGraphitiJsonWithRetry::test_retry_success_logging",
+  "file": "tests/unit/test_memory_service_write_retry.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_memory_service_write_retry.py::TestWriteToGraphitiJsonWithRetry::test_with_all_optional_params",
+  "file": "tests/unit/test_memory_service_write_retry.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_memory_service_write_retry.py::TestWriteToGraphitiJsonWithRetry::test_write_fails_after_all_retries_exception",
+  "file": "tests/unit/test_memory_service_write_retry.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_memory_service_write_retry.py::TestWriteToGraphitiJsonWithRetry::test_write_fails_after_all_retries_timeout",
+  "file": "tests/unit/test_memory_service_write_retry.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_memory_service_write_retry.py::TestWriteToGraphitiJsonWithRetry::test_write_succeeds_after_one_retry",
+  "file": "tests/unit/test_memory_service_write_retry.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_memory_service_write_retry.py::TestWriteToGraphitiJsonWithRetry::test_write_succeeds_after_two_retries",
+  "file": "tests/unit/test_memory_service_write_retry.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_memory_service_write_retry.py::TestWriteToGraphitiJsonWithRetry::test_write_succeeds_first_attempt",
+  "file": "tests/unit/test_memory_service_write_retry.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_memory_service_write_retry.py::TestWriteToGraphitiJsonWithRetry::test_zero_retries_single_attempt",
+  "file": "tests/unit/test_memory_service_write_retry.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning",
+  "file": "tests/unit/test_mock_degradation_transparency.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_multimodal_path_security.py::TestValidateSafePath::test_path_traversal_windows_style",
+  "file": "tests/unit/test_multimodal_path_security.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_neo4j_fulltext_index.py::TestEnsureFulltextIndex::test_ensure_fulltext_index_idempotent",
+  "file": "tests/unit/test_neo4j_fulltext_index.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_neo4j_health.py::TestNeo4jHealthEndpoint::test_neo4j_connection_timeout",
+  "file": "tests/unit/test_neo4j_health.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_qa_38_4_dual_write_extra.py::TestQAGetAttrDefenseInDepth::test_memory_service_getattr_fallback_is_false",
+  "file": "tests/unit/test_qa_38_4_dual_write_extra.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestFullCycleIntegration::test_full_cycle_fail_record_recover_merge",
+  "file": "tests/unit/test_qa_38_6_scoring_reliability_extra.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestFullCycleIntegration::test_full_cycle_recovery_fails_then_merge",
+  "file": "tests/unit/test_qa_38_6_scoring_reliability_extra.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestMergedViewEdgeCases::test_merged_view_sort_newest_first",
+  "file": "tests/unit/test_qa_38_6_scoring_reliability_extra.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestStartupIntegration::test_fallback_sync_called_in_lifespan",
+  "file": "tests/unit/test_qa_38_6_scoring_reliability_extra.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestStartupIntegration::test_main_imports_fallback_sync",
+  "file": "tests/unit/test_qa_38_6_scoring_reliability_extra.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_rag_multimodal_integration.py::TestRRFMultimodalFusion::test_rrf_fusion_with_multimodal_results",
+  "file": "tests/unit/test_rag_multimodal_integration.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_rag_multimodal_integration.py::TestRRFMultimodalFusion::test_rrf_multimodal_score_contribution",
+  "file": "tests/unit/test_rag_multimodal_integration.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_rag_multimodal_integration.py::TestRRFMultimodalFusion::test_weighted_fusion_with_multimodal",
+  "file": "tests/unit/test_rag_multimodal_integration.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_rag_multimodal_integration.py::TestStateGraphMultimodalIntegration::test_fan_out_retrieval_includes_multimodal",
+  "file": "tests/unit/test_rag_multimodal_integration.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_rag_p0_doc_type_filter.py::test_strip_whiteboard_removes_admonition_callouts",
+  "file": "tests/unit/test_rag_p0_doc_type_filter.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_review_mode_support.py::TestReviewModeSupport::test_fresh_mode_parameter_accepted",
+  "file": "tests/unit/test_review_mode_support.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_s02_entity_types.py::TestProcessEpisodeForwarding::test_forwards_entity_and_edge_types",
+  "file": "tests/unit/test_s02_entity_types.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_s02_search_upgrade.py::test_search_recipes_all_5_mapped",
+  "file": "tests/unit/test_s02_search_upgrade.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_startup_health_check.py::TestSetupWizard::test_endpoint_exists",
+  "file": "tests/unit/test_startup_health_check.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_startup_health_check.py::TestSetupWizard::test_returns_structured_report",
+  "file": "tests/unit/test_startup_health_check.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_startup_health_check.py::TestStartupCheck::test_checks_neo4j_ollama_fastapi_mcp",
+  "file": "tests/unit/test_startup_health_check.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_startup_health_check.py::TestStartupCheck::test_each_check_has_required_fields",
+  "file": "tests/unit/test_startup_health_check.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_startup_health_check.py::TestStartupCheck::test_endpoint_exists",
+  "file": "tests/unit/test_startup_health_check.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_startup_health_check.py::TestStartupCheck::test_returns_structured_response",
+  "file": "tests/unit/test_startup_health_check.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_1_7_env_config.py::TestDockerComposeVariableization::test_no_hardcoded_user_paths",
+  "file": "tests/unit/test_story_1_7_env_config.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_2_3_error_reminders.py::test_search_error_memories_normalizes_schema",
+  "file": "tests/unit/test_story_2_3_error_reminders.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_2_3_error_reminders.py::test_search_error_memories_passes_node_id_filter_to_search_memories",
+  "file": "tests/unit/test_story_2_3_error_reminders.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_2_3_error_reminders.py::test_search_error_memories_sorts_by_timestamp_desc",
+  "file": "tests/unit/test_story_2_3_error_reminders.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_2_3_error_reminders.py::test_search_memories_node_id_filter_post_merge",
+  "file": "tests/unit/test_story_2_3_error_reminders.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_2_3_error_reminders.py::test_search_memories_node_id_none_is_no_filter",
+  "file": "tests/unit/test_story_2_3_error_reminders.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_30_10_idempotency.py::TestBatchDeterministicEpisodeId::test_batch_id_format",
+  "file": "tests/unit/test_story_30_10_idempotency.py",
+  "cat": "B"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_30_10_idempotency.py::TestDeterministicEpisodeId::test_id_format",
+  "file": "tests/unit/test_story_30_10_idempotency.py",
+  "cat": "B"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_30_24_boundary.py::TestSpecialCharacterGroupId::test_neo4j_parameterized_query_with_special_chars",
+  "file": "tests/unit/test_story_30_24_boundary.py",
+  "cat": "C2"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_30_24_boundary.py::TestVaultVerifyExitCode::test_package_json_verify_command_correct",
+  "file": "tests/unit/test_story_30_24_boundary.py",
+  "cat": "C2"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_30_24_boundary.py::TestVaultVerifyExitCode::test_verify_script_exists",
+  "file": "tests/unit/test_story_30_24_boundary.py",
+  "cat": "C2"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_30_24_boundary.py::TestVaultVerifyExitCode::test_verify_script_exits_nonzero_when_file_not_found",
+  "file": "tests/unit/test_story_30_24_boundary.py",
+  "cat": "C2"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_30_24_boundary.py::TestVaultVerifyExitCode::test_verify_script_exits_nonzero_when_stale",
+  "file": "tests/unit/test_story_30_24_boundary.py",
+  "cat": "C2"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_30_24_boundary.py::TestVaultVerifyExitCode::test_verify_script_exits_zero_when_fresh",
+  "file": "tests/unit/test_story_30_24_boundary.py",
+  "cat": "C2"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_38_1_review_fixes.py::TestDoIndexCoverage::test_do_index_raises_file_not_found",
+  "file": "tests/unit/test_story_38_1_review_fixes.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_38_1_review_fixes.py::TestDoIndexCoverage::test_do_index_reads_canvas_and_calls_index",
+  "file": "tests/unit/test_story_38_1_review_fixes.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_38_4_dual_write_default.py::TestAC1SafeDefault::test_lowercase_alias_returns_true_by_default",
+  "file": "tests/unit/test_story_38_4_dual_write_default.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_38_4_dual_write_default.py::TestAC1SafeDefault::test_settings_field_default_is_true",
+  "file": "tests/unit/test_story_38_4_dual_write_default.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_38_4_dual_write_default.py::TestAC1SafeDefault::test_startup_log_dual_write_enabled_default",
+  "file": "tests/unit/test_story_38_4_dual_write_default.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_38_4_dual_write_default.py::TestAC2ExplicitDisable::test_startup_log_dual_write_disabled_explicit",
+  "file": "tests/unit/test_story_38_4_dual_write_default.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_38_4_dual_write_default.py::TestAC2ExplicitDisable::test_warning_log_data_loss_risk_when_disabled",
+  "file": "tests/unit/test_story_38_4_dual_write_default.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_38_4_dual_write_default.py::TestAC3MissingEnvVar::test_missing_env_var_defaults_to_true",
+  "file": "tests/unit/test_story_38_4_dual_write_default.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_38_6_scoring_reliability.py::TestAC1TimeoutRetryAlignment::test_backoff_progression",
+  "file": "tests/unit/test_story_38_6_scoring_reliability.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_38_6_scoring_reliability.py::TestAC1TimeoutRetryAlignment::test_inner_per_attempt_timeout_increased",
+  "file": "tests/unit/test_story_38_6_scoring_reliability.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_38_6_scoring_reliability.py::TestAC1TimeoutRetryAlignment::test_retry_backoff_base_is_1_second",
+  "file": "tests/unit/test_story_38_6_scoring_reliability.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_38_6_scoring_reliability.py::TestAC3StartupRecovery::test_recover_malformed_entries_preserved",
+  "file": "tests/unit/test_story_38_6_scoring_reliability.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_38_6_scoring_reliability.py::TestAC3StartupRecovery::test_recover_partial_failure",
+  "file": "tests/unit/test_story_38_6_scoring_reliability.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_38_6_scoring_reliability.py::TestAC3StartupRecovery::test_recover_successful_replay",
+  "file": "tests/unit/test_story_38_6_scoring_reliability.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_38_6_scoring_reliability.py::TestAC4MergedView::test_get_learning_history_merges_failed_scores",
+  "file": "tests/unit/test_story_38_6_scoring_reliability.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_38_8_fallback_sync.py::TestAC5FileRotation::test_pending_entries_rewritten",
+  "file": "tests/unit/test_story_38_8_fallback_sync.py",
+  "cat": "C1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_study_question_deep_mode.py::test_mode_answer_keeps_top_k_20_and_hard_cap_15",
+  "file": "tests/unit/test_study_question_deep_mode.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_study_question_deep_mode.py::test_mode_deep_accepted_by_request_model",
+  "file": "tests/unit/test_study_question_deep_mode.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_study_question_deep_mode.py::test_mode_deep_empty_user_question_skips_search",
+  "file": "tests/unit/test_study_question_deep_mode.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_study_question_deep_mode.py::test_mode_deep_uses_top_k_30_and_hard_cap_20",
+  "file": "tests/unit/test_study_question_deep_mode.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_study_question_deep_mode.py::test_mode_deep_without_user_question_skips_search",
+  "file": "tests/unit/test_study_question_deep_mode.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_study_question_deep_mode.py::test_mode_default_is_preload",
+  "file": "tests/unit/test_study_question_deep_mode.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_study_question_deep_mode.py::test_mode_invalid_rejected_by_pydantic",
+  "file": "tests/unit/test_study_question_deep_mode.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_study_question_deep_mode.py::test_mode_preload_with_user_question_still_skips_search",
+  "file": "tests/unit/test_study_question_deep_mode.py",
+  "cat": "A1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_subject_isolation.py::TestExtractSubjectFromCanvasPath::test_extract_subject_empty_path",
+  "file": "tests/unit/test_subject_isolation.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_supplementary_reranker.py::TestFilterFloor::test_floor_still_respects_top_k",
+  "file": "tests/unit/test_supplementary_reranker.py",
+  "cat": "C2"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_supplementary_reranker.py::TestFilterFloor::test_floor_triggered_marks_first_material",
+  "file": "tests/unit/test_supplementary_reranker.py",
+  "cat": "C2"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_supplementary_reranker.py::TestFilterFloor::test_floor_triggered_when_kill_ratio_high",
+  "file": "tests/unit/test_supplementary_reranker.py",
+  "cat": "C2"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_supplementary_reranker.py::TestFilterFloor::test_min_keep_zero_disables_floor",
+  "file": "tests/unit/test_supplementary_reranker.py",
+  "cat": "C2"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_supplementary_reranker.py::TestFilterFloorTaintExclusion::test_floor_all_review_returns_empty_list",
+  "file": "tests/unit/test_supplementary_reranker.py",
+  "cat": "C2"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_supplementary_reranker.py::TestFilterFloorTaintExclusion::test_floor_no_taint_field_treated_as_clean",
+  "file": "tests/unit/test_supplementary_reranker.py",
+  "cat": "C2"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_supplementary_reranker.py::TestFilterFloorTaintExclusion::test_min_keep_floor_excludes_review_taint",
+  "file": "tests/unit/test_supplementary_reranker.py",
+  "cat": "C2"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_supplementary_reranker.py::TestTypeWeightsIndexerTransition::test_indexer_note_mapped_to_canonical",
+  "file": "tests/unit/test_supplementary_reranker.py",
+  "cat": "C2"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_supplementary_reranker.py::TestTypeWeightsIndexerTransition::test_indexer_video_transcript_mapped_to_canonical",
+  "file": "tests/unit/test_supplementary_reranker.py",
+  "cat": "C2"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_no_key_configured_fails_closed_503",
+  "file": "tests/unit/test_sync_batch_auth.py",
+  "cat": "A2"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_sync_exception_classification.py::TestInfrastructureErrors::test_auth_error_returns_503",
+  "file": "tests/unit/test_sync_exception_classification.py",
+  "cat": "A2"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_sync_exception_classification.py::TestInfrastructureErrors::test_connection_error_returns_503",
+  "file": "tests/unit/test_sync_exception_classification.py",
+  "cat": "A2"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_sync_exception_classification.py::TestInfrastructureErrors::test_service_unavailable_returns_503",
+  "file": "tests/unit/test_sync_exception_classification.py",
+  "cat": "A2"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_sync_exception_classification.py::TestLogicErrors::test_generic_exception_returns_500",
+  "file": "tests/unit/test_sync_exception_classification.py",
+  "cat": "A2"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_sync_exception_classification.py::TestLogicErrors::test_type_error_returns_500",
+  "file": "tests/unit/test_sync_exception_classification.py",
+  "cat": "A2"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_sync_exception_classification.py::TestLogicErrors::test_value_error_returns_500",
+  "file": "tests/unit/test_sync_exception_classification.py",
+  "cat": "A2"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_no_key_configured_503",
+  "file": "tests/unit/test_system_endpoint_auth.py",
+  "cat": "A2"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_no_key_configured_503",
+  "file": "tests/unit/test_system_endpoint_auth.py",
+  "cat": "A2"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_vault_doc_roles.py::test_live_vault_enforce_clean",
+  "file": "tests/unit/test_vault_doc_roles.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_vault_notes_group_filter.py::test_group_id_honors_nested_metadata_json_subject",
+  "file": "tests/unit/test_vault_notes_group_filter.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_vault_notes_group_filter.py::test_group_id_physics_filters_to_physics_only",
+  "file": "tests/unit/test_vault_notes_group_filter.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_vault_notes_group_filter.py::test_group_id_with_no_common_and_no_match_returns_empty",
+  "file": "tests/unit/test_vault_notes_group_filter.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_vault_notes_group_filter.py::test_group_id_with_no_explicit_match_returns_only_common_notes",
+  "file": "tests/unit/test_vault_notes_group_filter.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_verification_dedup.py::TestVerificationDedup::test_no_history_generates_standard_question",
+  "file": "tests/unit/test_verification_dedup.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_verification_dedup.py::TestVerificationDedup::test_with_history_generates_alternative_question",
+  "file": "tests/unit/test_verification_dedup.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_verification_service_injection.py::TestDependenciesInjection::test_get_verification_service_injects_graphiti_client",
+  "file": "tests/unit/test_verification_service_injection.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_wave5_stageb_continued_vault_id_injection.py::TestSharedResolverImportedByEndpoints::test_endpoint_imports_shared_resolver[app.api.v1.endpoints.agents]",
+  "file": "tests/unit/test_wave5_stageb_continued_vault_id_injection.py",
+  "cat": "残余"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_websocket_endpoints.py::TestWebSocketEndpoint::test_validate_session_handles_validator_error",
+  "file": "tests/unit/test_websocket_endpoints.py",
+  "cat": "残余"
+ }
+]

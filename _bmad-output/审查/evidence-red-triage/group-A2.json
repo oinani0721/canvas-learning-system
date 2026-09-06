@@ -1,0 +1,65 @@
+[
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_no_key_configured_fails_closed_503",
+  "identity": "503",
+  "test_line": "tests/unit/test_sync_batch_auth.py:117",
+  "assert_text": "AssertionError: DEBUG=False with empty INTERNAL_API_KEY must fail closed (503), not silently allow"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_sync_exception_classification.py::TestInfrastructureErrors::test_auth_error_returns_503",
+  "identity": "assert",
+  "test_line": "tests/unit/test_sync_exception_classification.py:105",
+  "assert_text": "AssertionError: assert 'Internal API...loopback dev.' == 'Neo4j unavailable'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_sync_exception_classification.py::TestInfrastructureErrors::test_connection_error_returns_503",
+  "identity": "assert",
+  "test_line": "tests/unit/test_sync_exception_classification.py:112",
+  "assert_text": "AssertionError: assert 'Internal API...loopback dev.' == 'Neo4j unavailable'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_sync_exception_classification.py::TestInfrastructureErrors::test_service_unavailable_returns_503",
+  "identity": "assert",
+  "test_line": "tests/unit/test_sync_exception_classification.py:96",
+  "assert_text": "AssertionError: assert 'Internal API...loopback dev.' == 'Neo4j unavailable'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_sync_exception_classification.py::TestLogicErrors::test_generic_exception_returns_500",
+  "identity": "503",
+  "test_line": "tests/unit/test_sync_exception_classification.py:148",
+  "assert_text": "assert 503 == 500"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_sync_exception_classification.py::TestLogicErrors::test_type_error_returns_500",
+  "identity": "503",
+  "test_line": "tests/unit/test_sync_exception_classification.py:137",
+  "assert_text": "assert 503 == 500"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_sync_exception_classification.py::TestLogicErrors::test_value_error_returns_500",
+  "identity": "503",
+  "test_line": "tests/unit/test_sync_exception_classification.py:127",
+  "assert_text": "assert 503 == 500"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_no_key_configured_503",
+  "identity": "503",
+  "test_line": "tests/unit/test_system_endpoint_auth.py:112",
+  "assert_text": "assert 500 == 503"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_no_key_configured_503",
+  "identity": "503",
+  "test_line": "tests/unit/test_system_endpoint_auth.py:161",
+  "assert_text": "assert 500 == 503"
+ }
+]

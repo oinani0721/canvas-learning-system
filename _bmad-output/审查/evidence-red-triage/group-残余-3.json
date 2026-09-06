@@ -1,0 +1,100 @@
+[
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_cache_configuration.py::TestDefaultValuesBackwardCompatible::test_enrichment_extreme_maxsize_1",
+  "identity": "其他(TypeError)",
+  "test_line": "tests/unit/test_cache_configuration.py:208",
+  "assert_text": "TypeError: ContextEnrichmentService.__init__() got an unexpected keyword argument 'association_cache_maxsize'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_cache_configuration.py::TestDIPathPropagation::test_enrichment_service_di_passes_cache_config",
+  "identity": "assert",
+  "test_line": "tests/unit/test_cache_configuration.py:242",
+  "assert_text": "AssertionError: dependencies.py must pass ENRICHMENT_CACHE_MAXSIZE to ContextEnrichmentService"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_cache_configuration.py::TestEnrichmentCacheFromSettings::test_cache_default_maxsize",
+  "identity": "AttributeError",
+  "test_line": "tests/unit/test_cache_configuration.py:155",
+  "assert_text": "AttributeError: 'ContextEnrichmentService' object has no attribute '_association_cache'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_cache_configuration.py::TestEnrichmentCacheFromSettings::test_cache_uses_custom_maxsize",
+  "identity": "其他(TypeError)",
+  "test_line": "tests/unit/test_cache_configuration.py:143",
+  "assert_text": "TypeError: ContextEnrichmentService.__init__() got an unexpected keyword argument 'association_cache_maxsize'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_cache_configuration.py::TestMemoryRetryDelayFromSettings::test_retry_delay_reads_settings",
+  "identity": "AttributeError",
+  "test_line": "tests/unit/test_cache_configuration.py:61",
+  "assert_text": "AttributeError: 'MemoryService' object has no attribute '_retry_base_delay'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_vault_notes_group_filter.py::test_group_id_honors_nested_metadata_json_subject",
+  "identity": "assert",
+  "test_line": "tests/unit/test_vault_notes_group_filter.py:185",
+  "assert_text": "AssertionError: assert 2 == 1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_vault_notes_group_filter.py::test_group_id_physics_filters_to_physics_only",
+  "identity": "assert",
+  "test_line": "tests/unit/test_vault_notes_group_filter.py:97",
+  "assert_text": "AssertionError: assert 2 == 1"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_vault_notes_group_filter.py::test_group_id_with_no_common_and_no_match_returns_empty",
+  "identity": "assert",
+  "test_line": "tests/unit/test_vault_notes_group_filter.py:139",
+  "assert_text": "AssertionError: assert [{'id': 'r1',...'score': 0.8}] == []"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_vault_notes_group_filter.py::test_group_id_with_no_explicit_match_returns_only_common_notes",
+  "identity": "assert",
+  "test_line": "tests/unit/test_vault_notes_group_filter.py:124",
+  "assert_text": "AssertionError: assert {'r1', 'r2', 'r_common'} == {'r_common'}"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_verification_dedup.py::TestVerificationDedup::test_no_history_generates_standard_question",
+  "identity": "assert",
+  "test_line": "tests/unit/test_verification_dedup.py:49",
+  "assert_text": "AssertionError: Expected 'search_verification_questions' to have been called once. Called 0 times."
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_verification_dedup.py::TestVerificationDedup::test_with_history_generates_alternative_question",
+  "identity": "assert",
+  "test_line": "tests/unit/test_verification_dedup.py:82",
+  "assert_text": "AssertionError: assert False"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_epic30_memory_pipeline.py::TestRecordTemporalEventLifecycle::test_p0_neo4j_write_failure_degrades_silently",
+  "identity": "其他(未定)",
+  "test_line": "tests/unit/test_epic30_memory_pipeline.py:400",
+  "assert_text": "Exception: Connection refused"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_neo4j_health.py::TestNeo4jHealthEndpoint::test_neo4j_connection_timeout",
+  "identity": "assert",
+  "test_line": "tests/unit/test_neo4j_health.py:133",
+  "assert_text": "AssertionError: assert 'Connection t...ut (>30000ms)' == 'Connection timeout (>500ms)'"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_subject_isolation.py::TestExtractSubjectFromCanvasPath::test_extract_subject_empty_path",
+  "identity": "AttributeError",
+  "test_line": "tests/unit/test_subject_isolation.py:87",
+  "assert_text": "AttributeError: 'str' object has no attribute 'value'"
+ }
+]

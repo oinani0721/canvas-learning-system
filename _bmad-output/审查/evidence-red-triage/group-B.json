@@ -1,0 +1,289 @@
+[
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_agent_service_extraction.py::TestDebugAgentResponseLogging::test_extract_with_debug_logging_enabled",
+  "identity": "setup ERROR",
+  "test_line": "",
+  "assert_text": "fixture 'mocker' not found"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_agent_service_extraction.py::TestDebugAgentResponseLogging::test_extract_without_debug_logging",
+  "identity": "setup ERROR",
+  "test_line": "",
+  "assert_text": "fixture 'mocker' not found"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_color_removed_event_type",
+  "identity": "setup ERROR",
+  "test_line": "tests/unit/test_memory_service_batch.py:46",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_concept_fallback_to_node_text",
+  "identity": "setup ERROR",
+  "test_line": "tests/unit/test_memory_service_batch.py:46",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_concept_fallback_to_unknown",
+  "identity": "setup ERROR",
+  "test_line": "tests/unit/test_memory_service_batch.py:46",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_concept_field_used_when_present",
+  "identity": "setup ERROR",
+  "test_line": "tests/unit/test_memory_service_batch.py:46",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_neo4j_disconnected_still_stores_in_memory",
+  "identity": "setup ERROR",
+  "test_line": "tests/unit/test_memory_service_batch.py:46",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_node_removed_event_type",
+  "identity": "setup ERROR",
+  "test_line": "tests/unit/test_memory_service_batch.py:46",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_10_idempotency.py::TestBatchEpisodesDedup::test_batch_deterministic_ids",
+  "identity": "setup ERROR",
+  "test_line": "tests/unit/test_story_30_10_idempotency.py:269",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_10_idempotency.py::TestBatchEpisodesDedup::test_batch_duplicate_submission_dedup",
+  "identity": "setup ERROR",
+  "test_line": "tests/unit/test_story_30_10_idempotency.py:269",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_10_idempotency.py::TestEpisodesDedup::test_different_events_both_stored",
+  "identity": "setup ERROR",
+  "test_line": "tests/unit/test_story_30_10_idempotency.py:154",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_10_idempotency.py::TestEpisodesDedup::test_duplicate_event_single_episode",
+  "identity": "setup ERROR",
+  "test_line": "tests/unit/test_story_30_10_idempotency.py:154",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_10_idempotency.py::TestEpisodesDedup::test_skip_existing_episode_on_dup",
+  "identity": "setup ERROR",
+  "test_line": "tests/unit/test_story_30_10_idempotency.py:154",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_10_idempotency.py::TestGraphitiJsonWriteDedup::test_degrades_gracefully_on_search_error",
+  "identity": "setup ERROR",
+  "test_line": "tests/unit/test_story_30_10_idempotency.py:348",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_10_idempotency.py::TestGraphitiJsonWriteDedup::test_degrades_when_learning_memory_uninitialized",
+  "identity": "setup ERROR",
+  "test_line": "tests/unit/test_story_30_10_idempotency.py:348",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_10_idempotency.py::TestGraphitiJsonWriteDedup::test_skips_write_when_exists",
+  "identity": "setup ERROR",
+  "test_line": "tests/unit/test_story_30_10_idempotency.py:348",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_10_idempotency.py::TestGraphitiJsonWriteDedup::test_writes_when_not_exists",
+  "identity": "setup ERROR",
+  "test_line": "tests/unit/test_story_30_10_idempotency.py:348",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_11_batch_parallel.py::TestBatchIdempotencyCompat::test_duplicate_batch_no_duplicates",
+  "identity": "setup ERROR",
+  "test_line": "tests/unit/test_story_30_11_batch_parallel.py:423",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_11_batch_parallel.py::TestBatchNeo4jDegradation::test_neo4j_unavailable_still_processes_to_memory",
+  "identity": "setup ERROR",
+  "test_line": "tests/unit/test_story_30_11_batch_parallel.py:361",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_11_batch_parallel.py::TestBatchParallelExecution::test_50_events_all_processed",
+  "identity": "setup ERROR",
+  "test_line": "tests/unit/test_story_30_11_batch_parallel.py:52",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_11_batch_parallel.py::TestBatchParallelExecution::test_neo4j_called_for_each_event",
+  "identity": "setup ERROR",
+  "test_line": "tests/unit/test_story_30_11_batch_parallel.py:52",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_11_batch_parallel.py::TestBatchParallelExecution::test_parallel_faster_than_sequential",
+  "identity": "setup ERROR",
+  "test_line": "tests/unit/test_story_30_11_batch_parallel.py:52",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_11_batch_parallel.py::TestBatchParallelExecution::test_performance_stats_recorded",
+  "identity": "setup ERROR",
+  "test_line": "tests/unit/test_story_30_11_batch_parallel.py:52",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_11_batch_parallel.py::TestBatchPartialFailure::test_episode_ids_only_for_successful",
+  "identity": "setup ERROR",
+  "test_line": "tests/unit/test_story_30_11_batch_parallel.py:166",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_11_batch_parallel.py::TestBatchPartialFailure::test_neo4j_failure_does_not_block_processing",
+  "identity": "setup ERROR",
+  "test_line": "tests/unit/test_story_30_11_batch_parallel.py:166",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_11_batch_parallel.py::TestBatchPartialFailure::test_validation_failure_isolated",
+  "identity": "setup ERROR",
+  "test_line": "tests/unit/test_story_30_11_batch_parallel.py:166",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_11_batch_parallel.py::TestBatchSemaphore::test_concurrency_limited_by_semaphore",
+  "identity": "setup ERROR",
+  "test_line": "tests/unit/test_story_30_11_batch_parallel.py:285",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_13_batch_idempotency.py::TestBatchIdempotency::test_different_events_not_deduplicated",
+  "identity": "setup ERROR",
+  "test_line": "tests/unit/test_story_30_13_batch_idempotency.py:46",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_13_batch_idempotency.py::TestBatchIdempotency::test_duplicate_event_detection",
+  "identity": "setup ERROR",
+  "test_line": "tests/unit/test_story_30_13_batch_idempotency.py:46",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_13_batch_idempotency.py::TestBatchIdempotency::test_idempotent_writes_across_retries",
+  "identity": "setup ERROR",
+  "test_line": "tests/unit/test_story_30_13_batch_idempotency.py:46",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_13_batch_idempotency.py::TestBatchIdempotency::test_large_batch_idempotency",
+  "identity": "setup ERROR",
+  "test_line": "tests/unit/test_story_30_13_batch_idempotency.py:46",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_event_ordering_preserved",
+  "identity": "setup ERROR",
+  "test_line": "tests/unit/test_story_30_13_batch_idempotency.py:46",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_neo4j_unavailable_fallback",
+  "identity": "setup ERROR",
+  "test_line": "tests/unit/test_story_30_13_batch_idempotency.py:46",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_partial_failure_recovery",
+  "identity": "setup ERROR",
+  "test_line": "tests/unit/test_story_30_13_batch_idempotency.py:46",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPerformance::test_batch_1000_events_completion",
+  "identity": "setup ERROR",
+  "test_line": "tests/unit/test_story_30_13_batch_idempotency.py:46",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPerformance::test_batch_50_events_under_500ms",
+  "identity": "setup ERROR",
+  "test_line": "tests/unit/test_story_30_13_batch_idempotency.py:46",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPerformance::test_batch_memory_metrics",
+  "identity": "setup ERROR",
+  "test_line": "tests/unit/test_story_30_13_batch_idempotency.py:46",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "ERROR",
+  "nodeid": "tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPerformance::test_concurrent_batch_requests",
+  "identity": "setup ERROR",
+  "test_line": "tests/unit/test_story_30_13_batch_idempotency.py:46",
+  "assert_text": "TypeError: 'MagicMock' object can't be awaited"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_agent_service_extraction.py::TestDebugAgentResponseLogging::test_config_has_debug_agent_response_field",
+  "identity": "assert",
+  "test_line": "tests/unit/test_agent_service_extraction.py:348",
+  "assert_text": "AssertionError: 默认值应为 False"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_30_10_idempotency.py::TestBatchDeterministicEpisodeId::test_batch_id_format",
+  "identity": "assert",
+  "test_line": "tests/unit/test_story_30_10_idempotency.py:117",
+  "assert_text": "AssertionError: assert 38 == (6 + 16)"
+ },
+ {
+  "kind": "FAILED",
+  "nodeid": "tests/unit/test_story_30_10_idempotency.py::TestDeterministicEpisodeId::test_id_format",
+  "identity": "assert",
+  "test_line": "tests/unit/test_story_30_10_idempotency.py:67",
+  "assert_text": "AssertionError: assert 40 == (8 + 16)"
+ }
+]
