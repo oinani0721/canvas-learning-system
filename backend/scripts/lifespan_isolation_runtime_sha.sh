@@ -64,16 +64,28 @@
 #   **之前**被 shell source 并 exit，脚本压根没运行 —— 这不是"防线被绕过"，
 #   是"根本没到防线"。同类还有 `ENV`、导出函数、`LD_PRELOAD`、以及直接改本文件。
 #   注入者**不**立刻 exit、而想篡改脚本行为的那一半，由「换干净解释器重新 exec」
-#   + 纵深清洗关掉，并由 11 条 shell 探针承重（`lifespan_isolation_guard_probes.py`
-#   的 `probe_shell_injections()`）：`shell-fake-dirname` / `shell-fake-printf` /
-#   `shell-bash-env` / `shell-readonly-func` 期望门**照常给出正确答案**；
-#   `shell-alias-test-hijack` / `shell-exit-trap-hijack` 期望门**拒绝空跑**；
-#   CARD-W4-6 新增五条钉住 exec 层本身：`shell-bash-env-exec-layer-is-load-bearing`
-#   / `shell-exec-strips-readonly-func` / `shell-wrapped-cmd-sees-no-injected-func`
-#   （拆掉纵深第二层的门副本仍须给出正确答案 ⇒ exec 层自己承重）、
-#   `shell-reexec-sentinel-preset`（照抄旧环境变量不再能跳过清洗）、
-#   `shell-forged-ticket-with-injection-refused`（伪造票据 + 注入 ⇒ 明确拒绝）。
-#   ⚠️ 上一版这里写「5 条」却列了 6 个名字 —— 数字与清单不一致，一并更正。
+#   + 纵深清洗关掉，并由 **15 条** shell 探针承重（`lifespan_isolation_guard_probes.py`
+#   的 `probe_shell_injections()`，名字逐条列全 —— 数字必须与清单条数相等）：
+#     既有 6 条 —— `shell-fake-dirname` / `shell-fake-printf` / `shell-bash-env` /
+#       `shell-readonly-func`（期望门**照常给出正确答案**）、
+#       `shell-alias-test-hijack` / `shell-exit-trap-hijack`（期望门**拒绝空跑**）；
+#     CARD-W4-6 新增 9 条 ——
+#       `shell-bash-env-exec-layer-is-load-bearing` /
+#       `shell-exec-strips-readonly-func` /
+#       `shell-wrapped-cmd-sees-no-injected-func`
+#         （拆掉纵深第二层的门副本仍须给出正确答案 ⇒ exec 层自己承重）、
+#       `shell-reexec-sentinel-preset`（照抄旧环境变量不再能跳过清洗）、
+#       `shell-reexec-sentinel-forged`（标记不匹配 ⇒ 按该分支的文案拒绝）、
+#       `shell-forged-ticket-with-injection-refused`（PID 一致但 BASH_ENV 非空
+#         ⇒ 按 BASH_ENV 分支的文案拒绝）、
+#       `shell-ticket-ok-but-exported-func-refused`（PID 一致、BASH_ENV 已被清掉、
+#         只剩导出函数 ⇒ 按**导出函数**分支的文案拒绝）、
+#       `shell-forged-ticket-under-exit-trap`（伪造标记 + EXIT trap ⇒ rc 不被改写）、
+#       `shell-multiline-env-var-not-mistaken-for-func`（值含换行的普通变量
+#         **不得**被当成导出函数 ⇒ 正常调用不假红）。
+#   ⚠️ 历史更正两次：更早一版写「5 条」列了 6 个名字；CARD-W4-6 初版改成「11 条」
+#      却漏列 `shell-reexec-sentinel-forged`（Codex round-1 LOW-6 抓到）。同一种
+#      「数字与清单不一致」的错连犯两次，所以现在把名字逐条列全。
 #   ⚠️ 试过「启动期检测到注入就提前 exit」并**回退**了：提前 exit 会落进注入者的
 #   `trap ... EXIT` 射程（rc 被改写成 0，比不加更糟），而 `exec` 之所以有效正是
 #   因为它替换进程映像、EXIT trap 不触发。理由写在 exec 那一段的注释里。
@@ -98,9 +110,10 @@ set -uo pipefail
 # 用法检查都通过，脚本空跑并输出 `RUNTIME-FILES: unchanged`、exit 0。
 #
 # 干净的解法不是继续往清单里加名字（那是「枚举白名单」式的必输游戏），而是
-# **换一个干净解释器 exec 自己**：新解释器没有 BASH_ENV、没有导出函数、没有别名、
-# 没有 trap、没有 readonly 变量。调用者的 PATH 用一个显式变量带过去，只给被包裹
-# 命令用。
+# **换一个干净解释器 exec 自己**：新解释器不读 BASH_ENV、不带调用者的导出函数、
+# 没有别名、没有 trap，也**不继承调用者设置的 readonly 属性**（readonly 不随 env
+# 传递 —— 实测 `readonly -f g; export -f g` 之后，子 bash 里 `unset -f g` 成功）。
+# 调用者的 PATH 用一个显式变量带过去，只给被包裹命令用。
 #
 # ⚠️ 刻意**不**用 `env -i`：被包裹命令（通常是 pytest）需要调用者的环境
 # （HOME / TMPDIR / locale / 项目自己的变量）。只摘注入面：`BASH_ENV`、`ENV`
@@ -125,15 +138,34 @@ set -uo pipefail
 # → `function`），全靠下面**第二层**的 `unset -f` 兜住。也就是说 exec 层对
 # `BASH_FUNC_*` **不承重**，而上一版这段注释说得比实现宽。
 #
-# 现在改成读 `/usr/bin/env` 的输出逐行取名。取名规则**刻意取最宽**——凡行首是
-# `BASH_FUNC_` 的行，第一个 `=` 之前的整段都当名字。两个方向的代价不对称：
-#   * 漏摘（危险方向）会让导出函数活着进新解释器。函数名并**不**限于标识符字符：
-#     实测 `foo-bar(){ :; }; export -f foo-bar` 产出 `BASH_FUNC_foo-bar%%`、
-#     `a.b` 产出 `BASH_FUNC_a.b%%` —— 把锚点写成 `[A-Za-z_][A-Za-z0-9_]*` 就会漏。
-#   * 多摘（安全方向）只多一个 `-u <不存在的名字>`：实测 `env -u NO_SUCH_VAR_XYZ`
-#     rc=0、无副作用；且 `BASH_FUNC_` 是 bash 给导出函数保留的前缀，不误伤别的变量。
-#   残余误判面：多行函数体的**续行**若恰好行首也是 `BASH_FUNC_`，会被多当成一个
-#   名字（实测 bash 3.2 把续行缩进了一格，不触发；即便触发也落在「多摘」这侧）。
+# 现在改成枚举 `/usr/bin/env -0` 的输出取名：环境条目以 **NUL** 分隔，名字取到
+# 第一个 `=` 之前。取名锚定 `BASH_FUNC_` 前缀而不是标识符字符 —— 函数名并**不**
+# 限于标识符字符，实测 `foo-bar(){ :; }; export -f foo-bar` 产出
+# `BASH_FUNC_foo-bar%%`、`a.b` 产出 `BASH_FUNC_a.b%%`，把锚点写成
+# `[A-Za-z_][A-Za-z0-9_]*` 就会漏（漏摘 = 导出函数活着进新解释器 = 危险方向）。
+#
+# ⚠️ **为什么必须是 `-0` 而不是逐行**（Codex round-1 MEDIUM-1，2026-09-06 实测）：
+# 换行分隔无法区分「条目边界」与「值里的换行」。初版按行扫，于是一个**普通**的
+# 导出变量只要值里有一行以 `BASH_FUNC_` 开头，就会被当成导出函数：
+#     CARRIER=$'harmless\nBASH_FUNC_notafunction%%=whatever' bash 本脚本 -- /usr/bin/true
+#     → RUNTIME-FILES: GATE-BROKEN — …仍有导出函数: BASH_FUNC_notafunction%%   rc=1
+# 完全正常的调用被拒 —— **假红**，而且不需要任何注入。初版注释里「多摘只是多一个
+# 无害的 `-u` 空名」这句话**是错的**：多摘在第一趟确实无害（`env -u` 一个不存在的
+# 名字实测 rc=0），但同一条规则在第二趟是**残留判据**，多摘就直接变成拒绝。
+# `-0` 把这一整类歧义从根上去掉：实测同一个多行变量在 NUL 分隔下只是一个条目，
+# 不再命中（见验收单 §M1）。
+# 可移植性如实写：`env -0` 是 BSD/GNU 扩展，非 POSIX 必备。本机 `/usr/bin/env -0`
+# 实测可用（macOS darwin25）；**不可用时不会静默降级** —— 见下面的枚举完成哨兵。
+#
+# ⚠️ 枚举失败必须与「零个匹配」区分（Codex round-1 LOW-4）：进程替换拿不到生产者
+# 的退出码，`pipefail` 也不覆盖它，于是「`env` 没跑起来 / 输出被截断」会表现成
+# 「没有残留」而静默通过。所以生产者末尾补一个 `$__W4_ENV_SENTINEL` 条目，消费端
+# 必须看到它才认这次枚举完整；看不到就 GATE-BROKEN。哨兵串不含 `=`，而 `env` 的
+# 每个条目必然含 `=`，因此不可能与真实条目相等。
+#
+# ⚠️ 两处枚举**刻意不抽成 shell 函数**：第一趟跑在尚未清洗的环境里，注入者可以
+#    先 `readonly -f` 占住我们要用的函数名，我们的定义就会失败而调用落到他的实现上。
+#    重复两段直写代码是这里的正确选择。
 #
 # ## 「已经重启过」的凭据：为什么不再是一个环境变量（CARD-W4-6）
 #
@@ -143,31 +175,46 @@ set -uo pipefail
 # `unset -f` 对它失败 ⇒ 门打印 GATE-BROKEN、rc=1。不是假绿，但一个环境变量就能让
 # 这道门罢工）。
 #
-# 现在改成 **argv 前哨 + PID 派生的一次性票据**：`exec` 不换 PID（实测），所以
-# 第一趟用 `$$` 造票、第二趟再用 `$$` 验票，两趟必然对得上；而调用者要伪造这张票，
-# 得先知道自己**尚未创建**的那个进程的 PID。
+# 现在改成 **argv 前哨 + PID 一致性标记**：`exec` 不换 PID（实测），所以第一趟用
+# `$$` 造串、第二趟再用 `$$` 比对，两趟必然对得上；而调用者要照抄这个串，得先知道
+# 自己**尚未创建**的那个进程的 PID。
+#
+# ⚠️ 措辞收窄（Codex round-1 LOW-6）：它**不是「一次性票据」**，没有任何消费状态 ——
+#    就是一个 `$$` 等值比较，串本身是公开的（`ps` 看得见）。它证明的**只是**
+#    「argv 里的串与本进程 PID 一致」，**不证明清洗真的发生过**。
 #
 # 两条必须写清的边界：
 #   1. **残余可伪造面（没关掉）**：调用者若自己 `exec` 本脚本 ——
 #      `exec bash 本脚本 --w4-reexec "w4-sha-gate-reexec-v1:$$" -- cmd` ——
-#      子进程继承它的 PID，票就对得上。这一面落在本文件开头那条「能在本脚本被读取
-#      之前执行代码的人可以完全伪造本门的输出」里。本卡关掉的只是「照抄一个常量」
-#      这条**不需要任何前置能力**的路。
-#   2. 所以验票通过之后**还要验环境**：票声称"已经清洗过"，那 `BASH_ENV`/`ENV`
-#      必须为空、环境里必须没有 `BASH_FUNC_*`。伪造票的人只要**同时**注入，这两者
-#      就自相矛盾，门当场 GATE-BROKEN 拒绝 —— 伪造票而不注入则没造成危害。
+#      子进程继承它的 PID，串就对得上。同类还有「猜中 PID」「进程起来后再拼 argv」。
+#      这一面落在本文件开头那条「能在本脚本被读取之前执行代码的人可以完全伪造本门的
+#      输出」里。本卡关掉的只是「照抄一个常量」这条**不需要任何前置能力**的路。
+#   2. 所以比对通过之后**还要验环境**：串声称"已经清洗过"，那 `BASH_ENV`/`ENV`
+#      必须为空、环境里必须没有 `BASH_FUNC_*`。
+#      ⚠️ 这道检查保证的**仅仅是**「检查成功执行时没有观察到这两类残留」，**不是**
+#      「同时注入必然被拒」：启动代码若自己 `unset BASH_ENV` 再留下**非导出**的
+#      shell 函数，两项都观察不到（实测）。那一类由下面的纵深第二层
+#      （`unset -f` + 函数表复核）接手，不由这里保证。
 #
 # ⚠️ 这**不是**回到下面那段已否决的「检测到注入就提前 exit」：那一版把检测放在
-#    **正常路径**上。本版的检测只在「票据声称已清洗」这条分支上跑，正常调用永远走
+#    **正常路径**上。本版的检测只在「串声称已清洗」这条分支上跑，正常调用永远走
 #    exec 清洗，四条数据管道探针的语义原样保留。理由详见紧接着的注释。
 #
-# ⚠️ `exec` / `export` / `unset` 本身都能被同名函数劫持（实测 `exec(){ :; }` 之后
-#    裸 `exec cmd` 什么也不做、脚本继续在**脏 shell 里往下跑**），所以本段一律用
+# ⚠️ 这条分支上的拒绝是**尚未 exec 时的 exit**，因此落在注入者 `trap ... EXIT` 的
+#    射程里 —— 2026-09-06 作者自测实测：不清 trap 时 stderr 打了 GATE-BROKEN，而
+#    注入者的 EXIT trap 随后打印 `RUNTIME-FILES: unchanged` 并把 rc 改写成 0
+#    （**本卡自己引入的假绿面**）。所以进入本分支的第一件事就是 `builtin trap -`。
+#    探针 `shell-forged-ticket-under-exit-trap` 钉住它。
+#
+# ⚠️ `exec` / `export` / `unset` / `trap` 本身都能被同名函数劫持（实测 `exec(){ :; }`
+#    之后裸 `exec cmd` 什么也不做、脚本继续在**脏 shell 里往下跑**），所以本段一律用
 #    `builtin` 前缀。`builtin` 自己仍可被同名函数劫持（实测），那一面不在本卡关闭
 #    范围内 —— 它与全文件对 `builtin` 的依赖同源，属上面那条已声明的边界。
 
-#: 本进程的票据。exec 不换 PID ⇒ 第一趟造的票，第二趟验得过。
+#: 本进程的 PID 一致性标记。exec 不换 PID ⇒ 第一趟造的串，第二趟比得上。
 __W4_TICKET="w4-sha-gate-reexec-v1:$$"
+#: 环境枚举完成哨兵。不含 `=`，而 env 的每个条目必含 `=` ⇒ 不可能与真实条目相等。
+__W4_ENV_SENTINEL="W4-SHA-GATE-ENV-DUMP-COMPLETE"
 __w4_claimed=0
 __w4_ticket_seen=""
 case "${1:-}" in
@@ -200,48 +247,70 @@ case "$__w4_claimed" in
     # `-u W4_SHA_GATE_REEXEC`：该变量已退役（见上），顺手摘掉残值，免得后人
     # 看见它还以为能靠它跳过清洗。
     __w4_env_args=(-u BASH_ENV -u ENV -u W4_SHA_GATE_REEXEC)
-    while IFS= builtin read -r __w4_line; do
-      case "$__w4_line" in
-        BASH_FUNC_*) __w4_env_args+=(-u "${__w4_line%%=*}") ;;
+    __w4_env_ok=0
+    while IFS= builtin read -r -d '' __w4_entry; do
+      case "$__w4_entry" in
+        "$__W4_ENV_SENTINEL") __w4_env_ok=1 ;;
+        BASH_FUNC_*) __w4_env_args+=(-u "${__w4_entry%%=*}") ;;
       esac
-    done < <(/usr/bin/env)
-    builtin unset __w4_line
+    done < <({ /usr/bin/env -0 && builtin printf '%s\0' "$__W4_ENV_SENTINEL"; } 2>/dev/null)
+    builtin unset __w4_entry
+    case "$__w4_env_ok" in
+      1) ;;
+      *)
+        builtin printf 'RUNTIME-FILES: GATE-BROKEN — 环境枚举未完整产出（/usr/bin/env -0 失败或被截断）；拒绝在不知道注入面的情况下继续\n' >&2
+        builtin exit 1
+        ;;
+    esac
     builtin exec /usr/bin/env "${__w4_env_args[@]}" \
       /bin/bash --noprofile --norc "$0" --w4-reexec "$__W4_TICKET" "$@"
     ;;
   *)
-    # ── 票据声称「已经清洗过」：验票 + 验环境 ──────────────────────────
+    # ── 串声称「已经清洗过」：比对 + 验环境 ────────────────────────────
+    # ⛔ 第一件事就是清 trap：本分支的 exit 发生在 exec **之前**，不清就落在注入者
+    #    `trap ... EXIT` 的射程里，rc 会被改写成 0（实测，见上方注释）。
+    builtin trap - EXIT HUP INT QUIT TERM ERR DEBUG RETURN 2>/dev/null || true
     case "$__w4_ticket_seen" in
       "$__W4_TICKET") ;;
       *)
-        builtin printf 'RUNTIME-FILES: GATE-BROKEN — --w4-reexec 票据不匹配（票据由本进程 PID 派生，伪造的前哨不被接受）；拒绝在未经清洗的环境里给出结论\n' >&2
+        builtin printf 'RUNTIME-FILES: GATE-BROKEN — --w4-reexec 标记与本进程 PID 不一致；拒绝在未经清洗的环境里给出结论\n' >&2
         builtin exit 1
         ;;
     esac
     case "${BASH_ENV:-}${ENV:-}" in
       "") ;;
       *)
-        builtin printf 'RUNTIME-FILES: GATE-BROKEN — 票据声称已清洗，但 BASH_ENV/ENV 仍有值；拒绝给出结论\n' >&2
+        builtin printf 'RUNTIME-FILES: GATE-BROKEN — 标记声称已清洗，但 BASH_ENV/ENV 仍有值；拒绝给出结论\n' >&2
         builtin exit 1
         ;;
     esac
     __w4_stale=""
-    while IFS= builtin read -r __w4_line; do
-      case "$__w4_line" in
-        BASH_FUNC_*) __w4_stale="${__w4_stale} ${__w4_line%%=*}" ;;
+    __w4_env_ok=0
+    while IFS= builtin read -r -d '' __w4_entry; do
+      case "$__w4_entry" in
+        "$__W4_ENV_SENTINEL") __w4_env_ok=1 ;;
+        BASH_FUNC_*) __w4_stale="${__w4_stale} ${__w4_entry%%=*}" ;;
       esac
-    done < <(/usr/bin/env)
-    builtin unset __w4_line
+    done < <({ /usr/bin/env -0 && builtin printf '%s\0' "$__W4_ENV_SENTINEL"; } 2>/dev/null)
+    builtin unset __w4_entry
+    case "$__w4_env_ok" in
+      1) ;;
+      *)
+        builtin printf 'RUNTIME-FILES: GATE-BROKEN — 环境枚举未完整产出（/usr/bin/env -0 失败或被截断）；拒绝把「没看见残留」当成「没有残留」\n' >&2
+        builtin exit 1
+        ;;
+    esac
     case "$__w4_stale" in
       "") ;;
       *)
-        builtin printf 'RUNTIME-FILES: GATE-BROKEN — 票据声称已清洗，但环境里仍有导出函数:%s\n' "$__w4_stale" >&2
+        builtin printf 'RUNTIME-FILES: GATE-BROKEN — 标记声称已清洗，但环境里仍有导出函数:%s\n' "$__w4_stale" >&2
         builtin exit 1
         ;;
     esac
     builtin unset __w4_stale
     ;;
 esac
+builtin unset __w4_env_ok __W4_ENV_SENTINEL
 builtin unset __W4_TICKET __w4_claimed __w4_ticket_seen
 
 # ── 地基清理第二步：纵深防御（即使上面的 exec 被人绕过也照做一遍）──────────

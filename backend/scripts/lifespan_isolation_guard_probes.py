@@ -797,31 +797,55 @@ def probe_shell_injections() -> list[dict]:
             }
         )
 
+    def _wrapped_output(stdout: str) -> list[str]:
+        """切出**被包裹命令自己**的那几行 —— 门的其余输出不算数。
+
+        ⛔ Codex round-1 LOW-5：初版把 `"function" not in proc.stdout` 铺在整个
+        stdout 上。门会打印完整的受监视路径，tmp 目录名里只要恰好含 `function`
+        就误拒；反过来，阳性词 `builtin` / `file` 也可能来自路径而不是被包裹命令，
+        于是「命令真的跑过」这半句判据是假的。改成按门自己的分节标记切片，再逐项
+        比对，判据就只看被包裹命令的输出。
+        """
+        start = stdout.find("=== 执行被包裹命令 ===")
+        if start < 0:
+            return []
+        rest = stdout[start:].split("\n")[1:]  # 去掉分节标题行
+        out: list[str] = []
+        for line in rest:
+            if line.startswith("=== RUNTIME-FILES after"):
+                break
+            if line.startswith("$ "):  # 门回显的命令行，不是命令的输出
+                continue
+            if line.strip():
+                out.append(line.strip())
+        return out
+
     # ── 拆掉第二层的门副本：三条都要求门**自己**给出正确答案 ────────────────
-    #: (探针名, 注入文件, 被包裹命令 argv, 额外判据)
-    #: 额外判据 `wrapped_types`：断言被包裹命令的 `type -t` 输出里没有 `function`，
-    #: 且 `builtin`/`file` 都在 —— 后半句是防「命令根本没跑，空输出把否定判据喂饱」。
+    #: (探针名, 注入文件, 被包裹命令 argv, 期望的被包裹命令输出)
+    #: 第三条的期望值是**精确列表** `["builtin", "file"]`：`printf` 必须仍是
+    #: builtin、`dirname` 必须仍是外部命令，两条查询都要有输出 —— 既证明注入的
+    #: 函数没进被包裹命令的环境，也证明命令确实跑过（空输出满足不了精确相等）。
     exec_layer_cases = [
         (
             "shell-bash-env-exec-layer-is-load-bearing",
             fn_inject,
             ["/usr/bin/true"],
-            False,
+            None,
         ),
         (
             "shell-exec-strips-readonly-func",
             ro_inject,
             ["/usr/bin/true"],
-            False,
+            None,
         ),
         (
             "shell-wrapped-cmd-sees-no-injected-func",
             fn_inject,
             ["/bin/bash", "-c", "type -t printf; type -t dirname"],
-            True,
+            ["builtin", "file"],
         ),
     ]
-    for name, inject, wrapped, wrapped_types in exec_layer_cases:
+    for name, inject, wrapped, expect_wrapped in exec_layer_cases:
         if _anchor_hits != 1:
             _emit(
                 name,
@@ -840,9 +864,9 @@ def probe_shell_injections() -> list[dict]:
             marker = str(fake / "data/bug_log.jsonl")
             proc = _sh_direct(["bash", str(fgate), "--", *wrapped], {"BASH_ENV": str(inject)})
             ok = proc.returncode == 0 and marker in proc.stdout and "RUNTIME-FILES: unchanged" in proc.stdout
-            if ok and wrapped_types:
-                # 被包裹命令必须真的跑了（builtin/file 都在），且看不到注入的函数
-                ok = "builtin" in proc.stdout and "file" in proc.stdout and "function" not in proc.stdout
+            got_wrapped = _wrapped_output(proc.stdout) if expect_wrapped is not None else None
+            if ok and expect_wrapped is not None:
+                ok = got_wrapped == expect_wrapped
             _emit(
                 name,
                 ok,
@@ -850,7 +874,9 @@ def probe_shell_injections() -> list[dict]:
                 0,
                 "exec 层自己摘掉了导出函数",
                 "拆掉纵深第二层后导出函数活了下来（exec 层不承重）",
-                f"rc={proc.returncode} marker={marker in proc.stdout} stdout={proc.stdout[-300:]} stderr={proc.stderr[-300:]}",
+                f"rc={proc.returncode} marker={marker in proc.stdout} "
+                f"被包裹输出={got_wrapped!r}（期望 {expect_wrapped!r}） "
+                f"stdout={proc.stdout[-300:]} stderr={proc.stderr[-300:]}",
             )
         finally:
             shutil.rmtree(ftmp, ignore_errors=True)
@@ -874,49 +900,150 @@ def probe_shell_injections() -> list[dict]:
         f"rc={proc.returncode} stdout={proc.stdout[-300:]} stderr={proc.stderr[-300:]}",
     )
 
-    # ── 票据：伪造前哨必须被明确拒绝（不重入、不假绿、在 timeout 内退出）────
-    try:
-        proc = _sh_direct(["bash", str(GATE), "--w4-reexec", "w4-forged-not-a-real-ticket", "--", "/usr/bin/true"])
-        forged_ok = (
-            proc.returncode == 1 and "GATE-BROKEN" in proc.stderr and "RUNTIME-FILES: unchanged" not in proc.stdout
-        )
-        forged_reason = f"rc={proc.returncode} stdout={proc.stdout[-300:]} stderr={proc.stderr[-300:]}"
-    except subprocess.TimeoutExpired:
-        proc, forged_ok = None, False
-        forged_reason = "门没有在 timeout 内退出 —— 疑似伪造前哨触发了无界重入"
-    _emit(
+    # ── 三条拒绝分支，**每条绑定自己的文案** ────────────────────────────────
+    #
+    # ⛔ Codex round-1 MEDIUM-2 的整改：初版三条都只断言 `"GATE-BROKEN" in stderr`。
+    # 那是**粗判据** —— 门有三条不同的拒绝分支（标记不匹配 / BASH_ENV 非空 /
+    # 环境里有导出函数），任一条都能满足它。于是「PID 一致 + 导出函数」这条分支
+    # 实际上从来没被跑到（它带着非空 BASH_ENV，在**更早**的分支就被拒了），把那段
+    # 检查删掉探针照样全绿。判据必须绑定「是被**哪一层**拒的」。
+    #
+    # 每个 case: (探针名, 起法, 环境, 期望的拒绝文案片段, verdict 文案, 说明)
+    def _refusal_case(name, run, expect_msg, verdict_ok, verdict_bad):
+        try:
+            proc = run()
+            ok = proc.returncode == 1 and expect_msg in proc.stderr and "RUNTIME-FILES: unchanged" not in proc.stdout
+            reason = (
+                f"rc={proc.returncode} 期望文案={expect_msg!r} 命中={expect_msg in proc.stderr} "
+                f"stdout={proc.stdout[-200:]} stderr={proc.stderr[-300:]}"
+            )
+        except subprocess.TimeoutExpired:
+            proc, ok = None, False
+            reason = "门没有在 timeout 内退出 —— 疑似触发了无界重入"
+        _emit(name, ok, proc, 1, verdict_ok, verdict_bad, reason)
+
+    # ① 标记不匹配 ⇒ 走「与本进程 PID 不一致」那条分支
+    _refusal_case(
         "shell-reexec-sentinel-forged",
-        forged_ok,
-        proc,
-        1,
-        "伪造票据被门明确拒绝",
-        "伪造票据没被拒绝（假绿或无界重入）",
-        forged_reason,
+        lambda: _sh_direct(["bash", str(GATE), "--w4-reexec", "w4-forged-not-a-real-ticket", "--", "/usr/bin/true"]),
+        "与本进程 PID 不一致",
+        "标记不匹配被该分支拒绝",
+        "标记不匹配没被拒绝（假绿 / 无界重入 / 被别的分支拒的）",
     )
 
-    # ── 残余可伪造面的门：调用者自己 exec ⇒ 继承 PID ⇒ 票据**对得上**。
-    # 这一面本卡**没有关掉**（如实登记）。关掉的是它的危害：票据声称"已清洗"，
-    # 门就复核环境真的干净；伪票 + 注入自相矛盾 ⇒ 当场 GATE-BROKEN。
-    # 没有这条探针，那段环境自洽检查就是没人跑过的死代码。
-    try:
-        proc = _sh(
+    # ② PID 一致（调用者自己 exec 继承 PID —— 本卡**未关闭**的残余可伪造面）
+    #    但 BASH_ENV 非空 ⇒ 走「BASH_ENV/ENV 仍有值」那条分支。
+    _refusal_case(
+        "shell-forged-ticket-with-injection-refused",
+        lambda: _sh(
             f'exec bash {GATE} --w4-reexec "w4-sha-gate-reexec-v1:$$" -- /usr/bin/true',
             {"BASH_ENV": str(fn_inject)},
+        ),
+        "BASH_ENV/ENV 仍有值",
+        "PID 可伪造，但非空 BASH_ENV 被该分支拦下",
+        "继承 PID 后带着 BASH_ENV 跑成了结论",
+    )
+
+    # ③ PID 一致 **且** 注入文件把 BASH_ENV 自己清掉，只留一个导出函数
+    #    ⇒ 必须走「环境里仍有导出函数」那条分支。这才是 ② 到不了的那一段。
+    selfunset_inject = tmp / "selfunset.sh"
+    selfunset_inject.write_text(
+        "unset BASH_ENV\nw4probe_fn() { :; }\nexport -f w4probe_fn\n",
+        encoding="utf-8",
+    )
+    _refusal_case(
+        "shell-ticket-ok-but-exported-func-refused",
+        lambda: _sh(
+            f'exec bash {GATE} --w4-reexec "w4-sha-gate-reexec-v1:$$" -- /usr/bin/true',
+            {"BASH_ENV": str(selfunset_inject)},
+        ),
+        "仍有导出函数",
+        "残留导出函数被**导出函数**分支拦下",
+        "残留导出函数没被该分支拦下",
+    )
+
+    # ── 本卡自己引入的假绿面：拒绝路径落在注入者 EXIT trap 射程里 ──────────
+    # 这条分支的 exit 发生在 exec **之前**。2026-09-06 作者自测：不清 trap 时
+    # stderr 打了 GATE-BROKEN，注入者的 EXIT trap 随后打印 `RUNTIME-FILES:
+    # unchanged` 并把 rc 改写成 **0**。判据同时看 rc 与 stdout —— 只看其一都会
+    # 漏：rc 被改写而文案还在，stdout 假绿而 stderr 也还在。
+    try:
+        proc = _sh_direct(
+            ["bash", str(GATE), "--w4-reexec", "w4-forged-not-a-real-ticket", "--", "/usr/bin/true"],
+            {"BASH_ENV": str(trap_inject)},
         )
-        pid_ok = proc.returncode == 1 and "GATE-BROKEN" in proc.stderr and "RUNTIME-FILES: unchanged" not in proc.stdout
-        pid_reason = f"rc={proc.returncode} stdout={proc.stdout[-300:]} stderr={proc.stderr[-300:]}"
+        trap_ok = proc.returncode == 1 and "RUNTIME-FILES: unchanged" not in proc.stdout
+        trap_reason = (
+            f"rc={proc.returncode}（期望 1；0 = 被 EXIT trap 改写）"
+            f" 假绿={'RUNTIME-FILES: unchanged' in proc.stdout} stdout={proc.stdout[-200:]}"
+        )
     except subprocess.TimeoutExpired:
-        proc, pid_ok = None, False
-        pid_reason = "门没有在 timeout 内退出"
+        proc, trap_ok = None, False
+        trap_reason = "门没有在 timeout 内退出"
     _emit(
-        "shell-forged-ticket-with-injection-refused",
-        pid_ok,
+        "shell-forged-ticket-under-exit-trap",
+        trap_ok,
         proc,
         1,
-        "票据可伪造，但伪票+注入被环境自洽检查拦下",
-        "继承 PID 伪造票据后带着注入跑成了结论",
-        pid_reason,
+        "拒绝路径先清 trap，rc 与 stdout 都没被改写",
+        "拒绝路径落在 EXIT trap 射程里（rc 被改写成 0 或 stdout 假绿）",
+        trap_reason,
     )
+
+    # ── 假红回归门：值含换行的**普通**变量不得被当成导出函数（Codex MEDIUM-1）──
+    # 初版按行扫 `env` 输出，无法区分「条目边界」与「值里的换行」。于是一个完全
+    # 正常的调用——只要环境里有个多行变量、其中一行以 `BASH_FUNC_` 开头——就会被
+    # 判 GATE-BROKEN（**假红**，不需要任何注入）。修法是改用 `env -0`（NUL 分隔）。
+    # 这条探针不带任何注入，它证明的是「门没有因为修复而开始误伤正常环境」。
+    carrier = "harmless-value\nBASH_FUNC_notafunction%%=this-is-just-text\ntail"
+    proc = _sh_direct(["bash", str(GATE), "--", "/usr/bin/true"], {"W4_PROBE_CARRIER": carrier})
+    _emit(
+        "shell-multiline-env-var-not-mistaken-for-func",
+        proc.returncode == 0 and expected_marker in proc.stdout and "RUNTIME-FILES: unchanged" in proc.stdout,
+        proc,
+        0,
+        "多行普通变量没有被误当成导出函数",
+        "普通多行变量把正常调用弄成了 GATE-BROKEN（假红）",
+        f"rc={proc.returncode} stdout={proc.stdout[-200:]} stderr={proc.stderr[-300:]}",
+    )
+
+    # ── 枚举失败必须与「零个匹配」区分（Codex round-1 LOW-4）──────────────────
+    # 进程替换拿不到生产者的退出码，`pipefail` 也不覆盖它 —— 「`env -0` 没跑起来 /
+    # 输出被截断」会表现成「环境里没有导出函数」而**静默通过**。门靠一个完成哨兵
+    # 条目区分两者。这个失败形态从生产输入到不了（`env -0` 在本机可用），所以用
+    # 门副本模拟：把哨兵的产出去掉、检查留着 ⇒ 门必须拒绝，而不是当作「没有残留」。
+    _SENTINEL_EMIT = "{ /usr/bin/env -0 && builtin printf '%s\\0' \"$__W4_ENV_SENTINEL\"; }"
+    _sentinel_hits = _gate_text.count(_SENTINEL_EMIT)
+    if _sentinel_hits != 2:
+        _emit(
+            "shell-env-enum-failure-is-fail-closed",
+            False,
+            None,
+            1,
+            "",
+            "枚举哨兵锚点与生产代码脱节",
+            f"哨兵产出锚点命中 {_sentinel_hits} 次（须恰好 2：第一趟 + 第二趟）——拒绝报绿",
+        )
+    else:
+        stmp, sfake = _fake_backend(
+            "w4-env-enum-", gate_text=_gate_text.replace(_SENTINEL_EMIT, "{ /usr/bin/env -0; }")
+        )
+        try:
+            sgate = sfake / "scripts" / "lifespan_isolation_runtime_sha.sh"
+            proc = _sh_direct(["bash", str(sgate), "--", "/usr/bin/true"])
+            _emit(
+                "shell-env-enum-failure-is-fail-closed",
+                proc.returncode == 1
+                and "环境枚举未完整产出" in proc.stderr
+                and "RUNTIME-FILES: unchanged" not in proc.stdout,
+                proc,
+                1,
+                "枚举不完整时门拒绝给结论",
+                "枚举不完整被当成『没有残留』而放行",
+                f"rc={proc.returncode} stdout={proc.stdout[-200:]} stderr={proc.stderr[-300:]}",
+            )
+        finally:
+            shutil.rmtree(stmp, ignore_errors=True)
 
     shutil.rmtree(tmp, ignore_errors=True)
     return results
