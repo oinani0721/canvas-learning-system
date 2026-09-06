@@ -1,8 +1,0 @@
-# 裁判3 — 两次运行的规范化报告 diff（剥掉时间戳后必须为空）
-# 规范化只剥 volatile 键（timestamp/duration/路径/argv），全部计数、group_id、
-# 表名、判据布尔值都保留 —— 否则 diff 恒空是因为剥成了空壳，不是因为等价。
-run1 报告: canary-normalized-20260905T093657Z.json
-run2 报告: canary-normalized-20260905T093754Z.json
-行数（实质内容规模）:      228
-$ diff run1 run2
-diff_rc=0

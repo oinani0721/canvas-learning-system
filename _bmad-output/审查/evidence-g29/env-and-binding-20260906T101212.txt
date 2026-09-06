@@ -1,0 +1,23 @@
+# CARD-G2-9 裁判 0 — 环境与被测代码绑定（round-3：独立对抗复核整改后重跑）
+生成时间: 2026-09-06T10:12:12+08:00
+
+$ git rev-parse --short=8 HEAD
+aa26ff9c
+$ readlink backend/.venv
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv
+
+# 被测代码 sha256（本目录全部 round-3 证据绑定这三个值）
+4b89ff68e6f7cd9d2a33b8c78c544111fe4ccd8135271a532d57ccb4028024b0  backend/scripts/g29_dual_vault_canary.py
+eb93aad49fea01c04be65974e2cd0d88effbfd44295bdc6a37e087cb5c4fdc8f  backend/tests/regression/test_g29_dual_vault_fsrs_isolation.py
+148e8598ba2d05f9bc02b75507d75b2cd1fea40cc2874c1ac59655defd9daf2a  _bmad-output/审查/evidence-g29/g29_fsrs_test_mutations.py
+
+$ docker ps
+canvas-learning-system-backend	127.0.0.1:8011->8001/tcp	Up 25 hours (healthy)
+canvas-learning-system-neo4j-test	127.0.0.1:7479->7474/tcp, 127.0.0.1:7692->7687/tcp	Up 25 hours (healthy)
+canvas-learning-system-neo4j	127.0.0.1:7478->7474/tcp, 127.0.0.1:7691->7687/tcp	Up 6 hours (healthy)
+
+$ ruff check / format --check / pyright
+All checks passed!
+2 files already formatted
+0 errors, 0 warnings, 0 informations
+rc=0

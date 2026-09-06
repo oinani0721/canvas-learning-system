@@ -1,0 +1,23 @@
+# 裁判6b — (c) 的验伪（round-3：C3 如实命名 + 新增 C5 交叉排除锚 + C4 反向锚）
+# 判据 = rc≠0 且失败的恰好是点名 nodeid 且输出含点名断言消息
+还原对账: OK 逐字节相同  sha=eb93aad49fea
+
+  KILLED    C1_global_state_file
+            state 文件退化成全局单例（C1a 修的那个根缺陷的观察器侧等价物）
+            rc=1 | 失败节点=✓ | 断言消息✓
+  KILLED    C2_fsrs_due_ignored
+            B 的 fsrs_due 被抹掉 ⇒ 变 New 卡即刻到期（FSRS 到期判定失效）
+            rc=1 | 失败节点=✓ | 断言消息✓
+  KILLED    C3_a_reads_b_projection__kills_precondition
+            A 侧读到 B 的投影 ⇒ 打的是 LOW-4 前提断言（不是交叉排除）
+            rc=1 | 失败节点=✓ | 断言消息✓
+  KILLED    C5_a_pool_carries_b_board_node
+            A 的节点池里混进一个挂在 B 板上的节点 ⇒ 打的正是交叉排除断言
+            rc=1 | 失败节点=✓ | 断言消息✓
+  KILLED    C4_md_precondition_dropped
+            拿掉 md 的本库内容前提 —— 应当**不再**红（证明它是加性前提，不承担隔离结论）
+            rc=0 failed=无（期望 rc=0）
+
+判据 = 退出码非 0 **且** 失败的正是点名的 nodeid **且** 输出含点名的断言消息。
+（C4 是反向锚：拿掉加性前提后应当不红，用来证明前三条的红不是被前提喂饱的。）
+rc=0

@@ -1,0 +1,6 @@
+# 裁判3 — 两次运行的规范化报告 diff（剥掉时间戳后必须为空）
+run1: canary-normalized-20260906T021343Z.json
+run2: canary-normalized-20260906T021427Z.json
+行数:      236
+$ diff
+diff_rc=0

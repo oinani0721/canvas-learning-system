@@ -1,0 +1,16 @@
+# 自查 — read_scope_sentinels_clean 的恒 0 性质（现由 M8 系统侧变异覆盖，本文件留作机制说明）
+=== step 1: graphiti 的过滤条件（源码实读，不是推测）===
+  WHERE e.group_id IN $group_ids
+
+=== step 2: 用 A 的 scope 查，返回节点的 group_id 集合 ===
+  查询 scope = vault__g29audit_a
+  库里同时存在 vault__g29audit_a 与 vault__g29audit_b 两组数据
+  返回节点的 group_id 集合 = ['vault__g29audit_a']
+  outside_read_scope = 0   ← 恒 0：等值过滤下不可能非 0
+
+=== step 3: 反向坐实判据本身有效（不是恒真的代码）===
+  把 scope 换成无关值 vault__unrelated_scope
+  outside_read_scope = 1   ← 非 0，说明判据会算，只是走不到
+
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+rc=0

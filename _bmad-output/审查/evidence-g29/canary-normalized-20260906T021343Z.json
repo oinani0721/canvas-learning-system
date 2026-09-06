@@ -1,7 +1,4 @@
 {
-  "duration_s": 53.969,
-  "evidence_dir": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-z5-canary/_bmad-output/审查/evidence-g29",
-  "guard_summary": "NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)",
   "identities": {
     "A": {
       "graphiti_group_id": "vault__g29canary_a",
@@ -18,7 +15,6 @@
       "neo4j_physical_group_id": "vault__g29canary_b"
     }
   },
-  "lancedb_path": "/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z5-canary/97db387e-739a-4ddf-947f-4c5de13ca2e8/scratchpad/f-r1-Gl1wDn",
   "phases": {
     "A_after_B_written": {
       "graphiti": {
@@ -203,6 +199,12 @@
     "concept_group_distribution": {
       "vault__g29canary_a": 1,
       "vault__g29canary_b": 1
+    },
+    "deleted_when_purging_A": {
+      "graphiti_deleted": 2,
+      "graphiti_residual_before_sweep": 0,
+      "lancedb_drop_attempted": 1,
+      "lancedb_residual": 0
     }
   },
   "side_effect_probe": {
@@ -215,7 +217,6 @@
       "g29drift_b_canvas_nodes"
     ]
   },
-  "timestamp": "20260905T093657Z",
   "verdicts": {
     "A_cannot_see_B": true,
     "A_counts_positive": true,
@@ -225,7 +226,9 @@
     "B_cannot_see_A": true,
     "B_counts_positive": true,
     "B_unchanged_after_deleting_A": true,
+    "graphiti_delete_is_load_bearing": true,
     "identities_distinct": true,
+    "lancedb_delete_is_load_bearing": true,
     "purge_left_nothing": true,
     "read_scope_sentinels_clean": true,
     "shared_concept_split_per_group": true

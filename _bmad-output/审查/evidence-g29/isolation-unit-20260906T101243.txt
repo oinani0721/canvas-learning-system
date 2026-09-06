@@ -1,19 +1,14 @@
-# 裁判1 — live_port_guard 契约测试（含 Z3-B 白名单钉子 :315-318）
-$ grep -c 'def test_' tests/unit/test_live_port_guard_contract.py
-51
-$ grep -c 'parametrize' tests/unit/test_live_port_guard_contract.py
-7
-# 51 def + 7 parametrize → 收集数实测见下方摘要（卡文未写死，此处如实记）
+# 裁判2 — LanceDB 前缀契约(15) + 写侧不回落(5)
 ============================= test session starts ==============================
 platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
 rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-z5-canary/backend
 configfile: pytest.ini
 plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
 asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
-collected 84 items
+collected 20 items
 
-tests/unit/test_live_port_guard_contract.py ............................ [ 33%]
-........................................................                 [100%]
+tests/unit/test_lancedb_vault_isolation.py ...............               [ 75%]
+tests/regression/test_write_side_group_guard.py .....                    [100%]
 
 =============================== warnings summary ===============================
 ../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
@@ -56,5 +51,5 @@ app/api/v1/endpoints/metadata.py:179
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
 NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
-======================= 84 passed, 10 warnings in 1.42s ========================
+======================= 20 passed, 10 warnings in 0.52s ========================
 rc=0

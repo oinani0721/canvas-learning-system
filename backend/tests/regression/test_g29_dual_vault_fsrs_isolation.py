@@ -61,13 +61,24 @@ def _vault(tmp_path: Path, nodes: dict, name: str) -> Path:
 
 
 def _projection_texts(vault: Path, backups: Path) -> dict[str, str]:
-    """本 vault 的全部投影产物文本（json / md / state）。"""
+    """本 vault 的全部投影产物文本（json / md / state）。**缺文件即断言失败**。
+
+    ⛔ 初版把缺失的文件读成空串（Codex round-1 LOW-4）：下游的交叉排除断言是
+    ``foreign not in text``，而 ``foreign not in ""`` **恒真** —— 投影一旦没生成，
+    "两库产物无交叉"就变成一句在空字符串上做的、永远成立的话。
+    2026-09-05 实测三份产物都确实生成（md 1115 字节且含本库节点名），所以当时
+    没有真的假绿；但判据不能靠"碰巧生成了"站住，前提要自己断言。
+    """
     out = {}
     for rel in ("outputs/今日复习.json", "outputs/今日复习.md"):
         p = vault / rel
-        out[rel] = p.read_text(encoding="utf-8") if p.exists() else ""
+        assert p.exists(), f"{vault.name} 的投影 {rel} 没生成——交叉排除断言会在空串上恒真"
+        text = p.read_text(encoding="utf-8")
+        assert text.strip(), f"{vault.name} 的投影 {rel} 是空文件——同上"
+        out[rel] = text
     state = backups / f"daily-review.{vault.name}.state.json"
-    out["state"] = state.read_text(encoding="utf-8") if state.exists() else ""
+    assert state.exists(), f"{vault.name} 的 state 文件没生成"
+    out["state"] = state.read_text(encoding="utf-8")
     return out
 
 
@@ -110,6 +121,25 @@ def test_two_vaults_fsrs_and_notification_chain_isolated(tmp_path, monkeypatch, 
     # ── 2. 投影产物逐字节无交叉 ──
     texts_a = _projection_texts(vault_a, backups)
     texts_b = _projection_texts(vault_b, backups)
+    # 排除异库标识之前，先确认每份产物**确实含本库内容**——否则"不含对方"
+    # 可能只是因为它什么都不含（LOW-4 的另一半）。
+    assert A_NODE in texts_a["outputs/今日复习.json"], "A 的 json 里没有 A 自己的节点"
+    assert A_NODE in texts_a["outputs/今日复习.md"], "A 的 md 里没有 A 自己的节点"
+    # ⚠️ state 的 **内容里没有 vault 名**——vault 维度在**文件名**上
+    # （daily-review.<vault>.state.json）。所以下面交叉排除里的 `"vaultB" not in
+    # state_a` 是一条**空断言**（两份 state 都不含任何 vault 名），真正承重的是
+    # 板名那一项：state 内容含 board_last_recommended，A 的板名不该出现在 B 的
+    # state 里。这条前提断言就是钉住"板名确实在里面"，免得空断言被当成证据。
+    assert A_BOARD in texts_a["state"], "A 的 state 里没有 A 自己的板名（交叉断言会落空）"
+    # B 侧同样要有本库标识，否则 B→A 方向的交叉排除也是空断言（round-2 复核 LOW）。
+    assert B_NODE in texts_b["outputs/今日复习.json"], "B 的 json 里没有 B 自己的节点"
+    assert B_BOARD in texts_b["outputs/今日复习.json"], "B 的 json 里没有 B 自己的板名"
+    # ⚠️ **B 的 state 刻意不加这条前提，如实说明为什么**：本场景里 B 的节点
+    #    fsrs_due 在远未来 ⇒ B 无到期节点 ⇒ `board_last_recommended` 是 `{}`，
+    #    B 的 state 天然不含任何板名。所以 B→A 方向**在 state 这一栏上**的交叉
+    #    排除是空断言——不是漏写，是这一栏本来就没有可泄漏的载体。承重的是
+    #    B 的 json / md 两栏（上面两条前提钉住了它们确有 B 的标识）。
+    #    第四轮（下面 fsrs_due 翻成过去之后）B 才会有板名进 state。
     for rel, text in texts_a.items():
         for foreign in (B_NODE, B_BOARD, "vaultB"):
             assert foreign not in text, f"A 的 {rel} 里出现了 B 的独有标识 {foreign!r}"
