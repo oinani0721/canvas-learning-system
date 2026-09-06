@@ -458,12 +458,20 @@ pre-push:
     # → `frontend/obsidian-plugin/src/**`; command from `vitest` (not used) → `npm test`
     # (esbuild + node --test, matches frontend/obsidian-plugin/package.json scripts.test).
     # Pre-fix the gate was silently passing because no files matched the glob.
+    #
+    # fix-test-infra-paralysis Phase 0.2 (f19dcff6, cherry-picked 2026-09-06):
+    # the invocation goes through scripts/run_cmd_capture.sh so a non-zero
+    # `npm test` exit code is NOT swallowed by `| tail`. POSIX pipelines return
+    # only the rightmost command's exit status, so the previous version let
+    # failing plugin tests through pre-push. Only the pipe→wrapper transform is
+    # taken from f19dcff6; its literal glob and runner predate the
+    # ChatGPT-Review P0-1 fix above and are deliberately NOT applied.
     frontend-test:
       glob: "frontend/obsidian-plugin/{src,tests}/**/*.{ts,tsx}"
       run: |
         if [ -d "frontend/obsidian-plugin/node_modules" ]; then
           echo "[Pre-push] Running plugin tests (node --test via esbuild bundle)..."
-          npm --prefix frontend/obsidian-plugin test 2>&1 | tail -20
+          ./scripts/run_cmd_capture.sh --cwd frontend/obsidian-plugin --tail 120 -- npm test
           echo "[Pre-push] Plugin tests done."
         else
           echo "[Pre-push] frontend/obsidian-plugin/node_modules missing — run 'npm --prefix frontend/obsidian-plugin install' first. Skipping."

@@ -25,36 +25,24 @@ class TestDeterministicEpisodeId:
         """Same (user_id, canvas_path, node_id, concept) → same episode_id."""
         from app.services.memory_service import _generate_deterministic_episode_id
 
-        id1 = _generate_deterministic_episode_id(
-            "user1", "math/algebra.canvas", "node-1", "二次方程"
-        )
-        id2 = _generate_deterministic_episode_id(
-            "user1", "math/algebra.canvas", "node-1", "二次方程"
-        )
+        id1 = _generate_deterministic_episode_id("user1", "math/algebra.canvas", "node-1", "二次方程")
+        id2 = _generate_deterministic_episode_id("user1", "math/algebra.canvas", "node-1", "二次方程")
         assert id1 == id2
 
     def test_different_input_different_id(self):
         """Different inputs → different episode_ids."""
         from app.services.memory_service import _generate_deterministic_episode_id
 
-        id1 = _generate_deterministic_episode_id(
-            "user1", "math/algebra.canvas", "node-1", "二次方程"
-        )
-        id2 = _generate_deterministic_episode_id(
-            "user1", "math/algebra.canvas", "node-2", "二次方程"
-        )
+        id1 = _generate_deterministic_episode_id("user1", "math/algebra.canvas", "node-1", "二次方程")
+        id2 = _generate_deterministic_episode_id("user1", "math/algebra.canvas", "node-2", "二次方程")
         assert id1 != id2
 
     def test_different_user_different_id(self):
         """Different user_id → different episode_ids."""
         from app.services.memory_service import _generate_deterministic_episode_id
 
-        id1 = _generate_deterministic_episode_id(
-            "user1", "math.canvas", "node-1", "概念A"
-        )
-        id2 = _generate_deterministic_episode_id(
-            "user2", "math.canvas", "node-1", "概念A"
-        )
+        id1 = _generate_deterministic_episode_id("user1", "math.canvas", "node-1", "概念A")
+        id2 = _generate_deterministic_episode_id("user2", "math.canvas", "node-1", "概念A")
         assert id1 != id2
 
     def test_id_format(self):
@@ -88,24 +76,16 @@ class TestBatchDeterministicEpisodeId:
         """Same event content → same batch episode_id."""
         from app.services.memory_service import _generate_batch_episode_id
 
-        id1 = _generate_batch_episode_id(
-            "math.canvas", "node-1", "color_change", "2026-02-09T10:00:00"
-        )
-        id2 = _generate_batch_episode_id(
-            "math.canvas", "node-1", "color_change", "2026-02-09T10:00:00"
-        )
+        id1 = _generate_batch_episode_id("math.canvas", "node-1", "color_change", "2026-02-09T10:00:00")
+        id2 = _generate_batch_episode_id("math.canvas", "node-1", "color_change", "2026-02-09T10:00:00")
         assert id1 == id2
 
     def test_different_event_different_id(self):
         """Different event content → different batch episode_ids."""
         from app.services.memory_service import _generate_batch_episode_id
 
-        id1 = _generate_batch_episode_id(
-            "math.canvas", "node-1", "color_change", "2026-02-09T10:00:00"
-        )
-        id2 = _generate_batch_episode_id(
-            "math.canvas", "node-1", "color_change", "2026-02-09T10:00:01"
-        )
+        id1 = _generate_batch_episode_id("math.canvas", "node-1", "color_change", "2026-02-09T10:00:00")
+        id2 = _generate_batch_episode_id("math.canvas", "node-1", "color_change", "2026-02-09T10:00:01")
         assert id1 != id2
 
     def test_batch_id_format(self):
@@ -122,6 +102,18 @@ class TestBatchDeterministicEpisodeId:
 # ============================================================================
 
 
+# fix-test-infra-paralysis Phase 2: skip — TestEpisodesDedup, TestBatchEpisodesDedup,
+# and TestGraphitiJsonWriteDedup all rely on the deleted symbol
+# `MemoryService._write_to_graphiti_json_with_retry` (either directly via call or
+# indirectly via mock chains that no longer match the new EpisodeWorker pipeline).
+# The dedup semantics they tested moved to GraphitiEpisodeWorker; the new
+# baseline is in backend/tests/unit/test_episode_worker_retry.py.
+# TestDeterministicEpisodeId and TestBatchDeterministicEpisodeId remain active —
+# they only test pure hash logic and have no dependency on the deleted method.
+@pytest.mark.skip(
+    reason="Depends on deleted MemoryService._write_to_graphiti_json_with_retry; "
+    "EpisodeWorker pipeline coverage in test_episode_worker_retry.py"
+)
 class TestEpisodesDedup:
     """AC-30.10.3: _episodes list dedup on record_learning_event."""
 
@@ -229,9 +221,7 @@ class TestEpisodesDedup:
                 score=80,
             )
 
-            matching = [
-                ep for ep in memory_service._episodes if ep.get("concept") == "二次方程"
-            ]
+            matching = [ep for ep in memory_service._episodes if ep.get("concept") == "二次方程"]
             assert len(matching) == 1
             assert matching[0]["score"] == 60  # C4 fix: skip-if-exists keeps original
 
@@ -241,6 +231,10 @@ class TestEpisodesDedup:
 # ============================================================================
 
 
+@pytest.mark.skip(
+    reason="Depends on deleted MemoryService._write_to_graphiti_json_with_retry; "
+    "EpisodeWorker pipeline coverage in test_episode_worker_retry.py"
+)
 class TestBatchEpisodesDedup:
     """AC-30.10.4: Batch episodes dedup."""
 
@@ -318,6 +312,10 @@ class TestBatchEpisodesDedup:
 # ============================================================================
 
 
+@pytest.mark.skip(
+    reason="Tests deleted method MemoryService._write_to_graphiti_json_with_retry directly; "
+    "EpisodeWorker pipeline coverage in test_episode_worker_retry.py"
+)
 class TestGraphitiJsonWriteDedup:
     """AC-30.10.2: Graphiti JSON write dedup via search check."""
 
@@ -352,9 +350,7 @@ class TestGraphitiJsonWriteDedup:
     async def test_skips_write_when_exists(self, memory_service, mock_learning_memory):
         """If concept+canvas+node already in memories, skip write."""
         mock_learning_memory.search_memories = AsyncMock(
-            return_value=[
-                {"concept": "二次方程", "canvas_name": "math.canvas", "node_id": "n1"}
-            ]
+            return_value=[{"concept": "二次方程", "canvas_name": "math.canvas", "node_id": "n1"}]
         )
 
         result = await memory_service._write_to_graphiti_json_with_retry(
@@ -383,13 +379,9 @@ class TestGraphitiJsonWriteDedup:
         mock_learning_memory.add_learning_episode.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_degrades_gracefully_on_search_error(
-        self, memory_service, mock_learning_memory
-    ):
+    async def test_degrades_gracefully_on_search_error(self, memory_service, mock_learning_memory):
         """AC-30.10.5: If dedup check fails, fall back to normal write."""
-        mock_learning_memory.search_memories = AsyncMock(
-            side_effect=Exception("DB error")
-        )
+        mock_learning_memory.search_memories = AsyncMock(side_effect=Exception("DB error"))
 
         result = await memory_service._write_to_graphiti_json_with_retry(
             episode_id="ep-123",
@@ -402,9 +394,7 @@ class TestGraphitiJsonWriteDedup:
         mock_learning_memory.add_learning_episode.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_degrades_when_learning_memory_uninitialized(
-        self, memory_service, mock_learning_memory
-    ):
+    async def test_degrades_when_learning_memory_uninitialized(self, memory_service, mock_learning_memory):
         """AC-30.10.5: If _learning_memory not initialized, skip dedup, write normally."""
         mock_learning_memory._initialized = False
 
