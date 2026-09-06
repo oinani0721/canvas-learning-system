@@ -1,0 +1,72 @@
+# baseline sha  : c1e7b36c69fc425f691759cad32355226909e4410a25b74e5b74c131cfc3f194
+# 未变异时失败集: (空 — 全绿)  收集期错误=False
+
+## M1-missing: KILLED-EXACT  (还原=ok)
+   期望红: ['test_generate_item_missing_is_reported', 'test_missing_is_detected_alone']
+   实际红: ['test_generate_item_missing_is_reported', 'test_missing_is_detected_alone']
+
+## M2-extra: KILLED-EXACT  (还原=ok)
+   期望红: ['test_extra_is_detected_alone']
+   实际红: ['test_extra_is_detected_alone']
+
+## M3-content-drift: KILLED-EXACT  (还原=ok)
+   期望红: ['test_content_drift_is_detected_alone', 'test_trailing_newline_name_is_not_excluded']
+   实际红: ['test_content_drift_is_detected_alone', 'test_trailing_newline_name_is_not_excluded']
+
+## M4-intentionally-excluded: KILLED-EXACT  (还原=ok)
+   期望红: ['test_bracket_is_literal_in_both_places', 'test_glob_exclude_matches_nested_pycache', 'test_intentionally_excluded_is_detected_alone', 'test_target_side_exclusion_is_also_pinned']
+   实际红: ['test_bracket_is_literal_in_both_places', 'test_glob_exclude_matches_nested_pycache', 'test_intentionally_excluded_is_detected_alone', 'test_target_side_exclusion_is_also_pinned']
+
+## M5-skeleton-must-be-dir: KILLED-EXACT  (还原=ok)
+   期望红: ['test_skeleton_present_as_file_is_missing']
+   实际红: ['test_skeleton_present_as_file_is_missing']
+
+## M6-digest-exclude-filter: KILLED-EXACT  (还原=ok)
+   期望红: ['test_normally_deployed_vault_is_not_reported_as_drift', 'test_target_side_exclusion_is_also_pinned']
+   实际红: ['test_normally_deployed_vault_is_not_reported_as_drift', 'test_target_side_exclusion_is_also_pinned']
+
+## M7-report-hardlink-guard: KILLED-EXACT  (还原=ok)
+   期望红: ['test_report_hardlinked_into_vault_is_refused']
+   实际红: ['test_report_hardlinked_into_vault_is_refused']
+
+## M8-exclude-kind-dir: KILLED-EXACT  (还原=ok)
+   期望红: ['test_exclude_kind_matches_script_type_conditions']
+   实际红: ['test_exclude_kind_matches_script_type_conditions']
+
+## M9-action-type-check: KILLED-EXACT  (还原=ok)
+   期望红: ['test_non_string_action_still_exits_2']
+   实际红: ['test_non_string_action_still_exits_2']
+
+## M10-exclude-kind-nondir: KILLED-EXACT  (还原=ok)
+   期望红: ['test_exclude_kind_matches_script_type_conditions', 'test_exclude_kind_nondir_matches_what_the_script_deletes']
+   实际红: ['test_exclude_kind_matches_script_type_conditions', 'test_exclude_kind_nondir_matches_what_the_script_deletes']
+
+## M11-write-report-inplace: KILLED-EXACT  (还原=ok)
+   期望红: ['test_report_via_dev_fd_alias_is_refused', 'test_verifier_write_calls_are_confined_to_write_report']
+   实际红: ['test_report_via_dev_fd_alias_is_refused', 'test_verifier_write_calls_are_confined_to_write_report']
+
+## M12-forbidden-roots: KILLED-EXACT  (还原=ok)
+   期望红: ['test_report_behind_vault_symlink_is_refused']
+   实际红: ['test_report_behind_vault_symlink_is_refused']
+
+## M13-unreadable-blocking: MISMATCH  (还原=ok)
+   期望红: ['test_unreadable_subtree_is_not_reported_as_match']
+   实际红: ['test_unreadable_alone_still_blocks']
+   ⚠️ 连坐 (本不该红): ['test_unreadable_alone_still_blocks']
+   ⚠️ 未被杀 (门不承重): ['test_unreadable_subtree_is_not_reported_as_match']
+
+## M14-extra-scan-validation: KILLED-EXACT  (还原=ok)
+   期望红: ['test_invalid_extra_scan_exits_2']
+   实际红: ['test_invalid_extra_scan_exits_2']
+
+## M15-glob-chars-bracket: KILLED-EXACT  (还原=ok)
+   期望红: ['test_bracket_is_literal_in_both_places']
+   实际红: ['test_bracket_is_literal_in_both_places']
+
+## M16-manifest-read-catch: KILLED-EXACT  (还原=ok)
+   期望红: ['test_manifest_pointing_at_a_directory_exits_2']
+   实际红: ['test_manifest_pointing_at_a_directory_exits_2']
+
+# 结束 sha 复核 : 逐字节相同
+# 总判定        : FAIL
+rc=1

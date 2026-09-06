@@ -1,0 +1,43 @@
+# 哨兵时刻 2026-09-05T17:16:54+0800
+=== 跑校验器 (只读, 最终版 verifier sha 14ac7bad…) ===
+报告已写入 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/_bmad-output/审查/evidence-g26/live-diff.txt
+verifier-rc=1
+=== 报告正文 ===
+# vault-install verification report (CARD-G2-6, read-only)
+# manifest : scripts/vault-install-manifest.json (version 1, source live-vault)
+# vault    : /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault
+# source   : (未提供 — content-drift 未评估)
+# 语义     : exclude 项按各自模式的静态前缀子树扫描; extra 只看 manifest
+#            extra_scan 声明的覆盖面 (根级文档不在覆盖面内, 故不报 extra)。
+------------------------------------------------------------------
+match                  : 28
+missing                : 0
+extra                  : 5
+content-drift          : not evaluated (无 --source)
+intentionally-excluded : 8
+
+## extra
+  .claude/cache  — 位于覆盖面 .claude/* 内但不在 manifest
+  .obsidian/graph.json  — 位于覆盖面 .obsidian/*.json 内但不在 manifest
+  .obsidian/types.json  — 位于覆盖面 .obsidian/*.json 内但不在 manifest
+  .obsidian/plugins/excalibrain  — 位于覆盖面 .obsidian/plugins/* 内但不在 manifest
+  .obsidian/plugins/obsidian-excalidraw-plugin  — 位于覆盖面 .obsidian/plugins/* 内但不在 manifest
+
+## intentionally-excluded
+  原白板/** [learning-data]  — 目标里存在: 原白板/CS 61B.md, 原白板/CS.md, 原白板/CS188 lecture 2.md (共 6 项)
+  检验白板/** [learning-data]  — 目标里存在: 检验白板/CS 61B-2026-08-11-1349.md, 检验白板/CS 61B-2026-08-11-1538.md, 检验白板/特征值与特征向量-2026-07-05-1815.md (共 10 项)
+  节点/** [learning-data]  — 目标里存在: 节点/Characteristic-Equation-for-Eigenvalues.md, 节点/Eigenvalues-are-special-vectors-that-sat.md, 节点/Fundamentals.md (共 14 项)
+  learning_events.jsonl [learning-data]  — 目标里存在: learning_events.jsonl
+  outputs/** [build-artifact]  — 目标里存在: outputs/.recap-manifest-CS 61B.json, outputs/.recap-manifest-CS188 lecture 2.json, outputs/.recap-manifest-特征值与特征向量.json (共 19 项)
+  .obsidian/workspace.json [session-state]  — 目标里存在: .obsidian/workspace.json
+  .claude/**/__pycache__ [build-artifact]  — 目标里存在: .claude/hooks/__pycache__, .claude/scripts/__pycache__
+  .claude/hooks/pending_archives*.jsonl [session-state]  — 目标里存在: .claude/hooks/pending_archives.jsonl
+
+exit=1
+=== find -newer 哨兵 (排 workspace*.json / .trash), 期望 0 ===
+newer-count=0
+=== 两密钥件 sha 前后 diff (空 = 未变) ===
+SECRETS-UNCHANGED
+=== 车道副本 canvas-vault/ 变更数 ===
+0
+rc=0

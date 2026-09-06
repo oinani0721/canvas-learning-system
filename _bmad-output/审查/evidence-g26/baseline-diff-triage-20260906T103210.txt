@@ -1,0 +1,9 @@
+=== 这两条与本卡改动的关系 ===
+本卡只改: scripts/{install-vault.sh,vault-install-manifest.json,verify_vault_install.py} + tests/unit/test_vault_install_manifest.py
+差集两条分属 test_candidate_service.py 与 test_mock_degradation_transparency.py — 无 import 关系
+  两文件都不引用本卡产物 ✓
+
+=== 单独跑这两条（各 3 次，看是否稳定）===
+run 1: =================== 1 failed, 1 passed, 10 warnings in 0.60s ===================
+run 2: =================== 1 failed, 1 passed, 10 warnings in 0.60s ===================
+run 3: =================== 1 failed, 1 passed, 10 warnings in 0.61s ===================

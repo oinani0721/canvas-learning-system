@@ -1,0 +1,19 @@
+=== bash -n ===
+syntax-ok
+=== CLS_REPO=/probe ===
+/probe
+=== 无 env 缺省 ===
+/Users/Heishing/Desktop/canvas/canvas-learning-system
+=== 与 03ac8bf8 的 :16 求值结果逐字节比对 ===
+IDENTICAL
+=== diff hunk（须只落 :16）===
+@@ -16 +16 @@ set -euo pipefail
+=== MANIFEST 区行号未漂移 ===
+SKELETON_DIRS=(原白板 检验白板 节点 outputs raw templates)
+CLAUDE_ITEMS=(skills scripts hooks agents commands settings.json settings.local.json mcp.json)
+OBSIDIAN_FILES=(app.json appearance.json core-plugins.json community-plugins.json hotkeys.json cls-internal-key.txt)
+OBSIDIAN_PLUGINS=(canvas-learning-system claudian dataview breadcrumbs templater-obsidian)
+ROOT_FILES=(CLAUDE.md Dashboard.md)
+=== :74 的 mkdir 循环（本轮补 raw/templates 的依据）===
+for d in "${SKELETON_DIRS[@]}"; do mkdir -p "$TARGET/$d"; done
+rc=0

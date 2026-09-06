@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "source": "live-vault",
+  "description": "Canvas Learning System vault 部署清单 — install-vault.sh MANIFEST 区 (:61-109) 的机器可读投影。「活 vault 即模板」: 本文件只声明 path/role/action/kind, 不含任何文件内容或哈希基线, 内容参照永远是 --source 指向的活 vault。",
+  "generated_from": "scripts/install-vault.sh",
+  "extra_scan": [
+    {"dir": ".claude", "match": "*"},
+    {"dir": ".obsidian", "match": "*.json"},
+    {"dir": ".obsidian/plugins", "match": "*"}
+  ],
+  "items": [
+    {"path": "原白板", "role": "skeleton-dir", "action": "skeleton", "origin": "install-vault.sh:63"},
+    {"path": "检验白板", "role": "skeleton-dir", "action": "skeleton", "origin": "install-vault.sh:63"},
+    {"path": "节点", "role": "skeleton-dir", "action": "skeleton", "origin": "install-vault.sh:63"},
+    {"path": "outputs", "role": "skeleton-dir", "action": "skeleton", "origin": "install-vault.sh:63"},
+    {"path": "raw", "role": "skeleton-dir", "action": "skeleton", "origin": "install-vault.sh:63"},
+    {"path": "templates", "role": "skeleton-dir", "action": "skeleton", "origin": "install-vault.sh:63"},
+
+    {"path": ".claude/skills", "role": "claude-system", "action": "copy", "origin": "install-vault.sh:64"},
+    {"path": ".claude/scripts", "role": "claude-system", "action": "copy", "origin": "install-vault.sh:64"},
+    {"path": ".claude/hooks", "role": "claude-system", "action": "copy", "origin": "install-vault.sh:64"},
+    {"path": ".claude/agents", "role": "claude-system", "action": "copy", "origin": "install-vault.sh:64"},
+    {"path": ".claude/commands", "role": "claude-system", "action": "copy", "origin": "install-vault.sh:64"},
+    {"path": ".claude/settings.json", "role": "claude-system", "action": "copy", "origin": "install-vault.sh:64"},
+    {"path": ".claude/settings.local.json", "role": "secret-or-local", "action": "copy", "origin": "install-vault.sh:64",
+     "note": "本机局部设置, 不入库 (仓根 .gitignore)。install-vault.sh:64 现行会把它复制进新 vault — 是否应改为 skip 由 CARD-G2-7 裁定, 本卡只登记不改行为。"},
+    {"path": ".claude/mcp.json", "role": "claude-system", "action": "copy", "origin": "install-vault.sh:64"},
+
+    {"path": ".obsidian/app.json", "role": "obsidian-config", "action": "copy", "origin": "install-vault.sh:65"},
+    {"path": ".obsidian/appearance.json", "role": "obsidian-config", "action": "copy", "origin": "install-vault.sh:65"},
+    {"path": ".obsidian/core-plugins.json", "role": "obsidian-config", "action": "copy", "origin": "install-vault.sh:65"},
+    {"path": ".obsidian/community-plugins.json", "role": "obsidian-config", "action": "copy", "origin": "install-vault.sh:65"},
+    {"path": ".obsidian/hotkeys.json", "role": "obsidian-config", "action": "copy", "origin": "install-vault.sh:65"},
+    {"path": ".obsidian/cls-internal-key.txt", "role": "secret-or-local", "action": "copy", "origin": "install-vault.sh:65",
+     "note": "后端鉴权 key, 不入库 (仓根 .gitignore:243)。install-vault.sh:65 现行会把它复制进新 vault (:123 自检还要求它在位) — 是否应改为按 vault 重新生成由 CARD-G2-7 裁定, 本卡只登记不改行为。"},
+
+    {"path": ".obsidian/plugins/canvas-learning-system", "role": "obsidian-plugin", "action": "copy", "origin": "install-vault.sh:66",
+     "note": "核心插件; install-vault.sh:121 自检对 main.js 与模板源做字节级 cmp。"},
+    {"path": ".obsidian/plugins/claudian", "role": "obsidian-plugin", "action": "copy", "origin": "install-vault.sh:66"},
+    {"path": ".obsidian/plugins/dataview", "role": "obsidian-plugin", "action": "copy", "origin": "install-vault.sh:66"},
+    {"path": ".obsidian/plugins/breadcrumbs", "role": "obsidian-plugin", "action": "copy", "origin": "install-vault.sh:66"},
+    {"path": ".obsidian/plugins/templater-obsidian", "role": "obsidian-plugin", "action": "copy", "origin": "install-vault.sh:66"},
+
+    {"path": "CLAUDE.md", "role": "vault-doc", "action": "copy", "origin": "install-vault.sh:67"},
+    {"path": "Dashboard.md", "role": "vault-doc", "action": "copy", "origin": "install-vault.sh:67"},
+
+    {"path": "原白板/**", "role": "learning-data", "action": "exclude", "origin": "install-vault.sh:68",
+     "note": "骨架目录只 mkdir, 不复制学习内容。"},
+    {"path": "检验白板/**", "role": "learning-data", "action": "exclude", "origin": "install-vault.sh:68",
+     "note": "骨架目录只 mkdir, 不复制学习内容。"},
+    {"path": "节点/**", "role": "learning-data", "action": "exclude", "origin": "install-vault.sh:68",
+     "note": "骨架目录只 mkdir, 不复制学习内容。"},
+    {"path": "learning_events.jsonl", "role": "learning-data", "action": "exclude", "origin": "install-vault.sh:68"},
+    {"path": "outputs/**", "role": "build-artifact", "action": "exclude", "origin": "install-vault.sh:68",
+     "note": "outputs 骨架目录建空, 产物不复制。整棵子树, 不限条目类型。"},
+    {"path": "raw/**", "role": "learning-data", "action": "exclude", "origin": "install-vault.sh:74",
+     "note": "骨架目录只 mkdir, 内容不复制。:68 的注释只点名了 原白板/检验白板/节点 与 outputs, 但 :74 对六个骨架目录一视同仁 — 按代码实际作用面补全, 不按注释的枚举。"},
+    {"path": "templates/**", "role": "learning-data", "action": "exclude", "origin": "install-vault.sh:74",
+     "note": "同 raw/**: :74 的 mkdir 循环覆盖全部六个骨架目录, 内容一律不复制。"},
+    {"path": ".obsidian/workspace.json", "role": "session-state", "action": "exclude", "origin": "install-vault.sh:69"},
+    {"path": ".claude/**/__pycache__", "role": "build-artifact", "action": "exclude", "kind": "dir", "origin": "install-vault.sh:84",
+     "note": "隐含 exclude: cp -R 后由 find \"$TARGET/.claude\" -type d -name __pycache__ -prune -exec rm -rf 剪除。两个条件都要表达: 剪除面只是 .claude 子树 (故模式带前缀, 不是全树), 且 -type d 只剪目录 (故 kind=dir — 同名普通文件脚本不会删, 校验器也不该判它 excluded)。"},
+    {"path": ".claude/hooks/pending_archives*.jsonl", "role": "session-state", "action": "exclude", "kind": "nondir", "origin": "install-vault.sh:86",
+     "note": "隐含 exclude: cp -R 会连带旧 vault 归档队列, 由 rm -f 删除 — 新 vault 不得重放。该命令清掉一切**非目录**条目(普通文件、指向文件或目录的软链、悬空软链、FIFO 都删), 只有真目录不删 — 实测确认, 故 kind=nondir 而非 file。"},
+
+    {"path": ".canvas-config.yaml", "role": "vault-config", "action": "generate", "origin": "install-vault.sh:103-109",
+     "note": "install-vault.sh:69 声明「不复制」, :103-109 按 vault 重新生成 (vault_id / subject / schema_version 2.0-multi-vault-2026-05-10)。两条源语义落在同一 path 上, 故只一条 item, action=generate 已蕴含「不从源复制」。"}
+  ]
+}

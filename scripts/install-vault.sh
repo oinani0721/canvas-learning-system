@@ -13,7 +13,7 @@
 #   缺省只部署不激活 — 可先建多个 vault 再选一个激活。
 set -euo pipefail
 
-REPO="/Users/Heishing/Desktop/canvas/canvas-learning-system"
+REPO="${CLS_REPO:-/Users/Heishing/Desktop/canvas/canvas-learning-system}"  # CLS_REPO 可覆盖仓根 (测试/换机); 不设时逐字节同旧值
 WT="$REPO/.claude/worktrees/feature-obsidian-hybrid-dev"
 ENV_FILE="$WT/.env"
 VAULTS_ROOT="$REPO"

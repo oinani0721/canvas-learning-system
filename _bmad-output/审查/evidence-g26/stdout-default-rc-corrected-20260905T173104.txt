@@ -1,0 +1,6 @@
+# 更正: 前一份 stdout-default-and-rc2-*.txt 里 stdout 那一段的 rc=0 取自管道末端的 head,
+# 不是校验器本身的退出码。此处不经管道重测。
+verifier-rc=1
+stdout 行数=37  (缺省确实写 stdout, 未落任何文件)
+末行=exit=1
+rc=0

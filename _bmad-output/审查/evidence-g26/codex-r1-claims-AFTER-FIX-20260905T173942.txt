@@ -1,0 +1,32 @@
+❌ --report 指向的文件有 2 个硬链接, 写它可能改到被查树里的同 inode 文件, 拒绝: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmppc_ov_rp/outside-report.txt
+========================================================================
+指控 1 (BLOCKER): --report 树外路径若与树内文件同 inode(硬链接), 会覆盖树内文件
+========================================================================
+  受害文件内容(前): 'content of Dashboard.md\n'
+  outside 在 vault 内? False  (False ⇒ 现有检查放行)
+  校验器 rc = 2
+  受害文件内容(后): 'content of Dashboard.md\n'...
+  >>> 指控 1 不成立
+
+========================================================================
+指控 2 (HIGH): copy 目录的摘要未剔除 exclude 子孙 ⇒ 正常部署也报 content-drift
+========================================================================
+  match=28 missing=0 extra=0 drift=0 excluded=0
+  drift 项: []
+  exit_code = 0
+  >>> 指控 2 不成立
+
+========================================================================
+指控 3 (MEDIUM): exclude 模式不区分文件/目录, 与脚本的 -type d / rm -f 条件不符
+========================================================================
+  __pycache__ 作为普通文件被判 excluded? False
+  pending_archives*.jsonl 作为目录被判 excluded? False
+  >>> 指控 3 成立(两者都被误判 excluded), 但只影响报告分类, 不进退出码
+
+========================================================================
+指控 4 (MEDIUM): action 为 list/dict 时抛 TypeError 而非 ManifestError ⇒ CLI rc≠2
+========================================================================
+  action=[]: ManifestError ✓ (items[0] 的 action 必须是字符串, 实为 list)
+  action={}: ManifestError ✓ (items[0] 的 action 必须是字符串, 实为 dict)
+  action=123: ManifestError ✓ (items[0] 的 action 必须是字符串, 实为 int)
+rc=0

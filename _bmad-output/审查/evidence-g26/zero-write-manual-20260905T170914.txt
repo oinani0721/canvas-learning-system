@@ -1,0 +1,19 @@
+=== 跑前快照 (文件 sha + 全条目清单) ===
+files=66 entries=104
+=== 跑校验器 (带 --source, 让 content-drift 分支也走到) ===
+报告已写入 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/_bmad-output/审查/evidence-g26/tmp-target-diff.txt
+rc=1
+=== 跑后快照对比 ===
+FILES-IDENTICAL
+ENTRIES-IDENTICAL
+=== 模板源 (车道 canvas-vault) 未被写 ===
+0
+=== tmp target 报告摘要 ===
+------------------------------------------------------------------
+match                  : 17
+missing                : 11
+extra                  : 2
+content-drift          : 0
+intentionally-excluded : 4
+
+rc=0

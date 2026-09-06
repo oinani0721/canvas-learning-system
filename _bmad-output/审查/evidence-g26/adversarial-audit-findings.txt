@@ -1,0 +1,183 @@
+# CARD-G2-6 多视角对抗审查 — probe 阶段全部 findings
+#
+# 形态: 5 个视角并行探查 -> 每条发现交 2 名怀疑者独立反驳(默认判「站不住」)。
+# 35 个 agent, 0 失败。原始 journal 在会话目录 subagents/workflows/wf_a37733ed-f49/。
+# ⚠️ 如实登记: verify 阶段车道仍在改代码, 靠后完成的裁决读到的是改动中的版本,
+#    故不据此声称任何一条被驳倒 —— 本文件只归档 probe 阶段的原始发现。
+#
+# 统计: findings=15  裁决=30  判「站得住」=26  实跑验证=30/30
+==============================================================================
+
+## 1. [HIGH] load_manifest 只捕 FileNotFoundError/JSONDecodeError，--manifest 指向目录/不可读文件/非 UTF-8 文件时以未捕获异常终止，进程退出码 1 而非承诺的 2
+   位置: scripts/verify_vault_install.py:137-142
+   主张: `load_manifest` 的 try 只挂了 `FileNotFoundError` 和 `json.JSONDecodeError` 两条 except。`path.read_text(encoding="utf-8")` 还能抛出至少三种同样属于「manifest 不可用」的异常：`IsADirectoryError`（--manifest 给了目录）、`PermissionError`（文件不可读）、`UnicodeDecodeError`（文件不是 UTF-8）。三者都不是 ManifestError 的子类，于是穿透 main():565-569 的 `except ManifestError`，直接从 `sys.exit(main())` 处以 traceback 终止。CPython 对未捕获异常的进程退出码是 1 —— 恰好撞上契约里 1 的含义「有 missing/extra/content-drift」。任何按退出码做判断的调用方（CI 门、install-vault.sh 的后继 CLI）会把「清单文件路径打错」读成「这个 vault 部署有漂移」。注意 `FileNotFoundError` 分支是正确的（实测 rc=2），说明缺的正是它的兄弟 OSError，不是整体没设计。
+   触发: 在本机 venv 下对合成 vault（按 42 条测试的 _build_vault 口径搭的 target-vault）执行三条命令，清单本体一字未改：
+         1) `python3 scripts/verify_vault_install.py --vault <vault> --manifest /path/to/scripts` （--manifest 给了一个目录）
+         2) `chmod 000 m.json; python3 scripts/verify_vault_install.py --vault <vault> --manifest m.json`
+         3) 清单文件写入含 0xff 字节的内容（如 `{"version": 1, "source": "\xff\xfe\x00 live", "items": []}`）后同样调用
+         对照组（验伪锚）：`--manifest <不存在的路径>` 实测 rc=2、stderr 为「❌ manifest 不可用: manifest 不存在: …」。
+   期望 vs 实际: 期望：三条全部 rc=2（docstring:22「2 用法或配置错 (manifest 非法、目录不存在、--report 落在被查树里)」），stderr 给出「❌ manifest 不可用: …」。
+         实测：1) rc=1 + `IsADirectoryError: [Errno 21] Is a directory: …`；2) rc=1 + `PermissionError: [Errno 13] Permission denied: …`；3) rc=1 + `UnicodeDecodeError: 'utf-8' codec can't decode byte 0xff in position 26`。三条都是裸 traceback，没有那句 ❌ 提示，且退出码与「有差异」不可区分。
+   建议改法: scripts/verify_vault_install.py:139-142 的 except 链：把 `except FileNotFoundError` 放宽为 `except OSError as exc: raise ManifestError(f"manifest 不可读: {path} — {exc}")`（FileNotFoundError/IsADirectoryError/PermissionError 都是 OSError 子类，保留原「不存在」文案可先单挂 FileNotFoundError 再挂 OSError），并补 `except UnicodeDecodeError`。对应在 backend/tests/unit/test_vault_install_manifest.py 的「退出码 2」区补三条参数化：--manifest 指向目录 / 0o000 文件 / 非 UTF-8 文件，断言 `vv.main(...) == 2`（现有 test_missing_vault_dir_exits_2 只覆盖了 FileNotFoundError 那一支）。
+
+## 2. [HIGH] extra_scan 的 dir/match 完全不校验：非字符串取值让校验器以未捕获 TypeError/AttributeError 终止（rc=1 而非 2），且 dir 接受绝对路径与 `..` 使扫描面逃出 --vault 并把树外条目报成 extra
+   位置: scripts/verify_vault_install.py:191-194
+   主张: load_manifest 对 items 做了完整的类型 + 相对路径 + 无 `..` + 无重复校验（:120-131、:158-185），但对 extra_scan 只检查「是 dict 且有 dir 与 match 两个键」，取值原样塞进 ScanRoot。两类后果：(a) 取值非字符串时崩在下游 —— `vault / scan.dir`（:443）对 int/list/None 抛 TypeError，`_pattern_to_regex(scan.match)`（:209 的 `len()`、:210 的 `.startswith`）对 int/list 抛 TypeError/AttributeError，全部逃出 ManifestError 捕获面，进程 rc=1；这与已修的第 4 条（action 非字符串抛 TypeError 逃出捕获面）是**同一形态在另一个字段上没修**。(b) dir 没有 items.path 那套相对性校验，`"/etc"` 与 `".."` 都被接受，`vault / "/etc"` 在 POSIX 语义下直接等于 `/etc` —— 校验器于是 iterdir 了 --vault 之外的目录（承诺「只对 --vault / --source 做 stat / 列目录」），`..` 那一支还能跑完并把树外的兄弟目录写进 extra 清单、rc=1。
+   触发: 以仓内 scripts/vault-install-manifest.json 为底，只往 extra_scan 数组追加一条，vault 树按原清单正确搭建（未变异时实测 rc=0，验伪锚成立）。逐条实测（进程级退出码）：
+         - `{"dir": 123, "match": "*"}` → rc=1，`TypeError: unsupported operand type(s) for /: 'PosixPath' and 'int'`（verify_vault_install.py:443）
+         - `{"dir": [".claude"], "match": "*"}` / `{"dir": null, "match": "*"}` → 同上，list / NoneType
+         - `{"dir": ".claude", "match": 5}` → rc=1，`TypeError: object of type 'int' has no len()`（:209）
+         - `{"dir": ".claude", "match": ["*"]}` → rc=1，`AttributeError: 'list' object has no attribute 'startswith'`（:210）
+         - `{"dir": "/etc", "match": "host*"}` → 先 iterdir 了 /etc，再 rc=1，`ValueError: '/etc/hosts' is not in the subpath of <vault>`（:450 的 relative_to）
+         - `{"dir": "..", "match": "*"}` → rc=1 且**跑完出报告**，extra 段列出 `../source-vault`、`../target-vault`
+         - `{"dir": "", "match": "*"}` → rc=1，把 vault 根下的 `.claude`、`.obsidian` 报成 extra（覆盖面打印为 `/*`）
+   期望 vs 实际: 期望：前六条都属 docstring:22 的「manifest 非法」，应在 load_manifest 阶段抛 ManifestError → rc=2，且扫描面在任何清单取值下都不得越出 --vault。
+         实测：五条以未捕获异常终止拿到 rc=1（与「有差异」同码），一条（`dir: ".."`）正常出报告但把 --vault 之外的两个目录当成 extra 计入退出码，另有一条在崩溃前已经列了 /etc。没有任何一条拿到 rc=2。
+   建议改法: scripts/verify_vault_install.py:191-194 的 extra_scan 循环里补校验，与 items 同一严格度：`dir` / `match` 必须 `isinstance(str)`；`match` 非空；`dir` 走一个与 `_check_path_field` 同源的相对性检查（拒绝绝对路径、盘符、`..` 段；`""` 是否合法要显式裁定，允许则文案改成 vault 根而不是打印成 `/*`）。防御深度上再在 _collect_extra:450 前加一道 `scan_dir.is_relative_to(vault)` 断言。测试侧在 test_schema_rejects_malformed_manifest 的参数化里加 extra_scan 变异（dir=123 / dir=".." / dir="/etc" / match=["*"]），并像 test_non_string_action_still_exits_2 那样同时断言 `vv.main(...) == 2` —— 只断言 load_manifest 抛错不够，本条的破绽正是「load 期放行、verify 期崩」。
+
+## 3. [MEDIUM] items.path 原样入集做等值比较，而 extra 检测用规范化后的 POSIX 相对路径：清单里写成 `.claude/skills/` 或 `.claude//skills` 时，同一条目同时进 match 与 extra，正确部署的 vault 拿到 rc=1
+   位置: scripts/verify_vault_install.py:83
+   主张: `declared_paths`（:83）返回的是 manifest 里 path 字段的**原始字符串**，而 `_collect_extra`（:450-451）拿来比对的 rel 是 `child.relative_to(vault).as_posix()` —— 已被 pathlib 规范化（去尾斜杠、折叠 `//`、去掉前导 `./`）。两侧口径不同，于是同一个真实条目在 `vault / item.path`（:381）那一侧能命中并计入 match，在 extra 那一侧却因字符串不等而被当成「清单外的东西」。`_check_path_field`（:120-131）只拦绝对路径、`..` 和重复，对这三种等价写法一律放行，所以清单作者没有任何提示。结果是一个**完全正确部署**的 vault 被判 rc=1，且报告自相矛盾：同一路径既在 match 计数里又出现在 extra 段。
+   触发: 取仓内 scripts/vault-install-manifest.json，只把 `{"path": ".claude/skills", ...}` 一项的 path 改成下列任一等价写法（其余不动），vault 与 source 按原清单正确搭建：
+         (1) `.claude/skills/`  (2) `.claude//skills`  (3) `./.claude/skills`
+         命令：`python3 scripts/verify_vault_install.py --vault <target> --source <source> --manifest <改过的清单>`
+   期望 vs 实际: 期望：rc=0（vault 内容与模板源一致、清单声明的东西一个不缺），或者若判定这类写法非法则 rc=2。
+         实测（三种写法结果相同）：rc=1；vv.verify 的分桶为 `match=28, missing=[], extra=['.claude/skills'], drift=[]` —— 即 `.claude/skills` 被同时算成「匹配上了」和「清单外的多余项」。对照组：path 保持 `.claude/skills` 时 `rc=0, match=28, extra=[]`。
+   建议改法: 在 load_manifest 构造 Item 时把 path 规范化后再存（`_check_path_field` 通过绝对/`..` 检查后取 `Path(raw).as_posix()`，并用规范化后的值做 `seen` 去重，顺带堵住 `.claude/skills` 与 `.claude/skills/` 被当成两条不重复声明），使 declared_paths 与 `relative_to(...).as_posix()` 同形；或反向 fail-closed：规范化后与原串不等即抛 ManifestError（rc=2），让清单作者当场看见。测试侧在 test_schema_rejects_malformed_manifest 或 extra 承重区补一条：用尾斜杠写法跑正确部署的 vault_pair，断言 `result.extra == []` 且 rc=0（现有 42 条里 test_manifest_matches_install_arrays 只对仓内清单做集合等价，挡不住派生清单，也挡不住这条口径分裂本身）。
+
+## 4. [HIGH] vault 内的目录 symlink 让「树外报告路径」实际就是树内文件——st_nlink 判据挡不住（nlink==1），报告正文直接覆盖 vault 里的文件且 rc≠2
+   位置: scripts/verify_vault_install.py:542-556（判据）→ :574（写入）
+   主张: 报告落点的两道防线都只看**路径字符串**，不看**可达性**：`is_relative_to(tree)` 是纯词法比较，`st_nlink > 1` 只能抓硬链接。resolve() 解得开「report 路径里的 symlink」，但解不开**反方向**的 symlink——vault 树内的一个目录项指向树外。此时树外那个真实路径 nlink 恒为 1，两道防线全部放行，`write_text` 把报告正文写进一个「从 vault 里看得见」的文件。
+         
+         更能说明口径分裂的是：校验器**读**的时候是认这条 symlink 的。同一次运行里 `.claude/skills` 与 `.claude/settings.json` 被判为 match（跟随 symlink 读到了树外内容，当作 vault 的一部分），而写落点判据却说同一个文件「在被查树之外」。读写两侧对「什么算 vault 内」给出相反答案，这正是硬链接那条 BLOCKER 的第二形态，nlink 判据按构造无法覆盖它。
+         
+         如实声明：现网 live vault 实测 `find -type l` 计数为 0，所以此刻不构成对 live 的写入；但 Obsidian 插件开发把 `.obsidian/plugins/<x>` symlink 到插件源码仓是常规做法，而该守卫的承诺是对任意 --vault / --source 无条件成立的。
+   触发: mkdir -p /tmp/g26audit_a1/outside-claude/skills/demo /tmp/g26audit_a1/v
+         printf 'REAL SETTINGS CONTENT\n' > /tmp/g26audit_a1/outside-claude/settings.json
+         ln -s /tmp/g26audit_a1/outside-claude /tmp/g26audit_a1/v/.claude
+         python3 scripts/verify_vault_install.py --vault /tmp/g26audit_a1/v \
+                 --report /tmp/g26audit_a1/outside-claude/settings.json
+         （manifest 用仓内默认那份即可）
+   期望 vs 实际: 期望：该路径就是 <vault>/.claude/settings.json，属「--report 落在被查树内」，退出 2 拒绝、文件字节不变。
+         实测：stdout 打印「报告已写入 /private/tmp/g26audit_a1/outside-claude/settings.json」，rc = 1；`cat /tmp/g26audit_a1/v/.claude/settings.json` 现在是报告正文（首行 `# vault-install verification report (CARD-G2-6, read-only)`），sha 由 c898a1e2… 变为 28e1b7bb…。同一次运行的分类结果里 `.claude/skills`、`.claude/settings.json` 都在 match 桶——读侧承认它们在 vault 里，写侧不承认。
+   建议改法: 把落点判据从「路径比较」升级为「身份比较」：对 report_path 的**每一级已存在祖先**做一次 `Path.lstat()`，与 vault/source 树内同名节点的 `(st_dev, st_ino)` 比对；或更直接——在 --vault / --source 上先跑一遍 `os.walk(followlinks=False)` 收集树内所有 symlink 的 `readlink().resolve()` 目标前缀，report_path 落进任一前缀即拒。最省事的等价做法：对 vault/source 各自扫一遍 symlink，把解析出的树外目标一并纳入 `is_relative_to` 的拒绝集合。同时给 test_vault_install_manifest.py 补一条与 test_report_hardlinked_into_vault_is_refused 同形态的 symlink 反例（该反例在现行代码上必须打红）。
+
+## 5. [MEDIUM] extra_scan 的 dir/match 完全绕过 items 那套 path 校验：非字符串抛未捕获 TypeError（rc=1 而非承诺的 2），`../..` 让 extra 扫描面整个逃出 vault
+   位置: scripts/verify_vault_install.py:191-194（加载时零校验）→ :443 `scan_dir = vault / scan.dir`
+   主张: `items[].path` 有 `_check_path_field()` 把关（非空字符串 / 非绝对 / 无 `..` / 不重复），`action` 也在 round-1 之后补了 `isinstance(str)` 先验。但 `extra_scan[]` 的 `dir` / `match` 只检查了「键存在」（:192），值本身**任何校验都没有**，然后被直接拿去做 `vault / scan.dir`（:443）和 `_pattern_to_regex(scan.match)`（:446）。
+         
+         这产生两类破坏：
+         （a）**退出码三档破了**——非字符串值让 TypeError/ValueError 在 `verify()` 里抛出，而 `verify()` 的调用点（:571）在 `except ManifestError` 捕获面**之外**，异常直接逃到解释器，traceback + 退出码 1。承诺「清单非法 → 2」失效。这与已修的第 4 条（action 为 list/dict 抛 TypeError 逃出捕获面）是**同一个缺陷的第二站点**，isinstance 先验只补在了 action 上。
+         （b）**读取面逃出 vault**——`dir: "../.."` 不抛异常、rc=1，`_collect_extra` 老老实实去列 vault 之外的目录，把 `../../foo` 这类树外路径当作 extra 写进报告；`dir: "/etc"` 时 `vault / "/etc"` 按 pathlib 语义等于 `/etc`，校验器真的把 /etc 列了一遍（然后在 `relative_to` 上崩）。这与「只读校验器的读取面 = --vault 覆盖面」的口径直接冲突，报告文件因此可以装载 vault 之外的路径清单。
+   触发: 把仓内 manifest 复制一份，只改 extra_scan，其余不动，然后
+           python3 scripts/verify_vault_install.py --vault <任一目录> --manifest <改后的 json>
+         四个取值实测（vault 用 /tmp/g26audit_a1/v）：
+           1) "extra_scan": [{"dir": 1, "match": "*"}]
+           2) "extra_scan": [{"dir": ".claude", "match": 1}]
+           3) "extra_scan": [{"dir": "/etc", "match": "*"}]
+           4) "extra_scan": [{"dir": "../..", "match": "*"}]
+   期望 vs 实际: 期望（四条都是「清单非法」）：load_manifest 抛 ManifestError → CLI 打印 ❌ → 退出码 2；扫描面永不越出 --vault。
+         实测：四条的 load_manifest 全部**通过**（返回 ScanRoot(dir=1,…) 这种东西）。随后
+           1) TypeError: unsupported operand type(s) for /: 'PosixPath' and 'int' —— 未捕获，rc=1
+           2) TypeError: object of type 'int' has no len() —— 未捕获，rc=1
+           3) ValueError: '/etc/afpovertcp.cfg' is not in the subpath of '/private/tmp/g26audit_a1/v' —— 未捕获，rc=1，且崩之前已经把 /etc 列了一遍
+           4) 不抛异常，rc=1，报告里 extra = **1629 项**，全部是 `../../…` 形式的 vault 外路径
+   建议改法: 在 load_manifest 的 extra_scan 循环里（:191-194）复用 items 那套把关：对 `dir` 走 `_check_path_field`（或至少 isinstance(str) + 非绝对 + 无 `..`；`dir` 允许空串表示 vault 根），对 `match` 加 `isinstance(str)` 且非空。测试侧把 test_schema_rejects_malformed_manifest 的 parametrize 扩到 extra_scan 的这四个取值（每条断言 ManifestError + main() 返回 2）——现行代码上这四条必须打红。
+
+## 6. [MEDIUM] 两道「结构判据」的封锁面都比 docstring 声称的窄：AST 写调用门漏掉 Path.open('w') / 文件对象 .write / os.* 全族 / from-import 形式的 rmtree；CLI 白名单对位置参数与子命令恒绿
+   位置: backend/tests/unit/test_vault_install_manifest.py:505-531（AST 门）、:492-494（CLI 白名单）
+   主张: 两道门的 docstring 都把自己写得比实际强。
+         
+         **AST 门（:505-531）**：`write_attrs` 是**枚举**，声称「AST 层数写操作」，但只数 `ast.Attribute` 且属性名在那 15 个里的调用，加上 `ast.Name` 且 id == "open" 的调用。于是四类真实写法整族逃过：① `p.open("w")` —— 这是 Attribute，attr == "open"，而 "open" 只在 **Name** 分支被检查，且随后的 `fh.write(...)` 的 "write" 根本不在集合里；② `os.` 全族 —— makedirs / remove / link / symlink / truncate / open / write / utime / chown 一个都不在集合里；③ `from shutil import rmtree` —— `shutil` 那条断言只扫 `ast.Import`，不扫 `ast.ImportFrom`，而 `rmtree(p)` 作为 Name 调用也不被数；④ `os.open` + `os.write` 低层写。
+         
+         **CLI 白名单（:492-494）**：判据是 `{s for action in parser._actions for s in action.option_strings}`。**位置参数的 option_strings 是空列表**，子命令 action 同理。所以往 parser 里加一个 `mode`（可取 "fix"）位置参数、或加一整套 `add_subparsers()` 子命令（子命令里再挂 `--force`），白名单集合**一字不变**、门照绿。docstring 那句「白名单挡得住没预想到的名字」只对 optional 前缀参数成立。
+         
+         纵深说明（如实）：行为侧的零写门 test_verifier_writes_nothing_into_vault_or_source 能兜住其中一部分——但它只跑一种合成 vault、且 `_tree_digest` 用 `rglob` 不递归 symlink 目录，兜不住上面第 1 条那种 symlink 写穿；两道结构门本来就是为「行为门没覆盖到的形态」设的，现在这层几乎不承重。
+   触发: 把这四段之一追加到 verify_vault_install.py 末尾（都是真能改 vault 的代码），再逐字跑测试里那段 AST 判据：
+           A) def _sneak(v):\n    with (v/".claude"/"settings.json").open("w") as fh: fh.write("clobbered")
+           B) import os\n def _sneak(v): os.makedirs(v/"injected"); os.remove(v/"Dashboard.md"); os.link(v/"CLAUDE.md", v/"CLAUDE.copy.md")
+           C) from shutil import rmtree\n def _sneak(v): rmtree(v/".claude")
+           D) import os\n def _sneak(v): fd = os.open(str(v/"x"), os.O_WRONLY|os.O_CREAT); os.write(fd, b"x"); os.close(fd)
+         CLI 侧：在 _build_parser() 里加 `parser.add_argument("mode", nargs="?", default="verify")`，或加 `sub = parser.add_subparsers(dest="cmd"); sub.add_parser("fix").add_argument("--force", action="store_true")`，再跑 test_verifier_exposes_only_readonly_switches 的判据。
+   期望 vs 实际: 期望：A/B/C/D 四种写法与「新增位置参数 / 子命令 --force」都应把对应结构门打红（这正是它们存在的理由）。
+         实测（用测试里逐字复刻的判据跑）：AST 门对原文件 True，对 A/B/C/D **全部仍是 True**（四条全漏网）；CLI 白名单对原样 True，对「加位置参数 mode」True、对「加子命令 fix --force」True（两条全漏网）。
+   建议改法: AST 门改成**白名单**而不是黑名单：先枚举本文件用到的全部调用节点，断言集合等于一个显式的只读调用清单（stat/exists/is_dir/is_file/is_symlink/read_bytes/read_text/readlink/rglob/iterdir/relative_to/…），任何新出现的调用名都必须显式登记；至少要把 `"open"` 从 Name 分支挪到「Name 或 Attribute 都算」，补上 `write`/`writelines`/`truncate`，把 `os.` 模块的写族与 `ast.ImportFrom` 里的 shutil 一并纳入。CLI 白名单同时断言 `[a.dest for a in parser._actions]` 等于固定清单（这样位置参数与 subparser action 都会现形），并断言不存在 `argparse._SubParsersAction`。
+
+## 7. [HIGH] extra_scan 完全不走 path 校验：dir 可用 ../ 读到 --vault 树外，非法取值让 TypeError/ValueError 逃出 rc=2 承诺（已修第 4 条同型未修干净）
+   位置: scripts/verify_vault_install.py:187-194（load_manifest 的 extra_scan 分支）
+   主张: load_manifest 对 items[].path 做了完整校验（_check_path_field:120-131 挡绝对路径、`..` 逃逸、重复、非字符串），但对 extra_scan 只检查「是 dict 且含 dir/match 两个键」，两个值的类型与路径形状一律不验。于是同一份 manifest 的两个字段有两套标准，而 extra_scan.dir 是直接拼进 `vault / scan.dir`（_collect_extra:443）当遍历根用的，比 items[].path 更需要约束。三条实测后果：(a) `dir: "../X"` → 校验器列出 --vault 树**之外**的目录并把外部条目报成 extra，rc=1；这直接违背 docstring:10-12 的「对 --vault / --source 只做 stat / 列目录 / 读字节」与退出码承诺（清单非法应当是 2）。(b) `dir` 为绝对路径 → pathlib 的 `/` 语义让绝对段整段替换 vault 根，随后 `child.relative_to(vault)`(:450) 抛未捕获 ValueError。(c) `dir`/`match` 为 list/int → `vault / []` 抛 TypeError、`len(7)` 抛 TypeError。(b)(c) 与外部复核已修掉的第 4 条（action 为 list/dict 抛 TypeError 逃出 ManifestError 捕获面）是**同一个缺陷形态**，那次只在 :169 给 items[].action 补了 isinstance，extra_scan 这一半没跟着修。旁证：42 条测试里 `grep -c extra_scan` = 0，extra_scan 的 schema 与覆盖面语义一条门都没有。
+   触发: 在 /tmp 造一个按 manifest 搭好的 target-vault，及其兄弟目录 SIBLING_SECRETS/{a.txt,b.txt}（在 vault 之外）。把仓内 manifest 复制一份、只改 extra_scan：
+         A) `"extra_scan": [{"dir": "../SIBLING_SECRETS", "match": "*"}]`，跑 `python3 scripts/verify_vault_install.py --vault <target-vault> --manifest <改过的 manifest>`
+         B) 同上但 `{"dir": "/tmp/g26probe/case1/SIBLING_SECRETS", "match": "*"}`
+         C) 同上但 `{"dir": [], "match": "*"}` 或 `{"dir": ".claude", "match": 7}`
+   期望 vs 实际: 期望（三例同）：load_manifest 抛 ManifestError，CLI 打印「manifest 不可用」并返回 2 —— 与 items[].path 的绝对路径/`..`/非字符串负控完全同口径（test_schema_rejects_malformed_manifest 已为 items 侧钉死这四类）。
+         实际（本机 .venv/bin/python 3.14.4 实测）：A load_manifest 通过，报告体里出现 `## extra` 两行 `../SIBLING_SECRETS/a.txt`、`../SIBLING_SECRETS/b.txt  — 位于覆盖面 ../SIBLING_SECRETS/* 内但不在 manifest`，`exit=1`（读了树外目录 + 错的退出码）；B 未捕获 `ValueError: '/tmp/.../SIBLING_SECRETS/a.txt' is not in the subpath of '/private/tmp/.../target-vault'` 从 main() 逃出（traceback，无 rc=2）；C 未捕获 `TypeError: unsupported operand type(s) for /: 'PosixPath' and 'list'` / `TypeError: object of type 'int' has no len()` 逃出。
+   建议改法: verify_vault_install.py:191-194 的循环里，先 `isinstance(entry["dir"], str)` / `isinstance(entry["match"], str)` 再构造 ScanRoot；`dir` 复用 _check_path_field 的路径形状约束（绝对路径、`..` 段一律 ManifestError，`dir` 允许空串表示 vault 根，故 seen 去重那段要拆出来单用形状检查）。配套在 test_vault_install_manifest.py 的 test_schema_rejects_malformed_manifest 参数表里补 extra_scan 的四个负控（../、绝对、非 str dir、非 str match），断言 rc==2 —— 现在这个文件对 extra_scan 零覆盖。
+
+## 8. [MEDIUM] raw/** 与 templates/** 缺 exclude 项：脚本 :74 对六个骨架目录一视同仁只 mkdir，manifest 只给其中四个声明了「内容不复制」，另两个目录里的遗留内容被静默漏报
+   位置: scripts/vault-install-manifest.json:47-55（exclude 区），对照 install-vault.sh:63 与 :74
+   主张: install-vault.sh:63 的 SKELETON_DIRS 有六个成员（原白板 检验白板 节点 outputs raw templates），:74 `for d in "${SKELETON_DIRS[@]}"; do mkdir -p "$TARGET/$d"; done` 对六者做**完全相同**的处理：只建空目录，从不往里复制任何内容。也就是说「raw/ 下的内容不部署」「templates/ 下的内容不部署」与「节点/ 下的内容不部署」是同一条脚本语义。manifest 却只为 原白板/** 检验白板/** 节点/** outputs/** 四条建了 exclude 项，raw 与 templates 只有 :16-17 那两条 skeleton 项、没有对应的子树 exclude。校验器对 skeleton 项只判「存在且是目录」（verify:397-407），既不评 drift 也不看内容，所以这两棵子树里的东西落不进任何一个桶。这直接架空 docstring:6-8 对 intentionally-excluded 的定位——「那通常是人工放的或 Obsidian 自己生成的，不算缺陷，只是要让审计者看见」：同样是「脚本不会复制、却出现在目标里」的内容，节点/ 里的看得见，raw/ 与 templates/ 里的看不见。线上 vault 实测这两个目录都非空（raw/ 有 CS188/ 与 my-recursion-notes.md，templates/ 有 concept.md 与 exam-board.md），所以拿校验器审 live vault 时这个漏报是当场发生的，不是假想。
+   触发: 按 manifest 搭一对合成 source/target vault，然后给**六个骨架目录各放一件同形态内容**：`for d in 原白板 检验白板 节点 outputs raw templates; do echo 学习内容 > <target>/$d/leftover.md; done`，跑 `verify(target, manifest, source_dir=source)`。（等价的真实触发：`--vault /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault`，该 vault 的 raw/ 与 templates/ 各有 2 项。）
+   期望 vs 实际: 期望：六件 leftover.md 触发六条同类记录 —— intentionally-excluded 报出 `原白板/**` `检验白板/**` `节点/**` `outputs/**` `raw/**` `templates/**` 六项（或至少让审计者看见 raw/templates 里有未部署内容）。
+         实际（实测）：`intentionally-excluded : ['outputs/**', '原白板/**', '检验白板/**', '节点/**']` 只有四条，`raw/leftover.md` 与 `templates/leftover.md` 不在 missing / extra / content-drift / intentionally-excluded 任何一桶里，完全静默。
+   建议改法: vault-install-manifest.json 的 exclude 区补两条与 :51 同形的 item：`{"path": "raw/**", "role": "learning-data", "action": "exclude", "origin": "install-vault.sh:74", "note": "骨架目录只 mkdir, 不复制内容"}` 与 `{"path": "templates/**", "role": "vault-doc", "action": "exclude", "origin": "install-vault.sh:74"}`（origin 指 :74 而非 :68 —— :68 那条注释本来就只点了四个，真相源是 :74 的循环）。测试侧把 test_manifest_covers_implicit_and_generated_semantics 加一条：SKELETON_DIRS 六个成员必须**逐一**有对应的 `<dir>/**` exclude 项，防止以后加骨架目录时又漏。这两条 item 是 action=exclude，不进 copy+skeleton 集合，不影响 test_manifest_matches_install_arrays 的 27 项等价断言。
+
+## 9. [MEDIUM] extra 覆盖面 `.obsidian/*.json` 看不见脚本写入该目录的唯一非 json 件所在的半个目录：一份陈旧的 cls-internal-key.txt 副本不会被报成 extra，而旁边的 graph.json 会
+   位置: scripts/vault-install-manifest.json:8（extra_scan 第二条），对照 install-vault.sh:65/:75/:89
+   主张: extra_scan 三条覆盖面本应「恰好对应脚本会写入的位置」。`.claude/*` 与 `.obsidian/plugins/*` 都是 `*`（脚本 :77-79 与 :92-93 写入的直接子项全部落在面内），唯独 `.obsidian` 被收窄成 `*.json`。但 :65 的 OBSIDIAN_FILES 六个成员里有一个**不是 json**：`cls-internal-key.txt`（:89 逐个 cp 进 $TARGET/.obsidian/，:123 自检还要求它在位）。于是 `.obsidian` 这个目录里，脚本写入的 5 个 json 在覆盖面内、第 6 个写入件所属的整个非 json 半区在覆盖面外，形成一块未声明的盲区。根级文档不在覆盖面内这件事 render():475-476 明写了出来，这一处没有任何声明。赌注不小：漏掉的正是 role=secret-or-local 的后端鉴权 key 所在的形态，一份别的 vault 遗留的 key 副本（`cls-internal-key.txt.bak` / `cls-internal-key-old.txt`）躺在新 vault 的 .obsidian 里，校验器一声不吭。收窄成 `*.json` 的动机是可复现的：`.obsidian/plugins` 是 :75 `mkdir -p` 建出来的目录、manifest 里没有对应 item，覆盖面一旦放宽到 `*` 它就会被误报成 extra —— 实测放宽后 extra 变成 `['.obsidian/cls-internal-key.txt.bak', '.obsidian/graph.json', '.obsidian/plugins']`，第三项是假阳。所以真正的缺口是「:75 mkdir 出来的目录没有 manifest 项」，`*.json` 只是拿覆盖面去补这个洞，代价是把一块真盲区一起买单了。
+   触发: 按 manifest 搭好 target-vault 后，往 .obsidian 放两个并列的件：`echo STALE-KEY > <target>/.obsidian/cls-internal-key.txt.bak` 与 `echo '{}' > <target>/.obsidian/graph.json`，跑 `verify(target, manifest, source_dir=source)`。
+   期望 vs 实际: 期望：两件都是「位于脚本写入目录内、不在 manifest」的东西，应当同样被报成 extra（或至少让盲区在 render() 的语义行里像根级那样被写明）。
+         实际（实测）：`extra : ['.obsidian/graph.json']` —— 只有 json 那件被抓到，`.obsidian/cls-internal-key.txt.bak` 静默通过；把该条覆盖面改成 `{"dir": ".obsidian", "match": "*"}` 后实测确实抓到了它，但同时把 `.obsidian/plugins` 误报成 extra。
+   建议改法: 给 :75 mkdir 出来的容器目录补 manifest 项（`{"path": ".obsidian/plugins", "role": "obsidian-plugin", "action": "skeleton", "origin": "install-vault.sh:75"}`，`.claude` 同理），它进了 declared_paths 后就不会被当 extra；再把 extra_scan 第二条放宽为 `{"dir": ".obsidian", "match": "*"}`，盲区消失且无假阳。注意这会动到 test_manifest_matches_install_arrays 的「27 项」字面量——那条断言现在把 skeleton 集合与五个 shell 数组的并集绑死，而 :75 的两个 mkdir 本来就不在那五个数组里，加项时要么把 :75 的项按 origin 排除在等价判据外、要么把等价判据改成「数组并集 ⊆ manifest 且差集只含 origin=install-vault.sh:75 的项」，别为了让旧字面量继续成立而放弃修覆盖面。若判定盲区可接受（不修），至少在 render() 的语义行里比照根级那句写明「.obsidian 下的非 json 件不在覆盖面内」，别让声明比证据宽。
+
+## 10. [HIGH] exclude 剔除只在 source 侧被钉住——target 侧的剔除可以整个拆掉而 42 条全绿，Codex round-1 那条 HIGH 的镜像面无门
+   位置: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/tests/unit/test_vault_install_manifest.py:331
+   主张: verify() 的 drift 判据是 `_digest(src, excluder, source) != _digest(target, excluder, vault)`（verify_vault_install.py:413），两侧各自剔除被 exclude 覆盖的子孙。回归门 test_normally_deployed_vault_is_not_reported_as_drift（:425-442）只把 __pycache__ / pending_archives 种在 **source** 侧，因此只承重 `_digest(src, excluder, source)` 那一半。target 侧的剔除唯一被**执行**到的地方是 test_glob_exclude_matches_nested_pycache（:317-331）——它恰好把这两件东西种在 target 里，却只断言了 intentionally_excluded 的两条 path/detail 和 `result.extra == []`，没有用 `_assert_only`，也没有断言 `content_drift == []`。于是 target 侧的剔除参数被拆掉后没有任何一条断言会翻红。实测：把 :413 改成 `_digest(src, excluder, source) != _digest(target)`（单侧剔除），复刻 clean_pair / glob_exclude / normally_deployed / exclude_kind / 四类独立承重 / 零写门共 9 条断言全部 PASS，而同一 fixture 下 content_drift 实际已变成 ['.claude/hooks', '.claude/scripts']。这不是假想形态：目标 vault 一旦被真正使用过，hooks 的 python 会把 `.claude/scripts/__pycache__` 重新生成回来，届时校验一个**健康的活 vault** 会得到 `.claude/scripts` / `.claude/hooks` 双 content-drift + exit 1 —— 与已修的那条 HIGH 同一种「正确部署被误报」，只是发生在另一侧。
+   触发: 临时副本 /tmp/…/verify_mutant.py 把 verify_vault_install.py:413 的 `_digest(target, excluder, vault)` 改成 `_digest(target)`；vault fixture 同 vault_pair（source/target 逐字节相同的合成 vault），再在 **target** 里 `mkdir .claude/scripts/__pycache__` + 写 `.claude/hooks/pending_archives_2026.jsonl`，然后 `vv.verify(target, manifest, source_dir=source)`。
+   期望 vs 实际: 期望：拆掉 target 侧剔除后，至少一条测试翻红（该缺陷已被外部复核认定为 HIGH，回归门本应双向承重）。实际：9 条相关断言全 PASS；只有测试没写的那条 `content_drift == []` 会红——即门里恰好缺的就是唯一能抓住它的断言。
+   建议改法: 把 test_glob_exclude_matches_nested_pycache（:317-331）末尾的 `assert result.extra == []` 换成 `_assert_only(result, "intentionally_excluded", [".claude/**/__pycache__", ".claude/hooks/pending_archives*.jsonl"])`，或直接补 `assert result.content_drift == []`；更彻底的做法是在 test_normally_deployed_vault_is_not_reported_as_drift 里加一个「两侧都有、且字节不同」的对照（source 的 cached.pyc 与 target 的 cached.pyc 内容不同），这样单侧剔除与零剔除都会红。
+
+## 11. [MEDIUM] manifest 的 extra_scan 三个覆盖面无任何断言绑定，删掉两个 .obsidian 根仍然 42 条全绿
+   位置: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/tests/unit/test_vault_install_manifest.py:291
+   主张: extra 的检测面完全由 manifest 的 `extra_scan`（vault-install-manifest.json:6-10：`.claude/*`、`.obsidian/*.json`、`.obsidian/plugins/*`）决定，但整个测试文件里 `extra_scan` 一次都没出现（grep 实测 0 命中）：没有任何一条测试断言它有几个根、根是什么。而唯一触碰 extra 的行为门 test_extra_is_detected_alone（:291-295）用的是 `.claude/cache`，只承重第一个根；test_intentionally_excluded_is_detected_alone（:305-314）和 test_glob_exclude_matches_nested_pycache（:331）里的 `assert extra == []` 在少两个根的情况下同样成立。实测把 manifest 裁成只剩 `.claude` 一个根后，我复刻的 9 条相关断言（schema/clean_pair/四类独立承重/glob_exclude/normally_deployed/exclude_kind）全部 PASS，而同一 target 里植入的 `.obsidian/plugins/evil-plugin` 与 `.obsidian/rogue.json` 从「extra 2 条、rc=1」变成「extra 0 条、rc=0」。也就是说 manifest 的 extra 覆盖面可以静默缩水到三分之一（或写错成 `.obsidian/plugin` 这类 typo）而门不响——「覆盖面内有没有清单外的东西」这个承诺只有 1/3 被钉住。
+   触发: 把 vault-install-manifest.json 的 extra_scan 裁成 `[{"dir": ".claude", "match": "*"}]`；合成 vault 的 target 里 `mkdir .obsidian/plugins/evil-plugin` + 写 `.obsidian/rogue.json`（source 同形以排除 drift/missing 干扰），再 `vv.verify(target, pruned_manifest, source_dir=source)`。
+   期望 vs 实际: 期望：manifest 少声明两个 extra 覆盖面 → 集合/结构门翻红（部署边界的一部分被悄悄放弃）。实际：全绿；真清单下 extra=['.obsidian/plugins/evil-plugin', '.obsidian/rogue.json'] rc=1，裁剪后 extra=[] rc=0，一个混进去的 Obsidian 插件目录不再被报告。
+   建议改法: 在 test_manifest_covers_implicit_and_generated_semantics（:129-149）旁加一条结构断言，把 `data["extra_scan"]` 逐项钉成 `[(".claude","*"), (".obsidian","*.json"), (".obsidian/plugins","*")]`；并给后两个根各补一条行为反例（在 `.obsidian/plugins/` 下造一个清单外目录、在 `.obsidian/` 下造一个清单外 .json），用 `_assert_only(..., "extra", [...])` 承重。
+
+## 12. [MEDIUM] 五数组解析窗口硬编码在 install-vault.sh:63-67，第 67 行以下新增的第 6 个数组对主判据和验伪锚双双不可见
+   位置: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/tests/unit/test_vault_install_manifest.py:51
+   主张: `MANIFEST_BLOCK = (63, 67)`（:51）让 `_parse_install_arrays()`（:85-96）只在这 5 行里找 `NAME=(...)`。验伪锚 test_install_arrays_parse_as_expected（:99-115）断言的是「**窗口内**解析到 5 个数组名、27 个元素」，主判据 test_manifest_matches_install_arrays（:118-126）再拿这 27 个去和 manifest 对集合——两条都以同一个窗口为输入，所以窗口漏掉的东西对二者同时不可见。install-vault.sh 的 MANIFEST 区语义边界是第 60-69 行（banner + 五数组 + 「明确不复制」注释），而窗口只到 67：一个新部署类别最自然的落点恰恰是 ROOT_FILES 之下的第 68 行。实测在第 67 行后插入 `ROOT_FILES_EXTRA=(README.md 学习指南.md)`（63-67 逐字未动），验伪锚 PASS、主判据 PASS，而脚本会部署、manifest 里没有的两项是 README.md / 学习指南.md。对照实验：对全文件做同一正则扫描，原文件恰好命中 5 个数组名、变异后命中 6 个——说明放宽到全文件既能抓住它，又不会引入现存假红。
+   触发: 在 /Users/Heishing/.../scripts/install-vault.sh 第 67 行（ROOT_FILES）之后插入一行 `ROOT_FILES_EXTRA=(README.md 学习指南.md)`，并在 :97-99 的 ROOT_FILES 复制循环旁加一个同形循环；不改 manifest，然后跑 test_install_arrays_parse_as_expected 与 test_manifest_matches_install_arrays。
+   期望 vs 实际: 期望：脚本数组与 manifest 漂移 → 主判据 `from_script - from_manifest` 非空 → 红（钉死点 1 的原话是「manifest 一旦与脚本漂移, 部署边界就有两份真相」）。实际：解析到的仍是 5 个数组 / 27 元素，两条全绿；README.md 与 学习指南.md 会被脚本部署但不在 manifest，校验器也永远不会把它们算进 declared_paths。
+   建议改法: 把 `_parse_install_arrays()` 的正则改成对整份 install-vault.sh 跑 `re.M` 扫描（原文件全文只有这 5 个 `^[A-Z_]+=\(...\)$` 命中，不会引入假红），保留 MANIFEST_BLOCK 作为「这 5 个必须落在 63-67 行内」的额外锚点；验伪锚同时断言全文件命中数 == 5，这样窗口内外的新增都会翻红。
+
+## 13. [HIGH] extra_scan 条目完全没过校验：非字符串/绝对路径 dir 抛未捕获异常 → 退出码 1 而非承诺的 2；".." 还让校验器列举 --vault 树外的目录并写进报告
+   位置: scripts/verify_vault_install.py:187-194（load_manifest 的 extra_scan 分支）+ :443、:450（_collect_extra 用它拼路径）
+   主张: load_manifest 对 items 有整套防线（:120-131 _check_path_field 挡非字符串/绝对/'..'/重复，:169 先验 action isinstance(str)），但对 extra_scan 只检查『是 dict 且含 dir、match 两个键』（:192），键值类型与路径形态一概不查，就直接塞进 ScanRoot（:194）。于是三条后果：(1) dir 是 int/None → :443 的 `vault / scan.dir` 抛 TypeError，逃出 ManifestError 捕获面（:565-569 只 catch ManifestError），未捕获异常穿过 `sys.exit(main())`，进程退出码是 Python 默认的 1 —— 与 EXIT_DIFF（『有差异』）撞码；(2) dir 是绝对路径 → :450 的 `child.relative_to(vault)` 抛 ValueError，同样得 rc=1；(3) dir 是 '..' → pathlib 不规范化，`vault/'..'` 与 relative_to 都成立，校验器把 --vault 之外的目录条目当 extra 报出来。这正是 Codex round-1 第 4 条（action 为 list/dict 时 TypeError 逃出捕获面）的同一缺陷类，只在 action/kind 上修了，extra_scan 这一面没修干净。另外 match 给 [] 或 "" 时 _pattern_to_regex 编出 `^$`，extra 面被静默关掉、rc=0，连报错都没有。
+   触发: 用仓内 manifest 复制一份，只改 extra_scan：
+         A) `"extra_scan": [{"dir": 123, "match": "*"}]`
+         B) `"extra_scan": [{"dir": "/tmp/g26probe/case1", "match": "*"}]`
+         C) `"extra_scan": [{"dir": "..", "match": "*"}]`
+         D) `"extra_scan": [{"dir": ".claude", "match": []}]`
+         命令：`python3 scripts/verify_vault_install.py --vault <合成 target vault> --manifest <上述任一>`
+   期望 vs 实际: 期望（卡文『退出码三档』）：清单非法 → rc=2 且 stderr 一行『❌ manifest 不可用: …』；覆盖面只落在 --vault 树内。
+         实测：A rc=1，stderr 末行 `TypeError: unsupported operand type(s) for /: 'PosixPath' and 'int'`；B rc=1，末行 `ValueError: '/tmp/g26probe/case1/SECRET-OUTSIDE.txt' is not in the subpath of '/private/tmp/g26probe/case1/tgt'`；C rc=1 且报告里出现 `## extra` 五行全是树外条目（`../SECRET-OUTSIDE.txt`、`../src`、`../tgt`…，detail 写『位于覆盖面 ../* 内但不在 manifest』）；D rc=0、`extra : 0`（extra 面被静默禁用，无任何提示）。
+   建议改法: load_manifest 的 extra_scan 循环里补与 items 同级的校验：dir/match 必须 isinstance(str) 且非空；dir 复用 _check_path_field 的形态判据（拒绝绝对路径、拒绝 Path(dir).parts 含 '..'）。同时给退出码加一条负控测试（现有 42 条只覆盖了 items 的非法形态，extra_scan 一条没有）。
+
+## 14. [MEDIUM] `[` 被 GLOB_CHARS 当通配符、却被 _pattern_to_regex 用 re.escape 当字面量 —— 写成字符类的 exclude 静默不命中，把正确部署的 vault 误报成 content-drift
+   位置: scripts/verify_vault_install.py:46（GLOB_CHARS = "*?["）与 :202-225（_pattern_to_regex 只有 `**/`、`/**`、`*`、`?` 四个分支，`[` 走 :223 的 re.escape）
+   主张: GLOB_CHARS 把 `[` 声明成通配字符：_has_glob(:240) 因此判定含 `[` 的模式为 glob 模式（走 regex 分支而不是字面量相等分支），_static_prefix(:233) 也在 `[` 处截断遍历面。但 _pattern_to_regex 没有 `[` 的分支，逐字符 re.escape 把它编成 `\[` —— 字面方括号。两处口径分叉的后果是：一条按 shell 语义写的 exclude（`rm -f` 在 :86 用的就是 shell glob，字符类是 shell glob 的合法形态）在校验器里变成『只匹配名字里真带方括号的文件』的恒空规则，load_manifest 不报任何错。恒空的 exclude 会让 _digest(:336-338) 停止剔除该子孙，于是模板源有、目标被脚本 rm 掉的那个文件重新进入摘要 —— 这正是 Codex round-1 HIGH（『正确部署被误报 drift』）修的那一类失败，修法（抽 ExcludeMatcher 统一三处口径）并没有覆盖『规则本身编译成了恒空』这条路。
+   触发: 合成 source/target 一对 vault（target = install-vault.sh 正常部署结果）：source 里放 `.claude/hooks/pending_archives3.jsonl`，target 里没有（:86 的 rm -f 删掉了）。manifest 只改一个字段：把 `.claude/hooks/pending_archives*.jsonl` 改写成等价的 shell 字符类 `.claude/hooks/pending_archives[0-9].jsonl`，其余不动。
+         `python3 scripts/verify_vault_install.py --vault <target> --source <source> --manifest <改过的清单>`
+   期望 vs 实际: 期望：要么 load_manifest 拒收（`[` 不受支持 → rc=2），要么按 shell 语义匹配 `pending_archives3.jsonl` → content_drift 为空、rc=0（与用 `*` 写法一致）。
+         实测：load_manifest 通过；regex 编成 `^\.claude/hooks/pending_archives\[0\-9\]\.jsonl$`（方括号被转义成字面量）；`content_drift = ['.claude/hooks']`，rc=1。同一对 vault 用仓内原 `*` 写法的对照跑：`content_drift = []`，rc=0。
+   建议改法: 二选一，别留中间态：要么 _pattern_to_regex 补 `[...]` 字符类翻译（注意把 `!` 转成 `^`、内部不做 re.escape），要么把 `[` 从 GLOB_CHARS 里去掉并在 load_manifest 里显式拒收含 `[` 的 path（连同 _static_prefix 的截断条件一起改），使『是否 glob』只有一个口径。
+
+## 15. [LOW] 同一条 exclude 在 hits_for 与 matches_exact 里用两套路径判等：带尾斜杠的模式会让同一个目录既被判『故意排除』又被判『extra』
+   位置: scripts/verify_vault_install.py:283（matches_exact 非 glob 分支 `rel == item.path`，字符串相等）vs :296-297（hits_for 非 glob 分支 `vault / item.path` + exists()，路径拼接）
+   主张: ExcludeMatcher 的两条非 glob 路径判据不同源：hits_for 走 pathlib 拼接，尾斜杠被 pathlib 吞掉，所以 `.claude/cache/` 能命中磁盘上的 `.claude/cache`；matches_exact 走裸字符串相等，而 _collect_extra(:450) 和 _digest(:337) 喂进来的 rel 一律来自 `as_posix()`（永远没有尾斜杠），所以永远不相等。清单里写一条带尾斜杠的排除（对目录来说是很自然的写法），load_manifest 不拦（:120-131 只查绝对/`..`/重复/非空），结果同一条规则在『报告面』生效、在『豁免面』失效 —— 报告自相矛盾，且退出码被推到 1。ExcludeMatcher 的类 docstring 声称『分类、extra 豁免、目录摘要过滤三处必须共用它』，但 hits_for 这第四处判等没跟着统一。
+   触发: target vault 里存在 `.claude/cache/x.bin`（线上 canvas-vault 就有 `.claude/cache`，实跑该目录现在被报成 extra）。manifest 追加一条：`{"path": ".claude/cache/", "role": "runtime-cache", "action": "exclude", "origin": "future"}`（注意尾斜杠）。
+         `python3 scripts/verify_vault_install.py --vault <target> --source <source> --manifest <改过的清单>`
+   期望 vs 实际: 期望：要么 load_manifest 判尾斜杠为清单非法（rc=2），要么归一化后该目录只落进 intentionally-excluded 一个桶、rc=0。
+         实测：load_manifest 通过；`extra = ['.claude/cache']` 且 `intentionally_excluded = ['.claude/cache/']` —— 同一个目录同时出现在两个互斥的桶里，exit=1。
+   建议改法: 在 load_manifest 的 _check_path_field 里把 item.path 归一化（`Path(raw).as_posix()`，顺手拒掉尾斜杠、`./`、连续斜杠），或让 matches_exact 与 hits_for 共用同一个『rel 归一化 + 比较』函数，别一边字符串一边路径。

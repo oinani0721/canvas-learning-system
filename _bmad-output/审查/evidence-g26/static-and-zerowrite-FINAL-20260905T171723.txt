@@ -1,0 +1,27 @@
+=== (c) grep -c '/Users/' manifest ===
+0
+=== manifest 概览 ===
+version= 1 source= live-vault items= 36
+actions= ['copy', 'exclude', 'generate', 'skeleton']
+Counter({'copy': 21, 'exclude': 8, 'skeleton': 6, 'generate': 1})
+绝对路径项= []
+含 .. 项= []
+重复项= []
+=== ruff check / format ===
+All checks passed!
+2 files already formatted
+=== pyright ===
+0 errors, 0 warnings, 0 informations
+=== 裁判 9 手工零写门 (tmp target) ===
+before: files=66 entries=104
+报告已写入 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/_bmad-output/审查/evidence-g26/tmp-target-diff.txt
+rc=1
+FILES-IDENTICAL
+ENTRIES-IDENTICAL
+=== 裁判 5 数组对照 sed -n '63,67p' ===
+SKELETON_DIRS=(原白板 检验白板 节点 outputs raw templates)
+CLAUDE_ITEMS=(skills scripts hooks agents commands settings.json settings.local.json mcp.json)
+OBSIDIAN_FILES=(app.json appearance.json core-plugins.json community-plugins.json hotkeys.json cls-internal-key.txt)
+OBSIDIAN_PLUGINS=(canvas-learning-system claudian dataview breadcrumbs templater-obsidian)
+ROOT_FILES=(CLAUDE.md Dashboard.md)
+rc=0

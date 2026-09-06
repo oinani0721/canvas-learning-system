@@ -1,0 +1,6 @@
+before: files=66 entries=104
+报告已写入 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/_bmad-output/审查/evidence-g26/tmp-target-diff.txt
+verifier-rc=1
+FILES-IDENTICAL
+ENTRIES-IDENTICAL
+模板源(车道 canvas-vault) 变更数 = 0

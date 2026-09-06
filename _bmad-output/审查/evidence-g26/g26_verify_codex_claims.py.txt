@@ -1,0 +1,126 @@
+#!/usr/bin/env python3
+"""独立复现 Codex round-1 的四条指控。每条都要能在本机跑出来才算数。"""
+
+from __future__ import annotations
+
+import importlib.util
+import json
+import os
+import sys
+import tempfile
+from pathlib import Path
+
+WT = Path(
+    "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal"
+)
+VERIFIER = WT / "scripts" / "verify_vault_install.py"
+MANIFEST = WT / "scripts" / "vault-install-manifest.json"
+
+name = "_vv_probe"
+spec = importlib.util.spec_from_file_location(name, VERIFIER)
+vv = importlib.util.module_from_spec(spec)
+sys.modules[name] = vv
+sys.dont_write_bytecode = True
+spec.loader.exec_module(vv)
+
+
+def build(root: Path, data: dict) -> None:
+    root.mkdir(parents=True, exist_ok=True)
+    for item in data["items"]:
+        if item["action"] == "skeleton":
+            (root / item["path"]).mkdir(parents=True, exist_ok=True)
+        elif item["action"] == "copy":
+            t = root / item["path"]
+            if "." in Path(item["path"]).name:
+                t.parent.mkdir(parents=True, exist_ok=True)
+                t.write_text(f"content of {item['path']}\n", encoding="utf-8")
+            else:
+                t.mkdir(parents=True, exist_ok=True)
+                (t / "payload.txt").write_text(f"payload of {item['path']}\n", encoding="utf-8")
+    (root / ".canvas-config.yaml").write_text('vault_id: "x"\n', encoding="utf-8")
+
+
+data = json.loads(MANIFEST.read_text(encoding="utf-8"))
+manifest = vv.load_manifest(MANIFEST)
+
+print("=" * 72)
+print("指控 1 (BLOCKER): --report 树外路径若与树内文件同 inode(硬链接), 会覆盖树内文件")
+print("=" * 72)
+with tempfile.TemporaryDirectory() as td:
+    td = Path(td)
+    src, tgt = td / "source", td / "target"
+    build(src, data)
+    build(tgt, data)
+    victim = tgt / "Dashboard.md"
+    before = victim.read_text(encoding="utf-8")
+    outside = td / "outside-report.txt"
+    os.link(victim, outside)  # 树外路径, 同 inode
+    print(f"  受害文件内容(前): {before!r}")
+    print(f"  outside 在 vault 内? {outside.is_relative_to(tgt)}  (False ⇒ 现有检查放行)")
+    rc = vv.main(
+        ["--vault", str(tgt), "--source", str(src), "--manifest", str(MANIFEST),
+         "--report", str(outside)]
+    )
+    after = victim.read_text(encoding="utf-8")
+    print(f"  校验器 rc = {rc}")
+    print(f"  受害文件内容(后): {after[:48]!r}...")
+    print(f"  >>> 指控 1 {'成立 — 树内文件被覆盖' if after != before else '不成立'}")
+
+print()
+print("=" * 72)
+print("指控 2 (HIGH): copy 目录的摘要未剔除 exclude 子孙 ⇒ 正常部署也报 content-drift")
+print("=" * 72)
+with tempfile.TemporaryDirectory() as td:
+    td = Path(td)
+    src, tgt = td / "source", td / "target"
+    build(src, data)
+    build(tgt, data)
+    # 模板源(活 vault)里天然有 __pycache__ 与 pending_archives —— live 实测确实有
+    (src / ".claude" / "scripts" / "__pycache__").mkdir(parents=True)
+    (src / ".claude" / "scripts" / "__pycache__" / "cached.pyc").write_bytes(b"\x00cache")
+    (src / ".claude" / "hooks" / "pending_archives_2026.jsonl").write_text("[]", encoding="utf-8")
+    # target 是 install-vault.sh 正常部署的结果: :84 剪了 __pycache__, :86 删了 pending_archives
+    r = vv.verify(tgt, manifest, source_dir=src)
+    print(f"  match={len(r.match)} missing={len(r.missing)} extra={len(r.extra)} "
+          f"drift={len(r.content_drift)} excluded={len(r.intentionally_excluded)}")
+    print(f"  drift 项: {[f.path for f in r.content_drift]}")
+    print(f"  exit_code = {r.exit_code}")
+    print(f"  >>> 指控 2 {'成立 — 正确部署被误报 drift' if r.content_drift else '不成立'}")
+
+print()
+print("=" * 72)
+print("指控 3 (MEDIUM): exclude 模式不区分文件/目录, 与脚本的 -type d / rm -f 条件不符")
+print("=" * 72)
+with tempfile.TemporaryDirectory() as td:
+    td = Path(td)
+    tgt = td / "target"
+    build(tgt, data)
+    # __pycache__ 造成**普通文件**(脚本 :84 有 -type d, 不会删它)
+    (tgt / ".claude" / "scripts" / "__pycache__").write_text("我是文件不是目录", encoding="utf-8")
+    # pending_archives*.jsonl 造成**目录**(脚本 :86 是 rm -f, 不会删目录)
+    (tgt / ".claude" / "hooks" / "pending_archives_x.jsonl").mkdir(parents=True)
+    r = vv.verify(tgt, manifest)
+    hit = {f.path: f.detail for f in r.intentionally_excluded}
+    a = ".claude/**/__pycache__" in hit
+    b = ".claude/hooks/pending_archives*.jsonl" in hit
+    print(f"  __pycache__ 作为普通文件被判 excluded? {a}")
+    print(f"  pending_archives*.jsonl 作为目录被判 excluded? {b}")
+    print(f"  >>> 指控 3 {'成立 — 类型不符仍被判 excluded' if (a or b) else '不成立'}")
+
+print()
+print("=" * 72)
+print("指控 4 (MEDIUM): action 为 list/dict 时抛 TypeError 而非 ManifestError ⇒ CLI rc≠2")
+print("=" * 72)
+for bad_action in ([], {}, 123):
+    d2 = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    d2["items"][0]["action"] = bad_action
+    with tempfile.TemporaryDirectory() as td:
+        p = Path(td) / "bad.json"
+        p.write_text(json.dumps(d2), encoding="utf-8")
+        try:
+            vv.load_manifest(p)
+            print(f"  action={bad_action!r}: 没抛异常 (漏检)")
+        except vv.ManifestError as e:
+            print(f"  action={bad_action!r}: ManifestError ✓ ({str(e)[:40]})")
+        except Exception as e:
+            print(f"  action={bad_action!r}: >>> {type(e).__name__} — 指控 4 成立 ({e})")

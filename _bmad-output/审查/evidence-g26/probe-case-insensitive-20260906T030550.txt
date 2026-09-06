@@ -1,0 +1,11 @@
+=== A. 本机文件系统大小写敏感性 ===
+  建 Vault/ 后用 vault/ 访问 -> 同一目录(不敏感)
+
+=== B. 落点检查是否被大小写差异绕开 ===
+  --vault=Vault  --report=vault/Dashboard.md
+  is_relative_to 判定 = False
+  两者 (st_dev, st_ino) 相同? = True
+报告已写入 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmps0xoe3vs/vault/Dashboard.md
+  rc = 1  受害文件被改 = True
+  >>> ⛔ 仍被放行 — 路径比较这个维度本身不成立
+rc=0

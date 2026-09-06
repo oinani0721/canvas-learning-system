@@ -1,0 +1,21 @@
+--- grep -c '/Users/' manifest ---
+0
+--- manifest 概览 ---
+version= 1 source= live-vault items= 38
+Counter({'copy': 21, 'exclude': 10, 'skeleton': 6, 'generate': 1})
+kind= Counter({'(无)': 36, 'dir': 1, 'nondir': 1})
+绝对= [] 含..= []
+重复= []
+extra_scan= [('.claude', '*'), ('.obsidian', '*.json'), ('.obsidian/plugins', '*')]
+--- ruff check ---
+All checks passed!
+--- ruff format --check ---
+2 files already formatted
+--- pyright ---
+0 errors, 0 warnings, 0 informations
+--- 五数组对照 sed -n '63,67p' ---
+SKELETON_DIRS=(原白板 检验白板 节点 outputs raw templates)
+CLAUDE_ITEMS=(skills scripts hooks agents commands settings.json settings.local.json mcp.json)
+OBSIDIAN_FILES=(app.json appearance.json core-plugins.json community-plugins.json hotkeys.json cls-internal-key.txt)
+OBSIDIAN_PLUGINS=(canvas-learning-system claudian dataview breadcrumbs templater-obsidian)
+ROOT_FILES=(CLAUDE.md Dashboard.md)
