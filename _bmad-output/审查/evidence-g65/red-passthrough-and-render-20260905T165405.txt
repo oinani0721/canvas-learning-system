@@ -1,0 +1,43 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-x2-g62b/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 63 items / 61 deselected / 2 selected
+
+tests/unit/test_review_overview.py FF                                    [100%]
+
+=================================== FAILURES ===================================
+______________ test_bucket_rows_passthrough_and_boundary_len_gate ______________
+tests/unit/test_review_overview.py:1223: in test_bucket_rows_passthrough_and_boundary_len_gate
+    assert after["vault-layered"]["status"] == "corrupt", "透传行与计数脱钩必须 corrupt 降级, 不许照常出页面"
+E   AssertionError: 透传行与计数脱钩必须 corrupt 降级, 不许照常出页面
+E   assert 'ok' == 'corrupt'
+E     
+E     - corrupt
+E     + ok
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/review/overview", "endpoint": "/api/v1/review/overview", "status": 200, "duration_ms": 3.23, "event": "request.completed", "request_id": "6310380944", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-05T08:54:19.943217Z"}
+{"method": "GET", "path": "/api/v1/review/overview", "endpoint": "/api/v1/review/overview", "status": 200, "duration_ms": 1.63, "event": "request.completed", "request_id": "6310464560", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-05T08:54:19.946840Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/review/overview', 'endpoint': '/api/v1/review/overview', 'status': 200, 'duration_ms': 3.23, 'event': 'request.completed', 'request_id': '6310380944', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-05T08:54:19.943217Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/review/overview', 'endpoint': '/api/v1/review/overview', 'status': 200, 'duration_ms': 1.63, 'event': 'request.completed', 'request_id': '6310464560', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-05T08:54:19.946840Z'}
+___ test_page_renders_five_bucket_sections_and_omits_them_for_old_projection ___
+tests/unit/test_review_overview.py:1240: in test_page_renders_five_bucket_sections_and_omits_them_for_old_projection
+    assert page.text.count("data-queue-layers") == 1, "旧投影卡片不得出现队列区块容器"
+E   AssertionError: 旧投影卡片不得出现队列区块容器
+E   assert 0 == 1
+E    +  where 0 = <built-in method count of str object at 0x8f6fd8000>('data-queue-layers')
+E    +    where <built-in method count of str object at 0x8f6fd8000> = '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, init...;margin-top:24px">⚠ obsidian:// 跳转需在 Obsidian 打开过该库（未注册的库点击无响应）；存在同名库时可能跳到先注册的那个，以 Obsidian 侧库列表为准</div></body></html>'.count
+E    +      where '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, init...;margin-top:24px">⚠ obsidian:// 跳转需在 Obsidian 打开过该库（未注册的库点击无响应）；存在同名库时可能跳到先注册的那个，以 Obsidian 侧库列表为准</div></body></html>' = <Response [200 OK]>.text
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/review/overview/page", "endpoint": "/api/v1/review/overview/page", "status": 200, "duration_ms": 1.79, "event": "request.completed", "request_id": "6310235408", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-05T08:54:20.117201Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/review/overview/page', 'endpoint': '/api/v1/review/overview/page', 'status': 200, 'duration_ms': 1.79, 'event': 'request.completed', 'request_id': '6310235408', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-05T08:54:20.117201Z'}
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_review_overview.py::test_bucket_rows_passthrough_and_boundary_len_gate
+FAILED tests/unit/test_review_overview.py::test_page_renders_five_bucket_sections_and_omits_them_for_old_projection
+======================= 2 failed, 61 deselected in 0.96s =======================
+rc=1

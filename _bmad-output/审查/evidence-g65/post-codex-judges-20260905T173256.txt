@@ -1,0 +1,23 @@
+### 整改后 · 裁判1 两单测文件
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+============================= 153 passed in 22.78s =============================
+rc=0
+
+### 裁判1b 用例数
+tests/unit/test_review_app.py:42
+tests/unit/test_review_overview.py:63
+
+### 裁判2
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+============================== 1 passed in 1.47s ===============================
+rc=0
+
+### 裁判4
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+============================== 74 passed in 4.93s ==============================
+rc=0
+
+### 裁判7 tests/api
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+============================= 268 passed in 4.38s ==============================
+rc=0
