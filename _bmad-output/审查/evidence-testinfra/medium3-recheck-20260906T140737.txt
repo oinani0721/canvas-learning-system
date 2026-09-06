@@ -1,0 +1,42 @@
+===== MEDIUM-3 复核：dead-letter record 到底有没有正文 · 2026-09-06T14:07:37+08:00 =====
+--- 生产 to_dict() ---
+        """Exponential backoff with full jitter. Cap at 60s."""
+        base = 2**self.retry_count
+        cap = min(base, 60)
+        return random.uniform(0, cap)
+
+    def to_dict(self) -> dict[str, Any]:
+        result = {
+            "name": self.name,
+            "episode_body": self.episode_body[:200],  # truncate for logging
+            "group_id": self.group_id,
+            "source_description": self.source_description,
+            "reference_time": self.reference_time.isoformat(),
+            "retry_count": self.retry_count,
+            "created_at": self.created_at.isoformat(),
+        }
+        if self.request_id is not None:
+
+--- 生产 store() 里的 record 构造 ---
+        record = {
+            **task.to_dict(),
+            "episode_body_sha256": body_hash,
+            "episode_body_length": len(task.episode_body),
+            "error": _redact(str(error))[:200],
+            "error_type": type(error).__name__,
+            "failed_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+--- 直接跑一次，把真实 record 的键打出来 ---
+  import pkg_resources
+Building prefix dict from the default dictionary ...
+Loading model from cache /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/jieba.cache
+Loading model cost 0.289 seconds.
+Prefix dict has been built successfully.
+2026-09-06 14:07:45 [info     ] RAGService: LangGraph/Agentic RAG available. LANGGRAPH_AVAILABLE=True
+2026-09-06 14:07:45 [error    ] Dead-lettered episode: name=probe, retries=0/3, error_type=RuntimeError, sha256=af062acbe3e64aa0
+record 的键: ['created_at', 'episode_body', 'episode_body_length', 'episode_body_sha256', 'error', 'error_type', 'failed_at', 'group_id', 'name', 'reference_time', 'retry_count', 'source_description']
+episode_body 字段值: '{"action":"test"}'
+episode_body_full 在不在: False
+
+⇒ 正文 仍在 record 里（截断到 200 字符）

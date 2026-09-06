@@ -1,0 +1,20 @@
+===== ⑧ 重跑（前一版判据用 ${PIPESTATUS[0]}，zsh 下为空 = 判据坏了，不是 wrapper 坏了）=====
+未知 flag rc=64  （期望 64）
+
+===== ⑦ 复核：rc=1 与「pytest 测试失败」撞车 =====
+--tail 缺参数 rc=1
+--cwd  缺参数 rc=1
+⇒ 二者都是 rc=1，与 pytest「有测试失败」的 rc=1 无法区分（调用方分不清用法错误与真红）
+
+===== 生产调用点是否可能触发⑦ =====
+--- lefthook.yml 调用点 ---
+463:    # the invocation goes through scripts/run_cmd_capture.sh so a non-zero
+474:          ./scripts/run_cmd_capture.sh --cwd frontend/obsidian-plugin --tail 120 -- npm test
+--- post-tool-router.sh 调用点 ---
+37:        "$WRAPPER" --cwd "$PROJECT_ROOT/backend" --tail 80 -- \
+46:        "$WRAPPER" --cwd "$PROJECT_ROOT/backend" --tail 120 -- \
+64:    "$WRAPPER" --cwd "$PROJECT_ROOT/backend" --tail 120 -- \
+69:    "$WRAPPER" --cwd "$PROJECT_ROOT/frontend" --tail 20 -- npx stryker run || exit 1
+--- stop-test-runner.js 调用点 ---
+52:      `"${wrapper}" --cwd backend --tail 120 -- ` +
+⇒ 全部 4 处调用点的 --cwd/--tail 参数均为字面量，运行期不可能缺参 ⇒ ⑦ 在生产路径不可达

@@ -1,0 +1,24 @@
+===== (d) 补充边界探测（卡文 4 条之外，主动加固）· 2026-09-06T13:37:46+08:00 =====
+--- ⑤ cd 失败须 rc=65 ---
+[run_cmd_capture] cannot cd to: /nonexistent-dir-canary
+rc=65
+
+--- ⑥ 成功且有输出：rc=0，但输出被吞进日志（不回显）---
+rc=0  stderr+stdout 字节数=       0  内容=[]
+⇒ 成功路径静默（输出只在 $TMPDIR 日志里），pre-push 通过时看不到测试摘要
+
+--- ⑦ set -u 边界：--cwd 作为最后一个参数（$2 未绑定）---
+scripts/run_cmd_capture.sh: line 42: $2: unbound variable
+rc=1  ⇒ 期望 64(usage)，实测见上
+
+--- ⑧ 未知 flag 须 rc=64 ---
+[run_cmd_capture] unknown flag: --bogus
+[run_cmd_capture] usage: scripts/run_cmd_capture.sh --cwd <dir> --tail <N> -- <cmd> [args...]
+rc=
+
+--- ⑨ mktemp -t 在 macOS 的实际文件名形态 ---
+[TEST FAILURE] full output: /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/run_cmd_capture_36943_1788673066.log.XXXXXX.FqvNsRDgo6
+/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/run_cmd_capture_36927_1788673066.log.XXXXXX.H3YIRtMihj
+/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/run_cmd_capture_36931_1788673066.log.XXXXXX.j93flSaMvp
+/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/run_cmd_capture_36943_1788673066.log.XXXXXX.FqvNsRDgo6
+⇒ BSD mktemp -t 把整串当前缀、自行追加随机后缀 ⇒ 文件名字面含 'XXXXXX'（唯一性不受影响）

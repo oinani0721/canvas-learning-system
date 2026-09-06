@@ -1,0 +1,29 @@
+===== HIGH-1 修后验证 · 判据换成完整 run 块 · 2026-09-06T14:06:55+08:00 =====
+if [ -d "frontend/obsidian-plugin/node_modules" ]; then
+  echo "[Pre-push] Running plugin tests (node --test via esbuild bundle)..."
+  ./scripts/run_cmd_capture.sh --cwd frontend/obsidian-plugin --tail 120 -- npm test || exit $?
+  echo "[Pre-push] Plugin tests done."
+else
+  echo "[Pre-push] frontend/obsidian-plugin/node_modules missing — run 'npm --prefix frontend/obsidian-plugin install' first. Skipping."
+fi
+
+--- ① 真实场景（node_modules 缺席 ⇒ else 分支，须 rc=0 正常跳过）---
+  rc=0  [须 0]
+
+--- ② 失败场景（if 恒真 + npm test 真失败，须传出 127）---
+  rc=127  [须 127，修前是 0]
+
+--- ③ 成功场景（if 恒真 + 用 true 替换 npm test，须 rc=0 且打印 done）---
+[Pre-push] Running plugin tests (node --test via esbuild bundle)...
+[Pre-push] Plugin tests done.
+  rc=0  [须 0，且上面须出现 'Plugin tests done.']
+
+--- ④ 三端对照汇总 ---
+  基线端（Y4-C 版完整 run 块，if 恒真）:
+    Y4-C 版 rc=0  [吞掉失败]
+  中间态（只换 wrapper、未加 || exit，即 Codex 审到的那版）:
+sed: 1: "s| || exit \$?||
+": bad flag in substitute command: 'e'
+    中间态 rc=0  [仍吞掉]
+  终态:
+    终态 rc=127  [传出]

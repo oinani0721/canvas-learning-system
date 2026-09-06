@@ -1,0 +1,32 @@
+===== 7c 重写（前一版 '|| true' 后无条件 echo ✓ = 恒真死判据）· 2026-09-06T13:43:56+08:00 =====
+本卡 hunk 覆盖的新文件行号: 461,462,463,464,465,466,467,468,474
+
+  python-typecheck (行 205): 未被覆盖 ✓
+  mutant-residue-scan (行 345): 未被覆盖 ✓
+  python-lint (行 117): 未被覆盖 ✓
+  spec-sync-flat (行 51): 未被覆盖 ✓
+  spec-sync-root (行 62): 未被覆盖 ✓
+  cypher-vault-filter-lint (行 246): 未被覆盖 ✓
+  readme-claims-lint (行 290): 未被覆盖 ✓
+  ghost-files (行 75): 未被覆盖 ✓
+  commitlint (行 411): 未被覆盖 ✓
+  spec-reference (行 415): 未被覆盖 ✓
+  backend-smoke (行 497): 未被覆盖 ✓
+汇总: FAIL=0 （0 = 全部未被覆盖）
+
+--- 验伪锚：拿一个已知在 hunk 内的行号（474 = wrapper 调用行）喂同一判据 ---
+  行 474: ⛔ 被 hunk 覆盖  ← 判据能报红 ✓（判据非恒真）
+--- 第二验伪锚：行 461（注释块首行，也应在 hunk 内）---
+  行 461: ⛔ 被覆盖 ← 判据能报红 ✓
+
+--- 交叉验证：frontend-test 块自身应被覆盖（它是唯一该变的块）---
+frontend-test 在行 469；其 run 块行范围 469..496
+  落在 frontend-test 块内的改动行数 =        1
+sed: 1: "s/^/  落在 backend-sm ...": bad flag in substitute command: '�'
+===== 7c 补完（前一版末行 sed 替换串含中文括号被当 flag，报错非判据失败）=====
+backend-smoke 起始行 = 497
+落在 backend-smoke 块及之后的改动行数 = 0   [须 0]
+PASS: backend-smoke 逐行未改
+
+--- 独立复核：backend-smoke 块内容与 Y4-C 版逐字节比对 ---
+backend-smoke 段逐字节相同 ✓

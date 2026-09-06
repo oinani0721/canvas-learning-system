@@ -1,0 +1,23 @@
+===== Codex 整改后复验 · 2026-09-06T14:08:46+08:00 =====
+--- ① 5 条须仍全绿 ---
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================== 5 passed, 10 warnings in 0.60s ========================
+
+--- ② MEDIUM-6 承重：设了 DEAD_LETTER_STORE_FULL_BODY=true 也须绿（fixture 已清）---
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================== 1 passed, 10 warnings in 0.46s ========================
+
+--- ③ 验伪锚：把 delenv 拆掉，同样环境须变红（证明这条 fixture 是承重的）---
+E   AssertionError: 默认配置下不得落未截断的 episode 全文
+E   assert 'episode_body_full' not in {'created_at': '2026-09-06T06:09:20.290298+00:00', 'episode_body': '{"action":"test"}', 'episode_body_full': '{"action":"test"}', 'episode_body_length': 17, ...}
+{"event": "Episode failed (attempt 1/3), retrying in 1.6s: permanent failure for dead-letter test", "logger": "app.services.episode_worker", "level": "warning", "timestamp": "2026-09-06T06:09:20.290437Z"}
+  还原 shasum 对照:
+dbcaf73c70198b994a975a8febd61ce653b1f6e5  tests/unit/test_episode_worker_retry.py
+dbcaf73c70198b994a975a8febd61ce653b1f6e5  /tmp/twr2.bak
+
+--- ④ MEDIUM-3 新断言的承重变异：把 episode_body 期望改错 ---
+E   assert '{"action":"test"}' == '{"action":"WRONG"}'
+E     
+E     - {"action":"WRONG"}
+dbcaf73c70198b994a975a8febd61ce653b1f6e5  tests/unit/test_episode_worker_retry.py
+dbcaf73c70198b994a975a8febd61ce653b1f6e5  /tmp/twr2.bak

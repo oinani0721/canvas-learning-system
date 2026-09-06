@@ -1,0 +1,42 @@
+===== (d) 假红金丝雀 · 承重 · 2026-09-06T13:37:16+08:00 =====
+wrapper sha=40ff9dc1a2e0e0c9e808834b345903f3c5559ea2  HEAD=abc6fb78
+
+--- ① 非零退出码穿透: sh -c 'exit 7' ---
+
+[TEST FAILURE] exit code: 7
+[TEST FAILURE] full output: /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/run_cmd_capture_35473_1788673037.log.XXXXXX.gfynkgmOkY
+[TEST FAILURE] last 5 lines:
+----------------------------------------
+----------------------------------------
+rc=7
+
+--- ② 真 pytest 失败: assert False ---
+
+[TEST FAILURE] exit code: 1
+[TEST FAILURE] full output: /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/run_cmd_capture_35489_1788673037.log.XXXXXX.Od2H34TIJ4
+[TEST FAILURE] last 20 lines:
+----------------------------------------
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____________________________________ test_x ____________________________________
+
+    def test_x():
+>       assert False
+E       assert False
+
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/b086888c-d696-4340-b75b-6b7a09c6fb8f/scratchpad/test_canary_false.py:2: AssertionError
+=========================== short test summary info ============================
+FAILED ../../../../../../../../../private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/b086888c-d696-4340-b75b-6b7a09c6fb8f/scratchpad/test_canary_false.py::test_x
+1 failed in 0.10s
+----------------------------------------
+rc=1
+
+--- ③ 正控: true 须 rc=0 且无 [TEST FAILURE] ---
+rc=0
+输出字节数=       0
+[TEST FAILURE] 出现次数=0
+
+--- ④ 无命令: --tail 5 -- 须 rc=64 ---
+[run_cmd_capture] no command given after '--'
+[run_cmd_capture] usage: scripts/run_cmd_capture.sh --cwd <dir> --tail <N> -- <cmd> [args...]
+rc=64

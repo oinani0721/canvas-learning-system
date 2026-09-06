@@ -1,0 +1,40 @@
+===== 裁判 7 / 8 · 隔离与面积 · 2026-09-06T13:43:25+08:00 =====
+Y4-C sha = 16b9e337   HEAD = aae845f8
+
+--- 7a 禁改地盘（Y7-A / Y6-A）须空 ---
+diff 字节数 =        0
+
+--- 7b lefthook.yml hunk 须全在 pre-push 段内 ---
+pre-push 起始行 = 453
+@@ -460,0 +461,8 @@ pre-push:
+@@ -466 +474 @@ pre-push:
+
+--- 7c 其余 hook 块零改动（python-typecheck / mutant-residue-scan / python-lint / spec-sync / cypher / readme）---
+  python-typecheck (行 205): 未被 hunk 覆盖 ✓
+  mutant-residue-scan (行 345): 未被 hunk 覆盖 ✓
+  python-lint (行 117): 未被 hunk 覆盖 ✓
+  spec-sync-flat (行 51): 未被 hunk 覆盖 ✓
+  spec-sync-root (行 62): 未被 hunk 覆盖 ✓
+  cypher-vault-filter-lint (行 246): 未被 hunk 覆盖 ✓
+  readme-claims-lint (行 290): 未被 hunk 覆盖 ✓
+  ghost-files (行 75): 未被 hunk 覆盖 ✓
+  commitlint (行 411): 未被 hunk 覆盖 ✓
+  spec-reference (行 415): 未被 hunk 覆盖 ✓
+
+--- 8 代码面文件数（预期 13 pick 面 + 修复面重叠 = 13）---
+ .claude/hooks/post-tool-router.sh                  |  40 +--
+ .claude/hooks/stop-test-runner.js                  |  50 +++-
+ .../integration/test_dual_write_consistency.py     | 122 +++-----
+ ...test_story_38_7_ac5_recovery_and_cross_story.py |  48 ++-
+ backend/tests/unit/test_episode_worker_retry.py    | 322 +++++++++++++++++++++
+ backend/tests/unit/test_failure_observability.py   |  41 ++-
+ .../tests/unit/test_graphiti_json_dual_write.py    |  86 +++---
+ .../tests/unit/test_memory_service_write_retry.py  | 148 ++++------
+ .../unit/test_qa_38_6_scoring_reliability_extra.py |  16 +-
+ backend/tests/unit/test_story_30_10_idempotency.py |  91 +++---
+ .../unit/test_story_38_6_scoring_reliability.py    |  29 +-
+ lefthook.yml                                       |  10 +-
+ scripts/run_cmd_capture.sh                         |  96 ++++++
+ 13 files changed, 718 insertions(+), 381 deletions(-)
+rc=0
+文件数 =       13

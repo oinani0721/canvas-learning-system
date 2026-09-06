@@ -1,0 +1,40 @@
+===== HIGH-1 复现：wrapper 后面那行 echo 覆盖退出码 · 2026-09-06T14:06:08+08:00 =====
+--- 完整 run 块（从 YAML 解析出来，不是我手抄）---
+if [ -d "frontend/obsidian-plugin/node_modules" ]; then
+  echo "[Pre-push] Running plugin tests (node --test via esbuild bundle)..."
+  ./scripts/run_cmd_capture.sh --cwd frontend/obsidian-plugin --tail 120 -- npm test
+  echo "[Pre-push] Plugin tests done."
+else
+  echo "[Pre-push] frontend/obsidian-plugin/node_modules missing — run 'npm --prefix frontend/obsidian-plugin install' first. Skipping."
+fi
+
+
+--- lefthook 2.1.6 用什么 shell 跑 run 块 ---
+8:#   pre-commit  → parallel checks (spec-sync, python-lint, python-typecheck, ghost-files)
+22:  parallel: false
+（lefthook 用 sh -c，不带 -e）
+
+--- 只跑第 474 行（我原来的控制组测的东西）---
+  rc=127
+
+--- 跑完整 run 块（lefthook 真实执行的东西）---
+  前提：node_modules 缺席 ⇒ if 分支为假 ⇒ 走 else，这条路 rc 应为 0（正常跳过）
+  rc=0 （else 分支，预期 0）
+
+--- 把 if 条件改成恒真，模拟 node_modules 存在的真实场景 ---
+if true; then
+  echo "[Pre-push] Running plugin tests (node --test via esbuild bundle)..."
+  ./scripts/run_cmd_capture.sh --cwd frontend/obsidian-plugin --tail 120 -- npm test
+  echo "[Pre-push] Plugin tests done."
+else
+  echo "[Pre-push] frontend/obsidian-plugin/node_modules missing — run 'npm --prefix frontend/obsidian-plugin install' first. Skipping."
+fi
+
+  --- 执行 ---
+> canvas-learning-system-obsidian-plugin@1.0.0 test
+> esbuild tests/callout.test.ts tests/ai-linked-doc.test.ts tests/node-derivation.test.ts tests/derivation-snapshot.test.ts tests/configure-whiteboard.test.ts tests/node-chat-context.test.ts tests/error-candidate-helpers.test.ts tests/onboarding-helpers.test.ts tests/chat-fallback.test.ts tests/auth-headers.test.ts tests/vault-indicator.test.ts tests/status-bar.test.ts tests/exam-quick.test.ts --bundle --platform=node --format=cjs --outdir=tests/.out && node --test tests/.out/callout.test.js tests/.out/ai-linked-doc.test.js tests/.out/node-derivation.test.js tests/.out/derivation-snapshot.test.js tests/.out/configure-whiteboard.test.js tests/.out/node-chat-context.test.js tests/.out/error-candidate-helpers.test.js tests/.out/onboarding-helpers.test.js tests/.out/chat-fallback.test.js tests/.out/auth-headers.test.js tests/.out/vault-indicator.test.js tests/.out/status-bar.test.js tests/.out/exam-quick.test.js
+
+sh: esbuild: command not found
+----------------------------------------
+[Pre-push] Plugin tests done.
+  完整 run 块 rc=0  ⛔ 若为 0 = Codex 的 HIGH-1 成立
