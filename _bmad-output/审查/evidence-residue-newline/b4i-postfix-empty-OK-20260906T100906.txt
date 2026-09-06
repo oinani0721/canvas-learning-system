@@ -1,0 +1,24 @@
+### (b4-i) 修后 · 空暂存面 · 期望 OK rc=0
+# lefthook.yml sha: e116df5b23bfa49fc0a03fbb61c84852b308d62297d0a35870dfbae18b938afa  [ASSERTED == 修后终稿]
+--- (1) 默认: lefthook 层直接 skip ---
+╭───────────────────────────────────╮
+│ lefthook v2.1.6  hook: pre-commit │
+╰───────────────────────────────────╯
+│  mutant-residue-scan (skip) no matching staged files
+                                      
+  ────────────────────────────────────
+summary: (done in 0.06 seconds)       
+rc1=0
+--- (2) --force: 门本体在空文件列表上真跑(自证块必须通过) ---
+╭───────────────────────────────────╮
+│ lefthook v2.1.6  hook: pre-commit │
+╰───────────────────────────────────╯
+┃  mutant-residue-scan ❯ 
+
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+
+                                      
+  ────────────────────────────────────
+summary: (done in 0.06 seconds)       
+✓ mutant-residue-scan (0.02 seconds)
+rc=0

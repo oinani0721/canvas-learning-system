@@ -1,0 +1,21 @@
+### (b4-ii) 修后 · 正常提交面(.py 无标记 + _bmad-output/ 带标记走排除) · 期望 OK rc=0
+# lefthook.yml sha: e116df5b23bfa49fc0a03fbb61c84852b308d62297d0a35870dfbae18b938afa  [ASSERTED == 修后终稿]
+# staged AM (-z):
+#   _bmad-output/审查/y4c-exclusion-probe.md
+#   backend/app/core/subject_config.py
+# staged ALL:
+#   A	"_bmad-output/\345\256\241\346\237\245/y4c-exclusion-probe.md"
+#   M	backend/app/core/subject_config.py
+---
+╭───────────────────────────────────╮
+│ lefthook v2.1.6  hook: pre-commit │
+╰───────────────────────────────────╯
+┃  mutant-residue-scan ❯ 
+
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+
+                                      
+  ────────────────────────────────────
+summary: (done in 0.11 seconds)       
+✓ mutant-residue-scan (0.04 seconds)
+rc=0

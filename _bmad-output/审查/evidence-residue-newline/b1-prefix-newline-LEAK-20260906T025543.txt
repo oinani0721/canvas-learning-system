@@ -1,0 +1,21 @@
+### (b1) 修前 · 换行文件名 · 期望暴露漏检(OK rc=0)
+# cwd: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/79afb73a-e52b-4dd8-8bff-d89559605153/scratchpad/y4c-probe
+# lefthook.yml sha (pre-run): f3aa7fecde1dd4b4310aad8cdb6fccae5cba9857e214f163206cb03ac3f28377
+# staged (-z, printable):
+#   nl
+#   name.txt
+# cmd: /opt/homebrew/bin/lefthook run pre-commit --command mutant-residue-scan --no-auto-install --colors off
+---
+╭───────────────────────────────────╮
+│ lefthook v2.1.6  hook: pre-commit │
+╰───────────────────────────────────╯
+┃  mutant-residue-scan ❯ 
+
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+
+                                      
+  ────────────────────────────────────
+summary: (done in 0.23 seconds)       
+✓ mutant-residue-scan (0.11 seconds)
+# lefthook.yml sha (post-run): f3aa7fecde1dd4b4310aad8cdb6fccae5cba9857e214f163206cb03ac3f28377
+rc=0
