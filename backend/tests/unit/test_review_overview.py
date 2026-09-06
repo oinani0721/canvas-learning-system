@@ -2733,7 +2733,12 @@ def _fsrs_fingerprint(vault: Path) -> _FsrsFingerprint:
         raw = md.read_bytes()
         rows = raw.split(b"\n")
         block: list[bytes] = []
-        if rows and rows[0].rstrip(b"\r") == b"---":
+        # BOM 容忍与生产消费面同口径: daily_review_pick.scan_nodes 的 frontmatter
+        # 正则是 `^\ufeff?---\r?\n`, 明确认 BOM 开头的节点。判据比消费方窄 = 一整类
+        # 真实节点在这道门里"没有 frontmatter", block 塌缩成 sha256(b"") —— 改它的
+        # fsrs_due 指纹不变。⚠ 这是 round-1 那次收紧**自己引入的**能力净损失:
+        # 收紧前的逐行 `startswith(b"fsrs_")` 反而抓得住 BOM 节点 (对抗复核实证)。
+        if rows and rows[0].lstrip(b"\xef\xbb\xbf").rstrip(b"\r") == b"---":
             for ln in rows[1:]:
                 if ln.rstrip(b"\r") == b"---":
                     break
@@ -2754,6 +2759,22 @@ def _fsrs_fingerprint(vault: Path) -> _FsrsFingerprint:
 def _assert_fsrs_untouched(before: _FsrsFingerprint, after: _FsrsFingerprint) -> None:
     """(d) 唯一承重断言。负控与正例共用同一个函数 —— 两边判据必然同口径。"""
     assert after == before, f"{_FSRS_GATE_MSG}: before={before!r} after={after!r}"
+
+
+#: 指纹失明时的固定串。⚠ round-2: 原先负控直接用 `pytest.raises(AssertionError)`,
+#: 于是变异验证只能拿 pytest 的通用文案 "DID NOT RAISE" 当承重判据 —— 那条串
+#: 分不出**是哪一条盲区**没盖住 (对抗复核指出)。改成带轴名的自有串, 每条盲区
+#: 各自可被单独钉死。
+_FSRS_BLIND_MSG = "指纹对该改动失明"
+
+
+def _assert_fingerprint_detects(before: _FsrsFingerprint, after: _FsrsFingerprint, axis: str) -> None:
+    """指纹必须把 `axis` 这种改动认出来; 认不出就抛一条**带轴名**的错。"""
+    try:
+        _assert_fsrs_untouched(before, after)
+    except AssertionError:
+        return
+    raise AssertionError(f"{_FSRS_BLIND_MSG}: {axis}")
 
 
 def _install_contaminating_write_point(monkeypatch, mod, vault: Path):
@@ -3218,6 +3239,44 @@ def test_g67_stale_tmp_residue_neither_blocks_nor_gets_clobbered(board_done_env)
     assert ours == [], f"成功路径留下了临时件残渣: {ours}"
 
 
+def test_g67_state_write_abandons_both_legacy_fixed_tmp_names(board_done_env):
+    """F1 的**第一层**（唯一名）此前零门覆盖 —— 对抗复核抓出的缺口。
+
+    F1 是两层防御：`_state_tmp_path` 的唯一名（pid+uuid8）+ `O_EXCL|O_NOFOLLOW`。
+    软链门为了验第二层，把 `_state_tmp_path` 整个 monkeypatch 掉；于是第一层的
+    **实现从此没有任何用例执行过**（实测：把它退回固定名，24 条 g67 门与 291 条
+    裁判用例全绿）。承重变异 harness 的 M1 也只变 `os.open` 的 flag 行，名字轴从未变异。
+
+    这个缺口有真实代价：BASE 的固定名配的是 truncating write，残骸被无害覆盖；
+    round-1 新加的 O_EXCL 把「残骸」从无害变成**硬错误**，唯一名是唯一的中和手段。
+    第一层一旦被"以简化为名"退回去，任意一个落在那个可预测路径上的文件都会让
+    O_EXCL 恒抛 FileExistsError → 端点恒 503、每小时落账恒失败，**且没有任何清理
+    路径会解开它**（本模块明写不做陈旧 tmp 清扫，残骸门还反过来禁止删别人的文件）。
+
+    门形照抄姊妹函数 `test_daily_review_pick.py::test_atomic_write_abandons_legacy_fixed_tmp_name`：
+    在两个历史固定名上各放一个**目录** —— 目录让 O_EXCL 与 O_NOFOLLOW 都无法把它
+    变成成功写，所以只要实现还在用固定名就必炸。确定性门，不靠赛跑概率。
+    两个名字缺一不可：`with_suffix(".tmp")` 与 `with_name(name + ".tmp")` 是两个不同
+    的串，只钉一个会放过另一个退化形态。
+    """
+    root, client, runner, mod = board_done_env
+    _mk_node_vault(root, "vault-legacy-tmp", {"甲": _node_md()})
+    state = runner.state_path(Path(root) / "vault-legacy-tmp")
+    state.parent.mkdir(parents=True, exist_ok=True)
+    legacy = [state.with_suffix(".tmp"), state.with_name(state.name + ".tmp")]
+    assert len({p.name for p in legacy}) == 2, "前提: 两个历史固定名必须真的是两个不同的串"
+    for p in legacy:
+        p.mkdir()
+
+    resp = client.post(_BOARD_DONE_URL, data={"vault_id": "vault-legacy-tmp", "board": "CS 61B"})
+    assert resp.status_code == 200, f"实现还在用历史固定名 tmp: {resp.text[:300]}"
+    assert json.loads(state.read_text(encoding="utf-8"))["board_done"]["CS 61B"] == mod._sh_today()
+    for p in legacy:
+        assert p.is_dir(), f"历史固定名 {p.name} 不该被碰"
+    leftovers = [q.name for q in state.parent.glob("*.tmp") if q.name not in {p.name for p in legacy}]
+    assert leftovers == [], f"发布后不得残留任何 tmp: {leftovers}"
+
+
 def test_g67_cold_load_of_runner_writes_no_bytecode(board_done_env, tmp_path_factory):
     """Codex round-1 LOW: **冷加载**下读路径不许写 __pycache__。
 
@@ -3282,14 +3341,18 @@ def test_g67_fsrs_fingerprint_catches_boundary_and_crlf(board_done_env):
     original = node.read_bytes()
 
     _move_frontmatter_end_before_fsrs(node)
-    with pytest.raises(AssertionError) as ei:
-        _assert_fsrs_untouched(base, _fsrs_fingerprint(vault))
-    assert _FSRS_GATE_MSG in str(ei.value)
+    _assert_fingerprint_detects(base, _fsrs_fingerprint(vault), "frontmatter 边界")
 
     node.write_bytes(original.replace(b"\n", b"\r\n"))
-    with pytest.raises(AssertionError) as ei2:
-        _assert_fsrs_untouched(base, _fsrs_fingerprint(vault))
-    assert _FSRS_GATE_MSG in str(ei2.value)
+    _assert_fingerprint_detects(base, _fsrs_fingerprint(vault), "CRLF 换行")
+
+    # ③ BOM 开头的节点 (round-2 补): 生产消费面认它, 判据也必须认 ——
+    # 否则这一整类真实节点在门里"没有 frontmatter", 改 fsrs_due 指纹不变。
+    bom_before = _fsrs_fingerprint(vault)
+    node.write_bytes(b"\xef\xbb\xbf" + original)
+    assert _fsrs_fingerprint(vault)[0][node.name][1:], "前提: BOM 节点必须仍被认出 fsrs_* 行"
+    node.write_bytes(b"\xef\xbb\xbf" + original.replace(b'"2099-', b'"2020-'))
+    _assert_fingerprint_detects(bom_before, _fsrs_fingerprint(vault), "BOM 开头节点改 fsrs_due")
 
     node.write_bytes(original)
     _assert_fsrs_untouched(base, _fsrs_fingerprint(vault))  # 还原后必须回到相等 (防"恒不等"的假门)

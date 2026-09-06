@@ -1,4 +1,4 @@
-# 裁判 3 (round-1 整改后) · 2026-09-06T03:10:21+08:00
+# 裁判 3 (round-2 整改后) · 2026-09-06T10:55:47+08:00
 # cmd: pytest -q -p no:cacheprovider tests/regression/test_daily_review_pick.py tests/regression/test_daily_review_run.py
 ---
 ============================= test session starts ==============================
@@ -55,5 +55,5 @@ app/api/v1/endpoints/metadata.py:179
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
 NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
-======================= 118 passed, 10 warnings in 2.42s =======================
+======================= 118 passed, 10 warnings in 2.33s =======================
 rc=0

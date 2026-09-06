@@ -2093,15 +2093,22 @@ def _write_board_done(vault_dir: Path, vaults_root: Path, board: str, day: str) 
         try:
             runner.save_state(st, vault_dir)
         except OSError as e:
-            # CARD-G6-7 (Codex round-1 HIGH 配套): save_state 的 O_EXCL|O_NOFOLLOW
-            # 会在「tmp 路径被抢先建成软链/目录」时抛 OSError —— 那是**拒绝写出去**,
-            # 是本端点的正常失败态, 不该逃逸成 500 裸 traceback。
+            # CARD-G6-7: save_state 的 mkdir / open / write / os.replace **四段任一**
+            # 失败都落到这里 —— 那是**拒绝写出去**, 是本端点的正常失败态, 不该逃逸成
+            # 500 裸 traceback。
+            # ⚠ round-2 整改: 原文案把因果写死成「临时件路径异常」, 于是磁盘写满 /
+            # backups 只读 / 超配额 (ENOSPC/EROFS/EDQUOT, 全是裸 OSError) 都被指向
+            # "去查软链"这个错方向; 且 FileExistsError 在「backups 被文件占位」与
+            # 「tmp 被抢先建成软链」两个不相干根因下报文逐字节相同。改回本文件其余
+            # 6 处 OSError 一贯的 `类名: 详情` 形态 —— errno 与出错路径都在 str(e) 里。
+            # 「未写出任何内容」这半句是承重的且全分支为真: 写失败即 unlink tmp,
+            # os.replace 原子, state 与节点 md 逐字节不动。
             logger.warning("board-done 落账失败", vault=vault_dir.name, error=repr(e))
             raise HTTPException(
                 status_code=503,
                 detail={
                     "error": "state_write_refused",
-                    "message": f"完成账落盘被拒绝 ({type(e).__name__}) —— 临时件路径异常, 未写出任何内容",
+                    "message": f"完成账落盘被拒绝 ({type(e).__name__}: {str(e)[:200]}) —— 未写出任何内容",
                 },
             )
     return state_file

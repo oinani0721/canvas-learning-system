@@ -1,5 +1,5 @@
-# CARD-G6-7 完成条件 (d) FSRS 零触碰门 · 【绿跑】(round-1 整改后)
-# 时间: 2026-09-06T03:11:26+08:00
+# CARD-G6-7 (d) FSRS 零触碰门 · 【绿跑】(round-2 后)
+# 时间: 2026-09-06T10:56:53+08:00
 ---
 ============================= test session starts ==============================
 platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
@@ -30,5 +30,5 @@ app/api/v1/endpoints/metadata.py:179
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
 NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
-======================== 1 passed, 4 warnings in 0.72s =========================
+======================== 1 passed, 4 warnings in 0.69s =========================
 rc=0

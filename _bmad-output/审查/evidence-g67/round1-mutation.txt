@@ -1,7 +1,7 @@
-# CARD-G6-7 · Codex round-1 五条整改的**承重验证** (变异 → 指定的那道门必须红在指定的那条断言上)
-# 时间: 2026-09-06T03:11:39+08:00
-# harness: 每条变异后先编译自检 (语法坏掉的变异体会让门因别的原因红 = 假杀), 还原写在 finally,
-#          跑完逐文件比对 sha —— 变异体绝不许留在生产文件里。
+# CARD-G6-7 · 承重验证 (round-2: 5 轴 → 9 轴) · 2026-09-06T10:57:06+08:00
+# round-2 新增: M6a/M6b 名字轴 (对抗复核抓出 F1 第一层零门覆盖) / M7 CRLF 轴 / M8 BOM 轴
+# ⚠ M8 一度判 KILLED-WRONG-REASON —— 门红了但不在我声称的那条断言上 (判据绑错, 非门坏)。
+#   若判据只写 assert rc!=0, 这次绑错会被读成「门有效」。改绑到真正先红的那条后 9/9。
 ---
 ======================================================================
 KILLED                 M1 save_state 退回「跟随软链的 write_text」
@@ -12,8 +12,16 @@ KILLED                 M3 ensure_payload 退回「完成账不影响缓存」
                        红在指定断言上: '标完成后必须重扫'
 KILLED                 M4 onBoardDoneClick 退回「不作废旧刷新 pending」
                        红在指定断言上: '旧刷新的结算把完成失败改写掉了'
-KILLED                 M5 _fsrs_fingerprint 退回「逐行取 fsrs_ 前缀」
-                       红在指定断言上: 'DID NOT RAISE'
+KILLED                 M5 _fsrs_fingerprint 退回「逐行取 fsrs_ 前缀」(边界轴)
+                       红在指定断言上: '指纹对该改动失明: frontmatter 边界'
+KILLED                 M6a _state_tmp_path 退回固定名 with_suffix('.tmp') (BASE 原样)
+                       红在指定断言上: '实现还在用历史固定名 tmp'
+KILLED                 M6b _state_tmp_path 退回固定名 with_name(name+'.tmp') (以简化为名的退化)
+                       红在指定断言上: '实现还在用历史固定名 tmp'
+KILLED                 M7 _fsrs_fingerprint 对 CRLF 失明 (splitlines 吃掉 \r)
+                       红在指定断言上: '指纹对该改动失明: CRLF 换行'
+KILLED                 M8 _fsrs_fingerprint 对 BOM 失明 (边界判据比消费方窄)
+                       红在指定断言上: '前提: BOM 节点必须仍被认出'
 ======================================================================
 跑后与跑前 sha 不同的文件 (须为空): []
 rc=0

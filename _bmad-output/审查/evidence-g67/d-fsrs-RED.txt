@@ -1,7 +1,5 @@
-# CARD-G6-7 完成条件 (d) FSRS 零触碰门 · 【红跑】(round-1 整改后, 指纹已收紧为 frontmatter 原始字节)
-# 时间: 2026-09-06T03:11:13+08:00
-# 变体: G67_FSRS_CONTAMINATE=1 → 测试内 monkeypatch 「照常写完成账 + 顺手改 fsrs_due」的对照写点
-# 期望: 红, 且红在 'FSRS 面被写动' 上
+# CARD-G6-7 (d) FSRS 零触碰门 · 【红跑】(round-2 后; 指纹已与生产消费面同口径含 BOM)
+# 时间: 2026-09-06T10:56:41+08:00
 ---
 ============================= test session starts ==============================
 platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
@@ -15,9 +13,9 @@ tests/unit/test_review_overview.py F                                     [100%]
 
 =================================== FAILURES ===================================
 _________ test_g67_board_done_writes_only_state_and_never_touches_fsrs _________
-tests/unit/test_review_overview.py:2838: in test_g67_board_done_writes_only_state_and_never_touches_fsrs
+tests/unit/test_review_overview.py:2859: in test_g67_board_done_writes_only_state_and_never_touches_fsrs
     _assert_fsrs_untouched(before_fsrs, _fsrs_fingerprint(vault))
-tests/unit/test_review_overview.py:2756: in _assert_fsrs_untouched
+tests/unit/test_review_overview.py:2761: in _assert_fsrs_untouched
     assert after == before, f"{_FSRS_GATE_MSG}: before={before!r} after={after!r}"
 E   AssertionError: FSRS 面被写动: before=({'定义乙.md': ['783c1d4531978efd609a2c3138525b39318b874bbee71b7d9b9ac320489a586a', 'fsrs_due: "2030-06-01T00:00:00Z"'], '定义甲.md': ['b8648607896b88157ef35bfd3004b39b875496912464a3b2891ad92afa1a78ae', 'fsrs_due: "2099-01-01T00:00:00Z"']}, (1, '0b74325aca50bfdf9bc594575b389671cb926d0c3e854a2854b2b39f6c0eb6a2')) after=({'定义乙.md': ['29b35c4f66c182a395f8616243fe26b7eadfd895540f2d1513df21c400f79fe6', 'fsrs_due: # 顺手改', 'fsrs_due_shadow: "2030-06-01T00:00:00Z"'], '定义甲.md': ['b8648607896b88157ef35bfd3004b39b875496912464a3b2891ad92afa1a78ae', 'fsrs_due: "2099-01-01T00:00:00Z"']}, (1, '0b74325aca50bfdf9bc594575b389671cb926d0c3e854a2854b2b39f6c0eb6a2'))
 E   assert ({'定义乙.md': [...39f6c0eb6a2')) == ({'定义乙.md': [...39f6c0eb6a2'))
@@ -25,9 +23,9 @@ E
 E     At index 0 diff: {'定义乙.md': ['29b35c4f66c182a395f8616243fe26b7eadfd895540f2d1513df21c400f79fe6', 'fsrs_due: # 顺手改', 'fsrs_due_shadow: "2030-06-01T00:00:00Z"'], '定义甲.md': ['b8648607896b88157ef35bfd3004b39b875496912464a3b2891ad92afa1a78ae', 'fsrs_due: "2099-01-01T00:00:00Z"']} != {'定义乙.md': ['783c1d4531978efd609a2c3138525b39318b874bbee71b7d9b9ac320489a586a', 'fsrs_due: "2030-06-01T00:00:00Z"'], '定义甲.md': ['b8648607896b88157ef35bfd3004b39b875496912464a3b2891ad92afa1a78ae', 'fsrs_due: "2099-01-01T00:00:00Z"']}
 E     Use -v to get more diff
 ----------------------------- Captured stdout call -----------------------------
-{"method": "POST", "path": "/api/v1/review/overview/board-done", "endpoint": "/api/v1/review/overview/board-done", "status": 200, "duration_ms": 3.91, "event": "request.completed", "request_id": "5266250384", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-05T19:11:23.185467Z"}
+{"method": "POST", "path": "/api/v1/review/overview/board-done", "endpoint": "/api/v1/review/overview/board-done", "status": 200, "duration_ms": 3.68, "event": "request.completed", "request_id": "5451193312", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-06T02:56:50.532650Z"}
 ------------------------------ Captured log call -------------------------------
-INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/review/overview/board-done', 'endpoint': '/api/v1/review/overview/board-done', 'status': 200, 'duration_ms': 3.91, 'event': 'request.completed', 'request_id': '5266250384', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-05T19:11:23.185467Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/review/overview/board-done', 'endpoint': '/api/v1/review/overview/board-done', 'status': 200, 'duration_ms': 3.68, 'event': 'request.completed', 'request_id': '5451193312', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-06T02:56:50.532650Z'}
 =============================== warnings summary ===============================
 ../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
   /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
@@ -49,5 +47,5 @@ app/api/v1/endpoints/metadata.py:179
 NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
 =========================== short test summary info ============================
 FAILED tests/unit/test_review_overview.py::test_g67_board_done_writes_only_state_and_never_touches_fsrs
-======================== 1 failed, 4 warnings in 0.78s =========================
+======================== 1 failed, 4 warnings in 0.76s =========================
 rc=1

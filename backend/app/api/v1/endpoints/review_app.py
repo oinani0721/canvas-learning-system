@@ -642,8 +642,15 @@ async function onBoardDoneClick(ev) {
   // CARD-G6-7 (Codex round-1 MEDIUM): 与 onRefreshClick 的 Z1-A HIGH-1 同一条纪律 ——
   // notes[vid] 是**按库**共享的一格, 刷新与完成两个动作都往里写。上一次重建挂下的
   // pending 若还留着, 它那轮补发的 GET 回来时会把「标记失败 503」改写成绿色的
-  // 「已重建 · 数字已更新」, 用户就以为完成成功了。同库开始新动作 ⇒ 旧 pending
-  // 就此失去改写「当前」反馈的权利。
+  // 「已重建 · 数字已更新」, 用户就以为完成成功了。
+  //
+  // ⚠ 覆盖面如实声明 (round-2 对抗复核收窄, 别把它读成"这类问题已闭合"):
+  // 这一行只挡住「点击这一刻 pending **已经挂上**」那半条时序。另一半 ——
+  // 刷新的 POST 还在飞 (最长 120s) 时点完成 —— 它挡不住, 而且**任何 pendingSync
+  // 侧的修法都挡不住**: 反事实实测把 settlePendingSync 整个短路, 「标记失败」照样
+  // 被覆盖。真因是 onRefreshClick 里那句**无条件**的 state.notes[vid] = ... 与
+  // 「notes[vid] 单格 + 最后写者赢」这个设计, 血统在 G6-2 / Z1-A, 本卡未碰也未修;
+  // 它目前**没有任何门守着**。修法方向 = notes 分槽, 或两个动作互斥。已登台账。
   delete state.pendingSync[vid];
   state.doneInflight[key] = true;
   for (const b of doneButtons(vid, board)) b.disabled = true;

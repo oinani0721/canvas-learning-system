@@ -1,6 +1,13 @@
-"""CARD-G6-7 round-1 整改的承重验证: 每条修复各造一个「退回缺陷」的变异体,
+"""CARD-G6-7 整改的承重验证: 每条修复各造一个「退回缺陷」的变异体,
 断言**指定的那道门**变红, 且红在**指定的那条断言**上 (不是别处红了也算)。
 还原无条件 (finally), 跑完逐文件比对 sha —— 变异体绝不许留在生产文件里。
+
+round-2 (对抗复核后) 新增三条轴, 每条都是上一版**结构性没覆盖**的:
+  M6 名字轴 —— F1 是两层防御 (唯一名 + O_EXCL|O_NOFOLLOW), 上一版只变了 flag 那一层,
+     于是「把 _state_tmp_path 退回固定名」能全绿通过。这条把两个历史固定名都变一遍。
+  M7 CRLF 轴 / M8 BOM 轴 —— 上一版 M5 只走到 frontmatter 边界那一条盲区, 且承重判据
+     用的是 pytest 通用文案 "DID NOT RAISE", 分不出是哪一条盲区没盖住。现在负控改抛
+     带轴名的自有串, 每条轴各自单独钉死。
 """
 import hashlib
 import subprocess
@@ -39,7 +46,7 @@ MUTANTS = [
      "  state.doneInflight[key] = true;",
      "tests/unit/test_review_app.py::test_js_g67_stale_refresh_settlement_cannot_overwrite_done_feedback",
      "旧刷新的结算把完成失败改写掉了"),
-    ("M5 _fsrs_fingerprint 退回「逐行取 fsrs_ 前缀」", TOV,
+    ("M5 _fsrs_fingerprint 退回「逐行取 fsrs_ 前缀」(边界轴)", TOV,
      """        raw = md.read_bytes()
         rows = raw.split(b"\\n")""",
      """        raw = md.read_text(encoding="utf-8").encode("utf-8")
@@ -49,7 +56,32 @@ MUTANTS = [
         continue
         rows = raw.split(b"\\n")""",
      "tests/unit/test_review_overview.py::test_g67_fsrs_fingerprint_catches_boundary_and_crlf",
-     "DID NOT RAISE"),
+     "指纹对该改动失明: frontmatter 边界"),
+    # ── round-2 新增三轴 ──
+    ("M6a _state_tmp_path 退回固定名 with_suffix('.tmp') (BASE 原样)", RUN,
+     '    return state.with_name(f"{state.name}.{os.getpid()}.{uuid.uuid4().hex[:8]}.tmp")',
+     '    return state.with_suffix(".tmp")',
+     "tests/unit/test_review_overview.py::test_g67_state_write_abandons_both_legacy_fixed_tmp_names",
+     "实现还在用历史固定名 tmp"),
+    ("M6b _state_tmp_path 退回固定名 with_name(name+'.tmp') (以简化为名的退化)", RUN,
+     '    return state.with_name(f"{state.name}.{os.getpid()}.{uuid.uuid4().hex[:8]}.tmp")',
+     '    return state.with_name(state.name + ".tmp")',
+     "tests/unit/test_review_overview.py::test_g67_state_write_abandons_both_legacy_fixed_tmp_names",
+     "实现还在用历史固定名 tmp"),
+    ("M7 _fsrs_fingerprint 对 CRLF 失明 (splitlines 吃掉 \\r)", TOV,
+     '        rows = raw.split(b"\\n")',
+     '        rows = [ln.rstrip(b"\\r") for ln in raw.split(b"\\n")]',
+     "tests/unit/test_review_overview.py::test_g67_fsrs_fingerprint_catches_boundary_and_crlf",
+     "指纹对该改动失明: CRLF 换行"),
+    ("M8 _fsrs_fingerprint 对 BOM 失明 (边界判据比消费方窄)", TOV,
+     '        if rows and rows[0].lstrip(b"\\xef\\xbb\\xbf").rstrip(b"\\r") == b"---":',
+     '        if rows and rows[0].rstrip(b"\\r") == b"---":',
+     "tests/unit/test_review_overview.py::test_g67_fsrs_fingerprint_catches_boundary_and_crlf",
+     # ⚠ BOM 轴的承重断言是**夹具前提自检**, 不是后面那条 _assert_fingerprint_detects:
+     # 判据比消费方窄时, block 当场塌缩成 sha256(b""), 连一条 fsrs_* 行都认不出 ——
+     # 前提自检先红, 而且它比"改了 fsrs_due 却看不出"更直接。第一版把 expect 绑到
+     # 后一条, harness 判成 KILLED-WRONG-REASON (假杀检测器正常工作)。
+     "前提: BOM 节点必须仍被认出"),
 ]
 
 results = []
