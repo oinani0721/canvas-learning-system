@@ -1,0 +1,69 @@
+=== 回应 Codex 问题3-③: 本仓有无 .gitattributes 配 textconv / 外部 diff / -diff ===
+--- 全仓 .gitattributes 清单 ---
+.gitattributes
+ls-files rc=0
+--- 内容(若存在) ---
+### .gitattributes
+# Canvas Learning System - Git Attributes
+# Prevent Windows CRLF issues in shell scripts and config files
+
+# Auto-detect text files and normalize line endings
+* text=auto
+
+# Force LF for shell scripts (hooks, CI)
+*.sh text eol=lf
+*.bash text eol=lf
+
+# Force LF for CI/CD
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Force LF for Python
+*.py text eol=lf
+
+# Force LF for TypeScript/JavaScript
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.mjs text eol=lf
+*.cjs text eol=lf
+*.json text eol=lf
+
+# Force LF for config files
+*.css text eol=lf
+*.md text eol=lf
+*.toml text eol=lf
+Dockerfile text eol=lf
+lefthook.yml text eol=lf
+commitlint.config.js text eol=lf
+
+# Binary files - don't touch
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.gz binary
+*.zip binary
+--- git config 里有无 diff.*.textconv / diff.*.command ---
+config rc=1
+
+=== 回应 Codex 问题3-④: 本仓 pre-commit 里哪些 command 会 git add(时序面) ===
+18:  # 触及(如 config.py + 某端点)时会并发, 两条的 `git add backend/openapi.json`
+32:    #      走不到 git add。快照 mtime 因此停在 5 月 3 日。
+60:        git add backend/openapi.json || exit 1
+71:        git add backend/openapi.json || exit 1
+89:          echo "[Ghost Files] To track: git add <file>"
+264:    # 即本块虽写在段末, 却在那两个快照块**之前**跑; 它们随后 `git add` 的
+grep rc=0
+
+=== 这些 command 的名字(判断字母序是否排在 mutant- 之后) ===
+  36:    spec-sync-flat:
+  47:    spec-sync-root:
+  60:    ghost-files:
+  102:    python-lint:
+  131:    python-typecheck:
+  172:    cypher-vault-filter-lint:
+  216:    readme-claims-lint:
+  271:    mutant-residue-scan:

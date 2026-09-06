@@ -1,0 +1,16 @@
+=== (g) 收工判据 ===
+--- HEAD ---
+fc431add
+fc431add docs: RV-E 复审 870e52b3 变异残留门六处补法 + 换行残孔定登记级 [BATCH-2026-09-05-第十二批]
+--- 零代码改动: git diff --stat df39bf21 HEAD -- . ':(exclude)_bmad-output' ---
+rc=0  (stdout 须空且 rc=0)
+--- 反向验伪锚: 同形命令不排除 _bmad-output 时必须有输出 ---
+ 20 files changed, 1605 insertions(+)
+--- 三个禁改文件逐一对 df39bf21 比 blob ---
+  lefthook.yml  同 blob 17dacb73c22b2c60fdfdd6e80f56536a33044fe0
+  ruff.toml  同 blob fdc227b0e03cf51202740779c5a38f67a8390d12
+  pyrightconfig.json  同 blob f34fa9a2e28f0abfe1ca9b984d0b5ea192a36747
+--- git status --porcelain ---
+?? _bmad-output/审查/evidence-rv-e/commit-hook-run-20260905T164712.txt
+?? _bmad-output/审查/evidence-rv-e/j7-final-20260905T164712.txt
+status 行数=       2

@@ -1,0 +1,51 @@
+########## CARD-RV-E 追加探针 20260905T170431 （只跑 NEW 门）##########
+
+=== E1 索引 ===
+A	blob.bin
+A	control.py
+=== E1 git 对 blob.bin 的 diff 输出形态 ===
+diff --git a/blob.bin b/blob.bin
+new file mode 100644
+index 0000000..4df2601
+Binary files /dev/null and b/blob.bin differ
+=== E1 NEW 门 ===
+
+[Mutant-Scan] BLOCKED — 暂存的新增行里带变异残留标记:
+  control.py:1: plain = "ZZPROBEMARKZZ"
+
+[Mutant-Scan] 变异 harness 没还原干净。先 restore 被改的生产文件,
+[Mutant-Scan] 再拿变异前的全文件 sha 基线逐个复核 —— 标记只是最弱那道网。
+E1 rc=1
+
+=== E2 索引(注意 t.txt 的状态字母) ===
+M	control.py
+T	t.txt
+=== E2 t.txt 在 --diff-filter=AM 下是否出现在枚举里 ===
+control.py
+=== E2 t.txt 不加 filter 时的 diff ===
+diff --git a/t.txt b/t.txt
+deleted file mode 100644
+index 33194a0..0000000
+--- a/t.txt
++++ /dev/null
+@@ -1 +0,0 @@
+-old content
+diff --git a/t.txt b/t.txt
+=== E2 NEW 门 ===
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+E2 rc=0
+
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/b314d55d-b899-4a59-bbc0-1243766c2ad0/scratchpad/rv-e-extra.sh: command substitution: line 43: syntax error: unexpected end of file
+=== E3 sh 里  之后是否继续执行 ===
+sh: line 1: /nonexistent/list: No such file or directory
+  after-loop reached, FAILED=0, loop-rc-was=1
+  -> would print OK (fail-open)
+E3 outer rc=0
+
+=== E4 索引 ===
+M	d.py
+=== E4 NEW 门(预期 OK: 标记只在删除行) ===
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+E4 rc=0
+
+########## 追加探针结束 20260905T170431 ##########

@@ -1,0 +1,13 @@
+=== J4: 只读探针 — literal-pathspecs 对含换行的不存在路径 ===
+--- 命令: git --literal-pathspecs diff --cached -- "$(printf 'no/such
+file')"
+rc=0
+
+--- 对照A: 同命令去掉 --literal-pathspecs
+rc=0
+
+--- 对照B: 单段不存在路径(无换行)
+rc=0
+
+--- 对照C: 存在的路径(证明命令本身能出输出) — lefthook.yml 未暂存故应为空, 改用 diff HEAD~1
+rc=0

@@ -1,0 +1,9 @@
+=== J4-fix: 补一个真能出输出的对照(证明 rc=0+空 是「找不到」不是「命令坏了」) ===
+--- 对照C': git --literal-pathspecs diff --stat b20fe550 870e52b3 -- lefthook.yml
+ lefthook.yml | 98 +++++++++++++++++++++++++++++++++++++++++++++---------------
+ 1 file changed, 74 insertions(+), 24 deletions(-)
+rc=0
+
+--- 原对照C 复检: df39bf21 vs 03ac8bf8 在 lefthook.yml 上本就无差异(故为哑弹)
+17dacb73c22b2c60fdfdd6e80f56536a33044fe0
+17dacb73c22b2c60fdfdd6e80f56536a33044fe0
