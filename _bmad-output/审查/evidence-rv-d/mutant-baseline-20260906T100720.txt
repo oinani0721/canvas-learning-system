@@ -1,0 +1,5 @@
+backend/scripts/g32b_mutation_gates.py
+backend/scripts/g32cb_mutation_gates.py
+backend/scripts/g32ccr1_negative_controls.py
+backend/scripts/openapi_drift_negative_control.py
+backend/tests/regression/recap_domain_negverify.py

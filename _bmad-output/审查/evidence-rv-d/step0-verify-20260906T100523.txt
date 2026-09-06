@@ -1,0 +1,14 @@
+=== (a) 第 0 分钟核验 ===
+--- pwd ---
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y6-testhygiene
+--- 分支（须 card/y6-testhygiene） ---
+card/y6-testhygiene
+--- HEAD（须 = Y6-A 末 commit 05ee43bb） ---
+05ee43bbd184737f198192a4268190d104621396
+--- status（须空） ---
+?? _bmad-output/审查/evidence-rv-d/
+[空=干净]
+--- SKILL.md sha（须 dd6d4e4b…73dbf） ---
+dd6d4e4b8d6b47f4ab57dc64f32f00982a4558848141c7c4434015c8cfa73dbf  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+--- 与卡文期望比对 ---
+  ✅ 逐字相同

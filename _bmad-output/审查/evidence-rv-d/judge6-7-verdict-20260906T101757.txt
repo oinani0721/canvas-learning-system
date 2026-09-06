@@ -1,0 +1,22 @@
+=== 裁判 6 结果 ===
+--- g32cb-run-20260906T100731.txt ---
+
+  9/9 KILLED
+rc=0
+--- g32ccr1-run-20260906T100731.txt ---
+
+  11/11 KILLED
+rc=0
+
+=== 裁判 7：sha 跑后对账（须与 sha-before 逐字相同） ===
+before: _bmad-output/审查/evidence-rv-d/sha-before-20260906T100720.txt
+  ✅ 逐字相同（harness 已完整还原）
+
+=== MUTANT 残留（须仍为基线 5 项） ===
+  ✅ 与基线逐条相同（       5 项）
+
+=== live vault 零写（不变量判据） ===
+  ✅ live 未被本卡改动
+
+=== 工作树是否干净（零代码改动） ===
+  ✅ 除 _bmad-output 外零改动

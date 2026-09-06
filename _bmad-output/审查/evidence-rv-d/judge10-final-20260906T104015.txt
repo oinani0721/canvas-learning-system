@@ -1,0 +1,27 @@
+=== 裁判 10：零代码改动（Y6-A 末 commit 05ee43bb → HEAD） ===
+rc=0  [空 = 零代码改动]
+
+=== 工作树：待提交内容（须只有 _bmad-output） ===
+  ?? _bmad-output/审查/codex-review-CARD-RV-D-p1.md
+  ?? _bmad-output/审查/codex-review-CARD-RV-D-p2.md
+  ?? _bmad-output/审查/evidence-rv-d/
+  ?? _bmad-output/审查/prompts/codex-prompt-CARD-RV-D-p1.md
+  ?? _bmad-output/审查/prompts/codex-prompt-CARD-RV-D-p2.md
+  ?? _bmad-output/验收单/UAT-CARD-RV-D-2026-09-06.md
+
+=== 非 _bmad-output 的改动（须为空） ===
+  ✅ 空
+
+=== 禁改文件复核 ===
+  [空 = 全部未动]
+
+=== live vault 收工 sha（不变量判据） ===
+  ✅ 开工/收工逐字相同 ⇒ 本卡对 live vault 零写
+
+=== 两份存档首部三字段齐（协议 §2.1 牙齿） ===
+  p1: 模型:=1 reasoning_effort:=1 codex:=1 审查绑定:=1 |    10370B
+  p2: 模型:=1 reasoning_effort:=1 codex:=1 审查绑定:=1 |     9526B
+
+=== 旧模型名自检（协议 §2，须 0） ===
+_bmad-output/审查/codex-review-CARD-RV-D-p2.md:0
+_bmad-output/审查/codex-review-CARD-RV-D-p1.md:0
