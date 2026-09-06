@@ -121,7 +121,22 @@ _CARD_STATES_FILE = (
 _card_states_lock = asyncio.Lock()
 
 # ── CARD-G3-7: frontmatter 真相源只读入口 ────────────────────────────────────
-#: 生产口径正则 —— 与既有两个 FSRS-frontmatter 生产 reader **逐字相同**:
+#: frontmatter **块切分** —— 与 scripts/daily_review_pick.py::scan_nodes 逐字同源
+#: (BOM 容忍 + CRLF 容忍; 无 frontmatter 块时 fm = "" 而**不是**整份文本)。
+#:
+#: ⚠️ Codex r1 HIGH-2 整改 (2026-09-06): 初版只有下面的字段正则、却把它作用在
+#: **整份 .md** 上, 于是正文里顶格出现的 `fsrs_due: ...`(最典型的就是讲解该字段
+#: 怎么写的文档节点) 会被当成权威 due, 并连带把门锁误判为"有真相源"。实测复现:
+#: frontmatter 无该字段 + 正文一行 `fsrs_due: 2020-01-01T00:00:00Z`
+#: → 返回 due=2020-01-01 且 reason=None (毫无察觉)。
+#: 教训: **口径 = 正则 + 输入面**。正则逐字相同不足以证明解析语义相同 ——
+#: 生产 reader 收到的参数是已切好的 `fm`(fsrs_bridge.py:149 形参名即 `fm`;
+#: daily_review_pick.py 在 scan_nodes 内先切块再调 _fm_str)。
+#: BOM 写成 ASCII 转义序列而非直接敲入 —— 不可见字符会被工具链静默改写, 且 review
+#: diff 里看不出来。前缀段用普通字符串 (raw 串不处理 \u), 其余保持 raw。
+_FM_BLOCK_RE = re.compile("^\\ufeff?" + r"---\r?\n(.*?)\r?\n---\r?\n?(.*)$", re.S)
+
+#: 生产口径字段正则 —— 与既有两个 FSRS-frontmatter 生产 reader **逐字相同**:
 #: canvas-vault/.claude/scripts/fsrs_bridge.py:151 fields_from_frontmatter()
 #: scripts/daily_review_pick.py:341 _fm_str()
 #: D0 修订 §五 T3 (禁第二套解析) 禁的是"另立一套语义", 不是"另写一个函数"。
@@ -164,14 +179,27 @@ def _read_frontmatter_fsrs(concept_id: str) -> Dict[str, Any]:
     这是超集, 已在验收单如实登记。
 
     Returns:
-        found:      该 concept 是否有对应 .md (= 是否存在 frontmatter 真相源载体)
-        fsrs_due:   frontmatter 原始字符串 (无字段则 None)
+        found:      该 concept 是否有对应 .md (= 真相源载体是否存在)
+        governed:   该 concept 是否**由 frontmatter 真相源管辖** (= 门锁判据)
+        fsrs_due:   frontmatter 原始字符串 (无字段/读不到则 None)
         due:        解析出的 tz-aware datetime; 无字段或形态非规范时为 None
-        reason:     'no_node_file' / 'no_fsrs_due' / 'malformed_fsrs_due' / None
+        reason:     'no_node_file' / 'node_file_unreadable' / 'no_fsrs_due'
+                    / 'malformed_fsrs_due' / None
 
-    门锁语义 (裁定 ②): `found and fsrs_due` 为真 ⇒ 该 concept **有真相源**,
-    投影侧一律不得推进状态 —— 即便 due 解析失败 (malformed) 也不放行, 因为
-    "真相源存在"这一事实已足以禁止第二真相源独立推进。
+    门锁语义 (裁定 ②) —— `governed` 的四态, 注意它**不等于** `found`:
+      1. .md 不存在                → governed=False (无真相源, 放行投影写)
+      2. .md 可读但无 fsrs_due     → governed=False (新卡语义, 对齐
+                                     scripts/daily_review_pick.py:435「无
+                                     fsrs_due 即真新卡」)
+      3. .md 可读且有 fsrs_due     → governed=True  (拦)
+      4. .md 存在但**读不出来**    → governed=True  (**fail-closed**, 拦)
+
+    第 4 态是 Codex r1 HIGH-1 整改 (2026-09-06): 初版把读取失败 `return out`
+    成 `fsrs_due=None`, 门锁据此放行 —— 于是「节点确实有 fsrs_due、只是这一刻
+    文件不可读」会让 GET 推进投影缓存并落盘, 直接推翻「有真相源时一律不推进」。
+    附带 bug: reason 还停在初始的 'no_node_file', 谎报文件没找到。
+    收紧理由: 读不出来 ⇒ **不知道**它说了什么 ⇒ 不能假设它没话说。宁可少写一次
+    投影缓存 (下一次 GET 会重读), 也不能把第二真相源推进出去。
     """
     # frontmatter_signals 不在本卡地盘 (只 import 不改); 局部 import 避免
     # 模块级循环依赖并把 vault I/O 限制在真正需要的调用上。
@@ -179,6 +207,7 @@ def _read_frontmatter_fsrs(concept_id: str) -> Dict[str, Any]:
 
     out: Dict[str, Any] = {
         "found": False,
+        "governed": False,
         "fsrs_due": None,
         "due": None,
         "reason": "no_node_file",
@@ -196,14 +225,23 @@ def _read_frontmatter_fsrs(concept_id: str) -> Dict[str, Any]:
     try:
         text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as e:
+        # fail-closed: 载体在但内容未知 ⇒ 按"归 frontmatter 管"处理
+        out["governed"] = True
+        out["reason"] = "node_file_unreadable"
         logger.warning(f"CARD-G3-7: frontmatter 读取失败 {concept_id}: {e}")
         return out
 
-    m = re.search(_FM_FIELD_RE.format(key="fsrs_due"), text, re.M)
+    # ⚠️ 只在 frontmatter **块内**取字段 —— 作用在整份 .md 上会把正文里顶格的
+    # `fsrs_due: ...` 当成权威 due (Codex r1 HIGH-2 实测复现)。
+    block = _FM_BLOCK_RE.match(text)
+    fm = block.group(1) if block else ""
+
+    m = re.search(_FM_FIELD_RE.format(key="fsrs_due"), fm, re.M)
     raw = m.group(1).strip() if m else ""
     if not raw:
         out["reason"] = "no_fsrs_due"
         return out
+    out["governed"] = True
 
     out["fsrs_due"] = raw
     if not _FM_DUE_SHAPE.fullmatch(raw):
@@ -1235,26 +1273,41 @@ class ReviewService:
                         else f"fsrs_library_missing,{degraded_reason}"
                     )
 
-                # CARD-G3-7: 真相源分歧 —— frontmatter 有 due 且与本次算出的
-                # 排期不同 ⇒ 真相源尚未被本次调用更新, 如实透出。沿用上面的
-                # 逗号拼接先例: 持久化失败与真相源分歧并存时谁也不冲掉谁。
+                # CARD-G3-7: 真相源状态 —— 本次结果只进投影缓存, 真相源须由
+                # vault 侧写链 (quiz-answer × fsrs_bridge) 更新。三种情形都要
+                # 出声, 沿用上面的逗号拼接先例 (多个降级都真实, 谁也不冲掉谁):
+                #   - due 可比且不同   → truth_source_divergence
+                #   - 字段在但形态不合规 → truth_source_unparsable
+                #   - 文件读不出来      → truth_source_unreadable
+                # ⚠️ Codex r1 MEDIUM-4: 初版只在 `due is not None and due_date is
+                # not None` 时比较, 于是"非法但非空的 fsrs_due"和"文件不可读"
+                # 都拿到 degraded_reason=None —— 异常信号被整条吞掉。
                 fm_truth = _read_frontmatter_fsrs(concept_id) if concept_id else None
-                if fm_truth and fm_truth["due"] is not None and due_date is not None:
-                    # 整秒归一后比较, 见 _whole_second_utc 的口径说明
-                    if fm_truth["due"] != _whole_second_utc(due_date):
-                        logger.warning(
-                            "CARD-G3-7 truth_source_divergence: concept=%s "
-                            "frontmatter_due=%s computed_due=%s — 本次结果只进投影"
-                            "缓存, 真相源须由 vault 侧写链更新",
-                            concept_id,
-                            fm_truth["fsrs_due"],
-                            due_date.isoformat(),
-                        )
-                        degraded_reason = (
-                            "truth_source_divergence"
-                            if degraded_reason is None
-                            else f"{degraded_reason},truth_source_divergence"
-                        )
+                _g37_put_reason = None
+                if fm_truth and fm_truth["governed"]:
+                    if fm_truth["reason"] == "node_file_unreadable":
+                        _g37_put_reason = "truth_source_unreadable"
+                    elif fm_truth["due"] is None:
+                        _g37_put_reason = "truth_source_unparsable"
+                    elif fm_truth["due"] != _whole_second_utc(due_date):
+                        # 整秒归一后比较, 见 _whole_second_utc 的口径说明。
+                        # due_date 为 None 时 _whole_second_utc 返 None ≠ 真相源
+                        # 的 due ⇒ 同样判分歧 (初版在此处静默跳过)。
+                        _g37_put_reason = "truth_source_divergence"
+                if _g37_put_reason is not None:
+                    logger.warning(
+                        "CARD-G3-7 %s: concept=%s frontmatter_due=%s "
+                        "computed_due=%s — 本次结果只进投影缓存",
+                        _g37_put_reason,
+                        concept_id,
+                        fm_truth["fsrs_due"],
+                        due_date.isoformat() if due_date else None,
+                    )
+                    degraded_reason = (
+                        _g37_put_reason
+                        if degraded_reason is None
+                        else f"{degraded_reason},{_g37_put_reason}"
+                    )
 
                 # Extract state value safely
                 state_val = getattr(updated_card, "state", 0)
@@ -2330,11 +2383,20 @@ class ReviewService:
             # (D0 修订 T1)。has_truth_source 同时决定两件事:
             #   (1) 门锁: 有真相源时本次 GET 一律不推进投影状态 (不写内存/不落盘);
             #   (2) 覆盖: 返回的 due 以 frontmatter 为准, 分歧如实标 degraded。
-            # 「有真相源」= .md 存在**且** fsrs_due 非空。注意 due 解析失败
-            # (malformed) 仍算有真相源 —— 真相源存在这一事实已足以禁止第二真相源
-            # 独立推进, 不因读不出时刻而放行。
+            # 判据是 reader 的 governed 四态 (见 _read_frontmatter_fsrs docstring):
+            # 无文件 / 可读但无 fsrs_due → 放行; 有 fsrs_due / 文件读不出来 → 拦。
+            # ⚠️ Codex r1 HIGH-1: 不得写成 `found and fsrs_due` —— 那会把"文件
+            # 在但这一刻读不出来"判成无真相源并放行写入。
+            #
+            # ⚠️ TOCTOU 窗口 (Codex r1 MEDIUM-3, 登记不修): 真相源只在此处读一次,
+            # 之后还要 await load_card_state 与 _card_states_lock; 若这期间 vault
+            # 侧刚写出 fsrs_due, 本次仍按旧判定推进投影。不闭合的理由: 闭合需在
+            # 全局写锁内再做一次文件 I/O (把 vault 磁盘延迟拖进所有写者的临界区),
+            # 代价大于收益; 后果有界 —— 写进去的是一张默认卡, 落点是已显式降格的
+            # 非真相源缓存, 且**下一次 GET 就会读到 frontmatter、正确拦截并报
+            # truth_source_divergence**, 不会静默固化。彻底闭合归 G3-5 键化卡。
             fm_truth = _read_frontmatter_fsrs(concept_id)
-            has_truth_source = bool(fm_truth["found"] and fm_truth["fsrs_due"])
+            has_truth_source = bool(fm_truth["governed"])
 
             # Check in-memory cache first
             card_data = self._card_states.get(concept_id)
@@ -2459,15 +2521,23 @@ class ReviewService:
             if has_truth_source:
                 result["truth_source"] = "frontmatter"
                 if fm_truth["due"] is None:
-                    # 有真相源但读不出时刻: 不编造 due。返回投影侧的 due 而
+                    # 有真相源但拿不到时刻: 不编造 due。返回投影侧的 due 而
                     # 声称 truth_source=frontmatter 才是假成功。
+                    # 两种成因必须分开报 (Codex r1 HIGH-1): 字段在但形态不合规
+                    # vs 文件根本没读出来 —— 后者是运维问题, 前者是数据问题。
                     result["due"] = None
-                    _g37_reason = "truth_source_unparsable"
+                    _g37_reason = (
+                        "truth_source_unreadable"
+                        if fm_truth["reason"] == "node_file_unreadable"
+                        else "truth_source_unparsable"
+                    )
                     logger.warning(
-                        "CARD-G3-7 truth_source_unparsable: concept=%s "
-                        "frontmatter fsrs_due=%r 形态非规范, due 置空不猜测",
+                        "CARD-G3-7 %s: concept=%s frontmatter fsrs_due=%r "
+                        "reason=%s, due 置空不猜测",
+                        _g37_reason,
                         concept_id,
                         fm_truth["fsrs_due"],
+                        fm_truth["reason"],
                     )
                 elif _whole_second_utc(due_date) != fm_truth["due"]:
                     # 整秒归一后比较, 见 _whole_second_utc 的口径说明

@@ -191,6 +191,11 @@ async def test_get_fsrs_state_agreement_is_not_reported_as_divergence(svc, tmp_v
 
     assert result["truth_source"] == "frontmatter"
     assert result.get("degraded_reason") is None, f"两侧一致却报了分歧: {result.get('degraded_reason')!r}"
+    # Codex r1 LOW-7：不断言 due 的话，删掉生产侧的 due 覆盖（返回带微秒的投影
+    # 值）这条也会通过 —— 一致分支同样要证明返回的是**真相源那一份**。
+    assert result["due"] == datetime.strptime(agreed, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc), (
+        "一致分支返回的不是 frontmatter 的整秒值（可能是投影侧的带微秒值）"
+    )
 
 
 async def test_get_fsrs_state_without_truth_source_is_labeled_projection(svc, tmp_vault):
@@ -215,10 +220,17 @@ async def test_gate_blocks_write_when_truth_source_exists(svc, tmp_vault, isolat
     assert cid not in before_mem, "前提不成立：门锁用例必须从「缓存无此 concept」起跑"
     assert not isolate_card_states.exists()
 
-    await svc.get_fsrs_state(cid)
+    result = await svc.get_fsrs_state(cid)
 
     assert svc._card_states == before_mem, "门锁失效：GET 推进了 _card_states（第二真相源仍在独立推进）"
     assert not isolate_card_states.exists(), "门锁失效：GET 写了 fsrs_card_states.json"
+    # Codex r1 MEDIUM-6：只断言"没写"的话，删掉生产侧 gate_blocked=True 这条
+    # 仍会通过（门照样不写，但 reason 会退回 auto_created_not_persisted =
+    # 谎报一次并不存在的写失败）。诚实信号本身必须被锁住。
+    assert result["persisted"] is False
+    assert result["reason"] == "truth_source_gate_no_projection_write", (
+        f"门锁拦下的未持久化被描述成了写失败: {result['reason']!r}"
+    )
 
 
 async def test_gate_allows_write_when_no_truth_source(svc, isolate_card_states, tmp_vault):
@@ -258,6 +270,79 @@ async def test_gate_blocks_write_on_malformed_fsrs_due(svc, tmp_vault, isolate_c
     assert result["due"] is None, "读不出 frontmatter 时刻却给了一个 due（假成功）"
 
 
+async def test_body_line_is_not_mistaken_for_truth_source(svc, tmp_vault, isolate_card_states):
+    """Codex r1 HIGH-2 回归：正文里顶格的 `fsrs_due:` 不得成为调度真相源。
+
+    初版把字段正则作用在**整份 .md** 上（而两个生产 reader 拿到的是已切好的
+    frontmatter 块），于是一个讲解「fsrs_due 怎么写」的文档节点会被自己的正文
+    示例接管调度。实测复现：返回 due=2020-01-01 且 reason=None（毫无察觉）。
+
+    教训：口径 = 正则 + **输入面**。正则逐字相同不足以证明解析语义相同。
+    """
+    from app.services.review_service import _read_frontmatter_fsrs
+
+    cid = "g37-body-example"
+    _seed_node(
+        tmp_vault,
+        cid,
+        "---\ntype: concept\ntitle: 讲解 fsrs 字段的文档节点\n---\n"
+        "# 复习字段怎么写\n\n"
+        "在 frontmatter 里这样写：\n\n"
+        "fsrs_due: 2020-01-01T00:00:00Z\n",
+    )
+
+    fm = _read_frontmatter_fsrs(cid)
+    assert fm["found"] is True, "前提不成立：种子节点必须存在"
+    assert fm["fsrs_due"] is None, f"正文行被当成了 frontmatter 字段: {fm['fsrs_due']!r}"
+    assert fm["governed"] is False, "正文示例不得让该节点被判为「归 frontmatter 管」"
+    assert fm["reason"] == "no_fsrs_due"
+
+    # 消费侧：该节点应按新卡处理（门锁放行），而不是被 2020 年那个示例接管
+    result = await svc.get_fsrs_state(cid)
+    assert result["truth_source"] == "projection-cache"
+    assert result["due"] != datetime(2020, 1, 1, tzinfo=timezone.utc)
+    assert cid in svc._card_states, "正文示例误判会让门锁把这条本该写的路径拦掉"
+
+
+async def test_unreadable_node_file_fails_closed(svc, tmp_vault, isolate_card_states):
+    """Codex r1 HIGH-1 回归：.md 存在但读不出来 → fail-closed，不得放行投影写。
+
+    初版读取失败后 `return out`，留下 fsrs_due=None，门锁判据 `found and
+    fsrs_due` 据此放行 —— 「节点确实有 fsrs_due、只是这一刻文件不可读」会让
+    GET 推进投影缓存并落盘，直接推翻「有真相源时一律不推进」。
+    附带 bug：reason 还停在初始的 'no_node_file'，谎报文件没找到。
+    """
+    from app.services.review_service import _read_frontmatter_fsrs
+
+    cid = "g37-unreadable"
+    _seed_node(tmp_vault, cid, _NODE_MD.format(due=_FM_DUE))
+    path = tmp_vault / "节点" / f"{cid}.md"
+    path.chmod(0o000)
+    try:
+        # 前提断言：这台机器上确实读不出来（root 跑测试时 chmod 拦不住）
+        try:
+            path.read_text(encoding="utf-8")
+            pytest.skip("当前用户可无视 chmod 000，无法构造不可读文件")
+        except OSError:
+            pass
+
+        fm = _read_frontmatter_fsrs(cid)
+        assert fm["found"] is True
+        assert fm["governed"] is True, "文件不可读时必须 fail-closed（内容未知 ≠ 没话说）"
+        assert fm["reason"] == "node_file_unreadable", f"文件明明找到了却谎报: {fm['reason']!r}"
+
+        before_mem = dict(svc._card_states)
+        result = await svc.get_fsrs_state(cid)
+
+        assert svc._card_states == before_mem, "不可读时放行了投影写（HIGH-1 复发）"
+        assert not isolate_card_states.exists()
+        assert result["truth_source"] == "frontmatter"
+        assert result["degraded_reason"] == "truth_source_unreadable"
+        assert result["due"] is None
+    finally:
+        path.chmod(0o644)
+
+
 async def test_node_without_fsrs_due_is_treated_as_no_truth_source(svc, tmp_vault):
     """.md 存在但无 fsrs_due = 新卡语义（对齐 daily_review_pick:435「无 fsrs_due 即真新卡」）。
 
@@ -270,6 +355,64 @@ async def test_node_without_fsrs_due_is_treated_as_no_truth_source(svc, tmp_vaul
 
     assert result["truth_source"] == "projection-cache"
     assert cid in svc._card_states
+
+
+def _get_fsrs_state_over_http(svc, concept_id: str):
+    """经真 HTTP 端点取 FSRS 状态（锁 review.py 的字段转发）。"""
+    from unittest.mock import AsyncMock, patch
+
+    from app.main import app
+    from fastapi.testclient import TestClient
+    from tests.support.lifespan import no_lifespan
+
+    with patch(
+        "app.api.v1.endpoints.review._get_review_service_singleton",
+        AsyncMock(return_value=svc),
+    ):
+        with no_lifespan(app), TestClient(app) as client:
+            return client.get(f"/api/v1/review/fsrs-state/{concept_id}")
+
+
+def test_http_get_forwards_truth_source_and_degraded(svc, tmp_vault):
+    """Codex r1 MEDIUM-6：GET 侧此前只有直调 service 的用例。
+
+    删掉 review.py 里 truth_source / degraded_reason 两个转发字段，原有那些
+    用例照样全绿 —— 端点层的诚实信号完全没有门看着。本条走真 HTTP 栈，同时
+    覆盖 schemas.FSRSStateQueryResponse 的两个加性字段能序列化出去。
+    """
+    cid = "g37-http-diverge"
+    _seed_node(tmp_vault, cid, _NODE_MD.format(due=_FM_DUE))
+    # 故意**不**播后端卡：走 auto-create 分支，这样一条用例同时覆盖
+    # 门锁拦截（persisted/reason）与真相源分歧（due/degraded_reason）。
+    # 缓存命中分支不推进状态，门锁本就不参与，见 test_gate_* 的分工。
+    assert cid not in svc._card_states
+
+    resp = _get_fsrs_state_over_http(svc, cid)
+
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["found"] is True
+    assert data["truth_source"] == "frontmatter", "端点未转发 truth_source"
+    assert data["degraded_reason"] == "truth_source_divergence", "端点未转发 degraded_reason"
+    assert data["persisted"] is False
+    assert data["reason"] == "truth_source_gate_no_projection_write"
+    assert data["fsrs_state"]["due"].startswith("2026-08-11T13:56:58"), (
+        f"HTTP 层返回的 due 不是 frontmatter 那一份: {data['fsrs_state']['due']!r}"
+    )
+    assert cid not in svc._card_states, "HTTP 路径上门锁失效"
+
+
+def test_http_get_without_truth_source_reports_projection(svc, tmp_vault):
+    """端点侧的**正控**：无真相源时必须如实标 projection-cache 且不报降级。
+
+    没有这条，上一条的 'frontmatter' 可能只是端点把某个常量写死了。
+    """
+    resp = _get_fsrs_state_over_http(svc, "g37-http-plain")
+
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["truth_source"] == "projection-cache"
+    assert data["degraded_reason"] is None
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -381,6 +524,48 @@ async def test_record_review_degraded_reasons_are_additive(svc, tmp_vault, monke
     result = await svc.record_review_result(canvas_name="g37.canvas", concept_id=cid, rating=3)
 
     assert result["card_state_persisted"] is False
-    reasons = set((result["degraded_reason"] or "").split(","))
-    assert "card_state_write_failed" in reasons, f"持久化失败被冲掉了: {reasons}"
-    assert "truth_source_divergence" in reasons, f"真相源分歧被冲掉了: {reasons}"
+    # Codex r1 LOW-7：只做集合包含检查排除不掉「多报原因 / 重复原因」。
+    # 锁成**恰好等于**这两项（顺序也锁，逗号拼接是有序的）。
+    assert result["degraded_reason"] == "card_state_write_failed,truth_source_divergence", (
+        f"降级原因不是恰好这两项（可能多报或重复）: {result['degraded_reason']!r}"
+    )
+
+
+async def test_record_review_reports_unparsable_truth_source(svc, tmp_vault):
+    """Codex r1 MEDIUM-4 回归：非法但非空的 fsrs_due 在 PUT 侧不得静默。
+
+    初版只在 `fm_truth["due"] is not None and due_date is not None` 时比较，
+    于是「真相源存在但形态不合规」拿到 degraded_reason=None —— 异常信号被整条
+    吞掉，调用方看到的是一次干干净净的成功。
+    """
+    cid = "g37-rec-malformed"
+    _seed_node(tmp_vault, cid, _NODE_MD.format(due="2026/08/11 13:56"))
+
+    result = await svc.record_review_result(canvas_name="g37.canvas", concept_id=cid, rating=3)
+
+    assert result["card_state_persisted"] is True, "投影缓存本身确实写成功了"
+    assert result["degraded_reason"] == "truth_source_unparsable", (
+        f"形态不合规的真相源被静默: {result['degraded_reason']!r}"
+    )
+
+
+async def test_record_review_reports_unreadable_truth_source(svc, tmp_vault):
+    """Codex r1 HIGH-1 的 PUT 侧对应面：文件不可读同样要出声。"""
+    cid = "g37-rec-unreadable"
+    _seed_node(tmp_vault, cid, _NODE_MD.format(due=_FM_DUE))
+    path = tmp_vault / "节点" / f"{cid}.md"
+    path.chmod(0o000)
+    try:
+        try:
+            path.read_text(encoding="utf-8")
+            pytest.skip("当前用户可无视 chmod 000，无法构造不可读文件")
+        except OSError:
+            pass
+
+        result = await svc.record_review_result(canvas_name="g37.canvas", concept_id=cid, rating=3)
+
+        assert result["degraded_reason"] == "truth_source_unreadable", (
+            f"不可读的真相源被静默: {result['degraded_reason']!r}"
+        )
+    finally:
+        path.chmod(0o644)
