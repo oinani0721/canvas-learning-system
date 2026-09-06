@@ -1,0 +1,31 @@
+=== 命中探针: backend/app/mcp/server.py ===
+scratch=/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe-173743  base=4cc4824c60bd75ba6d4057c1d74aadbcbda3eb51
+glob=      glob: "backend/app/*.py"
+lefthook=2.1.6
+date=2026-09-05T09:38:53Z
+--- 追加 # probe 并 git add ---
+backend/app/mcp/server.py
+--- lefthook run pre-commit --command python-typecheck --no-auto-install ---
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+╰──────────────────────────────────────╯
+┃  python-typecheck ❯ 
+
+[Python] Running pyright type check (backend/.venv/bin/pyright)...
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe-173743/backend/app/mcp/server.py
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe-173743/backend/app/mcp/server.py:195:15 - warning: Function "_search_memories" is not accessed (reportUnusedFunction)
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe-173743/backend/app/mcp/server.py:225:15 - warning: Function "_search_notes" is not accessed (reportUnusedFunction)
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe-173743/backend/app/mcp/server.py:258:15 - warning: Function "_get_neighbors" is not accessed (reportUnusedFunction)
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe-173743/backend/app/mcp/server.py:270:15 - warning: Function "_read_note" is not accessed (reportUnusedFunction)
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe-173743/backend/app/mcp/server.py:292:15 - warning: Function "_check_health" is not accessed (reportUnusedFunction)
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe-173743/backend/app/mcp/server.py:326:15 - warning: Function "_get_board_manifest" is not accessed (reportUnusedFunction)
+0 errors, 6 warnings, 0 informations
+[Python] Typecheck done (exit: 0).
+
+                                      
+  ────────────────────────────────────
+summary: (done in 4.36 seconds)       
+✔️ python-typecheck (4.14 seconds)
+rc=0
+--- 还原 ---
+status: 0 lines for backend/app/mcp/server.py

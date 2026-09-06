@@ -1,0 +1,117 @@
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+╰──────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+│  cypher-vault-filter-lint (skip) no matching staged files
+┃  ghost-files ❯ 
+
+[Ghost Files] No untracked docs found.
+
+┃  mutant-residue-scan ❯ 
+
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+
+│  python-lint (skip) no files for inspection
+│  python-typecheck (skip) no files for inspection
+│  readme-claims-lint (skip) no matching staged files
+│  spec-sync-flat (skip) no matching staged files
+│  spec-sync-root (skip) no matching staged files
+                                      
+  ────────────────────────────────────
+summary: (done in 0.05 seconds)       
+✔️ ghost-files (0.02 seconds)
+✔️ mutant-residue-scan (0.03 seconds)
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: commit-msg │
+╰──────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+┃  commitlint ❯ 
+
+⧗   input: fix(hook): typecheck glob 收窄到 backend/app [BATCH-2026-09-05-第十二批 / CARD-TOOL-typecheck-glob]
+
+用户裁定 D-1 = 丙：python-typecheck 的 glob 由 `{backend,src}/**/*.py` 改为单条
+`backend/app/*.py`；pyrightconfig.json 一字不改，不装 pyright 进任何 venv。
+
+机制（这是 94% 提交被拦的根因）：run 块把 {staged_files} 当**位置实参**传给 pyright，
+位置实参取代 pyrightconfig 的 include 而非与之取交集 ⇒ 旧 glob 的可达面是 backend
+全部 846 个 .py（backend/tests 占 493），远大于 include 面。测试目录的存量类型债因此
+拦下与本次改动无关的提交；恒红的门等于没有门。
+
+实数（git ls-files @ 4cc4824c）：backend/app 263 / src 0（死枝）/ 仓库根 tests 41
+= include 面 304。收窄后门面 = 263，是 include 面真子集。旧手册的 258/35 已作废。
+
+探针（scratch worktree，lefthook 2.1.6，五份 transcript + 一份翻转对照）：
+- 命中：backend/app/main.py（根级）/ mcp/server.py（1 级）/ api/v1/endpoints/health.py
+  （3 级）三档均出现 `[Python] Running pyright type check` ⇒ 单 `*` 跨任意层级，
+  不需要拆 flat+root。
+- 负控：backend/tests/conftest.py 与 backend/mutmut_config.py 均 `(skip) no files`。
+- 翻转：同一个 backend/tests/conftest.py 在旧 glob 下真跑并 exit 1，证明可达面确实变了。
+
+未证明：backend/app 263 个文件的类型正确性（存量报错未动，592 err 是 include 面 304
+文件的数）；backend/tests 493 个文件的类型债未清（另卡）；未接 CI。主仓 backend/.venv
+仍无 pyright ⇒ 主干上本门继续走 honest-SKIP 分支，本卡不改变这一点。
+
+行锚偏移：本卡新增 36 行注释，mutant-residue-scan 286→322、pre-push 383→419，
+通报 Y4-C / Y4-D。
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GbA5ESa3WuwRcj6wBrdeca
+⚠   subject must be lower-case [subject-case]
+
+⚠   found 0 problems, 1 warnings
+ⓘ   Get help: https://github.com/conventional-changelog/commitlint/#what-is-commitlint
+
+
+┃  spec-reference ❯ 
+
+[Spec Ref] OK.
+
+                                      
+  ────────────────────────────────────
+summary: (done in 0.36 seconds)       
+✔️ commitlint (0.33 seconds)
+✔️ spec-reference (0.02 seconds)
+╭───────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: post-commit │
+╰───────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+[card/z7-tool 64498c26] fix(hook): typecheck glob 收窄到 backend/app [BATCH-2026-09-05-第十二批 / CARD-TOOL-typecheck-glob]
+ 10 files changed, 344 insertions(+), 1 deletion(-)
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-typecheck-glob/judge1-counts-20260905T173653.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-typecheck-glob/judge2-env-20260905T173657.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-typecheck-glob/judge456-postedit-20260905T174156.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-typecheck-glob/probe-HIT-backend_app_api_v1_endpoints_health.py.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-typecheck-glob/probe-HIT-backend_app_main.py.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-typecheck-glob/probe-HIT-backend_app_mcp_server.py.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-typecheck-glob/probe-NEG-backend_mutmut_config.py.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-typecheck-glob/probe-NEG-backend_tests_conftest.py.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-typecheck-glob/probe-OLDGLOB-flip.txt"

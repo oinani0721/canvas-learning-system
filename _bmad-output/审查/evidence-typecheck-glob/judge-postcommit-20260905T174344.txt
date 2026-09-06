@@ -1,0 +1,23 @@
+=== commit 后裁判（HEAD=64498c26, HEAD~1=4cc4824c）===
+--- 裁判6: 代码面只有 lefthook.yml ---
+ lefthook.yml | 38 +++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 37 insertions(+), 1 deletion(-)
+rc=0
+--- 裁判6b: pyrightconfig.json 未动 ---
+(空 = 未动) rc=0
+--- 裁判5: 命令名集合与顺序不变 ---
+diff_rc=0
+--- 裁判5b: hunk 位置 ---
+@@ -145,0 +146,36 @@ pre-commit:
+@@ -147 +183 @@ pre-commit:
+--- 裁判4: glob 定稿 ---
+182:    python-typecheck:
+183-      glob: "backend/app/*.py"
+184-      run: |
+--- 行锚偏移复核 ---
+mutant-residue-scan: 旧 286 -> 新 322
+pre-push:            旧 383 -> 新 419
+--- 工作树干净 ---
+?? "_bmad-output/\345\256\241\346\237\245/evidence-typecheck-glob/judge-postcommit-20260905T174344.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-typecheck-glob/judge7-commit-hook-20260905T174323.txt"
+(空 = 干净)

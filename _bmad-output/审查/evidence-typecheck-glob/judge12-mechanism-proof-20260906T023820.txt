@@ -1,0 +1,29 @@
+=== 判据补强 A：核心机制的直接实证（O19）===
+本卡核心断言：pyright 的位置实参**取代** pyrightconfig 的 include，而非取交集。
+--- pyrightconfig.json 的 include ---
+['backend/app', 'src', 'tests']
+--- backend/tests/conftest.py 是否在 include 面内？ ---
+include = ['backend/app', 'src', 'tests']
+backend/tests/conftest.py 命中 include 的哪一项 -> 无（不在 include 面内）
+--- 但旧 glob 下 pyright 确实分析了它（存档实证）---
+16:  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe-173743/backend/tests/conftest.py:38:57 - error: Import "HealthCheck" is not accessed (reportUnusedImport)
+17:  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe-173743/backend/tests/conftest.py:54:5 - warning: Function "_configure_logging_for_tests" is not accessed (reportUnusedFunction)
+18:  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe-173743/backend/tests/conftest.py:67:5 - warning: Function "_reset_structlog_contextvars" is not accessed (reportUnusedFunction)
+19:  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe-173743/backend/tests/conftest.py:93:5 - warning: Function "_neo4j_live_port_guard" is not accessed (reportUnusedFunction)
+1
+⇒ 一个不在 include 面内的文件被作为位置实参传入后被真实分析并报诊断
+⇒ 位置实参取代 include 成立（不是取交集：取交集的话它会被排除、零诊断）
+
+=== 判据补强 B：Codex 存档字节数（O21）===
+    7096
+
+=== 判据补强 C：主干 PATH 原样输出（O10/O23）===
+$ command -v pyright
+rc=1
+$ ls /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/.venv/bin/pyright
+ls: /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/.venv/bin/pyright: No such file or directory
+rc=1
+⚠️ 作用域声明：本行 PATH 取自**车道树的交互 shell**，不是主仓 hook 执行时的 PATH。
+   hook 会先 source backend/.venv/bin/activate（车道树里那是含 pyright 的共享 venv），
+   故本判据只能证「本交互 shell 的 PATH 无 pyright」，不能证「主仓 hook 运行时 PATH 无 pyright」。
+rc=0

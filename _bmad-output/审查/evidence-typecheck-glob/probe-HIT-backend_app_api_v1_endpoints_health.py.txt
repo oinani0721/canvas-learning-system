@@ -1,0 +1,35 @@
+=== 命中探针: backend/app/api/v1/endpoints/health.py ===
+scratch=/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe-173743  base=4cc4824c60bd75ba6d4057c1d74aadbcbda3eb51
+glob=      glob: "backend/app/*.py"
+lefthook=2.1.6
+date=2026-09-05T09:38:58Z
+--- 追加 # probe 并 git add ---
+backend/app/api/v1/endpoints/health.py
+--- lefthook run pre-commit --command python-typecheck --no-auto-install ---
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+╰──────────────────────────────────────╯
+┃  python-typecheck ❯ 
+
+[Python] Running pyright type check (backend/.venv/bin/pyright)...
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe-173743/backend/app/api/v1/endpoints/health.py
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe-173743/backend/app/api/v1/endpoints/health.py:178:16 - error: Argument of type "Literal['healthy']" cannot be assigned to parameter "status" of type "HealthStatus" in function "__init__"
+    "Literal['healthy']" is not assignable to "HealthStatus" (reportArgumentType)
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe-173743/backend/app/api/v1/endpoints/health.py:615:16 - error: Type "JSONResponse" is not assignable to return type "Dict[str, Any]"
+    "JSONResponse" is not assignable to "Dict[str, Any]" (reportReturnType)
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe-173743/backend/app/api/v1/endpoints/health.py:698:23 - error: "Never" is not awaitable (reportGeneralTypeIssues)
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe-173743/backend/app/api/v1/endpoints/health.py:1160:29 - error: Argument of type "Iterable[str]" cannot be assigned to parameter "obj" of type "Sized" in function "len"
+    "Iterable[str]" is incompatible with protocol "Sized"
+      "__len__" is not present (reportArgumentType)
+4 errors, 0 warnings, 0 informations
+[Python] Type errors found! Review and fix before committing.
+[Python] Hint: Some errors may be pre-existing. Focus on YOUR changes.
+[Python] Typecheck done (exit: 1).
+
+exit status 1                                      
+  ────────────────────────────────────
+summary: (done in 7.20 seconds)       
+🥊 python-typecheck (7.12 seconds)
+rc=1
+--- 还原 ---
+status: 0 lines for backend/app/api/v1/endpoints/health.py

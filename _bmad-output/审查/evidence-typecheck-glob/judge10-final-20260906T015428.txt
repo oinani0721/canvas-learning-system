@@ -1,0 +1,36 @@
+=== 收尾裁判（全卡面 4cc4824c..工作树）===
+--- 代码面只有 lefthook.yml ---
+ lefthook.yml | 45 ++++++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 44 insertions(+), 1 deletion(-)
+--- pyrightconfig.json 未动 ---
+(空=未动)
+--- 命令名集合与顺序（对 4cc4824c）---
+OK 空
+--- glob 定稿 ---
+189:    python-typecheck:
+190-      glob: "backend/app/*.py"
+--- 全文无旧 glob 作为生效值（只应出现在注释里）---
+96:    # `{backend,src}/**/*.py` 改为 `{backend,src,scripts}/*.py`。两处改动:
+148:    # glob 由 `{backend,src}/**/*.py` 收窄为单条 `backend/app/*.py`。
+--- 禁写串自查：258/35 与「类型已检查」---
+lefthook.yml:162:    # 的文件)。旧手册里的 258 / 35 是过期数, 不要照抄。
+_bmad-output/验收单/UAT-CARD-TOOL-typecheck-glob-2026-09-05.md:104:### (c) 注释实数（全部出自 `judge1-counts-*.txt`，禁写 258/35）
+_bmad-output/验收单/UAT-CARD-TOOL-typecheck-glob-2026-09-05.md:167:> 本卡没有单独测过。"类型已检查 / 已通过 / 收窄并通过"一律不成立。
+_bmad-output/验收单/UAT-CARD-TOOL-typecheck-glob-2026-09-05.md:221:| 2' | `18/19 ≈ 94.74%`，写 `94%` 不精确；`258/35` 在读取面内无佐证 | 接受：改为「台账记 18/19 ≈ 95%」；258/35 保留但已标明是过期数、不要照抄 |
+_bmad-output/验收单/UAT-CARD-TOOL-typecheck-glob-2026-09-05.md:271:2. **勘误**：`258 / 0 / 35` → **`263 / 0 / 41` = include 面 304**；第十一批手册旧数作废。
+--- gpt-5.6 自查（必为 0）---
+_bmad-output/审查/codex-review-CARD-TOOL-typecheck-glob.md:0
+_bmad-output/审查/prompts/codex-prompt-CARD-TOOL-typecheck-glob.md:0
+--- scratch worktree 已清 ---
+0
+0（已清）
+rc=0
+
+=== 禁写串命中的逐条判读（人核）===
+卡文「禁写 258/35 与『类型已检查』」禁的是把它们**当作实数/结论**写出。上面 5 条命中逐条为：
+  lefthook.yml:162            「旧手册里的 258 / 35 是过期数, 不要照抄」        → 否定性提及 ✅
+  UAT:104  小节标题           「(c) 注释实数（…禁写 258/35）」                  → 引用禁令本身 ✅
+  UAT:167                     「"类型已检查 / 已通过 / 收窄并通过"一律不成立」  → 否定性提及 ✅
+  UAT:221  Codex 处置表        「258/35 保留但已标明是过期数」                   → 否定性提及 ✅
+  UAT:271  台账条目            「258/0/35 → 263/0/41 勘误」                      → 卡文 (i) 明确要求登记 ✅
+零处把 258/35 当作当前实数、零处声称类型已检查。

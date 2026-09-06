@@ -1,0 +1,32 @@
+=== 裁判4/5/6（改后，未 commit，基线 = HEAD 4cc4824c）===
+--- 4. glob 行 ---
+182:    python-typecheck:
+183-      glob: "backend/app/*.py"
+184-      run: |
+--- 4b. 全文再无旧 glob ---
+96:    # `{backend,src}/**/*.py` 改为 `{backend,src,scripts}/*.py`。两处改动:
+148:    # glob 由 `{backend,src}/**/*.py` 收窄为单条 `backend/app/*.py`。
+--- 5. 命令名集合与顺序不变 ---
+(diff 空 = 命令名集合与顺序不变)
+--- 5b. 无 priority 键 ---
+302:    # 生成, 其源头 backend/app/** 本身在扫描面内)。给本块加 `priority:` 不能
+--- 6. 改动面 ---
+ M lefthook.yml
+?? "_bmad-output/\345\256\241\346\237\245/evidence-typecheck-glob/"
+--- 6b. diff hunk 位置 ---
+@@ -145,0 +146,36 @@ pre-commit:
+@@ -147 +183 @@ pre-commit:
+--- 6c. 新增/删除行数 N ---
+37	1	lefthook.yml
+--- 6d. pyrightconfig.json 未动 ---
+(上面为空 = 未动)
+--- 6e. 禁改块逐一比对（python-lint / spec-sync-flat / spec-sync-root / mutant-residue-scan / pre-push）---
+  ^    python-lint:  旧=117:    python-lint:  新=117:    python-lint:
+  ^    spec-sync-flat:  旧=51:    spec-sync-flat:  新=51:    spec-sync-flat:
+  ^    spec-sync-root:  旧=62:    spec-sync-root:  新=62:    spec-sync-root:
+  ^    mutant-residue-scan:  旧=286:    mutant-residue-scan:  新=322:    mutant-residue-scan:
+  ^pre-push:  旧=383:pre-push:  新=419:pre-push:
+--- 6f. YAML 可解析 ---
+commands: ['spec-sync-flat', 'spec-sync-root', 'ghost-files', 'python-lint', 'python-typecheck', 'cypher-vault-filter-lint', 'readme-claims-lint', 'mutant-residue-scan']
+typecheck glob: backend/app/*.py
+rc=0

@@ -1,0 +1,30 @@
+=== 命中探针: backend/app/main.py ===
+scratch=/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe-173743  base=4cc4824c60bd75ba6d4057c1d74aadbcbda3eb51
+glob=      glob: "backend/app/*.py"
+lefthook=2.1.6
+date=2026-09-05T09:38:48Z
+--- 追加 # probe 并 git add ---
+backend/app/main.py
+--- lefthook run pre-commit --command python-typecheck --no-auto-install ---
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+╰──────────────────────────────────────╯
+┃  python-typecheck ❯ 
+
+[Python] Running pyright type check (backend/.venv/bin/pyright)...
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe-173743/backend/app/main.py
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe-173743/backend/app/main.py:104:10 - error: Import "agentic_rag.config" could not be resolved (reportMissingImports)
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe-173743/backend/app/main.py:573:34 - warning: Unnecessary "# type: ignore" comment (reportUnnecessaryTypeIgnoreComment)
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/64689efe-a25a-4be1-a97e-75f1ff68df09/scratchpad/y4b-probe-173743/backend/app/main.py:664:20 - warning: Unnecessary isinstance call; "str" is always an instance of "str" (reportUnnecessaryIsInstance)
+1 error, 2 warnings, 0 informations
+[Python] Type errors found! Review and fix before committing.
+[Python] Hint: Some errors may be pre-existing. Focus on YOUR changes.
+[Python] Typecheck done (exit: 1).
+
+exit status 1                                      
+  ────────────────────────────────────
+summary: (done in 4.98 seconds)       
+🥊 python-typecheck (4.92 seconds)
+rc=1
+--- 还原 ---
+status: 0 lines for backend/app/main.py
