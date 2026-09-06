@@ -1,0 +1,23 @@
+=== 裁判 2：审面钉死 514cff3c..e22ad10a ===
+--- --stat（须逐字 5 files changed, 856 insertions(+), 9 deletions(-)） ---
+ backend/scripts/g32cb_mutation_gates.py            |  62 [32m++[m[31m-[m
+ backend/scripts/g32ccr1_negative_controls.py       | 306 [32m++++++++++++++[m
+ backend/scripts/validate_learning_events.py        |  39 [32m+[m[31m-[m
+ .../tests/regression/test_g3_2_review_ledger.py    | 452 [32m++++++++++++++++++++[m[31m-[m
+ docs/learning-events-schema-v1.md                  |   6 [32m+[m[31m-[m
+ 5 files changed, 856 insertions(+), 9 deletions(-)
+rc=0
+
+--- --numstat（须 61/1、306/0、37/2、447/5、5/1） ---
+61	1	backend/scripts/g32cb_mutation_gates.py
+306	0	backend/scripts/g32ccr1_negative_controls.py
+37	2	backend/scripts/validate_learning_events.py
+447	5	backend/tests/regression/test_g3_2_review_ledger.py
+5	1	docs/learning-events-schema-v1.md
+rc=0
+
+=== 裁判 3：HEAD ≠ 审面 的实证（e22ad10a → HEAD 同族 5 文件） ===
+ backend/scripts/g32cb_mutation_gates.py            | 120 [32m+++++++++++++++++++[m[31m--[m
+ .../tests/regression/test_g3_2_review_ledger.py    |  60 [32m+++++++++++[m
+ 2 files changed, 169 insertions(+), 11 deletions(-)
+rc=0

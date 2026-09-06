@@ -1,0 +1,35 @@
+fix(g3-2c-C-R1): 字符轴判据自洽 + emitter 门补行序与次数 [BATCH-2026-09-05-第十一批 / CARD-CX-G3-2c-C-R1]
+
+X7-C 的 991ae914 / ae53fa05 整改后无复审，本卡补审：定性 + 补判据 + 1 轮 Codex。
+Codex(gpt-6-astra ultra) 判「需整改」1 HIGH + 6 MEDIUM + 2 LOW，已逐条处置。
+
+(a) receipt 条目 14 键与严格表做差集 = {question_id, self_confidence_raw}。
+    裁定**不扩表**。依据经 Codex 打回后收窄为「当前 quiz-answer 落账写点
+    不写、复放路径不读」——不是「结构上够不着」：append_event() 能写进账本。
+    对照实证：扩表后四回归文件只有 2 道**表声明门**变红，无行为门变化。
+    判据措辞同步落在代码注释 / docstring / schema §6.1；枚举表零改动。
+(b) 差集字段实测「写得进读不回」不可达：q_() 的往返自证兜住（负控 E4）；
+    ts/scored_at 由 _TS_RE 词法门在首次 append 前拒（负控 E8；门拆成单字段
+    用例并核对拒因，原版被 review_time 那道门喂饱）。
+    ⛔ 但 self_confidence_norm **没有任何约束**，裸插值可改写 receipt 的
+    event_id 并让该节点评不了分（Codex HIGH）。硬边界禁改写点 ⇒ 立
+    xfail(strict=True) 交接门锁住，移交 quiz-answer 写点边界卡。
+(c) value_charset_problems 非 dict 分支从 :1715 不可达。AST 判据收紧三处：
+    任何 Store 上下文的 record（原版漏海象）、守卫与调用同为顶层语句且守卫
+    在前、守卫须比 dict 且立即 return。负控 E5/E10。
+(d) emitter 门原判据是子串包含，对「行复制」「行位移」双盲（E1/E2 实测
+    SURVIVED，且都过得了生产的 _canon_tree）。改判据为「整条按边界逐字节 +
+    出现次数 = 1 + 紧跟 calibration_log:」+ 第三阶段补 rc==0。负控 E6/E7。
+(e) g32cb 锚点自检提前 + 兑现未实现的 --list；如实登记「锚漂 ⇒ 8/8 假绿」
+    这个前提不成立（原有 ANCHOR-ERROR 分支），以及注释诱饵/缩进漂移的盲区。
+(f) 一致性门提取器从正则改 AST（注释诱饵/改名/双引号 f-string 都会暴露）+
+    严格表逐项钉死（堵住空表空真）。负控 E9。容器门补 tuple 样本（E11）。
+
+新增 backend/scripts/g32ccr1_negative_controls.py（11 条负控，与 g32cb 同纪律）。
+裁判：四回归 339 passed/1 skipped/1 xfailed；tests/skills 369；g32cb 8/8 KILLED；
+g32ccr1 11/11 KILLED；两次 sha 前后相同；live vault 只读（开工/收工均 NOFILE）。
+SKILL.md 与 CHARSET_STRICT_FIELDS 零改动。
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_017zNz6Uw5xB63LE8wtaDoi3
+
