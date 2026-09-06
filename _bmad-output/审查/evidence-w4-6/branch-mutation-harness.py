@@ -133,9 +133,58 @@ MUTATIONS = [
     ),
     (
         "M-enum-sentinel",
-        ["shell-env-enum-failure-is-fail-closed"],
+        [
+            "shell-env-enum-failure-is-fail-closed-pass1",
+            "shell-env-enum-failure-is-fail-closed-pass2",
+        ],
         [('    case "$__w4_env_ok" in\n      1) ;;', '    case "1" in\n      1) ;;', 2)],
-        "让枚举完成检查恒真 —— 枚举失败就会被当成『没有残留』",
+        "让**两趟**枚举完成检查都恒真 —— 枚举失败就会被当成『没有残留』",
+    ),
+    (
+        # 对抗复核 F1b：两趟各有一段完成检查，只钉一趟的话，把另一趟那段整个删掉
+        # 全部探针照样绿。这条单独拆第二趟，证明 pass2 那条探针真的绑在它身上。
+        #
+        # ⚠️ 初版把整个 `case "$__w4_env_ok" in … esac` 删掉 —— 那会让探针的**锚点
+        #    自检**（`_check_hits == 2`）先失败，两条探针都以「锚点脱节」报红，而不是
+        #    因为各自声称的行为断言。verdict 字母对、因果链错 = 假杀（本 harness 里
+        #    第二次同形，第一次是 M-nul-delimited）。
+        #    规矩：变异只能拆**被测的那道防线**，判据赖以成立的脚手架必须原样留着。
+        #    所以这里只把第二趟的**拒绝动作**换成空分支，`case` 形状原样保留。
+        "M-enum-check-pass2-only",
+        ["shell-env-enum-failure-is-fail-closed-pass2"],
+        [
+            (
+                """      *)
+        builtin printf 'RUNTIME-FILES: GATE-BROKEN — 环境枚举未完整产出（/usr/bin/env -0 失败或被截断）；拒绝把「没看见残留」当成「没有残留」\\n' >&2
+        builtin exit 1
+        ;;
+""",
+                "      *) ;;\n",
+                1,
+            )
+        ],
+        "只拆第二趟的拒绝动作（保留 case 形状）—— pass2 那条必须红，pass1 那条必须仍绿",
+    ),
+    (
+        # 对抗复核 F1（MEDIUM）：调用者导出的 SHELLOPTS 会被 bash 导入并置位选项，
+        # errexit 让**健康**路径在第二层 __leftover 赋值处静默 rc=1（方向是反的）。
+        "M-shellopts-strip",
+        ["shell-shellopts-errexit-does-not-false-red"],
+        [
+            (
+                "__w4_env_args=(-u BASH_ENV -u ENV -u W4_SHA_GATE_REEXEC -u SHELLOPTS -u BASHOPTS)",
+                "__w4_env_args=(-u BASH_ENV -u ENV -u W4_SHA_GATE_REEXEC)",
+                1,
+            )
+        ],
+        "不摘 SHELLOPTS —— 调用者一个环境变量就让正常调用静默 rc=1（假红）",
+    ),
+    (
+        # 「数字与清单不一致」已犯三次，第 13 条探针把那句声明变成判据。
+        "M-roster-count",
+        ["shell-probe-roster-matches-declared-count"],
+        [("由 **19 条** shell 探针承重", "由 **99 条** shell 探针承重", 1)],
+        "把门头声称的探针条数改错 —— 花名册门必须当场报出来",
     ),
 ]
 

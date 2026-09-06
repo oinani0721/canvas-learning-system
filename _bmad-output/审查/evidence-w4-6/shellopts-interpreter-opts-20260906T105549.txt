@@ -1,0 +1,28 @@
+=== 对抗复核 F1：调用者控制解释器选项（全部为存量面）===
+
+--- A. SHELLOPTS 被 bash 导入 ---
+errexit        	on
+
+--- B. 空函数表时 compgen -A function 的 rc（缺陷成因）---
+compgen rc=1
+赋值 rc=1
+
+--- C. errexit：开工 SHA 的门（证明是存量）---
+开工SHA rc=1（零输出 = 静默假红）
+
+--- D. errexit：本卡修好后 ---
+RUNTIME-FILES: unchanged
+rc=0
+
+--- E. noexec：不可从脚本内防御（两版同）---
+本卡 rc=0（零输出，被包裹命令没跑）
+开工SHA rc=0（同）
+
+--- F. POSIXLY_CORRECT：两版都崩，位置不同 ---
+scripts/lifespan_isolation_runtime_sha.sh: line 301: `    done < <({ /usr/bin/env -0 && builtin printf '%s\0' "$__W4_ENV_SENTINEL"; } 2>/dev/null)'
+本卡 rc=2
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-y7-w4-settle/de0fd916-73da-4177-84d4-4bc3f25bec36/scratchpad/preex/backend/scripts/lifespan_isolation_runtime_sha.sh: line 409: syntax error near unexpected token `('
+开工SHA rc=2
+
+--- G. BASHOPTS 实测未被导入（故只是顺手摘）---
+expand_aliases 	off

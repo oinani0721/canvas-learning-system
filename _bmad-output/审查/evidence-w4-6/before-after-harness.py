@@ -34,7 +34,7 @@ BACKEND = Path(__file__).resolve().parents[3] / "backend"
 PROBES = BACKEND / "scripts/lifespan_isolation_guard_probes.py"
 START_SHA = "39407e97"
 
-#: 本卡新增的 10 条 shell 探针（既有 6 条不在此列）。
+#: 本卡新增的 13 条 shell 探针（既有 6 条不在此列；合计 19 条）。
 #:
 #: ⚠️ 后四条在 before 侧翻红的**原因**与前六条不同，报告里必须分开说，不能笼统写成
 #:    「旧缺陷复现」（Codex round-1 MEDIUM-3）：
@@ -57,7 +57,10 @@ SHELL_PROBE_NAMES_NEW = [
     "shell-ticket-ok-but-exported-func-refused",
     "shell-forged-ticket-under-exit-trap",
     "shell-multiline-env-var-not-mistaken-for-func",
-    "shell-env-enum-failure-is-fail-closed",
+    "shell-env-enum-failure-is-fail-closed-pass1",
+    "shell-env-enum-failure-is-fail-closed-pass2",
+    "shell-shellopts-errexit-does-not-false-red",
+    "shell-probe-roster-matches-declared-count",
 ]
 
 #: before 侧翻红原因是「旧门真实缺陷显形」的那几条（其余是协议差异）。
