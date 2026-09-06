@@ -1,0 +1,702 @@
+{
+    "version": "1.1.411",
+    "time": "1788673727820",
+    "generalDiagnostics": [
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/api/v1/endpoints/review.py",
+            "severity": "error",
+            "message": "No parameter named \"model\"",
+            "range": {
+                "start": {
+                    "line": 183,
+                    "character": 16
+                },
+                "end": {
+                    "line": 183,
+                    "character": 21
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/api/v1/endpoints/review.py",
+            "severity": "error",
+            "message": "Import \"app.core.config\" could not be resolved",
+            "range": {
+                "start": {
+                    "line": 237,
+                    "character": 9
+                },
+                "end": {
+                    "line": 237,
+                    "character": 24
+                }
+            },
+            "rule": "reportMissingImports"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/api/v1/endpoints/review.py",
+            "severity": "error",
+            "message": "No parameter named \"model\"",
+            "range": {
+                "start": {
+                    "line": 407,
+                    "character": 12
+                },
+                "end": {
+                    "line": 407,
+                    "character": 17
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/api/v1/endpoints/review.py",
+            "severity": "error",
+            "message": "Argument missing for parameter \"weight_config\"",
+            "range": {
+                "start": {
+                    "line": 805,
+                    "character": 19
+                },
+                "end": {
+                    "line": 809,
+                    "character": 13
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/api/v1/endpoints/review.py",
+            "severity": "error",
+            "message": "Argument missing for parameter \"weight_config\"",
+            "range": {
+                "start": {
+                    "line": 814,
+                    "character": 15
+                },
+                "end": {
+                    "line": 818,
+                    "character": 9
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/api/v1/endpoints/review.py",
+            "severity": "error",
+            "message": "Argument missing for parameter \"weight_config\"",
+            "range": {
+                "start": {
+                    "line": 830,
+                    "character": 15
+                },
+                "end": {
+                    "line": 834,
+                    "character": 9
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/api/v1/endpoints/review.py",
+            "severity": "error",
+            "message": "Argument of type \"Unknown | None\" cannot be assigned to parameter \"key\" of type \"str\" in function \"__getitem__\"\n  Type \"Unknown | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 848,
+                    "character": 54
+                },
+                "end": {
+                    "line": 848,
+                    "character": 81
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/api/v1/endpoints/review.py",
+            "severity": "error",
+            "message": "Argument missing for parameter \"weight_config\"",
+            "range": {
+                "start": {
+                    "line": 856,
+                    "character": 19
+                },
+                "end": {
+                    "line": 862,
+                    "character": 13
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/api/v1/endpoints/review.py",
+            "severity": "error",
+            "message": "Argument missing for parameter \"weight_config\"",
+            "range": {
+                "start": {
+                    "line": 1002,
+                    "character": 15
+                },
+                "end": {
+                    "line": 1008,
+                    "character": 9
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/api/v1/endpoints/review.py",
+            "severity": "error",
+            "message": "Argument missing for parameter \"weight_config\"",
+            "range": {
+                "start": {
+                    "line": 1018,
+                    "character": 11
+                },
+                "end": {
+                    "line": 1024,
+                    "character": 5
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/api/v1/endpoints/review.py",
+            "severity": "error",
+            "message": "Arguments missing for parameters \"retrievability\", \"due\", \"last_review\"",
+            "range": {
+                "start": {
+                    "line": 1097,
+                    "character": 25
+                },
+                "end": {
+                    "line": 1103,
+                    "character": 13
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/api/v1/endpoints/review.py",
+            "severity": "error",
+            "message": "Arguments missing for parameters \"fsrs_state\", \"card_data\", \"card_state_persisted\", \"truth_source\", \"degraded_reason\"",
+            "range": {
+                "start": {
+                    "line": 1157,
+                    "character": 15
+                },
+                "end": {
+                    "line": 1161,
+                    "character": 9
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/api/v1/endpoints/review.py",
+            "severity": "error",
+            "message": "Arguments missing for parameters \"persisted\", \"truth_source\", \"degraded_reason\"",
+            "range": {
+                "start": {
+                    "line": 1429,
+                    "character": 19
+                },
+                "end": {
+                    "line": 1435,
+                    "character": 13
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/api/v1/endpoints/review.py",
+            "severity": "error",
+            "message": "Arguments missing for parameters \"persisted\", \"truth_source\", \"degraded_reason\"",
+            "range": {
+                "start": {
+                    "line": 1469,
+                    "character": 15
+                },
+                "end": {
+                    "line": 1475,
+                    "character": 9
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/api/v1/endpoints/review.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"to_dict\" for class \"Dict[str, Any]\"\n  Attribute \"to_dict\" is unknown",
+            "range": {
+                "start": {
+                    "line": 1528,
+                    "character": 33
+                },
+                "end": {
+                    "line": 1528,
+                    "character": 40
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/api/v1/endpoints/review.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"started_at\" for class \"Dict[str, Any]\"\n  Attribute \"started_at\" is unknown",
+            "range": {
+                "start": {
+                    "line": 1545,
+                    "character": 32
+                },
+                "end": {
+                    "line": 1545,
+                    "character": 42
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/api/v1/endpoints/review.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"updated_at\" for class \"Dict[str, Any]\"\n  Attribute \"updated_at\" is unknown",
+            "range": {
+                "start": {
+                    "line": 1546,
+                    "character": 32
+                },
+                "end": {
+                    "line": 1546,
+                    "character": 42
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/services/mastery_engine.py",
+            "severity": "error",
+            "message": "Import \"logging\" is not accessed",
+            "range": {
+                "start": {
+                    "line": 25,
+                    "character": 7
+                },
+                "end": {
+                    "line": 25,
+                    "character": 14
+                }
+            },
+            "rule": "reportUnusedImport"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/services/mastery_engine.py",
+            "severity": "error",
+            "message": "Import \"memory.temporal.fsrs_manager\" could not be resolved",
+            "range": {
+                "start": {
+                    "line": 54,
+                    "character": 9
+                },
+                "end": {
+                    "line": 54,
+                    "character": 37
+                }
+            },
+            "rule": "reportMissingImports"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/services/mastery_engine.py",
+            "severity": "error",
+            "message": "Argument of type \"None\" cannot be assigned to parameter \"default\" of type \"float\" in function \"_card_attr\"\n  \"None\" is not assignable to \"float\"",
+            "range": {
+                "start": {
+                    "line": 311,
+                    "character": 54
+                },
+                "end": {
+                    "line": 311,
+                    "character": 58
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/services/mastery_engine.py",
+            "severity": "error",
+            "message": "Argument of type \"None\" cannot be assigned to parameter \"default\" of type \"float\" in function \"_card_attr\"\n  \"None\" is not assignable to \"float\"",
+            "range": {
+                "start": {
+                    "line": 312,
+                    "character": 56
+                },
+                "end": {
+                    "line": 312,
+                    "character": 60
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/services/mastery_engine.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"value\" for class \"float\"\n  Attribute \"value\" is unknown",
+            "range": {
+                "start": {
+                    "line": 321,
+                    "character": 22
+                },
+                "end": {
+                    "line": 321,
+                    "character": 27
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/services/mastery_engine.py",
+            "severity": "error",
+            "message": "Argument of type \"None\" cannot be assigned to parameter \"default\" of type \"float\" in function \"_card_attr\"\n  \"None\" is not assignable to \"float\"",
+            "range": {
+                "start": {
+                    "line": 669,
+                    "character": 46
+                },
+                "end": {
+                    "line": 669,
+                    "character": 50
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/services/review_service.py",
+            "severity": "error",
+            "message": "Import \"logging\" is not accessed",
+            "range": {
+                "start": {
+                    "line": 63,
+                    "character": 7
+                },
+                "end": {
+                    "line": 63,
+                    "character": 14
+                }
+            },
+            "rule": "reportUnusedImport"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/services/review_service.py",
+            "severity": "error",
+            "message": "Import \"memory.temporal.fsrs_manager\" could not be resolved",
+            "range": {
+                "start": {
+                    "line": 89,
+                    "character": 9
+                },
+                "end": {
+                    "line": 89,
+                    "character": 37
+                }
+            },
+            "rule": "reportMissingImports"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/services/review_service.py",
+            "severity": "error",
+            "message": "Import \"CardState\" is not accessed",
+            "range": {
+                "start": {
+                    "line": 90,
+                    "character": 8
+                },
+                "end": {
+                    "line": 90,
+                    "character": 17
+                }
+            },
+            "rule": "reportUnusedImport"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/services/review_service.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"ReviewStatus\" is always an instance of \"ReviewStatus\"",
+            "range": {
+                "start": {
+                    "line": 294,
+                    "character": 15
+                },
+                "end": {
+                    "line": 294,
+                    "character": 52
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/services/review_service.py",
+            "severity": "error",
+            "message": "Argument of type \"str | object\" cannot be assigned to parameter \"value\" of type \"str\" in function \"__setitem__\"\n  Type \"str | object\" is not assignable to type \"str\"\n    \"object\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 517,
+                    "character": 24
+                },
+                "end": {
+                    "line": 517,
+                    "character": 53
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/services/review_service.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"get_canvas\" for class \"CanvasService\"\n  Attribute \"get_canvas\" is unknown",
+            "range": {
+                "start": {
+                    "line": 767,
+                    "character": 48
+                },
+                "end": {
+                    "line": 767,
+                    "character": 58
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/services/review_service.py",
+            "severity": "error",
+            "message": "Variable \"mastery_lookup\" is not accessed",
+            "range": {
+                "start": {
+                    "line": 779,
+                    "character": 8
+                },
+                "end": {
+                    "line": 779,
+                    "character": 22
+                }
+            },
+            "rule": "reportUnusedVariable"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/services/review_service.py",
+            "severity": "error",
+            "message": "Variable \"mastery_lookup\" is not accessed",
+            "range": {
+                "start": {
+                    "line": 807,
+                    "character": 12
+                },
+                "end": {
+                    "line": 807,
+                    "character": 26
+                }
+            },
+            "rule": "reportUnusedVariable"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/services/review_service.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"value\" for class \"int\"\n  Attribute \"value\" is unknown",
+            "range": {
+                "start": {
+                    "line": 1058,
+                    "character": 63
+                },
+                "end": {
+                    "line": 1058,
+                    "character": 68
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/services/review_service.py",
+            "severity": "error",
+            "message": "Argument of type \"Unknown | int | None\" cannot be assigned to parameter \"x\" of type \"ConvertibleToInt\" in function \"__new__\"\n  Type \"Unknown | int | None\" is not assignable to type \"ConvertibleToInt\"\n    Type \"None\" is not assignable to type \"ConvertibleToInt\"\n      \"None\" is not assignable to \"str\"\n      \"None\" is incompatible with protocol \"Buffer\"\n        \"__buffer__\" is not present\n      \"None\" is incompatible with protocol \"SupportsInt\"\n        \"__int__\" is not present\n      \"None\" is incompatible with protocol \"SupportsIndex\"\n  ...",
+            "range": {
+                "start": {
+                    "line": 1156,
+                    "character": 25
+                },
+                "end": {
+                    "line": 1156,
+                    "character": 31
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/services/review_service.py",
+            "severity": "error",
+            "message": "Argument of type \"Unknown | int | None\" cannot be assigned to parameter \"x\" of type \"ConvertibleToInt\" in function \"__new__\"\n  Type \"Unknown | int | None\" is not assignable to type \"ConvertibleToInt\"\n    Type \"None\" is not assignable to type \"ConvertibleToInt\"\n      \"None\" is not assignable to \"str\"\n      \"None\" is incompatible with protocol \"Buffer\"\n        \"__buffer__\" is not present\n      \"None\" is incompatible with protocol \"SupportsInt\"\n        \"__int__\" is not present\n      \"None\" is incompatible with protocol \"SupportsIndex\"",
+            "range": {
+                "start": {
+                    "line": 1156,
+                    "character": 25
+                },
+                "end": {
+                    "line": 1156,
+                    "character": 31
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/services/review_service.py",
+            "severity": "error",
+            "message": "Variable \"review_log\" is not accessed",
+            "range": {
+                "start": {
+                    "line": 1183,
+                    "character": 30
+                },
+                "end": {
+                    "line": 1183,
+                    "character": 40
+                }
+            },
+            "rule": "reportUnusedVariable"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/services/review_service.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"value\" for class \"int\"\n  Attribute \"value\" is unknown",
+            "range": {
+                "start": {
+                    "line": 1261,
+                    "character": 46
+                },
+                "end": {
+                    "line": 1261,
+                    "character": 51
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/services/review_service.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"str\" is always an instance of \"str\"",
+            "range": {
+                "start": {
+                    "line": 1478,
+                    "character": 23
+                },
+                "end": {
+                    "line": 1478,
+                    "character": 49
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/services/review_service.py",
+            "severity": "error",
+            "message": "Arguments missing for parameters \"canvas_path\", \"from_node_id\", \"to_node_id\"",
+            "range": {
+                "start": {
+                    "line": 1688,
+                    "character": 27
+                },
+                "end": {
+                    "line": 1694,
+                    "character": 13
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/services/review_service.py",
+            "severity": "error",
+            "message": "No parameter named \"canvas_name\"",
+            "range": {
+                "start": {
+                    "line": 1689,
+                    "character": 16
+                },
+                "end": {
+                    "line": 1689,
+                    "character": 27
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/services/review_service.py",
+            "severity": "error",
+            "message": "No parameter named \"from_node\"",
+            "range": {
+                "start": {
+                    "line": 1690,
+                    "character": 16
+                },
+                "end": {
+                    "line": 1690,
+                    "character": 25
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/services/review_service.py",
+            "severity": "error",
+            "message": "No parameter named \"to_node\"",
+            "range": {
+                "start": {
+                    "line": 1691,
+                    "character": 16
+                },
+                "end": {
+                    "line": 1691,
+                    "character": 23
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/services/review_service.py",
+            "severity": "error",
+            "message": "No parameter named \"label\"",
+            "range": {
+                "start": {
+                    "line": 1692,
+                    "character": 16
+                },
+                "end": {
+                    "line": 1692,
+                    "character": 21
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/services/review_service.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"value\" for class \"int\"\n  Attribute \"value\" is unknown",
+            "range": {
+                "start": {
+                    "line": 2405,
+                    "character": 42
+                },
+                "end": {
+                    "line": 2405,
+                    "character": 47
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        }
+    ],
+    "summary": {
+        "filesAnalyzed": 4,
+        "errorCount": 41,
+        "warningCount": 2,
+        "informationCount": 0,
+        "timeInSec": 1.216
+    }
+}
+

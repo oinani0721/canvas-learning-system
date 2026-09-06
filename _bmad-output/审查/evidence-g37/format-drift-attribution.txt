@@ -1,0 +1,13 @@
+格式漂移归属（内容口径，免疫行号漂移）
+判据: final 的 format-diff「想替换的行内容」多重集 − base 的同一集合 == 空 ⇒ 本卡零新增。
+依据: Codex r2 MEDIUM-3 —— 两边 rc 都为 1 只证明基线已失败；
+      git diff -U0 的「改动行」会把原样重发的行也算上，同样不可用。
+基线: git archive 7c9a6706 解出的独立树。
+
+✅ app/services/review_service.py: base 194 / final 183 / **本卡新增** 0
+✅ app/api/v1/endpoints/review.py: base 0 / final 0 / **本卡新增** 0
+✅ app/models/schemas.py: base 221 / final 221 / **本卡新增** 0
+✅ app/services/mastery_engine.py: base 63 / final 63 / **本卡新增** 0
+✅ tests/regression/test_g3_7_truth_source.py: base 0 / final 0 / **本卡新增** 0
+
+结论: ✅ 本卡零新增格式漂移
