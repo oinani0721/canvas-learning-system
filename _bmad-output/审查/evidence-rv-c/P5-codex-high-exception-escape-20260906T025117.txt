@@ -1,0 +1,26 @@
+=== RV-C probe: Codex p1 HIGH — exception escape leaves zero ledger ===
+loaded from lpg.py; BLOCKED_PORTS=[7687, 7691]; probe port=7687
+
+=== baseline: a plain live-port address must be blocked AND billed ===
+plain ('127.0.0.1', LIVE)                      | RuntimeError (blocked+billed): live Neo4j port connect attempted: ('127... | Δtotal/blocked/records = (1, 1, 1)
+
+=== Codex HIGH path 1: __index__ raises ValueError (extract_port only catches TypeError) ===
+(host, IndexRaises())                          | ValueError ESCAPED: second evaluation explodes       | Δtotal/blocked/records = (0, 0, 0)
+(host, IndexRaisesRuntime())                   | RuntimeError (blocked+billed): second evaluation explodes... | Δtotal/blocked/records = (0, 0, 0)
+
+=== control: __index__ raises TypeError (the ONE caught type) ===
+(host, IndexTypeError())                       | RuntimeError (blocked+billed): live Neo4j port connect attempted: ('127... | Δtotal/blocked/records = (1, 1, 1)
+
+=== Codex HIGH path 2: tuple subclass whose __repr__ raises (STATE.record does repr first) ===
+ReprRaises(('127.0.0.1', LIVE))                | ValueError ESCAPED: repr explodes                    | Δtotal/blocked/records = (0, 0, 0)
+
+=== final ledger ===
+  STATE.total=2 blocked=2 advisory=0 records=2
+
+=== where exactly does record() do repr vs increment? ===
+Traceback (most recent call last):
+  File "/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-y8-w4-ast/88bcc634-61cb-4b2d-bc5a-447e9029aa03/scratchpad/probe_codex_high.py", line 94, in <module>
+    src = inspect.getsource(g.LivePortGuardState.record).splitlines()
+                            ^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'lpg_e06009bc' has no attribute 'LivePortGuardState'
+rc=1

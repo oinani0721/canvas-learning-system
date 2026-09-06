@@ -1,0 +1,21 @@
+=== J8 收工复核（closing re-verification）@ 2026-09-05T19:14:22Z ===
+开工 SHA: 03ac8bf8de4acd164d51c92db001ae42ada14a73
+当前 HEAD: 03ac8bf8de4acd164d51c92db001ae42ada14a73
+
+--- 两承重文件 blob 仍与 e06009bc 同哈希？（未分叉 + 未被本卡改动）---
+bc11f726731e7d223cb2d56e3191c315d695d476
+bc11f726731e7d223cb2d56e3191c315d695d476
+rc=0
+3bc0abece929a3cb38ee647f7c080bd529f551d5
+3bc0abece929a3cb38ee647f7c080bd529f551d5
+rc=0
+
+--- 零代码改动（禁 ':!'，用 ':(exclude)…'）---
+rc=0  (上面无输出 = 无代码改动)
+
+--- 工作树非文档路径必须干净 ---
+rc=0  (上面无输出 = 干净)
+
+--- 变异 harness 是否碰过被审文件？（跑完复核，与开工 J1 对撞）---
+开工 J1 记录的哈希: bc11f726731e7d223cb2d56e3191c315d695d476 / 3bc0abece929a3cb38ee647f7c080bd529f551d5
+收工实测见上两组 rev-parse —— 逐字相同即 harness 零副作用

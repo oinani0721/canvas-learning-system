@@ -1,0 +1,451 @@
+=== J3-run2: NEO4J_TEST_URI=bolt://localhost:0 (expect C0=84 errors, session-level fail-closed) ===
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y8-w4-ast/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 84 items
+
+tests/unit/test_live_port_guard_contract.py EEEEEEEEEEEEEEEEEEEEEEEEEEEE [ 33%]
+EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE                 [100%]
+
+==================================== ERRORS ====================================
+____________ ERROR at setup of TestExtractPort.test_ipv4_two_tuple _____________
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+____________ ERROR at setup of TestExtractPort.test_ipv6_four_tuple ____________
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+______ ERROR at setup of TestExtractPort.test_index_protocol_port_object _______
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+__________ ERROR at setup of TestExtractPort.test_bool_is_index_able ___________
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+______ ERROR at setup of TestExtractPort.test_str_port_is_not_index_able _______
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+____________ ERROR at setup of TestExtractPort.test_af_unix_address ____________
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_______________ ERROR at setup of TestExtractPort.test_non_tuple _______________
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestTargetScopePrecheck.test_canonical_ports_match_driver_not_string_scan[bolt://127.0.0.1:7691-ports0] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestTargetScopePrecheck.test_canonical_ports_match_driver_not_string_scan[bolt://127.0.0.1:7687-ports1] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestTargetScopePrecheck.test_canonical_ports_match_driver_not_string_scan[bolt://127.0.0.1:11434#tag:7687-ports2] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestTargetScopePrecheck.test_canonical_ports_match_driver_not_string_scan[bolt://127.0.0.1:7692?x=:7691-ports3] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+__ ERROR at setup of TestTargetScopePrecheck.test_target_in_scope_is_accepted __
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestTargetScopePrecheck.test_target_out_of_scope_is_refused[bolt://127.0.0.1:11434#tag:7687] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestTargetScopePrecheck.test_target_out_of_scope_is_refused[bolt://127.0.0.1:7692?x=:7691] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestTargetScopePrecheck.test_target_out_of_scope_is_refused[bolt://127.0.0.1:7692] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestTargetScopePrecheck.test_unparseable_target_is_fail_closed _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestBlockedPortsContract.test_live_ports_blocked_test_container_not _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestBlockedPortsContract.test_test_uri_pointing_at_live_port_is_an_error _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestBlockedPortsContract.test_test_uri_on_container_port_is_fine _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestBlockedPortsContract.test_test_uri_unset_is_not_our_business _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_uri_canonicalizing_to_live_port_is_rejected[bolt://127.0.0.1:0] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_uri_canonicalizing_to_live_port_is_rejected[bolt://127.0.0.1:00] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_uri_canonicalizing_to_live_port_is_rejected[bolt://[::1]:0] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_uri_canonicalizing_to_live_port_is_rejected[bolt://127.0.0.1] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_uri_canonicalizing_to_live_port_is_rejected[neo4j://host] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_canonical_port_helper_agrees_with_driver[bolt://127.0.0.1:0] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_canonical_port_helper_agrees_with_driver[bolt://127.0.0.1:00] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_canonical_port_helper_agrees_with_driver[bolt://[::1]:0] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_canonical_port_helper_agrees_with_driver[bolt://127.0.0.1] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_canonical_port_helper_agrees_with_driver[neo4j://host] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_container_port_canonicalizes_to_itself _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_userinfo_uri_is_fail_closed _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_garbage_uri_is_fail_closed _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_unsupported_scheme_is_fail_closed[ftp://127.0.0.1:7692] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_unsupported_scheme_is_fail_closed[http://127.0.0.1:7692] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_unsupported_scheme_is_fail_closed[https://127.0.0.1:7692] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_unsupported_scheme_is_fail_closed[bolt+routing://127.0.0.1:7692] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_unsupported_scheme_is_fail_closed[127.0.0.1:7692] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_supported_schemes_come_from_the_driver_itself _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_routing_uri_multi_address_is_rejected[neo4j://127.0.0.1 :7692-expected_ports0] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_routing_uri_multi_address_is_rejected[neo4j+s://127.0.0.1 :7692-expected_ports1] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_routing_uri_multi_address_is_rejected[neo4j+ssc://127.0.0.1 :7692-expected_ports2] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_routing_uri_multi_address_is_rejected[neo4j://[::1]:7691 [::1]:7692-expected_ports3] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_routing_uri_multi_address_is_rejected[neo4j://ok.example:7692 evil.example:7691-expected_ports4] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_routing_uri_with_all_container_addresses_is_accepted _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_allowed_ports_whitelist_is_load_bearing _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_legitimate_container_uri_is_not_rejected[bolt://127.0.0.1:7692] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_legitimate_container_uri_is_not_rejected[bolt+s://127.0.0.1:7692] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_legitimate_container_uri_is_not_rejected[bolt+ssc://127.0.0.1:7692] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_legitimate_container_uri_is_not_rejected[neo4j://127.0.0.1:7692] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_legitimate_container_uri_is_not_rejected[neo4j+s://127.0.0.1:7692] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_legitimate_container_uri_is_not_rejected[neo4j+ssc://127.0.0.1:7692] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_legitimate_container_uri_is_not_rejected[bolt://localhost:7692] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_legitimate_container_uri_is_not_rejected[bolt://[::1]:7692] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_legitimate_container_uri_is_not_rejected[BOLT://127.0.0.1:7692] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_legitimate_container_uri_is_not_rejected[bolt://127.0.0.1:7692/] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_legitimate_container_uri_is_not_rejected[neo4j://127.0.0.1:7692?routing=false] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_legitimate_container_uri_is_not_rejected[bolt://127.0.0.1:7692/neo4j] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_legitimate_container_uri_is_not_rejected[bolt://host.docker.internal:7692] _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestDriverCanonicalPortContract.test_whitelist_does_not_admit_live_port_by_construction _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+___ ERROR at setup of TestPortTrustworthiness.test_exact_int_is_trustworthy ____
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestPortTrustworthiness.test_index_object_is_not_trustworthy _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+___ ERROR at setup of TestPortTrustworthiness.test_bool_is_not_an_exact_int ____
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestPortTrustworthiness.test_non_tuple_address_is_out_of_scope _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestPortTrustworthiness.test_tuple_subclass_lying_about_port_is_read_from_slots _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestPortTrustworthiness.test_tuple_subclass_overriding_len_is_read_from_slots _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestPortTrustworthiness.test_real_driver_address_is_not_falsely_blocked _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestPortTrustworthiness.test_real_driver_address_on_live_port_is_still_blocked _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestSelftestAddressClassification.test_genuine_selftest_address_is_classified _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestSelftestAddressClassification.test_tuple_subclass_disguise_is_not_selftest _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestSelftestAddressClassification.test_str_subclass_eq_disguise_is_not_selftest _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestSelftestAddressClassification.test_non_tuple_is_not_selftest _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestSelftestAddressClassification.test_audit_hook_does_not_block_plain_safe_address _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestSelftestAddressClassification.test_genuine_selftest_address_reaches_blocking_path _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_____________ ERROR at setup of TestExemption.test_marker_exempts ______________
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_____ ERROR at setup of TestExemption.test_no_exempt_mode_overrides_marker _____
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_ ERROR at setup of TestExemption.test_absolute_path_containing_integration_is_not_exempt _
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+________ ERROR at setup of TestGuardLiveness.test_audit_hook_round_trip ________
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+______ ERROR at setup of TestGuardLiveness.test_assert_guard_live_passes _______
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+________ ERROR at setup of TestGuardLiveness.test_belt_identity_matches ________
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+_________ ERROR at setup of TestGuardLiveness.test_uvloop_is_poisoned __________
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+___ ERROR at setup of TestGuardLiveness.test_uvloop_key_removal_is_detected ____
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+__ ERROR at setup of TestGuardLiveness.test_uvloop_import_is_blocked_by_audit __
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+____________ ERROR at setup of TestGuardLiveness.test_ledger_shape _____________
+tests/conftest.py:106: in _neo4j_live_port_guard
+tests/support/live_port_guard.py:912: in assert_test_uri_not_blocked
+E   RuntimeError: NEO4J_TEST_URI='bolt://localhost:0' 按驱动口径的初始目标端口是 [7687]，其中 [7687] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='localhost:0' → Address.parse（direct scheme） → [IPv4Address(('localhost', 7687))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+=============================== warnings summary ===============================
+
+
+
+
+<frozen importlib._bootstrap>:491
+
+<frozen importlib._bootstrap>:491
+
+
+
+
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+ERROR tests/unit/test_live_port_guard_contract.py::TestExtractPort::test_ipv4_two_tuple
+ERROR tests/unit/test_live_port_guard_contract.py::TestExtractPort::test_ipv6_four_tuple
+ERROR tests/unit/test_live_port_guard_contract.py::TestExtractPort::test_index_protocol_port_object
+ERROR tests/unit/test_live_port_guard_contract.py::TestExtractPort::test_bool_is_index_able
+ERROR tests/unit/test_live_port_guard_contract.py::TestExtractPort::test_str_port_is_not_index_able
+ERROR tests/unit/test_live_port_guard_contract.py::TestExtractPort::test_af_unix_address
+ERROR tests/unit/test_live_port_guard_contract.py::TestExtractPort::test_non_tuple
+ERROR tests/unit/test_live_port_guard_contract.py::TestTargetScopePrecheck::test_canonical_ports_match_driver_not_string_scan[bolt://127.0.0.1:7691-ports0]
+ERROR tests/unit/test_live_port_guard_contract.py::TestTargetScopePrecheck::test_canonical_ports_match_driver_not_string_scan[bolt://127.0.0.1:7687-ports1]
+ERROR tests/unit/test_live_port_guard_contract.py::TestTargetScopePrecheck::test_canonical_ports_match_driver_not_string_scan[bolt://127.0.0.1:11434#tag:7687-ports2]
+ERROR tests/unit/test_live_port_guard_contract.py::TestTargetScopePrecheck::test_canonical_ports_match_driver_not_string_scan[bolt://127.0.0.1:7692?x=:7691-ports3]
+ERROR tests/unit/test_live_port_guard_contract.py::TestTargetScopePrecheck::test_target_in_scope_is_accepted
+ERROR tests/unit/test_live_port_guard_contract.py::TestTargetScopePrecheck::test_target_out_of_scope_is_refused[bolt://127.0.0.1:11434#tag:7687]
+ERROR tests/unit/test_live_port_guard_contract.py::TestTargetScopePrecheck::test_target_out_of_scope_is_refused[bolt://127.0.0.1:7692?x=:7691]
+ERROR tests/unit/test_live_port_guard_contract.py::TestTargetScopePrecheck::test_target_out_of_scope_is_refused[bolt://127.0.0.1:7692]
+ERROR tests/unit/test_live_port_guard_contract.py::TestTargetScopePrecheck::test_unparseable_target_is_fail_closed
+ERROR tests/unit/test_live_port_guard_contract.py::TestBlockedPortsContract::test_live_ports_blocked_test_container_not
+ERROR tests/unit/test_live_port_guard_contract.py::TestBlockedPortsContract::test_test_uri_pointing_at_live_port_is_an_error
+ERROR tests/unit/test_live_port_guard_contract.py::TestBlockedPortsContract::test_test_uri_on_container_port_is_fine
+ERROR tests/unit/test_live_port_guard_contract.py::TestBlockedPortsContract::test_test_uri_unset_is_not_our_business
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_uri_canonicalizing_to_live_port_is_rejected[bolt://127.0.0.1:0]
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_uri_canonicalizing_to_live_port_is_rejected[bolt://127.0.0.1:00]
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_uri_canonicalizing_to_live_port_is_rejected[bolt://[::1]:0]
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_uri_canonicalizing_to_live_port_is_rejected[bolt://127.0.0.1]
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_uri_canonicalizing_to_live_port_is_rejected[neo4j://host]
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_canonical_port_helper_agrees_with_driver[bolt://127.0.0.1:0]
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_canonical_port_helper_agrees_with_driver[bolt://127.0.0.1:00]
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_canonical_port_helper_agrees_with_driver[bolt://[::1]:0]
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_canonical_port_helper_agrees_with_driver[bolt://127.0.0.1]
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_canonical_port_helper_agrees_with_driver[neo4j://host]
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_container_port_canonicalizes_to_itself
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_userinfo_uri_is_fail_closed
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_garbage_uri_is_fail_closed
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_unsupported_scheme_is_fail_closed[ftp://127.0.0.1:7692]
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_unsupported_scheme_is_fail_closed[http://127.0.0.1:7692]
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_unsupported_scheme_is_fail_closed[https://127.0.0.1:7692]
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_unsupported_scheme_is_fail_closed[bolt+routing://127.0.0.1:7692]
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_unsupported_scheme_is_fail_closed[127.0.0.1:7692]
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_supported_schemes_come_from_the_driver_itself
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_routing_uri_multi_address_is_rejected[neo4j://127.0.0.1 :7692-expected_ports0]
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_routing_uri_multi_address_is_rejected[neo4j+s://127.0.0.1 :7692-expected_ports1]
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_routing_uri_multi_address_is_rejected[neo4j+ssc://127.0.0.1 :7692-expected_ports2]
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_routing_uri_multi_address_is_rejected[neo4j://[::1]:7691 [::1]:7692-expected_ports3]
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_routing_uri_multi_address_is_rejected[neo4j://ok.example:7692 evil.example:7691-expected_ports4]
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_routing_uri_with_all_container_addresses_is_accepted
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_allowed_ports_whitelist_is_load_bearing
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_legitimate_container_uri_is_not_rejected[bolt://127.0.0.1:7692]
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_legitimate_container_uri_is_not_rejected[bolt+s://127.0.0.1:7692]
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_legitimate_container_uri_is_not_rejected[bolt+ssc://127.0.0.1:7692]
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_legitimate_container_uri_is_not_rejected[neo4j://127.0.0.1:7692]
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_legitimate_container_uri_is_not_rejected[neo4j+s://127.0.0.1:7692]
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_legitimate_container_uri_is_not_rejected[neo4j+ssc://127.0.0.1:7692]
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_legitimate_container_uri_is_not_rejected[bolt://localhost:7692]
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_legitimate_container_uri_is_not_rejected[bolt://[::1]:7692]
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_legitimate_container_uri_is_not_rejected[BOLT://127.0.0.1:7692]
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_legitimate_container_uri_is_not_rejected[bolt://127.0.0.1:7692/]
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_legitimate_container_uri_is_not_rejected[neo4j://127.0.0.1:7692?routing=false]
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_legitimate_container_uri_is_not_rejected[bolt://127.0.0.1:7692/neo4j]
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_legitimate_container_uri_is_not_rejected[bolt://host.docker.internal:7692]
+ERROR tests/unit/test_live_port_guard_contract.py::TestDriverCanonicalPortContract::test_whitelist_does_not_admit_live_port_by_construction
+ERROR tests/unit/test_live_port_guard_contract.py::TestPortTrustworthiness::test_exact_int_is_trustworthy
+ERROR tests/unit/test_live_port_guard_contract.py::TestPortTrustworthiness::test_index_object_is_not_trustworthy
+ERROR tests/unit/test_live_port_guard_contract.py::TestPortTrustworthiness::test_bool_is_not_an_exact_int
+ERROR tests/unit/test_live_port_guard_contract.py::TestPortTrustworthiness::test_non_tuple_address_is_out_of_scope
+ERROR tests/unit/test_live_port_guard_contract.py::TestPortTrustworthiness::test_tuple_subclass_lying_about_port_is_read_from_slots
+ERROR tests/unit/test_live_port_guard_contract.py::TestPortTrustworthiness::test_tuple_subclass_overriding_len_is_read_from_slots
+ERROR tests/unit/test_live_port_guard_contract.py::TestPortTrustworthiness::test_real_driver_address_is_not_falsely_blocked
+ERROR tests/unit/test_live_port_guard_contract.py::TestPortTrustworthiness::test_real_driver_address_on_live_port_is_still_blocked
+ERROR tests/unit/test_live_port_guard_contract.py::TestSelftestAddressClassification::test_genuine_selftest_address_is_classified
+ERROR tests/unit/test_live_port_guard_contract.py::TestSelftestAddressClassification::test_tuple_subclass_disguise_is_not_selftest
+ERROR tests/unit/test_live_port_guard_contract.py::TestSelftestAddressClassification::test_str_subclass_eq_disguise_is_not_selftest
+ERROR tests/unit/test_live_port_guard_contract.py::TestSelftestAddressClassification::test_non_tuple_is_not_selftest
+ERROR tests/unit/test_live_port_guard_contract.py::TestSelftestAddressClassification::test_audit_hook_does_not_block_plain_safe_address
+ERROR tests/unit/test_live_port_guard_contract.py::TestSelftestAddressClassification::test_genuine_selftest_address_reaches_blocking_path
+ERROR tests/unit/test_live_port_guard_contract.py::TestExemption::test_marker_exempts
+ERROR tests/unit/test_live_port_guard_contract.py::TestExemption::test_no_exempt_mode_overrides_marker
+ERROR tests/unit/test_live_port_guard_contract.py::TestExemption::test_absolute_path_containing_integration_is_not_exempt
+ERROR tests/unit/test_live_port_guard_contract.py::TestGuardLiveness::test_audit_hook_round_trip
+ERROR tests/unit/test_live_port_guard_contract.py::TestGuardLiveness::test_assert_guard_live_passes
+ERROR tests/unit/test_live_port_guard_contract.py::TestGuardLiveness::test_belt_identity_matches
+ERROR tests/unit/test_live_port_guard_contract.py::TestGuardLiveness::test_uvloop_is_poisoned
+ERROR tests/unit/test_live_port_guard_contract.py::TestGuardLiveness::test_uvloop_key_removal_is_detected
+ERROR tests/unit/test_live_port_guard_contract.py::TestGuardLiveness::test_uvloop_import_is_blocked_by_audit
+ERROR tests/unit/test_live_port_guard_contract.py::TestGuardLiveness::test_ledger_shape
+======================= 10 warnings, 84 errors in 1.13s ========================
+rc=

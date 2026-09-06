@@ -1,0 +1,17 @@
+=== RV-C probe: neo4j lazy-import window ===
+=== before import neo4j ===
+  neo4j in sys.modules: False
+  connects so far: 0
+
+=== after `from neo4j import Address` + `from neo4j import api` ===
+  socket.connect / getaddrinfo events during import: 0
+  subprocess/exec events during import: 0
+  Address: <class 'neo4j._addressing.Address'>
+  neo4j version: 6.1.0
+
+=== does Address.parse() itself resolve/connect? ===
+  Address.parse('127.0.0.1:7692') = IPv4Address(('127.0.0.1', 7692)) type= IPv4Address
+  is tuple subclass: True | exact tuple: False
+  tuple.__getitem__(a, 1) = 7692 type= int
+  new connect/getaddrinfo events from parse: 0
+rc=0

@@ -1,0 +1,15 @@
+=== RV-C probe: sentinel resolvability dependency ===
+hypothetical sentinel                  | event fires? | classified selftest? | failure before event
+------------------------------------------------------------------------------------------------------------
+current (NUL prefix)                   | False        | None                 | TypeError: host name must not contain null character
+NUL-free, unresolvable                 | False        | None                 | gaierror: [Errno 8] nodename nor servname provided, or not known
+NUL-free, RESOLVABLE (localhost)       | True         | True                 | 
+NUL-free, RESOLVABLE (literal IP)      | True         | True                 | 
+
+=== interpretation (derived from the table, not pre-written) ===
+The no-accounting branch is reachable by a REAL connect only if the sentinel
+string is one that CPython will accept AND resolve. NUL guarantees rejection
+structurally (before resolution, environment-independent). An unresolvable
+plain name only fails because DNS says so -- that is an ENVIRONMENT-dependent
+guarantee (/etc/hosts entry or wildcard DNS would restore reachability).
+rc=0

@@ -1,0 +1,13 @@
+=== RV-C probe: AF_INET6 / AF_UNIX family enumeration ===
+=== AF_INET6: 4-tuple with NUL host ===
+INET6 sentinel  : TypeError (audit fired first? False) -> host name must not contain null character
+INET6 normal    : audit FIRED FIRST -> ('tuple', "('::1', 65000, 0, 0)")
+
+=== AF_UNIX: address is str/bytes, not tuple ===
+UNIX  sentinel  : audit FIRED FIRST -> ('str', "'\\x00w4-live-port-guard-selftest'")
+
+=== guard readers on an AF_UNIX-style (non-tuple) address ===
+  AF_UNIX str path       extract_port=None   trustworthy=True  -> hook blocks? False
+  bytes path             extract_port=None   trustworthy=True  -> hook blocks? False
+  IPv6 4-tuple to 7691   extract_port=7691   trustworthy=True  -> hook blocks? True
+rc=0

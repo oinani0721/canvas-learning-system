@@ -1,0 +1,29 @@
+=== RV-C P5 (rerun): Codex p1 HIGH — exception escape leaves zero ledger ===
+# rerun reason: first run ended rc=1 (probe used a wrong class name, LivePortGuardState;
+#                the real name is _GuardState at live_port_guard.py:211).
+loaded from lpg.py; BLOCKED_PORTS=[7687, 7691]; probe port=7687
+
+=== baseline: a plain live-port address must be blocked AND billed ===
+plain ('127.0.0.1', LIVE)                      | RuntimeError (blocked+billed): live Neo4j port connect attempted: ('127... | Δtotal/blocked/records = (1, 1, 1)
+
+=== Codex HIGH path 1: __index__ raises ValueError (extract_port only catches TypeError) ===
+(host, IndexRaises())                          | ValueError ESCAPED: second evaluation explodes       | Δtotal/blocked/records = (0, 0, 0)
+(host, IndexRaisesRuntime())                   | RuntimeError (blocked+billed): second evaluation explodes... | Δtotal/blocked/records = (0, 0, 0)
+
+=== control: __index__ raises TypeError (the ONE caught type) ===
+(host, IndexTypeError())                       | RuntimeError (blocked+billed): live Neo4j port connect attempted: ('127... | Δtotal/blocked/records = (1, 1, 1)
+
+=== Codex HIGH path 2: tuple subclass whose __repr__ raises (STATE.record does repr first) ===
+ReprRaises(('127.0.0.1', LIVE))                | ValueError ESCAPED: repr explodes                    | Δtotal/blocked/records = (0, 0, 0)
+
+=== final ledger ===
+  STATE.total=2 blocked=2 advisory=0 records=2
+
+=== control: tuple shorter than 2 slots (the diff-set row I originally missed) ===
+('127.0.0.1',) - single slot                   | returned None (ALLOWED)                              | Δtotal/blocked/records = (0, 0, 0)
+
+=== where exactly does record() do repr vs increment? ===
+   record()+ 5:         with self._lock:
+   record()+12:                 "address": repr(address),
+   record()+17:             self.total += 1
+rc=0

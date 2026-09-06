@@ -1,0 +1,57 @@
+=== J4 module-level neo4j import count ===
+module-level import/from lines mentioning neo4j = 0
+--- all module-level imports (full list, for audit) ---
+92:from __future__ import annotations
+94:import asyncio
+95:import atexit
+96:import contextvars
+97:import json
+98:import operator
+99:import os
+100:import socket as _socket_mod
+101:import sys
+102:import threading
+103:import warnings
+--- any neo4j mention anywhere (line numbers) ---
+79:  ``NEO4J_URI`` 指向受拦端口的原因（见 :func:`assert_neo4j_target_blocked`）。
+86:  本门看不见。当前 neo4j 驱动走的是 CPython socket，故按「防手滑」的威胁模型
+109:#: 现网 Neo4j 的 bolt 端口。7691 = docker-compose 的 canvas-learning-system-neo4j
+111:#: 也是 neo4j 官方默认端口——CI 没有 .env，任何遗漏隔离的测试会打到它。
+147:#: neo4j 驱动对「没写端口 / 端口为 0」时使用的默认端口。
+148:#: 来源不是文档而是实现：``neo4j/_sync/driver.py::_Direct._default_port``，
+150:#: ``neo4j/_addressing.py`` 里 ``port = port or default_port or 0`` ——
+157:EXEMPT_MARKERS = frozenset({"integration", "e2e", "real_neo4j"})
+344:    ``('::1', 7691, 0, 0)`` —— 2026-09-01 实测 neo4j 驱动走的正是 IPv6 四元组，
+362:    neo4j 驱动自己的地址类 ``neo4j._addressing.Address``（``IPv4Address`` /
+406:    ⚠️ 本卡第一版写成「tuple 子类一律不可信」，**误拦真流量**：neo4j 驱动的
+429:        f"NEO4J_TEST_URI(7692) 并打 integration/real_neo4j marker。"
+604:        assert_neo4j_target_blocked()
+731:    """按 **neo4j 驱动自己的解析链**复算这个 URI 的**全部初始目标端口**。
+735:    ⚠️ 返回的是**元组**而不是单值：routing scheme（``neo4j://``）的 netloc 会被
+738:    只看第一个就会漏掉 ``neo4j://ok:7692 evil:7691`` 这类写法。
+747:    1. ``neo4j/_api.py::parse_neo4j_uri`` → ``urlparse(uri)``；
+750:    2. 同处校验 scheme 白名单（bolt / bolt+s / bolt+ssc / neo4j / neo4j+s / neo4j+ssc），
+767:    （``tests/conftest.py:106``）里跑的 —— 那时 neo4j 早已可 import。
+775:        from neo4j import Address
+776:        from neo4j import api as neo4j_api
+778:        return None, f"neo4j.Address / neo4j.api 不可用（{exc!r}）—— 无法按驱动口径复算，拒绝推断"
+785:            return None, "URI 含 userinfo —— 驱动的 parse_neo4j_uri 会直接 ConfigurationError"
+790:    # ⚠️ ``bolt+routing`` 刻意**不在**集合里：驱动对它抛「已改名，请用 neo4j://」。
+798:            neo4j_api.URI_SCHEME_BOLT,
+799:            neo4j_api.URI_SCHEME_BOLT_SELF_SIGNED_CERTIFICATE,
+800:            neo4j_api.URI_SCHEME_BOLT_SECURE,
+801:            neo4j_api.URI_SCHEME_NEO4J,
+802:            neo4j_api.URI_SCHEME_NEO4J_SELF_SIGNED_CERTIFICATE,
+803:            neo4j_api.URI_SCHEME_NEO4J_SECURE,
+810:            f"—— 驱动的 parse_neo4j_uri 会 ConfigurationError"
+815:    #    而驱动对 ``neo4j[+s|+ssc]`` 走的是 ``_Routing._parse_targets`` →
+817:    #    （``_addressing.py`` 的 ``parse_list``）。两条实测反例（本机 neo4j 6.1.0）：
+818:    #      * ``neo4j://127.0.0.1 :7692``      单值解析给 7692（放行），
+820:    #      * ``neo4j://[::1]:7691 [::1]:7692`` 同理，驱动实际连 **7691**。
+821:    #    反方向也误拒：``neo4j://127.0.0.1:7692 localhost:7692`` 单值解析失败被拒，
+825:            neo4j_api.URI_SCHEME_NEO4J,
+826:            neo4j_api.URI_SCHEME_NEO4J_SELF_SIGNED_CERTIFICATE,
+827:            neo4j_api.URI_SCHEME_NEO4J_SECURE,
+909:    #    的 netloc 会被拆成多地址，`neo4j://ok:7692 evil:7691` 只看第一个就漏了。
+=== N0: def test_ count in contract ===
+N0 = 51

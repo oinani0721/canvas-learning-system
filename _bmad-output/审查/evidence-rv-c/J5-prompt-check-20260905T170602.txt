@@ -1,0 +1,24 @@
+=== J5 prompt size & forbidden wording ===
+      57 _bmad-output/审查/prompts/codex-prompt-CARD-RV-C-p1.md
+      54 _bmad-output/审查/prompts/codex-prompt-CARD-RV-C-p2.md
+     111 total
+--- forbidden words per prompt (each must be 0) ---
+### _bmad-output/审查/prompts/codex-prompt-CARD-RV-C-p1.md
+  构造       = 0
+  可复现      = 0
+  打穿       = 0
+  绕过       = 0
+### _bmad-output/审查/prompts/codex-prompt-CARD-RV-C-p2.md
+  构造       = 0
+  可复现      = 0
+  打穿       = 0
+  绕过       = 0
+--- declared read-surface line budget ---
+  P1 = 1093 (live_port_guard) + 111 (r2 archive) = 1204   <= 1500
+  P2 = 534 (contract) + 99 (probes diff) + 82 (r1 archive) = 715   <= 1500
+--- verify the pinned objects actually have those sizes ---
+  e06009bc:live_port_guard.py = 1093
+  65cfd8ff:r2.md              = 111
+  e06009bc:contract.py        = 534
+  004e08cc..e06009bc probes   = 99
+  65cfd8ff:r1.md              = 82
