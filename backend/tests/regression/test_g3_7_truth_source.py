@@ -160,7 +160,7 @@ def test_production_reader_reads_seeded_frontmatter(tmp_vault):
 # ══════════════════════════════════════════════════════════════════════════
 
 
-async def test_get_fsrs_state_frontmatter_wins_on_divergence(svc, tmp_vault):
+async def test_get_fsrs_state_frontmatter_wins_on_divergence(svc, tmp_vault, isolate_card_states):
     """T1 核心：frontmatter due=X、后端缓存 due=Y(≠X) → 返回 X 并标分歧。
 
     断言的是**字段值**，不是"字段非空"（卡文 (c)① 明令）。
@@ -171,6 +171,7 @@ async def test_get_fsrs_state_frontmatter_wins_on_divergence(svc, tmp_vault):
 
     expected = datetime(2026, 8, 11, 13, 56, 58, tzinfo=timezone.utc)
     assert backend_due != expected, "前提不成立：后端缓存 due 必须与 frontmatter 不同"
+    before_cache = svc._card_states[cid]
 
     result = await svc.get_fsrs_state(cid)
 
@@ -178,12 +179,27 @@ async def test_get_fsrs_state_frontmatter_wins_on_divergence(svc, tmp_vault):
     assert result["due"] == expected, "读侧未以 frontmatter 为准（T1 违规）——返回的是后端缓存的 due"
     assert result["truth_source"] == "frontmatter"
     assert result["degraded_reason"] == "truth_source_divergence"
+    # Codex r2：缓存命中链此前只锁了 due 与信号，没锁「有没有副作用」——
+    # 读一次不得改动投影缓存或落盘。
+    assert svc._card_states[cid] == before_cache, "缓存命中的读路径改动了 _card_states"
+    assert not isolate_card_states.exists(), "缓存命中的读路径写了 fsrs_card_states.json"
 
 
 async def test_get_fsrs_state_agreement_is_not_reported_as_divergence(svc, tmp_vault):
     """禁假降级：两侧一致时不得谎报分歧（degraded 信号必须可证伪）。"""
     cid = "g37-agree"
     backend_due = _seed_backend_card(svc, cid)
+    # Codex r2：若投影 due 恰好是整秒，删掉生产侧的 due 覆盖后本条仍会通过
+    # （两边字面相同）。强制投影带微秒，让「返回的是 frontmatter 那一份」
+    # 这个断言真正承重。
+    import json as _json
+
+    _card = _json.loads(svc._card_states[cid])
+    _card["due"] = backend_due.replace(microsecond=123456).isoformat()
+    svc._card_states[cid] = _json.dumps(_card)
+    backend_due = backend_due.replace(microsecond=123456)
+    assert backend_due.microsecond != 0, "前提不成立：投影 due 必须带微秒"
+
     agreed = backend_due.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     _seed_node(tmp_vault, cid, _NODE_MD.format(due=agreed))
 
@@ -341,6 +357,89 @@ async def test_unreadable_node_file_fails_closed(svc, tmp_vault, isolate_card_st
         assert result["due"] is None
     finally:
         path.chmod(0o644)
+
+
+async def test_unreadable_node_dir_fails_closed(svc, tmp_vault, isolate_card_states):
+    """Codex r2 HIGH 回归：**目录**不可读时同样 fail-closed。
+
+    与 test_unreadable_node_file_fails_closed 的区别是缺陷在**更早一层**：
+    `frontmatter_signals._node_md_path()` 用 `Path.exists()` 判存在，而
+    `Path.exists()` 自己吞掉 OSError 返回 False —— 于是「确实没有这个节点」
+    与「目录不可读所以看不见」在它的返回值里完全不可区分，两者都给 None。
+    实测（2026-09-06）：`节点/` chmod 000 后 Path.exists() 返 False 不抛异常，
+    门锁据此放行 = r1 HIGH-1 的同一缺陷在定位层复发。
+
+    ⚠️ Codex r2 把成因归给 reader 里的 `except OSError` 分支；实测那条分支
+    **根本没被触发**。本用例锁的是实测成因（定位返回 None）而非它的归因。
+    """
+    from app.services.review_service import _read_frontmatter_fsrs
+
+    cid = "g37-dir-blinded"
+    _seed_node(tmp_vault, cid, _NODE_MD.format(due=_FM_DUE))
+    nodes_dir = tmp_vault / "节点"
+
+    # 正控：目录可读时必须判为 governed（否则下面的对照没有意义）
+    assert _read_frontmatter_fsrs(cid)["governed"] is True
+
+    nodes_dir.chmod(0o000)
+    try:
+        try:
+            (nodes_dir / f"{cid}.md").read_text(encoding="utf-8")
+            pytest.skip("当前用户可无视目录 chmod 000，无法构造不可见目录")
+        except OSError:
+            pass
+
+        fm = _read_frontmatter_fsrs(cid)
+        assert fm["governed"] is True, "定位被蒙蔽时放行了投影写（r2 HIGH 复发）"
+        assert fm["reason"] == "node_lookup_unreadable", f"「看不见」被当成「确实没有」: {fm['reason']!r}"
+
+        before_mem = dict(svc._card_states)
+        result = await svc.get_fsrs_state(cid)
+        assert svc._card_states == before_mem
+        assert not isolate_card_states.exists()
+        assert result["truth_source"] == "frontmatter"
+        assert result["degraded_reason"] == "truth_source_unreadable"
+    finally:
+        nodes_dir.chmod(0o755)
+
+
+def test_unencodable_concept_id_is_absent_not_blinded(tmp_vault):
+    """编码上不可能对应文件名的 concept_id 必须判「确实没有」，不是「看不见」。
+
+    r2 整改新增的 `os.stat` 探针一度让 lone surrogate 的 UnicodeEncodeError
+    （ValueError 子类，**不是** OSError）逃出捕获，冒泡到 record_review_result
+    的宽 except，把整条 FSRS 路径降级成 ebbinghaus-fallback —— 实测打红既有
+    test_surrogate_key_does_not_poison_subsequent_saves 与
+    test_record_review_unicode_write_failure_stays_fsrs_and_honest。
+
+    语义裁定：这类 id 在编码上就存不出文件名，所以「没有」是正确结论；
+    判成「看不见」会让门锁永久拦死它们。同族问题见 CARD-D3 Codex HIGH-3。
+    """
+    from app.services.review_service import _node_lookup_is_blinded, _read_frontmatter_fsrs
+
+    cid = "g37-\ud800-surrogate"  # lone surrogate，UTF-8 编不出来
+
+    assert _node_lookup_is_blinded(cid) is False, "编码不可能的 id 被判成了「看不见」"
+
+    fm = _read_frontmatter_fsrs(cid)  # 必须不抛异常
+    assert fm["found"] is False
+    assert fm["governed"] is False, "编码不可能的 id 触发了门锁 fail-closed"
+    assert fm["reason"] == "no_node_file"
+
+
+def test_missing_node_is_still_reported_as_absent(tmp_vault):
+    """**正控**：目录可读时「确实没有这个节点」必须仍判 governed=False。
+
+    没有这条，上一条的 fail-closed 可能是把**所有**查不到都判成了「看不见」，
+    那样门锁会永久拦死一切新卡 —— 比原缺陷更糟。
+    """
+    from app.services.review_service import _read_frontmatter_fsrs
+
+    fm = _read_frontmatter_fsrs("g37-truly-absent")
+
+    assert fm["found"] is False
+    assert fm["governed"] is False, "可读目录下的「真没有」被误判成「看不见」"
+    assert fm["reason"] == "no_node_file"
 
 
 async def test_node_without_fsrs_due_is_treated_as_no_truth_source(svc, tmp_vault):

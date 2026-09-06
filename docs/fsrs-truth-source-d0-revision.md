@@ -56,18 +56,27 @@
 
 ### G3-7 裁定结果（2026-09-06，BATCH-2026-09-05-第十二批）
 
-裁定表全文（含逐条理由与消费方 census）：`_bmad-output/审查/evidence-g37/decision.md`。回归门：`backend/tests/regression/test_g3_7_truth_source.py`（12 用例）。
+裁定表全文（含逐条理由与消费方 census）：`_bmad-output/审查/evidence-g37/decision.md`。回归门：`backend/tests/regression/test_g3_7_truth_source.py`（**20 用例**，含 Codex 两轮复核抓到的 3 条 HIGH 的回归锁）。
 
 实测写路径为**四条**（§六原文列的三条 + 一条 backend/app 零调用方的死路径）：
 
 | # | 写点 | 裁定 | 落地 |
 |---|---|---|---|
 | ① | `review_service.py:1087`（`PUT /review/record`） | **改造** | 写点降格为投影缓存；API 加 `truth_source="projection-cache"`；分歧时 `degraded_reason` 追加 `truth_source_divergence`。**不覆盖** `next_review_date` —— T1 约束的是「读取当前态」，而该字段是本次评分算出的新排期，用 frontmatter 的旧值覆盖它是用 T1 的名义制造错误 |
-| ② | `review_service.py:2189`（`GET /fsrs-state` auto-create） | **保留 + 门锁边界** | 该 concept 有 frontmatter 真相源（`.md` 存在且 `fsrs_due` 非空）时一律不写盘、不推进 `_card_states`，`due` 以 frontmatter 为准。**未消除**：无真相源分支仍写盘（HTTP safe-method 违规被收窄未根治），彻底下线须与既有测试同批改 |
+| ② | `review_service.py:2189`（`GET /fsrs-state` auto-create） | **保留 + 门锁边界** | 该 concept 被判为「归 frontmatter 管」（`governed`：`.md` 有 `fsrs_due`，**或**文件/目录读不出来的 fail-closed 情形）时，本次调用不写盘、不推进 `_card_states`，`due` 以 frontmatter 为准。**两处未消除，措辞不得说成「一律」**（Codex r2 MEDIUM-2）：(a) 无真相源分支仍写盘（HTTP safe-method 违规被收窄未根治）；(b) 门锁判定在本次调用入口读一次，其后跨越 `await`，**若这期间 vault 侧刚写出 `fsrs_due`，本次仍会按旧判定推进投影**（TOCTOU 窗口，登记不修，理由见 decision.md） |
 | ③ | `mastery_engine.py:276 _fsrs_update`（MasteryStore／Neo4j） | **隔离** | 仅加注释标非真相源。改造须写 Neo4j 7691（G3-7 硬边界禁连）；下线会摘掉 5 处在线读方的掌握度信号。**隔离不等于无害**：收敛卡落地前该域 FSRS 仍独立推进 |
 | ④ | `review_service.py:2119 save_card_state` | **隔离** | `backend/app` 零调用方，但 `tests/unit/test_review_service_fsrs.py:619/:640` 与主 spec `openspec/specs/concept-identity/spec.md:14/:39` 仍引用其契约，删除会同时打红回归门与使主 spec 悬空。保留定义 + 标注，登记 G-PIPE 待退役。仓外调用不可证 |
 
-**落实 T1 的关键实现**：`review_service._read_frontmatter_fsrs()` 是 backend 侧 frontmatter FSRS 真相源的**唯一**读入口（本卡之前 `backend/app` 对它零读取，这正是双真相源的物理成因）。解析口径与既有两个生产 reader（`canvas-vault/.claude/scripts/fsrs_bridge.py:151` / `scripts/daily_review_pick.py:341`）逐字相同的纯 stdlib 正则，**不走 PyYAML**（会把未加引号的 `fsrs_due` 解析成 `datetime`，与整条投影链的 UTC-Z 字符串口径不同源）——满足 T3「禁第二套解析」的实质：单一语义，而非单一函数。
+**落实 T1 的关键实现**：`review_service._read_frontmatter_fsrs()` 是 backend 侧 frontmatter FSRS 真相源的**唯一**读入口（本卡之前 `backend/app` 对它零读取，这正是双真相源的物理成因）。
+
+解析口径要同时对齐**两件事**，缺一不可（Codex r1 HIGH-2 证伪了只对齐前者的初版）：
+
+1. **字段正则**与既有两个生产 reader（`canvas-vault/.claude/scripts/fsrs_bridge.py:151` / `scripts/daily_review_pick.py:341`）逐字相同的纯 stdlib 正则，**不走 PyYAML**（会把未加引号的 `fsrs_due` 解析成 `datetime`，与整条投影链的 UTC-Z 字符串口径不同源）；
+2. **输入面**必须是**已切出的 frontmatter 块**，而不是整份 `.md` —— 两个生产 reader 收到的参数就是切好的 `fm`。初版把同一个正则作用在整份文件上，结果正文里顶格写的 `fsrs_due:`（最典型的就是讲解该字段怎么写的文档节点）会被当成权威 due 且毫无提示。块切分复用 `daily_review_pick.py::scan_nodes` 的正则（BOM/CRLF 容忍；无 frontmatter 时取空串）。
+
+> ⚠️ **可复用的教训**：**口径 =（正则 + 输入面）**。「正则一字不差」听上去像铁证，但只证明了一半；下次再用「与生产同口径」作为论据时，必须把两半都验到。
+
+**「找不到」与「看不见」必须分开**（Codex r1 HIGH-1 + r2 HIGH）：`Path.exists()` 会**自己吞掉 OSError 返回 False**，所以「确实没有这个节点」与「目录/文件不可读所以看不见」在路径解析的返回值里不可区分。本实现对这两态分别给出 `no_node_file`（放行）与 `node_lookup_unreadable` / `node_file_unreadable`（**fail-closed，拦**）。原则：**内容未知 ≠ 没有内容**；在真相源判定这条路径上，「不知道」必须按最保守的一侧处理。
 
 **分歧比较归一到整秒**（`_whole_second_utc`）：frontmatter 按构造是整秒 UTC-Z（`fsrs_bridge` 的 `_whole_second()`），后端投影 due 带微秒；逐字节比较会让 `truth_source_divergence` **恒真**，那比没有信号更糟。
 

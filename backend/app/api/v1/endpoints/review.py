@@ -1155,6 +1155,14 @@ async def record_review_result(request: RecordReviewRequest) -> RecordReviewResp
             next_review_date=date.today() + timedelta(days=interval),
             new_interval=interval,
             algorithm="ebbinghaus-fallback",
+            # CARD-G3-7: 兜底分支没有 FSRS 卡状态, 也就谈不上"写在哪一层" ——
+            # 显式 None 而非依赖默认值, 让契约在调用点可见 (顺带消除 pyright
+            # 对 pydantic Field(None) 默认值的既有误报, 使本卡的诊断增量为 0)。
+            fsrs_state=None,
+            card_data=None,
+            card_state_persisted=None,
+            truth_source=None,
+            degraded_reason=None,
         )
 
 
@@ -1423,12 +1431,18 @@ async def get_fsrs_state(
 
         if not result or not result.get("found"):
             # No card exists for this concept - return empty state with reason
+            # CARD-G3-7: found=False 时未对真相源做过判定 (例如 fsrs_manager
+            # 未初始化会在读 frontmatter **之前**早退), 故三个信号显式 None,
+            # 不让默认值把"没判过"和"判过是空"混为一谈。
             return FSRSStateQueryResponse(
                 concept_id=concept_id,
                 fsrs_state=None,
                 card_state=None,
                 found=False,
                 reason=result.get("reason") if result else "unknown",
+                persisted=None,
+                truth_source=None,
+                degraded_reason=None,
             )
 
         # Build FSRSStateResponse with all fields including retrievability and due
@@ -1469,6 +1483,10 @@ async def get_fsrs_state(
             card_state=None,
             found=False,
             reason=f"error: {e}",
+            # CARD-G3-7: 异常路径同样未完成真相源判定, 显式 None
+            persisted=None,
+            truth_source=None,
+            degraded_reason=None,
         )
 
 

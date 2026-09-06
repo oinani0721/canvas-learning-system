@@ -166,6 +166,54 @@ def _whole_second_utc(value: Optional[datetime]) -> Optional[datetime]:
     return value.astimezone(timezone.utc).replace(microsecond=0)
 
 
+def _node_lookup_is_blinded(concept_id: str) -> bool:
+    """定位「找不到节点」这个结论是否**不可信**（Codex r2 HIGH 整改）。
+
+    `frontmatter_signals._node_md_path()` 用 `Path.exists()` 判存在, 而
+    `Path.exists()` **自己吞掉 OSError 返回 False** —— 于是「确实没有这个节点」
+    与「目录不可读所以看不见」在它的返回值里**完全不可区分**, 两者都给 None。
+    2026-09-06 实测: 把 `节点/` 目录 chmod 000 后 `Path.exists()` 返 False
+    (不抛异常), `_node_md_path` 返 None, 门锁据此放行 —— r1 HIGH-1 的同一
+    缺陷在更早一层复发。
+    ⚠️ Codex r2 把成因归给 `_read_frontmatter_fsrs` 里的 `except OSError` 分支;
+    实测那条分支**根本没被触发**。照该归因去改会修错地方, 缺陷原样留着。
+
+    这里用**不吞异常**的 `os.stat` 复核: 只有 FileNotFoundError / NotADirectory
+    才算「确实没有」; 其余 OSError (PermissionError 等) 说明我们**看不见**,
+    「没找到」这个结论不可信 ⇒ 调用方须 fail-closed。
+
+    目录约定与 base 解析逐字对齐 `frontmatter_signals.py:33-40`（同一来源,
+    该模块不在本卡地盘故只 import 不改; 默认值字面量在此重复一次是已知代价）。
+    """
+    import os
+
+    from app.config import settings as _settings
+    from app.services.frontmatter_signals import _NODE_DIR_PREFIXES
+
+    canvas_base = getattr(_settings, "CANVAS_BASE_PATH", None) or "/vaults/canvas-vault"
+    for prefix in _NODE_DIR_PREFIXES:
+        candidate = _Path(canvas_base) / prefix / f"{concept_id}.md"
+        try:
+            os.stat(candidate)
+        except (FileNotFoundError, NotADirectoryError):
+            continue  # 这一路确实没有, 继续看下一个 prefix
+        except ValueError:
+            # UnicodeEncodeError (lone surrogate concept_id) / 内嵌 NUL 等 ——
+            # 这个 id **在编码上就不可能**对应任何文件名, 所以"没有"是正确
+            # 结论, 不是"看不见"。判成被蒙蔽会让门锁把这类 id 永久拦死; 且
+            # 异常会冒泡到 record_review_result 的宽 except, 把整条 FSRS 路径
+            # 降级成 ebbinghaus-fallback —— 实测打红既有两条测试
+            # (test_surrogate_key_does_not_poison_subsequent_saves /
+            #  test_record_review_unicode_write_failure_stays_fsrs_and_honest)。
+            # 同族问题见 CARD-D3 Codex HIGH-3。
+            continue
+        except OSError:
+            return True  # 真 I/O 受阻 ⇒ 「找不到」不可信
+        else:
+            return False  # 竟然 stat 到了 (定位后被创建), 不算被蒙蔽
+    return False
+
+
 def _read_frontmatter_fsrs(concept_id: str) -> Dict[str, Any]:
     """读节点 frontmatter 的 FSRS 真相源 (只读, 永不写)。
 
@@ -216,9 +264,26 @@ def _read_frontmatter_fsrs(concept_id: str) -> Dict[str, Any]:
         return out
     try:
         path = _node_md_path(concept_id)
-    except (OSError, ValueError):
+    except ValueError:
+        # 编码上不可能对应文件名 (lone surrogate / 内嵌 NUL) ⇒ "确实没有"
+        # 是正确结论, 不走 fail-closed。见 _node_lookup_is_blinded 同款说明。
+        return out
+    except OSError:
+        # 防御性: 现行 _node_md_path 用 Path.exists() 不会抛到这里 (实测),
+        # 但真抛了属于"看不见" ⇒ fail-closed, 不能当成"没有这个节点"。
+        out["governed"] = True
+        out["reason"] = "node_lookup_unreadable"
         return out
     if path is None:
+        # Codex r2 HIGH: "没找到"可能是"看不见"。Path.exists() 吞 OSError,
+        # 两者在 _node_md_path 的返回值里不可区分 —— 必须独立复核一次。
+        if _node_lookup_is_blinded(concept_id):
+            out["governed"] = True
+            out["reason"] = "node_lookup_unreadable"
+            logger.warning(
+                "CARD-G3-7: 节点定位被阻断 (目录不可读), 按 fail-closed 处理: %s",
+                concept_id,
+            )
         return out
 
     out["found"] = True
@@ -248,14 +313,13 @@ def _read_frontmatter_fsrs(concept_id: str) -> Dict[str, Any]:
         out["reason"] = "malformed_fsrs_due"
         return out
     try:
-        out["due"] = datetime.strptime(raw, _FM_DUE_FORMAT).replace(
-            tzinfo=timezone.utc
-        )
+        out["due"] = datetime.strptime(raw, _FM_DUE_FORMAT).replace(tzinfo=timezone.utc)
         out["reason"] = None
     except ValueError:
         # 形态过门但日历非法 (如 2026-13-45T00:00:00Z)
         out["reason"] = "malformed_fsrs_due"
     return out
+
 
 # Story 34.8 AC3: Hard cap for show_all=True to prevent memory overflow
 MAX_HISTORY_RECORDS = 1000
@@ -1285,7 +1349,10 @@ class ReviewService:
                 fm_truth = _read_frontmatter_fsrs(concept_id) if concept_id else None
                 _g37_put_reason = None
                 if fm_truth and fm_truth["governed"]:
-                    if fm_truth["reason"] == "node_file_unreadable":
+                    if fm_truth["reason"] in (
+                        "node_file_unreadable",
+                        "node_lookup_unreadable",
+                    ):
                         _g37_put_reason = "truth_source_unreadable"
                     elif fm_truth["due"] is None:
                         _g37_put_reason = "truth_source_unparsable"
@@ -1294,19 +1361,21 @@ class ReviewService:
                         # due_date 为 None 时 _whole_second_utc 返 None ≠ 真相源
                         # 的 due ⇒ 同样判分歧 (初版在此处静默跳过)。
                         _g37_put_reason = "truth_source_divergence"
-                if _g37_put_reason is not None:
+                # 收窄条件写成 `fm_truth is not None and ...` 而不是只判
+                # _g37_put_reason —— 后者对类型检查器不可见 (reason 只在
+                # `if fm_truth` 内被赋值, 但那个不变式表达不出来), pyright
+                # 会在下面的下标访问报 reportOptionalSubscript。
+                # Codex r2 MEDIUM-3 的基线对照抓到的**唯一一条本卡真新增**。
+                if fm_truth is not None and _g37_put_reason is not None:
                     logger.warning(
-                        "CARD-G3-7 %s: concept=%s frontmatter_due=%s "
-                        "computed_due=%s — 本次结果只进投影缓存",
+                        "CARD-G3-7 %s: concept=%s frontmatter_due=%s computed_due=%s — 本次结果只进投影缓存",
                         _g37_put_reason,
                         concept_id,
                         fm_truth["fsrs_due"],
                         due_date.isoformat() if due_date else None,
                     )
                     degraded_reason = (
-                        _g37_put_reason
-                        if degraded_reason is None
-                        else f"{degraded_reason},{_g37_put_reason}"
+                        _g37_put_reason if degraded_reason is None else f"{degraded_reason},{_g37_put_reason}"
                     )
 
                 # Extract state value safely
@@ -1325,9 +1394,7 @@ class ReviewService:
                     "score": score,  # Preserve original score for logging
                     "next_review": due_date.isoformat()
                     if due_date
-                    else (
-                        datetime.now(timezone.utc) + timedelta(days=interval_days)
-                    ).isoformat(),
+                    else (datetime.now(timezone.utc) + timedelta(days=interval_days)).isoformat(),
                     "interval_days": interval_days,
                     "fsrs_state": {
                         "stability": float(getattr(updated_card, "stability", 0.0)),
@@ -2437,9 +2504,7 @@ class ReviewService:
                         fm_truth["fsrs_due"],
                     )
                 else:
-                    persisted = await self._save_card_states(
-                        pending=(concept_id, card_data)
-                    )
+                    persisted = await self._save_card_states(pending=(concept_id, card_data))
                     if not persisted:
                         logger.warning(
                             f"Auto-created FSRS card for {concept_id} NOT persisted "
@@ -2501,11 +2566,7 @@ class ReviewService:
                 result["reason"] = (
                     "truth_source_gate_no_projection_write"
                     if gate_blocked
-                    else (
-                        "auto_created_not_persisted"
-                        if auto_created
-                        else "cached_state_not_persisted"
-                    )
+                    else ("auto_created_not_persisted" if auto_created else "cached_state_not_persisted")
                 )
             # CARD-DEBT-8: 底层 py-fsrs 缺失时加性声明降级（真实库在位
             # 不加键, 响应逐键与此前相同）。retrievability/due 此时来自
@@ -2528,12 +2589,11 @@ class ReviewService:
                     result["due"] = None
                     _g37_reason = (
                         "truth_source_unreadable"
-                        if fm_truth["reason"] == "node_file_unreadable"
+                        if fm_truth["reason"] in ("node_file_unreadable", "node_lookup_unreadable")
                         else "truth_source_unparsable"
                     )
                     logger.warning(
-                        "CARD-G3-7 %s: concept=%s frontmatter fsrs_due=%r "
-                        "reason=%s, due 置空不猜测",
+                        "CARD-G3-7 %s: concept=%s frontmatter fsrs_due=%r reason=%s, due 置空不猜测",
                         _g37_reason,
                         concept_id,
                         fm_truth["fsrs_due"],
@@ -2555,9 +2615,7 @@ class ReviewService:
                     result["due"] = fm_truth["due"]
                 if _g37_reason is not None:
                     prev = result.get("degraded_reason")
-                    result["degraded_reason"] = (
-                        _g37_reason if prev is None else f"{prev},{_g37_reason}"
-                    )
+                    result["degraded_reason"] = _g37_reason if prev is None else f"{prev},{_g37_reason}"
             else:
                 # 无真相源 (节点 .md 不存在, 或存在但无 fsrs_due = 新卡语义,
                 # 对齐 scripts/daily_review_pick.py:435「无 fsrs_due 即真新卡」)。
