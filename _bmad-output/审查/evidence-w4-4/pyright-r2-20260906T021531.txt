@@ -1,0 +1,39 @@
+### pyright（r2 最终代码，模拟 lefthook staged 面）
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/scripts/lifespan_isolation_guard_probes.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/scripts/lifespan_isolation_guard_probes.py:531:43 - error: Argument of type "ModuleSpec | None" cannot be assigned to parameter "spec" of type "ModuleSpec" in function "module_from_spec"
+    Type "ModuleSpec | None" is not assignable to type "ModuleSpec"
+      "None" is not assignable to "ModuleSpec" (reportArgumentType)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/scripts/lifespan_isolation_guard_probes.py:532:10 - error: "loader" is not a known attribute of "None" (reportOptionalMemberAccess)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/scripts/lifespan_isolation_guard_probes.py:532:17 - error: "exec_module" is not a known attribute of "None" (reportOptionalMemberAccess)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/scripts/lifespan_isolation_guard_probes.py:616:43 - error: Argument of type "ModuleSpec | None" cannot be assigned to parameter "spec" of type "ModuleSpec" in function "module_from_spec"
+    Type "ModuleSpec | None" is not assignable to type "ModuleSpec"
+      "None" is not assignable to "ModuleSpec" (reportArgumentType)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/scripts/lifespan_isolation_guard_probes.py:617:10 - error: "loader" is not a known attribute of "None" (reportOptionalMemberAccess)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/scripts/lifespan_isolation_guard_probes.py:617:17 - error: "exec_module" is not a known attribute of "None" (reportOptionalMemberAccess)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/tests/conftest.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/tests/conftest.py:38:57 - error: Import "HealthCheck" is not accessed (reportUnusedImport)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/tests/conftest.py:54:5 - warning: Function "_configure_logging_for_tests" is not accessed (reportUnusedFunction)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/tests/conftest.py:67:5 - warning: Function "_reset_structlog_contextvars" is not accessed (reportUnusedFunction)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/tests/conftest.py:104:5 - warning: Function "_neo4j_live_port_guard" is not accessed (reportUnusedFunction)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/tests/support/guard_plugin.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/tests/support/guard_plugin.py:48:5 - warning: Function "_guard_plugin_session_asserts" is not accessed (reportUnusedFunction)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/tests/support/live_port_guard.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/tests/support/live_port_guard.py:728:12 - error: Object of type "None" cannot be called (reportOptionalCall)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/tests/support/live_port_guard.py:733:12 - error: Object of type "None" cannot be called (reportOptionalCall)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/tests/support/live_port_guard.py:788:11 - error: Cannot assign to attribute "_orig_connect" for class "_GuardState"
+    Expression of type "(self: socket, address: _Address, /) -> None" cannot be assigned to attribute "_orig_connect" of class "_GuardState"
+      "FunctionType" is not assignable to "None" (reportAttributeAccessIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/tests/support/live_port_guard.py:789:11 - error: Cannot assign to attribute "_orig_connect_ex" for class "_GuardState"
+    Expression of type "(self: socket, address: _Address, /) -> int" cannot be assigned to attribute "_orig_connect_ex" of class "_GuardState"
+      "FunctionType" is not assignable to "None" (reportAttributeAccessIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/tests/support/live_port_guard.py:790:40 - warning: Unnecessary "# type: ignore" comment (reportUnnecessaryTypeIgnoreComment)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/tests/support/live_port_guard.py:791:46 - warning: Unnecessary "# type: ignore" comment (reportUnnecessaryTypeIgnoreComment)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/tests/unit/test_live_port_guard_contract.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/tests/unit/test_live_port_guard_contract.py:532:17 - error: Argument of type "ModuleType | None" cannot be assigned to parameter "value" of type "ModuleType" in function "__setitem__"
+    Type "ModuleType | None" is not assignable to type "ModuleType"
+      "None" is not assignable to "ModuleType" (reportArgumentType)
+12 errors, 6 warnings, 0 informations
+pyright-rc=1
+
+### 求交：pyright 条目 18 条 ∩ 本卡新增行 = 0 条
+各文件新增行数: {'backend/scripts/lifespan_isolation_guard_probes.py': 264, 'backend/tests/conftest.py': 22, 'backend/tests/support/guard_plugin.py': 10, 'backend/tests/support/live_port_guard.py': 313, 'backend/tests/unit/test_live_port_guard_contract.py': 372}

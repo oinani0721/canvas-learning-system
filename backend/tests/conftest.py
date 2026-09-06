@@ -87,6 +87,17 @@ def pytest_configure(config):
     # 进程退出之前仍可能连库，先恢复 socket 会留下无账窗口（Codex round-2
     # HIGH 实测）。门随进程存活到退出——测试进程无需恢复现场。
     live_port_guard.install()
+    # ⛔ NEO4J_TEST_URI 白名单预检**必须在这里**，不能留在 session fixture（T-10，
+    #    CARD-W4-4）。session fixture 的 setup 跑在**首个用例的** runtest_protocol
+    #    之内，也就是 begin_item(exempt=…) 之后；首个被收集的用例若在
+    #    tests/integration / tests/e2e（自动豁免），预检整段（含它的延迟
+    #    `import neo4j`）就落在 advisory 窗口里 —— 那段时间到现网端口的连接只记不拦，
+    #    而那恰恰是「测试容器 URI 有没有指向现网库」还没被证明的时候。
+    #    2026-09-05 实测（_bmad-output/审查/evidence-w4-4 的 before-4）：
+    #    session fixture 执行时 _EXEMPT_CV 确实是 True，configure 期则是 False。
+    #    pytest_configure 期没有任何用例作用域，预检因此在 fail-closed 归属下跑。
+    #    （延迟 import neo4j 在 configure 期可用性已实测，见 canonical_target_ports。）
+    live_port_guard.assert_test_uri_not_blocked()
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -95,7 +106,9 @@ def _neo4j_live_port_guard(tmp_path_factory):
 
     - uvloop 复核：install() 已把 ``import uvloop`` 毒化成 ImportError，此处复核
       毒化在位（被绕过即 fail，拒绝静默失效）；
-    - NEO4J_TEST_URI 指向受拦端口 = 配置事故，直接 fail（拒绝静默改门）；
+    - ⚠️ NEO4J_TEST_URI 预检**已上移到 pytest_configure**（T-10，CARD-W4-4）——
+      留在这里会让它跑在首个用例的 ``begin_item(exempt=True)`` 作用域内。
+      这里不再重复调用：重复调用不会更安全，只会让人以为「预检在用例期也跑了」；
     - middleware 写 bug_log.jsonl 走的是 ``app.main`` 命名空间里的 ``bug_tracker``
       别名（main.py:57 import、:721 使用）。把**别名**换成写到 session tmp 的临时
       BugTracker 实例即可断掉这条真实写路径；不碰 ``app.core.bug_tracker`` 单例
@@ -103,7 +116,6 @@ def _neo4j_live_port_guard(tmp_path_factory):
       ``log_path`` 会把那个测试打红）。
     """
     live_port_guard.assert_guard_live("session fixture")
-    live_port_guard.assert_test_uri_not_blocked()
 
     import app.main as main_module
     from app.core.bug_tracker import BugTracker
@@ -191,8 +203,15 @@ def pytest_cmdline_main(config):
     ``:708`` 那两处当时改了，本处漏改）。``atexit`` 是 LIFO 意味着**后注册的先跑**
     —— 在 ``live_port_guard`` 被 import **之前**就注册的回调排在它**后面**，所以
     它不是「最后一道」。真正兜住那段窗口的不是执行次序，而是 ``_final_accounting``
-    进入时立刻置不可逆的 ``_FINALIZING``：此后 audit hook 一命中受拦端口就地
+    进入时立刻置不可逆的结算标志：此后 audit hook 一命中受拦端口就地
     ``os._exit(3)``，不依赖任何后续的结账机会。
+
+    ⛔ 再更正一次（CARD-W4-4，2026-09-05）：那个标志原来是模块级全局，audit hook
+    对它是**锁外读**、记账又在另一把锁里 —— 两者之间的夹缝能让一条 blocked 记录
+    既不进结算快照、又不触发迟到路径，于是「不依赖后续结账机会」这句在竞态下不成立
+    （实测复现见 ``_bmad-output/审查/evidence-w4-4``）。现在置标志与取快照在
+    ``_GuardState.finalize_and_snapshot()`` 的**同一次持锁**内完成，``record()`` 也在
+    同一把锁里判迟到，这句话才真正成立。
     """
     status = yield
     state = live_port_guard.STATE

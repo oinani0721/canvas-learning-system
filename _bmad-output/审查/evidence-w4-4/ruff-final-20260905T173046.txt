@@ -1,0 +1,18 @@
+### ruff format（落盘）
+2 files reformatted, 3 files left unchanged
+format-rc=0
+
+### 复核 ruff format --check
+5 files already formatted
+format-check-rc=0
+
+### ruff check
+All checks passed!
+check-rc=0
+
+### HEAD 基线逐文件（证明漂移非存量）
+  HEAD 版 tests/support/live_port_guard.py: 已格式化
+  HEAD 版 tests/conftest.py: 已格式化
+  HEAD 版 tests/support/guard_plugin.py: 已格式化
+  HEAD 版 tests/unit/test_live_port_guard_contract.py: 已格式化
+  HEAD 版 scripts/lifespan_isolation_guard_probes.py: 已格式化

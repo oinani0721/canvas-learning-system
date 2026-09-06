@@ -1,0 +1,14 @@
+### ruff format --check（本卡改动文件）
+error: Failed to format tests/support/live_port_guard.py tests/conftest.py tests/support/guard_plugin.py tests/unit/test_live_port_guard_contract.py scripts/lifespan_isolation_guard_probes.py: No such file or directory (os error 2)
+ruff-format-rc=2
+
+### ruff check
+E902 No such file or directory (os error 2)
+--> tests/support/live_port_guard.py tests/conftest.py tests/support/guard_plugin.py tests/unit/test_live_port_guard_contract.py scripts/lifespan_isolation_guard_probes.py:1:1
+
+Found 1 error.
+ruff-check-rc=1
+
+### HEAD 基线对比（证明漂移不是本卡引入）
+  HEAD 版 tests/support/live_port_guard.py tests/conftest.py tests/support/guard_plugin.py tests/unit/test_live_port_guard_contract.py scripts/lifespan_isolation_guard_probes.py: 已格式化
+rc=0

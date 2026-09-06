@@ -1,0 +1,13 @@
+### tests/unit nodeid 口径对账（基线 = evidence-b12/unit-red-baseline-03ac8bf8.txt）
+基线 nodeid 数:      247
+收工 nodeid 数:      251
+
+--- 本卡新增红（收工有、基线无）---
+   app.main:main.py:730 Unhandled exception caught by CORSExceptionMiddleware: ValidationError: 1 validation error for Settings
+   app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+   app.services.verification_service:verification_service.py:1444 {'event': 'Invalid JSON in canvas file /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp3w2ulv_v.canvas: Expecting value: line 1 column 1 (char 0)', 'logger': 'app.services.verification_service', 'level': 'error', 'timestamp': '2026-09-05T09:47:10.851512Z'}
+   memory_system:health.py:883 HEALTH_CHECK_TIMEOUT | timeout=30s | uri=<MagicMock name='mock.neo4j_uri' id='5683584640'>
+(空=无新增)
+
+--- 本卡转绿（基线有、收工无）---
+(空=无变化)

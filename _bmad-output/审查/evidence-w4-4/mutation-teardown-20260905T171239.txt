@@ -1,0 +1,65 @@
+=== CARD-W4-4 拆门实测（变异 → 指定的门必须转红）===
+    backend: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend
+    baseline sha  live_port_guard.py     55cb45e703b20916
+    baseline sha  conftest.py            c657bdddedf1946e
+    baseline sha  guard_plugin.py        918a5c4abe76c3df
+
+───── baseline（未变异）─────
+  probe guard-finalize-race-loses-record           PASS
+  probe guard-finalize-seam-inert-when-unset       PASS
+  probe guard-install-order-precheck-is-guarded    PASS
+  probe guard-ledger-matches-verdict               PASS
+  test  TestFinalizeRaceSeam::test_seam_replacement_is_detected_as_drift               PASS
+  test  TestInstallOrder::test_audit_hook_is_installed_before_the_target_precheck      PASS
+  test  TestPrecheckBeforeExemption::test_begin_item_refuses_exemption_before_the_precheck PASS
+  test  TestPrecheckBeforeExemption::test_precheck_lives_in_pytest_configure_not_in_a_session_fixture[root-conftest] PASS
+  test  TestSettlementAtomicity::test_finalize_snapshot_is_frozen_against_later_records PASS
+  test  TestSettlementAtomicity::test_record_after_finalize_returns_late               PASS
+  test  TestSingleLedgerSnapshot::test_final_accounting_hands_its_own_snapshot_to_write_ledger PASS
+
+───── M1-lockfree-finalizing-read ─────
+  拆的是：把结算判定搬回 hook 的锁外读（= 主干形状）：迟到线程读到「未结算」后落进普通账
+  probe guard-finalize-race-loses-record           FAIL(KILLED)  rc=0 期望 3
+  probe guard-ledger-matches-verdict               FAIL(KILLED)  迟到形态子进程未达标（rc=0 期望 3）; late: rc=0 而账本 blocked=0 unaccounted=0 —— 账本与裁定不一致
+  test  TestSettlementAtomicity::test_record_after_finalize_returns_late               FAIL(KILLED)
+  test  TestSettlementAtomicity::test_finalize_snapshot_is_frozen_against_later_records FAIL(KILLED)
+
+───── M2-double-snapshot ─────
+  拆的是：_final_accounting 不再把快照传给 write_ledger ⇒ 裁定与落盘各取各的
+  test  TestSingleLedgerSnapshot::test_final_accounting_hands_its_own_snapshot_to_write_ledger FAIL(KILLED)
+
+───── M3-install-order-reverted ─────
+  拆的是：install() 把装 hook 挪回预检之后（T-14 回归）
+  probe guard-install-order-precheck-is-guarded    FAIL(KILLED)  rc=0 期望 3
+  test  TestInstallOrder::test_audit_hook_is_installed_before_the_target_precheck      FAIL(KILLED)
+
+───── M4-seam-drift-check-removed ─────
+  拆的是：assert_guard_live 不再复核注入点身份 ⇒ seam 成了一条无人看守的旁路
+  probe guard-finalize-seam-inert-when-unset       FAIL(KILLED)  PROBE-RESULT: FAIL guard-finalize-seam-inert-when-unset :: 注入点被替换却没被 assert_guard_live 抓到
+  test  TestFinalizeRaceSeam::test_seam_replacement_is_detected_as_drift               FAIL(KILLED)
+
+───── M5-precheck-back-in-session-fixture ─────
+  拆的是：预检从 pytest_configure 挪回 session fixture（T-10 回归）
+  test  TestPrecheckBeforeExemption::test_precheck_lives_in_pytest_configure_not_in_a_session_fixture[root-conftest] FAIL(KILLED)
+
+───── M6-begin-item-latch-removed ─────
+  拆的是：begin_item 不再因「预检未完成」收回豁免票（T-10 的闩被拆）
+  test  TestPrecheckBeforeExemption::test_begin_item_refuses_exemption_before_the_precheck FAIL(KILLED)
+
+───── M7-late-ledger-rewrite-removed ─────
+  拆的是：迟到路径不再重写账本 ⇒ 文件停在结算那一刻的空账，而进程 rc=3
+  probe guard-ledger-matches-verdict               FAIL(KILLED)  late: rc=3 而账本 blocked=0 unaccounted=0 —— 账本与裁定不一致
+
+=== 汇总 ===
+  [KILLED  ] M1-lockfree-finalizing-read
+  [KILLED  ] M2-double-snapshot
+  [KILLED  ] M3-install-order-reverted
+  [KILLED  ] M4-seam-drift-check-removed
+  [KILLED  ] M5-precheck-back-in-session-fixture
+  [KILLED  ] M6-begin-item-latch-removed
+  [KILLED  ] M7-late-ledger-rewrite-removed
+  restore-check live_port_guard.py     BYTE-IDENTICAL
+  restore-check conftest.py            BYTE-IDENTICAL
+  restore-check guard_plugin.py        BYTE-IDENTICAL
+MUTATION-TEARDOWN: PASS — 7/7 条变异均被点名的门当场杀掉
+rc=0

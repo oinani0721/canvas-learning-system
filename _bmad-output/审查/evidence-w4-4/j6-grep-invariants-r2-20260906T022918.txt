@@ -1,0 +1,29 @@
+### J6-a  raw grep STATE.ledger()
+1232:        ledger = STATE.ledger()
+
+### J6-a2 AST：结算路径上的真实调用点
+结算路径 STATE.ledger() 调用点: [('write_ledger', 1232)] 计数: 1
+
+### J6-b 模块层 neo4j import 计数
+0
+
+### J6-c 不变量
+149:REQUIRED_BLOCKED_PORTS = frozenset({7691, 7687})
+150:BLOCKED_PORTS = REQUIRED_BLOCKED_PORTS
+176:ALLOWED_TEST_PORTS = frozenset({7692})
+218:FINAL_EXIT_CODE = 3
+
+### 既有 36 条探针一条不少
+main() results 字面量条目数: 0
+probe_shell_injections 仍在 extend: True
+skip/xfail 出现次数: 0
+rc=0
+
+### 上面「main() results 字面量条目数: 0」是**判据自己写错了**（正则没匹配到闭合括号），
+###  不是探针少了。修正版：
+main() results 字面量条目数: 35
+其中本卡新增 5 条: ['probe_finalize_race_loses_record', 'probe_ledger_matches_verdict', 'probe_install_order_precheck_is_guarded', 'probe_finalize_seam_inert_when_unset', 'probe_late_exit_survives_broken_stderr']
+results.extend(probe_shell_injections()) 仍在: True
+总数 = 字面量 + shell_injections(6) = 41 （与 J1 的 41/41 一致）
+skip/xfail 出现次数: 0
+rc=0

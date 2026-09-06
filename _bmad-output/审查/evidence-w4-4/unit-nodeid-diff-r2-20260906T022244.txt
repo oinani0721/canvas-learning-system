@@ -1,0 +1,8 @@
+### tests/unit nodeid 对账（r2 最终代码）
+基线: 247  收工: 247
+摘要: = 209 failed, 4629 passed, 1 skipped, 121 warnings, 38 errors in 349.98s (0:05:49) =
+--- 新增红 ---
+(空=无)
+--- 转绿 ---
+(空=无)
+rc=0

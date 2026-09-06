@@ -1,0 +1,16 @@
+### J6-a  STATE.ledger() 出现处（含 docstring 文本）
+1204:        ledger = STATE.ledger()
+
+### J6-a2 AST 口径：结算路径（write_ledger + _final_accounting）里 STATE.ledger() 的真实调用点
+结算路径上的 STATE.ledger() 调用点: [('write_ledger', 1204)]
+计数: 1
+
+### J6-b 模块层 neo4j import 计数
+0
+
+### J6-c 不变量原样核对
+149:REQUIRED_BLOCKED_PORTS = frozenset({7691, 7687})
+150:BLOCKED_PORTS = REQUIRED_BLOCKED_PORTS
+176:ALLOWED_TEST_PORTS = frozenset({7692})
+218:FINAL_EXIT_CODE = 3
+rc=0
