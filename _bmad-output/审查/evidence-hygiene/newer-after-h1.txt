@@ -1,0 +1,3 @@
+backend
+backend/logs
+backend/data

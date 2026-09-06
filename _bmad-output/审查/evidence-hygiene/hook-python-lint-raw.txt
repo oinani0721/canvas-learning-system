@@ -1,0 +1,14 @@
+=== python-lint hook 复现（逐文件，避开 zsh 不分词）===
+--- ruff check（三文件一起，显式列出） ---
+All checks passed!
+rc=0
+
+--- ruff format --check（三文件一起） ---
+Would reformat: app/api/v1/system.py
+1 file would be reformatted, 2 files already formatted
+rc=1
+
+=== 逐文件漂移归属（本卡引入 or 存量）——带非空自证 ===
+app/api/v1/system.py  (HEAD 42747 字节)  HEAD: 已 DRIFT ⇒ 存量漂移, 非本卡引入
+tests/unit/conftest.py  (HEAD 3378 字节)  HEAD: CLEAN  ⇒ 若现在 DRIFT 则是本卡引入
+tests/unit/test_startup_health_check.py  (HEAD 2373 字节)  HEAD: 已 DRIFT ⇒ 存量漂移, 非本卡引入

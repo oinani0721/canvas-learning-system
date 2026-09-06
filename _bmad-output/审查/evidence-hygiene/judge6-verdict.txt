@@ -1,0 +1,27 @@
+=== 裁判 6 汇总 ===
+= 209 failed, 4609 passed, 1 skipped, 121 warnings, 38 errors in 285.12s (0:04:45) =
+rc=1
+=== 收工红 nodeid 数 ===
+     247
+=== 基线红 nodeid 数 ===
+     247
+
+=== 基线 diff（左=基线 右=收工；'<'=修复了 '>'=本卡引入=阻断） ===
+diff rc=0
+
+=== 新增（'>' 行）计数：必须为 0 ===
+0
+0
+=== 减少（'<' 行）计数 ===
+0
+0
+
+=== 门与 /tmp 判据 ===
+不变量门触发次数: 0
+ls: /tmp/test-vault: No such file or directory
+ls: /tmp/test-vault-wizard: No such file or directory
+=== backend 四路径 ===
+absent backend/raw
+absent backend/wiki
+absent backend/outputs
+absent backend/CLAUDE.md

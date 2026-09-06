@@ -1,0 +1,24 @@
+=== 定向 H2 判据（改前代码） ===
+--- 签名① backend 四路径 ---
+  ⚠️ EXISTS backend/raw
+  ⚠️ EXISTS backend/wiki
+  ⚠️ EXISTS backend/outputs
+  ⚠️ EXISTS backend/CLAUDE.md
+--- 签名① git status backend ---
+   M backend/tests/unit/conftest.py
+   M backend/tests/unit/test_startup_health_check.py
+  ?? backend/CLAUDE.md
+  ?? backend/outputs/
+  ?? backend/raw/
+  ?? backend/wiki/
+--- find -maxdepth 1 -newer sentinel ---
+  backend
+  backend/wiki
+  backend/outputs
+  backend/raw
+  backend/CLAUDE.md
+--- 签名③ sha diff ---
+  (未变)
+--- 签名② /tmp ---
+  /tmp/test-vault
+  /tmp/test-vault-wizard

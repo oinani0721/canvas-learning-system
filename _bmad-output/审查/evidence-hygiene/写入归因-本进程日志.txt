@@ -1,0 +1,24 @@
+=== 写入归因：绑定本进程日志（不依赖并行行为假设）===
+
+VaultInitService 在写 CLAUDE.md 时打结构化日志（vault_init_service.py:99），
+该日志出现在 pytest 的 captured stdout 里 —— 是被测进程自己的输出，
+别的 worktree 的进程写不进来。
+
+--- 改前 node1 单跑（bisect-node1.txt）---
+"path": "/private/tmp/test-vault/CLAUDE.md", "event": "claude_md_created"
+
+--- 改前 node2 单跑（bisect-node2.txt）---
+"path": "/private/tmp/test-vault-wizard/CLAUDE.md", "event": "claude_md_created"
+
+--- 改后 三文件（three-files-after.txt）---
+"path": "/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-18016/test_endpoint_exists0/test-vault/CLAUDE.md", "event": "claude_md_created"
+"path": "/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-18016/test_returns_structured_report0/test-vault-wizard/CLAUDE.md", "event": "claude_md_created"
+
+--- 改后日志中 /private/tmp/test-vault 出现次数（应为 0）---
+0
+
+=== H2 侧同一判据（改前定向跑，backend/ 而非 /tmp）===
+--- 改前 h2-directed（应写进 backend/）---
+"path": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y6-testhygiene/backend/CLAUDE.md", "event": "claude_md_created"
+--- 改后 h2-directed-AFTER（应无）---
+0

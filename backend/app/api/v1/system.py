@@ -17,7 +17,7 @@ from typing import Dict, Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.config import Settings, get_settings
 from app.security import require_internal_api_key
@@ -425,7 +425,32 @@ async def config_drift_check() -> dict:
 
 
 class SetupWizardRequest(BaseModel):
-    vault_path: str = Field(..., description="Path to the Obsidian vault directory")
+    vault_path: str = Field(..., description="Absolute path to the Obsidian vault directory")
+
+    @field_validator("vault_path")
+    @classmethod
+    def _must_be_absolute(cls, v: str) -> str:
+        """CARD-TEST-hygiene-vaultinit [BATCH-2026-09-05-第十二批]: 必须是绝对路径。
+
+        为什么这道检查必须在 pydantic 层, 而不是补下面 setup_wizard 里的黑名单:
+        `Path(v).resolve()` 对**相对路径和空串是静默拼 cwd 的** —— 空串 / "."
+        会解析成进程的当前目录, 而后端测试通常从 `backend/` 起跑, 于是
+        `VaultInitService.initialize_vault()` 就把整套 vault 骨架
+        (raw/ wiki/ outputs/ CLAUDE.md) 建进了代码目录里。已有一个冻结的污染
+        现场: worktree `card-z4-redbase` @ c8611a89。
+        黑名单跑在 resolve() **之后**, 那时看到的已经是一个合法绝对路径,
+        所以往黑名单里加条目永远追不上这个形态。
+
+        与消费方同口径: 下面 `setup_wizard` 用的就是 `Path(request.vault_path)`,
+        这里的 `Path(v).is_absolute()` 判的是同一个对象, 不存在两套解析规则。
+        注意 `Path` 不展开 `~`, 故 "~/vault" 也是相对路径, 一并拒绝。
+        """
+        if not Path(v).is_absolute():
+            raise ValueError(
+                f"vault_path 必须是绝对路径 (以 / 开头), 收到 {v!r}。"
+                "相对路径会被解析成后端进程的当前工作目录, 从而把 vault 骨架写进代码目录。"
+            )
+        return v
 
 
 @router.post("/setup-wizard")

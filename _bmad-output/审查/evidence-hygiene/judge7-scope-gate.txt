@@ -1,0 +1,20 @@
+=== 裁判 7 地盘门 ===
+--- 工作树改动（尚未 commit，用 git status + diff HEAD） ---
+ M backend/app/api/v1/system.py
+ M backend/tests/unit/conftest.py
+ M backend/tests/unit/test_startup_health_check.py
+?? _bmad-output/审查/evidence-hygiene/
+?? _bmad-output/审查/prompts/codex-prompt-CARD-TEST-hygiene-vaultinit.md
+?? _bmad-output/验收单/UAT-CARD-TEST-hygiene-vaultinit-2026-09-06.md
+
+--- git diff --name-only HEAD -- . ':(exclude)_bmad-output' ---
+backend/app/api/v1/system.py
+backend/tests/unit/conftest.py
+backend/tests/unit/test_startup_health_check.py
+rc=0
+
+--- 期望 ⊆ {system.py, tests/unit/conftest.py, tests/unit/test_startup_health_check.py} ---
+✅ 逐条相同
+
+=== 禁改文件必须零改动 ===
+rc=0  [输出空且 rc=0 = 全部未动]

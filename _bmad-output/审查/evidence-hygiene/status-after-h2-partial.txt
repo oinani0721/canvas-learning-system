@@ -1,0 +1,11 @@
+四路径:
+  absent backend/raw
+  absent backend/wiki
+  absent backend/outputs
+  absent backend/CLAUDE.md
+git status backend:
+   M backend/app/api/v1/system.py
+   M backend/tests/unit/conftest.py
+   M backend/tests/unit/test_startup_health_check.py
+sha diff:
+  (未变)
