@@ -2,7 +2,9 @@
 ### lefthook.yml sha c57a7b7e... = 中间态(仅 patch_block)。此跑证明: 换行文件名到达 awk 后,
 ### macOS awk 对 `-v F=<含换行>` 直接报 `newline in string` rc=2 => 走 FAILED 分支阻断(rc=1),
 ### 但 hits 为空、诊断说的是「解析失败」而不是「发现残留」—— 这是 ENVIRON 改动的由来。
-### 最终 (b3) 见 b3-postfix-newline-BLOCKED-20260906T025916.txt。
+### 最终 (b3) 见 b3-postfix-newline-BLOCKED-20260906T100906.txt。
+### (勘误: 本行原指向 …025916.txt —— 那份绑定的是被后续整改取代的中间块 cf1346a2,
+###  终稿改为 e116df5b 时已作废删除。Codex round-1 LOW「失效引用」指出, 已更正。)
 
 ### (b3) 修后 · 同一换行文件名暂存面 · 期望 BLOCKED rc=1 且 hits 列出该文件
 # cwd: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/79afb73a-e52b-4dd8-8bff-d89559605153/scratchpad/y4c-probe
