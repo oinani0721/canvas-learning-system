@@ -1,0 +1,64 @@
+# CARD-RV-A (b) 补充变异 ②③④ — 2026-09-05T08:57:42Z
+基线 sha (HEAD 版): b7e4a8d94f82b1a6a8e9b07ff636690801d5d1b53c071d21273562def1224a77
+
+════════════════════════════════════════════════════
+## 变异 ②: POLL_MAX_MS 60000 -> 30000 (拆上限 clamp)
+变异后 sha: eb7730d1806e04237246ed1bedf813b6429182df507548189d1e3511a07d3c74
+✅ 变异已生效 (sha != 基线)
+--- 变异行实证 ---
+160:const POLL_MAX_MS = 30000;  // 轮询上限 (默认裁决②: clamp 60s)
+214:  return hidden ? {cancelTimer: true, pollNow: false} : {cancelTimer: true, pollNow: true};
+--- pytest 输出 (筛失败身份) ---
+E     ✔ ① clamp 下限: 2 秒后到期 → 实际排程 5000ms (不打爆后端) (14.692125ms)
+E     ✖ ② clamp 上限: 1 小时后到期 → 实际排程 60000ms (不睡死) (1.861583ms)
+E     ✔ ③ visibilitychange 接线: 隐藏不排程, 回前台**真的**又拉了一轮 (2.747958ms)
+E     ✔ ④ 自动轮询绝不 POST: 连跑多轮, 沙箱收到的 POST 次数恒为 0 (8.955875ms)
+E     ✖ failing tests:
+E     ✖ ② clamp 上限: 1 小时后到期 → 实际排程 60000ms (不睡死) (1.861583ms)
+E       AssertionError [ERR_ASSERTION]: 上限没生效 = 一小时不问后端
+======================== 1 failed, 10 warnings in 0.81s ========================
+rc(pytest)=1
+还原后 sha: b7e4a8d94f82b1a6a8e9b07ff636690801d5d1b53c071d21273562def1224a77
+
+════════════════════════════════════════════════════
+## 变异 ③: visibilityAction 回前台 pollNow true -> false (拆回前台立即拉这条接线)
+变异后 sha: ec249e634d7687ef851f2b007baf36a364122c98f575a6b089569d6dda15c704
+✅ 变异已生效 (sha != 基线)
+--- 变异行实证 ---
+160:const POLL_MAX_MS = 60000;  // 轮询上限 (默认裁决②: clamp 60s)
+214:  return hidden ? {cancelTimer: true, pollNow: false} : {cancelTimer: true, pollNow: false};
+--- pytest 输出 (筛失败身份) ---
+E     ✔ ① clamp 下限: 2 秒后到期 → 实际排程 5000ms (不打爆后端) (15.133333ms)
+E     ✔ ② clamp 上限: 1 小时后到期 → 实际排程 60000ms (不睡死) (1.717416ms)
+E     ✖ ③ visibilitychange 接线: 隐藏不排程, 回前台**真的**又拉了一轮 (3.535791ms)
+E     ✔ ④ 自动轮询绝不 POST: 连跑多轮, 沙箱收到的 POST 次数恒为 0 (9.01875ms)
+E     ✖ failing tests:
+E     ✖ ③ visibilitychange 接线: 隐藏不排程, 回前台**真的**又拉了一轮 (3.535791ms)
+E       AssertionError [ERR_ASSERTION]: 回前台必须立即拉一轮 (pollNow 的接线端)
+======================== 1 failed, 10 warnings in 0.79s ========================
+rc(pytest)=1
+还原后 sha: b7e4a8d94f82b1a6a8e9b07ff636690801d5d1b53c071d21273562def1224a77
+
+════════════════════════════════════════════════════
+## 变异 ④: poll() 内注入一次 POST (补上「自动轮询发 POST」这个缺陷)
+变异后 sha: 0920646dd09ffb70c257cf27b2908732a1a3920b3a3d073dcf43209e7aeeb833
+✅ 变异已生效 (sha != 基线)
+--- 变异行实证 ---
+160:const POLL_MAX_MS = 60000;  // 轮询上限 (默认裁决②: clamp 60s)
+214:  return hidden ? {cancelTimer: true, pollNow: false} : {cancelTimer: true, pollNow: true};
+439:  fetch(URLS.refresh, {method: "POST", body: new URLSearchParams({vault_id: "MUTANT"})});
+--- pytest 输出 (筛失败身份) ---
+E     ✔ ① clamp 下限: 2 秒后到期 → 实际排程 5000ms (不打爆后端) (15.391834ms)
+E     ✔ ② clamp 上限: 1 小时后到期 → 实际排程 60000ms (不睡死) (1.889542ms)
+E     ✔ ③ visibilitychange 接线: 隐藏不排程, 回前台**真的**又拉了一轮 (2.018708ms)
+E     ✖ ④ 自动轮询绝不 POST: 连跑多轮, 沙箱收到的 POST 次数恒为 0 (0.93125ms)
+E     ✖ failing tests:
+E     ✖ ④ 自动轮询绝不 POST: 连跑多轮, 沙箱收到的 POST 次数恒为 0 (0.93125ms)
+E       AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+======================== 1 failed, 10 warnings in 0.79s ========================
+rc(pytest)=1
+还原后 sha: b7e4a8d94f82b1a6a8e9b07ff636690801d5d1b53c071d21273562def1224a77
+
+════════════════════════════════════════════════════
+全部跑完, 最终 sha: b7e4a8d94f82b1a6a8e9b07ff636690801d5d1b53c071d21273562def1224a77  (须 == b7e4a8d94f82b1a6a8e9b07ff636690801d5d1b53c071d21273562def1224a77)
+### trap 还原后 sha: b7e4a8d94f82b1a6a8e9b07ff636690801d5d1b53c071d21273562def1224a77

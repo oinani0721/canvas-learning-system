@@ -1,0 +1,55 @@
+2026-09-05 17:14:00 [debug    ] RAGService: Added /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/lib to sys.path
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+Building prefix dict from the default dictionary ...
+Loading model from cache /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/jieba.cache
+Loading model cost 0.337 seconds.
+Prefix dict has been built successfully.
+2026-09-05 17:14:05 [info     ] RAGService: LangGraph/Agentic RAG available. LANGGRAPH_AVAILABLE=True
+======================================================================
+探针 1: Codex 的装饰器候选
+======================================================================
+_ALLOWED_CALL_ATTRS = ['dumps', 'get', 'items', 'replace', 'url_for']
+_ALLOWED_RECEIVERS  = ['_PAGE_TEMPLATE', '_STATUS_META', 'json', 'request', 'review_app_router']
+
+候选片段:
+@_PAGE_TEMPLATE.replace("x", "y").replace
+def _probe_codex():
+    pass
+
+装饰器 AST 节点类型 : Attribute
+dec.attr (尾方法名) : 'replace'  → 在 _ALLOWED_CALL_ATTRS: True
+新判据 unparse+截断  : '_PAGE_TEMPLATE.replace'  → 在 _ALLOWED_RECEIVERS: False
+旧判据 _root_name    : ''  → 在 _ALLOWED_RECEIVERS: False
+  [基线(未追加)] 门放行 (无异常)
+  [追加候选] 门拒绝 → AssertionError: 非白名单装饰器接收者 @_PAGE_TEMPLATE.replace.replace — 只查方法名挡不住任意对象
+
+======================================================================
+探针 2: computePollDelayMs 在 next_due 已过期时的回落值
+======================================================================
+生产函数原文:
+function computePollDelayMs(data, nowMs) {
+  // 轮询周期 = clamp(最近**未来** next_upcoming.next_due − now, 5s, 60s)。
+  // next_due 只定「下一次去问服务端」的节奏; 已过期的 next_due 意味着数据
+  // 要等生产器重跑才会变 → 回落上限 60s, 不空转。
+  let best = null;
+  const vaults = data && Array.isArray(data.vaults) ? data.vaults : [];
+  for (const v of vaults) {
+    const nu = v && v.projection && v.projection.next_upcoming;
+    const ms = nu ? parseDueMs(nu.next_due) : null;
+    if (ms !== null && ms > nowMs && (best === null || ms < best)) best = ms;
+  }
+  const raw = best === null ? POLL_MAX_MS : best - nowMs;
+  return Math.min(POLL_MAX_MS, Math.max(POLL_MIN_MS, raw));
+}
+
+关键上游过滤: `if (ms !== null && ms > nowMs && …) best = ms;`
+  → next_due 已过期 (ms <= nowMs) 时 best 保持 null
+  → raw = (best === null ? POLL_MAX_MS : best - nowMs) = POLL_MAX_MS = 60000
+  → clamp 后 = 60000, 而断言 ① 期望 5000  ⇒ ① 变红
+
+对照: 若过期数据能进 best, raw 为负 → max(POLL_MIN_MS, 负) = 5000 → ① 仍绿。
+两种读法结论相反, 决定性的是那条 `ms > nowMs` 过滤 —— 它使 Codex 的 LOW 成立。
+rc=0
