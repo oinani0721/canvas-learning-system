@@ -1,0 +1,6 @@
+round 1: rc=[0, 0] 账本2条 attempt=2 W=2026-08-01T10:00:01Z validator=0 lost_update=False
+round 2: rc=[0, 0] 账本2条 attempt=2 W=2026-08-01T10:00:01Z validator=0 lost_update=False
+round 3: rc=[0, 0] 账本2条 attempt=2 W=2026-08-01T10:00:01Z validator=0 lost_update=False
+
+lost_update 轮数: 0/3
+rc=0

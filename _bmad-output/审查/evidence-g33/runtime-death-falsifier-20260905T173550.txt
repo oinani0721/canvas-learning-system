@@ -1,0 +1,20 @@
+跑前 SKILL.md sha: 63b51029ea96a78abd757902023f378697688c28db1b8dc0aaee8969e9ee48e8
+编译自检: 通过 (语法合法 —— 正是本探针要的形态)
+
+── M15 gate
+   实际打红的断言: AssertionError: 账本里一行都没有 —— 插队写者根本没跑到, 本门的前提不成立 (这不是重复写入): []
+   旧判据(门+rc) → KILLED ⛔假杀
+   新判据(+expect_msg+前提断言) → SURVIVED ✅ 不再假杀
+
+── M16 gate
+   实际打红的断言: AssertionError: 对照段没走到 foreign 恢复发布, 本门是空的
+   旧判据(门+rc) → KILLED ⛔假杀
+   新判据(+expect_msg+前提断言) → SURVIVED ✅ 不再假杀
+
+── M17 gate
+   实际打红的断言: AssertionError: 对照段未收敛: rc=1
+   旧判据(门+rc) → KILLED ⛔假杀
+   新判据(+expect_msg+前提断言) → SURVIVED ✅ 不再假杀
+
+跑后 SKILL.md sha: 63b51029ea96a78abd757902023f378697688c28db1b8dc0aaee8969e9ee48e8 | 还原逐字节相同: 是
+rc=0

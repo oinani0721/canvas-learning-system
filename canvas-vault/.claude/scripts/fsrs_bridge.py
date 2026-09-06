@@ -156,6 +156,75 @@ def fields_from_frontmatter(fm: str) -> dict:
     return out
 
 
+#: CARD-G3-3 (a) CAS 修订面 —— attempt_count 的读取正则与写点 (`SKILL.md::_ATT_RE`)
+#: 逐字同款: 容单双引号, 因为 Obsidian Properties 会把数值写成 "3" 这类引号标量。
+#: ⛔ 这里只**读**, 不做任何归一化、不写回。
+_CAS_ATT_RE = r'''^attempt_count:\s*[\'"]?(\d+)[\'"]?\s*$'''
+
+
+def cas_revision(fm_text: str) -> dict:
+    """节点的 CAS revision 面: (fsrs_last_review, attempt_count)。
+
+    CARD-G3-3 (a): 写 frontmatter 前拿它比较「我读到的那一版」与「盘上现在这一版」。
+    选这两个字段是因为**任何一次成功的评分写入都必然改动其中至少一个** —— 水位线
+    `fsrs_last_review` 由调度推进 (§6.2 A3 保证严格大于旧值), `attempt_count` 每次
+    评分 +1。于是「revision 没变」正是「没有别的评分插进来过」的可证依据。
+    ⚠️ 它**不足以**覆盖正文改动 (用户在 Obsidian 里改笔记正文不动这两个字段),
+    所以 `cas_token` 另存全文 sha256; revision 只用来把冲突**归因**说清楚。
+    """
+    fields = fields_from_frontmatter(fm_text)
+    m = re.search(_CAS_ATT_RE, fm_text, re.M)
+    return {
+        "fsrs_last_review": fields.get("fsrs_last_review"),
+        "attempt_count": int(m.group(1)) if m else None,
+    }
+
+
+def cas_token(node_text: str) -> dict:
+    """由**读到的那一份字节**构造 CAS 令牌 (纯计算, 不碰磁盘)。
+
+    ⛔ 必须传「读进来的那份字符串」而不是路径 —— 传路径就变成再读一次盘,
+    令牌与写点实际拿去算的内容之间又多出一个可被插队的窗口。
+    """
+    m = re.match(r'^\ufeff?---\r?\n(.*?)\r?\n---[ \t]*\r?\n?(.*)$', node_text, re.S)
+    tok = {"sha256": hashlib.sha256(node_text.encode("utf-8")).hexdigest()}
+    tok.update(cas_revision(m.group(1) if m else ""))
+    return tok
+
+
+def cas_conflict(node_path: str, token: dict) -> "str | None":
+    """比较盘上当前内容与 `token`: 一致返回 None, 否则返回**人话冲突描述**。
+
+    ⚠️ 「整份内容」= **文本模式读入并规范化换行之后**的内容, 不是原始字节
+    (独立复核 L2 实测: LF→CRLF 时原始 sha 变了而本函数判无冲突)。这是**有意**的:
+    写点读节点用的就是文本模式、发布时统一写 LF, 所以「只改行尾」对它是等价变换,
+    拿它判冲突只会把正常评分挡在门外。真要按原始字节比, 读写两侧都得改成 bytes ——
+    那是另一个决定, 不在本卡。
+    ⛔ 判据是**整份内容的 sha256**, 不只是 revision 两字段: 写点从读入那一刻起就把
+    `body` 留在内存里、发布时整份覆盖 —— 只比 revision 的话, 用户在评分进行中
+    于 Obsidian 里补的一段正文会被静默吃掉 (revision 确实没变, 覆盖照做)。
+    ⚠️ 读不到文件同样算冲突 (被删/被换走), 不静默放行。
+    """
+    try:
+        with open(node_path, encoding="utf-8") as f:
+            cur_text = f.read()
+    except OSError as e:
+        return f"读不到节点文件 ({e})"
+    cur = cas_token(cur_text)
+    if cur.get("sha256") == token.get("sha256"):
+        return None
+    bits = []
+    for k, label in (
+        ("fsrs_last_review", "水位线 fsrs_last_review"),
+        ("attempt_count", "已考次数 attempt_count"),
+    ):
+        if cur.get(k) != token.get(k):
+            bits.append(f"{label} {token.get(k)!r} → {cur.get(k)!r}")
+    if not bits:
+        bits.append("revision 两字段未变, 但正文或其它 frontmatter 字节已变")
+    return "; ".join(bits)
+
+
 def _legacy_param(v):
     """legacy state:0 伴生参数哨兵归一: 空/null/~/0/0.0/不可解析 → None。"""
     if v in (None, ""):

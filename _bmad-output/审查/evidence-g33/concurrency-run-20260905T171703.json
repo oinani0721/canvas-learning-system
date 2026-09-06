@@ -1,0 +1,67 @@
+{
+  "rounds": [
+    {
+      "round": 1,
+      "rc": [
+        0,
+        0
+      ],
+      "ledger_ids": [
+        "quiz:取证板A-1#q1",
+        "quiz:取证板B-1#q1"
+      ],
+      "attempt_count": "2",
+      "fsrs_last_review": "2026-08-01T10:00:01Z",
+      "latest_review_time": "2026-08-01T10:00:01Z",
+      "validator_rc": 0,
+      "lost_update": false,
+      "stderr_tail": [
+        [],
+        []
+      ]
+    },
+    {
+      "round": 2,
+      "rc": [
+        0,
+        0
+      ],
+      "ledger_ids": [
+        "quiz:取证板A-2#q1",
+        "quiz:取证板B-2#q1"
+      ],
+      "attempt_count": "2",
+      "fsrs_last_review": "2026-08-01T10:00:01Z",
+      "latest_review_time": "2026-08-01T10:00:01Z",
+      "validator_rc": 0,
+      "lost_update": false,
+      "stderr_tail": [
+        [],
+        []
+      ]
+    },
+    {
+      "round": 3,
+      "rc": [
+        0,
+        0
+      ],
+      "ledger_ids": [
+        "quiz:取证板A-3#q1",
+        "quiz:取证板B-3#q1"
+      ],
+      "attempt_count": "2",
+      "fsrs_last_review": "2026-08-01T10:00:01Z",
+      "latest_review_time": "2026-08-01T10:00:01Z",
+      "validator_rc": 0,
+      "lost_update": false,
+      "stderr_tail": [
+        [],
+        []
+      ]
+    }
+  ],
+  "lost_update_count": 0,
+  "all_rc_zero": true,
+  "all_validator_zero": true
+}

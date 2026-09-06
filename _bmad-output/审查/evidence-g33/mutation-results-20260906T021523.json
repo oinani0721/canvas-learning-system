@@ -1,0 +1,424 @@
+{
+  "results": [
+    {
+      "id": "M1-per-node-lock",
+      "verdict": "KILLED",
+      "rc": 1,
+      "nodeid": "tests/regression/test_g3_3_cas.py::test_concurrent_same_node_no_lost_update",
+      "failed": [
+        "tests/regression/test_g3_3_cas.py::test_concurrent_same_node_no_lost_update[1]",
+        "tests/regression/test_g3_3_cas.py::test_concurrent_same_node_no_lost_update[2]"
+      ],
+      "expect_msg": "有评分被另一次覆盖掉了",
+      "expect_hit": true,
+      "why": "两进程同节点评分不再互斥 ⇒ 各按旧基线算 ⇒ attempt 双双写 1 (lost update)",
+      "error_lines": [
+        "AssertionError: lost update: 账本 2 条评分, 笔记 attempt_count='1', 校准记录里只有 1 条 —— 有评分被另一次覆盖掉了。",
+        "P1 rc=0",
+        "STDOUT[quiz-answer] 事件已落日志(write-ahead): answer_scored @ 2026-08-01T10:00:00Z",
+        "[quiz-answer] 节点/测试节点.md: mastery 0.5->0.57; event=板A-r1#q1; fsrs=applied @ 2026-08-01T10:00:00Z; ledger=append; callout=no",
+        "E     STDERR",
+        "P2 rc=1",
+        "STDOUT[quiz-answer] 事件已落日志(write-ahead): answer_scored @ 2026-08-01T10:00:00Z",
+        "E     STDERR[quiz-answer] CAS 冲突: 本次运行读到节点之后, 有别的写者改过它 (水位线 fsrs_last_review None → '2026-08-01T10:00:00Z'; 已考次数 attempt_count None → 1) — 本块要整份覆盖 frontmatter+正文, 直接写会把那次改动吃掉; ⛔ 也不自动重算(那会拿我内存里的旧正文覆盖你刚写的), **拒绝发布**节点 — 请重跑 /quiz-answer (它会重新读盘重新计算)。⚠️ 如实: 这不是「节点+账本零写」—— 正常路径的事件在此之前已按 write-ahead 落进账本(打印过「事件已落日志」), 本次只是没发布到节点, 属**已入账待恢复**态; 重跑会走恢复路径把它落定, 不会双写。冲突点: 正常路径发布"
+      ],
+      "tail": [
+        "FAILED tests/regression/test_g3_3_cas.py::test_concurrent_same_node_no_lost_update[1]",
+        "FAILED tests/regression/test_g3_3_cas.py::test_concurrent_same_node_no_lost_update[2]",
+        "======================== 2 failed, 10 warnings in 2.12s ========================"
+      ]
+    },
+    {
+      "id": "M2-cas-guard",
+      "verdict": "KILLED",
+      "rc": 1,
+      "nodeid": "tests/regression/test_g3_3_cas.py::test_cas_conflict_refuses_and_rerun_converges",
+      "failed": [
+        "tests/regression/test_g3_3_cas.py::test_cas_conflict_refuses_and_rerun_converges"
+      ],
+      "expect_msg": "外部写者插队后仍照常发布",
+      "expect_hit": true,
+      "why": "外部写者插队后照常整份覆盖 ⇒ 用户刚写的正文被静默吃掉",
+      "error_lines": [
+        "AssertionError: 外部写者插队后仍照常发布 = CAS 门没起作用",
+        "STDOUT[quiz-answer] 事件已落日志(write-ahead): answer_scored @ 2026-08-01T10:00:00Z",
+        "[quiz-answer] 节点/测试节点.md: mastery 0.5->0.57; event=板A#q1; fsrs=applied @ 2026-08-01T10:00:00Z; ledger=append; callout=no",
+        "E   assert 0 != 0"
+      ],
+      "tail": [
+        "=========================== short test summary info ============================",
+        "FAILED tests/regression/test_g3_3_cas.py::test_cas_conflict_refuses_and_rerun_converges",
+        "======================== 1 failed, 10 warnings in 1.28s ========================"
+      ]
+    },
+    {
+      "id": "M3-ledger-lock-backend",
+      "verdict": "KILLED",
+      "rc": 1,
+      "nodeid": "tests/regression/test_g3_3_cas.py::test_append_event_refuses_when_ledger_locked",
+      "failed": [
+        "tests/regression/test_g3_3_cas.py::test_append_event_refuses_when_ledger_locked"
+      ],
+      "expect_msg": "别人持着账本锁时 append_event 却报了写入成功",
+      "expect_hit": true,
+      "why": "查重与追加不再互斥 ⇒ 同一个 event_id 被并发写多行 ⇒ 幂等键唯一性破裂",
+      "error_lines": [
+        "AssertionError: 别人持着账本锁时 append_event 却报了写入成功",
+        "assert True is False",
+        "+  where True = <function append_event at 0x13ab4a980>('answer_scored', 'quiz:被锁住', node_id='N')",
+        "+    where <function append_event at 0x13ab4a980> = ev.append_event"
+      ],
+      "tail": [
+        "=========================== short test summary info ============================",
+        "FAILED tests/regression/test_g3_3_cas.py::test_append_event_refuses_when_ledger_locked",
+        "======================== 1 failed, 10 warnings in 0.82s ========================"
+      ]
+    },
+    {
+      "id": "M5-cas-revision-only",
+      "verdict": "KILLED",
+      "rc": 1,
+      "nodeid": "tests/regression/test_g3_3_cas.py::test_cas_body_only_change_is_a_conflict",
+      "failed": [
+        "tests/regression/test_g3_3_cas.py::test_cas_body_only_change_is_a_conflict"
+      ],
+      "expect_msg": "正文改动未判冲突",
+      "expect_hit": true,
+      "why": "CAS 只比 revision 两字段 ⇒ 正文改动被判「无冲突」⇒ 覆盖照做",
+      "error_lines": [
+        "AssertionError: 正文改动未判冲突: None",
+        "assert (None)"
+      ],
+      "tail": [
+        "=========================== short test summary info ============================",
+        "FAILED tests/regression/test_g3_3_cas.py::test_cas_body_only_change_is_a_conflict",
+        "======================== 1 failed, 10 warnings in 0.65s ========================"
+      ]
+    },
+    {
+      "id": "M6-ledger-lock-skill",
+      "verdict": "KILLED",
+      "rc": 1,
+      "nodeid": "tests/regression/test_g3_3_cas.py::test_writer_waits_for_held_ledger_lock",
+      "failed": [
+        "tests/regression/test_g3_3_cas.py::test_writer_waits_for_held_ledger_lock"
+      ],
+      "expect_msg": "持锁方释放前账本已经变大",
+      "expect_hit": true,
+      "why": "写点侧账本追加不再互斥 (LF 守卫 + 追加的窗口暴露)",
+      "error_lines": [
+        "AssertionError: 持锁方释放前账本已经变大 —— 写点在别人持锁时抢写了",
+        "assert '581' == '0'",
+        "E     - 0",
+        "+ 581"
+      ],
+      "tail": [
+        "=========================== short test summary info ============================",
+        "FAILED tests/regression/test_g3_3_cas.py::test_writer_waits_for_held_ledger_lock",
+        "======================== 1 failed, 10 warnings in 8.76s ========================"
+      ]
+    },
+    {
+      "id": "M8-thread-lock-lifetime",
+      "verdict": "KILLED",
+      "rc": 1,
+      "nodeid": "tests/regression/test_g3_3_cas.py::test_thread_critical_sections_do_not_overlap",
+      "failed": [
+        "tests/regression/test_g3_3_cas.py::test_thread_critical_sections_do_not_overlap"
+      ],
+      "expect_msg": "两个线程的临界区重叠了",
+      "expect_hit": true,
+      "why": "线程锁不再覆盖 open→close 全生命周期 ⇒ 两线程临界区重叠 ⇒ 后者的锁被前者 close 撤销",
+      "error_lines": [
+        "AssertionError: 两个线程的临界区重叠了 —— 先 acq 的那个还没 close, 另一个就拿到了同一把锁; 它的 close 会把对方的锁一并撤销。实测顺序: ['A-acq', 'B-acq', 'B-close', 'A-close']",
+        "assert ['A-acq', 'B-acq', 'B-close', 'A-close'] in (['A-acq', 'A-close', 'B-acq', 'B-close'], ['B-acq', 'B-close', 'A-acq', 'A-close'])"
+      ],
+      "tail": [
+        "=========================== short test summary info ============================",
+        "FAILED tests/regression/test_g3_3_cas.py::test_thread_critical_sections_do_not_overlap",
+        "======================== 1 failed, 10 warnings in 2.15s ========================"
+      ]
+    },
+    {
+      "id": "M9-splitlines-instead-of-lf",
+      "verdict": "KILLED",
+      "rc": 1,
+      "nodeid": "tests/regression/test_g3_3_cas.py::test_dedup_scan_splits_only_on_physical_lf",
+      "failed": [
+        "tests/regression/test_g3_3_cas.py::test_dedup_scan_splits_only_on_physical_lf"
+      ],
+      "expect_msg": "第二次写入没有被幂等挡住",
+      "expect_hit": true,
+      "why": "查重按 splitlines 切行 ⇒ 含裸 U+2028/NEL 的合法记录被切碎 ⇒ 查重漏命中 ⇒ 双写",
+      "error_lines": [
+        "AssertionError: U2028: 第二次写入没有被幂等挡住 —— 查重把含该字符的行切碎了",
+        "assert True is False",
+        "+  where True = <function append_event at 0x13a6168d0>('answer_scored', 'quiz:U2028', node_id='N', payload={'note': '前\\u2028后'})",
+        "+    where <function append_event at 0x13a6168d0> = ev.append_event"
+      ],
+      "tail": [
+        "=========================== short test summary info ============================",
+        "FAILED tests/regression/test_g3_3_cas.py::test_dedup_scan_splits_only_on_physical_lf",
+        "======================== 1 failed, 10 warnings in 0.76s ========================"
+      ]
+    },
+    {
+      "id": "M10-short-write-unchecked",
+      "verdict": "KILLED",
+      "rc": 1,
+      "nodeid": "tests/regression/test_g3_3_cas.py::test_short_write_is_not_reported_as_success",
+      "failed": [
+        "tests/regression/test_g3_3_cas.py::test_short_write_is_not_reported_as_success"
+      ],
+      "expect_msg": "短写被报告成成功",
+      "expect_hit": true,
+      "why": "短写不检查 ⇒ 残行被报告成写入成功",
+      "error_lines": [
+        "AssertionError: 短写被报告成成功 —— 调用方会以为事件已入账",
+        "assert True is False",
+        "+  where True = <function append_event at 0x13a35e8d0>('answer_scored', 'quiz:短写', node_id='N')",
+        "+    where <function append_event at 0x13a35e8d0> = ev.append_event"
+      ],
+      "tail": [
+        "=========================== short test summary info ============================",
+        "FAILED tests/regression/test_g3_3_cas.py::test_short_write_is_not_reported_as_success",
+        "======================== 1 failed, 10 warnings in 0.82s ========================"
+      ]
+    },
+    {
+      "id": "M11-out-of-order-auto-guess",
+      "verdict": "KILLED",
+      "rc": 1,
+      "nodeid": "tests/regression/test_g3_3_cas.py::test_out_of_order_is_caller_declared_not_auto_guessed",
+      "failed": [
+        "tests/regression/test_g3_3_cas.py::test_out_of_order_is_caller_declared_not_auto_guessed"
+      ],
+      "expect_msg": "账本侧自动猜了乱序",
+      "expect_hit": true,
+      "why": "账本侧自动猜乱序 ⇒ 误标会让写点对该节点永久 fail-closed",
+      "error_lines": [
+        "AssertionError: 账本侧自动猜了乱序 —— 它读不到已应用水位线, 猜错会让该节点永久写不进",
+        "assert 'out_of_order' not in {'attempt_count': 1, 'concept_id': '测试节点', 'exam_board': '检验白板/旧板.md', 'fsrs_library_version': 'degraded:historic-run', ...}"
+      ],
+      "tail": [
+        "=========================== short test summary info ============================",
+        "FAILED tests/regression/test_g3_3_cas.py::test_out_of_order_is_caller_declared_not_auto_guessed",
+        "======================== 1 failed, 10 warnings in 0.84s ========================"
+      ]
+    },
+    {
+      "id": "M12-a3-node-lock",
+      "verdict": "KILLED",
+      "rc": 1,
+      "nodeid": "tests/regression/test_g3_3_cas.py::test_incremental_block_waits_for_node_lock",
+      "failed": [
+        "tests/regression/test_g3_3_cas.py::test_incremental_block_waits_for_node_lock"
+      ],
+      "expect_msg": "归纳出现在持锁方那段之前",
+      "expect_hit": true,
+      "why": "A3 增量归纳块不再等 per-node 锁 ⇒ 与写分块并发时互相覆盖",
+      "error_lines": [
+        "AssertionError: 归纳出现在持锁方那段之前 —— 说明增量块读到的是**旧**内容, 没有真的等锁",
+        "assert 114 < 108",
+        "+  where 114 = <built-in method index of str object at 0x13aad30f0>('持锁进程重写时加的一行。')",
+        "+    where <built-in method index of str object at 0x13aad30f0> = '---\\ntype: concept\\nmastery_score: 0.5\\ntitle: 测试节点\\nsource_board: \"[[原白板/CS 61B]]\"\\n---\\n测试节点正文。\\n\\n> [!question]+ 新疑问一条\\n持锁进程重写时加的一行。\\n'.index",
+        "+  and   108 = <built-in method index of str object at 0x13aad30f0>('新疑问一条')",
+        "+    where <built-in method index of str object at 0x13aad30f0> = '---\\ntype: concept\\nmastery_score: 0.5\\ntitle: 测试节点\\nsource_board: \"[[原白板/CS 61B]]\"\\n---\\n测试节点正文。\\n\\n> [!question]+ 新疑问一条\\n持锁进程重写时加的一行。\\n'.index"
+      ],
+      "tail": [
+        "=========================== short test summary info ============================",
+        "FAILED tests/regression/test_g3_3_cas.py::test_incremental_block_waits_for_node_lock",
+        "======================== 1 failed, 10 warnings in 2.33s ========================"
+      ]
+    },
+    {
+      "id": "M13-a3-cas",
+      "verdict": "KILLED",
+      "rc": 1,
+      "nodeid": "tests/regression/test_g3_3_cas.py::test_incremental_block_cas_preserves_racing_edit",
+      "failed": [
+        "tests/regression/test_g3_3_cas.py::test_incremental_block_cas_preserves_racing_edit"
+      ],
+      "expect_msg": "CAS 没挡住: 增量块拿读盘时的旧 body",
+      "expect_hit": true,
+      "why": "A3 增量块去掉 CAS ⇒ 冲突时拿旧 body 覆盖",
+      "error_lines": [
+        "AssertionError: CAS 没挡住: 增量块拿读盘时的旧 body 覆盖了外部写者的改动",
+        "assert '外部写者在读后写前加的一行。' in '---\\ntype: concept\\nmastery_score: 0.5\\ntitle: 测试节点\\nsource_board: \"[[原白板/CS 61B]]\"\\n---\\n测试节点正文。\\n\\n> [!question]+ 疑问A\\n'"
+      ],
+      "tail": [
+        "=========================== short test summary info ============================",
+        "FAILED tests/regression/test_g3_3_cas.py::test_incremental_block_cas_preserves_racing_edit",
+        "======================== 1 failed, 10 warnings in 0.76s ========================"
+      ]
+    },
+    {
+      "id": "M14-exam-board-ledger-lock",
+      "verdict": "KILLED",
+      "rc": 1,
+      "nodeid": "tests/regression/test_g3_3_cas.py::test_exam_board_waits_for_held_ledger_lock",
+      "failed": [
+        "tests/regression/test_g3_3_cas.py::test_exam_board_waits_for_held_ledger_lock"
+      ],
+      "expect_msg": "建板在别人持锁时抢写了账本",
+      "expect_hit": true,
+      "why": "建板写点不再取账本锁 ⇒ 与别的写者并发时查重/追加不互斥",
+      "error_lines": [
+        "AssertionError: 建板在别人持锁时抢写了账本",
+        "assert '233' == '0'",
+        "E     - 0",
+        "+ 233"
+      ],
+      "tail": [
+        "=========================== short test summary info ============================",
+        "FAILED tests/regression/test_g3_3_cas.py::test_exam_board_waits_for_held_ledger_lock",
+        "======================== 1 failed, 10 warnings in 8.87s ========================"
+      ]
+    },
+    {
+      "id": "M15-post-lock-redup",
+      "verdict": "KILLED",
+      "rc": 1,
+      "nodeid": "tests/regression/test_g3_3_cas.py::test_writer_refuses_when_other_writer_took_the_event_id",
+      "failed": [
+        "tests/regression/test_g3_3_cas.py::test_writer_refuses_when_other_writer_took_the_event_id"
+      ],
+      "expect_msg": "同 event_id 被写了两遍",
+      "expect_hit": true,
+      "why": "取锁后不重查 ⇒ 别的写者抢先写了同 event_id 时本块照常追加 ⇒ 同 ID 两行",
+      "error_lines": [
+        "AssertionError: 同 event_id 被写了两遍: ['quiz:板A#q1', 'quiz:板A#q1']",
+        "assert 2 == 1",
+        "+  where 2 = <built-in method count of list object at 0x13a316780>('quiz:板A#q1')",
+        "+    where <built-in method count of list object at 0x13a316780> = ['quiz:板A#q1', 'quiz:板A#q1'].count"
+      ],
+      "tail": [
+        "=========================== short test summary info ============================",
+        "FAILED tests/regression/test_g3_3_cas.py::test_writer_refuses_when_other_writer_took_the_event_id",
+        "======================== 1 failed, 10 warnings in 1.43s ========================"
+      ]
+    },
+    {
+      "id": "M16-a2-foreign-cas",
+      "verdict": "KILLED",
+      "rc": 1,
+      "nodeid": "tests/regression/test_g3_3_cas.py::test_a2_foreign_recovery_publish_respects_cas",
+      "failed": [
+        "tests/regression/test_g3_3_cas.py::test_a2_foreign_recovery_publish_respects_cas"
+      ],
+      "expect_msg": "CAS 门没挡住 A2 foreign 恢复发布",
+      "expect_hit": true,
+      "why": "foreign 恢复发布不再做 CAS ⇒ 拿内存里的旧 body 整份覆盖 ⇒ 外部写者的正文被吃掉",
+      "error_lines": [
+        "AssertionError: CAS 门没挡住 A2 foreign 恢复发布: 外部写者那段正文被整份覆盖吃掉了",
+        "assert '<!-- 外部写者在评分进行中插入的一段正文 -->' in '---\\ntype: concept\\nattempt_count: 1\\nmastery_score: 0.57\\nmastery_a: 2.1\\nmastery_b: 1.6\\nlast_examined: \"2026-08-01...elf_confidence_raw: null\\n    self_confidence_norm: null\\n    grade_norm: 0.75\\n    abandoned: false\\n\\n---\\n测试节点正文。\\n'",
+        "+  where '<!-- 外部写者在评分进行中插入的一段正文 -->' = <built-in method strip of str object at 0x1363526b0>()",
+        "+    where <built-in method strip of str object at 0x1363526b0> = '\\n<!-- 外部写者在评分进行中插入的一段正文 -->\\n'.strip"
+      ],
+      "tail": [
+        "=========================== short test summary info ============================",
+        "FAILED tests/regression/test_g3_3_cas.py::test_a2_foreign_recovery_publish_respects_cas",
+        "======================== 1 failed, 10 warnings in 2.66s ========================"
+      ]
+    },
+    {
+      "id": "M17-dup-recovery-cas",
+      "verdict": "KILLED",
+      "rc": 1,
+      "nodeid": "tests/regression/test_g3_3_cas.py::test_dup_recovery_publish_respects_cas",
+      "failed": [
+        "tests/regression/test_g3_3_cas.py::test_dup_recovery_publish_respects_cas"
+      ],
+      "expect_msg": "CAS 门没挡住 dup 恢复路径发布",
+      "expect_hit": true,
+      "why": "dup 恢复路径发布不再做 CAS ⇒ 同上, 恢复动作自己把并发正文编辑吃掉",
+      "error_lines": [
+        "AssertionError: CAS 门没挡住 dup 恢复路径发布: 外部写者那段正文被整份覆盖吃掉了",
+        "assert '<!-- 外部写者在评分进行中插入的一段正文 -->' in '---\\ntype: concept\\nmastery_score: 0.57\\nmastery_a: 2.1\\nmastery_b: 1.6\\nattempt_count: 1\\nlast_examined: \"2026-08-01...self_confidence_raw: \"半懂\"\\n    self_confidence_norm: 0.5\\n    grade_norm: 0.75\\n    abandoned: false\\n\\n---\\n测试节点正文。\\n'",
+        "+  where '<!-- 外部写者在评分进行中插入的一段正文 -->' = <built-in method strip of str object at 0x13abc7bb0>()",
+        "+    where <built-in method strip of str object at 0x13abc7bb0> = '\\n<!-- 外部写者在评分进行中插入的一段正文 -->\\n'.strip"
+      ],
+      "tail": [
+        "=========================== short test summary info ============================",
+        "FAILED tests/regression/test_g3_3_cas.py::test_dup_recovery_publish_respects_cas",
+        "======================== 1 failed, 10 warnings in 1.74s ========================"
+      ]
+    },
+    {
+      "id": "M4a-payload-in-place",
+      "verdict": "KILLED",
+      "rc": 1,
+      "nodeid": "tests/regression/test_g3_3_cas.py::test_out_of_order_marker_is_additive",
+      "failed": [
+        "tests/regression/test_g3_3_cas.py::test_out_of_order_marker_is_additive"
+      ],
+      "expect_msg": "append_event 就地污染了调用方的 payload",
+      "expect_hit": true,
+      "why": "不复制调用方 payload ⇒ 打标记就是就地污染 ⇒ 同一个 dict 被复用时把标记带到下一条事件",
+      "error_lines": [
+        "AssertionError: append_event 就地污染了调用方的 payload",
+        "assert 'out_of_order' not in {'attempt_count': 1, 'concept_id': '测试节点', 'exam_board': '检验白板/旧板.md', 'fsrs_library_version': 'degraded:historic-run', ...}"
+      ],
+      "tail": [
+        "=========================== short test summary info ============================",
+        "FAILED tests/regression/test_g3_3_cas.py::test_out_of_order_marker_is_additive",
+        "======================== 1 failed, 10 warnings in 0.97s ========================"
+      ]
+    },
+    {
+      "id": "M4b-marker-not-additive",
+      "verdict": "KILLED",
+      "rc": 1,
+      "nodeid": "tests/regression/test_g3_3_cas.py::test_out_of_order_marker_is_additive",
+      "failed": [
+        "tests/regression/test_g3_3_cas.py::test_out_of_order_marker_is_additive"
+      ],
+      "expect_msg": "out_of_order 标记不是加性的",
+      "expect_hit": true,
+      "why": "补录标记不再是加性的 ⇒ 除标记外的 payload 键全被丢掉 ⇒ 那次复习的载荷永久消失",
+      "error_lines": [
+        "AssertionError: out_of_order 标记不是加性的: 除该键外, payload 其余键必须与调用方传进来的逐字相同",
+        "assert {} == {'attempt_cou...ric-run', ...}",
+        "E     Right contains 11 more items:",
+        "{'attempt_count': 1,",
+        "'concept_id': '测试节点',",
+        "'exam_board': '检验白板/旧板.md',",
+        "'fsrs_library_version': 'degraded:historic-run',",
+        "'fsrs_params_hash': 'degraded:historic-run',..."
+      ],
+      "tail": [
+        "=========================== short test summary info ============================",
+        "FAILED tests/regression/test_g3_3_cas.py::test_out_of_order_marker_is_additive",
+        "======================== 1 failed, 10 warnings in 0.95s ========================"
+      ]
+    },
+    {
+      "id": "M7-lock-dropped-by-second-fd",
+      "verdict": "KILLED",
+      "rc": 1,
+      "nodeid": "tests/regression/test_g3_3_cas.py::test_append_event_still_holds_lock_at_the_moment_of_write",
+      "failed": [
+        "tests/regression/test_g3_3_cas.py::test_append_event_still_holds_lock_at_the_moment_of_write"
+      ],
+      "expect_msg": "落盘那一刻账本锁已经不在手上",
+      "expect_hit": true,
+      "why": "持锁期间 open 第二个 fd ⇒ 本进程在该文件上的记录锁整体释放, 后半段临界区裸奔",
+      "error_lines": [
+        "AssertionError: 落盘那一刻账本锁已经不在手上 —— 临界区中途丢锁了",
+        "assert True is False"
+      ],
+      "tail": [
+        "=========================== short test summary info ============================",
+        "FAILED tests/regression/test_g3_3_cas.py::test_append_event_still_holds_lock_at_the_moment_of_write",
+        "======================= 1 failed, 10 warnings in 10.19s ========================"
+      ]
+    }
+  ],
+  "killed": 18,
+  "total": 18,
+  "syntax_invalid": 0,
+  "restore_identical": true,
+  "mark_scan_ok": true,
+  "leftovers": [],
+  "baseline_missing": []
+}
