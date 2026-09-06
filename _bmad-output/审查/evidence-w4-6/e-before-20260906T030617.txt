@@ -1,0 +1,30 @@
+=== CARD-W4-6 before/after harness —— side=before ===
+    被测门 sha256 = 280cfadb874845cd3cf7e30e0a707f8ebb0a5c2629a43636485045886a5a998a
+    假 backend    = /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/w4-6-before-2hgn1eqh/backend
+  [PASS] shell-fake-dirname                           rc=0 (期望 0)
+  [PASS] shell-fake-printf                            rc=0 (期望 0)
+  [PASS] shell-bash-env                               rc=0 (期望 0)
+  [PASS] shell-readonly-func                          rc=0 (期望 0)
+  [PASS] shell-alias-test-hijack                      rc=2 (期望 2(用法) 或 1(GATE-BROKEN))
+  [PASS] shell-exit-trap-hijack                       rc=2 (期望 2(用法) 或 1(GATE-BROKEN))
+  [FAIL] shell-bash-env-exec-layer-is-load-bearing    rc=1 (期望 0) <本卡新增>
+         原因: rc=1 marker=False stdout= stderr=RUNTIME-FILES: GATE-BROKEN — 清不掉的 shell 函数仍在: dirname printf 
+
+  [FAIL] shell-exec-strips-readonly-func              rc=1 (期望 0) <本卡新增>
+         原因: rc=1 marker=False stdout= stderr=RUNTIME-FILES: GATE-BROKEN — 清不掉的 shell 函数仍在: dirname 
+
+  [FAIL] shell-wrapped-cmd-sees-no-injected-func      rc=1 (期望 0) <本卡新增>
+         原因: rc=1 marker=False stdout= stderr=RUNTIME-FILES: GATE-BROKEN — 清不掉的 shell 函数仍在: dirname printf 
+
+  [FAIL] shell-reexec-sentinel-preset                 rc=1 (期望 0) <本卡新增>
+         原因: rc=1 stdout= stderr=RUNTIME-FILES: GATE-BROKEN — 清不掉的 shell 函数仍在: dirname 
+
+  [FAIL] shell-reexec-sentinel-forged                 rc=2 (期望 1) <本卡新增>
+         原因: rc=2 stdout= stderr=用法: bash /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/w4-6-before-2hgn1eqh/backend/scripts/lifespan_isolation_runtime_sha.sh -- <command...>
+  ('--' 之后的一切原样作为命令执行)
+
+  [FAIL] shell-forged-ticket-with-injection-refused   rc=2 (期望 1) <本卡新增>
+         原因: rc=2 stdout= stderr=用法: bash /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/w4-6-before-2hgn1eqh/backend/scripts/lifespan_isolation_runtime_sha.sh -- <command...>
+  ('--' 之后的一切原样作为命令执行)
+
+--- 本卡新增 6 条中，红 6 条: ['shell-bash-env-exec-layer-is-load-bearing', 'shell-exec-strips-readonly-func', 'shell-wrapped-cmd-sees-no-injected-func', 'shell-reexec-sentinel-preset', 'shell-reexec-sentinel-forged', 'shell-forged-ticket-with-injection-refused']

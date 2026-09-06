@@ -1,0 +1,44 @@
+=== CARD-W4-6 定向变异：每条新判据是否承重 ===
+    基线门 sha256 = 6d206df8eaea6e68c3da94f0dbdac8848f0080fa5efd3d6ceba648bb7fdb53b7
+    变异条数      = 7
+
+[KILLED] M-exec-collect —— 退回「exec 层不摘 BASH_FUNC_*」——三条 exec 层探针必须全红
+    期望翻红: ['shell-bash-env-exec-layer-is-load-bearing', 'shell-exec-strips-readonly-func', 'shell-wrapped-cmd-sees-no-injected-func']
+    本轮实际红: ['shell-fake-dirname', 'shell-fake-printf', 'shell-bash-env', 'shell-readonly-func', 'shell-bash-env-exec-layer-is-load-bearing', 'shell-exec-strips-readonly-func', 'shell-wrapped-cmd-sees-no-injected-func', 'shell-reexec-sentinel-preset']
+    ⚠️ 连坐（非期望但也红了，人工核对是否同源）: ['shell-fake-dirname', 'shell-fake-printf', 'shell-bash-env', 'shell-readonly-func', 'shell-reexec-sentinel-preset']
+
+[KILLED] M-ticket-check —— 拆掉 PID 一致性比对 —— 标记不匹配那条探针必须红
+    期望翻红: ['shell-reexec-sentinel-forged']
+    本轮实际红: ['shell-reexec-sentinel-forged']
+
+[KILLED] M-bashenv-check —— 拆掉 BASH_ENV/ENV 残留检查 —— 只有那一条探针该红
+    期望翻红: ['shell-forged-ticket-with-injection-refused']
+    本轮实际红: ['shell-forged-ticket-with-injection-refused']
+
+[KILLED] M-exported-func-check —— 拆掉导出函数残留检查 —— 这是 BASH_ENV 那条探针到不了的分支
+    期望翻红: ['shell-ticket-ok-but-exported-func-refused']
+    本轮实际红: ['shell-ticket-ok-but-exported-func-refused']
+
+[KILLED] M-trap-clear —— 拆掉拒绝路径的清 trap —— 注入者的 EXIT trap 会把 rc 改写成 0
+    期望翻红: ['shell-forged-ticket-under-exit-trap']
+    本轮实际红: ['shell-forged-ticket-under-exit-trap']
+
+[KILLED] M-nul-delimited —— 忠实退回按行扫环境（生产端+消费端同改）—— 值含换行的普通变量会把正常调用弄成假红
+    期望翻红: ['shell-multiline-env-var-not-mistaken-for-func']
+    本轮实际红: ['shell-multiline-env-var-not-mistaken-for-func', 'shell-env-enum-failure-is-fail-closed']
+    ⚠️ 连坐（非期望但也红了，人工核对是否同源）: ['shell-env-enum-failure-is-fail-closed']
+
+[KILLED] M-enum-sentinel —— 让枚举完成检查恒真 —— 枚举失败就会被当成『没有残留』
+    期望翻红: ['shell-env-enum-failure-is-fail-closed']
+    本轮实际红: ['shell-env-enum-failure-is-fail-closed']
+
+=== 汇总 ===
+  KILLED          M-exec-collect
+  KILLED          M-ticket-check
+  KILLED          M-bashenv-check
+  KILLED          M-exported-func-check
+  KILLED          M-trap-clear
+  KILLED          M-nul-delimited
+  KILLED          M-enum-sentinel
+KILLED 7/7
+跑后基线门 sha256 = 6d206df8eaea6e68c3da94f0dbdac8848f0080fa5efd3d6ceba648bb7fdb53b7  （与跑前相同）

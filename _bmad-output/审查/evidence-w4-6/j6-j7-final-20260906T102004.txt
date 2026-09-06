@@ -1,0 +1,22 @@
+=== J6' 常量不动（修正判据：只看变更行）===
+grep rc=1（1=通过）
+
+=== 整块 sha 对比 ===
+98a208684177ddd1154a2145cf3621c3f479c2a56cc3d4c5772ccee2e061467b  -
+98a208684177ddd1154a2145cf3621c3f479c2a56cc3d4c5772ccee2e061467b  -
+
+=== sha256 改后 ===
+6d206df8eaea6e68c3da94f0dbdac8848f0080fa5efd3d6ceba648bb7fdb53b7  backend/scripts/lifespan_isolation_runtime_sha.sh
+
+=== J7 hunk 归属 ===
+@@ -763,0 +764,284 @@ def probe_shell_injections() -> list[dict]:
+661:def probe_shell_injections() -> list[dict]:
+1052:def probe_shell_selftest_is_load_bearing() -> dict:
+
+=== 工作树 ===
+ M backend/scripts/lifespan_isolation_guard_probes.py
+ M backend/scripts/lifespan_isolation_runtime_sha.sh
+?? "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-W4-6-shell-bashenv.md"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-w4-6/"
+?? "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-W4-6-shell-bashenv.md"
+?? "_bmad-output/\351\252\214\346\224\266\345\215\225/UAT-CARD-W4-6-shell-bashenv-2026-09-06.md"

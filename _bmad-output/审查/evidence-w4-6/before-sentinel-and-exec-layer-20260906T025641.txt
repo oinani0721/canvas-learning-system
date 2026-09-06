@@ -1,0 +1,27 @@
+### BEFORE (HEAD=39407e97, runtime_sha.sh sha=280cfadb...998a) ###
+
+=== B1: 哨兵预设 W4_SHA_GATE_REEXEC=1 + readonly.sh 注入 ===
+RUNTIME-FILES: GATE-BROKEN — 清不掉的 shell 函数仍在: dirname 
+rc=1
+
+=== B2: 哨兵预设 W4_SHA_GATE_REEXEC=1 + fn.sh 注入（对照，不承重）===
+=== 执行被包裹命令 ===
+$ /usr/bin/true
+=== RUNTIME-FILES after (2026-09-06 02:56:41 +0800) ===
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/data/bug_log.jsonl
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/data/outbox/events.jsonl
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/app/data/vault_index_pending.jsonl
+WRAPPED-COMMAND-EXIT: 0
+RUNTIME-FILES: unchanged
+rc=
+
+=== B3: 无预设 + fn.sh 注入，被包裹命令看得见导出函数吗（exec 层是否摘掉）===
+builtin
+file
+=== RUNTIME-FILES after (2026-09-06 02:56:41 +0800) ===
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/data/bug_log.jsonl
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/data/outbox/events.jsonl
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/app/data/vault_index_pending.jsonl
+WRAPPED-COMMAND-EXIT: 0
+RUNTIME-FILES: unchanged
+rc=

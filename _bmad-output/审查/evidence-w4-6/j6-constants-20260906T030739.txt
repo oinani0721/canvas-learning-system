@@ -1,0 +1,19 @@
+=== J6-1 卡文原判据（会数上下文行，见下方修正）===
+14: #       监视面 = WATCHED_FIXED 的固定项 + WATCHED_GLOBS 每次快照重新展开的 glob 项；
+
+=== J6-1' 修正判据：只看**变更行**（^[+-] 且非 ---/+++ 头）===
+grep rc=1  （1 = 无匹配 = 通过）
+
+=== J6-1'' 上面那一条命中是不是上下文行（前缀是空格）==
+14: #       �M-^[M-^Q�M-^F�M-^]� = WATCHED_FIXED �M-^ZM-^D�M-^[��M-^Z项 + WATCHED_GLOBS �M-^O次快�M-^E��M-^GM-^M�M-^V��M-^U�M-^@�M-^ZM-^D glob 项�M-^[
+
+=== J6-1''' 五个常量在 before/after 逐字节相同 ===
+  [同] SELFTEST_EXPECTED=  -> SELFTEST_EXPECTED='82e87819dac824b894684638a188059759c99d793641765853e5c5cae20baa1c'
+  [同] WATCHED_FIXED=(  -> WATCHED_FIXED=(
+  [同] WATCHED_GLOBS=(  -> WATCHED_GLOBS=(
+  [同] EXPECTED_FIXED_COUNT=  -> EXPECTED_FIXED_COUNT=3
+  [同] EXPECTED_GLOB_COUNT=  -> EXPECTED_GLOB_COUNT=1
+
+=== J6-1'''' WATCHED_FIXED / WATCHED_GLOBS 整块逐字节相同 ===
+98a208684177ddd1154a2145cf3621c3f479c2a56cc3d4c5772ccee2e061467b  -
+98a208684177ddd1154a2145cf3621c3f479c2a56cc3d4c5772ccee2e061467b  -

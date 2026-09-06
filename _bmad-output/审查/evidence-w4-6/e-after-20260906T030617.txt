@@ -1,0 +1,16 @@
+=== CARD-W4-6 before/after harness —— side=after ===
+    被测门 sha256 = d033b19fbd5228da4dc9aa3bde50d8c5aad704c9217451fa7cf123af6d905277
+    假 backend    = /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/w4-6-after-dansr7jb/backend
+  [PASS] shell-fake-dirname                           rc=0 (期望 0)
+  [PASS] shell-fake-printf                            rc=0 (期望 0)
+  [PASS] shell-bash-env                               rc=0 (期望 0)
+  [PASS] shell-readonly-func                          rc=0 (期望 0)
+  [PASS] shell-alias-test-hijack                      rc=2 (期望 2(用法) 或 1(GATE-BROKEN))
+  [PASS] shell-exit-trap-hijack                       rc=2 (期望 2(用法) 或 1(GATE-BROKEN))
+  [PASS] shell-bash-env-exec-layer-is-load-bearing    rc=0 (期望 0) <本卡新增>
+  [PASS] shell-exec-strips-readonly-func              rc=0 (期望 0) <本卡新增>
+  [PASS] shell-wrapped-cmd-sees-no-injected-func      rc=0 (期望 0) <本卡新增>
+  [PASS] shell-reexec-sentinel-preset                 rc=0 (期望 0) <本卡新增>
+  [PASS] shell-reexec-sentinel-forged                 rc=1 (期望 1) <本卡新增>
+  [PASS] shell-forged-ticket-with-injection-refused   rc=1 (期望 1) <本卡新增>
+--- 本卡新增 6 条中，红 0 条: （无）

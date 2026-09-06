@@ -1,0 +1,20 @@
+=== 作者对抗自测：新增的「伪造票据」拒绝路径是否落在注入者 EXIT trap 射程内 ===
+被测门 = commit 4d56beb0 的版本（尚未打 trap 补丁）
+
+--- A1: 伪票 + EXIT trap 注入 ---
+RUNTIME-FILES: GATE-BROKEN — --w4-reexec 票据不匹配（票据由本进程 PID 派生，伪造的前哨不被接受）；拒绝在未经清洗的环境里给出结论
+RUNTIME-FILES: unchanged
+rc=0  <= 期望 1；实得 0 = 本卡新引入的假绿面
+
+--- A2: 继承 PID 伪票 + EXIT trap 注入 ---
+RUNTIME-FILES: GATE-BROKEN — 票据声称已清洗，但 BASH_ENV/ENV 仍有值；拒绝给出结论
+RUNTIME-FILES: unchanged
+rc=0  <= 同上
+
+--- A3: 继承 PID 伪票 + 注入文件自 unset BASH_ENV（第一道自洽检查盲，第二道抓到）---
+RUNTIME-FILES: GATE-BROKEN — 票据声称已清洗，但环境里仍有导出函数: BASH_FUNC_f%%
+
+=== 在 scratch 副本上加 'builtin trap - EXIT ...' 之后 ===
+C1 rc=1 stdout=[] stderr末行=RUNTIME-FILES: GATE-BROKEN — --w4-reexec 票据不匹配（票据由本进程 PID 派生，伪造的前哨不被接受）；拒绝在未经清洗的环境里给出结论
+C2 rc=1 stdout=[] stderr末行=RUNTIME-FILES: GATE-BROKEN — 票据声称已清洗，但 BASH_ENV/ENV 仍有值；拒绝给出结论
+C3 正常路径 rc=0 末行=RUNTIME-FILES: unchanged

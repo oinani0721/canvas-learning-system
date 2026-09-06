@@ -1,0 +1,31 @@
+########## J2/J3/J4bc ##########
+--- J2-1 只读实证（与修复前应相同）---
+BASH_FUNC_f%%=() {  :
+0
+--- J2-2 被包裹命令函数表 ---
+=== RUNTIME-FILES before (2026-09-06 10:15:11 +0800) ===
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/data/bug_log.jsonl
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/data/outbox/events.jsonl
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/app/data/vault_index_pending.jsonl
+=== 执行被包裹命令 ===
+$ /bin/bash -c type -t printf; type -t dirname
+builtin
+file
+=== RUNTIME-FILES after (2026-09-06 10:15:11 +0800) ===
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/data/bug_log.jsonl
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/data/outbox/events.jsonl
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/app/data/vault_index_pending.jsonl
+WRAPPED-COMMAND-EXIT: 0
+RUNTIME-FILES: unchanged
+rc=0
+--- J3 哨兵预设 + readonly.sh ---
+WRAPPED-COMMAND-EXIT: 0
+RUNTIME-FILES: unchanged
+rc=0
+--- J4b /usr/bin/true ---
+RUNTIME-FILES: unchanged
+rc=0
+--- J4c 无 -- ---
+用法: bash scripts/lifespan_isolation_runtime_sha.sh -- <command...>
+  ('--' 之后的一切原样作为命令执行)
+rc=2
