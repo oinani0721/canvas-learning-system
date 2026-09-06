@@ -2715,16 +2715,34 @@ _FsrsFingerprint = tuple[dict[str, list[str]], "tuple[int, str] | None"]
 
 
 def _fsrs_fingerprint(vault: Path) -> _FsrsFingerprint:
-    """FSRS 调度面的指纹: 每个节点 md 的 fsrs_* frontmatter 行 + 事件账。
+    """FSRS 调度面的指纹: 每个节点 md 的 **frontmatter 原始字节** + 事件账。
 
-    只挑 fsrs_* 行而不是整文件 sha —— 整文件 sha 会把无关改动 (比如正文
+    只取 frontmatter 而不是整文件 sha —— 整文件 sha 会把无关改动 (比如正文
     排版) 也算成"动了 FSRS", 那样门一旦红, 没人知道红的是不是调度面。
     learning_events.jsonl 取 (行数, sha): 追加一行就变, 这正是要挡的那件事。
+
+    ⚠ Codex round-1 LOW 整改: 初版取的是「整份文件里以 fsrs_ 开头的**行**」,
+    有两个盲区 —— ① 不分 frontmatter 内外: 把结束 `---` 挪到 fsrs_due 之前
+    (字段就此降级成正文, 生产器再也读不到它) 指纹不变; ② `splitlines()` 吃掉
+    `\r`: CRLF ↔ LF 互换指纹不变。两者都不是"逐字节相同"。现在记 frontmatter
+    块的**原始字节 sha**(管逐字节与边界) + 块内的 fsrs_* 行(让失败消息说得出
+    是哪个字段动了)。两条盲区各有一条负控用例。
     """
     fm: dict[str, list[str]] = {}
     for md in sorted((vault / "节点").glob("*.md")):
-        lines = md.read_text(encoding="utf-8").splitlines()
-        fm[md.name] = [ln for ln in lines if ln.startswith("fsrs_")]
+        raw = md.read_bytes()
+        rows = raw.split(b"\n")
+        block: list[bytes] = []
+        if rows and rows[0].rstrip(b"\r") == b"---":
+            for ln in rows[1:]:
+                if ln.rstrip(b"\r") == b"---":
+                    break
+                block.append(ln)
+        joined = b"\n".join(block)
+        fm[md.name] = [
+            hashlib.sha256(joined).hexdigest(),
+            *(ln.decode("utf-8", "surrogateescape") for ln in block if ln.startswith(b"fsrs_")),
+        ]
     events = vault / "learning_events.jsonl"
     ev: "tuple[int, str] | None" = None
     if events.exists():
@@ -2807,7 +2825,9 @@ def test_g67_board_done_writes_only_state_and_never_touches_fsrs(board_done_env,
         _install_contaminating_write_point(monkeypatch, mod, vault)
 
     before_fsrs = _fsrs_fingerprint(vault)
-    assert before_fsrs[0]["定义甲.md"], "夹具前提: 节点必须真的带 fsrs_* 行, 否则门是空的"
+    assert any(x.startswith("fsrs_") for x in before_fsrs[0]["定义甲.md"]), (
+        "夹具前提: 节点必须真的带 fsrs_* frontmatter 行, 否则门是空的"
+    )
     assert before_fsrs[1] is not None, "夹具前提: 事件账必须真的存在, 否则那一半判据是空的"
     before_tree = _tree(root)
 
@@ -3121,3 +3141,155 @@ def test_g67_runner_script_missing_fails_closed_503(board_done_env, monkeypatch)
     assert resp.json()["detail"]["error"] == "runner_script_not_found"
     # 读侧同一情形只是"没有完成记录", 不是 500 (读松写紧)
     assert client.get("/api/v1/review/overview").status_code == 200
+
+
+# ── CARD-G6-7 · Codex round-1 整改的配套门 ──
+
+
+def _pin_tmp_name(monkeypatch, runner, state: Path) -> Path:
+    """把 save_state 的临时件路径钉死, 好让用例能在那个确切位置上预置东西。
+
+    生产里它是 `<state 名>.<pid>.<8hex>.tmp` —— **不可预测本身就是一层防御**,
+    但那是「猜不中」不是「拦得住」。本门要验的是拦得住那一层 (O_EXCL|O_NOFOLLOW),
+    所以先让"猜不中"失效。
+
+    ⚠ 补丁打在 `runner._state_tmp_path`(模块级函数) 而不是 os.getpid / uuid.uuid4:
+    后两个是**解释器全局**, 打上去会连累同进程里任何别的调用方 —— 初版就是这么写的,
+    当场把 bug_tracker 的 BUG-id 生成弄坏, 请求 500 而不是走到被测的那条路上。
+    """
+    fixed = state.with_name(f"{state.name}.pinned.tmp")
+    monkeypatch.setattr(runner, "_state_tmp_path", lambda _state: fixed)
+    return fixed
+
+
+def test_g67_state_write_refuses_preplanted_symlink_at_tmp_path(board_done_env, monkeypatch):
+    """Codex round-1 HIGH: 临时件路径被预置成指向库内节点的软链 → 必须拒写。
+
+    这条缺陷本身来自 BASE 的 `save_state`（固定名 + `write_text` 跟随软链），
+    本卡一个字节都没改它 —— 但**本卡把它的可达性从「本机 runner 每小时一次」
+    变成「浏览器点一下」**，所以它是本卡要负责的面。同款修法在姊妹函数
+    `daily_review_pick.atomic_write` 上早就有了，本函数当时漏了。
+
+    判据绑定到「那个节点逐字节没变」+「端点返回 503 而不是 200」——
+    只断言 500 或只断言"报错了"都不够: 关键是**没写出去**。
+    """
+    root, client, runner, _mod = board_done_env
+    vault = _mk_node_vault(root, "vault-link-tmp", {"定义甲": _node_md(fsrs_due='"2099-01-01T00:00:00Z"')})
+    node = vault / "节点" / "定义甲.md"
+    node_before = node.read_bytes()
+
+    state = runner.state_path(vault)
+    state.parent.mkdir(parents=True, exist_ok=True)
+    tmp = _pin_tmp_name(monkeypatch, runner, state)
+    tmp.symlink_to(node)
+    assert tmp.is_symlink() and tmp.resolve() == node.resolve(), "夹具前提: 软链必须真的摆在那个确切路径上"
+
+    resp = client.post(_BOARD_DONE_URL, data={"vault_id": "vault-link-tmp", "board": "CS 61B"})
+    # ⛔ 承重断言排第一: 退回缺陷的变异体会让这次写"成功"(200), 那时先红的必须是
+    # 「节点被写动了」而不是状态码 —— 判据要绑定到"没写出去"这件事本身
+    assert node.read_bytes() == node_before, "节点被写动了 —— 软链越界没有被拦住"
+    assert resp.status_code == 503, f"落账被拒必须是 503 而不是 200/500: {resp.status_code} {resp.text[:200]}"
+    assert resp.json()["detail"]["error"] == "state_write_refused"
+    assert not state.exists(), "被拒的这一次不许留下半份完成账"
+
+
+def test_g67_stale_tmp_residue_neither_blocks_nor_gets_clobbered(board_done_env):
+    """配套负控: 拒绝软链**不能顺手把正常路径也拒了**。
+
+    方向安全声明要走完全程 —— 只验"拦住了坏的"、不验"没拦住好的", 是半条判据。
+    崩在「写 tmp」与「replace」之间会留下残骸; 唯一名让下一次保存**换一个名字**,
+    所以残骸既不会挡住保存, 也不该被我们顺手删掉 (那是别人的文件, 可能是另一个
+    写者正在用的 in-flight tmp)。这两条一起才说明这道防御没有副作用。
+    """
+    root, client, runner, mod = board_done_env
+    _mk_node_vault(root, "vault-stale", {"甲": _node_md()})
+    state = runner.state_path(Path(root) / "vault-stale")
+    state.parent.mkdir(parents=True, exist_ok=True)
+    stale = state.with_name(f"{state.name}.999999.deadbeef.tmp")
+    stale.write_text("上一次崩在写与 replace 之间留下的半截残骸", encoding="utf-8")
+    stale_sha = hashlib.sha256(stale.read_bytes()).hexdigest()
+
+    resp = client.post(_BOARD_DONE_URL, data={"vault_id": "vault-stale", "board": "CS 61B"})
+    assert resp.status_code == 200, f"残骸不该挡住保存: {resp.text[:200]}"
+    assert json.loads(state.read_text(encoding="utf-8"))["board_done"]["CS 61B"] == mod._sh_today()
+    assert hashlib.sha256(stale.read_bytes()).hexdigest() == stale_sha, "别人的残骸不许被顺手删改"
+    # 本次自己的临时件必须已经被 os.replace 消费掉, 不留新残渣
+    ours = [p.name for p in state.parent.glob(f"{state.name}.*.tmp") if p.name != stale.name]
+    assert ours == [], f"成功路径留下了临时件残渣: {ours}"
+
+
+def test_g67_cold_load_of_runner_writes_no_bytecode(board_done_env, tmp_path_factory):
+    """Codex round-1 LOW: **冷加载**下读路径不许写 __pycache__。
+
+    ⚠ 本门的初版是假绿 (自己的变异跑抓出来的): 它盯的是仓库里的
+    `scripts/__pycache__`, 而那两个 .pyc 早就被 runner 自己写出来过了 ——
+    缓存已是最新, SourceFileLoader 本来就不会再写, 于是"没有新增"这条判据
+    与修复在不在**毫无关系**。夹具必须提供一个**可证为空**的缓存面才测得到。
+
+    现在: 把脚本复制到 tmp 里 (连同它 import 的 send_bark), 断言那儿本来没有
+    __pycache__, 再从那份副本冷加载。既有夹具都已把 runner 加载过 (命中
+    sys.modules), 所以还要显式把模块从表里摘掉、把字节码写入打开。
+    """
+    _root, _client, _runner, mod = board_done_env
+    src_dir = Path(mod._runner_script(Path(_root)) or "").parent
+    cold = tmp_path_factory.mktemp("g67-cold") / "scripts"
+    cold.mkdir()
+    for name in (mod._RUNNER_BASENAME, "send_bark.py"):
+        shutil.copy(src_dir / name, cold / name)
+    cache = cold / "__pycache__"
+    assert not cache.exists(), "夹具前提: 冷加载面必须本来就没有字节码缓存"
+
+    saved = {k: sys.modules.pop(k, None) for k in (mod._RUNNER_MODULE_NAME, "send_bark")}
+    prev_flag = sys.dont_write_bytecode
+    sys.dont_write_bytecode = False  # 把"环境恰好禁了字节码"这个假绿来源关掉
+    prev_path = list(sys.path)
+    try:
+        fresh = mod._load_runner(cold / mod._RUNNER_BASENAME)
+        assert Path(fresh.__file__).parent == cold, "前提: 必须真的从那份副本加载"
+    finally:
+        sys.dont_write_bytecode = prev_flag
+        sys.path[:] = prev_path
+        for k, v in saved.items():
+            if v is not None:
+                sys.modules[k] = v
+            else:
+                sys.modules.pop(k, None)
+
+    written = sorted(p.name for p in cache.glob("*.pyc")) if cache.exists() else []
+    assert written == [], f"读路径的模块加载写出了字节码: {written}"
+
+
+def _move_frontmatter_end_before_fsrs(node: Path) -> None:
+    """把结束 `---` 挪到 fsrs_due 之前 —— 字段就此降级成正文, 生产器再也读不到。"""
+    text = node.read_text(encoding="utf-8")
+    head, sep, tail = text.partition("fsrs_due:")
+    assert sep, "夹具前提: 节点必须真的有 fsrs_due 行"
+    node.write_text(head + "---\n" + sep + tail, encoding="utf-8")
+
+
+def test_g67_fsrs_fingerprint_catches_boundary_and_crlf(board_done_env):
+    """Codex round-1 LOW 的两条负控: 指纹此前对这两种改动失明, 现在必须都抓住。
+
+    ① frontmatter 边界: 把结束 `---` 挪到 fsrs_due 之前 —— 逐行取 `fsrs_` 的
+       老指纹看不出任何差别, 但那张卡的调度字段已经失效了;
+    ② 换行风格: LF → CRLF —— `splitlines()` 吃掉 `\\r`, 老指纹同样不变,
+       而"逐字节相同"这句话已经不成立。
+    """
+    root, _client, _runner, _mod = board_done_env
+    vault = _mk_node_vault(root, "vault-fp", {"定义甲": _node_md(fsrs_due='"2099-01-01T00:00:00Z"')})
+    node = vault / "节点" / "定义甲.md"
+    base = _fsrs_fingerprint(vault)
+    original = node.read_bytes()
+
+    _move_frontmatter_end_before_fsrs(node)
+    with pytest.raises(AssertionError) as ei:
+        _assert_fsrs_untouched(base, _fsrs_fingerprint(vault))
+    assert _FSRS_GATE_MSG in str(ei.value)
+
+    node.write_bytes(original.replace(b"\n", b"\r\n"))
+    with pytest.raises(AssertionError) as ei2:
+        _assert_fsrs_untouched(base, _fsrs_fingerprint(vault))
+    assert _FSRS_GATE_MSG in str(ei2.value)
+
+    node.write_bytes(original)
+    _assert_fsrs_untouched(base, _fsrs_fingerprint(vault))  # 还原后必须回到相等 (防"恒不等"的假门)

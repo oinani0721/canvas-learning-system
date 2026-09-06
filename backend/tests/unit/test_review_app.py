@@ -2638,3 +2638,62 @@ test("自动轮询与可见性切换路径上 POST 恒为 0", async () => {
 """.replace("URLS_BOARD_DONE", json.dumps(BOARD_DONE_PATH)),
     )
     _assert_node_green(proc)
+
+
+@pytest.mark.usefixtures("page_html")
+def test_js_g67_stale_refresh_settlement_cannot_overwrite_done_feedback(node_harness):
+    """Codex round-1 MEDIUM: 旧刷新的异步结算不许覆盖后来的完成失败提示。
+
+    时序（真实可发生，不是构造的极端值）：
+      刷新成功 → pendingSync 挂上 → 那轮补发的 GET 还在飞
+      → 用户点「这板做完了」拿到 503，note 显示「标记失败」
+      → 旧 GET 回来，settlePendingSync 把共享的 notes[vid] 改写成绿色
+        「已重建…数字已更新」→ 用户以为完成成功了。
+
+    修法与 onRefreshClick 的 Z1-A HIGH-1 同一条：同库开始新动作 ⇒ 旧 pending
+    就此失去改写「当前」反馈的权利。本门先证明前提（刷新确实挂上了 pending，
+    没有它这条门测不到东西），再证明完成动作把它作废掉。
+    """
+    proc = _run_node(
+        node_harness,
+        _BOOT_PRELUDE
+        + _G67_FIX
+        + r"""
+function deferred() { let r; const p = new Promise(res => { r = res; }); p.resolve = r; return p; }
+test("刷新 pending 在飞时标完成失败 → 失败提示不被旧结算改写", async () => {
+  const gets = [];
+  const b = boot({
+    getJson: () => { const d = deferred(); gets.push(d); return d; },
+    postJson: (url) => String(url).indexOf("board-done") !== -1
+      ? {ok: false, status: 503, json: async () => ({detail: {message: "落账被拒"}})}
+      : {ok: true, status: 200, json: async () => ({rebuilt: true, reason: "rebuilt", rebuild_count: 7})},
+  });
+  gets.pop().resolve({ok: true, status: 200, json: async () => ({vaults: [G67]})});
+  await flush();
+
+  const refreshBtn = mkNode("r"); refreshBtn._attrs["data-refresh-vault"] = "cs_61b";
+  const doneBtn = mkNode("d");
+  doneBtn._attrs["data-done-vault"] = "cs_61b"; doneBtn._attrs["data-done-board"] = "哈希表";
+  const note = mkNode("n"); note._attrs["data-note-for"] = "cs_61b";
+  b.els["cards"]._desc = [refreshBtn, doneBtn, note];
+  const click = el => b.handlers["cards::click"]({target: {closest: sel => (matches(el, sel) ? el : null)}});
+
+  await click(refreshBtn);           // 刷新成功 → 挂 pending, 触发一轮 GET (未返回)
+  await flush();
+  assert.match(note.innerHTML, /正在同步最新数字/, "前提: 刷新必须真的挂上了 pending");
+  const inflightGet = gets.pop();
+  assert.ok(inflightGet, "前提: 必须有一轮 GET 还在飞, 否则本门测不到覆盖");
+
+  await click(doneBtn);              // 完成失败 503
+  await flush();
+  assert.match(note.innerHTML, /标记失败/);
+  assert.match(note.innerHTML, /503/);
+
+  inflightGet.resolve({ok: true, status: 200, json: async () => ({vaults: [G67]})});
+  await flush();
+  assert.match(note.innerHTML, /标记失败/, "旧刷新的结算把完成失败改写掉了 — 用户会以为标记成功");
+  assert.ok(!note.innerHTML.includes("数字已更新"));
+});
+""",
+    )
+    _assert_node_green(proc)

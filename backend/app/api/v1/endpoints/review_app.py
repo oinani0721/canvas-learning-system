@@ -639,6 +639,12 @@ async function onBoardDoneClick(ev) {
   const board = btn.getAttribute("data-done-board");
   const key = doneKey(vid, board);
   if (state.doneInflight[key]) return;  // 同板在飞, 不发第二个 POST
+  // CARD-G6-7 (Codex round-1 MEDIUM): 与 onRefreshClick 的 Z1-A HIGH-1 同一条纪律 ——
+  // notes[vid] 是**按库**共享的一格, 刷新与完成两个动作都往里写。上一次重建挂下的
+  // pending 若还留着, 它那轮补发的 GET 回来时会把「标记失败 503」改写成绿色的
+  // 「已重建 · 数字已更新」, 用户就以为完成成功了。同库开始新动作 ⇒ 旧 pending
+  // 就此失去改写「当前」反馈的权利。
+  delete state.pendingSync[vid];
   state.doneInflight[key] = true;
   for (const b of doneButtons(vid, board)) b.disabled = true;
   try {

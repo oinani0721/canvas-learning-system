@@ -1966,11 +1966,23 @@ def _load_runner(script: Path):
             raise ImportError(f"无法为 {script} 建立 import spec")
         mod = importlib.util.module_from_spec(spec)
         sys.modules[_RUNNER_MODULE_NAME] = mod
+        # CARD-G6-7 (Codex round-1 LOW): 加载不许留下副产品。SourceFileLoader 默认写
+        # scripts/__pycache__/{daily_review_run,send_bark}.cpython-*.pyc, 而**读路径**
+        # (GET /overview 经 _runner_or_none) 也会走到这里 —— 一个 GET 写文件, 哪怕写的
+        # 是 gitignored 的字节码, 也已经破坏了本模块自 CARD-G6-1 起就成文、也有门守着的
+        # 「两个 GET 端点只读」不变量 (冷启动实测: 首次 GET 写出那两个 .pyc)。
+        # ⚠ 副作用面如实登记: dont_write_bytecode 是解释器级全局, 这段窗口内**其它线程**
+        # 的 import 也不写缓存 —— 代价只是那几次 import 慢一点, 不改变任何语义; 窗口被
+        # _runner_load_lock 限制在一次模块加载内, 且无条件恢复。
+        prev_dont_write = sys.dont_write_bytecode
+        sys.dont_write_bytecode = True
         try:
             spec.loader.exec_module(mod)
         except BaseException:
             sys.modules.pop(_RUNNER_MODULE_NAME, None)  # 半加载的壳不留在表里
             raise
+        finally:
+            sys.dont_write_bytecode = prev_dont_write
         return mod
 
 
@@ -2078,7 +2090,20 @@ def _write_board_done(vault_dir: Path, vaults_root: Path, board: str, day: str) 
         declared = st.get("schema_version")
         if not isinstance(declared, int) or declared < runner.STATE_SCHEMA_VERSION:
             st["schema_version"] = runner.STATE_SCHEMA_VERSION
-        runner.save_state(st, vault_dir)
+        try:
+            runner.save_state(st, vault_dir)
+        except OSError as e:
+            # CARD-G6-7 (Codex round-1 HIGH 配套): save_state 的 O_EXCL|O_NOFOLLOW
+            # 会在「tmp 路径被抢先建成软链/目录」时抛 OSError —— 那是**拒绝写出去**,
+            # 是本端点的正常失败态, 不该逃逸成 500 裸 traceback。
+            logger.warning("board-done 落账失败", vault=vault_dir.name, error=repr(e))
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "error": "state_write_refused",
+                    "message": f"完成账落盘被拒绝 ({type(e).__name__}) —— 临时件路径异常, 未写出任何内容",
+                },
+            )
     return state_file
 
 

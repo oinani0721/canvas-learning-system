@@ -22,6 +22,7 @@ import os
 import subprocess
 import sys
 import time
+import uuid
 from datetime import datetime, time as dtime, timezone
 from pathlib import Path
 
@@ -106,12 +107,49 @@ def load_state(vault: Path | None = None) -> dict:
         return {"schema_version": STATE_SCHEMA_VERSION, "board_last_recommended": {}, "board_done": {}}
 
 
+def _state_tmp_path(state: Path) -> Path:
+    """state 的临时件路径 (唯一名, 与 daily_review_pick.atomic_write 同形)。
+
+    单独抽成一个名字, 是为了让门能把它钉死: 「名字猜不中」与「路径被占也写不进去」
+    是**两层**防御, 要验后一层就得先让前一层失效。测试补丁打在本函数上 (模块级、
+    可替换), 而不是去改 os.getpid / uuid.uuid4 —— 那两个是解释器全局, 打上去会
+    连累同进程里任何别的调用方 (实测: 会把 bug_tracker 的 BUG-id 生成一起弄坏)。
+    """
+    return state.with_name(f"{state.name}.{os.getpid()}.{uuid.uuid4().hex[:8]}.tmp")
+
+
 def save_state(st: dict, vault: Path | None = None):
+    """同目录 tmp → os.replace 原子发布。
+
+    ⚠ CARD-G6-7 (Codex round-1 HIGH): 原实现是
+    `tmp = state.with_suffix(".tmp"); tmp.write_text(...)` —— **固定名 + 跟随
+    符号链接**。于是事先在那个可预测的路径上摆一条指向库内节点的软链, 这次
+    保存就把 state JSON 写进那个节点, 把它的 fsrs_* frontmatter 整个覆盖掉
+    (os.replace 那一步不跟随软链, 所以问题一直在 tmp 写这一侧, 不在 state 侧)。
+
+    这条缺陷的**同款修法在姊妹函数上早就有了** —— `daily_review_pick.atomic_write`
+    (CARD-G6-1 round-3) 就是唯一名 + O_EXCL|O_NOFOLLOW; 本函数当时漏了。
+    从前它只有本机 runner 每小时走一次, 于是没人注意; CARD-G6-7 起浏览器点一下
+    就能走到这里 —— **可达性变了, 原来只在纸面上的前提必须变成代码里的判据**。
+
+    两处刻意与 atomic_write 同形而不是 import 它: 两个脚本在模块级互不依赖
+    (runner 只在 ensure_payload 里惰性 import picker), 为一个 8 行原语建立
+    模块级耦合不划算。同形处如实登记, 改一处要记得改另一处。
+    """
     state = state_path(vault)
     state.parent.mkdir(parents=True, exist_ok=True)
-    tmp = state.with_suffix(".tmp")
-    tmp.write_text(json.dumps(st, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    os.replace(tmp, state)
+    tmp = _state_tmp_path(state)
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(json.dumps(st, ensure_ascii=False, indent=2) + "\n")
+        os.replace(tmp, state)
+    except BaseException:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        raise
 
 
 def log_line(msg: str):
@@ -156,8 +194,21 @@ def ensure_payload(st: dict, now: datetime, today: str) -> tuple[dict | None, st
     rest→due 两推 (CARD-D2b; state 持久化成立前提, 见推送门注释)。
     """
     payload_path = VAULT / "outputs" / "今日复习.json"
+    # CARD-G6-7 (Codex round-1 MEDIUM): 完成账变了也算缓存失效。少这一条 ——
+    # 当天投影已生成之后再标完成、节点没动、也没跨到期点 —— 缓存分支直接返回
+    # 旧榜, 「让出榜首」整天不生效 (真文件实测: how="cached", 榜首与通知不变)。
+    # 签名用 sort_keys 的 JSON 而不是 dict 本身: 只认内容变化, 不认键序抖动。
+    #
+    # ⚠ 签名**缺席**不等于变化: 本卡之前落盘的 state 都没有这个键, 一律当"变了"
+    # 会把「当天已缓存的 legacy payload 照常复用」这条既有契约打掉
+    # (test_legacy_cached_payload_without_top_boards_records_due 当场变红)。
+    # 只有"没签名**且**账非空"才是真的没对过账 —— 那正是升级当天先标了完成、
+    # 又还没重新生成过的那一格, 必须重扫。
+    done_sig = json.dumps(st.get("board_done") or {}, ensure_ascii=False, sort_keys=True)
+    cached_sig = st.get("board_done_sig")
+    done_unchanged = cached_sig == done_sig or (cached_sig is None and not st.get("board_done"))
     first_gen_today = st.get("last_generate_date") != today
-    if not first_gen_today and payload_path.exists():
+    if not first_gen_today and payload_path.exists() and done_unchanged:
         try:
             raw = payload_path.read_text(encoding="utf-8")
             # sha 校验 (Code-Review L3): 外部改动/半写的 payload 不复用, 重新生成
@@ -188,6 +239,7 @@ def ensure_payload(st: dict, now: datetime, today: str) -> tuple[dict | None, st
     os.utime(payload_path, (scan_started, scan_started))
 
     st["last_generate_date"] = today
+    st["board_done_sig"] = done_sig  # CARD-G6-7: 与上面的缓存门同源
     st["payload_sha256"] = hashlib.sha256(raw.encode("utf-8")).hexdigest()
     # 最早未来到期点: ranked 是全量榜 (payload.top_boards 才截断), 每行
     # next_due 已是板内未来最小值; upcoming 按 next_due 升序, [0] 即全局

@@ -1056,3 +1056,72 @@ def test_g67_two_vaults_board_done_isolated(tmp_path, monkeypatch, capsys):
     _run_main(monkeypatch, capsys, v2, "2026-07-30T10:00:00+08:00")
     assert runner.load_state(v2)["board_done"] == {}
     assert runner.load_state(v1)["board_done"] == {"A板": "2026-07-30"}, "跑另一个库不许动这个库的账"
+
+
+def test_g67_marking_done_invalidates_same_day_cache(tmp_path, monkeypatch, capsys):
+    """Codex round-1 MEDIUM: 完成账变化必须让当日缓存失效。
+
+    复现的是**真实时序**: 早上跑过一轮 (payload 已缓存) → 白天在网页上标完成 →
+    节点没动、也没跨到期点。少了这道门, ensure_payload 直接走缓存分支返回旧榜,
+    「让出榜首」整天不生效 (实测 how="cached"、榜首与通知都不变)。
+
+    榜首是哪块板**实测得来**, 不由夹具作者猜。
+    """
+    vault = _vault(tmp_path, {"甲一": _node(board="甲板"), "甲二": _node(board="甲板"), "乙一": _node(board="乙板")})
+    _patch_runner(monkeypatch, vault, tmp_path)
+
+    st = runner.load_state()
+    p1, how1 = runner.ensure_payload(st, NOW, TODAY)
+    assert how1 == "new"
+    first = p1["top_boards"][0]["board"]
+    assert p1["notification"]["title"].endswith(first)
+
+    # 无变化 → 仍然复用缓存 (防"永远重扫"的过度失效: 那会让本门恒绿而无意义)
+    _pin_pool_older_than_payload(vault, BASE)
+    _, how_same = runner.ensure_payload(runner.load_state(), NOW, TODAY)
+    assert how_same == "cached", "没有任何变化时必须仍然复用缓存"
+
+    st2 = runner.load_state()
+    st2["board_done"] = {first: TODAY}
+    runner.save_state(st2)
+    p2, how2 = runner.ensure_payload(runner.load_state(), NOW, TODAY)
+    assert how2 == "new", "标完成后必须重扫, 否则「让出榜首」整天不生效"
+    assert p2["top_boards"][0]["board"] != first, "重扫后榜首必须换人"
+    assert not p2["notification"]["title"].endswith(first), "通知也必须跟着换"
+
+    # 再跑一次: 完成账没再变 → 回到缓存 (签名门只对**变化**生效)
+    _pin_pool_older_than_payload(vault, BASE)
+    _, how3 = runner.ensure_payload(runner.load_state(), NOW, TODAY)
+    assert how3 == "cached", "完成账没再变就不该反复重扫"
+
+
+def test_g67_upgrade_day_missing_signature_with_nonempty_account_still_rescans(tmp_path, monkeypatch):
+    """缓存签名**缺席**的两种含义必须分开处理 (收紧规则的配套门)。
+
+    ① 缺席 + 账为空 = 本卡之前落盘的普通 state → 照常复用缓存
+       (一律当"变了"会打掉 legacy payload 复用那条既有契约);
+    ② 缺席 + 账非空 = 升级当天先标了完成、还没重新生成过 → 必须重扫。
+    只写①会让升级当天的让位失效; 只写②会打掉既有契约。两条各一个断言。
+    """
+    vault = _vault(tmp_path, {"甲一": _node(board="甲板"), "甲二": _node(board="甲板"), "乙一": _node(board="乙板")})
+    _patch_runner(monkeypatch, vault, tmp_path)
+    p1, _ = runner.ensure_payload(runner.load_state(), NOW, TODAY)
+    first = p1["top_boards"][0]["board"]
+    _pin_pool_older_than_payload(vault, BASE)
+
+    # ① 手工抹掉签名、账留空 —— 模拟本卡之前落盘的 state
+    st = runner.load_state()
+    st.pop("board_done_sig", None)
+    st["board_done"] = {}
+    runner.save_state(st)
+    _, how_a = runner.ensure_payload(runner.load_state(), NOW, TODAY)
+    assert how_a == "cached", "缺签名且账为空 = 旧 state, 不该被当成'变了'"
+
+    # ② 同样没有签名, 但账非空 —— 升级当天先标完成的那一格
+    st = runner.load_state()
+    st.pop("board_done_sig", None)
+    st["board_done"] = {first: TODAY}
+    runner.save_state(st)
+    p2, how_b = runner.ensure_payload(runner.load_state(), NOW, TODAY)
+    assert how_b == "new", "缺签名但账非空 = 从没对过账, 必须重扫"
+    assert p2["top_boards"][0]["board"] != first
