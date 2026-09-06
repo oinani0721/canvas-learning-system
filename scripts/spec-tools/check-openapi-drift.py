@@ -250,8 +250,19 @@ def check_drift(snapshot_path: Path) -> int:
         print(f"  {line}")
     if truncated:
         print(f"  ... 以及更多差异(仅显示前 {DETAIL_LINE_CAP} 条, 共 {len(details)} 条)")
+    # 下面这行的**命令段**(去掉 `FIX: ` 前缀与 `  (禁手改快照)` 尾注后的部分)必须能被
+    # 逐字复制到任意 cwd 执行(CARD-TOOL-openapi-R2)。`FIX: <命令>  (说明)` 的整行格式
+    # 沿用改动前, 整行本身不是可执行 shell(尾注括号未转义, 新旧同形, 已实测)。
+    # 原命令段的两个缺陷: ① 裸 `python` 不是本仓 venv —— 本机实测报
+    # ModuleNotFoundError: structlog; CI 上的表现未实跑, 只能说"未必装了项目依赖"。
+    # ② 相对路径在 backend/ 下解析成 backend/scripts/... 与 backend/backend/openapi.json
+    # (双双不存在)。解析器口径与 lefthook.yml:54 一致。
+    fix_python = BACKEND_DIR / ".venv" / "bin" / "python"
+    fix_interpreter = str(fix_python) if fix_python.is_file() else "python3"
+    fix_script = Path(__file__).resolve()
+    fix_snapshot = BACKEND_DIR / "openapi.json"
     print(
-        "FIX: python scripts/spec-tools/check-openapi-drift.py --write backend/openapi.json  (禁手改快照)",
+        f'FIX: "{fix_interpreter}" "{fix_script}" --write "{fix_snapshot}"  (禁手改快照)',
         file=sys.stderr,
     )
     return 1

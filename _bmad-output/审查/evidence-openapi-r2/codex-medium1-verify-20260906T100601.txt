@@ -1,0 +1,19 @@
+### 独立复验 Codex MEDIUM-1：整行 vs 命令段的可执行性
+
+--- (1) 新串整行（含 FIX: 前缀与尾注）过 bash -n ---
+/tmp/r2_newline.sh: line 1: syntax error near unexpected token `('
+/tmp/r2_newline.sh: line 1: `FIX: "/a/python" "/a/x.py" --write "/a/o.json"  (禁手改快照)'
+rc_new_wholeline=2
+
+--- (2) 旧串整行（HEAD~1 的格式，同样含前缀与尾注）过 bash -n ---
+/tmp/r2_oldline.sh: line 1: syntax error near unexpected token `('
+/tmp/r2_oldline.sh: line 1: `FIX: python scripts/spec-tools/check-openapi-drift.py --write backend/openapi.json  (禁手改快照)'
+rc_old_wholeline=2
+
+=> 若两者 rc 相同, 则「整行不可执行」是改动前后同形的既有格式, 非本卡引入
+
+--- (3) 新串命令段（卡文 (b) 判据所指的那一段）过 bash -n ---
+rc_new_cmdonly=0
+
+--- (4) 旧串命令段过 bash -n ---
+rc_old_cmdonly=0

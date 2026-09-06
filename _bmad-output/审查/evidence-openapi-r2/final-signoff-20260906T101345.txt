@@ -1,0 +1,63 @@
+### 收尾核验 — CARD-TOOL-openapi-R2
+时刻: 2026-09-06T10:13:45
+
+--- 分支 / commit 链 ---
+branch = card/y5-review
+e9285bbf docs(openapi-R2): 按 Codex 一轮整改注释措辞（AST 等价）+ 验收单存档 [BATCH-2026-09-05-第十二批 / CARD-TOOL-openapi-R2]
+f0b1e282 fix(openapi-R2): FIX 提示两缺陷同修 + 三原形回归锁 23→26 [BATCH-2026-09-05-第十二批 / CARD-TOOL-openapi-R2]
+36871263 docs(RV-B): Z3-A 审后 204 行复审 — HIGH-1 已堵上 + 新增 3 条 LOW [BATCH-2026-09-05-第十二批 / CARD-RV-B]
+
+--- 裁判 11a: 入库的 .stderr 数（须 0）---
+0
+--- 裁判 11b: 已跟踪文件是否干净（须空）---
+(空 = 干净)
+--- 未跟踪（?? 为 RV-A 遗留 prompt 分片，非本卡）---
+?? "_bmad-output/\345\256\241\346\237\245/evidence-openapi-r2/final-signoff-20260906T101345.txt"
+?? "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-RV-A.head.md"
+?? "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-RV-A.tail.md"
+
+--- 裁判 2: def test_ 计数 ---
+26
+
+--- 裁判 1: 26 门 ---
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================= 26 passed, 10 warnings in 1.17s ========================
+rc_pytest=0
+
+--- 裁判 7: DRIFT ---
+DRIFT: none (paths=193 schemas=353)
+rc_drift=0
+
+--- 裁判 8（--no-color + 验伪锚）: 脚本 hunk 头 ---
+@@ -250,8 +250,19 @@ def check_drift(snapshot_path: Path) -> int:
+  验伪锚: 全树 @@ 计数 = 22
+
+--- 六处禁改符号增删行（须空）---
+(空)
+
+--- 本卡 commit 是否触碰禁改文件（须空）---
+(空 = 未触碰 lefthook / workflows / backend/app / openapi.json / 台账)
+
+--- 本卡 commit 全部文件 ---
+"_bmad-output/\345\256\241\346\237\245/codex-review-CARD-TOOL-openapi-R2.md"
+"_bmad-output/\345\256\241\346\237\245/evidence-openapi-r2/codex-medium1-verify-20260906T100601.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-openapi-r2/fallback-branch-probe-20260906T031511.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-openapi-r2/judge1-7-9-11-postrestore-20260906T030734.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-openapi-r2/judge1-pytest-26-20260906T030008.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-openapi-r2/judge1-pytest26-20260906T030047.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-openapi-r2/judge10-ruff-20260906T030114.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-openapi-r2/judge3-real-fix-line-20260906T030132.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-openapi-r2/judge45-fix-verbatim-20260906T030229.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-openapi-r2/judge67-diff-and-drift-20260906T030315.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-openapi-r2/judge8-hunk-range-20260906T030715.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-openapi-r2/judge8-recheck-nocolor-20260906T100954.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-openapi-r2/negctl-three-archetype-locks-20260906T030536.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-openapi-r2/oldstring-control-20260906T030423.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-openapi-r2/pyright-d14-20260906T030934.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-openapi-r2/pyright-d14-20260906T031113.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-openapi-r2/remediation-ast-equiv-20260906T100655.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-openapi-r2/shadowing-full-func-audit-20260906T100531.txt"
+"_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-TOOL-openapi-R2.md"
+"_bmad-output/\351\252\214\346\224\266\345\215\225/UAT-CARD-TOOL-openapi-R2-2026-09-06.md"
+backend/tests/contract/test_openapi_snapshot_drift.py
+scripts/spec-tools/check-openapi-drift.py

@@ -1,0 +1,59 @@
+PROD-SHA-BEFORE = 556709d944c7dc2145675f1eeeb37c9006637e18601fcd5afeaf4ef90f49b3ed
+PROD-SHA-AFTER  = 556709d944c7dc2145675f1eeeb37c9006637e18601fcd5afeaf4ef90f49b3ed
+RESTORE-OK      = True
+
+===== H1-naive-keyname =====
+  rc=1  ================== 8 failed, 18 passed, 10 warnings in 1.15s ===================
+  [RED] test_required_order_is_drift
+  [RED] test_x_extension_literal_required_order_is_drift
+  [RED] test_link_object_literal_request_body_required_order_is_drift
+  [RED] test_property_named_enum_or_value_keeps_required_order
+  其余同时变红(信息): test_default_and_example_values_keep_required_order, test_required_bare_schema_order_is_drift, test_required_inside_enum_value_is_not_absorbed, test_required_inside_enum_with_schema_like_keys_is_not_absorbed
+    | /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/tests/contract/test_openapi_snapshot_drift.py:164: AssertionError: required 顺序变化必须报漂移(无排序规则, 宁误红不吞漂移)
+    | /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/tests/contract/test_openapi_snapshot_drift.py:208: AssertionError: enum 内嵌对象的 required 数组反序必须报漂移(它是值不是集合)
+    | /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/tests/contract/test_openapi_snapshot_drift.py:227: AssertionError: enum 实例携带 type/properties 键也不能骗过语境切分
+    | /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/tests/contract/test_openapi_snapshot_drift.py:240: AssertionError: default 值内的 required 数组是有序数据
+    | /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/tests/contract/test_openapi_snapshot_drift.py:248: AssertionError: 裸 Schema 的 required 顺序变化必须报漂移
+    | /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/tests/contract/test_openapi_snapshot_drift.py:274: AssertionError: x-* 扩展内的 required 数组反序必须报漂移(它是数据不是 Schema 关键字)
+    | /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/tests/contract/test_openapi_snapshot_drift.py:291: AssertionError: Link Object 字面 requestBody 内的 required 反序必须报漂移
+    | /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/tests/contract/test_openapi_snapshot_drift.py:312: AssertionError: 名叫 enum/value 的属性下的 required 反序必须报漂移
+
+===== H2-shape-guard =====
+  rc=1  ================== 5 failed, 21 passed, 10 warnings in 1.18s ===================
+  [RED] test_required_order_is_drift
+  [RED] test_x_extension_literal_required_order_is_drift
+  [RED] test_link_object_literal_request_body_required_order_is_drift
+  [RED] test_property_named_enum_or_value_keeps_required_order
+  其余同时变红(信息): test_required_inside_enum_with_schema_like_keys_is_not_absorbed
+    | /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/tests/contract/test_openapi_snapshot_drift.py:164: AssertionError: required 顺序变化必须报漂移(无排序规则, 宁误红不吞漂移)
+    | /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/tests/contract/test_openapi_snapshot_drift.py:227: AssertionError: enum 实例携带 type/properties 键也不能骗过语境切分
+    | /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/tests/contract/test_openapi_snapshot_drift.py:274: AssertionError: x-* 扩展内的 required 数组反序必须报漂移(它是数据不是 Schema 关键字)
+    | /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/tests/contract/test_openapi_snapshot_drift.py:291: AssertionError: Link Object 字面 requestBody 内的 required 反序必须报漂移
+    | /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/tests/contract/test_openapi_snapshot_drift.py:312: AssertionError: 名叫 enum/value 的属性下的 required 反序必须报漂移
+
+===== H3-context-split =====
+  rc=1  ================== 5 failed, 21 passed, 10 warnings in 1.14s ===================
+  [RED] test_required_order_is_drift
+  [RED] test_x_extension_literal_required_order_is_drift
+  [RED] test_link_object_literal_request_body_required_order_is_drift
+  [RED] test_property_named_enum_or_value_keeps_required_order
+  其余同时变红(信息): test_required_bare_schema_order_is_drift
+    | /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/tests/contract/test_openapi_snapshot_drift.py:164: AssertionError: required 顺序变化必须报漂移(无排序规则, 宁误红不吞漂移)
+    | /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/tests/contract/test_openapi_snapshot_drift.py:248: AssertionError: 裸 Schema 的 required 顺序变化必须报漂移
+    | /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/tests/contract/test_openapi_snapshot_drift.py:274: AssertionError: x-* 扩展内的 required 数组反序必须报漂移(它是数据不是 Schema 关键字)
+    | /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/tests/contract/test_openapi_snapshot_drift.py:291: AssertionError: Link Object 字面 requestBody 内的 required 反序必须报漂移
+    | /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/tests/contract/test_openapi_snapshot_drift.py:314: AssertionError: [">components>schemas>S>properties>enum>required[0]: snapshot='beta'(string) live='alpha'(string)", ">components>schemas>S>properties>enum>required[1]: snapshot='alpha'(string) live='beta'(string)"]
+
+===== H3prime-ctx-split-also-excludes-value =====
+  rc=1  ================== 4 failed, 22 passed, 10 warnings in 1.19s ===================
+  [RED] test_required_order_is_drift
+  [RED] test_x_extension_literal_required_order_is_drift
+  [RED] test_link_object_literal_request_body_required_order_is_drift
+  [GREEN] test_property_named_enum_or_value_keeps_required_order
+  其余同时变红(信息): test_required_bare_schema_order_is_drift
+    | /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/tests/contract/test_openapi_snapshot_drift.py:164: AssertionError: required 顺序变化必须报漂移(无排序规则, 宁误红不吞漂移)
+    | /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/tests/contract/test_openapi_snapshot_drift.py:248: AssertionError: 裸 Schema 的 required 顺序变化必须报漂移
+    | /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/tests/contract/test_openapi_snapshot_drift.py:274: AssertionError: x-* 扩展内的 required 数组反序必须报漂移(它是数据不是 Schema 关键字)
+    | /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/tests/contract/test_openapi_snapshot_drift.py:291: AssertionError: Link Object 字面 requestBody 内的 required 反序必须报漂移
+
+rc=0

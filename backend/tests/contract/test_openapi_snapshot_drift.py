@@ -248,6 +248,72 @@ def test_required_bare_schema_order_is_drift():
     assert not clean, "裸 Schema 的 required 顺序变化必须报漂移"
 
 
+# ── round-3 三原形回归锁(CARD-TOOL-openapi-R2) ────────────────────────────
+# 下面三门锁的是 `check-openapi-drift.py:121-129` 记录的三轮终局结论: required
+# 排序启发式已被**证伪性移除**, 三门是「防止重新引入」的回归锁, 不是新增检测能力。
+# 当前实现(`_normalize` :130-134 一切数组保序)对这三处与其余数组一视同仁, 故三门
+# 在当前实现下**本来就绿** —— 它们不改变任何历史行为, 只在有人重新引入排序时变红。
+# 既有 test_required_order_is_drift 已能捕获任何会排序裸 Schema required 的实现;
+# 这三门的增量是把 round-3 的三个反例从 docstring 散文变成**可执行的具名失败**,
+# 让重新引入者当场看到崩在哪个原形上。
+
+
+def test_x_extension_literal_required_order_is_drift():
+    """round-3 原形①: Schema 位置的 `x-*` 扩展里携带字面 required 数组。
+
+    回归锁, 防止重新引入 required 排序启发式(依据 `check-openapi-drift.py:121-129`
+    的三轮终局结论)。`x-*` 扩展的值是**厂商数据**, 即使携带 type/properties 长得
+    像 Schema 也不得按集合语义排序 —— 这正是 round-3 打穿「语境切分」的反例之一。
+    当前实现一切数组保序, 本门**本来就绿**; 不涉及任何历史行为变化。
+    """
+    payload = {"type": "object", "properties": {}, "required": ["beta", "alpha"]}
+    base = {"components": {"schemas": {"S": {"type": "object", "x-vendor-payload": payload}}}}
+    other = copy.deepcopy(base)
+    other["components"]["schemas"]["S"]["x-vendor-payload"]["required"] = ["alpha", "beta"]
+    clean, details = drift.compare(base, other)
+    assert not clean, "x-* 扩展内的 required 数组反序必须报漂移(它是数据不是 Schema 关键字)"
+    assert any("x-vendor-payload" in line and "required" in line for line in details), details
+
+
+def test_link_object_literal_request_body_required_order_is_drift():
+    """round-3 原形②: Link Object 的字面 requestBody。
+
+    回归锁, 防止重新引入 required 排序启发式(依据 `check-openapi-drift.py:121-129`)。
+    Link Object 的 requestBody 是**字面值/运行时表达式**, 与 Operation 的
+    requestBody 同名却不同物; 按键名判「进入 Schema 语境」的切分会在这里失手。
+    当前实现一切数组保序, 本门**本来就绿**; 不涉及任何历史行为变化。
+    """
+    body = {"type": "object", "properties": {}, "required": ["beta", "alpha"]}
+    base = {"components": {"links": {"L": {"operationId": "getA", "requestBody": body}}}}
+    other = copy.deepcopy(base)
+    other["components"]["links"]["L"]["requestBody"]["required"] = ["alpha", "beta"]
+    clean, details = drift.compare(base, other)
+    assert not clean, "Link Object 字面 requestBody 内的 required 反序必须报漂移"
+    assert any("links" in line and "requestBody" in line for line in details), details
+
+
+def test_property_named_enum_or_value_keeps_required_order():
+    """round-3 原形③(反向): 名叫 `value` / `enum` 的**合法属性名**。
+
+    回归锁, 防止重新引入 required 排序启发式(依据 `check-openapi-drift.py:121-129`)。
+    这两处的 required 是货真价实的 Schema 关键字, 却坐在会被「enum/value 子树一律
+    当数据」的语境切分误判的位置上 —— round-3 正是用它证明该切分双向不健全。
+    当前实现一切数组保序, 本门**本来就绿**; 不涉及任何历史行为变化。
+    """
+    properties = {
+        "enum": {"type": "object", "required": ["beta", "alpha"]},
+        "value": {"type": "object", "required": ["delta", "gamma"]},
+    }
+    base = {"components": {"schemas": {"S": {"type": "object", "properties": properties}}}}
+    other = copy.deepcopy(base)
+    other["components"]["schemas"]["S"]["properties"]["enum"]["required"] = ["alpha", "beta"]
+    other["components"]["schemas"]["S"]["properties"]["value"]["required"] = ["gamma", "delta"]
+    clean, details = drift.compare(base, other)
+    assert not clean, "名叫 enum/value 的属性下的 required 反序必须报漂移"
+    assert any(">properties>enum>required" in line for line in details), details
+    assert any(">properties>value>required" in line for line in details), details
+
+
 def test_enum_order_is_drift():
     """enum 有序语义 — 顺序变化必须暴露, 不得当集合吞掉。"""
     other = _mutated(lambda s: s["components"]["schemas"]["S"]["properties"]["alpha"].update({"enum": ["a", "m", "z"]}))

@@ -1,0 +1,26 @@
+### 整改（按 Codex MEDIUM-1 / LOW-1 改注释措辞）零行为变化证明
+
+--- (1) AST 等价：审时版 f0b1e282 vs 整改后工作树 ---
+审时版   文本 sha = 556709d944c7dc21  AST sha = e5327f5e97946868
+整改后版 文本 sha = ac30dbbdef6c7458  AST sha = e5327f5e97946868
+文本相同 = False
+AST 相同 = True   <== 注释不进 AST；相同即代码行为逐节点等价
+验伪锚（把 python3 改成 python2）AST 相同 = False  <== 必须为 False, 否则判据是死的
+ALL-ASSERTS-OK
+rc_ast=0
+
+--- (2) 26 门复跑 ---
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================= 26 passed, 10 warnings in 1.23s ========================
+rc_pytest=0
+
+--- (3) ruff ---
+All checks passed!
+rc_check=0
+2 files already formatted
+rc_format=0
+
+--- (4) 裁判 8 复验：hunk 范围（对 Y5-B 末 commit 36871263）---
+
+--- (5) 禁改六处符号 diff（须空）---
+(空)
