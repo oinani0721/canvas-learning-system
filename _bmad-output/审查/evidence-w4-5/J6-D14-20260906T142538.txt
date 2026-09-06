@@ -1,0 +1,8 @@
+<unknown>:6100: SyntaxWarning: "\S" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\S"? A raw string is also an option.
+=== lifespan isolation NEGATIVE CONTROL ===
+    interpreter: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/python
+=== RUNTIME-FILES SELFTEST ===
+RUNTIME-FILES-SELFTEST: PASS (3 固定项 + 1 glob；重新展开 / 旧名在册 / 旁文件排除 / 按字节序排列（乱序前提已验证）四条全过)
+[0] AST gate: 0 violations across 385 files
+AST-GATE: PASS (0 violations in 385 files)
+rc=0

@@ -1,0 +1,10 @@
+###### D-14 pyright 例外证明（R2 整改定稿）######
+开工 988fd655 : 6 errors, 0 warnings, 0 informations
+R2 整改定稿   : 5 errors, 0 warnings, 0 informations
+本卡新增报错（须空）:
+  ↑
+本卡消除的存量报错:
+error: Argument of type "expr | None" cannot be assigned to parameter "value" of type "expr" in function "_value_origin"
+报错行=[112, 1177, 1269, 1611, 1864]  diff 新增行数=1259
+交集: （空） ⇒ ✅ D-14 例外成立
+[验伪锚] diff 内的行 1618: ✅ 判据非恒空

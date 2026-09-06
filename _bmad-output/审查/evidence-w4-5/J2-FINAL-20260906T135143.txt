@@ -1,0 +1,89 @@
+BASE(开工SHA)=988fd65560a7d3f51dba3597c348cf5f6f05230c
+SHA0(改后文件)=9a19fa40753d76ffe345930ea265047b4ef8e223e4f84ddecc67199661079145
+提取 must_flag=38 must_pass=21
+SHA_BASE(改前文件)=c387b8eb72e7c13b454bdceb55052c2f820904f2fb7e05108fb43e13171fa220
+before 跑完 59 条（改前版本 _AST_MUST_FLAG=25 条）
+SHA1(还原后)=9a19fa40753d76ffe345930ea265047b4ef8e223e4f84ddecc67199661079145
+SHA 前后逐字节相同: YES
+after 跑完 59 条（改后版本 _AST_MUST_FLAG=38 条）
+
+=== must-FLAG：改前 → 改后 ===
+  before= 1 after= 1  [both-caught]  属性式 TestClient（import fastapi.testclient as tc）
+  before= 1 after= 1  [both-caught]  局部重定义同名 no_lifespan（import provenance 必须失效）
+  before= 1 after= 1  [both-caught]  with 之后才 app = FastAPI()（语句顺序）
+  before= 1 after= 1  [both-caught]  class body 污染冒充局部 app
+  before= 1 after= 1  [both-caught]  伪造本地 FastAPI() 工厂
+  before= 1 after= 1  [both-caught]  helper 顺序在 TestClient 之后
+  before= 1 after= 1  [both-caught]  TestClient 名字被本地遮蔽（无法证明是真 TestClient）
+  before= 1 after= 1  [both-caught]  import app.main as m; m.app 裸用
+  before= 1 after= 1  [both-caught]  外部对象冒充局部 app 工厂（other.make() 不是 self.make()）
+  before= 1 after= 1  [both-caught]  R1-8a：client = TestClient(app) 之后 with client:
+  before= 1 after= 1  [both-caught]  R1-8b：ExitStack.enter_context(TestClient(app))
+  before= 1 after= 1  [both-caught]  R1-8c：enter_context(先前构造的实例)
+  before= 1 after= 1  [both-caught]  R1-9：分支里才赋局部 app（控制流不是词法顺序）
+  before= 1 after= 1  [both-caught]  R1-10：工厂里 a=FastAPI() 之后被覆盖成生产 app
+  before= 1 after= 1  [both-caught]  R1-11：同名方法跨类污染（A.make 安全不代表 B.make 安全）
+  before= 1 after= 1  [both-caught]  R1-13c：TestClient(app=...) 关键字形态
+  before= 1 after= 1  [both-caught]  L2-b：TestClient 实例存进 self 再在别处 with
+  before= 1 after= 1  [both-caught]  L2-d：工厂函数返回 TestClient(app) 后直接 with make()
+  before= 1 after= 1  [both-caught]  L1-c：包装器没有真的调 no_lifespan
+  before= 1 after= 1  [both-caught]  L1-d：包装器在 with 之外 yield（隔离没盖住让出控制权那一刻）
+  before= 1 after= 1  [both-caught]  L1-e：包装器隔离的是**另一个**形参
+  before= 1 after= 1  [both-caught]  工厂名被重绑定后仍冒充局部 app 工厂
+  before= 1 after= 1  [both-caught]  同名工厂重定义：安全版在前，不安全版在后（阻断项 E 的原始形态）
+  before= 1 after= 1  [both-caught]  同名工厂重定义：不安全版在前，安全版在后（顺序反过来同样不算数）
+  before= 1 after= 1  [both-caught]  转调一个同名重定义过的工厂（round-1 Codex HIGH-1 的组合形态）
+  before= 0 after= 1  [改前放行→改后抓  ⬅ 本卡新覆盖]  (a)-1 enter_context(cm=TestClient(app))：关键字传参绕过位置参扫描
+  before= 0 after= 1  [改前放行→改后抓  ⬅ 本卡新覆盖]  (a)-2 enter_context(**kw)：实参静态不可知必须 fail-closed，不是 continue
+  before= 0 after= 2  [改前放行→改后抓  ⬅ 本卡新覆盖]  (b)-1 with (client if flag else client)：IfExp 不是 Call，旧实现整支放行
+  before= 0 after= 1  [改前放行→改后抓  ⬅ 本卡新覆盖]  (b)-2 with (nullcontext() if flag else TestClient(app))：危险的是 orelse 支
+  before= 0 after= 1  [改前放行→改后抓  ⬅ 本卡新覆盖]  (c)-1 enter_context(client := TestClient(app))：海象既不入绑定表也不是 Call
+  before= 0 after= 1  [改前放行→改后抓  ⬅ 本卡新覆盖]  (c)-2 with <不可证的形参>：模块内有 TestClient 可达性 ⇒ 不许静默放行
+  before= 0 after= 1  [改前放行→改后抓  ⬅ 本卡新覆盖]  (c)-3 with make(flag)：**有些** return 是 main 实例（all 口径漏掉的那一半）
+  before= 0 after= 1  [改前放行→改后抓  ⬅ 本卡新覆盖]  (d)-1 tuple 解包出 TestClient 实例（模块 docstring 自认的阻断项 D）
+  before= 0 after= 1  [改前放行→改后抓  ⬅ 本卡新覆盖]  (d)-2 del 之后名字不再绑着那个局部 app
+  before= 0 after= 1  [改前放行→改后抓  ⬅ 本卡新覆盖]  (d)-3 match-case 的 capture 名遮蔽了外面那个可证的局部 app
+  before= 0 after= 1  [改前放行→改后抓  ⬅ 本卡新覆盖]  (f)-1 包装器体内重绑定了被隔离的形参（隔离盖的是重绑定之前那个对象）
+  before= 0 after= 1  [改前放行→改后抓  ⬅ 本卡新覆盖]  (f)-2 包装器 yield 出去的不是被隔离的那个对象
+  before= 1 after= 1  [both-caught]  (e)-2 no_lifespan(m.other) 不覆盖 TestClient(m.app)（配对反例：放宽不许过头）
+
+「改前放行→改后抓」共 12 条：
+    - (a)-1 enter_context(cm=TestClient(app))：关键字传参绕过位置参扫描
+    - (a)-2 enter_context(**kw)：实参静态不可知必须 fail-closed，不是 continue
+    - (b)-1 with (client if flag else client)：IfExp 不是 Call，旧实现整支放行
+    - (b)-2 with (nullcontext() if flag else TestClient(app))：危险的是 orelse 支
+    - (c)-1 enter_context(client := TestClient(app))：海象既不入绑定表也不是 Call
+    - (c)-2 with <不可证的形参>：模块内有 TestClient 可达性 ⇒ 不许静默放行
+    - (c)-3 with make(flag)：**有些** return 是 main 实例（all 口径漏掉的那一半）
+    - (d)-1 tuple 解包出 TestClient 实例（模块 docstring 自认的阻断项 D）
+    - (d)-2 del 之后名字不再绑着那个局部 app
+    - (d)-3 match-case 的 capture 名遮蔽了外面那个可证的局部 app
+    - (f)-1 包装器体内重绑定了被隔离的形参（隔离盖的是重绑定之前那个对象）
+    - (f)-2 包装器 yield 出去的不是被隔离的那个对象
+
+=== must-PASS：改前 → 改后（改后必须全 0） ===
+  before= 0 after= 0  OK  验伪锚 1：标准隔离形态
+  before= 0 after= 0  OK  验伪锚 2：函数级 import + 别名 TestClient
+  before= 0 after= 0  OK  验伪锚 3：局部 FastAPI()（来源可证）
+  before= 0 after= 0  OK  验伪锚 4：helper 返回局部 FastAPI() 后解包
+  before= 0 after= 0  OK  验伪锚 6：外层 with no_lifespan(app) 支配内层 with TestClient(app)
+  before= 0 after= 0  OK  验伪锚 7：完整属性链 fastapi.testclient.TestClient + 局部 app
+  before= 0 after= 0  OK  验伪锚 8：裸 TestClient(app) 不进 with —— 不跑 lifespan，不算违规
+  before= 0 after= 0  OK  验伪锚 9：局部 app 构造的实例进 with —— 无害
+  before= 0 after= 0  OK  验伪锚 10：自建 contextmanager 包 no_lifespan（合法，不该报）
+  before= 0 after= 0  OK  验伪锚 11：外层 no_lifespan(app) 支配 with client:（合法，不该报）
+  before= 0 after= 0  OK  验伪锚 12：转调工厂，被调者定义在**后**（前向引用，合法）
+  before= 0 after= 0  OK  验伪锚 13：转调工厂，被调者定义在**前**（同一段代码换个顺序，结论必须相同）
+  before= 0 after= 0  OK  验伪锚 5：同类方法工厂 self._make()（test_rag_four_state_api 的真实形态）
+  before= 0 after= 0  OK  验伪锚 C1：async with lock（TestClient 没有 __aenter__，可证不是它）
+  before= 0 after= 0  OK  验伪锚 C2：with pytest.raises(...)（调用面 = 已声明的跨函数盲区）
+  before= 0 after= 0  OK  验伪锚 C3：模块内零 TestClient 可达性时的 with self._lock
+  before= 0 after= 0  OK  验伪锚 C4：import 来的模块的属性（对象不由本模块构造）
+  before= 1 after= 0  OK  验伪锚 e：no_lifespan(m.app) 覆盖 TestClient(m.app)（属性链两侧同路径）
+  before= 0 after= 0  OK  验伪锚 a：enter_context(cm=<局部 app 的 TestClient>)（关键字面不许一律判违规）
+  before= 0 after= 0  OK  验伪锚 b：IfExp 两支都是局部 app 的 client（展开不许把合法写法判红）
+  before= 1 after= 0  OK  验伪锚 d：字面 tuple 解包逐位配对（n 是常量，不该被当成 app 来源）
+before_rc=0 after_rc=0
+[trap] 已还原 scripts/lifespan_isolation_negative_control.py
+9a19fa40753d76ffe345930ea265047b4ef8e223e4f84ddecc67199661079145  scripts/lifespan_isolation_negative_control.py
+rc=0
