@@ -973,6 +973,36 @@ class FSRSStateQueryResponse(BaseModel):
             "on restart). None for legacy responses / not-found cases."
         ),
     )
+    # CARD-G3-7: 加性可选字段 — 这次的 due 归谁管 (D0 修订 §五 T1)
+    truth_source: Optional[str] = Field(
+        None,
+        description=(
+            "Which source governs this concept's schedule. 'frontmatter' — the "
+            "node's .md carries fsrs_due and IS the truth source, so 'due' is "
+            "taken from it and the backend projection cache was NOT advanced by "
+            "this read. 'projection-cache' — no frontmatter truth source for "
+            "this concept (no node file, or no fsrs_due = new-card semantics), "
+            "so 'due' comes from the backend projection. None for legacy "
+            "responses / not-found cases. NOTE for 'persisted': when "
+            "truth_source is 'frontmatter' the truth-source gate deliberately "
+            "skips the projection write, so persisted=false with "
+            "reason='truth_source_gate_no_projection_write' means 'by design', "
+            "NOT a failed disk write."
+        ),
+    )
+    # CARD-G3-7: 加性可选字段 — service 层此前已产出但端点未转发, 属静默丢信号
+    degraded_reason: Optional[str] = Field(
+        None,
+        description=(
+            "Comma-joined honest degradation signals, orthogonal to 'reason'. "
+            "'truth_source_divergence' — frontmatter and the backend projection "
+            "disagree on due; the returned value follows frontmatter. "
+            "'truth_source_unparsable' — the node has fsrs_due but it is not in "
+            "the canonical UTC-Z second form, so 'due' is left null rather than "
+            "guessed. 'fsrs_library_missing' — py-fsrs absent, values come from "
+            "the fallback scheduler."
+        ),
+    )
 
 
 class RecordReviewResponse(BaseModel):
@@ -1008,6 +1038,23 @@ class RecordReviewResponse(BaseModel):
             "Whether the FSRS card state was persisted to disk. False = "
             "recorded in memory only (lost on restart), see degraded_reason. "
             "None = not applicable (ebbinghaus-fallback has no card state)."
+        ),
+    )
+    # CARD-G3-7: 加性可选字段 — 这次写入落在哪一层 (D0 修订 §五 T1)
+    truth_source: Optional[str] = Field(
+        None,
+        description=(
+            "NOTE for 'card_state_persisted': true there means the *projection "
+            "cache* was written — it does NOT mean the node's schedule truth "
+            "source was updated. "
+            "Always 'projection-cache' for this endpoint: recording a review "
+            "here advances the backend projection, not the FSRS schedule truth "
+            "source (the node's frontmatter, written by the vault-side "
+            "quiz-answer x fsrs_bridge chain). next_review_date remains this "
+            "call's computed schedule and is deliberately NOT overwritten with "
+            "the stale frontmatter value; when the two disagree, "
+            "degraded_reason carries 'truth_source_divergence'. None for "
+            "ebbinghaus-fallback responses."
         ),
     )
     degraded_reason: Optional[str] = Field(

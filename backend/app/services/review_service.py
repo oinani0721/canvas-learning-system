@@ -63,6 +63,7 @@ import asyncio
 import json
 import logging
 import random
+import re
 
 import structlog
 from dataclasses import dataclass
@@ -105,12 +106,118 @@ except ImportError:
 FSRS_RUNTIME_OK: Optional[bool] = None
 
 # P0-2: Card state persistence file path (matches learning_memories.json pattern)
+#
+# ⚠️ CARD-G3-7: 非 FSRS 调度真相源 —— 本文件是**投影/缓存**, 不是 current state。
+# D0 修订 (docs/fsrs-truth-source-d0-revision.md) §一 铁律 1 + §五 T1: 节点当前
+# 调度状态的唯一真相源是该节点 .md 的 frontmatter (fsrs_due 等), 写侧为 vault
+# 的 quiz-answer × fsrs_bridge 链。此处的 JSON 及其内存镜像 self._card_states
+# 只是后端侧投影, 与 frontmatter 分歧时**一律以 frontmatter 为准**, 并须以
+# degraded 信号如实透出 (禁假成功)。裁定表: _bmad-output/审查/evidence-g37/decision.md
 _CARD_STATES_FILE = (
     _Path(__file__).parent.parent.parent / "data" / "fsrs_card_states.json"
 )
 
 # H2 fix: Module-level asyncio.Lock for concurrent card_states write protection
 _card_states_lock = asyncio.Lock()
+
+# ── CARD-G3-7: frontmatter 真相源只读入口 ────────────────────────────────────
+#: 生产口径正则 —— 与既有两个 FSRS-frontmatter 生产 reader **逐字相同**:
+#: canvas-vault/.claude/scripts/fsrs_bridge.py:151 fields_from_frontmatter()
+#: scripts/daily_review_pick.py:341 _fm_str()
+#: D0 修订 §五 T3 (禁第二套解析) 禁的是"另立一套语义", 不是"另写一个函数"。
+#: 特意不走 PyYAML: live frontmatter 的 fsrs_due 未加引号 (实测
+#: canvas-vault/节点/csm-tutoring-unit-credit.md), PyYAML 的 timestamp resolver
+#: 会把它解析成 datetime, 而整条复习投影链 (daily_review_pick / review_overview)
+#: 按 UTC-Z **字符串**比较 —— 换口径即制造分歧。
+_FM_FIELD_RE = r'^{key}:\s*"?([^"\n]+?)"?\s*$'
+
+#: fsrs_due 形态门禁 + 解析 —— 与 scripts/daily_review_pick.py:541-545 同口径。
+_FM_DUE_SHAPE = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z")
+_FM_DUE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
+
+
+def _whole_second_utc(value: Optional[datetime]) -> Optional[datetime]:
+    """投影侧 due 归一到整秒 UTC, 供与 frontmatter 真相源比较。
+
+    ⚠️ 分歧检测的比较精度必须等于**真相源本身的分辨率**, 否则测到的是分辨率
+    差异而不是分歧。frontmatter 的 fsrs_due 按构造就是整秒 UTC-Z ——
+    canvas-vault/.claude/scripts/fsrs_bridge.py 的 _whole_second() 归一后写出
+    (该文件 :27「输出的 review_time 即本次实际采用的整秒 UTC 时刻」), 而后端
+    投影的 due 带微秒。逐字节比较会让 truth_source_divergence **恒真**, 变成
+    一个永远在响的警报 —— 那比没有信号更糟, 它会训练消费方忽略它。
+    """
+    if value is None:
+        return None
+    return value.astimezone(timezone.utc).replace(microsecond=0)
+
+
+def _read_frontmatter_fsrs(concept_id: str) -> Dict[str, Any]:
+    """读节点 frontmatter 的 FSRS 真相源 (只读, 永不写)。
+
+    CARD-G3-7 / D0 修订 §五 T1: 「读取"某节点当前该何时复习"必须最终溯源到
+    frontmatter」。本函数是 backend/app 内该真相源的**唯一**读入口 —— 在本卡
+    之前 backend 侧对它零实现 (`grep -c 'fsrs_due' review_service.py` == 0),
+    这正是双真相源的物理成因。
+
+    路径解析**复用** frontmatter_signals._node_md_path (节点/ 优先, 退 原白板/),
+    不另立目录约定 (T3)。注意它比 daily_review_pick 多一个 原白板/ 回退面 ——
+    这是超集, 已在验收单如实登记。
+
+    Returns:
+        found:      该 concept 是否有对应 .md (= 是否存在 frontmatter 真相源载体)
+        fsrs_due:   frontmatter 原始字符串 (无字段则 None)
+        due:        解析出的 tz-aware datetime; 无字段或形态非规范时为 None
+        reason:     'no_node_file' / 'no_fsrs_due' / 'malformed_fsrs_due' / None
+
+    门锁语义 (裁定 ②): `found and fsrs_due` 为真 ⇒ 该 concept **有真相源**,
+    投影侧一律不得推进状态 —— 即便 due 解析失败 (malformed) 也不放行, 因为
+    "真相源存在"这一事实已足以禁止第二真相源独立推进。
+    """
+    # frontmatter_signals 不在本卡地盘 (只 import 不改); 局部 import 避免
+    # 模块级循环依赖并把 vault I/O 限制在真正需要的调用上。
+    from app.services.frontmatter_signals import _node_md_path
+
+    out: Dict[str, Any] = {
+        "found": False,
+        "fsrs_due": None,
+        "due": None,
+        "reason": "no_node_file",
+    }
+    if not concept_id:
+        return out
+    try:
+        path = _node_md_path(concept_id)
+    except (OSError, ValueError):
+        return out
+    if path is None:
+        return out
+
+    out["found"] = True
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as e:
+        logger.warning(f"CARD-G3-7: frontmatter 读取失败 {concept_id}: {e}")
+        return out
+
+    m = re.search(_FM_FIELD_RE.format(key="fsrs_due"), text, re.M)
+    raw = m.group(1).strip() if m else ""
+    if not raw:
+        out["reason"] = "no_fsrs_due"
+        return out
+
+    out["fsrs_due"] = raw
+    if not _FM_DUE_SHAPE.fullmatch(raw):
+        out["reason"] = "malformed_fsrs_due"
+        return out
+    try:
+        out["due"] = datetime.strptime(raw, _FM_DUE_FORMAT).replace(
+            tzinfo=timezone.utc
+        )
+        out["reason"] = None
+    except ValueError:
+        # 形态过门但日历非法 (如 2026-13-45T00:00:00Z)
+        out["reason"] = "malformed_fsrs_due"
+    return out
 
 # Story 34.8 AC3: Hard cap for show_all=True to prevent memory overflow
 MAX_HISTORY_RECORDS = 1000
@@ -312,6 +419,8 @@ class ReviewService:
         self._initialized = True
         self._task_canvas_map: Dict[str, str] = {}  # Maps task_id to canvas_name
         # Story 32.2 + P0-2: Card state storage with file persistence
+        # CARD-G3-7: 非 FSRS 调度真相源 —— 这是 frontmatter 的后端投影/缓存,
+        # 不是 current state。分歧时以 frontmatter 为准 (D0 修订 T1)。
         self._card_states: Dict[str, str] = self._load_card_states()
         # CARD-D3 Codex HIGH-1: 写失败后仍留在内存缓存的 concept (重启即丢)。
         # 全量快照写成功时整体治愈 (clear), 查询侧据此如实上报 persisted。
@@ -333,7 +442,11 @@ class ReviewService:
 
     @staticmethod
     def _load_card_states() -> Dict[str, str]:
-        """P0-2: Load card states from persistent JSON file on startup."""
+        """P0-2: Load card states from persistent JSON file on startup.
+
+        CARD-G3-7: 非 FSRS 调度真相源 —— 载入的是投影/缓存快照。调度真相源是
+        节点 frontmatter (见 _read_frontmatter_fsrs)。
+        """
         try:
             if _CARD_STATES_FILE.exists():
                 data = _CARD_STATES_FILE.read_text(encoding="utf-8")
@@ -351,6 +464,11 @@ class ReviewService:
         self, pending: Optional[Tuple[str, str]] = None
     ) -> bool:
         """P0-2: Persist card states to JSON file with concurrency protection.
+
+        CARD-G3-7: 非 FSRS 调度真相源 —— 本方法写的是投影/缓存, 落盘成功
+        **不代表**节点的调度状态被更新 (那要靠 vault 侧 quiz-answer ×
+        fsrs_bridge 写 frontmatter)。调用方须把 persisted 与 truth_source
+        两个信号分开转述, 禁止用前者冒充后者 (D0 修订 T1 / 禁假成功)。
 
         H2 fix: Uses asyncio.Lock to prevent concurrent writes and atomic
         write (temp file + rename) to prevent file corruption.
@@ -1082,6 +1200,13 @@ class ReviewService:
                 # CARD-D3: 消费 _save_card_states 返回值 (Codex HIGH-1 的
                 # 失败信号在此前被丢弃) — 文件是唯一真实持久化通道, 写失败
                 # 意味着"仅内存暂存、重启即丢", 必须在返回值里如实标注。
+                #
+                # CARD-G3-7 裁定 ① = 改造: 这次写的是**非 FSRS 调度真相源**的
+                # 投影/缓存。写不进真相源 (frontmatter) 这件事必须让调用方看见,
+                # 但**不覆盖** next_review —— 它是本次评分算出的新排期, 而此刻
+                # frontmatter 里还是旧 due (vault 侧 quiz-answer × fsrs_bridge
+                # 的写是另一条链、另一时刻)。用旧值覆盖新排期不是诚实, 是用 T1
+                # 的名义制造错误。诚实义务由 truth_source / degraded_reason 承担。
                 if concept_id:
                     # Codex HIGH-2: mutation 随 pending 进锁内, 不在此处赋值
                     card_state_persisted = await self._save_card_states(
@@ -1109,6 +1234,27 @@ class ReviewService:
                         if degraded_reason is None
                         else f"fsrs_library_missing,{degraded_reason}"
                     )
+
+                # CARD-G3-7: 真相源分歧 —— frontmatter 有 due 且与本次算出的
+                # 排期不同 ⇒ 真相源尚未被本次调用更新, 如实透出。沿用上面的
+                # 逗号拼接先例: 持久化失败与真相源分歧并存时谁也不冲掉谁。
+                fm_truth = _read_frontmatter_fsrs(concept_id) if concept_id else None
+                if fm_truth and fm_truth["due"] is not None and due_date is not None:
+                    # 整秒归一后比较, 见 _whole_second_utc 的口径说明
+                    if fm_truth["due"] != _whole_second_utc(due_date):
+                        logger.warning(
+                            "CARD-G3-7 truth_source_divergence: concept=%s "
+                            "frontmatter_due=%s computed_due=%s — 本次结果只进投影"
+                            "缓存, 真相源须由 vault 侧写链更新",
+                            concept_id,
+                            fm_truth["fsrs_due"],
+                            due_date.isoformat(),
+                        )
+                        degraded_reason = (
+                            "truth_source_divergence"
+                            if degraded_reason is None
+                            else f"{degraded_reason},truth_source_divergence"
+                        )
 
                 # Extract state value safely
                 state_val = getattr(updated_card, "state", 0)
@@ -1143,6 +1289,18 @@ class ReviewService:
                     "status": "recorded",
                     "algorithm": "fsrs-4.5" if lib_ok else "fsrs-fallback-scheduler",
                     # CARD-D3: 持久化诚实信号 (评分计算成功 != 状态已落盘)
+                    # CARD-G3-7: card_state_persisted=True 只说明**投影缓存**落了
+                    # 盘, 不代表节点的调度真相源 (frontmatter) 被更新 —— 两个信号
+                    # 不得互相冒充 (禁假成功)。真相源分歧经 degraded_reason 的
+                    # truth_source_divergence 透出。
+                    #
+                    # ⚠️ 本 dict 的**键集合**被 tests/regression/
+                    # test_debt8_fsrs_fallback_honest.py:185-189 精确锁死
+                    # (CARD-DEBT-8 Codex round-1 M3 用它杀「夹带新键」变异),
+                    # 故 CARD-G3-7 不在此新增 truth_source 键。该字段对本端点
+                    # 恒为 "projection-cache" (裁定表 ①: 此处只写投影, 从不写
+                    # 真相源), 是常量而非计算结果, 由 API 层直接给出 ——
+                    # 见 app/api/v1/endpoints/review.py::record_review_result。
                     "card_state_persisted": card_state_persisted,
                     "degraded_reason": degraded_reason,
                 }
@@ -2116,6 +2274,12 @@ class ReviewService:
             返回值必须如实反映唯一真实通道的结果。
         """
         # CARD-D3 Codex HIGH-2: mutation 随 pending 进锁内
+        # CARD-G3-7 裁定 ④ = 隔离: 本方法在 backend/app 内**零调用方**
+        # (`git grep 'save_card_state(' backend/app` 只命中定义), 但既有回归测试
+        # tests/unit/test_review_service_fsrs.py:619/:640 与主 spec
+        # openspec/specs/concept-identity/spec.md:14/:39 仍按名引用其契约, 故保留
+        # 定义不删, 只标注: 此处写的是**非 FSRS 调度真相源**的投影/缓存。
+        # 退役处置登记为 G-PIPE 待立卡; 仓外调用不可证。
         persisted = await self._save_card_states(pending=(concept_id, card_data))
         logger.debug(f"Saved card state to memory cache: {concept_id}")
         return persisted
@@ -2162,6 +2326,16 @@ class ReviewService:
             return {"found": False, "reason": "fsrs_not_initialized"}
 
         try:
+            # CARD-G3-7 裁定 ②: 先问真相源 —— frontmatter 是唯一 current state
+            # (D0 修订 T1)。has_truth_source 同时决定两件事:
+            #   (1) 门锁: 有真相源时本次 GET 一律不推进投影状态 (不写内存/不落盘);
+            #   (2) 覆盖: 返回的 due 以 frontmatter 为准, 分歧如实标 degraded。
+            # 「有真相源」= .md 存在**且** fsrs_due 非空。注意 due 解析失败
+            # (malformed) 仍算有真相源 —— 真相源存在这一事实已足以禁止第二真相源
+            # 独立推进, 不因读不出时刻而放行。
+            fm_truth = _read_frontmatter_fsrs(concept_id)
+            has_truth_source = bool(fm_truth["found"] and fm_truth["fsrs_due"])
+
             # Check in-memory cache first
             card_data = self._card_states.get(concept_id)
 
@@ -2169,6 +2343,7 @@ class ReviewService:
                 # Try to load from persistence
                 card_data = await self.load_card_state(concept_id)
 
+            gate_blocked = False
             if not card_data:
                 # Story 38.3 AC-4: Auto-create default FSRS card for new concepts
                 logger.info(
@@ -2186,14 +2361,28 @@ class ReviewService:
                 # 重启后消失、due 被重置, 必须让调用方看见 (persisted=False)。
                 # Codex HIGH-2: mutation 随 pending 进锁内。
                 auto_created = True
-                persisted = await self._save_card_states(
-                    pending=(concept_id, card_data)
-                )
-                if not persisted:
-                    logger.warning(
-                        f"Auto-created FSRS card for {concept_id} NOT persisted "
-                        f"(file write failed) — card exists in memory only"
+                if has_truth_source:
+                    # CARD-G3-7 门锁边界: 该 concept 归 frontmatter 管, GET 不得
+                    # 把默认卡写进**非真相源**的投影缓存 —— 那正是双真相源的
+                    # 制造过程 (且 GET 写盘本身违反 HTTP safe-method 语义)。
+                    # 默认卡只在本次响应内存活, 不进 _card_states、不落盘。
+                    gate_blocked = True
+                    persisted = False
+                    logger.info(
+                        "CARD-G3-7 truth_source_gate: concept=%s 有 frontmatter "
+                        "真相源 (fsrs_due=%s), 跳过 auto-create 写盘",
+                        concept_id,
+                        fm_truth["fsrs_due"],
                     )
+                else:
+                    persisted = await self._save_card_states(
+                        pending=(concept_id, card_data)
+                    )
+                    if not persisted:
+                        logger.warning(
+                            f"Auto-created FSRS card for {concept_id} NOT persisted "
+                            f"(file write failed) — card exists in memory only"
+                        )
             else:
                 # Deserialize existing card
                 card = self._fsrs_manager.deserialize_card(card_data)
@@ -2245,10 +2434,16 @@ class ReviewService:
                 "card_state": card_data,  # Full JSON for plugin to cache/deserialize
             }
             if not persisted:
+                # CARD-G3-7: 门锁拦下的"未持久化"是**设计如此**, 不是写失败 ——
+                # 用 auto_created_not_persisted 描述它会谎报一次不存在的失败。
                 result["reason"] = (
-                    "auto_created_not_persisted"
-                    if auto_created
-                    else "cached_state_not_persisted"
+                    "truth_source_gate_no_projection_write"
+                    if gate_blocked
+                    else (
+                        "auto_created_not_persisted"
+                        if auto_created
+                        else "cached_state_not_persisted"
+                    )
                 )
             # CARD-DEBT-8: 底层 py-fsrs 缺失时加性声明降级（真实库在位
             # 不加键, 响应逐键与此前相同）。retrievability/due 此时来自
@@ -2256,6 +2451,48 @@ class ReviewService:
             if not self._fsrs_library_ok():
                 result["algorithm"] = "fsrs-fallback-scheduler"
                 result["degraded_reason"] = "fsrs_library_missing"
+
+            # ── CARD-G3-7 裁定 ②: 以 frontmatter 为准 (D0 修订 §五 T1) ────────
+            # truth_source 回答"这个 concept 的调度状态归谁管", degraded_reason
+            # 回答"这次读它出了什么问题" —— 两者正交, 不得互相冒充。
+            # 逗号拼接沿用 CARD-DEBT-8 先例: 多个降级都真实, 谁也不冲掉谁。
+            if has_truth_source:
+                result["truth_source"] = "frontmatter"
+                if fm_truth["due"] is None:
+                    # 有真相源但读不出时刻: 不编造 due。返回投影侧的 due 而
+                    # 声称 truth_source=frontmatter 才是假成功。
+                    result["due"] = None
+                    _g37_reason = "truth_source_unparsable"
+                    logger.warning(
+                        "CARD-G3-7 truth_source_unparsable: concept=%s "
+                        "frontmatter fsrs_due=%r 形态非规范, due 置空不猜测",
+                        concept_id,
+                        fm_truth["fsrs_due"],
+                    )
+                elif _whole_second_utc(due_date) != fm_truth["due"]:
+                    # 整秒归一后比较, 见 _whole_second_utc 的口径说明
+                    _g37_reason = "truth_source_divergence"
+                    logger.warning(
+                        "CARD-G3-7 truth_source_divergence: concept=%s "
+                        "frontmatter_due=%s projection_due=%s — 返回 frontmatter 值",
+                        concept_id,
+                        fm_truth["fsrs_due"],
+                        due_date.isoformat() if due_date else None,
+                    )
+                    result["due"] = fm_truth["due"]
+                else:
+                    _g37_reason = None
+                    result["due"] = fm_truth["due"]
+                if _g37_reason is not None:
+                    prev = result.get("degraded_reason")
+                    result["degraded_reason"] = (
+                        _g37_reason if prev is None else f"{prev},{_g37_reason}"
+                    )
+            else:
+                # 无真相源 (节点 .md 不存在, 或存在但无 fsrs_due = 新卡语义,
+                # 对齐 scripts/daily_review_pick.py:435「无 fsrs_due 即真新卡」)。
+                # 此时如实说 due 来自投影缓存, 禁止谎称 frontmatter。
+                result["truth_source"] = "projection-cache"
 
             logger.debug(
                 f"FSRS state for {concept_id}: stability={result['stability']:.2f}, "

@@ -274,7 +274,23 @@ class MasteryEngine:
     # ═══════════════════════════════════════════════════════════════════════════
 
     def _fsrs_update(self, concept: ConceptState, grade: int) -> None:
-        """Update FSRS card state with new review."""
+        """Update FSRS card state with new review.
+
+        ⚠️ CARD-G3-7 裁定 ③ = **隔离**: 本方法写的是非 FSRS 调度真相源。
+        concept.fsrs_* 落在 MasteryStore (Neo4j EntityNode), **不经**
+        fsrs_card_states.json —— 它是与 review_service 那套彼此独立的第三份
+        FSRS 推进。调度真相源只有一个: 节点 .md 的 frontmatter (D0 修订
+        docs/fsrs-truth-source-d0-revision.md §一 铁律 1 + §五 T1)。
+
+        为什么本卡只标注不收敛 (裁定表 _bmad-output/审查/evidence-g37/decision.md ③):
+          - 「改造」须改 MasteryStore 写侧并连 Neo4j 7691 验证 —— CARD-G3-7 硬边界
+            禁连 7691/7687;
+          - 「下线」会摘掉 5 处在线读方 (mastery_tools.py:187-190/:274-277、
+            signal_registry.py:148、event_handlers.py:102-103/:332-333、
+            mastery_engine.py:326/:651) 的掌握度信号, 破坏面远超本卡。
+        ⇒ 隔离 + 登记立卡。**隔离不等于无害**: 在收敛卡落地前, mastery 域的 FSRS
+        仍在独立推进, 与 frontmatter 可以任意漂移。
+        """
         if not self.fsrs_manager:
             return
 

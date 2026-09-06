@@ -4480,6 +4480,18 @@
             "title": "Concept Id",
             "type": "string"
           },
+          "degraded_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Comma-joined honest degradation signals, orthogonal to 'reason'. 'truth_source_divergence' — frontmatter and the backend projection disagree on due; the returned value follows frontmatter. 'truth_source_unparsable' — the node has fsrs_due but it is not in the canonical UTC-Z second form, so 'due' is left null rather than guessed. 'fsrs_library_missing' — py-fsrs absent, values come from the fallback scheduler.",
+            "title": "Degraded Reason"
+          },
           "found": {
             "default": true,
             "description": "Whether a card was found for this concept",
@@ -4520,6 +4532,18 @@
             ],
             "description": "Reason when found=false: 'no_card_created', 'fsrs_not_initialized', or error details. CARD-D3: also set with found=true when persisted=false ('auto_created_not_persisted' — this request's auto-create write failed; 'cached_state_not_persisted' — a prior write of this concept failed and the card lives in memory only)",
             "title": "Reason"
+          },
+          "truth_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Which source governs this concept's schedule. 'frontmatter' — the node's .md carries fsrs_due and IS the truth source, so 'due' is taken from it and the backend projection cache was NOT advanced by this read. 'projection-cache' — no frontmatter truth source for this concept (no node file, or no fsrs_due = new-card semantics), so 'due' comes from the backend projection. None for legacy responses / not-found cases. NOTE for 'persisted': when truth_source is 'frontmatter' the truth-source gate deliberately skips the projection write, so persisted=false with reason='truth_source_gate_no_projection_write' means 'by design', NOT a failed disk write.",
+            "title": "Truth Source"
           }
         },
         "required": [
@@ -11043,6 +11067,18 @@
             "format": "date",
             "title": "Next Review Date",
             "type": "string"
+          },
+          "truth_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "NOTE for 'card_state_persisted': true there means the *projection cache* was written — it does NOT mean the node's schedule truth source was updated. Always 'projection-cache' for this endpoint: recording a review here advances the backend projection, not the FSRS schedule truth source (the node's frontmatter, written by the vault-side quiz-answer x fsrs_bridge chain). next_review_date remains this call's computed schedule and is deliberately NOT overwritten with the stale frontmatter value; when the two disagree, degraded_reason carries 'truth_source_divergence'. None for ebbinghaus-fallback responses.",
+            "title": "Truth Source"
           }
         },
         "required": [
@@ -15679,7 +15715,7 @@
     "description": "Multi-agent learning system backend using Feynman method",
     "title": "Canvas Learning System API",
     "version": "1.0.0",
-    "x-generated-at": "2026-09-05T01:36:01.005895+00:00",
+    "x-generated-at": "2026-09-06T06:00:25.463032+00:00",
     "x-generator": "scripts/spec-tools/check-openapi-drift.py --write"
   },
   "openapi": "3.1.0",

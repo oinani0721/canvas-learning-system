@@ -1,0 +1,12 @@
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/services/review_service.py:1184:31 - error: Variable "review_log" is not accessed (reportUnusedVariable)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/services/review_service.py:1262:47 - error: Cannot access attribute "value" for class "int"
+    Attribute "value" is unknown (reportAttributeAccessIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/services/review_service.py:1479:24 - warning: Unnecessary isinstance call; "str" is always an instance of "str" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/services/review_service.py:1689:28 - error: Arguments missing for parameters "canvas_path", "from_node_id", "to_node_id" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/services/review_service.py:1690:17 - error: No parameter named "canvas_name" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/services/review_service.py:1691:17 - error: No parameter named "from_node" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/services/review_service.py:1692:17 - error: No parameter named "to_node" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/services/review_service.py:1693:17 - error: No parameter named "label" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/app/services/review_service.py:2406:43 - error: Cannot access attribute "value" for class "int"
+    Attribute "value" is unknown (reportAttributeAccessIssue)
+41 errors, 2 warnings, 0 informations

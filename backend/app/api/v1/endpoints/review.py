@@ -1123,6 +1123,15 @@ async def record_review_result(request: RecordReviewRequest) -> RecordReviewResp
             # CARD-D3: 转发 service 层持久化诚实信号 (加性可选字段)
             card_state_persisted=result.get("card_state_persisted"),
             degraded_reason=result.get("degraded_reason"),
+            # CARD-G3-7: 真相源标注 —— 本次写的是投影缓存, 不是 FSRS 调度真相源
+            # (节点 frontmatter, 写侧为 vault 的 quiz-answer × fsrs_bridge 链)。
+            # next_review_date 仍是本次计算结果, 分歧时由 degraded_reason 的
+            # truth_source_divergence 透出 (裁定表 ①)。
+            # 常量而非 service 返回值: 该端点**恒**只写投影, 且 service 返回
+            # dict 的键集合被 test_debt8_fsrs_fallback_honest.py:185-189 锁死。
+            # card_state_persisted is None ⇒ 走了 ebbinghaus-fallback (无卡状态),
+            # 此时不声称任何真相源。
+            truth_source=("projection-cache" if result.get("card_state_persisted") is not None else None),
         )
 
     except Exception as e:
@@ -1443,6 +1452,12 @@ async def get_fsrs_state(
             # reason="auto_created_not_persisted" 透传, found 语义不变
             persisted=result.get("persisted"),
             reason=result.get("reason"),
+            # CARD-G3-7: 转发真相源标注与降级信号。truth_source="frontmatter"
+            # 时 due 已取自节点 frontmatter (D0 修订 T1), 且本次读**未**推进
+            # 后端投影状态 (门锁)。degraded_reason 此前由 service 产出但端点
+            # 从不转发 (fsrs_library_missing 静默丢失), 一并补上。
+            truth_source=result.get("truth_source"),
+            degraded_reason=result.get("degraded_reason"),
         )
 
     except Exception as e:

@@ -38,6 +38,8 @@
 
 > 本卡边界（总账 v2 G3-1）：只产文档 + schema + 校验脚本，**不动任何生产写路径与 learning_event_log 代码行为**。上表偏离由各归属卡收敛，本文档提供裁定依据。
 
+> **锚点勘误（2026-09-06 追加，CARD-G3-7）**：上表第 1 行的档案锚「`:1017/:2025` 区段」写于 2026-08-28，主干前进后已失效。今日实测（车道 `card-y9-maingoal`，主干预合 `03ac8bf8`）对应位置为 **`review_service.py:1087`**（`record_review_result` → `_save_card_states`）与 **`review_service.py:2189`**（`get_fsrs_state` auto-create 写盘）。原句不改，以本注为准。另：G3-7 实测补全的写路径不止两条，完整四写点清单见 §六「G3-7 裁定结果」。
+
 ## 五、约束条款（对新代码即刻生效）
 
 - **T1 唯一 current state**：读取"某节点当前该何时复习"必须最终溯源到 frontmatter；不得以数据库/JSON 状态文件为准。frontmatter 与任何后端状态不一致时，**以 frontmatter 为准**，分歧须以 degraded 信号如实透出（G3-7 落实测试）。
@@ -51,3 +53,22 @@
 - **G3-2**：复习写路径接入事件账（write-ahead 顺序 + 复习 payload 扩展键），按 schema 文档 §复习域扩展规则执行。
 - **G3-3**：per-node CAS 与乱序事件隔离（乱序只进账本标 out_of_order，不改 current state）。
 - **G3-7**：`/review/record`、`/fsrs-state` auto-create、mastery grade 三条遗留写路径收敛单一调度内核。
+
+### G3-7 裁定结果（2026-09-06，BATCH-2026-09-05-第十二批）
+
+裁定表全文（含逐条理由与消费方 census）：`_bmad-output/审查/evidence-g37/decision.md`。回归门：`backend/tests/regression/test_g3_7_truth_source.py`（12 用例）。
+
+实测写路径为**四条**（§六原文列的三条 + 一条 backend/app 零调用方的死路径）：
+
+| # | 写点 | 裁定 | 落地 |
+|---|---|---|---|
+| ① | `review_service.py:1087`（`PUT /review/record`） | **改造** | 写点降格为投影缓存；API 加 `truth_source="projection-cache"`；分歧时 `degraded_reason` 追加 `truth_source_divergence`。**不覆盖** `next_review_date` —— T1 约束的是「读取当前态」，而该字段是本次评分算出的新排期，用 frontmatter 的旧值覆盖它是用 T1 的名义制造错误 |
+| ② | `review_service.py:2189`（`GET /fsrs-state` auto-create） | **保留 + 门锁边界** | 该 concept 有 frontmatter 真相源（`.md` 存在且 `fsrs_due` 非空）时一律不写盘、不推进 `_card_states`，`due` 以 frontmatter 为准。**未消除**：无真相源分支仍写盘（HTTP safe-method 违规被收窄未根治），彻底下线须与既有测试同批改 |
+| ③ | `mastery_engine.py:276 _fsrs_update`（MasteryStore／Neo4j） | **隔离** | 仅加注释标非真相源。改造须写 Neo4j 7691（G3-7 硬边界禁连）；下线会摘掉 5 处在线读方的掌握度信号。**隔离不等于无害**：收敛卡落地前该域 FSRS 仍独立推进 |
+| ④ | `review_service.py:2119 save_card_state` | **隔离** | `backend/app` 零调用方，但 `tests/unit/test_review_service_fsrs.py:619/:640` 与主 spec `openspec/specs/concept-identity/spec.md:14/:39` 仍引用其契约，删除会同时打红回归门与使主 spec 悬空。保留定义 + 标注，登记 G-PIPE 待退役。仓外调用不可证 |
+
+**落实 T1 的关键实现**：`review_service._read_frontmatter_fsrs()` 是 backend 侧 frontmatter FSRS 真相源的**唯一**读入口（本卡之前 `backend/app` 对它零读取，这正是双真相源的物理成因）。解析口径与既有两个生产 reader（`canvas-vault/.claude/scripts/fsrs_bridge.py:151` / `scripts/daily_review_pick.py:341`）逐字相同的纯 stdlib 正则，**不走 PyYAML**（会把未加引号的 `fsrs_due` 解析成 `datetime`，与整条投影链的 UTC-Z 字符串口径不同源）——满足 T3「禁第二套解析」的实质：单一语义，而非单一函数。
+
+**分歧比较归一到整秒**（`_whole_second_utc`）：frontmatter 按构造是整秒 UTC-Z（`fsrs_bridge` 的 `_whole_second()`），后端投影 due 带微秒；逐字节比较会让 `truth_source_divergence` **恒真**，那比没有信号更糟。
+
+**T5 未完全落实（如实登记）**：`GET /fsrs-state` 在无真相源分支上仍回写投影状态，严格说仍是「投影层回写」。本卡把它收窄到 frontmatter 说不出话的场景，根治归退役卡。

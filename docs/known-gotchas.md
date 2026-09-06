@@ -132,6 +132,14 @@
 
 ---
 
+## G-TRUTH: FSRS 双真相源（2026-09-05 新增, CARD-G3-7）
+
+| ID | 问题 | 根因 | 修复状态 | 防止规则 |
+|----|------|------|---------|---------|
+| G-TRUTH-001 | **后端存在三份彼此独立推进的 FSRS 调度状态**。真相源按 D0 修订（`docs/fsrs-truth-source-d0-revision.md` §一 铁律 1）只有一个：节点 `.md` 的 frontmatter `fsrs_due`（写侧 = vault 的 `quiz-answer × fsrs_bridge` 链）。但 backend 另有两份：① `review_service.py` 的 `_card_states` / `backend/data/fsrs_card_states.json`（`PUT /review/record` 与 `GET /fsrs-state` auto-create 各自推进）；② `mastery_engine.py:276 _fsrs_update` 写 MasteryStore（Neo4j EntityNode）的 `concept.fsrs_*`，**不经**前者。三份可任意漂移且此前**无任何分歧检测**。 | `review_service.py` 在 CARD-G3-7 之前对 frontmatter **零读取**（`grep -c 'fsrs_due' review_service.py` == 0）——`backend/app` 内根本没有真相源的读入口，于是每条路径只能拿自己那份缓存当权威。`GET /fsrs-state` 还会 auto-create 写盘（读操作产生副作用，违反 HTTP safe-method 语义），把"没见过的 concept"直接铸成第二真相源里的新卡。 | ⚠️ **部分修复**（CARD-G3-7, BATCH-2026-09-05-第十二批）：① `fsrs_card_states.json` 及其内存镜像在代码里显式降格为「非 FSRS 调度真相源」（`review_service.py` 6 处锚点 + `mastery_engine.py:276`）；② 新增 backend 侧唯一 frontmatter 真相源只读入口 `review_service._read_frontmatter_fsrs()`；③ `GET /fsrs-state` 加**门锁**：该 concept 有 frontmatter 真相源时不再写盘/不推进 `_card_states`，`due` 以 frontmatter 为准，分歧透出 `degraded_reason=truth_source_divergence`；④ `PUT /review/record` 加 `truth_source="projection-cache"` 与分歧信号。回归门 `backend/tests/regression/test_g3_7_truth_source.py`（11 用例，含正控）。**未修**：mastery 侧（裁定=隔离，改造须写 Neo4j 7691）仍独立推进；`GET` 在**无**真相源分支上依然写盘（safe-method 违规只被收窄未消除）；`save_card_state`（`backend/app` 零调用方）保留待退役。裁定表 `_bmad-output/审查/evidence-g37/decision.md`。 | ① 任何新增「读取某节点当前该何时复习」的代码必须最终溯源 frontmatter，backend 侧走 `_read_frontmatter_fsrs()`，**禁**新增第二套 frontmatter 解析（D0 修订 T3）；② 解析口径必须与既有两个生产 reader（`fsrs_bridge.py:151` / `daily_review_pick.py:341`）**逐字相同的纯 stdlib 正则** — 走 PyYAML 会把未加引号的 `fsrs_due` 解析成 `datetime`，与整条投影链的 UTC-Z 字符串口径不同源；③ **分歧比较必须归一到整秒**（`_whole_second_utc`）：frontmatter 按构造是整秒 UTC-Z 而投影 due 带微秒，逐字节比较会让分歧信号**恒真**，比没有信号更糟——它会训练消费方忽略它；④ 「持久化成功」与「真相源已更新」是两个正交信号（`persisted` vs `truth_source`），禁止互相冒充；⑤ 门锁拦下的「未持久化」不得复用写失败的 reason 文案（会谎报一次不存在的失败），本卡用 `truth_source_gate_no_projection_write` 区分。 |
+
+---
+
 ## 统计摘要
 
 | 分类 | 总计 | 已修复 | 有意保留/延后 | 待修复 |
