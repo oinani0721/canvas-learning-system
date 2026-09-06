@@ -1,0 +1,17 @@
+=== J2 read-surface sizes ===
+live_port_guard.py@e06009bc lines =     1093
+test_live_port_guard_contract.py@e06009bc lines =      534
+--- guard_probes diff stat 004e08cc..e06009bc ---
+ backend/scripts/lifespan_isolation_guard_probes.py | 81 ++++++++++++++++++++++
+ 1 file changed, 81 insertions(+)
+guard_probes raw diff text lines =       99
+--- full Z3-B increment stat ---
+ backend/scripts/lifespan_isolation_guard_probes.py |  81 +++++
+ backend/tests/support/live_port_guard.py           | 376 ++++++++++++++++++---
+ .../tests/unit/test_live_port_guard_contract.py    | 364 ++++++++++++++++++--
+ 3 files changed, 751 insertions(+), 70 deletions(-)
+--- archives ---
+      73 _bmad-output/审查/codex-review-CARD-W4-3a-r1.md
+     102 _bmad-output/审查/codex-review-CARD-W4-3a-r2.md
+     175 total
+rc=0

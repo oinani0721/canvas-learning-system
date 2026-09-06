@@ -1,0 +1,18 @@
+=== RV-C P9: does the guard's import branch (:514) see every import entry point? ===
+target module = 'colorsys';  guard branch tests `args[0] == <name>`
+--------------------------------------------------------------------------------------------------------
+import statement                             events= 1  contains 'colorsys'? True   ['colorsys']
+importlib.import_module()                    events= 0  contains 'colorsys'? False  []
+importlib.util + exec_module()               events= 2  contains 'colorsys'? False  ['importlib.util', 'importlib._abc']
+
+=== VERDICT for live_port_guard.py:514 (`args[0] == "uvloop"`) ===
+  __import__ / import stmt    : VISIBLE to the branch
+  importlib.import_module     : INVISIBLE — branch never matches
+  spec + exec_module          : INVISIBLE — branch never matches
+
+NOTE: uvloop has a SECOND layer — poison_uvloop() sets sys.modules['uvloop']=None,
+      which makes every one of these entry points raise ImportError regardless.
+      So an invisible row here is a gap in the audit branch, not necessarily an
+      end-to-end hole. Verified separately below:
+  poisoned-module load via importlib.import_module: ImportError (import of __rvc_fake_target halted; None in sys.modules)
+rc=0

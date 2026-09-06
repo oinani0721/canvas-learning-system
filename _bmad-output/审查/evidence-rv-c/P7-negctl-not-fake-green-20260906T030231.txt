@@ -1,0 +1,64 @@
+=== RV-C P7: does the negative control fake-green when the ledger stays 0? ===
+--- module docstring :12-16 (positive-evidence criterion) ---
+2. 连接处抛出的异常会被 ``app/main.py`` 的 try/except 吞掉 —— 所以根 conftest 的
+   结账哨兵把每次被吞掉的拦截转成该用例 ``FAILED``；
+3. 正证据闭环：子进程的门账必须 ``total == blocked > 0`` 且
+   ``advisory == unaccounted == 0``。
+
+
+--- summary regex :274-281 ---
+#: 门的汇总行必须**整行唯一**匹配，且 total==blocked>0、advisory==unaccounted==0
+#: （第八批 Codex HIGH：旧版只取 total/blocked 且只要求 blocked>=1，
+#: ``attempts=7 (blocked=3, advisory=4, unaccounted=0)`` 会通过——而 advisory
+#: 那 4 次已经调用了原始 connect，也就是真连过）。
+SUMMARY_RE = re.compile(
+    r"^NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=(\d+) "
+    r"\(blocked=(\d+), advisory=(\d+), unaccounted=(\d+)\)$"
+)
+
+--- (CORRECTED) this block is NOT the verdict: :2203 is a comment, :2204-2210 is _parse_summary+print ---
+    # -- 3b. 正证据：total == blocked > 0 且 advisory == unaccounted == 0 --
+    summary = _parse_summary(proc.stdout)
+    if not isinstance(summary, tuple):
+        print(f"NEGATIVE-CONTROL: FAIL — {summary}（guard_plugin 未加载？）")
+        print(proc.stdout[-1500:])
+        return 1
+    s_total, s_blocked, s_advisory, s_unacct = summary
+    print(f"[3b] 子进程门汇总: total={s_total} blocked={s_blocked} advisory={s_advisory} unaccounted={s_unacct}")
+
+
+--- parent-side independent ledger cross-check :2212,2222 ---
+    # -- 3c. 父进程独立复核账本 -----------------------------------------
+    if not neg_ledger.exists():
+        ledger_problem = "子进程未落账本（最终结算 atexit 未跑？）"
+    else:
+        led = json.loads(neg_ledger.read_text(encoding="utf-8"))
+        print(
+            f"[3c] 账本: {json.dumps({k: v for k, v in led.items() if k != 'unaccounted_records'}, ensure_ascii=False)}"
+        )
+        if (led["total"], led["blocked"], led["advisory"], led["unaccounted"]) != summary:
+            ledger_problem = f"账本 {led} 与 stdout 汇总 {summary} 不一致"
+        elif not led.get("exempt_disabled"):
+
+=== CONCLUSION ===
+blocked==0 -> the negative control takes the FAIL branch (fail-closed), NOT a PASS.
+Therefore H-1 (zero-ledger on exception escape) does NOT constitute the protocol's
+narrow 'negative control fakes green' blocking category. It would instead produce a
+FALSE RED. False red is not a blocking-level defect.
+
+=== CORRECTION (appended 2026-09-06T02:12:08Z) ===
+The real verdict is at :2267  `if not (s_total == s_blocked > 0): problems.append(...)`
+plus :2269 / :2271 / :2273; FAIL is emitted at :2299-2307.
+The block quoted above (:2203-2210) is in fact the only PASS-through segment for the
+blocked==0 scenario, so citing it as proof of fail-closed was backwards.
+    if pytest_rc != 1:
+        problems.append(f"pytest 退出码 {pytest_rc} ≠ 1（期望恰为 tests-failed）")
+    if not (s_total == s_blocked > 0):
+        problems.append(f"门账 total({s_total}) == blocked({s_blocked}) > 0 不成立")
+    if s_advisory != 0:
+        problems.append(f"advisory={s_advisory} ≠ 0（有连接以豁免名义真的发出去了）")
+    if s_unacct != 0:
+        problems.append(f"unaccounted={s_unacct} ≠ 0（有拦截无人结账）")
+    if ledger_problem:
+        problems.append(ledger_problem)
+rc=0

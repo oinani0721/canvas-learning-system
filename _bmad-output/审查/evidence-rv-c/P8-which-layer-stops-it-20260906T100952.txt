@@ -1,0 +1,20 @@
+=== RV-C P8: which layer actually stops each address shape? ===
+# 起因：完整性审查指出报告把 AF_UNIX 的拦截归因给 D1(type(address) is tuple)，
+#       但它可能在更早的 :493 分支守卫处就短路了。
+Q: for each address shape, does execution even REACH _is_selftest_address (D1)?
+----------------------------------------------------------------------------------------------------------------------------
+AF_UNIX str (sentinel)             extract_port=None   trust=True  :493 guard=False | _is_selftest called? False | no exception
+AF_UNIX str (ordinary path)        extract_port=None   trust=True  :493 guard=False | _is_selftest called? False | no exception
+AF_UNIX bytes                      extract_port=None   trust=True  :493 guard=False | _is_selftest called? False | no exception
+genuine selftest tuple             extract_port=7687   trust=True  :493 guard=True  | _is_selftest called? True  | _SelfTestBlocked
+plain live-port tuple              extract_port=7687   trust=True  :493 guard=True  | _is_selftest called? True  | RuntimeError(blocked)
+safe tuple (11434)                 extract_port=11434  trust=True  :493 guard=False | _is_selftest called? False | no exception
+
+=== _is_selftest_address invocation log ===
+  called with ('\x00w4-live-port-guard-selftest', 7687)          -> True
+  called with ('127.0.0.1', 7687)                                -> False
+
+=== VERDICT ===
+If AF_UNIX rows show ':493 guard=False' and '_is_selftest called? False',
+then AF_UNIX is stopped by the :493 branch guard, NOT by D1 (type(address) is tuple).
+rc=0

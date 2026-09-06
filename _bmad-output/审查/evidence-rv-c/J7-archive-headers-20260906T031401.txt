@@ -1,0 +1,25 @@
+=== J7 存档首部六行 + 非 0 字节 + stderr 不入库 ===
+--- head -6 p1 ---
+> 批次: BATCH-2026-09-05-第十二批 · 车道 Y8 · CARD-RV-C round-1 prompt-1
+> 模型: `gpt-6-astra`（stderr 实测） · reasoning_effort: `ultra`（stderr 实测） · codex: `codex-cli 0.153.3`（stderr 实测）
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat <树>/_bmad-output/审查/prompts/codex-prompt-CARD-RV-C-p1.md)"`
+> 审查绑定: `e06009bc`（全量 `live_port_guard.py` 1093 行）+ `65cfd8ff`（r2 存档 111 行）
+> 会话头自证（抄 .stderr，stderr 本身不入库）:
+> `OpenAI Codex v0.153.3` / `workdir: …/.claude/worktrees/card-y8-w4-ast` / `model: gpt-6-astra` / `reasoning effort: ultra` / `session id: 01a070d1-b222-7603-b2e4-8c7a47ef45ef`
+--- head -6 p2 ---
+> 批次: BATCH-2026-09-05-第十二批 · 车道 Y8 · CARD-RV-C round-1 prompt-2
+> 模型: `gpt-6-astra`（stderr 实测） · reasoning_effort: `ultra`（stderr 实测） · codex: `codex-cli 0.153.3`（stderr 实测）
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat <树>/_bmad-output/审查/prompts/codex-prompt-CARD-RV-C-p2.md)"`
+> 审查绑定: `e06009bc`（契约 534 行）+ `004e08cc..e06009bc`（guard_probes 增量 99 行）+ `65cfd8ff`（r1 存档 82 行）
+> 会话头自证（抄 .stderr，stderr 本身不入库）:
+> `OpenAI Codex v0.153.3` / `workdir: …/.claude/worktrees/card-y8-w4-ast` / `model: gpt-6-astra` / `reasoning effort: ultra` / `session id: 01a070d1-bdb2-7f21-a524-3ba7cc67d92e`
+--- required fields present? (模型 / reasoning_effort / codex) ---
+p1: 模型=3 reasoning_effort=2 codex=1
+p2: 模型=3 reasoning_effort=2 codex=1
+--- sizes (must be non-zero) ---
+   11279 _bmad-output/审查/evidence-rv-c/../codex-review-CARD-RV-C-p1.md
+    9598 _bmad-output/审查/evidence-rv-c/../codex-review-CARD-RV-C-p2.md
+   20877 total
+--- stderr must not be tracked ---
+no stderr in git status (OK)
+rc=0

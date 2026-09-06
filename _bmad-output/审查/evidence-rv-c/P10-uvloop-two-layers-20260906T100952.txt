@@ -1,0 +1,29 @@
+=== RV-C P10: can one action pierce BOTH uvloop layers? ===
+Layer 1 = poison_uvloop()  (sys.modules[X] = None)
+Layer 2 = _audit_hook :514 (event=='import' and args[0] == X)
+========================================================================================================
+A. poison + `import colorsys`                    loaded=False  branch would fire=True   events=['colorsys']
+B. poison + importlib.import_module()       loaded=False  branch would fire=False  events=[]
+C. poison + del + `import colorsys`              loaded=True   branch would fire=True   events=['colorsys']
+D. poison + del + importlib.import_module() loaded=True   branch would fire=False  events=[]
+
+=== READING ===
+C 是 docstring 点名的规避路径：模块确实被加载，但 branch fires=True ⇒ 第 2 层接住了。
+D 同样加载成功，若 branch fires=False ⇒ 两层被同一个动作同时穿过，
+   docstring :486-487 的『audit hook 兜底』论证在这条入口上不成立。
+rc=0
+
+--- 可利用性核对 ---
+uvloop installed in shared venv: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/uvloop/__init__.py
+--- 现有探针覆盖的是哪条入口？ ---
+def probe_uvloop_reimport_blocked() -> dict:
+    """R1 Codex HIGH-4：删掉毒化条目后重新 import uvloop，必须被 audit 拦下。"""
+    body = """
+    from tests.support import live_port_guard as g
+    g.install()
+    del sys.modules["uvloop"]                  # 把毒化条目摘掉
+    try:
+        import uvloop                          # noqa: F401
+        verdict(False, "uvloop-reimport", "毒化被摘掉后 uvloop 成功导入")
+    except RuntimeError as e:
+rc=0

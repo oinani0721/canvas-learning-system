@@ -1,0 +1,6 @@
+=== feature tree state ===
+worktree-feature-obsidian-hybrid-dev
+65cfd8ff26f174133d46e38da3354ef39b30748b
+--- is r1/r2 modified there? ---
+--- diff of r1 (feature tree working vs its HEAD) ---
+=== END r1 diff ===

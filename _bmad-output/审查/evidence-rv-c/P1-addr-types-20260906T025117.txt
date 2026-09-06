@@ -1,0 +1,16 @@
+=== RV-C probe: address-type completeness (AF_INET tuple check) ===
+=== does AF_INET accept non-tuple sequences? ===
+list      ['127.0.0.1', 65000]: TypeError BEFORE audit -> connect(): AF_INET address must be tuple, not list
+plain tup ('127.0.0.1', 65000): audit FIRED, args[1] type=tuple repr=('127.0.0.1', 65000)
+tuple-sub DriverLike: audit FIRED, args[1] type=DriverLike repr=('127.0.0.1', 65000)
+tuple-sub FakeAddr(lying): audit FIRED, args[1] type=FakeAddr repr=('127.0.0.1', 65000)
+
+=== what do the guard's readers see for the lying subclass? ===
+  fake[1] (overridden)        = 9
+  tuple.__getitem__(fake, 1)  = 65000
+  len(fake) (overridden)      = 2
+  tuple.__len__(fake)         = 2
+
+=== is a list even constructible as an address at all? ===
+  _socket module present: _socket
+rc=0

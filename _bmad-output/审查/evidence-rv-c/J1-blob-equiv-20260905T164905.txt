@@ -1,0 +1,14 @@
+=== J1 blob equivalence ===
+--- live_port_guard.py ---
+bc11f726731e7d223cb2d56e3191c315d695d476
+bc11f726731e7d223cb2d56e3191c315d695d476
+rc1=0
+--- test_live_port_guard_contract.py ---
+3bc0abece929a3cb38ee647f7c080bd529f551d5
+3bc0abece929a3cb38ee647f7c080bd529f551d5
+rc2=0
+--- guard_probes.py (informational) ---
+b77f08dad21b2377764b2524fd144015e843333e
+b77f08dad21b2377764b2524fd144015e843333e
+f6e09d6518c74fa7c7648cc9440ccd5a6ffc8f9e
+rc3=0

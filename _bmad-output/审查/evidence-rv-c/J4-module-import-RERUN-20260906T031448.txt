@@ -1,0 +1,16 @@
+=== J4 (rerun with rc) 模块层 neo4j import 计数必须为 0 ===
+count = 0
+rc=1   (grep -c 无匹配时 rc=1 属正常，count 行的 0 才是判据)
+--- 全部模块层 import（验伪锚：这张表必须非空，否则说明 grep 模式本身坏了）---
+92:from __future__ import annotations
+94:import asyncio
+95:import atexit
+96:import contextvars
+97:import json
+98:import operator
+99:import os
+100:import socket as _socket_mod
+101:import sys
+102:import threading
+103:import warnings
+rc=0

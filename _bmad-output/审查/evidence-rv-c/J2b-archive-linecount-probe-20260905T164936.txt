@@ -1,0 +1,18 @@
+=== archive line-count discrepancy probe ===
+--- this worktree (HEAD 03ac8bf8) ---
+      73 _bmad-output/审查/codex-review-CARD-W4-3a-r1.md
+     102 _bmad-output/审查/codex-review-CARD-W4-3a-r2.md
+     175 total
+--- git blob sizes in HEAD ---
+      73
+     102
+--- other worktree (feature-obsidian-hybrid-dev) ---
+      82 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/codex-review-CARD-W4-3a-r1.md
+     111 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/codex-review-CARD-W4-3a-r2.md
+     193 total
+--- trailing newline check (last byte) ---
+00000000: 0a                                       .
+--- char/byte counts ---
+      73    4080 _bmad-output/审查/codex-review-CARD-W4-3a-r1.md
+     102    4756 _bmad-output/审查/codex-review-CARD-W4-3a-r2.md
+     175    8836 total

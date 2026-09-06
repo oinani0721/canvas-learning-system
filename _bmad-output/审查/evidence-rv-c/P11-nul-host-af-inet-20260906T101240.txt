@@ -1,0 +1,14 @@
+=== RV-C P11: AF_INET + NUL hostname — does the audit event fire at all? ===
+# 本探针在初稿阶段跑过但未编号归档，导致 §七 把 NUL 结论错误指向 P1（P1 是 list/tuple 用例，无 NUL）。
+=== does a NUL-containing hostname even reach the audit event? ===
+sentinel host, port 65000: TypeError (audit fired first? False) -> host name must not contain null character
+plain NUL host,  port 65000: TypeError (audit fired first? False) -> host name must not contain null character
+normal host,     port 65000: audit FIRED FIRST -> event seen, addr=('127.0.0.1', 65000)
+
+=== _is_selftest_address gate arithmetic (exact reimplementation) ===
+  is_selftest(genuine sentinel tuple                              ) = True
+  is_selftest(tuple subclass lying via __getitem__                ) = False
+  is_selftest(plain tuple + str-subclass host (__eq__ always True)) = False
+  is_selftest(plain tuple, real live-port host                    ) = False
+  is_selftest(empty tuple                                         ) = False
+rc=0

@@ -1,0 +1,16 @@
+=== RV-C probe: contract mutation M1/M2 (Codex p2 HIGH + MEDIUM-2) ===
+variant                                  | 6 contract assertions | verdict
+------------------------------------------------------------------------------------------------
+M0 (control, unmutated)                  | 6/6 pass            | baseline OK
+M1 (:476 drop sentinel comparison)       | 6/6 pass            | ⛔ SURVIVED (gate does not hold)
+M2 (:439 sentinel -> resolvable host)    | 6/6 pass            | ⛔ SURVIVED (gate does not hold)
+
+=== does the mutated classifier now misclassify a REAL live-port address? ===
+  M0 (control, unmutated)                  _is_selftest_address(('127.0.0.1', 7691)) = False
+  M1 (:476 drop sentinel comparison)       _is_selftest_address(('127.0.0.1', 7691)) = True
+  M2 (:439 sentinel -> resolvable host)    _is_selftest_address(('127.0.0.1', 7691)) = False
+
+=== production file untouched? ===
+  scratchpad lpg.py sha before = f78e59d0637af6ad…
+  scratchpad lpg.py sha after  = f78e59d0637af6ad…  SAME
+rc=0

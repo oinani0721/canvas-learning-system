@@ -1,0 +1,23 @@
+=== J5 (rerun with rc) prompt 尺寸与禁用措辞 ===
+      57 _bmad-output/审查/prompts/codex-prompt-CARD-RV-C-p1.md
+      54 _bmad-output/审查/prompts/codex-prompt-CARD-RV-C-p2.md
+     111 total
+rc=0
+--- 四个禁用措辞逐词计数（每词必须为 0）---
+### _bmad-output/审查/prompts/codex-prompt-CARD-RV-C-p1.md
+  构造 = 0
+  可复现 = 0
+  打穿 = 0
+  绕过 = 0
+### _bmad-output/审查/prompts/codex-prompt-CARD-RV-C-p2.md
+  构造 = 0
+  可复现 = 0
+  打穿 = 0
+  绕过 = 0
+--- 验伪锚：一个必然存在的词，证明 grep 本身在工作 ---
+  codex-prompt-CARD-RV-C-p1.md: '只读' = 3 (must be > 0)
+  codex-prompt-CARD-RV-C-p2.md: '只读' = 3 (must be > 0)
+--- 读取面行数预算 ---
+  P1 = 1093 + 111 = 1204 <= 1500
+  P2 = 534 + 99 + 82 = 715 <= 1500
+rc=0
