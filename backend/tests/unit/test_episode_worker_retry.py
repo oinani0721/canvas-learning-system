@@ -21,6 +21,7 @@ The 5 scenarios:
 """
 
 import asyncio
+import hashlib
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -108,7 +109,13 @@ async def test_basic_enqueue_and_process(worker):
     # Inspect kwargs forwarded to graphiti.add_episode
     call_kwargs = mock_graphiti.add_episode.await_args.kwargs
     assert call_kwargs["name"] == "happy_path"
-    assert call_kwargs["group_id"] == "canvas-test"
+    # CARD-TOOL-testinfra-salvage 2026-09-06: graphiti 侧写的是语义影子分组
+    # (episode_worker.py:588-601 `semantic_group_id(...)`, D16 二级子组规约)。本断言
+    # 2026-04 写下时影子分组尚不存在，故原值 "canvas-test" 已过期。字面量而非调用
+    # semantic_group_id() 求值 —— 期望值与被测量同源会让它跟着实现一起退化。
+    assert call_kwargs["group_id"] == "canvas-test__semantic"
+    # 独立不变量：影子分组只作用于 graphiti 调用面，不得就地改写 task 自身的归属。
+    assert task.group_id == "canvas-test"
     assert call_kwargs["episode_body"] == '{"action":"test"}'
 
     # Dead-letter file should not exist (no failures)
@@ -225,7 +232,14 @@ async def test_dead_letter_on_retries_exhausted(worker):
     assert record["error_type"] == "RuntimeError"
     assert record["retry_count"] == 3  # 3 retries attempted before dead-letter
     assert "failed_at" in record
-    assert "episode_body_full" in record
+    # CARD-TOOL-testinfra-salvage 2026-09-06: DeadLetterStore 做过隐私加固
+    # (episode_worker.py:205-254)：全文只在 DEAD_LETTER_STORE_FULL_BODY=true 时落盘，
+    # 默认只留 sha256 + length。原断言 `"episode_body_full" in record` 写于加固之前，
+    # 在默认配置下恒假。改为正面锁住加固后的契约（默认不落全文）。
+    assert "episode_body_full" not in record, "默认配置下不得把 episode 全文落进 dead-letter"
+    # 期望值独立于被测量：直接对字面 body 求 sha256，不从 record 里反取。
+    assert record["episode_body_sha256"] == hashlib.sha256(b'{"action":"test"}').hexdigest()
+    assert record["episode_body_length"] == len('{"action":"test"}')
 
 
 # ─── Scenario 4: WorkerMetrics counter completeness ────────────────────────
