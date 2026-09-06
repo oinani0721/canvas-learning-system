@@ -1,0 +1,23 @@
+# baseline sha  : b0d2083cda0a4e98432ff3c7057e156b8e6b3caa3c50e1e630e98e63ba0b4ec6
+# 未变异时失败集: (空 — 全绿)
+
+## M1-missing: MISMATCH  (还原=ok)
+   期望红: ['test_generate_item_missing_is_reported', 'test_missing_is_detected_alone', 'test_missing_skeleton_dir_is_missing']
+   实际红: ['test_generate_item_missing_is_reported', 'test_missing_is_detected_alone']
+   ⚠️ 未被杀 (门不承重): ['test_missing_skeleton_dir_is_missing']
+
+## M2-extra: KILLED-EXACT  (还原=ok)
+   期望红: ['test_extra_is_detected_alone']
+   实际红: ['test_extra_is_detected_alone']
+
+## M3-content-drift: KILLED-EXACT  (还原=ok)
+   期望红: ['test_content_drift_is_detected_alone']
+   实际红: ['test_content_drift_is_detected_alone']
+
+## M4-intentionally-excluded: KILLED-EXACT  (还原=ok)
+   期望红: ['test_glob_exclude_matches_nested_pycache', 'test_intentionally_excluded_is_detected_alone']
+   实际红: ['test_glob_exclude_matches_nested_pycache', 'test_intentionally_excluded_is_detected_alone']
+
+# 结束 sha 复核 : 逐字节相同
+# 总判定        : FAIL
+rc=1

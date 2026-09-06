@@ -1,0 +1,13 @@
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/tests/unit/test_vault_install_manifest.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/tests/unit/test_vault_install_manifest.py:335:5 - error: Variable "source" is not accessed (reportUnusedVariable)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/tests/unit/test_vault_install_manifest.py:448:29 - error: Operator "<=" not supported for types "int" and "int | None"
+    Operator "<=" not supported for types "int" and "None" (reportOperatorIssue)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/scripts/verify_vault_install.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/scripts/verify_vault_install.py:119:12 - warning: Unnecessary isinstance call; "str" is always an instance of "str" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/scripts/verify_vault_install.py:491:21 - error: Argument of type "Path | None" cannot be assigned to parameter "vault_dir" of type "Path | str" in function "verify"
+    Type "Path | None" is not assignable to type "Path | str"
+      Type "None" is not assignable to type "Path | str"
+        "None" is not assignable to "Path"
+        "None" is not assignable to "str" (reportArgumentType)
+3 errors, 1 warning, 0 informations
+rc=1

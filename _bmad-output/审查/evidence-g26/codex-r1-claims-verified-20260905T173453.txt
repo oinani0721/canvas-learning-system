@@ -1,0 +1,32 @@
+========================================================================
+指控 1 (BLOCKER): --report 树外路径若与树内文件同 inode(硬链接), 会覆盖树内文件
+========================================================================
+  受害文件内容(前): 'content of Dashboard.md\n'
+  outside 在 vault 内? False  (False ⇒ 现有检查放行)
+报告已写入 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmpp54nksx5/outside-report.txt
+  校验器 rc = 0
+  受害文件内容(后): '# vault-install verification report (CARD-G2-6, '...
+  >>> 指控 1 成立 — 树内文件被覆盖
+
+========================================================================
+指控 2 (HIGH): copy 目录的摘要未剔除 exclude 子孙 ⇒ 正常部署也报 content-drift
+========================================================================
+  match=26 missing=0 extra=0 drift=2 excluded=0
+  drift 项: ['.claude/scripts', '.claude/hooks']
+  exit_code = 1
+  >>> 指控 2 成立 — 正确部署被误报 drift
+
+========================================================================
+指控 3 (MEDIUM): exclude 模式不区分文件/目录, 与脚本的 -type d / rm -f 条件不符
+========================================================================
+  __pycache__ 作为普通文件被判 excluded? True
+  pending_archives*.jsonl 作为目录被判 excluded? True
+  >>> 指控 3 成立(两者都被误判 excluded), 但只影响报告分类, 不进退出码
+
+========================================================================
+指控 4 (MEDIUM): action 为 list/dict 时抛 TypeError 而非 ManifestError ⇒ CLI rc≠2
+========================================================================
+  action=[]: >>> TypeError — 指控 4 成立 (cannot use 'list' as a set element (unhashable type: 'list'))
+  action={}: >>> TypeError — 指控 4 成立 (cannot use 'dict' as a set element (unhashable type: 'dict'))
+  action=123: ManifestError ✓ (items[0] 的 action 123 不在枚举 ['copy', 'exc)
+rc=0

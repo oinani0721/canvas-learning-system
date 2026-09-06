@@ -1,0 +1,39 @@
+#!/usr/bin/env python3
+"""落点判据的第四种形态: 大小写不敏感文件系统上, 路径比较判「树外」而文件系统认「树内」。"""
+from __future__ import annotations
+import importlib.util, sys, tempfile
+from pathlib import Path
+
+WT = Path("/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal")
+V, M = WT / "scripts" / "verify_vault_install.py", WT / "scripts" / "vault-install-manifest.json"
+spec = importlib.util.spec_from_file_location("_vv_case", V)
+vv = importlib.util.module_from_spec(spec)
+sys.modules["_vv_case"] = vv
+sys.dont_write_bytecode = True
+spec.loader.exec_module(vv)
+
+print("=== A. 本机文件系统大小写敏感性 ===")
+with tempfile.TemporaryDirectory() as td:
+    td = Path(td)
+    (td / "Vault").mkdir()
+    ci = (td / "vault").is_dir()
+    print("  建 Vault/ 后用 vault/ 访问 ->", "同一目录(不敏感)" if ci else "不同(敏感)")
+
+print()
+print("=== B. 落点检查是否被大小写差异绕开 ===")
+with tempfile.TemporaryDirectory() as td:
+    td = Path(td)
+    vault = td / "Vault"
+    vault.mkdir()
+    victim = vault / "Dashboard.md"
+    victim.write_text("KEEP\n", encoding="utf-8")
+    alt = td / "vault" / "Dashboard.md"      # 同一个文件, 不同大小写的路径
+    before = victim.read_text(encoding="utf-8")
+    print("  --vault=%s  --report=%s" % (vault.name, alt.relative_to(td)))
+    print("  is_relative_to 判定 =", alt.resolve().is_relative_to(vault.resolve()))
+    print("  两者 (st_dev, st_ino) 相同? =",
+          (alt.stat().st_dev, alt.stat().st_ino) == (victim.stat().st_dev, victim.stat().st_ino))
+    rc = vv.main(["--vault", str(vault), "--manifest", str(M), "--report", str(alt)])
+    after = victim.read_text(encoding="utf-8")
+    print("  rc =", rc, " 受害文件被改 =", after != before)
+    print("  >>>", "已拒绝 ✓" if rc == 2 and after == before else "⛔ 仍被放行 — 路径比较这个维度本身不成立")

@@ -1,0 +1,26 @@
+# baseline sha  : 14ac7bad53378b94326b4bb4e9e91704a6cfd2a3470aa476627bb9bbd398e18d
+# 未变异时失败集: (空 — 全绿)
+
+## M1-missing: KILLED-EXACT  (还原=ok)
+   期望红: ['test_generate_item_missing_is_reported', 'test_missing_is_detected_alone']
+   实际红: ['test_generate_item_missing_is_reported', 'test_missing_is_detected_alone']
+
+## M2-extra: KILLED-EXACT  (还原=ok)
+   期望红: ['test_extra_is_detected_alone']
+   实际红: ['test_extra_is_detected_alone']
+
+## M3-content-drift: KILLED-EXACT  (还原=ok)
+   期望红: ['test_content_drift_is_detected_alone']
+   实际红: ['test_content_drift_is_detected_alone']
+
+## M4-intentionally-excluded: KILLED-EXACT  (还原=ok)
+   期望红: ['test_glob_exclude_matches_nested_pycache', 'test_intentionally_excluded_is_detected_alone']
+   实际红: ['test_glob_exclude_matches_nested_pycache', 'test_intentionally_excluded_is_detected_alone']
+
+## M5-skeleton-must-be-dir: KILLED-EXACT  (还原=ok)
+   期望红: ['test_skeleton_present_as_file_is_missing']
+   实际红: ['test_skeleton_present_as_file_is_missing']
+
+# 结束 sha 复核 : 逐字节相同
+# 总判定        : PASS — 四类各自独立承重
+rc=0

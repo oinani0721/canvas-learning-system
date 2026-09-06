@@ -1,0 +1,41 @@
+# vault-install verification report (CARD-G2-6, read-only)
+# manifest : scripts/vault-install-manifest.json (version 1, source live-vault)
+# vault    : /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-y9-maingoal/3fff130b-03ad-48f8-a4ff-6f2d64ae2c43/scratchpad/zw-target
+# source   : /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/canvas-vault
+# 语义     : exclude 项按各自模式的静态前缀子树扫描; extra 只看 manifest
+#            extra_scan 声明的覆盖面 (根级文档不在覆盖面内, 故不报 extra);
+#            读不进去的条目记 unreadable 并计入退出码 —— 看不见不等于一致。
+------------------------------------------------------------------
+match                  : 17
+missing                : 11
+extra                  : 2
+content-drift          : 0
+intentionally-excluded : 6
+unreadable             : 0
+
+## missing
+  .claude/agents [claude-system]  — 模板源也没有这一项 (install-vault.sh 会打 ⚠️ 跳过)
+  .claude/commands [claude-system]  — 模板源也没有这一项 (install-vault.sh 会打 ⚠️ 跳过)
+  .claude/settings.local.json [secret-or-local]  — 模板源也没有这一项 (install-vault.sh 会打 ⚠️ 跳过)
+  .obsidian/app.json [obsidian-config]  — 模板源也没有这一项 (install-vault.sh 会打 ⚠️ 跳过)
+  .obsidian/appearance.json [obsidian-config]  — 模板源也没有这一项 (install-vault.sh 会打 ⚠️ 跳过)
+  .obsidian/core-plugins.json [obsidian-config]  — 模板源也没有这一项 (install-vault.sh 会打 ⚠️ 跳过)
+  .obsidian/cls-internal-key.txt [secret-or-local]  — 模板源也没有这一项 (install-vault.sh 会打 ⚠️ 跳过)
+  .obsidian/plugins/claudian [obsidian-plugin]  — 模板源也没有这一项 (install-vault.sh 会打 ⚠️ 跳过)
+  .obsidian/plugins/dataview [obsidian-plugin]  — 模板源也没有这一项 (install-vault.sh 会打 ⚠️ 跳过)
+  .obsidian/plugins/breadcrumbs [obsidian-plugin]  — 模板源也没有这一项 (install-vault.sh 会打 ⚠️ 跳过)
+  .obsidian/plugins/templater-obsidian [obsidian-plugin]  — 模板源也没有这一项 (install-vault.sh 会打 ⚠️ 跳过)
+
+## extra
+  .obsidian/graph.json  — 位于覆盖面 .obsidian/*.json 内但不在 manifest
+  .obsidian/types.json  — 位于覆盖面 .obsidian/*.json 内但不在 manifest
+
+## intentionally-excluded
+  原白板/** [learning-data]  — 目标里存在: 原白板/CS 61B.md, 原白板/特征值与特征向量.md, 原白板/线性代数.md (共 4 项)
+  检验白板/** [learning-data]  — 目标里存在: 检验白板/特征值与特征向量-2026-07-05-1815.md
+  节点/** [learning-data]  — 目标里存在: 节点/Characteristic-Equation-for-Eigenvalues.md, 节点/Eigenvalues-are-special-vectors-that-sat.md, 节点/Fundamentals.md (共 10 项)
+  outputs/** [build-artifact]  — 目标里存在: outputs/exam_boards, outputs/exam_boards/.gitkeep
+  raw/** [learning-data]  — 目标里存在: raw/.gitkeep, raw/my-recursion-notes.md
+  templates/** [learning-data]  — 目标里存在: templates/concept.md, templates/exam-board.md
+
+exit=1

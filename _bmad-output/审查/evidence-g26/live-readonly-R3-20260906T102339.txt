@@ -1,0 +1,16 @@
+哨兵时刻 2026-09-06T10:24:10+0800
+报告已写入 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/_bmad-output/审查/evidence-g26/live-diff.txt
+live-rc=1
+#            读不进去的条目记 unreadable 并计入退出码 —— 看不见不等于一致。
+------------------------------------------------------------------
+match                  : 28
+missing                : 0
+extra                  : 5
+content-drift          : not evaluated (无 --source)
+intentionally-excluded : 10
+unreadable             : 0
+
+--- 三重证明 ---
+find -newer 计数 = 0  （期望 0）
+SECRETS-UNCHANGED
+车道副本变更数 = 0

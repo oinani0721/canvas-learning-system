@@ -1,0 +1,7 @@
+=== ruff format ===
+2 files left unchanged
+=== ruff check ===
+All checks passed!
+=== pyright ===
+0 errors, 0 warnings, 0 informations
+pyright-rc=0

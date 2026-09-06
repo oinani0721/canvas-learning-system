@@ -1,0 +1,201 @@
+#!/usr/bin/env python3
+"""独立复现 Codex round-3 的八条指控（整改前应全部成立，整改后应全部不成立）。"""
+
+from __future__ import annotations
+
+import importlib.util
+import json
+import os
+import resource
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+WT = Path("/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal")
+V, M = WT / "scripts" / "verify_vault_install.py", WT / "scripts" / "vault-install-manifest.json"
+PY = WT / "backend" / ".venv" / "bin" / "python"
+
+spec = importlib.util.spec_from_file_location("_vv_r3", V)
+vv = importlib.util.module_from_spec(spec)
+sys.modules["_vv_r3"] = vv
+sys.dont_write_bytecode = True
+spec.loader.exec_module(vv)
+data = json.loads(M.read_text(encoding="utf-8"))
+
+
+def build(root: Path) -> None:
+    root.mkdir(parents=True, exist_ok=True)
+    for item in data["items"]:
+        if item["action"] == "skeleton":
+            (root / item["path"]).mkdir(parents=True, exist_ok=True)
+        elif item["action"] == "copy":
+            t = root / item["path"]
+            if "." in Path(item["path"]).name:
+                t.parent.mkdir(parents=True, exist_ok=True)
+                t.write_text("content of %s\n" % item["path"], encoding="utf-8")
+            else:
+                t.mkdir(parents=True, exist_ok=True)
+                (t / "payload.txt").write_text("payload\n", encoding="utf-8")
+    (root / ".canvas-config.yaml").write_text('vault_id: "x"\n', encoding="utf-8")
+
+
+def head(n: str) -> None:
+    print("\n" + "=" * 74)
+    print(n)
+    print("=" * 74)
+
+
+head("R3-1 (BLOCKER) 大小写目录别名绕过禁写检查")
+with tempfile.TemporaryDirectory() as td:
+    td = Path(td)
+    vault = td / "vault"
+    build(vault)
+    victim = vault / "Dashboard.md"
+    before = victim.read_bytes()
+    alt = td / "VAULT" / "report.txt"          # 同一目录, 不同大小写
+    rc = vv.main(["--vault", str(vault), "--manifest", str(M), "--report", str(alt)])
+    created = (vault / "report.txt").exists()
+    print("  rc=%d  vault 内被新建 report.txt = %s  Dashboard 未变 = %s"
+          % (rc, created, victim.read_bytes() == before))
+    print("  >>> R3-1 %s" % ("不成立 — 已拒绝" if rc == 2 and not created else "⛔ 仍成立"))
+
+head("R3-2 (BLOCKER) O_EXCL 失败后删除了不属于本次调用的临时文件")
+with tempfile.TemporaryDirectory() as td:
+    td = Path(td)
+    vault = td / "v"
+    build(vault)
+    outside = td / "out"
+    outside.mkdir()
+    report = outside / "report.txt"
+    # 预置一个「别人的」临时文件, 名字撞上本次会用的形态
+    victim_tmp = outside / (".report.txt.tmp-%d" % os.getpid())
+    victim_tmp.write_text("SOMEONE ELSE'S FILE\n", encoding="utf-8")
+    rc = vv.main(["--vault", str(vault), "--manifest", str(M), "--report", str(report)])
+    survived = victim_tmp.exists()
+    print("  rc=%d  别人的临时文件还在 = %s" % (rc, survived))
+    print("  >>> R3-2 %s" % ("不成立 — 没删别人的文件" if survived else "⛔ 仍成立 — 删了别人的文件"))
+
+head("R3-3 (BLOCKER) 禁写根不覆盖两层软链 / 扫描失败被忽略")
+with tempfile.TemporaryDirectory() as td:
+    td = Path(td)
+    a, b = td / "outA", td / "outB"
+    a.mkdir()
+    b.mkdir()
+    os.symlink(str(b), str(a / "link"))         # outA/link -> outB
+    vault = td / "v"
+    build(vault)
+    os.symlink(str(a), str(vault / "link"))     # vault/link -> outA
+    target = b / "report.txt"
+    rc = vv.main(["--vault", str(vault), "--manifest", str(M), "--report", str(target)])
+    seen_from_vault = (vault / "link" / "link" / "report.txt").exists()
+    print("  ① 两层软链: rc=%d  vault 经两层链看到新文件 = %s" % (rc, seen_from_vault))
+    print("     >>> %s" % ("不成立 — 已拒绝" if rc == 2 and not seen_from_vault else "⛔ 仍成立"))
+
+with tempfile.TemporaryDirectory() as td:
+    td = Path(td)
+    vault = td / "v"
+    build(vault)
+    locked = vault / "locked"
+    locked.mkdir()
+    outside = td / "out"
+    outside.mkdir()
+    os.symlink(str(outside), str(locked / "escape"))
+    os.chmod(locked, 0o111)                     # 可按名访问, 不可列目录
+    try:
+        rc = vv.main(["--vault", str(vault), "--manifest", str(M),
+                      "--report", str(outside / "r.txt")])
+        print("  ② 不可列目录里的软链: rc=%d" % rc)
+        print("     >>> %s" % ("不成立 — 扫不完就拒绝" if rc == 2 else "⛔ 仍成立 — 扫描失败却放行"))
+    finally:
+        os.chmod(locked, 0o755)
+
+head("R3-4 (HIGH) 两侧普通文件都不可读时 unreadable 阻断失效")
+with tempfile.TemporaryDirectory() as td:
+    td = Path(td)
+    src, tgt = td / "s", td / "t"
+    build(src)
+    build(tgt)
+    (src / "CLAUDE.md").write_text("AAAA\n", encoding="utf-8")
+    (tgt / "CLAUDE.md").write_text("BBBB\n", encoding="utf-8")   # 内容不同
+    os.chmod(src / "CLAUDE.md", 0o000)
+    os.chmod(tgt / "CLAUDE.md", 0o000)
+    try:
+        r = vv.verify(tgt, vv.load_manifest(M), source_dir=src)
+        print("  drift=%d  unreadable=%d  exit=%d" % (len(r.content_drift), len(r.unreadable), r.exit_code))
+        print("  >>> R3-4 %s" % ("不成立 — 已登记并阻断" if r.unreadable and r.exit_code != 0 else "⛔ 仍成立(假绿)"))
+    finally:
+        os.chmod(src / "CLAUDE.md", 0o644)
+        os.chmod(tgt / "CLAUDE.md", 0o644)
+
+head("R3-5 (MEDIUM) os.write 短写导致发布截断报告")
+code = '''
+import importlib.util, resource, sys
+from pathlib import Path
+spec = importlib.util.spec_from_file_location("_w", r"%s")
+m = importlib.util.module_from_spec(spec); sys.modules["_w"] = m
+sys.dont_write_bytecode = True; spec.loader.exec_module(m)
+resource.setrlimit(resource.RLIMIT_FSIZE, (1, 1))
+out = Path(sys.argv[1]) / "r.txt"
+try:
+    m._write_report(out, "ABCDE")
+    print("RESULT no-error", out.read_bytes())
+except m.ReportWriteError as e:
+    print("RESULT raised", str(e)[:60])
+except Exception as e:
+    print("RESULT other", type(e).__name__)
+''' % V
+with tempfile.TemporaryDirectory() as td:
+    proc = subprocess.run([str(PY), "-c", code, td], capture_output=True, text=True,
+                          env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+    line = [x for x in proc.stdout.splitlines() if x.startswith("RESULT")]
+    print("  ", line[0] if line else proc.stderr.strip()[-120:])
+    ok = bool(line) and line[0].startswith("RESULT raised")
+    print("  >>> R3-5 %s" % ("不成立 — 短写被发现并报错" if ok else "⛔ 仍成立 — 发布了截断报告"))
+
+head("R3-6 (MEDIUM) 清单里的孤立代理字符逃出 rc=2 并留下临时文件")
+with tempfile.TemporaryDirectory() as td:
+    td = Path(td)
+    vault = td / "v"
+    build(vault)
+    d2 = json.loads(M.read_text(encoding="utf-8"))
+    d2["source"] = "\ud800"
+    bad = td / "bad.json"
+    bad.write_text(json.dumps(d2), encoding="utf-8")
+    out = td / "out"
+    out.mkdir()
+    try:
+        rc = vv.main(["--vault", str(vault), "--manifest", str(bad), "--report", str(out / "r.txt")])
+    except Exception as e:
+        rc = "抛出 %s" % type(e).__name__
+    leftovers = [p.name for p in out.iterdir()]
+    print("  rc=%s  落点目录残留 = %s" % (rc, leftovers))
+    print("  >>> R3-6 %s" % ("不成立" if rc == 2 and not leftovers else "⛔ 仍成立"))
+
+head("R3-7 (MEDIUM) extra_scan.dir='.' 造成规范化误报")
+for dot in (".", "./", ".//"):
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        vault = td / "v"
+        build(vault)
+        d2 = json.loads(M.read_text(encoding="utf-8"))
+        d2["extra_scan"] = [{"dir": dot, "match": "*.md"}]
+        m2 = td / "m.json"
+        m2.write_text(json.dumps(d2), encoding="utf-8")
+        r = vv.verify(vault, vv.load_manifest(m2))
+        print("  dir=%-5r -> extra=%s" % (dot, [f.path for f in r.extra]))
+
+head("R3-8 (LOW) 悬空软链形态的精确 exclude 不登记")
+with tempfile.TemporaryDirectory() as td:
+    td = Path(td)
+    vault = td / "v"
+    build(vault)
+    os.symlink(str(td / "nowhere"), str(vault / "learning_events.jsonl"))
+    os.symlink(str(td / "nowhere2"), str(vault / ".obsidian" / "workspace.json"))
+    r = vv.verify(vault, vv.load_manifest(M))
+    got = [f.path for f in r.intentionally_excluded]
+    print("  intentionally-excluded 含 learning_events.jsonl = %s" % ("learning_events.jsonl" in got))
+    print("  含 .obsidian/workspace.json = %s" % (".obsidian/workspace.json" in got))
+    print("  extra=%s exit=%d" % ([f.path for f in r.extra], r.exit_code))
+    ok = "learning_events.jsonl" in got and ".obsidian/workspace.json" in got
+    print("  >>> R3-8 %s" % ("不成立 — 悬空软链已登记" if ok else "⛔ 仍成立"))

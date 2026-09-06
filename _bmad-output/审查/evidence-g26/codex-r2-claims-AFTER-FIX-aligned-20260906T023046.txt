@@ -1,0 +1,22 @@
+R2-3 (MEDIUM): rm -f 会删非目录条目, is_file() 对 symlink-to-dir / 悬空链接 / FIFO 为 False
+========================================================================
+  plain.txt      脚本会删=True   kind=nondir 判定=True   kind=file 判定=True 
+  link_to_dir    脚本会删=True   kind=nondir 判定=True   kind=file 判定=False
+  dangling       脚本会删=True   kind=nondir 判定=True   kind=file 判定=False
+  fifo           脚本会删=True   kind=nondir 判定=True   kind=file 判定=False
+  realdir        脚本会删=False  kind=nondir 判定=False  kind=file 判定=False
+  >>> R2-3 不成立 — kind=nondir 与脚本可删集合逐项一致
+
+========================================================================
+R2-4 (MEDIUM): 正则用 $, 尾随换行的文件名被误匹配
+========================================================================
+  (判据取调用点实际用的 fullmatch —— 正则本身不锚定, 由调用方决定)
+  fullmatch('.claude/hooks/pending_archives_keep.jsonl') -> True   [旧口径 match() -> True]
+  fullmatch('.claude/hooks/pending_archives_keep.jsonl\n') -> False   [旧口径 match() -> True]
+  >>> R2-4 不成立 — 尾随换行已不再命中
+
+========================================================================
+R2-5 (MEDIUM): extra_scan 字段未校验值 -> 非 ManifestError 异常逃出
+========================================================================
+  {"dir": 123, "match": "*"}         -> ManifestError ✓
+  {"dir": [], "match": "*"}          -> ManifestError ✓

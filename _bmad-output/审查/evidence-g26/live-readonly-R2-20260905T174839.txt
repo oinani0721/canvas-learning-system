@@ -1,0 +1,29 @@
+=== ruff / pyright ===
+All checks passed!
+2 files already formatted
+0 errors, 0 warnings, 0 informations
+=== manifest 静态门 ===
+grep -c '/Users/' = 0
+version= 1 items= 36 Counter({'copy': 21, 'exclude': 8, 'skeleton': 6, 'generate': 1})
+kind 分布= Counter({'': 32, 'file': 3, 'dir': 1})
+=== 零写门 (tmp target, 带 --source) ===
+报告已写入 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/_bmad-output/审查/evidence-g26/tmp-target-diff.txt
+rc=1
+FILES-IDENTICAL
+ENTRIES-IDENTICAL
+=== live 只读 run ===
+sentinel-at=2026-09-05T17:48:41+0800
+报告已写入 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/_bmad-output/审查/evidence-g26/live-diff.txt
+live-rc=1
+------------------------------------------------------------------
+match                  : 28
+missing                : 0
+extra                  : 5
+content-drift          : not evaluated (无 --source)
+intentionally-excluded : 8
+
+--- 只读三证 ---
+newer=0
+SECRETS-UNCHANGED
+lane-vault-changes=0
+rc=0

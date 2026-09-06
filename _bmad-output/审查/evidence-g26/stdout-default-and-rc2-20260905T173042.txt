@@ -1,0 +1,26 @@
+=== (b) --report 缺省 → stdout (前 12 行) ===
+# vault-install verification report (CARD-G2-6, read-only)
+# manifest : scripts/vault-install-manifest.json (version 1, source live-vault)
+# vault    : /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-y9-maingoal/3fff130b-03ad-48f8-a4ff-6f2d64ae2c43/scratchpad/zw-target
+# source   : (未提供 — content-drift 未评估)
+# 语义     : exclude 项按各自模式的静态前缀子树扫描; extra 只看 manifest
+#            extra_scan 声明的覆盖面 (根级文档不在覆盖面内, 故不报 extra)。
+------------------------------------------------------------------
+match                  : 17
+missing                : 11
+extra                  : 2
+content-drift          : not evaluated (无 --source)
+intentionally-excluded : 4
+rc=0
+
+=== rc=2 四入口逐个实测 ===
+vault 不存在        -> rc=2
+manifest 不存在      -> rc=2
+report 落 vault 内   -> rc=2
+  报告未被创建 ✓
+report 落 source 内  -> rc=2
+  报告未被创建 ✓
+
+=== 车道 canvas-vault git status (须 0) ===
+0
+rc=0

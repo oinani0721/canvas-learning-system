@@ -1,0 +1,15 @@
+2 files reformatted
+=== ruff check ===
+All checks passed!
+=== ruff format --check ===
+2 files already formatted
+=== pyright ===
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/tests/unit/test_vault_install_manifest.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/backend/tests/unit/test_vault_install_manifest.py:806:5 - error: Variable "source" is not accessed (reportUnusedVariable)
+1 error, 0 warnings, 0 informations
+=== manifest 静态门 ===
+grep -c '/Users/' = 0
+version= 1 items= 38 Counter({'copy': 21, 'exclude': 10, 'skeleton': 6, 'generate': 1})
+kind= Counter({'(无)': 36, 'dir': 1, 'nondir': 1})
+绝对/..重复 = [] []
+=== install-vault.sh 未被本轮触碰 ===

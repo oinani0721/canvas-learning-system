@@ -1,0 +1,11 @@
+=== 哨兵时刻 ===
+2026-09-05T17:08:06 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal/_bmad-output/审查/evidence-g26/live-sentinel
+=== find -newer sentinel (排 workspace*.json / .trash) ===
+count=0
+=== 两密钥件 sha 前后对比 (空 = 未变) ===
+SECRETS-UNCHANGED
+=== 车道副本 canvas-vault/ git status ===
+lane-count=0
+=== 报告落点不在 vault 内 ===
+OK: 报告在 _bmad-output/ 下
+rc=0

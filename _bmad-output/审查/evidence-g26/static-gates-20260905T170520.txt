@@ -1,0 +1,18 @@
+=== (c) grep -c '/Users/' manifest ===
+0
+=== manifest 概览 ===
+version= 1 source= live-vault items= 36
+actions= ['copy', 'exclude', 'generate', 'skeleton']
+Counter({'copy': 21, 'exclude': 8, 'skeleton': 6, 'generate': 1})
+roles= ['build-artifact', 'claude-system', 'learning-data', 'obsidian-config', 'obsidian-plugin', 'secret-or-local', 'session-state', 'skeleton-dir', 'vault-config', 'vault-doc']
+绝对路径项= []
+含 .. 项= []
+重复项= []
+=== ruff check ===
+All checks passed!
+rc-ruff-check=0
+=== ruff format --check ===
+Would reformat: backend/tests/unit/test_vault_install_manifest.py
+Would reformat: scripts/verify_vault_install.py
+2 files would be reformatted
+rc-ruff-format=1

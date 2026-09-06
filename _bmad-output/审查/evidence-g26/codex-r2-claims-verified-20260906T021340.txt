@@ -1,0 +1,43 @@
+========================================================================
+R2-1 (BLOCKER): --report /dev/fd/N 绕过 st_nlink 写穿树内文件
+========================================================================
+  /dev/fd 路径 = /dev/fd/3
+  resolve() -> /dev/fd/3
+  子进程 rc=0  stderr=
+  受害文件被改? True
+  >>> R2-1 成立 — 写穿
+
+========================================================================
+R2-2 (HIGH): rglob 静默吞 PermissionError -> 不可读目录被当作不存在 -> 误判 match
+========================================================================
+  源 .claude/hooks/child 权限 000 且含 hidden.txt; 目标同名目录为空
+  drift=[] exit=0
+  >>> R2-2 成立 — 内容不同却判 match(漏报)
+
+========================================================================
+R2-3 (MEDIUM): rm -f 会删非目录条目, is_file() 对 symlink-to-dir / 悬空链接 / FIFO 为 False
+========================================================================
+  plain.txt      is_file()=True  is_dir()=False is_symlink()=False  rm -f 会删? 是
+  link_to_dir    is_file()=False is_dir()=True  is_symlink()=True   rm -f 会删? 是
+  dangling       is_file()=False is_dir()=False is_symlink()=True   rm -f 会删? 是
+  fifo           is_file()=False is_dir()=False is_symlink()=False  rm -f 会删? 是
+  realdir        is_file()=False is_dir()=True  is_symlink()=False  rm -f 会删? 否(目录)
+  >>> R2-3 成立 — is_file() 与 rm -f 的可删集合不等价(差 symlink-to-dir/悬空/FIFO)
+
+========================================================================
+R2-4 (MEDIUM): 正则用 $, 尾随换行的文件名被误匹配
+========================================================================
+  match('.claude/hooks/pending_archives_keep.jsonl') -> True
+  match('.claude/hooks/pending_archives_keep.jsonl\n') -> True
+  >>> R2-4 成立 — 带尾随换行也命中
+
+========================================================================
+R2-5 (MEDIUM): extra_scan 字段未校验值 -> 非 ManifestError 异常逃出
+========================================================================
+  {"dir": 123, "match": "*"}         -> ⚠️ verify 抛 TypeError (逃出捕获面)
+  {"dir": [], "match": "*"}          -> ⚠️ verify 抛 TypeError (逃出捕获面)
+  {"dir": ".claude", "match": 123}   -> 加载放行且 verify 未抛(扫描可能失效)
+  {"dir": ".claude", "match": []}    -> 加载放行且 verify 未抛(扫描可能失效)
+  {"dir": "/absolute", "match": "*"} -> 加载放行且 verify 未抛(扫描可能失效)
+  {"dir": "../outside", "match": "*" -> 加载放行且 verify 未抛(扫描可能失效)
+rc=0

@@ -1,0 +1,319 @@
+#!/usr/bin/env python3
+"""CARD-G2-6 — 四类 diff 反例「各自独立承重」的变异验证。
+
+对 scripts/verify_vault_install.py 逐个拆掉一类分类逻辑, 跑整份测试文件, 断言:
+  1. 指定的那些 nodeid **恰好**变红 (证明该类反例真的靠这段逻辑承重);
+  2. 其余 nodeid 仍绿 (证明一次只打一类, 没有连坐 —— 只看 rc != 0 是粗判据,
+     任何一条红都能把它喂饱)。
+
+纪律 (历史教训):
+  - 串行, 一次只改一个变异体;
+  - 还原**无条件**执行, 不放在 rc 判断之后;
+  - 跑前记全文件 sha, 每轮跑后复核还原到逐字节相同, 结尾再核一次;
+  - 执行块包在 main() 里 —— import 本文件不得改动生产文件。
+"""
+
+from __future__ import annotations
+
+import hashlib
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+WT = Path("/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal")
+VERIFIER = WT / "scripts" / "verify_vault_install.py"
+TEST_FILE = "tests/unit/test_vault_install_manifest.py"
+PYTEST = WT / "backend" / ".venv" / "bin" / "pytest"
+
+MUTATIONS = [
+    (
+        "M1-missing",
+        "        if not target.exists():",
+        "        if False:  # MUTANT M1: 拆掉 missing 检测",
+        # test_missing_skeleton_dir_is_missing 不在期望集: 它 rmdir 掉目录后同时满足
+        # 「不存在」与「不是目录」, 第二道分支会兜住 —— 那是纵深, 不是门失效。M5 单独验它。
+        {"test_missing_is_detected_alone", "test_generate_item_missing_is_reported"},
+    ),
+    (
+        "M2-extra",
+        "            report.extra.append(",
+        "            _ = (  # MUTANT M2: 拆掉 extra 上报",
+        {"test_extra_is_detected_alone"},
+    ),
+    (
+        "M3-content-drift",
+        "                if src_digest != tgt_digest:",
+        "                if False:  # MUTANT M3: 拆掉 content-drift 比对",
+        # 尾随换行那条也断言 content_drift 的内容, 拆掉比对它必然一起红 —— 正当连坐
+        {"test_content_drift_is_detected_alone", "test_trailing_newline_name_is_not_excluded"},
+    ),
+    (
+        "M4-intentionally-excluded",
+        "            if hits:",
+        "            if False:  # MUTANT M4: 拆掉 intentionally-excluded 上报",
+        {
+            "test_intentionally_excluded_is_detected_alone",
+            "test_glob_exclude_matches_nested_pycache",
+            "test_target_side_exclusion_is_also_pinned",
+            "test_bracket_is_literal_in_both_places",
+            # round-3 新加的三条同样断言 intentionally_excluded —— 正当连坐
+            "test_bracket_exclude_declaration_works_end_to_end",
+            "test_dangling_symlink_exclude_is_registered",
+            "test_skeleton_content_excludes_are_pinned",
+        },
+    ),
+    (
+        "M5-skeleton-must-be-dir",
+        '        if item.action == "skeleton" and not target.is_dir():',
+        "        if False:  # MUTANT M5: 拆掉「骨架项须为目录」检查",
+        {"test_skeleton_present_as_file_is_missing"},
+    ),
+    (
+        "M6-digest-exclude-filter",
+        "            if excluder.is_under_exclusion(base, full_rel):",
+        "            if False:  # MUTANT M6: 摘要不再剔除被 exclude 的子孙",
+        {
+            "test_normally_deployed_vault_is_not_reported_as_drift",
+            "test_target_side_exclusion_is_also_pinned",
+        },
+    ),
+    (
+        "M7-report-hardlink-guard",
+        "    if report_path.exists() and report_path.stat().st_nlink > 1:",
+        "    if False:  # MUTANT M7: 拆掉 --report 硬链接早退",
+        # 硬链接那条测试还有第二道防线(_write_report 的 os.replace)兜着字节不变,
+        # 所以拆掉早退后它只在退出码断言上红 —— 仍是精确单杀。
+        {"test_report_hardlinked_into_vault_is_refused"},
+    ),
+    (
+        "M8-exclude-kind-dir",
+        '    if item.kind == "dir":',
+        '    if item.kind == "__never_dir__":  # MUTANT M8: dir 类型条件恒不命中',
+        {"test_exclude_kind_matches_script_type_conditions"},
+    ),
+    (
+        "M9-action-type-check",
+        '        if not isinstance(entry["action"], str):',
+        "        if False:  # MUTANT M9: 拆掉 action 类型预检",
+        {"test_non_string_action_still_exits_2"},
+    ),
+    (
+        "M10-exclude-kind-nondir",
+        '    if item.kind == "nondir":',
+        '    if item.kind == "__never_nondir__":  # MUTANT M10: nondir 类型条件恒不命中',
+        {
+            "test_exclude_kind_matches_script_type_conditions",
+            "test_exclude_kind_nondir_matches_what_the_script_deletes",
+        },
+    ),
+    # ── 下面六条对应 round-2 + 对抗审查的整改, 每条都要证明「新门真承重」 ──
+    (
+        "M11-write-report-inplace",
+        "            _write_report(report_path, text, lambda p: _check_report_location(p, trees))",
+        "            report_path.write_text(text, encoding='utf-8')  # MUTANT M11: 退回原地覆盖",
+        # AST 门本来就该抓住「写调用跑到 _write_report 之外」—— 两道门互相加强, 正当连坐
+        {"test_report_via_dev_fd_alias_is_refused", "test_verifier_write_calls_are_confined_to_write_report"},
+    ),
+    (
+        "M12-forbidden-roots",
+        # 只改一个调用点是「变异覆盖不完整」——另一处仍用递归结果, 照样拦住。
+        # 改函数体内的收集, 让禁写根集合整个空掉。
+        "        roots.append(cur)",
+        "        pass  # MUTANT M12: 禁写根一个都不收集",
+        {
+            "test_report_behind_vault_symlink_is_refused",
+            "test_two_hop_symlink_target_is_refused",
+            "test_case_insensitive_alias_is_refused",
+            # 禁写根空掉后连「树本身」都不在里面, 最基础的两条落点测试一起红 —— 正当连坐,
+            # 也说明这段收集同时承载着最基本的「不许写进被审树」。
+            "test_report_inside_vault_exits_2",
+            "test_report_inside_source_exits_2",
+        },
+    ),
+    (
+        "M13-unreadable-blocking",
+        "        blocking = len(self.missing) + len(self.extra) + len(self.content_drift) + len(self.unreadable)",
+        "        blocking = len(self.missing) + len(self.extra) + len(self.content_drift)  # MUTANT M13",
+        # 专属门是 _alone 那条: 它刻意让两侧都读不进去, 使 unreadable 成为唯一差异来源。
+        # 旧那条(源侧不可读/目标空)会被 content_drift 兜住退出码, 拆掉本段它仍绿 —— 那是纵深。
+        {"test_unreadable_alone_still_blocks",
+         # 这条也断言 exit_code != 0, 拆掉「unreadable 计入阻断」它一起红 —— 正当连坐
+         "test_both_sides_unreadable_plain_files_still_block",
+         "test_unreadable_leaf_inside_directory_is_registered"},
+    ),
+    (
+        "M14-extra-scan-validation",
+        '        scan_dir = _check_relative_segment(entry["dir"], f"extra_scan[{index}] 的 dir", allow_empty=True)',
+        '        scan_dir = entry["dir"]  # MUTANT M14: 拆掉 extra_scan.dir 校验',
+        # `.` 的归一也在 _check_relative_segment 里, 拆掉校验它一起红 —— 正当连坐
+        {"test_invalid_extra_scan_exits_2", "test_extra_scan_dot_is_normalized_to_root"},
+    ),
+    (
+        "M15-glob-chars-bracket",
+        'GLOB_CHARS = "*?"',
+        'GLOB_CHARS = "*?["  # MUTANT M15: 让 [ 重新算通配符, 与 re.escape 口径分裂',
+        {"test_bracket_is_literal_in_both_places"},
+    ),
+    (
+        "M16-manifest-read-catch",
+        "    except OSError as exc:\n        raise ManifestError(f\"manifest 不可读: {path} — {exc}\") from exc",
+        "    except NotADirectoryError as exc:  # MUTANT M16: 捕获面收窄回去\n        raise ManifestError(f\"manifest 不可读: {path} — {exc}\") from exc",
+        # 非 UTF-8 / 坏 JSON 走的是 UnicodeDecodeError 与 ValueError 两个分支,
+        # 收窄 OSError 影响不到它们 —— 期望集只该有「manifest 指向目录」这一条
+        {"test_manifest_pointing_at_a_directory_exits_2"},
+    ),
+# ── round-3 的八条整改, 每条一个变异 ──
+    (
+        "M17-identity-check",
+        "        if ident is not None and ident in forbidden:",
+        "        if False:  # MUTANT M17: 落点退回纯路径比较",
+        {"test_case_insensitive_alias_is_refused"},
+    ),
+    (
+        "M18-only-clean-own-tmp",
+        "        if created:  # 只清理本次真正创建的那一个",
+        "        if True:  # MUTANT M18: 无条件清理(会删别人的文件)",
+        {"test_exclusive_create_failure_does_not_delete_someone_elses_file"},
+    ),
+    (
+        "M19-symlink-recursion",
+        "            if target.is_dir():\n                queue.append((target, depth + 1))",
+        "            if False:  # MUTANT M19: 不再递归展开软链\n                queue.append((target, depth + 1))",
+        {"test_two_hop_symlink_target_is_refused"},
+    ),
+    (
+        "M20-scan-failure-blocks",
+        "    if scan_failures:",
+        "    if False:  # MUTANT M20: 扫描没跑完也放行",
+        {"test_incomplete_safety_scan_refuses_to_write"},
+    ),
+    (
+        "M21-leaf-unreadable",
+        # 顶层分支: 被比对的 copy 项本身就是文件时走这里。
+        "        digest, bad = _leaf_digest(path)\n        if bad:",
+        "        digest, bad = _leaf_digest(path)\n        if False:  # MUTANT M21: 顶层叶子读不动不登记",
+        {"test_both_sides_unreadable_plain_files_still_block"},
+    ),
+    (
+        "M22-short-write-loop",
+        "        while written < len(data):",
+        "        if written < len(data):  # MUTANT M22: 只写一次, 不补齐短写",
+        {"test_short_write_is_detected"},
+    ),
+    (
+        "M23-encodable-check",
+        '    _require_encodable(source, "manifest 的 source")',
+        "    pass  # MUTANT M23: 拆掉可编码性校验",
+        {"test_unencodable_string_in_manifest_exits_2"},
+    ),
+    (
+        "M24-dot-normalization",
+        '    if normalized == ".":',
+        '    if normalized == "__never__":  # MUTANT M24: 不再把 . 归一为根',
+        {"test_extra_scan_dot_is_normalized_to_root"},
+    ),
+    (
+        "M25-dangling-exclude",
+        "            present = target.exists() or target.is_symlink()",
+        "            present = target.exists()  # MUTANT M25: 悬空软链不算存在",
+        {"test_dangling_symlink_exclude_is_registered"},
+    ),
+    (
+        "M26-leaf-unreadable-in-dir",
+        "        leaf, bad = _leaf_digest(child)\n        if bad:\n            _note_unreadable(child, rel)",
+        "        leaf, bad = _leaf_digest(child)\n        if False:  # MUTANT M26: 目录内叶子读不动不登记\n            _note_unreadable(child, rel)",
+        {"test_unreadable_leaf_inside_directory_is_registered"},
+    ),
+]
+
+
+def sha(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def run_tests() -> tuple[set[str], bool]:
+    """返回 (失败的测试函数名集合, 是否发生了收集期错误)。
+
+    **同时收 FAILED 与 ERROR**: 变异体若让模块 import 崩掉, pytest 报的是 ERROR,
+    只收 FAILED 会把「门根本没跑」读成「一条都没红 = 门不承重」= 假 SURVIVED。
+    """
+    proc = subprocess.run(
+        [str(PYTEST), "-q", "-p", "no:cacheprovider", "--tb=no", "-rfE", TEST_FILE],
+        cwd=WT / "backend",
+        capture_output=True,
+        text=True,
+        env={"PATH": "/usr/bin:/bin", "PYTHONDONTWRITEBYTECODE": "1", "HOME": str(Path.home())},
+    )
+    failed: set[str] = set()
+    collect_error = False
+    for line in proc.stdout.splitlines():
+        m = re.match(r"^FAILED .*::(\w+)", line)
+        if m:
+            failed.add(m.group(1))
+            continue
+        if line.startswith("ERROR "):
+            collect_error = True
+            m = re.match(r"^ERROR .*::(\w+)", line)
+            if m:
+                failed.add(m.group(1))
+    return failed, collect_error
+
+
+def compiles(text: str) -> bool:
+    """变异体语法自检 —— 语法错的变异体不是「有效变异」, 单列一种裁决。"""
+    try:
+        compile(text, str(VERIFIER), "exec")
+        return True
+    except SyntaxError:
+        return False
+
+
+def main() -> int:
+    baseline_sha = sha(VERIFIER)
+    original = VERIFIER.read_text(encoding="utf-8")
+    print(f"# baseline sha  : {baseline_sha}")
+
+    green, green_err = run_tests()
+    print(f"# 未变异时失败集: {sorted(green) or '(空 — 全绿)'}  收集期错误={green_err}")
+    verdicts = []
+    if green or green_err:
+        print("!! 基线非全绿, 变异结论不可信")
+        return 1
+
+    for name, old, new, expected in MUTATIONS:
+        assert original.count(old) == 1, f"{name}: 锚点不唯一 ({original.count(old)} 次)"
+        mutated = original.replace(old, new)
+        # 语法自检: 语法错的变异体等于「门没机会跑」, 既不能记 KILLED 也不能记 SURVIVED
+        if not compiles(mutated):
+            verdicts.append((name, False, set(), expected, True))
+            print(f"\n## {name}: SYNTAX-INVALID — 变异体语法非法, 本条不成立(须改写)")
+            continue
+        VERIFIER.write_text(mutated, encoding="utf-8")
+        try:
+            failed, collect_error = run_tests()
+        finally:
+            VERIFIER.write_text(original, encoding="utf-8")  # 无条件还原
+        restored = sha(VERIFIER) == baseline_sha
+        ok = failed == expected and restored and not collect_error
+        verdicts.append((name, ok, failed, expected, restored))
+        status = "KILLED-EXACT" if ok else "MISMATCH"
+        print(f"\n## {name}: {status}  (还原={'ok' if restored else 'FAILED'})")
+        print(f"   期望红: {sorted(expected)}")
+        print(f"   实际红: {sorted(failed)}")
+        if collect_error:
+            print("   ⚠️ 出现收集期 ERROR — 门没跑起来, 不能当作承重证据")
+        if failed - expected:
+            print(f"   ⚠️ 连坐 (本不该红): {sorted(failed - expected)}")
+        if expected - failed:
+            print(f"   ⚠️ 未被杀 (门不承重): {sorted(expected - failed)}")
+
+    final_ok = sha(VERIFIER) == baseline_sha
+    print(f"\n# 结束 sha 复核 : {'逐字节相同' if final_ok else '❌ 未还原'}")
+    all_ok = all(v[1] for v in verdicts) and final_ok
+    print(f"# 总判定        : {'PASS — 四类各自独立承重' if all_ok else 'FAIL'}")
+    return 0 if all_ok else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

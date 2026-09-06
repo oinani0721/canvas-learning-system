@@ -1,0 +1,19 @@
+=== bash -n ===
+syntax-ok
+=== CLS_REPO=/probe ===
+/probe
+=== 无 env (缺省) ===
+/Users/Heishing/Desktop/canvas/canvas-learning-system
+=== 缺省逐字节比对 (与 03ac8bf8 的 :16 求值结果) ===
+old=[/Users/Heishing/Desktop/canvas/canvas-learning-system]
+new=[/Users/Heishing/Desktop/canvas/canvas-learning-system]
+IDENTICAL
+=== diff hunk 行号 (须只落 :7-19) ===
+@@ -16 +16 @@ set -euo pipefail
+=== MANIFEST 区行号未漂移 ===
+SKELETON_DIRS=(原白板 检验白板 节点 outputs raw templates)
+CLAUDE_ITEMS=(skills scripts hooks agents commands settings.json settings.local.json mcp.json)
+OBSIDIAN_FILES=(app.json appearance.json core-plugins.json community-plugins.json hotkeys.json cls-internal-key.txt)
+OBSIDIAN_PLUGINS=(canvas-learning-system claudian dataview breadcrumbs templater-obsidian)
+ROOT_FILES=(CLAUDE.md Dashboard.md)
+rc=0
