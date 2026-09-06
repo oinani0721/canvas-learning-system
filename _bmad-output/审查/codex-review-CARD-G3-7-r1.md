@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-05-第十二批 · 车道 Y9 · CARD-G3-7 round-1（⚠️ 车道未按协议 §2.1 写首部，主 session 于 2026-09-06 集成期补记；按协议本轮不计入卡族轮次配额，正文一字未改）
+> 模型: `gpt-6-astra`（车道 stderr 实测） · reasoning_effort: `ultra`（车道 stderr 实测） · codex: `codex-cli 0.153.3`（车道 stderr 实测）
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat <prompt>)"`（手册规定形态；实参见车道 stderr）
+> 审查绑定: `0f7ffb0d`（验收单自述；正文未写 SHA）
+> 会话头自证（抄车道 .stderr，stderr 本身不入库）:
+> `OpenAI Codex v0.153.3` / `workdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal` / `model: gpt-6-astra`
+
+---
+
 本轮**不能判通过**：确认 2 项 HIGH，主要是读取失败放行门锁、正文内容被误认作 frontmatter。以下均为限定读取面内的静态结论；未运行测试、未修改文件。
 
 1. **HIGH — 读取失败被当作“无真相源”，会放行写入且遗漏降级信号。**  

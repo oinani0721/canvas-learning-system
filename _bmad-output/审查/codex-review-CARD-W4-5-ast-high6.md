@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-05-第十二批 · 车道 Y8 · CARD-W4-5-ast-high6 round-1（⚠️ 车道未按协议 §2.1 写首部，主 session 于 2026-09-06 集成期补记；按协议本轮不计入卡族轮次配额，正文一字未改）
+> 模型: `gpt-6-astra`（车道 stderr 实测） · reasoning_effort: `ultra`（车道 stderr 实测） · codex: `codex-cli 0.153.3`（车道 stderr 实测）
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat <prompt>)"`（手册规定形态；实参见车道 stderr）
+> 审查绑定: `6d6e3e09`（存档正文与验收单 §八 自证；审后 07d59a52 整改 5 HIGH 未复审，车道已登记）
+> 会话头自证（抄车道 .stderr，stderr 本身不入库）:
+> `OpenAI Codex v0.153.3` / `workdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y8-w4-ast` / `model: gpt-6-astra`
+
+---
+
 **结论：不建议通过本卡。** 改后代码仍有 HIGH 级漏放路径；40/24 条输入也没有分别守住全部新增规则。
 
 本次仅作静态读取和手工推演，没有运行命令、测试、分析器或连接。以下 `L…` 均指本轮读到的[该文件](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y8-w4-ast/backend/scripts/lifespan_isolation_negative_control.py)，部分行号比请求中的锚点后移 4 行。指定 diff 未取得，历史比较的核验限制见第 8 条。

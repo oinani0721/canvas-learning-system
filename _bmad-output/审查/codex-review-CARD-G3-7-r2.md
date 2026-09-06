@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-05-第十二批 · 车道 Y9 · CARD-G3-7 round-2（⚠️ 车道未按协议 §2.1 写首部，主 session 于 2026-09-06 集成期补记；按协议本轮不计入卡族轮次配额，正文一字未改）
+> 模型: `gpt-6-astra`（车道 stderr 实测） · reasoning_effort: `ultra`（车道 stderr 实测） · codex: `codex-cli 0.153.3`（车道 stderr 实测）
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat <prompt>)"`（手册规定形态；实参见车道 stderr）
+> 审查绑定: `ecfcc3f1`（正文首行自证；审后 08fed737 整改 5 条未复审，车道已登记）
+> 会话头自证（抄车道 .stderr，stderr 本身不入库）:
+> `OpenAI Codex v0.153.3` / `workdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y9-maingoal` / `model: gpt-6-astra`
+
+---
+
 **绑定 HEAD：`ecfcc3f1e1c6933d4c5b6016fab0957aa9d6c0b9`**  
 复核结束于北京时间 2026-09-06 14:40。首尾 HEAD 一致，被审文件与 HEAD 一致。工作树另有未跟踪的 `_bmad-output/审查/codex-review-CARD-G3-7-r2.md`，所以“工作树干净”并不完全属实；本轮未读取或修改它，未运行测试。
 
