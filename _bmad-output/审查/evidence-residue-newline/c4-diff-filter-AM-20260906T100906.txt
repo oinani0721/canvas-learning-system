@@ -1,0 +1,66 @@
+### (c4) --diff-filter=AM · D 不进扫描面 / A 与 M 进
+# lefthook.yml sha: e116df5b23bfa49fc0a03fbb61c84852b308d62297d0a35870dfbae18b938afa  [ASSERTED == 修后终稿]
+--- (4a) 删除「内容含标记」的被跟踪文件 → D → 期望 OK rc=0 ---
+# staged AM (-z):
+# staged ALL:
+#   D	c4del.txt
+---
+╭───────────────────────────────────╮
+│ lefthook v2.1.6  hook: pre-commit │
+╰───────────────────────────────────╯
+┃  mutant-residue-scan ❯ 
+
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+
+                                      
+  ────────────────────────────────────
+summary: (done in 0.09 seconds)       
+✓ mutant-residue-scan (0.03 seconds)
+rc4a=0
+--- (4b) 新增(A)带标记 → 期望 BLOCKED rc=1 ---
+# staged AM (-z):
+#   c4new.txt
+# staged ALL:
+#   A	c4new.txt
+---
+╭───────────────────────────────────╮
+│ lefthook v2.1.6  hook: pre-commit │
+╰───────────────────────────────────╯
+┃  mutant-residue-scan ❯ 
+
+
+[Mutant-Scan] BLOCKED — 暂存的新增行里带变异残留标记:
+  c4new.txt:1: x = 1  # MUTANT
+
+[Mutant-Scan] 变异 harness 没还原干净。先 restore 被改的生产文件,
+[Mutant-Scan] 再拿变异前的全文件 sha 基线逐个复核 —— 标记只是最弱那道网。
+
+exit status 1                                      
+  ────────────────────────────────────
+summary: (done in 0.12 seconds)       
+✗ mutant-residue-scan (0.05 seconds)
+rc4b=1
+--- (4c) 修改(M)加标记行 → 期望 BLOCKED rc=1 ---
+# staged AM (-z):
+#   c4mod.txt
+# staged ALL:
+#   M	c4mod.txt
+---
+╭───────────────────────────────────╮
+│ lefthook v2.1.6  hook: pre-commit │
+╰───────────────────────────────────╯
+┃  mutant-residue-scan ❯ 
+
+
+[Mutant-Scan] BLOCKED — 暂存的新增行里带变异残留标记:
+  c4mod.txt:3: c = 3  # MUTANT
+
+[Mutant-Scan] 变异 harness 没还原干净。先 restore 被改的生产文件,
+[Mutant-Scan] 再拿变异前的全文件 sha 基线逐个复核 —— 标记只是最弱那道网。
+
+exit status 1                                      
+  ────────────────────────────────────
+summary: (done in 0.12 seconds)       
+✗ mutant-residue-scan (0.06 seconds)
+rc4c=1
+rc=1

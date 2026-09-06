@@ -1,0 +1,30 @@
+### (c1) --literal-pathspecs · 文件名含 * ? : · 期望 BLOCKED rc=1
+# lefthook.yml sha: e116df5b23bfa49fc0a03fbb61c84852b308d62297d0a35870dfbae18b938afa  [ASSERTED == 修后终稿]
+# staged AM (-z):
+#   colon:name.txt
+#   q?name.txt
+#   star*name.txt
+# staged ALL:
+#   A	colon:name.txt
+#   A	q?name.txt
+#   A	star*name.txt
+---
+╭───────────────────────────────────╮
+│ lefthook v2.1.6  hook: pre-commit │
+╰───────────────────────────────────╯
+┃  mutant-residue-scan ❯ 
+
+
+[Mutant-Scan] BLOCKED — 暂存的新增行里带变异残留标记:
+  colon:name.txt:1: x = 1  # MUTANT
+  q?name.txt:1: x = 1  # MUTANT
+  star*name.txt:1: x = 1  # MUTANT
+
+[Mutant-Scan] 变异 harness 没还原干净。先 restore 被改的生产文件,
+[Mutant-Scan] 再拿变异前的全文件 sha 基线逐个复核 —— 标记只是最弱那道网。
+
+exit status 1                                      
+  ────────────────────────────────────
+summary: (done in 0.15 seconds)       
+✗ mutant-residue-scan (0.08 seconds)
+rc=1

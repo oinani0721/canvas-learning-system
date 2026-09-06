@@ -1,0 +1,33 @@
+### [中间态存证 — 不是最终 (b3)] 只打了 NUL 补丁、尚未把文件名改走 ENVIRON 时的一跑。
+### lefthook.yml sha c57a7b7e... = 中间态(仅 patch_block)。此跑证明: 换行文件名到达 awk 后,
+### macOS awk 对 `-v F=<含换行>` 直接报 `newline in string` rc=2 => 走 FAILED 分支阻断(rc=1),
+### 但 hits 为空、诊断说的是「解析失败」而不是「发现残留」—— 这是 ENVIRON 改动的由来。
+### 最终 (b3) 见 b3-postfix-newline-BLOCKED-20260906T100906.txt。
+### (勘误: 本行原指向 …025916.txt —— 那份绑定的是被后续整改取代的中间块 cf1346a2,
+###  终稿改为 e116df5b 时已作废删除。Codex round-1 LOW「失效引用」指出, 已更正。)
+
+### (b3) 修后 · 同一换行文件名暂存面 · 期望 BLOCKED rc=1 且 hits 列出该文件
+# cwd: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-z7-tool/79afb73a-e52b-4dd8-8bff-d89559605153/scratchpad/y4c-probe
+# lefthook.yml sha (pre-run): c57a7b7e7367b96c214b3d70e27368b4293d89adcedbfb8824e3ab5951a5e092
+# staged (-z, printable):
+#   nl
+#   name.txt
+# cmd: /opt/homebrew/bin/lefthook run pre-commit --command mutant-residue-scan --no-auto-install --colors off
+---
+╭───────────────────────────────────╮
+│ lefthook v2.1.6  hook: pre-commit │
+╰───────────────────────────────────╯
+┃  mutant-residue-scan ❯ 
+
+awk: newline in string nl
+name.txt... at source line 1
+[Mutant-Scan] FAILED: 解析失败: nl
+name.txt
+[Mutant-Scan] 扫描未完成(见上) — 这不是「没发现标记」, 按 fail-closed 阻断。
+
+exit status 1                                      
+  ────────────────────────────────────
+summary: (done in 0.18 seconds)       
+✗ mutant-residue-scan (0.06 seconds)
+# lefthook.yml sha (post-run): c57a7b7e7367b96c214b3d70e27368b4293d89adcedbfb8824e3ab5951a5e092
+rc=1

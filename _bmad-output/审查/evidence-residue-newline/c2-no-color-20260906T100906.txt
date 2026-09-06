@@ -1,0 +1,51 @@
+### (c2) --no-color · 期望 BLOCKED rc=1 且 hits 计数两跑相等(不变)
+# lefthook.yml sha: e116df5b23bfa49fc0a03fbb61c84852b308d62297d0a35870dfbae18b938afa  [ASSERTED == 修后终稿]
+# staged AM (-z):
+#   c2a.txt
+#   c2b.txt
+# staged ALL:
+#   A	c2a.txt
+#   A	c2b.txt
+---
+--- (2a) 基线: 不设 color 配置 ---
+# color.ui=always color.diff=always
+╭───────────────────────────────────╮
+│ lefthook v2.1.6  hook: pre-commit │
+╰───────────────────────────────────╯
+┃  mutant-residue-scan ❯ 
+
+
+[Mutant-Scan] BLOCKED — 暂存的新增行里带变异残留标记:
+  c2a.txt:1: x = 1  # MUTANT
+  c2b.txt:1: x = 1  # MUTANT
+
+[Mutant-Scan] 变异 harness 没还原干净。先 restore 被改的生产文件,
+[Mutant-Scan] 再拿变异前的全文件 sha 基线逐个复核 —— 标记只是最弱那道网。
+
+exit status 1                                      
+  ────────────────────────────────────
+summary: (done in 0.13 seconds)       
+✗ mutant-residue-scan (0.06 seconds)
+# hits 计数(基线) = 2 ; rc=1
+--- (2b) color.ui=always + color.diff=always ---
+# color.ui=always color.diff=always
+╭───────────────────────────────────╮
+│ lefthook v2.1.6  hook: pre-commit │
+╰───────────────────────────────────╯
+┃  mutant-residue-scan ❯ 
+
+
+[Mutant-Scan] BLOCKED — 暂存的新增行里带变异残留标记:
+  c2a.txt:1: x = 1  # MUTANT
+  c2b.txt:1: x = 1  # MUTANT
+
+[Mutant-Scan] 变异 harness 没还原干净。先 restore 被改的生产文件,
+[Mutant-Scan] 再拿变异前的全文件 sha 基线逐个复核 —— 标记只是最弱那道网。
+
+exit status 1                                      
+  ────────────────────────────────────
+summary: (done in 0.12 seconds)       
+✗ mutant-residue-scan (0.08 seconds)
+# hits 计数(color always) = 2 ; rc=1
+# 判据: 计数不变(2==2) 且 rc 一致(1==1) => 成立
+rc=1

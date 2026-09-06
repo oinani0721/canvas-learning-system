@@ -1,0 +1,20 @@
+### 判据 1/3/5 — 修后块锚 + 边界不变量 (commit 9b4acf62)
+# L=345 (03ac8bf8 口径 286, 偏移 N=+59)  窗口 L..L+54 = 345..399
+--- 判据3: hunk 锚点 ---
+@@ -357,2 +357,12 @@ pre-commit:
+@@ -360 +370 @@ pre-commit:
+@@ -371 +381,2 @@ pre-commit:
+@@ -379 +390 @@ pre-commit:
+--- 判据3: 全部 hunk 是否落在 345..399 ---
+  @@ -357,2 +357,12 @@ pre-commit:  old 357..358  new 357..368  -> in window
+  @@ -360 +370 @@ pre-commit:  old 360..360  new 370..370  -> in window
+  @@ -371 +381,2 @@ pre-commit:  old 371..371  new 381..382  -> in window
+  @@ -379 +390 @@ pre-commit:  old 379..379  new 390..390  -> in window
+  判据3 PASS: 全部 hunk 在窗口内
+--- 判据5: 不变量 ---
+  grep -c MUTANT lefthook.yml = 0
+  grep -nE '^\s+priority:' 行数 = 0
+  命令名集合 diff = 空 (一致)
+  排除名单+MARKER 逐字节 diff = 空 (一字未改)
+  代码面文件数 (非 _bmad-output) = 1
+rc=0

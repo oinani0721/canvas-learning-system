@@ -1,0 +1,10 @@
+### (g) 语法核 — 块 run 体抽出后 bash -n / sh -n
+# 块: 行 345..404 (run 体 347..404,       58 行)
+# lefthook.yml sha: e116df5b23bfa49fc0a03fbb61c84852b308d62297d0a35870dfbae18b938afa
+--- bash -n ---
+bash -n rc=0
+--- /bin/sh -n (lefthook 实际解释器) ---
+sh -n rc=0
+--- /bin/dash -n (参考: 语法过但运行期 read -d 不支持 -> 靠自证块 fail-closed) ---
+dash -n rc=0
+rc=0
