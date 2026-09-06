@@ -1,0 +1,12 @@
+== 三步逐条承重（内存 monkeypatch，未写任何文件）==
+[基线] 三步俱全 (HEAD)                   探针violations=1  反例MISSED=0/25  正例误拒=0/13
+
+[拆1] 去 :740-741 冻结知识               探针violations=1  反例MISSED=0/25  正例误拒=0/13
+
+[拆2] 去 :750 整组发布(add-only)         探针violations=1  反例MISSED=0/25  正例误拒=0/13
+
+[拆3] 去 :794 按key and 聚合            探针violations=1  反例MISSED=1/25  正例误拒=0/13
+      MISSED: 同名工厂重定义：不安全版在前，安全版在后（顺序反过来同样不算数）
+
+== 还原自证 ==
+[还原] 三步俱全                          探针violations=1  反例MISSED=0/25  正例误拒=0/13
