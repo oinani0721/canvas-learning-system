@@ -1,0 +1,23 @@
+# CARD-G6-9a 裁判 0 — 环境与被测代码绑定（round-2：Codex 7 条整改后重跑）
+生成时间: 2026-09-06T11:09:37+08:00
+
+$ git log --oneline -1
+1f9e9199 fix(g29): 两轮复核 12 条全整改，删除承重就地取证 [BATCH-2026-09-05-第十二批 / CARD-G2-9]
+$ BASE
+1f9e9199960881d3421787360280a0ee21667c68
+$ git status --porcelain | wc -l
+       6
+$ readlink backend/.venv
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv
+
+# 被测代码 sha256（本目录全部证据绑定这个值）
+8d803c277ff754b9676079c1067c9f011c2188bc25336960c911f4c1ce3b212a  backend/tests/regression/test_g6_9_boundary_matrix.py
+
+$ docker/launchctl 只读取证
+-	0	com.canvas.daily-review
+
+$ ruff check / format --check / pyright
+All checks passed!
+1 file already formatted
+0 errors, 0 warnings, 0 informations
+rc=0

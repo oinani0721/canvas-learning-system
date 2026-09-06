@@ -1,0 +1,14 @@
+# 裁判6 — 两条新门的验伪（T1/T2 打表核验，T3 模拟「时钟已统一」验 strict XPASS 交接）
+# ⛔ 跑这个 harness 时**不得有任何并发进程碰目标文件**（本卡踩过，见验收单 §六）
+还原对账: OK 逐字节相同  sha=8d803c277ff7
+
+  KILLED    T1_table_entry_removed
+            登记表少一条（模拟表过期：实测有分叉但表里没有）
+            rc=1 | 表用例在失败集合里=✓ (共 2 条失败) | 消息✓
+  KILLED    T2_table_value_wrong
+            登记表某条的值写错（模拟抄错/过期）
+            rc=1 | 失败节点=✓ | 消息✓
+  KILLED    T3_matrix_stops_calling_runner
+            假装两套时钟已统一 ⇒ 8 条 xfail 应变 XPASS，strict 让它们红
+            rc=1 | ================== 8 failed, 16 passed, 10 warnings in 0.71s ===================
+rc=0
