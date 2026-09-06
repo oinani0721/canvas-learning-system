@@ -1,0 +1,50 @@
+=== J2-1 只读实证（修复后，应与修复前相同）===
+BASH_FUNC_f%%=() {  :
+0
+
+=== J2-2 after：被包裹命令的函数表 ===
+=== RUNTIME-FILES before (2026-09-06 03:06:50 +0800) ===
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/data/bug_log.jsonl
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/data/outbox/events.jsonl
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/app/data/vault_index_pending.jsonl
+=== 执行被包裹命令 ===
+$ /bin/bash -c type -t printf; type -t dirname
+builtin
+file
+=== RUNTIME-FILES after (2026-09-06 03:06:50 +0800) ===
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/data/bug_log.jsonl
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/data/outbox/events.jsonl
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/app/data/vault_index_pending.jsonl
+WRAPPED-COMMAND-EXIT: 0
+RUNTIME-FILES: unchanged
+rc=0
+
+=== J3 after：哨兵预设 + readonly.sh ===
+=== RUNTIME-FILES before (2026-09-06 03:06:50 +0800) ===
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/data/bug_log.jsonl
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/data/outbox/events.jsonl
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/app/data/vault_index_pending.jsonl
+=== 执行被包裹命令 ===
+$ /usr/bin/true
+=== RUNTIME-FILES after (2026-09-06 03:06:50 +0800) ===
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/data/bug_log.jsonl
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/data/outbox/events.jsonl
+absent  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y7-w4-settle/backend/app/data/vault_index_pending.jsonl
+WRAPPED-COMMAND-EXIT: 0
+RUNTIME-FILES: unchanged
+rc=0
+
+=== J3b after：哨兵预设 + fn.sh（对照，不承重）===
+WRAPPED-COMMAND-EXIT: 0
+RUNTIME-FILES: unchanged
+rc=0
+
+=== J4b after：/usr/bin/true ===
+WRAPPED-COMMAND-EXIT: 0
+RUNTIME-FILES: unchanged
+rc=0
+
+=== J4c after：无 -- ===
+用法: bash scripts/lifespan_isolation_runtime_sha.sh -- <command...>
+  ('--' 之后的一切原样作为命令执行)
+rc=2

@@ -1,0 +1,36 @@
+=== D-14 证明：pyright 报错行 vs 本卡改动行 ===
+--- 本卡在 guard_probes.py 的改动行区间 ---
+@@ -763,0 +764,157 @@ def probe_shell_injections() -> list[dict]:
+
+--- pyright 报错行号 ---
+guard_probes.py:531
+guard_probes.py:532
+guard_probes.py:616
+guard_probes.py:617
+
+--- 同样的报错在 HEAD(39407e97) 版本上是否已存在 ---
+  /tmp/gp_head_check.py:617:10 - error: "loader" is not a known attribute of "None" (reportOptionalMemberAccess)
+  /tmp/gp_head_check.py:617:17 - error: "exec_module" is not a known attribute of "None" (reportOptionalMemberAccess)
+6 errors, 0 warnings, 0 informations
+
+=== lefthook python-typecheck 的 glob ===
+8:#   pre-commit  → parallel checks (spec-sync, python-lint, python-typecheck, ghost-files)
+9-#   commit-msg  → commitlint + spec-reference
+10-#   post-commit → backup-push
+11-#   pre-push    → frontend-test + backend-smoke
+12-
+13-# ============================================================
+14-# Pre-commit: Parallel checks on staged files
+--
+138:    # (rc=127) was reported by lefthook as `✔️ python-typecheck`. Worse, 127
+139-    # ("tool absent") and 1 ("real type errors") were funnelled into the same
+140-    # "Type errors found!" line, so the gate could not tell "did not run" from
+141-    # "ran and failed". Now: absent -> explicit SKIP lines + rc 0, with no claim of
+142-    # having checked anything; present -> real run + explicit `exit` of pyright's
+143-    # own rc, so type errors actually block the commit.
+144-    # Installing pyright is deliberately OUT of scope (separate card): this block
+--
+146:    python-typecheck:
+147-      glob: "{backend,src}/**/*.py"
+148-      run: |
+149-        # Activate backend venv for pyright

@@ -1,0 +1,30 @@
+=== J6-1 常量不动（须为空）===
+14: #       监视面 = WATCHED_FIXED 的固定项 + WATCHED_GLOBS 每次快照重新展开的 glob 项；
+grep rc=0（1 = 无匹配 = 通过）
+
+=== J6-2 sha256 改前/改后 ===
+改前(39407e97): 280cfadb874845cd3cf7e30e0a707f8ebb0a5c2629a43636485045886a5a998a  -
+改后(工作树)  : d033b19fbd5228da4dc9aa3bde50d8c5aad704c9217451fa7cf123af6d905277  backend/scripts/lifespan_isolation_runtime_sha.sh
+
+=== J6-3 常量行逐字节仍在 ===
+320:SELFTEST_EXPECTED='82e87819dac824b894684638a188059759c99d793641765853e5c5cae20baa1c'
+368:WATCHED_FIXED=(
+390:WATCHED_GLOBS=(
+393:EXPECTED_FIXED_COUNT=3
+394:EXPECTED_GLOB_COUNT=1
+
+=== J7-1 工作树 ===
+ M backend/scripts/lifespan_isolation_guard_probes.py
+ M backend/scripts/lifespan_isolation_runtime_sha.sh
+?? "_bmad-output/\345\256\241\346\237\245/evidence-w4-6/"
+
+=== J7-2 改动统计 ===
+ backend/scripts/lifespan_isolation_guard_probes.py | 173 +++++++++++++++++++++
+ backend/scripts/lifespan_isolation_runtime_sha.sh  | 162 ++++++++++++++++---
+ 2 files changed, 314 insertions(+), 21 deletions(-)
+
+=== J7-3 guard_probes.py 的 hunk 是否全落在 probe_shell_injections() 内 ===
+661:def probe_shell_injections() -> list[dict]:
+941:def probe_shell_selftest_is_load_bearing() -> dict:
+--- hunk 起始行 ---
+@@ -763,0 +764,173 @@ def probe_shell_injections() -> list[dict]:
