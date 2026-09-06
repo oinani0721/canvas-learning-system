@@ -9,7 +9,7 @@
 - Codex 的 PASS/FAIL 字样**不进门**，但台账 §二 必须如实抄录（含模型名）。
 - 终审绑定看**代码树**：`git diff --stat <审SHA> HEAD -- . ':(exclude)_bmad-output'` 为空即仍绑定；纯注释尾巴由主 session 逐行核后可判等价（写明）。⚠️ 写法必须是 `':(exclude)…'`——`':!…'` 在 zsh 下被吃掉、在本机 git 2.50 下报 `Unimplemented pathspec magic`，rc=128 且 stdout 空，「为空即绑定」会把没跑成读成绿（第十一批复核实测）。
 - **串行车道的绑定口径**：一条车道串多张卡时，前面的卡在后面的卡改代码后必然「失绑」——按**本卡 diff 面**判：`git diff --stat <审SHA> <本卡末commit> -- <本卡改过的代码文件>` 为空即仍绑定；跨卡后续 commit 不算破坏。但**同一卡内**审后再改（如「按 Codex 意见整改」那次 commit）就是真失绑，须登记「整改未复审」。
-- 轮次按**卡族**累计 ≤3；改卡号不重置。0 字节存档重发一次，再 0 字节 → 主 session 人审替代，不等配额。
+- **轮次（用户 2026-09-07 裁定 D-15，自第十三批起）**：有代码改动的卡 Codex **多轮，直到确认没有问题 goal 才通过**——最后一轮必须绑最终 HEAD（`git diff --stat <审SHA> HEAD -- . ':(exclude)_bmad-output'` 为空）且该轮 **BLOCKER = 0、HIGH = 0**（MEDIUM/LOW 登记）；审后再改代码 ⇒ 必再送一轮（只改 `_bmad-output` 不算）；车道对 HIGH 的驳回要写理由但**不能自判通过**，由主 session 复核时裁定，裁定前该卡按未完成；轮次上限 5，第 5 轮仍有 HIGH → 停下交主 session 人审。零代码卡（纯复审/文档）仍 1 轮。改卡号不重置。0 字节存档重发一次，再 0 字节 → 主 session 人审替代，不等配额。（第十二批及以前的「≤3 轮 + 整改未复审只登记」口径作废；第十一/十二批 11/13、14/23 失绑是本条的由来。）
 - 主 session **人判合入**（终审「FAIL」但阻断级 0）必写：依据逐条对门、revert 点（单 squash SHA）、下批必排的修复卡。
 
 ## 2. Codex 复核命令（2026-09-05 起）
@@ -49,7 +49,7 @@ codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" 
 ### 2.3 批级环境变更通告
 
 - 任何改**共享运行环境**的动作（往 `card-v5-lance/backend/.venv` 装工具 / 升 codex / 升 lefthook / 改全局 hook）= 批级事件：动手前在手册 §零 追加一行「<时刻> <动作> <影响面>」并通知全部在跑车道；事后写进复核报告 §五。
-- 反例：第十一批 Z7-B 07:42 往共享 venv 装 pyright，5 张卡随即用 `LEFTHOOK_EXCLUDE=python-typecheck` 绕过提交且无存档。凡用 `LEFTHOOK_EXCLUDE` 提交，验收单必须贴被跳过 hook 的原始输出与「报错不在本卡改动行」的证明；改 `backend/app/**` 的卡不得绕过 `python-typecheck`。
+- 反例：第十一批 Z7-B 07:42 往共享 venv 装 pyright，5 张卡随即用 `LEFTHOOK_EXCLUDE=python-typecheck` 绕过提交且无存档。凡用 `LEFTHOOK_EXCLUDE` 提交，验收单必须贴被跳过 hook 的原始输出与「报错不在本卡改动行」的证明；改 `backend/app/**` 的卡不得绕过 `python-typecheck`。**过渡（用户 2026-09-07 裁 D-16 甲）**：先排一张卡清 `backend/app` 存量 pyright 报错（第十三批队首），该卡合入前允许带存档的绕过（判据用基线树多重集对照 = 0 新增，行号交集不充分）；合入后本条恢复硬禁。
 
 ## 3. 车道裁判的最低覆盖
 

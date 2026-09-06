@@ -13,4 +13,5 @@
 | decay_beta.py | 未动，cmp SAME |
 
 - 只部署 `fsrs_bridge.py`；**未部署** quiz-answer / start-exam-board 的 SKILL.md（live SKILL 旧版只 subprocess 调 bridge，新 bridge 纯加法 cas_* 符号，加性兼容）。
-- 验证（下一个 :05 档后补填）：`launchctl list | grep daily-review` 第二列 / boot.log 无 PREFLIGHT-FAIL / `outputs/今日复习.json` generated_at。
+- launchd 日程：`com.canvas.daily-review` 只在 09:05–20:05 每小时一档（plist StartCalendarInterval Hour 9..20），夜间无档；部署时刻 03:28 到首档 09:05 之间 wrapper 不会跑，因此**不存在停摆窗口**。首档 09:05 后核：`launchctl list` 第二列（部署前 0）、boot.log 无 `fsrs_bridge.py_version_skew` / `PREFLIGHT-FAIL`、`outputs/今日复习.json` generated_at 更新为 2026-09-07。
+- 验证（09:05 档后补填）：`launchctl list | grep daily-review` 第二列 / boot.log 无 PREFLIGHT-FAIL / `outputs/今日复习.json` generated_at。
