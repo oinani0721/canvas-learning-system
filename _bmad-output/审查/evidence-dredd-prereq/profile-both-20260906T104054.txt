@@ -1,0 +1,1262 @@
+Building prefix dict from the default dictionary ...
+Loading model from cache /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/jieba.cache
+Loading model cost 0.452 seconds.
+Prefix dict has been built successfully.
+{"event": "cohere not installed. Cohere API reranking unavailable.", "logger": "agentic_rag.reranking", "level": "info", "timestamp": "2026-09-06T02:41:10.057786Z"}
+{"event": "Agentic RAG module loaded successfully. AGENTIC_RAG_AVAILABLE=True", "logger": "agentic_rag", "level": "info", "timestamp": "2026-09-06T02:41:10.122917Z"}
+{"event": "RAGService: LangGraph/Agentic RAG available. LANGGRAPH_AVAILABLE=True", "logger": "app.services.rag_service", "level": "info", "timestamp": "2026-09-06T02:41:10.123055Z"}
+{"event": "AgentService not available, canvas uses template questions only", "logger": "app.api.v1.endpoints.review", "level": "info", "timestamp": "2026-09-06T02:41:10.500562Z"}
+{"event": "src.rollback not available \u2014 rollback endpoints will return 503", "logger": "app.api.v1.endpoints.rollback", "level": "warning", "timestamp": "2026-09-06T02:41:10.524123Z"}
+{"event": "[MCP] Patched fastapi-mcp anyOf+type schema conflict (v0.4.0 bug)", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-06T02:41:11.188852Z"}
+{"event": "[P0-2] Registered 6 read-only MCP tool routes + 14 quarantined (410) stubs", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-06T02:41:11.224826Z"}
+{"event": "[MCP] Stripped spurious 'type' from 321 anyOf properties across 204 tools", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-06T02:41:12.225911Z"}
+{"event": "No auth config provided, skipping auth setup", "logger": "fastapi_mcp.server", "level": "info", "timestamp": "2026-09-06T02:41:12.227251Z"}
+{"event": "MCP HTTP server listening at /mcp", "logger": "fastapi_mcp.server", "level": "info", "timestamp": "2026-09-06T02:41:12.227314Z"}
+{"event": "[Story 3.2] MCP server mounted at /mcp (streamable HTTP) with canvas-learning tools", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-06T02:41:12.227359Z"}
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 2 items
+
+tests/contract/test_zz_dredd_prereq_profile.py {"method": "GET", "path": "/api/v1/openapi.json", "endpoint": "/api/v1/openapi.json", "status": 200, "duration_ms": 1185.14, "event": "request.completed", "request_id": "5246259216", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-06T02:41:14.073072Z"}
+{"event": "Starting Canvas Learning System API v1.0.0", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:14.206583Z"}
+{"event": "Debug mode: True", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:14.206732Z"}
+{"event": "Log level: INFO", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:14.206795Z"}
+{"event": "CORS origins: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5173', 'http://127.0.0.1:5173', 'http://tauri.localhost', 'app://obsidian.md']", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:14.206851Z"}
+{"event": "API prefix: /api/v1", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:14.206895Z"}
+{"thresholds": {"cpu_warning": 70.0, "cpu_critical": 90.0, "memory_warning": 70.0, "memory_critical": 90.0, "disk_warning": 80.0, "disk_critical": 95.0}, "disk_paths": ["/"], "event": "resource_monitor.initialized", "logger": "app.services.resource_monitor", "level": "info", "timestamp": "2026-09-06T02:41:14.206953Z"}
+{"event": "Resource monitoring started with 5s interval", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:14.207065Z"}
+{"count": 0, "event": "alert_manager.rules_loaded", "logger": "app.services.alert_manager", "level": "info", "timestamp": "2026-09-06T02:41:14.207607Z"}
+{"channels": ["ConsoleNotificationChannel", "FileNotificationChannel"], "event": "notification_dispatcher.created", "logger": "app.services.notification_channels", "level": "info", "timestamp": "2026-09-06T02:41:14.207757Z"}
+{"interval": 30, "rules_count": 0, "event": "alert_manager.started", "logger": "app.services.alert_manager", "level": "info", "timestamp": "2026-09-06T02:41:14.207842Z"}
+{"event": "Alert manager started with 0 rules (30s interval)", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:14.207922Z"}
+{"event": "[PromptRegistry] Loaded autoscore v1 (hash=4459bdcc7188)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:41:14.208464Z"}
+{"event": "[PromptRegistry] Loaded context_extract v1 (hash=c648a7641ca5)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:41:14.208679Z"}
+{"event": "[PromptRegistry] Loaded crag_grading v1 (hash=94b624e7ed31)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:41:14.208859Z"}
+{"event": "[PromptRegistry] Loaded query_optimize v1 (hash=d74f28f3a3a9)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:41:14.209012Z"}
+{"event": "[PromptRegistry] Loaded query_rewrite v1 (hash=54abd977e7e2)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:41:14.209160Z"}
+{"event": "[PromptRegistry] Loaded question_gen v1 (hash=706f5ab04957)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:41:14.209314Z"}
+{"event": "[PromptRegistry] Loaded search_intent v1 (hash=3255b0c040d8)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:41:14.209457Z"}
+{"event": "[PromptRegistry] Loaded 7 templates across 7 prompt names", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:41:14.209515Z"}
+{"event": "[Story 7.3] PromptRegistry loaded 7 templates", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:14.209579Z"}
+{"interval_seconds": 5.0, "event": "resource_monitor.background_started", "logger": "app.services.resource_monitor", "level": "info", "timestamp": "2026-09-06T02:41:14.209853Z"}
+{"event": "[Story 7.2] CostTracker initialized: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/data/llm_call_logs.db", "logger": "app.middleware.cost_tracker", "level": "info", "timestamp": "2026-09-06T02:41:14.211714Z"}
+{"event": "[Story 7.2] LLM Call Logger started", "logger": "app.middleware.llm_call_logger", "level": "info", "timestamp": "2026-09-06T02:41:14.211867Z"}
+{"event": "[Story 7.2] Log rotation task started (daily cycle)", "logger": "app.middleware.cost_tracker", "level": "info", "timestamp": "2026-09-06T02:41:14.211934Z"}
+{"event": "[Story 7.2] LiteLLM CustomLogger callback registered via litellm.callbacks", "logger": "app.core.litellm_config", "level": "info", "timestamp": "2026-09-06T02:41:14.211988Z"}
+{"event": "[Story 7.2] LLM logging infrastructure initialized", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:14.212029Z"}
+{"event": "Pre-warming MemoryService singleton...", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:14.212067Z"}
+{"event": "Creating MemoryService singleton instance", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-06T02:41:14.212122Z"}
+{"event": "Neo4jClient initialized: mode=NEO4J, uri=bolt://localhost:7691, pool_size=50", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-06T02:41:14.212227Z"}
+{"event": "Neo4j health check failed: live Neo4j port connect attempted: ('::1', 7691, 0, 0). \u53d7\u62e6\u7aef\u53e3 [7687, 7691] \u662f\u73b0\u7f51 Neo4j\uff1b\u6d4b\u8bd5\u8fdb\u7a0b\u4e0d\u5f97\u8fde\u63a5\u3002\u82e5\u8fd9\u662f\u7aef\u70b9\u6d4b\u8bd5\uff0c\u8bf7\u7528 backend/tests/support/lifespan.py::no_lifespan \u5173\u6389 app.main \u7684 lifespan\uff1b\u82e5\u786e\u9700\u771f\u5e93\uff0c\u7528\u6d4b\u8bd5\u5bb9\u5668 NEO4J_TEST_URI(7692) \u5e76\u6253 integration/real_neo4j marker\u3002", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:41:14.214436Z"}
+{"event": "Neo4j health check failed during initialization", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:41:14.214588Z"}
+{"event": "Falling back to JSON storage mode", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:41:14.214637Z"}
+{"event": "Neo4j driver closed", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-06T02:41:14.214698Z"}
+{"event": "Loaded 0 relationships from /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/data/neo4j_memory.json", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-06T02:41:14.214907Z"}
+{"event": "MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-06T02:41:14.216070Z"}
+{"event": "MemoryService initialized successfully", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-06T02:41:14.216180Z"}
+{"event": "MemoryService singleton initialized", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-06T02:41:14.216246Z"}
+{"event": "MemoryService pre-warmed successfully", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:14.216311Z"}
+{"event": "Unhandled query pattern: CREATE FULLTEXT INDEX episode_content IF NOT EXISTS FOR (n:EpisodicNode) ON EACH [n.content] OPTIONS", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:41:14.216369Z"}
+{"event": "[Epic 4] Fulltext index 'episode_content' ensured on EpisodicNode.content", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-06T02:41:14.216400Z"}
+{"event": "[Story 38.1] No pending LanceDB index operations", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:14.223431Z"}
+{"event": "[Story 3.8] Archive scheduler started (interval=86400s)", "logger": "app.services.archive_scheduler", "level": "info", "timestamp": "2026-09-06T02:41:14.224931Z"}
+{"event": "[Story 3.8] Archive scheduler started (24h interval)", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:14.225086Z"}
+{"event": "EventBus: global singleton created", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:41:14.226865Z"}
+{"event": "EventBus: subscribed handle_score_submitted to score_submitted (subsystem=mastery_engine)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:41:14.226983Z"}
+{"event": "EventBus: subscribed handle_bkt_updated to bkt_updated (subsystem=mastery_store)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:41:14.227047Z"}
+{"event": "EventBus: subscribed handle_mastery_changed to mastery_changed (subsystem=mastery_pipeline)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:41:14.227100Z"}
+{"event": "EventBus: subscribed handle_calibration_recorded to calibration_recorded (subsystem=calibration)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:41:14.227142Z"}
+{"event": "EventBus: subscribed handle_memory_write_requested to memory_write_requested (subsystem=memory)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:41:14.227183Z"}
+{"event": "EventBus: subscribed handle_fsrs_updated to fsrs_updated (subsystem=memory)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:41:14.227233Z"}
+{"event": "EventBus: subscribed handle_rag_weight_adjust to rag_weight_adjust", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:41:14.227273Z"}
+{"event": "EventBus: subscribed handle_ui_mastery_push to ui_mastery_push", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:41:14.227326Z"}
+{"event": "EventBus: registered 8 production handlers (SCORE_SUBMITTED, BKT_UPDATED, FSRS_UPDATED, MASTERY_CHANGED, CALIBRATION_RECORDED, MEMORY_WRITE_REQUESTED, RAG_WEIGHT_ADJUST, UI_MASTERY_PUSH)", "logger": "app.services.event_handlers", "level": "info", "timestamp": "2026-09-06T02:41:14.227372Z"}
+{"event": "[Story 5.7] EventBus handlers registered", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:14.227454Z"}
+{"event": "No mastery_config.json found, using defaults", "logger": "app.services.mastery_engine", "level": "info", "timestamp": "2026-09-06T02:41:14.231081Z"}
+{"event": "Initialized FSRS scheduler with retention=0.9", "logger": "memory.temporal.fsrs_manager", "level": "info", "timestamp": "2026-09-06T02:41:14.231264Z"}
+{"event": "SignalRegistry: registered signal 'bkt_mastery'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-06T02:41:14.231317Z"}
+{"event": "SignalRegistry: registered signal 'fsrs_retrievability'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-06T02:41:14.231379Z"}
+{"event": "SignalRegistry: registered signal 'exam_score_avg'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-06T02:41:14.231423Z"}
+{"event": "SignalRegistry: registered signal 'calibration_bias'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-06T02:41:14.231470Z"}
+{"event": "SignalRegistry: registered signal 'self_confidence_avg'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-06T02:41:14.231520Z"}
+{"event": "MasteryEngine: fusion engine attached", "logger": "app.services.mastery_engine", "level": "info", "timestamp": "2026-09-06T02:41:14.231561Z"}
+{"event": "MasteryEngine singleton set (fusion-enabled)", "logger": "app.services.mastery_engine", "level": "info", "timestamp": "2026-09-06T02:41:14.231609Z"}
+{"event": "[Story 5.6] Signal registry initialized with 5 adapters, fusion engine attached", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:14.231667Z"}
+{"event": "[Phase 2] GraphitiEpisodeWorker init failed (non-fatal): live Neo4j port connect attempted: ('::1', 7691, 0, 0). \u53d7\u62e6\u7aef\u53e3 [7687, 7691] \u662f\u73b0\u7f51 Neo4j\uff1b\u6d4b\u8bd5\u8fdb\u7a0b\u4e0d\u5f97\u8fde\u63a5\u3002\u82e5\u8fd9\u662f\u7aef\u70b9\u6d4b\u8bd5\uff0c\u8bf7\u7528 backend/tests/support/lifespan.py::no_lifespan \u5173\u6389 app.main \u7684 lifespan\uff1b\u82e5\u786e\u9700\u771f\u5e93\uff0c\u7528\u6d4b\u8bd5\u5bb9\u5668 NEO4J_TEST_URI(7692) \u5e76\u6253 integration/real_neo4j marker\u3002", "logger": "app.main", "level": "warning", "timestamp": "2026-09-06T02:41:14.251440Z"}
+{"vault_key": "general", "hint": "vault path could not be resolved from VAULTS_ROOT or settings.canvas_base_path \u2014 first request will return degraded=True; check VAULTS_ROOT config or sanitize_vault_id match", "event": "wikilink.lazy_build_skipped_unresolvable_vault_path", "logger": "app.services.wikilink_graph_service", "level": "warning", "timestamp": "2026-09-06T02:41:14.252482Z"}
+{"vault_path": "/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault", "total_nodes": 261, "total_edges": 1795, "graph_build_time_ms": 17593.5, "event": "wikilink.graph_built", "logger": "app.services.wikilink_graph_service", "level": "info", "timestamp": "2026-09-06T02:41:31.846341Z"}
+{"event": "[Story 2.1] Wikilink graph eager-built: 261 nodes, 1795 edges, 17593.5ms", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:31.846617Z"}
+{"event": "[Story 2.2 Phase A] LanceDB singleton background init dispatched", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:31.846698Z"}
+{"error": "live Neo4j port connect attempted: ('::1', 7691, 0, 0). \u53d7\u62e6\u7aef\u53e3 [7687, 7691] \u662f\u73b0\u7f51 Neo4j\uff1b\u6d4b\u8bd5\u8fdb\u7a0b\u4e0d\u5f97\u8fde\u63a5\u3002\u82e5\u8fd9\u662f\u7aef\u70b9\u6d4b\u8bd5\uff0c\u8bf7\u7528 backend/tests/support/lifespan.py::no_lifespan \u5173\u6389 app.main \u7684 lifespan\uff1b\u82e5\u786e\u9700\u771f\u5e93\uff0c\u7528\u6d4b\u8bd5\u5bb9\u5668 NEO4J_TEST_URI", "event": "canvas_schema_gate_verify_failed", "logger": "app.services.schema_gate", "level": "warning", "timestamp": "2026-09-06T02:41:32.162748Z"}
+{"event": "Load pretrained SentenceTransformer: BAAI/bge-m3", "logger": "sentence_transformers.SentenceTransformer", "level": "info", "timestamp": "2026-09-06T02:41:32.172114Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:41:32.184678Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:41:32.185698Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:41:32.190317Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:41:32.191074Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:41:32.192902Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:41:32.194883Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:41:32.195576Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:41:32.196888Z"}
+{"event": "Unhandled query pattern: \n                    MATCH ()-[e:CANVAS_EDGE]-()\n                    WHERE e.group_id = $group_id AN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:41:32.271218Z"}
+{"event": "[Fix-E1] \u539f\u56e0\u8fb9\u540c\u6b65(execute): 8 \u8282\u70b9\u6709 relationships, 8 \u8fb9\u5199\u5165, 0 \u5931\u8d25, 0 \u5e7d\u7075\u8fb9\u5931\u6548, 151 \u6587\u4ef6\u88ab\u51c6\u5165\u62d2\u7edd", "logger": "app.services.canvas_projection_sync", "level": "info", "timestamp": "2026-09-06T02:41:32.271433Z"}
+{"event": "[Fix-E1] \u8282\u70b9\u539f\u56e0\u8fb9\u540c\u6b65: 8 nodes, 8 edges, 0 failed", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:32.271542Z"}
+{"event": "[Graphiti-native] \u542f\u52a8\u56de\u586b\u8df3\u8fc7 (graphiti \u672a\u5c31\u7eea)", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:32.274959Z"}
+{"event": "[RAG-S1] orchestrator started: vault=/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault scan_interval=60s stale_after=300s", "logger": "app.services.vault_index_orchestrator", "level": "info", "timestamp": "2026-09-06T02:41:32.286397Z"}
+{"event": "Load pretrained SentenceTransformer: BAAI/bge-m3", "logger": "sentence_transformers.SentenceTransformer", "level": "info", "timestamp": "2026-09-06T02:41:32.297225Z"}
+{"event": "session_manager_initialized", "request_id": "5300289040", "logger": "app.services.session_manager", "level": "info", "timestamp": "2026-09-06T02:41:32.316099Z"}
+{"method": "GET", "path": "/api/v1/health", "endpoint": "/api/v1/health", "status": 200, "duration_ms": 3.93, "event": "request.completed", "request_id": "5300289040", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-06T02:41:32.317301Z"}
+{"event": "Shutting down Canvas Learning System API...", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:32.319074Z"}
+{"event": "alert_manager.stopped", "logger": "app.services.alert_manager", "level": "info", "timestamp": "2026-09-06T02:41:32.319430Z"}
+{"event": "Alert manager stopped", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:32.319691Z"}
+{"event": "resource_monitor.stopped", "logger": "app.services.resource_monitor", "level": "info", "timestamp": "2026-09-06T02:41:32.320014Z"}
+{"event": "Resource monitoring stopped", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:32.320519Z"}
+{"event": "LanceDB index service cleaned up", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:32.320701Z"}
+{"event": "[RAG-S1] orchestrator shut down (pending flushed)", "logger": "app.services.vault_index_orchestrator", "level": "info", "timestamp": "2026-09-06T02:41:32.322842Z"}
+{"event": "[Story 7.2] LLM Call Logger stopped", "logger": "app.middleware.llm_call_logger", "level": "info", "timestamp": "2026-09-06T02:41:32.323441Z"}
+{"event": "[Story 7.2] CostTracker stopped", "logger": "app.middleware.cost_tracker", "level": "info", "timestamp": "2026-09-06T02:41:32.323714Z"}
+{"event": "[Story 7.2] LLM logging infrastructure cleaned up", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:32.323806Z"}
+{"event": "[Story 3.8] Archive scheduler stopped", "logger": "app.services.archive_scheduler", "level": "info", "timestamp": "2026-09-06T02:41:32.324044Z"}
+{"event": "[Story 3.8] Archive scheduler stopped", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:32.324157Z"}
+{"event": "[Phase 2] GraphitiEpisodeWorker stopped", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:32.324230Z"}
+{"event": "Neo4j driver cleaned up during shutdown", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-06T02:41:32.324355Z"}
+{"event": "MemoryService singleton cleaned up", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-06T02:41:32.324422Z"}
+{"event": "MemoryService cleaned up", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:32.324490Z"}
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 25420.81it/s]
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 21245.37it/s]
+{"event": "Starting Canvas Learning System API v1.0.0", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:45.843109Z"}
+{"event": "Debug mode: True", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:45.843241Z"}
+{"event": "Log level: INFO", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:45.843281Z"}
+{"event": "CORS origins: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5173', 'http://127.0.0.1:5173', 'http://tauri.localhost', 'app://obsidian.md']", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:45.843323Z"}
+{"event": "API prefix: /api/v1", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:45.843353Z"}
+{"event": "Resource monitoring started with 5s interval", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:45.843405Z"}
+{"count": 0, "event": "alert_manager.rules_loaded", "logger": "app.services.alert_manager", "level": "info", "timestamp": "2026-09-06T02:41:45.843791Z"}
+{"channels": ["ConsoleNotificationChannel", "FileNotificationChannel"], "event": "notification_dispatcher.created", "logger": "app.services.notification_channels", "level": "info", "timestamp": "2026-09-06T02:41:45.843907Z"}
+{"interval": 30, "rules_count": 0, "event": "alert_manager.started", "logger": "app.services.alert_manager", "level": "info", "timestamp": "2026-09-06T02:41:45.843972Z"}
+{"event": "Alert manager started with 0 rules (30s interval)", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:45.844034Z"}
+{"event": "[PromptRegistry] Loaded autoscore v1 (hash=4459bdcc7188)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:41:45.844635Z"}
+{"event": "[PromptRegistry] Loaded context_extract v1 (hash=c648a7641ca5)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:41:45.845062Z"}
+{"event": "[PromptRegistry] Loaded crag_grading v1 (hash=94b624e7ed31)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:41:45.845282Z"}
+{"event": "[PromptRegistry] Loaded query_optimize v1 (hash=d74f28f3a3a9)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:41:45.845675Z"}
+{"event": "[PromptRegistry] Loaded query_rewrite v1 (hash=54abd977e7e2)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:41:45.845885Z"}
+{"event": "[PromptRegistry] Loaded question_gen v1 (hash=706f5ab04957)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:41:45.846036Z"}
+{"event": "[PromptRegistry] Loaded search_intent v1 (hash=3255b0c040d8)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:41:45.846154Z"}
+{"event": "[PromptRegistry] Loaded 7 templates across 7 prompt names", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:41:45.846201Z"}
+{"event": "[Story 7.3] PromptRegistry loaded 7 templates", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:45.846259Z"}
+{"interval_seconds": 5.0, "event": "resource_monitor.background_started", "logger": "app.services.resource_monitor", "level": "info", "timestamp": "2026-09-06T02:41:45.846564Z"}
+{"event": "[Story 7.2] CostTracker initialized: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/data/llm_call_logs.db", "logger": "app.middleware.cost_tracker", "level": "info", "timestamp": "2026-09-06T02:41:45.847607Z"}
+{"event": "[Story 7.2] LLM Call Logger started", "logger": "app.middleware.llm_call_logger", "level": "info", "timestamp": "2026-09-06T02:41:45.847715Z"}
+{"event": "[Story 7.2] Log rotation task started (daily cycle)", "logger": "app.middleware.cost_tracker", "level": "info", "timestamp": "2026-09-06T02:41:45.847757Z"}
+{"event": "[Story 7.2] LiteLLM CustomLogger callback registered via litellm.callbacks", "logger": "app.core.litellm_config", "level": "info", "timestamp": "2026-09-06T02:41:45.847811Z"}
+{"event": "[Story 7.2] LLM logging infrastructure initialized", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:45.847840Z"}
+{"event": "Pre-warming MemoryService singleton...", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:45.847869Z"}
+{"event": "Creating MemoryService singleton instance", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-06T02:41:45.847907Z"}
+{"event": "Loaded 0 relationships from /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/data/neo4j_memory.json", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-06T02:41:45.848160Z"}
+{"event": "MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-06T02:41:45.848987Z"}
+{"event": "MemoryService initialized successfully", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-06T02:41:45.849052Z"}
+{"event": "MemoryService singleton initialized", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-06T02:41:45.849092Z"}
+{"event": "MemoryService pre-warmed successfully", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:45.849138Z"}
+{"event": "Unhandled query pattern: CREATE FULLTEXT INDEX episode_content IF NOT EXISTS FOR (n:EpisodicNode) ON EACH [n.content] OPTIONS", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:41:45.849206Z"}
+{"event": "[Epic 4] Fulltext index 'episode_content' ensured on EpisodicNode.content", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-06T02:41:45.849229Z"}
+{"event": "[Story 38.1] No pending LanceDB index operations", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:45.849389Z"}
+{"event": "[Story 3.8] Archive scheduler started (interval=86400s)", "logger": "app.services.archive_scheduler", "level": "info", "timestamp": "2026-09-06T02:41:45.849424Z"}
+{"event": "[Story 3.8] Archive scheduler started (24h interval)", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:45.849470Z"}
+{"event": "EventBus: subscribed handle_score_submitted to score_submitted (subsystem=mastery_engine)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:41:45.849519Z"}
+{"event": "EventBus: subscribed handle_bkt_updated to bkt_updated (subsystem=mastery_store)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:41:45.849558Z"}
+{"event": "EventBus: subscribed handle_mastery_changed to mastery_changed (subsystem=mastery_pipeline)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:41:45.849594Z"}
+{"event": "EventBus: subscribed handle_calibration_recorded to calibration_recorded (subsystem=calibration)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:41:45.849631Z"}
+{"event": "EventBus: subscribed handle_memory_write_requested to memory_write_requested (subsystem=memory)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:41:45.849664Z"}
+{"event": "EventBus: subscribed handle_fsrs_updated to fsrs_updated (subsystem=memory)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:41:45.849695Z"}
+{"event": "EventBus: subscribed handle_rag_weight_adjust to rag_weight_adjust", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:41:45.849728Z"}
+{"event": "EventBus: subscribed handle_ui_mastery_push to ui_mastery_push", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:41:45.849757Z"}
+{"event": "EventBus: registered 8 production handlers (SCORE_SUBMITTED, BKT_UPDATED, FSRS_UPDATED, MASTERY_CHANGED, CALIBRATION_RECORDED, MEMORY_WRITE_REQUESTED, RAG_WEIGHT_ADJUST, UI_MASTERY_PUSH)", "logger": "app.services.event_handlers", "level": "info", "timestamp": "2026-09-06T02:41:45.849789Z"}
+{"event": "[Story 5.7] EventBus handlers registered", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:45.849841Z"}
+{"event": "No mastery_config.json found, using defaults", "logger": "app.services.mastery_engine", "level": "info", "timestamp": "2026-09-06T02:41:45.849936Z"}
+{"event": "Initialized FSRS scheduler with retention=0.9", "logger": "memory.temporal.fsrs_manager", "level": "info", "timestamp": "2026-09-06T02:41:45.850048Z"}
+{"event": "SignalRegistry: registered signal 'bkt_mastery'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-06T02:41:45.850075Z"}
+{"event": "SignalRegistry: registered signal 'fsrs_retrievability'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-06T02:41:45.850111Z"}
+{"event": "SignalRegistry: registered signal 'exam_score_avg'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-06T02:41:45.850148Z"}
+{"event": "SignalRegistry: registered signal 'calibration_bias'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-06T02:41:45.850184Z"}
+{"event": "SignalRegistry: registered signal 'self_confidence_avg'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-06T02:41:45.850212Z"}
+{"event": "MasteryEngine: fusion engine attached", "logger": "app.services.mastery_engine", "level": "info", "timestamp": "2026-09-06T02:41:45.850247Z"}
+{"event": "MasteryEngine singleton set (fusion-enabled)", "logger": "app.services.mastery_engine", "level": "info", "timestamp": "2026-09-06T02:41:45.850288Z"}
+{"event": "[Story 5.6] Signal registry initialized with 5 adapters, fusion engine attached", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:41:45.850330Z"}
+{"event": "[Phase 2] GraphitiEpisodeWorker init failed (non-fatal): live Neo4j port connect attempted: ('::1', 7691, 0, 0). \u53d7\u62e6\u7aef\u53e3 [7687, 7691] \u662f\u73b0\u7f51 Neo4j\uff1b\u6d4b\u8bd5\u8fdb\u7a0b\u4e0d\u5f97\u8fde\u63a5\u3002\u82e5\u8fd9\u662f\u7aef\u70b9\u6d4b\u8bd5\uff0c\u8bf7\u7528 backend/tests/support/lifespan.py::no_lifespan \u5173\u6389 app.main \u7684 lifespan\uff1b\u82e5\u786e\u9700\u771f\u5e93\uff0c\u7528\u6d4b\u8bd5\u5bb9\u5668 NEO4J_TEST_URI(7692) \u5e76\u6253 integration/real_neo4j marker\u3002", "logger": "app.main", "level": "warning", "timestamp": "2026-09-06T02:41:45.866463Z"}
+{"vault_path": "/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault", "total_nodes": 261, "total_edges": 1795, "graph_build_time_ms": 20319.4, "event": "wikilink.graph_built", "logger": "app.services.wikilink_graph_service", "level": "info", "timestamp": "2026-09-06T02:42:06.186126Z"}
+{"event": "[Story 2.1] Wikilink graph eager-built: 261 nodes, 1795 edges, 20319.4ms", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:06.186583Z"}
+{"event": "[Story 2.2 Phase A] LanceDB singleton background init dispatched", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:06.186695Z"}
+{"error": "live Neo4j port connect attempted: ('::1', 7691, 0, 0). \u53d7\u62e6\u7aef\u53e3 [7687, 7691] \u662f\u73b0\u7f51 Neo4j\uff1b\u6d4b\u8bd5\u8fdb\u7a0b\u4e0d\u5f97\u8fde\u63a5\u3002\u82e5\u8fd9\u662f\u7aef\u70b9\u6d4b\u8bd5\uff0c\u8bf7\u7528 backend/tests/support/lifespan.py::no_lifespan \u5173\u6389 app.main \u7684 lifespan\uff1b\u82e5\u786e\u9700\u771f\u5e93\uff0c\u7528\u6d4b\u8bd5\u5bb9\u5668 NEO4J_TEST_URI", "event": "canvas_schema_gate_verify_failed", "logger": "app.services.schema_gate", "level": "warning", "timestamp": "2026-09-06T02:42:06.189985Z"}
+{"event": "Load pretrained SentenceTransformer: BAAI/bge-m3", "logger": "sentence_transformers.SentenceTransformer", "level": "info", "timestamp": "2026-09-06T02:42:06.196479Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:42:06.203841Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:42:06.204436Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:42:06.206807Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:42:06.207382Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:42:06.208437Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:42:06.210119Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:42:06.210633Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:42:06.211635Z"}
+{"event": "Unhandled query pattern: \n                    MATCH ()-[e:CANVAS_EDGE]-()\n                    WHERE e.group_id = $group_id AN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:42:06.294065Z"}
+{"event": "[Fix-E1] \u539f\u56e0\u8fb9\u540c\u6b65(execute): 8 \u8282\u70b9\u6709 relationships, 8 \u8fb9\u5199\u5165, 0 \u5931\u8d25, 0 \u5e7d\u7075\u8fb9\u5931\u6548, 151 \u6587\u4ef6\u88ab\u51c6\u5165\u62d2\u7edd", "logger": "app.services.canvas_projection_sync", "level": "info", "timestamp": "2026-09-06T02:42:06.294365Z"}
+{"event": "[Fix-E1] \u8282\u70b9\u539f\u56e0\u8fb9\u540c\u6b65: 8 nodes, 8 edges, 0 failed", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:06.294486Z"}
+{"event": "[Graphiti-native] \u542f\u52a8\u56de\u586b\u8df3\u8fc7 (graphiti \u672a\u5c31\u7eea)", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:06.294560Z"}
+{"event": "[RAG-S1] orchestrator started: vault=/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault scan_interval=60s stale_after=300s", "logger": "app.services.vault_index_orchestrator", "level": "info", "timestamp": "2026-09-06T02:42:06.295178Z"}
+{"event": "Load pretrained SentenceTransformer: BAAI/bge-m3", "logger": "sentence_transformers.SentenceTransformer", "level": "info", "timestamp": "2026-09-06T02:42:06.307613Z"}
+{"method": "GET", "path": "/api/v1/health", "endpoint": "/api/v1/health", "status": 200, "duration_ms": 6.91, "event": "request.completed", "request_id": "5398677984", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-06T02:42:06.308979Z"}
+{"event": "Shutting down Canvas Learning System API...", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:06.312335Z"}
+{"event": "alert_manager.stopped", "logger": "app.services.alert_manager", "level": "info", "timestamp": "2026-09-06T02:42:06.312614Z"}
+{"event": "Alert manager stopped", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:06.312746Z"}
+{"event": "resource_monitor.stopped", "logger": "app.services.resource_monitor", "level": "info", "timestamp": "2026-09-06T02:42:06.312948Z"}
+{"event": "Resource monitoring stopped", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:06.313264Z"}
+{"event": "LanceDB index service cleaned up", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:06.313354Z"}
+{"event": "[RAG-S1] orchestrator shut down (pending flushed)", "logger": "app.services.vault_index_orchestrator", "level": "info", "timestamp": "2026-09-06T02:42:06.315597Z"}
+{"event": "[Story 7.2] LLM Call Logger stopped", "logger": "app.middleware.llm_call_logger", "level": "info", "timestamp": "2026-09-06T02:42:06.315967Z"}
+{"event": "[Story 7.2] CostTracker stopped", "logger": "app.middleware.cost_tracker", "level": "info", "timestamp": "2026-09-06T02:42:06.316138Z"}
+{"event": "[Story 7.2] LLM logging infrastructure cleaned up", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:06.316244Z"}
+{"event": "[Story 3.8] Archive scheduler stopped", "logger": "app.services.archive_scheduler", "level": "info", "timestamp": "2026-09-06T02:42:06.316352Z"}
+{"event": "[Story 3.8] Archive scheduler stopped", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:06.316639Z"}
+{"event": "[Phase 2] GraphitiEpisodeWorker stopped", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:06.316731Z"}
+{"event": "Neo4j driver cleaned up during shutdown", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-06T02:42:06.316838Z"}
+{"event": "MemoryService singleton cleaned up", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-06T02:42:06.316913Z"}
+{"event": "MemoryService cleaned up", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:06.317043Z"}
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 28046.67it/s]
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 26275.30it/s]
+{"event": "Starting Canvas Learning System API v1.0.0", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:18.829307Z"}
+{"event": "Debug mode: True", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:18.829475Z"}
+{"event": "Log level: INFO", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:18.829538Z"}
+{"event": "CORS origins: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5173', 'http://127.0.0.1:5173', 'http://tauri.localhost', 'app://obsidian.md']", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:18.829646Z"}
+{"event": "API prefix: /api/v1", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:18.829899Z"}
+{"event": "Resource monitoring started with 5s interval", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:18.830002Z"}
+{"count": 0, "event": "alert_manager.rules_loaded", "logger": "app.services.alert_manager", "level": "info", "timestamp": "2026-09-06T02:42:18.830448Z"}
+{"channels": ["ConsoleNotificationChannel", "FileNotificationChannel"], "event": "notification_dispatcher.created", "logger": "app.services.notification_channels", "level": "info", "timestamp": "2026-09-06T02:42:18.830608Z"}
+{"interval": 30, "rules_count": 0, "event": "alert_manager.started", "logger": "app.services.alert_manager", "level": "info", "timestamp": "2026-09-06T02:42:18.830693Z"}
+{"event": "Alert manager started with 0 rules (30s interval)", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:18.830954Z"}
+{"event": "[PromptRegistry] Loaded autoscore v1 (hash=4459bdcc7188)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:42:18.831473Z"}
+{"event": "[PromptRegistry] Loaded context_extract v1 (hash=c648a7641ca5)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:42:18.831947Z"}
+{"event": "[PromptRegistry] Loaded crag_grading v1 (hash=94b624e7ed31)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:42:18.832246Z"}
+{"event": "[PromptRegistry] Loaded query_optimize v1 (hash=d74f28f3a3a9)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:42:18.832447Z"}
+{"event": "[PromptRegistry] Loaded query_rewrite v1 (hash=54abd977e7e2)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:42:18.832628Z"}
+{"event": "[PromptRegistry] Loaded question_gen v1 (hash=706f5ab04957)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:42:18.832811Z"}
+{"event": "[PromptRegistry] Loaded search_intent v1 (hash=3255b0c040d8)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:42:18.832972Z"}
+{"event": "[PromptRegistry] Loaded 7 templates across 7 prompt names", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:42:18.833046Z"}
+{"event": "[Story 7.3] PromptRegistry loaded 7 templates", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:18.833127Z"}
+{"interval_seconds": 5.0, "event": "resource_monitor.background_started", "logger": "app.services.resource_monitor", "level": "info", "timestamp": "2026-09-06T02:42:18.833579Z"}
+{"event": "[Story 7.2] CostTracker initialized: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/data/llm_call_logs.db", "logger": "app.middleware.cost_tracker", "level": "info", "timestamp": "2026-09-06T02:42:18.834973Z"}
+{"event": "[Story 7.2] LLM Call Logger started", "logger": "app.middleware.llm_call_logger", "level": "info", "timestamp": "2026-09-06T02:42:18.835097Z"}
+{"event": "[Story 7.2] Log rotation task started (daily cycle)", "logger": "app.middleware.cost_tracker", "level": "info", "timestamp": "2026-09-06T02:42:18.835161Z"}
+{"event": "[Story 7.2] LiteLLM CustomLogger callback registered via litellm.callbacks", "logger": "app.core.litellm_config", "level": "info", "timestamp": "2026-09-06T02:42:18.835215Z"}
+{"event": "[Story 7.2] LLM logging infrastructure initialized", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:18.835257Z"}
+{"event": "Pre-warming MemoryService singleton...", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:18.835299Z"}
+{"event": "Creating MemoryService singleton instance", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-06T02:42:18.835339Z"}
+{"event": "Loaded 0 relationships from /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/data/neo4j_memory.json", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-06T02:42:18.835808Z"}
+{"event": "MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-06T02:42:18.836908Z"}
+{"event": "MemoryService initialized successfully", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-06T02:42:18.837060Z"}
+{"event": "MemoryService singleton initialized", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-06T02:42:18.837130Z"}
+{"event": "MemoryService pre-warmed successfully", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:18.837210Z"}
+{"event": "Unhandled query pattern: CREATE FULLTEXT INDEX episode_content IF NOT EXISTS FOR (n:EpisodicNode) ON EACH [n.content] OPTIONS", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:42:18.837267Z"}
+{"event": "[Epic 4] Fulltext index 'episode_content' ensured on EpisodicNode.content", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-06T02:42:18.837303Z"}
+{"event": "[Story 38.1] No pending LanceDB index operations", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:18.837725Z"}
+{"event": "[Story 3.8] Archive scheduler started (interval=86400s)", "logger": "app.services.archive_scheduler", "level": "info", "timestamp": "2026-09-06T02:42:18.837847Z"}
+{"event": "[Story 3.8] Archive scheduler started (24h interval)", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:18.837959Z"}
+{"event": "EventBus: subscribed handle_score_submitted to score_submitted (subsystem=mastery_engine)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:42:18.838154Z"}
+{"event": "EventBus: subscribed handle_bkt_updated to bkt_updated (subsystem=mastery_store)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:42:18.838310Z"}
+{"event": "EventBus: subscribed handle_mastery_changed to mastery_changed (subsystem=mastery_pipeline)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:42:18.838388Z"}
+{"event": "EventBus: subscribed handle_calibration_recorded to calibration_recorded (subsystem=calibration)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:42:18.838549Z"}
+{"event": "EventBus: subscribed handle_memory_write_requested to memory_write_requested (subsystem=memory)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:42:18.838671Z"}
+{"event": "EventBus: subscribed handle_fsrs_updated to fsrs_updated (subsystem=memory)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:42:18.838748Z"}
+{"event": "EventBus: subscribed handle_rag_weight_adjust to rag_weight_adjust", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:42:18.838808Z"}
+{"event": "EventBus: subscribed handle_ui_mastery_push to ui_mastery_push", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:42:18.838861Z"}
+{"event": "EventBus: registered 8 production handlers (SCORE_SUBMITTED, BKT_UPDATED, FSRS_UPDATED, MASTERY_CHANGED, CALIBRATION_RECORDED, MEMORY_WRITE_REQUESTED, RAG_WEIGHT_ADJUST, UI_MASTERY_PUSH)", "logger": "app.services.event_handlers", "level": "info", "timestamp": "2026-09-06T02:42:18.838937Z"}
+{"event": "[Story 5.7] EventBus handlers registered", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:18.839033Z"}
+{"event": "No mastery_config.json found, using defaults", "logger": "app.services.mastery_engine", "level": "info", "timestamp": "2026-09-06T02:42:18.839159Z"}
+{"event": "Initialized FSRS scheduler with retention=0.9", "logger": "memory.temporal.fsrs_manager", "level": "info", "timestamp": "2026-09-06T02:42:18.839259Z"}
+{"event": "SignalRegistry: registered signal 'bkt_mastery'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-06T02:42:18.839298Z"}
+{"event": "SignalRegistry: registered signal 'fsrs_retrievability'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-06T02:42:18.839359Z"}
+{"event": "SignalRegistry: registered signal 'exam_score_avg'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-06T02:42:18.839641Z"}
+{"event": "SignalRegistry: registered signal 'calibration_bias'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-06T02:42:18.839725Z"}
+{"event": "SignalRegistry: registered signal 'self_confidence_avg'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-06T02:42:18.839784Z"}
+{"event": "MasteryEngine: fusion engine attached", "logger": "app.services.mastery_engine", "level": "info", "timestamp": "2026-09-06T02:42:18.839837Z"}
+{"event": "MasteryEngine singleton set (fusion-enabled)", "logger": "app.services.mastery_engine", "level": "info", "timestamp": "2026-09-06T02:42:18.839889Z"}
+{"event": "[Story 5.6] Signal registry initialized with 5 adapters, fusion engine attached", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:18.839963Z"}
+{"event": "[Phase 2] GraphitiEpisodeWorker init failed (non-fatal): live Neo4j port connect attempted: ('::1', 7691, 0, 0). \u53d7\u62e6\u7aef\u53e3 [7687, 7691] \u662f\u73b0\u7f51 Neo4j\uff1b\u6d4b\u8bd5\u8fdb\u7a0b\u4e0d\u5f97\u8fde\u63a5\u3002\u82e5\u8fd9\u662f\u7aef\u70b9\u6d4b\u8bd5\uff0c\u8bf7\u7528 backend/tests/support/lifespan.py::no_lifespan \u5173\u6389 app.main \u7684 lifespan\uff1b\u82e5\u786e\u9700\u771f\u5e93\uff0c\u7528\u6d4b\u8bd5\u5bb9\u5668 NEO4J_TEST_URI(7692) \u5e76\u6253 integration/real_neo4j marker\u3002", "logger": "app.main", "level": "warning", "timestamp": "2026-09-06T02:42:18.866285Z"}
+{"vault_path": "/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault", "total_nodes": 261, "total_edges": 1795, "graph_build_time_ms": 18980.4, "event": "wikilink.graph_built", "logger": "app.services.wikilink_graph_service", "level": "info", "timestamp": "2026-09-06T02:42:37.847023Z"}
+{"event": "[Story 2.1] Wikilink graph eager-built: 261 nodes, 1795 edges, 18980.4ms", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:37.847260Z"}
+{"event": "[Story 2.2 Phase A] LanceDB singleton background init dispatched", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:37.847342Z"}
+{"error": "live Neo4j port connect attempted: ('::1', 7691, 0, 0). \u53d7\u62e6\u7aef\u53e3 [7687, 7691] \u662f\u73b0\u7f51 Neo4j\uff1b\u6d4b\u8bd5\u8fdb\u7a0b\u4e0d\u5f97\u8fde\u63a5\u3002\u82e5\u8fd9\u662f\u7aef\u70b9\u6d4b\u8bd5\uff0c\u8bf7\u7528 backend/tests/support/lifespan.py::no_lifespan \u5173\u6389 app.main \u7684 lifespan\uff1b\u82e5\u786e\u9700\u771f\u5e93\uff0c\u7528\u6d4b\u8bd5\u5bb9\u5668 NEO4J_TEST_URI", "event": "canvas_schema_gate_verify_failed", "logger": "app.services.schema_gate", "level": "warning", "timestamp": "2026-09-06T02:42:37.849013Z"}
+{"event": "Load pretrained SentenceTransformer: BAAI/bge-m3", "logger": "sentence_transformers.SentenceTransformer", "level": "info", "timestamp": "2026-09-06T02:42:37.851774Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:42:37.856895Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:42:37.857288Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:42:37.859010Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:42:37.859305Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:42:37.859737Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:42:37.860774Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:42:37.861066Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:42:37.861349Z"}
+{"event": "Unhandled query pattern: \n                    MATCH ()-[e:CANVAS_EDGE]-()\n                    WHERE e.group_id = $group_id AN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:42:37.907161Z"}
+{"event": "[Fix-E1] \u539f\u56e0\u8fb9\u540c\u6b65(execute): 8 \u8282\u70b9\u6709 relationships, 8 \u8fb9\u5199\u5165, 0 \u5931\u8d25, 0 \u5e7d\u7075\u8fb9\u5931\u6548, 151 \u6587\u4ef6\u88ab\u51c6\u5165\u62d2\u7edd", "logger": "app.services.canvas_projection_sync", "level": "info", "timestamp": "2026-09-06T02:42:37.907288Z"}
+{"event": "[Fix-E1] \u8282\u70b9\u539f\u56e0\u8fb9\u540c\u6b65: 8 nodes, 8 edges, 0 failed", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:37.907355Z"}
+{"event": "[Graphiti-native] \u542f\u52a8\u56de\u586b\u8df3\u8fc7 (graphiti \u672a\u5c31\u7eea)", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:37.907404Z"}
+{"event": "[RAG-S1] orchestrator started: vault=/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault scan_interval=60s stale_after=300s", "logger": "app.services.vault_index_orchestrator", "level": "info", "timestamp": "2026-09-06T02:42:37.907745Z"}
+{"event": "Load pretrained SentenceTransformer: BAAI/bge-m3", "logger": "sentence_transformers.SentenceTransformer", "level": "info", "timestamp": "2026-09-06T02:42:37.915794Z"}
+{"method": "GET", "path": "/api/v1/health", "endpoint": "/api/v1/health", "status": 200, "duration_ms": 4.4, "event": "request.completed", "request_id": "5244709456", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-06T02:42:37.917602Z"}
+{"event": "Shutting down Canvas Learning System API...", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:37.919494Z"}
+{"event": "alert_manager.stopped", "logger": "app.services.alert_manager", "level": "info", "timestamp": "2026-09-06T02:42:37.919772Z"}
+{"event": "Alert manager stopped", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:37.920081Z"}
+{"event": "resource_monitor.stopped", "logger": "app.services.resource_monitor", "level": "info", "timestamp": "2026-09-06T02:42:37.920297Z"}
+{"event": "Resource monitoring stopped", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:37.920591Z"}
+{"event": "LanceDB index service cleaned up", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:37.920747Z"}
+{"event": "[RAG-S1] orchestrator shut down (pending flushed)", "logger": "app.services.vault_index_orchestrator", "level": "info", "timestamp": "2026-09-06T02:42:37.921848Z"}
+{"event": "[Story 7.2] LLM Call Logger stopped", "logger": "app.middleware.llm_call_logger", "level": "info", "timestamp": "2026-09-06T02:42:37.922064Z"}
+{"event": "[Story 7.2] CostTracker stopped", "logger": "app.middleware.cost_tracker", "level": "info", "timestamp": "2026-09-06T02:42:37.922219Z"}
+{"event": "[Story 7.2] LLM logging infrastructure cleaned up", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:37.922283Z"}
+{"event": "[Story 3.8] Archive scheduler stopped", "logger": "app.services.archive_scheduler", "level": "info", "timestamp": "2026-09-06T02:42:37.922357Z"}
+{"event": "[Story 3.8] Archive scheduler stopped", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:37.922438Z"}
+{"event": "[Phase 2] GraphitiEpisodeWorker stopped", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:37.922480Z"}
+{"event": "Neo4j driver cleaned up during shutdown", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-06T02:42:37.922538Z"}
+{"event": "MemoryService singleton cleaned up", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-06T02:42:37.922587Z"}
+{"event": "MemoryService cleaned up", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:37.922638Z"}
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 18943.89it/s]
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 25528.84it/s]
+{"event": "Starting Canvas Learning System API v1.0.0", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:49.070086Z"}
+{"event": "Debug mode: True", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:49.070213Z"}
+{"event": "Log level: INFO", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:49.070260Z"}
+{"event": "CORS origins: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5173', 'http://127.0.0.1:5173', 'http://tauri.localhost', 'app://obsidian.md']", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:49.070300Z"}
+{"event": "API prefix: /api/v1", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:49.070332Z"}
+{"event": "Resource monitoring started with 5s interval", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:49.070367Z"}
+{"count": 0, "event": "alert_manager.rules_loaded", "logger": "app.services.alert_manager", "level": "info", "timestamp": "2026-09-06T02:42:49.070680Z"}
+{"channels": ["ConsoleNotificationChannel", "FileNotificationChannel"], "event": "notification_dispatcher.created", "logger": "app.services.notification_channels", "level": "info", "timestamp": "2026-09-06T02:42:49.070782Z"}
+{"interval": 30, "rules_count": 0, "event": "alert_manager.started", "logger": "app.services.alert_manager", "level": "info", "timestamp": "2026-09-06T02:42:49.070841Z"}
+{"event": "Alert manager started with 0 rules (30s interval)", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:49.070896Z"}
+{"event": "[PromptRegistry] Loaded autoscore v1 (hash=4459bdcc7188)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:42:49.071170Z"}
+{"event": "[PromptRegistry] Loaded context_extract v1 (hash=c648a7641ca5)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:42:49.071315Z"}
+{"event": "[PromptRegistry] Loaded crag_grading v1 (hash=94b624e7ed31)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:42:49.071433Z"}
+{"event": "[PromptRegistry] Loaded query_optimize v1 (hash=d74f28f3a3a9)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:42:49.071562Z"}
+{"event": "[PromptRegistry] Loaded query_rewrite v1 (hash=54abd977e7e2)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:42:49.071673Z"}
+{"event": "[PromptRegistry] Loaded question_gen v1 (hash=706f5ab04957)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:42:49.071883Z"}
+{"event": "[PromptRegistry] Loaded search_intent v1 (hash=3255b0c040d8)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:42:49.072172Z"}
+{"event": "[PromptRegistry] Loaded 7 templates across 7 prompt names", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:42:49.072239Z"}
+{"event": "[Story 7.3] PromptRegistry loaded 7 templates", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:49.072294Z"}
+{"interval_seconds": 5.0, "event": "resource_monitor.background_started", "logger": "app.services.resource_monitor", "level": "info", "timestamp": "2026-09-06T02:42:49.072532Z"}
+{"event": "[Story 7.2] CostTracker initialized: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/data/llm_call_logs.db", "logger": "app.middleware.cost_tracker", "level": "info", "timestamp": "2026-09-06T02:42:49.073627Z"}
+{"event": "[Story 7.2] LLM Call Logger started", "logger": "app.middleware.llm_call_logger", "level": "info", "timestamp": "2026-09-06T02:42:49.073721Z"}
+{"event": "[Story 7.2] Log rotation task started (daily cycle)", "logger": "app.middleware.cost_tracker", "level": "info", "timestamp": "2026-09-06T02:42:49.073763Z"}
+{"event": "[Story 7.2] LiteLLM CustomLogger callback registered via litellm.callbacks", "logger": "app.core.litellm_config", "level": "info", "timestamp": "2026-09-06T02:42:49.073801Z"}
+{"event": "[Story 7.2] LLM logging infrastructure initialized", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:49.073842Z"}
+{"event": "Pre-warming MemoryService singleton...", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:49.073871Z"}
+{"event": "Creating MemoryService singleton instance", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-06T02:42:49.073897Z"}
+{"event": "Loaded 0 relationships from /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/data/neo4j_memory.json", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-06T02:42:49.074123Z"}
+{"event": "MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-06T02:42:49.074855Z"}
+{"event": "MemoryService initialized successfully", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-06T02:42:49.074921Z"}
+{"event": "MemoryService singleton initialized", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-06T02:42:49.074963Z"}
+{"event": "MemoryService pre-warmed successfully", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:49.075009Z"}
+{"event": "Unhandled query pattern: CREATE FULLTEXT INDEX episode_content IF NOT EXISTS FOR (n:EpisodicNode) ON EACH [n.content] OPTIONS", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:42:49.075048Z"}
+{"event": "[Epic 4] Fulltext index 'episode_content' ensured on EpisodicNode.content", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-06T02:42:49.075071Z"}
+{"event": "[Story 38.1] No pending LanceDB index operations", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:49.075240Z"}
+{"event": "[Story 3.8] Archive scheduler started (interval=86400s)", "logger": "app.services.archive_scheduler", "level": "info", "timestamp": "2026-09-06T02:42:49.075274Z"}
+{"event": "[Story 3.8] Archive scheduler started (24h interval)", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:49.075343Z"}
+{"event": "EventBus: subscribed handle_score_submitted to score_submitted (subsystem=mastery_engine)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:42:49.075371Z"}
+{"event": "EventBus: subscribed handle_bkt_updated to bkt_updated (subsystem=mastery_store)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:42:49.075413Z"}
+{"event": "EventBus: subscribed handle_mastery_changed to mastery_changed (subsystem=mastery_pipeline)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:42:49.075447Z"}
+{"event": "EventBus: subscribed handle_calibration_recorded to calibration_recorded (subsystem=calibration)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:42:49.075480Z"}
+{"event": "EventBus: subscribed handle_memory_write_requested to memory_write_requested (subsystem=memory)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:42:49.075513Z"}
+{"event": "EventBus: subscribed handle_fsrs_updated to fsrs_updated (subsystem=memory)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:42:49.075545Z"}
+{"event": "EventBus: subscribed handle_rag_weight_adjust to rag_weight_adjust", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:42:49.075576Z"}
+{"event": "EventBus: subscribed handle_ui_mastery_push to ui_mastery_push", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:42:49.075611Z"}
+{"event": "EventBus: registered 8 production handlers (SCORE_SUBMITTED, BKT_UPDATED, FSRS_UPDATED, MASTERY_CHANGED, CALIBRATION_RECORDED, MEMORY_WRITE_REQUESTED, RAG_WEIGHT_ADJUST, UI_MASTERY_PUSH)", "logger": "app.services.event_handlers", "level": "info", "timestamp": "2026-09-06T02:42:49.075644Z"}
+{"event": "[Story 5.7] EventBus handlers registered", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:49.075694Z"}
+{"event": "No mastery_config.json found, using defaults", "logger": "app.services.mastery_engine", "level": "info", "timestamp": "2026-09-06T02:42:49.075761Z"}
+{"event": "Initialized FSRS scheduler with retention=0.9", "logger": "memory.temporal.fsrs_manager", "level": "info", "timestamp": "2026-09-06T02:42:49.075824Z"}
+{"event": "SignalRegistry: registered signal 'bkt_mastery'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-06T02:42:49.075849Z"}
+{"event": "SignalRegistry: registered signal 'fsrs_retrievability'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-06T02:42:49.075885Z"}
+{"event": "SignalRegistry: registered signal 'exam_score_avg'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-06T02:42:49.075919Z"}
+{"event": "SignalRegistry: registered signal 'calibration_bias'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-06T02:42:49.075951Z"}
+{"event": "SignalRegistry: registered signal 'self_confidence_avg'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-06T02:42:49.075983Z"}
+{"event": "MasteryEngine: fusion engine attached", "logger": "app.services.mastery_engine", "level": "info", "timestamp": "2026-09-06T02:42:49.076014Z"}
+{"event": "MasteryEngine singleton set (fusion-enabled)", "logger": "app.services.mastery_engine", "level": "info", "timestamp": "2026-09-06T02:42:49.076047Z"}
+{"event": "[Story 5.6] Signal registry initialized with 5 adapters, fusion engine attached", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:42:49.076090Z"}
+{"event": "[Phase 2] GraphitiEpisodeWorker init failed (non-fatal): live Neo4j port connect attempted: ('::1', 7691, 0, 0). \u53d7\u62e6\u7aef\u53e3 [7687, 7691] \u662f\u73b0\u7f51 Neo4j\uff1b\u6d4b\u8bd5\u8fdb\u7a0b\u4e0d\u5f97\u8fde\u63a5\u3002\u82e5\u8fd9\u662f\u7aef\u70b9\u6d4b\u8bd5\uff0c\u8bf7\u7528 backend/tests/support/lifespan.py::no_lifespan \u5173\u6389 app.main \u7684 lifespan\uff1b\u82e5\u786e\u9700\u771f\u5e93\uff0c\u7528\u6d4b\u8bd5\u5bb9\u5668 NEO4J_TEST_URI(7692) \u5e76\u6253 integration/real_neo4j marker\u3002", "logger": "app.main", "level": "warning", "timestamp": "2026-09-06T02:42:49.092497Z"}
+{"vault_path": "/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault", "total_nodes": 261, "total_edges": 1795, "graph_build_time_ms": 18713.2, "event": "wikilink.graph_built", "logger": "app.services.wikilink_graph_service", "level": "info", "timestamp": "2026-09-06T02:43:07.805914Z"}
+{"event": "[Story 2.1] Wikilink graph eager-built: 261 nodes, 1795 edges, 18713.2ms", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:07.806294Z"}
+{"event": "[Story 2.2 Phase A] LanceDB singleton background init dispatched", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:07.806372Z"}
+{"error": "live Neo4j port connect attempted: ('::1', 7691, 0, 0). \u53d7\u62e6\u7aef\u53e3 [7687, 7691] \u662f\u73b0\u7f51 Neo4j\uff1b\u6d4b\u8bd5\u8fdb\u7a0b\u4e0d\u5f97\u8fde\u63a5\u3002\u82e5\u8fd9\u662f\u7aef\u70b9\u6d4b\u8bd5\uff0c\u8bf7\u7528 backend/tests/support/lifespan.py::no_lifespan \u5173\u6389 app.main \u7684 lifespan\uff1b\u82e5\u786e\u9700\u771f\u5e93\uff0c\u7528\u6d4b\u8bd5\u5bb9\u5668 NEO4J_TEST_URI", "event": "canvas_schema_gate_verify_failed", "logger": "app.services.schema_gate", "level": "warning", "timestamp": "2026-09-06T02:43:07.808665Z"}
+{"event": "Load pretrained SentenceTransformer: BAAI/bge-m3", "logger": "sentence_transformers.SentenceTransformer", "level": "info", "timestamp": "2026-09-06T02:43:07.812854Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:43:07.820074Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:43:07.820624Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:43:07.823819Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:43:07.824345Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:43:07.825229Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:43:07.827451Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:43:07.828319Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:43:07.829156Z"}
+{"event": "Unhandled query pattern: \n                    MATCH ()-[e:CANVAS_EDGE]-()\n                    WHERE e.group_id = $group_id AN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:43:07.898996Z"}
+{"event": "[Fix-E1] \u539f\u56e0\u8fb9\u540c\u6b65(execute): 8 \u8282\u70b9\u6709 relationships, 8 \u8fb9\u5199\u5165, 0 \u5931\u8d25, 0 \u5e7d\u7075\u8fb9\u5931\u6548, 151 \u6587\u4ef6\u88ab\u51c6\u5165\u62d2\u7edd", "logger": "app.services.canvas_projection_sync", "level": "info", "timestamp": "2026-09-06T02:43:07.899193Z"}
+{"event": "[Fix-E1] \u8282\u70b9\u539f\u56e0\u8fb9\u540c\u6b65: 8 nodes, 8 edges, 0 failed", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:07.899282Z"}
+{"event": "[Graphiti-native] \u542f\u52a8\u56de\u586b\u8df3\u8fc7 (graphiti \u672a\u5c31\u7eea)", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:07.899353Z"}
+{"event": "[RAG-S1] orchestrator started: vault=/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault scan_interval=60s stale_after=300s", "logger": "app.services.vault_index_orchestrator", "level": "info", "timestamp": "2026-09-06T02:43:07.899780Z"}
+{"event": "Load pretrained SentenceTransformer: BAAI/bge-m3", "logger": "sentence_transformers.SentenceTransformer", "level": "info", "timestamp": "2026-09-06T02:43:07.908096Z"}
+{"method": "GET", "path": "/api/v1/health", "endpoint": "/api/v1/health", "status": 200, "duration_ms": 4.76, "event": "request.completed", "request_id": "5844294512", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-06T02:43:07.911026Z"}
+{"event": "Shutting down Canvas Learning System API...", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:07.912726Z"}
+{"event": "alert_manager.stopped", "logger": "app.services.alert_manager", "level": "info", "timestamp": "2026-09-06T02:43:07.912970Z"}
+{"event": "Alert manager stopped", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:07.913137Z"}
+{"event": "resource_monitor.stopped", "logger": "app.services.resource_monitor", "level": "info", "timestamp": "2026-09-06T02:43:07.913448Z"}
+{"event": "Resource monitoring stopped", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:07.913797Z"}
+{"event": "LanceDB index service cleaned up", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:07.913967Z"}
+{"event": "[RAG-S1] orchestrator shut down (pending flushed)", "logger": "app.services.vault_index_orchestrator", "level": "info", "timestamp": "2026-09-06T02:43:07.915686Z"}
+{"event": "[Story 7.2] LLM Call Logger stopped", "logger": "app.middleware.llm_call_logger", "level": "info", "timestamp": "2026-09-06T02:43:07.915945Z"}
+{"event": "[Story 7.2] CostTracker stopped", "logger": "app.middleware.cost_tracker", "level": "info", "timestamp": "2026-09-06T02:43:07.916057Z"}
+{"event": "[Story 7.2] LLM logging infrastructure cleaned up", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:07.916120Z"}
+{"event": "[Story 3.8] Archive scheduler stopped", "logger": "app.services.archive_scheduler", "level": "info", "timestamp": "2026-09-06T02:43:07.916247Z"}
+{"event": "[Story 3.8] Archive scheduler stopped", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:07.916349Z"}
+{"event": "[Phase 2] GraphitiEpisodeWorker stopped", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:07.916420Z"}
+{"event": "Neo4j driver cleaned up during shutdown", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-06T02:43:07.916502Z"}
+{"event": "MemoryService singleton cleaned up", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-06T02:43:07.916564Z"}
+{"event": "MemoryService cleaned up", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:07.916634Z"}
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 14826.89it/s]
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 25243.56it/s]
+{"event": "Starting Canvas Learning System API v1.0.0", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:19.204241Z"}
+{"event": "Debug mode: True", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:19.204453Z"}
+{"event": "Log level: INFO", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:19.204517Z"}
+{"event": "CORS origins: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5173', 'http://127.0.0.1:5173', 'http://tauri.localhost', 'app://obsidian.md']", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:19.204577Z"}
+{"event": "API prefix: /api/v1", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:19.204625Z"}
+{"event": "Resource monitoring started with 5s interval", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:19.204838Z"}
+{"count": 0, "event": "alert_manager.rules_loaded", "logger": "app.services.alert_manager", "level": "info", "timestamp": "2026-09-06T02:43:19.205452Z"}
+{"channels": ["ConsoleNotificationChannel", "FileNotificationChannel"], "event": "notification_dispatcher.created", "logger": "app.services.notification_channels", "level": "info", "timestamp": "2026-09-06T02:43:19.205738Z"}
+{"interval": 30, "rules_count": 0, "event": "alert_manager.started", "logger": "app.services.alert_manager", "level": "info", "timestamp": "2026-09-06T02:43:19.205844Z"}
+{"event": "Alert manager started with 0 rules (30s interval)", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:19.205932Z"}
+{"event": "[PromptRegistry] Loaded autoscore v1 (hash=4459bdcc7188)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:43:19.206396Z"}
+{"event": "[PromptRegistry] Loaded context_extract v1 (hash=c648a7641ca5)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:43:19.206621Z"}
+{"event": "[PromptRegistry] Loaded crag_grading v1 (hash=94b624e7ed31)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:43:19.206801Z"}
+{"event": "[PromptRegistry] Loaded query_optimize v1 (hash=d74f28f3a3a9)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:43:19.206962Z"}
+{"event": "[PromptRegistry] Loaded query_rewrite v1 (hash=54abd977e7e2)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:43:19.207119Z"}
+{"event": "[PromptRegistry] Loaded question_gen v1 (hash=706f5ab04957)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:43:19.207279Z"}
+{"event": "[PromptRegistry] Loaded search_intent v1 (hash=3255b0c040d8)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:43:19.207429Z"}
+{"event": "[PromptRegistry] Loaded 7 templates across 7 prompt names", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-06T02:43:19.207496Z"}
+{"event": "[Story 7.3] PromptRegistry loaded 7 templates", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:19.207570Z"}
+{"interval_seconds": 5.0, "event": "resource_monitor.background_started", "logger": "app.services.resource_monitor", "level": "info", "timestamp": "2026-09-06T02:43:19.207839Z"}
+{"event": "[Story 7.2] CostTracker initialized: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/data/llm_call_logs.db", "logger": "app.middleware.cost_tracker", "level": "info", "timestamp": "2026-09-06T02:43:19.209348Z"}
+{"event": "[Story 7.2] LLM Call Logger started", "logger": "app.middleware.llm_call_logger", "level": "info", "timestamp": "2026-09-06T02:43:19.209492Z"}
+{"event": "[Story 7.2] Log rotation task started (daily cycle)", "logger": "app.middleware.cost_tracker", "level": "info", "timestamp": "2026-09-06T02:43:19.209561Z"}
+{"event": "[Story 7.2] LiteLLM CustomLogger callback registered via litellm.callbacks", "logger": "app.core.litellm_config", "level": "info", "timestamp": "2026-09-06T02:43:19.209619Z"}
+{"event": "[Story 7.2] LLM logging infrastructure initialized", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:19.209671Z"}
+{"event": "Pre-warming MemoryService singleton...", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:19.209712Z"}
+{"event": "Creating MemoryService singleton instance", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-06T02:43:19.209748Z"}
+{"event": "Loaded 0 relationships from /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/data/neo4j_memory.json", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-06T02:43:19.210037Z"}
+{"event": "MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-06T02:43:19.211297Z"}
+{"event": "MemoryService initialized successfully", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-06T02:43:19.211559Z"}
+{"event": "MemoryService singleton initialized", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-06T02:43:19.211647Z"}
+{"event": "MemoryService pre-warmed successfully", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:19.211738Z"}
+{"event": "Unhandled query pattern: CREATE FULLTEXT INDEX episode_content IF NOT EXISTS FOR (n:EpisodicNode) ON EACH [n.content] OPTIONS", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:43:19.211810Z"}
+{"event": "[Epic 4] Fulltext index 'episode_content' ensured on EpisodicNode.content", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-06T02:43:19.211851Z"}
+{"event": "[Story 38.1] No pending LanceDB index operations", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:19.212185Z"}
+{"event": "[Story 3.8] Archive scheduler started (interval=86400s)", "logger": "app.services.archive_scheduler", "level": "info", "timestamp": "2026-09-06T02:43:19.212264Z"}
+{"event": "[Story 3.8] Archive scheduler started (24h interval)", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:19.212352Z"}
+{"event": "EventBus: subscribed handle_score_submitted to score_submitted (subsystem=mastery_engine)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:43:19.212401Z"}
+{"event": "EventBus: subscribed handle_bkt_updated to bkt_updated (subsystem=mastery_store)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:43:19.212466Z"}
+{"event": "EventBus: subscribed handle_mastery_changed to mastery_changed (subsystem=mastery_pipeline)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:43:19.212526Z"}
+{"event": "EventBus: subscribed handle_calibration_recorded to calibration_recorded (subsystem=calibration)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:43:19.212581Z"}
+{"event": "EventBus: subscribed handle_memory_write_requested to memory_write_requested (subsystem=memory)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:43:19.212635Z"}
+{"event": "EventBus: subscribed handle_fsrs_updated to fsrs_updated (subsystem=memory)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:43:19.212686Z"}
+{"event": "EventBus: subscribed handle_rag_weight_adjust to rag_weight_adjust", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:43:19.212738Z"}
+{"event": "EventBus: subscribed handle_ui_mastery_push to ui_mastery_push", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-06T02:43:19.212789Z"}
+{"event": "EventBus: registered 8 production handlers (SCORE_SUBMITTED, BKT_UPDATED, FSRS_UPDATED, MASTERY_CHANGED, CALIBRATION_RECORDED, MEMORY_WRITE_REQUESTED, RAG_WEIGHT_ADJUST, UI_MASTERY_PUSH)", "logger": "app.services.event_handlers", "level": "info", "timestamp": "2026-09-06T02:43:19.212838Z"}
+{"event": "[Story 5.7] EventBus handlers registered", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:19.212926Z"}
+{"event": "No mastery_config.json found, using defaults", "logger": "app.services.mastery_engine", "level": "info", "timestamp": "2026-09-06T02:43:19.213035Z"}
+{"event": "Initialized FSRS scheduler with retention=0.9", "logger": "memory.temporal.fsrs_manager", "level": "info", "timestamp": "2026-09-06T02:43:19.213134Z"}
+{"event": "SignalRegistry: registered signal 'bkt_mastery'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-06T02:43:19.213172Z"}
+{"event": "SignalRegistry: registered signal 'fsrs_retrievability'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-06T02:43:19.213230Z"}
+{"event": "SignalRegistry: registered signal 'exam_score_avg'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-06T02:43:19.213282Z"}
+{"event": "SignalRegistry: registered signal 'calibration_bias'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-06T02:43:19.213332Z"}
+{"event": "SignalRegistry: registered signal 'self_confidence_avg'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-06T02:43:19.213382Z"}
+{"event": "MasteryEngine: fusion engine attached", "logger": "app.services.mastery_engine", "level": "info", "timestamp": "2026-09-06T02:43:19.213429Z"}
+{"event": "MasteryEngine singleton set (fusion-enabled)", "logger": "app.services.mastery_engine", "level": "info", "timestamp": "2026-09-06T02:43:19.213606Z"}
+{"event": "[Story 5.6] Signal registry initialized with 5 adapters, fusion engine attached", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:19.213702Z"}
+{"event": "[Phase 2] GraphitiEpisodeWorker init failed (non-fatal): live Neo4j port connect attempted: ('::1', 7691, 0, 0). \u53d7\u62e6\u7aef\u53e3 [7687, 7691] \u662f\u73b0\u7f51 Neo4j\uff1b\u6d4b\u8bd5\u8fdb\u7a0b\u4e0d\u5f97\u8fde\u63a5\u3002\u82e5\u8fd9\u662f\u7aef\u70b9\u6d4b\u8bd5\uff0c\u8bf7\u7528 backend/tests/support/lifespan.py::no_lifespan \u5173\u6389 app.main \u7684 lifespan\uff1b\u82e5\u786e\u9700\u771f\u5e93\uff0c\u7528\u6d4b\u8bd5\u5bb9\u5668 NEO4J_TEST_URI(7692) \u5e76\u6253 integration/real_neo4j marker\u3002", "logger": "app.main", "level": "warning", "timestamp": "2026-09-06T02:43:19.236033Z"}
+{"vault_path": "/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault", "total_nodes": 261, "total_edges": 1795, "graph_build_time_ms": 21516.4, "event": "wikilink.graph_built", "logger": "app.services.wikilink_graph_service", "level": "info", "timestamp": "2026-09-06T02:43:40.752848Z"}
+{"event": "[Story 2.1] Wikilink graph eager-built: 261 nodes, 1795 edges, 21516.4ms", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:40.753226Z"}
+{"event": "[Story 2.2 Phase A] LanceDB singleton background init dispatched", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:40.753322Z"}
+{"error": "live Neo4j port connect attempted: ('::1', 7691, 0, 0). \u53d7\u62e6\u7aef\u53e3 [7687, 7691] \u662f\u73b0\u7f51 Neo4j\uff1b\u6d4b\u8bd5\u8fdb\u7a0b\u4e0d\u5f97\u8fde\u63a5\u3002\u82e5\u8fd9\u662f\u7aef\u70b9\u6d4b\u8bd5\uff0c\u8bf7\u7528 backend/tests/support/lifespan.py::no_lifespan \u5173\u6389 app.main \u7684 lifespan\uff1b\u82e5\u786e\u9700\u771f\u5e93\uff0c\u7528\u6d4b\u8bd5\u5bb9\u5668 NEO4J_TEST_URI", "event": "canvas_schema_gate_verify_failed", "logger": "app.services.schema_gate", "level": "warning", "timestamp": "2026-09-06T02:43:40.756560Z"}
+{"event": "Load pretrained SentenceTransformer: BAAI/bge-m3", "logger": "sentence_transformers.SentenceTransformer", "level": "info", "timestamp": "2026-09-06T02:43:40.760061Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:43:40.767714Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:43:40.768197Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:43:40.770672Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:43:40.771342Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:43:40.772190Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:43:40.774705Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:43:40.775637Z"}
+{"event": "Unhandled query pattern: \n            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})\n            MERGE (t:CanvasN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:43:40.776665Z"}
+{"event": "Unhandled query pattern: \n                    MATCH ()-[e:CANVAS_EDGE]-()\n                    WHERE e.group_id = $group_id AN", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-06T02:43:40.841837Z"}
+{"event": "[Fix-E1] \u539f\u56e0\u8fb9\u540c\u6b65(execute): 8 \u8282\u70b9\u6709 relationships, 8 \u8fb9\u5199\u5165, 0 \u5931\u8d25, 0 \u5e7d\u7075\u8fb9\u5931\u6548, 151 \u6587\u4ef6\u88ab\u51c6\u5165\u62d2\u7edd", "logger": "app.services.canvas_projection_sync", "level": "info", "timestamp": "2026-09-06T02:43:40.842000Z"}
+{"event": "[Fix-E1] \u8282\u70b9\u539f\u56e0\u8fb9\u540c\u6b65: 8 nodes, 8 edges, 0 failed", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:40.842079Z"}
+{"event": "[Graphiti-native] \u542f\u52a8\u56de\u586b\u8df3\u8fc7 (graphiti \u672a\u5c31\u7eea)", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:40.842143Z"}
+{"event": "[RAG-S1] orchestrator started: vault=/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault scan_interval=60s stale_after=300s", "logger": "app.services.vault_index_orchestrator", "level": "info", "timestamp": "2026-09-06T02:43:40.842786Z"}
+{"event": "Load pretrained SentenceTransformer: BAAI/bge-m3", "logger": "sentence_transformers.SentenceTransformer", "level": "info", "timestamp": "2026-09-06T02:43:40.850902Z"}
+{"method": "GET", "path": "/api/v1/health", "endpoint": "/api/v1/health", "status": 200, "duration_ms": 3.4, "event": "request.completed", "request_id": "6027066448", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-06T02:43:40.851767Z"}
+{"event": "Shutting down Canvas Learning System API...", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:40.853906Z"}
+{"event": "alert_manager.stopped", "logger": "app.services.alert_manager", "level": "info", "timestamp": "2026-09-06T02:43:40.854121Z"}
+{"event": "Alert manager stopped", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:40.854233Z"}
+{"event": "resource_monitor.stopped", "logger": "app.services.resource_monitor", "level": "info", "timestamp": "2026-09-06T02:43:40.854321Z"}
+{"event": "Resource monitoring stopped", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:40.854407Z"}
+{"event": "LanceDB index service cleaned up", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:40.854462Z"}
+{"event": "[RAG-S1] orchestrator shut down (pending flushed)", "logger": "app.services.vault_index_orchestrator", "level": "info", "timestamp": "2026-09-06T02:43:40.856056Z"}
+{"event": "[Story 7.2] LLM Call Logger stopped", "logger": "app.middleware.llm_call_logger", "level": "info", "timestamp": "2026-09-06T02:43:40.856771Z"}
+{"event": "[Story 7.2] CostTracker stopped", "logger": "app.middleware.cost_tracker", "level": "info", "timestamp": "2026-09-06T02:43:40.857267Z"}
+{"event": "[Story 7.2] LLM logging infrastructure cleaned up", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:40.857477Z"}
+{"event": "[Story 3.8] Archive scheduler stopped", "logger": "app.services.archive_scheduler", "level": "info", "timestamp": "2026-09-06T02:43:40.857655Z"}
+{"event": "[Story 3.8] Archive scheduler stopped", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:40.857842Z"}
+{"event": "[Phase 2] GraphitiEpisodeWorker stopped", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:40.857909Z"}
+{"event": "Neo4j driver cleaned up during shutdown", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-06T02:43:40.857989Z"}
+{"event": "MemoryService singleton cleaned up", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-06T02:43:40.858055Z"}
+{"event": "MemoryService cleaned up", "logger": "app.main", "level": "info", "timestamp": "2026-09-06T02:43:40.858126Z"}
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 22991.67it/s]
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 19085.21it/s]
+
+==============================================================================
+CARD-TOOL-dredd-prereq — schemathesis case.call() 分段 profile
+==============================================================================
+schemathesis=4.14.3  python=3.14.4
+target: GET /api/v1/health   spec=/api/v1/openapi.json   rounds=5
+一次性成本 · from_asgi 建 schema: 1.322s (blocked+0, paths=193)
+
+── 四段计时（每段 N_ROUNDS 个样本）───────────────────────────────────
+  1_client_construct       n=5 median=   0.000s min=   0.000s max=   0.000s range=   0.000s  blocked/round=[0, 0, 0, 0, 0]
+  1_lifespan_startup       n=5 median=  19.082s min=  18.092s max=  21.643s range=   3.551s  blocked/round=[3, 2, 2, 2, 2]
+  2_hooks_before_call      n=5 median=   0.000s min=   0.000s max=   0.000s range=   0.000s  blocked/round=[0, 0, 0, 0, 0]
+  2_serialize_case         n=5 median=   0.000s min=   0.000s max=   0.011s range=   0.011s  blocked/round=[0, 0, 0, 0, 0]
+  3_request                n=5 median=   0.009s min=   0.007s max=   0.012s range=   0.005s  blocked/round=[0, 0, 0, 0, 0]
+  4_lifespan_shutdown      n=5 median=  12.256s min=  11.150s max=  13.523s range=   2.372s  blocked/round=[0, 0, 0, 0, 0]
+  x_hooks_after_call       n=5 median=   0.000s min=   0.000s max=   0.000s range=   0.000s  blocked/round=[0, 0, 0, 0, 0]
+
+── 对账：四段之和 vs 整次 case.call() 墙钟 ──────────────────────────
+  round 1: total=  31.636s  四段和=  31.635s  未归类=  0.001099s (其中 after_call hooks=0.000009s, 余 0.001090s)  blocked=3
+  round 2: total=  32.985s  四段和=  32.985s  未归类=  0.000343s (其中 after_call hooks=0.000004s, 余 0.000339s)  blocked=2
+  round 3: total=  30.241s  四段和=  30.241s  未归类=  0.000199s (其中 after_call hooks=0.000004s, 余 0.000195s)  blocked=2
+  round 4: total=  30.133s  四段和=  30.133s  未归类=  0.000193s (其中 after_call hooks=0.000006s, 余 0.000187s)  blocked=2
+  round 5: total=  33.907s  四段和=  33.907s  未归类=  0.000245s (其中 after_call hooks=0.000006s, 余 0.000239s)  blocked=2
+  total wall 汇总: n=5 median=  31.636s min=  30.133s max=  33.907s range=   3.774s
+
+── 采样 profiler（0.2s/次，共 714 轮采样）──────────────
+  [栈顶 · 按 (段落, 帧) 计数，Top 20]
+      896  1_lifespan_startup       python3.14/selectors.py:548 select
+      512  4_lifespan_shutdown      python3.14/threading.py:1133 join
+      512  4_lifespan_shutdown      python3.14/selectors.py:548 select
+      451  1_lifespan_startup       python3.14/threading.py:369 wait
+      436  4_lifespan_shutdown      python3.14/ssl.py:1140 read
+      367  1_lifespan_startup       python3.14/threading.py:373 wait
+      231  4_lifespan_shutdown      python3.14/threading.py:373 wait
+       85  1_lifespan_startup       site-packages/bs4/builder/_lxml.py:494 feed
+       40  1_lifespan_startup       site-packages/obsidiantools/md_utils.py:251 _get_md_front_matter_and_content
+       36  1_lifespan_startup       site-packages/markdown/treeprocessors.py:140 __handleInline
+       33  4_lifespan_shutdown      site-packages/httpcore/_backends/sync.py:128 read
+       22  4_lifespan_shutdown      python3.14/ssl.py:1372 do_handshake
+       15  4_lifespan_shutdown      site-packages/httpcore/_utils.py:37 is_socket_readable
+       12  4_lifespan_shutdown      site-packages/transformers/core_model_loading.py:787 _materialize_copy
+       10  1_lifespan_startup       python3.14/_markupbase.py:44 updatepos
+       10  4_lifespan_shutdown      site-packages/transformers/models/xlm_roberta/tokenization_xlm_roberta.py:81 __init__
+        9  1_lifespan_startup       site-packages/markdown/treeprocessors.py:253 __applyPattern
+        9  4_lifespan_shutdown      site-packages/transformers/tokenization_utils_tokenizers.py:145 convert_to_native_format
+        8  1_lifespan_startup       python3.14/html/parser.py:478 check_for_whole_start_tag
+        7  idle                     python3.14/selectors.py:548 select
+  [最内的 backend/app 帧 · Top 20]
+      446  1_lifespan_startup       backend/app/services/wikilink_graph_service.py:73 _build_sync
+        5  idle                     backend/app/main.py:547 _custom_openapi
+        2  1_lifespan_startup       backend/app/services/resource_monitor.py:214 get_disk_metrics
+        2  1_lifespan_startup       backend/app/services/canvas_projection_sync.py:205 _read_relationships
+        1  1_lifespan_startup       backend/app/services/wikilink_graph_service.py:71 _build_sync
+        1  1_lifespan_startup       backend/app/api/v1/endpoints/chat.py:80 _init_supp_lancedb_singleton
+        1  1_lifespan_startup       backend/app/services/canvas_projection_sync.py:107 sync
+
+W4 门实时账: NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=11 (blocked=11, advisory=0, unaccounted=11)
+==============================================================================
+
+F{"method": "GET", "path": "/api/v1/openapi.json", "endpoint": "/api/v1/openapi.json", "status": 200, "duration_ms": 9.02, "event": "request.completed", "request_id": "5456908144", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-06T02:43:53.128965Z"}
+{"method": "GET", "path": "/api/v1/health", "endpoint": "/api/v1/health", "status": 200, "duration_ms": 1.8, "event": "request.completed", "request_id": "5433735696", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-06T02:43:53.146073Z"}
+{"method": "GET", "path": "/api/v1/health", "endpoint": "/api/v1/health", "status": 200, "duration_ms": 1.11, "event": "request.completed", "request_id": "5988374096", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-06T02:43:53.151951Z"}
+{"method": "GET", "path": "/api/v1/health", "endpoint": "/api/v1/health", "status": 200, "duration_ms": 2.5, "event": "request.completed", "request_id": "5988370400", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-06T02:43:53.163360Z"}
+{"method": "GET", "path": "/api/v1/health", "endpoint": "/api/v1/health", "status": 200, "duration_ms": 1.55, "event": "request.completed", "request_id": "5753021280", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-06T02:43:53.170225Z"}
+{"method": "GET", "path": "/api/v1/health", "endpoint": "/api/v1/health", "status": 200, "duration_ms": 2.0, "event": "request.completed", "request_id": "5753020400", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-06T02:43:53.178519Z"}
+
+### 对照组 no_lifespan（app.router.lifespan_context 换 no-op）###
+
+==============================================================================
+CARD-TOOL-dredd-prereq — schemathesis case.call() 分段 profile
+==============================================================================
+schemathesis=4.14.3  python=3.14.4
+target: GET /api/v1/health   spec=/api/v1/openapi.json   rounds=5
+一次性成本 · from_asgi 建 schema: 0.022s (blocked+0, paths=193)
+
+── 四段计时（每段 N_ROUNDS 个样本）───────────────────────────────────
+  1_client_construct       n=5 median=   0.000s min=   0.000s max=   0.000s range=   0.000s  blocked/round=[0, 0, 0, 0, 0]
+  1_lifespan_startup       n=5 median=   0.001s min=   0.001s max=   0.004s range=   0.003s  blocked/round=[0, 0, 0, 0, 0]
+  2_hooks_before_call      n=5 median=   0.000s min=   0.000s max=   0.000s range=   0.000s  blocked/round=[0, 0, 0, 0, 0]
+  2_serialize_case         n=5 median=   0.000s min=   0.000s max=   0.000s range=   0.000s  blocked/round=[0, 0, 0, 0, 0]
+  3_request                n=5 median=   0.005s min=   0.004s max=   0.006s range=   0.003s  blocked/round=[0, 0, 0, 0, 0]
+  4_lifespan_shutdown      n=5 median=   0.001s min=   0.001s max=   0.002s range=   0.001s  blocked/round=[0, 0, 0, 0, 0]
+  x_hooks_after_call       n=5 median=   0.000s min=   0.000s max=   0.000s range=   0.000s  blocked/round=[0, 0, 0, 0, 0]
+
+── 对账：四段之和 vs 整次 case.call() 墙钟 ──────────────────────────
+  round 1: total=   0.009s  四段和=   0.008s  未归类=  0.000480s (其中 after_call hooks=0.000003s, 余 0.000477s)  blocked=0
+  round 2: total=   0.006s  四段和=   0.005s  未归类=  0.000172s (其中 after_call hooks=0.000004s, 余 0.000168s)  blocked=0
+  round 3: total=   0.011s  四段和=   0.011s  未归类=  0.000183s (其中 after_call hooks=0.000005s, 余 0.000178s)  blocked=0
+  round 4: total=   0.008s  四段和=   0.008s  未归类=  0.000193s (其中 after_call hooks=0.000004s, 余 0.000189s)  blocked=0
+  round 5: total=   0.008s  四段和=   0.008s  未归类=  0.000163s (其中 after_call hooks=0.000004s, 余 0.000159s)  blocked=0
+  total wall 汇总: n=5 median=   0.008s min=   0.006s max=   0.011s range=   0.006s
+
+── 采样 profiler（0.2s/次，共 1 轮采样）──────────────
+  [栈顶 · 按 (段落, 帧) 计数，Top 20]
+        1  idle                     python3.14/threading.py:373 wait
+        1  idle                     python3.14/selectors.py:548 select
+        1  idle                     python3.14/threading.py:369 wait
+  [最内的 backend/app 帧 · Top 20]
+
+W4 门实时账: NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=11 (blocked=11, advisory=0, unaccounted=0)
+==============================================================================
+
+.
+
+=================================== FAILURES ===================================
+________________________ test_dredd_prereq_call_profile ________________________
+live Neo4j port connect attempted —— 本用例期间有 11 次到现网 Neo4j 的连接尝试被拦下。
+（连接处抛出的异常被 app/main.py 的 lifespan try/except 吞掉了，
+  所以由本哨兵把它转成用例失败——否则这道门什么都证明不了。）
+  - ('::1', 7691, 0, 0) on thread asyncio-portal-1388e7750 (owner=tests/contract/test_zz_dredd_prereq_profile.py::test_dredd_prereq_call_profile)
+  - ('::1', 7691, 0, 0) on thread asyncio-portal-1388e7750 (owner=tests/contract/test_zz_dredd_prereq_profile.py::test_dredd_prereq_call_profile)
+  - ('::1', 7691, 0, 0) on thread asyncio-portal-1388e7750 (owner=tests/contract/test_zz_dredd_prereq_profile.py::test_dredd_prereq_call_profile)
+  - ('::1', 7691, 0, 0) on thread asyncio-portal-1388e7110 (owner=tests/contract/test_zz_dredd_prereq_profile.py::test_dredd_prereq_call_profile)
+  - ('::1', 7691, 0, 0) on thread asyncio-portal-1388e7110 (owner=tests/contract/test_zz_dredd_prereq_profile.py::test_dredd_prereq_call_profile)
+  - ('::1', 7691, 0, 0) on thread asyncio-portal-13f901810 (owner=tests/contract/test_zz_dredd_prereq_profile.py::test_dredd_prereq_call_profile)
+  - ('::1', 7691, 0, 0) on thread asyncio-portal-13f901810 (owner=tests/contract/test_zz_dredd_prereq_profile.py::test_dredd_prereq_call_profile)
+  - ('::1', 7691, 0, 0) on thread asyncio-portal-13f9003e0 (owner=tests/contract/test_zz_dredd_prereq_profile.py::test_dredd_prereq_call_profile)
+  - ('::1', 7691, 0, 0) on thread asyncio-portal-13f9003e0 (owner=tests/contract/test_zz_dredd_prereq_profile.py::test_dredd_prereq_call_profile)
+  - ('::1', 7691, 0, 0) on thread asyncio-portal-13c884a70 (owner=tests/contract/test_zz_dredd_prereq_profile.py::test_dredd_prereq_call_profile)
+  - ('::1', 7691, 0, 0) on thread asyncio-portal-13c884a70 (owner=tests/contract/test_zz_dredd_prereq_profile.py::test_dredd_prereq_call_profile)
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/openapi.json', 'endpoint': '/api/v1/openapi.json', 'status': 200, 'duration_ms': 1185.14, 'event': 'request.completed', 'request_id': '5246259216', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.073072Z'}
+INFO     app.main:main.py:108 Starting Canvas Learning System API v1.0.0
+INFO     app.main:main.py:109 Debug mode: True
+INFO     app.main:main.py:110 Log level: INFO
+INFO     app.main:main.py:111 CORS origins: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5173', 'http://127.0.0.1:5173', 'http://tauri.localhost', 'app://obsidian.md']
+INFO     app.main:main.py:112 API prefix: /api/v1
+INFO     app.services.resource_monitor:resource_monitor.py:122 {'thresholds': {'cpu_warning': 70.0, 'cpu_critical': 90.0, 'memory_warning': 70.0, 'memory_critical': 90.0, 'disk_warning': 80.0, 'disk_critical': 95.0}, 'disk_paths': ['/'], 'event': 'resource_monitor.initialized', 'logger': 'app.services.resource_monitor', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.206953Z'}
+INFO     app.main:main.py:118 Resource monitoring started with 5s interval
+INFO     app.services.alert_manager:alert_manager.py:560 {'count': 0, 'event': 'alert_manager.rules_loaded', 'logger': 'app.services.alert_manager', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.207607Z'}
+INFO     app.services.notification_channels:notification_channels.py:366 {'channels': ['ConsoleNotificationChannel', 'FileNotificationChannel'], 'event': 'notification_dispatcher.created', 'logger': 'app.services.notification_channels', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.207757Z'}
+INFO     app.services.alert_manager:alert_manager.py:205 {'interval': 30, 'rules_count': 0, 'event': 'alert_manager.started', 'logger': 'app.services.alert_manager', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.207842Z'}
+INFO     app.main:main.py:131 Alert manager started with 0 rules (30s interval)
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded autoscore v1 (hash=4459bdcc7188)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.208464Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded context_extract v1 (hash=c648a7641ca5)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.208679Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded crag_grading v1 (hash=94b624e7ed31)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.208859Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded query_optimize v1 (hash=d74f28f3a3a9)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.209012Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded query_rewrite v1 (hash=54abd977e7e2)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.209160Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded question_gen v1 (hash=706f5ab04957)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.209314Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded search_intent v1 (hash=3255b0c040d8)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.209457Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:150 {'event': '[PromptRegistry] Loaded 7 templates across 7 prompt names', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.209515Z'}
+INFO     app.main:main.py:144 [Story 7.3] PromptRegistry loaded 7 templates
+INFO     app.services.resource_monitor:resource_monitor.py:327 {'interval_seconds': 5.0, 'event': 'resource_monitor.background_started', 'logger': 'app.services.resource_monitor', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.209853Z'}
+INFO     app.middleware.cost_tracker:cost_tracker.py:230 [Story 7.2] CostTracker initialized: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/data/llm_call_logs.db
+INFO     app.middleware.llm_call_logger:llm_call_logger.py:306 [Story 7.2] LLM Call Logger started
+INFO     app.middleware.cost_tracker:cost_tracker.py:238 [Story 7.2] Log rotation task started (daily cycle)
+INFO     app.core.litellm_config:litellm_config.py:227 [Story 7.2] LiteLLM CustomLogger callback registered via litellm.callbacks
+INFO     app.main:main.py:155 [Story 7.2] LLM logging infrastructure initialized
+INFO     app.main:main.py:162 Pre-warming MemoryService singleton...
+INFO     app.services.memory_service:memory_service.py:2910 {'event': 'Creating MemoryService singleton instance', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.212122Z'}
+INFO     app.clients.neo4j_client:neo4j_client.py:317 Neo4jClient initialized: mode=NEO4J, uri=bolt://localhost:7691, pool_size=50
+WARNING  app.clients.neo4j_client:neo4j_client.py:532 Neo4j health check failed: live Neo4j port connect attempted: ('::1', 7691, 0, 0). 受拦端口 [7687, 7691] 是现网 Neo4j；测试进程不得连接。若这是端点测试，请用 backend/tests/support/lifespan.py::no_lifespan 关掉 app.main 的 lifespan；若确需真库，用测试容器 NEO4J_TEST_URI(7692) 并打 integration/real_neo4j marker。
+WARNING  app.clients.neo4j_client:neo4j_client.py:408 Neo4j health check failed during initialization
+WARNING  app.clients.neo4j_client:neo4j_client.py:430 Falling back to JSON storage mode
+INFO     app.clients.neo4j_client:neo4j_client.py:497 Neo4j driver closed
+INFO     app.clients.neo4j_client:neo4j_client.py:451 Loaded 0 relationships from /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/data/neo4j_memory.json
+INFO     app.services.memory_service:memory_service.py:428 {'event': 'MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.216070Z'}
+INFO     app.services.memory_service:memory_service.py:284 {'event': 'MemoryService initialized successfully', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.216180Z'}
+INFO     app.services.memory_service:memory_service.py:2915 {'event': 'MemoryService singleton initialized', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.216246Z'}
+INFO     app.main:main.py:164 MemoryService pre-warmed successfully
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: CREATE FULLTEXT INDEX episode_content IF NOT EXISTS FOR (n:EpisodicNode) ON EACH [n.content] OPTIONS
+INFO     app.services.memory_service:memory_service.py:313 {'event': "[Epic 4] Fulltext index 'episode_content' ensured on EpisodicNode.content", 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.216400Z'}
+INFO     app.main:main.py:189 [Story 38.1] No pending LanceDB index operations
+INFO     app.services.archive_scheduler:archive_scheduler.py:56 {'event': '[Story 3.8] Archive scheduler started (interval=86400s)', 'logger': 'app.services.archive_scheduler', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.224931Z'}
+INFO     app.main:main.py:201 [Story 3.8] Archive scheduler started (24h interval)
+INFO     app.services.event_bus:event_bus.py:476 {'event': 'EventBus: global singleton created', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.226865Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_score_submitted to score_submitted (subsystem=mastery_engine)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.226983Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_bkt_updated to bkt_updated (subsystem=mastery_store)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.227047Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_mastery_changed to mastery_changed (subsystem=mastery_pipeline)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.227100Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_calibration_recorded to calibration_recorded (subsystem=calibration)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.227142Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_memory_write_requested to memory_write_requested (subsystem=memory)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.227183Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_fsrs_updated to fsrs_updated (subsystem=memory)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.227233Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_rag_weight_adjust to rag_weight_adjust', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.227273Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_ui_mastery_push to ui_mastery_push', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.227326Z'}
+INFO     app.services.event_handlers:event_handlers.py:467 {'event': 'EventBus: registered 8 production handlers (SCORE_SUBMITTED, BKT_UPDATED, FSRS_UPDATED, MASTERY_CHANGED, CALIBRATION_RECORDED, MEMORY_WRITE_REQUESTED, RAG_WEIGHT_ADJUST, UI_MASTERY_PUSH)', 'logger': 'app.services.event_handlers', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.227372Z'}
+INFO     app.main:main.py:219 [Story 5.7] EventBus handlers registered
+INFO     app.services.mastery_engine:mastery_engine.py:95 {'event': 'No mastery_config.json found, using defaults', 'logger': 'app.services.mastery_engine', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.231081Z'}
+INFO     memory.temporal.fsrs_manager:fsrs_manager.py:127 Initialized FSRS scheduler with retention=0.9
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'bkt_mastery'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.231317Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'fsrs_retrievability'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.231379Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'exam_score_avg'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.231423Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'calibration_bias'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.231470Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'self_confidence_avg'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.231520Z'}
+INFO     app.services.mastery_engine:mastery_engine.py:129 {'event': 'MasteryEngine: fusion engine attached', 'logger': 'app.services.mastery_engine', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.231561Z'}
+INFO     app.services.mastery_engine:mastery_engine.py:777 {'event': 'MasteryEngine singleton set (fusion-enabled)', 'logger': 'app.services.mastery_engine', 'level': 'info', 'timestamp': '2026-09-06T02:41:14.231609Z'}
+INFO     app.main:main.py:255 [Story 5.6] Signal registry initialized with 5 adapters, fusion engine attached
+WARNING  app.main:main.py:291 [Phase 2] GraphitiEpisodeWorker init failed (non-fatal): live Neo4j port connect attempted: ('::1', 7691, 0, 0). 受拦端口 [7687, 7691] 是现网 Neo4j；测试进程不得连接。若这是端点测试，请用 backend/tests/support/lifespan.py::no_lifespan 关掉 app.main 的 lifespan；若确需真库，用测试容器 NEO4J_TEST_URI(7692) 并打 integration/real_neo4j marker。
+WARNING  app.services.wikilink_graph_service:wikilink_graph_service.py:525 {'vault_key': 'general', 'hint': 'vault path could not be resolved from VAULTS_ROOT or settings.canvas_base_path — first request will return degraded=True; check VAULTS_ROOT config or sanitize_vault_id match', 'event': 'wikilink.lazy_build_skipped_unresolvable_vault_path', 'logger': 'app.services.wikilink_graph_service', 'level': 'warning', 'timestamp': '2026-09-06T02:41:14.252482Z'}
+INFO     app.services.wikilink_graph_service:wikilink_graph_service.py:90 {'vault_path': '/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault', 'total_nodes': 261, 'total_edges': 1795, 'graph_build_time_ms': 17593.5, 'event': 'wikilink.graph_built', 'logger': 'app.services.wikilink_graph_service', 'level': 'info', 'timestamp': '2026-09-06T02:41:31.846341Z'}
+INFO     app.main:main.py:304 [Story 2.1] Wikilink graph eager-built: 261 nodes, 1795 edges, 17593.5ms
+INFO     app.main:main.py:335 [Story 2.2 Phase A] LanceDB singleton background init dispatched
+WARNING  app.services.schema_gate:schema_gate.py:92 {'error': "live Neo4j port connect attempted: ('::1', 7691, 0, 0). 受拦端口 [7687, 7691] 是现网 Neo4j；测试进程不得连接。若这是端点测试，请用 backend/tests/support/lifespan.py::no_lifespan 关掉 app.main 的 lifespan；若确需真库，用测试容器 NEO4J_TEST_URI", 'event': 'canvas_schema_gate_verify_failed', 'logger': 'app.services.schema_gate', 'level': 'warning', 'timestamp': '2026-09-06T02:41:32.162748Z'}
+INFO     sentence_transformers.SentenceTransformer:SentenceTransformer.py:227 Load pretrained SentenceTransformer: BAAI/bge-m3
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+                    MATCH ()-[e:CANVAS_EDGE]-()
+                    WHERE e.group_id = $group_id AN
+INFO     app.services.canvas_projection_sync:canvas_projection_sync.py:178 [Fix-E1] 原因边同步(execute): 8 节点有 relationships, 8 边写入, 0 失败, 0 幽灵边失效, 151 文件被准入拒绝
+INFO     app.main:main.py:368 [Fix-E1] 节点原因边同步: 8 nodes, 8 edges, 0 failed
+INFO     app.main:main.py:404 [Graphiti-native] 启动回填跳过 (graphiti 未就绪)
+INFO     app.services.vault_index_orchestrator:vault_index_orchestrator.py:848 [RAG-S1] orchestrator started: vault=/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault scan_interval=60s stale_after=300s
+INFO     sentence_transformers.SentenceTransformer:SentenceTransformer.py:227 Load pretrained SentenceTransformer: BAAI/bge-m3
+INFO     app.services.session_manager:session_manager.py:154 {'event': 'session_manager_initialized', 'request_id': '5300289040', 'logger': 'app.services.session_manager', 'level': 'info', 'timestamp': '2026-09-06T02:41:32.316099Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/health', 'endpoint': '/api/v1/health', 'status': 200, 'duration_ms': 3.93, 'event': 'request.completed', 'request_id': '5300289040', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-06T02:41:32.317301Z'}
+INFO     app.main:main.py:448 Shutting down Canvas Learning System API...
+INFO     app.services.alert_manager:alert_manager.py:223 {'event': 'alert_manager.stopped', 'logger': 'app.services.alert_manager', 'level': 'info', 'timestamp': '2026-09-06T02:41:32.319430Z'}
+INFO     app.main:main.py:452 Alert manager stopped
+INFO     app.services.resource_monitor:resource_monitor.py:358 {'event': 'resource_monitor.stopped', 'logger': 'app.services.resource_monitor', 'level': 'info', 'timestamp': '2026-09-06T02:41:32.320014Z'}
+INFO     app.main:main.py:456 Resource monitoring stopped
+INFO     app.main:main.py:465 LanceDB index service cleaned up
+INFO     app.services.vault_index_orchestrator:vault_index_orchestrator.py:867 [RAG-S1] orchestrator shut down (pending flushed)
+INFO     app.middleware.llm_call_logger:llm_call_logger.py:319 [Story 7.2] LLM Call Logger stopped
+INFO     app.middleware.cost_tracker:cost_tracker.py:249 [Story 7.2] CostTracker stopped
+INFO     app.main:main.py:482 [Story 7.2] LLM logging infrastructure cleaned up
+INFO     app.services.archive_scheduler:archive_scheduler.py:74 {'event': '[Story 3.8] Archive scheduler stopped', 'logger': 'app.services.archive_scheduler', 'level': 'info', 'timestamp': '2026-09-06T02:41:32.324044Z'}
+INFO     app.main:main.py:490 [Story 3.8] Archive scheduler stopped
+INFO     app.main:main.py:499 [Phase 2] GraphitiEpisodeWorker stopped
+INFO     app.services.memory_service:memory_service.py:2934 {'event': 'Neo4j driver cleaned up during shutdown', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-06T02:41:32.324355Z'}
+INFO     app.services.memory_service:memory_service.py:2938 {'event': 'MemoryService singleton cleaned up', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-06T02:41:32.324422Z'}
+INFO     app.main:main.py:513 MemoryService cleaned up
+INFO     app.main:main.py:108 Starting Canvas Learning System API v1.0.0
+INFO     app.main:main.py:109 Debug mode: True
+INFO     app.main:main.py:110 Log level: INFO
+INFO     app.main:main.py:111 CORS origins: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5173', 'http://127.0.0.1:5173', 'http://tauri.localhost', 'app://obsidian.md']
+INFO     app.main:main.py:112 API prefix: /api/v1
+INFO     app.main:main.py:118 Resource monitoring started with 5s interval
+INFO     app.services.alert_manager:alert_manager.py:560 {'count': 0, 'event': 'alert_manager.rules_loaded', 'logger': 'app.services.alert_manager', 'level': 'info', 'timestamp': '2026-09-06T02:41:45.843791Z'}
+INFO     app.services.notification_channels:notification_channels.py:366 {'channels': ['ConsoleNotificationChannel', 'FileNotificationChannel'], 'event': 'notification_dispatcher.created', 'logger': 'app.services.notification_channels', 'level': 'info', 'timestamp': '2026-09-06T02:41:45.843907Z'}
+INFO     app.services.alert_manager:alert_manager.py:205 {'interval': 30, 'rules_count': 0, 'event': 'alert_manager.started', 'logger': 'app.services.alert_manager', 'level': 'info', 'timestamp': '2026-09-06T02:41:45.843972Z'}
+INFO     app.main:main.py:131 Alert manager started with 0 rules (30s interval)
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded autoscore v1 (hash=4459bdcc7188)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:41:45.844635Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded context_extract v1 (hash=c648a7641ca5)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:41:45.845062Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded crag_grading v1 (hash=94b624e7ed31)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:41:45.845282Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded query_optimize v1 (hash=d74f28f3a3a9)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:41:45.845675Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded query_rewrite v1 (hash=54abd977e7e2)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:41:45.845885Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded question_gen v1 (hash=706f5ab04957)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:41:45.846036Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded search_intent v1 (hash=3255b0c040d8)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:41:45.846154Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:150 {'event': '[PromptRegistry] Loaded 7 templates across 7 prompt names', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:41:45.846201Z'}
+INFO     app.main:main.py:144 [Story 7.3] PromptRegistry loaded 7 templates
+INFO     app.services.resource_monitor:resource_monitor.py:327 {'interval_seconds': 5.0, 'event': 'resource_monitor.background_started', 'logger': 'app.services.resource_monitor', 'level': 'info', 'timestamp': '2026-09-06T02:41:45.846564Z'}
+INFO     app.middleware.cost_tracker:cost_tracker.py:230 [Story 7.2] CostTracker initialized: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/data/llm_call_logs.db
+INFO     app.middleware.llm_call_logger:llm_call_logger.py:306 [Story 7.2] LLM Call Logger started
+INFO     app.middleware.cost_tracker:cost_tracker.py:238 [Story 7.2] Log rotation task started (daily cycle)
+INFO     app.core.litellm_config:litellm_config.py:227 [Story 7.2] LiteLLM CustomLogger callback registered via litellm.callbacks
+INFO     app.main:main.py:155 [Story 7.2] LLM logging infrastructure initialized
+INFO     app.main:main.py:162 Pre-warming MemoryService singleton...
+INFO     app.services.memory_service:memory_service.py:2910 {'event': 'Creating MemoryService singleton instance', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-06T02:41:45.847907Z'}
+INFO     app.clients.neo4j_client:neo4j_client.py:451 Loaded 0 relationships from /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/data/neo4j_memory.json
+INFO     app.services.memory_service:memory_service.py:428 {'event': 'MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-06T02:41:45.848987Z'}
+INFO     app.services.memory_service:memory_service.py:284 {'event': 'MemoryService initialized successfully', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-06T02:41:45.849052Z'}
+INFO     app.services.memory_service:memory_service.py:2915 {'event': 'MemoryService singleton initialized', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-06T02:41:45.849092Z'}
+INFO     app.main:main.py:164 MemoryService pre-warmed successfully
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: CREATE FULLTEXT INDEX episode_content IF NOT EXISTS FOR (n:EpisodicNode) ON EACH [n.content] OPTIONS
+INFO     app.services.memory_service:memory_service.py:313 {'event': "[Epic 4] Fulltext index 'episode_content' ensured on EpisodicNode.content", 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-06T02:41:45.849229Z'}
+INFO     app.main:main.py:189 [Story 38.1] No pending LanceDB index operations
+INFO     app.services.archive_scheduler:archive_scheduler.py:56 {'event': '[Story 3.8] Archive scheduler started (interval=86400s)', 'logger': 'app.services.archive_scheduler', 'level': 'info', 'timestamp': '2026-09-06T02:41:45.849424Z'}
+INFO     app.main:main.py:201 [Story 3.8] Archive scheduler started (24h interval)
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_score_submitted to score_submitted (subsystem=mastery_engine)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:41:45.849519Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_bkt_updated to bkt_updated (subsystem=mastery_store)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:41:45.849558Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_mastery_changed to mastery_changed (subsystem=mastery_pipeline)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:41:45.849594Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_calibration_recorded to calibration_recorded (subsystem=calibration)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:41:45.849631Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_memory_write_requested to memory_write_requested (subsystem=memory)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:41:45.849664Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_fsrs_updated to fsrs_updated (subsystem=memory)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:41:45.849695Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_rag_weight_adjust to rag_weight_adjust', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:41:45.849728Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_ui_mastery_push to ui_mastery_push', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:41:45.849757Z'}
+INFO     app.services.event_handlers:event_handlers.py:467 {'event': 'EventBus: registered 8 production handlers (SCORE_SUBMITTED, BKT_UPDATED, FSRS_UPDATED, MASTERY_CHANGED, CALIBRATION_RECORDED, MEMORY_WRITE_REQUESTED, RAG_WEIGHT_ADJUST, UI_MASTERY_PUSH)', 'logger': 'app.services.event_handlers', 'level': 'info', 'timestamp': '2026-09-06T02:41:45.849789Z'}
+INFO     app.main:main.py:219 [Story 5.7] EventBus handlers registered
+INFO     app.services.mastery_engine:mastery_engine.py:95 {'event': 'No mastery_config.json found, using defaults', 'logger': 'app.services.mastery_engine', 'level': 'info', 'timestamp': '2026-09-06T02:41:45.849936Z'}
+INFO     memory.temporal.fsrs_manager:fsrs_manager.py:127 Initialized FSRS scheduler with retention=0.9
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'bkt_mastery'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-06T02:41:45.850075Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'fsrs_retrievability'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-06T02:41:45.850111Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'exam_score_avg'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-06T02:41:45.850148Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'calibration_bias'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-06T02:41:45.850184Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'self_confidence_avg'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-06T02:41:45.850212Z'}
+INFO     app.services.mastery_engine:mastery_engine.py:129 {'event': 'MasteryEngine: fusion engine attached', 'logger': 'app.services.mastery_engine', 'level': 'info', 'timestamp': '2026-09-06T02:41:45.850247Z'}
+INFO     app.services.mastery_engine:mastery_engine.py:777 {'event': 'MasteryEngine singleton set (fusion-enabled)', 'logger': 'app.services.mastery_engine', 'level': 'info', 'timestamp': '2026-09-06T02:41:45.850288Z'}
+INFO     app.main:main.py:255 [Story 5.6] Signal registry initialized with 5 adapters, fusion engine attached
+WARNING  app.main:main.py:291 [Phase 2] GraphitiEpisodeWorker init failed (non-fatal): live Neo4j port connect attempted: ('::1', 7691, 0, 0). 受拦端口 [7687, 7691] 是现网 Neo4j；测试进程不得连接。若这是端点测试，请用 backend/tests/support/lifespan.py::no_lifespan 关掉 app.main 的 lifespan；若确需真库，用测试容器 NEO4J_TEST_URI(7692) 并打 integration/real_neo4j marker。
+INFO     app.services.wikilink_graph_service:wikilink_graph_service.py:90 {'vault_path': '/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault', 'total_nodes': 261, 'total_edges': 1795, 'graph_build_time_ms': 20319.4, 'event': 'wikilink.graph_built', 'logger': 'app.services.wikilink_graph_service', 'level': 'info', 'timestamp': '2026-09-06T02:42:06.186126Z'}
+INFO     app.main:main.py:304 [Story 2.1] Wikilink graph eager-built: 261 nodes, 1795 edges, 20319.4ms
+INFO     app.main:main.py:335 [Story 2.2 Phase A] LanceDB singleton background init dispatched
+WARNING  app.services.schema_gate:schema_gate.py:92 {'error': "live Neo4j port connect attempted: ('::1', 7691, 0, 0). 受拦端口 [7687, 7691] 是现网 Neo4j；测试进程不得连接。若这是端点测试，请用 backend/tests/support/lifespan.py::no_lifespan 关掉 app.main 的 lifespan；若确需真库，用测试容器 NEO4J_TEST_URI", 'event': 'canvas_schema_gate_verify_failed', 'logger': 'app.services.schema_gate', 'level': 'warning', 'timestamp': '2026-09-06T02:42:06.189985Z'}
+INFO     sentence_transformers.SentenceTransformer:SentenceTransformer.py:227 Load pretrained SentenceTransformer: BAAI/bge-m3
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+                    MATCH ()-[e:CANVAS_EDGE]-()
+                    WHERE e.group_id = $group_id AN
+INFO     app.services.canvas_projection_sync:canvas_projection_sync.py:178 [Fix-E1] 原因边同步(execute): 8 节点有 relationships, 8 边写入, 0 失败, 0 幽灵边失效, 151 文件被准入拒绝
+INFO     app.main:main.py:368 [Fix-E1] 节点原因边同步: 8 nodes, 8 edges, 0 failed
+INFO     app.main:main.py:404 [Graphiti-native] 启动回填跳过 (graphiti 未就绪)
+INFO     app.services.vault_index_orchestrator:vault_index_orchestrator.py:848 [RAG-S1] orchestrator started: vault=/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault scan_interval=60s stale_after=300s
+INFO     sentence_transformers.SentenceTransformer:SentenceTransformer.py:227 Load pretrained SentenceTransformer: BAAI/bge-m3
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/health', 'endpoint': '/api/v1/health', 'status': 200, 'duration_ms': 6.91, 'event': 'request.completed', 'request_id': '5398677984', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-06T02:42:06.308979Z'}
+INFO     app.main:main.py:448 Shutting down Canvas Learning System API...
+INFO     app.services.alert_manager:alert_manager.py:223 {'event': 'alert_manager.stopped', 'logger': 'app.services.alert_manager', 'level': 'info', 'timestamp': '2026-09-06T02:42:06.312614Z'}
+INFO     app.main:main.py:452 Alert manager stopped
+INFO     app.services.resource_monitor:resource_monitor.py:358 {'event': 'resource_monitor.stopped', 'logger': 'app.services.resource_monitor', 'level': 'info', 'timestamp': '2026-09-06T02:42:06.312948Z'}
+INFO     app.main:main.py:456 Resource monitoring stopped
+INFO     app.main:main.py:465 LanceDB index service cleaned up
+INFO     app.services.vault_index_orchestrator:vault_index_orchestrator.py:867 [RAG-S1] orchestrator shut down (pending flushed)
+INFO     app.middleware.llm_call_logger:llm_call_logger.py:319 [Story 7.2] LLM Call Logger stopped
+INFO     app.middleware.cost_tracker:cost_tracker.py:249 [Story 7.2] CostTracker stopped
+INFO     app.main:main.py:482 [Story 7.2] LLM logging infrastructure cleaned up
+INFO     app.services.archive_scheduler:archive_scheduler.py:74 {'event': '[Story 3.8] Archive scheduler stopped', 'logger': 'app.services.archive_scheduler', 'level': 'info', 'timestamp': '2026-09-06T02:42:06.316352Z'}
+INFO     app.main:main.py:490 [Story 3.8] Archive scheduler stopped
+INFO     app.main:main.py:499 [Phase 2] GraphitiEpisodeWorker stopped
+INFO     app.services.memory_service:memory_service.py:2934 {'event': 'Neo4j driver cleaned up during shutdown', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-06T02:42:06.316838Z'}
+INFO     app.services.memory_service:memory_service.py:2938 {'event': 'MemoryService singleton cleaned up', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-06T02:42:06.316913Z'}
+INFO     app.main:main.py:513 MemoryService cleaned up
+INFO     app.main:main.py:108 Starting Canvas Learning System API v1.0.0
+INFO     app.main:main.py:109 Debug mode: True
+INFO     app.main:main.py:110 Log level: INFO
+INFO     app.main:main.py:111 CORS origins: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5173', 'http://127.0.0.1:5173', 'http://tauri.localhost', 'app://obsidian.md']
+INFO     app.main:main.py:112 API prefix: /api/v1
+INFO     app.main:main.py:118 Resource monitoring started with 5s interval
+INFO     app.services.alert_manager:alert_manager.py:560 {'count': 0, 'event': 'alert_manager.rules_loaded', 'logger': 'app.services.alert_manager', 'level': 'info', 'timestamp': '2026-09-06T02:42:18.830448Z'}
+INFO     app.services.notification_channels:notification_channels.py:366 {'channels': ['ConsoleNotificationChannel', 'FileNotificationChannel'], 'event': 'notification_dispatcher.created', 'logger': 'app.services.notification_channels', 'level': 'info', 'timestamp': '2026-09-06T02:42:18.830608Z'}
+INFO     app.services.alert_manager:alert_manager.py:205 {'interval': 30, 'rules_count': 0, 'event': 'alert_manager.started', 'logger': 'app.services.alert_manager', 'level': 'info', 'timestamp': '2026-09-06T02:42:18.830693Z'}
+INFO     app.main:main.py:131 Alert manager started with 0 rules (30s interval)
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded autoscore v1 (hash=4459bdcc7188)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:42:18.831473Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded context_extract v1 (hash=c648a7641ca5)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:42:18.831947Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded crag_grading v1 (hash=94b624e7ed31)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:42:18.832246Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded query_optimize v1 (hash=d74f28f3a3a9)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:42:18.832447Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded query_rewrite v1 (hash=54abd977e7e2)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:42:18.832628Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded question_gen v1 (hash=706f5ab04957)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:42:18.832811Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded search_intent v1 (hash=3255b0c040d8)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:42:18.832972Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:150 {'event': '[PromptRegistry] Loaded 7 templates across 7 prompt names', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:42:18.833046Z'}
+INFO     app.main:main.py:144 [Story 7.3] PromptRegistry loaded 7 templates
+INFO     app.services.resource_monitor:resource_monitor.py:327 {'interval_seconds': 5.0, 'event': 'resource_monitor.background_started', 'logger': 'app.services.resource_monitor', 'level': 'info', 'timestamp': '2026-09-06T02:42:18.833579Z'}
+INFO     app.middleware.cost_tracker:cost_tracker.py:230 [Story 7.2] CostTracker initialized: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/data/llm_call_logs.db
+INFO     app.middleware.llm_call_logger:llm_call_logger.py:306 [Story 7.2] LLM Call Logger started
+INFO     app.middleware.cost_tracker:cost_tracker.py:238 [Story 7.2] Log rotation task started (daily cycle)
+INFO     app.core.litellm_config:litellm_config.py:227 [Story 7.2] LiteLLM CustomLogger callback registered via litellm.callbacks
+INFO     app.main:main.py:155 [Story 7.2] LLM logging infrastructure initialized
+INFO     app.main:main.py:162 Pre-warming MemoryService singleton...
+INFO     app.services.memory_service:memory_service.py:2910 {'event': 'Creating MemoryService singleton instance', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-06T02:42:18.835339Z'}
+INFO     app.clients.neo4j_client:neo4j_client.py:451 Loaded 0 relationships from /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/data/neo4j_memory.json
+INFO     app.services.memory_service:memory_service.py:428 {'event': 'MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-06T02:42:18.836908Z'}
+INFO     app.services.memory_service:memory_service.py:284 {'event': 'MemoryService initialized successfully', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-06T02:42:18.837060Z'}
+INFO     app.services.memory_service:memory_service.py:2915 {'event': 'MemoryService singleton initialized', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-06T02:42:18.837130Z'}
+INFO     app.main:main.py:164 MemoryService pre-warmed successfully
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: CREATE FULLTEXT INDEX episode_content IF NOT EXISTS FOR (n:EpisodicNode) ON EACH [n.content] OPTIONS
+INFO     app.services.memory_service:memory_service.py:313 {'event': "[Epic 4] Fulltext index 'episode_content' ensured on EpisodicNode.content", 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-06T02:42:18.837303Z'}
+INFO     app.main:main.py:189 [Story 38.1] No pending LanceDB index operations
+INFO     app.services.archive_scheduler:archive_scheduler.py:56 {'event': '[Story 3.8] Archive scheduler started (interval=86400s)', 'logger': 'app.services.archive_scheduler', 'level': 'info', 'timestamp': '2026-09-06T02:42:18.837847Z'}
+INFO     app.main:main.py:201 [Story 3.8] Archive scheduler started (24h interval)
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_score_submitted to score_submitted (subsystem=mastery_engine)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:42:18.838154Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_bkt_updated to bkt_updated (subsystem=mastery_store)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:42:18.838310Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_mastery_changed to mastery_changed (subsystem=mastery_pipeline)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:42:18.838388Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_calibration_recorded to calibration_recorded (subsystem=calibration)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:42:18.838549Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_memory_write_requested to memory_write_requested (subsystem=memory)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:42:18.838671Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_fsrs_updated to fsrs_updated (subsystem=memory)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:42:18.838748Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_rag_weight_adjust to rag_weight_adjust', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:42:18.838808Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_ui_mastery_push to ui_mastery_push', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:42:18.838861Z'}
+INFO     app.services.event_handlers:event_handlers.py:467 {'event': 'EventBus: registered 8 production handlers (SCORE_SUBMITTED, BKT_UPDATED, FSRS_UPDATED, MASTERY_CHANGED, CALIBRATION_RECORDED, MEMORY_WRITE_REQUESTED, RAG_WEIGHT_ADJUST, UI_MASTERY_PUSH)', 'logger': 'app.services.event_handlers', 'level': 'info', 'timestamp': '2026-09-06T02:42:18.838937Z'}
+INFO     app.main:main.py:219 [Story 5.7] EventBus handlers registered
+INFO     app.services.mastery_engine:mastery_engine.py:95 {'event': 'No mastery_config.json found, using defaults', 'logger': 'app.services.mastery_engine', 'level': 'info', 'timestamp': '2026-09-06T02:42:18.839159Z'}
+INFO     memory.temporal.fsrs_manager:fsrs_manager.py:127 Initialized FSRS scheduler with retention=0.9
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'bkt_mastery'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-06T02:42:18.839298Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'fsrs_retrievability'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-06T02:42:18.839359Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'exam_score_avg'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-06T02:42:18.839641Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'calibration_bias'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-06T02:42:18.839725Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'self_confidence_avg'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-06T02:42:18.839784Z'}
+INFO     app.services.mastery_engine:mastery_engine.py:129 {'event': 'MasteryEngine: fusion engine attached', 'logger': 'app.services.mastery_engine', 'level': 'info', 'timestamp': '2026-09-06T02:42:18.839837Z'}
+INFO     app.services.mastery_engine:mastery_engine.py:777 {'event': 'MasteryEngine singleton set (fusion-enabled)', 'logger': 'app.services.mastery_engine', 'level': 'info', 'timestamp': '2026-09-06T02:42:18.839889Z'}
+INFO     app.main:main.py:255 [Story 5.6] Signal registry initialized with 5 adapters, fusion engine attached
+WARNING  app.main:main.py:291 [Phase 2] GraphitiEpisodeWorker init failed (non-fatal): live Neo4j port connect attempted: ('::1', 7691, 0, 0). 受拦端口 [7687, 7691] 是现网 Neo4j；测试进程不得连接。若这是端点测试，请用 backend/tests/support/lifespan.py::no_lifespan 关掉 app.main 的 lifespan；若确需真库，用测试容器 NEO4J_TEST_URI(7692) 并打 integration/real_neo4j marker。
+INFO     app.services.wikilink_graph_service:wikilink_graph_service.py:90 {'vault_path': '/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault', 'total_nodes': 261, 'total_edges': 1795, 'graph_build_time_ms': 18980.4, 'event': 'wikilink.graph_built', 'logger': 'app.services.wikilink_graph_service', 'level': 'info', 'timestamp': '2026-09-06T02:42:37.847023Z'}
+INFO     app.main:main.py:304 [Story 2.1] Wikilink graph eager-built: 261 nodes, 1795 edges, 18980.4ms
+INFO     app.main:main.py:335 [Story 2.2 Phase A] LanceDB singleton background init dispatched
+WARNING  app.services.schema_gate:schema_gate.py:92 {'error': "live Neo4j port connect attempted: ('::1', 7691, 0, 0). 受拦端口 [7687, 7691] 是现网 Neo4j；测试进程不得连接。若这是端点测试，请用 backend/tests/support/lifespan.py::no_lifespan 关掉 app.main 的 lifespan；若确需真库，用测试容器 NEO4J_TEST_URI", 'event': 'canvas_schema_gate_verify_failed', 'logger': 'app.services.schema_gate', 'level': 'warning', 'timestamp': '2026-09-06T02:42:37.849013Z'}
+INFO     sentence_transformers.SentenceTransformer:SentenceTransformer.py:227 Load pretrained SentenceTransformer: BAAI/bge-m3
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+                    MATCH ()-[e:CANVAS_EDGE]-()
+                    WHERE e.group_id = $group_id AN
+INFO     app.services.canvas_projection_sync:canvas_projection_sync.py:178 [Fix-E1] 原因边同步(execute): 8 节点有 relationships, 8 边写入, 0 失败, 0 幽灵边失效, 151 文件被准入拒绝
+INFO     app.main:main.py:368 [Fix-E1] 节点原因边同步: 8 nodes, 8 edges, 0 failed
+INFO     app.main:main.py:404 [Graphiti-native] 启动回填跳过 (graphiti 未就绪)
+INFO     app.services.vault_index_orchestrator:vault_index_orchestrator.py:848 [RAG-S1] orchestrator started: vault=/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault scan_interval=60s stale_after=300s
+INFO     sentence_transformers.SentenceTransformer:SentenceTransformer.py:227 Load pretrained SentenceTransformer: BAAI/bge-m3
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/health', 'endpoint': '/api/v1/health', 'status': 200, 'duration_ms': 4.4, 'event': 'request.completed', 'request_id': '5244709456', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-06T02:42:37.917602Z'}
+INFO     app.main:main.py:448 Shutting down Canvas Learning System API...
+INFO     app.services.alert_manager:alert_manager.py:223 {'event': 'alert_manager.stopped', 'logger': 'app.services.alert_manager', 'level': 'info', 'timestamp': '2026-09-06T02:42:37.919772Z'}
+INFO     app.main:main.py:452 Alert manager stopped
+INFO     app.services.resource_monitor:resource_monitor.py:358 {'event': 'resource_monitor.stopped', 'logger': 'app.services.resource_monitor', 'level': 'info', 'timestamp': '2026-09-06T02:42:37.920297Z'}
+INFO     app.main:main.py:456 Resource monitoring stopped
+INFO     app.main:main.py:465 LanceDB index service cleaned up
+INFO     app.services.vault_index_orchestrator:vault_index_orchestrator.py:867 [RAG-S1] orchestrator shut down (pending flushed)
+INFO     app.middleware.llm_call_logger:llm_call_logger.py:319 [Story 7.2] LLM Call Logger stopped
+INFO     app.middleware.cost_tracker:cost_tracker.py:249 [Story 7.2] CostTracker stopped
+INFO     app.main:main.py:482 [Story 7.2] LLM logging infrastructure cleaned up
+INFO     app.services.archive_scheduler:archive_scheduler.py:74 {'event': '[Story 3.8] Archive scheduler stopped', 'logger': 'app.services.archive_scheduler', 'level': 'info', 'timestamp': '2026-09-06T02:42:37.922357Z'}
+INFO     app.main:main.py:490 [Story 3.8] Archive scheduler stopped
+INFO     app.main:main.py:499 [Phase 2] GraphitiEpisodeWorker stopped
+INFO     app.services.memory_service:memory_service.py:2934 {'event': 'Neo4j driver cleaned up during shutdown', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-06T02:42:37.922538Z'}
+INFO     app.services.memory_service:memory_service.py:2938 {'event': 'MemoryService singleton cleaned up', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-06T02:42:37.922587Z'}
+INFO     app.main:main.py:513 MemoryService cleaned up
+INFO     app.main:main.py:108 Starting Canvas Learning System API v1.0.0
+INFO     app.main:main.py:109 Debug mode: True
+INFO     app.main:main.py:110 Log level: INFO
+INFO     app.main:main.py:111 CORS origins: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5173', 'http://127.0.0.1:5173', 'http://tauri.localhost', 'app://obsidian.md']
+INFO     app.main:main.py:112 API prefix: /api/v1
+INFO     app.main:main.py:118 Resource monitoring started with 5s interval
+INFO     app.services.alert_manager:alert_manager.py:560 {'count': 0, 'event': 'alert_manager.rules_loaded', 'logger': 'app.services.alert_manager', 'level': 'info', 'timestamp': '2026-09-06T02:42:49.070680Z'}
+INFO     app.services.notification_channels:notification_channels.py:366 {'channels': ['ConsoleNotificationChannel', 'FileNotificationChannel'], 'event': 'notification_dispatcher.created', 'logger': 'app.services.notification_channels', 'level': 'info', 'timestamp': '2026-09-06T02:42:49.070782Z'}
+INFO     app.services.alert_manager:alert_manager.py:205 {'interval': 30, 'rules_count': 0, 'event': 'alert_manager.started', 'logger': 'app.services.alert_manager', 'level': 'info', 'timestamp': '2026-09-06T02:42:49.070841Z'}
+INFO     app.main:main.py:131 Alert manager started with 0 rules (30s interval)
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded autoscore v1 (hash=4459bdcc7188)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:42:49.071170Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded context_extract v1 (hash=c648a7641ca5)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:42:49.071315Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded crag_grading v1 (hash=94b624e7ed31)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:42:49.071433Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded query_optimize v1 (hash=d74f28f3a3a9)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:42:49.071562Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded query_rewrite v1 (hash=54abd977e7e2)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:42:49.071673Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded question_gen v1 (hash=706f5ab04957)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:42:49.071883Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded search_intent v1 (hash=3255b0c040d8)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:42:49.072172Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:150 {'event': '[PromptRegistry] Loaded 7 templates across 7 prompt names', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:42:49.072239Z'}
+INFO     app.main:main.py:144 [Story 7.3] PromptRegistry loaded 7 templates
+INFO     app.services.resource_monitor:resource_monitor.py:327 {'interval_seconds': 5.0, 'event': 'resource_monitor.background_started', 'logger': 'app.services.resource_monitor', 'level': 'info', 'timestamp': '2026-09-06T02:42:49.072532Z'}
+INFO     app.middleware.cost_tracker:cost_tracker.py:230 [Story 7.2] CostTracker initialized: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/data/llm_call_logs.db
+INFO     app.middleware.llm_call_logger:llm_call_logger.py:306 [Story 7.2] LLM Call Logger started
+INFO     app.middleware.cost_tracker:cost_tracker.py:238 [Story 7.2] Log rotation task started (daily cycle)
+INFO     app.core.litellm_config:litellm_config.py:227 [Story 7.2] LiteLLM CustomLogger callback registered via litellm.callbacks
+INFO     app.main:main.py:155 [Story 7.2] LLM logging infrastructure initialized
+INFO     app.main:main.py:162 Pre-warming MemoryService singleton...
+INFO     app.services.memory_service:memory_service.py:2910 {'event': 'Creating MemoryService singleton instance', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-06T02:42:49.073897Z'}
+INFO     app.clients.neo4j_client:neo4j_client.py:451 Loaded 0 relationships from /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/data/neo4j_memory.json
+INFO     app.services.memory_service:memory_service.py:428 {'event': 'MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-06T02:42:49.074855Z'}
+INFO     app.services.memory_service:memory_service.py:284 {'event': 'MemoryService initialized successfully', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-06T02:42:49.074921Z'}
+INFO     app.services.memory_service:memory_service.py:2915 {'event': 'MemoryService singleton initialized', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-06T02:42:49.074963Z'}
+INFO     app.main:main.py:164 MemoryService pre-warmed successfully
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: CREATE FULLTEXT INDEX episode_content IF NOT EXISTS FOR (n:EpisodicNode) ON EACH [n.content] OPTIONS
+INFO     app.services.memory_service:memory_service.py:313 {'event': "[Epic 4] Fulltext index 'episode_content' ensured on EpisodicNode.content", 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-06T02:42:49.075071Z'}
+INFO     app.main:main.py:189 [Story 38.1] No pending LanceDB index operations
+INFO     app.services.archive_scheduler:archive_scheduler.py:56 {'event': '[Story 3.8] Archive scheduler started (interval=86400s)', 'logger': 'app.services.archive_scheduler', 'level': 'info', 'timestamp': '2026-09-06T02:42:49.075274Z'}
+INFO     app.main:main.py:201 [Story 3.8] Archive scheduler started (24h interval)
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_score_submitted to score_submitted (subsystem=mastery_engine)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:42:49.075371Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_bkt_updated to bkt_updated (subsystem=mastery_store)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:42:49.075413Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_mastery_changed to mastery_changed (subsystem=mastery_pipeline)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:42:49.075447Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_calibration_recorded to calibration_recorded (subsystem=calibration)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:42:49.075480Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_memory_write_requested to memory_write_requested (subsystem=memory)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:42:49.075513Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_fsrs_updated to fsrs_updated (subsystem=memory)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:42:49.075545Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_rag_weight_adjust to rag_weight_adjust', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:42:49.075576Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_ui_mastery_push to ui_mastery_push', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:42:49.075611Z'}
+INFO     app.services.event_handlers:event_handlers.py:467 {'event': 'EventBus: registered 8 production handlers (SCORE_SUBMITTED, BKT_UPDATED, FSRS_UPDATED, MASTERY_CHANGED, CALIBRATION_RECORDED, MEMORY_WRITE_REQUESTED, RAG_WEIGHT_ADJUST, UI_MASTERY_PUSH)', 'logger': 'app.services.event_handlers', 'level': 'info', 'timestamp': '2026-09-06T02:42:49.075644Z'}
+INFO     app.main:main.py:219 [Story 5.7] EventBus handlers registered
+INFO     app.services.mastery_engine:mastery_engine.py:95 {'event': 'No mastery_config.json found, using defaults', 'logger': 'app.services.mastery_engine', 'level': 'info', 'timestamp': '2026-09-06T02:42:49.075761Z'}
+INFO     memory.temporal.fsrs_manager:fsrs_manager.py:127 Initialized FSRS scheduler with retention=0.9
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'bkt_mastery'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-06T02:42:49.075849Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'fsrs_retrievability'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-06T02:42:49.075885Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'exam_score_avg'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-06T02:42:49.075919Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'calibration_bias'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-06T02:42:49.075951Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'self_confidence_avg'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-06T02:42:49.075983Z'}
+INFO     app.services.mastery_engine:mastery_engine.py:129 {'event': 'MasteryEngine: fusion engine attached', 'logger': 'app.services.mastery_engine', 'level': 'info', 'timestamp': '2026-09-06T02:42:49.076014Z'}
+INFO     app.services.mastery_engine:mastery_engine.py:777 {'event': 'MasteryEngine singleton set (fusion-enabled)', 'logger': 'app.services.mastery_engine', 'level': 'info', 'timestamp': '2026-09-06T02:42:49.076047Z'}
+INFO     app.main:main.py:255 [Story 5.6] Signal registry initialized with 5 adapters, fusion engine attached
+WARNING  app.main:main.py:291 [Phase 2] GraphitiEpisodeWorker init failed (non-fatal): live Neo4j port connect attempted: ('::1', 7691, 0, 0). 受拦端口 [7687, 7691] 是现网 Neo4j；测试进程不得连接。若这是端点测试，请用 backend/tests/support/lifespan.py::no_lifespan 关掉 app.main 的 lifespan；若确需真库，用测试容器 NEO4J_TEST_URI(7692) 并打 integration/real_neo4j marker。
+INFO     app.services.wikilink_graph_service:wikilink_graph_service.py:90 {'vault_path': '/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault', 'total_nodes': 261, 'total_edges': 1795, 'graph_build_time_ms': 18713.2, 'event': 'wikilink.graph_built', 'logger': 'app.services.wikilink_graph_service', 'level': 'info', 'timestamp': '2026-09-06T02:43:07.805914Z'}
+INFO     app.main:main.py:304 [Story 2.1] Wikilink graph eager-built: 261 nodes, 1795 edges, 18713.2ms
+INFO     app.main:main.py:335 [Story 2.2 Phase A] LanceDB singleton background init dispatched
+WARNING  app.services.schema_gate:schema_gate.py:92 {'error': "live Neo4j port connect attempted: ('::1', 7691, 0, 0). 受拦端口 [7687, 7691] 是现网 Neo4j；测试进程不得连接。若这是端点测试，请用 backend/tests/support/lifespan.py::no_lifespan 关掉 app.main 的 lifespan；若确需真库，用测试容器 NEO4J_TEST_URI", 'event': 'canvas_schema_gate_verify_failed', 'logger': 'app.services.schema_gate', 'level': 'warning', 'timestamp': '2026-09-06T02:43:07.808665Z'}
+INFO     sentence_transformers.SentenceTransformer:SentenceTransformer.py:227 Load pretrained SentenceTransformer: BAAI/bge-m3
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+                    MATCH ()-[e:CANVAS_EDGE]-()
+                    WHERE e.group_id = $group_id AN
+INFO     app.services.canvas_projection_sync:canvas_projection_sync.py:178 [Fix-E1] 原因边同步(execute): 8 节点有 relationships, 8 边写入, 0 失败, 0 幽灵边失效, 151 文件被准入拒绝
+INFO     app.main:main.py:368 [Fix-E1] 节点原因边同步: 8 nodes, 8 edges, 0 failed
+INFO     app.main:main.py:404 [Graphiti-native] 启动回填跳过 (graphiti 未就绪)
+INFO     app.services.vault_index_orchestrator:vault_index_orchestrator.py:848 [RAG-S1] orchestrator started: vault=/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault scan_interval=60s stale_after=300s
+INFO     sentence_transformers.SentenceTransformer:SentenceTransformer.py:227 Load pretrained SentenceTransformer: BAAI/bge-m3
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/health', 'endpoint': '/api/v1/health', 'status': 200, 'duration_ms': 4.76, 'event': 'request.completed', 'request_id': '5844294512', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-06T02:43:07.911026Z'}
+INFO     app.main:main.py:448 Shutting down Canvas Learning System API...
+INFO     app.services.alert_manager:alert_manager.py:223 {'event': 'alert_manager.stopped', 'logger': 'app.services.alert_manager', 'level': 'info', 'timestamp': '2026-09-06T02:43:07.912970Z'}
+INFO     app.main:main.py:452 Alert manager stopped
+INFO     app.services.resource_monitor:resource_monitor.py:358 {'event': 'resource_monitor.stopped', 'logger': 'app.services.resource_monitor', 'level': 'info', 'timestamp': '2026-09-06T02:43:07.913448Z'}
+INFO     app.main:main.py:456 Resource monitoring stopped
+INFO     app.main:main.py:465 LanceDB index service cleaned up
+INFO     app.services.vault_index_orchestrator:vault_index_orchestrator.py:867 [RAG-S1] orchestrator shut down (pending flushed)
+INFO     app.middleware.llm_call_logger:llm_call_logger.py:319 [Story 7.2] LLM Call Logger stopped
+INFO     app.middleware.cost_tracker:cost_tracker.py:249 [Story 7.2] CostTracker stopped
+INFO     app.main:main.py:482 [Story 7.2] LLM logging infrastructure cleaned up
+INFO     app.services.archive_scheduler:archive_scheduler.py:74 {'event': '[Story 3.8] Archive scheduler stopped', 'logger': 'app.services.archive_scheduler', 'level': 'info', 'timestamp': '2026-09-06T02:43:07.916247Z'}
+INFO     app.main:main.py:490 [Story 3.8] Archive scheduler stopped
+INFO     app.main:main.py:499 [Phase 2] GraphitiEpisodeWorker stopped
+INFO     app.services.memory_service:memory_service.py:2934 {'event': 'Neo4j driver cleaned up during shutdown', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-06T02:43:07.916502Z'}
+INFO     app.services.memory_service:memory_service.py:2938 {'event': 'MemoryService singleton cleaned up', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-06T02:43:07.916564Z'}
+INFO     app.main:main.py:513 MemoryService cleaned up
+INFO     app.main:main.py:108 Starting Canvas Learning System API v1.0.0
+INFO     app.main:main.py:109 Debug mode: True
+INFO     app.main:main.py:110 Log level: INFO
+INFO     app.main:main.py:111 CORS origins: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5173', 'http://127.0.0.1:5173', 'http://tauri.localhost', 'app://obsidian.md']
+INFO     app.main:main.py:112 API prefix: /api/v1
+INFO     app.main:main.py:118 Resource monitoring started with 5s interval
+INFO     app.services.alert_manager:alert_manager.py:560 {'count': 0, 'event': 'alert_manager.rules_loaded', 'logger': 'app.services.alert_manager', 'level': 'info', 'timestamp': '2026-09-06T02:43:19.205452Z'}
+INFO     app.services.notification_channels:notification_channels.py:366 {'channels': ['ConsoleNotificationChannel', 'FileNotificationChannel'], 'event': 'notification_dispatcher.created', 'logger': 'app.services.notification_channels', 'level': 'info', 'timestamp': '2026-09-06T02:43:19.205738Z'}
+INFO     app.services.alert_manager:alert_manager.py:205 {'interval': 30, 'rules_count': 0, 'event': 'alert_manager.started', 'logger': 'app.services.alert_manager', 'level': 'info', 'timestamp': '2026-09-06T02:43:19.205844Z'}
+INFO     app.main:main.py:131 Alert manager started with 0 rules (30s interval)
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded autoscore v1 (hash=4459bdcc7188)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:43:19.206396Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded context_extract v1 (hash=c648a7641ca5)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:43:19.206621Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded crag_grading v1 (hash=94b624e7ed31)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:43:19.206801Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded query_optimize v1 (hash=d74f28f3a3a9)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:43:19.206962Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded query_rewrite v1 (hash=54abd977e7e2)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:43:19.207119Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded question_gen v1 (hash=706f5ab04957)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:43:19.207279Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded search_intent v1 (hash=3255b0c040d8)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:43:19.207429Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:150 {'event': '[PromptRegistry] Loaded 7 templates across 7 prompt names', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-06T02:43:19.207496Z'}
+INFO     app.main:main.py:144 [Story 7.3] PromptRegistry loaded 7 templates
+INFO     app.services.resource_monitor:resource_monitor.py:327 {'interval_seconds': 5.0, 'event': 'resource_monitor.background_started', 'logger': 'app.services.resource_monitor', 'level': 'info', 'timestamp': '2026-09-06T02:43:19.207839Z'}
+INFO     app.middleware.cost_tracker:cost_tracker.py:230 [Story 7.2] CostTracker initialized: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/data/llm_call_logs.db
+INFO     app.middleware.llm_call_logger:llm_call_logger.py:306 [Story 7.2] LLM Call Logger started
+INFO     app.middleware.cost_tracker:cost_tracker.py:238 [Story 7.2] Log rotation task started (daily cycle)
+INFO     app.core.litellm_config:litellm_config.py:227 [Story 7.2] LiteLLM CustomLogger callback registered via litellm.callbacks
+INFO     app.main:main.py:155 [Story 7.2] LLM logging infrastructure initialized
+INFO     app.main:main.py:162 Pre-warming MemoryService singleton...
+INFO     app.services.memory_service:memory_service.py:2910 {'event': 'Creating MemoryService singleton instance', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-06T02:43:19.209748Z'}
+INFO     app.clients.neo4j_client:neo4j_client.py:451 Loaded 0 relationships from /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/data/neo4j_memory.json
+INFO     app.services.memory_service:memory_service.py:428 {'event': 'MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-06T02:43:19.211297Z'}
+INFO     app.services.memory_service:memory_service.py:284 {'event': 'MemoryService initialized successfully', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-06T02:43:19.211559Z'}
+INFO     app.services.memory_service:memory_service.py:2915 {'event': 'MemoryService singleton initialized', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-06T02:43:19.211647Z'}
+INFO     app.main:main.py:164 MemoryService pre-warmed successfully
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: CREATE FULLTEXT INDEX episode_content IF NOT EXISTS FOR (n:EpisodicNode) ON EACH [n.content] OPTIONS
+INFO     app.services.memory_service:memory_service.py:313 {'event': "[Epic 4] Fulltext index 'episode_content' ensured on EpisodicNode.content", 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-06T02:43:19.211851Z'}
+INFO     app.main:main.py:189 [Story 38.1] No pending LanceDB index operations
+INFO     app.services.archive_scheduler:archive_scheduler.py:56 {'event': '[Story 3.8] Archive scheduler started (interval=86400s)', 'logger': 'app.services.archive_scheduler', 'level': 'info', 'timestamp': '2026-09-06T02:43:19.212264Z'}
+INFO     app.main:main.py:201 [Story 3.8] Archive scheduler started (24h interval)
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_score_submitted to score_submitted (subsystem=mastery_engine)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:43:19.212401Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_bkt_updated to bkt_updated (subsystem=mastery_store)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:43:19.212466Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_mastery_changed to mastery_changed (subsystem=mastery_pipeline)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:43:19.212526Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_calibration_recorded to calibration_recorded (subsystem=calibration)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:43:19.212581Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_memory_write_requested to memory_write_requested (subsystem=memory)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:43:19.212635Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_fsrs_updated to fsrs_updated (subsystem=memory)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:43:19.212686Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_rag_weight_adjust to rag_weight_adjust', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:43:19.212738Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_ui_mastery_push to ui_mastery_push', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-06T02:43:19.212789Z'}
+INFO     app.services.event_handlers:event_handlers.py:467 {'event': 'EventBus: registered 8 production handlers (SCORE_SUBMITTED, BKT_UPDATED, FSRS_UPDATED, MASTERY_CHANGED, CALIBRATION_RECORDED, MEMORY_WRITE_REQUESTED, RAG_WEIGHT_ADJUST, UI_MASTERY_PUSH)', 'logger': 'app.services.event_handlers', 'level': 'info', 'timestamp': '2026-09-06T02:43:19.212838Z'}
+INFO     app.main:main.py:219 [Story 5.7] EventBus handlers registered
+INFO     app.services.mastery_engine:mastery_engine.py:95 {'event': 'No mastery_config.json found, using defaults', 'logger': 'app.services.mastery_engine', 'level': 'info', 'timestamp': '2026-09-06T02:43:19.213035Z'}
+INFO     memory.temporal.fsrs_manager:fsrs_manager.py:127 Initialized FSRS scheduler with retention=0.9
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'bkt_mastery'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-06T02:43:19.213172Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'fsrs_retrievability'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-06T02:43:19.213230Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'exam_score_avg'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-06T02:43:19.213282Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'calibration_bias'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-06T02:43:19.213332Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'self_confidence_avg'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-06T02:43:19.213382Z'}
+INFO     app.services.mastery_engine:mastery_engine.py:129 {'event': 'MasteryEngine: fusion engine attached', 'logger': 'app.services.mastery_engine', 'level': 'info', 'timestamp': '2026-09-06T02:43:19.213429Z'}
+INFO     app.services.mastery_engine:mastery_engine.py:777 {'event': 'MasteryEngine singleton set (fusion-enabled)', 'logger': 'app.services.mastery_engine', 'level': 'info', 'timestamp': '2026-09-06T02:43:19.213606Z'}
+INFO     app.main:main.py:255 [Story 5.6] Signal registry initialized with 5 adapters, fusion engine attached
+WARNING  app.main:main.py:291 [Phase 2] GraphitiEpisodeWorker init failed (non-fatal): live Neo4j port connect attempted: ('::1', 7691, 0, 0). 受拦端口 [7687, 7691] 是现网 Neo4j；测试进程不得连接。若这是端点测试，请用 backend/tests/support/lifespan.py::no_lifespan 关掉 app.main 的 lifespan；若确需真库，用测试容器 NEO4J_TEST_URI(7692) 并打 integration/real_neo4j marker。
+INFO     app.services.wikilink_graph_service:wikilink_graph_service.py:90 {'vault_path': '/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault', 'total_nodes': 261, 'total_edges': 1795, 'graph_build_time_ms': 21516.4, 'event': 'wikilink.graph_built', 'logger': 'app.services.wikilink_graph_service', 'level': 'info', 'timestamp': '2026-09-06T02:43:40.752848Z'}
+INFO     app.main:main.py:304 [Story 2.1] Wikilink graph eager-built: 261 nodes, 1795 edges, 21516.4ms
+INFO     app.main:main.py:335 [Story 2.2 Phase A] LanceDB singleton background init dispatched
+WARNING  app.services.schema_gate:schema_gate.py:92 {'error': "live Neo4j port connect attempted: ('::1', 7691, 0, 0). 受拦端口 [7687, 7691] 是现网 Neo4j；测试进程不得连接。若这是端点测试，请用 backend/tests/support/lifespan.py::no_lifespan 关掉 app.main 的 lifespan；若确需真库，用测试容器 NEO4J_TEST_URI", 'event': 'canvas_schema_gate_verify_failed', 'logger': 'app.services.schema_gate', 'level': 'warning', 'timestamp': '2026-09-06T02:43:40.756560Z'}
+INFO     sentence_transformers.SentenceTransformer:SentenceTransformer.py:227 Load pretrained SentenceTransformer: BAAI/bge-m3
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+            MERGE (s:CanvasNode {id: $source_id, group_id: $group_id})
+            MERGE (t:CanvasN
+WARNING  app.clients.neo4j_client:neo4j_client.py:660 Unhandled query pattern: 
+                    MATCH ()-[e:CANVAS_EDGE]-()
+                    WHERE e.group_id = $group_id AN
+INFO     app.services.canvas_projection_sync:canvas_projection_sync.py:178 [Fix-E1] 原因边同步(execute): 8 节点有 relationships, 8 边写入, 0 失败, 0 幽灵边失效, 151 文件被准入拒绝
+INFO     app.main:main.py:368 [Fix-E1] 节点原因边同步: 8 nodes, 8 edges, 0 failed
+INFO     app.main:main.py:404 [Graphiti-native] 启动回填跳过 (graphiti 未就绪)
+INFO     app.services.vault_index_orchestrator:vault_index_orchestrator.py:848 [RAG-S1] orchestrator started: vault=/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault scan_interval=60s stale_after=300s
+INFO     sentence_transformers.SentenceTransformer:SentenceTransformer.py:227 Load pretrained SentenceTransformer: BAAI/bge-m3
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/health', 'endpoint': '/api/v1/health', 'status': 200, 'duration_ms': 3.4, 'event': 'request.completed', 'request_id': '6027066448', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-06T02:43:40.851767Z'}
+INFO     app.main:main.py:448 Shutting down Canvas Learning System API...
+INFO     app.services.alert_manager:alert_manager.py:223 {'event': 'alert_manager.stopped', 'logger': 'app.services.alert_manager', 'level': 'info', 'timestamp': '2026-09-06T02:43:40.854121Z'}
+INFO     app.main:main.py:452 Alert manager stopped
+INFO     app.services.resource_monitor:resource_monitor.py:358 {'event': 'resource_monitor.stopped', 'logger': 'app.services.resource_monitor', 'level': 'info', 'timestamp': '2026-09-06T02:43:40.854321Z'}
+INFO     app.main:main.py:456 Resource monitoring stopped
+INFO     app.main:main.py:465 LanceDB index service cleaned up
+INFO     app.services.vault_index_orchestrator:vault_index_orchestrator.py:867 [RAG-S1] orchestrator shut down (pending flushed)
+INFO     app.middleware.llm_call_logger:llm_call_logger.py:319 [Story 7.2] LLM Call Logger stopped
+INFO     app.middleware.cost_tracker:cost_tracker.py:249 [Story 7.2] CostTracker stopped
+INFO     app.main:main.py:482 [Story 7.2] LLM logging infrastructure cleaned up
+INFO     app.services.archive_scheduler:archive_scheduler.py:74 {'event': '[Story 3.8] Archive scheduler stopped', 'logger': 'app.services.archive_scheduler', 'level': 'info', 'timestamp': '2026-09-06T02:43:40.857655Z'}
+INFO     app.main:main.py:490 [Story 3.8] Archive scheduler stopped
+INFO     app.main:main.py:499 [Phase 2] GraphitiEpisodeWorker stopped
+INFO     app.services.memory_service:memory_service.py:2934 {'event': 'Neo4j driver cleaned up during shutdown', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-06T02:43:40.857989Z'}
+INFO     app.services.memory_service:memory_service.py:2938 {'event': 'MemoryService singleton cleaned up', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-06T02:43:40.858055Z'}
+INFO     app.main:main.py:513 MemoryService cleaned up
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:805
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/app/api/v1/endpoints/chat.py:805: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:105
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/app/api/v1/endpoints/metadata.py:105: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:179
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/app/api/v1/endpoints/metadata.py:179: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+tests/contract/test_zz_dredd_prereq_profile.py: 10 warnings
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/lib/agentic_rag/clients/lancedb_client.py:955: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    table_names = self._db.table_names()
+
+tests/contract/test_zz_dredd_prereq_profile.py: 10 warnings
+  /opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/asyncio/events.py:94: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    self._context.run(self._callback, *self._args)
+
+tests/contract/test_zz_dredd_prereq_profile.py: 315 warnings
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/frontmatter/__init__.py:161: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with codecs.open(fd, "r", encoding) as f:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=11 (blocked=11, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/contract/test_zz_dredd_prereq_profile.py::test_dredd_prereq_call_profile
+============ 1 failed, 1 passed, 345 warnings in 160.98s (0:02:40) =============
+<sys>:0: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
+rc=1
