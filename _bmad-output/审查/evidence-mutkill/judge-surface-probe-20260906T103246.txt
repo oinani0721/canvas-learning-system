@@ -1,0 +1,31 @@
+# 判据面实测 (isolated, 不碰生产文件) ts=20260906T103246
+## 结论
+1. -rf 短摘要 reason = 断言消息的**第一行**（多行消息的第二行进不来）
+2. COLUMNS=80 会把 reason 截成 '...' ⇒ expect_msg 恒不命中 = 假 SURVIVED ⇒ judge_env() 的 COLUMNS=1000 承重
+3. 无消息的 assert 在短摘要里是 'assert 3 == 5'（值，不是身份）⇒ 只能进 EXPECT_MSG_EXEMPT
+
+## COLUMNS=1000
+FAILED test_surface.py::test_with_msg - AssertionError: 这是一条很长很长的断言消息用来看看 -rf 短摘要会不会被截断以及首行到底取到哪里为止
+FAILED test_surface.py::test_bare - assert 3 == 5
+FAILED test_surface.py::test_multiline_msg - AssertionError: 目标断言首行片段 XYZ: 子进程输出第一行
+3 failed in 0.07s
+
+## COLUMNS=80 (对照)
+FAILED test_surface.py::test_with_msg - AssertionError: 这是一条很长很长的断...
+FAILED test_surface.py::test_bare - assert 3 == 5
+FAILED test_surface.py::test_multiline_msg - AssertionError: 目标断言首行片段...
+3 failed in 0.08s
+
+## 用例源码
+def test_with_msg():
+    assert 1 == 2, "这是一条很长很长的断言消息用来看看 -rf 短摘要会不会被截断以及首行到底取到哪里为止"
+
+
+def test_bare():
+    xs = [1, 2, 3]
+    assert len(xs) == 5
+
+
+def test_multiline_msg():
+    out = "子进程输出第一行\n子进程输出第二行"
+    assert False, f"目标断言首行片段 XYZ: {out}"

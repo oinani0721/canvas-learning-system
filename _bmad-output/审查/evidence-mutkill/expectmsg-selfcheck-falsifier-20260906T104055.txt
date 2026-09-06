@@ -1,0 +1,15 @@
+# expect_msg 自检的验伪锚（正反双向，2026-09-06）
+# 目的：证明 check_expect_msg_unique() 既不是恒通过、也不是恒报错。
+扫描面文件数 = 526  (canvas-vault + backend/app + validate_learning_events.py)
+
+① 负向锚：拿一个**确实在生产里**的串 'value_charset_problems' 当 expect_msg
+   → 报出两条问题：
+     - 在门文件里出现 16 次(应为 1)
+     - 也出现在生产文件 backend/scripts/validate_learning_events.py 里(须 0 次)
+   ⇒ 这道检查**看得见**它该看见的东西。
+
+② 正向锚：拿 g32cb M4 的正式 expect_msg '⛔ 超限深度必须在首写前拒: rc='
+   → 无问题。
+   ⇒ 这道检查**不是恒报错**（否则它会把整份表判死，比没有检查更糟）。
+
+⚠️ 只测①会漏掉「恒报错」，只测②会漏掉「恒通过」——两个方向都要有锚。

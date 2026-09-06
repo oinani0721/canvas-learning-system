@@ -41,6 +41,17 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from mutation_kill_identity import (  # noqa: E402  (必须在 sys.path 兜底之后)
+    check_expect_msg_unique,
+    failed_reasons,
+    gate_hit,
+    judge_env,
+    judge_surface_missing,
+    kill_identity_ok,
+    syntax_check,
+)
+
 WT = Path(__file__).resolve().parents[2]
 SKILL = WT / "canvas-vault" / ".claude" / "skills" / "quiz-answer" / "SKILL.md"
 VALIDATOR = WT / "backend" / "scripts" / "validate_learning_events.py"
@@ -157,6 +168,64 @@ MUTATIONS = [
 ]
 
 
+#: 每条变异**声称**会打红的那一条断言的消息片段（首行字面，门文件里恰好 1 次）。
+#: 判据面 = `-rf` 短摘要的 reason（只取断言消息的第一行）。原判据
+#: `rc == 1 and gate in out and "failed" in out` 对「红在别的断言」无免疫
+#: —— 本仓已因此吃过两次假杀（CARD-DEBT-mutation-kill-identity）。
+#:
+#: ⚠️ 逐条绑定依据（先读门源码推出来，再由跑批证实/证伪）：
+#:   E1 A 行被复制 ⇒ `nd_after.count(_snap_A) == 1` 那条；
+#:   E2 A 行位移 / E6 条目末尾追加重复键 ⇒ 两者都改变**整条**而不改载体行的
+#:      出现次数 ⇒ 都落在「整条逐字节，含结束边界」那条（同一条断言，两种形态，
+#:      这正是 R1 补强要覆盖的两个盲区）；
+#:   E3 扩表 / E9 清空表 ⇒ ⓪「严格表逐项钉死」那条断言排在函数最前面，
+#:      **先于** ③ 的死条目检查 ⇒ 两者都落在 ⓪；⚠️ 于是 ③ 那条死条目判据
+#:      当前**没有任何变异为它承重**（本卡新暴露，见验收单 §五）；
+#:   E4 拆往返自证 ⇒ 裸形落盘 ⇒ YAML 折行 ⇒ 落在「写得进读不回」（question_id
+#:      在前，先红）；
+#:   E7 F1-only 出口坏掉 ⇒ 落在 ③ 段「恢复没有成功」那条；
+#:   E8 删 ts 词法判据 ⇒ 仍被别的层拒但拒因不再点名 ts ⇒ 落在「拒因不是 … 那道门」；
+#:   E10/E5 重绑 record ⇒ 落在 AST 前提「`record` 在函数体内被重新绑定」那条；
+#:   E11 删 tuple 支持 ⇒ 落在容器遍历「漏检」那条。
+EXPECT_MSG: dict[str, str] = {
+    "E1": "⛔ A 的 receipt 载体行出现 ",
+    "E2": "⛔ 追加 B 之后 A 那一条被改动了",
+    "E3": "严格字段表变了 ⇒ 先重做差集再改本门: ",
+    "E4": "⛔ question_id 写得进读不回: ",
+    "E5": "在函数体内被重新绑定 ⇒ dict 保证失效: ",
+    "E6": "⛔ 追加 B 之后 A 那一条被改动了",
+    "E7": "⛔ 恢复没有成功（rc=",
+    "E8": " 那道门（被更早的判据喂饱了）: ",
+    "E9": "严格字段表变了 ⇒ 先重做差集再改本门: ",
+    "E10": "在函数体内被重新绑定 ⇒ dict 保证失效: ",
+    "E11": " 里的非规范码点漏检: ",
+}
+
+#: 显式豁免表 `{id: 具体理由}`。空 = 11 条全绑上了，没有欠账。
+EXPECT_MSG_EXEMPT: dict[str, str] = {}
+
+
+def _check_expect_msg() -> list[str]:
+    """`EXPECT_MSG` 完整性 + 唯一性自检（共用实现，见 `mutation_kill_identity`）。
+
+    ⚠️ 「唯一」判的是**这个片段在门文件里出现 1 次**，不是「每条变异各绑一条
+    不同的断言」：E2/E6 与 E3/E9 各是两种不同形态打在**同一条**断言上，那是
+    门本身的覆盖设计，不是绑重了。
+    """
+    gate_file = str(WT / "backend" / LEDGER_TEST)
+    problems = check_expect_msg_unique(
+        [(m[0], gate_file, EXPECT_MSG.get(m[0])) for m in MUTATIONS],
+        exempt=EXPECT_MSG_EXEMPT,
+        # ⛔ 片段还必须在生产侧命中 0 次（理由同 g32cb）。不收 `backend/scripts/`
+        # 整目录：本文件自己在那儿，表里逐字写着这些片段 ⇒ 判据会自指。
+        prod_roots=(WT / "canvas-vault", WT / "backend" / "app", VALIDATOR),
+    )
+    stale = sorted((set(EXPECT_MSG) | set(EXPECT_MSG_EXEMPT)) - {m[0] for m in MUTATIONS})
+    if stale:
+        problems.append(f"EXPECT_MSG/EXEMPT 里有已不存在的 id: {stale}")
+    return problems
+
+
 class _Terminated(Exception):
     """把 SIGTERM/SIGINT 转成异常，好让 finally 里的还原跑得到。"""
 
@@ -173,11 +242,19 @@ def _sha(p: Path) -> str:
     return hashlib.sha256(p.read_bytes()).hexdigest()
 
 
+def _nodeid(test_name: str) -> str:
+    """门函数名 → pytest nodeid。判据比的是 nodeid，不是「门名字样在输出里」。"""
+    return f"{LEDGER_TEST}::{test_name}"
+
+
 def _run_gate(test_name: str) -> tuple[int, str]:
     env = dict(os.environ)
-    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    # ⛔ judge_env() 覆盖在后：外层导出的 COLUMNS=80 会把 `-rf` 短摘要的 reason
+    # 截成空串 ⇒ expect_msg 恒不命中 ⇒ 全报 SURVIVED（harness 坏了却像门失效）。
+    env.update(judge_env())
     r = subprocess.run(
-        [str(PYTEST), "-q", "-p", "no:cacheprovider", f"{LEDGER_TEST}::{test_name}"],
+        # ⛔ `-rf` 不可省：击杀身份判据取的就是短摘要行 `FAILED <nodeid> - <reason>`。
+        [str(PYTEST), "-q", "-p", "no:cacheprovider", "--tb=line", "-rf", _nodeid(test_name)],
         cwd=WT / "backend",
         capture_output=True,
         text=True,
@@ -228,12 +305,21 @@ def main(argv: list[str]) -> int:
             ok, rows = _anchor_audit()
             print("═══ 变异清单与锚点自检 ═══")
             _print_anchor_rows(rows, with_desc=True)
+            for p in _check_expect_msg():
+                print(f"  ⛔ EXPECT_MSG 自检: {p}")
+                ok = False
             return 0 if ok else 4
         if a.startswith("--only"):
             only = set((a.split("=", 1)[1] if "=" in a else argv[argv.index(a) + 1]).split(","))
     muts = [m for m in MUTATIONS if only is None or m[0] in only]
     if not muts:
         print(f"⛔ --only 没选中任何变异: {only}")
+        return 4
+
+    # ⛔ EXPECT_MSG 自检**先于**一切慢步骤：绑不唯一 ⇒ 「红在哪一条断言上」不再可证。
+    if bad := _check_expect_msg():
+        for p in bad:
+            print(f"⛔ EXPECT_MSG 自检失败 — {p}", flush=True)
         return 4
 
     _install_signal_handlers()
@@ -270,13 +356,40 @@ def main(argv: list[str]) -> int:
             print(f"  [{mid}] ⛔ 锚文本命中 {src.count(old)} 次 — 跳过", flush=True)
             results.append((mid, gate, "ANCHOR-ERROR", desc))
             continue
+        mutated_text = src.replace(old, new, 1)
+        # ⛔ 先编译自检，再跑门：语法不合法的变异体让被测进程在**编译期**就死，
+        # 「防线拆掉后本该发生的坏事」根本没机会发生，门却因**别的断言**红而被记
+        # KILLED（Z2 的 M15 形态）。它照出的是负控自己坏了 —— 单列第三种裁决。
+        if syn := syntax_check(target, mutated_text):
+            print(f"  [{mid}] ⛔ SYNTAX-INVALID 变异体编译不过 — {syn}", flush=True)
+            results.append((mid, gate, "SYNTAX-INVALID", desc))
+            continue
         try:
-            target.write_text(src.replace(old, new, 1), encoding="utf-8")
+            target.write_text(mutated_text, encoding="utf-8")
             rc, out = _run_gate(gate)
-            killed = rc == 1 and gate in out and "failed" in out
-            verdict = "KILLED" if killed else f"SURVIVED(rc={rc})"
+            nodeid = _nodeid(gate)
+            expect = EXPECT_MSG.get(mid)
+            if surface := judge_surface_missing(rc, out):
+                print(f"  [{mid}] ⛔ 判据面不成立 — {surface}", flush=True)
+                results.append((mid, gate, "JUDGE-SURFACE-MISSING", desc))
+                continue
+            # KILLED 判据：rc 恰为 1 **且** 失败的是指定的那道门 **且** 红在
+            # `EXPECT_MSG[mid]` 声称的那一条断言上。
+            # ⛔ Codex round-1 MEDIUM-4 整改：rc 不是 1 是**负控自己坏了**，不是
+            # 「门不承重」；印成 SURVIVED 会把诊断指向完全相反的方向。
+            killed = kill_identity_ok(rc, out, nodeid, expect)
+            if killed:
+                # ⛔ HIGH-3 整改：豁免条目判据仍是旧口径，不与「绑定断言击杀」并数。
+                verdict = "KILLED" if expect is not None else "KILLED-UNBOUND"
+            elif rc != 1:
+                verdict = f"HARNESS-ERROR(rc={rc})"
+            else:
+                verdict = "SURVIVED(rc=1)"
             print(f"  [{mid}] {desc}\n        {gate} → rc={rc} ⇒ {verdict}", flush=True)
             if not killed:
+                obs = [r for nid, r in failed_reasons(out) if gate_hit(nodeid, {nid})]
+                print(f"        ⚠️ expect={expect!r}", flush=True)
+                print(f"        ⚠️ 该门实际拒因: {obs or '(该门没红)'}", flush=True)
                 tail = out.strip().splitlines()[-1][:160] if out.strip() else "(空)"
                 print(f"        ⚠️ 输出尾部: {tail}", flush=True)
             results.append((mid, gate, verdict, desc))
@@ -293,9 +406,19 @@ def main(argv: list[str]) -> int:
 
     print("\n═══ 汇总 ═══", flush=True)
     for mid, gate, verdict, _d in results:
-        print(f"  {mid:4} {verdict:16} {gate}", flush=True)
+        print(f"  {mid:4} {verdict:22} {gate}", flush=True)
     n_killed = sum(1 for _, _, v, _ in results if v == "KILLED")
-    print(f"\n  {n_killed}/{len(muts)} KILLED", flush=True)
+    n_unbound = sum(1 for _, _, v, _ in results if v == "KILLED-UNBOUND")
+    n_harness = sum(1 for _, _, v, _ in results if v.startswith("HARNESS-ERROR"))
+    n_anchor = sum(1 for _, _, v, _ in results if v == "ANCHOR-ERROR")
+    n_syntax = sum(1 for _, _, v, _ in results if v == "SYNTAX-INVALID")
+    print(f"\n  {n_killed}/{len(muts)} KILLED (绑定断言身份)", flush=True)
+    print(f"  KILLED-UNBOUND: {n_unbound} (仅证明指定门红了)", flush=True)
+    print(f"  HARNESS-ERROR: {n_harness} (负控自己坏了, 不是关于被测物的结论)", flush=True)
+    # ⛔ 两者都**不是**关于被测物的结论：ANCHOR-ERROR 是变异没打进去，
+    # SYNTAX-INVALID 是负控自己坏了。单列，不并进 KILLED / SURVIVED 任何一边。
+    print(f"  ANCHOR-ERROR: {n_anchor} (变异未施加)", flush=True)
+    print(f"  SYNTAX-INVALID: {n_syntax} (>0 说明负控自己坏了)", flush=True)
     if dirty:
         print(f"⛔ 有文件未还原：{[str(p) for p in dirty]}", flush=True)
         return 3

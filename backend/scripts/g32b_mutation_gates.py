@@ -5,15 +5,38 @@
 判据 (MEMORY reference_gate_design_pitfalls / reference_mutation_script_serial_only):
   - 每个变异把生产代码**精确退回旧实现形态** (同构复现审查者的绕过, 非弱变异);
   - **指定的那道门**必须变红 (不是「某处有失败」);
+  - 变异体必须**先编译得过** —— 编译期就死的变异体制造的是假杀, 判 SYNTAX-INVALID;
+  - 击杀必须落在**声称的那一条断言**上 (`EXPECT_MSG`), 不是「这个门里随便哪条红了」;
   - 还原后必须与变异前**逐字节相同**, 否则立即停。
+
+后两条由 CARD-DEBT-mutation-kill-identity 抽进共用模块 `mutation_kill_identity`,
+四套 harness (g32b / g32cb / g32ccr1 / g33) 同一份实现。
+
+用法:
+  `python3 backend/scripts/g32b_mutation_gates.py`          跑全部 (约 36 min)
+  `python3 backend/scripts/g32b_mutation_gates.py --list`   只列变异与锚点命中数(不改任何文件)
+  `python3 backend/scripts/g32b_mutation_gates.py --probe`  只观察每条实际红在哪条断言上
 """
 
 import collections
 import hashlib
+import os
 import pathlib
 import re
+import signal
 import subprocess
 import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from mutation_kill_identity import (  # noqa: E402  (必须在 sys.path 兜底之后)
+    check_expect_msg_unique,
+    failed_reasons,
+    gate_hit,
+    judge_env,
+    judge_surface_missing,
+    kill_identity_ok,
+    syntax_check,
+)
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 SKILL = ROOT / "canvas-vault/.claude/skills/quiz-answer/SKILL.md"
@@ -480,17 +503,23 @@ def _self_heal_leftovers() -> list[str]:
     留在了 `SKILL.md` 里（输出文件 0 字节，连缓冲都没 flush）。
     `finally` 和信号处理写得再小心，外部 kill 总可能发生；唯一可靠的兜底是
     **下一次启动时先检查**。
+
+    ⚠️ 覆盖面补齐（CARD-DEBT-mutation-kill-identity）：原先只扫**主锚**的变异体，
+    **同层**（第 6 元素）的变异体留在文件里时自愈看不见 —— 而 M157 的层锚正好
+    就是那种「落盘前失败、整条跳过」的条目，它的层变异体一旦残留，下一次跑
+    连锚点自检都会读到被改过的源。
     """
     healed = []
     for _mut in MUTATIONS:
-        _tag, _target, _old, _new = _mut[0], _mut[1], _mut[2], _mut[3]
-        try:
-            src = _target.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        if _new in src and _old not in src:
-            _target.write_text(src.replace(_new, _old, 1), encoding="utf-8")
-            healed.append(f"{_tag} @ {_target.name}")
+        _edits = [(_mut[1], _mut[2], _mut[3])] + [tuple(x) for x in (_mut[5] if len(_mut) > 5 else ())]
+        for _target, _old, _new in _edits:
+            try:
+                src = _target.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            if _new in src and _old not in src:
+                _target.write_text(src.replace(_new, _old, 1), encoding="utf-8")
+                healed.append(f"{_mut[0]} @ {_target.name}")
     return healed
 
 
@@ -516,32 +545,67 @@ def _PYTEST_BIN() -> str:
     )
 
 
+def nodeid_of(gate):
+    """门函数名 → pytest nodeid。判据比的是 nodeid，不是「门名字样在输出里」。"""
+    return f"{TESTF}::{gate}"
+
+
 def run_gate(name):
     return subprocess.run(
-        [_PYTEST_BIN(), f"{TESTF}::{name}", "-q", "-p", "no:cacheprovider", "--tb=line"],
+        # ⛔ `-rf` 不可省: 击杀身份判据取的是短摘要行 `FAILED <nodeid> - <reason>`,
+        # 没有它 `parse_failed_nodeids()` 恒返空集 ⇒ 全部报 SURVIVED(harness 坏了却
+        # 长得像「门都不承重」)。`judge_surface_missing()` 会当场把这种情况报出来。
+        [_PYTEST_BIN(), nodeid_of(name), "-q", "-p", "no:cacheprovider", "--tb=line", "-rf"],
         cwd=str(ROOT / "backend"),
         capture_output=True,
         text=True,
         timeout=900,
-        env={**__import__("os").environ, "PYTHONDONTWRITEBYTECODE": "1"},
+        env={**os.environ, **judge_env()},
     )
 
 
-def is_killed(proc, gate):
-    """KILLED = **指定的那道门真的失败了**，不是「某处有失败」。
+def is_killed(proc, gate, expect_msg):
+    """KILLED = **指定的那道门**红了 **且** 红在**声称的那一条断言**上。
 
     pytest 的退出码里只有 1 表示「测试失败」：4 = 用法错误（门名打错、nodeid
     不存在），5 = 一个都没收集到，2 = 中断，3 = 内部错误。这些非 1 的码在
     `rc != 0` 判据下会被当成 KILLED —— 门名一打错，整份变异报告就全绿而毫无
     意义。这正是 MEMORY 里「rc=5 不算红」那条教训的同族。
+
+    ⛔ round-18 (CARD-DEBT-mutation-kill-identity) 收紧的一半: 原判据到
+    「摘要是 1 failed」为止 —— 这个门里**别的**断言红了同样满足。M15 假杀
+    (Z2) 正是这个形态: 变异体编译期就死, 目标断言反而通过, 红落在另一条上。
+    现在必须 `EXPECT_MSG[tag]` 出现在**该 nodeid 自己的**短摘要 reason 里。
+
+    ⚠️ 返回 `(verdict, why)`，`verdict` ∈ {KILLED, KILLED-UNBOUND, SURVIVED, HARNESS-ERROR}：
+      · `KILLED`          —— 红在 `EXPECT_MSG[tag]` 声称的那一条断言上；
+      · `KILLED-UNBOUND`  —— 该条在 `EXPECT_MSG_EXEMPT` 里（绑不出断言身份），
+        判据退化成旧口径「指定门红了」。⛔ Codex round-1 HIGH-3 整改：这类**不得**
+        与「指定断言击杀」并进同一个数，否则「138 条全部被指定断言杀死」就说宽了；
+      · `HARNESS-ERROR`   —— rc 不是 1（2 中断 / 3 内部错 / 4 用法错 / 5 零收集）或
+        判据面缺失。⛔ Codex round-1 MEDIUM-4 整改：原先这些也打印「SURVIVED ⇒ 假门」，
+        把**负控自己坏了**说成**门不承重**，诊断指错方向。
     """
+    out = proc.stdout + proc.stderr
+    nodeid = nodeid_of(gate)
+    if surface := judge_surface_missing(proc.returncode, out):
+        return "HARNESS-ERROR", f"⛔ 判据面不成立: {surface}"
     if proc.returncode != 1:
-        return False, f"rc={proc.returncode}（非 1 = 不是测试失败；4=门名/用法错误 5=零收集）"
-    tail = proc.stdout.strip().splitlines()
-    summary = tail[-1] if tail else ""
-    if "1 failed" not in summary:
-        return False, f"rc=1 但摘要不是「1 failed」: {summary[:80]!r}"
-    return True, summary[:80]
+        return "HARNESS-ERROR", f"rc={proc.returncode}（非 1 = 不是测试失败；4=门名/用法错误 5=零收集）"
+    if kill_identity_ok(proc.returncode, out, nodeid, expect_msg):
+        verdict = "KILLED" if expect_msg is not None else "KILLED-UNBOUND"
+        return verdict, (observed_reason(out, gate) or "")[:110]
+    obs = observed_reason(out, gate)
+    if obs is None:
+        return "SURVIVED", "rc=1 但失败的不是指定的那道门（别的门红了）"
+    return "SURVIVED", f"红在别的断言上: expect={expect_msg!r} 实见 {obs[:110]!r}"
+
+
+def observed_reason(out, gate):
+    """指定门自己的短摘要 reason（没红则 None）—— 诊断与 `--probe` 用。"""
+    nodeid = nodeid_of(gate)
+    hits = [r for nid, r in failed_reasons(out) if gate_hit(nodeid, {nid})]
+    return hits[0] if hits else None
 
 
 # ── round-4 HIGH/MEDIUM 修复的承重变异（消费前复用校验器本体）
@@ -1558,17 +1622,33 @@ MUTATIONS += [
 MUTATIONS += [
     (
         # dup 分支退回全局 W 判「已应用」⇒ 后继事件制造假覆盖
+        # ⚠️ 锚点更新（CARD-DEBT-mutation-kill-identity，Z6-C 移交项 1/4）：
+        # round-17 B① 把 `bool(_rc_dup_applied)` 收紧成 `(_rc_dup_applied is True)`，
+        # 旧锚从此**命中 0 次** ⇒ 这一条整整一轮什么都没测（Z6-C 全量 138 里的
+        # 4 条 ANCHOR-ERROR 之一）。现址 `SKILL.md:2213-2216`，车道树 count=1 实测。
+        # ⚠️ 更锚后**性质不变**：变异打的仍是「dup 分支不看事件级凭据、改用全局 W 猜」，
+        # 与 round-17 收紧的是同一个赋值式；收紧改的是「怎么判 true」，本变异拆的是
+        # 「判不判事件级凭据」，两者不是同一件事（所以不能拿 g32cb M1 替代）。
         "M142-dup-uses-global-w",
         SKILL,
-        "    _fsrs_applied = (\n        bool(_rc_dup_applied) if _rc_dup is not None\n        else (W_inst is not None and W_inst >= _dup_inst)\n    )\n",
+        "    _fsrs_applied = (\n"
+        "        (_rc_dup_applied is True) if _rc_dup is not None\n"
+        "        else (W_inst is not None and W_inst >= _dup_inst)\n"
+        "    )\n",
         "    _fsrs_applied = W_inst is not None and W_inst >= _dup_inst  # MUTANT\n",
         "test_round16_fsrs_applied_across_all_branches",
     ),
     (
         # 旧条目缺凭据时不拒 ⇒ 回落 W 猜
+        # ⚠️ 锚点更新（Z6-C 移交项 2/4）：round-17 B① 把「只拒 None」改成
+        # 「不是 bool 就拒」，旧锚 `_rc_dup_applied is None` 命中 0 次。
+        # 现址 `SKILL.md:2183`，车道树 count=1 实测。
+        # ⚠️ 与 `g32cb` 的 M1 **锚在同一行但不是同一个变异**（Codex 已逐行反证过
+        # 「M1 承重」这个说法不成立）：M1 把判据退回 `is None`（缺键仍被拒，只放过
+        # 非布尔值），本条 `if False:` 把整道拒绝拆掉（缺键也放过）。绑的门也不同。
         "M143-missing-applied-flag-tolerated",
         SKILL,
-        "    if _rc_dup is not None and _rc_dup_applied is None:\n",
+        "    if _rc_dup is not None and type(_rc_dup_applied) is not bool:\n",
         "    if False:  # MUTANT: 缺凭据不拒\n",
         "test_round16_fsrs_applied_across_all_branches",
     ),
@@ -1582,9 +1662,16 @@ MUTATIONS += [
     ),
     (
         # 恢复成功后不升 true ⇒ 凭据生命周期断裂
+        # ⚠️ 锚点更新（Z6-C 移交项 3/4，**纯重构漂移**）：那段 `_fa_pat.sub(...)`
+        # 已抽成 `_promote_applied()`（`SKILL.md:579` 定义），旧锚命中 0 次。
+        # 防线本身没动，只是搬了家 ⇒ 更锚到**dup 恢复**的调用点 `SKILL.md:2726`
+        # （车道树 count=1 实测）。
+        # ⚠️ 不能换成 `:2602` 那个调用点：那是 **foreign** 恢复，已由 `g32cb` 的 M2
+        # 覆盖；两个调用点触发事件不同（重跑同一事件 vs 由另一事件触发），
+        # Codex 已反证「M2 能替代本条」不成立。
         "M145-recovery-does-not-promote-flag",
         SKILL,
-        '        fm = _fa_pat.sub(lambda m: m.group(1) + "true", fm, count=1)\n',
+        "        fm, _ = _promote_applied(fm, evid)\n",
         "        pass  # MUTANT: 恢复后不升 true\n",
         "test_round16_fsrs_applied_across_all_branches",
     ),
@@ -1745,10 +1832,15 @@ MUTATIONS += [
             # ⚠️ 「方向校验」在生产里有**两个站点**（时刻 / 序数）—— 它们是同一道
             # 防御的两半, 不是纵深。只拆一半时另一半照样抓住篡改 ⇒ 缺陷根本没被
             # 放回来（实测 SURVIVED）。属「变异覆盖不完整」, 处置是补齐同缺陷的其它站点。
+            # ⚠️ 锚点更新（Z6-C 移交项 4/4）：序数那一半原是多行布尔表达式里的
+            # `and _na_a >= _nr_a` 续行，现已合成一行 `if _ord_ok and _na_a >= _nr_a:`
+            # （`SKILL.md:1997`，车道树 count=1 实测），旧层锚命中 0 次。
+            # ⛔ 层锚失败发生在**落盘之前** ⇒ 整条跳过 —— 主锚命中 1 次**不算测过**，
+            # 这一条与另外三条一样，Z6-C 那轮什么都没测到。
             (
                 SKILL,
-                "                                and _na_a >= _nr_a\n",
-                "                                and False  # MUTANT: 不校验方向(序数)\n",
+                "                            if _ord_ok and _na_a >= _nr_a:\n",
+                "                            if _ord_ok and False:  # MUTANT: 不校验方向(序数)\n",
             ),
         ),
         "complete",
@@ -1799,34 +1891,333 @@ MUTATIONS += [
 ]
 
 
+#: 每条变异**声称**会打红的那一条断言的消息片段（首行字面，门文件里恰好 1 次）。
+#: 见 `mutation_kill_identity` 的模块 docstring —— 判据面是 `-rf` 短摘要的 reason，
+#: 它只取断言消息的**第一行**，所以绑到第一个 `{}` 插值之后的内容会恒不命中。
+#: ⛔ 缺项不得静默放过：`_check_expect_msg()` 要求每个 tag 要么在这里，要么在
+#: `EXPECT_MSG_EXEMPT` 里带理由。
+#:
+#: ⚠️ **这张表是怎么来的，如实说**（CARD-DEBT-mutation-kill-identity）：
+#:   · `M142` / `M143` / `M145` / `M157` 这 4 条（本卡刚更锚的）是**先读门源码**
+#:     推出「这条变异会先撞上哪一格/哪一条断言」再写的。例如
+#:     `test_round16_fsrs_applied_across_all_branches` 的四格状态机：缺键→①、
+#:     false+未覆盖→②、false+W 覆盖→③、true+W 未覆盖→④，四条变异各打一格。
+#:   · 其余 91 条是**先跑一次 `--probe`**（不做判定、裁决一律 OBSERVED、rc 恒 4）
+#:     拿到该门实际的短摘要拒因，再逐条对着变异意图确认「这条断言就是它声称要打红
+#:     的那条」后回填的。
+#:   ⛔ 后一种绑定方式**今天证不出多少东西**（判据与被测量同源）；它的价值在
+#:   **从今往后**：门或生产代码一漂移、击杀落到别的断言上，就会立刻报 SURVIVED，
+#:   而不是像过去那样静默记成 KILLED。这一条已写进验收单「本卡未证明什么」。
+EXPECT_MSG: dict[str, str] = {
+    "M1-R1-candidate-spread": "合法乱序形态的 out_of_order 键仍须 envelope 冲突",
+    "M3-R3-attempt-uses-tip": "历史事件原样重跑必须 no-op, 不得报冲突: ",
+    "M4-R4-normal-path-uses-payload-ts": "含 idle 状态 + A3 bump 时, 恢复产物必须与直接应用逐字节相同",
+    "M6b-R7-tail-ignores-lf-state": "带终止 LF 的坏末行必须 fail-closed (旧实现 rc=0 当截断容忍)",
+    "M7-R6-schema-drops-owner-clause": "§6.2 duplicate 门段落缺「",
+    "M8-6cell-cell4-allow-recovery": "格4: 顺序错乱无机械判据, 必须 fail-closed",
+    "M11-N1-drop-out-of-order-semantic-gate": "标 out_of_order 但晚于水位线的行必须 fail-closed（否则静默丢一次评分）",
+    "M17-N1-schema-drops-writer-side-clause": "」— 写点侧口径未回写契约",
+    "M18b-R7blank-judge-file-end-not-last-line": "] 应 fail-closed（该行是完整落盘后损坏）",
+    "M19-B1-drop-rating-completeness": "] 评分事实不完整的行不得被重放",
+    "M21-B2-drop-attempt-sync-on-replay": "A2 重放必须把 attempt 推到 durable 值，否则下一个事件会复用同一序数",
+    "M28-C4-mastery-uses-unrounded-gn": "同一 durable 事件（GN2 相同）在两次不同的未舍入输入下必须产出相同的 mastery",
+    "M33-R3-merge-recovery-and-append": "两条 pending 时不得在同一次运行里既恢复又追加",
+    "M34-R3-drop-routing-envelope-gate": "] 不可路由的行必须 fail-closed（§一 路由信封读方义务）",
+    "M35-R3-effective-at-over-strict": " 写点结论应为 ",
+    "M36b-replay-drops-mastery": " 写点结论应为 ",
+    "M37c-replay-includes-dup-double-eats-ema": " 不得二次吸收成绩 (EMA 双吃)",
+    "M39-attempt-regex-rejects-single-quote": " 应承接为 ",
+    "M42-late-unmarked-row-silently-skipped": "] 未标 out_of_order 的迟到行不得被静默放过",
+    "M43-f1-evaluated-after-calibration-replay": " 写点结论应为 ",
+    "M44-drop-looks-like-review-ext": "抹掉 marker 但留扩展键 = 把完整评分伪装成历史行，必须拒",
+    "M46-yaml-single-quote-escape": "YAML 单引号 '' 转义形态下 F1 必须命中，否则副作用被算第二遍: ",
+    "M48-attribution-check-after-payload-skip": "别节点的坏行不得越权阻塞本节点写入: ",
+    "M52-calibration-strips-quiz-prefix": "正常场景回归: ",
+    "M53-f1-query-strips-prefix-only": "正常场景回归: ",
+    "M54-f1-uses-bare-eid": "裸形态相同的两个 event_id 并存时必须 fail-closed: ",
+    "M56-full-validation-after-branching": "标了 out_of_order 但时刻带空白的行必须在分流前被校验拦下",
+    "M57-validate-without-golden-manifest": "伪造的 fsrs 身份键必须被 manifest 绑定门拦下",
+    "M59-ordinal-ignores-legacy-scored-rows": "拒因必须点名真因，而不是 envelope 冲突: ",
+    "M60-normal-path-stores-bare-eid": "正常路径必须存完整账本 id: ",
+    "M62-node-id-type-only": " 无法路由，静默跳过等于漏算",
+    "M63-ts-match-not-fullmatch": "拒因须来自 ts 的字面门: ",
+    "M64-dumps-allows-nan": "NaN 会被 json.dumps 原样写成字面量，而校验器拒收",
+    "M66-legacy-same-id-rejected": "同 ID 的合法历史行必须幂等 no-op（A4.5）: ",
+    "M67-inline-calibration-not-normalized": "产出了非法 YAML: ",
+    "M68-blank-lines-tolerated": "] 校验器拒，写点也必须拒",
+    "M69-bom-tolerated": "] 校验器拒，写点也必须拒",
+    "M70-ordinal-w-only-not-calibration": "E2 已贡献 attempt（校准里有它），重跑 E1 必须幂等: ",
+    "M71-ignore-provable-legacy-ordinal": "历史行带合法 attempt_count ⇒ 账本可证，必须放行: ",
+    "M73-late-scan-after-early-exit": "幂等早退不得绕过全账迟到扫描（那次复习会永久漏算）",
+    "M74-candidate-copies-durable-rt": "同 ID 承载另一业务时刻必须被 envelope 识别",
+    "M78-first-write-uses-run-ts": " 推进, 而不是本次运行时刻 2026-08-01T10:05:00Z: ",
+    "M80-envelope-compares-adopted-rt": "A3 采用值不进等价面，续跑必须可恢复: ",
+    "M82-calibration-header-no-comment": "] 同 ID 重跑必须收敛（此前永久停住）: ",
+    "M83-whitespace-id-gate-global": "别节点的合法存量行不得阻塞整个 vault: ",
+    "M84-cross-node-id-collision-ignored": "别节点占用本次幂等键会让本次评分**零次应用**，必须拒",
+    "M85-no-producer-self-check": "2026-02-30 形状合法但日期不存在 —— 词法门放行，自检必须拦",
+    "M86-f1-regex-not-yaml": "键顺序不是事实差异，F1 必须仍命中: ",
+    "M88-degraded-uses-run-ts": "scored_at = 原始稳定业务时刻: ",
+    "M94-routing-raw-compare": "E1 必须落进适用集（否则 attempts 会是 [1,1]，E1 永久漏算）: ",
+    "M95-receipt-skips-abandoned": "同为弃答的续跑必须恢复: ",
+    "M96-adopted-time-unbound": "篡改采用时刻会让同一次评分二次推进 FSRS",
+    "M98-no-pre-append-dry-run": "⛔ 必须**零写**拒绝 —— 先落账后损坏笔记是最糟的中间态",
+    "M99-f1only-skips-fact-check": "账本缺失时裸形态来源无从证明，不得静默吞掉这次评分",
+    "M100-no-tri-instant-binding": "⛔ receipt 的第三个瞬间对不上 ⇒ 必须停",
+    "M103-receipt-ts-no-literal-gate": "] 必须拒 —— 只查类型/非空是「声明比实现宽」",
+    "M104-writeback-guess-by-text": "不得同时出现 quoted 与 bare 两个语义相同的键: ",
+    "M110-reinline-duplicate-lookup": "来源反查逻辑出现多份 —— 判据一旦分叉, 修一处就会漏另一处",
+    "M111-shared-impl-not-reused": "唯一实现必须以具名函数存在(否则无从复用)",
+    "M112-compat-empty-source-rejects": "来源为空但事实自洽必须仍能恢复: ",
+    "M113-facts-list-not-frozen": "缺项检查的守卫必须真的在",
+    "M114-f1only-drops-exam-board": "同板续跑必须恢复: ",
+    "M115-late-scan-presence-only": "账本行与 receipt 的事实不一致时不得放行",
+    "M116-receipt-no-provenance": "新写入必须带形态标记",
+    "M118-empty-eid-allowed": "空/纯空白 event_id 必须拒: ",
+    "M119-crash-window-adopted-time-unproven": "水位线为空时采用时刻≠原始时刻的行必须拒",
+    "M120-legacy-row-generic-reason": "拒因必须点名旧行缺字段: ",
+    "M121-consumer-rounds-grade": "⛔ 消费侧舍入会把合法的三位小数行永久拒掉: ",
+    "M122-consumer-coerces-board": "⛔ 消费侧强转会拒掉 writer 自己产出的状态: ",
+    "M123-adopted-time-literal-compare": "⛔ 字面比较会把合法的小数秒输入永久拒掉: ",
+    "M124-crash-window-only-when-w-empty": "W 非空的崩溃窗同样不得放行篡改",
+    "M125-id-form-authorizes-bare-fallback": "另一个完整 id 的评分应当入账: ",
+    "M126-f1only-no-successor-discount": "⛔ 非-tip 的合法续跑不得被误拒: ",
+    "M127-facts-python-equality": "1 与 true 是不同的 JSON 事实，不得判成同一次评分",
+    "M128-id-form-not-at-candidate-stage": "⛔ 不得静默跳过（原缺陷：rc=0 而账本与 attempt 全不动）: rc=",
+    "M130-pending-adopted-time-unproven": "foreign pending 的采用时刻同样要证",
+    "M132-candidate-always-rounded": "⛔ 给出原值时必须能落定: ",
+    "M135-scored-at-not-in-ext-detection": "带 scored_at 的行不得被当历史行跳过",
+    "M136-w-coverage-as-applied-proof": "后继事件推过的 W 不算这次的调度凭据",
+    "M137-receipt-no-applied-flag": "降级路径必须记 false",
+    "M138-board-string-only": "] 自产自拒: ",
+    "M139-source-lookup-both-ways": "⛔ 来源反查错位导致误拒: ",
+    "M142-dup-uses-global-w": "不得再推进水位线",
+    "M143-missing-applied-flag-tolerated": "旧条目缺事件级凭据 ⇒ 不可证，必须停",
+    "M144-false-plus-w-not-contradiction": "⛔ 不得宣称「已完整应用」—— 那次的调度贡献其实永久错位了",
+    "M145-recovery-does-not-promote-flag": "⛔ 恢复成功后必须把该条目升为 true",
+    "M146-canon-num-precision-loss": "] 两份不同事实不得判等",
+    "M148-unmarked-exact-single-source": "拒因须点名「来源可能是多个 event_id」（不退化成「随便什么理由拒了都算数」）: ",
+    "M149-adopted-two-values": "同瞬间两行违反 A3，必须 fail-closed",
+    "M150-all-ledger-ids-coerce-str": "⛔ 别节点坏行不得阻塞本节点的幂等重跑: ",
+    "M151-exam-board-bare-json-in-yaml": "首写应放行 board=",
+    "M152-f1-ignores-write-order-anchor": "⛔ 有写序锚就该认得出这是同一次评分: ",
+    "M153-legacy-cursor-skips-ambiguity-proof": "拒因须点名「顺序不可证明」, 不能报一个算错的期望序数: ",
+    "M155-board-form-ignored": "⛔ 旧条目必须按原语义读得出来: ",
+    "M156-anchor-miss-is-hard-error": "⛔ 前驱行也丢了时必须回落到可证的路径, 而不是判死: ",
+    "M157-anchor-direction-unchecked": "⛔ 锚点指向后继 ⇒ 与账本自相矛盾, 必须停",
+    "M158-fsrs-applied-truthiness": "] 非布尔凭据不得被当成「已应用」",
+    "M161-foreign-no-credential-promotion": "⛔ 恢复后 E1 仍不可重跑 ⇒ 两阶段不收敛，那张白板卡死: ",
+    # ⚠️ Codex round-1 MEDIUM-5 整改：这一条原被判「片段不唯一」进了豁免表，**是错的**——
+    # 该断言的消息是 `"裸 \\r 结尾在字节上无 LF ⇒ 应按截断隔离: " + r2.stdout + r2.stderr`
+    # （字符串拼接），去掉含转义的开头后剩下的这段在门文件里恰好 1 次，可直接绑，不必改门。
+    "M13b-N2-text-mode-read": "结尾在字节上无 LF ⇒ 应按截断隔离: ",
+}
+
+#: 显式豁免表 `{tag: 具体理由}` —— **不是「先欠着」**，每条都写清楚为什么绑不出来。
+#: 四种形态（都由 `--probe` 的实际拒因分类，不是猜的）：
+#:   ① 断言消息**整体就是被测子进程的 stderr**（`assert X, r.stderr[:N]` 形态）——
+#:      门文件侧一个字面片段都没有；绑生产文本会让判据被生产输出喂饱（正是要防的）；
+#:   ② 断言消息**求值为空串**，短摘要里只有 `AssertionError:`；
+#:   ③ **无消息断言**，短摘要给的是 pytest 改写出来的**值**（`assert 1 == 0`）——
+#:      那是值不是身份，换个 fixture 数据就变；
+#:   ④ 该变异让门以**未捕获异常**失败（如 `yaml.parser.ParserError`），
+#:      根本没落在门里任何一条断言上。
+#:   ⑤ 断言消息**逐字抄自生产的报错文案** —— 片段在生产文件里也命中，绑上去判据就能被
+#:      生产输出喂饱（`M76` 就是这一类，由自检当场拦下）；
+#:   ⑥ 该门实际打红的那条断言，其消息首行的字面片段在门文件里**不唯一**（>1 次）——
+#:      绑上去就不能证明红在哪一条。
+#: ⚠️ 这四种的根都在**门文件本体**（消息写法），而门本体不在本卡范围
+#: （`backend/tests/**` 的 `git diff` 为空）。补消息后这些条目就能从表里去掉 ——
+#: 已在验收单「台账待登记条目」里移交。
+EXPECT_MSG_EXEMPT: dict[str, str] = {
+    "M76-self-node-id-gate-dropped": "⑤ 该门此处断言的消息**逐字抄自生产的报错文案**"
+    "(`SKILL.md:331` 的 `写出去的事件将永远路由不到任何节点`) —— 绑上去等于让判据可被生产输出"
+    "喂饱; 这一条是被 `check_expect_msg_unique()` 的「生产侧命中 0 次」当场拦下的, 不是事后补的",
+    "M2b-R2-drop-utc-offset-check": "① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N]` 形态), 没有任何来自门文件的字面片段可绑; 绑生产文本会让判据被生产输出喂饱",
+    "M5-R5-drop-rating-consistency": "① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N]` 形态), 没有任何来自门文件的字面片段可绑; 绑生产文本会让判据被生产输出喂饱",
+    "M9-6cell-cell2-drop-orphan-noop": "② 该门此处断言的消息**求值为空串**, 短摘要里只有 'AssertionError:' —— 没有任何可绑的身份",
+    "M10-R2-value-not-literal": "① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N]` 形态), 没有任何来自门文件的字面片段可绑; 绑生产文本会让判据被生产输出喂饱",
+    "M12-N1-drop-out-of-order-shape-gate": "① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N]` 形态), 没有任何来自门文件的字面片段可绑; 绑生产文本会让判据被生产输出喂饱",
+    "M14-N3-drop-duplicate-key-hook": "① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N]` 形态), 没有任何来自门文件的字面片段可绑; 绑生产文本会让判据被生产输出喂饱",
+    "M15b-N4-decode-with-replace": "① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N]` 形态), 没有任何来自门文件的字面片段可绑; 绑生产文本会让判据被生产输出喂饱",
+    "M16-N5-hard-compute-attempt-across-pending": "① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N]` 形态), 没有任何来自门文件的字面片段可绑; 绑生产文本会让判据被生产输出喂饱",
+    "M20-B1-drop-gradenorm-completeness": "① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N]` 形态), 没有任何来自门文件的字面片段可绑; 绑生产文本会让判据被生产输出喂饱",
+    "M23-C1-drop-event-type-gate": "⑥ 该门实际打红的那条断言, 其消息首行的字面片段在门文件里不唯一(出现 >1 次), 绑上去就不能证明红在哪一条; 门本体不在本卡范围, 无法给它加更具身份的消息",
+    "M24-C1-drop-concept-id-gate": "⑥ 该门实际打红的那条断言, 其消息首行的字面片段在门文件里不唯一(出现 >1 次), 绑上去就不能证明红在哪一条; 门本体不在本卡范围, 无法给它加更具身份的消息",
+    "M25-C1-drop-vault-id-gate": "⑥ 该门实际打红的那条断言, 其消息首行的字面片段在门文件里不唯一(出现 >1 次), 绑上去就不能证明红在哪一条; 门本体不在本卡范围, 无法给它加更具身份的消息",
+    "M26-C2-drop-eid-whitespace-gate": "② 该门此处断言的消息**求值为空串**, 短摘要里只有 'AssertionError:' —— 没有任何可绑的身份",
+    "M29-R3-drop-event-version-gate": "① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N]` 形态), 没有任何来自门文件的字面片段可绑; 绑生产文本会让判据被生产输出喂饱",
+    "M30-R3-drop-two-instant-consistency": "① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N]` 形态), 没有任何来自门文件的字面片段可绑; 绑生产文本会让判据被生产输出喂饱",
+    "M31-R3-drop-attempt-required": "① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N]` 形态), 没有任何来自门文件的字面片段可绑; 绑生产文本会让判据被生产输出喂饱",
+    "M32-R3-drop-payload-object-gate": "① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N]` 形态), 没有任何来自门文件的字面片段可绑; 绑生产文本会让判据被生产输出喂饱",
+    "M38b-attempt-expectation-masked-by-max": "① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N]` 形态), 没有任何来自门文件的字面片段可绑; 绑生产文本会让判据被生产输出喂饱",
+    "M45-allow-dup-and-foreign-same-round": "① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N]` 形态), 没有任何来自门文件的字面片段可绑; 绑生产文本会让判据被生产输出喂饱",
+    "M47-skip-validator-record-check": "⑥ 该门实际打红的那条断言, 其消息首行的字面片段在门文件里不唯一(出现 >1 次), 绑上去就不能证明红在哪一条; 门本体不在本卡范围, 无法给它加更具身份的消息",
+    "M49-event-version-accepts-bool": "⑥ 该门实际打红的那条断言, 其消息首行的字面片段在门文件里不唯一(出现 >1 次), 绑上去就不能证明红在哪一条; 门本体不在本卡范围, 无法给它加更具身份的消息",
+    "M50-non-object-line-silently-skipped": "⑥ 该门实际打红的那条断言, 其消息首行的字面片段在门文件里不唯一(出现 >1 次), 绑上去就不能证明红在哪一条; 门本体不在本卡范围, 无法给它加更具身份的消息",
+    "M51-line-strip-washes-nonjson-whitespace": "⑥ 该门实际打红的那条断言, 其消息首行的字面片段在门文件里不唯一(出现 >1 次), 绑上去就不能证明红在哪一条; 门本体不在本卡范围, 无法给它加更具身份的消息",
+    "M58-input-ts-not-literally-checked": "⑥ 该门实际打红的那条断言, 其消息首行的字面片段在门文件里不唯一(出现 >1 次), 绑上去就不能证明红在哪一条; 门本体不在本卡范围, 无法给它加更具身份的消息",
+    "M61-durable-eid-whitespace-not-scanned": "① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N]` 形态), 没有任何来自门文件的字面片段可绑; 绑生产文本会让判据被生产输出喂饱",
+    "M65-loads-allows-nan": "① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N]` 形态), 没有任何来自门文件的字面片段可绑; 绑生产文本会让判据被生产输出喂饱",
+    "M75-w-fallback-restored": "⑥ 该门实际打红的那条断言, 其消息首行的字面片段在门文件里不唯一(出现 >1 次), 绑上去就不能证明红在哪一条; 门本体不在本卡范围, 无法给它加更具身份的消息",
+    "M77-ordinal-fixed-minus-one": "⑥ 该门实际打红的那条断言, 其消息首行的字面片段在门文件里不唯一(出现 >1 次), 绑上去就不能证明红在哪一条; 门本体不在本卡范围, 无法给它加更具身份的消息",
+    "M79-missing-scored-at-falls-back": "① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N]` 形态), 没有任何来自门文件的字面片段可绑; 绑生产文本会让判据被生产输出喂饱",
+    "M81-legacy-out-of-order-honored": "⑥ 该门实际打红的那条断言, 其消息首行的字面片段在门文件里不唯一(出现 >1 次), 绑上去就不能证明红在哪一条; 门本体不在本卡范围, 无法给它加更具身份的消息",
+    "M89-receipt-drops-scored-at": "③ 该门此处是**无消息断言**, 短摘要给的是 pytest 改写出来的值(如 'assert 1 == 0'), 那是值不是身份, 换个 fixture 数据就变",
+    "M90-receipt-drops-attempt": "③ 该门此处是**无消息断言**, 短摘要给的是 pytest 改写出来的值(如 'assert 1 == 0'), 那是值不是身份, 换个 fixture 数据就变",
+    "M91-f1-only-unconditional-noop": "① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N]` 形态), 没有任何来自门文件的字面片段可绑; 绑生产文本会让判据被生产输出喂饱",
+    "M97-writeback-regex-only": "④ 该变异让门以**未捕获异常**失败(yaml.parser.ParserError), 而不是落在门里任何一条断言上; 可绑的身份是异常类名, 但它不在门文件里(唯一性判据要求片段在门文件里恰好 1 次)",
+    "M102-receipt-attempt-type-only": "① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N]` 形态), 没有任何来自门文件的字面片段可绑; 绑生产文本会让判据被生产输出喂饱",
+    "M117-empty-source-skips-provenance": "① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N]` 形态), 没有任何来自门文件的字面片段可绑; 绑生产文本会让判据被生产输出喂饱",
+    "M129-missing-scored-at-warn-only": "① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N]` 形态), 没有任何来自门文件的字面片段可绑; 绑生产文本会让判据被生产输出喂饱",
+    "M140-bare-collision-no-own-judge": "⑥ 该门实际打红的那条断言, 其消息首行的字面片段在门文件里不唯一(出现 >1 次), 绑上去就不能证明红在哪一条; 门本体不在本卡范围, 无法给它加更具身份的消息",
+}
+
+#: 本卡（CARD-DEBT-mutation-kill-identity）退役的变异，逐条写「为什么」。
+#: 早于本卡的退役写在各自 `MUTATIONS +=` 块的行内注释里（M154 / M159 / M160）。
+RETIRED_MUTATIONS: dict[str, str] = {}
+
+
+def _anchor_audit():
+    """只读锚点自检：每条变异的**主锚**与**同层锚**都必须恰好命中 1 次。
+
+    返回 `(ok, rows)`；`rows` 的每项是 `(tag, kind, hits, 文件名, gate)`，
+    `kind` ∈ {"主锚", "同层锚"}。
+
+    ⚠️ 这道自检**不是**防假绿的那一层：变异循环里本来就有 `count(old) != 1 →
+    failures + 跳过`，锚漂时脚本照样 `sys.exit(1)`，不会伪装成「138/138 KILLED」。
+    它加的是两件事：① 把判断提到 36 分钟的慢步骤**之前**；② 给 `--list` 一个
+    不改任何文件的只读入口（g32cb / g32ccr1 早就有，g32b 一直没有 —— 于是
+    Z6-C 那 4 条锚漂要等一整轮跑完才逐条冒出来）。
+
+    ⚠️ 已知盲区（与 g32cb 同款，本卡未修）：判据是「原文本在**整个文件**里出现
+    1 次」，不是「命中了那条**执行语句**」。锚落在注释里、或前导空格多一个但仍是
+    子串，count 都可能仍为 1。要真堵得绑执行块内的语句身份（AST），属另立卡。
+    """
+    rows, ok = [], True
+    cache = {}
+
+    def _text(p):
+        if p not in cache:
+            cache[p] = p.read_text(encoding="utf-8")
+        return cache[p]
+
+    for _m in MUTATIONS:
+        tag, path, old, gate = _m[0], _m[1], _m[2], _m[4]
+        n = _text(path).count(old)
+        rows.append((tag, "主锚", n, path.name, gate))
+        if n != 1:
+            ok = False
+        for _p, _o, _n in _m[5] if len(_m) > 5 else ():
+            n2 = _text(_p).count(_o)
+            rows.append((tag, "同层锚", n2, _p.name, gate))
+            if n2 != 1:
+                ok = False
+    return ok, rows
+
+
+def _print_anchor_rows(rows):
+    for tag, kind, n, fname, gate in rows:
+        flag = "" if n == 1 else "   ⛔ 须恰好 1 次 —— 锚文本漂了，变异会静默失配"
+        print(f"  [{tag}] {kind}命中 {n} 次 @ {fname} → {gate}{flag}", flush=True)
+
+
+def _check_expect_msg():
+    """`EXPECT_MSG` 完整性 + 唯一性自检。返回违规说明列表（空 = 通过）。"""
+    gate_file = str(ROOT / "backend" / TESTF)
+    items = [(m[0], gate_file, EXPECT_MSG.get(m[0])) for m in MUTATIONS]
+    problems = check_expect_msg_unique(
+        items,
+        exempt=EXPECT_MSG_EXEMPT,
+        # ⛔ 片段还必须在**生产侧命中 0 次**：门里不少断言消息的**第一行**内嵌了
+        # `{r.stderr}`，那条断言一旦红，被测子进程的整份输出就进了判据面。
+        # ⚠️ 不收 `backend/scripts/` 整目录 —— 本文件自己在那儿、`EXPECT_MSG` 表里
+        # 逐字写着这些片段，整目录扫会把「表里写了」误报成「生产里也有」(判据自指)。
+        # 被变异的 `validate_learning_events.py` / schema 按**单文件**收进来。
+        prod_roots=(
+            ROOT / "canvas-vault",
+            ROOT / "backend" / "app",
+            ROOT / "backend" / "scripts" / "validate_learning_events.py",
+            SCHEMA,
+        ),
+    )
+    stale = sorted((set(EXPECT_MSG) | set(EXPECT_MSG_EXEMPT)) - {m[0] for m in MUTATIONS})
+    if stale:
+        # ⛔ 反向也要看：表里留着一个已经不存在的 tag，说明这张表与变异表已经脱节，
+        # 「每条都绑好了」这句话不再可信（与 g33 的 baseline_missing 同型）。
+        problems.append(f"EXPECT_MSG/EXEMPT 里有已不存在的 tag: {stale}")
+    return problems
+
+
+class _Terminated(Exception):
+    """把信号转成异常，好让 finally 里的还原跑得到。"""
+
+
+def _install_signal_handlers():
+    """⛔ SIGTERM/SIGINT/SIGHUP 的默认处置**不做栈展开** ⇒ `finally` 不执行 ⇒
+    变异体留在生产文件里。g32cb / g32ccr1 早就装了，g32b 一直没有（Z6-C 登记）。
+    SIGKILL 挡不住，如实声明：被 `-9` 打断时靠下一次启动的 `_self_heal_leftovers()`
+    兜底。
+    """
+
+    def _handler(signum, _frame):
+        raise _Terminated(f"收到信号 {signum}")
+
+    for _sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+        signal.signal(_sig, _handler)
+
+
 def _syntax_errors(texts):
     """变异后的文本是否仍是合法 Python。返回问题描述（空 = 没问题）。
 
     `.py` 直接 parse；SKILL.md 取其中的 PYEOF 块（写点本体就在里面）。
     Markdown 规格文件不含可执行代码，跳过。
     """
-    import ast as _ast
-
-    _bad = []
-    for _p, _t in texts.items():
-        _srcs = []
-        if str(_p).endswith(".py"):
-            _srcs = [(str(_p), _t)]
-        elif _p.name == "SKILL.md":
-            _srcs = [
-                (f"{_p.name}#PYEOF[{_i}]", _b) for _i, _b in enumerate(re.findall(r"<<'PYEOF'\n(.*?)\nPYEOF", _t, re.S))
-            ]
-        for _name, _src in _srcs:
-            try:
-                _ast.parse(_src)
-            except SyntaxError as _e:
-                _bad.append(f"{_name} line {_e.lineno}: {_e.msg}")
+    _bad = [f"{_p.name}: {_err}" for _p, _t in texts.items() if (_err := syntax_check(_p, _t))]
     return "; ".join(_bad)
 
 
 def main():
+    _argv = sys.argv[1:]
+    if "--list" in _argv:
+        # 只读入口：不施加任何变异、不写盘。
+        _ok, _rows = _anchor_audit()
+        print("═══ 变异清单与锚点自检（只读）═══")
+        _print_anchor_rows(_rows)
+        _bad_anchor = [r for r in _rows if r[2] != 1]
+        print(f"\n  共 {len(MUTATIONS)} 条变异 / {len(_rows)} 个锚点；异常锚点 {len(_bad_anchor)} 个")
+        # ⛔ Codex round-1 MEDIUM-7 整改：原先退出码**只看锚点**——门消息漂了、
+        # EXPECT_MSG 自检已经打印出错，`--list` 却照样返回 0。退出码必须同时取决于
+        # 两项自检，否则「只读自检通过」这句话是假的。
+        _bad_msg = _check_expect_msg()
+        for _p in _bad_msg:
+            print(f"  ⛔ EXPECT_MSG 自检: {_p}")
+        return 0 if (_ok and not _bad_msg) else 4
+
+    _probe = "--probe" in _argv
+    # `--only <前缀>[,<前缀>…]`：按 tag 前缀挑变异。⛔ 判据落在**实际用来选择的那个键**
+    # 上（round-11b 的编号碰撞教训）；选空了要报失败，不能空跑当成通过。
+    # ⛔ Codex round-1 LOW-8 整改：裸 `--only`（缺值）原先被**静默忽略**、退化成全量跑
+    # ——「我只想定点复核 4 条」变成「跑了 45 分钟全量并落进 PASS 判定」。缺值 / 空前缀
+    # 一律当场报错退出，不猜用户意图。
+    _only = None
+    for _i, _a in enumerate(_argv):
+        if _a == "--only":
+            if _i + 1 >= len(_argv) or _argv[_i + 1].startswith("--"):
+                print("✗✗ `--only` 缺少取值（用法：`--only M142,M143` 或 `--only=M142`）")
+                return 4
+            _only = set(_argv[_i + 1].split(","))
+        elif _a.startswith("--only="):
+            _only = set(_a.split("=", 1)[1].split(","))
+    if _only is not None and not all(p.strip() for p in _only):
+        print(f"✗✗ `--only` 含空前缀 {sorted(_only)} —— 空前缀会命中全部 tag, 拒绝执行")
+        return 4
     failures = []
     kill_fail = {}
+    _syntax_invalid = []
+    _observed = {}
+    _verdicts = {}
+    _install_signal_handlers()
     _healed = _self_heal_leftovers()
     if _healed:
         print(f"⚠️ 自愈：还原了上一次残留的变异体 {_healed}", flush=True)
@@ -1840,7 +2231,13 @@ def main():
     # `M102-reinline-duplicate-lookup` 曾并存 —— 全名不同, 所以「重名检查」不报,
     # 但**按前缀选择**的探针(`startswith("M102-")`)会静默选错另一条, 于是三态诊断
     # 诊断的是别的变异。判据要落在**实际被用来选择的那个键**上。
-    _nums = collections.Counter(re.match(r"M(\d+[a-z]?)", m[0]).group(1) for m in MUTATIONS)
+    # ⚠️ 不写 `re.match(...).group(1)`：tag 若不以 `M<数字>` 开头，`match` 是 None，
+    # 那里会抛 AttributeError —— 编号唯一性这道门自己先崩，比它要防的问题更难查。
+    _unnamed = [m[0] for m in MUTATIONS if not re.match(r"M(\d+[a-z]?)", m[0])]
+    if _unnamed:
+        print(f"✗✗ 变异 tag 不符合 `M<编号>` 命名: {_unnamed} — 前缀选择/碰撞检查都会失灵, 立即停")
+        sys.exit(2)
+    _nums = collections.Counter(re.findall(r"^M(\d+[a-z]?)", m[0])[0] for m in MUTATIONS)
     _dup_nums = {k: v for k, v in _nums.items() if v > 1}
     if _dup_nums:
         print(f"✗✗ 变异编号碰撞 {_dup_nums} — 前缀选择会选错, 立即停")
@@ -1850,6 +2247,22 @@ def main():
     if _gates_missing:
         print(f"✗✗ 绑定的门不存在: {_gates_missing} — rc=4 会被粗判据当成 KILLED, 立即停")
         sys.exit(2)
+    # ⛔ EXPECT_MSG 自检先于慢步骤：绑不唯一 ⇒ 「红在哪一条断言上」不再可证。
+    # `--probe` 是**发现**步骤（首次绑定 EXPECT_MSG 时用），它不做击杀判定，
+    # 所以跳过这道自检；作为交换，它的裁决一律记 OBSERVED、rc 恒 4，
+    # 任何人都不可能把 probe 的输出当成「通过」。
+    if not _probe:
+        if _bad := _check_expect_msg():
+            for _b in _bad:
+                print(f"✗✗ EXPECT_MSG 自检失败 — {_b}")
+            sys.exit(2)
+    # ⛔ 锚点自检提到慢步骤之前（本卡新增；原先要等 36 分钟逐条冒出来）。
+    # 这里**不中止**：锚漂的条目在下面的循环里照样记 failures 并跳过，
+    # 中止会让「其余 134 条还好着」这个信息也丢掉。
+    _ok_anchor, _rows_anchor = _anchor_audit()
+    if not _ok_anchor:
+        print("── 锚点自检（跑前）：有异常 ──")
+        _print_anchor_rows([r for r in _rows_anchor if r[2] != 1])
     _touched = sorted(
         {m[1] for m in MUTATIONS} | {x[0] for m in MUTATIONS if len(m) > 5 for x in m[5]}, key=lambda p: str(p)
     )
@@ -1866,6 +2279,8 @@ def main():
         # 两时刻同瞬间, 校验器**全部都拦**)。只删手写那一层, 校验器仍拦住 ⇒ 门不
         # 变红 ⇒ 被误判成「假门」。真正要证的是「**两层都没了**才会漏」。
         tag, path, old, new, gate = _m[:5]
+        if _only is not None and not any(tag.startswith(p) for p in _only):
+            continue
         # 第 6 元素的每项是 (target_path, old, new) —— **跨文件**, 因为第二层防线
         # (SKILL.md 里的 validate_record_full 调用) 未必与主变异同一个文件
         # (如 M5 的主变异在 fsrs_bridge.py)。
@@ -1895,14 +2310,19 @@ def main():
         # 语法坏掉 ⇒ 判 harness failure, 不计 KILLED。
         _syn = _syntax_errors(texts)
         if _syn:
-            failures.append(f"{tag}: 变异体语法无效（假杀）—— {_syn}")
-            print(f"[{tag}] ⛔ 变异体语法无效, 不计 KILLED: {_syn}")
+            failures.append(f"{tag}: SYNTAX-INVALID 变异体编译不过（假杀面）—— {_syn}")
+            print(f"[{tag}] ⛔ SYNTAX-INVALID 变异体编译不过, 不计 KILLED: {_syn}")
+            _syntax_invalid.append(tag)
             continue
         try:
             for _p, _b in mutated.items():
                 _p.write_bytes(_b)
             r = run_gate(gate)
-            killed, why = is_killed(r, gate)
+            if _probe:
+                verdict, why = "OBSERVED", f"reason={observed_reason(r.stdout + r.stderr, gate)!r}"
+            else:
+                verdict, why = is_killed(r, gate, EXPECT_MSG.get(tag))
+            killed = verdict.startswith("KILLED")
         finally:
             # 并发编辑防护: 还原写的是**读时快照**, 若变异窗口内有人改了这个文件,
             # 无条件写回会**静默丢掉他的改动**, 而「还原后字节相同」自检比的是自己
@@ -1937,12 +2357,57 @@ def main():
         sha_after = sha(path)
         if killed:
             kill_fail[tag] = first_fail(r.stdout)
-        status = f"KILLED ({why})" if killed else f"SURVIVED ⇒ 假门 ({why})"
-        print(f"[{tag}] {gate} → {status}  [还原字节相同 {sha_after[:12]}]")
-        if not killed:
-            failures.append(f"{tag}: 门 {gate} 未抓住变异 (SURVIVED)")
+        if _probe:
+            _observed[tag] = observed_reason(r.stdout + r.stderr, gate)
+            print(f"[{tag}] {gate} → OBSERVED rc={r.returncode} reason={_observed[tag]!r}")
+            continue
+        _verdicts[tag] = verdict
+        # ⛔ 三种非 KILLED 各说各的话（Codex round-1 MEDIUM-4）：
+        # `HARNESS-ERROR` 是**负控自己坏了**，把它印成「SURVIVED ⇒ 假门」等于把
+        # 「pytest 没跑成」说成「门不承重」——诊断指错方向，是本族反复栽的坑。
+        _label = {
+            "KILLED": f"KILLED ({why})",
+            "KILLED-UNBOUND": f"KILLED-UNBOUND 未绑断言身份, 判据退化成旧口径 ({why})",
+            "SURVIVED": f"SURVIVED ⇒ 假门 ({why})",
+            "HARNESS-ERROR": f"HARNESS-ERROR 负控自己坏了, 不是关于被测物的结论 ({why})",
+        }[verdict]
+        print(f"[{tag}] {gate} → {_label}  [还原字节相同 {sha_after[:12]}]")
+        if verdict == "SURVIVED":
+            failures.append(f"{tag}: 门 {gate} 未抓住变异 (SURVIVED — {why})")
             print("    ---- 门输出尾部 ----")
             print("    " + "\n    ".join(r.stdout.strip().split("\n")[-6:]))
+        elif verdict == "HARNESS-ERROR":
+            failures.append(f"{tag}: HARNESS-ERROR — {why}")
+            print("    ---- 门输出尾部 ----")
+            print("    " + "\n    ".join(r.stdout.strip().split("\n")[-6:]))
+
+    # ⛔ `--only` 的提示放在 probe 之前打印, 但**不在这里返回** —— 否则
+    # `--probe --only X` 会走进这一支、把 OBSERVED 表吞掉。两条支路的 rc 都是 4。
+    if _only is not None:
+        # ⛔ 部分跑一律 rc=4，绝不落到「PASS」那条路上：`--only` 是诊断辅助
+        # （给刚更锚的条目做定点复核），不是全量结论。选空了同样是失败 ——
+        # 空跑被当成通过是本仓踩过的形态。
+        _sel = [m[0] for m in MUTATIONS if any(m[0].startswith(p) for p in _only)]
+        print(f"\n⚠️ --only {sorted(_only)} 选中 {len(_sel)} 条: {_sel}")
+        if not _sel:
+            print("⛔ --only 没选中任何变异 — 判失败，免得空跑被当成通过")
+        print("⚠️ 部分跑不构成全量结论，rc 恒为 4。")
+        if failures:
+            for _f in failures:
+                print("  -", _f)
+        if not _probe:
+            return 4
+
+    if _probe:
+        # ⛔ probe 只**观察**，从不判定。裁决一律 OBSERVED、rc 恒 4 —— 它的输出
+        # 不可能被误读成「通过」。作用: 首次为 EXPECT_MSG 找候选串时，知道每条
+        # 实际红在哪条断言上；候选是否**就是这条变异声称的那条**，要人去对
+        # 变异意图与门源码，不是拿这份输出直接回填(那就成了「期望值与被测量同源」)。
+        print("\n── PROBE 观察表（不是裁决）──")
+        for _t, _r in _observed.items():
+            print(f"  {_t}\t{_r!r}")
+        print(f"\n⚠️ --probe 不做击杀判定，rc 恒为 4。观察 {len(_observed)} 条。")
+        return 4
 
     # ── 阶段 2: 空变异对照 (只施加同层, 不打变异体)
     # ⛔ 为什么必须有 (2026-09-02 实测): M99 挂了「禁 facts」层后报 KILLED,
@@ -2027,8 +2492,8 @@ def main():
         elif not red0:
             print(f"[{tag}] ✓ 对照绿 (rc={r0.returncode}) ⇒ 击杀干净归因于变异体")
         elif fb is not None and fa == fb:
-            failures.append(f"{tag}: 只加层与层+变异体败在同一条断言 ⇒ 击杀由层贡献 (假杀): {fa[:90]}")
-            print(f"[{tag}] ✗ 假杀 — 两次同一失败点: {fa[:90]}")
+            failures.append(f"{tag}: 只加层与层+变异体败在同一条断言 ⇒ 击杀由层贡献 (假杀): {(fa or '')[:90]}")
+            print(f"[{tag}] ✗ 假杀 — 两次同一失败点: {(fa or '')[:90]}")
         else:
             print(f"[{tag}] ✓ 对照红但失败点不同 ⇒ 变异体有可观测效果 (门较粗, 隔离不干净)")
             print(f"       只加层: {(fa or '')[:88]}")
@@ -2047,17 +2512,38 @@ def main():
         failures.append("全文件基线漂移（有变异体没还原）: " + "; ".join(_drifted))
         print("   ⛔ 基线漂移 —— 生产文件里可能残留变异体, 立即人工核对")
 
+    # ── 汇总: 三态计数（KILLED / SURVIVED / SYNTAX-INVALID）+ 锚点异常
+    # ⛔ ANCHOR-ERROR 与 SYNTAX-INVALID 都**不是**关于被测物的结论 —— 前者是变异
+    # 没打进去, 后者是负控自己坏了。单列出来, 不许并进 KILLED / SURVIVED 任何一边。
+    _n_anchor_err = len({r[0] for r in _rows_anchor if r[2] != 1})
+    _n_bound = sum(1 for v in _verdicts.values() if v == "KILLED")
+    _n_unbound = sum(1 for v in _verdicts.values() if v == "KILLED-UNBOUND")
+    _n_survived = sum(1 for v in _verdicts.values() if v == "SURVIVED")
+    _n_harness = sum(1 for v in _verdicts.values() if v == "HARNESS-ERROR")
+    print()
+    print("── 汇总 ──")
+    # ⛔ Codex round-1 HIGH-3 整改: 「绑了断言身份的击杀」与「只证明了指定门红了」
+    # **分开报**。合起来说成「N 条全部被指定断言杀死」是把结论说得比证据宽 ——
+    # 豁免条目的判据仍是旧口径, 它们不在「红在声称的那条断言上」这个结论里。
+    print(f"KILLED (绑定断言身份): {_n_bound}/{len(MUTATIONS)}")
+    print(f"KILLED-UNBOUND (仅证明指定门红了, 见 EXPECT_MSG_EXEMPT): {_n_unbound}")
+    print(f"KILLED 合计 (两者之和, **不等于**「全部被指定断言杀死」): {_n_bound + _n_unbound}/{len(MUTATIONS)}")
+    print(f"SURVIVED: {_n_survived}")
+    print(f"HARNESS-ERROR: {_n_harness} (负控自己坏了, 不是关于被测物的结论)")
+    print(f"ANCHOR-ERROR: {_n_anchor_err} (变异未施加, 不是结论)")
+    print(f"SYNTAX-INVALID: {len(_syntax_invalid)} (>0 说明负控自己坏了) {_syntax_invalid or ''}")
     print()
     if failures:
         print("变异验证 FAIL:")
         for f in failures:
             print("  -", f)
-        sys.exit(1)
+        return 1
     print(
-        f"变异验证 PASS: {len(MUTATIONS)}/{len(MUTATIONS)} 全部被指定门杀死; "
+        f"变异验证 PASS: {len(MUTATIONS)}/{len(MUTATIONS)} 全部被**指定门的指定断言**杀死; "
         f"{len(layered)} 条带层变异全部通过空变异对照(击杀非层贡献); 全部逐字节还原。"
     )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
