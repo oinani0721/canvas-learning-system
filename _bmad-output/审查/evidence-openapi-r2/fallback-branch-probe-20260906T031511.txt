@@ -1,0 +1,11 @@
+check_drift rc = 1  (1 = 判出漂移, 预期)
+FIX 行条数     = 1
+--- 回落分支产出的 FIX 行原文 ---
+FIX: "python3" "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/scripts/spec-tools/check-openapi-drift.py" --write "/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmpj_zxe9az/backend/openapi.json"  (禁手改快照)
+--- 断言 ---
+可执行段 = "python3" "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/scripts/spec-tools/check-openapi-drift.py" --write "/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmpj_zxe9az/backend/openapi.json"
+ALL-ASSERTS-OK: 回落分支产出的是「python3 + 两个绝对路径 + 引号 + 尾注」
+
+--- 对照：有 venv 时（真实树）---
+FIX: "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/.venv/bin/python" "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/scripts/spec-tools/check-openapi-drift.py" --write "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-y5-review/backend/openapi.json"  (禁手改快照)
+rc=0

@@ -1,0 +1,41 @@
+### 补 Codex §四 自限：check_drift 全函数作用域重名/遮蔽核验（AST，非目视）
+check_drift 行范围 = :217-265（全函数，非仅尾段）
+
+--- 全函数所有绑定名 -> 绑定行号 ---
+  clean            [228]
+  details          [228]
+  fix_interpreter  [258]  <== 本卡新增
+  fix_python       [257]  <== 本卡新增
+  fix_script       [259]  <== 本卡新增
+  fix_snapshot     [260]  <== 本卡新增
+  line             [249]
+  live             [227]
+  live_canon       [236]
+  live_paths       [237]
+  live_schemas     [242]
+  paths            [231]
+  schemas          [232]
+  snap_canon       [236]
+  snap_paths       [237]
+  snap_schemas     [241]
+  snapshot         [222]
+  snapshot_path    [217]
+  truncated        [243]
+
+--- 判据 1: 本卡四个新变量是否与既有名冲突 ---
+  与既有局部名的交集 = (空)
+
+--- 判据 2: 本卡四个新变量各自只被绑定一次（无自遮蔽/重复赋值）---
+  fix_interpreter  绑定次数=1 @ [258]
+  fix_python       绑定次数=1 @ [257]
+  fix_script       绑定次数=1 @ [259]
+  fix_snapshot     绑定次数=1 @ [260]
+
+--- 判据 3: 是否遮蔽模块级名字（含被禁改的六处）---
+  模块级名字总数=28；本卡新变量遮蔽的模块级名字 = (空)
+
+--- 判据 4: 既有局部名是否被本卡改动区间重新绑定 ---
+  改动区间 :253-264 内重新绑定的既有名 = (空)
+
+ALL-ASSERTS-OK: 全函数作用域无重名、无遮蔽、无重复绑定
+rc=0
