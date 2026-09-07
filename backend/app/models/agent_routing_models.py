@@ -34,7 +34,7 @@ class RoutingRequest(BaseModel):
     node_id: str = Field(..., description="Unique node identifier")
     node_text: str = Field(..., description="Node text content for analysis")
     agent_override: Optional[str] = Field(
-        None, description="Manual agent override (bypasses routing logic)"
+        default=None, description="Manual agent override (bypasses routing logic)"
     )
 
 
@@ -65,7 +65,7 @@ class RoutingResult(BaseModel):
         default_factory=list, description="Patterns that matched in the content"
     )
     fallback_agent: Optional[str] = Field(
-        None, description="Fallback agent if primary unavailable"
+        default=None, description="Fallback agent if primary unavailable"
     )
     reason: str = Field(default="", description="Explanation for routing decision")
 

@@ -38,7 +38,7 @@ class HealthCheckResponse(BaseModel):
     version: str = Field(..., description="Application version")
     timestamp: datetime = Field(..., description="Check timestamp")
     components: Optional[Dict[str, Any]] = Field(
-        None,
+        default=None,
         description="Optional component health status (e.g., fsrs, neo4j, batch_sessions)",
     )
 
@@ -230,7 +230,7 @@ class ApiTestResult(BaseModel):
 
     enabled: bool = Field(..., description="Whether API call test was enabled")
     result: Optional[str] = Field(
-        None, description="Test result: 'success' or error message"
+        default=None, description="Test result: 'success' or error message"
     )
 
 
@@ -252,7 +252,7 @@ class AgentHealthChecks(BaseModel):
         ..., description="Prompt template check results"
     )
     api_test: Optional[ApiTestResult] = Field(
-        None, description="Optional API call test result"
+        default=None, description="Optional API call test result"
     )
 
 
@@ -288,7 +288,7 @@ class ErrorResponse(BaseModel):
     code: int = Field(..., description="Error code")
     message: str = Field(..., description="Error message")
     details: Optional[Dict[str, Any]] = Field(
-        None, description="Additional error details"
+        default=None, description="Additional error details"
     )
 
 
@@ -351,15 +351,15 @@ class NodeCreate(BaseModel):
 
     type: NodeType = Field(..., description="Node type")
     text: Optional[str] = Field(
-        None, description="Text content (required for type=text)"
+        default=None, description="Text content (required for type=text)"
     )
-    file: Optional[str] = Field(None, description="File path (required for type=file)")
-    url: Optional[str] = Field(None, description="Link URL (required for type=link)")
+    file: Optional[str] = Field(default=None, description="File path (required for type=file)")
+    url: Optional[str] = Field(default=None, description="Link URL (required for type=link)")
     x: int = Field(..., description="X position")
     y: int = Field(..., description="Y position")
     width: int = Field(default=250, description="Node width")
     height: int = Field(default=60, description="Node height")
-    color: Optional[NodeColor] = Field(None, description="Node color code")
+    color: Optional[NodeColor] = Field(default=None, description="Node color code")
 
 
 class NodeUpdate(BaseModel):
@@ -369,12 +369,12 @@ class NodeUpdate(BaseModel):
     [Source: specs/api/fastapi-backend-api.openapi.yml#/components/schemas/NodeUpdate]
     """
 
-    text: Optional[str] = Field(None, description="Text content")
-    x: Optional[int] = Field(None, description="X position")
-    y: Optional[int] = Field(None, description="Y position")
-    width: Optional[int] = Field(None, description="Node width")
-    height: Optional[int] = Field(None, description="Node height")
-    color: Optional[NodeColor] = Field(None, description="Node color code")
+    text: Optional[str] = Field(default=None, description="Text content")
+    x: Optional[int] = Field(default=None, description="X position")
+    y: Optional[int] = Field(default=None, description="Y position")
+    width: Optional[int] = Field(default=None, description="Node width")
+    height: Optional[int] = Field(default=None, description="Node height")
+    color: Optional[NodeColor] = Field(default=None, description="Node color code")
 
 
 class NodeRead(BaseModel):
@@ -388,14 +388,14 @@ class NodeRead(BaseModel):
     # ✅ Verified from Epic 12.K.1: NodeRead Schema Pattern Fix
     id: str = Field(..., description="Node ID", pattern=r"^[a-zA-Z0-9][-a-zA-Z0-9]*$")
     type: NodeType = Field(..., description="Node type")
-    text: Optional[str] = Field(None, description="Text content")
-    file: Optional[str] = Field(None, description="File path")
-    url: Optional[str] = Field(None, description="Link URL")
+    text: Optional[str] = Field(default=None, description="Text content")
+    file: Optional[str] = Field(default=None, description="File path")
+    url: Optional[str] = Field(default=None, description="Link URL")
     x: int = Field(..., description="X position")
     y: int = Field(..., description="Y position")
-    width: Optional[int] = Field(None, description="Node width")
-    height: Optional[int] = Field(None, description="Node height")
-    color: Optional[NodeColor] = Field(None, description="Node color code")
+    width: Optional[int] = Field(default=None, description="Node width")
+    height: Optional[int] = Field(default=None, description="Node height")
+    color: Optional[NodeColor] = Field(default=None, description="Node color code")
 
 
 class EdgeCreate(BaseModel):
@@ -407,9 +407,9 @@ class EdgeCreate(BaseModel):
 
     fromNode: str = Field(..., description="Source node ID")
     toNode: str = Field(..., description="Target node ID")
-    fromSide: Optional[EdgeSide] = Field(None, description="Source side")
-    toSide: Optional[EdgeSide] = Field(None, description="Target side")
-    label: Optional[str] = Field(None, description="Edge label")
+    fromSide: Optional[EdgeSide] = Field(default=None, description="Source side")
+    toSide: Optional[EdgeSide] = Field(default=None, description="Target side")
+    label: Optional[str] = Field(default=None, description="Edge label")
 
 
 class EdgeRead(BaseModel):
@@ -422,9 +422,9 @@ class EdgeRead(BaseModel):
     id: str = Field(..., description="Edge ID")
     fromNode: str = Field(..., description="Source node ID")
     toNode: str = Field(..., description="Target node ID")
-    fromSide: Optional[str] = Field(None, description="Source side")
-    toSide: Optional[str] = Field(None, description="Target side")
-    label: Optional[str] = Field(None, description="Edge label")
+    fromSide: Optional[str] = Field(default=None, description="Source side")
+    toSide: Optional[str] = Field(default=None, description="Target side")
+    label: Optional[str] = Field(default=None, description="Edge label")
 
 
 class CanvasResponse(BaseModel):
@@ -497,7 +497,7 @@ class ScoreRequest(BaseModel):
     canvas_name: str = Field(..., description="Canvas file name")
     node_ids: List[str] = Field(..., description="Node IDs to score")
     node_content: Optional[str] = Field(
-        None, description="Node content to score (passed from plugin)"
+        default=None, description="Node content to score (passed from plugin)"
     )
     # Wave-5 Stage B 续 — vault_id 注入
     vault_id: Optional[str] = Field(
@@ -536,10 +536,10 @@ class NodeScore(BaseModel):
         ..., description="New node color: 2=green(>=80), 3=purple(60-79), 4=red(<60)"
     )
     feedback: Optional[str] = Field(
-        None, description="Specific improvement suggestions (100-200 chars)"
+        default=None, description="Specific improvement suggestions (100-200 chars)"
     )
     color_action: Optional[str] = Field(
-        None, description="Color action: change_to_green/change_to_purple/keep_red"
+        default=None, description="Color action: change_to_green/change_to_purple/keep_red"
     )
 
 
@@ -564,7 +564,7 @@ class ExplainRequest(BaseModel):
     canvas_name: str = Field(..., description="Canvas file name")
     node_id: str = Field(..., description="Target node ID")
     node_content: Optional[str] = Field(
-        None,
+        default=None,
         description="Real-time node content from plugin (Story 12.B.2). "
         "If provided, used directly instead of reading from disk.",
     )
@@ -646,7 +646,7 @@ class VerificationQuestion(BaseModel):
         ..., description="Question type: 突破型/检验型/应用型/综合型"
     )
     difficulty: str = Field(..., description="Difficulty level: 基础/深度")
-    guidance: Optional[str] = Field(None, description="Optional hint starting with 💡")
+    guidance: Optional[str] = Field(default=None, description="Optional hint starting with 💡")
     rationale: str = Field(..., description="Why this question was generated")
 
 
@@ -761,7 +761,7 @@ class GenerateReviewRequest(BaseModel):
 
     source_canvas: str = Field(..., description="Source Canvas file name")
     node_ids: Optional[List[str]] = Field(
-        None, description="Specific node IDs (optional, defaults to all green nodes)"
+        default=None, description="Specific node IDs (optional, defaults to all green nodes)"
     )
     # ✅ Verified from Story 24.1 Dev Notes (lines 167-178)
     mode: Literal["fresh", "targeted"] = Field(
@@ -844,14 +844,14 @@ class GenerateReviewResponse(BaseModel):
     node_count: int = Field(..., description="Number of verification nodes")
     # ✅ Verified from Story 24.1 Dev Notes - Response Enhancement
     mode_used: Optional[str] = Field(
-        None, description="Mode used for generation (fresh/targeted)"
+        default=None, description="Mode used for generation (fresh/targeted)"
     )
     # ✅ Story 24.3 additions - Weight Algorithm Response Enhancement
     weak_concepts: List["WeakConceptData"] = Field(
         default_factory=list, description="Weak concepts identified in targeted mode"
     )
     weight_config: Optional["WeightConfig"] = Field(
-        None, description="Weight configuration used in targeted mode"
+        default=None, description="Weight configuration used in targeted mode"
     )
     # Story 31.2+31.5: Difficulty adaptation metadata
     skipped_mastered_count: int = Field(default=0, description="跳过的已掌握概念数量")
@@ -874,25 +874,25 @@ class RecordReviewRequest(BaseModel):
     node_id: str = Field(..., description="Node ID (maps to concept_id)")
     # Story 32.2: FSRS rating field (primary)
     rating: Optional[int] = Field(
-        None,
+        default=None,
         ge=1,
         le=4,
         description="FSRS rating: 1=Again (forgot), 2=Hard, 3=Good, 4=Easy",
     )
     # Story 32.2 AC-32.2.4: Legacy score field (backward compatibility)
     score: Optional[float] = Field(
-        None,
+        default=None,
         ge=0,
         le=100,
         description="Legacy score (0-100). Auto-converted to rating: <40=Again, 40-59=Hard, 60-84=Good, >=85=Easy",
     )
     # Optional card state for persistence
     card_state: Optional[str] = Field(
-        None,
+        default=None,
         description="Serialized FSRS card JSON from previous review (for card state continuity)",
     )
     review_duration: Optional[int] = Field(
-        None, description="Review time in seconds (for metrics)"
+        default=None, description="Review time in seconds (for metrics)"
     )
     # Wave-5 Stage B (2026-05-12) — Multi-vault P0-2.
     vault_id: Optional[str] = Field(
@@ -925,14 +925,14 @@ class FSRSStateResponse(BaseModel):
     state: int = Field(
         ..., description="Card state: 0=New, 1=Learning, 2=Review, 3=Relearning"
     )
-    reps: int = Field(0, description="Successful review count")
-    lapses: int = Field(0, description="Failed review count (rating=1)")
+    reps: int = Field(default=0, description="Successful review count")
+    lapses: int = Field(default=0, description="Failed review count (rating=1)")
     # Story 32.3: Additional fields for plugin priority calculation
     retrievability: Optional[float] = Field(
-        None, ge=0, le=1, description="Current retrievability probability (0-1)"
+        default=None, ge=0, le=1, description="Current retrievability probability (0-1)"
     )
-    due: Optional[datetime] = Field(None, description="Next due date/time for review")
-    last_review: Optional[datetime] = Field(None, description="Last review date/time")
+    due: Optional[datetime] = Field(default=None, description="Next due date/time for review")
+    last_review: Optional[datetime] = Field(default=None, description="Last review date/time")
 
 
 class FSRSStateQueryResponse(BaseModel):
@@ -947,14 +947,14 @@ class FSRSStateQueryResponse(BaseModel):
 
     concept_id: str = Field(..., description="Concept identifier")
     fsrs_state: Optional[FSRSStateResponse] = Field(
-        None, description="FSRS algorithm state (None if no card exists)"
+        default=None, description="FSRS algorithm state (None if no card exists)"
     )
     card_state: Optional[str] = Field(
-        None, description="Serialized FSRS card JSON for plugin to deserialize"
+        default=None, description="Serialized FSRS card JSON for plugin to deserialize"
     )
-    found: bool = Field(True, description="Whether a card was found for this concept")
+    found: bool = Field(default=True, description="Whether a card was found for this concept")
     reason: Optional[str] = Field(
-        None,
+        default=None,
         description=(
             "Reason when found=false: 'no_card_created', 'fsrs_not_initialized', "
             "or error details. CARD-D3: also set with found=true when "
@@ -966,7 +966,7 @@ class FSRSStateQueryResponse(BaseModel):
     # CARD-D3: 加性可选字段 — auto-create 写盘失败时如实标 False
     # (found=True 只保证卡在内存, persisted 才是持久层的真话)
     persisted: Optional[bool] = Field(
-        None,
+        default=None,
         description=(
             "Whether the card state is in the persistence layer. False when "
             "an auto-created card failed to write to disk (memory-only, lost "
@@ -975,7 +975,7 @@ class FSRSStateQueryResponse(BaseModel):
     )
     # CARD-G3-7: 加性可选字段 — 这次的 due 归谁管 (D0 修订 §五 T1)
     truth_source: Optional[str] = Field(
-        None,
+        default=None,
         description=(
             "Which source governs this concept's schedule. 'frontmatter' — the "
             "node's .md carries fsrs_due and IS the truth source, so 'due' is "
@@ -999,7 +999,7 @@ class FSRSStateQueryResponse(BaseModel):
     )
     # CARD-G3-7: 加性可选字段 — service 层此前已产出但端点未转发, 属静默丢信号
     degraded_reason: Optional[str] = Field(
-        None,
+        default=None,
         description=(
             "Comma-joined honest degradation signals, orthogonal to 'reason'. "
             "'truth_source_divergence' — frontmatter and the backend projection "
@@ -1032,18 +1032,18 @@ class RecordReviewResponse(BaseModel):
     new_interval: int = Field(..., description="New review interval in days (dynamic)")
     # Story 32.2: FSRS state for client persistence
     fsrs_state: Optional[FSRSStateResponse] = Field(
-        None, description="FSRS algorithm state (stability, difficulty, etc.)"
+        default=None, description="FSRS algorithm state (stability, difficulty, etc.)"
     )
     card_data: Optional[str] = Field(
-        None, description="Serialized FSRS card JSON for next review"
+        default=None, description="Serialized FSRS card JSON for next review"
     )
     algorithm: str = Field(
-        "fsrs-4.5", description="Algorithm used: 'fsrs-4.5' or 'ebbinghaus-fallback'"
+        default="fsrs-4.5", description="Algorithm used: 'fsrs-4.5' or 'ebbinghaus-fallback'"
     )
     # CARD-D3: 加性可选字段 (默认 None 向后兼容, 200 语义不变) —
     # 沿用 SubmitAnswerResponse 的 degraded 字段先例
     card_state_persisted: Optional[bool] = Field(
-        None,
+        default=None,
         description=(
             "Whether the FSRS card state was persisted to disk. False = "
             "recorded in memory only (lost on restart), see degraded_reason. "
@@ -1052,7 +1052,7 @@ class RecordReviewResponse(BaseModel):
     )
     # CARD-G3-7: 加性可选字段 — 这次写入落在哪一层 (D0 修订 §五 T1)
     truth_source: Optional[str] = Field(
-        None,
+        default=None,
         description=(
             "NOTE for 'card_state_persisted': true there means the *projection "
             "cache* was written — it does NOT mean the node's schedule truth "
@@ -1074,7 +1074,7 @@ class RecordReviewResponse(BaseModel):
         ),
     )
     degraded_reason: Optional[str] = Field(
-        None,
+        default=None,
         description=(
             "Set when card_state_persisted=false: 'card_state_write_failed' "
             "or 'empty_concept_id_not_persisted'"
@@ -1180,7 +1180,7 @@ class MultiReviewProgressResponse(BaseModel):
         ..., description="List of review sessions"
     )
     trends: Optional[TrendsData] = Field(
-        None, description="Trend analysis (only if ≥2 reviews)"
+        default=None, description="Trend analysis (only if ≥2 reviews)"
     )
 
 
@@ -1235,9 +1235,9 @@ class HistoryContext(BaseModel):
         max_length=5,
     )
     average_score: Optional[float] = Field(
-        None, ge=0, le=100, description="Average of recent scores"
+        default=None, ge=0, le=100, description="Average of recent scores"
     )
-    trend: Optional[ActionTrend] = Field(None, description="Score trend direction")
+    trend: Optional[ActionTrend] = Field(default=None, description="Score trend direction")
     consecutive_low_count: int = Field(
         default=0, ge=0, description="Number of consecutive scores below 60"
     )
@@ -1273,7 +1273,7 @@ class RecommendActionRequest(BaseModel):
         default=True, description="Whether to include historical score analysis"
     )
     concept: Optional[str] = Field(
-        None, description="Concept name (optional, used for history lookup)"
+        default=None, description="Concept name (optional, used for history lookup)"
     )
     # Wave-5 Stage B 续 — vault_id 注入 (history lookup per-vault)
     vault_id: Optional[str] = Field(
@@ -1304,7 +1304,7 @@ class RecommendActionResponse(BaseModel):
 
     action: ActionType = Field(..., description="Recommended action type")
     agent: Optional[str] = Field(
-        None, description="Recommended agent endpoint path, null for 'next' action"
+        default=None, description="Recommended agent endpoint path, null for 'next' action"
     )
     reason: str = Field(
         ...,
@@ -1322,7 +1322,7 @@ class RecommendActionResponse(BaseModel):
         description="Whether additional review is suggested based on declining trend",
     )
     history_context: Optional[HistoryContext] = Field(
-        None, description="Historical score context (when include_history=true)"
+        default=None, description="Historical score context (when include_history=true)"
     )
     alternative_agents: List[AlternativeAgent] = Field(
         default_factory=list,

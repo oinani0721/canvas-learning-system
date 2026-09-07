@@ -60,7 +60,7 @@ class ExamSessionCreate(BaseModel):
     source_canvas_id: str = Field(..., description="Original canvas board ID")
     exam_mode: ExamMode = Field(default=ExamMode.MIXED, description="Examination mode")
     target_node_id: Optional[str] = Field(
-        None, description="Single-node exam target (Story 6.2 AC-6)"
+        default=None, description="Single-node exam target (Story 6.2 AC-6)"
     )
 
 
@@ -108,7 +108,7 @@ class CanvasAnalysisRequest(BaseModel):
 
     canvas_id: str = Field(..., description="Canvas board to analyze")
     target_node_id: Optional[str] = Field(
-        None, description="Analyze single node instead of full canvas"
+        default=None, description="Analyze single node instead of full canvas"
     )
 
 
@@ -141,10 +141,16 @@ class AutoScoreResult(BaseModel):
     exam_id: str
     question_id: str = ""
     evidence_points: List[str] = Field(default_factory=list)
-    concept_accuracy: RubricDimension = Field(default_factory=RubricDimension)
-    reasoning_quality: RubricDimension = Field(default_factory=RubricDimension)
-    knowledge_coverage: RubricDimension = Field(default_factory=RubricDimension)
-    knowledge_integration: RubricDimension = Field(default_factory=RubricDimension)
+    # CARD-PYRIGHT-DEBT-rest [BATCH-2026-09-07-第十三批] 真 bug ①: 四维原为
+    # `Field(default_factory=RubricDimension)`, 而 RubricDimension.score 无默认
+    # ⇒ 该 default 一旦被用到就抛 ValidationError, 且消息报的是内层 `score`,
+    # 把「外层漏传了哪个维度」吃掉。两个实例化点(services/autoscore.py:141/:197)
+    # 都显式传四维, 成功路径从不依赖它 ⇒ 改必填, 错误更早更准。
+    # ⛔ 不给 score 加默认 0: 「评分缺失静默为 0」是语义变化, 用户未裁。
+    concept_accuracy: RubricDimension = Field(..., description="Concept accuracy dimension")
+    reasoning_quality: RubricDimension = Field(..., description="Reasoning quality dimension")
+    knowledge_coverage: RubricDimension = Field(..., description="Knowledge coverage dimension")
+    knowledge_integration: RubricDimension = Field(..., description="Knowledge integration dimension")
     overall_score: int = Field(ge=0, le=12)
     grade: int = Field(ge=1, le=4, description="1=Again, 2=Hard, 3=Good, 4=Easy")
     confidence: str = Field(default="high", description="high | medium | low")
@@ -305,7 +311,7 @@ class DiscoveredNode(BaseModel):
         description="When the node was discovered",
     )
     source_exam_id: str = Field(
-        "", description="ID of the exam whiteboard where discovered"
+        default="", description="ID of the exam whiteboard where discovered"
     )
 
 
@@ -321,10 +327,10 @@ class ExamNodeSyncRequest(BaseModel):
     node_text: str = Field(..., description="Node text content")
     source_node_id: str = Field(..., description="Parent node in exam context")
     suggested_relation: str = Field(
-        "related_to", description="LLM-suggested relation type"
+        default="related_to", description="LLM-suggested relation type"
     )
-    position_x: Optional[float] = Field(None, description="X position on source canvas")
-    position_y: Optional[float] = Field(None, description="Y position on source canvas")
+    position_x: Optional[float] = Field(default=None, description="X position on source canvas")
+    position_y: Optional[float] = Field(default=None, description="Y position on source canvas")
 
 
 class ExamNodeSyncResponse(BaseModel):
@@ -373,7 +379,7 @@ class HintRequest(BaseModel):
     question_context: str = Field(
         ..., description="Current question text for hint generation"
     )
-    question_id: str = Field("", description="Question ID if available")
+    question_id: str = Field(default="", description="Question ID if available")
 
 
 class HintResponse(BaseModel):
@@ -391,10 +397,10 @@ class HintResponse(BaseModel):
     message: str = ""
     # F12: Scaffolding gradual deprecation
     hint_available: bool = Field(
-        True, description="Whether hints are available (F12 mastery fade-out)"
+        default=True, description="Whether hints are available (F12 mastery fade-out)"
     )
     max_allowed_level: int = Field(
-        4, ge=0, le=4, description="Highest hint level allowed by mastery"
+        default=4, ge=0, le=4, description="Highest hint level allowed by mastery"
     )
 
 
@@ -406,7 +412,7 @@ class HintUsage(BaseModel):
 
     node_id: str
     max_hint_level_used: int = Field(
-        0, ge=0, le=4, description="Highest hint level used (0 = no hints)"
+        default=0, ge=0, le=4, description="Highest hint level used (0 = no hints)"
     )
     hint_texts: List[str] = Field(
         default_factory=list, description="Hint texts provided at each level"
@@ -421,7 +427,7 @@ class SkipRecord(BaseModel):
     """
 
     node_id: str = Field(..., description="Node that was skipped")
-    question_id: str = Field("", description="Question that was skipped")
+    question_id: str = Field(default="", description="Question that was skipped")
     timestamp: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
     )
@@ -435,7 +441,7 @@ class SkipRequest(BaseModel):
 
     exam_id: str = Field(..., description="Exam session ID")
     node_id: str = Field(..., description="Node being examined")
-    question_id: str = Field("", description="Question being skipped")
+    question_id: str = Field(default="", description="Question being skipped")
 
 
 class SkipResponse(BaseModel):
@@ -446,10 +452,10 @@ class SkipResponse(BaseModel):
 
     skipped: bool = True
     bkt_penalized: bool = Field(
-        False, description="Always False — skip never penalizes BKT"
+        default=False, description="Always False — skip never penalizes BKT"
     )
     fsrs_updated: bool = Field(
-        False, description="Always False — skip never triggers FSRS update"
+        default=False, description="Always False — skip never triggers FSRS update"
     )
     status: str = "ok"
     message: str = ""
@@ -498,18 +504,18 @@ class NodeScoreRecord(BaseModel):
 
     node_id: str
     node_text: str = ""
-    concept_accuracy: int = Field(0, ge=0, le=3)
-    reasoning_quality: int = Field(0, ge=0, le=3)
-    knowledge_coverage: int = Field(0, ge=0, le=3)
-    knowledge_integration: int = Field(0, ge=0, le=3)
-    overall_score: int = Field(0, ge=0, le=12)
+    concept_accuracy: int = Field(default=0, ge=0, le=3)
+    reasoning_quality: int = Field(default=0, ge=0, le=3)
+    knowledge_coverage: int = Field(default=0, ge=0, le=3)
+    knowledge_integration: int = Field(default=0, ge=0, le=3)
+    overall_score: int = Field(default=0, ge=0, le=12)
     grade: int = Field(
-        0, ge=0, le=4, description="1=Forgot, 2=Struggled, 3=Correct, 4=Fluent"
+        default=0, ge=0, le=4, description="1=Forgot, 2=Struggled, 3=Correct, 4=Fluent"
     )
-    confidence: str = Field("medium", description="high|medium|low")
+    confidence: str = Field(default="medium", description="high|medium|low")
     hint_usage: Optional[HintUsage] = None
-    proficiency_before: float = Field(0.0, ge=0.0, le=1.0)
-    proficiency_after: float = Field(0.0, ge=0.0, le=1.0)
+    proficiency_before: float = Field(default=0.0, ge=0.0, le=1.0)
+    proficiency_after: float = Field(default=0.0, ge=0.0, le=1.0)
 
 
 class ConversationMessage(BaseModel):
@@ -525,7 +531,7 @@ class ConversationMessage(BaseModel):
     timestamp: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
-    node_id: str = Field("", description="Associated node if applicable")
+    node_id: str = Field(default="", description="Associated node if applicable")
 
 
 class MasteryChange(BaseModel):
@@ -536,9 +542,9 @@ class MasteryChange(BaseModel):
 
     node_id: str
     node_text: str = ""
-    proficiency_before: float = Field(0.0, ge=0.0, le=1.0)
-    proficiency_after: float = Field(0.0, ge=0.0, le=1.0)
-    trend: str = Field("stable", description="up | down | stable")
+    proficiency_before: float = Field(default=0.0, ge=0.0, le=1.0)
+    proficiency_after: float = Field(default=0.0, ge=0.0, le=1.0)
+    trend: str = Field(default="stable", description="up | down | stable")
 
 
 class ExamCompleteRequest(BaseModel):
@@ -549,9 +555,9 @@ class ExamCompleteRequest(BaseModel):
 
     exam_id: str = Field(..., description="Exam session ID")
     source_canvas_id: str = Field(..., description="Original canvas board ID")
-    source_canvas_name: str = Field("", description="Original canvas board name")
+    source_canvas_name: str = Field(default="", description="Original canvas board name")
     exam_mode: str = Field(
-        "comprehensive",
+        default="comprehensive",
         description="point_to_point | comprehensive | mixed",
     )
     start_time: str = Field(..., description="Exam start time ISO string")
@@ -560,7 +566,7 @@ class ExamCompleteRequest(BaseModel):
         description="Exam end time",
     )
     active_duration_seconds: int = Field(
-        0, ge=0, description="Active exam time (excluding pauses/inactive)"
+        default=0, ge=0, description="Active exam time (excluding pauses/inactive)"
     )
     score_history: List[NodeScoreRecord] = Field(
         default_factory=list, description="Per-node scoring records"
@@ -587,7 +593,7 @@ class ExamCompleteResponse(BaseModel):
 
     exam_id: str
     saved: bool = True
-    record_id: str = Field("", description="Persistent record ID in Neo4j")
+    record_id: str = Field(default="", description="Persistent record ID in Neo4j")
     status: str = "ok"
     message: str = ""
 
@@ -607,7 +613,7 @@ class ExamRecordSummary(BaseModel):
     nodes_examined: int = 0
     discovered_nodes_count: int = 0
     skipped_nodes_count: int = 0
-    mastery_trend: str = Field("stable", description="up | down | stable")
+    mastery_trend: str = Field(default="stable", description="up | down | stable")
     status: str = "completed"
 
 

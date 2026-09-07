@@ -207,7 +207,7 @@ class MultiReviewProgressResponse(BaseModel):
         ..., description="List of all review sessions (newest first)"
     )
     trends: Optional[TrendAnalysis] = Field(
-        None, description="Trend analysis data (null if <2 reviews)"
+        default=None, description="Trend analysis data (null if <2 reviews)"
     )
 
 
@@ -258,10 +258,10 @@ class VerificationHistoryItem(BaseModel):
         description="Question angle type (standard, application, comparison, etc.)",
     )
     user_answer: Optional[str] = Field(
-        None, description="User's answer to the question (if answered)"
+        default=None, description="User's answer to the question (if answered)"
     )
     score: Optional[int] = Field(
-        None,
+        default=None,
         ge=0,
         le=100,
         description="Score for the answer (0-100, if evaluated)",
@@ -328,7 +328,7 @@ class VerificationHistoryResponse(BaseModel):
         ..., description="List of verification history records"
     )
     pagination: Optional[PaginationInfo] = Field(
-        None, description="Pagination metadata (included when paginated)"
+        default=None, description="Pagination metadata (included when paginated)"
     )
 
 
@@ -396,10 +396,10 @@ class HistoryStatistics(BaseModel):
     """
 
     average_rating: Optional[float] = Field(
-        None, description="Average FSRS rating", json_schema_extra={"example": 3.2}
+        default=None, description="Average FSRS rating", json_schema_extra={"example": 3.2}
     )
     retention_rate: Optional[float] = Field(
-        None,
+        default=None,
         ge=0.0,
         le=1.0,
         description="Memory retention rate",
@@ -412,7 +412,7 @@ class HistoryStatistics(BaseModel):
         json_schema_extra={"example": 7},
     )
     by_canvas: Optional[dict] = Field(
-        None,
+        default=None,
         description="Review count by canvas",
         json_schema_extra={"example": {"离散数学.canvas": 15, "线性代数.canvas": 10}},
     )
@@ -436,10 +436,10 @@ class HistoryResponse(BaseModel):
         default_factory=list, description="Daily review records (newest first)"
     )
     statistics: Optional[HistoryStatistics] = Field(
-        None, description="Aggregate statistics"
+        default=None, description="Aggregate statistics"
     )
     pagination: Optional[PaginationInfo] = Field(
-        None, description="Pagination info (Story 34.4)"
+        default=None, description="Pagination info (Story 34.4)"
     )
 
 
@@ -588,10 +588,10 @@ class StartSessionRequest(BaseModel):
         json_schema_extra={"example": "离散数学"},
     )
     node_ids: Optional[List[str]] = Field(
-        None, description="Optional list of specific node IDs to verify"
+        default=None, description="Optional list of specific node IDs to verify"
     )
     include_mastered: bool = Field(
-        True, description="Whether to include already-mastered concepts"
+        default=True, description="Whether to include already-mastered concepts"
     )
     # Wave-5 Stage B (2026-05-12) — Multi-vault P0-2.
     vault_id: Optional[str] = Field(
@@ -683,7 +683,7 @@ class SubmitAnswerResponse(BaseModel):
         json_schema_extra={"example": False},
     )
     degraded_reason: Optional[str] = Field(
-        None,
+        default=None,
         description=(
             "Reason for degradation: mock_mode_enabled, agent_timeout, "
             "agent_exception, or agent_unavailable. None when not degraded."
@@ -691,7 +691,7 @@ class SubmitAnswerResponse(BaseModel):
         json_schema_extra={"example": None},
     )
     degraded_warning: Optional[str] = Field(
-        None,
+        default=None,
         description="User-facing warning when scoring is degraded. None when not degraded.",
         json_schema_extra={"example": None},
     )
@@ -700,9 +700,9 @@ class SubmitAnswerResponse(BaseModel):
         description="Recommended next action: hint, next, or complete",
         json_schema_extra={"example": "next"},
     )
-    hint: Optional[str] = Field(None, description="Hint text if action is 'hint'")
+    hint: Optional[str] = Field(default=None, description="Hint text if action is 'hint'")
     next_question: Optional[str] = Field(
-        None, description="Next question text if action is 'next'"
+        default=None, description="Next question text if action is 'next'"
     )
     current_concept: str = Field(
         ...,

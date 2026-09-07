@@ -52,8 +52,8 @@ class LearningEpisodeCreate(BaseModel):
     node_id: str = Field(..., description="Canvas节点ID")
     concept: str = Field(..., description="学习概念")
     agent_type: str = Field(..., description="使用的Agent类型")
-    score: Optional[int] = Field(None, ge=0, le=100, description="得分 (0-100)")
-    duration_seconds: Optional[int] = Field(None, ge=0, description="学习时长 (秒)")
+    score: Optional[int] = Field(default=None, ge=0, le=100, description="得分 (0-100)")
+    duration_seconds: Optional[int] = Field(default=None, ge=0, description="学习时长 (秒)")
     # Wave-5 Stage B (2026-05-12) — Multi-vault P0-2.
     # 学习记录必须 vault 隔离, 否则用户每次切 vault 看到的学习历史串库.
     vault_id: str = Field(
@@ -128,8 +128,8 @@ class LearningHistoryItem(BaseModel):
     node_id: str = Field(..., description="Canvas节点ID")
     concept: str = Field(..., description="学习概念")
     agent_type: str = Field(..., description="使用的Agent类型")
-    score: Optional[int] = Field(None, description="得分")
-    duration_seconds: Optional[int] = Field(None, description="学习时长")
+    score: Optional[int] = Field(default=None, description="得分")
+    duration_seconds: Optional[int] = Field(default=None, description="学习时长")
     timestamp: str = Field(..., description="时间戳 (ISO format)")
 
 
@@ -158,7 +158,7 @@ class LearningHistoryResponse(BaseModel):
     # 每一处旧构造点都会炸 —— 那就不是"加性"而是破坏。None 的语义是
     # 「服务层这一次没给出状态」, 与 empty 严格区分。
     retrieval_status: Optional[ServiceStatus] = Field(
-        None,
+        default=None,
         description=(
             "检索四态 (G4-2 统一枚举): ok=有结果 / empty=真空 / "
             "degraded=部分源失败仍有兜底 / unavailable=不可信。"
@@ -166,7 +166,7 @@ class LearningHistoryResponse(BaseModel):
         ),
     )
     retrieval_status_reason: Optional[str] = Field(
-        None, description="故障说明 — degraded/unavailable 时非空, ok/empty 恒 null"
+        default=None, description="故障说明 — degraded/unavailable 时非空, ok/empty 恒 null"
     )
 
     model_config = ConfigDict(
@@ -207,11 +207,11 @@ class ConceptHistoryTimeline(BaseModel):
     [Source: AC-22.4.3]
     """
 
-    timestamp: Optional[str] = Field(None, description="时间戳")
-    score: Optional[int] = Field(None, description="得分")
-    user_id: Optional[str] = Field(None, description="用户ID")
-    concept: Optional[str] = Field(None, description="概念名称")
-    review_count: int = Field(0, description="复习次数")
+    timestamp: Optional[str] = Field(default=None, description="时间戳")
+    score: Optional[int] = Field(default=None, description="得分")
+    user_id: Optional[str] = Field(default=None, description="用户ID")
+    concept: Optional[str] = Field(default=None, description="概念名称")
+    review_count: int = Field(default=0, description="复习次数")
 
 
 class ScoreTrend(BaseModel):
@@ -221,10 +221,10 @@ class ScoreTrend(BaseModel):
     [Source: AC-22.4.3]
     """
 
-    first: Optional[int] = Field(None, description="首次得分")
-    last: Optional[int] = Field(None, description="最近得分")
-    average: Optional[float] = Field(None, description="平均得分")
-    improvement: Optional[int] = Field(None, description="分数提升")
+    first: Optional[int] = Field(default=None, description="首次得分")
+    last: Optional[int] = Field(default=None, description="最近得分")
+    average: Optional[float] = Field(default=None, description="平均得分")
+    improvement: Optional[int] = Field(default=None, description="分数提升")
 
 
 class ConceptHistoryResponse(BaseModel):
@@ -245,10 +245,10 @@ class ConceptHistoryResponse(BaseModel):
     # 本端点是四态最"值钱"的地方: 空 timeline 此前既可能是「这个概念真没学
     # 过」也可能是「Neo4j 挂了」, 两者在 HTTP 面上完全同形。
     retrieval_status: Optional[ServiceStatus] = Field(
-        None, description="检索四态 (G4-2 统一枚举); null=本次未产出状态"
+        default=None, description="检索四态 (G4-2 统一枚举); null=本次未产出状态"
     )
     retrieval_status_reason: Optional[str] = Field(
-        None, description="故障说明 — degraded/unavailable 时非空"
+        default=None, description="故障说明 — degraded/unavailable 时非空"
     )
 
     model_config = ConfigDict(
@@ -301,10 +301,10 @@ class LayerHealthStatus(BaseModel):
     """Health status for a single memory layer."""
 
     status: LayerStatus = Field(..., description="层状态: ok/error")
-    backend: Optional[str] = Field(None, description="后端类型")
-    node_count: Optional[int] = Field(None, description="节点数量(graphiti层)")
-    vector_count: Optional[int] = Field(None, description="向量数量(semantic层)")
-    error: Optional[str] = Field(None, description="错误信息(仅error时)")
+    backend: Optional[str] = Field(default=None, description="后端类型")
+    node_count: Optional[int] = Field(default=None, description="节点数量(graphiti层)")
+    vector_count: Optional[int] = Field(default=None, description="向量数量(semantic层)")
+    error: Optional[str] = Field(default=None, description="错误信息(仅error时)")
 
 
 class MemoryLayersStatus(BaseModel):
@@ -395,12 +395,12 @@ class ColorCode(str, Enum):
 class BatchEventMetadata(BaseModel):
     """Metadata for batch learning events."""
 
-    old_color: Optional[ColorCode] = Field(None, description="变化前颜色代码")
-    new_color: Optional[ColorCode] = Field(None, description="变化后颜色代码")
-    old_level: Optional[MasteryLevel] = Field(None, description="变化前掌握等级")
-    new_level: Optional[MasteryLevel] = Field(None, description="变化后掌握等级")
-    concept: Optional[str] = Field(None, description="概念名称")
-    node_text: Optional[str] = Field(None, description="节点文本内容")
+    old_color: Optional[ColorCode] = Field(default=None, description="变化前颜色代码")
+    new_color: Optional[ColorCode] = Field(default=None, description="变化后颜色代码")
+    old_level: Optional[MasteryLevel] = Field(default=None, description="变化前掌握等级")
+    new_level: Optional[MasteryLevel] = Field(default=None, description="变化后掌握等级")
+    concept: Optional[str] = Field(default=None, description="概念名称")
+    node_text: Optional[str] = Field(default=None, description="节点文本内容")
 
 
 class BatchEventItem(BaseModel):
@@ -410,7 +410,7 @@ class BatchEventItem(BaseModel):
     timestamp: str = Field(..., description="事件时间戳 (ISO format)")
     canvas_path: str = Field(..., description="Canvas文件路径")
     node_id: str = Field(..., description="节点ID")
-    metadata: Optional[BatchEventMetadata] = Field(None, description="事件元数据")
+    metadata: Optional[BatchEventMetadata] = Field(default=None, description="事件元数据")
 
 
 class BatchEpisodesRequest(BaseModel):
@@ -530,7 +530,7 @@ class ReviewSuggestionResponse(BaseModel):
 
     concept: str = Field(..., description="概念名称")
     concept_id: str = Field(..., description="概念ID")
-    last_score: Optional[int] = Field(None, description="最近得分")
+    last_score: Optional[int] = Field(default=None, description="最近得分")
     review_count: int = Field(..., description="复习次数")
     due_date: str = Field(..., description="到期日期 (ISO format)")
     priority: str = Field(..., description="优先级: high, medium, low")
@@ -578,14 +578,14 @@ class ReviewSuggestionsResponse(BaseModel):
         default_factory=list, description="复习建议列表 (原裸数组的内容)"
     )
     retrieval_status: Optional[ServiceStatus] = Field(
-        None,
+        default=None,
         description=(
             "检索四态 (G4-2 统一枚举)。unavailable 时 items 恒空且**不可信** —— "
             "与 empty (真的没有待复习概念) 是两回事。"
         ),
     )
     retrieval_status_reason: Optional[str] = Field(
-        None, description="故障说明 — degraded/unavailable 时非空"
+        default=None, description="故障说明 — degraded/unavailable 时非空"
     )
 
     model_config = ConfigDict(

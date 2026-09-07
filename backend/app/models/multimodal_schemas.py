@@ -47,21 +47,21 @@ class MultimodalMetadataSchema(BaseModel):
     [Source: src/agentic_rag/models/multimodal_content.py#MultimodalMetadata]
     """
 
-    file_size: Optional[int] = Field(None, ge=0, description="File size in bytes")
+    file_size: Optional[int] = Field(default=None, ge=0, description="File size in bytes")
     width: Optional[int] = Field(
-        None, ge=0, description="Width in pixels (image/video)"
+        default=None, ge=0, description="Width in pixels (image/video)"
     )
     height: Optional[int] = Field(
-        None, ge=0, description="Height in pixels (image/video)"
+        default=None, ge=0, description="Height in pixels (image/video)"
     )
     duration: Optional[float] = Field(
-        None, ge=0, description="Duration in seconds (audio/video)"
+        default=None, ge=0, description="Duration in seconds (audio/video)"
     )
-    page_count: Optional[int] = Field(None, ge=0, description="Page count (PDF)")
-    mime_type: Optional[str] = Field(None, description="MIME type")
-    author: Optional[str] = Field(None, description="Content author")
-    title: Optional[str] = Field(None, description="Content title")
-    language: Optional[str] = Field(None, description="Content language")
+    page_count: Optional[int] = Field(default=None, ge=0, description="Page count (PDF)")
+    mime_type: Optional[str] = Field(default=None, description="MIME type")
+    author: Optional[str] = Field(default=None, description="Content author")
+    title: Optional[str] = Field(default=None, description="Content title")
+    language: Optional[str] = Field(default=None, description="Content language")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -83,9 +83,9 @@ class MultimodalUploadUrlRequest(BaseModel):
     related_concept_id: str = Field(
         ..., min_length=1, description="Canvas node ID to associate this content with"
     )
-    canvas_path: Optional[str] = Field(None, description="Canvas file path for context")
+    canvas_path: Optional[str] = Field(default=None, description="Canvas file path for context")
     description: Optional[str] = Field(
-        None, max_length=1000, description="Optional description for the content"
+        default=None, max_length=1000, description="Optional description for the content"
     )
 
     @field_validator("url")
@@ -117,13 +117,13 @@ class MultimodalUpdateRequest(BaseModel):
     """
 
     description: Optional[str] = Field(
-        None, max_length=1000, description="Updated description"
+        default=None, max_length=1000, description="Updated description"
     )
     related_concept_id: Optional[str] = Field(
-        None, min_length=1, description="New related concept ID"
+        default=None, min_length=1, description="New related concept ID"
     )
     source_location: Optional[str] = Field(
-        None, max_length=255, description="Page number (PDF) or timestamp (audio/video)"
+        default=None, max_length=255, description="Page number (PDF) or timestamp (audio/video)"
     )
 
 
@@ -150,17 +150,17 @@ class MultimodalResponse(BaseModel):
         ..., description="Associated Canvas concept node ID"
     )
     created_at: datetime = Field(..., description="Creation timestamp")
-    thumbnail_path: Optional[str] = Field(None, description="Path to thumbnail image")
+    thumbnail_path: Optional[str] = Field(default=None, description="Path to thumbnail image")
     extracted_text: Optional[str] = Field(
-        None, description="OCR-extracted text (images/PDFs)"
+        default=None, description="OCR-extracted text (images/PDFs)"
     )
     description: Optional[str] = Field(
-        None, description="AI-generated or user description"
+        default=None, description="AI-generated or user description"
     )
-    source_location: Optional[str] = Field(None, description="Page number or timestamp")
-    updated_at: Optional[datetime] = Field(None, description="Last update timestamp")
+    source_location: Optional[str] = Field(default=None, description="Page number or timestamp")
+    updated_at: Optional[datetime] = Field(default=None, description="Last update timestamp")
     metadata: Optional[MultimodalMetadataSchema] = Field(
-        None, description="Additional metadata (dimensions, duration, etc.)"
+        default=None, description="Additional metadata (dimensions, duration, etc.)"
     )
 
     model_config = ConfigDict(from_attributes=True)
@@ -212,9 +212,9 @@ class MultimodalListResponse(BaseModel):
         default_factory=list, description="List of multimodal content items"
     )
     total: int = Field(..., ge=0, description="Total item count")
-    concept_id: Optional[str] = Field(None, description="Filter concept ID if applied")
+    concept_id: Optional[str] = Field(default=None, description="Filter concept ID if applied")
     media_type: Optional[MultimodalMediaType] = Field(
-        None, description="Filter media type if applied"
+        default=None, description="Filter media type if applied"
     )
 
 
@@ -230,7 +230,7 @@ class MultimodalHealthResponse(BaseModel):
     lancedb_connected: bool = Field(..., description="LanceDB connection status")
     neo4j_connected: bool = Field(..., description="Neo4j connection status")
     storage_path_writable: bool = Field(..., description="Storage path write access")
-    total_items: int = Field(0, ge=0, description="Total stored items count")
+    total_items: int = Field(default=0, ge=0, description="Total stored items count")
     # Story 35.11 AC 35.11.3: Degradation transparency fields
     storage_backend: str = Field(
         default="json_fallback",
@@ -273,16 +273,16 @@ class MediaItemResponse(BaseModel):
     )
     path: str = Field(..., description="File path")
     title: Optional[str] = Field(
-        None, max_length=50, description="Title (truncated to 50 chars)"
+        default=None, max_length=50, description="Title (truncated to 50 chars)"
     )
     relevanceScore: float = Field(
         ..., ge=0.0, le=1.0, description="Relevance score (0-1)"
     )
-    conceptId: Optional[str] = Field(None, description="Related concept node ID")
+    conceptId: Optional[str] = Field(default=None, description="Related concept node ID")
     metadata: Optional[dict[str, Any]] = Field(
-        None, description="Additional metadata (dimensions, duration, etc.)"
+        default=None, description="Additional metadata (dimensions, duration, etc.)"
     )
-    thumbnail: Optional[str] = Field(None, description="Base64 encoded thumbnail image")
+    thumbnail: Optional[str] = Field(default=None, description="Base64 encoded thumbnail image")
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -331,7 +331,7 @@ class MultimodalSearchRequest(BaseModel):
         description="Search query text for semantic search",
     )
     media_types: Optional[List[MultimodalMediaType]] = Field(
-        None, description="Optional filter by media types"
+        default=None, description="Optional filter by media types"
     )
     top_k: int = Field(
         default=10, ge=1, le=100, description="Maximum number of results"

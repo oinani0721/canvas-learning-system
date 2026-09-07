@@ -35,10 +35,10 @@ class OperationDataResponse(BaseModel):
     [Source: docs/architecture/rollback-recovery-architecture.md:38-66]
     """
 
-    before: Optional[Any] = Field(None, description="操作前状态")
-    after: Optional[Any] = Field(None, description="操作后状态")
-    node_ids: Optional[List[str]] = Field(None, description="影响的节点ID列表")
-    edge_ids: Optional[List[str]] = Field(None, description="影响的边ID列表")
+    before: Optional[Any] = Field(default=None, description="操作前状态")
+    after: Optional[Any] = Field(default=None, description="操作后状态")
+    node_ids: Optional[List[str]] = Field(default=None, description="影响的节点ID列表")
+    edge_ids: Optional[List[str]] = Field(default=None, description="影响的边ID列表")
 
 
 class OperationMetadataResponse(BaseModel):
@@ -47,9 +47,9 @@ class OperationMetadataResponse(BaseModel):
     [Source: docs/architecture/rollback-recovery-architecture.md:38-66]
     """
 
-    description: str = Field("", description="操作描述")
-    agent_id: Optional[str] = Field(None, description="执行Agent ID")
-    request_id: Optional[str] = Field(None, description="请求追踪ID")
+    description: str = Field(default="", description="操作描述")
+    agent_id: Optional[str] = Field(default=None, description="执行Agent ID")
+    request_id: Optional[str] = Field(default=None, description="请求追踪ID")
 
 
 class OperationResponse(BaseModel):
@@ -175,7 +175,7 @@ class SnapshotResponse(BaseModel):
     canvas_path: str = Field(..., description="Canvas文件路径")
     timestamp: datetime = Field(..., description="创建时间戳")
     type: SnapshotTypeEnum = Field(..., description="快照类型")
-    last_operation_id: Optional[str] = Field(None, description="关联的最后操作ID")
+    last_operation_id: Optional[str] = Field(default=None, description="关联的最后操作ID")
     metadata: SnapshotMetadataResponse = Field(default_factory=SnapshotMetadataResponse)
 
 
@@ -194,8 +194,8 @@ class CreateSnapshotRequest(BaseModel):
     """
 
     canvas_path: str = Field(..., description="Canvas文件路径")
-    description: Optional[str] = Field(None, description="快照描述")
-    tags: Optional[List[str]] = Field(None, description="标签列表")
+    description: Optional[str] = Field(default=None, description="快照描述")
+    tags: Optional[List[str]] = Field(default=None, description="标签列表")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -220,13 +220,13 @@ class RollbackRequest(BaseModel):
     canvas_path: str = Field(..., description="Canvas文件路径")
     rollback_type: RollbackTypeEnum = Field(..., description="回滚类型")
     target_id: Optional[str] = Field(
-        None, description="目标ID (operation_id 或 snapshot_id)"
+        default=None, description="目标ID (operation_id 或 snapshot_id)"
     )
     target_time: Optional[datetime] = Field(
-        None, description="目标时间点 (仅 timepoint 类型)"
+        default=None, description="目标时间点 (仅 timepoint 类型)"
     )
-    create_backup: bool = Field(True, description="是否在回滚前创建备份快照")
-    preserve_graph: bool = Field(False, description="是否跳过知识图谱同步")
+    create_backup: bool = Field(default=True, description="是否在回滚前创建备份快照")
+    preserve_graph: bool = Field(default=False, description="是否跳过知识图谱同步")
 
 
 class GraphSyncStatusEnum(str, Enum):
@@ -246,14 +246,14 @@ class RollbackResult(BaseModel):
     success: bool = Field(..., description="是否成功")
     rollback_type: RollbackTypeEnum = Field(..., description="回滚类型")
     canvas_path: str = Field(..., description="Canvas文件路径")
-    backup_snapshot_id: Optional[str] = Field(None, description="备份快照ID")
-    restored_operation_id: Optional[str] = Field(None, description="恢复到的操作ID")
-    restored_snapshot_id: Optional[str] = Field(None, description="恢复到的快照ID")
+    backup_snapshot_id: Optional[str] = Field(default=None, description="备份快照ID")
+    restored_operation_id: Optional[str] = Field(default=None, description="恢复到的操作ID")
+    restored_snapshot_id: Optional[str] = Field(default=None, description="恢复到的快照ID")
     graph_sync_status: GraphSyncStatusEnum = Field(
-        GraphSyncStatusEnum.SKIPPED, description="图谱同步状态"
+        default=GraphSyncStatusEnum.SKIPPED, description="图谱同步状态"
     )
-    message: str = Field("", description="结果消息")
-    error: Optional[str] = Field(None, description="错误信息")
+    message: str = Field(default="", description="结果消息")
+    error: Optional[str] = Field(default=None, description="错误信息")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
