@@ -21,12 +21,11 @@
 # [Source: _bmad-output/审查/2026-08-02-ChatGPT-RAG三P0审查吸收与验证.md §三]
 
 import asyncio
-import fnmatch
 import json
 import logging
 import os
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple

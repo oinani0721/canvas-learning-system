@@ -19,7 +19,6 @@ human spot-check validation.
 """
 
 import asyncio
-import logging
 import sqlite3
 from datetime import datetime, timezone
 from typing import Optional
@@ -481,13 +480,20 @@ class ExtractionValidator:
 
         async with aiosqlite.connect(self._db_path) as db:
             cursor = await db.execute(_STATS_TOTAL)
-            total = (await cursor.fetchone())[0]
+            row = await cursor.fetchone()
+            # COUNT(*) 查询恒返回一行; 原代码 None[0] 同样 TypeError。
+            assert row is not None
+            total = row[0]
 
             cursor = await db.execute(_STATS_ANNOTATED)
-            annotated = (await cursor.fetchone())[0]
+            row = await cursor.fetchone()
+            assert row is not None  # COUNT(*) 恒一行; 原代码 None[0] 同样 TypeError
+            annotated = row[0]
 
             cursor = await db.execute(_STATS_CORRECT)
-            correct = (await cursor.fetchone())[0]
+            row = await cursor.fetchone()
+            assert row is not None  # COUNT(*) 恒一行; 原代码 None[0] 同样 TypeError
+            correct = row[0]
 
             cursor = await db.execute(_STATS_BY_TYPE)
             type_rows = await cursor.fetchall()

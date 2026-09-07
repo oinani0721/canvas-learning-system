@@ -20,7 +20,6 @@ Time-window aggregation: 24h / 7d / 30d sliding windows via SQLite queries.
 """
 
 import asyncio
-import logging
 import traceback
 
 import structlog

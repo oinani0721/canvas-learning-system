@@ -13,7 +13,6 @@ Story 23.1 Implementation:
 [Source: docs/architecture/ADR-003-AGENTIC-RAG-ARCHITECTURE.md]
 """
 
-import logging
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional
@@ -51,7 +50,6 @@ try:
     # ✅ Verified from agentic_rag/__init__.py
     from agentic_rag import (
         AGENTIC_RAG_AVAILABLE,
-        CanvasRAGConfig,
         canvas_agentic_rag,
         get_import_error,
     )
@@ -319,6 +317,9 @@ class RAGService:
 
         try:
             # ✅ Verified from LangGraph Skill: ainvoke for async execution
+            # ImportError 分支会把 canvas_agentic_rag 置 None(:76/:84);
+            # 原代码 None.ainvoke 同样 AttributeError, 且同样被本 try 捕获。
+            assert canvas_agentic_rag is not None
             result = await canvas_agentic_rag.ainvoke(
                 initial_state, config=runtime_config
             )
