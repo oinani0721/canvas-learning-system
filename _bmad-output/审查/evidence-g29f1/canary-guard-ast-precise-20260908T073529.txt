@@ -1,0 +1,14 @@
+# §二.7 判据 ② 的 AST 精确口径 + 卡文函数归属更正
+顶层函数: _amain@1365  _run_canary_cli@1380
+  _amain: report.get("side_effect_probe") 命中 0 处
+  _run_canary_cli: report.get("side_effect_probe") 命中 1 处（行 [1451]）
+
+主张判据: 「verdict != PASS 且带 None 守卫 ⇒ return EXIT_ISOLATION_FAILED」
+  行 1452: return EXIT_ISOLATION_FAILED × 1  带 None 守卫 = True
+  判定: ✓ 恰好 1 处且带守卫
+  验伪锚（同一查询作用在 _amain 上）= 0 ⇒ 判据能区分函数 ✓
+
+⚠️ 卡文事实更正: 卡文 §〇/§(e) 称条件写入与 rc 汇总点在 `_amain`，
+   实测三者（条件写入 / 打印段 / return EXIT_OK）全部在 `_run_canary_cli` 内。
+   卡文给的行号本身正确，错的是函数归属。原判据 ② 的 awk 区段恰好把两个函数一起罩住，
+   所以数字对得上但覆盖面宽于主张 —— 已用上面的 AST 判据替代。

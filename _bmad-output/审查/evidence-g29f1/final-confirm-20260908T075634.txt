@@ -1,0 +1,8 @@
+================== 6 passed, 2 xfailed, 42 warnings in 0.61s ===================
+rc=0
+====================== 118 passed, 284 warnings in 1.64s =======================
+rc=0
+All checks passed!
+3 files already formatted
+源码门 endswith+FINGERPRINT_TABLE = True
+5235c00d99f343a57924855193cfc5d4f8ffb5d72e4687438aac707287d312ff  backend/lib/agentic_rag/clients/lancedb_client.py

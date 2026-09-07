@@ -870,18 +870,29 @@ class LanceDBClient:
         ``{vid}_file_fingerprints`` 都归入 default。本卡只做单点化, **不改**这
         条既有裁定 (含下划线的裸表如 ``canvas_nodes`` 因此不归 default)。
 
-        ⚠️ **已知未闭合面 (CARD-G2-9-F1 / Codex r1 HIGH-1, 移交 CARD-G2-9-F2)**:
-        前缀口径是 ``startswith(f"{vid}_")``, 当两个 vault 的 id **互为前缀**时,
-        短 id 的 vault 会认领长 id 的表 —— ``"a_b_canvas_nodes".startswith("a_")``
-        为真, 于是 vault ``a`` 的启动自愈仍会 drop vault ``a_b`` 的漂移表。
-        **本仓可达**: ``app.config.sanitize_vault_id`` 产出的 id 含下划线
-        (``canvas-vault`` -> ``canvas_vault``, ``cs 61b`` -> ``cs_61b``), 所以
-        vault ``cs`` 与 vault ``cs_61b`` 并存就会互相干扰。这是
-        ``resolve_table_name:790`` 起就有的**既有**口径, 本卡只做单点化、**不改**它
-        (改它要能拿到全部 vault 列表, 超出本卡范围)。缺陷面由
-        ``tests/unit/test_lancedb_cross_vault_drop_g29f1.py``
-        ``::test_prefix_overlap_vault_is_not_isolated`` 以 ``xfail(strict=True)``
-        锁住 —— 修好后该门会 ``XPASS(strict)`` 报红, 提醒删掉那个标记。
+        ⚠️ **已知未闭合面 (CARD-G2-9-F1, Codex r1/r2 HIGH-1; 移交 CARD-G2-9-F2)**:
+        前缀口径是 ``startswith(f"{vid}_")``, 于是**短 id 的 vault 会单向认领长 id
+        vault 的表** —— ``"a_b_canvas_nodes".startswith("a_")`` 为真, vault ``a``
+        的启动自愈会 drop 掉 vault ``a_b`` 的漂移表。方向是**单向的** (vault
+        ``a_b`` 不会认领 ``a_*``), 且需要**下划线边界** —— ``ab_canvas_nodes`` 与
+        vault ``a`` **不**碰撞 (实测)。**本仓可达**: ``app.config.sanitize_vault_id``
+        产出的 id 含下划线 (``canvas-vault`` -> ``canvas_vault``,
+        ``cs 61b`` -> ``cs_61b``), 所以 vault ``cs`` 与 vault ``cs_61b`` 并存即触发。
+
+        口径本身是 ``resolve_table_name:790`` 起就有的**既有**行为, 本卡只做单点化、
+        **不改**它 (改它要能拿到全部 vault 列表做最长前缀优先, 超出本卡范围)。
+        ⚠️ **但本卡的分页收口把这条缺陷的可达面扩大了**: ``da690bf8`` 的
+        ``_cache_tables`` 只枚举默认分页的前 10 张, 排在页外的重叠表因此**碰不到**;
+        本卡改用 ``_all_table_names()`` 后**全库**都会被检查, 那些表就变成可删的了
+        (实测存档 ``_bmad-output/审查/evidence-g29f1/``
+        ``high1-r2-pagination-widens-overlap-*.txt``: 同一夹具改前留存、改后被删)。
+        这一点**不能**说成「沿用既有口径、本卡无影响」。
+
+        两种形态都由 ``tests/unit/test_lancedb_cross_vault_drop_g29f1.py`` 锁住:
+        ``::test_prefix_overlap_vault_is_not_isolated[page-inner-0]`` (既有面) 与
+        ``[page-outer-10]`` (本卡新打开的面), 均 ``xfail(strict=True)``; 前提另由
+        ``::test_prefix_overlap_premises_hold`` 在**不带** xfail 的用例里把守。
+        修好后缺陷锁会 ``XPASS(strict)`` 报红, 提醒删掉那个标记。
         """
         vid = self.active_vault_id if vault_id is _UNSET else vault_id
         if not vid or vid == "default":

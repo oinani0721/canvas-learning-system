@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-07-第十三批 · 车道 U5 · 卡 CARD-G2-9-F1 round-1
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-G2-9-F1.md)"`
+> 审查绑定: `a78b49b7`（本轮送审时的 HEAD；round-2 已前进到 `9da89fdd`，故本轮**不**绑最终 HEAD）
+> 会话头自证（抄 .stderr 前几行含 model 行，stderr 本身不入库）:
+> `Reading additional input from stdin...` / `OpenAI Codex v0.153.3` / `workdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance` / `model: gpt-6-astra`
+
+---
+
 已完成只读静态审查，未执行测试、连接数据库或网络。三份工作区文件均与 `a78b49b7` 对应 blob 一致。以下区分实际风险、覆盖缺口与未核实项。
 
 1. **[HIGH] [lancedb_client.py:876](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/backend/lib/agentic_rag/clients/lancedb_client.py:876) — 条件性残留风险（问题⑥）。** 若允许 `a` 与 `a_b` 两个 vault 并存，`a_b_canvas_nodes.startswith("a_")` 为真，A 的启动检查仍可能删除 B 的漂移表；四门均未覆盖这种前缀重叠。给定读取面没有排除此命名组合的约束，因此不能认定隔离缺陷已全面闭合。

@@ -30,10 +30,16 @@ vault 的数据。
    ``tests/regression/test_rag_stage1_index_contracts.py:484-490`` 在本卡地盘
    内的**本地副本**, 让"哨兵默认值写错"在本卡自己的门上就红。
 
-5. ``test_prefix_overlap_vault_is_not_isolated`` —— ``xfail(strict=True)``, 锁住本卡
-   **未闭合**的缺陷面 (Codex round-1 HIGH-1): 前缀口径 ``startswith(f"{vid}_")`` 让
-   id **互为前缀**的两个 vault 互相认领。移交 CARD-G2-9-F2; 修好后本门会
-   ``XPASS(strict)`` 报红, 提醒删掉那个标记 (strict=False 会安静挂着, 所以不能用)。
+5. ``test_prefix_overlap_premises_hold`` + ``test_prefix_overlap_vault_is_not_isolated``
+   —— 前者是**不带** xfail 的前提门, 后者是 ``xfail(strict=True)`` 的缺陷锁, 两条各
+   参数化为 ``page-inner`` / ``page-outer``。锁住本卡**未闭合**的面 (Codex round-1 与
+   round-2 的 HIGH-1): 归属口径 ``startswith(f"{vid}_")`` 让短 id 的 vault **单向**
+   认领长 id vault 的表 (需下划线边界; ``ab_x`` 与 vault ``a`` 不碰撞)。其中
+   ``page-outer`` 一例是**本卡的分页收口新打开**的可达面 —— ``da690bf8`` 因默认分页
+   看不到那张表所以不删, 本卡全量枚举后会删。移交 CARD-G2-9-F2。
+   ⚠️ 前提**必须**待在不带 xfail 的那一条里: xfail 会吞掉同一用例内所有失败, 既让
+   「夹具坏」与「缺陷仍在」不可区分, 也让 F2 修好后的结果停在 XFAIL 而非承诺的
+   ``XPASS(strict)``。
 
 ⚠️ default 口径以 ``list_vault_tables:845`` **逐字**为准: ``"_" not in t or
 t == FINGERPRINT_TABLE`` —— 判据是"表名**不含任何下划线**", 不是"没有 vault
@@ -88,6 +94,25 @@ def _all_names(db) -> set[str]:
     return set(db.table_names(limit=10_000))
 
 
+def _assert_table_shape(db, name: str, *, dim: int, has_doc_type: bool) -> None:
+    """前提断言：夹具**真的**建成了预期 schema —— 不是只建成了「一张表」。
+
+    只断言「表在」不够: 门锁的是 ``_check_and_fix_dimension_mismatch`` 的两个 drop
+    条件（:3660 维度不符 / :3665-3672 缺 doc_type 列）。若 ``_rows(dim=16)`` 或
+    ``doc_type=None`` 没按预期落盘，门就在锁一个不存在的形态 —— 照样「绿」，却什么
+    也没证明（fixture 形态 != 目标形态）。所以这里从库里**读回** schema 与向量长度。
+    """
+    tbl = db.open_table(name)
+    cols = set(tbl.schema.names)
+    assert ("doc_type" in cols) is has_doc_type, (
+        f"夹具形态不符: {name} 的 doc_type 列"
+        f"{'应存在但没有' if has_doc_type else '应缺失但存在'}; 实际列 = {sorted(cols)}"
+    )
+    vectors = tbl.head(1).to_pydict().get("vector", [])
+    assert vectors, f"夹具形态不符: {name} 没有可采样的行，维度检查路径根本不会触发"
+    assert len(vectors[0]) == dim, f"夹具形态不符: {name} 的向量维度是 {len(vectors[0])}，预期 {dim}"
+
+
 def _client(db_path: Path, *, vault_id: str | None, dim: int = _DIM) -> LanceDBClient:
     """g24 :617-618 同法: 直连 tmp 库, **不调** ``initialize()``。"""
     client = LanceDBClient(db_path=str(db_path), embedding_dim=dim, vault_id=vault_id)
@@ -121,6 +146,10 @@ def test_cache_tables_never_touches_other_vault(tmp_path):
     assert before == {"b_canvas_nodes", "b_vault_notes", "a_canvas_nodes"}, (
         f"夹具没建成预期的三张表, 后面的断言全部不可信: {sorted(before)}"
     )
+    # 形态前提: 两个 drop 条件各自真的被构造出来了（只断言「表在」证明不了这一点）
+    _assert_table_shape(db, "b_canvas_nodes", dim=_DRIFT_DIM, has_doc_type=True)
+    _assert_table_shape(db, "b_vault_notes", dim=_DIM, has_doc_type=False)
+    _assert_table_shape(db, "a_canvas_nodes", dim=_DRIFT_DIM, has_doc_type=True)
 
     client = _client(db_path, vault_id="a")
     asyncio.run(client._cache_tables())
@@ -173,6 +202,9 @@ def test_cache_tables_default_vault_only_touches_bare_tables(tmp_path):
     assert before == {"notes", "canvas_nodes", "b_canvas_nodes", "file_fingerprints"}, (
         f"夹具没建成预期的四张表, 后面的断言全部不可信: {sorted(before)}"
     )
+    # 四张都必须是 drift 形态，否则「没被 drop」可能只是因为它们本来就合规
+    for _n in ("notes", "canvas_nodes", "b_canvas_nodes", "file_fingerprints"):
+        _assert_table_shape(db, _n, dim=_DRIFT_DIM, has_doc_type=True)
 
     client = _client(db_path, vault_id="default")
     assert client.active_vault_id in ("", "default"), (
@@ -227,6 +259,10 @@ def test_cache_tables_scans_beyond_default_page(tmp_path):
         "lancedb 换了默认 limit, 本门需重新校准"
     )
     assert "a_t11" not in set(db.table_names()), "前提失效: a_t11 不在默认分页的盲区里"
+    # 形态前提: a_t11/b_zz 真的是 drift，a_t01 真的不是 —— 否则「谁被删」说明不了问题
+    _assert_table_shape(db, "a_t11", dim=_DRIFT_DIM, has_doc_type=True)
+    _assert_table_shape(db, "b_zz", dim=_DRIFT_DIM, has_doc_type=True)
+    _assert_table_shape(db, "a_t01", dim=_DIM, has_doc_type=True)
 
     client = _client(db_path, vault_id="a")
     asyncio.run(client._cache_tables())
@@ -298,54 +334,97 @@ def test_list_vault_tables_explicit_none_keeps_bare_scope(tmp_path):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 门⑤ 未闭合面锁 —— 前缀重叠 (xfail strict, 跨卡交接给 CARD-G2-9-F2)
+# 门⑤ 未闭合面锁 —— 前缀重叠（xfail strict，跨卡交接给 CARD-G2-9-F2）
+#
+# 两种形态**可达性不同**，必须分开锁：
+#   page-inner  重叠表在默认分页内 → da690bf8 与本卡**都**会删（既有缺陷，本卡未改变）
+#   page-outer  重叠表在默认分页外 → da690bf8 **不**删、本卡**会**删
+#                                    ⇒ 这是**本卡的分页收口打开的新可达面**
+# 后者是 Codex round-2 HIGH-1 的反例，实测存档
+# ``evidence-g29f1/high1-r2-pagination-widens-overlap-*.txt``（改前 True / 改后 False）。
 # ═══════════════════════════════════════════════════════════════════════════
 
+#: 门⑤ 的两种形态：(id, 填充表数量)。填充表是本 vault 的健康表，用来把重叠表挤出默认分页。
+_OVERLAP_SHAPES = [("page-inner", 0), ("page-outer", 10)]
 
+
+def _overlap_fixture(db_path, filler: int):
+    """门⑤ 与其前提门共用的夹具。``filler`` 张健康表用来把重叠表挤出默认分页。"""
+    db = lancedb.connect(str(db_path))
+    for i in range(filler):
+        db.create_table(f"a_{i:02d}", data=_rows(f"FILL{i}"))
+    # vault "a_b" 的漂移表 —— 前缀 "a_b_" 恰好以 vault "a" 的前缀 "a_" 开头
+    db.create_table("a_b_canvas_nodes", data=_rows("AB-NODES", dim=_DRIFT_DIM))
+    client = _client(db_path, vault_id="a")
+    return db, client, _all_names(db)
+
+
+@pytest.mark.parametrize(("shape", "filler"), _OVERLAP_SHAPES)
+def test_prefix_overlap_premises_hold(tmp_path, shape, filler):
+    """门⑤ 的前提 —— **不带 xfail**，夹具坏了必须以 FAILED 暴露。
+
+    ``xfail`` 会吞掉用例里**所有**的失败，前提断言的也一样。实测（存档
+    ``evidence-g29f1/xfail-swallows-premise-*.txt``）：同一个 ``xfail(strict=True)``
+    用例里，「夹具没建成」与「缺陷仍在」**都报 xfailed**，不可区分 —— 夹具哪天悄悄坏掉，
+    门⑤ 会继续安静地 xfail，看起来一切正常。更要紧的是：F2 把归属修好之后，写在
+    xfail 用例里的前提断言会**先失败**，于是结果仍是 XFAIL 而**不是**承诺的
+    ``XPASS(strict)``（Codex round-2 MEDIUM）。所以前提必须待在**不带** xfail 的用例里。
+
+    三态由此两两可区分（存档 ``xfail-split-premise-fix-*.txt``）：夹具坏 → 本条 FAILED；
+    缺陷仍在 → 本条 passed + 门⑤ xfailed；缺陷修好 → 本条 **FAILED**（归属断言翻转，
+    正是它告诉维护者「该去删 xfail 标记了」）+ 门⑤ XPASS(strict)。
+    """
+    db, client, before = _overlap_fixture(tmp_path / "db", filler)
+    assert "a_b_canvas_nodes" in before, f"夹具没建成重叠表，门⑤ 的断言不可信: {sorted(before)}"
+    assert len(before) == filler + 1, f"夹具表数不符: 期望 {filler + 1}，实得 {len(before)}"
+    _assert_table_shape(db, "a_b_canvas_nodes", dim=_DRIFT_DIM, has_doc_type=True)
+
+    # 分页位置前提 —— 两种形态的**可达性**差别全在这里
+    in_default_page = "a_b_canvas_nodes" in set(db.table_names())
+    if shape == "page-inner":
+        assert in_default_page, "前提失效: page-inner 形态里重叠表竟然不在默认分页内"
+    else:
+        assert not in_default_page, (
+            "前提失效: page-outer 形态里重叠表仍在默认分页内 —— "
+            f"填充表没把它挤出去（默认分页 {len(db.table_names())} 张），"
+            "本条就区分不出「本卡打开的新可达面」"
+        )
+
+    assert client._owns_table("a_b_canvas_nodes", "a"), (
+        "前提失效：a_b_canvas_nodes 已经不归 vault a 了 —— 前缀口径可能已被修好，"
+        "此时应删掉门⑤ 的 xfail 标记而不是保留它"
+    )
+
+
+@pytest.mark.parametrize(("shape", "filler"), _OVERLAP_SHAPES)
 @pytest.mark.xfail(
     strict=True,
     reason=(
-        "CARD-G2-9-F1 未闭合面（Codex round-1 HIGH-1）：归属口径是 "
-        'startswith(f"{vid}_")，id 互为前缀的两个 vault 会互相认领 —— '
-        '"a_b_canvas_nodes".startswith("a_") 为真。本仓可达：sanitize_vault_id 产出的 '
-        "id 含下划线（canvas-vault→canvas_vault、cs 61b→cs_61b）。这是 "
-        "resolve_table_name:790 起的既有口径，修它需要拿到全部 vault 列表，超出本卡范围 —— "
-        "移交 CARD-G2-9-F2。修好后本门 XPASS(strict) 会报红，那时请删掉这个 xfail 标记。"
+        "CARD-G2-9-F1 未闭合面（Codex round-1 HIGH-1 / round-2 HIGH-1）：归属口径是 "
+        'startswith(f"{vid}_")，短 id 的 vault 会**单向**认领长 id vault 的表 —— '
+        '"a_b_canvas_nodes".startswith("a_") 为真（需要下划线边界，"ab_x" 不碰撞）。'
+        "本仓可达：sanitize_vault_id 产出的 id 含下划线（canvas-vault→canvas_vault、"
+        "cs 61b→cs_61b）。page-outer 那一例还是**本卡分页收口新打开**的可达面。"
+        "修它需要拿到全部 vault 列表做最长前缀优先，超出本卡范围 —— 移交 CARD-G2-9-F2。"
+        "修好后本门 XPASS(strict) 会报红，那时请连同前提门的归属断言一起更新。"
     ),
 )
-def test_prefix_overlap_vault_is_not_isolated(tmp_path):
+def test_prefix_overlap_vault_is_not_isolated(tmp_path, shape, filler):
     """vault ``a`` 不得删掉 vault ``a_b`` 的表 —— 当前**做不到**，故 xfail(strict)。
 
-    这不是"未来可能出问题"的假想：``sanitize_vault_id`` 产出的 vault id 含下划线
-    （实测 ``canvas-vault`` → ``canvas_vault``、``cs 61b`` → ``cs_61b``），
-    本项目真实用的就是 ``cs_61b``。只要再存在一个 id 为 ``cs`` 的 vault，
-    它的启动自愈就会删掉 ``cs_61b_*`` 的漂移表。
+    这不是「未来可能出问题」的假想：``sanitize_vault_id`` 产出的 vault id 含下划线
+    （实测 ``canvas-vault`` → ``canvas_vault``、``cs 61b`` → ``cs_61b``），本项目真实
+    用的就是 ``cs_61b``。只要再存在一个 id 为 ``cs`` 的 vault，它的启动自愈就会删掉
+    ``cs_61b_*`` 的漂移表。
 
-    对照断言（``b_canvas_nodes`` 仍在）**不带** xfail 的豁免含义 —— 它和主断言在同一
-    个用例里，若哪天连不重叠的 vault 也被删了，本门会从 xfail 变成"仍然 xfail"而看不出来。
-    所以它只作现场记录，真正的不重叠隔离由门① 独立把守。
+    夹具与全部前提由 ``test_prefix_overlap_premises_hold`` 独立把守 —— 本用例里
+    **不放**任何前提断言，否则 xfail 会把它们的失败一并吞掉。
     """
-    db_path = tmp_path / "db"
-    db = lancedb.connect(str(db_path))
-    # vault "a_b" 的漂移表 —— 它的前缀 "a_b_" 恰好以 vault "a" 的前缀 "a_" 开头
-    db.create_table("a_b_canvas_nodes", data=_rows("AB-NODES", dim=_DRIFT_DIM))
-    # 不重叠的别 vault，作现场记录
-    db.create_table("b_canvas_nodes", data=_rows("B-NODES", dim=_DRIFT_DIM))
-
-    before = _all_names(db)
-    assert before == {"a_b_canvas_nodes", "b_canvas_nodes"}, f"夹具没建成预期的两张表，断言不可信: {sorted(before)}"
-
-    client = _client(db_path, vault_id="a")
-    # 前提：确认重叠关系真的成立（否则本门锁的不是"前缀重叠"这件事）
-    assert client._owns_table("a_b_canvas_nodes", "a"), (
-        "前提失效：a_b_canvas_nodes 已经不归 vault a 了 —— 前缀口径可能已被修好，"
-        "此时应删掉本门的 xfail 标记而不是保留它"
-    )
-
+    db, client, before = _overlap_fixture(tmp_path / "db", filler)
     asyncio.run(client._cache_tables())
-    after = _all_names(lancedb.connect(str(db_path)))
+    after = _all_names(lancedb.connect(str(tmp_path / "db")))
 
     assert "a_b_canvas_nodes" in after, (
         "vault a 的启动自愈碰了 vault a_b 的表：前缀口径 startswith('a_') 把 "
-        f"a_b_canvas_nodes 认成了自己的; 本次消失的表 = {sorted(before - after)}"
+        f"a_b_canvas_nodes 认成了自己的; 形态={shape}; 本次消失的表 = {sorted(before - after)}"
     )

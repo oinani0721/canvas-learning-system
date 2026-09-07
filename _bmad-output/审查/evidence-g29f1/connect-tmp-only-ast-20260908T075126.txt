@@ -1,0 +1,24 @@
+lancedb.connect 调用数 = 10
+  : 119  实参根标识符 = ['db_path', 'str']  ✓
+  : 136  实参根标识符 = ['db_path', 'str']  ✓
+  : 195  实参根标识符 = ['db_path', 'str']  ✓
+  : 248  实参根标识符 = ['db_path', 'str']  ✓
+  : 301  实参根标识符 = ['db_path', 'str']  ✓
+  : 353  实参根标识符 = ['db_path', 'str']  ✓
+  : 157  实参根标识符 = ['db_path', 'str']  ✓
+  : 216  实参根标识符 = ['db_path', 'str']  ✓
+  : 269  实参根标识符 = ['db_path', 'str']  ✓
+  : 425  实参根标识符 = ['str', 'tmp_path']  ✓
+
+向 helper 传路径的调用数 = 7
+  : 154  _client(...) 首参根 = ['db_path']  ⛔
+  : 209  _client(...) 首参根 = ['db_path']  ⛔
+  : 267  _client(...) 首参根 = ['db_path']  ⛔
+  : 308  _client(...) 首参根 = ['db_path']  ⛔
+  : 358  _client(...) 首参根 = ['db_path']  ⛔
+  : 377  _overlap_fixture(...) 首参根 = ['tmp_path']  ✓
+  : 423  _overlap_fixture(...) 首参根 = ['tmp_path']  ✓
+
+可疑路径/环境字面量命中 = 0
+
+判定: ⛔ 有问题

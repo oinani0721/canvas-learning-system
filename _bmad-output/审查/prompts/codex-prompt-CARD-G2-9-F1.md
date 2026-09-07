@@ -24,7 +24,7 @@
    `EXIT_ISOLATION_FAILED` + docstring 更正）
 
 **最小读取面**（请按此顺序读，不要超出）：
-- `git diff da690bf8 __AUDIT_SHA__ -- . ':(exclude)_bmad-output'`
+- `git diff da690bf8 a78b49b7 -- . ':(exclude)_bmad-output'`
 - `backend/lib/agentic_rag/clients/lancedb_client.py` 的 `:762-900`、`:918-935`、
   `:1000-1060`、`:3681-3760`（改后实测范围；`_owns_table` / `list_vault_tables` /
   `_all_table_names` / `_is_table_absent` / `drop_vault_tables` / `_cache_tables` /
