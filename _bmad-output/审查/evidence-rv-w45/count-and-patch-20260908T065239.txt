@@ -1,0 +1,22 @@
+=== (g) guard_probes 三分计数 ===
+--- ① grep -c '^def probe_' (本树 HEAD) ---
+33
+--- ② main() results 列表显式条目 :1842-1883 ---
+35
+--- ②b 该区间原文（自证边界）---
+    results: list[dict] = [
+    ]
+    results.extend(probe_shell_injections())
+    print(f"GUARD-PROBES: PASS — {len(results)}/{len(results)} 条全部 fail-closed")
+--- ③ 门报告 N（本卡 (e)④ 实测）---
+GUARD-PROBES: PASS — 54/54 条全部 fail-closed
+--- ④ Y8-B 车道起点 03ac8bf8 的 def probe_ 数（不可比对照）---
+28
+
+=== (h) U7 patch 登记（只检查，不 apply）===
+ls: _bmad-output/审查/evidence-w44b/ast-must-flag.patch: No such file or directory
+ls: _bmad-output/审查/evidence-w47/ast-must-flag.patch: No such file or directory
+ls_rc=1
+--- 全仓 ast-must-flag.patch 搜索面（防「没搜到=不存在」）---
+_bmad-output/审查/phase0a-annotation-truth/2026-08-20-GOV-01-Bootstrap-0-safe-mode.patch
+find_done

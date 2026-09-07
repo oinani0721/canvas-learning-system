@@ -1,0 +1,5 @@
+AST-TABLE-COUNT: _AST_MUST_FLAG=48 _AST_MUST_PASS=27
+  source: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u8-mutgates/backend/scripts/lifespan_isolation_negative_control.py
+  anchors: _AST_MUST_FLAG@:1977 _AST_MUST_PASS@:2580
+AST-TABLE-COUNT: PASS (静态解析数与卡文期望 48/27 一致)
+rc=0

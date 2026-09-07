@@ -1,0 +1,75 @@
+=== sed -n '628p' ===
+        self.module_attr_writes = _module_attr_write_paths(tree)
+
+=== sed -n '634,665p' ===
+        for _ in range(4):
+            self._rebuild(tree)
+            before = (
+                set(self.fastapi_returning_funcs),
+                set(self.main_client_funcs),
+                set(self.main_client_attrs),
+                dict(self.isolation_wrappers),
+                # M16 之后失格名单每轮重算 ⇒ 它也是迭代状态的一部分，必须进
+                # 不动点判据；漏掉它，「失格集还在变」的那一轮会被当成已收敛。
+                set(self.disqualified_factory_keys),
+                # CARD-W4-5 (d)：逐位来源表跨轮变化（工厂 return 里的元素来源要等
+                # `fastapi_returning_funcs` 收敛后才算得准），同样必须进判据。
+                dict(self.factory_return_elts),
+                # CARD-W4-5 (c)：部分-main 工厂集同理，跟着 main 实例解析一起变。
+                set(self.partial_main_client_funcs),
+            )
+            # 可信集与失格集在 `_mark_all_fastapi_returning` 内部**一起**发布
+            # （冻结知识 + 按 key 聚合 + 整组通过才发布，见该方法 docstring）。
+            self._mark_all_fastapi_returning(tree)
+            self._mark_main_client_sources(tree)
+            self._mark_isolation_wrappers(tree)
+            if (
+                self.fastapi_returning_funcs,
+                self.main_client_funcs,
+                self.main_client_attrs,
+                self.isolation_wrappers,
+                self.disqualified_factory_keys,
+                self.factory_return_elts,
+                self.partial_main_client_funcs,
+            ) == before:
+                break
+        self._rebuild(tree)
+
+=== sed -n '1129p' ===
+        for _ in range(2):
+
+=== sed -n '1216,1237p' ===
+        # ⛔ 逐位表**每轮重建 + 冻结上一轮知识**（M16 的完整教训，见
+        #    :meth:`_mark_all_fastapi_returning`）。两条的证据强度**不一样**，
+        #    如实分开写：
+        #
+        #    * **冻结求值 —— 承重，有门。** 转调工厂（`def outer(): return inner()`）
+        #      要读被调者的表，而 `ast.walk` 按**定义顺序**走。只清空不冻结的话，
+        #      `outer` 写在 `inner` 前面时每一轮都读到刚被清空的表 ⇒ 永远补不齐 ⇒
+        #      「同一段代码换个定义顺序两种结论」（M16 原始缺陷的形态）。
+        #      变异实测：把 `frozen_return_elts` 改成恒空，验伪锚 d2/d3 当场翻红。
+        #    * **每轮重建 —— R2 整改后已成冗余，如实标注。** 轮末的
+        #      :meth:`_publish_return_elts` 用**整体赋值**重建 `factory_return_elts`
+        #      （而不是增量写入），所以下面这行清空在当前实现下没有行为作用。
+        #      2026-09-06 变异实测两次：删掉它，47 条反例 + 27 条正例全部不变；
+        #      连 R2 Codex 专门为「区分重建与 add-only」构造的那段
+        #      （q 重定义 + later 转调 + mix）也给出相同判定——那个构造针对的是
+        #      round-1「扫描期直接写表」的实现，整改后不再适用。
+        #      保留这行是为了让「frozen 是上一轮、下面是本轮」这句话在代码里成立，
+        #      **不是**因为它承重。
+        frozen_return_elts = dict(self.factory_return_elts)
+        self.factory_return_elts = {}
+        #: 本轮逐 key 裁定；轮末按「全部定义一致才发布」写进 factory_return_elts。
+        self._return_elts_verdicts: dict[str, tuple | None] = {}
+
+=== grep -n '未收敛|收敛|converge' 全量 ===
+642:                # 不动点判据；漏掉它，「失格集还在变」的那一轮会被当成已收敛。
+645:                # `fastapi_returning_funcs` 收敛后才算得准），同样必须进判据。
+1086:        """两轮：先按「可证 FastAPI 类」标一轮，再让 helper 调 helper 收敛一次。
+1190:        """收敛两类「会把 app.main 的 TestClient 实例递出来」的源。
+2970:    #    guard_plugin 的 **import 期装门** 收敛（见该模块 docstring）。
+grep_rc=0
+
+=== grep -n 'for _ in range' 全量 ===
+634:        for _ in range(4):
+1129:        for _ in range(2):

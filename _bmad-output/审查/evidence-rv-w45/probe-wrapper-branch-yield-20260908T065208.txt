@@ -1,0 +1,10 @@
+=== R2-5a 子形态 (ii) 探针（三态矩阵）===
+  [POS-RED  ] violations=1  expect=must-flag
+              → <rvw45:POS-RED>:12: TestClient(app) —— app 来自 app.main 且没有生效中的 no_lifespan/lifespan_lite（同 with 语句里排在前面的兄弟项，或支配本处的外层 with 块）
+  [POS-GREEN] violations=0  expect=must-pass
+              → (零违规)
+  [PROBE    ] violations=0  expect=unknown
+              → (零违规)
+  被测文件 sha256 跑前=563b0f3b725b7a44… 跑后=563b0f3b725b7a44… identical=True
+PROBE: 形态 (ii) **未被拦下** —— `_walk_same_scope` 只闭合了子形态 (i)（嵌套作用域），同作用域跨分支的 with 外 yield 仍可取得隔离包装器资格；两条正控均按预期（RED 红 / GREEN 绿），故本结论不是探针失效所致
+rc=3

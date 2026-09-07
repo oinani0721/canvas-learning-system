@@ -1,0 +1,58 @@
+=== [1] git diff --stat --no-color 6d6e3e09 07d59a52 -- <negative_control.py> ===
+ .../scripts/lifespan_isolation_negative_control.py | 354 ++++++++++++++++++++-
+ 1 file changed, 337 insertions(+), 17 deletions(-)
+
+=== [1b] diff 行数 ===
+     453
+
+=== [2] git show --stat 07d59a52 (tail) ===
+ .../evidence-w4-5/README.md"                       |  38 +++
+ .../prompts/codex-prompt-CARD-W4-5-ast-high6.md"   |   2 +-
+ .../UAT-CARD-W4-5-ast-high6-2026-09-06.md"         |  69 +++-
+ .../scripts/lifespan_isolation_negative_control.py | 354 ++++++++++++++++++++-
+ 24 files changed, 2240 insertions(+), 37 deletions(-)
+
+=== [2b] 07d59a52 代码面（排除 _bmad-output）===
+07d59a524ad54ec1caf7a19211c052742a6a70ae 6d6e3e0997ffaea6cf7da8801339dfb579053328
+fix(w4-5): R2 外审 5 条 HIGH 漏放全部整改，反例 40→48 正例 24→27 [BATCH-2026-09-05-第十二批 / CARD-W4-5-ast-high6]
+
+ .../scripts/lifespan_isolation_negative_control.py | 354 ++++++++++++++++++++-
+ 1 file changed, 337 insertions(+), 17 deletions(-)
+
+=== [3] d2251cb0 代码面 ===
+
+ .../scripts/lifespan_isolation_negative_control.py | 1366 ++++++++++++++++++--
+ 1 file changed, 1259 insertions(+), 107 deletions(-)
+
+=== [4] 07d59a52 commit subject ===
+fix(w4-5): R2 外审 5 条 HIGH 漏放全部整改，反例 40→48 正例 24→27 [BATCH-2026-09-05-第十二批 / CARD-W4-5-ast-high6]
+
+=== [5] 07d59a52 commit body ===
+Codex gpt-6-astra ultra 1 轮外审（绑定 6d6e3e09）出 8 条：4 HIGH / 2 MEDIUM / 2 LOW。
+5 条 HIGH 逐条独立实测**全部证实为真实漏放**，已整改并各配常设反例：
+
+R2-1 localfunc: 标签不看装饰器 —— @deco 能把函数换成 TestClient 实例。放行判据
+     从黑名单 origin != O_UNKNOWN 改为白名单 _PROVEN_NOT_MAIN_INSTANCE。
+R2-3 逐位表缺同 key 聚合 —— 同名工厂后定义把前定义的生产来源覆盖成安全。加
+     _return_elts_verdicts 按 key 聚合 + 轮末 _publish_return_elts 整体发布。
+R2-5a 包装器 yield 收集走进嵌套作用域 —— 嵌套函数里从不执行的 yield 被当成
+     「隔离覆盖了让出控制权那一刻」。加 _walk_same_scope（入口即判 node 自身）。
+R2-5b 嵌套函数的装饰器/默认参数在外层作用域求值 —— 其中的海象重绑被隔离形参
+     而 ④ 看不见。FunctionDef 分支先扫 decorator_list/defaults/kw_defaults。
+R2-7 C4 前提错误 —— import 不给只读保证，本模块可以写 mod.client。加
+     module_attr_writes：本模块写过该属性路径就不豁免。
+
+MEDIUM #6 的三个子项经实测**部分推翻**（外审推演基于 round-1 实现，整改后失效）：
+d2/d3 方向预测「d2 红 d3 绿」实测两条都红；「能区分每轮重建与 add-only」的构造
+实测两种实现结论相同。按实测更正注释，并把两处防线如实标注为冗余（无独立门）：
+逐位表的每轮清空、_publish_return_elts 的剔除失格 key。
+
+裁判（R2 定稿）：J1 PASS(48/27)；J2 以开工基线 988fd655 对照 20 条改前放行改后抓；
+J3 36/36；J4 2019 passed 新增红 0 blocked=0；J5 unchanged；J6 0 violations/385 文件；
+J8 归因变异 18/18；pyright 5/0（基线 6，新增 0 消除 1，报错行与 diff 交集空）。
+
+⚠️ 整改未复审：外审绑定整改前的 6d6e3e09，本 commit 后代码已变，卡族轮次用 1 剩 2。
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01DAFLvDgkAuD9smr1eUtn6Z
+
