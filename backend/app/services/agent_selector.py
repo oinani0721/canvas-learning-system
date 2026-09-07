@@ -30,7 +30,6 @@ Version: 1.0.0
 Created: 2025-12-13
 """
 
-import logging
 from dataclasses import dataclass
 
 import structlog
@@ -97,7 +96,7 @@ class SelectionContext:
     concept_text: str
     concept_type: Optional[ConceptType] = None
     hints_given: int = 0
-    previous_agents: List[str] = None
+    previous_agents: Optional[List[str]] = None
     rag_context: Optional[str] = None
 
     def __post_init__(self):
@@ -292,6 +291,9 @@ class AgentSelector:
     ) -> Optional[GuidanceAgent]:
         """获取备选Agent"""
         # 排除主选和已使用的Agent
+        # SelectionContext.__post_init__ 把 None 归一成 []; 构造后恒非 None。
+        # 原代码 set(None) 同样 TypeError。
+        assert context.previous_agents is not None
         used = set(context.previous_agents) | {primary.value}
 
         # 优先级顺序

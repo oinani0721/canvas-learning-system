@@ -156,6 +156,9 @@ class CanvasProjectionSync:
         invalidated = 0
         if execute:
             try:
+                # client 由本方法上文 `self._client() if execute else None` 赋值,
+                # 本分支 execute 为真 ⇒ 恒非 None; 原代码 None 时同样 AttributeError。
+                assert client is not None
                 records = await client.run_query(
                     """
                     MATCH ()-[e:CANVAS_EDGE]-()

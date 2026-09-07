@@ -19,7 +19,6 @@ Usage:
 """
 
 import asyncio
-import logging
 import re
 
 import structlog

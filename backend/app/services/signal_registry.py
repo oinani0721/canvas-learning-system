@@ -14,7 +14,6 @@ Signals:
 [Source: _bmad-output/planning-artifacts/architecture.md#能力域5]
 """
 
-import logging
 from typing import Dict, List, Optional, Tuple
 
 import structlog
@@ -106,7 +105,11 @@ class BKTMasterySignal:
 
     def get_reliability(self, node_id: str) -> float:
         """Reliability increases with interaction count."""
-        return min(1.0, self._cache.get(f"{node_id}_interactions", 0) / 10.0)
+        count = self._cache.get(f"{node_id}_interactions", 0)
+        # _cache 的值类型是 Optional[float] (p_mastery 可为 None), 但计数键恒写 int;
+        # 原代码 None / N 同样 TypeError。
+        assert count is not None
+        return min(1.0, count / 10.0)
 
     def preload(self, concept) -> None:
         """Preload signal value from a ConceptState object (avoids async in get_value)."""
@@ -141,7 +144,11 @@ class FSRSRetrievabilitySignal:
 
     def get_reliability(self, node_id: str) -> float:
         """Reliability depends on FSRS reps count."""
-        return min(1.0, self._cache.get(f"{node_id}_reps", 0) / 5.0)
+        count = self._cache.get(f"{node_id}_reps", 0)
+        # _cache 的值类型是 Optional[float] (p_mastery 可为 None), 但计数键恒写 int;
+        # 原代码 None / N 同样 TypeError。
+        assert count is not None
+        return min(1.0, count / 5.0)
 
     def preload(self, concept) -> None:
         """Preload R value from a ConceptState using mastery_engine.get_retrievability."""
@@ -175,6 +182,9 @@ class ExamScoreSignal:
 
     def get_reliability(self, node_id: str) -> float:
         count = self._cache.get(f"{node_id}_count", 0)
+        # _cache 的值类型是 Optional[float] (p_mastery 可为 None), 但计数键恒写 int;
+        # 原代码 None / N 同样 TypeError。
+        assert count is not None
         return min(1.0, count / 5.0)
 
     def preload_from_calibration_records(self, node_id: str, records) -> None:
@@ -213,6 +223,9 @@ class CalibrationBiasSignal:
 
     def get_reliability(self, node_id: str) -> float:
         count = self._cache.get(f"{node_id}_count", 0)
+        # _cache 的值类型是 Optional[float] (p_mastery 可为 None), 但计数键恒写 int;
+        # 原代码 None / N 同样 TypeError。
+        assert count is not None
         return min(1.0, count / 10.0)
 
     def preload_from_calibration_records(self, node_id: str, records) -> None:
@@ -250,6 +263,9 @@ class SelfConfidenceSignal:
 
     def get_reliability(self, node_id: str) -> float:
         count = self._cache.get(f"{node_id}_count", 0)
+        # _cache 的值类型是 Optional[float] (p_mastery 可为 None), 但计数键恒写 int;
+        # 原代码 None / N 同样 TypeError。
+        assert count is not None
         return min(1.0, count / 5.0)
 
     def preload_from_calibration_records(self, node_id: str, records) -> None:

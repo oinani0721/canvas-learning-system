@@ -27,11 +27,9 @@ import hashlib
 import logging
 from datetime import datetime, timezone
 from typing import Any, Optional
-from uuid import NAMESPACE_DNS, uuid5
 
 from graphiti_core.edges import EntityEdge, get_entity_edge_from_record
 from graphiti_core.models.edges.edge_db_queries import get_entity_edge_return_query
-from graphiti_core.nodes import EntityNode
 
 from app.graphiti.canvas_episode import edge_name_for_relation
 from app.graphiti.group_id_compat import sanitize_group_id_for_graphiti
@@ -203,7 +201,11 @@ async def update_belief_version_chain(
             "(5-ge-2 AC#7, ChatGPT 引用官方文档)"
         )
 
-    occurred_at = _to_aware_utc(occurred_at)  # M1: 统一 aware UTC, 防时间线混存崩溃
+    # M1: 统一 aware UTC, 防时间线混存崩溃。_to_aware_utc 的 None 分支只在入参为 None
+    # 时触发, 此处 occurred_at 的声明类型即 datetime → 返回恒非 None。
+    _normalized = _to_aware_utc(occurred_at)
+    assert _normalized is not None
+    occurred_at = _normalized
     driver = graphiti.driver
     gid = sanitize_group_id_for_graphiti(group_id)  # C-3: Graphiti 边界 sanitize
     await _ensure_belief_key_index(driver)
@@ -290,7 +292,11 @@ async def get_belief_history(
 
     # M1: 排序/比较前统一 aware UTC (历史数据可能混存 naive)
     def _vk(e: EntityEdge) -> datetime:
-        return _to_aware_utc(e.valid_at or e.created_at)
+        # `e.valid_at or e.created_at` 恒非 None(EntityEdge.created_at 必填) →
+        # _to_aware_utc 的 None 分支不可达; 原代码返回 None 时排序同样 TypeError。
+        _normalized = _to_aware_utc(e.valid_at or e.created_at)
+        assert _normalized is not None
+        return _normalized
 
     edges.sort(key=_vk)
 

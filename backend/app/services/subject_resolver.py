@@ -15,7 +15,6 @@ a multi-priority resolution strategy:
 """
 
 import fnmatch
-import logging
 import os
 import re
 

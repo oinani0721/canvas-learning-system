@@ -12,12 +12,11 @@
 # [Source: _bmad-output/implementation-artifacts/3-6-tips-annotation-error-archiving.md#Task 3]
 
 import json
-import logging
 import uuid
 
 import structlog
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any, Optional, TYPE_CHECKING, cast
 
 from pydantic import BaseModel, Field
 
@@ -30,6 +29,13 @@ from app.graphiti.entity_types import (
     RemedyStrategy,
     map_legacy_to_pedagogy,
 )
+
+if TYPE_CHECKING:
+    # litellm 在本模块内是**函数内延迟 import**(加载慢/可选依赖)。这里只取类型,
+    # 运行期不执行 → 不把 litellm 拉进模块 import 图。配合 cast("ModelResponse", ...):
+    # acompletion 的签名是 ModelResponse | CustomStreamWrapper, 而本模块所有调用点
+    # 都未传 stream=True → 运行期恒为 ModelResponse。cast 只作类型层断言, 不改行为。
+    from litellm.types.utils import ModelResponse
 
 logger = structlog.get_logger(__name__)
 
@@ -188,7 +194,12 @@ class ErrorClassifier:
             remedy_strategy=remedy,
             node_id=node_id,
             session_id=session_id,
-            created_at=datetime.now(timezone.utc).isoformat(),
+            # ⛔ 实测: Misconception 在 P0-4(2026-05-14) 把该字段改名为
+            # misconception_created_at(避 Graphiti 保护属性冲突), 本处仍传旧名。
+            # pydantic model_config 为空 ⇒ extra='ignore' ⇒ 传入值被静默丢弃, 字段回落
+            # default_factory(同样是 datetime.now(timezone.utc).isoformat())。
+            # 改参数名 = 行为变化(卡文 §一(h)②「须裁」) → 只做类型层标注并登记 TAIL。
+            created_at=datetime.now(timezone.utc).isoformat(),  # pyright: ignore[reportCallIssue]
         )
 
         return ClassificationResult(
@@ -273,7 +284,9 @@ class ErrorClassifier:
                 max_tokens=100,
                 temperature=0.1,
             )
-            content = response.choices[0].message.content.strip()
+            _content = cast("ModelResponse", response).choices[0].message.content
+            assert _content is not None  # 原代码此处 None.strip() 同样 AttributeError
+            content = _content.strip()
             # Story 2.5 HIGH#8 fix — 剥离 markdown fence 防 json.loads 失败
             content = _strip_markdown_fence(content)
             parsed = json.loads(content)
@@ -339,7 +352,9 @@ class ErrorClassifier:
                 temperature=0.1,
             )
 
-            content = response.choices[0].message.content.strip()
+            _content = cast("ModelResponse", response).choices[0].message.content
+            assert _content is not None  # 原代码此处 None.strip() 同样 AttributeError
+            content = _content.strip()
 
             # Parse the JSON response
             parsed = json.loads(content)

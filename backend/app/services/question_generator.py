@@ -19,13 +19,12 @@ Legacy: generate_questions() / generate_for_nodes() retained for Story 4.2 usage
 
 import asyncio
 import json
-import logging
 import re
 
 import structlog
 from neo4j.exceptions import DriverError, Neo4jError
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, TYPE_CHECKING, cast
 
 from app.core.decision_tracker import log_decision
 from app.models.exam_models import (
@@ -34,6 +33,13 @@ from app.models.exam_models import (
     NodePriority,
     QuestionGenerationResult,
 )
+
+if TYPE_CHECKING:
+    # litellm 在本模块内是**函数内延迟 import**(加载慢/可选依赖)。这里只取类型,
+    # 运行期不执行 → 不把 litellm 拉进模块 import 图。配合 cast("ModelResponse", ...):
+    # acompletion 的签名是 ModelResponse | CustomStreamWrapper, 而本模块所有调用点
+    # 都未传 stream=True → 运行期恒为 ModelResponse。cast 只作类型层断言, 不改行为。
+    from litellm.types.utils import ModelResponse
 
 logger = structlog.get_logger(__name__)
 
@@ -642,7 +648,7 @@ class QuestionGenerator:
                 ],
                 temperature=0.6,
             )
-            question_text = (response.choices[0].message.content or "").strip()
+            question_text = (cast("ModelResponse", response).choices[0].message.content or "").strip()
         except Exception as e:
             # MVP-α 降级: LLM 不可用时, 直接拼用户原话出回退题
             logger.warning(f"[MVP-α-1] LLM call failed for node {node_id}, falling back to template: {e}")
@@ -768,7 +774,8 @@ class QuestionGenerator:
                 response_format={"type": "json_object"},
             )
 
-            content = response.choices[0].message.content
+            content = cast("ModelResponse", response).choices[0].message.content
+            assert content is not None  # 原代码 json.loads(None) 同样 TypeError
             result_data = json.loads(content)
 
             return QuestionGenerationResult(

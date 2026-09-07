@@ -8,7 +8,6 @@
 # [Source: Agent Architecture Upgrade Plan - Phase 2]
 
 import asyncio
-import logging
 from pathlib import Path
 
 import structlog
@@ -228,7 +227,6 @@ class ToolExecutor:
             metadata = result.get("metadata", {})
 
             # Build source citation
-            source = metadata.get("source", source_label)
             canvas_file = metadata.get("canvas_file", "")
             doc_id = result.get("doc_id", "")
 

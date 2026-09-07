@@ -24,7 +24,6 @@ Acceptance Criteria:
 import asyncio
 import importlib
 import importlib.util
-import logging  # kept for level constants and stdlib helpers
 import sys
 import threading
 from pathlib import Path
@@ -431,7 +430,6 @@ class IntelligentGroupingService:
         groups = []
 
         for i, cluster in enumerate(clusters):
-            cluster_id = cluster.get("id", f"cluster-{i + 1}")
             cluster_label = cluster.get("label", f"分组{i + 1}")
             keywords = cluster.get("top_keywords", [])
             confidence = cluster.get("confidence", 0.0)

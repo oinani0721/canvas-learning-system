@@ -19,12 +19,18 @@ Low-confidence detection: 3x sampling spread > 1 per dimension
 """
 
 import json
-import logging
 import time
 from pathlib import Path
 
 import structlog
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING, cast
+
+if TYPE_CHECKING:
+    # litellm 在本模块内是**函数内延迟 import**(加载慢/可选依赖)。这里只取类型,
+    # 运行期不执行 → 不把 litellm 拉进模块 import 图。配合 cast("ModelResponse", ...):
+    # acompletion 的签名是 ModelResponse | CustomStreamWrapper, 而本模块所有调用点
+    # 都未传 stream=True → 运行期恒为 ModelResponse。cast 只作类型层断言, 不改行为。
+    from litellm.types.utils import ModelResponse
 
 logger = structlog.get_logger(__name__)
 
@@ -259,7 +265,8 @@ class ScoringFaithfulnessChecker:
                 response_format={"type": "json_object"},
             )
 
-            content = response.choices[0].message.content
+            content = cast("ModelResponse", response).choices[0].message.content
+            assert content is not None  # _parse_json_response 契约要 str; 原代码传 None 同样炸在解析
             parsed = _parse_json_response(content)
             verifications = parsed.get("verifications", list())
 
@@ -340,7 +347,8 @@ class ScoringFaithfulnessChecker:
                 response_format={"type": "json_object"},
             )
 
-            content = response.choices[0].message.content
+            content = cast("ModelResponse", response).choices[0].message.content
+            assert content is not None  # _parse_json_response 契约要 str; 原代码传 None 同样炸在解析
             parsed = _parse_json_response(content)
             checks = parsed.get("consistency_checks", list())
 

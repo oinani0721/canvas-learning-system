@@ -20,10 +20,14 @@ vault 里不同学科之间的 Tag Jaccard 扩展 (Story 1.9 AC-5 的设计意�
 """
 
 import asyncio
-import logging
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Set, TYPE_CHECKING, Tuple
 
 import structlog
+
+if TYPE_CHECKING:
+    # 只取类型: 运行期不 import neo4j 驱动包。参数原注解是 object,
+    # 导致 `neo4j_driver.session()` 判属性未知。
+    from neo4j import AsyncDriver
 
 logger = structlog.get_logger(__name__)
 
@@ -117,7 +121,7 @@ async def find_related_subjects(
 
 async def expand_search_subjects(
     current_subject_id: str,
-    neo4j_driver: object,
+    neo4j_driver: "AsyncDriver",
     threshold: float = 0.3,
     group_id: str = "",
 ) -> List[str]:
@@ -194,7 +198,7 @@ async def expand_search_subjects(
 
 
 async def get_subject_tags_from_neo4j(
-    neo4j_driver: object,
+    neo4j_driver: "AsyncDriver",
     subject_id: str,
     group_id: str = "",
 ) -> Set[str]:

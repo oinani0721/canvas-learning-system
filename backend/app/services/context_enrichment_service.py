@@ -18,7 +18,6 @@ Features:
 """
 
 import asyncio
-import logging
 import re
 
 import structlog
@@ -201,9 +200,8 @@ def extract_and_resolve_wikilinks(
 
         inner = match.group(1)
         # Parse: NoteName#Heading|DisplayText
-        display = None
         if "|" in inner:
-            inner, display = inner.rsplit("|", 1)
+            inner, _display = inner.rsplit("|", 1)
         heading = None
         if "#" in inner:
             file_ref, heading = inner.split("#", 1)

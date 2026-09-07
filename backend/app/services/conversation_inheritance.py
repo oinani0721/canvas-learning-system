@@ -14,7 +14,6 @@ Callers:
 """
 
 import asyncio
-import logging
 from dataclasses import dataclass, field
 
 import structlog

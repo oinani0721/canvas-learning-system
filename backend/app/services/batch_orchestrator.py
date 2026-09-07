@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, cast
 
 import structlog
 
@@ -498,7 +498,9 @@ class BatchOrchestrator:
                     )
                 )
             else:
-                processed_results.append(result)
+                # 上一分支已 isinstance(result, Exception); 残留的 BaseException 分支
+                # (KeyboardInterrupt/SystemExit) 由 gather 直接抛出、不进 results。
+                processed_results.append(cast(GroupExecutionResult, result))
 
         return processed_results
 
@@ -559,6 +561,8 @@ class BatchOrchestrator:
                 )
                 failed_count += 1
             else:
+                # 同上: isinstance(result, Exception) 已分流, 此处恒为业务结果。
+                result = cast(NodeExecutionResult, result)
                 node_results.append(result)
                 if result.success:
                     completed_count += 1

@@ -16,7 +16,6 @@ from __future__ import annotations
 import asyncio
 import os
 import tempfile
-import uuid
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -38,8 +37,8 @@ from app.services.candidate_callout import (
     upsert_candidate_callout,
 )
 from app.services.candidate_state_machine import (
+    CandidateStatus,
     apply_status_change,
-    validate_status_transition,
 )
 from app.services.error_classifier import ClassifiedError
 from app.services.error_writer import (
@@ -270,7 +269,7 @@ async def accept_candidate(
         if not isinstance(candidates, list):
             candidates = []
 
-        idx, candidate = _find_candidate(candidates, candidate_id)
+        _idx, candidate = _find_candidate(candidates, candidate_id)
         if candidate is None:
             raise HTTPException(
                 status_code=404, detail=f"Candidate {candidate_id} not found"
@@ -467,7 +466,9 @@ async def _change_candidate_status_only(
     file_path: str | Path,
     candidate_id: str,
     *,
-    target_status: str,
+    # 注解层收紧: 该形参直接喂给 apply_status_change(target: CandidateStatus)。
+    # 两个调用点传的都是字面量 "dismissed" / "disputed", 均在 Literal 内。
+    target_status: CandidateStatus,
     dispute_reason: Optional[str] = None,
 ) -> DismissCandidateResult:
     """共享路径 (dismiss/dispute) — 仅改 candidate.status, 不动 errors[]."""
@@ -491,7 +492,7 @@ async def _change_candidate_status_only(
         if not isinstance(candidates, list):
             candidates = []
 
-        idx, candidate = _find_candidate(candidates, candidate_id)
+        _idx, candidate = _find_candidate(candidates, candidate_id)
         if candidate is None:
             raise HTTPException(
                 status_code=404, detail=f"Candidate {candidate_id} not found"

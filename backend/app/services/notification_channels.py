@@ -16,7 +16,7 @@ Provides:
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 
 # ✅ Verified from ADR-010:77-100 (structlog logging)
 import structlog
@@ -172,7 +172,7 @@ class ObsidianNotificationChannel(NotificationChannel):
         (Implemented in Story 15.x)
     """
 
-    def __init__(self, sse_manager: "SSEConnectionManager" = None):
+    def __init__(self, sse_manager: Optional["SSEConnectionManager"] = None):
         """Initialize Obsidian notification channel.
 
         Args:
@@ -336,7 +336,7 @@ class NotificationDispatcher:
 
 
 def create_default_dispatcher(
-    sse_manager: "SSEConnectionManager" = None,
+    sse_manager: Optional["SSEConnectionManager"] = None,
     log_path: str = "logs/alerts.log",
 ) -> NotificationDispatcher:
     """Create notification dispatcher with default channels.

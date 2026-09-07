@@ -17,7 +17,6 @@ from pathlib import Path
 from typing import Any
 
 import structlog
-import yaml
 from pydantic import BaseModel, Field
 
 from app.services.candidate_service import (
