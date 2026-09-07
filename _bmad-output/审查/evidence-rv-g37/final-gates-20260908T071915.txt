@@ -1,0 +1,31 @@
+# CARD-RV-G3-7 收工核验 @ 2026-09-08T07:19:15+08:00  HEAD=da690bf8817adc4a84b20d59a1b8d8db4a578969
+## (i)-1 backend/data 前后 diff (期望空)
+   UNCHANGED
+## (i)-2 车道树 backend/data/fsrs_card_states.json 泄漏检查
+   ok
+## (i)-3 主仓 live 两文件 sha256 (须与开工同)
+1c359244cf0d23a010b2760f524630c18fc9fc50733f470a69b47ebedaad40a0  /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/data/fsrs_card_states.json
+2a18023e71a046db8a8c52e098cd48bd0b9898596e4ea3024e18695827796cb6  /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/learning_events.jsonl
+   开工基线: 1c359244cf0d23a010b2760f524630c18fc9fc50733f470a69b47ebedaad40a0  (fsrs_card_states.json)
+   开工基线: 2a18023e71a046db8a8c52e098cd48bd0b9898596e4ea3024e18695827796cb6  (learning_events.jsonl)
+## (i)-4 canvas-vault 改动数 (期望 0)
+       0
+## (i)-5 零代码门: git diff --stat --no-color da690bf8 HEAD -- . ':(exclude)_bmad-output'
+   cmd rc=0  (空且 rc=0 = 零代码)
+## 裁判 10-a 终审绑定: git diff --stat <审SHA=HEAD> HEAD -- . ':(exclude)_bmad-output'
+   cmd rc=0
+## 裁判 10-b 存档模型字段
+3
+## (l) stderr 入库检查
+   git ls-files | grep -c stderr      = 1   <- 命中存量 census-stderr.txt (名字含字样, 非 .stderr 存档)
+   git ls-files | grep -cE '\.stderr' = 0
+0   <- 真判据口径
+## (l) board_manifest_last_run.json 是否待提交
+0
+   0
+## 工作区未跟踪/改动清单 (应只有 _bmad-output)
+?? "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-RV-G3-7.md"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-rv-g37/"
+?? "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-RV-G3-7.md"
+?? "_bmad-output/\351\252\214\346\224\266\345\215\225/UAT-CARD-RV-G3-7-2026-09-08.md"
+rc=0
